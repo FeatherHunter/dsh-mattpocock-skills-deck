@@ -32,18 +32,21 @@
 <text x="640" y="176" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="52" font-weight="800" letter-spacing="1" fill="url(#tG)">拨开迷雾看见终点，剩下的交给任务栏</text>
 <text x="640" y="226" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="25" fill="#b8b8c2">wayfinder 决策地图 · 动作注入 · 技能雷达 · 环境检查</text>
 <g>
-<rect x="276" y="250" width="168" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
-<circle cx="300" cy="268" r="6" fill="#FAB283"/>
-<text x="316" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">25 个工程技能</text>
-<rect x="460" y="250" width="170" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
-<circle cx="484" cy="268" r="6" fill="#9D7CD8"/>
-<text x="500" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">wayfinder 地图</text>
-<rect x="646" y="250" width="196" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
-<circle cx="670" cy="268" r="6" fill="#56B6C2"/>
-<text x="686" y="273" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16" letter-spacing="0.5" fill="#e6e6ee">/triage  ·  /grilling</text>
-<rect x="858" y="250" width="146" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
-<circle cx="882" cy="268" r="6" fill="#FAB283"/>
-<text x="898" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">handoff 交接</text>
+<rect x="272" y="250" width="156" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="296" cy="268" r="6" fill="#FAB283"/>
+<text x="312" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">25 个工程技能</text>
+<rect x="442" y="250" width="158" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="466" cy="268" r="6" fill="#9D7CD8"/>
+<text x="482" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">wayfinder 地图</text>
+<rect x="614" y="250" width="104" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="638" cy="268" r="6" fill="#56B6C2"/>
+<text x="654" y="273" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16" fill="#e6e6ee">/triage</text>
+<rect x="732" y="250" width="122" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="756" cy="268" r="6" fill="#56B6C2"/>
+<text x="772" y="273" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16" fill="#e6e6ee">/grilling</text>
+<rect x="868" y="250" width="140" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="892" cy="268" r="6" fill="#FAB283"/>
+<text x="908" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">handoff 交接</text>
 </g>
 <g filter="url(#glow)">
 <rect x="60" y="312" width="560" height="292" rx="18" fill="url(#cardG)" stroke="#26262f"/>
@@ -69,8 +72,8 @@
 <rect x="76" y="394" width="528" height="56" rx="10" fill="#0e0e14" stroke="#9D7CD8" stroke-opacity="0.5"/>
 <rect x="84" y="404" width="40" height="24" rx="6" fill="#1a1a24" stroke="#9D7CD8"/>
 <text x="104" y="421" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.5" font-weight="700" fill="#9D7CD8">MAP</text>
-<circle cx="142" cy="422" r="11" fill="none" stroke="#9D7CD8" stroke-width="2.4" stroke-dasharray="52 17"/>
-<text x="142" y="426" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="9.5" fill="#9D7CD8">3/12</text>
+<circle cx="142" cy="422" r="15" fill="none" stroke="#9D7CD8" stroke-width="2.2" stroke-dasharray="24 70"/>
+<text x="142" y="425" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="9" fill="#9D7CD8">3/12</text>
 <text x="164" y="416" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14" font-weight="700" fill="#f0f0f6">#104 [网站重构] 迁移实施 map</text>
 <text x="164" y="436" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12" fill="#8a8a94">v2.0 落地 · 12 张子票 · 3 张已推进</text>
 <circle cx="436" cy="422" r="5" fill="#9D7CD8"/>
