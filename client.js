@@ -117,6 +117,11 @@ return {
       '.dsws-skillpop::-webkit-scrollbar-thumb:hover{background:var(--dsw-alias-label-caption,#8b8b95);border-radius:4px;border:2px solid transparent;background-clip:padding-box}',
       '.dsws-seg{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px solid transparent;display:inline-flex;align-items:center;gap:4px}',
       '.dsws-seg:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));border-color:var(--dsw-alias-border-l1,#2a2d35)}',
+      // 需求1·二阶段（2026-08-18）：交接分割按钮 —— 共外框胶囊（overflow:hidden 裁掉内部 hover 圆角），细分隔线 1px×14px，左右半各自点击区 + hover 沿用 seg 背景
+      '.dsws-split{display:inline-flex;align-items:center;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:99px;flex:none;overflow:hidden}',
+      '.dsws-split .dsws-split-part{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;cursor:pointer}',
+      '.dsws-split .dsws-split-part:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
+      '.dsws-split .dsws-split-div{width:1px;height:14px;background:var(--dsw-alias-border-l1,#2a2d35);flex:none}',
       '.dsws-timebtn{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px dashed transparent;color:var(--dsw-alias-label-caption,#8b8b95);white-space:nowrap;font-variant-numeric:tabular-nums;flex:none}',
       '.dsws-timebtn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));border-color:var(--dsw-alias-border-l1,#2a2d35);color:var(--dsw-alias-label-primary,#e6edf3)}',
       '.dsws-uirow{display:flex;align-items:center;gap:6px;margin:4px 0;flex-wrap:wrap}',
@@ -311,6 +316,7 @@ return {
         'nav.handoffReady': '交接给新会话',
         'nav.handoffTitle': '交接：发送 /handoff 生成交接文档',
         'nav.handoffReadyTitle': '开新会话并预填交接文档路径',
+        'nav.handoffGreyTitle': '尚未生成交接文档：先点「交接」生成',
         'nav.skillsTitle': '技能套件：点击展开技能列表，点击技能名插入当前会话',
         'nav.skillHint': '点击技能名 → 插入到当前会话',
         'banner.setup': 'setup 未执行',
@@ -423,6 +429,7 @@ return {
         'toast.copiedHandoffFile': '已复制交接文档指令：{file}',
         'toast.copiedHandoffNoLatest': '已复制交接文档指令（无法查询最新文档，兜底）',
         'toast.handoffNotFound': '未找到交接文档，已复制默认路径；可先发送 /handoff 生成',
+        'toast.handoffGrey': '请先点「交接」生成交接文档',
         'toast.copiedHandoffFail': '已复制交接文档指令（查询失败兜底）',
         'toast.injected': '已注入输入框，确认后发送',
         'toast.copiedFallback': '已复制到剪贴板（输入框不可用，兜底）',
@@ -536,6 +543,7 @@ return {
         'nav.handoffReady': 'Handoff · new session',
         'nav.handoffTitle': 'Handoff: send /handoff to generate the handoff doc',
         'nav.handoffReadyTitle': 'Open a new session with the handoff doc path prefilled',
+        'nav.handoffGreyTitle': 'No handoff doc yet — click Handoff first to generate one',
         'nav.skillsTitle': 'Skill suite: expand the skill list; click a skill to insert it into this session',
         'nav.skillHint': 'Click a skill to insert it into this session',
         'banner.setup': 'setup not run yet',
@@ -648,6 +656,7 @@ return {
         'toast.copiedHandoffFile': 'Handoff command copied: {file}',
         'toast.copiedHandoffNoLatest': 'Handoff command copied (cannot query the latest doc, fallback)',
         'toast.handoffNotFound': 'Handoff doc not found; default path copied. Send /handoff first to generate',
+        'toast.handoffGrey': 'Click Handoff first to generate the handoff doc',
         'toast.copiedHandoffFail': 'Handoff command copied (query failed, fallback)',
         'toast.injected': 'Injected into the input box — confirm before sending',
         'toast.copiedFallback': 'Copied to clipboard (input box unavailable)',
@@ -1064,7 +1073,7 @@ return {
       stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
       checks: null, checksUpdatedAt: '', checksMode: 'loading', checksError: null, checking: false,
       snapMode: 'loading', snapError: null, snapLoading: false,
-      refreshing: false, rowFlash: {}, issueFlash: {}, skillsOpen: false, skillHover: null, skillTip: null, expTags: {}, subs: [],
+      refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, skillsOpen: false, skillHover: null, skillTip: null, expTags: {}, subs: [],
     })
     const shared = makeStore()
     const stores = {}
@@ -1673,6 +1682,7 @@ return {
       handoffTs = timeStampStr()
       const text = handoffPrompt(handoffTs)
       handoffFile = extractHandoffFile(text) || (handoffTs + '.md')
+      st.handoffReady = true  // 需求1·二阶段：第一击成功 → 右半亮蓝（tooltip 同切 nav.handoffReadyTitle）
       inject(st, text)
       flash(st, tr('toast.injectedHandoff'), 'ok')
     }
@@ -1689,21 +1699,31 @@ return {
           pendingDraft = null
         }
       }
-      // v24：第一击模板指定的时间戳文件名优先（与模板完全一致）
+      // 需求1·二阶段（引导门，2026-08-18）：未点过第一击 → 先探测磁盘 .scratch/handoff/ 最新文档；
+      //   有 latest 才放行 + 右半置 ready + 开新会话；没有 → toast 引导先点「交接」，不再开空会话（删除原糊涂分支）
+      const settle = function (ok, file) {
+        st.handoffReady = !!ok
+        if (ok && file) {
+          emit(st)  // 立即反映亮蓝（finish 内副本 toast 的 flash 会再次 emit，无害）
+          finish(file, tr('toast.copiedHandoffFile', { file: file }))
+        } else {
+          flash(st, tr('toast.handoffGrey'), 'warn')
+        }
+      }
       if (handoffFile) {
+        // v24：本会话已点过第一击 → 优先复用第一击文件名（与模板完全一致）
         finish(handoffFile, tr('toast.copiedHandoffFile', { file: handoffFile }))
         return
       }
       if (typeof host === 'undefined' || typeof host.call !== 'function') {
-        finish(null, tr('toast.copiedHandoffNoLatest'))
+        settle(false, null)
         return
       }
       host.call('wf.handoffLatest', cwdArg).then(function (res) {
         const file = (res && res.ok && res.file) ? res.file : null
-        if (file) finish(file, tr('toast.copiedHandoffFile', { file: file }))
-        else finish(null, tr('toast.handoffNotFound'))
+        settle(!!file, file)
       }).catch(function () {
-        finish(null, tr('toast.copiedHandoffFail'))
+        settle(false, null)
       })
     }
 
@@ -1845,9 +1865,19 @@ return {
         seg('alert', [h('span', null, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, tr('nav.bugTitle')),
         seg('search', [h('span', null, tr('nav.triage')), num(String(triageN), '2ch')], '#f59e0b', function () { s.stateFilter = 'open'; s.lblFilters = ['needs-triage']; go('list') }, tr('nav.triageTitle')),
         seg('note', tr('nav.word'), '#c084fc', function () { injectFixate(s) }, tr('nav.fixateTitle')),
-        seg('handoff', tr('nav.handoff'), '#58a6ff', function () { doHandoff(s) }, tr('nav.handoffTitle')),
-        // 需求1（2026-08-18）：交接右侧「新会话交接」小按钮 —— 点击 = 原「第二击」：复制交接读取 prompt + 开新会话
-        seg('handoff-open', null, '#58a6ff', function () { doHandoffOpen(s) }, tr('nav.handoffReadyTitle')),
+        // 需求1·二阶段（2026-08-18）：交接分割按钮 —— 共外框 + 细分隔线；左半「交接」= 第一击生成、
+        //   右半「交接出去」= 原第二击（探测磁盘最新文档 → 预填 + 开新会话）。各自点击区/tooltip 保留，hover 沿用 seg 背景。
+        //   右半灰/亮双态：handoffReady → 亮蓝 #58a6ff（tooltip nav.handoffReadyTitle）；未 ready → 半透明灰（tooltip nav.handoffGreyTitle）
+        h('span', { className: 'dsws-split' }, [
+          h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoff(s) }, title: tr('nav.handoffTitle'), style: { color: '#58a6ff' } }, [
+            Ic({ n: 'handoff', size: 12 }),
+            tr('nav.handoff'),
+          ]),
+          h('span', { className: 'dsws-split-div' }),
+          h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoffOpen(s) }, title: s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle'), style: { color: s.handoffReady ? '#58a6ff' : '#8b8b95', opacity: s.handoffReady ? 1 : 0.6 } }, [
+            Ic({ n: 'handoff-open', size: 12 }),
+          ]),
+        ]),
         // v19-36：环境段移至末尾（更新左侧），用户少点
         seg('dot', [h('span', null, tr('nav.env')), num(envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') }, tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) })),
         // v1.5 T10：刷新反馈 = 图标转圈（文字恒定不换 · 控件宽度零变化）
