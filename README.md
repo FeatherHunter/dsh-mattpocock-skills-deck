@@ -1,6 +1,6 @@
 # 🧠 dsh-mattpocock-skills-deck
 
-**让 AI 不只是聊天，还能把事办成 —— [mattpocock/skills](https://github.com/mattpocock/skills) 技能套件的 DSH 控制面板（MattSkills）。**
+**让 AI 不只是聊天，还能把事办成 —— 把 [mattpocock/skills](https://github.com/mattpocock/skills) 变成 DSH 里的游戏任务系统（MattSkills）。**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck)
@@ -21,6 +21,18 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 ![装完长这样 · 30 秒后的 DSH](assets/after-install-zh.svg)
 
 刷新即生效，零配置 —— 剩下的交给 AI。
+
+## 🎮 设计理念
+
+Matt Pocock 的 skills 很强：wayfinder 先画一张 **map**，拨开迷雾、看到终点。但地图只告诉你终点在哪——路要一步一步走，每一步谁来推？
+
+MattSkills 在 map 之上加了一层**任务系统**，把 skills 变成 DSH 里一套游戏式的操作台：
+
+- **接任务** —— 地图上每个可推进的点都是「可接」任务，点一下接过来
+- **推进一步** —— 完成一个子任务，进度圆环走一格，下一个任务自动浮现
+- **随时存档** —— 卡住了标记「阻塞」；要离开就「沉淀」快照；回来或交接给同伴，上下文一点不丢
+
+迷雾还在，但你已经有了地图和任务栏。
 
 免全局安装：`npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck`
 

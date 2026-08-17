@@ -1,6 +1,7 @@
 # dsh-mattpocock-skills-deck
 
 > DSH（DeepSeek Harness）Web 界面的 **Matt Skills Deck 控制面板**插件（Client + Host 双端）——**非官方** Matt Pocock 技能套件（mattpocock/skills）配套工具：wayfinder 地图/票务/进度、triage / grilling / handoff 动作注入。
+> **设计理念**：Matt 的 map 拨开迷雾看到终点；本插件再加一层游戏式任务栏——接任务、推进一步、随时存档交接，每一步都清晰可见。
 > **配合 [Matt Pocock skills](https://github.com/mattpocock/skills) 的 wayfinder / triage / grilling / handoff 等技能使用**：
 > 输入区状态栏胶囊（可接/阻塞/沉淀/交接/环境/更新）+ 右侧 details 列面板（列表 / 技能 / 环境检查三视图，
 > 唯一打开形式）+ GitHub issue 动作注入（诊断 / 修复 / 讨论 / 执行，均带 `/wayfinder` `/triage` 技能命令）
