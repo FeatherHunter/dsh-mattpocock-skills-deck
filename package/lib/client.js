@@ -321,6 +321,16 @@ window.__ModuleLoader__.load({
           'banner.skills': '未检测到核心技能套件（wayfinder / triage / grilling / grill-me / implement / ask-matt 等）：{list}。安装后才能使用全流程功能。',
           'banner.skillsBtn': '帮我安装 Matt 技能套件',
           'banner.setupBtn': '帮我执行 /setup-matt-pocock-skills',
+          'banner.ghcli': '未安装 GitHub CLI —— 面板所有数据都依赖 gh，请先安装',
+          'banner.ghcliBtn': '打开安装页',
+          'banner.ghauth': '未登录 GitHub —— 运行 gh auth login（浏览器授权）后再使用',
+          'banner.ghauthBtn': '查看登录指南',
+          'env.installBtn': '安装引导',
+          'env.guide': '配置引导 · 按顺序完成',
+          'env.g1': '安装 GitHub CLI',
+          'env.g2': '登录 GitHub',
+          'env.g3': '运行 setup 初始化（选 GitHub tracker）',
+          'env.g4': '安装 Matt skills 技能套件',
           'act.diagnose': '诊断',
           'act.fix': '修复',
           'act.discuss': '讨论',
@@ -537,6 +547,16 @@ window.__ModuleLoader__.load({
           'banner.skills': 'Core skill suite missing (wayfinder / triage / grilling / grill-me / implement / ask-matt …): {list}. Install them to use the full workflow.',
           'banner.skillsBtn': 'Install the Matt skill suite for me',
           'banner.setupBtn': 'Run /setup-matt-pocock-skills for me',
+          'banner.ghcli': 'GitHub CLI not installed — all panel data depends on gh, install it first',
+          'banner.ghcliBtn': 'Open install page',
+          'banner.ghauth': 'Not signed in to GitHub — run gh auth login (browser auth) first',
+          'banner.ghauthBtn': 'View sign-in guide',
+          'env.installBtn': 'Install guide',
+          'env.guide': 'Setup guide · complete in order',
+          'env.g1': 'Install GitHub CLI',
+          'env.g2': 'Sign in to GitHub',
+          'env.g3': 'Run skill setup (choose GitHub tracker)',
+          'env.g4': 'Install Matt skills suite',
           'act.diagnose': 'Diagnose',
           'act.fix': 'Fix',
           'act.discuss': 'Discuss',
@@ -1737,6 +1757,10 @@ window.__ModuleLoader__.load({
         // v1.5 T10 R9（Q4 拍板）：关键动作（完成/执行/交接/认领）后延迟探测，面板尽快反映变化
         scheduleActionProbe()
       }
+      // v1.5 技能安装引导 Prompt（用户拍板 2026-08-17）：复制/注入到对话由 AI 读官方文档自适应安装（位置显式声明 ~/.agents/skills）
+      const SKILL_INSTALL_PROMPT = '请阅读官方安装文档 https://github.com/mattpocock/skills#installation ，为当前系统安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）。\n\n要求：\n1. 根据当前环境选择合适的安装方式（Claude Code 插件 / npx skills@latest add / 手动复制）；\n2. 安装到 DSH 读取的技能目录：用户主目录下的 .agents/skills（~/.agents/skills）；\n3. 安装后验证 wayfinder / triage / grilling / handoff / setup-matt-pocock-skills 等技能文件已就位；\n4. 完成后汇报安装结果与已装技能清单。'
+      // v1.5 引导链：打开外部 URL（gh 安装/登录文档）
+      const openUrl = function (url) { try { if (typeof window !== 'undefined' && window.open) window.open(url, '_blank') } catch (e) { /* 忽略 */ } }
       const copyText = (st, text, okMsg) => {
         if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(text).then(function () { flash(st, okMsg || tr('toast.copied'), 'ok') }).catch(function () { flash(st, tr('toast.copyFailed'), 'warn') })
@@ -1797,9 +1821,14 @@ window.__ModuleLoader__.load({
         const timeStr = timeOf(s.snapshot) || (s.checksUpdatedAt ? s.checksUpdatedAt.slice(5, 16) : '') || '-- --:--'
         const setup = setupCheck(s)
         const amber = s.checksMode === 'real' && setup && setup.level !== 'ok'
-        // v1.5 T11：核心技能套件检测（检查 9）—— 缺失时横幅优先于 setup 提示
+        // v1.5 T11：核心技能套件检测（检查 9）
         const skillsCheck = (s.checks || []).find(function (c) { return c.id === 9 })
         const skillsBad = s.checksMode === 'real' && skillsCheck && skillsCheck.level !== 'ok'
+        // v1.5 引导依赖链（用户拍板 2026-08-17）：gh CLI → gh 登录 → setup → 技能 —— banner 显示依赖链上第一个缺失项
+        const ghCliCheck = (s.checks || []).find(function (c) { return c.id === 4 })
+        const ghAuthCheck = (s.checks || []).find(function (c) { return c.id === 5 })
+        const ghCliBad = s.checksMode === 'real' && ghCliCheck && ghCliCheck.level !== 'ok'
+        const ghAuthBad = s.checksMode === 'real' && ghAuthCheck && ghAuthCheck.level !== 'ok'
         const go = function (tab) { s.tab = tab; openPanel(s) }
         // v14-22：数字区固定两位数等宽（环境 5ch 容 '98/99'；可接/占用 2ch）
         const num = (txt, minW) => h('span', { className: 'dsws-num', style: minW ? { minWidth: minW } : null }, txt)
@@ -1822,20 +1851,24 @@ window.__ModuleLoader__.load({
           // v1.5 T10：刷新反馈 = 图标转圈（文字恒定不换 · 控件宽度零变化）
           h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, title: tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('nav.refresh') + ' ' + timeStr)]),
         ])
-        // 用户拍板 2026-08-16：横幅移到状态栏上方（技能检测 / setup 检测的提示弹窗置顶）
-        if (!amber && !skillsBad) return h('div', { style: { display: 'flex', justifyContent: 'center', padding: '3px 8px 0' } }, [capsule])
+        // 用户拍板 2026-08-16 + 2026-08-17：横幅移到状态栏上方；依赖链 gh → 登录 → setup → 技能，显示第一个缺失项
+        const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
+        if (!firstBlock) return h('div', { style: { display: 'flex', justifyContent: 'center', padding: '3px 8px 0' } }, [capsule])
+        const bann = function (text, btnLabel, onBtn) {
+          return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
+            Ic({ n: 'alert', size: 13 }),
+            h('span', { style: { flex: 1 } }, text),
+            h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: onBtn }, btnLabel),
+          ])
+        }
         return h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0' } }, [
-          skillsBad
-            ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
-                Ic({ n: 'alert', size: 13 }),
-                h('span', { style: { flex: 1 } }, tr('banner.skills', { list: (skillsCheck && skillsCheck.detail) || '' })),
-                h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { inject(s, promptText('setup')) } }, tr('banner.skillsBtn')),
-              ])
-            : h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
-                Ic({ n: 'alert', size: 13 }),
-                h('span', null, tr('banner.setup')),
-                h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { inject(s, promptText('setupRun')) } }, tr('banner.setupBtn')),
-              ]),
+          firstBlock === 'ghcli'
+            ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { openUrl('https://cli.github.com/') })
+            : firstBlock === 'ghauth'
+              ? bann(tr('banner.ghauth'), tr('banner.ghauthBtn'), function () { openUrl('https://cli.github.com/manual/gh_auth_login') })
+              : firstBlock === 'setup'
+                ? bann(tr('banner.setup'), tr('banner.setupBtn'), function () { inject(s, promptText('setupRun')) })
+                : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.detail) || '' }), tr('banner.skillsBtn'), function () { inject(s, SKILL_INSTALL_PROMPT) }),
           capsule,
         ])
       }
@@ -2709,6 +2742,11 @@ window.__ModuleLoader__.load({
         // #373：hint 支持两种形态 —— URL（可打开/复制）或 /命令（「用 /xxx 处理」按钮，保留兼容）
         const actBtn = (c) => {
           const hint = c.hint || ''
+          // v1.5：prompt: 协议 —— 复制/注入一段引导 prompt 让 AI 执行（如技能安装引导）
+          if (hint.indexOf('prompt:') === 0) {
+            const ptext = hint.slice(7)
+            return h('button', { className: 'dsws-btn', onClick: function () { inject(st, ptext) }, style: { fontSize: 11, padding: '2px 8px' } }, tr('env.installBtn'))
+          }
           if (/^https?:\/\//i.test(hint)) {
             return h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
               h('a', { href: hint, target: '_blank', rel: 'noreferrer', className: 'dsws-btn', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('env.openUrl'))]),
@@ -2731,24 +2769,61 @@ window.__ModuleLoader__.load({
         // 环境检查页顶部横幅（用户拍板 2026-08-16：优先级链，不并存）
         //   技能未装全 → matte 横幅；技能已装但 setup 未执行 → setup 横幅；都 ok → 不显示
         const skillsCheck2 = activeChecks(st).find(function (c) { return c.id === 9 })
+        const ghCli2 = activeChecks(st).find(function (c) { return c.id === 4 })
+        const ghAuth2 = activeChecks(st).find(function (c) { return c.id === 5 })
         const setupCheck2 = activeChecks(st).find(function (c) { return c.id === 2 })
         const skillsOk = !skillsCheck2 || skillsCheck2.level === 'ok'
         const setupOk = !setupCheck2 || setupCheck2.level === 'ok'
-        const topBanner = (!skillsOk)
+        const ghCliOk2 = !ghCli2 || ghCli2.level === 'ok'
+        const ghAuthOk2 = !ghAuth2 || ghAuth2.level === 'ok'
+        // v1.5 引导依赖链（用户拍板 2026-08-17）：gh CLI → gh 登录 → setup → 技能，显示第一个缺失项
+        const topBanner = (!ghCliOk2)
           ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
-              Ic({ n: 'star', size: 13 }),
-              h('span', { style: { flex: 1 } }, tr('matte.banner')),
-              h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(188,140,255,.55)' }, onClick: function () { copyText(st, tr('matte.prompt'), tr('toast.copied')) } }, tr('matte.copyPrompt')),
+              Ic({ n: 'alert', size: 13 }),
+              h('span', { style: { flex: 1 } }, tr('banner.ghcli')),
+              h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { openUrl('https://cli.github.com/') } }, tr('banner.ghcliBtn')),
             ])
-          : (!setupOk)
+          : (!ghAuthOk2)
             ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
                 Ic({ n: 'alert', size: 13 }),
-                h('span', { style: { flex: 1 } }, tr('banner.setup')),
-                h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { inject(st, promptText('setupRun')) } }, tr('banner.setupBtn')),
+                h('span', { style: { flex: 1 } }, tr('banner.ghauth')),
+                h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { openUrl('https://cli.github.com/manual/gh_auth_login') } }, tr('banner.ghauthBtn')),
               ])
-            : null
+            : (!skillsOk)
+              ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
+                  Ic({ n: 'star', size: 13 }),
+                  h('span', { style: { flex: 1 } }, tr('banner.skills', { list: (skillsCheck2 && skillsCheck2.detail) || '' })),
+                  h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(188,140,255,.55)' }, onClick: function () { inject(st, SKILL_INSTALL_PROMPT) } }, tr('banner.skillsBtn')),
+                ])
+              : (!setupOk)
+                ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
+                    Ic({ n: 'alert', size: 13 }),
+                    h('span', { style: { flex: 1 } }, tr('banner.setup')),
+                    h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { inject(st, promptText('setupRun')) } }, tr('banner.setupBtn')),
+                  ])
+                : null
+        // v1.5 配置引导顺序区（用户拍板 2026-08-17）：依赖链 1-2-3-4，完成自动勾选
+        const okOf = function (c) { return !c || c.level === 'ok' }
+        const guideSteps = [
+          { done: okOf(ghCli2), label: tr('env.g1'), act: function () { openUrl('https://cli.github.com/') }, btn: tr('banner.ghcliBtn') },
+          { done: okOf(ghAuth2), label: tr('env.g2'), act: function () { openUrl('https://cli.github.com/manual/gh_auth_login') }, btn: tr('banner.ghauthBtn') },
+          { done: okOf(setupCheck2), label: tr('env.g3'), act: function () { inject(st, promptText('setupRun')) }, btn: tr('banner.setupBtn') },
+          { done: okOf(skillsCheck2), label: tr('env.g4'), act: function () { inject(st, SKILL_INSTALL_PROMPT) }, btn: tr('banner.skillsBtn') },
+        ]
+        const guideAll = guideSteps.every(function (s) { return s.done })
+        const guideBlock = guideAll ? null : h('div', { className: 'dsws-ccard', style: { marginBottom: 8 } }, [
+          h('div', { className: 'dsws-cgroup' }, [h('span', { style: { fontWeight: 600 } }, tr('env.guide'))]),
+          guideSteps.map(function (s, i) {
+            return h('div', { key: i, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px' } }, [
+              h('span', { style: { width: 16, height: 16, borderRadius: '50%', border: '1px solid ' + (s.done ? '#4ade80' : '#8b8b95'), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: s.done ? '#4ade80' : 'transparent', flex: 'none' } }, s.done ? '\u2713' : String(i + 1)),
+              h('span', { style: { flex: 1 } }, s.label),
+              s.done ? null : h('button', { className: 'dsws-btn', onClick: s.act, style: { fontSize: 11, padding: '2px 8px', flex: 'none' } }, s.btn),
+            ])
+          }),
+        ])
         return h('div', null, [
           topBanner,
+          guideBlock,
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 12 } }, [
             h('span', { style: { display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'gear', size: 12 }), h('span', null, tr('env.title', { n: envLabel(st) }))]),
             h('span', { style: { flex: 1 } }),

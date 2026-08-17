@@ -628,6 +628,8 @@ export function apply(ctx) {
 
   // 检查 7/8 · 技能安装探测（#373 拍板：两态 —— 已安装/未安装；去掉不可靠的「挂载」判定）
   const SKILL_INSTALL_URL = 'https://github.com/mattpocock/skills'
+  // 技能安装引导 Prompt（用户拍板 2026-08-17）：复制到对话由 AI 读官方文档自适应安装；hint 用 prompt: 协议由 client 渲染「安装引导」注入按钮
+  const SKILL_INSTALL_PROMPT = '请阅读官方安装文档 https://github.com/mattpocock/skills#installation ，为当前系统安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）。\n\n要求：\n1. 根据当前环境选择合适的安装方式（Claude Code 插件 / npx skills@latest add / 手动复制）；\n2. 安装到 DSH 读取的技能目录：用户主目录下的 .agents/skills（~/.agents/skills）；\n3. 安装后验证 wayfinder / triage / grilling / handoff / setup-matt-pocock-skills 等技能文件已就位；\n4. 完成后汇报安装结果与已装技能清单。'
   async function probeSkill(name) {
     let session = false
     const skills = ctx.get('skills')
@@ -648,8 +650,8 @@ export function apply(ctx) {
     if (session && fsFound) return { ok: true, level: 'ok', detail: '已安装（会话已挂载 · ' + fsFound + '）', hint: '', repo: null }
     if (session) return { ok: true, level: 'ok', detail: '已安装（会话已挂载）', hint: '', repo: null }
     if (fsFound) return { ok: true, level: 'ok', detail: '已安装（' + fsFound + '）', hint: '', repo: null }
-    if (home === null) return { ok: false, level: 'bad', detail: '未安装（无法探测用户主目录）', hint: SKILL_INSTALL_URL, repo: null }
-    return { ok: false, level: 'bad', detail: '未安装', hint: SKILL_INSTALL_URL, repo: null }
+    if (home === null) return { ok: false, level: 'bad', detail: '未安装（无法探测用户主目录）', hint: 'prompt:' + SKILL_INSTALL_PROMPT, repo: null }
+    return { ok: false, level: 'bad', detail: '未安装', hint: 'prompt:' + SKILL_INSTALL_PROMPT, repo: null }
   }
 
   // v1.5 T11：检查 9 · 核心技能套件聚合（全流程技能缺失检测）
@@ -660,7 +662,7 @@ export function apply(ctx) {
       if (r.level !== 'ok') missing.push(SKILL_PROBE_NAMES[i])
     }
     if (!missing.length) return { ok: true, level: 'ok', detail: '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '', repo: null }
-    return { ok: false, level: 'bad', detail: '缺失：' + missing.join(' / '), hint: SKILL_INSTALL_URL, repo: null }
+    return { ok: false, level: 'bad', detail: '缺失：' + missing.join(' / '), hint: 'prompt:' + SKILL_INSTALL_PROMPT, repo: null }
   }
 
   const CHECK_NAMES = ['仓库定位', 'setup 已执行', 'tracker = GitHub', 'gh CLI 可用', 'gh 已登录', 'API 可达', 'wayfinder 技能', 'ask-matt 技能', '核心技能套件']
