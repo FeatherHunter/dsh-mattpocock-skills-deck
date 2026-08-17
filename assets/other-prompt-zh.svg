@@ -19,9 +19,9 @@
 <path d="M86.5 110.5h31" stroke="#FAB283" stroke-width="3" stroke-linecap="round"/>
 <path d="M93 122h18" stroke="#FAB283" stroke-width="3" stroke-linecap="round"/>
 <text x="156" y="84" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="24" font-weight="700" fill="#f0f0f6">dsh-prompt</text>
-<text x="156" y="112" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="17" fill="#8a8a94">github.com/FeatherHunter/dsh-prompt</text>
-<text x="470" y="84" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" fill="#b8b8c2">写 Prompt 卡壳的时候，</text>
-<text x="470" y="112" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" fill="#b8b8c2">里面有 24 条深度模板，点一下直接进输入框。</text>
+<text x="156" y="112" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="17" fill="#8a8a94">FeatherHunter/dsh-prompt</text>
+<text x="480" y="84" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" fill="#b8b8c2">写 Prompt 卡壳的时候，</text>
+<text x="480" y="112" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" fill="#b8b8c2">里面有 24 条深度模板，点一下直接进输入框。</text>
 <text x="1220" y="52" text-anchor="end" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#FAB283">点击访问 ↗</text>
 </g>
 </svg>
