@@ -17,13 +17,27 @@
 
 ## 🚀 装它（30 秒）
 
+三个命令分开复制 — 已装过的步骤直接跳过：
+
+**① 安装 DSH CLI（仅首次 · 一次性）**
+
 ```bash
-npm install -g @deepseek-ai/dsh                       # 首次装 CLI
-dsh plugin --profile web add dsh-better-sidebar       # 推荐先装：VSCode 风右侧边栏，面板效果最佳
-dsh plugin --profile web add dsh-mattpocock-skills-deck
+npm install -g @deepseek-ai/dsh
 ```
 
-> 💡 面板在 [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) 的侧边栏打开效果最好（并排看列表 / 详情）。不装也能用（右侧 details 列），只是窄屏体验略逊。
+**② 前置推荐：better-sidebar（可选 · 已装可跳过）**
+
+```bash
+dsh plugin --profile web add dsh-better-sidebar
+```
+
+> 💡 面板在 [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) 的 VSCode 风侧边栏打开效果最好（并排看列表 / 详情）。不装也能用（右侧 details 列），只是窄屏体验略逊。
+
+**③ 安装 MattSkills**
+
+```bash
+dsh plugin --profile web add dsh-mattpocock-skills-deck
+```
 
 ![装完长这样 · 30 秒后的 DSH](assets/after-install-zh.svg)
 

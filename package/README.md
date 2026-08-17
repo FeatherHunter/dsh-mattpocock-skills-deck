@@ -65,7 +65,7 @@ npx --yes @deepseek-ai/dsh --version
 用 DSH CLI（`dsh`）或 npx 临时命令（跨平台，Windows / macOS / Linux 同一句；
 `~/.dsh` = DSH 的家，`DSH_HOME` 自定义过就换成它的路径）：
 
-**前置推荐（可选但强烈建议）——[dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)**：VSCode 风右侧边栏，面板在侧边栏并排打开效果最好；不装则回退到右侧 details 列打开。
+**前置推荐（可选但强烈建议 · 已装可跳过）——[dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)**：VSCode 风右侧边栏，面板在侧边栏并排打开效果最好；不装则回退到右侧 details 列打开。
 
 ```bash
 dsh plugin --profile web add dsh-better-sidebar

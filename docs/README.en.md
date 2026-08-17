@@ -15,13 +15,27 @@
 
 ## 🚀 Install it (30 seconds)
 
+Three commands, each copyable on its own — skip anything you've already installed:
+
+**① Install the DSH CLI (first time only)**
+
 ```bash
-npm install -g @deepseek-ai/dsh                       # first time: the DSH CLI
-dsh plugin --profile web add dsh-better-sidebar       # recommended: VSCode-style sidebar for the best experience
-dsh plugin --profile web add dsh-mattpocock-skills-deck
+npm install -g @deepseek-ai/dsh
 ```
 
-> 💡 The panel looks best inside [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) (side-by-side list & detail). It still works without it (right details column), just a bit tighter on narrow screens.
+**② Optional but recommended: better-sidebar (skip if installed)**
+
+```bash
+dsh plugin --profile web add dsh-better-sidebar
+```
+
+> 💡 The panel looks best inside [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)'s VSCode-style sidebar (side-by-side list & detail). It still works without it (right details column), just a bit tighter on narrow screens.
+
+**③ Install MattSkills**
+
+```bash
+dsh plugin --profile web add dsh-mattpocock-skills-deck
+```
 
 ![See what you get — DSH in 30 seconds](../assets/after-install-en.svg)
 
