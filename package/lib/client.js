@@ -87,6 +87,12 @@ window.__ModuleLoader__.load({
       '.dsws-skill{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px}',
       '.dsws-skill:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06))}',
       '.dsws-skill .dsws-tt{flex:1;min-width:0}',
+      // 需求2（2026-08-18）：技能浮层主题化滚动条
+      '.dsws-skillpop{scrollbar-width:thin;scrollbar-color:var(--dsw-alias-border-l2,#3a3f4a) transparent}',
+      '.dsws-skillpop::-webkit-scrollbar{width:8px}',
+      '.dsws-skillpop::-webkit-scrollbar-track{background:transparent}',
+      '.dsws-skillpop::-webkit-scrollbar-thumb{background:var(--dsw-alias-border-l2,#3a3f4a);border-radius:4px;border:2px solid transparent;background-clip:padding-box}',
+      '.dsws-skillpop::-webkit-scrollbar-thumb:hover{background:var(--dsw-alias-label-caption,#8b8b95);border-radius:4px;border:2px solid transparent;background-clip:padding-box}',
       '.dsws-seg{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px solid transparent;display:inline-flex;align-items:center;gap:4px}',
       '.dsws-seg:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));border-color:var(--dsw-alias-border-l1,#2a2d35)}',
       '.dsws-timebtn{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px dashed transparent;color:var(--dsw-alias-label-caption,#8b8b95);white-space:nowrap;font-variant-numeric:tabular-nums;flex:none}',
@@ -318,6 +324,7 @@ window.__ModuleLoader__.load({
           'nav.handoffTitle': '交接：发送 /handoff 生成交接文档',
           'nav.handoffReadyTitle': '开新会话并预填交接文档路径',
           'nav.skillsTitle': '技能套件：点击展开技能列表，点击技能名插入当前会话',
+          'nav.skillHint': '点击技能名 → 插入到当前会话',
           'banner.setup': 'setup 未执行',
           'banner.skills': '未检测到核心技能套件（wayfinder / triage / grilling / grill-me / implement / ask-matt 等）：{list}。安装后才能使用全流程功能。',
           'banner.skillsBtn': '帮我安装 Matt 技能套件',
@@ -542,6 +549,7 @@ window.__ModuleLoader__.load({
           'nav.handoffTitle': 'Handoff: send /handoff to generate the handoff doc',
           'nav.handoffReadyTitle': 'Open a new session with the handoff doc path prefilled',
           'nav.skillsTitle': 'Skill suite: expand the skill list; click a skill to insert it into this session',
+          'nav.skillHint': 'Click a skill to insert it into this session',
           'banner.setup': 'setup not run yet',
           'banner.skills': 'Core skill suite missing (wayfinder / triage / grilling / grill-me / implement / ask-matt …): {list}. Install them to use the full workflow.',
           'banner.skillsBtn': 'Install the Matt skill suite for me',
@@ -1068,7 +1076,7 @@ window.__ModuleLoader__.load({
         stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
         checks: null, checksUpdatedAt: '', checksMode: 'loading', checksError: null, checking: false,
         snapMode: 'loading', snapError: null, snapLoading: false,
-        skillsOpen: false, expTags: {}, subs: [],
+        skillsOpen: false, skillHover: null, skillTip: null, expTags: {}, subs: [],
       })
       const shared = makeStore()
       const stores = {}
@@ -1856,11 +1864,28 @@ window.__ModuleLoader__.load({
           // 需求2（2026-08-18）：状态栏末尾技能列表按钮 —— 点击向上展开技能名列表，点击技能名插入 /<技能名> 到当前会话
           h('span', { className: 'dsws-skillbtn' + (s.skillsOpen ? ' on' : ''), onClick: function (e) { e.stopPropagation(); s.skillsOpen = !s.skillsOpen; emit(s) }, title: tr('nav.skillsTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '1px 4px', borderRadius: 4, cursor: 'pointer', color: s.skillsOpen ? '#c084fc' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [Ic({ n: 'skills', size: 12 })]),
           s.skillsOpen ? h('div', { className: 'dsws-skillpop', style: { position: 'absolute', bottom: '100%', right: 0, marginBottom: 4, zIndex: 9999, minWidth: 150, maxHeight: 300, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
-            h('div', { style: { fontSize: 10, fontWeight: 600, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '3px 8px', textTransform: 'uppercase', letterSpacing: '.05em' } }, tr('panel.tabSkills')),
+            // 悬浮记忆：鼠标移到行上立即出现浮层（替代浏览器原生 title 的慢延迟）
             SKILLS.map(function (sk) {
-              return h('div', { key: sk.name, title: tr('skilldesc.' + sk.name), onClick: function (e) { e.stopPropagation(); inject(s, '/' + sk.name); s.skillsOpen = false; emit(s) }, style: { padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace' } }, sk.name)
+              return h('div', {
+                key: sk.name,
+                onClick: function (e) { e.stopPropagation(); inject(s, '/' + sk.name); s.skillsOpen = false; s.skillHover = null; s.skillTip = null; emit(s) },
+                onMouseEnter: function (e) {
+                  const r = e.currentTarget.getBoundingClientRect()
+                  let tip = { x: r.right + 8, y: r.top + r.height / 2, name: sk.name }
+                  if (typeof window !== 'undefined' && tip.x + 240 > window.innerWidth) tip = { x: r.left - 8 - 240, y: r.top + r.height / 2, name: sk.name }
+                  s.skillHover = sk.name
+                  s.skillTip = tip
+                  emit(s)
+                },
+                onMouseLeave: function () { if (s.skillHover !== null) { s.skillHover = null; s.skillTip = null; emit(s) } },
+                style: { padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.skillHover === sk.name ? 'var(--dsw-alias-label-primary,#e6edf3)' : 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', background: s.skillHover === sk.name ? 'var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))' : 'transparent', borderLeft: s.skillHover === sk.name ? '2px solid #c084fc' : '2px solid transparent' }
+              }, sk.name)
             }),
+            // 底部操作提示（替代被移除的列表标题位，保持顶部纯技能名）
+            h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '5px 8px 2px', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', marginTop: 2, whiteSpace: 'nowrap' } }, tr('nav.skillHint')),
           ]) : null,
+          // 快速悬浮提示：固定在行右侧（position:fixed 不受弹层 overflow 裁剪）
+          s.skillTip && s.skillHover ? h('div', { style: { position: 'fixed', left: s.skillTip.x, top: s.skillTip.y, transform: 'translateY(-50%)', maxWidth: 220, zIndex: 10002, padding: '4px 8px', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)' } }, tr('skilldesc.' + s.skillTip.name)) : null,
         ])
         // 用户拍板 2026-08-16 + 2026-08-17：横幅移到状态栏上方；依赖链 gh → 登录 → setup → 技能，显示第一个缺失项
         const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null

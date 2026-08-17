@@ -10,6 +10,14 @@
 - 一并落库工作区既有未提交 i18n 双语改造（host 环境检查 lang 参数 + client prompt 函数化 + 安装引导 prompt 修订）
 - 双源镜像同步（client.js ↔ package/lib/client.js）· 已同步 DSH 安装目录
 
+### 技能浮层体验优化（同日 · issue #1）
+
+- 移除浮层顶部「技能」标题，列表保持纯技能名
+- 滚动条改为跟随主题（WebKit + Firefox 双写法）
+- 自研快速悬浮提示（即时、行右侧、右溢出翻转；替代原生 title 的慢延迟），内容=一句话 skilldesc
+- 行 hover 视觉反馈：背景高亮 + 文字变亮 + 左侧紫色 accent
+- 底部常驻操作提示「点击技能名 → 插入到当前会话」（中英）
+
 ## v1.0.0 正式发布（2026-08-17 · 新包名首发）
 
 - 插件更名为 **dsh-mattpocock-skills-deck**（Matt Skills Deck），仓库迁移至 https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
