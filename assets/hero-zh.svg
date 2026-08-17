@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+<defs>
+<radialGradient id="hO" cx="15%" cy="0%" r="65%"><stop offset="0%" stop-color="#FAB283" stop-opacity="0.22"/><stop offset="100%" stop-color="#FAB283" stop-opacity="0"/></radialGradient>
+<radialGradient id="hV" cx="88%" cy="5%" r="60%"><stop offset="0%" stop-color="#9D7CD8" stop-opacity="0.20"/><stop offset="100%" stop-color="#9D7CD8" stop-opacity="0"/></radialGradient>
+<radialGradient id="hT" cx="45%" cy="105%" r="70%"><stop offset="0%" stop-color="#56B6C2" stop-opacity="0.14"/><stop offset="100%" stop-color="#56B6C2" stop-opacity="0"/></radialGradient>
+<linearGradient id="tG" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#FAB283"/><stop offset="50%" stop-color="#9D7CD8"/><stop offset="100%" stop-color="#56B6C2"/></linearGradient>
+<linearGradient id="cardG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#15151c"/><stop offset="100%" stop-color="#0d0d12"/></linearGradient>
+<filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="14" stdDeviation="22" flood-color="#000" flood-opacity="0.6"/></filter>
+<filter id="logoGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.5" fill="#ffffff" opacity="0.05"/></pattern>
+</defs>
+<rect width="100%" height="100%" fill="#0a0a0c"/>
+<rect width="100%" height="100%" fill="url(#hO)"/>
+<rect width="100%" height="100%" fill="url(#hV)"/>
+<rect width="100%" height="100%" fill="url(#hT)"/>
+<rect width="100%" height="100%" fill="url(#dots)"/>
+<text x="640" y="44" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17.5" letter-spacing="6" fill="#5c5c66">DEEPSEEK HARNESS · PLUGIN</text>
+<g transform="translate(572,54)">
+<circle cx="68" cy="68" r="48" fill="#12121a" stroke="#2e2e3a" stroke-width="2"/>
+<circle cx="68" cy="68" r="40" fill="none" stroke="#FAB283" stroke-opacity="0.25" stroke-width="1.5"/>
+<g filter="url(#logoGlow)">
+<rect x="49" y="59" width="38" height="27" rx="6" fill="#15151c" stroke="#2e2e3a" stroke-width="1.5"/>
+<rect x="57" y="64" width="22" height="3.5" rx="1.75" fill="#3a3a46"/>
+<rect x="57" y="71" width="15" height="3.5" rx="1.75" fill="#2a2a34"/>
+<rect x="57" y="46" width="38" height="27" rx="6" fill="#1c1c26" stroke="#FAB283" stroke-width="1.5"/>
+<circle cx="76" cy="55" r="5.5" fill="none" stroke="#FAB283" stroke-width="2" stroke-dasharray="23 12"/>
+<rect x="65" y="60" width="22" height="3.5" rx="1.75" fill="#4a4a56"/>
+<rect x="65" y="67" width="15" height="3.5" rx="1.75" fill="#3a3a46"/>
+</g>
+<path d="M120 22l3.4 7.2 7.2 3.4-7.2 3.4-3.4 7.2-3.4-7.2-7.2-3.4 7.2-3.4z" fill="#FAB283"/>
+</g>
+<text x="640" y="176" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="58" font-weight="800" letter-spacing="1" fill="url(#tG)">让 AI 不只是聊天，还能把事办成</text>
+<text x="640" y="226" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="25" fill="#b8b8c2">wayfinder 决策地图 · 动作注入 · 技能雷达 · 环境检查</text>
+<g>
+<rect x="276" y="250" width="168" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="300" cy="268" r="6" fill="#FAB283"/>
+<text x="316" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">25 个工程技能</text>
+<rect x="460" y="250" width="170" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="484" cy="268" r="6" fill="#9D7CD8"/>
+<text x="500" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">wayfinder 地图</text>
+<rect x="646" y="250" width="190" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="670" cy="268" r="6" fill="#56B6C2"/>
+<text x="686" y="273" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16" fill="#e6e6ee">/triage · /grilling</text>
+<rect x="852" y="250" width="152" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="876" cy="268" r="6" fill="#FAB283"/>
+<text x="892" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">handoff 交接</text>
+</g>
+<g filter="url(#glow)">
+<rect x="60" y="312" width="560" height="292" rx="18" fill="url(#cardG)" stroke="#26262f"/>
+<rect x="60" y="312" width="560" height="46" rx="18" fill="#101016"/>
+<rect x="60" y="342" width="560" height="16" fill="#101016"/>
+<circle cx="88" cy="335" r="6.5" fill="#9D7CD8"/>
+<text x="108" y="341" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="19.5" font-weight="700" fill="#f0f0f6">地图 · 进度</text>
+<circle cx="590" cy="335" r="10" fill="none" stroke="#FAB283" stroke-width="2.5" stroke-dasharray="47 16"/>
+<text x="568" y="340" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#FAB283">3/12</text>
+<rect x="76" y="372" width="528" height="62" rx="12" fill="#0e0e14" stroke="#2a2a34"/>
+<rect x="84" y="386" width="34" height="24" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="101" y="403" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#a0a0ac">#104</text>
+<rect x="128" y="390" width="196" height="7" rx="3.5" fill="#EEEEEE" opacity="0.85"/>
+<rect x="128" y="405" width="280" height="6" rx="3" fill="#EEEEEE" opacity="0.45"/>
+<rect x="342" y="386" width="76" height="22" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="380" y="401" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12.5" fill="#a0a0ac">居家管家</text>
+<rect x="492" y="384" width="60" height="26" rx="12" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="522" y="401" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#FAB283">执行</text>
+<rect x="76" y="444" width="528" height="62" rx="12" fill="#0e0e14" stroke="#2a2a34"/>
+<rect x="84" y="458" width="34" height="24" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="101" y="475" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#a0a0ac">#270</text>
+<rect x="128" y="462" width="150" height="7" rx="3.5" fill="#EEEEEE" opacity="0.85"/>
+<rect x="128" y="477" width="260" height="6" rx="3" fill="#EEEEEE" opacity="0.45"/>
+<rect x="342" y="458" width="76" height="22" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="380" y="473" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12.5" fill="#a0a0ac">技能互联</text>
+<rect x="492" y="456" width="60" height="26" rx="12" fill="#0A0A0A" stroke="#56B6C2"/>
+<text x="522" y="473" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13.5" fill="#56B6C2">/triage</text>
+<rect x="76" y="516" width="528" height="62" rx="12" fill="#0e0e14" stroke="#2a2a34"/>
+<rect x="84" y="530" width="34" height="24" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="101" y="547" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#a0a0ac">#200</text>
+<rect x="128" y="534" width="120" height="7" rx="3.5" fill="#EEEEEE" opacity="0.85"/>
+<rect x="128" y="549" width="240" height="6" rx="3" fill="#EEEEEE" opacity="0.45"/>
+<rect x="342" y="530" width="76" height="22" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="380" y="545" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12.5" fill="#a0a0ac">私家大厨</text>
+<rect x="492" y="528" width="60" height="26" rx="12" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="522" y="545" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#FAB283">修复</text>
+<rect x="76" y="574" width="96" height="30" rx="15" fill="#0A0A0A" stroke="#56B6C2"/>
+<text x="124" y="593" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#56B6C2">/triage 诊断</text>
+<rect x="184" y="574" width="116" height="30" rx="15" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="242" y="593" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#FAB283">/wayfinder 修复</text>
+<rect x="312" y="574" width="116" height="30" rx="15" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="370" y="593" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#FAB283">/wayfinder 执行</text>
+<rect x="440" y="574" width="164" height="30" rx="15" fill="#0A0A0A" stroke="#9D7CD8"/>
+<text x="522" y="593" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#9D7CD8">/handoff 交接</text>
+</g>
+<g filter="url(#glow)">
+<rect x="660" y="312" width="560" height="292" rx="18" fill="url(#cardG)" stroke="#26262f"/>
+<rect x="660" y="312" width="560" height="46" rx="18" fill="#101016"/>
+<rect x="660" y="342" width="560" height="16" fill="#101016"/>
+<circle cx="688" cy="335" r="6.5" fill="#4ADE80"/>
+<text x="708" y="341" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="19.5" font-weight="700" fill="#f0f0f6">环境检查</text>
+<text x="1204" y="341" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#4ADE80">9/9</text>
+<circle cx="682" cy="379" r="4" fill="#4ADE80"/>
+<text x="696" y="384" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#c8c8d2">仓库定位</text>
+<rect x="1090" y="376" width="114" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
+<circle cx="682" cy="401" r="4" fill="#4ADE80"/>
+<text x="696" y="406" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#c8c8d2">setup 脚本</text>
+<rect x="1090" y="398" width="98" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
+<circle cx="682" cy="423" r="4" fill="#4ADE80"/>
+<text x="696" y="428" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#c8c8d2">issue tracker</text>
+<rect x="1090" y="420" width="86" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
+<circle cx="682" cy="445" r="4" fill="#4ADE80"/>
+<text x="696" y="450" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13.5" fill="#c8c8d2">gh CLI</text>
+<rect x="1090" y="442" width="104" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
+<circle cx="682" cy="467" r="4" fill="#4ADE80"/>
+<text x="696" y="472" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#c8c8d2">gh 登录</text>
+<rect x="1090" y="464" width="92" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
+<circle cx="682" cy="489" r="4" fill="#4ADE80"/>
+<text x="696" y="494" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#c8c8d2">GitHub API</text>
+<rect x="1090" y="486" width="108" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
+<circle cx="682" cy="511" r="4" fill="#4ADE80"/>
+<text x="696" y="516" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#c8c8d2">技能探测</text>
+<rect x="1090" y="508" width="96" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
+<circle cx="682" cy="533" r="4" fill="#4ADE80"/>
+<text x="696" y="538" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#c8c8d2">更新检查</text>
+<rect x="1090" y="530" width="76" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
+<rect x="676" y="552" width="528" height="36" rx="12" fill="#0d1a12" stroke="#2d5a3a"/>
+<text x="940" y="575" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14.5" fill="#4ADE80">环境 9/9 · 全部就绪，开工吧</text>
+</g>
+</svg>

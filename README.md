@@ -1,37 +1,57 @@
-# dsh-mattpocock-skills-deck
+# 🧠 dsh-mattpocock-skills-deck
 
-> **Matt Skills Deck** —— 非官方 DeepSeek Harness 插件：**Matt Pocock 技能套件（mattpocock/skills）的 DSH 控制面板**。
+**让 AI 不只是聊天，还能把事办成 —— [mattpocock/skills](https://github.com/mattpocock/skills) 技能套件的 DSH 控制面板（MattSkills）。**
 
-把 wayfinder 地图/票务/进度、triage / grilling / handoff 动作注入带进 DSH 右侧面板：
-状态栏胶囊（可接/阻塞/沉淀/交接/环境/更新）、地图列表与详情（frontier/阻塞/进度）、技能雷达、环境检查（含 /setup-matt-pocock-skills 检测）、自动探测刷新（变化行高亮）、全量中英双语。
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck)
+[![dsh-plugin](https://img.shields.io/badge/dsh-plugin-orange.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck)
+[![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills)
+
+![hero](assets/hero-zh.svg)
 
 > 非官方：本项目是 Matt Pocock Skills 的第三方配套工具，与 mattpocock/skills 无隶属关系。
-## 安装（一条命令）
+
+## 30 秒上手
+
+**① 装 CLI（首次）→ ② 装插件 → ③ 刷新页面**
 
 ```bash
-# 需要 DSH CLI（首次）
 npm install -g @deepseek-ai/dsh
-# 安装到 profile
 dsh plugin --profile web add dsh-mattpocock-skills-deck
 ```
 
-或 npx（免全局安装）：
+（免全局安装：`npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck`）
 
-```bash
-npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
-```
+刷新后，右侧 details 列出现 **MattSkills** 面板，输入框上方出现状态栏胶囊（可接 / 阻塞 / 沉淀 / 交接 / 环境 / 更新）。打开任意 issue 行点「执行」，`/wayfinder` 技能命令自动进输入框 —— 剩下的交给 AI。
 
-安装后刷新浏览器页面即生效（bundle 装配 · 无 postinstall · pnpm v10 不拦截）。升级 / 卸载：
+升级 / 卸载：`dsh plugin --profile web update|remove dsh-mattpocock-skills-deck`。
 
-```bash
-dsh plugin --profile web update dsh-mattpocock-skills-deck
-dsh plugin --profile web remove dsh-mattpocock-skills-deck
-```
+需要：[Matt Pocock skills](https://github.com/mattpocock/skills)（wayfinder / triage / grilling / handoff 等）+ GitHub 仓库工作目录 + gh CLI —— 环境检查页会检测并逐步引导。
 
-## 前置依赖
+## 它是什么
 
-- **Matt Pocock skills**（mattpocock/skills）：wayfinder / triage / grilling / handoff 等，环境检查页会检测安装状态并引导
-- **GitHub 仓库工作目录**（wayfinder 地图所在仓库）+ gh CLI
+AI 会聊天，但活儿要有人盯。MattSkills 把 Matt Pocock 的工程技能接到 DSH 面板上，让 AI 按流程把 GitHub issue 干完：
+
+- **wayfinder 决策地图** —— map 全量落地、子票进度圆环、frontier / 阻塞 / 已关闭一目了然
+- **动作注入** —— 按标签四选一：诊断（/triage）/ 修复（/wayfinder）/ 讨论 / 执行（/wayfinder），统一带「从第一性原理出发 + 对抗式审查」引导句
+- **技能雷达** —— 25 个技能推荐 / 列表 / 圆环，点击注入 /skill
+- **环境检查** —— 9 项前置检查（仓库定位 / setup / tracker / gh CLI / 登录 / API / 技能探测），红黄绿分组，依赖链引导（gh CLI → 登录 → setup → 技能），一键处理
+- **交接** —— /handoff 时间戳模板 → 复述确认开新会话，上下文不丢
+- **全量中英双语**，面板跟随 DSH 界面语言
+
+## 功能详解
+
+| 模块 | 说明 |
+| --- | --- |
+| 状态栏胶囊 | 输入区上方：可接 / 阻塞 / 沉淀（零丢失快照）/ 交接 / 环境 / 更新，点击直达对应视图 |
+| 面板 · 列表 | issue 全列表（map 置顶 + 子票迷你圆环进度）、标签过滤 chips、阻塞筛选、已关闭折叠、行级动作 |
+| 面板 · 技能 | 技能雷达（推荐 / 列表 / 圆环），点击注入 /skill |
+| 面板 · 环境检查 | 9 项前置检查 + 一键处理 + 引导依赖链，完成自动勾选 |
+| map 详情 | 顶部「执行」+ 任务状态走廊（可接 / 已认领 / 被阻塞 / 已关闭）、Decision / Fog / Out-of-scope 折叠 |
+| 交接 | 第一击注入 /handoff 时间戳模板；第二击预填 /read + 复述确认并开新会话 |
+| 自动刷新 | 变化行高亮、即时转圈反馈，无需手动刷新 |
+
+完整使用说明见 [package/README.md](package/README.md)；设计定稿见 [DESIGN.md](DESIGN.md)；变更历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 作者的其他作品
 
@@ -39,12 +59,6 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck
 
 - [**dsh-opencode-palette**](https://github.com/FeatherHunter/dsh-opencode-palette) —— 觉得 DSH 默认界面看腻了？34 款 opencode 经典主题，点一下就换。
 - [**dsh-prompt**](https://github.com/FeatherHunter/dsh-prompt) —— 写 Prompt 卡壳的时候，里面有 24 条深度模板，点一下直接进输入框。
-
-## 文档
-
-- package/README.md — 完整功能/使用说明
-- DESIGN.md — 设计定稿 · DEV-WORKFLOW.md — 开发流程
-- CHANGELOG.md — 变更历史（含 dsh-waystation → 本仓库迁移记录）
 
 ## License
 
