@@ -290,7 +290,7 @@ return {
         'nav.occupied': '阻塞',
         'nav.env': '环境',
         'nav.envTitle': '环境检查 ({n}/{t})',
-        'panel.title': 'Matt 技能甲板',
+        'panel.title': 'MattSkills',
         'nav.takeableTitle': '可接 = 未认领可执行的任务数',
         'nav.occupiedTitle': '阻塞 = 已认领未关闭的任务数',
         'nav.bug': 'BUG',
@@ -478,7 +478,7 @@ return {
         'run.desc': '环境检查（wf.status）+ 面板（wf.snapshot）均已接真。',
         'run.openPanel': '打开面板',
         'run.openCfg': '打开配置',
-        'run.cfgGuide': '配置页：设置 → 插件 → Matt 技能甲板',
+        'run.cfgGuide': '配置页：设置 → 插件 → MattSkills',
         'skilldesc.ask-matt': '技能路由器：不知道该用哪个 skill 时问它',
         'skilldesc.setup-matt-pocock-skills': '仓库初始化：issue tracker / 标签 / 文档路径',
         'skilldesc.wayfinder': '巨型项目决策地图（本插件服务的对象）',
@@ -506,7 +506,7 @@ return {
         'nav.occupied': 'Busy',
         'nav.env': 'Env',
         'nav.envTitle': 'Environment checks ({n}/{t})',
-        'panel.title': 'Matt Skills Deck',
+        'panel.title': 'MattSkills',
         'nav.takeableTitle': 'Ready = unclaimed, takeable tasks',
         'nav.occupiedTitle': 'Busy = claimed but not yet closed',
         'nav.bug': 'BUG',
@@ -694,7 +694,7 @@ return {
         'run.desc': 'Environment checks (wf.status) and panel (wf.snapshot) are live.',
         'run.openPanel': 'Open panel',
         'run.openCfg': 'Open config',
-        'run.cfgGuide': 'Config: Settings → Plugins → Matt Skills Deck',
+        'run.cfgGuide': 'Config: Settings → Plugins → MattSkills',
         'skilldesc.ask-matt': 'Skill router: ask it when unsure which skill to use',
         'skilldesc.setup-matt-pocock-skills': 'Repo bootstrap: issue tracker / labels / doc paths',
         'skilldesc.wayfinder': 'Decision maps for large projects (what this plugin serves)',
@@ -2899,7 +2899,7 @@ return {
       const panelStyle = { width: s.size.w, ...(s.size.h ? { height: s.size.h } : {}), ...(s.pos ? { left: s.pos.x, top: s.pos.y, right: 'auto' } : { left: 16, top: 76, right: 'auto' }) }
       return h('div', { ref: panelRef, className: 'dsws-panel', style: panelStyle }, [
         h('div', { className: 'dsws-head', onMouseDown: startDrag }, [
-          h('span', { style: { display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 } }, Icon({ scheme: s.ui.icon, size: 17 }), 'Waystation'),
+          h('span', { style: { display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 } }, Icon({ scheme: s.ui.icon, size: 17 }), tr('panel.title')),
           // v19-35：「真数据」→ 显示 repo 名（对未来用户更有意义；异常时红色提示）
           h('span', { className: 'dsws-chip ' + (s.snapMode === 'err' ? 'dsws-chip-t' : 'dsws-chip-m'), style: { maxWidth: 220 } }, [
             Ic({ n: s.snapMode === 'err' ? 'alert' : 'info', size: 11 }),
@@ -3194,12 +3194,12 @@ return {
     })
     // v25-50：配置页（设置 → 插件 → Waystation；与 opencode 主题同模式）
     slots.inject('settings.plugins.tab', function () {
-      return slots.register({ name: 'settings.plugins.tab', id: 'dsws-settings', order: 40, label: function () { return 'Waystation' } }, SettingsPage)
+      return slots.register({ name: 'settings.plugins.tab', id: 'dsws-settings', order: 40, label: function () { return tr('panel.title') } }, SettingsPage)
     })
     // v1.5 T2：设置左侧直达 —— settings.section 左栏条目（与插件页 tab 双入口，复用同一 SettingsPage）
     //   order 18 = 紧跟 插件页15 之后（用户拍板 2026-08-16：15 < 18 < AgentPresets20 < better-sidebar100）
     slots.inject('settings.section', function () {
-      return slots.register({ name: 'settings.section', id: 'dsws-settings-section', order: 18, label: function () { return 'Waystation' } }, SettingsPage)
+      return slots.register({ name: 'settings.section', id: 'dsws-settings-section', order: 18, label: function () { return tr('panel.title') } }, SettingsPage)
     })
     // 原型：右侧停靠（details 槽位 · 替换内置工具详情面板；single 槽动态注册优先级低 → 胜出）
     // priority: -1 低于内置详情面板的默认 0 → 无冲突且「低者胜出」替换内置面板
