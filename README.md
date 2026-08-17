@@ -18,7 +18,9 @@ npm install -g @deepseek-ai/dsh        # 首次装 CLI
 dsh plugin --profile web add dsh-mattpocock-skills-deck
 ```
 
-刷新页面 → 右侧 details 列出现 **MattSkills** 面板，输入框上方出现状态胶囊（可接 / 阻塞 / 沉淀 / 交接 / 环境 / 更新）。打开任意 issue 行点「执行」，`/wayfinder` 技能命令自动进输入框 —— 剩下的交给 AI。
+![装完长这样 · 30 秒后的 DSH](assets/after-install-zh.svg)
+
+刷新即生效，零配置 —— 剩下的交给 AI。
 
 <details>
 <summary>免全局安装 / 升级 / 卸载（点开）</summary>
