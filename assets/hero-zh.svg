@@ -38,87 +38,115 @@
 <rect x="460" y="250" width="170" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
 <circle cx="484" cy="268" r="6" fill="#9D7CD8"/>
 <text x="500" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">wayfinder 地图</text>
-<rect x="646" y="250" width="190" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<rect x="646" y="250" width="196" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
 <circle cx="670" cy="268" r="6" fill="#56B6C2"/>
-<text x="686" y="273" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16" fill="#e6e6ee">/triage · /grilling</text>
-<rect x="852" y="250" width="152" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
-<circle cx="876" cy="268" r="6" fill="#FAB283"/>
-<text x="892" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">handoff 交接</text>
+<text x="686" y="273" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16" letter-spacing="0.5" fill="#e6e6ee">/triage  ·  /grilling</text>
+<rect x="858" y="250" width="146" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="882" cy="268" r="6" fill="#FAB283"/>
+<text x="898" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">handoff 交接</text>
 </g>
 <g filter="url(#glow)">
 <rect x="60" y="312" width="560" height="292" rx="18" fill="url(#cardG)" stroke="#26262f"/>
 <rect x="60" y="312" width="560" height="46" rx="18" fill="#101016"/>
 <rect x="60" y="342" width="560" height="16" fill="#101016"/>
-<circle cx="88" cy="335" r="6.5" fill="#9D7CD8"/>
-<text x="108" y="341" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="19.5" font-weight="700" fill="#f0f0f6">地图 · 进度</text>
-<circle cx="590" cy="335" r="10" fill="none" stroke="#FAB283" stroke-width="2.5" stroke-dasharray="47 16"/>
-<text x="568" y="340" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#FAB283">3/12</text>
-<rect x="76" y="372" width="528" height="62" rx="12" fill="#0e0e14" stroke="#2a2a34"/>
-<rect x="84" y="386" width="48" height="28" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="108" y="407" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16.5" fill="#a0a0ac">#104</text>
-<rect x="128" y="390" width="196" height="7" rx="3.5" fill="#EEEEEE" opacity="0.85"/>
-<rect x="128" y="405" width="280" height="6" rx="3" fill="#EEEEEE" opacity="0.45"/>
-<rect x="342" y="385" width="80" height="24" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="382" y="405" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#a0a0ac">居家管家</text>
-<rect x="492" y="383" width="68" height="29" rx="12" fill="#0A0A0A" stroke="#FAB283"/>
-<text x="526" y="404" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#FAB283">执行</text>
-<rect x="76" y="444" width="528" height="62" rx="12" fill="#0e0e14" stroke="#2a2a34"/>
-<rect x="84" y="458" width="48" height="28" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="108" y="479" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16.5" fill="#a0a0ac">#270</text>
-<rect x="128" y="462" width="150" height="7" rx="3.5" fill="#EEEEEE" opacity="0.85"/>
-<rect x="128" y="477" width="260" height="6" rx="3" fill="#EEEEEE" opacity="0.45"/>
-<rect x="342" y="457" width="80" height="24" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="382" y="477" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#a0a0ac">技能互联</text>
-<rect x="492" y="455" width="68" height="29" rx="12" fill="#0A0A0A" stroke="#56B6C2"/>
-<text x="526" y="476" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15.5" fill="#56B6C2">/triage</text>
-<rect x="76" y="516" width="528" height="62" rx="12" fill="#0e0e14" stroke="#2a2a34"/>
-<rect x="84" y="530" width="48" height="28" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="108" y="551" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16.5" fill="#a0a0ac">#200</text>
-<rect x="128" y="534" width="120" height="7" rx="3.5" fill="#EEEEEE" opacity="0.85"/>
-<rect x="128" y="549" width="240" height="6" rx="3" fill="#EEEEEE" opacity="0.45"/>
-<rect x="342" y="529" width="80" height="24" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="382" y="549" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#a0a0ac">私家大厨</text>
-<rect x="492" y="527" width="68" height="29" rx="12" fill="#0A0A0A" stroke="#FAB283"/>
-<text x="526" y="548" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#FAB283">修复</text>
-<rect x="114" y="574" width="118" height="30" rx="15" fill="#0A0A0A" stroke="#56B6C2"/>
-<text x="173" y="596" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#56B6C2">/triage 诊断</text>
-<rect x="252" y="574" width="152" height="30" rx="15" fill="#0A0A0A" stroke="#FAB283"/>
-<text x="328" y="596" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#FAB283">/wayfinder 修复</text>
-<rect x="424" y="574" width="142" height="30" rx="15" fill="#0A0A0A" stroke="#9D7CD8"/>
-<text x="495" y="596" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#9D7CD8">/handoff 交接</text>
+<rect x="76" y="322" width="64" height="24" rx="12" fill="#9D7CD8"/>
+<text x="108" y="338" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12.5" font-weight="700" fill="#0d0d12">列表</text>
+<rect x="148" y="322" width="64" height="24" rx="12" fill="#101016" stroke="#2e2e3a"/>
+<text x="180" y="338" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12.5" fill="#8a8a94">技能</text>
+<rect x="220" y="322" width="84" height="24" rx="12" fill="#101016" stroke="#2e2e3a"/>
+<text x="262" y="338" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12.5" fill="#8a8a94">环境检查</text>
+<path d="M566 327a9 9 0 1 1-4-11" fill="none" stroke="#8a8a94" stroke-width="2" stroke-linecap="round"/>
+<path d="M558 318l3 4 5-1" fill="none" stroke="#8a8a94" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="600" y="338" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.5" fill="#8a8a94">v1.0.0</text>
+<rect x="76" y="366" width="52" height="22" rx="11" fill="#FAB283" opacity="0.16" stroke="#FAB283"/>
+<text x="102" y="381" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="11.5" fill="#FAB283">全部</text>
+<rect x="136" y="366" width="64" height="22" rx="11" fill="#101016" stroke="#2e2e3a"/>
+<text x="168" y="381" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="11.5" fill="#8a8a94">进行中</text>
+<rect x="208" y="366" width="52" height="22" rx="11" fill="#101016" stroke="#2e2e3a"/>
+<text x="234" y="381" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="11.5" fill="#8a8a94">阻塞</text>
+<rect x="268" y="366" width="64" height="22" rx="11" fill="#101016" stroke="#2e2e3a"/>
+<text x="300" y="381" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="11.5" fill="#8a8a94">已关闭</text>
+<rect x="76" y="394" width="528" height="56" rx="10" fill="#0e0e14" stroke="#9D7CD8" stroke-opacity="0.5"/>
+<rect x="84" y="404" width="40" height="24" rx="6" fill="#1a1a24" stroke="#9D7CD8"/>
+<text x="104" y="421" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.5" font-weight="700" fill="#9D7CD8">MAP</text>
+<circle cx="142" cy="422" r="11" fill="none" stroke="#9D7CD8" stroke-width="2.4" stroke-dasharray="52 17"/>
+<text x="142" y="426" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="9.5" fill="#9D7CD8">3/12</text>
+<text x="164" y="416" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14" font-weight="700" fill="#f0f0f6">#104 [网站重构] 迁移实施 map</text>
+<text x="164" y="436" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12" fill="#8a8a94">v2.0 落地 · 12 张子票 · 3 张已推进</text>
+<circle cx="436" cy="422" r="5" fill="#9D7CD8"/>
+<rect x="484" y="408" width="60" height="28" rx="14" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="514" y="426" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14" fill="#FAB283">执行</text>
+<rect x="76" y="458" width="528" height="52" rx="10" fill="#0e0e14" stroke="#26262f"/>
+<rect x="84" y="466" width="38" height="24" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="103" y="483" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#a0a0ac">#105</text>
+<circle cx="142" cy="484" r="5" fill="#FAB283"/>
+<text x="160" y="482" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14" fill="#e6e6ee">[网站重构] 首页响应式改版</text>
+<text x="160" y="499" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="11" fill="#6d6d75">可接</text>
+<rect x="330" y="468" width="76" height="22" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="368" y="483" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12" fill="#a0a0ac">前端</text>
+<rect x="484" y="470" width="60" height="26" rx="13" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="514" y="487" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#FAB283">执行</text>
+<rect x="76" y="516" width="528" height="52" rx="10" fill="#0e0e14" stroke="#26262f"/>
+<rect x="84" y="524" width="38" height="24" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="103" y="541" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#a0a0ac">#201</text>
+<circle cx="142" cy="542" r="5" fill="#56B6C2"/>
+<text x="160" y="540" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14" fill="#e6e6ee">[支付系统] 结账流程重构</text>
+<text x="160" y="557" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="11" fill="#6d6d75">进行中</text>
+<rect x="330" y="526" width="76" height="22" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="368" y="541" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12" fill="#a0a0ac">支付</text>
+<rect x="484" y="528" width="76" height="26" rx="13" fill="#0A0A0A" stroke="#56B6C2"/>
+<text x="522" y="545" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#56B6C2">/triage</text>
+<text x="76" y="592" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13" fill="#8a8a94">2 可接 · 1 进行中 · 0 阻塞</text>
+<text x="588" y="592" text-anchor="end" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13" fill="#8a8a94">行级动作：诊断 / 修复 / 讨论 / 执行</text>
 </g>
 <g filter="url(#glow)">
 <rect x="660" y="312" width="560" height="292" rx="18" fill="url(#cardG)" stroke="#26262f"/>
 <rect x="660" y="312" width="560" height="46" rx="18" fill="#101016"/>
 <rect x="660" y="342" width="560" height="16" fill="#101016"/>
-<circle cx="688" cy="335" r="6.5" fill="#4ADE80"/>
-<text x="708" y="341" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="19.5" font-weight="700" fill="#f0f0f6">环境检查</text>
-<text x="1204" y="341" text-anchor="end" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#4ADE80">9/9</text>
-<circle cx="682" cy="379" r="4" fill="#4ADE80"/>
-<text x="696" y="384" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#c8c8d2">仓库定位</text>
-<rect x="1090" y="376" width="114" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
-<circle cx="682" cy="401" r="4" fill="#4ADE80"/>
-<text x="696" y="406" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#c8c8d2">setup 脚本</text>
-<rect x="1090" y="398" width="98" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
-<circle cx="682" cy="423" r="4" fill="#4ADE80"/>
-<text x="696" y="428" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#c8c8d2">issue tracker</text>
-<rect x="1090" y="420" width="86" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
-<circle cx="682" cy="445" r="4" fill="#4ADE80"/>
-<text x="696" y="450" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15.5" fill="#c8c8d2">gh CLI</text>
-<rect x="1090" y="442" width="104" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
-<circle cx="682" cy="467" r="4" fill="#4ADE80"/>
-<text x="696" y="472" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#c8c8d2">gh 登录</text>
-<rect x="1090" y="464" width="92" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
-<circle cx="682" cy="489" r="4" fill="#4ADE80"/>
-<text x="696" y="494" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#c8c8d2">GitHub API</text>
-<rect x="1090" y="486" width="108" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
-<circle cx="682" cy="511" r="4" fill="#4ADE80"/>
-<text x="696" y="516" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#c8c8d2">技能探测</text>
-<rect x="1090" y="508" width="96" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
-<circle cx="682" cy="533" r="4" fill="#4ADE80"/>
-<text x="696" y="538" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#c8c8d2">更新检查</text>
-<rect x="1090" y="530" width="76" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
-<rect x="676" y="552" width="528" height="36" rx="12" fill="#0d1a12" stroke="#2d5a3a"/>
-<text x="940" y="575" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14.5" fill="#4ADE80">环境 9/9 · 全部就绪，开工吧</text>
+<circle cx="688" cy="335" r="6.5" fill="#FAB283"/>
+<text x="708" y="341" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="19.5" font-weight="700" fill="#f0f0f6">状态栏 · 任务追踪</text>
+<rect x="1144" y="323" width="60" height="24" rx="12" fill="#FAB283" opacity="0.16" stroke="#FAB283"/>
+<text x="1174" y="339" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12.5" fill="#FAB283">2 可接</text>
+<rect x="676" y="364" width="528" height="42" rx="12" fill="#0e0e14" stroke="#2a2a34"/>
+<text x="696" y="389" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14" fill="#5c5c66">输入 /wayfinder 开始…</text>
+<circle cx="1168" cy="385" r="14" fill="#FAB283"/>
+<path d="M1162 385h12M1168 379l6 6-6 6" stroke="#0d0d12" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="676" y="418" width="64" height="26" rx="13" fill="#FAB283" opacity="0.16" stroke="#FAB283"/>
+<circle cx="692" cy="431" r="4" fill="#FAB283"/>
+<text x="706" y="436" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13" fill="#FAB283">可接</text>
+<rect x="748" y="418" width="64" height="26" rx="13" fill="#101016" stroke="#56B6C2"/>
+<circle cx="764" cy="431" r="4" fill="#56B6C2"/>
+<text x="778" y="436" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13" fill="#a0a0ac">阻塞</text>
+<rect x="820" y="418" width="64" height="26" rx="13" fill="#101016" stroke="#9D7CD8"/>
+<circle cx="836" cy="431" r="4" fill="#9D7CD8"/>
+<text x="850" y="436" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13" fill="#a0a0ac">沉淀</text>
+<rect x="892" y="418" width="64" height="26" rx="13" fill="#101016" stroke="#FAB283"/>
+<circle cx="908" cy="431" r="4" fill="#FAB283"/>
+<text x="922" y="436" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13" fill="#a0a0ac">交接</text>
+<rect x="964" y="418" width="64" height="26" rx="13" fill="#101016" stroke="#4ADE80"/>
+<circle cx="980" cy="431" r="4" fill="#4ADE80"/>
+<text x="994" y="436" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13" fill="#a0a0ac">环境</text>
+<rect x="1036" y="418" width="64" height="26" rx="13" fill="#101016" stroke="#3a3a46"/>
+<circle cx="1052" cy="431" r="4" fill="#8a8a94"/>
+<text x="1066" y="436" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13" fill="#a0a0ac">更新</text>
+<text x="676" y="470" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14.5" font-weight="700" fill="#e6e6ee">可接任务 · frontier</text>
+<text x="1188" y="470" text-anchor="end" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="12" fill="#8a8a94">点胶囊直达视图</text>
+<rect x="676" y="478" width="528" height="50" rx="10" fill="#0e0e14" stroke="#26262f"/>
+<rect x="684" y="486" width="38" height="24" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="703" y="503" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#a0a0ac">#105</text>
+<text x="732" y="502" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14" fill="#e6e6ee">[网站重构] 首页响应式改版</text>
+<rect x="1006" y="486" width="90" height="26" rx="13" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="1051" y="503" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#FAB283">接取任务</text>
+<rect x="1102" y="486" width="86" height="26" rx="13" fill="#0A0A0A" stroke="#3a3a46"/>
+<text x="1145" y="503" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#a0a0ac">/wayfinder</text>
+<rect x="676" y="534" width="528" height="50" rx="10" fill="#0e0e14" stroke="#26262f"/>
+<rect x="684" y="542" width="38" height="24" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="703" y="559" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#a0a0ac">#302</text>
+<text x="732" y="558" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14" fill="#e6e6ee">[前端] 组件库暗色主题适配</text>
+<rect x="1006" y="542" width="90" height="26" rx="13" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="1051" y="559" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13.5" fill="#FAB283">接取任务</text>
+<rect x="1102" y="542" width="86" height="26" rx="13" fill="#0A0A0A" stroke="#3a3a46"/>
+<text x="1145" y="559" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#a0a0ac">/wayfinder</text>
+<text x="676" y="598" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="13" fill="#8a8a94">接一个，推进一步——完成自动勾选，进度圆环自动更新</text>
 </g>
 </svg>
