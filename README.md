@@ -40,11 +40,9 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 
 喜欢这个插件的话，这些可能你也用得上：
 
-<p align="center">
-  <a href="https://github.com/FeatherHunter/dsh-opencode-palette"><img src="assets/other-palette-zh.svg" alt="dsh-opencode-palette" width="480"></a>
-  &nbsp;&nbsp;
-  <a href="https://github.com/FeatherHunter/dsh-prompt"><img src="assets/other-prompt-zh.svg" alt="dsh-prompt" width="480"></a>
-</p>
+[![dsh-opencode-palette](assets/other-palette-zh.svg)](https://github.com/FeatherHunter/dsh-opencode-palette)
+
+[![dsh-prompt](assets/other-prompt-zh.svg)](https://github.com/FeatherHunter/dsh-prompt)
 
 ## License
 
