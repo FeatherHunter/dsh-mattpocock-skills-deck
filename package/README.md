@@ -11,14 +11,6 @@
 - **平台**: Client（浏览器页面）+ Host（Node 进程，gh CLI 数据层）
 - **配套**: [mattpocock/skills](https://github.com/mattpocock/skills)（wayfinder / triage / grilling / handoff / ask-matt 等）
 - **两种形态**: ① 正式安装（npm 一条命令，开机自启，推荐）；② 动态加载（进程内，会话级）
-
-## 📦 本人的其他技能 · More from FeatherHunter
-
-| 仓库 | 痛点 → 解决 |
-| --- | --- |
-| [🎨 dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette) | 看腻了 DSH 默认皮肤？**34 款 opencode 经典主题一键换上**，即点即换。 |
-| [⚡ dsh-prompt](https://github.com/FeatherHunter/dsh-prompt) | 写 Prompt 靠搜历史、靠复制粘贴？**24 条深度模板点一下进输入框**。 |
-
 ## 功能
 
 | 模块 | 说明 |
@@ -138,6 +130,13 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck
 - RPC 通道 `/dsws`：`status` / `snapshot` / `refresh` / `cwd` / `handoffLatest` / `claim`。
 - 刷新策略：纯手动（状态栏「更新」/ 列表「刷新」/ 打开面板即刷）+ **60s 快照缓存**、30s 环境检查缓存。
 - 性能：v1.3.3 起快照加载 ~35s → ~12s（aliases 批量 8 次 GraphQL → 1 次）。
+
+## 作者的其他作品
+
+喜欢这个插件的话，这些可能你也用得上：
+
+- [**dsh-opencode-palette**](https://github.com/FeatherHunter/dsh-opencode-palette) —— 觉得 DSH 默认界面看腻了？34 款 opencode 经典主题，点一下就换。
+- [**dsh-prompt**](https://github.com/FeatherHunter/dsh-prompt) —— 写 Prompt 卡壳的时候，里面有 24 条深度模板，点一下直接进输入框。
 
 ## v1.3.3 新增（2026-08-15）
 
