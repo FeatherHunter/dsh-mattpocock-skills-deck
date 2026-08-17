@@ -40,7 +40,7 @@
 <text x="500" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">wayfinder 地图</text>
 <rect x="646" y="250" width="190" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
 <circle cx="670" cy="268" r="6" fill="#56B6C2"/>
-<text x="686" y="273" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16" fill="#e6e6ee">/triage · /grilling</text>
+<text x="686" y="273" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16" fill="#e6e6ee">/triage · /grilling</text>
 <rect x="852" y="250" width="152" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
 <circle cx="876" cy="268" r="6" fill="#FAB283"/>
 <text x="892" y="273" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#e6e6ee">handoff 交接</text>
@@ -52,40 +52,40 @@
 <circle cx="88" cy="335" r="6.5" fill="#9D7CD8"/>
 <text x="108" y="341" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="19.5" font-weight="700" fill="#f0f0f6">地图 · 进度</text>
 <circle cx="590" cy="335" r="10" fill="none" stroke="#FAB283" stroke-width="2.5" stroke-dasharray="47 16"/>
-<text x="568" y="340" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#FAB283">3/12</text>
+<text x="568" y="340" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#FAB283">3/12</text>
 <rect x="76" y="372" width="528" height="62" rx="12" fill="#0e0e14" stroke="#2a2a34"/>
-<rect x="84" y="386" width="40" height="26" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="104" y="405" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14.5" fill="#a0a0ac">#104</text>
+<rect x="84" y="386" width="48" height="28" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="108" y="407" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16.5" fill="#a0a0ac">#104</text>
 <rect x="128" y="390" width="196" height="7" rx="3.5" fill="#EEEEEE" opacity="0.85"/>
 <rect x="128" y="405" width="280" height="6" rx="3" fill="#EEEEEE" opacity="0.45"/>
 <rect x="342" y="385" width="80" height="24" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="382" y="403" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14.5" fill="#a0a0ac">居家管家</text>
+<text x="382" y="405" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#a0a0ac">居家管家</text>
 <rect x="492" y="383" width="68" height="29" rx="12" fill="#0A0A0A" stroke="#FAB283"/>
 <text x="526" y="404" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#FAB283">执行</text>
 <rect x="76" y="444" width="528" height="62" rx="12" fill="#0e0e14" stroke="#2a2a34"/>
-<rect x="84" y="458" width="40" height="26" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="104" y="477" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14.5" fill="#a0a0ac">#270</text>
+<rect x="84" y="458" width="48" height="28" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="108" y="479" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16.5" fill="#a0a0ac">#270</text>
 <rect x="128" y="462" width="150" height="7" rx="3.5" fill="#EEEEEE" opacity="0.85"/>
 <rect x="128" y="477" width="260" height="6" rx="3" fill="#EEEEEE" opacity="0.45"/>
 <rect x="342" y="457" width="80" height="24" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="382" y="475" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14.5" fill="#a0a0ac">技能互联</text>
+<text x="382" y="477" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#a0a0ac">技能互联</text>
 <rect x="492" y="455" width="68" height="29" rx="12" fill="#0A0A0A" stroke="#56B6C2"/>
-<text x="526" y="476" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15.5" fill="#56B6C2">/triage</text>
+<text x="526" y="476" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15.5" fill="#56B6C2">/triage</text>
 <rect x="76" y="516" width="528" height="62" rx="12" fill="#0e0e14" stroke="#2a2a34"/>
-<rect x="84" y="530" width="40" height="26" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="104" y="549" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14.5" fill="#a0a0ac">#200</text>
+<rect x="84" y="530" width="48" height="28" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="108" y="551" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="16.5" fill="#a0a0ac">#200</text>
 <rect x="128" y="534" width="120" height="7" rx="3.5" fill="#EEEEEE" opacity="0.85"/>
 <rect x="128" y="549" width="240" height="6" rx="3" fill="#EEEEEE" opacity="0.45"/>
 <rect x="342" y="529" width="80" height="24" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
-<text x="382" y="547" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="14.5" fill="#a0a0ac">私家大厨</text>
+<text x="382" y="549" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#a0a0ac">私家大厨</text>
 <rect x="492" y="527" width="68" height="29" rx="12" fill="#0A0A0A" stroke="#FAB283"/>
 <text x="526" y="548" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#FAB283">修复</text>
 <rect x="114" y="574" width="118" height="30" rx="15" fill="#0A0A0A" stroke="#56B6C2"/>
-<text x="173" y="596" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#56B6C2">/triage 诊断</text>
+<text x="173" y="596" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#56B6C2">/triage 诊断</text>
 <rect x="252" y="574" width="152" height="30" rx="15" fill="#0A0A0A" stroke="#FAB283"/>
-<text x="328" y="596" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#FAB283">/wayfinder 修复</text>
+<text x="328" y="596" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#FAB283">/wayfinder 修复</text>
 <rect x="424" y="574" width="142" height="30" rx="15" fill="#0A0A0A" stroke="#9D7CD8"/>
-<text x="495" y="596" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#9D7CD8">/handoff 交接</text>
+<text x="495" y="596" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#9D7CD8">/handoff 交接</text>
 </g>
 <g filter="url(#glow)">
 <rect x="660" y="312" width="560" height="292" rx="18" fill="url(#cardG)" stroke="#26262f"/>
@@ -93,7 +93,7 @@
 <rect x="660" y="342" width="560" height="16" fill="#101016"/>
 <circle cx="688" cy="335" r="6.5" fill="#4ADE80"/>
 <text x="708" y="341" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="19.5" font-weight="700" fill="#f0f0f6">环境检查</text>
-<text x="1204" y="341" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#4ADE80">9/9</text>
+<text x="1204" y="341" text-anchor="end" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#4ADE80">9/9</text>
 <circle cx="682" cy="379" r="4" fill="#4ADE80"/>
 <text x="696" y="384" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#c8c8d2">仓库定位</text>
 <rect x="1090" y="376" width="114" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
@@ -104,7 +104,7 @@
 <text x="696" y="428" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#c8c8d2">issue tracker</text>
 <rect x="1090" y="420" width="86" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
 <circle cx="682" cy="445" r="4" fill="#4ADE80"/>
-<text x="696" y="450" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15.5" fill="#c8c8d2">gh CLI</text>
+<text x="696" y="450" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15.5" fill="#c8c8d2">gh CLI</text>
 <rect x="1090" y="442" width="104" height="6" rx="3" fill="#EEEEEE" opacity="0.4"/>
 <circle cx="682" cy="467" r="4" fill="#4ADE80"/>
 <text x="696" y="472" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="15.5" fill="#c8c8d2">gh 登录</text>

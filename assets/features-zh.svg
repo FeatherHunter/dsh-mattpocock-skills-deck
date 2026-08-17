@@ -21,48 +21,48 @@
 <rect x="76" y="173" width="40" height="40" rx="10" fill="#FAB283" opacity="0.12"/>
 <rect x="74" y="183" width="44" height="20" rx="10" fill="none" stroke="#FAB283" stroke-width="2"/><circle cx="86" cy="193" r="2.5" fill="#FAB283"/><circle cx="96" cy="193" r="2.5" fill="#FAB283"/><circle cx="106" cy="193" r="2.5" fill="#FAB283"/>
 <text x="134" y="196" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">状态栏胶囊</text>
-<text x="250" y="196" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#b8b8c2">输入区上方：可接 / 阻塞 / 沉淀（零丢失快照）/ 交接 / 环境 / 更新，点击直达对应视图</text>
+<text x="250" y="196" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="18.5" fill="#b8b8c2">输入区上方：可接 / 阻塞 / 沉淀（零丢失快照）/ 交接 / 环境 / 更新，点击直达对应视图</text>
 </g>
 <g filter="url(#glow)">
 <rect x="60" y="228" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
 <rect x="76" y="235" width="40" height="40" rx="10" fill="#9D7CD8" opacity="0.12"/>
 <rect x="74" y="241" width="44" height="28" rx="7" fill="none" stroke="#9D7CD8" stroke-width="2"/><rect x="82" y="248" width="20" height="2.5" rx="1.25" fill="#9D7CD8" opacity="0.9"/><rect x="82" y="254" width="16" height="2.5" rx="1.25" fill="#9D7CD8" opacity="0.6"/><rect x="82" y="260" width="22" height="2.5" rx="1.25" fill="#9D7CD8" opacity="0.4"/>
 <text x="134" y="258" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">面板 · 列表</text>
-<text x="250" y="258" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#b8b8c2">issue 全列表（map 置顶 + 子票迷你圆环进度）、标签过滤 chips、阻塞筛选、已关闭折叠、行级动作</text>
+<text x="250" y="258" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="18.5" fill="#b8b8c2">issue 全列表（map 置顶 + 子票迷你圆环进度）、标签过滤 chips、阻塞筛选、已关闭折叠、行级动作</text>
 </g>
 <g filter="url(#glow)">
 <rect x="60" y="290" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
 <rect x="76" y="297" width="40" height="40" rx="10" fill="#56B6C2" opacity="0.12"/>
 <circle cx="96" cy="317" r="13" fill="none" stroke="#56B6C2" stroke-width="2.2"/><path d="M96 304a13 13 0 0 1 0 26" fill="none" stroke="#56B6C2" stroke-width="2.6"/><path d="M96 304v26M83 317h26" stroke="#56B6C2" stroke-width="1" opacity="0.5"/>
 <text x="134" y="320" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">面板 · 技能</text>
-<text x="250" y="320" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#b8b8c2">技能雷达（推荐 / 列表 / 圆环），点击注入 /skill</text>
+<text x="250" y="320" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="18.5" fill="#b8b8c2">技能雷达（推荐 / 列表 / 圆环），点击注入 /skill</text>
 </g>
 <g filter="url(#glow)">
 <rect x="60" y="352" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
 <rect x="76" y="359" width="40" height="40" rx="10" fill="#4ADE80" opacity="0.12"/>
 <circle cx="86" cy="379" r="5" fill="#4ADE80"/><circle cx="96" cy="379" r="5" fill="#FACC15"/><circle cx="106" cy="379" r="5" fill="#EF4444"/>
 <text x="134" y="382" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">面板 · 环境检查</text>
-<text x="250" y="382" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#b8b8c2">9 项前置检查 + 一键处理 + 引导依赖链，完成自动勾选</text>
+<text x="250" y="382" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="18.5" fill="#b8b8c2">9 项前置检查 + 一键处理 + 引导依赖链，完成自动勾选</text>
 </g>
 <g filter="url(#glow)">
 <rect x="60" y="414" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
 <rect x="76" y="421" width="40" height="40" rx="10" fill="#FAB283" opacity="0.12"/>
 <circle cx="96" cy="441" r="13" fill="none" stroke="#FAB283" stroke-width="2.4" stroke-dasharray="62 20"/><path d="M94 435l4 6 6-1-3 7 1 6-8-3-8 3 1-6-3-7 6 1z" fill="#FAB283" opacity="0.85"/>
 <text x="134" y="444" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">map 详情</text>
-<text x="250" y="444" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#b8b8c2">顶部「执行」+ 任务状态走廊（可接 / 已认领 / 被阻塞 / 已关闭）、Decision / Fog / Out-of-scope 折叠</text>
+<text x="250" y="444" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="18.5" fill="#b8b8c2">顶部「执行」+ 任务状态走廊（可接 / 已认领 / 被阻塞 / 已关闭）、Decision / Fog / Out-of-scope 折叠</text>
 </g>
 <g filter="url(#glow)">
 <rect x="60" y="476" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
 <rect x="76" y="483" width="40" height="40" rx="10" fill="#9D7CD8" opacity="0.12"/>
 <path d="M84 503h20" stroke="#9D7CD8" stroke-width="2.6" stroke-linecap="round"/><path d="M98 496l8 7-8 7" stroke="#9D7CD8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
 <text x="134" y="506" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">交接</text>
-<text x="250" y="506" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#b8b8c2">第一击注入 /handoff 时间戳模板；第二击预填 /read + 复述确认并开新会话</text>
+<text x="250" y="506" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="18.5" fill="#b8b8c2">第一击注入 /handoff 时间戳模板；第二击预填 /read + 复述确认并开新会话</text>
 </g>
 <g filter="url(#glow)">
 <rect x="60" y="538" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
 <rect x="76" y="545" width="40" height="40" rx="10" fill="#56B6C2" opacity="0.12"/>
 <circle cx="96" cy="565" r="13" fill="none" stroke="#56B6C2" stroke-width="2.6" stroke-dasharray="61 21"/><path d="M109 564l-6 4.5 2-7z" fill="#56B6C2"/>
 <text x="134" y="568" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">自动刷新</text>
-<text x="250" y="568" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16.5" fill="#b8b8c2">变化行高亮、即时转圈反馈，无需手动刷新</text>
+<text x="250" y="568" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="18.5" fill="#b8b8c2">变化行高亮、即时转圈反馈，无需手动刷新</text>
 </g>
 </svg>

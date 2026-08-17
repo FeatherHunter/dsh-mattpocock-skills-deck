@@ -20,7 +20,7 @@
 <rect x="84" y="92" width="17" height="17" rx="4" fill="#56B6C2"/>
 <rect x="104" y="92" width="17" height="17" rx="4" fill="#4ADE80"/>
 <text x="156" y="84" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="24" font-weight="700" fill="#f0f0f6">dsh-opencode-palette</text>
-<text x="156" y="112" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#8a8a94">github.com/FeatherHunter/dsh-opencode-palette</text>
+<text x="156" y="112" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="17" fill="#8a8a94">github.com/FeatherHunter/dsh-opencode-palette</text>
 <text x="470" y="84" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" fill="#b8b8c2">喜欢 opencode 的配色？让 DSH 也穿上它 ——</text>
 <text x="470" y="112" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="17" fill="#b8b8c2">34 款经典主题，眼睛舒服了，码字也开心。</text>
 <text x="1220" y="52" text-anchor="end" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="16" fill="#FAB283">点击访问 ↗</text>
