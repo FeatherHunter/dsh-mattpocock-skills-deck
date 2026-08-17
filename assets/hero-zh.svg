@@ -29,7 +29,7 @@
 </g>
 <path d="M120 22l3.4 7.2 7.2 3.4-7.2 3.4-3.4 7.2-3.4-7.2-7.2-3.4 7.2-3.4z" fill="#FAB283"/>
 </g>
-<text x="640" y="176" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="58" font-weight="800" letter-spacing="1" fill="url(#tG)">让 AI 不只是聊天，还能把事办成</text>
+<text x="640" y="176" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="52" font-weight="800" letter-spacing="1" fill="url(#tG)">拨开迷雾看见终点，剩下的交给任务栏</text>
 <text x="640" y="226" text-anchor="middle" font-family="-apple-system,Segoe UI,Microsoft YaHei,PingFang SC,sans-serif" font-size="25" fill="#b8b8c2">wayfinder 决策地图 · 动作注入 · 技能雷达 · 环境检查</text>
 <g>
 <rect x="276" y="250" width="168" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>

@@ -1,6 +1,8 @@
 # 🧠 dsh-mattpocock-skills-deck
 
-**让 AI 不只是聊天，还能把事办成 —— 把 [mattpocock/skills](https://github.com/mattpocock/skills) 变成 DSH 里的游戏任务系统（MattSkills）。**
+**拨开迷雾看见终点，剩下的交给任务栏 —— 把 [mattpocock/skills](https://github.com/mattpocock/skills) 变成 DSH 里的游戏任务系统（MattSkills）。**
+
+*Part the fog, see the end — the task bar handles the rest.*
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck)
@@ -9,7 +11,7 @@
 
 ![hero](assets/hero-zh.svg)
 
-> 装它，30 秒。剩下的交给 AI。
+> 装它，30 秒。剩下的交给任务栏。
 
 ## 🚀 装它（30 秒）
 
