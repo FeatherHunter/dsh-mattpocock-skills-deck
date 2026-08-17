@@ -289,7 +289,8 @@ return {
         'nav.takeable': '可接',
         'nav.occupied': '阻塞',
         'nav.env': '环境',
-        'nav.envTitle': '环境检查 ({n}/9)',
+        'nav.envTitle': '环境检查 ({n}/{t})',
+        'panel.title': 'Matt 技能甲板',
         'nav.takeableTitle': '可接 = 未认领可执行的任务数',
         'nav.occupiedTitle': '阻塞 = 已认领未关闭的任务数',
         'nav.bug': 'BUG',
@@ -379,7 +380,7 @@ return {
         'skill.treat': '用 /{s} 处理',
         'skill.list': '列表',
         'skill.ring': '圆环',
-        'env.title': '环境检查 {n}/8',
+        'env.title': '环境检查 {n}',
         'env.recheck': '重新检查',
         'env.checking': '检查中…',
         'env.missing': '缺失',
@@ -477,7 +478,7 @@ return {
         'run.desc': '环境检查（wf.status）+ 面板（wf.snapshot）均已接真。',
         'run.openPanel': '打开面板',
         'run.openCfg': '打开配置',
-        'run.cfgGuide': '配置页：设置 → 插件 → Matt Skills Deck',
+        'run.cfgGuide': '配置页：设置 → 插件 → Matt 技能甲板',
         'skilldesc.ask-matt': '技能路由器：不知道该用哪个 skill 时问它',
         'skilldesc.setup-matt-pocock-skills': '仓库初始化：issue tracker / 标签 / 文档路径',
         'skilldesc.wayfinder': '巨型项目决策地图（本插件服务的对象）',
@@ -504,7 +505,8 @@ return {
         'nav.takeable': 'Ready',
         'nav.occupied': 'Busy',
         'nav.env': 'Env',
-        'nav.envTitle': 'Environment checks ({n}/9)',
+        'nav.envTitle': 'Environment checks ({n}/{t})',
+        'panel.title': 'Matt Skills Deck',
         'nav.takeableTitle': 'Ready = unclaimed, takeable tasks',
         'nav.occupiedTitle': 'Busy = claimed but not yet closed',
         'nav.bug': 'BUG',
@@ -594,7 +596,7 @@ return {
         'skill.treat': 'Handle with /{s}',
         'skill.list': 'List',
         'skill.ring': 'Ring',
-        'env.title': 'Environment checks {n}/8',
+        'env.title': 'Environment checks {n}',
         'env.recheck': 'Re-check',
         'env.checking': 'Checking…',
         'env.missing': 'Missing',
@@ -1177,7 +1179,7 @@ return {
 
     // ---- 环境检查（#344 · host.call('wf.status')；host 侧 30s 缓存 / force 重查）----
     // v12：失败不再兜假数据 —— 非 real 状态一律视为未知（--/8），不展示假绿点
-    const CHECKS_TOTAL = 8
+    const CHECKS_TOTAL = 9   // v1.5 T11 起 9 项检测（含核心技能套件）
     const loadChecks = (st, force, silent) => {
       if (st.checking) return Promise.resolve()
       if (typeof host === 'undefined' || typeof host.call !== 'function') {
@@ -1212,8 +1214,9 @@ return {
     }
     const activeChecks = (st) => (st.checksMode === 'real' && st.checks && st.checks.length) ? st.checks : []
     const readyCount = (st) => { const cs = activeChecks(st); return cs.length ? cs.filter(function (c) { return c.level === 'ok' }).length : -1 }
-    // v14-22：返回纯数字串（'6/8' / '--/8'），由状态栏 num() 固定宽度渲染
-    const envLabel = (st) => { const n = readyCount(st); return n < 0 ? '--/9' : n + '/9' }
+    // v14-22：返回纯数字串（'6/9' / '--/9'），由状态栏 num() 固定宽度渲染；分母 = 实际检查项数（动态，不再硬编码）
+    const envTotal = (st) => { const cs = activeChecks(st); return cs.length || CHECKS_TOTAL }
+    const envLabel = (st) => { const n = readyCount(st); const t = envTotal(st); return n < 0 ? '--/' + t : n + '/' + t }
     const setupCheck = (st) => (st.checks || []).find(function (c) { return c.id === 2 })
 
     // #370：blockerNames 只列「仍 OPEN」的阻塞者（GitHub 依赖边在阻塞者关闭后仍保留，需按状态过滤）
@@ -1541,7 +1544,7 @@ return {
         }
         sidebarTabDisposer = bs.registerTab({
           id: 'waystation:map',
-          title: function () { return 'Matt Skills Deck' },
+          title: function () { return tr('panel.title') },
           icon: function () { return Ic({ n: 'map', size: 14 }) },
           order: 60,
           single: true,
@@ -1798,7 +1801,7 @@ return {
       const capsule = h('div', { className: 'dsws-capsule', onClick: function () { openPanel(s) } }, [
         h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
           Icon({ scheme: s.ui.icon, size: 14 }),
-          h('span', null, 'Matt Skills Deck'),
+          h('span', null, tr('panel.title')),
         ]),
         seg('target', [h('span', null, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; go('list') }, tr('nav.takeableTitle')),
         seg('alert', [h('span', null, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, tr('nav.bugTitle')),
@@ -1806,7 +1809,7 @@ return {
         seg('note', tr('nav.word'), '#c084fc', function () { injectFixate(s) }, tr('nav.fixateTitle')),
         seg('handoff', s.handoffReady ? tr('nav.handoffReady') : tr('nav.handoff'), '#58a6ff', function () { doHandoff(s) }, s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffTitle')),
         // v19-36：环境段移至末尾（更新左侧），用户少点
-        seg('dot', [h('span', null, tr('nav.env')), num(envLabel(s))], n < 0 ? '#f87171' : n === 9 ? '#4ade80' : '#f59e0b', function () { go('checks') }, tr('nav.envTitle', { n: n < 0 ? '?' : String(n) })),
+        seg('dot', [h('span', null, tr('nav.env')), num(envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') }, tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) })),
         // v1.5 T10：刷新反馈 = 图标转圈（文字恒定不换 · 控件宽度零变化）
         h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, title: tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('nav.refresh') + ' ' + timeStr)]),
       ])
@@ -2794,7 +2797,7 @@ return {
         // 头部（标题 + 关闭）：横线不放在这行，下移到标签行下方与对话/轨迹对齐
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, padding: '10px 12px 6px', flex: 'none' } }, [
           Icon({ scheme: 'compass', size: 15 }),
-          h('span', { style: { fontWeight: 600, fontSize: 13, flex: 'none' } }, 'Matt Skills Deck'),
+          h('span', { style: { fontWeight: 600, fontSize: 13, flex: 'none' } }, tr('panel.title')),
           // v1.5 T7：仓库身份组件 —— 当前检测到的 git 仓库（owner/name），点击打开 GitHub
           (s.snapshot && s.snapshot.repo) ? h('a', { href: 'https://github.com/' + s.snapshot.repo.owner + '/' + s.snapshot.repo.name, target: '_blank', rel: 'noreferrer', title: tr('panel.repoTitle'), style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#58a6ff', background: 'rgba(88,166,255,.1)', border: '1px solid rgba(88,166,255,.45)', borderRadius: 6, padding: '1px 8px', maxWidth: narrow ? 90 : 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 'none', fontFamily: 'Consolas,Menlo,monospace' } }, [
             h('svg', { viewBox: '0 0 16 16', width: 11, height: 11, fill: 'currentColor', style: { flex: 'none' } }, [h('path', { d: 'M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 8h8.5V1.5z' })]),
@@ -3071,7 +3074,7 @@ return {
         ]) : null,
         h('div', { className: 'dsws-cfg-head' }, [
           Icon({ scheme: 'compass', size: 20 }),
-          h('span', { className: 't' }, 'Matt Skills Deck'),
+          h('span', { className: 't' }, tr('panel.title')),
           h('span', { className: 's', style: { color: saved ? 'var(--dsw-alias-state-success-primary,#4ade80)' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [
             Ic({ n: saved ? 'check' : 'dot', size: 12 }),
             h('span', null, saved ? tr('cfg.saved') : tr('cfg.status')),
@@ -3165,7 +3168,7 @@ return {
       const s = useStore(cur)
       return h('div', { style: { border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, padding: '10px 12px', background: 'var(--dsw-alias-bg-layer-1,#10131a)', fontFamily: 'var(--dsw-font-family)', fontSize: 13, color: 'var(--dsw-alias-label-primary,#e6edf3)', lineHeight: 1.6 } }, [
         h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }, [
-          h('strong', null, 'Matt Skills Deck'),
+          h('strong', null, tr('panel.title')),
           h('span', { style: { display: 'flex', alignItems: 'center', gap: 4, color: '#4ade80', fontSize: 12 } }, [Ic({ n: 'dot', size: 10 }), h('span', null, tr('run.loaded'))]),
         ]),
         h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', margin: '6px 0' } }, tr('run.desc')),
