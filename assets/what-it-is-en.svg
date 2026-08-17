@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="560" viewBox="0 0 1280 560">
+<defs>
+<radialGradient id="hO" cx="15%" cy="0%" r="65%"><stop offset="0%" stop-color="#FAB283" stop-opacity="0.22"/><stop offset="100%" stop-color="#FAB283" stop-opacity="0"/></radialGradient>
+<radialGradient id="hV" cx="88%" cy="5%" r="60%"><stop offset="0%" stop-color="#9D7CD8" stop-opacity="0.20"/><stop offset="100%" stop-color="#9D7CD8" stop-opacity="0"/></radialGradient>
+<radialGradient id="hT" cx="45%" cy="105%" r="70%"><stop offset="0%" stop-color="#56B6C2" stop-opacity="0.14"/><stop offset="100%" stop-color="#56B6C2" stop-opacity="0"/></radialGradient>
+<linearGradient id="tG" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#FAB283"/><stop offset="50%" stop-color="#9D7CD8"/><stop offset="100%" stop-color="#56B6C2"/></linearGradient>
+<linearGradient id="cardG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#15151c"/><stop offset="100%" stop-color="#0d0d12"/></linearGradient>
+<filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000" flood-opacity="0.55"/></filter>
+<pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.5" fill="#ffffff" opacity="0.05"/></pattern>
+</defs>
+<rect width="100%" height="100%" fill="#0a0a0c"/>
+<rect width="100%" height="100%" fill="url(#hO)"/>
+<rect width="100%" height="100%" fill="url(#hV)"/>
+<rect width="100%" height="100%" fill="url(#hT)"/>
+<rect width="100%" height="100%" fill="url(#dots)"/>
+<text x="640" y="40" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" letter-spacing="5" fill="#5c5c66">DEEPSEEK HARNESS · MATTSKILLS</text>
+<text x="640" y="100" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="38" font-weight="800" letter-spacing="1" fill="url(#tG)">What it is</text>
+<text x="640" y="132" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" fill="#8a8a94">Matt's skills, plugged into DSH — so AI works through real issues, step by step</text>
+<g filter="url(#glow)">
+<rect x="60" y="164" width="380" height="150" rx="14" fill="url(#cardG)" stroke="#26262f"/>
+<circle cx="116" cy="224" r="27" fill="#9D7CD8" opacity="0.16"/>
+<circle cx="116" cy="224" r="13" fill="none" stroke="#9D7CD8" stroke-width="2.6" stroke-dasharray="62 20"/><circle cx="116" cy="224" r="4" fill="#9D7CD8"/>
+<text x="156" y="216" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">wayfinder decision maps</text>
+<text x="156" y="244" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">Full map support, sub-task rings —</text>
+<text x="156" y="268" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">frontier, blocked and closed at a glance</text>
+</g><g filter="url(#glow)">
+<rect x="450" y="164" width="380" height="150" rx="14" fill="url(#cardG)" stroke="#26262f"/>
+<circle cx="506" cy="224" r="27" fill="#FAB283" opacity="0.16"/>
+<circle cx="116" cy="224" r="13" fill="none" stroke="#FAB283" stroke-width="2.6"/><circle cx="116" cy="224" r="6" fill="none" stroke="#FAB283" stroke-width="2"/><circle cx="116" cy="224" r="2.5" fill="#FAB283"/>
+<text x="546" y="216" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">action injection</text>
+<text x="546" y="244" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">Pick by label: diagnose / fix / discuss / run,</text>
+<text x="546" y="268" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">with a first-principles + adversarial-review note</text>
+</g><g filter="url(#glow)">
+<rect x="840" y="164" width="380" height="150" rx="14" fill="url(#cardG)" stroke="#26262f"/>
+<circle cx="896" cy="224" r="27" fill="#56B6C2" opacity="0.16"/>
+<circle cx="116" cy="224" r="13" fill="none" stroke="#56B6C2" stroke-width="2.2"/><path d="M116 211a13 13 0 0 1 0 26" fill="none" stroke="#56B6C2" stroke-width="2.6"/><path d="M116 211v26M103 224h26" stroke="#56B6C2" stroke-width="1.2" opacity="0.6"/>
+<text x="936" y="216" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">skill radar</text>
+<text x="936" y="244" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">25 skills: recommended / list / ring,</text>
+<text x="936" y="268" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">one click injects /skill</text>
+</g><g filter="url(#glow)">
+<rect x="60" y="330" width="380" height="150" rx="14" fill="url(#cardG)" stroke="#26262f"/>
+<circle cx="116" cy="390" r="27" fill="#4ADE80" opacity="0.16"/>
+<circle cx="106" cy="224" r="5" fill="#4ADE80"/><circle cx="116" cy="224" r="5" fill="#FACC15"/><circle cx="126" cy="224" r="5" fill="#EF4444"/>
+<text x="156" y="382" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">env check</text>
+<text x="156" y="410" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">9 pre-checks, green / amber / red,</text>
+<text x="156" y="434" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">guided: gh → login → setup → skills</text>
+</g><g filter="url(#glow)">
+<rect x="450" y="330" width="380" height="150" rx="14" fill="url(#cardG)" stroke="#26262f"/>
+<circle cx="506" cy="390" r="27" fill="#FAB283" opacity="0.16"/>
+<path d="M104 224h24" stroke="#FAB283" stroke-width="2.6" stroke-linecap="round"/><path d="M122 217l8 7-8 7" stroke="#FAB283" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<text x="546" y="382" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">handoff</text>
+<text x="546" y="410" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">/handoff timestamp → confirm → new session,</text>
+<text x="546" y="434" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">context never lost</text>
+</g><g filter="url(#glow)">
+<rect x="840" y="330" width="380" height="150" rx="14" fill="url(#cardG)" stroke="#26262f"/>
+<circle cx="896" cy="390" r="27" fill="#9D7CD8" opacity="0.16"/>
+<rect x="106" y="212" width="20" height="24" rx="5" fill="none" stroke="#9D7CD8" stroke-width="2.2"/><text x="116" y="228" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="10" font-weight="700" fill="#9D7CD8">A</text>
+<text x="936" y="382" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">bilingual</text>
+<text x="936" y="410" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">Follows the DSH language,</text>
+<text x="936" y="434" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#b8b8c2">switch anytime</text>
+</g></svg>

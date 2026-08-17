@@ -1,5 +1,7 @@
 # 🧠 dsh-mattpocock-skills-deck
 
+**🌐 [中文](README.md) · [English](docs/README.en.md)**
+
 **拨开迷雾看见终点，剩下的交给任务栏 —— 把 [mattpocock/skills](https://github.com/mattpocock/skills) 变成 DSH 里的游戏任务系统（MattSkills）。**
 
 *Part the fog, see the end — the task bar handles the rest.*

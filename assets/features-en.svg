@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="660" viewBox="0 0 1280 660">
+<defs>
+<radialGradient id="hO" cx="15%" cy="0%" r="65%"><stop offset="0%" stop-color="#FAB283" stop-opacity="0.22"/><stop offset="100%" stop-color="#FAB283" stop-opacity="0"/></radialGradient>
+<radialGradient id="hV" cx="88%" cy="5%" r="60%"><stop offset="0%" stop-color="#9D7CD8" stop-opacity="0.20"/><stop offset="100%" stop-color="#9D7CD8" stop-opacity="0"/></radialGradient>
+<radialGradient id="hT" cx="45%" cy="105%" r="70%"><stop offset="0%" stop-color="#56B6C2" stop-opacity="0.14"/><stop offset="100%" stop-color="#56B6C2" stop-opacity="0"/></radialGradient>
+<linearGradient id="tG" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#FAB283"/><stop offset="50%" stop-color="#9D7CD8"/><stop offset="100%" stop-color="#56B6C2"/></linearGradient>
+<linearGradient id="cardG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#15151c"/><stop offset="100%" stop-color="#0d0d12"/></linearGradient>
+<filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#000" flood-opacity="0.5"/></filter>
+<pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.5" fill="#ffffff" opacity="0.05"/></pattern>
+</defs>
+<rect width="100%" height="100%" fill="#0a0a0c"/>
+<rect width="100%" height="100%" fill="url(#hO)"/>
+<rect width="100%" height="100%" fill="url(#hV)"/>
+<rect width="100%" height="100%" fill="url(#hT)"/>
+<rect width="100%" height="100%" fill="url(#dots)"/>
+<text x="640" y="40" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" letter-spacing="5" fill="#5c5c66">DEEPSEEK HARNESS · MATTSKILLS</text>
+<text x="640" y="100" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="38" font-weight="800" letter-spacing="1" fill="url(#tG)">Features</text>
+<text x="640" y="132" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" fill="#8a8a94">7 modules, at a glance</text>
+<g filter="url(#glow)">
+<rect x="60" y="166" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
+<rect x="76" y="173" width="40" height="40" rx="10" fill="#FAB283" opacity="0.12"/>
+<rect x="74" y="183" width="44" height="20" rx="10" fill="none" stroke="#FAB283" stroke-width="2"/><circle cx="86" cy="193" r="2.5" fill="#FAB283"/><circle cx="96" cy="193" r="2.5" fill="#FAB283"/><circle cx="106" cy="193" r="2.5" fill="#FAB283"/>
+<text x="134" y="196" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">Status bar</text>
+<text x="250" y="196" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14.5" fill="#b8b8c2">Above the input: claim / blocked / park (zero-loss snapshot) / handoff / env / update — click to jump</text>
+</g><g filter="url(#glow)">
+<rect x="60" y="228" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
+<rect x="76" y="235" width="40" height="40" rx="10" fill="#9D7CD8" opacity="0.12"/>
+<rect x="74" y="241" width="44" height="28" rx="7" fill="none" stroke="#9D7CD8" stroke-width="2"/><rect x="82" y="248" width="20" height="2.5" rx="1.25" fill="#9D7CD8" opacity="0.9"/><rect x="82" y="254" width="16" height="2.5" rx="1.25" fill="#9D7CD8" opacity="0.6"/><rect x="82" y="260" width="22" height="2.5" rx="1.25" fill="#9D7CD8" opacity="0.4"/>
+<text x="134" y="258" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">Panel · List</text>
+<text x="250" y="258" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14.5" fill="#b8b8c2">Full issue list (maps pinned + mini progress rings), label chips, blocked filter, collapsed closed, row actions</text>
+</g><g filter="url(#glow)">
+<rect x="60" y="290" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
+<rect x="76" y="297" width="40" height="40" rx="10" fill="#56B6C2" opacity="0.12"/>
+<circle cx="96" cy="317" r="13" fill="none" stroke="#56B6C2" stroke-width="2.2"/><path d="M96 304a13 13 0 0 1 0 26" fill="none" stroke="#56B6C2" stroke-width="2.6"/><path d="M96 304v26M83 317h26" stroke="#56B6C2" stroke-width="1" opacity="0.5"/>
+<text x="134" y="320" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">Panel · Skills</text>
+<text x="250" y="320" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14.5" fill="#b8b8c2">Skill radar (recommended / list / ring) — one click injects /skill</text>
+</g><g filter="url(#glow)">
+<rect x="60" y="352" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
+<rect x="76" y="359" width="40" height="40" rx="10" fill="#4ADE80" opacity="0.12"/>
+<circle cx="86" cy="379" r="5" fill="#4ADE80"/><circle cx="96" cy="379" r="5" fill="#FACC15"/><circle cx="106" cy="379" r="5" fill="#EF4444"/>
+<text x="134" y="382" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">Panel · Env check</text>
+<text x="250" y="382" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14.5" fill="#b8b8c2">9 pre-checks, one-click fix, guided chain (gh → login → setup → skills), auto-checked when done</text>
+</g><g filter="url(#glow)">
+<rect x="60" y="414" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
+<rect x="76" y="421" width="40" height="40" rx="10" fill="#FAB283" opacity="0.12"/>
+<circle cx="96" cy="441" r="13" fill="none" stroke="#FAB283" stroke-width="2.4" stroke-dasharray="62 20"/><path d="M94 435l4 6 6-1-3 7 1 6-8-3-8 3 1-6-3-7 6 1z" fill="#FAB283" opacity="0.85"/>
+<text x="134" y="444" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">Map detail</text>
+<text x="250" y="444" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14.5" fill="#b8b8c2">Top "Run" + task status corridor (claimable / claimed / blocked / closed), Decision / Fog / Out-of-scope folds</text>
+</g><g filter="url(#glow)">
+<rect x="60" y="476" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
+<rect x="76" y="483" width="40" height="40" rx="10" fill="#9D7CD8" opacity="0.12"/>
+<path d="M84 503h20" stroke="#9D7CD8" stroke-width="2.6" stroke-linecap="round"/><path d="M98 496l8 7-8 7" stroke="#9D7CD8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<text x="134" y="506" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">Handoff</text>
+<text x="250" y="506" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14.5" fill="#b8b8c2">First tap injects /handoff timestamp; second pre-fills /read + confirmation and opens a new session</text>
+</g><g filter="url(#glow)">
+<rect x="60" y="538" width="1160" height="54" rx="12" fill="url(#cardG)" stroke="#26262f"/>
+<rect x="76" y="545" width="40" height="40" rx="10" fill="#56B6C2" opacity="0.12"/>
+<circle cx="96" cy="565" r="13" fill="none" stroke="#56B6C2" stroke-width="2.6" stroke-dasharray="61 21"/><path d="M109 564l-6 4.5 2-7z" fill="#56B6C2"/>
+<text x="134" y="568" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#f0f0f6">Auto-refresh</text>
+<text x="250" y="568" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14.5" fill="#b8b8c2">Changed rows highlight, instant spinner feedback — no manual refresh</text>
+</g></svg>

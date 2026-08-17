@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+<defs>
+<radialGradient id="hO" cx="15%" cy="0%" r="65%"><stop offset="0%" stop-color="#FAB283" stop-opacity="0.22"/><stop offset="100%" stop-color="#FAB283" stop-opacity="0"/></radialGradient>
+<radialGradient id="hV" cx="88%" cy="5%" r="60%"><stop offset="0%" stop-color="#9D7CD8" stop-opacity="0.20"/><stop offset="100%" stop-color="#9D7CD8" stop-opacity="0"/></radialGradient>
+<radialGradient id="hT" cx="45%" cy="105%" r="70%"><stop offset="0%" stop-color="#56B6C2" stop-opacity="0.14"/><stop offset="100%" stop-color="#56B6C2" stop-opacity="0"/></radialGradient>
+<linearGradient id="tG" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#FAB283"/><stop offset="50%" stop-color="#9D7CD8"/><stop offset="100%" stop-color="#56B6C2"/></linearGradient>
+<linearGradient id="cardG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#15151c"/><stop offset="100%" stop-color="#0d0d12"/></linearGradient>
+<filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="14" stdDeviation="22" flood-color="#000" flood-opacity="0.6"/></filter>
+<filter id="logoGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.5" fill="#ffffff" opacity="0.05"/></pattern>
+</defs>
+<rect width="100%" height="100%" fill="#0a0a0c"/>
+<rect width="100%" height="100%" fill="url(#hO)"/>
+<rect width="100%" height="100%" fill="url(#hV)"/>
+<rect width="100%" height="100%" fill="url(#hT)"/>
+<rect width="100%" height="100%" fill="url(#dots)"/>
+<text x="640" y="44" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="17.5" letter-spacing="6" fill="#5c5c66">DEEPSEEK HARNESS · PLUGIN</text>
+<g transform="translate(572,54)">
+<circle cx="68" cy="68" r="48" fill="#12121a" stroke="#2e2e3a" stroke-width="2"/>
+<circle cx="68" cy="68" r="40" fill="none" stroke="#FAB283" stroke-opacity="0.25" stroke-width="1.5"/>
+<g filter="url(#logoGlow)">
+<rect x="49" y="59" width="38" height="27" rx="6" fill="#15151c" stroke="#2e2e3a" stroke-width="1.5"/>
+<rect x="57" y="64" width="22" height="3.5" rx="1.75" fill="#3a3a46"/>
+<rect x="57" y="71" width="15" height="3.5" rx="1.75" fill="#2a2a34"/>
+<rect x="57" y="46" width="38" height="27" rx="6" fill="#1c1c26" stroke="#FAB283" stroke-width="1.5"/>
+<circle cx="76" cy="55" r="5.5" fill="none" stroke="#FAB283" stroke-width="2" stroke-dasharray="23 12"/>
+<rect x="65" y="60" width="22" height="3.5" rx="1.75" fill="#4a4a56"/>
+<rect x="65" y="67" width="15" height="3.5" rx="1.75" fill="#3a3a46"/>
+</g>
+<path d="M120 22l3.4 7.2 7.2 3.4-7.2 3.4-3.4 7.2-3.4-7.2-7.2-3.4 7.2-3.4z" fill="#FAB283"/>
+</g>
+<text x="640" y="176" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="40" font-weight="800" letter-spacing="0.5" fill="url(#tG)">Part the fog, see the end — the task bar handles the rest</text>
+<text x="640" y="226" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="24" fill="#b8b8c2">wayfinder maps · action injection · skill radar · env check</text>
+<g>
+<rect x="261" y="250" width="196" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="283" cy="268" r="6" fill="#FAB283"/>
+<text x="295" y="273" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="15.5" fill="#e6e6ee">Engineering skills</text>
+<rect x="471" y="250" width="160" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="493" cy="268" r="6" fill="#9D7CD8"/>
+<text x="505" y="273" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15.5" fill="#e6e6ee">wayfinder map</text>
+<rect x="645" y="250" width="104" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="667" cy="268" r="6" fill="#56B6C2"/>
+<text x="679" y="273" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15.5" fill="#e6e6ee">/triage</text>
+<rect x="763" y="250" width="122" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="785" cy="268" r="6" fill="#56B6C2"/>
+<text x="797" y="273" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15.5" fill="#e6e6ee">/grilling</text>
+<rect x="899" y="250" width="120" height="36" rx="18" fill="#17171f" stroke="#2e2e3a"/>
+<circle cx="921" cy="268" r="6" fill="#FAB283"/>
+<text x="933" y="273" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15.5" fill="#e6e6ee">handoff</text>
+</g>
+<g filter="url(#glow)">
+<rect x="60" y="312" width="560" height="292" rx="18" fill="url(#cardG)" stroke="#26262f"/>
+<rect x="60" y="312" width="560" height="46" rx="18" fill="#101016"/>
+<rect x="60" y="342" width="560" height="16" fill="#101016"/>
+<rect x="76" y="322" width="64" height="24" rx="12" fill="#9D7CD8"/>
+<text x="108" y="338" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#0d0d12">List</text>
+<rect x="148" y="322" width="72" height="24" rx="12" fill="#101016" stroke="#2e2e3a"/>
+<text x="184" y="338" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a94">Skills</text>
+<rect x="228" y="322" width="80" height="24" rx="12" fill="#101016" stroke="#2e2e3a"/>
+<text x="268" y="338" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a94">Env</text>
+<path d="M566 327a9 9 0 1 1-4-11" fill="none" stroke="#8a8a94" stroke-width="2" stroke-linecap="round"/>
+<path d="M558 318l3 4 5-1" fill="none" stroke="#8a8a94" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="600" y="338" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.5" fill="#8a8a94">v1.0.0</text>
+<rect x="76" y="366" width="40" height="22" rx="11" fill="#FAB283" opacity="0.16" stroke="#FAB283"/>
+<text x="96" y="381" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#FAB283">All</text>
+<rect x="124" y="366" width="84" height="22" rx="11" fill="#101016" stroke="#2e2e3a"/>
+<text x="166" y="381" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#8a8a94">In progress</text>
+<rect x="216" y="366" width="64" height="22" rx="11" fill="#101016" stroke="#2e2e3a"/>
+<text x="248" y="381" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#8a8a94">Blocked</text>
+<rect x="288" y="366" width="64" height="22" rx="11" fill="#101016" stroke="#2e2e3a"/>
+<text x="320" y="381" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#8a8a94">Closed</text>
+<rect x="76" y="394" width="528" height="56" rx="10" fill="#0e0e14" stroke="#9D7CD8" stroke-opacity="0.5"/>
+<rect x="84" y="404" width="40" height="24" rx="6" fill="#1a1a24" stroke="#9D7CD8"/>
+<text x="104" y="421" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.5" font-weight="700" fill="#9D7CD8">MAP</text>
+<circle cx="142" cy="422" r="15" fill="none" stroke="#9D7CD8" stroke-width="2.2" stroke-dasharray="24 70"/>
+<text x="142" y="425" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="9" fill="#9D7CD8">3/12</text>
+<text x="164" y="416" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14" font-weight="700" fill="#f0f0f6">#104 [Website] Migration map</text>
+<text x="164" y="436" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a94">v2.0 · 12 sub-tasks · frontend</text>
+<circle cx="436" cy="422" r="5" fill="#9D7CD8"/>
+<rect x="484" y="408" width="60" height="28" rx="14" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="514" y="426" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14" fill="#FAB283">Run</text>
+<rect x="76" y="458" width="528" height="52" rx="10" fill="#0e0e14" stroke="#26262f"/>
+<rect x="84" y="466" width="38" height="24" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="103" y="483" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#a0a0ac">#105</text>
+<circle cx="142" cy="484" r="5" fill="#FAB283"/>
+<text x="160" y="482" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14" fill="#e6e6ee">[Website] Responsive rework</text>
+<text x="160" y="499" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="11" fill="#6d6d75">claimable</text>
+<rect x="332" y="468" width="76" height="22" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="370" y="483" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#a0a0ac">Frontend</text>
+<rect x="484" y="470" width="60" height="26" rx="13" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="514" y="487" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#FAB283">Run</text>
+<rect x="76" y="516" width="528" height="52" rx="10" fill="#0e0e14" stroke="#26262f"/>
+<rect x="84" y="524" width="38" height="24" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="103" y="541" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#a0a0ac">#201</text>
+<circle cx="142" cy="542" r="5" fill="#56B6C2"/>
+<text x="160" y="540" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14" fill="#e6e6ee">[Payments] Checkout refactor</text>
+<text x="160" y="557" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="11" fill="#6d6d75">in progress</text>
+<rect x="332" y="526" width="76" height="22" rx="11" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="370" y="541" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#a0a0ac">Payments</text>
+<rect x="484" y="528" width="76" height="26" rx="13" fill="#0A0A0A" stroke="#56B6C2"/>
+<text x="522" y="545" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#56B6C2">/triage</text>
+<text x="76" y="592" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13" fill="#8a8a94">2 claimable · 1 in progress · 0 blocked</text>
+<text x="588" y="592" text-anchor="end" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13" fill="#8a8a94">Row actions: Diagnose / Fix / Run</text>
+</g>
+<g filter="url(#glow)">
+<rect x="660" y="312" width="560" height="292" rx="18" fill="url(#cardG)" stroke="#26262f"/>
+<rect x="660" y="312" width="560" height="46" rx="18" fill="#101016"/>
+<rect x="660" y="342" width="560" height="16" fill="#101016"/>
+<circle cx="688" cy="335" r="6.5" fill="#FAB283"/>
+<text x="708" y="341" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="19.5" font-weight="700" fill="#f0f0f6">Status bar · task tracking</text>
+<rect x="1114" y="323" width="90" height="24" rx="12" fill="#FAB283" opacity="0.16" stroke="#FAB283"/>
+<text x="1159" y="339" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12.5" fill="#FAB283">2 to claim</text>
+<rect x="676" y="364" width="528" height="42" rx="12" fill="#0e0e14" stroke="#2a2a34"/>
+<text x="696" y="389" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14" fill="#5c5c66">Type /wayfinder to start…</text>
+<circle cx="1168" cy="385" r="14" fill="#FAB283"/>
+<path d="M1162 385h12M1168 379l6 6-6 6" stroke="#0d0d12" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="676" y="418" width="76" height="26" rx="13" fill="#FAB283" opacity="0.16" stroke="#FAB283"/>
+<circle cx="694" cy="431" r="4" fill="#FAB283"/>
+<text x="708" y="436" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13" fill="#FAB283">claim</text>
+<rect x="760" y="418" width="82" height="26" rx="13" fill="#101016" stroke="#56B6C2"/>
+<circle cx="778" cy="431" r="4" fill="#56B6C2"/>
+<text x="792" y="436" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13" fill="#a0a0ac">blocked</text>
+<rect x="850" y="418" width="64" height="26" rx="13" fill="#101016" stroke="#9D7CD8"/>
+<circle cx="868" cy="431" r="4" fill="#9D7CD8"/>
+<text x="882" y="436" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13" fill="#a0a0ac">park</text>
+<rect x="922" y="418" width="82" height="26" rx="13" fill="#101016" stroke="#FAB283"/>
+<circle cx="940" cy="431" r="4" fill="#FAB283"/>
+<text x="954" y="436" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13" fill="#a0a0ac">handoff</text>
+<rect x="1012" y="418" width="60" height="26" rx="13" fill="#101016" stroke="#4ADE80"/>
+<circle cx="1030" cy="431" r="4" fill="#4ADE80"/>
+<text x="1044" y="436" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13" fill="#a0a0ac">env</text>
+<rect x="1080" y="418" width="82" height="26" rx="13" fill="#101016" stroke="#3a3a46"/>
+<circle cx="1098" cy="431" r="4" fill="#8a8a94"/>
+<text x="1112" y="436" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13" fill="#a0a0ac">update</text>
+<text x="676" y="470" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14.5" font-weight="700" fill="#e6e6ee">Claimable tasks · frontier</text>
+<text x="1188" y="470" text-anchor="end" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a94">click a capsule to jump</text>
+<rect x="676" y="478" width="528" height="50" rx="10" fill="#0e0e14" stroke="#26262f"/>
+<rect x="684" y="486" width="38" height="24" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="703" y="503" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#a0a0ac">#105</text>
+<text x="732" y="502" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#e6e6ee">[Website] Responsive rework</text>
+<rect x="1006" y="486" width="84" height="26" rx="13" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="1048" y="503" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13" fill="#FAB283">Take task</text>
+<rect x="1098" y="486" width="90" height="26" rx="13" fill="#0A0A0A" stroke="#3a3a46"/>
+<text x="1143" y="503" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#a0a0ac">/wayfinder</text>
+<rect x="676" y="534" width="528" height="50" rx="10" fill="#0e0e14" stroke="#26262f"/>
+<rect x="684" y="542" width="38" height="24" rx="6" fill="#1a1a24" stroke="#3a3a46"/>
+<text x="703" y="559" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#a0a0ac">#302</text>
+<text x="732" y="558" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13.5" fill="#e6e6ee">[Frontend] Dark theme for library</text>
+<rect x="1006" y="542" width="84" height="26" rx="13" fill="#0A0A0A" stroke="#FAB283"/>
+<text x="1048" y="559" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13" fill="#FAB283">Take task</text>
+<rect x="1098" y="542" width="90" height="26" rx="13" fill="#0A0A0A" stroke="#3a3a46"/>
+<text x="1143" y="559" text-anchor="middle" font-family="'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#a0a0ac">/wayfinder</text>
+<text x="676" y="598" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="13" fill="#8a8a94">Take one, move forward — auto-checked, ring updates</text>
+</g>
+</svg>

@@ -1,0 +1,63 @@
+# 🧠 dsh-mattpocock-skills-deck
+
+**🌐 [中文](../README.md) · [English](README.en.md)**
+
+**Part the fog, see the end — the task bar handles the rest. Plug [mattpocock/skills](https://github.com/mattpocock/skills) into DSH as a game-like mission system (MattSkills).**
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
+[![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck)
+[![dsh-plugin](https://img.shields.io/badge/dsh-plugin-orange.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck)
+[![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills)
+
+![hero](../assets/hero-en.svg)
+
+> Install it — 30 seconds. The task bar handles the rest.
+
+## 🚀 Install it (30 seconds)
+
+```bash
+npm install -g @deepseek-ai/dsh        # first time: the DSH CLI
+dsh plugin --profile web add dsh-mattpocock-skills-deck
+```
+
+![See what you get — DSH in 30 seconds](../assets/after-install-en.svg)
+
+Refresh and it's on — zero config, and the rest is handled.
+
+Without a global install: `npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck`
+
+Update / remove: `dsh plugin --profile web update|remove dsh-mattpocock-skills-deck`
+
+## 🎮 The idea
+
+Matt Pocock's skills are excellent: wayfinder draws a **map** that parts the fog and shows the end. But a map only shows you where the end is — someone still has to walk every step.
+
+MattSkills adds a **task system** on top of the map, turning the skills into a game-like mission console inside DSH:
+
+- **Claim tasks** — every playable point on the map is a "claim" task; tap to take it
+- **Move forward** — finish one sub-task, the progress ring advances, the next task appears
+- **Save & hand off** — mark "blocked" when stuck; "park" takes a zero-loss snapshot; hand off to keep context when you switch sessions
+
+The fog is still there — but now you have a map and a task bar.
+
+> Unofficial: this project is a third-party companion to Matt Pocock Skills, with no affiliation to mattpocock/skills.
+
+![What it is](../assets/what-it-is-en.svg)
+
+## 📖 Features
+
+![Features](../assets/features-en.svg)
+
+Full docs: [package/README.md](../package/README.md) · Design: [DESIGN.md](../DESIGN.md) · Changelog: [CHANGELOG.md](../CHANGELOG.md)
+
+## 💛 More from the author
+
+If you like this plugin, you might also like:
+
+[![dsh-opencode-palette](../assets/other-palette-en.svg)](https://github.com/FeatherHunter/dsh-opencode-palette)
+
+[![dsh-prompt](../assets/other-prompt-en.svg)](https://github.com/FeatherHunter/dsh-prompt)
+
+## License
+
+MIT © FeatherHunter
