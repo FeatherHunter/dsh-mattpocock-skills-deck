@@ -858,10 +858,10 @@ return {
       "mapExecute": { version: 4, placeholders: [], use: 'map 执行 / 新会话（未完成态）· 推进式', zh: '请按以下流程推进该 map（遵循 wayfinder 技能规则）：\n1. 加载 wayfinder 技能（如未加载）；\n2. 分析这个 map（Destination / Notes / 阻塞关系 / 当前 frontier）；\n3. 按第一性原理分析当前最适合推进的下一个 issue（frontier 中价值最高、风险最低、最解阻的）；\n4. 去执行它：先认领 → 读该 issue 的 Description / Notes / 阻塞关系 → 制定方案 → 实施 → 验收；\n5. 结束前按进度契约更新该 issue 正文（## 进度：N% + 下一步）；本次推进完成且验收通过 → 100% + close。\n若本次推进有关闭的票：按 wayfinder 规则同步 map 记录（Decisions so far 追加 gist / 迷雾毕业 / Out of scope）。', en: 'Please advance this map:\n1. Load the wayfinder skill (if not loaded);\n2. Analyze this map (Destination / Notes / blocking relationships / current frontier);\n3. From first principles, pick the most valuable next issue on the frontier (highest value, lowest risk, most unblocking);\n4. Go execute it: read the issue Description / Notes / blocking relationships → plan → implement → verify.\n\nApproach tasks from first principles, and review adversarially.\nIf this advance closes any ticket, sync the map records per wayfinder rules (Decisions so far gist / fog graduation / Out of scope).' },
       "complete": { version: 3, placeholders: ['n', 'closed', 'total'], use: 'map 完成态 · 完成确认（收尾 close / 列遗漏）', zh: '## 完成确认 · MAP #{n}\n\n当前地图显示 100% 完成：{closed}/{total} 个 issue 已关闭，但 map 本身仍 open。\n\n请按以下流程处理：\n\n1. 检查完成状态是否真实：{closed}/{total} 已 CLOSED —— 但 map 本身仍 OPEN。请检查：\n   - 子票是否真的解决了原 Destination？\n   - 是否还有 Not yet specified 中未毕业的事项？\n   - 实际已完成却漏标 CLOSED 的 issue（漏关/误开）—— 逐个核对 ticket 的完成状态与关闭状态是否一致；\n   - 是否有 issue 属于该 map 但未建立 sub-issue 关系；\n2. 确认后处理：\n   - 确实全部完成 → 调用 close + 在 Decisions so far 追加总结（每个 closed ticket 一行 gist）；\n   - 发现遗漏 → 列出未完成项，先解决再重新判断；\n   - 不确定 → 询问用户「该地图的全部工作是否已完成，需要做收尾吗？」不要擅自 close；\n3. 最终目标：要么 close map + 写 Decisions so far 总结，要么明确指出未完成项。\n\n从第一性原理出发完成任务，并对抗式审查。\n收尾规则：已实施完成、测试绿、仅差用户确认的票 —— 已确认则 close，未确认则标注「进度 100% · 待验收」，不得显示为未动工。\n维护地图记录（wayfinder 规则）：\n- 关闭一张票时，在所属 map 的 Decisions so far 追加一行 gist（票名 + 链接 + 一句话结论）；\n- 检查 map 的 Not yet specified：可明确的事项毕业为新票（create-then-wire），并从迷雾节清除；\n- 越出目的地范围的票 → 移入 Out of scope（写明原因），不留在 frontier。', en: '## Completion check · MAP #{n}\n\nThe map shows 100% complete: {closed}/{total} issues closed, but the map itself is still open.\n\nHandle it as follows:\n\n1. Verify the completion is real: {closed}/{total} are CLOSED — but the map is still OPEN. Check:\n   - Did the sub-issues really resolve the original Destination?\n   - Are there ungraduated items left in Not yet specified?\n   - Any issue actually completed but missing CLOSED (missed/erroneous) — verify each ticket completion vs close state;\n   - Any issue belonging to this map without a sub-issue relationship;\n2. Then act:\n   - All truly done → close the map + append a summary to Decisions so far (one-line gist per closed ticket);\n   - Gaps found → list the unfinished items, resolve them first, then re-judge;\n   - Unsure → ask the user \\"Has all the work on this map been completed? Should we wrap up?\\" — do not close on your own;\n3. Goal: either close the map + write the Decisions-so-far summary, or clearly list the unfinished items.\n\nApproach tasks from first principles, and review adversarially.\nMaintain map records (wayfinder rules):\n- When closing a ticket, append a one-line gist to its map Decisions so far (ticket name + link + one-line conclusion);\n- Check the map Not yet specified: graduate specifiable items into new tickets (create-then-wire) and clear them from the fog section;\n- Tickets beyond the destination scope → move to Out of scope (with reason), never left on the frontier.' },
       "fixate": { version: 1, placeholders: [], use: '沉淀 · 零丢失快照', zh: '里程碑固化点。暂停推进，执行「零丢失快照」，从第一性原理出发：\n\n1. 全量复述：把我从会话开始到现在说过的全部信息，按「目的地 / 约束与偏好 / 已确认的决定 / 待决问题 / 雾区（隐约可见但还不清晰）」五类，逐条列出——不压缩、不合并，宁可啰嗦不可省略。\n2. 每条后面标注出处：用我的原话引用，让我知道它来自我哪句话。\n3. 单独列一节「可疑遗漏」：凡是我提过、但你觉得与主线无关、太模糊或像执行细节而没纳入的，全部摆出来，写明你当初不纳入的理由，由我裁决。\n4. 列完后停下等我逐条核对。我确认或修正完毕后，你再把清单落盘：已有地图就写进 map 正文和对应 ISSUE；只有ISSUE就写进对应ISSUE；都没有就先生成一份快照笔记并告诉我存哪，等建图时搬入。', en: 'Milestone checkpoint. Pause progress and take a "zero-loss snapshot", from first principles:\n\n1. Restate everything I have said since the session started, in five categories: "Destination / Constraints & preferences / Confirmed decisions / Open questions / Fog (dimly visible but not yet clear)" — list every item, no compression, no merging, rather verbose than omitted.\n2. Annotate each item with its source: quote my original words so I know which sentence it came from.\n3. Add a separate "Suspected omissions" section: everything I mentioned but you deemed off-topic, too vague, or execution detail and did not include — list them all with your reason, and let me decide.\n4. Stop and wait for my item-by-item review after listing. Once I confirm or correct, persist the list: if a map exists, write into the map body and the corresponding ISSUEs; if only ISSUEs, write into those ISSUEs; if neither, create a snapshot note and tell me where it is, to migrate when a map is created.' },
-      "progress": { version: 1, placeholders: [], use: '进度契约（所有动作 prompt 引用）', zh: '进度表达（每次动作结束前必须更新 —— 这是动作的一部分，不是可选项）：\n1. issue 正文维护固定进度区：`## 进度：N%`（N 为 0-100 整数，禁止「大概 / 基本」等模糊词）；\n2. 更新前先读正文当前进度，基于最新状态写真实当前值（可上调也可下调）；\n3. 未动工 = 0%；进行中 = 1-94%；95% = 已完成待用户确认（下一步注明「待确认什么」）；确认后立即写 100% 并 close；\n4. 100% = 确认完成（close 后进度区保留为历史）；\n5. 首次接触无进度区的票：先按现状补写一个与实施记录相符的进度。', en: 'Progress expression (must update before finishing every action — it is part of the action, not optional):\n1. Keep a fixed progress section in the issue body: `## 进度：N%` (N is an integer 0-100; no vague words like "about / basically");\n2. Before updating, read the body current progress and write the true current value based on the latest state (can go up or down);\n3. Not started = 0%; in progress = 1-94%; 95% = done, awaiting user confirmation (note "what is pending" in the next step); once confirmed, immediately write 100% and close;\n4. 100% = confirmed done (the section stays as history after close);\n5. On first contact with a ticket lacking the section, write a progress matching its implementation record.' },
+      "progress": { version: 2, placeholders: [], use: '进度契约（所有动作 prompt 引用）', zh: '进度表达（每次动作结束前必须更新 —— 这是动作的一部分，不是可选项）：\n1. issue 正文维护固定进度区：`## 进度：N%`（N 为 0-100 整数，禁止「大概 / 基本」等模糊词）；\n2. 更新前先读正文当前进度，基于最新状态写真实当前值（可上调也可下调）；\n3. 未动工 = 0%；进行中 = 1-94%；95% = 已完成待用户确认（下一步注明「待确认什么」）；确认后立即写 100% 并 close；\n4. 100% = 确认完成（close 后进度区保留为历史）；\n5. 首次接触无进度区的票：先按现状补写一个与实施记录相符的进度。', en: 'Progress expression (must update before finishing every action — it is part of the action, not optional):\n1. Keep a fixed progress section in the issue body: `## Progress: N%` (N is an integer 0-100; no vague words like "about / basically");\n2. Before updating, read the body current progress and write the true current value based on the latest state (can go up or down);\n3. Not started = 0%; in progress = 1-94%; 95% = done, awaiting user confirmation (note "what is pending" in the next step); once confirmed, immediately write 100% and close;\n4. 100% = confirmed done (the section stays as history after close);\n5. On first contact with a ticket lacking the section, write a progress matching its implementation record.' },
       "bodyFormat": { version: 1, placeholders: [], use: '正文格式契约（T16 · 统一追加于 map/ticket 写正文的动作）', zh: '正文格式（写/改 issue 正文时必须遵守）：\n1. 用真实换行书写：`## 章节` 独占一行，段落间留空行；\n2. 禁止字面 \\n 转义（不要把换行写成 \\n 两个字符）、禁止正文以 BOM（\\ufeff）开头；\n3. 写回 issue 正文用 gh issue edit --body-file <文件>（文件内为真实换行），不要用 JSON 转义字符串拼进命令。', en: 'Body format (mandatory when writing/editing an issue body):\n1. Use real newlines: each `## section` on its own line, blank line between paragraphs;\n2. No literal \\n escapes (do not write newlines as the two characters backslash-n), no BOM (\\ufeff) at the start;\n3. Write issue bodies with gh issue edit --body-file <file> (real newlines in the file), never a JSON-escaped string inline in a command.' },
       "grill": { version: 1, placeholders: [], use: '澄清规则（grilling 技能）', zh: '动手前先想一下：我要做的事里，有没有哪部分是「我猜用户想要这样」的？如果有，别猜 —— 用 grilling 技能把猜的地方问清楚再动手。', en: 'Before you start, check: is any part of what you are about to do based on a guess about what the user wants? If so, do not guess — use the grilling skill to settle those guesses before acting.' },
-      "newMap": { version: 1, placeholders: [], use: '建图规划契约', zh: '建图前先完成（写入 map body 既有章节，遵循 wayfinder 技能规则）：\n0. 先用 grilling 澄清目的地与范围，不自己定 scope；\n1. 并行 / 串行：在 Notes 用一句话概括「哪些票串行（被阻塞）、哪些可并行」；\n2. 已知 / 待调查 / 迷雾：已确认 → Decisions so far；待调查 → 建票；模糊待定 → Not yet specified（迷雾区，后续毕业为新票）；\n3. 归属：每张票声明建议 owner（agent 或人 · HITL），grilling 类必须标 HITL；\n4. 每张新建票写入 `## 进度：0%` 基准。', en: 'Complete before building a map (write into the map body existing sections, follow the wayfinder skill rules):\n0. Clarify the destination and scope with grilling first; do not set scope yourself;\n1. Parallel / serial: summarize in Notes in one sentence "which tickets are serial (blocked) and which run in parallel";\n2. Known / to-investigate / fog: confirmed → Decisions so far; to investigate → create tickets; vague pending → Not yet specified (the fog zone, later graduating into new tickets);\n3. Ownership: declare a suggested owner per ticket (agent or human · HITL); grilling tickets must be marked HITL;\n4. Write a `## 进度：0%` baseline into every new ticket.' },
+      "newMap": { version: 2, placeholders: [], use: '建图规划契约', zh: '建图前先完成（写入 map body 既有章节，遵循 wayfinder 技能规则）：\n0. 先用 grilling 澄清目的地与范围，不自己定 scope；\n1. 并行 / 串行：在 Notes 用一句话概括「哪些票串行（被阻塞）、哪些可并行」；\n2. 已知 / 待调查 / 迷雾：已确认 → Decisions so far；待调查 → 建票；模糊待定 → Not yet specified（迷雾区，后续毕业为新票）；\n3. 归属：每张票声明建议 owner（agent 或人 · HITL），grilling 类必须标 HITL；\n4. 每张新建票写入 `## 进度：0%` 基准。', en: 'Complete before building a map (write into the map body existing sections, follow the wayfinder skill rules):\n0. Clarify the destination and scope with grilling first; do not set scope yourself;\n1. Parallel / serial: summarize in Notes in one sentence "which tickets are serial (blocked) and which run in parallel";\n2. Known / to-investigate / fog: confirmed → Decisions so far; to investigate → create tickets; vague pending → Not yet specified (the fog zone, later graduating into new tickets);\n3. Ownership: declare a suggested owner per ticket (agent or human · HITL); grilling tickets must be marked HITL;\n4. Write a `## Progress: 0%` baseline into every new ticket.' },
       "tpl.diagnose": { version: 3, placeholders: ['url'], use: '动作按钮「诊断」（needs-triage 票）', zh: '/triage\n{url}\n\n诊断这个 issue（诊断流程遵循 /triage 技能自身规则）：\n1. 先弄清它到底出了什么问题（现象 / 影响范围 / 复现步骤）；\n2. 列出可能的根因（多个候选，标注各自可能性）；\n3. 给分流建议（修复 / 关闭 / 重设计 / 等待）—— 建议是你的判断，不是让你直接执行；\n4. 动手前若有「我猜用户想要这样」的地方，先用 grilling 技能澄清；\n5. 结束前按进度契约更新 issue 正文。', en: '/triage\n{url}\n\nDiagnose this issue (follow the /triage skill own rules):\n1. Pin down what is actually wrong (symptoms / impact / repro steps);\n2. List possible root causes (multiple candidates, with confidence);\n3. Propose triage (fix / close / redesign / wait) — a recommendation for the user, not a license to execute;\n4. Before acting, if any part rests on a guess about what the user wants, settle it with the grilling skill first;\n5. Update the issue body per the progress contract before finishing.' },
       "tpl.fix": { version: 2, placeholders: ['url'], use: '动作按钮「修复」（bug 票）', zh: '/implement\n{url}\n\n修复这个 bug（遵循 wayfinder 技能规则）：\n1. 先复现，再定位根因（修错地方 = 白修）；\n2. 实施修复；\n3. 加测试并跑通；\n4. 对抗式审查自己的改动（我会漏在哪里？）；\n5. 有假设先用 grilling 技能澄清，不默认；\n6. 结束前按进度契约更新（修复完成但未验收 → 95% · 待确认）。', en: '/implement\n{url}\n\nFix this bug (follow the wayfinder skill rules):\n1. Reproduce it first, then find the root cause (fixing the wrong spot is wasted work);\n2. Implement the fix;\n3. Add tests and get them green;\n4. Adversarially review your own change (where did I miss?);\n5. Settle assumptions with the grilling skill first, never assume;\n6. Update per the progress contract before finishing (fix done, unverified → 95% · awaiting confirmation).' },
       "tpl.discuss": { version: 2, placeholders: ['url'], use: '动作按钮「讨论」（grilling 票）', zh: '/grill-me\n{url}\n\n这个 issue 需要讨论定夺，用 grilling 技能和我对话（对话方式遵循 grilling 技能自身规则）：\n1. 讨论围绕目标 / 边界 / 风险 / 选项权衡 / 决策；\n2. 不替我做决定，等我确认结论；\n3. 讨论有结论时，把结论写进 issue 正文（或建议落成票 / 决策记录）；\n4. 结束前按进度契约更新。', en: '/grill-me\n{url}\n\nThis issue needs discussion before a decision — use the grilling skill to talk with me (follow the grilling skill own dialogue rules):\n1. Keep the discussion on goal / boundary / risks / options-tradeoffs / decision;\n2. Do not decide for me; wait for my confirmation of conclusions;\n3. When a conclusion emerges, write it into the issue body (or propose it as a ticket / decision record);\n4. Update per the progress contract before finishing.' },
@@ -869,11 +869,11 @@ return {
       "tpl.handoff1": { version: 1, placeholders: ['ts'], use: '交接第一击（写交接文档）', zh: '/handoff\n\n请把当前会话生成交接文档，写到 .scratch/handoff/{ts}.md（相对当前工作目录），包含三部分：\n1. 结论：本次会话已确认的决定与成果；\n2. 未完成事项：下一步要继续的事；\n3. 建议 skill：新会话接手时建议加载的技能。\n\n从第一性原理出发完成任务，并对抗式审查。', en: '/handoff\n\nCreate a handoff doc from this session, written to .scratch/handoff/{ts}.md (relative to the current working directory), with three parts:\n1. Conclusion: decisions and outcomes confirmed this session;\n2. Unfinished: what to continue next;\n3. Suggested skills: skills the next session should load.\n\nApproach tasks from first principles, and review adversarially.' },
       "tpl.handoff2": { version: 1, placeholders: ['file'], use: '交接第二击（读交接文档）', zh: '/read .scratch/handoff/{file}\n\n请先阅读这份交接文档并复述确认理解（结论 / 未完成事项 / 建议 skill），然后从第一性原理出发完成任务，并对抗式审查。', en: '/read .scratch/handoff/{file}\n\nRead this handoff doc and restate your understanding (conclusions / unfinished / suggested skills), then approach tasks from first principles, and review adversarially.' },
       "handoffRead": { version: 1, placeholders: [], use: '交接第二击兜底（无文件时）', zh: '/read .scratch/handoff/latest.md\n\n请先阅读这份交接文档并复述确认理解（结论 / 未完成事项 / 建议 skill），然后从第一性原理出发完成任务，并对抗式审查。', en: '/read .scratch/handoff/latest.md\n\nRead this handoff doc and restate your understanding (conclusions / unfinished / suggested skills), then approach tasks from first principles, and review adversarially.' },
-      "setup": { version: 2, placeholders: [], use: '环境检查横幅 · 技能缺失按钮（装全套件）', zh: '请帮我安装 Matt Pocock 的 AI 技能套件：\n1. 克隆 https://github.com/mattpocock/skills；\n2. 按 README 安装工程领域与通用领域的全部 skills 到 ~/.agents/skills；\n3. 安装完成后运行 /setup-matt-pocock-skills 初始化仓库（issue tracker 选择 GitHub Issues）；\n4. 初始化时按「强制标签体系」建立标签清单（bug / needs-triage / wayfinder:grilling）。', en: 'Please install Matt Pocock AI skill collection:\n1. Clone https://github.com/mattpocock/skills;\n2. Install all engineering and general-purpose skills per the README into ~/.agents/skills;\n3. After install, run /setup-matt-pocock-skills to bootstrap the repo (choose GitHub Issues as the issue tracker);\n4. During init, establish the mandatory label set (bug / needs-triage / wayfinder:grilling).' },
-      "setupRun": { version: 2, placeholders: [], use: '环境检查横幅 · setup 未执行按钮（仅初始化，不重装技能）', zh: '/setup-matt-pocock-skills\n\n初始化本仓库（技能套件已安装，无需克隆重装）：\n1. issue tracker 选择 GitHub Issues；\n2. 初始化时按「强制标签体系」建立标签清单（bug / needs-triage / wayfinder:grilling）；\n3. 初始化完成后复查环境检查（setup 变绿即完成）。', en: '/setup-matt-pocock-skills\n\nBootstrap this repo (the skill suite is already installed — no need to clone or reinstall):\n1. Choose GitHub Issues as the issue tracker;\n2. During init, establish the mandatory label set (bug / needs-triage / wayfinder:grilling);\n3. After init, re-run the environment check (setup turns green when done).' },
+      "installSkills": { version: 1, placeholders: [], use: '技能安装引导 · DSH 专用（横幅 / 引导 g4 / 设置页复制）', zh: '请为 DSH 安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）：\n1. 克隆 https://github.com/mattpocock/skills；\n2. 按官方 README 将工程领域与通用领域的全部 skills 安装到 DSH 读取的技能目录：用户主目录下的 ~/.agents/skills（本套件仅用于 DSH，不要安装到其他 AI 工具）；\n3. 安装后验证 wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills 等技能文件已就位；\n4. 完成后汇报安装结果与已装技能清单。', en: 'Install the Matt Pocock skills collection (mattpocock/skills) for DSH:\n1. Clone https://github.com/mattpocock/skills;\n2. Per the official README, install all engineering and general-purpose skills into the skill directory DSH reads: ~/.agents/skills under the user home (this collection is for DSH only — do not install it into other AI tools);\n3. After install, verify wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills are in place;\n4. Report the result and the installed skill list when done.' },
+      "setupRun": { version: 6, placeholders: [], use: '环境检查横幅 · setup 未执行按钮（仅初始化，不重装技能）', zh: '/setup-matt-pocock-skills\n\n初始化本仓库（技能套件已安装，无需克隆重装）：\n1. issue tracker 选择 GitHub Issues；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 GitHub Issues；triage 标签保留默认五角色），并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 初始化完成后复查环境检查（setup 变绿即完成）。', en: '/setup-matt-pocock-skills\n\nBootstrap this repo (the skill suite is already installed — no need to clone or reinstall):\n1. Choose GitHub Issues as the issue tracker;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose GitHub Issues as the tracker; keep the default triage-role labels), and ensure the repo has the complete label set the skills need (the five triage-role labels + the wayfinder labels wayfinder:map / research / prototype / grilling / task) — not just a few; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. After init, re-run the environment check (setup turns green when done).' },
       "newWayfinder": { version: 5, placeholders: ['repo'], use: '「+ 新建需求」按钮', zh: '/wayfinder\n请帮我处理一个需求（严格遵循 wayfinder 技能规则）。\n仓库：{repo}\n需求描述：\n\n收到需求后按以下流程：\n1. 先澄清：对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认；\n2. 判断分类（需求 / map 维度）——先查仓库已有 wayfinder:map 和 issue，确认是否做过：\n   - 新增：全新需求，之前没做过 → 按建图规划契约新建 map（Destination + Notes + 规划表 + 票）；\n   - 复用：这个需求之前已做过（已有 map / issue）→ 打开复用它，不重复建；\n   - 直接实现：需求很小 → 建一个 issue 直接实现，不建大 map；\n3. 执行后按进度契约更新。', en: '/wayfinder\nPlease handle a requirement (strictly follow the wayfinder skill rules).\nRepo: {repo}\nRequirement: \n\nAfter receiving the requirement, follow this flow:\n1. Clarify first: if you hold assumptions about the goal / scope / preferences, settle them with the grilling skill, never assume;\n2. Decide the case (at the requirement / map level) — first check existing wayfinder:map and issues in the repo to confirm whether it has been done:\n   - Add: a brand-new requirement never done before → build a new map per the planning contract (Destination + Notes + plan + tickets);\n   - Reuse: this requirement has been done before (existing map / issue) → open and reuse it, do not build a new one;\n   - Directly implement: the requirement is small → create a single issue and implement it directly, no big map;\n3. Update per the progress contract after execution.' },
       "mapHead": { version: 1, placeholders: ['n', 'title', 'url'], use: '新会话/执行 · map 标识头（B2）', zh: '## 目标 map\n- 编号：#{n}\n- 标题：{title}\n- 链接：{url}', en: '## Target map\n- No: #{n}\n- Title: {title}\n- Link: {url}' },
-      "stageGate": { version: 1, placeholders: [], use: '阶段闸门条款（T13 · 统一追加于 诊断/修复/执行/map推进 动作：needs-triage 必须先诊断并判断现状）', zh: '阶段闸门（动作开始前必读，这是动作的一部分，不是可选项）：\n1. 先读该 issue 现状：进度区（## 进度：N%）/ 已有实施记录 / 评论 / 标签，判断它处于哪个阶段；\n2. 若带 needs-triage 标签：必须先完成诊断（这是前置步骤，不许跳过直接实施）；\n3. 诊断时判断当前进展：\n   - 已有实施且真实 → 核验是否符合验收标准，属实则维持 95% 待确认 + 摘 needs-triage（转 ready-for-agent）；\n   - 已有实施但虚假/半成品 → 进度据实回调到真实值（如 30%），继续诊断；\n   - 未动工 → 正常诊断（复现 → 根因 → 方案 → 写入 issue）；\n4. 诊断完成摘 needs-triage 后才允许进入实施阶段。', en: 'Stage gate (must read before starting the action — it is part of the action, not optional):\n1. First read the issue current state: progress section (## 进度：N%) / existing implementation record / comments / labels — determine which stage it is in;\n2. If it carries the needs-triage label: diagnosis MUST be completed first (a prerequisite step — do not skip straight to implementation);\n3. During diagnosis, judge current progress:\n   - Existing implementation and it is real → verify against acceptance criteria; if genuine, keep 95% awaiting confirmation + remove needs-triage (move to ready-for-agent);\n   - Existing implementation but fake/partial → revise progress back to the true value (e.g. 30%) and continue diagnosing;\n   - Not started → normal diagnosis (reproduce → root cause → plan → write into the issue);\n4. Only after diagnosis is done and needs-triage removed may implementation begin.' },
+      "stageGate": { version: 2, placeholders: [], use: '阶段闸门条款（T13 · 统一追加于 诊断/修复/执行/map推进 动作：needs-triage 必须先诊断并判断现状）', zh: '阶段闸门（动作开始前必读，这是动作的一部分，不是可选项）：\n1. 先读该 issue 现状：进度区（## 进度：N%）/ 已有实施记录 / 评论 / 标签，判断它处于哪个阶段；\n2. 若带 needs-triage 标签：必须先完成诊断（这是前置步骤，不许跳过直接实施）；\n3. 诊断时判断当前进展：\n   - 已有实施且真实 → 核验是否符合验收标准，属实则维持 95% 待确认 + 摘 needs-triage（转 ready-for-agent）；\n   - 已有实施但虚假/半成品 → 进度据实回调到真实值（如 30%），继续诊断；\n   - 未动工 → 正常诊断（复现 → 根因 → 方案 → 写入 issue）；\n4. 诊断完成摘 needs-triage 后才允许进入实施阶段。', en: 'Stage gate (must read before starting the action — it is part of the action, not optional):\n1. First read the issue current state: progress section (## Progress: N%) / existing implementation record / comments / labels — determine which stage it is in;\n2. If it carries the needs-triage label: diagnosis MUST be completed first (a prerequisite step — do not skip straight to implementation);\n3. During diagnosis, judge current progress:\n   - Existing implementation and it is real → verify against acceptance criteria; if genuine, keep 95% awaiting confirmation + remove needs-triage (move to ready-for-agent);\n   - Existing implementation but fake/partial → revise progress back to the true value (e.g. 30%) and continue diagnosing;\n   - Not started → normal diagnosis (reproduce → root cause → plan → write into the issue);\n4. Only after diagnosis is done and needs-triage removed may implementation begin.' },
     }
     // 当前语言（跟随 DSH locale 快照 active；缺省 zh）
     const promptLang = function () {
@@ -894,17 +894,17 @@ return {
     const GUIDE_LINE = promptText('guide')
     // v1.5 T4/T5：Matt 技能仓库（介绍卡 GitHub 链接）
     const MATT_REPO = 'https://github.com/mattpocock/skills'
-    const MAP_EXECUTE_PROMPT = promptText('mapExecute')
-    const COMPLETE_PROMPT = promptText('complete')
+    const MAP_EXECUTE_PROMPT = function () { return promptText('mapExecute') }
+    const COMPLETE_PROMPT = function () { return promptText('complete') }
     // T16：正文格式契约（写/改 issue 正文的动作统一追加）
-    const BODY_FORMAT = promptText('bodyFormat')
+    const BODY_FORMAT = function () { return promptText('bodyFormat') }
     // v1.5：完成确认 prompt —— 技能+链接前置（/wayfinder + map 链接），再拼完成确认正文（完成 = wayfinder）
     const completePrompt = function (st, num, total, closed) {
       return '/wayfinder\n' + 'https://github.com/' + repoStr(st) + '/issues/' + String(num || '') + '\n\n' +
-        COMPLETE_PROMPT.split('{n}').join(String(num || '')).split('{total}').join(String(total)).split('{closed}').join(String(closed)) +
-        (BODY_FORMAT ? '\n\n' + BODY_FORMAT : '')
+        COMPLETE_PROMPT().split('{n}').join(String(num || '')).split('{total}').join(String(total)).split('{closed}').join(String(closed)) +
+        (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '')
     }
-    const FIXATE_PROMPT = promptText('fixate')
+    const FIXATE_PROMPT = function () { return promptText('fixate') }
 
     const CFG_KEY = 'dsws.cfg'
     // 功能配置（用户拍板 2026-08-14：外观图标/动作词由设计定死，不提供配置项）
@@ -968,15 +968,15 @@ return {
     // 默认模板文本（空 = 用默认；T1 规格 §3 默认文本 = 现状代码文本）
     const TPL_DEFAULT = {
       // T4 #9-12：4 个动作按钮 prompt 明确化
-      diagnose: promptText('tpl.diagnose'),
-      fix: promptText('tpl.fix'),
-      discuss: promptText('tpl.discuss'),
-      execute: promptText('tpl.execute'),
-      handoff1: promptText('tpl.handoff1'),
-      handoff2: promptText('tpl.handoff2'),
-      fixate: FIXATE_PROMPT,
+      diagnose: function () { return promptText('tpl.diagnose') },
+      fix: function () { return promptText('tpl.fix') },
+      discuss: function () { return promptText('tpl.discuss') },
+      execute: function () { return promptText('tpl.execute') },
+      handoff1: function () { return promptText('tpl.handoff1') },
+      handoff2: function () { return promptText('tpl.handoff2') },
+      fixate: function () { return promptText('fixate') },
     }
-    const tplText = (id) => templates[id] || TPL_DEFAULT[id] || ''
+    const tplText = (id) => templates[id] || (TPL_DEFAULT[id] ? TPL_DEFAULT[id]() : '')
     // 渲染：转义 {{x}} → 字面 {x}（先替换哨兵防误替换），再替换已知占位符；未知占位符保留原样（保存层已拦截）
     // T13 修订：阶段闸门统一追加 —— 诊断/修复/执行 三类动作**末尾**拼 stageGate（技能命令+链接保持开头，自定义模板也生效，免疫覆盖）
     const STAGE_GATED_IDS = ['diagnose', 'fix', 'execute']
@@ -1206,7 +1206,7 @@ return {
       // v1.5 T10 R7：silent（手动刷新走静默路径）不切 loading 态
       if (force && !silent) st.checksMode = 'loading'
       emit(st)
-      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, force ? { force: true } : {})
+      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, force ? { force: true } : {}, { lang: promptLang() })
       return host.call('wf.status', args).then(function (res) {
         st.checking = false
         if (res && res.checks && res.checks.length) {
@@ -1620,7 +1620,7 @@ return {
         // v1.5：技能 + 链接前置（用户规则：具体操作 prompt 开头 = /wayfinder + ISSUE 链接）
         // T13：map 推进同样挂阶段闸门（推进的票若带 needs-triage 必须先诊断）
         const gateText = promptText('stageGate')
-        return '/wayfinder\n' + url + '\n\n' + MAP_EXECUTE_PROMPT + (gateText ? '\n\n' + gateText : '') + (BODY_FORMAT ? '\n\n' + BODY_FORMAT : '') + head
+        return '/wayfinder\n' + url + '\n\n' + MAP_EXECUTE_PROMPT() + (gateText ? '\n\n' + gateText : '') + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '') + head
       }
       const body = renderTemplate('execute', { number: String(t.number), url: url, title: t.title })
       return withWayfinderPrefix(body)
@@ -1629,7 +1629,7 @@ return {
     const newSessionTitle = (t) => SESSION_TITLE_PREFIX + ' ' + t.title + ' #' + t.number
     // v1.5 T6：新增 wayfinder prompt —— /wayfinder + 仓库信息 + 需求引导（用户拍板：prompt 带仓库信息）
     // T16 补强（#463 复核 F2）：建图入口同样挂正文格式契约（新建 map 正文从源头防字面 \\n / BOM）
-    const newWayfinderText = (st) => promptText('newWayfinder', { repo: 'https://github.com/' + repoStr(st) }) + (BODY_FORMAT ? '\n\n' + BODY_FORMAT : '')
+    const newWayfinderText = (st) => promptText('newWayfinder', { repo: 'https://github.com/' + repoStr(st) }) + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '')
 
     // v10：沉淀 = 会话级动作 —— 注入「零丢失快照」prompt（默认文本见 §2.5 FIXATE_PROMPT，T2b 可编辑）
     const injectFixate = (st) => { inject(st, fixateText()) }
@@ -1742,8 +1742,7 @@ return {
       // v1.5 T10 R9（Q4 拍板）：关键动作（完成/执行/交接/认领）后延迟探测，面板尽快反映变化
       scheduleActionProbe()
     }
-    // v1.5 技能安装引导 Prompt（用户拍板 2026-08-17）：复制/注入到对话由 AI 读官方文档自适应安装（位置显式声明 ~/.agents/skills）
-    const SKILL_INSTALL_PROMPT = '请阅读官方安装文档 https://github.com/mattpocock/skills#installation ，为当前系统安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）。\n\n要求：\n1. 根据当前环境选择合适的安装方式（Claude Code 插件 / npx skills@latest add / 手动复制）；\n2. 安装到 DSH 读取的技能目录：用户主目录下的 .agents/skills（~/.agents/skills）；\n3. 安装后验证 wayfinder / triage / grilling / handoff / setup-matt-pocock-skills 等技能文件已就位；\n4. 完成后汇报安装结果与已装技能清单。'
+    // v1.6：技能安装引导已收编进 PROMPTS 注册表（installSkills 条目），见下方 promptText('installSkills') 引用
     // v1.5 引导链：打开外部 URL（gh 安装/登录文档）
     const openUrl = function (url) { try { if (typeof window !== 'undefined' && window.open) window.open(url, '_blank') } catch (e) { /* 忽略 */ } }
     const copyText = (st, text, okMsg) => {
@@ -1853,7 +1852,7 @@ return {
             ? bann(tr('banner.ghauth'), tr('banner.ghauthBtn'), function () { openUrl('https://cli.github.com/manual/gh_auth_login') })
             : firstBlock === 'setup'
               ? bann(tr('banner.setup'), tr('banner.setupBtn'), function () { inject(s, promptText('setupRun')) })
-              : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.detail) || '' }), tr('banner.skillsBtn'), function () { inject(s, SKILL_INSTALL_PROMPT) }),
+              : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.detail) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills')) }),
         capsule,
       ])
     }
@@ -2734,7 +2733,9 @@ return {
         // v1.5：prompt: 协议 —— 复制/注入一段引导 prompt 让 AI 执行（如技能安装引导）
         if (hint.indexOf('prompt:') === 0) {
           const ptext = hint.slice(7)
-          return h('button', { className: 'dsws-btn', onClick: function () { inject(st, ptext) }, style: { fontSize: 11, padding: '2px 8px' } }, tr('env.installBtn'))
+            // v1.6：prompt: 键名协议 —— 优先从 PROMPTS 注册表取双语文本（跟随语言），未知键回退原文
+            const resolved = promptText(ptext) || ptext
+          return h('button', { className: 'dsws-btn', onClick: function () { inject(st, resolved) }, style: { fontSize: 11, padding: '2px 8px' } }, tr('env.installBtn'))
         }
         if (/^https?:\/\//i.test(hint)) {
           return h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
@@ -2786,7 +2787,7 @@ return {
               ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
                   Ic({ n: 'star', size: 13 }),
                   h('span', { style: { flex: 1 } }, tr('banner.skills', { list: (skillsCheck2 && skillsCheck2.detail) || '' })),
-                  h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(188,140,255,.55)' }, onClick: function () { inject(st, SKILL_INSTALL_PROMPT) } }, tr('banner.skillsBtn')),
+                  h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(188,140,255,.55)' }, onClick: function () { inject(st, promptText('installSkills')) } }, tr('banner.skillsBtn')),
                 ])
               : null
       // v1.5 配置引导顺序区（用户拍板 2026-08-17）：依赖链 1-2-3-4，完成自动勾选
@@ -2795,7 +2796,7 @@ return {
         { done: okOf(ghCli2), label: tr('env.g1'), act: function () { openUrl('https://cli.github.com/') }, btn: tr('banner.ghcliBtn') },
         { done: okOf(ghAuth2), label: tr('env.g2'), act: function () { openUrl('https://cli.github.com/manual/gh_auth_login') }, btn: tr('banner.ghauthBtn') },
         { done: okOf(setupCheck2), label: tr('env.g3'), act: function () { inject(st, promptText('setupRun')) }, btn: tr('banner.setupBtn') },
-        { done: okOf(skillsCheck2), label: tr('env.g4'), act: function () { inject(st, SKILL_INSTALL_PROMPT) }, btn: tr('banner.skillsBtn') },
+        { done: okOf(skillsCheck2), label: tr('env.g4'), act: function () { inject(st, promptText('installSkills')) }, btn: tr('banner.skillsBtn') },
       ]
       const guideAll = guideSteps.every(function (s) { return s.done })
       const guideBlock = guideAll ? null : h('div', { className: 'dsws-ccard', style: { marginBottom: 8 } }, [
@@ -3061,7 +3062,7 @@ return {
       const validateAll = function (executeText) {
         const errList = []
         const check = function (id, text) {
-          const v = validateTemplate(id, text || TPL_DEFAULT[id] || '')
+          const v = validateTemplate(id, text || (TPL_DEFAULT[id] ? TPL_DEFAULT[id]() : ''))
           if (!v.ok) {
             const bits = []
             if (v.missing.length) bits.push(tr('tpl.missing', { list: v.missing.map(function (n) { return '{' + n + '}' }).join('、') }))
@@ -3127,7 +3128,7 @@ return {
           ]),
           h('div', { className: 'dsws-cfg-card-desc' }, tr('tpl.desc.' + id)),
           h('div', { className: 'dsws-cfg-chips' }, (TPL_PH[id] || []).map(function (n) { return chip(id, n, req.indexOf(n) >= 0) })),
-          h('textarea', { ref: function (el) { taRefs.current[id] = el; autoGrowTa(el) }, className: 'dsws-cfg-ta', placeholder: TPL_DEFAULT[id] || '', value: val, onChange: function (e) { setTpl(id, e.target.value); autoGrowTa(e.target) } }),
+          h('textarea', { ref: function (el) { taRefs.current[id] = el; autoGrowTa(el) }, className: 'dsws-cfg-ta', placeholder: (TPL_DEFAULT[id] ? TPL_DEFAULT[id]() : ''), value: val, onChange: function (e) { setTpl(id, e.target.value); autoGrowTa(e.target) } }),
           h('div', { className: 'dsws-cfg-preview' }, [h('span', { className: 'pv-label' }, tr('cfg.preview')), preview]),
         ])
       }
@@ -3154,7 +3155,7 @@ return {
           h('div', { className: 'dsws-cfg-gdesc' }, tr('matte.desc')),
           h('div', { className: 'dsws-cfg-row', style: { flexWrap: 'wrap', gap: 6 } }, [
             h('a', { href: MATT_REPO, target: '_blank', rel: 'noreferrer', className: 'dsws-btn', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('matte.openRepo'))]),
-            h('button', { className: 'dsws-btn', onClick: function () { copyText(sharedSt, SKILL_INSTALL_PROMPT, tr('toast.copied')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'clipboard', size: 11 }), h('span', null, tr('matte.copyPrompt'))]),
+            h('button', { className: 'dsws-btn', onClick: function () { copyText(sharedSt, promptText('installSkills'), tr('toast.copied')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'clipboard', size: 11 }), h('span', null, tr('matte.copyPrompt'))]),
           ]),
         ]),
         // v1.4：打开位置（details 列 / better-sidebar）—— better-sidebar 未装时仅显示 dock 选项
@@ -3201,7 +3202,7 @@ return {
               h('span', null, tr('cfg.withPrefix')),
             ]),
           ]),
-          h('textarea', { ref: function (el) { taRefs.current.execute = el; autoGrowTa(el) }, className: 'dsws-cfg-ta', placeholder: TPL_DEFAULT.execute || '', value: custom, onChange: function (e) { setTpl('execute', e.target.value); autoGrowTa(e.target) } }),
+          h('textarea', { ref: function (el) { taRefs.current.execute = el; autoGrowTa(el) }, className: 'dsws-cfg-ta', placeholder: (TPL_DEFAULT.execute ? TPL_DEFAULT.execute() : ''), value: custom, onChange: function (e) { setTpl('execute', e.target.value); autoGrowTa(e.target) } }),
           h('div', { className: 'dsws-cfg-chips' }, [
             (TPL_PH.execute || []).map(function (n) { return chip('execute', n, (TPL_REQUIRED.execute || []).indexOf(n) >= 0) }),
             h('button', { className: 'dsws-cfg-btn', style: { marginLeft: 'auto' }, onClick: resetExecute }, tr('cfg.reset')),

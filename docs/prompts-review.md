@@ -394,29 +394,29 @@ Read this handoff doc and restate your understanding (conclusions / unfinished /
 
 ---
 
-## setup · v2
+## installSkills · v1
 
-- 用途：环境检查横幅 · 技能缺失按钮（装全套件）
+- 用途：技能安装引导 · DSH 专用（横幅 / 引导 g4 / 设置页复制）
 - 占位符：无
 - ZH：
 
-<pre>请帮我安装 Matt Pocock 的 AI 技能套件：
+<pre>请为 DSH 安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）：
 1. 克隆 https://github.com/mattpocock/skills；
-2. 按 README 安装工程领域与通用领域的全部 skills 到 ~/.agents/skills；
-3. 安装完成后运行 /setup-matt-pocock-skills 初始化仓库（issue tracker 选择 GitHub Issues）；
-4. 初始化时按「强制标签体系」建立标签清单（bug / needs-triage / wayfinder:grilling）。</pre>
+2. 按官方 README 将工程领域与通用领域的全部 skills 安装到 DSH 读取的技能目录：用户主目录下的 ~/.agents/skills（本套件仅用于 DSH，不要安装到其他 AI 工具）；
+3. 安装后验证 wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills 等技能文件已就位；
+4. 完成后汇报安装结果与已装技能清单。</pre>
 
 - EN：
 
-<pre>Please install Matt Pocock AI skill collection:
+<pre>Install the Matt Pocock skills collection (mattpocock/skills) for DSH:
 1. Clone https://github.com/mattpocock/skills;
-2. Install all engineering and general-purpose skills per the README into ~/.agents/skills;
-3. After install, run /setup-matt-pocock-skills to bootstrap the repo (choose GitHub Issues as the issue tracker);
-4. During init, establish the mandatory label set (bug / needs-triage / wayfinder:grilling).</pre>
+2. Per the official README, install all engineering and general-purpose skills into the skill directory DSH reads: ~/.agents/skills under the user home (this collection is for DSH only — do not install it into other AI tools);
+3. After install, verify wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills are in place;
+4. Report the result and the installed skill list when done.</pre>
 
 ---
 
-## setupRun · v2
+## setupRun · v6
 
 - 用途：环境检查横幅 · setup 未执行按钮（仅初始化，不重装技能）
 - 占位符：无
@@ -426,7 +426,7 @@ Read this handoff doc and restate your understanding (conclusions / unfinished /
 
 初始化本仓库（技能套件已安装，无需克隆重装）：
 1. issue tracker 选择 GitHub Issues；
-2. 初始化时按「强制标签体系」建立标签清单（bug / needs-triage / wayfinder:grilling）；
+2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 GitHub Issues；triage 标签保留默认五角色），并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个；后续打标签严格遵循技能规则，不额外强制任何标签；
 3. 初始化完成后复查环境检查（setup 变绿即完成）。</pre>
 
 - EN：
@@ -435,7 +435,7 @@ Read this handoff doc and restate your understanding (conclusions / unfinished /
 
 Bootstrap this repo (the skill suite is already installed — no need to clone or reinstall):
 1. Choose GitHub Issues as the issue tracker;
-2. During init, establish the mandatory label set (bug / needs-triage / wayfinder:grilling);
+2. During init, follow the setup-matt-pocock-skills skill own flow (choose GitHub Issues as the tracker; keep the default triage-role labels), and ensure the repo has the complete label set the skills need (the five triage-role labels + the wayfinder labels wayfinder:map / research / prototype / grilling / task) — not just a few; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;
 3. After init, re-run the environment check (setup turns green when done).</pre>
 
 ---

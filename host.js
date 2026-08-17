@@ -43,7 +43,7 @@ return {
     let ghPathError = null
     let repoKeys = {}  // v12：repoKey 按 cwd 缓存（切换仓库会话时不再串仓库）
     let cache = { ts: 0, snapshot: null, error: null, cwd: null }
-    let statusCache = { ts: 0, status: null, error: null, cwd: null }  // wf.status 30s 缓存（按 cwd 区分）
+    let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s 缓存（按 cwd+lang 区分）
     let userHome = null                                     // 用户主目录（cmd 探测，缓存）
     let lastMapsUpdatedAtByRepo = {}                        // v1.5 T10 修订（B5 配额止血）：open map updatedAt 表按 repoKey 隔离（多仓库并发不互串）
 
@@ -540,19 +540,19 @@ return {
     }
 
     // 检查 1 · 仓库定位
-    async function checkRepo(cwd) {
+    async function checkRepo(cwd, lang) {
       const git = await resolveGit()
       if (git) {
         const r = await execProc([git, '-C', cwd, 'remote', 'get-url', 'origin'], cwd)
         if (r.ok) {
           const key = parseGithubRepo(r.text)
           if (key) return { ok: true, level: 'ok', detail: key.owner + '/' + key.name, hint: '', repo: key }
-          return { ok: true, level: 'warn', detail: '有 git 远程但非 GitHub：' + r.text.trim().slice(0, 80), hint: '当前远程不是 GitHub', repo: null }
+          return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + r.text.trim().slice(0, 80) : '有 git 远程但非 GitHub：' + r.text.trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : '当前远程不是 GitHub', repo: null }
         }
         if (/not a git repository|does not appear to be a git repository|fatal/i.test(r.error || '')) {
-          return { ok: false, level: 'bad', detail: '当前目录不是 git 仓库', hint: '在 GitHub 仓库内使用本插件', repo: null }
+          return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Current directory is not a git repo' : '当前目录不是 git 仓库', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : '在 GitHub 仓库内使用本插件', repo: null }
         }
-        return { ok: false, level: 'bad', detail: 'git 查询失败：' + String(r.error || '').slice(0, 120), hint: '检查 git 与仓库状态', repo: null }
+        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'git query failed: ' + String(r.error || '').slice(0, 120) : 'git 查询失败：' + String(r.error || '').slice(0, 120), hint: (lang === 'en') ? 'Check git and repo state' : '检查 git 与仓库状态', repo: null }
       }
       // 兜底：解析 .git/config（git 可执行不可用时）
       if (fs !== undefined) {
@@ -563,29 +563,29 @@ return {
           if (um) {
             const key = parseGithubRepo(um[1])
             if (key) return { ok: true, level: 'ok', detail: key.owner + '/' + key.name, hint: '', repo: key }
-            return { ok: true, level: 'warn', detail: '有 git 远程但非 GitHub：' + um[1].trim().slice(0, 80), hint: '当前远程不是 GitHub', repo: null }
+            return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + um[1].trim().slice(0, 80) : '有 git 远程但非 GitHub：' + um[1].trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : '当前远程不是 GitHub', repo: null }
           }
         } catch (e) { /* 落到下方 bad */ }
       }
-      return { ok: false, level: 'bad', detail: '无法定位仓库（git 不可用且无 .git/config）', hint: '在 GitHub 仓库内使用本插件', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot locate the repo (git unavailable and no .git/config)' : '无法定位仓库（git 不可用且无 .git/config）', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : '在 GitHub 仓库内使用本插件', repo: null }
     }
 
     // 检查 2 · setup 已执行
-    async function checkSetup(cwd) {
-      if (fs === undefined) return { ok: false, level: 'bad', detail: 'fs 服务不可用，无法检测', hint: '请先运行 /setup-matt-pocock-skills', repo: null }
+    async function checkSetup(cwd, lang) {
+      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot detect' : 'fs 服务不可用，无法检测', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
       try {
         // v1.5 B1：改为针对 git 根目录检测（会话 cwd 在仓库子目录时不再误报「没有初始化」）
         const root = await getRepoRoot(cwd)
         const base = root || cwd
         const info = await fs.lstat('docs/agents/issue-tracker.md', { cwd: base })
-        if (info) return { ok: true, level: 'ok', detail: 'docs/agents/issue-tracker.md 存在', hint: '', repo: null }
+        if (info) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md 存在', hint: '', repo: null }
       } catch (e) { /* 落到下方 bad */ }
-      return { ok: false, level: 'bad', detail: 'docs/agents/issue-tracker.md 不存在', hint: '请先运行 /setup-matt-pocock-skills', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md missing' : 'docs/agents/issue-tracker.md 不存在', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
     }
 
     // 检查 3 · tracker = GitHub
-    async function checkTracker(cwd) {
-      if (fs === undefined) return { ok: false, level: 'bad', detail: 'fs 服务不可用，无法判定 tracker', hint: '请先运行 /setup-matt-pocock-skills', repo: null }
+    async function checkTracker(cwd, lang) {
+      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot determine tracker' : 'fs 服务不可用，无法判定 tracker', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
       try {
         // #455 B1 补全：与 checkSetup 一致针对 git 根目录读（会话 cwd 在仓库子目录时不误报「无法读取」）
         const root = await getRepoRoot(cwd)
@@ -595,43 +595,42 @@ return {
         if (/github/i.test(txt) && /gh\s+(issue|api|auth)|GitHub Issues/i.test(txt)) {
           return { ok: true, level: 'ok', detail: 'GitHub Issues + gh CLI', hint: '', repo: null }
         }
-        return { ok: false, level: 'warn', detail: 'issue-tracker.md 存在但非 GitHub 模板', hint: '运行 /setup-matt-pocock-skills 重选 GitHub tracker', repo: null }
+        return { ok: false, level: 'warn', detail: (lang === 'en') ? 'issue-tracker.md exists but is not the GitHub template' : 'issue-tracker.md 存在但非 GitHub 模板', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills and pick the GitHub tracker' : '运行 /setup-matt-pocock-skills 重选 GitHub tracker', repo: null }
       } catch (e) {
-        return { ok: false, level: 'bad', detail: '无法读取 issue-tracker.md', hint: '请先运行 /setup-matt-pocock-skills', repo: null }
+        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot read issue-tracker.md' : '无法读取 issue-tracker.md', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
       }
     }
 
     // 检查 4 · gh CLI 可用
-    async function checkGhCli() {
+    async function checkGhCli(lang) {
       const exe = await resolveGh()
-      if (!exe) return { ok: false, level: 'bad', detail: 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: 'https://cli.github.com/', repo: null }
+      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: 'https://cli.github.com/', repo: null }
       return { ok: true, level: 'ok', detail: exe, hint: '', repo: null }
     }
 
     // 检查 5 · gh 已登录
-    async function checkGhAuth() {
+    async function checkGhAuth(lang) {
       const r = await runGh(['auth', 'status'])
       if (r.ok) {
         const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]
-        return { ok: true, level: 'ok', detail: first || '已登录', hint: '', repo: null }
+        return { ok: true, level: 'ok', detail: first || ((lang === 'en') ? 'Logged in' : '已登录'), hint: '', repo: null }
       }
-      return { ok: false, level: 'bad', detail: '未登录 GitHub：运行 gh auth login（浏览器授权，官方文档见 hint）', hint: 'https://cli.github.com/manual/gh_auth_login', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not logged into GitHub: run gh auth login (browser auth; official docs in hint)' : '未登录 GitHub：运行 gh auth login（浏览器授权，官方文档见 hint）', hint: 'https://cli.github.com/manual/gh_auth_login', repo: null }
     }
 
     // 检查 6 · API 可达（有 repo 用 repos/<owner>/<name>，否则退 user）
-    async function checkApi(cwd, repo) {
+    async function checkApi(cwd, repo, lang) {
       const endpoint = repo ? ('repos/' + repo.owner + '/' + repo.name) : 'user'
       const r = await runGh(['api', endpoint], cwd)
       if (r.ok) return { ok: true, level: 'ok', detail: 'api.github.com 200 · ' + endpoint, hint: '', repo: null }
-      return { ok: false, level: 'bad', detail: 'API 请求失败（' + r.kind + '）', hint: '检查网络 / Token 权限', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'API request failed (' + r.kind + ')' : 'API 请求失败（' + r.kind + '）', hint: (lang === 'en') ? 'Check network / token scopes' : '检查网络 / Token 权限', repo: null }
     }
 
     // 检查 7/8 · 技能安装探测（#373 拍板：两态 —— 已安装/未安装；去掉不可靠的「挂载」判定：
     //   宿主级 skills 服务与「当前会话挂载」不是同一上下文，服务不可用时会误报「未挂载」）
     const SKILL_INSTALL_URL = 'https://github.com/mattpocock/skills'
-    // 技能安装引导 Prompt（用户拍板 2026-08-17）：复制到对话由 AI 读官方文档自适应安装；hint 用 prompt: 协议由 client 渲染「安装引导」注入按钮
-    const SKILL_INSTALL_PROMPT = '请阅读官方安装文档 https://github.com/mattpocock/skills#installation ，为当前系统安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）。\n\n要求：\n1. 根据当前环境选择合适的安装方式（Claude Code 插件 / npx skills@latest add / 手动复制）；\n2. 安装到 DSH 读取的技能目录：用户主目录下的 .agents/skills（~/.agents/skills）；\n3. 安装后验证 wayfinder / triage / grilling / handoff / setup-matt-pocock-skills 等技能文件已就位；\n4. 完成后汇报安装结果与已装技能清单。'
-    async function probeSkill(name) {
+    // v1.6：技能安装引导 prompt 已收编进 client PROMPTS 注册表（installSkills 条目）；hint 用 prompt: 键名协议（prompt:installSkills）由 client 取双语文本
+    async function probeSkill(name, lang) {
       let session = false
       const skills = ctx.get('skills')
       if (skills !== undefined) {
@@ -648,39 +647,43 @@ return {
         }
       }
       // 两态：#373 —— 任一来源发现 = 已安装（绿 ok）；均无 = 未安装（红 bad + 官方仓库地址）
-      if (session && fsFound) return { ok: true, level: 'ok', detail: '已安装（会话已挂载 · ' + fsFound + '）', hint: '', repo: null }
-      if (session) return { ok: true, level: 'ok', detail: '已安装（会话已挂载）', hint: '', repo: null }
-      if (fsFound) return { ok: true, level: 'ok', detail: '已安装（' + fsFound + '）', hint: '', repo: null }
-      if (home === null) return { ok: false, level: 'bad', detail: '未安装（无法探测用户主目录）', hint: 'prompt:' + SKILL_INSTALL_PROMPT, repo: null }
-      return { ok: false, level: 'bad', detail: '未安装', hint: 'prompt:' + SKILL_INSTALL_PROMPT, repo: null }
+      if (session && fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted · ' + fsFound + ')' : '已安装（会话已挂载 · ' + fsFound + '）', hint: '', repo: null }
+      if (session) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted)' : '已安装（会话已挂载）', hint: '', repo: null }
+      if (fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (' + fsFound + ')' : '已安装（' + fsFound + '）', hint: '', repo: null }
+      if (home === null) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed (cannot probe user home)' : '未安装（无法探测用户主目录）', hint: 'prompt:installSkills', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills', repo: null }
     }
 
     // v1.5 T11：检查 9 · 核心技能套件聚合（全流程技能缺失检测）
-    async function probeSkillSuite() {
+    async function probeSkillSuite(lang) {
       const missing = []
       for (let i = 0; i < SKILL_PROBE_NAMES.length; i++) {
-        const r = await probeSkill(SKILL_PROBE_NAMES[i])
+        const r = await probeSkill(SKILL_PROBE_NAMES[i], lang)
         if (r.level !== 'ok') missing.push(SKILL_PROBE_NAMES[i])
       }
-      if (!missing.length) return { ok: true, level: 'ok', detail: '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '', repo: null }
-      return { ok: false, level: 'bad', detail: '缺失：' + missing.join(' / '), hint: 'prompt:' + SKILL_INSTALL_PROMPT, repo: null }
+      if (!missing.length) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Missing: ' + missing.join(' / ') : '缺失：' + missing.join(' / '), hint: 'prompt:installSkills', repo: null }
     }
 
-    const CHECK_NAMES = ['仓库定位', 'setup 已执行', 'tracker = GitHub', 'gh CLI 可用', 'gh 已登录', 'API 可达', 'wayfinder 技能', 'ask-matt 技能', '核心技能套件']
+    const CHECK_NAMES = function (lang) {
+      return (lang === 'en')
+        ? ['Repo located', 'Setup run', 'Tracker = GitHub', 'gh CLI available', 'gh logged in', 'API reachable', 'wayfinder skill', 'ask-matt skill', 'Core skill suite']
+        : ['仓库定位', 'setup 已执行', 'tracker = GitHub', 'gh CLI 可用', 'gh 已登录', 'API 可达', 'wayfinder 技能', 'ask-matt 技能', '核心技能套件']
+    }
 
-    async function buildStatus(cwd) {
-      const c1 = await checkRepo(cwd)
-      const c2 = await checkSetup(cwd)
-      const c3 = await checkTracker(cwd)
-      const c4 = await checkGhCli()
-      const c5 = await checkGhAuth()
-      const c6 = await checkApi(cwd, c1.repo)
-      const c7 = await probeSkill(SKILL_PROBE_NAMES[0])
-      const c8 = await probeSkill(SKILL_PROBE_NAMES[1])
-      const c9 = await probeSkillSuite()
+    async function buildStatus(cwd, lang) {
+      const c1 = await checkRepo(cwd, lang)
+      const c2 = await checkSetup(cwd, lang)
+      const c3 = await checkTracker(cwd, lang)
+      const c4 = await checkGhCli(lang)
+      const c5 = await checkGhAuth(lang)
+      const c6 = await checkApi(cwd, c1.repo, lang)
+      const c7 = await probeSkill(SKILL_PROBE_NAMES[0], lang)
+      const c8 = await probeSkill(SKILL_PROBE_NAMES[1], lang)
+      const c9 = await probeSkillSuite(lang)
       const raw = [c1, c2, c3, c4, c5, c6, c7, c8, c9]
       const checks = raw.map(function (c, i) {
-        return { id: i + 1, name: CHECK_NAMES[i], ok: c.level === 'ok', level: c.level, detail: c.detail, hint: c.hint }
+        return { id: i + 1, name: CHECK_NAMES(lang)[i], ok: c.level === 'ok', level: c.level, detail: c.detail, hint: c.hint }
       })
       return {
         ok: true,
@@ -698,15 +701,16 @@ return {
     harness.handle('wf.status', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
+      const lang = (args && args.lang === 'en') ? 'en' : 'zh'
       const now = Date.now()
-      if (!force && statusCache.status && statusCache.cwd === cwd && now - statusCache.ts < STATUS_CACHE_MS) return statusCache.status
+      if (!force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && now - statusCache.ts < STATUS_CACHE_MS) return statusCache.status
       try {
-        const status = await buildStatus(cwd)
-        statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd }
+        const status = await buildStatus(cwd, lang)
+        statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang }
         return status
       } catch (e) {
-        statusCache = { ts: Date.now(), status: null, error: String((e && e.message) || e), cwd: cwd }
-        return { ok: false, error: String((e && e.message) || e), checks: [], ready: 0, total: CHECK_NAMES.length }
+        statusCache = { ts: Date.now(), status: null, error: String((e && e.message) || e), cwd: cwd, lang: lang }
+        return { ok: false, error: String((e && e.message) || e), checks: [], ready: 0, total: CHECK_NAMES(lang).length }
       }
     })
 
