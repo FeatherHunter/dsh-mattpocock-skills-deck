@@ -7,6 +7,13 @@
 
 > 非官方：本项目是 Matt Pocock Skills 的第三方配套工具，与 mattpocock/skills 无隶属关系。
 
+## 📦 本人的其他技能 · More from FeatherHunter
+
+| 仓库 | 痛点 → 解决 |
+| --- | --- |
+| [🎨 dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette) | 看腻了 DSH 默认皮肤？**34 款 opencode 经典主题一键换上**，即点即换。 |
+| [⚡ dsh-prompt](https://github.com/FeatherHunter/dsh-prompt) | 写 Prompt 靠搜历史、靠复制粘贴？**24 条深度模板点一下进输入框**。 |
+
 ## 安装（一条命令）
 
 ```bash

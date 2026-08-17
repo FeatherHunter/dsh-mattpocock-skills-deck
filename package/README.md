@@ -6,11 +6,18 @@
 > 唯一打开形式）+ GitHub issue 动作注入（诊断 / 修复 / 讨论 / 执行，均带 `/wayfinder` `/triage` 技能命令）
 > + 交接开新会话。
 
-- **插件包名**: `dsh-mattpocock-skills-deck`（可分发 npm 包，见 `package/`，当前 v1.5.0：v1.4 详情页（#441）+ v1.5 升级 map 全量落地 —— 状态栏 BUG/诊断过滤 + 设置直达 + 删 panelHeight + Matt 引导 + 新增 wayfinder + 仓库身份 + 双语 + 仓库级缓存架构（git 根检测 → 磁盘缓存秒开 → 自动探测刷新）+ 进度契约与阶段闸门 + 正文格式容错 + markdown 白名单渲染 + 3 项 bug 修复 + T10 自动刷新机制（变化行高亮/即时转圈反馈））
+- **插件包名**: `dsh-mattpocock-skills-deck`（可分发 npm 包，见 `package/`，当前 v1.0.0（品牌迁移自 dsh-waystation v1.5.0）：v1.4 详情页（#441）+ v1.5 升级 map 全量落地 —— 状态栏 BUG/诊断过滤 + 设置直达 + 删 panelHeight + Matt 引导 + 新增 wayfinder + 仓库身份 + 双语 + 仓库级缓存架构（git 根检测 → 磁盘缓存秒开 → 自动探测刷新）+ 进度契约与阶段闸门 + 正文格式容错 + markdown 白名单渲染 + 3 项 bug 修复 + T10 自动刷新机制（变化行高亮/即时转圈反馈））
 - **动态版 pluginId**: `wfst-1`（v9–v24 迭代产物）
 - **平台**: Client（浏览器页面）+ Host（Node 进程，gh CLI 数据层）
 - **配套**: [mattpocock/skills](https://github.com/mattpocock/skills)（wayfinder / triage / grilling / handoff / ask-matt 等）
 - **两种形态**: ① 正式安装（npm 一条命令，开机自启，推荐）；② 动态加载（进程内，会话级）
+
+## 📦 本人的其他技能 · More from FeatherHunter
+
+| 仓库 | 痛点 → 解决 |
+| --- | --- |
+| [🎨 dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette) | 看腻了 DSH 默认皮肤？**34 款 opencode 经典主题一键换上**，即点即换。 |
+| [⚡ dsh-prompt](https://github.com/FeatherHunter/dsh-prompt) | 写 Prompt 靠搜历史、靠复制粘贴？**24 条深度模板点一下进输入框**。 |
 
 ## 功能
 
