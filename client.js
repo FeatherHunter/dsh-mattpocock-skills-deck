@@ -448,9 +448,6 @@ return {
         'matte.desc': '工程领域 + 通用领域的 AI agent 技能集（wayfinder / triage / grilling / handoff 等 25 个核心技能）',
         'matte.openRepo': '打开 GitHub',
         'matte.copyPrompt': '复制安装 prompt',
-        'matte.injectPrompt': '填入输入框',
-        'matte.banner': '技能没装全？把安装 prompt 交给 AI 即可自动安装 Matt 技能集',
-        'matte.prompt': '请帮我安装 Matt Pocock 的 AI 技能集（https://github.com/mattpocock/skills）到技能目录 ~/.agents/skills：克隆仓库 → 按 README 安装工程领域与通用领域的全部 skills → 运行 /setup-matt-pocock-skills 完成仓库初始化（issue tracker 选择 GitHub Issues）',
         'cfg.openIn': '打开位置',
         'cfg.openInDesc': '面板在哪个区域打开。better-sidebar 已安装时默认侧边栏；窗口缩小时侧边栏更稳。',
         'cfg.openInLabel': '打开位置',
@@ -674,9 +671,6 @@ return {
         'matte.desc': 'Engineering + general-purpose AI agent skills (25 core skills: wayfinder / triage / grilling / handoff …)',
         'matte.openRepo': 'Open GitHub',
         'matte.copyPrompt': 'Copy install prompt',
-        'matte.injectPrompt': 'Fill input',
-        'matte.banner': 'Skills missing? Give an AI the install prompt to auto-install Matt\'s skills',
-        'matte.prompt': 'Please install Matt Pocock\'s AI skill collection (https://github.com/mattpocock/skills) into ~/.agents/skills: clone the repo → install all engineering and general-purpose skills per the README → run /setup-matt-pocock-skills to bootstrap the repo (choose GitHub Issues as the issue tracker)',
         'cfg.openIn': 'Open in',
         'cfg.openInDesc': 'Where the panel opens. Defaults to the sidebar when dsh-better-sidebar is installed; the sidebar stays put when the window shrinks.',
         'cfg.openInLabel': 'Open location',
@@ -1631,7 +1625,7 @@ return {
       const body = renderTemplate('execute', { number: String(t.number), url: url, title: t.title })
       return withWayfinderPrefix(body)
     }
-    const SESSION_TITLE_PREFIX = '[dsh-mattpocock-skills-deck]'
+    const SESSION_TITLE_PREFIX = '[MattSkills]'
     const newSessionTitle = (t) => SESSION_TITLE_PREFIX + ' ' + t.title + ' #' + t.number
     // v1.5 T6：新增 wayfinder prompt —— /wayfinder + 仓库信息 + 需求引导（用户拍板：prompt 带仓库信息）
     // T16 补强（#463 复核 F2）：建图入口同样挂正文格式契约（新建 map 正文从源头防字面 \\n / BOM）
@@ -2782,17 +2776,17 @@ return {
               h('span', { style: { flex: 1 } }, tr('banner.ghauth')),
               h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { openUrl('https://cli.github.com/manual/gh_auth_login') } }, tr('banner.ghauthBtn')),
             ])
-          : (!skillsOk)
+          : (!setupOk)
             ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
-                Ic({ n: 'star', size: 13 }),
-                h('span', { style: { flex: 1 } }, tr('banner.skills', { list: (skillsCheck2 && skillsCheck2.detail) || '' })),
-                h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(188,140,255,.55)' }, onClick: function () { inject(st, SKILL_INSTALL_PROMPT) } }, tr('banner.skillsBtn')),
+                Ic({ n: 'alert', size: 13 }),
+                h('span', { style: { flex: 1 } }, tr('banner.setup')),
+                h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { inject(st, promptText('setupRun')) } }, tr('banner.setupBtn')),
               ])
-            : (!setupOk)
+            : (!skillsOk)
               ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
-                  Ic({ n: 'alert', size: 13 }),
-                  h('span', { style: { flex: 1 } }, tr('banner.setup')),
-                  h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { inject(st, promptText('setupRun')) } }, tr('banner.setupBtn')),
+                  Ic({ n: 'star', size: 13 }),
+                  h('span', { style: { flex: 1 } }, tr('banner.skills', { list: (skillsCheck2 && skillsCheck2.detail) || '' })),
+                  h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(188,140,255,.55)' }, onClick: function () { inject(st, SKILL_INSTALL_PROMPT) } }, tr('banner.skillsBtn')),
                 ])
               : null
       // v1.5 配置引导顺序区（用户拍板 2026-08-17）：依赖链 1-2-3-4，完成自动勾选
@@ -3160,7 +3154,7 @@ return {
           h('div', { className: 'dsws-cfg-gdesc' }, tr('matte.desc')),
           h('div', { className: 'dsws-cfg-row', style: { flexWrap: 'wrap', gap: 6 } }, [
             h('a', { href: MATT_REPO, target: '_blank', rel: 'noreferrer', className: 'dsws-btn', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('matte.openRepo'))]),
-            h('button', { className: 'dsws-btn', onClick: function () { copyText(sharedSt, tr('matte.prompt'), tr('toast.copied')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'clipboard', size: 11 }), h('span', null, tr('matte.copyPrompt'))]),
+            h('button', { className: 'dsws-btn', onClick: function () { copyText(sharedSt, SKILL_INSTALL_PROMPT, tr('toast.copied')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'clipboard', size: 11 }), h('span', null, tr('matte.copyPrompt'))]),
           ]),
         ]),
         // v1.4：打开位置（details 列 / better-sidebar）—— better-sidebar 未装时仅显示 dock 选项

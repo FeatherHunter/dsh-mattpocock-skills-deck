@@ -1,7 +1,7 @@
 // verify-status.js — dsh-waystation host.js wf.status 模块验证（ticket #344）
 // 可复现版：性质断言 + 现场动态比对，不绑死本机现场状态。
 // 用法: node tests/verify-status.js <仓库根目录>
-// 依赖: node + 本机可用的 gh（PATH 或 D:\0Tools\GitHubCLI\gh.exe 兜底）
+// 依赖: node + 本机可用的 gh（PATH 或 DSH_GH_PATH 兜底）
 const fsx = require('fs')
 const fsp = fsx.promises
 const path = require('path')

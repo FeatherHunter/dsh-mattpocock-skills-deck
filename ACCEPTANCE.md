@@ -8,7 +8,7 @@
 ## 0. 前置
 
 - [x] 在带 cordis 工具的会话中 `cordis_define` + `cordis_run` 加载 `dsh-plugin/dsh-waystation`（pluginId `wfst-1`，当前 package `pkg-14`）
-- [x] 工作目录 = 本仓库（D:\2Study\StudyNotes\SKILLS）
+- [x] 工作目录 = 本仓库（D:\dsh-plugin\dsh-mattpocock-skills-deck）
 
 ## 1. 输入区状态条（定稿 1A 居中胶囊 · v14）
 

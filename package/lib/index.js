@@ -10,7 +10,7 @@
  *      RpcResult `{ ok: true, value } | { ok: false, error }`。
  *
  * 数据层：
- *   1. gh 封装层：resolveExecutable 解析 → 兜底 D:\0Tools\GitHubCLI\gh.exe；30s 超时
+ *   1. gh 封装层：resolveExecutable 解析 → 兜底 DSH_GH_PATH/系统 gh；30s 超时
  *      （timer race + terminate）；错误归一化（auth / network / notfound / exit）。
  *   2. 数据流：gh issue list 枚举 wayfinder:map → 每 map 一次 GraphQL（subIssues +
  *      labels + assignees + blockedBy + blocking）→ 组装快照（map 五区块解析 + tickets
@@ -30,8 +30,10 @@ export function apply(ctx) {
   if (subprocess === undefined || timer === undefined) return
 
   // ============ 配置 ============
-  const GH_FALLBACK = 'D:\\0Tools\\GitHubCLI\\gh.exe'   // 本仓库实测 gh 不在 PATH（docs/agents/issue-tracker.md）
-  const DEFAULT_CWD = 'D:\\2Study\\StudyNotes\\SKILLS'  // 默认工作区；可被 snapshot args.cwd 覆盖
+  // v1.5.0（公共发布）：兜底 gh 路径 = 环境变量 DSH_GH_PATH（官方安装会加入 PATH，无需配置；非常规安装可用环境变量指定）
+  const GH_FALLBACK = (typeof process !== 'undefined' && process.env && process.env.DSH_GH_PATH) ? process.env.DSH_GH_PATH : ''
+  // 默认工作区 = DSH 进程当前目录（可被 snapshot args.cwd 覆盖；去本机硬编码）
+  const DEFAULT_CWD = (typeof process !== 'undefined' && typeof process.cwd === 'function') ? process.cwd() : ''
   const TIMEOUT_MS = 30000
   // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
   const CACHE_MS = 60000
@@ -66,7 +68,7 @@ export function apply(ctx) {
         info = null
       }
       if (info) ghPath = GH_FALLBACK
-      else ghPathError = 'gh 不可用：PATH 无 gh，且 ' + GH_FALLBACK + ' 不存在（环境检查 #4）'
+      else ghPathError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
     }
     return ghPath
   }

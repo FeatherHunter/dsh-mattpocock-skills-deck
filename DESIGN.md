@@ -78,7 +78,7 @@ pluginId：`cordis_define` kind `new`，idPrefix 用 `wfst`（3–6 小写字母
 | 1 | 仓库定位 | `git remote -v` → `owner/repo` | 提示在 GitHub 仓库内使用 |
 | 2 | setup 已执行 | `docs/agents/issue-tracker.md` 存在 | 「请先跑 /setup-matt-pocock-skills」+ 一键注入命令 |
 | 3 | tracker = GitHub | 解析上述文件（GitHub 模板特征） | 提示切换 tracker 或改配置 |
-| 4 | gh CLI 可用 | `subprocess.resolveExecutable('gh')`；兜底路径 `D:\0Tools\GitHubCLI\gh.exe`（本仓库实测 gh 不在 PATH，见 issue-tracker.md） | 显示找到/未找到的路径，提示安装 |
+| 4 | gh CLI 可用 | `subprocess.resolveExecutable('gh')`；兜底 `DSH_GH_PATH` 环境变量（本仓库实测 gh 不在 PATH，见 issue-tracker.md） | 显示找到/未找到的路径，提示安装 |
 | 5 | gh 已登录 | `gh auth status`（keyring 或 GH_TOKEN） | 提示 `gh auth login` |
 | 6 | API 可达 | `gh api repos/<owner>/<repo>` 200 | 提示网络/权限 |
 | 7 | **wayfinder 技能** | 见 §4.7（双层探测） | 红点 + 安装提示 |
@@ -185,7 +185,7 @@ timer interval 60s ─┐
 
 ### 5.3 gh 封装层要点
 
-- 可执行文件解析顺序：`resolveExecutable('gh')` → 配置的兜底路径（默认 `D:\0Tools\GitHubCLI\gh.exe`）→ 报错进检测项 #4。
+- 可执行文件解析顺序：`resolveExecutable('gh')` → `DSH_GH_PATH` 环境变量兜底 → 报错进检测项 #4。
 - 所有命令带超时与错误归一化（auth 失败 / 网络失败 / 404 分开展示）。
 - 动作类命令（comment / assign / close）**只在用户从 UI 明确点击后执行**，且 UI 内二次确认。
 

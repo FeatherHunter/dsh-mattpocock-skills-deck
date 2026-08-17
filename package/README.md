@@ -125,7 +125,7 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck
 
 ## 数据层说明（宿主半）
 
-- 依赖：`gh` CLI（兜底路径 `D:\0Tools\GitHubCLI\gh.exe`）+ git 仓库工作目录（默认
+- 依赖：`gh` CLI（兜底路径 `DSH_GH_PATH` 环境变量（未设置时走系统 `gh`））+ git 仓库工作目录（默认
   `D:\2Study\StudyNotes\SKILLS`，可随会话 cwd 切换）。
 - 数据流：`gh issue list` 枚举全量 issues（map 列表从中过滤 `wayfinder:map`）→ **GraphQL aliases 一次查询全部 map 详情**（subIssues + labels + assignees + blockedBy）→ 组装快照（map 五区块解析 + tickets + stats）。
 - RPC 通道 `/dsws`：`status` / `snapshot` / `refresh` / `cwd` / `handoffLatest` / `claim`。
