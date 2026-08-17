@@ -62,9 +62,10 @@ const buildEnv = function (src, lang) {
     return s
   }
   const repoStr = function () { return 'FeatherHunter/SKILLS' }
-  const COMPLETE_PROMPT = promptText('complete')
-  const BODY_FORMAT = promptText('bodyFormat')
-  const MAP_EXECUTE_PROMPT = promptText('mapExecute')
+  // 2026-08-18（需求修复）：常量已函数化（语言切换实时重算）—— 沙箱同样以函数注入
+  const COMPLETE_PROMPT = function () { return promptText('complete') }
+  const BODY_FORMAT = function () { return promptText('bodyFormat') }
+  const MAP_EXECUTE_PROMPT = function () { return promptText('mapExecute') }
   const renderTemplate = function (id, values) {
     const tpl = reg['tpl.' + id]
     if (!tpl) return ''
@@ -76,7 +77,7 @@ const buildEnv = function (src, lang) {
     if (/^\/wayfinder\b/.test(String(body || '').trim())) return body
     return '/wayfinder\n' + body
   }
-  const completePromptSrc = extractBetween(src, 'const completePrompt = function (st, num, total, closed) {', "const FIXATE_PROMPT = promptText('fixate')")
+  const completePromptSrc = extractBetween(src, 'const completePrompt = function (st, num, total, closed) {', "const FIXATE_PROMPT = function () { return promptText('fixate') }")
   const completePrompt = new Function('COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText)
   const startTextSrc = extractBetween(src, 'const startText = (st, t) => {', "const SESSION_TITLE_PREFIX = '[MattSkills]'")
   const startText = new Function('repoStr', 'promptText', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', startTextSrc + '; return startText')(repoStr, promptText, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix)

@@ -305,6 +305,7 @@ return {
         'nav.handoffReady': '交接给新会话',
         'nav.handoffTitle': '交接：发送 /handoff 生成交接文档',
         'nav.handoffReadyTitle': '开新会话并预填交接文档路径',
+        'nav.skillsTitle': '技能套件：点击展开技能列表，点击技能名插入当前会话',
         'banner.setup': 'setup 未执行',
         'banner.skills': '未检测到核心技能套件（wayfinder / triage / grilling / grill-me / implement / ask-matt 等）：{list}。安装后才能使用全流程功能。',
         'banner.skillsBtn': '帮我安装 Matt 技能套件',
@@ -430,7 +431,7 @@ return {
         // #394：新会话按钮可见文字 + hover title（去掉冗余 detail，靠 #361 doc + 行为本身解释）
         'list.newSessionLabel': '新会话',
         'panel.newWayfinder': '+ 新建需求',
-        'panel.newWayfinderTitle': '注入 /wayfinder 新增需求 prompt（带当前仓库）',
+        'panel.newWayfinderTitle': '新会话中打开 /wayfinder 新增需求 prompt（继承当前工作区）',
         'panel.diffRemoved': '{n} 个已关闭/移除',
         'panel.repoTitle': '当前仓库，点击打开 GitHub',
         'panel.noRepo': '没有仓库',
@@ -528,6 +529,7 @@ return {
         'nav.handoffReady': 'Handoff · new session',
         'nav.handoffTitle': 'Handoff: send /handoff to generate the handoff doc',
         'nav.handoffReadyTitle': 'Open a new session with the handoff doc path prefilled',
+        'nav.skillsTitle': 'Skill suite: expand the skill list; click a skill to insert it into this session',
         'banner.setup': 'setup not run yet',
         'banner.skills': 'Core skill suite missing (wayfinder / triage / grilling / grill-me / implement / ask-matt …): {list}. Install them to use the full workflow.',
         'banner.skillsBtn': 'Install the Matt skill suite for me',
@@ -653,7 +655,7 @@ return {
         // #394：visible label + hover title for new-session button
         'list.newSessionLabel': 'New session',
         'panel.newWayfinder': '+ New requirement',
-        'panel.newWayfinderTitle': 'Inject a /wayfinder new-requirement prompt (with the current repo)',
+        'panel.newWayfinderTitle': 'Open a /wayfinder new-requirement prompt in a new session (same workspace)',
         'panel.diffRemoved': '{n} closed/removed',
         'panel.repoTitle': 'Current repo — open on GitHub',
         'panel.noRepo': 'No repo',
@@ -836,6 +838,10 @@ return {
         case 'list': return h('svg', common, [h('path', { d: 'M8 6h12M8 12h12M8 18h12' }), h('circle', { cx: 4, cy: 6, r: 0.8, fill: 'currentColor', stroke: 'none' }), h('circle', { cx: 4, cy: 12, r: 0.8, fill: 'currentColor', stroke: 'none' }), h('circle', { cx: 4, cy: 18, r: 0.8, fill: 'currentColor', stroke: 'none' })])
         case 'info': return h('svg', common, [h('circle', { cx: 12, cy: 12, r: 9 }), h('path', { d: 'M12 11v5' }), h('circle', { cx: 12, cy: 8, r: 0.7, fill: 'currentColor', stroke: 'none' })])
         case 'handoff': return h('svg', common, [h('path', { d: 'M7 17l-4-4 4-4' }), h('path', { d: 'M3 13h6a6 6 0 016 6' }), h('path', { d: 'M17 7l4 4-4 4' }), h('path', { d: 'M21 11h-6a6 6 0 00-6-6' })])
+        // 需求1（2026-08-18）：交接文档 + 出箭头 —— 「新会话交接」小按钮
+        case 'handoff-open': return h('svg', common, [h('path', { d: 'M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z' }), h('path', { d: 'M14 3v5h5' }), h('path', { d: 'M10 15l4-4' }), h('path', { d: 'M11 11h3v3' })])
+        // 需求2（2026-08-18）：2×2 网格 —— 技能列表按钮
+        case 'skills': return h('svg', common, [h('rect', { x: 3, y: 3, width: 7, height: 7, rx: 1 }), h('rect', { x: 14, y: 3, width: 7, height: 7, rx: 1 }), h('rect', { x: 3, y: 14, width: 7, height: 7, rx: 1 }), h('rect', { x: 14, y: 14, width: 7, height: 7, rx: 1 })])
         // #394：与 nav.handoff 同图标造成「交接 / 新开会话」二义；新会话按钮换 external-link 消歧
         case 'external-link': return h('svg', common, [h('path', { d: 'M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6' }), h('polyline', { points: '15 3 21 3 21 9' }), h('line', { x1: 10, y1: 14, x2: 21, y2: 3 })])
         default: return null
@@ -871,7 +877,7 @@ return {
       "handoffRead": { version: 1, placeholders: [], use: '交接第二击兜底（无文件时）', zh: '/read .scratch/handoff/latest.md\n\n请先阅读这份交接文档并复述确认理解（结论 / 未完成事项 / 建议 skill），然后从第一性原理出发完成任务，并对抗式审查。', en: '/read .scratch/handoff/latest.md\n\nRead this handoff doc and restate your understanding (conclusions / unfinished / suggested skills), then approach tasks from first principles, and review adversarially.' },
       "installSkills": { version: 1, placeholders: [], use: '技能安装引导 · DSH 专用（横幅 / 引导 g4 / 设置页复制）', zh: '请为 DSH 安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）：\n1. 克隆 https://github.com/mattpocock/skills；\n2. 按官方 README 将工程领域与通用领域的全部 skills 安装到 DSH 读取的技能目录：用户主目录下的 ~/.agents/skills（本套件仅用于 DSH，不要安装到其他 AI 工具）；\n3. 安装后验证 wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills 等技能文件已就位；\n4. 完成后汇报安装结果与已装技能清单。', en: 'Install the Matt Pocock skills collection (mattpocock/skills) for DSH:\n1. Clone https://github.com/mattpocock/skills;\n2. Per the official README, install all engineering and general-purpose skills into the skill directory DSH reads: ~/.agents/skills under the user home (this collection is for DSH only — do not install it into other AI tools);\n3. After install, verify wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills are in place;\n4. Report the result and the installed skill list when done.' },
       "setupRun": { version: 6, placeholders: [], use: '环境检查横幅 · setup 未执行按钮（仅初始化，不重装技能）', zh: '/setup-matt-pocock-skills\n\n初始化本仓库（技能套件已安装，无需克隆重装）：\n1. issue tracker 选择 GitHub Issues；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 GitHub Issues；triage 标签保留默认五角色），并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 初始化完成后复查环境检查（setup 变绿即完成）。', en: '/setup-matt-pocock-skills\n\nBootstrap this repo (the skill suite is already installed — no need to clone or reinstall):\n1. Choose GitHub Issues as the issue tracker;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose GitHub Issues as the tracker; keep the default triage-role labels), and ensure the repo has the complete label set the skills need (the five triage-role labels + the wayfinder labels wayfinder:map / research / prototype / grilling / task) — not just a few; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. After init, re-run the environment check (setup turns green when done).' },
-      "newWayfinder": { version: 5, placeholders: ['repo'], use: '「+ 新建需求」按钮', zh: '/wayfinder\n请帮我处理一个需求（严格遵循 wayfinder 技能规则）。\n仓库：{repo}\n需求描述：\n\n收到需求后按以下流程：\n1. 先澄清：对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认；\n2. 判断分类（需求 / map 维度）——先查仓库已有 wayfinder:map 和 issue，确认是否做过：\n   - 新增：全新需求，之前没做过 → 按建图规划契约新建 map（Destination + Notes + 规划表 + 票）；\n   - 复用：这个需求之前已做过（已有 map / issue）→ 打开复用它，不重复建；\n   - 直接实现：需求很小 → 建一个 issue 直接实现，不建大 map；\n3. 执行后按进度契约更新。', en: '/wayfinder\nPlease handle a requirement (strictly follow the wayfinder skill rules).\nRepo: {repo}\nRequirement: \n\nAfter receiving the requirement, follow this flow:\n1. Clarify first: if you hold assumptions about the goal / scope / preferences, settle them with the grilling skill, never assume;\n2. Decide the case (at the requirement / map level) — first check existing wayfinder:map and issues in the repo to confirm whether it has been done:\n   - Add: a brand-new requirement never done before → build a new map per the planning contract (Destination + Notes + plan + tickets);\n   - Reuse: this requirement has been done before (existing map / issue) → open and reuse it, do not build a new one;\n   - Directly implement: the requirement is small → create a single issue and implement it directly, no big map;\n3. Update per the progress contract after execution.' },
+      "newWayfinder": { version: 6, placeholders: ['repo'], use: '「+ 新建需求」按钮', zh: '/wayfinder\n请帮我处理一个需求（严格遵循 wayfinder 技能规则）。\n仓库：{repo}\n\n收到需求后按以下流程：\n1. 先澄清：对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认；\n2. 判断分类（需求 / map 维度）——先查仓库已有 wayfinder:map 和 issue，确认是否做过：\n   - 新增：全新需求，之前没做过 → 按建图规划契约新建 map（Destination + Notes + 规划表 + 票）；\n   - 复用：这个需求之前已做过（已有 map / issue）→ 打开复用它，不重复建；\n   - 直接实现：需求很小 → 建一个 issue 直接实现，不建大 map；\n3. 执行后按进度契约更新。\n\n需求描述：', en: '/wayfinder\nPlease handle a requirement (strictly follow the wayfinder skill rules).\nRepo: {repo}\n\nAfter receiving the requirement, follow this flow:\n1. Clarify first: if you hold assumptions about the goal / scope / preferences, settle them with the grilling skill, never assume;\n2. Decide the case (at the requirement / map level) — first check existing wayfinder:map and issues in the repo to confirm whether it has been done:\n   - Add: a brand-new requirement never done before → build a new map per the planning contract (Destination + Notes + plan + tickets);\n   - Reuse: this requirement has been done before (existing map / issue) → open and reuse it, do not build a new one;\n   - Directly implement: the requirement is small → create a single issue and implement it directly, no big map;\n3. Update per the progress contract after execution.\n\nRequirement: ' },
       "mapHead": { version: 1, placeholders: ['n', 'title', 'url'], use: '新会话/执行 · map 标识头（B2）', zh: '## 目标 map\n- 编号：#{n}\n- 标题：{title}\n- 链接：{url}', en: '## Target map\n- No: #{n}\n- Title: {title}\n- Link: {url}' },
       "stageGate": { version: 2, placeholders: [], use: '阶段闸门条款（T13 · 统一追加于 诊断/修复/执行/map推进 动作：needs-triage 必须先诊断并判断现状）', zh: '阶段闸门（动作开始前必读，这是动作的一部分，不是可选项）：\n1. 先读该 issue 现状：进度区（## 进度：N%）/ 已有实施记录 / 评论 / 标签，判断它处于哪个阶段；\n2. 若带 needs-triage 标签：必须先完成诊断（这是前置步骤，不许跳过直接实施）；\n3. 诊断时判断当前进展：\n   - 已有实施且真实 → 核验是否符合验收标准，属实则维持 95% 待确认 + 摘 needs-triage（转 ready-for-agent）；\n   - 已有实施但虚假/半成品 → 进度据实回调到真实值（如 30%），继续诊断；\n   - 未动工 → 正常诊断（复现 → 根因 → 方案 → 写入 issue）；\n4. 诊断完成摘 needs-triage 后才允许进入实施阶段。', en: 'Stage gate (must read before starting the action — it is part of the action, not optional):\n1. First read the issue current state: progress section (## Progress: N%) / existing implementation record / comments / labels — determine which stage it is in;\n2. If it carries the needs-triage label: diagnosis MUST be completed first (a prerequisite step — do not skip straight to implementation);\n3. During diagnosis, judge current progress:\n   - Existing implementation and it is real → verify against acceptance criteria; if genuine, keep 95% awaiting confirmation + remove needs-triage (move to ready-for-agent);\n   - Existing implementation but fake/partial → revise progress back to the true value (e.g. 30%) and continue diagnosing;\n   - Not started → normal diagnosis (reproduce → root cause → plan → write into the issue);\n4. Only after diagnosis is done and needs-triage removed may implementation begin.' },
     }
@@ -1050,7 +1056,7 @@ return {
       stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
       checks: null, checksUpdatedAt: '', checksMode: 'loading', checksError: null, checking: false,
       snapMode: 'loading', snapError: null, snapLoading: false,
-      refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, expTags: {}, subs: [],
+      refreshing: false, rowFlash: {}, issueFlash: {}, skillsOpen: false, expTags: {}, subs: [],
     })
     const shared = makeStore()
     const stores = {}
@@ -1654,16 +1660,15 @@ return {
       return promptText('handoffRead')
     }
     let pendingDraft = null  // 跨会话预填（新会话 dock 挂载后消费）
+    // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑
     const doHandoff = function (st) {
-      if (!st.handoffReady) {
-        st.handoffReady = true
-        handoffTs = timeStampStr()
-        const text = handoffPrompt(handoffTs)
-        handoffFile = extractHandoffFile(text) || (handoffTs + '.md')
-        inject(st, text)
-        flash(st, tr('toast.injectedHandoff'), 'ok')
-        return
-      }
+      handoffTs = timeStampStr()
+      const text = handoffPrompt(handoffTs)
+      handoffFile = extractHandoffFile(text) || (handoffTs + '.md')
+      inject(st, text)
+      flash(st, tr('toast.injectedHandoff'), 'ok')
+    }
+    const doHandoffOpen = function (st) {
       const ws = ctx.get('workspaces')
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
       const finish = function (file, msg) {
@@ -1694,15 +1699,14 @@ return {
       })
     }
 
-    // #361：在新会话中打开 ticket —— 同 cwd + 自动命名（[dsh-mattpocock-skills-deck] <标题> #<号>）+ 预填指令
+    // #361：在新会话中打开 —— 同 cwd + 自动命名 + 预填指令
     //   契约（dsh-client-runtime ISessions）：create({cwd}) → SessionId；scope(sid) → AgentContext；
     //   sessionOf(ctx) → SessionFace.rename(title)；open(sid) 切换。任一步失败降级为当前会话注入 + 提醒。
-    const openInNewSession = function (st, x) {
-      const text = rowActionText(st, x)
+    const openTextInNewSession = function (st, text, title) {
       const sessions = ctx.get('sessions')
       const doFallback = function () {
         inject(st, text)
-        flash(st, tr('toast.newSessionManual', { title: newSessionTitle(x) }), 'warn')
+        flash(st, tr('toast.newSessionManual', { title: title }), 'warn')
       }
       if (!sessions || typeof sessions.create !== 'function') { doFallback(); return }
       // v1.5：新会话默认继承「点击时所在会话」的工作区（st.cwd）；
@@ -1727,7 +1731,7 @@ return {
           try {
             const scopeCtx = sessions.scope(sid)
             const face = scopeCtx ? sessions.sessionOf(scopeCtx) : undefined
-            if (face && typeof face.rename === 'function') face.rename(newSessionTitle(x)).catch(function () { /* 命名失败忽略 */ })
+            if (face && typeof face.rename === 'function') face.rename(title).catch(function () { /* 命名失败忽略 */ })
           } catch (e) { /* 命名失败忽略 */ }
           // 预填：新会话 dock 挂载后经 StatusBar 消费 pendingDraft（与交接开新会话同机制）
           pendingDraft = text
@@ -1735,6 +1739,10 @@ return {
           flash(st, tr('toast.newSessionOpened'), 'ok')
         }).catch(function () { doFallback() })
       })
+    }
+    // #361 原入口：行级「在新会话打开」保留（rowActionText 文本 + 票标题命名）
+    const openInNewSession = function (st, x) {
+      openTextInNewSession(st, rowActionText(st, x), newSessionTitle(x))
     }
     const inject = (st, text) => {
       if (st.injector) { st.injector(text); flash(st, tr('toast.injected'), 'ok') }
@@ -1820,7 +1828,7 @@ return {
         Ic({ n: icon, size: 12 }),
         label,
       ])
-      const capsule = h('div', { className: 'dsws-capsule', onClick: function () { openPanel(s) } }, [
+      const capsule = h('div', { className: 'dsws-capsule', onClick: function () { openPanel(s) }, style: { position: 'relative' } }, [
         h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
           Icon({ scheme: s.ui.icon, size: 14 }),
           h('span', null, tr('panel.title')),
@@ -1829,11 +1837,21 @@ return {
         seg('alert', [h('span', null, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, tr('nav.bugTitle')),
         seg('search', [h('span', null, tr('nav.triage')), num(String(triageN), '2ch')], '#f59e0b', function () { s.stateFilter = 'open'; s.lblFilters = ['needs-triage']; go('list') }, tr('nav.triageTitle')),
         seg('note', tr('nav.word'), '#c084fc', function () { injectFixate(s) }, tr('nav.fixateTitle')),
-        seg('handoff', s.handoffReady ? tr('nav.handoffReady') : tr('nav.handoff'), '#58a6ff', function () { doHandoff(s) }, s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffTitle')),
+        seg('handoff', tr('nav.handoff'), '#58a6ff', function () { doHandoff(s) }, tr('nav.handoffTitle')),
+        // 需求1（2026-08-18）：交接右侧「新会话交接」小按钮 —— 点击 = 原「第二击」：复制交接读取 prompt + 开新会话
+        seg('handoff-open', null, '#58a6ff', function () { doHandoffOpen(s) }, tr('nav.handoffReadyTitle')),
         // v19-36：环境段移至末尾（更新左侧），用户少点
         seg('dot', [h('span', null, tr('nav.env')), num(envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') }, tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) })),
         // v1.5 T10：刷新反馈 = 图标转圈（文字恒定不换 · 控件宽度零变化）
         h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, title: tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('nav.refresh') + ' ' + timeStr)]),
+        // 需求2（2026-08-18）：状态栏末尾技能列表按钮 —— 点击向上展开技能名列表，点击技能名插入 /<技能名> 到当前会话
+        h('span', { className: 'dsws-skillbtn' + (s.skillsOpen ? ' on' : ''), onClick: function (e) { e.stopPropagation(); s.skillsOpen = !s.skillsOpen; emit(s) }, title: tr('nav.skillsTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '1px 4px', borderRadius: 4, cursor: 'pointer', color: s.skillsOpen ? '#c084fc' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [Ic({ n: 'skills', size: 12 })]),
+        s.skillsOpen ? h('div', { className: 'dsws-skillpop', style: { position: 'absolute', bottom: '100%', right: 0, marginBottom: 4, zIndex: 9999, minWidth: 150, maxHeight: 300, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
+          h('div', { style: { fontSize: 10, fontWeight: 600, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '3px 8px', textTransform: 'uppercase', letterSpacing: '.05em' } }, tr('panel.tabSkills')),
+          SKILLS.map(function (sk) {
+            return h('div', { key: sk.name, title: tr('skilldesc.' + sk.name), onClick: function (e) { e.stopPropagation(); inject(s, '/' + sk.name); s.skillsOpen = false; emit(s) }, style: { padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace' } }, sk.name)
+          }),
+        ]) : null,
       ])
       // 用户拍板 2026-08-16 + 2026-08-17：横幅移到状态栏上方；依赖链 gh → 登录 → setup → 技能，显示第一个缺失项
       const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
@@ -2884,7 +2902,7 @@ return {
           tabBtn('checks', 'gear', tr('panel.tabChecks')),
           h('span', { style: { flex: 1 } }),
           // v1.5 T6 修订（V2 描边紫 · 刷新左侧）：新增 wayfinder —— 注入 /wayfinder + 仓库信息 + 需求引导
-          h('button', { className: 'dsws-btn', title: tr('panel.newWayfinderTitle'), onClick: function () { inject(s, newWayfinderText(s)) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
+          h('button', { className: 'dsws-btn', title: tr('panel.newWayfinderTitle'), onClick: function () { openTextInNewSession(s, newWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newWayfinder')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
             Ic({ n: 'map', size: 11 }),
             h('span', null, tr('panel.newWayfinder')),
           ]),
@@ -2982,7 +3000,7 @@ return {
           tabBtn('checks', 'gear', tr('panel.tabChecks')),
           h('span', { style: { flex: 1 } }),
           // v1.5 T6 修订（V2 描边紫 · 刷新左侧）：新增 wayfinder
-          h('button', { className: 'dsws-btn', title: tr('panel.newWayfinderTitle'), onClick: function () { inject(s, newWayfinderText(s)) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
+          h('button', { className: 'dsws-btn', title: tr('panel.newWayfinderTitle'), onClick: function () { openTextInNewSession(s, newWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newWayfinder')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
             Ic({ n: 'map', size: 11 }),
             h('span', null, tr('panel.newWayfinder')),
           ]),
