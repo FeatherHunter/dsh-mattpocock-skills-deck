@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>DSH-Waystation v1.5 · A+D 方案工作流（从零到动态演进）</title>
+<style>
+:root{--bg:#0a0c10;--bg2:#16181d;--bg1:#10131a;--b1:#2a2d35;--b2:#3a3f4a;--p:#e6edf3;--s:#a1a1aa;--c:#8b8b95;--blue:#58a6ff;--green:#4ade80;--purple:#c084fc;--amber:#f59e0b;--red:#f87171;--font:-apple-system,'Segoe UI','PingFang SC',sans-serif;--mono:Consolas,Menlo,monospace}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--p);font-family:var(--font);margin:0;padding:22px 28px 90px;max-width:1080px}
+h1{font-size:18px;margin:0 0 4px;color:var(--purple)}
+.sub{font-size:12.5px;color:var(--c);margin-bottom:20px;line-height:1.8}
+.phase{position:relative;margin:0 0 0 34px;padding:0 0 26px 26px;border-left:2px solid var(--b1)}
+.phase::before{content:attr(data-no);position:absolute;left:-25px;top:0;width:20px;height:20px;border-radius:50%;background:var(--purple);color:#140a1e;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center}
+.phase .card{background:var(--bg2);border:1px solid var(--b1);border-radius:10px;overflow:hidden}
+.ph{display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--b1);flex-wrap:wrap}
+.ph .t{font-size:13.5px;font-weight:700}
+.tag{font-size:9.5px;border-radius:99px;padding:1px 8px;font-weight:600}
+.tag.user{background:rgba(88,166,255,.14);color:var(--blue);border:1px solid rgba(88,166,255,.4)}
+.tag.sys{background:rgba(192,132,252,.14);color:var(--purple);border:1px solid rgba(192,132,252,.4)}
+.tag.ai{background:rgba(74,222,128,.12);color:var(--green);border:1px solid rgba(74,222,128,.4)}
+.tag.gh{background:rgba(245,158,11,.12);color:var(--amber);border:1px solid rgba(245,158,11,.4)}
+.bd{padding:12px 14px;font-size:12.5px;line-height:1.75;color:var(--p)}
+.bd .row{display:flex;gap:8px;margin-bottom:6px}
+.bd .k{flex:none;width:72px;font-size:10.5px;color:var(--c);padding-top:2px}
+.bd .v{flex:1}
+.prompt{background:var(--bg1);border:1px solid var(--b1);border-radius:8px;padding:9px 12px;font-family:var(--mono);font-size:11px;color:#d6b7ff;white-space:pre-wrap;margin-top:6px;line-height:1.6}
+.prompt .new{color:var(--green)}
+.trace{display:inline-block;font-size:10px;background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.4);border-radius:5px;padding:1px 7px;font-family:var(--mono)}
+.note{font-size:11.5px;color:var(--c);margin-top:8px;line-height:1.7}
+.fogmap{margin:10px 14px 12px;border:1px solid var(--b1);border-radius:10px;background:var(--bg1);padding:14px;font-size:11.5px}
+.fm{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.node{padding:5px 10px;border-radius:7px;border:1px solid;font-size:11px}
+.n-lit{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.5);color:var(--green)}
+.n-curr{background:rgba(88,166,255,.12);border-color:rgba(88,166,255,.6);color:var(--blue);box-shadow:0 0 10px rgba(88,166,255,.25)}
+.n-fog{background:rgba(139,139,149,.06);border-color:rgba(139,139,149,.4);color:#6b6b73}
+.n-dest{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.6);color:var(--amber)}
+.arrow{color:var(--c);font-size:10px;flex:none}
+.fl{font-size:9.5px;color:var(--c);margin-top:8px;line-height:1.6}
+h2{font-size:14px;margin:30px 0 8px;color:var(--blue);border-bottom:1px solid var(--b1);padding-bottom:4px}
+.sum{background:var(--bg2);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.8;margin-bottom:10px}
+.sum b{color:var(--green)}
+.foot{margin-top:26px;font-size:11px;color:var(--c);line-height:1.8}
+</style></head><body>
+<h1>DSH-Waystation v1.5 · A+D 方案工作流</h1>
+<div class="sub"><b>目标</b>：从「用户零使用」到「地图动态演进」，每一步都有 <b>Prompt 契约</b>（PROMPTS 注册表条目）+ <b>GitHub 痕迹</b>（可追踪产物）。<br><b>试验场</b>：map #445 的 13 张票（当前 0/13 —— 本方案第一步就要让它变可见）。</div>
+<div class="phase" data-no="1">
+<div class="card">
+<div class="ph"><span class="t">首次打开 · 检测技能</span><span class="tag sys">系统</span></div>
+<div class="bd">
+<div class="row"><span class="k">行为</span><span class="v">环境检查：技能探测（ask-matt / wayfinder 未装）→ 状态栏/横幅亮黄「未安装 Matt 技能」</span></div>
+<div class="row"><span class="k">痕迹</span><span class="v">wf.status 检查项 · 环境检查页红/黄卡</span></div>
+</div></div></div>
+<div class="phase" data-no="2">
+<div class="card">
+<div class="ph"><span class="t">点击安装按钮</span><span class="tag user">用户</span></div>
+<div class="bd">
+<div class="row"><span class="k">Prompt</span><span class="v">注入安装引导（现有 prompt.setup）：克隆 mattpocock/skills → 安装工程+通用技能 → /setup-matt-pocock-skills 初始化</span></div>
+<div class="row"><span class="k">痕迹</span><span class="v">技能目录 ~/.agents/skills 新增条目</span></div>
+<div class="prompt">/setup-matt-pocock-skills
+（请选择 GitHub Issues 作为 issue tracker）
+→ 安装完成后，主动提示用户进入「初始化」：声明强制标签体系。</div>
+</div></div></div>
+<div class="phase" data-no="3">
+<div class="card">
+<div class="ph"><span class="t">初始化 · 强制标签体系</span><span class="tag user">用户</span></div>
+<div class="bd">
+<div class="row"><span class="k">规则</span><span class="v">初始化 prompt 要求 AI 在仓库建立「强制标签清单」，新建 issue 不得省略（bug / needs-triage / wayfinder:grilling / 可演进补充）</span></div>
+<div class="row"><span class="k">Prompt</span><span class="v">prompt.setup 扩展 + 新增 prompt.init（标签白名单，设置页可配）</span></div>
+<div class="row"><span class="k">痕迹</span><span class="v">GitHub 仓库 label 集合 · 设置页「强制标签」配置</span></div>
+<div class="prompt">初始化要求（写入仓库规范 docs/agents/issue-tracker.md）：
+- 每个 issue 必须携带强制标签：bug / needs-triage / wayfinder:grilling（缺失即不合法）
+- 每个 issue 正文必须含「进度」块（见下方契约）
+- 创建 map 前必须完成「规划表」（并行/串行 · 已知/迷雾 · 归属）</div>
+</div></div></div>
+<div class="phase" data-no="4">
+<div class="card">
+<div class="ph"><span class="t">新建需求 · 优质建图</span><span class="tag user">用户</span></div>
+<div class="bd">
+<div class="row"><span class="k">Prompt</span><span class="v">prompt.newWayfinder 重构：/wayfinder + 仓库 + 需求 → 要求 AI 先产出「规划表」再建图</span></div>
+<div class="row"><span class="k">规划表</span><span class="v">(a) 并行/串行任务（阻塞边）· (b) 已知 / 待调查 / 迷雾（Not yet specified）· (c) 每票归属（owner / HITL）</span></div>
+<div class="row"><span class="k">层级</span><span class="v">要求 AI 按 DAG 分层建票（Map 详情漏斗的层 = 阻塞深度）</span></div>
+<div class="row"><span class="k">痕迹</span><span class="v">map issue（Destination/Notes/规划表/Not yet specified）+ 子票 + 阻塞边</span></div>
+<div class="prompt">/wayfinder
+请帮我（新增 / 复用 / 直接实现）一个需求：
+需求：{req}
+请先完成规划表，再建 map：
+- 并行 / 串行任务：哪些可同时推进、哪些被阻塞（串行链）
+- 已知事实 / 待调查项 / 迷雾区（Not yet specified）
+- 每张票的建议归属（agent / 人·HITL）
+- 每张票写入「进度：0%」基准
+- 目标若过大：建 map（Destination + Notes + 票），不直接写码</div>
+</div></div></div>
+<div class="phase" data-no="5">
+<div class="card">
+<div class="ph"><span class="t">执行推进 · 进度契约 + 状态流转</span><span class="tag ai">AI</span></div>
+<div class="bd">
+<div class="row"><span class="k">Prompt</span><span class="v">执行/修复/诊断/推进：各加「更新进度 + 状态」契约（prompt.tpl.* / mapExecute 扩展）</span></div>
+<div class="row"><span class="k">状态</span><span class="v">open → claimed → in_progress → done → closed；改不了状态就更新进度（进度 = 兜底表达）</span></div>
+<div class="row"><span class="k">进度</span><span class="v">issue 正文固定进度块（prompt.progress 契约）：## 进度：90% + 一行下一步；每次动作后 AI 更新</span></div>
+<div class="row"><span class="k">痕迹</span><span class="v">issue 正文进度块 · 状态 label · 动作评论 · assignee</span></div>
+<div class="prompt">执行该 issue：
+1. 读 Description / Notes / 阻塞关系
+2. 认领（若未认领）：先 claim
+3. 制定方案 → 实施 → 验收
+4. 更新 issue 正文「进度」块为当前百分比 + 下一步
+5. 判定：可完成 → 更新为 100% 并 close；不可完成 → 保留 open + 更新进度</div>
+</div></div></div>
+<div class="phase" data-no="6">
+<div class="card">
+<div class="ph"><span class="t">动态演进 · 迷雾变清晰 · 目的地可修订</span><span class="tag sys">系统</span></div>
+<div class="bd">
+<div class="row"><span class="k">机制</span><span class="v">T10 探测（wf.probe）持续发现变化（新票/状态/进度更新）→ 后台刷新 → Map 详情实时重渲染</span></div>
+<div class="row"><span class="k">演进</span><span class="v">票完成 → 迷雾（Not yet specified）中可明确的新事项毕业为新票/新 sub-map；卡住时 AI 修订 destination 或 out-of-scope</span></div>
+<div class="row"><span class="k">Prompt</span><span class="v">新增 prompt.revise：迷雾毕业 / 目的地修订 / 阻塞重评的规则契约</span></div>
+</div></div></div>
+<div class="phase" data-no="7">
+<div class="card">
+<div class="ph"><span class="t">完成收尾 · 修掉「0/13」</span><span class="tag sys">系统</span></div>
+<div class="bd">
+<div class="row"><span class="k">规则</span><span class="v">prompt.complete 扩展：票「实施完 + 测试绿 + 用户确认」= close；map 子票全关 = 完成态</span></div>
+<div class="row"><span class="k">进度</span><span class="v">map 完成态下，未 close 的票显式标出实际进度（如「实施完成待验收 100%」），不再显示「0/13」</span></div>
+<div class="row"><span class="k">痕迹</span><span class="v">票 close · map 完成态 · Decisions so far 总结</span></div>
+<div class="prompt">完成确认 · MAP #{n}：
+1. 核对每张票：实施完成 + 测试绿 + 用户确认 → close；仅实施完待验收 → 标注「100% · 待验收」而非 0%
+2. 全部 close → map 完成态 → 收尾（Decisions so far 一行 gist）
+3. 有未完成 → 列出 + 更新其进度百分比</div>
+</div></div></div>
+<div class="phase" data-no="8">
+<div class="card">
+<div class="ph"><span class="t">渲染闭环 · 游戏地图视角</span><span class="tag sys">系统</span></div>
+<div class="bd">
+<div class="row"><span class="k">每票</span><span class="v">进度条（解析进度块）+ 状态徽章（claimed/in_progress/done/closed）+ 强制标签校验</span></div>
+<div class="row"><span class="k">每层</span><span class="v">层进度汇总（该层票完成度）+ 迷雾层标记</span></div>
+<div class="row"><span class="k">整图</span><span class="v">目的地环显示是否需修订（迷雾毕业触发的 destination 重评提示）</span></div>
+<div class="row"><span class="k">数据</span><span class="v">host 解析进度块 + 状态（T9 缓存承载）· T10 探测自动更新</span></div>
+</div></div></div>
+<h2>落地拆票（挂 map #445）</h2>
+<div class="sum"><b>T11 · Prompt 契约体系重构</b>：PROMPTS 新增/扩展 —— prompt.init（强制标签）· prompt.newMap（规划表）· prompt.progress（进度契约）· prompt.tpl.* / mapExecute（状态流转+进度更新句）· prompt.complete（close 规则）· prompt.revise（迷雾毕业/目的地修订）<br><b>T12 · 进度追踪与渲染</b>：host 解析进度块/状态 → 快照带 per-ticket progress → Map 详情/列表渲染进度条+状态徽章+标签校验 → 用 #445 的 13 票验证（0/13 → 真实进度）</div>
+<div class="foot">说明：本页为 A+D 方案工作流演示。核心思想 = 「每一步动作都留下可追踪的 GitHub 痕迹，且由 PROMPTS 契约强制」；动态演进 = 迷雾毕业 + destination 修订 + T10 探测驱动的实时刷新。</div>
+</body></html>

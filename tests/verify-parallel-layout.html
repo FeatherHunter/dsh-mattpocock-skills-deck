@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>并行 issue 布局 · 3 方案对比（#200 单层 15 票）</title>
+<style>
+  :root{--bg2:#16181d;--bg1:#10131a;--b1:#2a2d35;--p:#e6edf3;--s:#a1a1aa;--c:#8b8b95;--font:-apple-system,'Segoe UI','PingFang SC',sans-serif}
+  *{box-sizing:border-box}
+  body{background:#0a0c10;color:var(--p);font-family:var(--font);margin:0;padding:20px}
+  h1{font-size:16px;color:#c084fc;margin:0 0 4px}
+  .sub{font-size:12px;color:var(--c);margin-bottom:18px;line-height:1.7}
+  .row{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .ver{width:560px}
+  .ver h3{font-size:13px;margin:0 0 6px;color:#9ca3af}
+  .ver h3 b{color:#c084fc}
+  .note{font-size:11px;color:#6b7280;margin:0 0 10px;line-height:1.6}
+  .panel{background:var(--bg2);border:1px solid var(--b1);border-radius:12px;overflow:hidden}
+  .ph{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--b1);font-size:11px;color:var(--s)}
+  .ph .sp{flex:1}
+  .ver .panel{width:520px}
+  /* 公共节点 */
+  .node{display:flex;flex-direction:column;gap:3px;border-radius:10px;padding:7px 8px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));border:1.5px solid var(--b1);font-size:10px}
+  .node.done{opacity:.55}
+  .node .r1{display:flex;align-items:center;gap:5px}
+  .node .no{color:var(--c);font-size:9px;font-family:Consolas,monospace}
+  .node .tag{font-size:8px;padding:0 4px;border-radius:3px;border:1px solid;opacity:.85;background:rgba(240,136,62,.15);color:#f0883e}
+  .node .tt{font-size:10.5px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}
+  .node .sub{font-size:8px;color:var(--c);display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+  .node .sub .ok{color:#3fb950}
+  .ic{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none;display:inline-block}
+  /* 方案 A：横向滚动带 */
+  .A-layer{display:flex;gap:8px;overflow-x:auto;padding:8px 10px;scrollbar-width:thin}
+  .A-layer .node{width:200px;flex:none}
+  /* 方案 B：多列网格（宽 3 列 / 窄 2 列） */
+  .B-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 10px}
+  .B-grid.narrow{grid-template-columns:repeat(2,1fr)}
+  /* 方案 C：分组折叠 */
+  .C-grp{border:1px solid var(--b1);border-radius:10px;margin:6px 8px;background:var(--bg1)}
+  .C-grp summary{padding:8px 10px;cursor:pointer;font-size:11px;color:var(--s);display:flex;align-items:center;gap:6px}
+  .C-grp .body{display:flex;flex-wrap:wrap;gap:8px;padding:0 10px 10px}
+  .C-grp .node{width:calc(50% - 4px)}
+  .C-grp.done summary{color:#8b949e}
+  .C-grp.done .node{opacity:.5}
+</style></head><body>
+<h1>并行 issue 布局 · 3 方案（#200 单层 15 票）</h1>
+<div class="sub">当前问题：单层并行票在窄框=单列 15 行、宽框=双列 8 行 → 垂直堆叠无并行感。三个候选方案，你看哪个合适（可混合）。</div>
+<div class="row">
+
+<!-- 方案 A -->
+<div class="ver"><h3><b>A · 横向滚动带</b>（并行 = 一排横滚）</h3>
+<div class="note">所有并行票放同一行，横向滚动查看（像看板列）。"并行"语义最直观：一眼看到全部票并列。窄框也不换行，靠滚动。</div>
+<div class="panel">
+  <div class="ph"><span>层 1 · 可并行 · 15 票</span><span class="sp"></span><span>← 横向滚动 →</span></div>
+  <div class="A-layer">
+    <div class="node done"><div class="r1"><span class="no">#202</span><span class="tag">任务</span></div><div class="tt">T1 基础设施奠基 · 合并器+去Jinja2+输出目录</div><div class="sub"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg>已关闭</span><span>FeatherHunter</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#203</span><span class="tag">任务</span></div><div class="tt">T2 数据层 · 迁移006+检索契约</div><div class="sub"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg>已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#204</span><span class="tag">任务</span></div><div class="tt">T3 模板 08 对齐矩阵</div><div class="sub"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg>已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#205</span><span class="tag">任务</span></div><div class="tt">T4 开始使用域 · setup-1 向导</div><div class="sub"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg>已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#206</span><span class="tag">任务</span></div><div class="tt">T5 录入域 · add-4 结构化模板</div><div class="sub"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg>已关闭</span></div></div>
+    <div class="node"><div class="r1"><span class="no">#215</span><span class="tag">任务</span></div><div class="tt">T14 开源收尾 · 泄漏清理+HELP+README</div><div class="sub"><span style="color:#4ade80">当前行动</span></div></div>
+    <div class="node"><div class="r1"><span class="no">#223</span><span class="tag">其他</span></div><div class="tt">其他 open 票</div><div class="sub"><span style="color:#4ade80">当前行动</span></div></div>
+  </div>
+</div></div>
+
+<!-- 方案 B -->
+<div class="ver"><h3><b>B · 多列网格</b>（宽 3 列 / 窄 2 列）</h3>
+<div class="note">用 grid 自适应列数：宽框 3 列（15 票 = 5 行）、窄框 2 列（8 行）。比双列紧凑，减少垂直堆叠长度，但仍是垂直流。</div>
+<div class="panel">
+  <div class="ph"><span>层 1 · 可并行 · 15 票</span><span class="sp"></span><span>宽:3列 窄:2列</span></div>
+  <div class="B-grid">
+    <div class="node done"><div class="r1"><span class="no">#202</span></div><div class="tt">T1 基础设施奠基</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#203</span></div><div class="tt">T2 数据层</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#204</span></div><div class="tt">T3 模板矩阵</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#205</span></div><div class="tt">T4 向导</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#206</span></div><div class="tt">T5 录入域</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#207</span></div><div class="tt">T6 查看域</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#208</span></div><div class="tt">T7 搜索筛选</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#209</span></div><div class="tt">T8 做菜域</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#210</span></div><div class="tt">T9</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#211</span></div><div class="tt">T10</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#212</span></div><div class="tt">T11</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#213</span></div><div class="tt">T12</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node done"><div class="r1"><span class="no">#214</span></div><div class="tt">T13</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    <div class="node"><div class="r1"><span class="no">#215</span></div><div class="tt">T14 开源收尾</div><div class="sub"><span style="color:#4ade80">当前</span></div></div>
+    <div class="node"><div class="r1"><span class="no">#223</span></div><div class="tt">其他</div><div class="sub"><span style="color:#4ade80">当前</span></div></div>
+  </div>
+</div></div>
+
+<!-- 方案 C -->
+<div class="ver"><h3><b>C · 状态分组折叠</b>（已关闭收拢 / 当前展开）</h3>
+<div class="note">单层内按状态分组：已关闭票默认折叠成一行（"已关闭 13"），只展开当前行动票。垂直高度大幅缩短，重点突出当前工作。</div>
+<div class="panel">
+  <div class="ph"><span>层 1 · 可并行 · 15 票</span><span class="sp"></span><span>2 行动 / 13 已关</span></div>
+  <div class="C-grp">
+    <summary><span style="color:#4ade80">▾ 当前行动（2）</span></summary>
+    <div class="body">
+      <div class="node"><div class="r1"><span class="no">#215</span><span class="tag">任务</span></div><div class="tt">T14 开源收尾 · 泄漏清理+HELP+README · v4.0</div><div class="sub"><span style="color:#4ade80">当前行动</span></div></div>
+      <div class="node"><div class="r1"><span class="no">#223</span><span class="tag">其他</span></div><div class="tt">其他 open 票</div><div class="sub"><span style="color:#4ade80">当前行动</span></div></div>
+    </div>
+  </div>
+  <div class="C-grp done">
+    <summary><span style="color:#8b949e">▶ 已关闭（13）</span></summary>
+    <div class="body">
+      <div class="node"><div class="r1"><span class="no">#202</span></div><div class="tt">T1 基础设施奠基</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+      <div class="node"><div class="r1"><span class="no">#203</span></div><div class="tt">T2 数据层</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+      <div class="node"><div class="r1"><span class="no">#204</span></div><div class="tt">T3 模板矩阵</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+      <div class="node"><div class="r1"><span class="no">#205</span></div><div class="tt">T4 向导</div><div class="sub"><span class="ok">✓已关闭</span></div></div>
+    </div>
+  </div>
+</div></div>
+
+</div></body></html>

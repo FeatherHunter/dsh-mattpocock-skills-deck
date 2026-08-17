@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSH-Waystation · UI 方案原型对比（PROTOTYPE）</title>
+<style>
+  :root{
+    --bg:#0a0a0a; --panel:#16181d; --panel2:#10131a; --panel3:#1c212b;
+    --border:#2a2d35; --border2:#3a3f4a;
+    --text:#e6edf3; --sub:#a1a1aa; --dim:#8b8b95;
+    --acc:#c084fc; --acc2:#bc8cff;
+    --green:#4ade80; --amber:#f59e0b; --red:#f87171; --blue:#58a6ff; --pink:#f778ba; --orange:#f0883e;
+    --mono:"JetBrains Mono","Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6;padding-bottom:120px}
+  header{max-width:1100px;margin:0 auto;padding:36px 24px 12px}
+  header h1{font-size:24px;letter-spacing:-.3px}
+  header .tag{display:inline-block;background:rgba(188,140,255,.15);border:1px solid rgba(188,140,255,.4);color:var(--acc2);border-radius:99px;padding:2px 12px;font-size:12px;margin-bottom:10px}
+  header p{color:var(--sub);font-size:13px;max-width:760px}
+  header .rule{color:var(--amber);font-size:12.5px;margin-top:8px}
+  main{max-width:1100px;margin:0 auto;padding:12px 24px}
+  section{background:var(--panel);border:1px solid var(--border);border-radius:14px;margin:22px 0;overflow:hidden}
+  .mhead{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .mhead .num{background:var(--acc);color:#140a1e;width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .mhead h2{font-size:16px;font-weight:600}
+  .mhead .q{color:var(--sub);font-size:12px;flex-basis:100%;padding-left:36px}
+  .tabs{display:flex;gap:6px;padding:10px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .tab{border:1px solid var(--border);background:var(--panel2);color:var(--sub);border-radius:8px;padding:5px 14px;font-size:12.5px;cursor:pointer;font-family:var(--mono)}
+  .tab:hover{border-color:var(--border2);color:var(--text)}
+  .tab.on{background:rgba(192,132,252,.18);border-color:var(--acc);color:var(--acc2)}
+  .tab .rec{color:var(--green);font-size:10px;margin-left:6px;vertical-align:1px}
+  .stage{padding:18px;min-height:260px;background:linear-gradient(180deg,#0c0e12,#0a0a0a);position:relative}
+  .stage .dim{position:absolute;right:14px;bottom:10px;color:#52525b;font-size:11px}
+  .note{color:var(--sub);font-size:12.5px;padding:12px 18px;border-top:1px dashed var(--border);display:flex;gap:8px;align-items:flex-start}
+  .note b{color:var(--acc2);white-space:nowrap}
+  svg{display:inline-block;vertical-align:-2px}
+  /* ===== 共享 UI 原子 ===== */
+  .dsws-panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.5);font-size:13px;color:var(--text);overflow:hidden;display:flex;flex-direction:column}
+  .dsws-chip{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;line-height:1.7;margin-right:4px;white-space:nowrap}
+  .c-r{background:rgba(88,166,255,.18);color:var(--blue)}
+  .c-p{background:rgba(247,120,186,.16);color:var(--pink)}
+  .c-g{background:rgba(63,185,80,.16);color:var(--green)}
+  .c-t{background:rgba(240,136,62,.16);color:var(--orange)}
+  .c-m{background:rgba(188,140,255,.16);color:var(--acc2)}
+  .c-red{background:rgba(248,113,113,.14);color:var(--red)}
+  .c-amber{background:rgba(245,158,11,.14);color:var(--amber)}
+  .btn{border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer}
+  .btn:hover{border-color:var(--border2)}
+  .btn.pri{background:var(--acc);border-color:transparent;color:#140a1e;font-weight:600}
+  .btn.danger{border-color:rgba(248,113,113,.5);color:var(--red)}
+  .grp{display:flex;align-items:center;gap:6px;margin:10px 0 4px;font-size:11px;color:var(--sub)}
+  .trow{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-radius:6px;border:1px solid transparent;font-size:12.5px}
+  .trow:hover{background:rgba(255,255,255,.05);border-color:var(--border)}
+  .trow .tt{flex:1;min-width:0}
+  .trow .name{word-break:break-all}
+  .trow .sub2{font-size:11px;color:var(--sub)}
+  /* ===== 聊天舞台（模拟 DSH） ===== */
+  .chat{max-width:760px;margin:0 auto;background:var(--bg);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;height:300px;position:relative}
+  .chat .msgs{flex:1;overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;justify-content:flex-end;gap:10px}
+  .bubble{max-width:78%;padding:8px 12px;border-radius:10px;font-size:12.5px}
+  .bubble.me{background:rgba(192,132,252,.16);border:1px solid rgba(192,132,252,.35);align-self:flex-end}
+  .bubble.ai{background:var(--panel2);border:1px solid var(--border);align-self:flex-start}
+  .chat .inputrow{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border)}
+  .chat .inputrow .fakeinput{flex:1;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--sub);font-size:12.5px}
+  .chat .send{width:34px;height:30px;border-radius:8px;background:var(--acc);display:flex;align-items:center;justify-content:center}
+  /* ===== M1 状态栏 4 变体 ===== */
+  .sb{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:12px;color:var(--sub);background:var(--panel);border:1px solid var(--border);border-radius:8px}
+  .sb .seg{display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:2px 8px;border-radius:6px}
+  .sb .seg:hover{background:rgba(255,255,255,.08)}
+  .sb-a{justify-content:center;margin:8px auto 0;width:560px}
+  .sb-b{margin:8px auto 0;width:560px;border-radius:99px;padding:4px;gap:2px;justify-content:space-between}
+  .sb-b .seg{flex:1;justify-content:center;border-radius:99px;padding:3px 6px}
+  .sb-b .seg.on{background:rgba(192,132,252,.22);color:var(--acc2)}
+  .sb-c{margin:8px auto 0;width:760px;justify-content:space-between}
+  .sb-c .time{display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:2px 8px;border-radius:6px;border:1px dashed transparent}
+  .sb-c .time:hover{border-color:var(--border);background:rgba(255,255,255,.06)}
+  .sb-d{position:relative;margin:8px auto 0;width:560px;justify-content:space-between}
+  .sb-d .badge{background:var(--red);color:#140a1e;font-weight:700;font-size:10px;border-radius:99px;padding:0 6px;line-height:16px;display:inline-flex;align-items:center}
+  .sb-d .pop{position:absolute;top:36px;left:0;width:340px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,.5);font-size:12px}
+  .sb-d .pop .seg{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;cursor:pointer}
+  .sb-d .pop .seg:hover{background:rgba(255,255,255,.06)}
+  /* ===== M2 面板首页 ===== */
+  .home-wrap{display:flex;gap:16px;align-items:flex-start}
+  .home-panel{width:400px;height:330px}
+  .hbody{padding:10px 12px;overflow:hidden;flex:1;font-size:12.5px}
+  .maprow{border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin-bottom:8px;background:var(--panel2);cursor:pointer}
+  .maprow:hover{border-color:var(--border2)}
+  .maprow .mt{font-weight:600;font-size:12.5px}
+  .maprow .md{color:var(--sub);font-size:11.5px;margin:2px 0 6px}
+  .prog{height:4px;border-radius:2px;background:#0c0e12;overflow:hidden;margin-top:4px}
+  .prog>i{display:block;height:100%;background:var(--green);border-radius:2px}
+  .kpi{display:flex;gap:8px;margin-bottom:10px}
+  .kpi .cell{flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--panel2)}
+  .kpi .cell .n{font-size:20px;font-weight:700}
+  .kpi .cell .l{font-size:11px;color:var(--sub)}
+  .envline{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;background:var(--panel2);margin-bottom:10px;font-size:12px}
+  .envline .dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex:none}
+  .envline.warn{border-color:rgba(245,158,11,.4)}
+  .envline.warn .dot{background:var(--amber)}
+  .envline.bad{border-color:rgba(248,113,113,.5)}
+  .envline.bad .dot{background:var(--red)}
+  /* ===== M3 地图详情 ===== */
+  .map-panel{width:400px;height:430px}
+  .corridor{padding:10px 12px;overflow:hidden;flex:1;font-size:12px}
+  .dest{border:1px solid rgba(192,132,252,.4);background:rgba(192,132,252,.08);border-radius:8px;padding:8px 10px;margin-bottom:8px}
+  .dest .dt{font-size:10.5px;color:var(--acc2);letter-spacing:1px}
+  .lane{display:flex;gap:6px}
+  .lane .rail{width:2px;border-radius:2px;background:var(--border2);flex:none;position:relative;margin:2px 0}
+  .lane .body{flex:1;min-width:0}
+  .lane-node{display:flex;align-items:flex-start;gap:8px;padding:5px 6px;border-radius:6px}
+  .lane-node .dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex:none}
+  .lane-node .tt{flex:1;min-width:0}
+  .lane-node .tt .n2{font-size:11.5px;word-break:break-all}
+  .lane-node .tt .s2{font-size:10.5px;color:var(--sub)}
+  .lane-node .lnk{flex:none;opacity:.5}
+  .lane-node:hover .lnk{opacity:1}
+  .split{display:flex;flex:1;min-height:0}
+  .split .left{width:46%;border-right:1px solid var(--border);overflow:hidden;padding:8px}
+  .split .right{flex:1;overflow:hidden;padding:10px 12px;font-size:12px}
+  .split .right .info{border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--panel2)}
+  .deps{flex:1;overflow:hidden;position:relative;padding:14px}
+  .depwrap{width:330px;margin:0 auto}
+  .dnode{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:8px;padding:6px 9px;background:var(--panel2);font-size:11.5px;position:relative;z-index:2}
+  .dnode.f{background:rgba(74,222,128,.08);border-color:rgba(74,222,128,.4)}
+  .dnode.b{background:rgba(240,136,62,.07);border-color:rgba(240,136,62,.35)}
+  .dnode.c{background:rgba(88,166,255,.08);border-color:rgba(88,166,255,.35)}
+  .dnode .n3{flex:1;min-width:0}
+  .dcol{position:relative;padding-left:16px;margin-top:2px}
+  .dcol::before{content:"";position:absolute;left:6px;top:-6px;bottom:6px;width:2px;background:var(--border2)}
+  .dcol .dnode::before{content:"";position:absolute;left:-12px;top:50%;width:10px;height:2px;background:var(--border2)}
+  /* ===== M4 技能 ===== */
+  .skills-panel{width:400px;height:330px}
+  .srow{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;font-size:12px}
+  .srow:hover{background:rgba(255,255,255,.05)}
+  .srow .sname{font-family:var(--mono);font-size:11.5px}
+  .srow .suse{font-size:10.5px;color:var(--sub)}
+  .srow .st{width:8px;height:8px;border-radius:50%;flex:none}
+  .ring{position:relative;width:230px;height:230px;margin:6px auto}
+  .ring .core{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:88px;height:88px;border-radius:50%;background:rgba(192,132,252,.14);border:1px solid var(--acc);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:11px}
+  .ring .core .big{font-size:16px;font-weight:700;color:var(--acc2)}
+  .ring .orb{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--sub)}
+  .ring .orb .dot{width:10px;height:10px;border-radius:50%}
+  .ring .orb.off .dot{background:transparent;border:1.5px solid var(--border2)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:2px}
+  .scard{border:1px solid var(--border);border-radius:8px;padding:8px 9px;background:var(--panel2);font-size:11.5px}
+  .scard.hot{border-color:var(--acc);background:rgba(192,132,252,.08)}
+  .scard .sn{font-family:var(--mono);font-weight:600}
+  .scard .su{font-size:10.5px;color:var(--sub);margin-top:2px}
+  /* ===== M5 环境检查 ===== */
+  .env-panel{width:400px;height:360px}
+  .banner{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:10px;border-radius:8px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.4);font-size:12px}
+  .banner.amber{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.4)}
+  .ecard{border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--panel2);font-size:12px}
+  .ecard.bad{border-color:rgba(248,113,113,.45);background:rgba(248,113,113,.05)}
+  .ecard.warn{border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.05)}
+  .ecard .ehead{display:flex;align-items:center;gap:8px;font-weight:600;font-size:12.5px}
+  .ecard .erisk{font-size:11px;color:var(--sub);margin:3px 0 6px;padding-left:20px}
+  .ecard .eact{display:flex;gap:6px;padding-left:20px}
+  /* ===== M6 沉淀弹窗 ===== */
+  .modal-ov{position:absolute;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:20}
+  .modalbox{width:400px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:13px;box-shadow:0 12px 50px rgba(0,0,0,.6)}
+  .drawer{position:absolute;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--border);border-radius:14px 14px 0 0;padding:14px 16px;box-shadow:0 -8px 40px rgba(0,0,0,.5);z-index:20;animation:up .25s ease}
+  @keyframes up{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
+  .inline-card{border:1px solid var(--border);border-radius:10px;background:var(--panel);padding:10px 12px;margin-top:8px;font-size:12.5px}
+  .ta{width:100%;min-height:80px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:12px;padding:8px;resize:none}
+  .extract{border-left:3px solid var(--acc);background:rgba(192,132,252,.06);padding:6px 10px;border-radius:0 6px 6px 0;font-size:12px;color:var(--sub);margin:8px 0}
+  /* ===== M7 提醒条 ===== */
+  .remind{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;background:rgba(192,132,252,.1);border:1px solid rgba(192,132,252,.35);font-size:12.5px;margin-top:8px}
+  .floatbadge{position:absolute;right:12px;bottom:54px;width:38px;height:38px;border-radius:50%;background:var(--panel3);border:1px solid var(--acc);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+  .floatcard{position:absolute;right:12px;bottom:100px;width:320px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:12.5px;z-index:25}
+  /* ===== toast ===== */
+  .toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);background:#22252c;border:1px solid var(--border2);border-radius:8px;padding:8px 14px;font-size:12.5px;z-index:99;display:flex;align-items:center;gap:8px;box-shadow:0 8px 30px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .2s}
+  .toast.show{opacity:1}
+  .footerbar{position:fixed;left:0;right:0;bottom:0;background:rgba(10,10,10,.92);border-top:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px;z-index:50}
+  .footerbar .sum{color:var(--sub)}
+  .footerbar .sum b{color:var(--acc2)}
+  .footerbar .btn{margin-left:6px}
+  .sumline{margin-top:4px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="tag">PROTOTYPE · 一次性 · 选完即弃</span>
+  <h1>DSH-Waystation · UI 方案原型对比</h1>
+  <p>模块 1–7 是方案对比（点 A/B/C/D 切换，推荐带 <span style="color:var(--green)">★</span>）；模块 8–10 已是<b>定稿形态</b>（基于两轮评审结论）。全部图标为 SVG，无 emoji。底部可复制你的选择组合。</p>
+  <p class="rule">⚠ 这是 HTML 原型不是插件：交互为演示级，选择定稿后才会做进 DSH 插件。</p>
+</header>
+
+<main>
+
+<!-- ================= M1 状态栏 ================= -->
+<section id="m1">
+  <div class="mhead">
+    <span class="num">1</span><h2>状态栏（输入框正上方）</h2>
+    <span class="q">要回答：常驻读数如何与「打开面板/直达视图」交互共存，且宽度稳定、全 SVG。已选：A 居中胶囊。</span>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-m="m1" data-v="a">A · 居中胶囊 <span class="rec">★已选</span></button>
+    <button class="tab" data-m="m1" data-v="b">B · 分段开关</button>
+    <button class="tab" data-m="m1" data-v="c">C · 两端布局</button>
+    <button class="tab" data-m="m1" data-v="d">D · 图标角标</button>
+  </div>
+  <div class="stage" id="st-m1">
+    <div data-v-block="m1" data-v="a">
+      <div class="chat" style="height:150px">
+        <div class="inputrow" style="margin-top:auto">
+          <div class="fakeinput">输入消息…</div>
+          <div class="send"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#140a1e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>
+        </div>
+      </div>
+      <div class="sb sb-a" data-demo="m1-a">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 13 13 8.5 15.5 11 11" fill="currentColor" stroke="none"/></svg>
+        <span style="font-weight:600;color:var(--text);cursor:pointer" data-open="waystation">Waystation</span>
+        <span class="seg" data-view="env"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#f59e0b" stroke="#f59e0b"/></svg>环境 6/8</span>
+        <span class="seg" data-view="frontier"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#4ade80" stroke="#4ade80"/><path d="M8 12l3 3 5-6" stroke="#0a0a0a" stroke-width="2"/></svg>可接 2</span>
+        <span class="seg" data-view="busy"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#f0883e" stroke="#f0883e"/><rect x="9" y="11" width="6" height="6" rx="1" fill="#0a0a0a" stroke="none"/></svg>占用 3</span>
+        <span class="seg" data-view="time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11a8 8 0 10-.3 3M20 4v7h-7"/></svg>08-14 22:10</span>
+      </div>
+      <div class="dim">A · 固定宽 560px 居中 · 段=导航直达视图 · 图标+Waystation=开关 · 时间固定格式</div>
+    </div>
+    <div data-v-block="m1" data-v="b" style="display:none">
+      <div class="chat" style="height:150px">
+        <div class="inputrow" style="margin-top:auto">
+          <div class="fakeinput">输入消息…</div>
+          <div class="send"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#140a1e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>
+        </div>
+      </div>
+      <div class="sb sb-b">
+        <span class="seg on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#f59e0b" stroke="#f59e0b"/></svg>环境 6/8</span>
+        <span class="seg"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#4ade80" stroke="#4ade80"/><path d="M8 12l3 3 5-6" stroke="#0a0a0a" stroke-width="2"/></svg>可接 2</span>
+        <span class="seg"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#f0883e" stroke="#f0883e"/><rect x="9" y="11" width="6" height="6" rx="1" fill="#0a0a0a" stroke="none"/></svg>占用 3</span>
+        <span class="seg"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11a8 8 0 10-.3 3M20 4v7h-7"/></svg>22:10</span>
+      </div>
+      <div class="dim">B · 整条分段开关（segmented control）· 选中段高亮=当前视图 · 点击切视图</div>
+    </div>
+    <div data-v-block="m1" data-v="c" style="display:none">
+      <div class="chat" style="height:150px">
+        <div class="inputrow" style="margin-top:auto">
+          <div class="fakeinput">输入消息…</div>
+          <div class="send"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#140a1e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>
+        </div>
+      </div>
+      <div class="sb sb-c">
+        <span style="display:flex;align-items:center;gap:8px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 13 13 8.5 15.5 11 11" fill="currentColor" stroke="none"/></svg>
+          <b style="color:var(--text)">Waystation</b>
+          <span class="seg" style="color:var(--amber)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#f59e0b" stroke="#f59e0b"/></svg>6/8</span>
+          <span class="seg" style="color:var(--green)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#4ade80" stroke="#4ade80"/><path d="M8 12l3 3 5-6" stroke="#0a0a0a" stroke-width="2"/></svg>2</span>
+          <span class="seg" style="color:var(--orange)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#f0883e" stroke="#f0883e"/><rect x="9" y="11" width="6" height="6" rx="1" fill="#0a0a0a" stroke="none"/></svg>3</span>
+        </span>
+        <span class="time"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11a8 8 0 10-.3 3M20 4v7h-7"/></svg>08-14 22:10</span>
+      </div>
+      <div class="dim">C · 左：标识+环境/可接/占用 计数；右：时间即刷新；760px 两端对齐贴输入框上沿</div>
+    </div>
+    <div data-v-block="m1" data-v="d" style="display:none">
+      <div class="chat" style="height:150px">
+        <div class="inputrow" style="margin-top:auto">
+          <div class="fakeinput">输入消息…</div>
+          <div class="send"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#140a1e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>
+        </div>
+      </div>
+      <div class="sb sb-d">
+        <span style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 13 13 8.5 15.5 11 11" fill="currentColor" stroke="none"/></svg>
+          <b style="color:var(--text)">Waystation</b>
+        </span>
+        <span style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v6c0 5-3.8 8.3-9 9-5.2-.7-9-4-9-9V7l9-5z"/></svg>
+          <span class="badge">2</span>
+        </span>
+        <div class="pop" style="display:none">
+          <div class="seg"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#f59e0b" stroke="#f59e0b"/></svg>环境 6/8 · 2 项未就绪</div>
+          <div class="seg"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#4ade80" stroke="#4ade80"/><path d="M8 12l3 3 5-6" stroke="#0a0a0a" stroke-width="2"/></svg>可接 2 张票</div>
+          <div class="seg"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="#f0883e" stroke="#f0883e"/><rect x="9" y="11" width="6" height="6" rx="1" fill="#0a0a0a" stroke="none"/></svg>占用 3 张票</div>
+          <div class="seg"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11a8 8 0 10-.3 3M20 4v7h-7"/></svg>更新 08-14 22:10</div>
+        </div>
+      </div>
+      <div class="dim">D · 极简：图标+名称+环境角标数字（红=未就绪数）· 点击展开浮层看明细</div>
+    </div>
+  </div>
+  <div class="note"><b>已选 A · 居中胶囊</b>：固定宽 560px 居中；「Waystation」=开关，段=导航直达视图；时间固定格式 MM-DD HH:MM；反馈文字不进状态栏。</div>
+</section>
+
+<!-- ================= M2 面板首页 ================= -->
+<section id="m2">
+  <div class="mhead">
+    <span class="num">2</span><h2>面板首页（第一屏信息架构）</h2>
+    <span class="q">要回答：打开面板第一眼应该回答「现在能接什么 / 在等什么 / 环境允不允许开工」中的哪几个？已选：A 仪表盘（底部含地图列表）。</span>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-m="m2" data-v="a">A · 仪表盘 <span class="rec">★已选</span></button>
+    <button class="tab" data-m="m2" data-v="b">B · 地图列表</button>
+    <button class="tab" data-m="m2" data-v="c">C · 会话引导</button>
+  </div>
+  <div class="stage" id="st-m2">
+    <div class="home-wrap">
+      <div class="dsws-panel home-panel" id="home-panel">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--acc2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 13 13 8.5 15.5 11 11" fill="var(--acc2)" stroke="none"/></svg>
+          <b style="font-size:13px">Waystation</b>
+          <span class="dsws-chip c-m" style="margin-left:auto">原型</span>
+        </div>
+        <div class="hbody" id="home-body-a" data-v-block="m2" data-v="a">
+          <div class="envline"><span class="dot"></span><span>环境就绪 <b>6/8</b>：wayfinder / ask-matt 已安装未挂载</span><button class="btn" style="margin-left:auto">检查</button></div>
+          <div class="kpi">
+            <div class="cell"><div class="n" style="color:var(--green)">2</div><div class="l">可接 frontier</div></div>
+            <div class="cell"><div class="n" style="color:var(--blue)">1</div><div class="l">已认领</div></div>
+            <div class="cell"><div class="n" style="color:var(--orange)">2</div><div class="l">被阻塞</div></div>
+          </div>
+          <div class="grp">可接（跨地图）</div>
+          <div class="trow"><span class="dsws-chip c-r">研究</span><div class="tt"><div class="name">研究外部 API 认证方式</div><div class="sub2">私家大厨 #801</div></div><button class="btn pri" style="font-size:11px">开始</button></div>
+          <div class="trow"><span class="dsws-chip c-r">研究</span><div class="tt"><div class="name">研究：导出格式规范</div><div class="sub2">饼干记账 #806</div></div><button class="btn pri" style="font-size:11px">开始</button></div>
+          <div class="grp">地图</div>
+          <div class="maprow"><div class="mt">[私家大厨] 实施编排 map · v4.0</div><div class="md">10 域场景 + 08 对齐 + 数据层</div><div class="prog"><i style="width:20%"></i></div></div>
+          <div class="maprow"><div class="mt">[饼干记账] v2.0 实施</div><div class="md">v2.0 全量落地</div><div class="prog"><i style="width:33%"></i></div></div>
+        </div>
+        <div class="hbody" id="home-body-b" style="display:none" data-v-block="m2" data-v="b">
+          <div class="maprow"><div class="mt">[私家大厨] 实施编排 map · v4.0</div><div class="md">10 域场景 + 08 对齐 + 数据层 + 开源</div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub)"><span>1/5</span><span style="color:var(--green)">可接 1</span><span style="color:var(--orange)">占用 3</span></div><div class="prog"><i style="width:20%"></i></div></div>
+          <div class="maprow"><div class="mt">[饼干记账] v2.0 实施</div><div class="md">v2.0 全量落地</div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub)"><span>1/3</span><span style="color:var(--green)">可接 1</span><span style="color:var(--orange)">占用 1</span></div><div class="prog"><i style="width:33%"></i></div></div>
+          <div class="grp">已关闭地图</div>
+          <div class="trow"><div class="tt"><div class="name" style="color:var(--sub)">[私家大厨] 规格 map</div></div><span class="dsws-chip c-g">4/4</span></div>
+        </div>
+        <div class="hbody" id="home-body-c" style="display:none" data-v-block="m2" data-v="c">
+          <div class="dest"><div class="dt">今日 wayfinder 会话</div><div style="font-size:12px">环境 6/8 · 建议处理下一张 frontier</div></div>
+          <div class="trow" style="border:1px solid rgba(74,222,128,.4);background:rgba(74,222,128,.06)"><span class="dsws-chip c-r">研究</span><div class="tt"><div class="name">研究外部 API 认证方式</div><div class="sub2">私家大厨 #801 · 无阻塞 · 未认领</div></div></div>
+          <div style="display:flex;gap:6px;margin-top:10px">
+            <button class="btn pri" style="flex:1">开始此 Issue</button>
+            <button class="btn" style="flex:1">看全部地图</button>
+          </div>
+          <div class="grp">等待中的工作</div>
+          <div class="trow"><div class="tt"><div class="name" style="color:var(--sub)">Grill：食材单位体系</div><div class="sub2">已认领（你）· #803</div></div></div>
+        </div>
+      </div>
+      <div class="note" style="flex:1;border:none;padding:0;max-width:340px">
+        <b>点评</b><br>
+        <b>A 仪表盘</b>：环境行 + 三 KPI + 可接聚合 + 底部地图列表（点击进详情）。一屏回答全部三个问题。★<br><br>
+        <b>B 地图列表</b>：现状。只有对象没有任务，frontier 要两步才看得到。<br><br>
+        <b>C 会话引导</b>：最任务化，但「推荐下一张票」需要规则支撑。
+      </div>
+    </div>
+    <div class="dim">A · 仪表盘 = 环境行 + KPI + 可接聚合 + 地图列表</div>
+  </div>
+</section>
+
+<!-- ================= M3 地图详情 ================= -->
+<section id="m3">
+  <div class="mhead">
+    <span class="num">3</span><h2>地图详情（「地图感」）</h2>
+    <span class="q">要回答：怎么把 wayfinder 的「终点 → 前沿 → 纵深 → 走过的路」画出来？每张票要有显式打开链接。已选：A 垂直走廊。</span>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-m="m3" data-v="a">A · 垂直走廊 <span class="rec">★已选</span></button>
+    <button class="tab" data-m="m3" data-v="b">B · 分区卡片</button>
+    <button class="tab" data-m="m3" data-v="c">C · 依赖图</button>
+  </div>
+  <div class="stage" id="st-m3">
+    <div class="home-wrap">
+      <div class="dsws-panel map-panel" style="width:400px">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)">
+          <button class="btn" style="font-size:11px">← 全部</button>
+          <b style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">[私家大厨] 实施编排 map · v4.0</b>
+        </div>
+        <div class="corridor" id="corridor-a" data-v-block="m3" data-v="a">
+          <div class="dest"><div class="dt">DESTINATION</div>10 域场景 + 08 对齐 + 数据层 + 开源落地</div>
+          <div class="grp">可接 · frontier</div>
+          <div class="lane"><div class="rail"></div><div class="body">
+            <div class="lane-node"><span class="dot" style="background:var(--green)"></span><div class="tt"><div class="n2">研究外部 API 认证方式 <span style="color:var(--dim);font-size:10px">#801</span></div><div class="s2"><span class="dsws-chip c-r">研究</span><span class="dsws-chip c-amber">bug</span></div></div><a class="lnk" href="#" onclick="return false"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="1.8" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></div>
+            <div class="lane-node"><span class="dot" style="background:var(--green)"></span><div class="tt"><div class="n2">研究：导出格式规范 <span style="color:var(--dim);font-size:10px">#806</span></div><div class="s2"><span class="dsws-chip c-r">研究</span></div></div><a class="lnk" href="#" onclick="return false"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="1.8" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></div>
+          </div></div>
+          <div class="grp">已认领</div>
+          <div class="lane"><div class="rail"></div><div class="body">
+            <div class="lane-node"><span class="dot" style="background:var(--blue)"></span><div class="tt"><div class="n2">Grill：食材单位体系 <span style="color:var(--dim);font-size:10px">#803</span></div><div class="s2"><span class="dsws-chip c-g">对齐</span> 你</div></div><a class="lnk" href="#" onclick="return false"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="1.8" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></div>
+          </div></div>
+          <div class="grp">被阻塞</div>
+          <div class="lane"><div class="rail"></div><div class="body">
+            <div class="lane-node"><span class="dot" style="background:var(--orange)"></span><div class="tt"><div class="n2">原型：录入表单交互 <span style="color:var(--dim);font-size:10px">#802</span></div><div class="s2"><span class="dsws-chip c-p">原型</span> 等 #801</div></div><a class="lnk" href="#" onclick="return false"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="1.8" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></div>
+            <div class="lane-node" style="padding-left:20px"><span class="dot" style="background:var(--orange)"></span><div class="tt"><div class="n2">Task：迁移存量菜谱数据 <span style="color:var(--dim);font-size:10px">#804</span></div><div class="s2"><span class="dsws-chip c-t">任务</span> 等 #803</div></div><a class="lnk" href="#" onclick="return false"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="1.8" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></div>
+          </div></div>
+          <div class="grp">已走过</div>
+          <div class="lane"><div class="rail"></div><div class="body">
+            <div class="lane-node"><span class="dot" style="background:var(--border2)"></span><div class="tt"><div class="n2" style="color:var(--sub)">决策：菜谱数据层放哪 <span style="font-size:10px">#805</span></div><div class="s2" style="color:var(--dim)">单账本多分类，SQLite 独立文件</div></div></div>
+          </div></div>
+        </div>
+        <div class="corridor" id="corridor-b" style="display:none" data-v-block="m3" data-v="b">
+          <div class="split" style="flex-direction:column">
+            <div class="info"><b style="font-size:12px">Destination</b><div style="font-size:11.5px;color:var(--sub)">10 域场景 + 08 对齐 + 数据层 + 开源落地</div></div>
+            <div class="info"><b style="font-size:12px">Notes</b><div style="font-size:11.5px;color:var(--sub)">每会话必查 research / grilling</div></div>
+            <div class="info"><b style="font-size:12px">Decisions so far</b><div style="font-size:11.5px;color:var(--sub)">· 数据层：单账本多分类（#805）</div></div>
+            <div class="info"><b style="font-size:12px">Not yet specified</b><div style="font-size:11.5px;color:var(--sub)">· 多端同步冲突策略</div></div>
+            <div class="grp">票务</div>
+            <div class="trow"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--green);margin-top:5px"></span><div class="tt"><div class="name">研究外部 API 认证方式</div><div class="sub2">#801</div></div></div>
+            <div class="trow"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--orange);margin-top:5px"></span><div class="tt"><div class="name">原型：录入表单交互</div><div class="sub2">#802 · 等 #801</div></div></div>
+          </div>
+        </div>
+        <div class="corridor" id="corridor-c" style="display:none" data-v-block="m3" data-v="c">
+          <div class="deps">
+            <div class="depwrap">
+              <div class="dnode f"><span class="dsws-chip c-r">研究</span><div class="n3">外部 API 认证 <span style="color:var(--dim)">#801</span></div></div>
+              <div class="dcol">
+                <div class="dnode b"><span class="dsws-chip c-p">原型</span><div class="n3">录入表单交互 <span style="color:var(--dim)">#802</span></div></div>
+              </div>
+              <div style="margin-top:14px"></div>
+              <div class="dnode c"><span class="dsws-chip c-g">对齐</span><div class="n3">食材单位体系 <span style="color:var(--dim)">#803</span></div></div>
+              <div class="dcol">
+                <div class="dnode b"><span class="dsws-chip c-t">任务</span><div class="n3">迁移存量数据 <span style="color:var(--dim)">#804</span></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note" style="flex:1;border:none;padding:0;max-width:340px">
+        <b>点评</b><br>
+        <b>A 垂直走廊</b>：Destination 当终点，票按「到终点的距离」纵向分层，阻塞链行内缩进；每票带外链按钮。空间感=进度感。★<br><br>
+        <b>B 分区卡片</b>：地图信息分区展示 + 票务列表。信息全但无「路线」感。<br><br>
+        <b>C 依赖图</b>：节点+连线最像地图，但票多时交叉难读。
+      </div>
+    </div>
+    <div class="dim">A · 垂直走廊：Destination 顶 → 可接/已认领/被阻塞/已走过 分层</div>
+  </div>
+</section>
+
+<!-- ================= M4 技能雷达 ================= -->
+<section id="m4">
+  <div class="mhead">
+    <span class="num">4</span><h2>技能雷达（侧边/面板内）</h2>
+    <span class="q">要回答：20 个技能怎么排布，才能让人一眼知道「现在该用哪个」？已选：A 列表为主，支持 A/B 双形态面板内切换。</span>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-m="m4" data-v="a">A · 推荐+列表 <span class="rec">★已选</span></button>
+    <button class="tab" data-m="m4" data-v="b">B · 圆形技能环</button>
+    <button class="tab" data-m="m4" data-v="c">C · 卡片网格</button>
+  </div>
+  <div class="stage" id="st-m4">
+    <div class="home-wrap">
+      <div class="dsws-panel skills-panel">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--acc2)" stroke-width="1.8" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/><circle cx="12" cy="12" r="4" fill="var(--acc2)" stroke="none"/></svg>
+          <b style="font-size:13px">技能</b>
+          <span class="dsws-chip c-m" style="margin-left:auto">当前：研究 #801</span>
+        </div>
+        <div class="hbody" id="skills-a" data-v-block="m4" data-v="a">
+          <div class="grp">场景推荐 · research 票</div>
+          <div class="srow" style="background:rgba(192,132,252,.1);border:1px solid var(--acc);border-radius:6px"><span class="st" style="background:var(--green)"></span><div class="tt"><div class="sname">/research</div><div class="suse">后台调研，写进 repo 内 markdown 并引源</div></div><button class="btn" style="font-size:11px">加载</button></div>
+          <div class="grp">全部技能（20）</div>
+          <div class="srow"><span class="st" style="background:var(--green)"></span><div class="tt"><div class="sname">ask-matt</div><div class="suse">技能路由器</div></div><button class="btn" style="font-size:11px">加载</button></div>
+          <div class="srow"><span class="st" style="background:var(--amber)"></span><div class="tt"><div class="sname">wayfinder</div><div class="suse">决策地图</div></div><button class="btn" style="font-size:11px">加载</button></div>
+          <div class="srow"><span class="st" style="background:var(--green)"></span><div class="tt"><div class="sname">grilling</div><div class="suse">对齐提问</div></div><button class="btn" style="font-size:11px">加载</button></div>
+        </div>
+        <div class="hbody" id="skills-b" style="display:none;position:relative" data-v-block="m4" data-v="b">
+          <div style="text-align:center;font-size:11px;color:var(--sub);margin-bottom:2px">场景：research 票 #801</div>
+          <div class="ring">
+            <div class="core"><div class="big">/research</div><div style="font-size:9.5px;color:var(--sub)">推荐</div></div>
+            <div class="orb" style="left:50%;top:8%"><span class="dot" style="background:var(--green)"></span>research</div>
+            <div class="orb" style="left:14%;top:26%"><span class="dot" style="background:var(--green)"></span>ask-matt</div>
+            <div class="orb" style="left:86%;top:26%"><span class="dot off"></span>wayfinder</div>
+            <div class="orb" style="left:22%;top:68%"><span class="dot" style="background:var(--green)"></span>grilling</div>
+            <div class="orb" style="left:78%;top:68%"><span class="dot off"></span>handoff</div>
+            <div class="orb" style="left:50%;top:92%"><span class="dot" style="background:var(--green)"></span>tdd</div>
+          </div>
+          <div style="text-align:center;font-size:10.5px;color:var(--dim)">实心=已装 · 空心=未装 · 点圆注入 /skill · 共 20 个可展开</div>
+        </div>
+        <div class="hbody" id="skills-c" style="display:none" data-v-block="m4" data-v="c">
+          <div class="grp">推荐</div>
+          <div class="grid2">
+            <div class="scard hot"><div class="sn">/research</div><div class="su">后台调研并引源 · 当前场景</div></div>
+            <div class="scard hot"><div class="sn">/ask-matt</div><div class="su">不知道该用哪个时问它</div></div>
+          </div>
+          <div class="grp">全部</div>
+          <div class="grid2">
+            <div class="scard"><div class="sn">/wayfinder</div><div class="su">决策地图</div></div>
+            <div class="scard"><div class="sn">/grilling</div><div class="su">对齐提问</div></div>
+            <div class="scard"><div class="sn">/prototype</div><div class="su">一次性原型</div></div>
+            <div class="scard"><div class="sn">/code-review</div><div class="su">双轴审查</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="note" style="flex:1;border:none;padding:0;max-width:340px">
+        <b>点评</b><br>
+        <b>A 推荐+列表</b>：信息全、直接。★（已选，正式版在面板内提供「列表 / 圆环」切换）<br><br>
+        <b>B 圆形技能环</b>：中心=推荐，环绕=相关，最外可展开全部；实心/空心表已装/未装。<br><br>
+        <b>C 卡片网格</b>：整齐但无「主次」。
+      </div>
+    </div>
+    <div class="dim">A · 推荐置顶 + 全量列表（正式版支持 A/B 双形态切换）</div>
+  </div>
+</section>
+
+<!-- ================= M5 环境检查 ================= -->
+<section id="m5">
+  <div class="mhead">
+    <span class="num">5</span><h2>环境检查（守门）</h2>
+    <span class="q">要回答：未就绪（技能缺失 / gh 未装 / setup 未跑）怎么提醒？红色提醒 + 缺失提示 + 风险告知，只提示不代装。已选：A 横幅+分组。</span>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-m="m5" data-v="a">A · 横幅+分组 <span class="rec">★已选</span></button>
+    <button class="tab" data-m="m5" data-v="b">B · 登机口清单</button>
+    <button class="tab" data-m="m5" data-v="c">C · 弹窗告知</button>
+  </div>
+  <div class="stage" id="st-m5">
+    <div class="home-wrap">
+      <div class="dsws-panel env-panel">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--acc2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v6c0 5-3.8 8.3-9 9-5.2-.7-9-4-9-9V7l9-5z"/><path d="M12 8v5M12 16.5v.5"/></svg>
+          <b style="font-size:13px">环境检查</b>
+          <span class="dsws-chip c-red" style="margin-left:auto">2 项未就绪</span>
+        </div>
+        <div class="hbody">
+          <div id="env-a" data-v-block="m5" data-v="a">
+            <div class="banner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round"><path d="M12 3L1.8 20.2h20.4L12 3z"/><path d="M12 10v4M12 17.2v.3" stroke-width="2.6"/></svg>
+              <div style="flex:1"><b>环境未就绪</b>：wayfinder 技能缺失，需要安装 Matt 技能套件（wayfinder / ask-matt）</div>
+              <button class="btn danger">安装指引</button>
+            </div>
+            <div class="ecard bad">
+              <div class="ehead"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round"><path d="M12 3L1.8 20.2h20.4L12 3z"/><path d="M12 10v4M12 17.2v.3"/></svg>wayfinder 技能未安装</div>
+              <div class="erisk">影响：无法按地图规范认领/解析 ticket，wayfinder 流程不可用。安装：装 Matt 技能套件到 ~/.agents/skills/ 后点「重新检查」。</div>
+              <div class="eact"><button class="btn">查看安装步骤</button><button class="btn">重新检查</button></div>
+            </div>
+            <div class="ecard bad">
+              <div class="ehead"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round"><path d="M12 3L1.8 20.2h20.4L12 3z"/><path d="M12 10v4M12 17.2v.3"/></svg>GitHub CLI 未安装</div>
+              <div class="erisk">影响：无法读写 issue。安装：GitHub CLI（或配置已有路径 D:\0Tools\GitHubCLI\gh.exe）。</div>
+              <div class="eact"><button class="btn">查看安装步骤</button><button class="btn">重新检查</button></div>
+            </div>
+            <div class="ecard warn">
+              <div class="ehead"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/><circle cx="12" cy="12" r="4" fill="var(--amber)" stroke="none"/></svg>ask-matt 已安装未挂载</div>
+              <div class="erisk">影响：本会话用不了。动作：注入 /ask-matt 加载（加载动作由你自己确认执行）。</div>
+              <div class="eact"><button class="btn pri">注入 /ask-matt</button><button class="btn">重新检查</button></div>
+            </div>
+          </div>
+          <div id="env-b" style="display:none" data-v-block="m5" data-v="b">
+            <div style="border:1px solid rgba(248,113,113,.5);border-radius:10px;padding:10px 12px;background:rgba(248,113,113,.05);margin-bottom:10px">
+              <div style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--red);font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3L1.8 20.2h20.4L12 3z"/><path d="M12 10v4M12 17.2v.3"/></svg>登机口：2 项未通过，暂不能起飞</div>
+              <div style="font-size:11.5px;color:var(--sub);margin-top:4px">通过环境检查后，wayfinder 流程才能正常运转。安装由你完成，本插件只负责提醒。</div>
+            </div>
+            <div class="ecard bad"><div class="ehead"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--red)"></span>wayfinder 技能</div><div class="erisk">未安装 → 无法认领/解析 ticket</div><div class="eact"><button class="btn">安装指引</button></div></div>
+            <div class="ecard bad"><div class="ehead"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--red)"></span>GitHub CLI</div><div class="erisk">未安装 → 无法读写 issue</div><div class="eact"><button class="btn">安装指引</button></div></div>
+            <div class="ecard warn"><div class="ehead"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--amber)"></span>ask-matt</div><div class="erisk">已装未挂载 → 注入 /ask-matt 加载</div><div class="eact"><button class="btn pri">注入加载</button></div></div>
+            <div class="ecard"><div class="ehead"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--green)"></span>gh 已登录 / API 可达 / 仓库定位</div><div class="erisk">全部通过</div></div>
+          </div>
+          <div id="env-c" style="display:none" data-v-block="m5" data-v="c">
+            <div style="text-align:center;padding:20px 0;color:var(--sub);font-size:12.5px">环境检查 tab 内只有结果分组（同 A），区别在：<br>首次检测到阻断项时，先弹一次「环境风险」对话框 ——</div>
+            <button class="btn pri" onclick="showEnvModal()">演示：打开环境风险弹窗</button>
+          </div>
+        </div>
+      </div>
+      <div class="note" style="flex:1;border:none;padding:0;max-width:340px">
+        <b>点评</b><br>
+        <b>A 横幅+分组</b>：红色横幅（可关）+ 每项一张卡（名称/影响/动作）。风险告知显式、分级清晰。★<br><br>
+        <b>B 登机口</b>：整体「未通过不能开工」的强语义。<br><br>
+        <b>C 弹窗告知</b>：首次强提醒，之后回归安静。
+      </div>
+    </div>
+    <div class="dim">A · 横幅 + 红/黄/绿分组卡，每条带「影响」与「动作」</div>
+  </div>
+</section>
+
+<!-- ================= M6 沉淀弹窗 ================= -->
+<section id="m6">
+  <div class="mhead">
+    <span class="num">6</span><h2>沉淀弹窗形态</h2>
+    <span class="q">要回答：把当前讨论落成本地 + GitHub 备注时，弹窗用什么形态？要不要自动摘录？（形态选择后，锚点统一改为「当前任务」，见 M8）</span>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-m="m6" data-v="a">A · 居中模态 <span class="rec">★已选</span></button>
+    <button class="tab" data-m="m6" data-v="b">B · 底部抽屉</button>
+    <button class="tab" data-m="m6" data-v="c">C · 行内展开+自动摘录</button>
+  </div>
+  <div class="stage" id="st-m6" style="min-height:340px">
+    <div class="chat" style="height:300px;position:relative">
+      <div class="msgs">
+        <div class="bubble me">数据层放 .scratch/wayfinder-notes/ 下，按 map 分目录，追加不覆盖。</div>
+        <div class="bubble ai">好的，这样每次沉淀都留痕。要我把这条结论也记到 #803 吗？</div>
+      </div>
+      <div class="remind">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--acc2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v6c0 5-3.8 8.3-9 9-5.2-.7-9-4-9-9V7l9-5z"/></svg>
+        <span style="flex:1">本轮讨论可沉淀到「Grill：食材单位体系 #803」</span>
+        <button class="btn" data-open="fixate-a">沉淀</button>
+        <button class="btn" style="border:none;background:none;color:var(--sub)">✕</button>
+      </div>
+      <div class="inputrow">
+        <div class="fakeinput">输入消息…</div>
+        <div class="send"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#140a1e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>
+      </div>
+      <div id="fix-a" class="modal-ov" style="display:none">
+        <div class="modalbox">
+          <div style="font-weight:600;margin-bottom:8px">沉淀讨论 → Grill：食材单位体系 #803</div>
+          <textarea class="ta">【沉淀 08-14 22:10】Grill：食材单位体系 #803
+
+数据层放 .scratch/wayfinder-notes/ 下，按 map 分目录，追加不覆盖。</textarea>
+          <div style="font-size:11px;color:var(--sub);margin:6px 0">本地：.scratch/wayfinder-notes/… 追加 · GitHub：resolution comment 到 #803</div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn" onclick="closeFix('fix-a')">取消</button>
+            <button class="btn" onclick="closeFix('fix-a')">仅本地保存</button>
+            <button class="btn pri" onclick="closeFix('fix-a')">保存并评论到 Issue</button>
+          </div>
+        </div>
+      </div>
+      <div id="fix-b" class="drawer" style="display:none">
+        <div style="font-weight:600;margin-bottom:8px">沉淀讨论 → Grill：食材单位体系 #803</div>
+        <textarea class="ta">【沉淀 08-14 22:10】Grill：食材单位体系 #803
+
+数据层放 .scratch/wayfinder-notes/ 下，按 map 分目录，追加不覆盖。</textarea>
+        <div style="font-size:11px;color:var(--sub);margin:6px 0">本地：.scratch/wayfinder-notes/… 追加 · GitHub：resolution comment 到 #803</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn" onclick="closeFix('fix-b')">取消</button>
+          <button class="btn" onclick="closeFix('fix-b')">仅本地保存</button>
+          <button class="btn pri" onclick="closeFix('fix-b')">保存并评论到 Issue</button>
+        </div>
+      </div>
+      <div id="fix-c" class="inline-card" style="display:none">
+        <div style="font-weight:600;margin-bottom:6px">沉淀讨论 → Grill：食材单位体系 #803</div>
+        <div class="extract">
+          <b style="color:var(--acc2)">自动摘录</b>（可编辑）：数据层放 .scratch/wayfinder-notes/ 下按 map 分目录，追加不覆盖 —— 来自最近 2 轮对话。
+        </div>
+        <textarea class="ta">【沉淀 08-14 22:10】Grill：食材单位体系 #803
+
+数据层放 .scratch/wayfinder-notes/ 下，按 map 分目录，追加不覆盖。</textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button class="btn" onclick="closeFix('fix-c')">取消</button>
+          <button class="btn" onclick="closeFix('fix-c')">仅本地保存</button>
+          <button class="btn pri" onclick="closeFix('fix-c')">保存并评论到 Issue</button>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;padding:10px 0 2px">三种形态都在下方聊天舞台里，点按钮预览：</div>
+    <div style="display:flex;gap:8px;justify-content:center;padding-bottom:8px">
+      <button class="btn" onclick="document.getElementById('fix-a').style.display='flex'">预览 A · 居中模态</button>
+      <button class="btn" onclick="document.getElementById('fix-b').style.display='block'">预览 B · 底部抽屉</button>
+      <button class="btn" onclick="document.getElementById('fix-c').style.display='block'">预览 C · 行内+自动摘录</button>
+    </div>
+    <div class="dim" style="position:static">A · 居中模态 / B · 底部抽屉 / C · 行内展开+自动摘录</div>
+  </div>
+  <div class="note"><b>点评</b>：A 居中模态最稳、聚焦；B 底部抽屉贴输入区、操作连续性好；C 行内展开不打断对话流、自动摘录省事。按钮语义一致（仅本地 / 本地+评论）。</div>
+</section>
+
+<!-- ================= M7 智能提醒条 ================= -->
+<section id="m7">
+  <div class="mhead">
+    <span class="num">7</span><h2>智能提醒条（turn 尾）</h2>
+    <span class="q">要回答：AI 回复后「要不要沉淀/要不要用某个技能」的提醒，用什么形态最不打扰？</span>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-m="m7" data-v="a">A · 行内条 <span class="rec">★已选</span></button>
+    <button class="tab" data-m="m7" data-v="b">B · 悬浮角标</button>
+  </div>
+  <div class="stage" id="st-m7" style="min-height:300px">
+    <div class="chat" style="height:280px;position:relative">
+      <div class="msgs">
+        <div class="bubble ai">结论：数据层放 .scratch/wayfinder-notes/ 按 map 分目录，追加不覆盖。这条要不要沉淀到 #803？</div>
+        <div id="rem-a">
+          <div class="remind">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--acc2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v6c0 5-3.8 8.3-9 9-5.2-.7-9-4-9-9V7l9-5z"/></svg>
+            <span style="flex:1">#317 接近完成（5/5 通过）—— 沉淀并关闭？</span>
+            <button class="btn pri" onclick="toast('演示：打开沉淀弹窗（形态见模块 6）')">沉淀并关闭</button>
+            <button class="btn" onclick="toast('演示：先交接（见模块 9）')">交接</button>
+            <button class="btn" style="border:none;background:none;color:var(--sub)" onclick="this.closest('.remind').style.display='none'">✕</button>
+          </div>
+        </div>
+      </div>
+      <div id="rem-b" style="display:none">
+        <div class="floatbadge" onclick="toggleFloat()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--acc2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v6c0 5-3.8 8.3-9 9-5.2-.7-9-4-9-9V7l9-5z"/></svg>
+        </div>
+        <div class="floatcard" id="floatcard" style="display:none">
+          <b style="font-size:12.5px">Wayfinder 提醒</b>
+          <div style="font-size:12px;color:var(--sub);margin:6px 0">结论已出现，可沉淀到「Grill：食材单位体系 #803」；不确定用什么技能时先问 ask-matt。</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn pri" style="flex:1">沉淀</button>
+            <button class="btn" style="flex:1">用技能</button>
+          </div>
+        </div>
+      </div>
+      <div class="inputrow">
+        <div class="fakeinput">输入消息…</div>
+        <div class="send"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#140a1e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>
+      </div>
+    </div>
+    <div class="dim">A · 行内条（跟随 AI 消息尾部） / B · 右侧悬浮角标（点击展开）</div>
+  </div>
+  <div class="note"><b>点评</b>：A 行内条上下文最直接，但需要「出现条件」克制（仅检测到结论/涉及票务时）；B 悬浮角标完全不打扰，但容易忽视。<br><br><b>触发逻辑（定稿）</b>：提醒条只在「当前任务接近 close」时出现一次 —— 判定信号：测试全过 / 问题已定位解决 / 你说出「完成/搞定」类话 / 进展里程碑（如 5/5 通过）。保守策略：拿不准就不提醒（宁缺毋滥），可 ✕ 关闭；随时可手动点任务卡「沉淀并关闭」。</div>
+</section>
+
+<!-- ================= M8 当前任务（定稿 · 显式指针模型） ================= -->
+<section id="m8">
+  <div class="mhead">
+    <span class="num">8</span><h2>当前任务（定稿 · 显式指针模型）</h2>
+    <span class="q">定稿结论：不靠「智能猜测」—— 当前任务 = 插件维护的唯一显式指针。来源：① 面板「开始此 Issue」直接设为；② 对话提及 issue → 插件识别并提示确认；③ 沉淀并关闭后自动清除。多任务看「本会话认领列表」，当前高亮、点任意切换。</span>
+  </div>
+  <div class="stage" id="st-m8">
+    <div class="home-wrap">
+      <div class="dsws-panel" style="width:400px;height:400px">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--acc2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 13 13 8.5 15.5 11 11" fill="var(--acc2)" stroke="none"/></svg>
+          <b style="font-size:13px">Waystation</b>
+          <span class="dsws-chip c-m" style="margin-left:auto">原型</span>
+        </div>
+        <div class="hbody">
+          <div style="border:1px solid rgba(192,132,252,.45);background:rgba(192,132,252,.08);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--acc2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+              <div style="flex:1">
+                <div style="font-size:10px;color:var(--acc2);letter-spacing:1px">当前任务（唯一指针）</div>
+                <div style="font-size:12.5px;font-weight:600">修复 #317 渲染失败 · SELECT 无此列</div>
+              </div>
+              <span class="dsws-chip c-t">task</span>
+              <span class="dsws-chip c-g" id="task-state">进行中</span>
+            </div>
+            <div style="font-size:11px;color:var(--sub);margin-top:4px">状态：<span id="task-state-detail">分析中 · 3/5 场景通过</span> —— 不用翻聊天，这里就是当前状态</div>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <button class="btn pri" style="flex:1">沉淀并关闭</button>
+              <button class="btn" style="flex:1">交接</button>
+            </div>
+            <div style="margin-top:8px">
+              <button class="btn" style="font-size:11px" onclick="demoTaskState()">模拟：任务状态变化（进行中 → 接近完成 → 已关闭）</button>
+            </div>
+          </div>
+          <div class="grp">本会话认领（3）· 当前高亮，点任意切换</div>
+          <div class="trow" style="border:1px solid rgba(192,132,252,.5);background:rgba(192,132,252,.08);border-radius:6px"><span class="dsws-chip c-t">task</span><div class="tt"><div class="name">修复 #317 渲染失败</div><div class="sub2">当前 · 你</div></div></div>
+          <div class="trow" style="border-radius:6px;cursor:pointer" onclick="toast('切换当前任务：#803')"><span class="dsws-chip c-g">对齐</span><div class="tt"><div class="name">Grill：食材单位体系</div><div class="sub2">#803 · 你</div></div><span style="font-size:10.5px;color:var(--dim)">切换</span></div>
+          <div class="trow" style="border-radius:6px;cursor:pointer" onclick="toast('切换当前任务：#201')"><span class="dsws-chip c-p">原型</span><div class="tt"><div class="name">录入表单原型</div><div class="sub2">#201 · 你</div></div><span style="font-size:10.5px;color:var(--dim)">切换</span></div>
+          <div class="grp">提及识别（智能只做识别+提示，决定权在你）</div>
+          <button class="btn" onclick="demoMention()">模拟：对话里提到「#201」</button>
+          <div id="mention-bar" style="display:none;margin-top:8px;border:1px solid var(--acc);background:rgba(192,132,252,.08);border-radius:8px;padding:8px 10px;font-size:12px">
+            已识别「#201 录入表单原型」—— 设为当前任务？
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn pri" style="flex:1" onclick="document.getElementById('mention-bar').style.display='none';toast('已设为当前任务：录入表单原型 #201')">设为</button>
+              <button class="btn" style="flex:1" onclick="document.getElementById('mention-bar').style.display='none';toast('忽略，当前任务不变：#317')">忽略</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note" style="flex:1;border:none;padding:0;max-width:340px">
+        <b>定稿要点</b><br>
+        • 当前任务 = 显式指针，永远只有「一个当前」；<br>
+        • 多任务不猜：本会话认领列表全显示，当前高亮，点击切换；<br>
+        • 「开始此 Issue」→ 直接设为当前（与 claim 语义对齐）；<br>
+        • 对话提及 → 识别 + 提示确认（不抢决定权）；<br>
+        • 沉淀 / 交接永远锚定当前任务。
+      </div>
+    </div>
+    <div class="dim">定稿 · 显式指针 + 认领列表 + 提及识别提示</div>
+  </div>
+</section>
+
+<!-- ================= M9 交接（定稿 · 定向传递） ================= -->
+<section id="m9">
+  <div class="mhead">
+    <span class="num">9</span><h2>交接（定稿 · 定向传递）</h2>
+    <span class="q">定稿结论：点「交接」→ 后台生成文档（不注入命令、不打断对话）→ 聊完出现「交接给新会话」→ 点击后左侧立即开新会话，输入框自动预填文档路径；普通新会话不加载（定向，不全局注入）。</span>
+  </div>
+  <div class="stage" id="st-m9">
+    <div class="home-wrap">
+      <div class="dsws-panel" style="width:440px">
+        <div class="hbody">
+          <div style="font-weight:600;font-size:13px;margin-bottom:10px">交接流程（点一遍试试）</div>
+          <div id="h-step1">
+            <div class="trow"><span class="dsws-chip c-m">1</span><div class="tt"><div class="name">点「交接」→ 后台生成交接文档</div><div class="sub2">不注入 /handoff 命令 · 不打断当前对话 · 含「建议 skill」段落</div></div></div>
+            <div style="margin-top:10px"><button class="btn pri" onclick="demoHandoff()">演示：点「交接」</button></div>
+          </div>
+          <div id="h-step2" style="display:none">
+            <div class="trow"><span class="dsws-chip c-g">完成</span><div class="tt"><div class="name">文档已生成：.scratch/handoff/latest.md</div><div class="sub2">结论 / 未完成事项 / 建议 skill 已写入</div></div></div>
+            <div class="trow"><span class="dsws-chip c-m">2</span><div class="tt"><div class="name">继续聊，聊完点下方按钮</div><div class="sub2">文档在后台就绪，随时可交接</div></div></div>
+            <div style="margin-top:10px"><button class="btn pri" onclick="demoNewSession()">交接给新会话 / 新 session</button></div>
+          </div>
+          <div id="h-step3" style="display:none">
+            <div style="border:1px dashed rgba(74,222,128,.5);border-radius:8px;padding:10px 12px;background:rgba(74,222,128,.05)">
+              <div style="font-size:12px;font-weight:600;color:var(--green)">左侧栏已开启新会话：会话 B · 接手 #317</div>
+              <div style="font-size:11.5px;color:var(--sub);margin-top:6px">新会话输入框已自动预填：</div>
+              <div style="font-family:var(--mono);font-size:12px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;margin-top:4px;color:var(--acc2)">/read .scratch/handoff/latest.md</div>
+              <div style="font-size:10.5px;color:var(--dim);margin-top:6px">新会话 agent 开工即读 · 普通新会话不加载（定向传递，非全局注入）</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note" style="flex:1;border:none;padding:0;max-width:340px">
+        <b>定稿要点</b><br>
+        • 触发：点「交接」后台生成，不打断对话；<br>
+        • 交付：聊完点「交接给新会话」→ 左侧立即开新会话 + 输入框自动预填文档路径（零复制）；<br>
+        • 定向：只有交接创建的新会话带路径，普通新会话不加载。
+      </div>
+    </div>
+    <div class="dim">定稿 · 后台生成 → 聊完按钮 → 开新会话 + 预填路径（定向）</div>
+  </div>
+</section>
+
+<!-- ================= M10 感知中心（定稿） ================= -->
+<section id="m10">
+  <div class="mhead">
+    <span class="num">10</span><h2>感知中心（定稿）</h2>
+    <span class="q">定稿结论：面板 = 「四感知」常驻（map 位置 / 当前 bug / 正在做什么 / GitHub 全局状态）+ 标签筛选（chips 多选）+ 标签快捷动作（needs-triage → 唤起 /triage 入口，不自动执行；bug → 开始修复）。不做 gh 命令复制。</span>
+  </div>
+  <div class="stage" id="st-m10">
+    <div class="home-wrap">
+      <div class="dsws-panel" style="width:400px;height:460px">
+        <div class="hbody">
+          <div class="grp">四感知 · 常驻</div>
+          <div class="kpi">
+            <div class="cell"><div class="n" style="font-size:13px;color:var(--acc2)">私家大厨 map</div><div class="l">可接层 · 位置</div></div>
+            <div class="cell"><div class="n" style="font-size:13px;color:var(--red)">#317</div><div class="l">当前修复中</div></div>
+            <div class="cell"><div class="n" style="font-size:13px;color:var(--blue)">认领→分析→修复</div><div class="l">正在做什么</div></div>
+          </div>
+          <div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:12px;background:var(--panel2)">
+            <b>GitHub 全局</b>：open 42 · bug 6 · 待分流 4 · frontier 2 · 已认领 3
+          </div>
+          <div class="grp">标签（点一个 → 看该标签下的 issue）</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+            <span class="dsws-chip c-red lblchip" style="cursor:pointer;border:1px solid rgba(248,113,113,.4)" onclick="pickLabel('bug')">bug · 6</span>
+            <span class="dsws-chip c-amber lblchip" style="cursor:pointer;border:1px solid rgba(245,158,11,.4)" onclick="pickLabel('triage')">needs-triage · 4</span>
+            <span class="dsws-chip c-g lblchip" style="cursor:pointer;border:1px solid rgba(74,222,128,.4)" onclick="pickLabel('agent')">ready-for-agent · 9</span>
+            <span class="dsws-chip c-r lblchip" style="cursor:pointer;border:1px solid rgba(88,166,255,.4)" onclick="pickLabel('research')">wayfinder:research · 2</span>
+          </div>
+          <div id="lbl-bug" style="display:none">
+            <div class="grp">bug（点 issue 行的动作 → 注入 /wayfinder + 地址）</div>
+            <div class="trow"><span class="dsws-chip c-red">bug</span><span class="dsws-chip c-t">卡路里</span><div class="tt"><div class="name">render_calorie_deficit 渲染失败 · SELECT 无此列</div><div class="sub2">#332</div></div><button class="btn pri" style="font-size:11px" onclick="actIssue('wayfinder','#332')">开始修复</button></div>
+            <div class="trow"><span class="dsws-chip c-red">bug</span><span class="dsws-chip c-t">卡路里</span><div class="tt"><div class="name">营养目标页面柱状图错位</div><div class="sub2">#28</div></div><button class="btn pri" style="font-size:11px" onclick="actIssue('wayfinder','#28')">开始修复</button></div>
+          </div>
+          <div id="lbl-triage" style="display:none">
+            <div class="grp">needs-triage（点「分流」→ 注入 /triage + 地址，由你决定执行）</div>
+            <div class="trow"><span class="dsws-chip c-amber">needs-triage</span><div class="tt"><div class="name">录入型流程缺少结果反馈 HTML</div><div class="sub2">#79</div></div><button class="btn" style="font-size:11px" onclick="actIssue('triage','#79')">分流</button></div>
+            <div class="trow"><span class="dsws-chip c-amber">needs-triage</span><div class="tt"><div class="name">导出 CSV 中文乱码</div><div class="sub2">#52</div></div><button class="btn" style="font-size:11px" onclick="actIssue('triage','#52')">分流</button></div>
+          </div>
+          <div id="lbl-agent" style="display:none">
+            <div class="grp">ready-for-agent（点「开始」→ 注入 /wayfinder + 地址）</div>
+            <div class="trow"><span class="dsws-chip c-g">ready-for-agent</span><div class="tt"><div class="name">帮助页 73 场景首次打开报错</div><div class="sub2">#41</div></div><button class="btn" style="font-size:11px" onclick="actIssue('wayfinder','#41')">开始</button></div>
+            <div class="trow"><span class="dsws-chip c-g">ready-for-agent</span><div class="tt"><div class="name">标签合并不应触发盘点重算</div><div class="sub2">#66</div></div><button class="btn" style="font-size:11px" onclick="actIssue('wayfinder','#66')">开始</button></div>
+          </div>
+          <div id="lbl-research" style="display:none">
+            <div class="grp">wayfinder:research</div>
+            <div class="trow"><span class="dsws-chip c-r">research</span><div class="tt"><div class="name">研究外部 API 认证方式</div><div class="sub2">#801 · 可接</div></div><button class="btn" style="font-size:11px" onclick="actIssue('wayfinder','#801')">开始</button></div>
+          </div>
+          <div id="inject-preview" style="display:none;margin-top:8px;border:1px solid var(--acc);background:rgba(192,132,252,.06);border-radius:8px;padding:8px 10px;font-size:11px">
+            <div style="color:var(--acc2);font-weight:600;margin-bottom:4px">即将注入输入框：</div>
+            <div style="font-family:var(--mono);white-space:pre-wrap" id="inject-text"></div>
+            <div style="color:var(--dim);margin-top:4px">发送后由 agent 按流程处理 · 不自动执行</div>
+          </div>
+        </div>
+      </div>
+      <div class="note" style="flex:1;border:none;padding:0;max-width:340px">
+        <b>定稿要点</b><br>
+        • 点标签 → 过滤出该标签下的 issue 列表（不是组级按钮）；<br>
+        • 点具体 issue 的动作 → 注入 <code>/wayfinder</code>（或 <code>/triage</code>）+ issue 地址到输入框；<br>
+        • 分流（needs-triage）→ <code>/triage + URL</code>；开始修复 → <code>/wayfinder + URL</code>；<br>
+        • 四感知常驻 + 标签过滤 + 行级动作；不做 gh 命令复制。
+      </div>
+    </div>
+    <div class="dim">定稿 · 标签 → issue 列表 → 行级动作 → 注入 /wayfinder（或 /triage）+ 地址</div>
+  </div>
+</section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<div class="footerbar">
+  <div class="sum">
+    我的选择：<b id="sum">未选</b>
+    <div class="sumline" id="sumline"></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span style="color:var(--dim);font-size:11.5px">双击此 HTML 文件即可打开（无需服务器）</span>
+    <button class="btn pri" onclick="copySum()">复制选择组合</button>
+  </div>
+</div>
+
+<script>
+  const picks = {}
+  function bindTabs(){
+    document.querySelectorAll('.tab').forEach(function(tab){
+      tab.addEventListener('click', function(){
+        const m = tab.dataset.m, v = tab.dataset.v
+        document.querySelectorAll('#st-' + m + ' [data-v-block="' + m + '"]').forEach(el => el.style.display='none')
+        const target = document.querySelector('#st-' + m + ' [data-v-block="' + m + '"][data-v="' + v + '"]')
+        if(target) target.style.display = ''
+        document.querySelectorAll('section#' + m + ' .tab').forEach(t => t.classList.remove('on'))
+        tab.classList.add('on')
+        picks[m] = v
+        renderSum()
+      })
+    })
+  }
+  function renderSum(){
+    const names = {m1:'状态栏',m2:'面板首页',m3:'地图详情',m4:'技能雷达',m5:'环境检查',m6:'沉淀弹窗',m7:'提醒条',m8:'当前任务',m9:'交接',m10:'标签'}
+    const keys = Object.keys(picks)
+    if(!keys.length){ document.getElementById('sum').textContent='未选'; document.getElementById('sumline').textContent=''; return }
+    document.getElementById('sum').textContent = keys.map(k => names[k]+':'+picks[k].toUpperCase()).join(' · ')
+    document.getElementById('sumline').textContent = keys.map(k => picks[k].toUpperCase()).join(' + ')
+  }
+  function copySum(){
+    const keys = Object.keys(picks)
+    if(!keys.length){ toast('还没选择任何方向'); return }
+    const nameMap = {m1:'状态栏',m2:'首页',m3:'地图详情',m4:'技能',m5:'环境',m6:'沉淀',m7:'提醒',m8:'当前任务',m9:'交接',m10:'标签'}
+    const full = keys.map(k => nameMap[k]+'='+picks[k].toUpperCase()).join(' ')
+    navigator.clipboard.writeText(full).then(()=>toast('已复制：'+full)).catch(()=>toast('复制失败，手动记下：'+full))
+  }
+  let toastTimer
+  function toast(msg){
+    const t = document.getElementById('toast')
+    t.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>' + msg
+    t.classList.add('show')
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(()=>t.classList.remove('show'), 2200)
+  }
+  document.querySelectorAll('[data-demo="m1-a"] .seg').forEach(function(seg){
+    seg.addEventListener('click', function(){
+      const view = {env:'环境检查视图', frontier:'可接视图', busy:'占用视图', time:'刷新数据'}[seg.dataset.view]
+      toast('演示：将打开面板并定位到「' + view + '」（正式版行为）')
+    })
+  })
+  document.querySelectorAll('[data-demo="m1-a"] [data-open="waystation"]').forEach(function(el){
+    el.addEventListener('click', ()=>toast('演示：开关面板（图标+Waystation = 开关）'))
+  })
+  function showEnvModal(){
+    const ov = document.createElement('div')
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:80'
+    ov.innerHTML = '<div style="width:400px;background:#16181d;border:1px solid #2a2d35;border-radius:12px;padding:16px;font-size:13px">' +
+      '<div style="display:flex;align-items:center;gap:8px;font-weight:700;color:#f87171;margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3L1.8 20.2h20.4L12 3z"/><path d="M12 10v4M12 17.2v.3"/></svg>环境风险：2 项未就绪</div>' +
+      '<div style="color:#a1a1aa;font-size:12px;margin-bottom:12px">wayfinder 技能未安装、GitHub CLI 未安装 —— wayfinder 流程暂不可用。安装由你完成，本插件只负责提醒。详情见「环境检查」页。</div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" onclick="this.closest(\'div\').remove()">我知道了</button><button class="btn pri" onclick="this.closest(\'div\').remove()">查看详情</button></div></div>'
+    ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove() })
+    document.body.appendChild(ov)
+  }
+  document.querySelectorAll('[data-open="fixate-a"]').forEach(b=>b.addEventListener('click',()=>{document.getElementById('fix-a').style.display='flex'}))
+  function closeFix(id){ document.getElementById(id).style.display='none' }
+  function toggleFloat(){ const c=document.getElementById('floatcard'); c.style.display = c.style.display==='none'?'block':'none' }
+  function demoMention(){ document.getElementById('mention-bar').style.display='block' }
+  function demoTaskState(){
+    const states = [
+      { cls:'c-g', label:'进行中', detail:'分析中 · 3/5 场景通过' },
+      { cls:'c-amber', label:'接近完成', detail:'5/5 冒烟通过 · 待沉淀关闭' },
+      { cls:'c-t', label:'已关闭', detail:'已 resolution + close · 结论入 Decisions so far' },
+    ]
+    const cur = (document.getElementById('task-state').textContent === '进行中') ? 1 : (document.getElementById('task-state').textContent === '接近完成' ? 2 : 0)
+    const s = states[cur]
+    const el = document.getElementById('task-state')
+    el.className = 'dsws-chip ' + s.cls
+    el.textContent = s.label
+    document.getElementById('task-state-detail').textContent = s.detail
+    if (s.label === '接近完成') toast('任务接近完成 → 提醒条出现：沉淀并关闭？')
+    if (s.label === '已关闭') toast('已关闭：当前任务自动清除，回到无任务/上一任务')
+  }
+  function pickLabel(lbl){
+    document.querySelectorAll('.lblchip').forEach(c=>{ c.style.outline = 'none'; c.style.outlineOffset = '0' })
+    const chips = document.querySelectorAll('.lblchip')
+    chips.forEach(c=>c.style.outline='none')
+    event.target.style.outline = '2px solid var(--acc)'
+    event.target.style.outlineOffset = '1px'
+    ;['bug','triage','agent','research'].forEach(k=>{ document.getElementById('lbl-'+k).style.display = (k===lbl)?'block':'none' })
+    document.getElementById('inject-preview').style.display = 'none'
+  }
+  function actIssue(verb, ref){
+    const url = 'https://github.com/FeatherHunter/SKILLS/issues/' + ref.replace('#','')
+    let text
+    if (verb === 'triage') text = '/triage\n' + url + '\n\n请按 triage 流程为这个 issue 分流：categorise → verify → grill → 写 agent-ready brief。'
+    else text = '/wayfinder\n' + url + '\n\n请按 wayfinder 流程处理这个 ticket：先加载所属 map 的低分辨率视图对齐 Destination，认领该 ticket，再用 Notes 中指定的技能解析它；完成后以 resolution comment 收尾并关闭 issue。本 session 只解析这一个 ticket。'
+    document.getElementById('inject-text').textContent = text
+    document.getElementById('inject-preview').style.display = 'block'
+    toast('已生成注入内容（发送后由 agent 按流程处理）')
+  }
+  function demoHandoff(){ document.getElementById('h-step1').style.display='none'; document.getElementById('h-step2').style.display='block'; toast('后台生成交接文档中… .scratch/handoff/latest.md') }
+  function demoNewSession(){ document.getElementById('h-step2').style.display='none'; document.getElementById('h-step3').style.display='block'; toast('已开启新会话 B，输入框已预填文档路径') }
+  bindTabs()
+</script>
+</body>
+</html>

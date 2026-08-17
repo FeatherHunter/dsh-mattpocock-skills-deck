@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>waystation 行 UI · 5 版对照（请选风格）</title>
+<style>
+  :root{--bg2:#16181d;--bg1:#10131a;--bg3:#0c0e12;--b1:#2a2d35;--b2:#3a3f4a;--p:#e6edf3;--s:#a1a1aa;--c:#8b8b95;
+        --font:-apple-system,'Segoe UI','PingFang SC',sans-serif}
+  *{box-sizing:border-box}
+  body{background:#0a0c10;color:var(--p);font-family:var(--font);margin:0;padding:24px}
+  h1{font-size:18px;margin:0 0 6px;color:#c084fc}
+  .sub{font-size:12px;color:var(--c);margin-bottom:20px;line-height:1.7}
+  .row{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .ver{width:470px}
+  .ver h3{font-size:13px;color:#9ca3af;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+  .ver h3 b{color:#c084fc;font-weight:700}
+  .ver .note{font-size:11px;color:#6b7280;margin:6px 0 10px;line-height:1.6}
+  .panel{background:var(--bg2);border:1px solid var(--b1);border-radius:12px;font-size:13px;color:var(--p);line-height:1.6;overflow:hidden}
+  .phead{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--b1)}
+  .phead .t{font-weight:600;font-size:13px}
+  .phead .sp{flex:1}
+  .pbody{padding:8px 10px;max-height:520px;overflow:auto}
+  .chip{display:inline-flex;align-items:center;gap:3px;padding:0 8px;border-radius:99px;font-size:10.5px;line-height:1.9;white-space:nowrap;flex:none}
+  .chip-m{background:rgba(188,140,255,.16);color:#bc8cff}
+  .chip-m2{background:rgba(188,140,255,.1);color:#bc8cff;border:1px dashed rgba(188,140,255,.55);cursor:pointer}
+  .chip-closed{background:rgba(139,139,149,.12);color:var(--c);border:1px solid rgba(139,139,149,.35)}
+  .prog{height:4px;border-radius:2px;background:var(--bg3);overflow:hidden;flex:none}
+  .prog i{display:block;height:100%;background:#4ade80;border-radius:2px}
+  .btn{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid transparent;flex:none;font-family:var(--font);line-height:1.6}
+  .ghost{background:transparent;border-color:transparent;color:var(--s);padding:3px 4px;font-weight:400;cursor:pointer;border-radius:6px}
+  .ghost:hover{background:rgba(255,255,255,.08)}
+  .ic{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none;display:inline-block}
+  .ic9{width:9px;height:9px;stroke:currentColor;fill:none;stroke-width:2;flex:none;display:inline-block}
+  .ic10{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none;display:inline-block}
+  .num{color:var(--c);font-size:11px;line-height:1.6;flex:none}
+  .title{min-width:0;overflow-wrap:break-word;word-break:normal;line-break:auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .tt1{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* A 两行式 */
+  .A .row1{display:flex;align-items:flex-start;gap:5px;width:100%}
+  .A .row2{margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;row-gap:4px;width:100%}
+  /* B 紧凑单行 */
+  .B .r{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;border:1px solid transparent}
+  .B .r:hover{background:rgba(255,255,255,.06);border-color:var(--b1)}
+  .B .mid{flex:1;min-width:0}
+  /* C 卡片式 */
+  .C .card{border:1px solid var(--b1);border-radius:10px;background:var(--bg1);padding:9px 11px;margin-bottom:7px}
+  .C .card:hover{border-color:var(--b2)}
+  /* D GitHub 风格 */
+  .D .r{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:6px;border:1px solid transparent}
+  .D .r:hover{background:rgba(255,255,255,.05)}
+  /* E 图标极简 */
+  .E .r{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;border:1px solid transparent}
+  .E .r:hover{background:rgba(255,255,255,.06)}
+  .E .acts{display:flex;gap:2px;opacity:0;transition:opacity .12s}
+  .E .r:hover .acts{opacity:1}
+  .tagrow{display:flex;align-items:center;flex-wrap:wrap;gap:2px;flex:1 1 auto;min-width:0}
+  .side{display:flex;align-items:center;gap:6px;flex:none;margin-left:auto}
+</style></head><body>
+<h1>waystation 列表行 · 5 版风格对照</h1>
+<div class="sub">每版同一批数据（真实 SVG 图标）：#409 map 完成态 · #200 map 未完成 · #437 普通任务 · #512 多标签(+2 折叠) · #520 被阻塞 · #530 已关闭。请告诉我哪版满意、哪里不满意，我按你的反馈改。</div>
+<div class="row">
+
+<!-- ══════════ 版 A · 当前两行式（基线） ══════════ -->
+<div class="ver A"><h3><b>版 A</b> 当前两行式（基线 · 现实现）</h3>
+<div class="note">第一行：#编号+map 徽章+标题(限2行)；第二行：标签(左) + 进度条90px + ✓n/total + 执行/新会话 + hover 复制/外链。标签超 4 个折叠为 +N。</div>
+<div class="panel"><div class="phead"><span class="t">DSH-Waystation</span><span class="sp"></span></div><div class="pbody">
+  <div class="r" style="cursor:pointer;border-left:3px solid #c084fc;background:rgba(188,140,255,.07);padding:6px 8px;border-radius:6px;margin-bottom:4px">
+    <div class="row1">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none"><span class="num">#409</span><span class="chip chip-m" style="font-weight:600;line-height:1.6"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span></span>
+      <span class="title" style="flex:1;font-weight:600">[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布</span>
+    </div>
+    <div class="row2">
+      <div class="tagrow"><span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span><span class="chip" style="background:rgba(254,242,192,.18);color:#fef2c0;border:1px solid rgb(213,201,151)">ready-for-human</span></div>
+      <div class="side"><div class="prog" style="width:90px"><i style="width:100%"></i></div><span style="font-size:10px;color:var(--c);display:inline-flex;align-items:center;gap:2px"><svg class="ic9" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>25/25</span>
+        <button class="btn" style="background:#3fb950;color:#0c1a10"><svg class="ic10" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span>完成</span></button>
+        <button class="btn" style="background:#5319e7;color:#fff;margin-left:4px"><svg class="ic10" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span>新会话</span></button>
+        <span style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+      </div>
+    </div>
+  </div>
+  <div class="r" style="cursor:pointer;border-left:3px solid #c084fc;background:rgba(188,140,255,.07);padding:6px 8px;border-radius:6px;margin-bottom:4px">
+    <div class="row1"><span style="display:inline-flex;align-items:center;gap:5px;flex:none"><span class="num">#200</span><span class="chip chip-m" style="font-weight:600;line-height:1.6"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span></span>
+      <span class="title" style="flex:1;font-weight:600">[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)</span></div>
+    <div class="row2">
+      <div class="tagrow"><span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="chip" style="background:rgba(29,118,219,.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:私家大厨</span></div>
+      <div class="side"><div class="prog" style="width:90px"><i style="width:87%"></i></div><span style="font-size:10px;color:var(--c);display:inline-flex;align-items:center;gap:2px"><svg class="ic9" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>13/15</span>
+        <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>执行</span></button>
+        <button class="btn" style="background:#5319e7;color:#fff;margin-left:4px"><svg class="ic10" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span>新会话</span></button>
+        <span style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+      </div>
+    </div>
+  </div>
+  <div class="r" style="padding:6px 8px;border-radius:6px;margin-bottom:4px">
+    <div class="row1"><span class="num">#437</span><span class="title" style="flex:1">[dsh-waystation] T13 · README 增强 DSH CLI 安装指引 + 主命令改 dsh</span></div>
+    <div class="row2"><div class="tagrow"><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">wayfinder:task</span><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span></div>
+      <div class="side"><button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>执行</span></button><span style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span></div></div>
+  </div>
+  <div class="r" style="padding:6px 8px;border-radius:6px;margin-bottom:4px">
+    <div class="row1"><span class="num">#512</span><span class="title" style="flex:1">[卡路里] 多标签重场景行 · 六个标签应折叠显示 +2</span></div>
+    <div class="row2"><div class="tagrow"><span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="chip" style="background:rgba(29,118,219,.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:卡路里</span><span class="chip" style="background:rgba(240,136,62,.18);color:#f0883e;border:1px solid rgb(190,90,0)">bug</span><span class="chip" style="background:rgba(63,185,80,.18);color:#3fb950;border:1px solid rgb(0,130,40)">ready-for-agent</span><span class="chip chip-m2">+2</span></div>
+      <div class="side"><button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>执行</span></button><span style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span></div></div>
+  </div>
+  <div class="r" style="padding:6px 8px;border-radius:6px;margin-bottom:4px">
+    <div class="row1"><span class="num">#520</span><span class="title" style="flex:1">[备忘录] 被阻塞 issue · 隐藏动作按钮显示红色被阻塞标签</span></div>
+    <div class="row2"><div class="tagrow"><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">wayfinder:task</span><span class="chip" style="background:rgba(248,113,113,.16);color:#f87171;border:1px solid rgba(248,113,113,.55);cursor:pointer"><svg class="ic9" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><span>被 #100 阻塞</span></span></div>
+      <div class="side"></div></div>
+  </div>
+  <div class="r" style="padding:6px 8px;border-radius:6px;margin-bottom:0">
+    <div class="row1"><span class="num">#530</span><span class="title" style="flex:1;color:var(--s)">[作息管家] 已关闭 issue 行 · 折叠显示</span><span class="chip chip-closed"><svg class="ic9" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span>已关闭</span></span></div>
+    <div class="row2"><div class="tagrow"><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">wayfinder:task</span></div><div class="side"></div></div>
+  </div>
+</div></div></div>
+
+<!-- ══════════ 版 B · 紧凑单行式 ══════════ -->
+<div class="ver B"><h3><b>版 B</b> 紧凑单行式</h3>
+<div class="note">每行单行：#编号 + 标签（内联）+ 标题(1行省略) 左中；右侧：进度条 + 执行/新会话 + hover 复制/外链。行高最小，信息密度最高。</div>
+<div class="panel"><div class="phead"><span class="t">DSH-Waystation</span><span class="sp"></span></div><div class="pbody">
+  <div class="r" style="border-left:3px solid #c084fc;background:rgba(188,140,255,.07)">
+    <span class="num">#409</span><span class="chip chip-m"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg>map</span>
+    <span class="tt1" style="flex:1;font-weight:600" title="[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布">[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布</span>
+    <div class="prog" style="width:54px"><i style="width:100%"></i></div><span style="font-size:10px;color:var(--c)">25/25</span>
+    <button class="btn" style="background:#3fb950;color:#0c1a10"><svg class="ic10" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>完成</button>
+    <span style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+  </div>
+  <div class="r" style="border-left:3px solid #c084fc;background:rgba(188,140,255,.07)">
+    <span class="num">#200</span><span class="chip chip-m"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg>map</span>
+    <span class="tt1" style="flex:1;font-weight:600">[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)</span>
+    <div class="prog" style="width:54px"><i style="width:87%"></i></div><span style="font-size:10px;color:var(--c)">13/15</span>
+    <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>执行</button>
+    <span style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+  </div>
+  <div class="r"><span class="num">#437</span><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">task</span><span class="tt1" style="flex:1">[dsh-waystation] T13 · README 增强 DSH CLI 安装指引 + 主命令改 dsh</span><button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>执行</button></div>
+  <div class="r"><span class="num">#512</span><span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">map</span><span class="tt1" style="flex:1">[卡路里] 多标签重场景行 · 六个标签应折叠显示 +2</span><span class="chip chip-m2">+2</span><button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>执行</button></div>
+  <div class="r"><span class="num">#520</span><span class="tt1" style="flex:1">[备忘录] 被阻塞 issue · 隐藏动作按钮显示红色被阻塞标签</span><span class="chip" style="background:rgba(248,113,113,.16);color:#f87171;border:1px solid rgba(248,113,113,.55)"><svg class="ic9" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>被 #100 阻塞</span></div>
+  <div class="r"><span class="num">#530</span><span class="tt1" style="flex:1;color:var(--s)">[作息管家] 已关闭 issue 行 · 折叠显示</span><span class="chip chip-closed"><svg class="ic9" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>已关闭</span></div>
+</div></div></div>
+
+<!-- ══════════ 版 C · 卡片式 ══════════ -->
+<div class="ver C"><h3><b>版 C</b> 卡片式</h3>
+<div class="note">每行独立圆角卡片：标题(限2行) → 标签行(可换行) → 底部动作栏（进度条占满 + ✓n/total + 执行/新会话 + hover 复制/外链）。视觉分层清晰。</div>
+<div class="panel"><div class="phead"><span class="t">DSH-Waystation</span><span class="sp"></span></div><div class="pbody">
+  <div class="card" style="border-left:3px solid #c084fc;background:rgba(188,140,255,.06)">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="num">#409</span><span class="chip chip-m" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg>map</span><span class="title" style="flex:1;font-weight:600">[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px"><span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span><span class="chip" style="background:rgba(254,242,192,.18);color:#fef2c0;border:1px solid rgb(213,201,151)">ready-for-human</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><div class="prog" style="flex:1"><i style="width:100%"></i></div><span style="font-size:10px;color:var(--c);flex:none">✓ 25/25</span>
+      <button class="btn" style="background:#3fb950;color:#0c1a10"><svg class="ic10" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>完成</button>
+      <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>新会话</button>
+      <span style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+    </div>
+  </div>
+  <div class="card" style="border-left:3px solid #c084fc;background:rgba(188,140,255,.06)">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="num">#200</span><span class="chip chip-m" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg>map</span><span class="title" style="flex:1;font-weight:600">[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px"><span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="chip" style="background:rgba(29,118,219,.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:私家大厨</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><div class="prog" style="flex:1"><i style="width:87%"></i></div><span style="font-size:10px;color:var(--c);flex:none">✓ 13/15</span>
+      <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>执行</button>
+      <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>新会话</button>
+      <span style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="num">#437</span><span class="title" style="flex:1">[dsh-waystation] T13 · README 增强 DSH CLI 安装指引 + 主命令改 dsh</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px"><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">wayfinder:task</span><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>执行</button><span style="flex:1"></span><span style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="num">#512</span><span class="title" style="flex:1">[卡路里] 多标签重场景行 · 六个标签应折叠显示 +2</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px"><span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="chip" style="background:rgba(29,118,219,.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:卡路里</span><span class="chip" style="background:rgba(240,136,62,.18);color:#f0883e;border:1px solid rgb(190,90,0)">bug</span><span class="chip" style="background:rgba(63,185,80,.18);color:#3fb950;border:1px solid rgb(0,130,40)">ready-for-agent</span><span class="chip chip-m2">+2</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>执行</button><span style="flex:1"></span><span style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="num">#520</span><span class="title" style="flex:1">[备忘录] 被阻塞 issue · 隐藏动作按钮显示红色被阻塞标签</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px"><span class="chip" style="background:rgba(248,113,113,.16);color:#f87171;border:1px solid rgba(248,113,113,.55)"><svg class="ic9" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>被 #100 阻塞</span></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="num">#530</span><span class="title" style="flex:1;color:var(--s)">[作息管家] 已关闭 issue 行 · 折叠显示</span><span class="chip chip-closed"><svg class="ic9" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>已关闭</span></div>
+  </div>
+</div></div></div>
+
+<!-- ══════════ 版 D · GitHub 风格 ══════════ -->
+<div class="ver D"><h3><b>版 D</b> GitHub Issue 列表风格</h3>
+<div class="note">标题(1行省略) + 右侧 meta 列（进度/数字/按钮 hover 浮现）；标签下移成独立行，最多 4 个 + +N 折叠。最接近 GitHub 原生观感。</div>
+<div class="panel"><div class="phead"><span class="t">DSH-Waystation</span><span class="sp"></span></div><div class="pbody">
+  <div class="r" style="border-left:3px solid #c084fc;background:rgba(188,140,255,.05)">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:5px"><span class="num">#409</span><span class="chip chip-m"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg>map</span><span class="tt1" style="flex:1;font-weight:600">[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布</span></div>
+      <div style="display:flex;gap:2px;margin-top:2px;flex-wrap:wrap"><span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span><span class="chip" style="background:rgba(254,242,192,.18);color:#fef2c0;border:1px solid rgb(213,201,151)">ready-for-human</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex:none">
+      <div style="text-align:right;line-height:1.4"><div style="font-size:11px;color:var(--p);font-weight:600">25/25</div><div class="prog" style="width:64px;margin-top:2px"><i style="width:100%"></i></div></div>
+      <div style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost" title="执行"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><button class="ghost" title="新会话"><svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></div>
+    </div>
+  </div>
+  <div class="r" style="border-left:3px solid #c084fc;background:rgba(188,140,255,.05)">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:5px"><span class="num">#200</span><span class="chip chip-m"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg>map</span><span class="tt1" style="flex:1;font-weight:600">[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)</span></div>
+      <div style="display:flex;gap:2px;margin-top:2px;flex-wrap:wrap"><span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="chip" style="background:rgba(29,118,219,.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:私家大厨</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex:none">
+      <div style="text-align:right;line-height:1.4"><div style="font-size:11px;color:var(--p);font-weight:600">13/15</div><div class="prog" style="width:64px;margin-top:2px"><i style="width:87%"></i></div></div>
+      <div style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost" title="执行"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><button class="ghost" title="新会话"><svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></div>
+    </div>
+  </div>
+  <div class="r">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:5px"><span class="num">#437</span><span class="tt1" style="flex:1">[dsh-waystation] T13 · README 增强 DSH CLI 安装指引 + 主命令改 dsh</span></div>
+      <div style="display:flex;gap:2px;margin-top:2px;flex-wrap:wrap"><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">wayfinder:task</span><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex:none"><div style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost" title="执行"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><button class="ghost" title="新会话"><svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></div></div>
+  </div>
+  <div class="r">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:5px"><span class="num">#512</span><span class="tt1" style="flex:1">[卡路里] 多标签重场景行 · 六个标签应折叠显示 +2</span></div>
+      <div style="display:flex;gap:2px;margin-top:2px;flex-wrap:wrap"><span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="chip" style="background:rgba(29,118,219,.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:卡路里</span><span class="chip" style="background:rgba(240,136,62,.18);color:#f0883e;border:1px solid rgb(190,90,0)">bug</span><span class="chip" style="background:rgba(63,185,80,.18);color:#3fb950;border:1px solid rgb(0,130,40)">ready-for-agent</span><span class="chip chip-m2">+2</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex:none"><div style="display:flex;gap:2px;opacity:0;transition:opacity .12s"><button class="ghost" title="执行"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><button class="ghost" title="新会话"><svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></div></div>
+  </div>
+  <div class="r">
+    <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:5px"><span class="num">#520</span><span class="tt1" style="flex:1">[备忘录] 被阻塞 issue</span></div>
+      <div style="display:flex;gap:2px;margin-top:2px;flex-wrap:wrap"><span class="chip" style="background:rgba(248,113,113,.16);color:#f87171;border:1px solid rgba(248,113,113,.55)"><svg class="ic9" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>被 #100 阻塞</span></div></div>
+    <div style="flex:none"></div>
+  </div>
+  <div class="r">
+    <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:5px"><span class="num">#530</span><span class="tt1" style="flex:1;color:var(--s)">[作息管家] 已关闭 issue 行</span><span class="chip chip-closed"><svg class="ic9" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>已关闭</span></div></div>
+    <div style="flex:none"></div>
+  </div>
+</div></div></div>
+
+<!-- ══════════ 版 E · 图标极简式 ══════════ -->
+<div class="ver E"><h3><b>版 E</b> 图标极简式</h3>
+<div class="note">标题为主，右侧仅 hover 浮现图标动作（执行/新会话/复制/外链）；标签只显示 2 个 +N 折叠；无进度条（map 行显示小进度点）。最干净。</div>
+<div class="panel"><div class="phead"><span class="t">DSH-Waystation</span><span class="sp"></span></div><div class="pbody">
+  <div class="r" style="border-left:3px solid #c084fc;background:rgba(188,140,255,.05)">
+    <span class="num">#409</span><span class="chip chip-m" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg>map</span>
+    <span class="tt1" style="flex:1;font-weight:600">[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布</span>
+    <span class="chip" style="background:rgba(74,222,128,.12);color:#4ade80;border:1px solid rgba(74,222,128,.4);font-size:10px">✓ 25/25</span>
+    <span class="acts"><button class="ghost" title="完成"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></button><button class="ghost" title="新会话"><svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+  </div>
+  <div class="r" style="border-left:3px solid #c084fc;background:rgba(188,140,255,.05)">
+    <span class="num">#200</span><span class="chip chip-m" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg>map</span>
+    <span class="tt1" style="flex:1;font-weight:600">[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)</span>
+    <span class="chip" style="background:rgba(74,222,128,.12);color:#4ade80;border:1px solid rgba(74,222,128,.4);font-size:10px">✓ 13/15</span>
+    <span class="acts"><button class="ghost" title="执行"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><button class="ghost" title="新会话"><svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+  </div>
+  <div class="r"><span class="num">#437</span><span class="tt1" style="flex:1">[dsh-waystation] T13 · README 增强 DSH CLI 安装指引 + 主命令改 dsh</span><span class="acts"><button class="ghost" title="执行"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><button class="ghost" title="新会话"><svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span></div>
+  <div class="r"><span class="num">#512</span><span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">map</span><span class="tt1" style="flex:1">[卡路里] 多标签重场景行 · 六个标签应折叠显示 +2</span><span class="chip chip-m2">+2</span><span class="acts"><button class="ghost" title="执行"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><button class="ghost" title="新会话"><svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><button class="ghost"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span></div>
+  <div class="r"><span class="num">#520</span><span class="tt1" style="flex:1">[备忘录] 被阻塞 issue</span><span class="chip" style="background:rgba(248,113,113,.16);color:#f87171;border:1px solid rgba(248,113,113,.55)"><svg class="ic9" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>阻塞</span></div>
+  <div class="r"><span class="num">#530</span><span class="tt1" style="flex:1;color:var(--s)">[作息管家] 已关闭 issue 行</span><span class="chip chip-closed"><svg class="ic9" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>已关闭</span></div>
+</div></div></div>
+
+</div></body></html>

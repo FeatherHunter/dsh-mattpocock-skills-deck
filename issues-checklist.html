@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSH-Waystation · 问题确认清单</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #171a21; --line: #2a2d35; --text: #e6edf3; --sub: #a1a1aa; --dim: #8b8b95;
+    --todo: #f0883e; --ask: #f59e0b; --done: #4ade80; --info: #58a6ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; line-height: 1.7; padding: 24px; max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .rule { color: var(--dim); font-size: 13px; margin-bottom: 18px; }
+  .badge { display: inline-block; padding: 1px 10px; border-radius: 99px; font-size: 11px; margin-left: 8px; vertical-align: 2px; }
+  .b-todo { background: rgba(240,136,62,.16); color: var(--todo); border: 1px solid rgba(240,136,62,.4); }
+  .b-ask { background: rgba(245,158,11,.16); color: var(--ask); border: 1px solid rgba(245,158,11,.4); }
+  .b-done { background: rgba(74,222,128,.14); color: var(--done); border: 1px solid rgba(74,222,128,.35); }
+  .b-info { background: rgba(88,166,255,.14); color: var(--info); border: 1px solid rgba(88,166,255,.35); }
+  .item { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; }
+  .item .no { font-weight: 700; color: var(--sub); margin-right: 8px; }
+  .item .title { font-weight: 600; font-size: 14px; }
+  .item .desc { font-size: 13px; color: var(--text); margin-top: 4px; }
+  .item .plan { font-size: 12.5px; color: var(--sub); margin-top: 4px; border-left: 2px solid var(--line); padding-left: 10px; }
+  .item .src { font-size: 11.5px; color: var(--dim); margin-top: 6px; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--dim); margin-bottom: 16px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<h1>DSH-Waystation · 问题确认清单</h1>
+<div class="rule">讨论驱动：用户逐条报问题 → 我复述并记录 → 状态流转（待执行 / 待确认 / 已澄清 / 已解决）。<b>2026-08-14 「全部开始执行」批次已上线（pkg-14），1-22 项全部落地。</b></div>
+<div class="legend">
+  <span><span class="badge b-todo">待执行</span> 确认完毕，等「开始执行」</span>
+  <span><span class="badge b-ask">待确认</span> 语义/方案待用户拍板</span>
+  <span><span class="badge b-info">已澄清</span> 已解释原因</span>
+  <span><span class="badge b-done">已解决</span> 已修复上线</span>
+</div>
+
+<div class="item">
+  <span class="no">1</span><span class="title">列表「全部」chip 反复点击进入空过滤态</span><span class="badge b-done">已解决</span>
+  <div class="desc">主列表标签 chips 里反复点击「全部」，会进入一个"什么都没选择"的过滤状态（列表被过滤成空）。正常行为：无论点击多少次，「全部」都应保持选中并显示全部列表。</div>
+  <div class="plan">v14 已修复：点「全部」恒执行 lblFilter = null（清除过滤 + 保持选中），与普通标签的 toggle 语义分离。</div>
+  <div class="src">来源：2026-08-14 用户反馈（v13 后）；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">2</span><span class="title">地图行视觉不够突出</span><span class="badge b-done">已解决</span>
+  <div class="desc">地图行目前是 SVG 图标 +「地图」两字的小徽标，与普通 issue 行区分度低；分流按钮醒目，但地图信息不明显。</div>
+  <div class="plan">v14 已按方案 A 落实：左侧紫色竖条 + 浅紫底 + 图标放大 12px + 标题加粗。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">3</span><span class="title">分流按钮尺寸偏大</span><span class="badge b-done">已解决</span>
+  <div class="desc">needs-triage 行的「分流」按钮太大，约为当前尺寸的 80% 更合适。</div>
+  <div class="plan">v14 已修复：分流/开始修复/开始执行按钮 padding 1px 6px / 字号 11px（原 2px 8px / 12px）。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">4</span><span class="title">未阻塞 issue 缺「开始执行」按钮</span><span class="badge b-done">已解决</span>
+  <div class="desc">很多未被阻塞、明确可执行的 issue 在列表中没有任何执行入口，应增加「开始执行」按钮。</div>
+  <div class="plan">v14 已落实全部拍板：① 点击 = 复制 prompt；② 范围 = 所有 open 普通 issue；③ 按 label 三选一（needs-triage→分流 / bug→开始修复 / 其余→开始执行）；④ map 行保留点击进详情 + 加「开始执行」；⑤ 列表底部「已关闭 (N)」折叠行（默认收起）。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">5</span><span class="title">分流按钮在主题切换后黑底黑字</span><span class="badge b-done">已解决</span>
+  <div class="desc">主色按钮使用 var(--dsw-alias-button-primary-fill, #c084fc) 作为背景、文字 #140a1e；当前主题下该变量解析为深色 → 黑底黑字，不可读。</div>
+  <div class="plan">v14 已修复：主色按钮固定 #c084fc 底 + #140a1e 字（不依赖该别名变量），任何主题下可读。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">6</span><span class="title">「开始此 Issue」交互轻量化</span><span class="badge b-done">已解决</span>
+  <div class="desc">原流程：点击 → 弹确认框（认领/新会话选项）→ 注入。用户反馈过重，要求点击直接复制一条 /wayfinder+URL+指令 的 prompt，不弹窗、不开新会话。</div>
+  <div class="plan">v12 已改为「开始」= 直接复制 prompt 到剪贴板；确认框/认领/新会话流程移除。v14 延续（三选一动作统一复制）。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v12 起已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">7</span><span class="title">环境检查 7/8「已安装但未挂载」判定被质疑</span><span class="badge b-info">已澄清</span>
+  <div class="desc">用户质疑：wayfinder/ask-matt「没执行/没就绪」它怎么知道的？可能目录执行过 setup。</div>
+  <div class="plan">澄清：判定为双层探测——DSH 会话技能目录（skills.get）+ 文件系统（~/.agents/skills 等）。本地有文件（文件层命中）但当前会话未挂载（会话层未命中）→ 准确判「已安装但未挂载到当前会话」。文案含「用 /wayfinder 加载」提示。v12 起部分就绪不再常驻横幅，仅红色缺失显示。</div>
+  <div class="src">来源：2026-08-14 用户反馈；已解释。</div>
+</div>
+
+<div class="item">
+  <span class="no">8</span><span class="title">多工作目录切换：状态栏/面板不跟随会话变化</span><span class="badge b-done">已解决</span>
+  <div class="desc">skills / study notes 两个工作目录，切换对话时状态栏不变、面板仍查 skills 的 GitHub 信息。</div>
+  <div class="plan">v13 已修复：会话 cwd 改由 host sessions.meta 权威反查（新增 wf.cwd RPC）；StatusBar 依赖 sessionId 变化重探测并主动重拉快照/检查。v14 补全残余（item 16）。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v13/v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">9</span><span class="title">环境检查失败时兜假数据</span><span class="badge b-done">已解决</span>
+  <div class="desc">wf.status 失败时上屏 8 项假数据绿点，用户可能误以为环境真的就绪（信任事故）。</div>
+  <div class="plan">v12 已改为：非 real 状态一律「环境 --/8」红色，检查页只显示失败横幅，不再展示假数据。</div>
+  <div class="src">来源：2026-08-14 对抗式审查；v12 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">10</span><span class="title">repoKey 缓存单例导致跨仓库串数据</span><span class="badge b-done">已解决</span>
+  <div class="desc">host 侧 repoKey 首次解析后永久缓存，切仓库会话后 GraphQL 仍查旧仓库（地图详情/子票串仓库）。</div>
+  <div class="plan">v12 已改为 repoKeys 按 cwd 缓存。</div>
+  <div class="src">来源：2026-08-14 对抗式审查；v12 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">11</span><span class="title">四视图冗余，收敛为三视图</span><span class="badge b-done">已解决</span>
+  <div class="desc">仪表盘/地图/技能/环境检查 四 tab 信息重叠；仪表盘 KPI 与列表重复。</div>
+  <div class="plan">v12 已收敛为：列表（KPI 小行 + 官方 Issue 形态：标题/标签真实色/复制链接/按需动作，地图行进详情）/ 技能（列表·圆环）/ 环境检查。</div>
+  <div class="src">来源：2026-08-14 对抗式审查；v12 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">12</span><span class="title">label 颜色与 GitHub 配置不一致</span><span class="badge b-done">已解决</span>
+  <div class="desc">标签 chips 用写死的类别色，与 GitHub 上 label 配置色不一致。</div>
+  <div class="plan">v11 已改为 host 带出 labels[].color，client hex→rgba 渲染真实色。v14 再加深一档边框（item 18）。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v11 起已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">13</span><span class="title">「level 区域」指什么</span><span class="badge b-info">已澄清</span>
+  <div class="desc">用户提及"每个 issue 对应的 level 区域/level 标签"。已核查：仓库 46 个 open issue 的标签分布与 issue-tracker.md 中均无名为 level 的标签。</div>
+  <div class="plan">澄清（2026-08-14）：用户所指「level 区域」= 列表行里的标签 chips 区域（item 18 的视觉区分对象）；仓库不存在 level 标签命名，无需制定命名规则。</div>
+  <div class="src">来源：2026-08-14 用户反馈；已澄清，并入 item 18。</div>
+</div>
+
+<div class="item">
+  <span class="no">14</span><span class="title">开始流程是否恢复「认领」</span><span class="badge b-info">已澄清</span>
+  <div class="desc">v12 起「开始」= 只复制 prompt，不再认领（wf.claim RPC 保留未用）。</div>
+  <div class="plan">已确认（2026-08-14）：不恢复认领，维持纯复制。wf.claim 继续保留不用。</div>
+  <div class="src">来源：2026-08-14 用户拍板：不恢复。</div>
+</div>
+
+<div class="item">
+  <span class="no">15</span><span class="title">多会话并发时 client store 单例串台</span><span class="badge b-done">已解决</span>
+  <div class="desc">S（store）为插件级单例，多会话并发时 cwd/快照会被最后挂载的 dock 覆盖。</div>
+  <div class="plan">v14 已落实：client store 按会话隔离（makeStore + storeOf(sid)），cwd/快照/筛选/视图各自独立；面板/侧栏/Run 卡跟随当前激活会话（useSessions.current）。</div>
+  <div class="src">来源：2026-08-14 对抗式审查；用户拍板本次做；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">16</span><span class="title">会话切换后面板仍显示 skills 旧状态</span><span class="badge b-done">已解决</span>
+  <div class="desc">点击 study notes 会话，面板有刷新动作，但更新后依然显示 skills 的旧内容。</div>
+  <div class="plan">根因（已定位）：fetchMaps()/fetchIssues() 内部调用 runGh 未传 cwd，枚举仍走默认 SKILLS 目录。v14 已修复：两函数透传 cwd；fetchIssues 改 --state all 拉 open+closed。已实测 FeatherHunter/StudyNotes 是启用 issues 的 GitHub 仓库（#36 等），切到该会话显示它自己的 issues/maps；「非 GitHub 仓库」空态标灰仅用于真·非 GitHub 目录（用户认可）。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">17</span><span class="title">刷新期间缺少整体加载反馈</span><span class="badge b-done">已解决</span>
+  <div class="desc">点击刷新后，部分按钮有「检查中…」等文字，但面板整体没有"正在加载"的视觉，用户仍可乱点。</div>
+  <div class="plan">v14 已落实：手动刷新（状态栏「更新」/列表「刷新」/检查页「重新检查」）→ 全面板遮罩 + 边框转圈 + 禁点（refreshAll）；会话切换自动刷新 → 轻量不遮罩。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">18</span><span class="title">标签 chips 视觉区分</span><span class="badge b-done">已解决</span>
+  <div class="desc">用户要求：列表里「level 区域」的边框颜色比标签本身颜色深一点，或加黑线描边。</div>
+  <div class="plan">v14 已落实（用户确认对象 = 标签小方块）：列表行内全部标签 chips 加边框，边框色 = 该 label 色 HSL 亮度 -16%（darken helper）；过滤 chips 同样处理，「全部」chip 用中性白边框。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">19</span><span class="title">列表横向窄屏适配</span><span class="badge b-done">已解决</span>
+  <div class="desc">面板拉窄时，列表主体内容换行，右侧复制/外链等按钮的位置需要专门设计。</div>
+  <div class="plan">v14 已落实：行内双栏固定——左列（标题+chips）flex:1 + min-width:0 截断，右列按钮组 flex:none 永不换行；面板宽 <380px 时动作按钮折叠为纯图标。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">20</span><span class="title">胶囊底部新增「交接」按钮（M9 定向传递）</span><span class="badge b-done">已解决</span>
+  <div class="desc">在底部「沉淀」段右侧加「交接」段，执行 DESIGN.md §12.2 M9 定稿的交接功能：生成交接文档 → 聊完开新会话 + 预填 /read 路径；普通新会话不加载（定向传递）。</div>
+  <div class="plan">v14 已落实全部拍板：① 胶囊第 5 段「交接」（#58a6ff，SVG 双箭头）；② 两段式：第一击注入 /handoff 模板（要求写 .scratch/handoff/latest.md）→ 文案变「交接给新会话」→ 第二击新开空白会话（workspaces.startSession，非 fork 避免复制旧上下文）+ 跨会话 pendingDraft 预填 /read .scratch/handoff/latest.md；无法开新会话时降级复制路径。</div>
+  <div class="src">来源：2026-08-14 用户需求（补 M9 功能）；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">22</span><span class="title">状态栏数字区宽度跳动（环境 6/8 ↔ --/8）</span><span class="badge b-done">已解决</span>
+  <div class="desc">点「更新」后「环境 6/8」变「--/8」（拉取失败占位），数字宽度变化导致状态栏宽度跳动；要求状态栏宽度恒定。</div>
+  <div class="plan">v14 已落实：状态栏每个数字区固定两位数等宽——.dsws-num（tabular-nums + 等宽字体，环境 5ch 容「98/99」、可接/占用 2ch）；6/8 ↔ --/8 ↔ 98/99 ↔ 未来 9/10 均不改变状态栏宽度；时间区同样 tabular-nums，失败显示「-- --:--」。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v14 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">23</span><span class="title">v14 全部执行批次上线</span><span class="badge b-done">已解决</span>
+  <div class="desc">2026-08-14 用户说「从第一性原理出发 全部开始执行」——清单 1-5、15-20、22 一次性落地。</div>
+  <div class="plan">产出：host.js（fetchMaps/fetchIssues 透传 cwd + --state all）；client.js v14 全量重写（按会话 store / 三选一动作 / 已关闭折叠 / map 行突出 / chips 深边框 / 窄屏折叠 / 刷新遮罩 / 主题安全色 / 交接按钮 / 状态栏等宽）。pkg-14 已定义并更新运行（run-10 成功）；tests 21/21 + 22/22 PASS；ACCEPTANCE.md 已按 v14 回填。</div>
+  <div class="src">2026-08-14；待用户 UI 实操复核。</div>
+</div>
+
+<div class="item">
+  <span class="no">24</span><span class="title">状态栏中文换行（环境→环/境）</span><span class="badge b-done">已解决</span>
+  <div class="desc">状态栏中文出现换行，如「环境」变第一行「环」、第二行「境」。v14 加了交接段 + 等宽数字区后胶囊内容变多，flex 空间不足导致文字被压缩换行。</div>
+  <div class="plan">v15 已修复：胶囊整体 white-space:nowrap；capsule-word/seg/timebtn 全部 flex:none 不收缩；宽度适配内容（width:fit-content，上限放宽 min(92vw,640px)）。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v15 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">25</span><span class="title">列表 map 项置顶</span><span class="badge b-done">已解决</span>
+  <div class="desc">列表目前按 updatedAt 倒序混排，wayfinder:map 行不突出；用户希望 map 项优先置顶。</div>
+  <div class="plan">v15 已修复（用户拍板：仅 open 列表）：open 列表排序 = map 优先（map 内部按 updatedAt 倒序），其余按 updatedAt 倒序；已关闭折叠行保持纯时间序。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v15 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">26</span><span class="title">被阻塞 issue 的显示与交互</span><span class="badge b-done">已解决</span>
+  <div class="desc">列表中被阻塞的 issue 无任何指示（主列表 issues 来自 gh issue list，本身不带 blockedBy）。用户要求：(a) 显示为「阻塞状态」；(b) 不能有「开始执行」按钮；(c) 有按钮/小标签让用户主动查看被谁阻塞。</div>
+  <div class="plan">v15 已落实（无需改 host）：blockOf 关联快照 maps.tickets.blockedBy（open 阻塞者才算）；被阻塞行 → 红色「被阻塞」标签（tooltip 列阻塞来源 #号，点击跳所属 map 详情「被阻塞」分组）；该行动作按钮全部隐藏（分流/开始修复/开始执行）。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v15 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">27</span><span class="title">切换会话后 GitHub 状态仍是 skills 目录</span><span class="badge b-done">已解决</span>
+  <div class="desc">切到其他会话，页面刷新后 GitHub 状态仍显示 skills 目录的状态；怀疑 cwd 解析被写死。</div>
+  <div class="plan">根因（已核实 DSH 运行时源码）：SessionSummary.cwd 是宿主权威字段（会话列表工作区标题同源），原探测链「猜 ConversationSnapshot 字段名 + host sessions.meta 反查」拿不到时 cwd 保持旧值。v15 已修复：StatusBar 直接用 useSessions(s => s.byId[sid].cwd) 读取，替换脆弱链；props.session 直取 + wf.cwd 保留兜底。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v15 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">28</span><span class="title">v15 第二批上线</span><span class="badge b-done">已解决</span>
+  <div class="desc">2026-08-14 用户报 4 个问题（24-27），拍板后一次性落地。</div>
+  <div class="plan">产出：client.js v15（胶囊 nowrap+fit-content / open 列表 map 置顶 / blockOf 被阻塞标签+跳详情+隐藏动作 / SessionSummary.cwd）。pkg-15 已定义并更新运行（run-11 成功）；host 未变；ACCEPTANCE.md 待补 v15 小节。</div>
+  <div class="src">2026-08-14；待用户 UI 实操复核。</div>
+</div>
+
+<div class="item">
+  <span class="no">29</span><span class="title">按钮颜色动态取 label 色 + 「开始执行」改名「开始诊断」</span><span class="badge b-todo">待执行</span>
+  <div class="desc">① 按钮颜色与对应 label 的 GitHub 配置色一致：开始修复=bug 色（红），分流=needs-triage 色（偏黄），色值动态查询（colorOf 已含配置色）；② 「开始执行」文案改「开始诊断」。</div>
+  <div class="plan">v16：rowAction 按钮背景 = colorOf[label]（fallback：bug #f87171 / needs-triage #f59e0b / 其余 #c084fc）；文字色按背景亮度自适应（L&gt;0.62 深字 #140a1e，否则白字）；「开始执行」→「开始诊断」（图标保持 play）。</div>
+  <div class="src">来源：2026-08-14 用户需求；随 v16 执行。</div>
+</div>
+
+<div class="item">
+  <span class="no">30</span><span class="title">状态栏可接/占用与面板列表不一致（可接 0 但列表大量可执行）</span><span class="badge b-done">已解决</span>
+  <div class="desc">状态栏「可接」显示 0、「占用」2，但面板列表有大量可执行内容。根因：状态栏统计的是 map 子票，列表显示的是全部 open issue——统计口径不同。</div>
+  <div class="plan">v18 已落实（用户拍板：列表 issue 口径 + 认领）：可接 = open issue 中未认领且未被 open 阻塞；占用 = 已认领 + 被阻塞；两者之和 = 全部 open issue。host fetchIssues 带出 assignees；状态栏与列表 KPI 同口径。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v18 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">31</span><span class="title">三个动作按钮文案重命名</span><span class="badge b-done">已解决</span>
+  <div class="desc">用户调整：分流 →「开始诊断」；v16 误改的「开始诊断」→ 恢复「开始执行」；修复 →「开始修复」。命名方案 (a) 四字统一 / (b) 去「开始」。</div>
+  <div class="plan">v18 已落实（用户拍板：方案 b 去开始）：needs-triage→「诊断」（黄，needs-triage 配置色 #fbca04 深字）/ 其余→「执行」（紫 #c084fc 深字）/ bug→「修复」（红 #d73a4a 白字）。</div>
+  <div class="src">来源：2026-08-14 用户需求；v18 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">32</span><span class="title">行级动作点击改为预填输入框（不再复制）</span><span class="badge b-done">已解决</span>
+  <div class="desc">用户要求：无论点击哪个按钮（诊断/执行/修复），都自动把对应 prompt 预填到对话框。</div>
+  <div class="plan">v18 已落实：rowAction 与地图详情「开始」均改 inject（优先预填输入框，输入框不可用时兜底复制）。</div>
+  <div class="src">来源：2026-08-14 用户需求；v18 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">33</span><span class="title">v18 上线 + 进程重启重建</span><span class="badge b-done">已解决</span>
+  <div class="desc">2026-08-14 用户拍板 v18 三项（30/31/32）并执行；期间 DSH 进程重启导致动态插件丢失，已用磁盘最新源码重建（wfst-1/pkg-1，run-1 批准运行成功）。</div>
+  <div class="plan">产出：host.js（fetchIssues 带 assignees）+ client.js v18（列表口径可接/占用 / 诊断·执行·修复 / 预填输入框）。ACCEPTANCE.md 已回填 v18；tests 21/21 + 22/22 PASS。</div>
+  <div class="src">2026-08-14；待用户 UI 复核。</div>
+</div>
+
+<div class="item">
+  <span class="no">34</span><span class="title">wayfinder:grilling → 「讨论」按钮 + 颜色动态性确认</span><span class="badge b-done">已解决</span>
+  <div class="desc">带 wayfinder:grilling 标签的 issue 显示「讨论」按钮；颜色必须动态查询（每个用户 GitHub label 颜色不同，非写死）。</div>
+  <div class="plan">v19 已落实：mkRowAction 增加 wayfinder:grilling 分支（bug 之后、默认之前），按钮色 = btnColor('wayfinder:grilling', '#d93f0b') 动态取色；颜色来源 = host 实时带出的 GitHub label 配置色（colorOf），确认非写死。</div>
+  <div class="src">来源：2026-08-14 用户需求；v19 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">35</span><span class="title">面板头部「真数据」标签困惑</span><span class="badge b-done">已解决</span>
+  <div class="desc">面板头部紫色「真数据」chip 对未来用户是测试信息（他们只有真数据）。</div>
+  <div class="plan">v19 已落实：改为显示 repo 名（owner/repo，ellipsis）；快照异常红色「快照异常」；加载中「加载中…」。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v19 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">36</span><span class="title">状态栏「环境」段位置</span><span class="badge b-done">已解决</span>
+  <div class="desc">环境信息用户很少点击，移到末尾位置。</div>
+  <div class="plan">v19 已落实（用户拍板：末尾/更新左侧）：顺序 = Waystation 可接 占用 沉淀 交接 环境 更新。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v19 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">37</span><span class="title">面板拖到右侧与聊天窗口共分屏幕（研究）</span><span class="badge b-info">已澄清</span>
+  <div class="desc">希望面板拖到最右侧时像 VSCode 一样吸附分屏，可再拖出。</div>
+  <div class="plan">研究结论（已核实 DSH slots 树 + layout 服务）：shell 布局（侧栏/中列/右侧 details 列）不开放第三方 dock 机制，真正分屏无法实现；用户拍板不做（保持自由悬浮拖拽）。</div>
+  <div class="src">来源：2026-08-14 用户需求；已澄清，不做。</div>
+</div>
+
+<div class="item">
+  <span class="no">38</span><span class="title">map 详情页：顶部执行按钮 + 任务按状态动作</span><span class="badge b-done">已解决</span>
+  <div class="desc">map 详情页顶部应有「执行」按钮（整张 map 的执行入口）；打开的任务根据状态/标签可进行 诊断/讨论/执行/修复。</div>
+  <div class="plan">v19 已落实：MapDetail 标题行加「执行」（预填 /wayfinder+map URL+流程指令）；TicketRow 复用共享 mkRowAction（按 label 四选一），blocked 无动作；rowAction/colorOf 已抽为模块级（buildColorOf/mkRowAction）。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v19 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">39</span><span class="title">map 详情页整体设计讨论</span><span class="badge b-done">已解决</span>
+  <div class="desc">用户认为详情页丑陋，没起到 map 效果。</div>
+  <div class="plan">v19 按用户拍板「直接实现+打磨」落实第一批：顶部执行按钮 + 任务按标签动作（诊断/修复/讨论/执行）+ 进度条 + 保留垂直走廊分组；剩余视觉迭代待用户复核后继续。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v19 第一批已解决，效果待复核。</div>
+</div>
+
+<div class="item">
+  <span class="no">40</span><span class="title">map 行显示子 issue 进度（13/14）</span><span class="badge b-done">已解决</span>
+  <div class="desc">列表中的 map 行应像 GitHub issue 列表一样显示完成进度（已完成/总数 + 进度条），如 13/14。</div>
+  <div class="plan">v19 已落实：map 行显示 closed/total（如 13/14）+ 绿色进度条（dsws-prog）。</div>
+  <div class="src">来源：2026-08-14 用户反馈（附 GitHub 截图）；v19 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">41</span><span class="title">交接：只提示 + 时间戳文件名 + 预填且复制</span><span class="badge b-done">已解决</span>
+  <div class="desc">① 点击「交接」只提示（不再注入模板）；② 交接文档名带时间戳（.scratch/handoff/&lt;时间戳&gt;.md）；③ 「交接给新会话」预填输入框的同时也复制到剪贴板（防预填失败）。</div>
+  <div class="plan">v19 已落实（用户拍板：时间戳+查最新）：第一击 toast 提示（含时间戳命名建议 YYYYMMDD-HHMMSS）；第二击 host wf.handoffLatest 查 .scratch/handoff/ 最新 md → 预填 /read .scratch/handoff/&lt;最新&gt;.md + 复制到剪贴板 + 开新会话；无文档则提示先发 /handoff。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v19 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">42</span><span class="title">v19 上线 + 二次重建</span><span class="badge b-done">已解决</span>
+  <div class="desc">2026-08-14 用户报 8 项（34-41），拍板后 v19 落地；期间 DSH 再次重启导致插件丢失，已二次重建（wfst-1/pkg-1，run-1 批准运行成功）。</div>
+  <div class="plan">产出：host.js（wf.handoffLatest）+ client.js v19（讨论按钮 / repo 名头部 / 环境段末尾 / map 详情执行+任务动作 / map 行进度 / 交接时间戳+查最新+复制）。tests 21/21 + 22/22 PASS。</div>
+  <div class="src">2026-08-14；待用户 UI 复核。</div>
+</div>
+
+<div class="item">
+  <span class="no">43</span><span class="title">标签「+N」含义 + 查看全部标签的交互</span><span class="badge b-done">已解决</span>
+  <div class="desc">列表行最多显示 2 个标签，「+N」= 被截断的标签数。用户希望有操作能看得更全面。</div>
+  <div class="plan">v20 已落实（用户拍板：方案 A）：点「+N」行内展开全部标签（含颜色），再点「收起」折叠回去；悬停 +N 有 tooltip 提示全部标签名。store 加 expTags（按 issue number 记录展开态）。</div>
+  <div class="src">来源：2026-08-14 用户提问；v20 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">44</span><span class="title">动作按钮 prompt 精简 + 统一引导句</span><span class="badge b-done">已解决</span>
+  <div class="desc">审查「执行/讨论/修复/诊断」按钮 prompt：内容需简略（按钮=技能调用入口，技能自带详细介绍），避免冗余；可加一句通用引导思想。</div>
+  <div class="plan">v21 已落实（用户拍板引导句）：四按钮统一为「技能命令 + URL + 从第一性原理出发推进，优先复用现有技能库；不确定用哪个技能时，用 /ask-matt 路由。」；去掉重复灌输的技能流程文案；自定义模板/前缀开关保留。v22 引导句更新为「从第一性原理出发完成任务，并对抗式审查。」。</div>
+  <div class="src">来源：2026-08-14 用户审查；v21/v22 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">45</span><span class="title">交接两段 prompt（第一击注入 / 第二击预填优化）</span><span class="badge b-done">已解决</span>
+  <div class="desc">① 点「交接」后 prompt 提示丢失——应从第一性原理自动写 /handoff + 该说的话；② 「交接给新会话」的预填内容需要优化。</div>
+  <div class="plan">v22 已落实：第一击自动注入 /handoff 模板（时间戳文件名 + 结论/未完成事项/建议 skill 三部分 + 新引导句）；第二击预填「/read .scratch/handoff/&lt;最新&gt;.md + 请先阅读并复述确认理解 + 引导句」完整 prompt，并复制到剪贴板 + 开新会话。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v22 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">46</span><span class="title">控件中英双语 + 插件配置页</span><span class="badge b-ask">待确认</span>
+  <div class="desc">① 控件基本文字支持中英双语（跟随 harness 语言设置）；② 插件配置页（只放有意义配置）。</div>
+  <div class="plan">双语方案已确认（原生 locale 服务，dsws 命名空间字典 zh/en，跟随设置语言切换即生效）；配置页方案待用户确认配置项增减（用户选了「调整配置项」但未给具体内容）。</div>
+  <div class="src">来源：2026-08-14 用户需求。双语已确认，配置项待补充。</div>
+</div>
+
+<div class="item">
+  <span class="no">47</span><span class="title">面板默认高度 = 屏幕约 1/4</span><span class="badge b-done">已解决</span>
+  <div class="desc">点开面板时高度太长了（被内容撑满整屏从上到下），用户希望默认是屏幕约 1/4 大小的悬浮窗，想拖长再拖。</div>
+  <div class="plan">v23 已落实：store 默认 height = max(240, innerHeight × 0.25)，内容在面板内滚动，8 向手柄可拖长。v24 用户反馈 1/4 太小 → 改为 1/2。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v23/v24 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">48</span><span class="title">交接第二击文件名不对（还是老版本）</span><span class="badge b-done">已解决</span>
+  <div class="desc">点「交接给新会话」后，新会话预填 prompt 里的文件名是老的（.scratch/handoff/latest.md）——因目录尚无文档时 wf.handoffLatest 返回 null 走了 latest.md 兜底。</div>
+  <div class="plan">v24 已落实：记忆第一击模板注入的时间戳（handoffTs），第二击优先读「第一击模板里的同一个文件」（模板写什么名就读什么名）；仅当未点过第一击（如刷新后）才回退 host 查最新实际文档。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v24 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">49</span><span class="title">面板默认高度 1/4 → 1/2</span><span class="badge b-done">已解决</span>
+  <div class="desc">1/4 太小，改成屏幕约 1/2。</div>
+  <div class="plan">v24 已落实：DEFAULT_PANEL_H = max(240, innerHeight × 0.5)。</div>
+  <div class="src">来源：2026-08-14 用户反馈；v24 已解决。</div>
+</div>
+
+<div class="item">
+  <span class="no">50</span><span class="title">发布到 NPM（支持 npm 安装）</span><span class="badge b-done">已解决</span>
+  <div class="desc">学习 dsh-opencode-tui-theme 参考包 + npm-publish 技能，把 DSH-Waystation 打包发布到 npm 官方源，支持 npm 安装。</div>
+  <div class="plan">已发布 dsh-waystation@1.0.0（registry.npmjs.org，MIT）：package/ 标准 npm 包结构（package.json dsh.client 声明 + lib/index.js 宿主半 ESM + lib/client.js 浏览器 bundle + README）。静态版改造要点：harness.handle/host.call → ctx.connection.rpc（/dsws 通道，loopback 权威）；styles.insert → 手动 &lt;style&gt; + ctx.effect 清理；React → require('react')；timer 兜底 setTimeout。npm pack dry-run 干净（4 文件）；npm view 验证 1.0.0 已上线；主页 https://www.npmjs.com/package/dsh-waystation。</div>
+  <div class="src">来源：2026-08-14 用户需求；已解决（发布成功）。</div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>新会话按钮修复验收 · 同尺寸 + 窄屏折叠（v1.3.3）</title>
+<style>
+  :root { --bg:#0a0a0a; --panel:#16181d; --panel2:#10131a; --border:#2a2d35; --border2:#3a3f4a;
+          --text:#e6edf3; --sub:#a1a1aa; --dim:#8b8b95; --acc:#c084fc; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6;padding:24px}
+  h1{font-size:20px;margin-bottom:4px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:18px;max-width:980px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:24px}
+  .col{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .col h3{font-size:13px;margin-bottom:12px;color:var(--sub);font-weight:600}
+  .frame{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;overflow:hidden}
+  .frame .lbl{font-size:11px;color:var(--dim);margin-bottom:8px}
+  /* 与 client.js 真实渲染一致 */
+  .row{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;border:1px solid transparent;font-size:12.5px}
+  .row .tt{flex:1;min-width:0}
+  .row .actions{display:flex;gap:4px;align-items:center;flex:none}
+  .btn{border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;line-height:1.4}
+  .btn.primary{background:var(--acc);border-color:transparent;color:#140a1e;font-weight:600}
+  /* 执行按钮 = mkRowAction 真实样式 */
+  .btn.exec{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;background:#c084fc;border-color:transparent;color:#140a1e;font-weight:600}
+  /* 新会话按钮 = 修复后真实样式（与 exec 同尺寸） */
+  .btn.ns{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;margin-left:4px;background:#c084fc;border-color:transparent;color:#140a1e;font-weight:600}
+  svg.ic{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;display:inline-block;vertical-align:-1px}
+  .note{font-size:12px;color:var(--dim);margin-top:6px}
+  .ok{color:#4ade80}.bad{color:#f87171}
+</style>
+</head>
+<body>
+<h1>新会话按钮修复验收 · 与执行按钮同尺寸 + 窄屏折叠 <span style="font-size:12px;color:var(--dim)">v1.3.3</span></h1>
+<div class="sub">map #409 bug #13：新会话按钮应与执行按钮同尺寸（padding 1px6px · fontSize 11 · icon 10px）；面板变窄（&lt;380px）时文字隐藏只留图标，与执行按钮行为一致。</div>
+
+<div class="grid">
+  <div class="col">
+    <h3>宽面板（&ge;380px）· 执行按钮 + 新会话按钮并排</h3>
+    <div class="frame">
+      <div class="lbl">普通 issue 行（needs-triage → 执行按钮为紫色）</div>
+      <div class="row" style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
+        <div class="tt"><div style="font-weight:500">#365 · 示例 issue 标题</div><div style="font-size:11px;color:var(--dim)">needs-triage</div></div>
+        <div class="actions">
+          <button class="btn exec"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>执行</span></button>
+          <button class="btn ns"><svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span>新会话</span></button>
+        </div>
+      </div>
+      <div class="note"><span class="ok">✓</span> 两按钮同尺寸（padding/fontSize/icon 一致），仅图标+颜色区分动作语义</div>
+    </div>
+  </div>
+
+  <div class="col">
+    <h3>窄面板（&lt;380px）· 两者都折叠为纯图标</h3>
+    <div class="frame" style="max-width:320px">
+      <div class="lbl">窄屏渲染（narrow=true）· 文字隐藏</div>
+      <div class="row" style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px">
+        <div class="tt"><div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">#365 · 示例 issue 标题较长会被截断</div></div>
+        <div class="actions">
+          <button class="btn exec" title="执行"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+          <button class="btn ns" title="新会话"><svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+        </div>
+      </div>
+      <div class="note"><span class="ok">✓</span> 新会话按钮与执行按钮一样：文字消失，只剩 external-link 图标（hover 显示 title）</div>
+    </div>
+  </div>
+</div>
+
+<div class="col" style="max-width:100%">
+  <h3>map 详情（TicketRow）· 新会话按钮同尺寸（该处无窄屏）</h3>
+  <div class="frame">
+    <div class="row" style="background:rgba(188,140,255,.07);border:1px solid var(--border);border-radius:8px;border-left:3px solid #c084fc">
+      <div class="tt"><div style="font-weight:600">wayfinder:map · 子票行</div></div>
+      <div class="actions">
+        <button class="btn exec"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>执行</span></button>
+        <button class="btn ns"><svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span>新会话</span></button>
+      </div>
+    </div>
+    <div class="note"><span class="ok">✓</span> 尺寸与列表行一致</div>
+  </div>
+</div>
+</body>
+</html>

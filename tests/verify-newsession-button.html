@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DSH-Waystation 路 鏂颁細璇濇寜閽槑鏄惧寲瀵规瘮锛?394锛?/title>
+<style>
+  :root{
+    --bg:#0a0a0a; --panel:#16181d; --panel2:#10131a;
+    --border:#2a2d35; --border2:#3a3f4a;
+    --text:#e6edf3; --sub:#a1a1aa; --dim:#8b8b95;
+    --acc:#c084fc; --green:#4ade80; --red:#f87171; --blue:#58a6ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6;padding:24px}
+  h1{font-size:22px;margin-bottom:6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:18px;max-width:980px}
+  .tag{display:inline-block;background:rgba(192,132,252,.15);border:1px solid rgba(192,132,252,.4);color:var(--acc);border-radius:99px;padding:2px 10px;font-size:11px;margin-right:6px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:24px}
+  .col{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 16px 18px;overflow:hidden}
+  .col h3{font-size:13px;margin-bottom:12px;color:var(--sub);font-weight:600;display:flex;align-items:center;gap:6px}
+  .col h3 .v{font-family:ui-monospace,Consolas,monospace;color:var(--dim);font-weight:400;font-size:11px}
+  .frame{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:14px 14px 12px;margin-bottom:10px}
+
+  /* ===== 鍏变韩 waystation 鍘熷瓙 ===== */
+  .btn{border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;line-height:1.4}
+  .btn:hover{border-color:var(--border2)}
+  .btn.primary{background:var(--acc);border-color:transparent;color:#140a1e;font-weight:600}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--sub)}
+  .btn.ghost:hover{border-color:var(--border2);color:var(--text)}
+  .row{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;border:1px solid transparent;font-size:12.5px}
+  .row .tt{flex:1;min-width:0}
+  .row .name{display:flex;align-items:center;gap:5px}
+  .row .name .n{flex:1;font-weight:500}
+  .row .name .num{color:var(--dim);font-size:11px;flex:none}
+  .row .actions{display:flex;gap:4px;align-items:center;flex:none}
+
+  /* BEFORE 鈥斺€?.dsws-btn.ghost + handoff icon */
+  .before .actions .ns{background:transparent;border-color:transparent;color:var(--sub);padding:3px 6px;display:inline-flex;align-items:center}
+  /* AFTER 鈥斺€?.dsws-btn + external-link + 鍙鏂囧瓧 */
+  .after .actions .ns{background:var(--panel2);border-color:var(--border);color:var(--text);padding:3px 10px;display:inline-flex;align-items:center;gap:4px}
+
+  .footer{margin-top:18px;padding:14px;background:var(--panel);border:1px dashed var(--border);border-radius:8px;font-size:12px;color:var(--sub)}
+  .footer code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:11.5px;color:var(--text)}
+  .ok{color:var(--green)}
+  .bad{color:var(--red)}
+
+  /* icons (inline SVG, 12px) */
+  svg.ic{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.8;display:inline-block;vertical-align:-2px}
+</style>
+</head>
+<body>
+<h1>DSH-Waystation 路 鏂颁細璇濇寜閽槑鏄惧寲瀵规瘮 <span class="tag">#394 路 v27</span></h1>
+<div class="sub">
+  琛屽唴銆屾柊寮€绐楀彛/鏂颁細璇濄€嶆寜閽紙#361 鑳藉姏锛氬悓 cwd + 鑷姩鍛藉悕 + 棰勫～鎸囦护锛夊綋鍓嶈瑙夋潈閲嶆渶寮憋紙ghost icon-only锛夈€佷笌鑳跺泭娈?nav.handoff 鍏变韩 handoff 鍥炬爣閫犳垚浜屼箟銆?394 鍗囩骇鏍峰紡 + 鎹?external-link 鍥炬爣 + 鍔犲彲瑙佹枃瀛楁爣绛俱€?</div>
+
+<!-- 瀵规瘮 1: TicketRow (map 璇︽儏鍐呭瓙琛? -->
+<div class="grid">
+  <div class="col before">
+    <h3>Before <span class="v">TicketRow 路 .dsws-btn.ghost + handoff icon</span></h3>
+    <div class="frame">
+      <div class="row">
+        <div class="tt">
+          <div class="name"><span class="n">[鍗¤矾閲宂 charts.line smooth 鏇茬嚎涓嶇粡杩囧唴鐐?/span><span class="num">#381</span></div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" style="padding:3px 10px">淇</button>
+          <button class="btn ghost ns" title="鍦ㄦ柊浼氳瘽涓墦寮€锛堝悓 cwd 路 鑷姩鍛藉悕锛?>
+            <svg class="ic" viewBox="0 0 24 24"><path d="M7 17l-4-4 4-4"/><path d="M3 13h6a6 6 0 016 6"/><path d="M17 7l4 4-4 4"/><path d="M21 11h-6a6 6 0 00-6-6"/></svg>
+          </button>
+          <button class="btn ghost" style="padding:3px 6px;display:inline-flex;align-items:center">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M10 14a5 5 0 007.1 0l2.8-2.8a5 5 0 00-7.1-7.1L11 5.9"/><path d="M14 10a5 5 0 00-7.1 0l-2.8 2.8a5 5 0 007.1 7.1L13 18.1"/></svg>
+          </button>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--dim)">鈫?瑙嗚鏉冮噸鏈€寮憋紙ghost = 閫忔槑+娆＄骇鑹诧級銆佸彧鑳?hover 鎵嶇煡閬撴槸浠€涔?/div>
+    </div>
+  </div>
+  <div class="col after">
+    <h3>After <span class="v">TicketRow 路 .dsws-btn + external-link + 銆屾柊寮€浼氳瘽銆?/span></h3>
+    <div class="frame">
+      <div class="row">
+        <div class="tt">
+          <div class="name"><span class="n">[鍗¤矾閲宂 charts.line smooth 鏇茬嚎涓嶇粡杩囧唴鐐?/span><span class="num">#381</span></div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" style="padding:3px 10px">淇</button>
+          <button class="btn ns" title="鏂板紑浼氳瘽">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span>鏂板紑浼氳瘽</span>
+          </button>
+          <button class="btn ghost" style="padding:3px 6px;display:inline-flex;align-items:center">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M10 14a5 5 0 007.1 0l2.8-2.8a5 5 0 00-7.1-7.1L11 5.9"/><path d="M14 10a5 5 0 00-7.1 0l-2.8 2.8a5 5 0 007.1 7.1L13 18.1"/></svg>
+          </button>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--dim)">鈫?鍙銆?span style="color:var(--text)">鏂板紑浼氳瘽</span>銆嶆爣绛撅紝瑙嗚鏉冮噸鎻愬崌浣嗕笌銆屼慨澶嶃€嶄富鑹蹭繚鎸佸眰绾у樊</div>
+    </div>
+  </div>
+</div>
+
+<!-- 瀵规瘮 2: ListRow (涓诲垪琛ㄥ睍寮€琛? -->
+<div class="grid">
+  <div class="col before">
+    <h3>Before <span class="v">ListRow 灞曞紑琛?路 ghost + handoff icon</span></h3>
+    <div class="frame">
+      <div class="row">
+        <div class="tt">
+          <div class="name"><span class="n">[鍏叡缁勪欢] charts.line smooth 鏇茬嚎涓嶇粡杩囧唴鐐?路 鏁版嵁鐐归鍦ㄦ洸绾垮</span><span class="num">#381</span></div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" style="padding:3px 10px">淇</button>
+          <button class="btn ghost ns" title="鍦ㄦ柊浼氳瘽涓墦寮€锛堝悓 cwd 路 鑷姩鍛藉悕锛?>
+            <svg class="ic" viewBox="0 0 24 24"><path d="M7 17l-4-4 4-4"/><path d="M3 13h6a6 6 0 016 6"/><path d="M17 7l4 4-4 4"/><path d="M21 11h-6a6 6 0 00-6-6"/></svg>
+          </button>
+          <button class="btn ghost" style="padding:3px 5px;display:inline-flex;align-items:center">
+            <svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg>
+          </button>
+          <button class="btn ghost" style="padding:3px 5px;display:inline-flex;align-items:center">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M10 14a5 5 0 007.1 0l2.8-2.8a5 5 0 00-7.1-7.1L11 5.9"/><path d="M14 10a5 5 0 00-7.1 0l-2.8 2.8a5 5 0 007.1 7.1L13 18.1"/></svg>
+          </button>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--dim)">鈫?3 涓?ghost icon-only 鎸夐挳锛岃鐭ヨ礋鎷呴噸</div>
+    </div>
+  </div>
+  <div class="col after">
+    <h3>After <span class="v">ListRow 灞曞紑琛?路 visible label + 灞傛鍒嗘槑</span></h3>
+    <div class="frame">
+      <div class="row">
+        <div class="tt">
+          <div class="name"><span class="n">[鍏叡缁勪欢] charts.line smooth 鏇茬嚎涓嶇粡杩囧唴鐐?路 鏁版嵁鐐归鍦ㄦ洸绾垮</span><span class="num">#381</span></div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" style="padding:3px 10px">淇</button>
+          <button class="btn ns" title="鏂板紑浼氳瘽">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span>鏂板紑浼氳瘽</span>
+          </button>
+          <button class="btn ghost" style="padding:3px 5px;display:inline-flex;align-items:center" title="澶嶅埗閾炬帴">
+            <svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg>
+          </button>
+          <button class="btn ghost" style="padding:3px 5px;display:inline-flex;align-items:center" title="鍦?GitHub 涓婃煡鐪?>
+            <svg class="ic" viewBox="0 0 24 24"><path d="M10 14a5 5 0 007.1 0l2.8-2.8a5 5 0 00-7.1-7.1L11 5.9"/><path d="M14 10a5 5 0 00-7.1 0l-2.8 2.8a5 5 0 007.1 7.1L13 18.1"/></svg>
+          </button>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--dim)">鈫?涓绘搷浣滐紙淇锛変富鑹?+ 鏂颁細璇濆父瑙?+ 澶嶅埗/澶栭摼 ghost 褰㈡垚娓呮櫚瑙嗚灞傜骇</div>
+    </div>
+  </div>
+</div>
+
+<!-- 瀵规瘮 3: 涓婁笅鏂?鈥斺€?nav.handoff (鑳跺泭娈? 浠嶇敤 handoff 鍥炬爣涓嶅啿绐?-->
+<div class="grid" style="grid-template-columns:1fr">
+  <div class="col after">
+    <h3>涓婁笅鏂囷細nav.handoff锛堣兌鍥婃銆屼氦鎺ャ€嶏級浠嶇敤 handoff 鍥炬爣 <span class="v">路 涓庤鍐呮柊浼氳瘽鎸夐挳褰诲簳瑙ｈ€?/span></h3>
+    <div class="frame">
+      <div style="display:flex;gap:6px;align-items:center;padding:4px 0">
+        <span class="btn" style="padding:2px 7px;border-radius:99px;display:inline-flex;align-items:center;gap:4px">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M7 17l-4-4 4-4"/><path d="M3 13h6a6 6 0 016 6"/><path d="M17 7l4 4-4 4"/><path d="M21 11h-6a6 6 0 00-6-6"/></svg>
+          浜ゆ帴
+        </span>
+        <span class="btn ns" style="padding:3px 10px;display:inline-flex;align-items:center;gap:4px">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          鏂板紑浼氳瘽
+        </span>
+        <span style="font-size:11px;color:var(--dim);margin-left:8px">鈫?涓や釜涓嶅悓姒傚康锛堜氦鎺?vs 鏂板紑浼氳瘽锛夌幇鍦ㄧ敤涓や釜涓嶅悓鍥炬爣锛岄浂姝т箟</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <p style="margin-bottom:8px"><b>楠屾敹瀵圭収</b></p>
+  <p>路 <span class="bad">Before</span>锛歡host + 12px handoff icon + 浠?hover 鐭ラ亾 = <code>className: 'dsws-btn ghost'</code> 路 <code>title: '鍦ㄦ柊浼氳瘽涓墦寮€锛堝悓 cwd 路 鑷姩鍛藉悕锛?</code></p>
+  <p>路 <span class="ok">After</span>锛?code>.dsws-btn</code>锛堝父瑙勶級 + <code>external-link</code> icon锛堜笌 nav.handoff 瑙ｈ€︼級+ 鍙銆?code>鏂板紑浼氳瘽</code>銆嶆爣绛?+ hover title 涓庡彲瑙佹枃瀛椾竴鑷达紙鍘诲啑浣欙級</p>
+  <p style="margin-top:8px"><b>CSS / locale / icon 鏀瑰姩</b>锛?code>client.js</code> 鈫?<code>package/lib/client.js</code> 鍙屾簮鍚屾 路 5 澶勶級</p>
+  <p>路 鏂板 <code>case 'external-link'</code>锛坒eather-style 瀵硅绠ご锛宲ath/polyline/line 缁勫悎锛?/p>
+  <p>路 locale rename: <code>list.newSessionTitle</code> 鈫?<code>list.newSessionLabel</code>锛堣涔夊悓姝ワ細visible + hover 涓€鑷达級</p>
+  <p>路 zh: 銆屽湪鏂颁細璇濅腑鎵撳紑锛堝悓 cwd 路 鑷姩鍛藉悕锛夈€嶁啋銆屾柊寮€浼氳瘽銆嵚?en: 銆孫pen in a new session (same cwd 路 auto-named)銆嶁啋銆孨ew session銆?/p>
+  <p>路 JSX 2 澶勶紙TicketRow L1342 + ListRow L1534锛夛細className ghost鈫?code>dsws-btn</code> 路 icon handoff鈫?code>external-link</code> 路 鍔?<code>tr('list.newSessionLabel')</code> span 路 padding 3px6px鈫?px10px 路 鍔?gap:4</p>
+  <p style="margin-top:8px"><b>楠岃瘉</b>锛歷erify-t3-locale (162 閿?脳 zh/en 脳 2 files 路 骞宠　) 路 verify-t2a-config (6/4 缁? 路 verify-t2b-templates (6/6 缁? 路 scan-mangle (clean) 路 鍙屾簮 grep 闀滃儚锛坋xternal-link 脳 2/2 路 label 脳 2/2 路 icon call 脳 2/2 路 dsws-btn 璁℃暟 13/13锛夊叏杩?/p>
+  <p style="margin-top:8px"><b>鑼冨洿杈圭晫锛堝凡澹版槑锛?/b>锛氫笉鏀?nav.handoff锛堣兌鍥婃浜ゆ帴锛壜?涓嶆敼 openInNewSession 琛屼负锛堝悓 cwd 路 鑷姩鍛藉悕 路 棰勫～ 路 #361 宸查棴鐜級路 涓嶆敼鍔ㄤ綔鎸夐挳锛堟墽琛?璇婃柇/淇/璁ㄨ锛夋牱寮?路 涓嶅娲?PiP / 宸︿晶鍋滈潬</p>
+</div>
+</body>
+</html>
+

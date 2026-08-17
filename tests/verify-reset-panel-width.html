@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DSH-Waystation · 配置页「重置面板宽度」按钮（#407）</title>
+<style>
+  :root{
+    --bg:#0a0a0a; --panel:#16181d; --panel2:#10131a;
+    --border:#2a2d35; --border2:#3a3f4a;
+    --text:#e6edf3; --sub:#a1a1aa; --dim:#8b8b95;
+    --acc:#c084fc; --green:#4ade80; --warn:#fbbf24;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6;padding:24px}
+  h1{font-size:22px;margin-bottom:6px}
+  h2{font-size:15px;margin:24px 0 10px;color:var(--sub);border-bottom:1px solid var(--border);padding-bottom:6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:18px;max-width:980px}
+  .tag{display:inline-block;background:rgba(192,132,252,.15);border:1px solid rgba(192,132,252,.4);color:var(--acc);border-radius:99px;padding:2px 10px;font-size:11px;margin-right:6px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+  .col{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px 16px;overflow:hidden}
+  .col h3{font-size:12px;margin-bottom:10px;color:var(--sub);font-weight:600;display:flex;align-items:center;gap:6px}
+  .col h3 .v{font-family:ui-monospace,Consolas,monospace;color:var(--dim);font-weight:400;font-size:11px}
+  .frame{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px}
+
+  /* ===== settings page chrome ===== */
+  .settings{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 22px;max-width:720px}
+  .settings-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .settings-head .t{font-size:15px;font-weight:600}
+  .settings-head .sub{color:var(--sub);font-size:12px}
+  .cfg-group{margin:14px 0;padding:14px;background:var(--panel2);border:1px solid var(--border);border-radius:8px}
+  .cfg-gtitle{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-bottom:4px}
+  .cfg-gdesc{color:var(--sub);font-size:12px;margin-bottom:10px}
+  .cfg-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .cfg-btn{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:6px;font-size:11.5px;padding:3px 10px;cursor:pointer;font-family:inherit;line-height:1.4}
+  .cfg-btn:hover{border-color:var(--border2)}
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+  .seg button{background:transparent;border:none;color:var(--sub);padding:3px 12px;font-size:11.5px;cursor:pointer;font-family:inherit}
+  .seg button.on{background:var(--acc);color:#140a1e;font-weight:600}
+
+  svg.ic{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.8;display:inline-block;vertical-align:-2px}
+
+  .note{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;margin-left:10px}
+  .note.ok{color:#0c1a10;background:#4ade80}
+  .note.warn{color:#1a1305;background:#fbbf24}
+  .note-text{font-size:11px;margin-left:10px}
+  .ok-text{color:#4ade80}
+  .warn-text{color:#fbbf24}
+
+  .footer{margin-top:18px;padding:14px;background:var(--panel);border:1px dashed var(--border);border-radius:8px;font-size:12px;color:var(--sub)}
+  .footer code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:11.5px;color:var(--text)}
+  .ok{color:var(--green)}
+  .bad{color:var(--warn)}
+</style>
+</head>
+<body>
+<h1>DSH-Waystation · 配置页「重置面板宽度」按钮 <span class="tag">#407 · v27</span></h1>
+<div class="sub">
+  #398 拆票 A：在 waystation 配置页（settings.plugins.tab「Waystation」）加「重置面板宽度」按钮，调 `ctx.get('layout').resetDetails()`。
+  等 layout 服务暴露该 API（#408 外部仓工作）。本 demo 展示 3 种运行态 × zh/en 文案对照。
+</div>
+
+<h2>1. 默认态（API 缺失）</h2>
+<div class="grid">
+  <div class="col">
+    <h3>中文 <span class="v">zh · 缺失 API</span></h3>
+    <div class="settings">
+      <div class="settings-head"><span class="t">Waystation</span><span class="sub">配置</span></div>
+      <div class="cfg-group">
+        <div class="cfg-gtitle"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg><span>面板宽度</span></div>
+        <div class="cfg-gdesc">下次打开面板时使用 layout 服务默认宽度（清掉上次的拖拽记忆）</div>
+        <div class="cfg-row">
+          <button class="cfg-btn">重置面板宽度</button>
+          <span class="note-text warn-text">⚠ layout 服务暂不支持重置 · 请更新 DSH harness</span>
+        </div>
+      </div>
+    </div>
+    <div class="t">→ 按钮可见 + 点击触发 try/catch + layoutSvc.resetDetails() 缺失 → 友好 warn提示</div>
+  </div>
+  <div class="col">
+    <h3>English <span class="v">en · API missing</span></h3>
+    <div class="settings">
+      <div class="settings-head"><span class="t">Waystation</span><span class="sub">Config</span></div>
+      <div class="cfg-group">
+        <div class="cfg-gtitle"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg><span>Panel width</span></div>
+        <div class="cfg-gdesc">Next panel open will use the layout service default width (clears the persisted drag memory).</div>
+        <div class="cfg-row">
+          <button class="cfg-btn">Reset panel width</button>
+          <span class="note-text warn-text">⚠ Layout service doesn't support reset yet · please update DSH harness</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>2. 成功态（API 已到位）</h2>
+<div class="grid">
+  <div class="col">
+    <h3>中文 <span class="v">zh · API OK</span></h3>
+    <div class="settings">
+      <div class="settings-head"><span class="t">Waystation</span><span class="sub">配置</span></div>
+      <div class="cfg-group">
+        <div class="cfg-gtitle"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg><span>面板宽度</span></div>
+        <div class="cfg-gdesc">下次打开面板时使用 layout 服务默认宽度（清掉上次的拖拽记忆）</div>
+        <div class="cfg-row">
+          <button class="cfg-btn">重置面板宽度</button>
+          <span class="note-text ok-text">✓ 面板宽度已重置 · 下次打开生效</span>
+        </div>
+      </div>
+    </div>
+    <div class="t">→ 点击触发 ls.resetDetails() 成功 → 绿色 ok 提示（2.8s 后自动消失）</div>
+  </div>
+  <div class="col">
+    <h3>English <span class="v">en · API OK</span></h3>
+    <div class="settings">
+      <div class="settings-head"><span class="t">Waystation</span><span class="sub">Config</span></div>
+      <div class="cfg-group">
+        <div class="cfg-gtitle"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg><span>Panel width</span></div>
+        <div class="cfg-gdesc">Next panel open will use the layout service default width (clears the persisted drag memory).</div>
+        <div class="cfg-row">
+          <button class="cfg-btn">Reset panel width</button>
+          <span class="note-text ok-text">✓ Panel width reset · takes effect on next open</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>3. 异常态（API 抛错）</h2>
+<div class="grid">
+  <div class="col">
+    <h3>中文 <span class="v">zh · try/catch</span></h3>
+    <div class="settings">
+      <div class="settings-head"><span class="t">Waystation</span><span class="sub">配置</span></div>
+      <div class="cfg-group">
+        <div class="cfg-gtitle"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg><span>面板宽度</span></div>
+        <div class="cfg-gdesc">下次打开面板时使用 layout 服务默认宽度（清掉上次的拖拽记忆）</div>
+        <div class="cfg-row">
+          <button class="cfg-btn">重置面板宽度</button>
+          <span class="note-text warn-text">⚠ layout 服务暂不支持重置 · 请更新 DSH harness</span>
+        </div>
+      </div>
+    </div>
+    <div class="t">→ ls.resetDetails() 存在但抛错 → catch → 与缺失 API 同走 warn 兜底（不让 UI 崩溃）</div>
+  </div>
+  <div class="col">
+    <h3>English <span class="v">en · try/catch</span></h3>
+    <div class="settings">
+      <div class="settings-head"><span class="t">Waystation</span><span class="sub">Config</span></div>
+      <div class="cfg-group">
+        <div class="cfg-gtitle"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg><span>Panel width</span></div>
+        <div class="cfg-gdesc">Next panel open will use the layout service default width (clears the persisted drag memory).</div>
+        <div class="cfg-row">
+          <button class="cfg-btn">Reset panel width</button>
+          <span class="note-text warn-text">⚠ Layout service doesn't support reset yet · please update DSH harness</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>4. 在 cfg 页中的位置（panelHeight 之后 · startTpl 之前）</h2>
+<div class="settings">
+  <div class="settings-head"><span class="t">Waystation</span><span class="sub">配置</span></div>
+
+  <!-- 1. panelHeight (既有) -->
+  <div class="cfg-group">
+    <div class="cfg-gtitle"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg><span>面板默认高度</span></div>
+    <div class="cfg-gdesc">打开面板时使用的初始高度，可随时拖拽调整。</div>
+    <div class="cfg-row">
+      <span class="cfg-gdesc" style="margin:0">默认高度：</span>
+      <div class="seg"><button>1/4</button><button class="on">1/2</button><button>2/3</button></div>
+    </div>
+  </div>
+
+  <!-- 1.5 新增：面板宽度重置 -->
+  <div class="cfg-group">
+    <div class="cfg-gtitle"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg><span style="color:#c084fc">面板宽度</span> <span class="note" style="background:rgba(192,132,252,.15);color:#c084fc">新</span></div>
+    <div class="cfg-gdesc">下次打开面板时使用 layout 服务默认宽度（清掉上次的拖拽记忆）</div>
+    <div class="cfg-row">
+      <button class="cfg-btn">重置面板宽度</button>
+    </div>
+  </div>
+
+  <!-- 2. startTpl (既有) -->
+  <div class="cfg-group">
+    <div class="cfg-gtitle"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5.5l11 6.5-11 6.5z" fill="currentColor" stroke="none"/></svg><span>开始模板（执行动作）</span></div>
+    <div class="cfg-gdesc">「执行」按钮注入的提示词；留空使用默认模板。</div>
+    <div style="height:60px;background:var(--panel);border:1px solid var(--border);border-radius:6px"></div>
+  </div>
+</div>
+
+<div class="footer">
+  验收对照：
+  <ul style="margin:8px 0 0 20px;line-height:1.8">
+    <li>配置页可见新 section「面板宽度」 ✓</li>
+    <li>点击 → 调 <code>layoutSvc.resetDetails()</code> + try/catch 守卫 ✓</li>
+    <li>API 存在 → 成功 toast（绿色 2.8s） ✓</li>
+    <li>API 缺失 → 友好 warn 提示（黄色 2.8s）说明 layout 服务未到位 ✓</li>
+    <li>zh/en locale 同步（新增 5 键 × 2 locales = 10 entries） ✓</li>
+    <li><code>verify-t3-locale.js</code> PASS · <code class="ok">170 → 175 键 × zh/en × 2 files</code></li>
+    <li>npm 双源镜像（client.js ↔ package/lib/client.js）<code class="ok">16/16 grep 一致</code></li>
+    <li>不破坏 #393/#396 已闭环的样式行为（仅新增，未修改既有 section）✓</li>
+    <li>不复活 #373 已关闭的 PiP / 左栏悬浮形态（未引入相关代码）✓</li>
+  </ul>
+</div>
+
+</body>
+</html>

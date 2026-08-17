@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DSH-Waystation · 全控件鼠标悬停文案重设计（#395 · v27）</title>
+<style>
+  :root{
+    --bg:#0a0a0a; --panel:#16181d; --panel2:#10131a;
+    --border:#2a2d35; --border2:#3a3f4a;
+    --text:#e6edf3; --sub:#a1a1aa; --dim:#8b8b95;
+    --acc:#c084fc; --green:#4ade80; --red:#f87171; --blue:#58a6ff; --orange:#f59e0b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6;padding:24px}
+  h1{font-size:22px;margin-bottom:6px}
+  h2{font-size:15px;margin:24px 0 10px;color:var(--sub);border-bottom:1px solid var(--border);padding-bottom:6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:18px;max-width:980px}
+  .tag{display:inline-block;background:rgba(192,132,252,.15);border:1px solid rgba(192,132,252,.4);color:var(--acc);border-radius:99px;padding:2px 10px;font-size:11px;margin-right:6px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+  .col{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px 16px;overflow:hidden}
+  .col h3{font-size:12px;margin-bottom:10px;color:var(--sub);font-weight:600;display:flex;align-items:center;gap:6px}
+  .col h3 .v{font-family:ui-monospace,Consolas,monospace;color:var(--dim);font-weight:400;font-size:11px}
+  .frame{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px}
+  .footer{margin-top:18px;padding:14px;background:var(--panel);border:1px dashed var(--border);border-radius:8px;font-size:12px;color:var(--sub)}
+  .footer code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:11.5px;color:var(--text)}
+  .ok{color:var(--green)}
+  .bad{color:var(--red)}
+  svg.ic{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.8;display:inline-block;vertical-align:-2px}
+
+  /* ===== capsule seg ===== */
+  .capsule{display:inline-flex;align-items:center;gap:0;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:2px 4px;font-size:11.5px}
+  .seg{display:inline-flex;align-items:center;gap:4px;padding:3px 6px;cursor:pointer;border-radius:6px}
+  .seg.t{color:var(--green)}
+  .seg.l{color:var(--orange)}
+  .seg.n{color:var(--acc)}
+  .seg.h{color:var(--blue)}
+  .seg.d{color:var(--sub)}
+  .num{font-family:ui-monospace,Consolas,monospace;font-weight:600;min-width:2ch;text-align:center;color:inherit}
+
+  /* ===== button row ===== */
+  .row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;border:1px solid transparent;font-size:12.5px}
+  .row .tt{flex:1;min-width:0}
+  .row .actions{display:flex;gap:4px;align-items:center;flex:none}
+  .btn{border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;line-height:1.4;display:inline-flex;align-items:center;gap:4px}
+  .btn.primary{background:var(--acc);border-color:transparent;color:#140a1e;font-weight:600}
+  .btn.done{background:var(--green);border-color:transparent;color:#0c1a10;font-weight:600}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--sub);padding:3px 5px}
+  .btn.ghost:hover{border-color:var(--border2);color:var(--text)}
+
+  /* ===== resize handles ===== */
+  .rzwrap{position:relative;width:240px;height:140px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;margin:6px 0}
+  .rz{position:absolute;background:transparent;cursor:pointer}
+  .rz:hover{background:rgba(192,132,252,.25)}
+  .rz.n{top:0;left:8px;right:8px;height:4px}
+  .rz.s{bottom:0;left:8px;right:8px;height:4px}
+  .rz.e{top:8px;bottom:8px;right:0;width:4px}
+  .rz.w{top:8px;bottom:8px;left:0;width:4px}
+
+  /* ===== skill ring ===== */
+  .ring{position:relative;width:160px;height:160px;margin:8px auto}
+  .ring .node{position:absolute;width:30px;height:30px;border-radius:50%;border:2px solid var(--dim);background:transparent;display:flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--dim)}
+  .ring .node.filled{border-color:var(--green);background:rgba(74,222,128,.15);color:var(--green)}
+  .ring .center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:60px;height:60px;border-radius:50%;background:rgba(192,132,252,.18);border:2px solid var(--acc);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--acc);cursor:pointer}
+
+  .t{color:var(--sub);font-size:11px;margin-top:6px;font-style:italic}
+</style>
+</head>
+<body>
+<h1>DSH-Waystation · 全控件鼠标悬停文案重设计 <span class="tag">#395 · v27</span></h1>
+<div class="sub">
+  从使用者角度按 7 条原则（动作导向 / 简短 / 不重复可见 / icon-only 必补 / 去 jargon / 同图标解耦 / locale 同步）重审 + 重设计所有控件 hover title。
+  本 demo 展示 7 类改造点的 before/after 对照，鼠标悬停看效果。
+</div>
+
+<!-- 1. 胶囊段：可接/占用/环境 segs + fixate -->
+<h2>1. 胶囊段（nav · 顶部条）</h2>
+<div class="grid">
+  <div class="col">
+    <h3>Before <span class="v">可接/占用/环境 无 title · fixate 直出 jargon</span></h3>
+    <div class="frame">
+      <div class="capsule">
+        <span class="seg t"><span>可接</span><span class="num">3</span></span>
+        <span class="seg l"><span>占用</span><span class="num">2</span></span>
+        <span class="seg n" title="沉淀：注入零丢失快照 prompt">沉淀</span>
+        <span class="seg h">交接</span>
+        <span class="seg d"><span>环境</span><span class="num">5/8</span></span>
+        <span class="btn ghost" style="padding:2px 6px" title="重新检查 + 刷新快照">更新 12:34</span>
+      </div>
+      <div class="t">→ 「可接 3」「占用 2」「环境 5/8」hover 无解释；「沉淀」jargon 直出，新用户看不懂</div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>After <span class="v">seg 都补 title · fixate 改为动作导向</span></h3>
+    <div class="frame">
+      <div class="capsule">
+        <span class="seg t" title="可接 = 未认领可执行的任务数"><span>可接</span><span class="num">3</span></span>
+        <span class="seg l" title="占用 = 已认领未关闭的任务数"><span>占用</span><span class="num">2</span></span>
+        <span class="seg n" title="保存进度快照 · 注入零丢失 prompt">沉淀</span>
+        <span class="seg h">交接</span>
+        <span class="seg d" title="环境检查 (5/8)"><span>环境</span><span class="num">5/8</span></span>
+        <span class="btn ghost" style="padding:2px 6px" title="重新检查 + 刷新快照">更新 12:34</span>
+      </div>
+      <div class="t">→ 鼠标悬停可看到每个数字段的定义；fixate 改为「保存进度快照 · 注入零丢失 prompt」</div>
+    </div>
+  </div>
+</div>
+
+<!-- 2. 动作按钮行：外部链接 icon-only -->
+<h2>2. 动作按钮行 · 外部链接 icon-only（TicketRow + ListRow）</h2>
+<div class="grid">
+  <div class="col">
+    <h3>Before <span class="v">Ic({n:'link'}) 无 title · 只能猜</span></h3>
+    <div class="frame">
+      <div class="row">
+        <div class="tt"><span>[备忘录] 心愿表支持字段补全</span><span style="color:var(--dim);font-size:11px"> #395</span></div>
+        <div class="actions">
+          <button class="btn primary" style="padding:3px 10px">修复</button>
+          <button class="btn" style="padding:3px 10px;gap:4px">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span>新开会话</span>
+          </button>
+          <button class="btn ghost" style="padding:3px 6px;display:inline-flex;align-items:center">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M10 14a5 5 0 007.1 0l2.8-2.8a5 5 0 00-7.1-7.1L11 5.9"/><path d="M14 10a5 5 0 00-7.1 0l-2.8 2.8a5 5 0 007.1 7.1L13 18.1"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="t">→ 最右的图标按钮（link）hover 无 title，新用户只能猜是「外链」还是「展开」</div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>After <span class="v">title: 在 GitHub 上查看 #NNN</span></h3>
+    <div class="frame">
+      <div class="row">
+        <div class="tt"><span>[备忘录] 心愿表支持字段补全</span><span style="color:var(--dim);font-size:11px"> #395</span></div>
+        <div class="actions">
+          <button class="btn primary" style="padding:3px 10px">修复</button>
+          <button class="btn" style="padding:3px 10px;gap:4px">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span>新开会话</span>
+          </button>
+          <button class="btn ghost" style="padding:3px 6px;display:inline-flex;align-items:center" title="在 GitHub 上查看 #395">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M10 14a5 5 0 007.1 0l2.8-2.8a5 5 0 00-7.1-7.1L11 5.9"/><path d="M14 10a5 5 0 00-7.1 0l-2.8 2.8a5 5 0 007.1 7.1L13 18.1"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="t">→ hover 显示「在 GitHub 上查看 #395」，动作 + 对象清晰</div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. 地图详情顶部：执行 / 完成 -->
+<h2>3. 地图详情顶部 · 执行 / 完成 主按钮（hover 补足）</h2>
+<div class="grid">
+  <div class="col">
+    <h3>Before <span class="v">label 已自解释 · 无 hover 补足</span></h3>
+    <div class="frame">
+      <button class="btn primary" style="padding:1px 6px;font-size:11px">
+        <svg class="ic" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <span>执行</span>
+      </button>
+      <div class="t">→ 「执行」label 已自解释，但新用户 hover 不知道点击会发生什么（注入整张 map 的开始 prompt 到输入框）</div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>After <span class="v">title: 执行 · 注入地图开始提示词</span></h3>
+    <div class="frame">
+      <button class="btn primary" style="padding:1px 6px;font-size:11px" title="执行 · 注入地图开始提示词">
+        <svg class="ic" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <span>执行</span>
+      </button>
+      <div class="t">→ hover 补足：明确说明点击会注入「地图开始提示词」（降低误点）</div>
+    </div>
+  </div>
+</div>
+
+<!-- 4. 技能圆环：中心节点 -->
+<h2>4. 技能圆环 · 中心节点</h2>
+<div class="grid">
+  <div class="col">
+    <h3>Before <span class="v">title: 原始技能名（triage）</span></h3>
+    <div class="frame">
+      <div class="ring">
+        <div class="node filled" style="left:5px;top:60px">triage</div>
+        <div class="node" style="left:80px;top:5px">grilling</div>
+        <div class="node" style="left:80px;top:115px">research</div>
+        <div class="center" style="left:50px;top:50px" title="triage">/triage</div>
+      </div>
+      <div class="t">→ 中心节点 hover 只显示技能名「triage」，但不知道「为什么推荐这个」/「点击会注入什么」</div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>After <span class="v">title: 推荐 {skill} · 注入 /{skill}</span></h3>
+    <div class="frame">
+      <div class="ring">
+        <div class="node filled" style="left:5px;top:60px">triage</div>
+        <div class="node" style="left:80px;top:5px">grilling</div>
+        <div class="node" style="left:80px;top:115px">research</div>
+        <div class="center" style="left:50px;top:50px" title="推荐 triage · 注入 /triage">/triage</div>
+      </div>
+      <div class="t">→ hover 显示「推荐 triage · 注入 /triage」，动作 + 对象 + 推荐语境齐</div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. resize 句柄：n/s/e/w -->
+<h2>5. resize 句柄 · 上下左右</h2>
+<div class="grid">
+  <div class="col">
+    <h3>Before <span class="v">"向上拉大 / 向下拉大 ..."</span></h3>
+    <div class="frame">
+      <div class="rzwrap">
+        <div class="rz n" title="向上拉大"></div>
+        <div class="rz s" title="向下拉大"></div>
+        <div class="rz e" title="向右拉大"></div>
+        <div class="rz w" title="向左拉大"></div>
+      </div>
+      <div class="t">→ 「向上拉大」语义距离「调大面板」较远，新用户需猜测是「拖哪条边 / 调哪个方向」</div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>After <span class="v">"拖上边 = 加高面板"</span></h3>
+    <div class="frame">
+      <div class="rzwrap">
+        <div class="rz n" title="拖上边 = 加高面板"></div>
+        <div class="rz s" title="拖下边 = 加高面板"></div>
+        <div class="rz e" title="拖右边 = 加宽面板"></div>
+        <div class="rz w" title="拖左边 = 加宽面板"></div>
+      </div>
+      <div class="t">→ 动作 + 对象 + 关系三要素齐全：「拖哪条边 → 加高/加宽面板」</div>
+    </div>
+  </div>
+</div>
+
+<!-- 6. 关闭 X 按钮 -->
+<h2>6. 关闭 X 按钮（dock + panel）</h2>
+<div class="grid">
+  <div class="col">
+    <h3>Before <span class="v">Ic({n:'x'}) 无 title</span></h3>
+    <div class="frame">
+      <div style="display:flex;align-items:center;gap:6px;padding:8px 12px">
+        <span style="font-weight:600;font-size:13px">Waystation</span>
+        <span style="flex:1"></span>
+        <button class="btn ghost" style="display:inline-flex;align-items:center;padding:2px 6px;font-size:11px">
+          <svg class="ic" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="t">→ 右上角 X 图标 hover 无提示，新用户不知道点击会关闭整个面板</div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>After <span class="v">title: 关闭面板</span></h3>
+    <div class="frame">
+      <div style="display:flex;align-items:center;gap:6px;padding:8px 12px">
+        <span style="font-weight:600;font-size:13px">Waystation</span>
+        <span style="flex:1"></span>
+        <button class="btn ghost" style="display:inline-flex;align-items:center;padding:2px 6px;font-size:11px" title="关闭面板">
+          <svg class="ic" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="t">→ hover 明确说明「关闭面板」</div>
+    </div>
+  </div>
+</div>
+
+<!-- 7. 验收 + locale 同步总结 -->
+<h2>验收总结（issue body 7 条原则 × 7 类改造点）</h2>
+<div class="frame">
+  <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <tr style="color:var(--sub);text-align:left">
+      <th style="padding:6px 8px;border-bottom:1px solid var(--border)">改造点</th>
+      <th style="padding:6px 8px;border-bottom:1px solid var(--border)">原则对照</th>
+      <th style="padding:6px 8px;border-bottom:1px solid var(--border)">before</th>
+      <th style="padding:6px 8px;border-bottom:1px solid var(--border)">after</th>
+    </tr>
+    <tr><td style="padding:5px 8px">可接/占用/环境 segs</td><td style="padding:5px 8px">原则 1（动作导向）</td><td style="padding:5px 8px;color:var(--dim)">无 title</td><td style="padding:5px 8px;color:var(--green)">补 title 定义数字含义</td></tr>
+    <tr><td style="padding:5px 8px">fixate 胶囊</td><td style="padding:5px 8px">原则 5（去 jargon）</td><td style="padding:5px 8px;color:var(--dim)">「沉淀：注入零丢失快照 prompt」</td><td style="padding:5px 8px;color:var(--green)">「保存进度快照 · 注入零丢失 prompt」</td></tr>
+    <tr><td style="padding:5px 8px">外部链接 icon-only 按钮</td><td style="padding:5px 8px">原则 4（icon-only 必补）</td><td style="padding:5px 8px;color:var(--dim)">无 title（link 图标）</td><td style="padding:5px 8px;color:var(--green)">「在 GitHub 上查看 #NNN」</td></tr>
+    <tr><td style="padding:5px 8px">执行 / 完成 主按钮</td><td style="padding:5px 8px">原则 1 + 3（hover 补足）</td><td style="padding:5px 8px;color:var(--dim)">label 自解释，无 hover 补足</td><td style="padding:5px 8px;color:var(--green)">「执行 · 注入地图开始提示词」/「完成 · 注入收尾确认 prompt」</td></tr>
+    <tr><td style="padding:5px 8px">技能中心节点</td><td style="padding:5px 8px">原则 1（动作 + 推荐语境）</td><td style="padding:5px 8px;color:var(--dim)">原始技能名（triage）</td><td style="padding:5px 8px;color:var(--green)">「推荐 {skill} · 注入 /{skill}」</td></tr>
+    <tr><td style="padding:5px 8px">resize n/s/e/w</td><td style="padding:5px 8px">原则 1（动作+对象+关系）</td><td style="padding:5px 8px;color:var(--dim)">「向上拉大 / 向下拉大 ...」</td><td style="padding:5px 8px;color:var(--green)">「拖上边 = 加高面板」/ 等</td></tr>
+    <tr><td style="padding:5px 8px">关闭 X 按钮（dock + panel）</td><td style="padding:5px 8px">原则 4（icon-only 必补）</td><td style="padding:5px 8px;color:var(--dim)">无 title</td><td style="padding:5px 8px;color:var(--green)">「关闭面板」</td></tr>
+  </table>
+</div>
+
+<div class="footer">
+  locale 同步：<code class="ok">verify-t3-locale.js PASS (170 键 × zh/en × 2 files)</code> · 共新增 8 键 / 改写 2 键（nav.fixateTitle + rz.n/s/e/w）· 双源镜像（client.js ↔ package/lib/client.js）44 行 ± 一致 · 其他 verify 脚本（verify-t2a-config 6/4 / verify-t2b-templates 6/6 / scan-mangle）全过 · 范围边界守住（不改控件行为/位置/样式，不动模板默认文本，不复活 PiP）
+</div>
+
+</body>
+</html>

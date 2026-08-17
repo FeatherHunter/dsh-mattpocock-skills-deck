@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DSH-Waystation · 列表 label 默认可见数改 4（#405）</title>
+<style>
+  :root{
+    --bg:#0a0a0a; --panel:#16181d; --panel2:#10131a;
+    --border:#2a2d35; --border2:#3a3f4a;
+    --text:#e6edf3; --sub:#a1a1aa; --dim:#8b8b95;
+    --acc:#c084fc; --green:#4ade80; --red:#f87171; --blue:#58a6ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6;padding:24px}
+  h1{font-size:22px;margin-bottom:6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:18px;max-width:980px}
+  .tag{display:inline-block;background:rgba(192,132,252,.15);border:1px solid rgba(192,132,252,.4);color:var(--acc);border-radius:99px;padding:2px 10px;font-size:11px;margin-right:6px}
+  .section{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px}
+  .section h2{font-size:14px;color:var(--sub);font-weight:600;margin-bottom:12px}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .col{flex:1;min-width:380px}
+  .frame{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px}
+  .col h3{font-size:12px;margin-bottom:8px;color:var(--sub);font-weight:600;display:flex;align-items:center;gap:6px}
+  .col h3 .v{font-family:ui-monospace,Consolas,monospace;color:var(--dim);font-weight:400;font-size:11px}
+
+  /* ===== 共享 waystation 原子 ===== */
+  .chip{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;border-radius:99px;font-size:10.5px;line-height:1.7;margin-right:4px;white-space:nowrap}
+  .c-r{background:rgba(88,166,255,.18);color:var(--blue)}
+  .c-p{background:rgba(247,180,210,.16);color:#f778ba}
+  .c-g{background:rgba(63,185,80,.16);color:#3fb950}
+  .c-t{background:rgba(240,136,62,.16);color:#f0883e}
+  .c-m{background:rgba(188,140,255,.16);color:#bc8cff}
+  .c-d{background:rgba(192,132,252,.1);color:#bc8cff;border:1px dashed rgba(192,132,252,.55);cursor:pointer}
+  .c-e{background:rgba(255,255,255,.06);color:var(--dim);border:1px dashed rgba(255,255,255,.3);cursor:pointer}
+  .chip-row{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+  .list-row{border:1px solid transparent;border-radius:6px;padding:7px 8px;margin-bottom:6px;font-size:12.5px}
+  .list-row:hover{border-color:var(--border)}
+  .list-row .title{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+  .list-row .title .name{flex:1;font-weight:500}
+  .list-row .title .num{color:var(--dim);font-size:11px}
+  .filter-row{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:8px 10px;background:var(--panel2);border-radius:8px;border:1px solid var(--border);margin-bottom:8px}
+  .footer{margin-top:18px;padding:14px;background:var(--panel);border:1px dashed var(--border);border-radius:8px;font-size:12px;color:var(--sub)}
+  .footer code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:11.5px;color:var(--text)}
+  .ok{color:var(--green)}
+  .bad{color:var(--red)}
+</style>
+</head>
+<body>
+<h1>DSH-Waystation · 列表 label 默认可见数改 4 <span class="tag">#405 · v27</span></h1>
+<div class="sub">
+  per-row 与 filter row 默认可见 label 数统一改为 4（与现有 +N / 「收起」展开机制配套）。4+ 个 label 时显示 +N chip，点击展开全部，再点收起。
+</div>
+
+<!-- ===== PER-ROW 对比 ===== -->
+<div class="section">
+<h2>per-row · issue 行内 label chips（默认 2 → 4）</h2>
+<div class="row">
+  <div class="col">
+    <h3>Before <span class="v">.slice(0, 2)</span></h3>
+    <div class="frame">
+      <div class="list-row">
+        <div class="title"><span class="name">[卡路里] charts.line smooth 曲线不经过内点 · 数据点飘在曲线外（几何采样验证）</span><span class="num">#381</span></div>
+        <div class="chip-row">
+          <span class="chip c-r">bug</span>
+          <span class="chip c-m">公共组件</span>
+          <span class="chip c-d">+3</span>
+        </div>
+      </div>
+      <div class="list-row">
+        <div class="title"><span class="name">[公共组件] charts 新参数技能侧回切追踪（v1.18-v1.25 上线后 · 13 模板）</span><span class="num">#382</span></div>
+        <div class="chip-row">
+          <span class="chip c-p">enhancement</span>
+          <span class="chip c-t">公共组件</span>
+          <span class="chip c-d">+1</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>After <span class="v">.slice(0, 4) · 与 filter row 视觉一致</span></h3>
+    <div class="frame">
+      <div class="list-row">
+        <div class="title"><span class="name">[卡路里] charts.line smooth 曲线不经过内点 · 数据点飘在曲线外（几何采样验证）</span><span class="num">#381</span></div>
+        <div class="chip-row">
+          <span class="chip c-r">bug</span>
+          <span class="chip c-m">公共组件</span>
+          <span class="chip c-t">needs-triage</span>
+          <span class="chip c-g">ready-for-agent</span>
+          <span class="chip c-d">+1</span>
+        </div>
+      </div>
+      <div class="list-row">
+        <div class="title"><span class="name">[公共组件] charts 新参数技能侧回切追踪（v1.18-v1.25 上线后 · 13 模板）</span><span class="num">#382</span></div>
+        <div class="chip-row">
+          <span class="chip c-p">enhancement</span>
+          <span class="chip c-t">公共组件</span>
+          <span class="chip c-m">wayfinder:grilling</span>
+          <span class="chip c-g">skill:公共组件</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===== FILTER ROW 对比 ===== -->
+<div class="section">
+<h2>filter row · 顶部 label 过滤 chips（默认 9 → 4）</h2>
+<div class="row">
+  <div class="col">
+    <h3>Before <span class="v">.slice(0, 9)</span></h3>
+    <div class="frame">
+      <div class="filter-row">
+        <span class="chip c-m">全部</span>
+        <span class="chip c-r">bug</span>
+        <span class="chip c-p">enhancement</span>
+        <span class="chip c-m">公共组件</span>
+        <span class="chip c-t">needs-triage</span>
+        <span class="chip c-g">ready-for-agent</span>
+        <span class="chip c-m">wayfinder:grilling</span>
+        <span class="chip c-m">dsh:plugin:waystation</span>
+        <span class="chip c-m">dsh:desktop</span>
+        <span class="chip c-m">skill:卡路里</span>
+        <span class="chip c-e">收起</span>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>After <span class="v">.slice(0, 4) · 与 per-row 一致</span></h3>
+    <div class="frame">
+      <div class="filter-row">
+        <span class="chip c-m">全部</span>
+        <span class="chip c-r">bug</span>
+        <span class="chip c-p">enhancement</span>
+        <span class="chip c-m">公共组件</span>
+        <span class="chip c-t">needs-triage</span>
+        <span class="chip c-d">+6</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===== 展开/收起交互验证 ===== -->
+<div class="section">
+<h2>展开 / 收起交互（+N / 「收起」chip · 现有机制复用）</h2>
+<div class="row">
+  <div class="col">
+    <h3>展开后 <span class="v">st.expTags[x.number] = true</span></h3>
+    <div class="frame">
+      <div class="list-row">
+        <div class="title"><span class="name">[卡路里] charts.line smooth 曲线不经过内点</span><span class="num">#381</span></div>
+        <div class="chip-row">
+          <span class="chip c-r">bug</span>
+          <span class="chip c-m">公共组件</span>
+          <span class="chip c-t">needs-triage</span>
+          <span class="chip c-g">ready-for-agent</span>
+          <span class="chip c-m">wayfinder:grilling</span>
+          <span class="chip c-e">收起</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>filter row 展开 <span class="v">st.expLabels = true</span></h3>
+    <div class="frame">
+      <div class="filter-row">
+        <span class="chip c-m">全部</span>
+        <span class="chip c-r">bug</span>
+        <span class="chip c-p">enhancement</span>
+        <span class="chip c-m">公共组件</span>
+        <span class="chip c-t">needs-triage</span>
+        <span class="chip c-g">ready-for-agent</span>
+        <span class="chip c-m">wayfinder:grilling</span>
+        <span class="chip c-m">dsh:plugin:waystation</span>
+        <span class="chip c-m">dsh:desktop</span>
+        <span class="chip c-m">skill:卡路里</span>
+        <span class="chip c-e">收起</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===== 视觉密度对比 ===== -->
+<div class="section">
+<h2>视觉密度对比 · 同样 6 个 issue row</h2>
+<div class="row">
+  <div class="col">
+    <h3>Before <span class="v">· row 高度平均较高（2 chip 截断频繁）</span></h3>
+    <div style="background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:12px;height:280px;overflow:hidden">
+      <div class="list-row">
+        <div class="title"><span class="name">[卡路里] charts.line smooth 曲线</span><span class="num">#381</span></div>
+        <div class="chip-row"><span class="chip c-r">bug</span><span class="chip c-m">公共组件</span><span class="chip c-d">+3</span></div>
+      </div>
+      <div class="list-row">
+        <div class="title"><span class="name">[卡路里] 防复发方案设计</span><span class="num">#386</span></div>
+        <div class="chip-row"><span class="chip c-g">ready-for-agent</span><span class="chip c-p">enhancement</span><span class="chip c-d">+2</span></div>
+      </div>
+      <div class="list-row">
+        <div class="title"><span class="name">[卡路里] charts.line smooth 曲线</span><span class="num">#381</span></div>
+        <div class="chip-row"><span class="chip c-r">bug</span><span class="chip c-m">公共组件</span><span class="chip c-d">+3</span></div>
+      </div>
+      <div class="list-row">
+        <div class="title"><span class="name">[卡路里] 防复发方案设计</span><span class="num">#386</span></div>
+        <div class="chip-row"><span class="chip c-g">ready-for-agent</span><span class="chip c-p">enhancement</span><span class="chip c-d">+2</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>After <span class="v">· 可见信息密度提升，row 高度可控</span></h3>
+    <div style="background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:12px;height:280px;overflow:hidden">
+      <div class="list-row">
+        <div class="title"><span class="name">[卡路里] charts.line smooth 曲线</span><span class="num">#381</span></div>
+        <div class="chip-row"><span class="chip c-r">bug</span><span class="chip c-m">公共组件</span><span class="chip c-t">needs-triage</span><span class="chip c-g">ready-for-agent</span><span class="chip c-d">+1</span></div>
+      </div>
+      <div class="list-row">
+        <div class="title"><span class="name">[卡路里] 防复发方案设计</span><span class="num">#386</span></div>
+        <div class="chip-row"><span class="chip c-g">ready-for-agent</span><span class="chip c-p">enhancement</span><span class="chip c-m">wayfinder:grilling</span><span class="chip c-t">skill:卡路里</span></div>
+      </div>
+      <div class="list-row">
+        <div class="title"><span class="name">[卡路里] charts.line smooth 曲线</span><span class="num">#381</span></div>
+        <div class="chip-row"><span class="chip c-r">bug</span><span class="chip c-m">公共组件</span><span class="chip c-t">needs-triage</span><span class="chip c-g">ready-for-agent</span><span class="chip c-d">+1</span></div>
+      </div>
+      <div class="list-row">
+        <div class="title"><span class="name">[卡路里] 防复发方案设计</span><span class="num">#386</span></div>
+        <div class="chip-row"><span class="chip c-g">ready-for-agent</span><span class="chip c-p">enhancement</span><span class="chip c-m">wayfinder:grilling</span><span class="chip c-t">skill:卡路里</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="footer">
+  <p style="margin-bottom:8px"><b>验收对照</b></p>
+  <p>· <b>per-row</b>：<code>.slice(0, 2)</code> → <code>.slice(0, 4)</code>（默认可见数 2 → 4）· 展开机制（<code>expanded</code> + <code>+N</code>/<code>less</code> chip）不变</p>
+  <p>· <b>filter row</b>：<code>.slice(0, 9)</code> → <code>.slice(0, 4)</code>（默认可见数 9 → 4）· +N chip：<code>length > 9</code> → <code>> 4</code> · 数字：<code>length - 9</code> → <code>- 4</code></p>
+  <p>· <b>视觉一致性</b>：per-row + filter row 默认都是 4 个 chip · 单一 mental model</p>
+  <p style="margin-top:8px"><b>改动（client.js ↔ package/lib/client.js 双源同步）</b></p>
+  <p>· 6 处镜像：per-row slice + comment · filter row slice + +N 条件 + +N 数字</p>
+  <p style="margin-top:8px"><b>验证</b>：grep 镜像（slice(0,4) 3/3 · length > 4 1/1 · length - 4 1/1 · 旧值 0/0 全清）· verify-t3-locale (162 键 × zh/en × 2 files) · verify-t2a-config (6/4) · verify-t2b-templates (6/6) · scan-mangle (clean)</p>
+  <p style="margin-top:8px"><b>范围边界（out of scope）</b>：不改 label 排序算法（<code>labelClicks</code> → 频次 → 名称序）· 不改 label 颜色 · 不复活 PiP / 左侧停靠（#373）· <code>dsh:*</code> 缺失修复见 #406（host 端跨仓）</p>
+</div>
+</body>
+</html>

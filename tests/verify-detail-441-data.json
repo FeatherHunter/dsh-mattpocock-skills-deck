@@ -1,0 +1,78 @@
+{
+  "title": "[dsh-waystation] Map 详情页 v1.4 落地 sub-map · 漏斗分层+战争迷雾",
+  "number": 441,
+  "destination": "",
+  "notes": "",
+  "levels": [
+    {
+      "level": 0,
+      "numbers": [
+        442
+      ],
+      "open": 0,
+      "closed": 1,
+      "total": 1,
+      "frontier": 0,
+      "claimed": 0,
+      "blocked": 0
+    },
+    {
+      "level": 1,
+      "numbers": [
+        443
+      ],
+      "open": 1,
+      "closed": 0,
+      "total": 1,
+      "frontier": 0,
+      "claimed": 1,
+      "blocked": 0
+    },
+    {
+      "level": 2,
+      "numbers": [
+        444
+      ],
+      "open": 1,
+      "closed": 0,
+      "total": 1,
+      "frontier": 0,
+      "claimed": 0,
+      "blocked": 1
+    }
+  ],
+  "tickets": [
+    {
+      "number": 442,
+      "title": "[dsh-waystation] T1 · host 分层：blockedBy DAG level 计算 + levels 快照字段",
+      "state": "CLOSED",
+      "level": 0,
+      "type": "task",
+      "claimedBy": "FeatherHunter",
+      "blockedBy": []
+    },
+    {
+      "number": 443,
+      "title": "[dsh-waystation] T2 · client MapDetail 定稿渲染：漏斗分层+迷雾+四态动作+仪式环",
+      "state": "OPEN",
+      "level": 1,
+      "type": "task",
+      "claimedBy": "FeatherHunter",
+      "blockedBy": [
+        442
+      ]
+    },
+    {
+      "number": 444,
+      "title": "[dsh-waystation] T3 · verify 测试：分层/迷雾/四态动作用例 + 旧用例不回归",
+      "state": "OPEN",
+      "level": 2,
+      "type": "task",
+      "claimedBy": "",
+      "blockedBy": [
+        443,
+        442
+      ]
+    }
+  ]
+}

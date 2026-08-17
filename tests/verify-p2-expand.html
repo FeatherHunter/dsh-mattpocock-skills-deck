@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>waystation P2 优化 · 2 label 同行 + 展开交互三方案</title>
+<style>
+  :root{--bg2:#16181d;--bg1:#10131a;--bg3:#0c0e12;--b1:#2a2d35;--b2:#3a3f4a;--p:#e6edf3;--s:#a1a1aa;--c:#8b8b95;
+        --font:-apple-system,'Segoe UI','PingFang SC',sans-serif}
+  *{box-sizing:border-box}
+  body{background:#0a0c10;color:var(--p);font-family:var(--font);margin:0;padding:24px}
+  h1{font-size:18px;margin:0 0 6px;color:#c084fc}
+  .sub{font-size:12px;color:var(--c);margin-bottom:20px;line-height:1.7}
+  .row{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .ver{width:480px}
+  .ver h3{font-size:13px;color:#9ca3af;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+  .ver h3 b{color:#c084fc;font-weight:700}
+  .ver .note{font-size:11px;color:#6b7280;margin:6px 0 10px;line-height:1.6}
+  .panel{background:var(--bg2);border:1px solid var(--b1);border-radius:12px;font-size:13px;color:var(--p);line-height:1.6;overflow:hidden}
+  .phead{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--b1)}
+  .phead .t{font-weight:600;font-size:13px}
+  .phead .sp{flex:1}
+  .pbody{padding:10px;max-height:420px;overflow:auto}
+  .card{border:1px solid var(--b1);border-radius:10px;background:var(--bg1);padding:10px 12px;margin-bottom:8px;position:relative}
+  .card:hover{border-color:var(--b2)}
+  .card.map{border-left:3px solid #c084fc;background:rgba(188,140,255,.06)}
+  .chip{display:inline-flex;align-items:center;gap:3px;padding:0 8px;border-radius:99px;font-size:10.5px;line-height:1.9;white-space:nowrap;flex:none}
+  .chip-m{background:rgba(188,140,255,.16);color:#bc8cff}
+  .chip-m2{background:rgba(188,140,255,.1);color:#bc8cff;border:1px dashed rgba(188,140,255,.55);cursor:pointer}
+  .num{color:var(--c);font-size:11px;line-height:1.6;flex:none}
+  .title{min-width:0;overflow-wrap:break-word;word-break:normal;line-break:auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .ic{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none;display:inline-block}
+  .ic10{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none;display:inline-block}
+  .btn{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;font-size:11px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid transparent;flex:none;font-family:var(--font);line-height:1.7}
+  .btn:hover{filter:brightness(1.1)}
+  .ghost{background:transparent;border-color:transparent;color:var(--s);padding:3px 4px;font-weight:400;cursor:pointer;border-radius:6px;display:inline-flex;align-items:center}
+  .ghost:hover{background:rgba(255,255,255,.08);color:var(--p)}
+  .l1{display:flex;align-items:flex-start;gap:6px;width:100%}
+  .l1 .title{flex:1}
+  /* 行2：label + 按钮 完全同行，垂直居中 */
+  .l2{margin-top:8px;display:flex;align-items:center;gap:3px;width:100%}
+  .l2 .tags{display:flex;align-items:center;gap:3px;flex:1 1 auto;min-width:0;overflow:hidden}
+  .l2 .acts{display:flex;align-items:center;gap:3px;flex:none;margin-left:auto}
+  .acts .aux{display:flex;gap:2px;align-items:center;opacity:0;transition:opacity .12s;pointer-events:none}
+  .card:hover .acts .aux{opacity:1;pointer-events:auto}
+  .prog-txt{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.5;flex:none;letter-spacing:.2px}
+  .prog-txt.done{color:#4ade80}
+  .prog-txt.ongoing{color:#bc8cff}
+  .ring{flex:none;display:inline-flex;align-items:center;gap:4px}
+  .ring svg{transform:rotate(-90deg)}
+  /* popover (a) */
+  .pop{position:fixed;z-index:1000;background:var(--bg2);border:1px solid var(--b2);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.5);padding:8px 10px;display:none;max-width:340px}
+  .pop .pt{font-size:10px;color:var(--c);letter-spacing:.5px;margin-bottom:4px}
+  .pop .pl{display:flex;flex-wrap:wrap;gap:4px}
+  .pop .ptitle{font-size:11px;color:var(--s);margin-top:6px;border-top:1px solid var(--b1);padding-top:6px;line-height:1.5}
+  /* tooltip (b) */
+  .tip-wrap{position:relative}
+  .tip{position:absolute;bottom:calc(100% + 6px);left:0;z-index:999;background:var(--bg2);border:1px solid var(--b2);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.5);padding:6px 8px;display:none;white-space:nowrap;font-size:11px;color:var(--s)}
+  .tip-wrap:hover .tip{display:block}
+  /* 下拉 (c) */
+  .c-tags{display:flex;align-items:center;flex-wrap:wrap;gap:3px}
+  .c-tags .hidden{display:none}
+  .c-tags.open .hidden{display:inline-flex}
+</style></head><body>
+<h1>P2 优化 · 只显示 2 个 label + 与按钮同行 + 展开交互三方案</h1>
+<div class="sub">行2 = 前 2 个 label（多则 +N 折叠） + 按钮组（执行/新会话常显，复制/外链 hover）—— <b>完全同一行、垂直居中</b>。行1 保留迷你圆环进度。<br>展开交互对比：<b>(a) 弹窗</b>（点 +N 弹浮层，不影响布局，推荐）· <b>(b) hover 显示</b>（零成本但纯文本）· <b>(c) 下拉展开</b>（直观但行高突变导致跳动）。三个都能点/悬停试试。</div>
+<div class="row">
+
+<!-- ══════════ (a) 弹窗 popover ══════════ -->
+<div class="ver"><h3><b>(a)</b> 弹窗 Popover（点 +N 展开）</h3>
+<div class="note">点紫色的 +N 胶囊 → 弹出浮层：全部 label（带颜色）+ 完整标题。不影响行布局。</div>
+<div class="panel"><div class="phead"><span class="t">DSH-Waystation</span><span class="sp"></span></div><div class="pbody">
+  <div class="card map" id="ca1">
+    <div class="l1">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none"><span class="num">#409</span><span class="chip chip-m" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span></span>
+      <span class="title" style="font-weight:600">[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布</span>
+      <span class="ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#4ade80" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="0"/></svg><span class="prog-txt done">25/25</span></span>
+    </div>
+    <div class="l2">
+      <div class="tags">
+        <span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span>
+        <span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span>
+        <span class="chip chip-m2" data-pop="pop1" style="line-height:1.7">+2</span>
+      </div>
+      <div class="acts">
+        <button class="btn" style="background:#3fb950;color:#0c1a10"><svg class="ic10" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>完成</button>
+        <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>新会话</button>
+        <span class="aux"><button class="ghost" title="复制链接"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost" title="GitHub 打开"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+      </div>
+    </div>
+  </div>
+  <div class="card map">
+    <div class="l1">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none"><span class="num">#200</span><span class="chip chip-m" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span></span>
+      <span class="title" style="font-weight:600">[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)</span>
+      <span class="ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#bc8cff" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="5.7"/></svg><span class="prog-txt ongoing">13/15</span></span>
+    </div>
+    <div class="l2">
+      <div class="tags">
+        <span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span>
+        <span class="chip" style="background:rgba(29,118,219,.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:私家大厨</span>
+      </div>
+      <div class="acts">
+        <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>执行</button>
+        <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>新会话</button>
+        <span class="aux"><button class="ghost" title="复制链接"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost" title="GitHub 打开"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="l1"><span class="num">#437</span><span class="title">[dsh-waystation] T13 · README 增强 DSH CLI 安装指引 + 主命令改 dsh</span></div>
+    <div class="l2">
+      <div class="tags"><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">wayfinder:task</span><span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span></div>
+      <div class="acts"><button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>执行</button><span class="aux"><button class="ghost" title="复制链接"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost" title="GitHub 打开"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span></div>
+    </div>
+  </div>
+</div></div></div>
+
+<!-- ══════════ (b) hover 显示 ══════════ -->
+<div class="ver"><h3><b>(b)</b> hover 显示（悬停 +N）</h3>
+<div class="note">鼠标悬停在 +N 上 → 右侧浮现小浮层显示剩余 label 文本。零点击、零布局影响；但只能纯文本（无颜色胶囊样式）。</div>
+<div class="panel"><div class="phead"><span class="t">DSH-Waystation</span><span class="sp"></span></div><div class="pbody">
+  <div class="card map">
+    <div class="l1">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none"><span class="num">#409</span><span class="chip chip-m" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span></span>
+      <span class="title" style="font-weight:600">[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布</span>
+      <span class="ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#4ade80" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="0"/></svg><span class="prog-txt done">25/25</span></span>
+    </div>
+    <div class="l2">
+      <div class="tags">
+        <span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span>
+        <span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span>
+        <span class="tip-wrap"><span class="chip chip-m2" style="line-height:1.7;cursor:default">+2<span class="tip">更多标签：ready-for-human、bug</span></span></span>
+      </div>
+      <div class="acts">
+        <button class="btn" style="background:#3fb950;color:#0c1a10"><svg class="ic10" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>完成</button>
+        <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>新会话</button>
+        <span class="aux"><button class="ghost" title="复制链接"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost" title="GitHub 打开"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+      </div>
+    </div>
+  </div>
+  <div class="card map">
+    <div class="l1">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none"><span class="num">#200</span><span class="chip chip-m" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span></span>
+      <span class="title" style="font-weight:600">[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)</span>
+      <span class="ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#bc8cff" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="5.7"/></svg><span class="prog-txt ongoing">13/15</span></span>
+    </div>
+    <div class="l2">
+      <div class="tags">
+        <span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span>
+        <span class="chip" style="background:rgba(29,118,219,.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:私家大厨</span>
+      </div>
+      <div class="acts">
+        <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>执行</button>
+        <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>新会话</button>
+        <span class="aux"><button class="ghost" title="复制链接"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost" title="GitHub 打开"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="l1"><span class="num">#512</span><span class="title">[卡路里] 多标签重场景行 · 六个标签折叠为 +2</span></div>
+    <div class="l2">
+      <div class="tags">
+        <span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span>
+        <span class="chip" style="background:rgba(29,118,219,.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:卡路里</span>
+        <span class="tip-wrap"><span class="chip chip-m2" style="line-height:1.7;cursor:default">+4<span class="tip">更多标签：bug、ready-for-agent、enhancement、p2</span></span></span>
+      </div>
+      <div class="acts"><button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>执行</button><span class="aux"><button class="ghost" title="复制链接"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost" title="GitHub 打开"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span></div>
+    </div>
+  </div>
+</div></div></div>
+
+<!-- ══════════ (c) 下拉展开 ══════════ -->
+<div class="ver"><h3><b>(c)</b> 下拉展开（点 +N 行内展开）</h3>
+<div class="note">点 +N → 该行直接展开显示全部 label（带颜色胶囊），再点收起。直观但<b>行高突变</b>：列表会跳动、滚动位置漂移。</div>
+<div class="panel"><div class="phead"><span class="t">DSH-Waystation</span><span class="sp"></span></div><div class="pbody">
+  <div class="card map">
+    <div class="l1">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none"><span class="num">#409</span><span class="chip chip-m" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span></span>
+      <span class="title" style="font-weight:600">[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布</span>
+      <span class="ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#4ade80" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="0"/></svg><span class="prog-txt done">25/25</span></span>
+    </div>
+    <div class="l2" style="align-items:flex-start">
+      <div class="c-tags">
+        <span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span>
+        <span class="chip" style="background:rgba(191,212,242,.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span>
+        <span class="chip hidden" style="background:rgba(254,242,192,.18);color:#fef2c0;border:1px solid rgb(213,201,151)">ready-for-human</span>
+        <span class="chip hidden" style="background:rgba(240,136,62,.18);color:#f0883e;border:1px solid rgb(190,90,0)">bug</span>
+        <span class="chip chip-m2" data-c="c1" style="line-height:1.7">+2 ▾</span>
+      </div>
+      <div class="acts">
+        <button class="btn" style="background:#3fb950;color:#0c1a10"><svg class="ic10" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>完成</button>
+        <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>新会话</button>
+        <span class="aux"><button class="ghost" title="复制链接"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost" title="GitHub 打开"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+      </div>
+    </div>
+  </div>
+  <div class="card map">
+    <div class="l1">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none"><span class="num">#200</span><span class="chip chip-m" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span></span>
+      <span class="title" style="font-weight:600">[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)</span>
+      <span class="ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#bc8cff" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="5.7"/></svg><span class="prog-txt ongoing">13/15</span></span>
+    </div>
+    <div class="l2" style="align-items:flex-start">
+      <div class="c-tags">
+        <span class="chip" style="background:rgba(83,25,231,.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span>
+        <span class="chip" style="background:rgba(29,118,219,.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:私家大厨</span>
+        <span class="chip hidden" style="background:rgba(254,242,192,.18);color:#fef2c0;border:1px solid rgb(213,201,151)">ready-for-human</span>
+        <span class="chip hidden" style="background:rgba(63,185,80,.18);color:#3fb950;border:1px solid rgb(0,130,40)">ready-for-agent</span>
+        <span class="chip chip-m2" data-c="c2" style="line-height:1.7">+2 ▾</span>
+      </div>
+      <div class="acts">
+        <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>执行</button>
+        <button class="btn" style="background:#5319e7;color:#fff"><svg class="ic10" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>新会话</button>
+        <span class="aux"><button class="ghost" title="复制链接"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button><a class="ghost" title="GitHub 打开"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a></span>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+
+</div>
+<div id="pop1" class="pop"></div>
+<script>
+  // (a) popover：点击 +N 弹出
+  var pops = {
+    pop1: {
+      labels: [
+        {t:'ready-for-human', b:'rgba(254,242,192,.18)', c:'#fef2c0', s:'rgb(213,201,151)'},
+        {t:'bug', b:'rgba(240,136,62,.18)', c:'#f0883e', s:'rgb(190,90,0)'}
+      ],
+      title:'[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布 · #409'
+    }
+  }
+  var popEl = document.getElementById('pop1')
+  function renderPop(id){
+    var d = pops[id]
+    if(!d) return
+    var html = '<div class="pt">全部标签</div><div class="pl">'
+    d.labels.forEach(function(l){
+      html += '<span class="chip" style="background:'+l.b+';color:'+l.c+';border:1px solid '+l.s+'">'+l.t+'</span>'
+    })
+    html += '</div><div class="ptitle">'+d.title+'</div>'
+    popEl.innerHTML = html
+  }
+  document.addEventListener('click', function(e){
+    var trig = e.target.closest ? e.target.closest('[data-pop]') : null
+    if(trig){
+      e.stopPropagation()
+      var id = trig.getAttribute('data-pop')
+      renderPop(id)
+      var r = trig.getBoundingClientRect()
+      popEl.style.display = 'block'
+      var pw = popEl.offsetWidth
+      var left = r.left
+      if(left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8
+      popEl.style.left = left + 'px'
+      popEl.style.top = (r.bottom + 6) + 'px'
+    } else {
+      popEl.style.display = 'none'
+    }
+  })
+  // (c) 下拉展开
+  document.addEventListener('click', function(e){
+    var t = e.target.closest ? e.target.closest('[data-c]') : null
+    if(!t) return
+    e.stopPropagation()
+    var wrap = t.parentElement
+    wrap.classList.toggle('open')
+    t.textContent = wrap.classList.contains('open') ? '收起 ▴' : (t.getAttribute('data-c')==='c1' ? '+2 ▾' : '+2 ▾')
+  })
+</script>
+</body></html>

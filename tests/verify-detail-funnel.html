@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>Map 详情 v1.4 · 漏斗分层验收页（真实 #441 数据）</title>
+<style>
+  :root{--bg2:#16181d;--bg1:#10131a;--b1:#2a2d35;--p:#e6edf3;--s:#a1a1aa;--c:#8b8b95;--font:-apple-system,'Segoe UI','PingFang SC',sans-serif;--mono:Consolas,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{background:#0a0c10;color:var(--p);font-family:var(--font);margin:0;padding:20px}
+  h1{font-size:16px;margin:0 0 4px;color:#c084fc}
+  .sub{font-size:12px;color:var(--c);margin-bottom:14px;line-height:1.7}
+  .panel{background:var(--bg2);border:1px solid var(--b1);border-radius:12px;font-size:13px;overflow:hidden;margin:0 auto;transition:width .3s}
+  .top{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--b1);font-size:12px}
+  .top .sp{flex:1}
+  .hd{display:flex;align-items:center;gap:8px;padding:10px 12px 0;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 8px;border-radius:99px;border:1px solid rgba(192,132,252,.5);color:#c084fc;font-family:var(--mono);background:rgba(192,132,252,.08)}
+  .mtitle{font-size:14px;font-weight:700;padding:8px 12px 0;line-height:1.4;overflow-wrap:anywhere}
+  .btn{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;padding:3px 10px;border-radius:6px;border:1px solid var(--b1);background:var(--bg1);color:var(--p);cursor:pointer;font-family:var(--font)}
+  .btn.primary{background:#c084fc;border-color:transparent;color:#140a1e;font-weight:600}
+  .btn.green{background:#4ade80;border-color:transparent;color:#04120a;font-weight:700}
+  .btn.ghost{background:transparent;border-color:var(--b1);color:var(--s)}
+  .ic{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none;display:inline-block}
+  .layers{display:flex;flex-direction:column;gap:4px;margin:10px 12px 0;padding:8px 10px;border-radius:10px;background:linear-gradient(90deg,rgba(74,222,128,.05),rgba(255,255,255,.015));border:1px solid rgba(74,222,128,.2)}
+  .layers .row1{display:flex;align-items:center;gap:8px}
+  .layers .cap{font-size:9px;color:var(--c);letter-spacing:.5px;text-transform:uppercase;flex:none}
+  .layers .segs{flex:1;display:flex;gap:3px;height:12px}
+  .layers .seg{flex:1;border-radius:3px;position:relative;background:rgba(255,255,255,.06);border:1px dashed rgba(255,255,255,.14)}
+  .layers .seg.past{background:linear-gradient(180deg,rgba(74,222,128,.7),rgba(74,222,128,.4));border:none}
+  .layers .seg.past::after{content:"✓";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:7px;color:#04120a;font-weight:700}
+  .layers .seg.curr{background:linear-gradient(180deg,#4ade80,#2dd45f);border:none;box-shadow:0 0 8px rgba(74,222,128,.5)}
+  .layers .row2{display:flex;justify-content:space-between;font-size:8.5px;color:var(--c);align-items:center}
+  .layers .row2 .cur{color:#4ade80;font-weight:700;display:inline-flex;align-items:center;gap:4px}
+  .map{padding:6px 12px 16px}
+  .start{display:flex;gap:8px;align-items:flex-start;margin:6px 0 2px}
+  .start .cap{font-size:13px;font-weight:700;color:#fff}
+  .layerTag{display:flex;align-items:center;gap:6px;font-size:9px;color:var(--c);letter-spacing:.5px;margin:8px 0 4px;text-transform:uppercase}
+  .layerTag .sp{flex:1;height:1px;background:linear-gradient(90deg,var(--b1),transparent)}
+  .layer{display:flex;justify-content:flex-start;gap:8px;padding:2px 0 6px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}
+  .layer::-webkit-scrollbar{height:5px}
+  .layer::-webkit-scrollbar-track{background:transparent}
+  .layer::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:3px}
+  .node{display:flex;flex-direction:column;gap:4px;border-radius:10px;padding:7px 8px;min-width:0;width:200px;flex:none;position:relative;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));border:1.5px solid var(--b1);color:var(--p);transition:filter .4s,opacity .4s}
+  .node.single{width:100%;flex:none}
+  .node .row1{display:flex;align-items:center;gap:6px}
+  .node .icbox{width:22px;height:22px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;border:1.5px solid;background:rgba(0,0,0,.5);color:var(--s)}
+  .node .meta{display:flex;align-items:center;gap:5px;margin-bottom:1px}
+  .node .no{font-size:9px;color:var(--c);font-family:var(--mono)}
+  .node .tag{font-size:8px;padding:0 4px;border-radius:3px;border:1px solid;opacity:.85;font-family:var(--mono);background:rgba(139,148,158,.15);color:#8b949e}
+  .node .tt{font-size:11px;font-weight:600;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}
+  .node .sub{font-size:8px;color:var(--c);margin-top:1px;display:flex;gap:5px;flex-wrap:wrap}
+  .node .acts{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+  .act-btn{display:inline-flex;align-items:center;gap:3px;font-size:9.5px;padding:2px 7px;border-radius:5px;border:none;cursor:pointer;font-family:var(--font);font-weight:600}
+  .act-diagnose{background:#f59e0b;color:#1a1200}
+  .act-fix{background:#f87171;color:#1a0a0a}
+  .act-discuss{background:#d93f0b;color:#fff}
+  .act-execute{background:#c084fc;color:#140a1e}
+  .node.done{opacity:.55}
+  .node.now{border-color:rgba(74,222,128,.9);box-shadow:0 0 14px rgba(74,222,128,.3)}
+  .node.wait{border-color:rgba(240,136,62,.5);border-style:dashed;opacity:.8}
+  .node.fog{filter:blur(2.4px) brightness(.45);opacity:.6;cursor:pointer;border-color:rgba(192,132,252,.4)}
+  .node.fog.revealed{filter:none;opacity:1;cursor:default}
+  .node.fog .acts{pointer-events:none;filter:blur(1px)}
+  .node.fog.revealed .acts{pointer-events:auto;filter:none}
+  .node .qmark{position:absolute;right:7px;bottom:7px;width:12px;height:12px;color:rgba(192,132,252,.8);fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+  .gate{height:26px;display:flex;align-items:center;justify-content:center;position:relative}
+  .gate::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:2px;background:linear-gradient(180deg,transparent,rgba(255,255,255,.15),transparent)}
+  .gate .g{width:22px;height:22px;border-radius:50%;background:var(--bg2);border:2px solid;display:flex;align-items:center;justify-content:center;z-index:1;color:var(--s)}
+  .gate .g.lock{border-color:rgba(240,136,62,.55);color:#f0883e}
+  .gate .g.open{border-color:rgba(74,222,128,.75);color:#4ade80}
+  .dest{position:relative;margin-top:14px;border-radius:14px;padding:14px 12px 12px;text-align:center;background:linear-gradient(180deg,rgba(192,132,252,.1),rgba(88,166,255,.03) 70%,transparent);border:1.5px solid rgba(192,132,252,.35)}
+  .dest .ring{width:72px;height:72px;margin:0 auto;position:relative}
+  .dest .ring svg{transform:rotate(-90deg)}
+  .dest .ring .track{stroke:rgba(255,255,255,.07);fill:none;stroke-width:6}
+  .dest .ring .prog{fill:none;stroke-width:6;stroke-linecap:round;stroke:rgba(192,132,252,.7)}
+  .dest .core{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .dest .core svg{width:22px;height:22px;fill:none;stroke:#c084fc;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .dest .title{font-size:15px;font-weight:700;margin-top:4px}
+  .dest .acts{display:flex;justify-content:center;gap:8px;margin-top:8px}
+  .foobar{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid rgba(255,255,255,.06);font-size:10px;color:var(--s);flex-wrap:wrap}
+  .foobar .sp{flex:1}
+  .wsel{display:flex;gap:4px}
+  .wsel button{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:6px;border:1px solid var(--b1);background:var(--bg1);color:var(--s);cursor:pointer}
+  .wsel button.on{border-color:#c084fc;color:#c084fc;background:rgba(192,132,252,.1)}
+  .note{font-size:10px;color:var(--c);padding:8px 12px;border-top:1px solid rgba(255,255,255,.06);line-height:1.7}
+  .note b{color:var(--s)}
+</style></head><body>
+<h1>Map 详情 v1.4 · 漏斗分层验收页</h1>
+<div class="sub">真实 #441 数据（3 层）：层1 #442 已关 ✓ · 层2 #443 当前行动 · 层3 #444 被阻塞=迷雾。<b>点击迷雾节点揭开</b>；底部切换 360/440/520 宽度；迷雾节点是演示补充（真实 #444 被 #443 阻塞）。</div>
+<div class="panel" id="panel" style="width:520px">
+  <div class="top"><span class="chip">wayfinder:map</span><span class="sp"></span><span class="btn ghost">刷新</span></div>
+  <div class="hd"><span class="btn">← 返回</span><span class="chip">#441</span><span class="sp"></span><span class="btn">执行</span></div>
+  <div class="mtitle">[dsh-waystation] Map 详情页 v1.4 落地 sub-map · 漏斗分层+战争迷雾</div>
+  <div class="layers">
+    <div class="row1"><span class="cap">地图进度</span><div class="segs" id="segs"></div></div>
+    <div class="row2"><span class="cur" id="cur"></span><span class="pos" id="pos"></span></div>
+  </div>
+  <div class="map">
+    <div class="start"><span class="cap">Start</span></div>
+    <div id="funnel"></div>
+    <div class="dest">
+      <div class="ring"><svg width="72" height="72" viewBox="0 0 72 72"><circle class="track" cx="36" cy="36" r="31"/><circle class="prog" cx="36" cy="36" r="31" id="ringprog" stroke-dasharray="194.8" stroke-dashoffset="120"/></svg><div class="core"><svg viewBox="0 0 24 24"><path d="M5 3v18"/><path d="M5 4c4-2 6 2 12 0v9c-6 2-8-2-12 0"/></svg></div></div>
+      <div class="title">Destination</div>
+      <div class="acts"><button class="btn green">执行</button><button class="btn ghost">档案</button></div>
+    </div>
+  </div>
+  <div class="foobar"><span class="sp"></span><div class="wsel"><button data-w="360">360</button><button data-w="440">440</button><button data-w="520" class="on">520</button></div></div>
+  <div class="note">验收点：D1 分层+闸门（层1 绿✓已过 / 层2 当前）· D2 分段静态进度条 · D3 72px 仪式环（旗在环心无数字）· D5 四态动作 · D6 标题 2 行 clamp · D7 迷雾点击揭雾（点 #444）· D8 三档宽度不溢出。</div>
+</div>
+<script>
+const I = {
+  check:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg>',
+  lock:'<svg class="ic" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+  play:'<svg class="ic" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8V4z"/></svg>',
+  mag:'<svg class="ic" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M14.5 14.5L21 21"/></svg>',
+  bolt:'<svg class="ic" viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12L13 2z"/></svg>',
+  chat:'<svg class="ic" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H4l2.5-3.5A8 8 0 1 1 21 12z"/></svg>',
+  wrench:'<svg class="ic" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.2 4.9L3 17.8V21h3.2l6.6-6.5a4 4 0 0 0 4.9-5.2l-2.8 2.8-2.6-2.6 2.8-2.8z"/></svg>',
+  q:'<svg class="qmark" viewBox="0 0 24 24"><path d="M9.5 9a2.5 2.5 0 1 1 3.7 2.2c-.9.4-1.2 1-1.2 1.8"/><circle cx="12" cy="18" r=".6"/></svg>',
+  link:'<svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+};
+// 真实 #441 + 演示补充（四态/迷雾）
+const tickets = [
+  {number:442,title:'[dsh-waystation] T1 · host 分层：blockedBy DAG level 计算 + levels 快照字段',state:'CLOSED',level:0,type:'task',claimedBy:'FeatherHunter'},
+  {number:443,title:'[dsh-waystation] T2 · client MapDetail 定稿渲染：漏斗分层+迷雾+四态动作+仪式环',state:'OPEN',level:1,type:'task',claimedBy:'FeatherHunter',fog:false},
+  {number:444,title:'[dsh-waystation] T3 · verify 测试：分层/迷雾/四态动作用例 + 旧用例不回归',state:'OPEN',level:2,type:'task',fog:true},
+  // 演示补充：四态动作
+  {number:445,title:'[演示] needs-triage 票 · 诊断动作（琥珀）',state:'OPEN',level:1,type:'grilling',labels:['needs-triage'],demo:true},
+  {number:446,title:'[演示] bug 票 · 修复动作（红）',state:'OPEN',level:1,type:'task',labels:['bug'],demo:true},
+  {number:447,title:'[演示] 长标题票 · 验证 2 行 clamp 且 word-break 正常显示不溢出容器边界',state:'OPEN',level:2,type:'task',demo:true},
+];
+const byLevel = {};
+tickets.forEach(t => { (byLevel[t.level] = byLevel[t.level] || []).push(t) });
+const levels = [0,1,2];
+const curLevel = 1;
+const revealed = {};
+function actCls(labels){
+  if(labels&&labels.indexOf('needs-triage')>=0) return 'act-diagnose';
+  if(labels&&labels.indexOf('bug')>=0) return 'act-fix';
+  if(labels&&labels.indexOf('wayfinder:grilling')>=0) return 'act-discuss';
+  return 'act-execute';
+}
+function actLabel(labels){ if(labels&&labels.indexOf('needs-triage')>=0)return '诊断'; if(labels&&labels.indexOf('bug')>=0)return '修复'; if(labels&&labels.indexOf('wayfinder:grilling')>=0)return '讨论'; return '执行' }
+function iconOf(type){ return type==='research'?'mag':type==='prototype'?'bolt':type==='grilling'?'chat':'wrench' }
+// 进度条
+const segs = document.getElementById('segs');
+levels.forEach((lv,i)=>{ const s=document.createElement('div'); s.className = i<curLevel?'seg past':(i===curLevel?'seg curr':'seg future'); s.title='层'+(i+1); segs.appendChild(s) });
+document.getElementById('cur').innerHTML = I.play + '<span>当前：层 '+(curLevel+1)+'</span>';
+document.getElementById('pos').textContent = curLevel + '/' + levels.length + ' 层已通过';
+// 漏斗
+const funnel = document.getElementById('funnel');
+levels.forEach((lv,i)=>{
+  const tag = document.createElement('div'); tag.className='layerTag';
+  tag.innerHTML = '<span>层 '+(i+1)+'</span><span class="sp"></span>';
+  funnel.appendChild(tag);
+  const layer = document.createElement('div'); layer.className='layer';
+  const arr = byLevel[lv]||[];
+  arr.forEach(t=>{
+    const n = document.createElement('div');
+    let cls = 'node' + (arr.length===1?' single':'') + (t.state==='CLOSED'?' done':'') + (i===curLevel&&t.state==='OPEN'?' now':'') + (t.fog?' fog':'');
+    n.className = cls;
+    const fog = t.fog;
+    const acts = (t.state==='OPEN'&&!fog) ? '<div class="acts"><button class="act-btn '+actCls(t.labels)+'">'+I.play+'<span>'+actLabel(t.labels)+'</span></button><a style="text-decoration:none;color:var(--s);display:inline-flex;align-items:center;padding:2px">'+I.link+'</a></div>' : '';
+    const sub = (t.state==='CLOSED'?'<span style="color:#3fb950;display:inline-flex;align-items:center;gap:2px">'+I.check+'<span>已关闭</span></span>':'') +
+      (t.claimedBy?'<span style="color:#58a6ff;display:inline-flex;align-items:center;gap:2px"><svg class="ic" viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M4 20c0-4 3.5-6 8-6s8 2 8 6"/></svg><span>'+t.claimedBy+'</span></span>':'') +
+      (t.fog?'<span style="color:#f0883e;display:inline-flex;align-items:center;gap:2px">'+I.lock+'<span>被阻塞</span></span>':'');
+    n.innerHTML = '<div class="row1"><span class="icbox">'+I[iconOf(t.type)]+'</span><div style="flex:1;min-width:0"><div class="meta"><span class="no">#'+t.number+'</span><span class="tag">'+t.type+'</span></div><div class="tt" title="'+t.title+'">'+t.title+'</div><div class="sub">'+sub+'</div></div></div>'+acts+(fog?I.q:'');
+    if(fog){ n.onclick = function(){ const r=revealed[t.number]?false:true; revealed[t.number]=r; n.classList.toggle('revealed',r) } }
+    layer.appendChild(n);
+  });
+  funnel.appendChild(layer);
+  // 闸门（除最后一层）
+  if(i<levels.length-1){
+    const g=document.createElement('div'); g.className='gate';
+    const open = i<curLevel;
+    g.innerHTML='<span class="g '+(open?'open':'lock')+'">'+(open?I.check:I.lock)+'</span>';
+    funnel.appendChild(g);
+  }
+});
+// 宽度切换
+document.querySelectorAll('.wsel button').forEach(b=>{
+  b.onclick=()=>{ document.querySelectorAll('.wsel button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); document.getElementById('panel').style.width=b.dataset.w+'px' };
+});
+</script>
+</body></html>

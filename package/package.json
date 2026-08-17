@@ -1,0 +1,46 @@
+{
+    "name": "dsh-mattpocock-skills-deck",
+    "version": "1.5.0",
+    "description": "非官方 DeepSeek Harness 插件：Matt Pocock 技能套件（mattpocock/skills）的 DSH 控制面板（Deck）——将 wayfinder 地图/票务/进度、triage / grilling / handoff 动作注入带进 DSH；配套 25 个工程与效率技能。打开形式仅右侧 details 列（无 PiP/悬浮）。npm 标准安装（dsh plugin add · bundle 装配，一条命令即装好，无需手动注册）。",
+    "type": "module",
+    "main": "lib/index.js",
+    "exports": {
+        ".": "./lib/index.js",
+        "./client": "./lib/client.js",
+        "./cordis.patch.yml": "./cordis.patch.yml",
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "lib",
+        "cordis.patch.yml"
+    ],
+    "keywords": [
+        "dsh",
+        "deepseek-harness",
+        "plugin",
+        "mattpocock",
+        "skills",
+        "wayfinder",
+        "triage",
+        "grilling",
+        "handoff",
+        "issue-tracker",
+        "deck"
+    ],
+    "dsh": {
+        "bundle": {
+            "patch": "./cordis.patch.yml"
+        },
+        "client": {
+            "platform": "web",
+            "immediately": true,
+            "inject": []
+        }
+    },
+    "homepage": "https://github.com/FeatherHunter/dsh-mattpocock-skills-deck",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/FeatherHunter/dsh-mattpocock-skills-deck.git"
+    },
+    "license": "MIT"
+}

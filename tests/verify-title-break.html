@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DSH-Waystation · 标题换行策略对比（#396）</title>
+<style>
+  :root{
+    --bg:#0a0a0a; --panel:#16181d; --panel2:#10131a;
+    --border:#2a2d35; --border2:#3a3f4a;
+    --text:#e6edf3; --sub:#a1a1aa; --dim:#8b8b95;
+    --acc:#c084fc; --green:#4ade80; --red:#f87171; --blue:#58a6ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6;padding:24px}
+  h1{font-size:22px;margin-bottom:6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:18px;max-width:900px}
+  .tag{display:inline-block;background:rgba(192,132,252,.15);border:1px solid rgba(192,132,252,.4);color:var(--acc);border-radius:99px;padding:2px 10px;font-size:11px;margin-right:6px}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+  .col{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 14px 18px;overflow:hidden}
+  .col h3{font-size:13px;margin-bottom:10px;color:var(--sub);font-weight:600;display:flex;align-items:center;gap:6px}
+  .col h3 .w{font-family:ui-monospace,Consolas,monospace;color:var(--dim);font-weight:400;font-size:11px}
+  .col .frame{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin-bottom:8px;overflow:hidden;resize:horizontal}
+  .label{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--dim);margin:6px 2px 4px;text-transform:uppercase;letter-spacing:.5px}
+  .label b{color:var(--text);font-weight:600}
+
+  /* ===== before/after CSS 块 ===== */
+  .trow{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-radius:6px;border:1px solid transparent;font-size:12.5px}
+  .trow .tt{flex:1;min-width:0}
+  .tt-sub{font-size:11px;color:var(--sub);margin-top:3px}
+  .chip{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;border-radius:99px;font-size:10.5px;line-height:1.7;margin-right:4px;white-space:nowrap;background:rgba(88,166,255,.18);color:var(--blue);margin-top:4px}
+
+  /* BEFORE —— 历史策略 */
+  .before .tt-name{font-size:12.5px;word-break:break-all;display:flex;align-items:center;gap:5px}
+  .before .tt-ellip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .before .tt-mtitle{font-weight:600;font-size:13px;display:flex;align-items:center;gap:5px}
+
+  /* AFTER —— 新策略 */
+  .after .tt-name{font-size:12.5px;display:flex;align-items:center;gap:5px}
+  .after .tt-wrap{min-width:0;overflow-wrap:break-word;word-break:normal;line-break:auto}
+  .after .tt-mtitle{font-weight:600;font-size:13px}
+
+  .footer{margin-top:20px;padding:14px;background:var(--panel);border:1px dashed var(--border);border-radius:8px;font-size:12px;color:var(--sub)}
+  .footer code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:11.5px;color:var(--text)}
+  .ok{color:var(--green)}
+  .bad{color:var(--red)}
+</style>
+</head>
+<body>
+<h1>DSH-Waystation · 标题换行策略对比 <span class="tag">#396 · v27</span></h1>
+<div class="sub">
+  左侧 details 列的列表项标题在窄宽度下被静默截断。修复：父 .dsws-tt-name 移除 word-break:break-all，标题 span 用新 .dsws-tt-wrap 替换 .dsws-ellip（移除 white-space:nowrap），允许按空格/中文标点换行；hover 通过现有 title=... 兜底显示完整文本。
+</div>
+
+<div class="grid">
+  <div class="col before">
+    <h3>Before <span class="w">word-break:break-all + .dsws-ellip</span></h3>
+    <div class="label"><b>300px</b><span>min 边界</span></div>
+    <div class="frame" style="width:300px">
+      <div class="trow">
+        <div class="tt">
+          <div class="tt-name">
+            <span class="tt-ellip" style="flex:1" title="[公共组件] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）">[公共组件] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）</span>
+            <span style="color:var(--dim);font-size:11px;flex:none">#396</span>
+          </div>
+          <div class="tt-sub"><span class="chip">bug</span><span class="chip">enhancement</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="label"><b>380px</b><span>narrow 阈值</span></div>
+    <div class="frame" style="width:380px">
+      <div class="trow">
+        <div class="tt">
+          <div class="tt-name">
+            <span class="tt-ellip" style="flex:1" title="[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）">[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）</span>
+            <span style="color:var(--dim);font-size:11px;flex:none">#396</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="label"><b>460px</b><span>默认宽度</span></div>
+    <div class="frame" style="width:460px">
+      <div class="trow">
+        <div class="tt">
+          <div class="tt-name">
+            <span class="tt-ellip" style="flex:1" title="[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）">[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）</span>
+            <span style="color:var(--dim);font-size:11px;flex:none">#396</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="label"><b>720px</b><span>layout 服务 max</span></div>
+    <div class="frame" style="width:720px">
+      <div class="trow">
+        <div class="tt">
+          <div class="tt-name">
+            <span class="tt-ellip" style="flex:1" title="[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）">[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）</span>
+            <span style="color:var(--dim);font-size:11px;flex:none">#396</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col after">
+    <h3>After <span class="w">.dsws-tt-wrap（#396 v27）</span></h3>
+    <div class="label"><b>300px</b><span>min 边界</span></div>
+    <div class="frame" style="width:300px">
+      <div class="trow">
+        <div class="tt">
+          <div class="tt-name">
+            <span class="tt-wrap" style="flex:1" title="[公共组件] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）">[公共组件] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）</span>
+            <span style="color:var(--dim);font-size:11px;flex:none">#396</span>
+          </div>
+          <div class="tt-sub"><span class="chip">bug</span><span class="chip">enhancement</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="label"><b>380px</b><span>narrow 阈值</span></div>
+    <div class="frame" style="width:380px">
+      <div class="trow">
+        <div class="tt">
+          <div class="tt-name">
+            <span class="tt-wrap" style="flex:1" title="[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）">[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）</span>
+            <span style="color:var(--dim);font-size:11px;flex:none">#396</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="label"><b>460px</b><span>默认宽度</span></div>
+    <div class="frame" style="width:460px">
+      <div class="trow">
+        <div class="tt">
+          <div class="tt-name">
+            <span class="tt-wrap" style="flex:1" title="[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）">[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）</span>
+            <span style="color:var(--dim);font-size:11px;flex:none">#396</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="label"><b>720px</b><span>layout 服务 max</span></div>
+    <div class="frame" style="width:720px">
+      <div class="trow">
+        <div class="tt">
+          <div class="tt-name">
+            <span class="tt-wrap" style="flex:1" title="[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）">[dsh-waystation] charts 接口缺口汇总（...双轴刻度/置信带/堆叠柱/散点/线间填充/分组双柱/极值标注/轴文字）</span>
+            <span style="color:var(--dim);font-size:11px;flex:none">#396</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid" style="grid-template-columns:1fr 1fr">
+  <div class="col before">
+    <h3>Before · Map 标题 <span class="w">m.title</span></h3>
+    <div class="frame" style="width:380px">
+      <div class="tt-mtitle"><span class="tt-ellip" style="flex:1" title="[wayfinder:map] 右侧面板可拖拽调宽至列表 item 标题完整显示">[wayfinder:map] 右侧面板可拖拽调宽至列表 item 标题完整显示</span></div>
+    </div>
+  </div>
+  <div class="col after">
+    <h3>After · Map 标题 <span class="w">.dsws-mtitle + .dsws-tt-wrap</span></h3>
+    <div class="frame" style="width:380px">
+      <div class="tt-mtitle"><span class="tt-wrap" style="flex:1" title="[wayfinder:map] 右侧面板可拖拽调宽至列表 item 标题完整显示">[wayfinder:map] 右侧面板可拖拽调宽至列表 item 标题完整显示</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <p style="margin-bottom:8px"><b>验收对照</b>（hover 任意标题看完整文本——native <code>title</code> 属性兜底）</p>
+  <p>· <span class="bad">Before</span>：每个宽度都只显示一行 + 省略号 ...（不论多宽都一样，因为 <code>.dsws-ellip{white-space:nowrap}</code> 强制单行）</p>
+  <p>· <span class="ok">After</span>：标题按空格/中文标点换行（中文 13px ≈ 0.5em，行高 1.6），300px 下约 3 行完整可读</p>
+  <p style="margin-top:8px"><b>CSS 改动</b>（<code>dsh-plugin/dsh-waystation/client.js</code> ↔ <code>package/lib/client.js</code> 双源同步）：</p>
+  <p>· <code>.dsws-tt-name</code>：移除 <code>word-break:break-all</code></p>
+  <p>· 新增 <code>.dsws-tt-wrap{min-width:0;overflow-wrap:break-word;word-break:normal;line-break:auto}</code></p>
+  <p>· JSX：TicketRow / ListTab / MapDetail 三处标题 span 的 <code>className: 'dsws-ellip'</code> → <code>'dsws-tt-wrap'</code></p>
+  <p style="margin-top:8px"><b>验证</b>：verify-t3-locale (162 键 × zh/en × 2 files) · verify-t2a-config (6/4 组) · verify-t2b-templates (6/6 组) · scan-mangle · 双源 grep 镜像 ✅</p>
+</div>
+</body>
+</html>

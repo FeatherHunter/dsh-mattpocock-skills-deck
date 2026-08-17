@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>waystation 面板 UI · 布局修复后（labels 可换行 + 右侧固定区）</title>
+<style>
+  :root { --dsw-alias-bg-layer-2:#16181d; --dsw-alias-bg-layer-3:#0c0e12; --dsw-alias-bg-layer-1:#10131a;
+          --dsw-alias-border-l1:#2a2d35; --dsw-alias-border-l2:#3a3f4a; --dsw-alias-label-primary:#e6edf3;
+          --dsw-alias-label-secondary:#a1a1aa; --dsw-alias-label-caption:#8b8b95; --dsw-alias-label-tertiary:#6b7280;
+          --dsw-font-family:-apple-system,'Segoe UI','PingFang SC',sans-serif; }
+  body{background:#0a0c10;color:#e6edf3;font-family:var(--dsw-font-family);margin:0;padding:20px}
+  h1{font-size:16px;margin:0 0 4px;color:#c084fc}
+  .sub{font-size:12px;color:#8b8b95;margin-bottom:14px}
+  .flex{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+  .scene h3{font-size:12px;color:#9ca3af;margin:0 0 8px}
+  .dsws-panel{position:fixed;left:16px;top:76px;width:460px;max-height:calc(100vh - 24px);display:flex;flex-direction:column;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.45);z-index:9999;font-family:var(--dsw-font-family);font-size:13px;color:var(--dsw-alias-label-primary,#e6edf3);line-height:1.6;overflow:hidden}
+.dsws-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l1,#2a2d35);cursor:move;user-select:none}
+.dsws-tabs{display:flex;gap:4px;padding:8px 12px 0}
+.dsws-tab{padding:4px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:12px}
+.dsws-tab.on{background:var(--dsw-alias-interactive-bg-active,rgba(255,255,255,.14));color:var(--dsw-alias-label-primary,#e6edf3);border-color:var(--dsw-alias-border-l1,#2a2d35)}
+.dsws-body{flex:1;overflow-y:auto;padding:10px 12px}
+.dsws-rz{position:absolute;z-index:6}
+.dsws-rz-n{top:0;left:8px;right:8px;height:5px;cursor:ns-resize}
+.dsws-rz-s{bottom:0;left:8px;right:8px;height:5px;cursor:ns-resize}
+.dsws-rz-e{right:0;top:8px;bottom:8px;width:5px;cursor:ew-resize}
+.dsws-rz-w{left:0;top:8px;bottom:8px;width:5px;cursor:ew-resize}
+.dsws-rz-ne{top:0;right:0;width:10px;height:10px;cursor:nesw-resize}
+.dsws-rz-nw{top:0;left:0;width:10px;height:10px;cursor:nwse-resize}
+.dsws-rz-se{bottom:0;right:0;width:14px;height:14px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,var(--dsw-alias-label-caption,#8b8b95) 50%);opacity:.5;border-radius:0 0 12px 0}
+.dsws-rz-se:hover{opacity:1}
+.dsws-rz-sw{bottom:0;left:0;width:10px;height:10px;cursor:nesw-resize}
+.dsws-maprow{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;padding:9px 12px;margin-bottom:8px;cursor:pointer;background:var(--dsw-alias-bg-layer-1,#10131a)}
+.dsws-maprow:hover{border-color:var(--dsw-alias-border-l2,#3a3f4a)}
+.dsws-mtitle{font-weight:600;font-size:13px}
+.dsws-prog{height:4px;border-radius:2px;background:var(--dsw-alias-bg-layer-3,#0c0e12);overflow:hidden;margin-top:4px}
+.dsws-prog>i{display:block;height:100%;background:var(--dsw-alias-state-success-primary,#4ade80);border-radius:2px}
+.dsws-chip{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;border-radius:99px;font-size:11px;line-height:1.7;margin-right:4px;white-space:nowrap}
+.dsws-chip-r{background:rgba(88,166,255,.18);color:#58a6ff}
+.dsws-chip-p{background:rgba(247,120,186,.16);color:#f778ba}
+.dsws-chip-g{background:rgba(63,185,80,.16);color:#3fb950}
+.dsws-chip-t{background:rgba(240,136,62,.16);color:#f0883e}
+.dsws-chip-m{background:rgba(188,140,255,.16);color:#bc8cff}
+.dsws-trow{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:6px;border:1px solid transparent}
+.dsws-trow:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06));border-color:var(--dsw-alias-border-l1,#2a2d35)}
+.dsws-trow .dsws-tt{flex:1;min-width:0}
+.dsws-tt-name{font-size:12.5px;display:flex;align-items:center;gap:5px}
+.dsws-tt-wrap{min-width:0;overflow-wrap:break-word;word-break:normal;line-break:auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.dsws-tt-sub{font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa)}
+.dsws-btn{padding:3px 10px;border-radius:6px;border:1px solid var(--dsw-alias-border-l1,#2a2d35);background:var(--dsw-alias-bg-layer-1,#10131a);color:var(--dsw-alias-label-primary,#e6edf3);font-size:12px;cursor:pointer}
+.dsws-btn:hover{border-color:var(--dsw-alias-border-l2,#3a3f4a)}
+.dsws-btn.primary{background:#c084fc;border-color:transparent;color:#140a1e;font-weight:600}
+.dsws-btn.primary:hover{border-color:rgba(20,10,30,.55)}
+.dsws-btn.ghost{background:transparent;border-color:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)}
+.dsws-grp{margin:12px 0 4px;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);display:flex;align-items:center;gap:6px}
+.dsws-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.dsws-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:10000}
+.dsws-modalbox{width:460px;max-width:94vw;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;padding:14px 16px;font-family:var(--dsw-font-family);font-size:13px;color:var(--dsw-alias-label-primary,#e6edf3)}
+.dsws-ta{width:100%;min-height:90px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:6px;color:var(--dsw-alias-label-primary,#e6edf3);font-family:var(--ds-font-family-code,monospace);font-size:12px;padding:8px;box-sizing:border-box}
+.dsws-note{position:absolute;right:14px;top:46px;padding:6px 12px;border-radius:6px;background:var(--dsw-alias-toast-bg,#22252c);border:1px solid var(--dsw-alias-border-l1,#2a2d35);color:var(--dsw-alias-label-primary,#e6edf3);font-size:12px;z-index:10001;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.dsws-skill{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px}
+.dsws-skill:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06))}
+.dsws-skill .dsws-tt{flex:1;min-width:0}
+.dsws-seg{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px solid transparent;display:inline-flex;align-items:center;gap:4px}
+.dsws-seg:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));border-color:var(--dsw-alias-border-l1,#2a2d35)}
+.dsws-timebtn{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px dashed transparent;color:var(--dsw-alias-label-caption,#8b8b95);white-space:nowrap;font-variant-numeric:tabular-nums;flex:none}
+.dsws-timebtn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));border-color:var(--dsw-alias-border-l1,#2a2d35);color:var(--dsw-alias-label-primary,#e6edf3)}
+.dsws-uirow{display:flex;align-items:center;gap:6px;margin:4px 0;flex-wrap:wrap}
+.dsws-uirow .dsws-btn.on{border-color:var(--dsw-alias-state-success-primary,#4ade80);color:var(--dsw-alias-state-success-primary,#4ade80)}
+.dsws-num{display:inline-block;min-width:5ch;text-align:center;font-variant-numeric:tabular-nums;font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);font-size:11px;line-height:1.5;white-space:nowrap}
+.dsws-capsule{max-width:min(96vw,1400px);width:fit-content;margin:0 auto;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}
+.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:none}
+.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}
+.dsws-capsule .dsws-seg{flex:none}
+.dsws-capsule .dsws-timebtn{flex:none}
+.dsws-banner{display:flex;align-items:center;gap:8px;border-radius:8px;padding:6px 10px;font-size:12px;margin:6px 0;cursor:pointer}
+.dsws-banner.bad{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.45);color:#f87171}
+.dsws-banner.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);color:#fbbf24}
+.dsws-banner.ok{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.35);color:#4ade80}
+.dsws-aggrow{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;border:1px solid transparent}
+.dsws-aggrow:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06));border-color:var(--dsw-alias-border-l1,#2a2d35)}
+.dsws-ellip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.dsws-cgroup{margin:10px 0 2px;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);display:flex;align-items:center;gap:6px}
+.dsws-ccard{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;padding:8px 10px;margin-bottom:6px;background:var(--dsw-alias-bg-layer-1,#10131a)}
+.dsws-ccard .nm{font-size:12.5px;font-weight:600}
+.dsws-ccard .dt{font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa)}
+.dsws-ccard .act{margin-top:5px;display:flex;gap:6px}
+.dsws-shade{position:absolute;inset:0;background:rgba(8,10,14,.55);display:flex;align-items:center;justify-content:center;gap:8px;z-index:7;border-radius:12px}
+.dsws-spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.18);border-top-color:#c084fc;animation:dsws-spin .8s linear infinite;flex:none}
+@keyframes dsws-spin{to{transform:rotate(360deg)}}
+.dsws-cfg{max-width:720px;display:flex;flex-direction:column;gap:12px;padding:2px 2px 4px}
+.dsws-cfg-head{display:flex;align-items:center;gap:10px}
+.dsws-cfg-head .t{font-size:15px;font-weight:700;letter-spacing:.2px}
+.dsws-cfg-head .s{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:12px}
+.dsws-cfg-sub{font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);line-height:1.7}
+.dsws-cfg-group{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;background:var(--dsw-alias-bg-layer-1,#10131a);padding:10px 14px}
+.dsws-cfg-gtitle{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:650;margin-bottom:4px}
+.dsws-cfg-gdesc{font-size:11.5px;color:var(--dsw-alias-label-caption,#8b8b95);margin-bottom:10px;line-height:1.65}
+.dsws-cfg-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0}
+.dsws-cfg-label{font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);flex:none}
+.dsws-cfg-seg{display:inline-flex;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;background:var(--dsw-alias-bg-layer-2,#16181d);padding:3px;gap:2px}
+.dsws-cfg-seg button{border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:12px;padding:4px 14px;border-radius:6px;cursor:pointer;font-family:var(--dsw-font-family)}
+.dsws-cfg-seg button:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}
+.dsws-cfg-seg button.on{background:#c084fc;color:#140a1e;font-weight:600}
+.dsws-cfg-sw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:12px}
+.dsws-cfg-sw input{display:none}
+.dsws-cfg-sw .tr{width:34px;height:19px;border-radius:99px;background:var(--dsw-alias-bg-layer-3,#0c0e12);border:1px solid var(--dsw-alias-border-l1,#2a2d35);position:relative;flex:none;transition:background .15s,border-color .15s}
+.dsws-cfg-sw .tr::after{content:"";position:absolute;left:2px;top:2px;width:13px;height:13px;border-radius:50%;background:var(--dsw-alias-label-caption,#8b8b95);transition:transform .15s,background .15s}
+.dsws-cfg-sw input:checked + .tr{background:rgba(192,132,252,.22);border-color:rgba(192,132,252,.55)}
+.dsws-cfg-sw input:checked + .tr::after{transform:translateX(15px);background:#c084fc}
+.dsws-cfg-ta{width:100%;min-height:56px;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;color:var(--dsw-alias-label-primary,#e6edf3);font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);font-size:11.5px;line-height:1.6;padding:7px 9px;box-sizing:border-box;resize:none;overflow:hidden}
+.dsws-cfg-ta:focus{outline:none;border-color:rgba(192,132,252,.6)}
+.dsws-cfg-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0}
+.dsws-cfg-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:11px;font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);cursor:pointer;background:rgba(188,140,255,.14);color:#bc8cff;border:1px solid rgba(188,140,255,.35);transition:background .12s}
+.dsws-cfg-chip:hover{background:rgba(188,140,255,.26)}
+.dsws-cfg-chip.req{background:rgba(248,113,113,.14);color:#f87171;border-color:rgba(248,113,113,.45)}
+.dsws-cfg-chip.req:hover{background:rgba(248,113,113,.26)}
+.dsws-cfg-chip .must{font-family:var(--dsw-font-family);font-size:10px;opacity:.85}
+.dsws-cfg-legend{font-size:11px;color:var(--dsw-alias-label-caption,#8b8b95);display:flex;align-items:center;gap:12px;margin-top:2px}
+.dsws-cfg-card{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;background:var(--dsw-alias-bg-layer-2,#16181d);padding:12px 14px;margin-bottom:10px}
+.dsws-cfg-card-head{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.dsws-cfg-card-name{font-size:13px;font-weight:650}
+.dsws-cfg-card-desc{font-size:11.5px;color:var(--dsw-alias-label-caption,#8b8b95);margin-bottom:4px;line-height:1.6}
+.dsws-cfg-preview{border:1px dashed var(--dsw-alias-border-l2,#3a3f4a);border-radius:8px;background:var(--dsw-alias-bg-layer-3,#0c0e12);padding:7px 10px;font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);font-size:10.5px;line-height:1.6;color:var(--dsw-alias-label-secondary,#a1a1aa);white-space:pre-wrap;word-break:break-all;margin-top:5px}
+.dsws-cfg-preview .pv-label{display:block;font-family:var(--dsw-font-family);font-size:10px;letter-spacing:.5px;color:var(--dsw-alias-label-caption,#8b8b95);margin-bottom:3px}
+.dsws-cfg-err{border:1px solid rgba(248,113,113,.5);background:rgba(248,113,113,.1);border-radius:10px;padding:10px 12px;font-size:12px;color:#f87171;line-height:1.7}
+.dsws-cfg-err .t{font-weight:650;display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.dsws-cfg-save{align-self:flex-end;background:#c084fc;color:#140a1e;border:none;border-radius:8px;font-size:13px;font-weight:650;padding:8px 28px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.dsws-cfg-save:hover{filter:brightness(1.08)}
+.dsws-cfg-btn{background:transparent;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:7px;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:11.5px;padding:3px 10px;cursor:pointer}
+.dsws-cfg-btn:hover{border-color:var(--dsw-alias-border-l2,#3a3f4a);color:var(--dsw-alias-label-primary,#e6edf3)}
+.dsws-aggrow .dsws-aux{opacity:0;transition:opacity .12s;pointer-events:none}
+.dsws-aggrow:hover .dsws-aux{opacity:1;pointer-events:auto}
+  .dsws-panel{position:relative;left:0;top:0;display:flex;flex-direction:column;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;font-family:var(--dsw-font-family);font-size:13px;color:var(--dsw-alias-label-primary,#e6edf3);line-height:1.6;overflow:hidden}
+  .dsws-body{flex:1;overflow-y:auto;padding:10px 12px;max-height:460px}
+</style></head><body>
+<h1>waystation 面板 UI · 布局修复后（labels 可换行 · 右侧进度+按钮固定区）</h1>
+<div class="sub">修复点：第二行 labels 区 flex:1 可换行（不再堆叠到右侧）；进度条固定 90px + 按钮 flex:none 不挤压；标题占满整宽限 2 行。</div>
+<div class="flex">
+  <div class="scene"><h3>正常宽度 460px</h3>
+    <div class="dsws-panel" style="width:460px">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l1,#2a2d35)"><span style="font-weight:600">DSH-Waystation</span><span style="flex:1"></span></div>
+      <div style="display:flex;gap:4px;padding:8px 12px 0;align-items:center"><span class="dsws-tab on" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.14);border:1px solid var(--dsw-alias-border-l1,#2a2d35)">列表</span><span class="dsws-tab" style="padding:4px 10px">技能</span><span class="dsws-tab" style="padding:4px 10px">环境检查</span><button style="margin-left:auto;padding:2px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg><span>刷新</span></button></div>
+      <div style="display:flex;align-items:center;gap:10px;margin:8px 12px 4px;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa)"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> 可接 13</span>
+        <span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa)"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> 阻塞 11</span>
+        <span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa)"><svg style="width:9px;height:9px;stroke:currentColor;fill:none;stroke-width:2;flex:none" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> 已关闭 32</span>
+      </div>
+      <div class="dsws-body"><div class="dsws-aggrow" style="cursor:pointer;border-left:3px solid #c084fc;background:rgba(188,140,255,.07)">
+    <div style="display:flex;align-items:flex-start;gap:5px;width:100%">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none">
+        <span style="color:var(--dsw-alias-label-caption,#8b8b95);font-size:11px;line-height:1.6">#409</span>
+        <span class="dsws-chip dsws-chip-m" style="font-size:11px;font-weight:600;line-height:1.6;padding:0 8px;display:inline-flex;align-items:center;gap:3px"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span>
+      </span>
+      <span class="dsws-tt-wrap" style="flex:1;font-weight:600" title="[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布">[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布</span>
+    </div>
+    <div style="margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;row-gap:4px;width:100%">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;flex:1 1 auto;min-width:0"><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(83,25,231,0.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(191,212,242,0.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(254,242,192,0.18);color:#fef2c0;border:1px solid rgb(213,201,151)">ready-for-human</span></div>
+      <div style="display:flex;align-items:center;gap:6px;flex:none;margin-left:auto">
+        <div class="dsws-prog" style="width:90px;min-width:90px;margin:0"><i style="width:100%"></i></div><span style="font-size:10px;color:var(--dsw-alias-label-caption,#8b8b95);flex:none;display:inline-flex;align-items:center;gap:2px"><svg style="width:9px;height:9px;stroke:currentColor;fill:none;stroke-width:2;flex:none" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> 25/25</span>
+        <div style="display:flex;gap:3px;align-items:center;flex:none;margin-left:4px">
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;background:#5319e7;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>执行</span></button>
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;margin-left:4px;background:#5319e7;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span>新会话</span></button>
+        </div>
+        <div class="dsws-aux" style="display:flex;gap:2px;align-items:center;flex:none">
+          <button class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button>
+          <a class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </div><div class="dsws-aggrow" style="cursor:pointer;border-left:3px solid #c084fc;background:rgba(188,140,255,.07)">
+    <div style="display:flex;align-items:flex-start;gap:5px;width:100%">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none">
+        <span style="color:var(--dsw-alias-label-caption,#8b8b95);font-size:11px;line-height:1.6">#200</span>
+        <span class="dsws-chip dsws-chip-m" style="font-size:11px;font-weight:600;line-height:1.6;padding:0 8px;display:inline-flex;align-items:center;gap:3px"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span>
+      </span>
+      <span class="dsws-tt-wrap" style="flex:1;font-weight:600" title="[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)">[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)</span>
+    </div>
+    <div style="margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;row-gap:4px;width:100%">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;flex:1 1 auto;min-width:0"><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(83,25,231,0.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(29,118,219,0.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:私家大厨</span></div>
+      <div style="display:flex;align-items:center;gap:6px;flex:none;margin-left:auto">
+        <div class="dsws-prog" style="width:90px;min-width:90px;margin:0"><i style="width:87%"></i></div><span style="font-size:10px;color:var(--dsw-alias-label-caption,#8b8b95);flex:none;display:inline-flex;align-items:center;gap:2px"><svg style="width:9px;height:9px;stroke:currentColor;fill:none;stroke-width:2;flex:none" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> 13/15</span>
+        <div style="display:flex;gap:3px;align-items:center;flex:none;margin-left:4px">
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;background:#5319e7;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>执行</span></button>
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;margin-left:4px;background:#5319e7;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span>新会话</span></button>
+        </div>
+        <div class="dsws-aux" style="display:flex;gap:2px;align-items:center;flex:none">
+          <button class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button>
+          <a class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </div><div class="dsws-aggrow" style="">
+    <div style="display:flex;align-items:flex-start;gap:5px;width:100%">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none">
+        <span style="color:var(--dsw-alias-label-caption,#8b8b95);font-size:11px;line-height:1.6">#437</span>
+        
+      </span>
+      <span class="dsws-tt-wrap" style="flex:1;font-weight:normal" title="[dsh-waystation] T13 · README 增强 DSH CLI 安装指引 + 主命令改 dsh">[dsh-waystation] T13 · README 增强 DSH CLI 安装指引 + 主命令改 dsh</span>
+    </div>
+    <div style="margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;row-gap:4px;width:100%">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;flex:1 1 auto;min-width:0"><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(191,212,242,0.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">wayfinder:task</span><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(191,212,242,0.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span></div>
+      <div style="display:flex;align-items:center;gap:6px;flex:none;margin-left:auto">
+        
+        <div style="display:flex;gap:3px;align-items:center;flex:none;margin-left:4px">
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;background:#bfd4f2;border-color:transparent;color:#140a1e;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>执行</span></button>
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;margin-left:4px;background:#bfd4f2;border-color:transparent;color:#140a1e;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span>新会话</span></button>
+        </div>
+        <div class="dsws-aux" style="display:flex;gap:2px;align-items:center;flex:none">
+          <button class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button>
+          <a class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </div><div class="dsws-aggrow" style="">
+    <div style="display:flex;align-items:flex-start;gap:5px;width:100%">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none">
+        <span style="color:var(--dsw-alias-label-caption,#8b8b95);font-size:11px;line-height:1.6">#380</span>
+        
+      </span>
+      <span class="dsws-tt-wrap" style="flex:1;font-weight:normal" title="[卡路里][bug] 生产库 food_log 混入 996 条测试数据（清蒸鱼等）">[卡路里][bug] 生产库 food_log 混入 996 条测试数据（清蒸鱼等）</span>
+    </div>
+    <div style="margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;row-gap:4px;width:100%">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;flex:1 1 auto;min-width:0"><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(215,58,74,0.18);color:#d73a4a;border:1px solid rgb(174,17,33)">bug</span><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(49,120,246,0.18);color:#3178f6;border:1px solid rgb(8,79,205)">skill:卡路里</span><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(249,208,196,0.18);color:#f9d0c4;border:1px solid rgb(208,167,155)">needs-triage</span></div>
+      <div style="display:flex;align-items:center;gap:6px;flex:none;margin-left:auto">
+        
+        <div style="display:flex;gap:3px;align-items:center;flex:none;margin-left:4px">
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;background:#d73a4a;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>执行</span></button>
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;margin-left:4px;background:#d73a4a;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span>新会话</span></button>
+        </div>
+        <div class="dsws-aux" style="display:flex;gap:2px;align-items:center;flex:none">
+          <button class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button>
+          <a class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </div></div>
+    </div>
+  </div>
+  <div class="scene"><h3>窄宽度 360px</h3>
+    <div class="dsws-panel" style="width:360px">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l1,#2a2d35)"><span style="font-weight:600;font-size:12px">DSH-Waystation</span><span style="flex:1"></span></div>
+      <div style="display:flex;gap:4px;padding:8px 12px 0;align-items:center"><span class="dsws-tab on" style="padding:4px 8px;font-size:11px">列表</span><span class="dsws-tab" style="padding:4px 8px;font-size:11px">技能</span><span class="dsws-tab" style="padding:4px 8px;font-size:11px">环境</span><button style="margin-left:auto;padding:2px 6px;font-size:10px;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></button></div>
+      <div class="dsws-body"><div class="dsws-aggrow" style="cursor:pointer;border-left:3px solid #c084fc;background:rgba(188,140,255,.07)">
+    <div style="display:flex;align-items:flex-start;gap:5px;width:100%">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none">
+        <span style="color:var(--dsw-alias-label-caption,#8b8b95);font-size:11px;line-height:1.6">#409</span>
+        <span class="dsws-chip dsws-chip-m" style="font-size:11px;font-weight:600;line-height:1.6;padding:0 8px;display:inline-flex;align-items:center;gap:3px"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span>
+      </span>
+      <span class="dsws-tt-wrap" style="flex:1;font-weight:600" title="[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布">[dsh-waystation] v1.3.1 修复合并 map · v27 推送 + 13 项 bug 修复 + npm 发布</span>
+    </div>
+    <div style="margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;row-gap:4px;width:100%">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;flex:1 1 auto;min-width:0"><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(83,25,231,0.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(191,212,242,0.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span></div>
+      <div style="display:flex;align-items:center;gap:6px;flex:none;margin-left:auto">
+        <div class="dsws-prog" style="width:90px;min-width:90px;margin:0"><i style="width:100%"></i></div><span style="font-size:10px;color:var(--dsw-alias-label-caption,#8b8b95);flex:none;display:inline-flex;align-items:center;gap:2px"><svg style="width:9px;height:9px;stroke:currentColor;fill:none;stroke-width:2;flex:none" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> 25/25</span>
+        <div style="display:flex;gap:3px;align-items:center;flex:none;margin-left:4px">
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;background:#5319e7;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;margin-left:4px;background:#5319e7;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+        </div>
+        <div class="dsws-aux" style="display:flex;gap:2px;align-items:center;flex:none">
+          <button class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button>
+          <a class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </div><div class="dsws-aggrow" style="cursor:pointer;border-left:3px solid #c084fc;background:rgba(188,140,255,.07)">
+    <div style="display:flex;align-items:flex-start;gap:5px;width:100%">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none">
+        <span style="color:var(--dsw-alias-label-caption,#8b8b95);font-size:11px;line-height:1.6">#200</span>
+        <span class="dsws-chip dsws-chip-m" style="font-size:11px;font-weight:600;line-height:1.6;padding:0 8px;display:inline-flex;align-items:center;gap:3px"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg><span>map</span></span>
+      </span>
+      <span class="dsws-tt-wrap" style="flex:1;font-weight:600" title="[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)">[私家大厨] 实施编排 map · v4.0 落地(10 域场景+08 对齐+数据层+开源)</span>
+    </div>
+    <div style="margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;row-gap:4px;width:100%">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;flex:1 1 auto;min-width:0"><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(83,25,231,0.18);color:#5319e7;border:1px solid rgb(42,0,190)">wayfinder:map</span><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(29,118,219,0.18);color:#1d76db;border:1px solid rgb(0,77,178)">skill:私家大厨</span></div>
+      <div style="display:flex;align-items:center;gap:6px;flex:none;margin-left:auto">
+        <div class="dsws-prog" style="width:90px;min-width:90px;margin:0"><i style="width:87%"></i></div><span style="font-size:10px;color:var(--dsw-alias-label-caption,#8b8b95);flex:none;display:inline-flex;align-items:center;gap:2px"><svg style="width:9px;height:9px;stroke:currentColor;fill:none;stroke-width:2;flex:none" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> 13/15</span>
+        <div style="display:flex;gap:3px;align-items:center;flex:none;margin-left:4px">
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;background:#5319e7;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;margin-left:4px;background:#5319e7;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+        </div>
+        <div class="dsws-aux" style="display:flex;gap:2px;align-items:center;flex:none">
+          <button class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button>
+          <a class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </div><div class="dsws-aggrow" style="">
+    <div style="display:flex;align-items:flex-start;gap:5px;width:100%">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none">
+        <span style="color:var(--dsw-alias-label-caption,#8b8b95);font-size:11px;line-height:1.6">#437</span>
+        
+      </span>
+      <span class="dsws-tt-wrap" style="flex:1;font-weight:normal" title="[dsh-waystation] T13 · README 增强 DSH CLI 安装指引 + 主命令改 dsh">[dsh-waystation] T13 · README 增强 DSH CLI 安装指引 + 主命令改 dsh</span>
+    </div>
+    <div style="margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;row-gap:4px;width:100%">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;flex:1 1 auto;min-width:0"><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(191,212,242,0.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">wayfinder:task</span><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(191,212,242,0.18);color:#bfd4f2;border:1px solid rgb(150,171,201)">dsh:plugin:waystation</span></div>
+      <div style="display:flex;align-items:center;gap:6px;flex:none;margin-left:auto">
+        
+        <div style="display:flex;gap:3px;align-items:center;flex:none;margin-left:4px">
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;background:#bfd4f2;border-color:transparent;color:#140a1e;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;margin-left:4px;background:#bfd4f2;border-color:transparent;color:#140a1e;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+        </div>
+        <div class="dsws-aux" style="display:flex;gap:2px;align-items:center;flex:none">
+          <button class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button>
+          <a class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </div><div class="dsws-aggrow" style="">
+    <div style="display:flex;align-items:flex-start;gap:5px;width:100%">
+      <span style="display:inline-flex;align-items:center;gap:5px;flex:none">
+        <span style="color:var(--dsw-alias-label-caption,#8b8b95);font-size:11px;line-height:1.6">#380</span>
+        
+      </span>
+      <span class="dsws-tt-wrap" style="flex:1;font-weight:normal" title="[卡路里][bug] 生产库 food_log 混入 996 条测试数据（清蒸鱼等）">[卡路里][bug] 生产库 food_log 混入 996 条测试数据（清蒸鱼等）</span>
+    </div>
+    <div style="margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;row-gap:4px;width:100%">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;flex:1 1 auto;min-width:0"><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(215,58,74,0.18);color:#d73a4a;border:1px solid rgb(174,17,33)">bug</span><span class="dsws-chip" style="font-size:10px;margin-right:0;background:rgba(49,120,246,0.18);color:#3178f6;border:1px solid rgb(8,79,205)">skill:卡路里</span></div>
+      <div style="display:flex;align-items:center;gap:6px;flex:none;margin-left:auto">
+        
+        <div style="display:flex;gap:3px;align-items:center;flex:none;margin-left:4px">
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;background:#d73a4a;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;margin-left:4px;background:#d73a4a;border-color:transparent;color:#ffffff;border-radius:6px;cursor:pointer;font-weight:600"><svg style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+        </div>
+        <div class="dsws-aux" style="display:flex;gap:2px;align-items:center;flex:none">
+          <button class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg></button>
+          <a class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:3px 4px;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)"><svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </div></div>
+    </div>
+  </div>
+</div>
+</body></html>

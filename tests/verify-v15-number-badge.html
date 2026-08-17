@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>v1.5 UI 原型 · 新增 wayfinder 按钮 + ISSUE 编号徽章（2~4 方向）</title>
+<style>
+  :root{--bg2:#16181d;--bg1:#10131a;--b1:#2a2d35;--b2:#3a3f4a;--p:#e6edf3;--s:#a1a1aa;--c:#8b8b95;--font:-apple-system,'Segoe UI','PingFang SC',sans-serif;--mono:Consolas,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{background:#0a0c10;color:var(--p);font-family:var(--font);margin:0;padding:20px 24px 60px}
+  h1{font-size:16px;margin:0 0 4px;color:#c084fc}
+  h2{font-size:13px;margin:26px 0 8px;color:#58a6ff;border-bottom:1px solid var(--b1);padding-bottom:4px}
+  .sub{font-size:12px;color:var(--c);margin-bottom:14px;line-height:1.7}
+  .tag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:99px;background:rgba(88,166,255,.12);color:#58a6ff;border:1px solid rgba(88,166,255,.35);margin-right:6px}
+  .panel{background:var(--bg2);border:1px solid var(--b1);border-radius:12px;font-size:13px;overflow:hidden;width:560px}
+  .tabs{display:flex;align-items:center;gap:4px;padding:0 12px 7px;border-bottom:1px solid var(--b1)}
+  .tab{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;font-size:11.5px;color:var(--s)}
+  .tab.on{background:rgba(255,255,255,.14);color:var(--p);border-color:var(--b1)}
+  .tabs .sp{flex:1}
+  .btn{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--b1);background:transparent;color:var(--s);cursor:pointer;font-family:var(--font);flex:none}
+  .btn:hover{border-color:var(--b2);color:var(--p)}
+  .ver{font-size:9px;color:var(--c);flex:none;font-variant-numeric:tabular-nums}
+  .row{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid rgba(42,45,53,.6)}
+  .row.map{background:rgba(188,140,255,.07);border-left:3px solid #c084fc}
+  .row .tt{flex:1;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--p)}
+  .row .st{font-size:10px;color:var(--c);flex:none}
+  .cap{font-size:11px;color:var(--s);margin:12px 12px 6px;font-weight:600}
+  .note{font-size:11px;color:var(--c);margin:2px 12px 10px;line-height:1.6}
+  .badge{font-family:var(--mono);font-weight:700;font-size:11px;flex:none;line-height:1}
+  /* A 白字同色底 */
+  .bA{color:#fff;padding:3px 8px;border-radius:6px}
+  /* B 同色浅底 + 深字（GitHub label 式） */
+  .bB{padding:3px 8px;border-radius:6px}
+  /* C 描边式 */
+  .bC{background:transparent;border:1px solid;padding:2px 7px;border-radius:6px}
+  /* D 色条 + 中性编号 */
+  .bD{display:inline-flex;align-items:center;gap:5px;color:#8b8b95;font-weight:600}
+  .bD::before{content:"";width:3px;height:16px;border-radius:2px;background:var(--dc)}
+  .chip{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;padding:1px 6px;border-radius:99px;border:1px solid rgba(192,132,252,.5);color:#c084fc;font-family:var(--mono);background:rgba(192,132,252,.08)}
+  .chipmap{font-size:10.5px;font-weight:600;line-height:1.7;padding:0 8px;margin-bottom:2px}
+  .idcol{display:flex;flex-direction:column;align-items:center;flex:none;min-width:40px}
+  .sw{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--b1);color:var(--s);flex:none}
+  .sw.primary{background:#c084fc;border-color:transparent;color:#140a1e;font-weight:600}
+  .sw.ghost-p{background:transparent;border-color:#c084fc;color:#c084fc;font-weight:600}
+  .sw.ghost{background:transparent;border-color:var(--b1);color:var(--s)}
+  .sw.green{background:#3fb950;border-color:transparent;color:#0c1a10;font-weight:600}
+  .sw.ghost-g{background:transparent;border-color:#3fb950;color:#3fb950;font-weight:600}
+  .ic{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none;display:inline-block}
+  .grp{margin-bottom:8px}
+  .pill{display:inline-block;padding:1px 10px;border-radius:99px;font-size:10px;border:1px solid;margin-right:5px;vertical-align:middle}
+</style></head><body>
+
+<h1>v1.5 UI 原型 · 两个待选</h1>
+<div class="sub">
+  ① 「新增 wayfinder」按钮 —— 位置移到<b>刷新按钮左侧</b>（标签行），样式/文本重新设计，给 3 个变体；<br>
+  ② 列表 ISSUE 编号 —— 与行 item 同色且醒目，给 4 个方向（A 白字同色底实心徽章 / B GitHub label 式 / C 描边式 / D 色条式）。
+</div>
+
+<h2>① 「新增 wayfinder」按钮 · 标签行布局（刷新按钮左侧）</h2>
+<div class="note">行结构：[列表/技能/环境检查 tab] ── 弹性空隙 ── [<b>新增 wayfinder</b>] [刷新] [v1.5.0]。三行 = 三个样式变体（V1 实心 / V2 描边 / V3 幽灵）。</div>
+
+<div class="panel" style="margin-bottom:8px">
+  <div class="tabs">
+    <span class="tab on">列表</span><span class="tab">技能</span><span class="tab">环境检查</span>
+    <span class="sp"></span>
+    <span class="sw primary"><svg class="ic" viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.6 2.4 7.4-6.2-4.6L3.8 21l2.4-7.4L0 9.4h7.6z"/></svg>新增 wayfinder</span>
+    <span class="sw"><svg class="ic" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6M20.5 9A9 9 0 0 0 3.5 15M3.5 15H1m0 0v6M4.5 8.5l-1.2 2.4m16.2 4.6l-1.2 2.4"/></svg>刷新</span>
+    <span class="ver">v1.5.0</span>
+  </div>
+  <div class="row"><span class="tt" style="color:#c084fc;font-weight:600">V1 · 实心紫底（#c084fc 底 + 深色字）· 文本「新增 wayfinder」</span></div>
+</div>
+
+<div class="panel" style="margin-bottom:8px">
+  <div class="tabs">
+    <span class="tab on">列表</span><span class="tab">技能</span><span class="tab">环境检查</span>
+    <span class="sp"></span>
+    <span class="sw ghost-p"><svg class="ic" viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.6 2.4 7.4-6.2-4.6L3.8 21l2.4-7.4L0 9.4h7.6z"/></svg>+ 新建需求</span>
+    <span class="sw"><svg class="ic" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6M20.5 9A9 9 0 0 0 3.5 15M3.5 15H1m0 0v6M4.5 8.5l-1.2 2.4m16.2 4.6l-1.2 2.4"/></svg>刷新</span>
+    <span class="ver">v1.5.0</span>
+  </div>
+  <div class="row"><span class="tt" style="color:#c084fc;font-weight:600">V2 · 描边紫（透明底 + 紫边框 + 紫字）· 文本「+ 新建需求」</span></div>
+</div>
+
+<div class="panel" style="margin-bottom:8px">
+  <div class="tabs">
+    <span class="tab on">列表</span><span class="tab">技能</span><span class="tab">环境检查</span>
+    <span class="sp"></span>
+    <span class="sw ghost"><svg class="ic" viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.6 2.4 7.4-6.2-4.6L3.8 21l2.4-7.4L0 9.4h7.6z"/></svg>新建需求</span>
+    <span class="sw"><svg class="ic" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6M20.5 9A9 9 0 0 0 3.5 15M3.5 15H1m0 0v6M4.5 8.5l-1.2 2.4m16.2 4.6l-1.2 2.4"/></svg>刷新</span>
+    <span class="ver">v1.5.0</span>
+  </div>
+  <div class="row"><span class="tt" style="color:#c084fc;font-weight:600">V3 · 幽灵灰（与「刷新」同级弱化）· 文本「新建需求」</span></div>
+</div>
+
+<h2>② ISSUE 编号徽章 · 4 个方向（每行颜色 = 该 item 的动作色）</h2>
+<div class="note">
+  行颜色示例：map 紫 #c084fc · bug 红 #f87171 · needs-triage 琥珀 #f59e0b · grilling 橙 #d93f0b。<br>
+  每个方向展示同一组 4 行（1 个 map 行 + 3 个票行）便于对比。<b>map 行的「wayfinder:map」徽章 + 编号竖排保持不变</b>，只换编号本身的样式。
+</div>
+
+<div class="cap">A · 白字 + 同色底 实心徽章（最醒目 · 你提的方向）</div>
+<div class="panel" style="margin-bottom:8px">
+  <div class="row map">
+    <div class="idcol"><span class="chip chipmap">map</span><span class="badge bA" style="background:#c084fc">#305</span></div>
+    <span class="tt">[饼干记账] 账户/分类/账本「复用优先·新建其次」选择器 · wayfinder 决策地图</span>
+    <span class="pill" style="color:#4ade80;border-color:#4ade80">4/4</span>
+    <span class="sw green">完成</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bA" style="background:#f87171">#215</span>
+    <span class="tt">[卡路里] 生产库 food_log 混入测试数据需清理</span>
+    <span class="sw" style="background:#f87171;border-color:transparent;color:#fff">修复</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bA" style="background:#f59e0b">#402</span>
+    <span class="tt">[dsh-waystation] 新会话 prompt 缺 issue 标识</span>
+    <span class="sw" style="background:#f59e0b;border-color:transparent;color:#140a1e">诊断</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bA" style="background:#d93f0b">#404</span>
+    <span class="tt">[dsh-waystation] grill：自动刷新机制设计</span>
+    <span class="sw" style="background:#d93f0b;border-color:transparent;color:#fff">讨论</span><span class="sw ghost">新会话</span>
+  </div>
+</div>
+
+<div class="cap">B · GitHub label 式（同色浅底 + 按亮度深/白字）</div>
+<div class="panel" style="margin-bottom:8px">
+  <div class="row map">
+    <div class="idcol"><span class="chip chipmap">map</span><span class="badge bB" style="background:rgba(192,132,252,.18);color:#c084fc">#305</span></div>
+    <span class="tt">[饼干记账] 账户/分类/账本「复用优先·新建其次」选择器 · wayfinder 决策地图</span>
+    <span class="pill" style="color:#4ade80;border-color:#4ade80">4/4</span>
+    <span class="sw green">完成</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bB" style="background:rgba(248,113,113,.16);color:#f87171">#215</span>
+    <span class="tt">[卡路里] 生产库 food_log 混入测试数据需清理</span>
+    <span class="sw" style="background:#f87171;border-color:transparent;color:#fff">修复</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bB" style="background:rgba(245,158,11,.16);color:#f59e0b">#402</span>
+    <span class="tt">[dsh-waystation] 新会话 prompt 缺 issue 标识</span>
+    <span class="sw" style="background:#f59e0b;border-color:transparent;color:#140a1e">诊断</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bB" style="background:rgba(217,63,11,.16);color:#d93f0b">#404</span>
+    <span class="tt">[dsh-waystation] grill：自动刷新机制设计</span>
+    <span class="sw" style="background:#d93f0b;border-color:transparent;color:#fff">讨论</span><span class="sw ghost">新会话</span>
+  </div>
+</div>
+
+<div class="cap">C · 描边式（透明底 + 同色边框 + 同色文字）</div>
+<div class="panel" style="margin-bottom:8px">
+  <div class="row map">
+    <div class="idcol"><span class="chip chipmap">map</span><span class="badge bC" style="color:#c084fc;border-color:rgba(192,132,252,.55)">#305</span></div>
+    <span class="tt">[饼干记账] 账户/分类/账本「复用优先·新建其次」选择器 · wayfinder 决策地图</span>
+    <span class="pill" style="color:#4ade80;border-color:#4ade80">4/4</span>
+    <span class="sw green">完成</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bC" style="color:#f87171;border-color:rgba(248,113,113,.55)">#215</span>
+    <span class="tt">[卡路里] 生产库 food_log 混入测试数据需清理</span>
+    <span class="sw" style="background:#f87171;border-color:transparent;color:#fff">修复</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bC" style="color:#f59e0b;border-color:rgba(245,158,11,.55)">#402</span>
+    <span class="tt">[dsh-waystation] 新会话 prompt 缺 issue 标识</span>
+    <span class="sw" style="background:#f59e0b;border-color:transparent;color:#140a1e">诊断</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bC" style="color:#d93f0b;border-color:rgba(217,63,11,.55)">#404</span>
+    <span class="tt">[dsh-waystation] grill：自动刷新机制设计</span>
+    <span class="sw" style="background:#d93f0b;border-color:transparent;color:#fff">讨论</span><span class="sw ghost">新会话</span>
+  </div>
+</div>
+
+<div class="cap">D · 左侧色条 + 中性灰编号（克制 · 与 map 行紫边呼应）</div>
+<div class="panel" style="margin-bottom:8px">
+  <div class="row map">
+    <div class="idcol"><span class="chip chipmap">map</span><span class="badge bD" style="--dc:#c084fc">#305</span></div>
+    <span class="tt">[饼干记账] 账户/分类/账本「复用优先·新建其次」选择器 · wayfinder 决策地图</span>
+    <span class="pill" style="color:#4ade80;border-color:#4ade80">4/4</span>
+    <span class="sw green">完成</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bD" style="--dc:#f87171">#215</span>
+    <span class="tt">[卡路里] 生产库 food_log 混入测试数据需清理</span>
+    <span class="sw" style="background:#f87171;border-color:transparent;color:#fff">修复</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bD" style="--dc:#f59e0b">#402</span>
+    <span class="tt">[dsh-waystation] 新会话 prompt 缺 issue 标识</span>
+    <span class="sw" style="background:#f59e0b;border-color:transparent;color:#140a1e">诊断</span><span class="sw ghost">新会话</span>
+  </div>
+  <div class="row">
+    <span class="badge bD" style="--dc:#d93f0b">#404</span>
+    <span class="tt">[dsh-waystation] grill：自动刷新机制设计</span>
+    <span class="sw" style="background:#d93f0b;border-color:transparent;color:#fff">讨论</span><span class="sw ghost">新会话</span>
+  </div>
+</div>
+
+<div class="sub" style="margin-top:16px">选法：按钮 V1/V2/V3 任一（或你自拟）；编号 A/B/C/D 任一（或组合，如 A 但圆角更小）。选中后我按你的选择落进插件（双源 + 测试 + 推送）。</div>
+</body></html>

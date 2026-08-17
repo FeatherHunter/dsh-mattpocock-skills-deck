@@ -1,0 +1,8 @@
+# dsh-mattpocock-skills-deck bundle 层：插入 Matt Skills Deck 控制面板插件条目。
+# 由 dsh plugin --profile <name> add 自动装配（包声明 dsh.bundle.patch），
+# 无需手动编辑任何文件；dsh plugin remove 时自动移除。
+# 与旧 postinstall 方案的差异：无构建脚本 → pnpm v10 不再拦截，一键装完即用。
+- insert:
+    - id: dsh-mattpocock-skills-deck
+      name: 'dsh-mattpocock-skills-deck'
+      config: {}

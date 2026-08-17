@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>waystation 配置面板 · 修复后（v1.3.3）真实渲染验证</title>
+<style>
+  :root { --dsw-alias-bg-layer-2:#16181d; --dsw-alias-bg-layer-3:#0c0e12; --dsw-alias-bg-layer-1:#10131a;
+          --dsw-alias-border-l1:#2a2d35; --dsw-alias-border-l2:#3a3f4a; --dsw-alias-label-primary:#e6edf3;
+          --dsw-alias-label-secondary:#a1a1aa; --dsw-alias-label-caption:#8b8b95; --dsw-alias-label-tertiary:#6b7280;
+          --dsw-font-family:-apple-system,'Segoe UI',sans-serif; }
+  body { background:#0a0c10; color:#e6edf3; font-family:var(--dsw-font-family); margin:0; padding:24px; }
+  h2 { font-size:15px; color:#c084fc; margin:0 0 6px; }
+  p.note { font-size:12px; color:#8b8b95; margin:0 0 16px; }
+  .scene { border:1px dashed #444; border-radius:12px; padding:14px; margin-bottom:20px; }
+  .scene h3 { margin:0 0 8px; font-size:13px; color:#9ca3af; }
+  .dsh-settings { width:800px; max-width:calc(100vw - 48px); height:min(800px,100vh - 48px);
+    background:var(--dsw-alias-bg-layer-2); border-radius:24px; overflow:hidden; display:flex; position:relative; }
+  .dsh-nav { width:188px; flex:none; padding:22px 12px 0; box-sizing:border-box; }
+  .dsh-content { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .dsh-header { flex:none; height:54px; padding:20px 14px 8px 10px; box-sizing:border-box; font-size:15px; font-weight:600; }
+  .dsh-options { flex:1; min-height:0; padding:0 24px 24px; overflow-y:auto; }
+  .dsws-panel{position:fixed;left:16px;top:76px;width:460px;max-height:calc(100vh - 24px);display:flex;flex-direction:column;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.45);z-index:9999;font-family:var(--dsw-font-family);font-size:13px;color:var(--dsw-alias-label-primary,#e6edf3);line-height:1.6;overflow:hidden}
+.dsws-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l1,#2a2d35);cursor:move;user-select:none}
+.dsws-tabs{display:flex;gap:4px;padding:8px 12px 0}
+.dsws-tab{padding:4px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:12px}
+.dsws-tab.on{background:var(--dsw-alias-interactive-bg-active,rgba(255,255,255,.14));color:var(--dsw-alias-label-primary,#e6edf3);border-color:var(--dsw-alias-border-l1,#2a2d35)}
+.dsws-body{flex:1;overflow-y:auto;padding:10px 12px}
+.dsws-rz{position:absolute;z-index:6}
+.dsws-rz-n{top:0;left:8px;right:8px;height:5px;cursor:ns-resize}
+.dsws-rz-s{bottom:0;left:8px;right:8px;height:5px;cursor:ns-resize}
+.dsws-rz-e{right:0;top:8px;bottom:8px;width:5px;cursor:ew-resize}
+.dsws-rz-w{left:0;top:8px;bottom:8px;width:5px;cursor:ew-resize}
+.dsws-rz-ne{top:0;right:0;width:10px;height:10px;cursor:nesw-resize}
+.dsws-rz-nw{top:0;left:0;width:10px;height:10px;cursor:nwse-resize}
+.dsws-rz-se{bottom:0;right:0;width:14px;height:14px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,var(--dsw-alias-label-caption,#8b8b95) 50%);opacity:.5;border-radius:0 0 12px 0}
+.dsws-rz-se:hover{opacity:1}
+.dsws-rz-sw{bottom:0;left:0;width:10px;height:10px;cursor:nesw-resize}
+.dsws-maprow{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;padding:9px 12px;margin-bottom:8px;cursor:pointer;background:var(--dsw-alias-bg-layer-1,#10131a)}
+.dsws-maprow:hover{border-color:var(--dsw-alias-border-l2,#3a3f4a)}
+.dsws-mtitle{font-weight:600;font-size:13px}
+.dsws-prog{height:4px;border-radius:2px;background:var(--dsw-alias-bg-layer-3,#0c0e12);overflow:hidden;margin-top:4px}
+.dsws-prog>i{display:block;height:100%;background:var(--dsw-alias-state-success-primary,#4ade80);border-radius:2px}
+.dsws-chip{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;border-radius:99px;font-size:11px;line-height:1.7;margin-right:4px;white-space:nowrap}
+.dsws-chip-r{background:rgba(88,166,255,.18);color:#58a6ff}
+.dsws-chip-p{background:rgba(247,120,186,.16);color:#f778ba}
+.dsws-chip-g{background:rgba(63,185,80,.16);color:#3fb950}
+.dsws-chip-t{background:rgba(240,136,62,.16);color:#f0883e}
+.dsws-chip-m{background:rgba(188,140,255,.16);color:#bc8cff}
+.dsws-trow{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:6px;border:1px solid transparent}
+.dsws-trow:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06));border-color:var(--dsw-alias-border-l1,#2a2d35)}
+.dsws-trow .dsws-tt{flex:1;min-width:0}
+.dsws-tt-name{font-size:12.5px;display:flex;align-items:center;gap:5px}
+.dsws-tt-wrap{min-width:0;overflow-wrap:break-word;word-break:normal;line-break:auto}
+.dsws-tt-sub{font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa)}
+.dsws-btn{padding:3px 10px;border-radius:6px;border:1px solid var(--dsw-alias-border-l1,#2a2d35);background:var(--dsw-alias-bg-layer-1,#10131a);color:var(--dsw-alias-label-primary,#e6edf3);font-size:12px;cursor:pointer}
+.dsws-btn:hover{border-color:var(--dsw-alias-border-l2,#3a3f4a)}
+.dsws-btn.primary{background:#c084fc;border-color:transparent;color:#140a1e;font-weight:600}
+.dsws-btn.primary:hover{border-color:rgba(20,10,30,.55)}
+.dsws-btn.ghost{background:transparent;border-color:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)}
+.dsws-grp{margin:12px 0 4px;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);display:flex;align-items:center;gap:6px}
+.dsws-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.dsws-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:10000}
+.dsws-modalbox{width:460px;max-width:94vw;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;padding:14px 16px;font-family:var(--dsw-font-family);font-size:13px;color:var(--dsw-alias-label-primary,#e6edf3)}
+.dsws-ta{width:100%;min-height:90px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:6px;color:var(--dsw-alias-label-primary,#e6edf3);font-family:var(--ds-font-family-code,monospace);font-size:12px;padding:8px;box-sizing:border-box}
+.dsws-note{position:absolute;right:14px;top:46px;padding:6px 12px;border-radius:6px;background:var(--dsw-alias-toast-bg,#22252c);border:1px solid var(--dsw-alias-border-l1,#2a2d35);color:var(--dsw-alias-label-primary,#e6edf3);font-size:12px;z-index:10001;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.dsws-skill{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px}
+.dsws-skill:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06))}
+.dsws-skill .dsws-tt{flex:1;min-width:0}
+.dsws-seg{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px solid transparent;display:inline-flex;align-items:center;gap:4px}
+.dsws-seg:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));border-color:var(--dsw-alias-border-l1,#2a2d35)}
+.dsws-timebtn{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px dashed transparent;color:var(--dsw-alias-label-caption,#8b8b95);white-space:nowrap;font-variant-numeric:tabular-nums;flex:none}
+.dsws-timebtn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));border-color:var(--dsw-alias-border-l1,#2a2d35);color:var(--dsw-alias-label-primary,#e6edf3)}
+.dsws-uirow{display:flex;align-items:center;gap:6px;margin:4px 0;flex-wrap:wrap}
+.dsws-uirow .dsws-btn.on{border-color:var(--dsw-alias-state-success-primary,#4ade80);color:var(--dsw-alias-state-success-primary,#4ade80)}
+.dsws-num{display:inline-block;min-width:5ch;text-align:center;font-variant-numeric:tabular-nums;font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);font-size:11px;line-height:1.5;white-space:nowrap}
+.dsws-capsule{max-width:min(96vw,1400px);width:fit-content;margin:0 auto;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}
+.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:none}
+.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}
+.dsws-capsule .dsws-seg{flex:none}
+.dsws-capsule .dsws-timebtn{flex:none}
+.dsws-banner{display:flex;align-items:center;gap:8px;border-radius:8px;padding:6px 10px;font-size:12px;margin:6px 0;cursor:pointer}
+.dsws-banner.bad{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.45);color:#f87171}
+.dsws-banner.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);color:#fbbf24}
+.dsws-banner.ok{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.35);color:#4ade80}
+.dsws-aggrow{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;border:1px solid transparent}
+.dsws-aggrow:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06));border-color:var(--dsw-alias-border-l1,#2a2d35)}
+.dsws-ellip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.dsws-cgroup{margin:10px 0 2px;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);display:flex;align-items:center;gap:6px}
+.dsws-ccard{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;padding:8px 10px;margin-bottom:6px;background:var(--dsw-alias-bg-layer-1,#10131a)}
+.dsws-ccard .nm{font-size:12.5px;font-weight:600}
+.dsws-ccard .dt{font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa)}
+.dsws-ccard .act{margin-top:5px;display:flex;gap:6px}
+.dsws-shade{position:absolute;inset:0;background:rgba(8,10,14,.55);display:flex;align-items:center;justify-content:center;gap:8px;z-index:7;border-radius:12px}
+.dsws-spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.18);border-top-color:#c084fc;animation:dsws-spin .8s linear infinite;flex:none}
+@keyframes dsws-spin{to{transform:rotate(360deg)}}
+.dsws-cfg{max-width:720px;display:flex;flex-direction:column;gap:12px;padding:2px 2px 4px}
+.dsws-cfg-head{display:flex;align-items:center;gap:10px}
+.dsws-cfg-head .t{font-size:15px;font-weight:700;letter-spacing:.2px}
+.dsws-cfg-head .s{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:12px}
+.dsws-cfg-sub{font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);line-height:1.7}
+.dsws-cfg-group{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;background:var(--dsw-alias-bg-layer-1,#10131a);padding:10px 14px}
+.dsws-cfg-gtitle{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:650;margin-bottom:4px}
+.dsws-cfg-gdesc{font-size:11.5px;color:var(--dsw-alias-label-caption,#8b8b95);margin-bottom:10px;line-height:1.65}
+.dsws-cfg-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0}
+.dsws-cfg-label{font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);flex:none}
+.dsws-cfg-seg{display:inline-flex;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;background:var(--dsw-alias-bg-layer-2,#16181d);padding:3px;gap:2px}
+.dsws-cfg-seg button{border:none;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:12px;padding:4px 14px;border-radius:6px;cursor:pointer;font-family:var(--dsw-font-family)}
+.dsws-cfg-seg button:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}
+.dsws-cfg-seg button.on{background:#c084fc;color:#140a1e;font-weight:600}
+.dsws-cfg-sw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:12px}
+.dsws-cfg-sw input{display:none}
+.dsws-cfg-sw .tr{width:34px;height:19px;border-radius:99px;background:var(--dsw-alias-bg-layer-3,#0c0e12);border:1px solid var(--dsw-alias-border-l1,#2a2d35);position:relative;flex:none;transition:background .15s,border-color .15s}
+.dsws-cfg-sw .tr::after{content:"";position:absolute;left:2px;top:2px;width:13px;height:13px;border-radius:50%;background:var(--dsw-alias-label-caption,#8b8b95);transition:transform .15s,background .15s}
+.dsws-cfg-sw input:checked + .tr{background:rgba(192,132,252,.22);border-color:rgba(192,132,252,.55)}
+.dsws-cfg-sw input:checked + .tr::after{transform:translateX(15px);background:#c084fc}
+.dsws-cfg-ta{width:100%;min-height:56px;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;color:var(--dsw-alias-label-primary,#e6edf3);font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);font-size:11.5px;line-height:1.6;padding:7px 9px;box-sizing:border-box;resize:none;overflow:hidden}
+.dsws-cfg-ta:focus{outline:none;border-color:rgba(192,132,252,.6)}
+.dsws-cfg-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0}
+.dsws-cfg-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:11px;font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);cursor:pointer;background:rgba(188,140,255,.14);color:#bc8cff;border:1px solid rgba(188,140,255,.35);transition:background .12s}
+.dsws-cfg-chip:hover{background:rgba(188,140,255,.26)}
+.dsws-cfg-chip.req{background:rgba(248,113,113,.14);color:#f87171;border-color:rgba(248,113,113,.45)}
+.dsws-cfg-chip.req:hover{background:rgba(248,113,113,.26)}
+.dsws-cfg-chip .must{font-family:var(--dsw-font-family);font-size:10px;opacity:.85}
+.dsws-cfg-legend{font-size:11px;color:var(--dsw-alias-label-caption,#8b8b95);display:flex;align-items:center;gap:12px;margin-top:2px}
+.dsws-cfg-card{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;background:var(--dsw-alias-bg-layer-2,#16181d);padding:12px 14px;margin-bottom:10px}
+.dsws-cfg-card-head{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.dsws-cfg-card-name{font-size:13px;font-weight:650}
+.dsws-cfg-card-desc{font-size:11.5px;color:var(--dsw-alias-label-caption,#8b8b95);margin-bottom:4px;line-height:1.6}
+.dsws-cfg-preview{border:1px dashed var(--dsw-alias-border-l2,#3a3f4a);border-radius:8px;background:var(--dsw-alias-bg-layer-3,#0c0e12);padding:7px 10px;font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);font-size:10.5px;line-height:1.6;color:var(--dsw-alias-label-secondary,#a1a1aa);white-space:pre-wrap;word-break:break-all;margin-top:5px}
+.dsws-cfg-preview .pv-label{display:block;font-family:var(--dsw-font-family);font-size:10px;letter-spacing:.5px;color:var(--dsw-alias-label-caption,#8b8b95);margin-bottom:3px}
+.dsws-cfg-err{border:1px solid rgba(248,113,113,.5);background:rgba(248,113,113,.1);border-radius:10px;padding:10px 12px;font-size:12px;color:#f87171;line-height:1.7}
+.dsws-cfg-err .t{font-weight:650;display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.dsws-cfg-save{align-self:flex-end;background:#c084fc;color:#140a1e;border:none;border-radius:8px;font-size:13px;font-weight:650;padding:8px 28px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.dsws-cfg-save:hover{filter:brightness(1.08)}
+.dsws-cfg-btn{background:transparent;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:7px;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:11.5px;padding:3px 10px;cursor:pointer}
+.dsws-cfg-btn:hover{border-color:var(--dsw-alias-border-l2,#3a3f4a);color:var(--dsw-alias-label-primary,#e6edf3)}
+</style>
+</head>
+<body>
+<h2>waystation 配置面板 · 修复后（v1.3.3）· 双场景对照</h2>
+<p class="note">修复内容：preview 去 max-height 全展开 · textarea 自适应高度（auto-grow）→ 配置面板内零内层滚动，滚动只发生在最外层（DSH settings options）。红框 = 内层滚动容器（预期 0）。</p>
+<div class="scene">
+  <h3>场景 A · DSH settings 弹窗（真实宿主布局 · 最外层可滑动）</h3>
+  <div class="dsh-settings">
+    <div class="dsh-nav">
+      <div style="font-size:14px;color:#e6edf3;font-weight:500;padding:0 12px;line-height:24px">设置</div>
+      <div style="margin-top:10px">
+        <div style="height:40px;border-radius:12px;background:rgba(255,255,255,.08);padding:9px 16px;font-size:14px;box-sizing:border-box">通用</div>
+        <div style="height:40px;padding:9px 16px;font-size:14px;box-sizing:border-box;color:#8b8b95">插件</div>
+      </div>
+    </div>
+    <div class="dsh-content">
+      <div class="dsh-header">插件设置</div>
+      <div class="dsh-options" id="cfgA"></div>
+    </div>
+  </div>
+</div>
+<div class="scene">
+  <h3>场景 B · 宽视口平铺</h3>
+  <div id="cfgB" style="max-width:760px;padding:0 24px 24px"></div>
+</div>
+<script>
+  const PANEL_HEIGHT_LABELS = { quarter: '1/4', half: '1/2', twothirds: '2/3' };
+  const TPL_EDIT_IDS = ['diagnose', 'fix', 'discuss', 'handoff1', 'handoff2', 'fixate'];
+  const TPL_DEFAULT = {
+    diagnose: '/triage\n{url}\n\n请诊断该 issue 并分流建议：\n1. 复现 / 现象 / 影响范围\n2. 根因推断（多个候选）\n3. 分流建议（修复 / 关闭 / 重设计 / 等）\n\n从第一性原理出发完成任务，并对抗式审查。',
+    fix: '/wayfinder\n{url}\n\n请修复该 bug：\n1. 先复现\n2. 定位根因\n3. 实施修复\n4. 加测试\n5. 对抗式审查\n\n从第一性原理出发完成任务，并对抗式审查。',
+    discuss: '/wayfinder\n{url}\n\n请与我就该 issue 进行讨论（grill）：\n1. 目标 / 边界\n2. 风险 / 假设\n3. 选项 / 权衡\n4. 决策\n\n从第一性原理出发完成任务，并对抗式审查。',
+    execute: '/wayfinder\n{url}\n\n请执行该 issue：\n1. 读 Description / Notes / 阻塞关系\n2. 制定方案\n3. 实施\n4. 验收\n\n从第一性原理出发完成任务，并对抗式审查。',
+    handoff1: '/handoff\n\n请把当前会话生成交接文档，写到 .scratch/handoff/{ts}.md（相对当前工作目录），包含三部分：\n1. 结论：本次会话已确认的决定与成果；\n2. 未完成事项：下一步要继续的事；\n3. 建议 skill：新会话接手时建议加载的技能。\n\n从第一性原理出发完成任务，并对抗式审查。',
+    handoff2: '/read .scratch/handoff/{file}\n\n请先阅读这份交接文档并复述确认理解（结论 / 未完成事项 / 建议 skill），然后从第一性原理出发完成任务，并对抗式审查。',
+    fixate: '里程碑固化点。暂停推进，执行「零丢失快照」，从第一性原理出发：\n1. 全量复述：把我从会话开始到现在说过的全部信息，按「目的地 / 约束与偏好 / 已确认的决定 / 待决问题 / 雾区」五类，逐条列出。\n2. 每条后面标注出处：用我的原话引用。\n3. 单独列一节「可疑遗漏」。\n4. 列完后停下等我逐条核对。',
+  };
+  const autoGrowTa = function (el) {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = (el.scrollHeight + 2) + 'px'
+  };
+  function card(id, preview) {
+    const d = document.createElement('div');
+    d.className = 'dsws-cfg-card';
+    const name = document.createElement('div'); name.className = 'dsws-cfg-card-name'; name.textContent = id;
+    const head = document.createElement('div'); head.className = 'dsws-cfg-card-head';
+    head.appendChild(name);
+    const flex = document.createElement('span'); flex.style.flex = '1'; head.appendChild(flex);
+    const btn = document.createElement('button'); btn.className = 'dsws-cfg-btn'; btn.textContent = '重置'; head.appendChild(btn);
+    const desc = document.createElement('div'); desc.className = 'dsws-cfg-card-desc'; desc.textContent = '模板描述';
+    const chips = document.createElement('div'); chips.className = 'dsws-cfg-chips';
+    const chipEl = document.createElement('span'); chipEl.className = 'dsws-cfg-chip req'; chipEl.innerHTML = '{url}<span class="must">必填</span>'; chips.appendChild(chipEl);
+    const ta = document.createElement('textarea'); ta.className = 'dsws-cfg-ta'; ta.placeholder = TPL_DEFAULT[id] || ''; ta.value = preview;
+    ta.addEventListener('input', function () { autoGrowTa(ta) });
+    const pv = document.createElement('div'); pv.className = 'dsws-cfg-preview';
+    const pvl = document.createElement('span'); pvl.className = 'pv-label'; pvl.textContent = '预览';
+    pv.appendChild(pvl); pv.appendChild(document.createTextNode(preview));
+    d.append(head, desc, chips, ta, pv);
+    return d;
+  }
+  function renderPanel(host) {
+    host.innerHTML = '';
+    const root = document.createElement('div');
+    root.className = 'dsws-cfg';
+    const head = document.createElement('div'); head.className = 'dsws-cfg-head';
+    const t = document.createElement('span'); t.className = 't'; t.textContent = 'DSH-Waystation';
+    const s = document.createElement('span'); s.className = 's'; s.textContent = '已保存';
+    head.append(t, s);
+    const sub = document.createElement('div'); sub.className = 'dsws-cfg-sub'; sub.textContent = '配置面板说明文字';
+    root.append(head, sub);
+    const g1 = document.createElement('div'); g1.className = 'dsws-cfg-group';
+    g1.innerHTML = '<div class="dsws-cfg-gtitle">面板默认高度</div><div class="dsws-cfg-gdesc">选择默认高度</div>';
+    const g1r = document.createElement('div'); g1r.className = 'dsws-cfg-row';
+    const lbl = document.createElement('span'); lbl.className = 'dsws-cfg-label'; lbl.textContent = '默认高度';
+    const seg = document.createElement('div'); seg.className = 'dsws-cfg-seg';
+    Object.keys(PANEL_HEIGHT_LABELS).forEach(k => { const b = document.createElement('button'); if (k==='half') b.className='on'; b.textContent = PANEL_HEIGHT_LABELS[k]; seg.appendChild(b); });
+    g1r.append(lbl, seg); g1.appendChild(g1r); root.appendChild(g1);
+    const g2 = document.createElement('div'); g2.className = 'dsws-cfg-group';
+    g2.innerHTML = '<div class="dsws-cfg-gtitle">开始模板（execute）</div><div class="dsws-cfg-gdesc">描述</div>' +
+      '<div class="dsws-cfg-row"><label class="dsws-cfg-sw"><input type="checkbox" checked><span class="tr"></span><span>带 /wayfinder 前缀</span></label></div>';
+    const ta2 = document.createElement('textarea'); ta2.className = 'dsws-cfg-ta'; ta2.value = TPL_DEFAULT.execute;
+    ta2.addEventListener('input', function () { autoGrowTa(ta2) });
+    const pv2 = document.createElement('div'); pv2.className = 'dsws-cfg-preview';
+    const pv2l = document.createElement('span'); pv2l.className = 'pv-label'; pv2l.textContent = '预览';
+    pv2.appendChild(pv2l); pv2.appendChild(document.createTextNode(TPL_DEFAULT.execute));
+    g2.append(ta2, pv2); root.appendChild(g2);
+    const g3 = document.createElement('details'); g3.open = true;
+    g3.className = 'dsws-cfg-group dsws-cfg-details';
+    const sum = document.createElement('summary');
+    sum.style.cssText = 'display:flex;align-items:center;gap:7px;font-size:13px;font-weight:650;margin-bottom:4px;cursor:pointer;list-style:none';
+    sum.textContent = '动作模板编辑器';
+    const g3d = document.createElement('div'); g3d.className = 'dsws-cfg-gdesc'; g3d.textContent = '其余 6 个动作的模板';
+    g3.append(sum, g3d);
+    TPL_EDIT_IDS.forEach(id => { const c = card(id, TPL_DEFAULT[id]); g3.appendChild(c); });
+    root.appendChild(g3);
+    const foot = document.createElement('div');
+    foot.style.cssText = 'display:flex;align-items:center;gap:10px;align-self:flex-end';
+    const b1 = document.createElement('button'); b1.className = 'dsws-cfg-btn'; b1.textContent = '恢复默认';
+    const b2 = document.createElement('button'); b2.className = 'dsws-cfg-save'; b2.textContent = '保存全部';
+    foot.append(b1, b2);
+    root.appendChild(foot);
+    host.appendChild(root);
+    // 初始 auto-grow
+    host.querySelectorAll('textarea.dsws-cfg-ta').forEach(autoGrowTa);
+  }
+  renderPanel(document.getElementById('cfgA'));
+  renderPanel(document.getElementById('cfgB'));
+  function markScroll(hostId, label) {
+    const host = document.getElementById(hostId);
+    const els = host.querySelectorAll('*');
+    let count = 0;
+    els.forEach(el => {
+      const cs = getComputedStyle(el);
+      if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 2) {
+        count++;
+        el.style.outline = '2px solid #f87171';
+        el.style.outlineOffset = '-2px';
+      }
+    });
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:12px;margin-top:8px;color:' + (count ? '#f87171' : '#4ade80');
+    note.textContent = label + '：内层滚动容器 ' + count + ' 个' + (count ? '（红框 = 上下滑动小窗口）' : '（无内层滚动 ✓ 内容全展开）');
+    host.parentElement.insertBefore(note, host.nextSibling);
+  }
+  window.addEventListener('load', () => setTimeout(() => { markScroll('cfgA', '场景 A'); markScroll('cfgB', '场景 B'); }, 400));
+</script>
+</body>
+</html>
