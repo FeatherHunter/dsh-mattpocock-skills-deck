@@ -37,6 +37,17 @@ dsh plugin --profile web add dsh-better-sidebar
 dsh plugin --profile web add dsh-mattpocock-skills-deck
 ```
 
+**④ Or let your AI do it** — copy the prompt below to your AI; it reads the repo, checks your environment, and installs only what's missing (it skips what's already there):
+
+```text
+Please help me install the DeepSeek Harness plugin dsh-mattpocock-skills-deck (MattSkills).
+1. First read the repo README: https://github.com/FeatherHunter/dsh-mattpocock-skills-deck (English is fine).
+2. Check: node -v / npm -v; dsh --version (if missing: npm install -g @deepseek-ai/dsh); dsh plugin --profile web list to see whether dsh-better-sidebar and this plugin are already installed.
+3. Only run what's missing (skip what's installed): dsh plugin --profile web add dsh-better-sidebar; dsh plugin --profile web add dsh-mattpocock-skills-deck.
+4. When done, tell me how to verify: refresh the DSH page → MattSkills panel on the right + status capsules above the input; then run the env check to see if all 9 items are ready.
+Rules: check before acting; explain each step (done / skipped); on failure give the reason and the next step — don't retry blindly.
+```
+
 ![See what you get — DSH in 30 seconds](../assets/after-install-en.svg)
 
 Refresh and it's on — zero config, and the rest is handled.

@@ -83,6 +83,17 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
 ```
 
+**或者：把安装交给你的 AI**（复制下面提示词发给 AI，它会读仓库、检查环境、按需安装，已装步骤自动跳过）：
+
+```text
+请帮我安装 DeepSeek Harness 插件 dsh-mattpocock-skills-deck（MattSkills）。
+1. 先读仓库：https://github.com/FeatherHunter/dsh-mattpocock-skills-deck 的 README（中文版，可切英文）。
+2. 检查：node -v / npm -v；dsh --version（没有则 npm install -g @deepseek-ai/dsh）；dsh plugin --profile web list 看是否已装 dsh-better-sidebar 和本插件。
+3. 按需执行（已装直接跳过）：dsh plugin --profile web add dsh-better-sidebar；dsh plugin --profile web add dsh-mattpocock-skills-deck。
+4. 装完告诉我验收：刷新 DSH 页面 → 右侧出现 MattSkills 面板 + 输入框上方状态栏胶囊；再跑环境检查看 9 项是否就绪。
+要求：先检查再动手；每一步说明做了什么/跳过了什么；失败给原因和下一步，不反复重试。
+```
+
 - 命令把插件装进 **web profile**（`~/.dsh/profiles/web/node_modules`），同步 `web/package.json`
   并自动 reconcile 注册（bundle 装配）。装完**刷新浏览器页面**（http://127.0.0.1:3080）即生效，之后每次 DSH 启动自动加载。
 - ✅ **一键装完即用（bundle 装配）**：本包声明 `dsh.bundle.patch`（包根 `cordis.patch.yml`），
