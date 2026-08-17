@@ -16,9 +16,12 @@
 ## 🚀 Install it (30 seconds)
 
 ```bash
-npm install -g @deepseek-ai/dsh        # first time: the DSH CLI
+npm install -g @deepseek-ai/dsh                       # first time: the DSH CLI
+dsh plugin --profile web add dsh-better-sidebar       # recommended: VSCode-style sidebar for the best experience
 dsh plugin --profile web add dsh-mattpocock-skills-deck
 ```
+
+> 💡 The panel looks best inside [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) (side-by-side list & detail). It still works without it (right details column), just a bit tighter on narrow screens.
 
 ![See what you get — DSH in 30 seconds](../assets/after-install-en.svg)
 

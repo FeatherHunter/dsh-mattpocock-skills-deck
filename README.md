@@ -18,9 +18,12 @@
 ## 🚀 装它（30 秒）
 
 ```bash
-npm install -g @deepseek-ai/dsh        # 首次装 CLI
+npm install -g @deepseek-ai/dsh                       # 首次装 CLI
+dsh plugin --profile web add dsh-better-sidebar       # 推荐先装：VSCode 风右侧边栏，面板效果最佳
 dsh plugin --profile web add dsh-mattpocock-skills-deck
 ```
+
+> 💡 面板在 [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) 的侧边栏打开效果最好（并排看列表 / 详情）。不装也能用（右侧 details 列），只是窄屏体验略逊。
 
 ![装完长这样 · 30 秒后的 DSH](assets/after-install-zh.svg)
 
