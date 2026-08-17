@@ -135,7 +135,7 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck
 
 喜欢这个插件的话，这些可能你也用得上：
 
-- [**dsh-opencode-palette**](https://github.com/FeatherHunter/dsh-opencode-palette) —— 觉得 DSH 默认界面看腻了？34 款 opencode 经典主题，点一下就换。
+- [**dsh-opencode-palette**](https://github.com/FeatherHunter/dsh-opencode-palette) —— 喜欢 opencode 的配色？让 DSH 也穿上它 —— 34 款经典主题，眼睛舒服了，码字也开心。
 - [**dsh-prompt**](https://github.com/FeatherHunter/dsh-prompt) —— 写 Prompt 卡壳的时候，里面有 24 条深度模板，点一下直接进输入框。
 
 ## v1.3.3 新增（2026-08-15）
