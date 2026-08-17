@@ -604,7 +604,7 @@ export function apply(ctx) {
   // 检查 4 · gh CLI 可用
   async function checkGhCli() {
     const exe = await resolveGh()
-    if (!exe) return { ok: false, level: 'bad', detail: ghPathError || 'gh 未找到', hint: '安装 GitHub CLI，或配置兜底路径', repo: null }
+    if (!exe) return { ok: false, level: 'bad', detail: 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: 'https://cli.github.com/', repo: null }
     return { ok: true, level: 'ok', detail: exe, hint: '', repo: null }
   }
 
@@ -615,7 +615,7 @@ export function apply(ctx) {
       const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]
       return { ok: true, level: 'ok', detail: first || '已登录', hint: '', repo: null }
     }
-    return { ok: false, level: 'bad', detail: 'gh auth status 失败（' + r.kind + '）', hint: '运行 gh auth login', repo: null }
+    return { ok: false, level: 'bad', detail: '未登录 GitHub：运行 gh auth login（浏览器授权，官方文档见 hint）', hint: 'https://cli.github.com/manual/gh_auth_login', repo: null }
   }
 
   // 检查 6 · API 可达（有 repo 用 repos/<owner>/<name>，否则退 user）
