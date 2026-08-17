@@ -22,28 +22,29 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 
 刷新即生效，零配置 —— 剩下的交给 AI。
 
-<details>
-<summary>免全局安装 / 升级 / 卸载（点开）</summary>
+免全局安装：`npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck`
 
-- 免全局安装：`npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck`
-- 升级 / 卸载：`dsh plugin --profile web update|remove dsh-mattpocock-skills-deck`
-
-</details>
+升级 / 卸载：`dsh plugin --profile web update|remove dsh-mattpocock-skills-deck`
 
 ![它是什么](assets/what-it-is-zh.svg)
 
 > 非官方：本项目是 Matt Pocock Skills 的第三方配套工具，与 mattpocock/skills 无隶属关系。
 
-<details>
-<summary>📖 功能详解（点开）</summary>
+## 📖 功能详解
 
 ![功能详解](assets/features-zh.svg)
 
 完整使用说明见 [package/README.md](package/README.md)；设计定稿见 [DESIGN.md](DESIGN.md)；变更历史见 [CHANGELOG.md](CHANGELOG.md)。
 
-</details>
+## 💛 作者的其他作品
 
-![作者的其他作品](assets/other-works-zh.svg)
+喜欢这个插件的话，这些可能你也用得上：
+
+<p align="center">
+  <a href="https://github.com/FeatherHunter/dsh-opencode-palette"><img src="assets/other-palette-zh.svg" alt="dsh-opencode-palette" width="480"></a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/FeatherHunter/dsh-prompt"><img src="assets/other-prompt-zh.svg" alt="dsh-prompt" width="480"></a>
+</p>
 
 ## License
 
