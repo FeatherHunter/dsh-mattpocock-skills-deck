@@ -1,5 +1,24 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊 R9 跟随输入框宽（#16 R9 · v1.6.9）
+
+- **用户验收反馈**：R7 让 capsule width:100% 撑满 wrapper 后，capsule 左右超出输入框左右边（状态栏到了整个面板最左最右）
+- **根因**（CDP 实测）：
+  - capsule wrapper = `wSkVaW_composerStack` = DSH 整个对话区下半部分宽（1280px viewport 时 1536px）
+  - textarea 输入框实际宽 780px（居中容器，左右各缩进 378px）
+  - capsule `width:100%` 撑满 wrapper → 比输入框左右各宽 378px
+- **修复**（commit `539c082`）：
+  - StatusBar 顶部加 `inputRef = document.querySelector('textarea.uV2eYG_input')`
+  - `useEffect` + ResizeObserver 监听 inputRef → `setIw(textarea 实际宽)`
+  - capsule 内联 style `width: iw + 'px'`（CSS `width:100%` 仅作 fallback）
+  - dockRef 仍监听 composerStack 宽（dn 缩放阈值仍反映 dock 缩放）
+  - 2 秒轮询兜底：DSH shell 切换对话时 textarea 重新挂载
+- **CDP 验证**：
+  - 1280px viewport：capsule 宽 780px = 输入框宽，左右边对齐输入框左右边 ✓
+  - 500px viewport：capsule 居中在 composerStack 内，宽 ≈ 输入框宽 ✓
+- **测试**：加 5 项 R9 断言（querySelector / 双 ResizeObserver / 内联 width / disconnect / 轮询兜底）
+- **75+ 项断言全绿**；既有回归全 PASS
+
 ## 2026-08-18 · 状态栏胶囊 R8 拆调试钩子（#16 R8 · v1.6.8）
 
 - 用户验收 R7 后要求去掉 R3 加的 magenta/cyan outline 调试钩子（v1.6.3 临时开启）
