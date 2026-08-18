@@ -1,5 +1,18 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊 R10 box-sizing 像素级对齐（#16 R10 · v1.6.10）
+
+- **用户验收反馈**：R9 后 capsule 左右边距输入框左右边「多一点距离」，用户怀疑是 padding
+- **根因**（CDP 实测）：
+  - R9：capsule 外框 791.99px vs textarea 外框 778.75px（差 13.24px，左右各 6.62px）
+  - capsule CSS 默认 box-sizing:content-box，iw=778.75 (textarea border-box 外宽) → content-box 778.75 + padding:3px 6px + border:1px = border-box 外 791.99
+- **修复**（commit `504cc0b`）：capsule CSS 加 `box-sizing:border-box`
+- **CDP 实测 R10**：
+  - capsule 外框 = textarea 外框 = 778.75px
+  - deltaLeft = 0, deltaRight = 0 ✓ **像素级对齐**
+- **测试**：加 1 项 R10 断言（box-sizing:border-box 命中）
+- **75+ 项断言全绿**；既有回归全 PASS
+
 ## 2026-08-18 · 状态栏胶囊 R9 跟随输入框宽（#16 R9 · v1.6.9）
 
 - **用户验收反馈**：R7 让 capsule width:100% 撑满 wrapper 后，capsule 左右超出输入框左右边（状态栏到了整个面板最左最右）
