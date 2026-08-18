@@ -1,5 +1,18 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊 R5 dock 宽实时监听（#16 R5 · v1.6.5）
+
+- **用户反馈**：R4 实施后缩小窗口时「可接」/「可接 11」文字不消失
+- **根因**：R1-R4 用 `window.innerWidth` 计算 dn 阈值，DSH shell 里有 sidebar / dock 占位时 `window.innerWidth` ≠ 输入区实际宽（视口宽但输入区更窄），导致 5 级 CSS 选择器全部不命中
+- **修复**（commit `22753d4`）：
+  - StatusBar 顶部加 `dockRef = React.useRef(null)` + `dw` state
+  - `useEffect` + `ResizeObserver` 监听外层 wrapper 元素（cyan 框），宽变化触发 `setDw` → React 重渲染
+  - 保留 `window.resize` 事件监听（双保险，覆盖 body 层级缩放）
+  - `dw` 替换 `vw` 作为 dn 阈值信号（dw < 960/880/800/720 → dn=1/2/3/4）
+  - wrapper 两分支（`!firstBlock` 和有 firstBlock 横幅）都挂 `ref={dockRef}`
+- **测试**：加 7 项 R5 断言（dw 阈值 / useRef / useState / ResizeObserver / window resize / 两个分支都挂 ref）
+- **62+ 项断言全绿**；既有回归全 PASS
+
 ## 2026-08-18 · 状态栏胶囊 R4 截溢出（#16 R4 · v1.6.4）
 
 - **用户反馈**：R3 调试钩子确认 R2 max-width:min(100%,1400px) 生效（capsule 跟着 wrapper 缩），但 children 内容 fit-content 自然宽 > capsule 宽时**从 capsule background 框左右捅出**呈「棍子」
