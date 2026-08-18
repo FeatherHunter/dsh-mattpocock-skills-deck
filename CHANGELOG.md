@@ -1,5 +1,25 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 修复右侧面板漏检子票变化（#2 MVP · v1.5 R2）
+
+- **BUG**（reporter 反馈）：右侧面板（列表 / 技能 / 环境检查）长时间不更新 GitHub 状态，必须手动点「刷新」—— **不是「5min 太慢」那么简单**，子票（wayfinder:task / research / prototype / grilling）变化根本不被检测。
+- **根因**（两轮 grill 拍板）：
+  - **Round 1**：probe `PROBE_MS = 300000`（5min）+ 60s 缓存体感不更新；
+  - **Round 2（用户补充观察后重诊断）**：probe REST 查询 `?labels=wayfinder:map` **只匹配地图本身**，漏检所有子票变化 —— 面板绝大多数内容（可接 / 阻塞 / 已认领 / 已关闭分组，DESIGN.md §5.2）都是子票。
+- **MVP 修复**（按 maintainer 拍板的 MVP-first 原则）：
+  - **probe 范围扩到 since 时间戳**：`package/lib/index.js` + `host.js` `case 'probe'` / `harness.handle('wf.probe', ...)` 改为 `gh api repos/.../issues?state=open&per_page=100&since=<ISO>`，1 次 REST 覆盖全 issue 增量（地图 + 子票 + 其他）；
+  - **新增** 模块级 `lastProbeAtByRepo`（按 repoKey 隔离，多仓库会话并发不互串），`buildSnapshot` 末尾初始化为 `new Date().toISOString()`；probe 命中时滑动基准线；
+  - **`PROBE_MS`** 默认 300000 → **60000**（1min，用户感知阈值；REST 5000/h 池 60s × 10 repos = 600/h，12% 占用，安全）；
+  - **保留** `FOCUS_PROBE_MIN_MS = 60000` + 关键动作 8s 延迟探测 + 错误静默 + `SNAP_FRESH_MS = 60000` 缓存；
+  - **移除** 已死代码 `lastMapsUpdatedAtByRepo`（probe 改用 since 后不再需要）。
+- **验证**：
+  - 双源 `host.js ↔ package/lib/index.js` ↔ `client.js ↔ package/lib/client.js` 关键特征逐字一致；
+  - `tests/verify-b5-quota.js` 适配新机制：46 项 PASS（原 32 项 + 14 项 R2 新增 / 适配）；
+  - 新增 `tests/verify-probe-since.js`：24 项 PASS（since 参数 / `lastProbeAtByRepo` 隔离 / buildSnapshot 初始化 / `PROBE_MS = 60000` / 双源一致）；
+  - 其他回归测试 `verify-status / prompts / markdown / bug-entry / handoff-split / t2a-config / t2b-templates / t3-locale` 全部 PASS。
+- **方法论沉淀（issue body）**：MVP-first / UI/UX 反向校验原则应用于本 issue —— 任何用于支撑 UI/UX 的契约层都应接受 UI/UX 验收的反向校验，不当作 UI/UX 开工前不可动摇的终点；phase 2（配置 UI / UI 时间戳 / 错误可视化）由 UI/UX 验收反馈决定。
+- **端到端验收（人工 / maintainer 实测）**：在指定仓库新发一张带 `wayfinder:task` 标签的子票 → 等 ≤60s → 不点刷新 → 面板「可接」或对应分组应自动出现新行（带高亮 / 绿闪，R5 视觉反馈）。
+
 ## 2026-08-18 · BUG 悬停菜单 UX 优化（#4 v3 · 宽度自适应 + 按钮 hover 反馈）
 
 - **需求**（#4 收尾时细化）：状态栏 BUG 悬停菜单的「新增」按钮——① hover 时整体颜色需变化（按钮感）；② 弹层右侧空白过多，需按内容自适应宽度

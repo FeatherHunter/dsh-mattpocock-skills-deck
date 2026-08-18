@@ -1472,12 +1472,12 @@ window.__ModuleLoader__.load({
         })
       }
 
-      // v1.5 T10 修订（B5 配额止血 · 从第一性原理）：自动刷新的目的是「有变化才重拉」，
-      //   不是「高频轮询」—— ① probe 降到 5min 一次（#348 拍板纯手动 + 低频兜底）；
-      //   ② changed 只刷新与本次探测 cwd 相同的 store（原全 store 刷新：多仓库会话并发时
-      //      一次 changed = N 个 store 全量 refresh = N×18 GraphQL 点，烧穿 5000/h 配额）；
+      // v1.5 R2（#2 MVP · 2026-08-18）：自动刷新 — probe 走 since 时间戳探测全 issue 增量
+      //   （#348 + v1.5 T10 B5「配额止血 · 第一性原理」延续）：① probe 降到 60s（用户感知阈值 · R1 是 5min）；
+      //   ② changed 只刷新与本次探测 cwd 相同的 store（多仓库会话并发不互串）；
       //   ③ focus 触发限流 ≥60s（窗口来回切换不再疯狂烧）。
-      const PROBE_MS = 300000
+      //   与 R1 区别：probe 范围从 `labels=wayfinder:map`（仅地图）扩到 `since=<ISO>`（全 issue，含子票）—— 见 host 侧 `case 'probe'`。
+      const PROBE_MS = 60000
       const FOCUS_PROBE_MIN_MS = 60000
       let lastFocusProbe = 0
       // v1.5 T10 R9（Q4 拍板 · DESIGN.md 12.2）：关键动作后延迟探测 —— 完成/执行/交接后面板尽快反映 GitHub 变化；

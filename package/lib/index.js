@@ -50,7 +50,7 @@ export function apply(ctx) {
   let cache = { ts: 0, snapshot: null, error: null, cwd: null }
   let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // 环境检查 30s 缓存（按 cwd+lang 区分）
   let userHome = null                                     // 用户主目录（cmd 探测，缓存）
-  let lastMapsUpdatedAtByRepo = {}                        // v1.5 T10 修订（B5 配额止血）：open map updatedAt 表按 repoKey 隔离（多仓库并发不互串）
+  let lastProbeAtByRepo = {}                              // v1.5 R2（#2 MVP）：probe since 时间戳，按 repoKey 隔离（buildSnapshot 完成时初始化为 ISO；probe 时作为 since 参数，1 次 REST 覆盖全 issue 增量）
 
   // ============ gh 封装 ============
   async function resolveGh() {
@@ -478,11 +478,8 @@ export function apply(ctx) {
     const mapsMeta = fi.ok ? fi.issues.filter(function (x) {
       return x.state === 'OPEN' && (x.labels || []).some(function (l) { return l.name === 'wayfinder:map' })
     }) : []
-    // v1.5 T10 修订（B5）：open map updatedAt 表按 repoKey 隔离 —— 多仓库会话并发时各记各的，
-    //   否则 probe 的 changed 判定拿别的仓库的表对比 → 键数恒不同 → 永远 changed → 全 store 疯狂刷新烧 GraphQL 配额
+    // v1.5 R2（#2 MVP）：probe since 时间戳基准线（按 repoKey 隔离，多仓库会话并发不互串）—— 在 buildSnapshot 末尾初始化
     const rk0 = (repo && repo.owner && repo.name) ? (repo.owner + '/' + repo.name) : (cwd || '')
-    lastMapsUpdatedAtByRepo[rk0] = {}
-    mapsMeta.forEach(function (m) { if (m.updatedAt) lastMapsUpdatedAtByRepo[rk0][m.number] = m.updatedAt })
     // #375：全量 label 列表（含空 label；获取失败容错置空，不阻塞快照构建，client 降级）
     let labels = []
     const fl = await runGh(['label', 'list', '--json', 'name,color'], cwd)
@@ -518,6 +515,9 @@ export function apply(ctx) {
         tickets: tickets, stats: stats,
       })
     }
+    // v1.5 R2（#2 MVP）：初始化 probe since 时间戳 = 快照生成时刻 → 下次 probe 用 since 探测本次快照之后的增量
+    //   （按 repoKey 隔离，多仓库会话并发不互串；first probe 时空 since → 全量返回 → 视为 changed → 建立基线）
+    lastProbeAtByRepo[rk0] = new Date().toISOString()
     return {
       ok: true,
       repo: repo,
@@ -761,28 +761,30 @@ export function apply(ctx) {
         }
       }
       case 'probe': {
-        // v1.5 T10 修订（B5 配额止血 · 第一性原理）：变化探测是「轻量检测」——走 REST（1 次请求/次，
-        //   不占 GraphQL 5000 点配额，REST 独立 5000 次/小时），且只对比本 repo 的 updatedAt 表
-        //   （原 GraphQL + 模块级单例：多仓库并发 probe 拿别仓库的表对比 → 永远 changed → 全 store 刷新烧配额）
+        // v1.5 R2（#2 MVP）：probe 改用 `since` 时间戳探测全 issue 增量（地图 + 子票 + 其他），
+        //   1 次 REST 调用覆盖全仓库变化。原实现 `labels=wayfinder:map` 仅匹配地图本身，
+        //   **漏检所有子票变化**——面板可接/阻塞/已认领/已关闭分组（DESIGN.md §5.2）都是子票，
+        //   故"列表不更新状态"。since 语义：返回数组非空 = 自上次快照以来有变化 → 视为 changed。
+        //   配额仍走 REST 5000/h 池（独立于 GraphQL 5000 点/h），不烧穿。
         try {
           const repo = await getRepoKey(cwd)
           if (!repo) return { ok: false, error: '无法解析仓库' }
-          // REST 通道：issue list 按 label 过滤（1 次 REST），取 number + updated_at
-          const r = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues?state=open&labels=wayfinder:map&per_page=100', '--jq', '[.[] | {number: .number, updatedAt: .updated_at}]'], cwd)
+          const rk1 = (repo.owner && repo.name) ? (repo.owner + '/' + repo.name) : (cwd || '')
+          const since = lastProbeAtByRepo[rk1]  // 首次 probe = undefined → 不带 since → 全量返回 → 视为 changed
+          const urlBase = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=open&per_page=100'
+          const url = since ? (urlBase + '&since=' + encodeURIComponent(since)) : urlBase
+          const r = await runGh(['api', url, '--jq', '[.[] | {number: .number, updatedAt: .updated_at}]'], cwd)
           if (!r.ok) return { ok: false, error: r.error || 'probe 失败' }
           const arr = JSON.parse(r.text)
-          const cur = {}
-          arr.forEach(function (n) { cur[n.number] = n.updatedAt })
-          const rk1 = (repo.owner && repo.name) ? (repo.owner + '/' + repo.name) : (cwd || '')
-          const prev = lastMapsUpdatedAtByRepo[rk1] || null
-          const changed = prev === null
-            || Object.keys(cur).length !== Object.keys(prev).length
-            || Object.keys(cur).some(function (k) { return prev[k] !== cur[k] })
+          // since 语义：任何返回都意味着自上次基线以来有 issue 变化 → changed=true
+          //   首次 probe（since=undefined）：全量返回 → 通常非空（除非仓库无 open issue） → 视为 changed → 建立基线
+          //   后续 probe（since=ISO）：任何返回 = 有更新 → changed=true
+          const changed = Array.isArray(arr) && arr.length > 0
           if (changed) {
-            lastMapsUpdatedAtByRepo[rk1] = cur
+            lastProbeAtByRepo[rk1] = new Date().toISOString()
             cache = { ts: 0, snapshot: null, error: null, cwd: cwd }  // 失效内存缓存 → 下次 snapshot 重建
           }
-          return { ok: true, changed: changed, repo: repo }
+          return { ok: true, changed: changed, repo: repo, count: Array.isArray(arr) ? arr.length : 0 }
         } catch (e) { return { ok: false, error: errText(e) } }
       }
       case 'cwd': {
