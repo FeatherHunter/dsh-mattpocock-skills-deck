@@ -63,7 +63,7 @@ return {
       return node
     }
     // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-    const DSW_VERSION = 'v1.6.0'
+    const DSW_VERSION = 'v1.6.1'
 
     // ============================================================
     // 0. 样式
@@ -148,11 +148,28 @@ return {
       // #372 修复（2026-08-14 英文态溢出）：原上限 min(92vw,640px) 在英文长文案（如「Handoff · new session」）下触顶，
       //   内容从背景右缘溢出。放宽到 min(96vw,1400px)：width:fit-content + margin:0 auto → 胶囊始终
       //   以状态栏中心为轴向两边生长（背景完整包裹内容），不再截断/溢出。
-      '.dsws-capsule{max-width:min(96vw,1400px);width:fit-content;margin:0 auto;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
+      // #16 修复（2026-08-18 窄屏换行）：v15 修了 white-space:nowrap + flex:none + width:fit-content 但漏改 flex-wrap:wrap；
+      //   窗口 < 920px 时胶囊自然宽 > 96vw → children 被强行换行成两/三行，破坏单行居中观感。
+      //   改为 flex-wrap:nowrap + white-space:nowrap 兜底；胶囊始终单行。
+      //   配合下方 5 级 [data-narrow] 属性选择器：JSX 在 renderStatusBar 写 data-narrow={dn||null}，
+      //   按视口宽逐级隐藏 children 文字 span，保留图标+数字；children 全部 flex:none + nowrap 禁止换行。
+      '.dsws-capsule{max-width:min(96vw,1400px);width:fit-content;margin:0 auto;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
       '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:none}',
       '.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
       '.dsws-capsule .dsws-seg{flex:none}',
       '.dsws-capsule .dsws-timebtn{flex:none}',
+      // #16 修复：5 级 [data-narrow] 文字→图标 收缩（视口宽度量，由 StatusBar 渲染时写入 dn 字符串）
+      //   dn=1 (<960px)  品牌段「MattSkills」字消失 → 仅图标（胶囊仍可点 togglePanel）
+      //   dn=2 (<880px)  无数字段文字消失：note「沉淀」/split 左半「交接」/timebtn「更新」字（图标+时间保留）
+      //   dn=3 (<800px)  有数字段文字消失：takeable/bug/triage/env 标签字（图标+数字保留）
+      //   dn=4 (<720px)  timebtn 时间文字消失（仅刷新图标，hover 走原 tooltip/handler）
+      //   兜底（<640px） 维持 dn=4；children flex:none 不再收缩，允许胶囊右缘溢出但禁止换行
+      //   注：Ic/Icon → <svg>，所以 seg/split-part 子结构是 [svg, span(text), span(num)?]；
+      //     文字 span 是 last-child 或 nth-child(2)（timebtn 因 rficon 抢占第一格）。
+      '[data-narrow="1"] .dsws-capsule-word > span:last-child{display:none}',
+      '[data-narrow="2"] .dsws-seg.note > span:last-child,[data-narrow="2"] .dsws-split-part:first-child > span:last-child,[data-narrow="2"] .dsws-timebtn > span:nth-child(2){display:none}',
+      '[data-narrow="3"] .dsws-seg > span:nth-child(2){display:none}',
+      '[data-narrow="4"] .dsws-timebtn > span:last-child{display:none}',
       '.dsws-banner{display:flex;align-items:center;gap:8px;border-radius:8px;padding:6px 10px;font-size:12px;margin:6px 0;cursor:pointer}',
       '.dsws-banner.bad{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.45);color:#f87171}',
       '.dsws-banner.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);color:#fbbf24}',
@@ -1878,7 +1895,23 @@ return {
         Ic({ n: icon, size: 12 }),
         label,
       ])
-      const capsule = h('div', { className: 'dsws-capsule', onClick: function () { openPanel(s) }, style: { position: 'relative' } }, [
+      // #16 修复：胶囊窄屏 5 级文字→图标 收缩（视口宽度量，写到 data-narrow 属性上供 CSS 选择）
+      //   视口宽阈值（来源：issues-checklist 24 v15 修复锚 + issue #16 期望行为 3）：
+      //   dn=0 默认 1280px+     全文字常显
+      //   dn=1 vw < 960         品牌段「MattSkills」字消失
+      //   dn=2 vw < 880         无数字段（note / 交接左半 / 刷新字）文字消失
+      //   dn=3 vw < 800         有数字段（可接/BUG/诊断/环境）文字消失
+      //   dn=4 vw < 720         刷新时间文字消失
+      //   vw < 640 兜底：维持 dn=4；children flex:none + nowrap 不再收缩，胶囊允许右缘溢出但禁止换行
+      //   度量从 status.snapshot 等状态分离 —— 胶囊关注视觉宽度（视口），面板 tabs 关注容器宽度（s.size.w），与既有 narrow 模式同形态
+      const vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280
+      let dn = 0
+      if (vw < 960) dn = 1
+      if (vw < 880) dn = 2
+      if (vw < 800) dn = 3
+      if (vw < 720) dn = 4
+      // vw < 640 兜底：保持 dn=4，children flex:none + nowrap 拒绝换行
+      const capsule = h('div', { className: 'dsws-capsule', 'data-narrow': dn || null, onClick: function () { openPanel(s) }, style: { position: 'relative' } }, [
         h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
           Icon({ scheme: s.ui.icon, size: 14 }),
           h('span', null, tr('panel.title')),
@@ -1895,14 +1928,16 @@ return {
           ]) : null,
         ]),
         seg('search', [h('span', null, tr('nav.triage')), num(String(triageN), '2ch')], '#f59e0b', function () { s.stateFilter = 'open'; s.lblFilters = ['needs-triage']; go('list') }, tr('nav.triageTitle')),
-        seg('note', tr('nav.word'), '#c084fc', function () { injectFixate(s) }, tr('nav.fixateTitle')),
+        // #16 修复：note 段（沉淀 / Consolidate）文字用 span 包裹，让 [data-narrow="2"] .dsws-seg.note > span:last-child 选择器稳定命中
+        seg('note', h('span', null, tr('nav.word')), '#c084fc', function () { injectFixate(s) }, tr('nav.fixateTitle')),
         // 需求1·二阶段（2026-08-18）：交接分割按钮 —— 共外框 + 细分隔线；左半「交接」= 第一击生成、
         //   右半「交接出去」= 原第二击（探测磁盘最新文档 → 预填 + 开新会话）。各自点击区/tooltip 保留，hover 沿用 seg 背景。
         //   右半灰/亮双态：handoffReady → 亮蓝 #58a6ff（tooltip nav.handoffReadyTitle）；未 ready → 半透明灰（tooltip nav.handoffGreyTitle）
+        // #16 修复：split-part 文字用 span 包裹，让 [data-narrow="2"] .dsws-split-part:first-child > span:last-child 命中
         h('span', { className: 'dsws-split' }, [
           h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoff(s) }, title: tr('nav.handoffTitle'), style: { color: '#58a6ff' } }, [
             Ic({ n: 'handoff', size: 12 }),
-            tr('nav.handoff'),
+            h('span', null, tr('nav.handoff')),
           ]),
           h('span', { className: 'dsws-split-div' }),
           h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoffOpen(s) }, title: s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle'), style: s.handoffReady ? { color: '#58a6ff' } : { color: '#8b8b95', opacity: 0.55, cursor: 'default' } }, [
@@ -1912,7 +1947,9 @@ return {
         // v19-36：环境段移至末尾（更新左侧），用户少点
         seg('dot', [h('span', null, tr('nav.env')), num(envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') }, tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) })),
         // v1.5 T10：刷新反馈 = 图标转圈（文字恒定不换 · 控件宽度零变化）
-        h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, title: tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('nav.refresh') + ' ' + timeStr)]),
+        // #16 修复：timebtn 文字拆为两段 span（refresh word + time）—— dn=2 隐藏 word，dn=4 隐藏 time，
+        //   children 顺序固定为 [span(rficon+icon), span(word), span(time)]，CSS :nth-child(2) / :last-child 命中
+        h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, title: tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('nav.refresh')), h('span', null, ' ' + timeStr)]),
         // 需求2（2026-08-18）：状态栏末尾技能列表按钮 —— 向上展开技能名列表，点击技能名插入 /<技能名> 到当前会话
         // issue #3（D2）：对齐 BUG 段悬浮菜单 —— 悬停即展开、移出「按钮 + 列表」整体区域即关闭；
         //   按钮与列表之间的 4px 间隙由外层 paddingTop 桥接（不再用 marginBottom），鼠标穿越不误关。

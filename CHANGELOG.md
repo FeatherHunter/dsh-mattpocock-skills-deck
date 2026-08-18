@@ -1,5 +1,33 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊禁止换行 + 窄屏 5 级文字→图标收缩（#16 · v1.6.1）
+
+- **BUG**（reporter 反馈）：状态栏 `.dsws-capsule` 在对话窗口变窄（< ~920px）时按钮被强行换行成两/三行，破坏单行居中胶囊观感；「MattSkills」字常显，数字段（可接/BUG/诊断/环境）文字不收敛，时间「MM-DD HH:MM」整体不收敛
+- **根因**（v15 历史修复尾巴）：
+  - v15（issues-checklist 24）已修 `white-space:nowrap` + `flex:none` + `width:fit-content`，但**漏改 `flex-wrap:wrap`** → 窗口 < 920px 时胶囊自然宽 > 96vw，children 被强制换行
+  - children 文字 span 没有任何阈值切换逻辑，文字只会被动让位给换行
+  - 体系缺口：胶囊的「视口度量」完全缺失（与面板 tabs 行的「容器宽度度量 s.size.w」是两种不同形态的 narrow）
+- **修复**（与既有 `.dsws-btn.narrow-icon` 模式同形态）：
+  - **CSS**（`.dsws-capsule`）：`flex-wrap:wrap` → `flex-wrap:nowrap`，加 `white-space:nowrap` 兜底；新增 4 条 `[data-narrow="N"]` 属性选择器，逐级 `display:none` 文字 span
+  - **JSX**（renderStatusBar）：渲染时读 `window.innerWidth` → 算 `dn ∈ {0,1,2,3,4}` 阈值 → 写 `'data-narrow': dn || null` 到 capsule 根 div
+  - **JSX 微调**（让选择器稳定命中）：note 段 / 交接左半 / 刷新按钮的文字用 `h('span', null, ...)` 包裹；timebtn 文字拆为 word + time 两段 span
+- **5 级阈值**（视口宽）：
+  - `dn=1` vw < 960：品牌段「MattSkills」字消失（图标保留）
+  - `dn=2` vw < 880：无数字段文字消失（沉淀/交接/刷新字）—— timebtn 末段时间保留
+  - `dn=3` vw < 800：有数字段文字消失（可接/BUG/诊断/环境）—— 图标+数字保留
+  - `dn=4` vw < 720：timebtn 时间文字消失（仅刷新图标）
+  - 兜底 vw < 640：维持 dn=4，children `flex:none` + `nowrap` 拒绝换行，胶囊允许右缘溢出
+- **EN locale**：同 `data-narrow` 阈值；`panel.title` 中英同字「MattSkills」，EN 下 dn=1 为 no-op
+- **点击事件契约**（保留 + 新增守护）：
+  - 点击 `dsws-capsule-word` → `togglePanel(s)`（stopPropagation）
+  - 点击胶囊空白 → `openPanel(s)`（冒泡到 capsule root）
+  - 各 `seg` / `dsws-split` / `dsws-timebtn` / `dsws-skillbtn` 走各自具名 handler + stopPropagation
+- **验收**：
+  - 新增 `tests/verify-capsule-narrow.js`：22 项静态契约（CSS 选择器 + JSX data-narrow + click handler + i18n 键齐）+ 11 项行为契约（5 级阈值 vw=1280/1000/950/900/870/850/790/750/700/600）+ 1 项双源 CSS 块 byte-for-byte + 1 项双源 JSX 块 byte-for-byte（去缩进）= 共 35 项断言，**全部通过**
+  - 既有回归 `verify-handoff-split` / `verify-t3-locale` / `verify-status` / `verify-blocked-filter` / `verify-bug-entry` 全部 PASS
+- **双源镜像同步**（client.js ↔ package/lib/client.js）· 已加版本号 v1.6.1（DSW_VERSION 双源）
+- **风险点**：`vw` 在 render 时一次性读取，浏览器 resize 不触发重渲染（status bar 实际在 probe 等状态下会重渲染；纯 resize 暂未加 listener，按 issue 范围属 out-of-scope）
+
 ## 2026-08-18 · 修复右侧面板漏检子票变化（#2 MVP · v1.5 R2）
 
 - **BUG**（reporter 反馈）：右侧面板（列表 / 技能 / 环境检查）长时间不更新 GitHub 状态，必须手动点「刷新」—— **不是「5min 太慢」那么简单**，子票（wayfinder:task / research / prototype / grilling）变化根本不被检测。
