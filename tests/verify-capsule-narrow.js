@@ -35,11 +35,12 @@ const statChecks = function (src, tag) {
   ok('胶囊 .dsws-capsule CSS 不再含 max-width:min(96vw, ...) （旧 R1 行为已弃）', !/\.dsws-capsule\s*\{[^}]*max-width:\s*min\(96vw/.test(src))
   ok('胶囊 .dsws-capsule CSS 不再含 margin:0 auto（外层 wrapper 负责居中）', !/\.dsws-capsule\s*\{[^}]*margin:\s*0\s+auto/.test(src))
   // 外层 wrapper：display:flex; justify-content:center + width:100% + boxSizing:border-box（跟着输入区容器走）
-  ok('外层 wrapper display:flex + justify-content:center 居中胶囊', /display:\s*'flex',\s*justifyContent:\s*'center'/.test(src))
-  ok('外层 wrapper width:100% 跟输入区容器宽', /display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,80}width:\s*'100%'/.test(src))
-  ok('外层 wrapper boxSizing:border-box 防 padding 撑破', /display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,200}boxSizing:\s*'border-box'/.test(src))
+  //   R12：其中间插入 flex:'none'（防 composerStack flex-shrink 压矮），断言兼容
+  ok('外层 wrapper display:flex + justify-content:center 居中胶囊', /display:\s*'flex'(?:,\s*flex:\s*'none')?,\s*justifyContent:\s*'center'/.test(src))
+  ok('外层 wrapper width:100% 跟输入区容器宽', /display:\s*'flex'(?:,\s*flex:\s*'none')?,\s*justifyContent:\s*'center'[\s\S]{0,80}width:\s*'100%'/.test(src))
+  ok('外层 wrapper boxSizing:border-box 防 padding 撑破', /display:\s*'flex'(?:,\s*flex:\s*'none')?,\s*justifyContent:\s*'center'[\s\S]{0,200}boxSizing:\s*'border-box'/.test(src))
   // #16 v1.6.4 R4：wrapper 加 overflow:hidden 截 capsule 溢出（dn=0..3 中间态时 children 居中后左右溢出 wrapper）
-  ok('外层 wrapper overflow:hidden 截 capsule 溢出 wrapper 部分（dn>=1 中间态防「棍子」）', /display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,250}overflow:\s*'hidden'/.test(src))
+  ok('外层 wrapper overflow:hidden 截 capsule 溢出 wrapper 部分（dn>=1 中间态防「棍子」）', /display:\s*'flex'(?:,\s*flex:\s*'none')?,\s*justifyContent:\s*'center'[\s\S]{0,250}overflow:\s*'hidden'/.test(src))
   ok('胶囊 CSS 不再加 overflow:hidden（让 capsule 圆角背景完整，圆角处不漏白）', !/\.dsws-capsule\s*\{[^}]*overflow:\s*hidden/.test(src))
   // 期望 2：children 保持 flex:none + gap 居中
   ok('children 仍 flex:none（capsule-word / seg / timebtn）', /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-seg\{flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-timebtn\{flex:none/.test(src))
@@ -114,6 +115,15 @@ const statChecks = function (src, tag) {
   // #16 R6b：wrapper 去掉 alignItems:'stretch'（避免 capsule 被父级 composerHero 297px 高拉成 9.5px，文字被截）
   //   R6 修复：!firstBlock 分支不应再有 alignItems:'stretch'
   ok('R6b · !firstBlock 分支 wrapper 不再含 alignItems:\'stretch\'', !/display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,200}alignItems:\s*'stretch'/.test(src))
+
+  // #16 R12（本次修复）：宿主 conversation.input.dock = composerStack（column flex），wrapper 是 flex item，
+  //   默认 flex-shrink:1 → 输入区高度被压缩时 wrapper 被压扁（wrapper 11px → capsule 8px → overflow:hidden 裁文字）。
+  //   R6b 只防了「被拉高」，R12 补「被压矮」：两个 wrapper 分支都必须有 flex:'none'（flex:0 0 auto）
+  ok('R12 · !firstBlock 分支 wrapper 含 flex:\'none\'（防 flex-shrink 压矮导致 capsule 文字被裁）',
+    /display:\s*'flex',\s*flex:\s*'none',\s*justifyContent:\s*'center'/.test(src))
+  ok('R12 · firstBlock 分支 wrapper 含 flex:\'none\'（横幅 + 胶囊列布局同样防压缩）',
+    /display:\s*'flex',\s*flex:\s*'none',\s*flexDirection:\s*'column'/.test(src))
+
 
   // #16 R7（用户验收反馈 2026-08-18）：dn=0 时 magenta 框远小于 cyan 框，胶囊左右没跟输入区对齐
   //   改为条件式宽度：dn=0 → width:100% 撑满 wrapper；dn>=1 → width:fit-content 自然宽居中（保留 dn=4 不再缩方案）

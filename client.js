@@ -63,7 +63,7 @@ return {
       return node
     }
     // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-    const DSW_VERSION = 'v1.6.11'
+    const DSW_VERSION = 'v1.6.12'
 
     // ============================================================
     // 0. 样式
@@ -2155,7 +2155,10 @@ let pendingDraft = null
       // #16 v1.6.4 R4：wrapper 加 overflow:hidden 截掉 capsule 溢出 wrapper 部分（dn=0..3 中间状态时 children 居中后左右可能溢出 wrapper）
       // #16 R6b：去掉 alignItems:'stretch'（之前为了拉伸 capsule 撑满 wrapper 高度，反而让父级
 //   composerHero 297px 高传给 wrapper 后，capsule 被拉成与 wrapper 同高 ≈9.5px，文字被截掉）
-      if (!firstBlock) return h('div', { ref: dockRef, style: { display: 'flex', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: 'hidden' } }, [capsule])
+      // #16 R12（本次）：宿主 conversation.input.dock 插槽 = composerStack（column flex），wrapper 是 flex item，
+//   默认 flex-shrink:1 → 输入区高度被压缩时 wrapper 被压扁（wrapper 11px → capsule 8px → overflow:hidden 裁文字）。
+//   R6b 只防了「被拉高」，没防「被压矮」；故加 flex:'none'（flex:0 0 auto）双保险。
+      if (!firstBlock) return h('div', { ref: dockRef, style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: 'hidden' } }, [capsule])
       const bann = function (text, btnLabel, onBtn) {
         return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
           Ic({ n: 'alert', size: 13 }),
@@ -2163,7 +2166,7 @@ let pendingDraft = null
           h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: onBtn }, btnLabel),
         ])
       }
-      return h('div', { ref: dockRef, style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0' } }, [
+      return h('div', { ref: dockRef, style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0' } }, [
         firstBlock === 'ghcli'
           ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { openUrl('https://cli.github.com/') })
           : firstBlock === 'ghauth'
