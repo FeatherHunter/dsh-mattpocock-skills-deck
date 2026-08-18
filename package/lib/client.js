@@ -145,21 +145,15 @@ window.__ModuleLoader__.load({
       '.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
       '.dsws-capsule .dsws-seg{flex:none}',
       '.dsws-capsule .dsws-timebtn{flex:none}',
-      // #16 修复：5 级 [data-narrow] 文字→图标 收缩（视口宽度量，由 StatusBar 渲染时写入 dn 字符串）
-      //   dn=1 (<960px)  品牌段「MattSkills」字消失 → 仅图标（胶囊仍可点 togglePanel）
-      //   dn=2 (<880px)  无数字段文字消失：note「沉淀」/split 左半「交接」/timebtn「更新」字（图标+时间保留）
-      //   dn=3 (<800px)  有数字段文字消失：takeable/bug/triage/env 标签字（图标+数字保留）
-      //   dn=4 (<720px)  timebtn 时间文字消失（仅刷新图标，hover 走原 tooltip/handler）
-      //   兜底（<640px） 维持 dn=4；children flex:none 不再收缩，允许胶囊右缘溢出但禁止换行
-      //   注：Ic/Icon → <svg>，所以 seg/split-part 子结构是 [svg, span(text), span(num)?]；
-      //     文字 span 是 last-child 或 nth-child(2)（timebtn 因 rficon 抢占第一格）。
-      //   #16 R6 累加语义：JSX 在 capsule 写 'data-narrow-N': dn >= N || null（属性存在 = 数字 ≥ N）。
-      //     dn=3 触发时 [data-narrow-1/2/3] 三条都存在，dn=4 触发时四条都存在，CSS 选择器按属性命中而**累加**，
-      //     dn=4 时所有文字全部消失（issue #16 期望行为 5：胶囊达到最小宽度仅图标 + 数字）。
-      '[data-narrow-1] .dsws-capsule-word > span:last-child{display:none}',
-      '[data-narrow-2] .dsws-seg.note > span:last-child,[data-narrow-2] .dsws-split-part:first-child > span:last-child,[data-narrow-2] .dsws-timebtn > span:nth-child(2){display:none}',
-      '[data-narrow-3] .dsws-seg > span:nth-child(2){display:none}',
-      '[data-narrow-4] .dsws-timebtn > span:last-child{display:none}',
+      // #16 V2（2026-08-18 复现后重设计）：5 级 [data-narrow-N] 阈值体系有结构性 bug——
+      //   dn 信号源 R5 起改为输入区（wrapper）宽，默认 1280 视口下输入区仅 812px → dn=0 永不出现，
+      //   宽屏默认缺品牌字；且 .dsws-seg.note 选择器引用不存在的 class（seg() 首参是图标名不是 class），
+      //   「无数字段」级从未生效。改为内容自适应渐进收缩（仿 #15）：
+      //   每个可收缩文字 span 打 data-fold-priority（1=最先收…9=最后收），applyFold 在
+      //   全展开基础上按 priority 升序逐个加 .dsws-folded，直到 scrollWidth ≤ clientWidth。
+      //   优先级 = 信息价值：品牌(1) → 沉淀(2)/交接(3)/刷新字(4) → 可接(5)/BUG(6)/诊断(7)/环境(8) → 时间(9)。
+      //   图标+数字永不收缩；最窄态 = 图标+数字紧凑条（wrapper overflow:hidden 截右缘，禁止换行）。
+      '.dsws-capsule [data-fold-priority].dsws-folded{display:none}',
       '.dsws-banner{display:flex;align-items:center;gap:8px;border-radius:8px;padding:6px 10px;font-size:12px;margin:6px 0;cursor:pointer}',
       '.dsws-banner.bad{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.45);color:#f87171}',
       '.dsws-banner.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);color:#fbbf24}',
@@ -332,7 +326,7 @@ window.__ModuleLoader__.load({
         return node
       }
       // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-      const DSW_VERSION = 'v1.6.12'
+      const DSW_VERSION = 'v1.6.13'
 
       // 样式注入（静态插件没有 styles.insert builtin，手动 <style> + ctx.effect 清理）
       const styleEl = document.createElement('style')
@@ -2033,24 +2027,36 @@ window.__ModuleLoader__.load({
           Ic({ n: icon, size: 12 }),
           label,
         ])
-        // #16 R5 修复：dock 宽 = 状态栏外层 wrapper 实际宽度（输入区宽），用 ResizeObserver 实时监听
-        //   之前 R1-R4 用 window.innerWidth（视口宽）在 DSH shell 里有 sidebar / dock 占位时不准，
-        //   现在改为监听 wrapper 自身宽度（与 details 列 dockRef/ResizeObserver 同形态），resize 浏览器自动触发重渲染。
-        //   阈值与 R1 一致（按 dock 宽 / 输入区宽）：
-        //   dn=0 ≥ 960px   全文字常显
-        //   dn=1 < 960px   品牌段「MattSkills」字消失
-        //   dn=2 < 880px   无数字段（note / 交接左半 / 刷新字）文字消失
-        //   dn=3 < 800px   有数字段（可接/BUG/诊断/环境）文字消失
-        //   dn=4 < 720px   刷新时间文字消失
-        //   < 640px 兜底 dn=4（wrapper overflow:hidden 截溢出）
-        // #16 R9（用户验收反馈 2026-08-18）：capsule wrapper 是 wSkVaW_composerStack（= 整个对话区下半部分宽 1536px），
-        //   而 textarea 输入框实际宽 780px。capsule width:100% 撑满 wrapper → 比输入框左右各宽 378px。
-        //   改为：监听 DSH shell 输入框 textarea（uV2eYG_input class）的实际宽，capsule 内联 style width = iw px。
-        //   dockRef 仍绑到 wrapper（dn 计算仍用 wrapper 宽 = composerStack 宽 → 反映 dock 缩放）。
-        const dockRef = React.useRef(null)
+        // #16 V2（2026-08-18 复现后重设计）：dn/dw 阈值体系废弃——dn 信号源 R5 起改为输入区（wrapper）宽，
+        //   默认 1280 视口下输入区仅 812px，dn=0 永不出现 → 宽屏默认缺品牌字。
+        //   改为内容自适应渐进收缩（仿 #15 tabs）：applyFold 全展开后按 data-fold-priority 升序
+        //   逐个折叠文字 span（.dsws-folded → display:none），直到 scrollWidth ≤ clientWidth。
+        //   优先级 = 信息价值：品牌(1) → 沉淀(2)/交接(3)/刷新字(4) → 可接(5)/BUG(6)/诊断(7)/环境(8) → 时间(9)。
+        //   折叠由 React 外部 DOM class 驱动（React 重渲染时 className prop 不变 → classList 手动变化保留）。
         const inputRef = React.useRef(null)
-        const [dw, setDw] = React.useState(typeof window !== 'undefined' ? window.innerWidth : 1280)
+        const foldRef = React.useRef(null)
         const [iw, setIw] = React.useState(780)
+        const applyFold = function () {
+          const cap = foldRef.current
+          if (!cap) return
+          const targets = Array.from(cap.querySelectorAll('[data-fold-priority]'))
+          if (!targets.length) return
+          cap.classList.add('dsws-no-anim')
+          targets.forEach(function (el) { el.classList.remove('dsws-folded') })
+          void cap.offsetWidth
+          const items = targets.map(function (el) {
+            return { el: el, p: Number(el.getAttribute('data-fold-priority') || 99) }
+          }).sort(function (a, b) { return a.p - b.p })
+          for (const it of items) {
+            if (cap.scrollWidth <= cap.clientWidth + 1) break
+            it.el.classList.add('dsws-folded')
+            void cap.offsetWidth
+          }
+          cap.dataset.fold = String(targets.filter(function (el) {
+            return el.classList.contains('dsws-folded')
+          }).length)
+          cap.classList.remove('dsws-no-anim')
+        }
         React.useEffect(function () {
           const ta = document.querySelector('textarea.uV2eYG_input')
           if (ta) inputRef.current = ta
@@ -2058,42 +2064,34 @@ window.__ModuleLoader__.load({
             if (!inputRef.current) return
             try { setIw(inputRef.current.getBoundingClientRect().width) } catch (e) { /* 忽略 */ }
           }
-          const applyWrap = function () {
-            if (!dockRef.current) return
-            try { setDw(dockRef.current.getBoundingClientRect().width) } catch (e) { /* 忽略 */ }
-          }
-          const apply = function () { applyInput(); applyWrap() }
-          apply()
+          applyInput()
           const roInput = new ResizeObserver(applyInput)
-          const roWrap = new ResizeObserver(applyWrap)
           if (inputRef.current) roInput.observe(inputRef.current)
-          if (dockRef.current) roWrap.observe(dockRef.current)
-          window.addEventListener('resize', apply)
+          // 折叠重算：capsule 宽（=iw）变化 / 窗口 resize / 字体加载后（防字体宽差误判）
+          const roFold = new ResizeObserver(function () { applyFold() })
+          const applyAll = function () { applyInput(); applyFold() }
+          applyFold()
+          if (foldRef.current) roFold.observe(foldRef.current)
+          window.addEventListener('resize', applyAll)
+          if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyFold)
           // DSH shell 偶尔会在对话切换时重新挂载 textarea，轮询兜底重读
-          const poll = setInterval(apply, 2000)
+          const poll = setInterval(applyAll, 2000)
           return function () {
             try { roInput.disconnect() } catch (e) { /* 忽略 */ }
-            try { roWrap.disconnect() } catch (e) { /* 忽略 */ }
-            window.removeEventListener('resize', apply)
+            try { roFold.disconnect() } catch (e) { /* 忽略 */ }
+            window.removeEventListener('resize', applyAll)
             clearInterval(poll)
           }
         }, [])
-        let dn = 0
-        if (dw < 960) dn = 1
-        if (dw < 880) dn = 2
-        if (dw < 800) dn = 3
-        if (dw < 720) dn = 4
-        // dw < 640 兜底：保持 dn=4，children flex:none + nowrap 拒绝换行（实际 dn=4 之前已满足，显式守卫保语义）
-        // vw < 640 兜底：保持 dn=4，children flex:none + nowrap 拒绝换行
-        const capsule = h('div', { className: 'dsws-capsule', 'data-narrow': dn || null, 'data-narrow-1': dn >= 1 || null, 'data-narrow-2': dn >= 2 || null, 'data-narrow-3': dn >= 3 || null, 'data-narrow-4': dn >= 4 || null, onClick: function () { openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: iw + 'px' } }, [
+        const capsule = h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: iw + 'px' } }, [
           h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
             Icon({ scheme: s.ui.icon, size: 14 }),
-            h('span', null, tr('panel.title')),
+            h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
           ]),
-          seg('target', [h('span', null, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; go('list') }, tr('nav.takeableTitle')),
+          seg('target', [h('span', { 'data-fold-priority': 5 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; go('list') }, tr('nav.takeableTitle')),
           // issue #4：BUG 计数段 —— 点击仍开 bug 过滤列表；悬停弹「新增」菜单（新会话预填 /wayfinder 新增 BUG 单 prompt）
           h('span', { style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: function () { s.bugMenuOpen = true; emit(s) }, onMouseLeave: function () { s.bugMenuOpen = false; emit(s) } }, [
-            seg('alert', [h('span', null, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, tr('nav.bugTitle')),
+            seg('alert', [h('span', { 'data-fold-priority': 6 }, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, tr('nav.bugTitle')),
             s.bugMenuOpen ? h('div', { onMouseEnter: function () { s.bugMenuOpen = true; emit(s) }, onMouseLeave: function () { s.bugMenuOpen = false; s.bugMenuHover = false; emit(s) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'absolute', bottom: '100%', left: 0, paddingTop: 8, zIndex: 9999, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
               h('div', { onClick: function (e) { e.stopPropagation(); s.bugMenuOpen = false; s.bugMenuHover = false; emit(s); openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, onMouseEnter: function () { if (!s.bugMenuHover) { s.bugMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.bugMenuHover) { s.bugMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.bugMenuHover ? '#f87171' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.bugMenuHover ? 'rgba(248,113,113,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
                 Ic({ n: 'bug', size: 12, color: '#f87171' }),
@@ -2101,17 +2099,17 @@ window.__ModuleLoader__.load({
               ]),
             ]) : null,
           ]),
-          seg('search', [h('span', null, tr('nav.triage')), num(String(triageN), '2ch')], '#f59e0b', function () { s.stateFilter = 'open'; s.lblFilters = ['needs-triage']; go('list') }, tr('nav.triageTitle')),
-          // #16 修复：note 段（沉淀 / Consolidate）文字用 span 包裹，让 [data-narrow="2"] .dsws-seg.note > span:last-child 选择器稳定命中
-          seg('note', h('span', null, tr('nav.word')), '#c084fc', function () { injectFixate(s) }, tr('nav.fixateTitle')),
+          seg('search', [h('span', { 'data-fold-priority': 7 }, tr('nav.triage')), num(String(triageN), '2ch')], '#f59e0b', function () { s.stateFilter = 'open'; s.lblFilters = ['needs-triage']; go('list') }, tr('nav.triageTitle')),
+          // #16 V2：note 段（沉淀 / Consolidate）文字 span 打 data-fold-priority=2（无数字操作段，信息价值低，早收）
+          seg('note', h('span', { 'data-fold-priority': 2 }, tr('nav.word')), '#c084fc', function () { injectFixate(s) }, tr('nav.fixateTitle')),
           // 需求1·二阶段（2026-08-18）：交接分割按钮 —— 共外框 + 细分隔线；左半「交接」= 第一击生成、
           //   右半「交接出去」= 原第二击（探测磁盘最新文档 → 预填 + 开新会话）。各自点击区/tooltip 保留，hover 沿用 seg 背景。
           //   右半灰/亮双态：handoffReady → 亮蓝 #58a6ff（tooltip nav.handoffReadyTitle）；未 ready → 半透明灰（tooltip nav.handoffGreyTitle）
-          // #16 修复：split-part 文字用 span 包裹，让 [data-narrow="2"] .dsws-split-part:first-child > span:last-child 命中
+          // #16 V2：split-part 左半「交接」文字 span 打 data-fold-priority=3（无数字操作段）
           h('span', { className: 'dsws-split' }, [
             h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoff(s) }, title: tr('nav.handoffTitle'), style: { color: '#58a6ff' } }, [
               Ic({ n: 'handoff', size: 12 }),
-              h('span', null, tr('nav.handoff')),
+              h('span', { 'data-fold-priority': 3 }, tr('nav.handoff')),
             ]),
             h('span', { className: 'dsws-split-div' }),
             h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoffOpen(s) }, title: s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle'), style: s.handoffReady ? { color: '#58a6ff' } : { color: '#8b8b95', opacity: 0.55, cursor: 'default' } }, [
@@ -2119,11 +2117,10 @@ window.__ModuleLoader__.load({
             ]),
           ]),
           // v19-36：环境段移至末尾（更新左侧），用户少点
-          seg('dot', [h('span', null, tr('nav.env')), num(envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') }, tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) })),
+          seg('dot', [h('span', { 'data-fold-priority': 8 }, tr('nav.env')), num(envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') }, tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) })),
           // v1.5 T10：刷新反馈 = 图标转圈（文字恒定不换 · 控件宽度零变化）
-          // #16 修复：timebtn 文字拆为两段 span（refresh word + time）—— dn=2 隐藏 word，dn=4 隐藏 time，
-          //   children 顺序固定为 [span(rficon+icon), span(word), span(time)]，CSS :nth-child(2) / :last-child 命中
-          h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, title: tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('nav.refresh')), h('span', null, ' ' + timeStr)]),
+          // #16 V2：timebtn 两段文字各打 priority（刷新字=4 无数字操作段 / 时间=9 纯参考时间戳最后收）
+          h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, title: tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', { 'data-fold-priority': 4 }, tr('nav.refresh')), h('span', { 'data-fold-priority': 9 }, ' ' + timeStr)]),
           // 需求2（2026-08-18）：状态栏末尾技能列表按钮 —— 向上展开技能名列表，点击技能名插入 /<技能名> 到当前会话
           // issue #3（D2）：对齐 BUG 段悬浮菜单 —— 悬停即展开、移出「按钮 + 列表」整体区域即关闭；
           //   按钮与列表之间的 4px 间隙由外层 paddingTop 桥接（不再用 marginBottom），鼠标穿越不误关。
@@ -2170,7 +2167,7 @@ window.__ModuleLoader__.load({
         // #16 R12（本次）：宿主 conversation.input.dock 插槽 = composerStack（column flex），wrapper 是 flex item，
 //   默认 flex-shrink:1 → 输入区高度被压缩时 wrapper 被压扁（wrapper 11px → capsule 8px → overflow:hidden 裁文字）。
 //   R6b 只防了「被拉高」，没防「被压矮」；故加 flex:'none'（flex:0 0 auto）双保险。
-        if (!firstBlock) return h('div', { ref: dockRef, style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: 'hidden' } }, [capsule])
+        if (!firstBlock) return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: 'hidden' } }, [capsule])
         const bann = function (text, btnLabel, onBtn) {
           return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
             Ic({ n: 'alert', size: 13 }),
@@ -2178,7 +2175,7 @@ window.__ModuleLoader__.load({
             h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: onBtn }, btnLabel),
           ])
         }
-        return h('div', { ref: dockRef, style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0' } }, [
+        return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0' } }, [
           firstBlock === 'ghcli'
             ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { openUrl('https://cli.github.com/') })
             : firstBlock === 'ghauth'

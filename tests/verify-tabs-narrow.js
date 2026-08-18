@@ -53,7 +53,7 @@ const statChecks = function (src, tag) {
   const tabsRefN = (src.match(/const tabsRef = React\.useRef\(null\)/g) || []).length
   ok('逻辑 · tabsRef 出现 2 次（dock + overlay）', tabsRefN === 2)
   ok('逻辑 · ref: tabsRef 挂到 2 个 tabs 容器', (src.match(/className: 'dsws-tabs', ref: tabsRef/g) || []).length === 2)
-  ok('逻辑 · applyFold 定义 2 次（dock + overlay）', (src.match(/const applyFold = function/g) || []).length === 2)
+  ok('逻辑 · applyFold 定义 ≥2 次（dock + overlay；#16 V2 胶囊另有 1 个）', (src.match(/const applyFold = function/g) || []).length >= 2)
   ok('逻辑 · 全展开 + 强制 reflow 起步', /classList\.remove\('collapsed'\)/.test(src) && /void t\.offsetWidth/.test(src))
   ok('逻辑 · 按 priority 降序逐个折叠（大者先折叠）', /\.sort\(function \(a, b\) \{ return b\.p - a\.p \}\)/.test(src))
   ok('逻辑 · 折叠到放得下为止（scrollWidth ≤ clientWidth）', /t\.scrollWidth <= t\.clientWidth \+ 1/.test(src))

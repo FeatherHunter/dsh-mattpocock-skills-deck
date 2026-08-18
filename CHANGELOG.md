@@ -1,5 +1,30 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊 V2：内容自适应渐进收缩（#16 重设计 · v1.6.13）
+
+- **复现结论**（真机 1280→400 逐档）：R1-R13 的 `data-narrow` 阈值体系有**结构性 bug**——
+  dn 信号源 R5 起改为输入区（wrapper）宽，默认 1280 视口下输入区仅 812px，
+  **dn=0 永不出现** → 宽屏默认就缺品牌字（实测 1280/1100/950/880 全 dn=2）；
+  且 `.dsws-seg.note` 选择器引用了不存在的 class（seg() 首参是图标名不是 class），
+  「无数字段」级从未生效（沉淀字实际落到 dn=3 才收）。
+- **重设计（V2）**：废弃 dn/dw/`data-narrow-N` 阈值体系，改为**内容自适应渐进收缩**（仿 #15 tabs）：
+  - 每个可收缩文字 span 打 `data-fold-priority`（1=最先收…9=最后收），信息价值排序：
+    品牌(1) → 沉淀(2)/交接(3)/刷新字(4) → 可接(5)/BUG(6)/诊断(7)/环境(8) → 时间(9)；
+    **图标+数字永不收缩**，最窄态 = 图标+数字紧凑条。
+  - `applyFold()`：全展开→reflow→按 priority 升序逐个加 `.dsws-folded`（`display:none`），
+    直到 `scrollWidth ≤ clientWidth+1`；挂 ResizeObserver（监听 capsule=iw 宽）+
+    window resize + `fonts.ready` 重测；`dsws-no-anim` 禁动画测量，无闪烁无死锁。
+  - 保留 R1-R13 已验证成果：`flex-wrap:nowrap` 单行、`width=iw px` 对齐输入框、
+    wrapper `overflow:hidden` 截右缘、点击契约全保留。
+- **真机验证**（真实 Chrome，1280→400 逐档）：1280-880 **fold=0 全文字**（修复原 bug）；
+  800→fold=1（品牌字收）；720→3（+沉淀/交接）；600→8（只剩时间字，数字全在）；
+  500/400→9（仅图标+数字）；**全部单行 capH=29，胶囊宽始终 = 输入框宽**。
+- **测试**：`tests/verify-capsule-narrow.js` 重写为 V2 契约（单行/对齐/priority 语义表 1-9
+  唯一且绑定正确/applyFold 模式/旧体系清除/点击契约/i18n/双源镜像）全绿；
+  `verify-tabs-narrow.js` applyFold 计数断言放宽为 ≥2（胶囊新增第 3 个合法定义）。
+- **双源**：client.js ↔ package/lib/client.js CSS 块 + capsule JSX 块 byte-for-byte 一致。
+- 已知：verify-b5-quota 6 项漂移失败为既有（probe 同步已重构为 diff 同步，测试未更新，另案处理）。
+
 ## 2026-08-18 · 阶段 1：源码拆分——纯函数叶子落 src/（架构拆分路线首步）
 
 - **背景**：为多 session 并发开发趋零冲突，落地 `ARCHITECTURE-SPLIT.md` 拆分路线阶段 1（先抽零依赖纯函数叶子，不引入构建、不搬逻辑）。
