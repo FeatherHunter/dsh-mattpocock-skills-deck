@@ -136,6 +136,12 @@ const statChecks = function (src, tag) {
   ok('R9 · 轮询兜底（DSH shell 切换对话时 textarea 重新挂载）',
     /setInterval\(apply, 2000\)/.test(src))
 
+  // #16 R10（用户验收反馈 2026-08-18 R9 后）：capsule iw = textarea.getBoundingClientRect().width（border-box 外宽 778.75）
+  //   但 capsule CSS 默认 box-sizing:content-box，content-box width:778.75 + padding:3px 6px + border:1px = 外宽 791.99
+  //   → capsule 外框比 textarea 外框左右各多 6.6px。改为 box-sizing:border-box → 外框 = 778.75 = textarea 外框 ✓
+  ok('R10 · 胶囊 CSS 加 box-sizing:border-box（让 capsule 外框 = iw = textarea 外框）',
+    /\.dsws-capsule\{[^}]*box-sizing:border-box/.test(src))
+
   // 期望 4 续：点击事件契约
   ok('capsule onClick → openPanel(s)', /className:\s*['"]dsws-capsule['"][^}]*onClick:\s*function\s*\(\)\s*\{\s*openPanel\(s\)/.test(src))
   ok('capsule-word onClick → togglePanel(s) + stopPropagation', /className:\s*['"]dsws-capsule-word['"][^}]*onClick:[^}]*togglePanel\(s\)/.test(src) && /className:\s*['"]dsws-capsule-word['"][^}]*e\.stopPropagation/.test(src))
