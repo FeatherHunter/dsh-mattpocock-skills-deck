@@ -15,7 +15,7 @@ const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js
 
 // ---- Part A：静态契约 ----
 const statChecks = function (src, tag) {
-  const ok = (name, cond) => { console.log('  PASS ' + tag + ' · ' + name); if (!cond) throw new Error(tag + ' · ' + name) }
+  const ok = (name, cond) => { if (!cond) throw new Error(tag + ' · ' + name); console.log('  PASS ' + tag + ' · ' + name) }
   ok('分割按钮容器 dsws-split', src.includes("className: 'dsws-split'"))
   ok('分割按钮左右半 dsws-split-part ×2', (src.match(/dsws-split-part/g) || []).length >= 2)
   ok('细分隔线 dsws-split-div', src.includes("className: 'dsws-split-div'"))
@@ -27,6 +27,7 @@ const statChecks = function (src, tag) {
   ok('前置探测（host / rpc handoffLatest）仍在', /handoffLatest/.test(src))
   ok('引导门：无 latest → toast.handoffGrey', src.includes("tr('toast.handoffGrey')"))
   ok('糊涂分支已删：no finish(null, toast.copiedHandoffNoLatest)', !src.includes("finish(null, tr('toast.copiedHandoffNoLatest'))"))
+  ok('无历史兜底 toast 键残留（noLatest / handoffNotFound / copiedHandoffFail）', !src.includes("'toast.copiedHandoffNoLatest'") && !src.includes("'toast.handoffNotFound'") && !src.includes("'toast.copiedHandoffFail'"))
   ok('nav.handoffGreyTitle zh', src.includes("'nav.handoffGreyTitle': '尚未生成交接文档"))
   ok('nav.handoffGreyTitle en', src.includes("'nav.handoffGreyTitle': 'No handoff doc yet"))
   ok('toast.handoffGrey zh', src.includes("'toast.handoffGrey': '请先点「交接」生成交接文档"))

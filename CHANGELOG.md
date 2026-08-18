@@ -23,7 +23,7 @@
 - 交接段由「交接」+「新会话交接」两个独立胶囊合并为**分割按钮**：共外框 + 细分隔线（1px×14px，bg=var(--dsw-alias-border-l1)），左半「交接」（Icon handoff + 文字）/ 右半「交接出去」（Icon handoff-open），左右各自点击区与 tooltip 保留，hover 沿用 seg 背景
 - **灰/亮双态**：store 新增 handoffReady（默认 false）；第一击生成成功 → 右半亮蓝 #58a6ff + tooltip「开新会话并预填交接文档路径」；未 ready → 半透明灰（opacity .6 / 文字色 #8b8b95）+ 新 tooltip「尚未生成交接文档：先点「交接」生成」
 - **引导门**：未点过第一击时点击右半 → 先探测磁盘 .scratch/handoff/ 最新文档（host wf.handoffLatest 按 mtime 取最新）→ 有 latest 才置 ready + 开新会话并预填 /read；没有 → toast 引导「请先点「交接」生成交接文档」且**不再开空会话**（删除原「无文档仍开新会话」的糊涂分支，含宿主通道不可用 / 探测失败兜底）
-- 新增 i18n 键：nav.handoffGreyTitle / toast.handoffGrey（zh/en，t3-locale 现 235 键 × zh/en）
+- 新增 i18n 键：nav.handoffGreyTitle / toast.handoffGrey（zh/en）；同时移除被引导门取代的 3 个已无引用的历史 toast 键（toast.copiedHandoffNoLatest / toast.handoffNotFound / toast.copiedHandoffFail），t3-locale 净增 -1 → 232 键 × zh/en
 - 新增回归测试 tests/verify-handoff-split.js（静态契约 + 引导门行为沙箱：双源 × 5 场景）
 - 双源镜像同步（client.js ↔ package/lib/client.js）· 已同步 DSH 安装目录
 
