@@ -122,9 +122,14 @@ window.__ModuleLoader__.load({
       //   去掉 margin:0 auto（外层 wrapper 负责居中）。
       // #16 v1.6.3 调试钩子（仅 v1.6.3 临时开启，下个版本移除）：
       //   给 .dsws-capsule 加 outline:2px dashed magenta + 外层 wrapper outline:2px dashed cyan，
-      //   让用户能直接看到「胶囊本身」和「外层 wrapper」的实际边界，确认是哪一层没缩到。
-      //   排查 R2 反馈「看不到变化」用，1-2 个 issue 周期内拆掉。
-      '.dsws-capsule{max-width:min(100%,1400px);width:fit-content;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none;outline:2px dashed #ff00aa;outline-offset:-2px}',
+      // #16 v1.6.7 R7 修复（用户验收反馈 2026-08-18）：magenta 框远小于 cyan 框，左右没跟输入区对齐。
+      //   之前 capsule width:fit-content → 默认按内容自然宽（约 700px），小于 wrapper 1300px，居中后左右各300px空白。
+      //   改为条件式宽度：dn=0 (宽视口) → width:100% 撑满 wrapper，左右边 = 输入区边；
+      //                  dn>=1 → width:fit-content 自然宽居中（用户之前已接受「dn=4 时 capsule 不再缩」方案 B）。
+      //   max-width:min(100%,1400px) 仍保留（防超宽屏溢出）。
+      '.dsws-capsule{max-width:min(100%,1400px);width:100%;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none;outline:2px dashed #ff00aa;outline-offset:-2px}',
+      // dn>=1 时 capsule 变 fit-content 自然宽居中（用户 B 方案：dn=4 后 capsule 不再缩）
+      '[data-narrow-1] .dsws-capsule,[data-narrow-2] .dsws-capsule,[data-narrow-3] .dsws-capsule,[data-narrow-4] .dsws-capsule{width:fit-content}',
       '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:none}',
       '.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
       '.dsws-capsule .dsws-seg{flex:none}',
@@ -316,7 +321,7 @@ window.__ModuleLoader__.load({
         return node
       }
       // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-      const DSW_VERSION = 'v1.6.6'
+      const DSW_VERSION = 'v1.6.7'
 
       // 样式注入（静态插件没有 styles.insert builtin，手动 <style> + ctx.effect 清理）
       const styleEl = document.createElement('style')

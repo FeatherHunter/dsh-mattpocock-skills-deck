@@ -63,7 +63,7 @@ return {
       return node
     }
     // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-    const DSW_VERSION = 'v1.6.6'
+    const DSW_VERSION = 'v1.6.7'
 
     // ============================================================
     // 0. 样式
@@ -160,7 +160,14 @@ return {
       //   给 .dsws-capsule 加 border:2px dashed magenta + 外层 wrapper background:rgba(255,0,255,.08)，
       //   让用户能直接看到「胶囊本身」和「外层 wrapper」的实际边界，确认是哪一层没缩到。
       //   排查 R2 反馈「看不到变化」用，1-2 个 issue 周期内拆掉。
-      '.dsws-capsule{max-width:min(100%,1400px);width:fit-content;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none;outline:2px dashed #ff00aa;outline-offset:-2px}',
+      // #16 v1.6.7 R7 修复（用户验收反馈 2026-08-18）：magenta 框远小于 cyan 框，左右没跟输入区对齐。
+      //   之前 capsule width:fit-content → 默认按内容自然宽（约 700px），小于 wrapper 1300px，居中后左右各300px空白。
+      //   改为条件式宽度：dn=0 (宽视口) → width:100% 撑满 wrapper，左右边 = 输入区边；
+      //                  dn>=1 → width:fit-content 自然宽居中（用户之前已接受「dn=4 时 capsule 不再缩」方案 B）。
+      //   max-width:min(100%,1400px) 仍保留（防超宽屏溢出）。
+      '.dsws-capsule{max-width:min(100%,1400px);width:100%;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none;outline:2px dashed #ff00aa;outline-offset:-2px}',
+      // dn>=1 时 capsule 变 fit-content 自然宽居中（用户 B 方案：dn=4 后 capsule 不再缩）
+      '[data-narrow-1] .dsws-capsule,[data-narrow-2] .dsws-capsule,[data-narrow-3] .dsws-capsule,[data-narrow-4] .dsws-capsule{width:fit-content}',
       // 外层 wrapper 调试钩子见 StatusBar render 处 inline style 注释
       '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:none}',
       '.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
@@ -1534,18 +1541,29 @@ return {
           foundCwds.forEach(function (cwd) {
             host.call('wf.probe', { cwd: cwd }).then(function (res2) {
               if (!(res2 && res2.ok && res2.changed)) return
-              const rep2 = (res2 && res2.repo && (res2.repo.owner && res2.repo.name))
-                ? (res2.repo.owner + '/' + res2.repo.name) : null
               if (!shared.cwd) shared.cwd = cwd
-              loadSnapshot(shared, true, true)
-              if (rep2) {
-                Object.keys(stores).forEach(function (k) {
-                  const st2 = stores[k]
-                  const sr = (st2.snapshot && st2.snapshot.repo && st2.snapshot.repo.owner && st2.snapshot.repo.name)
-                    ? (st2.snapshot.repo.owner + '/' + st2.snapshot.repo.name) : null
-                  if (sr === rep2) loadSnapshot(st2, false, true)
-                })
-              }
+              // R2-fix-5（#2 MVP E2E 终极修复，关键）：必须 await shared 的 loadSnapshot 完成再同步
+              loadSnapshot(shared, true, true).then(function () {
+                const newSnap = shared.snapshot
+                if (newSnap && newSnap.ok === true && Array.isArray(newSnap.maps)) {
+                  Object.keys(stores).forEach(function (k) {
+                    const st2 = stores[k]
+                    if (st2 === shared) return
+                    if (cwd && !st2.cwd) st2.cwd = cwd
+                    st2.lastDiff = diffSnapshots(st2.snapshot, newSnap)
+                    st2.rowFlash = {}
+                    st2.issueFlash = {}
+                    var _df = st2.lastDiff
+                    _df.added.forEach(function (n) { st2.rowFlash[n] = 'added' })
+                    _df.changed.forEach(function (n) { st2.rowFlash[n] = 'changed' })
+                    if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (ki) { st2.issueFlash[Number(ki)] = _df.issueFlash[ki] })
+                    st2.snapshot = newSnap
+                    st2.snapMode = 'real'
+                    st2.snapError = null
+                    emit(st2)
+                  })
+                }
+              }).catch(function () { /* 忽略 */ })
             }).catch(function () { /* 忽略 */ })
           })
         })
@@ -1554,21 +1572,32 @@ return {
       cwds.forEach(function (cwd) {
         host.call('wf.probe', { cwd: cwd }).then(function (res) {
           if (!(res && res.ok && res.changed)) return
-          const rep = (res && res.repo && (res.repo.owner && res.repo.name))
-            ? (res.repo.owner + '/' + res.repo.name) : null
           // B5（第一性原理）：changed 只触发 1 次全量刷新（shared · force 走 wf.refresh），
           //   同 repo 的其他 store 用非 force 的 wf.snapshot → 命中 host 60s 缓存（shared 刚刷过）→ 零额外 GraphQL。
           // v1.5 R2-fix：把 probed cwd 同步给 shared（防止 loadSnapshot 用空 shared.cwd 走 DEFAULT_CWD 失败）
           if (!shared.cwd) shared.cwd = cwd
-          loadSnapshot(shared, true, true)
-          if (rep) {
-            Object.keys(stores).forEach(function (k) {
-              const st2 = stores[k]
-              const sr = (st2.snapshot && st2.snapshot.repo && st2.snapshot.repo.owner && st2.snapshot.repo.name)
-                ? (st2.snapshot.repo.owner + '/' + st2.snapshot.repo.name) : null
-              if (sr === rep) loadSnapshot(st2, false, true)
-            })
-          }
+          // R2-fix-5（#2 MVP E2E 终极修复，关键）：必须 await shared 的 loadSnapshot 完成再同步
+          loadSnapshot(shared, true, true).then(function () {
+            const newSnap = shared.snapshot
+            if (newSnap && newSnap.ok === true && Array.isArray(newSnap.maps)) {
+              Object.keys(stores).forEach(function (k) {
+                const st2 = stores[k]
+                if (st2 === shared) return
+                if (cwd && !st2.cwd) st2.cwd = cwd
+                st2.lastDiff = diffSnapshots(st2.snapshot, newSnap)
+                st2.rowFlash = {}
+                st2.issueFlash = {}
+                var _df = st2.lastDiff
+                _df.added.forEach(function (n) { st2.rowFlash[n] = 'added' })
+                _df.changed.forEach(function (n) { st2.rowFlash[n] = 'changed' })
+                if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (ki) { st2.issueFlash[Number(ki)] = _df.issueFlash[ki] })
+                st2.snapshot = newSnap
+                st2.snapMode = 'real'
+                st2.snapError = null
+                emit(st2)
+              })
+            }
+          }).catch(function () { /* 忽略 */ })
         }).catch(function () { /* 探测失败忽略 */ })
       })
     }

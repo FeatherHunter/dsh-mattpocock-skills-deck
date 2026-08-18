@@ -52,30 +52,35 @@ const statChecks = function (src, tag) {
   //   文字 span 全部用 span 包裹（保证选择器稳定），不要用裸文本。
   // 检测方式：抽取 [data-narrow="N"] {...} 整段 CSS 规则字符串，再做 substring 断言 —— 避免贪婪正则误匹配注释/JSX。
   // 注：实际源文件中 selector 字符串的外层定界是 JS 单引号，attribute value 是双引号，固定形式便于匹配。
-  const extractRule = function (s, dn) {
-    // #16 R6：CSS 选择器用 [data-narrow-N] 属性存在性匹配（旧 [data-narrow="N"] 等值匹配已弃）
+  const extractRules = function (s, dn) {
+    // #16 R6+R7：CSS 选择器用 [data-narrow-N] 属性存在性匹配（旧 [data-narrow="N"] 等值匹配已弃）
     //   整段 '[data-narrow-N] selector { body }'（外层 JS 单引号）
+    //   返回所有含 [data-narrow-N] 的规则（可能多条，比如 R7 的 .dsws-capsule width:fit-content 与 R6 的 .dsws-capsule-word 规则）
     const pattern = "'\\[data-narrow-" + dn + "\\][^']*\\{[^}]*\\}'"
-    const re = new RegExp(pattern)
-    const m = re.exec(s)
-    return m ? m[0].slice(1, -1) : ''
+    const re = new RegExp(pattern, 'g')
+    const out = []
+    let m
+    while ((m = re.exec(s)) !== null) out.push(m[0].slice(1, -1))
+    return out
   }
-  const r1 = extractRule(src, '1')
-  ok('data-narrow="1" 隐藏 capsule-word 文字（tr(panel.title) 段）',
-    r1 && /\.dsws-capsule-word/.test(r1) && /span:last-child/.test(r1) && /display:\s*none/.test(r1))
-  const r2 = extractRule(src, '2')
-  ok('data-narrow="2" 隐藏无数字段文字：note 段（last-child）',
-    r2 && /\.dsws-seg\.note/.test(r2) && /span:last-child/.test(r2) && /display:\s*none/.test(r2))
-  ok('data-narrow="2" 隐藏无数字段文字：split 第一半（last-child）',
-    r2 && /\.dsws-split-part:first-child/.test(r2) && /span:last-child/.test(r2) && /display:\s*none/.test(r2))
-  ok('data-narrow="2" 隐藏 timebtn 文字（refresh word · nth-child(2)）',
-    r2 && /\.dsws-timebtn/.test(r2) && /span:nth-child\(2\)/.test(r2) && /display:\s*none/.test(r2))
-  const r3 = extractRule(src, '3')
-  ok('data-narrow="3" 隐藏有数字段文字（all seg text · nth-child(2) 跳过 svg）',
-    r3 && /\.dsws-seg/.test(r3) && /span:nth-child\(2\)/.test(r3) && /display:\s*none/.test(r3))
-  const r4 = extractRule(src, '4')
-  ok('data-narrow="4" 隐藏 timebtn 时间文字（last-child）',
-    r4 && /\.dsws-timebtn/.test(r4) && /span:last-child/.test(r4) && /display:\s*none/.test(r4))
+  const extractRule = function (s, dn) { return extractRules(s, dn)[0] || '' }
+  // 验证 [data-narrow-N] 规则里包含特定 selector（多规则时任一命中即可）
+  const r1All = extractRules(src, '1')
+  ok('R6 · [data-narrow-1] 隐藏 capsule-word 文字（tr(panel.title) 段）',
+    r1All.some(function (r) { return /\.dsws-capsule-word/.test(r) && /span:last-child/.test(r) && /display:\s*none/.test(r) }))
+  const r2All = extractRules(src, '2')
+  ok('R6 · [data-narrow-2] 隐藏无数字段文字：note 段（last-child）',
+    r2All.some(function (r) { return /\.dsws-seg\.note/.test(r) && /span:last-child/.test(r) && /display:\s*none/.test(r) }))
+  ok('R6 · [data-narrow-2] 隐藏无数字段文字：split 第一半（last-child）',
+    r2All.some(function (r) { return /\.dsws-split-part:first-child/.test(r) && /span:last-child/.test(r) && /display:\s*none/.test(r) }))
+  ok('R6 · [data-narrow-2] 隐藏 timebtn 文字（refresh word · nth-child(2)）',
+    r2All.some(function (r) { return /\.dsws-timebtn/.test(r) && /span:nth-child\(2\)/.test(r) && /display:\s*none/.test(r) }))
+  const r3All = extractRules(src, '3')
+  ok('R6 · [data-narrow-3] 隐藏有数字段文字（all seg text · nth-child(2) 跳过 svg）',
+    r3All.some(function (r) { return /\.dsws-seg/.test(r) && /span:nth-child\(2\)/.test(r) && /display:\s*none/.test(r) }))
+  const r4All = extractRules(src, '4')
+  ok('R6 · [data-narrow-4] 隐藏 timebtn 时间文字（last-child）',
+    r4All.some(function (r) { return /\.dsws-timebtn/.test(r) && /span:last-child/.test(r) && /display:\s*none/.test(r) }))
 
   // 期望 4：JSX 写 data-narrow 属性（capsule 根 div 写 dn 字符串 / null；接受 'data-narrow': 或 data-narrow: 两种键写法）
   ok('capsule JSX 写 data-narrow 属性（dn || null 形式）',
@@ -109,6 +114,14 @@ const statChecks = function (src, tag) {
   // #16 R6b：wrapper 去掉 alignItems:'stretch'（避免 capsule 被父级 composerHero 297px 高拉成 9.5px，文字被截）
   //   R6 修复：!firstBlock 分支不应再有 alignItems:'stretch'
   ok('R6b · !firstBlock 分支 wrapper 不再含 alignItems:\'stretch\'', !/display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,200}alignItems:\s*'stretch'/.test(src))
+
+  // #16 R7（用户验收反馈 2026-08-18）：dn=0 时 magenta 框远小于 cyan 框，胶囊左右没跟输入区对齐
+  //   改为条件式宽度：dn=0 → width:100% 撑满 wrapper；dn>=1 → width:fit-content 自然宽居中（保留 dn=4 不再缩方案）
+  ok('R7 · 胶囊 CSS 默认 width:100%（dn=0 时撑满 wrapper 对齐输入区）', /\.dsws-capsule\{[^}]*width:100%/.test(src))
+  ok('R7 · dn>=1 时 capsule 切回 fit-content（保留 dn=4 不再缩）',
+/\[data-narrow-1\] \.dsws-capsule,\[data-narrow-2\] \.dsws-capsule,\[data-narrow-3\] \.dsws-capsule,\[data-narrow-4\] \.dsws-capsule\{width:fit-content\}/.test(src))
+  ok('R7 · 旧 R1 行为 fit-content 默认已弃（不再无条件 fit-content）',
+    !/^\s*'\.dsws-capsule\{[^}]*width:fit-content[^}]*\}',?\s*$/m.test(src))
 
   // 期望 4 续：点击事件契约
   ok('capsule onClick → openPanel(s)', /className:\s*['"]dsws-capsule['"][^}]*onClick:\s*function\s*\(\)\s*\{\s*openPanel\(s\)/.test(src))
