@@ -95,11 +95,13 @@ window.__ModuleLoader__.load({
       '.dsws-skillpop::-webkit-scrollbar-thumb:hover{background:var(--dsw-alias-label-caption,#8b8b95);border-radius:4px;border:2px solid transparent;background-clip:padding-box}',
       '.dsws-seg{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px solid transparent;display:inline-flex;align-items:center;gap:4px}',
       '.dsws-seg:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));border-color:var(--dsw-alias-border-l1,#2a2d35)}',
-      // 需求1·二阶段（2026-08-18）：交接分割按钮 —— 共外框胶囊（overflow:hidden 裁掉内部 hover 圆角），细分隔线 1px×14px，左右半各自点击区 + hover 沿用 seg 背景
-      '.dsws-split{display:inline-flex;align-items:center;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:99px;flex:none;overflow:hidden}',
+      // 需求1·二阶段 rev（2026-08-18）：交接分割按钮 —— 外框边框/细分隔线 hover 时才显示（与 seg 常驻透明一致）；左右半各自点击区 + hover 沿用 seg 背景
+      '.dsws-split{display:inline-flex;align-items:center;border:1px solid transparent;border-radius:99px;flex:none;overflow:hidden}',
+      '.dsws-split:hover{border-color:var(--dsw-alias-border-l1,#2a2d35)}',
       '.dsws-split .dsws-split-part{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;cursor:pointer}',
       '.dsws-split .dsws-split-part:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
-      '.dsws-split .dsws-split-div{width:1px;height:14px;background:var(--dsw-alias-border-l1,#2a2d35);flex:none}',
+      '.dsws-split .dsws-split-div{width:1px;height:14px;background:var(--dsw-alias-border-l1,#2a2d35);flex:none;opacity:0;transition:opacity .12s}',
+      '.dsws-split:hover .dsws-split-div{opacity:1}',
       '.dsws-timebtn{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px dashed transparent;color:var(--dsw-alias-label-caption,#8b8b95);white-space:nowrap;font-variant-numeric:tabular-nums;flex:none}',
       '.dsws-timebtn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));border-color:var(--dsw-alias-border-l1,#2a2d35);color:var(--dsw-alias-label-primary,#e6edf3)}',
       '.dsws-uirow{display:flex;align-items:center;gap:6px;margin:4px 0;flex-wrap:wrap}',
@@ -1681,17 +1683,28 @@ window.__ModuleLoader__.load({
       }
       let pendingDraft = null  // 跨会话预填（新会话 dock 挂载后消费）
       // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑
+      // 需求1·二阶段 rev（2026-08-18）：灰/亮双态的真实依据 = 磁盘上确实存在交接文档（handoffLatest 探测）。
+      //   probeHandoffReady：探测 → 写 st.handoffReady + emit（右半亮蓝/灰 + 允许/禁止 的开关）；任何路径都不得在无文档时开新会话。
+      const probeHandoffReady = function (st) {
+        const cwdArg = st.cwd ? { cwd: st.cwd } : {}
+        const done = function (file) { st.handoffReady = !!file; emit(st); return file }
+        if (conn === undefined || conn.rpc === undefined) { done(null); return Promise.resolve(null) }
+        return rpcCall('handoffLatest', cwdArg).then(function (res) {
+          return done((res && res.ok && res.file) ? res.file : null)
+        }).catch(function () { return done(null) })
+      }
       const doHandoff = function (st) {
         handoffTs = timeStampStr()
         const text = handoffPrompt(handoffTs)
         handoffFile = extractHandoffFile(text) || (handoffTs + '.md')
-        st.handoffReady = true  // 需求1·二阶段：第一击成功 → 右半亮蓝（tooltip 同切 nav.handoffReadyTitle）
         inject(st, text)
         flash(st, tr('toast.injectedHandoff'), 'ok')
+        // 注入模板 ≠ 文档已成文：立即 + 延迟再探测，等 AI 写好文档后右半自动亮蓝可点（不再仅凭第一击就亮）
+        probeHandoffReady(st)
+        if (timer !== undefined) timer.timeout(function () { probeHandoffReady(st) }, 10000)
       }
       const doHandoffOpen = function (st) {
         const ws = ctx.get('workspaces')
-        const cwdArg = st.cwd ? { cwd: st.cwd } : {}
         const finish = function (file, msg) {
           const text = handoffReadText(file)
           pendingDraft = text
@@ -1702,31 +1715,11 @@ window.__ModuleLoader__.load({
             pendingDraft = null
           }
         }
-        // 需求1·二阶段（引导门，2026-08-18）：未点过第一击 → 先探测磁盘 .scratch/handoff/ 最新文档；
-        //   有 latest 才放行 + 右半置 ready + 开新会话；没有 → toast 引导先点「交接」，不再开空会话（删除原糊涂分支）
-        const settle = function (ok, file) {
-          st.handoffReady = !!ok
-          if (ok && file) {
-            emit(st)  // 立即反映亮蓝（finish 内副本 toast 的 flash 会再次 emit，无害）
-            finish(file, tr('toast.copiedHandoffFile', { file: file }))
-          } else {
-            flash(st, tr('toast.handoffGrey'), 'warn')
-          }
-        }
-        if (handoffFile) {
-          // v24：本会话已点过第一击 → 优先复用第一击文件名（与模板完全一致）
-          finish(handoffFile, tr('toast.copiedHandoffFile', { file: handoffFile }))
-          return
-        }
-        if (conn === undefined || conn.rpc === undefined) {
-          settle(false, null)
-          return
-        }
-        rpcCall('handoffLatest', cwdArg).then(function (res) {
-          const file = (res && res.ok && res.file) ? res.file : null
-          settle(!!file, file)
-        }).catch(function () {
-          settle(false, null)
+        // 引导门 v3（2026-08-18 rev）：无论本会话是否点过第一击，一律先探测磁盘真实文档——
+        //   有 latest → 置 ready + 放行开新会话；没有 → toast 引导「请先点「交接」生成交接文档」，绝不打开空会话
+        probeHandoffReady(st).then(function (file) {
+          if (file) finish(file, tr('toast.copiedHandoffFile', { file: file }))
+          else flash(st, tr('toast.handoffGrey'), 'warn')
         })
       }
 
@@ -1818,6 +1811,9 @@ window.__ModuleLoader__.load({
             if (pendingDraft) { props.inputActions.setDraft(pendingDraft); pendingDraft = null }
           }
         }, [props])
+        React.useEffect(function () {
+          probeHandoffReady(s)  // 需求1·二阶段 rev：挂载即探测 .scratch/handoff/，以真实文档有无决定右半灰/亮
+        }, [])
         // v13：会话工作目录探测 —— 依赖 sessionId 变化重跑（切换对话必触发）。
         // v15-27：优先 SessionSummary.cwd（宿主权威）；次选 props.session 直取；最后 host wf.cwd 兜底。
         // cwd 变化后主动重拉快照与检查（否则面板/状态栏仍显示旧仓库数据）。
@@ -1877,7 +1873,7 @@ window.__ModuleLoader__.load({
               tr('nav.handoff'),
             ]),
             h('span', { className: 'dsws-split-div' }),
-            h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoffOpen(s) }, title: s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle'), style: { color: s.handoffReady ? '#58a6ff' : '#8b8b95', opacity: s.handoffReady ? 1 : 0.6 } }, [
+            h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoffOpen(s) }, title: s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle'), style: s.handoffReady ? { color: '#58a6ff' } : { color: '#8b8b95', opacity: 0.6, cursor: 'not-allowed' } }, [
               Ic({ n: 'handoff-open', size: 12 }),
             ]),
           ]),
