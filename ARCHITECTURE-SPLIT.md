@@ -272,6 +272,8 @@ export function createCtx({ ctx, h, rdom, localeSvc, storeSvc, timer }) {
 - 纯逻辑模块（probe/store 派生）同理：`export function makeProbe(cx) {...}`，注入依赖、返回方法集。
 - **效果**：模块之间**零隐式全局**；某模块内部怎么改都不影响别的模块；测试时只需 `createCtx(fake)` 即可单测该模块，连 DSH 都不需要。
 
+> ✅ **Ctx 机制已定案（2026-08-18 · 用户拍板选 A 插座式）**：详见 `ARCHITECTURE-CTX.md`。组件用 React Context（`useContext`）取依赖，逻辑模块用工厂注入（`makeProbe(cx)`），cx 为模块级单例；接线顺序 = 先建 `ctx.js` + 顶层 Provider（行为零变化）→ 逐模块迁移，每迁一个跑一轮全绿。此前的「工厂注入」描述被定案文档取代（组件改为 Context 取用，逻辑模块保留工厂注入）。
+
 ⚠ 这是**拆分能成立的前提**：如果跳过它、靠「每个文件自己 `require('react')` + 自己造 store」，就会变成一个新的隐式耦合 monolith，并发趋零目标作废。故列为阶段 2 的第一步、且是唯一硬性约束。
 
 源码头注释已记载 4 个差异：React 来源 / styles 注入 / host.call 桥 / timer 兜底。构建时：
@@ -341,6 +343,7 @@ export function createCtx({ ctx, h, rdom, localeSvc, storeSvc, timer }) {
 | 1 | 构建器/语言：**esbuild + 纯 JS**（不引入 TS） | ✅ 已定（§2.4 有完整理由） |
 | 2 | 根 `client.js`/`host.js`：**保留为 `_dev` 构建产物**，不删 | ✅ 已定 |
 | 3 | **OWNERS 表**：**不建表**——防冲突靠 §3 架构物理隔离（你提出的洞见，已采纳） | ✅ 已定 |
-| 4 | 是否执行**阶段 0**（搭构建管线，不搬代码）：**等你审完方案发令** | ⏸ 待你启动 |
+| 4 | **Ctx 机制**：**A 插座式（React Context）**，逻辑模块工厂注入；详见 `ARCHITECTURE-CTX.md` | ✅ 已定（2026-08-18 你拍板 A） |
+| 5 | 是否执行**阶段 0**（搭构建管线，不搬代码）：**等你审完方案发令** | ⏸ 待你启动 |
 
-> 说明：§5 阶段 0 是「只架构建、零行为变化、风险最低」的冷启动步骤。你现在只需看 `ARCHITECTURE-SPLIT.md` 全文（尤其 §0 结论 / §2 构建利弊 / §3 物理隔离 / §4 模块树 / §5 迁移），认可后回一句「开始阶段 0」即可。
+> 说明：§5 阶段 0 是「只架构建、零行为变化、风险最低」的冷启动步骤。Ctx 命门已钉死（`ARCHITECTURE-CTX.md`），阶段 2 可随时安全开工。
