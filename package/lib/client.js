@@ -35,9 +35,12 @@ window.__ModuleLoader__.load({
     const STYLE_TEXT = [
       '.dsws-panel{position:fixed;left:16px;top:76px;width:460px;max-height:calc(100vh - 24px);display:flex;flex-direction:column;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.45);z-index:9999;font-family:var(--dsw-font-family);font-size:13px;color:var(--dsw-alias-label-primary,#e6edf3);line-height:1.6;overflow:hidden}',
       '.dsws-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l1,#2a2d35);cursor:move;user-select:none}',
-      '.dsws-tabs{display:flex;gap:4px;padding:8px 12px 0}',
-      '.dsws-tab{padding:4px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:12px}',
+      '.dsws-tabs{display:flex;flex-wrap:nowrap;gap:4px;padding:8px 12px 0;overflow:hidden;white-space:nowrap}',
+      '.dsws-tab{padding:4px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:12px;white-space:nowrap;flex:none;line-height:1.5}',
       '.dsws-tab.on{background:var(--dsw-alias-interactive-bg-active,rgba(255,255,255,.14));color:var(--dsw-alias-label-primary,#e6edf3);border-color:var(--dsw-alias-border-l1,#2a2d35)}',
+      '.dsws-tabs.dsws-tabs-fold .dsws-tab > span:last-child{display:none}',
+      '.dsws-tabs.dsws-tabs-fold .dsws-btn > span:last-child{display:none}',
+      '.dsws-tabs.dsws-tabs-fold > span:last-child{display:none}',
       '.dsws-body{flex:1;overflow-y:auto;padding:10px 12px}',
       '.dsws-rz{position:absolute;z-index:6}',
       '.dsws-rz-n{top:0;left:8px;right:8px;height:5px;cursor:ns-resize}',
@@ -1585,6 +1588,7 @@ window.__ModuleLoader__.load({
         }
         cwds.forEach(function (cwd) {
           rpcCall('probe', { cwd: cwd }).then(function (res) {
+            if (typeof console !== 'undefined') console.log('[PWDP] probe cwd=' + cwd + ' changed=' + (res && res.changed) + ' count=' + (res && res.count) + ' since=' + (res && res.since) + ' t=' + new Date().toISOString())
             if (!(res && res.ok && res.changed)) return
             // B5（第一性原理）：changed 只触发 1 次全量刷新（shared · force 走 wf.refresh），
             //   同 repo 的其他 store 用非 force 的 wf.snapshot → 命中 host 60s 缓存（shared 刚刷过）→ 零额外 GraphQL。
@@ -3153,6 +3157,13 @@ window.__ModuleLoader__.load({
       // ---- 5.8b 右侧停靠（details 槽位 · 三视图完整内容；开合/拖拽/宽度记忆由壳管理）----
       // 契约：details 槽 = 壳右侧第三列（AppFrame grid），scope session；关闭 = ctx.layout.closeDetails()
       //   （占位者 props 亦注入 closeDetails）；宽度 300-520px 可拖拽；关闭时子树不卸载（状态保留）。
+      // issue #15：tabs 行内容放不下时折叠为纯图标（内容自适应 + 滞回防抖）
+      const TABS_FOLD_HYST = 4
+      const tabsFoldDecide = function (fold, avail, natural) {
+        if (natural <= 0) return false
+        if (!fold) return natural > avail + 1
+        return avail < natural + TABS_FOLD_HYST
+      }
       const DetailsDock = (props) => {
         const s = useStore(props && props.sessionId)
         const layoutSvc = ctx.get('layout')
@@ -3178,7 +3189,26 @@ window.__ModuleLoader__.load({
         const groups = compute(s)
         const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
         const narrow = dw < 380
-        const tabBtn = (id, icon, label) => h('button', { className: 'dsws-tab' + (s.tab === id ? ' on' : ''), onClick: function () { s.tab = id; emit(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+        const tabsRef = React.useRef(null)
+        React.useEffect(function () {
+          const el = tabsRef.current
+          if (!el) return
+          var naturalW = 0
+          const apply = function () {
+            const t = tabsRef.current
+            if (!t) return
+            const folded = t.classList.contains('dsws-tabs-fold')
+            if (!folded) naturalW = t.scrollWidth
+            t.classList.toggle('dsws-tabs-fold', tabsFoldDecide(folded, t.clientWidth, naturalW))
+          }
+          apply()
+          const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null
+          if (ro) ro.observe(el)
+          window.addEventListener('resize', apply)
+          if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(apply)
+          return function () { if (ro) ro.disconnect(); window.removeEventListener('resize', apply) }
+        }, [])
+        const tabBtn = (id, icon, label) => h('button', { title: label, className: 'dsws-tab' + (s.tab === id ? ' on' : ''), onClick: function () { s.tab = id; emit(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
           Ic({ n: icon, size: 12 }),
           h('span', null, label),
         ])
@@ -3199,7 +3229,7 @@ window.__ModuleLoader__.load({
             h('button', { className: 'dsws-btn ghost', title: tr('panel.closeTitle'), onClick: closeDock, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 6px', fontSize: 11 } }, Ic({ n: 'x', size: 12 })),
           ]),
           // 标签行下沿 = 与对话/轨迹一致的横线；右侧：刷新按钮 + 版本号（v1.3.3）
-          h('div', { className: 'dsws-tabs', style: { padding: '0 12px 7px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } }, [
+          h('div', { className: 'dsws-tabs', ref: tabsRef, style: { padding: '0 12px 7px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } }, [
             tabBtn('list', 'list', tr('panel.tabList')),
             tabBtn('skills', 'compass', tr('panel.tabSkills')),
             tabBtn('checks', 'gear', tr('panel.tabChecks')),
@@ -3235,13 +3265,32 @@ window.__ModuleLoader__.load({
         const cur = props.useSessions((x) => x.current)
         const s = useStore(cur)
         const panelRef = React.useRef(null)
+        const tabsRef = React.useRef(null)
+        React.useEffect(function () {
+          const el = tabsRef.current
+          if (!el) return
+          var naturalW = 0
+          const apply = function () {
+            const t = tabsRef.current
+            if (!t) return
+            const folded = t.classList.contains('dsws-tabs-fold')
+            if (!folded) naturalW = t.scrollWidth
+            t.classList.toggle('dsws-tabs-fold', tabsFoldDecide(folded, t.clientWidth, naturalW))
+          }
+          apply()
+          const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null
+          if (ro) ro.observe(el)
+          window.addEventListener('resize', apply)
+          if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(apply)
+          return function () { if (ro) ro.disconnect(); window.removeEventListener('resize', apply) }
+        }, [s.open])
         // #376：加载由 openPanel 统一分派（未就绪/过期 force，新鲜直接展示）；此处不再重复加载
         if (!s.open) return null
         const groups = compute(s)
         const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
         // v14-19：窄屏阈值（面板宽 <380px 时动作按钮折叠为纯图标）
         const narrow = s.size.w < 380
-        const tabBtn = (id, icon, label) => h('button', { className: 'dsws-tab' + (s.tab === id ? ' on' : ''), onClick: function () { s.tab = id; emit(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+        const tabBtn = (id, icon, label) => h('button', { title: label, className: 'dsws-tab' + (s.tab === id ? ' on' : ''), onClick: function () { s.tab = id; emit(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
           Ic({ n: icon, size: 12 }),
           h('span', null, label),
         ])
@@ -3302,7 +3351,7 @@ window.__ModuleLoader__.load({
             h('span', { style: { flex: 1 } }),
             h('button', { className: 'dsws-btn ghost', title: tr('panel.closeTitle'), onClick: function () { s.open = false; emit(s) }, style: { display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 12 })),
           ]),
-                  h('div', { className: 'dsws-tabs', style: { display: 'flex', alignItems: 'center', gap: 4 } }, [
+                  h('div', { className: 'dsws-tabs', ref: tabsRef, style: { display: 'flex', alignItems: 'center', gap: 4 } }, [
           tabBtn('list', 'list', tr('panel.tabList')),
           tabBtn('skills', 'compass', tr('panel.tabSkills')),
           tabBtn('checks', 'gear', tr('panel.tabChecks')),

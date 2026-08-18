@@ -1,5 +1,22 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 面板 tabs 行窄屏单行 + 内容自适应折叠为纯图标（#15 · v1.7.0）
+
+- **BUG**（reporter）：面板 tabs 行 6 按钮（列表 / 技能 / 环境检查 / + 新建需求 / + 新增BUG单 / 刷新）面板变窄时文字换行（CJK 任意断行），行高跳变，`flex:none` 动作按钮溢出右缘
+- **根因**：
+  - 标签按钮无 `white-space:nowrap` + `flex-shrink` 默认 1 → 被压缩时文字折行（实测 dock tabs 行 82px 高、按钮 42-74px 高；全文字自然宽 ≈ 470px）
+  - `+ 新建需求 / + 新增BUG单 / 刷新` 三按钮 `flex:none` 拒绝收缩 → spacer 归零后溢出右缘
+  - 既有 `narrow`（<380px）只作用到列表行内动作，从未作用到 tabs 行（#16 CHANGELOG 明示为「另一种 narrow 形态」的遗留）
+- **修复**（内容自适应 + 滞回防抖，不用固定像素阈值）：
+  - CSS：`.dsws-tabs` 加 `flex-wrap:nowrap + overflow:hidden + white-space:nowrap`；`.dsws-tab` 加 `white-space:nowrap + flex:none + line-height:1.5`
+  - 折叠：`.dsws-tabs-fold` 隐藏 tab/按钮/版本号 的文字 span（图标 + title 保留）
+  - 判定：`tabsFoldDecide(fold, avail, natural)` —— 未折叠以 `scrollWidth > clientWidth+1` 判「放不下」→ 折叠；折叠态需 `avail ≥ natural+4`（滞回）才展开，防临界抖动；两处渲染（dock + 漂浮面板）各挂 `tabsRef` + ResizeObserver + window.resize + fonts.ready 重算
+  - OverlayPanel 的 tabsRef/effect 移到 `if (!s.open) return null` 之前（hooks 顺序合法化），effect 依赖 `[s.open]` 打开时重算
+  - **阈值选型**：中文全文字自然宽 470px、英文更宽 → 固定 <380px 会在 380-470 间留「文字放不下」带；grilling 改拍板为**内容自适应折叠**
+- **测试**：新增 `tests/verify-tabs-narrow.js`（CSS 契约 / 装配 + hook 合法性 / tabsFoldDecide 真值表 11 项 / 双源 CSS + tabs JSX 镜像）—— 双源全绿
+- **实测（live GUI CDP）**：宽 620/520 → 文本单行显示；460/400/340/300 → 折叠为纯图标；任何宽度行高恒 ≤36px 不再换行
+- **附带发现**：`tests/verify-b5-quota.js` 2 项断言（`sr === rep` / `loadSnapshot(st2, false, true)`）在 HEAD 即已漂移失败（probe 同步已重构为 diff 同步，测试未更新）—— 与本次改动无关，另案处理
+
 ## 2026-08-18 · 状态栏胶囊 R11 padding 恒定（#16 R11 · v1.6.11）
 
 - **用户验收反馈**：R10 后 capsule 固定宽 = iw 时 children 缩小后左右空白反而变大（不是等比例往中间靠）
