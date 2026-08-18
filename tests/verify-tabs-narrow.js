@@ -52,7 +52,9 @@ const statChecks = function (src, tag) {
   const tabsRefN = (src.match(/const tabsRef = React\.useRef\(null\)/g) || []).length
   ok('逻辑 · tabsRef 出现 2 次（dock + overlay）', tabsRefN === 2)
   ok('逻辑 · ref: tabsRef 挂到 2 个 tabs 容器', (src.match(/className: 'dsws-tabs', ref: tabsRef/g) || []).length === 2)
-  ok('逻辑 · 各级自然宽逐级测量（setLv + scrollWidth）', /for \(let k = 0; k < TABS_LEVELS; k\+\+\) \{ setLv\(k\); nats\[k\] = t\.scrollWidth \}/.test(src))
+  ok('逻辑 · 各级自然宽逐级测量（setLv + measureContentWidth）', /for \(let k = 0; k < TABS_LEVELS; k\+\+\) \{ setLv\(k\); nats\[k\] = measureContentWidth\(t\) \}/.test(src))
+  ok('逻辑 · measureContentWidth 定义存在（内容真实宽，防 scrollWidth 容器钳制死锁）', /const measureContentWidth = function/.test(src))
+  ok('逻辑 · 不再使用 scrollWidth 测自然宽（死锁根因）', !/nats\[k\] = t\.scrollWidth/.test(src))
   ok('逻辑 · 折叠结果写 dataset.tabsLevel', /t\.dataset\.tabsLevel = String\(next\)/.test(src))
   ok('逻辑 · ResizeObserver + resize + fonts.ready 重算', /new ResizeObserver\(function \(\) \{ apply\(\) \}\)/.test(src) && /window\.addEventListener\('resize', apply\)/.test(src) && /document\.fonts\.ready\.then\(apply\)/.test(src))
   ok('逻辑 · RO 观察到元素被替换时重观察（observed !== t → unobserve+observe）', /ro && observed !== t/.test(src) && /ro\.observe\(t\)/.test(src))

@@ -3164,6 +3164,20 @@ let pendingDraft = null
       while (cur > 0 && avail >= nats[cur - 1] + TABS_FOLD_HYST) cur--
       return cur
     }
+    // issue#15 修复：scrollWidth 会被容器宽度钳制（容器宽于内容时 scrollWidth===clientWidth），
+    // 导致折叠后展开判定 avail>=nats[cur-1]+4 永不成立（死锁）。改测内容 children 的真实横跨宽。
+    const measureContentWidth = function (t) {
+      if (!t || !t.children || t.children.length === 0) return 0
+      const tr = t.getBoundingClientRect()
+      let minX = Infinity, maxX = -Infinity
+      for (let i = 0; i < t.children.length; i++) {
+        const c = t.children[i]
+        const r = c.getBoundingClientRect()
+        if (r.width > 0) { if (r.x < minX) minX = r.x; if (r.x + r.width > maxX) maxX = r.x + r.width }
+      }
+      if (minX === Infinity) return 0
+      return maxX - tr.x
+    }
     const DetailsDock = (props) => {
       const s = useStore(props && props.sessionId)
       const layoutSvc = ctx.get('layout')
@@ -3206,7 +3220,7 @@ let pendingDraft = null
           }
           const lv = curLv()
           const nats = []
-          for (let k = 0; k < TABS_LEVELS; k++) { setLv(k); nats[k] = t.scrollWidth }
+          for (let k = 0; k < TABS_LEVELS; k++) { setLv(k); nats[k] = measureContentWidth(t) }
           setLv(lv)
           const next = tabsLevelDecide(lv, t.clientWidth, nats)
           setLv(next)
@@ -3305,7 +3319,7 @@ let pendingDraft = null
           }
           const lv = curLv()
           const nats = []
-          for (let k = 0; k < TABS_LEVELS; k++) { setLv(k); nats[k] = t.scrollWidth }
+          for (let k = 0; k < TABS_LEVELS; k++) { setLv(k); nats[k] = measureContentWidth(t) }
           setLv(lv)
           const next = tabsLevelDecide(lv, t.clientWidth, nats)
           setLv(next)
