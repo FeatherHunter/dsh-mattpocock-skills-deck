@@ -38,9 +38,9 @@ window.__ModuleLoader__.load({
       '.dsws-tabs{display:flex;flex-wrap:nowrap;gap:4px;padding:8px 12px 0;overflow:hidden;white-space:nowrap}',
       '.dsws-tab{padding:4px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:12px;white-space:nowrap;flex:none;line-height:1.5}',
       '.dsws-tab.on{background:var(--dsw-alias-interactive-bg-active,rgba(255,255,255,.14));color:var(--dsw-alias-label-primary,#e6edf3);border-color:var(--dsw-alias-border-l1,#2a2d35)}',
-      '.dsws-tabs.dsws-tabs-fold .dsws-tab > span:last-child{display:none}',
-      '.dsws-tabs.dsws-tabs-fold .dsws-btn > span:last-child{display:none}',
-      '.dsws-tabs.dsws-tabs-fold > span:last-child{display:none}',
+      '.dsws-tabs.dsws-tabs-l2 .dsws-tab > span:last-child{display:none}',
+      '.dsws-tabs.dsws-tabs-l1 .dsws-btn > span:last-child,.dsws-tabs.dsws-tabs-l2 .dsws-btn > span:last-child{display:none}',
+      '.dsws-tabs.dsws-tabs-l1 > span:last-child,.dsws-tabs.dsws-tabs-l2 > span:last-child{display:none}',
       '.dsws-body{flex:1;overflow-y:auto;padding:10px 12px}',
       '.dsws-rz{position:absolute;z-index:6}',
       '.dsws-rz-n{top:0;left:8px;right:8px;height:5px;cursor:ns-resize}',
@@ -135,9 +135,9 @@ window.__ModuleLoader__.load({
       //   比 textarea 外框（iw）宽 11px（左右各 5.5px）。改为 box-sizing:border-box，让 capsule border-box = textarea 外框。
       // #16 R11（用户验收反馈 2026-08-18 R10 后）：capsule 固定宽 = iw → children 居中后左右空白随 children 缩小而变大。
       //   改为 CSS width:fit-content（默认 children 自然宽）；inline maxWidth:iw 防止 capsule 比输入框宽（pixel 对齐 R10 保留）。
-      '.dsws-capsule{max-width:min(100%,1400px);width:fit-content;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
+      '.dsws-capsule{max-width:min(100%,1400px);width:100%;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
       // dn>=1 时 capsule 变 fit-content 自然宽居中（用户 B 方案：dn=4 后 capsule 不再缩）
-      '[data-narrow-1] .dsws-capsule,[data-narrow-2] .dsws-capsule,[data-narrow-3] .dsws-capsule,[data-narrow-4] .dsws-capsule{width:fit-content}',
+      '// R13: dn>=1 fit-content removed (capsule always = textarea width)',
       '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:none}',
       '.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
       '.dsws-capsule .dsws-seg{flex:none}',
@@ -511,9 +511,9 @@ window.__ModuleLoader__.load({
           'toast.resetPanelWidthFail': 'layout 服务暂不支持重置 · 请更新 DSH harness',
           // #394：新会话按钮可见文字 + hover title（去掉冗余 detail，靠 #361 doc + 行为本身解释）
           'list.newSessionLabel': '新会话',
-          'panel.newWayfinder': '+ 新建需求',
+          'panel.newWayfinder': '+ 需求',
           'panel.newWayfinderTitle': '新会话中打开 /wayfinder 新增需求 prompt（继承当前工作区）',
-          'panel.newBug': '+ 新增BUG单',
+          'panel.newBug': '+ bug',
           'panel.newBugTitle': '新会话中打开 /wayfinder 新增 BUG 单 prompt（继承当前工作区）',
           'panel.diffRemoved': '{n} 个已关闭/移除',
           'panel.repoTitle': '当前仓库，点击打开 GitHub',
@@ -739,9 +739,9 @@ window.__ModuleLoader__.load({
           'toast.resetPanelWidthFail': 'Layout service doesn\'t support reset yet · please update DSH harness',
           // #394：visible label + hover title for new-session button
           'list.newSessionLabel': 'New session',
-          'panel.newWayfinder': '+ New requirement',
+          'panel.newWayfinder': '+ Requirement',
           'panel.newWayfinderTitle': 'Open a /wayfinder new-requirement prompt in a new session (same workspace)',
-          'panel.newBug': '+ New BUG',
+          'panel.newBug': '+ BUG',
           'panel.newBugTitle': 'Open a /wayfinder new-BUG prompt in a new session (same workspace)',
           'panel.diffRemoved': '{n} closed/removed',
           'panel.repoTitle': 'Current repo — open on GitHub',
@@ -996,12 +996,11 @@ window.__ModuleLoader__.load({
       const COMPLETE_PROMPT = function () { return promptText('complete') }
       // T16：正文格式契约（写/改 issue 正文的动作统一追加）
       const BODY_FORMAT = function () { return promptText('bodyFormat') }
-      // v3.1（#14 用户验收反馈重拍板）：BUG 4 字段「字段名：留白位」+ 每字段下一行缩进说明 —— 跟随 DSH 语言一次只出一种（zh / en 分离）
+      // v3（#14 决议 #13 [T7]）：BUG 4 字段 + inline 中英双语指引 —— 跟在 BODY_FORMAT 之后作为模板末尾输入位
       //   字段集（第一性原理：Bug = 期望 vs 实际偏差）：期望 / 实际（吸收现象+影响范围）/ 复现步骤（吸收背景+场景 preamble）/ 环境信息（新增）
-      //   形态决议（2026-08-18 验收反馈）：① 字段名独立行 + 冒号后留白（像表单不像文章）；② 说明缩进下一行（元信息与填写位分层）；③ zh 只中文说明、en 只英文说明（不中英混排）
-      const NEW_BUG_FIELDS_BODY = function () { return '\n\n期望：\n  应发生什么 / 用户预期看到的结果\n实际：\n  实际看到了什么；可含影响范围描述（严重度 / 受影响用户）\n复现步骤：\n  [前置 / 场景] + 步骤列表。前置 = 系统状态 / 配置；场景 = 触发情境；步骤 = 编号列表\n环境信息：\n  OS + 浏览器 + 插件版本（DSW vX.Y.Z）' }
-      // v3.1（#14）：EN locale 版 —— 英文 4 字段 + 下缩进行英文说明（DSH 为英文时单独输出）
-      const NEW_BUG_FIELDS_BODY_EN = function () { return '\n\nExpected:\n  What should happen / the result the user expected\nActual:\n  What actually happened; may include impact notes (severity / affected users)\nReproduction:\n  [Preamble / Scenario] + numbered steps. Preamble = system state / config; scenario = triggering situation; steps = numbered list\nEnvironment:\n  OS + browser + plugin version (DSW vX.Y.Z)' }
+      const NEW_BUG_FIELDS_BODY = function () { return '\n\n期望：应发生什么 / 用户预期看到的结果 · What should happen / the result the user expected\n实际：实际看到了什么；可含影响范围描述（严重度 / 受影响用户）· What actually happened; may include impact notes (severity / affected users)\n复现步骤：[前置 / 场景] + 步骤列表。前置 = 系统状态 / 配置；场景 = 触发情境；步骤 = 编号列表 · [Preamble / Scenario] + numbered steps. Preamble = system state / config; scenario = triggering situation; steps = numbered list\n环境信息：OS + 浏览器 + 插件版本（DSW vX.Y.Z）· OS + browser + plugin version (DSW vX.Y.Z)' }
+      // v3（#14）：EN locale 版 —— EN 模式下末尾 4 字段为英文 + EN inline 文案
+      const NEW_BUG_FIELDS_BODY_EN = function () { return '\n\nExpected: What should happen / the result the user expected\nActual: What actually happened; may include impact notes (severity / affected users)\nReproduction: [Preamble / Scenario] + numbered steps. Preamble = system state / config; scenario = triggering situation; steps = numbered list\nEnvironment: OS + browser + plugin version (DSW vX.Y.Z)' }
       // v1.5：完成确认 prompt —— 技能+链接前置（/wayfinder + map 链接），再拼完成确认正文（完成 = wayfinder）
       const completePrompt = function (st, num, total, closed) {
         return '/wayfinder\n' + 'https://github.com/' + repoStr(st) + '/issues/' + String(num || '') + '\n\n' +
@@ -2083,7 +2082,7 @@ window.__ModuleLoader__.load({
         if (dw < 720) dn = 4
         // dw < 640 兜底：保持 dn=4，children flex:none + nowrap 拒绝换行（实际 dn=4 之前已满足，显式守卫保语义）
         // vw < 640 兜底：保持 dn=4，children flex:none + nowrap 拒绝换行
-        const capsule = h('div', { className: 'dsws-capsule', 'data-narrow': dn || null, 'data-narrow-1': dn >= 1 || null, 'data-narrow-2': dn >= 2 || null, 'data-narrow-3': dn >= 3 || null, 'data-narrow-4': dn >= 4 || null, onClick: function () { openPanel(s) }, style: { position: 'relative', width: 'fit-content', maxWidth: iw + 'px' } }, [
+        const capsule = h('div', { className: 'dsws-capsule', 'data-narrow': dn || null, 'data-narrow-1': dn >= 1 || null, 'data-narrow-2': dn >= 2 || null, 'data-narrow-3': dn >= 3 || null, 'data-narrow-4': dn >= 4 || null, onClick: function () { openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: iw + 'px' } }, [
           h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
             Icon({ scheme: s.ui.icon, size: 14 }),
             h('span', null, tr('panel.title')),
@@ -3162,11 +3161,15 @@ window.__ModuleLoader__.load({
       // 契约：details 槽 = 壳右侧第三列（AppFrame grid），scope session；关闭 = ctx.layout.closeDetails()
       //   （占位者 props 亦注入 closeDetails）；宽度 300-520px 可拖拽；关闭时子树不卸载（状态保留）。
       // issue #15：tabs 行内容放不下时折叠为纯图标（内容自适应 + 滞回防抖）
+      // issue #15 效果升级：短文案起步（+见即新建），随变窄分级折叠 —— 0:全量短文案 · 1:动作按钮→图标 · 2:tab→图标
       const TABS_FOLD_HYST = 4
-      const tabsFoldDecide = function (fold, avail, natural) {
-        if (natural <= 0) return false
-        if (!fold) return natural > avail + 1
-        return avail < natural + TABS_FOLD_HYST
+      const TABS_LEVELS = 3
+      const tabsLevelDecide = function (level, avail, nats) {
+        if (!Array.isArray(nats) || !nats.length) return 0
+        let cur = level < 0 ? 0 : level
+        while (cur < nats.length - 1 && nats[cur] > avail + 1) cur++
+        while (cur > 0 && avail >= nats[cur - 1] + TABS_FOLD_HYST) cur--
+        return cur
       }
       const DetailsDock = (props) => {
         const s = useStore(props && props.sessionId)
@@ -3194,16 +3197,22 @@ window.__ModuleLoader__.load({
         const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
         const narrow = dw < 380
         const tabsRef = React.useRef(null)
+        const [tabTip, setTabTip] = React.useState(null)
         React.useEffect(function () {
           const el = tabsRef.current
           if (!el) return
-          var naturalW = 0
+          const setLv = function (lv) { for (let k = 1; k < TABS_LEVELS; k++) el.classList.remove('dsws-tabs-l' + k); if (lv > 0) el.classList.add('dsws-tabs-l' + lv) }
+          const curLv = function () { for (let k = 1; k < TABS_LEVELS; k++) if (el.classList.contains('dsws-tabs-l' + k)) return k; return 0 }
           const apply = function () {
             const t = tabsRef.current
             if (!t) return
-            const folded = t.classList.contains('dsws-tabs-fold')
-            if (!folded) naturalW = t.scrollWidth
-            t.classList.toggle('dsws-tabs-fold', tabsFoldDecide(folded, t.clientWidth, naturalW))
+            const lv = curLv()
+            const nats = []
+            for (let k = 0; k < TABS_LEVELS; k++) { setLv(k); nats[k] = t.scrollWidth }
+            setLv(lv)
+            const next = tabsLevelDecide(lv, t.clientWidth, nats)
+            setLv(next)
+            t.dataset.tabsLevel = String(next)
           }
           apply()
           const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null
@@ -3212,7 +3221,20 @@ window.__ModuleLoader__.load({
           if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(apply)
           return function () { if (ro) ro.disconnect(); window.removeEventListener('resize', apply) }
         }, [])
-        const tabBtn = (id, icon, label) => h('button', { title: label, className: 'dsws-tab' + (s.tab === id ? ' on' : ''), onClick: function () { s.tab = id; emit(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+        const tabsTip = function (e, text, minLevel) {
+          const t = tabsRef && tabsRef.current
+          setTabTip(null)
+          if (!t || !text || typeof e === 'undefined') return
+          const lv = t.dataset ? Number(t.dataset.tabsLevel || 0) : 0
+          if (lv < (minLevel || 1)) return
+          if (typeof window === 'undefined') return
+          const W = 238
+          let x = e.clientX + 12, y = e.clientY + 12
+          if (x + W > window.innerWidth) x = e.clientX - 12 - W
+          setTabTip({ x: x, y: y, text: text })
+        }
+        const tabsTipOff = function () { setTabTip(null) }
+        const tabBtn = (id, icon, label) => h('button', { className: 'dsws-tab' + (s.tab === id ? ' on' : ''), onMouseMove: function (e) { tabsTip(e, label, 2) }, onMouseLeave: tabsTipOff, onClick: function () { s.tab = id; emit(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
           Ic({ n: icon, size: 12 }),
           h('span', null, label),
         ])
@@ -3240,15 +3262,16 @@ window.__ModuleLoader__.load({
             h('span', { style: { flex: 1 } }),
             // v1.5 T6 修订（V2 描边紫 · 刷新左侧）：新增 wayfinder —— 注入 /wayfinder + 仓库信息 + 需求引导
             // issue #4：新增 BUG 单 —— 同构按钮（新会话预填 /wayfinder 新增 BUG 单 prompt）
-            h('button', { className: 'dsws-btn', title: tr('panel.newWayfinderTitle'), onClick: function () { openTextInNewSession(s, newWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newWayfinder')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
+            h('button', { className: 'dsws-btn', onMouseMove: function (e) { tabsTip(e, tr('panel.newWayfinderTitle'), 1) }, onMouseLeave: tabsTipOff, onClick: function () { openTextInNewSession(s, newWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newWayfinder')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
               Ic({ n: 'map', size: 11 }),
               h('span', null, tr('panel.newWayfinder')),
             ]),
-            h('button', { className: 'dsws-btn', title: tr('panel.newBugTitle'), onClick: function () { openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #f87171', color: '#f87171', fontWeight: 600 } }, [
+            h('button', { className: 'dsws-btn', onMouseMove: function (e) { tabsTip(e, tr('panel.newBugTitle'), 1) }, onMouseLeave: tabsTipOff, onClick: function () { openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #f87171', color: '#f87171', fontWeight: 600 } }, [
               Ic({ n: 'bug', size: 11 }),
               h('span', null, tr('panel.newBug')),
             ]),
-            h('button', { className: 'dsws-btn', title: tr('list.refresh'), onClick: function () { refreshAll(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none' } }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('list.refresh'))]),
+            h('button', { className: 'dsws-btn', onMouseMove: function (e) { tabsTip(e, tr('list.refresh'), 1) }, onMouseLeave: tabsTipOff, onClick: function () { refreshAll(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none' } }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('list.refresh'))]),
+            (tabTip && portalTop) ? portalTop(h('div', { style: { position: 'fixed', left: tabTip.x, top: tabTip.y, zIndex: 2147483000, padding: '4px 8px', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)', maxWidth: 220 } }, tabTip.text)) : null,
             h('span', { style: { fontSize: 9, color: 'var(--dsw-alias-label-caption,#8b8b95)', flex: 'none', fontVariantNumeric: 'tabular-nums' } }, DSW_VERSION),
           ]),
           h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
@@ -3270,16 +3293,22 @@ window.__ModuleLoader__.load({
         const s = useStore(cur)
         const panelRef = React.useRef(null)
         const tabsRef = React.useRef(null)
+        const [tabTip, setTabTip] = React.useState(null)
         React.useEffect(function () {
           const el = tabsRef.current
           if (!el) return
-          var naturalW = 0
+          const setLv = function (lv) { for (let k = 1; k < TABS_LEVELS; k++) el.classList.remove('dsws-tabs-l' + k); if (lv > 0) el.classList.add('dsws-tabs-l' + lv) }
+          const curLv = function () { for (let k = 1; k < TABS_LEVELS; k++) if (el.classList.contains('dsws-tabs-l' + k)) return k; return 0 }
           const apply = function () {
             const t = tabsRef.current
             if (!t) return
-            const folded = t.classList.contains('dsws-tabs-fold')
-            if (!folded) naturalW = t.scrollWidth
-            t.classList.toggle('dsws-tabs-fold', tabsFoldDecide(folded, t.clientWidth, naturalW))
+            const lv = curLv()
+            const nats = []
+            for (let k = 0; k < TABS_LEVELS; k++) { setLv(k); nats[k] = t.scrollWidth }
+            setLv(lv)
+            const next = tabsLevelDecide(lv, t.clientWidth, nats)
+            setLv(next)
+            t.dataset.tabsLevel = String(next)
           }
           apply()
           const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null
@@ -3288,13 +3317,26 @@ window.__ModuleLoader__.load({
           if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(apply)
           return function () { if (ro) ro.disconnect(); window.removeEventListener('resize', apply) }
         }, [s.open])
+        const tabsTip = function (e, text, minLevel) {
+          const t = tabsRef && tabsRef.current
+          setTabTip(null)
+          if (!t || !text || typeof e === 'undefined') return
+          const lv = t.dataset ? Number(t.dataset.tabsLevel || 0) : 0
+          if (lv < (minLevel || 1)) return
+          if (typeof window === 'undefined') return
+          const W = 238
+          let x = e.clientX + 12, y = e.clientY + 12
+          if (x + W > window.innerWidth) x = e.clientX - 12 - W
+          setTabTip({ x: x, y: y, text: text })
+        }
+        const tabsTipOff = function () { setTabTip(null) }
         // #376：加载由 openPanel 统一分派（未就绪/过期 force，新鲜直接展示）；此处不再重复加载
         if (!s.open) return null
         const groups = compute(s)
         const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
         // v14-19：窄屏阈值（面板宽 <380px 时动作按钮折叠为纯图标）
         const narrow = s.size.w < 380
-        const tabBtn = (id, icon, label) => h('button', { title: label, className: 'dsws-tab' + (s.tab === id ? ' on' : ''), onClick: function () { s.tab = id; emit(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+        const tabBtn = (id, icon, label) => h('button', { className: 'dsws-tab' + (s.tab === id ? ' on' : ''), onMouseMove: function (e) { tabsTip(e, label, 2) }, onMouseLeave: tabsTipOff, onClick: function () { s.tab = id; emit(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
           Ic({ n: icon, size: 12 }),
           h('span', null, label),
         ])
@@ -3362,16 +3404,17 @@ window.__ModuleLoader__.load({
           h('span', { style: { flex: 1 } }),
           // v1.5 T6 修订（V2 描边紫 · 刷新左侧）：新增 wayfinder
           // issue #4：新增 BUG 单 —— 同构按钮（新会话预填 /wayfinder 新增 BUG 单 prompt）
-          h('button', { className: 'dsws-btn', title: tr('panel.newWayfinderTitle'), onClick: function () { openTextInNewSession(s, newWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newWayfinder')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
+          h('button', { className: 'dsws-btn', onMouseMove: function (e) { tabsTip(e, tr('panel.newWayfinderTitle'), 1) }, onMouseLeave: tabsTipOff, onClick: function () { openTextInNewSession(s, newWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newWayfinder')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
             Ic({ n: 'map', size: 11 }),
             h('span', null, tr('panel.newWayfinder')),
           ]),
-          h('button', { className: 'dsws-btn', title: tr('panel.newBugTitle'), onClick: function () { openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #f87171', color: '#f87171', fontWeight: 600 } }, [
+          h('button', { className: 'dsws-btn', onMouseMove: function (e) { tabsTip(e, tr('panel.newBugTitle'), 1) }, onMouseLeave: tabsTipOff, onClick: function () { openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #f87171', color: '#f87171', fontWeight: 600 } }, [
             Ic({ n: 'bug', size: 11 }),
             h('span', null, tr('panel.newBug')),
           ]),
           // T2 #2：刷新按钮上移至 tabs 末尾（紧贴环境检查右边 · 用户需求）
-          h('button', { className: 'dsws-btn', title: tr('list.refresh'), onClick: function () { refreshAll(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none' } }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('list.refresh'))]),
+          h('button', { className: 'dsws-btn', onMouseMove: function (e) { tabsTip(e, tr('list.refresh'), 1) }, onMouseLeave: tabsTipOff, onClick: function () { refreshAll(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none' } }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('list.refresh'))]),
+          (tabTip && portalTop) ? portalTop(h('div', { style: { position: 'fixed', left: tabTip.x, top: tabTip.y, zIndex: 2147483000, padding: '4px 8px', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)', maxWidth: 220 } }, tabTip.text)) : null,
           h('span', { style: { fontSize: 9, color: 'var(--dsw-alias-label-caption,#8b8b95)', flex: 'none', fontVariantNumeric: 'tabular-nums' } }, DSW_VERSION),
         ]),
           h('div', { className: 'dsws-body', onMouseDown: onBodyDown }, [

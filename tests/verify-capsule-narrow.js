@@ -125,45 +125,36 @@ const statChecks = function (src, tag) {
     /display:\s*'flex',\s*flex:\s*'none',\s*flexDirection:\s*'column'/.test(src))
 
 
-  // #16 R7（用户验收反馈 2026-08-18）：dn=0 时 magenta 框远小于 cyan 框，胶囊左右没跟输入区对齐
-  //   改为条件式宽度：dn=0 → width:100% 撑满 wrapper；dn>=1 → width:fit-content 自然宽居中（保留 dn=4 不再缩方案）
-  //   R11 后 R7 行为部分失效——CSS 改为 width:fit-content（不再 width:100%），dn>=1 条件式规则保留
-  ok('R7 + R11 · 胶囊 CSS 默认 width:fit-content（跟随 children 收缩）', /\.dsws-capsule\{[^}]*width:fit-content/.test(src))
-  ok('R7 · dn>=1 时 capsule 仍走 fit-content 规则（保留 dn=4 不再缩方案 B）',
-/\[data-narrow-1\] \.dsws-capsule,\[data-narrow-2\] \.dsws-capsule,\[data-narrow-3\] \.dsws-capsule,\[data-narrow-4\] \.dsws-capsule\{width:fit-content\}/.test(src))
+  // #16 R7：dn=0 时 capsule 应撑满 wrapper 与输入区对齐（原始问题），R11 曾改为 fit-content（跟内容走）
+  // #16 R13（用户验收反馈 2026-08-18，产品决策变更）：胶囊外框必须始终像素级对齐输入框左右边——
+  //   fit-content 会在面板变窄时让胶囊缩成内容宽、缩在中间、不贴输入框两边（用户实测确认这是坏行为）。
+  //   改为：CSS 基础 width:100%（撑满 wrapper=输入区）+ inline width:iw px（精确 = textarea 实际宽）；删除 dn>=1 fit-content 条件。
+  ok('R13 · 胶囊 CSS 默认 width:100%（撑满 wrapper=输入区，外框跟输入框对齐）',
+    /\.dsws-capsule\{[^}]*width:100%/.test(src))
+  ok('R13 · 不再有 dn>=1 fit-content 条件规则（胶囊外框永不塌回内容宽缩中间）',
+    !/\[data-narrow-[1-4]\] \.dsws-capsule,[\s\S]{0,30}width:fit-content/.test(src))
 
-  // #16 R9（用户验收反馈 2026-08-18 R8 后）：R7 让 capsule width:100% 撑满 wrapper（cyan = composerStack 1536px），
-  //   但 textarea 输入框实际宽 780px → capsule 比输入框左右各宽 378px（capsule 到整个面板最左最右）。
-  //   改为 JSX 内联 style width: iw + 'px'（iw = textarea 实际宽，由 ResizeObserver 监听）。
-  //   CSS width:100% 仅作 fallback（无 JS 数据时），inline 优先级高。
+  // #16 R9：capsule 内联 style width:iw px（iw = textarea 实际宽，ResizeObserver 监听）+ maxWidth:iw 防溢出
   ok('R9 · StatusBar 用 document.querySelector 找 DSH 输入框 textarea.uV2eYG_input',
     /document\.querySelector\(['"]textarea\.uV2eYG_input['"]\)/.test(src))
   ok('R9 · ResizeObserver 同时监听 dockRef 和 inputRef（分别反映 dock 缩放和输入框宽）',
     /roInput\.observe\(inputRef\.current\)[\s\S]{0,100}roWrap\.observe\(dockRef\.current\)/.test(src))
-  ok('R9+R11 · capsule 内联 style width:fit-content + maxWidth:iw + px（跟随 children 收缩 + 不超过输入框宽）',
-    /style:\s*\{[^}]*width:\s*'fit-content'[\s\S]{0,80}maxWidth:\s*iw\s*\+\s*'px'/.test(src))
+  ok('R9+R13 · capsule 内联 style width:iw + px + maxWidth:iw + px（外框精确 = 输入框宽，防溢出）',
+    /style:\s*\{[^}]*width:\s*iw\s*\+\s*'px'[\s\S]{0,60}maxWidth:\s*iw\s*\+\s*'px'/.test(src))
   ok('R9 · useEffect 清理 disconnect 两个 ResizeObserver（防泄漏）',
     /roInput\.disconnect\(\)[\s\S]{0,100}roWrap\.disconnect\(\)/.test(src))
   ok('R9 · 轮询兜底（DSH shell 切换对话时 textarea 重新挂载）',
     /setInterval\(apply, 2000\)/.test(src))
 
-  // #16 R10（用户验收反馈 2026-08-18 R9 后）：capsule iw = textarea.getBoundingClientRect().width（border-box 外宽 778.75）
-  //   但 capsule CSS 默认 box-sizing:content-box，content-box width:778.75 + padding:3px 6px + border:1px = 外宽 791.99
-  //   → capsule 外框比 textarea 外框左右各多 6.6px。改为 box-sizing:border-box → 外框 = 778.75 = textarea 外框 ✓
+  // #16 R10：capsule box-sizing:border-box → 外框 = iw = textarea 外框
   ok('R10 · 胶囊 CSS 加 box-sizing:border-box（让 capsule 外框 = iw = textarea 外框）',
     /\.dsws-capsule\{[^}]*box-sizing:border-box/.test(src))
 
-  // #16 R11（用户验收反馈 2026-08-18 R10 后）：capsule 固定宽 = iw 时 children 缩小后左右空白变大。
-  //   CDP 实测：viewport=1280 children=750 空白=14px；viewport=600 children=401 空白=125px（变大了）。
-  //   改为 CSS width:fit-content（跟 children 走）+ inline maxWidth:iw（不破坏 R10 像素级对齐）。
-  //   children 比 iw 宽时 capsule = children（不受 max-width 限制）；
-  //   children 比 iw 窄时 capsule = iw（max-width 生效，pixel 对齐保留）。
-  ok('R11 · 胶囊 CSS 默认 width:fit-content（跟随 children 自然宽，padding 永远恒定）',
-    /\.dsws-capsule\{[^}]*width:fit-content/.test(src))
-  ok('R11 · inline maxWidth = iw + px（防止 capsule 比输入框宽，破 R10 像素对齐）',
-    /style:\s*\{[^}]*width:\s*'fit-content'[\s\S]{0,80}maxWidth:\s*iw\s*\+\s*'px'/.test(src))
-  ok('R11 · 旧 R10 行为 width:iw px 已弃（不再无条件 = 输入框宽）',
-    !/style:\s*\{[^}]*width:\s*iw\s*\+\s*'px'/.test(src))
+  // #16 R13（承上）：inline width:iw px 恢复 —— 外框像素级对齐输入框；旧 fit-content 弃用
+  ok('R13 · inline width = iw + px 恢复（外框始终 = 输入框外框）',
+    /style:\s*\{[^}]*width:\s*iw\s*\+\s*'px'/.test(src))
+  ok('R13 · 旧 fit-content 弃用（不再无条件跟随 children 自然宽）',
+    !/\.dsws-capsule\{[^}]*width:fit-content/.test(src) && !/style:\s*\{[^}]*width:\s*'fit-content'/.test(src))
 
   // 期望 4 续：点击事件契约
   ok('capsule onClick → openPanel(s)', /className:\s*['"]dsws-capsule['"][^}]*onClick:\s*function\s*\(\)\s*\{\s*openPanel\(s\)/.test(src))
