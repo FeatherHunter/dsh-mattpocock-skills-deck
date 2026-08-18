@@ -63,7 +63,7 @@ return {
       return node
     }
     // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-    const DSW_VERSION = 'v1.6.10'
+    const DSW_VERSION = 'v1.6.11'
 
     // ============================================================
     // 0. 样式
@@ -168,7 +168,9 @@ return {
       // #16 R10（用户验收反馈 2026-08-18 R9 后）：capsule 内容宽 = textarea 宽（iw px），但 capsule 自带
       //   padding:3px 6px + border:1px（CSS 默认 content-box）→ capsule border-box 外框 = iw + 9 + 2 = iw + 11，
       //   比 textarea 外框（iw）宽 11px（左右各 5.5px）。改为 box-sizing:border-box，让 capsule border-box = textarea 外框。
-      '.dsws-capsule{max-width:min(100%,1400px);width:100%;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
+      // #16 R11（用户验收反馈 2026-08-18 R10 后）：capsule 固定宽 = iw → children 居中后左右空白随 children 缩小而变大。
+      //   改为 CSS width:fit-content（默认 children 自然宽）；inline maxWidth:iw 防止 capsule 比输入框宽（pixel 对齐 R10 保留）。
+      '.dsws-capsule{max-width:min(100%,1400px);width:fit-content;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
       // dn>=1 时 capsule 变 fit-content 自然宽居中（用户 B 方案：dn=4 后 capsule 不再缩）
       '[data-narrow-1] .dsws-capsule,[data-narrow-2] .dsws-capsule,[data-narrow-3] .dsws-capsule,[data-narrow-4] .dsws-capsule{width:fit-content}',
       // 外层 wrapper 调试钩子见 StatusBar render 处 inline style 注释
@@ -2064,7 +2066,7 @@ let pendingDraft = null
       if (dw < 800) dn = 3
       if (dw < 720) dn = 4
       // dw < 640 兜底：保持 dn=4，children flex:none + nowrap 拒绝换行（实际 dn=4 之前已满足，显式守卫保语义）
-      const capsule = h('div', { className: 'dsws-capsule', 'data-narrow': dn || null, 'data-narrow-1': dn >= 1 || null, 'data-narrow-2': dn >= 2 || null, 'data-narrow-3': dn >= 3 || null, 'data-narrow-4': dn >= 4 || null, onClick: function () { openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: '100%' } }, [
+      const capsule = h('div', { className: 'dsws-capsule', 'data-narrow': dn || null, 'data-narrow-1': dn >= 1 || null, 'data-narrow-2': dn >= 2 || null, 'data-narrow-3': dn >= 3 || null, 'data-narrow-4': dn >= 4 || null, onClick: function () { openPanel(s) }, style: { position: 'relative', width: 'fit-content', maxWidth: iw + 'px' } }, [
         h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
           Icon({ scheme: s.ui.icon, size: 14 }),
           h('span', null, tr('panel.title')),
