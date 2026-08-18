@@ -1,4 +1,4 @@
-// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到模板末尾）
+// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到模板末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈）
 // 用法: node tests/verify-bug-entry.js [file...]（默认 client.js + package/lib/client.js）
 // 验证：
 //   1) PROMPTS 注册表存在 newBugWayfinder（version/placeholders/use/zh/en），注册表本体不含中途输入位，
@@ -10,6 +10,9 @@
 //   5) Ic bug 图标注册（case 'bug'）
 //   6) 文本拼接：newBugWayfinderText = promptText + BODY_FORMAT + NEW_BUG_FIELDS_BODY（7 字段真正落在末尾）
 //   7) 双源接线与注册表键一致
+//   8) 死区回归守护：BUG 悬停菜单弹层 marginBottom=0（光标路径全在 span 后代集内；mouseleave 不误触）
+//   9) 宽度自适应（v3 UX）：BUG 悬停菜单弹层无 minWidth（按内容收缩，不留空白）
+//  10) hover 反馈（v3 UX）：按钮 bugMenuHover 状态 + onMouseEnter/Leave 接线 + 条件红染色
 const fs = require('fs')
 const files = process.argv.slice(2)
 const targets = files.length ? files : ['client.js', 'package/lib/client.js']
@@ -67,9 +70,33 @@ const check = function (file) {
   if ((src.match(/tr\('panel\.newBug'\)/g) || []).length < 2) problems.push('panel.newBug 引用 < 2（按钮文字/会话标题）')
   // 5) Ic bug 图标
   if (src.indexOf("case 'bug':") < 0) problems.push('缺 Ic bug 图标')
-  // 6) 文本拼接：newBugWayfinderText = promptText + BODY_FORMAT + NEW_BUG_FIELDS_BODY
+  // 6) 死区回归守护：BUG 悬停菜单弹层 marginBottom 必须为 0/未设置
+  // 物理意义：mouseleave 在「光标进入非 element 后代的像素区」时触发——marginBottom 制造的非 span 后代真空带
+  // 会让光标从 BUG 段移向菜单途中误触 mouseleave → 菜单关闭。修复把视觉间距挪到 paddingTop（仍在 span 后代集内）。
+  const bugMenuMatch = src.match(/s\.bugMenuOpen \? h\('div', \{[^\n]*?\}, \[/)
+  if (bugMenuMatch) {
+    const styleStr = bugMenuMatch[0]
+    const marginBottomMatches = styleStr.match(/marginBottom:\s*(\d+)/g)
+    if (marginBottomMatches) {
+      const values = marginBottomMatches.map(function (m) { return Number(m.match(/(\d+)/)[1]) })
+      const maxVal = Math.max.apply(null, values)
+      if (maxVal > 0) problems.push('BUG 悬停菜单弹层 marginBottom=' + values.join(',') + '（死区回归——光标路径中非 span 后代真空带将触发 mouseleave 导致菜单关闭；视觉间距应挪到 paddingTop）')
+    }
+  }
+  // 7) 文本拼接：newBugWayfinderText = promptText + BODY_FORMAT + NEW_BUG_FIELDS_BODY
   const builderMatch = /newBugWayfinderText\s*=\s*\(st\)\s*=>[\s\S]*?\+ NEW_BUG_FIELDS_BODY\(\)/.test(src)
   if (!builderMatch) problems.push('newBugWayfinderText 拼接未含 NEW_BUG_FIELDS_BODY()（末尾输入位丢失）')
+  // 9) 宽度自适应（v3 UX）：BUG 悬停菜单弹层不应有 minWidth（按内容收缩，不留空隙）
+  if (bugMenuMatch && /minWidth\s*:\s*\d+/.test(bugMenuMatch[0])) problems.push('BUG 悬停菜单弹层含 minWidth（应按内容自适应，去除右侧空白）')
+  // 10) hover 反馈（v3 UX）：状态 + 接线 + 染色条件
+  if (!/\bbugMenuHover:\s*false\b/.test(src)) problems.push('store 缺 bugMenuHover 默认状态（false）')
+  // 弹层 onMouseLeave 重置 bugMenuHover + 按钮 onMouseEnter/Leave + 条件红染色三处必齐
+  const hoverChecks = [
+    { re: /s\.bugMenuHover\s*=\s*true[\s\S]*?emit\(s\)/, name: '按钮 onMouseEnter 置 bugMenuHover=true' },
+    { re: /s\.bugMenuHover\s*=\s*false[\s\S]*?emit\(s\)/, name: '按钮/菜单 mouseleave 重置 bugMenuHover=false' },
+    { re: /s\.bugMenuHover\s*\?\s*['"]#f87171['"]/, name: '按钮 hover 红染色（#f87171）' },
+  ]
+  hoverChecks.forEach(function (c) { if (!c.re.test(src)) problems.push('hover 反馈缺：' + c.name) })
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
   else console.log('  PASS', file, '（newBugWayfinder v' + (m ? m[1] : '?') + ' · 7 字段在末尾 · 开新会话接线 ' + opens + ' 处 · i18n 4 键）')
 }

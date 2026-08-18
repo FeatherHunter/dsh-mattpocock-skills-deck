@@ -1084,7 +1084,7 @@ return {
       stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
       checks: null, checksUpdatedAt: '', checksMode: 'loading', checksError: null, checking: false,
       snapMode: 'loading', snapError: null, snapLoading: false,
-      refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, skillsOpen: false, skillHover: null, skillTip: null, bugMenuOpen: false, expTags: {}, subs: [],
+      refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, skillsOpen: false, skillHover: null, skillTip: null, bugMenuOpen: false, bugMenuHover: false, expTags: {}, subs: [],
     })
     const shared = makeStore()
     const stores = {}
@@ -1873,9 +1873,9 @@ return {
         // issue #4：BUG 计数段 —— 点击仍开 bug 过滤列表；悬停弹「新增」菜单（新会话预填 /wayfinder 新增 BUG 单 prompt）
         h('span', { style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: function () { s.bugMenuOpen = true; emit(s) }, onMouseLeave: function () { s.bugMenuOpen = false; emit(s) } }, [
           seg('alert', [h('span', null, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, tr('nav.bugTitle')),
-          s.bugMenuOpen ? h('div', { onMouseEnter: function () { s.bugMenuOpen = true; emit(s) }, onMouseLeave: function () { s.bugMenuOpen = false; emit(s) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'absolute', bottom: '100%', left: 0, marginBottom: 4, zIndex: 9999, minWidth: 96, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
-            h('div', { onClick: function (e) { e.stopPropagation(); s.bugMenuOpen = false; emit(s); openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-primary,#e6edf3)', whiteSpace: 'nowrap' } }, [
-              Ic({ n: 'bug', size: 12, color: '#f87171' }),
+          s.bugMenuOpen ? h('div', { onMouseEnter: function () { s.bugMenuOpen = true; emit(s) }, onMouseLeave: function () { s.bugMenuOpen = false; s.bugMenuHover = false; emit(s) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'absolute', bottom: '100%', left: 0, paddingTop: 8, zIndex: 9999, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
+            h('div', { onClick: function (e) { e.stopPropagation(); s.bugMenuOpen = false; s.bugMenuHover = false; emit(s); openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, onMouseEnter: function () { if (!s.bugMenuHover) { s.bugMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.bugMenuHover) { s.bugMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.bugMenuHover ? '#f87171' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.bugMenuHover ? 'rgba(248,113,113,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
+              Ic({ n: 'bug', size: 12, color: s.bugMenuHover ? '#fca5a5' : '#f87171' }),
               h('span', null, tr('nav.bugNew')),
             ]),
           ]) : null,

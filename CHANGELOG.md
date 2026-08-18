@@ -1,5 +1,25 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · BUG 悬停菜单 UX 优化（#4 v3 · 宽度自适应 + 按钮 hover 反馈）
+
+- **需求**（#4 收尾时细化）：状态栏 BUG 悬停菜单的「新增」按钮——① hover 时整体颜色需变化（按钮感）；② 弹层右侧空白过多，需按内容自适应宽度
+- **修复**：
+  - 去掉弹层 `minWidth: 96`（强制宽度），让 menu 按内容收缩；按钮 `display: 'flex'` → `'inline-flex'` 保证 shrink-to-fit
+  - store 新增 `bugMenuHover: false`（仿 `s.skillHover` 既有模式）；按钮加 `onMouseEnter`/`onMouseLeave` 切换；hover 时背景 `rgba(248,113,113,.15)` 红染 + 文字 `#f87171` + 图标 `#fca5a5` 亮红
+  - 菜单 `onMouseLeave` 与按钮点击时均重置 `bugMenuHover=false`，避免下次打开残留状态
+- 校验：弹层 DOM 结构未变、无新 timer、无新 CSS 类；视觉 8px 间距保留；菜单按内容收缩（预计 zh "新增" 约 58px 宽，en 文案更窄）
+- 新增 `tests/verify-bug-entry.js` 第 9/10 项契约（宽度自适应守护 + hover 反馈守护）；反证测试 4/4 通过
+- 双源镜像同步（client.js ↔ package/lib/client.js）· 已同步 DSH 安装目录（hash 96B1350...）
+
+## 2026-08-18 · 修复状态栏 BUG 悬停菜单死区（#4 验收 BUG）
+
+- **BUG**：用户实测「状态栏 BUG 段悬停菜单」——弹出后，鼠标经过弹层与 BUG 段之间的 4px 空隙触发 `onMouseLeave`，菜单立刻关闭，鼠标到不了「新增」按钮
+- **根因**（第一性原理）：弹层 `marginBottom: 4` + `bottom: '100%'` 在 menu 与 span 之间留出 4px 真空带，该带既不在 span 后代集内、也不在 menu 节点内，光标路过触发 `mouseleave` 即关闭（`mouseleave` 基于 DOM 后代判定而非像素盒区）
+- **修复**：去掉 `marginBottom: 4`，把视觉间距挪到 `paddingTop: 8`（4 margin + 4 padding → 0 margin + 8 padding，**视觉 8px 不变**）；弹层紧贴 BUG 段，光标路径全在 span 后代集内
+- 校验：弹层 DOM 结构未变（menu 仍是 span 后代）、无新状态、无 timer、无新 DOM
+- 新增 `tests/verify-bug-entry.js` 第 8 项契约（死区回归守护：BUG 弹层 marginBottom > 0 即失败）；反证测试通过
+- 双源镜像同步（client.js ↔ package/lib/client.js）· 已同步 DSH 安装目录（hash 三方一致 958D5664...）
+
 ## 2026-08-18 · newBugWayfinder 7 字段挪到 prompt 末尾（#1 BUG3 补强 · #4 v2）
 
 - **BUG**：用户报告「+ 新增BUG单」预填的 prompt 中 7 字段（背景 / 场景 / 现象 / 复现步骤 / 期望行为 / 实际行为 / 影响范围）位于流程说明之后、正文格式契约之前——属于中途输入位，违反 #1 BUG3「输入位一律末尾」原则（v5 同款反模式）
