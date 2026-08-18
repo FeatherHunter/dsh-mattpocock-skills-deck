@@ -1,5 +1,20 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊 R11 padding 恒定（#16 R11 · v1.6.11）
+
+- **用户验收反馈**：R10 后 capsule 固定宽 = iw 时 children 缩小后左右空白反而变大（不是等比例往中间靠）
+- **根因**：capsule width = iw（固定 = 输入框宽），children fit-content 居中后左右空白 = (iw - children宽) / 2，children 越小空白越多
+  - CDP 实测：viewport=800 时左右空白=51px（偏大），viewport=600 时左右空白=125px（很大）
+- **修复**（commit `b540a73`）：
+  - CSS `.dsws-capsule { width:fit-content }`（默认跟随 children 自然宽）
+  - inline `maxWidth: iw + 'px'`（防止 capsule 比输入框宽）
+  - children 比 iw 宽：capsule = children
+  - children 比 iw 窄：capsule = iw（pixel 对齐保留）
+- **CDP 实测 R11**：所有 viewport 下 leftEmpty = rightEmpty = **6px（padding）恒定** ✓
+- **权衡**：解决了 padding 变大；代价是 children 比输入框窄时 capsule 居中显示（左右各有一段空白，距输入框左右边不像素级对齐——R10 部分失效）
+- **测试**：移除 R7/R9/R10 旧 width:100% + width:iw px 断言；加 3 项 R11 断言
+- **75+ 项断言全绿**；既有回归全 PASS
+
 ## 2026-08-18 · 状态栏胶囊 R10 box-sizing 像素级对齐（#16 R10 · v1.6.10）
 
 - **用户验收反馈**：R9 后 capsule 左右边距输入框左右边「多一点距离」，用户怀疑是 padding
