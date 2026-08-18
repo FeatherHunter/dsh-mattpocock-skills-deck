@@ -80,10 +80,17 @@ const statChecks = function (src, tag) {
   ok('capsule JSX 写 data-narrow 属性（dn || null 形式）',
     /className:\s*['"]dsws-capsule['"][^}]*['"]?data-narrow['"]?\s*:\s*dn\s*\|\|\s*null/.test(src))
 
-  // JSX 阈值计算：vw 读取与 5 段 if 阈值
-  ok('JSX 内读 window.innerWidth', /window\.innerWidth/.test(src))
-  ok('JSX 内 5 级阈值（vw < 960/880/800/720）', /< 960/.test(src) && /< 880/.test(src) && /< 800/.test(src) && /< 720/.test(src))
-  ok('JSX 内 dn 兜底：vw < 640 保持 4 不再降', /< 640/.test(src) || /<\s*640[^<]*dn\s*=\s*4/.test(src) || /<\s*640[^<]*4/.test(src))
+  // JSX 阈值计算：dw（dock width）读取与 5 段 if 阈值
+  // #16 R5：vw（window.innerWidth）→ dw（外层 wrapper 实际宽度，ResizeObserver 实时监听）
+  ok('JSX 内读 window.innerWidth（仅作 fallback，非主信号）', /window\.innerWidth/.test(src))
+  ok('JSX 内 5 级阈值（dw < 960/880/800/720）', /if \(dw < 960\)/.test(src) && /if \(dw < 880\)/.test(src) && /if \(dw < 800\)/.test(src) && /if \(dw < 720\)/.test(src))
+  // #16 R5：ResizeObserver 监听 wrapper 实时更新 dn（解决 resize 不触发重渲染的 P1 bug）
+  ok('R5 · StatusBar 用 React.useRef 定义 dockRef', /dockRef\s*=\s*React\.useRef/.test(src))
+  ok('R5 · StatusBar 用 React.useState 跟踪 dw（dock width）', /\[dw,\s*setDw\]\s*=\s*React\.useState/.test(src))
+  ok('R5 · ResizeObserver 监听 dockRef.current 触发 setDw', /new ResizeObserver/.test(src) && /setDw/.test(src))
+  ok('R5 · ResizeObserver 监听的是元素（ro.observe(elp））', /ro\.observe\(el\)/.test(src))
+  ok('R5 · window resize 事件也作 fallbastollback', /window\.addEventListener\(['"]resize['"]/.test(src))
+  ok('R5 · 有 firstBlock 分支的 wrapper 也挂 ref={dockRef}', /ref:\s*dockRef[\s\S]{0,300}style:.*flexDirection:.*column/.test(src))
 
   // 期望 4 续：点击事件契约
   ok('capsule onClick → openPanel(s)', /className:\s*['"]dsws-capsule['"][^}]*onClick:\s*function\s*\(\)\s*\{\s*openPanel\(s\)/.test(src))
@@ -147,22 +154,22 @@ const mirrorCheck = function (srcA, srcB) {
 
 // ---- Part C：行为契约 —— 模拟 vw 阈值生成 dn 字符串，验证 5 级阈值函数 ----
 const extractThresholdFn = function (src) {
-  // 找 "const dn = ..." 到胶囊根 div 结束的赋值块；这里以 (vw < 960) / (vw < 880) / (vw < 800) / (vw < 720) 四个条件
-  // 与兜底 (< 640) 模式校验
-  const m960 = /vw\s*<\s*960/.test(src)
-  const m880 = /vw\s*<\s*880/.test(src)
-  const m800 = /vw\s*<\s*800/.test(src)
-  const m720 = /vw\s*<\s*720/.test(src)
-  const m640 = /vw\s*<\s*640/.test(src)
+  // 找 "let dn = ..." 块；以 (dw < 960) / (dw < 880) / (dw < 800) / (dw < 720) 四个条件
+  // 与兜底 (< 640) 模式校验。R5 把 vw 改 dw（dock width = wrapper 实际宽度），阈值不变。
+  const m960 = /dw\s*<\s*960/.test(src)
+  const m880 = /dw\s*<\s*880/.test(src)
+  const m800 = /dw\s*<\s*800/.test(src)
+  const m720 = /dw\s*<\s*720/.test(src)
+  const m640 = /dw\s*<\s*640/.test(src)
   if (!(m960 && m880 && m800 && m720 && m640)) throw new Error('5 级阈值条件缺失：需 <960/880/800/720/640')
   console.log('  PASS 行为契约 · 5 级阈值函数存在（<960/880/800/720/640）')
-  // 验证 5 个阈值的语义：纯函数化重算
-  const compute = (vw) => {
-    if (vw < 640) return 4
-    if (vw < 720) return 4
-    if (vw < 800) return 3
-    if (vw < 880) return 2
-    if (vw < 960) return 1
+  // 验证 5 个阈值的语义：纯函数化重算（与代码同阈值）
+  const compute = (dw) => {
+    if (dw < 640) return 4
+    if (dw < 720) return 4
+    if (dw < 800) return 3
+    if (dw < 880) return 2
+    if (dw < 960) return 1
     return 0
   }
   // 严格断言：dn 阈值边界与 issue 期望行为 3 一致

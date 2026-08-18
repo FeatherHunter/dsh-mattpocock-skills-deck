@@ -63,7 +63,7 @@ return {
       return node
     }
     // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-    const DSW_VERSION = 'v1.6.4'
+    const DSW_VERSION = 'v1.6.5'
 
     // ============================================================
     // 0. 样式
@@ -1969,22 +1969,34 @@ return {
         Ic({ n: icon, size: 12 }),
         label,
       ])
-      // #16 修复：胶囊窄屏 5 级文字→图标 收缩（视口宽度量，写到 data-narrow 属性上供 CSS 选择）
-      //   视口宽阈值（来源：issues-checklist 24 v15 修复锚 + issue #16 期望行为 3）：
-      //   dn=0 默认 1280px+     全文字常显
-      //   dn=1 vw < 960         品牌段「MattSkills」字消失
-      //   dn=2 vw < 880         无数字段（note / 交接左半 / 刷新字）文字消失
-      //   dn=3 vw < 800         有数字段（可接/BUG/诊断/环境）文字消失
-      //   dn=4 vw < 720         刷新时间文字消失
-      //   vw < 640 兜底：维持 dn=4；children flex:none + nowrap 不再收缩，胶囊允许右缘溢出但禁止换行
-      //   度量从 status.snapshot 等状态分离 —— 胶囊关注视觉宽度（视口），面板 tabs 关注容器宽度（s.size.w），与既有 narrow 模式同形态
-      const vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280
+      // #16 R5 修复：dock 宽 = 状态栏外层 wrapper 实际宽度（输入区宽），用 ResizeObserver 实时监听
+      //   之前 R1-R4 用 window.innerWidth（视口宽）在 DSH shell 里有 sidebar / dock 占位时不准，
+      //   现在改为监听 wrapper 自身宽度（与 details 列 dockRef/ResizeObserver 同形态），resize 浏览器自动触发重渲染。
+      //   阈值与 R1 一致（按 dock 宽 / 输入区宽）：
+      //   dn=0 ≥ 960px   全文字常显
+      //   dn=1 < 960px   品牌段「MattSkills」字消失
+      //   dn=2 < 880px   无数字段（note / 交接左半 / 刷新字）文字消失
+      //   dn=3 < 800px   有数字段（可接/BUG/诊断/环境）文字消失
+      //   dn=4 < 720px   刷新时间文字消失
+      //   < 640px 兜底 dn=4（wrapper overflow:hidden 截溢出）
+      const dockRef = React.useRef(null)
+      const [dw, setDw] = React.useState(typeof window !== 'undefined' ? window.innerWidth : 1280)
+      React.useEffect(function () {
+        if (!dockRef.current) return
+        const el = dockRef.current
+        const apply = function () { try { setDw(el.getBoundingClientRect().width) } catch (e) { /* 忽略 */ } }
+        apply()
+        const ro = new ResizeObserver(apply)
+        ro.observe(el)
+        window.addEventListener('resize', apply)
+        return function () { try { ro.disconnect() } catch (e) { /* 忽略 */ }; window.removeEventListener('resize', apply) }
+      }, [])
       let dn = 0
-      if (vw < 960) dn = 1
-      if (vw < 880) dn = 2
-      if (vw < 800) dn = 3
-      if (vw < 720) dn = 4
-      // vw < 640 兜底：保持 dn=4，children flex:none + nowrap 拒绝换行
+      if (dw < 960) dn = 1
+      if (dw < 880) dn = 2
+      if (dw < 800) dn = 3
+      if (dw < 720) dn = 4
+      // dw < 640 兜底：保持 dn=4，children flex:none + nowrap 拒绝换行（实际 dn=4 之前已满足，显式守卫保语义）
       const capsule = h('div', { className: 'dsws-capsule', 'data-narrow': dn || null, onClick: function () { openPanel(s) }, style: { position: 'relative' } }, [
         h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
           Icon({ scheme: s.ui.icon, size: 14 }),
@@ -2065,7 +2077,7 @@ return {
       // 用户拍板 2026-08-16 + 2026-08-17：横幅移到状态栏上方；依赖链 gh → 登录 → setup → 技能，显示第一个缺失项
       const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
       // #16 v1.6.4 R4：wrapper 加 overflow:hidden 截掉 capsule 溢出 wrapper 部分（dn=0..3 中间状态时 children 居中后左右可能溢出 wrapper）
-      if (!firstBlock) return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'stretch', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: 'hidden', outline: '2px dashed #00aaff', outlineOffset: '-2px' } }, [capsule])
+      if (!firstBlock) return h('div', { ref: dockRef, style: { display: 'flex', justifyContent: 'center', alignItems: 'stretch', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: 'hidden', outline: '2px dashed #00aaff', outlineOffset: '-2px' } }, [capsule])
       const bann = function (text, btnLabel, onBtn) {
         return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
           Ic({ n: 'alert', size: 13 }),
@@ -2073,7 +2085,7 @@ return {
           h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: onBtn }, btnLabel),
         ])
       }
-      return h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0' } }, [
+      return h('div', { ref: dockRef, style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0' } }, [
         firstBlock === 'ghcli'
           ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { openUrl('https://cli.github.com/') })
           : firstBlock === 'ghauth'
