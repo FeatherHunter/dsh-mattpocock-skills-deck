@@ -63,7 +63,7 @@ return {
       return node
     }
     // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-    const DSW_VERSION = 'v1.6.8'
+    const DSW_VERSION = 'v1.6.9'
 
     // ============================================================
     // 0. 样式
@@ -2020,17 +2020,40 @@ let pendingDraft = null
       //   dn=3 < 800px   有数字段（可接/BUG/诊断/环境）文字消失
       //   dn=4 < 720px   刷新时间文字消失
       //   < 640px 兜底 dn=4（wrapper overflow:hidden 截溢出）
+      // #16 R9（用户验收反馈 2026-08-18）：capsule wrapper 是 wSkVaW_composerStack（= 整个对话区下半部分宽 1536px），
+      //   而 textarea 输入框实际宽 780px。capsule width:100% 撑满 wrapper → 比输入框左右各宽 378px。
+      //   改为：监听 DSH shell 输入框 textarea（uV2eYG_input class）的实际宽，capsule 内联 style width = iw px。
+      //   dockRef 仍绑到 wrapper（dn 计算仍用 wrapper 宽 = composerStack 宽 → 反映 dock 缩放）。
       const dockRef = React.useRef(null)
+      const inputRef = React.useRef(null)
       const [dw, setDw] = React.useState(typeof window !== 'undefined' ? window.innerWidth : 1280)
+      const [iw, setIw] = React.useState(780)
       React.useEffect(function () {
-        if (!dockRef.current) return
-        const el = dockRef.current
-        const apply = function () { try { setDw(el.getBoundingClientRect().width) } catch (e) { /* 忽略 */ } }
+        const ta = document.querySelector('textarea.uV2eYG_input')
+        if (ta) inputRef.current = ta
+        const applyInput = function () {
+          if (!inputRef.current) return
+          try { setIw(inputRef.current.getBoundingClientRect().width) } catch (e) { /* 忽略 */ }
+        }
+        const applyWrap = function () {
+          if (!dockRef.current) return
+          try { setDw(dockRef.current.getBoundingClientRect().width) } catch (e) { /* 忽略 */ }
+        }
+        const apply = function () { applyInput(); applyWrap() }
         apply()
-        const ro = new ResizeObserver(apply)
-        ro.observe(el)
+        const roInput = new ResizeObserver(applyInput)
+        const roWrap = new ResizeObserver(applyWrap)
+        if (inputRef.current) roInput.observe(inputRef.current)
+        if (dockRef.current) roWrap.observe(dockRef.current)
         window.addEventListener('resize', apply)
-        return function () { try { ro.disconnect() } catch (e) { /* 忽略 */ }; window.removeEventListener('resize', apply) }
+        // DSH shell 偶尔会在对话切换时重新挂载 textarea，轮询兜底重读
+        const poll = setInterval(apply, 2000)
+        return function () {
+          try { roInput.disconnect() } catch (e) { /* 忽略 */ }
+          try { roWrap.disconnect() } catch (e) { /* 忽略 */ }
+          window.removeEventListener('resize', apply)
+          clearInterval(poll)
+        }
       }, [])
       let dn = 0
       if (dw < 960) dn = 1
@@ -2038,7 +2061,7 @@ let pendingDraft = null
       if (dw < 800) dn = 3
       if (dw < 720) dn = 4
       // dw < 640 兜底：保持 dn=4，children flex:none + nowrap 拒绝换行（实际 dn=4 之前已满足，显式守卫保语义）
-      const capsule = h('div', { className: 'dsws-capsule', 'data-narrow': dn || null, 'data-narrow-1': dn >= 1 || null, 'data-narrow-2': dn >= 2 || null, 'data-narrow-3': dn >= 3 || null, 'data-narrow-4': dn >= 4 || null, onClick: function () { openPanel(s) }, style: { position: 'relative' } }, [
+      const capsule = h('div', { className: 'dsws-capsule', 'data-narrow': dn || null, 'data-narrow-1': dn >= 1 || null, 'data-narrow-2': dn >= 2 || null, 'data-narrow-3': dn >= 3 || null, 'data-narrow-4': dn >= 4 || null, onClick: function () { openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: '100%' } }, [
         h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
           Icon({ scheme: s.ui.icon, size: 14 }),
           h('span', null, tr('panel.title')),

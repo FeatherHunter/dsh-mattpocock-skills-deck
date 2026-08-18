@@ -120,8 +120,21 @@ const statChecks = function (src, tag) {
   ok('R7 · 胶囊 CSS 默认 width:100%（dn=0 时撑满 wrapper 对齐输入区）', /\.dsws-capsule\{[^}]*width:100%/.test(src))
   ok('R7 · dn>=1 时 capsule 切回 fit-content（保留 dn=4 不再缩）',
 /\[data-narrow-1\] \.dsws-capsule,\[data-narrow-2\] \.dsws-capsule,\[data-narrow-3\] \.dsws-capsule,\[data-narrow-4\] \.dsws-capsule\{width:fit-content\}/.test(src))
-  ok('R7 · 旧 R1 行为 fit-content 默认已弃（不再无条件 fit-content）',
-    !/^\s*'\.dsws-capsule\{[^}]*width:fit-content[^}]*\}',?\s*$/m.test(src))
+
+  // #16 R9（用户验收反馈 2026-08-18 R8 后）：R7 让 capsule width:100% 撑满 wrapper（cyan = composerStack 1536px），
+  //   但 textarea 输入框实际宽 780px → capsule 比输入框左右各宽 378px（capsule 到整个面板最左最右）。
+  //   改为 JSX 内联 style width: iw + 'px'（iw = textarea 实际宽，由 ResizeObserver 监听）。
+  //   CSS width:100% 仅作 fallback（无 JS 数据时），inline 优先级高。
+  ok('R9 · StatusBar 用 document.querySelector 找 DSH 输入框 textarea.uV2eYG_input',
+    /document\.querySelector\(['"]textarea\.uV2eYG_input['"]\)/.test(src))
+  ok('R9 · ResizeObserver 同时监听 dockRef 和 inputRef（分别反映 dock 缩放和输入框宽）',
+    /roInput\.observe\(inputRef\.current\)[\s\S]{0,100}roWrap\.observe\(dockRef\.current\)/.test(src))
+  ok('R9 · capsule 内联 style width: iw + px（动态跟随输入框宽）',
+    /style:\s*\{[^}]*width:\s*iw\s*\+\s*'px'[\s\S]{0,80}maxWidth:\s*'100%'/.test(src))
+  ok('R9 · useEffect 清理 disconnect 两个 ResizeObserver（防泄漏）',
+    /roInput\.disconnect\(\)[\s\S]{0,100}roWrap\.disconnect\(\)/.test(src))
+  ok('R9 · 轮询兜底（DSH shell 切换对话时 textarea 重新挂载）',
+    /setInterval\(apply, 2000\)/.test(src))
 
   // 期望 4 续：点击事件契约
   ok('capsule onClick → openPanel(s)', /className:\s*['"]dsws-capsule['"][^}]*onClick:\s*function\s*\(\)\s*\{\s*openPanel\(s\)/.test(src))
