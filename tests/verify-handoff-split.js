@@ -222,21 +222,32 @@ const main = async function () {
           assert.ok(r.copied[0].text.includes('LATEST.md'), '预填用 handoffLatest 返回的文件')
           assert.strictEqual(r.st.handoffReady, true)
         } },
-      { name: 'issue #12 主路径：handoffResolve 返回 null（AI 尚未写文档 / 文件不存在）→ 仍走 handoffLatest 提示引导',
+      { name: 'issue #12 主路径 strict：handoffResolve 返 null（AI 未写 / 文件不存在）→ 不得退到 handoffLatest 取老文件（host 端严格模式 · fix v1.6.2-r1）',
         via: 'open',
         opt: {
           probe: function (n, a) {
-            if (n === 'handoffResolve' || n === 'wf.handoffResolve') return Promise.resolve({ ok: true, file: null })  // 文件还没写
-            if (n === 'handoffLatest' || n === 'wf.handoffLatest') return Promise.resolve({ ok: true, file: null })  // 也没有别的
+            if (n === 'handoffResolve' || n === 'wf.handoffResolve') return Promise.resolve({ ok: true, file: null })  // 期望文件不存在
+            if (n === 'handoffLatest' || n === 'wf.handoffLatest') return Promise.resolve({ ok: true, file: '20260818-091652.md' })  // 旧文件仍在
             return Promise.reject(new Error('unexpected call: ' + n))
           },
           hostMissing: false,
-          handoffFile: '20260818-091652.md',
+          handoffFile: '20260818-132000.md',  // 期望文件（实际未生成）
         },
         assert: function (r) {
-          assert.strictEqual(r.started.length, 0, '文档不存在 → 不开空会话')
+          // 必须调的是 handoffResolve（不调 handoffLatest，因为 handoffFile 已设）
+          const resolveCall = r.calls.find(function (c) { return c.name === 'handoffResolve' || c.name === 'wf.handoffResolve' })
+          assert.ok(resolveCall, 'handoffFile 已设 → 必须调 handoffResolve')
+          const latestCall = r.calls.find(function (c) { return c.name === 'handoffLatest' || c.name === 'wf.handoffLatest' })
+          assert.ok(!latestCall, 'handoffFile 已设 → 不得退到 handoffLatest（strict 模式）')
+          // 期望文件不在目录 → handoffResolve 返 null → ready=false → 引导 toast
+          assert.strictEqual(r.st.handoffReady, false, '文件不存在 → ready 保持 false（右半仍灰）')
+          assert.strictEqual(r.started.length, 0, '不开空会话')
           const grey = r.flashes.filter(function (f) { return f.msg === 'toast.handoffGrey' })
-          assert.ok(grey.length >= 1, '文档不存在 → 引导 toast')
+          assert.ok(grey.length >= 1, '文件不存在 → 引导 toast.handoffGrey')
+          // 关键断言：copied.text 不得出现旧文件 091652.md（不能 fallback 到 mtime 最新）
+          const copiedText = r.copied.length ? r.copied[0].text : ''
+          assert.ok(!copiedText.includes('091652.md'), 'strict 模式：不得 fallback 到 mtime 最新（即使 handoffLatest 会返回 091652）')
+          assert.ok(!copiedText.includes('132000.md'), 'strict 模式：文件不存在不预填该文件')
         } },
     ]
     for (const s of scenarios) {

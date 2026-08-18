@@ -866,11 +866,12 @@ export function apply(ctx) {
       }
       case 'handoffResolve': {
         if (fs === undefined) return { ok: false, error: 'fs 服务不可用' }
-        const want = args && args.name
         const r = await scanHandoffDir(cwd)
         if (r.error) return { ok: false, error: r.error }
-        if (want && r.mds.some(function (m) { return m.name === want })) return { ok: true, file: want }
-        return { ok: true, file: pickLatestHandoff(r.mds) }
+        const want = args && args.name
+        if (!want) return { ok: true, file: pickLatestHandoff(r.mds) }
+        if (r.mds.some(function (m) { return m.name === want })) return { ok: true, file: want }
+        return { ok: true, file: null }
       }
       case 'claim': {
         const n = args && args.number

@@ -51,9 +51,10 @@ const statChecks = function (src, tag) {
   ok("handoffResolve 新注册（" + (wf + 'handoffResolve') + "）", src.includes(wf + 'handoffResolve') || src.includes("'handoffResolve'"))
   // 6) handoffResolve 接 args.name
   ok('handoffResolve 处理 args.name', /args(?:\s*&&\s*args)?\.name/.test(src) && /args\.name/.test(src))
-  // 7) 退化路径：handoffResolve 在 name 不在目录时退到 mds[0]
+  // 7) 三种路径：命中（name 在目录里）/ fallback（无 args.name，走 mtime 最新）/ strict-miss（args.name 有但文件不存在 → null，不退化）
   ok('handoffResolve 命中优先：返回 args.name', src.includes('return { ok: true, file: want }') || /file:\s*want\b/.test(src))
-  ok('handoffResolve 退化：返回 mds[0].name（fallback）', src.includes('mds.length') && /mds\[0\]\.name/.test(src))
+  ok('handoffResolve fallback（无 args.name）：走 mtime 最新', /!want/.test(src) && /pickLatestHandoff\(/.test(src))
+  ok('handoffResolve strict-miss（有 args.name 但不在目录）：返回 file=null', /!want/.test(src) && /file:\s*null/.test(src))
   // 8) 旧脆路径已删（typeof number 单分支 + Date.parse 串行脆解析）
   // 旧实现特征：`typeof mt === 'number' ? mt : (mt ? Date.parse(String(mt)) : 0)` 必须已替换
   // 新实现统一走 parseHandoffMtime helper（内部 Date.parse 在 isFinite 校验后用）

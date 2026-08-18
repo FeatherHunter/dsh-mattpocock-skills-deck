@@ -874,15 +874,19 @@ return {
       return { ok: true, file: pickLatestHandoff(r.mds) }
     })
 
-    // issue #12 BUG4 · 主路径：客户端带期望文件名（第一击模板渲染出的 handoffFile）时优先返回该文件，
-    //   不存在 → 退到 mtime 最新（与 handoffLatest 同语义）。彻底解决「点过第一击 → handoff-open 仍引老文档」。
+    // issue #12 BUG4 · 主路径：客户端带期望文件名（第一击模板渲染出的 handoffFile）时严格返回该文件：
+    //   在目录里 → 返回它；不在 → 返回 null（不退回 mtime 最新，避免 fallback 到老文件误导用户）。
+    //   无 args.name（用户从未点过第一击，如刷新后 / 直接点右半）→ 走 mtime 最新（与 handoffLatest 同语义）。
+    // 区别于初版：初版「name 不在目录也 fallback 到 mtime 最新」在实际场景下被验证为反模式 —— 当 AI 还没写完
+    // 文档时（handoffFile 设了但文件未落盘），fallback 会让右半亮蓝且点开后错误引用上次的老文档，与修复目标相悖。
     harness.handle('wf.handoffResolve', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
-      const want = args && args.name
       const r = await scanHandoffDir(cwd)
       if (r.error) return { ok: false, error: r.error }
-      if (want && r.mds.some(function (m) { return m.name === want })) return { ok: true, file: want }
-      return { ok: true, file: pickLatestHandoff(r.mds) }
+      const want = args && args.name
+      if (!want) return { ok: true, file: pickLatestHandoff(r.mds) }
+      if (r.mds.some(function (m) { return m.name === want })) return { ok: true, file: want }
+      return { ok: true, file: null }
     })
 
     // ============ 认领（开始此 Issue 流程 · T5 #347）============
