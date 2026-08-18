@@ -996,11 +996,12 @@ window.__ModuleLoader__.load({
       const COMPLETE_PROMPT = function () { return promptText('complete') }
       // T16：正文格式契约（写/改 issue 正文的动作统一追加）
       const BODY_FORMAT = function () { return promptText('bodyFormat') }
-      // v3（#14 决议 #13 [T7]）：BUG 4 字段 + inline 中英双语指引 —— 跟在 BODY_FORMAT 之后作为模板末尾输入位
+      // v3.1（#14 用户验收反馈重拍板）：BUG 4 字段「字段名：留白位」+ 每字段下一行缩进说明 —— 跟随 DSH 语言一次只出一种（zh / en 分离）
       //   字段集（第一性原理：Bug = 期望 vs 实际偏差）：期望 / 实际（吸收现象+影响范围）/ 复现步骤（吸收背景+场景 preamble）/ 环境信息（新增）
-      const NEW_BUG_FIELDS_BODY = function () { return '\n\n期望：应发生什么 / 用户预期看到的结果 · What should happen / the result the user expected\n实际：实际看到了什么；可含影响范围描述（严重度 / 受影响用户）· What actually happened; may include impact notes (severity / affected users)\n复现步骤：[前置 / 场景] + 步骤列表。前置 = 系统状态 / 配置；场景 = 触发情境；步骤 = 编号列表 · [Preamble / Scenario] + numbered steps. Preamble = system state / config; scenario = triggering situation; steps = numbered list\n环境信息：OS + 浏览器 + 插件版本（DSW vX.Y.Z）· OS + browser + plugin version (DSW vX.Y.Z)' }
-      // v3（#14）：EN locale 版 —— EN 模式下末尾 4 字段为英文 + EN inline 文案
-      const NEW_BUG_FIELDS_BODY_EN = function () { return '\n\nExpected: What should happen / the result the user expected\nActual: What actually happened; may include impact notes (severity / affected users)\nReproduction: [Preamble / Scenario] + numbered steps. Preamble = system state / config; scenario = triggering situation; steps = numbered list\nEnvironment: OS + browser + plugin version (DSW vX.Y.Z)' }
+      //   形态决议（2026-08-18 验收反馈）：① 字段名独立行 + 冒号后留白（像表单不像文章）；② 说明缩进下一行（元信息与填写位分层）；③ zh 只中文说明、en 只英文说明（不中英混排）
+      const NEW_BUG_FIELDS_BODY = function () { return '\n\n期望：\n  应发生什么 / 用户预期看到的结果\n实际：\n  实际看到了什么；可含影响范围描述（严重度 / 受影响用户）\n复现步骤：\n  [前置 / 场景] + 步骤列表。前置 = 系统状态 / 配置；场景 = 触发情境；步骤 = 编号列表\n环境信息：\n  OS + 浏览器 + 插件版本（DSW vX.Y.Z）' }
+      // v3.1（#14）：EN locale 版 —— 英文 4 字段 + 下缩进行英文说明（DSH 为英文时单独输出）
+      const NEW_BUG_FIELDS_BODY_EN = function () { return '\n\nExpected:\n  What should happen / the result the user expected\nActual:\n  What actually happened; may include impact notes (severity / affected users)\nReproduction:\n  [Preamble / Scenario] + numbered steps. Preamble = system state / config; scenario = triggering situation; steps = numbered list\nEnvironment:\n  OS + browser + plugin version (DSW vX.Y.Z)' }
       // v1.5：完成确认 prompt —— 技能+链接前置（/wayfinder + map 链接），再拼完成确认正文（完成 = wayfinder）
       const completePrompt = function (st, num, total, closed) {
         return '/wayfinder\n' + 'https://github.com/' + repoStr(st) + '/issues/' + String(num || '') + '\n\n' +

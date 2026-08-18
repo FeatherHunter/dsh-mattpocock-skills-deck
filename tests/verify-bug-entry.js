@@ -13,17 +13,20 @@
 //   8) 死区回归守护：BUG 悬停菜单弹层 marginBottom=0（光标路径全在 span 后代集内；mouseleave 不误触）
 //   9) 宽度自适应（v3 UX）：BUG 悬停菜单弹层无 minWidth（按内容收缩，不留空白）
 //  10) hover 反馈（v3 UX）：按钮 bugMenuHover 状态 + onMouseEnter/Leave 接线 + 条件红染色
-//  11) #14 v4：字段集 = 期望 / 实际 / 复现步骤 / 环境信息（4 项），每字段 inline 中英双语指引；EN 版 4 字段英文 + EN inline 文案
+//  11) #14 契约升级 v3.1（2026-08-18 验收反馈重拍板）：字段集 = 期望 / 实际 / 复现步骤 / 环境信息（4 项）；「字段名：留白位」+ 下缩进行说明；zh / en 分离（一次只出一种，跟随 DSH 语言）
 const fs = require('fs')
 const files = process.argv.slice(2)
 const targets = files.length ? files : ['client.js', 'package/lib/client.js']
 let failed = false
-// #14 v4：4 字段（顺序：期望 / 实际 / 复现 / 环境）—— 中英双语
+// #14：4 字段（顺序：期望 / 实际 / 复现 / 环境）
 const FIELDS_ZH = ['期望：', '实际：', '复现步骤：', '环境信息：']
 const FIELDS_EN = ['Expected:', 'Actual:', 'Reproduction:', 'Environment:']
-// #14 v4：每字段 inline 关键字串（存在性断言）—— zh inline（中英双语一行）/ en inline（纯英文）
-const INLINE_ZH = ['应发生什么', '用户预期看到的结果', '实际看到了什么', '影响范围', '前置', '编号列表', '系统状态', 'DSW vX.Y.Z']
-const INLINE_EN = ['What should happen', 'the result the user expected', 'What actually happened', 'impact notes', 'Preamble', 'numbered steps', 'system state', 'DSW vX.Y.Z']
+// v3.1：说明与填写位分层 —— 每个字段名独占一行（冒号后留白），说明在下一行缩进（两空格）
+const DESC_INDENT_ZH = ['应发生什么', '用户预期看到的结果', '实际看到了什么', '影响范围', '前置', '编号列表', '系统状态', 'DSW vX.Y.Z']
+const DESC_INDENT_EN = ['What should happen', 'the result the user expected', 'What actually happened', 'impact notes', 'Preamble', 'numbered steps', 'system state', 'DSW vX.Y.Z']
+// 字段名行 = 冒号结尾且后面紧跟说明行（`字段名：\n  说明`）—— 表单形态守护：字段名行不可直接跟内容
+// 注意：常量字符串里换行是字面 `\n`（两字符，JS 源码字符串转义），正则需用 \\n 匹配
+const INDENTED_DESC_RE = /(?:\\n){2}(?:期望|实际|复现步骤|环境信息)：\\n {2}[^\n]+/
 const RE_ENTRY = /"newBugWayfinder": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '([^']*)', zh: '([^']*)', en: '([^']*)' \}/
 const check = function (file) {
   const src = fs.readFileSync(file, 'utf8')
@@ -68,8 +71,12 @@ const check = function (file) {
     const LEGACY_ZH = ['背景：', '场景：', '现象：', '期望行为：', '实际行为：', '影响范围：']
     const legacyIn = LEGACY_ZH.filter(function (f) { return fieldsBody.indexOf(f) >= 0 })
     if (legacyIn.length) problems.push('NEW_BUG_FIELDS_BODY 残留 v2 旧字段：' + legacyIn.join(' / '))
-    const missingInline = INLINE_ZH.filter(function (k) { return fieldsBody.indexOf(k) < 0 })
-    if (missingInline.length) problems.push('NEW_BUG_FIELDS_BODY 缺 zh inline 关键字：' + missingInline.join(' / '))
+    const missingInline = DESC_INDENT_ZH.filter(function (k) { return fieldsBody.indexOf(k) < 0 })
+    if (missingInline.length) problems.push('NEW_BUG_FIELDS_BODY 缺 zh 说明关键字：' + missingInline.join(' / '))
+    // v3.1 分离守护：zh 说明行不应混入英文短语（防止中英混排回潮）
+    if (fieldsBody.indexOf('What should happen') >= 0 || fieldsBody.indexOf('What actually happened') >= 0) problems.push('NEW_BUG_FIELDS_BODY 混入英文 inline（v3.1 已决议 zh 只中文说明）')
+    // v3.1 表单形态守护：字段名独占行 + 说明缩进下一行
+    if (!INDENTED_DESC_RE.test(fieldsBody)) problems.push('NEW_BUG_FIELDS_BODY 字段未独立成行且说明未缩进（期望形态：`字段名：\n  说明`）')
   }
   const fieldsBodyEnMatch = /NEW_BUG_FIELDS_BODY_EN\s*=\s*function\s*\(\)\s*\{\s*return\s*'([^']*)'\s*\}/.exec(src)
   if (!fieldsBodyEnMatch) {
@@ -78,8 +85,11 @@ const check = function (file) {
     const fieldsBodyEn = fieldsBodyEnMatch[1]
     const missingEn = FIELDS_EN.filter(function (f) { return fieldsBodyEn.indexOf(f) < 0 })
     if (missingEn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 缺英文字段：' + missingEn.join(' / '))
-    const missingInlineEn = INLINE_EN.filter(function (k) { return fieldsBodyEn.indexOf(k) < 0 })
-    if (missingInlineEn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 缺 en inline 关键字：' + missingInlineEn.join(' / '))
+    const missingInlineEn = DESC_INDENT_EN.filter(function (k) { return fieldsBodyEn.indexOf(k) < 0 })
+    if (missingInlineEn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 缺 en 说明关键字：' + missingInlineEn.join(' / '))
+    // v3.1 分离守护：en 说明行不应混入中文（跟随 DSH 语言一次只出一种）
+    if (fieldsBodyEn.indexOf('应发生什么') >= 0 || fieldsBodyEn.indexOf('实际看到了什么') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 混入中文说明（v3.1 已决议 en 只英文说明）')
+    if (!/(?:\\n){2}Expected:\\n {2}[^\n]+/.test(fieldsBodyEn)) problems.push('NEW_BUG_FIELDS_BODY_EN 字段未独立成行且说明未缩进（期望形态：`Expected:\n  ...`）')
   }
   // 2) i18n 键
   ;['nav.bugNew', 'nav.bugNewTitle', 'panel.newBug', 'panel.newBugTitle'].forEach(function (k) {
