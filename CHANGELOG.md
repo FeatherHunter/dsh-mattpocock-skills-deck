@@ -1,5 +1,20 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊 R4 截溢出（#16 R4 · v1.6.4）
+
+- **用户反馈**：R3 调试钩子确认 R2 max-width:min(100%,1400px) 生效（capsule 跟着 wrapper 缩），但 children 内容 fit-content 自然宽 > capsule 宽时**从 capsule background 框左右捅出**呈「棍子」
+- **根因**：capsule `width:fit-content + max-width:min(100%,1400px)` + children `flex:none + nowrap` 不缩 → children 溢出 capsule 边界
+- **修复**（commit `0b1baca`）：
+  - **wrapper 加 `overflow:hidden`** 截掉 capsule 溢出 wrapper 部分
+  - 选 wrapper 截，不用 capsule overflow:hidden：capsule 圆角 + 背景完整保留（capsule 自己 overflow:hidden 会让 border-radius 圆角处露白）
+  - dn=4 时 capsule fit-content ≈ 200px，几乎所有 wrapper 装得下，**不裁切**（满足用户「dn=4 后保持自然宽」诉求）
+  - dn=0..3 中间状态：children 居中后左右对称裁切，保留中间可识别内容（最左/最右可能被截的是 capsule-word「MattSkills」品牌段和 dsws-skillbtn 末尾技能图标，感知不强）
+- **测试**：加 2 项 R4 断言（wrapper overflow:hidden 命中 + capsule CSS 不再加 overflow:hidden 反向守护）
+- **验收路径**：
+  - 1280px 视口：胶囊单行居中，宽 = 内容自然宽
+  - 输入区被压到 600px 时：胶囊被 wrapper 压到 = 输入区宽 - 16px，children 居中后左右溢出被 wrapper overflow:hidden 截掉
+  - < 640px dn=4 触发：capsule 自然宽 ≈ 200px，wrapper 装得下，不裁
+
 ## 2026-08-18 · 状态栏胶囊 R3 调试钩子（#16 R3 · v1.6.3）
 
 - **用户反馈**：R2 实施后用户实测「胶囊还是没缩」，怀疑版本没生效。
