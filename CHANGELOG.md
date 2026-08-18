@@ -1,5 +1,12 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · newBugWayfinder 7 字段挪到 prompt 末尾（#1 BUG3 补强 · #4 v2）
+
+- **BUG**：用户报告「+ 新增BUG单」预填的 prompt 中 7 字段（背景 / 场景 / 现象 / 复现步骤 / 期望行为 / 实际行为 / 影响范围）位于流程说明之后、正文格式契约之前——属于中途输入位，违反 #1 BUG3「输入位一律末尾」原则（v5 同款反模式）
+- **修复**：`newBugWayfinder` v1→v2，注册表模板从「流程说明 + 7 字段」收敛为「流程说明 + 末尾指引」；7 字段空白 body 抽出为 `NEW_BUG_FIELDS_BODY()`，由 `newBugWayfinderText` 在 `promptText + BODY_FORMAT` **之后**追加，落在真正的模板末尾
+- 验收：7 字段保持在 BODY_FORMAT 之后；`tests/verify-bug-entry.js` v2 适配（注册表禁中途输入位 + NEW_BUG_FIELDS_BODY 7 字段齐备 + 拼接契约断言）
+- 双源镜像同步（client.js ↔ package/lib/client.js）· 已同步 DSH 安装目录（hash 校验 True）
+
 ## 2026-08-18 · 新增BUG单入口（issue #4）
 
 - **需求**：「+ 新增BUG单」按钮（右侧面板 tabs 行「+ 新建需求」旁，dock + sidebar 两处渲染）+ 状态栏「BUG 2」悬停菜单「新增」——点击都在新会话（同 cwd）打开并预填 /wayfinder 的 BUG 专用 prompt（新注册表条目 `newBugWayfinder`）
