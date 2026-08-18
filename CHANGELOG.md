@@ -1,5 +1,18 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊宽度跟随输入区左右边（#16 R2 · v1.6.1）
+
+- **用户验收反馈**：R1 实现里胶囊按 `max-width:min(96vw,1400px)` 撑出 → 输入区被压到很窄时胶囊左右溢出超过输入框左右边，视觉上「状态栏宽度像被固定了」
+- **修复**（与 R1 同一 issue，不开新 ticket；commit `bfe29ac`）：
+  - CSS：`.dsws-capsule { max-width:min(100%,1400px) }` 替代 `min(96vw,1400px)`，让外层输入区容器能封顶；去掉 `margin:0 auto`（外层 wrapper 负责居中）
+  - JSX：胶囊外层 wrapper 加 `width:100% + boxSizing:border-box + alignItems:stretch`，让 wrapper 真正跟输入区宽走（之前 wrapper width:auto，按内容互锁放大）
+- **测试**：`tests/verify-capsule-narrow.js` 加 5 项新断言（胶囊 max-width 用 100% 不用 96vw；胶囊不再有 margin:0 auto；外层 wrapper width:100% + boxSizing:border-box；旧 R1 残留反向守护）—— **60 项断言全绿**
+- **验收路径**：
+  - 1280px 视口：胶囊单行居中，宽 = 内容自然宽（不超过 1400px）
+  - 输入区被压到 600px 时：胶囊被压到 = 输入区宽 - 16px（8px padding × 2），左右边缘对齐输入框左右边
+  - < 640px 兜底：胶囊宽 = 输入区宽，文字按 dn 阈值只剩图标 + 数字，不再左右溢出超过输入区
+- **保留不变**：5 级文字→图标收缩 dn=0..4 / 禁止换行 / click 契约 / 双源镜像同步
+
 ## 2026-08-18 · 状态栏胶囊禁止换行 + 窄屏 5 级文字→图标收缩（#16 · v1.6.1）
 
 - **BUG**（reporter 反馈）：状态栏 `.dsws-capsule` 在对话窗口变窄（< ~920px）时按钮被强行换行成两/三行，破坏单行居中胶囊观感；「MattSkills」字常显，数字段（可接/BUG/诊断/环境）文字不收敛，时间「MM-DD HH:MM」整体不收敛
