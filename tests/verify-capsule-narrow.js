@@ -38,6 +38,9 @@ const statChecks = function (src, tag) {
   ok('外层 wrapper display:flex + justify-content:center 居中胶囊', /display:\s*'flex',\s*justifyContent:\s*'center'/.test(src))
   ok('外层 wrapper width:100% 跟输入区容器宽', /display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,80}width:\s*'100%'/.test(src))
   ok('外层 wrapper boxSizing:border-box 防 padding 撑破', /display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,200}boxSizing:\s*'border-box'/.test(src))
+  // #16 v1.6.4 R4：wrapper 加 overflow:hidden 截 capsule 溢出（dn=0..3 中间态时 children 居中后左右溢出 wrapper）
+  ok('外层 wrapper overflow:hidden 截 capsule 溢出 wrapper 部分（dn>=1 中间态防「棍子」）', /display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,250}overflow:\s*'hidden'/.test(src))
+  ok('胶囊 CSS 不再加 overflow:hidden（让 capsule 圆角背景完整，圆角处不漏白）', !/\.dsws-capsule\s*\{[^}]*overflow:\s*hidden/.test(src))
   // 期望 2：children 保持 flex:none + gap 居中
   ok('children 仍 flex:none（capsule-word / seg / timebtn）', /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-seg\{flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-timebtn\{flex:none/.test(src))
   ok('胶囊 gap 保留 2px 6px（行间距 / 列间距）', /\.dsws-capsule\s*\{[^}]*gap:\s*2px\s+6px/.test(src))

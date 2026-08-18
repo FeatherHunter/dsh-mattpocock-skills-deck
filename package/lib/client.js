@@ -313,7 +313,7 @@ window.__ModuleLoader__.load({
         return node
       }
       // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-      const DSW_VERSION = 'v1.6.3'
+      const DSW_VERSION = 'v1.6.4'
 
       // 样式注入（静态插件没有 styles.insert builtin，手动 <style> + ctx.effect 清理）
       const styleEl = document.createElement('style')
@@ -2073,7 +2073,8 @@ window.__ModuleLoader__.load({
         ])
         // 用户拍板 2026-08-16 + 2026-08-17：横幅移到状态栏上方；依赖链 gh → 登录 → setup → 技能，显示第一个缺失项
         const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
-        if (!firstBlock) return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'stretch', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', outline: '2px dashed #00aaff', outlineOffset: '-2px' } }, [capsule])
+        // #16 v1.6.4 R4：wrapper 加 overflow:hidden 截掉 capsule 溢出 wrapper 部分（dn=0..3 中间状态时 children 居中后左右可能溢出 wrapper）
+        if (!firstBlock) return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'stretch', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: 'hidden', outline: '2px dashed #00aaff', outlineOffset: '-2px' } }, [capsule])
         const bann = function (text, btnLabel, onBtn) {
           return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
             Ic({ n: 'alert', size: 13 }),
