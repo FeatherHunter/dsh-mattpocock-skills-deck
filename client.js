@@ -153,7 +153,10 @@ return {
       //   改为 flex-wrap:nowrap + white-space:nowrap 兜底；胶囊始终单行。
       //   配合下方 5 级 [data-narrow] 属性选择器：JSX 在 renderStatusBar 写 data-narrow={dn||null}，
       //   按视口宽逐级隐藏 children 文字 span，保留图标+数字；children 全部 flex:none + nowrap 禁止换行。
-      '.dsws-capsule{max-width:min(96vw,1400px);width:fit-content;margin:0 auto;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
+      // #16 用户验收反馈（2026-08-18 R2）：胶囊宽应跟随输入区左右边（不再是按视口 96vw 撑）——
+      //   max-width 改成 max-width:100% 让外层输入区容器能封顶；保留 max-width:1400px 防超宽屏溢出；
+      //   去掉 margin:0 auto（外层 wrapper 负责居中）。
+      '.dsws-capsule{max-width:min(100%,1400px);width:fit-content;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
       '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:none}',
       '.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
       '.dsws-capsule .dsws-seg{flex:none}',
@@ -1498,24 +1501,68 @@ return {
         if (now - lastFocusProbe < FOCUS_PROBE_MIN_MS) return
         lastFocusProbe = now
       }
-      const args = shared.cwd ? { cwd: shared.cwd } : {}
-      host.call('wf.probe', args).then(function (res) {
-        if (!(res && res.ok && res.changed)) return
-        const rep = (res && res.repo && (res.repo.owner && res.repo.name))
-          ? (res.repo.owner + '/' + res.repo.name) : null
-        // B5（第一性原理）：changed 只触发 1 次全量刷新（shared · force 走 wf.refresh），
-        //   同 repo 的其他 store 用非 force 的 wf.snapshot → 命中 host 60s 缓存（shared 刚刷过）→ 零额外 GraphQL。
-        //   原实现每个匹配 store 都 force → N×18 点。
-        loadSnapshot(shared, true, true)
-        if (rep) {
-          Object.keys(stores).forEach(function (k) {
-            const st2 = stores[k]
-            const sr = (st2.snapshot && st2.snapshot.repo && st2.snapshot.repo.owner && st2.snapshot.repo.name)
-              ? (st2.snapshot.repo.owner + '/' + st2.snapshot.repo.name) : null
-            if (sr === rep) loadSnapshot(st2, false, true)
+      // v1.5 R2-fix（#2 MVP E2E 发现）：probe 不能用 shared.cwd —— 该字段在多 store 改造（v1.5）后从未被赋值，
+      //   导致 probe 永远走 DEFAULT_CWD（DSH Desktop 安装目录，非 git 仓库），getRepoKey 返回 null，probe 静默失败，
+      //   面板永远不自动刷新。改为：迭代每个有 cwd 的 store + 兜底用 host.call('wf.cwd') 拉取。
+      const cwds = []
+      if (shared.cwd) cwds.push(shared.cwd)
+      Object.keys(stores).forEach(function (k) {
+        const c = stores[k] && stores[k].cwd
+        if (c && cwds.indexOf(c) < 0) cwds.push(c)
+      })
+      if (!cwds.length) {
+        // 兜底：从 wf.cwd 拉一次（用户当前会话的工作目录）—— 试每个 store 的 sessionId
+        const sids = []
+        if (shared.sessionId) sids.push(shared.sessionId)
+        Object.keys(stores).forEach(function (k) { if (stores[k].sessionId && sids.indexOf(stores[k].sessionId) < 0) sids.push(stores[k].sessionId) })
+        if (!sids.length) return
+        Promise.all(sids.map(function (sid) { return host.call('wf.cwd', { sessionId: sid }).catch(function () { return null }) })).then(function (results) {
+          const foundCwds = []
+          results.forEach(function (res) {
+            if (res && res.ok && res.cwd && foundCwds.indexOf(res.cwd) < 0) foundCwds.push(res.cwd)
           })
-        }
-      }).catch(function () { /* 探测失败忽略，下轮再试 */ })
+          if (!foundCwds.length) return
+          if (shared.cwd !== foundCwds[0]) shared.cwd = foundCwds[0]
+          foundCwds.forEach(function (cwd) {
+            host.call('wf.probe', { cwd: cwd }).then(function (res2) {
+              if (!(res2 && res2.ok && res2.changed)) return
+              const rep2 = (res2 && res2.repo && (res2.repo.owner && res2.repo.name))
+                ? (res2.repo.owner + '/' + res2.repo.name) : null
+              if (!shared.cwd) shared.cwd = cwd
+              loadSnapshot(shared, true, true)
+              if (rep2) {
+                Object.keys(stores).forEach(function (k) {
+                  const st2 = stores[k]
+                  const sr = (st2.snapshot && st2.snapshot.repo && st2.snapshot.repo.owner && st2.snapshot.repo.name)
+                    ? (st2.snapshot.repo.owner + '/' + st2.snapshot.repo.name) : null
+                  if (sr === rep2) loadSnapshot(st2, false, true)
+                })
+              }
+            }).catch(function () { /* 忽略 */ })
+          })
+        })
+        return
+      }
+      cwds.forEach(function (cwd) {
+        host.call('wf.probe', { cwd: cwd }).then(function (res) {
+          if (!(res && res.ok && res.changed)) return
+          const rep = (res && res.repo && (res.repo.owner && res.repo.name))
+            ? (res.repo.owner + '/' + res.repo.name) : null
+          // B5（第一性原理）：changed 只触发 1 次全量刷新（shared · force 走 wf.refresh），
+          //   同 repo 的其他 store 用非 force 的 wf.snapshot → 命中 host 60s 缓存（shared 刚刷过）→ 零额外 GraphQL。
+          // v1.5 R2-fix：把 probed cwd 同步给 shared（防止 loadSnapshot 用空 shared.cwd 走 DEFAULT_CWD 失败）
+          if (!shared.cwd) shared.cwd = cwd
+          loadSnapshot(shared, true, true)
+          if (rep) {
+            Object.keys(stores).forEach(function (k) {
+              const st2 = stores[k]
+              const sr = (st2.snapshot && st2.snapshot.repo && st2.snapshot.repo.owner && st2.snapshot.repo.name)
+                ? (st2.snapshot.repo.owner + '/' + st2.snapshot.repo.name) : null
+              if (sr === rep) loadSnapshot(st2, false, true)
+            })
+          }
+        }).catch(function () { /* 探测失败忽略 */ })
+      })
     }
     const scheduleActionProbe = function () {
       if (_actionProbePending) return
@@ -1528,7 +1575,14 @@ return {
     }
     const startAutoProbe = function () {
       if (shared._probeTimer) return
+      // v1.5 R2-fix：跨 reload 清理旧 timer（dev_reload_package 后 JS setInterval 不自动清理，
+      //   多个 timer 并行触发 probe 浪费配额）
+      if (typeof globalThis !== 'undefined' && globalThis.__dswsOldProbeTimer) {
+        try { clearInterval(globalThis.__dswsOldProbeTimer) } catch (e) { /* 忽略 */ }
+        globalThis.__dswsOldProbeTimer = null
+      }
       shared._probeTimer = setInterval(function () { probeNow(false) }, PROBE_MS)
+      if (typeof globalThis !== 'undefined') globalThis.__dswsOldProbeTimer = shared._probeTimer
       if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('focus', function () { probeNow(true) })
     }
 
@@ -1996,7 +2050,7 @@ return {
       ])
       // 用户拍板 2026-08-16 + 2026-08-17：横幅移到状态栏上方；依赖链 gh → 登录 → setup → 技能，显示第一个缺失项
       const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
-      if (!firstBlock) return h('div', { style: { display: 'flex', justifyContent: 'center', padding: '3px 8px 0' } }, [capsule])
+      if (!firstBlock) return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'stretch', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0' } }, [capsule])
       const bann = function (text, btnLabel, onBtn) {
         return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
           Ic({ n: 'alert', size: 13 }),

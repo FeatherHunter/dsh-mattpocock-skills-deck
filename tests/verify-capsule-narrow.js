@@ -25,11 +25,19 @@ const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js
 const statChecks = function (src, tag) {
   const ok = (name, cond) => { if (!cond) throw new Error(tag + ' · ' + name); console.log('  PASS ' + tag + ' · ' + name) }
 
-  // 期望 1：胶囊禁止换行
+  // 期望 1：胶囊禁止换行 + 跟随输入区宽
   // 注：CSS 规则是字符串数组里的元素，className 出现于 JS 字面量对象键；CSS 自身形如 `.dsws-capsule{...flex-wrap:nowrap...}`
   ok('胶囊 .dsws-capsule CSS 含 flex-wrap:nowrap', /\.dsws-capsule\s*\{[^}]*flex-wrap:nowrap/.test(src))
   ok('胶囊 .dsws-capsule CSS 不含 flex-wrap:wrap', !/\.dsws-capsule\s*\{[^}]*flex-wrap:wrap/.test(src))
   ok('胶囊 .dsws-capsule CSS 含 white-space:nowrap（防御性单行）', /\.dsws-capsule\s*\{[^}]*white-space:nowrap/.test(src))
+  // #16 R2（用户验收反馈 2026-08-18）：胶囊宽跟随输入区左右边；不再按视口 96vw 撑。
+  ok('胶囊 .dsws-capsule CSS max-width 用 100%（跟随输入区宽，非 96vw）', /\.dsws-capsule\s*\{[^}]*max-width:\s*min\(100%,\s*1400px\)/.test(src))
+  ok('胶囊 .dsws-capsule CSS 不再含 max-width:min(96vw, ...) （旧 R1 行为已弃）', !/\.dsws-capsule\s*\{[^}]*max-width:\s*min\(96vw/.test(src))
+  ok('胶囊 .dsws-capsule CSS 不再含 margin:0 auto（外层 wrapper 负责居中）', !/\.dsws-capsule\s*\{[^}]*margin:\s*0\s+auto/.test(src))
+  // 外层 wrapper：display:flex; justify-content:center + width:100% + boxSizing:border-box（跟着输入区容器走）
+  ok('外层 wrapper display:flex + justify-content:center 居中胶囊', /display:\s*'flex',\s*justifyContent:\s*'center'/.test(src))
+  ok('外层 wrapper width:100% 跟输入区容器宽', /display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,80}width:\s*'100%'/.test(src))
+  ok('外层 wrapper boxSizing:border-box 防 padding 撑破', /display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,200}boxSizing:\s*'border-box'/.test(src))
   // 期望 2：children 保持 flex:none + gap 居中
   ok('children 仍 flex:none（capsule-word / seg / timebtn）', /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-seg\{flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-timebtn\{flex:none/.test(src))
   ok('胶囊 gap 保留 2px 6px（行间距 / 列间距）', /\.dsws-capsule\s*\{[^}]*gap:\s*2px\s+6px/.test(src))

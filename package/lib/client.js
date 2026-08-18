@@ -117,7 +117,10 @@ window.__ModuleLoader__.load({
       //   改为 flex-wrap:nowrap + white-space:nowrap 兜底；胶囊始终单行。
       //   配合下方 5 级 [data-narrow] 属性选择器：JSX 在 renderStatusBar 写 data-narrow={dn||null}，
       //   按视口宽逐级隐藏 children 文字 span，保留图标+数字；children 全部 flex:none + nowrap 禁止换行。
-      '.dsws-capsule{max-width:min(96vw,1400px);width:fit-content;margin:0 auto;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
+      // #16 用户验收反馈（2026-08-18 R2）：胶囊宽应跟随输入区左右边（不再是按视口 96vw 撑）——
+      //   max-width 改成 max-width:100% 让外层输入区容器能封顶；保留 max-width:1400px 防超宽屏溢出；
+      //   去掉 margin:0 auto（外层 wrapper 负责居中）。
+      '.dsws-capsule{max-width:min(100%,1400px);width:fit-content;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
       '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:none}',
       '.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
       '.dsws-capsule .dsws-seg{flex:none}',
@@ -2057,7 +2060,7 @@ window.__ModuleLoader__.load({
         ])
         // 用户拍板 2026-08-16 + 2026-08-17：横幅移到状态栏上方；依赖链 gh → 登录 → setup → 技能，显示第一个缺失项
         const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
-        if (!firstBlock) return h('div', { style: { display: 'flex', justifyContent: 'center', padding: '3px 8px 0' } }, [capsule])
+        if (!firstBlock) return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'stretch', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0' } }, [capsule])
         const bann = function (text, btnLabel, onBtn) {
           return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
             Ic({ n: 'alert', size: 13 }),
