@@ -44,8 +44,11 @@ for (const f of hostFiles) {
   const probeHandlerSrc = probeBlockMatch ? probeBlockMatch[0].slice(0, 2500) : ''
   check(!probeHandlerSrc.includes('labels=wayfinder:map'), f + ' probe handler 内不再用 labels=wayfinder:map（旧漏检子票逻辑已移除）')
 
-  // 4) buildSnapshot 末尾初始化 lastProbeAtByRepo[rk]
-  check(/lastProbeAtByRepo\[rk0\]\s*=\s*new Date\(\)\.toISOString\(\)/.test(src), f + ' buildSnapshot 末尾初始化 lastProbeAtByRepo[rk] = ISO（probe since 基准线）')
+  // 4) buildSnapshot 末尾**不得**初始化 lastProbeAtByRepo[rk] —— R2-fix-6（#2 MVP E2E 实证 2026-08-18）：
+  //    build 完成 ≠ client 已渲染该快照，若 build 发生在某次编辑之后会把基线推到编辑之后 → 编辑被永久吞掉
+  //    基线只能由 probe 自己推进（changed 时置为本次探测时刻）
+  check(!/lastProbeAtByRepo\[rk0\]\s*=/.test(src), f + ' buildSnapshot 末尾不再初始化 lastProbeAtByRepo（R2-fix-6：避免 build 吞掉同窗口编辑）')
+  check(/lastProbeAtByRepo\[rk0\]/.test(src) === false || /lastProbeAtByRepo\[rk0\]\s*=\s*new Date\(\)\.toISOString\(\)/.test(src) === false, f + ' buildSnapshot 内无 lastProbeAtByRepo[rk0] 赋值（基线仅由 probe 推进）')
 
   // probe 返回 changed 时更新 lastProbeAtByRepo（基准线滑动）
   check(/if \(changed\) \{[\s\S]*?lastProbeAtByRepo\[rk1\]\s*=\s*new Date\(\)\.toISOString\(\)/.test(src), f + ' probe changed 时滑动 lastProbeAtByRepo 基准线')

@@ -50,7 +50,7 @@ export function apply(ctx) {
   let cache = { ts: 0, snapshot: null, error: null, cwd: null }
   let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // 环境检查 30s 缓存（按 cwd+lang 区分）
   let userHome = null                                     // 用户主目录（cmd 探测，缓存）
-  let lastProbeAtByRepo = {}                              // v1.5 R2（#2 MVP）：probe since 时间戳，按 repoKey 隔离（buildSnapshot 完成时初始化为 ISO；probe 时作为 since 参数，1 次 REST 覆盖全 issue 增量）
+  let lastProbeAtByRepo = {}                              // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；build 不得动它 —— 否则会吞掉同窗口编辑，见 buildSnapshot 处注释）
 
   // ============ gh 封装 ============
   async function resolveGh() {
@@ -478,8 +478,6 @@ export function apply(ctx) {
     const mapsMeta = fi.ok ? fi.issues.filter(function (x) {
       return x.state === 'OPEN' && (x.labels || []).some(function (l) { return l.name === 'wayfinder:map' })
     }) : []
-    // v1.5 R2（#2 MVP）：probe since 时间戳基准线（按 repoKey 隔离，多仓库会话并发不互串）—— 在 buildSnapshot 末尾初始化
-    const rk0 = (repo && repo.owner && repo.name) ? (repo.owner + '/' + repo.name) : (cwd || '')
     // #375：全量 label 列表（含空 label；获取失败容错置空，不阻塞快照构建，client 降级）
     let labels = []
     const fl = await runGh(['label', 'list', '--json', 'name,color'], cwd)
@@ -515,9 +513,12 @@ export function apply(ctx) {
         tickets: tickets, stats: stats,
       })
     }
-    // v1.5 R2（#2 MVP）：初始化 probe since 时间戳 = 快照生成时刻 → 下次 probe 用 since 探测本次快照之后的增量
-    //   （按 repoKey 隔离，多仓库会话并发不互串；first probe 时空 since → 全量返回 → 视为 changed → 建立基线）
-    lastProbeAtByRepo[rk0] = new Date().toISOString()
+    // v1.5 R2 + R2-fix-6（#2 MVP E2E 实证 2026-08-18）：probe since 基线**不得**在 buildSnapshot 里初始化/推进。
+    //   原实现「buildSnapshot 末尾 lastProbeAtByRepo[rk]=now」有个致命竞态：面板任一 snapshot build（cache-miss/
+    //    refresh）若发生在某次编辑**之后**，会把基线推到编辑时刻**之后** → 下次 probe since=基线 查不到该编辑
+    //   （count=0 → changed=false），且基线只在 changed=true 时才滑动 → 编辑被**永久吞掉**，UI 永不刷新。
+    //   正确语义：基线只能由 probe 自己推进（检测到 change 时置为「本次探测时刻」）；build 完成 ≠ client 已渲染该
+    //   快照，无权动基线。首次 probe（since=undefined）自然走全量返回 → 视为 changed → 建立基线（符合原注释意图）。
     return {
       ok: true,
       repo: repo,
@@ -840,7 +841,7 @@ export function apply(ctx) {
             lastProbeAtByRepo[rk1] = new Date().toISOString()
             cache = { ts: 0, snapshot: null, error: null, cwd: cwd }  // 失效内存缓存 → 下次 snapshot 重建
           }
-          return { ok: true, changed: changed, repo: repo, count: Array.isArray(arr) ? arr.length : 0 }
+          return { ok: true, changed: changed, repo: repo, count: Array.isArray(arr) ? arr.length : 0, since: since }
         } catch (e) { return { ok: false, error: errText(e) } }
       }
       case 'cwd': {

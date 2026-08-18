@@ -46,6 +46,7 @@ async function waitForPanelAlive(page, timeoutMs = 70000) {
   const browser = await chromium.launch({ headless: true })
   const ctx = await browser.newContext({ viewport: { width: 1700, height: 1000 } })
   const page = await ctx.newPage()
+  page.on('console', (m) => { const t = m.text(); if (t.includes('[PWDP]')) console.log(`  [browser:${pad(new Date())}] ${t}`) })
   page.on('pageerror', (e) => console.log('  [pageerror]', e.message.slice(0, 240)))
 
   console.log(`[e2e ${pad(new Date())}] goto (domcontentloaded)`)
