@@ -1,5 +1,24 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊 R6 CSS 累加 + 高度修复（#16 R6 · v1.6.6）
+
+- **用户反馈 1**：缩小过程中文字「先消失再出现」（dn=4 时 seg文字还在）
+  - **根因**：旧 CSS `[data-narrow="3"]` 等值匹配，dn=4 时不命中 → seg文字不消失
+- **用户反馈 2**：capsule 高度被压扁到 7px，文字溢出被截
+  - **根因**：wrapper `alignItems:'stretch'`（R2 误加）让父级 composerHero 297px 高反向拉伸 wrapper 到 9.5px，capsule 被跟着压成 7px
+- **修复**（commit `474ebe5`）：
+  - **CSS 累加语义**：旧 `[data-narrow="N"]` 等值匹配 → 新 `[data-narrow-N]` 属性存在性匹配
+  - **JSX 累加属性**：capsule 同时写 `data-narrow-1/2/3/4`（`dn >= N || null`），dn=4 时 4 个 attribute 都存在
+  - **R6b**：删 wrapper `alignItems:'stretch'`
+- **CDP 实测验证**（500x800px viewport）：
+  - cyan 框 = 输入框宽（500px） ✓
+  - magenta 框 = cyan 框（重叠） ✓
+  - 内容仅图标 + 数字（可接9 / BUG 3 / 诊断 2 / 沉淀 9 / 环境 9/9），**所有文字消失** ✓
+  - timebtn 仅刷新图标 ✓
+  - capsuleH: 7px → 29px ✓
+- **测试**：加 10 项 R6 断言（CSS 累加 4 项 + JSX 属性 4 项 + 旧等值匹配反向守护 1 项 + R6b 无 stretch 1 项）
+- **70+ 项断言全绿**；既有回归全 PASS
+
 ## 2026-08-18 · 状态栏胶囊 R5 dock 宽实时监听（#16 R5 · v1.6.5）
 
 - **用户反馈**：R4 实施后缩小窗口时「可接」/「可接 11」文字不消失
