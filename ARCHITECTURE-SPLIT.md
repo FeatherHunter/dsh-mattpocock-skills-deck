@@ -33,17 +33,17 @@
 | 行号(根 client.js) | 内容 | 目标归属（§4 模块树） |
 |---|---|---|
 | 55 / 66 / 356 / 821 / 880-890 / 944 | RDOM createPortal / DSW_VERSION / locale 字典 L / tr / Icon·Ic / PROMPTS | `kernel/`（可以先按原样搬） |
-| 1004-1135 | cfg / saveCfg / templates / renderTemplate / migrateStartCfg / listPrefs / labelClicks | `kernel/config.ts` |
-| 1136-1330 | makeStore / storeOf / useStore / compute / loadChecks / buildColorOf | `kernel/store.ts` + `host/checks` 数据 |
-| 1342-1667 | detectCwd / loadSnapshot / probeNow / startAutoProbe / refreshAll | `kernel/probe.ts` |
-| 1751-1933 | openPanel / togglePanel / newWayfinderText / newBugWayfinderText / injectFixate / doHandoff / openInNewSession / inject / copyText | `kernel/router.ts` + `kernel/api.ts` + `host/handoff` |
+| 1004-1135 | cfg / saveCfg / templates / renderTemplate / migrateStartCfg / listPrefs / labelClicks | `kernel/config.js` |
+| 1136-1330 | makeStore / storeOf / useStore / compute / loadChecks / buildColorOf | `kernel/store.js` + `host/checks` 数据 |
+| 1342-1667 | detectCwd / loadSnapshot / probeNow / startAutoProbe / refreshAll | `kernel/probe.js` |
+| 1751-1933 | openPanel / togglePanel / newWayfinderText / newBugWayfinderText / injectFixate / doHandoff / openInNewSession / inject / copyText | `kernel/router.js` + `kernel/api.js` + `host/handoff` |
 | 1942-2181 | Dot / TypeChip / **StatusBar**(状态栏) | `client/statusbar/` |
 | 2238-2358 | mdToHtml / tStatus / **MapDetail 上半** | `views/` + `kernel`（md 可作工具） |
-| 2323 / 2687-2896 | TicketRow / **ListTab**(列表) | `views/ListTab.tsx` + `views/TicketRow.tsx` |
-| 2973-3045 | RingSkills / **SkillsTab**(技能) | `views/SkillsTab.tsx` |
-| 3046-3158 | **ChecksTab**(环境检查 9 项) | `views/ChecksTab.tsx` |
-| 3167-3286 | **DetailsDock**(右栏详情·Dock) | `panel/Dock.tsx` |
-| 3287-3455 | **OverlayPanel**(覆盖/悬浮) | `panel/Overlay.tsx` |
+| 2323 / 2687-2896 | TicketRow / **ListTab**(列表) | `views/ListTab.js` + `views/TicketRow.js` |
+| 2973-3045 | RingSkills / **SkillsTab**(技能) | `views/SkillsTab.js` |
+| 3046-3158 | **ChecksTab**(环境检查 9 项) | `views/ChecksTab.js` |
+| 3167-3286 | **DetailsDock**(右栏详情·Dock) | `panel/Dock.js` |
+| 3287-3455 | **OverlayPanel**(覆盖/悬浮) | `panel/Overlay.js` |
 | 3456-3660 | **SettingsPage**(设置页) / **RunPanel**(运行卡) | `views/` |
 
 ### 1.2 冲突放大因素（按危害排序）
@@ -71,7 +71,7 @@
 
 **① 加载契约（内核源码，`…\agent\node_modules\@deepseek-ai\dsh-client-modules\`）**
 - `window.__ModuleLoader__` 由该内核在解析完 `window.__DSH_BOOT__` 后安装，一页只装一次；`load` 只是把 `{id, factory}` 注册进模块表（`lib/client.js` L70-75）。
-- `id` = **注册键，且必须是「包名 == graph 行 id」**（`lib/types/client/manifest.d.ts` L100-110）。Boot 图是**扁平表**：一条目 = 一个 `id` = 一个端点 `/plugins/<id>/client.js?rev=...`（L46-73，L37 注释 "module-graph boundary, flat today"）。
+- `id` = **注册键，且必须是「包名 == graph 行 id」**（`lib/types/client/manifest.d.js` L100-110）。Boot 图是**扁平表**：一条目 = 一个 `id` = 一个端点 `/plugins/<id>/client.js?rev=...`（L46-73，L37 注释 "module-graph boundary, flat today"）。
 - `dsh.client.inject` **不是**「额外 client 文件列表」，而是 **package-name 依赖边**（preflight/HMR diff 用，L54-57）。`immediately` = stage-one prefetch（只注册 factory 不物化，L56）。
 - 主 bundle 文件 = `exports["./client"]` 解析出的文件，`serveBundle` 直接读它（`lib/index.js` L255-258、L313-344）。
 - **明确结论**：同包「多个 client 模块 id」不被 boot 契约支持（id 唯一、graph 扁平）；官方内部的拆分走「async 子 chunk」（`globalThis.__dshChunks__` + `import()`，共享同一模块表，非独立模块 id），或「包内第二个独立 entry = 第二个 boot 行」（独立 id + URL）。
@@ -123,8 +123,8 @@
 
 **结论**：你要的是「拆」，不是「换语言」。**用 esbuild 做纯 JS 的模块化拆分**——把 `apply(ctx)` 闭包拆成能 import 的 ES 模块文件，构建直出 bundle。TS 完全不需要，也不引入。
 
-- **构建器**：`esbuild`（devDep 引入，`node esbuild src/client/index.entry.tsx --bundle --outfile=..`）。
-- **源码语言**：保持 **JS**（仓库现 3700 行全是 ES5 风格，原样拆分，不重写）。
+- **构建器**：`esbuild`（devDep 引入，`node esbuild src/client/index.entry.js --bundle --outfile=..`）。
+- **源码语言**：保持 **JS**（仓库现 3700 行全是 ES5 风格，原样拆分，不重写）。**文件一律 `.js`（UI 组件也是 `.js`，因为本仓库用 `React.createElement` 手写、无 JSX 标签）——不引入 `.ts`/`.tsx`。**（官方插件用 `.tsx` 是因为他们用了 TS + JSX，与本方案无关。）
 - **目录**：`src/host/`、`src/client/`（见 §4 模块树）。
 - **产物（双 entry）**：
   - `_pkg` → `package/lib/client.js`（`__ModuleLoader__.load` CJS bundle，**真实加载**）
@@ -144,7 +144,7 @@
 
 | # | 原则 | 机制（AI 不必读契约也天然遵守） |
 |---|---|---|
-| 1 | **一模块 = 一文件 = 一测试文件** | 目录即所有权。AI 改「技能」只碰 `views/SkillsTab.tsx` + `verify-skills.js`，物理上到不了 `views/ListTab.tsx` |
+| 1 | **一模块 = 一文件 = 一测试文件** | 目录即所有权。AI 改「技能」只碰 `views/SkillsTab.js` + `verify-skills.js`，物理上到不了 `views/ListTab.js` |
 | 2 | **同层不互相 import** | 视图只 import 内核 seam，**禁止**视图 import 视图/容器 import 视图 → 从语法上杜绝「改 A 被 B 牵连」 |
 | 3 | **唯一求变通道 = 内核 seam** | 状态/文案/路由/API 只经 `kernel/*`；AI 想加「刷新」按钮只需 `api.refresh()`，别处零改动 |
 | 4 | **产物不可手编** | `lib/*`、动态片段由构建生成 → AI 永远不该 edit 它们（file 权限/只读声明也行） |
@@ -160,7 +160,7 @@
 |---|---|---|
 | `package.json`（构建 scripts/devDeps） | 加依赖 | 改动极低频；代码 review 一个文件 |
 | `esbuild.config` | 加 entry | 同上 |
-| `src/*/index.ts`（组装入口） | 加/改模块 | 只 import，不改实现，append 一行 |
+| `src/*/index.js`（组装入口） | 加/改模块 | 只 import，不改实现，append 一行 |
 | `CHANGELOG.md` | 每人记录 | **每人一行 append** + `.gitattributes` `merge=union`（可选） |
 | `README/ARCHITECTURE` | 文档 | 低频 |
 
@@ -182,53 +182,53 @@ dsh-mattpocock-skills-deck/            （唯一真源根）
 ├── build.sh                            （DSH 插件生产线惯例：junction + 构建 + 同步 profile）
 ├── src/
 │   ├── host/                           ★ host 半（拆自 host.js，纯服务端逻辑，无 UI）
-│   │   ├── index.ts                    【组装】apply(ctx) + RPC 注册表
-│   │   ├── gh.ts                       【模块】gh 封装（resolveGh/runGh/execProc/……）
-│   │   ├── repo.ts                     【模块】仓库定位/根检测/磁盘缓存（getRepoRoot/readDiskCache/writeDiskCache）
-│   │   ├── snapshot.ts                 【模块】快照构建（fetchMaps/fetchIssues/buildSnapshot/mapTicket/groupTickets/……）
-│   │   ├── parser.ts                   【模块】纯函数解析（parseMapBody/parseProgress/computeLevels）
-│   │   ├── checks.ts                   【模块】前置检查（checkRepo/setup/tracker/ghcli/auth/api/skill）→ buildStatus
-│   │   ├── handoff.ts                  【模块】交接文档扫描/最新（scanHandoffDir/pickLatestHandoff）
-│   │   ├── claim.ts                    【模块】认领流程（T5）
-│   │   ├── rpc.ts                      【模块】端点定义 + 参数整理 + errText（可测）
-│   │   └── types.ts                    【内核】快照/票/检查的类型联合
+│   │   ├── index.js                    【组装】apply(ctx) + RPC 注册表
+│   │   ├── gh.js                       【模块】gh 封装（resolveGh/runGh/execProc/……）
+│   │   ├── repo.js                     【模块】仓库定位/根检测/磁盘缓存（getRepoRoot/readDiskCache/writeDiskCache）
+│   │   ├── snapshot.js                 【模块】快照构建（fetchMaps/fetchIssues/buildSnapshot/mapTicket/groupTickets/……）
+│   │   ├── parser.js                   【模块】纯函数解析（parseMapBody/parseProgress/computeLevels）
+│   │   ├── checks.js                   【模块】前置检查（checkRepo/setup/tracker/ghcli/auth/api/skill）→ buildStatus
+│   │   ├── handoff.js                  【模块】交接文档扫描/最新（scanHandoffDir/pickLatestHandoff）
+│   │   ├── claim.js                    【模块】认领流程（T5）
+│   │   ├── rpc.js                      【模块】端点定义 + 参数整理 + errText（可测）
+│   │   └── types.js                    【内核】快照/票/检查的类型联合
 │   └── client/                         ★ client 半（拆自 client.js；**node_modules 里真实加载 = 单 bundle**）
-│       ├── index.tsx                   【组装】apply(ctx) 挂载 + 根渲染 + 生命周期
+│       ├── index.js                   【组装】apply(ctx) 挂载 + 根渲染 + 生命周期
 │       ├── kernel/                     【内核：稳定 seam，并发时默认冻结】
-│       │   ├── store.ts                Store 工厂 / emit / sub / useStore（会话级状态）
-│       │   ├── locale.ts               dsws zh/en 字典 + tr()（命名空间）
-│       │   ├── prompts.ts              PROMPTS 注册表 + promptText()（双语动作文案）
-│       │   ├── router.ts               面板开关 / tab 切换（openPanel/openDockPanel/togglePanel）
-│       │   ├── config.ts               cfg/templates 持久化 + 广播（旧 startCfg 迁移）
-│       │   ├── api.ts                  host 桥（rpcCall/inject/openInNewSession/copyText）
-│       │   ├── probe.ts                loadSnapshot/probeNow/diffSnapshots/refreshAll/autoProbe
-│       │   ├── styles.ts               STYLE_TEXT 唯一真源 + 两类注入适配（styles.insert vs <style data-plugin>）
-│       │   └── icons.tsx               Icon / Ic / Dot / TypeChip 通用图标
+│       │   ├── store.js                Store 工厂 / emit / sub / useStore（会话级状态）
+│       │   ├── locale.js               dsws zh/en 字典 + tr()（命名空间）
+│       │   ├── prompts.js              PROMPTS 注册表 + promptText()（双语动作文案）
+│       │   ├── router.js               面板开关 / tab 切换（openPanel/openDockPanel/togglePanel）
+│       │   ├── config.js               cfg/templates 持久化 + 广播（旧 startCfg 迁移）
+│       │   ├── api.js                  host 桥（rpcCall/inject/openInNewSession/copyText）
+│       │   ├── probe.js                loadSnapshot/probeNow/diffSnapshots/refreshAll/autoProbe
+│       │   ├── styles.js               STYLE_TEXT 唯一真源 + 两类注入适配（styles.insert vs <style data-plugin>）
+│       │   └── icons.js               Icon / Ic / Dot / TypeChip 通用图标
 │       ├── statusbar/                  ★ 状态栏面板（用户指定模块 1）
-│       │   ├── StatusBar.tsx           胶囊组装 + 环境段/就绪计数
-│       │   ├── Seg.tsx                 分段按钮（go 到各 tab）
-│       │   ├── EnvBadge.tsx            环境/技能就绪徽标
-│       │   ├── checksums.tsx           7/9 等汇总徽标
-│       │   └── runcard.tsx             运行卡/配置引导（RunPanel 的 statusbar 侧）
+│       │   ├── StatusBar.js           胶囊组装 + 环境段/就绪计数
+│       │   ├── Seg.js                 分段按钮（go 到各 tab）
+│       │   ├── EnvBadge.js            环境/技能就绪徽标
+│       │   ├── checksums.js           7/9 等汇总徽标
+│       │   └── runcard.js             运行卡/配置引导（RunPanel 的 statusbar 侧）
 │       ├── panel/                      ★ 右侧面板容器（用户指定模块 2 的外壳）
-│       │   ├── Tabs.tsx                ⭐ 共享 tabs 行（**现在 Dock+Overlay 重复两遍** → 抽一次，两边 import）
-│       │   ├── TabsFoldMachine.ts      折叠等级机器 tabsLevelDecide + TABS_LEVELS + 滞回（拆出 #15 逻辑，纯函数可测）
-│       │   ├── Tooltip.tsx             portal 悬浮提示（技能同款，tabsTip 复用）
-│       │   ├── Dock.tsx                侧栏停靠容器（原 DetailsDock）
-│       │   ├── Overlay.tsx             漂浮容器（原 OverlayPanel，含拖拽/缩放）
-│       │   └── Shell.tsx               Dock/Overlay 共享的骨架（头/内容/尾）
+│       │   ├── Tabs.js                ⭐ 共享 tabs 行（**现在 Dock+Overlay 重复两遍** → 抽一次，两边 import）
+│       │   ├── TabsFoldMachine.js      折叠等级机器 tabsLevelDecide + TABS_LEVELS + 滞回（拆出 #15 逻辑，纯函数可测）
+│       │   ├── Tooltip.js             portal 悬浮提示（技能同款，tabsTip 复用）
+│       │   ├── Dock.js                侧栏停靠容器（原 DetailsDock）
+│       │   ├── Overlay.js             漂浮容器（原 OverlayPanel，含拖拽/缩放）
+│       │   └── Shell.js               Dock/Overlay 共享的骨架（头/内容/尾）
 │       ├── views/                      ★ 右侧面板内容视图（用户指定模块 3）
-│       │   ├── ListTab.tsx             【视图】列表（含 sorting/filter/chips/行动作）
-│       │   ├── TicketRow.tsx           【视图】issue 行（含行级诊断/执行/讨论按钮）
-│       │   ├── MapDetail.tsx           【视图】地图详情（漏斗分层/节点/gate）
-│       │   ├── SkillsTab.tsx           【视图】技能（含 RingSkills 圆形技能环）
-│       │   ├── ChecksTab.tsx           【视图】环境检查（9 项检查卡片）
-│       │   ├── SettingsPage.tsx        【视图】设置页（配置/模板编辑器）
-│       │   └── RunPanel.tsx            【视图】运行卡（如需独立）
+│       │   ├── ListTab.js             【视图】列表（含 sorting/filter/chips/行动作）
+│       │   ├── TicketRow.js           【视图】issue 行（含行级诊断/执行/讨论按钮）
+│       │   ├── MapDetail.js           【视图】地图详情（漏斗分层/节点/gate）
+│       │   ├── SkillsTab.js           【视图】技能（含 RingSkills 圆形技能环）
+│       │   ├── ChecksTab.js           【视图】环境检查（9 项检查卡片）
+│       │   ├── SettingsPage.js        【视图】设置页（配置/模板编辑器）
+│       │   └── RunPanel.js            【视图】运行卡（如需独立）
 │       └── floating/                   ★ 技能悬浮列表 & 浮层（用户指定「技能悬浮列表」）
-│           ├── SkillFloatList.tsx      技能悬浮列表
-│           ├── Pop.tsx                 通用标签/悬浮浮层（原 showPop 体系）
-│           └── tagsFit.tsx             标签自适应（fitAllTags）
+│           ├── SkillFloatList.js      技能悬浮列表
+│           ├── Pop.js                 通用标签/悬浮浮层（原 showPop 体系）
+│           └── tagsFit.js             标签自适应（fitAllTags）
 ├── tests/
 │   ├── verify-<module>.js              ★ 每模块专属（如 verify-status/verify-panel/verify-tabs-narrow……保留，改对 src 或产物断言）
 │   ├── verify-mirror.js                （改）双源断言 → 「src 特征 ↔ 产物特征」一致
@@ -242,11 +242,11 @@ dsh-mattpocock-skills-deck/            （唯一真源根）
 |---|---|---|
 | 状态栏面板 | `client/statusbar/` | 一组组件（Seg/EnvBadge/checksums/runcard），内部按钮各自成文件 |
 | 右侧面板 | `client/panel/` + `client/views/` | 容器(Dock/Overlay/Tabs/Shell) 与 内容视图(列表/技能/环境) 分开 |
-| 列表 | `client/views/ListTab.tsx` | 独立 |
-| 技能 | `client/views/SkillsTab.tsx` (+RingSkills) | 独立 |
-| 环境检查 | `client/views/ChecksTab.tsx` | 独立 |
-| 新增需求 / 新增bug / 刷新 | `client/panel/Tabs.tsx` 或 `kernel/router.ts` 的动作 | 属 tabs 行按钮动作 → 由 actions 内核 seam 提供 |
-| 技能悬浮列表 | `client/floating/SkillFloatList.tsx` | 独立 |
+| 列表 | `client/views/ListTab.js` | 独立 |
+| 技能 | `client/views/SkillsTab.js` (+RingSkills) | 独立 |
+| 环境检查 | `client/views/ChecksTab.js` | 独立 |
+| 新增需求 / 新增bug / 刷新 | `client/panel/Tabs.js` 或 `kernel/router.js` 的动作 | 属 tabs 行按钮动作 → 由 actions 内核 seam 提供 |
+| 技能悬浮列表 | `client/floating/SkillFloatList.js` | 独立 |
 | 底层逻辑 | `src/host/*` + `client/kernel/*` | host 数据流 + client 内核 store/probe/api |
 
 ### 4.3 内核接口（seam 契约，稳定就好并发）
@@ -268,7 +268,7 @@ export function createCtx({ ctx, h, rdom, localeSvc, storeSvc, timer }) {
   return { ctx, h, rdom, localeSvc, storeSvc, timer }
 }
 ```
-- 每个视图/容器模块**导出工厂**（`export function ListTab(cx) { return (props) => {...} }`），由 `index.tsx` 在 apply 时统一建 cx 后**调用各工厂**，把组件函数塞回一棵渲染树。
+- 每个视图/容器模块**导出工厂**（`export function ListTab(cx) { return (props) => {...} }`），由 `index.js` 在 apply 时统一建 cx 后**调用各工厂**，把组件函数塞回一棵渲染树。
 - 纯逻辑模块（probe/store 派生）同理：`export function makeProbe(cx) {...}`，注入依赖、返回方法集。
 - **效果**：模块之间**零隐式全局**；某模块内部怎么改都不影响别的模块；测试时只需 `createCtx(fake)` 即可单测该模块，连 DSH 都不需要。
 
@@ -304,7 +304,7 @@ export function createCtx({ ctx, h, rdom, localeSvc, storeSvc, timer }) {
 ### 阶段 2 · 领域模块化（中台 + host）
 - `src/host/*`：按 §4.1 拆 `gh/repo/snapshot/checks/handoff/claim/rpc`，RPC 表不动；
 - `src/client/kernel/*`：store/probe/api/router 从闭包抽成带接口的模块；
-- `src/client/panel/Tabs.tsx + Tooltip.tsx`：把 **Dock/Overlay 重复的 tabs 行抽成共享组件**（顺带把 #15 修复从两处合成一处，杜绝二次失步）；
+- `src/client/panel/Tabs.js + Tooltip.js`：把 **Dock/Overlay 重复的 tabs 行抽成共享组件**（顺带把 #15 修复从两处合成一处，杜绝二次失步）；
 - ✅ 验收：现有全部 verify 迁移到对 src 断言（或经构建后对产物断言），全绿。
 > 🛡 阶段 2 是主体工作量；每拆一个模块，就当次 bundle 全绿再动下一个。
 
@@ -329,7 +329,7 @@ export function createCtx({ ctx, h, rdom, localeSvc, storeSvc, timer }) {
 | UI 单文件行数 | 3724（人人必碰） | 每模块 < 300（只被 owner 碰） |
 | 两个 session 改不冲突的概率 | 低（同 3700 行文件） | 高（不相交文件 + 同层禁互 import + 冻结内核） |
 | 新增一个 tab/按钮 | 改 3700 行 + 镜像 3700 行 + 同步 | 改自己视图文件 + 走 router seam |
-| #16 类「两处实现失步」风险 | 高（Dock+Overlay 各写一遍） | 低（Tabs.tsx 一处） |
+| #16 类「两处实现失步」风险 | 高（Dock+Overlay 各写一遍） | 低（Tabs.js 一处） |
 | 防冲突手段 | 靠 session「自觉」(失败过) | 靠架构物理隔离（语法级，不看契约也成立） |
 
 ---
