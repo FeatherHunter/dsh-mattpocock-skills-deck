@@ -293,11 +293,12 @@ export function createCtx({ ctx, h, rdom, localeSvc, storeSvc, timer }) {
 - ✅ 验收：build.sh 跑通、QA 加载仍是原样。
 > 🛡 阶段 0 不改变任何运行时行为，只是把「人手 Copy-Item」变成「构建产出 Copy-Item」。
 
-### 阶段 1 · 抽纯函数叶子（零依赖、行为风险≈0）
-- 从 host 抽 `parser.ts`（`parseMapBody/parseProgress/computeLevels/…` 纯函数）；
-- 从 client 内核抽 `TabsFoldMachine.ts`（`tabsLevelDecide + TABS_LEVELS + 滞回`，纯函数，**#15 逻辑就地沉淀**）；
-- 各配 `tests/verify-<leaf>.js`；
-- ✅ 验收：行为断言全过，生产行为不变。
+### 阶段 1 · 抽纯函数叶子（零依赖、行为风险≈0）【✅ 已完成 2026-08-18 · commit 见 git log】
+- 从 host 抽 `src/shared/parser.js`（`normalizeBody/parseMapBody/parseProgress/computeLevels/groupTickets` 纯函数，ESM 命名导出）；
+- 从 client 内核抽 `src/client/kernel/tabsfold.js`（`tabsLevelDecide + TABS_FOLD_HYST(=4) + TABS_LEVELS(=3)`，纯函数，**#15 逻辑就地沉淀**）；
+- 新测试 `tests/verify-parse-leaf.js` + `tests/verify-tabsfold-leaf.js`：**差分测试**（叶子 === host.js/package/lib 内联版本，同一批输入逐字节一致）+ 行为真值表 + 双源镜像特征断言——既钉住「搬坏」探测器，又防「双源一起错」；
+- ✅ 验收：两个新测试全 PASS + 既有回归（verify-progress/tabs-narrow/status 23/23/panel 14/14/t3-locale）全绿，生产行为不变。
+> ⚠ **状态说明**：阶段 1 的叶子是「**唯一真源 + 测试基准**」但**尚未被生产代码 import**（host.js/client.js/package/* 仍内联同逻辑，行为零变化）。真正「接手」在阶段 2 引入构建 + Ctx 注入时完成。不要在阶段 1 就把生产文件改成 import 叶子——那跨过了构建前提。
 > 🛡 叶子模块没有共享状态、不碰 DOM，抽出去几乎不可能回归。
 
 ### 阶段 2 · 领域模块化（中台 + host）

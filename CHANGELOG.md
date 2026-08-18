@@ -1,5 +1,15 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 阶段 1：源码拆分——纯函数叶子落 src/（架构拆分路线首步）
+
+- **背景**：为多 session 并发开发趋零冲突，落地 `ARCHITECTURE-SPLIT.md` 拆分路线阶段 1（先抽零依赖纯函数叶子，不引入构建、不搬逻辑）。
+- **新增**：
+  - `src/shared/parser.js` —— host 纯函数叶子（`normalizeBody/parseMapBody/parseProgress/computeLevels/groupTickets`，ESM 命名导出），自 host.js 内联定义原样抽取；
+  - `src/client/kernel/tabsfold.js` —— #15 折叠机器纯函数（`tabsLevelDecide + TABS_FOLD_HYST + TABS_LEVELS`）；
+  - `tests/verify-parse-leaf.js` + `tests/verify-tabsfold-leaf.js` —— **差分测试**（叶子 === host.js/package/lib 内联版，同输入逐字节一致）+ 真值表 + 双源镜像断言。
+- **状态**：生产文件（host.js/client.js/package/*）**未**改为 import 叶子（保持内联，行为零变化）；叶子暂为「真源+测试基准」，阶段 2 引入构建 + Ctx 注入时接管。
+- **验证**：两个新测试全 PASS；既有回归 verify-progress / verify-tabs-narrow / verify-status(23/23) / verify-panel(14/14) / verify-t3-locale 全绿。
+
 ## 2026-08-18 · 状态栏胶囊 wrapper flex:none 防压缩（#16 R12 · v1.6.12）
 
 - **用户验收反馈**：v1.6.11 实测 DSH 功能仍坏——胶囊被压扁成 ~16px 高、文字顶部笔画被 `overflow:hidden` 切掉（「字被切一半/贴底」）
