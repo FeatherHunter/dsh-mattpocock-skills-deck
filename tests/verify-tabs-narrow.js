@@ -37,10 +37,11 @@ const statChecks = function (src, tag) {
   ok('i18n · zh 短文案 + 需求 / + bug', zhM && zhM[1] === '+ 需求' && zhB && zhB[1] === '+ bug')
   ok('i18n · en 短文案 + Requirement / + BUG', /'panel\.newWayfinder': '\+ Requirement'/.test(src) && /'panel\.newBug': '\+ BUG'/.test(src))
 
-  // 期望 3：分级折叠 CSS（L1 动作图标 / L2 tab 图标 / 版本号隐藏）
-  ok('CSS · L1+L2 隐藏动作按钮文字 span:last-child', /\.dsws-tabs\.dsws-tabs-l1 \.dsws-btn > span:last-child,\.dsws-tabs\.dsws-tabs-l2 \.dsws-btn > span:last-child\{display:none\}/.test(src))
-  ok('CSS · L2 隐藏 tab 文字 span:last-child', /\.dsws-tabs\.dsws-tabs-l2 \.dsws-tab > span:last-child\{display:none\}/.test(src))
-  ok('CSS · L1+L2 隐藏版本号 > span:last-child', /\.dsws-tabs\.dsws-tabs-l1 > span:last-child,\.dsws-tabs\.dsws-tabs-l2 > span:last-child\{display:none\}/.test(src))
+  // 期望 3：渐进式折叠 CSS（data-priority 按钮逐个折叠 + max-width 动画 + 版本号跟随）
+  ok('CSS · 折叠用 max-width 动画（非 display:none）', /\.dsws-tabs \.dsws-tab\.collapsed > span:last-child,\.dsws-tabs \.dsws-btn\.collapsed > span:last-child\{max-width:0;opacity:0;margin-left:-4px;margin-right:-4px\}/.test(src))
+  ok('CSS · 文字 span 有 max-width transition', /\.dsws-tabs \.dsws-tab > span:last-child,\.dsws-tabs \.dsws-btn > span:last-child\{max-width:120px;overflow:hidden;white-space:nowrap;transition:max-width \.25s ease,opacity \.2s ease,margin \.25s ease\}/.test(src))
+  ok('CSS · collapsed 按钮 padding 收窄（保留 icon）', /\.dsws-tabs \.dsws-tab\.collapsed,\.dsws-tabs \.dsws-btn\.collapsed\{padding-left:6px;padding-right:6px;transition:padding \.25s ease\}/.test(src))
+  ok('CSS · 无残留旧 dsws-tabs-l1/l2 display:none 规则', !/dsws-tabs-l1/.test(src) && !/dsws-tabs-l2/.test(src))
   ok('CSS · 无残留旧 dsws-tabs-fold 规则', !src.includes('.dsws-tabs-fold'))
 
   // 期望 4：等级决策函数
@@ -48,22 +49,27 @@ const statChecks = function (src, tag) {
   ok('逻辑 · TABS_LEVELS = 3 存在', /const TABS_LEVELS = 3/.test(src))
   ok('逻辑 · tabsLevelDecide 存在', /const tabsLevelDecide = function/.test(src))
 
-  // 期望 5：装配（tabsRef × 2 + 度量 + dataset）
+  // 期望 5：装配（tabsRef × 2 + 渐进折叠 applyFold + dataset）
   const tabsRefN = (src.match(/const tabsRef = React\.useRef\(null\)/g) || []).length
   ok('逻辑 · tabsRef 出现 2 次（dock + overlay）', tabsRefN === 2)
   ok('逻辑 · ref: tabsRef 挂到 2 个 tabs 容器', (src.match(/className: 'dsws-tabs', ref: tabsRef/g) || []).length === 2)
-  ok('逻辑 · 各级自然宽逐级测量（setLv + measureContentWidth）', /for \(let k = 0; k < TABS_LEVELS; k\+\+\) \{ setLv\(k\); nats\[k\] = measureContentWidth\(t\) \}/.test(src))
-  ok('逻辑 · measureContentWidth 定义存在（内容真实宽，防 scrollWidth 容器钳制死锁）', /const measureContentWidth = function/.test(src))
-  ok('逻辑 · 不再使用 scrollWidth 测自然宽（死锁根因）', !/nats\[k\] = t\.scrollWidth/.test(src))
-  ok('逻辑 · 折叠结果写 dataset.tabsLevel', /t\.dataset\.tabsLevel = String\(next\)/.test(src))
-  ok('逻辑 · ResizeObserver + resize + fonts.ready 重算', /new ResizeObserver\(function \(\) \{ apply\(\) \}\)/.test(src) && /window\.addEventListener\('resize', apply\)/.test(src) && /document\.fonts\.ready\.then\(apply\)/.test(src))
+  ok('逻辑 · applyFold 定义 2 次（dock + overlay）', (src.match(/const applyFold = function/g) || []).length === 2)
+  ok('逻辑 · 全展开 + 强制 reflow 起步', /classList\.remove\('collapsed'\)/.test(src) && /void t\.offsetWidth/.test(src))
+  ok('逻辑 · 按 priority 降序逐个折叠（大者先折叠）', /\.sort\(function \(a, b\) \{ return b\.p - a\.p \}\)/.test(src))
+  ok('逻辑 · 折叠到放得下为止（scrollWidth ≤ clientWidth）', /t\.scrollWidth <= t\.clientWidth \+ 1/.test(src))
+  ok('逻辑 · 版本号跟随 priority=3 折叠', /ver\.classList\.toggle\('collapsed', !!refreshCollapsed\)/.test(src))
+  ok('逻辑 · 折叠结果写 dataset.tabsLevel', /t\.dataset\.tabsLevel = String\(t\.querySelectorAll\('\[data-priority\]\.collapsed'\)\.length\)/.test(src))
+  ok('逻辑 · ResizeObserver + resize + fonts.ready 重算', /new ResizeObserver\(function \(\) \{ applyFold\(\) \}\)/.test(src) && /window\.addEventListener\('resize', apply\)/.test(src) && /document\.fonts\.ready\.then\(apply\)/.test(src))
   ok('逻辑 · RO 观察到元素被替换时重观察（observed !== t → unobserve+observe）', /ro && observed !== t/.test(src) && /ro\.observe\(t\)/.test(src))
+  ok('逻辑 · tabBtn 带 data-priority 参数', /const tabBtn = \(id, icon, label, priority\)/.test(src))
+  ok('逻辑 · 6 个按钮均有 data-priority（列表4/技能5/环境6/需求2/bug1/刷新3）', (src.match(/data-priority/g) || []).length >= 12)
 
   // 期望 5b：悬浮提示（portal Tooltip 替代 title）
   ok('提示 · tabTip 状态存在', /const \[tabTip, setTabTip\] = React\.useState\(null\)/.test(src))
   ok('提示 · portalTooltip 渲染（zIndex 2147483000）', /tabTip && portalTop\) \? portalTop\(/.test(src) && /zIndex: 2147483000/.test(src))
-  ok('提示 · tabsTip 带 minLevel 门控', /const tabsTip = function \(e, text, minLevel\)/.test(src))
-  ok('提示 · 动作按钮 minLevel=1、tab 三键 minLevel=2', /tabsTip\(e, tr\('panel\.newWayfinderTitle'\), 1\)/.test(src) && /tabsTip\(e, label, 2\)/.test(src))
+  ok('提示 · tabsTip 带 priority 门控（自身折叠才显示）', /const tabsTip = function \(e, text, priority\)/.test(src) && /btn\.classList\.contains\('collapsed'\)/.test(src))
+  ok('提示 · 动作按钮传各自 priority（bug=1/需求=2/刷新=3）', /tabsTip\(e, tr\('panel\.newWayfinderTitle'\), 2\)/.test(src) && /tabsTip\(e, tr\('panel\.newBugTitle'\), 1\)/.test(src) && /tabsTip\(e, tr\('list\.refresh'\), 3\)/.test(src))
+  ok('提示 · tabBtn 传 priority 参数', /tabsTip\(e, label, priority\)/.test(src))
   ok('提示 · onMouseLeave 清除', (src.match(/onMouseLeave: tabsTipOff/g) || []).length >= 5)
   ok('提示 · 原生 title 已从动作按钮移除', !/title: tr\('panel\.(newWayfinderTitle|newBugTitle)'\)/.test(src))
   ok('提示 · 原生 title 已从 tabBtn 移除', !/title: label, className: 'dsws-tab'/.test(src))
@@ -143,7 +149,7 @@ const extractFoldEffects = function (src) {
     const close = src.indexOf('])', endM)
     if (close < 0) break
     const block = src.slice(idx, close + 2)
-    if (block.includes('tabsLevelDecide')) out.push(block.replace(/^[ \t]+/gm, '').replace(/\r\n/g, '\n'))
+    if (block.includes('applyFold')) out.push(block.replace(/^[ \t]+/gm, '').replace(/\r\n/g, '\n'))
     idx = close + 2
   }
   return out.sort().join('\n=====\n')
