@@ -120,7 +120,11 @@ window.__ModuleLoader__.load({
       // #16 用户验收反馈（2026-08-18 R2）：胶囊宽应跟随输入区左右边（不再是按视口 96vw 撑）——
       //   max-width 改成 max-width:100% 让外层输入区容器能封顶；保留 max-width:1400px 防超宽屏溢出；
       //   去掉 margin:0 auto（外层 wrapper 负责居中）。
-      '.dsws-capsule{max-width:min(100%,1400px);width:fit-content;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
+      // #16 v1.6.3 调试钩子（仅 v1.6.3 临时开启，下个版本移除）：
+      //   给 .dsws-capsule 加 outline:2px dashed magenta + 外层 wrapper outline:2px dashed cyan，
+      //   让用户能直接看到「胶囊本身」和「外层 wrapper」的实际边界，确认是哪一层没缩到。
+      //   排查 R2 反馈「看不到变化」用，1-2 个 issue 周期内拆掉。
+      '.dsws-capsule{max-width:min(100%,1400px);width:fit-content;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none;outline:2px dashed #ff00aa;outline-offset:-2px}',
       '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:none}',
       '.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
       '.dsws-capsule .dsws-seg{flex:none}',
@@ -309,7 +313,7 @@ window.__ModuleLoader__.load({
         return node
       }
       // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-      const DSW_VERSION = 'v1.6.2'
+      const DSW_VERSION = 'v1.6.3'
 
       // 样式注入（静态插件没有 styles.insert builtin，手动 <style> + ctx.effect 清理）
       const styleEl = document.createElement('style')
@@ -1914,11 +1918,20 @@ window.__ModuleLoader__.load({
         const summaryCwd = props.useSessions(function (x) {
           return (sid && x.byId && x.byId[sid]) ? x.byId[sid].cwd : undefined
         })
+        // v14-20：跨会话预填（交接开新会话后，新 dock 挂载即消费）。
+        // issue #12 BUG4 补强：原实现 `[props]` 依赖 → ws.startSession 触发父级重渲染 → 当前会话的 props 引用变 →
+        //   当前会话的 effect 重跑抢先消费 pendingDraft → 新会话挂载时已空 → prompt 被错误注入到当前会话。
+        // 改为 consumedRef 守卫：每个 StatusBar 实例只在首次 effect 跑时消费一次（mount 阶段）；
+        //   后续 re-render（包括父级 re-render 引发的 props 变化）一律不再消费，避免与新会话的 mount 抢。
+        const consumedDraftRef = React.useRef(false)
         React.useEffect(function () {
           if (props && props.inputActions && typeof props.inputActions.setDraft === 'function') {
             s.injector = props.inputActions.setDraft
-            // v14-20：跨会话预填（交接开新会话后，新 dock 挂载即消费）
-            if (pendingDraft) { props.inputActions.setDraft(pendingDraft); pendingDraft = null }
+            if (!consumedDraftRef.current && pendingDraft) {
+              consumedDraftRef.current = true
+              props.inputActions.setDraft(pendingDraft)
+              pendingDraft = null
+            }
           }
         }, [props])
         React.useEffect(function () {
@@ -2060,7 +2073,7 @@ window.__ModuleLoader__.load({
         ])
         // 用户拍板 2026-08-16 + 2026-08-17：横幅移到状态栏上方；依赖链 gh → 登录 → setup → 技能，显示第一个缺失项
         const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
-        if (!firstBlock) return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'stretch', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0' } }, [capsule])
+        if (!firstBlock) return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'stretch', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', outline: '2px dashed #00aaff', outlineOffset: '-2px' } }, [capsule])
         const bann = function (text, btnLabel, onBtn) {
           return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
             Ic({ n: 'alert', size: 13 }),

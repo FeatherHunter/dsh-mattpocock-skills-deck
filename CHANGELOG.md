@@ -1,5 +1,19 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊 R3 调试钩子（#16 R3 · v1.6.3）
+
+- **用户反馈**：R2 实施后用户实测「胶囊还是没缩」，怀疑版本没生效。
+- **根因**：v1.6.2 (R2 后的版本) 在源文件里实际已含 `max-width:min(100%,1400px)` + wrapper `width:100%` 改动 ——**代码层是对的**，但浏览器加载的是缓存里的旧 bundle (dev:web 的 `?rev=` hash 没变 或 service worker 缓存)，CSS/JSX 改动没机会跑。需要让用户能直接看到 R2 改动实际生效，定位是「缓存问题」还是「外层 wrapper 没拿到宽」还是「胶囊本身的 maxWidth 没生效」。
+- **临时调试钩子**（仅 v1.6.3，1-2 个 issue 周期内拆掉）：
+  - `.dsws-capsule` 加 `outline:2px dashed #ff00aa` (magenta)
+  - 外层 wrapper 加 `outline:2px dashed #00aaff` (cyan)
+  - 升 `DSW_VERSION` v1.6.2 → v1.6.3（让用户从浏览器看到的版本号区分缓存版本 vs 新版本）
+- **用户验证步骤**：刷新页面后看胶囊 + wrapper 是否有虚线边框
+  - 都没有 → bundle 没刷新（清缓存或重启 dev:web）
+  - 只有胶囊 magenta → wrapper JSX 没生效（外层 wrapper 没拿到 `width:100%`，胶囊本身的 CSS 是对的）
+  - 只有 wrapper cyan → 胶囊 CSS 没生效（看是不是 bundle 里的 styles.insert 没跑）
+  - 两个都有 → R2 改动实际生效；问题在更外层父级
+
 ## 2026-08-18 · 状态栏胶囊宽度跟随输入区左右边（#16 R2 · v1.6.1）
 
 - **用户验收反馈**：R1 实现里胶囊按 `max-width:min(96vw,1400px)` 撑出 → 输入区被压到很窄时胶囊左右溢出超过输入框左右边，视觉上「状态栏宽度像被固定了」
