@@ -1,5 +1,21 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊 wrapper flex:none 防压缩（#16 R12 · v1.6.12）
+
+- **用户验收反馈**：v1.6.11 实测 DSH 功能仍坏——胶囊被压扁成 ~16px 高、文字顶部笔画被 `overflow:hidden` 切掉（「字被切一半/贴底」）
+- **根因**（CDP 实测 live DSH，非 headless 环境产物）：
+  - 宿主 `conversation.input.dock` 插槽 = `composerStack`（`display:flex; flex-direction:column`），wrapper（胶囊容器）是它的 flex item
+  - wrapper 没设 `flex:none`，默认 `flex-shrink:1` → 输入区高度被压缩时（hero 元素/输入框占位）flex-shrink 把 wrapper 压扁（wrapper 19px → capsule 16px）
+  - capsule `overflow:hidden` 截掉上下越界文字 → 视觉「胶囊扁、文字被切」
+  - **R6 教训**：R6b 只删了 `alignItems:'stretch'`（防「被父级拉高」），没防「被压矮」——flex 压缩的另一半
+- **修复**（两个 wrapper 分支都加 `flex:'none'` = `flex:0 0 auto`）：
+  - `!firstBlock` 单胶囊行分支 + `firstBlock` 横幅列分支
+  - composerStack 再也无法 flex-shrink 压扁 wrapper
+- **CDP 验证**：
+  - capH：16px → **29px**；wrapH 19→32px；flex 由 `0 1 auto` → `0 0 auto`
+  - 文字完整（top 411→427 未裁），zoom 1.0 / 1.25 / 1.5 均正常
+- **测试**：`verify-capsule-narrow` 新增 2 项 R12 断言（两分支 flex:'none'）+ 兼容 R12 的 wrapper 断言，全部通过；既有回归全 PASS
+
 ## 2026-08-18 · 面板 tabs 行窄屏单行 + 内容自适应折叠为纯图标（#15 · v1.7.0）
 
 - **BUG**（reporter）：面板 tabs 行 6 按钮（列表 / 技能 / 环境检查 / + 新建需求 / + 新增BUG单 / 刷新）面板变窄时文字换行（CJK 任意断行），行高跳变，`flex:none` 动作按钮溢出右缘
