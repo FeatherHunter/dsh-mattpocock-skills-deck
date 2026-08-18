@@ -87,10 +87,13 @@ check(pcli.includes('const BODY_FORMAT'), 'package client 含 BODY_FORMAT 常量
 // 追加点跨行容错（completePrompt 的 + 在上一行末尾，CRLF 源码）：\+ 与 ( 之间允许空白/换行
 // 2026-08-18（需求修复）：BODY_FORMAT 已函数化 —— 追加点形态为 BODY_FORMAT()
 const appendCount = (s) => (s.match(/\+[\s]*\(BODY_FORMAT\(\) \? '\\n\\n' \+ BODY_FORMAT\(\) : ''\)/g) || []).length
-check(appendCount(cli) === 3, 'client BODY_FORMAT 追加点 ×3（completePrompt + mapExecute + newWayfinder）')
-check(appendCount(pcli) === 3, 'package client BODY_FORMAT 追加点 ×3（completePrompt + mapExecute + newWayfinder）')
+// issue #4：新增 newBugWayfinderText（+ 新增BUG单 入口）→ 追加点 ×4
+check(appendCount(cli) === 4, 'client BODY_FORMAT 追加点 ×4（completePrompt + mapExecute + newWayfinder + newBugWayfinder）')
+check(appendCount(pcli) === 4, 'package client BODY_FORMAT 追加点 ×4（completePrompt + mapExecute + newWayfinder + newBugWayfinder）')
 check(cli.includes('newWayfinderText') && cli.includes('BODY_FORMAT() ?') && cli.includes("promptText('newWayfinder'"), 'client newWayfinder 建图入口挂 BODY_FORMAT（F2 补强）')
 check(pcli.includes('newWayfinderText') && pcli.includes('BODY_FORMAT() ?') && pcli.includes("promptText('newWayfinder'"), 'package client newWayfinder 建图入口挂 BODY_FORMAT（F2 补强）')
+check(cli.includes('newBugWayfinderText') && cli.includes('BODY_FORMAT() ?') && cli.includes("promptText('newBugWayfinder'"), 'client newBugWayfinder 新增 BUG 入口挂 BODY_FORMAT（#4）')
+check(pcli.includes('newBugWayfinderText') && pcli.includes('BODY_FORMAT() ?') && pcli.includes("promptText('newBugWayfinder'"), 'package client newBugWayfinder 新增 BUG 入口挂 BODY_FORMAT（#4）')
 
 // T10 R7（#458 用户拍板）：手动刷新去「刷新中」遮罩 —— 无全屏遮罩渲染；st.refreshing 仅驱动按钮 spinner
 check(!cli.includes("className: 'dsws-shade'") && !cli.includes('dsws-shade{'), 'client 无刷新遮罩渲染（R7）')

@@ -1,5 +1,14 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 新增BUG单入口（issue #4）
+
+- **需求**：「+ 新增BUG单」按钮（右侧面板 tabs 行「+ 新建需求」旁，dock + sidebar 两处渲染）+ 状态栏「BUG 2」悬停菜单「新增」——点击都在新会话（同 cwd）打开并预填 /wayfinder 的 BUG 专用 prompt（新注册表条目 `newBugWayfinder`）
+- **模板**：7 字段中英双语（背景 / 场景 / 现象 / 复现步骤 / 期望行为 / 实际行为 / 影响范围，每行一项 + 冒号）；按用户拍板不硬编码平台——写「新建带 bug 标签的 ISSUE」，不写死 gh issue create（未来用户未必在 GitHub 平台）
+- **交互**：BUG 计数段点击仍开 bug 过滤列表（行为不破坏）；悬停弹「新增」菜单（React 容器包含关系，跨 4px 间隔无悬停闪烁）
+- 新增 Ic `bug` 虫形图标 / i18n 键 panel.newBug / panel.newBugTitle / nav.bugNew / nav.bugNewTitle（zh/en）/ store 状态 bugMenuOpen
+- 新增回归测试 tests/verify-bug-entry.js（注册表字段齐备 / 双语 / 平台中立 / 接线次数 / 双源一致）
+- 双源镜像同步（client.js ↔ package/lib/client.js）· 已同步 DSH 安装目录
+
 ## 2026-08-18 · 修复当前 DSH 插件发现的问题（issue #1）
 
 - **BUG1/3**：`newWayfinder` prompt 的「需求描述：」输入位移到模板**末尾**（v5→v6，中英同步；全量审计确认仅此模板有中途输入位）

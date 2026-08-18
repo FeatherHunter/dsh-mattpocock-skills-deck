@@ -275,7 +275,7 @@ window.__ModuleLoader__.load({
       const timer = ctx.get('timer')
       const h = React.createElement
       // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-      const DSW_VERSION = 'v1.5.0'
+      const DSW_VERSION = 'v1.6.0'
 
       // 样式注入（静态插件没有 styles.insert builtin，手动 <style> + ctx.effect 清理）
       const styleEl = document.createElement('style')
@@ -320,6 +320,8 @@ window.__ModuleLoader__.load({
           'nav.occupiedTitle': '阻塞 = 已认领未关闭的任务数',
           'nav.bug': 'BUG',
           'nav.bugTitle': '过滤：open + bug 标签',
+          'nav.bugNew': '新增',
+          'nav.bugNewTitle': '新会话中打开 /wayfinder 新增 BUG 单 prompt',
           'nav.triage': '诊断',
           'nav.triageTitle': '过滤：open + needs-triage 标签',
           'nav.refresh': '更新',
@@ -457,6 +459,8 @@ window.__ModuleLoader__.load({
           'list.newSessionLabel': '新会话',
           'panel.newWayfinder': '+ 新建需求',
           'panel.newWayfinderTitle': '新会话中打开 /wayfinder 新增需求 prompt（继承当前工作区）',
+          'panel.newBug': '+ 新增BUG单',
+          'panel.newBugTitle': '新会话中打开 /wayfinder 新增 BUG 单 prompt（继承当前工作区）',
           'panel.diffRemoved': '{n} 个已关闭/移除',
           'panel.repoTitle': '当前仓库，点击打开 GitHub',
           'panel.noRepo': '没有仓库',
@@ -544,6 +548,8 @@ window.__ModuleLoader__.load({
           'nav.occupiedTitle': 'Busy = claimed but not yet closed',
           'nav.bug': 'BUG',
           'nav.bugTitle': 'Filter: open + bug label',
+          'nav.bugNew': 'New',
+          'nav.bugNewTitle': 'Open a /wayfinder new-BUG prompt in a new session (same workspace)',
           'nav.triage': 'Triage',
           'nav.triageTitle': 'Filter: open + needs-triage label',
           'nav.refresh': 'Refresh',
@@ -681,6 +687,8 @@ window.__ModuleLoader__.load({
           'list.newSessionLabel': 'New session',
           'panel.newWayfinder': '+ New requirement',
           'panel.newWayfinderTitle': 'Open a /wayfinder new-requirement prompt in a new session (same workspace)',
+          'panel.newBug': '+ New BUG',
+          'panel.newBugTitle': 'Open a /wayfinder new-BUG prompt in a new session (same workspace)',
           'panel.diffRemoved': '{n} closed/removed',
           'panel.repoTitle': 'Current repo — open on GitHub',
           'panel.noRepo': 'No repo',
@@ -871,6 +879,8 @@ window.__ModuleLoader__.load({
         // 需求2（2026-08-18）：2×2 网格 —— 技能列表按钮
         case 'skills': return h('svg', common, [h('rect', { x: 3, y: 3, width: 7, height: 7, rx: 1 }), h('rect', { x: 14, y: 3, width: 7, height: 7, rx: 1 }), h('rect', { x: 3, y: 14, width: 7, height: 7, rx: 1 }), h('rect', { x: 14, y: 14, width: 7, height: 7, rx: 1 })])
         case 'external-link': return h('svg', common, [h('path', { d: 'M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6' }), h('polyline', { points: '15 3 21 3 21 9' }), h('line', { x1: 10, y1: 14, x2: 21, y2: 3 })])
+        // 新增BUG入口（issue #4）：虫形图标 —— 「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」
+        case 'bug': return h('svg', common, [h('path', { d: 'M8 2l1.88 1.88' }), h('path', { d: 'M14.12 3.88L16 2' }), h('path', { d: 'M9 7.13v-1a3.003 3.003 0 116 0v1' }), h('path', { d: 'M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6' }), h('path', { d: 'M12 20v-9' }), h('path', { d: 'M6.53 9C4.6 8.8 3 7.1 3 5' }), h('path', { d: 'M6 13H2' }), h('path', { d: 'M3 21c0-2.1 1.7-3.9 3.8-4' }), h('path', { d: 'M20.97 5c0 2.1-1.6 3.8-3.5 4' }), h('path', { d: 'M22 13h-4' }), h('path', { d: 'M17.2 17c2.1.1 3.8 1.9 3.8 4' })])
           default: return null
         }
       }
@@ -905,6 +915,7 @@ window.__ModuleLoader__.load({
         "installSkills": { version: 1, placeholders: [], use: '技能安装引导 · DSH 专用（横幅 / 引导 g4 / 设置页复制）', zh: '请为 DSH 安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）：\n1. 克隆 https://github.com/mattpocock/skills；\n2. 按官方 README 将工程领域与通用领域的全部 skills 安装到 DSH 读取的技能目录：用户主目录下的 ~/.agents/skills（本套件仅用于 DSH，不要安装到其他 AI 工具）；\n3. 安装后验证 wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills 等技能文件已就位；\n4. 完成后汇报安装结果与已装技能清单。', en: 'Install the Matt Pocock skills collection (mattpocock/skills) for DSH:\n1. Clone https://github.com/mattpocock/skills;\n2. Per the official README, install all engineering and general-purpose skills into the skill directory DSH reads: ~/.agents/skills under the user home (this collection is for DSH only — do not install it into other AI tools);\n3. After install, verify wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills are in place;\n4. Report the result and the installed skill list when done.' },
         "setupRun": { version: 6, placeholders: [], use: '环境检查横幅 · setup 未执行按钮（仅初始化，不重装技能）', zh: '/setup-matt-pocock-skills\n\n初始化本仓库（技能套件已安装，无需克隆重装）：\n1. issue tracker 选择 GitHub Issues；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 GitHub Issues；triage 标签保留默认五角色），并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 初始化完成后复查环境检查（setup 变绿即完成）。', en: '/setup-matt-pocock-skills\n\nBootstrap this repo (the skill suite is already installed — no need to clone or reinstall):\n1. Choose GitHub Issues as the issue tracker;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose GitHub Issues as the tracker; keep the default triage-role labels), and ensure the repo has the complete label set the skills need (the five triage-role labels + the wayfinder labels wayfinder:map / research / prototype / grilling / task) — not just a few; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. After init, re-run the environment check (setup turns green when done).' },
         "newWayfinder": { version: 6, placeholders: ['repo'], use: '「+ 新建需求」按钮', zh: '/wayfinder\n请帮我处理一个需求（严格遵循 wayfinder 技能规则）。\n仓库：{repo}\n\n收到需求后按以下流程：\n1. 先澄清：对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认；\n2. 判断分类（需求 / map 维度）——先查仓库已有 wayfinder:map 和 issue，确认是否做过：\n   - 新增：全新需求，之前没做过 → 按建图规划契约新建 map（Destination + Notes + 规划表 + 票）；\n   - 复用：这个需求之前已做过（已有 map / issue）→ 打开复用它，不重复建；\n   - 直接实现：需求很小 → 建一个 issue 直接实现，不建大 map；\n3. 执行后按进度契约更新。\n\n需求描述：', en: '/wayfinder\nPlease handle a requirement (strictly follow the wayfinder skill rules).\nRepo: {repo}\n\nAfter receiving the requirement, follow this flow:\n1. Clarify first: if you hold assumptions about the goal / scope / preferences, settle them with the grilling skill, never assume;\n2. Decide the case (at the requirement / map level) — first check existing wayfinder:map and issues in the repo to confirm whether it has been done:\n   - Add: a brand-new requirement never done before → build a new map per the planning contract (Destination + Notes + plan + tickets);\n   - Reuse: this requirement has been done before (existing map / issue) → open and reuse it, do not build a new one;\n   - Directly implement: the requirement is small → create a single issue and implement it directly, no big map;\n3. Update per the progress contract after execution.\n\nRequirement: ' },
+        "newBugWayfinder": { version: 1, placeholders: ['repo'], use: '「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4）', zh: '/wayfinder\n请帮我新增一个 BUG 单（严格遵循 wayfinder 技能规则）。\n仓库：{repo}\n\n收到需求后按以下流程：\n1. 先澄清：对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认；\n2. 判断分类 —— 先查仓库已有 wayfinder:map 和 issue，确认是否已有相同 BUG：\n   - 全新 BUG，之前没建过 → 按下面字段把 BUG 信息填写完整，然后新建一条带 bug 标签的 ISSUE（写入 `## 进度：0%` 基准，后续按进度契约更新）；\n   - 已有相同 BUG（重复）→ 不重复建，在已有的 issue 上补全信息；\n   - 需要先讨论 / 定夺 → 用 grilling 技能与我确认；\n3. 按下面字段逐项填写 BUG 信息（每行一项，冒号后填写内容）：\n\n背景：\n场景：\n现象：\n复现步骤：\n期望行为：\n实际行为：\n影响范围：', en: '/wayfinder\nPlease help me file a new BUG ticket (strictly follow the wayfinder skill rules).\nRepo: {repo}\n\nAfter receiving the requirement, follow this flow:\n1. Clarify first: if you hold assumptions about the goal / scope / preferences, settle them with the grilling skill, never assume;\n2. Decide the case — first check existing wayfinder:map and issues in the repo to see whether this BUG already exists:\n   - A brand-new BUG never filed before → fill in every field below completely, then create a new ISSUE carrying the bug label (write a `## Progress: 0%` baseline, then keep it updated per the progress contract);\n   - The same BUG already exists (duplicate) → do not file a new one; complete the info on the existing issue;\n   - Needs discussion / a call → settle it with me using the grilling skill;\n3. Fill in each field below (one line per item, content after the colon):\n\nBackground:\nScenario:\nSymptom:\nReproduction steps:\nExpected behavior:\nActual behavior:\nImpact:' },
         "mapHead": { version: 1, placeholders: ['n', 'title', 'url'], use: '新会话/执行 · map 标识头（B2）', zh: '## 目标 map\n- 编号：#{n}\n- 标题：{title}\n- 链接：{url}', en: '## Target map\n- No: #{n}\n- Title: {title}\n- Link: {url}' },
         "stageGate": { version: 2, placeholders: [], use: '阶段闸门条款（T13 · 统一追加于 诊断/修复/执行/map推进 动作：needs-triage 必须先诊断并判断现状）', zh: '阶段闸门（动作开始前必读，这是动作的一部分，不是可选项）：\n1. 先读该 issue 现状：进度区（## 进度：N%）/ 已有实施记录 / 评论 / 标签，判断它处于哪个阶段；\n2. 若带 needs-triage 标签：必须先完成诊断（这是前置步骤，不许跳过直接实施）；\n3. 诊断时判断当前进展：\n   - 已有实施且真实 → 核验是否符合验收标准，属实则维持 95% 待确认 + 摘 needs-triage（转 ready-for-agent）；\n   - 已有实施但虚假/半成品 → 进度据实回调到真实值（如 30%），继续诊断；\n   - 未动工 → 正常诊断（复现 → 根因 → 方案 → 写入 issue）；\n4. 诊断完成摘 needs-triage 后才允许进入实施阶段。', en: 'Stage gate (must read before starting the action — it is part of the action, not optional):\n1. First read the issue current state: progress section (## Progress: N%) / existing implementation record / comments / labels — determine which stage it is in;\n2. If it carries the needs-triage label: diagnosis MUST be completed first (a prerequisite step — do not skip straight to implementation);\n3. During diagnosis, judge current progress:\n   - Existing implementation and it is real → verify against acceptance criteria; if genuine, keep 95% awaiting confirmation + remove needs-triage (move to ready-for-agent);\n   - Existing implementation but fake/partial → revise progress back to the true value (e.g. 30%) and continue diagnosing;\n   - Not started → normal diagnosis (reproduce → root cause → plan → write into the issue);\n4. Only after diagnosis is done and needs-triage removed may implementation begin.' },
       }
@@ -1083,7 +1094,7 @@ window.__ModuleLoader__.load({
         stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
         checks: null, checksUpdatedAt: '', checksMode: 'loading', checksError: null, checking: false,
         snapMode: 'loading', snapError: null, snapLoading: false,
-        skillsOpen: false, skillHover: null, skillTip: null, handoffReady: false, expTags: {}, subs: [],
+        skillsOpen: false, skillHover: null, skillTip: null, handoffReady: false, bugMenuOpen: false, expTags: {}, subs: [],
       })
       const shared = makeStore()
       const stores = {}
@@ -1660,6 +1671,8 @@ window.__ModuleLoader__.load({
       // v1.5 T6：新增 wayfinder prompt —— /wayfinder + 仓库信息 + 需求引导（用户拍板：prompt 带仓库信息）
       // T16 补强（#463 复核 F2）：建图入口同样挂正文格式契约（新建 map 正文从源头防字面 \\n / BOM）
       const newWayfinderText = (st) => promptText('newWayfinder', { repo: 'https://github.com/' + repoStr(st) }) + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '')
+      // issue #4：新增 BUG 单 —— 与「+ 新增需求」同构（新会话 + 预填 /wayfinder prompt + 正文格式契约）
+      const newBugWayfinderText = (st) => promptText('newBugWayfinder', { repo: 'https://github.com/' + repoStr(st) }) + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '')
 
       // v10：沉淀 = 会话级动作 —— 注入「零丢失快照」prompt（默认文本见 §2.5 FIXATE_PROMPT，T2b 可编辑）
       const injectFixate = (st) => { inject(st, fixateText()) }
@@ -1863,7 +1876,16 @@ window.__ModuleLoader__.load({
             h('span', null, tr('panel.title')),
           ]),
           seg('target', [h('span', null, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; go('list') }, tr('nav.takeableTitle')),
-          seg('alert', [h('span', null, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, tr('nav.bugTitle')),
+          // issue #4：BUG 计数段 —— 点击仍开 bug 过滤列表；悬停弹「新增」菜单（新会话预填 /wayfinder 新增 BUG 单 prompt）
+          h('span', { style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: function () { s.bugMenuOpen = true; emit(s) }, onMouseLeave: function () { s.bugMenuOpen = false; emit(s) } }, [
+            seg('alert', [h('span', null, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, tr('nav.bugTitle')),
+            s.bugMenuOpen ? h('div', { onMouseEnter: function () { s.bugMenuOpen = true; emit(s) }, onMouseLeave: function () { s.bugMenuOpen = false; emit(s) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'absolute', bottom: '100%', left: 0, marginBottom: 4, zIndex: 9999, minWidth: 96, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
+              h('div', { onClick: function (e) { e.stopPropagation(); s.bugMenuOpen = false; emit(s); openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-primary,#e6edf3)', whiteSpace: 'nowrap' } }, [
+                Ic({ n: 'bug', size: 12, color: '#f87171' }),
+                h('span', null, tr('nav.bugNew')),
+              ]),
+            ]) : null,
+          ]),
           seg('search', [h('span', null, tr('nav.triage')), num(String(triageN), '2ch')], '#f59e0b', function () { s.stateFilter = 'open'; s.lblFilters = ['needs-triage']; go('list') }, tr('nav.triageTitle')),
           seg('note', tr('nav.word'), '#c084fc', function () { injectFixate(s) }, tr('nav.fixateTitle')),
           // 需求1·二阶段（2026-08-18）：交接分割按钮 —— 共外框 + 细分隔线；左半「交接」= 第一击生成、
@@ -2956,9 +2978,14 @@ window.__ModuleLoader__.load({
             tabBtn('checks', 'gear', tr('panel.tabChecks')),
             h('span', { style: { flex: 1 } }),
             // v1.5 T6 修订（V2 描边紫 · 刷新左侧）：新增 wayfinder —— 注入 /wayfinder + 仓库信息 + 需求引导
+            // issue #4：新增 BUG 单 —— 同构按钮（新会话预填 /wayfinder 新增 BUG 单 prompt）
             h('button', { className: 'dsws-btn', title: tr('panel.newWayfinderTitle'), onClick: function () { openTextInNewSession(s, newWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newWayfinder')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
               Ic({ n: 'map', size: 11 }),
               h('span', null, tr('panel.newWayfinder')),
+            ]),
+            h('button', { className: 'dsws-btn', title: tr('panel.newBugTitle'), onClick: function () { openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #f87171', color: '#f87171', fontWeight: 600 } }, [
+              Ic({ n: 'bug', size: 11 }),
+              h('span', null, tr('panel.newBug')),
             ]),
             h('button', { className: 'dsws-btn', title: tr('list.refresh'), onClick: function () { refreshAll(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none' } }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('list.refresh'))]),
             h('span', { style: { fontSize: 9, color: 'var(--dsw-alias-label-caption,#8b8b95)', flex: 'none', fontVariantNumeric: 'tabular-nums' } }, DSW_VERSION),
@@ -3054,9 +3081,14 @@ window.__ModuleLoader__.load({
           tabBtn('checks', 'gear', tr('panel.tabChecks')),
           h('span', { style: { flex: 1 } }),
           // v1.5 T6 修订（V2 描边紫 · 刷新左侧）：新增 wayfinder
+          // issue #4：新增 BUG 单 —— 同构按钮（新会话预填 /wayfinder 新增 BUG 单 prompt）
           h('button', { className: 'dsws-btn', title: tr('panel.newWayfinderTitle'), onClick: function () { openTextInNewSession(s, newWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newWayfinder')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', fontWeight: 600 } }, [
             Ic({ n: 'map', size: 11 }),
             h('span', null, tr('panel.newWayfinder')),
+          ]),
+          h('button', { className: 'dsws-btn', title: tr('panel.newBugTitle'), onClick: function () { openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none', background: 'transparent', border: '1px solid #f87171', color: '#f87171', fontWeight: 600 } }, [
+            Ic({ n: 'bug', size: 11 }),
+            h('span', null, tr('panel.newBug')),
           ]),
           // T2 #2：刷新按钮上移至 tabs 末尾（紧贴环境检查右边 · 用户需求）
           h('button', { className: 'dsws-btn', title: tr('list.refresh'), onClick: function () { refreshAll(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none' } }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('list.refresh'))]),
