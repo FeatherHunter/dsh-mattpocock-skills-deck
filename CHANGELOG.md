@@ -1,5 +1,13 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊 R8 拆调试钩子（#16 R8 · v1.6.8）
+
+- 用户验收 R7 后要求去掉 R3 加的 magenta/cyan outline 调试钩子（v1.6.3 临时开启）
+- 拆掉 `.dsws-capsule { outline:2px dashed #ff00aa }` 和外层 wrapper `outline:'2px dashed #00aaff'`
+- **不影响任何修复行为**（R7 对齐输入区 + R6 CSS 累加 + R5 ResizeObserver + R4 wrapper overflow:hidden + R2 max-width:100% 全部保留）
+- **CDP 验证**：截图里**无粉色/蓝色虚线框**，状态栏胶囊显示干净
+- 测试 + 既有回归 + CDP 截图验证全部 PASS
+
 ## 2026-08-18 · 状态栏胶囊 R7 对齐输入区（#16 R7 · v1.6.7）
 
 - **用户验收反馈**：1280px viewport 下 magenta 框（capsule）远小于 cyan 框（wrapper），capsule 左右边没跟输入框左右边对齐，中间一段空白
