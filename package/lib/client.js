@@ -1793,17 +1793,19 @@ window.__ModuleLoader__.load({
       // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑
       // 需求1·二阶段 rev（2026-08-18）：灰/亮双态的真实依据 = 磁盘上确实存在交接文档（handoffLatest 探测）。
       //   probeHandoffReady：探测 → 写 st.handoffReady + emit（右半亮蓝/灰 + 允许/禁止 的开关）；任何路径都不得在无文档时开新会话。
-      // issue #12 BUG4 · 主路径：用户刚点过第一击（handoffFile 已设）→ 调 handoffResolve 带 name 优先返回该文件，
-      //   彻底解决「点过第一击 → handoff-open 仍引老文档」（DSH fs.mtime 形态不可控 + sort 单键不稳定的 BUG）。
-      //   未点过第一击（handoffFile=null，如刷新后 / 直接点右半）→ 退到 handoffLatest（mtime 最新）。
+      // issue #12 BUG4 · 主路径（r2 终极形态）：用户刚点过第一击（handoffFile 已设）→ 直接用 handoffFile 作为 prompt
+      //   文件名 + 亮蓝，**不查磁盘**。理由：prompt 必须与第一击注入的 `/handoff` 模板时间戳一致（用户视角的「两段文本应该对应同一份文档」），
+      //   即便 AI 还没落盘，handoff-open 仍应预填 handoffFile（保证两段 prompt 一致）。若 AI 真没写，新会话 `/read` 会失败 —— 那是 AI 行为问题。
+      //   未点过第一击（handoffFile=null，如刷新后 / 直接点右半）→ 调 handoffLatest 探磁盘取 mtime 最新。
+      //   始终返回 Promise.resolve(done(...))，让调用方（doHandoffOpen / probe chain）能稳定 .then。
       const probeHandoffReady = function (st) {
         const cwdArg = st.cwd ? { cwd: st.cwd } : {}
         const done = function (file) { st.handoffReady = !!file; emit(st); return file }
         if (conn === undefined || conn.rpc === undefined) { done(null); return Promise.resolve(null) }
-        // 主路径：有 handoffFile → handoffResolve(name=handoffFile)；副路径：无 → handoffLatest
-        const callName = handoffFile ? 'handoffResolve' : 'handoffLatest'
-        const callArg = handoffFile ? Object.assign({}, cwdArg, { name: handoffFile }) : cwdArg
-        return rpcCall(callName, callArg).then(function (res) {
+        // 主路径：handoffFile 已设 → 直接返回它（prompt 内容与第一击模板时间戳一致 · r2）
+        if (handoffFile) return Promise.resolve(done(handoffFile))
+        // 副路径：handoffFile=null（刷新后 / 从未点第一击）→ 走 handoffLatest 探磁盘
+        return rpcCall('handoffLatest', cwdArg).then(function (res) {
           return done((res && res.ok && res.file) ? res.file : null)
         }).catch(function () { return done(null) })
       }
@@ -1813,9 +1815,8 @@ window.__ModuleLoader__.load({
         handoffFile = extractHandoffFile(text) || (handoffTs + '.md')
         inject(st, text)
         flash(st, tr('toast.injectedHandoff'), 'ok')
-        // 注入模板 ≠ 文档已成文：立即 + 延迟再探测，等 AI 写好文档后右半自动亮蓝可点（不再仅凭第一击就亮）
+        // r2：handoffFile 已设后 probeHandoffReady 直接亮蓝（不再等磁盘落盘）
         probeHandoffReady(st)
-        if (timer !== undefined) timer.timeout(function () { probeHandoffReady(st) }, 10000)
       }
       const doHandoffOpen = function (st) {
         const ws = ctx.get('workspaces')
