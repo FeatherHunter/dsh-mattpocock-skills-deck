@@ -1,5 +1,18 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-18 · 状态栏胶囊 R7 对齐输入区（#16 R7 · v1.6.7）
+
+- **用户验收反馈**：1280px viewport 下 magenta 框（capsule）远小于 cyan 框（wrapper），capsule 左右边没跟输入框左右边对齐，中间一段空白
+- **根因**：R1 CSS `width:fit-content` → capsule 默认按内容自然宽（约700px），小于 wrapper 1300px，居中后左右各300px空白
+- **修复**（commit `9485e15`）：
+  - **条件式宽度**：默认 `width:100%`（dn=0 时撑满 wrapper 对齐输入区）
+  - `[data-narrow-1..4] .dsws-capsule { width:fit-content }`（dn>=1 时切回自然宽居中，保留用户 B 方案：dn=4 后 capsule 不再缩）
+- **CDP 验证**：
+  - 1280px：magenta = cyan = 整个对话区下半部分宽 ✓
+  - 500px (dn=4)：magenta fit-content 自然宽在 cyan 内居中，内容仅图标 + 数字 ✓
+- **测试**：加 3 项 R7 断言（默认 width:100% + dn>=1 切回 fit-content + 旧无条件 fit-content 反向守护）
+- **70+ 项断言全绿**；既有回归全 PASS
+
 ## 2026-08-18 · 状态栏胶囊 R6 CSS 累加 + 高度修复（#16 R6 · v1.6.6）
 
 - **用户反馈 1**：缩小过程中文字「先消失再出现」（dn=4 时 seg文字还在）
