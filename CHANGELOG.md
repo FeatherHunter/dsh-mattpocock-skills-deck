@@ -29,7 +29,7 @@
 
 ### 交接按钮 rev（同日 · #1 · 用户 UI 反馈两处）
 
-- **无文档即禁止开新会话**：删除「本会话点过第一击即放行」的旁路——doHandoffOpen 任何情况下都先探测磁盘 .scratch/handoff/ 真实文档，有 latest 才置 ready + 开新会话；没有 → toast 引导且**绝不打开空会话**；右半未就绪呈禁用态（灰 + opacity .6 + cursor not-allowed + tooltip 引导）
+- **无文档即禁止开新会话**：删除「本会话点过第一击即放行」的旁路——doHandoffOpen 任何情况下都先探测磁盘 .scratch/handoff/ 真实文档，有 latest 才置 ready + 开新会话；没有 → toast 引导且**绝不打开空会话**；右半未就绪呈禁用态（灰 + opacity .55 + 自定义 SVG「文档+斜杠」禁用图标 handoff-off + cursor default，替换系统红圈光标，tooltip 引导）
 - **灰/亮依据改为「磁盘真实文档」**：新增 probeHandoffReady（探测 → 写 st.handoffReady + emit 重渲染）；StatusBar 挂载即探测；第一击只注入模板并触发立即 + 10s 延迟再探测，文档一成文右半自动亮蓝可点（不再仅凭第一击就亮）
 - **边框/分隔线 hover 才显**：分割按钮外框边框与细分隔线改为常驻透明、hover 时浮现（与 沉淀/诊断/bug 等 seg 按钮一致），hover 背景沿用 seg
 - verify-handoff-split.js 升级为 rev 契约（22 静态 + 8 行为场景 × 双源）

@@ -866,6 +866,8 @@ window.__ModuleLoader__.load({
           // #394：与 nav.handoff 同图标造成「交接 / 新开会话」二义；新会话按钮换 external-link 消歧
           // 需求1（2026-08-18）：交接文档 + 出箭头 —— 「新会话交接」小按钮
         case 'handoff-open': return h('svg', common, [h('path', { d: 'M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z' }), h('path', { d: 'M14 3v5h5' }), h('path', { d: 'M10 15l4-4' }), h('path', { d: 'M11 11h3v3' })])
+        // 需求1·rev（2026-08-18）：禁用态“文档暂不可开” —— 交接文档 + 斜杠（未生成时右侧按钮的静止样式）
+        case 'handoff-off': return h('svg', common, [h('path', { d: 'M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z' }), h('path', { d: 'M14 3v5h5' }), h('path', { d: 'M8 16l8-8' })])
         // 需求2（2026-08-18）：2×2 网格 —— 技能列表按钮
         case 'skills': return h('svg', common, [h('rect', { x: 3, y: 3, width: 7, height: 7, rx: 1 }), h('rect', { x: 14, y: 3, width: 7, height: 7, rx: 1 }), h('rect', { x: 3, y: 14, width: 7, height: 7, rx: 1 }), h('rect', { x: 14, y: 14, width: 7, height: 7, rx: 1 })])
         case 'external-link': return h('svg', common, [h('path', { d: 'M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6' }), h('polyline', { points: '15 3 21 3 21 9' }), h('line', { x1: 10, y1: 14, x2: 21, y2: 3 })])
@@ -1873,8 +1875,8 @@ window.__ModuleLoader__.load({
               tr('nav.handoff'),
             ]),
             h('span', { className: 'dsws-split-div' }),
-            h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoffOpen(s) }, title: s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle'), style: s.handoffReady ? { color: '#58a6ff' } : { color: '#8b8b95', opacity: 0.6, cursor: 'not-allowed' } }, [
-              Ic({ n: 'handoff-open', size: 12 }),
+            h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoffOpen(s) }, title: s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle'), style: s.handoffReady ? { color: '#58a6ff' } : { color: '#8b8b95', opacity: 0.55, cursor: 'default' } }, [
+              Ic({ n: s.handoffReady ? 'handoff-open' : 'handoff-off', size: 12 }),
             ]),
           ]),
           // v19-36：环境段移至末尾（更新左侧），用户少点
