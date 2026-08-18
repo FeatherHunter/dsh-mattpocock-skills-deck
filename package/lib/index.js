@@ -711,6 +711,62 @@ export function apply(ctx) {
     try { return JSON.stringify(e) } catch (err) { return String(e) }
   }
 
+  // ============ 交接文档（issue #12 BUG4 · 双重防御 · 副路径）============
+  // DSH 沙箱里 fs.stat 返回的 info.mtime 形态不可控（Date / ISO 串 / 秒级 Unix / 本地化串 / null / NaN）；
+  // 原 `typeof number ? mt : Date.parse(String(mt))` 在 Date 对象或不可 parse 形态都得 NaN；
+  // 原 sort 单键 `b.mtime - a.mtime` 在 mtime 相等/NaN 时 Array.sort 视为 equal → 原顺序保留 →
+  // fs.listDir 按名字典序返回 → 老文件天然排第一 → mds[0].name = 字典序最小 = 上一次写入（BUG）。
+  //
+  // 加固（副路径 · 治本）：
+  //   - parseHandoffMtime：isFinite 严格校验 + Date 实例 getTime 优先；任何无法 parse 的形态安全归 0
+  //     （NaN/null/undefined/0/不可 parse 串 → 0）
+  //   - pickLatestHandoff：mtime desc 主键 + name desc 兜底（时间戳文件名 = 字典序 = 时间序）；
+  //     mtime 退化为 0 的退化形态（NaN/null/全 0/全等 finite）一律走 name desc 返回字典序最大
+  //
+  // 注：混合退化形态（new=NaN+old=valid）的 mtime 倒挂，sort 加固无法区分 —— 由主路径
+  //     `handoffResolve(args.name)` 在客户端已点过第一击时直接返回该 name 保障。
+  const parseHandoffMtime = function (raw) {
+    if (typeof raw === 'number') return isFinite(raw) ? raw : 0
+    if (raw instanceof Date) { const t = raw.getTime(); return isFinite(t) ? t : 0 }
+    if (raw) { const p = Date.parse(String(raw)); return isFinite(p) ? p : 0 }
+    return 0
+  }
+  const pickLatestHandoff = function (mds) {
+    if (!Array.isArray(mds) || !mds.length) return null
+    const sorted = mds.slice().sort(function (a, b) {
+      const dt = (b.mtime || 0) - (a.mtime || 0)
+      if (dt !== 0) return dt
+      // name desc 兜底：时间戳文件名（YYYYMMDD-HHMMSS）字典序 = 时间序
+      if (b.name < a.name) return -1
+      if (b.name > a.name) return 1
+      return 0
+    })
+    return sorted[0].name
+  }
+  // 共享目录扫描（handoffLatest + handoffResolve 共用）—— 任何 fs 调用异常都降级为空数组
+  const scanHandoffDir = async function (cwd) {
+    if (fs === undefined) return { error: 'fs 服务不可用', mds: [] }
+    try {
+      const dir = await fs.resolve('.scratch/handoff', { cwd: cwd })
+      const entries = await fs.listDir(dir)
+      const mds = []
+      for (let i = 0; i < entries.length; i++) {
+        const e = entries[i]
+        const name2 = (e && (e.name || e.path || '')) || ''
+        if (!name2 || !/\.md$/i.test(name2)) continue
+        let mtime = 0
+        try {
+          const info = await fs.stat(await fs.resolve('.scratch/handoff/' + name2, { cwd: cwd }))
+          if (info) mtime = parseHandoffMtime(info.mtime)
+        } catch (e2) { mtime = 0 }
+        mds.push({ name: name2, mtime: mtime })
+      }
+      return { mds: mds }
+    } catch (e) {
+      return { mds: [] }  // 目录不存在/不可读 = 还没有交接文档
+    }
+  }
+
   const dispatch = async function (endpoint, args) {
     const cwd = (args && args.cwd) || DEFAULT_CWD
     switch (endpoint) {
@@ -804,29 +860,17 @@ export function apply(ctx) {
       }
       case 'handoffLatest': {
         if (fs === undefined) return { ok: false, error: 'fs 服务不可用' }
-        try {
-          const dir = await fs.resolve('.scratch/handoff', { cwd: cwd })
-          const entries = await fs.listDir(dir)
-          const mds = []
-          for (let i = 0; i < entries.length; i++) {
-            const e = entries[i]
-            const name2 = (e && (e.name || e.path || '')) || ''
-            if (!name2 || !/\.md$/i.test(name2)) continue
-            let mtime = 0
-            try {
-              const info = await fs.stat(await fs.resolve('.scratch/handoff/' + name2, { cwd: cwd }))
-              if (info) {
-                const mt = info.mtime
-                mtime = typeof mt === 'number' ? mt : (mt ? Date.parse(String(mt)) : 0)
-              }
-            } catch (e2) { mtime = 0 }
-            mds.push({ name: name2, mtime: mtime })
-          }
-          mds.sort(function (a, b) { return b.mtime - a.mtime })
-          return { ok: true, file: mds.length ? mds[0].name : null }
-        } catch (e) {
-          return { ok: true, file: null }  // 目录不存在/不可读 = 还没有交接文档
-        }
+        const r = await scanHandoffDir(cwd)
+        if (r.error) return { ok: false, error: r.error }
+        return { ok: true, file: pickLatestHandoff(r.mds) }
+      }
+      case 'handoffResolve': {
+        if (fs === undefined) return { ok: false, error: 'fs 服务不可用' }
+        const want = args && args.name
+        const r = await scanHandoffDir(cwd)
+        if (r.error) return { ok: false, error: r.error }
+        if (want && r.mds.some(function (m) { return m.name === want })) return { ok: true, file: want }
+        return { ok: true, file: pickLatestHandoff(r.mds) }
       }
       case 'claim': {
         const n = args && args.number

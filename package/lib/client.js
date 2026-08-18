@@ -306,7 +306,7 @@ window.__ModuleLoader__.load({
         return node
       }
       // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-      const DSW_VERSION = 'v1.6.1'
+      const DSW_VERSION = 'v1.6.2'
 
       // 样式注入（静态插件没有 styles.insert builtin，手动 <style> + ctx.effect 清理）
       const styleEl = document.createElement('style')
@@ -1507,23 +1507,68 @@ window.__ModuleLoader__.load({
           if (now - lastFocusProbe < FOCUS_PROBE_MIN_MS) return
           lastFocusProbe = now
         }
-        const args = shared.cwd ? { cwd: shared.cwd } : {}
-        rpcCall('probe', args).then(function (res) {
-          if (!(res && res.ok && res.changed)) return
-          const rep = (res && res.repo && (res.repo.owner && res.repo.name))
-            ? (res.repo.owner + '/' + res.repo.name) : null
-          // B5（第一性原理）：changed 只触发 1 次全量刷新（shared · force 走 wf.refresh），
-          //   同 repo 的其他 store 用非 force 的 wf.snapshot → 命中 host 60s 缓存（shared 刚刷过）→ 零额外 GraphQL。
-          loadSnapshot(shared, true, true)
-          if (rep) {
-            Object.keys(stores).forEach(function (k) {
-              const st2 = stores[k]
-              const sr = (st2.snapshot && st2.snapshot.repo && st2.snapshot.repo.owner && st2.snapshot.repo.name)
-                ? (st2.snapshot.repo.owner + '/' + st2.snapshot.repo.name) : null
-              if (sr === rep) loadSnapshot(st2, false, true)
+        // v1.5 R2-fix（#2 MVP E2E 发现）：probe 不能用 shared.cwd —— 该字段在多 store 改造（v1.5）后从未被赋值，
+        //   导致 probe 永远走 DEFAULT_CWD（DSH Desktop 安装目录，非 git 仓库），getRepoKey 返回 null，probe 静默失败，
+        //   面板永远不自动刷新。改为：迭代每个有 cwd 的 store + 兜底用 wf.cwd 拉取。
+        const cwds = []
+        if (shared.cwd) cwds.push(shared.cwd)
+        Object.keys(stores).forEach(function (k) {
+          const c = stores[k] && stores[k].cwd
+          if (c && cwds.indexOf(c) < 0) cwds.push(c)
+        })
+        if (!cwds.length) {
+          // 兜底：从 wf.cwd 拉一次（用户当前会话的工作目录）—— 试每个 store 的 sessionId
+          const sids = []
+          if (shared.sessionId) sids.push(shared.sessionId)
+          Object.keys(stores).forEach(function (k) { if (stores[k].sessionId && sids.indexOf(stores[k].sessionId) < 0) sids.push(stores[k].sessionId) })
+          if (!sids.length) return
+          Promise.all(sids.map(function (sid) { return rpcCall('cwd', { sessionId: sid }).catch(function () { return null }) })).then(function (results) {
+            const foundCwds = []
+            results.forEach(function (res) {
+              if (res && res.ok && res.cwd && foundCwds.indexOf(res.cwd) < 0) foundCwds.push(res.cwd)
             })
-          }
-        }).catch(function () { /* 探测失败忽略，下轮再试 */ })
+            if (!foundCwds.length) return
+            if (shared.cwd !== foundCwds[0]) shared.cwd = foundCwds[0]
+            foundCwds.forEach(function (cwd) {
+              rpcCall('probe', { cwd: cwd }).then(function (res2) {
+                if (!(res2 && res2.ok && res2.changed)) return
+                const rep2 = (res2 && res2.repo && (res2.repo.owner && res2.repo.name))
+                  ? (res2.repo.owner + '/' + res2.repo.name) : null
+                if (!shared.cwd) shared.cwd = cwd
+                loadSnapshot(shared, true, true)
+                if (rep2) {
+                  Object.keys(stores).forEach(function (k) {
+                    const st2 = stores[k]
+                    const sr = (st2.snapshot && st2.snapshot.repo && st2.snapshot.repo.owner && st2.snapshot.repo.name)
+                      ? (st2.snapshot.repo.owner + '/' + st2.snapshot.repo.name) : null
+                    if (sr === rep2) loadSnapshot(st2, false, true)
+                  })
+                }
+              }).catch(function () { /* 忽略 */ })
+            })
+          })
+          return
+        }
+        cwds.forEach(function (cwd) {
+          rpcCall('probe', { cwd: cwd }).then(function (res) {
+            if (!(res && res.ok && res.changed)) return
+            const rep = (res && res.repo && (res.repo.owner && res.repo.name))
+              ? (res.repo.owner + '/' + res.repo.name) : null
+            // B5（第一性原理）：changed 只触发 1 次全量刷新（shared · force 走 wf.refresh），
+            //   同 repo 的其他 store 用非 force 的 wf.snapshot → 命中 host 60s 缓存（shared 刚刷过）→ 零额外 GraphQL。
+            // v1.5 R2-fix：把 probed cwd 同步给 shared（防止 loadSnapshot 用空 shared.cwd 走 DEFAULT_CWD 失败）
+            if (!shared.cwd) shared.cwd = cwd
+            loadSnapshot(shared, true, true)
+            if (rep) {
+              Object.keys(stores).forEach(function (k) {
+                const st2 = stores[k]
+                const sr = (st2.snapshot && st2.snapshot.repo && st2.snapshot.repo.owner && st2.snapshot.repo.name)
+                  ? (st2.snapshot.repo.owner + '/' + st2.snapshot.repo.name) : null
+                if (sr === rep) loadSnapshot(st2, false, true)
+              })
+            }
+          }).catch(function () { /* 探测失败忽略 */ })
+        })
       }
       const scheduleActionProbe = function () {
         if (_actionProbePending) return
@@ -1536,7 +1581,14 @@ window.__ModuleLoader__.load({
       }
       const startAutoProbe = function () {
         if (shared._probeTimer) return
+        // v1.5 R2-fix：跨 reload 清理旧 timer（dev_reload_package 后 JS setInterval 不自动清理，
+        //   多个 timer 并行触发 probe 浪费配额）
+        if (typeof globalThis !== 'undefined' && globalThis.__dswsOldProbeTimer) {
+          try { clearInterval(globalThis.__dswsOldProbeTimer) } catch (e) { /* 忽略 */ }
+          globalThis.__dswsOldProbeTimer = null
+        }
         shared._probeTimer = setInterval(function () { probeNow(false) }, PROBE_MS)
+        if (typeof globalThis !== 'undefined') globalThis.__dswsOldProbeTimer = shared._probeTimer
         if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('focus', function () { probeNow(true) })
       }
 
@@ -1734,11 +1786,17 @@ window.__ModuleLoader__.load({
       // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑
       // 需求1·二阶段 rev（2026-08-18）：灰/亮双态的真实依据 = 磁盘上确实存在交接文档（handoffLatest 探测）。
       //   probeHandoffReady：探测 → 写 st.handoffReady + emit（右半亮蓝/灰 + 允许/禁止 的开关）；任何路径都不得在无文档时开新会话。
+      // issue #12 BUG4 · 主路径：用户刚点过第一击（handoffFile 已设）→ 调 handoffResolve 带 name 优先返回该文件，
+      //   彻底解决「点过第一击 → handoff-open 仍引老文档」（DSH fs.mtime 形态不可控 + sort 单键不稳定的 BUG）。
+      //   未点过第一击（handoffFile=null，如刷新后 / 直接点右半）→ 退到 handoffLatest（mtime 最新）。
       const probeHandoffReady = function (st) {
         const cwdArg = st.cwd ? { cwd: st.cwd } : {}
         const done = function (file) { st.handoffReady = !!file; emit(st); return file }
         if (conn === undefined || conn.rpc === undefined) { done(null); return Promise.resolve(null) }
-        return rpcCall('handoffLatest', cwdArg).then(function (res) {
+        // 主路径：有 handoffFile → handoffResolve(name=handoffFile)；副路径：无 → handoffLatest
+        const callName = handoffFile ? 'handoffResolve' : 'handoffLatest'
+        const callArg = handoffFile ? Object.assign({}, cwdArg, { name: handoffFile }) : cwdArg
+        return rpcCall(callName, callArg).then(function (res) {
           return done((res && res.ok && res.file) ? res.file : null)
         }).catch(function () { return done(null) })
       }

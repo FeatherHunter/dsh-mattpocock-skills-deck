@@ -1,7 +1,7 @@
-// verify-handoff-split.js — 交接分割按钮 + 引导门（需求1·二阶段 rev）
+// verify-handoff-split.js — 交接分割按钮 + 引导门（需求1·二阶段 rev）+ handoffFile 主路径（issue #12 BUG4）
 // 用法: node tests/verify-handoff-split.js [file...]（默认 client.js + package/lib/client.js 双源）
 //
-// 验收标准（2026-08-18 拍板 + rev）：
+// 验收标准（2026-08-18 拍板 + rev + issue #12 BUG4）：
 //   a) 分割按钮：dsws-split 容器 + 左右半（dsws-split-part）+ 细分隔线（dsws-split-div 1px×14px）；
 //      外框边框与细分隔线 hover 时才显示（与 seg 常驻透明一致），hover 背景沿用 seg；
 //   b) store 默认 handoffReady: false；灰/亮的真实依据 = 磁盘上确实存在交接文档（probeHandoffReady 探测 .scratch/handoff/）；
@@ -10,6 +10,8 @@
 //      没有 → toast 引导（toast.handoffGrey）且绝不打开空会话（原「点过第一击即放行」旁路已删除）；
 //   d) 右半未就绪呈禁用态：灰 + opacity .6 + cursor not-allowed + tooltip nav.handoffGreyTitle；
 //   e) 新 i18n 键 nav.handoffGreyTitle / toast.handoffGrey（zh/en）齐备；无被取代的历史 toast 键残留。
+//   f) issue #12 BUG4 主路径：probeHandoffReady 在 handoffFile 已设时调 handoffResolve（带 name=handoffFile）；
+//      handoffFile=null 时退到 handoffLatest；预填的 file = handoffFile（即使 handoffLatest 会返回别的）。
 const fs = require('fs')
 const assert = require('assert')
 
@@ -35,6 +37,13 @@ const statChecks = function (src, tag) {
   ok('doHandoff 不再直接置 ready=true（文档未成文不亮蓝）', !src.includes('st.handoffReady = true'))
   ok('「点过第一击即放行」旁路已删（no if (handoffFile) {）', !src.includes('if (handoffFile) {'))
   ok('前置探测（host / rpc handoffLatest）仍在', /handoffLatest/.test(src))
+  // issue #12 BUG4 · 主路径契约：handoffFile 已设 → handoffResolve（带 name）；否则 → handoffLatest
+  const isPkg = tag === 'npm'
+  const resolveName = isPkg ? 'handoffResolve' : 'wf.handoffResolve'
+  ok('主路径：调 ' + resolveName + ' 带 name=handoffFile', src.includes(resolveName))
+  ok('副路径：handoffLatest 兜底（harness.handle / RPC case）', /handoffLatest/.test(src))
+  ok('主路径条件分流（handoffFile ? ... : ...）', /handoffFile\s*\?\s*['"]/.test(src) && /['"]/.test(src))
+  ok('主路径 args 带 name=handoffFile', /name:\s*handoffFile/.test(src))
   ok('引导门：无 latest → toast.handoffGrey', src.includes("tr('toast.handoffGrey')"))
   ok('糊涂分支已删：no finish(null, toast.copiedHandoffNoLatest)', !src.includes("finish(null, tr('toast.copiedHandoffNoLatest'))"))
   ok('无历史兜底 toast 键残留（noLatest / handoffNotFound / copiedHandoffFail）', !src.includes("'toast.copiedHandoffNoLatest'") && !src.includes("'toast.handoffNotFound'") && !src.includes("'toast.copiedHandoffFail'"))
@@ -54,6 +63,7 @@ const extractBlock = function (src) {
 const runHarness = function (fnSrc, opt) {
   let emitCount = 0
   const scheduled = []
+  const calls = []  // 记录实际调用的 RPC 名称 + 参数（issue #12 BUG4 验证用）
   const st = { cwd: 'D:/repo', handoffReady: false, injector: null }
   const started = []
   const copied = []
@@ -61,8 +71,9 @@ const runHarness = function (fnSrc, opt) {
   const injected = []
   const wsStub = { startSession: function () { started.push('session') } }
   const ctxStub = { get: function (k) { return k === 'workspaces' ? wsStub : null } }
-  const probeCall = function (probe) { return probe ? probe() : Promise.reject(new Error('no probe')) }
-  const hostStub = { call: function (n, a) { return opt.hostMissing ? Promise.reject(new Error('no host')) : probeCall(opt.probe) } }
+  // probe 接收 (callName, callArg)；向后兼容旧式 `probe: function () { ... }`（忽略参数）
+  const probeCall = function (probe, n, a) { return probe ? probe(n, a) : Promise.reject(new Error('no probe')) }
+  const hostStub = { call: function (n, a) { calls.push({ name: n, arg: a }); return opt.hostMissing ? Promise.reject(new Error('no host')) : probeCall(opt.probe, n, a) } }
   const $ = new Function(
     'st', 'ctx', 'host', 'conn', 'rpcCall', 'emit', 'timer', 'timeStampStr', 'handoffPrompt',
     'extractHandoffFile', 'inject', 'flash', 'tr', 'copyText', 'handoffReadText', 'pendingDraft', 'handoffFile', 'handoffTs',
@@ -70,7 +81,7 @@ const runHarness = function (fnSrc, opt) {
   )
   const fns = $(
     st, ctxStub, hostStub, { rpc: true },
-    function (n, a) { return opt.hostMissing ? Promise.reject(new Error('no rpc')) : probeCall(opt.probe) },
+    function (n, a) { calls.push({ name: n, arg: a }); return opt.hostMissing ? Promise.reject(new Error('no rpc')) : probeCall(opt.probe, n, a) },
     function () { emitCount++ },
     { timeout: function (fn) { scheduled.push(fn); return -1 } },
     function () { return '20260818-000000' },
@@ -89,7 +100,7 @@ const runHarness = function (fnSrc, opt) {
   return invoke(opt.via === 'open' ? fns.doHandoffOpen : opt.via === 'probe' ? fns.probeHandoffReady : fns.doHandoff, st).then(function () {
     return new Promise(function (resolve) {
       setTimeout(function () {
-        resolve({ st: st, started: started, copied: copied, flashes: flashes, injected: injected, scheduled: scheduled, emitCount: emitCount })
+        resolve({ st: st, started: started, copied: copied, flashes: flashes, injected: injected, scheduled: scheduled, emitCount: emitCount, calls: calls })
       }, 15)
     })
   })
@@ -167,6 +178,65 @@ const main = async function () {
         assert: function (r) {
           assert.strictEqual(r.st.handoffReady, true, 'ready 置 true')
           assert.ok(r.emitCount >= 1, '探测后触发重渲染')
+        } },
+      // ---- issue #12 BUG4 主路径契约 ----
+      { name: 'issue #12 主路径：handoffFile 已设 → 调 handoffResolve(name=handoffFile) 而非 handoffLatest（即使 handoffLatest 会返回别的）',
+        via: 'open',
+        opt: {
+          probe: function (n, a) {
+            // 模拟 BUG：handoffLatest 会返回 OLD.md（按 mtime 倒挂），但 handoffResolve 接到 handoffFile 时正确返回它
+            if (n === 'handoffLatest' || n === 'wf.handoffLatest') return Promise.resolve({ ok: true, file: '20260818-074046.md' })
+            if (n === 'handoffResolve' || n === 'wf.handoffResolve') return Promise.resolve({ ok: true, file: a.name })
+            return Promise.reject(new Error('unexpected call: ' + n))
+          },
+          hostMissing: false,
+          handoffFile: '20260818-091652.md',  // 第一击刚生成的「新文件」（与 handoffLatest 返回的「老文件」不同）
+        },
+        assert: function (r) {
+          // 验证调的是 handoffResolve 而非 handoffLatest
+          const resolveCall = r.calls.find(function (c) { return c.name === 'handoffResolve' || c.name === 'wf.handoffResolve' })
+          assert.ok(resolveCall, '必须调 handoffResolve（主路径）')
+          assert.strictEqual(resolveCall.arg.name, '20260818-091652.md', 'handoffResolve 必须带 name=handoffFile')
+          const latestCall = r.calls.find(function (c) { return c.name === 'handoffLatest' || c.name === 'wf.handoffLatest' })
+          assert.ok(!latestCall, 'handoffFile 已设时不得调 handoffLatest（避免 mtime 倒挂 BUG）')
+          // 验证预填的是 handoffFile（不是 handoffLatest 返回的老文件）
+          assert.ok(r.copied[0].text.includes('20260818-091652.md'), '预填必须用 handoffFile（不是 handoffLatest 返的老文件 074046.md）')
+          assert.ok(!r.copied[0].text.includes('20260818-074046.md'), '不得引用老文件（修复前会引用）')
+          assert.strictEqual(r.st.handoffReady, true)
+        } },
+      { name: 'issue #12 副路径：handoffFile=null（未点过第一击）→ 仍走 handoffLatest（降级兼容）',
+        via: 'open',
+        opt: {
+          probe: function (n, a) {
+            if (n === 'handoffLatest' || n === 'wf.handoffLatest') return Promise.resolve({ ok: true, file: 'LATEST.md' })
+            return Promise.reject(new Error('未点过第一击不该调 handoffResolve: ' + n))
+          },
+          hostMissing: false,
+          // handoffFile 不传（保持默认 null）
+        },
+        assert: function (r) {
+          const latestCall = r.calls.find(function (c) { return c.name === 'handoffLatest' || c.name === 'wf.handoffLatest' })
+          assert.ok(latestCall, 'handoffFile=null 时必须调 handoffLatest（降级路径）')
+          const resolveCall = r.calls.find(function (c) { return c.name === 'handoffResolve' || c.name === 'wf.handoffResolve' })
+          assert.ok(!resolveCall, 'handoffFile=null 时不该调 handoffResolve')
+          assert.ok(r.copied[0].text.includes('LATEST.md'), '预填用 handoffLatest 返回的文件')
+          assert.strictEqual(r.st.handoffReady, true)
+        } },
+      { name: 'issue #12 主路径：handoffResolve 返回 null（AI 尚未写文档 / 文件不存在）→ 仍走 handoffLatest 提示引导',
+        via: 'open',
+        opt: {
+          probe: function (n, a) {
+            if (n === 'handoffResolve' || n === 'wf.handoffResolve') return Promise.resolve({ ok: true, file: null })  // 文件还没写
+            if (n === 'handoffLatest' || n === 'wf.handoffLatest') return Promise.resolve({ ok: true, file: null })  // 也没有别的
+            return Promise.reject(new Error('unexpected call: ' + n))
+          },
+          hostMissing: false,
+          handoffFile: '20260818-091652.md',
+        },
+        assert: function (r) {
+          assert.strictEqual(r.started.length, 0, '文档不存在 → 不开空会话')
+          const grey = r.flashes.filter(function (f) { return f.msg === 'toast.handoffGrey' })
+          assert.ok(grey.length >= 1, '文档不存在 → 引导 toast')
         } },
     ]
     for (const s of scenarios) {

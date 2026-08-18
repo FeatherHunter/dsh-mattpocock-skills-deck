@@ -63,7 +63,7 @@ return {
       return node
     }
     // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-    const DSW_VERSION = 'v1.6.1'
+    const DSW_VERSION = 'v1.6.2'
 
     // ============================================================
     // 0. 样式
@@ -1725,11 +1725,17 @@ return {
     // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑
     // 需求1·二阶段 rev（2026-08-18）：灰/亮双态的真实依据 = 磁盘上确实存在交接文档（wf.handoffLatest 探测）。
     //   probeHandoffReady：探测 → 写 st.handoffReady + emit（右半亮蓝/灰 + 允许/禁止 的开关）；任何路径都不得在无文档时开新会话。
+    // issue #12 BUG4 · 主路径：用户刚点过第一击（handoffFile 已设）→ 调 wf.handoffResolve 带 name 优先返回该文件，
+    //   彻底解决「点过第一击 → handoff-open 仍引老文档」（DSH fs.mtime 形态不可控 + sort 单键不稳定的 BUG）。
+    //   未点过第一击（handoffFile=null，如刷新后 / 直接点右半）→ 退到 wf.handoffLatest（mtime 最新）。
     const probeHandoffReady = function (st) {
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
       const done = function (file) { st.handoffReady = !!file; emit(st); return file }
       if (typeof host === 'undefined' || typeof host.call !== 'function') { done(null); return Promise.resolve(null) }
-      return host.call('wf.handoffLatest', cwdArg).then(function (res) {
+      // 主路径：有 handoffFile → wf.handoffResolve(name=handoffFile)；副路径：无 → wf.handoffLatest
+      const callName = handoffFile ? 'wf.handoffResolve' : 'wf.handoffLatest'
+      const callArg = handoffFile ? Object.assign({}, cwdArg, { name: handoffFile }) : cwdArg
+      return host.call(callName, callArg).then(function (res) {
         return done((res && res.ok && res.file) ? res.file : null)
       }).catch(function () { return done(null) })
     }
