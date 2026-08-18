@@ -1789,7 +1789,9 @@ window.__ModuleLoader__.load({
         if (file) return renderTemplate('handoff2', { file: file })
         return promptText('handoffRead')
       }
-      let pendingDraft = null  // 跨会话预填（新会话 dock 挂载后消费）
+      // 跨会话预填（issue #12 BUG4 r3 终极修复）：单变量保留，但消费侧彻底锁死 deps 为 [props.sessionId]，
+        //   当前会话的 props 重渲染不会再触发 effect 重跑，从根本上消除「当前会话 effect 抢先消费」竞态。
+        let pendingDraft = null
       // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑
       // 需求1·二阶段 rev（2026-08-18）：灰/亮双态的真实依据 = 磁盘上确实存在交接文档（handoffLatest 探测）。
       //   probeHandoffReady：探测 → 写 st.handoffReady + emit（右半亮蓝/灰 + 允许/禁止 的开关）；任何路径都不得在无文档时开新会话。
@@ -1919,22 +1921,28 @@ window.__ModuleLoader__.load({
         const summaryCwd = props.useSessions(function (x) {
           return (sid && x.byId && x.byId[sid]) ? x.byId[sid].cwd : undefined
         })
-        // v14-20：跨会话预填（交接开新会话后，新 dock 挂载即消费）。
-        // issue #12 BUG4 补强：原实现 `[props]` 依赖 → ws.startSession 触发父级重渲染 → 当前会话的 props 引用变 →
-        //   当前会话的 effect 重跑抢先消费 pendingDraft → 新会话挂载时已空 → prompt 被错误注入到当前会话。
-        // 改为 consumedRef 守卫：每个 StatusBar 实例只在首次 effect 跑时消费一次（mount 阶段）；
-        //   后续 re-render（包括父级 re-render 引发的 props 变化）一律不再消费，避免与新会话的 mount 抢。
+        // v14-20 → r3：跨会话预填（交接开新会话后，新 dock 挂载即消费）。
+        // issue #12 BUG4 r3 终极修复（最简形式）：
+        //   关键改动：effect deps 从 [props] 改为 [props.sessionId]。
+        //   旧实现 [props] 依赖会因 ws.startSession 触发父级重渲染 → 当前会话的 props 引用变 → 当前会话 effect 重跑 → 抢先消费 pendingDraft。
+        //   新实现 [props.sessionId] 只在 sid 变化时跑（即每个会话只在初次 mount 跑一次），
+        //     · 当前会话：sid 长期不变 → effect 不重跑 → 不抢先消费
+        //     · 新会话：sid 初次设置 → effect 跑一次 → 消费 pendingDraft
+        //   consumedDraftRef 守卫保留作为 belt-and-suspenders：即使组件 remount（同 sid 字符串），
+        //     ref 仍能防止 effect 重入。
         const consumedDraftRef = React.useRef(false)
         React.useEffect(function () {
+          if (consumedDraftRef.current) return
           if (props && props.inputActions && typeof props.inputActions.setDraft === 'function') {
             s.injector = props.inputActions.setDraft
-            if (!consumedDraftRef.current && pendingDraft) {
+            if (pendingDraft) {
               consumedDraftRef.current = true
-              props.inputActions.setDraft(pendingDraft)
+              const text = pendingDraft
               pendingDraft = null
+              props.inputActions.setDraft(text)
             }
           }
-        }, [props])
+        }, [props.sessionId])
         React.useEffect(function () {
           probeHandoffReady(s)  // 需求1·二阶段 rev：挂载即探测 .scratch/handoff/，以真实文档有无决定右半灰/亮
         }, [])
