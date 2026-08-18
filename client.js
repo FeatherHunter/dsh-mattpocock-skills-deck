@@ -63,7 +63,7 @@ return {
       return node
     }
     // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-    const DSW_VERSION = 'v1.6.5'
+    const DSW_VERSION = 'v1.6.6'
 
     // ============================================================
     // 0. 样式
@@ -174,10 +174,13 @@ return {
       //   兜底（<640px） 维持 dn=4；children flex:none 不再收缩，允许胶囊右缘溢出但禁止换行
       //   注：Ic/Icon → <svg>，所以 seg/split-part 子结构是 [svg, span(text), span(num)?]；
       //     文字 span 是 last-child 或 nth-child(2)（timebtn 因 rficon 抢占第一格）。
-      '[data-narrow="1"] .dsws-capsule-word > span:last-child{display:none}',
-      '[data-narrow="2"] .dsws-seg.note > span:last-child,[data-narrow="2"] .dsws-split-part:first-child > span:last-child,[data-narrow="2"] .dsws-timebtn > span:nth-child(2){display:none}',
-      '[data-narrow="3"] .dsws-seg > span:nth-child(2){display:none}',
-      '[data-narrow="4"] .dsws-timebtn > span:last-child{display:none}',
+      //   #16 R6 累加语义：JSX 在 capsule 写 'data-narrow-N': dn >= N || null（属性存在 = 数字 ≥ N）。
+      //     dn=3 触发时 [data-narrow-1/2/3] 三条都存在，dn=4 触发时四条都存在，CSS 选择器按属性命中而**累加**，
+      //     dn=4 时所有文字全部消失（issue #16 期望行为 5：胶囊达到最小宽度仅图标 + 数字）。
+      '[data-narrow-1] .dsws-capsule-word > span:last-child{display:none}',
+      '[data-narrow-2] .dsws-seg.note > span:last-child,[data-narrow-2] .dsws-split-part:first-child > span:last-child,[data-narrow-2] .dsws-timebtn > span:nth-child(2){display:none}',
+      '[data-narrow-3] .dsws-seg > span:nth-child(2){display:none}',
+      '[data-narrow-4] .dsws-timebtn > span:last-child{display:none}',
       '.dsws-banner{display:flex;align-items:center;gap:8px;border-radius:8px;padding:6px 10px;font-size:12px;margin:6px 0;cursor:pointer}',
       '.dsws-banner.bad{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.45);color:#f87171}',
       '.dsws-banner.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);color:#fbbf24}',
@@ -2006,7 +2009,7 @@ let pendingDraft = null
       if (dw < 800) dn = 3
       if (dw < 720) dn = 4
       // dw < 640 兜底：保持 dn=4，children flex:none + nowrap 拒绝换行（实际 dn=4 之前已满足，显式守卫保语义）
-      const capsule = h('div', { className: 'dsws-capsule', 'data-narrow': dn || null, onClick: function () { openPanel(s) }, style: { position: 'relative' } }, [
+      const capsule = h('div', { className: 'dsws-capsule', 'data-narrow': dn || null, 'data-narrow-1': dn >= 1 || null, 'data-narrow-2': dn >= 2 || null, 'data-narrow-3': dn >= 3 || null, 'data-narrow-4': dn >= 4 || null, onClick: function () { openPanel(s) }, style: { position: 'relative' } }, [
         h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
           Icon({ scheme: s.ui.icon, size: 14 }),
           h('span', null, tr('panel.title')),
@@ -2086,7 +2089,9 @@ let pendingDraft = null
       // 用户拍板 2026-08-16 + 2026-08-17：横幅移到状态栏上方；依赖链 gh → 登录 → setup → 技能，显示第一个缺失项
       const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
       // #16 v1.6.4 R4：wrapper 加 overflow:hidden 截掉 capsule 溢出 wrapper 部分（dn=0..3 中间状态时 children 居中后左右可能溢出 wrapper）
-      if (!firstBlock) return h('div', { ref: dockRef, style: { display: 'flex', justifyContent: 'center', alignItems: 'stretch', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: 'hidden', outline: '2px dashed #00aaff', outlineOffset: '-2px' } }, [capsule])
+      // #16 R6b：去掉 alignItems:'stretch'（之前为了拉伸 capsule 撑满 wrapper 高度，反而让父级
+//   composerHero 297px 高传给 wrapper 后，capsule 被拉成与 wrapper 同高 ≈9.5px，文字被截掉）
+      if (!firstBlock) return h('div', { ref: dockRef, style: { display: 'flex', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: 'hidden', outline: '2px dashed #00aaff', outlineOffset: '-2px' } }, [capsule])
       const bann = function (text, btnLabel, onBtn) {
         return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
           Ic({ n: 'alert', size: 13 }),

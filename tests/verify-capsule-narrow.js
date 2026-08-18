@@ -53,8 +53,9 @@ const statChecks = function (src, tag) {
   // 检测方式：抽取 [data-narrow="N"] {...} 整段 CSS 规则字符串，再做 substring 断言 —— 避免贪婪正则误匹配注释/JSX。
   // 注：实际源文件中 selector 字符串的外层定界是 JS 单引号，attribute value 是双引号，固定形式便于匹配。
   const extractRule = function (s, dn) {
-    // 整段 ' [data-narrow="N"] selector { body } '（外层 JS 单引号、属性值双引号）
-    const pattern = "'\\[data-narrow=\"" + dn + "\"\\][^']*\\{[^}]*\\}'"
+    // #16 R6：CSS 选择器用 [data-narrow-N] 属性存在性匹配（旧 [data-narrow="N"] 等值匹配已弃）
+    //   整段 '[data-narrow-N] selector { body }'（外层 JS 单引号）
+    const pattern = "'\\[data-narrow-" + dn + "\\][^']*\\{[^}]*\\}'"
     const re = new RegExp(pattern)
     const m = re.exec(s)
     return m ? m[0].slice(1, -1) : ''
@@ -91,6 +92,23 @@ const statChecks = function (src, tag) {
   ok('R5 · ResizeObserver 监听的是元素（ro.observe(elp））', /ro\.observe\(el\)/.test(src))
   ok('R5 · window resize 事件也作 fallbastollback', /window\.addEventListener\(['"]resize['"]/.test(src))
   ok('R5 · 有 firstBlock 分支的 wrapper 也挂 ref={dockRef}', /ref:\s*dockRef[\s\S]{0,300}style:.*flexDirection:.*column/.test(src))
+
+  // #16 R6 CSS 累加语义：JSX 写 data-narrow-1..4 多 attribute（每个 dn值以下所有级别都存在），CSS 按属性存在性匹配
+  //   替换旧的 [data-narrow="N"] 等值匹配（R5 之前的设计 bug：dn=4 时 [data-narrow="3"] 不命中，文字不消失）
+  ok('R6 · CSS 选择器用 [data-narrow-1] 属性存在性（累加语义）', /\[data-narrow-1\] \.dsws-capsule-word > span:last-child\{display:none\}/.test(src))
+  ok('R6 · CSS 选择器用 [data-narrow-2] 属性存在性', /\[data-narrow-2\] \.dsws-seg\.note > span:last-child/.test(src))
+  ok('R6 · CSS 选择器用 [data-narrow-3] 属性存在性', /\[data-narrow-3\] \.dsws-seg > span:nth-child\(2\)/.test(src))
+  ok('R6 · CSS 选择器用 [data-narrow-4] 属性存在性', /\[data-narrow-4\] \.dsws-timebtn > span:last-child/.test(src))
+  ok('R6 · JSX capsule 写 data-narrow-1 属性（dn >= 1 时存在）', /'data-narrow-1':\s*dn\s*>=\s*1\s*\|\|\s*null/.test(src))
+  ok('R6 · JSX capsule 写 data-narrow-2 属性', /'data-narrow-2':\s*dn\s*>=\s*2\s*\|\|\s*null/.test(src))
+  ok('R6 · JSX capsule 写 data-narrow-3 属性', /'data-narrow-3':\s*dn\s*>=\s*3\s*\|\|\s*null/.test(src))
+  ok('R6 · JSX capsule 写 data-narrow-4 属性', /'data-narrow-4':\s*dn\s*>=\s*4\s*\|\|\s*null/.test(src))
+  ok('R6 · 旧 [data-narrow="N"] 等值匹配选择器已删（防止仍命中旧规则误导）',
+    !/\[data-narrow="[1-4]"\][^{]+\{display:none/.test(src))
+
+  // #16 R6b：wrapper 去掉 alignItems:'stretch'（避免 capsule 被父级 composerHero 297px 高拉成 9.5px，文字被截）
+  //   R6 修复：!firstBlock 分支不应再有 alignItems:'stretch'
+  ok('R6b · !firstBlock 分支 wrapper 不再含 alignItems:\'stretch\'', !/display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,200}alignItems:\s*'stretch'/.test(src))
 
   // 期望 4 续：点击事件契约
   ok('capsule onClick → openPanel(s)', /className:\s*['"]dsws-capsule['"][^}]*onClick:\s*function\s*\(\)\s*\{\s*openPanel\(s\)/.test(src))
