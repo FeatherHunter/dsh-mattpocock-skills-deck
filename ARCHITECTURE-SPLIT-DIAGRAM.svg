@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1120" viewBox="0 0 1280 1120" font-family="system-ui,'Microsoft YaHei','PingFang SC',sans-serif">
+  <defs>
+    <marker id="arrGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="#16a34a"/>
+    </marker>
+    <marker id="arrGray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- 背景 -->
+  <rect x="0" y="0" width="1280" height="1120" fill="#ffffff"/>
+
+  <!-- 标题 -->
+  <text x="40" y="42" font-size="26" font-weight="bold" fill="#111827">dsh-mattpocock-skills-deck · 源码拆分架构图</text>
+  <text x="42" y="66" font-size="14" fill="#4b5563">目标：多 session 并发开发时「各改各文件」→ 文件冲突趋近于零 · 一个真源 ├ 每模块一个文件 ├ 只准 import 内核 ├ 构建产物永不过手编辑</text>
+
+  <!-- 图例 -->
+  <rect x="1008" y="92" width="260" height="192" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1018" y="114" font-size="13" font-weight="bold" fill="#334155">图例</text>
+  <rect x="1018" y="124" width="70" height="22" rx="6" fill="#fef9c3" stroke="#a16207" stroke-dasharray="4 3"/>
+  <text x="1096" y="140" font-size="12" fill="#334155">内核：稳定接口·冻结</text>
+  <rect x="1018" y="152" width="70" height="22" rx="6" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="1096" y="168" font-size="12" fill="#334155">一个模块 = 一组文件</text>
+  <line x1="1022" y1="192" x2="1052" y2="192" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrGreen)"/>
+  <text x="1060" y="197" font-size="12" fill="#334155">唯一通道：import 内核</text>
+  <circle cx="1029" cy="222" r="10" fill="#fee2e2" stroke="#ef4444"/>
+  <text x="1029" y="227" font-size="13" font-weight="bold" fill="#dc2626" text-anchor="middle">✗</text>
+  <text x="1048" y="227" font-size="12" fill="#334155">同层不得互连</text>
+  <rect x="1018" y="240" width="70" height="12" rx="3" fill="#e2e8f0"/>
+  <text x="1096" y="251" font-size="12" fill="#334155">产物(人手不碰)</text>
+  <text x="1018" y="272" font-size="12" fill="#64748b">绿箭头 = 允许；红✗ = 禁止</text>
+
+  <!-- src/ 根 -->
+  <rect x="40" y="88" width="950" height="46" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="515" y="118" font-size="16" font-weight="bold" fill="#374151" text-anchor="middle">src/ —— 仓库唯一真源（所有手写代码只在这里）</text>
+
+  <!-- ============ host 半 ============ -->
+  <rect x="60" y="152" width="520" height="576" rx="12" fill="#e0e7ff" stroke="#6366f1"/>
+  <text x="78" y="180" font-size="17" font-weight="bold" fill="#312e81">src/host/ · 数据半（服务端逻辑，无界面）</text>
+  <text x="78" y="200" font-size="12" fill="#4338ca">只管 gh / 数据拉取 / 快照 / 环境检查；改它——重启 DSH 才生效</text>
+
+  <text x="88" y="232" font-size="13" font-weight="bold" fill="#1e1b4b">每个文件 = 一个独立小模块</text>
+  <g font-size="12" fill="#3730a3">
+    <rect x="88" y="246" width="150" height="40" rx="8" fill="#ffffff" stroke="#818cf8"/><text x="163" y="271" text-anchor="middle">index.ts · 组装</text>
+    <rect x="250" y="246" width="150" height="40" rx="8" fill="#ffffff" stroke="#818cf8"/><text x="325" y="271" text-anchor="middle">gh.ts 命令行</text>
+    <rect x="412" y="246" width="150" height="40" rx="8" fill="#ffffff" stroke="#818cf8"/><text x="487" y="271" text-anchor="middle">repo.ts 缓存</text>
+
+    <rect x="88" y="302" width="150" height="40" rx="8" fill="#ffffff" stroke="#818cf8"/><text x="163" y="327" text-anchor="middle">snapshot.ts 快照</text>
+    <rect x="250" y="302" width="150" height="40" rx="8" fill="#ffffff" stroke="#818cf8"/><text x="325" y="327" text-anchor="middle">parser.ts 纯解析</text>
+    <rect x="412" y="302" width="150" height="40" rx="8" fill="#ffffff" stroke="#818cf8"/><text x="487" y="327" text-anchor="middle">checks.ts 环境检查</text>
+
+    <rect x="88" y="358" width="150" height="40" rx="8" fill="#ffffff" stroke="#818cf8"/><text x="163" y="383" text-anchor="middle">handoff.ts 交接</text>
+    <rect x="250" y="358" width="150" height="40" rx="8" fill="#ffffff" stroke="#818cf8"/><text x="325" y="383" text-anchor="middle">claim.ts 认领</text>
+    <rect x="412" y="358" width="150" height="40" rx="8" fill="#ffffff" stroke="#818cf8"/><text x="487" y="383" text-anchor="middle">rpc.ts 接口</text>
+  </g>
+
+  <text x="88" y="434" font-size="13" font-weight="bold" fill="#1e1b4b">▍怎么读懂它</text>
+  <text x="88" y="458" font-size="12" fill="#4338ca">· index.ts 负责把所有模块组装、注册 RPC，是 host 的唯一「门」</text>
+  <text x="88" y="480" font-size="12" fill="#4338ca">· 其余 8 个模块互不 import，谁也够不到别人的文件</text>
+  <text x="88" y="502" font-size="12" fill="#4338ca">· host 改动频率低，冲突风险小；重点别去碰「门」</text>
+
+  <!-- ============ client 半 ============ -->
+  <rect x="610" y="152" width="640" height="576" rx="12" fill="#fffbeb" stroke="#d97706"/>
+  <text x="628" y="180" font-size="17" font-weight="bold" fill="#78350f">src/client/ · 界面半（UI，改它刷新浏览器即生效）</text>
+  <text x="628" y="200" font-size="12" fill="#92400e">一根「内核护栏」立在中间，四周四个模块组从它身上长出 —— 红✗两侧不许互相手拉手</text>
+
+  <!-- 内核 kernel -->
+  <rect x="625" y="215" width="165" height="455" rx="12" fill="#fef9c3" stroke="#a16207" stroke-dasharray="6 4"/>
+  <text x="707" y="240" font-size="14" font-weight="bold" fill="#854d0e" text-anchor="middle">kernel/ 内核</text>
+  <text x="707" y="257" font-size="11" fill="#a16207" text-anchor="middle">稳定接口 · 冻结</text>
+  <g font-size="11" fill="#713f12">
+    <rect x="637" y="272" width="140" height="34" rx="7" fill="#fefce8" stroke="#facc15"/><text x="707" y="293" text-anchor="middle">store 状态</text>
+    <rect x="637" y="314" width="140" height="34" rx="7" fill="#fefce8" stroke="#facc15"/><text x="707" y="335" text-anchor="middle">locale 双语</text>
+    <rect x="637" y="356" width="140" height="34" rx="7" fill="#fefce8" stroke="#facc15"/><text x="707" y="377" text-anchor="middle">prompts 文案</text>
+    <rect x="637" y="398" width="140" height="34" rx="7" fill="#fefce8" stroke="#facc15"/><text x="707" y="419" text-anchor="middle">router 路由</text>
+    <rect x="637" y="440" width="140" height="34" rx="7" fill="#fefce8" stroke="#facc15"/><text x="707" y="461" text-anchor="middle">config 配置</text>
+    <rect x="637" y="482" width="140" height="34" rx="7" fill="#fefce8" stroke="#facc15"/><text x="707" y="503" text-anchor="middle">api host桥</text>
+    <rect x="637" y="524" width="140" height="34" rx="7" fill="#fefce8" stroke="#facc15"/><text x="707" y="545" text-anchor="middle">probe 刷新</text>
+    <rect x="637" y="566" width="140" height="34" rx="7" fill="#fefce8" stroke="#facc15"/><text x="707" y="587" text-anchor="middle">styles 样式</text>
+    <rect x="637" y="608" width="140" height="34" rx="7" fill="#fefce8" stroke="#facc15"/><text x="707" y="629" text-anchor="middle">icons 图标</text>
+  </g>
+  <text x="707" y="660" font-size="10" fill="#a16207" text-anchor="middle">这些是「公共插座」</text>
+
+  <!-- 四个模块组（右侧） -->
+  <!-- statusbar -->
+  <rect x="845" y="215" width="388" height="112" rx="10" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="860" y="236" font-size="14" font-weight="bold" fill="#14532d">statusbar/ 状态栏面板</text>
+  <g font-size="11" fill="#166534">
+    <rect x="860" y="246" width="118" height="30" rx="6" fill="#ffffff" stroke="#4ade80"/><text x="919" y="265" text-anchor="middle">StatusBar.tsx</text>
+    <rect x="984" y="246" width="118" height="30" rx="6" fill="#ffffff" stroke="#4ade80"/><text x="1043" y="265" text-anchor="middle">Seg.tsx</text>
+    <rect x="1108" y="246" width="118" height="30" rx="6" fill="#ffffff" stroke="#4ade80"/><text x="1167" y="265" text-anchor="middle">EnvBadge.tsx</text>
+    <rect x="860" y="282" width="118" height="30" rx="6" fill="#ffffff" stroke="#4ade80"/><text x="919" y="301" text-anchor="middle">checksums.tsx</text>
+    <rect x="984" y="282" width="118" height="30" rx="6" fill="#ffffff" stroke="#4ade80"/><text x="1043" y="301" text-anchor="middle">runcard.tsx</text>
+  </g>
+  <text x="860" y="320" font-size="10" fill="#166534">胶囊 / 分段按钮 / 就绪徽标 各自一个文件</text>
+
+  <!-- panel -->
+  <rect x="845" y="337" width="388" height="112" rx="10" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="860" y="358" font-size="14" font-weight="bold" fill="#3b0764">panel/ 右侧面板容器</text>
+  <g font-size="11" fill="#4c1d95">
+    <rect x="860" y="368" width="118" height="30" rx="6" fill="#ffffff" stroke="#a78bfa"/><text x="919" y="387" text-anchor="middle">Tabs.tsx ★</text>
+    <rect x="984" y="368" width="118" height="30" rx="6" fill="#ffffff" stroke="#a78bfa"/><text x="1043" y="387" text-anchor="middle">TabsFold.tsx</text>
+    <rect x="1108" y="368" width="118" height="30" rx="6" fill="#ffffff" stroke="#a78bfa"/><text x="1167" y="387" text-anchor="middle">Tooltip.tsx</text>
+    <rect x="860" y="404" width="118" height="30" rx="6" fill="#ffffff" stroke="#a78bfa"/><text x="919" y="423" text-anchor="middle">Dock.tsx</text>
+    <rect x="984" y="404" width="118" height="30" rx="6" fill="#ffffff" stroke="#a78bfa"/><text x="1043" y="423" text-anchor="middle">Overlay.tsx</text>
+    <rect x="1108" y="404" width="118" height="30" rx="6" fill="#ffffff" stroke="#a78bfa"/><text x="1167" y="423" text-anchor="middle">Shell.tsx</text>
+  </g>
+  <text x="860" y="442" font-size="10" fill="#4c1d95">tab 标签行只写一份（原来 Dock + Overlay 重复两份）</text>
+
+  <!-- views -->
+  <rect x="845" y="459" width="388" height="112" rx="10" fill="#cffafe" stroke="#0891b2"/>
+  <text x="860" y="480" font-size="14" font-weight="bold" fill="#164e63">views/ 右侧面板内容</text>
+  <g font-size="11" fill="#155e75">
+    <rect x="860" y="490" width="118" height="30" rx="6" fill="#ffffff" stroke="#22d3ee"/><text x="919" y="509" text-anchor="middle">ListTab.tsx</text>
+    <rect x="984" y="490" width="118" height="30" rx="6" fill="#ffffff" stroke="#22d3ee"/><text x="1043" y="509" text-anchor="middle">TicketRow.tsx</text>
+    <rect x="1108" y="490" width="118" height="30" rx="6" fill="#ffffff" stroke="#22d3ee"/><text x="1167" y="509" text-anchor="middle">MapDetail.tsx</text>
+    <rect x="860" y="526" width="118" height="30" rx="6" fill="#ffffff" stroke="#22d3ee"/><text x="919" y="545" text-anchor="middle">SkillsTab.tsx</text>
+    <rect x="984" y="526" width="118" height="30" rx="6" fill="#ffffff" stroke="#22d3ee"/><text x="1043" y="545" text-anchor="middle">ChecksTab.tsx</text>
+    <rect x="1108" y="526" width="118" height="30" rx="6" fill="#ffffff" stroke="#22d3ee"/><text x="1167" y="545" text-anchor="middle">Settings.tsx</text>
+  </g>
+  <text x="860" y="564" font-size="10" fill="#155e75">列表 / 技能 / 环境检查 / 地图详情 各占一个文件</text>
+
+  <!-- floating -->
+  <rect x="845" y="581" width="388" height="112" rx="10" fill="#fce7f3" stroke="#db2777"/>
+  <text x="860" y="602" font-size="14" font-weight="bold" fill="#831843">floating/ 技能悬浮列表</text>
+  <g font-size="11" fill="#9d174d">
+    <rect x="860" y="612" width="118" height="30" rx="6" fill="#ffffff" stroke="#f472b6"/><text x="919" y="631" text-anchor="middle">SkillFloat.tsx</text>
+    <rect x="984" y="612" width="118" height="30" rx="6" fill="#ffffff" stroke="#f472b6"/><text x="1043" y="631" text-anchor="middle">Pop.tsx</text>
+    <rect x="1108" y="612" width="118" height="30" rx="6" fill="#ffffff" stroke="#f472b6"/><text x="1167" y="631" text-anchor="middle">tagsFit.ts</text>
+  </g>
+  <text x="860" y="676" font-size="10" fill="#9d174d">悬浮列表 / 通用浮层 / 标签自适应</text>
+
+  <!-- 模块 ⇠ import 内核 绿箭头 -->
+  <g stroke="#16a34a" stroke-width="2.5" fill="none">
+    <line x1="833" y1="264" x2="798" y2="264" marker-end="url(#arrGreen)"/>
+    <line x1="833" y1="386" x2="798" y2="386" marker-end="url(#arrGreen)"/>
+    <line x1="833" y1="508" x2="798" y2="508" marker-end="url(#arrGreen)"/>
+    <line x1="833" y1="630" x2="798" y2="630" marker-end="url(#arrGreen)"/>
+  </g>
+  <text x="610" y="262" font-size="11" font-weight="bold" fill="#16a34a" text-anchor="end">每模块⇠只准 import 内核</text>
+
+  <!-- 同层禁止互连 ✗（圆形徽标，独立在相邻两模块的间隙正中） -->
+  <circle cx="1039" cy="332" r="9" fill="#fee2e2" stroke="#ef4444"/>
+  <text x="1039" y="336" font-size="12" font-weight="bold" fill="#dc2626" text-anchor="middle">✗</text>
+  <circle cx="1039" cy="454" r="9" fill="#fee2e2" stroke="#ef4444"/>
+  <text x="1039" y="458" font-size="12" font-weight="bold" fill="#dc2626" text-anchor="middle">✗</text>
+  <circle cx="1039" cy="576" r="9" fill="#fee2e2" stroke="#ef4444"/>
+  <text x="1039" y="580" font-size="12" font-weight="bold" fill="#dc2626" text-anchor="middle">✗</text>
+
+  <!-- ============ 构建 ============ -->
+  <text x="640" y="756" font-size="16" font-weight="bold" fill="#374151">构建：一源出两物 —— 人手只改 src/，产物由机器生成</text>
+  <rect x="611" y="772" width="130" height="62" rx="10" fill="#e2e8f0" stroke="#475569"/>
+  <text x="676" y="804" font-size="15" font-weight="bold" fill="#1e293b" text-anchor="middle">esbuild</text>
+  <text x="676" y="822" font-size="10" fill="#475569" text-anchor="middle">只看 src/，秒级</text>
+
+  <line x1="676" y1="834" x2="676" y2="858" stroke="#64748b" stroke-width="2"/>
+  <line x1="676" y1="858" x2="430" y2="876" stroke="#64748b" stroke-width="2" marker-end="url(#arrGray)"/>
+  <line x1="676" y1="858" x2="880" y2="876" stroke="#64748b" stroke-width="2" marker-end="url(#arrGray)"/>
+
+  <rect x="260" y="878" width="360" height="62" rx="10" fill="#e2e8f0" stroke="#475569"/>
+  <text x="440" y="904" font-size="13" font-weight="bold" fill="#1e293b" text-anchor="middle">package/lib/…  ← 真实加载</text>
+  <text x="440" y="926" font-size="11" fill="#475569" text-anchor="middle">DSH 运行时用的就是它 · 构建生成，人手不碰</text>
+
+  <rect x="700" y="878" width="360" height="62" rx="10" fill="#e2e8f0" stroke="#475569"/>
+  <text x="880" y="904" font-size="13" font-weight="bold" fill="#1e293b" text-anchor="middle">client.js / host.js  ← 动态开发版</text>
+  <text x="880" y="926" font-size="11" fill="#475569" text-anchor="middle">本地调试用 · 同源生成，不再人手同步</text>
+
+  <text x="640" y="982" font-size="12" fill="#334155">为什么要构建：DSH 只认「一插件 = 一个 bundle 文件」，所以「多个源文件」必须经构建合并成一个，源文件才能各拆各的。</text>
+
+  <!-- 三个说明版块 -->
+  <rect x="40" y="1004" width="390" height="100" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="55" y="1026" font-size="14" font-weight="bold" fill="#1e3a8a">① 结构（是什么样）</text>
+  <text x="55" y="1048" font-size="12" fill="#1e40af">· 仓库只有一个真源 src/，分「数据半 host + 界面半 client」</text>
+  <text x="55" y="1066" font-size="12" fill="#1e40af">· 界面里立一根「内核护栏」，四周长四个模块组</text>
+  <text x="55" y="1084" font-size="12" fill="#1e40af">· 每个模块 = 一个文件（+ 一个专属测试文件）</text>
+
+  <rect x="445" y="1004" width="390" height="100" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="460" y="1026" font-size="14" font-weight="bold" fill="#14532d">② 为什么这样拆</text>
+  <text x="460" y="1048" font-size="12" fill="#166534">· DSH 只认单 bundle → 想多文件只能「src/ + 构建」</text>
+  <text x="460" y="1066" font-size="12" fill="#166534">· 同层互相 import = 隐式耦合 → 拆成「只通内核」的单向通道</text>
+  <text x="460" y="1084" font-size="12" fill="#166534">· 手写双镜像 = 冲突×2 → 交给构建统一产出</text>
+
+  <rect x="850" y="1004" width="390" height="100" rx="10" fill="#fefce8" stroke="#eab308"/>
+  <text x="865" y="1026" font-size="14" font-weight="bold" fill="#713f12">③ 好处（对你的意义）</text>
+  <text x="865" y="1048" font-size="12" fill="#854d0e">· 并发趋零：多个 AI session 各改各文件，互不冲突</text>
+  <text x="865" y="1066" font-size="12" fill="#854d0e">· 重复代码只写一处（如 tab 标签行），不会两处失步</text>
+  <text x="865" y="1084" font-size="12" fill="#854d0e">· 测试按模块隔离；构建产物永不手编</text>
+</svg>
