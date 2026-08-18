@@ -274,6 +274,20 @@ window.__ModuleLoader__.load({
       if (slots === undefined) return
       const timer = ctx.get('timer')
       const h = React.createElement
+      // issue #3：浮层挂顶层 —— createPortal 到 document.body，让 position:fixed 的视口坐标与
+      //   z-index 真正全局生效。宿主输入区祖先若带 transform / filter / backdrop-filter /
+      //   will-change / contain，fixed 的包含块会降级为该祖先（坐标偏移 + 被 overflow 裁剪），
+      //   这正是技能 tooltip 被遮挡/截断的根因。取不到 react-dom 时退化为原地渲染（不劣于现状）。
+      const RDOM = (function () {
+        try { if (typeof ReactDOM !== 'undefined' && ReactDOM && ReactDOM.createPortal) return ReactDOM } catch (e) { /* noop */ }
+        try { if (typeof window !== 'undefined' && window.ReactDOM && window.ReactDOM.createPortal) return window.ReactDOM } catch (e) { /* noop */ }
+        try { if (typeof require === 'function') { const m = require('react-dom'); if (m && m.createPortal) return m } } catch (e) { /* noop */ }
+        return null
+      })()
+      const portalTop = function (node) {
+        if (RDOM && typeof document !== 'undefined' && document.body) return RDOM.createPortal(node, document.body)
+        return node
+      }
       // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
       const DSW_VERSION = 'v1.6.0'
 
@@ -518,24 +532,24 @@ window.__ModuleLoader__.load({
           'run.cfgGuide': '配置页：设置 → 插件 → MattSkills',
           'skilldesc.ask-matt': '技能路由器：不知道该用哪个 skill 时问它',
           'skilldesc.setup-matt-pocock-skills': '仓库初始化：issue tracker / 标签 / 文档路径',
-          'skilldesc.wayfinder': '巨型项目决策地图（本插件服务的对象）',
-          'skilldesc.triage': 'issue 状态机流转：categorise→verify→grill',
-          'skilldesc.grilling': '穷追不舍的对齐提问（设计树）',
-          'skilldesc.domain-modeling': '领域术语与统一语言',
+          'skilldesc.wayfinder': '为多议题项目建决策地图与子票拆解',
+          'skilldesc.triage': 'issue 分流：归类→验证→追问，直至 ready-for-agent',
+          'skilldesc.grilling': '在你拍板前反复追问澄清，直到设计落地',
+          'skilldesc.domain-modeling': '梳理领域术语，让代码 / 文档 / 对话用同一套词',
           'skilldesc.research': '后台调研，写进 repo 内 markdown 并引源',
           'skilldesc.prototype': '一次性原型回答设计问题',
-          'skilldesc.implement': '把规格落成代码（task 型 ticket）',
-          'skilldesc.code-review': '按标准 + 规格双轴审查改动',
-          'skilldesc.codebase-design': '深模块设计词汇',
-          'skilldesc.diagnosing-bugs': '硬 bug 与性能回归诊断循环',
-          'skilldesc.improve-codebase-architecture': '扫 deepening opportunities 出 HTML 报告',
-          'skilldesc.tdd': '红-绿-重构',
+          'skilldesc.implement': '把规格文档拆成代码任务，逐项实现',
+          'skilldesc.code-review': '按仓库规范 + 原规格，双轴审查你的改动',
+          'skilldesc.codebase-design': '为代码找清晰的模块边界与接口',
+          'skilldesc.diagnosing-bugs': '硬 bug / 性能回归：定位→假设→验证，循环往复',
+          'skilldesc.improve-codebase-architecture': '扫出代码库的深化机会，输出 HTML 报告',
+          'skilldesc.tdd': '测试驱动开发：先写失败测试，再写最小实现',
           'skilldesc.handoff': '把当前对话压缩成交接文档',
           'skilldesc.teach': '跨 session 教你新技能',
-          'skilldesc.to-spec': '把讨论固化成规格',
+          'skilldesc.to-spec': '把零散讨论固化成可执行的规格文档',
           'skilldesc.to-tickets': '把规格拆成 tickets',
           'skilldesc.resolving-merge-conflicts': '解决合并冲突',
-          'skilldesc.writing-great-skills': '写出优秀技能',
+          'skilldesc.writing-great-skills': '为 AI 写出可复用、可测试的技能描述',
         },
         en: {
           'nav.word': 'Consolidate',
@@ -746,24 +760,24 @@ window.__ModuleLoader__.load({
           'run.cfgGuide': 'Config: Settings → Plugins → MattSkills',
           'skilldesc.ask-matt': 'Skill router: ask it when unsure which skill to use',
           'skilldesc.setup-matt-pocock-skills': 'Repo bootstrap: issue tracker / labels / doc paths',
-          'skilldesc.wayfinder': 'Decision maps for large projects (what this plugin serves)',
-          'skilldesc.triage': 'Issue state machine: categorise→verify→grill',
-          'skilldesc.grilling': 'Relentless alignment questioning (design tree)',
-          'skilldesc.domain-modeling': 'Domain terms & ubiquitous language',
+          'skilldesc.wayfinder': 'Build decision maps + sub-ticket breakdowns for big projects',
+          'skilldesc.triage': 'Route issues: classify → verify → grill, until ready-for-agent',
+          'skilldesc.grilling': 'Relentlessly question you until the design is locked down',
+          'skilldesc.domain-modeling': 'Lock down domain terms so code, docs and chat use one language',
           'skilldesc.research': 'Background research written into repo markdown with sources',
           'skilldesc.prototype': 'One-off prototype answering a design question',
-          'skilldesc.implement': 'Turn specs into code (task tickets)',
-          'skilldesc.code-review': 'Review changes on standards + spec axes',
-          'skilldesc.codebase-design': 'Deep module design vocabulary',
-          'skilldesc.diagnosing-bugs': 'Diagnosis loop for hard bugs & performance regressions',
-          'skilldesc.improve-codebase-architecture': 'Scan deepening opportunities, output an HTML report',
-          'skilldesc.tdd': 'Red-green-refactor',
+          'skilldesc.implement': 'Break a spec into code tasks and implement them one by one',
+          'skilldesc.code-review': 'Review your diff on both repo standards and the originating spec',
+          'skilldesc.codebase-design': 'Find clean module boundaries and interfaces for your code',
+          'skilldesc.diagnosing-bugs': 'Hard bugs / perf regressions: locate → hypothesize → verify, loop',
+          'skilldesc.improve-codebase-architecture': 'Scan the codebase for deepening opportunities, output an HTML report',
+          'skilldesc.tdd': 'Test-driven dev: failing test first, then minimal implementation',
           'skilldesc.handoff': 'Compress this conversation into a handoff doc',
           'skilldesc.teach': 'Teach you new skills across sessions',
-          'skilldesc.to-spec': 'Turn discussions into specs',
+          'skilldesc.to-spec': 'Turn scattered discussions into an executable spec',
           'skilldesc.to-tickets': 'Split specs into tickets',
           'skilldesc.resolving-merge-conflicts': 'Resolve merge conflicts',
-          'skilldesc.writing-great-skills': 'Write great skills',
+          'skilldesc.writing-great-skills': 'Write reusable, testable skill descriptions for AI',
         },
       }
       const localeSvc = ctx.get('locale')
@@ -1908,31 +1922,43 @@ window.__ModuleLoader__.load({
           seg('dot', [h('span', null, tr('nav.env')), num(envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') }, tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) })),
           // v1.5 T10：刷新反馈 = 图标转圈（文字恒定不换 · 控件宽度零变化）
           h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, title: tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('nav.refresh') + ' ' + timeStr)]),
-          // 需求2（2026-08-18）：状态栏末尾技能列表按钮 —— 点击向上展开技能名列表，点击技能名插入 /<技能名> 到当前会话
-          h('span', { className: 'dsws-skillbtn' + (s.skillsOpen ? ' on' : ''), onClick: function (e) { e.stopPropagation(); s.skillsOpen = !s.skillsOpen; emit(s) }, title: tr('nav.skillsTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '1px 4px', borderRadius: 4, cursor: 'pointer', color: s.skillsOpen ? '#c084fc' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [Ic({ n: 'skills', size: 12 })]),
-          s.skillsOpen ? h('div', { className: 'dsws-skillpop', style: { position: 'absolute', bottom: '100%', right: 0, marginBottom: 4, zIndex: 9999, minWidth: 150, maxHeight: 300, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
-            // 悬浮记忆：鼠标移到行上立即出现浮层（替代浏览器原生 title 的慢延迟）
-            SKILLS.map(function (sk) {
-              return h('div', {
-                key: sk.name,
-                onClick: function (e) { e.stopPropagation(); inject(s, '/' + sk.name); s.skillsOpen = false; s.skillHover = null; s.skillTip = null; emit(s) },
-                onMouseEnter: function (e) {
-                  const r = e.currentTarget.getBoundingClientRect()
-                  let tip = { x: r.right + 8, y: r.top + r.height / 2, name: sk.name }
-                  if (typeof window !== 'undefined' && tip.x + 240 > window.innerWidth) tip = { x: r.left - 8 - 240, y: r.top + r.height / 2, name: sk.name }
-                  s.skillHover = sk.name
-                  s.skillTip = tip
-                  emit(s)
-                },
-                onMouseLeave: function () { if (s.skillHover !== null) { s.skillHover = null; s.skillTip = null; emit(s) } },
-                style: { padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.skillHover === sk.name ? 'var(--dsw-alias-label-primary,#e6edf3)' : 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', background: s.skillHover === sk.name ? 'var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))' : 'transparent', borderLeft: s.skillHover === sk.name ? '2px solid #c084fc' : '2px solid transparent' }
-              }, sk.name)
-            }),
-            // 底部操作提示（替代被移除的列表标题位，保持顶部纯技能名）
-            h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '5px 8px 2px', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', marginTop: 2, whiteSpace: 'nowrap' } }, tr('nav.skillHint')),
-          ]) : null,
-          // 快速悬浮提示：固定在行右侧（position:fixed 不受弹层 overflow 裁剪）
-          s.skillTip && s.skillHover ? h('div', { style: { position: 'fixed', left: s.skillTip.x, top: s.skillTip.y, transform: 'translateY(-50%)', maxWidth: 220, zIndex: 10002, padding: '4px 8px', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)' } }, tr('skilldesc.' + s.skillTip.name)) : null,
+          // 需求2（2026-08-18）：状态栏末尾技能列表按钮 —— 向上展开技能名列表，点击技能名插入 /<技能名> 到当前会话
+          // issue #3（D2）：对齐 BUG 段悬浮菜单 —— 悬停即展开、移出「按钮 + 列表」整体区域即关闭；
+          //   按钮与列表之间的 4px 间隙由外层 paddingTop 桥接（不再用 marginBottom），鼠标穿越不误关。
+          h('span', {
+            style: { position: 'relative', display: 'inline-flex' },
+            onMouseEnter: function () { if (!s.skillsOpen) { s.skillsOpen = true; emit(s) } },
+            onMouseLeave: function () { if (s.skillsOpen || s.skillHover) { s.skillsOpen = false; s.skillHover = null; s.skillTip = null; emit(s) } },
+          }, [
+            h('span', { className: 'dsws-skillbtn' + (s.skillsOpen ? ' on' : ''), onClick: function (e) { e.stopPropagation(); s.skillsOpen = !s.skillsOpen; if (!s.skillsOpen) { s.skillHover = null; s.skillTip = null } emit(s) }, title: tr('nav.skillsTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '1px 4px', borderRadius: 4, cursor: 'pointer', color: s.skillsOpen ? '#c084fc' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [Ic({ n: 'skills', size: 12 })]),
+            s.skillsOpen ? h('div', { style: { position: 'absolute', bottom: '100%', right: 0, paddingTop: 4, paddingBottom: 4, zIndex: 9999 }, onClick: function (e) { e.stopPropagation() } }, [
+              h('div', { className: 'dsws-skillpop', style: { minWidth: 150, maxHeight: 300, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
+                // 悬浮记忆：鼠标移到行上立即出现浮层（替代浏览器原生 title 的慢延迟）
+                SKILLS.map(function (sk) {
+                  return h('div', {
+                    key: sk.name,
+                    onClick: function (e) { e.stopPropagation(); inject(s, '/' + sk.name); s.skillsOpen = false; s.skillHover = null; s.skillTip = null; emit(s) },
+                    onMouseEnter: function (e) {
+                      const r = e.currentTarget.getBoundingClientRect()
+                      // 浮层实宽 = maxWidth 220 + 左右内边距 16 + 边框 2 = 238（翻转阈值与实宽对齐，避免贴边）
+                      let tip = { x: r.right + 8, y: r.top + r.height / 2, name: sk.name }
+                      if (typeof window !== 'undefined' && tip.x + 238 > window.innerWidth) tip = { x: r.left - 8 - 238, y: r.top + r.height / 2, name: sk.name }
+                      s.skillHover = sk.name
+                      s.skillTip = tip
+                      emit(s)
+                    },
+                    onMouseLeave: function () { if (s.skillHover !== null) { s.skillHover = null; s.skillTip = null; emit(s) } },
+                    style: { padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.skillHover === sk.name ? 'var(--dsw-alias-label-primary,#e6edf3)' : 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', background: s.skillHover === sk.name ? 'var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))' : 'transparent', borderLeft: s.skillHover === sk.name ? '2px solid #c084fc' : '2px solid transparent' }
+                  }, sk.name)
+                }),
+                // 底部操作提示（替代被移除的列表标题位，保持顶部纯技能名）
+                h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '5px 8px 2px', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', marginTop: 2, whiteSpace: 'nowrap' } }, tr('nav.skillHint')),
+              ]),
+            ]) : null,
+          ]),
+          // 快速悬浮提示：portal 到 document.body（issue #3·D1）——脱离状态栏子树，position:fixed 的
+          //   视口坐标与 z-index 全局生效，不再被宿主输入区容器裁剪或压层
+          s.skillTip && s.skillHover ? portalTop(h('div', { style: { position: 'fixed', left: s.skillTip.x, top: s.skillTip.y, transform: 'translateY(-50%)', maxWidth: 220, zIndex: 2147483000, padding: '4px 8px', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)' } }, tr('skilldesc.' + s.skillTip.name))) : null,
         ])
         // 用户拍板 2026-08-16 + 2026-08-17：横幅移到状态栏上方；依赖链 gh → 登录 → setup → 技能，显示第一个缺失项
         const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
