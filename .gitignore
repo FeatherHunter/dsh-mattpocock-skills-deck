@@ -1,2 +1,15 @@
 node_modules/
 *.tgz
+
+# 临时工作区/调测产物（不入库）
+.scratch/
+_research/
+
+# 根级临时件
+/dsh-market-registry.csv
+/dsh-market-registry.json
+/issue-path-mechanisms-r3.html
+/issue15-body.md
+/package.json
+/package-lock.json
+/tests/playwright-e2e-probe.js
