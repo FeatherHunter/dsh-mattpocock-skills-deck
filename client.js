@@ -67,7 +67,7 @@ return {
     const PortalOverlay = function (props, children) {
       return portalTop(h('div', props || {}, children))
     }
-    const DSW_VERSION = 'v1.6.13'
+    const DSW_VERSION = 'v1.6.14'
 
     // ============================================================
     // 0. 样式
@@ -2280,7 +2280,8 @@ let pendingDraft = null
       // #16 R12（本次）：宿主 conversation.input.dock 插槽 = composerStack（column flex），wrapper 是 flex item，
 //   默认 flex-shrink:1 → 输入区高度被压缩时 wrapper 被压扁（wrapper 11px → capsule 8px → overflow:hidden 裁文字）。
 //   R6b 只防了「被拉高」，没防「被压矮」；故加 flex:'none'（flex:0 0 auto）双保险。
-      if (!firstBlock) return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: 'hidden' } }, [capsule])
+// #22：正常路径由 portal 脱离裁剪；若 ReactDOM 不可用，退化节点必须不再被本 wrapper 立即裁掉。
+      if (!firstBlock) return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: RDOM ? 'hidden' : 'visible' } }, [capsule])
       const bann = function (text, btnLabel, onBtn) {
         return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
           Ic({ n: 'alert', size: 13 }),

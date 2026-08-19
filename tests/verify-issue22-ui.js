@@ -10,11 +10,6 @@ fs.mkdirSync(OUT, { recursive: true })
 const wait = (page, ms) => page.waitForTimeout(ms)
 const waitFor = (page, expression, arg) => page.waitForFunction(expression, arg, { timeout: 5000 })
 
-const rectOf = (el) => {
-  const r = el.getBoundingClientRect()
-  return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height }
-}
-
 const readLayout = (page) => page.evaluate(() => {
   const rectOf = (el) => {
     const r = el.getBoundingClientRect()
@@ -85,6 +80,7 @@ const assert = (condition, message) => {
     const skillState = await readLayout(page)
     assert(skillState.bridge && skillState.pop, 'skill popup did not render globally')
     assert(skillState.bridge.parentIsBody, 'skill popup bridge is still inside the clipped subtree')
+    assert((await page.locator('.dsws-skillpop').innerText()).includes('ask-matt'), 'skill popup is missing ask-matt label')
     assert(skillState.pop.rect.y < skillState.wrapper.rect.y, 'skill popup did not expand above the wrapper')
     assert(skillState.hitInsideTarget, 'skill popup center is not hit-testable')
 
@@ -100,6 +96,11 @@ const assert = (condition, message) => {
     await waitFor(page, () => !!document.querySelector('.dsws-skillpop'))
     const bridged = await readLayout(page)
     assert(bridged.pop, 'skill popup closed while crossing trigger-to-portal bridge')
+    await page.locator('.dsws-skillpop > div').first().click()
+    await waitFor(page, () => !document.querySelector('.dsws-skillpop'))
+    const draft = await page.locator('textarea.uV2eYG_input').inputValue()
+    assert(draft.includes('/ask-matt'), 'clicking ask-matt did not inject its command into the input')
+    await page.locator('textarea.uV2eYG_input').fill('')
 
     // Move to the BUG segment and verify the second overlay follows the same contract.
     const bugPoint = await page.evaluate(() => {
@@ -114,6 +115,7 @@ const assert = (condition, message) => {
     const bugState = await readLayout(page)
     assert(!bugState.bridge && !bugState.pop, 'skill popup remained after moving to BUG trigger')
     assert(bugState.bug, 'BUG popup did not render globally')
+    assert((await page.locator('.dsws-bugmenu').innerText()).includes('新增'), 'BUG popup is missing 新增 label')
     assert(bugState.bug.parentIsBody, 'BUG popup is still inside the clipped subtree')
     assert(bugState.bug.rect.y < bugState.wrapper.rect.y, 'BUG popup did not expand above the wrapper')
     assert(bugState.hitInsideTarget, 'BUG popup center is not hit-testable')

@@ -29,7 +29,7 @@ const statChecks = function (src, tag) {
   ok('外层 wrapper display:flex + flex:\'none\' + justify-content:center 居中胶囊', /display:\s*'flex',\s*flex:\s*'none',\s*justifyContent:\s*'center'/.test(src))
   ok('外层 wrapper width:100% 跟输入区容器宽', /display:\s*'flex'(?:,\s*flex:\s*'none')?,\s*justifyContent:\s*'center'[\s\S]{0,80}width:\s*'100%'/.test(src))
   ok('外层 wrapper boxSizing:border-box 防 padding 撑破', /display:\s*'flex'(?:,\s*flex:\s*'none')?,\s*justifyContent:\s*'center'[\s\S]{0,200}boxSizing:\s*'border-box'/.test(src))
-  ok('外层 wrapper overflow:hidden 截 capsule 溢出（窄态防「棍子」）', /display:\s*'flex'(?:,\s*flex:\s*'none')?,\s*justifyContent:\s*'center'[\s\S]{0,250}overflow:\s*'hidden'/.test(src))
+  ok('外层 wrapper 正常路径 overflow:hidden 截 capsule 溢出，缺 ReactDOM 时 visible 降级保留浮层可用性', /display:\s*'flex'(?:,\s*flex:\s*'none')?,\s*justifyContent:\s*'center'[\s\S]{0,250}overflow:\s*RDOM\s*\?\s*'hidden'\s*:\s*'visible'/.test(src))
   ok('胶囊 CSS 不再加 overflow:hidden（让 capsule 圆角背景完整，圆角处不漏白）', !/\.dsws-capsule\s*\{[^}]*overflow:\s*hidden/.test(src))
   // 期望 2：children 保持 flex:none + gap 居中
   ok('children 仍 flex:none（capsule-word / seg / timebtn）', /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-seg\{flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-timebtn\{flex:none/.test(src))

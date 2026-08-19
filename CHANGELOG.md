@@ -1,5 +1,12 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-19 · 状态栏 BUG / 技能浮层脱离裁剪（#22 · v1.6.14）
+
+- **根因**：状态栏正常分支的 layout wrapper 需要 `overflow:hidden` 保护窄态胶囊横向溢出；BUG「新增」菜单与技能列表却仍是该 wrapper 的 `position:absolute; bottom:100%` 后代，因此同时被裁掉绘制和鼠标命中。
+- **修复**：两个交互浮层统一通过 `portalTop → document.body` 渲染，使用锚点 `getBoundingClientRect()` 的 viewport 坐标和全局 z-index；监听 capture scroll、resize 与锚点 ResizeObserver 重定位，保留 160ms 悬停桥接。
+- **交互加固**：BUG 菜单与技能列表互斥打开；点击技能注入命令后关闭列表；没有 `ReactDOM` 时 wrapper 改为 `overflow:visible` 的可用降级。
+- **验证**：新增 `verify-issue22-popovers.js` 静态双源契约与 `verify-issue22-ui.js` 真实 Chrome 回归，验证菜单文案、body-level 渲染、可点击命中、桥接、技能注入和互斥关闭。
+
 ## 2026-08-18 · 状态栏胶囊 V2：内容自适应渐进收缩（#16 重设计 · v1.6.13）
 
 - **复现结论**（真机 1280→400 逐档）：R1-R13 的 `data-narrow` 阈值体系有**结构性 bug**——
