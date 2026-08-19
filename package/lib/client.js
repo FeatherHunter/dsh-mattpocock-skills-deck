@@ -993,12 +993,12 @@ window.__ModuleLoader__.load({
       const COMPLETE_PROMPT = function () { return promptText('complete') }
       // T16：正文格式契约（写/改 issue 正文的动作统一追加）
       const BODY_FORMAT = function () { return promptText('bodyFormat') }
-      // v3.2（#14 2026-08-19 验收反馈重拍板）：说明上移为「填写指引」块（`  字段 → 说明`），末尾 4 行干净表单（`字段名：` 留白位）——填写位零干扰
+      // v3.3（#14 2026-08-19 验收反馈）：指引压缩为每行 ≤18 字（v3.2 指引过于啰嗦；字段名已自解释，指引只补信息缺口、不重复字段名）
       //   字段集（第一性原理：Bug = 期望 vs 实际偏差）：期望 / 实际（吸收现象+影响范围）/ 复现步骤（吸收背景+场景 preamble）/ 环境信息（新增）
-      //   形态决议（v3.0 文章式 → v3.1 字段行+缩进说明 → v3.2 指引块上移 + 纯表单收尾）；zh 只中文、en 只英文，跟随 DSH 语言一次只出一种
-      const NEW_BUG_FIELDS_BODY = function () { return '\n\n填写指引：\n  期望 → 应发生什么 / 用户预期看到的结果\n  实际 → 实际看到了什么；可含影响范围描述（严重度 / 受影响用户）\n  复现步骤 → [前置 / 场景] + 步骤列表。前置 = 系统状态 / 配置；场景 = 触发情境；步骤 = 编号列表\n  环境信息 → OS + 浏览器 + 插件版本（DSW vX.Y.Z）\n\n期望：\n实际：\n复现步骤：\n环境信息：' }
-      // v3.2（#14）：EN locale 版 —— "Fill-in guide:" 块 + 末尾 4 行干净表单（DSH 为英文时单独输出）
-      const NEW_BUG_FIELDS_BODY_EN = function () { return '\n\nFill-in guide:\n  Expected → What should happen / the result the user expected\n  Actual → What actually happened; may include impact notes (severity / affected users)\n  Reproduction → [Preamble / Scenario] + numbered steps. Preamble = system state / config; scenario = triggering situation; steps = numbered list\n  Environment → OS + browser + plugin version (DSW vX.Y.Z)\n\nExpected:\nActual:\nReproduction:\nEnvironment:' }
+      //   形态决议（v3.0 文章式 → v3.1 字段行+缩进说明 → v3.2 指引块+纯表单 → v3.3 指引压缩）；zh 只中文、en 只英文，跟随 DSH 语言一次只出一种
+      const NEW_BUG_FIELDS_BODY = function () { return '\n\n填写指引：\n  期望 → 应发生什么 / 预期结果\n  实际 → 看到什么；可含影响范围\n  复现步骤 → [前置 / 场景] + 编号步骤\n  环境信息 → OS + 浏览器 + 插件版本\n\n期望：\n实际：\n复现步骤：\n环境信息：' }
+      // v3.3（#14）：EN locale 版 —— "Fill-in guide:" 压缩指引 + 末尾 4 行干净表单（DSH 为英文时单独输出）
+      const NEW_BUG_FIELDS_BODY_EN = function () { return '\n\nFill-in guide:\n  Expected → What should happen / expected result\n  Actual → What actually happened; may include impact notes\n  Reproduction → [Preamble / Scenario] + numbered steps\n  Environment → OS + browser + plugin version\n\nExpected:\nActual:\nReproduction:\nEnvironment:' }
       // v1.5：完成确认 prompt —— 技能+链接前置（/wayfinder + map 链接），再拼完成确认正文（完成 = wayfinder）
       const completePrompt = function (st, num, total, closed) {
         return '/wayfinder\n' + 'https://github.com/' + repoStr(st) + '/issues/' + String(num || '') + '\n\n' +
@@ -1742,7 +1742,11 @@ window.__ModuleLoader__.load({
         const bs = ctx.get('betterSidebar')
         if (bs && typeof bs.openTab === 'function') {
           if (!ensureSidebarTab()) { openDockPanel(st); return }  // 注册失败 → 回退 details 列
-          bs.openTab({ type: 'waystation:map', path: 'waystation:map' })  // path seed → 内容型打开 → 自动展开面板
+          // #2-fix（2026-08-19 用户反馈「新会话点状态栏面板不开」）：必须传 scope={sessionId}。
+          //   better-sidebar 的 openTab(seed, scope) 内部 `targetSessionId = scope?.sessionId ?? store.getSnapshot().sessionId`；
+          //   新会话时宿主尚未 setSession(该 id) → store sessionId 为 undefined → openTab 静默 return，面板不开。
+          //   显式传当前 store 的 sessionId 后走 reduceFor(scope.sessionId) 路径（按给定 id 初始化布局），面板正常展开。
+          bs.openTab({ type: 'waystation:map', path: 'waystation:map' }, { sessionId: st.sessionId })  // path seed → 内容型打开 → 自动展开面板
           // 打开 tab 即视为面板已开（数据新鲜直接展示）
           if (st.snapMode === 'real' && snapFresh(st)) { emit(st); return }
           if (st.snapMode === 'real') { emit(st); loadSnapshot(st, false); return }
@@ -1804,7 +1808,7 @@ window.__ModuleLoader__.load({
       const newWayfinderText = (st) => promptText('newWayfinder', { repo: 'https://github.com/' + repoStr(st) }) + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '')
       // issue #4：新增 BUG 单 —— 与「+ 新增需求」同构（新会话 + 预填 /wayfinder prompt + 正文格式契约）
       // v2（#1 BUG3 补强）：输入位挪到 BODY_FORMAT 之后，模板末尾（避免中途输入位）
-      // v3（#14 决议 #13 [T7]）：字段集精简为 4 项 + 「填写指引」块（v3.2：说明上移、末尾 4 行干净表单，zh/en 分离跟随语言）；EN locale 切换（NEW_BUG_FIELDS_BODY_EN）
+      // v3（#14 决议 #13 [T7]）：字段集精简为 4 项 + 「填写指引」块（v3.3：指引压缩每行 ≤18 字、末尾 4 行干净表单，zh/en 分离跟随语言）；EN locale 切换（NEW_BUG_FIELDS_BODY_EN）
       const newBugWayfinderText = (st) => promptText('newBugWayfinder', { repo: 'https://github.com/' + repoStr(st) }) + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '') + (promptLang() === 'en' ? NEW_BUG_FIELDS_BODY_EN() : NEW_BUG_FIELDS_BODY())
 
       // v10：沉淀 = 会话级动作 —— 注入「零丢失快照」prompt（默认文本见 §2.5 FIXATE_PROMPT，T2b 可编辑）
