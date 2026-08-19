@@ -8,7 +8,7 @@ const DSH = process.argv[2] || 'http://127.0.0.1:59519'
 const OUT = '.bug-investigate/issue22-ui'
 fs.mkdirSync(OUT, { recursive: true })
 const wait = (page, ms) => page.waitForTimeout(ms)
-const waitFor = (page, expression, arg) => page.waitForFunction(expression, arg, { timeout: 5000 })
+const waitFor = (page, expression) => page.waitForFunction(expression, undefined, { timeout: 5000 })
 
 const readLayout = (page) => page.evaluate(() => {
   const rectOf = (el) => {
