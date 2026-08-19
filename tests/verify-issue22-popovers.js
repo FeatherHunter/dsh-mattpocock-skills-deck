@@ -14,8 +14,8 @@ const check = function (file) {
   const requireText = (re, message) => { if (!re.test(src)) problems.push(message) }
 
   // 两个交互浮层都必须走既有的 body portal seam。
-  requireText(/portalTop\(h\('div',[\s\S]{0,500}dsws-bugmenu/, 'BUG 菜单未通过 portalTop 渲染')
-  requireText(/portalTop\(h\('div',[\s\S]{0,500}dsws-skillpop/, '技能列表未通过 portalTop 渲染')
+  requireText(/PortalOverlay\(\{ className: 'dsws-bugmenu'/, 'BUG 菜单未通过 PortalOverlay 渲染')
+  requireText(/PortalOverlay\(\{ className: 'dsws-skillpop-bridge'/, '技能列表未通过 PortalOverlay 渲染')
 
   // overlay 必须使用 viewport 定位和全局层级，不能继续使用 absolute + 9999。
   requireText(/dsws-bugmenu[\s\S]{0,500}position:\s*'fixed'/, 'BUG 菜单缺 position:fixed')
@@ -24,13 +24,15 @@ const check = function (file) {
   requireText(/dsws-skillpop[\s\S]{0,500}zIndex:\s*2147483000/, '技能列表缺全局 z-index')
 
   // 定位必须从锚点 rect 得出，并在滚动/缩放后更新。
-  requireText(/getBoundingClientRect\(\)[\s\S]{0,300}(bugMenuPos|bugMenuAnchor|placeBug)/, '缺 BUG 锚点 rect 定位')
-  requireText(/getBoundingClientRect\(\)[\s\S]{0,300}(skillPopPos|skillPopAnchor|placeSkill)/, '缺技能列表锚点 rect 定位')
-  requireText(/addEventListener\(['"]scroll['"][\s\S]{0,1200}capture:\s*true/, '缺捕获阶段 scroll 重定位')
-  requireText(/addEventListener\(['"]resize['"][\s\S]{0,1200}(bugMenuPos|skillPopPos|placeBug|placeSkill)/, '缺 resize 重定位')
+  requireText(/const placeOverlay\s*=\s*function[\s\S]{0,300}getBoundingClientRect\(\)/, '缺锚点 rect 定位')
+  requireText(/const placeBugMenu\s*=\s*function[\s\S]{0,450}bugMenuPos/, '缺 BUG 锚点位置状态')
+  requireText(/const placeSkillPop\s*=\s*function[\s\S]{0,450}skillPopPos/, '缺技能锚点位置状态')
+  requireText(/addEventListener\(['"]scroll['"][\s\S]{0,900}capture:\s*true/, '缺捕获阶段 scroll 重定位')
+  requireText(/addEventListener\(['"]resize['"][\s\S]{0,900}reposition/, '缺 resize 重定位')
 
   // portal 后 trigger -> popup 的鼠标桥接必须有延迟关闭/取消关闭机制。
-  requireText(/setTimeout\([\s\S]{0,220}(bugMenuOpen|skillsOpen)[\s\S]{0,220}clearTimeout/, '缺 portal 弹层悬停桥接（延迟关闭 + 取消）')
+  requireText(/const scheduleClose\s*=\s*function[\s\S]{0,180}setTimeout/, '缺 portal 弹层延迟关闭')
+  requireText(/clearClose\([\s\S]{0,120}bugCloseRef|clearClose\([\s\S]{0,120}skillCloseRef/, '缺 portal 弹层取消关闭')
 
   // wrapper 的原始布局保护仍保留；修复不能靠删除它掩盖回归。
   requireText(/overflow:\s*'hidden'/, 'wrapper 横向裁剪保护被完全移除')
@@ -50,9 +52,9 @@ if (targets.length >= 2) {
   const a = fs.readFileSync(targets[0], 'utf8')
   const b = fs.readFileSync(targets[1], 'utf8')
   const fingerprints = [
-    'portalTop(h(',
+    'PortalOverlay',
     'dsws-bugmenu',
-    'dsws-skillpop',
+    'dsws-skillpop-bridge',
     '2147483000',
     "capture: true",
   ]

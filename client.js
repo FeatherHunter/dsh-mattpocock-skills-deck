@@ -63,6 +63,10 @@ return {
       return node
     }
     // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
+    // issue #22：交互弹层统一挂到 body，避免被状态栏布局 wrapper 裁剪。
+    const PortalOverlay = function (props, children) {
+      return portalTop(h('div', props || {}, children))
+    }
     const DSW_VERSION = 'v1.6.13'
 
     // ============================================================
@@ -1142,7 +1146,7 @@ return {
       stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
       checks: null, checksUpdatedAt: '', checksMode: 'loading', checksError: null, checking: false,
       snapMode: 'loading', snapError: null, snapLoading: false,
-      refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, skillsOpen: false, skillHover: null, skillTip: null, bugMenuOpen: false, bugMenuHover: false, expTags: {}, subs: [],
+      refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, skillsOpen: false, skillHover: null, skillTip: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
     })
     const shared = makeStore()
     const stores = {}
@@ -2046,7 +2050,103 @@ let pendingDraft = null
       //   折叠由 React 外部 DOM class 驱动（React 重渲染时 className prop 不变 → classList 手动变化保留）。
       const inputRef = React.useRef(null)
       const foldRef = React.useRef(null)
+      const bugAnchorRef = React.useRef(null)
+      const skillAnchorRef = React.useRef(null)
+      const bugCloseRef = React.useRef(null)
+      const skillCloseRef = React.useRef(null)
       const [iw, setIw] = React.useState(780)
+      // issue #22：布局 wrapper 保持裁剪职责；浮层位置以锚点 viewport rect 表示。
+      const placeOverlay = function (el, align) {
+        if (!el || typeof window === 'undefined') return null
+        const r = el.getBoundingClientRect()
+        if (!r || (!r.width && !r.height)) return null
+        const p = { bottom: Math.max(0, Math.round(window.innerHeight - r.top)) }
+        if (align === 'right') p.right = Math.max(0, Math.round(window.innerWidth - r.right))
+        else p.left = Math.max(0, Math.round(r.left))
+        return p
+      }
+      const placeBugMenu = function () {
+        const p = placeOverlay(bugAnchorRef.current, 'left')
+        if (!p) return false
+        const old = s.bugMenuPos
+        if (old && old.left === p.left && old.bottom === p.bottom) return false
+        s.bugMenuPos = p
+        return true
+      }
+      const placeSkillPop = function () {
+        const p = placeOverlay(skillAnchorRef.current, 'right')
+        if (!p) return false
+        const old = s.skillPopPos
+        if (old && old.right === p.right && old.bottom === p.bottom) return false
+        s.skillPopPos = p
+        return true
+      }
+      const clearClose = function (ref) {
+        if (ref.current !== null) { clearTimeout(ref.current); ref.current = null }
+      }
+      const closeBugMenu = function () {
+        clearClose(bugCloseRef)
+        if (!s.bugMenuOpen && !s.bugMenuPos && !s.bugMenuHover) return
+        s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; emit(s)
+      }
+      const closeSkillPop = function () {
+        clearClose(skillCloseRef)
+        if (!s.skillsOpen && !s.skillPopPos && !s.skillHover && !s.skillTip) return
+        s.skillsOpen = false; s.skillHover = null; s.skillTip = null; s.skillPopPos = null; emit(s)
+      }
+      const scheduleClose = function (ref, fn) {
+        clearClose(ref)
+        ref.current = setTimeout(function () { ref.current = null; fn() }, 160)
+      }
+      const showBugMenu = function () {
+        clearClose(bugCloseRef)
+        let changed = false
+        if (!s.bugMenuOpen) { s.bugMenuOpen = true; changed = true }
+        if (placeBugMenu()) changed = true
+        if (changed) emit(s)
+      }
+      const showSkillPop = function () {
+        clearClose(skillCloseRef)
+        let changed = false
+        if (!s.skillsOpen) { s.skillsOpen = true; changed = true }
+        if (placeSkillPop()) changed = true
+        if (changed) emit(s)
+      }
+      React.useEffect(function () {
+        if (!s.bugMenuOpen && !s.skillsOpen) return undefined
+        let raf = null
+        let disposed = false
+        const reposition = function () {
+          if (disposed || raf !== null) return
+          const run = function () {
+            raf = null
+            if (disposed) return
+            let changed = false
+            if (s.bugMenuOpen && placeBugMenu()) changed = true
+            if (s.skillsOpen && placeSkillPop()) changed = true
+            if (changed) emit(s)
+          }
+          if (typeof requestAnimationFrame === 'function') raf = requestAnimationFrame(run)
+          else raf = setTimeout(run, 0)
+        }
+        document.addEventListener('scroll', reposition, { capture: true, passive: true })
+        window.addEventListener('resize', reposition)
+        const ro = new ResizeObserver(reposition)
+        if (bugAnchorRef.current) ro.observe(bugAnchorRef.current)
+        if (skillAnchorRef.current) ro.observe(skillAnchorRef.current)
+        reposition()
+        return function () {
+          disposed = true
+          ro.disconnect()
+          if (raf !== null) {
+            if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf)
+            else clearTimeout(raf)
+          }
+          document.removeEventListener('scroll', reposition, true)
+          window.removeEventListener('resize', reposition)
+          clearClose(bugCloseRef); clearClose(skillCloseRef)
+        }
+      }, [s.bugMenuOpen, s.skillsOpen])
       const applyFold = function () {
         const cap = foldRef.current
         if (!cap) return
@@ -2101,10 +2201,10 @@ let pendingDraft = null
         ]),
         seg('target', [h('span', { 'data-fold-priority': 5 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; go('list') }, tr('nav.takeableTitle')),
         // issue #4：BUG 计数段 —— 点击仍开 bug 过滤列表；悬停弹「新增」菜单（新会话预填 /wayfinder 新增 BUG 单 prompt）
-        h('span', { style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: function () { s.bugMenuOpen = true; emit(s) }, onMouseLeave: function () { s.bugMenuOpen = false; emit(s) } }, [
+        h('span', { ref: bugAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showBugMenu, onMouseLeave: function () { scheduleClose(bugCloseRef, closeBugMenu) } }, [
           seg('alert', [h('span', { 'data-fold-priority': 6 }, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, tr('nav.bugTitle')),
-          s.bugMenuOpen ? h('div', { onMouseEnter: function () { s.bugMenuOpen = true; emit(s) }, onMouseLeave: function () { s.bugMenuOpen = false; s.bugMenuHover = false; emit(s) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'absolute', bottom: '100%', left: 0, paddingTop: 8, zIndex: 9999, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
-            h('div', { onClick: function (e) { e.stopPropagation(); s.bugMenuOpen = false; s.bugMenuHover = false; emit(s); openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, onMouseEnter: function () { if (!s.bugMenuHover) { s.bugMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.bugMenuHover) { s.bugMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.bugMenuHover ? '#f87171' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.bugMenuHover ? 'rgba(248,113,113,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
+          s.bugMenuOpen ? PortalOverlay({ className: 'dsws-bugmenu', onMouseEnter: function () { clearClose(bugCloseRef) }, onMouseLeave: function () { scheduleClose(bugCloseRef, closeBugMenu) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'fixed', left: s.bugMenuPos ? s.bugMenuPos.left : 0, bottom: s.bugMenuPos ? s.bugMenuPos.bottom : 0, padding: '8px 4px 4px', zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)' } }, [
+            h('div', { onClick: function (e) { e.stopPropagation(); closeBugMenu(); openTextInNewSession(s, newBugWayfinderText(s), SESSION_TITLE_PREFIX + ' ' + tr('panel.newBug')) }, onMouseEnter: function () { if (!s.bugMenuHover) { s.bugMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.bugMenuHover) { s.bugMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.bugMenuHover ? '#f87171' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.bugMenuHover ? 'rgba(248,113,113,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
               Ic({ n: 'bug', size: 12, color: s.bugMenuHover ? '#fca5a5' : '#f87171' }),
               h('span', null, tr('nav.bugNew')),
             ]),
@@ -2137,17 +2237,17 @@ let pendingDraft = null
         //   按钮与列表之间的 4px 间隙由外层 paddingTop 桥接（不再用 marginBottom），鼠标穿越不误关。
         h('span', {
           style: { position: 'relative', display: 'inline-flex' },
-          onMouseEnter: function () { if (!s.skillsOpen) { s.skillsOpen = true; emit(s) } },
-          onMouseLeave: function () { if (s.skillsOpen || s.skillHover) { s.skillsOpen = false; s.skillHover = null; s.skillTip = null; emit(s) } },
+          ref: skillAnchorRef, onMouseEnter: showSkillPop,
+          onMouseLeave: function () { scheduleClose(skillCloseRef, closeSkillPop) },
         }, [
-          h('span', { className: 'dsws-skillbtn' + (s.skillsOpen ? ' on' : ''), onClick: function (e) { e.stopPropagation(); s.skillsOpen = !s.skillsOpen; if (!s.skillsOpen) { s.skillHover = null; s.skillTip = null } emit(s) }, title: tr('nav.skillsTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '1px 4px', borderRadius: 4, cursor: 'pointer', color: s.skillsOpen ? '#c084fc' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [Ic({ n: 'skills', size: 12 })]),
-          s.skillsOpen ? h('div', { style: { position: 'absolute', bottom: '100%', right: 0, paddingTop: 4, paddingBottom: 4, zIndex: 9999 }, onClick: function (e) { e.stopPropagation() } }, [
-            h('div', { className: 'dsws-skillpop', style: { minWidth: 150, maxHeight: 300, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
+          h('span', { className: 'dsws-skillbtn' + (s.skillsOpen ? ' on' : ''), onClick: function (e) { e.stopPropagation(); if (s.skillsOpen) closeSkillPop(); else showSkillPop() }, title: tr('nav.skillsTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '1px 4px', borderRadius: 4, cursor: 'pointer', color: s.skillsOpen ? '#c084fc' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [Ic({ n: 'skills', size: 12 })]),
+          s.skillsOpen ? PortalOverlay({ className: 'dsws-skillpop-bridge', onMouseEnter: function () { clearClose(skillCloseRef) }, onMouseLeave: function () { scheduleClose(skillCloseRef, closeSkillPop) }, style: { position: 'fixed', right: s.skillPopPos ? s.skillPopPos.right : 0, bottom: s.skillPopPos ? s.skillPopPos.bottom : 0, paddingTop: 4, paddingBottom: 4, zIndex: 2147483000 }, onClick: function (e) { e.stopPropagation() } }, [
+            h('div', { className: 'dsws-skillpop', style: { minWidth: 150, maxHeight: 'min(300px, calc(100vh - 24px))', overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
               // 悬浮记忆：鼠标移到行上立即出现浮层（替代浏览器原生 title 的慢延迟）
               SKILLS.map(function (sk) {
                 return h('div', {
                   key: sk.name,
-                  onClick: function (e) { e.stopPropagation(); inject(s, '/' + sk.name); s.skillsOpen = false; s.skillHover = null; s.skillTip = null; emit(s) },
+                  onClick: function (e) { e.stopPropagation(); inject(s, '/' + sk.name); closeSkillPop() },
                   onMouseEnter: function (e) {
                     const r = e.currentTarget.getBoundingClientRect()
                     // 浮层实宽 = maxWidth 220 + 左右内边距 16 + 边框 2 = 238（翻转阈值与实宽对齐，避免贴边）
