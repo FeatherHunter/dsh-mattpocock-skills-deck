@@ -2099,15 +2099,17 @@ let pendingDraft = null
         ref.current = setTimeout(function () { ref.current = null; fn() }, 160)
       }
       const showBugMenu = function () {
-        clearClose(bugCloseRef)
+        clearClose(bugCloseRef); clearClose(skillCloseRef)
         let changed = false
+        if (s.skillsOpen || s.skillPopPos || s.skillHover || s.skillTip) { s.skillsOpen = false; s.skillHover = null; s.skillTip = null; s.skillPopPos = null; changed = true }
         if (!s.bugMenuOpen) { s.bugMenuOpen = true; changed = true }
         if (placeBugMenu()) changed = true
         if (changed) emit(s)
       }
       const showSkillPop = function () {
-        clearClose(skillCloseRef)
+        clearClose(skillCloseRef); clearClose(bugCloseRef)
         let changed = false
+        if (s.bugMenuOpen || s.bugMenuPos || s.bugMenuHover) { s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; changed = true }
         if (!s.skillsOpen) { s.skillsOpen = true; changed = true }
         if (placeSkillPop()) changed = true
         if (changed) emit(s)
