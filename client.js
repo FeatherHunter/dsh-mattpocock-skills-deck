@@ -1740,7 +1740,8 @@ return {
         //   better-sidebar 的 openTab(seed, scope) 内部 `targetSessionId = scope?.sessionId ?? store.getSnapshot().sessionId`；
         //   新会话时宿主尚未 setSession(该 id) → store sessionId 为 undefined → openTab 静默 return，面板不开。
         //   显式传当前 store 的 sessionId 后走 reduceFor(scope.sessionId) 路径（按给定 id 初始化布局），面板正常展开。
-        bs.openTab({ type: 'waystation:map', path: 'waystation:map' }, { sessionId: st.sessionId })  // path seed → 内容型打开 → 自动展开面板
+        //   仅当 st.sessionId 有值时传 scope（无值时传 {sessionId:undefined} 会令 targetsInactiveSession=true 走错分支）。
+        bs.openTab({ type: 'waystation:map', path: 'waystation:map' }, st.sessionId ? { sessionId: st.sessionId } : undefined)  // path seed → 内容型打开 → 自动展开面板
         // 打开 tab 即视为面板已开（数据新鲜直接展示）
         if (st.snapMode === 'real' && snapFresh(st)) { emit(st); return }
         if (st.snapMode === 'real') { emit(st); loadSnapshot(st, false); return }
@@ -1750,7 +1751,20 @@ return {
       openDockPanel(st)  // better-sidebar 不可用 → 回退 details 列
     }
     const openPanel = function (st) {
-      if (cfg.openIn === 'sidebar') openInSidebar(st)
+      // #2-fix（2026-08-19 用户反馈「新会话点状态栏按钮右侧面板不开」）：
+      //   cfg.openIn 在 apply 时固化；装配竞态（better-sidebar 晚于本模块加载）会令 bsInstalled=false → openIn 误判为 'dock'，
+      //   点击永远走 openDockPanel（宿主 details 列），better-sidebar 面板不展开 → 用户看不到列表（数据其实一直在渲染）。
+      //   实时检测：better-sidebar 当前可用（openTab 存在）且用户未显式选过 dock → 走 sidebar 展开 better-sidebar。
+      const bs = ctx.get('betterSidebar')
+      const bsReady = !!(bs && typeof bs.openTab === 'function')
+      const explicitDock = (function () {
+        try {
+          const raw = localStorage.getItem(CFG_KEY)
+          if (!raw) return false
+          return JSON.parse(raw).openIn === 'dock'
+        } catch (e) { return false }
+      })()
+      if (cfg.openIn === 'sidebar' || (bsReady && cfg.openIn === 'dock' && !explicitDock)) openInSidebar(st)
       else openDockPanel(st)
     }
     const togglePanel = function (st) {
