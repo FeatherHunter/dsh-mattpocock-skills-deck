@@ -4,6 +4,8 @@ node_modules/
 # 临时工作区/调测产物（不入库）
 .scratch/
 _research/
+.bug-investigate/
+.tmp-screenshots/
 
 # 根级临时件
 /dsh-market-registry.csv
@@ -13,3 +15,4 @@ _research/
 /package.json
 /package-lock.json
 /tests/playwright-e2e-probe.js
+/cyberpunk-tokyo-16x9-4k.png
