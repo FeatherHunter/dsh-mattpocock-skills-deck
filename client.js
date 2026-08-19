@@ -1797,7 +1797,7 @@ return {
     const newWayfinderText = (st) => promptText('newWayfinder', { repo: 'https://github.com/' + repoStr(st) }) + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '')
     // issue #4：新增 BUG 单 —— 与「+ 新建需求」同构（新会话 + 预填 /wayfinder prompt + 正文格式契约）
     // v2（#1 BUG3 补强）：输入位挪到 BODY_FORMAT 之后，模板末尾（避免中途输入位）
-    // v3（#14 决议 #13 [T7]）：字段集精简为 4 项 + inline 中英双语指引；EN locale 切换（NEW_BUG_FIELDS_BODY_EN）
+    // v3（#14 决议 #13 [T7]）：字段集精简为 4 项 + inline 指引（v3.1：zh/en 分离、跟随语言一次只出一种）；EN locale 切换（NEW_BUG_FIELDS_BODY_EN）
     const newBugWayfinderText = (st) => promptText('newBugWayfinder', { repo: 'https://github.com/' + repoStr(st) }) + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '') + (promptLang() === 'en' ? NEW_BUG_FIELDS_BODY_EN() : NEW_BUG_FIELDS_BODY())
 
     // v10：沉淀 = 会话级动作 —— 注入「零丢失快照」prompt（默认文本见 §2.5 FIXATE_PROMPT，T2b 可编辑）

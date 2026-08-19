@@ -1,4 +1,4 @@
-// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到模板末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约升级（issue 称 v2→v3）：字段集精简为 4 项 + inline 中英双语 + EN locale 切换）
+// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到模板末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约升级（issue 称 v2→v3）：字段集精简为 4 项 + inline 指引（v3.1：zh/en 分离）+ EN locale 切换）
 // 用法: node tests/verify-bug-entry.js [file...]（默认 client.js + package/lib/client.js）
 // 验证：
 //   1) PROMPTS 注册表存在 newBugWayfinder（version/placeholders/use/zh/en），注册表本体不含中途输入位，
@@ -26,7 +26,7 @@ const DESC_INDENT_ZH = ['应发生什么', '用户预期看到的结果', '实�
 const DESC_INDENT_EN = ['What should happen', 'the result the user expected', 'What actually happened', 'impact notes', 'Preamble', 'numbered steps', 'system state', 'DSW vX.Y.Z']
 // 字段名行 = 冒号结尾且后面紧跟说明行（`字段名：\n  说明`）—— 表单形态守护：字段名行不可直接跟内容
 // 注意：常量字符串里换行是字面 `\n`（两字符，JS 源码字符串转义），正则需用 \\n 匹配
-const INDENTED_DESC_RE = /(?:\\n){2}(?:期望|实际|复现步骤|环境信息)：\\n {2}[^\n]+/
+const INDENTED_DESC_RE = /(?:\\n){2}(?:期望|实际|复现步骤|环境信息)：\\n {2}(?:(?!\\n).)+/
 const RE_ENTRY = /"newBugWayfinder": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '([^']*)', zh: '([^']*)', en: '([^']*)' \}/
 const check = function (file) {
   const src = fs.readFileSync(file, 'utf8')
@@ -52,14 +52,14 @@ const check = function (file) {
     // v2 提示语：流程说明结尾指向「末尾」
     if (zh.indexOf('模板末尾') < 0) problems.push('newBugWayfinder zh 缺「模板末尾」指引')
     if (en.indexOf('end of the prompt template') < 0) problems.push('newBugWayfinder en 缺 "end of the prompt template" 指引')
-    // #14 v4：注册表提示语不再宣称「7 字段」（与 4 字段集一致）
+    // #14：注册表提示语不再宣称「7 字段」（与 4 字段集一致）
     if (zh.indexOf('7 字段清单') >= 0) problems.push('newBugWayfinder zh 提示语仍称「7 字段清单」（#14 应同步为 4）')
     if (en.indexOf('7-field checklist') >= 0) problems.push('newBugWayfinder en 提示语仍称 "7-field checklist"（#14 应同步为 4）')
     if (/\bgh\b/i.test(zh) || /gh issue/i.test(en)) problems.push('newBugWayfinder 不应硬编码平台工具 gh')
     if (zh.indexOf('bug 标签') < 0) problems.push('newBugWayfinder zh 缺「带 bug 标签的 ISSUE」指引')
     if (en.indexOf('bug label') < 0) problems.push('newBugWayfinder en 缺 "bug label" 指引')
   }
-  // 1.5) NEW_BUG_FIELDS_BODY（zh 4 字段）+ NEW_BUG_FIELDS_BODY_EN（en 4 字段）—— #14 v4
+  // 1.5) NEW_BUG_FIELDS_BODY（zh 4 字段）+ NEW_BUG_FIELDS_BODY_EN（en 4 字段）—— #14
   const fieldsBodyMatch = /NEW_BUG_FIELDS_BODY\s*=\s*function\s*\(\)\s*\{\s*return\s*'([^']*)'\s*\}/.exec(src)
   if (!fieldsBodyMatch) {
     problems.push('缺 NEW_BUG_FIELDS_BODY 常量定义')
@@ -89,7 +89,11 @@ const check = function (file) {
     if (missingInlineEn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 缺 en 说明关键字：' + missingInlineEn.join(' / '))
     // v3.1 分离守护：en 说明行不应混入中文（跟随 DSH 语言一次只出一种）
     if (fieldsBodyEn.indexOf('应发生什么') >= 0 || fieldsBodyEn.indexOf('实际看到了什么') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 混入中文说明（v3.1 已决议 en 只英文说明）')
-    if (!/(?:\\n){2}Expected:\\n {2}[^\n]+/.test(fieldsBodyEn)) problems.push('NEW_BUG_FIELDS_BODY_EN 字段未独立成行且说明未缩进（期望形态：`Expected:\n  ...`）')
+    // en 侧旧字段残留守护（与 zh LEGACY_ZH 对称；防 v2 英文字段回潮）
+    const LEGACY_EN = ['Background:', 'Scenario:', 'Phenomenon:', 'Expected Behavior:', 'Actual Behavior:', 'Impact:']
+    const legacyEnIn = LEGACY_EN.filter(function (f) { return fieldsBodyEn.indexOf(f) >= 0 })
+    if (legacyEnIn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 残留 v2 旧字段：' + legacyEnIn.join(' / '))
+    if (!/(?:\\n){2}Expected:\\n {2}(?:(?!\\n).)+/.test(fieldsBodyEn)) problems.push('NEW_BUG_FIELDS_BODY_EN 字段未独立成行且说明未缩进（期望形态：`Expected:\n  ...`）')
   }
   // 2) i18n 键
   ;['nav.bugNew', 'nav.bugNewTitle', 'panel.newBug', 'panel.newBugTitle'].forEach(function (k) {
