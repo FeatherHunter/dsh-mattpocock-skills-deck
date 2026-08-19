@@ -46,6 +46,7 @@ return {
     let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s 缓存（按 cwd+lang 区分）
     let userHome = null                                     // 用户主目录（cmd 探测，缓存）
     let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；build 不得动它 —— 否则会吞掉同窗口编辑，见 buildSnapshot 处注释）
+    let lastIssueIndexByRepo = {}                          // #2 deletion fix：保存上次全量 issue 索引，用于发现 GitHub 删除/状态消失
 
     // ============ gh 封装 ============
     async function resolveGh() {
@@ -381,6 +382,43 @@ return {
         issues.sort(function (a, b) { return String(b.updatedAt).localeCompare(String(a.updatedAt)) })
         return { ok: true, issues: issues }
       } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
+    }
+
+    // #2 deletion fix：轻量全量索引用于发现删除、关闭和重开。
+    async function fetchIssueIndex(cwd) {
+      const repo = await getRepoKey(cwd)
+      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
+      const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100'
+      const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd)
+      if (!r.ok) return { ok: false, error: r }
+      try {
+        const index = {}
+        const lines = String(r.text || '').split(/\r?\n/).filter(Boolean)
+        lines.forEach(function (line) {
+          const item = JSON.parse(line)
+          if (item && item.number !== undefined && item.number !== null) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '')
+        })
+        return { ok: true, repo: repo, index: index, count: Object.keys(index).length }
+      } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
+    }
+    const issueIndexFromSnapshot = function (snap) {
+      const index = {}
+      const items = snap && Array.isArray(snap.issues) ? snap.issues : []
+      items.forEach(function (item) {
+        if (item && item.number !== undefined && item.number !== null) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '')
+      })
+      return index
+    }
+    const issueIndexChanged = function (before, after) {
+      if (!before) return true
+      const beforeKeys = Object.keys(before)
+      const afterKeys = Object.keys(after)
+      if (beforeKeys.length !== afterKeys.length) return true
+      for (let i = 0; i < afterKeys.length; i++) if (before[afterKeys[i]] !== after[afterKeys[i]]) return true
+      return false
+    }
+    const rememberIssueIndex = function (repo, index) {
+      if (repo && repo.owner && repo.name) lastIssueIndexByRepo[repo.owner + '/' + repo.name] = index
     }
 
 

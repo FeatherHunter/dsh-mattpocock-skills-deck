@@ -51,6 +51,7 @@ export function apply(ctx) {
   let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // 环境检查 30s 缓存（按 cwd+lang 区分）
   let userHome = null                                     // 用户主目录（cmd 探测，缓存）
   let lastProbeAtByRepo = {}                              // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；build 不得动它 —— 否则会吞掉同窗口编辑，见 buildSnapshot 处注释）
+  let lastIssueIndexByRepo = {}                            // #2 deletion fix：保存上次全量 issue 索引，用于发现 GitHub 删除/状态消失
 
   // ============ gh 封装 ============
   async function resolveGh() {
