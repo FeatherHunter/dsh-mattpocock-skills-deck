@@ -1,4 +1,4 @@
-// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到模板末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约升级（issue 称 v2→v3）：字段集精简为 4 项 + inline 指引（v3.1：zh/en 分离）+ EN locale 切换）
+// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到模板末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约升级（issue 称 v2→v3）：字段集精简为 4 项 + 指引块 + EN locale 切换（v3.2：说明上移「填写指引」块、末尾 4 行干净表单））
 // 用法: node tests/verify-bug-entry.js [file...]（默认 client.js + package/lib/client.js）
 // 验证：
 //   1) PROMPTS 注册表存在 newBugWayfinder（version/placeholders/use/zh/en），注册表本体不含中途输入位，
@@ -13,7 +13,7 @@
 //   8) 死区回归守护：BUG 悬停菜单弹层 marginBottom=0（光标路径全在 span 后代集内；mouseleave 不误触）
 //   9) 宽度自适应（v3 UX）：BUG 悬停菜单弹层无 minWidth（按内容收缩，不留空白）
 //  10) hover 反馈（v3 UX）：按钮 bugMenuHover 状态 + onMouseEnter/Leave 接线 + 条件红染色
-//  11) #14 契约升级 v3.1（2026-08-18 验收反馈重拍板）：字段集 = 期望 / 实际 / 复现步骤 / 环境信息（4 项）；「字段名：留白位」+ 下缩进行说明；zh / en 分离（一次只出一种，跟随 DSH 语言）
+//  11) #14 契约升级 v3.2（2026-08-19 验收反馈重拍板）：字段集 = 期望 / 实际 / 复现步骤 / 环境信息（4 项）；说明上移「填写指引」块（`  字段 → 说明`），末尾 4 行干净表单（字段名：留白位）；zh / en 分离（一次只出一种，跟随 DSH 语言）
 const fs = require('fs')
 const files = process.argv.slice(2)
 const targets = files.length ? files : ['client.js', 'package/lib/client.js']
@@ -21,12 +21,18 @@ let failed = false
 // #14：4 字段（顺序：期望 / 实际 / 复现 / 环境）
 const FIELDS_ZH = ['期望：', '实际：', '复现步骤：', '环境信息：']
 const FIELDS_EN = ['Expected:', 'Actual:', 'Reproduction:', 'Environment:']
-// v3.1：说明与填写位分层 —— 每个字段名独占一行（冒号后留白），说明在下一行缩进（两空格）
-const DESC_INDENT_ZH = ['应发生什么', '用户预期看到的结果', '实际看到了什么', '影响范围', '前置', '编号列表', '系统状态', 'DSW vX.Y.Z']
-const DESC_INDENT_EN = ['What should happen', 'the result the user expected', 'What actually happened', 'impact notes', 'Preamble', 'numbered steps', 'system state', 'DSW vX.Y.Z']
-// 字段名行 = 冒号结尾且后面紧跟说明行（`字段名：\n  说明`）—— 表单形态守护：字段名行不可直接跟内容
+// v3.2：说明上移为「填写指引」块（`  字段 → 说明` 缩进行），末尾是 4 行干净表单（`字段名：` 留白位）——填写位零干扰
+const DESC_ZH = ['应发生什么', '用户预期看到的结果', '实际看到了什么', '影响范围', '前置', '编号列表', '系统状态', 'DSW vX.Y.Z']
+const DESC_EN = ['What should happen', 'the result the user expected', 'What actually happened', 'impact notes', 'Preamble', 'numbered steps', 'system state', 'DSW vX.Y.Z']
+// 末尾表单形态守护：正文必须以「\n\n字段1：\n字段2：\n字段3：\n字段4：」4 行独立字段收尾（无缩进说明行）
 // 注意：常量字符串里换行是字面 `\n`（两字符，JS 源码字符串转义），正则需用 \\n 匹配
-const INDENTED_DESC_RE = /(?:\\n){2}(?:期望|实际|复现步骤|环境信息)：\\n {2}(?:(?!\\n).)+/
+const FORM_TAIL_ZH_RE = /\\n\\n期望：\\n实际：\\n复现步骤：\\n环境信息：$/
+const FORM_TAIL_EN_RE = /\\n\\nExpected:\\nActual:\\nReproduction:\\nEnvironment:$/
+const GUIDE_LINE_ZH = ['\\n  期望 → ', '\\n  实际 → ', '\\n  复现步骤 → ', '\\n  环境信息 → ']
+const GUIDE_LINE_EN = ['\\n  Expected → ', '\\n  Actual → ', '\\n  Reproduction → ', '\\n  Environment → ']
+// v3.1 回归守护：字段名行后不可再跟缩进说明行（说明已上移指引块）
+const INDENT_AFTER_FIELD_ZH_RE = /(?:期望|实际|复现步骤|环境信息)：\\n {2}/
+const INDENT_AFTER_FIELD_EN_RE = /(?:Expected|Actual|Reproduction|Environment):\\n {2}/
 const RE_ENTRY = /"newBugWayfinder": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '([^']*)', zh: '([^']*)', en: '([^']*)' \}/
 const check = function (file) {
   const src = fs.readFileSync(file, 'utf8')
@@ -71,12 +77,16 @@ const check = function (file) {
     const LEGACY_ZH = ['背景：', '场景：', '现象：', '期望行为：', '实际行为：', '影响范围：']
     const legacyIn = LEGACY_ZH.filter(function (f) { return fieldsBody.indexOf(f) >= 0 })
     if (legacyIn.length) problems.push('NEW_BUG_FIELDS_BODY 残留 v2 旧字段：' + legacyIn.join(' / '))
-    const missingInline = DESC_INDENT_ZH.filter(function (k) { return fieldsBody.indexOf(k) < 0 })
+    const missingInline = DESC_ZH.filter(function (k) { return fieldsBody.indexOf(k) < 0 })
     if (missingInline.length) problems.push('NEW_BUG_FIELDS_BODY 缺 zh 说明关键字：' + missingInline.join(' / '))
-    // v3.1 分离守护：zh 说明行不应混入英文短语（防止中英混排回潮）
-    if (fieldsBody.indexOf('What should happen') >= 0 || fieldsBody.indexOf('What actually happened') >= 0) problems.push('NEW_BUG_FIELDS_BODY 混入英文 inline（v3.1 已决议 zh 只中文说明）')
-    // v3.1 表单形态守护：字段名独占行 + 说明缩进下一行
-    if (!INDENTED_DESC_RE.test(fieldsBody)) problems.push('NEW_BUG_FIELDS_BODY 字段未独立成行且说明未缩进（期望形态：`字段名：\n  说明`）')
+    // v3.2 分离守护：zh 指引块不应混入英文短语（防止中英混排回潮）
+    if (fieldsBody.indexOf('What should happen') >= 0 || fieldsBody.indexOf('What actually happened') >= 0) problems.push('NEW_BUG_FIELDS_BODY 混入英文 inline（v3.2 已决议 zh 只中文说明）')
+    // v3.2 表单形态守护：末尾 4 行独立字段表单收尾 + 「填写指引」块齐全（说明上移，填写位零干扰）
+    if (!FORM_TAIL_ZH_RE.test(fieldsBody)) problems.push('NEW_BUG_FIELDS_BODY 末尾非 4 行独立字段表单（期望形态：`期望：\n实际：\n复现步骤：\n环境信息：` 收尾）')
+    if (fieldsBody.indexOf('\\n填写指引：') < 0) problems.push('NEW_BUG_FIELDS_BODY 缺「填写指引」块')
+    const missingGuide = GUIDE_LINE_ZH.filter(function (g) { return fieldsBody.indexOf(g) < 0 })
+    if (missingGuide.length) problems.push('NEW_BUG_FIELDS_BODY 缺指引行：' + missingGuide.join(' / '))
+    if (INDENT_AFTER_FIELD_ZH_RE.test(fieldsBody)) problems.push('NEW_BUG_FIELDS_BODY 字段名行后仍有缩进说明（v3.1 形态回潮；v3.2 说明已上移指引块）')
   }
   const fieldsBodyEnMatch = /NEW_BUG_FIELDS_BODY_EN\s*=\s*function\s*\(\)\s*\{\s*return\s*'([^']*)'\s*\}/.exec(src)
   if (!fieldsBodyEnMatch) {
@@ -85,15 +95,20 @@ const check = function (file) {
     const fieldsBodyEn = fieldsBodyEnMatch[1]
     const missingEn = FIELDS_EN.filter(function (f) { return fieldsBodyEn.indexOf(f) < 0 })
     if (missingEn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 缺英文字段：' + missingEn.join(' / '))
-    const missingInlineEn = DESC_INDENT_EN.filter(function (k) { return fieldsBodyEn.indexOf(k) < 0 })
+    const missingInlineEn = DESC_EN.filter(function (k) { return fieldsBodyEn.indexOf(k) < 0 })
     if (missingInlineEn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 缺 en 说明关键字：' + missingInlineEn.join(' / '))
-    // v3.1 分离守护：en 说明行不应混入中文（跟随 DSH 语言一次只出一种）
-    if (fieldsBodyEn.indexOf('应发生什么') >= 0 || fieldsBodyEn.indexOf('实际看到了什么') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 混入中文说明（v3.1 已决议 en 只英文说明）')
+    // v3.2 分离守护：en 指引块不应混入中文（跟随 DSH 语言一次只出一种）
+    if (fieldsBodyEn.indexOf('应发生什么') >= 0 || fieldsBodyEn.indexOf('实际看到了什么') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 混入中文说明（v3.2 已决议 en 只英文说明）')
     // en 侧旧字段残留守护（与 zh LEGACY_ZH 对称；防 v2 英文字段回潮）
     const LEGACY_EN = ['Background:', 'Scenario:', 'Phenomenon:', 'Expected Behavior:', 'Actual Behavior:', 'Impact:']
     const legacyEnIn = LEGACY_EN.filter(function (f) { return fieldsBodyEn.indexOf(f) >= 0 })
     if (legacyEnIn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 残留 v2 旧字段：' + legacyEnIn.join(' / '))
-    if (!/(?:\\n){2}Expected:\\n {2}(?:(?!\\n).)+/.test(fieldsBodyEn)) problems.push('NEW_BUG_FIELDS_BODY_EN 字段未独立成行且说明未缩进（期望形态：`Expected:\n  ...`）')
+    // v3.2 表单形态守护：末尾 4 行独立字段表单收尾 + "Fill-in guide:" 块齐全
+    if (!FORM_TAIL_EN_RE.test(fieldsBodyEn)) problems.push('NEW_BUG_FIELDS_BODY_EN 末尾非 4 行独立字段表单（期望形态：`Expected:\nActual:\nReproduction:\nEnvironment:` 收尾）')
+    if (fieldsBodyEn.indexOf('\\nFill-in guide:') < 0) problems.push('NEW_BUG_FIELDS_BODY_EN 缺 "Fill-in guide:" 块')
+    const missingGuideEn = GUIDE_LINE_EN.filter(function (g) { return fieldsBodyEn.indexOf(g) < 0 })
+    if (missingGuideEn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 缺指引行：' + missingGuideEn.join(' / '))
+    if (INDENT_AFTER_FIELD_EN_RE.test(fieldsBodyEn)) problems.push('NEW_BUG_FIELDS_BODY_EN 字段名行后仍有缩进说明（v3.1 形态回潮）')
   }
   // 2) i18n 键
   ;['nav.bugNew', 'nav.bugNewTitle', 'panel.newBug', 'panel.newBugTitle'].forEach(function (k) {
