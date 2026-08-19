@@ -114,6 +114,13 @@ dsh plugin --profile web update dsh-mattpocock-skills-deck
 # 或用 npx：npx --yes @deepseek-ai/dsh plugin --profile web update dsh-mattpocock-skills-deck
 ```
 
+> **⚠️ 更新后仍显示旧版本？（DSH 平台问题，非本插件 BUG）**
+> 这是 **DSH 桌面端**的 `pnpm` 供应链策略 `minimumReleaseAge` 导致——刚发布的新版本会被 `dsh plugin update` / 插件市场的“更新”按钮**静默忽略**（`pnpm update` 不报错但也不更新，需等待数小时）。**更新后请务必完全退出 DSH 再重开，并 Ctrl+F5 刷新页面**才能看到新版本（如 `v1.6.14`）。若刚发布后立即更新仍不生效，请显式执行：
+> ```bash
+> dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
+> ```
+> 或等待数小时后重试。此为 DSH 平台行为，已实测复现（`pnpm update` → `Packages: -2` 仍 `1.0.0`；`pnpm add @1.6.14` → `Added 1` 才成功）。
+
 **卸载**：
 
 ```bash
