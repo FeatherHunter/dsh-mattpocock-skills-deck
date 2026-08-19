@@ -3331,6 +3331,7 @@ window.__ModuleLoader__.load({
         const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
         const narrow = dw < 380
         const tabsRef = React.useRef(null)
+        const headRef = React.useRef(null)
         const [tabTip, setTabTip] = React.useState(null)
         React.useEffect(function () {
           const applyFold = function () {
@@ -3378,6 +3379,50 @@ window.__ModuleLoader__.load({
           if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(apply)
           return function () { if (ro) ro.disconnect(); if (typeof window !== 'undefined') window.removeEventListener('resize', apply) }
         }, [])
+        // 头部自适应：空间充足时完整，挤压时先隐藏 MATT skills 文字（保留图标），最后仅留 repo（#28）
+        React.useEffect(function () {
+          const applyHead = function () {
+            const hd = headRef.current
+            if (!hd) return
+            const titleEl = hd.querySelector('[data-head-title]')
+            const chip = hd.querySelector('[data-repo-chip]')
+            const txt = chip && chip.querySelector('[data-repo-text]')
+            if (!titleEl || !chip || !txt) return
+            const repo = s.snapshot && s.snapshot.repo
+            const full = repo ? repo.owner + '/' + repo.name : ''
+            const short = repo ? repo.name : ''
+            const naturalFits = function () {
+              try { if (typeof measureContentWidth === 'function') return measureContentWidth(hd) <= hd.clientWidth + 1 } catch (e) {}
+              return hd.scrollWidth <= hd.clientWidth + 1
+            }
+            // 基准：标题可见 + 完整仓库名（固宽测自然宽）
+            titleEl.style.display = ''
+            if (full) txt.textContent = full
+            chip.style.flex = 'none'
+            void hd.offsetWidth
+            if (naturalFits()) { chip.style.flex = '0 1 auto'; return }
+            // 阶段1：隐藏标题，优先保仓库名
+            titleEl.style.display = 'none'
+            void hd.offsetWidth
+            if (naturalFits()) { chip.style.flex = '0 1 auto'; return }
+            // 阶段2：极窄时仅留 repo
+            if (full && short) txt.textContent = short
+            void hd.offsetWidth
+            if (naturalFits()) { chip.style.flex = '0 1 auto'; return }
+            // 仍放不下：允许 chip 弹性 ellipsis 收缩
+            chip.style.flex = '0 1 auto'
+          }
+          applyHead()
+          let ro2 = null
+          try {
+            ro2 = new ResizeObserver(function () { applyHead() })
+            if (headRef.current) ro2.observe(headRef.current)
+          } catch (e) {}
+          const onWin = function () { applyHead() }
+          if (typeof window !== 'undefined') window.addEventListener('resize', onWin)
+          if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(applyHead)
+          return function () { if (ro2) try { ro2.disconnect() } catch (e) {} ; if (typeof window !== 'undefined') window.removeEventListener('resize', onWin) }
+        }, [s.snapshot && s.snapshot.repo && (s.snapshot.repo.owner + '/' + s.snapshot.repo.name), dw])
         const tabsTip = function (e, text, priority) {
           const t = tabsRef && tabsRef.current
           setTabTip(null)
@@ -3397,13 +3442,14 @@ window.__ModuleLoader__.load({
         ])
         return h('div', { ref: dockRef, 'data-dsws-host': '1', className: narrow ? 'dsws-narrow' : undefined, style: { position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'var(--dsw-font-family)', fontSize: 12, color: 'var(--dsw-alias-label-primary,#e6edf3)', background: 'var(--dsw-alias-bg-layer-1,#10131a)' } }, [
           // 头部（标题 + 关闭）：横线不放在这行，下移到标签行下方与对话/轨迹对齐
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, padding: '10px 12px 6px', flex: 'none' } }, [
+          // #28 自适应：flex 容器 minWidth 0 + 芯片 flex 自适应，标题优先隐藏，极窄仅留 repo
+          h('div', { ref: headRef, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '10px 12px 6px', flex: 'none', minWidth: 0 } }, [
             Icon({ scheme: 'compass', size: 15 }),
-            h('span', { style: { fontWeight: 600, fontSize: 13, flex: 'none' } }, tr('panel.title')),
+            h('span', { 'data-head-title': 1, style: { fontWeight: 600, fontSize: 13, flex: 'none', whiteSpace: 'nowrap' } }, tr('panel.title')),
             // v1.5 T7：仓库身份组件 —— 当前检测到的 git 仓库（owner/name），点击打开 GitHub
-            (s.snapshot && s.snapshot.repo) ? h('a', { href: 'https://github.com/' + s.snapshot.repo.owner + '/' + s.snapshot.repo.name, target: '_blank', rel: 'noreferrer', title: tr('panel.repoTitle'), style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#58a6ff', background: 'rgba(88,166,255,.1)', border: '1px solid rgba(88,166,255,.45)', borderRadius: 6, padding: '1px 8px', maxWidth: narrow ? 90 : 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 'none', fontFamily: 'Consolas,Menlo,monospace' } }, [
+            (s.snapshot && s.snapshot.repo) ? h('a', { href: 'https://github.com/' + s.snapshot.repo.owner + '/' + s.snapshot.repo.name, target: '_blank', rel: 'noreferrer', title: tr('panel.repoTitle'), 'data-repo-chip': 1, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#58a6ff', background: 'rgba(88,166,255,.1)', border: '1px solid rgba(88,166,255,.45)', borderRadius: 6, padding: '1px 8px', flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace' } }, [
               h('svg', { viewBox: '0 0 16 16', width: 11, height: 11, fill: 'currentColor', style: { flex: 'none' } }, [h('path', { d: 'M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 8h8.5V1.5z' })]),
-              h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis' } }, s.snapshot.repo.owner + '/' + s.snapshot.repo.name),
+              h('span', { 'data-repo-text': 1, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, s.snapshot.repo.owner + '/' + s.snapshot.repo.name),
             ]) : h('span', { title: tr('panel.noRepoTitle'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f87171', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.5)', borderRadius: 6, padding: '1px 8px', flex: 'none', whiteSpace: 'nowrap' } }, [
               Ic({ n: 'alert', size: 11 }),
               h('span', null, tr('panel.noRepo')),
@@ -3450,6 +3496,7 @@ window.__ModuleLoader__.load({
         const s = useStore(cur)
         const panelRef = React.useRef(null)
         const tabsRef = React.useRef(null)
+        const headRef = React.useRef(null)
         const [tabTip, setTabTip] = React.useState(null)
         React.useEffect(function () {
           const applyFold = function () {
@@ -3497,6 +3544,44 @@ window.__ModuleLoader__.load({
           if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(apply)
           return function () { if (ro) ro.disconnect(); if (typeof window !== 'undefined') window.removeEventListener('resize', apply) }
         }, [s.open])
+        // 头部自适应（Overlay）：同 Dock 逻辑，空间充足完整，挤压先藏标题文字，最后仅留 repo（#28）
+        React.useEffect(function () {
+          const applyHead = function () {
+            const hd = headRef.current
+            if (!hd) return
+            const titleEl = hd.querySelector('[data-head-title]')
+            const chip = hd.querySelector('[data-repo-chip]')
+            const txt = chip && chip.querySelector('[data-repo-text]')
+            if (!titleEl || !chip || !txt) return
+            const repo = s.snapshot && s.snapshot.repo
+            const full = repo ? repo.owner + '/' + repo.name : (s.snapMode === 'err' ? tr('panel.snapErr') : s.snapMode === 'loading' ? tr('panel.loading') : '')
+            const short = repo ? repo.name : full
+            const isRepo = !!(repo && repo.owner && repo.name)
+            const naturalFits = function () {
+              try { if (typeof measureContentWidth === 'function') return measureContentWidth(hd) <= hd.clientWidth + 1 } catch (e) {}
+              return hd.scrollWidth <= hd.clientWidth + 1
+            }
+            titleEl.style.display = ''
+            if (full) txt.textContent = full
+            chip.style.flex = 'none'
+            void hd.offsetWidth
+            if (naturalFits()) { chip.style.flex = '0 1 auto'; return }
+            titleEl.style.display = 'none'
+            void hd.offsetWidth
+            if (naturalFits()) { chip.style.flex = '0 1 auto'; return }
+            if (isRepo) txt.textContent = short
+            void hd.offsetWidth
+            if (naturalFits()) { chip.style.flex = '0 1 auto'; return }
+            chip.style.flex = '0 1 auto'
+          }
+          applyHead()
+          let ro2 = null
+          try { ro2 = new ResizeObserver(function () { applyHead() }); if (headRef.current) ro2.observe(headRef.current) } catch (e) {}
+          const onWin = function () { applyHead() }
+          if (typeof window !== 'undefined') window.addEventListener('resize', onWin)
+          if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(applyHead)
+          return function () { if (ro2) try { ro2.disconnect() } catch (e) {} ; if (typeof window !== 'undefined') window.removeEventListener('resize', onWin) }
+        }, [s.snapshot && s.snapshot.repo && (s.snapshot.repo.owner + '/' + s.snapshot.repo.name), s.snapMode, s.size && s.size.w, s.open])
         // #376：加载由 openPanel 统一分派（未就绪/过期 force，新鲜直接展示）；此处不再重复加载
         if (!s.open) return null
         const groups = compute(s)
@@ -3567,12 +3652,14 @@ window.__ModuleLoader__.load({
 
         const panelStyle = { width: s.size.w, ...(s.size.h ? { height: s.size.h } : {}), ...(s.pos ? { left: s.pos.x, top: s.pos.y, right: 'auto' } : { left: 16, top: 76, right: 'auto' }) }
         return h('div', { ref: panelRef, className: 'dsws-panel', style: panelStyle }, [
-          h('div', { className: 'dsws-head', onMouseDown: startDrag }, [
-            h('span', { style: { display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 } }, Icon({ scheme: s.ui.icon, size: 17 }), tr('panel.title')),
+          // #28 自适应头部：minWidth 0 允许收缩，先藏标题文字（留图标），最后仅留 repo
+          h('div', { ref: headRef, className: 'dsws-head', onMouseDown: startDrag, style: { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 } }, [
+            Icon({ scheme: s.ui.icon, size: 17 }),
+            h('span', { 'data-head-title': 1, style: { fontWeight: 600, whiteSpace: 'nowrap', flex: 'none' } }, tr('panel.title')),
             // v19-35：「真数据」→ 显示 repo 名（对未来用户更有意义；异常时红色提示）
-            h('span', { className: 'dsws-chip ' + (s.snapMode === 'err' ? 'dsws-chip-t' : 'dsws-chip-m'), style: { maxWidth: 220 } }, [
+            h('span', { 'data-repo-chip': 1, className: 'dsws-chip ' + (s.snapMode === 'err' ? 'dsws-chip-t' : 'dsws-chip-m'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, [
               Ic({ n: s.snapMode === 'err' ? 'alert' : 'info', size: 11 }),
-              h('span', { className: 'dsws-ellip', title: repoStr(s) }, s.snapMode === 'err' ? tr('panel.snapErr') : s.snapMode === 'loading' ? tr('panel.loading') : repoStr(s)),
+              h('span', { 'data-repo-text': 1, className: 'dsws-ellip', title: repoStr(s), style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, s.snapMode === 'err' ? tr('panel.snapErr') : s.snapMode === 'loading' ? tr('panel.loading') : repoStr(s)),
             ]),
             h('span', { style: { flex: 1 } }),
             h('button', { className: 'dsws-btn ghost', title: tr('panel.closeTitle'), onClick: function () { s.open = false; emit(s) }, style: { display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 12 })),
