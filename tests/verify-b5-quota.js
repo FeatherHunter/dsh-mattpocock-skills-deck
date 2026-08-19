@@ -32,11 +32,11 @@ for (const f of ['host.js', 'package/lib/index.js']) {
   check(src.includes('lastProbeAtByRepo'), f + ' 存在 lastProbeAtByRepo（since 时间戳按 repoKey 隔离）')
   check(!/let lastProbeAt\s*=\s*null/.test(src), f + ' 无裸 lastProbeAt 单例')
 
-  // 2) probe 走 REST + since + 返回 repo
-  check(src.includes('issues?state=open'), f + ' probe 走 REST issue list（不占 GraphQL）')
-  check(src.includes('since='), f + ' probe 用 since 参数（增量探测全 issue）')
+  // 2) probe 走 REST 全量索引 + 返回 repo
+  check(src.includes('issues?state=all&per_page=100'), f + ' probe 走 REST 全量 issue 索引（不占 GraphQL）')
+  check(src.includes('fetchIssueIndex'), f + ' probe 使用轻量 issue 索引（覆盖删除事件）')
   check(/return \{ ok: true, changed: changed, repo: repo/.test(src), f + ' probe 返回 repo 字段（client 按 repo 刷新）')
-  check(src.includes('lastProbeAtByRepo'), f + ' probe 用按 repo 隔离的 since 表')
+  check(src.includes('lastIssueIndexByRepo'), f + ' probe 用按 repo 隔离的 issue 索引表')
 
   // 3) REST 降级
   check(src.includes('async function fetchMapsDetailREST'), f + ' 存在 REST 降级函数 fetchMapsDetailREST')

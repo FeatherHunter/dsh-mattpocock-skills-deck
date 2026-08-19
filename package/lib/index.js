@@ -388,6 +388,57 @@ export function apply(ctx) {
     } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
   }
 
+  // #2 deletion fix：轻量全量索引用于发现删除、关闭和重开。
+  async function fetchIssueIndex(cwd) {
+    const repo = await getRepoKey(cwd)
+    if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
+    const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100'
+    const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd)
+    if (!r.ok) return { ok: false, error: r }
+    try {
+      const index = {}
+      const lines = String(r.text || '').split(/\r?\n/).filter(Boolean)
+      lines.forEach(function (line) {
+        const item = JSON.parse(line)
+        if (item && item.number !== undefined && item.number !== null) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '')
+      })
+      return { ok: true, repo: repo, index: index, count: Object.keys(index).length }
+    } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
+  }
+  const issueIndexFromSnapshot = function (snap) {
+    const index = {}
+    const items = snap && Array.isArray(snap.issues) ? snap.issues : []
+    items.forEach(function (item) {
+      if (item && item.number !== undefined && item.number !== null) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '')
+    })
+    return index
+  }
+  const issueIndexChanged = function (before, after) {
+    if (!before) return true
+    const beforeKeys = Object.keys(before)
+    const afterKeys = Object.keys(after)
+    if (beforeKeys.length !== afterKeys.length) return true
+    for (let i = 0; i < afterKeys.length; i++) if (before[afterKeys[i]] !== after[afterKeys[i]]) return true
+    return false
+  }
+  const rememberIssueIndex = function (repo, index) {
+    if (repo && repo.owner && repo.name) lastIssueIndexByRepo[repo.owner + '/' + repo.name] = index
+  }
+  const cacheSnapshotIsCurrent = async function (snap, cwd) {
+    try {
+      const remote = await fetchIssueIndex(cwd)
+      if (!remote.ok) return null
+      const current = !issueIndexChanged(issueIndexFromSnapshot(snap), remote.index)
+      if (current) rememberIssueIndex(remote.repo, remote.index)
+      return current
+    } catch (e) { return null }
+  }
+  const adoptSnapshot = function (snap, cwd) {
+    cache = { ts: Date.now(), snapshot: snap, error: null, cwd: cwd }
+    if (snap && snap.repo) rememberIssueIndex(snap.repo, issueIndexFromSnapshot(snap))
+    return snap
+  }
+
 
   // v1.5 B5（配额止血 · 第一性原理）：GraphQL 配额耗尽时的 REST 降级通道 ——
   //   GraphQL 按复杂度计点（5000 点/h，aliases 大查询一次可数百点），REST 按请求计次
@@ -788,19 +839,21 @@ export function apply(ctx) {
       }
       case 'snapshot': {
         const now = Date.now()
-        if (cache.snapshot && cache.cwd === cwd && now - cache.ts < CACHE_MS) return cache.snapshot
+        if (cache.snapshot && cache.cwd === cwd) {
+          const current = await cacheSnapshotIsCurrent(cache.snapshot, cwd)
+          if (current === true || (current === null && now - cache.ts < CACHE_MS)) return cache.snapshot
+        }
         try {
-          // v1.5 T9：内存未命中 → 磁盘缓存秒开（fromCache 标记 → client 后台静默刷新动态更新 UI）
+          // #2 deletion fix：磁盘快照只用于秒开；命中后先校验 issue 索引，删除/状态变化时立即重建。
           const repo0 = await getRepoKey(cwd)
           const disk = await readDiskCache(repo0)
           if (disk) {
-            cache = { ts: Date.now(), snapshot: disk, error: null, cwd: cwd }
-            return Object.assign({}, disk, { fromCache: true })
+            const current = await cacheSnapshotIsCurrent(disk, cwd)
+            if (current !== false) return adoptSnapshot(Object.assign({}, disk, { fromCache: true }), cwd)
           }
           const snap = await buildSnapshot(cwd)
-          cache = { ts: Date.now(), snapshot: snap, error: null, cwd: cwd }
           await writeDiskCache(snap.repo, snap)
-          return snap
+          return adoptSnapshot(snap, cwd)
         } catch (e) {
           cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
           return { ok: false, error: errText(e), env: { ghError: ghPathError } }
@@ -809,40 +862,29 @@ export function apply(ctx) {
       case 'refresh': {
         try {
           const snap = await buildSnapshot(cwd)
-          cache = { ts: Date.now(), snapshot: snap, error: null, cwd: cwd }
           // v1.5 T9：刷新后落盘，下次重启秒开
           await writeDiskCache(snap.repo, snap)
-          return snap
+          return adoptSnapshot(snap, cwd)
         } catch (e) {
           cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
           return { ok: false, error: errText(e) }
         }
       }
       case 'probe': {
-        // v1.5 R2（#2 MVP）：probe 改用 `since` 时间戳探测全 issue 增量（地图 + 子票 + 其他），
-        //   1 次 REST 调用覆盖全仓库变化。原实现 `labels=wayfinder:map` 仅匹配地图本身，
-        //   **漏检所有子票变化**——面板可接/阻塞/已认领/已关闭分组（DESIGN.md §5.2）都是子票，
-        //   故"列表不更新状态"。since 语义：返回数组非空 = 自上次快照以来有变化 → 视为 changed。
-        //   配额仍走 REST 5000/h 池（独立于 GraphQL 5000 点/h），不烧穿。
+        // #2 deletion fix：probe 读取 state=all 的轻量 issue 索引，一次 REST 同时覆盖新增、修改、关闭、重开和删除。
+        //   原 since=open 查询无法返回删除记录，导致已删除 issue 永久留在磁盘快照；全量索引按 number/state/updatedAt 比较解决该缺口。
+        //   仍由 lastProbeAtByRepo 记录每个 repo 的探测时刻，探测周期和 REST 配额策略不变。
         try {
-          const repo = await getRepoKey(cwd)
-          if (!repo) return { ok: false, error: '无法解析仓库' }
-          const rk1 = (repo.owner && repo.name) ? (repo.owner + '/' + repo.name) : (cwd || '')
-          const since = lastProbeAtByRepo[rk1]  // 首次 probe = undefined → 不带 since → 全量返回 → 视为 changed
-          const urlBase = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=open&per_page=100'
-          const url = since ? (urlBase + '&since=' + encodeURIComponent(since)) : urlBase
-          const r = await runGh(['api', url, '--jq', '[.[] | {number: .number, updatedAt: .updated_at}]'], cwd)
-          if (!r.ok) return { ok: false, error: r.error || 'probe 失败' }
-          const arr = JSON.parse(r.text)
-          // since 语义：任何返回都意味着自上次基线以来有 issue 变化 → changed=true
-          //   首次 probe（since=undefined）：全量返回 → 通常非空（除非仓库无 open issue） → 视为 changed → 建立基线
-          //   后续 probe（since=ISO）：任何返回 = 有更新 → changed=true
-          const changed = Array.isArray(arr) && arr.length > 0
-          if (changed) {
-            lastProbeAtByRepo[rk1] = new Date().toISOString()
-            cache = { ts: 0, snapshot: null, error: null, cwd: cwd }  // 失效内存缓存 → 下次 snapshot 重建
-          }
-          return { ok: true, changed: changed, repo: repo, count: Array.isArray(arr) ? arr.length : 0, since: since }
+          const remote = await fetchIssueIndex(cwd)
+          if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe 失败') }
+          const repo = remote.repo
+          const rk1 = repo.owner + '/' + repo.name
+          const known = lastIssueIndexByRepo[rk1] || issueIndexFromSnapshot(cache.snapshot)
+          const changed = issueIndexChanged(known, remote.index)
+          rememberIssueIndex(repo, remote.index)
+          lastProbeAtByRepo[rk1] = new Date().toISOString()
+          if (changed) cache = { ts: 0, snapshot: null, error: null, cwd: cwd }  // 删除/状态变化同样失效缓存
+          return { ok: true, changed: changed, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
         } catch (e) { return { ok: false, error: errText(e) } }
       }
       case 'cwd': {

@@ -1,9 +1,8 @@
 // verify-probe-since.js — dsh-mattpocock-skills-deck · v1.5 R2（#2 MVP · 2026-08-18）
 // 用法: node tests/verify-probe-since.js（在插件根目录；无需 gh / 网络）
 //
-// 背景：probe REST 查询从 `labels=wayfinder:map`（仅地图）改为 `since=<ISO>`（全 issue 增量）。
-//   此前实现漏检子票（wayfinder:task / research / prototype / grilling）变化 —— 面板可接 / 阻塞 /
-//   已认领 / 已关闭分组（DESIGN.md §5.2）都是子票，所以"列表不更新状态"。
+// 背景：probe 从仅检测 open issue 的 `since=<ISO>` 增量查询升级为全量轻量索引，覆盖新增、修改、关闭、重开和删除。
+//   此前实现漏检子票变化与删除事件，导致旧磁盘快照中的 issue 永久残留。
 //
 // 验证五件事：
 //   1) host 侧 `lastProbeAtByRepo` 模块级状态存在 + 按 repoKey 隔离（多仓库会话并发不互串）
@@ -34,12 +33,14 @@ for (const f of hostFiles) {
   const hasProbeCase = /case 'probe'/.test(src)
   const hasProbeHandle = /harness\.handle\('wf\.probe'/.test(src)
   check(hasProbeCase || hasProbeHandle, f + ' 存在 probe handler（case ' + "'probe'" + ' 或 harness.handle wf.probe）')
-  check(src.includes('since = lastProbeAtByRepo'), f + ' probe 从 lastProbeAtByRepo 读 since 基准线')
-  check(src.includes('encodeURIComponent(since)') || /since:\s*lastProbeAtByRepo/.test(src) || src.includes('\'&since=\''), f + ' probe 用 since 参数构造 REST URL')
-  check(src.includes('issues?state=open&per_page=100'), f + ' probe REST URL 不带 labels 过滤（全 issue 增量）')
+  check(src.includes('fetchIssueIndex'), f + ' probe 使用全量 issue 索引（覆盖删除事件）')
+  check(src.includes("issues?state=all&per_page=100"), f + ' 索引 REST URL 覆盖 open + closed issue')
+  check(src.includes("'--paginate'"), f + ' 索引 REST 支持分页，避免 >100 issue 漏检')
+  check(src.includes('issueIndexChanged'), f + ' probe 比较前后 issue 索引（可发现条目消失）')
+  check(src.includes('lastIssueIndexByRepo'), f + ' 删除检测基线按 repoKey 隔离')
+  check(src.includes('cacheSnapshotIsCurrent'), f + ' 磁盘快照命中时校验 issue 索引，避免新页面展示已删除条目')
 
-  // 3) probe handler 内不再用 labels=wayfinder:map（旧漏检逻辑）—— 注意注释里可能仍提到这段历史
-  //   实际检查：probe handler 内（runGh 行内）不含 labels=wayfinder:map
+  // 3) probe handler 内不再用 labels=wayfinder:map（旧漏检逻辑）
   const probeBlockMatch = src.match(/probe[\s\S]{0,3000}/)
   const probeHandlerSrc = probeBlockMatch ? probeBlockMatch[0].slice(0, 2500) : ''
   check(!probeHandlerSrc.includes('labels=wayfinder:map'), f + ' probe handler 内不再用 labels=wayfinder:map（旧漏检子票逻辑已移除）')
@@ -50,8 +51,9 @@ for (const f of hostFiles) {
   check(!/lastProbeAtByRepo\[rk0\]\s*=/.test(src), f + ' buildSnapshot 末尾不再初始化 lastProbeAtByRepo（R2-fix-6：避免 build 吞掉同窗口编辑）')
   check(/lastProbeAtByRepo\[rk0\]/.test(src) === false || /lastProbeAtByRepo\[rk0\]\s*=\s*new Date\(\)\.toISOString\(\)/.test(src) === false, f + ' buildSnapshot 内无 lastProbeAtByRepo[rk0] 赋值（基线仅由 probe 推进）')
 
-  // probe 返回 changed 时更新 lastProbeAtByRepo（基准线滑动）
-  check(/if \(changed\) \{[\s\S]*?lastProbeAtByRepo\[rk1\]\s*=\s*new Date\(\)\.toISOString\(\)/.test(src), f + ' probe changed 时滑动 lastProbeAtByRepo 基准线')
+  // 每轮 probe 记录按 repo 隔离的探测时间，删除与修改均会让缓存失效。
+  check(/lastProbeAtByRepo\[rk1\]\s*=\s*new Date\(\)\.toISOString\(\)/.test(src), f + ' probe 每轮记录 lastProbeAtByRepo 探测时间')
+  check(/if \(changed\) cache = \{ ts: 0, snapshot: null/.test(src), f + ' 删除/状态变化时失效内存快照缓存')
 }
 
 // ---- client 侧 ----
@@ -68,15 +70,17 @@ const h1 = fs.readFileSync('host.js', 'utf8')
 const h2 = fs.readFileSync('package/lib/index.js', 'utf8')
 const c1 = fs.readFileSync('client.js', 'utf8')
 const c2 = fs.readFileSync('package/lib/client.js', 'utf8')
-const probeSinceFeat = function (src) {
+const probeDeletionFeat = function (src) {
   return [
     'lastProbeAtByRepo',
-    "issues?state=open&per_page=100",
-    'since = lastProbeAtByRepo',
-    "labels=wayfinder:map",
+    'lastIssueIndexByRepo',
+    "issues?state=all&per_page=100",
+    'fetchIssueIndex',
+    'issueIndexChanged',
+    'cacheSnapshotIsCurrent',
   ].map(function (k) { return src.includes(k) ? 1 : 0 }).join('')
 }
-check(probeSinceFeat(h1) === probeSinceFeat(h2), 'host 双源 since 探测特征一致（host.js ↔ package/lib/index.js）')
+check(probeDeletionFeat(h1) === probeDeletionFeat(h2), 'host 双源删除探测特征一致（host.js ↔ package/lib/index.js）')
 const probeMsFeat = function (src) {
   return ['PROBE_MS = 60000', 'FOCUS_PROBE_MIN_MS = 60000', 'PROBE_MS = 300000'].map(function (k) { return src.includes(k) ? 1 : 0 }).join('')
 }
