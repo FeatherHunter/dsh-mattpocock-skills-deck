@@ -53,6 +53,13 @@ Without a global install: `npx --yes @deepseek-ai/dsh plugin --profile web add d
 
 Update / remove: `dsh plugin --profile web update|remove dsh-mattpocock-skills-deck`
 
+> **⚠️ Still showing the old version after update? (DSH platform issue, not a bug in this plugin)**
+> This is caused by **DSH Desktop's** `pnpm` supply-chain policy `minimumReleaseAge` — freshly published versions are **silently ignored** by `dsh plugin update` / the Plugin Market's "Update" button (`pnpm update` shows no error but doesn't update, wait a few hours). **Please fully quit DSH and reopen it, then hard-refresh the page (Ctrl+F5)** to see the new version (e.g. `v1.6.14`). If you just published and the update still doesn't take effect, run explicitly:
+> ```bash
+> dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
+> ```
+> or retry after a few hours. This is a DSH platform behavior, reproduced as `pnpm update` → `Packages: -2` still `1.0.0`; `pnpm add @1.6.14` → `Added 1` succeeds.
+
 ## 🎮 The idea
 
 Matt Pocock's skills are excellent: wayfinder draws a **map** that parts the fog and shows the end. But a map only shows you where the end is — someone still has to walk every step.
