@@ -1238,10 +1238,56 @@ window.__ModuleLoader__.load({
       })
       const shared = makeStore()
       const stores = {}
+      // #58 缓存优先：按 cwd 的内存快照表（新 store 秒开 + 跨会话同 cwd 共享，避免空 cwd 探路 miss）
+      const snapshotByCwd = {}
+      const getCachedSnapshot = function (cwd) { return cwd ? snapshotByCwd[cwd] : null }
+      const setCachedSnapshot = function (cwd, snap) { if (cwd && snap && snap.ok === true && Array.isArray(snap.maps)) snapshotByCwd[cwd] = snap }
+      const hydrateFromCache = function (st) {
+        if (!st || !st.cwd) return false
+        const c = getCachedSnapshot(st.cwd)
+        if (!c) return false
+        if (!st.snapshot || c.generatedMs !== st.snapshot.generatedMs) {
+          st.snapshot = c
+          st.snapMode = 'real'
+          st.snapError = null
+          st.snapLoading = false
+          return true
+        }
+        if (st.snapMode !== 'real') {
+          st.snapMode = 'real'
+          st.snapError = null
+          return true
+        }
+        return false
+      }
+      const getCwdSync = function (sid) {
+        try {
+          const sessions = ctx.get('sessions')
+          if (sessions && typeof sessions.get === 'function' && sid) {
+            const s = sessions.get(sid)
+            const meta = s && s.meta
+            const cwd = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory)
+            if (typeof cwd === 'string' && cwd) return cwd
+          }
+        } catch (e) { /* 忽略 */ }
+        return ''
+      }
       const storeOf = (sid) => {
         if (!sid) return shared
         let st = stores[sid]
-        if (!st) { st = makeStore(); st.sessionId = sid; stores[sid] = st }  // v1.5：store 挂 sessionId（新会话 cwd 兜底解析用）
+        if (!st) {
+          st = makeStore(); st.sessionId = sid; stores[sid] = st
+          if (!st.cwd) {
+            const sync = getCwdSync(sid)
+            if (sync) st.cwd = sync
+          }
+          if (st.cwd) hydrateFromCache(st)
+        } else {
+          if (!st.cwd) {
+            const sync = getCwdSync(sid)
+            if (sync) { st.cwd = sync; hydrateFromCache(st) }
+          }
+        }
         return st
       }
       const emit = (st) => { st.tick++; (st.subs || []).forEach(function (f) { f(st.tick) }) }
@@ -1546,54 +1592,74 @@ window.__ModuleLoader__.load({
         }, 2600)
       }
       // 快照（#346：面板数据源；force 走 wf.refresh 全量重建；wf.snapshot 侧 5s 缓存）
+      // #58 缓存优先：按 cwd 内存快照 + 空 cwd 同步，避免首开空 cwd 探路 miss 缓存导致 100-400ms 闪 loading
       const loadSnapshot = function (st, force, silent) {
-        // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
-        if (st.snapLoading && !force) return Promise.resolve()
-        if (conn === undefined || conn.rpc === undefined) {
-          st.snapMode = 'err'
-          st.snapError = tr('err.hostUnavailable')
-          emit(st)
-          return Promise.resolve()
-        }
-        st.snapLoading = true
-        // v1.5 T9：silent（后台静默刷新）不显示加载遮罩、不弹错误 toast
-        if (force && !silent) st.snapMode = 'loading'
-        emit(st)
-        const args = st.cwd ? { cwd: st.cwd } : {}
-        const p = force ? rpcCall('refresh', args) : rpcCall('snapshot', args)
-        return p.then(function (snap) {
-          st.snapLoading = false
-          if (snap && snap.ok === true && Array.isArray(snap.maps)) {
-            // v1.5 T10 R4：数据层增量 diff（新旧快照对比）—— 供多视图增量与 R5 视觉
-            st.lastDiff = diffSnapshots(st.snapshot, snap)
-            st.rowFlash = {}
-            st.issueFlash = {}
-            var _df = st.lastDiff
-            _df.added.forEach(function (n) { st.rowFlash[n] = 'added' })
-            _df.changed.forEach(function (n) { st.rowFlash[n] = 'changed' })
-            if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (k) { st.issueFlash[Number(k)] = _df.issueFlash[k] })
-            // R5 视觉：有变化才提示 + 定时清除高亮（防堆积）
-            if (_df.removed.length) flash(st, tr('panel.diffRemoved', { n: _df.removed.length }), 'info')
-            scheduleFlashClear(st)
-            st.snapshot = snap
-            st.snapMode = 'real'
-            st.snapError = null
-            // v1.5 T10：启动自动变化探测（幂等；快照就绪后生效）
-            startAutoProbe()
-            // v1.5 B5 修订：磁盘缓存秒开（fromCache）→ 不再 400ms 强制全量刷新（原每次打开面板 = 1 次额外 wf.refresh ≈ 18 GraphQL 点，多仓库成倍放大）；变化检测由低频 probe 接管
-          } else {
+        const doLoad = function () {
+          // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
+          if (st.snapLoading && !force) return Promise.resolve()
+          if (conn === undefined || conn.rpc === undefined) {
             st.snapMode = 'err'
-            st.snapError = (snap && snap.error) ? String(snap.error).slice(0, 160) : tr('err.snapshotEmpty')
-            if (force && !silent) flash(st, tr('toast.snapFail', { err: st.snapError }), 'warn')
+            st.snapError = tr('err.hostUnavailable')
+            emit(st)
+            return Promise.resolve()
           }
+          // #58 先水合 per-cwd 缓存，实现秒开
+          hydrateFromCache(st)
+          const hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))
+          st.snapLoading = true
+          // v1.5 T9：silent（后台静默刷新）不显示加载遮罩、不弹错误 toast
+          // #58 缓存优先：已有缓存时不显示全屏 loading，静默刷新
+          if (force && !silent && !hasCache) st.snapMode = 'loading'
           emit(st)
-        }).catch(function (e) {
-          st.snapLoading = false
-          st.snapMode = 'err'
-          st.snapError = String((e && e.message) || e).slice(0, 160)
-          if (force && !silent) flash(st, tr('toast.snapFail', { err: st.snapError }), 'warn')
-          emit(st)
-        })
+          const args = st.cwd ? { cwd: st.cwd } : {}
+          const p = force ? rpcCall('refresh', args) : rpcCall('snapshot', args)
+          return p.then(function (snap) {
+            st.snapLoading = false
+            if (snap && snap.ok === true && Array.isArray(snap.maps)) {
+              // v1.5 T10 R4：数据层增量 diff（新旧快照对比）—— 供多视图增量与 R5 视觉
+              st.lastDiff = diffSnapshots(st.snapshot, snap)
+              st.rowFlash = {}
+              st.issueFlash = {}
+              var _df = st.lastDiff
+              _df.added.forEach(function (n) { st.rowFlash[n] = 'added' })
+              _df.changed.forEach(function (n) { st.rowFlash[n] = 'changed' })
+              if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (k) { st.issueFlash[Number(k)] = _df.issueFlash[k] })
+              // R5 视觉：有变化才提示 + 定时清除高亮（防堆积）
+              if (_df.removed.length) flash(st, tr('panel.diffRemoved', { n: _df.removed.length }), 'info')
+              scheduleFlashClear(st)
+              st.snapshot = snap
+              st.snapMode = 'real'
+              st.snapError = null
+              try { const c = snap.repoRoot || st.cwd; if (c) setCachedSnapshot(c, snap) } catch (e) { /* 忽略 */ }
+              try { if (st.cwd) setCachedSnapshot(st.cwd, snap) } catch (e) { /* 忽略 */ }
+              // v1.5 T10：启动自动变化探测（幂等；快照就绪后生效）
+              startAutoProbe()
+              // v1.5 B5 修订：磁盘缓存秒开（fromCache）→ 不再 400ms 强制全量刷新（原每次打开面板 = 1 次额外 wf.refresh ≈ 18 GraphQL 点，多仓库成倍放大）；变化检测由低频 probe 接管
+            } else {
+              st.snapMode = 'err'
+              st.snapError = (snap && snap.error) ? String(snap.error).slice(0, 160) : tr('err.snapshotEmpty')
+              if (force && !silent) flash(st, tr('toast.snapFail', { err: st.snapError }), 'warn')
+            }
+            emit(st)
+          }).catch(function (e) {
+            st.snapLoading = false
+            st.snapMode = 'err'
+            st.snapError = String((e && e.message) || e).slice(0, 160)
+            if (force && !silent) flash(st, tr('toast.snapFail', { err: st.snapError }), 'warn')
+            emit(st)
+          })
+        }
+        if (!st.cwd) {
+          const sync = getCwdSync(st.sessionId)
+          if (sync) { st.cwd = sync; hydrateFromCache(st) }
+        }
+        if (!st.cwd && st.sessionId && typeof conn !== 'undefined' && conn.rpc !== undefined) {
+          return rpcCall('cwd', { sessionId: st.sessionId }).then(function (res) {
+            if (res && res.ok && res.cwd && !st.cwd) { st.cwd = res.cwd; hydrateFromCache(st); emit(st) }
+            return doLoad()
+          }).catch(function () { return doLoad() })
+        }
+        return doLoad()
       }
 
       // v1.5 R2（#2 MVP · 2026-08-18）：自动刷新 — probe 走 since 时间戳探测全 issue 增量
@@ -1681,9 +1747,15 @@ window.__ModuleLoader__.load({
             if (!foundCwds.length) return
             Object.keys(stores).forEach(function (k) {
               const st = stores[k]
-              if (!st.cwd && st.sessionId && sidToCwd[st.sessionId]) st.cwd = sidToCwd[st.sessionId]
+              if (!st.cwd && st.sessionId && sidToCwd[st.sessionId]) {
+                st.cwd = sidToCwd[st.sessionId]
+                if (hydrateFromCache(st)) emit(st)
+              }
             })
-            if (!shared.cwd && foundCwds.length) shared.cwd = foundCwds[0]
+            if (!shared.cwd && foundCwds.length) {
+              shared.cwd = foundCwds[0]
+              if (hydrateFromCache(shared)) emit(shared)
+            }
             foundCwds.forEach(function (cwd) { refreshGroup(cwd) })
           })
           return
@@ -1750,16 +1822,24 @@ window.__ModuleLoader__.load({
       //   ② 停靠/悬浮双模式记忆（PANEL_MODE_KEY）；③ 状态栏「停靠」seg 与右栏「悬浮」按钮。
       //   打开一律走 layout.openDetails()；layout 服务不可用时退回页内悬浮面板（仅兜底，无任何入口按钮）。
       const openPagePanel = function (st) {
+        // #58 缓存优先：先同步补 cwd + 水合 per-cwd 缓存，实现切换面板秒开（无 loading 遮罩）
+        if (!st.cwd) {
+          const sync = getCwdSync(st.sessionId)
+          if (sync) { st.cwd = sync; hydrateFromCache(st) }
+        } else {
+          hydrateFromCache(st)
+        }
+        const hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))
+        const isReal = st.snapMode === 'real' || !!st.snapshot || !!getCachedSnapshot(st.cwd)
         st.open = true
-        if (st.snapMode === 'real' && snapFresh(st)) {
-          // v1.3.3 #5：数据新鲜直接展示，不 loading 不刷新（用户不再白等）
+        if (isReal && snapFresh(st)) {
+          if (!st.snapshot && getCachedSnapshot(st.cwd)) { st.snapshot = getCachedSnapshot(st.cwd); st.snapMode = 'real' }
           emit(st)
-        } else if (st.snapMode === 'real') {
-          // v1.3.3 #5：数据过期 → 保留旧数据展示 + 后台静默刷新（非 force · 走 5s 缓存），不弹全屏遮罩
+        } else if (isReal || hasCache) {
+          if (!st.snapshot && getCachedSnapshot(st.cwd)) { st.snapshot = getCachedSnapshot(st.cwd); st.snapMode = 'real' }
           emit(st)
           loadSnapshot(st, false)
         } else {
-          // 首开无数据 → 加载态 + 非 force 拉取
           st.snapMode = 'loading'
           emit(st)
           loadSnapshot(st, false)
@@ -1770,9 +1850,17 @@ window.__ModuleLoader__.load({
         const ls = ctx.get('layout')
         if (ls && typeof ls.openDetails === 'function') {
           ls.openDetails()
-          if (st.snapMode === 'real' && snapFresh(st)) {
+          if (!st.cwd) {
+            const sync = getCwdSync(st.sessionId)
+            if (sync) { st.cwd = sync; hydrateFromCache(st) }
+          } else { hydrateFromCache(st) }
+          const hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))
+          const isReal = st.snapMode === 'real' || !!st.snapshot || !!getCachedSnapshot(st.cwd)
+          if (isReal && snapFresh(st)) {
+            if (!st.snapshot && getCachedSnapshot(st.cwd)) { st.snapshot = getCachedSnapshot(st.cwd); st.snapMode = 'real' }
             emit(st)
-          } else if (st.snapMode === 'real') {
+          } else if (isReal || hasCache) {
+            if (!st.snapshot && getCachedSnapshot(st.cwd)) { st.snapshot = getCachedSnapshot(st.cwd); st.snapMode = 'real' }
             emit(st)
             loadSnapshot(st, false)
           } else {
@@ -1823,8 +1911,21 @@ window.__ModuleLoader__.load({
           //   仅当 st.sessionId 有值时传 scope（无值时传 {sessionId:undefined} 会令 targetsInactiveSession=true 走错分支）。
           bs.openTab({ type: 'waystation:map', path: 'waystation:map' }, st.sessionId ? { sessionId: st.sessionId } : undefined)  // path seed → 内容型打开 → 自动展开面板
           // 打开 tab 即视为面板已开（数据新鲜直接展示）
-          if (st.snapMode === 'real' && snapFresh(st)) { emit(st); return }
-          if (st.snapMode === 'real') { emit(st); loadSnapshot(st, false); return }
+          // #58 缓存优先：与 openPagePanel 同逻辑，含 per-cwd 水合
+          if (!st.cwd) {
+            const sync = getCwdSync(st.sessionId)
+            if (sync) { st.cwd = sync; hydrateFromCache(st) }
+          } else { hydrateFromCache(st) }
+          const hasCache2 = !!(st.snapshot || getCachedSnapshot(st.cwd))
+          const isReal2 = st.snapMode === 'real' || !!st.snapshot || !!getCachedSnapshot(st.cwd)
+          if (isReal2 && snapFresh(st)) {
+            if (!st.snapshot && getCachedSnapshot(st.cwd)) { st.snapshot = getCachedSnapshot(st.cwd); st.snapMode = 'real' }
+            emit(st); return
+          }
+          if (isReal2 || hasCache2) {
+            if (!st.snapshot && getCachedSnapshot(st.cwd)) { st.snapshot = getCachedSnapshot(st.cwd); st.snapMode = 'real' }
+            emit(st); loadSnapshot(st, false); return
+          }
           loadSnapshot(st, false)
           return
         }
@@ -2083,7 +2184,13 @@ window.__ModuleLoader__.load({
         // cwd 变化后主动重拉快照与检查（否则面板/状态栏仍显示旧仓库数据）。
         React.useEffect(function () {
           const apply = function (cwd) {
-            if (cwd && cwd !== s.cwd) { s.cwd = cwd; emit(s); loadChecks(s, false); loadSnapshot(s, false) }
+            if (cwd && cwd !== s.cwd) {
+              s.cwd = cwd
+              const hydrated = hydrateFromCache(s)
+              emit(s)
+              loadChecks(s, false)
+              if (!hydrated || !snapFresh(s)) loadSnapshot(s, false)
+            }
           }
           if (summaryCwd) { apply(summaryCwd); return }
           const cwd0 = detectCwd(props && props.session)
@@ -3239,11 +3346,12 @@ window.__ModuleLoader__.load({
           ]),
           // T3 #5：加载遮罩（替代单行文本，全屏遮罩 + 转圈 + 禁点）
           // v1.3.3 修复：加载遮罩仅首开无数据时显示（手动刷新已走静默路径，不再叠加）
-        st.snapMode === 'loading' ? h('div', { className: 'dsws-loading-shade', style: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, zIndex: 5, pointerEvents: 'auto' } }, [
+          // #58 缓存优先：已有快照（本 store 或 per-cwd 缓存）时不显示全屏 loading，秒开旧列表 + 后台静默刷新
+        (st.snapMode === 'loading' && !st.snapshot && !getCachedSnapshot(st.cwd)) ? h('div', { className: 'dsws-loading-shade', style: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, zIndex: 5, pointerEvents: 'auto' } }, [
           h('div', { className: 'dsws-spinner' }),
           h('span', { style: { fontSize: 12, color: '#e6edf3' } }, tr('list.loading')),
         ]) : null,
-          st.snapMode === 'err' ? h('div', { style: { color: '#f87171', fontSize: 12, padding: '14px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 12 }), h('span', null, tr('list.errFull', { err: st.snapError }))]) : null,
+          (st.snapMode === 'err' && !st.snapshot && !getCachedSnapshot(st.cwd)) ? h('div', { style: { color: '#f87171', fontSize: 12, padding: '14px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 12 }), h('span', null, tr('list.errFull', { err: st.snapError }))]) : null,
           st.snapMode === 'real' && st.snapshot && st.snapshot.fallback === 'rest' ? h('div', { style: { color: '#f59e0b', fontSize: 11, padding: '6px 12px', border: '1px solid rgba(245,158,11,.4)', borderRadius: 6, background: 'rgba(245,158,11,.08)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 11 }), h('span', null, tr('list.restFallback'))]) : null,
           // #374：状态过滤渲染 —— open 主体 / closed 列表 / 「全部」态保留已关闭折叠行
           showOpen ? (filteredOpen.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredOpen.map(function (x) { return issueRow(x, true, narrow) })) : null,
@@ -3490,7 +3598,14 @@ window.__ModuleLoader__.load({
         }, [])
         // 初始数据（与状态栏同款：快照 + 环境检查）；壳保持子树常挂载，后续刷新走「更新」/停靠段
         // v1.5：挂载时新鲜数据跳过重载（同上）
-        React.useEffect(function () { if (!snapFresh(s)) loadSnapshot(s, false); loadChecks(s, false) }, [])
+        // #58 缓存优先：挂载时先尝试水合 per-cwd 缓存，秒开
+        React.useEffect(function () {
+          if (!s.cwd) {
+            const sync = getCwdSync(props && props.sessionId)
+            if (sync) { s.cwd = sync; hydrateFromCache(s) }
+          } else { hydrateFromCache(s) }
+          if (!snapFresh(s)) loadSnapshot(s, false); loadChecks(s, false)
+        }, [])
         const closeDock = function () {
           if (props && typeof props.closeDetails === 'function') props.closeDetails()
           else if (layoutSvc && typeof layoutSvc.closeDetails === 'function') layoutSvc.closeDetails()
@@ -3604,7 +3719,7 @@ window.__ModuleLoader__.load({
           setTabTip({ x: x, y: y, text: text })
         }
         const tabsTipOff = function () { setTabTip(null) }
-        const tabBtn = (id, icon, label, priority) => h('button', { className: 'dsws-tab' + (s.tab === id ? ' on' : ''), 'data-priority': priority, onMouseMove: function (e) { tabsTip(e, label, priority) }, onMouseLeave: tabsTipOff, onClick: function () { s.tab = id; emit(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+        const tabBtn = (id, icon, label, priority) => h('button', { className: 'dsws-tab' + (s.tab === id ? ' on' : ''), 'data-priority': priority, onMouseMove: function (e) { tabsTip(e, label, priority) }, onMouseLeave: tabsTipOff, onClick: function () { s.tab = id; emit(s); if (!snapFresh(s)) loadSnapshot(s, false) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
           Ic({ n: icon, size: 12 }),
           h('span', null, label),
         ])
@@ -3769,7 +3884,7 @@ window.__ModuleLoader__.load({
           setTabTip({ x: x, y: y, text: text })
         }
         const tabsTipOff = function () { setTabTip(null) }
-        const tabBtn = (id, icon, label, priority) => h('button', { className: 'dsws-tab' + (s.tab === id ? ' on' : ''), 'data-priority': priority, onMouseMove: function (e) { tabsTip(e, label, priority) }, onMouseLeave: tabsTipOff, onClick: function () { s.tab = id; emit(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+        const tabBtn = (id, icon, label, priority) => h('button', { className: 'dsws-tab' + (s.tab === id ? ' on' : ''), 'data-priority': priority, onMouseMove: function (e) { tabsTip(e, label, priority) }, onMouseLeave: tabsTipOff, onClick: function () { s.tab = id; emit(s); if (!snapFresh(s)) loadSnapshot(s, false) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
           Ic({ n: icon, size: 12 }),
           h('span', null, label),
         ])
