@@ -380,7 +380,11 @@ return {
     }
 
     async function fetchMaps(cwd) {
-      const r = await runGh(['issue', 'list', '--state', 'open', '--label', 'wayfinder:map', '--json', 'number,title,body,labels,assignees,state,updatedAt'], cwd)
+      // #44 T2-fix（map#37）：显式 --repo 绕过 gh 在 Fork 上的多远程推断（upstream 优先）
+      const repo = await getRepoKey(cwd)
+      const argsMap = ['issue', 'list', '--state', 'open', '--label', 'wayfinder:map', '--json', 'number,title,body,labels,assignees,state,updatedAt']
+      if (repo) argsMap.push('--repo', repo.owner + '/' + repo.name)
+      const r = await runGh(argsMap, cwd)
       if (!r.ok) return { ok: false, error: r }
       try { return { ok: true, maps: JSON.parse(r.text) } } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
     }
@@ -390,7 +394,11 @@ return {
     // v18：assignees 带出（状态栏「占用」按列表 issue 口径：已认领 + 被阻塞）
     async function fetchIssues(cwd) {
       // #374/#375：--limit 500 覆盖仓库全量（2026-08-14 实测 349 issue），并带出 createdAt（排序维度）
-      const r = await runGh(['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,title,labels,state,assignees,updatedAt,createdAt'], cwd)
+      // #44 T2-fix（map#37）：显式 --repo 绕过 gh 多远程推断，同 fetchMaps
+      const repo2 = await getRepoKey(cwd)
+      const argsAll = ['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,title,labels,state,assignees,updatedAt,createdAt']
+      if (repo2) argsAll.push('--repo', repo2.owner + '/' + repo2.name)
+      const r = await runGh(argsAll, cwd)
       if (!r.ok) return { ok: false, error: r }
       try {
         const all = JSON.parse(r.text)
@@ -978,6 +986,152 @@ return {
       if (u.ok) assignedTo = u.text.trim()
       cache = { ts: 0, snapshot: null, error: null }
       return { ok: true, number: n, assignedTo: assignedTo, url: 'https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + String(n) }
+    })
+
+    // ============ 红卡建仓发布（T1 #34 · 无仓库时一键建仓发布）============
+    // 输入：{ cwd, name, visibility }（visibility = 'public' | 'private'，默认 private）
+    // 流程：探测 git/gh/auth（前置）→ git init(若已是 git 则跳过) → git add . → git commit --allow-empty（含 user.* 兜底）→ gh repo create --source=. --push（或 --remote origin 已存在时走 set-url + push 分支）
+    // 返回：{ ok: true, repo: { owner, name } } | { ok: false, errorKind, error, repoUrl? }
+    // errorKind: no-git / no-gh / not-logged-in / already-exists / network / permission（6 档，兼容草稿中的 bad-name 兜底映射为 permission）
+    harness.handle('wf.initPublish', async function (args) {
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const name = args && args.name ? String(args.name).trim() : ''
+      const visibility = (args && args.visibility) === 'public' ? 'public' : 'private'
+      if (!name) return { ok: false, errorKind: 'permission', error: '仓库名为空' }
+      if (!/^[A-Za-z0-9._-]+$/.test(name) || name.length > 100) {
+        return { ok: false, errorKind: 'permission', error: '仓库名仅支持字母/数字/._- 且 ≤100：' + name }
+      }
+      const visFlag = visibility === 'public' ? '--public' : '--private'
+      // 前置探测：git / gh / auth（失败快返，避免已改动工作区）
+      const git = await resolveGit()
+      if (!git) return { ok: false, errorKind: 'no-git', error: '未找到 git（请安装 https://git-scm.com/）' }
+      const gh = await resolveGh()
+      if (!gh) return { ok: false, errorKind: 'no-gh', error: ghPathError || '未找到 gh（请安装 https://cli.github.com/）' }
+      const authR = await runGh(['auth', 'status'], cwd)
+      if (!authR.ok) {
+        const t = String(authR.error || '').toLowerCase()
+        if (authR.kind === 'network' || /network|econn|timed out|timeout|enotfound|getaddrinfo|connect/.test(t)) {
+          return { ok: false, errorKind: 'network', error: authR.error }
+        }
+        return { ok: false, errorKind: 'not-logged-in', error: authR.error }
+      }
+      // 取当前登录用户（用于 already-exists 时拼 repoUrl 与成功后 owner 兜底）
+      let currentUser = ''
+      try {
+        const u = await runGh(['api', 'user', '-q', '.login'], cwd)
+        if (u.ok) currentUser = u.text.trim()
+      } catch (e) { /* 忽略 */ }
+      const classifyCreateError = function (errText, kind) {
+        const low = String(errText || '').toLowerCase()
+        if (/already exists|name already exists|already exists on github|repository.*already exists/i.test(low)) return 'already-exists'
+        if (kind === 'network' || /network|econn|timed out|timeout|enotfound|getaddrinfo|connect etimedout|unable to access|failed to connect|could not resolve host/i.test(low)) return 'network'
+        if (/not logged in|auth failed|bad credentials|authentication required|gh auth login/i.test(low)) return 'not-logged-in'
+        if (/permission|forbidden|403|401|insufficient|not authorized|resource not accessible|must be.*admin/i.test(low)) return 'permission'
+        if (kind === 'auth') return 'not-logged-in'
+        return 'permission'
+      }
+      // 1. git init（若已是 git 仓库则跳过；含 getRepoRoot 探测 + 清缓存）
+      try {
+        const probe = await execProc([git, '-C', cwd, 'rev-parse', '--is-inside-work-tree'], cwd)
+        if (!probe.ok) {
+          const initR = await execProc([git, 'init'], cwd)
+          if (!initR.ok) {
+            const k = classifyCreateError(initR.error, null)
+            return { ok: false, errorKind: k === 'already-exists' ? 'permission' : k, error: initR.error }
+          }
+          // 失效 repoRoots 缓存
+          if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
+          if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
+        }
+      } catch (e) {
+        const initR = await execProc([git, 'init'], cwd)
+        if (!initR.ok) {
+          const k = classifyCreateError(initR.error, null)
+          return { ok: false, errorKind: k === 'already-exists' ? 'permission' : k, error: initR.error }
+        }
+        if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
+        if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
+      }
+      // 2. git add .
+      const addR = await execProc([git, 'add', '.'], cwd)
+      if (!addR.ok) {
+        const k = classifyCreateError(addR.error, null)
+        return { ok: false, errorKind: k, error: addR.error }
+      }
+      // 3. git commit --allow-empty（含 identity 缺失兜底）
+      let commitR = await execProc([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
+      if (!commitR.ok) {
+        const low = String(commitR.error || '').toLowerCase()
+        if (/please tell me who you are|user\.name|user\.email|author identity unknown|unable to auto-detect email/.test(low)) {
+          await execProc([git, 'config', 'user.email', 'dsh@local'], cwd)
+          await execProc([git, 'config', 'user.name', 'DSH User'], cwd)
+          commitR = await execProc([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
+        }
+        if (!commitR.ok) {
+          const k = classifyCreateError(commitR.error, null)
+          return { ok: false, errorKind: k, error: commitR.error }
+        }
+      }
+      // 4. 探测 remote origin 是否已存在（决定 gh 调用分支）
+      let hasOrigin = false
+      try {
+        const ro = await execProc([git, 'remote', 'get-url', 'origin'], cwd)
+        hasOrigin = !!ro.ok
+      } catch (e) { hasOrigin = false }
+      // 5. gh repo create
+      if (!hasOrigin) {
+        const cr = await runGh(['repo', 'create', name, visFlag, '--source=.', '--push'], cwd)
+        if (!cr.ok) {
+          const kind = classifyCreateError(cr.error, cr.kind)
+          const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
+          return { ok: false, errorKind: kind, error: cr.error, repoUrl: repoUrl }
+        }
+      } else {
+        // origin 已存在：先创建远程仓库（不带 --source），再 set-url + push
+        const cr2 = await runGh(['repo', 'create', name, visFlag], cwd)
+        if (!cr2.ok) {
+          const kind = classifyCreateError(cr2.error, cr2.kind)
+          const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
+          return { ok: false, errorKind: kind, error: cr2.error, repoUrl: repoUrl }
+        }
+        // 解析新建仓库 URL（gh 输出含 https://github.com/owner/name）
+        let remoteUrl = ''
+        if (currentUser) remoteUrl = 'https://github.com/' + currentUser + '/' + name + '.git'
+        else {
+          const m = String(cr2.text || '').match(/https:\/\/github\.com\/[^\s\/]+\/[^\s\/]+/)
+          if (m) remoteUrl = m[0] + '.git'
+        }
+        if (remoteUrl) {
+          await execProc([git, 'remote', 'set-url', 'origin', remoteUrl], cwd)
+        }
+        const pushR = await execProc([git, 'push', '-u', 'origin', 'HEAD'], cwd)
+        if (!pushR.ok) {
+          const kind = classifyCreateError(pushR.error, null)
+          return { ok: false, errorKind: kind, error: pushR.error }
+        }
+      }
+      // 成功后失效全部缓存，使头部 owner/repo 立即出现
+      cache = { ts: 0, snapshot: null, error: null, cwd: null }
+      statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }
+      if (cwd && repoKeys[cwd] !== undefined) delete repoKeys[cwd]
+      if (repoKeys[DEFAULT_CWD] !== undefined) delete repoKeys[DEFAULT_CWD]
+      if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
+      if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
+      // 优先用 getRepoKey 重解析（parseGithubRepo），兜底用 currentUser
+      let owner = currentUser
+      try {
+        const rk = await getRepoKey(cwd)
+        if (rk && rk.owner) owner = rk.owner
+        else if (rk && rk.name) owner = owner || ''
+      } catch (e) { /* 兜底 */ }
+      // 若 getRepoKey 仍取不到但有 currentUser，则以 currentUser 为准
+      if (!owner) {
+        try {
+          const u2 = await runGh(['api', 'user', '-q', '.login'], cwd)
+          if (u2.ok) owner = u2.text.trim()
+        } catch (e2) { /* 忽略 */ }
+      }
+      return { ok: true, repo: { owner: owner, name: name } }
     })
 
     // ============ 轮询：已按 #348 拍板 Q3 关闭（60s 全量 × 8 map ≈ 2400-4800 GraphQL points/h 贴 5000 限额）============

@@ -217,9 +217,29 @@ export function apply(ctx) {
   async function getRepoKey(cwd) {
     const key = cwd || DEFAULT_CWD
     if (repoKeys[key]) return repoKeys[key]
-    // v1.5 T9：gh 在 git 根目录执行（嵌套仓库/子目录场景取最近仓库）
+    // v1.5 T11（map#37 · #38 R1 + #40 R2 输入，与 host.js 同源）：显式 origin 解析优先，避免多远程下 gh 选中 upstream
     const root = await getRepoRoot(key)
-    const r = await runGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], root || key)
+    const execCwd = root || key
+    const git = await resolveGit()
+    if (git) {
+      const r = await execProc([git, '-C', execCwd, 'remote', 'get-url', 'origin'], execCwd)
+      if (r.ok) {
+        const k = parseGithubRepo(r.text)
+        if (k) { repoKeys[key] = k; return k }
+      }
+    }
+    if (fs !== undefined) {
+      try {
+        const t = await fs.resolve('.git/config', { cwd: execCwd })
+        const txt = await fs.readText(t)
+        const um = txt.match(/\[remote\s+"origin"\][^[]*url\s*=\s*([^\r\n]+)/)
+        if (um) {
+          const k = parseGithubRepo(um[1])
+          if (k) { repoKeys[key] = k; return k }
+        }
+      } catch (e) { /* 落 Tier 3 */ }
+    }
+    const r = await runGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], execCwd)
     if (!r.ok) return null
     const s = r.text.trim()
     const i = s.indexOf('/')
@@ -930,6 +950,131 @@ export function apply(ctx) {
         if (u.ok) assignedTo = u.text.trim()
         cache = { ts: 0, snapshot: null, error: null }
         return { ok: true, number: n, assignedTo: assignedTo, url: 'https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + String(n) }
+      }
+      case 'initPublish': {
+        const name = args && args.name ? String(args.name).trim() : ''
+        const visibility = (args && args.visibility) === 'public' ? 'public' : 'private'
+        if (!name) return { ok: false, errorKind: 'permission', error: '仓库名为空' }
+        if (!/^[A-Za-z0-9._-]+$/.test(name) || name.length > 100) {
+          return { ok: false, errorKind: 'permission', error: '仓库名仅支持字母/数字/._- 且 ≤100：' + name }
+        }
+        const visFlag = visibility === 'public' ? '--public' : '--private'
+        const git = await resolveGit()
+        if (!git) return { ok: false, errorKind: 'no-git', error: '未找到 git（请安装 https://git-scm.com/）' }
+        const gh = await resolveGh()
+        if (!gh) return { ok: false, errorKind: 'no-gh', error: ghPathError || '未找到 gh（请安装 https://cli.github.com/）' }
+        const authR = await runGh(['auth', 'status'], cwd)
+        if (!authR.ok) {
+          const t = String(authR.error || '').toLowerCase()
+          if (authR.kind === 'network' || /network|econn|timed out|timeout|enotfound|getaddrinfo|connect/.test(t)) {
+            return { ok: false, errorKind: 'network', error: authR.error }
+          }
+          return { ok: false, errorKind: 'not-logged-in', error: authR.error }
+        }
+        let currentUser = ''
+        try {
+          const u = await runGh(['api', 'user', '-q', '.login'], cwd)
+          if (u.ok) currentUser = u.text.trim()
+        } catch (e) { /* 忽略 */ }
+        const classifyCreateError = function (errText, kind) {
+          const low = String(errText || '').toLowerCase()
+          if (/already exists|name already exists|already exists on github|repository.*already exists/i.test(low)) return 'already-exists'
+          if (kind === 'network' || /network|econn|timed out|timeout|enotfound|getaddrinfo|connect etimedout|unable to access|failed to connect|could not resolve host/i.test(low)) return 'network'
+          if (/not logged in|auth failed|bad credentials|authentication required|gh auth login/i.test(low)) return 'not-logged-in'
+          if (/permission|forbidden|403|401|insufficient|not authorized|resource not accessible|must be.*admin/i.test(low)) return 'permission'
+          if (kind === 'auth') return 'not-logged-in'
+          return 'permission'
+        }
+        try {
+          const probe = await execProc([git, '-C', cwd, 'rev-parse', '--is-inside-work-tree'], cwd)
+          if (!probe.ok) {
+            const initR = await execProc([git, 'init'], cwd)
+            if (!initR.ok) {
+              const k = classifyCreateError(initR.error, null)
+              return { ok: false, errorKind: k === 'already-exists' ? 'permission' : k, error: initR.error }
+            }
+            if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
+            if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
+          }
+        } catch (e) {
+          const initR = await execProc([git, 'init'], cwd)
+          if (!initR.ok) {
+            const k = classifyCreateError(initR.error, null)
+            return { ok: false, errorKind: k === 'already-exists' ? 'permission' : k, error: initR.error }
+          }
+          if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
+          if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
+        }
+        const addR = await execProc([git, 'add', '.'], cwd)
+        if (!addR.ok) {
+          const k = classifyCreateError(addR.error, null)
+          return { ok: false, errorKind: k, error: addR.error }
+        }
+        let commitR = await execProc([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
+        if (!commitR.ok) {
+          const low = String(commitR.error || '').toLowerCase()
+          if (/please tell me who you are|user\.name|user\.email|author identity unknown|unable to auto-detect email/.test(low)) {
+            await execProc([git, 'config', 'user.email', 'dsh@local'], cwd)
+            await execProc([git, 'config', 'user.name', 'DSH User'], cwd)
+            commitR = await execProc([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
+          }
+          if (!commitR.ok) {
+            const k = classifyCreateError(commitR.error, null)
+            return { ok: false, errorKind: k, error: commitR.error }
+          }
+        }
+        let hasOrigin = false
+        try {
+          const ro = await execProc([git, 'remote', 'get-url', 'origin'], cwd)
+          hasOrigin = !!ro.ok
+        } catch (e) { hasOrigin = false }
+        if (!hasOrigin) {
+          const cr = await runGh(['repo', 'create', name, visFlag, '--source=.', '--push'], cwd)
+          if (!cr.ok) {
+            const kind = classifyCreateError(cr.error, cr.kind)
+            const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
+            return { ok: false, errorKind: kind, error: cr.error, repoUrl: repoUrl }
+          }
+        } else {
+          const cr2 = await runGh(['repo', 'create', name, visFlag], cwd)
+          if (!cr2.ok) {
+            const kind = classifyCreateError(cr2.error, cr2.kind)
+            const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
+            return { ok: false, errorKind: kind, error: cr2.error, repoUrl: repoUrl }
+          }
+          let remoteUrl = ''
+          if (currentUser) remoteUrl = 'https://github.com/' + currentUser + '/' + name + '.git'
+          else {
+            const m = String(cr2.text || '').match(/https:\/\/github\.com\/[^\s\/]+\/[^\s\/]+/)
+            if (m) remoteUrl = m[0] + '.git'
+          }
+          if (remoteUrl) {
+            await execProc([git, 'remote', 'set-url', 'origin', remoteUrl], cwd)
+          }
+          const pushR = await execProc([git, 'push', '-u', 'origin', 'HEAD'], cwd)
+          if (!pushR.ok) {
+            const kind = classifyCreateError(pushR.error, null)
+            return { ok: false, errorKind: kind, error: pushR.error }
+          }
+        }
+        cache = { ts: 0, snapshot: null, error: null, cwd: null }
+        statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }
+        if (cwd && repoKeys[cwd] !== undefined) delete repoKeys[cwd]
+        if (repoKeys[DEFAULT_CWD] !== undefined) delete repoKeys[DEFAULT_CWD]
+        if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
+        if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
+        let owner = currentUser
+        try {
+          const rk = await getRepoKey(cwd)
+          if (rk && rk.owner) owner = rk.owner
+        } catch (e) { /* 兜底 */ }
+        if (!owner) {
+          try {
+            const u2 = await runGh(['api', 'user', '-q', '.login'], cwd)
+            if (u2.ok) owner = u2.text.trim()
+          } catch (e2) { /* 忽略 */ }
+        }
+        return { ok: true, repo: { owner: owner, name: name } }
       }
       default:
         throw new Error('unknown endpoint: ' + endpoint)
