@@ -42,7 +42,9 @@
  *
  * 本文件内容 = cordis_define 的 code.client（纯 JS 函数体，返回 Cordis Plugin）。
  */
-return {
+
+// ===== 规范方言（dynamic dialect）：host/styles/React/timer 为自由变量；pkg entry 提供 shim =====
+export default {
   apply(ctx) {
     const slots = ctx.get('slots')
     if (slots === undefined) return
@@ -67,7 +69,7 @@ return {
     const PortalOverlay = function (props, children) {
       return portalTop(h('div', props || {}, children))
     }
-    const DSW_VERSION = 'v1.6.18'
+    const DSW_VERSION = __DSW_VERSION__
 
     // ============================================================
     // 0. 样式

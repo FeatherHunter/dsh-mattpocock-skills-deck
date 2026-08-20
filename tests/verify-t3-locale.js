@@ -42,13 +42,10 @@ const check = function (file) {
   ;['tplTextr(', 'injectr(', 'getr(', 'setHeightr(', 'Heig\u0072('].forEach(function (bad) {
     if (src.includes(bad)) problems.push('改名误伤残留 ' + bad)
   })
-  // v26：移除 sidebar.footer.action 入口按钮（打开形式收敛为仅右侧 details 列）后：
-  //   动态版注册 5 个插槽（shell.overlay / conversation.input.dock / tool.view.cordis / settings.plugins.tab / details）
-  //   静态 bundle 4 个（同上去掉 tool.view.cordis，disposeSlots 形态）
+  // T0（#93）一源出两物后：pkg 由规范源（动态版）构建，tool.view.cordis 不再缺失 —— 两产物注册数一致。
+  // v26 移除 sidebar.footer.action 后：shell.overlay / conversation.input.dock / tool.view.cordis / settings.plugins.tab / details = 5；v1.5 T2 新增 settings.section = 6。
   const n = (src.match(/slots\.inject\('/g) || []).length
-  // v1.4.1：better-sidebar tab 改走 ensureSidebarTab 直接注册（非 slots.inject）→ 静态 bundle 4 个（动态版 5 个：多 tool.view.cordis）
-  // v1.5 T2：新增 settings.section 注册 → 动态版 6 个（+settings.section），静态 bundle 5 个
-  const expectInject = file.indexOf('package/') >= 0 ? 5 : 6
+  const expectInject = 6
   if (n !== expectInject) problems.push('slots.inject 注册数异常 ' + n + '（期望 ' + expectInject + '）')
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
   else console.log('  PASS', file, '(' + zh.size + ' 键 × zh/en，' + used.size + ' 处引用)')

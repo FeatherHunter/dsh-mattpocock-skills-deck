@@ -18,3 +18,8 @@ _research/
 /package-lock.json
 /tests/playwright-e2e-probe.js
 /cyberpunk-tokyo-16x9-4k.png
+
+# ===== T0 可变产物（G1 决策 A）：一源出两物，产物由 scripts/build.mjs 生成，不入库 =====
+/client.js
+/host.js
+/package/lib/

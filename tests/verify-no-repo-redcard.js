@@ -11,7 +11,8 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 
 // 1) host 侧 wf.initPublish
 check(host.includes("harness.handle('wf.initPublish'"), 'host 含 wf.initPublish handle');
-check(pkgHost.includes("case 'initPublish'"), 'package index 含 initPublish dispatch');
+// T0（#93）seam 化：pkg host 由规范源构建，harness.handle 经 seam 落入 __DSW_HANDLERS__ Map（不再是手写 case 开关）
+check(pkgHost.includes("__DSW_HANDLERS__") && pkgHost.includes("harness.handle('wf.initPublish'"), 'package index 含 initPublish dispatch（seam Map 形态）');
 check(host.includes("resolveGit()") && host.includes("resolveGh()"), 'host initPublish 探测 git/gh');
 check(host.includes("rev-parse") && host.includes("'init'"), 'host initPublish 含 git init 逻辑（rev-parse 探测 + init）');
 check(host.includes("git commit") && host.includes("initial commit") && host.includes("--allow-empty"), 'host initPublish 含 git add + commit --allow-empty');
@@ -82,11 +83,11 @@ check(cli.includes("className: 'err'") && cli.includes("card.error"), 'client �
 check(cli.includes("card.loading") && cli.includes("tr('panel.noRepoFormSubmitting')") && cli.includes("dsws-spinner"), 'client 表单主按钮 loading 态（spinner + 创建中…）');
 check(cli.includes("isNoRepoNameValid(card.name)") && cli.includes("disabled: card.loading || !isValid"), 'client 表单提交前校验（isNoRepoNameValid + 按钮置灰）');
 
-// 7) 提交链路（调 host.call('wf.initPublish', { name, visibility }) / rpcCall('initPublish') + 成功后刷新 snapshot.repo）
+// 7) 提交链路（调 host.call('wf.initPublish', { name, visibility }) —— T0 一源出两物后 pkg 同源，走 host shim 而非手写 rpcCall）
 check(cli.includes("host.call('wf.initPublish'") && cli.includes("name: card.name") && cli.includes("visibility: card.visibility"), 'client 提交调 host.call(\'wf.initPublish\', { cwd, name, visibility })');
-check(pcli.includes("rpcCall('initPublish'") && pcli.includes("name: card.name"), 'package client 提交调 rpcCall(\'initPublish\') 镜像');
+check(pcli.includes("host.call('wf.initPublish'") && pcli.includes("name: card.name"), 'package client 提交调 host.call(\'wf.initPublish\') 镜像（seam host shim）');
 check(cli.includes("loadSnapshot(st, true, true)") && cli.includes("loadChecks(st, true, true)"), 'client 成功后刷新 snapshot + checks（头部出现新 owner/repo）');
-check(pcli.includes("rpcCall('refresh'") || pcli.includes("rpcCall('status'"), 'package client 成功后刷新镜像（rpcCall refresh/status）');
+check(pcli.includes("loadSnapshot(st, true, true)") && pcli.includes("loadChecks(st, true, true)"), 'package client 成功后刷新镜像（同源 loadSnapshot/loadChecks）');
 
 // 8) ChecksTab 弱化与重置（红卡出现时隐藏 ListTab 原 banner；ChecksTab 中 checkRepo:bad 弱化为“已在首屏引导 · 切换到 ListTab 完成”；dismiss 后“重置忽略”）
 check(cli.includes("panel.noRepoCardDone") && cli.includes("st.tab = 'list'"), 'client ChecksTab 弱化：checkRepo:bad → 已在首屏引导 + 切换到 ListTab');
@@ -99,7 +100,7 @@ check(cli.includes("bad.filter(function (c) { return c.id !== 1 })") || cli.incl
 check(cli.includes("dsws-no-repo-card") && pcli.includes("dsws-no-repo-card"), '双源样式一致（dsws-no-repo-card）');
 check(cli.includes("panel.noRepoCardTitle") && pcli.includes("panel.noRepoCardTitle"), '双源 i18n 一致（panel.noRepoCardTitle）');
 check(cli.includes("const NoRepoCard") && pcli.includes("const NoRepoCard"), '双源组件一致（NoRepoCard）');
-check(host.includes("harness.handle('wf.initPublish'") && pkgHost.includes("case 'initPublish'"), '双源 host 一致（wf.initPublish）');
+check(host.includes("harness.handle('wf.initPublish'") && pkgHost.includes("__DSW_HANDLERS__") && pkgHost.includes("harness.handle('wf.initPublish'"), '双源 host 一致（wf.initPublish，seam Map 形态）');
 
 // 10) 额外守卫：dismiss 按 cwd 维度（hash），展开态校验，visibility 默认 Private，不记忆上次选择，不加 description
 check(cli.includes("noRepoDismissKey") && cli.includes("cwdHash"), 'dismiss 按 cwd 维度（noRepoDismissKey + cwdHash）');

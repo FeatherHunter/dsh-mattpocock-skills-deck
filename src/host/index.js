@@ -17,7 +17,9 @@
  *
  * 本文件内容 = cordis_define 的 code.host（纯 JS 函数体，返回 Cordis Plugin）。
  */
-return {
+
+// ===== 规范方言（dynamic dialect）：harness 为自由变量；pkg entry 提供 shim =====
+export default {
   apply(ctx) {
     const subprocess = ctx.get('subprocess')
     const timer = ctx.get('timer')
@@ -1180,5 +1182,3 @@ return {
     // P1 若做状态变化 toast 提醒，再考虑低频自动（届时恢复本块并观察配额）。
   },
 }
-
-

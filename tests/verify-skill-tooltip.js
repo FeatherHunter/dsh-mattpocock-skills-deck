@@ -48,7 +48,8 @@ const check = function (file) {
   if (/tip\.x \+ 240 > window\.innerWidth/.test(src)) problems.push('旧翻转阈值 240 仍在（与 maxWidth 220 贴边）')
   if (!/tip\.x \+ 238 > window\.innerWidth/.test(src)) problems.push('缺新翻转阈值 238（maxWidth 220 + padding 16 + border 2）')
   // 3) 列表悬停开/移出关：portal 后由 showSkillPop / closeSkillPop + 延迟桥接负责
-  if (!/const showSkillPop\s*=\s*function[\s\S]{0,300}s\.skillsOpen\s*=\s*true/.test(src)) problems.push('缺列表 onMouseEnter 置 skillsOpen=true')
+  //    T0（#93）一源出两物后，showSkillPop 内含 issuePath 协同（clearClose(issuePathCloseRef) + 分支），skillsOpen=true 落在 ~450 字符处 —— 窗口放宽到 600
+  if (!/const showSkillPop\s*=\s*function[\s\S]{0,600}s\.skillsOpen\s*=\s*true/.test(src)) problems.push('缺列表 onMouseEnter 置 skillsOpen=true')
   if (!/const closeSkillPop\s*=\s*function[\s\S]{0,350}s\.skillsOpen\s*=\s*false[\s\S]{0,180}s\.skillHover\s*=\s*null[\s\S]{0,180}s\.skillTip\s*=\s*null/.test(src)) problems.push('缺列表关闭及 skillHover/skillTip 清理')
   // 4) 死区：portal 外层保留 4px 上下桥接，并通过延迟关闭跨越 DOM gap
   const popMatch = src.match(/PortalOverlay\(\{ className: 'dsws-skillpop-bridge'[\s\S]*?paddingTop: 4[\s\S]*?paddingBottom: 4[\s\S]*?\}, \[/)
