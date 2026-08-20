@@ -2167,7 +2167,9 @@ return {
     }
     // 跨会话预填（issue #12 BUG4 r3 终极修复）：单变量保留，但消费侧彻底锁死 deps 为 [props.sessionId]，
 //   当前会话的 props 重渲染不会再触发 effect 重跑，从根本上消除「当前会话 effect 抢先消费」竞态。
+// r4（#62/#63 回归 2026-08-21）：旧 r3 用 boolean consumedDraftRef 导致首次消费后 ref=true 常驻，任何新会话 effect 直接 return（62/63 新开会话不注入）；且 pendingDraft 为全局单变量，旧会话重渲染若 deps 含 props 可能抢先消费。r4 改为 sid 锚定：pendingDraftTargetSid 记录新会话 sid，消费侧仅当 pendingDraftTargetSid===props.sessionId 才消费，且 ref 按 sid 存储。
 let pendingDraft = null
+let pendingDraftTargetSid = null
     // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑
     // 需求1·二阶段 rev（2026-08-18）：灰/亮双态的真实依据 = 磁盘上确实存在交接文档（wf.handoffLatest 探测）。
     //   probeHandoffReady：探测 → 写 st.handoffReady + emit（右半亮蓝/灰 + 允许/禁止 的开关）；任何路径都不得在无文档时开新会话。
@@ -2201,11 +2203,13 @@ let pendingDraft = null
       const finish = function (file, msg) {
         const text = handoffReadText(file)
         pendingDraft = text
+        pendingDraftTargetSid = null
         copyText(st, text, msg || tr('toast.copiedHandoff'))
         if (ws && typeof ws.startSession === 'function') {
           ws.startSession()
         } else {
           pendingDraft = null
+          pendingDraftTargetSid = null
         }
       }
       // 引导门 v3（2026-08-18 rev）：无论本会话是否点过第一击，一律先探测磁盘真实文档——
@@ -2309,8 +2313,9 @@ let pendingDraft = null
             const face = scopeCtx ? sessions.sessionOf(scopeCtx) : undefined
             if (face && typeof face.rename === 'function') face.rename(title).catch(function () { /* 命名失败忽略 */ })
           } catch (e) { /* 命名失败忽略 */ }
-          // 预填（r3）：与原实现一致，写到单变量 pendingDraft；消费侧用 [props.sessionId] deps 锁住
+          // 预填（r4）：写入 pendingDraft + 目标 sid 锚定，消费侧仅新会话消费，杜绝旧会话抢先
           pendingDraft = text
+          pendingDraftTargetSid = sid
           sessions.open(sid)
           flash(st, tr('toast.newSessionOpened'), 'ok')
         }).catch(function () { doFallback() })
@@ -2384,19 +2389,29 @@ let pendingDraft = null
       //     · 新会话：sid 初次设置 → effect 跑一次 → 消费 pendingDraft
       //   consumedDraftRef 守卫保留作为 belt-and-suspenders：即使组件 remount（同 sid 字符串），
       //     ref 仍能防止 effect 重入。
-      const consumedDraftRef = React.useRef(false)
+      // r4：consumedDraftRef 按 sid 存储 + pendingDraftTargetSid 锚定新会话，防止 boolean 常驻阻断后续注入
+      const consumedDraftRef = React.useRef(null)
+      // 注入器常驻：只要 inputActions 就位就挂到 s.injector（不依赖 pendingDraft）
       React.useEffect(function () {
-        if (consumedDraftRef.current) return
         if (props && props.inputActions && typeof props.inputActions.setDraft === 'function') {
           s.injector = props.inputActions.setDraft
-          if (pendingDraft) {
-            consumedDraftRef.current = true
-            const text = pendingDraft
-            pendingDraft = null
-            props.inputActions.setDraft(text)
-          }
         }
-      }, [props.sessionId])
+      }, [props.sessionId, props.inputActions])
+      React.useEffect(function () {
+        if (!props || !props.sessionId) return
+        if (consumedDraftRef.current === props.sessionId) return
+        if (!props.inputActions || typeof props.inputActions.setDraft !== 'function') return
+        s.injector = props.inputActions.setDraft
+        if (pendingDraft) {
+          // 若有目标 sid 锚定，则仅目标会话消费；无锚定（handoff 兼容）则任意新会话可消费
+          if (pendingDraftTargetSid && pendingDraftTargetSid !== props.sessionId) return
+          consumedDraftRef.current = props.sessionId
+          const text = pendingDraft
+          pendingDraft = null
+          pendingDraftTargetSid = null
+          props.inputActions.setDraft(text)
+        }
+      }, [props.sessionId, props.inputActions])
       React.useEffect(function () {
         probeHandoffReady(s)  // 需求1·二阶段 rev：挂载即探测 .scratch/handoff/，以真实文档有无决定右半灰/亮
         ensureIssuePath(s); startIssuePathPoll(s)
@@ -2636,40 +2651,8 @@ let pendingDraft = null
           Icon({ scheme: s.ui.icon, size: 14 }),
           h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
         ]),
-        // issuePath · 状态栏当前 Issue 胶囊主段（v1.7.0 map #79 · 为主要目的）—— 常驻显示当前 #N，hover 向上弹层展示路径
-        h('span', { ref: issuePathAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showIssuePath, onMouseLeave: function () { scheduleClose(issuePathCloseRef, closeIssuePath) } }, [
-          h('span', { className: 'dsws-seg' + (s.issuePathHover ? ' on' : ''), onClick: function (e) { e.stopPropagation(); if (s.issuePath && s.issuePath.current) { s.tab='list'; openPanel(s) } }, title: s.issuePath && s.issuePath.current ? '当前处理 #' + s.issuePath.current + ' · hover 查看路径 · 点击打开列表' : '尚未选择当前 Issue · 点击操作会自动记录', style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: s.issuePath && s.issuePath.current ? '#4ade80' : '#6b7280', border: s.issuePathHover ? '1px solid rgba(74,222,128,.45)' : '1px solid transparent', background: s.issuePathHover ? 'rgba(74,222,128,.12)' : 'transparent', borderRadius: 99, padding: '2px 7px' } }, [
-            Ic({ n: 'target', size: 12 }),
-            h('span', { 'data-fold-priority': 10 }, s.issuePath && s.issuePath.current ? '📌 #' + s.issuePath.current : '📌 --'),
-          ]),
-          s.issuePathHover ? PortalOverlay({ className: 'dsws-issuepath-pop', onMouseEnter: function () { clearClose(issuePathCloseRef) }, onMouseLeave: function () { scheduleClose(issuePathCloseRef, closeIssuePath) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'fixed', left: s.issuePathPos ? s.issuePathPos.left : 0, bottom: s.issuePathPos ? s.issuePathPos.bottom : 0, padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.45)', minWidth: 260, maxWidth: 380 } }, [
-            h('div', { style: { fontSize: 11, fontWeight: 700, color: 'var(--dsw-alias-label-primary,#e6edf3)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 } }, [
-              h('span', null, '📌 当前路径'),
-              h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', fontWeight: 400 } }, s.issuePath && s.issuePath.nodes && s.issuePath.nodes.length ? 'anchor #' + s.issuePath.anchor + ' · ' + s.issuePath.nodes.length + ' 节点' : '空'),
-              h('span', { style: { marginLeft: 'auto', display: 'inline-flex', gap: 4 } }, [
-                h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); clearIssuePath(s); closeIssuePath() }, style: { fontSize: 10, padding: '2px 6px' } }, '清空'),
-              ]),
-            ]),
-            (s.issuePath && s.issuePath.nodes && s.issuePath.nodes.length) ? h('div', { style: { maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 } }, s.issuePath.nodes.slice(-20).reverse().map(function (nd) {
-              const isCur = nd.ref === s.issuePath.current
-              const isAnchor = nd.ref === s.issuePath.anchor
-              const t = new Date(nd.ts || Date.now()); const tm = String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0')
-              const srcColor = nd.source === 'claim' ? '#4ade80' : nd.source === 'gh-edit' ? '#58a6ff' : nd.source === 'mention' ? '#f59e0b' : '#8b8b95'
-              const srcLabel = nd.source === 'claim' ? 'claim' : nd.source === 'gh-edit' ? 'gh-edit' : nd.source === 'mention' ? 'mention' : nd.source
-              return h('div', { key: nd.ts + '-' + nd.ref, onClick: function (e) { e.stopPropagation(); reanchorIssuePath(s, nd.ref) }, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 6, background: isCur ? 'rgba(74,222,128,.14)' : 'transparent', border: isCur ? '1px solid rgba(74,222,128,.35)' : '1px solid transparent', cursor: 'pointer' } }, [
-                h('span', { style: { fontSize: 11, fontFamily: 'Consolas,Menlo,monospace', color: isCur ? '#4ade80' : 'var(--dsw-alias-label-primary,#e6edf3)', fontWeight: isCur ? 700 : 500 } }, '#' + nd.ref + (isAnchor ? ' ⚓' : '')),
-                h('span', { style: { fontSize: 10, color: srcColor, border: '1px solid ' + srcColor, borderRadius: 4, padding: '0 4px', lineHeight: 1.6 } }, srcLabel),
-                h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tm),
-                nd.title ? h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 } }, nd.title) : null,
-                isCur ? h('span', { style: { fontSize: 10, color: '#4ade80', fontWeight: 700 } }, '← 当前') : null,
-              ])
-            })) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '6px 0' } }, '暂无路径 · 点击任意 issue 行的“执行/诊断/修复”或在新会话中打开 issue 会自动记录'),
-            h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', marginTop: 6, paddingTop: 4, display: 'flex', alignItems: 'center', gap: 4 } }, [
-              h('span', null, '点击节点可重锚起点'),
-              h('span', { style: { marginLeft: 'auto' } }, '上限 100 · 本地持久'),
-            ]),
-          ]) : null,
-        ]),
+        // issuePath segment disabled for debug (hidden)
+        null,
         seg('target', [h('span', { 'data-fold-priority': 5 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; go('list') }, tr('nav.takeableTitle')),
         // issue #4：BUG 计数段 —— 点击仍开 bug 过滤列表；悬停弹「新增」菜单（新会话预填 /wayfinder 新增 BUG 单 prompt）
         h('span', { ref: bugAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showBugMenu, onMouseLeave: function () { scheduleClose(bugCloseRef, closeBugMenu) } }, [

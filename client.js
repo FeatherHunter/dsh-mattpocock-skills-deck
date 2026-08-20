@@ -2167,7 +2167,9 @@ return {
     }
     // 跨会话预填（issue #12 BUG4 r3 终极修复）：单变量保留，但消费侧彻底锁死 deps 为 [props.sessionId]，
 //   当前会话的 props 重渲染不会再触发 effect 重跑，从根本上消除「当前会话 effect 抢先消费」竞态。
+// r4（#62/#63 回归 2026-08-21）：旧 r3 用 boolean consumedDraftRef 导致首次消费后 ref=true 常驻，任何新会话 effect 直接 return（62/63 新开会话不注入）；且 pendingDraft 为全局单变量，旧会话重渲染若 deps 含 props 可能抢先消费。r4 改为 sid 锚定：pendingDraftTargetSid 记录新会话 sid，消费侧仅当 pendingDraftTargetSid===props.sessionId 才消费，且 ref 按 sid 存储。
 let pendingDraft = null
+let pendingDraftTargetSid = null
     // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑
     // 需求1·二阶段 rev（2026-08-18）：灰/亮双态的真实依据 = 磁盘上确实存在交接文档（wf.handoffLatest 探测）。
     //   probeHandoffReady：探测 → 写 st.handoffReady + emit（右半亮蓝/灰 + 允许/禁止 的开关）；任何路径都不得在无文档时开新会话。
@@ -2201,11 +2203,13 @@ let pendingDraft = null
       const finish = function (file, msg) {
         const text = handoffReadText(file)
         pendingDraft = text
+        pendingDraftTargetSid = null
         copyText(st, text, msg || tr('toast.copiedHandoff'))
         if (ws && typeof ws.startSession === 'function') {
           ws.startSession()
         } else {
           pendingDraft = null
+          pendingDraftTargetSid = null
         }
       }
       // 引导门 v3（2026-08-18 rev）：无论本会话是否点过第一击，一律先探测磁盘真实文档——
@@ -2309,8 +2313,9 @@ let pendingDraft = null
             const face = scopeCtx ? sessions.sessionOf(scopeCtx) : undefined
             if (face && typeof face.rename === 'function') face.rename(title).catch(function () { /* 命名失败忽略 */ })
           } catch (e) { /* 命名失败忽略 */ }
-          // 预填（r3）：与原实现一致，写到单变量 pendingDraft；消费侧用 [props.sessionId] deps 锁住
+          // 预填（r4）：写入 pendingDraft + 目标 sid 锚定，消费侧仅新会话消费，杜绝旧会话抢先
           pendingDraft = text
+          pendingDraftTargetSid = sid
           sessions.open(sid)
           flash(st, tr('toast.newSessionOpened'), 'ok')
         }).catch(function () { doFallback() })
@@ -2384,19 +2389,29 @@ let pendingDraft = null
       //     · 新会话：sid 初次设置 → effect 跑一次 → 消费 pendingDraft
       //   consumedDraftRef 守卫保留作为 belt-and-suspenders：即使组件 remount（同 sid 字符串），
       //     ref 仍能防止 effect 重入。
-      const consumedDraftRef = React.useRef(false)
+      // r4：consumedDraftRef 按 sid 存储 + pendingDraftTargetSid 锚定新会话，防止 boolean 常驻阻断后续注入
+      const consumedDraftRef = React.useRef(null)
+      // 注入器常驻：只要 inputActions 就位就挂到 s.injector（不依赖 pendingDraft）
       React.useEffect(function () {
-        if (consumedDraftRef.current) return
         if (props && props.inputActions && typeof props.inputActions.setDraft === 'function') {
           s.injector = props.inputActions.setDraft
-          if (pendingDraft) {
-            consumedDraftRef.current = true
-            const text = pendingDraft
-            pendingDraft = null
-            props.inputActions.setDraft(text)
-          }
         }
-      }, [props.sessionId])
+      }, [props.sessionId, props.inputActions])
+      React.useEffect(function () {
+        if (!props || !props.sessionId) return
+        if (consumedDraftRef.current === props.sessionId) return
+        if (!props.inputActions || typeof props.inputActions.setDraft !== 'function') return
+        s.injector = props.inputActions.setDraft
+        if (pendingDraft) {
+          // 若有目标 sid 锚定，则仅目标会话消费；无锚定（handoff 兼容）则任意新会话可消费
+          if (pendingDraftTargetSid && pendingDraftTargetSid !== props.sessionId) return
+          consumedDraftRef.current = props.sessionId
+          const text = pendingDraft
+          pendingDraft = null
+          pendingDraftTargetSid = null
+          props.inputActions.setDraft(text)
+        }
+      }, [props.sessionId, props.inputActions])
       React.useEffect(function () {
         probeHandoffReady(s)  // 需求1·二阶段 rev：挂载即探测 .scratch/handoff/，以真实文档有无决定右半灰/亮
         ensureIssuePath(s); startIssuePathPoll(s)
