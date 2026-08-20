@@ -1614,9 +1614,49 @@ window.__ModuleLoader__.load({
           if (now - lastFocusProbe < FOCUS_PROBE_MIN_MS) return
           lastFocusProbe = now
         }
-        // v1.5 R2-fix（#2 MVP E2E 发现）：probe 不能用 shared.cwd —— 该字段在多 store 改造（v1.5）后从未被赋值，
-        //   导致 probe 永远走 DEFAULT_CWD（DSH Desktop 安装目录，非 git 仓库），getRepoKey 返回 null，probe 静默失败，
-        //   面板永远不自动刷新。改为：迭代每个有 cwd 的 store + 兜底用 wf.cwd 拉取。
+        // #45 修复（2026-08-20）：多工作区异步回调导致右侧面板串台
+        // 根因：原实现经 shared（单例）广播新快照到所有 stores（Object.keys(stores).forEach），且 shared.cwd 仅首写，
+        //   导致工作区 A 的异步变更（probe changed）把 A 的快照写入 B 的 store，右侧面板“串台”显示非当前工作区内容。
+        // 修复：按 cwd 分组隔离 —— 同 cwd 组内共享 1 次 GraphQL（primary load → 余下拷贝），组间零污染；
+        //   兜底路径按 sessionId→cwd 精确映射赋值，避免把任意首个 cwd 错绑到所有空 store。
+        const refreshGroup = function (cwd) {
+          return rpcCall('probe', { cwd: cwd }).then(function (res) {
+            if (!(res && res.ok && res.changed)) return
+            const group = []
+            if (shared.cwd === cwd) group.push(shared)
+            Object.keys(stores).forEach(function (k) {
+              const st = stores[k]
+              if (st.cwd === cwd) group.push(st)
+            })
+            if (!group.length) {
+              if (typeof conn !== 'undefined' && conn.rpc !== undefined) {
+                rpcCall('refresh', { cwd: cwd }).catch(function () {})
+              }
+              return
+            }
+            const primary = group[0]
+            if (!primary.cwd) primary.cwd = cwd
+            const rest = group.slice(1)
+            return loadSnapshot(primary, true, true).then(function () {
+              const newSnap = primary.snapshot
+              if (!newSnap || newSnap.ok !== true || !Array.isArray(newSnap.maps)) return
+              rest.forEach(function (st2) {
+                st2.lastDiff = diffSnapshots(st2.snapshot, newSnap)
+                st2.rowFlash = {}
+                st2.issueFlash = {}
+                var _df = st2.lastDiff
+                _df.added.forEach(function (n) { st2.rowFlash[n] = 'added' })
+                _df.changed.forEach(function (n) { st2.rowFlash[n] = 'changed' })
+                if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (ki) { st2.issueFlash[Number(ki)] = _df.issueFlash[ki] })
+                st2.snapshot = newSnap
+                st2.snapMode = 'real'
+                st2.snapError = null
+                scheduleFlashClear(st2)
+                emit(st2)
+              })
+            }).catch(function () { /* 忽略 */ })
+          }).catch(function () { /* 探测失败忽略 */ })
+        }
         const cwds = []
         if (shared.cwd) cwds.push(shared.cwd)
         Object.keys(stores).forEach(function (k) {
@@ -1624,80 +1664,31 @@ window.__ModuleLoader__.load({
           if (c && cwds.indexOf(c) < 0) cwds.push(c)
         })
         if (!cwds.length) {
-          // 兜底：从 wf.cwd 拉一次（用户当前会话的工作目录）—— 试每个 store 的 sessionId
           const sids = []
           if (shared.sessionId) sids.push(shared.sessionId)
           Object.keys(stores).forEach(function (k) { if (stores[k].sessionId && sids.indexOf(stores[k].sessionId) < 0) sids.push(stores[k].sessionId) })
           if (!sids.length) return
           Promise.all(sids.map(function (sid) { return rpcCall('cwd', { sessionId: sid }).catch(function () { return null }) })).then(function (results) {
+            const sidToCwd = {}
             const foundCwds = []
-            results.forEach(function (res) {
-              if (res && res.ok && res.cwd && foundCwds.indexOf(res.cwd) < 0) foundCwds.push(res.cwd)
-            })
+            for (let i = 0; i < sids.length; i++) {
+              const r = results[i]
+              if (r && r.ok && r.cwd) {
+                sidToCwd[sids[i]] = r.cwd
+                if (foundCwds.indexOf(r.cwd) < 0) foundCwds.push(r.cwd)
+              }
+            }
             if (!foundCwds.length) return
-            if (shared.cwd !== foundCwds[0]) shared.cwd = foundCwds[0]
-            foundCwds.forEach(function (cwd) {
-              rpcCall('probe', { cwd: cwd }).then(function (res2) {
-                if (!(res2 && res2.ok && res2.changed)) return
-                if (!shared.cwd) shared.cwd = cwd
-                // R2-fix-5：必须 await shared 的 loadSnapshot 完成再同步
-                loadSnapshot(shared, true, true).then(function () {
-                  const newSnap = shared.snapshot
-                  if (newSnap && newSnap.ok === true && Array.isArray(newSnap.maps)) {
-                    Object.keys(stores).forEach(function (k) {
-                      const st2 = stores[k]
-                      if (st2 === shared) return
-                      if (cwd && !st2.cwd) st2.cwd = cwd
-                      st2.lastDiff = diffSnapshots(st2.snapshot, newSnap)
-                      st2.rowFlash = {}
-                      st2.issueFlash = {}
-                      var _df = st2.lastDiff
-                      _df.added.forEach(function (n) { st2.rowFlash[n] = 'added' })
-                      _df.changed.forEach(function (n) { st2.rowFlash[n] = 'changed' })
-                      if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (ki) { st2.issueFlash[Number(ki)] = _df.issueFlash[ki] })
-                      st2.snapshot = newSnap
-                      st2.snapMode = 'real'
-                      st2.snapError = null
-                      emit(st2)
-                    })
-                  }
-                }).catch(function () { /* 忽略 */ })
-              }).catch(function () { /* 忽略 */ })
+            Object.keys(stores).forEach(function (k) {
+              const st = stores[k]
+              if (!st.cwd && st.sessionId && sidToCwd[st.sessionId]) st.cwd = sidToCwd[st.sessionId]
             })
+            if (!shared.cwd && foundCwds.length) shared.cwd = foundCwds[0]
+            foundCwds.forEach(function (cwd) { refreshGroup(cwd) })
           })
           return
         }
-        cwds.forEach(function (cwd) {
-          rpcCall('probe', { cwd: cwd }).then(function (res) {
-            if (!(res && res.ok && res.changed)) return
-            // B5（第一性原理）：changed 只触发 1 次全量刷新（shared · force 走 wf.refresh），
-            //   同 repo 的其他 store 用非 force 的 wf.snapshot → 命中 host 60s 缓存（shared 刚刷过）→ 零额外 GraphQL。
-            // v1.5 R2-fix：把 probed cwd 同步给 shared（防止 loadSnapshot 用空 shared.cwd 走 DEFAULT_CWD 失败）
-            if (!shared.cwd) shared.cwd = cwd
-            // R2-fix-5（#2 MVP E2E 终极修复，关键）：必须 await shared 的 loadSnapshot 完成再同步
-            loadSnapshot(shared, true, true).then(function () {
-              const newSnap = shared.snapshot
-              if (newSnap && newSnap.ok === true && Array.isArray(newSnap.maps)) {
-                Object.keys(stores).forEach(function (k) {
-                  const st2 = stores[k]
-                  if (st2 === shared) return
-                  if (cwd && !st2.cwd) st2.cwd = cwd
-                  st2.lastDiff = diffSnapshots(st2.snapshot, newSnap)
-                  st2.rowFlash = {}
-                  st2.issueFlash = {}
-                  var _df = st2.lastDiff
-                  _df.added.forEach(function (n) { st2.rowFlash[n] = 'added' })
-                  _df.changed.forEach(function (n) { st2.rowFlash[n] = 'changed' })
-                  if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (ki) { st2.issueFlash[Number(ki)] = _df.issueFlash[ki] })
-                  st2.snapshot = newSnap
-                  st2.snapMode = 'real'
-                  st2.snapError = null
-                  emit(st2)
-                })
-              }
-            }).catch(function () { /* 忽略 */ })
-          }).catch(function () { /* 探测失败忽略 */ })
-        })
+        cwds.forEach(function (cwd) { refreshGroup(cwd) })
       }
       const scheduleActionProbe = function () {
         if (_actionProbePending) return

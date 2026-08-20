@@ -63,10 +63,10 @@ for (const f of ['client.js', 'package/lib/client.js']) {
   check(!src.includes('PROBE_MS = 300000'), f + ' 无残留 5min 默认值（PROBE_MS 全部为 60000）')
   check(src.includes('FOCUS_PROBE_MIN_MS = 60000'), f + ' focus 触发限流 ≥60s（防窗口来回切换疯狂烧）')
   // T10 R9 重构后 probe 逻辑位于 probeNow（startAutoProbe 仅剩定时器装配）——切片锚点随之更新
-  // R2-fix-5（#2 MVP E2E）：changed 后 await shared 的 loadSnapshot 完成 → 新快照无条件复制到所有 store + emit
+  // R2-fix-5（#2 MVP E2E）：changed 后 await primary（组内首个） 的 loadSnapshot 完成 → 组内快照复制 + emit（#45 按 cwd 隔离，组间不互串）
   const probeBlock = src.slice(src.indexOf('const probeNow'), src.indexOf('const startAutoProbe'))
-  check(probeBlock.includes('loadSnapshot(shared, true, true).then'), f + ' changed 后 await shared force 刷新（R2-fix-5：先刷新 shared 再同步）')
-  check(probeBlock.includes('Object.keys(stores).forEach'), f + ' changed 后把新快照复制到所有 store（R2-fix-5：全 store 广播）')
+  check(probeBlock.includes('loadSnapshot(') && probeBlock.includes('true, true).then'), f + ' changed 后 await primary/shared force 刷新（R2-fix-5 + #45 按组隔离）')
+  check(probeBlock.includes('Object.keys(stores).forEach') || probeBlock.includes('group.slice'), f + ' changed 后把新快照复制到组内 store（R2-fix-5：组内广播，#45 隔离）')
   check(probeBlock.includes('st2.snapshot = newSnap'), f + ' 其他 store 直接赋值新快照（内存复制 · 零额外 GraphQL）')
   check(probeBlock.includes('emit(st2)'), f + ' 复制后 emit 每个 store（触发 React 重渲染）')
   check(!/sr\s*===\s*rep/.test(probeBlock), f + ' 无子集刷新残留（sr===rep 旧逻辑已随 R2-fix-5 移除）')
