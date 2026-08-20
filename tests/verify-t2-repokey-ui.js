@@ -10,7 +10,7 @@ const path = require('path')
 
 const DSH = process.env.DSH_URL || 'http://127.0.0.1:59519/'
 const TARGET_WS_NAME = 'dsh-im'
-const OUT = process.argv[2] || path.join(process.cwd(), '.dsh-waystation-cache', 'shots-t2')
+const OUT = process.argv[2] || path.join(process.cwd(), '.dsh-mattskillsdeck-cache', 'shots-t2')
 
 const sleep = ms => new Promise(res => setTimeout(res, ms))
 

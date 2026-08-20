@@ -1,4 +1,4 @@
-﻿/**
+/**
  * dsh-mattpocock-skills-deck 宿主半（ESM 插件体 · v1.0.0）
  *
  * 与动态版 host.js 同源（cordis_define 的 code.host 函数体），仅两处差异：
@@ -20,7 +20,7 @@
 export const name = 'dsh-mattpocock-skills-deck'
 
 // 服务依赖声明（loader 等待就绪后再 apply；connection 依赖 webServer，显式声明避免静默失效）
-// v1.5 T9 修复：fs 必须声明 —— 磁盘缓存（waystation-cache）依赖 fs 服务；未声明时 ctx.get('fs') 为 undefined → 缓存静默失效
+// v1.5 T9 修复：fs 必须声明 —— 磁盘缓存（mattskillsdeck-cache）依赖 fs 服务；未声明时 ctx.get('fs') 为 undefined → 缓存静默失效
 export const inject = ['subprocess', 'timer', 'connection', 'fs']
 
 export function apply(ctx) {
@@ -185,13 +185,13 @@ export function apply(ctx) {
     }
     return repoRoots[key]
   }
-  // 缓存目录：<DSH 进程 cwd>/.dsh-waystation-cache/（T9 修复：fs 沙箱 workspace-write 只允许 cwd 下，
-  //   ~/.dsh 在沙箱外被拒 → 缓存永不写入；改用 process.cwd() 落点，跨重启秒开）
+  // 缓存目录：<DSH 进程 cwd>/.dsh-mattskillsdeck-cache/（T9 修复：fs 沙箱 workspace-write 只允许 cwd 下，
+  //   ~/.dsh 在沙箱外被拒 → 缓存永不写入；改用 process.cwd() 落点，跨重启秒开；v1.6.17 更名 waystation → MattSkillsDeck）
   async function getCacheDir() {
     if (cacheDirResolved) return cacheDirResolved
     const cwd0 = (typeof process !== 'undefined' && process.cwd) ? process.cwd() : DEFAULT_CWD
     if (!cwd0) return null
-    cacheDirResolved = cwd0 + '/.dsh-waystation-cache'
+    cacheDirResolved = cwd0 + '/.dsh-mattskillsdeck-cache'
     try { if (fs !== undefined && typeof fs.mkdir === 'function') await fs.mkdir(cacheDirResolved) } catch (e) { /* 已存在或不可建，writeText 会自建 */ }
     return cacheDirResolved
   }

@@ -6,6 +6,8 @@ node_modules/
 _research/
 .bug-investigate/
 .tmp-screenshots/
+.dsh-waystation-cache/
+.dsh-mattskillsdeck-cache/
 
 # 根级临时件
 /dsh-market-registry.csv

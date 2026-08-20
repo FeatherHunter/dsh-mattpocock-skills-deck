@@ -1,4 +1,4 @@
-# dsh-waystation 磁盘缓存 · 排查与修复全记录（T9）
+# MattSkillsDeck 磁盘缓存 · 排查与修复全记录（T9 · v1.6.17 更名 waystation → MattSkillsDeck）
 
 > 2026-08-16 · 从「秒开不生效」到根因定位与修复的完整复盘。
 > 目的：沉淀「缓存机制设计 + DSH fs 服务沙箱特性 + 运行时诊断方法」，避免未来重踩。
@@ -10,7 +10,7 @@ T9 数据架构 v2 要求：**重启 DSH 打开面板秒出数据**（磁盘缓�
 ## 2. 现象
 
 - 用户完全重启 DSH 后，打开面板**不是秒开**：空列表 + loading 遮罩，等网络加载完成才显示。
-- 多次重启复现；`~/.dsh/waystation-cache/` 目录**从未出现**。
+- 多次重启复现；`~/.dsh/waystation-cache/`（旧名，v1.6.17 已更名为 `~/.dsh/mattskillsdeck-cache/` 概念，对应 `<cwd>/.dsh-mattskillsdeck-cache/`）目录**从未出现**。
 
 ## 3. 排查链路（按序，每步都有结论）
 
@@ -26,20 +26,20 @@ T9 数据架构 v2 要求：**重启 DSH 打开面板秒出数据**（磁盘缓�
 
 DSH 的 fs 服务处于 **workspace-write 沙箱模式**：
 - **只允许写入 process.cwd()（DSH 进程工作目录）下的路径**
-- ~/.dsh/waystation-cache/（用户主目录）在沙箱外 → fs.writeText 抛 file access denied → 被 catch 静默吞掉 → 缓存永不写入
+- `~/.dsh/waystation-cache/`（旧名，现为 `~/.dsh/mattskillsdeck-cache` 概念）/ `~/.dsh/mattskillsdeck-cache/`（用户主目录）在沙箱外 → fs.writeText 抛 file access denied → 被 catch 静默吞掉 → 缓存永不写入
 
 **为什么之前的代码「看起来对」**：readDiskCache/writeDiskCache 的 try-catch 吞掉了所有错误，没有任何可见信号 —— 静默失败是最难排查的错误形态。
 
 ## 5. 修复
 
-**缓存目录从 ~/.dsh/waystation-cache/ 改为 <DSH 进程 cwd>/.dsh-waystation-cache/**（实测该路径写入成功）：
+**缓存目录从 `~/.dsh/waystation-cache/` 改为 `<DSH 进程 cwd>/.dsh-waystation-cache/`（T9），v1.6.17 更名为 `<DSH 进程 cwd>/.dsh-mattskillsdeck-cache/`**（实测该路径写入成功）：
 
 ```js
 async function getCacheDir() {
   if (cacheDirResolved) return cacheDirResolved
   const cwd0 = (typeof process !== 'undefined' && process.cwd) ? process.cwd() : DEFAULT_CWD
   if (!cwd0) return null
-  cacheDirResolved = cwd0 + '/.dsh-waystation-cache'
+  cacheDirResolved = cwd0 + '/.dsh-mattskillsdeck-cache' // v1.6.17 更名 waystation → MattSkillsDeck
   ...
 }
 ```
@@ -50,7 +50,7 @@ async function getCacheDir() {
 
 ## 6. 验证结果
 
-- 缓存文件生成：<cwd>/.dsh-waystation-cache/FeatherHunter__SKILLS.json（216KB，含 6 张 map）
+- 缓存文件生成：`<cwd>/.dsh-mattskillsdeck-cache/FeatherHunter__SKILLS.json`（216KB，含 6 张 map；旧路径 `.dsh-waystation-cache/` 已废弃）
 - readDiskCache 实测：resolve + readText 返回合法数据（ok=true, maps=6）
 - 用户确认：再重启后**秒开** ✓
 
