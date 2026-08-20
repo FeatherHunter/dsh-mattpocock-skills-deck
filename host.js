@@ -212,9 +212,35 @@ return {
     async function getRepoKey(cwd) {
       const key = cwd || DEFAULT_CWD
       if (repoKeys[key]) return repoKeys[key]
-      // v1.5 T9：gh 在 git 根目录执行（嵌套仓库/子目录场景取最近仓库）
+      // v1.5 T11（map#37 · #38 R1 + #40 R2 输入）：
+      //   多远程下 gh 必选 upstream（context/remote.go::remoteNameSortScore upstream(3)>github(2)>origin(1)），
+      //   无参 `gh repo view` 永远返回原作者。改为：显式 `git remote get-url origin` + parseGithubRepo 首选，
+      //   失败再 .git/config 直读，兜底才用 gh repo view（同 checkRepo 已用方案同源）。
       const root = await getRepoRoot(key)
-      const r = await runGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], root || key)
+      const execCwd = root || key
+      // Tier 1：git remote get-url origin + parseGithubRepo（SSH/HTTPS 都由 parseRegex 覆盖）
+      const git = await resolveGit()
+      if (git) {
+        const r = await execProc([git, '-C', execCwd, 'remote', 'get-url', 'origin'], execCwd)
+        if (r.ok) {
+          const k = parseGithubRepo(r.text)
+          if (k) { repoKeys[key] = k; return k }
+        }
+      }
+      // Tier 2：.git/config 直读 origin（git 二进制不可用 / `remote get-url` 失败时）
+      if (fs !== undefined) {
+        try {
+          const t = await fs.resolve('.git/config', { cwd: execCwd })
+          const txt = await fs.readText(t)
+          const um = txt.match(/\[remote\s+"origin"\][^[]*url\s*=\s*([^\r\n]+)/)
+          if (um) {
+            const k = parseGithubRepo(um[1])
+            if (k) { repoKeys[key] = k; return k }
+          }
+        } catch (e) { /* 落 Tier 3 */ }
+      }
+      // Tier 3：gh repo view 兜底（非 GitHub 仓库 / 边缘情况；保持向后兼容）
+      const r = await runGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], execCwd)
       if (!r.ok) return null
       const s = r.text.trim()
       const i = s.indexOf('/')
