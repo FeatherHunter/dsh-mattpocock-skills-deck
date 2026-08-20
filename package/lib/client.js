@@ -302,6 +302,22 @@ window.__ModuleLoader__.load({
       '.dsws-cfg-save:hover{filter:brightness(1.08)}',
       '.dsws-cfg-btn{background:transparent;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:7px;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:11.5px;padding:3px 10px;cursor:pointer}',
       '.dsws-cfg-btn:hover{border-color:var(--dsw-alias-border-l2,#3a3f4a);color:var(--dsw-alias-label-primary,#e6edf3)}',
+      // T2 #35 · 无仓库红卡（ListTab 首屏最优先）· 样式复用 dsws-banner bad 视觉语言
+      '.dsws-no-repo-card{border:1px solid rgba(248,113,113,.45);background:rgba(248,113,113,.12);border-radius:8px;padding:10px 12px;margin-bottom:8px}',
+      '.dsws-no-repo-card .head{display:flex;align-items:flex-start;gap:8px}',
+      '.dsws-no-repo-card .ttl{font-weight:600;color:#f87171;font-size:12.5px;line-height:1.4}',
+      '.dsws-no-repo-card .desc{font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);margin-top:2px;line-height:1.5}',
+      '.dsws-no-repo-card .acts{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}',
+      '.dsws-no-repo-card .ghost{background:transparent;border:1px solid rgba(248,113,113,.35);color:var(--dsw-alias-label-secondary,#a1a1aa)}',
+      '.dsws-no-repo-card .ghost:hover{border-color:rgba(248,113,113,.55);color:var(--dsw-alias-label-primary,#e6edf3)}',
+      '.dsws-no-repo-form{margin-top:10px;padding:10px 12px;border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;background:var(--dsw-alias-bg-layer-1,#10131a)}',
+      '.dsws-no-repo-form .row{display:flex;align-items:center;gap:8px;margin:6px 0}',
+      '.dsws-no-repo-form label{font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);flex:none;min-width:52px}',
+      '.dsws-no-repo-form input[type="text"]{flex:1;min-width:0;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:6px;color:var(--dsw-alias-label-primary,#e6edf3);font-size:12px;padding:4px 8px}',
+      '.dsws-no-repo-form input[type="text"]:focus{outline:none;border-color:rgba(192,132,252,.55)}',
+      '.dsws-no-repo-form .err{font-size:11px;color:#f87171;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.35);border-radius:6px;padding:5px 8px;margin-top:6px}',
+      '.dsws-no-repo-form .hint{font-size:10px;color:var(--dsw-alias-label-caption,#8b8b95);margin-top:2px}',
+      '.dsws-no-repo-form .radio{display:inline-flex;align-items:center;gap:4px;font-size:11px;cursor:pointer}',
     ].join('')
 
     exports.inject = ['connection', 'slots', 'locale', 'workspaces', 'sessions']
@@ -520,6 +536,30 @@ window.__ModuleLoader__.load({
           'panel.repoTitle': '当前仓库，点击打开 GitHub',
           'panel.noRepo': '没有仓库',
           'panel.noRepoTitle': '当前工作区不是 Git 仓库 —— 请先 git init 或进入仓库目录',
+          'panel.noRepoCardTitle': '当前工作区不是 Git 仓库 — 点此初始化并发布',
+          'panel.noRepoCardDesc': '点击将它变成 GitHub 仓库并发布',
+          'panel.noRepoCardAction': '创建并发布',
+          'panel.noRepoCardDismiss': '忽略',
+          'panel.noRepoCardDone': '已在首屏引导 · 切换到 ListTab 完成',
+          'panel.noRepoFormName': '仓库名',
+          'panel.noRepoFormNameHint': '仅支持字母、数字、._- · ≤100',
+          'panel.noRepoFormVisibility': '可见性',
+          'panel.noRepoFormPublic': '公开',
+          'panel.noRepoFormPrivate': '私有',
+          'panel.noRepoFormSubmit': '创建并发布',
+          'panel.noRepoFormCancel': '取消',
+          'panel.noRepoFormSubmitting': '创建中…',
+          'panel.noRepoErr.bad-name': '仓库名仅支持字母/数字/._- 且 ≤100',
+          'panel.noRepoErr.no-git': '未找到 git，请先安装 Git',
+          'panel.noRepoErr.no-gh': '未找到 gh，请先安装 GitHub CLI',
+          'panel.noRepoErr.not-logged-in': '未登录 GitHub，请先执行 gh auth login',
+          'panel.noRepoErr.already-exists': '同名仓库已存在，去 GitHub 查看',
+          'panel.noRepoErr.network': '网络异常，请重试',
+          'panel.noRepoErr.permission': '权限不足，请检查登录账号',
+          'panel.noRepoErr.unknown': '创建失败，请查看错误详情',
+          'panel.noRepoErr.git-commit-failed': 'Git 提交失败',
+          'panel.noRepoReset': '重置忽略',
+          'panel.noRepoCreateSuccess': '已创建 {repo}',
           'map.newSessionTitle': '在新会话打开（推进该 map）',
           'progress.todo': '未动工', 'progress.doing': '进行中 {n}%', 'progress.confirm': '95% · 待确认', 'progress.accept': '100% · 待验收', 'progress.done': '完成',
           'err.hostUnavailable': 'host.call 不可用（Host 半未加载）',
@@ -748,6 +788,30 @@ window.__ModuleLoader__.load({
           'panel.repoTitle': 'Current repo — open on GitHub',
           'panel.noRepo': 'No repo',
           'panel.noRepoTitle': 'Current workspace is not a Git repo — run git init or open a repo directory',
+          'panel.noRepoCardTitle': 'Current workspace is not a Git repo — click to init and publish',
+          'panel.noRepoCardDesc': 'Turn this workspace into a GitHub repo and publish it',
+          'panel.noRepoCardAction': 'Create and publish',
+          'panel.noRepoCardDismiss': 'Ignore',
+          'panel.noRepoCardDone': 'Already guided on first screen · switch to ListTab',
+          'panel.noRepoFormName': 'Repository name',
+          'panel.noRepoFormNameHint': 'Letters, digits, ._- only · ≤100',
+          'panel.noRepoFormVisibility': 'Visibility',
+          'panel.noRepoFormPublic': 'Public',
+          'panel.noRepoFormPrivate': 'Private',
+          'panel.noRepoFormSubmit': 'Create and publish',
+          'panel.noRepoFormCancel': 'Cancel',
+          'panel.noRepoFormSubmitting': 'Creating…',
+          'panel.noRepoErr.bad-name': 'Name supports only letters/digits/._- ≤100',
+          'panel.noRepoErr.no-git': 'git not found — please install Git',
+          'panel.noRepoErr.no-gh': 'gh not found — please install GitHub CLI',
+          'panel.noRepoErr.not-logged-in': 'Not logged into GitHub — run gh auth login',
+          'panel.noRepoErr.already-exists': 'Repository already exists — view on GitHub',
+          'panel.noRepoErr.network': 'Network error — please retry',
+          'panel.noRepoErr.permission': 'Permission denied — check login account',
+          'panel.noRepoErr.unknown': 'Creation failed — see error details',
+          'panel.noRepoErr.git-commit-failed': 'Git commit failed',
+          'panel.noRepoReset': 'Reset ignore',
+          'panel.noRepoCreateSuccess': 'Created {repo}',
           'map.newSessionTitle': 'Open in a new session (advance this map)',
           'progress.todo': 'Not started', 'progress.doing': 'In progress {n}%', 'progress.confirm': '95% · confirming', 'progress.accept': '100% · acceptance', 'progress.done': 'Done',
           'err.hostUnavailable': 'host.call unavailable (host half not loaded)',
@@ -1143,6 +1207,20 @@ window.__ModuleLoader__.load({
         return {}
       })()
       const saveLabelClicks = function () { try { localStorage.setItem(LABEL_CLICKS_KEY, JSON.stringify(labelClicks)) } catch (e) {} }
+      // T2 #35 · 无仓库红卡状态机（按 cwd 维度持久化 dismiss；表单态 expanded/name/visibility/loading/error）
+      const NOREPO_DISMISS_PREFIX = 'dsws:noRepoDismiss:'
+      const cwdHash = function (s) { let h = 0; const t = String(s || ''); for (let i = 0; i < t.length; i++) h = ((h << 5) - h + t.charCodeAt(i)) | 0; return String(h >>> 0) }
+      const noRepoDismissKey = function (cwd) { return NOREPO_DISMISS_PREFIX + cwdHash(cwd || '') }
+      const isNoRepoDismissed = function (cwd) { try { return localStorage.getItem(noRepoDismissKey(cwd)) === '1' } catch (e) { return false } }
+      const setNoRepoDismissed = function (cwd, v) { try { if (v) localStorage.setItem(noRepoDismissKey(cwd), '1'); else localStorage.removeItem(noRepoDismissKey(cwd)) } catch (e) {} }
+      const cwdBasename = function (cwd) { if (!cwd) return 'repo'; const parts = String(cwd).split(/[\\/]/); for (let i = parts.length - 1; i >= 0; i--) if (parts[i]) return parts[i]; return 'repo' }
+      const isNoRepoNameValid = function (name) { return typeof name === 'string' && name.length >= 1 && name.length <= 100 && /^[A-Za-z0-9._-]+$/.test(name) }
+      const ensureNoRepoCard = function (st) {
+        if (!st.noRepoCard) st.noRepoCard = { expanded: false, name: '', visibility: 'private', loading: false, error: '', errorKind: '', errorRepoUrl: '' }
+        if (!st.noRepoCard.visibility) st.noRepoCard.visibility = 'private'
+        if (st.noRepoCard.errorRepoUrl === undefined) st.noRepoCard.errorRepoUrl = ''
+        return st.noRepoCard
+      }
       const makeStore = () => ({
         open: false, tab: 'list', activeMap: null,
         notice: null, injector: null, tick: 0,
@@ -1155,7 +1233,8 @@ window.__ModuleLoader__.load({
         stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
         checks: null, checksUpdatedAt: '', checksMode: 'loading', checksError: null, checking: false,
         snapMode: 'loading', snapError: null, snapLoading: false,
-        skillsOpen: false, skillHover: null, skillTip: null, handoffReady: false, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
+        refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, skillsOpen: false, skillHover: null, skillTip: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
+        noRepoCard: { expanded: false, name: '', visibility: 'private', loading: false, error: '', errorKind: '', errorRepoUrl: '' },
       })
       const shared = makeStore()
       const stores = {}
@@ -2811,6 +2890,102 @@ window.__ModuleLoader__.load({
         document.addEventListener('scroll', onScroll, true)
         pop._close = close
       }
+      // ============ T2 #35 · NoRepo 红卡 + 表单（ListTab 首屏最优先 · 触发= checkRepo:bad && !dismissed）============
+      const NoRepoCard = function (props) {
+        const st = props.st
+        const card = ensureNoRepoCard(st)
+        const cs = activeChecks(st)
+        const checkRepo = cs.find(function (c) { return c.id === 1 })
+        const repoBad = !!(checkRepo && checkRepo.level === 'bad')
+        const dismissed = isNoRepoDismissed(st.cwd)
+        const show = repoBad && !dismissed
+        if (!show) return null
+        const isValid = isNoRepoNameValid(card.name)
+        const doDismiss = function () { setNoRepoDismissed(st.cwd, true); card.expanded = false; emit(st) }
+        const doExpand = function () { if (!card.name) card.name = cwdBasename(st.cwd); card.expanded = true; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st) }
+        const doCollapse = function () { card.expanded = false; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st) }
+        const doSubmit = function () {
+          if (!isNoRepoNameValid(card.name)) { card.errorKind = 'bad-name'; card.error = tr('panel.noRepoErr.bad-name'); card.errorRepoUrl = ''; emit(st); return }
+          card.loading = true; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st)
+          rpcCall('initPublish', { cwd: st.cwd, name: card.name, visibility: card.visibility }).then(function (res) {
+            card.loading = false
+            if (res && res.ok) {
+              const repoStr2 = res.repo && res.repo.owner ? res.repo.owner + '/' + res.repo.name : (res.repo && res.repo.name ? res.repo.name : card.name)
+              flash(st, tr('panel.noRepoCreateSuccess', { repo: repoStr2 }), 'ok')
+              card.expanded = false; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st)
+              rpcCall('refresh', st.cwd ? { cwd: st.cwd } : {}).then(function(snap){ if(snap && snap.ok){ st.snapshot=snap; st.snapMode='real'; emit(st)} }).catch(function(){})
+              rpcCall('status', Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, { force: true, lang: (typeof promptLang==='function'?promptLang():'zh') })).then(function(r){ if(r && r.checks){ st.checks=r.checks; st.checksMode='real'; emit(st)} }).catch(function(){})
+            } else {
+              const kind = (res && res.errorKind) || 'unknown'
+              const raw = (res && res.error) || ''
+              card.errorKind = kind
+              card.errorRepoUrl = (res && res.repoUrl) || ''
+              const key = 'panel.noRepoErr.' + kind
+              const mapped = tr(key)
+              const base = (mapped !== key) ? mapped : (raw ? String(raw).slice(0, 160) : tr('panel.noRepoErr.unknown'))
+              card.error = base + (raw && base !== String(raw).slice(0, 160) && mapped !== raw ? ' · ' + String(raw).slice(0, 120) : '')
+              emit(st)
+            }
+          }).catch(function (e) {
+            card.loading = false; card.errorKind = 'unknown'; card.error = String((e && e.message) || e).slice(0, 200); card.errorRepoUrl = ''; emit(st)
+          })
+        }
+        return h('div', { className: 'dsws-no-repo-card' }, [
+          h('div', { className: 'head' }, [
+            Ic({ n: 'alert', size: 13, color: '#f87171' }),
+            h('div', { style: { flex: 1, minWidth: 0 } }, [
+              h('div', { className: 'ttl' }, tr('panel.noRepoCardTitle')),
+              h('div', { className: 'desc' }, tr('panel.noRepoCardDesc')),
+            ]),
+            h('button', { className: 'dsws-btn ghost', title: tr('panel.noRepoCardDismiss'), onClick: function (e) { e.stopPropagation(); doDismiss() }, style: { padding: '2px 6px', flex: 'none' } }, Ic({ n: 'x', size: 12 })),
+          ]),
+          h('div', { className: 'acts' }, !card.expanded ? [
+            h('button', { className: 'dsws-btn primary', onClick: doExpand, style: { background: '#f87171', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, tr('panel.noRepoCardAction')),
+            h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); doDismiss() }, style: { fontSize: 11, padding: '3px 10px' } }, tr('panel.noRepoCardDismiss')),
+          ] : null),
+          card.expanded ? h('div', { className: 'dsws-no-repo-form' }, [
+            h('div', { className: 'row' }, [
+              h('label', null, tr('panel.noRepoFormName')),
+              h('input', { type: 'text', value: card.name, placeholder: cwdBasename(st.cwd), onChange: function (e) { card.name = e.target.value; if (card.errorKind === 'bad-name') { card.error = ''; card.errorKind = '' } emit(st) } }),
+            ]),
+            h('div', { className: 'hint', style: (!isValid && card.name) ? { color: '#f87171' } : null }, tr('panel.noRepoFormNameHint')),
+            h('div', { className: 'row' }, [
+              h('label', null, tr('panel.noRepoFormVisibility')),
+              h('label', { className: 'radio', style: { display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' } }, [
+                h('input', { type: 'radio', name: 'noRepoVis-' + (st.cwd || 'x'), checked: card.visibility === 'private', onChange: function () { card.visibility = 'private'; emit(st) } }),
+                h('span', null, tr('panel.noRepoFormPrivate')),
+              ]),
+              h('label', { className: 'radio', style: { display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', marginLeft: 12 } }, [
+                h('input', { type: 'radio', name: 'noRepoVis-' + (st.cwd || 'x'), checked: card.visibility === 'public', onChange: function () { card.visibility = 'public'; emit(st) } }),
+                h('span', null, tr('panel.noRepoFormPublic')),
+              ]),
+            ]),
+            card.error ? (function () {
+              const kind = card.errorKind || 'unknown'
+              const isWarn = kind === 'no-git' || kind === 'no-gh' || kind === 'not-logged-in' || kind === 'network'
+              const bg = isWarn ? 'rgba(245,158,11,.12)' : 'rgba(248,113,113,.12)'
+              const bd = isWarn ? 'rgba(245,158,11,.45)' : 'rgba(248,113,113,.45)'
+              const col = isWarn ? '#fbbf24' : '#f87171'
+              return h('div', { className: 'err', style: { background: bg, border: '1px solid ' + bd, color: col, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' } }, [
+                Ic({ n: 'alert', size: 11, color: col }),
+                h('span', { style: { marginLeft: 4, flex: '1 1 auto' } }, card.error),
+                kind === 'no-git' ? h('a', { href: 'https://git-scm.com/', target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '下载') : null,
+                kind === 'no-gh' ? h('a', { href: 'https://cli.github.com/', target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '下载') : null,
+                kind === 'not-logged-in' ? h('a', { href: 'https://cli.github.com/manual/gh_auth_login', target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去登录') : null,
+                kind === 'already-exists' ? h('a', { href: card.errorRepoUrl || ('https://github.com/search?q=' + encodeURIComponent(card.name)), target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去查看') : null,
+                kind === 'network' ? h('button', { onClick: doSubmit, disabled: card.loading, style: { marginLeft: 8, background: 'transparent', color: col, border: '1px solid ' + col, borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, '重试') : null,
+              ])
+            })() : null,
+            h('div', { className: 'row', style: { marginTop: 8 } }, [
+              h('button', { className: 'dsws-btn primary', disabled: card.loading || !isValid, onClick: doSubmit, style: { opacity: (!isValid || card.loading) ? 0.6 : 1, background: '#f87171', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+                card.loading ? h('span', { className: 'dsws-spinner', style: { width: 12, height: 12, borderWidth: 2, display: 'inline-block', verticalAlign: '-2px' } }) : null,
+                h('span', null, card.loading ? tr('panel.noRepoFormSubmitting') : tr('panel.noRepoFormSubmit')),
+              ]),
+              h('button', { className: 'dsws-btn', onClick: doCollapse, disabled: card.loading, style: { marginLeft: 6, fontSize: 11, padding: '4px 10px' } }, tr('panel.noRepoFormCancel')),
+            ]),
+          ]) : null,
+        ])
+      }
       const ListTab = ({ st, narrow }) => {
         // v1.3.3 UI：每次渲染后执行贪心折叠（含窗口/列宽变化后的重渲染）
         // v1.5 T10 提速：按内容指纹跳过 —— 仅快照内容/tab/过滤变化才重排（refreshing 态等无关渲染不触发布局测量）
@@ -3034,6 +3209,8 @@ window.__ModuleLoader__.load({
             }),
             h('span', { key: 'f-label-clear', className: 'dsws-chip', onClick: function (e) { e.stopPropagation(); st.lblFilters = []; emit(st) }, style: { fontSize: 10, cursor: 'pointer', background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid rgba(255,255,255,.15)' } }, tr('list.filterClear')),
           ]) : null,
+          // T2 #35 · 首屏最优先红卡（ListTab 顶部 · KPI 之上 · 唯一闸门 checkRepo:bad && !dismissed）
+          h(NoRepoCard, { st: st }),
           // KPI 行 + 环境提示（v18-30：可接/占用 = 列表 open issue 口径）
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
             kpi(frontierCount(st), tr('list.kpi.takeable'), 'target', '#4ade80'),
@@ -3042,10 +3219,7 @@ window.__ModuleLoader__.load({
             h('span', { style: { flex: 1 } }),
             // T2 #2：刷新按钮已上移至 OverlayPanel tabs 行
           ]),
-          nBad > 0 ? h('div', { className: 'dsws-banner bad', onClick: function () { st.tab = 'checks'; emit(st) } }, [
-            Ic({ n: 'alert', size: 13 }),
-            h('span', null, tr('list.envWarn', { n: nBad })),
-          ]) : null,
+          (function () { const cr = cs.find(function (c) { return c.id === 1 }); if (cr && cr.level === 'bad' && !isNoRepoDismissed(st.cwd)) return null; return nBad > 0 ? h('div', { className: 'dsws-banner bad', onClick: function () { st.tab = 'checks'; emit(st) } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('list.envWarn', { n: nBad }))]) : null })(),
           // #374/#375：状态过滤 + 排序 + label 过滤 chips（全部小号紧凑同排，窄屏换行不增高；展开态点选 label 不收起）
           h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0, marginBottom: 6 } }, [
             ['all', 'open', 'closed', 'blocked', 'frontier'].map(function (k) {
@@ -3269,10 +3443,13 @@ window.__ModuleLoader__.load({
               h('span', null, tr('env.recheck')),
             ]),
           ]),
-          st.checksMode === 'err' ? h('div', { className: 'dsws-banner bad', style: { cursor: 'default' } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('env.failFull', { err: st.checksError }))]) : null,
+          // T2 #35 · ChecksTab 弱化：红卡显示时 checkRepo:bad 行弱化为“已在首屏引导 · 切换到 ListTab 完成”；dismiss 后提供“重置忽略”入口
+        (function () { const cr = cs.find(function (c) { return c.id === 1 }); const dismissed = isNoRepoDismissed(st.cwd); const showRed = !!(cr && cr.level === 'bad' && !dismissed); if (!showRed) return null; return h('div', { className: 'dsws-ccard', style: { opacity: 0.85, borderColor: 'rgba(139,139,149,.35)', background: 'rgba(139,139,149,.08)', marginBottom: 6 } }, [h('div', { className: 'nm', style: { color: '#8b8b95' } }, cr.name), h('div', { className: 'dt', style: { color: '#8b8b95' } }, tr('panel.noRepoCardDone')), h('div', { className: 'act' }, [h('button', { className: 'dsws-btn', onClick: function () { st.tab = 'list'; emit(st) }, style: { fontSize: 11, padding: '2px 8px' } }, tr('panel.tabList'))])]) })(),
+        (function () { const dismissed = isNoRepoDismissed(st.cwd); if (!dismissed) return null; const cr = cs.find(function (c) { return c.id === 1 }); if (!cr || cr.level !== 'bad') return null; return h('div', { className: 'dsws-ccard', style: { borderColor: 'rgba(248,113,113,.35)', background: 'rgba(248,113,113,.06)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 } }, [h('span', { style: { fontSize: 11, color: '#f87171', flex: 1 } }, tr('panel.noRepoCardDismiss') + ' · ' + (cr.detail || '')), h('button', { className: 'dsws-btn', onClick: function () { setNoRepoDismissed(st.cwd, false); emit(st) }, style: { fontSize: 11, padding: '2px 8px', flex: 'none' } }, tr('panel.noRepoReset'))]) })(),
+                st.checksMode === 'err' ? h('div', { className: 'dsws-banner bad', style: { cursor: 'default' } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('env.failFull', { err: st.checksError }))]) : null,
           st.checksMode === 'loading' ? h('div', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 12, marginBottom: 6 } }, tr('env.detecting')) : null,
-          bad.length ? h('div', { className: 'dsws-banner bad', style: { cursor: 'default' } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('env.missingBanner', { n: bad.length }))]) : null,
-          grp(tr('env.missing'), '#f87171', bad),
+          (function () { const cr = cs.find(function (c) { return c.id === 1 }); const dismissed = isNoRepoDismissed(st.cwd); const showRed = !!(cr && cr.level === 'bad' && !dismissed); const displayBad = showRed ? bad.filter(function (c) { return c.id !== 1 }) : bad; const cnt = bad.length; return cnt ? h('div', { className: 'dsws-banner bad', style: { cursor: 'default' } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('env.missingBanner', { n: cnt }))]) : null })(),
+          (function () { const cr = cs.find(function (c) { return c.id === 1 }); const dismissed = isNoRepoDismissed(st.cwd); const showRed = !!(cr && cr.level === 'bad' && !dismissed); const displayBad = showRed ? bad.filter(function (c) { return c.id !== 1 }) : bad; return grp(tr('env.missing'), '#f87171', displayBad) })(),
           grp(tr('env.partial'), '#f59e0b', warn),
           grp(tr('env.ready'), '#4ade80', ok),
         ])

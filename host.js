@@ -997,9 +997,9 @@ return {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const name = args && args.name ? String(args.name).trim() : ''
       const visibility = (args && args.visibility) === 'public' ? 'public' : 'private'
-      if (!name) return { ok: false, errorKind: 'permission', error: '仓库名为空' }
+      if (!name) return { ok: false, errorKind: 'bad-name', error: '仓库名为空' }
       if (!/^[A-Za-z0-9._-]+$/.test(name) || name.length > 100) {
-        return { ok: false, errorKind: 'permission', error: '仓库名仅支持字母/数字/._- 且 ≤100：' + name }
+        return { ok: false, errorKind: 'bad-name', error: '仓库名仅支持字母/数字/._- 且 ≤100：' + name }
       }
       const visFlag = visibility === 'public' ? '--public' : '--private'
       // 前置探测：git / gh / auth（失败快返，避免已改动工作区）

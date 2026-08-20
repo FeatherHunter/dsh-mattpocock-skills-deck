@@ -203,11 +203,11 @@ async function main() {
       return true
     })(), '')
   }
-  console.log('--- 场景 I: 非法 name → permission ---')
+  console.log('--- 场景 I: 非法 name → bad-name ---')
   {
     const h = loadPlugin({ subprocess: makeMockSubprocess({}), timer, fs: fsSvc, skills: makeSkills() })
     const r = await h['wf.initPublish']({ cwd: workDir, name: 'bad name!', visibility: 'private' })
-    expect('非法 name → permission', r && !r.ok && r.errorKind === 'permission', JSON.stringify(r))
+    expect('非法 name → bad-name', r && !r.ok && r.errorKind === 'bad-name', JSON.stringify(r))
   }
   console.log('--- 场景 J: remote origin 已存在分支 ---')
   {
