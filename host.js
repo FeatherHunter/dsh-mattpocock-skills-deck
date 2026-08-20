@@ -533,7 +533,7 @@ return {
       const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){' + sel + '}}'
       let last = null
       for (let attempt = 0; attempt < 2; attempt++) {
-        const r = await runGh(['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name])
+        const r = await runGh(['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name], cwd)
         if (!r.ok) {
           last = r
           // v1.5 B5：GraphQL 配额耗尽（RATE_LIMIT）→ 自动降级 REST 通道（不重试 2 次白烧，直接降级）
