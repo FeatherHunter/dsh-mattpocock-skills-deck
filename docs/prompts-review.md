@@ -1,7 +1,7 @@
-# DSH-Waystation · Prompt 审阅清单（v1.5 · 方案A 注册表）
+# DSH-Waystation · Prompt 审阅清单（v1.6 · 方案A 注册表 · #63 v4 新增 newBugWayfinder）
 
-> PROMPTS 注册表（client.js §prompts · 20 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
-> 校验：`node tests/verify-prompts.js`（占位符契约 + 双源键一致 + T13 阶段闸门契约：stageGate 条目 / 版本号 bump / 诊断·修复·执行与 map 推进接线）。
+> PROMPTS 注册表（client.js §prompts · 21 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
+> 校验：`node tests/verify-prompts.js`（占位符契约 + 双源键一致 + T13 阶段闸门契约）+ `node tests/verify-bug-entry.js`（v4 #63：实际→期望括号单行 + locale 切换）。
 
 ## guide · v1
 
@@ -149,7 +149,7 @@ Maintain map records (wayfinder rules):
 
 ---
 
-## bodyFormat · v1
+## bodyFormat · v2
 
 - 用途：正文格式契约（T16 · 统一追加于 map/ticket 写正文的动作）
 - 占位符：无
@@ -160,7 +160,7 @@ Maintain map records (wayfinder rules):
 2. 禁止字面 \
  转义（不要把换行写成 \
  两个字符）、禁止正文以 BOM（\\ufeff）开头；
-3. 写回 issue 正文用 gh issue edit --body-file <文件>（文件内为真实换行），不要用 JSON 转义字符串拼进命令。</pre>
+3. 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装。</pre>
 
 - EN：
 
@@ -168,7 +168,7 @@ Maintain map records (wayfinder rules):
 1. Use real newlines: each `## section` on its own line, blank line between paragraphs;
 2. No literal \
  escapes (do not write newlines as the two characters backslash-n), no BOM (\\ufeff) at the start;
-3. Write issue bodies with gh issue edit --body-file <file> (real newlines in the file), never a JSON-escaped string inline in a command.</pre>
+3. Write issue bodies via file-based input (real newlines in the file), never inline JSON-escaped strings.</pre>
 
 ---
 
@@ -440,7 +440,7 @@ Bootstrap this repo (the skill suite is already installed — no need to clone o
 
 ---
 
-## newWayfinder · v5
+## newWayfinder · v7
 
 - 用途：「+ 新建需求」按钮
 - 占位符：{repo}
@@ -448,13 +448,12 @@ Bootstrap this repo (the skill suite is already installed — no need to clone o
 
 <pre>/wayfinder
 请帮我处理一个需求（严格遵循 wayfinder 技能规则）。
-仓库：{repo}
-需求描述：
+仓库（已自动填入当前工作区）：{repo}
 
 收到需求后按以下流程：
 1. 先澄清：对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认；
-2. 判断分类（需求 / map 维度）——先查仓库已有 wayfinder:map 和 issue，确认是否做过：
-   - 新增：全新需求，之前没做过 → 按建图规划契约新建 map（Destination + Notes + 规划表 + 票）；
+2. 判断分类（按需求粒度 / 建图粒度）——先查仓库已有 wayfinder:map 和 issue，确认是否做过：
+   - 新增：全新需求，之前没做过 → 按建图规划契约新建 map（Destination + Notes + plan + tickets；tickets 须以 sub-issue 关联到 map，blocking 用 Blocked by: #<n> 行表示）；
    - 复用：这个需求之前已做过（已有 map / issue）→ 打开复用它，不重复建；
    - 直接实现：需求很小 → 建一个 issue 直接实现，不建大 map；
 3. 执行后按进度契约更新。</pre>
@@ -463,16 +462,38 @@ Bootstrap this repo (the skill suite is already installed — no need to clone o
 
 <pre>/wayfinder
 Please handle a requirement (strictly follow the wayfinder skill rules).
-Repo: {repo}
-Requirement: 
+Repo (auto-filled from current workspace): {repo}
 
 After receiving the requirement, follow this flow:
 1. Clarify first: if you hold assumptions about the goal / scope / preferences, settle them with the grilling skill, never assume;
-2. Decide the case (at the requirement / map level) — first check existing wayfinder:map and issues in the repo to confirm whether it has been done:
-   - Add: a brand-new requirement never done before → build a new map per the planning contract (Destination + Notes + plan + tickets);
+2. Decide the case (by requirement / map granularity) — first check existing wayfinder:map and issues in the repo to confirm whether it has been done:
+   - Add: a brand-new requirement never done before → build a new map per the planning contract (Destination + Notes + plan + tickets; wire tickets as sub-issues of the map, blocking as `Blocked by: #<n>`);
    - Reuse: this requirement has been done before (existing map / issue) → open and reuse it, do not build a new one;
    - Directly implement: the requirement is small → create a single issue and implement it directly, no big map;
 3. Update per the progress contract after execution.</pre>
+
+---
+
+## newBugWayfinder · v4 — #63 grilling 定版（去内部规则+实际→期望+括号单行）
+
+- 用途：「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行）
+- 占位符：{repo}
+- ZH：
+
+<pre>/wayfinder
+请帮我新增一个 BUG 单（按 wayfinder 技能规则处理）。
+仓库：{repo}</pre>
+
+- EN：
+
+<pre>/wayfinder
+Please help me file a new BUG ticket (follow the wayfinder skill rules).
+Repo: {repo}</pre>
+
+- 追加字段（NEW_BUG_FIELDS_BODY · 跟随 promptLang，一次只出一种）：
+  - ZH：`实际（看到什么；可含影响范围）：\n期望（应发生什么 / 预期结果）：\n复现步骤（[前置 / 场景] + 编号步骤）：\n环境信息（OS + 浏览器 + 插件版本）：`
+  - EN：`Actual (what happened; may include impact):\nExpected (what should happen / expected result):\nReproduction ([Preamble / Scenario] + numbered steps):\nEnvironment (OS + browser + plugin version):`
+  - 拼接：`promptText('newBugWayfinder') + BODY_FORMAT + (en?EN:ZH)`，字段在末尾，顺序实际→期望
 
 ---
 
@@ -524,4 +545,4 @@ After receiving the requirement, follow this flow:
 
 ---
 
-> 共 20 条 · 键：guide / mapExecute / complete / fixate / progress / bodyFormat / grill / newMap / tpl.diagnose / tpl.fix / tpl.discuss / tpl.execute / tpl.handoff1 / tpl.handoff2 / handoffRead / setup / setupRun / newWayfinder / mapHead / stageGate
+> 共 21 条 · 键：guide / mapExecute / complete / fixate / progress / bodyFormat / grill / newMap / tpl.diagnose / tpl.fix / tpl.discuss / tpl.execute / tpl.handoff1 / tpl.handoff2 / handoffRead / setup / setupRun / newWayfinder / newBugWayfinder / mapHead / stageGate
