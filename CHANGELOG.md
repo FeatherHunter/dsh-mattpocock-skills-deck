@@ -1,5 +1,11 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-20 · 双源漏同步回归修复 — Fork 归属发版包未带 --repo（#37 回归 #78 · v1.6.16）
+
+- **回归**：fork 工作区（`D:\dsh-plugin\dsh-im` `origin=FeatherHunter/dsh-im + upstream=xmanrui/dsh-im`）右侧面板仍显上游 `xmanrui/dsh-im` Issue（17/16/15）而非 Fork 自身（11/10/9），用户报“老 BUG 又复现”。根因非后续改回，是 **双源手写镜像漏同步**：`host.js` 已在 `b0e8368`（`getRepoKey` 三级降级）+ `a1341ab`（`fetchMaps/fetchIssues` 显式 `--repo` #44）完整修复，`package/lib/index.js` 发版包仅同步了 `getRepoKey`，`fetchMaps/fetchIssues` 仍为无参旧版，导致 DSH 实际加载的 `profile/lib/index.js` 仍走 `gh` 的 `upstream` 优先。
+- **修复**：`package/lib/index.js` 补齐 `fetchMaps`/`fetchIssues` 的 `#44 T2-fix`（`await getRepoKey(cwd)` + `args.push('--repo', repo.owner+'/'+repo.name)`），与 `host.js` 完全对齐；`DSW_VERSION v1.6.15 → v1.6.16`、`package.json 1.6.15 → 1.6.16` 双源同步；`profiles/web` 已本地覆盖。
+- **验证**：`verify-t1-getrepokey 11/11` + `verify-status 23/23` + `verify-b5-quota 54/54` + `verify-probe-since 34/34` 全绿；`git diff host ↔ package` 对 `getRepoKey`/`fetchMaps`/`fetchIssues` 已一致；`profile/lib/index.js` 复核 `#44` 两处命中。
+
 ## 2026-08-20 · 工作区隔离与首屏体验加固（#45/#58/#43/#41/#35/#34 · v1.6.15）
 
 - **工作区隔离（#45）**：面板 probe 快照按 cwd 隔离，防止跨工作区污染；DetailsDock 切换绘画等工作区时跟随当前会话 cwd，并自愈残留污染（`repro-detailsdock-painting-switch.js`/`verify-panel-workspace-isolation.js`）。

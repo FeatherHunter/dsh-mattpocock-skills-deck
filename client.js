@@ -67,7 +67,7 @@ return {
     const PortalOverlay = function (props, children) {
       return portalTop(h('div', props || {}, children))
     }
-    const DSW_VERSION = 'v1.6.15'
+    const DSW_VERSION = 'v1.6.16'
 
     // ============================================================
     // 0. 样式

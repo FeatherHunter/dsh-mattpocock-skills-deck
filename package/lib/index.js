@@ -376,9 +376,12 @@ export function apply(ctx) {
     }
   }
 
-  // fetchMaps 透传 cwd（修复切 StudyNotes 会话仍显示 SKILLS 旧数据）
   async function fetchMaps(cwd) {
-    const r = await runGh(['issue', 'list', '--state', 'open', '--label', 'wayfinder:map', '--json', 'number,title,body,labels,assignees,state,updatedAt'], cwd)
+    // #44 T2-fix（map#37）：显式 --repo 绕过 gh 在 Fork 上的多远程推断（upstream 优先）
+    const repo = await getRepoKey(cwd)
+    const argsMap = ['issue', 'list', '--state', 'open', '--label', 'wayfinder:map', '--json', 'number,title,body,labels,assignees,state,updatedAt']
+    if (repo) argsMap.push('--repo', repo.owner + '/' + repo.name)
+    const r = await runGh(argsMap, cwd)
     if (!r.ok) return { ok: false, error: r }
     try { return { ok: true, maps: JSON.parse(r.text) } } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
   }
@@ -388,7 +391,11 @@ export function apply(ctx) {
   // assignees 带出（状态栏「占用」按列表 issue 口径：已认领 + 被阻塞）
   async function fetchIssues(cwd) {
     // #374/#375：--limit 500 覆盖仓库全量（2026-08-14 实测 349 issue），并带出 createdAt（排序维度）
-    const r = await runGh(['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,title,labels,state,assignees,updatedAt,createdAt'], cwd)
+    // #44 T2-fix（map#37）：显式 --repo 绕过 gh 多远程推断，同 fetchMaps
+    const repo2 = await getRepoKey(cwd)
+    const argsAll = ['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,title,labels,state,assignees,updatedAt,createdAt']
+    if (repo2) argsAll.push('--repo', repo2.owner + '/' + repo2.name)
+    const r = await runGh(argsAll, cwd)
     if (!r.ok) return { ok: false, error: r }
     try {
       const all = JSON.parse(r.text)
@@ -914,9 +921,13 @@ export function apply(ctx) {
         if (sessions === undefined || typeof sessions.get !== 'function') return { ok: false, error: 'sessions 服务不可用' }
         try {
           const s = sessions.get(sid)
+          const header = s && (s.header || s.meta)
+          const cwd = header && (header.cwd || header.path || header.worktree || header.projectDir || header.directory)
+          if (typeof cwd === 'string' && cwd) return { ok: true, cwd: cwd }
           const meta = s && s.meta
           const cwd2 = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory)
           if (typeof cwd2 === 'string' && cwd2) return { ok: true, cwd: cwd2 }
+          if (s && typeof s.cwd === 'string' && s.cwd) return { ok: true, cwd: s.cwd }
           return { ok: false, error: '会话无 cwd 信息' }
         } catch (e) {
           return { ok: false, error: String((e && e.message) || e) }
