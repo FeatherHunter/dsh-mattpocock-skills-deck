@@ -346,7 +346,7 @@ window.__ModuleLoader__.load({
       const PortalOverlay = function (props, children) {
         return portalTop(h('div', props || {}, children))
       }
-      const DSW_VERSION = 'v1.6.14'
+      const DSW_VERSION = 'v1.6.15'
 
       // 样式注入（静态插件没有 styles.insert builtin，手动 <style> + ctx.effect 清理）
       const styleEl = document.createElement('style')

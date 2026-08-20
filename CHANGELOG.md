@@ -1,5 +1,16 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-20 · 工作区隔离与首屏体验加固（#45/#58/#43/#41/#35/#34 · v1.6.15）
+
+- **工作区隔离（#45）**：面板 probe 快照按 cwd 隔离，防止跨工作区污染；DetailsDock 切换绘画等工作区时跟随当前会话 cwd，并自愈残留污染（`repro-detailsdock-painting-switch.js`/`verify-panel-workspace-isolation.js`）。
+- **首屏无闪烁（#58）**：cache-first 面板（per-cwd 内存表 + empty cwd 同步），消除 loading 闪烁；ChecksTab banner 计数改用 displayBad。
+- **数据链路修复（#43）**：`fetchMapsDetail` GraphQL 透传 cwd（host.js:502）。
+- **仓库身份（#41）**：`getRepoKey` 显式解析 origin，多远程下命中 Fork 自身，避免误判。
+- **发布链路（T1 #34）**：Host 新增 `wf.initPublish`（`git init + gh repo create --push`），配套 18/18 全分支 mock 验证（`verify-t1-initpublish.js`）与 `verify-t1-getrepokey.js` 216 行。
+- **首屏红卡（T2 #35）**：Client 首屏错误分级与重试 + 双源镜像对齐，新增 `verify-no-repo-redcard.js` 真机验证；DSH GUI 真机验证脚本（workspace 切换 + capsule 点击 + DOM 断言，`verify-t2-repokey-ui.js` 268 行）。
+- **文档**：补 `minimumReleaseAge` 与完全重启 DSH 说明（中英同步）。
+- **验证**：新增 6 个验证脚本 + 双源镜像一致性，75+ 断言全绿。
+
 ## 2026-08-19 · 状态栏 BUG / 技能浮层脱离裁剪（#22 · v1.6.14）
 
 - **根因**：状态栏正常分支的 layout wrapper 需要 `overflow:hidden` 保护窄态胶囊横向溢出；BUG「新增」菜单与技能列表却仍是该 wrapper 的 `position:absolute; bottom:100%` 后代，因此同时被裁掉绘制和鼠标命中。
