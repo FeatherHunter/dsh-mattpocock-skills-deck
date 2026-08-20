@@ -1021,7 +1021,7 @@ window.__ModuleLoader__.load({
         "complete": { version: 3, placeholders: ['n', 'closed', 'total'], use: 'map 完成态 · 完成确认（收尾 close / 列遗漏）', zh: '## 完成确认 · MAP #{n}\n\n当前地图显示 100% 完成：{closed}/{total} 个 issue 已关闭，但 map 本身仍 open。\n\n请按以下流程处理：\n\n1. 检查完成状态是否真实：{closed}/{total} 已 CLOSED —— 但 map 本身仍 OPEN。请检查：\n   - 子票是否真的解决了原 Destination？\n   - 是否还有 Not yet specified 中未毕业的事项？\n   - 实际已完成却漏标 CLOSED 的 issue（漏关/误开）—— 逐个核对 ticket 的完成状态与关闭状态是否一致；\n   - 是否有 issue 属于该 map 但未建立 sub-issue 关系；\n2. 确认后处理：\n   - 确实全部完成 → 调用 close + 在 Decisions so far 追加总结（每个 closed ticket 一行 gist）；\n   - 发现遗漏 → 列出未完成项，先解决再重新判断；\n   - 不确定 → 询问用户「该地图的全部工作是否已完成，需要做收尾吗？」不要擅自 close；\n3. 最终目标：要么 close map + 写 Decisions so far 总结，要么明确指出未完成项。\n\n从第一性原理出发完成任务，并对抗式审查。\n收尾规则：已实施完成、测试绿、仅差用户确认的票 —— 已确认则 close，未确认则标注「进度 100% · 待验收」，不得显示为未动工。\n维护地图记录（wayfinder 规则）：\n- 关闭一张票时，在所属 map 的 Decisions so far 追加一行 gist（票名 + 链接 + 一句话结论）；\n- 检查 map 的 Not yet specified：可明确的事项毕业为新票（create-then-wire），并从迷雾节清除；\n- 越出目的地范围的票 → 移入 Out of scope（写明原因），不留在 frontier。', en: '## Completion check · MAP #{n}\n\nThe map shows 100% complete: {closed}/{total} issues closed, but the map itself is still open.\n\nHandle it as follows:\n\n1. Verify the completion is real: {closed}/{total} are CLOSED — but the map is still OPEN. Check:\n   - Did the sub-issues really resolve the original Destination?\n   - Are there ungraduated items left in Not yet specified?\n   - Any issue actually completed but missing CLOSED (missed/erroneous) — verify each ticket completion vs close state;\n   - Any issue belonging to this map without a sub-issue relationship;\n2. Then act:\n   - All truly done → close the map + append a summary to Decisions so far (one-line gist per closed ticket);\n   - Gaps found → list the unfinished items, resolve them first, then re-judge;\n   - Unsure → ask the user \\"Has all the work on this map been completed? Should we wrap up?\\" — do not close on your own;\n3. Goal: either close the map + write the Decisions-so-far summary, or clearly list the unfinished items.\n\nApproach tasks from first principles, and review adversarially.\nMaintain map records (wayfinder rules):\n- When closing a ticket, append a one-line gist to its map Decisions so far (ticket name + link + one-line conclusion);\n- Check the map Not yet specified: graduate specifiable items into new tickets (create-then-wire) and clear them from the fog section;\n- Tickets beyond the destination scope → move to Out of scope (with reason), never left on the frontier.' },
         "fixate": { version: 1, placeholders: [], use: '沉淀 · 零丢失快照', zh: '里程碑固化点。暂停推进，执行「零丢失快照」，从第一性原理出发：\n\n1. 全量复述：把我从会话开始到现在说过的全部信息，按「目的地 / 约束与偏好 / 已确认的决定 / 待决问题 / 雾区（隐约可见但还不清晰）」五类，逐条列出——不压缩、不合并，宁可啰嗦不可省略。\n2. 每条后面标注出处：用我的原话引用，让我知道它来自我哪句话。\n3. 单独列一节「可疑遗漏」：凡是我提过、但你觉得与主线无关、太模糊或像执行细节而没纳入的，全部摆出来，写明你当初不纳入的理由，由我裁决。\n4. 列完后停下等我逐条核对。我确认或修正完毕后，你再把清单落盘：已有地图就写进 map 正文和对应 ISSUE；只有ISSUE就写进对应ISSUE；都没有就先生成一份快照笔记并告诉我存哪，等建图时搬入。', en: 'Milestone checkpoint. Pause progress and take a "zero-loss snapshot", from first principles:\n\n1. Restate everything I have said since the session started, in five categories: "Destination / Constraints & preferences / Confirmed decisions / Open questions / Fog (dimly visible but not yet clear)" — list every item, no compression, no merging, rather verbose than omitted.\n2. Annotate each item with its source: quote my original words so I know which sentence it came from.\n3. Add a separate "Suspected omissions" section: everything I mentioned but you deemed off-topic, too vague, or execution detail and did not include — list them all with your reason, and let me decide.\n4. Stop and wait for my item-by-item review after listing. Once I confirm or correct, persist the list: if a map exists, write into the map body and the corresponding ISSUEs; if only ISSUEs, write into those ISSUEs; if neither, create a snapshot note and tell me where it is, to migrate when a map is created.' },
         "progress": { version: 2, placeholders: [], use: '进度契约（所有动作 prompt 引用）', zh: '进度表达（每次动作结束前必须更新 —— 这是动作的一部分，不是可选项）：\n1. issue 正文维护固定进度区：`## 进度：N%`（N 为 0-100 整数，禁止「大概 / 基本」等模糊词）；\n2. 更新前先读正文当前进度，基于最新状态写真实当前值（可上调也可下调）；\n3. 未动工 = 0%；进行中 = 1-94%；95% = 已完成待用户确认（下一步注明「待确认什么」）；确认后立即写 100% 并 close；\n4. 100% = 确认完成（close 后进度区保留为历史）；\n5. 首次接触无进度区的票：先按现状补写一个与实施记录相符的进度。', en: 'Progress expression (must update before finishing every action — it is part of the action, not optional):\n1. Keep a fixed progress section in the issue body: `## Progress: N%` (N is an integer 0-100; no vague words like "about / basically");\n2. Before updating, read the body current progress and write the true current value based on the latest state (can go up or down);\n3. Not started = 0%; in progress = 1-94%; 95% = done, awaiting user confirmation (note "what is pending" in the next step); once confirmed, immediately write 100% and close;\n4. 100% = confirmed done (the section stays as history after close);\n5. On first contact with a ticket lacking the section, write a progress matching its implementation record.' },
-        "bodyFormat": { version: 1, placeholders: [], use: '正文格式契约（T16 · 统一追加于 map/ticket 写正文的动作）', zh: '正文格式（写/改 issue 正文时必须遵守）：\n1. 用真实换行书写：`## 章节` 独占一行，段落间留空行；\n2. 禁止字面 \\n 转义（不要把换行写成 \\n 两个字符）、禁止正文以 BOM（\\ufeff）开头；\n3. 写回 issue 正文用 gh issue edit --body-file <文件>（文件内为真实换行），不要用 JSON 转义字符串拼进命令。', en: 'Body format (mandatory when writing/editing an issue body):\n1. Use real newlines: each `## section` on its own line, blank line between paragraphs;\n2. No literal \\n escapes (do not write newlines as the two characters backslash-n), no BOM (\\ufeff) at the start;\n3. Write issue bodies with gh issue edit --body-file <file> (real newlines in the file), never a JSON-escaped string inline in a command.' },
+        "bodyFormat": { version: 2, placeholders: [], use: '正文格式契约（T16 · 统一追加于 map/ticket 写正文的动作）', zh: '正文格式（写/改 issue 正文时必须遵守）：\n1. 用真实换行书写：`## 章节` 独占一行，段落间留空行；\n2. 禁止字面 \\n 转义（不要把换行写成 \\n 两个字符）、禁止正文以 BOM（\\ufeff）开头；\n3. 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装。', en: 'Body format (mandatory when writing/editing an issue body):\n1. Use real newlines: each `## section` on its own line, blank line between paragraphs;\n2. No literal \\n escapes (do not write newlines as the two characters backslash-n), no BOM (\\ufeff) at the start;\n3. Write issue bodies via file-based input (real newlines in the file), never inline JSON-escaped strings.' },
         "grill": { version: 1, placeholders: [], use: '澄清规则（grilling 技能）', zh: '动手前先想一下：我要做的事里，有没有哪部分是「我猜用户想要这样」的？如果有，别猜 —— 用 grilling 技能把猜的地方问清楚再动手。', en: 'Before you start, check: is any part of what you are about to do based on a guess about what the user wants? If so, do not guess — use the grilling skill to settle those guesses before acting.' },
         "newMap": { version: 2, placeholders: [], use: '建图规划契约', zh: '建图前先完成（写入 map body 既有章节，遵循 wayfinder 技能规则）：\n0. 先用 grilling 澄清目的地与范围，不自己定 scope；\n1. 并行 / 串行：在 Notes 用一句话概括「哪些票串行（被阻塞）、哪些可并行」；\n2. 已知 / 待调查 / 迷雾：已确认 → Decisions so far；待调查 → 建票；模糊待定 → Not yet specified（迷雾区，后续毕业为新票）；\n3. 归属：每张票声明建议 owner（agent 或人 · HITL），grilling 类必须标 HITL；\n4. 每张新建票写入 `## 进度：0%` 基准。', en: 'Complete before building a map (write into the map body existing sections, follow the wayfinder skill rules):\n0. Clarify the destination and scope with grilling first; do not set scope yourself;\n1. Parallel / serial: summarize in Notes in one sentence "which tickets are serial (blocked) and which run in parallel";\n2. Known / to-investigate / fog: confirmed → Decisions so far; to investigate → create tickets; vague pending → Not yet specified (the fog zone, later graduating into new tickets);\n3. Ownership: declare a suggested owner per ticket (agent or human · HITL); grilling tickets must be marked HITL;\n4. Write a `## Progress: 0%` baseline into every new ticket.' },
         "tpl.diagnose": { version: 3, placeholders: ['url'], use: '动作按钮「诊断」（needs-triage 票）', zh: '/triage\n{url}\n\n诊断这个 issue（诊断流程遵循 /triage 技能自身规则）：\n1. 先弄清它到底出了什么问题（现象 / 影响范围 / 复现步骤）；\n2. 列出可能的根因（多个候选，标注各自可能性）；\n3. 给分流建议（修复 / 关闭 / 重设计 / 等待）—— 建议是你的判断，不是让你直接执行；\n4. 动手前若有「我猜用户想要这样」的地方，先用 grilling 技能澄清；\n5. 结束前按进度契约更新 issue 正文。', en: '/triage\n{url}\n\nDiagnose this issue (follow the /triage skill own rules):\n1. Pin down what is actually wrong (symptoms / impact / repro steps);\n2. List possible root causes (multiple candidates, with confidence);\n3. Propose triage (fix / close / redesign / wait) — a recommendation for the user, not a license to execute;\n4. Before acting, if any part rests on a guess about what the user wants, settle it with the grilling skill first;\n5. Update the issue body per the progress contract before finishing.' },
@@ -1033,7 +1033,7 @@ window.__ModuleLoader__.load({
         "handoffRead": { version: 1, placeholders: [], use: '交接第二击兜底（无文件时）', zh: '/read .scratch/handoff/latest.md\n\n请先阅读这份交接文档并复述确认理解（结论 / 未完成事项 / 建议 skill），然后从第一性原理出发完成任务，并对抗式审查。', en: '/read .scratch/handoff/latest.md\n\nRead this handoff doc and restate your understanding (conclusions / unfinished / suggested skills), then approach tasks from first principles, and review adversarially.' },
         "installSkills": { version: 1, placeholders: [], use: '技能安装引导 · DSH 专用（横幅 / 引导 g4 / 设置页复制）', zh: '请为 DSH 安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）：\n1. 克隆 https://github.com/mattpocock/skills；\n2. 按官方 README 将工程领域与通用领域的全部 skills 安装到 DSH 读取的技能目录：用户主目录下的 ~/.agents/skills（本套件仅用于 DSH，不要安装到其他 AI 工具）；\n3. 安装后验证 wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills 等技能文件已就位；\n4. 完成后汇报安装结果与已装技能清单。', en: 'Install the Matt Pocock skills collection (mattpocock/skills) for DSH:\n1. Clone https://github.com/mattpocock/skills;\n2. Per the official README, install all engineering and general-purpose skills into the skill directory DSH reads: ~/.agents/skills under the user home (this collection is for DSH only — do not install it into other AI tools);\n3. After install, verify wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills are in place;\n4. Report the result and the installed skill list when done.' },
         "setupRun": { version: 6, placeholders: [], use: '环境检查横幅 · setup 未执行按钮（仅初始化，不重装技能）', zh: '/setup-matt-pocock-skills\n\n初始化本仓库（技能套件已安装，无需克隆重装）：\n1. issue tracker 选择 GitHub Issues；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 GitHub Issues；triage 标签保留默认五角色），并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 初始化完成后复查环境检查（setup 变绿即完成）。', en: '/setup-matt-pocock-skills\n\nBootstrap this repo (the skill suite is already installed — no need to clone or reinstall):\n1. Choose GitHub Issues as the issue tracker;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose GitHub Issues as the tracker; keep the default triage-role labels), and ensure the repo has the complete label set the skills need (the five triage-role labels + the wayfinder labels wayfinder:map / research / prototype / grilling / task) — not just a few; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. After init, re-run the environment check (setup turns green when done).' },
-        "newWayfinder": { version: 6, placeholders: ['repo'], use: '「+ 新建需求」按钮', zh: '/wayfinder\n请帮我处理一个需求（严格遵循 wayfinder 技能规则）。\n仓库：{repo}\n\n收到需求后按以下流程：\n1. 先澄清：对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认；\n2. 判断分类（需求 / map 维度）——先查仓库已有 wayfinder:map 和 issue，确认是否做过：\n   - 新增：全新需求，之前没做过 → 按建图规划契约新建 map（Destination + Notes + 规划表 + 票）；\n   - 复用：这个需求之前已做过（已有 map / issue）→ 打开复用它，不重复建；\n   - 直接实现：需求很小 → 建一个 issue 直接实现，不建大 map；\n3. 执行后按进度契约更新。\n\n需求描述：', en: '/wayfinder\nPlease handle a requirement (strictly follow the wayfinder skill rules).\nRepo: {repo}\n\nAfter receiving the requirement, follow this flow:\n1. Clarify first: if you hold assumptions about the goal / scope / preferences, settle them with the grilling skill, never assume;\n2. Decide the case (at the requirement / map level) — first check existing wayfinder:map and issues in the repo to confirm whether it has been done:\n   - Add: a brand-new requirement never done before → build a new map per the planning contract (Destination + Notes + plan + tickets);\n   - Reuse: this requirement has been done before (existing map / issue) → open and reuse it, do not build a new one;\n   - Directly implement: the requirement is small → create a single issue and implement it directly, no big map;\n3. Update per the progress contract after execution.\n\nRequirement: ' },
+        "newWayfinder": { version: 7, placeholders: ['repo'], use: '「+ 新建需求」按钮', zh: '/wayfinder\n请帮我处理一个需求（严格遵循 wayfinder 技能规则）。\n仓库（已自动填入当前工作区）：{repo}\n\n收到需求后按以下流程：\n1. 先澄清：对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认；\n2. 判断分类（按需求粒度 / 建图粒度）——先查仓库已有 wayfinder:map 和 issue，确认是否做过：\n   - 新增：全新需求，之前没做过 → 按建图规划契约新建 map（Destination + Notes + plan + tickets；tickets 须以 sub-issue 关联到 map，blocking 用 Blocked by: #<n> 行表示）；\n   - 复用：这个需求之前已做过（已有 map / issue）→ 打开复用它，不重复建；\n   - 直接实现：需求很小 → 建一个 issue 直接实现，不建大 map；\n3. 执行后按进度契约更新。', en: '/wayfinder\nPlease handle a requirement (strictly follow the wayfinder skill rules).\nRepo (auto-filled from current workspace): {repo}\n\nAfter receiving the requirement, follow this flow:\n1. Clarify first: if you hold assumptions about the goal / scope / preferences, settle them with the grilling skill, never assume;\n2. Decide the case (by requirement / map granularity) — first check existing wayfinder:map and issues in the repo to confirm whether it has been done:\n   - Add: a brand-new requirement never done before → build a new map per the planning contract (Destination + Notes + plan + tickets; wire tickets as sub-issues of the map, blocking as `Blocked by: #<n>`);\n   - Reuse: this requirement has been done before (existing map / issue) → open and reuse it, do not build a new one;\n   - Directly implement: the requirement is small → create a single issue and implement it directly, no big map;\n3. Update per the progress contract after execution.' },
         "newBugWayfinder": { version: 3, placeholders: ['repo'], use: '「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到模板末尾 · v3 #14：精简为 4 字段）', zh: '/wayfinder\n请帮我新增一个 BUG 单（严格遵循 wayfinder 技能规则）。\n仓库：{repo}\n\n收到需求后按以下流程：\n1. 先澄清：对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认；\n2. 判断分类 —— 先查仓库已有 wayfinder:map 和 issue，确认是否已有相同 BUG：\n   - 全新 BUG，之前没建过 → 按下面字段把 BUG 信息填写完整，然后新建一条带 bug 标签的 ISSUE（写入 `## 进度：0%` 基准，后续按进度契约更新）；\n   - 已有相同 BUG（重复）→ 不重复建，在已有的 issue 上补全信息；\n   - 需要先讨论 / 定夺 → 用 grilling 技能与我确认；\n3. 按下面字段逐项填写 BUG 信息（每行一项，冒号后填写内容）—— 4 字段清单在 prompt 模板末尾。', en: '/wayfinder\nPlease help me file a new BUG ticket (strictly follow the wayfinder skill rules).\nRepo: {repo}\n\nAfter receiving the requirement, follow this flow:\n1. Clarify first: if you hold assumptions about the goal / scope / preferences, settle them with the grilling skill, never assume;\n2. Decide the case — first check existing wayfinder:map and issues in the repo to see whether this BUG already exists:\n   - A brand-new BUG never filed before → fill in every field below completely, then create a new ISSUE carrying the bug label (write a `## Progress: 0%` baseline, then keep it updated per the progress contract);\n   - The same BUG already exists (duplicate) → do not file a new one; complete the info on the existing issue;\n   - Needs discussion / a call → settle it with me using the grilling skill;\n3. Fill in each field below (one line per item, content after the colon) — the 4-field checklist lives at the end of the prompt template.' },
         "mapHead": { version: 1, placeholders: ['n', 'title', 'url'], use: '新会话/执行 · map 标识头（B2）', zh: '## 目标 map\n- 编号：#{n}\n- 标题：{title}\n- 链接：{url}', en: '## Target map\n- No: #{n}\n- Title: {title}\n- Link: {url}' },
         "stageGate": { version: 2, placeholders: [], use: '阶段闸门条款（T13 · 统一追加于 诊断/修复/执行/map推进 动作：needs-triage 必须先诊断并判断现状）', zh: '阶段闸门（动作开始前必读，这是动作的一部分，不是可选项）：\n1. 先读该 issue 现状：进度区（## 进度：N%）/ 已有实施记录 / 评论 / 标签，判断它处于哪个阶段；\n2. 若带 needs-triage 标签：必须先完成诊断（这是前置步骤，不许跳过直接实施）；\n3. 诊断时判断当前进展：\n   - 已有实施且真实 → 核验是否符合验收标准，属实则维持 95% 待确认 + 摘 needs-triage（转 ready-for-agent）；\n   - 已有实施但虚假/半成品 → 进度据实回调到真实值（如 30%），继续诊断；\n   - 未动工 → 正常诊断（复现 → 根因 → 方案 → 写入 issue）；\n4. 诊断完成摘 needs-triage 后才允许进入实施阶段。', en: 'Stage gate (must read before starting the action — it is part of the action, not optional):\n1. First read the issue current state: progress section (## Progress: N%) / existing implementation record / comments / labels — determine which stage it is in;\n2. If it carries the needs-triage label: diagnosis MUST be completed first (a prerequisite step — do not skip straight to implementation);\n3. During diagnosis, judge current progress:\n   - Existing implementation and it is real → verify against acceptance criteria; if genuine, keep 95% awaiting confirmation + remove needs-triage (move to ready-for-agent);\n   - Existing implementation but fake/partial → revise progress back to the true value (e.g. 30%) and continue diagnosing;\n   - Not started → normal diagnosis (reproduce → root cause → plan → write into the issue);\n4. Only after diagnosis is done and needs-triage removed may implementation begin.' },
@@ -1207,6 +1207,146 @@ window.__ModuleLoader__.load({
         return {}
       })()
       const saveLabelClicks = function () { try { localStorage.setItem(LABEL_CLICKS_KEY, JSON.stringify(labelClicks)) } catch (e) {} }
+    // ============  issuePath · 状态栏当前处理 Issue 轨迹（v1.7.0 map #79 · S-rec）============
+    const ISSUE_PATH_KEY = 'dsws.issuePath'
+    const ISSUE_PATH_MAX = 100
+    const ISSUE_PATH_DEBOUNCE_MS = 500
+    let _issuePathSaveTimer = null
+    const loadIssuePathMap = function () {
+      try {
+        const raw = localStorage.getItem(ISSUE_PATH_KEY)
+        if (!raw) return {}
+        const o = JSON.parse(raw)
+        return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}
+      } catch (e) { return {} }
+    }
+    const saveIssuePathMapNow = function (map) {
+      try { localStorage.setItem(ISSUE_PATH_KEY, JSON.stringify(map)) } catch (e) {}
+    }
+    const persistIssuePath = function (st) {
+      if (!st || !st.issuePath) return
+      if (_issuePathSaveTimer) try { clearTimeout(_issuePathSaveTimer) } catch (e) {}
+      _issuePathSaveTimer = setTimeout(function () {
+        _issuePathSaveTimer = null
+        try {
+          const map = loadIssuePathMap()
+          const key = st.sessionId || '__shared'
+          map[key] = st.issuePath
+          const keys = Object.keys(map)
+          if (keys.length > 8) {
+            keys.sort(function (a, b) { return (map[a].updatedAt || 0) - (map[b].updatedAt || 0) })
+            while (Object.keys(map).length > 8) delete map[keys.shift()]
+          }
+          saveIssuePathMapNow(map)
+        } catch (e) {}
+      }, ISSUE_PATH_DEBOUNCE_MS)
+    }
+    const ensureIssuePath = function (st) {
+      if (st.issuePath && Array.isArray(st.issuePath.nodes)) return st.issuePath
+      const key = st.sessionId || '__shared'
+      const map = loadIssuePathMap()
+      if (map[key] && Array.isArray(map[key].nodes)) {
+        st.issuePath = map[key]
+        if (!st.issuePath.sessionId) st.issuePath.sessionId = st.sessionId || ''
+        if (typeof st.issuePath.anchor !== 'number') st.issuePath.anchor = st.issuePath.nodes.length ? st.issuePath.nodes[0].ref : null
+        if (typeof st.issuePath.current !== 'number') st.issuePath.current = st.issuePath.nodes.length ? st.issuePath.nodes[st.issuePath.nodes.length - 1].ref : null
+        return st.issuePath
+      }
+      st.issuePath = { sessionId: st.sessionId || '', anchor: null, nodes: [], current: null, updatedAt: 0 }
+      return st.issuePath
+    }
+    const recordIssuePath = function (st, ref, source, title) {
+      const n = Number(ref)
+      if (!n || isNaN(n)) return false
+      ensureIssuePath(st)
+      const ip = st.issuePath
+      const now = Date.now()
+      ip.sessionId = st.sessionId || ''
+      if (!ip.nodes) ip.nodes = []
+      if (ip.anchor == null) ip.anchor = n
+      const last = ip.nodes.length ? ip.nodes[ip.nodes.length - 1] : null
+      if (last && last.ref === n && (now - (last.ts || 0)) < 2000) {
+        last.ts = now
+        if (source) last.source = source
+        if (title && !last.title) last.title = String(title).slice(0, 80)
+        ip.current = n
+        ip.updatedAt = now
+        persistIssuePath(st); emit(st); return true
+      }
+      ip.nodes.push({ ref: n, source: String(source || 'auto'), ts: now, title: String(title || '').slice(0, 80) })
+      if (ip.nodes.length > ISSUE_PATH_MAX) ip.nodes.shift()
+      if (ip.nodes.length) ip.anchor = ip.nodes[0].ref
+      ip.current = n
+      ip.updatedAt = now
+      persistIssuePath(st); emit(st); return true
+    }
+    const reanchorIssuePath = function (st, ref) {
+      const n = Number(ref)
+      if (!n || isNaN(n) || !st.issuePath || !st.issuePath.nodes.length) return false
+      const found = st.issuePath.nodes.find(function (x) { return x.ref === n })
+      if (!found) return false
+      st.issuePath.anchor = n
+      st.issuePath.current = n
+      st.issuePath.updatedAt = Date.now()
+      persistIssuePath(st); emit(st); return true
+    }
+    const clearIssuePath = function (st) {
+      st.issuePath = { sessionId: st.sessionId || '', anchor: null, nodes: [], current: null, updatedAt: Date.now() }
+      persistIssuePath(st); emit(st)
+    }
+    let _issuePathPollTs = 0
+    let _issuePathPolling = false
+    const pollIssuePathHost = function (st) {
+      if (_issuePathPolling) return
+      if (typeof host === 'undefined' || typeof host.call !== 'function') {
+        // package bundle uses rpcCall instead of host.call
+        if (typeof rpcCall === 'undefined') return
+        _issuePathPolling = true
+        rpcCall('issuePathPoll', { since: _issuePathPollTs }).then(function (res) {
+          _issuePathPolling = false
+          if (!res || !res.ok || !Array.isArray(res.events) || !res.events.length) {
+            if (res && typeof res.serverNow === 'number') _issuePathPollTs = res.serverNow
+            return
+          }
+          let maxTs = _issuePathPollTs
+          res.events.forEach(function (ev) {
+            if (ev && ev.ref) {
+              recordIssuePath(st, ev.ref, ev.source, ev.title)
+              if (ev.ts && ev.ts > maxTs) maxTs = ev.ts
+            }
+          })
+          if (res.serverNow && res.serverNow > maxTs) maxTs = res.serverNow
+          _issuePathPollTs = maxTs
+        }).catch(function () { _issuePathPolling = false })
+        return
+      }
+      _issuePathPolling = true
+      host.call('wf.issuePathPoll', { since: _issuePathPollTs }).then(function (res) {
+        _issuePathPolling = false
+        if (!res || !res.ok || !Array.isArray(res.events) || !res.events.length) {
+          if (res && typeof res.serverNow === 'number') _issuePathPollTs = res.serverNow
+          return
+        }
+        let maxTs = _issuePathPollTs
+        res.events.forEach(function (ev) {
+          if (ev && ev.ref) {
+            recordIssuePath(st, ev.ref, ev.source, ev.title)
+            if (ev.ts && ev.ts > maxTs) maxTs = ev.ts
+          }
+        })
+        if (res.serverNow && res.serverNow > maxTs) maxTs = res.serverNow
+        _issuePathPollTs = maxTs
+      }).catch(function () { _issuePathPolling = false })
+    }
+    let _issuePathPollTimer = null
+    const startIssuePathPoll = function (st) {
+      if (_issuePathPollTimer) return
+      const tick = function () {
+        if (st) pollIssuePathHost(st)
+        _issuePathPollTimer = setTimeout(tick, 4000)
+      }
+      tick()
+    }
       // T2 #35 · 无仓库红卡状态机（按 cwd 维度持久化 dismiss；表单态 expanded/name/visibility/loading/error）
       const NOREPO_DISMISS_PREFIX = 'dsws:noRepoDismiss:'
       const cwdHash = function (s) { let h = 0; const t = String(s || ''); for (let i = 0; i < t.length; i++) h = ((h << 5) - h + t.charCodeAt(i)) | 0; return String(h >>> 0) }
@@ -1263,11 +1403,26 @@ window.__ModuleLoader__.load({
       const getCwdSync = function (sid) {
         try {
           const sessions = ctx.get('sessions')
-          if (sessions && typeof sessions.get === 'function' && sid) {
-            const s = sessions.get(sid)
-            const meta = s && s.meta
-            const cwd = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory)
-            if (typeof cwd === 'string' && cwd) return cwd
+          if (sessions && sid) {
+            try {
+              if (sessions.list && typeof sessions.list.getSnapshot === 'function') {
+                const snap = sessions.list.getSnapshot()
+                const row = snap && snap.byId && snap.byId[sid]
+                if (row && typeof row.cwd === 'string' && row.cwd) return row.cwd
+              }
+            } catch (e2) {}
+            if (typeof sessions.get === 'function') {
+              const s = sessions.get(sid)
+              if (s) {
+                const header = s.header || s.meta
+                const cwd = header && (header.cwd || header.path || header.worktree || header.projectDir || header.directory)
+                if (typeof cwd === 'string' && cwd) return cwd
+                const meta = s.meta
+                const cwd2 = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory)
+                if (typeof cwd2 === 'string' && cwd2) return cwd2
+                if (typeof s.cwd === 'string' && s.cwd) return s.cwd
+              }
+            }
           }
         } catch (e) { /* 忽略 */ }
         return ''
@@ -1994,7 +2149,7 @@ window.__ModuleLoader__.load({
       const newSessionTitle = (t) => SESSION_TITLE_PREFIX + ' ' + t.title + ' #' + t.number
       // v1.5 T6：新增 wayfinder prompt —— /wayfinder + 仓库信息 + 需求引导（用户拍板：prompt 带仓库信息）
       // T16 补强（#463 复核 F2）：建图入口同样挂正文格式契约（新建 map 正文从源头防字面 \\n / BOM）
-      const newWayfinderText = (st) => promptText('newWayfinder', { repo: 'https://github.com/' + repoStr(st) }) + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '')
+      const newWayfinderText = (st) => promptText('newWayfinder', { repo: 'https://github.com/' + repoStr(st) }) + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '') + (promptLang() === 'en' ? '\n\nRequirement: ' : '\n\n需求描述：')
       // issue #4：新增 BUG 单 —— 与「+ 新增需求」同构（新会话 + 预填 /wayfinder prompt + 正文格式契约）
       // v2（#1 BUG3 补强）：输入位挪到 BODY_FORMAT 之后，模板末尾（避免中途输入位）
       // v3（#14 决议 #13 [T7]）：字段集精简为 4 项 + 例行指引（v3.4：每字段「字段名：」行 + 下方「例：示例」行紧贴，zh/en 分离跟随语言）；EN locale 切换（NEW_BUG_FIELDS_BODY_EN）
@@ -2078,26 +2233,78 @@ window.__ModuleLoader__.load({
       //   sessionOf(ctx) → SessionFace.rename(title)；open(sid) 切换。任一步失败降级为当前会话注入 + 提醒。
       const openTextInNewSession = function (st, text, title) {
         const sessions = ctx.get('sessions')
+        const workspaces = ctx.get('workspaces')
         const doFallback = function () {
           inject(st, text)
           flash(st, tr('toast.newSessionManual', { title: title }), 'warn')
         }
         if (!sessions || typeof sessions.create !== 'function') { doFallback(); return }
         // v1.5：新会话默认继承「点击时所在会话」的工作区（st.cwd）；
-        //   缺失时即时向 host 解析（侧边栏 tab / StatusBar 未挂载场景兜底）
+        //   缺失时：1) 同步读 sessions.list（权威 cwd）2) 再向 host/conn 解析兜底
         const ensureCwd = function () {
+          const sync = getCwdSync(st.sessionId)
+          if (sync) {
+            if (sync !== st.cwd) st.cwd = sync
+            return Promise.resolve(sync)
+          }
           if (st.cwd) return Promise.resolve(st.cwd)
-          if (conn !== undefined && conn.rpc !== undefined && st.sessionId) {
+          if (typeof conn !== 'undefined' && conn !== undefined && conn.rpc !== undefined && st.sessionId) {
             return rpcCall('cwd', { sessionId: st.sessionId }).then(function (res) {
+              if (res && res.ok && res.cwd) { st.cwd = res.cwd; return res.cwd }
+              return null
+            }).catch(function () { return null })
+          }
+          if (typeof host !== 'undefined' && typeof host.call === 'function' && st.sessionId) {
+            return host.call('wf.cwd', { sessionId: st.sessionId }).then(function (res) {
               if (res && res.ok && res.cwd) { st.cwd = res.cwd; return res.cwd }
               return null
             }).catch(function () { return null })
           }
           return Promise.resolve(null)
         }
+        const ensureWorkspaceId = function (cwd) {
+          if (!workspaces || !cwd) return Promise.resolve(null)
+          try {
+            let items = []
+            if (workspaces.list) {
+              let snap = null
+              try {
+                if (typeof workspaces.list.getSnapshot === 'function') snap = workspaces.list.getSnapshot()
+                else if (typeof workspaces.list.getCurrent === 'function') snap = workspaces.list.getCurrent()
+              } catch (e2) {}
+              if (snap) {
+                if (Array.isArray(snap.items)) items = snap.items
+                else if (Array.isArray(snap)) items = snap
+              }
+            }
+            const norm = function (p) {
+              const s = String(p || '').replace(/\\/g, '/').replace(/\/+$/, '')
+              const isWin = /\\/.test(String(p || '')) || /^[a-zA-Z]:\//.test(s)
+              return isWin ? s.toLowerCase() : s
+            }
+            const targetNorm = norm(cwd)
+            for (let i = 0; i < items.length; i++) {
+              const w = items[i]
+              const wPath = w.path || w.cwd
+              if (wPath && norm(wPath) === targetNorm) {
+                const wid = w.workspaceId || w.id
+                if (wid) return Promise.resolve(wid)
+              }
+            }
+            if (typeof workspaces.create === 'function') {
+              return workspaces.create({ path: cwd }).then(function (ws) {
+                const wid = ws && (ws.workspaceId || ws.id)
+                return wid || null
+              }).catch(function () { return null })
+            }
+          } catch (e) {}
+          return Promise.resolve(null)
+        }
         ensureCwd().then(function (cwd) {
           if (!cwd) { doFallback(); return }
-          sessions.create({ cwd: cwd }).then(function (sid) {
+          ensureWorkspaceId(cwd).then(function (workspaceId) {
+            const createOpts = workspaceId ? { workspaceId: workspaceId } : { cwd: cwd }
+            sessions.create(createOpts).then(function (sid) {
             // v1.5：新会话继承当前快照（同仓库同 cwd）—— 面板/状态栏秒显，避免冷缓存全量重建卡顿
             const ns = storeOf(sid)
             if (ns && st.snapshot) { ns.snapshot = st.snapshot; ns.snapMode = 'real'; ns.cwd = cwd }
@@ -2112,13 +2319,22 @@ window.__ModuleLoader__.load({
             sessions.open(sid)
             flash(st, tr('toast.newSessionOpened'), 'ok')
           }).catch(function () { doFallback() })
+          })
         })
       }
       // #361 原入口：行级「在新会话打开」保留（rowActionText 文本 + 票标题命名）
       const openInNewSession = function (st, x) {
         openTextInNewSession(st, rowActionText(st, x), newSessionTitle(x))
       }
-      const inject = (st, text) => {
+      const extractIssueRefs = function (text) {
+      const out = []
+      const s = String(text || '')
+      const urlRe = /github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/(\d+)/g
+      let m
+      while ((m = urlRe.exec(s)) !== null) out.push(Number(m[1]))
+      return out
+    }
+const inject = (st, text) => {
         if (st.injector) { st.injector(text); flash(st, tr('toast.injected'), 'ok') }
         else copyText(st, text, tr('toast.copiedFallback'))
         // v1.5 T10 R9（Q4 拍板）：关键动作（完成/执行/交接/认领）后延迟探测，面板尽快反映变化
@@ -2178,6 +2394,7 @@ window.__ModuleLoader__.load({
         }, [props.sessionId])
         React.useEffect(function () {
           probeHandoffReady(s)  // 需求1·二阶段 rev：挂载即探测 .scratch/handoff/，以真实文档有无决定右半灰/亮
+        ensureIssuePath(s); startIssuePathPoll(s)
         }, [])
         // v13：会话工作目录探测 —— 依赖 sessionId 变化重跑（切换对话必触发）。
         // v15-27：优先 SessionSummary.cwd（宿主权威）；次选 props.session 直取；最后 host wf.cwd 兜底。
@@ -2265,7 +2482,15 @@ window.__ModuleLoader__.load({
           s.skillPopPos = p
           return true
         }
-        const clearClose = function (ref) {
+        const placeIssuePathPop = function () {
+        const p = placeOverlay(issuePathAnchorRef.current, 'left')
+        if (!p) return false
+        const old = s.issuePathPos
+        if (old && old.left === p.left && old.bottom === p.bottom) return false
+        s.issuePathPos = p
+        return true
+      }
+const clearClose = function (ref) {
           if (ref.current !== null) { clearTimeout(ref.current); ref.current = null }
         }
         const closeBugMenu = function () {
@@ -2278,7 +2503,12 @@ window.__ModuleLoader__.load({
           if (!s.skillsOpen && !s.skillPopPos && !s.skillHover && !s.skillTip) return
           s.skillsOpen = false; s.skillHover = null; s.skillTip = null; s.skillPopPos = null; emit(s)
         }
-        const scheduleClose = function (ref, fn) {
+        const closeIssuePath = function () {
+        clearClose(issuePathCloseRef)
+        if (!s.issuePathHover && !s.issuePathPos) return
+        s.issuePathHover = false; s.issuePathPos = null; emit(s)
+      }
+const scheduleClose = function (ref, fn) {
           clearClose(ref)
           ref.current = setTimeout(function () { ref.current = null; fn() }, 160)
         }
@@ -2291,7 +2521,7 @@ window.__ModuleLoader__.load({
           if (changed) emit(s)
         }
         const showSkillPop = function () {
-          clearClose(skillCloseRef); clearClose(bugCloseRef)
+          clearClose(skillCloseRef); clearClose(bugCloseRef); clearClose(issuePathCloseRef)
           let changed = false
           if (s.bugMenuOpen || s.bugMenuPos || s.bugMenuHover) { s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; changed = true }
           if (!s.skillsOpen) { s.skillsOpen = true; changed = true }
@@ -2299,7 +2529,7 @@ window.__ModuleLoader__.load({
           if (changed) emit(s)
         }
         React.useEffect(function () {
-          if (!s.bugMenuOpen && !s.skillsOpen) return undefined
+          if (!s.bugMenuOpen && !s.skillsOpen && !s.issuePathHover) return undefined
           let raf = null
           let disposed = false
           const reposition = function () {
@@ -2310,6 +2540,7 @@ window.__ModuleLoader__.load({
               let changed = false
               if (s.bugMenuOpen && placeBugMenu()) changed = true
               if (s.skillsOpen && placeSkillPop()) changed = true
+            if (s.issuePathHover && placeIssuePathPop()) changed = true
               if (changed) emit(s)
             }
             if (typeof requestAnimationFrame === 'function') raf = requestAnimationFrame(run)
@@ -2320,6 +2551,7 @@ window.__ModuleLoader__.load({
           const ro = new ResizeObserver(reposition)
           if (bugAnchorRef.current) ro.observe(bugAnchorRef.current)
           if (skillAnchorRef.current) ro.observe(skillAnchorRef.current)
+        if (issuePathAnchorRef.current) ro.observe(issuePathAnchorRef.current)
           reposition()
           return function () {
             disposed = true
@@ -2332,7 +2564,7 @@ window.__ModuleLoader__.load({
             window.removeEventListener('resize', reposition)
             clearClose(bugCloseRef); clearClose(skillCloseRef)
           }
-        }, [s.bugMenuOpen, s.skillsOpen])
+        }, [s.bugMenuOpen, s.skillsOpen, s.issuePathHover])
         const applyFold = function () {
           const cap = foldRef.current
           if (!cap) return
@@ -2385,7 +2617,41 @@ window.__ModuleLoader__.load({
             Icon({ scheme: s.ui.icon, size: 14 }),
             h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
           ]),
-          seg('target', [h('span', { 'data-fold-priority': 5 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; go('list') }, tr('nav.takeableTitle')),
+          // issuePath · 状态栏当前 Issue 胶囊主段（v1.7.0 map #79 · 为主要目的）—— 常驻显示当前 #N，hover 向上弹层展示路径
+        h('span', { ref: issuePathAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showIssuePath, onMouseLeave: function () { scheduleClose(issuePathCloseRef, closeIssuePath) } }, [
+          h('span', { className: 'dsws-seg' + (s.issuePathHover ? ' on' : ''), onClick: function (e) { e.stopPropagation(); if (s.issuePath && s.issuePath.current) { s.tab='list'; openPanel(s) } }, title: s.issuePath && s.issuePath.current ? '当前处理 #' + s.issuePath.current + ' · hover 查看路径 · 点击打开列表' : '尚未选择当前 Issue · 点击操作会自动记录', style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: s.issuePath && s.issuePath.current ? '#4ade80' : '#6b7280', border: s.issuePathHover ? '1px solid rgba(74,222,128,.45)' : '1px solid transparent', background: s.issuePathHover ? 'rgba(74,222,128,.12)' : 'transparent', borderRadius: 99, padding: '2px 7px' } }, [
+            Ic({ n: 'target', size: 12 }),
+            h('span', { 'data-fold-priority': 10 }, s.issuePath && s.issuePath.current ? '📌 #' + s.issuePath.current : '📌 --'),
+          ]),
+          s.issuePathHover ? PortalOverlay({ className: 'dsws-issuepath-pop', onMouseEnter: function () { clearClose(issuePathCloseRef) }, onMouseLeave: function () { scheduleClose(issuePathCloseRef, closeIssuePath) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'fixed', left: s.issuePathPos ? s.issuePathPos.left : 0, bottom: s.issuePathPos ? s.issuePathPos.bottom : 0, padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.45)', minWidth: 260, maxWidth: 380 } }, [
+            h('div', { style: { fontSize: 11, fontWeight: 700, color: 'var(--dsw-alias-label-primary,#e6edf3)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 } }, [
+              h('span', null, '📌 当前路径'),
+              h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', fontWeight: 400 } }, s.issuePath && s.issuePath.nodes && s.issuePath.nodes.length ? 'anchor #' + s.issuePath.anchor + ' · ' + s.issuePath.nodes.length + ' 节点' : '空'),
+              h('span', { style: { marginLeft: 'auto', display: 'inline-flex', gap: 4 } }, [
+                h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); clearIssuePath(s); closeIssuePath() }, style: { fontSize: 10, padding: '2px 6px' } }, '清空'),
+              ]),
+            ]),
+            (s.issuePath && s.issuePath.nodes && s.issuePath.nodes.length) ? h('div', { style: { maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 } }, s.issuePath.nodes.slice(-20).reverse().map(function (nd) {
+              const isCur = nd.ref === s.issuePath.current
+              const isAnchor = nd.ref === s.issuePath.anchor
+              const t = new Date(nd.ts || Date.now()); const tm = String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0')
+              const srcColor = nd.source === 'claim' ? '#4ade80' : nd.source === 'gh-edit' ? '#58a6ff' : nd.source === 'mention' ? '#f59e0b' : '#8b8b95'
+              const srcLabel = nd.source === 'claim' ? 'claim' : nd.source === 'gh-edit' ? 'gh-edit' : nd.source === 'mention' ? 'mention' : nd.source
+              return h('div', { key: nd.ts + '-' + nd.ref, onClick: function (e) { e.stopPropagation(); reanchorIssuePath(s, nd.ref) }, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 6, background: isCur ? 'rgba(74,222,128,.14)' : 'transparent', border: isCur ? '1px solid rgba(74,222,128,.35)' : '1px solid transparent', cursor: 'pointer' } }, [
+                h('span', { style: { fontSize: 11, fontFamily: 'Consolas,Menlo,monospace', color: isCur ? '#4ade80' : 'var(--dsw-alias-label-primary,#e6edf3)', fontWeight: isCur ? 700 : 500 } }, '#' + nd.ref + (isAnchor ? ' ⚓' : '')),
+                h('span', { style: { fontSize: 10, color: srcColor, border: '1px solid ' + srcColor, borderRadius: 4, padding: '0 4px', lineHeight: 1.6 } }, srcLabel),
+                h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tm),
+                nd.title ? h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 } }, nd.title) : null,
+                isCur ? h('span', { style: { fontSize: 10, color: '#4ade80', fontWeight: 700 } }, '← 当前') : null,
+              ])
+            })) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '6px 0' } }, '暂无路径 · 点击任意 issue 行的“执行/诊断/修复”或在新会话中打开 issue 会自动记录'),
+            h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', marginTop: 6, paddingTop: 4, display: 'flex', alignItems: 'center', gap: 4 } }, [
+              h('span', null, '点击节点可重锚起点'),
+              h('span', { style: { marginLeft: 'auto' } }, '上限 100 · 本地持久'),
+            ]),
+          ]) : null,
+        ]),
+        seg('target', [h('span', { 'data-fold-priority': 5 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; go('list') }, tr('nav.takeableTitle')),
           // issue #4：BUG 计数段 —— 点击仍开 bug 过滤列表；悬停弹「新增」菜单（新会话预填 /wayfinder 新增 BUG 单 prompt）
           h('span', { ref: bugAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showBugMenu, onMouseLeave: function () { scheduleClose(bugCloseRef, closeBugMenu) } }, [
             seg('alert', [h('span', { 'data-fold-priority': 6 }, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, tr('nav.bugTitle')),

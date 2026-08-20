@@ -47,6 +47,7 @@ return {
     let userHome = null                                     // 用户主目录（cmd 探测，缓存）
     let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；build 不得动它 —— 否则会吞掉同窗口编辑，见 buildSnapshot 处注释）
     let lastIssueIndexByRepo = {}                          // #2 deletion fix：保存上次全量 issue 索引，用于发现 GitHub 删除/状态消失
+    let pendingIssuePathEvents = []                       // issuePath · 1A+1B 检测队列（runGh 白名单 + wf.claim），client via wf.issuePathPoll 拉取，cap 100
 
     // ============ gh 封装 ============
     async function resolveGh() {
@@ -104,6 +105,18 @@ return {
         else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400) }
       }
+      // issuePath · 1A：runGh 白名单检测（仅成功路径；失败不记路径污染；--add-assignee 为 claim 通道，交由 wf.claim 推送 source='claim'）
+      try {
+        const a = Array.isArray(args) ? args : []
+        if (a.length >= 2 && a[0] === 'issue' && /^(edit|close|comment|reopen)$/.test(String(a[1]))) {
+          const hasAssignee = a.indexOf('--add-assignee') >= 0
+          if (!hasAssignee) {
+            let hit = null
+            for (let i = 2; i < a.length; i++) if (/^\d+$/.test(String(a[i]))) { hit = a[i]; break }
+            if (hit) pushIssuePathEvent(hit, 'gh-edit')
+          }
+        }
+      } catch (e) { /* 检测失败不影响主流程 */ }
       return { ok: true, text: out.text || '' }
     }
 
@@ -154,6 +167,14 @@ return {
         }
       } catch (e) { userHome = null }
       return userHome
+    }
+
+    // ============ issuePath · 1A\+1B 事件队列 ============
+    function pushIssuePathEvent(ref, source, title) {
+      const n = Number(ref)
+      if (!n || isNaN(n)) return
+      pendingIssuePathEvents.push({ ref: n, source: String(source || 'gh-edit'), ts: Date.now(), title: String(title || '') })
+      if (pendingIssuePathEvents.length > 100) pendingIssuePathEvents.shift()
     }
 
     // ============ v1.5 T9：git 根检测 + 磁盘缓存（跨重启秒开）============
@@ -823,9 +844,14 @@ return {
       if (sessions === undefined || typeof sessions.get !== 'function') return { ok: false, error: 'sessions 服务不可用' }
       try {
         const s = sessions.get(sid)
-        const meta = s && s.meta
-        const cwd = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory)
+        // 现代 DSH 的 Session 结构：header.cwd 为权威；兼容旧 meta / 直接 cwd 字段
+        const header = s && (s.header || s.meta)
+        const cwd = header && (header.cwd || header.path || header.worktree || header.projectDir || header.directory)
         if (typeof cwd === 'string' && cwd) return { ok: true, cwd: cwd }
+        const meta = s && s.meta
+        const cwd2 = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory)
+        if (typeof cwd2 === 'string' && cwd2) return { ok: true, cwd: cwd2 }
+        if (s && typeof s.cwd === 'string' && s.cwd) return { ok: true, cwd: s.cwd }
         return { ok: false, error: '会话无 cwd 信息' }
       } catch (e) {
         return { ok: false, error: errText(e) }
@@ -985,7 +1011,22 @@ return {
       const u = await runGh(['api', 'user', '-q', '.login'])
       if (u.ok) assignedTo = u.text.trim()
       cache = { ts: 0, snapshot: null, error: null }
+      try { pushIssuePathEvent(n, 'claim') } catch (e) {}
       return { ok: true, number: n, assignedTo: assignedTo, url: 'https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + String(n) }
+    })
+
+        // ============ issuePath · 1A+1B 推送通道（client 轮询） ============
+    harness.handle('wf.issuePathPoll', async function (args) {
+      const since = args && typeof args.since === 'number' ? args.since : 0
+      const out = pendingIssuePathEvents.filter(function (e) { return e.ts > since })
+      return { ok: true, events: out.slice(-100), serverNow: Date.now() }
+    })
+    harness.handle('wf.issuePathPush', async function (args) {
+      const n = args && args.number
+      const src = args && args.source ? String(args.source) : 'mention'
+      if (!n) return { ok: false, error: '缺少 number' }
+      pushIssuePathEvent(n, src, args && args.title)
+      return { ok: true }
     })
 
     // ============ 红卡建仓发布（T1 #34 · 无仓库时一键建仓发布）============
@@ -1139,3 +1180,5 @@ return {
     // P1 若做状态变化 toast 提醒，再考虑低频自动（届时恢复本块并观察配额）。
   },
 }
+
+

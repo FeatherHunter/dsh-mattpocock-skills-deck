@@ -1,4 +1,4 @@
-/**
+﻿/**
  * dsh-mattpocock-skills-deck 宿主半（ESM 插件体 · v1.0.0）
  *
  * 与动态版 host.js 同源（cordis_define 的 code.host 函数体），仅两处差异：
@@ -161,7 +161,15 @@ export function apply(ctx) {
     return userHome
   }
 
-  // ============ v1.5 T9：git 根检测 + 磁盘缓存（跨重启秒开）============
+  // ============ issuePath · 1A+1B 事件队列 ============
+    function pushIssuePathEvent(ref, source, title) {
+      const n = Number(ref)
+      if (!n || isNaN(n)) return
+      pendingIssuePathEvents.push({ ref: n, source: String(source || 'gh-edit'), ts: Date.now(), title: String(title || '') })
+      if (pendingIssuePathEvents.length > 100) pendingIssuePathEvents.shift()
+    }
+
+    // ============ v1.5 T9：git 根检测 + 磁盘缓存（跨重启秒开）============
   // git rev-parse --show-toplevel 层层上溯找根；嵌套仓库（子目录含独立 .git）git 原生停在最近根 —— 符合用户要求
   let repoRoots = {}           // 根路径按 cwd 缓存
   let cacheDirResolved = null  // 缓存目录（惰性解析）
@@ -947,6 +955,18 @@ export function apply(ctx) {
         if (!want) return { ok: true, file: pickLatestHandoff(r.mds) }
         if (r.mds.some(function (m) { return m.name === want })) return { ok: true, file: want }
         return { ok: true, file: null }
+      }
+      case 'issuePathPoll': {
+        const since = args && typeof args.since === 'number' ? args.since : 0
+        const out = pendingIssuePathEvents.filter(function (e) { return e.ts > since })
+        return { ok: true, events: out.slice(-100), serverNow: Date.now() }
+      }
+      case 'issuePathPush': {
+        const n = args && args.number
+        const src = args && args.source ? String(args.source) : 'mention'
+        if (!n) return { ok: false, error: '缺少 number' }
+        pushIssuePathEvent(n, src, args && args.title)
+        return { ok: true }
       }
       case 'claim': {
         const n = args && args.number
