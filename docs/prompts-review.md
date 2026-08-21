@@ -1,8 +1,8 @@
-# DSH-Waystation · Prompt 审阅清单（v1.9 · 方案A 注册表 · #64 v5 清单式 tpl.execute · #65 v4 清单式 tpl.diagnose · #66 v3 清单式 tpl.fix · #67 v3 清单式 tpl.discuss · #70 v2 质量导向 tpl.handoff1 · #71 v2 清单式 tpl.handoff2（单模板，删 handoffRead））
+# DSH-Waystation · Prompt 审阅清单（v1.10 · 方案A 注册表 · #64 v5 清单式 tpl.execute · #65 v4 清单式 tpl.diagnose · #66 v3 清单式 tpl.fix · #67 v3 清单式 tpl.discuss · #68 v5 清单式 mapExecute（标识头自包含 + 单行前缀）· #70 v2 质量导向 tpl.handoff1 · #71 v2 清单式 tpl.handoff2（单模板，删 handoffRead））
 
 > **单源新架构**：真源 `src/client/kernel/prompts.js`，改后必跑 `node scripts/build.mjs` 生成 `client.js / package/lib/client.js`，勿手改产物（见 `docs/architecture/kernel-contract.md`）。动手前必读：`src/client/kernel/prompts.js` 头 20 行 + `docs/architecture/kernel-contract.md` + 跑 `node scripts/build.mjs 及 tests/verify-*`。
 > PROMPTS 注册表（20 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
-> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js`。
+> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 六段标题 + 无表格 + 标识头三字段 + 占位符 n/title/url + T13 闸门引用 + 单行前缀）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×3）。
 
 ## guide · v1
 
@@ -18,30 +18,67 @@
 
 ---
 
-## mapExecute · v4
+## mapExecute · v5 — #68 清单式（A★ · map 标识头自包含 · 单行前缀 · 闸门一句引用）
 
-- 用途：map 执行 / 新会话（未完成态）· 推进式
-- 占位符：无
+- 用途：map 执行 / 新会话（未完成态）· 推进式 · 清单式（A★）
+- 占位符：{n} / {title} / {url}（router 拼装传入；首行 `/wayfinder {url}` 单行空格分隔）
 - ZH：
 
-<pre>请按以下流程推进该 map（遵循 wayfinder 技能规则）：
-1. 加载 wayfinder 技能（如未加载）；
-2. 分析这个 map（Destination / Notes / 阻塞关系 / 当前 frontier）；
-3. 按第一性原理分析当前最适合推进的下一个 issue（frontier 中价值最高、风险最低、最解阻的）；
-4. 去执行它：先认领 → 读该 issue 的 Description / Notes / 阻塞关系 → 制定方案 → 实施 → 验收；
-5. 结束前按进度契约更新该 issue 正文（## 进度：N% + 下一步）；本次推进完成且验收通过 → 100% + close。
-若本次推进有关闭的票：按 wayfinder 规则同步 map 记录（Decisions so far 追加 gist / 迷雾毕业 / Out of scope）。</pre>
+<pre>## 目标 map
+- 编号：#{n}
+- 标题：{title}
+- 链接：{url}
+
+请使用 wayfinder 技能推进该 map（遵循其规则）：
+
+## 分析
+- [ ] 加载 wayfinder 技能（如未加载）
+- [ ] 分析这个 map：Destination / Notes / 阻塞关系 / 当前 frontier
+
+## 选票
+- [ ] 按第一性原理，选 frontier 中最值得推进的下一个 issue（价值最高 / 风险最低 / 最解阻）
+
+## 执行
+- [ ] 认领该票 → 读 Description / Notes / 阻塞关系 → 制定方案 → 实施 → 验收
+- [ ] 若该票带 needs-triage：先按阶段闸门完成诊断（读现状 / 判断进展：真实 / 虚假 / 未动工）再进入实施，不许跳过
+
+## 收尾
+- [ ] 结束前按进度契约更新该票正文（## 进度：N% + 下一步）；验收通过 → 100% + close
+- [ ] 若本次推进关闭了票：同步 map 记录（Decisions so far 追加 gist / 迷雾毕业 / Out of scope）
+
+## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 用真实换行书写：`## 章节` 独占一行，段落间留空行
+- [ ] 禁止字面 \n 转义（不要把换行写成 \n 两个字符）、禁止正文以 BOM（\ufeff）开头
+- [ ] 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装</pre>
 
 - EN：
 
-<pre>Please advance this map:
-1. Load the wayfinder skill (if not loaded);
-2. Analyze this map (Destination / Notes / blocking relationships / current frontier);
-3. From first principles, pick the most valuable next issue on the frontier (highest value, lowest risk, most unblocking);
-4. Go execute it: read the issue Description / Notes / blocking relationships → plan → implement → verify.
+<pre>## Target map
+- No: #{n}
+- Title: {title}
+- Link: {url}
 
-Approach tasks from first principles, and review adversarially.
-If this advance closes any ticket, sync the map records per wayfinder rules (Decisions so far gist / fog graduation / Out of scope).</pre>
+Please use the wayfinder skill to advance this map (follow its rules):
+
+## Analyze
+- [ ] Load the wayfinder skill (if not loaded)
+- [ ] Analyze this map: Destination / Notes / blocking relationships / current frontier
+
+## Pick the ticket
+- [ ] From first principles, pick the next issue on the frontier most worth advancing (highest value / lowest risk / most unblocking)
+
+## Execute
+- [ ] Claim the ticket → read Description / Notes / blocking relationships → plan → implement → verify
+- [ ] If the ticket carries needs-triage: first complete the stage-gate diagnosis (read current state / judge progress: real / fake / not started) before implementation — do not skip
+
+## Wrap-up
+- [ ] Before finishing, update the ticket body per the progress contract (## Progress: N% + next step); verified → 100% + close
+- [ ] If this advance closes any ticket, sync the map records (Decisions so far gist / fog graduation / Out of scope)
+
+## Body format (mandatory when writing/editing an issue body)
+- [ ] Use real newlines: each `## section` on its own line, blank line between paragraphs
+- [ ] No literal \n escapes, no BOM (\ufeff) at the start
+- [ ] Write via file-based input (real newlines), never inline JSON-escaped strings</pre>
 
 ---
 

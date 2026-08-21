@@ -106,8 +106,8 @@ const checkFile = function (file) {
 
   // a) 未完成 map 行（t 无 stats → snapshot 兜底）：推进式 + map 标识
   const out = env.startText(ST, mapIssue(305, '测试 map 标题'))
-  assert.ok(out.indexOf('/wayfinder\n' + URL305) === 0, file + ' zh 未完成 prompt 以 /wayfinder+链接 开头')
-  assert.ok(out.includes('请按以下流程推进该 map'), file + ' zh 未完成 = 推进式文案')
+  assert.ok(out.indexOf('/wayfinder ' + URL305) === 0, file + ' zh 未完成 prompt 以 /wayfinder+空格+链接 开头')
+  assert.ok(out.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 未完成 = 推进式文案')
   assert.ok(out.includes('## 目标 map'), file + ' zh map 标识头')
   assert.ok(out.includes('编号：#305'), file + ' zh map 编号')
   assert.ok(out.includes('标题：测试 map 标题'), file + ' zh map 标题')
@@ -119,7 +119,7 @@ const checkFile = function (file) {
   assert.ok(out2.includes('## 完成确认 · MAP #200'), file + ' zh 完成确认标题含 #n')
   assert.ok(out2.includes('4/4'), file + ' zh 完成确认 closed/total 已填')
   assert.ok(out2.includes('## 目标 map') && out2.includes('编号：#200') && out2.includes('标题：完成 map') && out2.includes('链接：' + URL200), file + ' zh 完成态仍带 map 标识')
-  assert.ok(!out2.includes('请按以下流程推进该 map'), file + ' zh 完成态不是推进式')
+  assert.ok(!out2.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 完成态不是推进式')
 
   // c) 完成态经 snapshot 兜底（t 无 stats 且 snapshot.maps 有该 map）
   const st2 = { snapshot: { maps: [{ number: 200, stats: { total: 4, closed: 4 } }] } }
@@ -128,7 +128,7 @@ const checkFile = function (file) {
 
   // d) 零子票 map（total=0）→ 推进式（不算完成）
   const out4 = env.startText(ST, mapIssue(300, '空 map', { total: 0, closed: 0 }))
-  assert.ok(out4.includes('请按以下流程推进该 map'), file + ' zh 零子票 map 仍推进式')
+  assert.ok(out4.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 零子票 map 仍推进式')
   assert.ok(out4.includes('编号：#300'), file + ' zh 零子票 map 带标识')
 
   // e) 普通票 execute 模板回归（非 map 分支未被 B2 改坏）
@@ -140,7 +140,7 @@ const checkFile = function (file) {
   // f) en 双语（以 en 为初始语言重建环境，忠实于模块加载时捕获常量别名）
   const enEnv = buildEnv(src, 'en')
   const out6 = enEnv.startText(ST, mapIssue(305, 'Test map title'))
-  assert.ok(out6.includes('Please advance this map'), file + ' en 推进式')
+  assert.ok(out6.includes('Please use the wayfinder skill to advance this map'), file + ' en 推进式')
   assert.ok(out6.includes('## Target map'), file + ' en map 标识头')
   assert.ok(out6.includes('No: #305'), file + ' en map 编号')
   assert.ok(out6.includes('Title: Test map title'), file + ' en map 标题')

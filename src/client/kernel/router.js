@@ -172,10 +172,10 @@
         if (done) {
           return completePrompt(st, t.number, stats.total, stats.closed) + head
         }
-        // v1.5：技能 + 链接前置（用户规则：具体操作 prompt 开头 = /wayfinder + ISSUE 链接）
-        // T13：map 推进同样挂阶段闸门（推进的票若带 needs-triage 必须先诊断）
-        const gateText = promptText('stageGate')
-        return '/wayfinder\n' + url + '\n\n' + MAP_EXECUTE_PROMPT() + (gateText ? '\n\n' + gateText : '') + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '') + head
+        // v1.5：技能 + 链接前置（用户规则：具体操作 prompt 开头 = /wayfinder + ISSUE 链接，单行空格分隔）
+        // v5（#68 grilling 定版）：mapExecute 自包含（map 标识头 + 闸门引用 + 正文格式已内嵌）→ gateText/BODY_FORMAT/head 外挂全删；
+        //   mapHead 条目保留给 complete 分支（G8 再决策去留）
+        return '/wayfinder ' + url + '\n\n' + promptText('mapExecute', { n: String(t.number || ''), title: (t.title || ''), url: url })
       }
       const body = renderTemplate('execute', { number: String(t.number), url: url, title: t.title })
       return withWayfinderPrefix(body)

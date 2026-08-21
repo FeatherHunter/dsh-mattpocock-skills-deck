@@ -53,7 +53,7 @@ const check = function (file) {
   // 旧形式残留
   ;["tr('prompt.", "'prompt.\'" ].forEach(function (bad) { if (src.includes(bad)) problems.push('旧字典引用残留 ' + bad) })
   // T13：版本号 bump —— 契约变更的条目必须升版（防回退），stageGate 必须存在（#65 diagnose 自带闸门，不再依赖尾部追加但保留 STAGE_GATED_IDS 声明）
-  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 4, 'stageGate': 2 }
+  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 5, 'stageGate': 2 }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
     if (!p) problems.push('T13 缺条目 ' + id)
@@ -76,8 +76,24 @@ const check = function (file) {
   if (!src.includes("promptText('stageGate')")) problems.push("T13 缺 promptText('stageGate') 调用")
   if (!src.includes('STAGE_GATED_IDS.indexOf(id) >= 0')) problems.push('T13 renderTemplate 未按 STAGE_GATED_IDS 追加闸门')
   if (!src.includes("text.indexOf('阶段闸门')") || !src.includes("text.indexOf('Stage gate')")) problems.push('T13 renderTemplate 缺去重守卫（已含 阶段闸门/Stage gate 则跳过追加）')
-  // T13：map 推进（mapExecute 新会话）同样挂闸门
-  if (!src.includes('MAP_EXECUTE_PROMPT') || !src.includes('gateText')) problems.push('T13 map 推进未挂 stageGate（缺 gateText）')
+  // T13：map 推进（mapExecute 新会话）同样挂闸门 —— v5（#68）：闸门一句引用内嵌于模板，外挂 gateText 已删；
+  //   校验 mapExecute 文本含「阶段闸门」引用 + router 单行前缀（/wayfinder + 空格 + url）
+  const me = reg['mapExecute']
+  if (me) {
+    if (me.zh.indexOf('阶段闸门') < 0 || me.en.indexOf('stage-gate') < 0) problems.push('T13 mapExecute 未含阶段闸门引用（needs-triage 先诊断）')
+    if (me.zh.indexOf('needs-triage') < 0) problems.push('mapExecute zh 缺 needs-triage 标记')
+  }
+  if (src.indexOf("'/wayfinder '") < 0) problems.push('T13 map 推进缺单行前缀（/wayfinder + 空格 + url）')
+  // #68 mapExecute 清单式（A★ · 全勾选框 · 无表格 · map 标识头自包含）：mapExecute 必须为清单骨架
+  if (me) {
+    if (me.zh.indexOf('- [ ]') < 0) problems.push('mapExecute zh 缺清单标记 - [ ]（A★ 清单式）')
+    if (me.zh.indexOf('## 目标 map') < 0 || me.zh.indexOf('## 分析') < 0 || me.zh.indexOf('## 选票') < 0 || me.zh.indexOf('## 执行') < 0 || me.zh.indexOf('## 收尾') < 0 || me.zh.indexOf('## 正文格式') < 0) problems.push('mapExecute zh 缺清单段标题（目标 map/分析/选票/执行/收尾/正文格式）')
+    if (me.zh.indexOf('|') >= 0) problems.push('mapExecute zh 含表格 |（已约定无表格，全勾选框）')
+    if (me.zh.indexOf('编号：') < 0 || me.zh.indexOf('标题：') < 0 || me.zh.indexOf('链接：') < 0) problems.push('mapExecute zh 缺 map 标识头三字段（编号/标题/链接）')
+    if (me.placeholders.indexOf('n') < 0 || me.placeholders.indexOf('title') < 0 || me.placeholders.indexOf('url') < 0) problems.push('mapExecute 占位符缺 n/title/url（自包含 map 标识）')
+    if (me.en.indexOf('- [ ]') < 0) problems.push('mapExecute en 缺清单标记 - [ ]')
+    if (me.en.indexOf('## Target map') < 0 || me.en.indexOf('## Analyze') < 0 || me.en.indexOf('## Pick the ticket') < 0 || me.en.indexOf('## Execute') < 0 || me.en.indexOf('## Wrap-up') < 0) problems.push('mapExecute en 缺清单段标题（Target map/Analyze/Pick the ticket/Execute/Wrap-up）')
+  }
   // #64 执行清单式（A★ · 全勾选框 · 无表格）：tpl.execute 必须为清单骨架
   const ex = reg['tpl.execute']
   if (ex) {
