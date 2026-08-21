@@ -2,7 +2,7 @@
 
 > **单源新架构**：真源 `src/client/kernel/prompts.js`，改后必跑 `node scripts/build.mjs` 生成 `client.js / package/lib/client.js`，勿手改产物（见 `docs/architecture/kernel-contract.md`）。动手前必读：`src/client/kernel/prompts.js` 头 20 行 + `docs/architecture/kernel-contract.md` + 跑 `node scripts/build.mjs 及 tests/verify-*`。
 > PROMPTS 注册表（20 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
-> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 六段标题 + 无表格 + 标识头三字段 + 占位符 n/title/url + T13 闸门引用 + 单行前缀；#74 installSkills 硬校验：版本 ≥ v2 + zh/en 必含 ~/.agents/skills 与全部 10 个所需技能名；#75 progress 硬校验：版本 ≥ v3 + 格式正例 + 未确认不得 close + 首触补写）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×2：newWayfinder + newBugWayfinder；mapExecute/complete 自包含内嵌正文格式）。
+> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 六段标题 + 无表格 + 标识头三字段 + 占位符 n/title/url + T13 闸门引用 + 单行前缀；#74 installSkills 硬校验：版本 ≥ v2 + zh/en 必含 ~/.agents/skills 与全部 10 个所需技能名；#75 progress 硬校验：版本 ≥ v3 + 格式正例 + 未确认不得 close + 首触补写；#76 bodyFormat 硬校验：版本 ≥ v3 + 工具无关（不得点名 gh）+ 去 JSON 黑话 + 格式正例）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×2：newWayfinder + newBugWayfinder；mapExecute/complete 自包含内嵌正文格式）。
 
 ## guide · v1
 
@@ -230,28 +230,33 @@ Approach tasks from first principles, and review adversarially.
 
 ---
 
-## bodyFormat · v2
+## bodyFormat · v3 — #76 grill 定版（工具无关 + 去 AI 黑话 + 格式正例；8 处同文：注册表 1 + 内嵌 7）
 
-- 用途：正文格式契约（T16 · 统一追加于 map/ticket 写正文的动作）
+- 用途：正文格式契约（T16 · 写/改 issue 正文的动作统一携带：2 处追加 + 7 处内嵌）
 - 占位符：无
 - ZH：
 
 <pre>正文格式（写/改 issue 正文时必须遵守）：
-1. 用真实换行书写：`## 章节` 独占一行，段落间留空行；
-2. 禁止字面 \
- 转义（不要把换行写成 \
- 两个字符）、禁止正文以 BOM（\\ufeff）开头；
-3. 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装。</pre>
+1. 用真实换行书写：每个 `## 章节` 独占一行，段落间留空行；
+2. 禁止字面 \n 转义（不要把换行写成 \n 两个字符）、禁止正文以 BOM（\ufeff）开头；
+3. 写回 issue 正文时以文件方式提交（文件内为真实换行），不要内联转义字符串。
+
+正例（写成这样，而不是 `## 进度：90%\n下一步：xxx`）：
+## 进度：90%
+
+下一步：xxx</pre>
 
 - EN：
 
 <pre>Body format (mandatory when writing/editing an issue body):
-1. Use real newlines: each `## section` on its own line, blank line between paragraphs;
-2. No literal \
- escapes (do not write newlines as the two characters backslash-n), no BOM (\\ufeff) at the start;
-3. Write issue bodies via file-based input (real newlines in the file), never inline JSON-escaped strings.</pre>
+1. Use real newlines: each `## section` on its own line, with a blank line between paragraphs;
+2. No literal \n escapes (do not write newlines as the two characters backslash-n), no BOM (\ufeff) at the start;
+3. Write the body back via a file (real newlines in the file), never an inline escaped string.
 
----
+Example (write this, not `## Progress: 90%\nNext step: ...`):
+## Progress: 90%
+
+Next step: ...</pre>
 
 ## grill · v1
 

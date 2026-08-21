@@ -131,18 +131,25 @@ Maintain map records (wayfinder rules):
 </div>
 
 <div class="card">
-  <div class="card-h"><span class="no">06</span><code>bodyFormat</code><span class="use">正文格式契约（T16 · 统一追加于 map/ticket 写正文的动作） · v1</span><span class="ph">占位符：无</span></div>
+  <div class="card-h"><span class="no">06</span><code>bodyFormat</code><span class="use">正文格式契约（T16 · 写/改 issue 正文的动作统一携带：2 处追加 + 7 处内嵌） · v3</span><span class="ph">占位符：无</span></div>
   <div class="lang"><span class="lbl zh">ZH</span><pre>正文格式（写/改 issue 正文时必须遵守）：
-1. 用真实换行书写：`## 章节` 独占一行，段落间留空行；
-2. 禁止字面 \
- 转义（不要把换行写成 \
- 两个字符）、禁止正文以 BOM（\\ufeff）开头；
-3. 写回 issue 正文用 gh issue edit --body-file &lt;文件&gt;（文件内为真实换行），不要用 JSON 转义字符串拼进命令。</pre></div>
+1. 用真实换行书写：每个 `## 章节` 独占一行，段落间留空行；
+2. 禁止字面 \n 转义（不要把换行写成 \n 两个字符）、禁止正文以 BOM（\ufeff）开头；
+3. 写回 issue 正文时以文件方式提交（文件内为真实换行），不要内联转义字符串。
+
+正例（写成这样，而不是 `## 进度：90%\n下一步：xxx`）：
+## 进度：90%
+
+下一步：xxx</pre></div>
   <div class="lang en"><span class="lbl en">EN</span><pre>Body format (mandatory when writing/editing an issue body):
-1. Use real newlines: each `## section` on its own line, blank line between paragraphs;
-2. No literal \
- escapes (do not write newlines as the two characters backslash-n), no BOM (\\ufeff) at the start;
-3. Write issue bodies with gh issue edit --body-file &lt;file&gt; (real newlines in the file), never a JSON-escaped string inline in a command.</pre></div>
+1. Use real newlines: each `## section` on its own line, with a blank line between paragraphs;
+2. No literal \n escapes (do not write newlines as the two characters backslash-n), no BOM (\ufeff) at the start;
+3. Write the body back via a file (real newlines in the file), never an inline escaped string.
+
+Example (write this, not `## Progress: 90%\nNext step: ...`):
+## Progress: 90%
+
+Next step: ...</pre></div>
 </div>
 
 <div class="card">
