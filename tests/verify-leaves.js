@@ -73,6 +73,10 @@ function main() {
     }
     for (const c of l.components) {
       check(src.includes('React.useContext(DswsCtx)'), file + ' 组件 ' + c + ' 消费 useContext(DswsCtx)')
+      // 故障回归（2026-08-21 修复 9d0de74）：禁止「cx 缺失 → return null」的静默空白模式——
+      //   必须兜底回退闭包依赖（h/useStore 在 text-splice 架构下恒在闭包作用域）
+      check(!/if\s*\(!cx\)\s*return\s*null/.test(src), file + ' 组件 ' + c + ' 无 if(!cx) return null（静默空白模式已禁用）')
+      check(src.includes('cx ? cx.h : React.createElement'), file + ' 组件 ' + c + ' 含 cx 兜底回退（h）')
     }
   }
 
