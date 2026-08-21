@@ -53,7 +53,7 @@ const check = function (file) {
   // 旧形式残留
   ;["tr('prompt.", "'prompt.\'" ].forEach(function (bad) { if (src.includes(bad)) problems.push('旧字典引用残留 ' + bad) })
   // T13：版本号 bump —— 契约变更的条目必须升版（防回退），stageGate 必须存在（#65 diagnose 自带闸门，不再依赖尾部追加但保留 STAGE_GATED_IDS 声明）
-  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 5, 'stageGate': 2, 'complete': 4 }
+  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 5, 'stageGate': 2, 'complete': 4, 'setupRun': 7 }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
     if (!p) problems.push('T13 缺条目 ' + id)

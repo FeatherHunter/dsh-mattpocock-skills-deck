@@ -615,27 +615,27 @@ This doc is for an agent with no memory of this session — write from its persp
 
 ---
 
-## setupRun · v6
+## setupRun · v7
 
-- 用途：环境检查横幅 · setup 未执行按钮（仅初始化，不重装技能）
+- 用途：环境检查横幅 · setup 未执行按钮（仅初始化记录配置，不安装/克隆技能）
 - 占位符：无
 - ZH：
 
 <pre>/setup-matt-pocock-skills
 
-初始化本仓库（技能套件已安装，无需克隆重装）：
-1. issue tracker 选择 GitHub Issues；
+初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：
+1. 按技能流程选择 issue tracker：本仓库为 GitHub → 提议 GitHub Issues，由用户确认；
 2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 GitHub Issues；triage 标签保留默认五角色），并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个；后续打标签严格遵循技能规则，不额外强制任何标签；
-3. 初始化完成后复查环境检查（setup 变绿即完成）。</pre>
+3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。</pre>
 
 - EN：
 
 <pre>/setup-matt-pocock-skills
 
-Bootstrap this repo (the skill suite is already installed — no need to clone or reinstall):
-1. Choose GitHub Issues as the issue tracker;
+Bootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths — it does not install or clone any skills):
+1. Follow the skill flow to pick the issue tracker: this repo is on GitHub → propose GitHub Issues, confirm with the user;
 2. During init, follow the setup-matt-pocock-skills skill own flow (choose GitHub Issues as the tracker; keep the default triage-role labels), and ensure the repo has the complete label set the skills need (the five triage-role labels + the wayfinder labels wayfinder:map / research / prototype / grilling / task) — not just a few; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;
-3. After init, re-run the environment check (setup turns green when done).</pre>
+3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green).</pre>
 
 ---
 
