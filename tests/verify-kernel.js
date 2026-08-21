@@ -15,7 +15,7 @@ const MODULES = [
   { name: 'styles', exports: ['STYLE_TEXT'] },
   { name: 'locale', exports: ['L'] },
   { name: 'icons', exports: ['ICON_SCHEMES', 'WORD_SCHEMES', 'Icon', 'Ic'] },
-  { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'GUIDE_LINE', 'BODY_FORMAT', 'completePrompt', 'FIXATE_PROMPT'] },
+  { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'BODY_FORMAT', 'completePrompt', 'FIXATE_PROMPT'] },
   { name: 'config', exports: ['CFG_KEY', 'cfg', 'templates', 'migrateStartCfg', 'TPL_DEFAULT', 'renderTemplate', 'validateTemplate'] },
   { name: 'store', exports: ['DEFAULT_PANEL_H', 'makeStore', 'shared', 'stores', 'storeOf', 'emit', 'sub', 'useStore', 'compute', 'recordIssuePath', 'ensureNoRepoCard', 'mkRowAction', 'timeStampStr'] },
   { name: 'probe', exports: ['CHECKS_TOTAL', 'loadChecks', 'loadSnapshot', 'probeNow', 'startAutoProbe', 'refreshAll', 'diffSnapshots', 'snapFresh', 'broadcastCfg'] },

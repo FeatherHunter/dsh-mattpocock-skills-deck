@@ -78,17 +78,9 @@
     }
     export const tplText = (id) => templates[id] || (TPL_DEFAULT[id] ? TPL_DEFAULT[id]() : '')
     // 渲染：转义 {{x}} → 字面 {x}（先替换哨兵防误替换），再替换已知占位符；未知占位符保留原样（保存层已拦截）
-    // T13 修订（#65 修正：diagnose 已 inline 清单式闸门+body，不再末尾追加，避免与模板内闸门重复；各 prompt 自带完整闸门/格式）
-    export const STAGE_GATED_IDS = ['diagnose', 'fix', 'execute']
+    // #77 定版：stageGate 入口与 STAGE_GATED_IDS 兜底删除 —— tpl.* 内联闸门清单为唯一形态（用户自定义模板不再自动挂闸门）
     export const renderTemplate = function (id, values) {
       let text = String(tplText(id))
-      if (STAGE_GATED_IDS.indexOf(id) >= 0) {
-        // #66 去重：tpl.* 现已 inline 阶段闸门清单（A★），若文本已含阶段闸门则跳过外挂，避免双闸门冗余
-        if (text.indexOf('阶段闸门') < 0 && text.indexOf('Stage gate') < 0) {
-          const gate = promptText('stageGate')
-          if (gate) text = text + '\n\n' + gate
-        }
-      }
       const esc = []
       text = text.replace(/\{\{([a-zA-Z][a-zA-Z0-9]*)\}\}/g, function (m, name) { esc.push('{' + name + '}'); return '\u0001' + (esc.length - 1) + '\u0001' })
       text = text.replace(/\{([a-zA-Z][a-zA-Z0-9]*)\}/g, function (m, name) {

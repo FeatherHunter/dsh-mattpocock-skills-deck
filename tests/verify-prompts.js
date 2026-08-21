@@ -34,7 +34,7 @@ const check = function (file) {
   const src = fs.readFileSync(file, 'utf8')
   const reg = parseRegistry(src)
   const problems = []
-  if (Object.keys(reg).length < 20) problems.push('注册表条目数异常 ' + Object.keys(reg).length + '（期望 20）')
+  if (Object.keys(reg).length < 15) problems.push('注册表条目数异常 ' + Object.keys(reg).length + '（期望 15）')
   Object.keys(reg).forEach(function (id) {
     const p = reg[id]
     if (!(p.version >= 1)) problems.push(id + ' 缺 version')
@@ -52,30 +52,22 @@ const check = function (file) {
   while ((mu = useRe.exec(src)) !== null) { if (!reg[mu[1]]) problems.push('引用不存在的 prompt id: ' + mu[1]) }
   // 旧形式残留
   ;["tr('prompt.", "'prompt.\'" ].forEach(function (bad) { if (src.includes(bad)) problems.push('旧字典引用残留 ' + bad) })
-  // T13：版本号 bump —— 契约变更的条目必须升版（防回退），stageGate 必须存在（#65 diagnose 自带闸门，不再依赖尾部追加但保留 STAGE_GATED_IDS 声明）
-  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 5, 'stageGate': 2, 'complete': 4, 'setupRun': 7, 'fixate': 2, 'progress': 3, 'bodyFormat': 3 }
+  // #77（G16）：版本号 bump —— 契约变更的条目必须升版（防回退）；五片段删除后注册表 15 条
+  const V_MIN = { 'tpl.diagnose': 5, 'tpl.execute': 5, 'mapExecute': 5, 'complete': 5, 'newWayfinder': 8, 'setupRun': 7, 'fixate': 2, 'progress': 3, 'bodyFormat': 3 }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
-    if (!p) problems.push('T13 缺条目 ' + id)
-    else if (p.version < V_MIN[id]) problems.push('T13 版本号未 bump ' + id + ' v' + p.version + '（期望 ≥ v' + V_MIN[id] + '）')
+    if (!p) problems.push('契约缺条目 ' + id)
+    else if (p.version < V_MIN[id]) problems.push('版本号未 bump ' + id + ' v' + p.version + '（期望 ≥ v' + V_MIN[id] + '）')
   })
-  // T13：stageGate 文案关键标记（AI 行为契约：核验现状 / 维持95%摘标签 / 未动工走正常诊断）
-  const g = reg['stageGate']
-  if (g) {
-    if (g.placeholders.length !== 0) problems.push('stageGate 不应有占位符')
-    if (g.zh.indexOf('needs-triage') < 0 || g.zh.indexOf('95%') < 0 || g.zh.indexOf('未动工') < 0) problems.push('stageGate zh 缺关键标记（needs-triage / 95% / 未动工）')
-    if (g.en.indexOf('needs-triage') < 0) problems.push('stageGate en 缺关键标记（needs-triage）')
-  }
-  // T13：接线 —— renderTemplate 对 诊断/修复/执行 条件追加 stageGate（#65 已改为：文本已含 阶段闸门/Stage gate 则跳过，避免与模板内清单式闸门重复；各 prompt 自带完整闸门/格式）
-  const gatedMatch = src.match(/STAGE_GATED_IDS\s*=\s*\[([^\]]*)\]/)
-  if (!gatedMatch) problems.push('T13 缺 STAGE_GATED_IDS 声明')
-  else {
-    const gated = gatedMatch[1].split(',').map(function (x) { return x.trim().replace(/'/g, '') }).filter(Boolean)
-    ;['diagnose', 'fix', 'execute'].forEach(function (id) { if (gated.indexOf(id) < 0) problems.push('STAGE_GATED_IDS 缺 ' + id) })
-  }
-  if (!src.includes("promptText('stageGate')")) problems.push("T13 缺 promptText('stageGate') 调用")
-  if (!src.includes('STAGE_GATED_IDS.indexOf(id) >= 0')) problems.push('T13 renderTemplate 未按 STAGE_GATED_IDS 追加闸门')
-  if (!src.includes("text.indexOf('阶段闸门')") || !src.includes("text.indexOf('Stage gate')")) problems.push('T13 renderTemplate 缺去重守卫（已含 阶段闸门/Stage gate 则跳过追加）')
+  // #77（G16）定版：五片段入口全部删除 —— 不得复活（guide/grill/newMap/mapHead/stageGate）
+  ;['guide', 'grill', 'newMap', 'mapHead', 'stageGate'].forEach(function (id) {
+    if (reg[id]) problems.push('#77 已删条目复活 ' + id)
+  })
+  // #77（G16）：stageGate 兜底删除 —— STAGE_GATED_IDS / promptText('stageGate') / 去重守卫 不得残留
+  if (/STAGE_GATED_IDS\s*=/.test(src)) problems.push('#77 残留 STAGE_GATED_IDS 声明（应随 stageGate 入口一并删除）')
+  if (src.includes("promptText('stageGate')")) problems.push("#77 残留 promptText('stageGate') 调用")
+  if (src.includes('STAGE_GATED_IDS.indexOf(id) >= 0')) problems.push('#77 残留 renderTemplate 闸门追加逻辑')
+  if (src.includes("text.indexOf('阶段闸门')") || src.includes("text.indexOf('Stage gate')")) problems.push('#77 残留 renderTemplate 去重守卫（闸门已内联，无外挂可去重）')
   // T13：map 推进（mapExecute 新会话）同样挂闸门 —— v5（#68）：闸门一句引用内嵌于模板，外挂 gateText 已删；
   //   校验 mapExecute 文本含「阶段闸门」引用 + router 单行前缀（/wayfinder + 空格 + url）
   const me = reg['mapExecute']
@@ -110,19 +102,31 @@ const check = function (file) {
     if (di.zh.indexOf('|') >= 0) problems.push('tpl.diagnose zh 含表格 |（已约定无表格，全勾选框）')
     if (di.zh.indexOf('诊断≠修复') < 0) problems.push('tpl.diagnose zh 缺诊断≠修复显式（第一性原理）')
     if (di.zh.indexOf('grilling') < 0) problems.push('tpl.diagnose zh 缺 grill 澄清句')
+    if (di.zh.indexOf('与 grill 片段同义') >= 0) problems.push('tpl.diagnose zh 残留悬空括注「与 grill 片段同义」（#77 grill 入口已删）')
     if (di.en.indexOf('- [ ]') < 0) problems.push('tpl.diagnose en 缺清单标记 - [ ]')
     if (di.en.indexOf('diagnosis') < 0 || di.en.indexOf('Stage gate') < 0) problems.push('tpl.diagnose en 缺关键段（diagnosis/Stage gate）')
     if (di.en.indexOf('What are the symptoms') < 0 || di.en.indexOf('What is the impact') < 0) problems.push('tpl.diagnose en 缺 Symptoms 三行拆分（What are the symptoms / What is the impact）')
+    if (di.en.indexOf('grill snippet') >= 0) problems.push('tpl.diagnose en 残留 grill snippet 引用（#77 grill 入口已删）')
+  }
+  // #77（G16）：newWayfinder v8 —— 建图规划契约名称引用已删（改直述「新建 map」）
+  const nw = reg['newWayfinder']
+  if (nw) {
+    if (nw.zh.indexOf('按建图规划契约') >= 0) problems.push('newWayfinder zh 残留「按建图规划契约」名称引用（#77 契约已删，改直述新建 map）')
+    if (nw.en.indexOf('per the planning contract') >= 0) problems.push('newWayfinder en 残留 planning contract 名称引用（#77 契约已删，改直述新建 map）')
   }
   // #69 完成调查清单式（A★ · 全勾选框 · 无表格 · 调查器 · 人来定夺）：complete 必须为清单骨架 + 专业术语英文
   const co = reg['complete']
   if (co) {
-    if (co.version < 4) problems.push('complete 版本号未 bump（期望 ≥ v4）')
+    if (co.version < 5) problems.push('complete 版本号未 bump（期望 ≥ v5）')
     if (co.zh.indexOf('- [ ]') < 0) problems.push('complete zh 缺清单标记 - [ ]（A★ 清单式）')
     if (co.zh.indexOf('## MAP完成确认') < 0 || co.zh.indexOf('## 调查') < 0 || co.zh.indexOf('## 报告你来定夺') < 0 || co.zh.indexOf('## 收尾') < 0 || co.zh.indexOf('## 正文格式') < 0) problems.push('complete zh 缺清单段标题（MAP完成确认/调查/报告你来定夺/收尾/正文格式）')
     if (co.zh.indexOf('|') >= 0) problems.push('complete zh 含表格 |（已约定无表格，全勾选框）')
     if (co.zh.indexOf('子票') >= 0 || co.zh.indexOf('票') >= 0) problems.push('complete zh 专业术语未用英文（子票/票 → sub-issue/ticket）')
+    if (co.zh.indexOf('## 目标 map') < 0 || co.zh.indexOf('编号：') < 0 || co.zh.indexOf('标题：') < 0 || co.zh.indexOf('链接：') < 0) problems.push('complete zh 缺 map 标识头三字段（编号/标题/链接 · #77 mapHead 自包含化）')
     if (co.placeholders.indexOf('closed') < 0 || co.placeholders.indexOf('total') < 0) problems.push('complete 占位符缺 closed/total')
+    if (co.placeholders.indexOf('n') < 0 || co.placeholders.indexOf('title') < 0 || co.placeholders.indexOf('url') < 0) problems.push('complete 占位符缺 n/title/url（#77 自包含 map 标识）')
+    if (co.zh.indexOf('从第一性原理出发完成任务') >= 0) problems.push('complete zh 残留 guide 引导句（#77 已删）')
+    if (co.en.indexOf('Approach tasks from first principles') >= 0) problems.push('complete en 残留 guide 引导句（#77 已删）')
     if (co.en.indexOf('- [ ]') < 0) problems.push('complete en 缺清单标记 - [ ]')
     if (co.en.indexOf('## MAP completion check') < 0 || co.en.indexOf('## Investigate') < 0 || co.en.indexOf('## Report to you') < 0 || co.en.indexOf('## Wrap-up') < 0) problems.push('complete en 缺清单段标题（MAP completion check/Investigate/Report to you/Wrap-up）')
   } else {

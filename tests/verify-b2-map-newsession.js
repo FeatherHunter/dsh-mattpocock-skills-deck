@@ -77,7 +77,7 @@ const buildEnv = function (src, lang) {
     if (/^\/wayfinder\b/.test(String(body || '').trim())) return body
     return '/wayfinder\n' + body
   }
-  const completePromptSrc = extractBetween(src, 'const completePrompt = function (st, num, total, closed) {', "const FIXATE_PROMPT = function () { return promptText('fixate') }")
+  const completePromptSrc = extractBetween(src, 'const completePrompt = function (st, num, title, total, closed) {', "const FIXATE_PROMPT = function () { return promptText('fixate') }")
   const completePrompt = new Function('COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText)
   const startTextSrc = extractBetween(src, 'const startText = (st, t) => {', "const SESSION_TITLE_PREFIX = '[MattSkills]'")
   const startText = new Function('repoStr', 'promptText', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', startTextSrc + '; return startText')(repoStr, promptText, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix)

@@ -1,22 +1,8 @@
-# DSH-Waystation · Prompt 审阅清单（v1.11 · 方案A 注册表 · #64 v5 清单式 tpl.execute · #65 v4 清单式 tpl.diagnose · #66 v3 清单式 tpl.fix · #67 v3 清单式 tpl.discuss · #68 v5 清单式 mapExecute（标识头自包含 + 单行前缀）· #70 v2 质量导向 tpl.handoff1 · #71 v2 清单式 tpl.handoff2（单模板，删 handoffRead）· #74 v2 双轨安装 installSkills · #75 v3 进度契约 progress（压缩 3 条 + 格式正例 + 未确认不得 close））
+# DSH-Waystation · Prompt 审阅清单（v1.12 · 方案A 注册表 · #64 v5 清单式 tpl.execute · #65 v4 清单式 tpl.diagnose · #66 v3 清单式 tpl.fix · #67 v3 清单式 tpl.discuss · #68 v5 清单式 mapExecute（标识头自包含 + 单行前缀）· #70 v2 质量导向 tpl.handoff1 · #71 v2 清单式 tpl.handoff2（单模板，删 handoffRead）· #74 v2 双轨安装 installSkills · #75 v3 进度契约 progress（压缩 3 条 + 格式正例 + 未确认不得 close）· #76 v3 正文格式 bodyFormat（工具无关 + 格式正例）· #77 G16 五片段全删（guide/grill/newMap/mapHead/stageGate）+ complete v5 自包含标识头 + newWayfinder v8 去契约引用 + tpl.diagnose v5 澄清段）
 
 > **单源新架构**：真源 `src/client/kernel/prompts.js`，改后必跑 `node scripts/build.mjs` 生成 `client.js / package/lib/client.js`，勿手改产物（见 `docs/architecture/kernel-contract.md`）。动手前必读：`src/client/kernel/prompts.js` 头 20 行 + `docs/architecture/kernel-contract.md` + 跑 `node scripts/build.mjs 及 tests/verify-*`。
-> PROMPTS 注册表（20 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
-> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 六段标题 + 无表格 + 标识头三字段 + 占位符 n/title/url + T13 闸门引用 + 单行前缀；#74 installSkills 硬校验：版本 ≥ v2 + zh/en 必含 ~/.agents/skills 与全部 10 个所需技能名；#75 progress 硬校验：版本 ≥ v3 + 格式正例 + 未确认不得 close + 首触补写；#76 bodyFormat 硬校验：版本 ≥ v3 + 工具无关（不得点名 gh）+ 去 JSON 黑话 + 格式正例）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×2：newWayfinder + newBugWayfinder；mapExecute/complete 自包含内嵌正文格式）。
-
-## guide · v1
-
-- 用途：统一引导句（追加于各动作 prompt 末尾）
-- 占位符：无
-- ZH：
-
-<pre>从第一性原理出发完成任务，并对抗式审查。</pre>
-
-- EN：
-
-<pre>Approach tasks from first principles, and review adversarially.</pre>
-
----
+> PROMPTS 注册表（15 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
+> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 六段标题 + 无表格 + 标识头三字段 + 占位符 n/title/url + T13 闸门引用 + 单行前缀；#74 installSkills 硬校验：版本 ≥ v2 + zh/en 必含 ~/.agents/skills 与全部 10 个所需技能名；#75 progress 硬校验：版本 ≥ v3 + 格式正例 + 未确认不得 close + 首触补写；#76 bodyFormat 硬校验：版本 ≥ v3 + 工具无关（不得点名 gh）+ 去 JSON 黑话 + 格式正例；#77 G16 硬校验：注册表 15 条 + 五片段不得复活（guide/grill/newMap/mapHead/stageGate）+ STAGE_GATED_IDS/去重守卫不得残留 + complete v5（标识头三字段 + 占位符 n/title/url + 无 guide 引导句）+ newWayfinder v8（无「按建图规划契约」引用）+ tpl.diagnose v5（无「与 grill 片段同义」悬空括注））+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×2：newWayfinder + newBugWayfinder；mapExecute/complete 自包含内嵌正文格式）。
 
 ## mapExecute · v5 — #68 清单式（A★ · map 标识头自包含 · 单行前缀 · 闸门一句引用）
 
@@ -82,13 +68,18 @@ Please use the wayfinder skill to advance this map (follow its rules):
 
 ---
 
-## complete · v4
+## complete · v5 — #77（mapHead 自包含化 · 标识头三字段内联顶部 · 去 guide 引导句 · 占位符扩为 n/title/url/closed/total）
 
 - 用途：map 完成态 · 完成调查（100% 却未 close 时排查真实原因 · 人来定夺）
-- 占位符：{closed} / {total}
+- 占位符：{n} / {title} / {url} / {closed} / {total}（completePrompt 拼装传入；首行 `/wayfinder {url}` 单行空格分隔）
 - ZH：
 
-<pre>## MAP完成确认
+<pre>## 目标 map
+- 编号：#{n}
+- 标题：{title}
+- 链接：{url}
+
+## MAP完成确认
 
 当前 map 显示 100% 完成：{closed}/{total} 个 issue 已关闭，但 map 本身仍 open。请先调查「为什么 100% 却未 close」，不要轻信数字、不要擅自 close。
 
@@ -108,16 +99,20 @@ Please use the wayfinder skill to advance this map (follow its rules):
 - [ ] 结束前按进度契约更新相关 issue 正文（## 进度：N% + 下一步）；调查中发现的进度不符（漏关/误开/仅差确认）据实标注（95% · 待确认 / 100% + close），不得显示为未动工；
 - [ ] 若涉及 map 记录调整（Not yet specified / Out of scope）→ 按 wayfinder 规则同步，不重复展开；
 
-从第一性原理出发完成任务，并对抗式审查。
-
 ## 正文格式（写/改 issue 正文时必须遵守）
-- [ ] 用真实换行书写：`## 章节` 独占一行，段落间留空行
+- [ ] 用真实换行书写：每个 `## 章节` 独占一行，段落间留空行
 - [ ] 禁止字面 \n 转义（不要把换行写成 \n 两个字符）、禁止正文以 BOM（\ufeff）开头
-- [ ] 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装</pre>
+- [ ] 写回 issue 正文时以文件方式提交（文件内为真实换行），不要内联转义字符串
+- [ ] 正例：`## 进度：90%` 独占一行，空行后接 `下一步：xxx`（反例：`## 进度：90%\n下一步：xxx`）</pre>
 
 - EN：
 
-<pre>## MAP completion check
+<pre>## Target map
+- No: #{n}
+- Title: {title}
+- Link: {url}
+
+## MAP completion check
 
 The map shows 100% complete: {closed}/{total} issues closed, but the map itself is still open. Investigate first why it is 100% but not closed — do not trust the numbers, do not close on your own.
 
@@ -137,12 +132,11 @@ The map shows 100% complete: {closed}/{total} issues closed, but the map itself 
 - [ ] Before finishing, update relevant issue bodies per the progress contract (## Progress: N% + next step); progress mismatches found during investigation (missed/erroneous close / awaiting confirmation) → mark accordingly (95% · awaiting confirmation / 100% + close), never show as not started;
 - [ ] If map-record adjustments are involved (Not yet specified / Out of scope) → sync per the wayfinder rules, without re-expanding;
 
-Approach tasks from first principles, and review adversarially.
-
 ## Body format (mandatory when writing/editing an issue body)
-- [ ] Use real newlines: each `## section` on its own line, blank line between paragraphs
-- [ ] No literal \n escapes, no BOM (\ufeff) at the start
-- [ ] Write via file-based input (real newlines), never inline JSON-escaped strings</pre>
+- [ ] Use real newlines: each `## section` on its own line, with a blank line between paragraphs
+- [ ] No literal \n escapes (do not write newlines as the two characters backslash-n), no BOM (\ufeff) at the start
+- [ ] Write the body back via a file (real newlines in the file), never an inline escaped string
+- [ ] Example: `## Progress: 90%` on its own line, blank line, then `Next step: ...` (not `## Progress: 90%\nNext step: ...`)</pre>
 
 ---
 
@@ -258,45 +252,7 @@ Example (write this, not `## Progress: 90%\nNext step: ...`):
 
 Next step: ...</pre>
 
-## grill · v1
-
-- 用途：澄清规则（grilling 技能）
-- 占位符：无
-- ZH：
-
-<pre>动手前先想一下：我要做的事里，有没有哪部分是「我猜用户想要这样」的？如果有，别猜 —— 用 grilling 技能把猜的地方问清楚再动手。</pre>
-
-- EN：
-
-<pre>Before you start, check: is any part of what you are about to do based on a guess about what the user wants? If so, do not guess — use the grilling skill to settle those guesses before acting.</pre>
-
----
-
-## newMap · v1
-
-- 用途：建图规划契约
-- 占位符：无
-- ZH：
-
-<pre>建图前先完成（写入 map body 既有章节，遵循 wayfinder 技能规则）：
-0. 先用 grilling 澄清目的地与范围，不自己定 scope；
-1. 并行 / 串行：在 Notes 用一句话概括「哪些票串行（被阻塞）、哪些可并行」；
-2. 已知 / 待调查 / 迷雾：已确认 → Decisions so far；待调查 → 建票；模糊待定 → Not yet specified（迷雾区，后续毕业为新票）；
-3. 归属：每张票声明建议 owner（agent 或人 · HITL），grilling 类必须标 HITL；
-4. 每张新建票写入 `## 进度：0%` 基准。</pre>
-
-- EN：
-
-<pre>Complete before building a map (write into the map body existing sections, follow the wayfinder skill rules):
-0. Clarify the destination and scope with grilling first; do not set scope yourself;
-1. Parallel / serial: summarize in Notes in one sentence "which tickets are serial (blocked) and which run in parallel";
-2. Known / to-investigate / fog: confirmed → Decisions so far; to investigate → create tickets; vague pending → Not yet specified (the fog zone, later graduating into new tickets);
-3. Ownership: declare a suggested owner per ticket (agent or human · HITL); grilling tickets must be marked HITL;
-4. Write a `## 进度：0%` baseline into every new ticket.</pre>
-
----
-
-## tpl.diagnose · v4 — #65 清单式（A★ · 全勾选框 · 无表格 · 诊断≠修复显式）
+## tpl.diagnose · v5 — #65 清单式（A★ · 全勾选框 · 无表格 · 诊断≠修复显式）+ #77 澄清段去悬空括注
 
 - 用途：动作按钮「诊断」（needs-triage ticket）· 清单式
 - 占位符：{url}
@@ -319,7 +275,7 @@ Next step: ...</pre>
 - [ ] 给分流建议：修复 / 关闭 / 重设计 / 等待 — 建议是你的判断，不是执行许可（不要在诊断阶段直接改代码或关闭 ticket）
 
 ## 澄清
-- [ ] 动手前若有「我猜用户想要这样」的地方，先用 grilling 技能澄清（不猜；与 grill 片段同义，此处保留一句轻量提醒）
+- [ ] 动手前若有「我猜用户想要这样」的地方，先用 grilling 技能澄清（不猜）
 
 ## 阶段闸门（动作开始前必读，这是动作的一部分，不是可选项）
 - [ ] 先读该 issue 现状：进度区（## 进度：N%）/ 已有实施记录 / 评论 / 标签，判断它处于哪个阶段
@@ -357,7 +313,7 @@ Diagnose this issue (follow the /triage skill own rules; diagnosis ≠ fix — c
 - [ ] Propose triage: fix / close / redesign / wait — a recommendation, not a license to execute (do not fix code or close the ticket in this diagnosis)
 
 ## Clarify
-- [ ] Before acting, if any part rests on a guess about what the user wants, settle it with the grilling skill first (do not guess; lightweight reminder, same intent as the grill snippet)
+- [ ] Before acting, if any part rests on a guess about what the user wants, settle it with the grilling skill first (do not guess)
 
 ## Stage gate (must read before starting — part of the action, not optional)
 - [ ] First read the issue current state: progress (## Progress: N%) / existing implementation record / comments / labels — determine stage
@@ -684,7 +640,7 @@ Bootstrap this repo configuration (the skill suite is already installed; this co
 
 ---
 
-## newWayfinder · v7
+## newWayfinder · v8 — #77（去「按建图规划契约」名称引用 · 改直述新建 map · 建图结构交由 wayfinder 技能本体）
 
 - 用途：「+ 新建需求」按钮
 - 占位符：{repo}
@@ -697,7 +653,7 @@ Bootstrap this repo configuration (the skill suite is already installed; this co
 收到需求后按以下流程：
 1. 先澄清：对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认；
 2. 判断分类（按需求粒度 / 建图粒度）——先查仓库已有 wayfinder:map 和 issue，确认是否做过：
-   - 新增：全新需求，之前没做过 → 按建图规划契约新建 map（Destination + Notes + plan + tickets；tickets 须以 sub-issue 关联到 map，blocking 用 Blocked by: #<n> 行表示）；
+   - 新增：全新需求，之前没做过 → 新建 map（Destination + Notes + plan + tickets；tickets 须以 sub-issue 关联到 map，blocking 用 Blocked by: #<n> 行表示）；
    - 复用：这个需求之前已做过（已有 map / issue）→ 打开复用它，不重复建；
    - 直接实现：需求很小 → 建一个 issue 直接实现，不建大 map；
 3. 执行后按进度契约更新。</pre>
@@ -711,7 +667,7 @@ Repo (auto-filled from current workspace): {repo}
 After receiving the requirement, follow this flow:
 1. Clarify first: if you hold assumptions about the goal / scope / preferences, settle them with the grilling skill, never assume;
 2. Decide the case (by requirement / map granularity) — first check existing wayfinder:map and issues in the repo to confirm whether it has been done:
-   - Add: a brand-new requirement never done before → build a new map per the planning contract (Destination + Notes + plan + tickets; wire tickets as sub-issues of the map, blocking as `Blocked by: #<n>`);
+   - Add: a brand-new requirement never done before → build a new map (Destination + Notes + plan + tickets; wire tickets as sub-issues of the map, blocking as `Blocked by: #<n>`);
    - Reuse: this requirement has been done before (existing map / issue) → open and reuse it, do not build a new one;
    - Directly implement: the requirement is small → create a single issue and implement it directly, no big map;
 3. Update per the progress contract after execution.</pre>
@@ -741,52 +697,6 @@ Repo: {repo}</pre>
 
 ---
 
-## mapHead · v1
-
-- 用途：新会话/执行 · map 标识头（B2）
-- 占位符：{n} / {title} / {url}
-- ZH：
-
-<pre>## 目标 map
-- 编号：#{n}
-- 标题：{title}
-- 链接：{url}</pre>
-
-- EN：
-
-<pre>## Target map
-- No: #{n}
-- Title: {title}
-- Link: {url}</pre>
-
 ---
 
-## stageGate · v1
-
-- 用途：阶段闸门条款（T13 · 统一追加于 诊断/修复/执行/map推进 动作：needs-triage 必须先诊断并判断现状）
-- 占位符：无
-- ZH：
-
-<pre>阶段闸门（动作开始前必读，这是动作的一部分，不是可选项）：
-1. 先读该 issue 现状：进度区（## 进度：N%）/ 已有实施记录 / 评论 / 标签，判断它处于哪个阶段；
-2. 若带 needs-triage 标签：必须先完成诊断（这是前置步骤，不许跳过直接实施）；
-3. 诊断时判断当前进展：
-   - 已有实施且真实 → 核验是否符合验收标准，属实则维持 95% 待确认 + 摘 needs-triage（转 ready-for-agent）；
-   - 已有实施但虚假/半成品 → 进度据实回调到真实值（如 30%），继续诊断；
-   - 未动工 → 正常诊断（复现 → 根因 → 方案 → 写入 issue）；
-4. 诊断完成摘 needs-triage 后才允许进入实施阶段。</pre>
-
-- EN：
-
-<pre>Stage gate (must read before starting the action — it is part of the action, not optional):
-1. First read the issue current state: progress section (## 进度：N%) / existing implementation record / comments / labels — determine which stage it is in;
-2. If it carries the needs-triage label: diagnosis MUST be completed first (a prerequisite step — do not skip straight to implementation);
-3. During diagnosis, judge current progress:
-   - Existing implementation and it is real → verify against acceptance criteria; if genuine, keep 95% awaiting confirmation + remove needs-triage (move to ready-for-agent);
-   - Existing implementation but fake/partial → revise progress back to the true value (e.g. 30%) and continue diagnosing;
-   - Not started → normal diagnosis (reproduce → root cause → plan → write into the issue);
-4. Only after diagnosis is done and needs-triage removed may implementation begin.</pre>
-
----
-
-> 共 20 条 · 键：guide / mapExecute / complete / fixate / progress / bodyFormat / grill / newMap / tpl.diagnose / tpl.fix / tpl.discuss / tpl.execute / tpl.handoff1 / tpl.handoff2 / setup / setupRun / newWayfinder / newBugWayfinder / mapHead / stageGate
+> 共 15 条 · 键：mapExecute / complete / fixate / progress / bodyFormat / tpl.diagnose / tpl.fix / tpl.discuss / tpl.execute / tpl.handoff1 / tpl.handoff2 / installSkills / setupRun / newWayfinder / newBugWayfinder
