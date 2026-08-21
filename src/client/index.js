@@ -997,6 +997,8 @@ export default {
         case 'external-link': return h('svg', common, [h('path', { d: 'M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6' }), h('polyline', { points: '15 3 21 3 21 9' }), h('line', { x1: 10, y1: 14, x2: 21, y2: 3 })])
         // 新增BUG入口（issue #4）：虫形图标 —— 「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」
         case 'bug': return h('svg', common, [h('path', { d: 'M8 2l1.88 1.88' }), h('path', { d: 'M14.12 3.88L16 2' }), h('path', { d: 'M9 7.13v-1a3.003 3.003 0 116 0v1' }), h('path', { d: 'M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6' }), h('path', { d: 'M12 20v-9' }), h('path', { d: 'M6.53 9C4.6 8.8 3 7.1 3 5' }), h('path', { d: 'M6 13H2' }), h('path', { d: 'M3 21c0-2.1 1.7-3.9 3.8-4' }), h('path', { d: 'M20.97 5c0 2.1-1.6 3.8-3.5 4' }), h('path', { d: 'M22 13h-4' }), h('path', { d: 'M17.2 17c2.1.1 3.8 1.9 3.8 4' })])
+        // issue #100：定位图钉 pin —— 状态栏 issuePath 胶囊（替代 emoji 📌），复用 Icon pin 的图钉形态
+        case 'pin': return h('svg', common, [h('path', { d: 'M12 21s-6-5.1-6-10a6 6 0 1112 0c0 4.9-6 10-6 10z' }), h('circle', { cx: 12, cy: 11, r: 2.2, fill: 'currentColor', stroke: 'none' })])
         default: return null
       }
     }
@@ -2660,12 +2662,12 @@ let pendingDraftTargetSid = null
         // issuePath · 状态栏当前 Issue 胶囊主段（v1.7.0 map #79 · 为主要目的）—— 常驻显示当前 #N，hover 向上弹层展示路径
         h('span', { ref: issuePathAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showIssuePath, onMouseLeave: function () { scheduleClose(issuePathCloseRef, closeIssuePath) } }, [
           h('span', { className: 'dsws-seg' + (s.issuePathHover ? ' on' : ''), onClick: function (e) { e.stopPropagation(); if (s.issuePath && s.issuePath.current) { s.tab='list'; openPanel(s) } }, title: s.issuePath && s.issuePath.current ? '当前处理 #' + s.issuePath.current + ' · hover 查看路径 · 点击打开列表' : '尚未选择当前 Issue · 点击操作会自动记录', style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: s.issuePath && s.issuePath.current ? '#4ade80' : '#6b7280', border: s.issuePathHover ? '1px solid rgba(74,222,128,.45)' : '1px solid transparent', background: s.issuePathHover ? 'rgba(74,222,128,.12)' : 'transparent', borderRadius: 99, padding: '2px 7px' } }, [
-            Ic({ n: 'target', size: 12 }),
-            h('span', { 'data-fold-priority': 10 }, s.issuePath && s.issuePath.current ? '📌 #' + s.issuePath.current : '📌 --'),
+            Ic({ n: 'pin', size: 12 }),
+            h('span', { 'data-fold-priority': 10 }, s.issuePath && s.issuePath.current ? '#' + s.issuePath.current : '--'),
           ]),
           s.issuePathHover ? PortalOverlay({ className: 'dsws-issuepath-pop', onMouseEnter: function () { clearClose(issuePathCloseRef) }, onMouseLeave: function () { scheduleClose(issuePathCloseRef, closeIssuePath) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'fixed', left: s.issuePathPos ? s.issuePathPos.left : 0, bottom: s.issuePathPos ? s.issuePathPos.bottom : 0, padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.45)', minWidth: 260, maxWidth: 380 } }, [
             h('div', { style: { fontSize: 11, fontWeight: 700, color: 'var(--dsw-alias-label-primary,#e6edf3)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 } }, [
-              h('span', null, '📌 当前路径'),
+              h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'pin', size: 12 }), h('span', null, '当前路径')]),
               h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', fontWeight: 400 } }, s.issuePath && s.issuePath.nodes && s.issuePath.nodes.length ? 'anchor #' + s.issuePath.anchor + ' · ' + s.issuePath.nodes.length + ' 节点' : '空'),
               h('span', { style: { marginLeft: 'auto', display: 'inline-flex', gap: 4 } }, [
                 h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); clearIssuePath(s); closeIssuePath() }, style: { fontSize: 10, padding: '2px 6px' } }, '清空'),
