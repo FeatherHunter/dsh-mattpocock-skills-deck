@@ -1,8 +1,8 @@
-# DSH-Waystation · Prompt 审阅清单（v1.10 · 方案A 注册表 · #64 v5 清单式 tpl.execute · #65 v4 清单式 tpl.diagnose · #66 v3 清单式 tpl.fix · #67 v3 清单式 tpl.discuss · #68 v5 清单式 mapExecute（标识头自包含 + 单行前缀）· #70 v2 质量导向 tpl.handoff1 · #71 v2 清单式 tpl.handoff2（单模板，删 handoffRead））
+# DSH-Waystation · Prompt 审阅清单（v1.11 · 方案A 注册表 · #64 v5 清单式 tpl.execute · #65 v4 清单式 tpl.diagnose · #66 v3 清单式 tpl.fix · #67 v3 清单式 tpl.discuss · #68 v5 清单式 mapExecute（标识头自包含 + 单行前缀）· #70 v2 质量导向 tpl.handoff1 · #71 v2 清单式 tpl.handoff2（单模板，删 handoffRead）· #74 v2 双轨安装 installSkills · #75 v3 进度契约 progress（压缩 3 条 + 格式正例 + 未确认不得 close））
 
 > **单源新架构**：真源 `src/client/kernel/prompts.js`，改后必跑 `node scripts/build.mjs` 生成 `client.js / package/lib/client.js`，勿手改产物（见 `docs/architecture/kernel-contract.md`）。动手前必读：`src/client/kernel/prompts.js` 头 20 行 + `docs/architecture/kernel-contract.md` + 跑 `node scripts/build.mjs 及 tests/verify-*`。
 > PROMPTS 注册表（20 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
-> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 六段标题 + 无表格 + 标识头三字段 + 占位符 n/title/url + T13 闸门引用 + 单行前缀）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×3）。
+> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 六段标题 + 无表格 + 标识头三字段 + 占位符 n/title/url + T13 闸门引用 + 单行前缀；#74 installSkills 硬校验：版本 ≥ v2 + zh/en 必含 ~/.agents/skills 与全部 10 个所需技能名；#75 progress 硬校验：版本 ≥ v3 + 格式正例 + 未确认不得 close + 首触补写）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×3）。
 
 ## guide · v1
 
@@ -146,51 +146,87 @@ Approach tasks from first principles, and review adversarially.
 
 ---
 
-## fixate · v1
+## fixate · v2
 
-- 用途：沉淀 · 零丢失快照
+- 用途：沉淀 · 思维对齐 · 成果沉淀
 - 占位符：无
 - ZH：
 
-<pre>里程碑固化点。暂停推进，执行「零丢失快照」，从第一性原理出发：
+<pre>告一段落。暂停推进，执行「思维对齐 · 成果沉淀」，从第一性原理出发：
 
-1. 全量复述：把我从会话开始到现在说过的全部信息，按「目的地 / 约束与偏好 / 已确认的决定 / 待决问题 / 雾区（隐约可见但还不清晰）」五类，逐条列出——不压缩、不合并，宁可啰嗦不可省略。
-2. 每条后面标注出处：用我的原话引用，让我知道它来自我哪句话。
-3. 单独列一节「可疑遗漏」：凡是我提过、但你觉得与主线无关、太模糊或像执行细节而没纳入的，全部摆出来，写明你当初不纳入的理由，由我裁决。
-4. 列完后停下等我逐条核对。我确认或修正完毕后，你再把清单落盘：已有地图就写进 map 正文和对应 ISSUE；只有ISSUE就写进对应ISSUE；都没有就先生成一份快照笔记并告诉我存哪，等建图时搬入。</pre>
+## 沉淀
+- [ ] 全量复述：把我从会话开始到现在、我问过你并得到明确回答的内容，按五类逐条列出（每条 = 我问的问题 → 你的回答）：目的地 / 约束与偏好 / 已确认的决定 / 待决问题 / 雾区（隐约可见但还不清晰）
+- [ ] 不压缩、不合并——宁可啰嗦不可省略；一次全部列完，不分批
+- [ ] 每条标注出处：我的问题（短句）+ 你的原话关键短句（≤50 字，超出以省略号截断）+ 上下文提示（如主题/轮次），让我知道它来自哪
+
+## 可疑遗漏
+- [ ] 单列一节「可疑遗漏」：
+  - [ ] 我问过、你已回答、但我未纳入上面清单的（第一优先级——防我漏记你已答的内容）
+  - [ ] 你提过、但我判断与主线无关 / 太模糊 / 属执行细节而未纳入的
+  - [ ] 每条写明我当时的判断理由，由你裁决纳入或放弃
+
+## 核对
+- [ ] 列完（含「可疑遗漏」）后停下，等我逐条核对；我确认或修正后，你再执行落盘
+
+## 落盘
+- [ ] 有明确对应 ticket（票）→ 全部成果写入该 ticket 正文的「## 对齐成果」节（新增或并入，含日期）；不写 map（地图）正文——map 是索引，成果归 ticket
+- [ ] 无对应 ticket、但属于某 map → 写入 alignment note（对齐记录）`.scratch/alignment/<ts>-<短标题>.md`（相对当前工作目录；短标题 ≤10 字，用连字符或下划线代替空格），并在该 map 的 Notes 追加一行指针（路径 + 日期）
+- [ ] 无 ticket 也无 map → 写入对齐记录文件，并告诉我完整路径；建图/建票时由接手会话搬入对应 ticket
+- [ ] 属 map 层面的条目（如目的地/雾区调整）→ 照写进所选位置，条目末尾标注「map 层面，随建图搬入」
+
+## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 用真实换行书写：`## 章节` 独占一行，段落间留空行
+- [ ] 禁止字面 \n 转义（不要把换行写成 \n 两个字符）、禁止正文以 BOM（\ufeff）开头
+- [ ] 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装</pre>
 
 - EN：
 
-<pre>Milestone checkpoint. Pause progress and take a "zero-loss snapshot", from first principles:
+<pre>This phase wraps up here. Pause progress and run the "alignment & consolidation" pass, from first principles:
 
-1. Restate everything I have said since the session started, in five categories: "Destination / Constraints & preferences / Confirmed decisions / Open questions / Fog (dimly visible but not yet clear)" — list every item, no compression, no merging, rather verbose than omitted.
-2. Annotate each item with its source: quote my original words so I know which sentence it came from.
-3. Add a separate "Suspected omissions" section: everything I mentioned but you deemed off-topic, too vague, or execution detail and did not include — list them all with your reason, and let me decide.
-4. Stop and wait for my item-by-item review after listing. Once I confirm or correct, persist the list: if a map exists, write into the map body and the corresponding ISSUEs; if only ISSUEs, write into those ISSUEs; if neither, create a snapshot note and tell me where it is, to migrate when a map is created.</pre>
+## Consolidate
+- [ ] Restate everything I have explicitly answered since this session started, in five categories (each item = my question → your answer): Destination / Constraints & preferences / Confirmed decisions / Open questions / Fog (dimly visible but not yet clear)
+- [ ] No compression, no merging — rather verbose than omitted; list everything in one go, no batching
+- [ ] Annotate each item with its source: my question (short) + a key quote of your original words (≤50 chars, truncate with ellipsis if longer) + a context hint (e.g. topic/turn) so I know where it came from
+
+## Suspected omissions
+- [ ] Add a separate "Suspected omissions" section:
+  - [ ] Questions I asked, you answered, but I did not include above (first priority — guard against forgetting your answers)
+  - [ ] Things you mentioned but I judged off-topic, too vague, or execution detail and did not include
+  - [ ] State my judgment reason for each; you decide whether to keep or drop
+
+## Review
+- [ ] Stop after listing (including "Suspected omissions") and wait for my item-by-item review; once I confirm or correct, you persist the list
+
+## Persist
+- [ ] If a corresponding ticket exists → write all outcomes into that ticket body (a new or merged "## Alignment outcomes" section, with date); do not write into the map body — the map is an index, outcomes belong to the ticket
+- [ ] If no corresponding ticket but within a map → write an alignment note to `.scratch/alignment/<ts>-<short>.md` (relative to the current working directory; short ≤20 chars, hyphen or underscore instead of spaces), and append a one-line pointer (path + date) to the map Notes
+- [ ] If no ticket and no map → write the alignment note and tell me the full path; when a map/ticket is created, the taking-over session migrates it into the corresponding ticket
+- [ ] Map-level items (e.g. Destination/Fog adjustments) → still write them in the chosen place, and mark the item "map-level, migrate when the map is built"
+
+## Body format (mandatory when writing/editing an issue body)
+- [ ] Use real newlines: each `## section` on its own line, blank line between paragraphs
+- [ ] No literal \n escapes, no BOM (\ufeff) at the start
+- [ ] Write via file-based input (real newlines), never inline JSON-escaped strings</pre>
 
 ---
 
-## progress · v1
+## progress · v3 — #75 grill 定版（压缩 3 条 · 格式正例 · 未确认不得 close）
 
 - 用途：进度契约（所有动作 prompt 引用）
 - 占位符：无
 - ZH：
 
 <pre>进度表达（每次动作结束前必须更新 —— 这是动作的一部分，不是可选项）：
-1. issue 正文维护固定进度区：`## 进度：N%`（N 为 0-100 整数，禁止「大概 / 基本」等模糊词）；
-2. 更新前先读正文当前进度，基于最新状态写真实当前值（可上调也可下调）；
-3. 未动工 = 0%；进行中 = 1-94%；95% = 已完成待用户确认（下一步注明「待确认什么」）；确认后立即写 100% 并 close；
-4. 100% = 确认完成（close 后进度区保留为历史）；
-5. 首次接触无进度区的票：先按现状补写一个与实施记录相符的进度。</pre>
+1. 格式与写法：issue 正文维护固定进度区 `## 进度：N%`（N 为 0-100 整数，如 `## 进度：90%`；禁止「大概 / 基本」等模糊词）；更新前先读正文当前进度，按最新状态写真实当前值（可上调也可下调）；
+2. 语义阶梯：0% = 未动工；1-94% = 进行中；95% = 已完成待用户确认（下一步必须写明待确认什么；未确认不得 close）；确认后立即写 100% 并 close；
+3. 兜底：100% = 确认完成（close 后进度区保留为历史）；首次接触无进度区的票，先按现状补写一个与实施记录相符的进度。</pre>
 
 - EN：
 
 <pre>Progress expression (must update before finishing every action — it is part of the action, not optional):
-1. Keep a fixed progress section in the issue body: `## 进度：N%` (N is an integer 0-100; no vague words like "about / basically");
-2. Before updating, read the body current progress and write the true current value based on the latest state (can go up or down);
-3. Not started = 0%; in progress = 1-94%; 95% = done, awaiting user confirmation (note "what is pending" in the next step); once confirmed, immediately write 100% and close;
-4. 100% = confirmed done (the section stays as history after close);
-5. On first contact with a ticket lacking the section, write a progress matching its implementation record.</pre>
+1. Format & writing: keep a fixed progress section in the issue body: `## Progress: N%` (N is an integer 0-100, e.g. `## Progress: 90%`; no vague words like "about / basically"); before updating, read the current progress in the body and write the true current value based on the latest state (may go up or down);
+2. The ladder: 0% = not started; 1-94% = in progress; 95% = done, awaiting user confirmation (the next step must state what exactly awaits confirmation; do not close before confirmation); once confirmed, immediately write 100% and close;
+3. Fallbacks: 100% = confirmed done (the section stays as history after close); on first contact with a ticket lacking the section, write a progress matching its implementation record.</pre>
 
 ---
 
@@ -593,25 +629,29 @@ This doc is for an agent with no memory of this session — write from its persp
 
 ---
 
-## installSkills · v1
+## installSkills · v2 — #74 双轨安装（npx 官方安装器优先 + 克隆复制回退）· 幂等守卫 · 10 哨兵清单
 
 - 用途：技能安装引导 · DSH 专用（横幅 / 引导 g4 / 设置页复制）
 - 占位符：无
 - ZH：
 
 <pre>请为 DSH 安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）：
-1. 克隆 https://github.com/mattpocock/skills；
-2. 按官方 README 将工程领域与通用领域的全部 skills 安装到 DSH 读取的技能目录：用户主目录下的 ~/.agents/skills（本套件仅用于 DSH，不要安装到其他 AI 工具）；
-3. 安装后验证 wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills 等技能文件已就位；
-4. 完成后汇报安装结果与已装技能清单。</pre>
+
+1. 先检查：确认 ~/.agents/skills 下这 10 个技能已全部就位：wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills。已全部就位 → 直接汇报已装技能清单并结束，不要重复安装；
+2. 有缺失则安装：优先用官方安装器 `npx -y skills@latest add mattpocock/skills -a cline -g --copy -y`（安装器未列出 DSH，但 `-a cline` 的全局目录恰为 ~/.agents/skills，与 DSH 读取目录一致；`--copy` 用复制而非符号链接，防 npx 缓存清理后断链）；若无 npx 或安装失败，回退：克隆 https://github.com/mattpocock/skills，把 skills/engineering 与 skills/productivity 目录下的全部技能复制到 ~/.agents/skills；
+3. 安装目标是 DSH 读取的用户级技能目录：~/.agents/skills —— 不要装进其他工具的技能目录（如 ~/.claude/skills）；
+4. 安装后复验：第 1 步的 10 个技能已全部就位；
+5. 完成后汇报安装结果与已装技能清单。</pre>
 
 - EN：
 
 <pre>Install the Matt Pocock skills collection (mattpocock/skills) for DSH:
-1. Clone https://github.com/mattpocock/skills;
-2. Per the official README, install all engineering and general-purpose skills into the skill directory DSH reads: ~/.agents/skills under the user home (this collection is for DSH only — do not install it into other AI tools);
-3. After install, verify wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills are in place;
-4. Report the result and the installed skill list when done.</pre>
+
+1. Check first: confirm these 10 skills are all present under ~/.agents/skills: wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills. If all are present, report the installed skill list and stop — do not reinstall;
+2. If any are missing, install: prefer the official installer `npx -y skills@latest add mattpocock/skills -a cline -g --copy -y` (the installer does not list DSH, but `-a cline` installs globally into ~/.agents/skills — the same directory DSH reads; `--copy` copies instead of symlinking so npx cache cleanup cannot break the links); if npx is unavailable or fails, fall back: clone https://github.com/mattpocock/skills and copy all skills from skills/engineering and skills/productivity into ~/.agents/skills;
+3. Install into the user-level skill directory DSH reads: ~/.agents/skills — do not install into the skill directories of other tools (e.g. ~/.claude/skills);
+4. After install, re-verify: all 10 skills from step 1 are in place;
+5. When done, report the result and the installed skill list.</pre>
 
 ---
 

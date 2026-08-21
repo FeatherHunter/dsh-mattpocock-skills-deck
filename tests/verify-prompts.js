@@ -53,7 +53,7 @@ const check = function (file) {
   // 旧形式残留
   ;["tr('prompt.", "'prompt.\'" ].forEach(function (bad) { if (src.includes(bad)) problems.push('旧字典引用残留 ' + bad) })
   // T13：版本号 bump —— 契约变更的条目必须升版（防回退），stageGate 必须存在（#65 diagnose 自带闸门，不再依赖尾部追加但保留 STAGE_GATED_IDS 声明）
-  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 5, 'stageGate': 2, 'complete': 4, 'setupRun': 7 }
+  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 5, 'stageGate': 2, 'complete': 4, 'setupRun': 7, 'fixate': 2, 'progress': 3 }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
     if (!p) problems.push('T13 缺条目 ' + id)
@@ -151,6 +151,64 @@ const check = function (file) {
     problems.push('缺条目 tpl.handoff2')
   }
   if (reg['handoffRead']) problems.push('handoffRead 未塌缩删除（应只剩 tpl.handoff2 单模板）')
+  // #72 沉淀 v2（A★ · 思维对齐 · 成果沉淀 · 防"问100记70"）：fixate 清单式 + 新命名 + 落盘分支契约
+  const fx = reg['fixate']
+  if (fx) {
+    if (fx.version < 2) problems.push('fixate 版本号未 bump（期望 ≥ v2）')
+    if (fx.zh.indexOf('- [ ]') < 0) problems.push('fixate zh 缺清单标记 - [ ]（A★ 清单式）')
+    if (fx.zh.indexOf('## 沉淀') < 0 || fx.zh.indexOf('## 可疑遗漏') < 0 || fx.zh.indexOf('## 核对') < 0 || fx.zh.indexOf('## 落盘') < 0 || fx.zh.indexOf('## 正文格式') < 0) problems.push('fixate zh 缺清单段标题（沉淀/可疑遗漏/核对/落盘/正文格式）')
+    if (fx.zh.indexOf('|') >= 0) problems.push('fixate zh 含表格 |（已约定无表格，全勾选框）')
+    if (fx.zh.indexOf('思维对齐 · 成果沉淀') < 0) problems.push('fixate zh 缺新命名（思维对齐 · 成果沉淀，旧名「零丢失快照」已退役）')
+    if (fx.zh.indexOf('零丢失') >= 0) problems.push('fixate zh 残留旧命名「零丢失」')
+    if (fx.zh.indexOf('对齐成果') < 0 || fx.zh.indexOf('.scratch/alignment/') < 0) problems.push('fixate zh 缺落盘分支契约（对齐成果 / .scratch/alignment/）')
+    if (fx.zh.indexOf('ticket') < 0 || fx.zh.indexOf('map') < 0) problems.push('fixate zh 缺术语（ticket/map，专业术语英文）')
+    if (fx.en.indexOf('- [ ]') < 0) problems.push('fixate en 缺清单标记 - [ ]')
+    if (fx.en.indexOf('## Consolidate') < 0 || fx.en.indexOf('## Suspected omissions') < 0 || fx.en.indexOf('## Review') < 0 || fx.en.indexOf('## Persist') < 0) problems.push('fixate en 缺清单段标题（Consolidate/Suspected omissions/Review/Persist）')
+    if (fx.en.indexOf('alignment & consolidation') < 0) problems.push('fixate en 缺新命名（alignment & consolidation）')
+  } else {
+    problems.push('缺条目 fixate')
+  }
+  // #74 技能安装引导 v2（双轨安装 + 幂等守卫 + 10 哨兵清单）：installSkills 必须 ≥ v2，
+  //   zh/en 必含安装目录 ~/.agents/skills 与全部 10 个 deck 所需技能名（安装套件后所需技能应全部就位 → 锁死清单覆盖防漂移）
+  const is = reg['installSkills']
+  const SKILL_NAMES_10 = ['wayfinder', 'triage', 'grilling', 'grill-me', 'implement', 'ask-matt', 'research', 'prototype', 'handoff', 'setup-matt-pocock-skills']
+  if (is) {
+    if (is.version < 2) problems.push('installSkills 版本号未 bump（期望 ≥ v2）')
+    if (is.zh.indexOf('~/.agents/skills') < 0) problems.push('installSkills zh 缺安装目录 ~/.agents/skills')
+    if (is.en.indexOf('~/.agents/skills') < 0) problems.push('installSkills en 缺安装目录 ~/.agents/skills')
+    SKILL_NAMES_10.forEach(function (n) {
+      if (is.zh.indexOf(n) < 0) problems.push('installSkills zh 缺所需技能 ' + n)
+      if (is.en.indexOf(n) < 0) problems.push('installSkills en 缺所需技能 ' + n)
+    })
+  } else {
+    problems.push('缺条目 installSkills')
+  }
+  // #75 进度契约 v3（压缩 3 条 + 格式正例 + 未确认不得 close）：progress 必须 ≥ v3 且含关键标记
+  //   契约要点：1) 格式与写法（固定区 + N 0-100 整数 + 正例 + 先读现状可上调下调） 2) 语义阶梯（0/1-94/95/100，
+  //   95% 必须写明待确认什么 + 未确认不得 close） 3) 兜底（100% 保留历史 + 首触补写）
+  const pr = reg['progress']
+  if (pr) {
+    if (pr.version < 3) problems.push('progress 版本号未 bump（期望 ≥ v3）')
+    if (pr.placeholders.length !== 0) problems.push('progress 不应有占位符')
+    // zh 关键标记
+    if (pr.zh.indexOf('## 进度：N%') < 0) problems.push('progress zh 缺固定进度区格式（## 进度：N%）')
+    if (pr.zh.indexOf('## 进度：90%') < 0) problems.push('progress zh 缺格式正例（如 ## 进度：90%）')
+    if (pr.zh.indexOf('可上调也可下调') < 0) problems.push('progress zh 缺可上调可下调（真实当前值）')
+    if (pr.zh.indexOf('0% = 未动工') < 0 || pr.zh.indexOf('1-94% = 进行中') < 0) problems.push('progress zh 缺阶梯 0%/1-94% 定义')
+    if (pr.zh.indexOf('未确认不得 close') < 0) problems.push('progress zh 缺未确认不得 close（防 close@95% 违规）')
+    if (pr.zh.indexOf('确认后立即写 100% 并 close') < 0) problems.push('progress zh 缺确认后 100% + close')
+    if (pr.zh.indexOf('close 后进度区保留为历史') < 0) problems.push('progress zh 缺 close 后保留为历史')
+    if (pr.zh.indexOf('首次接触') < 0 || pr.zh.indexOf('实施记录相符') < 0) problems.push('progress zh 缺首触补写兜底（首次接触 / 实施记录相符）')
+    // en 关键标记（同构直译）
+    if (pr.en.indexOf('## Progress: N%') < 0) problems.push('progress en 缺固定进度区格式（## Progress: N%）')
+    if (pr.en.indexOf('## Progress: 90%') < 0) problems.push('progress en 缺格式正例（e.g. ## Progress: 90%）')
+    if (pr.en.indexOf('may go up or down') < 0) problems.push('progress en 缺 may go up or down')
+    if (pr.en.indexOf('do not close before confirmation') < 0) problems.push('progress en 缺 do not close before confirmation')
+    if (pr.en.indexOf('stays as history after close') < 0) problems.push('progress en 缺 stays as history after close')
+    if (pr.en.indexOf('first contact') < 0 || pr.en.indexOf('implementation record') < 0) problems.push('progress en 缺首触补写兜底（first contact / implementation record）')
+  } else {
+    problems.push('缺条目 progress')
+  }
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
   else console.log('  PASS', file, '(' + Object.keys(reg).length + ' 条注册表，' + (src.match(/promptText\(/g) || []).length + ' 处引用)')
 }
