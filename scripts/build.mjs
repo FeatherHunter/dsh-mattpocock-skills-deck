@@ -163,10 +163,38 @@ function wireCtx(body) {
   return body.slice(0, idx + marker.length) + '\n' + extractCtxBlock() + '\n' + body.slice(idx + marker.length)
 }
 
+// ---------- Kernel 模块组合（阶段 2 内核迁移 · #96 T3）----------
+/** 内核模块清单（docs/architecture/kernel-contract.md · G3 冻结 · 迁移完成即全活跃）。
+ *  index.js 中每模块原位置留标记 `// ==== kernel:<name> (spliced by build) ====`，
+ *  构建时把模块文件声明体（去行首 export）拼回标记处 —— 闭包内原位，行为零变化。 */
+const KERNEL_MODULES = [
+  { name: 'styles', file: 'src/client/kernel/styles.js' },
+  { name: 'locale', file: 'src/client/kernel/locale.js' },
+  { name: 'icons', file: 'src/client/kernel/icons.js' },
+  { name: 'prompts', file: 'src/client/kernel/prompts.js' },
+  { name: 'config', file: 'src/client/kernel/config.js' },
+  { name: 'store', file: 'src/client/kernel/store.js' },
+  { name: 'api', file: 'src/client/kernel/api.js' },
+  { name: 'probe', file: 'src/client/kernel/probe.js' },
+  { name: 'router', file: 'src/client/kernel/router.js' },
+]
+function extractKernelBlock(file) {
+  return read(file).split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n').trim()
+}
+function wireKernel(body) {
+  let out = body
+  for (const m of KERNEL_MODULES) {
+    const marker = `// ==== kernel:${m.name} (spliced by build) ====`
+    if (out.indexOf(marker) < 0) continue  // 未迁移的模块：跳过（幂等）
+    out = out.replace(marker, extractKernelBlock(m.file))
+  }
+  return out
+}
+
 // ---------- 构建 client ----------
 async function buildClient({ version }) {
   const { header, body } = extractPluginBody('src/client/index.js')
-  const bodyW = wireCtx(injectVersion(body, version))
+  const bodyW = wireCtx(wireKernel(injectVersion(body, version)))
 
   // ---- _dev：cordis_define 函数体形态 ----
   const devCode = `${header}\n\nreturn ${bodyW}\n`
