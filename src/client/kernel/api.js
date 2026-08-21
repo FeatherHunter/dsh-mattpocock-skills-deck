@@ -257,3 +257,124 @@ export let pendingDraftTargetSid = null
         navigator.clipboard.writeText(text).then(function () { flash(st, okMsg || tr('toast.copied'), 'ok') }).catch(function () { flash(st, tr('toast.copyFailed'), 'warn') })
       } else flash(st, tr('toast.clipboardUnavailable'), 'warn')
     }
+    // T2 #7 · fetchIssueDetail 数据通路（独立缓存 + GraphQL aliases 思路复用 + REST 降级搬运 + 配额止血）
+    // 契约：st.issueCache {[n]:{ts,data}}, st.issueMode='idle'|'loading'|'real'|'err', st.issueDetail, st.issueError
+    //   TTL 60s 命中即用，miss 走 host.call('wf.issueDetail')；错误形状与 fetchMapsDetail 对齐 {ok, error:{kind,message}}
+    //   kind 细化 env|parse|graphql|network|rateLimit|notFound|404（由 host 归一化，client 透传）
+    export const fetchIssueDetail = function (st, n, opts) {
+      const num = Number(n)
+      if (!num || isNaN(num)) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number' } })
+      const force = !!(opts && opts.force)
+      const now = Date.now()
+      const entry = st.issueCache && st.issueCache[num]
+      if (!force && entry && (now - entry.ts) < ISSUE_CACHE_TTL) {
+        st.issueDetail = entry.data
+        st.issueMode = 'real'
+        st.issueError = null
+        emit(st)
+        return Promise.resolve({ ok: true, issue: entry.data, fromCache: true })
+      }
+      if (typeof host === 'undefined' || typeof host.call !== 'function') {
+        const err = { kind: 'env', message: tr('err.hostUnavailable') }
+        st.issueMode = 'err'; st.issueError = err; st.issueDetail = null; emit(st)
+        return Promise.resolve({ ok: false, error: err })
+      }
+      st.issueMode = 'loading'; st.issueError = null; emit(st)
+      const cwdArg = st.cwd ? { cwd: st.cwd } : {}
+      return host.call('wf.issueDetail', Object.assign({ number: num }, cwdArg)).then(function (res) {
+        if (!res) {
+          const err = { kind: 'network', message: tr('err.snapshotEmpty') }
+          st.issueMode = 'err'; st.issueError = err; st.issueDetail = null; emit(st)
+          return { ok: false, error: err }
+        }
+        if (res.ok) {
+          const issue = res.issue || res.value && res.value.issue || res.value
+          if (!issue || typeof issue.number !== 'number') {
+            const err = { kind: 'parse', message: 'issue missing' }
+            st.issueMode = 'err'; st.issueError = err; st.issueDetail = null; emit(st)
+            return { ok: false, error: err }
+          }
+          // 缓存
+          if (!st.issueCache) st.issueCache = {}
+          st.issueCache[num] = { ts: Date.now(), data: issue }
+          st.issueDetail = issue
+          st.issueMode = 'real'
+          st.issueError = null
+          emit(st)
+          return { ok: true, issue: issue }
+        } else {
+          const err = res.error || { kind: 'network', message: String(res.error || 'fetch failed') }
+          // 细化 404 / notFound
+          if (/404/i.test(String(err.message || err.kind)) ) err.kind = '404'
+          else if (/not.?found/i.test(String(err.message || ''))) err.kind = 'notFound'
+          else if (/rate.?limit/i.test(String(err.message || ''))) err.kind = 'rateLimit'
+          st.issueMode = 'err'; st.issueError = err; st.issueDetail = null; emit(st)
+          return { ok: false, error: err }
+        }
+      }).catch(function (e) {
+        const err = { kind: 'network', message: String((e && e.message) || e) }
+        st.issueMode = 'err'; st.issueError = err; st.issueDetail = null; emit(st)
+        return { ok: false, error: err }
+      })
+    }
+    export const clearIssueDetailCache = function (st, n) {
+      if (n != null) { const num = Number(n); if (st.issueCache) delete st.issueCache[num] }
+      else if (st.issueCache) st.issueCache = {}
+      emit(st)
+    }
+    // T5 #10 · 评论分页加载与节流错误态（首 50 同 fetchIssueDetail，加载更多 → fetchIssueComments(n, after) 反向分页 cursor，节流 600ms，失败重试与 3 次兜底）
+    // 契约：st.issueDetail.comments.nodes 首 50，st.issueCommentsMoreLoading 布尔，st.issueCommentsFailCount 计数，st.issueCommentsHasMore 布尔（pageInfo.hasNextPage）
+    export const fetchIssueComments = function (st, n, after) {
+      const num = Number(n)
+      if (!num || isNaN(num)) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number' } })
+      if (st.issueCommentsMoreLoading) return Promise.resolve({ ok: false, error: { kind: 'throttle', message: 'loading' } })
+      if (typeof host === 'undefined' || typeof host.call !== 'function') {
+        const err = { kind: 'env', message: tr('err.hostUnavailable') }
+        st.issueCommentsFailCount = (st.issueCommentsFailCount || 0) + 1
+        emit(st)
+        return Promise.resolve({ ok: false, error: err })
+      }
+      st.issueCommentsMoreLoading = true; emit(st)
+      const cwdArg = st.cwd ? { cwd: st.cwd } : {}
+      const afterArg = (after != null) ? String(after) : (st.issueDetail && st.issueDetail.comments && st.issueDetail.comments.pageInfo && st.issueDetail.comments.pageInfo.endCursor) ? String(st.issueDetail.comments.pageInfo.endCursor) : String((st.issueDetail && st.issueDetail.comments && st.issueDetail.comments.nodes && st.issueDetail.comments.nodes.length) || 0)
+      return host.call('wf.issueComments', Object.assign({ number: num, after: afterArg }, cwdArg)).then(function (res) {
+        st.issueCommentsMoreLoading = false
+        if (!res) {
+          st.issueCommentsFailCount = (st.issueCommentsFailCount || 0) + 1; emit(st)
+          return { ok: false, error: { kind: 'network', message: tr('err.snapshotEmpty') } }
+        }
+        if (res.ok) {
+          const nodes = res.nodes || (res.value && res.value.nodes) || []
+          const pageInfo = res.pageInfo || (res.value && res.value.pageInfo) || { hasNextPage: nodes.length === 50, endCursor: String((Number(afterArg||0)+nodes.length)) }
+          // 合并到 issueDetail
+          if (!st.issueDetail) st.issueDetail = { number: num, comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } }
+          if (!st.issueDetail.comments) st.issueDetail.comments = { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } }
+          if (!Array.isArray(st.issueDetail.comments.nodes)) st.issueDetail.comments.nodes = []
+          // 去重（按 author+body+createdAt 极简）
+          const existing = st.issueDetail.comments.nodes
+          nodes.forEach(function (c) { existing.push(c) })
+          st.issueDetail.comments.pageInfo = pageInfo
+          st.issueCommentsHasMore = !!pageInfo.hasNextPage
+          st.issueCommentsFailCount = 0
+          // 同步缓存（更新 ts 不重置 TTL，仅追加评论）
+          if (st.issueCache && st.issueCache[num]) { st.issueCache[num].data = st.issueDetail; st.issueCache[num].ts = Date.now() }
+          emit(st)
+          // 探测后续变化（v1.5 R9）
+          if (typeof scheduleActionProbe === 'function') try { scheduleActionProbe() } catch (e) {}
+          return { ok: true, nodes: nodes, pageInfo: pageInfo }
+        } else {
+          const err = res.error || { kind: 'network', message: String(res.error || 'fetch failed') }
+          if (/404/i.test(String(err.message||err.kind))) err.kind='404'
+          else if (/not.?found/i.test(String(err.message||''))) err.kind='notFound'
+          else if (/rate.?limit/i.test(String(err.message||''))) err.kind='rateLimit'
+          st.issueCommentsFailCount = (st.issueCommentsFailCount || 0) + 1
+          emit(st)
+          return { ok: false, error: err }
+        }
+      }).catch(function (e) {
+        st.issueCommentsMoreLoading = false
+        st.issueCommentsFailCount = (st.issueCommentsFailCount || 0) + 1
+        emit(st)
+        return { ok: false, error: { kind: 'network', message: String((e && e.message) || e) } }
+      })
+    }

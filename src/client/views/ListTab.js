@@ -96,7 +96,7 @@ export     const ListTab = ({ st, narrow }) => {
       const filteredClosed = showClosedList ? ((st.lblFilters && st.lblFilters.length) ? closedSorted.filter(byLabel) : closedSorted) : []
       const has = function (x, nm) { return (x.labels || []).some(function (l) { return l.name === nm }) }
       const findMap = function (num) { return (st.snapshot && st.snapshot.maps || []).find(function (m) { return m.number === num }) }
-      const openBlocked = function (blk) { st.activeMap = blk.map; emit(st) }
+      const openBlocked = function (blk) { setActiveMap(st, blk.map) }
       // v14-18：chips 常显深一档边框（边框色 = label 色 HSL 亮度 -16%）
       const chip = (nm, withCount, on, isAll) => {
         const c = colorOf[nm]
@@ -172,9 +172,12 @@ export     const ListTab = ({ st, narrow }) => {
         return h('div', {
           key: x.number,
           className: 'dsws-aggrow' + _flashCls,
-          onClick: function () { if (isMap && mapObj) { st.activeMap = x.number; emit(st) } },
-          title: (isMap && mapObj) ? tr('list.mapTitle') : undefined,
-          style: isMap ? { cursor: 'pointer', borderLeft: '3px solid #c084fc', background: 'rgba(188,140,255,.07)' } : undefined,
+          onClick: function () {
+            if (isMap && mapObj) { setActiveMap(st, x.number) }
+            else { setActiveIssue(st, x.number) }
+          },
+          title: (isMap && mapObj) ? tr('list.mapTitle') : tr('list.issueDetailTitle'),
+          style: isMap ? { cursor: 'pointer', borderLeft: '3px solid #c084fc', background: 'rgba(188,140,255,.07)' } : { cursor: 'pointer' },
         }, [
           // 行1：idcol 竖排（编号上 map 徽章下）+ 标题 + 圆环进度
           h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 6, width: '100%' } }, [

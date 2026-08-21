@@ -577,6 +577,94 @@ export default {
       return { ok: false, error: last || { kind: 'network', error: 'GraphQL aliases 请求失败（重试后仍失败）' } }
     }
 
+    // T2 #7 · fetchIssueDetail 单 issue 数据通路（复用 fetchMapsDetail 思路，独立别名/单 issue 不合并 aliases）
+    // GraphQL 字段按 T2 契约：number title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}}
+    // 配额止血：GraphQL 按复杂度计点失败 → RATE_LIMIT 鉴别后切 REST 兜底；REST 逐请求失败置空，整体不崩
+    // 错误形状与 fetchMapsDetail 对齐 {ok,error,issue?}；kind 细化 env|parse|graphql|network|rateLimit|notFound|404
+    async function fetchIssueDetailREST(n, cwd) {
+      const repo = await getRepoKey(cwd)
+      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
+      try {
+        const r = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n], cwd)
+        if (!r.ok) {
+          if (r.kind === 'notfound' || /404/i.test(String(r.error||''))) return { ok: false, error: { kind: '404', message: String(r.error||'not found') } }
+          if (r.kind === 'notfound') return { ok: false, error: { kind: 'notFound', message: String(r.error||'not found') } }
+          if (isRateLimitError(r)) return { ok: false, error: { kind: 'rateLimit', message: String(r.error||'rate limit') } }
+          return { ok: false, error: { kind: r.kind || 'network', message: String(r.error||'request failed') } }
+        }
+        const issue = JSON.parse(r.text)
+        let comments = { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } }
+        let subIssues = { totalCount: 0, nodes: [] }
+        let blockedBy = { nodes: [] }
+        try {
+          const cr = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/comments?per_page=50'], cwd)
+          if (cr.ok) {
+            const arr = JSON.parse(cr.text) || []
+            comments.nodes = arr.map(function (c) { return { author: { login: (c.user && c.user.login) || '' }, authorAssociation: c.author_association || '', body: c.body || '', createdAt: c.created_at, updatedAt: c.updated_at } })
+            comments.pageInfo = { hasNextPage: arr.length === 50, endCursor: String(arr.length) }
+          }
+        } catch (e) {}
+        try {
+          const sr = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/sub_issues?per_page=50'], cwd)
+          if (sr.ok) {
+            const arr = JSON.parse(sr.text) || []
+            subIssues.totalCount = arr.length
+            subIssues.nodes = arr.map(function (s) { return { number: s.number, title: s.title, state: (String(s.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN') } })
+          }
+        } catch (e) {}
+        try {
+          const br = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/dependencies/blocked_by'], cwd)
+          if (br.ok) {
+            const arr = JSON.parse(br.text) || []
+            blockedBy.nodes = arr.map(function (b) { return { number: b.number != null ? b.number : b.id, title: b.title || '', state: (String(b.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN') } })
+          }
+        } catch (e) {}
+        const mapped = {
+          number: issue.number, title: issue.title, state: (String(issue.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN'),
+          body: issue.body || '', url: issue.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + n),
+          updatedAt: issue.updated_at, createdAt: issue.created_at, closedAt: issue.closed_at,
+          labels: { nodes: (issue.labels || []).map(function (l) { return { name: l.name, color: l.color || '' } }) },
+          assignees: { nodes: (issue.assignees || []).map(function (a) { return { login: a.login } }) },
+          comments: comments,
+          subIssues: subIssues,
+          blockedBy: blockedBy,
+          blocking: { nodes: [] }
+        }
+        return { ok: true, issue: mapped, fallback: 'rest' }
+      } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
+    }
+
+    async function fetchIssueDetail(n, cwd) {
+      const repo = await getRepoKey(cwd)
+      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
+      const frag = 'number title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}} blocking(first:20){nodes{number title state}}'
+      const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issue(number:' + n + '){' + frag + '}}}'
+      let last = null
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const r = await runGh(['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name], cwd)
+        if (!r.ok) {
+          last = r
+          if (isRateLimitError(r)) return fetchIssueDetailREST(n, cwd)
+          if (r.kind === 'notfound' || /not found|could not resolve/i.test(String(r.error||''))) return { ok: false, error: { kind: 'notFound', message: String(r.error||'not found') } }
+          if (r.kind !== 'network') return { ok: false, error: { kind: r.kind || 'network', message: String(r.error||'network') } }
+          continue
+        }
+        try {
+          const j = JSON.parse(r.text)
+          if (j.errors) {
+            if (isRateLimitError({ error: JSON.stringify(j.errors) })) return fetchIssueDetailREST(n, cwd)
+            if (/not found|could not resolve/i.test(JSON.stringify(j.errors))) return { ok: false, error: { kind: 'notFound', message: JSON.stringify(j.errors).slice(0,300) } }
+            return { ok: false, error: { kind: 'graphql', message: JSON.stringify(j.errors).slice(0,300) } }
+          }
+          const issue = j.data && j.data.repository && j.data.repository.issue
+          if (!issue) return { ok: false, error: { kind: 'notFound', message: 'issue not found' } }
+          return { ok: true, issue: issue }
+        } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
+      }
+      return { ok: false, error: last || { kind: 'network', message: 'GraphQL 单 issue 请求失败（重试后仍失败）' } }
+    }
+
     async function buildSnapshot(cwd) {
       const repo = await getRepoKey(cwd)
       // v1.3.3 提速：map 列表直接从全量 issues 过滤（fetchMaps 单独调用省去 —— 原 11 次 → 9 次 gh 调用）
@@ -895,6 +983,86 @@ export default {
         cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
         return { ok: false, error: errText(e) }
       }
+    })
+
+    harness.handle('wf.issueDetail', async function (args) {
+      const n = args && args.number
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
+      try {
+        const r = await fetchIssueDetail(Number(n), cwd)
+        return r
+      } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
+    })
+    // T5 #10 · 评论分页（反向分页 cursor，节流由 client 侧 600ms 控制；单页 50，失败重试与 3 次兜底）
+    async function fetchIssueCommentsREST(n, after, cwd) {
+      const repo = await getRepoKey(cwd)
+      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo' } }
+      try {
+        // REST 分页：after 为已加载数（如 "50"），page = floor(after/50)+1；GraphQL cursor 场景下退化为 page 2 起
+        let page = 1
+        if (after) {
+          const num = Number(after)
+          if (!isNaN(num) && num >= 0) page = Math.floor(num / 50) + 2
+          else page = 2
+        } else {
+          page = 1
+        }
+        const r = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/comments?per_page=50&page=' + page], cwd)
+        if (!r.ok) {
+          if (r.kind === 'notfound' || /404/i.test(String(r.error||''))) return { ok: false, error: { kind: '404', message: String(r.error||'not found') } }
+          if (isRateLimitError(r)) return { ok: false, error: { kind: 'rateLimit', message: String(r.error||'rate limit') } }
+          return { ok: false, error: { kind: r.kind || 'network', message: String(r.error||'request failed') } }
+        }
+        const arr = JSON.parse(r.text) || []
+        const nodes = arr.map(function (c) { return { author: { login: (c.user && c.user.login) || '' }, authorAssociation: c.author_association || '', body: c.body || '', createdAt: c.created_at, updatedAt: c.updated_at } })
+        const hasNext = nodes.length === 50
+        const endCursor = String((Number(after||0) + nodes.length))
+        return { ok: true, nodes: nodes, pageInfo: { hasNextPage: hasNext, endCursor: endCursor }, fallback: 'rest' }
+      } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
+    }
+    async function fetchIssueComments(n, after, cwd) {
+      const repo = await getRepoKey(cwd)
+      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
+      // GraphQL 优先（cursor 分页）
+      const query = 'query($owner:String!,$name:String!,$n:Int!,$after:String){repository(owner:$owner,name:$name){issue(number:$n){comments(first:50, after:$after){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}}}}}'
+      // after 为 null 时传空字符串，GraphQL 会视为空 cursor（首段）；需传递变量 after 否则报错，故用 -F after= 值，空则首段
+      const afterVal = after || null
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const args = ['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name, '-F', 'n=' + n]
+        if (afterVal) args.push('-F', 'after=' + afterVal)
+        else args.push('-F', 'after=')
+        const r = await runGh(args, cwd)
+        if (!r.ok) {
+          if (isRateLimitError(r)) return fetchIssueCommentsREST(n, after, cwd)
+          if (r.kind === 'notfound' || /not found|could not resolve/i.test(String(r.error||''))) return { ok: false, error: { kind: 'notFound', message: String(r.error||'not found') } }
+          if (r.kind !== 'network') return { ok: false, error: { kind: r.kind || 'network', message: String(r.error||'network') } }
+          continue
+        }
+        try {
+          const j = JSON.parse(r.text)
+          if (j.errors) {
+            if (isRateLimitError({ error: JSON.stringify(j.errors) })) return fetchIssueCommentsREST(n, after, cwd)
+            if (/not found|could not resolve/i.test(JSON.stringify(j.errors))) return { ok: false, error: { kind: 'notFound', message: JSON.stringify(j.errors).slice(0,300) } }
+            return { ok: false, error: { kind: 'graphql', message: JSON.stringify(j.errors).slice(0,300) } }
+          }
+          const com = j.data && j.data.repository && j.data.repository.issue && j.data.repository.issue.comments
+          if (!com) return { ok: false, error: { kind: 'notFound', message: 'issue not found' } }
+          return { ok: true, nodes: com.nodes || [], pageInfo: com.pageInfo || { hasNextPage: false, endCursor: null } }
+        } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
+      }
+      return { ok: false, error: { kind: 'network', message: 'GraphQL 评论分页请求失败（重试后仍失败）' } }
+    }
+    harness.handle('wf.issueComments', async function (args) {
+      const n = args && args.number
+      const after = args && args.after
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
+      try {
+        const r = await fetchIssueComments(Number(n), after != null ? String(after) : null, cwd)
+        return r
+      } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
     })
 
     // v1.5 R2（#2 MVP）：probe 改用 `since` 时间戳探测全 issue 增量（地图 + 子票 + 其他），

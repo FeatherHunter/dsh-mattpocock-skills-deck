@@ -198,6 +198,8 @@ export default {
 
     // ==== leaf:mapDetail (spliced by build) ====
 
+    // ==== leaf:IssueDetail (spliced by build) ====
+
     // ==== leaf:tagsFit (spliced by build) ====
     // ==== leaf:pop (spliced by build) ====
     // ==== leaf:noRepoCard (spliced by build) ====

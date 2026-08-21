@@ -129,7 +129,7 @@ export     const MapDetail = ({ st, g }) => {
       return h('div', null, [
         // 顶部操作行：返回 + map chip + 执行/完成
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 } }, [
-          h('button', { className: 'dsws-btn', onClick: function () { st.activeMap = null; emit(st) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+          h('button', { className: 'dsws-btn', onClick: function () { clearActiveMap(st) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
             Ic({ n: 'back', size: 12 }),
             h('span', null, tr('list.back')),
           ]),

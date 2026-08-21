@@ -163,8 +163,27 @@
       if (st.noRepoCard.errorRepoUrl === undefined) st.noRepoCard.errorRepoUrl = ''
       return st.noRepoCard
     }
+    // T1 #6 · IssueDetail 状态机（与 activeMap 互斥，in-panel 详情页 · v1.7.0）
+    export const setActiveMap = function (st, n) {
+      const v = (n == null) ? null : Number(n)
+      st.activeMap = (v && !isNaN(v)) ? v : null
+      if (st.activeMap !== null) st.activeIssue = null
+      emit(st)
+    }
+    export const clearActiveMap = function (st) { st.activeMap = null; emit(st) }
+    export const setActiveIssue = function (st, n) {
+      const v = (n == null) ? null : Number(n)
+      st.activeIssue = (v && !isNaN(v)) ? v : null
+      if (st.activeIssue !== null) st.activeMap = null
+      emit(st)
+    }
+    export const clearActiveIssue = function (st) { st.activeIssue = null; emit(st) }
+    export const clearActiveDetail = function (st) { st.activeMap = null; st.activeIssue = null; emit(st) }
+    // T2 #7 · fetchIssueDetail 缓存与状态（独立于 snapshot，按 issue 号 60s TTL）
+    export const ISSUE_CACHE_TTL = 60000
     export const makeStore = () => ({
-      open: false, tab: 'list', activeMap: null,
+      open: false, tab: 'list', activeMap: null, activeIssue: null,
+      issueCache: {}, issueMode: 'idle', issueError: null, issueDetail: null, issueCommentsMoreLoading: false, issueCommentsFailCount: 0, issueCommentsHasMore: true,
       notice: null, injector: null, tick: 0,
       pos: null, size: { w: 460, h: DEFAULT_PANEL_H },
       // 外观定死（用户拍板：图标/动作词不可配置）

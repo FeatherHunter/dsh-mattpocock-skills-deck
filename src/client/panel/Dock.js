@@ -89,6 +89,7 @@ export     const DetailsDock = (props) => {
       }
       const groups = compute(s)
       const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
+      const hasIssueDetail = s.activeIssue !== null && s.activeIssue !== undefined
       const narrow = dw < 380
       const tabsRef = React.useRef(null)
       const tabs = useTabsRow(s, tabsRef)
@@ -203,7 +204,7 @@ export     const DetailsDock = (props) => {
         // 标签行下沿 = 与对话/轨迹一致的横线；右侧：刷新按钮 + 版本号（v1.3.3）
         h('div', { className: 'dsws-tabs', ref: tabsRef, style: { padding: '0 12px 7px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items),
         h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
-          s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : h(ListTab, { st: s, narrow: narrow })) : null,
+          s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,
           s.tab === 'checks' ? h(ChecksTab, { st: s }) : null,
         ]),

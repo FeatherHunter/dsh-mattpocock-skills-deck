@@ -192,6 +192,7 @@ const LEAF_MODULES = [
   { id: 'tabs', file: 'src/client/views/shared/Tabs.js' },
   { id: 'ticketRow', file: 'src/client/views/TicketRow.js' },
   { id: 'mapDetail', file: 'src/client/views/MapDetail.js' },
+  { id: 'IssueDetail', file: 'src/client/views/IssueDetail.js' },
   { id: 'noRepoCard', file: 'src/client/views/NoRepoCard.js' },
   { id: 'listTab', file: 'src/client/views/ListTab.js' },
   { id: 'ringSkills', file: 'src/client/views/RingSkills.js' },
@@ -277,7 +278,7 @@ ${PKG_CLIENT_SHIMS}
 `
   await gateSyntax(pkgCode, 'client-pkg')
   gateModuleLoader(pkgCode, 'client-pkg')
-  gateSingleDeclaration(pkgCode, 'client-pkg', ['StatusBar', 'DetailsDock', 'OverlayPanel', 'SettingsPage', 'RunPanel'])
+  gateSingleDeclaration(pkgCode, 'client-pkg', ['StatusBar', 'DetailsDock', 'OverlayPanel', 'SettingsPage', 'RunPanel', 'IssueDetail'])
   write('package/lib/client.js', pkgCode)
   return { devCode, pkgCode }
 }

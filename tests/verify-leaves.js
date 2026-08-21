@@ -21,6 +21,7 @@ const LEAVES = [
   { file: 'src/client/views/shared/Tabs.js', exports: ['useTabsRow'], components: [] },
   { file: 'src/client/views/TicketRow.js', exports: ['TicketRow'], components: ['TicketRow'] },
   { file: 'src/client/views/MapDetail.js', exports: ['MapDetail'], components: ['MapDetail'] },
+  { file: 'src/client/views/IssueDetail.js', exports: ['IssueDetail'], components: ['IssueDetail'] },
   { file: 'src/client/views/NoRepoCard.js', exports: ['NoRepoCard'], components: ['NoRepoCard'] },
   { file: 'src/client/views/ListTab.js', exports: ['ListTab'], components: ['ListTab'] },
   { file: 'src/client/views/RingSkills.js', exports: ['RingSkills'], components: ['RingSkills'] },
@@ -96,6 +97,8 @@ function main() {
     'const OverlayPanel = (props)', 'const checksumsOf = function', 'const StatusBar = (props)',
     'const SkillFloatList = function', 'const showPop = function',
   ]
+  // IssueDetail spot（新增叶 · 独立 detail 插件化）
+  check(cli.includes('const IssueDetail = function') && pcli.includes('const IssueDetail = function'), '双产物含 const IssueDetail …（' + (cli.includes('const IssueDetail = function') ? '✓' : '✗') + '/' + (pcli.includes('const IssueDetail = function') ? '✓' : '✗') + '）')
   spot.forEach((k) => {
     check(cli.includes(k) && pcli.includes(k), '双产物含 ' + k.slice(0, 30) + '…（' + (cli.includes(k) ? '✓' : '✗') + '/' + (pcli.includes(k) ? '✓' : '✗') + '）')
   })
