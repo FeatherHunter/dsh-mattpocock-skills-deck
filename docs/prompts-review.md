@@ -1,8 +1,8 @@
-# DSH-Waystation · Prompt 审阅清单（v1.7 · 方案A 注册表 · #64 v5 清单式 tpl.execute）
+# DSH-Waystation · Prompt 审阅清单（v1.9 · 方案A 注册表 · #64 v5 清单式 tpl.execute · #65 v4 清单式 tpl.diagnose · #66 v3 清单式 tpl.fix · #67 v3 清单式 tpl.discuss）
 
 > **单源新架构**：真源 `src/client/kernel/prompts.js`，改后必跑 `node scripts/build.mjs` 生成 `client.js / package/lib/client.js`，勿手改产物（见 `docs/architecture/kernel-contract.md`）。动手前必读：`src/client/kernel/prompts.js` 头 20 行 + `docs/architecture/kernel-contract.md` + 跑 `node scripts/build.mjs 及 tests/verify-*`。
 > PROMPTS 注册表（21 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
-> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js`。
+> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js`。
 
 ## guide · v1
 
@@ -211,39 +211,91 @@ Maintain map records (wayfinder rules):
 
 ---
 
-## tpl.diagnose · v3
+## tpl.diagnose · v4 — #65 清单式（A★ · 全勾选框 · 无表格 · 诊断≠修复显式）
 
-- 用途：动作按钮「诊断」（needs-triage 票）
+- 用途：动作按钮「诊断」（needs-triage ticket）· 清单式
 - 占位符：{url}
 - ZH：
 
 <pre>/triage
 {url}
 
-诊断这个 issue（诊断流程遵循 /triage 技能自身规则）：
-1. 先弄清它到底出了什么问题（现象 / 影响范围 / 复现步骤）；
-2. 列出可能的根因（多个候选，标注各自可能性）；
-3. 给分流建议（修复 / 关闭 / 重设计 / 等待）—— 建议是你的判断，不是让你直接执行；
-4. 动手前若有「我猜用户想要这样」的地方，先用 grilling 技能澄清；
-5. 结束前按进度契约更新 issue 正文。</pre>
+诊断这个 issue（遵循 /triage 技能自身规则，诊断≠修复——只弄清问题与分流，不直接改代码）：
+
+## 弄清现象
+- [ ] 现象是什么
+- [ ] 影响范围是什么
+- [ ] 复现步骤是什么（可复现则给出最小复现）
+
+## 根因候选
+- [ ] 列出多个根因候选，标注各自可能性/置信度
+
+## 分流建议
+- [ ] 给分流建议：修复 / 关闭 / 重设计 / 等待 — 建议是你的判断，不是执行许可（不要在诊断阶段直接改代码或关闭 ticket）
+
+## 澄清
+- [ ] 动手前若有「我猜用户想要这样」的地方，先用 grilling 技能澄清（不猜；与 grill 片段同义，此处保留一句轻量提醒）
+
+## 阶段闸门（动作开始前必读，这是动作的一部分，不是可选项）
+- [ ] 先读该 issue 现状：进度区（## 进度：N%）/ 已有实施记录 / 评论 / 标签，判断它处于哪个阶段
+- [ ] 若带 needs-triage 标签：必须先完成诊断（这是前置步骤，不许跳过直接实施）
+- [ ] 诊断时判断当前进展：
+  - [ ] 已有实施且真实 → 核验是否符合验收标准，属实则维持 95% 待确认 + 摘 needs-triage（转 ready-for-agent）
+  - [ ] 已有实施但虚假/半成品 → 进度据实回调到真实值（如 30%），继续诊断
+  - [ ] 未动工 → 正常诊断（复现 → 根因 → 方案 → 写入 issue）
+- [ ] 诊断完成摘 needs-triage 后才允许进入实施阶段
+
+## 收尾
+- [ ] 结束前按进度契约更新 issue 正文（## 进度：N% + 下一步）
+
+## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 用真实换行书写：`## 章节` 独占一行，段落间留空行
+- [ ] 禁止字面 \n 转义（不要把换行写成 \n 两个字符）、禁止正文以 BOM（\ufeff）开头
+- [ ] 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装</pre>
 
 - EN：
 
 <pre>/triage
 {url}
 
-Diagnose this issue (follow the /triage skill own rules):
-1. Pin down what is actually wrong (symptoms / impact / repro steps);
-2. List possible root causes (multiple candidates, with confidence);
-3. Propose triage (fix / close / redesign / wait) — a recommendation for the user, not a license to execute;
-4. Before acting, if any part rests on a guess about what the user wants, settle it with the grilling skill first;
-5. Update the issue body per the progress contract before finishing.</pre>
+Diagnose this issue (follow the /triage skill own rules; diagnosis ≠ fix — clarify the problem and propose triage, do not fix code directly):
+
+## Symptoms
+- [ ] What are the symptoms
+- [ ] What is the impact
+- [ ] What are the repro steps (give minimal repro if reproducible)
+
+## Root causes
+- [ ] List multiple root-cause candidates with confidence
+
+## Triage
+- [ ] Propose triage: fix / close / redesign / wait — a recommendation, not a license to execute (do not fix code or close the ticket in this diagnosis)
+
+## Clarify
+- [ ] Before acting, if any part rests on a guess about what the user wants, settle it with the grilling skill first (do not guess; lightweight reminder, same intent as the grill snippet)
+
+## Stage gate (must read before starting — part of the action, not optional)
+- [ ] First read the issue current state: progress (## Progress: N%) / existing implementation record / comments / labels — determine stage
+- [ ] If it carries needs-triage: diagnosis MUST be done first (do not skip to implementation)
+- [ ] During diagnosis, judge progress:
+  - [ ] Existing impl and real → verify against acceptance criteria; if genuine, keep 95% awaiting confirmation + remove needs-triage (→ ready-for-agent)
+  - [ ] Existing impl but fake/partial → revise progress back to true value (e.g. 30%) and continue diagnosing
+  - [ ] Not started → normal diagnosis (reproduce → root cause → plan → write into the issue)
+- [ ] Only after diagnosis and needs-triage removed may implementation begin
+
+## Wrap-up
+- [ ] Update the issue body per the progress contract before finishing (## Progress: N% + next step)
+
+## Body format (mandatory when writing/editing an issue body)
+- [ ] Use real newlines: each `## section` on its own line, blank line between paragraphs
+- [ ] No literal \n escapes, no BOM (\ufeff) at the start
+- [ ] Write via file-based input (real newlines), never inline JSON-escaped strings</pre>
 
 ---
 
-## tpl.fix · v2
+## tpl.fix · v3 — #66 清单式（A★ · 全勾选框 · 无表格 · 两行复现/定位）
 
-- 用途：动作按钮「修复」（bug 票）
+- 用途：动作按钮「修复」（bug 票）· 清单式
 - 占位符：{url}
 - ZH：
 
@@ -251,12 +303,33 @@ Diagnose this issue (follow the /triage skill own rules):
 {url}
 
 修复这个 bug（遵循 wayfinder 技能规则）：
-1. 先复现，再定位根因（修错地方 = 白修）；
-2. 实施修复；
-3. 加测试并跑通；
-4. 对抗式审查自己的改动（我会漏在哪里？）；
-5. 有假设先用 grilling 技能澄清，不默认；
-6. 结束前按进度契约更新（修复完成但未验收 → 95% · 待确认）。</pre>
+
+## 读现状
+- [ ] 已认领？若未认领，先认领
+- [ ] 读 Description / Notes / 阻塞关系 / 评论 / 标签 / 进度区（## 进度：N%），确认现象与验收标准
+
+## 定位与修复
+- [ ] 先复现（可复现则给出最小复现）
+- [ ] 再定位根因（修错地方 = 白修）；若目标不清或有假设 → 用 grilling 技能澄清（不猜）
+- [ ] 制定方案 → 实施修复 → 加测试并跑通
+- [ ] 对抗式自查：边界 / 异常分支 / 回归影响 / 并发与旧数据（我会漏在哪里？逐项打勾）
+
+## 阶段闸门（动作开始前必读，这是动作的一部分，不是可选项）
+- [ ] 先读该 issue 现状：进度区（## 进度：N%）/ 已有实施记录 / 评论 / 标签，判断它处于哪个阶段
+- [ ] 若带 needs-triage 标签：必须先完成诊断（这是前置步骤，不许跳过直接实施）
+- [ ] 诊断时判断当前进展：
+  - [ ] 已有实施且真实 → 核验是否符合验收标准，属实则维持 95% 待确认 + 摘 needs-triage（转 ready-for-agent）
+  - [ ] 已有实施但虚假/半成品 → 进度据实回调到真实值（如 30%），继续诊断
+  - [ ] 未动工 → 正常诊断（复现 → 根因 → 方案 → 写入 issue）
+- [ ] 诊断完成摘 needs-triage 后才允许进入实施阶段
+
+## 收尾
+- [ ] 结束前按进度契约更新 issue 正文（## 进度：N% + 下一步）；修复完成但未验收 → 95% · 待确认，确认后 100% + close
+
+## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 用真实换行书写：`## 章节` 独占一行，段落间留空行
+- [ ] 禁止字面 \n 转义（不要把换行写成 \n 两个字符）、禁止正文以 BOM（\ufeff）开头
+- [ ] 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装</pre>
 
 - EN：
 
@@ -264,29 +337,66 @@ Diagnose this issue (follow the /triage skill own rules):
 {url}
 
 Fix this bug (follow the wayfinder skill rules):
-1. Reproduce it first, then find the root cause (fixing the wrong spot is wasted work);
-2. Implement the fix;
-3. Add tests and get them green;
-4. Adversarially review your own change (where did I miss?);
-5. Settle assumptions with the grilling skill first, never assume;
-6. Update per the progress contract before finishing (fix done, unverified → 95% · awaiting confirmation).</pre>
+
+## Read current state
+- [ ] Claimed? Claim first if unclaimed
+- [ ] Read Description / Notes / blocking relationships / comments / labels / progress (## Progress: N%) — confirm symptoms & acceptance criteria
+
+## Locate & fix
+- [ ] Reproduce first (give minimal repro if reproducible)
+- [ ] Then locate root cause (fixing the wrong spot is wasted work); if goal unclear or any assumption → clarify with grilling (do not guess)
+- [ ] Plan → implement fix → add tests and get them green
+- [ ] Adversarial self-check: boundaries / error branches / regression impact / concurrency & legacy data (where did I miss? check each)
+
+## Stage gate (must read before starting — part of the action, not optional)
+- [ ] First read the issue current state: progress (## Progress: N%) / existing implementation record / comments / labels — determine stage
+- [ ] If it carries needs-triage: diagnosis MUST be done first (do not skip to implementation)
+- [ ] During diagnosis, judge progress:
+  - [ ] Existing impl and real → verify against acceptance criteria; if genuine, keep 95% awaiting confirmation + remove needs-triage (→ ready-for-agent)
+  - [ ] Existing impl but fake/partial → revise progress back to true value (e.g. 30%) and continue diagnosing
+  - [ ] Not started → normal diagnosis (reproduce → root cause → plan → write into the issue)
+- [ ] Only after diagnosis and needs-triage removed may implementation begin
+
+## Wrap-up
+- [ ] Update the issue body per the progress contract before finishing (## Progress: N% + next step; fix done unverified → 95% awaiting confirmation)
+
+## Body format (mandatory when writing/editing an issue body)
+- [ ] Use real newlines: each `## section` on its own line, blank line between paragraphs
+- [ ] No literal \n escapes, no BOM (\ufeff) at the start
+- [ ] Write via file-based input (real newlines), never inline JSON-escaped strings</pre>
 
 ---
 
-## tpl.discuss · v2
+## tpl.discuss · v3 — #67 清单式（A★ · 全勾选框 · 无表格 · 人来定夺）
 
-- 用途：动作按钮「讨论」（grilling 票）
+- 用途：动作按钮「讨论」（grilling 票）· 清单式
 - 占位符：{url}
 - ZH：
 
 <pre>/grill-me
 {url}
 
-这个 issue 需要讨论定夺，用 grilling 技能和我对话（对话方式遵循 grilling 技能自身规则）：
-1. 讨论围绕目标 / 边界 / 风险 / 选项权衡 / 决策；
-2. 不替我做决定，等我确认结论；
-3. 讨论有结论时，把结论写进 issue 正文（或建议落成票 / 决策记录）；
-4. 结束前按进度契约更新。</pre>
+这个 issue 需要讨论定夺，用 grilling 技能和我对话（遵循 grilling 技能自身规则）：
+
+## 讨论聚焦
+- [ ] 围绕目标 / 边界 / 风险 / 选项权衡 / 决策 五要素展开（齐且不冗，不额外扩散）
+
+## 人来定夺
+- [ ] 不替我做决定，等我确认结论再落盘
+
+## 结论落盘
+- [ ] 有结论时写进 issue 正文；需长期留存则另建议落成新 tickets / 决策记录（正文为首，tickets 为辅，不散落）
+
+## 澄清
+- [ ] 有“我猜用户想要这样”的地方，先用 grilling 澄清，不猜
+
+## 收尾
+- [ ] 结束前按进度契约更新 issue 正文（## 进度：N% + 下一步）
+
+## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 用真实换行书写：\## 章节\ 独占一行，段落间留空行
+- [ ] 禁止字面 \\\\n 转义（不要把换行写成 \\\\n 两个字符）、禁止正文以 BOM（\\ufeff）开头
+- [ ] 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装</pre>
 
 - EN：
 
@@ -294,10 +404,26 @@ Fix this bug (follow the wayfinder skill rules):
 {url}
 
 This issue needs discussion before a decision — use the grilling skill to talk with me (follow the grilling skill own dialogue rules):
-1. Keep the discussion on goal / boundary / risks / options-tradeoffs / decision;
-2. Do not decide for me; wait for my confirmation of conclusions;
-3. When a conclusion emerges, write it into the issue body (or propose it as a ticket / decision record);
-4. Update per the progress contract before finishing.</pre>
+
+## Focus
+- [ ] Cover goal / boundary / risks / options-tradeoffs / decision — all five, no more, no less (keep complete and concise, no extra expansion)
+
+## Human in the loop
+- [ ] Do not decide for me; wait for my confirmation before persisting conclusions
+
+## Persist conclusion
+- [ ] When a conclusion emerges, write it into the issue body; if it needs durable memory, additionally propose a new ticket / decision record (body is primary, ticket/record is auxiliary — no scattering)
+
+## Clarify
+- [ ] Before acting, if any part rests on a guess about what I want, settle it with grilling first (do not guess)
+
+## Wrap-up
+- [ ] Update the issue body per the progress contract before finishing (## Progress: N% + next step)
+
+## Body format (mandatory when writing/editing an issue body)
+- [ ] Use real newlines: each \## section\ on its own line, blank line between paragraphs
+- [ ] No literal \\\\n escapes, no BOM (\\ufeff) at the start
+- [ ] Write via file-based input (real newlines), never inline JSON-escaped strings</pre>
 
 ---
 

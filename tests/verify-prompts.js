@@ -52,8 +52,8 @@ const check = function (file) {
   while ((mu = useRe.exec(src)) !== null) { if (!reg[mu[1]]) problems.push('引用不存在的 prompt id: ' + mu[1]) }
   // 旧形式残留
   ;["tr('prompt.", "'prompt.\'" ].forEach(function (bad) { if (src.includes(bad)) problems.push('旧字典引用残留 ' + bad) })
-  // T13：版本号 bump —— 契约变更的条目必须升版（防回退），stageGate 必须存在
-  const V_MIN = { 'tpl.diagnose': 3, 'tpl.execute': 5, 'mapExecute': 4, 'stageGate': 2 }
+  // T13：版本号 bump —— 契约变更的条目必须升版（防回退），stageGate 必须存在（#65 diagnose 自带闸门，不再依赖尾部追加但保留 STAGE_GATED_IDS 声明）
+  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 4, 'stageGate': 2 }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
     if (!p) problems.push('T13 缺条目 ' + id)
@@ -66,7 +66,7 @@ const check = function (file) {
     if (g.zh.indexOf('needs-triage') < 0 || g.zh.indexOf('95%') < 0 || g.zh.indexOf('未动工') < 0) problems.push('stageGate zh 缺关键标记（needs-triage / 95% / 未动工）')
     if (g.en.indexOf('needs-triage') < 0) problems.push('stageGate en 缺关键标记（needs-triage）')
   }
-  // T13：接线 —— renderTemplate 对 诊断/修复/执行 末尾追加 stageGate
+  // T13：接线 —— renderTemplate 对 诊断/修复/执行 条件追加 stageGate（#65 已改为：文本已含 阶段闸门/Stage gate 则跳过，避免与模板内清单式闸门重复；各 prompt 自带完整闸门/格式）
   const gatedMatch = src.match(/STAGE_GATED_IDS\s*=\s*\[([^\]]*)\]/)
   if (!gatedMatch) problems.push('T13 缺 STAGE_GATED_IDS 声明')
   else {
@@ -75,6 +75,7 @@ const check = function (file) {
   }
   if (!src.includes("promptText('stageGate')")) problems.push("T13 缺 promptText('stageGate') 调用")
   if (!src.includes('STAGE_GATED_IDS.indexOf(id) >= 0')) problems.push('T13 renderTemplate 未按 STAGE_GATED_IDS 追加闸门')
+  if (!src.includes("text.indexOf('阶段闸门')") || !src.includes("text.indexOf('Stage gate')")) problems.push('T13 renderTemplate 缺去重守卫（已含 阶段闸门/Stage gate 则跳过追加）')
   // T13：map 推进（mapExecute 新会话）同样挂闸门
   if (!src.includes('MAP_EXECUTE_PROMPT') || !src.includes('gateText')) problems.push('T13 map 推进未挂 stageGate（缺 gateText）')
   // #64 执行清单式（A★ · 全勾选框 · 无表格）：tpl.execute 必须为清单骨架
@@ -84,6 +85,18 @@ const check = function (file) {
     if (ex.zh.indexOf('## 读现状') < 0 || ex.zh.indexOf('## 阶段闸门') < 0 || ex.zh.indexOf('## 收尾') < 0 || ex.zh.indexOf('## 正文格式') < 0) problems.push('tpl.execute zh 缺清单四段标题（读现状/阶段闸门/收尾/正文格式）')
     if (ex.zh.indexOf('|') >= 0) problems.push('tpl.execute zh 含表格 |（已约定无表格，全勾选框）')
     if (ex.en.indexOf('- [ ]') < 0) problems.push('tpl.execute en 缺清单标记 - [ ]')
+  }
+  // #65 诊断清单式（A★ · 全勾选框 · 无表格 · 诊断≠修复）：tpl.diagnose 必须为清单骨架
+  const di = reg['tpl.diagnose']
+  if (di) {
+    if (di.zh.indexOf('- [ ]') < 0) problems.push('tpl.diagnose zh 缺清单标记 - [ ]（A★ 清单式）')
+    if (di.zh.indexOf('## 弄清现象') < 0 || di.zh.indexOf('## 根因候选') < 0 || di.zh.indexOf('## 分流建议') < 0 || di.zh.indexOf('## 阶段闸门') < 0 || di.zh.indexOf('## 正文格式') < 0) problems.push('tpl.diagnose zh 缺清单段标题（弄清现象/根因候选/分流建议/阶段闸门/正文格式）')
+    if (di.zh.indexOf('|') >= 0) problems.push('tpl.diagnose zh 含表格 |（已约定无表格，全勾选框）')
+    if (di.zh.indexOf('诊断≠修复') < 0) problems.push('tpl.diagnose zh 缺诊断≠修复显式（第一性原理）')
+    if (di.zh.indexOf('grilling') < 0) problems.push('tpl.diagnose zh 缺 grill 澄清句')
+    if (di.en.indexOf('- [ ]') < 0) problems.push('tpl.diagnose en 缺清单标记 - [ ]')
+    if (di.en.indexOf('diagnosis') < 0 || di.en.indexOf('Stage gate') < 0) problems.push('tpl.diagnose en 缺关键段（diagnosis/Stage gate）')
+    if (di.en.indexOf('What are the symptoms') < 0 || di.en.indexOf('What is the impact') < 0) problems.push('tpl.diagnose en 缺 Symptoms 三行拆分（What are the symptoms / What is the impact）')
   }
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
   else console.log('  PASS', file, '(' + Object.keys(reg).length + ' 条注册表，' + (src.match(/promptText\(/g) || []).length + ' 处引用)')
