@@ -69,10 +69,16 @@ export let pendingDraftTargetSid = null
       handoffFile = null  // 真实文件名由探测按 {ts}-*.md 前缀发现（含 AI 短标题），不再从模板解析
       inject(st, text)
       flash(st, tr('toast.injectedHandoff'), 'ok')
-      // 立即 + 延迟再探测：AI 写成文档后右半亮蓝（真实文件名 = {ts}-<短标题>.md）
+      // 轮询探测：AI 写成文档后右半亮蓝（真实文件名 = {ts}-<短标题>.md，按前缀匹配）；最多 ~60s
       probeHandoffReady(st)
-      setTimeout(function () { probeHandoffReady(st) }, 3000)
-      setTimeout(function () { probeHandoffReady(st) }, 10000)
+      let tries = 0
+      const tick = function () {
+        if (handoffFile) return  // 已发现真实文件名 → 停止轮询
+        if (++tries > 30) return
+        probeHandoffReady(st)
+        setTimeout(tick, 2000)
+      }
+      setTimeout(tick, 2000)
     }
     export const doHandoffOpen = function (st) {
       const ws = ctx.get('workspaces')
