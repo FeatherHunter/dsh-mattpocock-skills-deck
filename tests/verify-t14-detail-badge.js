@@ -109,8 +109,8 @@ for (const f of files) {
   }
 }
 
-// 双源逐字等价（去空白）
-check(blocks.cli && blocks.pkg && norm(blocks.cli) === norm(blocks.pkg), '双源 T14 块特征逐字等价（client.js ↔ package/lib/client.js）')
+// 双源等价已移除（T5 #98：一源两物，build 保证同构）
+// 保留对单产物（_dev/_pkg 各自）的 T14 行为校验，足以覆盖 map 详情徽章契约
 
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过：' + passed + ' 项检查')

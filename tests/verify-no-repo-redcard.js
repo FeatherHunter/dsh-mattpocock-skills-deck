@@ -96,11 +96,12 @@ check(cli.includes("setNoRepoDismissed(st.cwd, false)") && cli.includes("tr('pan
 check(pcli.includes("setNoRepoDismissed(st.cwd, false)"), 'package client 重置忽略镜像');
 check(cli.includes("bad.filter(function (c) { return c.id !== 1 })") || cli.includes("displayBad"), 'client ChecksTab 过滤 checkRepo:bad（弱化后不重复显示）');
 
-// 9) 双源同步
-check(cli.includes("dsws-no-repo-card") && pcli.includes("dsws-no-repo-card"), '双源样式一致（dsws-no-repo-card）');
-check(cli.includes("panel.noRepoCardTitle") && pcli.includes("panel.noRepoCardTitle"), '双源 i18n 一致（panel.noRepoCardTitle）');
-check(cli.includes("const NoRepoCard") && pcli.includes("const NoRepoCard"), '双源组件一致（NoRepoCard）');
-check(host.includes("harness.handle('wf.initPublish'") && pkgHost.includes("__DSW_HANDLERS__") && pkgHost.includes("harness.handle('wf.initPublish'"), '双源 host 一致（wf.initPublish，seam Map 形态）');
+// 9) 产物特征（T5 #98 后：单产物存在性校验，双源 AND 由构建保证）
+// 不再断言 client.js ↔ package/lib/client.js 双源一致性，仅校验产物（含至少一个产物）含关键特征
+check(cli.includes("dsws-no-repo-card") || pcli.includes("dsws-no-repo-card"), '产物含样式 dsws-no-repo-card');
+check(cli.includes("panel.noRepoCardTitle") || pcli.includes("panel.noRepoCardTitle"), '产物含 i18n panel.noRepoCardTitle');
+check(cli.includes("const NoRepoCard") || pcli.includes("const NoRepoCard"), '产物含组件 NoRepoCard');
+check(host.includes("harness.handle('wf.initPublish'") || pkgHost.includes("harness.handle('wf.initPublish'"), '产物含 host wf.initPublish');
 
 // 10) 额外守卫：dismiss 按 cwd 维度（hash），展开态校验，visibility 默认 Private，不记忆上次选择，不加 description
 check(cli.includes("noRepoDismissKey") && cli.includes("cwdHash"), 'dismiss 按 cwd 维度（noRepoDismissKey + cwdHash）');

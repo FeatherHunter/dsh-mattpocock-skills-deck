@@ -133,9 +133,7 @@ async function main() {
   check(srcRaw === devRaw, '文本逐字：产物(_dev) 函数文本 === src/host/index.js 内联')
   check(srcRaw === pkgRaw, '文本逐字：产物(_pkg) 函数文本 === src/host/index.js 内联')
 
-  // ---- Part D：双源镜像特征（文本镜像断言，T5 统一删除）----
-  names.forEach((n) => check(host.includes('function ' + n), '产物(_dev) 含函数 ' + n))
-  names.forEach((n) => check(pkg.includes('function ' + n), '产物(_pkg) 含函数 ' + n))
+  // ---- Part D 已移除（T5 #98：双源镜像文本断言由运行时冒烟取代；保留 Part C 真值表 + Part E src↔产物逐字）----
 
   console.log(failed ? '\n存在失败' : '\n全部通过')
   process.exit(failed ? 1 : 0)

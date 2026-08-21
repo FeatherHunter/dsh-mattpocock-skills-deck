@@ -110,33 +110,8 @@ const statChecks = function (src, tag) {
     /'nav\.env'/.test(src) && /'nav\.refresh'/.test(src) && /'nav\.handoff'/.test(src))
 }
 
-// ---- Part B：双源镜像同步 ----
-const mirrorCheck = function (srcA, srcB) {
-  const extractCapsule = function (src) {
-    // 匹配 ' 选择器 { 内容 } ' 形式（.dsws-capsule 开头 或 data-fold-priority 规则）—— 严格要求整段在单引号内
-    const re = /'(?:\.dsws-capsule[^']*|\[data-fold-priority\][^']*)\{[^}]*\}'/g
-    const matches = src.match(re) || []
-    return matches.map(function (s) { return s.slice(1, -1) }).sort().join('\n')
-  }
-  const a = extractCapsule(srcA)
-  const b = extractCapsule(srcB)
-  if (a !== b) {
-    throw new Error('双源 .dsws-capsule CSS 块不一致（client.js ↔ package/lib/client.js）\n--- 源 ---\n' + a + '\n--- 镜像 ---\n' + b)
-  }
-  console.log('  PASS mirror · .dsws-capsule CSS 块双源 byte-for-byte 一致（共 ' + a.split('\n').length + ' 条规则）')
-  const extractCapsuleJsx = function (src) {
-    const re = /const capsule = h\('div', \{ className: 'dsws-capsule'[\s\S]*?\n\s*\]\)/m
-    const m = src.match(re)
-    return m ? m[0].replace(/^[ \t]+/gm, '').replace(/\r\n/g, '\n') : ''
-  }
-  const ja = extractCapsuleJsx(srcA)
-  const jb = extractCapsuleJsx(srcB)
-  if (!ja || !jb) throw new Error('双源 JSX 提取失败：源=' + (ja ? 'OK' : 'NULL') + ' 镜像=' + (jb ? 'OK' : 'NULL'))
-  if (ja !== jb) {
-    throw new Error('双源 capsule JSX 块不一致（client.js ↔ package/lib/client.js，去缩进后）\n--- 源 ---\n' + ja + '\n--- 镜像 ---\n' + jb)
-  }
-  console.log('  PASS mirror · capsule JSX 双源去缩进 byte-for-byte 一致')
-}
+// ---- Part B（T5 #98 已移除）：双源镜像同步由一源两物构建保证，不再断言双源 byte-for-byte 一致 ----
+// 保留 Part A/C/D 对单产物的契约校验，足以覆盖胶囊视图契约
 
 // ---- Part C：行为契约 —— priority 映射表语义（纯静态重算，与代码同表） ----
 const behaviorCheck = function (src, tag) {
@@ -260,13 +235,7 @@ const main = async function () {
     try { domSimCheck(src, tag) }
     catch (e) { failed = true; console.log('  FAIL ' + tag + ' Part D — ' + e.message); continue }
   }
-  console.log('-- Part B 双源镜像同步 --')
-  if (sources.dyn && sources.npm) {
-    try { mirrorCheck(sources.dyn, sources.npm) }
-    catch (e) { failed = true; console.log('  FAIL mirror — ' + e.message) }
-  } else {
-    console.log('  SKIP mirror（双源未都加载）')
-  }
+  // Part B 已移除（T5 #98）—— 双源镜像由构建保证
   if (failed) { console.log('\n存在失败'); process.exit(1) }
   console.log('\n全部通过')
 }

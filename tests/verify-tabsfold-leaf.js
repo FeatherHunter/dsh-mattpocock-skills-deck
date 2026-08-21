@@ -109,13 +109,7 @@ async function main() {
   check(srcT === devT, '文本逐字：产物(_dev) tabsLevelDecide === src/client/index.js 内联')
   check(srcT === pkgT, '文本逐字：产物(_pkg) tabsLevelDecide === src/client/index.js 内联')
 
-  // ---- 双源镜像特征（文本镜像断言，T5 统一删除）----
-  const HYST_OK = cli.includes('TABS_FOLD_HYST = 4') && pcli.includes('TABS_FOLD_HYST = 4')
-  const LV_OK = cli.includes('TABS_LEVELS = 3') && pcli.includes('TABS_LEVELS = 3')
-  check(HYST_OK, '产物(_dev)+(_pkg) 含 TABS_FOLD_HYST = 4')
-  check(LV_OK, '产物(_dev)+(_pkg) 含 TABS_LEVELS = 3')
-  check(cli.includes('tabsLevelDecide'), '产物(_dev) client.js 含 tabsLevelDecide')
-  check(pcli.includes('tabsLevelDecide'), '产物(_pkg) package/lib/client.js 含 tabsLevelDecide')
+  // ---- 双源镜像特征已移除（T5 #98：由 src↔产物逐字 + 冒烟取代）----
 
   console.log(failed ? '\n存在失败' : '\n全部通过')
   process.exit(failed ? 1 : 0)

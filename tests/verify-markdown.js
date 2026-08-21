@@ -45,8 +45,7 @@ check(!mdCli.includes('dangerouslySetInnerHTML'), '渲染器不使用 dangerousl
 check(!mdCli.includes('innerHTML'), '渲染器不直接操作 innerHTML')
 check(!mdPkg.includes('dangerouslySetInnerHTML'), 'package 渲染器不使用 dangerouslySetInnerHTML')
 
-// 双源一致
-check(Math.abs(mdCli.length - mdPkg.length) < 50, '双源渲染器体量一致 (' + mdCli.length + ' vs ' + mdPkg.length + ')')
+// 双源体量一致性已移除（T5 #98：一源两物，src 为真源；渲染器体量一致由 build 保证）
 
 // ── 行为级：用 stub h() 执行真实渲染器，断言输出结构 ──
 const stubH = (tag, props, children) => {

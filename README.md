@@ -84,6 +84,26 @@ MattSkills 在 map 之上加了一层**任务系统**，把 skills 变成 DSH �
 
 完整使用说明见 [package/README.md](package/README.md)；设计定稿见 [DESIGN.md](DESIGN.md)；变更历史见 [CHANGELOG.md](CHANGELOG.md)。
 
+## 🛠️ 开发（贡献者）
+
+> 仓库只见 `src/` 为真源，`client.js`/`host.js`/`package/lib/*` 为构建产物（`npm run build` 生成，`gitignore`）。
+
+```bash
+# 1. 改 src/ 真源（永不手改产物）
+# 2. 构建
+node scripts/build.mjs          # 或 bash scripts/build.sh --no-sync
+# 或 npm run build
+
+# 3. 验证（冒烟 + 契约）
+npm run test:smoke   # 4 项：client/host/dispatch/render（含面板/状态栏/tab 关键路径）
+npm run verify       # 9 项：t3-locale/skill-tooltip/bug-entry/no-repo-redcard/kernel/leaves/ctx/parse-leaf/tabsfold-leaf
+
+# 4. 同步到 DSH（若已装插件）
+bash scripts/build.sh   # 构建 + 同步到 ~/.dsh/profiles/web/node_modules/dsh-mattpocock-skills-deck
+```
+
+详见 [DEV-WORKFLOW.md](DEV-WORKFLOW.md)（构建流 / 验证 / 同步 / 发布三段式）。
+
 ## 💛 作者的其他作品
 
 喜欢这个插件的话，这些可能你也用得上：

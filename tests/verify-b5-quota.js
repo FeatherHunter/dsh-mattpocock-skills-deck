@@ -75,19 +75,8 @@ for (const f of ['client.js', 'package/lib/client.js']) {
   check(!src.includes('setTimeout(function () { st._bgRefresh'), f + ' 无磁盘缓存秒开后的 400ms 强制全量刷新（每次开面板白烧 18 点已移除）')
 }
 
-// ---- 双源等价：关键特征逐字一致 ----
-const h1 = fs.readFileSync('host.js', 'utf8')
-const h2 = fs.readFileSync('package/lib/index.js', 'utf8')
-const c1 = fs.readFileSync('client.js', 'utf8')
-const c2 = fs.readFileSync('package/lib/client.js', 'utf8')
-const feat = function (src) {
-  return [
-    'lastProbeAtByRepo', 'fetchMapsDetailREST', "issues?state=open", 'dependencies/blocked_by',
-    'FOCUS_PROBE_MIN_MS', 'st2.snapshot = newSnap', "fallback: 'rest'", 'since=',
-  ].map(function (k) { return src.includes(k) ? 1 : 0 }).join('')
-}
-check(feat(h1) === feat(h2), 'host 双源 B5/R2 特征一致（host.js ↔ package/lib/index.js）')
-check(feat(c1) === feat(c2), 'client 双源 B5/R2 特征一致（client.js ↔ package/lib/client.js）')
+// ---- 双源等价已移除（T5 #98：一源两物，src 为真源，产物由构建生成；双源一致性由 build.mjs 文本组合保证，不再断言）----
+// 保留上方对单产物（_dev/_pkg 各自）的行为特征校验；B5/R2 契约现由 src↔产物 + 冒烟覆盖
 
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过：' + passed + ' 项检查')

@@ -65,26 +65,7 @@ for (const f of clientFiles) {
   check(!src.includes('PROBE_MS = 300000'), f + ' 无残留 5min 默认值')
 }
 
-// ---- 双源等价 ----
-const h1 = fs.readFileSync('host.js', 'utf8')
-const h2 = fs.readFileSync('package/lib/index.js', 'utf8')
-const c1 = fs.readFileSync('client.js', 'utf8')
-const c2 = fs.readFileSync('package/lib/client.js', 'utf8')
-const probeDeletionFeat = function (src) {
-  return [
-    'lastProbeAtByRepo',
-    'lastIssueIndexByRepo',
-    "issues?state=all&per_page=100",
-    'fetchIssueIndex',
-    'issueIndexChanged',
-    'cacheSnapshotIsCurrent',
-  ].map(function (k) { return src.includes(k) ? 1 : 0 }).join('')
-}
-check(probeDeletionFeat(h1) === probeDeletionFeat(h2), 'host 双源删除探测特征一致（host.js ↔ package/lib/index.js）')
-const probeMsFeat = function (src) {
-  return ['PROBE_MS = 60000', 'FOCUS_PROBE_MIN_MS = 60000', 'PROBE_MS = 300000'].map(function (k) { return src.includes(k) ? 1 : 0 }).join('')
-}
-check(probeMsFeat(c1) === probeMsFeat(c2), 'client 双源 PROBE_MS 特征一致（client.js ↔ package/lib/client.js）')
+// ---- 双源等价已移除（T5 #98：一源两物，build 保证同构，不再断言双源逐字一致）----
 
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过：' + passed + ' 项检查')

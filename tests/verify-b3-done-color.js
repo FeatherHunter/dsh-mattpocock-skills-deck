@@ -56,9 +56,8 @@ for (const f of files) {
   check(rowCount === 1, f + ' 列表行新会话按钮仅 1 处（无双写漂移）')
 }
 
-// 双源镜像一致性：动作组块去除空白后逐字一致
-const norm = function (s) { return s.replace(/\s+/g, '') }
-check(collected.cli.length > 0 && norm(collected.cli) === norm(collected.pkg), '双源列表行动作组块特征逐字一致')
+// 双源一致性已移除（T5 #98：一源两物，build 保证同构）
+// 保留对单产物（_dev/_pkg 各自）的完成态同色校验；双源逐字一致由构建保证
 
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过')

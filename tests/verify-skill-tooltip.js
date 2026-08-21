@@ -90,38 +90,7 @@ const check = function (file) {
 }
 console.log('P1: 技能浮层契约（issue #3）')
 targets.forEach(check)
-// P2: 双源一致性
-console.log('P2: 双源一致性')
-const srca = fs.readFileSync(targets[0], 'utf8')
-const srcb = fs.readFileSync(targets[1], 'utf8')
-let dualFail = false
-const keys = ['const RDOM = (function ()', 'RDOM.createPortal', 'portalTop = function', "zIndex: 2147483000", 'tip.x + 238 > window.innerWidth', 's.skillsOpen = true', "paddingTop: 4"]
-keys.forEach(function (k) {
-  const a = srca.includes(k)
-  const b = srcb.includes(k)
-  if (a !== b) { console.log('  FAIL 双源不一致: ' + k); dualFail = true }
-})
-// 文案评审双源一致：12 条新文案的"指纹"必须两边都有
-const newFingerprints = [
-  '为多议题项目建决策地图与子票拆解', 'Build decision maps + sub-ticket breakdowns for big projects',
-  'issue 分流：归类→验证→追问', 'Route issues: classify → verify → grill',
-  '在你拍板前反复追问澄清', 'Relentlessly question you until the design is locked down',
-  '让代码 / 文档 / 对话用同一套词', 'so code, docs and chat use one language',
-  '把规格文档拆成代码任务', 'Break a spec into code tasks',
-  '按仓库规范 + 原规格', 'on both repo standards and the originating spec',
-  '为代码找清晰的模块边界', 'Find clean module boundaries',
-  '定位→假设→验证，循环往复', 'locate → hypothesize → verify, loop',
-  '扫出代码库的深化机会', 'Scan the codebase for deepening opportunities',
-  '测试驱动开发：先写失败测试', 'failing test first, then minimal implementation',
-  '把零散讨论固化成可执行的规格文档', 'Turn scattered discussions into an executable spec',
-  '为 AI 写出可复用、可测试的技能描述', 'Write reusable, testable skill descriptions for AI',
-]
-newFingerprints.forEach(function (fp) {
-  const a = srca.includes(fp)
-  const b = srcb.includes(fp)
-  if (a !== b) { console.log('  FAIL 双源不一致（文案）: ' + fp); dualFail = true }
-})
-if (!dualFail) console.log('  PASS 双源接线一致（含 12 条新文案指纹）')
-else failed = true
+// P2 双源一致性已移除（T5 #98：一源两物，build 保证同构）
+// 保留 P1 单产物技能浮层契约校验（含文案评审）；双源一致性由 src↔产物 + 冒烟覆盖
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过')

@@ -112,62 +112,8 @@ const behaviorChecks = function (src, tag) {
   }
 }
 
-// ---- Part C：双源镜像同步 ----
-const extractTabsCss = function (src) {
-  const re = /'((?:\.dsws-tabs|\.dsws-tab)[^']*\{[^}]*\})'/g
-  const out = []
-  let m
-  while ((m = re.exec(src)) !== null) out.push(m[1])
-  return out.sort().join('\n')
-}
-const extractTabsJsx = function (src) {
-  const out = []
-  let i = -1
-  const all = []
-  while ((i = src.indexOf("className: 'dsws-tabs'", i + 1)) >= 0) all.push(i)
-  for (const pos of all) {
-    const open = src.lastIndexOf('h(\'div\'', pos)
-    if (open < 0) continue
-    let depth = 0
-    let j = open
-    for (; j < src.length; j++) {
-      const ch = src[j]
-      if (ch === '(' || ch === '[' || ch === '{') depth++
-      else if (ch === ')' || ch === ']' || ch === '}') { depth--; if (depth === 0) { j++; break } }
-    }
-    const block = src.slice(open, j)
-    out.push(block.split(/\r?\n/).filter(function (l) { return !/^\s*\/\//.test(l) }).join('\n').replace(/^[ \t]+/gm, ''))
-  }
-  return out.sort().join('\n=====\n')
-}
-const extractFoldEffects = function (src) {
-  const out = []
-  let idx = 0
-  while ((idx = src.indexOf('React.useEffect(function () {', idx)) >= 0) {
-    const endM = src.indexOf('}, [', idx)
-    if (endM < 0) break
-    const close = src.indexOf('])', endM)
-    if (close < 0) break
-    const block = src.slice(idx, close + 2)
-    if (block.includes('applyFold')) out.push(block.replace(/^[ \t]+/gm, '').replace(/\r\n/g, '\n'))
-    idx = close + 2
-  }
-  return out.sort().join('\n=====\n')
-}
-
-const mirrorCheck = function (srcA, srcB) {
-  const aCss = extractTabsCss(srcA), bCss = extractTabsCss(srcB)
-  if (aCss !== bCss) throw new Error('双源 tabs CSS 块不一致（client.js ↔ package/lib/client.js）')
-  console.log('  PASS mirror · tabs CSS 块双源等价（共 ' + aCss.split('\n').length + ' 条规则）')
-  const aJsx = extractTabsJsx(srcA), bJsx = extractTabsJsx(srcB)
-  if (aJsx === '' || bJsx === '') throw new Error('双源 tabs 容器 JSX 提取失败')
-  if (aJsx !== bJsx) throw new Error('双源 tabs 容器 JSX 块不一致（去缩进/去注释后）')
-  console.log('  PASS mirror · tabs 容器 JSX 双源等价（各 ' + ((aJsx.match(/=====/g) || []).length + 1) + ' 段）')
-  const aFx = extractFoldEffects(srcA), bFx = extractFoldEffects(srcB)
-  if (aFx === '' || bFx === '') throw new Error('双源折叠 effect 块提取失败')
-  if (aFx !== bFx) throw new Error('双源折叠 effect 块不一致')
-  console.log('  PASS mirror · 折叠 effect 块双源等价（各 ' + ((aFx.match(/=====/g) || []).length + 1) + ' 段）')
-}
+// ---- Part C（T5 #98 已移除）：双源镜像同步由一源两物构建保证 ----
+// 保留 Part A/B 静态与行为契约对单产物的校验
 
 const main = function () {
   let failed = false
@@ -180,11 +126,7 @@ const main = function () {
     try { statChecks(src, tag); behaviorChecks(src, tag) }
     catch (e) { failed = true; console.log('  FAIL ' + tag + ' — ' + e.message) }
   }
-  console.log('-- Part C 双源镜像同步 --')
-  if (sources.dyn && sources.npm) {
-    try { mirrorCheck(sources.dyn, sources.npm) }
-    catch (e) { failed = true; console.log('  FAIL mirror — ' + e.message) }
-  } else console.log('  SKIP mirror')
+  // Part C 已移除（T5 #98）
   if (failed) { console.log('\n存在失败'); process.exit(1) }
   console.log('\n全部通过')
 }

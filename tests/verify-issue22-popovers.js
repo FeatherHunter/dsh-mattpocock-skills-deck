@@ -49,20 +49,7 @@ const check = function (file) {
 console.log('issue #22：BUG / 技能浮层 overlay 契约')
 targets.forEach(check)
 
-if (targets.length >= 2) {
-  const a = fs.readFileSync(targets[0], 'utf8')
-  const b = fs.readFileSync(targets[1], 'utf8')
-  const fingerprints = [
-    'PortalOverlay',
-    'dsws-bugmenu',
-    'dsws-skillpop-bridge',
-    '2147483000',
-    "capture: true",
-  ]
-  const mismatch = fingerprints.filter((x) => a.includes(x) !== b.includes(x))
-  if (mismatch.length) { console.log('  FAIL 双源指纹不一致:', mismatch.join(', ')); failed = true }
-  else console.log('  PASS 双源指纹一致')
-}
+// 双源指纹一致性已移除（T5 #98：一源两物，src 为真源；由 build 保证双产物同构）
 
 if (failed) process.exit(1)
 console.log('\n全部通过')

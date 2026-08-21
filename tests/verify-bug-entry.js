@@ -156,17 +156,8 @@ const check = function (file) {
 }
 console.log('P1: 新增BUG入口契约（issue #4/#63 v4 · 实际→期望括号单行 + locale 切换）')
 targets.forEach(check)
-// P2: 双源一致性
-console.log('P2: 双源一致性')
-const srca = fs.readFileSync(targets[0], 'utf8')
-const srcb = fs.readFileSync(targets[1], 'utf8')
-let dualFail = false
-;['"newBugWayfinder": {', "case 'bug':", "'nav.bugNew':", "'nav.bugNewTitle':", "'panel.newBug':", "'panel.newBugTitle':", 's.bugMenuOpen', 'openTextInNewSession(s, newBugWayfinderText(s)', 'NEW_BUG_FIELDS_BODY', 'NEW_BUG_FIELDS_BODY_EN'].forEach(function (k) {
-  const a = srca.includes(k)
-  const b = srcb.includes(k)
-  if (a !== b) { console.log('  FAIL 双源不一致: ' + k); dualFail = true }
-})
-if (!dualFail) console.log('  PASS 双源接线一致')
-else failed = true
+// P2 已移除（T5 #98 阶段 3 收尾：产物 = f(src) 一源两物，src 为真源，产物由构建生成；
+// 双源文本镜像断言已由运行时冒烟 + src↔产物逐字断言取代）
+// 保留 P1 对单产物（含默认两产物各自）的行为特征校验；不再校验 client.js ↔ package/lib/client.js 双源一致性
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过')

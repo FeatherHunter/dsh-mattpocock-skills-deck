@@ -82,22 +82,7 @@ const check = function (file) {
 }
 console.log('P1: prompt 注册表契约')
 targets.forEach(check)
-// 双源键一致性
-const a = parseRegistry(fs.readFileSync(targets[0], 'utf8'))
-const b = parseRegistry(fs.readFileSync(targets[1], 'utf8'))
-const ka = Object.keys(a).sort().join(',')
-const kb = Object.keys(b).sort().join(',')
-if (ka !== kb) { console.log('  FAIL 双源注册表键不一致'); failed = true }
-else console.log('  PASS 双源注册表键一致 (' + Object.keys(a).length + ' 键)')
-// P2: T13 阶段闸门契约 —— 双源接线一致性（每处接线两边都必须在场）
-console.log('P2: T13 阶段闸门契约（双源接线一致）')
-const srcA = fs.readFileSync(targets[0], 'utf8')
-const srcB = fs.readFileSync(targets[1], 'utf8')
-;['STAGE_GATED_IDS', "promptText('stageGate')", 'STAGE_GATED_IDS.indexOf(id) >= 0', 'gateText', 'MAP_EXECUTE_PROMPT'].forEach(function (mark) {
-  const hasA = srcA.includes(mark)
-  const hasB = srcB.includes(mark)
-  if (hasA !== hasB) { console.log('  FAIL 双源接线不一致: ' + mark); failed = true }
-})
-if (!failed) console.log('  PASS 双源接线一致')
+// 双源键一致性已移除（T5 #98：一源两物，build 保证同构）
+// 保留单产物注册表校验（P1）；P2 双源接线一致性由 src↔产物 + 冒烟覆盖
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过')

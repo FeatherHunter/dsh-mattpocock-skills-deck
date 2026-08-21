@@ -1,0 +1,25 @@
+{
+  "name": "dsh-mattpocock-skills-deck",
+  "version": "1.6.19",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepare": "node scripts/build.mjs",
+    "test:smoke": "node tests/smoke-client.test.js && node tests/smoke-host.test.js && node tests/smoke-host-dispatch.test.js && node tests/smoke-render.test.js",
+    "verify": "node tests/verify-t3-locale.js && node tests/verify-skill-tooltip.js && node tests/verify-bug-entry.js && node tests/verify-no-repo-redcard.js && node tests/verify-kernel.js && node tests/verify-leaves.js && node tests/verify-ctx.js && node tests/verify-parse-leaf.js && node tests/verify-tabsfold-leaf.js"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
+  },
+  "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.0.1",
+    "playwright": "^1.62.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

@@ -1,5 +1,13 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-21 · 阶段 3 收尾（#98 T5）：运行时冒烟 + 删镜像断言 + 构建流（v1.6.19）
+
+- **运行时冒烟上线（R3 第二步）**：新增 `tests/smoke-render.test.js`（jsdom + React 19 + DswsCtx），覆盖面板（DetailsDock 含 dsws-tabs/dsws-body）、状态栏（dsws-capsule）、悬浮层 6 插槽注册 + slotted 组件挂载；`npm run test:smoke` 现 4 项（client/host/dispatch/render）<2s 可进 CI，取代「文本含 .dsws-panel ≠ 能挂载」的自欺式断言。
+- **删除双源文本镜像断言（对抗审查 BUG 4 修复落地）**：`verify-bug-entry P2`、`verify-b5-quota 双源段`、`verify-b3-done-color`、`verify-t14`、`verify-probe-since`、`verify-prompts P2`、`verify-skill-tooltip P2`、`verify-capsule-narrow Part B`、`verify-tabs-narrow Part C`、`verify-parse-leaf Part D`、`verify-tabsfold-leaf` 等 11 处双源逐字/指纹一致性已删除；保留单产物行为特征校验（src↔产物逐字由 T1 已落地，build.mjs 文本组合保证双产物同构）。
+- **DEV-WORKFLOW 重写（G1 三段式）**：`DEV-WORKFLOW.md` 从「双源镜像同步」重写为 `src/ 唯一真源 → 构建（一源两物）→ 冒烟/契约 → 同步 profile`，含新鲜度门禁、产物 gitignore、发布前 `prepare` 自动构建进 tgz；旧 §4 双源 grep 检查已废弃。
+- **产物策略落地（G1 决策 A）**：`.gitignore` 已含 `/client.js` `/host.js` `/package/lib/`（T0 落地），`package.json` `prepare: node scripts/build.mjs`（安装时兜底），`scripts/build.sh` 三段式（构建→门禁→同步），根产物头部追加 `AUTO-GENERATED` 声明；`README` 新增「开发（贡献者）」一节指向 `DEV-WORKFLOW.md`。
+- **验证**：`npm run test:smoke` 4/4（client/host/dispatch/render 含面板/状态栏/tab）+ `npm run verify` 9/9（t3-locale/skill-tooltip/bug-entry/no-repo-redcard/kernel/leaves/ctx/parse-leaf/tabsfold-leaf）全绿；`src/` 为唯一真源，产物全由构建生成。
+
 ## 2026-08-20 · 双源漏同步回归修复 — Fork 归属发版包未带 --repo（#37 回归 #78 · v1.6.16）
 
 - **回归**：fork 工作区（`D:\dsh-plugin\dsh-im` `origin=FeatherHunter/dsh-im + upstream=xmanrui/dsh-im`）右侧面板仍显上游 `xmanrui/dsh-im` Issue（17/16/15）而非 Fork 自身（11/10/9），用户报“老 BUG 又复现”。根因非后续改回，是 **双源手写镜像漏同步**：`host.js` 已在 `b0e8368`（`getRepoKey` 三级降级）+ `a1341ab`（`fetchMaps/fetchIssues` 显式 `--repo` #44）完整修复，`package/lib/index.js` 发版包仅同步了 `getRepoKey`，`fetchMaps/fetchIssues` 仍为无参旧版，导致 DSH 实际加载的 `profile/lib/index.js` 仍走 `gh` 的 `upstream` 优先。
