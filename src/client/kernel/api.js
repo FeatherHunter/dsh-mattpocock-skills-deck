@@ -61,9 +61,10 @@ export let pendingDraftTargetSid = null
       if (handoffTs) {
         return host.call('wf.handoffResolve', Object.assign({ name: handoffTs + '*' }, cwdArg)).then(function (res) {
           if (res && res.ok && res.file) return done(res.file)
-          // 前缀匹配未命中（host 未含前缀逻辑 / AI 文件名结构异变）→ 回退 wf.handoffLatest 取最新，保证能亮蓝
+          // 前缀未命中 → 回退取最新，但仅当最新文件名确实以 handoffTs 开头才引用（避免引用无关的旧文档）
           return host.call('wf.handoffLatest', cwdArg).then(function (r2) {
-            return done((r2 && r2.ok && r2.file) ? r2.file : null)
+            const f = (r2 && r2.ok && r2.file) ? r2.file : null
+            return done((f && f.indexOf(handoffTs) === 0) ? f : null)
           }).catch(function () { return done(null) })
         }).catch(function () { return done(null) })
       }
