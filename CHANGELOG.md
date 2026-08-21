@@ -1,5 +1,13 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-21 · 状态栏 issuePath 胶囊右移至环境按钮左侧（map #101 · v1.7.0）
+
+- **位置**：`src/client/statusbar/StatusBar.js` `issuePathAnchorRef` 段（`pin SVG + #N/--`）从 `word → issuePath → 可接` 右移至 `split(交接) → issuePath → env(dot)` 左侧（`timebtn` 前），保持 `data-fold-priority:10` 最末收，hover 弹层、点击路由、会话持久化、空态 `--`、pin 图标零变化。
+- **定版（G1）**：`grilling` 三问拍板 — 保持 10 最末收（最保留）/ 不加竖线靠 `gap 2px 6px` + `border` / 保持 `left` 加右溢 clamp（`Math.max(8, innerWidth-320)`），R1 布局探查已验证 `applyFold` 对 10 正常、`verify` 位置不敏感。
+- **实现（T1）**：`placeIssuePathPop` 加 clamp（`StatusBar.js:118-121`，`client.js:2869-2872`），`capsule` 顺序 `word1 → 可接5 → BUG6 → 诊断7 → 沉淀2/交接3 → issuePath10 → env8 → time4/9 → skills`，`node scripts/build.mjs` 一源两物，profile 同步 hash 校验通过。
+- **验证（T2）**：`verify-capsule-narrow.js` 双源全绿（48+48 + Part C/D）/ `verify-status.js 23/23` / `verify-build-artifacts` / `verify-t3-locale` / `npm run test:smoke 4/4`（render 含 dsws-capsule）全绿；真机 Chrome（1707px）capsule 顺序 `word → 可接 → BUG → 诊断 → 沉淀 → 交接 → #59 → 环境6/9 → 更新` 且 `#59` 紧邻环境左侧（`issue=6 env=7`），hover 弹层 `389×85` 于 `left 1040` 无右溢，800px 窄屏 `fold=3`（`1,2,3` 已收，`10` 仍保留）。
+- **版本**：`1.6.19 → 1.7.0`（`package.json` / `package/package.json` / `client.js DSW_VERSION` / `package/lib/client.js`）。
+
 ## 2026-08-21 · 阶段 3 收尾（#98 T5）：运行时冒烟 + 删镜像断言 + 构建流（v1.6.19）
 
 - **运行时冒烟上线（R3 第二步）**：新增 `tests/smoke-render.test.js`（jsdom + React 19 + DswsCtx），覆盖面板（DetailsDock 含 dsws-tabs/dsws-body）、状态栏（dsws-capsule）、悬浮层 6 插槽注册 + slotted 组件挂载；`npm run test:smoke` 现 4 项（client/host/dispatch/render）<2s 可进 CI，取代「文本含 .dsws-panel ≠ 能挂载」的自欺式断言。
