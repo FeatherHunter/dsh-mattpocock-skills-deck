@@ -2,7 +2,7 @@
 
 > **单源新架构**：真源 `src/client/kernel/prompts.js`，改后必跑 `node scripts/build.mjs` 生成 `client.js / package/lib/client.js`，勿手改产物（见 `docs/architecture/kernel-contract.md`）。动手前必读：`src/client/kernel/prompts.js` 头 20 行 + `docs/architecture/kernel-contract.md` + 跑 `node scripts/build.mjs 及 tests/verify-*`。
 > PROMPTS 注册表（20 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
-> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 六段标题 + 无表格 + 标识头三字段 + 占位符 n/title/url + T13 闸门引用 + 单行前缀；#74 installSkills 硬校验：版本 ≥ v2 + zh/en 必含 ~/.agents/skills 与全部 10 个所需技能名；#75 progress 硬校验：版本 ≥ v3 + 格式正例 + 未确认不得 close + 首触补写）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×3）。
+> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 六段标题 + 无表格 + 标识头三字段 + 占位符 n/title/url + T13 闸门引用 + 单行前缀；#74 installSkills 硬校验：版本 ≥ v2 + zh/en 必含 ~/.agents/skills 与全部 10 个所需技能名；#75 progress 硬校验：版本 ≥ v3 + 格式正例 + 未确认不得 close + 首触补写）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×2：newWayfinder + newBugWayfinder；mapExecute/complete 自包含内嵌正文格式）。
 
 ## guide · v1
 

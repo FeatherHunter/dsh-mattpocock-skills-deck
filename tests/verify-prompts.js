@@ -53,7 +53,7 @@ const check = function (file) {
   // 旧形式残留
   ;["tr('prompt.", "'prompt.\'" ].forEach(function (bad) { if (src.includes(bad)) problems.push('旧字典引用残留 ' + bad) })
   // T13：版本号 bump —— 契约变更的条目必须升版（防回退），stageGate 必须存在（#65 diagnose 自带闸门，不再依赖尾部追加但保留 STAGE_GATED_IDS 声明）
-  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 5, 'stageGate': 2, 'complete': 4, 'setupRun': 7, 'fixate': 2, 'progress': 3 }
+  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 5, 'stageGate': 2, 'complete': 4, 'setupRun': 7, 'fixate': 2, 'progress': 3, 'bodyFormat': 3 }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
     if (!p) problems.push('T13 缺条目 ' + id)
@@ -208,6 +208,34 @@ const check = function (file) {
     if (pr.en.indexOf('first contact') < 0 || pr.en.indexOf('implementation record') < 0) problems.push('progress en 缺首触补写兜底（first contact / implementation record）')
   } else {
     problems.push('缺条目 progress')
+  }
+  // #76 bodyFormat v3（契约唯一 + 工具无关 + 去 AI 黑话 + 正例）：bodyFormat 必须 ≥ v3 且含关键标记
+  //   契约要点：1) 每个 ## 章节 独占一行 + 段落空行 2) 禁字面 \n / 禁 BOM 3) 以文件方式提交（工具无关，不点名 gh）
+  //   4) 正例（## 进度：90% 独占一行 + 空行 + 下一步；反例不写成字面 \n）—— 内嵌 7 处清单版与注册表编号版同文
+  const bf = reg['bodyFormat']
+  if (bf) {
+    if (bf.version < 3) problems.push('bodyFormat 版本号未 bump（期望 ≥ v3）')
+    if (bf.placeholders.length !== 0) problems.push('bodyFormat 不应有占位符')
+    // zh 关键标记
+    if (bf.zh.indexOf('每个 `## 章节` 独占一行') < 0) problems.push('bodyFormat zh 缺「每个 ## 章节 独占一行」（结构规则）')
+    if (bf.zh.indexOf('段落间留空行') < 0) problems.push('bodyFormat zh 缺段落间留空行')
+    if (bf.zh.indexOf('禁止字面 \\n 转义') < 0) problems.push('bodyFormat zh 缺禁字面 \\n 转义')
+    if (bf.zh.indexOf('BOM（\\ufeff）') < 0) problems.push('bodyFormat zh 缺禁 BOM 标记（BOM（\\ufeff））')
+    if (bf.zh.indexOf('以文件方式提交') < 0) problems.push('bodyFormat zh 缺「以文件方式提交」（工具无关，不得点名 gh）')
+    if (bf.zh.indexOf('不要内联转义字符串') < 0) problems.push('bodyFormat zh 缺「不要内联转义字符串」（去 JSON 黑话）')
+    if (bf.zh.indexOf('gh issue edit') >= 0) problems.push('bodyFormat zh 不得点名 gh issue edit（工具无关契约）')
+    if (bf.zh.indexOf('正例') < 0 || bf.zh.indexOf('## 进度：90%') < 0) problems.push('bodyFormat zh 缺格式正例（正例 / ## 进度：90%）')
+    // en 关键标记（同构直译）
+    if (bf.en.indexOf('each `## section` on its own line') < 0) problems.push('bodyFormat en 缺 each ## section on its own line')
+    if (bf.en.indexOf('blank line between paragraphs') < 0) problems.push('bodyFormat en 缺 blank line between paragraphs')
+    if (bf.en.indexOf('No literal \\n escapes') < 0) problems.push('bodyFormat en 缺 No literal \\n escapes')
+    if (bf.en.indexOf('BOM (\\ufeff)') < 0) problems.push('bodyFormat en 缺 BOM (\\ufeff) 标记')
+    if (bf.en.indexOf('via a file') < 0) problems.push('bodyFormat en 缺 via a file（工具无关）')
+    if (bf.en.indexOf('inline escaped string') < 0) problems.push('bodyFormat en 缺 inline escaped string')
+    if (bf.en.indexOf('gh issue edit') >= 0) problems.push('bodyFormat en 不得点名 gh issue edit（工具无关契约）')
+    if (bf.en.indexOf('Example') < 0 || bf.en.indexOf('## Progress: 90%') < 0) problems.push('bodyFormat en 缺格式正例（Example / ## Progress: 90%）')
+  } else {
+    problems.push('缺条目 bodyFormat')
   }
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
   else console.log('  PASS', file, '(' + Object.keys(reg).length + ' 条注册表，' + (src.match(/promptText\(/g) || []).length + ' 处引用)')
