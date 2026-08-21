@@ -114,9 +114,10 @@ const checkFile = function (file) {
   assert.ok(out.includes('链接：' + URL305), file + ' zh map 链接')
   assert.ok(!out.includes('完成确认'), file + ' zh 未完成态不含完成确认')
 
-  // b) 完成 map 行（t 自带 stats）：完成确认 prompt + map 标识，非推进式
+  // b) 完成 map 行（t 自带 stats）：完成确认 prompt + map 标识，非推进式（#69 v4：标题 ## MAP完成确认，票号在首行 /wayfinder URL）
   const out2 = env.startText(ST, mapIssue(200, '完成 map', { total: 4, closed: 4 }))
-  assert.ok(out2.includes('## 完成确认 · MAP #200'), file + ' zh 完成确认标题含 #n')
+  assert.ok(out2.includes('## MAP完成确认'), file + ' zh 完成确认标题（v4 MAP完成确认）')
+  assert.ok(out2.indexOf('/wayfinder ' + URL200) === 0, file + ' zh 完成确认首行 /wayfinder+URL 含票号 #n')
   assert.ok(out2.includes('4/4'), file + ' zh 完成确认 closed/total 已填')
   assert.ok(out2.includes('## 目标 map') && out2.includes('编号：#200') && out2.includes('标题：完成 map') && out2.includes('链接：' + URL200), file + ' zh 完成态仍带 map 标识')
   assert.ok(!out2.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 完成态不是推进式')
@@ -124,7 +125,7 @@ const checkFile = function (file) {
   // c) 完成态经 snapshot 兜底（t 无 stats 且 snapshot.maps 有该 map）
   const st2 = { snapshot: { maps: [{ number: 200, stats: { total: 4, closed: 4 } }] } }
   const out3 = env.startText(st2, mapIssue(200, '完成 map'))
-  assert.ok(out3.includes('## 完成确认 · MAP #200'), file + ' zh 完成态 snapshot 兜底')
+  assert.ok(out3.includes('## MAP完成确认'), file + ' zh 完成态 snapshot 兜底（v4 标题）')
 
   // d) 零子票 map（total=0）→ 推进式（不算完成）
   const out4 = env.startText(ST, mapIssue(300, '空 map', { total: 0, closed: 0 }))
@@ -146,7 +147,8 @@ const checkFile = function (file) {
   assert.ok(out6.includes('Title: Test map title'), file + ' en map 标题')
   assert.ok(out6.includes('Link: ' + URL305), file + ' en map 链接')
   const out7 = enEnv.startText(ST, mapIssue(200, 'Done map', { total: 2, closed: 2 }))
-  assert.ok(out7.includes('## Completion check · MAP #200'), file + ' en 完成确认标题')
+  assert.ok(out7.includes('## MAP completion check'), file + ' en 完成确认标题（v4 MAP completion check）')
+  assert.ok(out7.indexOf('/wayfinder ' + URL200) === 0, file + ' en 完成确认首行 /wayfinder+URL 含票号 #n')
   assert.ok(out7.includes('2/2'), file + ' en closed/total 已填')
 
   // g) 静态：详情页「在新会话打开」按钮（执行/完成旁，同语义 openInNewSession）
