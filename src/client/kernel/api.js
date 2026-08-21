@@ -96,8 +96,8 @@ export let pendingDraftTargetSid = null
       lastHandoffOpenTs = now
       st.handoffSearching = true; emit(st)  // 搜索动画：右半转圈
       const ws = ctx.get('workspaces')
+      const doneSearch = function () { st.handoffSearching = false; emit(st) }  // 2s 后恢复，避免闪烁
       const finish = function (file, msg) {
-        st.handoffSearching = false; emit(st)  // 恢复
         const text = handoffReadText(file, st.cwd)
         pendingDraft = text
         pendingDraftTargetSid = null
@@ -108,12 +108,13 @@ export let pendingDraftTargetSid = null
           pendingDraft = null
           pendingDraftTargetSid = null
         }
+        if (timer !== undefined) timer.timeout(doneSearch, 2000)  // 至少转 2s
       }
       // 引导门 v3（2026-08-18 rev）：无论本会话是否点过第一击，一律先探测磁盘真实文档——
       //   有 latest → 置 ready + 放行开新会话；没有 → toast 引导「请先点「交接」生成交接文档」，绝不打开空会话
       probeHandoffReady(st).then(function (file) {
         if (file) finish(file, tr('toast.copiedHandoffFile', { file: file }))
-        else { st.handoffSearching = false; emit(st); flash(st, tr('toast.handoffGrey'), 'warn') }
+        else { flash(st, tr('toast.handoffGrey'), 'warn'); if (timer !== undefined) timer.timeout(doneSearch, 2000) }
       })
     }
 
