@@ -993,6 +993,14 @@ export default {
       if (r.error) return { ok: false, error: r.error }
       const want = args && args.name
       if (!want) return { ok: true, file: pickLatestHandoff(r.mds) }
+      // 前缀匹配（#71 短标题文件名：{ts}-<短标题>.md）：want 以 * 结尾 → 匹配 name 以该前缀开头，取最新
+      if (want.slice(-1) === '*') {
+        const prefix = want.slice(0, -1)
+        const m = r.mds.filter(function (x) { return x.name.indexOf(prefix) === 0 })
+        if (m.length) return { ok: true, file: pickLatestHandoff(m) }
+        return { ok: true, file: null }
+      }
+      // 精确匹配：在目录里 → 返回它；不在 → 返回 null（不退回 mtime 最新，避免 fallback 到老文件误导用户）。
       if (r.mds.some(function (m) { return m.name === want })) return { ok: true, file: want }
       return { ok: true, file: null }
     })

@@ -13,18 +13,25 @@
     // 仅当未点过第一击（如刷新后）才回退 host 查最新实际文档；+ 复制 + 开新空白会话
     // v25 · T2b（F1 修正）：交接两击走模板渲染；{ts} 第一击注入时生成并记忆；
     //   {file} = 第一击模板渲染后解析出的实际文件名（用户改文件名结构也一致），解析失败兜底 handoffTs + '.md'
-    export let handoffTs = null  // v24：第一击模板使用的时间戳（第二击优先复用同一文件名）
-    export let handoffFile = null  // v25 F1：第一击渲染后解析出的实际交接文件名（含用户自定义结构）
+    export let handoffTs = null  // v24：第一击模板使用的时间戳（第二击按 {ts}-*.md 前缀匹配真实文件名）
+    export let handoffFile = null  // 真实交接文件名（含 AI 生成的短标题，如 {ts}-修复提示词.md；由探测按 {ts}-*.md 前缀发现）
     export const handoffPrompt = function (ts) {
       return renderTemplate('handoff1', { ts: ts })
     }
-    // 从第一击注入文本解析 .scratch/handoff/<name>.md 的实际文件名（T1 规格 §2 发现 1）
+    // 从第一击注入文本解析 .scratch/handoff/<name>.md 的实际文件名（T1 规格 §2 发现 1；短标题方案下主路径走前缀探测，此处仅兼容保留）
     export const extractHandoffFile = function (text) {
       const m = String(text || '').match(/\.scratch\/handoff\/([^\s"'`]+\.md)/)
       return m ? m[1] : null
     }
-    export const handoffReadText = function (file) {
-      return file ? renderTemplate('handoff2', { file: file }) : ''
+    // 拼绝对路径：{path} = cwd/.scratch/handoff/{file}（跨工作区 / 用户自行查看移动用；分隔符跟随 cwd）
+    export const absHandoffPath = function (cwd, file) {
+      if (!cwd || !file) return file || ''
+      const sep = cwd.indexOf('/') >= 0 ? '/' : '\\'
+      return (cwd.replace(/[\\/]+$/, '')) + sep + '.scratch' + sep + 'handoff' + sep + file
+    }
+    export const handoffReadText = function (file, cwd) {
+      if (!file) return ''
+      return renderTemplate('handoff2', { path: absHandoffPath(cwd, file), file: file })
     }
     // 跨会话预填（issue #12 BUG4 r3 终极修复）：单变量保留，但消费侧彻底锁死 deps 为 [props.sessionId]，
 //   当前会话的 props 重渲染不会再触发 effect 重跑，从根本上消除「当前会话 effect 抢先消费」竞态。
@@ -41,11 +48,17 @@ export let pendingDraftTargetSid = null
     //   始终返回 Promise.resolve(done(...))，让调用方（doHandoffOpen / probe chain）能稳定 .then。
     export const probeHandoffReady = function (st) {
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
-      const done = function (file) { st.handoffReady = !!file; emit(st); return file }
+      const done = function (file) { st.handoffReady = !!file; if (file) handoffFile = file; emit(st); return file }
       if (typeof host === 'undefined' || typeof host.call !== 'function') { done(null); return Promise.resolve(null) }
-      // 主路径：handoffFile 已设 → 直接返回它（prompt 内容与第一击模板时间戳一致 · r2）
+      // 主路径：已发现真实文件名（handoffFile 已设）→ 直接返回（prompt 与第一击 {ts}-*.md 一致）
       if (handoffFile) return Promise.resolve(done(handoffFile))
-      // 副路径：handoffFile=null（刷新后 / 从未点第一击）→ 走 wf.handoffLatest 探磁盘
+      // 副路径 A：刚点过第一击（handoffTs 已设）→ 按 {handoffTs}-*.md 前缀匹配真实文件名（含 AI 短标题）
+      if (handoffTs) {
+        return host.call('wf.handoffResolve', Object.assign({ name: handoffTs + '*' }, cwdArg)).then(function (res) {
+          return done((res && res.ok && res.file) ? res.file : null)
+        }).catch(function () { return done(null) })
+      }
+      // 副路径 B：刷新后 / 从未点第一击 → 走 wf.handoffLatest 探磁盘最新
       return host.call('wf.handoffLatest', cwdArg).then(function (res) {
         return done((res && res.ok && res.file) ? res.file : null)
       }).catch(function () { return done(null) })
@@ -53,16 +66,18 @@ export let pendingDraftTargetSid = null
     export const doHandoff = function (st) {
       handoffTs = timeStampStr()
       const text = handoffPrompt(handoffTs)
-      handoffFile = extractHandoffFile(text) || (handoffTs + '.md')
+      handoffFile = null  // 真实文件名由探测按 {ts}-*.md 前缀发现（含 AI 短标题），不再从模板解析
       inject(st, text)
       flash(st, tr('toast.injectedHandoff'), 'ok')
-      // r2：handoffFile 已设后 probeHandoffReady 直接亮蓝（不再等磁盘落盘）
+      // 立即 + 延迟再探测：AI 写成文档后右半亮蓝（真实文件名 = {ts}-<短标题>.md）
       probeHandoffReady(st)
+      setTimeout(function () { probeHandoffReady(st) }, 3000)
+      setTimeout(function () { probeHandoffReady(st) }, 10000)
     }
     export const doHandoffOpen = function (st) {
       const ws = ctx.get('workspaces')
       const finish = function (file, msg) {
-        const text = handoffReadText(file)
+        const text = handoffReadText(file, st.cwd)
         pendingDraft = text
         pendingDraftTargetSid = null
         copyText(st, text, msg || tr('toast.copiedHandoff'))

@@ -162,19 +162,26 @@ const main = async function () {
           assert.ok(grey.length >= 1, 'toast.handoffGrey 引导出现')
           assert.strictEqual(r.st.handoffReady, false)
         } },
-      { name: '第一击：注入模板 + r2 立即亮蓝（handoffFile 已设 → 不查磁盘 → ready=true · 无延迟探测）', via: 'handoff',
-        opt: { probe: function () { return Promise.reject(new Error('r2：handoffFile 已设 → doHandoff 不再调 host')) }, hostMissing: false },
+      { name: '第一击：注入模板后探测按 {handoffTs}-*.md 前缀发现真实文件名（含短标题）', via: 'handoff',
+        opt: {
+          probe: function (n, a) {
+            if (n === 'wf.handoffResolve' || n === 'handoffResolve') return Promise.resolve({ ok: true, file: '20260818-000000-修复提示词.md' })
+            return Promise.reject(new Error('第一击探测应按前缀发现文件名: ' + n))
+          },
+          hostMissing: false,
+        },
         assert: function (r) {
           assert.strictEqual(r.injected.length, 1, '注入 1 次')
-          assert.strictEqual(r.st.handoffReady, true, 'r2：第一击后 ready 立即置 true（handoffFile 已设即视为 ready，不等磁盘）')
-          assert.strictEqual(r.calls.length, 0, 'r2：第一击后不调 host probe（保证 prompt 一致性）')
-          assert.strictEqual(r.scheduled.length, 0, 'r2：已删 10s 延迟探测（不再需要等 AI 落盘）')
+          const res = r.calls.find(function (c) { return c.name === 'wf.handoffResolve' || c.name === 'handoffResolve' })
+          assert.ok(res, '第一击后应调 wf.handoffResolve 前缀探测')
+          assert.strictEqual(res.arg.name, '20260818-000000*', '按 {handoffTs}-*.md 前缀匹配')
+          assert.strictEqual(r.st.handoffReady, true, '探测到真实文件名（含短标题）→ ready=true（亮蓝）')
         } },
-      { name: '第一击：r2 不依赖磁盘探测（即使 host 通道不可用，handoffFile 已设也亮蓝可点）', via: 'handoff',
+      { name: '第一击：host 不可用 / 未探测到文档 → 右半灰（不亮蓝）', via: 'handoff',
         opt: { probe: null, hostMissing: true },
         assert: function (r) {
           assert.strictEqual(r.injected.length, 1, '注入 1 次')
-          assert.strictEqual(r.st.handoffReady, true, 'r2：host 不可用也亮蓝（handoffFile 已设即视为 ready）')
+          assert.strictEqual(r.st.handoffReady, false, 'host 不可用 / 无文档 → 不亮蓝（等探测到真实名）')
         } },
       { name: '探测助手直连：有文档 → ready=true 并返回文件', via: 'probe',
         opt: { probe: function () { return Promise.resolve({ ok: true, file: 'DEF.md' }) }, hostMissing: false },

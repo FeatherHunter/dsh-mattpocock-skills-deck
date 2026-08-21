@@ -128,15 +128,25 @@ const check = function (file) {
   } else {
     problems.push('缺条目 complete')
   }
-  // #71 交接第二击清单式（A★ · 全勾选框 · 无表格 · 单模板 · 去 /read 命令化）：tpl.handoff2 必须为清单骨架；handoffRead 已塌缩删除
+  // #71 交接第一击短标题文件名 + 第二击绝对路径（A★ · 全勾选框 · 无表格 · 单模板 · 去 /read 命令化）：handoff1 v3 短标题；handoff2 v3 用 {path}；handoffRead 已塌缩删除
+  const h1 = reg['tpl.handoff1']
+  if (h1) {
+    if (h1.version < 3) problems.push('tpl.handoff1 版本号未 bump（期望 ≥ v3）')
+    if (h1.zh.indexOf('短标题') < 0) problems.push('tpl.handoff1 zh 缺短标题指令（{ts}-<短标题>.md）')
+    if (h1.en.indexOf('<short>') < 0) problems.push('tpl.handoff1 en 缺短标题指令（{ts}-<short>.md）')
+  } else {
+    problems.push('缺条目 tpl.handoff1')
+  }
   const h2 = reg['tpl.handoff2']
   if (h2) {
-    if (h2.version < 2) problems.push('tpl.handoff2 版本号未 bump（期望 ≥ v2）')
+    if (h2.version < 3) problems.push('tpl.handoff2 版本号未 bump（期望 ≥ v3）')
     if (h2.zh.indexOf('- [ ]') < 0) problems.push('tpl.handoff2 zh 缺清单标记 - [ ]（A★ 清单式）')
     if (h2.zh.indexOf('## 复述理解') < 0 || h2.zh.indexOf('## 继续推进') < 0) problems.push('tpl.handoff2 zh 缺清单段标题（复述理解/继续推进）')
     if (h2.zh.indexOf('|') >= 0) problems.push('tpl.handoff2 zh 含表格 |（已约定无表格，全勾选框）')
     if (h2.zh.indexOf('/read') >= 0) problems.push('tpl.handoff2 zh 仍含 /read 命令（DSH 无此命令，需通用语句）')
+    if (h2.zh.indexOf('{path}') < 0) problems.push('tpl.handoff2 zh 未用 {path} 绝对路径占位符')
     if (h2.en.indexOf('- [ ]') < 0) problems.push('tpl.handoff2 en 缺清单标记 - [ ]')
+    if (h2.en.indexOf('{path}') < 0) problems.push('tpl.handoff2 en 未用 {path} 绝对路径占位符')
   } else {
     problems.push('缺条目 tpl.handoff2')
   }

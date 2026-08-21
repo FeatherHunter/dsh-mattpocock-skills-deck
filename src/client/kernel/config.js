@@ -53,17 +53,17 @@
     migrateStartCfg()
 
     // ---- v25 · T2b：动作模板引擎（T1 规格 §2-§4）----
-    // 占位符全集：{url} {number} {title} {ts} {file}（引导句是普通静态文本，不是占位符）
-    export const PH = ['url', 'number', 'title', 'ts', 'file']
+    // 占位符全集：{url} {number} {title} {ts} {file} {path}（引导句是普通静态文本，不是占位符）
+    export const PH = ['url', 'number', 'title', 'ts', 'file', 'path']
     // 各模板可用占位符（编辑器 chips 展示）
     export const TPL_PH = {
       diagnose: ['url'], fix: ['url'], discuss: ['url'], execute: ['number', 'url', 'title'],
-      handoff1: ['ts'], handoff2: ['file'], fixate: [],
+      handoff1: ['ts'], handoff2: ['path', 'file'], fixate: [],
     }
     // 强制占位符表（T1 规格 §3）：缺失拒绝保存
     export const TPL_REQUIRED = {
       diagnose: ['url'], fix: ['url'], discuss: ['url'], execute: ['url'],
-      handoff1: ['ts'], handoff2: ['file'], fixate: [],
+      handoff1: ['ts'], handoff2: ['path'], fixate: [],
     }
     // 默认模板文本（空 = 用默认；T1 规格 §3 默认文本 = 现状代码文本）
     export const TPL_DEFAULT = {

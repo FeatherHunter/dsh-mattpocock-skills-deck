@@ -543,31 +543,31 @@ Execute this issue (follow the wayfinder skill rules):
 
 ---
 
-## tpl.handoff1 · v2
+## tpl.handoff1 · v3
 
 - 用途：交接第一击（写交接文档）
 - 占位符：{ts}
 - ZH：
 
-<pre>/handoff 把当前会话生成交接文档，写到 .scratch/handoff/{ts}.md（相对当前工作目录）。
+<pre>/handoff 把当前会话生成交接文档，写到 .scratch/handoff/{ts}-<短标题>.md（相对当前工作目录）。<短标题> 是你给这次交接起的一个简短标题（中文 ≤10 字 / 英文 ≤20 字符，跟随当前会话语言，用连字符或下划线代替空格），让人一眼认出这是哪件事的交接。
 
 交接文档是给一个没有本次会话记忆的 agent 接手的——请站在它的视角，确保它能凭文档无缝继续，而不是靠猜或回翻本次会话。从第一性原理出发。</pre>
 
 - EN：
 
-<pre>/handoff Create a handoff doc from this session, written to .scratch/handoff/{ts}.md (relative to the current working directory).
+<pre>/handoff Create a handoff doc from this session, written to .scratch/handoff/{ts}-<short>.md (relative to the current working directory). <short> is a brief title you give this handoff (zh ≤10 chars / en ≤20 chars, in the current session language, use hyphen or underscore instead of spaces) so a human can tell at a glance what it is about.
 
 This doc is for an agent with no memory of this session — write from its perspective, so it can continue seamlessly without guessing or revisiting this session. Approach from first principles.</pre>
 
 ---
 
-## tpl.handoff2 · v2
+## tpl.handoff2 · v3
 
 - 用途：交接第二击（读交接文档）
-- 占位符：{file}
+- 占位符：{path}（绝对路径，含 {file} 文件名）
 - ZH：
 
-<pre>请阅读 .scratch/handoff/{file}（上一会话生成的交接文档），复述你的理解后再继续推进：
+<pre>请阅读 {path}（上一会话生成的交接文档），复述你的理解后再继续推进：
 
 ## 复述理解
 - [ ] 结论：本会话已确认的决定与成果
@@ -580,7 +580,7 @@ This doc is for an agent with no memory of this session — write from its persp
 
 - EN：
 
-<pre>Read the handoff doc .scratch/handoff/{file} (from the previous session), restate your understanding, then continue:
+<pre>Read the handoff doc {path} (from the previous session), restate your understanding, then continue:
 
 ## Restate understanding
 - [ ] Conclusions: decisions and outcomes confirmed this session
