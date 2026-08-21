@@ -146,13 +146,30 @@ function gateSingleDeclaration(code, label, names) {
   }
 }
 
+// ---------- Ctx 模块组合（阶段 2 步骤 1 · #95） ----------
+/** 从 src/client/kernel/ctx.js 提取声明体（去每行行首 export 关键字）。
+ *  注入 client 插件对象 apply 闭包顶部 —— 双产物同构，一源两物（与 seam shims 同模式）。 */
+function extractCtxBlock() {
+  return read('src/client/kernel/ctx.js')
+    .split('\n')
+    .map((l) => l.replace(/^export\s+/, ''))
+    .join('\n')
+    .trim()
+}
+function wireCtx(body) {
+  const marker = 'apply(ctx) {'
+  const idx = body.indexOf(marker)
+  if (idx < 0) throw new Error('src/client/index.js 找不到 apply(ctx) { 注入点（Ctx 接线失败）')
+  return body.slice(0, idx + marker.length) + '\n' + extractCtxBlock() + '\n' + body.slice(idx + marker.length)
+}
+
 // ---------- 构建 client ----------
 async function buildClient({ version }) {
   const { header, body } = extractPluginBody('src/client/index.js')
-  const bodyV = injectVersion(body, version)
+  const bodyW = wireCtx(injectVersion(body, version))
 
   // ---- _dev：cordis_define 函数体形态 ----
-  const devCode = `${header}\n\nreturn ${bodyV}\n`
+  const devCode = `${header}\n\nreturn ${bodyW}\n`
   gatePrecheck(devCode, 'client-dev')
   write('client.js', devCode)
 
@@ -166,7 +183,7 @@ window.__ModuleLoader__.load({
     var exports = module.exports
     Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' })
 ${PKG_CLIENT_SHIMS}
-    const __plugin = ${bodyV}
+    const __plugin = ${bodyW}
     exports.inject = ['connection', 'slots', 'locale', 'workspaces', 'sessions']
     exports.apply = function (ctx) { __DSW_CTX__ = ctx; return __plugin.apply(ctx) }
     return module.exports

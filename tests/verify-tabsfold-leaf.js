@@ -16,7 +16,8 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 
 // ---- 产物清单与驱动重建的源（T1：断言目标必须是「当前构建产物」，而非磁盘任意文件）----
 const PRODUCTS = ['client.js', 'package/lib/client.js']
-const SOURCES = ['src/client/index.js', 'scripts/build.mjs', 'package/package.json']
+// T2（#95）：Ctx 接线后 src/client/kernel/ctx.js 也是驱动重建的源 —— 进新鲜度门禁，防陈旧产物假绿
+const SOURCES = ['src/client/index.js', 'src/client/kernel/ctx.js', 'scripts/build.mjs', 'package/package.json']
 
 function productStale(prod) {
   if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mjs）'

@@ -1,6 +1,10 @@
 /**
  * dsh-mattpocock-skills-deck · Client 半（UX v25 · 2026-08-14 T2a 配置页骨架）
  *
+ * v27 变更（#95 · 阶段 2 步骤 1 Ctx 接线）：src/client/kernel/ctx.js（createCx + DswsCtx，
+ *   G3 冻结 8 字段 #91）经构建注入 apply 闭包顶部；插槽组件注册处包 DswsCtx.Provider（withCx）。
+ *   不搬任何组件，行为零变化。
+ *
  * v26 变更（#373 用户拍板 2026-08-14）：
  *   打开形式收敛为「仅右侧 details 列」——移除 Document PiP 独立小窗（Electron 不可用、
  *   曾致桌面卡死）、停靠/悬浮双模式记忆（PANEL_MODE_KEY）、状态栏「停靠」seg、右栏「悬浮」按钮；
@@ -4581,30 +4585,61 @@ let pendingDraftTargetSid = null
     }
 
     // ============================================================
+    // 5.11 Ctx 接线（阶段 2 步骤 1 · #95）：建 cx 单例 + Provider 包住渲染树（行为零变化）
+    // ============================================================
+    // DswsCtx / createCx 由构建从 src/client/kernel/ctx.js 注入本闭包顶部（双产物同构 · seam 同模式）。
+    // cx = { ctx, h, rdom, storeSvc, localeSvc, timer, api, router }（G3 冻结清单 8 字段 · #91 拍板）。
+    // 宿主 slots 无全局 wrapper API（实查 dsh-client-ui-slots 0.1.0-rc.7 仅 register/inject），
+    // 故 Provider 包在每个插槽组件注册处（渲染树顶层 = 组件根）；此时无任何组件消费 cx，
+    // 渲染输出与接线前一致，行为零变化（verify-* 全绿证明）。
+    const apiCall = function (endpoint, args) {
+      if (typeof host === 'undefined' || typeof host.call !== 'function') {
+        return Promise.reject(new Error('host.call 不可用（Host 半未加载）'))
+      }
+      return host.call(endpoint, args)
+    }
+    const cx = createCx({
+      ctx: ctx,
+      h: h,
+      rdom: RDOM,
+      storeSvc: { shared: shared, stores: stores, makeStore: makeStore, storeOf: storeOf, emit: emit, sub: sub, useStore: useStore },
+      localeSvc: localeSvc,
+      timer: timer,
+      api: { call: apiCall },
+      router: { open: openPanel, toggle: togglePanel },
+    })
+    // Provider 包装器：任意深度组件都可 useContext(DswsCtx) 取 cx；props 原样透传
+    const withCx = function (Comp) {
+      return function (props) {
+        return h(DswsCtx.Provider, { value: cx }, h(Comp, props))
+      }
+    }
+
+    // ============================================================
     // 6. 插槽注册
     // ============================================================
     slots.inject('shell.overlay', function () {
-      return slots.register({ name: 'shell.overlay', id: 'dsws-overlay-v5', order: 10 }, OverlayPanel)
+      return slots.register({ name: 'shell.overlay', id: 'dsws-overlay-v5', order: 10 }, withCx(OverlayPanel))
     })
     slots.inject('conversation.input.dock', function () {
-      return slots.register({ name: 'conversation.input.dock', id: 'dsh-mattpocock-skills-deck', order: 40 }, StatusBar)
+      return slots.register({ name: 'conversation.input.dock', id: 'dsh-mattpocock-skills-deck', order: 40 }, withCx(StatusBar))
     })
     slots.inject('tool.view.cordis', function () {
-      return slots.register({ name: 'tool.view.cordis', key: 'self' }, RunPanel)
+      return slots.register({ name: 'tool.view.cordis', key: 'self' }, withCx(RunPanel))
     })
     // v25-50：配置页（设置 → 插件 → Waystation；与 opencode 主题同模式）
     slots.inject('settings.plugins.tab', function () {
-      return slots.register({ name: 'settings.plugins.tab', id: 'dsws-settings', order: 40, label: function () { return tr('panel.title') } }, SettingsPage)
+      return slots.register({ name: 'settings.plugins.tab', id: 'dsws-settings', order: 40, label: function () { return tr('panel.title') } }, withCx(SettingsPage))
     })
     // v1.5 T2：设置左侧直达 —— settings.section 左栏条目（与插件页 tab 双入口，复用同一 SettingsPage）
     //   order 18 = 紧跟 插件页15 之后（用户拍板 2026-08-16：15 < 18 < AgentPresets20 < better-sidebar100）
     slots.inject('settings.section', function () {
-      return slots.register({ name: 'settings.section', id: 'dsws-settings-section', order: 18, label: function () { return tr('panel.title') } }, SettingsPage)
+      return slots.register({ name: 'settings.section', id: 'dsws-settings-section', order: 18, label: function () { return tr('panel.title') } }, withCx(SettingsPage))
     })
     // 原型：右侧停靠（details 槽位 · 替换内置工具详情面板；single 槽动态注册优先级低 → 胜出）
     // priority: -1 低于内置详情面板的默认 0 → 无冲突且「低者胜出」替换内置面板
     slots.inject('details', function () {
-      return slots.register({ name: 'details', id: 'dsws-details', order: 10, priority: -1 }, DetailsDock)
+      return slots.register({ name: 'details', id: 'dsws-details', order: 10, priority: -1 }, withCx(DetailsDock))
     })
 
     // v1.4.1：apply 时尽力注册「Waystation」tab；better-sidebar 服务未就绪（加载晚于本模块）→ 定时重试（最多 10 次）

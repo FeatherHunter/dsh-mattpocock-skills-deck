@@ -41,7 +41,14 @@ const ctx = {
   get: (k) => services[k],
   effect: (fn) => { fn(); return () => {} },
 }
-window.React = { createElement: () => ({}), useState: () => [null, () => {}], useEffect: () => {}, useRef: () => ({ current: null }) }
+window.React = {
+  createElement: () => ({}),
+  createContext: (defaultValue) => ({ _defaultValue: defaultValue, Provider: (props) => (props && props.children) || null }),
+  useContext: () => null,
+  useState: () => [null, () => {}],
+  useEffect: () => {},
+  useRef: () => ({ current: null }),
+}
 window.ReactDOM = null
 window.__DSW_SMOKE_CTX__ = ctx
 
