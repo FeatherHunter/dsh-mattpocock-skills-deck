@@ -1,7 +1,8 @@
-# DSH-Waystation · Prompt 审阅清单（v1.6 · 方案A 注册表 · #63 v4 新增 newBugWayfinder）
+# DSH-Waystation · Prompt 审阅清单（v1.7 · 方案A 注册表 · #64 v5 清单式 tpl.execute）
 
-> PROMPTS 注册表（client.js §prompts · 21 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
-> 校验：`node tests/verify-prompts.js`（占位符契约 + 双源键一致 + T13 阶段闸门契约）+ `node tests/verify-bug-entry.js`（v4 #63：实际→期望括号单行 + locale 切换）。
+> **单源新架构**：真源 `src/client/kernel/prompts.js`，改后必跑 `node scripts/build.mjs` 生成 `client.js / package/lib/client.js`，勿手改产物（见 `docs/architecture/kernel-contract.md`）。动手前必读：`src/client/kernel/prompts.js` 头 20 行 + `docs/architecture/kernel-contract.md` + 跑 `node scripts/build.mjs 及 tests/verify-*`。
+> PROMPTS 注册表（21 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
+> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js`。
 
 ## guide · v1
 
@@ -300,9 +301,9 @@ This issue needs discussion before a decision — use the grilling skill to talk
 
 ---
 
-## tpl.execute · v4
+## tpl.execute · v5 — #64 清单式（A★ · 全勾选框 · 无表格）
 
-- 用途：动作按钮「执行」（普通票）
+- 用途：动作按钮「执行」（普通票）· 清单式
 - 占位符：{url}
 - ZH：
 
@@ -310,11 +311,32 @@ This issue needs discussion before a decision — use the grilling skill to talk
 {url}
 
 执行这个 issue（遵循 wayfinder 技能规则）：
-1. 先认领（若未认领）；读 Description / Notes / 阻塞关系，确认它到底要交付什么；
-2. 若目标不清或需要用户定夺 → 先用 grilling 技能澄清；
-3. 制定方案 → 实施 → 按验收标准自查；
-4. 完成且通过验收 → 100% + close；未完成 → 按进度契约如实更新（含下一步）。
-若执行后关闭了该票：在所属 map 的 Decisions so far 追加一行 gist（票名 + 链接 + 一句话结论）。</pre>
+
+## 读现状
+- [ ] 已认领？若未认领，先认领
+- [ ] 读 Description / Notes / 阻塞关系 / 评论 / 标签 / 进度区（## 进度：N%），确认交付物与验收标准
+
+## 执行
+- [ ] 目标不清或需用户定夺 → 用 grilling 技能澄清（不猜）
+- [ ] 制定方案 → 实施 → 按验收标准自查（对抗式）
+
+## 阶段闸门（动作开始前必读，这是动作的一部分，不是可选项）
+- [ ] 先读该 issue 现状：进度区（## 进度：N%）/ 已有实施记录 / 评论 / 标签，判断它处于哪个阶段
+- [ ] 若带 needs-triage 标签：必须先完成诊断（这是前置步骤，不许跳过直接实施）
+- [ ] 诊断时判断当前进展：
+  - [ ] 已有实施且真实 → 核验是否符合验收标准，属实则维持 95% 待确认 + 摘 needs-triage（转 ready-for-agent）
+  - [ ] 已有实施但虚假/半成品 → 进度据实回调到真实值（如 30%），继续诊断
+  - [ ] 未动工 → 正常诊断（复现 → 根因 → 方案 → 写入 issue）
+- [ ] 诊断完成摘 needs-triage 后才允许进入实施阶段
+
+## 收尾
+- [ ] 完成且通过验收 → 100% + close；未完成 → 按进度契约如实更新（含下一步）
+- [ ] 若执行后关闭了该票：在所属 map 的 Decisions so far 追加一行 gist（票名 + 链接 + 一句话结论）
+
+## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 用真实换行书写：`## 章节` 独占一行，段落间留空行
+- [ ] 禁止字面 \n 转义（不要把换行写成 \n 两个字符）、禁止正文以 BOM（\ufeff）开头
+- [ ] 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装</pre>
 
 - EN：
 
@@ -322,11 +344,32 @@ This issue needs discussion before a decision — use the grilling skill to talk
 {url}
 
 Execute this issue (follow the wayfinder skill rules):
-1. Claim it first (if unclaimed); read Description / Notes / blocking relationships; confirm what it must deliver;
-2. If the goal is unclear or needs the user call, settle it with the grilling skill first;
-3. Plan → implement → self-check against acceptance criteria;
-4. Done and verified → 100% + close; otherwise update honestly per the progress contract (with next step).
-If this execution closes the ticket, append a one-line gist to its map Decisions so far (ticket name + link + one-line conclusion).</pre>
+
+## Read current state
+- [ ] Claimed? Claim first if unclaimed
+- [ ] Read Description / Notes / blocking relationships / comments / labels / progress (## Progress: N%) — confirm deliverable & acceptance criteria
+
+## Execute
+- [ ] If goal unclear or needs user call → clarify with grilling (do not guess)
+- [ ] Plan → implement → self-check against acceptance criteria (adversarial)
+
+## Stage gate (must read before starting — part of the action, not optional)
+- [ ] First read the issue current state: progress (## Progress: N%) / existing implementation record / comments / labels — determine stage
+- [ ] If it carries needs-triage: diagnosis MUST be done first (do not skip to implementation)
+- [ ] During diagnosis, judge progress:
+  - [ ] Existing impl and real → verify against acceptance criteria; if genuine, keep 95% awaiting confirmation + remove needs-triage (→ ready-for-agent)
+  - [ ] Existing impl but fake/partial → revise progress back to true value (e.g. 30%) and continue diagnosing
+  - [ ] Not started → normal diagnosis (reproduce → root cause → plan → write into the issue)
+- [ ] Only after diagnosis and needs-triage removed may implementation begin
+
+## Wrap-up
+- [ ] Done & verified → 100% + close; otherwise update honestly per progress contract (with next step)
+- [ ] If this execution closes the ticket, append a one-line gist to its map Decisions so far (ticket name + link + one-line conclusion)
+
+## Body format (mandatory when writing/editing an issue body)
+- [ ] Use real newlines: each `## section` on its own line, blank line between paragraphs
+- [ ] No literal \n escapes, no BOM (\ufeff) at the start
+- [ ] Write via file-based input (real newlines), never inline JSON-escaped strings</pre>
 
 ---
 

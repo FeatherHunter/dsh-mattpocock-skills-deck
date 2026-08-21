@@ -53,7 +53,7 @@ const check = function (file) {
   // 旧形式残留
   ;["tr('prompt.", "'prompt.\'" ].forEach(function (bad) { if (src.includes(bad)) problems.push('旧字典引用残留 ' + bad) })
   // T13：版本号 bump —— 契约变更的条目必须升版（防回退），stageGate 必须存在
-  const V_MIN = { 'tpl.diagnose': 3, 'tpl.execute': 4, 'mapExecute': 4, 'stageGate': 1 }
+  const V_MIN = { 'tpl.diagnose': 3, 'tpl.execute': 5, 'mapExecute': 4, 'stageGate': 2 }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
     if (!p) problems.push('T13 缺条目 ' + id)
@@ -77,6 +77,14 @@ const check = function (file) {
   if (!src.includes('STAGE_GATED_IDS.indexOf(id) >= 0')) problems.push('T13 renderTemplate 未按 STAGE_GATED_IDS 追加闸门')
   // T13：map 推进（mapExecute 新会话）同样挂闸门
   if (!src.includes('MAP_EXECUTE_PROMPT') || !src.includes('gateText')) problems.push('T13 map 推进未挂 stageGate（缺 gateText）')
+  // #64 执行清单式（A★ · 全勾选框 · 无表格）：tpl.execute 必须为清单骨架
+  const ex = reg['tpl.execute']
+  if (ex) {
+    if (ex.zh.indexOf('- [ ]') < 0) problems.push('tpl.execute zh 缺清单标记 - [ ]（A★ 清单式）')
+    if (ex.zh.indexOf('## 读现状') < 0 || ex.zh.indexOf('## 阶段闸门') < 0 || ex.zh.indexOf('## 收尾') < 0 || ex.zh.indexOf('## 正文格式') < 0) problems.push('tpl.execute zh 缺清单四段标题（读现状/阶段闸门/收尾/正文格式）')
+    if (ex.zh.indexOf('|') >= 0) problems.push('tpl.execute zh 含表格 |（已约定无表格，全勾选框）')
+    if (ex.en.indexOf('- [ ]') < 0) problems.push('tpl.execute en 缺清单标记 - [ ]')
+  }
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
   else console.log('  PASS', file, '(' + Object.keys(reg).length + ' 条注册表，' + (src.match(/promptText\(/g) || []).length + ' 处引用)')
 }
