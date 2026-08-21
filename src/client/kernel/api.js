@@ -60,7 +60,11 @@ export let pendingDraftTargetSid = null
       // 副路径 A：刚点过第一击（handoffTs 已设）→ 按 {handoffTs}-*.md 前缀匹配真实文件名（含 AI 短标题）
       if (handoffTs) {
         return host.call('wf.handoffResolve', Object.assign({ name: handoffTs + '*' }, cwdArg)).then(function (res) {
-          return done((res && res.ok && res.file) ? res.file : null)
+          if (res && res.ok && res.file) return done(res.file)
+          // 前缀匹配未命中（host 未含前缀逻辑 / AI 文件名结构异变）→ 回退 wf.handoffLatest 取最新，保证能亮蓝
+          return host.call('wf.handoffLatest', cwdArg).then(function (r2) {
+            return done((r2 && r2.ok && r2.file) ? r2.file : null)
+          }).catch(function () { return done(null) })
         }).catch(function () { return done(null) })
       }
       // 副路径 B：刷新后 / 从未点第一击 → 走 wf.handoffLatest 探磁盘最新
@@ -85,7 +89,11 @@ export let pendingDraftTargetSid = null
       }
       if (timer !== undefined) timer.timeout(tick, 1000)
     }
+    let lastHandoffOpenTs = 0  // 防抖：防止 1s 内连点几十下反复探测/开会话
     export const doHandoffOpen = function (st) {
+      const now = Date.now()
+      if (now - lastHandoffOpenTs < 800) return  // 800ms 内重复点击忽略
+      lastHandoffOpenTs = now
       const ws = ctx.get('workspaces')
       const finish = function (file, msg) {
         const text = handoffReadText(file, st.cwd)
