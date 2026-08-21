@@ -98,6 +98,19 @@ const check = function (file) {
     if (di.en.indexOf('diagnosis') < 0 || di.en.indexOf('Stage gate') < 0) problems.push('tpl.diagnose en 缺关键段（diagnosis/Stage gate）')
     if (di.en.indexOf('What are the symptoms') < 0 || di.en.indexOf('What is the impact') < 0) problems.push('tpl.diagnose en 缺 Symptoms 三行拆分（What are the symptoms / What is the impact）')
   }
+  // #71 交接第二击清单式（A★ · 全勾选框 · 无表格 · 单模板 · 去 /read 命令化）：tpl.handoff2 必须为清单骨架；handoffRead 已塌缩删除
+  const h2 = reg['tpl.handoff2']
+  if (h2) {
+    if (h2.version < 2) problems.push('tpl.handoff2 版本号未 bump（期望 ≥ v2）')
+    if (h2.zh.indexOf('- [ ]') < 0) problems.push('tpl.handoff2 zh 缺清单标记 - [ ]（A★ 清单式）')
+    if (h2.zh.indexOf('## 复述理解') < 0 || h2.zh.indexOf('## 继续推进') < 0) problems.push('tpl.handoff2 zh 缺清单段标题（复述理解/继续推进）')
+    if (h2.zh.indexOf('|') >= 0) problems.push('tpl.handoff2 zh 含表格 |（已约定无表格，全勾选框）')
+    if (h2.zh.indexOf('/read') >= 0) problems.push('tpl.handoff2 zh 仍含 /read 命令（DSH 无此命令，需通用语句）')
+    if (h2.en.indexOf('- [ ]') < 0) problems.push('tpl.handoff2 en 缺清单标记 - [ ]')
+  } else {
+    problems.push('缺条目 tpl.handoff2')
+  }
+  if (reg['handoffRead']) problems.push('handoffRead 未塌缩删除（应只剩 tpl.handoff2 单模板）')
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
   else console.log('  PASS', file, '(' + Object.keys(reg).length + ' 条注册表，' + (src.match(/promptText\(/g) || []).length + ' 处引用)')
 }

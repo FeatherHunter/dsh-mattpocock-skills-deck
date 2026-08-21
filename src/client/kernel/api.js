@@ -24,8 +24,7 @@
       return m ? m[1] : null
     }
     export const handoffReadText = function (file) {
-      if (file) return renderTemplate('handoff2', { file: file })
-      return promptText('handoffRead')
+      return file ? renderTemplate('handoff2', { file: file }) : ''
     }
     // 跨会话预填（issue #12 BUG4 r3 终极修复）：单变量保留，但消费侧彻底锁死 deps 为 [props.sessionId]，
 //   当前会话的 props 重渲染不会再触发 effect 重跑，从根本上消除「当前会话 effect 抢先消费」竞态。

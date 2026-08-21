@@ -21,7 +21,7 @@ const TPL_DEFAULT = {
   execute: '{url}\n\n' + GUIDE_LINE,
   handoff1: '/handoff\n\n请把当前会话生成交接文档，写到 .scratch/handoff/{ts}.md（相对当前工作目录），包含三部分：\n' +
     '1. 结论：本次会话已确认的决定与成果；\n2. 未完成事项：下一步要继续的事；\n3. 建议 skill：新会话接手时建议加载的技能。\n\n' + GUIDE_LINE,
-  handoff2: '/read .scratch/handoff/{file}\n\n请先阅读这份交接文档并复述确认理解（结论 / 未完成事项 / 建议 skill），然后' + GUIDE_LINE,
+  handoff2: '请阅读 .scratch/handoff/{file}（上一会话生成的交接文档），复述你的理解后再继续推进：\n\n## 复述理解\n- [ ] 结论：本会话已确认的决定与成果\n- [ ] 未完成事项：下一步要继续的事\n- [ ] 建议 skill：新会话接手时应加载的技能\n- [ ] 把以上三点复述给我；若有遗漏或不确定 → 先问我确认，不猜\n\n## 继续推进\n- [ ] 从第一性原理出发，继续完成未完成事项',
   fixate: '里程碑固化点。暂停推进，执行「零丢失快照」，从第一性原理出发：\n\n1. 全量复述：…',
 }
 const templates = { diagnose: '', fix: '', discuss: '', execute: '', handoff1: '', handoff2: '', fixate: '' }
@@ -69,7 +69,8 @@ console.log('T1: 默认模板渲染')
   const h1 = renderTemplate('handoff1', { ts: '20260814-172113' })
   assert.ok(h1.includes('.scratch/handoff/20260814-172113.md'), 'handoff1 {ts} 注入')
   const h2 = renderTemplate('handoff2', { file: '20260814-172113.md' })
-  assert.ok(h2.includes('/read .scratch/handoff/20260814-172113.md'), 'handoff2 {file} 注入')
+  assert.ok(h2.includes('.scratch/handoff/20260814-172113.md'), 'handoff2 {file} 注入')
+  assert.ok(!h2.includes('/read'), 'handoff2 不含 /read 命令（DSH 无此命令）')
   assert.ok(renderTemplate('fixate', {}).includes('里程碑固化点'), 'fixate 渲染')
   ok('七模板默认渲染')
 }
@@ -133,7 +134,7 @@ console.log('T5: 交接两击一致性（F1 修正）')
   assert.strictEqual(extractHandoffFile(text), '交接-20260814-172113.md', '自定义前缀解析')
   // 第二击读同一文件
   const h2 = renderTemplate('handoff2', { file: extractHandoffFile(text) })
-  assert.ok(h2.includes('/read .scratch/handoff/交接-20260814-172113.md'), '第二击读自定义文件名')
+  assert.ok(h2.includes('.scratch/handoff/交接-20260814-172113.md'), '第二击读自定义文件名')
   // 解析失败兜底 handoffTs + '.md'
   templates.handoff1 = '/handoff 没有文件名'
   assert.strictEqual(extractHandoffFile(renderTemplate('handoff1', { ts: '20260814-172113' })), null)

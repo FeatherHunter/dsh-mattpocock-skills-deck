@@ -1,7 +1,7 @@
-# DSH-Waystation · Prompt 审阅清单（v1.9 · 方案A 注册表 · #64 v5 清单式 tpl.execute · #65 v4 清单式 tpl.diagnose · #66 v3 清单式 tpl.fix · #67 v3 清单式 tpl.discuss）
+# DSH-Waystation · Prompt 审阅清单（v1.9 · 方案A 注册表 · #64 v5 清单式 tpl.execute · #65 v4 清单式 tpl.diagnose · #66 v3 清单式 tpl.fix · #67 v3 清单式 tpl.discuss · #70 v2 质量导向 tpl.handoff1 · #71 v2 清单式 tpl.handoff2（单模板，删 handoffRead））
 
 > **单源新架构**：真源 `src/client/kernel/prompts.js`，改后必跑 `node scripts/build.mjs` 生成 `client.js / package/lib/client.js`，勿手改产物（见 `docs/architecture/kernel-contract.md`）。动手前必读：`src/client/kernel/prompts.js` 头 20 行 + `docs/architecture/kernel-contract.md` + 跑 `node scripts/build.mjs 及 tests/verify-*`。
-> PROMPTS 注册表（21 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
+> PROMPTS 注册表（20 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
 > 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验）+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js`。
 
 ## guide · v1
@@ -499,67 +499,53 @@ Execute this issue (follow the wayfinder skill rules):
 
 ---
 
-## tpl.handoff1 · v1
+## tpl.handoff1 · v2
 
 - 用途：交接第一击（写交接文档）
 - 占位符：{ts}
 - ZH：
 
-<pre>/handoff
+<pre>/handoff 把当前会话生成交接文档，写到 .scratch/handoff/{ts}.md（相对当前工作目录）。
 
-请把当前会话生成交接文档，写到 .scratch/handoff/{ts}.md（相对当前工作目录），包含三部分：
-1. 结论：本次会话已确认的决定与成果；
-2. 未完成事项：下一步要继续的事；
-3. 建议 skill：新会话接手时建议加载的技能。
-
-从第一性原理出发完成任务，并对抗式审查。</pre>
+交接文档是给一个没有本次会话记忆的 agent 接手的——请站在它的视角，确保它能凭文档无缝继续，而不是靠猜或回翻本次会话。从第一性原理出发。</pre>
 
 - EN：
 
-<pre>/handoff
+<pre>/handoff Create a handoff doc from this session, written to .scratch/handoff/{ts}.md (relative to the current working directory).
 
-Create a handoff doc from this session, written to .scratch/handoff/{ts}.md (relative to the current working directory), with three parts:
-1. Conclusion: decisions and outcomes confirmed this session;
-2. Unfinished: what to continue next;
-3. Suggested skills: skills the next session should load.
-
-Approach tasks from first principles, and review adversarially.</pre>
+This doc is for an agent with no memory of this session — write from its perspective, so it can continue seamlessly without guessing or revisiting this session. Approach from first principles.</pre>
 
 ---
 
-## tpl.handoff2 · v1
+## tpl.handoff2 · v2
 
 - 用途：交接第二击（读交接文档）
 - 占位符：{file}
 - ZH：
 
-<pre>/read .scratch/handoff/{file}
+<pre>请阅读 .scratch/handoff/{file}（上一会话生成的交接文档），复述你的理解后再继续推进：
 
-请先阅读这份交接文档并复述确认理解（结论 / 未完成事项 / 建议 skill），然后从第一性原理出发完成任务，并对抗式审查。</pre>
+## 复述理解
+- [ ] 结论：本会话已确认的决定与成果
+- [ ] 未完成事项：下一步要继续的事
+- [ ] 建议 skill：新会话接手时应加载的技能
+- [ ] 把以上三点复述给我；若有遗漏或不确定 → 先问我确认，不猜
 
-- EN：
-
-<pre>/read .scratch/handoff/{file}
-
-Read this handoff doc and restate your understanding (conclusions / unfinished / suggested skills), then approach tasks from first principles, and review adversarially.</pre>
-
----
-
-## handoffRead · v1
-
-- 用途：交接第二击兜底（无文件时）
-- 占位符：无
-- ZH：
-
-<pre>/read .scratch/handoff/latest.md
-
-请先阅读这份交接文档并复述确认理解（结论 / 未完成事项 / 建议 skill），然后从第一性原理出发完成任务，并对抗式审查。</pre>
+## 继续推进
+- [ ] 从第一性原理出发，继续完成未完成事项</pre>
 
 - EN：
 
-<pre>/read .scratch/handoff/latest.md
+<pre>Read the handoff doc .scratch/handoff/{file} (from the previous session), restate your understanding, then continue:
 
-Read this handoff doc and restate your understanding (conclusions / unfinished / suggested skills), then approach tasks from first principles, and review adversarially.</pre>
+## Restate understanding
+- [ ] Conclusions: decisions and outcomes confirmed this session
+- [ ] Unfinished: what to continue next
+- [ ] Suggested skills: skills the new session should load
+- [ ] Restate the three points to me; if anything is missing or uncertain → ask me first, do not guess
+
+## Continue
+- [ ] From first principles, continue with the unfinished work</pre>
 
 ---
 
@@ -714,4 +700,4 @@ Repo: {repo}</pre>
 
 ---
 
-> 共 21 条 · 键：guide / mapExecute / complete / fixate / progress / bodyFormat / grill / newMap / tpl.diagnose / tpl.fix / tpl.discuss / tpl.execute / tpl.handoff1 / tpl.handoff2 / handoffRead / setup / setupRun / newWayfinder / newBugWayfinder / mapHead / stageGate
+> 共 20 条 · 键：guide / mapExecute / complete / fixate / progress / bodyFormat / grill / newMap / tpl.diagnose / tpl.fix / tpl.discuss / tpl.execute / tpl.handoff1 / tpl.handoff2 / setup / setupRun / newWayfinder / newBugWayfinder / mapHead / stageGate
