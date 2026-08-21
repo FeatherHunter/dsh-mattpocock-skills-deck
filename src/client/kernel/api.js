@@ -94,8 +94,10 @@ export let pendingDraftTargetSid = null
       const now = Date.now()
       if (now - lastHandoffOpenTs < 800) return  // 800ms 内重复点击忽略
       lastHandoffOpenTs = now
+      st.handoffSearching = true; emit(st)  // 搜索动画：右半转圈
       const ws = ctx.get('workspaces')
       const finish = function (file, msg) {
+        st.handoffSearching = false; emit(st)  // 恢复
         const text = handoffReadText(file, st.cwd)
         pendingDraft = text
         pendingDraftTargetSid = null
@@ -111,7 +113,7 @@ export let pendingDraftTargetSid = null
       //   有 latest → 置 ready + 放行开新会话；没有 → toast 引导「请先点「交接」生成交接文档」，绝不打开空会话
       probeHandoffReady(st).then(function (file) {
         if (file) finish(file, tr('toast.copiedHandoffFile', { file: file }))
-        else flash(st, tr('toast.handoffGrey'), 'warn')
+        else { st.handoffSearching = false; emit(st); flash(st, tr('toast.handoffGrey'), 'warn') }
       })
     }
 

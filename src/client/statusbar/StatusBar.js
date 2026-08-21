@@ -298,7 +298,7 @@ export     const StatusBar = (props) => {
           ]),
           h('span', { className: 'dsws-split-div' }),
           h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoffOpen(s) }, title: s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle'), style: s.handoffReady ? { color: '#58a6ff' } : { color: '#8b8b95', opacity: 0.55, cursor: 'default' } }, [
-            Ic({ n: s.handoffReady ? 'handoff-open' : 'handoff-off', size: 12 }),
+            s.handoffSearching ? h('span', { className: 'dsws-spinner', style: { width: 12, height: 12, borderWidth: 2, display: 'inline-block', verticalAlign: '-2px' } }) : Ic({ n: s.handoffReady ? 'handoff-open' : 'handoff-off', size: 12 }),
           ]),
         ]),
         // v19-36：环境段移至末尾（更新左侧），用户少点

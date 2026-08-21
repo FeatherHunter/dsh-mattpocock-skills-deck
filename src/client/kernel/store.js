@@ -175,7 +175,7 @@
       stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
       checks: null, checksUpdatedAt: '', checksMode: 'loading', checksError: null, checking: false,
       snapMode: 'loading', snapError: null, snapLoading: false,
-      refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, skillsOpen: false, skillHover: null, skillTip: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
+      refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, handoffSearching: false, skillsOpen: false, skillHover: null, skillTip: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
       noRepoCard: { expanded: false, name: '', visibility: 'private', loading: false, error: '', errorKind: '', errorRepoUrl: '' },
       issuePath: { sessionId: '', anchor: null, nodes: [], current: null, updatedAt: 0 },
       issuePathHover: false, issuePathPos: null,
