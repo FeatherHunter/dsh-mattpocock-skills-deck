@@ -17,7 +17,7 @@
  *
  * 用法：node scripts/build.mjs [--dev-only|--pkg-only] [--out-dir DIR]
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
@@ -214,13 +214,34 @@ function wireModules(body) {
   let out = body
   for (const m of KERNEL_MODULES) {
     const marker = `// ==== kernel:${m.name} (spliced by build) ====`
-    if (out.indexOf(marker) < 0) continue  // 未迁移的模块：跳过（幂等）
+    if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 KERNEL_MODULES 注册`)
     out = out.replace(marker, extractModuleBlock(m.file))
   }
   for (const m of LEAF_MODULES) {
     const marker = `// ==== leaf:${m.id} (spliced by build) ====`
-    if (out.indexOf(marker) < 0) continue  // 未迁移的模块：跳过（幂等）
+    if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 LEAF_MODULES 注册`)
     out = out.replace(marker, extractModuleBlock(m.file))
+  }
+  // 反向检查：src 下有叶子文件却未在 LEAF_MODULES 登记（比“忘贴纸条”更隐蔽）
+  try {
+    const leafFiles = []
+    const walk = (dir) => {
+      const abs = resolve(ROOT, dir)
+      if (!existsSync(abs)) return
+      for (const ent of readdirSync(abs, { withFileTypes: true })) {
+        const rel = dir + '/' + ent.name
+        const absEnt = resolve(ROOT, rel)
+        if (ent.isDirectory()) walk(rel)
+        else if (ent.isFile() && rel.endsWith('.js')) leafFiles.push(rel)
+      }
+    }
+    walk('src/client/views'); walk('src/client/panel'); walk('src/client/statusbar'); walk('src/client/floating')
+    const registered = new Set(LEAF_MODULES.map(m => m.file))
+    for (const f of leafFiles) {
+      if (!registered.has(f)) throw new Error(`[build] ${f} 未在 LEAF_MODULES 登记 — 新加叶子需在 LEAF_MODULES 加一项并在 src/client/index.js 加 // ==== leaf:<id> ==== 标记`)
+    }
+  } catch (e) {
+    if (e && e.message && e.message.startsWith('[build]')) throw e
   }
   return out
 }
@@ -309,12 +330,27 @@ export function apply(ctx) {
   return { devCode, pkgCode }
 }
 
+// ---------- 产物自检（风险A） ----------
+function gateBuildArtifacts() {
+  for (const p of ['client.js', 'host.js']) {
+    if (existsSync(resolve(ROOT, p))) {
+      const txt = read(p)
+      if (!txt.startsWith('// AUTO-GENERATED')) {
+        console.warn(`[warn] ${p} 缺 AUTO-GENERATED 横幅 — 可能为手改产物，下次 build 将被覆盖`)
+      }
+    }
+  }
+}
+
 // ---------- main ----------
 const args = process.argv.slice(2)
 const devOnly = args.includes('--dev-only')
 const pkgOnly = args.includes('--pkg-only')
 const version = dswVersion()
 console.log(`[build] DSW_VERSION=${version} (package/package.json)`)
+
+// A 自检（build 前）：若产物存在但无横幅，给 warn（不阻断，防旧产物）
+gateBuildArtifacts()
 
 const out = {}
 if (!pkgOnly) out.clientDev = (await buildClient({ version })).devCode
@@ -327,3 +363,39 @@ console.log(`  client.js (dev)      ${out.clientDev ? read('client.js').length +
 console.log(`  host.js (dev)        ${out.hostDev ? read('host.js').length + ' bytes' : 'skipped'}`)
 console.log(`  package/lib/client.js (pkg) ${out.clientPkg ? read('package/lib/client.js').length + ' bytes' : 'skipped'}`)
 console.log(`  package/lib/index.js (pkg)  ${out.hostPkg ? read('package/lib/index.js').length + ' bytes' : 'skipped'}`)
+
+// A 自检（build 后）：产物必须带横幅
+gateBuildArtifacts()
+
+// C 自动同步（默认同步，--no-sync 可跳过）
+if (!args.includes('--no-sync')) {
+  // 同步为 async 需 await，main 已在顶层 async 上下文（文件整体为 ESM，顶层 await 可用）
+  const _home = process.env.HOME || process.env.USERPROFILE || ''
+  if (_home) {
+    try {
+      const profileBase = resolve(_home, '.dsh/profiles/web/node_modules/dsh-mattpocock-skills-deck')
+      if (existsSync(profileBase)) {
+        for (const [srcRel, dstRel] of [['package/lib/client.js','lib/client.js'],['package/lib/index.js','lib/index.js']]) {
+          const src = resolve(ROOT, srcRel)
+          const dst = resolve(profileBase, dstRel)
+          if (existsSync(src)) {
+            mkdirSync(resolve(profileBase, 'lib'), { recursive: true })
+            writeFileSync(dst, readFileSync(src, 'utf8'), 'utf8')
+          }
+        }
+        console.log(`[build] 已同步 profile → ${profileBase}`)
+        // hash 校验
+        try {
+          const a = readFileSync(resolve(ROOT,'package/lib/client.js'),'utf8')
+          const b = readFileSync(resolve(profileBase,'lib/client.js'),'utf8')
+          if (a !== b) console.warn('[build] profile 同步 hash 不一致')
+          else console.log('[build] profile 同步 hash 校验通过')
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('[build] profile 同步跳过:', e.message)
+    }
+  }
+} else {
+  console.log('[build] --no-sync 已跳过 profile 同步')
+}
