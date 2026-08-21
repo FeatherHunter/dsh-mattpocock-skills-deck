@@ -6,8 +6,7 @@
     // ---- 5.7 环境检查（定稿 5A：横幅 + 红/黄/绿分组卡；v12 失败不兜假数据）----
 export     const ChecksTab = ({ st }) => {
       const cx = React.useContext(DswsCtx)
-      if (!cx) return null
-      const h = cx.h
+      const h = cx ? cx.h : React.createElement
       React.useEffect(function () { loadChecks(st, false) }, [])
       const cs = activeChecks(st)
       const bad = cs.filter(function (c) { return c.level === 'bad' })

@@ -7,9 +7,8 @@
 export     const StatusBar = (props) => {
       const sid = props && props.sessionId
       const cx = React.useContext(DswsCtx)
-      if (!cx) return null
-      const h = cx.h
-      const s = cx.storeSvc.useStore(sid)
+      const h = cx ? cx.h : React.createElement
+      const s = cx ? cx.storeSvc.useStore(sid) : useStore(sid)
       // v15-27：宿主权威 cwd —— SessionSummary.cwd（会话列表工作区标题同源），替换字段名猜测链
       const summaryCwd = props.useSessions(function (x) {
         return (sid && x.byId && x.byId[sid]) ? x.byId[sid].cwd : undefined

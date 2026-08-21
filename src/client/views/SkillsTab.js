@@ -5,8 +5,7 @@
  */
 export     const SkillsTab = ({ st }) => {
       const cx = React.useContext(DswsCtx)
-      if (!cx) return null
-      const h = cx.h
+      const h = cx ? cx.h : React.createElement
       const groups = compute(st)
       let rec = []
       let recTitle = tr('skill.generic')

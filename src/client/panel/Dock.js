@@ -16,10 +16,9 @@ export     const DetailsDock = (props) => {
       const propSid = props && (props.sessionId || (props.scope && props.scope.sessionId) || (props.session && props.session.id))
       const sid = propSid || hookCurrent
       const cx = React.useContext(DswsCtx)
-      if (!cx) return null
-      const h = cx.h
+      const h = cx ? cx.h : React.createElement
       const summaryCwd = (props && typeof props.useSessions === 'function' && sid) ? props.useSessions(function (x) { return (x.byId && x.byId[sid]) ? x.byId[sid].cwd : undefined }) : undefined
-      const s = cx.storeSvc.useStore(sid)
+      const s = cx ? cx.storeSvc.useStore(sid) : useStore(sid)
       const layoutSvc = ctx.get('layout')
       const dockRef = React.useRef(null)
       const [dw, setDw] = React.useState(460)

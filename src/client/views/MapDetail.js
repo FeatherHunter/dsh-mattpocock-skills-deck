@@ -7,8 +7,7 @@
     //   层 = blockedBy DAG 最长路径深度（T1 #442 已算 stats.levels + 每票 t.level）
 export     const MapDetail = ({ st, g }) => {
       const cx = React.useContext(DswsCtx)
-      if (!cx) return null
-      const h = cx.h
+      const h = cx ? cx.h : React.createElement
       const m = g.m
       const colorOf = buildColorOf(st)
       const tickets = m.tickets || []

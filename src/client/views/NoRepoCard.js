@@ -6,8 +6,7 @@
     // ============ T2 #35 · NoRepo 红卡 + 表单（ListTab 首屏最优先 · 触发= checkRepo:bad && !dismissed）============
 export     const NoRepoCard = function (props) {
       const cx = React.useContext(DswsCtx)
-      if (!cx) return null
-      const h = cx.h
+      const h = cx ? cx.h : React.createElement
       const st = props.st
       const card = ensureNoRepoCard(st)
       const cs = activeChecks(st)

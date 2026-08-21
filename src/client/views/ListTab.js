@@ -5,8 +5,7 @@
  */
 export     const ListTab = ({ st, narrow }) => {
       const cx = React.useContext(DswsCtx)
-      if (!cx) return null
-      const h = cx.h
+      const h = cx ? cx.h : React.createElement
       // v1.3.3 UI：每次渲染后执行贪心折叠（含窗口/列宽变化后的重渲染）
       // v1.5 T10 提速：按内容指纹跳过 —— 仅快照内容/tab/过滤变化才重排（refreshing 态等无关渲染不触发布局测量）
       React.useLayoutEffect(function () {

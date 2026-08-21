@@ -7,9 +7,8 @@
 export     const OverlayPanel = (props) => {
       const cur = props.useSessions((x) => x.current)
       const cx = React.useContext(DswsCtx)
-      if (!cx) return null
-      const h = cx.h
-      const s = cx.storeSvc.useStore(cur)
+      const h = cx ? cx.h : React.createElement
+      const s = cx ? cx.storeSvc.useStore(cur) : useStore(cur)
       const panelRef = React.useRef(null)
       const tabsRef = React.useRef(null)
       const headRef = React.useRef(null)

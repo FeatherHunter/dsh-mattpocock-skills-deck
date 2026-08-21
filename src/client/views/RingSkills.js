@@ -6,8 +6,7 @@
     // ---- 5.6 技能雷达（定稿 4A 推荐+列表 · 4B 圆形技能环，A/B 切换）----
 export     const RingSkills = ({ st, rec, list }) => {
       const cx = React.useContext(DswsCtx)
-      if (!cx) return null
-      const h = cx.h
+      const h = cx ? cx.h : React.createElement
       const cx2 = 110, cy = 108, R2 = 88
       const center = rec[0] || 'ask-matt'
       const ring = list.filter(function (sk) { return sk.name !== center }).slice(0, 8)

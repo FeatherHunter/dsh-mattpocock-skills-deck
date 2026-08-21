@@ -7,8 +7,7 @@
  */
 export const SkillFloatList = function (props) {
   const cx = React.useContext(DswsCtx)
-  if (!cx) return null
-  const h = cx.h
+  const h = cx ? cx.h : React.createElement
   const s = props.s
   const skillAnchorRef = React.useRef(null)
   const skillCloseRef = React.useRef(null)

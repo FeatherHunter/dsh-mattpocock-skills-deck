@@ -6,10 +6,9 @@
     // ---- 5.10 Run 卡控制面板（v25：状态展示 + 快捷打开配置页；外观切换已迁入设置页）----
 export     const RunPanel = (props) => {
       const cx = React.useContext(DswsCtx)
-      if (!cx) return null
-      const h = cx.h
+      const h = cx ? cx.h : React.createElement
       const cur = props.useSessions((x) => x.current)
-      const s = cx.storeSvc.useStore(cur)
+      const s = cx ? cx.storeSvc.useStore(cur) : useStore(cur)
       return h('div', { style: { border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, padding: '10px 12px', background: 'var(--dsw-alias-bg-layer-1,#10131a)', fontFamily: 'var(--dsw-font-family)', fontSize: 13, color: 'var(--dsw-alias-label-primary,#e6edf3)', lineHeight: 1.6 } }, [
         h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }, [
           h('strong', null, tr('panel.title')),

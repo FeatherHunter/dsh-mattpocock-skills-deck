@@ -21,10 +21,9 @@ export     const TPL_EDIT_IDS = ['diagnose', 'fix', 'discuss', 'handoff1', 'hand
 export     const PREVIEW_VALUES = { url: 'https://github.com/FeatherHunter/SKILLS/issues/365', number: '365', title: tr('cfg.previewTitle'), ts: '20260814-172113', file: '20260814-172113.md' }
 export     const SettingsPage = (props) => {
       const cx = React.useContext(DswsCtx)
-      if (!cx) return null
-      const h = cx.h
+      const h = cx ? cx.h : React.createElement
       // T5 修订：订阅 store（设置页独立于面板 dock，需自己订阅 shared 才能渲染 flash toast）
-      const sharedSt = cx.storeSvc.useStore(props && props.sessionId)
+      const sharedSt = cx ? cx.storeSvc.useStore(props && props.sessionId) : useStore(props && props.sessionId)
       const [openIn, setOpenIn] = React.useState(cfg.openIn || 'dock')
       const [openInNote, setOpenInNote] = React.useState(false)
       const [wf, setWf] = React.useState(cfg.withWayfinder)
