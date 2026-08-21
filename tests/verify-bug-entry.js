@@ -121,9 +121,9 @@ const check = function (file) {
   // 3) StatusBar 悬停菜单接线
   if (!src.includes('s.bugMenuOpen')) problems.push('缺 s.bugMenuOpen 状态')
   if (src.indexOf("tr('nav.bugNew')") < 0) problems.push('状态栏菜单缺 nav.bugNew 引用')
-  // 4) 面板按钮接线：newBugWayfinder 开新会话 ≥ 3 处（状态栏 1 + 面板 2）
+  // 4) 面板按钮接线：newBugWayfinder 开新会话 ≥ 2 处（状态栏 1 + 共享 Tabs 行 1；#97 T4 去重后 Dock/Overlay tabs 行合成一处）
   const opens = (src.match(/openTextInNewSession\(s, newBugWayfinderText\(s\)/g) || []).length
-  if (opens < 3) problems.push('newBugWayfinder 开新会话接线 < 3（实际 ' + opens + '）')
+  if (opens < 2) problems.push('newBugWayfinder 开新会话接线 < 2（实际 ' + opens + '）')
   if ((src.match(/tr\('panel\.newBug'\)/g) || []).length < 2) problems.push('panel.newBug 引用 < 2（按钮文字/会话标题）')
   // 5) Ic bug 图标
   if (src.indexOf("case 'bug':") < 0) problems.push('缺 Ic bug 图标')

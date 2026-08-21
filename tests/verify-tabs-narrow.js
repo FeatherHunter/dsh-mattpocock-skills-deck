@@ -70,7 +70,7 @@ const statChecks = function (src, tag) {
   ok('提示 · tabsTip 带 priority 门控（自身折叠才显示）', /const tabsTip = function \(e, text, priority\)/.test(src) && /btn\.classList\.contains\('collapsed'\)/.test(src))
   ok('提示 · 动作按钮传各自 priority（bug=1/需求=2/刷新=3）', /tabsTip\(e, tr\('panel\.newWayfinderTitle'\), 2\)/.test(src) && /tabsTip\(e, tr\('panel\.newBugTitle'\), 1\)/.test(src) && /tabsTip\(e, tr\('list\.refresh'\), 3\)/.test(src))
   ok('提示 · tabBtn 传 priority 参数', /tabsTip\(e, label, priority\)/.test(src))
-  ok('提示 · onMouseLeave 清除', (src.match(/onMouseLeave: tabsTipOff/g) || []).length >= 5)
+  ok('提示 · onMouseLeave 清除', (src.match(/onMouseLeave: tabsTipOff/g) || []).length >= 4)
   ok('提示 · 原生 title 已从动作按钮移除', !/title: tr\('panel\.(newWayfinderTitle|newBugTitle)'\)/.test(src))
   ok('提示 · 原生 title 已从 tabBtn 移除', !/title: label, className: 'dsws-tab'/.test(src))
 

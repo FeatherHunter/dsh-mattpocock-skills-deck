@@ -178,15 +178,49 @@ const KERNEL_MODULES = [
   { name: 'probe', file: 'src/client/kernel/probe.js' },
   { name: 'router', file: 'src/client/kernel/router.js' },
 ]
-function extractKernelBlock(file) {
+
+// ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
+/** 叶子组件模块清单（G3 共享 → views/shared/ · G4 严格一文件 ≤350 行）。
+ *  与 kernel 同模式：index.js 中原位置留标记 `// ==== leaf:<id> (spliced by build) ====`，
+ *  构建时把叶子文件声明体（去行首 export）拼回标记处 —— 闭包内原位，行为零变化；
+ *  组件经 React.useContext(DswsCtx) 消费 cx（ARCHITECTURE-CTX.md §2）。 */
+const LEAF_MODULES = [
+  { id: 'chips', file: 'src/client/views/shared/chips.js' },
+  { id: 'md', file: 'src/client/views/shared/md.js' },
+  { id: 'ticket', file: 'src/client/views/shared/ticket.js' },
+  { id: 'tagsFit', file: 'src/client/views/shared/tagsFit.js' },
+  { id: 'tabs', file: 'src/client/views/shared/Tabs.js' },
+  { id: 'ticketRow', file: 'src/client/views/TicketRow.js' },
+  { id: 'mapDetail', file: 'src/client/views/MapDetail.js' },
+  { id: 'noRepoCard', file: 'src/client/views/NoRepoCard.js' },
+  { id: 'listTab', file: 'src/client/views/ListTab.js' },
+  { id: 'ringSkills', file: 'src/client/views/RingSkills.js' },
+  { id: 'skillsTab', file: 'src/client/views/SkillsTab.js' },
+  { id: 'checksTab', file: 'src/client/views/ChecksTab.js' },
+  { id: 'settingsPage', file: 'src/client/views/SettingsPage.js' },
+  { id: 'runPanel', file: 'src/client/views/RunPanel.js' },
+  { id: 'dock', file: 'src/client/panel/Dock.js' },
+  { id: 'overlay', file: 'src/client/panel/Overlay.js' },
+  { id: 'seg', file: 'src/client/statusbar/Seg.js' },
+  { id: 'checksums', file: 'src/client/statusbar/checksums.js' },
+  { id: 'statusBar', file: 'src/client/statusbar/StatusBar.js' },
+  { id: 'skillFloatList', file: 'src/client/floating/SkillFloatList.js' },
+  { id: 'pop', file: 'src/client/floating/Pop.js' },
+]
+function extractModuleBlock(file) {
   return read(file).split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n').trim()
 }
-function wireKernel(body) {
+function wireModules(body) {
   let out = body
   for (const m of KERNEL_MODULES) {
     const marker = `// ==== kernel:${m.name} (spliced by build) ====`
     if (out.indexOf(marker) < 0) continue  // 未迁移的模块：跳过（幂等）
-    out = out.replace(marker, extractKernelBlock(m.file))
+    out = out.replace(marker, extractModuleBlock(m.file))
+  }
+  for (const m of LEAF_MODULES) {
+    const marker = `// ==== leaf:${m.id} (spliced by build) ====`
+    if (out.indexOf(marker) < 0) continue  // 未迁移的模块：跳过（幂等）
+    out = out.replace(marker, extractModuleBlock(m.file))
   }
   return out
 }
@@ -194,7 +228,7 @@ function wireKernel(body) {
 // ---------- 构建 client ----------
 async function buildClient({ version }) {
   const { header, body } = extractPluginBody('src/client/index.js')
-  const bodyW = wireCtx(wireKernel(injectVersion(body, version)))
+  const bodyW = wireCtx(wireModules(injectVersion(body, version)))
 
   // ---- _dev：cordis_define 函数体形态 ----
   const devCode = `${header}\n\nreturn ${bodyW}\n`
