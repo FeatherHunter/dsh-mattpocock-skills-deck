@@ -108,13 +108,13 @@ export let pendingDraftTargetSid = null
           pendingDraft = null
           pendingDraftTargetSid = null
         }
-        if (timer !== undefined) timer.timeout(doneSearch, 2000)  // 至少转 2s
+        setTimeout(doneSearch, 2000)  // 至少转 2s
       }
       // 引导门 v3（2026-08-18 rev）：无论本会话是否点过第一击，一律先探测磁盘真实文档——
       //   有 latest → 置 ready + 放行开新会话；没有 → toast 引导「请先点「交接」生成交接文档」，绝不打开空会话
       probeHandoffReady(st).then(function (file) {
         if (file) finish(file, tr('toast.copiedHandoffFile', { file: file }))
-        else { flash(st, tr('toast.handoffGrey'), 'warn'); if (timer !== undefined) timer.timeout(doneSearch, 2000) }
+        else { flash(st, tr('toast.handoffGrey'), 'warn'); setTimeout(doneSearch, 2000) }
       })
     }
 
