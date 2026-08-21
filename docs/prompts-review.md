@@ -82,60 +82,67 @@ Please use the wayfinder skill to advance this map (follow its rules):
 
 ---
 
-## complete · v3
+## complete · v4
 
-- 用途：map 完成态 · 完成确认（收尾 close / 列遗漏）
-- 占位符：{n} / {closed} / {total}
+- 用途：map 完成态 · 完成调查（100% 却未 close 时排查真实原因 · 人来定夺）
+- 占位符：{closed} / {total}
 - ZH：
 
-<pre>## 完成确认 · MAP #{n}
+<pre>## MAP完成确认
 
-当前地图显示 100% 完成：{closed}/{total} 个 issue 已关闭，但 map 本身仍 open。
+当前 map 显示 100% 完成：{closed}/{total} 个 issue 已关闭，但 map 本身仍 open。请先调查「为什么 100% 却未 close」，不要轻信数字、不要擅自 close。
 
-请按以下流程处理：
+## 调查（弄清 100% 是否真实、以及未 close 的真实原因）
+- [ ] 任务是否真的完成：sub-issue 是否真正解决了原 Destination（而非只把 ticket 关了）？
+- [ ] 排查与该 map 相关、但未建立 sub-issue 关系的 issue（关联工作可能没计入 {closed}/{total}）——如搜索提及该 map 编号/标题的 issue、核对相关标签等；
+- [ ] 逐个核对 sub-issue 的完成状态与关闭状态是否一致（漏关/误开）：实际已完成却漏标 CLOSED，或未完成却标 CLOSED；
+- [ ] 检查是否还有 Not yet specified 中未毕业的事项；
+- [ ] 其他可能情况（如已真实完成只是忘了 close、计数与实际不符等）——自行排查，不限于上述清单；
 
-1. 检查完成状态是否真实：{closed}/{total} 已 CLOSED —— 但 map 本身仍 OPEN。请检查：
-   - 子票是否真的解决了原 Destination？
-   - 是否还有 Not yet specified 中未毕业的事项？
-   - 实际已完成却漏标 CLOSED 的 issue（漏关/误开）—— 逐个核对 ticket 的完成状态与关闭状态是否一致；
-   - 是否有 issue 属于该 map 但未建立 sub-issue 关系；
-2. 确认后处理：
-   - 确实全部完成 → 调用 close + 在 Decisions so far 追加总结（每个 closed ticket 一行 gist）；
-   - 发现遗漏 → 列出未完成项，先解决再重新判断；
-   - 不确定 → 询问用户「该地图的全部工作是否已完成，需要做收尾吗？」不要擅自 close；
-3. 最终目标：要么 close map + 写 Decisions so far 总结，要么明确指出未完成项。
+## 报告你来定夺（人来定夺）
+- [ ] 把调查结论整理成「发现 + 建议」报告给用户；
+- [ ] 由用户决定下一步（收尾 close / 补齐遗漏 / 调整 map 记录 / 其他），不擅自 close、不擅自改 map 记录；
+
+## 收尾
+- [ ] 用户确认后，按用户意见执行（如需 close → close map + 在 Decisions so far 追加总结，每个 closed ticket 一行 gist）；
+- [ ] 结束前按进度契约更新相关 issue 正文（## 进度：N% + 下一步）；调查中发现的进度不符（漏关/误开/仅差确认）据实标注（95% · 待确认 / 100% + close），不得显示为未动工；
+- [ ] 若涉及 map 记录调整（Not yet specified / Out of scope）→ 按 wayfinder 规则同步，不重复展开；
 
 从第一性原理出发完成任务，并对抗式审查。
-收尾规则：已实施完成、测试绿、仅差用户确认的票 —— 已确认则 close，未确认则标注「进度 100% · 待验收」，不得显示为未动工。
-维护地图记录（wayfinder 规则）：
-- 关闭一张票时，在所属 map 的 Decisions so far 追加一行 gist（票名 + 链接 + 一句话结论）；
-- 检查 map 的 Not yet specified：可明确的事项毕业为新票（create-then-wire），并从迷雾节清除；
-- 越出目的地范围的票 → 移入 Out of scope（写明原因），不留在 frontier。</pre>
+
+## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 用真实换行书写：`## 章节` 独占一行，段落间留空行
+- [ ] 禁止字面 \n 转义（不要把换行写成 \n 两个字符）、禁止正文以 BOM（\ufeff）开头
+- [ ] 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装</pre>
 
 - EN：
 
-<pre>## Completion check · MAP #{n}
+<pre>## MAP completion check
 
-The map shows 100% complete: {closed}/{total} issues closed, but the map itself is still open.
+The map shows 100% complete: {closed}/{total} issues closed, but the map itself is still open. Investigate first why it is 100% but not closed — do not trust the numbers, do not close on your own.
 
-Handle it as follows:
+## Investigate (determine whether the 100% is real, and the real reason it is not closed)
+- [ ] Is the task really done: did the sub-issues actually resolve the original Destination (not just close the tickets)?
+- [ ] Hunt for issues related to this map but not wired as sub-issues (related work may not be counted in {closed}/{total}) — e.g. search issues mentioning this map by number or title, check related labels, etc.;
+- [ ] Check each sub-issue completion state vs close state (missed/erroneous close): actually done but not marked CLOSED, or not done but marked CLOSED;
+- [ ] Check whether any ungraduated items remain in Not yet specified;
+- [ ] Other possibilities (e.g. really done but forgot to close, count mismatch with reality, etc.) — investigate on your own, not limited to the list above;
 
-1. Verify the completion is real: {closed}/{total} are CLOSED — but the map is still OPEN. Check:
-   - Did the sub-issues really resolve the original Destination?
-   - Are there ungraduated items left in Not yet specified?
-   - Any issue actually completed but missing CLOSED (missed/erroneous) — verify each ticket completion vs close state;
-   - Any issue belonging to this map without a sub-issue relationship;
-2. Then act:
-   - All truly done → close the map + append a summary to Decisions so far (one-line gist per closed ticket);
-   - Gaps found → list the unfinished items, resolve them first, then re-judge;
-   - Unsure → ask the user \\"Has all the work on this map been completed? Should we wrap up?\\" — do not close on your own;
-3. Goal: either close the map + write the Decisions-so-far summary, or clearly list the unfinished items.
+## Report to you — human in the loop
+- [ ] Summarize the investigation into a findings + recommendation report for the user;
+- [ ] Let the user decide next steps (wrap-up close / fill gaps / adjust map records / other) — do not close on your own, do not change map records on your own;
+
+## Wrap-up
+- [ ] After the user confirms, act per the user-confirmed decision (if close → close the map + append a summary to Decisions so far, one-line gist per closed ticket);
+- [ ] Before finishing, update relevant issue bodies per the progress contract (## Progress: N% + next step); progress mismatches found during investigation (missed/erroneous close / awaiting confirmation) → mark accordingly (95% · awaiting confirmation / 100% + close), never show as not started;
+- [ ] If map-record adjustments are involved (Not yet specified / Out of scope) → sync per the wayfinder rules, without re-expanding;
 
 Approach tasks from first principles, and review adversarially.
-Maintain map records (wayfinder rules):
-- When closing a ticket, append a one-line gist to its map Decisions so far (ticket name + link + one-line conclusion);
-- Check the map Not yet specified: graduate specifiable items into new tickets (create-then-wire) and clear them from the fog section;
-- Tickets beyond the destination scope → move to Out of scope (with reason), never left on the frontier.</pre>
+
+## Body format (mandatory when writing/editing an issue body)
+- [ ] Use real newlines: each `## section` on its own line, blank line between paragraphs
+- [ ] No literal \n escapes, no BOM (\ufeff) at the start
+- [ ] Write via file-based input (real newlines), never inline JSON-escaped strings</pre>
 
 ---
 

@@ -53,7 +53,7 @@ const check = function (file) {
   // 旧形式残留
   ;["tr('prompt.", "'prompt.\'" ].forEach(function (bad) { if (src.includes(bad)) problems.push('旧字典引用残留 ' + bad) })
   // T13：版本号 bump —— 契约变更的条目必须升版（防回退），stageGate 必须存在（#65 diagnose 自带闸门，不再依赖尾部追加但保留 STAGE_GATED_IDS 声明）
-  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 5, 'stageGate': 2 }
+  const V_MIN = { 'tpl.diagnose': 4, 'tpl.execute': 5, 'mapExecute': 5, 'stageGate': 2, 'complete': 4 }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
     if (!p) problems.push('T13 缺条目 ' + id)
@@ -113,6 +113,20 @@ const check = function (file) {
     if (di.en.indexOf('- [ ]') < 0) problems.push('tpl.diagnose en 缺清单标记 - [ ]')
     if (di.en.indexOf('diagnosis') < 0 || di.en.indexOf('Stage gate') < 0) problems.push('tpl.diagnose en 缺关键段（diagnosis/Stage gate）')
     if (di.en.indexOf('What are the symptoms') < 0 || di.en.indexOf('What is the impact') < 0) problems.push('tpl.diagnose en 缺 Symptoms 三行拆分（What are the symptoms / What is the impact）')
+  }
+  // #69 完成调查清单式（A★ · 全勾选框 · 无表格 · 调查器 · 人来定夺）：complete 必须为清单骨架 + 专业术语英文
+  const co = reg['complete']
+  if (co) {
+    if (co.version < 4) problems.push('complete 版本号未 bump（期望 ≥ v4）')
+    if (co.zh.indexOf('- [ ]') < 0) problems.push('complete zh 缺清单标记 - [ ]（A★ 清单式）')
+    if (co.zh.indexOf('## MAP完成确认') < 0 || co.zh.indexOf('## 调查') < 0 || co.zh.indexOf('## 报告你来定夺') < 0 || co.zh.indexOf('## 收尾') < 0 || co.zh.indexOf('## 正文格式') < 0) problems.push('complete zh 缺清单段标题（MAP完成确认/调查/报告你来定夺/收尾/正文格式）')
+    if (co.zh.indexOf('|') >= 0) problems.push('complete zh 含表格 |（已约定无表格，全勾选框）')
+    if (co.zh.indexOf('子票') >= 0 || co.zh.indexOf('票') >= 0) problems.push('complete zh 专业术语未用英文（子票/票 → sub-issue/ticket）')
+    if (co.placeholders.indexOf('closed') < 0 || co.placeholders.indexOf('total') < 0) problems.push('complete 占位符缺 closed/total')
+    if (co.en.indexOf('- [ ]') < 0) problems.push('complete en 缺清单标记 - [ ]')
+    if (co.en.indexOf('## MAP completion check') < 0 || co.en.indexOf('## Investigate') < 0 || co.en.indexOf('## Report to you') < 0 || co.en.indexOf('## Wrap-up') < 0) problems.push('complete en 缺清单段标题（MAP completion check/Investigate/Report to you/Wrap-up）')
+  } else {
+    problems.push('缺条目 complete')
   }
   // #71 交接第二击清单式（A★ · 全勾选框 · 无表格 · 单模板 · 去 /read 命令化）：tpl.handoff2 必须为清单骨架；handoffRead 已塌缩删除
   const h2 = reg['tpl.handoff2']
