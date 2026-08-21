@@ -48,7 +48,12 @@ export let pendingDraftTargetSid = null
     //   始终返回 Promise.resolve(done(...))，让调用方（doHandoffOpen / probe chain）能稳定 .then。
     export const probeHandoffReady = function (st) {
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
-      const done = function (file) { st.handoffReady = !!file; if (file) handoffFile = file; emit(st); return file }
+      const done = function (file) {
+        const ready = !!file
+        if (ready) handoffFile = file
+        if (st.handoffReady !== ready) { st.handoffReady = ready; emit(st) }  // 状态变了才重渲染（长轮询免重复绘）
+        return file
+      }
       if (typeof host === 'undefined' || typeof host.call !== 'function') { done(null); return Promise.resolve(null) }
       // 主路径：已发现真实文件名（handoffFile 已设）→ 直接返回（prompt 与第一击 {ts}-*.md 一致）
       if (handoffFile) return Promise.resolve(done(handoffFile))
@@ -69,16 +74,16 @@ export let pendingDraftTargetSid = null
       handoffFile = null  // 真实文件名由探测按 {ts}-*.md 前缀发现（含 AI 短标题），不再从模板解析
       inject(st, text)
       flash(st, tr('toast.injectedHandoff'), 'ok')
-      // 轮询探测：AI 写成文档后右半亮蓝（真实文件名 = {ts}-<短标题>.md，按前缀匹配）；最多 ~60s
+      // 轮询探测：AI 写成文档后右半亮蓝（真实文件名 = {ts}-<短标题>.md，按前缀匹配）；1s 间隔、~10min 窗口覆盖复杂文档
       probeHandoffReady(st)
       let tries = 0
       const tick = function () {
         if (handoffFile) return  // 已发现真实文件名 → 停止轮询
-        if (++tries > 30) return
+        if (++tries > 600) return  // 上限 ~10min（5min+ 复杂文档也覆盖）
         probeHandoffReady(st)
-        setTimeout(tick, 2000)
+        if (timer !== undefined) timer.timeout(tick, 1000)
       }
-      setTimeout(tick, 2000)
+      if (timer !== undefined) timer.timeout(tick, 1000)
     }
     export const doHandoffOpen = function (st) {
       const ws = ctx.get('workspaces')
