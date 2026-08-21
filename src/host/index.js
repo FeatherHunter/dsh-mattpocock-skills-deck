@@ -35,7 +35,7 @@ export default {
     // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
     const CACHE_MS = 60000
     const STATUS_CACHE_MS = 30000  // 前置检查结果缓存（#344）
-    const SKILL_PROBE_DIRS = ['.agents\\skills', '.minimax\\skills', '.claude\\skills']  // 技能文件层探测目录（相对用户主目录）
+    const SKILL_PROBE_DIRS = ['.agents/skills', '.minimax/skills', '.claude/skills']  // 技能文件层探测目录（相对用户主目录；POSIX 用 /，Windows fs 也接受 /）
     // v1.5 T11：全流程核心技能探测名单（各动作 prompt 引用的技能 + 基础技能；检查 7/8 取前两个，检查 9 聚合全量）
     const SKILL_PROBE_NAMES = ['wayfinder', 'triage', 'grilling', 'grill-me', 'implement', 'ask-matt', 'research', 'prototype', 'handoff']
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
@@ -155,17 +155,36 @@ export default {
       try { return await subprocess.resolveExecutable('git') } catch (e) { return null }
     }
 
-    // 用户主目录（Windows 实测 cmd.exe 恒在；POSIX 可走 sh -c 'echo $HOME'，本插件以 Windows 为主）
+    // 用户主目录：优先读进程 env（HOME / USERPROFILE，最可靠，不依赖子进程环境），
+    // 再兜底 Windows cmd.exe / POSIX sh。原实现只探测 cmd.exe，macOS 恒返回 null →
+    // skill probe 恒报「无法探测用户主目录」。
     async function getHome() {
       if (userHome !== null) return userHome
       userHome = null
       try {
+        // Tier 1：进程环境变量（macOS/Linux HOME，Windows USERPROFILE）
+        if (typeof process !== 'undefined' && process.env) {
+          const envHome = process.env.HOME || process.env.USERPROFILE
+          if (envHome && /[\\/]/.test(envHome)) { userHome = envHome; return userHome }
+        }
+        // Tier 2：Windows cmd.exe
         const cmd = await subprocess.resolveExecutable('cmd.exe')
-        if (!cmd) return null
-        const r = await execProc([cmd, '/c', 'echo', '%USERPROFILE%'], DEFAULT_CWD)
-        if (r.ok) {
-          const v = r.text.trim()
-          if (v && /[\\/]/.test(v)) userHome = v
+        if (cmd) {
+          const r = await execProc([cmd, '/c', 'echo', '%USERPROFILE%'], DEFAULT_CWD)
+          if (r.ok) {
+            const v = r.text.trim()
+            if (v && /[\\/]/.test(v)) userHome = v
+          }
+        } else {
+          // Tier 3：POSIX sh -c 'echo $HOME'
+          const sh = await subprocess.resolveExecutable('sh')
+          if (sh) {
+            const r = await execProc([sh, '-c', 'echo $HOME'], DEFAULT_CWD)
+            if (r.ok) {
+              const v = r.text.trim()
+              if (v && /[\\/]/.test(v)) userHome = v
+            }
+          }
         }
       } catch (e) { userHome = null }
       return userHome
@@ -751,7 +770,7 @@ export default {
       if (fs !== undefined && home) {
         for (let i = 0; i < SKILL_PROBE_DIRS.length; i++) {
           try {
-            const info = await fs.lstat(home + '\\' + SKILL_PROBE_DIRS[i] + '\\' + name)
+            const info = await fs.lstat(home + '/' + SKILL_PROBE_DIRS[i] + '/' + name)
             if (info) { fsFound = '~/' + SKILL_PROBE_DIRS[i] + '/' + name; break }
           } catch (e) { /* 继续探测下一个目录 */ }
         }
