@@ -92,13 +92,15 @@ export const IssueDetail = function (props) {
       const title = src.title || ('#' + issueNumber)
       const body = src.body || ''
       const has = function (nm) { return labelArr.some(function (l) { return (l.name || l) === nm }) }
+      const fakeIssue = { number: issueNumber, title: title, labels: labelArr.map(function (l) { return typeof l === 'string' ? { name: l } : l }), state: stateRaw }
       const primaryBtn = (function () {
-        const fakeIssue = { number: issueNumber, title: title, labels: labelArr.map(function (l) { return typeof l === 'string' ? { name: l } : l }), state: stateRaw }
         if (has('needs-triage')) return mkRowAction(st, fakeIssue, false, colorOf)
         if (has('bug')) return mkRowAction(st, fakeIssue, false, colorOf)
         if (has('wayfinder:grilling')) return mkRowAction(st, fakeIssue, false, colorOf)
         return mkRowAction(st, fakeIssue, false, colorOf)
       })()
+      const actColor = (typeof actionColorOf === 'function') ? actionColorOf(fakeIssue, colorOf) : stateColor
+      const actTextColor = (typeof isLightHex === 'function' && isLightHex(actColor)) ? '#140a1e' : '#ffffff'
       const subNodes = (src.subIssues && src.subIssues.nodes) ? src.subIssues.nodes : []
       const subTotal = (src.subIssues && typeof src.subIssues.totalCount === 'number') ? src.subIssues.totalCount : subNodes.length
       const blockedNodes = (src.blockedBy && src.blockedBy.nodes) ? src.blockedBy.nodes : []
@@ -112,7 +114,7 @@ export const IssueDetail = function (props) {
           h('span', { style: { flex: 1, minWidth: 8 } }),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none' } }, [
             detail ? h('span', { style: { fontSize: 10, color: isStale ? '#f59e0b' : '#8b8b95' } }, isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')) : null,
-            h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, { number: issueNumber, title: title, labels: labelArr }) }, title: tr('list.newSessionLabel'), style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: isOpen ? '#3fb950' : '#8b949e', borderColor: 'transparent', color: '#fff' } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))]),
+            h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, { number: issueNumber, title: title, labels: labelArr }) }, title: tr('list.newSessionLabel'), style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))]),
             h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); copyUrl(issueNumber) }, title: tr('list.copyLinkTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'clipboard', size: 13 })),
             h('a', { className: 'dsws-btn ghost', href: 'https://github.com/' + repoStrLocal + '/issues/' + issueNumber, target: '_blank', rel: 'noreferrer', title: tr('list.openInGithubTitle', { n: issueNumber }), style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 13 })),
           ]),
@@ -127,7 +129,7 @@ export const IssueDetail = function (props) {
         ]) : null,
         // header
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 } }, [
-          h('span', { className: 'dsws-idnum', style: { color: isOpen ? '#3fb950' : '#8b949e', borderColor: isOpen ? '#3fb950' : '#8b949e', flex: 'none' } }, '#' + issueNumber),
+          h('span', { className: 'dsws-idnum', style: { color: actColor, borderColor: actColor, flex: 'none' } }, '#' + issueNumber),
           h('span', { className: 'dsws-tt-wrap', style: { flex: 1, fontSize: 14, fontWeight: 600 }, title: title }, title),
           h('span', { className: 'dsws-chip', style: { fontSize: 10, background: isOpen ? 'rgba(63,185,80,.15)' : 'rgba(139,148,158,.15)', color: stateColor, border: '1px solid ' + stateColor, flex: 'none' } }, [Ic({ n: isOpen ? 'dot' : 'check', size: 9 }), h('span', { style: { marginLeft: 3 } }, stateLabel)]),
         ]),
