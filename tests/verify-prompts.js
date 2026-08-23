@@ -53,7 +53,7 @@ const check = function (file) {
   // 旧形式残留
   ;["tr('prompt.", "'prompt.\'" ].forEach(function (bad) { if (src.includes(bad)) problems.push('旧字典引用残留 ' + bad) })
   // #77（G16）：版本号 bump —— 契约变更的条目必须升版（防回退）；五片段删除后注册表 15 条
-  const V_MIN = { 'tpl.diagnose': 5, 'tpl.execute': 5, 'mapExecute': 5, 'complete': 5, 'newWayfinder': 8, 'setupRun': 7, 'fixate': 2, 'progress': 3, 'bodyFormat': 3 }
+  const V_MIN = { 'tpl.diagnose': 5, 'tpl.execute': 5, 'mapExecute': 5, 'complete': 5, 'newWayfinder': 10, 'setupRun': 7, 'fixate': 2, 'progress': 3, 'bodyFormat': 3 }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
     if (!p) problems.push('契约缺条目 ' + id)
@@ -113,6 +113,17 @@ const check = function (file) {
   if (nw) {
     if (nw.zh.indexOf('按建图规划契约') >= 0) problems.push('newWayfinder zh 残留「按建图规划契约」名称引用（#77 契约已删，改直述新建 map）')
     if (nw.en.indexOf('per the planning contract') >= 0) problems.push('newWayfinder en 残留 planning contract 名称引用（#77 契约已删，改直述新建 map）')
+    // newWayfinder v10（清单式 A★ · 全勾选框 · 无表格 · 新增分支展开子清单 + 自查清单）：澄清/判断分类/自查
+    if (nw.zh.indexOf('- [ ]') < 0) problems.push('newWayfinder zh 缺清单标记 - [ ]（A★ 清单式）')
+    if (nw.zh.indexOf('## 澄清') < 0 || nw.zh.indexOf('## 判断分类') < 0 || nw.zh.indexOf('## 自查') < 0) problems.push('newWayfinder zh 缺清单段标题（澄清/判断分类/自查）')
+    if (nw.zh.indexOf('|') >= 0) problems.push('newWayfinder zh 含表格 |（已约定无表格，全勾选框）')
+    if (nw.zh.indexOf('写出 map：Destination + Notes + plan') < 0) problems.push('newWayfinder zh 缺新增子清单（写出 map：Destination + Notes + plan）')
+    if (nw.zh.indexOf('以 sub-issue 关联到') < 0) problems.push('newWayfinder zh 缺新增子清单（sub-issue 关联）')
+    if (nw.zh.indexOf('Blocked by: #<n>') < 0) problems.push('newWayfinder zh 缺新增子清单（Blocked by: #<n>）')
+    if (nw.zh.indexOf('逐项核对上面') < 0) problems.push('newWayfinder zh 缺自查指令（逐项核对清单）')
+    if (nw.en.indexOf('- [ ]') < 0) problems.push('newWayfinder en 缺清单标记 - [ ]')
+    if (nw.en.indexOf('## Clarify') < 0 || nw.en.indexOf('## Decide the case') < 0 || nw.en.indexOf('## Self-check') < 0) problems.push('newWayfinder en 缺清单段标题（Clarify/Decide the case/Self-check）')
+    if (nw.en.indexOf('## Self-check') >= 0 && nw.en.indexOf('verify the checklist') < 0) problems.push('newWayfinder en 缺自查指令（verify the checklist）')
   }
   // #69 完成调查清单式（A★ · 全勾选框 · 无表格 · 调查器 · 人来定夺）：complete 必须为清单骨架 + 专业术语英文
   const co = reg['complete']
