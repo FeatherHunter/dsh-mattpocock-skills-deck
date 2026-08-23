@@ -68,6 +68,7 @@ export function runContractTests(t) {
   assert('key string', typeof w.key === 'string', 'key=' + JSON.stringify(w.key))
   assert('no number field', !hasOwn(w, 'number'), 'number present=' + JSON.stringify(w.number))
   assert('no subIssues field', !hasOwn(w, 'subIssues'), 'subIssues present=' + JSON.stringify(w.subIssues))
+  assert('no blocking field (Issue 无 blocking；blocking 仅 projection/派生)', !hasOwn(w, 'blocking'), 'blocking present=' + JSON.stringify(w.blocking))
   assert('type ∈ {issue,map}', w.type === 'issue' || w.type === 'map', 'type=' + w.type)
   assert('parentKey core (string|null)', w.parentKey === null || typeof w.parentKey === 'string', 'parentKey=' + JSON.stringify(w.parentKey))
 

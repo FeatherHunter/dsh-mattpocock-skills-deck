@@ -18,9 +18,9 @@ const ref = { backend: 'fake', refId: 'r1', name: 'R1', url: '' }
 const refU = { backend: 'unsup', refId: 'r2', name: 'R2', url: '' }
 
 const ALL = [
-  { key: 'm1', type: 'map', title: 'M', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], blocking: [], comments: [], reason: '' },
-  { key: 't1', type: 'issue', title: 'T1', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: 'm1', labels: [], assignees: [], blockedBy: [], blocking: [], comments: [], reason: '' },
-  { key: 'o1', type: 'issue', title: 'O1', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: 'ghost-map', labels: [], assignees: [], blockedBy: [], blocking: [], comments: [], reason: '' },
+  { key: 'm1', type: 'map', title: 'M', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
+  { key: 't1', type: 'issue', title: 'T1', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: 'm1', labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
+  { key: 'o1', type: 'issue', title: 'O1', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: 'ghost-map', labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
 ]
 
 export async function run() {

@@ -13,14 +13,14 @@ import { deriveDeck, parseProgress } from '../../../src/shared/tracker/deck-deri
 const t = (key, over = {}) => Object.assign({
   key, type: 'issue', title: key, state: 'open', body: '', url: '',
   createdAt: '', updatedAt: '', closedAt: null, parentKey: 'm1',
-  labels: [], assignees: [], comments: [], blockedBy: [], blocking: [], reason: '',
+  labels: [], assignees: [], comments: [], blockedBy: [], reason: '',
 }, over)
 
 /** 造一张 map 节点。 */
 const m = (key, tickets = [], over = {}) => Object.assign({
   key, type: 'map', title: key, state: 'open', body: '', url: '',
   createdAt: '', updatedAt: '', closedAt: null, parentKey: null,
-  labels: [], assignees: [], comments: [], blockedBy: [], blocking: [], reason: '',
+  labels: [], assignees: [], comments: [], blockedBy: [], reason: '',
   tickets,
 }, over)
 

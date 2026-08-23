@@ -35,7 +35,7 @@ const DIAG_FIELDS = [
   'createdAt', 'updatedAt', 'closedAt', 'parentKey',
   // ---- 能力字段（可 MISSING；EMPTY=有能力无内容，MISSING=无能力）----
   'author', 'assignees', 'labels', 'milestone', 'customFields',
-  'reason', 'blockedBy', 'blocking', 'comments',
+  'reason', 'blockedBy', 'comments',
 ]
 
 /**

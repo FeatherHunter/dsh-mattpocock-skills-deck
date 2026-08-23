@@ -4,7 +4,7 @@
  * 这是 UI 与后端之间的共同语言。所有后端必须把来源数据**归一化**成本文件的形状：
  *  - **核心字段**（key/type/title/state/body/url/createdAt/updatedAt/closedAt/parentKey）**永远存在**，
  *    来源给不了的用确定空值（`''` / `null`）补齐。
- *  - **能力字段**（author/assignees/labels/milestone/customFields/reason/blockedBy/blocking/comments）
+ *  - **能力字段**（author/assignees/labels/milestone/customFields/reason/blockedBy/comments）
  *    可 MISSING：能实现 → 填值或 `EMPTY`（`[]` / `''` / `null`）；不能实现 → **省略该字段**（MISSING）。
  *  - 空值由 UI 按「现有渲染逻辑」处理（如 labels 空则不渲染标签胶囊），不新增隐藏逻辑。
  *
@@ -111,10 +111,12 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  *  - 【核心字段】永远存在，缺→`''`/`null`：key / type / title / state / body / url /
  *    createdAt / updatedAt / closedAt / parentKey。
  *  - 【能力字段】可 MISSING：author / assignees / labels / milestone / customFields /
- *    reason / blockedBy / blocking / comments。
+ *    reason / blockedBy / comments。
  *
  * EMPTY vs MISSING：数组 `[]`=EMPTY、省略=MISSING；标量 `''`/`null`；**数组不填 `null`/`undefined`**
  * （`null` 只给 closedAt / parentKey）。EMPTY=有能力但本条无内容；MISSING=无该能力。
+ *
+ * ⚠️ blocking 不得作为 Issue 字段——它是 blockedBy 的反向派生（blocking 仅存在于 getDependencies 返回值与 deck 派生），违反=第二真相。
  *
  * @typedef {Object} Issue
  * @property {string} key 规范 id（仓库内唯一；全局身份 = (RepositoryRef, key)）
@@ -134,7 +136,6 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  * @property {CustomField[]} [customFields] 结构化、说明性，绝不驱动 deck 逻辑
  * @property {ClosedReason} [reason] closed 时给原因（或 EMPTY=关了但没说明）；open 依后端支持给 ''/省略
  * @property {IssueRef[]} [blockedBy] 谁阻塞我（入边；唯一真源）
- * @property {IssueRef[]} [blocking] 我阻塞谁（出边）
  * @property {Comment[]} [comments] 决策记录
  */
 

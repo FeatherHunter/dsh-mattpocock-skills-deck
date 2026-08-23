@@ -24,6 +24,8 @@ import { STATE, ISSUE_TYPE, ERROR_KIND, CONTRACT_VERSION } from '../../shared/tr
  * `snapshotFast`——见 snapshot.js），仅作「读路径实现细节」豁免，不参与能力验证、不构成能力表；
  * G5 红线仍然成立：不得以任何旁路形态驱动写路径/渲染分支、不得扩散为 supportedOps 式能力分支。
  *
+ * ⚡ op 实现者义务：返回合规 OpResult；registry 不做运行时结果校验（能力零推断，G5）。
+ *
  * @typedef {Object} Tracker
  * @property {import('../../shared/tracker/shape.js').BackendId} id 后端 id（= 注册时的 BackendId）
  *
@@ -101,16 +103,17 @@ export const OPERATIONS = Object.freeze([
 /**
  * 三级联选择结果（explicit > matches > fallback）。
  * - backendId:null = 无后端（逃生舱）；此时 **ref 省略**（不造假 RepositoryRef）。
- * - pending = matches 超时/unknown（被排除出决策集；「无 explicit、无 match===true、无 pending」才 fallback 静默 null；
- *   有 pending 必须 surface 给 UI——此时 source 仍为 'fallback'（三态枚举），但 pending 非空表示仲裁未完成，
- *   UI 应提示「等待/建议显式 bind」，不静默 Other）。
+ * - pending:true = matches 超时/unknown（被排除出决策集；「无 explicit、无 match===true、无 pending」才 fallback 静默 null；
+ *   有 pending 必须 surface 给 UI——此时 source 仍为 'fallback'（三态枚举），但 pending:true 表示仲裁未完成，
+ *   UI 应提示「等待/建议显式 bind」，不静默 OtherCard）。pending 只出现在有超时未决时；
+ *   无 pending 且 backendId===null 才算「已决无后端」（OtherCard 唯一身份分支）。
  * - multiHit = 多命中（平局=注册序取首个；暴露供 bind 显式纠正）。
  * @typedef {Object} Selection
  * @property {import('../../shared/tracker/shape.js').BackendId|null} backendId
  * @property {'explicit'|'matches'|'fallback'} source 无 'detect'（残留已改 'matches'）
  * @property {RepositoryRef} [ref] backendId=null 时省略
  * @property {import('../../shared/tracker/shape.js').BackendId[]} [multiHit]
- * @property {import('../../shared/tracker/shape.js').BackendId[]} [pending]
+ * @property {true} [pending] 仲裁有超时未决（只出现在超时未决时）；UI/调用方必须显示等待/建议 bind，不得静默 OtherCard
  */
 
 /**
@@ -155,7 +158,7 @@ export const OPERATIONS = Object.freeze([
 /**
  * @typedef {Object} Dependencies
  * @property {import('../../shared/tracker/shape.js').IssueRef[]} blockedBy
- * @property {import('../../shared/tracker/shape.js').IssueRef[]} blocking 反向聚合
+ * @property {import('../../shared/tracker/shape.js').IssueRef[]} blocking 便利投影，由 blockedBy 反向聚合，非第二真源
  */
 
 /** create 输入（富输入类型）。 */

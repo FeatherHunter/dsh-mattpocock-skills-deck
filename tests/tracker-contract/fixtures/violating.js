@@ -20,7 +20,6 @@ function norm(raw) {
     assignees: [],
     comments: [],
     blockedBy: [],
-    blocking: [],
     reason: '',
     createdAt: '',
     updatedAt: '',
@@ -43,7 +42,7 @@ export const violatingFixture = {
     { from: 'title', to: 'title' },
     { from: 'state', to: 'state' },
   ],
-  implementedFields: ['labels', 'assignees', 'comments', 'blockedBy', 'blocking', 'reason'],
+  implementedFields: ['labels', 'assignees', 'comments', 'blockedBy', 'reason'],
   missingFields: ['author', 'milestone', 'customFields'],
 }
 export default violatingFixture
