@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>[P1] Map 行响应式布局原型 — 标题适配 + 宽度护栏（PROTOTYPE）</title>
+<style>
+  :root{
+    --bg:#0a0a0f; --panel:#16181d; --panel2:#10131a; --border:#2a2d35; --border2:#3a3f4a;
+    --text:#e6edf3; --sub:#a1a1aa; --dim:#8b8b95;
+    --acc:#c084fc; --acc2:#bc8cff; --green:#4ade80; --amber:#f59e0b; --red:#f87171; --blue:#58a6ff; --orange:#f0883e;
+    --mono:"JetBrains Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6;padding-bottom:80px}
+  header{max-width:1100px;margin:0 auto;padding:28px 24px 10px}
+  header .tag{display:inline-block;background:rgba(188,140,255,.14);border:1px solid rgba(188,140,255,.35);color:var(--acc2);border-radius:99px;padding:2px 10px;font-size:11px;margin-bottom:8px;letter-spacing:.4px}
+  header h1{font-size:22px;letter-spacing:-.3px;line-height:1.35}
+  header h1 span{color:var(--acc2)}
+  header p{color:var(--sub);font-size:13px;margin-top:6px;max-width:860px}
+  header p b{color:var(--text)}
+  header .meta{color:var(--dim);font-size:11px;margin-top:6px;font-family:var(--mono)}
+  main{max-width:1100px;margin:0 auto;padding:10px 24px}
+  section{background:var(--panel);border:1px solid var(--border);border-radius:12px;margin:16px 0;overflow:hidden}
+  .sh{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .sh .n{background:var(--acc);color:#140a1e;width:24px;height:24px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none}
+  .sh h2{font-size:14px;font-weight:650}
+  .sh .q{color:var(--sub);font-size:12px;flex-basis:100%;padding-left:34px;margin-top:-4px}
+  .body{padding:14px 16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:800px){.grid2{grid-template-columns:1fr}}
+  .card{border:1px solid var(--border);border-radius:10px;background:var(--panel2);padding:10px 12px}
+  .card.hi{border-color:rgba(192,132,252,.45);background:rgba(192,132,252,.07)}
+  .card .cap{font-size:11px;color:var(--acc2);letter-spacing:.6px;text-transform:uppercase;margin-bottom:4px}
+  .card .val{font-size:18px;font-weight:700;font-family:var(--mono)}
+  .card .desc{font-size:11.5px;color:var(--sub);margin-top:3px;line-height:1.55}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:11px;border:1px solid}
+  .pill.v{background:rgba(88,166,255,.12);color:var(--blue);border-color:rgba(88,166,255,.35)}
+  .pill.h{background:rgba(74,222,128,.12);color:var(--green);border-color:rgba(74,222,128,.4)}
+  .pill.w{background:rgba(245,158,11,.12);color:var(--amber);border-color:rgba(245,158,11,.4)}
+  /* controls */
+  .ctlrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0}
+  .ctlrow label{font-size:11px;color:var(--sub);flex:none}
+  .range{flex:1;min-width:160px;accent-color:var(--acc)}
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;background:var(--panel2);padding:2px;gap:2px}
+  .seg button{border:none;background:transparent;color:var(--sub);font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer}
+  .seg button.on{background:var(--acc);color:#140a1e;font-weight:600}
+  .btn{border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:6px;padding:4px 10px;font-size:11.5px;cursor:pointer}
+  .btn:hover{border-color:var(--border2)}
+  .btn.pri{background:var(--acc);border-color:transparent;color:#140a1e;font-weight:600}
+  /* panel mock */
+  .demo-wrap{border:1px dashed var(--border2);border-radius:10px;padding:16px;background:linear-gradient(180deg,#0c0e12,#090a0d);position:relative;min-height:320px}
+  .dsws-panel-mock{position:relative;left:auto;top:auto;max-height:none;box-shadow:0 8px 40px rgba(0,0,0,.45)}
+  .dsws-panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;font-size:13px;color:var(--text);font-family:var(--mono);font-family:-apple-system,"Segoe UI",sans-serif}
+  .dsws-head{padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;color:var(--sub);display:flex;align-items:center;gap:6px}
+  .dsws-body{padding:10px 12px;overflow:hidden}
+  /* kernel styles — simplified true copy */
+  .dsws-aggrow{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:6px 6.4px;border-radius:6px;border:1px solid transparent;transition:border-color .15s,background .15s}
+  .dsws-aggrow:hover{background:rgba(255,255,255,.05);border-color:var(--border)}
+  .dsws-aggrow.map{border-left:3px solid var(--acc);background:rgba(188,140,255,.07)}
+  .row1{display:flex;align-items:flex-start;gap:8px;width:100%}
+  .dsws-idcol{display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex:none}
+  .dsws-idcol.h{flex-direction:row;align-items:center;gap:6px}
+  .dsws-chip{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;border-radius:99px;font-size:11px;line-height:1.7;white-space:nowrap;border:1px solid}
+  .chip-m{background:rgba(188,140,255,.16);color:var(--acc2);border-color:rgba(188,140,255,.35)}
+  .dsws-idnum{display:inline-block;font-family:var(--mono);font-weight:700;font-size:11px;line-height:1.4;padding:2px 7px;border-radius:6px;border:1px solid;font-variant-numeric:tabular-nums}
+  .dsws-tt-wrap{flex:1;min-width:0;overflow-wrap:break-word;word-break:normal;line-break:auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12.5px;line-height:1.55}
+  .dsws-tt-wrap.measure{white-space:nowrap!important;display:block!important;-webkit-line-clamp:unset!important;overflow:visible!important}
+  .dsws-ring{flex:none;display:inline-flex;align-items:center;gap:0}
+  .dsws-ring svg{transform:rotate(-90deg)}
+  .dsws-ring-txt{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.5;flex:none;letter-spacing:.2px;min-width:35px;text-align:left}
+  .row2{display:flex;align-items:center;gap:6px;width:100%;transition:margin-top .18s}
+  .row2.tight{margin-top:2px}
+  .row2.loose{margin-top:8px}
+  .dsws-tags{display:flex;align-items:center;gap:3px;flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap}
+  .dsws-tags .dsws-chip{flex:none;font-size:10px}
+  .aux{display:flex;gap:2px;flex:none;align-items:center}
+  .dsws-btn{padding:2px 7px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:3px}
+  .dsws-btn.pri{background:var(--acc);border-color:transparent;color:#140a1e;font-weight:600}
+  .diag{font-family:var(--mono);font-size:10.5px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;padding:6px 8px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:6px}
+  .diag b{color:var(--text)}
+  .diag .dot{width:7px;height:7px;border-radius:50%;display:inline-block;vertical-align:1px;margin-right:3px}
+  . ruler{position:relative;height:18px;background:linear-gradient(90deg,rgba(248,113,113,.18),rgba(88,166,255,.12) 40%,rgba(74,222,128,.18));border:1px solid var(--border);border-radius:6px;margin:8px 0 6px;overflow:hidden}
+  .ruler i{position:absolute;top:0;bottom:0;width:2px}
+  .ruler .lb{position:absolute;top:0;font-size:9px;color:var(--dim);font-family:var(--mono);transform:translateX(-50%);white-space:nowrap}
+  .gapviz{display:inline-block;width:8px;height:10px;background:repeating-linear-gradient(90deg,transparent 0 3px,rgba(192,132,252,.5) 3px 4px);border-left:1px dashed rgba(192,132,252,.6);border-right:1px dashed rgba(192,132,252,.6);vertical-align:-1px;margin:0 2px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{padding:6px 8px;border:1px solid var(--border);text-align:left}
+  th{background:var(--panel2);color:var(--sub);font-size:11px;letter-spacing:.3px}
+  .note{color:var(--sub);font-size:12px;border-top:1px dashed var(--border);padding:10px 16px;line-height:1.6}
+  .callout{border:1px solid rgba(192,132,252,.35);background:rgba(192,132,252,.08);border-radius:8px;padding:8px 10px;font-size:12px;margin:6px 0}
+  .foot{max-width:1100px;margin:12px auto 0;padding:0 24px;color:var(--dim);font-size:11px;font-family:var(--mono)}
+</style>
+</head>
+<body>
+<header>
+  <span class="tag">PROTOTYPE · P1 · 一次性原型 · 选完即弃</span>
+  <h1>[P1] Map 行响应式布局定版 — <span>编号横排/竖排 + 行2间隙收紧</span></h1>
+  <p>聚焦 <b>右侧主面板列表 `ListTab` 的 `issueRow`</b>。目标：<b>标题一行放得下 → 编号横排到地图右侧；标题需两行/面板极窄 → 竖排</b>，并在<strong>极窄/极宽护栏</strong>与<strong>行2全局收紧</strong>上定版。原型为<b>可拖动滑杆缩放</b>的真实行渲染（复用内核样式），T1 按此落地。</p>
+  <div class="meta">Map #120 · 票 #121 · 分支：原型资产（本文件）· 关闭即归档到 Decisions so far</div>
+</header>
+
+<main>
+<!-- ========== 定版摘要 ========== -->
+<section>
+  <div class="sh"><span class="n">✓</span><h2>定版摘要（给 T1 直接落地）</h2><span class="q">三项定版 + 一项对齐规范。数值均以<b>行内容可用宽度</b>（`.dsws-aggrow` clientWidth）计量，括号内为约等面板宽度。</span></div>
+  <div class="body">
+    <div class="grid2">
+      <div class="card hi">
+        <div class="cap">① 横排 / 竖排条件 — 标题适配</div>
+        <div class="val" style="font-size:13px;line-height:1.5">若 <b>横排 idcol（地图|编号）后标题仍能一行放下</b> → <span class="pill h" style="vertical-align:1px">横排</span> ；否则 <span class="pill v">竖排</span></div>
+        <div class="desc">实现：JS 测量 — 先将 idcol 切横排，用 <code style="font-family:var(--mono);background:rgba(255,255,255,.06);padding:0 4px;border-radius:4px">white-space:nowrap</code> 测标题 <code>scrollWidth ≤ clientWidth</code> 即一行放下。保留 <code>-webkit-line-clamp:2</code> 时，仅判定用 nowrap 测量，不改渲染 clamp。</div>
+      </div>
+      <div class="card hi">
+        <div class="cap">② 护栏阈值 — 宽度护栏</div>
+        <div class="val" style="font-size:13px;line-height:1.6"><span class="pill v">极窄 &lt; 320px</span> 一律竖排 <span style="color:var(--dim)">（≈ 面板 &lt; 360px）</span><br><span class="pill h">极宽 ≥ 440px</span> 一律横排 <span style="color:var(--dim)">（≈ 面板 ≥ 480px）</span></div>
+        <div class="desc">中间区间 <b>[320, 440)px</b> 走①标题适配。默认面板 460px→行约 423px 落在自适应区，符合“默认走标题适配”的预期；窄阈 380 对应行约 340px 仍自适应，仅 <b>极窄</b>才强制竖排，避免短标题在极窄下被挤到 77px。已在下方滑杆标出。</div>
+      </div>
+      <div class="card hi">
+        <div class="cap">③ 行2 收紧间距 — 全局统一</div>
+        <div class="val">8px <span style="font-size:12px;color:var(--sub);font-weight:400">（.dsws-aggrow gap 6px + 行2 marginTop 2px）</span></div>
+        <div class="desc">现状 14px（gap 6 + marginTop 8）→ <b>收紧至 8px</b>（-43%），仅改 <code>marginTop:8→2</code>，保留 gap 6 的结构间距。<b>所有行一致</b>（Map / 普通 / 已关闭）。下方可对比 14px / 8px。</div>
+      </div>
+      <div class="card">
+        <div class="cap">④ 对齐与间隙（横排态）</div>
+        <div class="val" style="font-size:12px;line-height:1.6;font-weight:600">
+          idcol↔标题 <span class="gapviz" title="8px"></span> 8px &nbsp;|&nbsp; 标题↔圆环 8px &nbsp;|&nbsp; idcol 内横排 gap 6px / 竖排 gap 3px<br>
+          行1 <code>align-items:flex-start</code>，idcol 横排时 <code>align-items:center</code>；标题 <code>flex:1; min-width:0; line-clamp:2</code> 不被压缩；圆环 <code>flex:none; min-width:35px</code> 与编号保持 gap，不粘死
+        </div>
+        <div class="desc">超长标题 clamp 2 行可读，idcol 横排不挤压标题；圆环右缘对齐（tabular-nums 5ch），各行右缘对齐。</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:12px">T1 落地清单：<code>styles.js</code> 新增 <code>.dsws-idcol.h</code> 横排变体；<code>ListTab.js</code> 行1容器 <code>gap:6→8</code>，行2 <code>marginTop:8→2</code>，并注入上述 JS 测量（ResizeObserver + window resize + 首次渲染）。双源 <code>node scripts/build.mjs</code> 重建。</div>
+  </div>
+</section>
+
+<!-- ========== 交互演示 ========== -->
+<section>
+  <div class="sh"><span class="n">▶</span><h2>交互演示 — 拖动滑杆看「标题适配 + 护栏」切换</h2><span class="q">每行独立判定：极窄/极宽护栏优先，否则测标题是否一行放得下。下方 4 行覆盖短/长/普通/已关闭。</span></div>
+  <div class="body">
+    <div class="ctlrow">
+      <label>面板宽度</label>
+      <input id="wRange" class="range" type="range" min="280" max="560" step="4" value="460">
+      <span id="wVal" style="font-family:var(--mono);font-weight:700;min-width:56px">460px</span>
+      <span id="rowWVal" style="font-family:var(--mono);font-size:11px;color:var(--dim)">行约 423px</span>
+      <div class="seg" id="preset">
+        <button data-w="300">极窄 300</button>
+        <button data-w="340">窄 340</button>
+        <button data-w="460" class="on">默认 460</button>
+        <button data-w="480">宽 480</button>
+        <button data-w="540">极宽 540</button>
+      </div>
+    </div>
+    <div class="ruler" id="ruler" title="行可用宽度标尺">
+      <i style="left:18%;background:var(--blue)"></i><span class="lb" style="left:18%">320 极窄护栏</span>
+      <i style="left:72%;background:var(--green)"></i><span class="lb" style="left:72%">440 极宽护栏</span>
+      <i id="pos" style="left:50%;background:var(--acc);width:3px;opacity:.9;box-shadow:0 0 6px var(--acc)"></i>
+    </div>
+    <div class="ctlrow">
+      <label>标题长度（示例）</label>
+      <div class="seg" id="titleSeg">
+        <button data-k="short" class="on">短</button>
+        <button data-k="mid">中</button>
+        <button data-k="long">长</button>
+        <button data-k="xlong">超长</button>
+      </div>
+      <label style="margin-left:8px">行2 间隙</label>
+      <div class="seg" id="gapSeg">
+        <button data-g="loose">现状 14px</button>
+        <button data-g="tight" class="on">定版 8px</button>
+      </div>
+      <label style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px"><input id="autoToggle" type="checkbox" checked> 自动判定（关=强制横排预览）</label>
+    </div>
+
+    <div class="demo-wrap">
+      <div id="mockPanel" class="dsws-panel dsws-panel-mock" style="width:460px;margin:0 auto">
+        <div class="dsws-head"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block"></span> 列表 · ListTab — 窄屏阈值由外层容器控制（此处仅演示行布局）</div>
+        <div class="dsws-body" id="mockBody">
+          <!-- rows injected by JS -->
+        </div>
+      </div>
+      <div style="position:absolute;right:8px;top:8px;font-size:10px;color:var(--dim);font-family:var(--mono);background:rgba(0,0,0,.5);padding:2px 6px;border-radius:6px;border:1px solid var(--border)" id="modeBadge">自适应区 · 标题适配生效中</div>
+    </div>
+
+    <div class="diag" id="diag"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+      <div class="card"><div class="cap">当前判定路径（示例：首个 Map 行）</div><div id="explain" style="font-size:12px;line-height:1.65"></div></div>
+      <div class="card"><div class="cap">三档宽度快照（按此验收）</div>
+        <table>
+          <tr><th>档位</th><th>面板</th><th>行可用</th><th>预期</th></tr>
+          <tr><td>极窄</td><td>300px</td><td>≈262px</td><td><span class="pill v">竖排</span> · 护栏强制</td></tr>
+          <tr><td>默认/正常</td><td>460px</td><td>≈423px</td><td>自适应 — 短标题<span class="pill h">横</span> / 长标题<span class="pill v">竖</span></td></tr>
+          <tr><td>极宽</td><td>540px</td><td>≈503px</td><td><span class="pill h">横排</span> · 护栏强制</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 三档验证 ========== -->
+<section>
+  <div class="sh"><span class="n">3</span><h2>三档宽度验证（T2 直接复用）</h2><span class="q">与验收矩阵对齐：极窄 / 正常 / 极宽三档，Map 行与普通行、已关闭行同测。</span></div>
+  <div class="body">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div>
+        <div style="font-size:11px;color:var(--sub);margin-bottom:6px">极窄 300px · 行≈262px <span class="pill v" style="margin-left:6px">一律竖排</span></div>
+        <div class="dsws-panel" style="width:300px;margin:0 auto">
+          <div class="dsws-body">
+            <div class="dsws-aggrow map"><div class="row1" style="gap:8px"><span class="dsws-idcol"><span class="dsws-chip chip-m" style="font-size:11px">▣ 地图</span><span class="dsws-idnum" style="color:#c084fc;border-color:#c084fc">#120</span></span><span class="dsws-tt-wrap" style="font-weight:600">右侧主面板列表 Item 响应式布局</span><span class="dsws-ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#4ade80" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="32"/></svg><span class="dsws-ring-txt" style="color:#4ade80">1/4</span></span></div><div class="row2 tight"><div class="dsws-tags"><span class="dsws-chip" style="background:rgba(188,140,255,.16);color:#bc8cff;border-color:rgba(188,140,255,.6)">wayfinder:map</span></div><div class="aux"><span class="dsws-btn pri" style="font-size:10px;padding:1px 6px">执行</span><span class="dsws-btn" style="padding:2px 4px">⎘</span></div></div></div>
+            <div class="dsws-aggrow"><div class="row1" style="gap:8px"><span class="dsws-idcol"><span class="dsws-idnum" style="color:#58a6ff;border-color:#58a6ff">#59</span></span><span class="dsws-tt-wrap">BUG：未登录时查看指南按钮断层</span></div><div class="row2 tight"><div class="dsws-tags"><span class="dsws-chip" style="background:rgba(248,113,113,.16);color:#f87171;border-color:rgba(248,113,113,.5)">bug</span></div><div class="aux"><span class="dsws-btn pri">执行</span></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--sub);margin-bottom:6px">正常 460px · 行≈423px <span class="pill" style="background:rgba(255,255,255,.06);color:var(--sub);border-color:var(--border)">标题适配</span></div>
+        <div class="dsws-panel" style="width:460px;margin:0 auto">
+          <div class="dsws-body">
+            <div class="dsws-aggrow map"><div class="row1" style="gap:8px"><span class="dsws-idcol h"><span class="dsws-chip chip-m">▣ 地图</span><span class="dsws-idnum" style="color:#c084fc;border-color:#c084fc">#120</span></span><span class="dsws-tt-wrap" style="font-weight:600">定版后端选择</span><span class="dsws-ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#4ade80" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="10"/></svg><span class="dsws-ring-txt" style="color:#4ade80">2/4</span></span></div><div class="row2 tight"><div class="dsws-tags"><span class="dsws-chip" style="background:rgba(188,140,255,.16);color:#bc8cff;border-color:rgba(188,140,255,.6)">wayfinder:map</span></div><div class="aux"><span class="dsws-btn pri">执行</span><span class="dsws-btn">⎘</span></div></div></div>
+            <div class="dsws-aggrow"><div class="row1" style="gap:8px"><span class="dsws-idcol" style="gap:3px"><span class="dsws-idnum" style="color:#f778ba;border-color:#f778ba">#121</span></span><span class="dsws-tt-wrap">右侧主面板 Map 行响应式布局定版（编号横排/竖排 + 行2间隙收紧）</span></div><div class="row2 tight"><div class="dsws-tags"><span class="dsws-chip" style="background:rgba(247,120,186,.16);color:#f778ba;border-color:rgba(247,120,186,.6)">wayfinder:prototype</span></div><div class="aux"><span class="dsws-btn pri">执行</span></div></div></div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--dim);text-align:center;margin-top:4px">↑ 短标题→横排（右） / 长标题→竖排（下）</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--sub);margin-bottom:6px">极宽 540px · 行≈503px <span class="pill h">一律横排</span></div>
+        <div class="dsws-panel" style="width:540px;margin:0 auto">
+          <div class="dsws-body">
+            <div class="dsws-aggrow map"><div class="row1" style="gap:8px"><span class="dsws-idcol h"><span class="dsws-chip chip-m">▣ 地图</span><span class="dsws-idnum" style="color:#c084fc;border-color:#c084fc">#120</span></span><span class="dsws-tt-wrap" style="font-weight:600">右侧主面板列表 Item 响应式布局（Map 行编号横排至标记右侧 · 极窄竖排 · 全局收紧行2间距）</span><span class="dsws-ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#bc8cff" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="18"/></svg><span class="dsws-ring-txt" style="color:#bc8cff">0/3</span></span></div><div class="row2 tight"><div class="dsws-tags"><span class="dsws-chip" style="background:rgba(188,140,255,.16);color:#bc8cff;border-color:rgba(188,140,255,.6)">wayfinder:map</span></div><div class="aux"><span class="dsws-btn pri">执行</span><span class="dsws-btn">⎘</span></div></div></div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--dim);text-align:center;margin-top:4px">护栏强制横排，标题超长仍 clamp 2 行</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 间距对比 ========== -->
+<section>
+  <div class="sh"><span class="n">4</span><h2>行2 间隙收紧（14px → 8px）</h2><span class="q">对比现状（gap6+margin8=14）与定版（gap6+margin2=8），所有行一致。</span></div>
+  <div class="body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div style="font-size:11px;color:var(--amber);margin-bottom:6px">现状 14px（松散） — gap 6 + marginTop 8</div>
+        <div class="dsws-panel" style="width:440px">
+          <div class="dsws-body">
+            <div class="dsws-aggrow map" style="gap:6px"><div class="row1" style="gap:8px"><span class="dsws-idcol h"><span class="dsws-chip chip-m">▣ 地图</span><span class="dsws-idnum" style="color:#c084fc;border-color:#c084fc">#121</span></span><span class="dsws-tt-wrap">定版后端选择 UI 改造</span><span class="dsws-ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#bc8cff" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="22"/></svg><span class="dsws-ring-txt">1/3</span></span></div><div class="row2 loose" style="margin-top:8px"><div class="dsws-tags"><span class="dsws-chip" style="background:rgba(188,140,255,.16);color:#bc8cff;border:1px solid rgba(188,140,255,.6)">wayfinder:map</span></div><div class="aux"><span class="dsws-btn pri">执行</span><span class="dsws-btn">⎘</span></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--green);margin-bottom:6px">定版 8px（收紧） — gap 6 + marginTop 2 ✓</div>
+        <div class="dsws-panel" style="width:440px">
+          <div class="dsws-body">
+            <div class="dsws-aggrow map" style="gap:6px"><div class="row1" style="gap:8px"><span class="dsws-idcol h"><span class="dsws-chip chip-m">▣ 地图</span><span class="dsws-idnum" style="color:#c084fc;border-color:#c084fc">#121</span></span><span class="dsws-tt-wrap">定版后端选择 UI 改造</span><span class="dsws-ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#bc8cff" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="22"/></svg><span class="dsws-ring-txt">1/3</span></span></div><div class="row2 tight" style="margin-top:2px"><div class="dsws-tags"><span class="dsws-chip" style="background:rgba(188,140,255,.16);color:#bc8cff;border:1px solid rgba(188,140,255,.6)">wayfinder:map</span></div><div class="aux"><span class="dsws-btn pri">执行</span><span class="dsws-btn">⎘</span></div></div></div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--dim);margin-top:4px">节省 6px/行，20 行≈120px，更紧凑；仍保留 gap 6 的呼吸感</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 实现指引 ========== -->
+<section>
+  <div class="sh"><span class="n">→</span><h2>T1 落地指引（给实现票直接复制）</h2></div>
+  <div class="body">
+    <pre style="background:#0c0e12;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:var(--mono);font-size:11.5px;line-height:1.6;overflow:auto;white-space:pre-wrap;color:var(--sub)"><b style="color:var(--acc2)">styles.js</b>
+.dsws-idcol{display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex:none}
+.dsws-idcol.h{display:flex;flex-direction:row;align-items:center;gap:6px}     /* 新增：横排变体 */
+.dsws-aggrow{gap:6px} /* 保留 */
+.row1{gap:8px}        /* 6→8，编号与标题、标题与圆环的横向间隙 */
+.row2{margin-top:2px} /* 8→2，全局收紧至 8px */
+
+<b style="color:var(--acc2)">ListTab.js · 测量（伪码，可贴）</b>
+function applyRowLayout(rowEl){
+  const avail = rowEl.clientWidth; // 行可用宽度
+  if(avail < 320) return setH(false); // 极窄护栏
+  if(avail >= 440) return setH(true);  // 极宽护栏
+  const title = rowEl.querySelector('.dsws-tt-wrap');
+  const idcol = rowEl.querySelector('.dsws-idcol');
+  idcol.classList.add('h'); // 试横排
+  title.classList.add('measure'); // white-space:nowrap 测单行
+  const fits = title.scrollWidth <= title.clientWidth + 1;
+  title.classList.remove('measure');
+  if(!fits) idcol.classList.remove('h');
+  function setH(on){ idcol.classList.toggle('h', on); }
+}
+// 监听：ResizeObserver(rowEl) + window resize + 首次渲染后 layoutEffect
+
+<b style="color:var(--acc2)">验收</b>
+- 三档：300竖 / 460自适应(短横长竖) / 540横；普通/已关闭行同 gap8；clamp2、圆环、按钮、路由不变；build.mjs 重建双源 hash 一致</pre>
+    <div class="callout">护栏换算：行 320/440 ≈ 面板 360/480（含 body 12*2 + aggrow 6.4*2 ≈40px 内边距）。实现时可直接用 <code>rowEl.clientWidth</code> 判，无需换算面板宽度。</div>
+  </div>
+</section>
+
+</main>
+<div class="foot">原型文件：<code>prototype-p1-map-row.html</code> · 单文件双击即开 · 抛弃式原型，T1 后归档到 issue #121 评论分支。定版三项已在顶部摘要给出，可直接复制到 T1。</div>
+
+<script>
+const TITLES = {
+  short: "定版后端选择 UI 改造",
+  mid: "右侧主面板列表 Item 响应式布局（Map 行编号横排）",
+  long: "右侧主面板 Map 行响应式布局定版（编号横排/竖排 + 行2间隙收紧）",
+  xlong: "Wayfinder map: 右侧主面板列表 Item 响应式布局（Map 行编号横排至标记右侧 · 极窄竖排 · 全局收紧行2间距）"
+};
+const ROWS = [
+  { id: "#121", isMap: true, titleK: "dynamic", note: "Map 行 · 标题长度随上方切换" },
+  { id: "#122", isMap: false, title: "BUG：未登录 GitHub 时查看登录指南按钮仅跳转外部手册", note: "普通行 · 中长标题" },
+  { id: "#59", isMap: false, title: "定稿触发路径收敛：维护者反馈 #58 的缓存优先交互", note: "已关闭行示例 · 灰色标题" },
+];
+
+let curTitleK = "short";
+let curGap = "tight";
+let curW = 460;
+
+const wRange = document.getElementById('wRange');
+const wVal = document.getElementById('wVal');
+const rowWVal = document.getElementById('rowWVal');
+const mockPanel = document.getElementById('mockPanel');
+const mockBody = document.getElementById('mockBody');
+const diag = document.getElementById('diag');
+const explain = document.getElementById('explain');
+const modeBadge = document.getElementById('modeBadge');
+const pos = document.getElementById('pos');
+
+function rowAvailable(panelW){ return Math.max(0, panelW - 40); } // approx insets 12*2 + 6.4*2
+
+function renderRows(){
+  mockBody.innerHTML = "";
+  const isTight = curGap === "tight";
+  ROWS.forEach((r, idx)=>{
+    const isMap = r.isMap;
+    const title = r.title || TITLES[curTitleK];
+    const isClosed = idx===2;
+    const agg = document.createElement('div');
+    agg.className = 'dsws-aggrow' + (isMap ? ' map' : '') + (isClosed ? '' : '');
+    agg.style.opacity = isClosed ? '.85' : '1';
+    agg.setAttribute('data-row', idx);
+
+    const row1 = document.createElement('div');
+    row1.className = 'row1';
+    row1.style.gap = '8px';
+    row1.innerHTML = `
+      <span class="dsws-idcol">
+        ${isMap ? '<span class="dsws-chip chip-m" style="font-size:11px">▣ 地图</span>' : ''}
+        <span class="dsws-idnum" style="color:${isClosed?'#8b8b95': (isMap?'#c084fc':'#58a6ff')};border-color:${isClosed?'#8b8b95': (isMap?'#c084fc':'#58a6ff')}">${r.id}</span>
+      </span>
+      <span class="dsws-tt-wrap" style="${isMap?'font-weight:600':''};${isClosed?'color:var(--dim)':''}">${title}</span>
+      ${isMap ? '<span class="dsws-ring"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/><circle cx="9" cy="9" r="7" fill="none" stroke="#bc8cff" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="43.98" stroke-dashoffset="18"/></svg><span class="dsws-ring-txt" style="color:#bc8cff">1/3</span></span>' : ''}
+      ${isClosed ? '<span class="dsws-chip" style="font-size:10px;background:rgba(139,139,149,.12);color:#8b8b95;border:1px solid rgba(139,139,149,.35)">✓ 已关闭</span>' : ''}
+    `;
+    const row2 = document.createElement('div');
+    row2.className = 'row2 ' + (isTight ? 'tight' : 'loose');
+    row2.style.marginTop = isTight ? '2px' : '8px';
+    // labels vary
+    let chips = '';
+    if(idx===0) chips = '<span class="dsws-chip" style="background:rgba(247,120,186,.16);color:#f778ba;border:1px solid rgba(247,120,186,.5)">wayfinder:prototype</span><span class="dsws-chip" style="background:rgba(188,140,255,.16);color:#bc8cff;border:1px solid rgba(188,140,255,.5)">P1</span>';
+    else if(idx===1) chips = '<span class="dsws-chip" style="background:rgba(248,113,113,.14);color:#f87171;border:1px solid rgba(248,113,113,.4)">bug</span><span class="dsws-chip" style="background:rgba(88,166,255,.16);color:#58a6ff;border:1px solid rgba(88,166,255,.4)">needs-triage</span>';
+    else chips = '<span class="dsws-chip" style="background:rgba(139,139,149,.12);color:#8b8b95;border:1px solid rgba(139,139,149,.3)">documentation</span>';
+    row2.innerHTML = `
+      <div class="dsws-tags">${chips}</div>
+      <div class="aux">
+        ${isClosed ? '' : '<span class="dsws-btn pri" style="font-size:11px">执行</span><span class="dsws-btn pri" style="margin-left:2px;font-size:11px">新会话</span>'}
+        <span class="dsws-btn" style="padding:2px 4px">⎘</span>
+        <span class="dsws-btn" style="padding:2px 4px">↗</span>
+      </div>
+    `;
+    agg.appendChild(row1);
+    agg.appendChild(row2);
+    if(idx===0){
+      const hint = document.createElement('div');
+      hint.style.cssText='font-size:10px;color:var(--dim);margin-top:2px;font-family:var(--mono)';
+      hint.textContent = r.note + ' — ' + (TITLE_DESC[curTitleK] || '');
+      agg.appendChild(hint);
+    }
+    mockBody.appendChild(agg);
+  });
+  requestAnimationFrame(applyLayout);
+}
+
+const TITLE_DESC = { short:"短标题≈9字", mid:"中标题≈20字", long:"长标题≈24字", xlong:"超长标题≈45字（含英文前缀）" };
+
+function applyLayout(){
+  const panelW = curW;
+  const rowAvail = rowAvailable(panelW);
+  const auto = document.getElementById('autoToggle').checked;
+  const rows = mockBody.querySelectorAll('[data-row]');
+  let firstDecision = null;
+  rows.forEach((rowEl, i)=>{
+    const idcol = rowEl.querySelector('.dsws-idcol');
+    const title = rowEl.querySelector('.dsws-tt-wrap');
+    if(!idcol || !title) return;
+    let decision = '竖排', reason = '', fits = null, needed=null, availTitle=null;
+    const avail = rowEl.clientWidth || rowAvail; // fallback
+    if(!auto){
+      idcol.classList.add('h');
+      decision='横排（强制预览）'; reason='auto 关闭';
+    } else if(avail < 320){
+      idcol.classList.remove('h');
+      decision='竖排'; reason='护栏：极窄 <320';
+    } else if(avail >= 440){
+      idcol.classList.add('h');
+      decision='横排'; reason='护栏：极宽 ≥440';
+    } else {
+      // adaptive
+      idcol.classList.add('h');
+      title.classList.add('measure');
+      // force layout
+      needed = title.scrollWidth;
+      availTitle = title.clientWidth;
+      fits = needed <= availTitle + 1;
+      title.classList.remove('measure');
+      if(fits){ decision='横排'; reason='标题适配：单行放得下'; }
+      else { idcol.classList.remove('h'); decision='竖排'; reason='标题适配：需两行'; }
+    }
+    if(i===0) firstDecision = {decision, reason, avail, fits, needed, availTitle};
+    // badge color
+    rowEl.title = decision + ' · ' + reason;
+  });
+  // global diag
+  const rowAvailReal = mockBody.querySelector('[data-row]') ? mockBody.querySelector('[data-row]').clientWidth : rowAvail;
+  const pct = ((curW - 280) / (560-280))*100;
+  pos.style.left = pct + '%';
+  wVal.textContent = curW + 'px';
+  rowWVal.textContent = '行约 ' + rowAvailReal + 'px';
+  let zone = '自适应区 [320,440)';
+  let badge = '标题适配生效中';
+  let color = 'var(--sub)';
+  if(rowAvailReal < 320){ zone='极窄护栏 (<320)'; badge='一律竖排（护栏）'; color='var(--blue)'; }
+  else if(rowAvailReal >= 440){ zone='极宽护栏 (≥440)'; badge='一律横排（护栏）'; color='var(--green)'; }
+  modeBadge.textContent = zone + ' · ' + badge;
+  modeBadge.style.color = color;
+  diag.innerHTML = `
+    <span><i class="dot" style="background:${color}"></i><b>${zone}</b></span>
+    <span>面板 <b>${curW}px</b></span>
+    <span>行可用 <b>${rowAvailReal}px</b></span>
+    <span>标题长度 <b>${curTitleK}</b>（${TITLE_DESC[curTitleK]}）</span>
+    <span>行2 <b>${curGap==='tight'?'8px(定版)':'14px(现状)'}</b></span>
+  `;
+  if(firstDecision){
+    const fd = firstDecision;
+    explain.innerHTML = `
+      当前行可用 <b>${fd.avail}px</b> → <b style="color:${fd.decision.includes('横')?'var(--green)':'var(--blue)'}">${fd.decision}</b><br>
+      原因：<b>${fd.reason}</b><br>
+      ${fd.fits!==null ? `测量：标题单行需 <b>${fd.needed}px</b>，横排后可用 <b>${fd.availTitle}px</b> → ${fd.fits?'<span style="color:var(--green)">放得下→横</span>':'<span style="color:var(--amber)">放不下→竖</span>'}` : ''}
+      <div style="margin-top:6px;font-size:11px;color:var(--dim)">护栏优先于标题适配；护栏外的中间区间才走标题测量。</div>
+    `;
+  }
+}
+
+// events
+wRange.addEventListener('input', e=>{ curW=parseInt(e.target.value,10); mockPanel.style.width=curW+'px'; document.querySelectorAll('#preset button').forEach(b=>b.classList.toggle('on', parseInt(b.dataset.w,10)===curW)); renderRows(); });
+document.getElementById('preset').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  curW=parseInt(b.dataset.w,10); wRange.value=curW; mockPanel.style.width=curW+'px';
+  document.querySelectorAll('#preset button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  renderRows();
+});
+document.getElementById('titleSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  curTitleK=b.dataset.k;
+  document.querySelectorAll('#titleSeg button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  renderRows();
+});
+document.getElementById('gapSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  curGap=b.dataset.g;
+  document.querySelectorAll('#gapSeg button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  renderRows();
+});
+document.getElementById('autoToggle').addEventListener('change', renderRows);
+window.addEventListener('resize', ()=>requestAnimationFrame(applyLayout));
+renderRows();
+// initial measure after fonts
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>requestAnimationFrame(applyLayout));
+</script>
+</body>
+</html>
