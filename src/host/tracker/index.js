@@ -7,7 +7,7 @@
 
 export { TRACKER_CONTRACT, OPERATIONS, NORMALIZE_RULES } from './contract.js'
 export { createRegistry, TRACKER_REGISTRY } from './registry.js'
-export { deriveCapabilities, diagnoseCapabilities, hasField, CAPABILITY } from './capability.js'
+export { diagnoseCapabilities, hasField, CAPABILITY } from './capability.js'
 export { classifyError, fail, PREFLIGHT } from './preflight.js'
 
 import { createRegistry } from './registry.js'
