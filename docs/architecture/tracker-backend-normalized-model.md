@@ -19,6 +19,7 @@
    - `EMPTY` = 字段**存在**但值为空（`[]` / `''` / `null`）→ 该能力**存在**，但此条无内容。`MISSING` = 字段**不存在** → 该能力**缺失**。
    - 空值约定：数组 `[]` = EMPTY、省略 = MISSING；标量 `''`/`null`；**数组不填 `null`/`undefined`**（`null` 只给 `closedAt`/`parentKey`）。
 3. **日志二分**：host 记录归一化后每字段填/空。capability 侧**不再产布尔能力开关**——只有 `diagnoseCapabilities(issue, log)`（字段在但空 = `EMPTY`、省略 = `MISSING`、有值 = 原值）；操作能力 = 运行时调用结果（得数据 = 可用、`unsupported` = 不可用）。**无能力表、无能力缓存、无能力分支。** client 记录渲染/隐藏。正确性由 G4 契约测试在 CI 兜底。
+   - **判定依据 = 后端能力，而非单次查询结果**（#126 定稿）：后端原生支持该能力 → 字段恒存在（无内容写 `[]` / `''`）；后端无此概念 → 字段省略（MISSING）。日志统一写法：`labels:[...] (EMPTY)` / `labels:<absent> (MISSING)`。
 
 ---
 
