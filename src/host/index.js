@@ -35,8 +35,8 @@ export default {
     const CACHE_MS = 60000
     const STATUS_CACHE_MS = 30000  // 前置检查结果缓存（#344）
     const SKILL_PROBE_DIRS = ['.agents/skills', '.minimax/skills', '.claude/skills']  // #171 migrated: posix canonical via platform.path
-    // v1.5 T11：全流程核心技能探测名单（各动作 prompt 引用的技能 + 基础技能；检查 7/8 取前两个，检查 9 聚合全量）
-    const SKILL_PROBE_NAMES = ['wayfinder', 'triage', 'grilling', 'grill-me', 'implement', 'ask-matt', 'research', 'prototype', 'handoff']
+    // v1.5 T11 + #149 修复：全流程核心技能探测名单（各动作 prompt 引用的技能 + 基础技能；检查 7/8 取前两个，检查 9 聚合全量）— 补 `setup-matt-pocock-skills` 为 10 名（图快照 §1.1 相邻缺陷正位，#150 Q6）
+    const SKILL_PROBE_NAMES = ['wayfinder', 'triage', 'grilling', 'grill-me', 'implement', 'ask-matt', 'research', 'prototype', 'handoff', 'setup-matt-pocock-skills']
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
 
     // ============ 状态 ============
@@ -175,6 +175,65 @@ export default {
       _platform = await _platformInit
       return _platform
     }
+    // ============ 探测级联 · workspaceStore + detectionService（#152 · #150 Q1-Q7）============
+    // 四层严格 + 轻量化二联骨架 + per-workspace 内存 Map<handleKey→Selection> 不落盘 + pending 不缓存 + wf.bind 薄兼容
+    let _workspaceStore = null
+    let _detectionService = null
+    async function getWorkspaceStore() {
+      if (_workspaceStore) return _workspaceStore
+      try {
+        const mod = await import('./tracker/detection/workspaceStore.js')
+        const create = mod.createWorkspaceStore || mod.default
+        _workspaceStore = create({ ttl: STATUS_CACHE_MS })
+        // registry stale 清理（#150 Q3 unregister stale → emit bind）
+        try {
+          const reg = await getTrackerRegistry()
+          if (reg && typeof reg.on === 'function') reg.on('bind', (evt) => { if (evt && evt.stale) { try { _workspaceStore.onRegistryBindStale(evt.handle) } catch {} } })
+        } catch {}
+      } catch { _workspaceStore = { get: () => null, set: () => {}, has: () => false, clear: () => {}, invalidate: () => {}, keys: () => [], onRegistryBindStale: () => {} } }
+      return _workspaceStore
+    }
+    async function getDetectionService() {
+      if (_detectionService) return _detectionService
+      const registry = await getTrackerRegistry()
+      const platform = await getPlatform()
+      const ws = await getWorkspaceStore()
+      const fsSvc = ctx.get('fs')
+      try {
+        const mod = await import('./tracker/detection/detectionService.js')
+        const create = mod.createDetectionService || mod.default
+        // skillProbe 内联（复用 probeSkill 双源逻辑，10 名含 setup 正位）
+        const skillProbe = async ({ cwd }) => {
+          const probes = {}
+          let missing = []
+          for (let i = 0; i < SKILL_PROBE_NAMES.length; i++) {
+            const name = SKILL_PROBE_NAMES[i]
+            try {
+              const r = await probeSkill(name, 'zh')
+              probes[name] = r
+              if (r.level !== 'ok') missing.push(name)
+            } catch { probes[name] = { ok: false, level: 'bad' }; missing.push(name) }
+          }
+          return { ok: missing.length === 0, missing, probes }
+        }
+        _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => ({ setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } }), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }) })
+      } catch (e) {
+        // 兜底：最小二联（explicit → matches）不含 preflight/skill
+        _detectionService = {
+          detect: async (handle, opts) => {
+            const plat = await getPlatform()
+            const expMod = await import('./tracker/detection/explicitDetector.js')
+            const expFn = expMod.detectExplicit || expMod.default
+            const exp = await expFn(handle, { platform: plat, cwd: handle.cwd, fs: fsSvc }, registry)
+            let sel = exp.selection
+            if (!sel) { const ctx2 = { cwd: handle.cwd, platform: plat, fs: fsSvc, timers: { setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } } }; sel = await registry.select(handle, ctx2) }
+            return { handle, selection: sel, repoHandle: { cwd: handle.cwd || '', refId: (sel && sel.ref && sel.ref.refId) || '' }, explicit: { raw: exp.raw, parsed: exp.parsed }, preflight: null, skillProbes: null, at: Date.now() }
+          }
+        }
+      }
+      return _detectionService
+    }
+
     let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；build 不得动它 —— 否则会吞掉同窗口编辑，见 buildSnapshot 处注释）
     let lastIssueIndexByRepo = {}                          // #2 deletion fix：保存上次全量 issue 索引，用于发现 GitHub 删除/状态消失
     let pendingIssuePathEvents = []                       // issuePath · 1A+1B 检测队列（runGh 白名单 + wf.claim），client via wf.issuePathPoll 拉取，cap 100
@@ -1064,19 +1123,145 @@ export default {
       }
     }
 
-    // ============ RPC ============
+    // ============ RPC（#152 · 探测编排：wf.detect 新 RPC + wf.status 薄兼容派生）============
+    // 第一性原理：前端只调 wf.detect/wf.status 拿 DetectionResult（#150 Q1）；探测零 OS 直碰经 platform；
+    // per-workspace 按 handleKey=cwd|refId 内存 Map 不落盘（Q3）；pending 不缓存（Q6）；唯一写路径 wf.bind→registry.bind（Q4）
+    harness.handle('wf.detect', async function (args) {
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const force = !!(args && args.force)
+      try {
+        const svc = await getDetectionService()
+        const res = await svc.detect({ cwd }, { force })
+        // 对抗式：ensure DetectionResult 形态（含 selection/pending/multiHit，按 #125）
+        return { ok: true, ...res }
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e) }
+      }
+    })
     harness.handle('wf.status', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
       const lang = (args && args.lang === 'en') ? 'en' : 'zh'
       const now = Date.now()
+      // 尝试编排层：优先走 detectionService（Q7 DetectionResult + preflight + skillProbes → 派生 9 checks 薄兼容）
+      try {
+        const svc = await getDetectionService()
+        const det = await svc.detect({ cwd }, { force })
+        const sel = det.selection
+        const backendId = sel && sel.backendId
+        const cacheKeyOk = !force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && statusCache.backendId === (backendId || null) && now - statusCache.ts < STATUS_CACHE_MS
+        if (cacheKeyOk) return statusCache.status
+        // 派生 9 checks 兼容视图（#150 Q7：checks 过渡期后可 deprecate，仅 selection 为真源）
+        // 1) repo 定位（复用 detection repoHandle + 轻量 git 探测兜底，保持与旧 checkRepo 等价）
+        const c1Legacy = await checkRepo(cwd, lang)
+        // 2-3) setup/tracker 由 explicit 解析二合一（parseIssueTracker 高置信→ok，否则 warn；空→bad）
+        const parsed = det.explicit && det.explicit.parsed
+        let c2, c3
+        if (parsed && parsed.explicitBackendId) {
+          c2 = { ok: true, level: 'ok', detail: (lang==='en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md 存在', hint: '' }
+          const labelMap = { github: 'GitHub Issues + gh CLI', gitlab: 'GitLab Issues + glab', markdown: 'Local Markdown (.scratch)' }
+          const lbl = labelMap[parsed.explicitBackendId] || parsed.explicitBackendId
+          c3 = { ok: true, level: 'ok', detail: lbl, hint: '' }
+        } else {
+          c2 = await checkSetup(cwd, lang)
+          // 若无显式声明但 selection 已命中某后端，视为 tracker 已决
+          if (backendId) c3 = { ok: true, level: 'ok', detail: backendId, hint: '' }
+          else c3 = await checkTracker(cwd, lang)
+        }
+        // 4-6) gh/cli/auth/api 聚合自 preflight（命中后惰性；Q6），未命中 fallback 保留旧三项
+        let c4, c5, c6
+        if (det.preflight) {
+          const kind = det.preflight.error && det.preflight.error.kind
+          const msg = det.preflight.error && det.preflight.error.message || ''
+          if (det.preflight.ok) {
+            c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
+            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : '已登录', hint: '' }
+            c6 = { ok: true, level: 'ok', detail: 'api.github.com 200', hint: '' }
+          } else if (kind === 'env') {
+            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: 'https://cli.github.com/' }
+            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
+            c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
+          } else if (kind === 'auth') {
+            c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
+            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
+            c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
+          } else {
+            c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
+            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : '已登录', hint: '' }
+            c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
+          }
+        } else if (backendId && !det.selection.pending) {
+          // 命中但 preflight 尚未产出（lazy 未调），回退旧三项以保兼容
+          c4 = await checkGhCli(lang)
+          c5 = await checkGhAuth(lang)
+          c6 = await checkApi(cwd, c1Legacy.repo, lang)
+        } else {
+          // pending/fallback 场景不调 preflight（Q6），相应项 surface 为 pending 阻塞态
+          if (sel && sel.pending) {
+            const hint = 'pending:explicit-bind'
+            const pendingDetail = (lang==='en') ? 'Detecting… pending (select a backend or retry)' : '探测未决 · 等待/建议显式选择'
+            c4 = { ok: false, level: 'warn', detail: pendingDetail, hint }
+            c5 = { ok: false, level: 'warn', detail: pendingDetail, hint }
+            c6 = { ok: false, level: 'warn', detail: pendingDetail, hint }
+          } else {
+            c4 = await checkGhCli(lang)
+            c5 = await checkGhAuth(lang)
+            c6 = await checkApi(cwd, c1Legacy.repo, lang)
+          }
+        }
+        // 7-9) skill 正交（复用 det.skillProbes，若无则回退 probeSkill）
+        let c7, c8, c9
+        if (det.skillProbes && det.skillProbes.probes) {
+          const p = det.skillProbes.probes
+          const toCheck = (name) => {
+            const r = p[name]
+            if (!r) return { ok: false, level: 'bad', detail: (lang==='en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills' }
+            return { ok: r.level==='ok', level: r.level, detail: r.detail, hint: r.hint }
+          }
+          c7 = toCheck(SKILL_PROBE_NAMES[0])
+          c8 = toCheck(SKILL_PROBE_NAMES[5]) // ask-matt 正位（#149 C8 triage→ask-matt）
+          // suite 聚合
+          const missing = det.skillProbes.missing || []
+          if (!missing.length) c9 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '' }
+          else c9 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Missing: ' + missing.join(' / ') : '缺失：' + missing.join(' / '), hint: 'prompt:installSkills' }
+        } else {
+          c7 = await probeSkill(SKILL_PROBE_NAMES[0], lang)
+          c8 = await probeSkill(SKILL_PROBE_NAMES[5], lang)
+          c9 = await probeSkillSuite(lang)
+        }
+        const raw = [c1Legacy, c2, c3, c4, c5, c6, c7, c8, c9]
+        const checks = raw.map(function (c, i) {
+          // 覆盖层提示：multiHit 透传纠正入口（Q5）
+          let hint = c.hint
+          if (i===2 && sel && sel.multiHit) hint = (hint ? hint + ' ' : '') + 'multiHit:' + sel.multiHit.join(',')
+          if (sel && sel.pending && i>=3 && i<=5 && c.level!=='warn') { /* pending 已在 4-6 处理 */ }
+          return { id: i + 1, name: CHECK_NAMES(lang)[i], ok: c.level === 'ok', level: c.level, detail: c.detail, hint: hint }
+        })
+        const status = {
+          ok: true,
+          updatedAt: new Date().toISOString(),
+          cwd: cwd,
+          repo: c1Legacy.repo,
+          ghPath: ghPath,
+          checks: checks,
+          ready: checks.filter(function (c) { return c.ok }).length,
+          total: checks.length,
+          // 新增：编排层真源（Q7）
+          selection: sel,
+          detection: det,
+        }
+        statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang, backendId: backendId || null }
+        return status
+      } catch (e) {
+        // 编排失败回退旧路径（保守）
+      }
       if (!force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && now - statusCache.ts < STATUS_CACHE_MS) return statusCache.status
       try {
         const status = await buildStatus(cwd, lang)
-        statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang }
+        statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang, backendId: null }
         return status
       } catch (e) {
-        statusCache = { ts: Date.now(), status: null, error: String((e && e.message) || e), cwd: cwd, lang: lang }
+        statusCache = { ts: Date.now(), status: null, error: String((e && e.message) || e), cwd: cwd, lang: lang, backendId: null }
         return { ok: false, error: String((e && e.message) || e), checks: [], ready: 0, total: CHECK_NAMES(lang).length }
       }
     })
@@ -1154,7 +1339,7 @@ export default {
       }
     })
 
-    // #155：后端绑定（per-workspace 覆盖）+ 注册表查询
+    // #155 + #152：后端绑定（per-workspace 覆盖，唯一写路径不回写 issue-tracker.md）+ 注册表查询 + detection 缓存失效
     harness.handle('wf.bind', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const backendId = args && ('backendId' in args ? args.backendId : args.backend)
@@ -1162,11 +1347,13 @@ export default {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
         const handle = { cwd: cwd }
-        // null = 显式无后端（Other 逃生舱）
+        // null = 显式无后端（Other 逃生舱）；'other' 已弃用按 registry 拒绝
         reg.bind(handle, backendId === undefined ? null : backendId)
-        // 失效快照缓存，下次拉取走新 backend
+        // 失效快照 + 状态 + 探测三缓存（per-workspace 切换不串台，Q3；workspaceStore 内存单例失效）
         cache = { ts: 0, snapshot: null, error: null, cwd: null }
-        try { statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null } } catch {}
+        try { statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null } } catch {}
+        try { const ws = await getWorkspaceStore(); ws.invalidate(handle) } catch {}
+        try { if (_detectionService) { /* 下次 detect 重算 */ } } catch {}
         return { ok: true, cwd: cwd, backendId: backendId === undefined ? null : backendId }
       } catch (e) {
         const msg = String((e && e.message) || e)
