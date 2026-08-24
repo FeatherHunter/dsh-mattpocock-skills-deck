@@ -151,16 +151,40 @@ export     const StatusBar = (props) => {
         if (changed) emit(s)
       }
       const showIssuePath = function () {
-        clearClose(issuePathCloseRef); clearClose(bugCloseRef)
+        clearClose(issuePathCloseRef); clearClose(bugCloseRef); clearClose(backendCloseRef)
         let changed = false
         if (s.bugMenuOpen || s.bugMenuPos || s.bugMenuHover) { s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; changed = true }
+        if (s.backendMenuOpen || s.backendMenuPos) { s.backendMenuOpen = false; s.backendMenuPos = null; changed = true }
         if (s.skillsOpen || s.skillPopPos || s.skillHover || s.skillTip) { s.skillsOpen = false; s.skillHover = null; s.skillTip = null; s.skillPopPos = null; changed = true }
         if (!s.issuePathHover) { s.issuePathHover = true; changed = true }
         if (placeIssuePathPop()) changed = true
         if (changed) emit(s)
       }
+      const placeBackendMenu = function () {
+        const p = placeOverlay(backendAnchorRef.current, 'left')
+        if (!p) return false
+        const old = s.backendMenuPos
+        if (old && old.left === p.left && old.bottom === p.bottom) return false
+        s.backendMenuPos = p
+        return true
+      }
+      const closeBackendMenu = function () {
+        clearClose(backendCloseRef)
+        if (!s.backendMenuOpen && !s.backendMenuPos) return
+        s.backendMenuOpen = false; s.backendMenuPos = null; emit(s)
+      }
+      const showBackendMenu = function () {
+        clearClose(backendCloseRef); clearClose(bugCloseRef); clearClose(issuePathCloseRef)
+        let changed = false
+        if (s.bugMenuOpen || s.bugMenuPos || s.bugMenuHover) { s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; changed = true }
+        if (s.issuePathHover || s.issuePathPos) { s.issuePathHover = false; s.issuePathPos = null; changed = true }
+        if (s.skillsOpen || s.skillPopPos || s.skillHover || s.skillTip) { s.skillsOpen = false; s.skillHover = null; s.skillTip = null; s.skillPopPos = null; changed = true }
+        if (!s.backendMenuOpen) { s.backendMenuOpen = true; changed = true }
+        if (placeBackendMenu()) changed = true
+        if (changed) emit(s)
+      }
       React.useEffect(function () {
-        if (!s.bugMenuOpen && !s.issuePathHover) return undefined
+        if (!s.bugMenuOpen && !s.issuePathHover && !s.backendMenuOpen) return undefined
         let raf = null
         let disposed = false
         const reposition = function () {
@@ -171,6 +195,7 @@ export     const StatusBar = (props) => {
             let changed = false
             if (s.bugMenuOpen && placeBugMenu()) changed = true
             if (s.issuePathHover && placeIssuePathPop()) changed = true
+            if (s.backendMenuOpen && placeBackendMenu()) changed = true
             if (changed) emit(s)
           }
           if (typeof requestAnimationFrame === 'function') raf = requestAnimationFrame(run)
@@ -181,6 +206,7 @@ export     const StatusBar = (props) => {
         const ro = new ResizeObserver(reposition)
         if (bugAnchorRef.current) ro.observe(bugAnchorRef.current)
         if (issuePathAnchorRef.current) ro.observe(issuePathAnchorRef.current)
+        if (backendAnchorRef.current) ro.observe(backendAnchorRef.current)
         reposition()
         return function () {
           disposed = true
@@ -191,7 +217,7 @@ export     const StatusBar = (props) => {
           }
           document.removeEventListener('scroll', reposition, true)
           window.removeEventListener('resize', reposition)
-          clearClose(bugCloseRef); clearClose(issuePathCloseRef)
+          clearClose(bugCloseRef); clearClose(issuePathCloseRef); clearClose(backendCloseRef)
         }
       }, [s.bugMenuOpen, s.issuePathHover])
       const applyFold = function () {
@@ -246,6 +272,52 @@ export     const StatusBar = (props) => {
           Icon({ scheme: s.ui.icon, size: 14 }),
           h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
         ]),
+        // #155 Q2：后端双胶囊 [label]+repoShort + pending⏳/multiHit⚠ 角标，priority=2 点击 C混合 浮层快选+底链去设置页
+        (function(){
+          const sel = s.selection || (s.snapshot && s.snapshot.selection) || null
+          const repoRef = s.repository || (s.snapshot && s.snapshot.repository) || null
+          const bid = sel ? sel.backendId : null
+          const isPending = sel && sel.pending
+          const isMulti = sel && Array.isArray(sel.multiHit) && sel.multiHit.length>1
+          const label = (typeof labelOf === 'function' ? labelOf(bid) : (bid==null?'Other':String(bid)))
+          const short = repoRef ? (typeof repoShortName==='function'?repoShortName(repoRef):String(repoRef.name||'').split('/').pop()) : ''
+          const color = (typeof backendColorOf==='function'?backendColorOf(bid):'#6e7681')
+          const display = label + (short ? ' · ' + short : '')
+          const corner = isPending ? '⏳' : isMulti ? '⚠' : ''
+          const borderCol = isMulti ? '#f59e0b' : (isPending ? '#58a6ff' : 'transparent')
+          return h('span', { ref: backendAnchorRef, style:{ position:'relative', display:'inline-flex' }, onMouseEnter: showBackendMenu, onMouseLeave: function(){ scheduleClose(backendCloseRef, closeBackendMenu) } }, [
+            h('span', { className:'dsws-seg' + (s.backendMenuOpen ? ' on' : ''), onClick: function(e){ e.stopPropagation(); showBackendMenu() }, title: '后端: ' + label + (sel && sel.source ? ' ('+sel.source+')' : '') + (isPending?' · pending':'') + (isMulti?' · multiHit:'+sel.multiHit.join(','):'') + ' — 点击快选', style:{ display:'inline-flex', alignItems:'center', gap:4, color: color, border: '1px solid ' + (s.backendMenuOpen ? color : borderCol), background: s.backendMenuOpen ? 'rgba(88,166,255,.12)' : 'transparent', borderRadius:99, padding:'2px 7px', fontSize:11, fontWeight:600 } }, [
+              h('span', { 'data-fold-priority': 2 }, display),
+              corner ? h('span', { style:{ fontSize:10, marginLeft:2 } }, corner) : null,
+            ]),
+            s.backendMenuOpen ? PortalOverlay({ className:'dsws-backend-pop', onMouseEnter: function(){ clearClose(backendCloseRef) }, onMouseLeave: function(){ scheduleClose(backendCloseRef, closeBackendMenu) }, onClick: function(e){ e.stopPropagation() }, style:{ position:'fixed', left: s.backendMenuPos? s.backendMenuPos.left:0, bottom: s.backendMenuPos? s.backendMenuPos.bottom:0, padding:6, zIndex:2147483000, background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:10, boxShadow:'0 8px 30px rgba(0,0,0,.45)', minWidth:240, maxWidth:320 } }, [
+              h('div', { style:{ fontSize:11, fontWeight:700, color:'var(--dsw-alias-label-primary,#e6edf3)', marginBottom:6, display:'flex', alignItems:'center', gap:6 } }, [Ic({n:'compass',size:11}), h('span', null, '切换后端'), isPending? h('span', {style:{fontSize:10,color:'#58a6ff'}}, '⏳ pending'):null, isMulti? h('span', {style:{fontSize:10,color:'#f59e0b'}}, '⚠ multiHit'):null ]),
+              (function(){
+                const mods = s.backendModules || [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
+                return h('div', { style:{ display:'flex', flexDirection:'column', gap:3 } }, mods.map(function(m){
+                  const on = bid===m.id
+                  return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:6, padding:'4px 6px', borderRadius:6, background: on?'rgba(88,166,255,.12)':'transparent', border: on?'1px solid '+backendColorOf(m.id):'1px solid transparent', cursor:'pointer', fontSize:11 } }, [
+                    h('input', { type:'radio', name:'sb-backend', checked:on, onChange: function(){
+                      const prev = s.selection
+                      s.selection={ backendId:m.id, source:'explicit', ref: repoRef }
+                      try{ if(s.cwd) selectionByCwd[s.cwd]=s.selection }catch{}
+                      emit(s); closeBackendMenu()
+                      if(typeof host!=='undefined'&&host.call) host.call('wf.bind',{cwd:s.cwd||'', backendId:m.id}).then(function(r){ if(r&&r.ok){ flash(s,'已切换到 '+m.label,'ok'); loadSnapshot(s,true,true)} else { s.selection=prev; emit(s); flash(s,'切换失败:'+String(r&&r.error||'unknown'),'warn')} }).catch(function(e){ s.selection=prev; emit(s)})
+                    } }),
+                    h('span', { style:{ width:7, height:7, borderRadius:'50%', background: backendColorOf(m.id), flex:'none' } }),
+                    h('span', { style:{ fontWeight:600 } }, m.label),
+                    h('span', { style:{ fontSize:10, color:'#8b8b95' } }, m.id),
+                  ])
+                }))
+              })(),
+              h('div', { style:{ marginTop:6, borderTop:'1px solid var(--dsw-alias-border-l1,#2a2d35)', paddingTop:6, display:'flex', justifyContent:'space-between', alignItems:'center' } }, [
+                h('span', { style:{ fontSize:10, color:'#8b8b95' } }, sel && sel.source ? '来源: ' + sel.source : ''),
+                h('button', { className:'dsws-btn ghost', onClick:function(e){ e.stopPropagation(); closeBackendMenu(); s.tab='settings'; openPanel(s) }, style:{ fontSize:10, padding:'2px 6px' } }, '去设置页…'),
+              ]),
+              isMulti ? h('div', { style:{ fontSize:10, color:'#f59e0b', marginTop:4 } }, '检测到多命中: ' + sel.multiHit.join(', ') + ' — 建议显式绑定') : null,
+            ]) : null,
+          ])
+        })(),
         seg('target', [h('span', { 'data-fold-priority': 5 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; go('list') }, tr('nav.takeableTitle')),
         // issue #4：BUG 计数段 —— 点击仍开 bug 过滤列表；悬停弹「新增」菜单（新会话预填 /wayfinder 新增 BUG 单 prompt）
         h('span', { ref: bugAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showBugMenu, onMouseLeave: function () { scheduleClose(bugCloseRef, closeBugMenu) } }, [

@@ -190,17 +190,45 @@ export     const DetailsDock = (props) => {
         h('div', { ref: headRef, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '10px 12px 6px', flex: 'none', minWidth: 0 } }, [
           Icon({ scheme: 'compass', size: 15 }),
           h('span', { 'data-head-title': 1, style: { fontWeight: 600, fontSize: 13, flex: 'none', whiteSpace: 'nowrap' } }, tr('panel.title')),
-          // v1.5 T7：仓库身份组件 —— 当前检测到的 git 仓库（owner/name），点击打开 GitHub
-          (s.snapshot && s.snapshot.repo) ? h('a', { href: 'https://github.com/' + s.snapshot.repo.owner + '/' + s.snapshot.repo.name, target: '_blank', rel: 'noreferrer', title: tr('panel.repoTitle'), 'data-repo-chip': 1, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#58a6ff', background: 'rgba(88,166,255,.1)', border: '1px solid rgba(88,166,255,.45)', borderRadius: 6, padding: '1px 8px', flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace' } }, [
-            h('svg', { viewBox: '0 0 16 16', width: 11, height: 11, fill: 'currentColor', style: { flex: 'none' } }, [h('path', { d: 'M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 8h8.5V1.5z' })]),
-            h('span', { 'data-repo-text': 1, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, s.snapshot.repo.owner + '/' + s.snapshot.repo.name),
-          ]) : h('span', { title: tr('panel.noRepoTitle'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f87171', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.5)', borderRadius: 6, padding: '1px 8px', flex: 'none', whiteSpace: 'nowrap' } }, [
-            Ic({ n: 'alert', size: 11 }),
-            h('span', null, tr('panel.noRepo')),
-          ]),
+          // #155 Q5：仓库身份泛化 — RepositoryRef.name/url + 按 backend 着色；未知原串灰色；空 url 不链；pending/multiHit 黄条由下行承载
+          (function(){
+            const repoRef = (s.repository || (s.snapshot && s.snapshot.repository) || (s.snapshot && s.snapshot.repo ? { backend:'github', name: s.snapshot.repo.owner+'/'+s.snapshot.repo.name, refId: s.snapshot.repo.owner+'/'+s.snapshot.repo.name, url:'https://github.com/'+s.snapshot.repo.owner+'/'+s.snapshot.repo.name } : null))
+            const sel = s.selection || (s.snapshot && s.snapshot.selection) || null
+            if (!repoRef) return h('span', { title: tr('panel.noRepoTitle'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f87171', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.5)', borderRadius: 6, padding: '1px 8px', flex: 'none', whiteSpace: 'nowrap' } }, [Ic({ n: 'alert', size: 11 }), h('span', null, tr('panel.noRepo'))])
+            const bid = sel ? sel.backendId : (repoRef.backend || 'github')
+            const col = (typeof backendColorOf==='function'? backendColorOf(bid) : '#58a6ff')
+            const bg = col===' #24292f' ? 'rgba(36,41,47,.12)' : (col==='#3fb950' ? 'rgba(63,185,80,.12)' : col==='#fc6d26' ? 'rgba(252,109,38,.12)' : col==='#6e7681' ? 'rgba(110,118,129,.12)' : 'rgba(88,166,255,.1)')
+            const short = (typeof repoShortName==='function'? repoShortName(repoRef) : String(repoRef.name||'').split('/').pop())
+            const href = repoRef.url || ''
+            const inner = [h('svg', { viewBox: '0 0 16 16', width: 11, height: 11, fill: 'currentColor', style: { flex: 'none' } }, [h('path', { d: 'M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 8h8.5V1.5z' })]), h('span', { 'data-repo-text': 1, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, repoRef.name)]
+            const chipStyle = { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: col, background: 'rgba(88,166,255,.1)', border: '1px solid rgba(88,166,255,.45)', borderRadius: 6, padding: '1px 8px', flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', borderColor: col, backgroundColor: bg }
+            // 若无 url（本地 markdown），退化为 span 不链
+            if (!href) return h('span', { title: repoRef.name, 'data-repo-chip': 1, style: Object.assign({}, chipStyle, { cursor:'default' }) }, inner)
+            return h('a', { href: href, target: '_blank', rel: 'noreferrer', title: tr('panel.repoTitle'), 'data-repo-chip': 1, style: chipStyle }, inner)
+          })(),
           h('span', { style: { flex: 1 } }),
           h('button', { className: 'dsws-btn ghost', title: tr('panel.closeTitle'), onClick: closeDock, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 6px', fontSize: 11 } }, Ic({ n: 'x', size: 12 })),
         ]),
+        // #155 Q5：Pending / MultiHit 黄条（提示不阻断）
+        (function(){
+          const sel = s.selection || (s.snapshot && s.snapshot.selection) || null
+          if (!sel) return null
+          const isPending = !!sel.pending
+          const isMulti = Array.isArray(sel.multiHit) && sel.multiHit.length>1
+          if (!isPending && !isMulti) return null
+          const bg = 'rgba(245,158,11,.12)', bd='rgba(245,158,11,.45)', col='#f59e0b'
+          if (isPending) return h('div', { style:{ margin:'0 12px 6px', padding:'4px 8px', background:bg, border:'1px solid '+bd, color:col, fontSize:11, borderRadius:6, display:'flex', alignItems:'center', gap:6 } }, [
+            h('span', { className:'dsws-spinner', style:{ width:11, height:11, borderWidth:2, display:'inline-block' } }),
+            h('span', { style:{ flex:1 } }, '正在探测后端（3s 超时）— 若长时间停留请手动选择'),
+            h('button', { className:'dsws-btn', onClick:function(){ if(typeof host!=='undefined'&&host.call) host.call('wf.registry',{cwd:s.cwd||''}).then(function(){ loadSnapshot(s,true,true)}) }, style:{ fontSize:10, padding:'1px 6px', flex:'none' } }, '重试'),
+          ])
+          if (isMulti) return h('div', { style:{ margin:'0 12px 6px', padding:'4px 8px', background:bg, border:'1px solid '+bd, color:col, fontSize:11, borderRadius:6, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' } }, [
+            Ic({n:'alert',size:11, color:col}),
+            h('span', { style:{ flex:1 } }, '检测到多个可用后端：' + sel.multiHit.join(', ') + ' — 建议显式绑定'),
+            h('button', { className:'dsws-btn', onClick:function(){ s.tab='settings'; emit(s) }, style:{ fontSize:10, padding:'1px 6px', flex:'none', background:'#f59e0b', borderColor:'transparent', color:'#fff' } }, '去设置页绑定'),
+          ])
+          return null
+        })(),
         // 标签行下沿 = 与对话/轨迹一致的横线；右侧：刷新按钮 + 版本号（v1.3.3）
         h('div', { className: 'dsws-tabs', ref: tabsRef, style: { padding: '0 12px 7px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items),
         h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [

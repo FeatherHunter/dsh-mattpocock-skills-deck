@@ -145,6 +145,12 @@ export const IssueDetail = function (props) {
           }),
           src.updatedAt ? h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, '· 更新 ' + String(src.updatedAt).slice(0,10)) : null,
           src.createdAt ? h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, '· 创建 ' + String(src.createdAt).slice(0,10)) : null,
+          // #155 Q6 2🟡新增：author + closedAt（仅当字段存在时显示，undefined → 不渲染；符合 §2 不新增隐藏逻辑）
+          (src.author && src.author.login) ? h('span', { style:{ fontSize:10, color:'#8b8b95', display:'inline-flex', alignItems:'center', gap:3 } }, [
+            src.author.avatarUrl ? h('img', { src: src.author.avatarUrl, style:{ width:12, height:12, borderRadius:'50%' } }) : Ic({n:'person',size:10}),
+            h('span', null, '@' + src.author.login)
+          ]) : null,
+          (!isOpen && src.closedAt) ? h('span', { style:{ fontSize:10, color:'#8b8b95' } }, '· 关闭 ' + String(src.closedAt).slice(0,10)) : null,
         ]),
         parentMap ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'rgba(188,140,255,.06)', border: '1px solid rgba(188,140,255,.2)', borderRadius: 6, fontSize: 11 } }, [
           Ic({ n: 'map', size: 11, color: '#c084fc' }),

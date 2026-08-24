@@ -33,7 +33,7 @@ export     const ListTab = ({ st, narrow }) => {
           return a.number - b.number  // 同键兜底：编号升序（稳定）
         })
       }
-      const isMapIssue = function (x) { return (x.labels || []).some(function (l) { return l.name === 'wayfinder:map' }) }
+      const isMapIssue = function (x) { return x.type === 'map' || ((x.labels || []).some(function (l) { return l.name === 'wayfinder:map' })) }
       const sortedMaps = sortIssues(openIssues.filter(isMapIssue))
       const sortedOpen = sortIssues(openIssues.filter(function (x) { return !isMapIssue(x) }))
       const closedSorted = sortIssues(closedIssues)
@@ -149,7 +149,7 @@ export     const ListTab = ({ st, narrow }) => {
         ])
       }
       const issueRow = function (x, isOpen, narrow) {
-        const isMap = has(x, 'wayfinder:map')
+        const isMap = (x.type === 'map') || has(x, 'wayfinder:map')
         const mapObj = isMap ? findMap(x.number) : null
         // v15-26：被阻塞判定（open 阻塞者）→ 隐藏动作按钮 + 红色「被阻塞」标签（点击跳所属 map 详情）
         const blk = blockOf[x.number]
@@ -183,7 +183,7 @@ export     const ListTab = ({ st, narrow }) => {
           h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 6, width: '100%' } }, [
             h('span', { className: 'dsws-idcol' }, [
               isMap ? h('span', { className: 'dsws-chip dsws-chip-m', style: { fontSize: 11, fontWeight: 600, lineHeight: 1.7, padding: '0 8px' } }, [Ic({ n: 'map', size: 11 }), h('span', null, tr('list.mapChip'))]) : null,
-              h('span', { className: 'dsws-idnum', style: { color: numColor, borderColor: numColor } }, '#' + x.number),
+              h('span', { className: 'dsws-idnum', style: { color: numColor, borderColor: numColor } }, '#' + (x.key != null ? x.key : x.number)),
             ]),
             h('span', { className: 'dsws-tt-wrap', style: { flex: 1, fontWeight: isMap ? 600 : undefined, color: isOpen ? undefined : 'var(--dsw-alias-label-secondary,#a1a1aa)' }, title: x.title }, x.title),
             (isMap && mapObj && mapObj.stats) ? ringOf(mapObj.stats) : null,

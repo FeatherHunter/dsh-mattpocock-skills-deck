@@ -120,3 +120,10 @@ src/
 
 - 断言方向：来源有数据 → 必映射；来源无 → 必 `EMPTY`（`[]`/`''`/`null`）；能实现的能力字段必 `EMPTY` 而非 `MISSING`；不能实现的必 `MISSING` 而非 `EMPTY`。
 - 夹具与断言实现归各后端子图；本骨架用合规桩/违规桩证明契约本身可被满足/可被验收。
+
+## 7. 第三方扩展（#117 #148 范式）
+
+- 范式样板：`examples/demo-mini/`（`demo-mini` 4 ops + `matches` + `normalize`，余下 9 ops 由 `registry.js` Proxy 补 `unsupported`，`describe` 复用骨架，不默认装配，零发包）。
+- 指导文档（主入口）：`docs/architecture/third-party-tracker.md`（注册/探测/能力/测试/打包/更新六章 + Checklist/FAQ，接真实工具步骤）。
+- 检验：`tests/verify-tracker-contract.js` 织入 `runContractTests(demoFixture)` + `runPlayback({fixturesDir:'examples/demo-mini/fixtures/demo-real'})`（`359/4/OK`）。
+- 后端实现索引：`src/host/tracker/backends/README.md` 增“第三方章”。

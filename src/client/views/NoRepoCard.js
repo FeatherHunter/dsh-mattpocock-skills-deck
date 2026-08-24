@@ -13,6 +13,40 @@ export     const NoRepoCard = function (props) {
       const checkRepo = cs.find(function (c) { return c.id === 1 })
       const repoBad = !!(checkRepo && checkRepo.level === 'bad')
       const dismissed = isNoRepoDismissed(st.cwd)
+      // #155：Selection 三态优先于 checkRepo（显式无后端/pending 态不走 NoRepo 红卡分支）
+      const sel = st.selection || (st.snapshot && st.snapshot.selection) || null
+      const isPending = !!(sel && sel.pending)
+      const isOther = !!(sel && sel.backendId===null && !sel.pending)
+      // PendingCard：pending=true 时无论 repoBad 都显示等待态（提示不阻断，pending 不 fallback）
+      if (isPending) {
+        return h('div', { className: 'dsws-no-repo-card', style:{ background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)' } }, [
+          h('div', { className: 'head' }, [
+            h('span', { className:'dsws-spinner', style:{ width:13, height:13, borderWidth:2, display:'inline-block' } }),
+            h('div', { style:{ flex:1, minWidth:0 } }, [
+              h('div', { className:'ttl', style:{ color:'#f59e0b' } }, '正在探测后端'),
+              h('div', { className:'desc', style:{ color:'#f59e0b' } }, '3s 超时未决 — 若长时间停留请手动选择'),
+            ]),
+          ]),
+          h('div', { className:'acts' }, [
+            h('button', { className:'dsws-btn', onClick:function(){ s.tab='settings'; emit(s) }, style:{ fontSize:11, padding:'3px 10px' } }, '去设置页选择'),
+            h('button', { className:'dsws-btn primary', onClick:function(){ loadSnapshot(st,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'3px 10px' } }, '重试探测'),
+          ]),
+        ])
+      }
+      if (isOther) {
+        return h('div', { className: 'dsws-no-repo-card', style:{ background:'rgba(110,118,129,.08)', border:'1px solid rgba(110,118,129,.35)' } }, [
+          h('div', { className: 'head' }, [
+            Ic({ n: 'compass', size: 13, color: '#6e7681' }),
+            h('div', { style: { flex: 1, minWidth: 0 } }, [
+              h('div', { className: 'ttl', style:{ color:'#6e7681' } }, '未绑定后端'),
+              h('div', { className: 'desc', style:{ color:'#8b8b95' } }, '当前工作区未选择 Tracker 后端 — 去设置页选择（Other 逃生舱）'),
+            ]),
+          ]),
+          h('div', { className: 'acts' }, [
+            h('button', { className: 'dsws-btn primary', onClick:function(){ st.tab='settings'; emit(st) }, style: { background: '#6e7681', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, '选择后端'),
+          ]),
+        ])
+      }
       const show = repoBad && !dismissed
       if (!show) return null
       const isValid = isNoRepoNameValid(card.name)

@@ -114,5 +114,45 @@ export     const ChecksTab = ({ st }) => {
         (function () { const cr = cs.find(function (c) { return c.id === 1 }); const dismissed = isNoRepoDismissed(st.cwd); const showRed = !!(cr && cr.level === 'bad' && !dismissed); const displayBad = showRed ? bad.filter(function (c) { return c.id !== 1 }) : bad; return grp(tr('env.missing'), '#f87171', displayBad) })(),
         grp(tr('env.partial'), '#f59e0b', warn),
         grp(tr('env.ready'), '#4ade80', ok),
+        // #155 Q7：能力诊断折叠卡（默认收起，不进渲染分支；G5 能力视图仅诊断不驱动隐藏）
+        (function(){
+          const snap = st.snapshot
+          const issues = snap && Array.isArray(snap.issues) ? snap.issues : []
+          if (!issues.length && !snap) return null
+          const caps = snap && snap.capabilities ? snap.capabilities : null
+          // 若 snapshot 未带 capabilities，前端本地计数（与 host 双轨）
+          let counts = caps
+          if (!counts) {
+            const fields=['author','assignees','labels','milestone','customFields','reason','blockedBy','comments','closedAt']
+            let present=0, empty=0, missing=0
+            issues.forEach(function(it){
+              fields.forEach(function(f){
+                if (it[f]===undefined) missing++
+                else if (Array.isArray(it[f]) && it[f].length===0) empty++
+                else if (it[f]===null || it[f]==='') empty++
+                else present++
+              })
+            })
+            counts={ present: present, empty: empty, missing: missing }
+          }
+          const sel = st.selection || (snap && snap.selection) || null
+          const repoRef = st.repository || (snap && snap.repository) || null
+          return h('details', { style:{ marginTop:8, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:6, padding:'6px 8px', background:'rgba(255,255,255,.02)' } }, [
+            h('summary', { style:{ fontSize:11, fontWeight:600, color:'var(--dsw-alias-label-secondary,#a1a1aa)', cursor:'pointer', display:'flex', alignItems:'center', gap:6 } }, [
+              Ic({n:'note',size:11}),
+              h('span', null, '能力诊断（折叠，默认收起）'),
+              h('span', { style:{ fontSize:10, color:'#8b8b95', marginLeft:6 } }, 'present '+counts.present+' / empty '+counts.empty+' / missing '+counts.missing),
+            ]),
+            h('div', { style:{ fontSize:11, color:'#8b8b95', marginTop:6, lineHeight:1.6 } }, [
+              h('div', null, '当前后端: ' + (sel && sel.backendId ? sel.backendId : '—') + (sel && sel.source ? ' ('+sel.source+')' : '') + (sel && sel.pending ? ' ⏳ pending' : '') + (sel && sel.multiHit ? ' ⚠ multiHit:'+sel.multiHit.join(',') : '')),
+              repoRef ? h('div', null, '仓库: ' + repoRef.name + (repoRef.url ? ' — ' + repoRef.url : ' (本地)')) : null,
+              h('div', null, '字段 presence: present='+counts.present+' · empty='+counts.empty+' · missing='+counts.missing),
+              h('div', { style:{ fontSize:10, color:'#6b7280', marginTop:4 } }, '诊断双轨：host 记每字段填/空，client 记渲染/隐藏；G5 能力视图不进任何 if(capability) 隐藏分支。'),
+              h('div', { style:{ marginTop:6 } }, [
+                h('button', { className:'dsws-btn ghost', onClick:function(){ try{ console.log('[dsws] capabilities', counts, 'selection', sel, 'repo', repoRef) } catch{}; flash(st,'能力诊断已输出到控制台','info') }, style:{ fontSize:10, padding:'2px 6px' } }, '查看日志'),
+              ]),
+            ]),
+          ])
+        })(),
       ])
     }
