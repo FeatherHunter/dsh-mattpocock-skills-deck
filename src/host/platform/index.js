@@ -87,13 +87,16 @@ function buildEnv(envSource) {
 /**
  * 组装：用给定 OS 适配器做通用包装，返回 #129 契约形状的 `Platform`。
  * 导出以便单机直测三 OS 分支（`createPlatform` 依赖 `process.platform`，只能跑到当前 OS）。
+ * opts 支持可测性注入（#113/#131）：{ homedir?: () => string, env?: object } 透传给适配器；
+ * env 同时作为平台 env 视图源（默认 process.env）。
  * @param {Object} ctx
  * @param {string} osName   `OS_KINDS` 值。
- * @param {(ctx: Object) => {os: string, pathImpl: Object, getHome: () => Promise<string|null>, resolveExecutable: (name: string) => Promise<string|null>}} adapter
+ * @param {(ctx: Object, opts?: object) => {os: string, pathImpl: Object, getHome: () => Promise<string|null>, resolveExecutable: (name: string) => Promise<string|null>}} adapter
+ * @param {object} [opts]
  * @returns {Promise<Platform>}
  */
-export async function composePlatform(ctx, osName, adapter) {
-  const spec = adapter(ctx)
+export async function composePlatform(ctx, osName, adapter, opts) {
+  const spec = adapter(ctx, opts)
   const getHome = memoize(() => spec.getHome())
   const path = buildPath(spec.pathImpl, getHome)
   const resolveExecutable = async (name) => {
@@ -104,26 +107,41 @@ export async function composePlatform(ctx, osName, adapter) {
     }
   }
   const fs = ctx.get('fs') // DSH 沙箱 fs（读穿透、写有栅栏）——透传，不叠白名单。
+  const envSource = (opts && opts.env) || process.env
   return Object.freeze({
     os: osName,
     getHome,
     path,
     resolveExecutable,
     fs,
-    env: buildEnv(process.env),
+    env: buildEnv(envSource),
   })
 }
 
 /**
  * 按 `process.platform` 选取对应 OS 实现并返回（平台层入口；宿主构建 BackendContext 时调用一次、全局复用）。
+ * 第二参支持 OS 覆盖（#113 可测性）：createPlatform(ctx, 'win32') 使单机可判三端。
  * @param {Object} ctx
+ * @param {string|object} [osNameOrOpts]  字符串则为 os 覆盖；对象则视为 opts（兼容老调用）。
+ * @param {object} [maybeOpts]
  * @returns {Promise<Platform>}
  */
-export async function createPlatform(ctx) {
-  const osName = (process && process.platform) || OS_KINDS.WIN32
+export async function createPlatform(ctx, osNameOrOpts, maybeOpts) {
+  let osName
+  let opts
+  if (typeof osNameOrOpts === 'string') {
+    osName = osNameOrOpts
+    opts = maybeOpts
+  } else if (osNameOrOpts && typeof osNameOrOpts === 'object') {
+    osName = (process && process.platform) || OS_KINDS.WIN32
+    opts = osNameOrOpts
+  } else {
+    osName = (process && process.platform) || OS_KINDS.WIN32
+    opts = undefined
+  }
   const impl = REGISTRY[osName]
   if (!impl) throw new Error('platform unsupported: ' + osName)
-  return composePlatform(ctx, osName, impl)
+  return composePlatform(ctx, osName, impl, opts)
 }
 
 export default createPlatform

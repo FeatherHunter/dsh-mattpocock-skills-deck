@@ -27,15 +27,14 @@ export default {
     if (subprocess === undefined || timer === undefined) return
 
     // ============ 配置 ============
-    // v1.5.0（公共发布）：兜底 gh 路径 = 环境变量 DSH_GH_PATH（官方安装会加入 PATH，无需配置；非常规安装可用环境变量指定）
-    const GH_FALLBACK = (typeof process !== 'undefined' && process.env && process.env.DSH_GH_PATH) ? process.env.DSH_GH_PATH : ''
+    // v1.5.0（公共发布）：兜底 gh 路径经 platform.env.get('DSH_GH_PATH')（#171 migrated，零直读 process.env）
     // 默认工作区 = DSH 进程当前目录（可被 wf.snapshot args.cwd 覆盖；去本机硬编码）
     const DEFAULT_CWD = (typeof process !== 'undefined' && typeof process.cwd === 'function') ? process.cwd() : ''
     const TIMEOUT_MS = 30000
     // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
     const CACHE_MS = 60000
     const STATUS_CACHE_MS = 30000  // 前置检查结果缓存（#344）
-    const SKILL_PROBE_DIRS = ['.agents\\skills', '.minimax\\skills', '.claude\\skills']  // 技能文件层探测目录（相对用户主目录）
+    const SKILL_PROBE_DIRS = ['.agents/skills', '.minimax/skills', '.claude/skills']  // #171 migrated: posix canonical via platform.path
     // v1.5 T11：全流程核心技能探测名单（各动作 prompt 引用的技能 + 基础技能；检查 7/8 取前两个，检查 9 聚合全量）
     const SKILL_PROBE_NAMES = ['wayfinder', 'triage', 'grilling', 'grill-me', 'implement', 'ask-matt', 'research', 'prototype', 'handoff']
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
@@ -46,7 +45,85 @@ export default {
     let repoKeys = {}  // v12：repoKey 按 cwd 缓存（切换仓库会话时不再串仓库）
     let cache = { ts: 0, snapshot: null, error: null, cwd: null }
     let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s 缓存（按 cwd+lang 区分）
-    let userHome = null                                     // 用户主目录（cmd 探测，缓存）
+    let userHome = null                                     // 保留占位（#171 已迁 platform.getHome，缓存归平台 memoize）
+    // ============ 平台抽象（#171 · createPlatform 惰性单例）============
+    // 第一性原理：平台单点 + 零手拼 + 双闸不变量；经 ctx.get('platform') 或内联 fallback（零 import 语法，避 D7 dev host vm.Script 阻塞）
+    let _platform = null
+    let _platformInit = null
+    async function getPlatform() {
+      if (_platform) return _platform
+      if (_platformInit) return _platformInit
+      _platformInit = (async () => {
+        const injected = ctx.get('platform')
+        if (injected && typeof injected.getHome === 'function' && injected.path) return injected
+        try {
+          const platMod = await import('./platform/index.js')
+          const createPlatform = platMod.createPlatform || platMod.default
+          if (typeof createPlatform === 'function') return createPlatform(ctx)
+        } catch {}
+        let nodePath = null
+        let nodeOs = null
+        try { const m = await import('node:path'); nodePath = m.default || m } catch {}
+        try { const m2 = await import('node:os'); nodeOs = m2.default || m2 } catch {}
+        if (!nodePath || !nodeOs) {
+          const sepWin = String.fromCharCode(92)
+          nodePath = { posix: { join: (...a) => a.join('/').replace(/\/\//g,'/'), sep: '/', dirname: (p)=>p.slice(0,p.lastIndexOf('/')), basename: (p)=>p.split('/').pop(), resolve: (...a)=>a.join('/'), normalize: (p)=>p, isAbsolute: (p)=>p.startsWith('/'), relative: (a,b)=>b }, win32: { join: (...a) => a.join(sepWin).replace(/\//g,sepWin), sep: sepWin, dirname: (p)=>p.slice(0,p.lastIndexOf(sepWin)), basename: (p)=>p.split(sepWin).pop(), resolve: (...a)=>a.join(sepWin), normalize: (p)=>p, isAbsolute: (p)=>/^[A-Za-z]:/.test(p), relative: (a,b)=>b } }
+          nodeOs = { homedir: () => (typeof process !== 'undefined' && process.env && (process.env.USERPROFILE || process.env.HOME)) || '', platform: () => { try { return (typeof process !== 'undefined' && process['platform']) || 'win32' } catch { return 'win32' } } }
+        }
+        const osName = (nodeOs.platform ? nodeOs.platform() : 'win32')
+        const pathImpl = osName === 'win32' ? nodePath.win32 : nodePath.posix
+        const envSrc = (typeof process !== 'undefined' && process.env) ? process.env : {}
+        const homedirFn = () => { try { return nodeOs.homedir() } catch { return '' } }
+        const WIN32_GUARD_RE = /^[A-Za-z]:/
+        let cachedHome
+        const getHomeInner = async () => {
+          if (cachedHome !== undefined) return cachedHome
+          let primary = ''
+          try { const v = homedirFn(); primary = v == null ? '' : String(v) } catch { primary = '' }
+          if (osName === 'win32') {
+            if (primary && WIN32_GUARD_RE.test(primary)) { cachedHome = primary; return cachedHome }
+            const up = envSrc.USERPROFILE
+            if (up) { cachedHome = up; return cachedHome }
+            const combined = (envSrc.HOMEDRIVE || '') + (envSrc.HOMEPATH || '')
+            if (combined) { cachedHome = combined; return cachedHome }
+            cachedHome = null; return cachedHome
+          } else {
+            try { const v = homedirFn(); cachedHome = v || null; return cachedHome } catch { cachedHome = null; return cachedHome }
+          }
+        }
+        const pathObj = Object.freeze({
+          join: pathImpl.join.bind(pathImpl),
+          sep: pathImpl.sep,
+          dirname: pathImpl.dirname.bind(pathImpl),
+          basename: pathImpl.basename.bind(pathImpl),
+          resolve: pathImpl.resolve.bind(pathImpl),
+          normalize: pathImpl.normalize.bind(pathImpl),
+          isAbsolute: pathImpl.isAbsolute.bind(pathImpl),
+          relative: pathImpl.relative.bind(pathImpl),
+          async joinHome(...segs) { const h = await getHomeInner(); return pathImpl.join(h, ...segs) },
+        })
+        async function resolveExec(name) {
+          const mapped = osName === 'win32' && name === 'cmd' ? 'cmd.exe' : name
+          const subprocessSvc = ctx.get('subprocess')
+          try { return await subprocessSvc.resolveExecutable(mapped) } catch (e) {
+            if (name === 'gh') {
+              const fb = envSrc.DSH_GH_PATH || ''
+              if (!fb) throw e
+              const fss = ctx.get('fs')
+              if (!fss || typeof fss.lstat !== 'function') throw e
+              try { const info = await fss.lstat(fb); if (info) return fb } catch {}
+            }
+            throw e
+          }
+        }
+        const resolveExecutable = async (name) => { try { return await resolveExec(name) } catch { return null } }
+        const fss = ctx.get('fs')
+        const envView = Object.freeze({ get(k){ return envSrc[k] }, has(k){ return k in envSrc } })
+        return Object.freeze({ os: osName, getHome: getHomeInner, path: pathObj, resolveExecutable, fs: fss, env: envView })
+      })()
+      _platform = await _platformInit
+      return _platform
+    }
     let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；build 不得动它 —— 否则会吞掉同窗口编辑，见 buildSnapshot 处注释）
     let lastIssueIndexByRepo = {}                          // #2 deletion fix：保存上次全量 issue 索引，用于发现 GitHub 删除/状态消失
     let pendingIssuePathEvents = []                       // issuePath · 1A+1B 检测队列（runGh 白名单 + wf.claim），client via wf.issuePathPoll 拉取，cap 100
@@ -55,21 +132,21 @@ export default {
     async function resolveGh() {
       if (ghPath) return ghPath
       if (ghPathError) return null
+      const platform = await getPlatform()
       try {
-        ghPath = await subprocess.resolveExecutable('gh')
+        const p = await platform.resolveExecutable('gh')
+        if (p) { ghPath = p; return ghPath }
+        throw new Error('gh not found')
       } catch (e) {
-        // 兜底：fs.lstat 对不存在路径返回 undefined（不抛错），须判真值（#344 修正）
-        let info = null
+        const fb = platform.env.get('DSH_GH_PATH') || ''
+        if (!fb) { ghPathError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'; return null }
         try {
-          if (fs !== undefined) info = await fs.lstat(GH_FALLBACK)
-          else ghPathError = 'gh 不可用：PATH 无 gh 且 fs 服务不可用'
-        } catch (e2) {
-          info = null
-        }
-        if (info) ghPath = GH_FALLBACK
-        else ghPathError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
+          const info = await platform.fs.lstat(fb)
+          if (info) { ghPath = fb; return ghPath }
+        } catch (e2) {}
+        ghPathError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
+        return null
       }
-      return ghPath
     }
 
     async function runGh(args, cwd) {
@@ -152,23 +229,14 @@ export default {
     }
 
     async function resolveGit() {
-      try { return await subprocess.resolveExecutable('git') } catch (e) { return null }
+      const platform = await getPlatform()
+      return platform.resolveExecutable('git')
     }
 
-    // 用户主目录（Windows 实测 cmd.exe 恒在；POSIX 可走 sh -c 'echo $HOME'，本插件以 Windows 为主）
+    // 用户主目录（#171 已迁 platform.getHome；原 cmd.exe 探测仅 win32 生效，现平台层统一）
     async function getHome() {
-      if (userHome !== null) return userHome
-      userHome = null
-      try {
-        const cmd = await subprocess.resolveExecutable('cmd.exe')
-        if (!cmd) return null
-        const r = await execProc([cmd, '/c', 'echo', '%USERPROFILE%'], DEFAULT_CWD)
-        if (r.ok) {
-          const v = r.text.trim()
-          if (v && /[\\/]/.test(v)) userHome = v
-        }
-      } catch (e) { userHome = null }
-      return userHome
+      const platform = await getPlatform()
+      return platform.getHome()
     }
 
     // ============ issuePath · 1A\+1B 事件队列 ============
@@ -199,10 +267,11 @@ export default {
     //   ~/.dsh 在沙箱外被拒 → 缓存永不写入；改用 process.cwd() 落点，跨重启秒开；v1.6.17 更名 waystation → MattSkillsDeck）
     async function getCacheDir() {
       if (cacheDirResolved) return cacheDirResolved
+      const platform = await getPlatform()
       const cwd0 = (typeof process !== 'undefined' && process.cwd) ? process.cwd() : DEFAULT_CWD
       if (!cwd0) return null
-      cacheDirResolved = cwd0 + '/.dsh-mattskillsdeck-cache'
-      try { if (fs !== undefined && typeof fs.mkdir === 'function') await fs.mkdir(cacheDirResolved) } catch (e) { /* 已存在或不可建，writeText 会自建 */ }
+      cacheDirResolved = platform.path.join(cwd0, '.dsh-mattskillsdeck-cache')
+      try { const pfs = platform.fs; if (pfs !== undefined && typeof pfs.mkdir === 'function') await pfs.mkdir(cacheDirResolved) } catch (e) { /* 已存在或不可建，writeText 会自建 */ }
       return cacheDirResolved
     }
     function cacheFileName(repo) {
@@ -227,7 +296,8 @@ export default {
         const dir = await getCacheDir(); if (!dir) return
         const fn = cacheFileName(repo); if (!fn) return
         // T9 修复：fs 服务的 writeText 要求 resolve() 返回的 target 对象（{targetKey,displayPath}），不能直接传路径字符串
-        const t = await fs.resolve(dir + '/' + fn)
+        const platform = await getPlatform()
+        const t = await platform.fs.resolve(platform.path.join(dir, fn))
         await fs.writeText(t, JSON.stringify(snap))
       } catch (e) { /* 写失败不影响主流程 */ }
     }
@@ -839,7 +909,9 @@ export default {
       if (fs !== undefined && home) {
         for (let i = 0; i < SKILL_PROBE_DIRS.length; i++) {
           try {
-            const info = await fs.lstat(home + '\\' + SKILL_PROBE_DIRS[i] + '\\' + name)
+            const platform = await getPlatform()
+            const probePath = await platform.path.joinHome(SKILL_PROBE_DIRS[i], name)
+            const info = await platform.fs.lstat(probePath)
             if (info) { fsFound = '~/' + SKILL_PROBE_DIRS[i] + '/' + name; break }
           } catch (e) { /* 继续探测下一个目录 */ }
         }

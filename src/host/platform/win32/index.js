@@ -1,31 +1,68 @@
 /**
- * platform/win32/index.js — Windows 适配器（通用层骨架）。
+ * platform/win32/index.js — Windows 适配器（win32 底座定版 #161）。
  *
- * 本票 (#130) 只做「通用层」——此处只提供 OS 专属原语（pathImpl / getHome / resolveExecutable），
+ * 定版来源：#129（平台原语接口）+ #160 G 票三裁决
+ *  ① 护栏 ^[A-Za-z]:→USERPROFILE→HOMEDRIVE+HOMEPATH（#129 D2）/ 别名仅 cmd→cmd.exe / 路径全委托 node:path.win32。
  * 通用包装（getHome 缓存 / env 只读视图 / resolveExecutable throw→null / path 委托 node:path / fs 透传）
- * 由 `platform/index.js` 的 `composePlatform` **单点**提供，不在本文件重复。
- *
- * OS 专属行为（D2 win32 盘符护栏、resolveExecutable 别名 cmd→cmd.exe、gh→DSH_GH_PATH 兜底等）
- * 归 **win32 底座 map**（作为 #113 子票另行规划）；本票只留最小结构 + TODO 占位。
+ * 由 `platform/index.js` 的 `composePlatform` 单点提供，不在此重复。
  */
-import nodePath from 'node:path'
 
-export default function win32Adapter(ctx) {
-  void ctx
+import nodePath from 'node:path'
+import nodeOs from 'node:os'
+
+const WIN32_GUARD_RE = /^[A-Za-z]:/
+const ALIAS = Object.freeze({ cmd: 'cmd.exe' })
+
+/**
+ * 解析注入源（可测性前提 #113/#131）。
+ * 测试侧可通过两种方式注入以使护栏分支单机可达：
+ *  1) 直接传 opts：win32Adapter(ctx, { homedir: () => string, env })
+ *  2) 经 composePlatform 的 opts 透传；或在 mock ctx 上挂 _homedir/_env（兼容旧夹具）。
+ */
+function resolveDeps(ctx, opts) {
+  const o = opts && typeof opts === 'object' ? opts : {}
+  const homedir =
+    (typeof o.homedir === 'function' && o.homedir) ||
+    (ctx && typeof ctx._homedir === 'function' && ctx._homedir) ||
+    (ctx && typeof ctx.__homedir === 'function' && ctx.__homedir) ||
+    (() => nodeOs.homedir())
+  const env =
+    (o.env && typeof o.env === 'object' && o.env) ||
+    (ctx && ctx._env && typeof ctx._env === 'object' && ctx._env) ||
+    (ctx && ctx.__env && typeof ctx.__env === 'object' && ctx.__env) ||
+    process.env
+  return { homedir, env }
+}
+
+export default function win32Adapter(ctx, opts) {
+  const { homedir, env } = resolveDeps(ctx, opts)
   return {
     os: 'win32',
-    /** 路径数学委托 node:path.win32（各 OS 不得重实现；亦规避 PR #106 的路径分隔符回归）。 */
+    /** 路径数学全委托 node:path.win32（零自实现；规避 PR #106 分隔符回归）。 */
     pathImpl: nodePath.win32,
-    /** 用户主目录（跨 OS 单点；win32 盘符护栏细节待 win32 底座 map）。 */
+    /** 用户主目录：主源 os.homedir()，形态非 ^[A-Za-z]: 时回退 USERPROFILE → HOMEDRIVE+HOMEPATH；不读 HOME。 */
     async getHome() {
-      // TODO(win32 底座 map)：D2 护栏——结果形态非 ^[A-Za-z]: 时回退 USERPROFILE → HOMEDRIVE+HOMEPATH。
-      const os = await import('node:os')
-      return os.homedir() || null
+      let primary = ''
+      try {
+        const v = homedir()
+        primary = v == null ? '' : String(v)
+      } catch {
+        primary = ''
+      }
+      if (primary && WIN32_GUARD_RE.test(primary)) return primary
+      const up = env.USERPROFILE
+      if (up) return up
+      const drive = env.HOMEDRIVE || ''
+      const homePath = env.HOMEPATH || ''
+      const combined = drive + homePath
+      if (combined) return combined
+      return null
     },
-    /** 包装 DSH subprocess.resolveExecutable；别名/环境变量覆盖细节待底座 map。 */
+    /** 包装 DSH subprocess.resolveExecutable；别名仅 cmd→cmd.exe（sh 不映射，gh 不进表）。 */
     async resolveExecutable(name) {
+      const mapped = ALIAS[name] ?? name
       const subprocess = ctx.get('subprocess')
-      return subprocess.resolveExecutable(name)
+      return subprocess.resolveExecutable(mapped)
     },
   }
 }
