@@ -1,0 +1,16 @@
+{
+  "key": "2",
+  "title": "Demo issue 2",
+  "state": "open",
+  "body": "demo body 2",
+  "url": "",
+  "createdAt": "2024-01-01T00:00:00Z",
+  "updatedAt": "2024-01-01T00:00:00Z",
+  "closedAt": null,
+  "parentKey": null,
+  "labels": [],
+  "assignees": [],
+  "comments": [],
+  "blockedBy": [],
+  "reason": ""
+}

@@ -46,6 +46,57 @@ export default {
     let cache = { ts: 0, snapshot: null, error: null, cwd: null }
     let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s 缓存（按 cwd+lang 区分）
     let userHome = null                                     // 保留占位（#171 已迁 platform.getHome，缓存归平台 memoize）
+    // ============ Tracker Registry（#155 · 后端选择 UI）============
+    let _trackerRegistry = null
+    let _trackerRegistryInit = null
+    async function getTrackerRegistry() {
+      if (_trackerRegistry) return _trackerRegistry
+      if (_trackerRegistryInit) return _trackerRegistryInit
+      _trackerRegistryInit = (async () => {
+        try {
+          const injected = ctx.get('trackerRegistry')
+          if (injected && typeof injected.select === 'function') { _trackerRegistry = injected; return _trackerRegistry }
+        } catch {}
+        try {
+          const regMod = await import('./tracker/registry.js')
+          const createRegistry = regMod.createRegistry || regMod.default
+          const reg = createRegistry({}, { matchesTimeout: 3000 })
+          // 注册内置后端（github/markdown/gitlab），失败忽略（保持可用）
+          try {
+            const ghMod = await import('./tracker/backends/github/index.js')
+            const m = ghMod.githubModule || ghMod.defaultModule || ghMod.default
+            if (m && m.id) try { reg.register(m) } catch {}
+          } catch {}
+          try {
+            const mdMod = await import('./tracker/backends/markdown/index.js')
+            const mkCreate = mdMod.createMarkdownBackend || mdMod.createBackend || mdMod.default
+            const mkMatches = mdMod.matches
+            const mdModule = mkCreate ? { id: 'markdown', label: 'Markdown', create: mkCreate, matches: mkMatches || (async()=>false) } : null
+            if (mdModule) try { reg.register(mdModule) } catch {}
+          } catch {}
+          try {
+            const glMod = await import('./tracker/backends/gitlab/index.js')
+            const m2 = glMod.gitlabBackend || glMod.default
+            if (m2 && m2.id) try { reg.register(m2) } catch {}
+          } catch {}
+          _trackerRegistry = reg
+          try { ctx.set && ctx.set('trackerRegistry', reg) } catch {}
+          return reg
+        } catch (e) {
+          // 回落：空 registry（仅 explicit 能力）
+          try {
+            const regMod2 = await import('./tracker/registry.js')
+            const cr = regMod2.createRegistry || regMod2.default
+            _trackerRegistry = cr({}, { matchesTimeout: 3000 })
+            return _trackerRegistry
+          } catch { return null }
+        }
+      })()
+      _trackerRegistry = await _trackerRegistryInit
+      return _trackerRegistry
+    }
+    // 触发预热（不阻塞主流程）
+    try { getTrackerRegistry().catch(()=>{}) } catch {}
     // ============ 平台抽象（#171 · createPlatform 惰性单例）============
     // 第一性原理：平台单点 + 零手拼 + 双闸不变量；经 ctx.get('platform') 或内联 fallback（零 import 语法，避 D7 dev host vm.Script 阻塞）
     let _platform = null
@@ -784,6 +835,49 @@ export default {
       //   （count=0 → changed=false），且基线只在 changed=true 时才滑动 → 编辑被**永久吞掉**，UI 永不刷新。
       //   正确语义：基线只能由 probe 自己推进（检测到 change 时置为「本次探测时刻」）；build 完成 ≠ client 已渲染该
       //   快照，无权动基线。首次 probe（since=undefined）自然走全量返回 → 视为 changed → 建立基线（符合原注释意图）。
+      // #155：Selection/RepositoryRef 增量（registry.select/describe → wf.snapshot {repository, selection}）
+      let selection = null
+      let repository = null
+      try {
+        const reg = await getTrackerRegistry()
+        if (reg && typeof reg.select === 'function') {
+          const handle = { cwd: cwd }
+          const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} } }
+          // 能力诊断计数（G5 仅诊断，不驱动隐藏）——按 host 视角 fill 统计
+          const capCount = (function(iss){
+            let present=0, emptyCnt=0, missing=0
+            // 简易：以 labels 为例，其余字段按 shape 能力字段集计数
+            const fields=['author','assignees','labels','milestone','customFields','reason','blockedBy','comments','closedAt']
+            iss.forEach(function(it){
+              fields.forEach(function(f){
+                if (it[f] === undefined) missing++
+                else if (Array.isArray(it[f]) && it[f].length===0) emptyCnt++
+                else if (it[f]===null || it[f]==='') emptyCnt++
+                else present++
+              })
+            })
+            return {present, empty: emptyCnt, missing}
+          })(issues)
+          // select 三级联
+          const sel = await reg.select(handle, ctxSel)
+          selection = sel
+          if (sel && sel.backendId) {
+            try { repository = reg.describe(handle, sel.backendId) } catch {}
+            // markdown 本地 url 为空，github 则尽量补 github.com url
+            if (repository && !repository.url && sel.backendId==='github' && repo) {
+              repository.url = 'https://github.com/' + repo.owner + '/' + repo.name
+              repository.name = repo.owner + '/' + repo.name
+              repository.refId = repo.owner + '/' + repo.name
+            }
+          } else {
+            // fallback 时 repository 仍给占位（用于 UI 泛化）
+            if (repo) repository = { backend: 'github', refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: 'https://github.com/' + repo.owner + '/' + repo.name }
+            else repository = null
+          }
+          // 能力计数挂到 snapshot 供 ChecksTab 诊断卡
+          var _capDiag = capCount
+        }
+      } catch (e) { /* 保持 null，不阻塞快照 */ }
       return {
         ok: true,
         repo: repo,
@@ -795,6 +889,9 @@ export default {
         issues: issues,
         labels: labels,
         fallback: d.fallback || null,  // v1.5 B5：'rest' = GraphQL 配额耗尽已降级 REST（client 可提示）
+        repository: repository,
+        selection: selection,
+        capabilities: (typeof _capDiag !== 'undefined' ? _capDiag : null),
       }
     }
 
@@ -1057,6 +1154,48 @@ export default {
       }
     })
 
+    // #155：后端绑定（per-workspace 覆盖）+ 注册表查询
+    harness.handle('wf.bind', async function (args) {
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const backendId = args && ('backendId' in args ? args.backendId : args.backend)
+      try {
+        const reg = await getTrackerRegistry()
+        if (!reg) return { ok: false, error: 'registry unavailable' }
+        const handle = { cwd: cwd }
+        // null = 显式无后端（Other 逃生舱）
+        reg.bind(handle, backendId === undefined ? null : backendId)
+        // 失效快照缓存，下次拉取走新 backend
+        cache = { ts: 0, snapshot: null, error: null, cwd: null }
+        try { statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null } } catch {}
+        return { ok: true, cwd: cwd, backendId: backendId === undefined ? null : backendId }
+      } catch (e) {
+        const msg = String((e && e.message) || e)
+        if (/unknown-backend/.test(msg)) return { ok: false, error: msg, kind: 'unknown-backend' }
+        return { ok: false, error: msg }
+      }
+    })
+    harness.handle('wf.registry', async function (args) {
+      try {
+        const reg = await getTrackerRegistry()
+        if (!reg) return { ok: false, error: 'registry unavailable' }
+        const mods = reg.modules().map(function(m){ return { id: m.id, label: m.label } })
+        const cwd = (args && args.cwd) || DEFAULT_CWD
+        let bound = undefined
+        try { bound = reg.bound({ cwd: cwd }) } catch {}
+        return { ok: true, modules: mods, bound: bound }
+      } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
+    })
+    harness.handle('wf.selection', async function (args) {
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      try {
+        const reg = await getTrackerRegistry()
+        if (!reg) return { ok: false, error: 'registry unavailable' }
+        const sel = await reg.select({ cwd: cwd }, { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs') })
+        let repoRef = null
+        if (sel && sel.backendId) { try { repoRef = reg.describe({ cwd: cwd }, sel.backendId) } catch {} }
+        return { ok: true, selection: sel, repository: repoRef }
+      } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
+    })
     harness.handle('wf.issueDetail', async function (args) {
       const n = args && args.number
       const cwd = (args && args.cwd) || DEFAULT_CWD

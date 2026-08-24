@@ -1,0 +1,70 @@
+name: verify
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: verify (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install (pnpm)
+        run: |
+          pnpm install --no-frozen-lockfile
+        shell: bash
+
+      - name: Build artifacts (Gate I3)
+        run: node scripts/build.mjs
+        shell: bash
+
+      - name: Verify chain (platform 145+32 + tracker 366/4 + build-artifacts dual gate)
+        run: npm run verify
+        shell: bash
+
+      - name: Stage 1 minimal smoke (3 OS × GitHub, injected I1/I2/I4)
+        run: node scripts/matrix-smoke.js --os=all
+        shell: bash
+
+      - name: Stage 2 full matrix (3 OS × 3 backends, 9 cells)
+        run: node scripts/matrix-full.js --os=all --backend=all
+        shell: bash
+
+      - name: Upload matrix snapshot (artifact per OS)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrix-results-${{ matrix.os }}
+          path: |
+            docs/architecture/matrix.md
+            scripts/matrix-smoke.js
+            scripts/matrix-full.js
+          retention-days: 14
+
+  darwin-note:
+    # 若组织禁用 macos-latest，需自托管 mac 或手动跑；此处仅作为文档性登记（本配置已用 hosted runner 覆盖 darwin）
+    if: false
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "darwin runner 若无则登记：需自托管 mac 或手动跑 node scripts/matrix-smoke.js --os=darwin"

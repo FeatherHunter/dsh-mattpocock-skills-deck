@@ -1,0 +1,29 @@
+{
+  "key": "02",
+  "type": "issue",
+  "title": "Empty Issue",
+  "state": "open",
+  "body": "# Empty Issue\n\nStatus: ready-for-agent\nType: task\nBlocked by:\n\n## Comments\n\n## Answer\n",
+  "url": "",
+  "createdAt": "",
+  "updatedAt": "",
+  "closedAt": null,
+  "parentKey": null,
+  "blockedBy": [],
+  "comments": [],
+  "customFields": [
+    {
+      "name": "Type",
+      "value": "task",
+      "type": "single",
+      "options": [
+        "research",
+        "prototype",
+        "grilling",
+        "task"
+      ]
+    }
+  ],
+  "assignees": [],
+  "reason": ""
+}

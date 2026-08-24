@@ -1,0 +1,52 @@
+{
+  "source": "gh api repos/FeatherHunter/dsh-mattpocock-skills-deck/issues/173 + repos/FeatherHunter/dsh-mattpocock-skills-deck/issues (list, 5) + repos/FeatherHunter/dsh-mattpocock-skills-deck/issues/173/comments",
+  "repo": "FeatherHunter/dsh-mattpocock-skills-deck",
+  "refId": "FeatherHunter/dsh-mattpocock-skills-deck",
+  "sampledAt": "2026-08-24T08:09:16.211Z",
+  "sampledBy": "scripts/generate-github-fixtures.js",
+  "issue": 173,
+  "desensitization": {
+    "rules": [
+      "移除 Authorization/token（不记录请求头）",
+      "body 中 ghp_/github_pat_ 替换为 [REDACTED]",
+      "user/assignee email -> redacted@example.com",
+      "仅保留契约归一化所需字段，移除 etag/rate-limit 头"
+    ],
+    "applied": true
+  },
+  "fields": {
+    "raw": [
+      "number",
+      "title",
+      "state",
+      "body",
+      "html_url",
+      "created_at",
+      "updated_at",
+      "closed_at",
+      "labels",
+      "assignees",
+      "user",
+      "comments",
+      "milestone"
+    ],
+    "normalized": [
+      "key",
+      "type",
+      "title",
+      "state",
+      "body",
+      "url",
+      "createdAt",
+      "updatedAt",
+      "closedAt",
+      "parentKey",
+      "labels",
+      "assignees",
+      "comments",
+      "blockedBy",
+      "reason"
+    ]
+  },
+  "notes": "真实采样来自公开仓库 FeatherHunter/dsh-mattpocock-skills-deck，无敏感信息；若后续采样私有仓库需额外脱敏（邮箱/token/内部 URL）。"
+}

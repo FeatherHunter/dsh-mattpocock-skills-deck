@@ -1,0 +1,21 @@
+{
+  "source": "examples/demo-mini in-memory store (seed fixtures)",
+  "sampledAt": "2024-01-15T00:00:00Z",
+  "repo": { "backend": "demo-mini", "refId": "demo", "name": "demo", "url": "" },
+  "refId": "demo",
+  "desensitization": {
+    "rules": [
+      "ghp_* → [REDACTED]",
+      "github_pat_* → [REDACTED]",
+      "email → redacted@example.com",
+      "no Authorization header logged"
+    ],
+    "checkedAt": "2024-01-15T00:00:00Z"
+  },
+  "fields": {
+    "implemented": ["labels", "assignees", "comments", "blockedBy", "reason"],
+    "missing": ["author", "milestone", "customFields"]
+  },
+  "fixtures": ["raw-issue-1.json", "raw-issue-2.json", "normalized-1.json", "normalized-2.json"],
+  "notes": "fixtures 由 scripts/generate-demo-fixtures.js 从 normalize + store 采样生成，已脱敏（无 token/邮箱）。"
+}

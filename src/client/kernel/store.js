@@ -181,6 +181,32 @@
     export const clearActiveDetail = function (st) { st.activeMap = null; st.activeIssue = null; emit(st) }
     // T2 #7 · fetchIssueDetail 缓存与状态（独立于 snapshot，按 issue 号 60s TTL）
     export const ISSUE_CACHE_TTL = 60000
+    // #155：后端选择 per-cwd 状态（权威来自 host snapshot.selection/repository；client 仅镜像乐观）
+    export const selectionByCwd = {}
+    export const repositoryByCwd = {}
+    export const getCachedSelection = function (cwd) { return cwd ? selectionByCwd[cwd] : null }
+    export const setCachedSelection = function (cwd, sel) { if (cwd) selectionByCwd[cwd] = sel }
+    export const getCachedRepository = function (cwd) { return cwd ? repositoryByCwd[cwd] : null }
+    export const setCachedRepository = function (cwd, repo) { if (cwd) repositoryByCwd[cwd] = repo }
+    export const labelOf = function (backendId) {
+      if (backendId == null) return 'Other'
+      const map = { github: 'GitHub', markdown: 'Markdown', gitlab: 'GitLab' }
+      if (map[backendId]) return map[backendId]
+      return String(backendId)
+    }
+    export const backendColorOf = function (backendId) {
+      if (backendId === 'github') return '#24292f'
+      if (backendId === 'markdown') return '#3fb950'
+      if (backendId === 'gitlab') return '#fc6d26'
+      if (backendId == null) return '#6e7681'
+      return '#6e7681'
+    }
+    export const repoShortName = function (repoRef) {
+      if (!repoRef || !repoRef.name) return ''
+      const n = String(repoRef.name)
+      const parts = n.split(/[\\/]/)
+      return parts[parts.length-1] || n
+    }
     export const makeStore = () => ({
       open: false, tab: 'list', activeMap: null, activeIssue: null,
       issueCache: {}, issueMode: 'idle', issueError: null, issueDetail: null, issueCommentsMoreLoading: false, issueCommentsFailCount: 0, issueCommentsHasMore: true,
@@ -189,6 +215,11 @@
       // 外观定死（用户拍板：图标/动作词不可配置）
       ui: { icon: 'compass', word: '沉淀' },
       snapshot: null,
+      selection: null,
+      repository: null,
+      backendModules: null,
+      backendMenuOpen: false,
+      backendMenuPos: null,
       cwd: '', lblFilters: [], skillView: 'list', expLabels: false,
       // #374：状态过滤 + 排序（默认 更新时间↓，与现状一致）
       stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
@@ -208,20 +239,45 @@
     export const hydrateFromCache = function (st) {
       if (!st || !st.cwd) return false
       const c = getCachedSnapshot(st.cwd)
-      if (!c) return false
-      if (!st.snapshot || c.generatedMs !== st.snapshot.generatedMs) {
-        st.snapshot = c
-        st.snapMode = 'real'
-        st.snapError = null
-        st.snapLoading = false
-        return true
+      let changed=false
+      if (c) {
+        if (!st.snapshot || c.generatedMs !== st.snapshot.generatedMs) {
+          st.snapshot = c
+          st.snapMode = 'real'
+          st.snapError = null
+          st.snapLoading = false
+          changed=true
+        } else if (st.snapMode !== 'real') {
+          st.snapMode = 'real'
+          st.snapError = null
+          changed=true
+        }
+        // 同步 selection/repository 镜像（per-cwd）
+        if (c.selection !== undefined) { st.selection = c.selection; setCachedSelection(st.cwd, c.selection) }
+        if (c.repository !== undefined) { st.repository = c.repository; setCachedRepository(st.cwd, c.repository) }
+        // backendModules 缓存
+        if (c.backendModules) st.backendModules = c.backendModules
       }
-      if (st.snapMode !== 'real') {
-        st.snapMode = 'real'
-        st.snapError = null
-        return true
+      // selection/repository 单独缓存兜底（snapshot 未命中但 selection 有缓存）
+      if (!st.selection) {
+        const sel = getCachedSelection(st.cwd)
+        if (sel) { st.selection = sel; changed=true }
       }
-      return false
+      if (!st.repository) {
+        const rep = getCachedRepository(st.cwd)
+        if (rep) { st.repository = rep; changed=true }
+      }
+      return changed
+    }
+    export const applySnapshotSelection = function (st, snap) {
+      if (!st || !snap) return
+      if (snap.selection !== undefined) { st.selection = snap.selection; if (st.cwd) setCachedSelection(st.cwd, snap.selection) }
+      if (snap.repository !== undefined) { st.repository = snap.repository; if (st.cwd) setCachedRepository(st.cwd, snap.repository) }
+      if (snap.backendModules) st.backendModules = snap.backendModules
+      if (snap.repository && snap.repository.backend) {
+        // 兼容旧 snapshot.repo 字段
+        if (!st.snapshot) st.snapshot = snap
+      }
     }
     export const getCwdSync = function (sid) {
       try {

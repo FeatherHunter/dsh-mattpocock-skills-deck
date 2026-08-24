@@ -91,6 +91,8 @@ export     const StatusBar = (props) => {
       const bugCloseRef = React.useRef(null)
       const issuePathAnchorRef = React.useRef(null)
       const issuePathCloseRef = React.useRef(null)
+      const backendAnchorRef = React.useRef(null)
+      const backendCloseRef = React.useRef(null)
       const [iw, setIw] = React.useState(780)
       // issue #22：布局 wrapper 保持裁剪职责；浮层位置以锚点 viewport rect 表示。
       const placeOverlay = function (el, align) {

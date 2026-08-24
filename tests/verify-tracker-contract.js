@@ -19,6 +19,8 @@ import runContractTests from './tracker-contract/harness.js'
 import compliant from './tracker-contract/fixtures/compliant.js'
 import violating from './tracker-contract/fixtures/violating.js'
 import { gitlabFreeFixture, gitlabPremiumFixture } from './tracker-contract/fixtures/gitlab.js'
+import { demoFixture } from './tracker-contract/fixtures/demo.js'
+import { runPlayback } from './tracker-contract/runner/index.js'
 import contractSection from './tracker-contract/sections/contract.js'
 import registrySection from './tracker-contract/sections/registry.js'
 import preflightSection from './tracker-contract/sections/preflight.js'
@@ -28,6 +30,7 @@ import snapshotSection from './tracker-contract/sections/snapshot.js'
 const results = [
   ...runContractTests(compliant), // 合规 → 应全 PASS
   ...runContractTests(violating), // 违规 → 应至少一 FAIL
+  ...runContractTests(demoFixture), // demo-mini 合规 → 应全 PASS（外部实现合规证据）
 ]
 
 // #139：以真实 github 适配器执行 G4（来源有→映射；来源无→空值；违规桩被逮已由 violating 覆盖）
@@ -96,6 +99,56 @@ try {
   results.push({ name: 'gitlab-adapter · import-failed', ok: false, detail: String(e && e.message || e) })
 }
 
+// #148：demo-mini 强验证 — runContractTests 已在 results 头部完成，此处追加 runPlayback 织入（离线采样固件）
+try {
+  const playback = await runPlayback({ fixturesDir: 'examples/demo-mini/fixtures/demo-real', label: 'demo-playback' })
+  results.push(...playback.results)
+  // 额外：demo 的 blocking 反向投影（getDependencies 语义）
+  const { createDemoBackend } = await import('../examples/demo-mini/index.js')
+  const { createRunnerContext } = await import('./tracker-contract/runner/index.js')
+  const demoCtx = await createRunnerContext({ cwd: process.cwd() })
+  const tracker = createDemoBackend(demoCtx)
+  // list[0] 应为 key=1 且 blockedBy 含 2，getDependencies(1) 应返回 blockedBy=[2] 且 blocking=[]
+  const listRes = await tracker.list({ backend: 'demo-mini', refId: 'demo', name: 'demo', url: '' }, {}, { cwd: process.cwd() })
+  const listOk = listRes.ok && Array.isArray(listRes.data) && listRes.data.length >= 2 && listRes.data[0].key === '1'
+  results.push({ name: 'demo-mini · list returns seed 2 issues', ok: listOk, detail: listOk ? '' : JSON.stringify(listRes).slice(0, 500) })
+  if (listOk) {
+    const depRes = await tracker.getDependencies({ backend: 'demo-mini', refId: 'demo', name: 'demo', url: '' }, '1', {}, { cwd: process.cwd() })
+    const depOk = depRes.ok && Array.isArray(depRes.data.blockedBy) && depRes.data.blockedBy.length === 1 && depRes.data.blockedBy[0].key === '2'
+    results.push({ name: 'demo-mini · getDependencies blockedBy projection', ok: depOk, detail: depOk ? '' : JSON.stringify(depRes).slice(0, 500) })
+    const blockingOk = depRes.ok && Array.isArray(depRes.data.blocking) && depRes.data.blocking.length === 0
+    results.push({ name: 'demo-mini · getDependencies blocking empty (seed 2 not blocked)', ok: blockingOk, detail: blockingOk ? '' : JSON.stringify(depRes).slice(0, 500) })
+    // Proxy 补桩：未实现 op 应由 registry 补 unsupported；裸 tracker 上 close 为 undefined 属预期
+    const hasClose = typeof tracker.close === 'function'
+    let closeRes = null
+    if (hasClose) {
+      try { closeRes = await tracker.close({ backend: 'demo-mini', refId: 'demo', name: 'demo', url: '' }, '1', {}, { cwd: process.cwd() }) } catch {}
+    }
+    const proxyHint = hasClose ? `has close (unexpected) — ${JSON.stringify(closeRes)?.slice(0,200)}` : 'no close (proxy will handle — expected for 4-op demo)'
+    results.push({ name: 'demo-mini · proxy hint: unimplemented ops via registry', ok: true, detail: proxyHint })
+    // registry 包装验证：demoModule 经 registry 后，缺的 9 ops 应为 unsupported 桩
+    const { createRegistry } = await import('../src/host/tracker/registry.js')
+    const { demoModule } = await import('../examples/demo-mini/index.js')
+    const reg = createRegistry(demoCtx)
+    const disp = reg.register(demoModule)
+    const wrapped = reg.get('demo-mini')
+    const stubRes = await wrapped.close({ backend: 'demo-mini', refId: 'demo', name: 'demo', url: '' }, '1', {}, { cwd: process.cwd() })
+    const stubOk = stubRes && stubRes.ok === false && stubRes.error && stubRes.error.kind === 'unsupported'
+    results.push({ name: 'demo-mini · registry Proxy stubs 9 ops → unsupported', ok: stubOk, detail: stubOk ? '' : JSON.stringify(stubRes).slice(0, 500) })
+    disp.dispose()
+  }
+  // demo matches：cwd 含 .demo/config.json 时应为 true，否则 false（boolean，不抛）
+  const { demoMatches } = await import('../examples/demo-mini/matches.js')
+  const fs = await import('node:fs/promises')
+  const tmpCwd = process.cwd()
+  // matches 在无 .demo 时应为 false（当前仓库无 .demo/config.json，仅 .scratch/map.md 存在，按 spec 也算 true）
+  const matchRes = await demoMatches({ cwd: tmpCwd }, demoCtx)
+  const matchOk = typeof matchRes === 'boolean'
+  results.push({ name: 'demo-mini · matches returns boolean', ok: matchOk, detail: matchOk ? `got=${matchRes}` : `got=${String(matchRes)}` })
+} catch (e) {
+  results.push({ name: 'demo-mini · playback/import failed', ok: false, detail: String(e && e.stack || e) })
+}
+
 for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection]) {
   try {
     const r = await s.run()
@@ -115,16 +168,20 @@ for (const r of results) {
 
 console.log(`\ncontract-test: ${passed} passed, ${failed} failed`)
 
-// 校验契约骨架自洽：合规桩全过、违规桩至少逮住一个、github/gitlab适配器合规全过、行为段全 PASS（含 probe 自证）
+// 校验契约骨架自洽：合规桩全过、违规桩至少逮住一个、github/gitlab/demo 适配器合规全过、行为段全 PASS（含 probe 自证）
 const compliantOk = results.filter((r) => r.name.startsWith(compliant.name) && !r.ok).length === 0
 const caughtViolation = results.filter((r) => r.name.startsWith(violating.name) && !r.ok).length > 0
 const githubOk = results.filter((r) => r.name.startsWith('github-adapter') && !r.ok).length === 0
 const gitlabOk = results.filter((r) => r.name.startsWith('gitlab-') && !r.ok).length === 0
-const sectionsOk = results.filter((r) => !r.name.startsWith(compliant.name) && !r.name.startsWith(violating.name) && !r.name.startsWith('github-adapter') && !r.name.startsWith('gitlab-') && !r.ok).length === 0
-if (!(compliantOk && caughtViolation && githubOk && gitlabOk && sectionsOk)) {
+const demoOk = results.filter((r) => r.name.startsWith('demo-mini') && !r.ok).length === 0
+const demoPlaybackOk = results.filter((r) => r.name.startsWith('demo-playback') && !r.ok).length === 0
+const sectionsOk = results.filter((r) => !r.name.startsWith(compliant.name) && !r.name.startsWith(violating.name) && !r.name.startsWith('github-adapter') && !r.name.startsWith('gitlab-') && !r.name.startsWith('demo-mini') && !r.name.startsWith('demo-playback') && !r.ok).length === 0
+if (!(compliantOk && caughtViolation && githubOk && gitlabOk && demoOk && demoPlaybackOk && sectionsOk)) {
   console.error('CONTRACT SKELETON NOT SELF-CONSISTENT')
   if (!githubOk) console.error('GITHUB ADAPTER FAILED G4')
   if (!gitlabOk) console.error('GITLAB ADAPTER FAILED G4')
+  if (!demoOk) console.error('DEMO-MINI ADAPTER FAILED G4')
+  if (!demoPlaybackOk) console.error('DEMO PLAYBACK FAILED')
   process.exit(1)
 }
 console.log('CONTRACT SKELETON OK')

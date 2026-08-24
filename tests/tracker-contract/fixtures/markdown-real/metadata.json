@@ -1,0 +1,39 @@
+{
+  "source": "<fallback: tests/tracker-contract/fixtures/markdown.js#withData>",
+  "repo": "local .scratch/<effort>/issues",
+  "refId": "markdown:local",
+  "sampledAt": "2026-08-24T08:12:49.807Z",
+  "sampledBy": "scripts/generate-markdown-fixtures.js",
+  "desensitization": {
+    "rules": [
+      "body 中 ghp_/github_pat_ 替换为 [REDACTED]",
+      "assignee email -> redacted@example.com（markdown 无邮箱，仅防御）",
+      "移除本地绝对路径前缀，仅保留相对票据内容"
+    ],
+    "applied": true
+  },
+  "fields": {
+    "raw": [
+      "title",
+      "Status",
+      "Type",
+      "Blocked by",
+      "Comments",
+      "Answer",
+      "进度"
+    ],
+    "normalized": [
+      "key",
+      "type",
+      "title",
+      "state",
+      "body",
+      "parentKey",
+      "assignees",
+      "blockedBy",
+      "comments",
+      "customFields"
+    ],
+    "notes": "Markdown 票据为本地文件系统采样，无网络依赖；真实性由“读真实 .scratch 文件→parse→normalize”链路保证。"
+  }
+}

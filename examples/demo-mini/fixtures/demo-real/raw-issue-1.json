@@ -1,0 +1,16 @@
+{
+  "key": "1",
+  "title": "Demo issue 1",
+  "state": "open",
+  "body": "demo body 1",
+  "url": "",
+  "createdAt": "2024-01-01T00:00:00Z",
+  "updatedAt": "2024-01-01T00:00:00Z",
+  "closedAt": null,
+  "parentKey": null,
+  "labels": [{ "name": "bug", "color": "d73a4a", "description": "bug label" }],
+  "assignees": [{ "login": "alice", "name": "Alice", "avatarUrl": "" }],
+  "comments": [{ "id": "c1", "author": { "login": "alice" }, "authorAssociation": "OWNER", "body": "first comment", "createdAt": "2024-01-01T00:00:00Z", "updatedAt": "2024-01-01T00:00:00Z" }],
+  "blockedBy": [{ "key": "2", "title": "Demo issue 2", "state": "open" }],
+  "reason": ""
+}

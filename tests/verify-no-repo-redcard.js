@@ -12,7 +12,8 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 // 1) host 侧 wf.initPublish
 check(host.includes("harness.handle('wf.initPublish'"), 'host 含 wf.initPublish handle');
 // T0（#93）seam 化：pkg host 由规范源构建，harness.handle 经 seam 落入 __DSW_HANDLERS__ Map（不再是手写 case 开关）
-check(pkgHost.includes("__DSW_HANDLERS__") && pkgHost.includes("harness.handle('wf.initPublish'"), 'package index 含 initPublish dispatch（seam Map 形态）');
+// #172 方案 C 原样复制：package/lib/index.js = src/host/index.js 原文件，__DSW_HANDLERS__ 仅旧拼接存在，新包仅需 harness.handle
+check(pkgHost.includes("harness.handle('wf.initPublish'"), 'package index 含 initPublish dispatch（seam Map 形态 / 方案 C 原样复制）');
 check(host.includes("resolveGit()") && host.includes("resolveGh()"), 'host initPublish 探测 git/gh');
 check(host.includes("rev-parse") && host.includes("'init'"), 'host initPublish 含 git init 逻辑（rev-parse 探测 + init）');
 check(host.includes("git commit") && host.includes("initial commit") && host.includes("--allow-empty"), 'host initPublish 含 git add + commit --allow-empty');

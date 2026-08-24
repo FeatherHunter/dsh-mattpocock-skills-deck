@@ -46,6 +46,46 @@ export     const SettingsPage = (props) => {
         setOpenInNote(true)
         if (timer !== undefined) timer.timeout(function () { setOpenInNote(false) }, 2600)
       }
+      // #155 Q1/Q3：后端选择（平铺单选列表 + per-workspace wf.bind）
+      const [backendModules, setBackendModules] = React.useState(function(){ return (sharedSt && sharedSt.backendModules) || null })
+      const [backendLoading, setBackendLoading] = React.useState(false)
+      const [backendErr, setBackendErr] = React.useState('')
+      const curSelection = sharedSt && sharedSt.selection ? sharedSt.selection : (sharedSt && sharedSt.snapshot && sharedSt.snapshot.selection ? sharedSt.snapshot.selection : null)
+      const curRepo = sharedSt && sharedSt.repository ? sharedSt.repository : (sharedSt && sharedSt.snapshot && sharedSt.snapshot.repository ? sharedSt.snapshot.repository : null)
+      const curBackendId = curSelection && curSelection.backendId !== undefined ? curSelection.backendId : null
+      const curSource = curSelection && curSelection.source ? curSelection.source : 'fallback'
+      React.useEffect(function(){
+        if (backendModules && backendModules.length) return
+        if (typeof host === 'undefined' || typeof host.call !== 'function') return
+        setBackendLoading(true)
+        host.call('wf.registry', { cwd: sharedSt.cwd || '' }).then(function(r){
+          setBackendLoading(false)
+          if (r && r.ok && Array.isArray(r.modules)) { setBackendModules(r.modules); sharedSt.backendModules = r.modules; emit(sharedSt) }
+          else if (r && r.error) setBackendErr(String(r.error).slice(0,120))
+        }).catch(function(e){ setBackendLoading(false); setBackendErr(String(e).slice(0,120)) })
+      }, [sharedSt.cwd])
+      const pickBackend = function(id){
+        if (typeof host === 'undefined' || typeof host.call !== 'function') { flash(sharedSt, 'host 不可用', 'warn'); return }
+        // 乐观更新 per-cwd 镜像
+        const prev = sharedSt.selection
+        sharedSt.selection = { backendId: id, source: 'explicit', ref: curRepo, pending: undefined }
+        try { if (sharedSt.cwd) { selectionByCwd[sharedSt.cwd]=sharedSt.selection } } catch {}
+        emit(sharedSt)
+        host.call('wf.bind', { cwd: sharedSt.cwd || '', backendId: id }).then(function(res){
+          if (res && res.ok) {
+            flash(sharedSt, '已切换到 ' + labelOf(id), 'ok')
+            loadSnapshot(sharedSt, true, true)
+          } else {
+            sharedSt.selection = prev
+            emit(sharedSt)
+            flash(sharedSt, '切换失败: ' + String(res && res.error || 'unknown'), 'warn')
+          }
+        }).catch(function(e){
+          sharedSt.selection = prev
+          emit(sharedSt)
+          flash(sharedSt, '切换失败: ' + String(e), 'warn')
+        })
+      }
       // v1.3.3 T1：模板 textarea 自适应高度（内容全展开 · 无内层滚动 · 最外层滑动）
       const autoGrowTa = function (el) {
         if (!el) return
@@ -166,6 +206,44 @@ export     const SettingsPage = (props) => {
             ]),
             openInNote ? h('div', { style: { fontSize: 11, color: '#4ade80', marginTop: 6 } }, tr('cfg.openInHint')) : null,
           ]),
+        ]),
+        // #155 Q1：后端选择（平铺单选列表 + source 胶囊 + per-workspace）
+        h('div', { className: 'dsws-cfg-group', id: 'dsws-cfg-backend' }, [
+          h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'compass', size: 13 }), h('span', null, '后端')]),
+          h('div', { className: 'dsws-cfg-gdesc' }, '选择当前工作区的 Tracker 后端（per-workspace 覆盖，wf.bind 唯一真相源）'),
+          backendLoading ? h('div', { style: { fontSize: 11, color: '#8b8b95', padding: '6px 0' } }, '加载中…') :
+          backendErr ? h('div', { style: { fontSize: 11, color: '#f87171' } }, backendErr) :
+          (function(){
+            const mods = backendModules || [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
+            const isMultiHit = curSelection && Array.isArray(curSelection.multiHit) && curSelection.multiHit.length>1
+            return h('div', null, [
+              h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, mods.map(function(m){
+                const isOn = curBackendId === m.id
+                const srcLabel = curSource==='explicit' ? '显式绑定' : curSource==='matches' ? '自动匹配' : '回退'
+                const srcColor = curSource==='explicit' ? '#4ade80' : curSource==='matches' ? '#58a6ff' : '#8b8b95'
+                const multiHitMark = isMultiHit && curSelection.multiHit.indexOf(m.id)>=0 ? h('span', {style:{fontSize:10, color:'#f59e0b', border:'1px solid #f59e0b', borderRadius:4, padding:'0 4px'}}, '⚠ 多命中') : null
+                return h('label', { key: m.id, style: { display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:6, border: isOn ? '1px solid ' + backendColorOf(m.id) : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isOn ? 'rgba(88,166,255,.08)' : 'transparent', cursor:'pointer' } }, [
+                  h('input', { type:'radio', name:'dsws-backend', checked: isOn, onChange: function(){ pickBackend(m.id) } }),
+                  h('span', { style:{ width:8, height:8, borderRadius:'50%', background: backendColorOf(m.id), flex:'none' } }),
+                  h('span', { style:{ fontSize:12, fontWeight:600 } }, m.label),
+                  h('span', { style:{ fontSize:10, color:'#8b8b95' } }, m.id),
+                  h('span', { style:{ flex:1 } }),
+                  isOn ? h('span', { style:{ fontSize:10, color: srcColor, border:'1px solid ' + srcColor, borderRadius:4, padding:'0 4px' } }, srcLabel) : null,
+                  multiHitMark,
+                ])
+              })),
+              // Other / 显式无后端 选项（灰色逃生舱）
+              h('label', { key:'_other', style:{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:6, border: curBackendId===null ? '1px solid #6e7681' : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: curBackendId===null ? 'rgba(110,118,129,.12)' : 'transparent', cursor:'pointer', marginTop:4 } }, [
+                h('input', { type:'radio', name:'dsws-backend', checked: curBackendId===null, onChange: function(){ pickBackend(null) } }),
+                h('span', { style:{ width:8, height:8, borderRadius:'50%', background:'#6e7681', flex:'none' } }),
+                h('span', { style:{ fontSize:12, fontWeight:600 } }, 'Other（无后端）'),
+                h('span', { style:{ fontSize:10, color:'#8b8b95' } }, '逃生舱'),
+              ]),
+              isMultiHit ? h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:6, display:'flex', alignItems:'center', gap:4 } }, [Ic({n:'alert',size:11}), h('span', null, '检测到多个可用后端：' + curSelection.multiHit.join(', ') + ' — 建议显式绑定')]) : null,
+              curSelection && curSelection.pending ? h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:4 } }, '⏳ 探测未决，等待中… 若长时间停留请手动选择') : null,
+              curRepo ? h('div', { style:{ fontSize:10, color:'#8b8b95', marginTop:4 } }, '当前仓库: ' + (curRepo.name || '') + (curRepo.url ? ' · ' + curRepo.url : '')) : null,
+            ])
+          })(),
         ]),
         // 1.5 面板宽度重置（#398 拆票 A · 与 #397 协调 · 等 layoutSvc.resetDetails API；缺失时友好提示不让 UI 崩溃）
         h('div', { className: 'dsws-cfg-group' }, [

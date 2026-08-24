@@ -1,0 +1,50 @@
+{
+  "key": "01",
+  "type": "issue",
+  "title": "Hello World",
+  "state": "open",
+  "body": "# Hello World\n\nBody for hello world.\n\nStatus: claimed\nType: task\nBlocked by: #02\n\n## Comments\n\n### local — 2026-08-24T00:00:00.000Z\nFirst comment.\n\n## Answer\n\nAnswer body.\n\n## 进度：50%\n",
+  "url": "",
+  "createdAt": "",
+  "updatedAt": "",
+  "closedAt": null,
+  "parentKey": "00",
+  "blockedBy": [
+    {
+      "key": "02",
+      "title": "",
+      "state": "open"
+    }
+  ],
+  "comments": [
+    {
+      "author": {
+        "login": "local"
+      },
+      "authorAssociation": "",
+      "body": "First comment.",
+      "createdAt": "2026-08-24T00:00:00.000Z",
+      "updatedAt": "2026-08-24T00:00:00.000Z"
+    }
+  ],
+  "customFields": [
+    {
+      "name": "Type",
+      "value": "task",
+      "type": "single",
+      "options": [
+        "research",
+        "prototype",
+        "grilling",
+        "task"
+      ]
+    }
+  ],
+  "assignees": [
+    {
+      "login": "@me",
+      "kind": "user"
+    }
+  ],
+  "reason": ""
+}

@@ -213,9 +213,19 @@
             st.snapshot = snap
             st.snapMode = 'real'
             st.snapError = null
+            // #155：同步 selection/repository 镜像
+            try { if (typeof applySnapshotSelection === 'function') applySnapshotSelection(st, snap) } catch {}
             // #58 缓存优先：落 per-cwd 内存表，供新 store 秒开
             try { const c = snap.repoRoot || st.cwd; if (c) setCachedSnapshot(c, snap) } catch (e) { /* 忽略 */ }
             try { if (st.cwd) setCachedSnapshot(st.cwd, snap) } catch (e) { /* 忽略 */ }
+            // 拉取 backendModules（若 snapshot 未带，则另调 registry）
+            try {
+              if (!st.backendModules && typeof host !== 'undefined' && host.call) {
+                host.call('wf.registry', { cwd: st.cwd }).then(function(r){
+                  if (r && r.ok && Array.isArray(r.modules)) { st.backendModules = r.modules; emit(st) }
+                }).catch(function(){})
+              }
+            } catch {}
             // v1.5 T10：启动自动变化探测（幂等；快照就绪后生效）
             startAutoProbe()
             // v1.5 B5 修订：磁盘缓存秒开（fromCache）→ 不再 400ms 强制全量刷新。

@@ -1,0 +1,41 @@
+name: matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: "OS filter (all/win32/darwin/linux)"
+        required: false
+        default: "all"
+      backend:
+        description: "Backend filter (all/github/markdown/gitlab)"
+        required: false
+        default: "all"
+
+jobs:
+  matrix:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+        shell: bash
+      - run: node scripts/build.mjs
+        shell: bash
+      - run: npm run verify
+        shell: bash
+      - run: node scripts/matrix-smoke.js --os=${{ inputs.os }}
+        shell: bash
+      - run: node scripts/matrix-full.js --os=${{ inputs.os }} --backend=${{ inputs.backend }}
+        shell: bash
