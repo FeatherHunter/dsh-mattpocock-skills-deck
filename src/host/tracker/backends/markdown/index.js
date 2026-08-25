@@ -34,6 +34,20 @@ export async function matches(handle, ctx){
       }
     }catch{}
     for(const p of candidatePaths){if(await exists(ctx,p))return true}
+    // bug 修复：setup 已选 Local Markdown 但尚未落 map.md 时，仍应算 Markdown 身份（底层 Markdown 格式以 docs/agents/issue-tracker.md 声明为准，非仅 map.md 数据）
+    try{
+      const itPath=plat.join(cwd,'docs/agents/issue-tracker.md')
+      if(await exists(ctx,itPath)){
+        let txt=''
+        try{ txt=await readTextFile(ctx,itPath) }catch{
+          try{
+            const fs2=ctx&&ctx.platform?ctx.platform.fs:(ctx&&ctx.fs)||null
+            if(fs2&&typeof fs2.resolve==='function'&&typeof fs2.readText==='function'){ const t=await fs2.resolve(itPath,{cwd}); txt=await fs2.readText(t) }
+          }catch{}
+        }
+        if(typeof txt==='string'&&/Local\s+Markdown/i.test(txt)) return true
+      }
+    }catch{}
     return false
   }catch{return false}
 }
