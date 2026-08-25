@@ -65,7 +65,8 @@ export const SwitchConfirmModal = (props) => {
     }
   }, [])
   // #191（用户反馈）：面板内覆盖层（不渲染到 body，不做全屏弹窗）；就地渲染于右侧面板容器内（容器需 position:relative）
-  const overlayStyle = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.45)', padding: 16, borderRadius: 12 }
+  // #191（用户反馈）：顶部 Y 轴恒定——不垂直居中，顶部锚定 + 内容向下生长；按钮在标题行右侧（与 ✕ 并列）
+  const overlayStyle = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(0,0,0,.45)', padding: '16px 16px 16px', borderRadius: 12, overflowY: 'auto' }
   // #191（用户反馈）：弹窗高度固定，内容多少不跳动（keep/migrate/clear 三态同高，多出部分内部滚动）
   // #191（用户反馈）：顶部固定（标题 + 按钮恒定），内容区独立向下延伸滚动——按钮永不跳动
   const cardStyle = { boxSizing: 'border-box', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 560, maxHeight: '90vh', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12, background: 'var(--dsw-alias-bg-layer-2,#16181d)', boxShadow: '0 16px 48px rgba(0,0,0,.5)', padding: 16 }
@@ -88,16 +89,14 @@ export const SwitchConfirmModal = (props) => {
   }
   return h('div', { style: overlayStyle, onClick: function (e) { if (e.target === e.currentTarget) doClose() } }, [
     h('div', { style: cardStyle }, [
-      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } }, [
+      // #191（用户反馈）：操作按钮与标题同行右侧（取消 + 确认切换 + ✕），顶部 Y 恒定，不占独立行
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flex: 'none' } }, [
         typeof Ic === 'function' ? Ic({ n: 'compass', size: 14 }) : h('span', null, '◉'),
-        h('span', { style: { fontSize: 13, fontWeight: 700 } }, tr('switch.title')),
+        h('span', { style: { fontSize: 13, fontWeight: 700, flex: 'none' } }, tr('switch.title')),
         h('span', { style: { flex: 1 } }),
+        h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { fontSize: 12, padding: '2px 10px' } }, tr('switch.cancel')),
+        h('button', { className: 'dsws-btn', disabled: confirmDisabled, onClick: doConfirm, style: { fontSize: 12, padding: '2px 10px', background: confirmDisabled ? '#2a2d35' : '#58a6ff', borderColor: confirmDisabled ? '#2a2d35' : '#58a6ff', color: confirmDisabled ? '#8b8b95' : '#0b1220', fontWeight: 700, cursor: confirmDisabled ? 'not-allowed' : 'pointer' } }, sc.confirming ? tr('switch.confirming') : tr('switch.confirm')),
         h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { padding: '2px 6px' } }, '✕'),
-      ]),
-      // #191（用户反馈）：确认/取消固定在顶部，内容变化时按钮不跳动
-      h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginBottom: 10, flex: 'none' } }, [
-        h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { fontSize: 12 } }, tr('switch.cancel')),
-        h('button', { className: 'dsws-btn', disabled: confirmDisabled, onClick: doConfirm, style: { fontSize: 12, background: confirmDisabled ? '#2a2d35' : '#58a6ff', borderColor: confirmDisabled ? '#2a2d35' : '#58a6ff', color: confirmDisabled ? '#8b8b95' : '#0b1220', fontWeight: 700, cursor: confirmDisabled ? 'not-allowed' : 'pointer' } }, sc.confirming ? tr('switch.confirming') : tr('switch.confirm')),
       ]),
       // #191：内容区独立滚动（向下延伸），起始标记
       h('div', { style: bodyStyle }, [
