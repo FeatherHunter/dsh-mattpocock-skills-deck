@@ -54,7 +54,9 @@ export     const ChecksTab = ({ st }) => {
         ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
             Ic({ n: 'alert', size: 13 }),
             h('span', { style: { flex: 1 } }, tr('banner.ghcli')),
-            h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { openUrl('https://cli.github.com/') } }, tr('banner.ghcliBtn')),
+            // #195 修复：主按钮 inject 引导 + 副按钮外跳兜底（与 installSkills 同模式 · 与 #59 ghAuthGuide 接线一致）
+            h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { inject(st, promptText('installGh')) } }, tr('banner.ghcliBtn')),
+            h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)', marginLeft: 6 }, onClick: function () { openUrl('https://cli.github.com/') } }, tr('banner.ghcliFallback')),
           ])
         : (!ghAuthOk2)
           ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
@@ -78,7 +80,8 @@ export     const ChecksTab = ({ st }) => {
       // v1.5 配置引导顺序区（用户拍板 2026-08-17）：依赖链 1-2-3-4，完成自动勾选
       const okOf = function (c) { return !c || c.level === 'ok' }
       const guideSteps = [
-        { done: okOf(ghCli2), label: tr('env.g1'), act: function () { openUrl('https://cli.github.com/') }, btn: tr('banner.ghcliBtn') },
+        // #195 修复：配置引导 g1 主按钮 inject（与 installSkills 接线同模式 · #59 同模式），副按钮外跳兜底在 actBtn 的 hint 协议自动渲染
+        { done: okOf(ghCli2), label: tr('env.g1'), act: function () { inject(st, promptText('installGh')) }, btn: tr('banner.ghcliBtn') },
         { done: okOf(ghAuth2), label: tr('env.g2'), act: function () { openUrl('https://cli.github.com/manual/gh_auth_login') }, btn: tr('banner.ghauthBtn') },
         { done: okOf(setupCheck2), label: tr('env.g3'), act: function () { inject(st, promptText('setupRun')) }, btn: tr('banner.setupBtn') },
         { done: okOf(skillsCheck2), label: tr('env.g4'), act: function () { inject(st, promptText('installSkills')) }, btn: tr('banner.skillsBtn') },

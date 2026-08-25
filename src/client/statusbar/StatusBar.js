@@ -246,58 +246,6 @@ export const StatusBar = (props) => {
       Icon({ scheme: s.ui.icon, size: 14 }),
       h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
     ]),
-    (function(){
-      const sel = s.selection || (s.snapshot && s.snapshot.selection) || null
-      const repoRef = s.repository || (s.snapshot && s.snapshot.repository) || null
-      const bid = sel ? sel.backendId : null
-      const isPending = sel && sel.pending
-      const isMulti = sel && Array.isArray(sel.multiHit) && sel.multiHit.length>1
-      const label = (typeof labelOf === 'function' ? labelOf(bid) : (bid==null?'Other':String(bid)))
-      const short = repoRef ? (typeof repoShortName==='function'?repoShortName(repoRef):String(repoRef.name||'').split('/').pop()) : ''
-      const color = (typeof backendColorOf==='function'?backendColorOf(bid):'#6e7681')
-      const display = label + (short ? ' · ' + short : '')
-      const corner = isPending ? '⏳' : isMulti ? '⚠' : ''
-      const borderCol = isMulti ? '#f59e0b' : (isPending ? '#58a6ff' : 'transparent')
-      return h('span', { ref: backendAnchorRef, style:{ position:'relative', display:'inline-flex' }, onMouseEnter: showBackendMenu, onMouseLeave: function(){ scheduleClose(backendCloseRef, closeBackendMenu) } }, [
-        h('span', { className:'dsws-seg' + (s.backendMenuOpen ? ' on' : ''), onClick: function(e){ e.stopPropagation(); showBackendMenu() }, title: '后端: ' + label + (sel && sel.source ? ' ('+sel.source+')' : '') + (isPending?' · pending':'') + (isMulti?' · multiHit:'+sel.multiHit.join(','):'') + ' — 点击快选', style:{ display:'inline-flex', alignItems:'center', gap:4, color: color, border: '1px solid ' + (s.backendMenuOpen ? color : borderCol), background: s.backendMenuOpen ? 'rgba(88,166,255,.12)' : 'transparent', borderRadius:99, padding:'2px 7px', fontSize:11, fontWeight:600, colorScheme: 'light dark' } }, [
-          h('span', { 'data-fold-priority': 2 }, display),
-          corner ? h('span', { style:{ fontSize:10, marginLeft:2 } }, corner) : null,
-        ]),
-        s.backendMenuOpen ? PortalOverlay({ className:'dsws-backend-pop', onMouseEnter: function(){ clearClose(backendCloseRef) }, onMouseLeave: function(){ scheduleClose(backendCloseRef, closeBackendMenu) }, onClick: function(e){ e.stopPropagation() }, style:{ position:'fixed', left: s.backendMenuPos? s.backendMenuPos.left:0, bottom: s.backendMenuPos? s.backendMenuPos.bottom:0, padding:6, zIndex:2147483000, background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:10, boxShadow:'0 8px 30px rgba(0,0,0,.45)', minWidth:240, maxWidth:320 } }, [
-          h('div', { style:{ fontSize:11, fontWeight:700, color:'var(--dsw-alias-label-primary,#e6edf3)', marginBottom:6, display:'flex', alignItems:'center', gap:6 } }, [Ic({n:'compass',size:11}), h('span', null, '切换后端'), isPending? h('span', {style:{fontSize:10,color:'#58a6ff'}}, '⏳ pending'):null, isMulti? h('span', {style:{fontSize:10,color:'#f59e0b'}}, '⚠ multiHit'):null ]),
-          (function(){
-            const mods = s.backendModules || [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
-            return h('div', { style:{ display:'flex', flexDirection:'column', gap:3 } }, mods.map(function(m){
-              const on = bid===m.id
-              return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:6, padding:'4px 6px', borderRadius:6, background: on?'rgba(88,166,255,.12)':'transparent', border: on?'1px solid '+backendColorOf(m.id):'1px solid transparent', cursor:'pointer', fontSize:11 } }, [
-                h('input', { type:'radio', name:'sb-backend', checked:on, onChange: function(){
-                  // #189 · 已选态切换需确认 Modal
-                  try {
-                    if (typeof openSwitchConfirm === 'function' && s.selection && s.selection.backendId != null && s.selection.backendId !== m.id) {
-                      const opened = openSwitchConfirm(s, m.id)
-                      if (opened) { closeBackendMenu(); return }
-                    }
-                  } catch {}
-                  const prev = s.selection
-                  s.selection={ backendId:m.id, source:'explicit', ref: repoRef }
-                  try{ if(s.cwd) selectionByCwd[s.cwd]=s.selection }catch{}
-                  emit(s); closeBackendMenu()
-                  if(typeof host!=='undefined'&&host.call) host.call('wf.bind',{cwd:s.cwd||'', backendId:m.id}).then(function(r){ if(r&&r.ok){ flash(s,'已切换到 '+m.label,'ok'); loadSnapshot(s,true,true)} else { s.selection=prev; emit(s); flash(s,'切换失败:'+String(r&&r.error||'unknown'),'warn')} }).catch(function(){ s.selection=prev; emit(s)})
-                } }),
-                h('span', { style:{ width:7, height:7, borderRadius:'50%', background: backendColorOf(m.id), flex:'none' } }),
-                h('span', { style:{ fontWeight:600 } }, m.label),
-                h('span', { style:{ fontSize:10, color:'#8b8b95' } }, m.id),
-              ])
-            }))
-          })(),
-          h('div', { style:{ marginTop:6, borderTop:'1px solid var(--dsw-alias-border-l1,#2a2d35)', paddingTop:6, display:'flex', justifyContent:'space-between', alignItems:'center' } }, [
-            h('span', { style:{ fontSize:10, color:'#8b8b95' } }, sel && sel.source ? '来源: ' + sel.source : ''),
-            h('button', { className:'dsws-btn ghost', onClick:function(e){ e.stopPropagation(); closeBackendMenu(); s.tab='settings'; openPanel(s) }, style:{ fontSize:10, padding:'2px 6px' } }, '去设置页…'),
-          ]),
-          isMulti ? h('div', { style:{ fontSize:10, color:'#f59e0b', marginTop:4 } }, '检测到多命中: ' + sel.multiHit.join(', ') + ' — 建议显式绑定') : null,
-        ]) : null,
-      ])
-    })(),
     seg('target', [h('span', { 'data-fold-priority': 5 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; go('list') }, tr('nav.takeableTitle')),
     h('span', { ref: bugAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showBugMenu, onMouseLeave: function () { scheduleClose(bugCloseRef, closeBugMenu) } }, [
       seg('alert', [h('span', { 'data-fold-priority': 6 }, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') }, tr('nav.bugTitle')),
@@ -357,8 +305,7 @@ export const StatusBar = (props) => {
     h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, title: tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', { 'data-fold-priority': 4 }, tr('nav.refresh')), h('span', { 'data-fold-priority': 9 }, ' ' + timeStr)]),
     h(SkillFloatList, { s: s }),
   ])
-  // #189 · 切换确认 Modal 全局挂载
-  const switchModal = (s.switchConfirm && s.switchConfirm.open && typeof SwitchConfirmModal === 'function') ? h(SwitchConfirmModal, { sessionId: sid }) : null
+  // #196 · 状态栏胶囊移除 backend segment 后不再在此处挂 SwitchConfirmModal（仍由 Dock/Overlay 挂载，状态机保留）
   const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
   const fbMods = [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
   const normMods = function(r){
@@ -420,7 +367,7 @@ export const StatusBar = (props) => {
   })() : null
   if (!firstBlock) {
     if (_isOtherSBGate) return h('div', { style: { display: 'none' } }, [])
-    return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: RDOM ? 'hidden' : 'visible' } }, [capsule, switchModal])
+    return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: RDOM ? 'hidden' : 'visible' } }, [capsule])
   }
   const bann = function (text, btnLabel, onBtn) {
     return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
@@ -431,7 +378,12 @@ export const StatusBar = (props) => {
   }
   return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0' } }, [
     firstBlock === 'ghcli'
-      ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { openUrl('https://cli.github.com/') })
+      // #195 修复：主按钮 inject 引导 + 副按钮外跳兜底（与 installSkills 同模式）
+      ? h('div', { style: { display: 'flex', flex: 'none', gap: 4, alignItems: 'center' } }, [
+          bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { inject(s, promptText('installGh')) }),
+          // #195 副按钮兜底（仅当主按钮 inject 不可用时使用；语义保留 openUrl 但不阻塞主路径）
+          h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)', fontSize: 11, padding: '2px 8px' }, onClick: function () { openUrl('https://cli.github.com/') } }, tr('banner.ghcliFallback')),
+        ])
       : firstBlock === 'ghauth'
         ? bann(tr('banner.ghauth'), tr('banner.ghauthBtn'), function () { openUrl('https://cli.github.com/manual/gh_auth_login') })
         : firstBlock === 'setup'
@@ -441,6 +393,5 @@ export const StatusBar = (props) => {
             ])
           : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.detail) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills')) }),
     capsule,
-    switchModal,
   ])
 }

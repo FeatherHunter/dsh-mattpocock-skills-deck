@@ -52,7 +52,8 @@ export default {
 
     // ============ 状态 ============
     let ghPath = null
-    let ghPathError = null
+    // #195 修复：失败不永久缓存 —— ghLastError 仅保留最近一次失败（覆盖式），环境修复后下次 resolveGh 覆盖为 null；不像旧实现首次失败永不重试
+    let ghLastError = null
     let repoKeys = {}  // v12：repoKey 按 cwd 缓存（切换仓库会话时不再串仓库）
     let cache = { ts: 0, snapshot: null, error: null, cwd: null }
     let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s 缓存（按 cwd+lang 区分）
@@ -251,29 +252,32 @@ export default {
     let pendingIssuePathEvents = []                       // issuePath · 1A+1B 检测队列（runGh 白名单 + wf.claim），client via wf.issuePathPoll 拉取，cap 100
 
     // ============ gh 封装 ============
+    // #195 修复：resolveGh 不再缓存失败（ghLastError 仅最近一次失败，环境修复后下次探测即恢复）
     async function resolveGh() {
       if (ghPath) return ghPath
-      if (ghPathError) return null
       const platform = await getPlatform()
       try {
         const p = await platform.resolveExecutable('gh')
-        if (p) { ghPath = p; return ghPath }
-        throw new Error('gh not found')
+        if (p) { ghPath = p; ghLastError = null; return ghPath }
+        ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
+        return null
       } catch (e) {
         const fb = platform.env.get('DSH_GH_PATH') || ''
-        if (!fb) { ghPathError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'; return null }
+        if (!fb) { ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'; return null }
         try {
           const info = await platform.fs.lstat(fb)
-          if (info) { ghPath = fb; return ghPath }
+          if (info) { ghPath = fb; ghLastError = null; return ghPath }
         } catch (e2) {}
-        ghPathError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
+        ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
         return null
       }
     }
+    // #195 修复：force 探测路径调 resetGhCache 清空成功缓存，强制下次 resolveGh 重探
+    function resetGhCache() { ghPath = null; ghLastError = null }
 
     async function runGh(args, cwd) {
       const exe = await resolveGh()
-      if (!exe) return { ok: false, kind: 'env', error: ghPathError }
+      if (!exe) return { ok: false, kind: 'env', error: ghLastError }
       let handle
       try {
         handle = subprocess.spawn({
@@ -955,7 +959,7 @@ export default {
         repoRoot: await getRepoRoot(cwd),  // v1.5 T9：git 根路径（供仓库身份组件与 setup 检查）
         updatedAt: new Date().toISOString(),
         generatedMs: Date.now(),
-        env: { ghPath: ghPath, ghError: ghPathError },
+        env: { ghPath: ghPath, ghError: ghLastError },
         maps: maps,
         issues: issues,
         labels: labels,
@@ -1040,7 +1044,7 @@ export default {
     // 检查 4 · gh CLI 可用
     async function checkGhCli(lang) {
       const exe = await resolveGh()
-      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: 'https://cli.github.com/', repo: null }
+      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: 'prompt:installGh', repo: null }
       return { ok: true, level: 'ok', detail: exe, hint: '', repo: null }
     }
 
@@ -1141,6 +1145,8 @@ export default {
     harness.handle('wf.detect', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
+      // #195 修复：force 探测清空 gh 解析缓存（旧实现首次失败永久缓存，force 也救不回来）
+      if (force) resetGhCache()
       try {
         const svc = await getDetectionService()
         const res = await svc.detect({ cwd }, { force })
@@ -1154,6 +1160,8 @@ export default {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
       const lang = (args && args.lang === 'en') ? 'en' : 'zh'
+      // #195 修复：force 探测清空 gh 解析缓存（旧实现首次失败永久缓存）
+      if (force) resetGhCache()
       const now = Date.now()
       // 尝试编排层：优先走 detectionService（Q7 DetectionResult + preflight + skillProbes → 派生 9 checks 薄兼容）
       try {
@@ -1190,7 +1198,8 @@ export default {
             c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : '已登录', hint: '' }
             c6 = { ok: true, level: 'ok', detail: 'api.github.com 200', hint: '' }
           } else if (kind === 'env') {
-            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: 'https://cli.github.com/' }
+            // #195 修复：hint 升级为 prompt:installGh（与 installSkills / ghAuthGuide 同模式），UI 主按钮自动 inject
+            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: 'prompt:installGh' }
             c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           } else if (kind === 'auth') {
@@ -1335,12 +1344,14 @@ export default {
         return adoptSnapshot(snap, cwd)
       } catch (e) {
         cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
-        return { ok: false, error: errText(e), env: { ghError: ghPathError } }
+        return { ok: false, error: errText(e), env: { ghError: ghLastError } }
       }
     })
 
     harness.handle('wf.refresh', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
+      // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
+      resetGhCache()
       try {
         const snap = await buildSnapshot(cwd)
         // v1.5 T9：刷新后落盘，下次重启秒开
@@ -1353,6 +1364,35 @@ export default {
     })
 
     // #155 + #152：后端绑定（per-workspace 覆盖，唯一写路径不回写 issue-tracker.md）+ 注册表查询 + detection 缓存失效
+    // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）
+    // 根因：workspaces 服务在 client runtime 暴露的 item.path 可能是相对名（如 "matt-demo-markdown"），
+    // 传给 wf.selection 后 select() 三级联中 markdown.matches 收到相对 cwd，plat.join(cwd,...) 仍是相对，
+    // fs.resolve 默认基于进程 cwd 解析失败 → matches false → fallback → UI "未绑定"。
+    // 归一后所有 handler 收到绝对 cwd，markdown.matches 命中 docs/agents/issue-tracker.md → Markdown 自动。
+    async function normCwd(raw){
+      if(!raw) return DEFAULT_CWD
+      try{
+        const plat=await getPlatform()
+        if(plat&&plat.path&&typeof plat.path.isAbsolute==='function'&&plat.path.isAbsolute(raw)) return plat.path.normalize(raw)
+      }catch{}
+      // 相对：DSH fs.resolve 试探（DSH 平台 fs 可能感知 workspaces 根）
+      try{
+        const fss=ctx.get('fs')
+        if(fss&&typeof fss.resolve==='function'){
+          const t=await fss.resolve(raw)
+          const target=(t&&typeof t==='object')?(t.path||t.target):t
+          if(typeof target==='string'&&target&&(/^[A-Za-z]:[\\/]/.test(target)||/^\//.test(target))) return target
+        }
+      }catch{}
+      // home 试探（windows + posix）
+      try{
+        const plat=await getPlatform()
+        const home=plat&&typeof plat.getHome==='function'?await plat.getHome():null
+        if(home&&plat.path) return plat.path.join(home,raw)
+      }catch{}
+      return raw
+    }
+    
     harness.handle('wf.bind', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const backendId = args && ('backendId' in args ? args.backendId : args.backend)
@@ -1379,11 +1419,13 @@ export default {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
         const list = typeof reg.allBindings === 'function' ? reg.allBindings() : []
-        const bindings = list.map(function (b) {
+        const bindings = await Promise.all(list.map(async function (b) {
+          const rawCwd = b.cwd || (b.handle && b.handle.cwd) || ''
+          const cwd = await normCwd(rawCwd)
           let ref = null
-          if (b.backendId) { try { ref = reg.describe(b.handle, b.backendId) } catch {} }
-          return { cwd: b.cwd || (b.handle && b.handle.cwd) || '', backendId: b.backendId, source: 'explicit', ref: ref }
-        })
+          if (b.backendId) { try { ref = reg.describe({ cwd: cwd }, b.backendId) } catch {} }
+          return { cwd: cwd, backendId: b.backendId, source: 'explicit', ref: ref }
+        }))
         return { ok: true, bindings: bindings }
       } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
     })
@@ -1399,7 +1441,7 @@ export default {
       } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
     })
     harness.handle('wf.selection', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
       try {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
@@ -1681,7 +1723,7 @@ export default {
       const git = await resolveGit()
       if (!git) return { ok: false, errorKind: 'no-git', error: '未找到 git（请安装 https://git-scm.com/）' }
       const gh = await resolveGh()
-      if (!gh) return { ok: false, errorKind: 'no-gh', error: ghPathError || '未找到 gh（请安装 https://cli.github.com/）' }
+      if (!gh) return { ok: false, errorKind: 'no-gh', error: ghLastError || '未找到 gh（请安装 https://cli.github.com/）' }
       const authR = await runGh(['auth', 'status'], cwd)
       if (!authR.ok) {
         const t = String(authR.error || '').toLowerCase()

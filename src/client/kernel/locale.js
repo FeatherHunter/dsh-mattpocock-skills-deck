@@ -43,7 +43,9 @@
         'banner.setupPickRecommended': '推荐',
         'banner.setupPickHint': '将按所选后端生成对应的 issue-tracker 模板',
         'banner.ghcli': '未安装 GitHub CLI —— 面板所有数据都依赖 gh，请先安装',
-        'banner.ghcliBtn': '打开安装页',
+        'banner.ghcliBtn': 'AI 引导安装',
+        // #195 修复：副按钮兜底文案（外跳到 https://cli.github.com/）
+        'banner.ghcliFallback': '手动下载',
         'banner.ghauth': '未登录 GitHub —— 运行 gh auth login（浏览器授权）后再使用',
         'banner.ghauthBtn': '查看登录指南',
         'env.installBtn': '安装引导',
@@ -336,7 +338,9 @@
         'banner.setupPickRecommended': 'Recommended',
         'banner.setupPickHint': 'The issue-tracker template for the selected backend will be generated',
         'banner.ghcli': 'GitHub CLI not installed — all panel data depends on gh, install it first',
-        'banner.ghcliBtn': 'Open install page',
+        'banner.ghcliBtn': 'AI-guided install',
+        // #195 fix: secondary fallback button label (external jump to https://cli.github.com/)
+        'banner.ghcliFallback': 'Manual download',
         'banner.ghauth': 'Not signed in to GitHub — run gh auth login (browser auth) first',
         'banner.ghauthBtn': 'View sign-in guide',
         'env.installBtn': 'Install guide',

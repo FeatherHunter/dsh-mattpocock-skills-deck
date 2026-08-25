@@ -20,7 +20,11 @@ export const checksumsOf = function (s) {
   // v1.5 引导依赖链（用户拍板 2026-08-17）：gh CLI → gh 登录 → setup → 技能 —— banner 显示依赖链上第一个缺失项
   const ghCliCheck = (s.checks || []).find(function (c) { return c.id === 4 })
   const ghAuthCheck = (s.checks || []).find(function (c) { return c.id === 5 })
-  const ghCliBad = s.checksMode === 'real' && ghCliCheck && ghCliCheck.level !== 'ok'
-  const ghAuthBad = s.checksMode === 'real' && ghAuthCheck && ghAuthCheck.level !== 'ok'
-  return { fr: fr, bugN: bugN, triageN: triageN, n: n, timeStr: timeStr, setup: setup, amber: amber, skillsCheck: skillsCheck, skillsBad: skillsBad, ghCliBad: ghCliBad, ghAuthBad: ghAuthBad }
+  // #195 修复：warn（pending 探测态）不再当 bad —— 与 gh 是否安装无关的 UI 语义错误（pending 时 banner 文案误导为「未安装」）
+  const ghCliBad = s.checksMode === 'real' && ghCliCheck && ghCliCheck.level === 'bad'
+  const ghAuthBad = s.checksMode === 'real' && ghAuthCheck && ghAuthCheck.level === 'bad'
+  // #195 修复：新增 pending 派生（供 UI 显示「探测中」状态，区别于「未安装」）
+  const ghCliPending = s.checksMode === 'real' && ghCliCheck && ghCliCheck.level === 'warn'
+  const ghAuthPending = s.checksMode === 'real' && ghAuthCheck && ghAuthCheck.level === 'warn'
+  return { fr: fr, bugN: bugN, triageN: triageN, n: n, timeStr: timeStr, setup: setup, amber: amber, skillsCheck: skillsCheck, skillsBad: skillsBad, ghCliBad: ghCliBad, ghAuthBad: ghAuthBad, ghCliPending: ghCliPending, ghAuthPending: ghAuthPending }
 }
