@@ -238,50 +238,7 @@ export     const SettingsPage = (props) => {
             ])
           })(),
         ]),
-        // #189 · 当前工作区后端切换（已选态 → Modal 三选一默认保留 + prompt 可编辑）
-        (function(){
-          const curSel = sharedSt.selection || (sharedSt.snapshot && sharedSt.snapshot.selection) || null
-          const curBid = curSel ? curSel.backendId : null
-          const curSrc = curSel ? (curSel.source || 'fallback') : 'fallback'
-          const curRepo2 = sharedSt.repository || (sharedSt.snapshot && sharedSt.snapshot.repository) || null
-          const modsForSwitch = sharedSt.backendModules || [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
-          const doSwitchPick = function(targetId){
-            try {
-              if (typeof openSwitchConfirm === 'function' && sharedSt.selection && sharedSt.selection.backendId != null && sharedSt.selection.backendId !== targetId) {
-                const opened = openSwitchConfirm(sharedSt, targetId)
-                if (opened) return
-              }
-            } catch {}
-            const prev = sharedSt.selection
-            const repoRef2 = sharedSt.repository || (sharedSt.snapshot && sharedSt.snapshot.repository) || null
-            const next = targetId===null ? { backendId: null, source: 'explicit', pending: false, ref: repoRef2 } : { backendId: targetId, source: 'explicit', ref: repoRef2 }
-            sharedSt.selection = next
-            try{ if(sharedSt.cwd) selectionByCwd[sharedSt.cwd]=next }catch{}
-            emit(sharedSt)
-            if(typeof host!=='undefined' && host.call){
-              host.call('wf.bind', { cwd: sharedSt.cwd||'', backendId: targetId }).then(function(res){
-                const ok = res && (res.ok===true || (res.value && res.value.ok===true) || res.ok)
-                if(ok){
-                  try{ flash(sharedSt, '已切换到 ' + (typeof labelOf==='function'?labelOf(targetId):String(targetId)), 'ok') }catch{}
-                  if (typeof loadSnapshot==='function') loadSnapshot(sharedSt,true,true)
-                  if (typeof loadChecks==='function') loadChecks(sharedSt,true,true)
-                } else {
-                  sharedSt.selection=prev; try{ if(sharedSt.cwd) selectionByCwd[sharedSt.cwd]=prev }catch{}; emit(sharedSt)
-                  try{ flash(sharedSt, '切换失败:'+String((res&&(res.error||res.message))||'unknown').slice(0,120), 'warn') }catch{}
-                }
-              }).catch(function(e){
-                sharedSt.selection=prev; try{ if(sharedSt.cwd) selectionByCwd[sharedSt.cwd]=prev }catch{}; emit(sharedSt)
-                try{ flash(sharedSt, '切换失败:'+String(e && e.message || e).slice(0,120), 'warn') }catch{}
-              })
-            }
-          }
-          return h('div', { className: 'dsws-cfg-group', id: 'dsws-cfg-switch' }, [
-            h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'compass', size: 13 }), h('span', null, '当前工作区后端切换')]),
-            h('div', { className: 'dsws-cfg-gdesc' }, '已选态再选不同后端将弹确认 Modal（含 prompt 可编辑，三选一默认保留）。文案：现有 issues 保留在原后端，切换后不可见，切回可见。'),
-            h(BackendSelector, { modules: modsForSwitch, curBackendId: curBid, curSource: curSrc, curSelection: curSel, curRepo: curRepo2, includeOther: true, showSourceCapsule: true, onPick: doSwitchPick, sessionId: sharedSt.sessionId }),
-            (sharedSt.switchConfirm && sharedSt.switchConfirm.open && typeof SwitchConfirmModal==='function') ? h(SwitchConfirmModal, { sessionId: sharedSt.sessionId }) : null,
-          ])
-        })(),
+
         // 1.5 面板宽度重置（#398 拆票 A · 与 #397 协调 · 等 layoutSvc.resetDetails API；缺失时友好提示不让 UI 崩溃）
         h('div', { className: 'dsws-cfg-group' }, [
           h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'refresh', size: 13 }), h('span', null, tr('cfg.panelWidth'))]),
