@@ -1,4 +1,4 @@
-﻿/**
+/**
  * src/client/kernel/locale.js — 内核模块（阶段 2 内核迁移 · #96 T3）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
@@ -157,6 +157,9 @@
         'toast.copiedLink': '已复制链接 #{n}',
         'toast.newSessionOpened': '已在新会话中打开并预填指令（同 cwd）',
         'toast.newSessionManual': '请手动新建会话并命名为「{title}」；指令已预填当前输入框',
+        'toast.newSessionKeepPlaceholder': '创建超时，仍为 [New] 占位，请重试',
+        'toast.sessionRenamed': '已重命名为 [#{n}] {title}',
+        'toast.sessionRenameFailed': '自动重命名失败，仍为 [New] 占位，请手动检查',
         'toast.resetPanelWidthDone': '面板宽度已重置 · 下次打开生效',
         'toast.resetPanelWidthFail': 'layout 服务暂不支持重置 · 请更新 DSH harness',
         // #394：新会话按钮可见文字 + hover title（去掉冗余 detail，靠 #361 doc + 行为本身解释）
@@ -450,6 +453,9 @@
         'toast.copiedLink': 'Link # {n} copied',
         'toast.newSessionOpened': 'Opened in a new session with the prompt prefilled (same cwd)',
         'toast.newSessionManual': 'Please create a new session manually and name it "{title}"; the prompt is prefilled in the current input',
+        'toast.newSessionKeepPlaceholder': 'Creation timed out, staying as [New] placeholder — please retry',
+        'toast.sessionRenamed': 'Renamed to [#{n}] {title}',
+        'toast.sessionRenameFailed': 'Auto-rename failed, staying as [New] placeholder',
         'toast.resetPanelWidthDone': 'Panel width reset · takes effect on next open',
         'toast.resetPanelWidthFail': 'Layout service doesn\'t support reset yet · please update DSH harness',
         // #394：visible label + hover title for new-session button
