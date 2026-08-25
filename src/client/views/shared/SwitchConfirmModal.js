@@ -64,7 +64,8 @@ export const SwitchConfirmModal = (props) => {
       if (typeof loadSwitchCri === 'function') loadSwitchCri(s)
     }
   }, [])
-  const overlayStyle = { position: 'fixed', inset: 0, zIndex: 2147483001, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.55)', padding: 16 }
+  // #191（用户反馈）：面板内覆盖层（不渲染到 body，不做全屏弹窗）；就地渲染于右侧面板容器内（容器需 position:relative）
+  const overlayStyle = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.45)', padding: 16, borderRadius: 12 }
   // #191（用户反馈）：弹窗高度固定，内容多少不跳动（keep/migrate/clear 三态同高，多出部分内部滚动）
   // #191（用户反馈）：顶部固定（标题 + 按钮恒定），内容区独立向下延伸滚动——按钮永不跳动
   const cardStyle = { boxSizing: 'border-box', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 560, maxHeight: '90vh', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12, background: 'var(--dsw-alias-bg-layer-2,#16181d)', boxShadow: '0 16px 48px rgba(0,0,0,.5)', padding: 16 }
@@ -85,7 +86,7 @@ export const SwitchConfirmModal = (props) => {
       ]),
     ])
   }
-  return portalTop(h('div', { style: overlayStyle, onClick: function (e) { if (e.target === e.currentTarget) doClose() } }, [
+  return h('div', { style: overlayStyle, onClick: function (e) { if (e.target === e.currentTarget) doClose() } }, [
     h('div', { style: cardStyle }, [
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } }, [
         typeof Ic === 'function' ? Ic({ n: 'compass', size: 14 }) : h('span', null, '◉'),
@@ -165,5 +166,5 @@ export const SwitchConfirmModal = (props) => {
       ]) : null,
       ]),
     ]),
-  ]))
+  ])
 }

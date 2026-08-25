@@ -232,7 +232,8 @@ export     const OverlayPanel = (props) => {
         }
       }
 
-      const panelStyle = { width: s.size.w, ...(s.size.h ? { height: s.size.h } : {}), ...(s.pos ? { left: s.pos.x, top: s.pos.y, right: 'auto' } : { left: 16, top: 76, right: 'auto' }) }
+      // #191：面板内覆盖层锚点（Modal 就地渲染，position:absolute 相对本容器）
+      const panelStyle = { position: 'relative', width: s.size.w, ...(s.size.h ? { height: s.size.h } : {}), ...(s.pos ? { left: s.pos.x, top: s.pos.y, right: 'auto' } : { left: 16, top: 76, right: 'auto' }) }
       return h('div', { ref: panelRef, className: 'dsws-panel', style: panelStyle }, [
         // #28 自适应头部：minWidth 0 允许收缩，先藏标题文字（留图标），最后仅留 repo
         h('div', { ref: headRef, className: 'dsws-head', onMouseDown: startDrag, style: { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 } }, [
