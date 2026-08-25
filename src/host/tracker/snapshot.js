@@ -56,7 +56,11 @@ function assembleSnapshot(repo, all) {
 export function createSnapshotComposer(registry, opts = {}) {
   const snapshotTtl = (opts && opts.snapshotTtl != null) ? opts.snapshotTtl : 5000
   const depsTtl = (opts && opts.depsTtl != null) ? opts.depsTtl : 5000
-  const snapCache = new Map() // `${backendId}:${refId}` -> {snapshot, at}
+  const SNAP_LRU_MAX = 20
+  const snapCache = new Map() // `${backendId}:${refId}` -> {snapshot, version, at} LRU20
+  function touchSnapLRU(k,v){ if(snapCache.has(k)) snapCache.delete(k); snapCache.set(k,v); if(snapCache.size>SNAP_LRU_MAX){ const f=snapCache.keys().next().value; snapCache.delete(f);} }
+  function issueIndexVersion(idx){ try{ const keys=Object.keys(idx||{}).sort(); const str=keys.map(function(k){return k+':'+idx[k]}).join('|'); try{ const cr=require('crypto'); if(cr&&cr.createHash) return cr.createHash('sha1').update(str).digest('hex').slice(0,12); }catch(e){} let h=0; for(let i=0;i<str.length;i++) h=((h<<5)-h+str.charCodeAt(i))|0; return (h>>>0).toString(16).padStart(8,'0'); }catch(e){ return '0'; }}
+  function snapshotVersionOf(snap){ try{ const all=[]; (snap.maps||[]).forEach(function(m){ (m.tickets||[]).forEach(function(t){ all.push(String(t.key||t.number)+':'+String(t.state||'')); }); }); (snap.issues||[]).forEach(function(it){ all.push(String(it.key||it.number)+':'+String(it.state||'')); }); all.sort(); const str=all.join('|'); try{ const cr=require('crypto'); if(cr&&cr.createHash) return cr.createHash('sha1').update(str).digest('hex').slice(0,12);}catch(e){} let h=0; for(let i=0;i<str.length;i++) h=((h<<5)-h+str.charCodeAt(i))|0; return (h>>>0).toString(16).padStart(8,'0'); }catch(e){ return '0'; }}
   const depsCache = new Map() // `${backendId}:${refId}#${key}` -> {data, at}
 
   const snapKeyOf = (backendId, ref) => `${backendId}:${(ref && ref.refId) || ''}`
@@ -75,8 +79,13 @@ export function createSnapshotComposer(registry, opts = {}) {
         return { ok: false, error: { kind: ERROR_KIND.UNSUPPORTED, message: `backend '${backendId}' not registered (composition aborted)` } }
       }
       const sk = snapKeyOf(backendId, ref)
-      if (!o.force && fresh(snapCache.get(sk), snapshotTtl)) {
-        return { ok: true, snapshot: snapCache.get(sk).snapshot, cached: true }
+      const cachedEntry = snapCache.get(sk);
+      if (o && o.ifNoneMatch && cachedEntry && cachedEntry.version && cachedEntry.version===o.ifNoneMatch) {
+        return { ok: true, notModified:true, status:304, version:cachedEntry.version, snapshot:cachedEntry.snapshot, cached:true };
+      }
+      if (!o.force && fresh(cachedEntry, snapshotTtl)) {
+        if(o && o.ifNoneMatch && cachedEntry.version===o.ifNoneMatch) return { ok:true, notModified:true, status:304, version:cachedEntry.version, cached:true };
+        return { ok: true, snapshot: cachedEntry.snapshot, version:cachedEntry.version, cached: true }
       }
 
       // 可选后端快路径（非 op；只接受完整 Issue[]，否则回落 list——桩不误导）
@@ -95,9 +104,12 @@ export function createSnapshotComposer(registry, opts = {}) {
       }
 
       const snapshot = assembleSnapshot(ref, all)
-      snapshot.deck = deriveDeck(snapshot) // deck 恒由 host 派生（后端绝不存 deck）
-      snapCache.set(sk, { snapshot, at: Date.now() })
-      return { ok: true, snapshot }
+      snapshot.deck = deriveDeck(snapshot)
+      try{ const ver=snapshotVersionOf(snapshot); snapshot.version=ver; snapshot.etag=ver; }catch(e){}
+      const ent={snapshot, version:snapshot.version||'', at:Date.now()};
+      touchSnapLRU(sk, ent);
+      if(o && o.ifNoneMatch && ent.version===o.ifNoneMatch) return {ok:true, notModified:true, status:304, version:ent.version, snapshot};
+      return { ok: true, snapshot, version:ent.version }
     },
 
     /**

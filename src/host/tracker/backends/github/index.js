@@ -84,7 +84,13 @@ export function createGithubBackend(ctx) {
 export const githubModule = {
   id: 'github',
   label: 'GitHub',
-  presentation: { color: '#0969da' },
+  // #191：品牌色完整色板（B 方案定版 · #177）——后端是配色单一真源，UI 仅消费
+  presentation: {
+    color: '#0969da',
+    darkColor: '#58a6ff',
+    bg: 'light-dark(#ddf4ff, rgba(56,139,253,.15))',
+    border: 'light-dark(rgba(84,174,255,.4), rgba(56,139,253,.4))',
+  },
   create: createGithubBackend,
   matches: githubMatches,
 }

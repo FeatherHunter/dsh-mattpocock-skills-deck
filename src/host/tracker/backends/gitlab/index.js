@@ -95,7 +95,13 @@ export function createGitlabBackend(ctx) {
 export const gitlabBackend = {
   id: 'gitlab',
   label: 'GitLab',
-  presentation: { color: '#c25100' },
+  // #191：品牌色完整色板（B 方案定版 · #177）
+  presentation: {
+    color: '#c25100',
+    darkColor: '#ff9a5c',
+    bg: 'light-dark(rgba(194,81,0,.12), rgba(255,154,92,.14))',
+    border: 'light-dark(rgba(194,81,0,.25), rgba(255,154,92,.30))',
+  },
   create: createGitlabBackend,
   matches,
 }

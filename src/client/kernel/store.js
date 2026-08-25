@@ -206,11 +206,14 @@
         }
       })
     }
-    const toAdaptive = function (light) {
+    // #191：toAdaptive(light, dark) —— dark 缺省按主色勾 oklCH 75% 白派生（机制，非硬编码）
+    const toAdaptive = function (light, dark) {
       const l = String(light || '').trim()
       if (!l) return 'light-dark(#57606a, #8b949e)'
       if (l.includes('light-dark')) return l
-      return 'light-dark(' + l + ', color-mix(in oklch, ' + l + ' 75%, white))'
+      const d = String(dark || '').trim()
+      if (d.includes('light-dark')) return d
+      return 'light-dark(' + l + ', ' + (d || ('color-mix(in oklch, ' + l + ' 75%, white)')) + ')'
     }
     const bgFor = function (adaptiveColor) {
       // 从 adaptive 中取 light 部分派生 bg（12% / 14%），若后端已显式给 bg 则直接用
@@ -222,13 +225,13 @@
     //   后端未提供品牌色时统一用中性灰（机制兜底，非品牌特判）。
     export const backendColorOf = function (backendId) {
       const p = presentationById[backendId]
-      if (p && p.color) return toAdaptive(p.color)
+      if (p && p.color) return toAdaptive(p.color, p.darkColor)
       return toAdaptive('') // 中性灰兜底
     }
     export const backendBgOf = function (backendId) {
       const p = presentationById[backendId]
       if (p && p.bg) return p.bg
-      const ad = toAdaptive(p && p.color ? p.color : '')
+      const ad = toAdaptive(p && p.color ? p.color : '', p && p.darkColor ? p.darkColor : '')
       const light = ad.replace(/light-dark\(([^,]+),.*\)/, '$1')
       const dark = ad.replace(/.*,\s*([^\)]+)\)/, '$1')
       return 'light-dark(color-mix(in srgb, ' + light + ' 12%, transparent), color-mix(in srgb, ' + dark + ' 14%, transparent))'
@@ -236,7 +239,7 @@
     export const backendBorderOf = function (backendId) {
       const p = presentationById[backendId]
       if (p && p.border) return p.border
-      const ad = toAdaptive(p && p.color ? p.color : '')
+      const ad = toAdaptive(p && p.color ? p.color : '', p && p.darkColor ? p.darkColor : '')
       const light = ad.replace(/light-dark\(([^,]+),.*\)/, '$1')
       const dark = ad.replace(/.*,\s*([^\)]+)\)/, '$1')
       return 'light-dark(color-mix(in srgb, ' + light + ' 30%, transparent), color-mix(in srgb, ' + dark + ' 35%, transparent))'
@@ -376,12 +379,17 @@
     export const shared = makeStore()
     export const stores = {}
     // #58 缓存优先：按 cwd 的内存快照表（新 store 秒开 + 跨会话同 cwd 共享，避免空 cwd 探路 miss）
-    export const snapshotByCwd = {}
-    export const getCachedSnapshot = function (cwd) { return cwd ? snapshotByCwd[cwd] : null }
-    export const setCachedSnapshot = function (cwd, snap) { if (cwd && snap && snap.ok === true && Array.isArray(snap.maps)) snapshotByCwd[cwd] = snap }
+    export const SNAP_CWD_LRU_MAX = 20
+    export const snapshotByCwd = new Map() // Map<normCwd,{snapshot,version,ts}> LRU20
+    export const normKeyClient = function(k){ try{ return String(k||'').toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,'')||'/'; }catch(e){ return String(k||''); } }
+    export const touchLRUClient = function(map,key,val){ if(map.has(key)) map.delete(key); map.set(key,val); if(map.size>SNAP_CWD_LRU_MAX){ const first=map.keys().next().value; map.delete(first);} return val; }
+    export const getCachedSnapshot = function (cwd) { try{ const k=normKeyClient(cwd); const e=snapshotByCwd.get(k); return e?e.snapshot||e:null; }catch(e){ return null; } }
+    export const getCachedEntry = function(cwd){ try{ const k=normKeyClient(cwd); return snapshotByCwd.get(k)||null; }catch(e){ return null; } }
+    export const setCachedSnapshot = function (cwd, snap) { if(!cwd||!snap||snap.ok!==true||!Array.isArray(snap.maps)) return; try{ const k=normKeyClient(cwd); const ver=snap.version||snap.etag||''; const ent={snapshot:snap, version:ver, ts:Date.now()}; touchLRUClient(snapshotByCwd,k,ent); }catch(e){} }
+    export const getSnapshotVersion = function(cwd){ try{ const e=getCachedEntry(cwd); return e?e.version||'':''; }catch(e){ return ''; } }
     export const hydrateFromCache = function (st) {
       if (!st || !st.cwd) return false
-      const c = getCachedSnapshot(st.cwd)
+      const c = getCachedSnapshot(st.cwd); try{ if(c){ const _k=normKeyClient(st.cwd); const _e=snapshotByCwd.get(_k); if(_e) touchLRUClient(snapshotByCwd,_k,_e);} }catch(e){}
       let changed=false
       if (c) {
         if (!st.snapshot || c.generatedMs !== st.snapshot.generatedMs) {

@@ -7,6 +7,8 @@
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
     export const CHECKS_TOTAL = 9   // v1.5 T11 起 9 项检测（含核心技能套件）
+    export const pendingSnapshotByCwd = new Map() // Map<normCwd,{promise,controller}> dedup 30s
+    export const normCwdClientProbe = function(k){ try{ return String(k||'').toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,'')||'/'; }catch(e){ return String(k||''); } }
     export const loadChecks = (st, force, silent) => {
       if (st.checking) return Promise.resolve()
       if (typeof host === 'undefined' || typeof host.call !== 'function') {
@@ -136,6 +138,7 @@
     // v1.5 T10 R4（用户拍板）：数据层增量 diff —— 变更/新增/删除 按票号对比（含 map 子票级变化），
     //   多视图（列表/map详情/状态栏计数/过滤结果）数据驱动自动增量；diff 结果供 R5 视觉消费
     export const diffSnapshots = function (oldS, newS) {
+      try{ if(oldS&&newS&&oldS.version&&newS.version&&oldS.version===newS.version) return {added:[],removed:[],changed:[],issueFlash:{},ts:Date.now(),skipped:true}; }catch(e){}
       const out = { added: [], removed: [], changed: [], issueFlash: {}, ts: Date.now() }
       if (!oldS || !oldS.ok || !Array.isArray(oldS.maps)) return out
       if (!newS || !newS.ok || !Array.isArray(newS.maps)) return out
@@ -179,6 +182,7 @@
     export const loadSnapshot = function (st, force, silent) {
       const doLoad = function () {
         // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
+        try{ const _nk=normCwdClientProbe(st.cwd||''); const _pend=pendingSnapshotByCwd.get(_nk); if(_pend&&_pend.promise) return _pend.promise; }catch(e){}
         if (st.snapLoading && !force) return Promise.resolve()
         if (typeof host === 'undefined' || typeof host.call !== 'function') {
           st.snapMode = 'err'
@@ -194,10 +198,24 @@
         // #58 缓存优先：已有缓存时不显示全屏 loading，静默刷新
         if (force && !silent && !hasCache) st.snapMode = 'loading'
         emit(st)
-        const args = st.cwd ? { cwd: st.cwd } : {}
-        const p = force ? host.call('wf.refresh', args) : host.call('wf.snapshot', args)
+        const ver = (typeof getSnapshotVersion==='function'? getSnapshotVersion(st.cwd):'') || (st.snapshot&&st.snapshot.version)||'';
+        const args = Object.assign({}, st.cwd ? { cwd: st.cwd, ifNoneMatch: ver, version: ver } : (ver?{ifNoneMatch:ver,version:ver}:{}))
+        const _normKeyP = normCwdClientProbe(st.cwd||'');
+        let _ctrl=null; try{ _ctrl=typeof AbortController!=='undefined'?new AbortController():{signal:{aborted:false},abort(){}}; }catch(e){ _ctrl={signal:{aborted:false},abort(){}}; }
+        let _timer=null;
+        const _rawP = force ? host.call('wf.refresh', args) : host.call('wf.snapshot', args);
+        const _timeoutP = new Promise((_,rej)=>{ _timer=setTimeout(()=>{ try{_ctrl.abort();}catch{}; rej(new Error('client loadSnapshot timeout 30s')); },30000); });
+        const p = Promise.race([_rawP, _timeoutP]).finally(function(){ try{clearTimeout(_timer);}catch{}; });
+        try{ pendingSnapshotByCwd.set(_normKeyP,{promise:p, controller:_ctrl}); p.finally(function(){ try{ pendingSnapshotByCwd.delete(_normKeyP);}catch{} }); }catch(e){}
         return p.then(function (snap) {
           st.snapLoading = false
+          if (snap && (snap.notModified===true || snap.status===304)) {
+            // 304 zero emit per spec: version unchanged -> keep old table, no UI change
+            st.snapLoading=false;
+            // still touch LRU ts via setCachedSnapshot? keep old
+            emit(st); // minimal tick for probe freshness but no data change
+            return;
+          }
           if (snap && snap.ok === true && Array.isArray(snap.maps)) {
             // v1.5 T10 R4：数据层增量 diff（新旧快照对比）—— 供多视图增量与 R5 视觉
             st.lastDiff = diffSnapshots(st.snapshot, snap)

@@ -96,7 +96,13 @@ export function createMarkdownBackend(ctx){
 export const markdownModule = {
   id: 'markdown',
   label: 'Markdown',
-  presentation: { color: '#1a7f37' },
+  // #191：品牌色完整色板（B 方案定版 · #177）
+  presentation: {
+    color: '#1a7f37',
+    darkColor: '#3fb950',
+    bg: 'light-dark(rgba(26,127,55,.12), rgba(63,185,80,.14))',
+    border: 'light-dark(rgba(26,127,55,.25), rgba(63,185,80,.30))',
+  },
   create: createMarkdownBackend,
   matches,
 }

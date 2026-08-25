@@ -41,7 +41,7 @@ export const StatusBar = (props) => {
         const hydrated = hydrateFromCache(s)
         emit(s)
         loadChecks(s, false)
-        if (!hydrated || !snapFresh(s)) loadSnapshot(s, false)
+        if (!hydrated || !snapFresh(s)) loadSnapshot(s, false, !!hydrated)
       }
     }
     if (summaryCwd) { apply(summaryCwd); return }
@@ -53,7 +53,7 @@ export const StatusBar = (props) => {
       }).catch(function () {})
     }
   }, [sid, summaryCwd])
-  React.useEffect(function () { loadChecks(s, false); if (!snapFresh(s)) loadSnapshot(s, false) }, [])
+  React.useEffect(function () { loadChecks(s, false); if (!snapFresh(s)) loadSnapshot(s, false, true) }, [])
   const csx = checksumsOf(s)
   const { fr, bugN, triageN, n, timeStr, setup, amber, skillsCheck, skillsBad, ghCliBad, ghAuthBad } = csx
   // #187 门控：未选择且非 pending 时状态栏整条 dsws-capsule 不渲染（仅设置页可见引导），pending 时保留等待态

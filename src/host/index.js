@@ -1,24 +1,24 @@
-ï»¿/**
- * dsh-mattpocock-skills-deck Â· Host åŠï¼ˆæ•°æ®å±‚å®ç° Â· T3 #345ï¼‰
+/**
+ * dsh-mattpocock-skills-deck ¡¤ Host °ë£¨Êı¾İ²ãÊµÏÖ ¡¤ T3 #345£©
  *
- * å®ç°ï¼š
- *   1. gh å°è£…å±‚ï¼šresolveExecutable è§£æ â†’ å…œåº• DSH_GH_PATH/ç³»ç»Ÿ ghï¼›30s è¶…æ—¶ï¼ˆtimer race + terminateï¼‰ï¼›
- *      é”™è¯¯å½’ä¸€åŒ–ï¼ˆauth / network / notfound / exitï¼‰ã€‚
- *   2. æ•°æ®æµï¼šgh issue list æšä¸¾ wayfinder:map â†’ æ¯ map ä¸€æ¬¡ GraphQLï¼ˆsubIssues + labels + assignees +
- *      blockedBy + blockingï¼‰â†’ ç»„è£…å¿«ç…§ï¼ˆmap äº”åŒºå—è§£æ + tickets + stats åˆ†ç»„ï¼‰ã€‚
- *   3. RPCï¼šwf.ping / wf.snapshotï¼ˆ5s ç¼“å­˜ï¼‰/ wf.refreshã€‚
- *   4. è½®è¯¢ï¼štimer 60s åˆ·æ–°ç¼“å­˜ + ä¸ä¸Šæ¬¡ stats diffï¼ˆP2 toast é¢„ç•™å­—æ®µï¼‰ã€‚
- *   5. å‰ç½®æ£€æŸ¥ç»¿ç‚¹ï¼ˆ#344ï¼‰ï¼šwf.status â€”â€” 8 é¡¹æ£€æµ‹ï¼ˆä»“åº“å®šä½ / setup å·²è·‘ / tracker=GitHub /
- *      gh CLI / gh ç™»å½• / API å¯è¾¾ / wayfinder åŒå±‚æ¢æµ‹ / ask-matt åŒå±‚æ¢æµ‹ï¼‰ï¼Œè¾“å‡º
- *      { ok, level, detail, hint }[]ï¼›ç»“æœç¼“å­˜ 30sï¼Œargs.force å¼ºåˆ¶é‡æŸ¥ã€‚
+ * ÊµÏÖ£º
+ *   1. gh ·â×°²ã£ºresolveExecutable ½âÎö ¡ú ¶µµ× DSH_GH_PATH/ÏµÍ³ gh£»30s ³¬Ê±£¨timer race + terminate£©£»
+ *      ´íÎó¹éÒ»»¯£¨auth / network / notfound / exit£©¡£
+ *   2. Êı¾İÁ÷£ºgh issue list Ã¶¾Ù wayfinder:map ¡ú Ã¿ map Ò»´Î GraphQL£¨subIssues + labels + assignees +
+ *      blockedBy + blocking£©¡ú ×é×°¿ìÕÕ£¨map ÎåÇø¿é½âÎö + tickets + stats ·Ö×é£©¡£
+ *   3. RPC£ºwf.ping / wf.snapshot£¨5s »º´æ£©/ wf.refresh¡£
+ *   4. ÂÖÑ¯£ºtimer 60s Ë¢ĞÂ»º´æ + ÓëÉÏ´Î stats diff£¨P2 toast Ô¤Áô×Ö¶Î£©¡£
+ *   5. Ç°ÖÃ¼ì²éÂÌµã£¨#344£©£ºwf.status ¡ª¡ª 8 Ïî¼ì²â£¨²Ö¿â¶¨Î» / setup ÒÑÅÜ / tracker=GitHub /
+ *      gh CLI / gh µÇÂ¼ / API ¿É´ï / wayfinder Ë«²ãÌ½²â / ask-matt Ë«²ãÌ½²â£©£¬Êä³ö
+ *      { ok, level, detail, hint }[]£»½á¹û»º´æ 30s£¬args.force Ç¿ÖÆÖØ²é¡£
  *
- * å·²éªŒè¯ï¼ˆ.charting/verify.jsï¼ŒçœŸå®æ•°æ® PASSï¼‰ï¼šåˆ†ç»„ frontier/claimed/blocked ä¸ GitHub é¡µé¢ä¸€è‡´ï¼›
- * 9 å¼  open map ä¸­ä»… 4 å¼ æœ‰ Destination â€”â€” body è§£æå…¨éƒ¨å®¹é”™ã€‚
+ * ÒÑÑéÖ¤£¨.charting/verify.js£¬ÕæÊµÊı¾İ PASS£©£º·Ö×é frontier/claimed/blocked Óë GitHub Ò³ÃæÒ»ÖÂ£»
+ * 9 ÕÅ open map ÖĞ½ö 4 ÕÅÓĞ Destination ¡ª¡ª body ½âÎöÈ«²¿Èİ´í¡£
  *
- * æœ¬æ–‡ä»¶å†…å®¹ = cordis_define çš„ code.hostï¼ˆçº¯ JS å‡½æ•°ä½“ï¼Œè¿”å› Cordis Pluginï¼‰ã€‚
+ * ±¾ÎÄ¼şÄÚÈİ = cordis_define µÄ code.host£¨´¿ JS º¯ÊıÌå£¬·µ»Ø Cordis Plugin£©¡£
  */
 
-// ===== è§„èŒƒæ–¹è¨€ï¼ˆdynamic dialectï¼‰ï¼šharness ä¸ºè‡ªç”±å˜é‡ï¼›pkg entry æä¾› shim =====
+// ===== ¹æ·¶·½ÑÔ£¨dynamic dialect£©£ºharness Îª×ÔÓÉ±äÁ¿£»pkg entry Ìá¹© shim =====
 export default {
   inject: ['connection'],
   apply(ctx) {
@@ -27,8 +27,8 @@ export default {
     const fs = ctx.get('fs')
     if (subprocess === undefined || timer === undefined) return
 
-    // B3 rpc host ä¾§ shimï¼šharness.handle('wf.x') â†’ Map + connection.rpc.handle('/dsws') dispatch
-    // æ–¹æ¡ˆ C åŸæ ·å¤åˆ¶å pkg å…¥å£ä¸å†ç» build.mjs æ³¨å…¥ shimï¼Œæ”¹ä¸ºæºæ–‡ä»¶è‡ªå¸¦ï¼Œé¿å… ReferenceError: harness is not defined
+    // B3 rpc host ²à shim£ºharness.handle('wf.x') ¡ú Map + connection.rpc.handle('/dsws') dispatch
+    // ·½°¸ C Ô­Ñù¸´ÖÆºó pkg Èë¿Ú²»ÔÙ¾­ build.mjs ×¢Èë shim£¬¸ÄÎªÔ´ÎÄ¼ş×Ô´ø£¬±ÜÃâ ReferenceError: harness is not defined
     const __DSW_HANDLERS__ = new Map()
     const harness = {
       handle: (method, fn) => {
@@ -37,28 +37,36 @@ export default {
       }
     }
 
-    // ============ é…ç½® ============
-    // v1.5.0ï¼ˆå…¬å…±å‘å¸ƒï¼‰ï¼šå…œåº• gh è·¯å¾„ç» platform.env.get('DSH_GH_PATH')ï¼ˆ#171 migratedï¼Œé›¶ç›´è¯» process.envï¼‰
-    // é»˜è®¤å·¥ä½œåŒº = DSH è¿›ç¨‹å½“å‰ç›®å½•ï¼ˆå¯è¢« wf.snapshot args.cwd è¦†ç›–ï¼›å»æœ¬æœºç¡¬ç¼–ç ï¼‰
+    // ============ ÅäÖÃ ============
+    // v1.5.0£¨¹«¹²·¢²¼£©£º¶µµ× gh Â·¾¶¾­ platform.env.get('DSH_GH_PATH')£¨#171 migrated£¬ÁãÖ±¶Á process.env£©
+    // Ä¬ÈÏ¹¤×÷Çø = DSH ½ø³Ìµ±Ç°Ä¿Â¼£¨¿É±» wf.snapshot args.cwd ¸²¸Ç£»È¥±¾»úÓ²±àÂë£©
     const DEFAULT_CWD = (typeof process !== 'undefined' && typeof process.cwd === 'function') ? process.cwd() : ''
     const TIMEOUT_MS = 30000
-    // v1.3.3 æé€Ÿï¼šå¿«ç…§ç¼“å­˜ 5s â†’ 60sï¼ˆé¢æ¿æ‰“å¼€åŸºæœ¬å‘½ä¸­ç¼“å­˜ï¼Œä¸å†æ¯æ¬¡å…¨é‡é‡å»º 11 æ¬¡ gh è°ƒç”¨ï¼‰
+    // v1.3.3 ÌáËÙ£º¿ìÕÕ»º´æ 5s ¡ú 60s£¨Ãæ°å´ò¿ª»ù±¾ÃüÖĞ»º´æ£¬²»ÔÙÃ¿´ÎÈ«Á¿ÖØ½¨ 11 ´Î gh µ÷ÓÃ£©
     const CACHE_MS = 60000
-    const STATUS_CACHE_MS = 30000  // å‰ç½®æ£€æŸ¥ç»“æœç¼“å­˜ï¼ˆ#344ï¼‰
+    const STATUS_CACHE_MS = 30000  // Ç°ÖÃ¼ì²é½á¹û»º´æ£¨#344£©
     const SKILL_PROBE_DIRS = ['.agents/skills', '.minimax/skills', '.claude/skills']  // #171 migrated: posix canonical via platform.path
-    // v1.5 T11 + #149 ä¿®å¤ï¼šå…¨æµç¨‹æ ¸å¿ƒæŠ€èƒ½æ¢æµ‹åå•ï¼ˆå„åŠ¨ä½œ prompt å¼•ç”¨çš„æŠ€èƒ½ + åŸºç¡€æŠ€èƒ½ï¼›æ£€æŸ¥ 7/8 å–å‰ä¸¤ä¸ªï¼Œæ£€æŸ¥ 9 èšåˆå…¨é‡ï¼‰â€” è¡¥ `setup-matt-pocock-skills` ä¸º 10 åï¼ˆå›¾å¿«ç…§ Â§1.1 ç›¸é‚»ç¼ºé™·æ­£ä½ï¼Œ#150 Q6ï¼‰
+    // v1.5 T11 + #149 ĞŞ¸´£ºÈ«Á÷³ÌºËĞÄ¼¼ÄÜÌ½²âÃûµ¥£¨¸÷¶¯×÷ prompt ÒıÓÃµÄ¼¼ÄÜ + »ù´¡¼¼ÄÜ£»¼ì²é 7/8 È¡Ç°Á½¸ö£¬¼ì²é 9 ¾ÛºÏÈ«Á¿£©¡ª ²¹ `setup-matt-pocock-skills` Îª 10 Ãû£¨Í¼¿ìÕÕ ¡ì1.1 ÏàÁÚÈ±ÏİÕıÎ»£¬#150 Q6£©
     const SKILL_PROBE_NAMES = ['wayfinder', 'triage', 'grilling', 'grill-me', 'implement', 'ask-matt', 'research', 'prototype', 'handoff', 'setup-matt-pocock-skills']
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
 
-    // ============ çŠ¶æ€ ============
+    // ============ ×´Ì¬ ============
     let ghPath = null
-    // #195 ä¿®å¤ï¼šå¤±è´¥ä¸æ°¸ä¹…ç¼“å­˜ â€”â€” ghLastError ä»…ä¿ç•™æœ€è¿‘ä¸€æ¬¡å¤±è´¥ï¼ˆè¦†ç›–å¼ï¼‰ï¼Œç¯å¢ƒä¿®å¤åä¸‹æ¬¡ resolveGh è¦†ç›–ä¸º nullï¼›ä¸åƒæ—§å®ç°é¦–æ¬¡å¤±è´¥æ°¸ä¸é‡è¯•
+    // #195 ĞŞ¸´£ºÊ§°Ü²»ÓÀ¾Ã»º´æ ¡ª¡ª ghLastError ½ö±£Áô×î½üÒ»´ÎÊ§°Ü£¨¸²¸ÇÊ½£©£¬»·¾³ĞŞ¸´ºóÏÂ´Î resolveGh ¸²¸ÇÎª null£»²»Ïñ¾ÉÊµÏÖÊ×´ÎÊ§°ÜÓÀ²»ÖØÊÔ
     let ghLastError = null
-    let repoKeys = {}  // v12ï¼šrepoKey æŒ‰ cwd ç¼“å­˜ï¼ˆåˆ‡æ¢ä»“åº“ä¼šè¯æ—¶ä¸å†ä¸²ä»“åº“ï¼‰
+    let repoKeys = {}  // v12£ºrepoKey °´ cwd »º´æ£¨ÇĞ»»²Ö¿â»á»°Ê±²»ÔÙ´®²Ö¿â£©
+    let cacheMap = new Map()
+    const CACHE_LRU_MAX = 20
     let cache = { ts: 0, snapshot: null, error: null, cwd: null }
-    let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s ç¼“å­˜ï¼ˆæŒ‰ cwd+lang åŒºåˆ†ï¼‰
-    let userHome = null                                     // ä¿ç•™å ä½ï¼ˆ#171 å·²è¿ platform.getHomeï¼Œç¼“å­˜å½’å¹³å° memoizeï¼‰
-    // ============ Tracker Registryï¼ˆ#155 Â· åç«¯é€‰æ‹© UIï¼‰============
+    function normKey(k){ try{ return String(k||'').toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,'')||'/'; }catch(e){ return String(k||''); } }
+    function touchLRU(map, key, val){ if(map.has(key)) map.delete(key); map.set(key,val); if(map.size>CACHE_LRU_MAX){ const first=map.keys().next().value; map.delete(first); } return val; }
+    function getCacheByCwd(cwdRaw){ const k=normKey(cwdRaw); return cacheMap.get(k)||null; }
+    function setCacheByCwd(cwdRaw, entry){ const k=normKey(cwdRaw); const e=Object.assign({},entry,{k}); touchLRU(cacheMap,k,e); try{ cache={ts:e.ts||Date.now(), snapshot:e.snapshot||null, error:e.error||null, cwd:cwdRaw}; }catch{} return e; }
+    function snapshotVersionOf(snap){ try{ const iss=(snap&&Array.isArray(snap.issues))?snap.issues:[]; const sorted=iss.map(function(x){return String(x.number)+':'+String(x.state||'')+':'+String(x.updatedAt||'')}).sort().join('|'); let h=0; for(let i=0;i<sorted.length;i++) h=((h<<5)-h+sorted.charCodeAt(i))|0; const hex=(h>>>0).toString(16).padStart(8,'0'); try{ if(typeof require==='function'){ const cr=require('crypto'); if(cr&&cr.createHash){ return cr.createHash('sha1').update(sorted).digest('hex').slice(0,12); } } }catch(e){} return hex; }catch(e){ return '0'; } }
+    function issueIndexVersion(idx){ try{ const keys=Object.keys(idx||{}).sort(); const str=keys.map(function(k){return k+':'+idx[k]}).join('|'); try{ const cr=require('crypto'); if(cr&&cr.createHash) return cr.createHash('sha1').update(str).digest('hex').slice(0,12); }catch(e){} let h=0; for(let i=0;i<str.length;i++) h=((h<<5)-h+str.charCodeAt(i))|0; return (h>>>0).toString(16).padStart(8,'0'); }catch(e){ return '0'; } }
+    let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s »º´æ£¨°´ cwd+lang Çø·Ö£©
+    let userHome = null                                     // ±£ÁôÕ¼Î»£¨#171 ÒÑÇ¨ platform.getHome£¬»º´æ¹éÆ½Ì¨ memoize£©
+    // ============ Tracker Registry£¨#155 ¡¤ ºó¶ËÑ¡Ôñ UI£©============
     let _trackerRegistry = null
     let _trackerRegistryInit = null
     async function getTrackerRegistry() {
@@ -73,7 +81,7 @@ export default {
           const regMod = await import('./tracker/registry.js')
           const createRegistry = regMod.createRegistry || regMod.default
           const reg = createRegistry({}, { matchesTimeout: 3000 })
-          // æ³¨å†Œå†…ç½®åç«¯ï¼ˆgithub/markdown/gitlabï¼‰ï¼Œå¤±è´¥å¿½ç•¥ï¼ˆä¿æŒå¯ç”¨ï¼‰
+          // ×¢²áÄÚÖÃºó¶Ë£¨github/markdown/gitlab£©£¬Ê§°ÜºöÂÔ£¨±£³Ö¿ÉÓÃ£©
           try {
             const ghMod = await import('./tracker/backends/github/index.js')
             const m = ghMod.githubModule || ghMod.defaultModule || ghMod.default
@@ -96,7 +104,7 @@ export default {
           try { ctx.set && ctx.set('trackerRegistry', reg) } catch {}
           return reg
         } catch (e) {
-          // å›è½ï¼šç©º registryï¼ˆä»… explicit èƒ½åŠ›ï¼‰
+          // »ØÂä£º¿Õ registry£¨½ö explicit ÄÜÁ¦£©
           try {
             const regMod2 = await import('./tracker/registry.js')
             const cr = regMod2.createRegistry || regMod2.default
@@ -108,10 +116,10 @@ export default {
       _trackerRegistry = await _trackerRegistryInit
       return _trackerRegistry
     }
-    // è§¦å‘é¢„çƒ­ï¼ˆä¸é˜»å¡ä¸»æµç¨‹ï¼‰
+    // ´¥·¢Ô¤ÈÈ£¨²»×èÈûÖ÷Á÷³Ì£©
     try { getTrackerRegistry().catch(()=>{}) } catch {}
-    // ============ å¹³å°æŠ½è±¡ï¼ˆ#171 Â· createPlatform æƒ°æ€§å•ä¾‹ï¼‰============
-    // ç¬¬ä¸€æ€§åŸç†ï¼šå¹³å°å•ç‚¹ + é›¶æ‰‹æ‹¼ + åŒé—¸ä¸å˜é‡ï¼›ç» ctx.get('platform') æˆ–å†…è” fallbackï¼ˆé›¶ import è¯­æ³•ï¼Œé¿ D7 dev host vm.Script é˜»å¡ï¼‰
+    // ============ Æ½Ì¨³éÏó£¨#171 ¡¤ createPlatform ¶èĞÔµ¥Àı£©============
+    // µÚÒ»ĞÔÔ­Àí£ºÆ½Ì¨µ¥µã + ÁãÊÖÆ´ + Ë«Õ¢²»±äÁ¿£»¾­ ctx.get('platform') »òÄÚÁª fallback£¨Áã import Óï·¨£¬±Ü D7 dev host vm.Script ×èÈû£©
     let _platform = null
     let _platformInit = null
     async function getPlatform() {
@@ -188,8 +196,8 @@ export default {
       _platform = await _platformInit
       return _platform
     }
-    // ============ æ¢æµ‹çº§è” Â· workspaceStore + detectionServiceï¼ˆ#152 Â· #150 Q1-Q7ï¼‰============
-    // å››å±‚ä¸¥æ ¼ + è½»é‡åŒ–äºŒè”éª¨æ¶ + per-workspace å†…å­˜ Map<handleKeyâ†’Selection> ä¸è½ç›˜ + pending ä¸ç¼“å­˜ + wf.bind è–„å…¼å®¹
+    // ============ Ì½²â¼¶Áª ¡¤ workspaceStore + detectionService£¨#152 ¡¤ #150 Q1-Q7£©============
+    // ËÄ²ãÑÏ¸ñ + ÇáÁ¿»¯¶şÁª¹Ç¼Ü + per-workspace ÄÚ´æ Map<handleKey¡úSelection> ²»ÂäÅÌ + pending ²»»º´æ + wf.bind ±¡¼æÈİ
     let _workspaceStore = null
     let _detectionService = null
     async function getWorkspaceStore() {
@@ -198,7 +206,7 @@ export default {
         const mod = await import('./tracker/detection/workspaceStore.js')
         const create = mod.createWorkspaceStore || mod.default
         _workspaceStore = create({ ttl: STATUS_CACHE_MS })
-        // registry stale æ¸…ç†ï¼ˆ#150 Q3 unregister stale â†’ emit bindï¼‰
+        // registry stale ÇåÀí£¨#150 Q3 unregister stale ¡ú emit bind£©
         try {
           const reg = await getTrackerRegistry()
           if (reg && typeof reg.on === 'function') reg.on('bind', (evt) => { if (evt && evt.stale) { try { _workspaceStore.onRegistryBindStale(evt.handle) } catch {} } })
@@ -215,7 +223,7 @@ export default {
       try {
         const mod = await import('./tracker/detection/detectionService.js')
         const create = mod.createDetectionService || mod.default
-        // skillProbe å†…è”ï¼ˆå¤ç”¨ probeSkill åŒæºé€»è¾‘ï¼Œ10 åå« setup æ­£ä½ï¼‰
+        // skillProbe ÄÚÁª£¨¸´ÓÃ probeSkill Ë«Ô´Âß¼­£¬10 Ãûº¬ setup ÕıÎ»£©
         const skillProbe = async ({ cwd }) => {
           const probes = {}
           let missing = []
@@ -231,7 +239,7 @@ export default {
         }
         _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => ({ setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } }), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }) })
       } catch (e) {
-        // å…œåº•ï¼šæœ€å°äºŒè”ï¼ˆexplicit â†’ matchesï¼‰ä¸å« preflight/skill
+        // ¶µµ×£º×îĞ¡¶şÁª£¨explicit ¡ú matches£©²»º¬ preflight/skill
         _detectionService = {
           detect: async (handle, opts) => {
             const plat = await getPlatform()
@@ -247,32 +255,32 @@ export default {
       return _detectionService
     }
 
-    let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6ï¼ˆ#2 MVPï¼‰ï¼šprobe since æ—¶é—´æˆ³ï¼ŒæŒ‰ repoKey éš”ç¦»ï¼ˆåªåœ¨ probe æ£€æµ‹åˆ° change æ—¶æ¨è¿›ï¼›build ä¸å¾—åŠ¨å®ƒ â€”â€” å¦åˆ™ä¼šåæ‰åŒçª—å£ç¼–è¾‘ï¼Œè§ buildSnapshot å¤„æ³¨é‡Šï¼‰
-    let lastIssueIndexByRepo = {}                          // #2 deletion fixï¼šä¿å­˜ä¸Šæ¬¡å…¨é‡ issue ç´¢å¼•ï¼Œç”¨äºå‘ç° GitHub åˆ é™¤/çŠ¶æ€æ¶ˆå¤±
-    let pendingIssuePathEvents = []                       // issuePath Â· 1A+1B æ£€æµ‹é˜Ÿåˆ—ï¼ˆrunGh ç™½åå• + wf.claimï¼‰ï¼Œclient via wf.issuePathPoll æ‹‰å–ï¼Œcap 100
+    let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6£¨#2 MVP£©£ºprobe since Ê±¼ä´Á£¬°´ repoKey ¸ôÀë£¨Ö»ÔÚ probe ¼ì²âµ½ change Ê±ÍÆ½ø£»build ²»µÃ¶¯Ëü ¡ª¡ª ·ñÔò»áÍÌµôÍ¬´°¿Ú±à¼­£¬¼û buildSnapshot ´¦×¢ÊÍ£©
+    let lastIssueIndexByRepo = {}                          // #2 deletion fix£º±£´æÉÏ´ÎÈ«Á¿ issue Ë÷Òı£¬ÓÃÓÚ·¢ÏÖ GitHub É¾³ı/×´Ì¬ÏûÊ§
+    let pendingIssuePathEvents = []                       // issuePath ¡¤ 1A+1B ¼ì²â¶ÓÁĞ£¨runGh °×Ãûµ¥ + wf.claim£©£¬client via wf.issuePathPoll À­È¡£¬cap 100
 
-    // ============ gh å°è£… ============
-    // #195 ä¿®å¤ï¼šresolveGh ä¸å†ç¼“å­˜å¤±è´¥ï¼ˆghLastError ä»…æœ€è¿‘ä¸€æ¬¡å¤±è´¥ï¼Œç¯å¢ƒä¿®å¤åä¸‹æ¬¡æ¢æµ‹å³æ¢å¤ï¼‰
+    // ============ gh ·â×° ============
+    // #195 ĞŞ¸´£ºresolveGh ²»ÔÙ»º´æÊ§°Ü£¨ghLastError ½ö×î½üÒ»´ÎÊ§°Ü£¬»·¾³ĞŞ¸´ºóÏÂ´ÎÌ½²â¼´»Ö¸´£©
     async function resolveGh() {
       if (ghPath) return ghPath
       const platform = await getPlatform()
       try {
         const p = await platform.resolveExecutable('gh')
         if (p) { ghPath = p; ghLastError = null; return ghPath }
-        ghLastError = 'gh ä¸å¯ç”¨ï¼šPATH æ—  ghï¼Œä¸” DSH_GH_PATH æœªé…ç½®ï¼ˆå®˜æ–¹å®‰è£…è¯·è®¿é—® https://cli.github.com/ï¼‰'
+        ghLastError = 'gh ²»¿ÉÓÃ£ºPATH ÎŞ gh£¬ÇÒ DSH_GH_PATH Î´ÅäÖÃ£¨¹Ù·½°²×°Çë·ÃÎÊ https://cli.github.com/£©'
         return null
       } catch (e) {
         const fb = platform.env.get('DSH_GH_PATH') || ''
-        if (!fb) { ghLastError = 'gh ä¸å¯ç”¨ï¼šPATH æ—  ghï¼Œä¸” DSH_GH_PATH æœªé…ç½®ï¼ˆå®˜æ–¹å®‰è£…è¯·è®¿é—® https://cli.github.com/ï¼‰'; return null }
+        if (!fb) { ghLastError = 'gh ²»¿ÉÓÃ£ºPATH ÎŞ gh£¬ÇÒ DSH_GH_PATH Î´ÅäÖÃ£¨¹Ù·½°²×°Çë·ÃÎÊ https://cli.github.com/£©'; return null }
         try {
           const info = await platform.fs.lstat(fb)
           if (info) { ghPath = fb; ghLastError = null; return ghPath }
         } catch (e2) {}
-        ghLastError = 'gh ä¸å¯ç”¨ï¼šPATH æ—  ghï¼Œä¸” DSH_GH_PATH æœªé…ç½®ï¼ˆå®˜æ–¹å®‰è£…è¯·è®¿é—® https://cli.github.com/ï¼‰'
+        ghLastError = 'gh ²»¿ÉÓÃ£ºPATH ÎŞ gh£¬ÇÒ DSH_GH_PATH Î´ÅäÖÃ£¨¹Ù·½°²×°Çë·ÃÎÊ https://cli.github.com/£©'
         return null
       }
     }
-    // #195 ä¿®å¤ï¼šforce æ¢æµ‹è·¯å¾„è°ƒ resetGhCache æ¸…ç©ºæˆåŠŸç¼“å­˜ï¼Œå¼ºåˆ¶ä¸‹æ¬¡ resolveGh é‡æ¢
+    // #195 ĞŞ¸´£ºforce Ì½²âÂ·¾¶µ÷ resetGhCache Çå¿Õ³É¹¦»º´æ£¬Ç¿ÖÆÏÂ´Î resolveGh ÖØÌ½
     function resetGhCache() { ghPath = null; ghLastError = null }
 
     async function runGh(args, cwd) {
@@ -310,7 +318,7 @@ export default {
         else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400) }
       }
-      // issuePath Â· 1Aï¼šrunGh ç™½åå•æ£€æµ‹ï¼ˆä»…æˆåŠŸè·¯å¾„ï¼›å¤±è´¥ä¸è®°è·¯å¾„æ±¡æŸ“ï¼›--add-assignee ä¸º claim é€šé“ï¼Œäº¤ç”± wf.claim æ¨é€ source='claim'ï¼‰
+      // issuePath ¡¤ 1A£ºrunGh °×Ãûµ¥¼ì²â£¨½ö³É¹¦Â·¾¶£»Ê§°Ü²»¼ÇÂ·¾¶ÎÛÈ¾£»--add-assignee Îª claim Í¨µÀ£¬½»ÓÉ wf.claim ÍÆËÍ source='claim'£©
       try {
         const a = Array.isArray(args) ? args : []
         if (a.length >= 2 && a[0] === 'issue' && /^(edit|close|comment|reopen)$/.test(String(a[1]))) {
@@ -321,11 +329,11 @@ export default {
             if (hit) pushIssuePathEvent(hit, 'gh-edit')
           }
         }
-      } catch (e) { /* æ£€æµ‹å¤±è´¥ä¸å½±å“ä¸»æµç¨‹ */ }
+      } catch (e) { /* ¼ì²âÊ§°Ü²»Ó°ÏìÖ÷Á÷³Ì */ }
       return { ok: true, text: out.text || '' }
     }
 
-    // é€šç”¨è¿›ç¨‹æ‰§è¡Œï¼ˆ#344 å‰ç½®æ£€æŸ¥ç”¨ï¼šgit / cmd ç­‰ï¼Œä¸ç» shellï¼Œé”™è¯¯ä¸å½’ä¸€åŒ–ï¼‰
+    // Í¨ÓÃ½ø³ÌÖ´ĞĞ£¨#344 Ç°ÖÃ¼ì²éÓÃ£ºgit / cmd µÈ£¬²»¾­ shell£¬´íÎó²»¹éÒ»»¯£©
     async function execProc(argv, cwd) {
       let handle
       try {
@@ -359,13 +367,13 @@ export default {
       return platform.resolveExecutable('git')
     }
 
-    // ç”¨æˆ·ä¸»ç›®å½•ï¼ˆ#171 å·²è¿ platform.getHomeï¼›åŸ cmd.exe æ¢æµ‹ä»… win32 ç”Ÿæ•ˆï¼Œç°å¹³å°å±‚ç»Ÿä¸€ï¼‰
+    // ÓÃ»§Ö÷Ä¿Â¼£¨#171 ÒÑÇ¨ platform.getHome£»Ô­ cmd.exe Ì½²â½ö win32 ÉúĞ§£¬ÏÖÆ½Ì¨²ãÍ³Ò»£©
     async function getHome() {
       const platform = await getPlatform()
       return platform.getHome()
     }
 
-    // ============ issuePath Â· 1A\+1B äº‹ä»¶é˜Ÿåˆ— ============
+    // ============ issuePath ¡¤ 1A\+1B ÊÂ¼ş¶ÓÁĞ ============
     function pushIssuePathEvent(ref, source, title) {
       const n = Number(ref)
       if (!n || isNaN(n)) return
@@ -373,10 +381,10 @@ export default {
       if (pendingIssuePathEvents.length > 100) pendingIssuePathEvents.shift()
     }
 
-    // ============ v1.5 T9ï¼šgit æ ¹æ£€æµ‹ + ç£ç›˜ç¼“å­˜ï¼ˆè·¨é‡å¯ç§’å¼€ï¼‰============
-    // git rev-parse --show-toplevel å±‚å±‚ä¸Šæº¯æ‰¾æ ¹ï¼›åµŒå¥—ä»“åº“ï¼ˆå­ç›®å½•å«ç‹¬ç«‹ .gitï¼‰git åŸç”Ÿåœåœ¨æœ€è¿‘æ ¹ â€”â€” ç¬¦åˆç”¨æˆ·è¦æ±‚
-    let repoRoots = {}           // æ ¹è·¯å¾„æŒ‰ cwd ç¼“å­˜
-    let cacheDirResolved = null  // ç¼“å­˜ç›®å½•ï¼ˆæƒ°æ€§è§£æï¼‰
+    // ============ v1.5 T9£ºgit ¸ù¼ì²â + ´ÅÅÌ»º´æ£¨¿çÖØÆôÃë¿ª£©============
+    // git rev-parse --show-toplevel ²ã²ãÉÏËİÕÒ¸ù£»Ç¶Ì×²Ö¿â£¨×ÓÄ¿Â¼º¬¶ÀÁ¢ .git£©git Ô­ÉúÍ£ÔÚ×î½ü¸ù ¡ª¡ª ·ûºÏÓÃ»§ÒªÇó
+    let repoRoots = {}           // ¸ùÂ·¾¶°´ cwd »º´æ
+    let cacheDirResolved = null  // »º´æÄ¿Â¼£¨¶èĞÔ½âÎö£©
     async function getRepoRoot(cwd) {
       const key = cwd || DEFAULT_CWD
       if (repoRoots[key] !== undefined) return repoRoots[key]
@@ -389,15 +397,15 @@ export default {
       }
       return repoRoots[key]
     }
-    // ç¼“å­˜ç›®å½•ï¼š<DSH è¿›ç¨‹ cwd>/.dsh-mattskillsdeck-cache/ï¼ˆT9 ä¿®å¤ï¼šfs æ²™ç®± workspace-write åªå…è®¸ cwd ä¸‹ï¼Œ
-    //   ~/.dsh åœ¨æ²™ç®±å¤–è¢«æ‹’ â†’ ç¼“å­˜æ°¸ä¸å†™å…¥ï¼›æ”¹ç”¨ process.cwd() è½ç‚¹ï¼Œè·¨é‡å¯ç§’å¼€ï¼›v1.6.17 æ›´å waystation â†’ MattSkillsDeckï¼‰
+    // »º´æÄ¿Â¼£º<DSH ½ø³Ì cwd>/.dsh-mattskillsdeck-cache/£¨T9 ĞŞ¸´£ºfs É³Ïä workspace-write Ö»ÔÊĞí cwd ÏÂ£¬
+    //   ~/.dsh ÔÚÉ³ÏäÍâ±»¾Ü ¡ú »º´æÓÀ²»Ğ´Èë£»¸ÄÓÃ process.cwd() Âäµã£¬¿çÖØÆôÃë¿ª£»v1.6.17 ¸üÃû waystation ¡ú MattSkillsDeck£©
     async function getCacheDir() {
       if (cacheDirResolved) return cacheDirResolved
       const platform = await getPlatform()
       const cwd0 = (typeof process !== 'undefined' && process.cwd) ? process.cwd() : DEFAULT_CWD
       if (!cwd0) return null
       cacheDirResolved = platform.path.join(cwd0, '.dsh-mattskillsdeck-cache')
-      try { const pfs = platform.fs; if (pfs !== undefined && typeof pfs.mkdir === 'function') await pfs.mkdir(cacheDirResolved) } catch (e) { /* å·²å­˜åœ¨æˆ–ä¸å¯å»ºï¼ŒwriteText ä¼šè‡ªå»º */ }
+      try { const pfs = platform.fs; if (pfs !== undefined && typeof pfs.mkdir === 'function') await pfs.mkdir(cacheDirResolved) } catch (e) { /* ÒÑ´æÔÚ»ò²»¿É½¨£¬writeText »á×Ô½¨ */ }
       return cacheDirResolved
     }
     function cacheFileName(repo) {
@@ -421,23 +429,23 @@ export default {
         if (fs === undefined || typeof fs.writeText !== 'function' || typeof fs.resolve !== 'function') return
         const dir = await getCacheDir(); if (!dir) return
         const fn = cacheFileName(repo); if (!fn) return
-        // T9 ä¿®å¤ï¼šfs æœåŠ¡çš„ writeText è¦æ±‚ resolve() è¿”å›çš„ target å¯¹è±¡ï¼ˆ{targetKey,displayPath}ï¼‰ï¼Œä¸èƒ½ç›´æ¥ä¼ è·¯å¾„å­—ç¬¦ä¸²
+        // T9 ĞŞ¸´£ºfs ·şÎñµÄ writeText ÒªÇó resolve() ·µ»ØµÄ target ¶ÔÏó£¨{targetKey,displayPath}£©£¬²»ÄÜÖ±½Ó´«Â·¾¶×Ö·û´®
         const platform = await getPlatform()
         const t = await platform.fs.resolve(platform.path.join(dir, fn))
         await fs.writeText(t, JSON.stringify(snap))
-      } catch (e) { /* å†™å¤±è´¥ä¸å½±å“ä¸»æµç¨‹ */ }
+      } catch (e) { /* Ğ´Ê§°Ü²»Ó°ÏìÖ÷Á÷³Ì */ }
     }
 
     async function getRepoKey(cwd) {
       const key = cwd || DEFAULT_CWD
       if (repoKeys[key]) return repoKeys[key]
-      // v1.5 T11ï¼ˆmap#37 Â· #38 R1 + #40 R2 è¾“å…¥ï¼‰ï¼š
-      //   å¤šè¿œç¨‹ä¸‹ gh å¿…é€‰ upstreamï¼ˆcontext/remote.go::remoteNameSortScore upstream(3)>github(2)>origin(1)ï¼‰ï¼Œ
-      //   æ— å‚ `gh repo view` æ°¸è¿œè¿”å›åŸä½œè€…ã€‚æ”¹ä¸ºï¼šæ˜¾å¼ `git remote get-url origin` + parseGithubRepo é¦–é€‰ï¼Œ
-      //   å¤±è´¥å† .git/config ç›´è¯»ï¼Œå…œåº•æ‰ç”¨ gh repo viewï¼ˆåŒ checkRepo å·²ç”¨æ–¹æ¡ˆåŒæºï¼‰ã€‚
+      // v1.5 T11£¨map#37 ¡¤ #38 R1 + #40 R2 ÊäÈë£©£º
+      //   ¶àÔ¶³ÌÏÂ gh ±ØÑ¡ upstream£¨context/remote.go::remoteNameSortScore upstream(3)>github(2)>origin(1)£©£¬
+      //   ÎŞ²Î `gh repo view` ÓÀÔ¶·µ»ØÔ­×÷Õß¡£¸ÄÎª£ºÏÔÊ½ `git remote get-url origin` + parseGithubRepo Ê×Ñ¡£¬
+      //   Ê§°ÜÔÙ .git/config Ö±¶Á£¬¶µµ×²ÅÓÃ gh repo view£¨Í¬ checkRepo ÒÑÓÃ·½°¸Í¬Ô´£©¡£
       const root = await getRepoRoot(key)
       const execCwd = root || key
-      // Tier 1ï¼šgit remote get-url origin + parseGithubRepoï¼ˆSSH/HTTPS éƒ½ç”± parseRegex è¦†ç›–ï¼‰
+      // Tier 1£ºgit remote get-url origin + parseGithubRepo£¨SSH/HTTPS ¶¼ÓÉ parseRegex ¸²¸Ç£©
       const git = await resolveGit()
       if (git) {
         const r = await execProc([git, '-C', execCwd, 'remote', 'get-url', 'origin'], execCwd)
@@ -446,7 +454,7 @@ export default {
           if (k) { repoKeys[key] = k; return k }
         }
       }
-      // Tier 2ï¼š.git/config ç›´è¯» originï¼ˆgit äºŒè¿›åˆ¶ä¸å¯ç”¨ / `remote get-url` å¤±è´¥æ—¶ï¼‰
+      // Tier 2£º.git/config Ö±¶Á origin£¨git ¶ş½øÖÆ²»¿ÉÓÃ / `remote get-url` Ê§°ÜÊ±£©
       if (fs !== undefined) {
         try {
           const t = await fs.resolve('.git/config', { cwd: execCwd })
@@ -456,9 +464,9 @@ export default {
             const k = parseGithubRepo(um[1])
             if (k) { repoKeys[key] = k; return k }
           }
-        } catch (e) { /* è½ Tier 3 */ }
+        } catch (e) { /* Âä Tier 3 */ }
       }
-      // Tier 3ï¼šgh repo view å…œåº•ï¼ˆé GitHub ä»“åº“ / è¾¹ç¼˜æƒ…å†µï¼›ä¿æŒå‘åå…¼å®¹ï¼‰
+      // Tier 3£ºgh repo view ¶µµ×£¨·Ç GitHub ²Ö¿â / ±ßÔµÇé¿ö£»±£³ÖÏòºó¼æÈİ£©
       const r = await runGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], execCwd)
       if (!r.ok) return null
       const s = r.text.trim()
@@ -468,9 +476,9 @@ export default {
       return repoKeys[key]
     }
 
-    // ============ æ•°æ®æµ ============
-    // T16ï¼šæ­£æ–‡é¢„å¤„ç† â€”â€” å‰¥ BOM + å­—é¢ \n è¿˜åŸä¸ºçœŸå®æ¢è¡Œï¼ˆå†å²åæ ¼å¼ body ä¹Ÿèƒ½è§£æï¼‰
-    //   è§¦å‘æ¡ä»¶ï¼šçœŸå®æ¢è¡Œæå°‘è€Œå­—é¢ \n å¤§é‡å­˜åœ¨ï¼ˆæ•´ç¯‡è¢«å‹æˆä¸€è¡Œï¼‰ï¼›é¿å…è¯¯ä¼¤æ­£å¸¸æ­£æ–‡
+    // ============ Êı¾İÁ÷ ============
+    // T16£ºÕıÎÄÔ¤´¦Àí ¡ª¡ª °ş BOM + ×ÖÃæ \n »¹Ô­ÎªÕæÊµ»»ĞĞ£¨ÀúÊ·»µ¸ñÊ½ body Ò²ÄÜ½âÎö£©
+    //   ´¥·¢Ìõ¼ş£ºÕæÊµ»»ĞĞ¼«ÉÙ¶ø×ÖÃæ \n ´óÁ¿´æÔÚ£¨ÕûÆª±»Ñ¹³ÉÒ»ĞĞ£©£»±ÜÃâÎóÉËÕı³£ÕıÎÄ
     function normalizeBody(raw) {
       let s = String(raw || '').replace(/^\uFEFF/, '')
       const realNL = (s.match(/\n/g) || []).length
@@ -496,7 +504,7 @@ export default {
       out.notes = clean(sec['Notes']).join(' ')
       out.decisions = clean(sec['Decisions so far']).filter(function (l) { return l.indexOf('- [') === 0 }).map(function (l) {
         const t = l.match(/\[(.+?)\]\((.+?)\)/)
-        const g = l.replace(/^-\s*\[.+?\]\(.+?\)\s*[-â€“â€”]?\s*/, '')
+        const g = l.replace(/^-\s*\[.+?\]\(.+?\)\s*[-¨C¡ª]?\s*/, '')
         return { title: t ? t[1] : l, url: t ? t[2] : '', gist: g }
       })
       out.fog = clean(sec['Not yet specified']).filter(function (l) { return l.indexOf('<!--') !== 0 })
@@ -504,16 +512,16 @@ export default {
       return out
     }
 
-    // v1.5 T12 ä¿®è®¢ï¼ˆB4ï¼‰ï¼šè¿›åº¦å—è§£æä¸‰çº§é”šå®š â€”â€” è¿›åº¦åŒº = å¥‘çº¦å›ºå®šç« èŠ‚ã€Œ## è¿›åº¦ï¼šN%ã€ï¼Œå…ˆé”šå®šæ ‡é¢˜è¡Œï¼Œé˜²æ­£æ–‡ç¤ºä¾‹/è§„åˆ™æ–‡æœ¬åŠ«æŒï¼ˆ#459/#460 å®è¯ï¼‰
-    //   1) æ ‡é¢˜è¡Œï¼š## è¿›åº¦ï¼š90%ï¼ˆè¡Œé¦– markdown æ ‡é¢˜ Â· è¿›åº¦åŒºæ­£å½¢ï¼‰
-    //   2) è¡Œé¦–å˜ä½“ï¼šè¿›åº¦ï¼š90% / Progress: 90%ï¼ˆæ— æ ‡é¢˜ç¬¦å· Â· å…‘ç°æ³¨é‡Šæ‰¿è¯ºï¼‰
-    //   3) å…¨æ–‡å…œåº•ï¼šä»»æ„å‡ºç°ï¼ˆå…¼å®¹è€ç¥¨éšæ‰‹æ ¼å¼ Â· æ”¾æœ€åä¸åŠ«æŒå‰ä¸¤å±‚ï¼‰
+    // v1.5 T12 ĞŞ¶©£¨B4£©£º½ø¶È¿é½âÎöÈı¼¶Ãª¶¨ ¡ª¡ª ½ø¶ÈÇø = ÆõÔ¼¹Ì¶¨ÕÂ½Ú¡¸## ½ø¶È£ºN%¡¹£¬ÏÈÃª¶¨±êÌâĞĞ£¬·ÀÕıÎÄÊ¾Àı/¹æÔòÎÄ±¾½Ù³Ö£¨#459/#460 ÊµÖ¤£©
+    //   1) ±êÌâĞĞ£º## ½ø¶È£º90%£¨ĞĞÊ× markdown ±êÌâ ¡¤ ½ø¶ÈÇøÕıĞÎ£©
+    //   2) ĞĞÊ×±äÌå£º½ø¶È£º90% / Progress: 90%£¨ÎŞ±êÌâ·ûºÅ ¡¤ ¶ÒÏÖ×¢ÊÍ³ĞÅµ£©
+    //   3) È«ÎÄ¶µµ×£ºÈÎÒâ³öÏÖ£¨¼æÈİÀÏÆ±ËæÊÖ¸ñÊ½ ¡¤ ·Å×îºó²»½Ù³ÖÇ°Á½²ã£©
     function parseProgress(body) {
       if (!body) return null
       const s = String(body)
-      const m = s.match(/^\s*#{1,6}\s*(?:è¿›åº¦|Progress)\s*[ï¼š:]\s*(\d{1,3})\s*%/im)
-        || s.match(/^\s*(?:è¿›åº¦|Progress)\s*[ï¼š:]\s*(\d{1,3})\s*%/im)
-        || s.match(/(?:è¿›åº¦|Progress)\s*[ï¼š:]\s*(\d{1,3})\s*%/i)
+      const m = s.match(/^\s*#{1,6}\s*(?:½ø¶È|Progress)\s*[£º:]\s*(\d{1,3})\s*%/im)
+        || s.match(/^\s*(?:½ø¶È|Progress)\s*[£º:]\s*(\d{1,3})\s*%/im)
+        || s.match(/(?:½ø¶È|Progress)\s*[£º:]\s*(\d{1,3})\s*%/i)
       if (!m) return null
       const n = parseInt(m[1], 10)
       if (isNaN(n)) return null
@@ -534,14 +542,14 @@ export default {
         blockedBy: ((raw.blockedBy && raw.blockedBy.nodes) || []).map(function (b) { return b.number }),
         blocks: ((raw.blocking && raw.blocking.nodes) || []).map(function (b) { return b.number }),
         labels: labels, url: raw.url,
-        progress: parseProgress(raw.body),  // v1.5 T12ï¼šissue æ­£æ–‡è¿›åº¦å—ï¼ˆ## è¿›åº¦ï¼šN%ï¼‰ï¼Œnull = æœªè¡¨è¾¾
+        progress: parseProgress(raw.body),  // v1.5 T12£ºissue ÕıÎÄ½ø¶È¿é£¨## ½ø¶È£ºN%£©£¬null = Î´±í´ï
       }
     }
 
-    // v1.4ï¼ˆT1 #442ï¼‰ï¼šblockedBy DAG æœ€é•¿è·¯å¾„æ·±åº¦åˆ†å±‚
-    //   level(root) = 0ï¼ˆæ— ä¾èµ–ï¼‰ï¼›level(x) = 1 + max(level(æ‰€æœ‰ç›´æ¥é˜»å¡è€…))
-    //   åŒå±‚ = æ— ä¾èµ–äº’æ–¥ â†’ å¯å¹¶è¡Œï¼›å±‚é—´ = å¿…é¡»ä¸²è¡Œï¼ˆä¸Šå±‚å…¨ closed æ‰è§£é”ï¼‰
-    //   è¿”å› { byNumber: {n: level}, levels: [{level, open, closed, total, frontier, claimed, blocked, numbers:[]}] }
+    // v1.4£¨T1 #442£©£ºblockedBy DAG ×î³¤Â·¾¶Éî¶È·Ö²ã
+    //   level(root) = 0£¨ÎŞÒÀÀµ£©£»level(x) = 1 + max(level(ËùÓĞÖ±½Ó×èÈûÕß))
+    //   Í¬²ã = ÎŞÒÀÀµ»¥³â ¡ú ¿É²¢ĞĞ£»²ã¼ä = ±ØĞë´®ĞĞ£¨ÉÏ²ãÈ« closed ²Å½âËø£©
+    //   ·µ»Ø { byNumber: {n: level}, levels: [{level, open, closed, total, frontier, claimed, blocked, numbers:[]}] }
     function computeLevels(tickets) {
       const byNum = {}
       tickets.forEach(function (t) { byNum[t.number] = t })
@@ -567,7 +575,7 @@ export default {
         if (t.state === 'CLOSED') layer.closed++
         else layer.open++
       })
-      // å±‚å†…çŠ¶æ€ç»†åˆ†ï¼ˆfrontier/claimed/blocked å½’å±‚ï¼‰
+      // ²ãÄÚ×´Ì¬Ï¸·Ö£¨frontier/claimed/blocked ¹é²ã£©
       const openBlocker = function (b) { const t = byNum[b]; return t !== undefined && t.state === 'OPEN' }
       levels.forEach(function (layer) {
         const openT = tickets.filter(function (t) { return byNumber[t.number] === layer.level && t.state === 'OPEN' })
@@ -575,7 +583,7 @@ export default {
         layer.claimed = openT.filter(function (t) { return t.claimedBy }).length
         layer.blocked = openT.filter(function (t) { return !t.claimedBy && t.blockedBy.some(openBlocker) }).length
       })
-      // å‰”é™¤ç©ºæ´ï¼ˆlevels æ•°ç»„å¯èƒ½å› è·³çº§å‡ºç° undefinedï¼‰
+      // ÌŞ³ı¿Õ¶´£¨levels Êı×é¿ÉÄÜÒòÌø¼¶³öÏÖ undefined£©
       const compact = levels.filter(Boolean)
       return { byNumber: byNumber, levels: compact }
     }
@@ -589,7 +597,7 @@ export default {
       const frontier = open.filter(function (t) { return !t.claimedBy && !t.blockedBy.some(openBlocker) })
       const claimed = open.filter(function (t) { return t.claimedBy })
       const blocked = open.filter(function (t) { return !t.claimedBy && t.blockedBy.some(openBlocker) })
-      // v1.4ï¼ˆT1 #442ï¼‰ï¼šé™„ DAG åˆ†å±‚ï¼ˆclient æ¸²æŸ“æ¼æ–—åˆ†å±‚ç”¨ï¼‰
+      // v1.4£¨T1 #442£©£º¸½ DAG ·Ö²ã£¨client äÖÈ¾Â©¶··Ö²ãÓÃ£©
       const lv = computeLevels(tickets)
       return {
         total: tickets.length, open: open.length, closed: closed.length,
@@ -599,7 +607,7 @@ export default {
     }
 
     async function fetchMaps(cwd) {
-      // #44 T2-fixï¼ˆmap#37ï¼‰ï¼šæ˜¾å¼ --repo ç»•è¿‡ gh åœ¨ Fork ä¸Šçš„å¤šè¿œç¨‹æ¨æ–­ï¼ˆupstream ä¼˜å…ˆï¼‰
+      // #44 T2-fix£¨map#37£©£ºÏÔÊ½ --repo ÈÆ¹ı gh ÔÚ Fork ÉÏµÄ¶àÔ¶³ÌÍÆ¶Ï£¨upstream ÓÅÏÈ£©
       const repo = await getRepoKey(cwd)
       const argsMap = ['issue', 'list', '--state', 'open', '--label', 'wayfinder:map', '--json', 'number,title,body,labels,assignees,state,updatedAt']
       if (repo) argsMap.push('--repo', repo.owner + '/' + repo.name)
@@ -608,12 +616,12 @@ export default {
       try { return { ok: true, maps: JSON.parse(r.text) } } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
     }
 
-    // å…¨éƒ¨ issueï¼ˆopen + closedï¼ŒClient åˆ—è¡¨ open å¸¸æ˜¾ã€åº•éƒ¨ã€Œå·²å…³é—­ã€æŠ˜å è¡Œï¼‰ï¼Œ
-    // æŒ‰ updatedAt å€’åºï¼›labels å¸¦ name + colorï¼ˆGitHub é…ç½®è‰²ï¼‰ï¼›state åŒºåˆ† open/closedï¼›
-    // v18ï¼šassignees å¸¦å‡ºï¼ˆçŠ¶æ€æ ã€Œå ç”¨ã€æŒ‰åˆ—è¡¨ issue å£å¾„ï¼šå·²è®¤é¢† + è¢«é˜»å¡ï¼‰
+    // È«²¿ issue£¨open + closed£¬Client ÁĞ±í open ³£ÏÔ¡¢µ×²¿¡¸ÒÑ¹Ø±Õ¡¹ÕÛµşĞĞ£©£¬
+    // °´ updatedAt µ¹Ğò£»labels ´ø name + color£¨GitHub ÅäÖÃÉ«£©£»state Çø·Ö open/closed£»
+    // v18£ºassignees ´ø³ö£¨×´Ì¬À¸¡¸Õ¼ÓÃ¡¹°´ÁĞ±í issue ¿Ú¾¶£ºÒÑÈÏÁì + ±»×èÈû£©
     async function fetchIssues(cwd) {
-      // #374/#375ï¼š--limit 500 è¦†ç›–ä»“åº“å…¨é‡ï¼ˆ2026-08-14 å®æµ‹ 349 issueï¼‰ï¼Œå¹¶å¸¦å‡º createdAtï¼ˆæ’åºç»´åº¦ï¼‰
-      // #44 T2-fixï¼ˆmap#37ï¼‰ï¼šæ˜¾å¼ --repo ç»•è¿‡ gh å¤šè¿œç¨‹æ¨æ–­ï¼ŒåŒ fetchMaps
+      // #374/#375£º--limit 500 ¸²¸Ç²Ö¿âÈ«Á¿£¨2026-08-14 Êµ²â 349 issue£©£¬²¢´ø³ö createdAt£¨ÅÅĞòÎ¬¶È£©
+      // #44 T2-fix£¨map#37£©£ºÏÔÊ½ --repo ÈÆ¹ı gh ¶àÔ¶³ÌÍÆ¶Ï£¬Í¬ fetchMaps
       const repo2 = await getRepoKey(cwd)
       const argsAll = ['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,title,labels,state,assignees,updatedAt,createdAt']
       if (repo2) argsAll.push('--repo', repo2.owner + '/' + repo2.name)
@@ -637,10 +645,10 @@ export default {
       } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
     }
 
-    // #2 deletion fixï¼šè½»é‡å…¨é‡ç´¢å¼•ç”¨äºå‘ç°åˆ é™¤ã€å…³é—­å’Œé‡å¼€ã€‚
+    // #2 deletion fix£ºÇáÁ¿È«Á¿Ë÷ÒıÓÃÓÚ·¢ÏÖÉ¾³ı¡¢¹Ø±ÕºÍÖØ¿ª¡£
     async function fetchIssueIndex(cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: 'æ— æ³•è§£æ owner/repo' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: 'ÎŞ·¨½âÎö owner/repo' } }
       const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100'
       const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd)
       if (!r.ok) return { ok: false, error: r }
@@ -683,20 +691,63 @@ export default {
       } catch (e) { return null }
     }
     const adoptSnapshot = function (snap, cwd) {
-      cache = { ts: Date.now(), snapshot: snap, error: null, cwd: cwd }
+      setCacheByCwd(cwd,{snapshot:snap, version:snap.version||'', ts:Date.now(), error:null})
       if (snap && snap.repo) rememberIssueIndex(snap.repo, issueIndexFromSnapshot(snap))
       return snap
     }
+    let pendingByCwd = new Map()
+    async function ensureSnapshot(cwdRaw, opts){
+      opts=opts||{};
+      const cwd = await normCwd(cwdRaw);
+      const k = normKey(cwd);
+      const defNorm = normKey(DEFAULT_CWD);
+      if((!cwdRaw || k===defNorm) && cwd===defNorm){
+        try{ const rr=await getRepoRoot(cwd); if(!rr) return {ok:false, error:'not a git repository (DEFAULT_CWD not gitRoot)', kind:'env', notGitRoot:true}; }catch(e){}
+      }
+      const cached = cacheMap.get(k);
+      if(opts.ifNoneMatch && cached && cached.version && cached.version===opts.ifNoneMatch){
+        return {ok:true, notModified:true, status:304, version:cached.version, snapshot:cached.snapshot, ts:cached.ts};
+      }
+      if(pendingByCwd.has(k)) return pendingByCwd.get(k).promise;
+      let controller=null; try{ controller=typeof AbortController!=='undefined'?new AbortController():{signal:{aborted:false}, abort(){this.signal.aborted=true}}; }catch(e){ controller={signal:{aborted:false}, abort(){}}; }
+      let timerId=null;
+      const p=(async()=>{
+        try{
+          const timeout = new Promise((_,rej)=>{ timerId=setTimeout(()=>{ try{controller.abort();}catch{}; rej(new Error('ensureSnapshot timeout 30s')); },30000); });
+          const work=(async()=>{
+            if(controller.signal.aborted) throw new Error('aborted');
+            const snap=await buildSnapshot(cwd);
+            if(!snap||snap.ok!==true) throw new Error((snap&&snap.error)||'build failed');
+            try{ const v=snapshotVersionOf(snap); snap.version=v; snap.etag=v; }catch{}
+            if(opts.ifNoneMatch && snap.version===opts.ifNoneMatch) return {ok:true, notModified:true, status:304, version:snap.version, snapshot:snap};
+            setCacheByCwd(cwd,{snapshot:snap, version:snap.version||'', ts:Date.now(), error:null});
+            try{ await writeDiskCache(snap.repo, snap); }catch{}
+            return {ok:true, snapshot:snap, version:snap.version, status:200};
+          })();
+          const res=await Promise.race([work, timeout]);
+          return res;
+        }catch(e){
+          const old=cacheMap.get(k);
+          return {ok:false, error:String((e&&e.message)||e), snapshot: old?old.snapshot:null, version: old?old.version:null};
+        }finally{
+          if(timerId) clearTimeout(timerId);
+          pendingByCwd.delete(k);
+        }
+      })();
+      pendingByCwd.set(k,{promise:p, controller:controller});
+      return p;
+    }
 
 
-    // v1.5 B5ï¼ˆé…é¢æ­¢è¡€ Â· ç¬¬ä¸€æ€§åŸç†ï¼‰ï¼šGraphQL é…é¢è€—å°½æ—¶çš„ REST é™çº§é€šé“ â€”â€”
-    //   GraphQL æŒ‰å¤æ‚åº¦è®¡ç‚¹ï¼ˆ5000 ç‚¹/hï¼Œaliases å¤§æŸ¥è¯¢ä¸€æ¬¡å¯æ•°ç™¾ç‚¹ï¼‰ï¼ŒREST æŒ‰è¯·æ±‚è®¡æ¬¡
-    //   ï¼ˆ5000 æ¬¡/hï¼Œä¸å¤æ‚åº¦æ— å…³ï¼‰ã€‚é…é¢è€—å°½æ—¶ GraphQL å…¨æŒ‚ï¼ŒREST ä»å¯ç”¨ â†’ é¢æ¿ä¸ç©ºç™½ã€‚
-    //   é€ mapï¼šissue è¯¦æƒ… + sub_issues + æ¯å­ç¥¨ blocked_byï¼ˆclient åªæ¶ˆè´¹ blockedByï¼Œ
-    //   blocking ä¸ç»„è£…çœä¸€åŠè¯·æ±‚ï¼‰ï¼›è¾“å‡ºä¸ GraphQL åŒæ„çš„ { 'm<i>': {...} }ï¼Œä¸‹æ¸¸ mapTicket é›¶æ”¹åŠ¨ã€‚
+
+    // v1.5 B5£¨Åä¶îÖ¹Ñª ¡¤ µÚÒ»ĞÔÔ­Àí£©£ºGraphQL Åä¶îºÄ¾¡Ê±µÄ REST ½µ¼¶Í¨µÀ ¡ª¡ª
+    //   GraphQL °´¸´ÔÓ¶È¼Æµã£¨5000 µã/h£¬aliases ´ó²éÑ¯Ò»´Î¿ÉÊı°Ùµã£©£¬REST °´ÇëÇó¼Æ´Î
+    //   £¨5000 ´Î/h£¬Óë¸´ÔÓ¶ÈÎŞ¹Ø£©¡£Åä¶îºÄ¾¡Ê± GraphQL È«¹Ò£¬REST ÈÔ¿ÉÓÃ ¡ú Ãæ°å²»¿Õ°×¡£
+    //   Öğ map£ºissue ÏêÇé + sub_issues + Ã¿×ÓÆ± blocked_by£¨client Ö»Ïû·Ñ blockedBy£¬
+    //   blocking ²»×é×°Ê¡Ò»°ëÇëÇó£©£»Êä³öÓë GraphQL Í¬¹¹µÄ { 'm<i>': {...} }£¬ÏÂÓÎ mapTicket Áã¸Ä¶¯¡£
     async function fetchMapsDetailREST(numbers, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: 'æ— æ³•è§£æ owner/repo' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: 'ÎŞ·¨½âÎö owner/repo' } }
       if (!numbers || !numbers.length) return { ok: true, issues: {} }
       const issues = {}
       for (let i = 0; i < numbers.length; i++) {
@@ -714,7 +765,7 @@ export default {
             try {
               const bb = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + s.number + '/dependencies/blocked_by'], cwd)
               if (bb.ok) blockedBy = (JSON.parse(bb.text) || []).map(function (x) { return x.number })
-            } catch (e2) { /* ä¾èµ–æŸ¥è¯¢å¤±è´¥è¯¥ç¥¨ blockedBy ç½®ç©ºï¼Œä¸é˜»å¡æ•´ä½“ */ }
+            } catch (e2) { /* ÒÀÀµ²éÑ¯Ê§°Ü¸ÃÆ± blockedBy ÖÃ¿Õ£¬²»×èÈûÕûÌå */ }
             nodes.push({
               number: s.number, title: s.title, state: (s.state === 'closed' ? 'CLOSED' : 'OPEN'),
               body: s.body || '', url: s.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + s.number),
@@ -740,13 +791,13 @@ export default {
     }
 
 
-    // v1.3.3 æé€Ÿï¼šGraphQL aliases ä¸€æ¬¡æŸ¥è¯¢å…¨éƒ¨ map è¯¦æƒ…ï¼ˆ8 æ¬¡ â†’ 1 æ¬¡ï¼ŒWindows ä¸‹ä¸²è¡Œ 8Ã—2.4s â†’ å•æ¬¡ ~3.6sï¼‰
-    //   æ¯ä¸ª map ä¸€ä¸ª aliasï¼ˆm0/m1/...ï¼‰ï¼Œå“åº”æŒ‰ alias å–ï¼›ç½‘ç»œç±»å¤±è´¥æ•´æ‰¹é‡è¯• 1 æ¬¡
+    // v1.3.3 ÌáËÙ£ºGraphQL aliases Ò»´Î²éÑ¯È«²¿ map ÏêÇé£¨8 ´Î ¡ú 1 ´Î£¬Windows ÏÂ´®ĞĞ 8¡Á2.4s ¡ú µ¥´Î ~3.6s£©
+    //   Ã¿¸ö map Ò»¸ö alias£¨m0/m1/...£©£¬ÏìÓ¦°´ alias È¡£»ÍøÂçÀàÊ§°ÜÕûÅúÖØÊÔ 1 ´Î
     async function fetchMapsDetail(numbers, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: 'æ— æ³•è§£æ owner/repoï¼ˆgit remote æˆ– gh repo view å¤±è´¥ï¼‰' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: 'ÎŞ·¨½âÎö owner/repo£¨git remote »ò gh repo view Ê§°Ü£©' } }
       if (!numbers || !numbers.length) return { ok: true, issues: {} }
-      // æ„é€  aliases æŸ¥è¯¢ï¼šquery($owner:String!,$name:String!){repository(...){m0:issue(number:409){...} m1:issue(...){...}}}
+      // ¹¹Ôì aliases ²éÑ¯£ºquery($owner:String!,$name:String!){repository(...){m0:issue(number:409){...} m1:issue(...){...}}}
       const frag = 'number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}}}}'
       const sel = numbers.map(function (n, i) { return 'm' + i + ':issue(number:' + n + '){' + frag + '}' }).join(' ')
       const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){' + sel + '}}'
@@ -755,7 +806,7 @@ export default {
         const r = await runGh(['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name], cwd)
         if (!r.ok) {
           last = r
-          // v1.5 B5ï¼šGraphQL é…é¢è€—å°½ï¼ˆRATE_LIMITï¼‰â†’ è‡ªåŠ¨é™çº§ REST é€šé“ï¼ˆä¸é‡è¯• 2 æ¬¡ç™½çƒ§ï¼Œç›´æ¥é™çº§ï¼‰
+          // v1.5 B5£ºGraphQL Åä¶îºÄ¾¡£¨RATE_LIMIT£©¡ú ×Ô¶¯½µ¼¶ REST Í¨µÀ£¨²»ÖØÊÔ 2 ´Î°×ÉÕ£¬Ö±½Ó½µ¼¶£©
           if (isRateLimitError(r)) return fetchMapsDetailREST(numbers, cwd)
           if (r.kind !== 'network') return { ok: false, error: r }
           continue
@@ -763,23 +814,23 @@ export default {
         try {
           const j = JSON.parse(r.text)
           if (j.errors) {
-            // v1.5 B5ï¼šGraphQL è¿”å› errorsï¼ˆå« RATE_LIMITï¼‰â†’ REST é™çº§
+            // v1.5 B5£ºGraphQL ·µ»Ø errors£¨º¬ RATE_LIMIT£©¡ú REST ½µ¼¶
             if (isRateLimitError({ error: JSON.stringify(j.errors) })) return fetchMapsDetailREST(numbers, cwd)
             return { ok: false, error: { kind: 'graphql', error: JSON.stringify(j.errors).slice(0, 300) } }
           }
           return { ok: true, issues: j.data.repository }
         } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
       }
-      return { ok: false, error: last || { kind: 'network', error: 'GraphQL aliases è¯·æ±‚å¤±è´¥ï¼ˆé‡è¯•åä»å¤±è´¥ï¼‰' } }
+      return { ok: false, error: last || { kind: 'network', error: 'GraphQL aliases ÇëÇóÊ§°Ü£¨ÖØÊÔºóÈÔÊ§°Ü£©' } }
     }
 
-    // T2 #7 Â· fetchIssueDetail å• issue æ•°æ®é€šè·¯ï¼ˆå¤ç”¨ fetchMapsDetail æ€è·¯ï¼Œç‹¬ç«‹åˆ«å/å• issue ä¸åˆå¹¶ aliasesï¼‰
-    // GraphQL å­—æ®µæŒ‰ T2 å¥‘çº¦ï¼šnumber title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}}
-    // é…é¢æ­¢è¡€ï¼šGraphQL æŒ‰å¤æ‚åº¦è®¡ç‚¹å¤±è´¥ â†’ RATE_LIMIT é‰´åˆ«ååˆ‡ REST å…œåº•ï¼›REST é€è¯·æ±‚å¤±è´¥ç½®ç©ºï¼Œæ•´ä½“ä¸å´©
-    // é”™è¯¯å½¢çŠ¶ä¸ fetchMapsDetail å¯¹é½ {ok,error,issue?}ï¼›kind ç»†åŒ– env|parse|graphql|network|rateLimit|notFound|404
+    // T2 #7 ¡¤ fetchIssueDetail µ¥ issue Êı¾İÍ¨Â·£¨¸´ÓÃ fetchMapsDetail Ë¼Â·£¬¶ÀÁ¢±ğÃû/µ¥ issue ²»ºÏ²¢ aliases£©
+    // GraphQL ×Ö¶Î°´ T2 ÆõÔ¼£ºnumber title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}}
+    // Åä¶îÖ¹Ñª£ºGraphQL °´¸´ÔÓ¶È¼ÆµãÊ§°Ü ¡ú RATE_LIMIT ¼ø±ğºóÇĞ REST ¶µµ×£»REST ÖğÇëÇóÊ§°ÜÖÃ¿Õ£¬ÕûÌå²»±À
+    // ´íÎóĞÎ×´Óë fetchMapsDetail ¶ÔÆë {ok,error,issue?}£»kind Ï¸»¯ env|parse|graphql|network|rateLimit|notFound|404
     async function fetchIssueDetailREST(n, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: 'æ— æ³•è§£æ owner/repoï¼ˆgit remote æˆ– gh repo view å¤±è´¥ï¼‰' } }
+      if (!repo) return { ok: false, error: { kind: 'env', message: 'ÎŞ·¨½âÎö owner/repo£¨git remote »ò gh repo view Ê§°Ü£©' } }
       try {
         const r = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n], cwd)
         if (!r.ok) {
@@ -832,8 +883,8 @@ export default {
 
     async function fetchIssueDetail(n, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: 'æ— æ³•è§£æ owner/repoï¼ˆgit remote æˆ– gh repo view å¤±è´¥ï¼‰' } }
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'ç¼ºå°‘ number' } }
+      if (!repo) return { ok: false, error: { kind: 'env', message: 'ÎŞ·¨½âÎö owner/repo£¨git remote »ò gh repo view Ê§°Ü£©' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ÉÙ number' } }
       const frag = 'number title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}} blocking(first:20){nodes{number title state}}'
       const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issue(number:' + n + '){' + frag + '}}}'
       let last = null
@@ -858,18 +909,18 @@ export default {
           return { ok: true, issue: issue }
         } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
       }
-      return { ok: false, error: last || { kind: 'network', message: 'GraphQL å• issue è¯·æ±‚å¤±è´¥ï¼ˆé‡è¯•åä»å¤±è´¥ï¼‰' } }
+      return { ok: false, error: last || { kind: 'network', message: 'GraphQL µ¥ issue ÇëÇóÊ§°Ü£¨ÖØÊÔºóÈÔÊ§°Ü£©' } }
     }
 
     async function buildSnapshot(cwd) {
       const repo = await getRepoKey(cwd)
-      // v1.3.3 æé€Ÿï¼šmap åˆ—è¡¨ç›´æ¥ä»å…¨é‡ issues è¿‡æ»¤ï¼ˆfetchMaps å•ç‹¬è°ƒç”¨çœå» â€”â€” åŸ 11 æ¬¡ â†’ 9 æ¬¡ gh è°ƒç”¨ï¼‰
+      // v1.3.3 ÌáËÙ£ºmap ÁĞ±íÖ±½Ó´ÓÈ«Á¿ issues ¹ıÂË£¨fetchMaps µ¥¶Àµ÷ÓÃÊ¡È¥ ¡ª¡ª Ô­ 11 ´Î ¡ú 9 ´Î gh µ÷ÓÃ£©
       const fi = await fetchIssues(cwd)
       const issues = fi.ok ? fi.issues : []
       const mapsMeta = fi.ok ? fi.issues.filter(function (x) {
         return x.state === 'OPEN' && (x.labels || []).some(function (l) { return l.name === 'wayfinder:map' })
       }) : []
-      // #375ï¼šå…¨é‡ label åˆ—è¡¨ï¼ˆå«ç©º labelï¼›è·å–å¤±è´¥å®¹é”™ç½®ç©ºï¼Œä¸é˜»å¡å¿«ç…§æ„å»ºï¼Œclient é™çº§ï¼‰
+      // #375£ºÈ«Á¿ label ÁĞ±í£¨º¬¿Õ label£»»ñÈ¡Ê§°ÜÈİ´íÖÃ¿Õ£¬²»×èÈû¿ìÕÕ¹¹½¨£¬client ½µ¼¶£©
       let labels = []
       const fl = await runGh(['label', 'list', '--json', 'name,color'], cwd)
       if (fl.ok) {
@@ -878,7 +929,7 @@ export default {
           if (Array.isArray(ls)) labels = ls.map(function (l) { return { name: l.name, color: l.color || '' } })
         } catch (e) { labels = [] }
       }
-      // v1.3.3 æé€Ÿï¼šGraphQL aliases ä¸€æ¬¡æŸ¥å…¨éƒ¨ map è¯¦æƒ…ï¼ˆåŸæ¯ map ä¸€æ¬¡ GraphQLï¼Œ8 æ¬¡ä¸²è¡Œ ~19s â†’ 1 æ¬¡ ~4sï¼‰
+      // v1.3.3 ÌáËÙ£ºGraphQL aliases Ò»´Î²éÈ«²¿ map ÏêÇé£¨Ô­Ã¿ map Ò»´Î GraphQL£¬8 ´Î´®ĞĞ ~19s ¡ú 1 ´Î ~4s£©
       const d = await fetchMapsDetail(mapsMeta.map(function (m) { return m.number }), cwd)
       const detailOk = d.ok
       const maps = []
@@ -892,7 +943,7 @@ export default {
         const subs = (issue.subIssues && issue.subIssues.nodes) || []
         const tickets = subs.map(mapTicket)
         const bp = parseMapBody(issue.body)
-        // v1.4ï¼ˆT1 #442ï¼‰ï¼šæ¯å¼ ç¥¨æŒ‚ levelï¼ˆDAG æœ€é•¿è·¯å¾„æ·±åº¦ï¼‰ï¼Œclient æ¸²æŸ“æ¼æ–—åˆ†å±‚ç›´æ¥å–
+        // v1.4£¨T1 #442£©£ºÃ¿ÕÅÆ±¹Ò level£¨DAG ×î³¤Â·¾¶Éî¶È£©£¬client äÖÈ¾Â©¶··Ö²ãÖ±½ÓÈ¡
         const lvInfo = computeLevels(tickets)
         tickets.forEach(function (t) { t.level = lvInfo.byNumber[t.number] })
         const stats = groupTickets(tickets)
@@ -904,24 +955,24 @@ export default {
           tickets: tickets, stats: stats,
         })
       }
-      // v1.5 R2 + R2-fix-6ï¼ˆ#2 MVP E2E å®è¯ 2026-08-18ï¼‰ï¼šprobe since åŸºçº¿**ä¸å¾—**åœ¨ buildSnapshot é‡Œåˆå§‹åŒ–/æ¨è¿›ã€‚
-      //   åŸå®ç°ã€ŒbuildSnapshot æœ«å°¾ lastProbeAtByRepo[rk]=nowã€æœ‰ä¸ªè‡´å‘½ç«æ€ï¼šé¢æ¿ä»»ä¸€ snapshot buildï¼ˆcache-miss/
-      //    refreshï¼‰è‹¥å‘ç”Ÿåœ¨æŸæ¬¡ç¼–è¾‘**ä¹‹å**ï¼Œä¼šæŠŠåŸºçº¿æ¨åˆ°ç¼–è¾‘æ—¶åˆ»**ä¹‹å** â†’ ä¸‹æ¬¡ probe since=åŸºçº¿ æŸ¥ä¸åˆ°è¯¥ç¼–è¾‘
-      //   ï¼ˆcount=0 â†’ changed=falseï¼‰ï¼Œä¸”åŸºçº¿åªåœ¨ changed=true æ—¶æ‰æ»‘åŠ¨ â†’ ç¼–è¾‘è¢«**æ°¸ä¹…åæ‰**ï¼ŒUI æ°¸ä¸åˆ·æ–°ã€‚
-      //   æ­£ç¡®è¯­ä¹‰ï¼šåŸºçº¿åªèƒ½ç”± probe è‡ªå·±æ¨è¿›ï¼ˆæ£€æµ‹åˆ° change æ—¶ç½®ä¸ºã€Œæœ¬æ¬¡æ¢æµ‹æ—¶åˆ»ã€ï¼‰ï¼›build å®Œæˆ â‰  client å·²æ¸²æŸ“è¯¥
-      //   å¿«ç…§ï¼Œæ— æƒåŠ¨åŸºçº¿ã€‚é¦–æ¬¡ probeï¼ˆsince=undefinedï¼‰è‡ªç„¶èµ°å…¨é‡è¿”å› â†’ è§†ä¸º changed â†’ å»ºç«‹åŸºçº¿ï¼ˆç¬¦åˆåŸæ³¨é‡Šæ„å›¾ï¼‰ã€‚
-      // #155ï¼šSelection/RepositoryRef å¢é‡ï¼ˆregistry.select/describe â†’ wf.snapshot {repository, selection}ï¼‰
+      // v1.5 R2 + R2-fix-6£¨#2 MVP E2E ÊµÖ¤ 2026-08-18£©£ºprobe since »ùÏß**²»µÃ**ÔÚ buildSnapshot Àï³õÊ¼»¯/ÍÆ½ø¡£
+      //   Ô­ÊµÏÖ¡¸buildSnapshot Ä©Î² lastProbeAtByRepo[rk]=now¡¹ÓĞ¸öÖÂÃü¾ºÌ¬£ºÃæ°åÈÎÒ» snapshot build£¨cache-miss/
+      //    refresh£©Èô·¢ÉúÔÚÄ³´Î±à¼­**Ö®ºó**£¬»á°Ñ»ùÏßÍÆµ½±à¼­Ê±¿Ì**Ö®ºó** ¡ú ÏÂ´Î probe since=»ùÏß ²é²»µ½¸Ã±à¼­
+      //   £¨count=0 ¡ú changed=false£©£¬ÇÒ»ùÏßÖ»ÔÚ changed=true Ê±²Å»¬¶¯ ¡ú ±à¼­±»**ÓÀ¾ÃÍÌµô**£¬UI ÓÀ²»Ë¢ĞÂ¡£
+      //   ÕıÈ·ÓïÒå£º»ùÏßÖ»ÄÜÓÉ probe ×Ô¼ºÍÆ½ø£¨¼ì²âµ½ change Ê±ÖÃÎª¡¸±¾´ÎÌ½²âÊ±¿Ì¡¹£©£»build Íê³É ¡Ù client ÒÑäÖÈ¾¸Ã
+      //   ¿ìÕÕ£¬ÎŞÈ¨¶¯»ùÏß¡£Ê×´Î probe£¨since=undefined£©×ÔÈ»×ßÈ«Á¿·µ»Ø ¡ú ÊÓÎª changed ¡ú ½¨Á¢»ùÏß£¨·ûºÏÔ­×¢ÊÍÒâÍ¼£©¡£
+      // #155£ºSelection/RepositoryRef ÔöÁ¿£¨registry.select/describe ¡ú wf.snapshot {repository, selection}£©
       let selection = null
       let repository = null
       try {
         const reg = await getTrackerRegistry()
         if (reg && typeof reg.select === 'function') {
           const handle = { cwd: cwd }
-          const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} } }
-          // èƒ½åŠ›è¯Šæ–­è®¡æ•°ï¼ˆG5 ä»…è¯Šæ–­ï¼Œä¸é©±åŠ¨éšè—ï¼‰â€”â€”æŒ‰ host è§†è§’ fill ç»Ÿè®¡
+          const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: async (cmd, args, opts) => execProc([cmd, ...args], (opts && opts.cwd) || cwd), timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} } }
+          // ÄÜÁ¦Õï¶Ï¼ÆÊı£¨G5 ½öÕï¶Ï£¬²»Çı¶¯Òş²Ø£©¡ª¡ª°´ host ÊÓ½Ç fill Í³¼Æ
           const capCount = (function(iss){
             let present=0, emptyCnt=0, missing=0
-            // ç®€æ˜“ï¼šä»¥ labels ä¸ºä¾‹ï¼Œå…¶ä½™å­—æ®µæŒ‰ shape èƒ½åŠ›å­—æ®µé›†è®¡æ•°
+            // ¼òÒ×£ºÒÔ labels ÎªÀı£¬ÆäÓà×Ö¶Î°´ shape ÄÜÁ¦×Ö¶Î¼¯¼ÆÊı
             const fields=['author','assignees','labels','milestone','customFields','reason','blockedBy','comments','closedAt']
             iss.forEach(function(it){
               fields.forEach(function(f){
@@ -933,45 +984,48 @@ export default {
             })
             return {present, empty: emptyCnt, missing}
           })(issues)
-          // select ä¸‰çº§è”
+          // select Èı¼¶Áª
           const sel = await reg.select(handle, ctxSel)
           selection = sel
           if (sel && sel.backendId) {
             try { repository = reg.describe(handle, sel.backendId) } catch {}
-            // markdown æœ¬åœ° url ä¸ºç©ºï¼Œgithub åˆ™å°½é‡è¡¥ github.com url
+            // markdown ±¾µØ url Îª¿Õ£¬github Ôò¾¡Á¿²¹ github.com url
             if (repository && !repository.url && sel.backendId==='github' && repo) {
               repository.url = 'https://github.com/' + repo.owner + '/' + repo.name
               repository.name = repo.owner + '/' + repo.name
               repository.refId = repo.owner + '/' + repo.name
             }
           } else {
-            // fallback æ—¶ repository ä»ç»™å ä½ï¼ˆç”¨äº UI æ³›åŒ–ï¼‰
+            // fallback Ê± repository ÈÔ¸øÕ¼Î»£¨ÓÃÓÚ UI ·º»¯£©
             if (repo) repository = { backend: 'github', refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: 'https://github.com/' + repo.owner + '/' + repo.name }
             else repository = null
           }
-          // èƒ½åŠ›è®¡æ•°æŒ‚åˆ° snapshot ä¾› ChecksTab è¯Šæ–­å¡
+          // ÄÜÁ¦¼ÆÊı¹Òµ½ snapshot ¹© ChecksTab Õï¶Ï¿¨
           var _capDiag = capCount
         }
-      } catch (e) { /* ä¿æŒ nullï¼Œä¸é˜»å¡å¿«ç…§ */ }
+      } catch (e) { /* ±£³Ö null£¬²»×èÈû¿ìÕÕ */ }
+      let _snapVer=''; try{ const tmpIdx={}; (issues||[]).forEach(function(it){ if(it&&it.number!=null) tmpIdx[String(it.number)]=String(it.state||'').toUpperCase()+'|'+String(it.updatedAt||''); }); _snapVer=issueIndexVersion(tmpIdx); }catch{}
       return {
         ok: true,
+        version: _snapVer,
+        etag: _snapVer,
         repo: repo,
-        repoRoot: await getRepoRoot(cwd),  // v1.5 T9ï¼šgit æ ¹è·¯å¾„ï¼ˆä¾›ä»“åº“èº«ä»½ç»„ä»¶ä¸ setup æ£€æŸ¥ï¼‰
+        repoRoot: await getRepoRoot(cwd),  // v1.5 T9£ºgit ¸ùÂ·¾¶£¨¹©²Ö¿âÉí·İ×é¼şÓë setup ¼ì²é£©
         updatedAt: new Date().toISOString(),
         generatedMs: Date.now(),
         env: { ghPath: ghPath, ghError: ghLastError },
         maps: maps,
         issues: issues,
         labels: labels,
-        fallback: d.fallback || null,  // v1.5 B5ï¼š'rest' = GraphQL é…é¢è€—å°½å·²é™çº§ RESTï¼ˆclient å¯æç¤ºï¼‰
+        fallback: d.fallback || null,  // v1.5 B5£º'rest' = GraphQL Åä¶îºÄ¾¡ÒÑ½µ¼¶ REST£¨client ¿ÉÌáÊ¾£©
         repository: repository,
         selection: selection,
         capabilities: (typeof _capDiag !== 'undefined' ? _capDiag : null),
       }
     }
 
-    // ============ å‰ç½®æ£€æŸ¥ï¼ˆ#344 Â· wf.statusï¼‰============
-    // è§£æ git è¿œç¨‹ URL â†’ GitHub owner/repoï¼›é GitHub è¿”å› null
+    // ============ Ç°ÖÃ¼ì²é£¨#344 ¡¤ wf.status£©============
+    // ½âÎö git Ô¶³Ì URL ¡ú GitHub owner/repo£»·Ç GitHub ·µ»Ø null
     function parseGithubRepo(url) {
       const s = String(url || '').trim()
       const m = s.match(/github\.com[\/:]([^\/\s]+)\/([^\/\s]+?)(?:\.git)?\s*$/)
@@ -979,7 +1033,7 @@ export default {
       return { owner: m[1], name: m[2] }
     }
 
-    // æ£€æŸ¥ 1 Â· ä»“åº“å®šä½
+    // ¼ì²é 1 ¡¤ ²Ö¿â¶¨Î»
     async function checkRepo(cwd, lang) {
       const git = await resolveGit()
       if (git) {
@@ -987,14 +1041,14 @@ export default {
         if (r.ok) {
           const key = parseGithubRepo(r.text)
           if (key) return { ok: true, level: 'ok', detail: key.owner + '/' + key.name, hint: '', repo: key }
-          return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + r.text.trim().slice(0, 80) : 'æœ‰ git è¿œç¨‹ä½†é GitHubï¼š' + r.text.trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : 'å½“å‰è¿œç¨‹ä¸æ˜¯ GitHub', repo: null }
+          return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + r.text.trim().slice(0, 80) : 'ÓĞ git Ô¶³Ìµ«·Ç GitHub£º' + r.text.trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : 'µ±Ç°Ô¶³Ì²»ÊÇ GitHub', repo: null }
         }
         if (/not a git repository|does not appear to be a git repository|fatal/i.test(r.error || '')) {
-          return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Current directory is not a git repo' : 'å½“å‰ç›®å½•ä¸æ˜¯ git ä»“åº“', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : 'åœ¨ GitHub ä»“åº“å†…ä½¿ç”¨æœ¬æ’ä»¶', repo: null }
+          return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Current directory is not a git repo' : 'µ±Ç°Ä¿Â¼²»ÊÇ git ²Ö¿â', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : 'ÔÚ GitHub ²Ö¿âÄÚÊ¹ÓÃ±¾²å¼ş', repo: null }
         }
-        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'git query failed: ' + String(r.error || '').slice(0, 120) : 'git æŸ¥è¯¢å¤±è´¥ï¼š' + String(r.error || '').slice(0, 120), hint: (lang === 'en') ? 'Check git and repo state' : 'æ£€æŸ¥ git ä¸ä»“åº“çŠ¶æ€', repo: null }
+        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'git query failed: ' + String(r.error || '').slice(0, 120) : 'git ²éÑ¯Ê§°Ü£º' + String(r.error || '').slice(0, 120), hint: (lang === 'en') ? 'Check git and repo state' : '¼ì²é git Óë²Ö¿â×´Ì¬', repo: null }
       }
-      // å…œåº•ï¼šè§£æ .git/configï¼ˆgit å¯æ‰§è¡Œä¸å¯ç”¨æ—¶ï¼‰
+      // ¶µµ×£º½âÎö .git/config£¨git ¿ÉÖ´ĞĞ²»¿ÉÓÃÊ±£©
       if (fs !== undefined) {
         try {
           const t = await fs.resolve('.git/config', { cwd: cwd })
@@ -1003,31 +1057,31 @@ export default {
           if (um) {
             const key = parseGithubRepo(um[1])
             if (key) return { ok: true, level: 'ok', detail: key.owner + '/' + key.name, hint: '', repo: key }
-            return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + um[1].trim().slice(0, 80) : 'æœ‰ git è¿œç¨‹ä½†é GitHubï¼š' + um[1].trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : 'å½“å‰è¿œç¨‹ä¸æ˜¯ GitHub', repo: null }
+            return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + um[1].trim().slice(0, 80) : 'ÓĞ git Ô¶³Ìµ«·Ç GitHub£º' + um[1].trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : 'µ±Ç°Ô¶³Ì²»ÊÇ GitHub', repo: null }
           }
-        } catch (e) { /* è½åˆ°ä¸‹æ–¹ bad */ }
+        } catch (e) { /* Âäµ½ÏÂ·½ bad */ }
       }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot locate the repo (git unavailable and no .git/config)' : 'æ— æ³•å®šä½ä»“åº“ï¼ˆgit ä¸å¯ç”¨ä¸”æ—  .git/configï¼‰', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : 'åœ¨ GitHub ä»“åº“å†…ä½¿ç”¨æœ¬æ’ä»¶', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot locate the repo (git unavailable and no .git/config)' : 'ÎŞ·¨¶¨Î»²Ö¿â£¨git ²»¿ÉÓÃÇÒÎŞ .git/config£©', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : 'ÔÚ GitHub ²Ö¿âÄÚÊ¹ÓÃ±¾²å¼ş', repo: null }
     }
 
-    // æ£€æŸ¥ 2 Â· setup å·²æ‰§è¡Œ
+    // ¼ì²é 2 ¡¤ setup ÒÑÖ´ĞĞ
     async function checkSetup(cwd, lang) {
-      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot detect' : 'fs æœåŠ¡ä¸å¯ç”¨ï¼Œæ— æ³•æ£€æµ‹', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'è¯·å…ˆè¿è¡Œ /setup-matt-pocock-skills', repo: null }
+      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot detect' : 'fs ·şÎñ²»¿ÉÓÃ£¬ÎŞ·¨¼ì²â', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ÇëÏÈÔËĞĞ /setup-matt-pocock-skills', repo: null }
       try {
-        // v1.5 B1ï¼šæ”¹ä¸ºé’ˆå¯¹ git æ ¹ç›®å½•æ£€æµ‹ï¼ˆä¼šè¯ cwd åœ¨ä»“åº“å­ç›®å½•æ—¶ä¸å†è¯¯æŠ¥ã€Œæ²¡æœ‰åˆå§‹åŒ–ã€ï¼‰
+        // v1.5 B1£º¸ÄÎªÕë¶Ô git ¸ùÄ¿Â¼¼ì²â£¨»á»° cwd ÔÚ²Ö¿â×ÓÄ¿Â¼Ê±²»ÔÙÎó±¨¡¸Ã»ÓĞ³õÊ¼»¯¡¹£©
         const root = await getRepoRoot(cwd)
         const base = root || cwd
         const info = await fs.lstat('docs/agents/issue-tracker.md', { cwd: base })
-        if (info) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md å­˜åœ¨', hint: '', repo: null }
-      } catch (e) { /* è½åˆ°ä¸‹æ–¹ bad */ }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md missing' : 'docs/agents/issue-tracker.md ä¸å­˜åœ¨', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'è¯·å…ˆè¿è¡Œ /setup-matt-pocock-skills', repo: null }
+        if (info) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md ´æÔÚ', hint: '', repo: null }
+      } catch (e) { /* Âäµ½ÏÂ·½ bad */ }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md missing' : 'docs/agents/issue-tracker.md ²»´æÔÚ', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ÇëÏÈÔËĞĞ /setup-matt-pocock-skills', repo: null }
     }
 
-    // æ£€æŸ¥ 3 Â· tracker = GitHub
+    // ¼ì²é 3 ¡¤ tracker = GitHub
     async function checkTracker(cwd, lang) {
-      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot determine tracker' : 'fs æœåŠ¡ä¸å¯ç”¨ï¼Œæ— æ³•åˆ¤å®š tracker', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'è¯·å…ˆè¿è¡Œ /setup-matt-pocock-skills', repo: null }
+      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot determine tracker' : 'fs ·şÎñ²»¿ÉÓÃ£¬ÎŞ·¨ÅĞ¶¨ tracker', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ÇëÏÈÔËĞĞ /setup-matt-pocock-skills', repo: null }
       try {
-        // #455 B1 è¡¥å…¨ï¼šä¸ checkSetup ä¸€è‡´é’ˆå¯¹ git æ ¹ç›®å½•è¯»ï¼ˆä¼šè¯ cwd åœ¨ä»“åº“å­ç›®å½•æ—¶ä¸è¯¯æŠ¥ã€Œæ— æ³•è¯»å–ã€ï¼‰
+        // #455 B1 ²¹È«£ºÓë checkSetup Ò»ÖÂÕë¶Ô git ¸ùÄ¿Â¼¶Á£¨»á»° cwd ÔÚ²Ö¿â×ÓÄ¿Â¼Ê±²»Îó±¨¡¸ÎŞ·¨¶ÁÈ¡¡¹£©
         const root = await getRepoRoot(cwd)
         const base = root || cwd
         const t = await fs.resolve('docs/agents/issue-tracker.md', { cwd: base })
@@ -1035,41 +1089,41 @@ export default {
         if (/github/i.test(txt) && /gh\s+(issue|api|auth)|GitHub Issues/i.test(txt)) {
           return { ok: true, level: 'ok', detail: 'GitHub Issues + gh CLI', hint: '', repo: null }
         }
-        return { ok: false, level: 'warn', detail: (lang === 'en') ? 'issue-tracker.md exists but is not the GitHub template' : 'issue-tracker.md å­˜åœ¨ä½†é GitHub æ¨¡æ¿', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills and pick the GitHub tracker' : 'è¿è¡Œ /setup-matt-pocock-skills é‡é€‰ GitHub tracker', repo: null }
+        return { ok: false, level: 'warn', detail: (lang === 'en') ? 'issue-tracker.md exists but is not the GitHub template' : 'issue-tracker.md ´æÔÚµ«·Ç GitHub Ä£°å', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills and pick the GitHub tracker' : 'ÔËĞĞ /setup-matt-pocock-skills ÖØÑ¡ GitHub tracker', repo: null }
       } catch (e) {
-        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot read issue-tracker.md' : 'æ— æ³•è¯»å– issue-tracker.md', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'è¯·å…ˆè¿è¡Œ /setup-matt-pocock-skills', repo: null }
+        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot read issue-tracker.md' : 'ÎŞ·¨¶ÁÈ¡ issue-tracker.md', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ÇëÏÈÔËĞĞ /setup-matt-pocock-skills', repo: null }
       }
     }
 
-    // æ£€æŸ¥ 4 Â· gh CLI å¯ç”¨
+    // ¼ì²é 4 ¡¤ gh CLI ¿ÉÓÃ
     async function checkGhCli(lang) {
       const exe = await resolveGh()
-      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found â€” install GitHub CLI first (https://cli.github.com/)' : 'gh æœªæ‰¾åˆ°ï¼Œè¯·å…ˆå®‰è£… GitHub CLIï¼ˆhttps://cli.github.com/ï¼‰', hint: 'è¯·ä¸º DSH å®‰è£… GitHub CLIï¼ˆghï¼‰â€”â€” é¢æ¿æ‰€æœ‰æ•°æ®ä¾èµ– ghï¼š\n\n1. å…ˆæ£€æŸ¥ï¼šç»ˆç«¯æ‰§è¡Œ gh --versionï¼›æœ‰ç‰ˆæœ¬å·è¾“å‡º â†’ ç›´æ¥æ±‡æŠ¥å·²è£…ç‰ˆæœ¬å¹¶ç»“æŸï¼Œä¸è¦é‡å¤å®‰è£…ï¼›\n2. æ—  gh åˆ™æŒ‰ OS å®‰è£…ï¼šWindows â†’ winget install --id GitHub.cli; macOS â†’ rew install gh; Linux â†’ sudo apt install gh;\n3. å®‰è£…åéªŒè¯ï¼šé‡å¼€ç»ˆç«¯ä½¿ PATH ç”Ÿæ•ˆï¼Œgh --version è¾“å‡ºç‰ˆæœ¬å·ï¼›\n4. è‹¥ gh å·²è£…ä½† DSH ä»æŠ¥æœªå®‰è£…ï¼šç‚¹ç¯å¢ƒæ£€æŸ¥ã€Œé‡æµ‹ã€æŒ‰é’®æˆ–é‡å¯ DSH Desktopï¼›\n5. å®Œæˆåæ±‡æŠ¥ï¼šgh ç‰ˆæœ¬å· + ã€Œgh CLI å¯ç”¨ã€é¡¹å·²å˜ç»¿ã€‚', repo: null }
+      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found ¡ª install GitHub CLI first (https://cli.github.com/)' : 'gh Î´ÕÒµ½£¬ÇëÏÈ°²×° GitHub CLI£¨https://cli.github.com/£©', hint: 'ÇëÎª DSH °²×° GitHub CLI£¨gh£©¡ª¡ª Ãæ°åËùÓĞÊı¾İÒÀÀµ gh£º\n\n1. ÏÈ¼ì²é£ºÖÕ¶ËÖ´ĞĞ gh --version£»ÓĞ°æ±¾ºÅÊä³ö ¡ú Ö±½Ó»ã±¨ÒÑ×°°æ±¾²¢½áÊø£¬²»ÒªÖØ¸´°²×°£»\n2. ÎŞ gh Ôò°´ OS °²×°£ºWindows ¡ú winget install --id GitHub.cli; macOS ¡ú rew install gh; Linux ¡ú sudo apt install gh;\n3. °²×°ºóÑéÖ¤£ºÖØ¿ªÖÕ¶ËÊ¹ PATH ÉúĞ§£¬gh --version Êä³ö°æ±¾ºÅ£»\n4. Èô gh ÒÑ×°µ« DSH ÈÔ±¨Î´°²×°£ºµã»·¾³¼ì²é¡¸ÖØ²â¡¹°´Å¥»òÖØÆô DSH Desktop£»\n5. Íê³Éºó»ã±¨£ºgh °æ±¾ºÅ + ¡¸gh CLI ¿ÉÓÃ¡¹ÏîÒÑ±äÂÌ¡£', repo: null }
       return { ok: true, level: 'ok', detail: exe, hint: '', repo: null }
     }
 
-    // æ£€æŸ¥ 5 Â· gh å·²ç™»å½•
+    // ¼ì²é 5 ¡¤ gh ÒÑµÇÂ¼
     async function checkGhAuth(lang) {
       const r = await runGh(['auth', 'status'])
       if (r.ok) {
         const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]
-        return { ok: true, level: 'ok', detail: first || ((lang === 'en') ? 'Logged in' : 'å·²ç™»å½•'), hint: '', repo: null }
+        return { ok: true, level: 'ok', detail: first || ((lang === 'en') ? 'Logged in' : 'ÒÑµÇÂ¼'), hint: '', repo: null }
       }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not logged into GitHub: run gh auth login (browser auth; official docs in hint)' : 'æœªç™»å½• GitHubï¼šè¿è¡Œ gh auth loginï¼ˆæµè§ˆå™¨æˆæƒï¼Œå®˜æ–¹æ–‡æ¡£è§ hintï¼‰', hint: 'https://cli.github.com/manual/gh_auth_login', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not logged into GitHub: run gh auth login (browser auth; official docs in hint)' : 'Î´µÇÂ¼ GitHub£ºÔËĞĞ gh auth login£¨ä¯ÀÀÆ÷ÊÚÈ¨£¬¹Ù·½ÎÄµµ¼û hint£©', hint: 'https://cli.github.com/manual/gh_auth_login', repo: null }
     }
 
-    // æ£€æŸ¥ 6 Â· API å¯è¾¾ï¼ˆæœ‰ repo ç”¨ repos/<owner>/<name>ï¼Œå¦åˆ™é€€ userï¼‰
+    // ¼ì²é 6 ¡¤ API ¿É´ï£¨ÓĞ repo ÓÃ repos/<owner>/<name>£¬·ñÔòÍË user£©
     async function checkApi(cwd, repo, lang) {
       const endpoint = repo ? ('repos/' + repo.owner + '/' + repo.name) : 'user'
       const r = await runGh(['api', endpoint], cwd)
-      if (r.ok) return { ok: true, level: 'ok', detail: 'api.github.com 200 Â· ' + endpoint, hint: '', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'API request failed (' + r.kind + ')' : 'API è¯·æ±‚å¤±è´¥ï¼ˆ' + r.kind + 'ï¼‰', hint: (lang === 'en') ? 'Check network / token scopes' : 'æ£€æŸ¥ç½‘ç»œ / Token æƒé™', repo: null }
+      if (r.ok) return { ok: true, level: 'ok', detail: 'api.github.com 200 ¡¤ ' + endpoint, hint: '', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'API request failed (' + r.kind + ')' : 'API ÇëÇóÊ§°Ü£¨' + r.kind + '£©', hint: (lang === 'en') ? 'Check network / token scopes' : '¼ì²éÍøÂç / Token È¨ÏŞ', repo: null }
     }
 
-    // æ£€æŸ¥ 7/8 Â· æŠ€èƒ½å®‰è£…æ¢æµ‹ï¼ˆ#373 æ‹æ¿ï¼šä¸¤æ€ â€”â€” å·²å®‰è£…/æœªå®‰è£…ï¼›å»æ‰ä¸å¯é çš„ã€ŒæŒ‚è½½ã€åˆ¤å®šï¼š
-    //   å®¿ä¸»çº§ skills æœåŠ¡ä¸ã€Œå½“å‰ä¼šè¯æŒ‚è½½ã€ä¸æ˜¯åŒä¸€ä¸Šä¸‹æ–‡ï¼ŒæœåŠ¡ä¸å¯ç”¨æ—¶ä¼šè¯¯æŠ¥ã€ŒæœªæŒ‚è½½ã€ï¼‰
+    // ¼ì²é 7/8 ¡¤ ¼¼ÄÜ°²×°Ì½²â£¨#373 ÅÄ°å£ºÁ½Ì¬ ¡ª¡ª ÒÑ°²×°/Î´°²×°£»È¥µô²»¿É¿¿µÄ¡¸¹ÒÔØ¡¹ÅĞ¶¨£º
+    //   ËŞÖ÷¼¶ skills ·şÎñÓë¡¸µ±Ç°»á»°¹ÒÔØ¡¹²»ÊÇÍ¬Ò»ÉÏÏÂÎÄ£¬·şÎñ²»¿ÉÓÃÊ±»áÎó±¨¡¸Î´¹ÒÔØ¡¹£©
     const SKILL_INSTALL_URL = 'https://github.com/mattpocock/skills'
-    // v1.6ï¼šæŠ€èƒ½å®‰è£…å¼•å¯¼ prompt å·²æ”¶ç¼–è¿› client PROMPTS æ³¨å†Œè¡¨ï¼ˆinstallSkills æ¡ç›®ï¼‰ï¼›hint ç”¨ prompt: é”®ååè®®ï¼ˆprompt:installSkillsï¼‰ç”± client å–åŒè¯­æ–‡æœ¬
+    // v1.6£º¼¼ÄÜ°²×°Òıµ¼ prompt ÒÑÊÕ±à½ø client PROMPTS ×¢²á±í£¨installSkills ÌõÄ¿£©£»hint ÓÃ prompt: ¼üÃûĞ­Òé£¨prompt:installSkills£©ÓÉ client È¡Ë«ÓïÎÄ±¾
     async function probeSkill(name, lang) {
       let session = false
       const skills = ctx.get('skills')
@@ -1085,32 +1139,32 @@ export default {
             const probePath = await platform.path.joinHome(SKILL_PROBE_DIRS[i], name)
             const info = await platform.fs.lstat(probePath)
             if (info) { fsFound = '~/' + SKILL_PROBE_DIRS[i] + '/' + name; break }
-          } catch (e) { /* ç»§ç»­æ¢æµ‹ä¸‹ä¸€ä¸ªç›®å½• */ }
+          } catch (e) { /* ¼ÌĞøÌ½²âÏÂÒ»¸öÄ¿Â¼ */ }
         }
       }
-      // ä¸¤æ€ï¼š#373 â€”â€” ä»»ä¸€æ¥æºå‘ç° = å·²å®‰è£…ï¼ˆç»¿ okï¼‰ï¼›å‡æ—  = æœªå®‰è£…ï¼ˆçº¢ bad + å®˜æ–¹ä»“åº“åœ°å€ï¼‰
-      if (session && fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted Â· ' + fsFound + ')' : 'å·²å®‰è£…ï¼ˆä¼šè¯å·²æŒ‚è½½ Â· ' + fsFound + 'ï¼‰', hint: '', repo: null }
-      if (session) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted)' : 'å·²å®‰è£…ï¼ˆä¼šè¯å·²æŒ‚è½½ï¼‰', hint: '', repo: null }
-      if (fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (' + fsFound + ')' : 'å·²å®‰è£…ï¼ˆ' + fsFound + 'ï¼‰', hint: '', repo: null }
-      if (home === null) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed (cannot probe user home)' : 'æœªå®‰è£…ï¼ˆæ— æ³•æ¢æµ‹ç”¨æˆ·ä¸»ç›®å½•ï¼‰', hint: 'prompt:installSkills', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed' : 'æœªå®‰è£…', hint: 'prompt:installSkills', repo: null }
+      // Á½Ì¬£º#373 ¡ª¡ª ÈÎÒ»À´Ô´·¢ÏÖ = ÒÑ°²×°£¨ÂÌ ok£©£»¾ùÎŞ = Î´°²×°£¨ºì bad + ¹Ù·½²Ö¿âµØÖ·£©
+      if (session && fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted ¡¤ ' + fsFound + ')' : 'ÒÑ°²×°£¨»á»°ÒÑ¹ÒÔØ ¡¤ ' + fsFound + '£©', hint: '', repo: null }
+      if (session) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted)' : 'ÒÑ°²×°£¨»á»°ÒÑ¹ÒÔØ£©', hint: '', repo: null }
+      if (fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (' + fsFound + ')' : 'ÒÑ°²×°£¨' + fsFound + '£©', hint: '', repo: null }
+      if (home === null) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed (cannot probe user home)' : 'Î´°²×°£¨ÎŞ·¨Ì½²âÓÃ»§Ö÷Ä¿Â¼£©', hint: 'prompt:installSkills', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed' : 'Î´°²×°', hint: 'prompt:installSkills', repo: null }
     }
 
-    // v1.5 T11ï¼šæ£€æŸ¥ 9 Â· æ ¸å¿ƒæŠ€èƒ½å¥—ä»¶èšåˆï¼ˆå…¨æµç¨‹æŠ€èƒ½ç¼ºå¤±æ£€æµ‹ï¼‰
+    // v1.5 T11£º¼ì²é 9 ¡¤ ºËĞÄ¼¼ÄÜÌ×¼ş¾ÛºÏ£¨È«Á÷³Ì¼¼ÄÜÈ±Ê§¼ì²â£©
     async function probeSkillSuite(lang) {
       const missing = []
       for (let i = 0; i < SKILL_PROBE_NAMES.length; i++) {
         const r = await probeSkill(SKILL_PROBE_NAMES[i], lang)
         if (r.level !== 'ok') missing.push(SKILL_PROBE_NAMES[i])
       }
-      if (!missing.length) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : 'æ ¸å¿ƒæŠ€èƒ½å¥—ä»¶å·²å®‰è£…ï¼ˆ' + SKILL_PROBE_NAMES.length + ' ä¸ªï¼‰', hint: '', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Missing: ' + missing.join(' / ') : 'ç¼ºå¤±ï¼š' + missing.join(' / '), hint: 'prompt:installSkills', repo: null }
+      if (!missing.length) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : 'ºËĞÄ¼¼ÄÜÌ×¼şÒÑ°²×°£¨' + SKILL_PROBE_NAMES.length + ' ¸ö£©', hint: '', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Missing: ' + missing.join(' / ') : 'È±Ê§£º' + missing.join(' / '), hint: 'prompt:installSkills', repo: null }
     }
 
     const CHECK_NAMES = function (lang) {
       return (lang === 'en')
         ? ['Repo located', 'Setup run', 'Tracker = GitHub', 'gh CLI available', 'gh logged in', 'API reachable', 'wayfinder skill', 'ask-matt skill', 'Core skill suite']
-        : ['ä»“åº“å®šä½', 'setup å·²æ‰§è¡Œ', 'tracker = GitHub', 'gh CLI å¯ç”¨', 'gh å·²ç™»å½•', 'API å¯è¾¾', 'wayfinder æŠ€èƒ½', 'ask-matt æŠ€èƒ½', 'æ ¸å¿ƒæŠ€èƒ½å¥—ä»¶']
+        : ['²Ö¿â¶¨Î»', 'setup ÒÑÖ´ĞĞ', 'tracker = GitHub', 'gh CLI ¿ÉÓÃ', 'gh ÒÑµÇÂ¼', 'API ¿É´ï', 'wayfinder ¼¼ÄÜ', 'ask-matt ¼¼ÄÜ', 'ºËĞÄ¼¼ÄÜÌ×¼ş']
     }
 
     async function buildStatus(cwd, lang) {
@@ -1139,18 +1193,18 @@ export default {
       }
     }
 
-    // ============ RPCï¼ˆ#152 Â· æ¢æµ‹ç¼–æ’ï¼šwf.detect æ–° RPC + wf.status è–„å…¼å®¹æ´¾ç”Ÿï¼‰============
-    // ç¬¬ä¸€æ€§åŸç†ï¼šå‰ç«¯åªè°ƒ wf.detect/wf.status æ‹¿ DetectionResultï¼ˆ#150 Q1ï¼‰ï¼›æ¢æµ‹é›¶ OS ç›´ç¢°ç» platformï¼›
-    // per-workspace æŒ‰ handleKey=cwd|refId å†…å­˜ Map ä¸è½ç›˜ï¼ˆQ3ï¼‰ï¼›pending ä¸ç¼“å­˜ï¼ˆQ6ï¼‰ï¼›å”¯ä¸€å†™è·¯å¾„ wf.bindâ†’registry.bindï¼ˆQ4ï¼‰
+    // ============ RPC£¨#152 ¡¤ Ì½²â±àÅÅ£ºwf.detect ĞÂ RPC + wf.status ±¡¼æÈİÅÉÉú£©============
+    // µÚÒ»ĞÔÔ­Àí£ºÇ°¶ËÖ»µ÷ wf.detect/wf.status ÄÃ DetectionResult£¨#150 Q1£©£»Ì½²âÁã OS Ö±Åö¾­ platform£»
+    // per-workspace °´ handleKey=cwd|refId ÄÚ´æ Map ²»ÂäÅÌ£¨Q3£©£»pending ²»»º´æ£¨Q6£©£»Î¨Ò»Ğ´Â·¾¶ wf.bind¡úregistry.bind£¨Q4£©
     harness.handle('wf.detect', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
-      // #195 ä¿®å¤ï¼šforce æ¢æµ‹æ¸…ç©º gh è§£æç¼“å­˜ï¼ˆæ—§å®ç°é¦–æ¬¡å¤±è´¥æ°¸ä¹…ç¼“å­˜ï¼Œforce ä¹Ÿæ•‘ä¸å›æ¥ï¼‰
+      // #195 ĞŞ¸´£ºforce Ì½²âÇå¿Õ gh ½âÎö»º´æ£¨¾ÉÊµÏÖÊ×´ÎÊ§°ÜÓÀ¾Ã»º´æ£¬force Ò²¾È²»»ØÀ´£©
       if (force) resetGhCache()
       try {
         const svc = await getDetectionService()
         const res = await svc.detect({ cwd }, { force })
-        // å¯¹æŠ—å¼ï¼šensure DetectionResult å½¢æ€ï¼ˆå« selection/pending/multiHitï¼ŒæŒ‰ #125ï¼‰
+        // ¶Ô¿¹Ê½£ºensure DetectionResult ĞÎÌ¬£¨º¬ selection/pending/multiHit£¬°´ #125£©
         return { ok: true, ...res }
       } catch (e) {
         return { ok: false, error: String((e && e.message) || e) }
@@ -1160,10 +1214,10 @@ export default {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
       const lang = (args && args.lang === 'en') ? 'en' : 'zh'
-      // #195 ä¿®å¤ï¼šforce æ¢æµ‹æ¸…ç©º gh è§£æç¼“å­˜ï¼ˆæ—§å®ç°é¦–æ¬¡å¤±è´¥æ°¸ä¹…ç¼“å­˜ï¼‰
+      // #195 ĞŞ¸´£ºforce Ì½²âÇå¿Õ gh ½âÎö»º´æ£¨¾ÉÊµÏÖÊ×´ÎÊ§°ÜÓÀ¾Ã»º´æ£©
       if (force) resetGhCache()
       const now = Date.now()
-      // å°è¯•ç¼–æ’å±‚ï¼šä¼˜å…ˆèµ° detectionServiceï¼ˆQ7 DetectionResult + preflight + skillProbes â†’ æ´¾ç”Ÿ 9 checks è–„å…¼å®¹ï¼‰
+      // ³¢ÊÔ±àÅÅ²ã£ºÓÅÏÈ×ß detectionService£¨Q7 DetectionResult + preflight + skillProbes ¡ú ÅÉÉú 9 checks ±¡¼æÈİ£©
       try {
         const svc = await getDetectionService()
         const det = await svc.detect({ cwd }, { force })
@@ -1171,56 +1225,56 @@ export default {
         const backendId = sel && sel.backendId
         const cacheKeyOk = !force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && statusCache.backendId === (backendId || null) && now - statusCache.ts < STATUS_CACHE_MS
         if (cacheKeyOk) return statusCache.status
-        // æ´¾ç”Ÿ 9 checks å…¼å®¹è§†å›¾ï¼ˆ#150 Q7ï¼šchecks è¿‡æ¸¡æœŸåå¯ deprecateï¼Œä»… selection ä¸ºçœŸæºï¼‰
-        // 1) repo å®šä½ï¼ˆå¤ç”¨ detection repoHandle + è½»é‡ git æ¢æµ‹å…œåº•ï¼Œä¿æŒä¸æ—§ checkRepo ç­‰ä»·ï¼‰
+        // ÅÉÉú 9 checks ¼æÈİÊÓÍ¼£¨#150 Q7£ºchecks ¹ı¶ÉÆÚºó¿É deprecate£¬½ö selection ÎªÕæÔ´£©
+        // 1) repo ¶¨Î»£¨¸´ÓÃ detection repoHandle + ÇáÁ¿ git Ì½²â¶µµ×£¬±£³ÖÓë¾É checkRepo µÈ¼Û£©
         const c1Legacy = await checkRepo(cwd, lang)
-        // 2-3) setup/tracker ç”± explicit è§£æäºŒåˆä¸€ï¼ˆparseIssueTracker é«˜ç½®ä¿¡â†’okï¼Œå¦åˆ™ warnï¼›ç©ºâ†’badï¼‰
+        // 2-3) setup/tracker ÓÉ explicit ½âÎö¶şºÏÒ»£¨parseIssueTracker ¸ßÖÃĞÅ¡úok£¬·ñÔò warn£»¿Õ¡úbad£©
         const parsed = det.explicit && det.explicit.parsed
         let c2, c3
         if (parsed && parsed.explicitBackendId) {
-          c2 = { ok: true, level: 'ok', detail: (lang==='en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md å­˜åœ¨', hint: '' }
+          c2 = { ok: true, level: 'ok', detail: (lang==='en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md ´æÔÚ', hint: '' }
           const labelMap = { github: 'GitHub Issues + gh CLI', gitlab: 'GitLab Issues + glab', markdown: 'Local Markdown (.scratch)' }
           const lbl = labelMap[parsed.explicitBackendId] || parsed.explicitBackendId
           c3 = { ok: true, level: 'ok', detail: lbl, hint: '' }
         } else {
           c2 = await checkSetup(cwd, lang)
-          // è‹¥æ— æ˜¾å¼å£°æ˜ä½† selection å·²å‘½ä¸­æŸåç«¯ï¼Œè§†ä¸º tracker å·²å†³
+          // ÈôÎŞÏÔÊ½ÉùÃ÷µ« selection ÒÑÃüÖĞÄ³ºó¶Ë£¬ÊÓÎª tracker ÒÑ¾ö
           if (backendId) c3 = { ok: true, level: 'ok', detail: backendId, hint: '' }
           else c3 = await checkTracker(cwd, lang)
         }
-        // 4-6) gh/cli/auth/api èšåˆè‡ª preflightï¼ˆå‘½ä¸­åæƒ°æ€§ï¼›Q6ï¼‰ï¼Œæœªå‘½ä¸­ fallback ä¿ç•™æ—§ä¸‰é¡¹
+        // 4-6) gh/cli/auth/api ¾ÛºÏ×Ô preflight£¨ÃüÖĞºó¶èĞÔ£»Q6£©£¬Î´ÃüÖĞ fallback ±£Áô¾ÉÈıÏî
         let c4, c5, c6
         if (det.preflight) {
           const kind = det.preflight.error && det.preflight.error.kind
           const msg = det.preflight.error && det.preflight.error.message || ''
           if (det.preflight.ok) {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : 'å·²ç™»å½•', hint: '' }
+            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : 'ÒÑµÇÂ¼', hint: '' }
             c6 = { ok: true, level: 'ok', detail: 'api.github.com 200', hint: '' }
           } else if (kind === 'env') {
-            // #195 ä¿®å¤ï¼šhint å‡çº§ä¸º prompt:installGhï¼ˆä¸ installSkills / ghAuthGuide åŒæ¨¡å¼ï¼‰ï¼ŒUI ä¸»æŒ‰é’®è‡ªåŠ¨ inject
-            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found â€” install GitHub CLI first (https://cli.github.com/)' : 'gh æœªæ‰¾åˆ°ï¼Œè¯·å…ˆå®‰è£… GitHub CLIï¼ˆhttps://cli.github.com/ï¼‰', hint: (det.preflight && det.preflight.prompt) ? det.preflight.prompt : 'è¯·ä¸º DSH å®‰è£… GitHub CLIï¼ˆghï¼‰â€”â€” é¢æ¿æ‰€æœ‰æ•°æ®ä¾èµ– ghï¼š\n\n1. å…ˆæ£€æŸ¥ï¼šç»ˆç«¯æ‰§è¡Œ gh --version;\n2. æ—  gh åˆ™æŒ‰ OS å®‰è£…ï¼šWindows â†’ winget install --id GitHub.cli; macOS â†’ rew install gh; Linux â†’ sudo apt install gh;\n3. å®‰è£…åéªŒè¯ï¼šgh --version;\n4. è‹¥ gh å·²è£…ä½† DSH ä»æŠ¥æœªå®‰è£…ï¼šç‚¹ã€Œé‡æµ‹ã€æˆ–é‡å¯ DSHï¼›\n5. å®Œæˆåæ±‡æŠ¥ã€‚' }
-            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : 'æœªç™»å½• GitHubï¼šè¿è¡Œ gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
+            // #195 ĞŞ¸´£ºhint Éı¼¶Îª prompt:installGh£¨Óë installSkills / ghAuthGuide Í¬Ä£Ê½£©£¬UI Ö÷°´Å¥×Ô¶¯ inject
+            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found ¡ª install GitHub CLI first (https://cli.github.com/)' : 'gh Î´ÕÒµ½£¬ÇëÏÈ°²×° GitHub CLI£¨https://cli.github.com/£©', hint: (det.preflight && det.preflight.prompt) ? det.preflight.prompt : 'ÇëÎª DSH °²×° GitHub CLI£¨gh£©¡ª¡ª Ãæ°åËùÓĞÊı¾İÒÀÀµ gh£º\n\n1. ÏÈ¼ì²é£ºÖÕ¶ËÖ´ĞĞ gh --version;\n2. ÎŞ gh Ôò°´ OS °²×°£ºWindows ¡ú winget install --id GitHub.cli; macOS ¡ú rew install gh; Linux ¡ú sudo apt install gh;\n3. °²×°ºóÑéÖ¤£ºgh --version;\n4. Èô gh ÒÑ×°µ« DSH ÈÔ±¨Î´°²×°£ºµã¡¸ÖØ²â¡¹»òÖØÆô DSH£»\n5. Íê³Éºó»ã±¨¡£' }
+            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : 'Î´µÇÂ¼ GitHub£ºÔËĞĞ gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           } else if (kind === 'auth') {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : 'æœªç™»å½• GitHubï¼šè¿è¡Œ gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
+            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : 'Î´µÇÂ¼ GitHub£ºÔËĞĞ gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           } else {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : 'å·²ç™»å½•', hint: '' }
+            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : 'ÒÑµÇÂ¼', hint: '' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           }
         } else if (backendId && !det.selection.pending) {
-          // å‘½ä¸­ä½† preflight å°šæœªäº§å‡ºï¼ˆlazy æœªè°ƒï¼‰ï¼Œå›é€€æ—§ä¸‰é¡¹ä»¥ä¿å…¼å®¹
+          // ÃüÖĞµ« preflight ÉĞÎ´²ú³ö£¨lazy Î´µ÷£©£¬»ØÍË¾ÉÈıÏîÒÔ±£¼æÈİ
           c4 = await checkGhCli(lang)
           c5 = await checkGhAuth(lang)
           c6 = await checkApi(cwd, c1Legacy.repo, lang)
         } else {
-          // pending/fallback åœºæ™¯ä¸è°ƒ preflightï¼ˆQ6ï¼‰ï¼Œç›¸åº”é¡¹ surface ä¸º pending é˜»å¡æ€
+          // pending/fallback ³¡¾°²»µ÷ preflight£¨Q6£©£¬ÏàÓ¦Ïî surface Îª pending ×èÈûÌ¬
           if (sel && sel.pending) {
             const hint = 'pending:explicit-bind'
-            const pendingDetail = (lang==='en') ? 'Detectingâ€¦ pending (select a backend or retry)' : 'æ¢æµ‹æœªå†³ Â· ç­‰å¾…/å»ºè®®æ˜¾å¼é€‰æ‹©'
+            const pendingDetail = (lang==='en') ? 'Detecting¡­ pending (select a backend or retry)' : 'Ì½²âÎ´¾ö ¡¤ µÈ´ı/½¨ÒéÏÔÊ½Ñ¡Ôñ'
             c4 = { ok: false, level: 'warn', detail: pendingDetail, hint }
             c5 = { ok: false, level: 'warn', detail: pendingDetail, hint }
             c6 = { ok: false, level: 'warn', detail: pendingDetail, hint }
@@ -1230,21 +1284,21 @@ export default {
             c6 = await checkApi(cwd, c1Legacy.repo, lang)
           }
         }
-        // 7-9) skill æ­£äº¤ï¼ˆå¤ç”¨ det.skillProbesï¼Œè‹¥æ— åˆ™å›é€€ probeSkillï¼‰
+        // 7-9) skill Õı½»£¨¸´ÓÃ det.skillProbes£¬ÈôÎŞÔò»ØÍË probeSkill£©
         let c7, c8, c9
         if (det.skillProbes && det.skillProbes.probes) {
           const p = det.skillProbes.probes
           const toCheck = (name) => {
             const r = p[name]
-            if (!r) return { ok: false, level: 'bad', detail: (lang==='en') ? 'Not installed' : 'æœªå®‰è£…', hint: 'prompt:installSkills' }
+            if (!r) return { ok: false, level: 'bad', detail: (lang==='en') ? 'Not installed' : 'Î´°²×°', hint: 'prompt:installSkills' }
             return { ok: r.level==='ok', level: r.level, detail: r.detail, hint: r.hint }
           }
           c7 = toCheck(SKILL_PROBE_NAMES[0])
-          c8 = toCheck(SKILL_PROBE_NAMES[5]) // ask-matt æ­£ä½ï¼ˆ#149 C8 triageâ†’ask-mattï¼‰
-          // suite èšåˆ
+          c8 = toCheck(SKILL_PROBE_NAMES[5]) // ask-matt ÕıÎ»£¨#149 C8 triage¡úask-matt£©
+          // suite ¾ÛºÏ
           const missing = det.skillProbes.missing || []
-          if (!missing.length) c9 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : 'æ ¸å¿ƒæŠ€èƒ½å¥—ä»¶å·²å®‰è£…ï¼ˆ' + SKILL_PROBE_NAMES.length + ' ä¸ªï¼‰', hint: '' }
-          else c9 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Missing: ' + missing.join(' / ') : 'ç¼ºå¤±ï¼š' + missing.join(' / '), hint: 'prompt:installSkills' }
+          if (!missing.length) c9 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : 'ºËĞÄ¼¼ÄÜÌ×¼şÒÑ°²×°£¨' + SKILL_PROBE_NAMES.length + ' ¸ö£©', hint: '' }
+          else c9 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Missing: ' + missing.join(' / ') : 'È±Ê§£º' + missing.join(' / '), hint: 'prompt:installSkills' }
         } else {
           c7 = await probeSkill(SKILL_PROBE_NAMES[0], lang)
           c8 = await probeSkill(SKILL_PROBE_NAMES[5], lang)
@@ -1252,10 +1306,10 @@ export default {
         }
         const raw = [c1Legacy, c2, c3, c4, c5, c6, c7, c8, c9]
         const checks = raw.map(function (c, i) {
-          // è¦†ç›–å±‚æç¤ºï¼šmultiHit é€ä¼ çº æ­£å…¥å£ï¼ˆQ5ï¼‰
+          // ¸²¸Ç²ãÌáÊ¾£ºmultiHit Í¸´«¾ÀÕıÈë¿Ú£¨Q5£©
           let hint = c.hint
           if (i===2 && sel && sel.multiHit) hint = (hint ? hint + ' ' : '') + 'multiHit:' + sel.multiHit.join(',')
-          if (sel && sel.pending && i>=3 && i<=5 && c.level!=='warn') { /* pending å·²åœ¨ 4-6 å¤„ç† */ }
+          if (sel && sel.pending && i>=3 && i<=5 && c.level!=='warn') { /* pending ÒÑÔÚ 4-6 ´¦Àí */ }
           return { id: i + 1, name: CHECK_NAMES(lang)[i], ok: c.level === 'ok', level: c.level, detail: c.detail, hint: hint }
         })
         const status = {
@@ -1267,14 +1321,14 @@ export default {
           checks: checks,
           ready: checks.filter(function (c) { return c.ok }).length,
           total: checks.length,
-          // æ–°å¢ï¼šç¼–æ’å±‚çœŸæºï¼ˆQ7ï¼‰
+          // ĞÂÔö£º±àÅÅ²ãÕæÔ´£¨Q7£©
           selection: sel,
           detection: det,
         }
         statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang, backendId: backendId || null }
         return status
       } catch (e) {
-        // ç¼–æ’å¤±è´¥å›é€€æ—§è·¯å¾„ï¼ˆä¿å®ˆï¼‰
+        // ±àÅÅÊ§°Ü»ØÍË¾ÉÂ·¾¶£¨±£ÊØ£©
       }
       if (!force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && now - statusCache.ts < STATUS_CACHE_MS) return statusCache.status
       try {
@@ -1291,11 +1345,11 @@ export default {
       return { ok: true, ts: Date.now() }
     })
 
-    // v13ï¼šæŒ‰ sessionId åæŸ¥ä¼šè¯å·¥ä½œç›®å½•ï¼ˆclient åˆ‡æ¢å¯¹è¯æ—¶ç”¨ï¼›å®¿ä¸» sessions.meta æ˜¯æƒå¨å­—æ®µï¼Œ
-    // ä¸å†ä¾èµ– client çŒœæµ‹ ConversationSnapshot å­—æ®µåï¼‰
-    // é”™è¯¯å¯¹è±¡ â†’ å¯è¯»æ–‡æœ¬ï¼šfetchMaps/buildSnapshot æŠ›å‡ºçš„æ˜¯ {kind, error} å¯¹è±¡ï¼ŒString() ä¼šå˜ [object Object]
+    // v13£º°´ sessionId ·´²é»á»°¹¤×÷Ä¿Â¼£¨client ÇĞ»»¶Ô»°Ê±ÓÃ£»ËŞÖ÷ sessions.meta ÊÇÈ¨Íş×Ö¶Î£¬
+    // ²»ÔÙÒÀÀµ client ²Â²â ConversationSnapshot ×Ö¶ÎÃû£©
+    // ´íÎó¶ÔÏó ¡ú ¿É¶ÁÎÄ±¾£ºfetchMaps/buildSnapshot Å×³öµÄÊÇ {kind, error} ¶ÔÏó£¬String() »á±ä [object Object]
     const errText = function (e) {
-      if (e === undefined || e === null) return 'æœªçŸ¥é”™è¯¯'
+      if (e === undefined || e === null) return 'Î´Öª´íÎó'
       if (typeof e === 'string') return e
       if (typeof e.message === 'string') return e.message
       if (typeof e.error === 'string') return e.error
@@ -1304,12 +1358,12 @@ export default {
 
     harness.handle('wf.cwd', async function (args) {
       const sid = args && args.sessionId
-      if (!sid) return { ok: false, error: 'ç¼ºå°‘ sessionId' }
+      if (!sid) return { ok: false, error: 'È±ÉÙ sessionId' }
       const sessions = ctx.get('sessions')
-      if (sessions === undefined || typeof sessions.get !== 'function') return { ok: false, error: 'sessions æœåŠ¡ä¸å¯ç”¨' }
+      if (sessions === undefined || typeof sessions.get !== 'function') return { ok: false, error: 'sessions ·şÎñ²»¿ÉÓÃ' }
       try {
         const s = sessions.get(sid)
-        // ç°ä»£ DSH çš„ Session ç»“æ„ï¼šheader.cwd ä¸ºæƒå¨ï¼›å…¼å®¹æ—§ meta / ç›´æ¥ cwd å­—æ®µ
+        // ÏÖ´ú DSH µÄ Session ½á¹¹£ºheader.cwd ÎªÈ¨Íş£»¼æÈİ¾É meta / Ö±½Ó cwd ×Ö¶Î
         const header = s && (s.header || s.meta)
         const cwd = header && (header.cwd || header.path || header.worktree || header.projectDir || header.directory)
         if (typeof cwd === 'string' && cwd) return { ok: true, cwd: cwd }
@@ -1317,80 +1371,121 @@ export default {
         const cwd2 = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory)
         if (typeof cwd2 === 'string' && cwd2) return { ok: true, cwd: cwd2 }
         if (s && typeof s.cwd === 'string' && s.cwd) return { ok: true, cwd: s.cwd }
-        return { ok: false, error: 'ä¼šè¯æ—  cwd ä¿¡æ¯' }
+        return { ok: false, error: '»á»°ÎŞ cwd ĞÅÏ¢' }
       } catch (e) {
         return { ok: false, error: errText(e) }
       }
     })
 
-    // #179 å›åˆ‡è‡ªæ„ˆï¼šç©º cwd ä»å…œ DEFAULT_CWD ä½œæœ€åå…œåº•ï¼ˆé¿å…â€œæ²¡æœ‰ä»“åº“â€ç©ºç™½ï¼‰ï¼Œä½†å®¢æˆ·ç«¯å·²ä¿è¯åŒ sid åˆ‡å·¥ä½œåŒºäº¦è§¦å‘ï¼Œç©ºçª—æçŸ­
+    // #179 »ØÇĞ×ÔÓú£º¿Õ cwd ÈÔ¶µ DEFAULT_CWD ×÷×îºó¶µµ×£¨±ÜÃâ¡°Ã»ÓĞ²Ö¿â¡±¿Õ°×£©£¬µ«¿Í»§¶ËÒÑ±£Ö¤Í¬ sid ÇĞ¹¤×÷ÇøÒà´¥·¢£¬¿Õ´°¼«¶Ì
     harness.handle('wf.snapshot', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
-      const now = Date.now()
-      if (cache.snapshot && cache.cwd === cwd) {
-        const current = await cacheSnapshotIsCurrent(cache.snapshot, cwd)
-        if (current === true || (current === null && now - cache.ts < CACHE_MS)) return cache.snapshot
+      const rawCwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await normCwd(rawCwd)
+      const ifNoneMatch = args && (args.ifNoneMatch || args.version || args.etag) || null
+      const defNorm2 = normKey(DEFAULT_CWD); const curNorm2 = normKey(cwd);
+      if((!args || !args.cwd) && curNorm2===defNorm2){ try{ const rr2=await getRepoRoot(cwd); if(!rr2) return {ok:false, error:'not a git repository (DEFAULT_CWD not gitRoot)', kind:'env'}; }catch{}
       }
-      try {
-        // #2 deletion fixï¼šç£ç›˜å¿«ç…§åªç”¨äºç§’å¼€ï¼›å‘½ä¸­åå…ˆæ ¡éªŒ issue ç´¢å¼•ï¼Œåˆ é™¤/çŠ¶æ€å˜åŒ–æ—¶ç«‹å³é‡å»ºã€‚
+      const hit = getCacheByCwd(cwd);
+      if(hit && hit.snapshot){
+        if(ifNoneMatch && hit.version && hit.version===ifNoneMatch) return {ok:true, notModified:true, status:304, version:hit.version};
+        const current = await cacheSnapshotIsCurrent(hit.snapshot, cwd);
+        if(current===true || (current===null && Date.now()-hit.ts < CACHE_MS)){
+          if(ifNoneMatch && hit.version===ifNoneMatch) return {ok:true, notModified:true, status:304, version:hit.version};
+          return hit.snapshot;
+        }
+      }
+      try{
         const repo0 = await getRepoKey(cwd)
         const disk = await readDiskCache(repo0)
-        if (disk) {
-          const current = await cacheSnapshotIsCurrent(disk, cwd)
-          if (current !== false) return adoptSnapshot(Object.assign({}, disk, { fromCache: true }), cwd)
+        if(disk){
+          const currentDisk = await cacheSnapshotIsCurrent(disk, cwd)
+          if(currentDisk!==false){
+            try{ const vDisk=snapshotVersionOf(disk); disk.version=vDisk; disk.etag=vDisk; }catch{}
+            if(ifNoneMatch && disk.version===ifNoneMatch) return {ok:true, notModified:true, status:304, version:disk.version};
+            const adopted=Object.assign({},disk,{fromCache:true});
+            setCacheByCwd(cwd,{snapshot:adopted, version:disk.version||'', ts:Date.now(), error:null});
+            return adopted;
+          }
         }
-        const snap = await buildSnapshot(cwd)
-        await writeDiskCache(snap.repo, snap)
-        return adoptSnapshot(snap, cwd)
-      } catch (e) {
-        cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
-        return { ok: false, error: errText(e), env: { ghError: ghLastError } }
+        const ens = await ensureSnapshot(cwd, {ifNoneMatch:ifNoneMatch});
+        if(ens && ens.notModified) return {ok:true, notModified:true, status:304, version:ens.version};
+        if(ens && ens.ok && ens.snapshot) return ens.snapshot;
+        const snap = await buildSnapshot(cwd);
+        try{ const v=snapshotVersionOf(snap); snap.version=v; snap.etag=v; }catch{}
+        if(ifNoneMatch && snap.version===ifNoneMatch) return {ok:true, notModified:true, status:304, version:snap.version};
+        setCacheByCwd(cwd,{snapshot:snap, version:snap.version||'', ts:Date.now(), error:null});
+        await writeDiskCache(snap.repo, snap);
+        return snap;
+      }catch(e){
+        const oldHit=getCacheByCwd(cwd);
+        if(oldHit && oldHit.snapshot) return {ok:false, error:errText(e), snapshot:oldHit.snapshot, version:oldHit.version, env:{ghError:ghLastError}};
+        return {ok:false, error:errText(e), env:{ghError:ghLastError}};
       }
     })
-
     harness.handle('wf.refresh', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
-      // #195 ä¿®å¤ï¼šç”¨æˆ·ä¸»åŠ¨åˆ·æ–°æ—¶æ¸…ç©º gh è§£æç¼“å­˜ï¼Œå¼ºåˆ¶é‡æ¢
+      const rawCwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await normCwd(rawCwd)
+      const ifNoneMatch = args && (args.ifNoneMatch || args.version) || null
       resetGhCache()
-      try {
-        const snap = await buildSnapshot(cwd)
-        // v1.5 T9ï¼šåˆ·æ–°åè½ç›˜ï¼Œä¸‹æ¬¡é‡å¯ç§’å¼€
-        await writeDiskCache(snap.repo, snap)
-        return adoptSnapshot(snap, cwd)
-      } catch (e) {
-        cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
-        return { ok: false, error: errText(e) }
+      try{
+        const ens = await ensureSnapshot(cwd, {ifNoneMatch:ifNoneMatch});
+        if(ens && ens.notModified) return {ok:true, notModified:true, status:304, version:ens.version};
+        if(ens && ens.ok && ens.snapshot) return ens.snapshot;
+        const snap = await buildSnapshot(cwd);
+        try{ const v=snapshotVersionOf(snap); snap.version=v; snap.etag=v; }catch{}
+        setCacheByCwd(cwd,{snapshot:snap, version:snap.version||'', ts:Date.now(), error:null});
+        await writeDiskCache(snap.repo, snap);
+        return snap;
+      }catch(e){
+        const oldHit2=getCacheByCwd(cwd);
+        if(oldHit2 && oldHit2.snapshot) return {ok:false, error:errText(e), snapshot:oldHit2.snapshot, version:oldHit2.version};
+        return {ok:false, error:errText(e)};
       }
     })
 
-    // #155 + #152ï¼šåç«¯ç»‘å®šï¼ˆper-workspace è¦†ç›–ï¼Œå”¯ä¸€å†™è·¯å¾„ä¸å›å†™ issue-tracker.mdï¼‰+ æ³¨å†Œè¡¨æŸ¥è¯¢ + detection ç¼“å­˜å¤±æ•ˆ
-    // #176 + #190 ä¿®å¤ï¼šcwd å½’ä¸€ï¼ˆç»å¯¹ç›´é€š + ç›¸å¯¹å°è¯• fs.resolve + home è¯•æ¢ï¼‰
-    // æ ¹å› ï¼šworkspaces æœåŠ¡åœ¨ client runtime æš´éœ²çš„ item.path å¯èƒ½æ˜¯ç›¸å¯¹åï¼ˆå¦‚ "matt-demo-markdown"ï¼‰ï¼Œ
-    // ä¼ ç»™ wf.selection å select() ä¸‰çº§è”ä¸­ markdown.matches æ”¶åˆ°ç›¸å¯¹ cwdï¼Œplat.join(cwd,...) ä»æ˜¯ç›¸å¯¹ï¼Œ
-    // fs.resolve é»˜è®¤åŸºäºè¿›ç¨‹ cwd è§£æå¤±è´¥ â†’ matches false â†’ fallback â†’ UI "æœªç»‘å®š"ã€‚
-    // å½’ä¸€åæ‰€æœ‰ handler æ”¶åˆ°ç»å¯¹ cwdï¼Œmarkdown.matches å‘½ä¸­ docs/agents/issue-tracker.md â†’ Markdown è‡ªåŠ¨ã€‚
+    // #155    // #155 + #152£ººó¶Ë°ó¶¨£¨per-workspace ¸²¸Ç£¬Î¨Ò»Ğ´Â·¾¶²»»ØĞ´ issue-tracker.md£©+ ×¢²á±í²éÑ¯ + detection »º´æÊ§Ğ§
+    // #176 + #190 ĞŞ¸´£ºcwd ¹éÒ»£¨¾ø¶ÔÖ±Í¨ + Ïà¶Ô³¢ÊÔ fs.resolve + home ÊÔÌ½£©
+    // ¸ùÒò£ºworkspaces ·şÎñÔÚ client runtime ±©Â¶µÄ item.path ¿ÉÄÜÊÇÏà¶ÔÃû£¨Èç "matt-demo-markdown"£©£¬
+    // ´«¸ø wf.selection ºó select() Èı¼¶ÁªÖĞ markdown.matches ÊÕµ½Ïà¶Ô cwd£¬plat.join(cwd,...) ÈÔÊÇÏà¶Ô£¬
+    // fs.resolve Ä¬ÈÏ»ùÓÚ½ø³Ì cwd ½âÎöÊ§°Ü ¡ú matches false ¡ú fallback ¡ú UI "Î´°ó¶¨"¡£
+    // ¹éÒ»ºóËùÓĞ handler ÊÕµ½¾ø¶Ô cwd£¬markdown.matches ÃüÖĞ docs/agents/issue-tracker.md ¡ú Markdown ×Ô¶¯¡£
     async function normCwd(raw){
-      if(!raw) return DEFAULT_CWD
-      try{
-        const plat=await getPlatform()
-        if(plat&&plat.path&&typeof plat.path.isAbsolute==='function'&&plat.path.isAbsolute(raw)) return plat.path.normalize(raw)
-      }catch{}
-      // ç›¸å¯¹ï¼šDSH fs.resolve è¯•æ¢ï¼ˆDSH å¹³å° fs å¯èƒ½æ„ŸçŸ¥ workspaces æ ¹ï¼‰
-      try{
-        const fss=ctx.get('fs')
-        if(fss&&typeof fss.resolve==='function'){
-          const t=await fss.resolve(raw)
-          const target=(t&&typeof t==='object')?(t.path||t.target):t
-          if(typeof target==='string'&&target&&(/^[A-Za-z]:[\\/]/.test(target)||/^\//.test(target))) return target
+      let ret='';
+      if(!raw) ret=DEFAULT_CWD;
+      else {
+        let resolved=null;
+        try{
+          const plat=await getPlatform();
+          if(plat&&plat.path&&typeof plat.path.isAbsolute==='function'&&plat.path.isAbsolute(raw)) resolved=plat.path.normalize(raw);
+        }catch{}
+        if(resolved) ret=resolved;
+        else {
+          try{
+            const fss=ctx.get('fs');
+            if(fss&&typeof fss.resolve==='function'){
+              const t=await fss.resolve(raw);
+              const target=(t&&typeof t==='object')?(t.path||t.target):t;
+              if(typeof target==='string'&&target&&(/^[A-Za-z]:[\\/]/.test(target)||/^\//.test(target))) resolved=target;
+            }
+          }catch{}
+          if(resolved) ret=resolved;
+          else {
+            try{
+              const plat=await getPlatform();
+              const home=plat&&typeof plat.getHome==='function'?await plat.getHome():null;
+              if(home&&plat.path) ret=plat.path.join(home,raw);
+              else ret=raw;
+            }catch{ ret=raw; }
+          }
         }
-      }catch{}
-      // home è¯•æ¢ï¼ˆwindows + posixï¼‰
+      }
       try{
-        const plat=await getPlatform()
-        const home=plat&&typeof plat.getHome==='function'?await plat.getHome():null
-        if(home&&plat.path) return plat.path.join(home,raw)
+        const plat=await getPlatform();
+        if(plat&&plat.path&&typeof plat.path.normalize==='function') ret=plat.path.normalize(ret);
       }catch{}
-      return raw
+      try{ ret=String(ret).toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,''); }catch{}
+      if(!ret) ret=String(raw||DEFAULT_CWD).toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/')||'/';
+      return ret;
     }
     
     harness.handle('wf.bind', async function (args) {
@@ -1400,13 +1495,13 @@ export default {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
         const handle = { cwd: cwd }
-        // null = æ˜¾å¼æ— åç«¯ï¼ˆOther é€ƒç”Ÿèˆ±ï¼‰ï¼›'other' å·²å¼ƒç”¨æŒ‰ registry æ‹’ç»
+        // null = ÏÔÊ½ÎŞºó¶Ë£¨Other ÌÓÉú²Õ£©£»'other' ÒÑÆúÓÃ°´ registry ¾Ü¾ø
         reg.bind(handle, backendId === undefined ? null : backendId)
-        // å¤±æ•ˆå¿«ç…§ + çŠ¶æ€ + æ¢æµ‹ä¸‰ç¼“å­˜ï¼ˆper-workspace åˆ‡æ¢ä¸ä¸²å°ï¼ŒQ3ï¼›workspaceStore å†…å­˜å•ä¾‹å¤±æ•ˆï¼‰
-        cache = { ts: 0, snapshot: null, error: null, cwd: null }
+        // Ê§Ğ§¿ìÕÕ + ×´Ì¬ + Ì½²âÈı»º´æ£¨per-workspace ÇĞ»»²»´®Ì¨£¬Q3£»workspaceStore ÄÚ´æµ¥ÀıÊ§Ğ§£©
+        try{ const _ck2=normKey(cwd); if(cacheMap.has(_ck2)) cacheMap.delete(_ck2); else cacheMap.clear(); }catch{}; cache = { ts: 0, snapshot: null, error: null, cwd: null }
         try { statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null } } catch {}
         try { const ws = await getWorkspaceStore(); ws.invalidate(handle) } catch {}
-        try { if (_detectionService) { /* ä¸‹æ¬¡ detect é‡ç®— */ } } catch {}
+        try { if (_detectionService) { /* ÏÂ´Î detect ÖØËã */ } } catch {}
         return { ok: true, cwd: cwd, backendId: backendId === undefined ? null : backendId }
       } catch (e) {
         const msg = String((e && e.message) || e)
@@ -1454,18 +1549,18 @@ export default {
     harness.handle('wf.issueDetail', async function (args) {
       const n = args && args.number
       const cwd = (args && args.cwd) || DEFAULT_CWD
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'ç¼ºå°‘ number' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ÉÙ number' } }
       try {
         const r = await fetchIssueDetail(Number(n), cwd)
         return r
       } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
     })
-    // T5 #10 Â· è¯„è®ºåˆ†é¡µï¼ˆåå‘åˆ†é¡µ cursorï¼ŒèŠ‚æµç”± client ä¾§ 600ms æ§åˆ¶ï¼›å•é¡µ 50ï¼Œå¤±è´¥é‡è¯•ä¸ 3 æ¬¡å…œåº•ï¼‰
+    // T5 #10 ¡¤ ÆÀÂÛ·ÖÒ³£¨·´Ïò·ÖÒ³ cursor£¬½ÚÁ÷ÓÉ client ²à 600ms ¿ØÖÆ£»µ¥Ò³ 50£¬Ê§°ÜÖØÊÔÓë 3 ´Î¶µµ×£©
     async function fetchIssueCommentsREST(n, after, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: 'æ— æ³•è§£æ owner/repo' } }
+      if (!repo) return { ok: false, error: { kind: 'env', message: 'ÎŞ·¨½âÎö owner/repo' } }
       try {
-        // REST åˆ†é¡µï¼šafter ä¸ºå·²åŠ è½½æ•°ï¼ˆå¦‚ "50"ï¼‰ï¼Œpage = floor(after/50)+1ï¼›GraphQL cursor åœºæ™¯ä¸‹é€€åŒ–ä¸º page 2 èµ·
+        // REST ·ÖÒ³£ºafter ÎªÒÑ¼ÓÔØÊı£¨Èç "50"£©£¬page = floor(after/50)+1£»GraphQL cursor ³¡¾°ÏÂÍË»¯Îª page 2 Æğ
         let page = 1
         if (after) {
           const num = Number(after)
@@ -1489,11 +1584,11 @@ export default {
     }
     async function fetchIssueComments(n, after, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: 'æ— æ³•è§£æ owner/repo' } }
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'ç¼ºå°‘ number' } }
-      // GraphQL ä¼˜å…ˆï¼ˆcursor åˆ†é¡µï¼‰
+      if (!repo) return { ok: false, error: { kind: 'env', message: 'ÎŞ·¨½âÎö owner/repo' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ÉÙ number' } }
+      // GraphQL ÓÅÏÈ£¨cursor ·ÖÒ³£©
       const query = 'query($owner:String!,$name:String!,$n:Int!,$after:String){repository(owner:$owner,name:$name){issue(number:$n){comments(first:50, after:$after){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}}}}}'
-      // after ä¸º null æ—¶ä¼ ç©ºå­—ç¬¦ä¸²ï¼ŒGraphQL ä¼šè§†ä¸ºç©º cursorï¼ˆé¦–æ®µï¼‰ï¼›éœ€ä¼ é€’å˜é‡ after å¦åˆ™æŠ¥é”™ï¼Œæ•…ç”¨ -F after= å€¼ï¼Œç©ºåˆ™é¦–æ®µ
+      // after Îª null Ê±´«¿Õ×Ö·û´®£¬GraphQL »áÊÓÎª¿Õ cursor£¨Ê×¶Î£©£»Ğè´«µİ±äÁ¿ after ·ñÔò±¨´í£¬¹ÊÓÃ -F after= Öµ£¬¿ÕÔòÊ×¶Î
       const afterVal = after || null
       for (let attempt = 0; attempt < 2; attempt++) {
         const args = ['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name, '-F', 'n=' + n]
@@ -1518,54 +1613,61 @@ export default {
           return { ok: true, nodes: com.nodes || [], pageInfo: com.pageInfo || { hasNextPage: false, endCursor: null } }
         } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
       }
-      return { ok: false, error: { kind: 'network', message: 'GraphQL è¯„è®ºåˆ†é¡µè¯·æ±‚å¤±è´¥ï¼ˆé‡è¯•åä»å¤±è´¥ï¼‰' } }
+      return { ok: false, error: { kind: 'network', message: 'GraphQL ÆÀÂÛ·ÖÒ³ÇëÇóÊ§°Ü£¨ÖØÊÔºóÈÔÊ§°Ü£©' } }
     }
     harness.handle('wf.issueComments', async function (args) {
       const n = args && args.number
       const after = args && args.after
       const cwd = (args && args.cwd) || DEFAULT_CWD
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'ç¼ºå°‘ number' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ÉÙ number' } }
       try {
         const r = await fetchIssueComments(Number(n), after != null ? String(after) : null, cwd)
         return r
       } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
     })
 
-    // v1.5 R2ï¼ˆ#2 MVPï¼‰ï¼šprobe æ”¹ç”¨ `since` æ—¶é—´æˆ³æ¢æµ‹å…¨ issue å¢é‡ï¼ˆåœ°å›¾ + å­ç¥¨ + å…¶ä»–ï¼‰ï¼Œ
-    //   1 æ¬¡ REST è°ƒç”¨è¦†ç›–å…¨ä»“åº“å˜åŒ–ã€‚åŸå®ç° `labels=wayfinder:map` ä»…åŒ¹é…åœ°å›¾æœ¬èº«ï¼Œ
-    //   **æ¼æ£€æ‰€æœ‰å­ç¥¨å˜åŒ–**â€”â€”é¢æ¿å¯æ¥/é˜»å¡/å·²è®¤é¢†/å·²å…³é—­åˆ†ç»„ï¼ˆDESIGN.md Â§5.2ï¼‰éƒ½æ˜¯å­ç¥¨ï¼Œ
-    //   æ•…"åˆ—è¡¨ä¸æ›´æ–°çŠ¶æ€"ã€‚since è¯­ä¹‰ï¼šè¿”å›æ•°ç»„éç©º = è‡ªä¸Šæ¬¡å¿«ç…§ä»¥æ¥æœ‰å˜åŒ– â†’ è§†ä¸º changedã€‚
-    //   é…é¢ä»èµ° REST 5000/h æ± ï¼ˆç‹¬ç«‹äº GraphQL 5000 ç‚¹/hï¼‰ï¼Œä¸çƒ§ç©¿ã€‚
+    // v1.5 R2£¨#2 MVP£©£ºprobe ¸ÄÓÃ `since` Ê±¼ä´ÁÌ½²âÈ« issue ÔöÁ¿£¨µØÍ¼ + ×ÓÆ± + ÆäËû£©£¬
+    //   1 ´Î REST µ÷ÓÃ¸²¸ÇÈ«²Ö¿â±ä»¯¡£Ô­ÊµÏÖ `labels=wayfinder:map` ½öÆ¥ÅäµØÍ¼±¾Éí£¬
+    //   **Â©¼ìËùÓĞ×ÓÆ±±ä»¯**¡ª¡ªÃæ°å¿É½Ó/×èÈû/ÒÑÈÏÁì/ÒÑ¹Ø±Õ·Ö×é£¨DESIGN.md ¡ì5.2£©¶¼ÊÇ×ÓÆ±£¬
+    //   ¹Ê"ÁĞ±í²»¸üĞÂ×´Ì¬"¡£since ÓïÒå£º·µ»ØÊı×é·Ç¿Õ = ×ÔÉÏ´Î¿ìÕÕÒÔÀ´ÓĞ±ä»¯ ¡ú ÊÓÎª changed¡£
+    //   Åä¶îÈÔ×ß REST 5000/h ³Ø£¨¶ÀÁ¢ÓÚ GraphQL 5000 µã/h£©£¬²»ÉÕ´©¡£
     harness.handle('wf.probe', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
-      try {
+      const rawCwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await normCwd(rawCwd)
+      const ifNoneMatch = args && (args.ifNoneMatch || args.version || args.etag) || null
+      try{
         const remote = await fetchIssueIndex(cwd)
-        if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe å¤±è´¥') }
-        const repo = remote.repo
-        const rk1 = repo.owner + '/' + repo.name
-        const known = lastIssueIndexByRepo[rk1] || issueIndexFromSnapshot(cache.snapshot)
-        const changed = issueIndexChanged(known, remote.index)
-        rememberIssueIndex(repo, remote.index)
-        lastProbeAtByRepo[rk1] = new Date().toISOString()
-        if (changed) cache = { ts: 0, snapshot: null, error: null, cwd: cwd }  // åˆ é™¤/çŠ¶æ€å˜åŒ–åŒæ ·å¤±æ•ˆç¼“å­˜
-        return { ok: true, changed: changed, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
-      } catch (e) { return { ok: false, error: errText(e) } }
+        if(!remote.ok) return {ok:false, error:errText(remote.error||'probe failed')}
+        const repo=remote.repo; const rk1=repo.owner+'/'+repo.name;
+        const vRemote = issueIndexVersion(remote.index);
+        const cached = getCacheByCwd(cwd);
+        const known = lastIssueIndexByRepo[rk1] || (cached&&cached.snapshot?issueIndexFromSnapshot(cached.snapshot):{}) || {};
+        if(ifNoneMatch && vRemote===ifNoneMatch) return {ok:true, changed:false, notModified:true, status:304, version:vRemote, repo:repo, count:remote.count, since:lastProbeAtByRepo[rk1]||null};
+        if(cached && cached.version && cached.version===vRemote) return {ok:true, changed:false, notModified:true, status:304, version:vRemote, repo:repo, count:remote.count, since:lastProbeAtByRepo[rk1]||null};
+        const changed = issueIndexChanged(known, remote.index);
+        rememberIssueIndex(repo, remote.index);
+        lastProbeAtByRepo[rk1] = new Date().toISOString();
+        if(!changed) return {ok:true, changed:false, notModified:true, status:304, version:vRemote, repo:repo, count:remote.count, since:lastProbeAtByRepo[rk1]};
+        const hit=getCacheByCwd(cwd);
+        if(hit) { hit.ts=0; }
+        if(cache && normKey(cache.cwd)===normKey(cwd)) cache.ts=0;
+        return {ok:true, changed:true, status:200, version:vRemote, repo:repo, count:remote.count, since:lastProbeAtByRepo[rk1]};
+      }catch(e){ return {ok:false, error:errText(e)}; }
     })
-
-    // ============ äº¤æ¥æ–‡æ¡£ï¼ˆissue #12 BUG4 Â· åŒé‡é˜²å¾¡ Â· å‰¯è·¯å¾„ï¼‰============
-    // DSH æ²™ç®±é‡Œ fs.stat è¿”å›çš„ info.mtime å½¢æ€ä¸å¯æ§ï¼ˆDate / ISO ä¸² / ç§’çº§ Unix / æœ¬åœ°åŒ–ä¸² / null / NaNï¼‰ï¼›
-    // åŸ `typeof number ? mt : Date.parse(String(mt))` åœ¨ Date å¯¹è±¡æˆ–ä¸å¯ parse å½¢æ€éƒ½å¾— NaNï¼›
-    // åŸ sort å•é”® `b.mtime - a.mtime` åœ¨ mtime ç›¸ç­‰/NaN æ—¶ Array.sort è§†ä¸º equal â†’ åŸé¡ºåºä¿ç•™ â†’
-    // fs.listDir æŒ‰åå­—å…¸åºè¿”å› â†’ è€æ–‡ä»¶å¤©ç„¶æ’ç¬¬ä¸€ â†’ mds[0].name = å­—å…¸åºæœ€å° = ä¸Šä¸€æ¬¡å†™å…¥ï¼ˆBUGï¼‰ã€‚
+    // ============ ½»½ÓÎÄµµ£¨issue #12 BUG4 ¡¤ Ë«ÖØ·ÀÓù ¡¤ ¸±Â·¾¶£©============
+    // DSH É³ÏäÀï fs.stat ·µ»ØµÄ info.mtime ĞÎÌ¬²»¿É¿Ø£¨Date / ISO ´® / Ãë¼¶ Unix / ±¾µØ»¯´® / null / NaN£©£»
+    // Ô­ `typeof number ? mt : Date.parse(String(mt))` ÔÚ Date ¶ÔÏó»ò²»¿É parse ĞÎÌ¬¶¼µÃ NaN£»
+    // Ô­ sort µ¥¼ü `b.mtime - a.mtime` ÔÚ mtime ÏàµÈ/NaN Ê± Array.sort ÊÓÎª equal ¡ú Ô­Ë³Ğò±£Áô ¡ú
+    // fs.listDir °´Ãû×ÖµäĞò·µ»Ø ¡ú ÀÏÎÄ¼şÌìÈ»ÅÅµÚÒ» ¡ú mds[0].name = ×ÖµäĞò×îĞ¡ = ÉÏÒ»´ÎĞ´Èë£¨BUG£©¡£
     //
-    // åŠ å›ºï¼ˆå‰¯è·¯å¾„ Â· æ²»æœ¬ï¼‰ï¼š
-    //   - parseHandoffMtimeï¼šisFinite ä¸¥æ ¼æ ¡éªŒ + Date å®ä¾‹ getTime ä¼˜å…ˆï¼›ä»»ä½•æ— æ³• parse çš„å½¢æ€å®‰å…¨å½’ 0
-    //     ï¼ˆNaN/null/undefined/0/ä¸å¯ parse ä¸² â†’ 0ï¼‰
-    //   - pickLatestHandoffï¼šmtime desc ä¸»é”® + name desc å…œåº•ï¼ˆæ—¶é—´æˆ³æ–‡ä»¶å = å­—å…¸åº = æ—¶é—´åºï¼‰ï¼›
-    //     mtime é€€åŒ–ä¸º 0 çš„é€€åŒ–å½¢æ€ï¼ˆNaN/null/å…¨ 0/å…¨ç­‰ finiteï¼‰ä¸€å¾‹èµ° name desc è¿”å›å­—å…¸åºæœ€å¤§
+    // ¼Ó¹Ì£¨¸±Â·¾¶ ¡¤ ÖÎ±¾£©£º
+    //   - parseHandoffMtime£ºisFinite ÑÏ¸ñĞ£Ñé + Date ÊµÀı getTime ÓÅÏÈ£»ÈÎºÎÎŞ·¨ parse µÄĞÎÌ¬°²È«¹é 0
+    //     £¨NaN/null/undefined/0/²»¿É parse ´® ¡ú 0£©
+    //   - pickLatestHandoff£ºmtime desc Ö÷¼ü + name desc ¶µµ×£¨Ê±¼ä´ÁÎÄ¼şÃû = ×ÖµäĞò = Ê±¼äĞò£©£»
+    //     mtime ÍË»¯Îª 0 µÄÍË»¯ĞÎÌ¬£¨NaN/null/È« 0/È«µÈ finite£©Ò»ÂÉ×ß name desc ·µ»Ø×ÖµäĞò×î´ó
     //
-    // æ³¨ï¼šæ··åˆé€€åŒ–å½¢æ€ï¼ˆnew=NaN+old=validï¼‰çš„ mtime å€’æŒ‚ï¼Œsort åŠ å›ºæ— æ³•åŒºåˆ† â€”â€” ç”±ä¸»è·¯å¾„
-    //     `wf.handoffResolve(args.name)` åœ¨å®¢æˆ·ç«¯å·²ç‚¹è¿‡ç¬¬ä¸€å‡»æ—¶ç›´æ¥è¿”å›è¯¥ name ä¿éšœã€‚
+    // ×¢£º»ìºÏÍË»¯ĞÎÌ¬£¨new=NaN+old=valid£©µÄ mtime µ¹¹Ò£¬sort ¼Ó¹ÌÎŞ·¨Çø·Ö ¡ª¡ª ÓÉÖ÷Â·¾¶
+    //     `wf.handoffResolve(args.name)` ÔÚ¿Í»§¶ËÒÑµã¹ıµÚÒ»»÷Ê±Ö±½Ó·µ»Ø¸Ã name ±£ÕÏ¡£
     const parseHandoffMtime = function (raw) {
       if (typeof raw === 'number') return isFinite(raw) ? raw : 0
       if (raw instanceof Date) { const t = raw.getTime(); return isFinite(t) ? t : 0 }
@@ -1577,16 +1679,16 @@ export default {
       const sorted = mds.slice().sort(function (a, b) {
         const dt = (b.mtime || 0) - (a.mtime || 0)
         if (dt !== 0) return dt
-        // name desc å…œåº•ï¼šæ—¶é—´æˆ³æ–‡ä»¶åï¼ˆYYYYMMDD-HHMMSSï¼‰å­—å…¸åº = æ—¶é—´åº
+        // name desc ¶µµ×£ºÊ±¼ä´ÁÎÄ¼şÃû£¨YYYYMMDD-HHMMSS£©×ÖµäĞò = Ê±¼äĞò
         if (b.name < a.name) return -1
         if (b.name > a.name) return 1
         return 0
       })
       return sorted[0].name
     }
-    // å…±äº«ç›®å½•æ‰«æï¼ˆhandoffLatest + handoffResolve å…±ç”¨ï¼‰â€”â€” ä»»ä½• fs è°ƒç”¨å¼‚å¸¸éƒ½é™çº§ä¸ºç©ºæ•°ç»„
+    // ¹²ÏíÄ¿Â¼É¨Ãè£¨handoffLatest + handoffResolve ¹²ÓÃ£©¡ª¡ª ÈÎºÎ fs µ÷ÓÃÒì³£¶¼½µ¼¶Îª¿ÕÊı×é
     const scanHandoffDir = async function (cwd) {
-      if (fs === undefined) return { error: 'fs æœåŠ¡ä¸å¯ç”¨', mds: [] }
+      if (fs === undefined) return { error: 'fs ·şÎñ²»¿ÉÓÃ', mds: [] }
       try {
         const dir = await fs.resolve('.scratch/handoff', { cwd: cwd })
         const entries = await fs.listDir(dir)
@@ -1604,11 +1706,11 @@ export default {
         }
         return { mds: mds }
       } catch (e) {
-        return { mds: [] }  // ç›®å½•ä¸å­˜åœ¨/ä¸å¯è¯» = è¿˜æ²¡æœ‰äº¤æ¥æ–‡æ¡£
+        return { mds: [] }  // Ä¿Â¼²»´æÔÚ/²»¿É¶Á = »¹Ã»ÓĞ½»½ÓÎÄµµ
       }
     }
 
-    // v19ï¼šæŸ¥è¯¢ .scratch/handoff/ ä¸‹æœ€æ–°çš„äº¤æ¥æ–‡æ¡£ï¼ˆæŒ‰ mtime å€’åº + name desc å…œåº• Â· åŠ å›ºåï¼‰ï¼Œä¾›ã€Œäº¤æ¥ç»™æ–°ä¼šè¯ã€é¢„å¡« + å¤åˆ¶
+    // v19£º²éÑ¯ .scratch/handoff/ ÏÂ×îĞÂµÄ½»½ÓÎÄµµ£¨°´ mtime µ¹Ğò + name desc ¶µµ× ¡¤ ¼Ó¹Ìºó£©£¬¹©¡¸½»½Ó¸øĞÂ»á»°¡¹Ô¤Ìî + ¸´ÖÆ
     harness.handle('wf.handoffLatest', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const r = await scanHandoffDir(cwd)
@@ -1616,41 +1718,41 @@ export default {
       return { ok: true, file: pickLatestHandoff(r.mds) }
     })
 
-    // issue #12 BUG4 Â· ä¸»è·¯å¾„ï¼šå®¢æˆ·ç«¯å¸¦æœŸæœ›æ–‡ä»¶åï¼ˆç¬¬ä¸€å‡»æ¨¡æ¿æ¸²æŸ“å‡ºçš„ handoffFileï¼‰æ—¶ä¸¥æ ¼è¿”å›è¯¥æ–‡ä»¶ï¼š
-    //   åœ¨ç›®å½•é‡Œ â†’ è¿”å›å®ƒï¼›ä¸åœ¨ â†’ è¿”å› nullï¼ˆä¸é€€å› mtime æœ€æ–°ï¼Œé¿å… fallback åˆ°è€æ–‡ä»¶è¯¯å¯¼ç”¨æˆ·ï¼‰ã€‚
-    //   æ—  args.nameï¼ˆç”¨æˆ·ä»æœªç‚¹è¿‡ç¬¬ä¸€å‡»ï¼Œå¦‚åˆ·æ–°å / ç›´æ¥ç‚¹å³åŠï¼‰â†’ èµ° mtime æœ€æ–°ï¼ˆä¸ handoffLatest åŒè¯­ä¹‰ï¼‰ã€‚
-    // åŒºåˆ«äºåˆç‰ˆï¼šåˆç‰ˆã€Œname ä¸åœ¨ç›®å½•ä¹Ÿ fallback åˆ° mtime æœ€æ–°ã€åœ¨å®é™…åœºæ™¯ä¸‹è¢«éªŒè¯ä¸ºåæ¨¡å¼ â€”â€” å½“ AI è¿˜æ²¡å†™å®Œ
-    // æ–‡æ¡£æ—¶ï¼ˆhandoffFile è®¾äº†ä½†æ–‡ä»¶æœªè½ç›˜ï¼‰ï¼Œfallback ä¼šè®©å³åŠäº®è“ä¸”ç‚¹å¼€åé”™è¯¯å¼•ç”¨ä¸Šæ¬¡çš„è€æ–‡æ¡£ï¼Œä¸ä¿®å¤ç›®æ ‡ç›¸æ‚–ã€‚
+    // issue #12 BUG4 ¡¤ Ö÷Â·¾¶£º¿Í»§¶Ë´øÆÚÍûÎÄ¼şÃû£¨µÚÒ»»÷Ä£°åäÖÈ¾³öµÄ handoffFile£©Ê±ÑÏ¸ñ·µ»Ø¸ÃÎÄ¼ş£º
+    //   ÔÚÄ¿Â¼Àï ¡ú ·µ»ØËü£»²»ÔÚ ¡ú ·µ»Ø null£¨²»ÍË»Ø mtime ×îĞÂ£¬±ÜÃâ fallback µ½ÀÏÎÄ¼şÎóµ¼ÓÃ»§£©¡£
+    //   ÎŞ args.name£¨ÓÃ»§´ÓÎ´µã¹ıµÚÒ»»÷£¬ÈçË¢ĞÂºó / Ö±½ÓµãÓÒ°ë£©¡ú ×ß mtime ×îĞÂ£¨Óë handoffLatest Í¬ÓïÒå£©¡£
+    // Çø±ğÓÚ³õ°æ£º³õ°æ¡¸name ²»ÔÚÄ¿Â¼Ò² fallback µ½ mtime ×îĞÂ¡¹ÔÚÊµ¼Ê³¡¾°ÏÂ±»ÑéÖ¤Îª·´Ä£Ê½ ¡ª¡ª µ± AI »¹Ã»Ğ´Íê
+    // ÎÄµµÊ±£¨handoffFile ÉèÁËµ«ÎÄ¼şÎ´ÂäÅÌ£©£¬fallback »áÈÃÓÒ°ëÁÁÀ¶ÇÒµã¿ªºó´íÎóÒıÓÃÉÏ´ÎµÄÀÏÎÄµµ£¬ÓëĞŞ¸´Ä¿±êÏàã£¡£
     harness.handle('wf.handoffResolve', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const r = await scanHandoffDir(cwd)
       if (r.error) return { ok: false, error: r.error }
       const want = args && args.name
       if (!want) return { ok: true, file: pickLatestHandoff(r.mds) }
-      // å‰ç¼€åŒ¹é…ï¼ˆ#71 çŸ­æ ‡é¢˜æ–‡ä»¶åï¼š{ts}-<çŸ­æ ‡é¢˜>.mdï¼‰ï¼šwant ä»¥ * ç»“å°¾ â†’ åŒ¹é… name ä»¥è¯¥å‰ç¼€å¼€å¤´ï¼Œå–æœ€æ–°
+      // Ç°×ºÆ¥Åä£¨#71 ¶Ì±êÌâÎÄ¼şÃû£º{ts}-<¶Ì±êÌâ>.md£©£ºwant ÒÔ * ½áÎ² ¡ú Æ¥Åä name ÒÔ¸ÃÇ°×º¿ªÍ·£¬È¡×îĞÂ
       if (want.slice(-1) === '*') {
         const prefix = want.slice(0, -1)
         const m = r.mds.filter(function (x) { return x.name.indexOf(prefix) === 0 })
         if (m.length) return { ok: true, file: pickLatestHandoff(m) }
         return { ok: true, file: null }
       }
-      // ç²¾ç¡®åŒ¹é…ï¼šåœ¨ç›®å½•é‡Œ â†’ è¿”å›å®ƒï¼›ä¸åœ¨ â†’ è¿”å› nullï¼ˆä¸é€€å› mtime æœ€æ–°ï¼Œé¿å… fallback åˆ°è€æ–‡ä»¶è¯¯å¯¼ç”¨æˆ·ï¼‰ã€‚
+      // ¾«È·Æ¥Åä£ºÔÚÄ¿Â¼Àï ¡ú ·µ»ØËü£»²»ÔÚ ¡ú ·µ»Ø null£¨²»ÍË»Ø mtime ×îĞÂ£¬±ÜÃâ fallback µ½ÀÏÎÄ¼şÎóµ¼ÓÃ»§£©¡£
       if (r.mds.some(function (m) { return m.name === want })) return { ok: true, file: want }
       return { ok: true, file: null }
     })
 
-    // ============ è®¤é¢†ï¼ˆå¼€å§‹æ­¤ Issue æµç¨‹ Â· T5 #347ï¼‰============
-    // ç”¨æˆ·åœ¨ UI ç‚¹å‡»ã€Œç¡®è®¤å¼€å§‹ã€ä¸”å‹¾é€‰è®¤é¢†åè°ƒç”¨ï¼šgh issue edit <n> --add-assignee @meã€‚
-    // å†™æ“ä½œå‰ UI å·²äºŒæ¬¡ç¡®è®¤ï¼ˆç”¨æˆ·ç‚¹å‡»å³åŒæ„ï¼‰ï¼Œä¸èµ° approval æœåŠ¡ï¼ˆRESEARCH-NOTES Â§3 ç»“è®ºï¼‰ã€‚
+    // ============ ÈÏÁì£¨¿ªÊ¼´Ë Issue Á÷³Ì ¡¤ T5 #347£©============
+    // ÓÃ»§ÔÚ UI µã»÷¡¸È·ÈÏ¿ªÊ¼¡¹ÇÒ¹´Ñ¡ÈÏÁìºóµ÷ÓÃ£ºgh issue edit <n> --add-assignee @me¡£
+    // Ğ´²Ù×÷Ç° UI ÒÑ¶ş´ÎÈ·ÈÏ£¨ÓÃ»§µã»÷¼´Í¬Òâ£©£¬²»×ß approval ·şÎñ£¨RESEARCH-NOTES ¡ì3 ½áÂÛ£©¡£
     harness.handle('wf.claim', async function (args) {
       const n = args && args.number
       const cwd = (args && args.cwd) || DEFAULT_CWD
-      if (!n) return { ok: false, error: 'ç¼ºå°‘å‚æ•° numberï¼ˆticket å·ï¼‰' }
+      if (!n) return { ok: false, error: 'È±ÉÙ²ÎÊı number£¨ticket ºÅ£©' }
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: 'æ— æ³•è§£æ owner/repoï¼ˆgit remote æˆ– gh repo view å¤±è´¥ï¼‰' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: 'ÎŞ·¨½âÎö owner/repo£¨git remote »ò gh repo view Ê§°Ü£©' } }
       const r = await runGh(['issue', 'edit', String(n), '--add-assignee', '@me'], cwd)
       if (!r.ok) return { ok: false, error: r }
-      // è®¤é¢†æˆåŠŸ â†’ å–å½“å‰ç”¨æˆ· login ä¾›é¢æ¿å±•ç¤ºï¼›å¤±æ•ˆå¿«ç…§ç¼“å­˜ï¼Œè®©ä¸‹æ¬¡ wf.snapshot æ‹‰åˆ°æ–° assignee
+      // ÈÏÁì³É¹¦ ¡ú È¡µ±Ç°ÓÃ»§ login ¹©Ãæ°åÕ¹Ê¾£»Ê§Ğ§¿ìÕÕ»º´æ£¬ÈÃÏÂ´Î wf.snapshot À­µ½ĞÂ assignee
       let assignedTo = ''
       const u = await runGh(['api', 'user', '-q', '.login'])
       if (u.ok) assignedTo = u.text.trim()
@@ -1659,7 +1761,7 @@ export default {
       return { ok: true, number: n, assignedTo: assignedTo, url: 'https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + String(n) }
     })
 
-        // ============ issuePath Â· 1A+1B æ¨é€é€šé“ï¼ˆclient è½®è¯¢ï¼‰ ============
+        // ============ issuePath ¡¤ 1A+1B ÍÆËÍÍ¨µÀ£¨client ÂÖÑ¯£© ============
     harness.handle('wf.issuePathPoll', async function (args) {
       const since = args && typeof args.since === 'number' ? args.since : 0
       const out = pendingIssuePathEvents.filter(function (e) { return e.ts > since })
@@ -1668,32 +1770,32 @@ export default {
     harness.handle('wf.issuePathPush', async function (args) {
       const n = args && args.number
       const src = args && args.source ? String(args.source) : 'mention'
-      if (!n) return { ok: false, error: 'ç¼ºå°‘ number' }
+      if (!n) return { ok: false, error: 'È±ÉÙ number' }
       pushIssuePathEvent(n, src, args && args.title)
       return { ok: true }
     })
 
-    // ============ #190ï¼šwf.openFolder â€” æ‰“å¼€æœ¬åœ°æ–‡ä»¶å¤¹ï¼ˆMarkdown åç«¯ä»“åº“åç‚¹å‡»ï¼‰============
-    // è¾“å…¥ï¼š{ cwd }ï¼›å¹³å°åˆ†å‘ï¼šwin32 explorer / darwin open / linux xdg-openï¼ˆç» platform.resolveExecutableï¼‰ï¼Œsubprocess.spawn æ‰“å¼€
+    // ============ #190£ºwf.openFolder ¡ª ´ò¿ª±¾µØÎÄ¼ş¼Ğ£¨Markdown ºó¶Ë²Ö¿âÃûµã»÷£©============
+    // ÊäÈë£º{ cwd }£»Æ½Ì¨·Ö·¢£ºwin32 explorer / darwin open / linux xdg-open£¨¾­ platform.resolveExecutable£©£¬subprocess.spawn ´ò¿ª
     harness.handle('wf.openFolder', async function (args) {
       const cwd = (args && (args.cwd || args.path)) || DEFAULT_CWD
-      if (!cwd) return { ok: false, error: 'ç¼ºå°‘ cwd' }
+      if (!cwd) return { ok: false, error: 'È±ÉÙ cwd' }
       try {
         const platform = await getPlatform()
         const os = platform.os || (typeof process !== 'undefined' && process.platform) || 'win32'
         const openerName = os === 'win32' ? 'explorer' : os === 'darwin' ? 'open' : 'xdg-open'
         const opener = await platform.resolveExecutable(openerName)
-        if (!opener) return { ok: false, error: 'æ‰¾ä¸åˆ°æ‰“å¼€å™¨ï¼š' + openerName }
-        // cwd å½’ä¸€ï¼ˆplatform.path å¤„ç†åˆ†éš”ç¬¦ï¼‰
+        if (!opener) return { ok: false, error: 'ÕÒ²»µ½´ò¿ªÆ÷£º' + openerName }
+        // cwd ¹éÒ»£¨platform.path ´¦Àí·Ö¸ô·û£©
         let target = String(cwd)
         try { if (platform.path && typeof platform.path.normalize === 'function') target = platform.path.normalize(target) } catch {}
-        // win32 explorer éœ€ä¿æŒåŸåˆ†éš”ç¬¦ï¼›darwin/linux ç”¨ posix å…¼å®¹
+        // win32 explorer Ğè±£³ÖÔ­·Ö¸ô·û£»darwin/linux ÓÃ posix ¼æÈİ
         const argv = [opener, target]
         try {
           const handle = subprocess.spawn({ argv: argv, cwd: DEFAULT_CWD || target, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
-          // ä¸ç­‰å¾…å®Œæˆï¼Œfire-and-forgetï¼›è‹¥ spawn åŒæ­¥æŠ›é”™åˆ™è§†ä¸ºå¤±è´¥
+          // ²»µÈ´ıÍê³É£¬fire-and-forget£»Èô spawn Í¬²½Å×´íÔòÊÓÎªÊ§°Ü
           if (handle && handle.done) {
-            // å¼‚æ­¥é”™è¯¯åæ‰ï¼Œé¿å…æœªå¤„ç† rejection å½±å“é¢æ¿ï¼›æˆåŠŸå³è¿”å›
+            // Òì²½´íÎóÍÌµô£¬±ÜÃâÎ´´¦Àí rejection Ó°ÏìÃæ°å£»³É¹¦¼´·µ»Ø
             handle.done.catch(function(){})
           }
         } catch (e) {
@@ -1705,25 +1807,25 @@ export default {
       }
     })
 
-    // ============ çº¢å¡å»ºä»“å‘å¸ƒï¼ˆT1 #34 Â· æ— ä»“åº“æ—¶ä¸€é”®å»ºä»“å‘å¸ƒï¼‰============
-    // è¾“å…¥ï¼š{ cwd, name, visibility }ï¼ˆvisibility = 'public' | 'private'ï¼Œé»˜è®¤ privateï¼‰
-    // æµç¨‹ï¼šæ¢æµ‹ git/gh/authï¼ˆå‰ç½®ï¼‰â†’ git init(è‹¥å·²æ˜¯ git åˆ™è·³è¿‡) â†’ git add . â†’ git commit --allow-emptyï¼ˆå« user.* å…œåº•ï¼‰â†’ gh repo create --source=. --pushï¼ˆæˆ– --remote origin å·²å­˜åœ¨æ—¶èµ° set-url + push åˆ†æ”¯ï¼‰
-    // è¿”å›ï¼š{ ok: true, repo: { owner, name } } | { ok: false, errorKind, error, repoUrl? }
-    // errorKind: no-git / no-gh / not-logged-in / already-exists / network / permissionï¼ˆ6 æ¡£ï¼Œå…¼å®¹è‰ç¨¿ä¸­çš„ bad-name å…œåº•æ˜ å°„ä¸º permissionï¼‰
+    // ============ ºì¿¨½¨²Ö·¢²¼£¨T1 #34 ¡¤ ÎŞ²Ö¿âÊ±Ò»¼ü½¨²Ö·¢²¼£©============
+    // ÊäÈë£º{ cwd, name, visibility }£¨visibility = 'public' | 'private'£¬Ä¬ÈÏ private£©
+    // Á÷³Ì£ºÌ½²â git/gh/auth£¨Ç°ÖÃ£©¡ú git init(ÈôÒÑÊÇ git ÔòÌø¹ı) ¡ú git add . ¡ú git commit --allow-empty£¨º¬ user.* ¶µµ×£©¡ú gh repo create --source=. --push£¨»ò --remote origin ÒÑ´æÔÚÊ±×ß set-url + push ·ÖÖ§£©
+    // ·µ»Ø£º{ ok: true, repo: { owner, name } } | { ok: false, errorKind, error, repoUrl? }
+    // errorKind: no-git / no-gh / not-logged-in / already-exists / network / permission£¨6 µµ£¬¼æÈİ²İ¸åÖĞµÄ bad-name ¶µµ×Ó³ÉäÎª permission£©
     harness.handle('wf.initPublish', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const name = args && args.name ? String(args.name).trim() : ''
       const visibility = (args && args.visibility) === 'public' ? 'public' : 'private'
-      if (!name) return { ok: false, errorKind: 'bad-name', error: 'ä»“åº“åä¸ºç©º' }
+      if (!name) return { ok: false, errorKind: 'bad-name', error: '²Ö¿âÃûÎª¿Õ' }
       if (!/^[A-Za-z0-9._-]+$/.test(name) || name.length > 100) {
-        return { ok: false, errorKind: 'bad-name', error: 'ä»“åº“åä»…æ”¯æŒå­—æ¯/æ•°å­—/._- ä¸” â‰¤100ï¼š' + name }
+        return { ok: false, errorKind: 'bad-name', error: '²Ö¿âÃû½öÖ§³Ö×ÖÄ¸/Êı×Ö/._- ÇÒ ¡Ü100£º' + name }
       }
       const visFlag = visibility === 'public' ? '--public' : '--private'
-      // å‰ç½®æ¢æµ‹ï¼šgit / gh / authï¼ˆå¤±è´¥å¿«è¿”ï¼Œé¿å…å·²æ”¹åŠ¨å·¥ä½œåŒºï¼‰
+      // Ç°ÖÃÌ½²â£ºgit / gh / auth£¨Ê§°Ü¿ì·µ£¬±ÜÃâÒÑ¸Ä¶¯¹¤×÷Çø£©
       const git = await resolveGit()
-      if (!git) return { ok: false, errorKind: 'no-git', error: 'æœªæ‰¾åˆ° gitï¼ˆè¯·å®‰è£… https://git-scm.com/ï¼‰' }
+      if (!git) return { ok: false, errorKind: 'no-git', error: 'Î´ÕÒµ½ git£¨Çë°²×° https://git-scm.com/£©' }
       const gh = await resolveGh()
-      if (!gh) return { ok: false, errorKind: 'no-gh', error: ghLastError || 'æœªæ‰¾åˆ° ghï¼ˆè¯·å®‰è£… https://cli.github.com/ï¼‰', prompt: 'è¯·ä¸º DSH å®‰è£… GitHub CLIï¼ˆghï¼‰â€”â€” é¢æ¿æ‰€æœ‰æ•°æ®ä¾èµ– ghï¼š\n\n1. å…ˆæ£€æŸ¥ï¼šç»ˆç«¯æ‰§è¡Œ `gh --version`ï¼›æœ‰ç‰ˆæœ¬å·è¾“å‡º â†’ ç›´æ¥æ±‡æŠ¥å·²è£…ç‰ˆæœ¬å¹¶ç»“æŸï¼Œä¸è¦é‡å¤å®‰è£…ï¼›\n2. æ—  gh åˆ™æŒ‰ OS å®‰è£…ï¼šWindows â†’ `winget install --id GitHub.cli`; macOS â†’ `brew install gh`; Linux â†’ `sudo apt install gh`;\n3. å®‰è£…åéªŒè¯ï¼šé‡å¼€ç»ˆç«¯ä½¿ PATH ç”Ÿæ•ˆï¼Œ`gh --version` è¾“å‡ºç‰ˆæœ¬å·ï¼›\n4. è‹¥ gh å·²è£…ä½† DSH ä»æŠ¥æœªå®‰è£…ï¼šç‚¹ç¯å¢ƒæ£€æŸ¥ã€Œé‡æµ‹ã€æŒ‰é’®æˆ–é‡å¯ DSH Desktopï¼›\n5. å®Œæˆåæ±‡æŠ¥ï¼šgh ç‰ˆæœ¬å· + ã€Œgh CLI å¯ç”¨ã€é¡¹å·²å˜ç»¿ã€‚' }
+      if (!gh) return { ok: false, errorKind: 'no-gh', error: ghLastError || 'Î´ÕÒµ½ gh£¨Çë°²×° https://cli.github.com/£©', prompt: 'ÇëÎª DSH °²×° GitHub CLI£¨gh£©¡ª¡ª Ãæ°åËùÓĞÊı¾İÒÀÀµ gh£º\n\n1. ÏÈ¼ì²é£ºÖÕ¶ËÖ´ĞĞ `gh --version`£»ÓĞ°æ±¾ºÅÊä³ö ¡ú Ö±½Ó»ã±¨ÒÑ×°°æ±¾²¢½áÊø£¬²»ÒªÖØ¸´°²×°£»\n2. ÎŞ gh Ôò°´ OS °²×°£ºWindows ¡ú `winget install --id GitHub.cli`; macOS ¡ú `brew install gh`; Linux ¡ú `sudo apt install gh`;\n3. °²×°ºóÑéÖ¤£ºÖØ¿ªÖÕ¶ËÊ¹ PATH ÉúĞ§£¬`gh --version` Êä³ö°æ±¾ºÅ£»\n4. Èô gh ÒÑ×°µ« DSH ÈÔ±¨Î´°²×°£ºµã»·¾³¼ì²é¡¸ÖØ²â¡¹°´Å¥»òÖØÆô DSH Desktop£»\n5. Íê³Éºó»ã±¨£ºgh °æ±¾ºÅ + ¡¸gh CLI ¿ÉÓÃ¡¹ÏîÒÑ±äÂÌ¡£' }
       const authR = await runGh(['auth', 'status'], cwd)
       if (!authR.ok) {
         const t = String(authR.error || '').toLowerCase()
@@ -1732,12 +1834,12 @@ export default {
         }
         return { ok: false, errorKind: 'not-logged-in', error: authR.error }
       }
-      // å–å½“å‰ç™»å½•ç”¨æˆ·ï¼ˆç”¨äº already-exists æ—¶æ‹¼ repoUrl ä¸æˆåŠŸå owner å…œåº•ï¼‰
+      // È¡µ±Ç°µÇÂ¼ÓÃ»§£¨ÓÃÓÚ already-exists Ê±Æ´ repoUrl Óë³É¹¦ºó owner ¶µµ×£©
       let currentUser = ''
       try {
         const u = await runGh(['api', 'user', '-q', '.login'], cwd)
         if (u.ok) currentUser = u.text.trim()
-      } catch (e) { /* å¿½ç•¥ */ }
+      } catch (e) { /* ºöÂÔ */ }
       const classifyCreateError = function (errText, kind) {
         const low = String(errText || '').toLowerCase()
         if (/already exists|name already exists|already exists on github|repository.*already exists/i.test(low)) return 'already-exists'
@@ -1747,7 +1849,7 @@ export default {
         if (kind === 'auth') return 'not-logged-in'
         return 'permission'
       }
-      // 1. git initï¼ˆè‹¥å·²æ˜¯ git ä»“åº“åˆ™è·³è¿‡ï¼›å« getRepoRoot æ¢æµ‹ + æ¸…ç¼“å­˜ï¼‰
+      // 1. git init£¨ÈôÒÑÊÇ git ²Ö¿âÔòÌø¹ı£»º¬ getRepoRoot Ì½²â + Çå»º´æ£©
       try {
         const probe = await execProc([git, '-C', cwd, 'rev-parse', '--is-inside-work-tree'], cwd)
         if (!probe.ok) {
@@ -1756,7 +1858,7 @@ export default {
             const k = classifyCreateError(initR.error, null)
             return { ok: false, errorKind: k === 'already-exists' ? 'permission' : k, error: initR.error }
           }
-          // å¤±æ•ˆ repoRoots ç¼“å­˜
+          // Ê§Ğ§ repoRoots »º´æ
           if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
           if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
         }
@@ -1775,7 +1877,7 @@ export default {
         const k = classifyCreateError(addR.error, null)
         return { ok: false, errorKind: k, error: addR.error }
       }
-      // 3. git commit --allow-emptyï¼ˆå« identity ç¼ºå¤±å…œåº•ï¼‰
+      // 3. git commit --allow-empty£¨º¬ identity È±Ê§¶µµ×£©
       let commitR = await execProc([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
       if (!commitR.ok) {
         const low = String(commitR.error || '').toLowerCase()
@@ -1789,7 +1891,7 @@ export default {
           return { ok: false, errorKind: k, error: commitR.error }
         }
       }
-      // 4. æ¢æµ‹ remote origin æ˜¯å¦å·²å­˜åœ¨ï¼ˆå†³å®š gh è°ƒç”¨åˆ†æ”¯ï¼‰
+      // 4. Ì½²â remote origin ÊÇ·ñÒÑ´æÔÚ£¨¾ö¶¨ gh µ÷ÓÃ·ÖÖ§£©
       let hasOrigin = false
       try {
         const ro = await execProc([git, 'remote', 'get-url', 'origin'], cwd)
@@ -1804,14 +1906,14 @@ export default {
           return { ok: false, errorKind: kind, error: cr.error, repoUrl: repoUrl }
         }
       } else {
-        // origin å·²å­˜åœ¨ï¼šå…ˆåˆ›å»ºè¿œç¨‹ä»“åº“ï¼ˆä¸å¸¦ --sourceï¼‰ï¼Œå† set-url + push
+        // origin ÒÑ´æÔÚ£ºÏÈ´´½¨Ô¶³Ì²Ö¿â£¨²»´ø --source£©£¬ÔÙ set-url + push
         const cr2 = await runGh(['repo', 'create', name, visFlag], cwd)
         if (!cr2.ok) {
           const kind = classifyCreateError(cr2.error, cr2.kind)
           const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
           return { ok: false, errorKind: kind, error: cr2.error, repoUrl: repoUrl }
         }
-        // è§£ææ–°å»ºä»“åº“ URLï¼ˆgh è¾“å‡ºå« https://github.com/owner/nameï¼‰
+        // ½âÎöĞÂ½¨²Ö¿â URL£¨gh Êä³öº¬ https://github.com/owner/name£©
         let remoteUrl = ''
         if (currentUser) remoteUrl = 'https://github.com/' + currentUser + '/' + name + '.git'
         else {
@@ -1827,35 +1929,35 @@ export default {
           return { ok: false, errorKind: kind, error: pushR.error }
         }
       }
-      // æˆåŠŸåå¤±æ•ˆå…¨éƒ¨ç¼“å­˜ï¼Œä½¿å¤´éƒ¨ owner/repo ç«‹å³å‡ºç°
+      // ³É¹¦ºóÊ§Ğ§È«²¿»º´æ£¬Ê¹Í·²¿ owner/repo Á¢¼´³öÏÖ
       cache = { ts: 0, snapshot: null, error: null, cwd: null }
       statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }
       if (cwd && repoKeys[cwd] !== undefined) delete repoKeys[cwd]
       if (repoKeys[DEFAULT_CWD] !== undefined) delete repoKeys[DEFAULT_CWD]
       if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
       if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
-      // ä¼˜å…ˆç”¨ getRepoKey é‡è§£æï¼ˆparseGithubRepoï¼‰ï¼Œå…œåº•ç”¨ currentUser
+      // ÓÅÏÈÓÃ getRepoKey ÖØ½âÎö£¨parseGithubRepo£©£¬¶µµ×ÓÃ currentUser
       let owner = currentUser
       try {
         const rk = await getRepoKey(cwd)
         if (rk && rk.owner) owner = rk.owner
         else if (rk && rk.name) owner = owner || ''
-      } catch (e) { /* å…œåº• */ }
-      // è‹¥ getRepoKey ä»å–ä¸åˆ°ä½†æœ‰ currentUserï¼Œåˆ™ä»¥ currentUser ä¸ºå‡†
+      } catch (e) { /* ¶µµ× */ }
+      // Èô getRepoKey ÈÔÈ¡²»µ½µ«ÓĞ currentUser£¬ÔòÒÔ currentUser Îª×¼
       if (!owner) {
         try {
           const u2 = await runGh(['api', 'user', '-q', '.login'], cwd)
           if (u2.ok) owner = u2.text.trim()
-        } catch (e2) { /* å¿½ç•¥ */ }
+        } catch (e2) { /* ºöÂÔ */ }
       }
       return { ok: true, repo: { owner: owner, name: name } }
     })
 
-    // ============ è½®è¯¢ï¼šå·²æŒ‰ #348 æ‹æ¿ Q3 å…³é—­ï¼ˆ60s å…¨é‡ Ã— 8 map â‰ˆ 2400-4800 GraphQL points/h è´´ 5000 é™é¢ï¼‰============
-    // åˆ·æ–°ç­–ç•¥ = çº¯æ‰‹åŠ¨ï¼ˆçŠ¶æ€æ¡/é¢æ¿æŒ‰é’® wf.refreshï¼‰+ æ‰“å¼€é¢æ¿å³åˆ·ï¼ˆclient ä¾§ loadSnapshotï¼‰ã€‚
-    // P1 è‹¥åšçŠ¶æ€å˜åŒ– toast æé†’ï¼Œå†è€ƒè™‘ä½é¢‘è‡ªåŠ¨ï¼ˆå±Šæ—¶æ¢å¤æœ¬å—å¹¶è§‚å¯Ÿé…é¢ï¼‰ã€‚
+    // ============ ÂÖÑ¯£ºÒÑ°´ #348 ÅÄ°å Q3 ¹Ø±Õ£¨60s È«Á¿ ¡Á 8 map ¡Ö 2400-4800 GraphQL points/h Ìù 5000 ÏŞ¶î£©============
+    // Ë¢ĞÂ²ßÂÔ = ´¿ÊÖ¶¯£¨×´Ì¬Ìõ/Ãæ°å°´Å¥ wf.refresh£©+ ´ò¿ªÃæ°å¼´Ë¢£¨client ²à loadSnapshot£©¡£
+    // P1 Èô×ö×´Ì¬±ä»¯ toast ÌáĞÑ£¬ÔÙ¿¼ÂÇµÍÆµ×Ô¶¯£¨½ìÊ±»Ö¸´±¾¿é²¢¹Û²ìÅä¶î£©¡£
 
-    // B3 rpc é€šé“æ³¨å†Œï¼š/dsws â†’ dispatch è¡¨ï¼ˆloopback æƒå¨ï¼‰
+    // B3 rpc Í¨µÀ×¢²á£º/dsws ¡ú dispatch ±í£¨loopback È¨Íş£©
     try {
       const connection = ctx.get('connection')
       if (connection !== undefined && connection.rpc !== undefined && typeof connection.rpc.handle === 'function') {

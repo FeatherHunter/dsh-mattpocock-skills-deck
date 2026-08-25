@@ -46,7 +46,7 @@ export     const DetailsDock = (props) => {
             emit(s)
             loadChecks(s, false)
             // 回切必刷：cwd 变了就重拉快照（不依赖 snapFresh），确保仓库名与后端跟随
-            loadSnapshot(s, false)
+            loadSnapshot(s, false, !!hydrated)
             return true
           }
           // 同 cwd 但快照污染（repoRoot 前缀不匹配）也必刷
@@ -66,7 +66,7 @@ export     const DetailsDock = (props) => {
             const base = cwdBasename(cwd)
             if (base && snap.repo.name !== base) polluted = true
           }
-          if (polluted) { loadSnapshot(s, false); loadChecks(s, false); return true }
+          if (polluted) { loadSnapshot(s, false, true); loadChecks(s, false); return true }
           return false
         }
         if (summaryCwd) { if(apply(summaryCwd)) return }
