@@ -1,4 +1,4 @@
-﻿/**
+/**
  * views/SettingsPage.js — 配置页（TPL 表 + 设置，5.9）真源 ESM，build 拼回 src/client/index.js leaf
  */
 export const TPL_NAMES = { diagnose: '诊断', fix: '修复', discuss: '讨论', handoff1: '交接第一击', handoff2: '交接第二击', fixate: '沉淀' }
@@ -233,53 +233,38 @@ export     const SettingsPage = (props) => {
         h('div', { className: 'dsws-cfg-group', id: 'dsws-cfg-backend' }, [
           h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'compass', size: 13 }), h('span', null, '工作区后端总览')]),
           h('div', { className: 'dsws-cfg-gdesc' }, '各工作区的 Tracker 后端绑定总览（只读，显式覆盖在右侧面板完成）'),
-          wsOverview.loading ? h('div', { style: { fontSize: 11, color: '#8b8b95', padding: '6px 0' } }, '加载中…') :
-          wsOverview.err ? h('div', { style: { fontSize: 11, color: '#f87171' } }, wsOverview.err) :
           (function(){
-            const bindingsByCwd = {}
-            wsOverview.bindings.forEach(function(b){ const k = (b.cwd || (b.handle && b.handle.cwd) || ''); if(k) bindingsByCwd[String(k)] = b })
-            const wsPaths = wsOverview.workspaces.map(function(w){ return (w.path || w.cwd || w.dir || w.workspacePath || '') }).filter(Boolean)
-            const bindingCwds = Object.keys(bindingsByCwd)
-            const allCwdsSet = {}
-            const allCwds = []
-            const add = function(c){ const k=String(c); if(!allCwdsSet[k]){ allCwdsSet[k]=1; allCwds.push(k)}}
-            wsPaths.forEach(add); bindingCwds.forEach(add)
-            if (!allCwds.length){ return h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'6px 0'}}, '暂无工作区') }
-            allCwds.sort()
-            return h('div', { style:{ overflowX:'auto'}}, [
-              h('table', { style:{ width:'100%', borderCollapse:'collapse', fontSize:11 }}, [
-                h('thead', null, [
-                  h('tr', { style:{ textAlign:'left', color:'#8b8b95', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)'}}, [
-                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '工作区路径'),
-                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '仓库'),
-                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '后端'),
-                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '来源'),
-                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '状态'),
-                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '操作'),
-                  ]),
-                ]),
-                h('tbody', null, allCwds.map(function(cwd){
-                  const b = bindingsByCwd[cwd]
-                  const backendId = b && b.backendId !== undefined ? b.backendId : null
-                  const ref = b && b.ref ? b.ref : null
-                  const repoName = ref && (ref.name || ref.url) ? (ref.name || ref.url) : '-'
-                  const label = backendId ? (typeof labelOf==='function'? labelOf(backendId) : String(backendId)) : '未绑定'
-                  const color = backendId ? (typeof backendColorOf==='function'? backendColorOf(backendId) : '#6e7681') : '#6e7681'
-                  const source = b && b.source ? b.source : 'fallback'
-                  const srcLabel = source==='explicit' ? '显式绑定' : source==='matches' ? '自动匹配' : '回退'
-                  const srcColor = source==='explicit' ? '#4ade80' : source==='matches' ? '#58a6ff' : '#8b8b95'
-                  const statusText = backendId ? '已绑定' : '回退'
-                  const statusColor = backendId ? '#4ade80' : '#8b8b95'
-                  return h('tr', { key: cwd, style:{ borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)'}}, [
-                    h('td', { style:{ padding:'6px', maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}, title: cwd }, cwd),
-                    h('td', { style:{ padding:'6px', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}, title: repoName }, repoName),
-                    h('td', { style:{ padding:'6px' }}, [ h('span', { style:{ display:'inline-flex', alignItems:'center', gap:4 }}, [ h('span', { style:{ width:7, height:7, borderRadius:'50%', background: color, flex:'none' } }), h('span', { style:{ fontWeight:600 } }, label), backendId ? h('span', { style:{ fontSize:10, color:'#8b8b95'}}, backendId) : null ])]),
-                    h('td', { style:{ padding:'6px'}}, [ h('span', { style:{ fontSize:10, color: srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px'}}, srcLabel)]),
-                    h('td', { style:{ padding:'6px'}}, [ h('span', { style:{ fontSize:10, color: statusColor, border:'1px solid '+statusColor, borderRadius:4, padding:'0 4px'}}, statusText)]),
-                    h('td', { style:{ padding:'6px'}}, [ h('button', { className:'dsws-btn', style:{ fontSize:10, padding:'2px 6px'}, onClick: function(){ gotoWorkspace(cwd) } }, '去该工作区') ]),
+            const selMap=wsOverview.selections||{}
+            const bindingsByCwd={}; wsOverview.bindings.forEach(function(b){ const k=(b.cwd||(b.handle&&b.handle.cwd)||''); if(k) bindingsByCwd[String(k)]=b })
+            const wsPaths=wsOverview.workspaces.map(function(w){ return w.path||w.cwd||w.dir||w.workspacePath||'' }).filter(Boolean)
+            const allSet={}, all=[]; const add=function(c){ const k=String(c); if(!allSet[k]){ allSet[k]=1; all.push(k)}}; wsPaths.forEach(add); Object.keys(bindingsByCwd).forEach(add); Object.keys(selMap).forEach(add); if(!all.length&&sharedSt.cwd) add(sharedSt.cwd)
+            if(!all.length) return h('div',{style:{fontSize:11,color:'#8b8b95',padding:'6px 0'}},'暂无工作区')
+            all.sort(); const boundCnt=all.filter(function(c){ const s=selMap[c]||bindingsByCwd[c]; return s&&s.backendId}).length
+            return h('details',{ open:false, style:{ marginTop:6, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:8, background:'rgba(255,255,255,.02)'}},[
+              h('summary',{ style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', cursor:'pointer', listStyle:'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontSize:11, fontWeight:600 }},[ h('span',{style:{whiteSpace:'nowrap'}},'共 '+all.length+' 个工作区'), h('span',{style:{ color:boundCnt?'#4ade80':'#8b8b95', whiteSpace:'nowrap'}},'已绑定 '+boundCnt), h('span',{style:{ marginLeft:'auto', fontSize:10, color:'#58a6ff', whiteSpace:'nowrap'}},'点击展开/收起')]),
+              h('div',{ style:{ padding:'0 6px 6px' }},[
+                wsOverview.loading ? h('div',{style:{fontSize:11,color:'#8b8b95',padding:'6px 0',whiteSpace:'nowrap'}},'加载中…') :
+                wsOverview.err ? h('div',{style:{fontSize:11,color:'#f87171',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},wsOverview.err) :
+                h('div',{ style:{ display:'flex', flexDirection:'column', gap:0 }}, all.map(function(cwd){
+                  const sel=selMap[cwd]||bindingsByCwd[cwd]||null
+                  const backendId=sel&&sel.backendId!==undefined?sel.backendId:null
+                  const label=backendId?(typeof labelOf==='function'?labelOf(backendId):String(backendId)):'未绑定'
+                  const color=backendId?(typeof backendColorOf==='function'?backendColorOf(backendId):'#6e7681'):'#6e7681'
+                  const source=sel&&sel.source?sel.source:'fallback'
+                  const srcLabel=source==='explicit'?'显式':source==='matches'?'自动':'回退'
+                  const srcColor=source==='explicit'?'#4ade80':source==='matches'?'#58a6ff':'#8b8b95'
+                  const statusText=backendId?'已绑定':'未绑定'
+                  const statusColor=backendId?'#4ade80':'#f59e0b'
+                  const base=cwd.split(/[\\/]/).pop()||cwd
+                  return h('div',{ key:cwd, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden' }},[
+                    h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 }, title:cwd }, base),
+                    h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11 }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap'}},label) ]),
+                    h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap'}}, srcLabel),
+                    h('span',{ style:{ fontSize:10, color:statusColor, border:'1px solid '+statusColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap'}}, statusText),
+                    h('button',{ className:'dsws-btn', style:{ fontSize:10, padding:'2px 6px', flex:'none', whiteSpace:'nowrap'}, onClick:function(){ gotoWorkspace(cwd) } }, '去'),
                   ])
-                })),
-              ]),
+                }))
+              ])
             ])
           })(),
         ]),
