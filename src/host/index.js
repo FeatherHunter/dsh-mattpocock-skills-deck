@@ -26,6 +26,16 @@ export default {
     const fs = ctx.get('fs')
     if (subprocess === undefined || timer === undefined) return
 
+    // B3 rpc host 侧 shim：harness.handle('wf.x') → Map + connection.rpc.handle('/dsws') dispatch
+    // 方案 C 原样复制后 pkg 入口不再经 build.mjs 注入 shim，改为源文件自带，避免 ReferenceError: harness is not defined
+    const __DSW_HANDLERS__ = new Map()
+    const harness = {
+      handle: (method, fn) => {
+        const endpoint = method.replace(/^wf\./, '')
+        __DSW_HANDLERS__.set(endpoint, fn)
+      }
+    }
+
     // ============ 配置 ============
     // v1.5.0（公共发布）：兜底 gh 路径经 platform.env.get('DSH_GH_PATH')（#171 migrated，零直读 process.env）
     // 默认工作区 = DSH 进程当前目录（可被 wf.snapshot args.cwd 覆盖；去本机硬编码）
@@ -1754,5 +1764,22 @@ export default {
     // ============ 轮询：已按 #348 拍板 Q3 关闭（60s 全量 × 8 map ≈ 2400-4800 GraphQL points/h 贴 5000 限额）============
     // 刷新策略 = 纯手动（状态条/面板按钮 wf.refresh）+ 打开面板即刷（client 侧 loadSnapshot）。
     // P1 若做状态变化 toast 提醒，再考虑低频自动（届时恢复本块并观察配额）。
+
+    // B3 rpc 通道注册：/dsws → dispatch 表（loopback 权威）
+    try {
+      const connection = ctx.get('connection')
+      if (connection !== undefined && connection.rpc !== undefined && typeof connection.rpc.handle === 'function') {
+        connection.rpc.handle('/dsws', async (endpoint, payload) => {
+          const fn = __DSW_HANDLERS__.get(endpoint)
+          if (!fn) return { ok: false, error: { code: 'internal', message: 'unknown endpoint: ' + endpoint, details: {} } }
+          try {
+            const value = await fn(payload)
+            return { ok: true, value }
+          } catch (e) {
+            return { ok: false, error: { code: 'internal', message: String((e && e.message) || e), details: {} } }
+          }
+        }, { authority: 'loopback' })
+      }
+    } catch {}
   },
 }
