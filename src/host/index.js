@@ -1,4 +1,4 @@
-/**
+﻿/**
  * dsh-mattpocock-skills-deck · Host 半（数据层实现 · T3 #345）
  *
  * 实现：
@@ -1044,7 +1044,7 @@ export default {
     // 检查 4 · gh CLI 可用
     async function checkGhCli(lang) {
       const exe = await resolveGh()
-      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: 'prompt:installGh', repo: null }
+      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version；有版本号输出 → 直接汇报已装版本并结束，不要重复安装；\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → rew install gh; Linux → sudo apt install gh;\n3. 安装后验证：重开终端使 PATH 生效，gh --version 输出版本号；\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重测」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。', repo: null }
       return { ok: true, level: 'ok', detail: exe, hint: '', repo: null }
     }
 
@@ -1199,7 +1199,7 @@ export default {
             c6 = { ok: true, level: 'ok', detail: 'api.github.com 200', hint: '' }
           } else if (kind === 'env') {
             // #195 修复：hint 升级为 prompt:installGh（与 installSkills / ghAuthGuide 同模式），UI 主按钮自动 inject
-            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: 'prompt:installGh' }
+            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: (det.preflight && det.preflight.prompt) ? det.preflight.prompt : '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version;\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → rew install gh; Linux → sudo apt install gh;\n3. 安装后验证：gh --version;\n4. 若 gh 已装但 DSH 仍报未安装：点「重测」或重启 DSH；\n5. 完成后汇报。' }
             c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           } else if (kind === 'auth') {
@@ -1723,7 +1723,7 @@ export default {
       const git = await resolveGit()
       if (!git) return { ok: false, errorKind: 'no-git', error: '未找到 git（请安装 https://git-scm.com/）' }
       const gh = await resolveGh()
-      if (!gh) return { ok: false, errorKind: 'no-gh', error: ghLastError || '未找到 gh（请安装 https://cli.github.com/）' }
+      if (!gh) return { ok: false, errorKind: 'no-gh', error: ghLastError || '未找到 gh（请安装 https://cli.github.com/）', prompt: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 `gh --version`；有版本号输出 → 直接汇报已装版本并结束，不要重复安装；\n2. 无 gh 则按 OS 安装：Windows → `winget install --id GitHub.cli`; macOS → `brew install gh`; Linux → `sudo apt install gh`;\n3. 安装后验证：重开终端使 PATH 生效，`gh --version` 输出版本号；\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重测」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。' }
       const authR = await runGh(['auth', 'status'], cwd)
       if (!authR.ok) {
         const t = String(authR.error || '').toLowerCase()

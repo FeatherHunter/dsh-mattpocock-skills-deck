@@ -120,6 +120,7 @@ export     const NoRepoCard = function (props) {
             const raw = (res && res.error) || ''
             card.errorKind = kind
             card.errorRepoUrl = (res && res.repoUrl) || ''
+            card.prompt = (res && res.prompt) || ''
             const key = 'panel.noRepoErr.' + kind
             const mapped = tr(key)
             const base = (mapped !== key) ? mapped : (raw ? String(raw).slice(0, 160) : tr('panel.noRepoErr.unknown'))
@@ -171,11 +172,8 @@ export     const NoRepoCard = function (props) {
               Ic({ n: 'alert', size: 11, color: col }),
               h('span', { style: { marginLeft: 4, flex: '1 1 auto' } }, card.error),
               kind === 'no-git' ? h('a', { href: 'https://git-scm.com/', target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '下载') : null,
-              // #195 修复：no-gh 错误态加 AI 注入主按钮（与 installSkills / ghAuthGuide 同模式），保留 <a> 链接兜底
-              kind === 'no-gh' ? h('div', { style: { display: 'inline-flex', gap: 6, marginLeft: 8, alignItems: 'center' } }, [
-                h('button', { onClick: function () { if (typeof inject === 'function' && typeof promptText === 'function') { const txt = promptText('installGh'); if (txt) inject(st, txt) } }, style: { background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, 'AI 引导安装'),
-                h('a', { href: 'https://cli.github.com/', target: '_blank', rel: 'noreferrer', style: { color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '下载'),
-              ]) : null,
+              // #195 修复(第二轮)：no-gh 直接用后端提供的 prompt（多态），移除 <a> 链接兜底
+              kind === 'no-gh' ? h('button', { onClick: function () { var p = card.prompt || card.errorPrompt || ''; if (p && typeof inject === 'function') inject(st, p); else if (typeof inject === 'function') { var fallback='请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 `gh --version`;\n2. 无 gh 则按 OS 安装：Windows → `winget install --id GitHub.cli`; macOS → `brew install gh`; Linux → `sudo apt install gh`;'; inject(st, fallback) } }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, 'AI 引导安装') : null,
               kind === 'not-logged-in' ? h('a', { href: 'https://cli.github.com/manual/gh_auth_login', target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去登录') : null,
               kind === 'already-exists' ? h('a', { href: card.errorRepoUrl || ('https://github.com/search?q=' + encodeURIComponent(card.name)), target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去查看') : null,
               kind === 'network' ? h('button', { onClick: doSubmit, disabled: card.loading, style: { marginLeft: 8, background: 'transparent', color: col, border: '1px solid ' + col, borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, '重试') : null,

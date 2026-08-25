@@ -126,11 +126,14 @@ export const OPERATIONS = Object.freeze([
  * @typedef {import('../../shared/tracker/shape.js').Issue} Issue
  */
 
-/** 环境门禁结果（不包 OpResult，避免 ok 污染；只判环境，不预判能力）。 */
+/** 环境门禁结果（不包 OpResult，避免 ok 污染；只判环境，不预判能力）。
+ *  #195 修复：后端通过 prompt 字段提供完整引导文本（多态），UI 直接 inject，不持有后端文案。
+ */
 /**
  * @typedef {Object} PreflightResult
  * @property {boolean} ok
  * @property {TrackerError} [error]
+ * @property {string} [prompt] 失败时后端提供的完整引导 prompt（多态，UI 直接 inject；成功时省略）
  */
 
 /** list 过滤器。 */

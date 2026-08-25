@@ -378,12 +378,8 @@ export const StatusBar = (props) => {
   }
   return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0' } }, [
     firstBlock === 'ghcli'
-      // #195 修复：主按钮 inject 引导 + 副按钮外跳兜底（与 installSkills 同模式）
-      ? h('div', { style: { display: 'flex', flex: 'none', gap: 4, alignItems: 'center' } }, [
-          bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { inject(s, promptText('installGh')) }),
-          // #195 副按钮兜底（仅当主按钮 inject 不可用时使用；语义保留 openUrl 但不阻塞主路径）
-          h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)', fontSize: 11, padding: '2px 8px' }, onClick: function () { openUrl('https://cli.github.com/') } }, tr('banner.ghcliFallback')),
-        ])
+      // #195 修复(第二轮)：hint 直接为后端提供的完整 prompt（多态），UI 直接 inject；移除副按钮
+      ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { var c = (s.checks || []).find(function(x){return x.id===4}); var h = c && c.hint || ''; if (h) inject(s, h) })
       : firstBlock === 'ghauth'
         ? bann(tr('banner.ghauth'), tr('banner.ghauthBtn'), function () { openUrl('https://cli.github.com/manual/gh_auth_login') })
         : firstBlock === 'setup'

@@ -28,6 +28,10 @@ export     const ChecksTab = ({ st }) => {
             h('button', { className: 'dsws-btn', onClick: function () { copyText(st, hint, tr('toast.copied')) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'clipboard', size: 11 }), h('span', null, tr('env.copyUrl'))]),
           ])
         }
+        // #195 修复(第二轮)：hint 直接为后端提供的完整 prompt（多态），UI 直接 inject（移除 prompt: 协议分支）
+        if (hint && hint.length > 0 && hint.indexOf('pending:') !== 0 && hint[0] !== '/') {
+          return h('button', { className: 'dsws-btn', onClick: function () { inject(st, hint) }, style: { fontSize: 11, padding: '2px 8px' } }, tr('env.installBtn'))
+        }
         const m = hint.match(/\/([a-z0-9-]+)/i)
         if (!m) return null
         return h('button', { className: 'dsws-btn', onClick: function () { inject(st, '/' + m[1]) } }, tr('skill.treat', { s: m[1] }))
@@ -54,9 +58,8 @@ export     const ChecksTab = ({ st }) => {
         ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
             Ic({ n: 'alert', size: 13 }),
             h('span', { style: { flex: 1 } }, tr('banner.ghcli')),
-            // #195 修复：主按钮 inject 引导 + 副按钮外跳兜底（与 installSkills 同模式 · 与 #59 ghAuthGuide 接线一致）
-            h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { inject(st, promptText('installGh')) } }, tr('banner.ghcliBtn')),
-            h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)', marginLeft: 6 }, onClick: function () { openUrl('https://cli.github.com/') } }, tr('banner.ghcliFallback')),
+            // #195 修复(第二轮)：hint 直接为后端提供的完整 prompt（多态），UI 直接 inject，不经 PROMPTS 注册表；移除副按钮
+            h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { var h = ghCli2 && ghCli2.hint || ''; if (h) inject(st, h) } }, tr('banner.ghcliBtn')),
           ])
         : (!ghAuthOk2)
           ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
@@ -80,8 +83,8 @@ export     const ChecksTab = ({ st }) => {
       // v1.5 配置引导顺序区（用户拍板 2026-08-17）：依赖链 1-2-3-4，完成自动勾选
       const okOf = function (c) { return !c || c.level === 'ok' }
       const guideSteps = [
-        // #195 修复：配置引导 g1 主按钮 inject（与 installSkills 接线同模式 · #59 同模式），副按钮外跳兜底在 actBtn 的 hint 协议自动渲染
-        { done: okOf(ghCli2), label: tr('env.g1'), act: function () { inject(st, promptText('installGh')) }, btn: tr('banner.ghcliBtn') },
+        // #195 修复(第二轮)：配置引导 g1 直接用后端 hint
+        { done: okOf(ghCli2), label: tr('env.g1'), act: function () { var h = ghCli2 && ghCli2.hint || ''; if (h) inject(st, h) }, btn: tr('banner.ghcliBtn') },
         { done: okOf(ghAuth2), label: tr('env.g2'), act: function () { openUrl('https://cli.github.com/manual/gh_auth_login') }, btn: tr('banner.ghauthBtn') },
         { done: okOf(setupCheck2), label: tr('env.g3'), act: function () { inject(st, promptText('setupRun')) }, btn: tr('banner.setupBtn') },
         { done: okOf(skillsCheck2), label: tr('env.g4'), act: function () { inject(st, promptText('installSkills')) }, btn: tr('banner.skillsBtn') },

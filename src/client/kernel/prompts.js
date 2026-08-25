@@ -1,4 +1,4 @@
-/**
+﻿/**
  * src/client/kernel/prompts.js — 内核模块（阶段 2 内核迁移 · #96 T3）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
