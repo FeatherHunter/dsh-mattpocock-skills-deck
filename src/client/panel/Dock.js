@@ -196,12 +196,13 @@ export     const DetailsDock = (props) => {
             const sel = s.selection || (s.snapshot && s.snapshot.selection) || null
             if (!repoRef) return h('span', { title: tr('panel.noRepoTitle'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f87171', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.5)', borderRadius: 6, padding: '1px 8px', flex: 'none', whiteSpace: 'nowrap' } }, [Ic({ n: 'alert', size: 11 }), h('span', null, tr('panel.noRepo'))])
             const bid = sel ? sel.backendId : (repoRef.backend || 'github')
-            const col = (typeof backendColorOf==='function'? backendColorOf(bid) : '#58a6ff')
-            const bg = col==='#24292f' ? 'rgba(36,41,47,.12)' : (col==='#3fb950' ? 'rgba(63,185,80,.12)' : col==='#fc6d26' ? 'rgba(252,109,38,.12)' : col==='#6e7681' ? 'rgba(110,118,129,.12)' : 'rgba(88,166,255,.1)')
+            const col = (typeof backendColorOf==='function'? backendColorOf(bid) : 'light-dark(#0969da, #58a6ff)')
+            const bg = (typeof backendBgOf==='function'? backendBgOf(bid) : 'light-dark(#ddf4ff, rgba(56,139,253,.15))')
+            const bdc = (typeof backendBorderOf==='function'? backendBorderOf(bid) : 'light-dark(rgba(84,174,255,.4), rgba(56,139,253,.4))')
             const short = (typeof repoShortName==='function'? repoShortName(repoRef) : String(repoRef.name||'').split('/').pop())
             const href = repoRef.url || ''
             const inner = [h('svg', { viewBox: '0 0 16 16', width: 11, height: 11, fill: 'currentColor', style: { flex: 'none' } }, [h('path', { d: 'M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 8h8.5V1.5z' })]), h('span', { 'data-repo-text': 1, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, repoRef.name)]
-            const chipStyle = { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: col, background: 'rgba(88,166,255,.1)', border: '1px solid rgba(88,166,255,.45)', borderRadius: 6, padding: '1px 8px', flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', borderColor: col, backgroundColor: bg }
+            const chipStyle = { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: col, backgroundColor: bg, border: '1px solid transparent', borderRadius: 6, padding: '1px 8px', flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', borderColor: bdc, colorScheme: 'light dark' }
             // 若无 url（本地 markdown），退化为 span 不链
             if (!href) return h('span', { title: repoRef.name, 'data-repo-chip': 1, style: Object.assign({}, chipStyle, { cursor:'default' }) }, inner)
             return h('a', { href: href, target: '_blank', rel: 'noreferrer', title: tr('panel.repoTitle'), 'data-repo-chip': 1, style: chipStyle }, inner)

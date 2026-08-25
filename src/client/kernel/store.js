@@ -195,11 +195,25 @@
       return String(backendId)
     }
     export const backendColorOf = function (backendId) {
-      if (backendId === 'github') return '#24292f'
-      if (backendId === 'markdown') return '#3fb950'
-      if (backendId === 'gitlab') return '#fc6d26'
-      if (backendId == null) return '#6e7681'
-      return '#6e7681'
+      if (backendId === 'github') return 'light-dark(#0969da, #58a6ff)'
+      if (backendId === 'markdown') return 'light-dark(#1a7f37, #3fb950)'
+      if (backendId === 'gitlab') return 'light-dark(#c25100, #ff9a5c)'
+      if (backendId == null) return 'light-dark(#57606a, #8b949e)'
+      return 'light-dark(#57606a, #8b949e)'
+    }
+    export const backendBgOf = function (backendId) {
+      if (backendId === 'github') return 'light-dark(#ddf4ff, rgba(56,139,253,.15))'
+      if (backendId === 'markdown') return 'light-dark(rgba(26,127,55,.12), rgba(63,185,80,.14))'
+      if (backendId === 'gitlab') return 'light-dark(rgba(194,81,0,.12), rgba(255,154,92,.14))'
+      if (backendId == null) return 'light-dark(rgba(87,96,106,.12), rgba(139,148,158,.14))'
+      return 'light-dark(rgba(87,96,106,.12), rgba(139,148,158,.14))'
+    }
+    export const backendBorderOf = function (backendId) {
+      if (backendId === 'github') return 'light-dark(rgba(84,174,255,.4), rgba(56,139,253,.4))'
+      if (backendId === 'markdown') return 'light-dark(rgba(26,127,55,.25), rgba(63,185,80,.30))'
+      if (backendId === 'gitlab') return 'light-dark(rgba(194,81,0,.25), rgba(255,154,92,.30))'
+      if (backendId == null) return 'light-dark(rgba(87,96,106,.25), rgba(139,148,158,.30))'
+      return 'light-dark(rgba(87,96,106,.25), rgba(139,148,158,.30))'
     }
     export const repoShortName = function (repoRef) {
       if (!repoRef || !repoRef.name) return ''
