@@ -43,6 +43,8 @@ export const SwitchConfirmModal = (props) => {
     if (typeof confirmSwitchConfirm === 'function') confirmSwitchConfirm(s)
   }
   const onOption = function (opt) {
+    // #191（用户反馈）：未选 target 时不允许选三选一（radio disabled 双保险）
+    if (s.switchConfirm.targetBackendId == null) return
     s.switchConfirm.option = opt
     // 切换到迁移时若尚未加载 CRI，触发加载
     if (opt === 'migrate' && !s.switchConfirm.criChecks && !s.switchConfirm.criLoading) {
@@ -64,15 +66,17 @@ export const SwitchConfirmModal = (props) => {
   }, [])
   const overlayStyle = { position: 'fixed', inset: 0, zIndex: 2147483001, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.55)', padding: 16 }
   const cardStyle = { width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12, background: 'var(--dsw-alias-bg-layer-2,#16181d)', boxShadow: '0 16px 48px rgba(0,0,0,.5)', padding: 16 }
+  // #191（用户反馈）：未选 target 时三选一禁用（radio disabled + 整体置灰）；选中 target 后自动选中 keep（推荐）
   const radioRow = function (id, checked, label, desc, badge) {
     const col = id === 'keep' ? '#4ade80' : id === 'migrate' ? '#f59e0b' : '#f87171'
-    return h('label', { key: id, style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, border: checked ? '1px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: checked ? 'rgba(88,166,255,.06)' : 'transparent', cursor: 'pointer' } }, [
-      h('input', { type: 'radio', name: 'dsws-switch-opt', checked: checked, onChange: function () { onOption(id) }, style: { marginTop: 3 } }),
+    const disabled = isTargetPending
+    return h('label', { key: id, style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, border: checked ? '1px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: checked ? 'rgba(88,166,255,.06)' : 'transparent', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1 } }, [
+      h('input', { type: 'radio', name: 'dsws-switch-opt', checked: checked, disabled: disabled, onChange: function () { onOption(id) }, style: { marginTop: 3 } }),
       h('span', { style: { flex: 1 } }, [
         h('span', { style: { fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 } }, [
           h('span', null, label),
           badge ? h('span', { style: { fontSize: 10, color: col, border: '1px solid ' + col, borderRadius: 4, padding: '0 4px', lineHeight: 1.6 } }, badge) : null,
-          checked && id === 'keep' ? h('span', { style: { fontSize: 10, color: '#4ade80' } }, '● 默认') : null,
+          checked && id === 'keep' ? h('span', { style: { fontSize: 10, color: '#4ade80' } }, '● 推荐') : null,
         ]),
         h('span', { style: { fontSize: 11, color: '#8b8b95', display: 'block', marginTop: 2 } }, desc),
       ]),
@@ -92,6 +96,8 @@ export const SwitchConfirmModal = (props) => {
         const onPick = function(id){
           if (s.switchConfirm.targetBackendId === id) return
           s.switchConfirm.targetBackendId = id
+          // #191（用户反馈）：选中 target 后三选一自动选中 keep（推荐），未选 target 时三选一禁用
+          if (s.switchConfirm.option == null) s.switchConfirm.option = 'keep'
           // 切换 target 后 CRI 需要重拉（不同后端的 CRI 不同；migrate 选过就再加载一次）
           s.switchConfirm.criChecks = null
           s.switchConfirm.criLoading = true
@@ -117,7 +123,6 @@ export const SwitchConfirmModal = (props) => {
         }))
         return h('div', null, [headerRow, picker])
       })(),
-      _optNone ? h('div', { style: { fontSize: 10, color: '#f59e0b', margin: '0 0 6px', fontStyle: 'italic' } }, '↑ 请选择切换策略') : null,
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 } }, [
         radioRow('keep', isKeep, tr('switch.optKeep'), tr('switch.optKeepDesc'), null),
         radioRow('migrate', isMigrate, tr('switch.optMigrate'), tr('switch.optMigrateDesc'), tr('switch.badgeExp')),
