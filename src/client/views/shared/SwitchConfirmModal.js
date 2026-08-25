@@ -66,7 +66,9 @@ export const SwitchConfirmModal = (props) => {
   }, [])
   const overlayStyle = { position: 'fixed', inset: 0, zIndex: 2147483001, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.55)', padding: 16 }
   // #191（用户反馈）：弹窗高度固定，内容多少不跳动（keep/migrate/clear 三态同高，多出部分内部滚动）
-  const cardStyle = { boxSizing: 'border-box', width: '100%', maxWidth: 560, height: 520, minHeight: 420, maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12, background: 'var(--dsw-alias-bg-layer-2,#16181d)', boxShadow: '0 16px 48px rgba(0,0,0,.5)', padding: 16 }
+  // #191（用户反馈）：顶部固定（标题 + 按钮恒定），内容区独立向下延伸滚动——按钮永不跳动
+  const cardStyle = { boxSizing: 'border-box', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 560, maxHeight: '90vh', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12, background: 'var(--dsw-alias-bg-layer-2,#16181d)', boxShadow: '0 16px 48px rgba(0,0,0,.5)', padding: 16 }
+  const bodyStyle = { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }
   // #191（用户反馈）：未选 target 时三选一禁用（radio disabled + 整体置灰）；选中 target 后自动选中 keep（推荐）
   const radioRow = function (id, checked, label, desc, badge) {
     const col = id === 'keep' ? '#4ade80' : id === 'migrate' ? '#f59e0b' : '#f87171'
@@ -91,7 +93,13 @@ export const SwitchConfirmModal = (props) => {
         h('span', { style: { flex: 1 } }),
         h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { padding: '2px 6px' } }, '✕'),
       ]),
-      // #191：目标待选态（targetBackendId==null）渲染 target radio；已选态保留原 curLabel→targetLabel
+      // #191（用户反馈）：确认/取消固定在顶部，内容变化时按钮不跳动
+      h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginBottom: 10, flex: 'none' } }, [
+        h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { fontSize: 12 } }, tr('switch.cancel')),
+        h('button', { className: 'dsws-btn', disabled: confirmDisabled, onClick: doConfirm, style: { fontSize: 12, background: confirmDisabled ? '#2a2d35' : '#58a6ff', borderColor: confirmDisabled ? '#2a2d35' : '#58a6ff', color: confirmDisabled ? '#8b8b95' : '#0b1220', fontWeight: 700, cursor: confirmDisabled ? 'not-allowed' : 'pointer' } }, sc.confirming ? tr('switch.confirming') : tr('switch.confirm')),
+      ]),
+      // #191：内容区独立滚动（向下延伸），起始标记
+      h('div', { style: bodyStyle }, [
       (function(){
         const modules = (s.backendModules || [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]).filter(function(m){ return String(m.id).toLowerCase() !== 'other' })
         const onPick = function(id){
@@ -155,9 +163,6 @@ export const SwitchConfirmModal = (props) => {
         ]),
         clearNeedInput ? h('div', { style: { fontSize: 10, color: '#f87171', marginTop: 4 } }, tr('switch.clearNeedInput')) : h('div', { style: { fontSize: 10, color: '#4ade80', marginTop: 4 } }, tr('switch.clearOk')),
       ]) : null,
-      h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 } }, [
-        h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { fontSize: 12 } }, tr('switch.cancel')),
-        h('button', { className: 'dsws-btn', disabled: confirmDisabled, onClick: doConfirm, style: { fontSize: 12, background: confirmDisabled ? '#2a2d35' : '#58a6ff', borderColor: confirmDisabled ? '#2a2d35' : '#58a6ff', color: confirmDisabled ? '#8b8b95' : '#0b1220', fontWeight: 700, cursor: confirmDisabled ? 'not-allowed' : 'pointer' } }, sc.confirming ? tr('switch.confirming') : tr('switch.confirm')),
       ]),
     ]),
   ]))
