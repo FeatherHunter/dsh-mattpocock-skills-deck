@@ -222,7 +222,7 @@ export     const SettingsPage = (props) => {
             const wsPaths=wsOverview.workspaces.map(function(w){ return w.path||w.cwd||w.dir||w.workspacePath||'' }).filter(Boolean)
             const allSet={}, all=[]; const add=function(c){ const k=String(c); if(!allSet[k]){ allSet[k]=1; all.push(k)}}; wsPaths.forEach(add); Object.keys(bindingsByCwd).forEach(add); Object.keys(selMap).forEach(add); if(!all.length&&sharedSt.cwd) add(sharedSt.cwd)
             if(!all.length) return h('div',{style:{fontSize:11,color:'#8b8b95',padding:'6px 0'}},'暂无工作区')
-            // #194 已绑定工作区置顶：已绑定 (backendId) 排前（按 backend 注册序 + basename 字母序），未绑定 (fallback/未指定) 排后（basename 字母序）
+            // #196 已绑定工作区置顶：已绑定 (backendId) 排前（按 backend 注册序 + basename 字母序），未绑定 (fallback/未指定) 排后（basename 字母序）
                         // 排前分组取 sel (select 三级联产物，source∈{explicit,matches}) + bindingsByCwd 双源兜底，与下方 row 渲染同口径
                         const modsOrder=(wsOverview.modules||[]).map(function(m){return m.id})
                         const isBound=function(c){ const s=selMap[c]||bindingsByCwd[c]; return !!(s&&s.backendId) }
