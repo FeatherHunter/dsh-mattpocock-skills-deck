@@ -10,6 +10,8 @@ export     const SettingsPage = (props) => {
       const h = cx ? cx.h : React.createElement
       // T5 修订：订阅 store（设置页独立于面板 dock，需自己订阅 shared 才能渲染 flash toast）
       const sharedSt = cx ? cx.storeSvc.useStore(props && props.sessionId) : useStore(props && props.sessionId)
+      const showCfgTip=function(e,t){ const r=e.currentTarget.getBoundingClientRect(); let tip={x:r.right+8,y:r.top+r.height/2,text:t}; if(typeof window!=='undefined'&&tip.x+220>window.innerWidth) tip={x:r.left-8-220,y:r.top+r.height/2,text:t}; sharedSt.cfgTip=tip; emit(sharedSt) }
+      const hideCfgTip=function(){ if(sharedSt.cfgTip){ sharedSt.cfgTip=null; emit(sharedSt) } }
       const [openIn, setOpenIn] = React.useState(cfg.openIn || 'dock')
       const [openInNote, setOpenInNote] = React.useState(false)
       const [wf, setWf] = React.useState(cfg.withWayfinder)
@@ -33,62 +35,32 @@ export     const SettingsPage = (props) => {
         if (timer !== undefined) timer.timeout(function () { setOpenInNote(false) }, 2600)
       }
       // #155 Q1 改：只读全局总览（wf.bindings + workspaces.list + wf.registry 色值，不可改；不调 wf.bind）
-      const [wsOverview, setWsOverview] = React.useState({ loading: true, err: '', bindings: [], workspaces: [], modules: [] })
+      const [wsOverview, setWsOverview] = React.useState({ loading:true, err:'', bindings:[], workspaces:[], modules:[], selections:{} })
       React.useEffect(function(){
-        let cancelled = false
-        const load = async function(){
-          setWsOverview(function(p){ return Object.assign({}, p, { loading: true, err: '' }) })
-          let bindings = []
-          let modules = []
-          if (typeof host !== 'undefined' && typeof host.call === 'function'){
-            try {
-              const r = await host.call('wf.bindings', {})
-              const val = (r && r.bindings) ? r : (r && r.value && r.value.bindings ? r.value : null)
-              if (val && Array.isArray(val.bindings)) bindings = val.bindings
-              else if (r && Array.isArray(r.bindings)) bindings = r.bindings
-              else if (Array.isArray(r)) bindings = r
-              else if (r && r.ok && Array.isArray(r.bindings)) bindings = r.bindings
-            } catch(e){}
-            try {
-              const r2 = await host.call('wf.registry', { cwd: '' })
-              const mods = (r2 && r2.modules) || (r2 && r2.value && r2.value.modules) || []
-              if (Array.isArray(mods) && mods.length){ modules = mods; try{ setPresentationMap(mods) }catch{} }
-            } catch(e2){}
+        let cancelled=false
+        const load=async function(){
+          setWsOverview(function(p){ return Object.assign({},p,{loading:true,err:''}) })
+          let bindings=[], modules=[], selections={}, wsList=[]
+          if(typeof host!=='undefined'&&typeof host.call==='function'){
+            try{ const r=await host.call('wf.bindings',{}); const v=(r&&r.bindings)?r:(r&&r.value&&r.value.bindings?r.value:null); if(v&&Array.isArray(v.bindings)) bindings=v.bindings; else if(r&&Array.isArray(r.bindings)) bindings=r.bindings }catch(e){}
+            try{ const r2=await host.call('wf.registry',{cwd:''}); const mods=(r2&&r2.modules)||(r2&&r2.value&&r2.value.modules)||[]; if(Array.isArray(mods)&&mods.length){ modules=mods; try{ setPresentationMap(mods)}catch{}} }catch(e2){}
           }
-          let wsList = []
-          try {
-            let wsSvc = null
-            try{ if (typeof ctx !== 'undefined' && ctx && typeof ctx.get === 'function') wsSvc = ctx.get('workspaces') }catch{}
-            if (!wsSvc && cx && cx.ctx && typeof cx.ctx.get === 'function') try{ wsSvc = cx.ctx.get('workspaces') }catch{}
-            if (wsSvc){
-              let snap = null
-              try{
-                if (wsSvc.list){
-                  if (typeof wsSvc.list.getSnapshot === 'function') snap = wsSvc.list.getSnapshot()
-                  else if (typeof wsSvc.list.getCurrent === 'function') snap = wsSvc.list.getCurrent()
-                  else if (typeof wsSvc.list === 'function') snap = await wsSvc.list()
-                  else if (Array.isArray(wsSvc.list)) snap = wsSvc.list
-                }
-              }catch{}
-              if (snap){
-                if (Array.isArray(snap.items)) wsList = snap.items
-                else if (Array.isArray(snap)) wsList = snap
-                else if (snap.byId && typeof snap.byId === 'object'){ try{ wsList = Object.values(snap.byId) }catch{} }
-              }
-              if (!wsList.length && wsSvc.list && typeof wsSvc.list === 'function'){
-                try{ const arr = await wsSvc.list(); if (Array.isArray(arr)) wsList = arr }catch{}
-              }
-              if (!wsList.length && typeof wsSvc.getAll === 'function'){
-                try{ const arr2 = await wsSvc.getAll(); if (Array.isArray(arr2)) wsList = arr2 }catch{}
-              }
+          try{
+            let wsSvc=null; try{ if(typeof ctx!=='undefined'&&ctx&&typeof ctx.get==='function') wsSvc=ctx.get('workspaces')}catch{}; if(!wsSvc&&cx&&cx.ctx&&typeof cx.ctx.get==='function') try{ wsSvc=cx.ctx.get('workspaces')}catch{}
+            if(wsSvc){
+              let snap=null; try{ if(wsSvc.list){ if(typeof wsSvc.list.getSnapshot==='function') snap=wsSvc.list.getSnapshot(); else if(typeof wsSvc.list.getCurrent==='function') snap=wsSvc.list.getCurrent(); else if(typeof wsSvc.list==='function') snap=await wsSvc.list(); else if(Array.isArray(wsSvc.list)) snap=wsSvc.list } }catch{}
+              if(snap){ if(Array.isArray(snap.items)) wsList=snap.items; else if(Array.isArray(snap)) wsList=snap; else if(snap.byId&&typeof snap.byId==='object') try{ wsList=Object.values(snap.byId)}catch{} }
+              if(!wsList.length&&wsSvc.list&&typeof wsSvc.list==='function') try{ const a=await wsSvc.list(); if(Array.isArray(a)) wsList=a }catch{}
+              if(!wsList.length&&typeof wsSvc.getAll==='function') try{ const a2=await wsSvc.getAll(); if(Array.isArray(a2)) wsList=a2 }catch{}
             }
-          } catch{}
-          if (cancelled) return
-          setWsOverview({ loading:false, err:'', bindings: bindings, workspaces: wsList, modules: modules })
+          }catch{}
+          const allSet={}, all=[]; const add=function(c){ const k=String(c); if(!allSet[k]){ allSet[k]=1; all.push(k)}}; wsList.map(function(w){ return w.path||w.cwd||w.dir||w.workspacePath||'' }).filter(Boolean).forEach(add); bindings.forEach(function(b){ const k=b.cwd||(b.handle&&b.handle.cwd)||''; if(k) add(k)}); if(!all.length&&sharedSt.cwd) add(sharedSt.cwd)
+          for(let i=0;i<all.length;i++){ const cwd=all[i]; try{ const r=await host.call('wf.selection',{cwd}); const sel=(r&&r.selection)||(r&&r.value&&r.value.selection)||(r&&r.value&&r.value.value&&r.value.value.selection)||null; if(sel) selections[cwd]=sel; try{ console.log('[wsOverview] cwd',cwd,'sel',sel)}catch{} }catch(e){ try{ console.log('[wsOverview] err cwd',cwd,String(e).slice(0,80))}catch{} }; if(cancelled) return }
+          if(cancelled) return
+          setWsOverview({loading:false,err:'',bindings,workspaces:wsList,modules,selections})
         }
-        load()
-        return function(){ cancelled = true }
-      }, [])
+        load(); return function(){ cancelled=true }
+      },[])
       const gotoWorkspace = function(cwd){
         let wsSvc = null
         try{ if (typeof ctx !== 'undefined' && ctx && typeof ctx.get === 'function') wsSvc = ctx.get('workspaces') }catch{}
@@ -167,7 +139,7 @@ export     const SettingsPage = (props) => {
         setTimeout(function () { try { ta.focus(); ta.setSelectionRange(pos, pos) } catch (e) { /* 忽略 */ } }, 0)
       }
       const chip = function (id, n, req) {
-        return h('span', { key: n, className: 'dsws-cfg-chip' + (req ? ' req' : ''), title: req ? tr('cfg.chipReq') : tr('cfg.chipInsert'), onClick: function () { insertPh(id, n) } }, [
+        return h('span', { key: n, className: 'dsws-cfg-chip' + (req ? ' req' : ''), onMouseEnter:function(e){ showCfgTip(e, req ? tr('cfg.chipReq') : tr('cfg.chipInsert')) }, onMouseLeave:hideCfgTip, onClick: function () { insertPh(id, n) } }, [
           h('span', null, '{' + n + '}'),
           req ? h('span', { className: 'must' }, tr('cfg.must')) : null,
         ])
@@ -257,12 +229,11 @@ export     const SettingsPage = (props) => {
                   const statusText=backendId?'已绑定':'未绑定'
                   const statusColor=backendId?'#4ade80':'#f59e0b'
                   const base=cwd.split(/[\\/]/).pop()||cwd
-                  return h('div',{ key:cwd, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden' }},[
-                    h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 }, title:cwd }, base),
-                    h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11 }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap'}},label) ]),
-                    h('span',{ title:srcTitle, style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap'}}, srcLabel),
-                    h('span',{ title: statusText==='已绑定'?'已绑定该工作区':'未绑定，回退 Other', style:{ fontSize:10, color:statusColor, border:'1px solid '+statusColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap'}}, statusText),
-                    h('button',{ className:'dsws-btn', style:{ fontSize:10, padding:'2px 6px', flex:'none', whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:4 }, onClick:function(){ gotoWorkspace(cwd) }, title:'打开该工作区：'+cwd }, [ h('svg',{ viewBox:'0 0 12 12', width:10, height:10, fill:'none', stroke:'currentColor', strokeWidth:1.4, style:{ flex:'none' }},[ h('path',{ d:'M3 6 H9 M6 3 L9 6 L6 9' })]), h('span',null,'打开') ]),
+                  return h('div',{ key:cwd, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden', minHeight:28 }},[
+                    h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 }, onMouseEnter:function(e){ showCfgTip(e,cwd) }, onMouseLeave:hideCfgTip }, base),
+                    h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11, minWidth:72, justifyContent:'flex-end' }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap', minWidth:36, textAlign:'center'}},label) ]),
+                    h('span',{ onMouseEnter:function(e){ showCfgTip(e,srcTitle) }, onMouseLeave:hideCfgTip, style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel),
+                    backendId ? h('span',{ onMouseEnter:function(e){ showCfgTip(e,'已绑定该工作区') }, onMouseLeave:hideCfgTip, style:{ fontSize:10, color:statusColor, border:'1px solid '+statusColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, statusText) : h('span',{ style:{ flex:'none', minWidth:44, display:'inline-block' }}, ''),
                   ])
                 }))
               ])
@@ -323,5 +294,6 @@ export     const SettingsPage = (props) => {
           h('button', { className: 'dsws-cfg-btn', onClick: resetAll }, tr('cfg.resetAll')),
           h('button', { className: 'dsws-cfg-save', onClick: save }, [Ic({ n: 'check', size: 13 }), h('span', null, tr('cfg.saveAll'))]),
         ]),
+        sharedSt.cfgTip ? portalTop(h('div', { style:{ position:'fixed', left:sharedSt.cfgTip.x, top:sharedSt.cfgTip.y, transform:'translateY(-50%)', maxWidth:260, zIndex:2147483000, padding:'5px 8px', borderRadius:6, background:'var(--dsw-alias-bg-layer-3,#0c0e12)', border:'1px solid var(--dsw-alias-border-l2,#3a3f4a)', color:'var(--dsw-alias-label-primary,#e6edf3)', fontSize:11, lineHeight:1.5, pointerEvents:'none', boxShadow:'0 4px 16px rgba(0,0,0,.4)', whiteSpace:'pre-wrap', wordBreak:'break-word' }}, sharedSt.cfgTip.text)) : null,
       ])
     }
