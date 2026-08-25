@@ -91,7 +91,7 @@ function main() {
   }
   const spot = [
     'const Dot = ({ level })', 'const mdToHtml = function', 'const tStatus = function',
-    'const fitAllTags = function', 'const useTabsRow = function', 'const TicketRow = ({ st, g, t',
+    'const fitAllTags = function', 'const useTabsRow = function', 'const TicketRow = React.memo(({ st, g, t',
     'const MapDetail = ({ st, g })', 'const NoRepoCard = function', 'const ListTab = ({ st, narrow })',
     'const RingSkills = ({ st, rec, list })', 'const SkillsTab = ({ st })', 'const ChecksTab = ({ st })',
     'const SettingsPage = (props)', 'const RunPanel = (props)', 'const DetailsDock = (props)',

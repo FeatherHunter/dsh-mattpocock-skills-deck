@@ -124,7 +124,9 @@ const check = function (file) {
   // 4) 面板按钮接线：newBugWayfinder 开新会话 ≥ 2 处（状态栏 1 + 共享 Tabs 行 1；#97 T4 去重后 Dock/Overlay tabs 行合成一处）
   const opens = (src.match(/openTextInNewSession\(s, newBugWayfinderText\(s\)/g) || []).length
   if (opens < 2) problems.push('newBugWayfinder 开新会话接线 < 2（实际 ' + opens + '）')
-  if ((src.match(/tr\('panel\.newBug'\)/g) || []).length < 2) problems.push('panel.newBug 引用 < 2（按钮文字/会话标题）')
+  // #211 占位：会话标题改用 newSessionTitleNew('bug')（双语 [New] 占位），按钮文字仍用 panel.newBug（≥1），标题不再强求 tr('panel.newBug')
+  if ((src.match(/tr\('panel\.newBug'\)/g) || []).length < 1) problems.push('panel.newBug 引用 < 1（按钮文字）')
+  if (!src.includes('newSessionTitleNew')) problems.push('缺 newSessionTitleNew 占位构造（#211）')
   // 5) Ic bug 图标
   if (src.indexOf("case 'bug':") < 0) problems.push('缺 Ic bug 图标')
   // 6) 死区回归守护：BUG 悬停菜单弹层 marginBottom 必须为 0/未设置
