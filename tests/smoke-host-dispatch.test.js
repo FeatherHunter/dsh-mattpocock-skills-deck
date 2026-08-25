@@ -3,7 +3,8 @@
 //   wf.ping → ping 端点 → { ok: true, value: 'pong' }
 import { readFileSync } from 'node:fs'
 
-const mod = await import('../package/lib/index.js')
+const modRaw = await import('../package/lib/index.js')
+const mod = modRaw.default ?? modRaw
 
 let registered = null
 const subprocess = {
@@ -18,7 +19,7 @@ const services = {
 }
 const ctx = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
 
-mod.apply(ctx)
+;(mod.apply ?? mod.default?.apply)(ctx)
 
 let failures = 0
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }

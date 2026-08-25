@@ -3,6 +3,28 @@
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  */
+export     const MAP_ROW_GUARD_NARROW = 320
+export     const MAP_ROW_GUARD_WIDE = 440
+export     const fitMapRows = function () {
+      if (typeof document === 'undefined') return
+      const rows = document.querySelectorAll('.dsws-aggrow')
+      rows.forEach(function (rowEl) {
+        const idcol = rowEl.querySelector('.dsws-idcol')
+        const title = rowEl.querySelector('.dsws-tt-wrap')
+        if (!idcol || !title) return
+        const isMap = !!idcol.querySelector('.dsws-chip-m')
+        if (!isMap) { idcol.classList.remove('h'); return }
+        const avail = rowEl.clientWidth
+        if (avail < MAP_ROW_GUARD_NARROW) { idcol.classList.remove('h'); return }
+        if (avail >= MAP_ROW_GUARD_WIDE) { idcol.classList.add('h'); return }
+        idcol.classList.add('h')
+        title.classList.add('dsws-measure')
+        const fits = title.scrollWidth <= title.clientWidth + 1
+        title.classList.remove('dsws-measure')
+        title.classList.remove('measure')
+        if (!fits) idcol.classList.remove('h')
+      })
+    }
 export     const ListTab = ({ st, narrow }) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -13,7 +35,34 @@ export     const ListTab = ({ st, narrow }) => {
         if (_tagsFpOf.get(st) === fp) return
         _tagsFpOf.set(st, fp)
         fitAllTags()
+        try { fitMapRows() } catch (e) {}
       })
+      // Map #120 T1：标题适配 + 宽度护栏 的容器尺寸监听（面板拖拽 / 字体加载 / window resize）
+      React.useLayoutEffect(function () {
+        const doFit = function () { try { fitMapRows() } catch (e) {} }
+        doFit()
+        let ro = null
+        try {
+          if (typeof ResizeObserver !== 'undefined') {
+            ro = new ResizeObserver(function () { doFit() })
+            const panel = document.querySelector('.dsws-panel')
+            const body = document.querySelector('.dsws-body')
+            if (panel) try { ro.observe(panel) } catch (e) {}
+            if (body) try { ro.observe(body) } catch (e) {}
+            document.querySelectorAll('.dsws-aggrow').forEach(function (el) { try { ro.observe(el) } catch (e) {} })
+          }
+        } catch (e) {}
+        const onWin = function () { doFit() }
+        if (typeof window !== 'undefined') window.addEventListener('resize', onWin)
+        let fontsDone = false
+        if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(function () { if (!fontsDone) { fontsDone = true; doFit() } })
+        }
+        return function () {
+          try { if (ro) ro.disconnect() } catch (e) {}
+          if (typeof window !== 'undefined') window.removeEventListener('resize', onWin)
+        }
+      }, [])
       const issues = (st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []
       const openIssues = issues.filter(function (x) { return x.state !== 'CLOSED' })
       const closedIssues = issues.filter(function (x) { return x.state === 'CLOSED' })
@@ -179,8 +228,8 @@ export     const ListTab = ({ st, narrow }) => {
           title: (isMap && mapObj) ? tr('list.mapTitle') : tr('list.issueDetailTitle'),
           style: isMap ? { cursor: 'pointer', borderLeft: '3px solid #c084fc', background: 'rgba(188,140,255,.07)' } : { cursor: 'pointer' },
         }, [
-          // 行1：idcol 竖排（编号上 map 徽章下）+ 标题 + 圆环进度
-          h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 6, width: '100%' } }, [
+          // 行1：idcol 竖排（编号上 map 徽章下）+ 标题 + 圆环进度（T1 Map #120：gap 6→8，idcol↔标题 8、标题↔圆环 8）
+          h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' } }, [
             h('span', { className: 'dsws-idcol' }, [
               isMap ? h('span', { className: 'dsws-chip dsws-chip-m', style: { fontSize: 11, fontWeight: 600, lineHeight: 1.7, padding: '0 8px' } }, [Ic({ n: 'map', size: 11 }), h('span', null, tr('list.mapChip'))]) : null,
               h('span', { className: 'dsws-idnum', style: { color: numColor, borderColor: numColor } }, '#' + (x.key != null ? x.key : x.number)),
@@ -189,8 +238,8 @@ export     const ListTab = ({ st, narrow }) => {
             (isMap && mapObj && mapObj.stats) ? ringOf(mapObj.stats) : null,
             !isOpen ? h('span', { className: 'dsws-chip', style: { fontSize: 10, marginRight: 0, flex: 'none', background: 'rgba(139,139,149,.12)', color: '#8b8b95', border: '1px solid rgba(139,139,149,.35)' } }, [Ic({ n: 'check', size: 9 }), h('span', null, tr('map.subClosed'))]) : null,
           ]),
-          // 行2：标签贪心折叠（单行不换行）+ 按钮组（常显）
-          h('div', { style: { marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, width: '100%' } }, [
+          // 行2：标签贪心折叠（单行不换行）+ 按钮组（常显）（T1 Map #120：marginTop 8→2，全局收紧至 8px = gap6+mt2，所有行一致）
+          h('div', { style: { marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, width: '100%' } }, [
             h('div', { className: 'dsws-tags', 'data-dsws-labels': JSON.stringify(labels.map(function (l) { return l.name })) }, [
               labels.map(function (l, i) {
                 return h('span', { key: i, className: 'dsws-chip', style: { fontSize: 10, background: hexA(l.color, 0.18) || 'rgba(188,140,255,.16)', color: l.color ? '#' + l.color : '#bc8cff', border: '1px solid ' + (darken(l.color, 0.16) || 'rgba(188,140,255,.6)') } }, l.name)

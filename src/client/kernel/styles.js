@@ -149,6 +149,10 @@
       '.dsws-more:hover{background:rgba(188,140,255,.22);border-color:rgba(188,140,255,.8)}',
       // v1.3.3 UI：行1 编号 + map 徽章竖排（标题获得更宽展示区）
       '.dsws-idcol{display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex:none}',
+      // T1 [Map #120] Map 行响应式：编号横排到地图右侧（标题一行放得下→横排）· 极窄竖排 · 护栏 320/440
+      '.dsws-idcol.h{display:flex;flex-direction:row;align-items:center;gap:6px}',
+      // 测量态：临时取消 clamp 测单行是否放得下（scrollWidth ≤ clientWidth），用后即移除
+      '.dsws-tt-wrap.measure,.dsws-tt-wrap.dsws-measure{white-space:nowrap!important;display:block!important;-webkit-line-clamp:unset!important;overflow:visible!important}',
       '.dsws-idnum{display:inline-block;font-family:Consolas,Menlo,monospace;font-weight:700;font-size:11px;line-height:1.4;padding:2px 7px;border-radius:6px;border:1px solid;font-variant-numeric:tabular-nums}',
       // v1.3.3 UI：map 行迷你圆环进度（替代长条 + ✓）
       // v1.3.3 对齐修复：圆环与数字零间隙（gap 0 + 文本左对齐紧贴），
