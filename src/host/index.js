@@ -1,24 +1,24 @@
 /**
- * dsh-mattpocock-skills-deck ¡¤ Host °ë£¨Êý¾Ý²ãÊµÏÖ ¡¤ T3 #345£©
+ * dsh-mattpocock-skills-deck ï¿½ï¿½ Host ï¿½ë£¨ï¿½ï¿½ï¿½Ý²ï¿½Êµï¿½ï¿½ ï¿½ï¿½ T3 #345ï¿½ï¿½
  *
- * ÊµÏÖ£º
- *   1. gh ·â×°²ã£ºresolveExecutable ½âÎö ¡ú ¶µµ× DSH_GH_PATH/ÏµÍ³ gh£»30s ³¬Ê±£¨timer race + terminate£©£»
- *      ´íÎó¹éÒ»»¯£¨auth / network / notfound / exit£©¡£
- *   2. Êý¾ÝÁ÷£ºgh issue list Ã¶¾Ù wayfinder:map ¡ú Ã¿ map Ò»´Î GraphQL£¨subIssues + labels + assignees +
- *      blockedBy + blocking£©¡ú ×é×°¿ìÕÕ£¨map ÎåÇø¿é½âÎö + tickets + stats ·Ö×é£©¡£
- *   3. RPC£ºwf.ping / wf.snapshot£¨5s »º´æ£©/ wf.refresh¡£
- *   4. ÂÖÑ¯£ºtimer 60s Ë¢ÐÂ»º´æ + ÓëÉÏ´Î stats diff£¨P2 toast Ô¤Áô×Ö¶Î£©¡£
- *   5. Ç°ÖÃ¼ì²éÂÌµã£¨#344£©£ºwf.status ¡ª¡ª 8 Ïî¼ì²â£¨²Ö¿â¶¨Î» / setup ÒÑÅÜ / tracker=GitHub /
- *      gh CLI / gh µÇÂ¼ / API ¿É´ï / wayfinder Ë«²ãÌ½²â / ask-matt Ë«²ãÌ½²â£©£¬Êä³ö
- *      { ok, level, detail, hint }[]£»½á¹û»º´æ 30s£¬args.force Ç¿ÖÆÖØ²é¡£
+ * Êµï¿½Ö£ï¿½
+ *   1. gh ï¿½ï¿½×°ï¿½ã£ºresolveExecutable ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ DSH_GH_PATH/ÏµÍ³ ghï¿½ï¿½30s ï¿½ï¿½Ê±ï¿½ï¿½timer race + terminateï¿½ï¿½ï¿½ï¿½
+ *      ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½auth / network / notfound / exitï¿½ï¿½ï¿½ï¿½
+ *   2. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½gh issue list Ã¶ï¿½ï¿½ wayfinder:map ï¿½ï¿½ Ã¿ map Ò»ï¿½ï¿½ GraphQLï¿½ï¿½subIssues + labels + assignees +
+ *      blockedBy + blockingï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½×°ï¿½ï¿½ï¿½Õ£ï¿½map ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ + tickets + stats ï¿½ï¿½ï¿½é£©ï¿½ï¿½
+ *   3. RPCï¿½ï¿½wf.ping / wf.snapshotï¿½ï¿½5s ï¿½ï¿½ï¿½æ£©/ wf.refreshï¿½ï¿½
+ *   4. ï¿½ï¿½Ñ¯ï¿½ï¿½timer 60s Ë¢ï¿½Â»ï¿½ï¿½ï¿½ + ï¿½ï¿½ï¿½Ï´ï¿½ stats diffï¿½ï¿½P2 toast Ô¤ï¿½ï¿½ï¿½Ö¶Î£ï¿½ï¿½ï¿½
+ *   5. Ç°ï¿½Ã¼ï¿½ï¿½ï¿½Ìµã£¨#344ï¿½ï¿½ï¿½ï¿½wf.status ï¿½ï¿½ï¿½ï¿½ 8 ï¿½ï¿½ï¿½â£¨ï¿½Ö¿â¶¨Î» / setup ï¿½ï¿½ï¿½ï¿½ / tracker=GitHub /
+ *      gh CLI / gh ï¿½ï¿½Â¼ / API ï¿½É´ï¿½ / wayfinder Ë«ï¿½ï¿½Ì½ï¿½ï¿½ / ask-matt Ë«ï¿½ï¿½Ì½ï¿½â£©ï¿½ï¿½ï¿½ï¿½ï¿½
+ *      { ok, level, detail, hint }[]ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 30sï¿½ï¿½args.force Ç¿ï¿½ï¿½ï¿½Ø²é¡£
  *
- * ÒÑÑéÖ¤£¨.charting/verify.js£¬ÕæÊµÊý¾Ý PASS£©£º·Ö×é frontier/claimed/blocked Óë GitHub Ò³ÃæÒ»ÖÂ£»
- * 9 ÕÅ open map ÖÐ½ö 4 ÕÅÓÐ Destination ¡ª¡ª body ½âÎöÈ«²¿ÈÝ´í¡£
+ * ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½.charting/verify.jsï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½ PASSï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ frontier/claimed/blocked ï¿½ï¿½ GitHub Ò³ï¿½ï¿½Ò»ï¿½Â£ï¿½
+ * 9 ï¿½ï¿½ open map ï¿½Ð½ï¿½ 4 ï¿½ï¿½ï¿½ï¿½ Destination ï¿½ï¿½ï¿½ï¿½ body ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½Ý´ï¿½ï¿½
  *
- * ±¾ÎÄ¼þÄÚÈÝ = cordis_define µÄ code.host£¨´¿ JS º¯ÊýÌå£¬·µ»Ø Cordis Plugin£©¡£
+ * ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ = cordis_define ï¿½ï¿½ code.hostï¿½ï¿½ï¿½ï¿½ JS ï¿½ï¿½ï¿½ï¿½ï¿½å£¬ï¿½ï¿½ï¿½ï¿½ Cordis Pluginï¿½ï¿½ï¿½ï¿½
  */
 
-// ===== ¹æ·¶·½ÑÔ£¨dynamic dialect£©£ºharness Îª×ÔÓÉ±äÁ¿£»pkg entry Ìá¹© shim =====
+// ===== ï¿½æ·¶ï¿½ï¿½ï¿½Ô£ï¿½dynamic dialectï¿½ï¿½ï¿½ï¿½harness Îªï¿½ï¿½ï¿½É±ï¿½ï¿½ï¿½ï¿½ï¿½pkg entry ï¿½á¹© shim =====
 export default {
   inject: ['connection'],
   apply(ctx) {
@@ -27,8 +27,8 @@ export default {
     const fs = ctx.get('fs')
     if (subprocess === undefined || timer === undefined) return
 
-    // B3 rpc host ²à shim£ºharness.handle('wf.x') ¡ú Map + connection.rpc.handle('/dsws') dispatch
-    // ·½°¸ C Ô­Ñù¸´ÖÆºó pkg Èë¿Ú²»ÔÙ¾­ build.mjs ×¢Èë shim£¬¸ÄÎªÔ´ÎÄ¼þ×Ô´ø£¬±ÜÃâ ReferenceError: harness is not defined
+    // B3 rpc host ï¿½ï¿½ shimï¿½ï¿½harness.handle('wf.x') ï¿½ï¿½ Map + connection.rpc.handle('/dsws') dispatch
+    // ï¿½ï¿½ï¿½ï¿½ C Ô­ï¿½ï¿½ï¿½ï¿½ï¿½Æºï¿½ pkg ï¿½ï¿½Ú²ï¿½ï¿½Ù¾ï¿½ build.mjs ×¢ï¿½ï¿½ shimï¿½ï¿½ï¿½ï¿½ÎªÔ´ï¿½Ä¼ï¿½ï¿½Ô´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ReferenceError: harness is not defined
     const __DSW_HANDLERS__ = new Map()
     const harness = {
       handle: (method, fn) => {
@@ -37,24 +37,24 @@ export default {
       }
     }
 
-    // ============ ÅäÖÃ ============
-    // v1.5.0£¨¹«¹²·¢²¼£©£º¶µµ× gh Â·¾¶¾­ platform.env.get('DSH_GH_PATH')£¨#171 migrated£¬ÁãÖ±¶Á process.env£©
-    // Ä¬ÈÏ¹¤×÷Çø = DSH ½ø³Ìµ±Ç°Ä¿Â¼£¨¿É±» wf.snapshot args.cwd ¸²¸Ç£»È¥±¾»úÓ²±àÂë£©
+    // ============ ï¿½ï¿½ï¿½ï¿½ ============
+    // v1.5.0ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ gh Â·ï¿½ï¿½ï¿½ï¿½ platform.env.get('DSH_GH_PATH')ï¿½ï¿½#171 migratedï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ process.envï¿½ï¿½
+    // Ä¬ï¿½Ï¹ï¿½ï¿½ï¿½ï¿½ï¿½ = DSH ï¿½ï¿½ï¿½Ìµï¿½Ç°Ä¿Â¼ï¿½ï¿½ï¿½É±ï¿½ wf.snapshot args.cwd ï¿½ï¿½ï¿½Ç£ï¿½È¥ï¿½ï¿½ï¿½ï¿½Ó²ï¿½ï¿½ï¿½ë£©
     const DEFAULT_CWD = (typeof process !== 'undefined' && typeof process.cwd === 'function') ? process.cwd() : ''
     const TIMEOUT_MS = 30000
-    // v1.3.3 ÌáËÙ£º¿ìÕÕ»º´æ 5s ¡ú 60s£¨Ãæ°å´ò¿ª»ù±¾ÃüÖÐ»º´æ£¬²»ÔÙÃ¿´ÎÈ«Á¿ÖØ½¨ 11 ´Î gh µ÷ÓÃ£©
+    // v1.3.3 ï¿½ï¿½ï¿½Ù£ï¿½ï¿½ï¿½ï¿½Õ»ï¿½ï¿½ï¿½ 5s ï¿½ï¿½ 60sï¿½ï¿½ï¿½ï¿½ï¿½ò¿ª»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð»ï¿½ï¿½æ£¬ï¿½ï¿½ï¿½ï¿½Ã¿ï¿½ï¿½È«ï¿½ï¿½ï¿½Ø½ï¿½ 11 ï¿½ï¿½ gh ï¿½ï¿½ï¿½Ã£ï¿½
     const CACHE_MS = 60000
-    const STATUS_CACHE_MS = 30000  // Ç°ÖÃ¼ì²é½á¹û»º´æ£¨#344£©
+    const STATUS_CACHE_MS = 30000  // Ç°ï¿½Ã¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½æ£¨#344ï¿½ï¿½
     const SKILL_PROBE_DIRS = ['.agents/skills', '.minimax/skills', '.claude/skills']  // #171 migrated: posix canonical via platform.path
-    // v1.5 T11 + #149 ÐÞ¸´£ºÈ«Á÷³ÌºËÐÄ¼¼ÄÜÌ½²âÃûµ¥£¨¸÷¶¯×÷ prompt ÒýÓÃµÄ¼¼ÄÜ + »ù´¡¼¼ÄÜ£»¼ì²é 7/8 È¡Ç°Á½¸ö£¬¼ì²é 9 ¾ÛºÏÈ«Á¿£©¡ª ²¹ `setup-matt-pocock-skills` Îª 10 Ãû£¨Í¼¿ìÕÕ ¡ì1.1 ÏàÁÚÈ±ÏÝÕýÎ»£¬#150 Q6£©
+    // v1.5 T11 + #149 ï¿½Þ¸ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½Ìºï¿½ï¿½Ä¼ï¿½ï¿½ï¿½Ì½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ prompt ï¿½ï¿½ï¿½ÃµÄ¼ï¿½ï¿½ï¿½ + ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü£ï¿½ï¿½ï¿½ï¿½ 7/8 È¡Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 9 ï¿½Ûºï¿½È«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ `setup-matt-pocock-skills` Îª 10 ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½1.1 ï¿½ï¿½ï¿½ï¿½È±ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½#150 Q6ï¿½ï¿½
     const SKILL_PROBE_NAMES = ['wayfinder', 'triage', 'grilling', 'grill-me', 'implement', 'ask-matt', 'research', 'prototype', 'handoff', 'setup-matt-pocock-skills']
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
 
     // ============ ×´Ì¬ ============
     let ghPath = null
-    // #195 ÐÞ¸´£ºÊ§°Ü²»ÓÀ¾Ã»º´æ ¡ª¡ª ghLastError ½ö±£Áô×î½üÒ»´ÎÊ§°Ü£¨¸²¸ÇÊ½£©£¬»·¾³ÐÞ¸´ºóÏÂ´Î resolveGh ¸²¸ÇÎª null£»²»Ïñ¾ÉÊµÏÖÊ×´ÎÊ§°ÜÓÀ²»ÖØÊÔ
+    // #195 ï¿½Þ¸ï¿½ï¿½ï¿½Ê§ï¿½Ü²ï¿½ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ghLastError ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ê§ï¿½Ü£ï¿½ï¿½ï¿½ï¿½ï¿½Ê½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Þ¸ï¿½ï¿½ï¿½ï¿½Â´ï¿½ resolveGh ï¿½ï¿½ï¿½ï¿½Îª nullï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½×´ï¿½Ê§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     let ghLastError = null
-    let repoKeys = {}  // v12£ºrepoKey °´ cwd »º´æ£¨ÇÐ»»²Ö¿â»á»°Ê±²»ÔÙ´®²Ö¿â£©
+    let repoKeys = {}  // v12ï¿½ï¿½repoKey ï¿½ï¿½ cwd ï¿½ï¿½ï¿½æ£¨ï¿½Ð»ï¿½ï¿½Ö¿ï¿½á»°Ê±ï¿½ï¿½ï¿½Ù´ï¿½ï¿½Ö¿â£©
     let cacheMap = new Map()
     const CACHE_LRU_MAX = 20
     let cache = { ts: 0, snapshot: null, error: null, cwd: null }
@@ -64,9 +64,9 @@ export default {
     function setCacheByCwd(cwdRaw, entry){ const k=normKey(cwdRaw); const e=Object.assign({},entry,{k}); touchLRU(cacheMap,k,e); try{ cache={ts:e.ts||Date.now(), snapshot:e.snapshot||null, error:e.error||null, cwd:cwdRaw}; }catch{} return e; }
     function snapshotVersionOf(snap){ try{ const iss=(snap&&Array.isArray(snap.issues))?snap.issues:[]; const sorted=iss.map(function(x){return String(x.number)+':'+String(x.state||'')+':'+String(x.updatedAt||'')}).sort().join('|'); let h=0; for(let i=0;i<sorted.length;i++) h=((h<<5)-h+sorted.charCodeAt(i))|0; const hex=(h>>>0).toString(16).padStart(8,'0'); try{ if(typeof require==='function'){ const cr=require('crypto'); if(cr&&cr.createHash){ return cr.createHash('sha1').update(sorted).digest('hex').slice(0,12); } } }catch(e){} return hex; }catch(e){ return '0'; } }
     function issueIndexVersion(idx){ try{ const keys=Object.keys(idx||{}).sort(); const str=keys.map(function(k){return k+':'+idx[k]}).join('|'); try{ const cr=require('crypto'); if(cr&&cr.createHash) return cr.createHash('sha1').update(str).digest('hex').slice(0,12); }catch(e){} let h=0; for(let i=0;i<str.length;i++) h=((h<<5)-h+str.charCodeAt(i))|0; return (h>>>0).toString(16).padStart(8,'0'); }catch(e){ return '0'; } }
-    let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s »º´æ£¨°´ cwd+lang Çø·Ö£©
-    let userHome = null                                     // ±£ÁôÕ¼Î»£¨#171 ÒÑÇ¨ platform.getHome£¬»º´æ¹éÆ½Ì¨ memoize£©
-    // ============ Tracker Registry£¨#155 ¡¤ ºó¶ËÑ¡Ôñ UI£©============
+    let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s ï¿½ï¿½ï¿½æ£¨ï¿½ï¿½ cwd+lang ï¿½ï¿½ï¿½Ö£ï¿½
+    let userHome = null                                     // ï¿½ï¿½ï¿½ï¿½Õ¼Î»ï¿½ï¿½#171 ï¿½ï¿½Ç¨ platform.getHomeï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ½Ì¨ memoizeï¿½ï¿½
+    // ============ Tracker Registryï¿½ï¿½#155 ï¿½ï¿½ ï¿½ï¿½ï¿½Ñ¡ï¿½ï¿½ UIï¿½ï¿½============
     let _trackerRegistry = null
     let _trackerRegistryInit = null
     async function getTrackerRegistry() {
@@ -81,7 +81,7 @@ export default {
           const regMod = await import('./tracker/registry.js')
           const createRegistry = regMod.createRegistry || regMod.default
           const reg = createRegistry({}, { matchesTimeout: 3000 })
-          // ×¢²áÄÚÖÃºó¶Ë£¨github/markdown/gitlab£©£¬Ê§°ÜºöÂÔ£¨±£³Ö¿ÉÓÃ£©
+          // ×¢ï¿½ï¿½ï¿½ï¿½ï¿½Ãºï¿½Ë£ï¿½github/markdown/gitlabï¿½ï¿½ï¿½ï¿½Ê§ï¿½Üºï¿½ï¿½Ô£ï¿½ï¿½ï¿½ï¿½Ö¿ï¿½ï¿½Ã£ï¿½
           try {
             const ghMod = await import('./tracker/backends/github/index.js')
             const m = ghMod.githubModule || ghMod.defaultModule || ghMod.default
@@ -104,7 +104,7 @@ export default {
           try { ctx.set && ctx.set('trackerRegistry', reg) } catch {}
           return reg
         } catch (e) {
-          // »ØÂä£º¿Õ registry£¨½ö explicit ÄÜÁ¦£©
+          // ï¿½ï¿½ï¿½ä£ºï¿½ï¿½ registryï¿½ï¿½ï¿½ï¿½ explicit ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
           try {
             const regMod2 = await import('./tracker/registry.js')
             const cr = regMod2.createRegistry || regMod2.default
@@ -116,10 +116,10 @@ export default {
       _trackerRegistry = await _trackerRegistryInit
       return _trackerRegistry
     }
-    // ´¥·¢Ô¤ÈÈ£¨²»×èÈûÖ÷Á÷³Ì£©
+    // ï¿½ï¿½ï¿½ï¿½Ô¤ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì£ï¿½
     try { getTrackerRegistry().catch(()=>{}) } catch {}
-    // ============ Æ½Ì¨³éÏó£¨#171 ¡¤ createPlatform ¶èÐÔµ¥Àý£©============
-    // µÚÒ»ÐÔÔ­Àí£ºÆ½Ì¨µ¥µã + ÁãÊÖÆ´ + Ë«Õ¢²»±äÁ¿£»¾­ ctx.get('platform') »òÄÚÁª fallback£¨Áã import Óï·¨£¬±Ü D7 dev host vm.Script ×èÈû£©
+    // ============ Æ½Ì¨ï¿½ï¿½ï¿½ï¿½#171 ï¿½ï¿½ createPlatform ï¿½ï¿½ï¿½Ôµï¿½ï¿½ï¿½ï¿½ï¿½============
+    // ï¿½ï¿½Ò»ï¿½ï¿½Ô­ï¿½ï¿½ï¿½Æ½Ì¨ï¿½ï¿½ï¿½ï¿½ + ï¿½ï¿½ï¿½ï¿½Æ´ + Ë«Õ¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ctx.get('platform') ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ fallbackï¿½ï¿½ï¿½ï¿½ import ï¿½ï·¨ï¿½ï¿½ï¿½ï¿½ D7 dev host vm.Script ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     let _platform = null
     let _platformInit = null
     async function getPlatform() {
@@ -196,8 +196,8 @@ export default {
       _platform = await _platformInit
       return _platform
     }
-    // ============ Ì½²â¼¶Áª ¡¤ workspaceStore + detectionService£¨#152 ¡¤ #150 Q1-Q7£©============
-    // ËÄ²ãÑÏ¸ñ + ÇáÁ¿»¯¶þÁª¹Ç¼Ü + per-workspace ÄÚ´æ Map<handleKey¡úSelection> ²»ÂäÅÌ + pending ²»»º´æ + wf.bind ±¡¼æÈÝ
+    // ============ Ì½ï¿½â¼¶ï¿½ï¿½ ï¿½ï¿½ workspaceStore + detectionServiceï¿½ï¿½#152 ï¿½ï¿½ #150 Q1-Q7ï¿½ï¿½============
+    // ï¿½Ä²ï¿½ï¿½Ï¸ï¿½ + ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç¼ï¿½ + per-workspace ï¿½Ú´ï¿½ Map<handleKeyï¿½ï¿½Selection> ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ + pending ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ + wf.bind ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     let _workspaceStore = null
     let _detectionService = null
     async function getWorkspaceStore() {
@@ -206,7 +206,7 @@ export default {
         const mod = await import('./tracker/detection/workspaceStore.js')
         const create = mod.createWorkspaceStore || mod.default
         _workspaceStore = create({ ttl: STATUS_CACHE_MS })
-        // registry stale ÇåÀí£¨#150 Q3 unregister stale ¡ú emit bind£©
+        // registry stale ï¿½ï¿½ï¿½ï¿½ï¿½#150 Q3 unregister stale ï¿½ï¿½ emit bindï¿½ï¿½
         try {
           const reg = await getTrackerRegistry()
           if (reg && typeof reg.on === 'function') reg.on('bind', (evt) => { if (evt && evt.stale) { try { _workspaceStore.onRegistryBindStale(evt.handle) } catch {} } })
@@ -223,7 +223,7 @@ export default {
       try {
         const mod = await import('./tracker/detection/detectionService.js')
         const create = mod.createDetectionService || mod.default
-        // skillProbe ÄÚÁª£¨¸´ÓÃ probeSkill Ë«Ô´Âß¼­£¬10 Ãûº¬ setup ÕýÎ»£©
+        // skillProbe ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ probeSkill Ë«Ô´ï¿½ß¼ï¿½ï¿½ï¿½10 ï¿½ï¿½ï¿½ï¿½ setup ï¿½ï¿½Î»ï¿½ï¿½
         const skillProbe = async ({ cwd }) => {
           const probes = {}
           let missing = []
@@ -239,7 +239,7 @@ export default {
         }
         _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => ({ setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } }), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }) })
       } catch (e) {
-        // ¶µµ×£º×îÐ¡¶þÁª£¨explicit ¡ú matches£©²»º¬ preflight/skill
+        // ï¿½ï¿½ï¿½×£ï¿½ï¿½ï¿½Ð¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½explicit ï¿½ï¿½ matchesï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ preflight/skill
         _detectionService = {
           detect: async (handle, opts) => {
             const plat = await getPlatform()
@@ -255,32 +255,32 @@ export default {
       return _detectionService
     }
 
-    let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6£¨#2 MVP£©£ºprobe since Ê±¼ä´Á£¬°´ repoKey ¸ôÀë£¨Ö»ÔÚ probe ¼ì²âµ½ change Ê±ÍÆ½ø£»build ²»µÃ¶¯Ëü ¡ª¡ª ·ñÔò»áÍÌµôÍ¬´°¿Ú±à¼­£¬¼û buildSnapshot ´¦×¢ÊÍ£©
-    let lastIssueIndexByRepo = {}                          // #2 deletion fix£º±£´æÉÏ´ÎÈ«Á¿ issue Ë÷Òý£¬ÓÃÓÚ·¢ÏÖ GitHub É¾³ý/×´Ì¬ÏûÊ§
-    let pendingIssuePathEvents = []                       // issuePath ¡¤ 1A+1B ¼ì²â¶ÓÁÐ£¨runGh °×Ãûµ¥ + wf.claim£©£¬client via wf.issuePathPoll À­È¡£¬cap 100
+    let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6ï¿½ï¿½#2 MVPï¿½ï¿½ï¿½ï¿½probe since Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ repoKey ï¿½ï¿½ï¿½ë£¨Ö»ï¿½ï¿½ probe ï¿½ï¿½âµ½ change Ê±ï¿½Æ½ï¿½ï¿½ï¿½build ï¿½ï¿½ï¿½Ã¶ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ìµï¿½Í¬ï¿½ï¿½ï¿½Ú±à¼­ï¿½ï¿½ï¿½ï¿½ buildSnapshot ï¿½ï¿½×¢ï¿½Í£ï¿½
+    let lastIssueIndexByRepo = {}                          // #2 deletion fixï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï´ï¿½È«ï¿½ï¿½ issue ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú·ï¿½ï¿½ï¿½ GitHub É¾ï¿½ï¿½/×´Ì¬ï¿½ï¿½Ê§
+    let pendingIssuePathEvents = []                       // issuePath ï¿½ï¿½ 1A+1B ï¿½ï¿½ï¿½ï¿½ï¿½Ð£ï¿½runGh ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ + wf.claimï¿½ï¿½ï¿½ï¿½client via wf.issuePathPoll ï¿½ï¿½È¡ï¿½ï¿½cap 100
 
-    // ============ gh ·â×° ============
-    // #195 ÐÞ¸´£ºresolveGh ²»ÔÙ»º´æÊ§°Ü£¨ghLastError ½ö×î½üÒ»´ÎÊ§°Ü£¬»·¾³ÐÞ¸´ºóÏÂ´ÎÌ½²â¼´»Ö¸´£©
+    // ============ gh ï¿½ï¿½×° ============
+    // #195 ï¿½Þ¸ï¿½ï¿½ï¿½resolveGh ï¿½ï¿½ï¿½Ù»ï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½ghLastError ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ê§ï¿½Ü£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Þ¸ï¿½ï¿½ï¿½ï¿½Â´ï¿½Ì½ï¿½â¼´ï¿½Ö¸ï¿½ï¿½ï¿½
     async function resolveGh() {
       if (ghPath) return ghPath
       const platform = await getPlatform()
       try {
         const p = await platform.resolveExecutable('gh')
         if (p) { ghPath = p; ghLastError = null; return ghPath }
-        ghLastError = 'gh ²»¿ÉÓÃ£ºPATH ÎÞ gh£¬ÇÒ DSH_GH_PATH Î´ÅäÖÃ£¨¹Ù·½°²×°Çë·ÃÎÊ https://cli.github.com/£©'
+        ghLastError = 'gh ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½PATH ï¿½ï¿½ ghï¿½ï¿½ï¿½ï¿½ DSH_GH_PATH Î´ï¿½ï¿½ï¿½Ã£ï¿½ï¿½Ù·ï¿½ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½ï¿½ https://cli.github.com/ï¿½ï¿½'
         return null
       } catch (e) {
         const fb = platform.env.get('DSH_GH_PATH') || ''
-        if (!fb) { ghLastError = 'gh ²»¿ÉÓÃ£ºPATH ÎÞ gh£¬ÇÒ DSH_GH_PATH Î´ÅäÖÃ£¨¹Ù·½°²×°Çë·ÃÎÊ https://cli.github.com/£©'; return null }
+        if (!fb) { ghLastError = 'gh ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½PATH ï¿½ï¿½ ghï¿½ï¿½ï¿½ï¿½ DSH_GH_PATH Î´ï¿½ï¿½ï¿½Ã£ï¿½ï¿½Ù·ï¿½ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½ï¿½ https://cli.github.com/ï¿½ï¿½'; return null }
         try {
           const info = await platform.fs.lstat(fb)
           if (info) { ghPath = fb; ghLastError = null; return ghPath }
         } catch (e2) {}
-        ghLastError = 'gh ²»¿ÉÓÃ£ºPATH ÎÞ gh£¬ÇÒ DSH_GH_PATH Î´ÅäÖÃ£¨¹Ù·½°²×°Çë·ÃÎÊ https://cli.github.com/£©'
+        ghLastError = 'gh ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½PATH ï¿½ï¿½ ghï¿½ï¿½ï¿½ï¿½ DSH_GH_PATH Î´ï¿½ï¿½ï¿½Ã£ï¿½ï¿½Ù·ï¿½ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½ï¿½ https://cli.github.com/ï¿½ï¿½'
         return null
       }
     }
-    // #195 ÐÞ¸´£ºforce Ì½²âÂ·¾¶µ÷ resetGhCache Çå¿Õ³É¹¦»º´æ£¬Ç¿ÖÆÏÂ´Î resolveGh ÖØÌ½
+    // #195 ï¿½Þ¸ï¿½ï¿½ï¿½force Ì½ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½ resetGhCache ï¿½ï¿½Õ³É¹ï¿½ï¿½ï¿½ï¿½æ£¬Ç¿ï¿½ï¿½ï¿½Â´ï¿½ resolveGh ï¿½ï¿½Ì½
     function resetGhCache() { ghPath = null; ghLastError = null }
 
     async function runGh(args, cwd) {
@@ -318,7 +318,7 @@ export default {
         else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400) }
       }
-      // issuePath ¡¤ 1A£ºrunGh °×Ãûµ¥¼ì²â£¨½ö³É¹¦Â·¾¶£»Ê§°Ü²»¼ÇÂ·¾¶ÎÛÈ¾£»--add-assignee Îª claim Í¨µÀ£¬½»ÓÉ wf.claim ÍÆËÍ source='claim'£©
+      // issuePath ï¿½ï¿½ 1Aï¿½ï¿½runGh ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½â£¨ï¿½ï¿½ï¿½É¹ï¿½Â·ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü²ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½È¾ï¿½ï¿½--add-assignee Îª claim Í¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ wf.claim ï¿½ï¿½ï¿½ï¿½ source='claim'ï¿½ï¿½
       try {
         const a = Array.isArray(args) ? args : []
         if (a.length >= 2 && a[0] === 'issue' && /^(edit|close|comment|reopen)$/.test(String(a[1]))) {
@@ -329,11 +329,11 @@ export default {
             if (hit) pushIssuePathEvent(hit, 'gh-edit')
           }
         }
-      } catch (e) { /* ¼ì²âÊ§°Ü²»Ó°ÏìÖ÷Á÷³Ì */ }
+      } catch (e) { /* ï¿½ï¿½ï¿½Ê§ï¿½Ü²ï¿½Ó°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */ }
       return { ok: true, text: out.text || '' }
     }
 
-    // Í¨ÓÃ½ø³ÌÖ´ÐÐ£¨#344 Ç°ÖÃ¼ì²éÓÃ£ºgit / cmd µÈ£¬²»¾­ shell£¬´íÎó²»¹éÒ»»¯£©
+    // Í¨ï¿½Ã½ï¿½ï¿½ï¿½Ö´ï¿½Ð£ï¿½#344 Ç°ï¿½Ã¼ï¿½ï¿½ï¿½Ã£ï¿½git / cmd ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ shellï¿½ï¿½ï¿½ï¿½ï¿½ó²»¹ï¿½Ò»ï¿½ï¿½ï¿½ï¿½
     async function execProc(argv, cwd) {
       let handle
       try {
@@ -367,13 +367,13 @@ export default {
       return platform.resolveExecutable('git')
     }
 
-    // ÓÃ»§Ö÷Ä¿Â¼£¨#171 ÒÑÇ¨ platform.getHome£»Ô­ cmd.exe Ì½²â½ö win32 ÉúÐ§£¬ÏÖÆ½Ì¨²ãÍ³Ò»£©
+    // ï¿½Ã»ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½#171 ï¿½ï¿½Ç¨ platform.getHomeï¿½ï¿½Ô­ cmd.exe Ì½ï¿½ï¿½ï¿½ win32 ï¿½ï¿½Ð§ï¿½ï¿½ï¿½ï¿½Æ½Ì¨ï¿½ï¿½Í³Ò»ï¿½ï¿½
     async function getHome() {
       const platform = await getPlatform()
       return platform.getHome()
     }
 
-    // ============ issuePath ¡¤ 1A\+1B ÊÂ¼þ¶ÓÁÐ ============
+    // ============ issuePath ï¿½ï¿½ 1A\+1B ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ ============
     function pushIssuePathEvent(ref, source, title) {
       const n = Number(ref)
       if (!n || isNaN(n)) return
@@ -381,10 +381,10 @@ export default {
       if (pendingIssuePathEvents.length > 100) pendingIssuePathEvents.shift()
     }
 
-    // ============ v1.5 T9£ºgit ¸ù¼ì²â + ´ÅÅÌ»º´æ£¨¿çÖØÆôÃë¿ª£©============
-    // git rev-parse --show-toplevel ²ã²ãÉÏËÝÕÒ¸ù£»Ç¶Ì×²Ö¿â£¨×ÓÄ¿Â¼º¬¶ÀÁ¢ .git£©git Ô­ÉúÍ£ÔÚ×î½ü¸ù ¡ª¡ª ·ûºÏÓÃ»§ÒªÇó
-    let repoRoots = {}           // ¸ùÂ·¾¶°´ cwd »º´æ
-    let cacheDirResolved = null  // »º´æÄ¿Â¼£¨¶èÐÔ½âÎö£©
+    // ============ v1.5 T9ï¿½ï¿½git ï¿½ï¿½ï¿½ï¿½ï¿½ + ï¿½ï¿½ï¿½Ì»ï¿½ï¿½æ£¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ë¿ªï¿½ï¿½============
+    // git rev-parse --show-toplevel ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò¸ï¿½ï¿½ï¿½Ç¶ï¿½×²Ö¿â£¨ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ .gitï¿½ï¿½git Ô­ï¿½ï¿½Í£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ã»ï¿½Òªï¿½ï¿½
+    let repoRoots = {}           // ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½ cwd ï¿½ï¿½ï¿½ï¿½
+    let cacheDirResolved = null  // ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½ï¿½Ô½ï¿½ï¿½ï¿½ï¿½ï¿½
     async function getRepoRoot(cwd) {
       const key = cwd || DEFAULT_CWD
       if (repoRoots[key] !== undefined) return repoRoots[key]
@@ -397,15 +397,15 @@ export default {
       }
       return repoRoots[key]
     }
-    // »º´æÄ¿Â¼£º<DSH ½ø³Ì cwd>/.dsh-mattskillsdeck-cache/£¨T9 ÐÞ¸´£ºfs É³Ïä workspace-write Ö»ÔÊÐí cwd ÏÂ£¬
-    //   ~/.dsh ÔÚÉ³ÏäÍâ±»¾Ü ¡ú »º´æÓÀ²»Ð´Èë£»¸ÄÓÃ process.cwd() Âäµã£¬¿çÖØÆôÃë¿ª£»v1.6.17 ¸üÃû waystation ¡ú MattSkillsDeck£©
+    // ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½<DSH ï¿½ï¿½ï¿½ï¿½ cwd>/.dsh-mattskillsdeck-cache/ï¿½ï¿½T9 ï¿½Þ¸ï¿½ï¿½ï¿½fs É³ï¿½ï¿½ workspace-write Ö»ï¿½ï¿½ï¿½ï¿½ cwd ï¿½Â£ï¿½
+    //   ~/.dsh ï¿½ï¿½É³ï¿½ï¿½ï¿½â±»ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ë£»ï¿½ï¿½ï¿½ï¿½ process.cwd() ï¿½ï¿½ã£¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ë¿ªï¿½ï¿½v1.6.17 ï¿½ï¿½ï¿½ï¿½ waystation ï¿½ï¿½ MattSkillsDeckï¿½ï¿½
     async function getCacheDir() {
       if (cacheDirResolved) return cacheDirResolved
       const platform = await getPlatform()
       const cwd0 = (typeof process !== 'undefined' && process.cwd) ? process.cwd() : DEFAULT_CWD
       if (!cwd0) return null
       cacheDirResolved = platform.path.join(cwd0, '.dsh-mattskillsdeck-cache')
-      try { const pfs = platform.fs; if (pfs !== undefined && typeof pfs.mkdir === 'function') await pfs.mkdir(cacheDirResolved) } catch (e) { /* ÒÑ´æÔÚ»ò²»¿É½¨£¬writeText »á×Ô½¨ */ }
+      try { const pfs = platform.fs; if (pfs !== undefined && typeof pfs.mkdir === 'function') await pfs.mkdir(cacheDirResolved) } catch (e) { /* ï¿½Ñ´ï¿½ï¿½Ú»ò²»¿É½ï¿½ï¿½ï¿½writeText ï¿½ï¿½ï¿½Ô½ï¿½ */ }
       return cacheDirResolved
     }
     function cacheFileName(repo) {
@@ -429,23 +429,23 @@ export default {
         if (fs === undefined || typeof fs.writeText !== 'function' || typeof fs.resolve !== 'function') return
         const dir = await getCacheDir(); if (!dir) return
         const fn = cacheFileName(repo); if (!fn) return
-        // T9 ÐÞ¸´£ºfs ·þÎñµÄ writeText ÒªÇó resolve() ·µ»ØµÄ target ¶ÔÏó£¨{targetKey,displayPath}£©£¬²»ÄÜÖ±½Ó´«Â·¾¶×Ö·û´®
+        // T9 ï¿½Þ¸ï¿½ï¿½ï¿½fs ï¿½ï¿½ï¿½ï¿½ï¿½ writeText Òªï¿½ï¿½ resolve() ï¿½ï¿½ï¿½Øµï¿½ target ï¿½ï¿½ï¿½ï¿½{targetKey,displayPath}ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½Ó´ï¿½Â·ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½
         const platform = await getPlatform()
         const t = await platform.fs.resolve(platform.path.join(dir, fn))
         await fs.writeText(t, JSON.stringify(snap))
-      } catch (e) { /* Ð´Ê§°Ü²»Ó°ÏìÖ÷Á÷³Ì */ }
+      } catch (e) { /* Ð´Ê§ï¿½Ü²ï¿½Ó°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */ }
     }
 
     async function getRepoKey(cwd) {
       const key = cwd || DEFAULT_CWD
       if (repoKeys[key]) return repoKeys[key]
-      // v1.5 T11£¨map#37 ¡¤ #38 R1 + #40 R2 ÊäÈë£©£º
-      //   ¶àÔ¶³ÌÏÂ gh ±ØÑ¡ upstream£¨context/remote.go::remoteNameSortScore upstream(3)>github(2)>origin(1)£©£¬
-      //   ÎÞ²Î `gh repo view` ÓÀÔ¶·µ»ØÔ­×÷Õß¡£¸ÄÎª£ºÏÔÊ½ `git remote get-url origin` + parseGithubRepo Ê×Ñ¡£¬
-      //   Ê§°ÜÔÙ .git/config Ö±¶Á£¬¶µµ×²ÅÓÃ gh repo view£¨Í¬ checkRepo ÒÑÓÃ·½°¸Í¬Ô´£©¡£
+      // v1.5 T11ï¿½ï¿½map#37 ï¿½ï¿½ #38 R1 + #40 R2 ï¿½ï¿½ï¿½ë£©ï¿½ï¿½
+      //   ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ gh ï¿½ï¿½Ñ¡ upstreamï¿½ï¿½context/remote.go::remoteNameSortScore upstream(3)>github(2)>origin(1)ï¿½ï¿½ï¿½ï¿½
+      //   ï¿½Þ²ï¿½ `gh repo view` ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½Ô­ï¿½ï¿½ï¿½ß¡ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½Ê½ `git remote get-url origin` + parseGithubRepo ï¿½ï¿½Ñ¡ï¿½ï¿½
+      //   Ê§ï¿½ï¿½ï¿½ï¿½ .git/config Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×²ï¿½ï¿½ï¿½ gh repo viewï¿½ï¿½Í¬ checkRepo ï¿½ï¿½ï¿½Ã·ï¿½ï¿½ï¿½Í¬Ô´ï¿½ï¿½ï¿½ï¿½
       const root = await getRepoRoot(key)
       const execCwd = root || key
-      // Tier 1£ºgit remote get-url origin + parseGithubRepo£¨SSH/HTTPS ¶¼ÓÉ parseRegex ¸²¸Ç£©
+      // Tier 1ï¿½ï¿½git remote get-url origin + parseGithubRepoï¿½ï¿½SSH/HTTPS ï¿½ï¿½ï¿½ï¿½ parseRegex ï¿½ï¿½ï¿½Ç£ï¿½
       const git = await resolveGit()
       if (git) {
         const r = await execProc([git, '-C', execCwd, 'remote', 'get-url', 'origin'], execCwd)
@@ -454,7 +454,7 @@ export default {
           if (k) { repoKeys[key] = k; return k }
         }
       }
-      // Tier 2£º.git/config Ö±¶Á origin£¨git ¶þ½øÖÆ²»¿ÉÓÃ / `remote get-url` Ê§°ÜÊ±£©
+      // Tier 2ï¿½ï¿½.git/config Ö±ï¿½ï¿½ originï¿½ï¿½git ï¿½ï¿½ï¿½ï¿½ï¿½Æ²ï¿½ï¿½ï¿½ï¿½ï¿½ / `remote get-url` Ê§ï¿½ï¿½Ê±ï¿½ï¿½
       if (fs !== undefined) {
         try {
           const t = await fs.resolve('.git/config', { cwd: execCwd })
@@ -464,9 +464,9 @@ export default {
             const k = parseGithubRepo(um[1])
             if (k) { repoKeys[key] = k; return k }
           }
-        } catch (e) { /* Âä Tier 3 */ }
+        } catch (e) { /* ï¿½ï¿½ Tier 3 */ }
       }
-      // Tier 3£ºgh repo view ¶µµ×£¨·Ç GitHub ²Ö¿â / ±ßÔµÇé¿ö£»±£³ÖÏòºó¼æÈÝ£©
+      // Tier 3ï¿½ï¿½gh repo view ï¿½ï¿½ï¿½×£ï¿½ï¿½ï¿½ GitHub ï¿½Ö¿ï¿½ / ï¿½ï¿½Ôµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½
       const r = await runGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], execCwd)
       if (!r.ok) return null
       const s = r.text.trim()
@@ -476,9 +476,9 @@ export default {
       return repoKeys[key]
     }
 
-    // ============ Êý¾ÝÁ÷ ============
-    // T16£ºÕýÎÄÔ¤´¦Àí ¡ª¡ª °þ BOM + ×ÖÃæ \n »¹Ô­ÎªÕæÊµ»»ÐÐ£¨ÀúÊ·»µ¸ñÊ½ body Ò²ÄÜ½âÎö£©
-    //   ´¥·¢Ìõ¼þ£ºÕæÊµ»»ÐÐ¼«ÉÙ¶ø×ÖÃæ \n ´óÁ¿´æÔÚ£¨ÕûÆª±»Ñ¹³ÉÒ»ÐÐ£©£»±ÜÃâÎóÉËÕý³£ÕýÎÄ
+    // ============ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ============
+    // T16ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¤ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ BOM + ï¿½ï¿½ï¿½ï¿½ \n ï¿½ï¿½Ô­Îªï¿½ï¿½Êµï¿½ï¿½ï¿½Ð£ï¿½ï¿½ï¿½Ê·ï¿½ï¿½ï¿½ï¿½Ê½ body Ò²ï¿½Ü½ï¿½ï¿½ï¿½ï¿½ï¿½
+    //   ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½Ð¼ï¿½ï¿½Ù¶ï¿½ï¿½ï¿½ï¿½ï¿½ \n ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú£ï¿½ï¿½ï¿½Æªï¿½ï¿½Ñ¹ï¿½ï¿½Ò»ï¿½Ð£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     function normalizeBody(raw) {
       let s = String(raw || '').replace(/^\uFEFF/, '')
       const realNL = (s.match(/\n/g) || []).length
@@ -504,7 +504,7 @@ export default {
       out.notes = clean(sec['Notes']).join(' ')
       out.decisions = clean(sec['Decisions so far']).filter(function (l) { return l.indexOf('- [') === 0 }).map(function (l) {
         const t = l.match(/\[(.+?)\]\((.+?)\)/)
-        const g = l.replace(/^-\s*\[.+?\]\(.+?\)\s*[-¨C¡ª]?\s*/, '')
+        const g = l.replace(/^-\s*\[.+?\]\(.+?\)\s*[-ï¿½Cï¿½ï¿½]?\s*/, '')
         return { title: t ? t[1] : l, url: t ? t[2] : '', gist: g }
       })
       out.fog = clean(sec['Not yet specified']).filter(function (l) { return l.indexOf('<!--') !== 0 })
@@ -512,16 +512,16 @@ export default {
       return out
     }
 
-    // v1.5 T12 ÐÞ¶©£¨B4£©£º½ø¶È¿é½âÎöÈý¼¶Ãª¶¨ ¡ª¡ª ½ø¶ÈÇø = ÆõÔ¼¹Ì¶¨ÕÂ½Ú¡¸## ½ø¶È£ºN%¡¹£¬ÏÈÃª¶¨±êÌâÐÐ£¬·ÀÕýÎÄÊ¾Àý/¹æÔòÎÄ±¾½Ù³Ö£¨#459/#460 ÊµÖ¤£©
-    //   1) ±êÌâÐÐ£º## ½ø¶È£º90%£¨ÐÐÊ× markdown ±êÌâ ¡¤ ½ø¶ÈÇøÕýÐÎ£©
-    //   2) ÐÐÊ×±äÌå£º½ø¶È£º90% / Progress: 90%£¨ÎÞ±êÌâ·ûºÅ ¡¤ ¶ÒÏÖ×¢ÊÍ³ÐÅµ£©
-    //   3) È«ÎÄ¶µµ×£ºÈÎÒâ³öÏÖ£¨¼æÈÝÀÏÆ±ËæÊÖ¸ñÊ½ ¡¤ ·Å×îºó²»½Ù³ÖÇ°Á½²ã£©
+    // v1.5 T12 ï¿½Þ¶ï¿½ï¿½ï¿½B4ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ãªï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ = ï¿½ï¿½Ô¼ï¿½Ì¶ï¿½ï¿½Â½Ú¡ï¿½## ï¿½ï¿½ï¿½È£ï¿½N%ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ãªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½Ä±ï¿½ï¿½Ù³Ö£ï¿½#459/#460 ÊµÖ¤ï¿½ï¿½
+    //   1) ï¿½ï¿½ï¿½ï¿½ï¿½Ð£ï¿½## ï¿½ï¿½ï¿½È£ï¿½90%ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ markdown ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î£ï¿½
+    //   2) ï¿½ï¿½ï¿½×±ï¿½ï¿½å£ºï¿½ï¿½ï¿½È£ï¿½90% / Progress: 90%ï¿½ï¿½ï¿½Þ±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½×¢ï¿½Í³ï¿½Åµï¿½ï¿½
+    //   3) È«ï¿½Ä¶ï¿½ï¿½×£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ±ï¿½ï¿½ï¿½Ö¸ï¿½Ê½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ó²»½Ù³ï¿½Ç°ï¿½ï¿½ï¿½ã£©
     function parseProgress(body) {
       if (!body) return null
       const s = String(body)
-      const m = s.match(/^\s*#{1,6}\s*(?:½ø¶È|Progress)\s*[£º:]\s*(\d{1,3})\s*%/im)
-        || s.match(/^\s*(?:½ø¶È|Progress)\s*[£º:]\s*(\d{1,3})\s*%/im)
-        || s.match(/(?:½ø¶È|Progress)\s*[£º:]\s*(\d{1,3})\s*%/i)
+      const m = s.match(/^\s*#{1,6}\s*(?:ï¿½ï¿½ï¿½ï¿½|Progress)\s*[ï¿½ï¿½:]\s*(\d{1,3})\s*%/im)
+        || s.match(/^\s*(?:ï¿½ï¿½ï¿½ï¿½|Progress)\s*[ï¿½ï¿½:]\s*(\d{1,3})\s*%/im)
+        || s.match(/(?:ï¿½ï¿½ï¿½ï¿½|Progress)\s*[ï¿½ï¿½:]\s*(\d{1,3})\s*%/i)
       if (!m) return null
       const n = parseInt(m[1], 10)
       if (isNaN(n)) return null
@@ -542,14 +542,14 @@ export default {
         blockedBy: ((raw.blockedBy && raw.blockedBy.nodes) || []).map(function (b) { return b.number }),
         blocks: ((raw.blocking && raw.blocking.nodes) || []).map(function (b) { return b.number }),
         labels: labels, url: raw.url,
-        progress: parseProgress(raw.body),  // v1.5 T12£ºissue ÕýÎÄ½ø¶È¿é£¨## ½ø¶È£ºN%£©£¬null = Î´±í´ï
+        progress: parseProgress(raw.body),  // v1.5 T12ï¿½ï¿½issue ï¿½ï¿½ï¿½Ä½ï¿½ï¿½È¿é£¨## ï¿½ï¿½ï¿½È£ï¿½N%ï¿½ï¿½ï¿½ï¿½null = Î´ï¿½ï¿½ï¿½
       }
     }
 
-    // v1.4£¨T1 #442£©£ºblockedBy DAG ×î³¤Â·¾¶Éî¶È·Ö²ã
-    //   level(root) = 0£¨ÎÞÒÀÀµ£©£»level(x) = 1 + max(level(ËùÓÐÖ±½Ó×èÈûÕß))
-    //   Í¬²ã = ÎÞÒÀÀµ»¥³â ¡ú ¿É²¢ÐÐ£»²ã¼ä = ±ØÐë´®ÐÐ£¨ÉÏ²ãÈ« closed ²Å½âËø£©
-    //   ·µ»Ø { byNumber: {n: level}, levels: [{level, open, closed, total, frontier, claimed, blocked, numbers:[]}] }
+    // v1.4ï¿½ï¿½T1 #442ï¿½ï¿½ï¿½ï¿½blockedBy DAG ï¿½î³¤Â·ï¿½ï¿½ï¿½ï¿½È·Ö²ï¿½
+    //   level(root) = 0ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½level(x) = 1 + max(level(ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½))
+    //   Í¬ï¿½ï¿½ = ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½É²ï¿½ï¿½Ð£ï¿½ï¿½ï¿½ï¿½ = ï¿½ï¿½ï¿½ë´®ï¿½Ð£ï¿½ï¿½Ï²ï¿½È« closed ï¿½Å½ï¿½ï¿½ï¿½ï¿½ï¿½
+    //   ï¿½ï¿½ï¿½ï¿½ { byNumber: {n: level}, levels: [{level, open, closed, total, frontier, claimed, blocked, numbers:[]}] }
     function computeLevels(tickets) {
       const byNum = {}
       tickets.forEach(function (t) { byNum[t.number] = t })
@@ -575,7 +575,7 @@ export default {
         if (t.state === 'CLOSED') layer.closed++
         else layer.open++
       })
-      // ²ãÄÚ×´Ì¬Ï¸·Ö£¨frontier/claimed/blocked ¹é²ã£©
+      // ï¿½ï¿½ï¿½ï¿½×´Ì¬Ï¸ï¿½Ö£ï¿½frontier/claimed/blocked ï¿½ï¿½ã£©
       const openBlocker = function (b) { const t = byNum[b]; return t !== undefined && t.state === 'OPEN' }
       levels.forEach(function (layer) {
         const openT = tickets.filter(function (t) { return byNumber[t.number] === layer.level && t.state === 'OPEN' })
@@ -583,7 +583,7 @@ export default {
         layer.claimed = openT.filter(function (t) { return t.claimedBy }).length
         layer.blocked = openT.filter(function (t) { return !t.claimedBy && t.blockedBy.some(openBlocker) }).length
       })
-      // ÌÞ³ý¿Õ¶´£¨levels Êý×é¿ÉÄÜÒòÌø¼¶³öÏÖ undefined£©
+      // ï¿½Þ³ï¿½ï¿½Õ¶ï¿½ï¿½ï¿½levels ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ undefinedï¿½ï¿½
       const compact = levels.filter(Boolean)
       return { byNumber: byNumber, levels: compact }
     }
@@ -597,7 +597,7 @@ export default {
       const frontier = open.filter(function (t) { return !t.claimedBy && !t.blockedBy.some(openBlocker) })
       const claimed = open.filter(function (t) { return t.claimedBy })
       const blocked = open.filter(function (t) { return !t.claimedBy && t.blockedBy.some(openBlocker) })
-      // v1.4£¨T1 #442£©£º¸½ DAG ·Ö²ã£¨client äÖÈ¾Â©¶··Ö²ãÓÃ£©
+      // v1.4ï¿½ï¿½T1 #442ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ DAG ï¿½Ö²ã£¨client ï¿½ï¿½È¾Â©ï¿½ï¿½ï¿½Ö²ï¿½ï¿½Ã£ï¿½
       const lv = computeLevels(tickets)
       return {
         total: tickets.length, open: open.length, closed: closed.length,
@@ -607,7 +607,7 @@ export default {
     }
 
     async function fetchMaps(cwd) {
-      // #44 T2-fix£¨map#37£©£ºÏÔÊ½ --repo ÈÆ¹ý gh ÔÚ Fork ÉÏµÄ¶àÔ¶³ÌÍÆ¶Ï£¨upstream ÓÅÏÈ£©
+      // #44 T2-fixï¿½ï¿½map#37ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½ --repo ï¿½Æ¹ï¿½ gh ï¿½ï¿½ Fork ï¿½ÏµÄ¶ï¿½Ô¶ï¿½ï¿½ï¿½Æ¶Ï£ï¿½upstream ï¿½ï¿½ï¿½È£ï¿½
       const repo = await getRepoKey(cwd)
       const argsMap = ['issue', 'list', '--state', 'open', '--label', 'wayfinder:map', '--json', 'number,title,body,labels,assignees,state,updatedAt']
       if (repo) argsMap.push('--repo', repo.owner + '/' + repo.name)
@@ -616,12 +616,12 @@ export default {
       try { return { ok: true, maps: JSON.parse(r.text) } } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
     }
 
-    // È«²¿ issue£¨open + closed£¬Client ÁÐ±í open ³£ÏÔ¡¢µ×²¿¡¸ÒÑ¹Ø±Õ¡¹ÕÛµþÐÐ£©£¬
-    // °´ updatedAt µ¹Ðò£»labels ´ø name + color£¨GitHub ÅäÖÃÉ«£©£»state Çø·Ö open/closed£»
-    // v18£ºassignees ´ø³ö£¨×´Ì¬À¸¡¸Õ¼ÓÃ¡¹°´ÁÐ±í issue ¿Ú¾¶£ºÒÑÈÏÁì + ±»×èÈû£©
+    // È«ï¿½ï¿½ issueï¿½ï¿½open + closedï¿½ï¿½Client ï¿½Ð±ï¿½ open ï¿½ï¿½ï¿½Ô¡ï¿½ï¿½×²ï¿½ï¿½ï¿½ï¿½Ñ¹Ø±Õ¡ï¿½ï¿½Ûµï¿½ï¿½Ð£ï¿½ï¿½ï¿½
+    // ï¿½ï¿½ updatedAt ï¿½ï¿½ï¿½ï¿½labels ï¿½ï¿½ name + colorï¿½ï¿½GitHub ï¿½ï¿½ï¿½ï¿½É«ï¿½ï¿½ï¿½ï¿½state ï¿½ï¿½ï¿½ï¿½ open/closedï¿½ï¿½
+    // v18ï¿½ï¿½assignees ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½Õ¼ï¿½Ã¡ï¿½ï¿½ï¿½ï¿½Ð±ï¿½ issue ï¿½Ú¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ + ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     async function fetchIssues(cwd) {
-      // #374/#375£º--limit 500 ¸²¸Ç²Ö¿âÈ«Á¿£¨2026-08-14 Êµ²â 349 issue£©£¬²¢´ø³ö createdAt£¨ÅÅÐòÎ¬¶È£©
-      // #44 T2-fix£¨map#37£©£ºÏÔÊ½ --repo ÈÆ¹ý gh ¶àÔ¶³ÌÍÆ¶Ï£¬Í¬ fetchMaps
+      // #374/#375ï¿½ï¿½--limit 500 ï¿½ï¿½ï¿½Ç²Ö¿ï¿½È«ï¿½ï¿½ï¿½ï¿½2026-08-14 Êµï¿½ï¿½ 349 issueï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ createdAtï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î¬ï¿½È£ï¿½
+      // #44 T2-fixï¿½ï¿½map#37ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½ --repo ï¿½Æ¹ï¿½ gh ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½Æ¶Ï£ï¿½Í¬ fetchMaps
       const repo2 = await getRepoKey(cwd)
       const argsAll = ['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,title,labels,state,assignees,updatedAt,createdAt']
       if (repo2) argsAll.push('--repo', repo2.owner + '/' + repo2.name)
@@ -645,10 +645,10 @@ export default {
       } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
     }
 
-    // #2 deletion fix£ºÇáÁ¿È«Á¿Ë÷ÒýÓÃÓÚ·¢ÏÖÉ¾³ý¡¢¹Ø±ÕºÍÖØ¿ª¡£
+    // #2 deletion fixï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú·ï¿½ï¿½ï¿½É¾ï¿½ï¿½ï¿½ï¿½ï¿½Ø±Õºï¿½ï¿½Ø¿ï¿½ï¿½ï¿½
     async function fetchIssueIndex(cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: 'ÎÞ·¨½âÎö owner/repo' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: 'ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½ owner/repo' } }
       const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100'
       const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd)
       if (!r.ok) return { ok: false, error: r }
@@ -740,14 +740,14 @@ export default {
 
 
 
-    // v1.5 B5£¨Åä¶îÖ¹Ñª ¡¤ µÚÒ»ÐÔÔ­Àí£©£ºGraphQL Åä¶îºÄ¾¡Ê±µÄ REST ½µ¼¶Í¨µÀ ¡ª¡ª
-    //   GraphQL °´¸´ÔÓ¶È¼Æµã£¨5000 µã/h£¬aliases ´ó²éÑ¯Ò»´Î¿ÉÊý°Ùµã£©£¬REST °´ÇëÇó¼Æ´Î
-    //   £¨5000 ´Î/h£¬Óë¸´ÔÓ¶ÈÎÞ¹Ø£©¡£Åä¶îºÄ¾¡Ê± GraphQL È«¹Ò£¬REST ÈÔ¿ÉÓÃ ¡ú Ãæ°å²»¿Õ°×¡£
-    //   Öð map£ºissue ÏêÇé + sub_issues + Ã¿×ÓÆ± blocked_by£¨client Ö»Ïû·Ñ blockedBy£¬
-    //   blocking ²»×é×°Ê¡Ò»°ëÇëÇó£©£»Êä³öÓë GraphQL Í¬¹¹µÄ { 'm<i>': {...} }£¬ÏÂÓÎ mapTicket Áã¸Ä¶¯¡£
+    // v1.5 B5ï¿½ï¿½ï¿½ï¿½ï¿½Ö¹Ñª ï¿½ï¿½ ï¿½ï¿½Ò»ï¿½ï¿½Ô­ï¿½ï¿½ï¿½ï¿½ï¿½GraphQL ï¿½ï¿½ï¿½Ä¾ï¿½Ê±ï¿½ï¿½ REST ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
+    //   GraphQL ï¿½ï¿½ï¿½ï¿½ï¿½Ó¶È¼Æµã£¨5000 ï¿½ï¿½/hï¿½ï¿½aliases ï¿½ï¿½ï¿½Ñ¯Ò»ï¿½Î¿ï¿½ï¿½ï¿½ï¿½Ùµã£©ï¿½ï¿½REST ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ´ï¿½
+    //   ï¿½ï¿½5000 ï¿½ï¿½/hï¿½ï¿½ï¿½ë¸´ï¿½Ó¶ï¿½ï¿½Þ¹Ø£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¾ï¿½Ê± GraphQL È«ï¿½Ò£ï¿½REST ï¿½Ô¿ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½å²»ï¿½Õ°×¡ï¿½
+    //   ï¿½ï¿½ mapï¿½ï¿½issue ï¿½ï¿½ï¿½ï¿½ + sub_issues + Ã¿ï¿½ï¿½Æ± blocked_byï¿½ï¿½client Ö»ï¿½ï¿½ï¿½ï¿½ blockedByï¿½ï¿½
+    //   blocking ï¿½ï¿½ï¿½ï¿½×°Ê¡Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ó£©£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ GraphQL Í¬ï¿½ï¿½ï¿½ï¿½ { 'm<i>': {...} }ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ mapTicket ï¿½ï¿½Ä¶ï¿½ï¿½ï¿½
     async function fetchMapsDetailREST(numbers, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: 'ÎÞ·¨½âÎö owner/repo' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: 'ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½ owner/repo' } }
       if (!numbers || !numbers.length) return { ok: true, issues: {} }
       const issues = {}
       for (let i = 0; i < numbers.length; i++) {
@@ -765,7 +765,7 @@ export default {
             try {
               const bb = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + s.number + '/dependencies/blocked_by'], cwd)
               if (bb.ok) blockedBy = (JSON.parse(bb.text) || []).map(function (x) { return x.number })
-            } catch (e2) { /* ÒÀÀµ²éÑ¯Ê§°Ü¸ÃÆ± blockedBy ÖÃ¿Õ£¬²»×èÈûÕûÌå */ }
+            } catch (e2) { /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¯Ê§ï¿½Ü¸ï¿½Æ± blockedBy ï¿½Ã¿Õ£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */ }
             nodes.push({
               number: s.number, title: s.title, state: (s.state === 'closed' ? 'CLOSED' : 'OPEN'),
               body: s.body || '', url: s.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + s.number),
@@ -791,13 +791,13 @@ export default {
     }
 
 
-    // v1.3.3 ÌáËÙ£ºGraphQL aliases Ò»´Î²éÑ¯È«²¿ map ÏêÇé£¨8 ´Î ¡ú 1 ´Î£¬Windows ÏÂ´®ÐÐ 8¡Á2.4s ¡ú µ¥´Î ~3.6s£©
-    //   Ã¿¸ö map Ò»¸ö alias£¨m0/m1/...£©£¬ÏìÓ¦°´ alias È¡£»ÍøÂçÀàÊ§°ÜÕûÅúÖØÊÔ 1 ´Î
+    // v1.3.3 ï¿½ï¿½ï¿½Ù£ï¿½GraphQL aliases Ò»ï¿½Î²ï¿½Ñ¯È«ï¿½ï¿½ map ï¿½ï¿½ï¿½é£¨8 ï¿½ï¿½ ï¿½ï¿½ 1 ï¿½Î£ï¿½Windows ï¿½Â´ï¿½ï¿½ï¿½ 8ï¿½ï¿½2.4s ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ~3.6sï¿½ï¿½
+    //   Ã¿ï¿½ï¿½ map Ò»ï¿½ï¿½ aliasï¿½ï¿½m0/m1/...ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½ï¿½ alias È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 1 ï¿½ï¿½
     async function fetchMapsDetail(numbers, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: 'ÎÞ·¨½âÎö owner/repo£¨git remote »ò gh repo view Ê§°Ü£©' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: 'ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½ owner/repoï¿½ï¿½git remote ï¿½ï¿½ gh repo view Ê§ï¿½Ü£ï¿½' } }
       if (!numbers || !numbers.length) return { ok: true, issues: {} }
-      // ¹¹Ôì aliases ²éÑ¯£ºquery($owner:String!,$name:String!){repository(...){m0:issue(number:409){...} m1:issue(...){...}}}
+      // ï¿½ï¿½ï¿½ï¿½ aliases ï¿½ï¿½Ñ¯ï¿½ï¿½query($owner:String!,$name:String!){repository(...){m0:issue(number:409){...} m1:issue(...){...}}}
       const frag = 'number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}}}}'
       const sel = numbers.map(function (n, i) { return 'm' + i + ':issue(number:' + n + '){' + frag + '}' }).join(' ')
       const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){' + sel + '}}'
@@ -806,7 +806,7 @@ export default {
         const r = await runGh(['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name], cwd)
         if (!r.ok) {
           last = r
-          // v1.5 B5£ºGraphQL Åä¶îºÄ¾¡£¨RATE_LIMIT£©¡ú ×Ô¶¯½µ¼¶ REST Í¨µÀ£¨²»ÖØÊÔ 2 ´Î°×ÉÕ£¬Ö±½Ó½µ¼¶£©
+          // v1.5 B5ï¿½ï¿½GraphQL ï¿½ï¿½ï¿½Ä¾ï¿½ï¿½ï¿½RATE_LIMITï¿½ï¿½ï¿½ï¿½ ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½ REST Í¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 2 ï¿½Î°ï¿½ï¿½Õ£ï¿½Ö±ï¿½Ó½ï¿½ï¿½ï¿½ï¿½ï¿½
           if (isRateLimitError(r)) return fetchMapsDetailREST(numbers, cwd)
           if (r.kind !== 'network') return { ok: false, error: r }
           continue
@@ -814,23 +814,23 @@ export default {
         try {
           const j = JSON.parse(r.text)
           if (j.errors) {
-            // v1.5 B5£ºGraphQL ·µ»Ø errors£¨º¬ RATE_LIMIT£©¡ú REST ½µ¼¶
+            // v1.5 B5ï¿½ï¿½GraphQL ï¿½ï¿½ï¿½ï¿½ errorsï¿½ï¿½ï¿½ï¿½ RATE_LIMITï¿½ï¿½ï¿½ï¿½ REST ï¿½ï¿½ï¿½ï¿½
             if (isRateLimitError({ error: JSON.stringify(j.errors) })) return fetchMapsDetailREST(numbers, cwd)
             return { ok: false, error: { kind: 'graphql', error: JSON.stringify(j.errors).slice(0, 300) } }
           }
           return { ok: true, issues: j.data.repository }
         } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
       }
-      return { ok: false, error: last || { kind: 'network', error: 'GraphQL aliases ÇëÇóÊ§°Ü£¨ÖØÊÔºóÈÔÊ§°Ü£©' } }
+      return { ok: false, error: last || { kind: 'network', error: 'GraphQL aliases ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½ï¿½ï¿½ï¿½Ôºï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½' } }
     }
 
-    // T2 #7 ¡¤ fetchIssueDetail µ¥ issue Êý¾ÝÍ¨Â·£¨¸´ÓÃ fetchMapsDetail Ë¼Â·£¬¶ÀÁ¢±ðÃû/µ¥ issue ²»ºÏ²¢ aliases£©
-    // GraphQL ×Ö¶Î°´ T2 ÆõÔ¼£ºnumber title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}}
-    // Åä¶îÖ¹Ñª£ºGraphQL °´¸´ÔÓ¶È¼ÆµãÊ§°Ü ¡ú RATE_LIMIT ¼ø±ðºóÇÐ REST ¶µµ×£»REST ÖðÇëÇóÊ§°ÜÖÃ¿Õ£¬ÕûÌå²»±À
-    // ´íÎóÐÎ×´Óë fetchMapsDetail ¶ÔÆë {ok,error,issue?}£»kind Ï¸»¯ env|parse|graphql|network|rateLimit|notFound|404
+    // T2 #7 ï¿½ï¿½ fetchIssueDetail ï¿½ï¿½ issue ï¿½ï¿½ï¿½ï¿½Í¨Â·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ fetchMapsDetail Ë¼Â·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ issue ï¿½ï¿½ï¿½Ï²ï¿½ aliasesï¿½ï¿½
+    // GraphQL ï¿½Ö¶Î°ï¿½ T2 ï¿½ï¿½Ô¼ï¿½ï¿½number title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}}
+    // ï¿½ï¿½ï¿½Ö¹Ñªï¿½ï¿½GraphQL ï¿½ï¿½ï¿½ï¿½ï¿½Ó¶È¼Æµï¿½Ê§ï¿½ï¿½ ï¿½ï¿½ RATE_LIMIT ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ REST ï¿½ï¿½ï¿½×£ï¿½REST ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½ï¿½Ã¿Õ£ï¿½ï¿½ï¿½ï¿½å²»ï¿½ï¿½
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´ï¿½ï¿½ fetchMapsDetail ï¿½ï¿½ï¿½ï¿½ {ok,error,issue?}ï¿½ï¿½kind Ï¸ï¿½ï¿½ env|parse|graphql|network|rateLimit|notFound|404
     async function fetchIssueDetailREST(n, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: 'ÎÞ·¨½âÎö owner/repo£¨git remote »ò gh repo view Ê§°Ü£©' } }
+      if (!repo) return { ok: false, error: { kind: 'env', message: 'ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½ owner/repoï¿½ï¿½git remote ï¿½ï¿½ gh repo view Ê§ï¿½Ü£ï¿½' } }
       try {
         const r = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n], cwd)
         if (!r.ok) {
@@ -883,8 +883,8 @@ export default {
 
     async function fetchIssueDetail(n, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: 'ÎÞ·¨½âÎö owner/repo£¨git remote »ò gh repo view Ê§°Ü£©' } }
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ÉÙ number' } }
+      if (!repo) return { ok: false, error: { kind: 'env', message: 'ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½ owner/repoï¿½ï¿½git remote ï¿½ï¿½ gh repo view Ê§ï¿½Ü£ï¿½' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ï¿½ï¿½ number' } }
       const frag = 'number title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}} blocking(first:20){nodes{number title state}}'
       const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issue(number:' + n + '){' + frag + '}}}'
       let last = null
@@ -909,18 +909,18 @@ export default {
           return { ok: true, issue: issue }
         } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
       }
-      return { ok: false, error: last || { kind: 'network', message: 'GraphQL µ¥ issue ÇëÇóÊ§°Ü£¨ÖØÊÔºóÈÔÊ§°Ü£©' } }
+      return { ok: false, error: last || { kind: 'network', message: 'GraphQL ï¿½ï¿½ issue ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½ï¿½ï¿½ï¿½Ôºï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½' } }
     }
 
     async function buildSnapshot(cwd) {
       const repo = await getRepoKey(cwd)
-      // v1.3.3 ÌáËÙ£ºmap ÁÐ±íÖ±½Ó´ÓÈ«Á¿ issues ¹ýÂË£¨fetchMaps µ¥¶Àµ÷ÓÃÊ¡È¥ ¡ª¡ª Ô­ 11 ´Î ¡ú 9 ´Î gh µ÷ÓÃ£©
+      // v1.3.3 ï¿½ï¿½ï¿½Ù£ï¿½map ï¿½Ð±ï¿½Ö±ï¿½Ó´ï¿½È«ï¿½ï¿½ issues ï¿½ï¿½ï¿½Ë£ï¿½fetchMaps ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¡È¥ ï¿½ï¿½ï¿½ï¿½ Ô­ 11 ï¿½ï¿½ ï¿½ï¿½ 9 ï¿½ï¿½ gh ï¿½ï¿½ï¿½Ã£ï¿½
       const fi = await fetchIssues(cwd)
       const issues = fi.ok ? fi.issues : []
       const mapsMeta = fi.ok ? fi.issues.filter(function (x) {
         return x.state === 'OPEN' && (x.labels || []).some(function (l) { return l.name === 'wayfinder:map' })
       }) : []
-      // #375£ºÈ«Á¿ label ÁÐ±í£¨º¬¿Õ label£»»ñÈ¡Ê§°ÜÈÝ´íÖÃ¿Õ£¬²»×èÈû¿ìÕÕ¹¹½¨£¬client ½µ¼¶£©
+      // #375ï¿½ï¿½È«ï¿½ï¿½ label ï¿½Ð±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ labelï¿½ï¿½ï¿½ï¿½È¡Ê§ï¿½ï¿½ï¿½Ý´ï¿½ï¿½Ã¿Õ£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ¹ï¿½ï¿½ï¿½ï¿½ï¿½client ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
       let labels = []
       const fl = await runGh(['label', 'list', '--json', 'name,color'], cwd)
       if (fl.ok) {
@@ -929,7 +929,7 @@ export default {
           if (Array.isArray(ls)) labels = ls.map(function (l) { return { name: l.name, color: l.color || '' } })
         } catch (e) { labels = [] }
       }
-      // v1.3.3 ÌáËÙ£ºGraphQL aliases Ò»´Î²éÈ«²¿ map ÏêÇé£¨Ô­Ã¿ map Ò»´Î GraphQL£¬8 ´Î´®ÐÐ ~19s ¡ú 1 ´Î ~4s£©
+      // v1.3.3 ï¿½ï¿½ï¿½Ù£ï¿½GraphQL aliases Ò»ï¿½Î²ï¿½È«ï¿½ï¿½ map ï¿½ï¿½ï¿½é£¨Ô­Ã¿ map Ò»ï¿½ï¿½ GraphQLï¿½ï¿½8 ï¿½Î´ï¿½ï¿½ï¿½ ~19s ï¿½ï¿½ 1 ï¿½ï¿½ ~4sï¿½ï¿½
       const d = await fetchMapsDetail(mapsMeta.map(function (m) { return m.number }), cwd)
       const detailOk = d.ok
       const maps = []
@@ -943,7 +943,7 @@ export default {
         const subs = (issue.subIssues && issue.subIssues.nodes) || []
         const tickets = subs.map(mapTicket)
         const bp = parseMapBody(issue.body)
-        // v1.4£¨T1 #442£©£ºÃ¿ÕÅÆ±¹Ò level£¨DAG ×î³¤Â·¾¶Éî¶È£©£¬client äÖÈ¾Â©¶··Ö²ãÖ±½ÓÈ¡
+        // v1.4ï¿½ï¿½T1 #442ï¿½ï¿½ï¿½ï¿½Ã¿ï¿½ï¿½Æ±ï¿½ï¿½ levelï¿½ï¿½DAG ï¿½î³¤Â·ï¿½ï¿½ï¿½ï¿½È£ï¿½ï¿½ï¿½client ï¿½ï¿½È¾Â©ï¿½ï¿½ï¿½Ö²ï¿½Ö±ï¿½ï¿½È¡
         const lvInfo = computeLevels(tickets)
         tickets.forEach(function (t) { t.level = lvInfo.byNumber[t.number] })
         const stats = groupTickets(tickets)
@@ -955,13 +955,13 @@ export default {
           tickets: tickets, stats: stats,
         })
       }
-      // v1.5 R2 + R2-fix-6£¨#2 MVP E2E ÊµÖ¤ 2026-08-18£©£ºprobe since »ùÏß**²»µÃ**ÔÚ buildSnapshot Àï³õÊ¼»¯/ÍÆ½ø¡£
-      //   Ô­ÊµÏÖ¡¸buildSnapshot Ä©Î² lastProbeAtByRepo[rk]=now¡¹ÓÐ¸öÖÂÃü¾ºÌ¬£ºÃæ°åÈÎÒ» snapshot build£¨cache-miss/
-      //    refresh£©Èô·¢ÉúÔÚÄ³´Î±à¼­**Ö®ºó**£¬»á°Ñ»ùÏßÍÆµ½±à¼­Ê±¿Ì**Ö®ºó** ¡ú ÏÂ´Î probe since=»ùÏß ²é²»µ½¸Ã±à¼­
-      //   £¨count=0 ¡ú changed=false£©£¬ÇÒ»ùÏßÖ»ÔÚ changed=true Ê±²Å»¬¶¯ ¡ú ±à¼­±»**ÓÀ¾ÃÍÌµô**£¬UI ÓÀ²»Ë¢ÐÂ¡£
-      //   ÕýÈ·ÓïÒå£º»ùÏßÖ»ÄÜÓÉ probe ×Ô¼ºÍÆ½ø£¨¼ì²âµ½ change Ê±ÖÃÎª¡¸±¾´ÎÌ½²âÊ±¿Ì¡¹£©£»build Íê³É ¡Ù client ÒÑäÖÈ¾¸Ã
-      //   ¿ìÕÕ£¬ÎÞÈ¨¶¯»ùÏß¡£Ê×´Î probe£¨since=undefined£©×ÔÈ»×ßÈ«Á¿·µ»Ø ¡ú ÊÓÎª changed ¡ú ½¨Á¢»ùÏß£¨·ûºÏÔ­×¢ÊÍÒâÍ¼£©¡£
-      // #155£ºSelection/RepositoryRef ÔöÁ¿£¨registry.select/describe ¡ú wf.snapshot {repository, selection}£©
+      // v1.5 R2 + R2-fix-6ï¿½ï¿½#2 MVP E2E ÊµÖ¤ 2026-08-18ï¿½ï¿½ï¿½ï¿½probe since ï¿½ï¿½ï¿½ï¿½**ï¿½ï¿½ï¿½ï¿½**ï¿½ï¿½ buildSnapshot ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½/ï¿½Æ½ï¿½ï¿½ï¿½
+      //   Ô­Êµï¿½Ö¡ï¿½buildSnapshot Ä©Î² lastProbeAtByRepo[rk]=nowï¿½ï¿½ï¿½Ð¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò» snapshot buildï¿½ï¿½cache-miss/
+      //    refreshï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä³ï¿½Î±à¼­**Ö®ï¿½ï¿½**ï¿½ï¿½ï¿½ï¿½Ñ»ï¿½ï¿½ï¿½ï¿½Æµï¿½ï¿½à¼­Ê±ï¿½ï¿½**Ö®ï¿½ï¿½** ï¿½ï¿½ ï¿½Â´ï¿½ probe since=ï¿½ï¿½ï¿½ï¿½ ï¿½é²»ï¿½ï¿½ï¿½Ã±à¼­
+      //   ï¿½ï¿½count=0 ï¿½ï¿½ changed=falseï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Ö»ï¿½ï¿½ changed=true Ê±ï¿½Å»ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½à¼­ï¿½ï¿½**ï¿½ï¿½ï¿½ï¿½ï¿½Ìµï¿½**ï¿½ï¿½UI ï¿½ï¿½ï¿½ï¿½Ë¢ï¿½Â¡ï¿½
+      //   ï¿½ï¿½È·ï¿½ï¿½ï¿½å£ºï¿½ï¿½ï¿½ï¿½Ö»ï¿½ï¿½ï¿½ï¿½ probe ï¿½Ô¼ï¿½ï¿½Æ½ï¿½ï¿½ï¿½ï¿½ï¿½âµ½ change Ê±ï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì½ï¿½ï¿½Ê±ï¿½Ì¡ï¿½ï¿½ï¿½ï¿½ï¿½build ï¿½ï¿½ï¿½ ï¿½ï¿½ client ï¿½ï¿½ï¿½ï¿½È¾ï¿½ï¿½
+      //   ï¿½ï¿½ï¿½Õ£ï¿½ï¿½ï¿½È¨ï¿½ï¿½ï¿½ï¿½ï¿½ß¡ï¿½ï¿½×´ï¿½ probeï¿½ï¿½since=undefinedï¿½ï¿½ï¿½ï¿½È»ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½Îª changed ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß£ï¿½ï¿½ï¿½ï¿½ï¿½Ô­×¢ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½
+      // #155ï¿½ï¿½Selection/RepositoryRef ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½registry.select/describe ï¿½ï¿½ wf.snapshot {repository, selection}ï¿½ï¿½
       let selection = null
       let repository = null
       try {
@@ -969,10 +969,10 @@ export default {
         if (reg && typeof reg.select === 'function') {
           const handle = { cwd: cwd }
           const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: async (cmd, args, opts) => execProc([cmd, ...args], (opts && opts.cwd) || cwd), timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} } }
-          // ÄÜÁ¦Õï¶Ï¼ÆÊý£¨G5 ½öÕï¶Ï£¬²»Çý¶¯Òþ²Ø£©¡ª¡ª°´ host ÊÓ½Ç fill Í³¼Æ
+          // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¼ï¿½ï¿½ï¿½ï¿½ï¿½G5 ï¿½ï¿½ï¿½ï¿½Ï£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ host ï¿½Ó½ï¿½ fill Í³ï¿½ï¿½
           const capCount = (function(iss){
             let present=0, emptyCnt=0, missing=0
-            // ¼òÒ×£ºÒÔ labels ÎªÀý£¬ÆäÓà×Ö¶Î°´ shape ÄÜÁ¦×Ö¶Î¼¯¼ÆÊý
+            // ï¿½ï¿½ï¿½×£ï¿½ï¿½ï¿½ labels Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¶Î°ï¿½ shape ï¿½ï¿½ï¿½ï¿½ï¿½Ö¶Î¼ï¿½ï¿½ï¿½ï¿½ï¿½
             const fields=['author','assignees','labels','milestone','customFields','reason','blockedBy','comments','closedAt']
             iss.forEach(function(it){
               fields.forEach(function(f){
@@ -984,48 +984,58 @@ export default {
             })
             return {present, empty: emptyCnt, missing}
           })(issues)
-          // select Èý¼¶Áª
+          // select ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
           const sel = await reg.select(handle, ctxSel)
           selection = sel
           if (sel && sel.backendId) {
             try { repository = reg.describe(handle, sel.backendId) } catch {}
-            // markdown ±¾µØ url Îª¿Õ£¬github Ôò¾¡Á¿²¹ github.com url
+            // markdown ï¿½ï¿½ï¿½ï¿½ url Îªï¿½Õ£ï¿½github ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ github.com url
             if (repository && !repository.url && sel.backendId==='github' && repo) {
               repository.url = 'https://github.com/' + repo.owner + '/' + repo.name
               repository.name = repo.owner + '/' + repo.name
               repository.refId = repo.owner + '/' + repo.name
             }
           } else {
-            // fallback Ê± repository ÈÔ¸øÕ¼Î»£¨ÓÃÓÚ UI ·º»¯£©
+            // fallback Ê± repository ï¿½Ô¸ï¿½Õ¼Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ UI ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
             if (repo) repository = { backend: 'github', refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: 'https://github.com/' + repo.owner + '/' + repo.name }
             else repository = null
           }
-          // ÄÜÁ¦¼ÆÊý¹Òµ½ snapshot ¹© ChecksTab Õï¶Ï¿¨
+          // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òµï¿½ snapshot ï¿½ï¿½ ChecksTab ï¿½ï¿½Ï¿ï¿½
           var _capDiag = capCount
         }
-      } catch (e) { /* ±£³Ö null£¬²»×èÈû¿ìÕÕ */ }
-      let _snapVer=''; try{ const tmpIdx={}; (issues||[]).forEach(function(it){ if(it&&it.number!=null) tmpIdx[String(it.number)]=String(it.state||'').toUpperCase()+'|'+String(it.updatedAt||''); }); _snapVer=issueIndexVersion(tmpIdx); }catch{}
+      } catch (e) { /* ï¿½ï¿½ï¿½ï¿½ nullï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */ }
+      let _snapVer='';
+      // #191: backendModules passthrough (presentation palette) for UI setPresentationMap
+      let backendModules = null
+      try {
+        const regM = await getTrackerRegistry()
+        if (regM && typeof regM.modules === 'function') {
+          backendModules = regM.modules().map(function (m) { return { id: m.id, label: m.label, presentation: m.presentation } })
+        }
+      } catch (e) {}
+ try{ const tmpIdx={}; (issues||[]).forEach(function(it){ if(it&&it.number!=null) tmpIdx[String(it.number)]=String(it.state||'').toUpperCase()+'|'+String(it.updatedAt||''); }); _snapVer=issueIndexVersion(tmpIdx); }catch{}
       return {
         ok: true,
         version: _snapVer,
         etag: _snapVer,
         repo: repo,
-        repoRoot: await getRepoRoot(cwd),  // v1.5 T9£ºgit ¸ùÂ·¾¶£¨¹©²Ö¿âÉí·Ý×é¼þÓë setup ¼ì²é£©
+        repoRoot: await getRepoRoot(cwd),  // v1.5 T9ï¿½ï¿½git ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ setup ï¿½ï¿½é£©
         updatedAt: new Date().toISOString(),
         generatedMs: Date.now(),
         env: { ghPath: ghPath, ghError: ghLastError },
         maps: maps,
         issues: issues,
         labels: labels,
-        fallback: d.fallback || null,  // v1.5 B5£º'rest' = GraphQL Åä¶îºÄ¾¡ÒÑ½µ¼¶ REST£¨client ¿ÉÌáÊ¾£©
+        fallback: d.fallback || null,  // v1.5 B5ï¿½ï¿½'rest' = GraphQL ï¿½ï¿½ï¿½Ä¾ï¿½ï¿½Ñ½ï¿½ï¿½ï¿½ RESTï¿½ï¿½client ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½
         repository: repository,
+        backendModules: backendModules,
         selection: selection,
         capabilities: (typeof _capDiag !== 'undefined' ? _capDiag : null),
       }
     }
 
-    // ============ Ç°ÖÃ¼ì²é£¨#344 ¡¤ wf.status£©============
-    // ½âÎö git Ô¶³Ì URL ¡ú GitHub owner/repo£»·Ç GitHub ·µ»Ø null
+    // ============ Ç°ï¿½Ã¼ï¿½é£¨#344 ï¿½ï¿½ wf.statusï¿½ï¿½============
+    // ï¿½ï¿½ï¿½ï¿½ git Ô¶ï¿½ï¿½ URL ï¿½ï¿½ GitHub owner/repoï¿½ï¿½ï¿½ï¿½ GitHub ï¿½ï¿½ï¿½ï¿½ null
     function parseGithubRepo(url) {
       const s = String(url || '').trim()
       const m = s.match(/github\.com[\/:]([^\/\s]+)\/([^\/\s]+?)(?:\.git)?\s*$/)
@@ -1033,7 +1043,7 @@ export default {
       return { owner: m[1], name: m[2] }
     }
 
-    // ¼ì²é 1 ¡¤ ²Ö¿â¶¨Î»
+    // ï¿½ï¿½ï¿½ 1 ï¿½ï¿½ ï¿½Ö¿â¶¨Î»
     async function checkRepo(cwd, lang) {
       const git = await resolveGit()
       if (git) {
@@ -1041,14 +1051,14 @@ export default {
         if (r.ok) {
           const key = parseGithubRepo(r.text)
           if (key) return { ok: true, level: 'ok', detail: key.owner + '/' + key.name, hint: '', repo: key }
-          return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + r.text.trim().slice(0, 80) : 'ÓÐ git Ô¶³Ìµ«·Ç GitHub£º' + r.text.trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : 'µ±Ç°Ô¶³Ì²»ÊÇ GitHub', repo: null }
+          return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + r.text.trim().slice(0, 80) : 'ï¿½ï¿½ git Ô¶ï¿½Ìµï¿½ï¿½ï¿½ GitHubï¿½ï¿½' + r.text.trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : 'ï¿½ï¿½Ç°Ô¶ï¿½Ì²ï¿½ï¿½ï¿½ GitHub', repo: null }
         }
         if (/not a git repository|does not appear to be a git repository|fatal/i.test(r.error || '')) {
-          return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Current directory is not a git repo' : 'µ±Ç°Ä¿Â¼²»ÊÇ git ²Ö¿â', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : 'ÔÚ GitHub ²Ö¿âÄÚÊ¹ÓÃ±¾²å¼þ', repo: null }
+          return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Current directory is not a git repo' : 'ï¿½ï¿½Ç°Ä¿Â¼ï¿½ï¿½ï¿½ï¿½ git ï¿½Ö¿ï¿½', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : 'ï¿½ï¿½ GitHub ï¿½Ö¿ï¿½ï¿½ï¿½Ê¹ï¿½Ã±ï¿½ï¿½ï¿½ï¿½', repo: null }
         }
-        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'git query failed: ' + String(r.error || '').slice(0, 120) : 'git ²éÑ¯Ê§°Ü£º' + String(r.error || '').slice(0, 120), hint: (lang === 'en') ? 'Check git and repo state' : '¼ì²é git Óë²Ö¿â×´Ì¬', repo: null }
+        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'git query failed: ' + String(r.error || '').slice(0, 120) : 'git ï¿½ï¿½Ñ¯Ê§ï¿½Ü£ï¿½' + String(r.error || '').slice(0, 120), hint: (lang === 'en') ? 'Check git and repo state' : 'ï¿½ï¿½ï¿½ git ï¿½ï¿½Ö¿ï¿½×´Ì¬', repo: null }
       }
-      // ¶µµ×£º½âÎö .git/config£¨git ¿ÉÖ´ÐÐ²»¿ÉÓÃÊ±£©
+      // ï¿½ï¿½ï¿½×£ï¿½ï¿½ï¿½ï¿½ï¿½ .git/configï¿½ï¿½git ï¿½ï¿½Ö´ï¿½Ð²ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½
       if (fs !== undefined) {
         try {
           const t = await fs.resolve('.git/config', { cwd: cwd })
@@ -1057,31 +1067,31 @@ export default {
           if (um) {
             const key = parseGithubRepo(um[1])
             if (key) return { ok: true, level: 'ok', detail: key.owner + '/' + key.name, hint: '', repo: key }
-            return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + um[1].trim().slice(0, 80) : 'ÓÐ git Ô¶³Ìµ«·Ç GitHub£º' + um[1].trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : 'µ±Ç°Ô¶³Ì²»ÊÇ GitHub', repo: null }
+            return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + um[1].trim().slice(0, 80) : 'ï¿½ï¿½ git Ô¶ï¿½Ìµï¿½ï¿½ï¿½ GitHubï¿½ï¿½' + um[1].trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : 'ï¿½ï¿½Ç°Ô¶ï¿½Ì²ï¿½ï¿½ï¿½ GitHub', repo: null }
           }
-        } catch (e) { /* Âäµ½ÏÂ·½ bad */ }
+        } catch (e) { /* ï¿½äµ½ï¿½Â·ï¿½ bad */ }
       }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot locate the repo (git unavailable and no .git/config)' : 'ÎÞ·¨¶¨Î»²Ö¿â£¨git ²»¿ÉÓÃÇÒÎÞ .git/config£©', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : 'ÔÚ GitHub ²Ö¿âÄÚÊ¹ÓÃ±¾²å¼þ', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot locate the repo (git unavailable and no .git/config)' : 'ï¿½Þ·ï¿½ï¿½ï¿½Î»ï¿½Ö¿â£¨git ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ .git/configï¿½ï¿½', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : 'ï¿½ï¿½ GitHub ï¿½Ö¿ï¿½ï¿½ï¿½Ê¹ï¿½Ã±ï¿½ï¿½ï¿½ï¿½', repo: null }
     }
 
-    // ¼ì²é 2 ¡¤ setup ÒÑÖ´ÐÐ
+    // ï¿½ï¿½ï¿½ 2 ï¿½ï¿½ setup ï¿½ï¿½Ö´ï¿½ï¿½
     async function checkSetup(cwd, lang) {
-      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot detect' : 'fs ·þÎñ²»¿ÉÓÃ£¬ÎÞ·¨¼ì²â', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ÇëÏÈÔËÐÐ /setup-matt-pocock-skills', repo: null }
+      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot detect' : 'fs ï¿½ï¿½ï¿½ñ²»¿ï¿½ï¿½Ã£ï¿½ï¿½Þ·ï¿½ï¿½ï¿½ï¿½', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ /setup-matt-pocock-skills', repo: null }
       try {
-        // v1.5 B1£º¸ÄÎªÕë¶Ô git ¸ùÄ¿Â¼¼ì²â£¨»á»° cwd ÔÚ²Ö¿â×ÓÄ¿Â¼Ê±²»ÔÙÎó±¨¡¸Ã»ÓÐ³õÊ¼»¯¡¹£©
+        // v1.5 B1ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½ git ï¿½ï¿½Ä¿Â¼ï¿½ï¿½â£¨ï¿½á»° cwd ï¿½Ú²Ö¿ï¿½ï¿½ï¿½Ä¿Â¼Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ó±¨¡ï¿½Ã»ï¿½Ð³ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         const root = await getRepoRoot(cwd)
         const base = root || cwd
         const info = await fs.lstat('docs/agents/issue-tracker.md', { cwd: base })
-        if (info) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md ´æÔÚ', hint: '', repo: null }
-      } catch (e) { /* Âäµ½ÏÂ·½ bad */ }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md missing' : 'docs/agents/issue-tracker.md ²»´æÔÚ', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ÇëÏÈÔËÐÐ /setup-matt-pocock-skills', repo: null }
+        if (info) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md ï¿½ï¿½ï¿½ï¿½', hint: '', repo: null }
+      } catch (e) { /* ï¿½äµ½ï¿½Â·ï¿½ bad */ }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md missing' : 'docs/agents/issue-tracker.md ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ /setup-matt-pocock-skills', repo: null }
     }
 
-    // ¼ì²é 3 ¡¤ tracker = GitHub
+    // ï¿½ï¿½ï¿½ 3 ï¿½ï¿½ tracker = GitHub
     async function checkTracker(cwd, lang) {
-      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot determine tracker' : 'fs ·þÎñ²»¿ÉÓÃ£¬ÎÞ·¨ÅÐ¶¨ tracker', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ÇëÏÈÔËÐÐ /setup-matt-pocock-skills', repo: null }
+      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot determine tracker' : 'fs ï¿½ï¿½ï¿½ñ²»¿ï¿½ï¿½Ã£ï¿½ï¿½Þ·ï¿½ï¿½Ð¶ï¿½ tracker', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ /setup-matt-pocock-skills', repo: null }
       try {
-        // #455 B1 ²¹È«£ºÓë checkSetup Ò»ÖÂÕë¶Ô git ¸ùÄ¿Â¼¶Á£¨»á»° cwd ÔÚ²Ö¿â×ÓÄ¿Â¼Ê±²»Îó±¨¡¸ÎÞ·¨¶ÁÈ¡¡¹£©
+        // #455 B1 ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½ checkSetup Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ git ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½ï¿½á»° cwd ï¿½Ú²Ö¿ï¿½ï¿½ï¿½Ä¿Â¼Ê±ï¿½ï¿½ï¿½ó±¨¡ï¿½ï¿½Þ·ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½
         const root = await getRepoRoot(cwd)
         const base = root || cwd
         const t = await fs.resolve('docs/agents/issue-tracker.md', { cwd: base })
@@ -1089,41 +1099,41 @@ export default {
         if (/github/i.test(txt) && /gh\s+(issue|api|auth)|GitHub Issues/i.test(txt)) {
           return { ok: true, level: 'ok', detail: 'GitHub Issues + gh CLI', hint: '', repo: null }
         }
-        return { ok: false, level: 'warn', detail: (lang === 'en') ? 'issue-tracker.md exists but is not the GitHub template' : 'issue-tracker.md ´æÔÚµ«·Ç GitHub Ä£°å', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills and pick the GitHub tracker' : 'ÔËÐÐ /setup-matt-pocock-skills ÖØÑ¡ GitHub tracker', repo: null }
+        return { ok: false, level: 'warn', detail: (lang === 'en') ? 'issue-tracker.md exists but is not the GitHub template' : 'issue-tracker.md ï¿½ï¿½ï¿½Úµï¿½ï¿½ï¿½ GitHub Ä£ï¿½ï¿½', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills and pick the GitHub tracker' : 'ï¿½ï¿½ï¿½ï¿½ /setup-matt-pocock-skills ï¿½ï¿½Ñ¡ GitHub tracker', repo: null }
       } catch (e) {
-        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot read issue-tracker.md' : 'ÎÞ·¨¶ÁÈ¡ issue-tracker.md', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ÇëÏÈÔËÐÐ /setup-matt-pocock-skills', repo: null }
+        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot read issue-tracker.md' : 'ï¿½Þ·ï¿½ï¿½ï¿½È¡ issue-tracker.md', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ /setup-matt-pocock-skills', repo: null }
       }
     }
 
-    // ¼ì²é 4 ¡¤ gh CLI ¿ÉÓÃ
+    // ï¿½ï¿½ï¿½ 4 ï¿½ï¿½ gh CLI ï¿½ï¿½ï¿½ï¿½
     async function checkGhCli(lang) {
       const exe = await resolveGh()
-      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found ¡ª install GitHub CLI first (https://cli.github.com/)' : 'gh Î´ÕÒµ½£¬ÇëÏÈ°²×° GitHub CLI£¨https://cli.github.com/£©', hint: 'ÇëÎª DSH °²×° GitHub CLI£¨gh£©¡ª¡ª Ãæ°åËùÓÐÊý¾ÝÒÀÀµ gh£º\n\n1. ÏÈ¼ì²é£ºÖÕ¶ËÖ´ÐÐ gh --version£»ÓÐ°æ±¾ºÅÊä³ö ¡ú Ö±½Ó»ã±¨ÒÑ×°°æ±¾²¢½áÊø£¬²»ÒªÖØ¸´°²×°£»\n2. ÎÞ gh Ôò°´ OS °²×°£ºWindows ¡ú winget install --id GitHub.cli; macOS ¡ú rew install gh; Linux ¡ú sudo apt install gh;\n3. °²×°ºóÑéÖ¤£ºÖØ¿ªÖÕ¶ËÊ¹ PATH ÉúÐ§£¬gh --version Êä³ö°æ±¾ºÅ£»\n4. Èô gh ÒÑ×°µ« DSH ÈÔ±¨Î´°²×°£ºµã»·¾³¼ì²é¡¸ÖØ²â¡¹°´Å¥»òÖØÆô DSH Desktop£»\n5. Íê³Éºó»ã±¨£ºgh °æ±¾ºÅ + ¡¸gh CLI ¿ÉÓÃ¡¹ÏîÒÑ±äÂÌ¡£', repo: null }
+      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found ï¿½ï¿½ install GitHub CLI first (https://cli.github.com/)' : 'gh Î´ï¿½Òµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È°ï¿½×° GitHub CLIï¿½ï¿½https://cli.github.com/ï¿½ï¿½', hint: 'ï¿½ï¿½Îª DSH ï¿½ï¿½×° GitHub CLIï¿½ï¿½ghï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ghï¿½ï¿½\n\n1. ï¿½È¼ï¿½é£ºï¿½Õ¶ï¿½Ö´ï¿½ï¿½ gh --versionï¿½ï¿½ï¿½Ð°æ±¾ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ Ö±ï¿½Ó»ã±¨ï¿½ï¿½×°ï¿½æ±¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Ø¸ï¿½ï¿½ï¿½×°ï¿½ï¿½\n2. ï¿½ï¿½ gh ï¿½ï¿½ OS ï¿½ï¿½×°ï¿½ï¿½Windows ï¿½ï¿½ winget install --id GitHub.cli; macOS ï¿½ï¿½ rew install gh; Linux ï¿½ï¿½ sudo apt install gh;\n3. ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ø¿ï¿½ï¿½Õ¶ï¿½Ê¹ PATH ï¿½ï¿½Ð§ï¿½ï¿½gh --version ï¿½ï¿½ï¿½ï¿½æ±¾ï¿½Å£ï¿½\n4. ï¿½ï¿½ gh ï¿½ï¿½×°ï¿½ï¿½ DSH ï¿½Ô±ï¿½Î´ï¿½ï¿½×°ï¿½ï¿½ï¿½ã»·ï¿½ï¿½ï¿½ï¿½é¡¸ï¿½Ø²â¡¹ï¿½ï¿½Å¥ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ DSH Desktopï¿½ï¿½\n5. ï¿½ï¿½Éºï¿½ã±¨ï¿½ï¿½gh ï¿½æ±¾ï¿½ï¿½ + ï¿½ï¿½gh CLI ï¿½ï¿½ï¿½Ã¡ï¿½ï¿½ï¿½ï¿½Ñ±ï¿½ï¿½Ì¡ï¿½', repo: null }
       return { ok: true, level: 'ok', detail: exe, hint: '', repo: null }
     }
 
-    // ¼ì²é 5 ¡¤ gh ÒÑµÇÂ¼
+    // ï¿½ï¿½ï¿½ 5 ï¿½ï¿½ gh ï¿½Ñµï¿½Â¼
     async function checkGhAuth(lang) {
       const r = await runGh(['auth', 'status'])
       if (r.ok) {
         const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]
-        return { ok: true, level: 'ok', detail: first || ((lang === 'en') ? 'Logged in' : 'ÒÑµÇÂ¼'), hint: '', repo: null }
+        return { ok: true, level: 'ok', detail: first || ((lang === 'en') ? 'Logged in' : 'ï¿½Ñµï¿½Â¼'), hint: '', repo: null }
       }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not logged into GitHub: run gh auth login (browser auth; official docs in hint)' : 'Î´µÇÂ¼ GitHub£ºÔËÐÐ gh auth login£¨ä¯ÀÀÆ÷ÊÚÈ¨£¬¹Ù·½ÎÄµµ¼û hint£©', hint: 'https://cli.github.com/manual/gh_auth_login', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not logged into GitHub: run gh auth login (browser auth; official docs in hint)' : 'Î´ï¿½ï¿½Â¼ GitHubï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ gh auth loginï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¨ï¿½ï¿½ï¿½Ù·ï¿½ï¿½Äµï¿½ï¿½ï¿½ hintï¿½ï¿½', hint: 'https://cli.github.com/manual/gh_auth_login', repo: null }
     }
 
-    // ¼ì²é 6 ¡¤ API ¿É´ï£¨ÓÐ repo ÓÃ repos/<owner>/<name>£¬·ñÔòÍË user£©
+    // ï¿½ï¿½ï¿½ 6 ï¿½ï¿½ API ï¿½É´ï£¨ï¿½ï¿½ repo ï¿½ï¿½ repos/<owner>/<name>ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ userï¿½ï¿½
     async function checkApi(cwd, repo, lang) {
       const endpoint = repo ? ('repos/' + repo.owner + '/' + repo.name) : 'user'
       const r = await runGh(['api', endpoint], cwd)
-      if (r.ok) return { ok: true, level: 'ok', detail: 'api.github.com 200 ¡¤ ' + endpoint, hint: '', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'API request failed (' + r.kind + ')' : 'API ÇëÇóÊ§°Ü£¨' + r.kind + '£©', hint: (lang === 'en') ? 'Check network / token scopes' : '¼ì²éÍøÂç / Token È¨ÏÞ', repo: null }
+      if (r.ok) return { ok: true, level: 'ok', detail: 'api.github.com 200 ï¿½ï¿½ ' + endpoint, hint: '', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'API request failed (' + r.kind + ')' : 'API ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½' + r.kind + 'ï¿½ï¿½', hint: (lang === 'en') ? 'Check network / token scopes' : 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ / Token È¨ï¿½ï¿½', repo: null }
     }
 
-    // ¼ì²é 7/8 ¡¤ ¼¼ÄÜ°²×°Ì½²â£¨#373 ÅÄ°å£ºÁ½Ì¬ ¡ª¡ª ÒÑ°²×°/Î´°²×°£»È¥µô²»¿É¿¿µÄ¡¸¹ÒÔØ¡¹ÅÐ¶¨£º
-    //   ËÞÖ÷¼¶ skills ·þÎñÓë¡¸µ±Ç°»á»°¹ÒÔØ¡¹²»ÊÇÍ¬Ò»ÉÏÏÂÎÄ£¬·þÎñ²»¿ÉÓÃÊ±»áÎó±¨¡¸Î´¹ÒÔØ¡¹£©
+    // ï¿½ï¿½ï¿½ 7/8 ï¿½ï¿½ ï¿½ï¿½ï¿½Ü°ï¿½×°Ì½ï¿½â£¨#373 ï¿½Ä°å£ºï¿½ï¿½Ì¬ ï¿½ï¿½ï¿½ï¿½ ï¿½Ñ°ï¿½×°/Î´ï¿½ï¿½×°ï¿½ï¿½È¥ï¿½ï¿½ï¿½ï¿½É¿ï¿½ï¿½Ä¡ï¿½ï¿½ï¿½ï¿½Ø¡ï¿½ï¿½Ð¶ï¿½ï¿½ï¿½
+    //   ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ skills ï¿½ï¿½ï¿½ï¿½ï¿½ë¡¸ï¿½ï¿½Ç°ï¿½á»°ï¿½ï¿½ï¿½Ø¡ï¿½ï¿½ï¿½ï¿½ï¿½Í¬Ò»ï¿½ï¿½ï¿½ï¿½ï¿½Ä£ï¿½ï¿½ï¿½ï¿½ñ²»¿ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ó±¨¡ï¿½Î´ï¿½ï¿½ï¿½Ø¡ï¿½ï¿½ï¿½
     const SKILL_INSTALL_URL = 'https://github.com/mattpocock/skills'
-    // v1.6£º¼¼ÄÜ°²×°Òýµ¼ prompt ÒÑÊÕ±à½ø client PROMPTS ×¢²á±í£¨installSkills ÌõÄ¿£©£»hint ÓÃ prompt: ¼üÃûÐ­Òé£¨prompt:installSkills£©ÓÉ client È¡Ë«ÓïÎÄ±¾
+    // v1.6ï¿½ï¿½ï¿½ï¿½ï¿½Ü°ï¿½×°ï¿½ï¿½ï¿½ï¿½ prompt ï¿½ï¿½ï¿½Õ±ï¿½ï¿½ client PROMPTS ×¢ï¿½ï¿½ï¿½ï¿½installSkills ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½hint ï¿½ï¿½ prompt: ï¿½ï¿½ï¿½ï¿½Ð­ï¿½é£¨prompt:installSkillsï¿½ï¿½ï¿½ï¿½ client È¡Ë«ï¿½ï¿½ï¿½Ä±ï¿½
     async function probeSkill(name, lang) {
       let session = false
       const skills = ctx.get('skills')
@@ -1139,32 +1149,32 @@ export default {
             const probePath = await platform.path.joinHome(SKILL_PROBE_DIRS[i], name)
             const info = await platform.fs.lstat(probePath)
             if (info) { fsFound = '~/' + SKILL_PROBE_DIRS[i] + '/' + name; break }
-          } catch (e) { /* ¼ÌÐøÌ½²âÏÂÒ»¸öÄ¿Â¼ */ }
+          } catch (e) { /* ï¿½ï¿½ï¿½ï¿½Ì½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ä¿Â¼ */ }
         }
       }
-      // Á½Ì¬£º#373 ¡ª¡ª ÈÎÒ»À´Ô´·¢ÏÖ = ÒÑ°²×°£¨ÂÌ ok£©£»¾ùÎÞ = Î´°²×°£¨ºì bad + ¹Ù·½²Ö¿âµØÖ·£©
-      if (session && fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted ¡¤ ' + fsFound + ')' : 'ÒÑ°²×°£¨»á»°ÒÑ¹ÒÔØ ¡¤ ' + fsFound + '£©', hint: '', repo: null }
-      if (session) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted)' : 'ÒÑ°²×°£¨»á»°ÒÑ¹ÒÔØ£©', hint: '', repo: null }
-      if (fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (' + fsFound + ')' : 'ÒÑ°²×°£¨' + fsFound + '£©', hint: '', repo: null }
-      if (home === null) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed (cannot probe user home)' : 'Î´°²×°£¨ÎÞ·¨Ì½²âÓÃ»§Ö÷Ä¿Â¼£©', hint: 'prompt:installSkills', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed' : 'Î´°²×°', hint: 'prompt:installSkills', repo: null }
+      // ï¿½ï¿½Ì¬ï¿½ï¿½#373 ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ò»ï¿½ï¿½Ô´ï¿½ï¿½ï¿½ï¿½ = ï¿½Ñ°ï¿½×°ï¿½ï¿½ï¿½ï¿½ okï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ = Î´ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½ bad + ï¿½Ù·ï¿½ï¿½Ö¿ï¿½ï¿½Ö·ï¿½ï¿½
+      if (session && fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted ï¿½ï¿½ ' + fsFound + ')' : 'ï¿½Ñ°ï¿½×°ï¿½ï¿½ï¿½á»°ï¿½Ñ¹ï¿½ï¿½ï¿½ ï¿½ï¿½ ' + fsFound + 'ï¿½ï¿½', hint: '', repo: null }
+      if (session) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted)' : 'ï¿½Ñ°ï¿½×°ï¿½ï¿½ï¿½á»°ï¿½Ñ¹ï¿½ï¿½Ø£ï¿½', hint: '', repo: null }
+      if (fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (' + fsFound + ')' : 'ï¿½Ñ°ï¿½×°ï¿½ï¿½' + fsFound + 'ï¿½ï¿½', hint: '', repo: null }
+      if (home === null) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed (cannot probe user home)' : 'Î´ï¿½ï¿½×°ï¿½ï¿½ï¿½Þ·ï¿½Ì½ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½', hint: 'prompt:installSkills', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed' : 'Î´ï¿½ï¿½×°', hint: 'prompt:installSkills', repo: null }
     }
 
-    // v1.5 T11£º¼ì²é 9 ¡¤ ºËÐÄ¼¼ÄÜÌ×¼þ¾ÛºÏ£¨È«Á÷³Ì¼¼ÄÜÈ±Ê§¼ì²â£©
+    // v1.5 T11ï¿½ï¿½ï¿½ï¿½ï¿½ 9 ï¿½ï¿½ ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½×¼ï¿½ï¿½ÛºÏ£ï¿½È«ï¿½ï¿½ï¿½Ì¼ï¿½ï¿½ï¿½È±Ê§ï¿½ï¿½â£©
     async function probeSkillSuite(lang) {
       const missing = []
       for (let i = 0; i < SKILL_PROBE_NAMES.length; i++) {
         const r = await probeSkill(SKILL_PROBE_NAMES[i], lang)
         if (r.level !== 'ok') missing.push(SKILL_PROBE_NAMES[i])
       }
-      if (!missing.length) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : 'ºËÐÄ¼¼ÄÜÌ×¼þÒÑ°²×°£¨' + SKILL_PROBE_NAMES.length + ' ¸ö£©', hint: '', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Missing: ' + missing.join(' / ') : 'È±Ê§£º' + missing.join(' / '), hint: 'prompt:installSkills', repo: null }
+      if (!missing.length) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : 'ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½×¼ï¿½ï¿½Ñ°ï¿½×°ï¿½ï¿½' + SKILL_PROBE_NAMES.length + ' ï¿½ï¿½ï¿½ï¿½', hint: '', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Missing: ' + missing.join(' / ') : 'È±Ê§ï¿½ï¿½' + missing.join(' / '), hint: 'prompt:installSkills', repo: null }
     }
 
     const CHECK_NAMES = function (lang) {
       return (lang === 'en')
         ? ['Repo located', 'Setup run', 'Tracker = GitHub', 'gh CLI available', 'gh logged in', 'API reachable', 'wayfinder skill', 'ask-matt skill', 'Core skill suite']
-        : ['²Ö¿â¶¨Î»', 'setup ÒÑÖ´ÐÐ', 'tracker = GitHub', 'gh CLI ¿ÉÓÃ', 'gh ÒÑµÇÂ¼', 'API ¿É´ï', 'wayfinder ¼¼ÄÜ', 'ask-matt ¼¼ÄÜ', 'ºËÐÄ¼¼ÄÜÌ×¼þ']
+        : ['ï¿½Ö¿â¶¨Î»', 'setup ï¿½ï¿½Ö´ï¿½ï¿½', 'tracker = GitHub', 'gh CLI ï¿½ï¿½ï¿½ï¿½', 'gh ï¿½Ñµï¿½Â¼', 'API ï¿½É´ï¿½', 'wayfinder ï¿½ï¿½ï¿½ï¿½', 'ask-matt ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½×¼ï¿½']
     }
 
     async function buildStatus(cwd, lang) {
@@ -1193,18 +1203,18 @@ export default {
       }
     }
 
-    // ============ RPC£¨#152 ¡¤ Ì½²â±àÅÅ£ºwf.detect ÐÂ RPC + wf.status ±¡¼æÈÝÅÉÉú£©============
-    // µÚÒ»ÐÔÔ­Àí£ºÇ°¶ËÖ»µ÷ wf.detect/wf.status ÄÃ DetectionResult£¨#150 Q1£©£»Ì½²âÁã OS Ö±Åö¾­ platform£»
-    // per-workspace °´ handleKey=cwd|refId ÄÚ´æ Map ²»ÂäÅÌ£¨Q3£©£»pending ²»»º´æ£¨Q6£©£»Î¨Ò»Ð´Â·¾¶ wf.bind¡úregistry.bind£¨Q4£©
+    // ============ RPCï¿½ï¿½#152 ï¿½ï¿½ Ì½ï¿½ï¿½ï¿½ï¿½Å£ï¿½wf.detect ï¿½ï¿½ RPC + wf.status ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½============
+    // ï¿½ï¿½Ò»ï¿½ï¿½Ô­ï¿½ï¿½ï¿½Ç°ï¿½ï¿½Ö»ï¿½ï¿½ wf.detect/wf.status ï¿½ï¿½ DetectionResultï¿½ï¿½#150 Q1ï¿½ï¿½ï¿½ï¿½Ì½ï¿½ï¿½ï¿½ï¿½ OS Ö±ï¿½ï¿½ï¿½ï¿½ platformï¿½ï¿½
+    // per-workspace ï¿½ï¿½ handleKey=cwd|refId ï¿½Ú´ï¿½ Map ï¿½ï¿½ï¿½ï¿½ï¿½Ì£ï¿½Q3ï¿½ï¿½ï¿½ï¿½pending ï¿½ï¿½ï¿½ï¿½ï¿½æ£¨Q6ï¿½ï¿½ï¿½ï¿½Î¨Ò»Ð´Â·ï¿½ï¿½ wf.bindï¿½ï¿½registry.bindï¿½ï¿½Q4ï¿½ï¿½
     harness.handle('wf.detect', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
-      // #195 ÐÞ¸´£ºforce Ì½²âÇå¿Õ gh ½âÎö»º´æ£¨¾ÉÊµÏÖÊ×´ÎÊ§°ÜÓÀ¾Ã»º´æ£¬force Ò²¾È²»»ØÀ´£©
+      // #195 ï¿½Þ¸ï¿½ï¿½ï¿½force Ì½ï¿½ï¿½ï¿½ï¿½ï¿½ gh ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½æ£¨ï¿½ï¿½Êµï¿½ï¿½ï¿½×´ï¿½Ê§ï¿½ï¿½ï¿½ï¿½ï¿½Ã»ï¿½ï¿½æ£¬force Ò²ï¿½È²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
       if (force) resetGhCache()
       try {
         const svc = await getDetectionService()
         const res = await svc.detect({ cwd }, { force })
-        // ¶Ô¿¹Ê½£ºensure DetectionResult ÐÎÌ¬£¨º¬ selection/pending/multiHit£¬°´ #125£©
+        // ï¿½Ô¿ï¿½Ê½ï¿½ï¿½ensure DetectionResult ï¿½ï¿½Ì¬ï¿½ï¿½ï¿½ï¿½ selection/pending/multiHitï¿½ï¿½ï¿½ï¿½ #125ï¿½ï¿½
         return { ok: true, ...res }
       } catch (e) {
         return { ok: false, error: String((e && e.message) || e) }
@@ -1214,10 +1224,10 @@ export default {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
       const lang = (args && args.lang === 'en') ? 'en' : 'zh'
-      // #195 ÐÞ¸´£ºforce Ì½²âÇå¿Õ gh ½âÎö»º´æ£¨¾ÉÊµÏÖÊ×´ÎÊ§°ÜÓÀ¾Ã»º´æ£©
+      // #195 ï¿½Þ¸ï¿½ï¿½ï¿½force Ì½ï¿½ï¿½ï¿½ï¿½ï¿½ gh ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½æ£¨ï¿½ï¿½Êµï¿½ï¿½ï¿½×´ï¿½Ê§ï¿½ï¿½ï¿½ï¿½ï¿½Ã»ï¿½ï¿½æ£©
       if (force) resetGhCache()
       const now = Date.now()
-      // ³¢ÊÔ±àÅÅ²ã£ºÓÅÏÈ×ß detectionService£¨Q7 DetectionResult + preflight + skillProbes ¡ú ÅÉÉú 9 checks ±¡¼æÈÝ£©
+      // ï¿½ï¿½ï¿½Ô±ï¿½ï¿½Å²ã£ºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ detectionServiceï¿½ï¿½Q7 DetectionResult + preflight + skillProbes ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ 9 checks ï¿½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½
       try {
         const svc = await getDetectionService()
         const det = await svc.detect({ cwd }, { force })
@@ -1225,56 +1235,56 @@ export default {
         const backendId = sel && sel.backendId
         const cacheKeyOk = !force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && statusCache.backendId === (backendId || null) && now - statusCache.ts < STATUS_CACHE_MS
         if (cacheKeyOk) return statusCache.status
-        // ÅÉÉú 9 checks ¼æÈÝÊÓÍ¼£¨#150 Q7£ºchecks ¹ý¶ÉÆÚºó¿É deprecate£¬½ö selection ÎªÕæÔ´£©
-        // 1) repo ¶¨Î»£¨¸´ÓÃ detection repoHandle + ÇáÁ¿ git Ì½²â¶µµ×£¬±£³ÖÓë¾É checkRepo µÈ¼Û£©
+        // ï¿½ï¿½ï¿½ï¿½ 9 checks ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½#150 Q7ï¿½ï¿½checks ï¿½ï¿½ï¿½ï¿½ï¿½Úºï¿½ï¿½ deprecateï¿½ï¿½ï¿½ï¿½ selection Îªï¿½ï¿½Ô´ï¿½ï¿½
+        // 1) repo ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ detection repoHandle + ï¿½ï¿½ï¿½ï¿½ git Ì½ï¿½â¶µï¿½×£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ checkRepo ï¿½È¼Û£ï¿½
         const c1Legacy = await checkRepo(cwd, lang)
-        // 2-3) setup/tracker ÓÉ explicit ½âÎö¶þºÏÒ»£¨parseIssueTracker ¸ßÖÃÐÅ¡úok£¬·ñÔò warn£»¿Õ¡úbad£©
+        // 2-3) setup/tracker ï¿½ï¿½ explicit ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½parseIssueTracker ï¿½ï¿½ï¿½ï¿½ï¿½Å¡ï¿½okï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ warnï¿½ï¿½ï¿½Õ¡ï¿½badï¿½ï¿½
         const parsed = det.explicit && det.explicit.parsed
         let c2, c3
         if (parsed && parsed.explicitBackendId) {
-          c2 = { ok: true, level: 'ok', detail: (lang==='en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md ´æÔÚ', hint: '' }
+          c2 = { ok: true, level: 'ok', detail: (lang==='en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md ï¿½ï¿½ï¿½ï¿½', hint: '' }
           const labelMap = { github: 'GitHub Issues + gh CLI', gitlab: 'GitLab Issues + glab', markdown: 'Local Markdown (.scratch)' }
           const lbl = labelMap[parsed.explicitBackendId] || parsed.explicitBackendId
           c3 = { ok: true, level: 'ok', detail: lbl, hint: '' }
         } else {
           c2 = await checkSetup(cwd, lang)
-          // ÈôÎÞÏÔÊ½ÉùÃ÷µ« selection ÒÑÃüÖÐÄ³ºó¶Ë£¬ÊÓÎª tracker ÒÑ¾ö
+          // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ selection ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä³ï¿½ï¿½Ë£ï¿½ï¿½ï¿½Îª tracker ï¿½Ñ¾ï¿½
           if (backendId) c3 = { ok: true, level: 'ok', detail: backendId, hint: '' }
           else c3 = await checkTracker(cwd, lang)
         }
-        // 4-6) gh/cli/auth/api ¾ÛºÏ×Ô preflight£¨ÃüÖÐºó¶èÐÔ£»Q6£©£¬Î´ÃüÖÐ fallback ±£Áô¾ÉÈýÏî
+        // 4-6) gh/cli/auth/api ï¿½Ûºï¿½ï¿½ï¿½ preflightï¿½ï¿½ï¿½ï¿½ï¿½Ðºï¿½ï¿½ï¿½Ô£ï¿½Q6ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½ï¿½ï¿½ fallback ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         let c4, c5, c6
         if (det.preflight) {
           const kind = det.preflight.error && det.preflight.error.kind
           const msg = det.preflight.error && det.preflight.error.message || ''
           if (det.preflight.ok) {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : 'ÒÑµÇÂ¼', hint: '' }
+            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : 'ï¿½Ñµï¿½Â¼', hint: '' }
             c6 = { ok: true, level: 'ok', detail: 'api.github.com 200', hint: '' }
           } else if (kind === 'env') {
-            // #195 ÐÞ¸´£ºhint Éý¼¶Îª prompt:installGh£¨Óë installSkills / ghAuthGuide Í¬Ä£Ê½£©£¬UI Ö÷°´Å¥×Ô¶¯ inject
-            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found ¡ª install GitHub CLI first (https://cli.github.com/)' : 'gh Î´ÕÒµ½£¬ÇëÏÈ°²×° GitHub CLI£¨https://cli.github.com/£©', hint: (det.preflight && det.preflight.prompt) ? det.preflight.prompt : 'ÇëÎª DSH °²×° GitHub CLI£¨gh£©¡ª¡ª Ãæ°åËùÓÐÊý¾ÝÒÀÀµ gh£º\n\n1. ÏÈ¼ì²é£ºÖÕ¶ËÖ´ÐÐ gh --version;\n2. ÎÞ gh Ôò°´ OS °²×°£ºWindows ¡ú winget install --id GitHub.cli; macOS ¡ú rew install gh; Linux ¡ú sudo apt install gh;\n3. °²×°ºóÑéÖ¤£ºgh --version;\n4. Èô gh ÒÑ×°µ« DSH ÈÔ±¨Î´°²×°£ºµã¡¸ÖØ²â¡¹»òÖØÆô DSH£»\n5. Íê³Éºó»ã±¨¡£' }
-            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : 'Î´µÇÂ¼ GitHub£ºÔËÐÐ gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
+            // #195 ï¿½Þ¸ï¿½ï¿½ï¿½hint ï¿½ï¿½ï¿½ï¿½Îª prompt:installGhï¿½ï¿½ï¿½ï¿½ installSkills / ghAuthGuide Í¬Ä£Ê½ï¿½ï¿½ï¿½ï¿½UI ï¿½ï¿½ï¿½ï¿½Å¥ï¿½Ô¶ï¿½ inject
+            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found ï¿½ï¿½ install GitHub CLI first (https://cli.github.com/)' : 'gh Î´ï¿½Òµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È°ï¿½×° GitHub CLIï¿½ï¿½https://cli.github.com/ï¿½ï¿½', hint: (det.preflight && det.preflight.prompt) ? det.preflight.prompt : 'ï¿½ï¿½Îª DSH ï¿½ï¿½×° GitHub CLIï¿½ï¿½ghï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ghï¿½ï¿½\n\n1. ï¿½È¼ï¿½é£ºï¿½Õ¶ï¿½Ö´ï¿½ï¿½ gh --version;\n2. ï¿½ï¿½ gh ï¿½ï¿½ OS ï¿½ï¿½×°ï¿½ï¿½Windows ï¿½ï¿½ winget install --id GitHub.cli; macOS ï¿½ï¿½ rew install gh; Linux ï¿½ï¿½ sudo apt install gh;\n3. ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½gh --version;\n4. ï¿½ï¿½ gh ï¿½ï¿½×°ï¿½ï¿½ DSH ï¿½Ô±ï¿½Î´ï¿½ï¿½×°ï¿½ï¿½ï¿½ã¡¸ï¿½Ø²â¡¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ DSHï¿½ï¿½\n5. ï¿½ï¿½Éºï¿½ã±¨ï¿½ï¿½' }
+            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : 'Î´ï¿½ï¿½Â¼ GitHubï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           } else if (kind === 'auth') {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : 'Î´µÇÂ¼ GitHub£ºÔËÐÐ gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
+            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : 'Î´ï¿½ï¿½Â¼ GitHubï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           } else {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : 'ÒÑµÇÂ¼', hint: '' }
+            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : 'ï¿½Ñµï¿½Â¼', hint: '' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           }
         } else if (backendId && !det.selection.pending) {
-          // ÃüÖÐµ« preflight ÉÐÎ´²ú³ö£¨lazy Î´µ÷£©£¬»ØÍË¾ÉÈýÏîÒÔ±£¼æÈÝ
+          // ï¿½ï¿½ï¿½Ðµï¿½ preflight ï¿½ï¿½Î´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½lazy Î´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô±ï¿½ï¿½ï¿½ï¿½ï¿½
           c4 = await checkGhCli(lang)
           c5 = await checkGhAuth(lang)
           c6 = await checkApi(cwd, c1Legacy.repo, lang)
         } else {
-          // pending/fallback ³¡¾°²»µ÷ preflight£¨Q6£©£¬ÏàÓ¦Ïî surface Îª pending ×èÈûÌ¬
+          // pending/fallback ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ preflightï¿½ï¿½Q6ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½ï¿½ surface Îª pending ï¿½ï¿½ï¿½ï¿½Ì¬
           if (sel && sel.pending) {
             const hint = 'pending:explicit-bind'
-            const pendingDetail = (lang==='en') ? 'Detecting¡­ pending (select a backend or retry)' : 'Ì½²âÎ´¾ö ¡¤ µÈ´ý/½¨ÒéÏÔÊ½Ñ¡Ôñ'
+            const pendingDetail = (lang==='en') ? 'Detectingï¿½ï¿½ pending (select a backend or retry)' : 'Ì½ï¿½ï¿½Î´ï¿½ï¿½ ï¿½ï¿½ ï¿½È´ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½Ñ¡ï¿½ï¿½'
             c4 = { ok: false, level: 'warn', detail: pendingDetail, hint }
             c5 = { ok: false, level: 'warn', detail: pendingDetail, hint }
             c6 = { ok: false, level: 'warn', detail: pendingDetail, hint }
@@ -1284,21 +1294,21 @@ export default {
             c6 = await checkApi(cwd, c1Legacy.repo, lang)
           }
         }
-        // 7-9) skill Õý½»£¨¸´ÓÃ det.skillProbes£¬ÈôÎÞÔò»ØÍË probeSkill£©
+        // 7-9) skill ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ det.skillProbesï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ probeSkillï¿½ï¿½
         let c7, c8, c9
         if (det.skillProbes && det.skillProbes.probes) {
           const p = det.skillProbes.probes
           const toCheck = (name) => {
             const r = p[name]
-            if (!r) return { ok: false, level: 'bad', detail: (lang==='en') ? 'Not installed' : 'Î´°²×°', hint: 'prompt:installSkills' }
+            if (!r) return { ok: false, level: 'bad', detail: (lang==='en') ? 'Not installed' : 'Î´ï¿½ï¿½×°', hint: 'prompt:installSkills' }
             return { ok: r.level==='ok', level: r.level, detail: r.detail, hint: r.hint }
           }
           c7 = toCheck(SKILL_PROBE_NAMES[0])
-          c8 = toCheck(SKILL_PROBE_NAMES[5]) // ask-matt ÕýÎ»£¨#149 C8 triage¡úask-matt£©
-          // suite ¾ÛºÏ
+          c8 = toCheck(SKILL_PROBE_NAMES[5]) // ask-matt ï¿½ï¿½Î»ï¿½ï¿½#149 C8 triageï¿½ï¿½ask-mattï¿½ï¿½
+          // suite ï¿½Ûºï¿½
           const missing = det.skillProbes.missing || []
-          if (!missing.length) c9 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : 'ºËÐÄ¼¼ÄÜÌ×¼þÒÑ°²×°£¨' + SKILL_PROBE_NAMES.length + ' ¸ö£©', hint: '' }
-          else c9 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Missing: ' + missing.join(' / ') : 'È±Ê§£º' + missing.join(' / '), hint: 'prompt:installSkills' }
+          if (!missing.length) c9 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : 'ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½×¼ï¿½ï¿½Ñ°ï¿½×°ï¿½ï¿½' + SKILL_PROBE_NAMES.length + ' ï¿½ï¿½ï¿½ï¿½', hint: '' }
+          else c9 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Missing: ' + missing.join(' / ') : 'È±Ê§ï¿½ï¿½' + missing.join(' / '), hint: 'prompt:installSkills' }
         } else {
           c7 = await probeSkill(SKILL_PROBE_NAMES[0], lang)
           c8 = await probeSkill(SKILL_PROBE_NAMES[5], lang)
@@ -1306,10 +1316,10 @@ export default {
         }
         const raw = [c1Legacy, c2, c3, c4, c5, c6, c7, c8, c9]
         const checks = raw.map(function (c, i) {
-          // ¸²¸Ç²ãÌáÊ¾£ºmultiHit Í¸´«¾ÀÕýÈë¿Ú£¨Q5£©
+          // ï¿½ï¿½ï¿½Ç²ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½multiHit Í¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú£ï¿½Q5ï¿½ï¿½
           let hint = c.hint
           if (i===2 && sel && sel.multiHit) hint = (hint ? hint + ' ' : '') + 'multiHit:' + sel.multiHit.join(',')
-          if (sel && sel.pending && i>=3 && i<=5 && c.level!=='warn') { /* pending ÒÑÔÚ 4-6 ´¦Àí */ }
+          if (sel && sel.pending && i>=3 && i<=5 && c.level!=='warn') { /* pending ï¿½ï¿½ï¿½ï¿½ 4-6 ï¿½ï¿½ï¿½ï¿½ */ }
           return { id: i + 1, name: CHECK_NAMES(lang)[i], ok: c.level === 'ok', level: c.level, detail: c.detail, hint: hint }
         })
         const status = {
@@ -1321,14 +1331,14 @@ export default {
           checks: checks,
           ready: checks.filter(function (c) { return c.ok }).length,
           total: checks.length,
-          // ÐÂÔö£º±àÅÅ²ãÕæÔ´£¨Q7£©
+          // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å²ï¿½ï¿½ï¿½Ô´ï¿½ï¿½Q7ï¿½ï¿½
           selection: sel,
           detection: det,
         }
         statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang, backendId: backendId || null }
         return status
       } catch (e) {
-        // ±àÅÅÊ§°Ü»ØÍË¾ÉÂ·¾¶£¨±£ÊØ£©
+        // ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü»ï¿½ï¿½Ë¾ï¿½Â·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø£ï¿½
       }
       if (!force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && now - statusCache.ts < STATUS_CACHE_MS) return statusCache.status
       try {
@@ -1345,11 +1355,11 @@ export default {
       return { ok: true, ts: Date.now() }
     })
 
-    // v13£º°´ sessionId ·´²é»á»°¹¤×÷Ä¿Â¼£¨client ÇÐ»»¶Ô»°Ê±ÓÃ£»ËÞÖ÷ sessions.meta ÊÇÈ¨Íþ×Ö¶Î£¬
-    // ²»ÔÙÒÀÀµ client ²Â²â ConversationSnapshot ×Ö¶ÎÃû£©
-    // ´íÎó¶ÔÏó ¡ú ¿É¶ÁÎÄ±¾£ºfetchMaps/buildSnapshot Å×³öµÄÊÇ {kind, error} ¶ÔÏó£¬String() »á±ä [object Object]
+    // v13ï¿½ï¿½ï¿½ï¿½ sessionId ï¿½ï¿½ï¿½ï¿½á»°ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½client ï¿½Ð»ï¿½ï¿½Ô»ï¿½Ê±ï¿½Ã£ï¿½ï¿½ï¿½ï¿½ï¿½ sessions.meta ï¿½ï¿½È¨ï¿½ï¿½ï¿½Ö¶Î£ï¿½
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ client ï¿½Â²ï¿½ ConversationSnapshot ï¿½Ö¶ï¿½ï¿½ï¿½ï¿½ï¿½
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½É¶ï¿½ï¿½Ä±ï¿½ï¿½ï¿½fetchMaps/buildSnapshot ï¿½×³ï¿½ï¿½ï¿½ï¿½ï¿½ {kind, error} ï¿½ï¿½ï¿½ï¿½String() ï¿½ï¿½ï¿½ [object Object]
     const errText = function (e) {
-      if (e === undefined || e === null) return 'Î´Öª´íÎó'
+      if (e === undefined || e === null) return 'Î´Öªï¿½ï¿½ï¿½ï¿½'
       if (typeof e === 'string') return e
       if (typeof e.message === 'string') return e.message
       if (typeof e.error === 'string') return e.error
@@ -1358,12 +1368,12 @@ export default {
 
     harness.handle('wf.cwd', async function (args) {
       const sid = args && args.sessionId
-      if (!sid) return { ok: false, error: 'È±ÉÙ sessionId' }
+      if (!sid) return { ok: false, error: 'È±ï¿½ï¿½ sessionId' }
       const sessions = ctx.get('sessions')
-      if (sessions === undefined || typeof sessions.get !== 'function') return { ok: false, error: 'sessions ·þÎñ²»¿ÉÓÃ' }
+      if (sessions === undefined || typeof sessions.get !== 'function') return { ok: false, error: 'sessions ï¿½ï¿½ï¿½ñ²»¿ï¿½ï¿½ï¿½' }
       try {
         const s = sessions.get(sid)
-        // ÏÖ´ú DSH µÄ Session ½á¹¹£ºheader.cwd ÎªÈ¨Íþ£»¼æÈÝ¾É meta / Ö±½Ó cwd ×Ö¶Î
+        // ï¿½Ö´ï¿½ DSH ï¿½ï¿½ Session ï¿½á¹¹ï¿½ï¿½header.cwd ÎªÈ¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý¾ï¿½ meta / Ö±ï¿½ï¿½ cwd ï¿½Ö¶ï¿½
         const header = s && (s.header || s.meta)
         const cwd = header && (header.cwd || header.path || header.worktree || header.projectDir || header.directory)
         if (typeof cwd === 'string' && cwd) return { ok: true, cwd: cwd }
@@ -1371,13 +1381,13 @@ export default {
         const cwd2 = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory)
         if (typeof cwd2 === 'string' && cwd2) return { ok: true, cwd: cwd2 }
         if (s && typeof s.cwd === 'string' && s.cwd) return { ok: true, cwd: s.cwd }
-        return { ok: false, error: '»á»°ÎÞ cwd ÐÅÏ¢' }
+        return { ok: false, error: 'ï¿½á»°ï¿½ï¿½ cwd ï¿½ï¿½Ï¢' }
       } catch (e) {
         return { ok: false, error: errText(e) }
       }
     })
 
-    // #179 »ØÇÐ×ÔÓú£º¿Õ cwd ÈÔ¶µ DEFAULT_CWD ×÷×îºó¶µµ×£¨±ÜÃâ¡°Ã»ÓÐ²Ö¿â¡±¿Õ°×£©£¬µ«¿Í»§¶ËÒÑ±£Ö¤Í¬ sid ÇÐ¹¤×÷ÇøÒà´¥·¢£¬¿Õ´°¼«¶Ì
+    // #179 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ cwd ï¿½Ô¶ï¿½ DEFAULT_CWD ï¿½ï¿½ï¿½ï¿½ó¶µµ×£ï¿½ï¿½ï¿½ï¿½â¡°Ã»ï¿½Ð²Ö¿â¡±ï¿½Õ°×£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í»ï¿½ï¿½ï¿½ï¿½Ñ±ï¿½Ö¤Í¬ sid ï¿½Ð¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½à´¥ï¿½ï¿½ï¿½ï¿½ï¿½Õ´ï¿½ï¿½ï¿½ï¿½ï¿½
     harness.handle('wf.snapshot', async function (args) {
       const rawCwd = (args && args.cwd) || DEFAULT_CWD
       const cwd = await normCwd(rawCwd)
@@ -1443,12 +1453,12 @@ export default {
       }
     })
 
-    // #155    // #155 + #152£ººó¶Ë°ó¶¨£¨per-workspace ¸²¸Ç£¬Î¨Ò»Ð´Â·¾¶²»»ØÐ´ issue-tracker.md£©+ ×¢²á±í²éÑ¯ + detection »º´æÊ§Ð§
-    // #176 + #190 ÐÞ¸´£ºcwd ¹éÒ»£¨¾ø¶ÔÖ±Í¨ + Ïà¶Ô³¢ÊÔ fs.resolve + home ÊÔÌ½£©
-    // ¸ùÒò£ºworkspaces ·þÎñÔÚ client runtime ±©Â¶µÄ item.path ¿ÉÄÜÊÇÏà¶ÔÃû£¨Èç "matt-demo-markdown"£©£¬
-    // ´«¸ø wf.selection ºó select() Èý¼¶ÁªÖÐ markdown.matches ÊÕµ½Ïà¶Ô cwd£¬plat.join(cwd,...) ÈÔÊÇÏà¶Ô£¬
-    // fs.resolve Ä¬ÈÏ»ùÓÚ½ø³Ì cwd ½âÎöÊ§°Ü ¡ú matches false ¡ú fallback ¡ú UI "Î´°ó¶¨"¡£
-    // ¹éÒ»ºóËùÓÐ handler ÊÕµ½¾ø¶Ô cwd£¬markdown.matches ÃüÖÐ docs/agents/issue-tracker.md ¡ú Markdown ×Ô¶¯¡£
+    // #155    // #155 + #152ï¿½ï¿½ï¿½ï¿½Ë°ó¶¨£ï¿½per-workspace ï¿½ï¿½ï¿½Ç£ï¿½Î¨Ò»Ð´Â·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð´ issue-tracker.mdï¿½ï¿½+ ×¢ï¿½ï¿½ï¿½ï¿½Ñ¯ + detection ï¿½ï¿½ï¿½ï¿½Ê§Ð§
+    // #176 + #190 ï¿½Þ¸ï¿½ï¿½ï¿½cwd ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±Í¨ + ï¿½ï¿½Ô³ï¿½ï¿½ï¿½ fs.resolve + home ï¿½ï¿½Ì½ï¿½ï¿½
+    // ï¿½ï¿½ï¿½ï¿½workspaces ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ client runtime ï¿½ï¿½Â¶ï¿½ï¿½ item.path ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ "matt-demo-markdown"ï¿½ï¿½ï¿½ï¿½
+    // ï¿½ï¿½ï¿½ï¿½ wf.selection ï¿½ï¿½ select() ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ markdown.matches ï¿½Õµï¿½ï¿½ï¿½ï¿½ cwdï¿½ï¿½plat.join(cwd,...) ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô£ï¿½
+    // fs.resolve Ä¬ï¿½Ï»ï¿½ï¿½Ú½ï¿½ï¿½ï¿½ cwd ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½ ï¿½ï¿½ matches false ï¿½ï¿½ fallback ï¿½ï¿½ UI "Î´ï¿½ï¿½"ï¿½ï¿½
+    // ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ handler ï¿½Õµï¿½ï¿½ï¿½ï¿½ï¿½ cwdï¿½ï¿½markdown.matches ï¿½ï¿½ï¿½ï¿½ docs/agents/issue-tracker.md ï¿½ï¿½ Markdown ï¿½Ô¶ï¿½ï¿½ï¿½
     async function normCwd(raw){
       let ret='';
       if(!raw) ret=DEFAULT_CWD;
@@ -1495,13 +1505,13 @@ export default {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
         const handle = { cwd: cwd }
-        // null = ÏÔÊ½ÎÞºó¶Ë£¨Other ÌÓÉú²Õ£©£»'other' ÒÑÆúÓÃ°´ registry ¾Ü¾ø
+        // null = ï¿½ï¿½Ê½ï¿½Þºï¿½Ë£ï¿½Other ï¿½ï¿½ï¿½ï¿½ï¿½Õ£ï¿½ï¿½ï¿½'other' ï¿½ï¿½ï¿½ï¿½ï¿½Ã°ï¿½ registry ï¿½Ü¾ï¿½
         reg.bind(handle, backendId === undefined ? null : backendId)
-        // Ê§Ð§¿ìÕÕ + ×´Ì¬ + Ì½²âÈý»º´æ£¨per-workspace ÇÐ»»²»´®Ì¨£¬Q3£»workspaceStore ÄÚ´æµ¥ÀýÊ§Ð§£©
+        // Ê§Ð§ï¿½ï¿½ï¿½ï¿½ + ×´Ì¬ + Ì½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½æ£¨per-workspace ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½Ì¨ï¿½ï¿½Q3ï¿½ï¿½workspaceStore ï¿½Ú´æµ¥ï¿½ï¿½Ê§Ð§ï¿½ï¿½
         try{ const _ck2=normKey(cwd); if(cacheMap.has(_ck2)) cacheMap.delete(_ck2); else cacheMap.clear(); }catch{}; cache = { ts: 0, snapshot: null, error: null, cwd: null }
         try { statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null } } catch {}
         try { const ws = await getWorkspaceStore(); ws.invalidate(handle) } catch {}
-        try { if (_detectionService) { /* ÏÂ´Î detect ÖØËã */ } } catch {}
+        try { if (_detectionService) { /* ï¿½Â´ï¿½ detect ï¿½ï¿½ï¿½ï¿½ */ } } catch {}
         return { ok: true, cwd: cwd, backendId: backendId === undefined ? null : backendId }
       } catch (e) {
         const msg = String((e && e.message) || e)
@@ -1549,18 +1559,18 @@ export default {
     harness.handle('wf.issueDetail', async function (args) {
       const n = args && args.number
       const cwd = (args && args.cwd) || DEFAULT_CWD
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ÉÙ number' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ï¿½ï¿½ number' } }
       try {
         const r = await fetchIssueDetail(Number(n), cwd)
         return r
       } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
     })
-    // T5 #10 ¡¤ ÆÀÂÛ·ÖÒ³£¨·´Ïò·ÖÒ³ cursor£¬½ÚÁ÷ÓÉ client ²à 600ms ¿ØÖÆ£»µ¥Ò³ 50£¬Ê§°ÜÖØÊÔÓë 3 ´Î¶µµ×£©
+    // T5 #10 ï¿½ï¿½ ï¿½ï¿½ï¿½Û·ï¿½Ò³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò³ cursorï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ client ï¿½ï¿½ 600ms ï¿½ï¿½ï¿½Æ£ï¿½ï¿½ï¿½Ò³ 50ï¿½ï¿½Ê§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 3 ï¿½Î¶ï¿½ï¿½×£ï¿½
     async function fetchIssueCommentsREST(n, after, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: 'ÎÞ·¨½âÎö owner/repo' } }
+      if (!repo) return { ok: false, error: { kind: 'env', message: 'ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½ owner/repo' } }
       try {
-        // REST ·ÖÒ³£ºafter ÎªÒÑ¼ÓÔØÊý£¨Èç "50"£©£¬page = floor(after/50)+1£»GraphQL cursor ³¡¾°ÏÂÍË»¯Îª page 2 Æð
+        // REST ï¿½ï¿½Ò³ï¿½ï¿½after Îªï¿½Ñ¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ "50"ï¿½ï¿½ï¿½ï¿½page = floor(after/50)+1ï¿½ï¿½GraphQL cursor ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë»ï¿½Îª page 2 ï¿½ï¿½
         let page = 1
         if (after) {
           const num = Number(after)
@@ -1584,11 +1594,11 @@ export default {
     }
     async function fetchIssueComments(n, after, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: 'ÎÞ·¨½âÎö owner/repo' } }
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ÉÙ number' } }
-      // GraphQL ÓÅÏÈ£¨cursor ·ÖÒ³£©
+      if (!repo) return { ok: false, error: { kind: 'env', message: 'ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½ owner/repo' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ï¿½ï¿½ number' } }
+      // GraphQL ï¿½ï¿½ï¿½È£ï¿½cursor ï¿½ï¿½Ò³ï¿½ï¿½
       const query = 'query($owner:String!,$name:String!,$n:Int!,$after:String){repository(owner:$owner,name:$name){issue(number:$n){comments(first:50, after:$after){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}}}}}'
-      // after Îª null Ê±´«¿Õ×Ö·û´®£¬GraphQL »áÊÓÎª¿Õ cursor£¨Ê×¶Î£©£»Ðè´«µÝ±äÁ¿ after ·ñÔò±¨´í£¬¹ÊÓÃ -F after= Öµ£¬¿ÕÔòÊ×¶Î
+      // after Îª null Ê±ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½GraphQL ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½ cursorï¿½ï¿½ï¿½×¶Î£ï¿½ï¿½ï¿½ï¿½è´«ï¿½Ý±ï¿½ï¿½ï¿½ after ï¿½ï¿½ï¿½ò±¨´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ -F after= Öµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×¶ï¿½
       const afterVal = after || null
       for (let attempt = 0; attempt < 2; attempt++) {
         const args = ['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name, '-F', 'n=' + n]
@@ -1613,24 +1623,24 @@ export default {
           return { ok: true, nodes: com.nodes || [], pageInfo: com.pageInfo || { hasNextPage: false, endCursor: null } }
         } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
       }
-      return { ok: false, error: { kind: 'network', message: 'GraphQL ÆÀÂÛ·ÖÒ³ÇëÇóÊ§°Ü£¨ÖØÊÔºóÈÔÊ§°Ü£©' } }
+      return { ok: false, error: { kind: 'network', message: 'GraphQL ï¿½ï¿½ï¿½Û·ï¿½Ò³ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½ï¿½ï¿½ï¿½Ôºï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½' } }
     }
     harness.handle('wf.issueComments', async function (args) {
       const n = args && args.number
       const after = args && args.after
       const cwd = (args && args.cwd) || DEFAULT_CWD
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ÉÙ number' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: 'È±ï¿½ï¿½ number' } }
       try {
         const r = await fetchIssueComments(Number(n), after != null ? String(after) : null, cwd)
         return r
       } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
     })
 
-    // v1.5 R2£¨#2 MVP£©£ºprobe ¸ÄÓÃ `since` Ê±¼ä´ÁÌ½²âÈ« issue ÔöÁ¿£¨µØÍ¼ + ×ÓÆ± + ÆäËû£©£¬
-    //   1 ´Î REST µ÷ÓÃ¸²¸ÇÈ«²Ö¿â±ä»¯¡£Ô­ÊµÏÖ `labels=wayfinder:map` ½öÆ¥ÅäµØÍ¼±¾Éí£¬
-    //   **Â©¼ìËùÓÐ×ÓÆ±±ä»¯**¡ª¡ªÃæ°å¿É½Ó/×èÈû/ÒÑÈÏÁì/ÒÑ¹Ø±Õ·Ö×é£¨DESIGN.md ¡ì5.2£©¶¼ÊÇ×ÓÆ±£¬
-    //   ¹Ê"ÁÐ±í²»¸üÐÂ×´Ì¬"¡£since ÓïÒå£º·µ»ØÊý×é·Ç¿Õ = ×ÔÉÏ´Î¿ìÕÕÒÔÀ´ÓÐ±ä»¯ ¡ú ÊÓÎª changed¡£
-    //   Åä¶îÈÔ×ß REST 5000/h ³Ø£¨¶ÀÁ¢ÓÚ GraphQL 5000 µã/h£©£¬²»ÉÕ´©¡£
+    // v1.5 R2ï¿½ï¿½#2 MVPï¿½ï¿½ï¿½ï¿½probe ï¿½ï¿½ï¿½ï¿½ `since` Ê±ï¿½ï¿½ï¿½Ì½ï¿½ï¿½È« issue ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ + ï¿½ï¿½Æ± + ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    //   1 ï¿½ï¿½ REST ï¿½ï¿½ï¿½Ã¸ï¿½ï¿½ï¿½È«ï¿½Ö¿ï¿½ä»¯ï¿½ï¿½Ô­Êµï¿½ï¿½ `labels=wayfinder:map` ï¿½ï¿½Æ¥ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½
+    //   **Â©ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ±ï¿½ä»¯**ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É½ï¿½/ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½Ñ¹Ø±Õ·ï¿½ï¿½é£¨DESIGN.md ï¿½ï¿½5.2ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ±ï¿½ï¿½
+    //   ï¿½ï¿½"ï¿½Ð±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬"ï¿½ï¿½since ï¿½ï¿½ï¿½å£ºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç¿ï¿½ = ï¿½ï¿½ï¿½Ï´Î¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð±ä»¯ ï¿½ï¿½ ï¿½ï¿½Îª changedï¿½ï¿½
+    //   ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ REST 5000/h ï¿½Ø£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ GraphQL 5000 ï¿½ï¿½/hï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ´ï¿½ï¿½ï¿½
     harness.handle('wf.probe', async function (args) {
       const rawCwd = (args && args.cwd) || DEFAULT_CWD
       const cwd = await normCwd(rawCwd)
@@ -1654,20 +1664,20 @@ export default {
         return {ok:true, changed:true, status:200, version:vRemote, repo:repo, count:remote.count, since:lastProbeAtByRepo[rk1]};
       }catch(e){ return {ok:false, error:errText(e)}; }
     })
-    // ============ ½»½ÓÎÄµµ£¨issue #12 BUG4 ¡¤ Ë«ÖØ·ÀÓù ¡¤ ¸±Â·¾¶£©============
-    // DSH É³ÏäÀï fs.stat ·µ»ØµÄ info.mtime ÐÎÌ¬²»¿É¿Ø£¨Date / ISO ´® / Ãë¼¶ Unix / ±¾µØ»¯´® / null / NaN£©£»
-    // Ô­ `typeof number ? mt : Date.parse(String(mt))` ÔÚ Date ¶ÔÏó»ò²»¿É parse ÐÎÌ¬¶¼µÃ NaN£»
-    // Ô­ sort µ¥¼ü `b.mtime - a.mtime` ÔÚ mtime ÏàµÈ/NaN Ê± Array.sort ÊÓÎª equal ¡ú Ô­Ë³Ðò±£Áô ¡ú
-    // fs.listDir °´Ãû×ÖµäÐò·µ»Ø ¡ú ÀÏÎÄ¼þÌìÈ»ÅÅµÚÒ» ¡ú mds[0].name = ×ÖµäÐò×îÐ¡ = ÉÏÒ»´ÎÐ´Èë£¨BUG£©¡£
+    // ============ ï¿½ï¿½ï¿½ï¿½ï¿½Äµï¿½ï¿½ï¿½issue #12 BUG4 ï¿½ï¿½ Ë«ï¿½Ø·ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½============
+    // DSH É³ï¿½ï¿½ï¿½ï¿½ fs.stat ï¿½ï¿½ï¿½Øµï¿½ info.mtime ï¿½ï¿½Ì¬ï¿½ï¿½ï¿½É¿Ø£ï¿½Date / ISO ï¿½ï¿½ / ï¿½ë¼¶ Unix / ï¿½ï¿½ï¿½Ø»ï¿½ï¿½ï¿½ / null / NaNï¿½ï¿½ï¿½ï¿½
+    // Ô­ `typeof number ? mt : Date.parse(String(mt))` ï¿½ï¿½ Date ï¿½ï¿½ï¿½ï¿½ò²»¿ï¿½ parse ï¿½ï¿½Ì¬ï¿½ï¿½ï¿½ï¿½ NaNï¿½ï¿½
+    // Ô­ sort ï¿½ï¿½ï¿½ï¿½ `b.mtime - a.mtime` ï¿½ï¿½ mtime ï¿½ï¿½ï¿½/NaN Ê± Array.sort ï¿½ï¿½Îª equal ï¿½ï¿½ Ô­Ë³ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½
+    // fs.listDir ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½ò·µ»ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½È»ï¿½Åµï¿½Ò» ï¿½ï¿½ mds[0].name = ï¿½Öµï¿½ï¿½ï¿½ï¿½ï¿½Ð¡ = ï¿½ï¿½Ò»ï¿½ï¿½Ð´ï¿½ë£¨BUGï¿½ï¿½ï¿½ï¿½
     //
-    // ¼Ó¹Ì£¨¸±Â·¾¶ ¡¤ ÖÎ±¾£©£º
-    //   - parseHandoffMtime£ºisFinite ÑÏ¸ñÐ£Ñé + Date ÊµÀý getTime ÓÅÏÈ£»ÈÎºÎÎÞ·¨ parse µÄÐÎÌ¬°²È«¹é 0
-    //     £¨NaN/null/undefined/0/²»¿É parse ´® ¡ú 0£©
-    //   - pickLatestHandoff£ºmtime desc Ö÷¼ü + name desc ¶µµ×£¨Ê±¼ä´ÁÎÄ¼þÃû = ×ÖµäÐò = Ê±¼äÐò£©£»
-    //     mtime ÍË»¯Îª 0 µÄÍË»¯ÐÎÌ¬£¨NaN/null/È« 0/È«µÈ finite£©Ò»ÂÉ×ß name desc ·µ»Ø×ÖµäÐò×î´ó
+    // ï¿½Ó¹Ì£ï¿½ï¿½ï¿½Â·ï¿½ï¿½ ï¿½ï¿½ ï¿½Î±ï¿½ï¿½ï¿½ï¿½ï¿½
+    //   - parseHandoffMtimeï¿½ï¿½isFinite ï¿½Ï¸ï¿½Ð£ï¿½ï¿½ + Date Êµï¿½ï¿½ getTime ï¿½ï¿½ï¿½È£ï¿½ï¿½Îºï¿½ï¿½Þ·ï¿½ parse ï¿½ï¿½ï¿½ï¿½Ì¬ï¿½ï¿½È«ï¿½ï¿½ 0
+    //     ï¿½ï¿½NaN/null/undefined/0/ï¿½ï¿½ï¿½ï¿½ parse ï¿½ï¿½ ï¿½ï¿½ 0ï¿½ï¿½
+    //   - pickLatestHandoffï¿½ï¿½mtime desc ï¿½ï¿½ï¿½ï¿½ + name desc ï¿½ï¿½ï¿½×£ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ = ï¿½Öµï¿½ï¿½ï¿½ = Ê±ï¿½ï¿½ï¿½ò£©£ï¿½
+    //     mtime ï¿½Ë»ï¿½Îª 0 ï¿½ï¿½ï¿½Ë»ï¿½ï¿½ï¿½Ì¬ï¿½ï¿½NaN/null/È« 0/È«ï¿½ï¿½ finiteï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ name desc ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     //
-    // ×¢£º»ìºÏÍË»¯ÐÎÌ¬£¨new=NaN+old=valid£©µÄ mtime µ¹¹Ò£¬sort ¼Ó¹ÌÎÞ·¨Çø·Ö ¡ª¡ª ÓÉÖ÷Â·¾¶
-    //     `wf.handoffResolve(args.name)` ÔÚ¿Í»§¶ËÒÑµã¹ýµÚÒ»»÷Ê±Ö±½Ó·µ»Ø¸Ã name ±£ÕÏ¡£
+    // ×¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë»ï¿½ï¿½ï¿½Ì¬ï¿½ï¿½new=NaN+old=validï¿½ï¿½ï¿½ï¿½ mtime ï¿½ï¿½ï¿½Ò£ï¿½sort ï¿½Ó¹ï¿½ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Â·ï¿½ï¿½
+    //     `wf.handoffResolve(args.name)` ï¿½Ú¿Í»ï¿½ï¿½ï¿½ï¿½Ñµï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ê±Ö±ï¿½Ó·ï¿½ï¿½Ø¸ï¿½ name ï¿½ï¿½ï¿½Ï¡ï¿½
     const parseHandoffMtime = function (raw) {
       if (typeof raw === 'number') return isFinite(raw) ? raw : 0
       if (raw instanceof Date) { const t = raw.getTime(); return isFinite(t) ? t : 0 }
@@ -1679,16 +1689,16 @@ export default {
       const sorted = mds.slice().sort(function (a, b) {
         const dt = (b.mtime || 0) - (a.mtime || 0)
         if (dt !== 0) return dt
-        // name desc ¶µµ×£ºÊ±¼ä´ÁÎÄ¼þÃû£¨YYYYMMDD-HHMMSS£©×ÖµäÐò = Ê±¼äÐò
+        // name desc ï¿½ï¿½ï¿½×£ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½YYYYMMDD-HHMMSSï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ = Ê±ï¿½ï¿½ï¿½ï¿½
         if (b.name < a.name) return -1
         if (b.name > a.name) return 1
         return 0
       })
       return sorted[0].name
     }
-    // ¹²ÏíÄ¿Â¼É¨Ãè£¨handoffLatest + handoffResolve ¹²ÓÃ£©¡ª¡ª ÈÎºÎ fs µ÷ÓÃÒì³£¶¼½µ¼¶Îª¿ÕÊý×é
+    // ï¿½ï¿½ï¿½ï¿½Ä¿Â¼É¨ï¿½è£¨handoffLatest + handoffResolve ï¿½ï¿½ï¿½Ã£ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Îºï¿½ fs ï¿½ï¿½ï¿½ï¿½ï¿½ì³£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     const scanHandoffDir = async function (cwd) {
-      if (fs === undefined) return { error: 'fs ·þÎñ²»¿ÉÓÃ', mds: [] }
+      if (fs === undefined) return { error: 'fs ï¿½ï¿½ï¿½ñ²»¿ï¿½ï¿½ï¿½', mds: [] }
       try {
         const dir = await fs.resolve('.scratch/handoff', { cwd: cwd })
         const entries = await fs.listDir(dir)
@@ -1706,11 +1716,11 @@ export default {
         }
         return { mds: mds }
       } catch (e) {
-        return { mds: [] }  // Ä¿Â¼²»´æÔÚ/²»¿É¶Á = »¹Ã»ÓÐ½»½ÓÎÄµµ
+        return { mds: [] }  // Ä¿Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½É¶ï¿½ = ï¿½ï¿½Ã»ï¿½Ð½ï¿½ï¿½ï¿½ï¿½Äµï¿½
       }
     }
 
-    // v19£º²éÑ¯ .scratch/handoff/ ÏÂ×îÐÂµÄ½»½ÓÎÄµµ£¨°´ mtime µ¹Ðò + name desc ¶µµ× ¡¤ ¼Ó¹Ìºó£©£¬¹©¡¸½»½Ó¸øÐÂ»á»°¡¹Ô¤Ìî + ¸´ÖÆ
+    // v19ï¿½ï¿½ï¿½ï¿½Ñ¯ .scratch/handoff/ ï¿½ï¿½ï¿½ï¿½ï¿½ÂµÄ½ï¿½ï¿½ï¿½ï¿½Äµï¿½ï¿½ï¿½ï¿½ï¿½ mtime ï¿½ï¿½ï¿½ï¿½ + name desc ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ó¹Ìºó£©£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¸ï¿½ï¿½Â»á»°ï¿½ï¿½Ô¤ï¿½ï¿½ + ï¿½ï¿½ï¿½ï¿½
     harness.handle('wf.handoffLatest', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const r = await scanHandoffDir(cwd)
@@ -1718,41 +1728,41 @@ export default {
       return { ok: true, file: pickLatestHandoff(r.mds) }
     })
 
-    // issue #12 BUG4 ¡¤ Ö÷Â·¾¶£º¿Í»§¶Ë´øÆÚÍûÎÄ¼þÃû£¨µÚÒ»»÷Ä£°åäÖÈ¾³öµÄ handoffFile£©Ê±ÑÏ¸ñ·µ»Ø¸ÃÎÄ¼þ£º
-    //   ÔÚÄ¿Â¼Àï ¡ú ·µ»ØËü£»²»ÔÚ ¡ú ·µ»Ø null£¨²»ÍË»Ø mtime ×îÐÂ£¬±ÜÃâ fallback µ½ÀÏÎÄ¼þÎóµ¼ÓÃ»§£©¡£
-    //   ÎÞ args.name£¨ÓÃ»§´ÓÎ´µã¹ýµÚÒ»»÷£¬ÈçË¢ÐÂºó / Ö±½ÓµãÓÒ°ë£©¡ú ×ß mtime ×îÐÂ£¨Óë handoffLatest Í¬ÓïÒå£©¡£
-    // Çø±ðÓÚ³õ°æ£º³õ°æ¡¸name ²»ÔÚÄ¿Â¼Ò² fallback µ½ mtime ×îÐÂ¡¹ÔÚÊµ¼Ê³¡¾°ÏÂ±»ÑéÖ¤Îª·´Ä£Ê½ ¡ª¡ª µ± AI »¹Ã»Ð´Íê
-    // ÎÄµµÊ±£¨handoffFile ÉèÁËµ«ÎÄ¼þÎ´ÂäÅÌ£©£¬fallback »áÈÃÓÒ°ëÁÁÀ¶ÇÒµã¿ªºó´íÎóÒýÓÃÉÏ´ÎµÄÀÏÎÄµµ£¬ÓëÐÞ¸´Ä¿±êÏàã£¡£
+    // issue #12 BUG4 ï¿½ï¿½ ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½ï¿½Í»ï¿½ï¿½Ë´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ä£ï¿½ï¿½ï¿½ï¿½È¾ï¿½ï¿½ï¿½ï¿½ handoffFileï¿½ï¿½Ê±ï¿½Ï¸ñ·µ»Ø¸ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½
+    //   ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ nullï¿½ï¿½ï¿½ï¿½ï¿½Ë»ï¿½ mtime ï¿½ï¿½ï¿½Â£ï¿½ï¿½ï¿½ï¿½ï¿½ fallback ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½ï¿½ï¿½
+    //   ï¿½ï¿½ args.nameï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½Î´ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë¢ï¿½Âºï¿½ / Ö±ï¿½Óµï¿½ï¿½Ò°ë£©ï¿½ï¿½ ï¿½ï¿½ mtime ï¿½ï¿½ï¿½Â£ï¿½ï¿½ï¿½ handoffLatest Í¬ï¿½ï¿½ï¿½å£©ï¿½ï¿½
+    // ï¿½ï¿½ï¿½ï¿½ï¿½Ú³ï¿½ï¿½æ£ºï¿½ï¿½ï¿½æ¡¸name ï¿½ï¿½ï¿½ï¿½Ä¿Â¼Ò² fallback ï¿½ï¿½ mtime ï¿½ï¿½ï¿½Â¡ï¿½ï¿½ï¿½Êµï¿½Ê³ï¿½ï¿½ï¿½ï¿½Â±ï¿½ï¿½ï¿½Ö¤Îªï¿½ï¿½Ä£Ê½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ AI ï¿½ï¿½Ã»Ð´ï¿½ï¿½
+    // ï¿½Äµï¿½Ê±ï¿½ï¿½handoffFile ï¿½ï¿½ï¿½Ëµï¿½ï¿½Ä¼ï¿½Î´ï¿½ï¿½ï¿½Ì£ï¿½ï¿½ï¿½fallback ï¿½ï¿½ï¿½ï¿½ï¿½Ò°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òµã¿ªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï´Îµï¿½ï¿½ï¿½ï¿½Äµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Þ¸ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½ã£¡ï¿½
     harness.handle('wf.handoffResolve', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const r = await scanHandoffDir(cwd)
       if (r.error) return { ok: false, error: r.error }
       const want = args && args.name
       if (!want) return { ok: true, file: pickLatestHandoff(r.mds) }
-      // Ç°×ºÆ¥Åä£¨#71 ¶Ì±êÌâÎÄ¼þÃû£º{ts}-<¶Ì±êÌâ>.md£©£ºwant ÒÔ * ½áÎ² ¡ú Æ¥Åä name ÒÔ¸ÃÇ°×º¿ªÍ·£¬È¡×îÐÂ
+      // Ç°×ºÆ¥ï¿½ä£¨#71 ï¿½Ì±ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½{ts}-<ï¿½Ì±ï¿½ï¿½ï¿½>.mdï¿½ï¿½ï¿½ï¿½want ï¿½ï¿½ * ï¿½ï¿½Î² ï¿½ï¿½ Æ¥ï¿½ï¿½ name ï¿½Ô¸ï¿½Ç°×ºï¿½ï¿½Í·ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½
       if (want.slice(-1) === '*') {
         const prefix = want.slice(0, -1)
         const m = r.mds.filter(function (x) { return x.name.indexOf(prefix) === 0 })
         if (m.length) return { ok: true, file: pickLatestHandoff(m) }
         return { ok: true, file: null }
       }
-      // ¾«È·Æ¥Åä£ºÔÚÄ¿Â¼Àï ¡ú ·µ»ØËü£»²»ÔÚ ¡ú ·µ»Ø null£¨²»ÍË»Ø mtime ×îÐÂ£¬±ÜÃâ fallback µ½ÀÏÎÄ¼þÎóµ¼ÓÃ»§£©¡£
+      // ï¿½ï¿½È·Æ¥ï¿½ä£ºï¿½ï¿½Ä¿Â¼ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ nullï¿½ï¿½ï¿½ï¿½ï¿½Ë»ï¿½ mtime ï¿½ï¿½ï¿½Â£ï¿½ï¿½ï¿½ï¿½ï¿½ fallback ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½ï¿½ï¿½
       if (r.mds.some(function (m) { return m.name === want })) return { ok: true, file: want }
       return { ok: true, file: null }
     })
 
-    // ============ ÈÏÁì£¨¿ªÊ¼´Ë Issue Á÷³Ì ¡¤ T5 #347£©============
-    // ÓÃ»§ÔÚ UI µã»÷¡¸È·ÈÏ¿ªÊ¼¡¹ÇÒ¹´Ñ¡ÈÏÁìºóµ÷ÓÃ£ºgh issue edit <n> --add-assignee @me¡£
-    // Ð´²Ù×÷Ç° UI ÒÑ¶þ´ÎÈ·ÈÏ£¨ÓÃ»§µã»÷¼´Í¬Òâ£©£¬²»×ß approval ·þÎñ£¨RESEARCH-NOTES ¡ì3 ½áÂÛ£©¡£
+    // ============ ï¿½ï¿½ï¿½ì£¨ï¿½ï¿½Ê¼ï¿½ï¿½ Issue ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ T5 #347ï¿½ï¿½============
+    // ï¿½Ã»ï¿½ï¿½ï¿½ UI ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½Ï¿ï¿½Ê¼ï¿½ï¿½ï¿½Ò¹ï¿½Ñ¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½gh issue edit <n> --add-assignee @meï¿½ï¿½
+    // Ð´ï¿½ï¿½ï¿½ï¿½Ç° UI ï¿½Ñ¶ï¿½ï¿½ï¿½È·ï¿½Ï£ï¿½ï¿½Ã»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¬ï¿½â£©ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ approval ï¿½ï¿½ï¿½ï¿½RESEARCH-NOTES ï¿½ï¿½3 ï¿½ï¿½ï¿½Û£ï¿½ï¿½ï¿½
     harness.handle('wf.claim', async function (args) {
       const n = args && args.number
       const cwd = (args && args.cwd) || DEFAULT_CWD
-      if (!n) return { ok: false, error: 'È±ÉÙ²ÎÊý number£¨ticket ºÅ£©' }
+      if (!n) return { ok: false, error: 'È±ï¿½Ù²ï¿½ï¿½ï¿½ numberï¿½ï¿½ticket ï¿½Å£ï¿½' }
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: 'ÎÞ·¨½âÎö owner/repo£¨git remote »ò gh repo view Ê§°Ü£©' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: 'ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½ owner/repoï¿½ï¿½git remote ï¿½ï¿½ gh repo view Ê§ï¿½Ü£ï¿½' } }
       const r = await runGh(['issue', 'edit', String(n), '--add-assignee', '@me'], cwd)
       if (!r.ok) return { ok: false, error: r }
-      // ÈÏÁì³É¹¦ ¡ú È¡µ±Ç°ÓÃ»§ login ¹©Ãæ°åÕ¹Ê¾£»Ê§Ð§¿ìÕÕ»º´æ£¬ÈÃÏÂ´Î wf.snapshot À­µ½ÐÂ assignee
+      // ï¿½ï¿½ï¿½ï¿½É¹ï¿½ ï¿½ï¿½ È¡ï¿½ï¿½Ç°ï¿½Ã»ï¿½ login ï¿½ï¿½ï¿½ï¿½ï¿½Õ¹Ê¾ï¿½ï¿½Ê§Ð§ï¿½ï¿½ï¿½Õ»ï¿½ï¿½æ£¬ï¿½ï¿½ï¿½Â´ï¿½ wf.snapshot ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ assignee
       let assignedTo = ''
       const u = await runGh(['api', 'user', '-q', '.login'])
       if (u.ok) assignedTo = u.text.trim()
@@ -1761,7 +1771,7 @@ export default {
       return { ok: true, number: n, assignedTo: assignedTo, url: 'https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + String(n) }
     })
 
-        // ============ issuePath ¡¤ 1A+1B ÍÆËÍÍ¨µÀ£¨client ÂÖÑ¯£© ============
+        // ============ issuePath ï¿½ï¿½ 1A+1B ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½client ï¿½ï¿½Ñ¯ï¿½ï¿½ ============
     harness.handle('wf.issuePathPoll', async function (args) {
       const since = args && typeof args.since === 'number' ? args.since : 0
       const out = pendingIssuePathEvents.filter(function (e) { return e.ts > since })
@@ -1770,32 +1780,32 @@ export default {
     harness.handle('wf.issuePathPush', async function (args) {
       const n = args && args.number
       const src = args && args.source ? String(args.source) : 'mention'
-      if (!n) return { ok: false, error: 'È±ÉÙ number' }
+      if (!n) return { ok: false, error: 'È±ï¿½ï¿½ number' }
       pushIssuePathEvent(n, src, args && args.title)
       return { ok: true }
     })
 
-    // ============ #190£ºwf.openFolder ¡ª ´ò¿ª±¾µØÎÄ¼þ¼Ð£¨Markdown ºó¶Ë²Ö¿âÃûµã»÷£©============
-    // ÊäÈë£º{ cwd }£»Æ½Ì¨·Ö·¢£ºwin32 explorer / darwin open / linux xdg-open£¨¾­ platform.resolveExecutable£©£¬subprocess.spawn ´ò¿ª
+    // ============ #190ï¿½ï¿½wf.openFolder ï¿½ï¿½ ï¿½ò¿ª±ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½Ð£ï¿½Markdown ï¿½ï¿½Ë²Ö¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½============
+    // ï¿½ï¿½ï¿½ë£º{ cwd }ï¿½ï¿½Æ½Ì¨ï¿½Ö·ï¿½ï¿½ï¿½win32 explorer / darwin open / linux xdg-openï¿½ï¿½ï¿½ï¿½ platform.resolveExecutableï¿½ï¿½ï¿½ï¿½subprocess.spawn ï¿½ï¿½
     harness.handle('wf.openFolder', async function (args) {
       const cwd = (args && (args.cwd || args.path)) || DEFAULT_CWD
-      if (!cwd) return { ok: false, error: 'È±ÉÙ cwd' }
+      if (!cwd) return { ok: false, error: 'È±ï¿½ï¿½ cwd' }
       try {
         const platform = await getPlatform()
         const os = platform.os || (typeof process !== 'undefined' && process.platform) || 'win32'
         const openerName = os === 'win32' ? 'explorer' : os === 'darwin' ? 'open' : 'xdg-open'
         const opener = await platform.resolveExecutable(openerName)
-        if (!opener) return { ok: false, error: 'ÕÒ²»µ½´ò¿ªÆ÷£º' + openerName }
-        // cwd ¹éÒ»£¨platform.path ´¦Àí·Ö¸ô·û£©
+        if (!opener) return { ok: false, error: 'ï¿½Ò²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½' + openerName }
+        // cwd ï¿½ï¿½Ò»ï¿½ï¿½platform.path ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½
         let target = String(cwd)
         try { if (platform.path && typeof platform.path.normalize === 'function') target = platform.path.normalize(target) } catch {}
-        // win32 explorer Ðè±£³ÖÔ­·Ö¸ô·û£»darwin/linux ÓÃ posix ¼æÈÝ
+        // win32 explorer ï¿½è±£ï¿½ï¿½Ô­ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½darwin/linux ï¿½ï¿½ posix ï¿½ï¿½ï¿½ï¿½
         const argv = [opener, target]
         try {
           const handle = subprocess.spawn({ argv: argv, cwd: DEFAULT_CWD || target, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
-          // ²»µÈ´ýÍê³É£¬fire-and-forget£»Èô spawn Í¬²½Å×´íÔòÊÓÎªÊ§°Ü
+          // ï¿½ï¿½ï¿½È´ï¿½ï¿½ï¿½É£ï¿½fire-and-forgetï¿½ï¿½ï¿½ï¿½ spawn Í¬ï¿½ï¿½ï¿½×´ï¿½ï¿½ï¿½ï¿½ï¿½ÎªÊ§ï¿½ï¿½
           if (handle && handle.done) {
-            // Òì²½´íÎóÍÌµô£¬±ÜÃâÎ´´¦Àí rejection Ó°ÏìÃæ°å£»³É¹¦¼´·µ»Ø
+            // ï¿½ì²½ï¿½ï¿½ï¿½ï¿½ï¿½Ìµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½ï¿½ï¿½ rejection Ó°ï¿½ï¿½ï¿½ï¿½å£»ï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
             handle.done.catch(function(){})
           }
         } catch (e) {
@@ -1807,25 +1817,25 @@ export default {
       }
     })
 
-    // ============ ºì¿¨½¨²Ö·¢²¼£¨T1 #34 ¡¤ ÎÞ²Ö¿âÊ±Ò»¼ü½¨²Ö·¢²¼£©============
-    // ÊäÈë£º{ cwd, name, visibility }£¨visibility = 'public' | 'private'£¬Ä¬ÈÏ private£©
-    // Á÷³Ì£ºÌ½²â git/gh/auth£¨Ç°ÖÃ£©¡ú git init(ÈôÒÑÊÇ git ÔòÌø¹ý) ¡ú git add . ¡ú git commit --allow-empty£¨º¬ user.* ¶µµ×£©¡ú gh repo create --source=. --push£¨»ò --remote origin ÒÑ´æÔÚÊ±×ß set-url + push ·ÖÖ§£©
-    // ·µ»Ø£º{ ok: true, repo: { owner, name } } | { ok: false, errorKind, error, repoUrl? }
-    // errorKind: no-git / no-gh / not-logged-in / already-exists / network / permission£¨6 µµ£¬¼æÈÝ²Ý¸åÖÐµÄ bad-name ¶µµ×Ó³ÉäÎª permission£©
+    // ============ ï¿½ì¿¨ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½T1 #34 ï¿½ï¿½ ï¿½Þ²Ö¿ï¿½Ê±Ò»ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½============
+    // ï¿½ï¿½ï¿½ë£º{ cwd, name, visibility }ï¿½ï¿½visibility = 'public' | 'private'ï¿½ï¿½Ä¬ï¿½ï¿½ privateï¿½ï¿½
+    // ï¿½ï¿½ï¿½Ì£ï¿½Ì½ï¿½ï¿½ git/gh/authï¿½ï¿½Ç°ï¿½Ã£ï¿½ï¿½ï¿½ git init(ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ git ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½) ï¿½ï¿½ git add . ï¿½ï¿½ git commit --allow-emptyï¿½ï¿½ï¿½ï¿½ user.* ï¿½ï¿½ï¿½×£ï¿½ï¿½ï¿½ gh repo create --source=. --pushï¿½ï¿½ï¿½ï¿½ --remote origin ï¿½Ñ´ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ set-url + push ï¿½ï¿½Ö§ï¿½ï¿½
+    // ï¿½ï¿½ï¿½Ø£ï¿½{ ok: true, repo: { owner, name } } | { ok: false, errorKind, error, repoUrl? }
+    // errorKind: no-git / no-gh / not-logged-in / already-exists / network / permissionï¿½ï¿½6 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý²Ý¸ï¿½ï¿½Ðµï¿½ bad-name ï¿½ï¿½ï¿½ï¿½Ó³ï¿½ï¿½Îª permissionï¿½ï¿½
     harness.handle('wf.initPublish', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const name = args && args.name ? String(args.name).trim() : ''
       const visibility = (args && args.visibility) === 'public' ? 'public' : 'private'
-      if (!name) return { ok: false, errorKind: 'bad-name', error: '²Ö¿âÃûÎª¿Õ' }
+      if (!name) return { ok: false, errorKind: 'bad-name', error: 'ï¿½Ö¿ï¿½ï¿½ï¿½Îªï¿½ï¿½' }
       if (!/^[A-Za-z0-9._-]+$/.test(name) || name.length > 100) {
-        return { ok: false, errorKind: 'bad-name', error: '²Ö¿âÃû½öÖ§³Ö×ÖÄ¸/Êý×Ö/._- ÇÒ ¡Ü100£º' + name }
+        return { ok: false, errorKind: 'bad-name', error: 'ï¿½Ö¿ï¿½ï¿½ï¿½ï¿½ï¿½Ö§ï¿½ï¿½ï¿½ï¿½Ä¸/ï¿½ï¿½ï¿½ï¿½/._- ï¿½ï¿½ ï¿½ï¿½100ï¿½ï¿½' + name }
       }
       const visFlag = visibility === 'public' ? '--public' : '--private'
-      // Ç°ÖÃÌ½²â£ºgit / gh / auth£¨Ê§°Ü¿ì·µ£¬±ÜÃâÒÑ¸Ä¶¯¹¤×÷Çø£©
+      // Ç°ï¿½ï¿½Ì½ï¿½â£ºgit / gh / authï¿½ï¿½Ê§ï¿½Ü¿ì·µï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¸Ä¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
       const git = await resolveGit()
-      if (!git) return { ok: false, errorKind: 'no-git', error: 'Î´ÕÒµ½ git£¨Çë°²×° https://git-scm.com/£©' }
+      if (!git) return { ok: false, errorKind: 'no-git', error: 'Î´ï¿½Òµï¿½ gitï¿½ï¿½ï¿½ë°²×° https://git-scm.com/ï¿½ï¿½' }
       const gh = await resolveGh()
-      if (!gh) return { ok: false, errorKind: 'no-gh', error: ghLastError || 'Î´ÕÒµ½ gh£¨Çë°²×° https://cli.github.com/£©', prompt: 'ÇëÎª DSH °²×° GitHub CLI£¨gh£©¡ª¡ª Ãæ°åËùÓÐÊý¾ÝÒÀÀµ gh£º\n\n1. ÏÈ¼ì²é£ºÖÕ¶ËÖ´ÐÐ `gh --version`£»ÓÐ°æ±¾ºÅÊä³ö ¡ú Ö±½Ó»ã±¨ÒÑ×°°æ±¾²¢½áÊø£¬²»ÒªÖØ¸´°²×°£»\n2. ÎÞ gh Ôò°´ OS °²×°£ºWindows ¡ú `winget install --id GitHub.cli`; macOS ¡ú `brew install gh`; Linux ¡ú `sudo apt install gh`;\n3. °²×°ºóÑéÖ¤£ºÖØ¿ªÖÕ¶ËÊ¹ PATH ÉúÐ§£¬`gh --version` Êä³ö°æ±¾ºÅ£»\n4. Èô gh ÒÑ×°µ« DSH ÈÔ±¨Î´°²×°£ºµã»·¾³¼ì²é¡¸ÖØ²â¡¹°´Å¥»òÖØÆô DSH Desktop£»\n5. Íê³Éºó»ã±¨£ºgh °æ±¾ºÅ + ¡¸gh CLI ¿ÉÓÃ¡¹ÏîÒÑ±äÂÌ¡£' }
+      if (!gh) return { ok: false, errorKind: 'no-gh', error: ghLastError || 'Î´ï¿½Òµï¿½ ghï¿½ï¿½ï¿½ë°²×° https://cli.github.com/ï¿½ï¿½', prompt: 'ï¿½ï¿½Îª DSH ï¿½ï¿½×° GitHub CLIï¿½ï¿½ghï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ghï¿½ï¿½\n\n1. ï¿½È¼ï¿½é£ºï¿½Õ¶ï¿½Ö´ï¿½ï¿½ `gh --version`ï¿½ï¿½ï¿½Ð°æ±¾ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ Ö±ï¿½Ó»ã±¨ï¿½ï¿½×°ï¿½æ±¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Ø¸ï¿½ï¿½ï¿½×°ï¿½ï¿½\n2. ï¿½ï¿½ gh ï¿½ï¿½ OS ï¿½ï¿½×°ï¿½ï¿½Windows ï¿½ï¿½ `winget install --id GitHub.cli`; macOS ï¿½ï¿½ `brew install gh`; Linux ï¿½ï¿½ `sudo apt install gh`;\n3. ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ø¿ï¿½ï¿½Õ¶ï¿½Ê¹ PATH ï¿½ï¿½Ð§ï¿½ï¿½`gh --version` ï¿½ï¿½ï¿½ï¿½æ±¾ï¿½Å£ï¿½\n4. ï¿½ï¿½ gh ï¿½ï¿½×°ï¿½ï¿½ DSH ï¿½Ô±ï¿½Î´ï¿½ï¿½×°ï¿½ï¿½ï¿½ã»·ï¿½ï¿½ï¿½ï¿½é¡¸ï¿½Ø²â¡¹ï¿½ï¿½Å¥ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ DSH Desktopï¿½ï¿½\n5. ï¿½ï¿½Éºï¿½ã±¨ï¿½ï¿½gh ï¿½æ±¾ï¿½ï¿½ + ï¿½ï¿½gh CLI ï¿½ï¿½ï¿½Ã¡ï¿½ï¿½ï¿½ï¿½Ñ±ï¿½ï¿½Ì¡ï¿½' }
       const authR = await runGh(['auth', 'status'], cwd)
       if (!authR.ok) {
         const t = String(authR.error || '').toLowerCase()
@@ -1834,12 +1844,12 @@ export default {
         }
         return { ok: false, errorKind: 'not-logged-in', error: authR.error }
       }
-      // È¡µ±Ç°µÇÂ¼ÓÃ»§£¨ÓÃÓÚ already-exists Ê±Æ´ repoUrl Óë³É¹¦ºó owner ¶µµ×£©
+      // È¡ï¿½ï¿½Ç°ï¿½ï¿½Â¼ï¿½Ã»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ already-exists Ê±Æ´ repoUrl ï¿½ï¿½É¹ï¿½ï¿½ï¿½ owner ï¿½ï¿½ï¿½×£ï¿½
       let currentUser = ''
       try {
         const u = await runGh(['api', 'user', '-q', '.login'], cwd)
         if (u.ok) currentUser = u.text.trim()
-      } catch (e) { /* ºöÂÔ */ }
+      } catch (e) { /* ï¿½ï¿½ï¿½ï¿½ */ }
       const classifyCreateError = function (errText, kind) {
         const low = String(errText || '').toLowerCase()
         if (/already exists|name already exists|already exists on github|repository.*already exists/i.test(low)) return 'already-exists'
@@ -1849,7 +1859,7 @@ export default {
         if (kind === 'auth') return 'not-logged-in'
         return 'permission'
       }
-      // 1. git init£¨ÈôÒÑÊÇ git ²Ö¿âÔòÌø¹ý£»º¬ getRepoRoot Ì½²â + Çå»º´æ£©
+      // 1. git initï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ git ï¿½Ö¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ getRepoRoot Ì½ï¿½ï¿½ + ï¿½å»ºï¿½æ£©
       try {
         const probe = await execProc([git, '-C', cwd, 'rev-parse', '--is-inside-work-tree'], cwd)
         if (!probe.ok) {
@@ -1858,7 +1868,7 @@ export default {
             const k = classifyCreateError(initR.error, null)
             return { ok: false, errorKind: k === 'already-exists' ? 'permission' : k, error: initR.error }
           }
-          // Ê§Ð§ repoRoots »º´æ
+          // Ê§Ð§ repoRoots ï¿½ï¿½ï¿½ï¿½
           if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
           if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
         }
@@ -1877,7 +1887,7 @@ export default {
         const k = classifyCreateError(addR.error, null)
         return { ok: false, errorKind: k, error: addR.error }
       }
-      // 3. git commit --allow-empty£¨º¬ identity È±Ê§¶µµ×£©
+      // 3. git commit --allow-emptyï¿½ï¿½ï¿½ï¿½ identity È±Ê§ï¿½ï¿½ï¿½×£ï¿½
       let commitR = await execProc([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
       if (!commitR.ok) {
         const low = String(commitR.error || '').toLowerCase()
@@ -1891,7 +1901,7 @@ export default {
           return { ok: false, errorKind: k, error: commitR.error }
         }
       }
-      // 4. Ì½²â remote origin ÊÇ·ñÒÑ´æÔÚ£¨¾ö¶¨ gh µ÷ÓÃ·ÖÖ§£©
+      // 4. Ì½ï¿½ï¿½ remote origin ï¿½Ç·ï¿½ï¿½Ñ´ï¿½ï¿½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½ gh ï¿½ï¿½ï¿½Ã·ï¿½Ö§ï¿½ï¿½
       let hasOrigin = false
       try {
         const ro = await execProc([git, 'remote', 'get-url', 'origin'], cwd)
@@ -1906,14 +1916,14 @@ export default {
           return { ok: false, errorKind: kind, error: cr.error, repoUrl: repoUrl }
         }
       } else {
-        // origin ÒÑ´æÔÚ£ºÏÈ´´½¨Ô¶³Ì²Ö¿â£¨²»´ø --source£©£¬ÔÙ set-url + push
+        // origin ï¿½Ñ´ï¿½ï¿½Ú£ï¿½ï¿½È´ï¿½ï¿½ï¿½Ô¶ï¿½Ì²Ö¿â£¨ï¿½ï¿½ï¿½ï¿½ --sourceï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ set-url + push
         const cr2 = await runGh(['repo', 'create', name, visFlag], cwd)
         if (!cr2.ok) {
           const kind = classifyCreateError(cr2.error, cr2.kind)
           const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
           return { ok: false, errorKind: kind, error: cr2.error, repoUrl: repoUrl }
         }
-        // ½âÎöÐÂ½¨²Ö¿â URL£¨gh Êä³öº¬ https://github.com/owner/name£©
+        // ï¿½ï¿½ï¿½ï¿½ï¿½Â½ï¿½ï¿½Ö¿ï¿½ URLï¿½ï¿½gh ï¿½ï¿½ï¿½ï¿½ï¿½ https://github.com/owner/nameï¿½ï¿½
         let remoteUrl = ''
         if (currentUser) remoteUrl = 'https://github.com/' + currentUser + '/' + name + '.git'
         else {
@@ -1929,35 +1939,35 @@ export default {
           return { ok: false, errorKind: kind, error: pushR.error }
         }
       }
-      // ³É¹¦ºóÊ§Ð§È«²¿»º´æ£¬Ê¹Í·²¿ owner/repo Á¢¼´³öÏÖ
+      // ï¿½É¹ï¿½ï¿½ï¿½Ê§Ð§È«ï¿½ï¿½ï¿½ï¿½ï¿½æ£¬Ê¹Í·ï¿½ï¿½ owner/repo ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
       cache = { ts: 0, snapshot: null, error: null, cwd: null }
       statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }
       if (cwd && repoKeys[cwd] !== undefined) delete repoKeys[cwd]
       if (repoKeys[DEFAULT_CWD] !== undefined) delete repoKeys[DEFAULT_CWD]
       if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
       if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
-      // ÓÅÏÈÓÃ getRepoKey ÖØ½âÎö£¨parseGithubRepo£©£¬¶µµ×ÓÃ currentUser
+      // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ getRepoKey ï¿½Ø½ï¿½ï¿½ï¿½ï¿½ï¿½parseGithubRepoï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ currentUser
       let owner = currentUser
       try {
         const rk = await getRepoKey(cwd)
         if (rk && rk.owner) owner = rk.owner
         else if (rk && rk.name) owner = owner || ''
-      } catch (e) { /* ¶µµ× */ }
-      // Èô getRepoKey ÈÔÈ¡²»µ½µ«ÓÐ currentUser£¬ÔòÒÔ currentUser Îª×¼
+      } catch (e) { /* ï¿½ï¿½ï¿½ï¿½ */ }
+      // ï¿½ï¿½ getRepoKey ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ currentUserï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ currentUser Îª×¼
       if (!owner) {
         try {
           const u2 = await runGh(['api', 'user', '-q', '.login'], cwd)
           if (u2.ok) owner = u2.text.trim()
-        } catch (e2) { /* ºöÂÔ */ }
+        } catch (e2) { /* ï¿½ï¿½ï¿½ï¿½ */ }
       }
       return { ok: true, repo: { owner: owner, name: name } }
     })
 
-    // ============ ÂÖÑ¯£ºÒÑ°´ #348 ÅÄ°å Q3 ¹Ø±Õ£¨60s È«Á¿ ¡Á 8 map ¡Ö 2400-4800 GraphQL points/h Ìù 5000 ÏÞ¶î£©============
-    // Ë¢ÐÂ²ßÂÔ = ´¿ÊÖ¶¯£¨×´Ì¬Ìõ/Ãæ°å°´Å¥ wf.refresh£©+ ´ò¿ªÃæ°å¼´Ë¢£¨client ²à loadSnapshot£©¡£
-    // P1 Èô×ö×´Ì¬±ä»¯ toast ÌáÐÑ£¬ÔÙ¿¼ÂÇµÍÆµ×Ô¶¯£¨½ìÊ±»Ö¸´±¾¿é²¢¹Û²ìÅä¶î£©¡£
+    // ============ ï¿½ï¿½Ñ¯ï¿½ï¿½ï¿½Ñ°ï¿½ #348 ï¿½Ä°ï¿½ Q3 ï¿½Ø±Õ£ï¿½60s È«ï¿½ï¿½ ï¿½ï¿½ 8 map ï¿½ï¿½ 2400-4800 GraphQL points/h ï¿½ï¿½ 5000 ï¿½Þ¶î£©============
+    // Ë¢ï¿½Â²ï¿½ï¿½ï¿½ = ï¿½ï¿½ï¿½Ö¶ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½/ï¿½ï¿½å°´Å¥ wf.refreshï¿½ï¿½+ ï¿½ï¿½ï¿½ï¿½å¼´Ë¢ï¿½ï¿½client ï¿½ï¿½ loadSnapshotï¿½ï¿½ï¿½ï¿½
+    // P1 ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ä»¯ toast ï¿½ï¿½ï¿½Ñ£ï¿½ï¿½Ù¿ï¿½ï¿½Çµï¿½Æµï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½é²¢ï¿½Û²ï¿½ï¿½ï¿½î£©ï¿½ï¿½
 
-    // B3 rpc Í¨µÀ×¢²á£º/dsws ¡ú dispatch ±í£¨loopback È¨Íþ£©
+    // B3 rpc Í¨ï¿½ï¿½×¢ï¿½á£º/dsws ï¿½ï¿½ dispatch ï¿½ï¿½ï¿½loopback È¨ï¿½ï¿½ï¿½ï¿½
     try {
       const connection = ctx.get('connection')
       if (connection !== undefined && connection.rpc !== undefined && typeof connection.rpc.handle === 'function') {
