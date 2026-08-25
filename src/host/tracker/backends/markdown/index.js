@@ -79,4 +79,11 @@ export function createMarkdownBackend(ctx){
     parse:parseMd,
   }
 }
+export const markdownModule = {
+  id: 'markdown',
+  label: 'Markdown',
+  presentation: { color: '#1a7f37' },
+  create: createMarkdownBackend,
+  matches,
+}
 export default createMarkdownBackend

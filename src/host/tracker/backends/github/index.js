@@ -84,6 +84,7 @@ export function createGithubBackend(ctx) {
 export const githubModule = {
   id: 'github',
   label: 'GitHub',
+  presentation: { color: '#0969da' },
   create: createGithubBackend,
   matches: githubMatches,
 }

@@ -222,7 +222,7 @@
             try {
               if (!st.backendModules && typeof host !== 'undefined' && host.call) {
                 host.call('wf.registry', { cwd: st.cwd }).then(function(r){
-                  if (r && r.ok && Array.isArray(r.modules)) { st.backendModules = r.modules; emit(st) }
+                  if (r && r.ok && Array.isArray(r.modules)) { st.backendModules = r.modules; try{ setPresentationMap(r.modules) }catch{}; emit(st) }
                 }).catch(function(){})
               }
             } catch {}

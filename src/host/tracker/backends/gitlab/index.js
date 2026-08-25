@@ -95,6 +95,7 @@ export function createGitlabBackend(ctx) {
 export const gitlabBackend = {
   id: 'gitlab',
   label: 'GitLab',
+  presentation: { color: '#c25100' },
   create: createGitlabBackend,
   matches,
 }

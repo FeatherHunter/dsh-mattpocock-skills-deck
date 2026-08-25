@@ -60,7 +60,7 @@ export     const SettingsPage = (props) => {
         setBackendLoading(true)
         host.call('wf.registry', { cwd: sharedSt.cwd || '' }).then(function(r){
           setBackendLoading(false)
-          if (r && r.ok && Array.isArray(r.modules)) { setBackendModules(r.modules); sharedSt.backendModules = r.modules; emit(sharedSt) }
+          if (r && r.ok && Array.isArray(r.modules)) { setBackendModules(r.modules); sharedSt.backendModules = r.modules; try{ setPresentationMap(r.modules) }catch{}; emit(sharedSt) }
           else if (r && r.error) setBackendErr(String(r.error).slice(0,120))
         }).catch(function(e){ setBackendLoading(false); setBackendErr(String(e).slice(0,120)) })
       }, [sharedSt.cwd])

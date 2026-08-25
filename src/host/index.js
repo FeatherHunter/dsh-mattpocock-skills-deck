@@ -81,7 +81,8 @@ export default {
             const mdMod = await import('./tracker/backends/markdown/index.js')
             const mkCreate = mdMod.createMarkdownBackend || mdMod.createBackend || mdMod.default
             const mkMatches = mdMod.matches
-            const mdModule = mkCreate ? { id: 'markdown', label: 'Markdown', create: mkCreate, matches: mkMatches || (async()=>false) } : null
+            const mdPresentation = mdMod.markdownModule?.presentation || mdMod.presentation
+            const mdModule = mkCreate ? { id: 'markdown', label: 'Markdown', presentation: mdPresentation || { color: '#1a7f37' }, create: mkCreate, matches: mkMatches || (async()=>false) } : null
             if (mdModule) try { reg.register(mdModule) } catch {}
           } catch {}
           try {
@@ -1375,7 +1376,7 @@ export default {
       try {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
-        const mods = reg.modules().map(function(m){ return { id: m.id, label: m.label } })
+        const mods = reg.modules().map(function(m){ return { id: m.id, label: m.label, presentation: m.presentation } })
         const cwd = (args && args.cwd) || DEFAULT_CWD
         let bound = undefined
         try { bound = reg.bound({ cwd: cwd }) } catch {}

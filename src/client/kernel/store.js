@@ -194,25 +194,60 @@
       if (map[backendId]) return map[backendId]
       return String(backendId)
     }
+    // 契约：后端是颜色的单一真源（presentation.color 单值），UI 只做 light-dark 与透明度派生
+    export const presentationById = {}
+    export const setPresentationMap = function (mods) {
+      if (!Array.isArray(mods)) return
+      mods.forEach(function (m) {
+        if (m && m.id && m.presentation && m.presentation.color) {
+          presentationById[m.id] = m.presentation
+        }
+      })
+    }
+    const DARK_FOR_LIGHT = {
+      '#0969da': '#58a6ff',
+      '#1a7f37': '#3fb950',
+      '#c25100': '#ff9a5c',
+      '#57606a': '#8b949e',
+      '#6e7681': '#8b949e'
+    }
+    const toAdaptive = function (light) {
+      const l = String(light || '').trim()
+      if (!l) return 'light-dark(#57606a, #8b949e)'
+      if (l.includes('light-dark')) return l
+      const d = DARK_FOR_LIGHT[l.toLowerCase()] || l
+      return 'light-dark(' + l + ', ' + d + ')'
+    }
+    const bgFor = function (adaptiveColor) {
+      // 从 adaptive 中取 light 部分派生 bg（12% / 14%），若后端已显式给 bg 则直接用
+      // 简化：用 color-mix 派生，保持与 light-dark 同步
+      return 'light-dark(color-mix(in srgb, ' + adaptiveColor.replace(/light-dark\(([^,]+),.*\)/, '$1') + ' 12%, transparent), color-mix(in srgb, ' + adaptiveColor.replace(/.*,\s*([^\)]+)\)/, '$1') + ' 14%, transparent))'
+    }
     export const backendColorOf = function (backendId) {
-      if (backendId === 'github') return 'light-dark(#0969da, #58a6ff)'
-      if (backendId === 'markdown') return 'light-dark(#1a7f37, #3fb950)'
-      if (backendId === 'gitlab') return 'light-dark(#c25100, #ff9a5c)'
-      if (backendId == null) return 'light-dark(#57606a, #8b949e)'
+      const p = presentationById[backendId]
+      if (p && p.color) return toAdaptive(p.color)
       return 'light-dark(#57606a, #8b949e)'
     }
     export const backendBgOf = function (backendId) {
-      if (backendId === 'github') return 'light-dark(#ddf4ff, rgba(56,139,253,.15))'
-      if (backendId === 'markdown') return 'light-dark(rgba(26,127,55,.12), rgba(63,185,80,.14))'
-      if (backendId === 'gitlab') return 'light-dark(rgba(194,81,0,.12), rgba(255,154,92,.14))'
-      if (backendId == null) return 'light-dark(rgba(87,96,106,.12), rgba(139,148,158,.14))'
+      const p = presentationById[backendId]
+      if (p && p.bg) return p.bg
+      if (p && p.color) {
+        const ad = toAdaptive(p.color)
+        const light = ad.replace(/light-dark\(([^,]+),.*\)/, '$1')
+        const dark = ad.replace(/.*,\s*([^\)]+)\)/, '$1')
+        return 'light-dark(color-mix(in srgb, ' + light + ' 12%, transparent), color-mix(in srgb, ' + dark + ' 14%, transparent))'
+      }
       return 'light-dark(rgba(87,96,106,.12), rgba(139,148,158,.14))'
     }
     export const backendBorderOf = function (backendId) {
-      if (backendId === 'github') return 'light-dark(rgba(84,174,255,.4), rgba(56,139,253,.4))'
-      if (backendId === 'markdown') return 'light-dark(rgba(26,127,55,.25), rgba(63,185,80,.30))'
-      if (backendId === 'gitlab') return 'light-dark(rgba(194,81,0,.25), rgba(255,154,92,.30))'
-      if (backendId == null) return 'light-dark(rgba(87,96,106,.25), rgba(139,148,158,.30))'
+      const p = presentationById[backendId]
+      if (p && p.border) return p.border
+      if (p && p.color) {
+        const ad = toAdaptive(p.color)
+        const light = ad.replace(/light-dark\(([^,]+),.*\)/, '$1')
+        const dark = ad.replace(/.*,\s*([^\)]+)\)/, '$1')
+        return 'light-dark(color-mix(in srgb, ' + light + ' 30%, transparent), color-mix(in srgb, ' + dark + ' 35%, transparent))'
+      }
       return 'light-dark(rgba(87,96,106,.25), rgba(139,148,158,.30))'
     }
     export const repoShortName = function (repoRef) {
@@ -270,7 +305,7 @@
         if (c.selection !== undefined) { st.selection = c.selection; setCachedSelection(st.cwd, c.selection) }
         if (c.repository !== undefined) { st.repository = c.repository; setCachedRepository(st.cwd, c.repository) }
         // backendModules 缓存
-        if (c.backendModules) st.backendModules = c.backendModules
+        if (c.backendModules) { st.backendModules = c.backendModules; setPresentationMap(c.backendModules) }
       }
       // selection/repository 单独缓存兜底（snapshot 未命中但 selection 有缓存）
       if (!st.selection) {
@@ -287,7 +322,7 @@
       if (!st || !snap) return
       if (snap.selection !== undefined) { st.selection = snap.selection; if (st.cwd) setCachedSelection(st.cwd, snap.selection) }
       if (snap.repository !== undefined) { st.repository = snap.repository; if (st.cwd) setCachedRepository(st.cwd, snap.repository) }
-      if (snap.backendModules) st.backendModules = snap.backendModules
+      if (snap.backendModules) { st.backendModules = snap.backendModules; setPresentationMap(snap.backendModules) }
       if (snap.repository && snap.repository.backend) {
         // 兼容旧 snapshot.repo 字段
         if (!st.snapshot) st.snapshot = snap
