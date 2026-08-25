@@ -123,8 +123,8 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
     if (sha256(a) !== sha256(b)) { shaOk = false; console.log(`    sha256 不一致: shared/${rel}`) }
   }
   check(shaOk, 'package/shared 与 src/shared 逐文件 sha256 一致')
-  check(srcSharedFiles.length === 4, `src/shared 4 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 4, `package/shared 4 文件（实得 ${pkgSharedFiles.length}）`)
+  check(srcSharedFiles.length === 5, `src/shared 5 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 5, `package/shared 5 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

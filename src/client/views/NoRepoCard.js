@@ -1,9 +1,19 @@
 /**
- * views/NoRepoCard.js — 无仓库红卡 + 表单（T2 #35）
+ * views/NoRepoCard.js — 无仓库红卡 + 表单（T2 #35）+ 标签步骤 Modal（#188 纯 UI，无常驻黄条，GitHub 专属，名子集）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
+ * #188：建仓成功后进入标签步骤 Modal（文案“标签未全 7/10 → 注入补全指引”），点后 inject(prompt:ensureLabels)，Markdown 跳过
  */
     // ============ T2 #35 · NoRepo 红卡 + 表单（ListTab 首屏最优先 · 触发= checkRepo:bad && !dismissed）============
+    // #188 单源名集合（与 src/shared/labels.js 同步，名子集，不卡色）
+    const CANONICAL_LABELS_188 = ['bug','needs-triage','needs-info','ready-for-agent','ready-for-human','wayfinder:grilling','wayfinder:map','wayfinder:prototype','wayfinder:research','wayfinder:task']
+    function missingLabels188(existing) {
+      const have = {}
+      ;(Array.isArray(existing)?existing:[]).forEach(function(n){ have[String(n||'').trim().toLowerCase()]=true })
+      const out=[]
+      CANONICAL_LABELS_188.forEach(function(n){ if(!have[n.toLowerCase()]) out.push(n) })
+      return out
+    }
 export     const NoRepoCard = function (props) {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -38,17 +48,18 @@ export     const NoRepoCard = function (props) {
           h('div', { className: 'head' }, [
             Ic({ n: 'compass', size: 13, color: '#6e7681' }),
             h('div', { style: { flex: 1, minWidth: 0 } }, [
-              h('div', { className: 'ttl', style:{ color:'#6e7681' } }, '未绑定后端'),
-              h('div', { className: 'desc', style:{ color:'#8b8b95' } }, '当前工作区未选择 Tracker 后端 — 去设置页选择（Other 逃生舱）'),
+              h('div', { className:'ttl', style:{ color:'#6e7681' } }, '未绑定后端'),
+              h('div', { className:'desc', style:{ color:'#8b8b95' } }, '当前工作区未选择 Tracker 后端 — 去设置页选择（Other 逃生舱）'),
             ]),
           ]),
           h('div', { className: 'acts' }, [
-            h('button', { className: 'dsws-btn primary', onClick:function(){ st.tab='list'; emit(st) }, style: { background: '#6e7681', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, '选择后端'),
+            h('button', { className:'dsws-btn primary', onClick:function(){ st.tab='list'; emit(st) }, style: { background: '#6e7681', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, '选择后端'),
           ]),
         ])
       }
       const show = repoBad && !dismissed
-      if (!show) return null
+      const labelVisible = !!(card.labelStep && card.labelStep.visible)
+      if (!show && !labelVisible) return null
       const isValid = isNoRepoNameValid(card.name)
       const doDismiss = function () { setNoRepoDismissed(st.cwd, true); card.expanded = false; emit(st) }
       const doExpand = function () { if (!card.name) card.name = cwdBasename(st.cwd); card.expanded = true; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st) }
@@ -61,9 +72,49 @@ export     const NoRepoCard = function (props) {
           card.loading = false
           if (res && res.ok) {
             const repoStr2 = res.repo && res.repo.owner ? res.repo.owner + '/' + res.repo.name : (res.repo && res.repo.name ? res.repo.name : card.name)
+            // #188 纯 UI：Markdown 跳过标签步骤（GitHub 专属）
+            const sel2 = st.selection || (st.snapshot && st.snapshot.selection) || null
+            const isMd = !!(sel2 && sel2.backendId === 'markdown')
+            if (isMd) {
+              flash(st, tr('panel.noRepoCreateSuccess', { repo: repoStr2 }), 'ok')
+              card.expanded = false; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st)
+              loadSnapshot(st, true, true); loadChecks(st, true, true)
+              return
+            }
+            // GitHub：进入标签步骤 Modal（不设常驻黄条，流程内单步）
+            const computeMissing = function(snap){
+              const labs = snap && Array.isArray(snap.labels) ? snap.labels.map(function(l){ return (l && l.name) || '' }) : []
+              // 若 snapshot 无 labels（旧缓存），尝试从 issues 聚合兜底
+              if (!labs.length && snap && Array.isArray(snap.issues)) {
+                const agg={}
+                snap.issues.forEach(function(it){ (it.labels||[]).forEach(function(l){ agg[(l.name||'').toLowerCase()]=true }) })
+                return missingLabels188(Object.keys(agg))
+              }
+              return missingLabels188(labs)
+            }
+            const initMissing = computeMissing(st.snapshot)
+            if (!card.labelStep) card.labelStep = { visible:false, repoStr:'', missing:[], have:0, total:10, checking:false }
+            card.labelStep.visible = true
+            card.labelStep.repoStr = repoStr2
+            card.labelStep.missing = initMissing
+            card.labelStep.have = 10 - initMissing.length
+            card.labelStep.total = 10
+            card.labelStep.checking = true
             flash(st, tr('panel.noRepoCreateSuccess', { repo: repoStr2 }), 'ok')
             card.expanded = false; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st)
-            loadSnapshot(st, true, true); loadChecks(st, true, true)
+            // 异步刷新真实标签后矫正 7/10 → 实际值
+            loadSnapshot(st, true, true).then(function(){
+              try{
+                const miss2 = computeMissing(st.snapshot)
+                if (card.labelStep){
+                  card.labelStep.missing = miss2
+                  card.labelStep.have = 10 - miss2.length
+                  card.labelStep.checking = false
+                  emit(st)
+                }
+              }catch(e){ if(card.labelStep) card.labelStep.checking=false; emit(st) }
+            }).catch(function(){ if(card.labelStep) card.labelStep.checking=false; emit(st) })
+            loadChecks(st, true, true)
           } else {
             const kind = (res && res.errorKind) || 'unknown'
             const raw = (res && res.error) || ''
@@ -79,7 +130,8 @@ export     const NoRepoCard = function (props) {
           card.loading = false; card.errorKind = 'unknown'; card.error = String((e && e.message) || e).slice(0, 200); card.errorRepoUrl = ''; emit(st)
         })
       }
-      return h('div', { className: 'dsws-no-repo-card' }, [
+      // 构建红卡主体（show 时）
+      const cardEl = show ? h('div', { className: 'dsws-no-repo-card' }, [
         h('div', { className: 'head' }, [
           Ic({ n: 'alert', size: 13, color: '#f87171' }),
           h('div', { style: { flex: 1, minWidth: 0 } }, [
@@ -133,5 +185,42 @@ export     const NoRepoCard = function (props) {
             h('button', { className: 'dsws-btn', onClick: doCollapse, disabled: card.loading, style: { marginLeft: 6, fontSize: 11, padding: '4px 10px' } }, tr('panel.noRepoFormCancel')),
           ]),
         ]) : null,
-      ])
+      ]) : null
+      // #188 标签步骤 Modal（流程内单步，无常驻黄条）
+      const labelModal = labelVisible ? (function(){
+        const ls = card.labelStep
+        const have = typeof ls.have==='number'?ls.have:0
+        const total = ls.total||10
+        const missing = Array.isArray(ls.missing)?ls.missing:[]
+        const checking = !!ls.checking
+        const titleText = missing.length===0 ? tr('panel.labelsStepAllOk', {total: total}) : tr('panel.labelsStepTitle', {have: have, total: total})
+        const doInject = function(){
+          try{
+            const txt = (typeof promptText==='function') ? promptText('ensureLabels') : ''
+            if (txt && typeof inject==='function') { inject(st, txt) }
+            else if (typeof copyText==='function' && txt){ copyText(st, txt, tr('panel.labelsStepInjected')) }
+          }catch(e){}
+          try{ flash(st, tr('panel.labelsStepInjected'), 'ok') }catch(e){}
+          ls.visible=false; emit(st)
+        }
+        const doSkip = function(){ ls.visible=false; emit(st) }
+        const inner = h('div', { className: 'dsws-labels-modal', style: { background: '#1a1f2e', border: '1px solid rgba(255,255,255,.12)', borderRadius:8, width:360, maxWidth:'90vw', padding:'16px 18px', boxShadow:'0 8px 28px rgba(0,0,0,.45)', color:'#e6e8eb' } }, [
+          h('div', { style:{ fontSize:13, fontWeight:600, color:'#fbbf24', display:'flex', alignItems:'center', gap:6 } }, [ Ic({ n: 'alert', size:12, color:'#fbbf24' }), h('span', null, titleText) ]),
+          ls.repoStr ? h('div', { style:{ fontSize:11, color:'#8b94a5', marginTop:2 } }, ls.repoStr) : null,
+          h('div', { style:{ fontSize:11, color:'#8b8b95', marginTop:8 } }, tr('panel.labelsStepDesc')),
+          missing.length ? h('div', { style:{ fontSize:11, color:'#f87171', marginTop:8, background:'rgba(248,113,113,.08)', border:'1px solid rgba(248,113,113,.22)', borderRadius:4, padding:'6px 8px', wordBreak:'break-word' } }, tr('panel.labelsStepMissing', {list: missing.join(', ')})) : null,
+          checking ? h('div', { style:{ fontSize:11, color:'#8b8b95', marginTop:6, display:'flex', alignItems:'center', gap:4 } }, [ h('span', { className:'dsws-spinner', style:{ width:10,height:10,borderWidth:1.5, display:'inline-block' } }), h('span', null, '检测中…') ]) : null,
+          h('div', { style:{ display:'flex', gap:8, marginTop:14, justifyContent:'flex-end' } }, [
+            h('button', { className:'dsws-btn', onClick: doSkip, style:{ fontSize:11, padding:'4px 10px' } }, tr('panel.labelsStepSkip')),
+            missing.length ? h('button', { className:'dsws-btn primary', onClick: doInject, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontWeight:600, fontSize:11, padding:'4px 12px' } }, tr('panel.labelsStepAction')) : h('button', { className:'dsws-btn primary', onClick: doSkip, style:{ background:'#16a34a', borderColor:'transparent', color:'#fff', fontWeight:600, fontSize:11, padding:'4px 12px' } }, '完成')
+          ])
+        ])
+        const overlay = h('div', { className:'dsws-labels-overlay', onClick:function(e){ if(e.target===e.currentTarget) doSkip() }, style:{ position:'fixed', inset:'0', background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2147483000 } }, [inner])
+        try{ if(typeof portalTop==='function') return portalTop(overlay) }catch(e){}
+        return overlay
+      })() : null
+      if (!cardEl && !labelModal) return null
+      if (cardEl && labelModal) return h('div', null, [cardEl, labelModal])
+      if (labelModal) return labelModal
+      return cardEl
     }

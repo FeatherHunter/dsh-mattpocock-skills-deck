@@ -103,17 +103,61 @@ export     const OverlayPanel = (props) => {
       const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
       // v14-19：窄屏阈值（面板宽 <380px 时动作按钮折叠为纯图标）
       const narrow = s.size.w < 380
-      // #155 全屏遮蔽：selection.backendId===null && !pending (isOther) 或 pending 时全屏 BackendSelector（Overlay 同 Dock）
+      // #187 Banner→Modal 门控（同 Dock：Banner 点→Modal 动态三选，不含 Other，取消/确认 + 两态等待）
       const _sel2 = s.selection || (s.snapshot && s.snapshot.selection) || null
       const _isPending2 = !!(_sel2 && _sel2.pending)
       const _isOther2 = !!(_sel2 && _sel2.backendId===null && !_sel2.pending)
       const _showBackendFullscreen2 = _isPending2 || _isOther2
-      const pickBackend2 = function(id){
+      // Overlay 与 Dock 共享同一 store gate 状态（同一工作区同一 modal）
+      const _gateOpen2 = !!s.gateModalOpen
+      const _gateModules2 = (function(){
+        const ms = s.backendModules
+        if (Array.isArray(ms) && ms.length) {
+          const f = ms.filter(function(m){ return String(m.id).toLowerCase()!=='other' })
+          return f.length ? f : [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
+        }
+        return [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
+      })()
+      const _openGateModal2 = function(){
+        s.gateModalOpen = true
+        if (!s.gateSelected) {
+          const first = _gateModules2 && _gateModules2[0] ? _gateModules2[0].id : 'github'
+          s.gateSelected = first
+        }
+        s.gateError = ''
+        emit(s)
+        if (typeof host !== 'undefined' && host.call) {
+          s.gateLoading = true; emit(s)
+          host.call('wf.registry', { cwd: s.cwd || '' }).then(function(r){
+            s.gateLoading = false
+            let mods = null
+            if (r && r.ok && Array.isArray(r.modules)) mods = r.modules
+            else if (r && Array.isArray(r.modules)) mods = r.modules
+            else if (r && r.value && Array.isArray(r.value.modules)) mods = r.value.modules
+            if (Array.isArray(mods) && mods.length) {
+              const filtered = mods.filter(function(m){ return String(m.id).toLowerCase()!=='other' })
+              const fin = filtered.length ? filtered : mods.filter(function(m){ return String(m.id).toLowerCase()!=='other' })
+              if (fin.length) {
+                s.backendModules = mods
+                try{ if (typeof setPresentationMap==='function') setPresentationMap(mods) }catch(e){}
+                const ids = fin.map(function(x){ return x.id })
+                if (!s.gateSelected || ids.indexOf(s.gateSelected)<0) s.gateSelected = fin[0].id
+              }
+            }
+            emit(s)
+          }).catch(function(){ s.gateLoading=false; emit(s) })
+        }
+      }
+      const _closeGateModal2 = function(){ s.gateModalOpen=false; s.gateError=''; emit(s) }
+      const _confirmGate2 = function(){
+        const id = s.gateSelected || (_gateModules2[0] && _gateModules2[0].id) || 'github'
+        if (String(id).toLowerCase()==='other') { s.gateError='Other 已弃用，请选择 GitHub/Markdown/GitLab'; emit(s); return }
         const prev = s.selection
         const repoRef = s.repository || (s.snapshot && s.snapshot.repository) || null
-        const next = id===null ? { backendId: null, source: 'explicit', pending: false, ref: repoRef } : { backendId: id, source: 'explicit', ref: repoRef }
+        const next = { backendId: id, source: 'explicit', ref: repoRef }
         s.selection = next
         try{ if(s.cwd) selectionByCwd[s.cwd]=next }catch(e){}
+        s.gateModalOpen=false
         emit(s)
         if(typeof host!=='undefined' && host.call){
           host.call('wf.bind', { cwd: s.cwd||'', backendId: id }).then(function(res){
@@ -122,6 +166,13 @@ export     const OverlayPanel = (props) => {
               s.tab='list'
               emit(s)
               try{ flash(s, '已绑定 ' + (typeof labelOf==='function'?labelOf(id):String(id)), 'ok') }catch(e){}
+              try{
+                const line = (typeof setupTrackerLine==='function'? setupTrackerLine(id) : '本仓库为 GitHub \u2192 提议 GitHub Issues')
+                const choice = (typeof setupTrackerChoice==='function'? setupTrackerChoice(id) : 'GitHub Issues')
+                const note = (typeof setupBackendNote==='function'? setupBackendNote(id) : '')
+                const txt = (typeof promptText==='function'? promptText('setupRun', {trackerLine:line, trackerChoice:choice, backendNote:note}) : '')
+                if (txt) { try{ inject(s, txt) }catch(e){} }
+              }catch(e){}
               loadSnapshot(s,true,true)
             } else {
               s.selection=prev; try{ if(s.cwd) selectionByCwd[s.cwd]=prev }catch(e){}; emit(s)
@@ -133,6 +184,7 @@ export     const OverlayPanel = (props) => {
           })
         }
       }
+      const pickBackend2 = function(id){ s.gateSelected=id; emit(s); _confirmGate2() }
 
       const startDrag = function (e) {
         if (typeof document === 'undefined' || typeof window === 'undefined') return
@@ -184,17 +236,83 @@ export     const OverlayPanel = (props) => {
         h('div', { ref: headRef, className: 'dsws-head', onMouseDown: startDrag, style: { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 } }, [
           Icon({ scheme: s.ui.icon, size: 17 }),
           h('span', { 'data-head-title': 1, style: { fontWeight: 600, whiteSpace: 'nowrap', flex: 'none' } }, tr('panel.title')),
-          // v19-35：「真数据」→ 显示 repo 名（对未来用户更有意义；异常时红色提示）
-          h('span', { 'data-repo-chip': 1, className: 'dsws-chip ' + (s.snapMode === 'err' ? 'dsws-chip-t' : 'dsws-chip-m'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, [
-            Ic({ n: s.snapMode === 'err' ? 'alert' : 'info', size: 11 }),
-            h('span', { 'data-repo-text': 1, className: 'dsws-ellip', title: repoStr(s), style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, s.snapMode === 'err' ? tr('panel.snapErr') : s.snapMode === 'loading' ? tr('panel.loading') : repoStr(s)),
-          ]),
+          // v19-35：「真数据」→ 显示 repo 名；#190 Markdown 本地文件夹分支（backend==='markdown' 时 host.call('wf.openFolder',{cwd})，GitHub/GitLab 保持 openUrl）
+          (function(){
+            const repoRef = (s.repository || (s.snapshot && s.snapshot.repository) || (s.snapshot && s.snapshot.repo ? { backend:'github', name: s.snapshot.repo.owner+'/'+s.snapshot.repo.name, refId: s.snapshot.repo.owner+'/'+s.snapshot.repo.name, url:'https://github.com/'+s.snapshot.repo.owner+'/'+s.snapshot.repo.name } : null))
+            const sel = s.selection || (s.snapshot && s.snapshot.selection) || null
+            const isErr = s.snapMode === 'err'
+            const isLoading = s.snapMode === 'loading'
+            if (isErr || isLoading || !repoRef) {
+              return h('span', { 'data-repo-chip': 1, className: 'dsws-chip ' + (isErr ? 'dsws-chip-t' : 'dsws-chip-m'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' } }, [
+                Ic({ n: isErr ? 'alert' : 'info', size: 11 }),
+                h('span', { 'data-repo-text': 1, className: 'dsws-ellip', title: repoStr(s), style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, isErr ? tr('panel.snapErr') : isLoading ? tr('panel.loading') : repoStr(s)),
+              ])
+            }
+            const bid = sel ? sel.backendId : (repoRef.backend || 'github')
+            const bidNorm = String(bid || '').toLowerCase()
+            const isMarkdown = bidNorm === 'markdown'
+            const href = repoRef.url || ''
+            const displayName = repoRef.name || repoStr(s)
+            const baseStyle = { display: 'inline-flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+            const chipClass = 'dsws-chip ' + (isErr ? 'dsws-chip-t' : 'dsws-chip-m')
+            const inner = [Ic({ n: isErr ? 'alert' : 'info', size: 11 }), h('span', { 'data-repo-text': 1, className: 'dsws-ellip', title: displayName, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, displayName)]
+            if (isMarkdown) {
+              return h('a', { href: 'javascript:void(0)', 'data-repo-chip': 1, className: chipClass, style: Object.assign({}, baseStyle, { cursor:'pointer', textDecoration:'none' }), title: displayName, onClick: function(e){ try{ if(e&&e.preventDefault) e.preventDefault() }catch(_){}; try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openFolder',{cwd: s.cwd||''}) }catch(__){} } }, inner)
+            }
+            if (href) {
+              return h('a', { href: href, target: '_blank', rel: 'noreferrer', 'data-repo-chip': 1, className: chipClass, style: Object.assign({}, baseStyle, { cursor:'pointer', textDecoration:'none' }), title: tr('panel.repoTitle'), onClick: function(){ try{ if(typeof openUrl==='function') openUrl(href) }catch(_){} } }, inner)
+            }
+            return h('span', { 'data-repo-chip': 1, className: chipClass, style: Object.assign({}, baseStyle, { cursor:'default' }), title: displayName }, inner)
+          })(),
           h('span', { style: { flex: 1 } }),
           h('button', { className: 'dsws-btn ghost', title: tr('panel.closeTitle'), onClick: function () { s.open = false; emit(s) }, style: { display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 12 })),
         ]),
-                _showBackendFullscreen2 ? null : h('div', { className: 'dsws-tabs', ref: tabsRef, style: { display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items),
-        _showBackendFullscreen2 ? h('div', { className: 'dsws-body', onMouseDown: onBodyDown }, [
-          h(BackendSelector, { modules: s.backendModules || null, curBackendId: _sel2 ? _sel2.backendId : null, curSelection: _sel2, curRepo: s.repository || (s.snapshot && s.snapshot.repository) || null, includeOther: true, onPick: pickBackend2 })
+                (_isPending2 || _isOther2) ? null : h('div', { className: 'dsws-tabs', ref: tabsRef, style: { display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items),
+        _isPending2 ? h('div', { className: 'dsws-body', onMouseDown: onBodyDown, style:{ display:'flex', alignItems:'center', justifyContent:'center', padding:'12px' } }, [
+          h('div', { style:{ width:'92%', maxWidth:420, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', borderRadius:12, padding:'14px 16px', display:'flex', flexDirection:'column', gap:10 } }, [
+            h('div', { style:{ display:'flex', alignItems:'center', gap:8 } }, [
+              h('span', { className:'dsws-spinner', style:{ width:16, height:16, borderWidth:2, display:'inline-block' } }),
+              h('div', { style:{ flex:1 } }, [
+                h('div', { style:{ fontSize:13, fontWeight:700, color:'#f59e0b' } }, '正在探测后端'),
+                h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:2 } }, '3s 超时未决 — 若长时间停留请手动选择'),
+              ]),
+            ]),
+            h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 } }, [
+              h('button', { className:'dsws-btn', onClick:function(){ s.tab='list'; emit(s); _openGateModal2() }, style:{ fontSize:11, padding:'4px 10px' } }, '去设置页选择'),
+              h('button', { className:'dsws-btn primary', onClick:function(){ loadSnapshot(s,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'4px 10px' } }, '重试探测'),
+            ]),
+          ])
+        ]) : _isOther2 ? h('div', { className: 'dsws-body', onMouseDown: onBodyDown, style:{ position:'relative', display:'flex', flexDirection:'column', gap:10, padding:'12px' } }, [
+          h('div', { onClick: _openGateModal2, style:{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', borderRadius:10, cursor:'pointer', color:'#58a6ff', fontSize:12, fontWeight:600 } }, [
+            Ic({ n: 'compass', size:14, color:'#58a6ff' }),
+            h('span', { style:{ flex:1 } }, '该工作区还没有设置 — 点击选择后端'),
+            h('span', { style:{ fontSize:11, color:'#58a6ff', border:'1px solid rgba(56,139,253,.4)', borderRadius:6, padding:'1px 6px', background:'rgba(56,139,253,.12)' } }, '去选择'),
+          ]),
+          h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'0 2px' } }, '选择后将回到主线流程（列表/状态栏正常可用），仅设置页可见引导已隐藏主线'),
+          _gateOpen2 ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) _closeGateModal2() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.55)', display:'flex', alignItems:'center', justifyContent:'center', padding:'16px', zIndex:5 } }, [
+            h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:'16px', width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
+              h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, '请选择 Tracker 后端以继续')]),
+              h('div', { style:{ fontSize:11, color:'#8b8b95', marginBottom:10, lineHeight:1.5 } }, '不同后端的初始化与前置检查不同，选择后将回到主线流程（列表/状态栏正常可用）'),
+              s.gateLoading ? h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'6px 0' } }, '加载中…') : h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, _gateModules2.map(function(m){
+                const isSel = s.gateSelected===m.id
+                const col = (typeof backendColorOf==='function'? backendColorOf(m.id) : '#6e7681')
+                const isRec = _gateModules2[0] && _gateModules2[0].id===m.id
+                return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border: isSel ? '1px solid '+col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSel ? 'rgba(88,166,255,.08)' : 'transparent', cursor:'pointer' } }, [
+                  h('input', { type:'radio', name:'dsws-gate-pick2', checked:isSel, onChange:function(){ s.gateSelected=m.id; emit(s) } }),
+                  h('span', { style:{ width:8, height:8, borderRadius:'50%', background:col, flex:'none' } }),
+                  h('span', { style:{ fontSize:12, fontWeight:600 } }, m.label),
+                  h('span', { style:{ fontSize:10, color:'#8b8b95' } }, m.id),
+                  h('span', { style:{ flex:1 } }),
+                  isRec ? h('span', { style:{ fontSize:10, color:'#4ade80', border:'1px solid #4ade80', borderRadius:4, padding:'0 4px', lineHeight:1.6 } }, '推荐') : null,
+                ])
+              })),
+              s.gateError ? h('div', { style:{ fontSize:11, color:'#f87171', marginTop:8 } }, s.gateError) : null,
+              h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 } }, [
+                h('button', { className:'dsws-btn ghost', onClick: _closeGateModal2, style:{ fontSize:12 } }, '取消'),
+                h('button', { className:'dsws-btn primary', onClick: _confirmGate2, style:{ background:'#58a6ff', borderColor:'#58a6ff', color:'#0b1220', fontWeight:700, fontSize:12 } }, '确认并继续'),
+              ]),
+            ])
+          ]) : null,
         ]) : h('div', { className: 'dsws-body', onMouseDown: onBodyDown }, [
           s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,
@@ -208,6 +326,8 @@ export     const OverlayPanel = (props) => {
         h('div', { className: 'dsws-rz dsws-rz-nw', onMouseDown: onResizeDown('nw'), title: tr('rz.nw') }),
         h('div', { className: 'dsws-rz dsws-rz-se', onMouseDown: onResizeDown('se'), title: tr('rz.se') }),
         h('div', { className: 'dsws-rz dsws-rz-sw', onMouseDown: onResizeDown('sw'), title: tr('rz.sw') }),
+        // #189 · 切换三选一 Modal（全局 per-store）
+        (s.switchConfirm && s.switchConfirm.open && typeof SwitchConfirmModal === 'function' ? h(SwitchConfirmModal, { sessionId: cur }) : null),
         // v1.5 T10 R7：刷新遮罩已废除（手动刷新走静默路径，无「刷新中」）
         s.notice ? h('div', { className: 'dsws-note', style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
           Ic({ n: noticeIcon(s.notice.kind), size: 13, color: NOTICE_COLOR[s.notice.kind] || '#4ade80' }),

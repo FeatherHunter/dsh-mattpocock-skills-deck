@@ -56,7 +56,13 @@ export const StatusBar = (props) => {
   React.useEffect(function () { loadChecks(s, false); if (!snapFresh(s)) loadSnapshot(s, false) }, [])
   const csx = checksumsOf(s)
   const { fr, bugN, triageN, n, timeStr, setup, amber, skillsCheck, skillsBad, ghCliBad, ghAuthBad } = csx
-  const go = function (tab) { s.tab = tab; openPanel(s) }
+  // #187 门控：未选择且非 pending 时状态栏整条 dsws-capsule 不渲染（仅设置页可见引导），pending 时保留等待态
+  const _selSBGate = s.selection || (s.snapshot && s.snapshot.selection) || null
+  const _isOtherSBGate = !!(_selSBGate && _selSBGate.backendId===null && !_selSBGate.pending)
+  const go = function (tab) {
+    if (_isOtherSBGate && tab!=='settings') { try{ s.tab='settings'; }catch(e){}; return }
+    s.tab = tab; openPanel(s)
+  }
   const inputRef = React.useRef(null)
   const foldRef = React.useRef(null)
   const bugAnchorRef = React.useRef(null)
@@ -235,7 +241,7 @@ export const StatusBar = (props) => {
       clearInterval(poll)
     }
   }, [])
-  const capsule = h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: iw + 'px' } }, [
+  const capsule = _isOtherSBGate ? null : h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { if(_isOtherSBGate) return; openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: iw + 'px' } }, [
     h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
       Icon({ scheme: s.ui.icon, size: 14 }),
       h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
@@ -265,6 +271,13 @@ export const StatusBar = (props) => {
               const on = bid===m.id
               return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:6, padding:'4px 6px', borderRadius:6, background: on?'rgba(88,166,255,.12)':'transparent', border: on?'1px solid '+backendColorOf(m.id):'1px solid transparent', cursor:'pointer', fontSize:11 } }, [
                 h('input', { type:'radio', name:'sb-backend', checked:on, onChange: function(){
+                  // #189 · 已选态切换需确认 Modal
+                  try {
+                    if (typeof openSwitchConfirm === 'function' && s.selection && s.selection.backendId != null && s.selection.backendId !== m.id) {
+                      const opened = openSwitchConfirm(s, m.id)
+                      if (opened) { closeBackendMenu(); return }
+                    }
+                  } catch {}
                   const prev = s.selection
                   s.selection={ backendId:m.id, source:'explicit', ref: repoRef }
                   try{ if(s.cwd) selectionByCwd[s.cwd]=s.selection }catch{}
@@ -344,6 +357,8 @@ export const StatusBar = (props) => {
     h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, title: tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', { 'data-fold-priority': 4 }, tr('nav.refresh')), h('span', { 'data-fold-priority': 9 }, ' ' + timeStr)]),
     h(SkillFloatList, { s: s }),
   ])
+  // #189 · 切换确认 Modal 全局挂载
+  const switchModal = (s.switchConfirm && s.switchConfirm.open && typeof SwitchConfirmModal === 'function') ? h(SwitchConfirmModal, { sessionId: sid }) : null
   const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
   const fbMods = [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
   const normMods = function(r){
@@ -403,7 +418,10 @@ export const StatusBar = (props) => {
       ]),
     ])
   })() : null
-  if (!firstBlock) return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: RDOM ? 'hidden' : 'visible' } }, [capsule])
+  if (!firstBlock) {
+    if (_isOtherSBGate) return h('div', { style: { display: 'none' } }, [])
+    return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: RDOM ? 'hidden' : 'visible' } }, [capsule, switchModal])
+  }
   const bann = function (text, btnLabel, onBtn) {
     return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
       Ic({ n: 'alert', size: 13 }),
@@ -423,5 +441,6 @@ export const StatusBar = (props) => {
             ])
           : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.detail) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills')) }),
     capsule,
+    switchModal,
   ])
 }

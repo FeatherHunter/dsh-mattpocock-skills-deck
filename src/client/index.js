@@ -184,6 +184,7 @@ export default {
 
     // ==== leaf:chips (spliced by build) ====
     // ==== leaf:backendSelector (spliced by build) ====
+    // ==== leaf:switchConfirmModal (spliced by build) ====
 
     // ==== leaf:seg (spliced by build) ====
     // ==== leaf:checksums (spliced by build) ====

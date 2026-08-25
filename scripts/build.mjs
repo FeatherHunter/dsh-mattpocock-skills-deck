@@ -189,6 +189,7 @@ const KERNEL_MODULES = [
 const LEAF_MODULES = [
   { id: 'chips', file: 'src/client/views/shared/chips.js' },
   { id: 'backendSelector', file: 'src/client/views/shared/BackendSelector.js' },
+  { id: 'switchConfirmModal', file: 'src/client/views/shared/SwitchConfirmModal.js' },
   { id: 'md', file: 'src/client/views/shared/md.js' },
   { id: 'ticket', file: 'src/client/views/shared/ticket.js' },
   { id: 'tagsFit', file: 'src/client/views/shared/tagsFit.js' },

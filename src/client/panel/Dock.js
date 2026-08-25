@@ -127,36 +127,12 @@ export     const DetailsDock = (props) => {
       const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
       const hasIssueDetail = s.activeIssue !== null && s.activeIssue !== undefined
       const narrow = dw < 380
-      // #155 全屏遮蔽：selection.backendId===null && !pending (isOther) 或 pending 时全屏 BackendSelector
+      // #187 Banner→Modal 门控（承接 #184 定版：Banner 点→Modal 动态三选，不含 Other，取消/确认 + 整条隐藏+容器不挂载 + pending/isOther 两态 + 动态多态）
       const _sel = s.selection || (s.snapshot && s.snapshot.selection) || null
       const _isPending = !!(_sel && _sel.pending)
       const _isOther = !!(_sel && _sel.backendId===null && !_sel.pending)
       const _showBackendFullscreen = _isPending || _isOther
-      const pickBackend = function(id){
-        const prev = s.selection
-        const repoRef = s.repository || (s.snapshot && s.snapshot.repository) || null
-        const next = id===null ? { backendId: null, source: 'explicit', pending: false, ref: repoRef } : { backendId: id, source: 'explicit', ref: repoRef }
-        s.selection = next
-        try{ if(s.cwd) selectionByCwd[s.cwd]=next }catch(e){}
-        emit(s)
-        if(typeof host!=='undefined' && host.call){
-          host.call('wf.bind', { cwd: s.cwd||'', backendId: id }).then(function(res){
-            const ok = res && (res.ok===true || (res.value && res.value.ok===true) || res.ok)
-            if(ok){
-              s.tab='list'
-              emit(s)
-              try{ flash(s, '已绑定 ' + (typeof labelOf==='function'?labelOf(id):String(id)), 'ok') }catch(e){}
-              loadSnapshot(s,true,true)
-            } else {
-              s.selection=prev; try{ if(s.cwd) selectionByCwd[s.cwd]=prev }catch(e){}; emit(s)
-              try{ flash(s, '绑定失败:'+String((res&&(res.error||res.message))||'unknown').slice(0,120), 'warn') }catch(e){}
-            }
-          }).catch(function(e){
-            s.selection=prev; try{ if(s.cwd) selectionByCwd[s.cwd]=prev }catch(e2){}; emit(s)
-            try{ flash(s, '绑定失败:'+String(e && e.message || e).slice(0,120), 'warn') }catch(e3){}
-          })
-        }
-      }
+      const _gateOpen=!!s.gateModalOpen;const _gateModules=(s.backendModules||[{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]).filter(m=>String(m.id).toLowerCase()!=='other');const _openGateModal=function(){s.gateModalOpen=true;if(!s.gateSelected)s.gateSelected=(_gateModules[0]&&_gateModules[0].id)||'github';s.gateError='';emit(s);if(typeof host!=='undefined'&&host.call){s.gateLoading=true;emit(s);host.call('wf.registry',{cwd:s.cwd||''}).then(function(r){s.gateLoading=false;let m=null;if(r&&r.ok&&Array.isArray(r.modules))m=r.modules;else if(r&&Array.isArray(r.modules))m=r.modules;else if(r&&r.value&&Array.isArray(r.value.modules))m=r.value.modules;if(Array.isArray(m)&&m.length){const f=m.filter(x=>String(x.id).toLowerCase()!=='other');const fin=f.length?f:m.filter(x=>String(x.id).toLowerCase()!=='other');if(fin.length){s.backendModules=m;try{if(typeof setPresentationMap==='function')setPresentationMap(m)}catch(e){}const ids=fin.map(x=>x.id);if(!s.gateSelected||ids.indexOf(s.gateSelected)<0)s.gateSelected=fin[0].id}}emit(s)}).catch(function(){s.gateLoading=false;emit(s)})}};const _closeGateModal=function(){s.gateModalOpen=false;s.gateError='';emit(s)};const _confirmGate=function(){const id=s.gateSelected||(_gateModules[0]&&_gateModules[0].id)||'github';if(String(id).toLowerCase()==='other'){s.gateError='Other 已弃用，请选择 GitHub/Markdown/GitLab';emit(s);return}const prev=s.selection;const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null;const nxt={backendId:id,source:'explicit',ref:repoRef};s.selection=nxt;try{if(s.cwd)selectionByCwd[s.cwd]=nxt}catch(e){}s.gateModalOpen=false;emit(s);if(typeof host!=='undefined'&&host.call){host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok);if(ok){s.tab='list';emit(s);try{flash(s,'已绑定 '+(typeof labelOf==='function'?labelOf(id):String(id)),'ok')}catch(e){}try{const l=(typeof setupTrackerLine==='function'?setupTrackerLine(id):'本仓库为 GitHub → 提议 GitHub Issues');const c=(typeof setupTrackerChoice==='function'?setupTrackerChoice(id):'GitHub Issues');const n=(typeof setupBackendNote==='function'?setupBackendNote(id):'');const tt=(typeof promptText==='function'?promptText('setupRun',{trackerLine:l,trackerChoice:c,backendNote:n}):'');if(tt)try{inject(s,tt)}catch(e){}}catch(e){}loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)selectionByCwd[s.cwd]=prev}catch(e){};emit(s);try{flash(s,'绑定失败:'+String((res&&(res.error||res.message))||'unknown').slice(0,120),'warn')}catch(e){}}}).catch(function(e){s.selection=prev;try{if(s.cwd)selectionByCwd[s.cwd]=prev}catch(e2){};emit(s);try{flash(s,'绑定失败:'+String(e&&e.message||e).slice(0,120),'warn')}catch(e3){}})}};const pickBackend=function(id){s.gateSelected=id;emit(s);_confirmGate()}
       const tabsRef = React.useRef(null)
       const tabs = useTabsRow(s, tabsRef)
       const headRef = React.useRef(null)
@@ -269,9 +245,14 @@ export     const DetailsDock = (props) => {
             const href = repoRef.url || ''
             const inner = [h('svg', { viewBox: '0 0 16 16', width: 11, height: 11, fill: 'currentColor', style: { flex: 'none' } }, [h('path', { d: 'M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 8h8.5V1.5z' })]), h('span', { 'data-repo-text': 1, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, repoRef.name)]
             const chipStyle = { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: col, backgroundColor: bg, border: '1px solid transparent', borderRadius: 6, padding: '1px 8px', flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', borderColor: bdc, colorScheme: 'light dark' }
-            // 若无 url（本地 markdown），退化为 span 不链
+            // #190：Markdown 本地文件夹分支 — backend==='markdown' 时 onClick host.call('wf.openFolder',{cwd})，GitHub/GitLab 保持 openUrl(href)；空 url 不再 span（Markdown 仍可点）
+            const bidNorm = String(bid || '').toLowerCase()
+            const isMarkdown = bidNorm === 'markdown'
+            if (isMarkdown) {
+              return h('a', { href: 'javascript:void(0)', title: repoRef.name, 'data-repo-chip': 1, style: Object.assign({}, chipStyle, { cursor:'pointer' }), onClick: function(e){ try{ if(e&&e.preventDefault) e.preventDefault() }catch(_){}; try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openFolder',{cwd: s.cwd||''}) }catch(__){} } }, inner)
+            }
             if (!href) return h('span', { title: repoRef.name, 'data-repo-chip': 1, style: Object.assign({}, chipStyle, { cursor:'default' }) }, inner)
-            return h('a', { href: href, target: '_blank', rel: 'noreferrer', title: tr('panel.repoTitle'), 'data-repo-chip': 1, style: chipStyle }, inner)
+            return h('a', { href: href, target: '_blank', rel: 'noreferrer', title: tr('panel.repoTitle'), 'data-repo-chip': 1, style: chipStyle, onClick: function(){ try{ if(typeof openUrl==='function') openUrl(href) }catch(_){} } }, inner)
           })(),
           h('span', { style: { flex: 1 } }),
           h('button', { className: 'dsws-btn ghost', title: tr('panel.closeTitle'), onClick: closeDock, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 6px', fontSize: 11 } }, Ic({ n: 'x', size: 12 })),
@@ -296,15 +277,60 @@ export     const DetailsDock = (props) => {
           ])
           return null
         })(),
-        // 标签行下沿 = 与对话/轨迹一致的横线；右侧：刷新按钮 + 版本号（v1.3.3）
-        _showBackendFullscreen ? null : h('div', { className: 'dsws-tabs', ref: tabsRef, style: { padding: '0 12px 7px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items),
-        _showBackendFullscreen ? h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
-          h(BackendSelector, { modules: s.backendModules || null, curBackendId: _sel ? _sel.backendId : null, curSelection: _sel, curRepo: s.repository || (s.snapshot && s.snapshot.repository) || null, includeOther: true, onPick: pickBackend })
+        // 标签行下沿 = 与对话/轨迹一致的横线；右侧：刷新按钮 + 版本号（v1.3.3）— 门控时隐藏（容器不挂载语义：业务 tabs 不渲染，仅 Banner/Modal 可见）
+        (_isPending || _isOther) ? null : h('div', { className: 'dsws-tabs', ref: tabsRef, style: { padding: '0 12px 7px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items),
+        _isPending ? h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '12px', display:'flex', alignItems:'center', justifyContent:'center' } }, [
+          h('div', { style:{ width:'92%', maxWidth:420, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', borderRadius:12, padding:'14px 16px', display:'flex', flexDirection:'column', gap:10 } }, [
+            h('div', { style:{ display:'flex', alignItems:'center', gap:8 } }, [
+              h('span', { className:'dsws-spinner', style:{ width:16, height:16, borderWidth:2, display:'inline-block' } }),
+              h('div', { style:{ flex:1 } }, [
+                h('div', { style:{ fontSize:13, fontWeight:700, color:'#f59e0b' } }, '正在探测后端'),
+                h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:2 } }, '3s 超时未决 — 若长时间停留请手动选择'),
+              ]),
+            ]),
+            h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 } }, [
+              h('button', { className:'dsws-btn', onClick:function(){ s.tab='list'; emit(s); _openGateModal() }, style:{ fontSize:11, padding:'4px 10px' } }, '去设置页选择'),
+              h('button', { className:'dsws-btn primary', onClick:function(){ loadSnapshot(s,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'4px 10px' } }, '重试探测'),
+            ]),
+          ])
+        ]) : _isOther ? h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '12px', position:'relative', display:'flex', flexDirection:'column', alignItems:'stretch', gap:10 } }, [
+          h('div', { onClick: _openGateModal, style:{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', borderRadius:10, cursor:'pointer', color:'#58a6ff', fontSize:12, fontWeight:600 } }, [
+            Ic({ n: 'compass', size:14, color:'#58a6ff' }),
+            h('span', { style:{ flex:1 } }, '该工作区还没有设置 — 点击选择后端'),
+            h('span', { style:{ fontSize:11, color:'#58a6ff', border:'1px solid rgba(56,139,253,.4)', borderRadius:6, padding:'1px 6px', background:'rgba(56,139,253,.12)' } }, '去选择'),
+          ]),
+          h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'0 2px' } }, '选择后将回到主线流程（列表/状态栏正常可用），仅设置页可见引导已隐藏主线'),
+          _gateOpen ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) _closeGateModal() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.55)', display:'flex', alignItems:'center', justifyContent:'center', padding:'16px', zIndex:5 } }, [
+            h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:'16px', width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
+              h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, '请选择 Tracker 后端以继续')]),
+              h('div', { style:{ fontSize:11, color:'#8b8b95', marginBottom:10, lineHeight:1.5 } }, '不同后端的初始化与前置检查不同，选择后将回到主线流程（列表/状态栏正常可用）'),
+              s.gateLoading ? h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'6px 0' } }, '加载中…') : h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, _gateModules.map(function(m){
+                const isSel = s.gateSelected===m.id
+                const col = (typeof backendColorOf==='function'? backendColorOf(m.id) : '#6e7681')
+                const isRec = _gateModules[0] && _gateModules[0].id===m.id
+                return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border: isSel ? '1px solid '+col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSel ? 'rgba(88,166,255,.08)' : 'transparent', cursor:'pointer' } }, [
+                  h('input', { type:'radio', name:'dsws-gate-pick', checked:isSel, onChange:function(){ s.gateSelected=m.id; emit(s) } }),
+                  h('span', { style:{ width:8, height:8, borderRadius:'50%', background:col, flex:'none' } }),
+                  h('span', { style:{ fontSize:12, fontWeight:600 } }, m.label),
+                  h('span', { style:{ fontSize:10, color:'#8b8b95' } }, m.id),
+                  h('span', { style:{ flex:1 } }),
+                  isRec ? h('span', { style:{ fontSize:10, color:'#4ade80', border:'1px solid #4ade80', borderRadius:4, padding:'0 4px', lineHeight:1.6 } }, '推荐') : null,
+                ])
+              })),
+              s.gateError ? h('div', { style:{ fontSize:11, color:'#f87171', marginTop:8 } }, s.gateError) : null,
+              h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 } }, [
+                h('button', { className:'dsws-btn ghost', onClick: _closeGateModal, style:{ fontSize:12 } }, '取消'),
+                h('button', { className:'dsws-btn primary', onClick: _confirmGate, style:{ background:'#58a6ff', borderColor:'#58a6ff', color:'#0b1220', fontWeight:700, fontSize:12 } }, '确认并继续'),
+              ]),
+            ])
+          ]) : null,
         ]) : h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
           s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,
           s.tab === 'checks' ? h(ChecksTab, { st: s }) : null,
         ]),
+        // #189 · 切换三选一 Modal（全局 per-store）
+        (s.switchConfirm && s.switchConfirm.open && typeof SwitchConfirmModal === 'function' ? h(SwitchConfirmModal, { sessionId: sid }) : null),
         // v1.5 T10 R7：刷新遮罩已废除（手动刷新走静默路径，无「刷新中」）
         s.notice ? h('div', { className: 'dsws-note', style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
           Ic({ n: noticeIcon(s.notice.kind), size: 13, color: NOTICE_COLOR[s.notice.kind] || '#4ade80' }),

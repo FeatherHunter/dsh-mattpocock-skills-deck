@@ -1630,6 +1630,38 @@ export default {
       return { ok: true }
     })
 
+    // ============ #190：wf.openFolder — 打开本地文件夹（Markdown 后端仓库名点击）============
+    // 输入：{ cwd }；平台分发：win32 explorer / darwin open / linux xdg-open（经 platform.resolveExecutable），subprocess.spawn 打开
+    harness.handle('wf.openFolder', async function (args) {
+      const cwd = (args && (args.cwd || args.path)) || DEFAULT_CWD
+      if (!cwd) return { ok: false, error: '缺少 cwd' }
+      try {
+        const platform = await getPlatform()
+        const os = platform.os || (typeof process !== 'undefined' && process.platform) || 'win32'
+        const openerName = os === 'win32' ? 'explorer' : os === 'darwin' ? 'open' : 'xdg-open'
+        const opener = await platform.resolveExecutable(openerName)
+        if (!opener) return { ok: false, error: '找不到打开器：' + openerName }
+        // cwd 归一（platform.path 处理分隔符）
+        let target = String(cwd)
+        try { if (platform.path && typeof platform.path.normalize === 'function') target = platform.path.normalize(target) } catch {}
+        // win32 explorer 需保持原分隔符；darwin/linux 用 posix 兼容
+        const argv = [opener, target]
+        try {
+          const handle = subprocess.spawn({ argv: argv, cwd: DEFAULT_CWD || target, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
+          // 不等待完成，fire-and-forget；若 spawn 同步抛错则视为失败
+          if (handle && handle.done) {
+            // 异步错误吞掉，避免未处理 rejection 影响面板；成功即返回
+            handle.done.catch(function(){})
+          }
+        } catch (e) {
+          return { ok: false, error: String((e && e.message) || e) }
+        }
+        return { ok: true, cwd: target, opener: opener }
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e) }
+      }
+    })
+
     // ============ 红卡建仓发布（T1 #34 · 无仓库时一键建仓发布）============
     // 输入：{ cwd, name, visibility }（visibility = 'public' | 'private'，默认 private）
     // 流程：探测 git/gh/auth（前置）→ git init(若已是 git 则跳过) → git add . → git commit --allow-empty（含 user.* 兜底）→ gh repo create --source=. --push（或 --remote origin 已存在时走 set-url + push 分支）

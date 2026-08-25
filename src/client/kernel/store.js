@@ -161,6 +161,8 @@
       if (!st.noRepoCard) st.noRepoCard = { expanded: false, name: '', visibility: 'private', loading: false, error: '', errorKind: '', errorRepoUrl: '' }
       if (!st.noRepoCard.visibility) st.noRepoCard.visibility = 'private'
       if (st.noRepoCard.errorRepoUrl === undefined) st.noRepoCard.errorRepoUrl = ''
+      if (!st.noRepoCard.labelStep) st.noRepoCard.labelStep = { visible: false, repoStr: '', missing: [], have: 0, total: 10, checking: false }
+      if (st.noRepoCard.labelStep.visible === undefined) st.noRepoCard.labelStep.visible = false
       return st.noRepoCard
     }
     // T1 #6 · IssueDetail 状态机（与 activeMap 互斥，in-panel 详情页 · v1.7.0）
@@ -257,6 +259,96 @@
       const parts = n.split(/[\\/]/)
       return parts[parts.length-1] || n
     }
+    // #189 · 切换三选一确认态（全局 per-store，复用 wf.bind + 三缓存失效）
+    export const DEFAULT_SWITCH_PROMPT_ZH = '现有 issues 保留在原后端，切换后不可见，切回可见'
+    export const openSwitchConfirm = function (st, targetId) {
+      const cur = st.selection ? st.selection.backendId : null
+      if (cur === targetId) return false
+      if (cur == null) return false
+      st.switchConfirm = {
+        open: true,
+        curBackendId: cur,
+        targetBackendId: targetId,
+        prompt: DEFAULT_SWITCH_PROMPT_ZH,
+        option: 'keep',
+        clearInput: '',
+        criChecks: null,
+        criLoading: true,
+        confirming: false,
+      }
+      emit(st)
+      if (typeof loadSwitchCri === 'function') loadSwitchCri(st)
+      return true
+    }
+    export const closeSwitchConfirm = function (st) {
+      if (!st.switchConfirm) return
+      st.switchConfirm.open = false
+      emit(st)
+      const sc = st.switchConfirm
+      setTimeout(function () { if (st.switchConfirm === sc) { st.switchConfirm = null; emit(st) } }, 220)
+    }
+    export const loadSwitchCri = function (st) {
+      const sc = st.switchConfirm
+      if (!sc) return
+      if (typeof host === 'undefined' || typeof host.call !== 'function') {
+        sc.criLoading = false; sc.criChecks = { allOk: false, c1: null, c4: null, c5: null }; emit(st); return
+      }
+      let lang = 'zh'
+      try { lang = (typeof promptLang === 'function' ? promptLang() : 'zh') } catch {}
+      host.call('wf.status', { cwd: st.cwd || '', lang: lang }).then(function (res) {
+        if (!st.switchConfirm) return
+        const checks = (res && res.checks) || []
+        const c1 = checks.find(function (c) { return c.id === 1 })
+        const c4 = checks.find(function (c) { return c.id === 4 })
+        const c5 = checks.find(function (c) { return c.id === 5 })
+        const allOk = !!(c1 && c1.ok && c4 && c4.ok && c5 && c5.ok)
+        st.switchConfirm.criChecks = { c1: c1, c4: c4, c5: c5, allOk: allOk }
+        st.switchConfirm.criLoading = false
+        emit(st)
+      }).catch(function () {
+        if (!st.switchConfirm) return
+        st.switchConfirm.criLoading = false
+        st.switchConfirm.criChecks = { allOk: false, c1: null, c4: null, c5: null }
+        emit(st)
+      })
+    }
+    export const confirmSwitchConfirm = function (st) {
+      const sc = st.switchConfirm
+      if (!sc || sc.confirming) return
+      if (sc.option === 'migrate' && sc.criChecks && !sc.criChecks.allOk) return
+      if (sc.option === 'clear' && sc.clearInput !== '确认清空') return
+      sc.confirming = true; emit(st)
+      const targetId = sc.targetBackendId
+      const prevSel = st.selection
+      const repoRef = st.repository || (st.snapshot && st.snapshot.repository) || null
+      const optimistic = { backendId: targetId, source: 'explicit', ref: repoRef }
+      st.selection = optimistic
+      try { if (st.cwd) selectionByCwd[st.cwd] = optimistic } catch {}
+      emit(st)
+      const doFail = function (msg) {
+        st.selection = prevSel
+        try { if (st.cwd) selectionByCwd[st.cwd] = prevSel } catch {}
+        sc.confirming = false; emit(st)
+        try { flash(st, tr('switch.bindFail', { err: String(msg).slice(0, 120) }), 'warn') } catch {}
+      }
+      if (typeof host === 'undefined' || typeof host.call !== 'function') { doFail('host.call 不可用'); return }
+      host.call('wf.bind', { cwd: st.cwd || '', backendId: targetId }).then(function (res) {
+        const ok = res && (res.ok === true || (res.value && res.value.ok === true) || res.ok)
+        if (!ok) { doFail((res && (res.error || res.message)) || 'unknown'); return }
+        try { flash(st, tr('switch.bindOk', { label: (typeof labelOf === 'function' ? labelOf(targetId) : String(targetId)) }), 'ok') } catch {}
+        try {
+          const edited = String(sc.prompt || '').trim()
+          if (edited && edited !== DEFAULT_SWITCH_PROMPT_ZH) {
+            if (typeof inject === 'function') inject(st, edited)
+          }
+        } catch {}
+        closeSwitchConfirm(st)
+        try {
+          if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true)
+          if (typeof loadChecks === 'function') loadChecks(st, true, true)
+        } catch {}
+      }).catch(function (e) { doFail(e && e.message || e) })
+    }
     export const makeStore = () => ({
       open: false, tab: 'list', activeMap: null, activeIssue: null,
       issueCache: {}, issueMode: 'idle', issueError: null, issueDetail: null, issueCommentsMoreLoading: false, issueCommentsFailCount: 0, issueCommentsHasMore: true,
@@ -279,6 +371,8 @@
       noRepoCard: { expanded: false, name: '', visibility: 'private', loading: false, error: '', errorKind: '', errorRepoUrl: '' },
       issuePath: { sessionId: '', anchor: null, nodes: [], current: null, updatedAt: 0 },
       issuePathHover: false, issuePathPos: null,
+      switchConfirm: null,
+      gateModalOpen: false, gateSelected: null, gateLoading: false, gateError: '',
     })
     export const shared = makeStore()
     export const stores = {}
