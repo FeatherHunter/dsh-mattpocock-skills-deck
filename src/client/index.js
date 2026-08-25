@@ -183,6 +183,7 @@ export default {
     // ==== kernel:api (spliced by build) ====
 
     // ==== leaf:chips (spliced by build) ====
+    // ==== leaf:backendSelector (spliced by build) ====
 
     // ==== leaf:seg (spliced by build) ====
     // ==== leaf:checksums (spliced by build) ====

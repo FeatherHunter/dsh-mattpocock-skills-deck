@@ -1,24 +1,10 @@
-/**
- * views/SettingsPage.js — 配置页（TPL 表 + 设置，5.9）
- * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
- * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
+﻿/**
+ * views/SettingsPage.js — 配置页（TPL 表 + 设置，5.9）真源 ESM，build 拼回 src/client/index.js leaf
  */
-    // ---- 5.9 配置页（v25 · settings.plugins.tab「Waystation」：功能配置 + 动作模板编辑器）----
-    // 开始模板（前缀开关 + execute 模板）/ 动作模板编辑器（其余 6 动作）
-    // T3：模板名/描述在渲染时 tr('tpl.name.*')/tr('tpl.desc.*')（此处保留中文静态表供默认文案参考）
-export     const TPL_NAMES = {
-      diagnose: '诊断', fix: '修复', discuss: '讨论', handoff1: '交接第一击', handoff2: '交接第二击', fixate: '沉淀',
-    }
-export     const TPL_DESC = {
-      diagnose: 'needs-triage 票的行级动作',
-      fix: 'bug 票的行级动作',
-      discuss: 'wayfinder:grilling 票的行级动作',
-      handoff1: '生成交接文档（含时间戳，两击文件名一致）',
-      handoff2: '读取交接文档',
-      fixate: '零丢失快照 prompt',
-    }
-export     const TPL_EDIT_IDS = ['diagnose', 'fix', 'discuss', 'handoff1', 'handoff2', 'fixate']  // execute 在「开始模板」节
-export     const PREVIEW_VALUES = { url: 'https://github.com/FeatherHunter/SKILLS/issues/365', number: '365', title: tr('cfg.previewTitle'), ts: '20260814-172113', file: '20260814-172113.md' }
+export const TPL_NAMES = { diagnose: '诊断', fix: '修复', discuss: '讨论', handoff1: '交接第一击', handoff2: '交接第二击', fixate: '沉淀' }
+export const TPL_DESC = { diagnose: 'needs-triage 票的行级动作', fix: 'bug 票的行级动作', discuss: 'wayfinder:grilling 票的行级动作', handoff1: '生成交接文档（含时间戳，两击文件名一致）', handoff2: '读取交接文档', fixate: '零丢失快照 prompt' }
+export const TPL_EDIT_IDS = ['diagnose', 'fix', 'discuss', 'handoff1', 'handoff2', 'fixate']
+export const PREVIEW_VALUES = { url: 'https://github.com/FeatherHunter/SKILLS/issues/365', number: '365', title: tr('cfg.previewTitle'), ts: '20260814-172113', file: '20260814-172113.md' }
 export     const SettingsPage = (props) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -46,45 +32,81 @@ export     const SettingsPage = (props) => {
         setOpenInNote(true)
         if (timer !== undefined) timer.timeout(function () { setOpenInNote(false) }, 2600)
       }
-      // #155 Q1/Q3：后端选择（平铺单选列表 + per-workspace wf.bind）
-      const [backendModules, setBackendModules] = React.useState(function(){ return (sharedSt && sharedSt.backendModules) || null })
-      const [backendLoading, setBackendLoading] = React.useState(false)
-      const [backendErr, setBackendErr] = React.useState('')
-      const curSelection = sharedSt && sharedSt.selection ? sharedSt.selection : (sharedSt && sharedSt.snapshot && sharedSt.snapshot.selection ? sharedSt.snapshot.selection : null)
-      const curRepo = sharedSt && sharedSt.repository ? sharedSt.repository : (sharedSt && sharedSt.snapshot && sharedSt.snapshot.repository ? sharedSt.snapshot.repository : null)
-      const curBackendId = curSelection && curSelection.backendId !== undefined ? curSelection.backendId : null
-      const curSource = curSelection && curSelection.source ? curSelection.source : 'fallback'
+      // #155 Q1 改：只读全局总览（wf.bindings + workspaces.list + wf.registry 色值，不可改；不调 wf.bind）
+      const [wsOverview, setWsOverview] = React.useState({ loading: true, err: '', bindings: [], workspaces: [], modules: [] })
       React.useEffect(function(){
-        if (backendModules && backendModules.length) return
-        if (typeof host === 'undefined' || typeof host.call !== 'function') return
-        setBackendLoading(true)
-        host.call('wf.registry', { cwd: sharedSt.cwd || '' }).then(function(r){
-          setBackendLoading(false)
-          if (r && r.ok && Array.isArray(r.modules)) { setBackendModules(r.modules); sharedSt.backendModules = r.modules; try{ setPresentationMap(r.modules) }catch{}; emit(sharedSt) }
-          else if (r && r.error) setBackendErr(String(r.error).slice(0,120))
-        }).catch(function(e){ setBackendLoading(false); setBackendErr(String(e).slice(0,120)) })
-      }, [sharedSt.cwd])
-      const pickBackend = function(id){
-        if (typeof host === 'undefined' || typeof host.call !== 'function') { flash(sharedSt, 'host 不可用', 'warn'); return }
-        // 乐观更新 per-cwd 镜像
-        const prev = sharedSt.selection
-        sharedSt.selection = { backendId: id, source: 'explicit', ref: curRepo, pending: undefined }
-        try { if (sharedSt.cwd) { selectionByCwd[sharedSt.cwd]=sharedSt.selection } } catch {}
-        emit(sharedSt)
-        host.call('wf.bind', { cwd: sharedSt.cwd || '', backendId: id }).then(function(res){
-          if (res && res.ok) {
-            flash(sharedSt, '已切换到 ' + labelOf(id), 'ok')
-            loadSnapshot(sharedSt, true, true)
-          } else {
-            sharedSt.selection = prev
-            emit(sharedSt)
-            flash(sharedSt, '切换失败: ' + String(res && res.error || 'unknown'), 'warn')
+        let cancelled = false
+        const load = async function(){
+          setWsOverview(function(p){ return Object.assign({}, p, { loading: true, err: '' }) })
+          let bindings = []
+          let modules = []
+          if (typeof host !== 'undefined' && typeof host.call === 'function'){
+            try {
+              const r = await host.call('wf.bindings', {})
+              const val = (r && r.bindings) ? r : (r && r.value && r.value.bindings ? r.value : null)
+              if (val && Array.isArray(val.bindings)) bindings = val.bindings
+              else if (r && Array.isArray(r.bindings)) bindings = r.bindings
+              else if (Array.isArray(r)) bindings = r
+              else if (r && r.ok && Array.isArray(r.bindings)) bindings = r.bindings
+            } catch(e){}
+            try {
+              const r2 = await host.call('wf.registry', { cwd: '' })
+              const mods = (r2 && r2.modules) || (r2 && r2.value && r2.value.modules) || []
+              if (Array.isArray(mods) && mods.length){ modules = mods; try{ setPresentationMap(mods) }catch{} }
+            } catch(e2){}
           }
-        }).catch(function(e){
-          sharedSt.selection = prev
-          emit(sharedSt)
-          flash(sharedSt, '切换失败: ' + String(e), 'warn')
-        })
+          let wsList = []
+          try {
+            let wsSvc = null
+            try{ if (typeof ctx !== 'undefined' && ctx && typeof ctx.get === 'function') wsSvc = ctx.get('workspaces') }catch{}
+            if (!wsSvc && cx && cx.ctx && typeof cx.ctx.get === 'function') try{ wsSvc = cx.ctx.get('workspaces') }catch{}
+            if (wsSvc){
+              let snap = null
+              try{
+                if (wsSvc.list){
+                  if (typeof wsSvc.list.getSnapshot === 'function') snap = wsSvc.list.getSnapshot()
+                  else if (typeof wsSvc.list.getCurrent === 'function') snap = wsSvc.list.getCurrent()
+                  else if (typeof wsSvc.list === 'function') snap = await wsSvc.list()
+                  else if (Array.isArray(wsSvc.list)) snap = wsSvc.list
+                }
+              }catch{}
+              if (snap){
+                if (Array.isArray(snap.items)) wsList = snap.items
+                else if (Array.isArray(snap)) wsList = snap
+                else if (snap.byId && typeof snap.byId === 'object'){ try{ wsList = Object.values(snap.byId) }catch{} }
+              }
+              if (!wsList.length && wsSvc.list && typeof wsSvc.list === 'function'){
+                try{ const arr = await wsSvc.list(); if (Array.isArray(arr)) wsList = arr }catch{}
+              }
+              if (!wsList.length && typeof wsSvc.getAll === 'function'){
+                try{ const arr2 = await wsSvc.getAll(); if (Array.isArray(arr2)) wsList = arr2 }catch{}
+              }
+            }
+          } catch{}
+          if (cancelled) return
+          setWsOverview({ loading:false, err:'', bindings: bindings, workspaces: wsList, modules: modules })
+        }
+        load()
+        return function(){ cancelled = true }
+      }, [])
+      const gotoWorkspace = function(cwd){
+        let wsSvc = null
+        try{ if (typeof ctx !== 'undefined' && ctx && typeof ctx.get === 'function') wsSvc = ctx.get('workspaces') }catch{}
+        if (!wsSvc && cx && cx.ctx && typeof cx.ctx.get === 'function') try{ wsSvc = cx.ctx.get('workspaces') }catch{}
+        if (!wsSvc){ flash(sharedSt, 'workspaces 服务不可用', 'warn'); return }
+        try{
+          if (typeof wsSvc.open === 'function'){
+            const r = wsSvc.open(cwd)
+            if (r && typeof r.then === 'function') r.then(function(){ flash(sharedSt, '已跳转到 ' + cwd, 'ok') }).catch(function(e){ flash(sharedSt, '跳转失败: ' + String(e).slice(0,120), 'warn') })
+            else flash(sharedSt, '已跳转到 ' + cwd, 'ok')
+            return
+          }
+          if (typeof wsSvc.openWorkspace === 'function'){ wsSvc.openWorkspace({ path: cwd }); flash(sharedSt, '已跳转到 ' + cwd, 'ok'); return }
+          if (typeof wsSvc.reveal === 'function'){ wsSvc.reveal(cwd); flash(sharedSt, '已跳转到 ' + cwd, 'ok'); return }
+          if (typeof wsSvc.focus === 'function'){ wsSvc.focus(cwd); flash(sharedSt, '已跳转到 ' + cwd, 'ok'); return }
+          copyText(sharedSt, cwd, '工作区路径已复制：' + cwd)
+          flash(sharedSt, '请手动切换到 ' + cwd, 'info')
+        } catch(e){ flash(sharedSt, '跳转失败: ' + String(e).slice(0,120), 'warn') }
       }
       // v1.3.3 T1：模板 textarea 自适应高度（内容全展开 · 无内层滚动 · 最外层滑动）
       const autoGrowTa = function (el) {
@@ -207,41 +229,57 @@ export     const SettingsPage = (props) => {
             openInNote ? h('div', { style: { fontSize: 11, color: '#4ade80', marginTop: 6 } }, tr('cfg.openInHint')) : null,
           ]),
         ]),
-        // #155 Q1：后端选择（平铺单选列表 + source 胶囊 + per-workspace）
+        // #155 Q1 改：只读全局总览（wf.bindings + workspaces.list + wf.registry 色值，不可改；不调 wf.bind）
         h('div', { className: 'dsws-cfg-group', id: 'dsws-cfg-backend' }, [
-          h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'compass', size: 13 }), h('span', null, '后端')]),
-          h('div', { className: 'dsws-cfg-gdesc' }, '选择当前工作区的 Tracker 后端（per-workspace 覆盖，wf.bind 唯一真相源）'),
-          backendLoading ? h('div', { style: { fontSize: 11, color: '#8b8b95', padding: '6px 0' } }, '加载中…') :
-          backendErr ? h('div', { style: { fontSize: 11, color: '#f87171' } }, backendErr) :
+          h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'compass', size: 13 }), h('span', null, '工作区后端总览')]),
+          h('div', { className: 'dsws-cfg-gdesc' }, '各工作区的 Tracker 后端绑定总览（只读，显式覆盖在右侧面板完成）'),
+          wsOverview.loading ? h('div', { style: { fontSize: 11, color: '#8b8b95', padding: '6px 0' } }, '加载中…') :
+          wsOverview.err ? h('div', { style: { fontSize: 11, color: '#f87171' } }, wsOverview.err) :
           (function(){
-            const mods = backendModules || [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
-            const isMultiHit = curSelection && Array.isArray(curSelection.multiHit) && curSelection.multiHit.length>1
-            return h('div', null, [
-              h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, mods.map(function(m){
-                const isOn = curBackendId === m.id
-                const srcLabel = curSource==='explicit' ? '显式绑定' : curSource==='matches' ? '自动匹配' : '回退'
-                const srcColor = curSource==='explicit' ? '#4ade80' : curSource==='matches' ? '#58a6ff' : '#8b8b95'
-                const multiHitMark = isMultiHit && curSelection.multiHit.indexOf(m.id)>=0 ? h('span', {style:{fontSize:10, color:'#f59e0b', border:'1px solid #f59e0b', borderRadius:4, padding:'0 4px'}}, '⚠ 多命中') : null
-                return h('label', { key: m.id, style: { display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:6, border: isOn ? '1px solid ' + backendColorOf(m.id) : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isOn ? 'rgba(88,166,255,.08)' : 'transparent', cursor:'pointer' } }, [
-                  h('input', { type:'radio', name:'dsws-backend', checked: isOn, onChange: function(){ pickBackend(m.id) } }),
-                  h('span', { style:{ width:8, height:8, borderRadius:'50%', background: backendColorOf(m.id), flex:'none' } }),
-                  h('span', { style:{ fontSize:12, fontWeight:600 } }, m.label),
-                  h('span', { style:{ fontSize:10, color:'#8b8b95' } }, m.id),
-                  h('span', { style:{ flex:1 } }),
-                  isOn ? h('span', { style:{ fontSize:10, color: srcColor, border:'1px solid ' + srcColor, borderRadius:4, padding:'0 4px' } }, srcLabel) : null,
-                  multiHitMark,
-                ])
-              })),
-              // Other / 显式无后端 选项（灰色逃生舱）
-              h('label', { key:'_other', style:{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:6, border: curBackendId===null ? '1px solid #6e7681' : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: curBackendId===null ? 'rgba(110,118,129,.12)' : 'transparent', cursor:'pointer', marginTop:4 } }, [
-                h('input', { type:'radio', name:'dsws-backend', checked: curBackendId===null, onChange: function(){ pickBackend(null) } }),
-                h('span', { style:{ width:8, height:8, borderRadius:'50%', background:'#6e7681', flex:'none' } }),
-                h('span', { style:{ fontSize:12, fontWeight:600 } }, 'Other（无后端）'),
-                h('span', { style:{ fontSize:10, color:'#8b8b95' } }, '逃生舱'),
+            const bindingsByCwd = {}
+            wsOverview.bindings.forEach(function(b){ const k = (b.cwd || (b.handle && b.handle.cwd) || ''); if(k) bindingsByCwd[String(k)] = b })
+            const wsPaths = wsOverview.workspaces.map(function(w){ return (w.path || w.cwd || w.dir || w.workspacePath || '') }).filter(Boolean)
+            const bindingCwds = Object.keys(bindingsByCwd)
+            const allCwdsSet = {}
+            const allCwds = []
+            const add = function(c){ const k=String(c); if(!allCwdsSet[k]){ allCwdsSet[k]=1; allCwds.push(k)}}
+            wsPaths.forEach(add); bindingCwds.forEach(add)
+            if (!allCwds.length){ return h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'6px 0'}}, '暂无工作区') }
+            allCwds.sort()
+            return h('div', { style:{ overflowX:'auto'}}, [
+              h('table', { style:{ width:'100%', borderCollapse:'collapse', fontSize:11 }}, [
+                h('thead', null, [
+                  h('tr', { style:{ textAlign:'left', color:'#8b8b95', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)'}}, [
+                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '工作区路径'),
+                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '仓库'),
+                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '后端'),
+                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '来源'),
+                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '状态'),
+                    h('th', { style:{ padding:'4px 6px', fontWeight:600 } }, '操作'),
+                  ]),
+                ]),
+                h('tbody', null, allCwds.map(function(cwd){
+                  const b = bindingsByCwd[cwd]
+                  const backendId = b && b.backendId !== undefined ? b.backendId : null
+                  const ref = b && b.ref ? b.ref : null
+                  const repoName = ref && (ref.name || ref.url) ? (ref.name || ref.url) : '-'
+                  const label = backendId ? (typeof labelOf==='function'? labelOf(backendId) : String(backendId)) : '未绑定'
+                  const color = backendId ? (typeof backendColorOf==='function'? backendColorOf(backendId) : '#6e7681') : '#6e7681'
+                  const source = b && b.source ? b.source : 'fallback'
+                  const srcLabel = source==='explicit' ? '显式绑定' : source==='matches' ? '自动匹配' : '回退'
+                  const srcColor = source==='explicit' ? '#4ade80' : source==='matches' ? '#58a6ff' : '#8b8b95'
+                  const statusText = backendId ? '已绑定' : '回退'
+                  const statusColor = backendId ? '#4ade80' : '#8b8b95'
+                  return h('tr', { key: cwd, style:{ borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)'}}, [
+                    h('td', { style:{ padding:'6px', maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}, title: cwd }, cwd),
+                    h('td', { style:{ padding:'6px', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}, title: repoName }, repoName),
+                    h('td', { style:{ padding:'6px' }}, [ h('span', { style:{ display:'inline-flex', alignItems:'center', gap:4 }}, [ h('span', { style:{ width:7, height:7, borderRadius:'50%', background: color, flex:'none' } }), h('span', { style:{ fontWeight:600 } }, label), backendId ? h('span', { style:{ fontSize:10, color:'#8b8b95'}}, backendId) : null ])]),
+                    h('td', { style:{ padding:'6px'}}, [ h('span', { style:{ fontSize:10, color: srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px'}}, srcLabel)]),
+                    h('td', { style:{ padding:'6px'}}, [ h('span', { style:{ fontSize:10, color: statusColor, border:'1px solid '+statusColor, borderRadius:4, padding:'0 4px'}}, statusText)]),
+                    h('td', { style:{ padding:'6px'}}, [ h('button', { className:'dsws-btn', style:{ fontSize:10, padding:'2px 6px'}, onClick: function(){ gotoWorkspace(cwd) } }, '去该工作区') ]),
+                  ])
+                })),
               ]),
-              isMultiHit ? h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:6, display:'flex', alignItems:'center', gap:4 } }, [Ic({n:'alert',size:11}), h('span', null, '检测到多个可用后端：' + curSelection.multiHit.join(', ') + ' — 建议显式绑定')]) : null,
-              curSelection && curSelection.pending ? h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:4 } }, '⏳ 探测未决，等待中… 若长时间停留请手动选择') : null,
-              curRepo ? h('div', { style:{ fontSize:10, color:'#8b8b95', marginTop:4 } }, '当前仓库: ' + (curRepo.name || '') + (curRepo.url ? ' · ' + curRepo.url : '')) : null,
             ])
           })(),
         ]),

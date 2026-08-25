@@ -28,7 +28,7 @@ export     const NoRepoCard = function (props) {
             ]),
           ]),
           h('div', { className:'acts' }, [
-            h('button', { className:'dsws-btn', onClick:function(){ s.tab='settings'; emit(s) }, style:{ fontSize:11, padding:'3px 10px' } }, '去设置页选择'),
+            h('button', { className:'dsws-btn', onClick:function(){ st.tab='list'; emit(st) }, style:{ fontSize:11, padding:'3px 10px' } }, '去设置页选择'),
             h('button', { className:'dsws-btn primary', onClick:function(){ loadSnapshot(st,true,true) }, style:{ background:'#f59e0b', borderColor:'transparent', color:'#fff', fontSize:11, padding:'3px 10px' } }, '重试探测'),
           ]),
         ])
@@ -43,7 +43,7 @@ export     const NoRepoCard = function (props) {
             ]),
           ]),
           h('div', { className: 'acts' }, [
-            h('button', { className: 'dsws-btn primary', onClick:function(){ st.tab='settings'; emit(st) }, style: { background: '#6e7681', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, '选择后端'),
+            h('button', { className: 'dsws-btn primary', onClick:function(){ st.tab='list'; emit(st) }, style: { background: '#6e7681', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, '选择后端'),
           ]),
         ])
       }

@@ -103,6 +103,7 @@ function withTimeout(promise, ms, timers, controller) {
  *   bind: (handle: import('./contract.js').RepoHandle, backendId: string|null) => void,
  *   bound: (handle: import('./contract.js').RepoHandle) => string|null|undefined,
  *   describe: (handle: import('./contract.js').RepoHandle, backendId: string) => import('../../shared/tracker/shape.js').RepositoryRef,
+ *   allBindings: () => Array<{handleKey: string, cwd: string, backendId: string|null, handle: import('./contract.js').RepoHandle}>,
  *   on: (event: 'register'|'unregister'|'bind', fn: Function) => () => void,
  * }}
  */
@@ -190,6 +191,10 @@ export function createRegistry(backendCtx = {}, opts = {}) {
 
     has(id) {
       return byId.has(id)
+    },
+
+    allBindings() {
+      return Array.from(byHandle.entries(), ([handleKey, v]) => ({ handleKey, cwd: (v.handle && v.handle.cwd) || '', backendId: v.backendId, handle: v.handle }))
     },
 
     /** 已注册模块（注册序；供 discover/UI 展示）。 */

@@ -1372,6 +1372,19 @@ export default {
         return { ok: false, error: msg }
       }
     })
+    harness.handle('wf.bindings', async function () {
+      try {
+        const reg = await getTrackerRegistry()
+        if (!reg) return { ok: false, error: 'registry unavailable' }
+        const list = typeof reg.allBindings === 'function' ? reg.allBindings() : []
+        const bindings = list.map(function (b) {
+          let ref = null
+          if (b.backendId) { try { ref = reg.describe(b.handle, b.backendId) } catch {} }
+          return { cwd: b.cwd || (b.handle && b.handle.cwd) || '', backendId: b.backendId, source: 'explicit', ref: ref }
+        })
+        return { ok: true, bindings: bindings }
+      } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
+    })
     harness.handle('wf.registry', async function (args) {
       try {
         const reg = await getTrackerRegistry()

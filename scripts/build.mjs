@@ -188,6 +188,7 @@ const KERNEL_MODULES = [
  *  组件经 React.useContext(DswsCtx) 消费 cx（ARCHITECTURE-CTX.md §2）。 */
 const LEAF_MODULES = [
   { id: 'chips', file: 'src/client/views/shared/chips.js' },
+  { id: 'backendSelector', file: 'src/client/views/shared/BackendSelector.js' },
   { id: 'md', file: 'src/client/views/shared/md.js' },
   { id: 'ticket', file: 'src/client/views/shared/ticket.js' },
   { id: 'tagsFit', file: 'src/client/views/shared/tagsFit.js' },

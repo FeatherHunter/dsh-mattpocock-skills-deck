@@ -91,6 +91,36 @@ export     const DetailsDock = (props) => {
       const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
       const hasIssueDetail = s.activeIssue !== null && s.activeIssue !== undefined
       const narrow = dw < 380
+      // #155 全屏遮蔽：selection.backendId===null && !pending (isOther) 或 pending 时全屏 BackendSelector
+      const _sel = s.selection || (s.snapshot && s.snapshot.selection) || null
+      const _isPending = !!(_sel && _sel.pending)
+      const _isOther = !!(_sel && _sel.backendId===null && !_sel.pending)
+      const _showBackendFullscreen = _isPending || _isOther
+      const pickBackend = function(id){
+        const prev = s.selection
+        const repoRef = s.repository || (s.snapshot && s.snapshot.repository) || null
+        const next = id===null ? { backendId: null, source: 'explicit', pending: false, ref: repoRef } : { backendId: id, source: 'explicit', ref: repoRef }
+        s.selection = next
+        try{ if(s.cwd) selectionByCwd[s.cwd]=next }catch(e){}
+        emit(s)
+        if(typeof host!=='undefined' && host.call){
+          host.call('wf.bind', { cwd: s.cwd||'', backendId: id }).then(function(res){
+            const ok = res && (res.ok===true || (res.value && res.value.ok===true) || res.ok)
+            if(ok){
+              s.tab='list'
+              emit(s)
+              try{ flash(s, '已绑定 ' + (typeof labelOf==='function'?labelOf(id):String(id)), 'ok') }catch(e){}
+              loadSnapshot(s,true,true)
+            } else {
+              s.selection=prev; try{ if(s.cwd) selectionByCwd[s.cwd]=prev }catch(e){}; emit(s)
+              try{ flash(s, '绑定失败:'+String((res&&(res.error||res.message))||'unknown').slice(0,120), 'warn') }catch(e){}
+            }
+          }).catch(function(e){
+            s.selection=prev; try{ if(s.cwd) selectionByCwd[s.cwd]=prev }catch(e2){}; emit(s)
+            try{ flash(s, '绑定失败:'+String(e && e.message || e).slice(0,120), 'warn') }catch(e3){}
+          })
+        }
+      }
       const tabsRef = React.useRef(null)
       const tabs = useTabsRow(s, tabsRef)
       const headRef = React.useRef(null)
@@ -226,13 +256,15 @@ export     const DetailsDock = (props) => {
           if (isMulti) return h('div', { style:{ margin:'0 12px 6px', padding:'4px 8px', background:bg, border:'1px solid '+bd, color:col, fontSize:11, borderRadius:6, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' } }, [
             Ic({n:'alert',size:11, color:col}),
             h('span', { style:{ flex:1 } }, '检测到多个可用后端：' + sel.multiHit.join(', ') + ' — 建议显式绑定'),
-            h('button', { className:'dsws-btn', onClick:function(){ s.tab='settings'; emit(s) }, style:{ fontSize:10, padding:'1px 6px', flex:'none', background:'#f59e0b', borderColor:'transparent', color:'#fff' } }, '去设置页绑定'),
+            h('button', { className:'dsws-btn', onClick:function(){ s.tab='list'; emit(s) }, style:{ fontSize:10, padding:'1px 6px', flex:'none', background:'#f59e0b', borderColor:'transparent', color:'#fff' } }, '去设置页绑定'),
           ])
           return null
         })(),
         // 标签行下沿 = 与对话/轨迹一致的横线；右侧：刷新按钮 + 版本号（v1.3.3）
-        h('div', { className: 'dsws-tabs', ref: tabsRef, style: { padding: '0 12px 7px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items),
-        h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
+        _showBackendFullscreen ? null : h('div', { className: 'dsws-tabs', ref: tabsRef, style: { padding: '0 12px 7px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items),
+        _showBackendFullscreen ? h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
+          h(BackendSelector, { modules: s.backendModules || null, curBackendId: _sel ? _sel.backendId : null, curSelection: _sel, curRepo: s.repository || (s.snapshot && s.snapshot.repository) || null, includeOther: true, onPick: pickBackend })
+        ]) : h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
           s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,
           s.tab === 'checks' ? h(ChecksTab, { st: s }) : null,
