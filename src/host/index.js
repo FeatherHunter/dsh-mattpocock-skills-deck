@@ -20,6 +20,7 @@
 
 // ===== 规范方言（dynamic dialect）：harness 为自由变量；pkg entry 提供 shim =====
 export default {
+  inject: ['connection'],
   apply(ctx) {
     const subprocess = ctx.get('subprocess')
     const timer = ctx.get('timer')
