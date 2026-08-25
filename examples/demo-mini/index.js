@@ -168,6 +168,7 @@ export function createDemoBackend(ctx) {
 export const demoModule = {
   id: 'demo-mini',
   label: 'Demo Mini',
+  presentation: { color: '#8250df' },
   create: createDemoBackend,
   matches: demoMatches,
 }
@@ -176,6 +177,7 @@ export const demoModule = {
 export const demoModuleAcme = {
   id: 'acme.demo',
   label: 'Acme Demo',
+  presentation: { color: '#8250df' },
   create: createDemoBackend,
   matches: demoMatches,
 }

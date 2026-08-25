@@ -209,7 +209,8 @@
       '#1a7f37': '#3fb950',
       '#c25100': '#ff9a5c',
       '#57606a': '#8b949e',
-      '#6e7681': '#8b949e'
+      '#6e7681': '#8b949e',
+      '#8250df': '#d2a8ff'
     }
     const toAdaptive = function (light) {
       const l = String(light || '').trim()
