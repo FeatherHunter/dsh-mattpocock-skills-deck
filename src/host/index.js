@@ -257,7 +257,10 @@ export default {
 
     let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6��#2 MVP����probe since ʱ������� repoKey ���루ֻ�� probe ��⵽ change ʱ�ƽ���build ���ö��� ���� ������̵�ͬ���ڱ༭���� buildSnapshot ��ע�ͣ�
     let lastIssueIndexByRepo = {}                          // #2 deletion fix�������ϴ�ȫ�� issue ���������ڷ��� GitHub ɾ��/״̬��ʧ
-    let pendingIssuePathEvents = []                       // issuePath �� 1A+1B �����У�runGh ������ + wf.claim����client via wf.issuePathPoll ��ȡ��cap 100
+    let pendingIssuePathEvents = []                       // issuePath — 1A+1B · runGh + wf.claim -> client via wf.issuePathPoll (cap 100)
+    // #211 host watcher A (0-2s 结构化二次 rename, pinned 可覆盖, 数十行内)
+    let newSessionWatchers = new Map()
+    function cleanWatcher(sid){ const w=newSessionWatchers.get(sid); if(w&&w.timer) try{clearTimeout(w.timer)}catch(e){} newSessionWatchers.delete(sid) } �����У�runGh ������ + wf.claim����client via wf.issuePathPoll ��ȡ��cap 100
 
     // ============ gh ��װ ============
     // #195 �޸���resolveGh ���ٻ���ʧ�ܣ�ghLastError �����һ��ʧ�ܣ������޸����´�̽�⼴�ָ���
@@ -1784,6 +1787,49 @@ export default {
       pushIssuePathEvent(n, src, args && args.title)
       return { ok: true }
     })
+    // #211 host watcher A (0-2s 结构化二次 rename, pinned 可覆盖, 数十行内)
+    harness.handle('wf.registerNewSessionWatcher', async function(args){
+      const sid=args&&args.sessionId; if(!sid) return {ok:false,error:'missing sessionId'};
+      const cwd=(args&&args.cwd)||DEFAULT_CWD; const placeholder=(args&&args.placeholder)||'[New]';
+      let beforeCount=null; try{ const idx=await fetchIssueIndex(cwd); if(idx&&idx.ok) beforeCount=idx.count }catch(e){}
+      const watcher={sid:sid,placeholder:placeholder,placeholderTs:Date.now(),cwd:cwd,beforeCount:beforeCount,startTs:Date.now(),timer:null};
+      newSessionWatchers.set(sid,watcher);
+      const poll=async function(){
+        const w=newSessionWatchers.get(sid); if(!w) return; if(Date.now()-w.startTs>120000){cleanWatcher(sid);return;}
+        try{
+          const cur=await fetchIssueIndex(cwd); if(cur&&cur.ok){
+            const afterCount=cur.count;
+            if(w.beforeCount!=null && afterCount>w.beforeCount){
+              try{
+                const r=await runGh(['issue','list','--state','all','--limit','1','--json','number,title'],cwd);
+                if(r.ok){ const arr=JSON.parse(r.text); if(arr&&arr.length){ const it=arr[0]; let title=String(it.title||'').replace(/\s+/g,' ').trim();
+                  try{
+                    const sessions=ctx.get('sessions');
+                    if(sessions&&typeof sessions.scope==='function'&&typeof sessions.sessionOf==='function'){
+                      const scope=sessions.scope(sid); const face=scope?sessions.sessionOf(scope):null;
+                      if(face&&typeof face.rename==='function'){
+                        const prefix='[#'+it.number+']'; const maxBytes=120; let t2=title;
+                        try{ if(typeof Buffer!=='undefined'&&Buffer.byteLength){ const baseB=Buffer.byteLength(prefix+' ','utf8'); if(Buffer.byteLength(prefix+' '+t2,'utf8')>maxBytes){ const ell='\u2026'; const ellB=Buffer.byteLength(ell,'utf8'); let acc=0,out=''; for(const ch of t2){ const b=Buffer.byteLength(ch,'utf8'); if(baseB+acc+b+ellB>maxBytes) break; acc+=b; out+=ch } t2=out.trimEnd()+ell } } }catch(e){}
+                        const finalTitle=t2?prefix+' '+t2:prefix; await face.rename(finalTitle);
+                        try{ pushIssuePathEvent(it.number,'create',title) }catch(e){}
+                        cleanWatcher(sid); return;
+                      }
+                    }
+                  }catch(e){}
+                  try{ pushIssuePathEvent(it.number,'create',title) }catch(e){}
+                }
+              }catch(e){}
+            }
+            w.beforeCount=afterCount;
+          }
+        }catch(e){}
+        w.timer=setTimeout(poll,900);
+      };
+      watcher.timer=setTimeout(poll,700);
+      return {ok:true};
+    });
+    harness.handle('wf.cancelNewSessionWatcher', async function(args){ const sid=args&&args.sessionId; if(sid) cleanWatcher(sid); return {ok:true}; });
+    harness.handle('wf.awaitCreatedIssue', async function(args){ const sid=args&&args.sessionId; const w=newSessionWatchers.get(sid); if(w) return {ok:true, watching:true}; return {ok:true, watching:false}; });
 
     // ============ #190��wf.openFolder �� �򿪱����ļ��У�Markdown ��˲ֿ��������============
     // ���룺{ cwd }��ƽ̨�ַ���win32 explorer / darwin open / linux xdg-open���� platform.resolveExecutable����subprocess.spawn ��
