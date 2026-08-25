@@ -226,14 +226,11 @@ export     const SettingsPage = (props) => {
                   const srcLabel=source==='explicit'?'显式':source==='matches'?'自动':'未指定'
                   const srcColor=source==='explicit'?'#4ade80':source==='matches'?'#58a6ff':'#8b8b95'
                   const srcTitle=source==='explicit'?'显式：你在右侧面板选过，已写入 byHandle':source==='matches'?'自动：按仓库内容自动命中':'未指定：未显式且未自动命中，回退 Other'
-                  const statusText=backendId?'已绑定':'未绑定'
-                  const statusColor=backendId?'#4ade80':'#f59e0b'
                   const base=cwd.split(/[\\/]/).pop()||cwd
                   return h('div',{ key:cwd, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden', minHeight:28 }},[
                     h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 }, onMouseEnter:function(e){ showCfgTip(e,cwd) }, onMouseLeave:hideCfgTip }, base),
                     h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11, minWidth:72, justifyContent:'flex-end' }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap', minWidth:36, textAlign:'center'}},label) ]),
                     h('span',{ onMouseEnter:function(e){ showCfgTip(e,srcTitle) }, onMouseLeave:hideCfgTip, style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel),
-                    backendId ? h('span',{ onMouseEnter:function(e){ showCfgTip(e,'已绑定该工作区') }, onMouseLeave:hideCfgTip, style:{ fontSize:10, color:statusColor, border:'1px solid '+statusColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, statusText) : h('span',{ style:{ flex:'none', minWidth:44, display:'inline-block' }}, ''),
                   ])
                 }))
               ])
