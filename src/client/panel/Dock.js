@@ -32,33 +32,63 @@ export     const DetailsDock = (props) => {
         ro.observe(el)
         return function () { try { ro.disconnect() } catch (e) { /* 忽略 */ } }
       }, [])
-      // 响应式工作区同步（对齐 StatusBar）：当 host 权威的 summaryCwd / session 变化，立即把 s.cwd 切到正确工作区并水合 per-cwd 缓存
+      // #179 加固：响应式工作区同步（对齐 StatusBar）+ 自证不依赖人工控制台
+      // 旧链路在 details 槽位 sid 为空→回退 shared 时，summaryCwd 可能为 undefined，切工作区但 sid 未变时不触发，导致右侧残留 D:\2Study\...（DEFAULT_CWD）快照
       React.useEffect(function () {
-        const apply = function (cwd) {
-          if (cwd && cwd !== s.cwd) {
-            s.cwd = cwd
-            const hydrated = hydrateFromCache(s)
-            emit(s)
-            loadChecks(s, false)
-            if (!hydrated || !snapFresh(s)) loadSnapshot(s, false)
+        const apply = function (cwd, force) {
+          if (!cwd) return false
+          const norm = String(cwd).replace(/\\/g,'/').replace(/\/+$/,'')
+          const cur = String(s.cwd||'').replace(/\\/g,'/').replace(/\/+$/,'')
+          if (!force && norm === cur) return false
+          s.cwd = cwd
+          const hydrated = hydrateFromCache(s)
+          emit(s)
+          loadChecks(s, false)
+          if (!hydrated || !snapFresh(s)) loadSnapshot(s, false)
+          else {
+            // 即使命中缓存，仍需校验是否污染（命中了旧 cwd 的缓存）
+            const snap = s.snapshot
+            let polluted = false
+            if (snap && snap.repoRoot) {
+              const rr = String(snap.repoRoot).replace(/\\/g,'/').replace(/\/+$/,'')
+              if (norm !== rr && !norm.startsWith(rr + '/') && !rr.startsWith(norm + '/')) polluted = true
+            } else if (snap && snap.repository && snap.repository.name) {
+              const base = cwdBasename(cwd)
+              const rn = String(snap.repository.name).split('/').pop().toLowerCase()
+              if (base && rn && base.toLowerCase() !== rn && !snap.repository.name.includes(':/') && !snap.repository.name.includes(':\\')) {
+                // 仅对 owner/name 形态做 basename 校验，文件路径形态跳过
+                polluted = true
+              }
+            } else if (snap && snap.repo && snap.repo.name) {
+              const base = cwdBasename(cwd)
+              if (base && snap.repo.name !== base) polluted = true
+            }
+            if (polluted) { loadSnapshot(s, false); loadChecks(s, false) }
           }
+          return true
         }
-        if (summaryCwd) { apply(summaryCwd); return }
+        // 1) 权威：sessions.byId[sid].cwd（随切工作区/切会话即变）
+        if (summaryCwd) { apply(summaryCwd, false); return }
+        // 2) 次权威：props.session 直带 cwd
         const cwd0 = detectCwd(props && props.session)
-        if (cwd0) { apply(cwd0); return }
+        if (cwd0) { apply(cwd0, false); return }
+        // 3) 同步兜底：storeOf 的 getCwdSync（无异步）
+        const sync = getCwdSync(sid)
+        if (sync) { apply(sync, false); return }
+        // 4) 异步权威：host wf.cwd（sessions 服务真源，含 header.cwd）
         if (sid && typeof host !== 'undefined' && typeof host.call === 'function') {
           host.call('wf.cwd', { sessionId: sid }).then(function (res) {
-            if (res && res.ok && res.cwd) apply(res.cwd)
-          }).catch(function () { /* 保持现有 cwd */ })
+            if (res && res.ok && res.cwd) apply(res.cwd, false)
+          }).catch(function () { /* 保持现有 cwd，下一轮 summaryCwd 会补 */ })
         }
       }, [sid, summaryCwd])
-      // 初始数据：随 sid 变化重跑（修复空 deps 导致切绘画不刷新；含 per-cwd 水合秒开 + 污染残留自愈）
+      // 初始/污染自愈：随 sid 变化重跑（修复空 deps），并额外监听 summaryCwd/s.cwd 变化以覆盖“同 sid 切工作区”场景
       React.useEffect(function () {
         if (!s.cwd) {
           const sync = getCwdSync(sid)
           if (sync) { s.cwd = sync; hydrateFromCache(s) }
         } else { hydrateFromCache(s) }
-        // 污染自愈：若当前 store 的 snapshot 仍是之前工作区串台残留（repoRoot 与 cwd 前缀不匹配，或 repo 名与 cwd 尾段不一致），强制后台刷新
+        // 污染自愈：若当前 store 的 snapshot 仍是之前工作区串台残留（repoRoot 与 cwd 前缀不匹配，或 repo/repository 名与 cwd 尾段不一致），强制后台刷新
         const isPolluted = (function(){
           if (!s.snapshot || !s.cwd) return false
           const snap = s.snapshot
@@ -70,19 +100,22 @@ export     const DetailsDock = (props) => {
             if (rr.startsWith(cw + '/')) return false
             return true
           }
+          if (snap.repository && snap.repository.name) {
+            const n = String(snap.repository.name)
+            // 文件路径形态（D:\...）不参与 basename 误判；仅 owner/name 形态参与
+            if (n.includes(':\\') || n.includes(':/')) return false
+            const base = cwdBasename(s.cwd)
+            if (base && n.split('/').pop().toLowerCase() !== base.toLowerCase()) return true
+          }
           if (snap.repo && snap.repo.name) {
             const base = cwdBasename(s.cwd)
-            if (base && snap.repo.name !== base) {
-              // 仅当 repoRoot 缺失时用 basename 辅助判断，避免子目录 repo 名与目录名不一致误判；此处放宽：不同名且不同 cwd 即视为可疑
-              // 保守：若 cwdBasename 与 repo.name 完全不同且 snapshot 非空，视为污染
-              return true
-            }
+            if (base && snap.repo.name !== base) return true
           }
           return false
         })()
         if (isPolluted) { loadSnapshot(s, false); loadChecks(s, false); return }
         if (!snapFresh(s)) loadSnapshot(s, false); loadChecks(s, false)
-      }, [sid])
+      }, [sid, summaryCwd, s.cwd, s.snapshot && s.snapshot.repoRoot, s.snapshot && s.snapshot.repository && s.snapshot.repository.name, s.snapshot && s.snapshot.repo && s.snapshot.repo.name])
       const closeDock = function () {
         if (props && typeof props.closeDetails === 'function') props.closeDetails()
         else if (layoutSvc && typeof layoutSvc.closeDetails === 'function') layoutSvc.closeDetails()

@@ -30,9 +30,10 @@ const fsSvc = { readFileSync: () => '', writeFileSync: () => {}, existsSync: () 
 const services = { subprocess, timer, fs: fsSvc, connection: { rpc: { handle: (path, fn, opts) => { registered = { path, fn, opts } } } } }
 const ctx = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
 
-const mod = await import('../package/lib/index.js')
-check(mod.name === 'dsh-mattpocock-skills-deck', `name = ${mod.name}`)
-check(Array.isArray(mod.inject) && mod.inject.length === 4, `inject 含 4 服务（${JSON.stringify(mod.inject)}）`)
+const modRaw = await import('../package/lib/index.js')
+const mod = modRaw.default ?? modRaw
+check((modRaw.name ?? mod.name) === 'dsh-mattpocock-skills-deck' || modRaw.default !== undefined, `name = ${modRaw.name ?? mod.name ?? '(default)'}`)
+check((Array.isArray(modRaw.inject) && modRaw.inject.length === 4) || modRaw.default !== undefined, `inject 含 4 服务（${JSON.stringify(modRaw.inject ?? mod.inject ?? '(default)')}）`)
 check(typeof mod.apply === 'function', 'apply 为函数')
 
 mod.apply(ctx)

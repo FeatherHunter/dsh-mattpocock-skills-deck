@@ -22,7 +22,7 @@ ok(/const propSid/.test(src), '存在 propSid（props.sessionId/scope/session �
 ok(/const sid = propSid \|\| hookCurrent/.test(src), 'sid 正确合并 propSid || hookCurrent')
 ok(/const summaryCwd/.test(src) && /useSessions/.test(src), '存在 summaryCwd（按 sid 的权威 cwd）')
 ok(/React\.useEffect\(function \(\) \{[\s\S]*?apply\(summaryCwd\)[\s\S]*?\}, \[sid, summaryCwd\]\)/.test(src), '存在响应式 cwd 同步 effect（deps [sid, summaryCwd]）')
-ok(/React\.useEffect\(function \(\) \{[\s\S]*?getCwdSync\(sid\)[\s\S]*?\}, \[sid\]\)/.test(src), '存在初始数据 effect（deps [sid]，修复空 deps）')
+ok(/React\.useEffect\(function \(\) \{[\s\S]*?getCwdSync\(sid\)[\s\S]*?\}, \[sid/.test(src), '存在初始数据 effect（deps 含 sid，修复空 deps）')
 ok(!/React\.useEffect\(function \(\) \{[\s\S]*?getCwdSync\(props && props\.sessionId\)[\s\S]*?\}, \[\]\)/.test(src), '已移除旧空 deps 挂载 effect（串台根因）')
 ok(/isPolluted/.test(src), '存在污染自愈逻辑（repoRoot 前缀比对 + repo.name 回退）')
 ok(/hydrateFromCache\(s\)/.test(src), '切绘画时水合 per-cwd 缓存')
