@@ -188,6 +188,16 @@
     export const SESSION_TITLE_RE_ALLOW_BARE = /^\[#\d+\](?: .+)?$/;
     // 预留：占位前缀供 Tabs/StatusBar 后续接入（#211），保持 SESSION_TITLE_PREFIX 兼容旧路径；已移除 [MattSkills] 后缀式
     export const SESSION_TITLE_PREFIX = '[New]';
+    export const SESSION_TITLE_NEW_RE = /^\[New\] (新建需求|新建 Bug|New Requirement|New Bug)$/;
+    export function isNewPlaceholderTitle(s) { return SESSION_TITLE_NEW_RE.test(String(s || '').trim()); }
+    export function newSessionTitleNew(type, lang) {
+      const bug = String(type || '').toLowerCase().indexOf('bug') >= 0;
+      let en = false;
+      if (lang) { try { en = String(lang).toLowerCase().indexOf('en') === 0; } catch (e) {} }
+      else { try { en = (typeof promptLang === 'function' ? promptLang() === 'en' : false); } catch (e) {} }
+      if (en) return '[New] ' + (bug ? 'New Bug' : 'New Requirement');
+      return '[New] ' + (bug ? '新建 Bug' : '新建需求');
+    }
     export function cleanTitleText(s) {
       let t = String(s || '');
       t = t.replace(/\x1B\][^\x07]*\x07/g, '').replace(/\x1B\[[0-9;]*[A-Za-z]/g, '').replace(/\x1B[^\x5B\x5D\x07]/g, '');
