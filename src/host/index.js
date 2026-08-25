@@ -1313,11 +1313,9 @@ export default {
       }
     })
 
-    // #179 防御：空 cwd 不再兜 DEFAULT_CWD（DSH 本体路径），避免右侧残留 D:\2Study\...，由客户端显式 wf.cwd 重取
+    // #179 回切自愈：空 cwd 仍兜 DEFAULT_CWD 作最后兜底（避免“没有仓库”空白），但客户端已保证同 sid 切工作区亦触发，空窗极短
     harness.handle('wf.snapshot', async function (args) {
-      let cwd = (args && args.cwd) || ''
-      if (!cwd || !String(cwd).trim()) return { ok: false, error: '缺少 cwd（请先切换工作区）', kind: 'bad-cwd' }
-      if (!cwd) cwd = DEFAULT_CWD
+      const cwd = (args && args.cwd) || DEFAULT_CWD
       const now = Date.now()
       if (cache.snapshot && cache.cwd === cwd) {
         const current = await cacheSnapshotIsCurrent(cache.snapshot, cwd)
@@ -1341,9 +1339,7 @@ export default {
     })
 
     harness.handle('wf.refresh', async function (args) {
-      let cwd = (args && args.cwd) || ''
-      if (!cwd || !String(cwd).trim()) return { ok: false, error: '缺少 cwd（请先切换工作区）', kind: 'bad-cwd' }
-      if (!cwd) cwd = DEFAULT_CWD
+      const cwd = (args && args.cwd) || DEFAULT_CWD
       try {
         const snap = await buildSnapshot(cwd)
         // v1.5 T9：刷新后落盘，下次重启秒开

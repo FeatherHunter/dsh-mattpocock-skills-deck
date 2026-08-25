@@ -16,7 +16,7 @@ ok(/getCwdSync\(sid\)/.test(srcDock), '存在 getCwdSync 同步兜底')
 ok(/host\.call\('wf\.cwd'/.test(srcDock), '存在 wf.cwd 异步兜底')
 ok(/isPolluted/.test(srcDock), '存在污染自愈 isPolluted')
 ok(/\/\/ #179/.test(srcDock), '#179 加固注释存在')
-ok(/缺少 cwd/.test(srcHost) && /kind: 'bad-cwd'/.test(srcHost), 'host wf.snapshot/wf.refresh 空 cwd 防御（不兜 DEFAULT_CWD）')
+ok(/\|\| DEFAULT_CWD/.test(srcHost), 'host wf.snapshot/wf.refresh 保留 DEFAULT_CWD 兜底（避免空白）')
 
 console.log('\n=== 动态模拟：同 sid 切工作区（summaryCwd 变，sid 不变）旧 vs 新 ===')
 
@@ -93,18 +93,18 @@ const storeCross = makeStore(cwdDSH, snapDSH)
 newApply(storeCross, cwdDeck)
 ok(storeCross.cwd===cwdDeck, '跨 sid 切工作区亦正确')
 
-// 空 cwd 防御：host 不应兜 DEFAULT_CWD
-ok(srcHost.includes("return { ok: false, error: '缺少 cwd"), 'host 空 cwd 返回 bad-cwd 而非兜底')
+// 回切保障：host 保留兜底，客户端保证同 sid 亦触发（空 cwd 窗口极短）
+ok(/\|\| DEFAULT_CWD/.test(srcHost), 'host 保留 DEFAULT_CWD 兜底')
 
 // 构建产物校验（构建后才有 host.js）
 if(clientBuilt){
   ok(/summaryCwd/.test(clientBuilt), 'client.js 含 summaryCwd')
   try {
     const builtHostNow = fs.existsSync('host.js') ? fs.readFileSync('host.js','utf8') : ''
-    ok(builtHostNow.includes('缺少 cwd') || /bad-cwd/.test(builtHostNow) || /bad-cwd/.test(srcHost), 'host 含空 cwd 防御（src 或 built）')
-  } catch(e){ ok(/bad-cwd/.test(srcHost), 'host src 含空 cwd 防御') }
+    ok(/\|\| DEFAULT_CWD/.test(builtHostNow) || /\|\| DEFAULT_CWD/.test(srcHost), 'host 含 DEFAULT_CWD 兜底（src 或 built）')
+  } catch(e){ ok(/\|\| DEFAULT_CWD/.test(srcHost), 'host src 含 DEFAULT_CWD 兜底') }
 } else {
-  ok(/bad-cwd/.test(srcHost), 'host src 含空 cwd 防御（未构建时校验源码）')
+  ok(/\|\| DEFAULT_CWD/.test(srcHost), 'host src 含 DEFAULT_CWD 兜底（未构建时校验源码）')
 }
 
 console.log('\n=== 汇总 ===')

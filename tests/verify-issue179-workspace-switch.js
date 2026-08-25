@@ -22,15 +22,13 @@ check(/isPolluted/.test(srcDock), 'isPolluted 存在')
 check(/hydrateFromCache\(s\)/.test(srcDock), 'hydrateFromCache 存在')
 check(/repoRoot/.test(srcDock) && /cwdBasename/.test(srcDock) || /repository/.test(srcDock), '污染判断含 repoRoot/repository')
 
-console.log('P3: host 空 cwd 防御')
-check(srcHost.includes("wf.snapshot") && srcHost.includes("缺少 cwd"), 'host wf.snapshot 空 cwd 防御')
-check(srcHost.includes("wf.refresh") && srcHost.includes("缺少 cwd"), 'host wf.refresh 空 cwd 防御')
-check(srcHost.includes("bad-cwd"), 'bad-cwd 语义')
-check(!/const cwd = \(args && args\.cwd\) \|\| DEFAULT_CWD/.test(srcHost) || /if \(!cwd/.test(srcHost), '不再无条件兜 DEFAULT_CWD')
+console.log('P3: host 兜底与回切保障')
+check(/const cwd = \(args && args\.cwd\) \|\| DEFAULT_CWD/.test(srcHost), 'host wf.snapshot/wf.refresh 保留 DEFAULT_CWD 兜底')
+check(!/bad-cwd/.test(srcHost), '无 bad-cwd（回切不再空白）')
 
 console.log('P4: 构建产物')
 if(builtClient){ check(builtClient.includes('summaryCwd') || builtClient.includes('useSessions'), 'client.js 含 summaryCwd') } else { console.log('  SKIP client.js 未生成') }
-if(builtHost){ check(builtHost.includes('缺少 cwd') || builtHost.includes('bad-cwd'), 'host.js 含空 cwd 防御') } else { console.log('  SKIP host.js 未生成') }
+if(builtHost){ check(/\|\| DEFAULT_CWD/.test(builtHost), 'host.js 保留 DEFAULT_CWD 兜底') } else { console.log('  SKIP host.js 未生成') }
 
 if(failed){ console.log('\nFAIL'); process.exit(1) }
 console.log('\nAll PASS — #179 门禁通过')

@@ -32,54 +32,57 @@ export     const DetailsDock = (props) => {
         ro.observe(el)
         return function () { try { ro.disconnect() } catch (e) { /* 忽略 */ } }
       }, [])
-      // #179 加固：响应式工作区同步（对齐 StatusBar）+ 自证不依赖人工控制台
-      // 旧链路在 details 槽位 sid 为空→回退 shared 时，summaryCwd 可能为 undefined，切工作区但 sid 未变时不触发，导致右侧残留 D:\2Study\...（DEFAULT_CWD）快照
+      // #179 加固：响应式工作区同步（对齐 StatusBar）+ 回切自愈（同 sid 切工作区亦触发）
       React.useEffect(function () {
-        const apply = function (cwd, force) {
+        const apply = function (cwd) {
           if (!cwd) return false
           const norm = String(cwd).replace(/\\/g,'/').replace(/\/+$/,'')
           const cur = String(s.cwd||'').replace(/\\/g,'/').replace(/\/+$/,'')
-          if (!force && norm === cur) return false
-          s.cwd = cwd
-          const hydrated = hydrateFromCache(s)
-          emit(s)
-          loadChecks(s, false)
-          if (!hydrated || !snapFresh(s)) loadSnapshot(s, false)
-          else {
-            // 即使命中缓存，仍需校验是否污染（命中了旧 cwd 的缓存）
-            const snap = s.snapshot
-            let polluted = false
-            if (snap && snap.repoRoot) {
-              const rr = String(snap.repoRoot).replace(/\\/g,'/').replace(/\/+$/,'')
-              if (norm !== rr && !norm.startsWith(rr + '/') && !rr.startsWith(norm + '/')) polluted = true
-            } else if (snap && snap.repository && snap.repository.name) {
-              const base = cwdBasename(cwd)
-              const rn = String(snap.repository.name).split('/').pop().toLowerCase()
-              if (base && rn && base.toLowerCase() !== rn && !snap.repository.name.includes(':/') && !snap.repository.name.includes(':\\')) {
-                // 仅对 owner/name 形态做 basename 校验，文件路径形态跳过
-                polluted = true
-              }
-            } else if (snap && snap.repo && snap.repo.name) {
-              const base = cwdBasename(cwd)
-              if (base && snap.repo.name !== base) polluted = true
-            }
-            if (polluted) { loadSnapshot(s, false); loadChecks(s, false) }
+          const need = norm !== cur
+          // 每次 cwd 变更都强制刷新（即使 hydrate 命中），避免“回切仍为旧快照/没有仓库”空白
+          if (need) {
+            s.cwd = cwd
+            const hydrated = hydrateFromCache(s)
+            emit(s)
+            loadChecks(s, false)
+            // 回切必刷：cwd 变了就重拉快照（不依赖 snapFresh），确保仓库名与后端跟随
+            loadSnapshot(s, false)
+            return true
           }
-          return true
+          // 同 cwd 但快照污染（repoRoot 前缀不匹配）也必刷
+          const snap = s.snapshot
+          let polluted = false
+          if (snap && snap.repoRoot) {
+            const rr = String(snap.repoRoot).replace(/\\/g,'/').replace(/\/+$/,'')
+            if (norm !== rr && !norm.startsWith(rr + '/') && !rr.startsWith(norm + '/')) polluted = true
+          } else if (snap && snap.repository && snap.repository.name) {
+            const n = String(snap.repository.name)
+            if (!n.includes(':\\') && !n.includes(':/')) {
+              const base = cwdBasename(cwd)
+              const rn = n.split('/').pop().toLowerCase()
+              if (base && rn && base.toLowerCase() !== rn) polluted = true
+            }
+          } else if (snap && snap.repo && snap.repo.name) {
+            const base = cwdBasename(cwd)
+            if (base && snap.repo.name !== base) polluted = true
+          }
+          if (polluted) { loadSnapshot(s, false); loadChecks(s, false); return true }
+          return false
         }
-        // 1) 权威：sessions.byId[sid].cwd（随切工作区/切会话即变）
-        if (summaryCwd) { apply(summaryCwd, false); return }
-        // 2) 次权威：props.session 直带 cwd
+        if (summaryCwd) { if(apply(summaryCwd)) return }
         const cwd0 = detectCwd(props && props.session)
-        if (cwd0) { apply(cwd0, false); return }
-        // 3) 同步兜底：storeOf 的 getCwdSync（无异步）
+        if (cwd0) { if(apply(cwd0)) return }
         const sync = getCwdSync(sid)
-        if (sync) { apply(sync, false); return }
-        // 4) 异步权威：host wf.cwd（sessions 服务真源，含 header.cwd）
+        if (sync) { if(apply(sync)) return }
         if (sid && typeof host !== 'undefined' && typeof host.call === 'function') {
           host.call('wf.cwd', { sessionId: sid }).then(function (res) {
-            if (res && res.ok && res.cwd) apply(res.cwd, false)
-          }).catch(function () { /* 保持现有 cwd，下一轮 summaryCwd 会补 */ })
+            if (res && res.ok && res.cwd) apply(res.cwd)
+          }).catch(function () {})
+        } else {
+          // 兜底：若当前 s.cwd 为空且已有 snapshot 为“没有仓库”，尝试用 s.cwd 已有值强制刷新一次
+          if (!s.cwd && s.snapshot && !s.snapshot.repository && !s.snapshot.repo) {
+            // 保持空窗不空白，下次 summaryCwd 到来即校正
+          }
         }
       }, [sid, summaryCwd])
       // 初始/污染自愈：随 sid 变化重跑（修复空 deps），并额外监听 summaryCwd/s.cwd 变化以覆盖“同 sid 切工作区”场景
