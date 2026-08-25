@@ -129,8 +129,9 @@ export     const DetailsDock = (props) => {
       const narrow = dw < 380
       // #187 Banner→Modal 门控（承接 #184 定版：Banner 点→Modal 动态三选，不含 Other，取消/确认 + 整条隐藏+容器不挂载 + pending/isOther 两态 + 动态多态）
       const _sel = s.selection || (s.snapshot && s.snapshot.selection) || null
-      const _isPending = !!(_sel && _sel.pending)
-      const _isOther = !!(_sel && _sel.backendId===null && !_sel.pending)
+      const _isPending = !!(_sel && _sel.pending && !!s.cwd && s.snapMode === 'real' && !!s.snapshot)
+      const _isOtherRaw = !!(_sel && _sel.backendId===null && !_sel.pending)
+      const _isOther = _isOtherRaw && !!s.cwd && s.snapMode === 'real' && !!s.snapshot
       const _showBackendFullscreen = _isPending || _isOther
       const _gateOpen=!!s.gateModalOpen;const _gateModules=(s.backendModules||[{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]).filter(m=>String(m.id).toLowerCase()!=='other');const _openGateModal=function(){s.gateModalOpen=true;if(!s.gateSelected)s.gateSelected=(_gateModules[0]&&_gateModules[0].id)||'github';s.gateError='';emit(s);if(typeof host!=='undefined'&&host.call){s.gateLoading=true;emit(s);host.call('wf.registry',{cwd:s.cwd||''}).then(function(r){s.gateLoading=false;let m=null;if(r&&r.ok&&Array.isArray(r.modules))m=r.modules;else if(r&&Array.isArray(r.modules))m=r.modules;else if(r&&r.value&&Array.isArray(r.value.modules))m=r.value.modules;if(Array.isArray(m)&&m.length){const f=m.filter(x=>String(x.id).toLowerCase()!=='other');const fin=f.length?f:m.filter(x=>String(x.id).toLowerCase()!=='other');if(fin.length){s.backendModules=m;try{if(typeof setPresentationMap==='function')setPresentationMap(m)}catch(e){}const ids=fin.map(x=>x.id);if(!s.gateSelected||ids.indexOf(s.gateSelected)<0)s.gateSelected=fin[0].id}}emit(s)}).catch(function(){s.gateLoading=false;emit(s)})}};const _closeGateModal=function(){s.gateModalOpen=false;s.gateError='';emit(s)};const _confirmGate=function(){const id=s.gateSelected||(_gateModules[0]&&_gateModules[0].id)||'github';if(String(id).toLowerCase()==='other'){s.gateError='Other 已弃用，请选择 GitHub/Markdown/GitLab';emit(s);return}const prev=s.selection;const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null;const nxt={backendId:id,source:'explicit',ref:repoRef};s.selection=nxt;try{if(s.cwd)selectionByCwd[s.cwd]=nxt}catch(e){}s.gateModalOpen=false;emit(s);if(typeof host!=='undefined'&&host.call){host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok);if(ok){s.tab='list';emit(s);try{flash(s,'已绑定 '+(typeof labelOf==='function'?labelOf(id):String(id)),'ok')}catch(e){}try{const l=(typeof setupTrackerLine==='function'?setupTrackerLine(id):'本仓库为 GitHub → 提议 GitHub Issues');const c=(typeof setupTrackerChoice==='function'?setupTrackerChoice(id):'GitHub Issues');const n=(typeof setupBackendNote==='function'?setupBackendNote(id):'');const tt=(typeof promptText==='function'?promptText('setupRun',{trackerLine:l,trackerChoice:c,backendNote:n}):'');if(tt)try{inject(s,tt)}catch(e){}}catch(e){}loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)selectionByCwd[s.cwd]=prev}catch(e){};emit(s);try{flash(s,'绑定失败:'+String((res&&(res.error||res.message))||'unknown').slice(0,120),'warn')}catch(e){}}}).catch(function(e){s.selection=prev;try{if(s.cwd)selectionByCwd[s.cwd]=prev}catch(e2){};emit(s);try{flash(s,'绑定失败:'+String(e&&e.message||e).slice(0,120),'warn')}catch(e3){}})}};const pickBackend=function(id){s.gateSelected=id;emit(s);_confirmGate()}
       const tabsRef = React.useRef(null)
@@ -238,9 +239,10 @@ export     const DetailsDock = (props) => {
             const sel = s.selection || (s.snapshot && s.snapshot.selection) || null
             if (!repoRef) return h('span', { title: tr('panel.noRepoTitle'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f87171', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.5)', borderRadius: 6, padding: '1px 8px', flex: 'none', whiteSpace: 'nowrap' } }, [Ic({ n: 'alert', size: 11 }), h('span', null, tr('panel.noRepo'))])
             const bid = sel ? sel.backendId : (repoRef.backend || 'github')
-            const col = (typeof backendColorOf==='function'? backendColorOf(bid) : 'light-dark(#0969da, #58a6ff)')
-            const bg = (typeof backendBgOf==='function'? backendBgOf(bid) : 'light-dark(#ddf4ff, rgba(56,139,253,.15))')
-            const bdc = (typeof backendBorderOf==='function'? backendBorderOf(bid) : 'light-dark(rgba(84,174,255,.4), rgba(56,139,253,.4))')
+            // #191：品牌色纯机制派生（后端 presentation 单源，无硬编码兜底——函数在 store 已内置中性兜底）
+            const col = (typeof backendColorOf==='function'? backendColorOf(bid) : '')
+            const bg = (typeof backendBgOf==='function'? backendBgOf(bid) : '')
+            const bdc = (typeof backendBorderOf==='function'? backendBorderOf(bid) : '')
             const short = (typeof repoShortName==='function'? repoShortName(repoRef) : String(repoRef.name||'').split('/').pop())
             const href = repoRef.url || ''
             const inner = [h('svg', { viewBox: '0 0 16 16', width: 11, height: 11, fill: 'currentColor', style: { flex: 'none' } }, [h('path', { d: 'M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 8h8.5V1.5z' })]), h('span', { 'data-repo-text': 1, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, repoRef.name)]
@@ -310,7 +312,7 @@ export     const DetailsDock = (props) => {
               h('div', { style:{ fontSize:11, color:'#8b8b95', marginBottom:10, lineHeight:1.5 } }, '不同后端的初始化与前置检查不同，选择后将回到主线流程（列表/状态栏正常可用）'),
               s.gateLoading ? h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'6px 0' } }, '加载中…') : h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, _gateModules.map(function(m){
                 const isSel = s.gateSelected===m.id
-                const col = (typeof backendColorOf==='function'? backendColorOf(m.id) : '#6e7681')
+                const col = (typeof backendColorOf==='function'? backendColorOf(m.id) : '')
                 const isRec = _gateModules[0] && _gateModules[0].id===m.id
                 return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border: isSel ? '1px solid '+col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSel ? 'rgba(88,166,255,.08)' : 'transparent', cursor:'pointer' } }, [
                   h('input', { type:'radio', name:'dsws-gate-pick', checked:isSel, onChange:function(){ s.gateSelected=m.id; emit(s) } }),

@@ -243,7 +243,7 @@ export     const SettingsPage = (props) => {
                   const sel=selMap[cwd]||bindingsByCwd[cwd]||null
                   const backendId=sel&&sel.backendId!==undefined?sel.backendId:null
                   const label=backendId?(typeof labelOf==='function'?labelOf(backendId):String(backendId)):'未绑定'
-                  const color=backendId?(typeof backendColorOf==='function'?backendColorOf(backendId):'#6e7681'):'#6e7681'
+                  const color=(typeof backendColorOf==='function'?backendColorOf(backendId):'')
                   const source=sel&&sel.source?sel.source:'fallback'
                   const srcLabel=source==='explicit'?'显式':source==='matches'?'自动':'未指定'
                   const srcColor=source==='explicit'?'#4ade80':source==='matches'?'#58a6ff':'#8b8b95'

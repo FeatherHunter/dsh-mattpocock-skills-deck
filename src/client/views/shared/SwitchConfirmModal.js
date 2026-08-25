@@ -19,8 +19,8 @@ export const SwitchConfirmModal = (props) => {
   if (!sc || !sc.open) return null
   const curLabel = typeof labelOf === 'function' ? labelOf(sc.curBackendId) : String(sc.curBackendId)
   const targetLabel = typeof labelOf === 'function' ? labelOf(sc.targetBackendId) : String(sc.targetBackendId)
-  const curColor = typeof backendColorOf === 'function' ? backendColorOf(sc.curBackendId) : '#6e7681'
-  const targetColor = typeof backendColorOf === 'function' ? backendColorOf(sc.targetBackendId) : '#6e7681'
+  const curColor = typeof backendColorOf === 'function' ? backendColorOf(sc.curBackendId) : ''
+  const targetColor = typeof backendColorOf === 'function' ? backendColorOf(sc.targetBackendId) : ''
   const isKeep = sc.option === 'keep'
   const isMigrate = sc.option === 'migrate'
   const isClear = sc.option === 'clear'
@@ -65,7 +65,8 @@ export const SwitchConfirmModal = (props) => {
     }
   }, [])
   const overlayStyle = { position: 'fixed', inset: 0, zIndex: 2147483001, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.55)', padding: 16 }
-  const cardStyle = { width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12, background: 'var(--dsw-alias-bg-layer-2,#16181d)', boxShadow: '0 16px 48px rgba(0,0,0,.5)', padding: 16 }
+  // #191（用户反馈）：弹窗高度固定，内容多少不跳动（keep/migrate/clear 三态同高，多出部分内部滚动）
+  const cardStyle = { boxSizing: 'border-box', width: '100%', maxWidth: 560, height: 520, minHeight: 420, maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12, background: 'var(--dsw-alias-bg-layer-2,#16181d)', boxShadow: '0 16px 48px rgba(0,0,0,.5)', padding: 16 }
   // #191（用户反馈）：未选 target 时三选一禁用（radio disabled + 整体置灰）；选中 target 后自动选中 keep（推荐）
   const radioRow = function (id, checked, label, desc, badge) {
     const col = id === 'keep' ? '#4ade80' : id === 'migrate' ? '#f59e0b' : '#f87171'
@@ -114,7 +115,7 @@ export const SwitchConfirmModal = (props) => {
         ])
         // #191（用户反馈）：picker 永远渲染（即使已选也可重选 target）
         const picker = h('div', { style: { display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' } }, modules.map(function(m){
-          const col = typeof backendColorOf === 'function' ? backendColorOf(m.id) : '#6e7681'
+          const col = typeof backendColorOf === 'function' ? backendColorOf(m.id) : ''
           const isSelected = s.switchConfirm.targetBackendId === m.id
           return h('button', { key: m.id, type: 'button', 'data-target-id': m.id, onClick: function(){ onPick(m.id) }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: isSelected ? '5px 11px' : '6px 12px', borderRadius: 8, border: isSelected ? '2px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSelected ? 'rgba(88,166,255,.10)' : 'transparent', color: isSelected ? col : '#8b8b95', fontSize: 12, fontWeight: isSelected ? 700 : 500, cursor: 'pointer' } }, [
             h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: col, flex: 'none' } }),

@@ -57,8 +57,10 @@ export const StatusBar = (props) => {
   const csx = checksumsOf(s)
   const { fr, bugN, triageN, n, timeStr, setup, amber, skillsCheck, skillsBad, ghCliBad, ghAuthBad } = csx
   // #187 门控：未选择且非 pending 时状态栏整条 dsws-capsule 不渲染（仅设置页可见引导），pending 时保留等待态
+  // Guard: interval transient with empty cwd should not hide capsule (prevent forced empty)
   const _selSBGate = s.selection || (s.snapshot && s.snapshot.selection) || null
-  const _isOtherSBGate = !!(_selSBGate && _selSBGate.backendId===null && !_selSBGate.pending)
+  const _isOtherSBGateRaw = !!(_selSBGate && _selSBGate.backendId===null && !_selSBGate.pending)
+  const _isOtherSBGate = _isOtherSBGateRaw && !!s.cwd && s.snapMode === 'real' && !!s.snapshot
   const go = function (tab) {
     if (_isOtherSBGate && tab!=='settings') { try{ s.tab='settings'; }catch(e){}; return }
     s.tab = tab; openPanel(s)
@@ -349,7 +351,7 @@ export const StatusBar = (props) => {
       h('div', { style:{ fontSize:12, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:8 } }, [Ic({n:'compass',size:12}), h('span', null, tr('banner.setupPickTitle')), s.setupPickLoading ? h('span', {style:{fontSize:10,color:'#8b8b95'}}, tr('list.loading')) : null]),
       s.setupPickErr ? h('div', {style:{fontSize:11,color:'#f87171', marginBottom:6}}, s.setupPickErr) : null,
       h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, (mods.length?mods:fbMods).map(function(m){
-        const isRec=rec===m.id;const isSel=sel===m.id;const col=typeof backendColorOf==='function'?backendColorOf(m.id):'#6e7681'
+        const isRec=rec===m.id;const isSel=sel===m.id;const col=typeof backendColorOf==='function'?backendColorOf(m.id):''
         return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 9px', borderRadius:8, border: isSel ? '1px solid '+col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSel ? 'rgba(88,166,255,.08)' : 'transparent', cursor:'pointer' } }, [
           h('input', { type:'radio', name:'setup-pick', checked: isSel, onChange: function(){ s.setupPickSelected=m.id; emit(s) } }),
           h('span', { style:{ width:8, height:8, borderRadius:'50%', background: col, flex:'none' } }),

@@ -39,7 +39,8 @@ export const BackendSelector = (props) => {
   const includeOther = props.includeOther !== undefined ? !!props.includeOther : true
   const showSourceCapsule = props.showSourceCapsule !== undefined ? !!props.showSourceCapsule : true
   const isMultiHit = curSelection && Array.isArray(curSelection.multiHit) && curSelection.multiHit.length > 1
-  const colorOf = typeof backendColorOf === 'function' ? backendColorOf : function () { return '#6e7681' }
+  // #191：纯机制派生（store 内置中性兜底，不在此硬编码）
+  const colorOf = typeof backendColorOf === 'function' ? backendColorOf : function () { return '' }
   const srcLabel = curSource === 'explicit' ? '显式绑定' : curSource === 'matches' ? '自动匹配' : '回退'
   const srcColor = curSource === 'explicit' ? '#4ade80' : curSource === 'matches' ? '#58a6ff' : '#8b8b95'
   return h('div', null, [

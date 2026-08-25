@@ -217,41 +217,29 @@
       // 简化：用 color-mix 派生，保持与 light-dark 同步
       return 'light-dark(color-mix(in srgb, ' + adaptiveColor.replace(/light-dark\(([^,]+),.*\)/, '$1') + ' 12%, transparent), color-mix(in srgb, ' + adaptiveColor.replace(/.*,\s*([^\)]+)\)/, '$1') + ' 14%, transparent))'
     }
+    // #191：品牌色纯机制派生——后端经协议层提供 presentation.color（单一真源），
+    //   UI 仅做 light-dark 与透明度派生，禁止任何品牌色硬编码（含 github/markdown/gitlab 特判）。
+    //   后端未提供品牌色时统一用中性灰（机制兜底，非品牌特判）。
     export const backendColorOf = function (backendId) {
       const p = presentationById[backendId]
       if (p && p.color) return toAdaptive(p.color)
-      if (backendId === 'github') return 'light-dark(#0969da, #58a6ff)'
-      if (backendId === 'markdown') return 'light-dark(#1a7f37, #3fb950)'
-      if (backendId === 'gitlab') return 'light-dark(#c25100, #ff9a5c)'
-      return 'light-dark(#57606a, #8b949e)'
+      return toAdaptive('') // 中性灰兜底
     }
     export const backendBgOf = function (backendId) {
       const p = presentationById[backendId]
       if (p && p.bg) return p.bg
-      if (p && p.color) {
-        const ad = toAdaptive(p.color)
-        const light = ad.replace(/light-dark\(([^,]+),.*\)/, '$1')
-        const dark = ad.replace(/.*,\s*([^\)]+)\)/, '$1')
-        return 'light-dark(color-mix(in srgb, ' + light + ' 12%, transparent), color-mix(in srgb, ' + dark + ' 14%, transparent))'
-      }
-      if (backendId === 'github') return 'light-dark(#ddf4ff, rgba(56,139,253,.15))'
-      if (backendId === 'markdown') return 'light-dark(rgba(26,127,55,.12), rgba(63,185,80,.14))'
-      if (backendId === 'gitlab') return 'light-dark(rgba(194,81,0,.12), rgba(255,154,92,.14))'
-      return 'light-dark(rgba(87,96,106,.12), rgba(139,148,158,.14))'
+      const ad = toAdaptive(p && p.color ? p.color : '')
+      const light = ad.replace(/light-dark\(([^,]+),.*\)/, '$1')
+      const dark = ad.replace(/.*,\s*([^\)]+)\)/, '$1')
+      return 'light-dark(color-mix(in srgb, ' + light + ' 12%, transparent), color-mix(in srgb, ' + dark + ' 14%, transparent))'
     }
     export const backendBorderOf = function (backendId) {
       const p = presentationById[backendId]
       if (p && p.border) return p.border
-      if (p && p.color) {
-        const ad = toAdaptive(p.color)
-        const light = ad.replace(/light-dark\(([^,]+),.*\)/, '$1')
-        const dark = ad.replace(/.*,\s*([^\)]+)\)/, '$1')
-        return 'light-dark(color-mix(in srgb, ' + light + ' 30%, transparent), color-mix(in srgb, ' + dark + ' 35%, transparent))'
-      }
-      if (backendId === 'github') return 'light-dark(rgba(84,174,255,.4), rgba(56,139,253,.4))'
-      if (backendId === 'markdown') return 'light-dark(rgba(26,127,55,.25), rgba(63,185,80,.30))'
-      if (backendId === 'gitlab') return 'light-dark(rgba(194,81,0,.25), rgba(255,154,92,.30))'
-      return 'light-dark(rgba(87,96,106,.25), rgba(139,148,158,.30))'
+      const ad = toAdaptive(p && p.color ? p.color : '')
+      const light = ad.replace(/light-dark\(([^,]+),.*\)/, '$1')
+      const dark = ad.replace(/.*,\s*([^\)]+)\)/, '$1')
+      return 'light-dark(color-mix(in srgb, ' + light + ' 30%, transparent), color-mix(in srgb, ' + dark + ' 35%, transparent))'
     }
     export const repoShortName = function (repoRef) {
       if (!repoRef || !repoRef.name) return ''

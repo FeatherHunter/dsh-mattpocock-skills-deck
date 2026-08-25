@@ -105,8 +105,10 @@ export     const OverlayPanel = (props) => {
       const narrow = s.size.w < 380
       // #187 Banner→Modal 门控（同 Dock：Banner 点→Modal 动态三选，不含 Other，取消/确认 + 两态等待）
       const _sel2 = s.selection || (s.snapshot && s.snapshot.selection) || null
-      const _isPending2 = !!(_sel2 && _sel2.pending)
-      const _isOther2 = !!(_sel2 && _sel2.backendId===null && !_sel2.pending)
+      const _isPending2Raw = !!(_sel2 && _sel2.pending)
+      const _isPending2 = _isPending2Raw && !!s.cwd && s.snapMode === 'real' && !!s.snapshot
+      const _isOther2Raw = !!(_sel2 && _sel2.backendId===null && !_sel2.pending)
+      const _isOther2 = _isOther2Raw && !!s.cwd && s.snapMode === 'real' && !!s.snapshot
       const _showBackendFullscreen2 = _isPending2 || _isOther2
       // Overlay 与 Dock 共享同一 store gate 状态（同一工作区同一 modal）
       const _gateOpen2 = !!s.gateModalOpen
@@ -298,7 +300,7 @@ export     const OverlayPanel = (props) => {
               h('div', { style:{ fontSize:11, color:'#8b8b95', marginBottom:10, lineHeight:1.5 } }, '不同后端的初始化与前置检查不同，选择后将回到主线流程（列表/状态栏正常可用）'),
               s.gateLoading ? h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'6px 0' } }, '加载中…') : h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, _gateModules2.map(function(m){
                 const isSel = s.gateSelected===m.id
-                const col = (typeof backendColorOf==='function'? backendColorOf(m.id) : '#6e7681')
+                const col = (typeof backendColorOf==='function'? backendColorOf(m.id) : '')
                 const isRec = _gateModules2[0] && _gateModules2[0].id===m.id
                 return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border: isSel ? '1px solid '+col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSel ? 'rgba(88,166,255,.08)' : 'transparent', cursor:'pointer' } }, [
                   h('input', { type:'radio', name:'dsws-gate-pick2', checked:isSel, onChange:function(){ s.gateSelected=m.id; emit(s) } }),
