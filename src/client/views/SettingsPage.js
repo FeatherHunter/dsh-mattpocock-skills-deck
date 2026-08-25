@@ -13,6 +13,13 @@ export     const SettingsPage = (props) => {
       const showCfgTip=function(e,t){ const tip={x:e.clientX+14,y:e.clientY+12,text:t}; if(typeof window!=='undefined'){ if(tip.x+260>window.innerWidth) tip.x=e.clientX-14-260; if(tip.y+40>window.innerHeight) tip.y=e.clientY-12-40 } sharedSt.cfgTip=tip; emit(sharedSt) }
       const moveCfgTip=function(e){ if(!sharedSt.cfgTip) return; const tip={x:e.clientX+14,y:e.clientY+12,text:sharedSt.cfgTip.text}; if(tip.x+260>window.innerWidth) tip.x=e.clientX-14-260; if(tip.y+40>window.innerHeight) tip.y=e.clientY-12-40; sharedSt.cfgTip=tip; emit(sharedSt) }
       const hideCfgTip=function(){ if(sharedSt.cfgTip){ sharedSt.cfgTip=null; emit(sharedSt) } }
+      // #190 修复：client 侧 cwd 归一（绝对直通；相对原样交给 host normCwd）。
+      const normCwdClient=function(raw){
+        if(!raw) return ''
+        if(typeof raw!=='string') raw=String(raw)
+        try{ if(/^[A-Za-z]:[\\/]/.test(raw)||/^\//.test(raw)) return raw.replace(/[\\/]+$/,'') }catch{}
+        return raw
+      }
       const [openIn, setOpenIn] = React.useState(cfg.openIn || 'dock')
       const [openInNote, setOpenInNote] = React.useState(false)
       const [wf, setWf] = React.useState(cfg.withWayfinder)
@@ -37,6 +44,7 @@ export     const SettingsPage = (props) => {
       }
       // #155 Q1 改：只读全局总览（wf.bindings + workspaces.list + wf.registry 色值，不可改；不调 wf.bind）
       const [wsOverview, setWsOverview] = React.useState({ loading:true, err:'', bindings:[], workspaces:[], modules:[], selections:{} })
+      const loadRef = React.useRef(null)
       React.useEffect(function(){
         let cancelled=false
         const load=async function(){
@@ -55,11 +63,13 @@ export     const SettingsPage = (props) => {
               if(!wsList.length&&typeof wsSvc.getAll==='function') try{ const a2=await wsSvc.getAll(); if(Array.isArray(a2)) wsList=a2 }catch{}
             }
           }catch{}
-          const allSet={}, all=[]; const add=function(c){ const k=String(c); if(!allSet[k]){ allSet[k]=1; all.push(k)}}; wsList.map(function(w){ return w.path||w.cwd||w.dir||w.workspacePath||'' }).filter(Boolean).forEach(add); bindings.forEach(function(b){ const k=b.cwd||(b.handle&&b.handle.cwd)||''; if(k) add(k)}); if(!all.length&&sharedSt.cwd) add(sharedSt.cwd)
+          const allSet={}, all=[]; const add=function(c){ const k=String(c); if(!allSet[k]){ allSet[k]=1; all.push(k)}}; wsList.forEach(function(w){ const raw=w.path||w.cwd||w.dir||w.workspacePath||w.root||w.fullPath||''; const k=normCwdClient(raw); if(k) add(k) }); bindings.forEach(function(b){ const k=normCwdClient(b.cwd||(b.handle&&b.handle.cwd)||''); if(k) add(k)}); if(!all.length&&sharedSt.cwd) add(sharedSt.cwd)
+          try{ console.log('[wsOverview] all=',JSON.parse(JSON.stringify(all)),'wsSample=',wsList.slice(0,2)) }catch{}
           for(let i=0;i<all.length;i++){ const cwd=all[i]; try{ const r=await host.call('wf.selection',{cwd}); const sel=(r&&r.selection)||(r&&r.value&&r.value.selection)||(r&&r.value&&r.value.value&&r.value.value.selection)||null; if(sel) selections[cwd]=sel; try{ console.log('[wsOverview] cwd',cwd,'sel',sel)}catch{} }catch(e){ try{ console.log('[wsOverview] err cwd',cwd,String(e).slice(0,80))}catch{} }; if(cancelled) return }
           if(cancelled) return
           setWsOverview({loading:false,err:'',bindings,workspaces:wsList,modules,selections})
         }
+        loadRef.current = load
         load(); return function(){ cancelled=true }
       },[])
       const gotoWorkspace = function(cwd){
@@ -212,13 +222,24 @@ export     const SettingsPage = (props) => {
             const wsPaths=wsOverview.workspaces.map(function(w){ return w.path||w.cwd||w.dir||w.workspacePath||'' }).filter(Boolean)
             const allSet={}, all=[]; const add=function(c){ const k=String(c); if(!allSet[k]){ allSet[k]=1; all.push(k)}}; wsPaths.forEach(add); Object.keys(bindingsByCwd).forEach(add); Object.keys(selMap).forEach(add); if(!all.length&&sharedSt.cwd) add(sharedSt.cwd)
             if(!all.length) return h('div',{style:{fontSize:11,color:'#8b8b95',padding:'6px 0'}},'暂无工作区')
-            all.sort(); const boundCnt=all.filter(function(c){ const s=selMap[c]||bindingsByCwd[c]; return s&&s.backendId}).length
+            // #194 已绑定工作区置顶：已绑定 (backendId) 排前（按 backend 注册序 + basename 字母序），未绑定 (fallback/未指定) 排后（basename 字母序）
+                        // 排前分组取 sel (select 三级联产物，source∈{explicit,matches}) + bindingsByCwd 双源兜底，与下方 row 渲染同口径
+                        const modsOrder=(wsOverview.modules||[]).map(function(m){return m.id})
+                        const isBound=function(c){ const s=selMap[c]||bindingsByCwd[c]; return !!(s&&s.backendId) }
+                        const backendRank=function(c){ const s=selMap[c]||bindingsByCwd[c]; const bid=s&&s.backendId; if(!bid) return 9999; const i=modsOrder.indexOf(bid); return i<0?9999:i }
+                        const baseName=function(c){ const k=String(c); return k.split(/[\\/]/).pop()||k }
+                        const bound=all.filter(isBound)
+                        const unbound=all.filter(function(c){return !isBound(c)})
+                        bound.sort(function(a,b){ const ra=backendRank(a),rb=backendRank(b); if(ra!==rb) return ra-rb; const ba=baseName(a).toLowerCase(),bb=baseName(b).toLowerCase(); if(ba<bb) return -1; if(ba>bb) return 1; return 0 })
+                        unbound.sort(function(a,b){ const ba=baseName(a).toLowerCase(),bb=baseName(b).toLowerCase(); if(ba<bb) return -1; if(ba>bb) return 1; return 0 })
+                        const ordered=bound.concat(unbound)
+                        const boundCnt=bound.length
             return h('details',{ open:false, style:{ marginTop:6, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:8, background:'rgba(255,255,255,.02)'}},[
-              h('summary',{ style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', cursor:'pointer', listStyle:'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontSize:11, fontWeight:600 }},[ h('span',{style:{whiteSpace:'nowrap'}},'共 '+all.length+' 个工作区'), h('span',{style:{ color:boundCnt?'#4ade80':'#8b8b95', whiteSpace:'nowrap'}},'已绑定 '+boundCnt), h('span',{style:{ marginLeft:'auto', fontSize:10, color:'#58a6ff', whiteSpace:'nowrap'}},'点击展开/收起')]),
+              h('summary',{ style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', cursor:'pointer', listStyle:'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontSize:11, fontWeight:600 }},[ h('span',{style:{whiteSpace:'nowrap'}},'共 '+all.length+' 个工作区'), h('span',{style:{ color:boundCnt?'#4ade80':'#8b8b95', whiteSpace:'nowrap'}},'已绑定 '+boundCnt), h('button',{ style:{ marginLeft:'auto', padding:'2px 8px', fontSize:10, color:'#58a6ff', border:'1px solid #58a6ff', borderRadius:4, background:'transparent', cursor:'pointer', whiteSpace:'nowrap', flex:'none' }, onClick:function(e){ e.preventDefault(); e.stopPropagation(); if(loadRef.current){ loadRef.current().then(function(){ try{ flash(sharedSt,'已刷新','ok') }catch{} }).catch(function(){ try{ flash(sharedSt,'刷新失败','warn') }catch{} }) } }, title:'重新拉 bindings/selections' },'刷新'), h('span',{style:{ fontSize:10, color:'#58a6ff', whiteSpace:'nowrap'}},'点击展开/收起')]),
               h('div',{ style:{ padding:'0 6px 6px' }},[
                 wsOverview.loading ? h('div',{style:{fontSize:11,color:'#8b8b95',padding:'6px 0',whiteSpace:'nowrap'}},'加载中…') :
                 wsOverview.err ? h('div',{style:{fontSize:11,color:'#f87171',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},wsOverview.err) :
-                h('div',{ style:{ display:'flex', flexDirection:'column', gap:0 }}, all.map(function(cwd){
+                h('div',{ style:{ display:'flex', flexDirection:'column', gap:0 }}, ordered.map(function(cwd){
                   const sel=selMap[cwd]||bindingsByCwd[cwd]||null
                   const backendId=sel&&sel.backendId!==undefined?sel.backendId:null
                   const label=backendId?(typeof labelOf==='function'?labelOf(backendId):String(backendId)):'未绑定'
