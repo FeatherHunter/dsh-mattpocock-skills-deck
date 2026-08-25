@@ -251,17 +251,18 @@ export     const SettingsPage = (props) => {
                   const label=backendId?(typeof labelOf==='function'?labelOf(backendId):String(backendId)):'未绑定'
                   const color=backendId?(typeof backendColorOf==='function'?backendColorOf(backendId):'#6e7681'):'#6e7681'
                   const source=sel&&sel.source?sel.source:'fallback'
-                  const srcLabel=source==='explicit'?'显式':source==='matches'?'自动':'回退'
+                  const srcLabel=source==='explicit'?'显式':source==='matches'?'自动':'未指定'
                   const srcColor=source==='explicit'?'#4ade80':source==='matches'?'#58a6ff':'#8b8b95'
+                  const srcTitle=source==='explicit'?'显式：你在右侧面板选过，已写入 byHandle':source==='matches'?'自动：按仓库内容自动命中':'未指定：未显式且未自动命中，回退 Other'
                   const statusText=backendId?'已绑定':'未绑定'
                   const statusColor=backendId?'#4ade80':'#f59e0b'
                   const base=cwd.split(/[\\/]/).pop()||cwd
                   return h('div',{ key:cwd, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden' }},[
                     h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 }, title:cwd }, base),
                     h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11 }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap'}},label) ]),
-                    h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap'}}, srcLabel),
-                    h('span',{ style:{ fontSize:10, color:statusColor, border:'1px solid '+statusColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap'}}, statusText),
-                    h('button',{ className:'dsws-btn', style:{ fontSize:10, padding:'2px 6px', flex:'none', whiteSpace:'nowrap'}, onClick:function(){ gotoWorkspace(cwd) } }, '去'),
+                    h('span',{ title:srcTitle, style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap'}}, srcLabel),
+                    h('span',{ title: statusText==='已绑定'?'已绑定该工作区':'未绑定，回退 Other', style:{ fontSize:10, color:statusColor, border:'1px solid '+statusColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap'}}, statusText),
+                    h('button',{ className:'dsws-btn', style:{ fontSize:10, padding:'2px 6px', flex:'none', whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:4 }, onClick:function(){ gotoWorkspace(cwd) }, title:'打开该工作区：'+cwd }, [ h('svg',{ viewBox:'0 0 12 12', width:10, height:10, fill:'none', stroke:'currentColor', strokeWidth:1.4, style:{ flex:'none' }},[ h('path',{ d:'M3 6 H9 M6 3 L9 6 L6 9' })]), h('span',null,'打开') ]),
                   ])
                 }))
               ])
