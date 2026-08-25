@@ -1,10 +1,15 @@
 /**
- * views/shared/SwitchConfirmModal.js — 切换三选一确认 Modal（#189 · #186 定版）
+ * views/shared/SwitchConfirmModal.js — 切换三选一确认 Modal（#189 · #186 定版 · #191 补入口）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 `// ==== leaf:switchConfirmModal (spliced by build) ====` 标记处。
  * UI-only：已选态再选不同 trackerId → 弹此 Modal → wf.bind + 三缓存失效（host 侧）→ snapshot 重取。
+ *
+ * #191 修订：
+ *   - target picker 永远渲染（已选态边框高亮，可重新切换）
+ *   - option=null 默认不选中三选一（用户选策略后才可确认）
+ *   - 删除 hint 提示框 / prompt 编辑区 / "wf.bind per-cwd 幂等" 灰字（信息冗余）
+ *   - 卡片 box-sizing + overflowX hidden 防横向滚动
  */
-export const DEFAULT_SWITCH_PROMPT = '现有 issues 保留在原后端，切换后不可见，切回可见'
 export const SwitchConfirmModal = (props) => {
   const sid = props && props.sessionId
   const cx = React.useContext(DswsCtx)
@@ -26,20 +31,16 @@ export const SwitchConfirmModal = (props) => {
   const criDetails = cri ? [cri.c1, cri.c4, cri.c5].filter(Boolean) : []
   const migrateBlocked = isMigrate && !criLoading && !criOk
   const clearNeedInput = isClear && sc.clearInput !== '确认清空'
-  // #191：目标待选态时（targetBackendId==null）确认按钮禁用；option=keep/migrate/clear 任选后都可点（target 由独立 radio 决定）
+  // #191（用户反馈）：option=null 时三选一不默认选中；目标未选 OR 三选一未选时确认按钮禁用
+  const _optNone = sc.option == null
   const isTargetPending = sc.targetBackendId == null
-  const confirmDisabled = sc.confirming || isTargetPending || (isMigrate && (criLoading || !criOk)) || (isClear && clearNeedInput)
+  const confirmDisabled = sc.confirming || isTargetPending || _optNone || (isMigrate && (criLoading || !criOk)) || (isClear && clearNeedInput)
   const doClose = function () {
     if (typeof closeSwitchConfirm === 'function') { closeSwitchConfirm(s) } else { s.switchConfirm = null; emit(s) }
   }
   const doConfirm = function () {
     if (confirmDisabled) return
     if (typeof confirmSwitchConfirm === 'function') confirmSwitchConfirm(s)
-  }
-  const onPromptChange = function (e) {
-    const v = e.target.value
-    s.switchConfirm.prompt = v
-    emit(s)
   }
   const onOption = function (opt) {
     s.switchConfirm.option = opt
@@ -54,9 +55,9 @@ export const SwitchConfirmModal = (props) => {
     s.switchConfirm.clearInput = e.target.value
     emit(s)
   }
-  // 触发 CRI 加载（首次打开默认 keep，切到 migrate 时补拉；keep 下也后台预拉）
+  // 触发 CRI 加载（仅在 option=migrate 时触发；用户选 migrate 后才需要 CRI，节省探测）
   React.useEffect(function () {
-    if (!sc.criChecks && !sc.criLoading) {
+    if (sc.option === 'migrate' && !sc.criChecks && !sc.criLoading) {
       s.switchConfirm.criLoading = true; emit(s)
       if (typeof loadSwitchCri === 'function') loadSwitchCri(s)
     }
@@ -104,27 +105,19 @@ export const SwitchConfirmModal = (props) => {
             ? h('span', { style: { fontSize: 11, color: '#8b8b95', fontStyle: 'italic' } }, '选择目标后端…')
             : h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: targetColor, flex: 'none' } }), h('span', { style: { fontWeight: 600, color: targetColor } }, targetLabel)]),
           h('span', { style: { flex: 1 } }),
-          h('span', { style: { fontSize: 10, color: '#8b8b95' } }, 'wf.bind per-cwd 幂等'),
         ])
-        if (sc.targetBackendId != null) return headerRow
+        // #191（用户反馈）：picker 永远渲染（即使已选也可重选 target）
         const picker = h('div', { style: { display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' } }, modules.map(function(m){
           const col = typeof backendColorOf === 'function' ? backendColorOf(m.id) : '#6e7681'
-          return h('button', { key: m.id, type: 'button', onClick: function(){ onPick(m.id) }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, border: '1px solid ' + col, background: 'transparent', color: col, fontSize: 12, fontWeight: 600, cursor: 'pointer' } }, [
+          const isSelected = s.switchConfirm.targetBackendId === m.id
+          return h('button', { key: m.id, type: 'button', 'data-target-id': m.id, onClick: function(){ onPick(m.id) }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: isSelected ? '5px 11px' : '6px 12px', borderRadius: 8, border: isSelected ? '2px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSelected ? 'rgba(88,166,255,.10)' : 'transparent', color: isSelected ? col : '#8b8b95', fontSize: 12, fontWeight: isSelected ? 700 : 500, cursor: 'pointer' } }, [
             h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: col, flex: 'none' } }),
             h('span', null, m.label || m.id),
           ])
         }))
         return h('div', null, [headerRow, picker])
       })(),
-      h('div', { style: { fontSize: 11, color: '#e6edf3', background: 'rgba(88,166,255,.08)', border: '1px solid rgba(88,166,255,.25)', borderRadius: 8, padding: '8px 10px', marginBottom: 10 } }, [
-        h('div', { style: { fontWeight: 600, marginBottom: 4 } }, tr('switch.hint')),
-        h('div', { style: { color: '#8b8b95' } }, tr('switch.hintDesc')),
-      ]),
-      h('div', { style: { marginBottom: 10 } }, [
-        h('div', { style: { fontSize: 11, fontWeight: 600, marginBottom: 4 } }, tr('switch.promptLabel')),
-        h('textarea', { value: sc.prompt || '', onChange: onPromptChange, rows: 2, placeholder: DEFAULT_SWITCH_PROMPT, style: { width: '100%', minHeight: 44, maxHeight: 80, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: 'var(--dsw-alias-bg-layer-1,#10131a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 12, resize: 'vertical' } }),
-        h('div', { style: { fontSize: 10, color: '#8b8b95', marginTop: 3 } }, tr('switch.promptHint')),
-      ]),
+      _optNone ? h('div', { style: { fontSize: 10, color: '#f59e0b', margin: '0 0 6px', fontStyle: 'italic' } }, '↑ 请选择切换策略') : null,
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 } }, [
         radioRow('keep', isKeep, tr('switch.optKeep'), tr('switch.optKeepDesc'), null),
         radioRow('migrate', isMigrate, tr('switch.optMigrate'), tr('switch.optMigrateDesc'), tr('switch.badgeExp')),

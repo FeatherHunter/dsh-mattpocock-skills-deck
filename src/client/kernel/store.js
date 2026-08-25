@@ -271,7 +271,9 @@
         curBackendId: cur,
         targetBackendId: targetId == null ? null : targetId,
         prompt: DEFAULT_SWITCH_PROMPT_ZH,
-        option: 'keep',
+        // #191（用户反馈）：打开时不默认选中任何三选一（option=null），
+        //   用户选 keep/migrate/clear 任一才可点确认。isTargetPending 已阻断 target 未选。
+        option: null,
         clearInput: '',
         criChecks: null,
         criLoading: true,
@@ -339,10 +341,16 @@
         const ok = res && (res.ok === true || (res.value && res.value.ok === true) || res.ok)
         if (!ok) { doFail((res && (res.error || res.message)) || 'unknown'); return }
         try { flash(st, tr('switch.bindOk', { label: (typeof labelOf === 'function' ? labelOf(targetId) : String(targetId)) }), 'ok') } catch {}
+        // #191（用户反馈修正）：切换后端的本质 = 按新后端初始化，注入 setupRun prompt（与横幅 setup 按钮同源）
+        //   让 AI 加载 /setup-matt-pocock-skills 技能，按目标后端模板生成 docs/agents/issue-tracker.md
         try {
-          const edited = String(sc.prompt || '').trim()
-          if (edited && edited !== DEFAULT_SWITCH_PROMPT_ZH) {
-            if (typeof inject === 'function') inject(st, edited)
+          if (typeof promptText === 'function' && typeof setupTrackerLine === 'function' && typeof setupTrackerChoice === 'function' && typeof setupBackendNote === 'function') {
+            const p = promptText('setupRun', {
+              trackerLine: setupTrackerLine(targetId),
+              trackerChoice: setupTrackerChoice(targetId),
+              backendNote: setupBackendNote(targetId),
+            })
+            if (p && typeof inject === 'function') inject(st, p)
           }
         } catch {}
         closeSwitchConfirm(st)
