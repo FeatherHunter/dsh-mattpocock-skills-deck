@@ -38,6 +38,77 @@
 // r4（#62/#63 回归 2026-08-21）：旧 r3 用 boolean consumedDraftRef 导致首次消费后 ref=true 常驻，任何新会话 effect 直接 return（62/63 新开会话不注入）；且 pendingDraft 为全局单变量，旧会话重渲染若 deps 含 props 可能抢先消费。r4 改为 sid 锚定：pendingDraftTargetSid 记录新会话 sid，消费侧仅当 pendingDraftTargetSid===props.sessionId 才消费，且 ref 按 sid 存储。
 export let pendingDraft = null
 export let pendingDraftTargetSid = null
+    // #211 双通道重命名：A host watcher + B 兜底轮询 1s/120s，独立 map 互不互斥，失败保持 [New] + toast
+    export let pendingNewSessions = new Map()
+    export const NEW_SESSION_POLL_INTERVAL = 1000
+    export const NEW_SESSION_POLL_MAX = 120
+    export function stopRenamePoll(sid) {
+      const ent = pendingNewSessions.get(sid)
+      if (ent) { ent.stopped = true; if (ent.timer) try { clearTimeout(ent.timer) } catch (e) {} pendingNewSessions.delete(sid) }
+      try { if (typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.cancelNewSessionWatcher', { sessionId: sid }).catch(function(){}) } catch(e){}
+    }
+    export function tryAutoRename(sid, placeholder, placeholderTs, number, rawTitle) {
+      const ent = pendingNewSessions.get(sid)
+      if (!ent || ent.stopped) return
+      const now = Date.now()
+      const elapsed = now - (placeholderTs || ent.placeholderTs || 0)
+      if (elapsed < 5000 && ent.userRenamed) { ent.stopped = true; if (ent.timer) try{clearTimeout(ent.timer)}catch(e){} pendingNewSessions.delete(sid); return }
+      let finalTitle = ''
+      try {
+        const t = { number: number, title: rawTitle || '' }
+        finalTitle = (typeof newSessionTitle === 'function') ? newSessionTitle(t) : ('[#'+number+'] '+(rawTitle||''))
+      } catch(e){ finalTitle = '[#'+number+'] '+(rawTitle||'') }
+      try {
+        const sessions = ctx.get('sessions')
+        if (!sessions || typeof sessions.scope !== 'function' || typeof sessions.sessionOf !== 'function') return
+        const scope = sessions.scope(sid)
+        const face = scope ? sessions.sessionOf(scope) : null
+        if (!face || typeof face.rename !== 'function') return
+        face.rename(finalTitle).then(function(){
+          const e2 = pendingNewSessions.get(sid)
+          if (e2) { e2.stopped = true; if (e2.timer) try{clearTimeout(e2.timer)}catch(e){} pendingNewSessions.delete(sid) }
+          try { if (typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.cancelNewSessionWatcher', { sessionId: sid }).catch(function(){}) } catch(e){}
+          try { const ns = (typeof storeOf==='function'?storeOf(sid):null); if (ns) flash(ns, tr('toast.sessionRenamed', {n:String(number), title: rawTitle||''}), 'ok') } catch(e){}
+        }).catch(function(){})
+      } catch(e){}
+    }
+    export function startNewSessionRenamePoll(sid, placeholder, placeholderTs, cwd) {
+      if (pendingNewSessions.has(sid)) return
+      const ent = { placeholder: placeholder, placeholderTs: placeholderTs, cwd: cwd, tries: 0, timer: null, stopped: false, userRenamed: false }
+      pendingNewSessions.set(sid, ent)
+      const tick = function(){
+        if (ent.stopped || !pendingNewSessions.has(sid)) return
+        if (ent.tries >= NEW_SESSION_POLL_MAX) {
+          const e = pendingNewSessions.get(sid)
+          if (e) { e.stopped = true; if (e.timer) try{clearTimeout(e.timer)}catch(e2){} pendingNewSessions.delete(sid) }
+          try { const ns = (typeof storeOf==='function'?storeOf(sid):null); const stx = ns || {sessionId:sid}; flash(stx, tr('toast.newSessionKeepPlaceholder'), 'warn') } catch(e){}
+          try { if (typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.cancelNewSessionWatcher', { sessionId: sid }).catch(function(){}) } catch(e){}
+          return
+        }
+        ent.tries++
+        if (typeof host !== 'undefined' && typeof host.call === 'function') {
+          host.call('wf.issuePathPoll', { since: (typeof _issuePathPollTs !== 'undefined' ? _issuePathPollTs : 0) }).then(function(res){
+            if (ent.stopped) return
+            if (res && res.ok && Array.isArray(res.events) && res.events.length) {
+              for (let i=0;i<res.events.length;i++) {
+                const ev = res.events[i]
+                if (ev && ev.ref) { tryAutoRename(sid, placeholder, placeholderTs, ev.ref, ev.title||''); if (!pendingNewSessions.has(sid)) break }
+              }
+            } else if (res && Array.isArray(res) && res.length) {
+              // 兼容旧形状
+              res.forEach(function(ev){ if(ev&&ev.ref) tryAutoRename(sid, placeholder, placeholderTs, ev.ref, ev.title||'') })
+            }
+            if (!ent.stopped && pendingNewSessions.has(sid)) ent.timer = setTimeout(tick, NEW_SESSION_POLL_INTERVAL)
+          }).catch(function(){ if (!ent.stopped && pendingNewSessions.has(sid)) ent.timer = setTimeout(tick, NEW_SESSION_POLL_INTERVAL) })
+        } else {
+          if (!ent.stopped && pendingNewSessions.has(sid)) ent.timer = setTimeout(tick, NEW_SESSION_POLL_INTERVAL)
+        }
+      }
+      ent.timer = setTimeout(tick, NEW_SESSION_POLL_INTERVAL)
+      if (typeof host !== 'undefined' && typeof host.call === 'function') {
+        try { host.call('wf.registerNewSessionWatcher', { sessionId: sid, placeholder: placeholder, cwd: cwd }).then(function(r){ if (r && r.ok && r.number) tryAutoRename(sid, placeholder, placeholderTs, r.number, r.title||'') }).catch(function(){}) } catch(e){}
+      }
+    }
     // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑
     // 需求1·二阶段 rev（2026-08-18）：灰/亮双态的真实依据 = 磁盘上确实存在交接文档（wf.handoffLatest 探测）。
     //   probeHandoffReady：探测 → 写 st.handoffReady + emit（右半亮蓝/灰 + 允许/禁止 的开关）；任何路径都不得在无文档时开新会话。
@@ -206,12 +277,23 @@ export let pendingDraftTargetSid = null
               for (let _i=1; _i<__refs.length; _i++) recordIssuePath(ns, __refs[_i], 'mention', '')
             }
           } catch (e) {}
-          // 自动命名（失败不阻塞打开）
+          // 自动命名（失败不阻塞打开）- #211 占位标题已在创建前确定，跟随 harness 语言
+          const __placeholderTitle = title
+          const __placeholderTs = Date.now()
           try {
             const scopeCtx = sessions.scope(sid)
             const face = scopeCtx ? sessions.sessionOf(scopeCtx) : undefined
             if (face && typeof face.rename === 'function') face.rename(title).catch(function () { /* 命名失败忽略 */ })
           } catch (e) { /* 命名失败忽略 */ }
+          // #211 双通道：占位 [New] 态若命中则启动 host watcher A + client 兜底 B；在新会话内获号后二次 rename 为 [#n] title
+          try {
+            const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(__placeholderTitle) : /^\[New\] /.test(String(__placeholderTitle)))
+            if (isPlaceholder) {
+              // 在新会话 store 上标记占位，便于手动 rename 检测（5s 内用户优先）
+              try { if (ns) { ns._placeholderTitle = __placeholderTitle; ns._placeholderTs = __placeholderTs } } catch(e){}
+              startNewSessionRenamePoll(sid, __placeholderTitle, __placeholderTs, cwd)
+            }
+          } catch(e){}
           // 预填（r4）：写入 pendingDraft + 目标 sid 锚定，消费侧仅新会话消费，杜绝旧会话抢先
           pendingDraft = text
           pendingDraftTargetSid = sid
