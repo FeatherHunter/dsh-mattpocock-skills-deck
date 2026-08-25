@@ -204,20 +204,11 @@
         }
       })
     }
-    const DARK_FOR_LIGHT = {
-      '#0969da': '#58a6ff',
-      '#1a7f37': '#3fb950',
-      '#c25100': '#ff9a5c',
-      '#57606a': '#8b949e',
-      '#6e7681': '#8b949e',
-      '#8250df': '#d2a8ff'
-    }
     const toAdaptive = function (light) {
       const l = String(light || '').trim()
       if (!l) return 'light-dark(#57606a, #8b949e)'
       if (l.includes('light-dark')) return l
-      const d = DARK_FOR_LIGHT[l.toLowerCase()] || l
-      return 'light-dark(' + l + ', ' + d + ')'
+      return 'light-dark(' + l + ', color-mix(in oklch, ' + l + ' 75%, white))'
     }
     const bgFor = function (adaptiveColor) {
       // 从 adaptive 中取 light 部分派生 bg（12% / 14%），若后端已显式给 bg 则直接用
