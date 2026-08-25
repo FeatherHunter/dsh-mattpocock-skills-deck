@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PROTOTYPE — 新建工作区 setup 多后端告知 · 4 方案对比（throwaway）</title>
+<!--
+  PROTOTYPE — throwaway from day one
+  Question: 新建工作区首次 /setup-matt-pocock-skills 引导，如何让用户感知 #111 的多后端（GitHub/Markdown/GitLab/Other per-workspace）而获得最好体验？
+  Plan: Four variants of the setup onboarding multi-backend hint, switchable via ?variant=, on prototype-setup-backend.html (standalone throwaway route, sub-shape B)
+  Variants:
+    A — 文末非阻塞提示（Chat 内嵌小字 + 跳转链接）
+    B — 阻塞式四选一确认卡（Chat 内单选卡片 + 双按钮）
+    C — 二次 amber 横幅（setup 完成后顶部常驻可关闭横幅）
+    D — 混合（A 文案 + C 横幅，推荐方案）
+  Run: 双击本文件或 `npx serve .` 后打开 http://localhost:3000/prototype-setup-backend.html?variant=A
+  Capture: 选中后将答案与本文件一起 commit 到 throwaway 分支，main 仅保留落地的 A'+C 决策。
+-->
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a20; --card:#1e232e; --border:#2a3441; --muted:#9aa4b2; --text:#e6edf3;
+    --ok:#3fb950; --warn:#f59e0b; --bad:#f87171; --accent:#58a6ff; --chip:#24292f;
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.6 ui-sans,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);background:linear-gradient(180deg,#0f1115,#0e1319)}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 80px}
+  .hdr{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .badge{font:700 11px/1 ui-mono,monospace;letter-spacing:.08em;padding:4px 8px;border-radius:999px;background:#ff3b30;color:#fff}
+  .hdr h1{margin:0;font-size:18px}
+  .hdr .sub{color:var(--muted);font-size:13px}
+  .shell{border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--panel);box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  .topbar{height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--border);background:#0e1217}
+  .topbar .left,.topbar .right{display:flex;align-items:center;gap:8px}
+  .dot{width:9px;height:9px;border-radius:50%;background:#2a3441}
+  .dot.on{background:var(--ok)}
+  .pill{padding:2px 8px;border-radius:999px;border:1px solid var(--border);font:600 12px/1.2 ui-mono,monospace}
+  .pill.github{border-color:#24292f;color:#e6edf3;background:rgba(36,41,47,.12)}
+  .pill.markdown{border-color:#3fb950;color:#3fb950;background:rgba(63,185,80,.12)}
+  .pill.gitlab{border-color:#fc6d26;color:#fc6d26;background:rgba(252,109,38,.12)}
+  .layout{display:grid;grid-template-columns:280px 1fr;min-height:560px}
+  @media (max-width:880px){.layout{grid-template-columns:1fr}}
+  .side{border-right:1px solid var(--border);padding:12px;background:#13171e}
+  .side h3{margin:0 0 8px;font-size:12px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+  .nav{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+  .nav li{padding:8px 10px;border-radius:10px;border:1px solid transparent;cursor:default;display:flex;align-items:center;gap:8px}
+  .nav li.active{background:var(--card);border-color:var(--border)}
+  .nav li .ico{width:18px;height:18px;border-radius:6px;background:#243044;display:grid;place-items:center;font-size:11px}
+  .main{padding:14px;background:radial-gradient(600px 300px at 40% 0%, rgba(88,166,255,.08), transparent)}
+  .banner{border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:13px;border:1px solid}
+  .banner.bad{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.35);color:#fda4a4}
+  .banner.warn{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.35);color:#fde68a}
+  .banner.ok{background:rgba(63,185,80,.1);border-color:rgba(63,185,80,.35);color:#86efac}
+  .banner .spacer{flex:1}
+  .btn{padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:#1f2633;color:var(--text);cursor:pointer;font:600 12px/1 ui-sans,system-ui}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
+  .btn.ghost{background:transparent}
+  .btn:active{transform:translateY(1px)}
+  .chat{border:1px solid var(--border);border-radius:12px;background:var(--card);overflow:hidden}
+  .chat .head{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-weight:700;background:#1a2030}
+  .chat .body{padding:14px}
+  .chat .msg{white-space:pre-wrap;background:#0f141f;border:1px solid #223047;border-radius:10px;padding:10px 12px;font:13px/1.6 ui-mono,Menlo,monospace}
+  .meta{font:12px/1.4 ui-sans,system-ui;color:var(--muted);margin:6px 2px}
+  .hintCard{margin-top:10px;border:1px dashed rgba(88,166,255,.5);background:rgba(88,166,255,.06);border-radius:10px;padding:10px 12px}
+  .choiceCard{margin-top:10px;border:1px solid var(--border);background:#0f141f;border-radius:12px;padding:12px}
+  .choiceGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+  @media (max-width:560px){.choiceGrid{grid-template-columns:1fr}}
+  .choice{border:1px solid var(--border);border-radius:10px;padding:10px;display:flex;align-items:center;gap:10px;cursor:pointer;background:#141b27}
+  .choice.selected{border-color:var(--accent);background:rgba(88,166,255,.12);box-shadow:0 0 0 1px rgba(88,166,255,.3) inset}
+  .choice .radio{width:16px;height:16px;border-radius:50%;border:2px solid #3a4a62;display:grid;place-items:center;flex:0 0 16px}
+  .choice.selected .radio{border-color:var(--accent)}
+  .choice.selected .radio::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .choice .ttl{font-weight:700}
+  .choice .desc{font-size:12px;color:var(--muted)}
+  .settingsMock{margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#0f141f}
+  .settingsMock .shead{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700;display:flex;align-items:center;gap:8px}
+  .backendList{list-style:none;margin:0;padding:10px;display:grid;gap:8px}
+  .backendItem{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:10px;background:#141b27}
+  .backendItem.active{border-color:var(--accent);background:rgba(88,166,255,.08)}
+  .kvs{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .kv{border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:#0f141f}
+  .kv b{font-size:11px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+  .kv div{font:12px/1.4 ui-mono,monospace;word-break:break-all}
+  .expl{margin-top:12px;border-top:1px dashed var(--border);padding-top:10px}
+  .expl h4{margin:0 0 6px;font-size:13px}
+  .expl ul{margin:0;padding-left:18px;color:#c9d1d9}
+  .expl li{margin:4px 0}
+  .tag{padding:2px 6px;border-radius:6px;background:#1a2333;border:1px solid #243044;font:600 11px/1 ui-mono,monospace;color:#8fb3ff}
+  /* switcher */
+  .switcher{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;background:rgba(15,17,21,.9);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:9999}
+  .switcher button{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:#1f2633;color:var(--text);cursor:pointer;display:grid;place-items:center}
+  .switcher .label{padding:0 10px;font:700 12px/1 ui-sans,system-ui;letter-spacing:.04em;display:flex;align-items:center;gap:8px}
+  .switcher .dotA{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <span class="badge">PROTOTYPE — THROWAWAY</span>
+    <h1>新建工作区 setup 多后端告知 · 4 方案对比</h1>
+    <span class="sub">问题：`/setup-matt-pocock-skills` 完成后，用户不知道 deck 已是可插拔 Tracker（#111），默认 GitHub 在哪改？ · 切换：底部悬浮条或 `?variant=A/B/C/D`</span>
+  </div>
+
+  <div id="app" class="shell"></div>
+
+  <div style="margin-top:10px;color:var(--muted);font-size:12px">
+    <b>如何试：</b> 用底部悬浮条左右切换（键盘 ← → 也可）→ 每个方案里按按钮点一点看效果 → 底部状态会实时显示当前 `selection.backendId / source / banner 已读`。
+    文件：<code>prototype-setup-backend.html</code> · 单文件双击即开，无后端，无持久化（内存态，刷新重置）。
+  </div>
+</div>
+
+<!-- Floating switcher -->
+<div class="switcher" role="toolbar" aria-label="Variant switcher">
+  <button id="prev" aria-label="Prev">‹</button>
+  <div class="label"><span class="dotA"></span><span id="curLabel">A — 文末提示</span></div>
+  <button id="next" aria-label="Next">›</button>
+</div>
+
+<script>
+const VARIANTS = [
+  {key:'A', name:'文末非阻塞提示', desc:'Chat 内小字提示 + 跳转链接'},
+  {key:'B', name:'阻塞式四选一', desc:'Chat 内单选卡片 + 确认/稍后'},
+  {key:'C', name:'二次横幅', desc:'setup 后顶部 amber 横幅'},
+  {key:'D', name:'混合（推荐）', desc:'A 文案 + C 横幅并存'},
+];
+const variantFromURL = () => {
+  const u = new URL(location.href);
+  const v = (u.searchParams.get('variant')||'D').toUpperCase();
+  return VARIANTS.find(x=>x.key===v) ? v : 'D';
+};
+let current = variantFromURL();
+let state = {
+  // per-workspace mock
+  cwd: 'D:\\matt-demo',
+  backendId: 'github', // current selection
+  source: 'fallback', // explicit | matches | fallback
+  bannerDismissed: false,
+  bSelected: 'github', // for B card
+  settingsOpen: false,
+  chatTipClicked: 0,
+  bannerGoClicked: 0,
+  bindCount: 0,
+};
+
+function setVariant(k, push){
+  current = k;
+  if(push){
+    const u = new URL(location.href);
+    u.searchParams.set('variant', k);
+    history.replaceState(null,'',u);
+  }
+  render();
+}
+
+function backendMeta(id){
+  const map={
+    github:{label:'GitHub', color:'#24292f', bg:'rgba(36,41,47,.12)', icon:'⬢'},
+    markdown:{label:'Markdown', color:'#3fb950', bg:'rgba(63,185,80,.12)', icon:'◧'},
+    gitlab:{label:'GitLab', color:'#fc6d26', bg:'rgba(252,109,38,.12)', icon:'⬣'},
+    other:{label:'Other', color:'#6e7681', bg:'rgba(110,118,129,.12)', icon:'…'},
+  };
+  return map[id]||map.other;
+}
+
+function render(){
+  const app = document.getElementById('app');
+  const m = backendMeta(state.backendId);
+  const cur = VARIANTS.find(v=>v.key===current);
+  document.getElementById('curLabel').textContent = cur.key + ' — ' + cur.name;
+  // shell chrome
+  const bannerSetup = `<div class="banner bad"><span>⚠</span><span><b>setup 未执行</b> — docs/agents/issue-tracker.md 不存在</span><span class="spacer"></span><button class="btn" onclick="onInject()">帮我执行 /setup-matt-pocock-skills</button></div>`;
+  const bannerDone = `<div class="banner ok"><span>✓</span><span><b>setup 已执行</b> — docs/agents/issue-tracker.md 存在</span><span class="spacer"></span><span class="pill ${state.backendId}">${m.icon} ${m.label}</span></div>`;
+  // secondary banner for C/D
+  const secondaryBanner = (!state.bannerDismissed && (current==='C' || current==='D'))
+    ? `<div class="banner warn" id="secondaryBanner"><span>◐</span><div><b>当前后端：${m.label}（${state.source==='fallback'?'默认回退':'已匹配'}）</b><div style="font-size:12px;opacity:.9">本仓支持 GitHub / Markdown / GitLab（per-workspace，可在设置页随时切换）</div></div><span class="spacer"></span><button class="btn primary" onclick="onGoSettings()">去设置 → 后端</button><button class="btn ghost" onclick="onDismiss()">✕</button></div>`
+    : '';
+
+  // chat content per variant
+  let chatInner='';
+  const baseSetup = `/setup-matt-pocock-skills
+
+初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：
+1. 按技能流程选择 issue tracker：本仓库为 GitHub → 提议 GitHub Issues，由用户确认；
+2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 GitHub Issues；triage 标签保留默认五角色），并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个；后续打标签严格遵循技能规则，不额外强制任何标签；
+3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。`;
+
+  if(current==='A' || current==='D'){
+    const tip = `\n\n—\n提示：本仓 Tracker 已为可插拔（GitHub 为默认，本地 Markdown / GitLab / 第三方 registry 可选，per-workspace 经 wf.bind 切换）。当前按 explicit > matches > fallback 已回退到 GitHub，可在 设置-配置面板 → 后端 随时切换，状态栏与右侧面板将同步显示。 [去设置 → 后端]`;
+    chatInner = `<div class="msg">${escapeHtml(baseSetup+tip)}</div>
+      <div class="meta">AI 已注入 <code>promptText('setupRun')</code>（<code>StatusBar.js:414</code> / <code>ChecksTab.js:69</code>）· 视觉操作：文案末尾多 <span class="tag">1 段小字提示</span>，含跳转链接</div>
+      <div class="hintCard">
+        <div style="font-weight:700;margin-bottom:6px">视觉做了什么</div>
+        <ul style="margin:0;padding-left:18px">
+          <li>Chat 气泡底部增加 <b>1 段灰色小字提示</b>（虚线卡片，字号 12px，<code>hintCard</code>），不新增弹层</li>
+          <li>关键词 <code>Tracker / wf.bind / per-workspace</code> 高亮为链接色</li>
+        </ul>
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button class="btn primary" onclick="onHintGo()">去设置 → 后端</button>
+          <span class="meta">点击效果：主面板切到 <code>SettingsMock</code>（dsws-cfg-backend）· 计数 <code>hintGo=${state.chatTipClicked}</code></span>
+        </div>
+      </div>`;
+  } else if(current==='B'){
+    chatInner = `<div class="msg">${escapeHtml(baseSetup)}</div>
+      <div class="choiceCard">
+        <div style="font-weight:700">为当前工作区选择 Tracker 后端 <span class="tag">阻塞式</span> <span style="font-weight:400;color:var(--muted)">· 默认 GitHub，回车确认即 wf.bind(cwd, id)</span></div>
+        <div class="choiceGrid" id="choiceGrid"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button class="btn ghost" onclick="onLater()">稍后在设置页选择</button>
+          <button class="btn primary" onclick="onConfirm()">确认并继续</button>
+        </div>
+        <div class="meta">视觉：Chat 尾部插入 <span class="tag">可操作卡片</span>（4 单选 + 双按钮），主按钮高亮；选择即预览右侧胶囊颜色</div>
+      </div>`;
+  } else if(current==='C'){
+    chatInner = `<div class="msg">${escapeHtml(baseSetup)}</div>
+      <div class="meta">Chat 本体保持 3 步不变（与线上一致），<b>不做任何文案改动</b>；提示由顶部横幅承载</div>
+      <div class="hintCard" style="border-style:solid">
+        <div style="font-weight:700">视觉做了什么（对比 A）</div>
+        <div>不在 Chat 改字，而是在 <b>顶部加一条可关闭的 amber 横幅</b>（<code>warn</code>），与 setup 横幅视觉同系但置于其下方，形成“二次提醒”层级。</div>
+      </div>`;
+  }
+
+  // main panel content (settings mock visibility)
+  let settingsMock = state.settingsOpen ? `
+    <div class="settingsMock">
+      <div class="shead">设置-配置面板 → 后端 <span class="tag">dsws-cfg-backend</span> <span class="spacer"></span><button class="btn ghost" onclick="state.settingsOpen=false;render()">✕ 关闭预览</button></div>
+      <ul class="backendList" id="backendList"></ul>
+      <div class="meta" style="padding:0 10px 10px">点击某行即 <code>wf.bind(cwd, id)</code> → <code>wf.snapshot.selection</code> 同步到胶囊；per-workspace 隔离</div>
+    </div>` : `<div class="meta">主面板当前为 <b>对话视图</b>；点“去设置”可预览后端单选列表</div>`;
+
+  app.innerHTML = `
+    <div class="topbar">
+      <div class="left"><span class="dot on"></span><b>DSH</b> <span style="opacity:.6">·</span> <span style="color:var(--muted)">${state.cwd}</span> <span class="pill ${state.backendId}">${m.icon} ${m.label} · ${state.source}</span></div>
+      <div class="right"><span class="pill">wayfinder:map</span><span class="pill">bug 1</span></div>
+    </div>
+    <div class="layout">
+      <div class="side">
+        <h3>Explorer</h3>
+        <ul class="nav">
+          <li class="active"><span class="ico">💬</span> 对话 <span style="margin-left:auto;opacity:.6">matt-demo</span></li>
+          <li onclick="state.settingsOpen=!state.settingsOpen;render()"><span class="ico">⚙</span> 设置-配置面板 ${state.settingsOpen?'· 后端':''}</li>
+          <li><span class="ico">▭</span> 右侧面板 DetailsDock</li>
+          <li><span class="ico">◈</span> 状态栏</li>
+        </ul>
+        <div class="kvs">
+          <div class="kv"><b>selection.backendId</b><div>${state.backendId}</div></div>
+          <div class="kv"><b>source</b><div>${state.source}</div></div>
+          <div class="kv"><b>bannerDismissed</b><div>${state.bannerDismissed}</div></div>
+          <div class="kv"><b>bindCount</b><div>${state.bindCount}</div></div>
+        </div>
+        <div class="expl">
+          <h4>功能性说明（当前 ${cur.key}）</h4>
+          ${explFor(current)}
+        </div>
+      </div>
+      <div class="main">
+        ${bannerDone}
+        ${secondaryBanner}
+        ${bannerSetup}
+        <div class="chat">
+          <div class="head">对话 · 新会话 <span style="font-weight:400;color:var(--muted)">· 已注入 /setup-matt-pocock-skills</span></div>
+          <div class="body">
+            ${chatInner}
+            ${settingsMock}
+          </div>
+        </div>
+        <div class="meta" style="margin-top:8px">状态：<code>wf.snapshot.selection={backendId:'${state.backendId}', source:'${state.source}'}</code> · banner 点击 ${state.bannerGoClicked} 次 · 绑定 ${state.bindCount} 次</div>
+      </div>
+    </div>
+  `;
+  // hydrate choices for B/C settings
+  if(current==='B'){
+    const grid = document.getElementById('choiceGrid');
+    const opts = [
+      {id:'github', label:'GitHub', desc:'首发默认 · 远程 GitHub Issues', icon:'⬢', count:'已安装'},
+      {id:'markdown', label:'Markdown', desc:'本地 .scratch 镜像 · 离线可用', icon:'◧', count:'可用'},
+      {id:'gitlab', label:'GitLab', desc:'独立适配 · 需 gitlab 远程', icon:'⬣', count:'可用'},
+      {id:'other', label:'Other', desc:'逃生舱 · 自由文本', icon:'…', count:'可用'},
+    ];
+    grid.innerHTML = opts.map(o=>{
+      const sel = state.bSelected===o.id ? 'selected' : '';
+      return `<div class="choice ${sel}" onclick="state.bSelected='${o.id}';render()"><span class="radio"></span><div><div class="ttl">${o.icon} ${o.label} <span style="font-weight:400;color:var(--muted);font-size:11px">${o.count}</span></div><div class="desc">${o.desc}</div></div></div>`;
+    }).join('');
+  }
+  if(state.settingsOpen){
+    const list = document.getElementById('backendList');
+    if(list){
+      const items = [
+        {id:'github', label:'GitHub', desc:'per-workspace 覆盖 · wf.bind 写入 workspaceStore', icon:'⬢'},
+        {id:'markdown', label:'Markdown', desc:'.scratch/<feature> 镜像 · 本地离线', icon:'◧'},
+        {id:'gitlab', label:'GitLab', desc:'独立适配 · If-Match + blockedBy 双路径', icon:'⬣'},
+        {id:'other', label:'Other', desc:'逃生舱 · 任意 tracker 自由文本', icon:'…'},
+      ];
+      list.innerHTML = items.map(it=>{
+        const active = state.backendId===it.id ? 'active' : '';
+        const badge = state.backendId===it.id ? '<span class="tag">当前</span>' : '<span class="tag" style="opacity:.6">可选</span>';
+        return `<li class="backendItem ${active}" onclick="onPick('${it.id}')"><span style="font-size:16px">${it.icon}</span><div style="flex:1"><div style="font-weight:700">${it.label} ${badge}</div><div style="font-size:12px;color:var(--muted)">${it.desc}</div></div><span style="opacity:.6">›</span></li>`;
+      }).join('');
+    }
+  }
+}
+
+function explFor(k){
+  if(k==='A') return `<ul>
+    <li><b>视觉操作：</b>Chat 气泡底部追加 1 段 <code>hintCard</code> 小字（虚线边框，字号 12px），不新增弹层或横幅；链接用 accent 色。</li>
+    <li><b>点击按钮：</b>“去设置 → 后端” <span class="tag">跳转</span> → 主面板切到 SettingsMock 的后端单选列表（高亮当前 <code>dsws-cfg-backend</code>），未改后端，不触发 <code>wf.bind</code>。</li>
+    <li><b>会出现：</b>右侧预览展开后端列表；顶部胶囊不变；再次点击可收起。</li>
+    <li><b>适用：</b>想最小打扰、让 AI 对话自然收尾的用户。</li>
+  </ul>`;
+  if(k==='B') return `<ul>
+    <li><b>视觉操作：</b>Chat 尾插入 <code>choiceCard</code>（4 格单选：GitHub/Markdown/GitLab/Other + 选中态蓝框高亮 + 右侧按钮区）。</li>
+    <li><b>点击单选：</b>卡片选中态切换 → 右侧状态的 <code>bSelected</code> 变化 → 顶部胶囊预览色（未写入）。</li>
+    <li><b>点“确认并继续”：</b>触发 <code>wf.bind(cwd, bSelected)</code> → <code>backendId=bSelected, source=explicit, bindCount++</code> → 顶部胶囊立即变色 + 横幅提示“已绑定”；<b>点“稍后”</b>则不写入，仅收起卡片。</li>
+    <li><b>会出现：</b>绑定成功 toast（本原型用胶囊变色模拟），per-workspace 隔离。</li>
+  </ul>`;
+  if(k==='C') return `<ul>
+    <li><b>视觉操作：</b>Chat 保持 3 步不变；在 <code>setup 已执行</code> 与 <code>setup 未执行</code> 横幅之间插入一条 <b>amber 二次横幅</b>（<code>warn</code>，含图标 + 两行说明）。</li>
+    <li><b>点击“去设置”：</b>跳转到 SettingsMock 后端列表（同 A）。</li>
+    <li><b>点“✕”：</b>该 cwd 的横幅置 <code>bannerDismissed=true</code>（模拟 <code>localStorage per-cwd 已读</code>），刷新前不再出现。</li>
+    <li><b>会出现：</b>横幅消失或面板切换；Chat 文案始终干净。</li>
+  </ul>`;
+  // D
+  return `<ul>
+    <li><b>视觉操作：</b>同时做 <b>A 的文末小字</b> + <b>C 的二次横幅</b>（双重保障）。Chat 不臃肿（仅 3 行小字），横幅提供常驻入口。</li>
+    <li><b>点击“文末链接”或“横幅去设置”：</b>均跳 SettingsMock；横幅的 ✕ 可单独关闭，不影响文末提示。</li>
+    <li><b>会出现：</b>用户无论看对话还是看顶部，都能发现后端可改；已读后横幅消失，但文案仍可追溯。</li>
+    <li><b>为什么推荐：</b>“告知”在对话收尾（AI 自然收束），“入口”在 UI 常驻（可随时点），兼顾最小打扰与最高发现率。</li>
+  </ul>`;
+}
+
+function onHintGo(){ state.chatTipClicked++; state.settingsOpen=true; render(); }
+function onGoSettings(){ state.bannerGoClicked++; state.settingsOpen=true; render(); }
+function onDismiss(){ state.bannerDismissed=true; render(); }
+function onInject(){ // mock re-inject
+  state.bannerDismissed=false; state.settingsOpen=false; render();
+  alert('已重新注入 /setup-matt-pocock-skills（原型仅重置视图）');
+}
+function onPick(id){
+  state.backendId=id; state.source='explicit'; state.bindCount++; state.settingsOpen=true; render();
+}
+function onConfirm(){
+  state.backendId = state.bSelected;
+  state.source = 'explicit';
+  state.bindCount++;
+  state.bannerDismissed = true;
+  render();
+}
+function onLater(){ state.bannerDismissed=true; render(); }
+
+function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// switcher wiring
+document.getElementById('prev').onclick=()=>{
+  const idx = VARIANTS.findIndex(v=>v.key===current);
+  const n = VARIANTS[(idx-1+VARIANTS.length)%VARIANTS.length].key;
+  setVariant(n,true);
+};
+document.getElementById('next').onclick=()=>{
+  const idx = VARIANTS.findIndex(v=>v.key===current);
+  const n = VARIANTS[(idx+1)%VARIANTS.length].key;
+  setVariant(n,true);
+};
+window.addEventListener('keydown',e=>{
+  if(e.target.matches('input,textarea,[contenteditable]')) return;
+  if(e.key==='ArrowLeft') document.getElementById('prev').click();
+  if(e.key==='ArrowRight') document.getElementById('next').click();
+});
+
+render();
+</script>
+</body>
+</html>

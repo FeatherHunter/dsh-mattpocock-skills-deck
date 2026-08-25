@@ -264,6 +264,8 @@ export     const OverlayPanel = (props) => {
             }
             return h('span', { 'data-repo-chip': 1, className: chipClass, style: Object.assign({}, baseStyle, { cursor:'default' }), title: displayName }, inner)
           })(),
+          // #191 · 仓库名右侧切换按钮（与 Dock 镜像 · pending 灰置 · _isOther 隐藏）
+          (function(){ if(_isOther2) return null; var _sel=s.selection||(s.snapshot&&s.snapshot.selection)||null, _bid=_sel?_sel.backendId:null; if(_bid==null) return null; var _pend=!!(_sel&&_sel.pending), _col=(typeof backendColorOf==='function'?backendColorOf(_bid):'#6e7681'); return h('button',{'data-repo-switch':1,type:'button',title:_pend?'切换后端 · 探测中不可用':'切换后端','aria-label':'切换后端','aria-disabled':_pend?'true':'false',disabled:_pend,onClick:function(e){try{if(e&&e.preventDefault)e.preventDefault();if(e&&e.stopPropagation)e.stopPropagation()}catch(_){};if(_pend)return;try{openSwitchConfirm(s,null)}catch(_){}},style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:20,height:20,borderRadius:6,flex:'none',border:'1px solid '+_col,color:_col,background:'transparent',cursor:_pend?'not-allowed':'pointer',opacity:_pend?0.45:1,fontSize:12,lineHeight:1,padding:0,colorScheme:'light dark'}},Ic({n:'swap',size:12})) })(),
           h('span', { style: { flex: 1 } }),
           h('button', { className: 'dsws-btn ghost', title: tr('panel.closeTitle'), onClick: function () { s.open = false; emit(s) }, style: { display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 12 })),
         ]),

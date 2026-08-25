@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<title>G1 Q1 Prototype - 入口感知三种形态对比</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0e1116;color:#e6edf3;margin:0;padding:20px}
+  h1{font-size:18px;margin:0 0 12px}
+  .desc{color:#8b949e;font-size:13px;margin-bottom:16px;line-height:1.5}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  .card{border:1px solid #21262d;border-radius:10px;overflow:hidden;background:#161b22}
+  .card h2{font-size:14px;margin:0;padding:10px 12px;border-bottom:1px solid #21262d;background:#0d1117}
+  .card h2 span{font-weight:400;color:#8b949e;font-size:12px}
+  .mock{height:360px;position:relative;background:#0d1117;display:flex;flex-direction:column}
+  .bar{height:32px;background:#010409;border-bottom:1px solid #21262d;display:flex;align-items:center;padding:0 10px;gap:8px;font-size:11px;color:#7d8590}
+  .bar .dot{width:8px;height:8px;border-radius:50%;background:#30363d}
+  .statusbar{height:28px;background:#161b22;border-top:1px solid #21262d;display:flex;align-items:center;justify-content:space-between;padding:0 10px;font-size:11px}
+  .capsule{border:1px solid #30363d;border-radius:99px;padding:2px 8px;background:#21262d;color:#8b949e}
+  .panel{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;text-align:center}
+  .hidden{color:#484f58;font-size:12px;border:1px dashed #30363d;border-radius:8px;padding:12px}
+  .fs-card{width:92%;background:#161b22;border:1px solid #30363d;border-radius:12px;padding:14px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  .fs-card h3{margin:0 0 6px;font-size:13px}
+  .fs-card p{margin:0 0 10px;color:#8b949e;font-size:12px;line-height:1.5}
+  .radio{border:1px solid #21262d;border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer}
+  .radio.on{border-color:#58a6ff;background:rgba(88,166,255,.08)}
+  .dot2{width:8px;height:8px;border-radius:50%}
+  .btn{margin-top:10px;background:#238636;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
+  .btn.secondary{background:#21262d;border:1px solid #30363d;color:#e6edf3}
+  .settings{padding:14px;flex:1;overflow:auto}
+  .settings h3{margin:0 0 8px;font-size:13px}
+  .badge{font-size:10px;border:1px solid #58a6ff;color:#58a6ff;border-radius:4px;padding:0 4px}
+  .note{margin-top:10px;padding:8px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);border-radius:8px;color:#d29922;font-size:11px;text-align:left}
+  .modal{position:absolute;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+  .modal .box{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;width:88%}
+</style>
+</head>
+<body>
+<h1>G1 Q1 · 入口感知三种形态对比（Prototype，HITL 拍板用）</h1>
+<div class="desc">
+  目标：全新用户打开 DSH 任一会话且 <b>未选择后端</b> 时，能立刻知道“该选后端了”。下图 3 列对应 Q1 的 A/B/C。当前已拍板 <b>Q2=整条隐藏+容器不挂载</b>，因此 A/C 的状态栏/面板在未选择时本应不可见——但 A/C 用“全屏/弹窗”作为<b>感知入口本身</b>（卡片即入口），B 则无会话级入口。
+</div>
+<div class="grid">
+  <!-- A -->
+  <div class="card">
+    <h2>A · 全屏引导卡 <span>（推荐）· 会话级感知</span></h2>
+    <div class="mock">
+      <div class="bar"><span class="dot"></span> DSH 会话 A — matt-demo-github <span style="margin-left:auto;color:#58a6ff">设置</span></div>
+      <div class="panel">
+        <div class="fs-card">
+          <h3>请选择 Tracker 后端以继续</h3>
+          <p>不同后端的初始化与前置检查不同，选择后将回到主线流程（列表/状态栏正常可用）</p>
+          <div class="radio on"><span class="dot2" style="background:#1f883d"></span><b>GitHub</b><span style="font-size:10px;color:#8b949e;margin-left:4px">github</span><span style="margin-left:auto" class="badge">推荐</span></div>
+          <div class="radio"><span class="dot2" style="background:#8250df"></span> Markdown <span style="font-size:10px;color:#8b949e">markdown</span></div>
+          <div class="radio"><span class="dot2" style="background:#cf222e"></span> GitLab <span style="font-size:10px;color:#8b949e">gitlab</span></div>
+          <div class="radio"><span class="dot2" style="background:#6e7781"></span> Other（无后端）</div>
+          <button class="btn">确认并继续</button>
+          <div style="margin-top:8px;font-size:11px;color:#8b949e">未选择时状态栏与右侧面板列表已隐藏（Q2）— 此卡即入口</div>
+        </div>
+      </div>
+      <div class="statusbar" style="opacity:.35;pointer-events:none"><span style="color:#484f58">[隐藏] 状态栏整条不渲染</span><span class="capsule" style="opacity:.3">时间 --/--</span></div>
+    </div>
+  </div>
+  <!-- B -->
+  <div class="card">
+    <h2>B · 仅设置页引导 <span>· 无会话级感知</span></h2>
+    <div class="mock">
+      <div class="bar"><span class="dot"></span> DSH 会话 B — matt-demo-github <span style="margin-left:auto;color:#58a6ff">设置</span></div>
+      <div class="panel">
+        <div class="hidden">状态栏与右侧面板已完全隐藏<br/>（符合 Q2，但会话内无任何提示）<br/><br/>用户需自行发现并进入<br/><b>设置页 → 工作区后端总览</b><br/>才知要选</div>
+      </div>
+      <div class="statusbar" style="opacity:.3"><span class="hidden" style="border:none;padding:0">状态栏已隐藏</span></div>
+      <div class="settings" style="border-top:1px solid #21262d;background:#0d1117">
+        <h3>设置页 · 工作区后端总览（只读）</h3>
+        <div style="font-size:11px;color:#8b949e">matt-demo-github — 未绑定 <span class="badge" style="border-color:#8b949e;color:#8b949e">回退</span></div>
+        <div class="note">当前工作区未选择 Tracker 后端 — 请在会话内完成选择（但会话内无入口）</div>
+      </div>
+    </div>
+  </div>
+  <!-- C -->
+  <div class="card">
+    <h2>C · 弹窗 Modal <span>· 会话级但可被忽略</span></h2>
+    <div class="mock">
+      <div class="bar"><span class="dot"></span> DSH 会话 C — matt-demo-github</div>
+      <div class="panel" style="position:relative">
+        <div class="hidden">状态栏与右侧面板已隐藏<br/>（同 A，但感知为弹窗）</div>
+        <div class="modal">
+          <div class="box">
+            <h3 style="margin:0 0 6px">请选择后端</h3>
+            <p style="margin:0 0 10px;color:#8b949e;font-size:12px">需先选择后端才能使用主线能力</p>
+            <div class="radio on"><span class="dot2" style="background:#1f883d"></span> GitHub</div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn secondary" style="flex:1">取消（允许先不选）</button>
+              <button class="btn" style="flex:1">确认</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="statusbar" style="opacity:.3">状态栏已隐藏</div>
+    </div>
+  </div>
+</div>
+<div class="desc" style="margin-top:16px">
+  <b>视觉差异要点：</b> A 的卡是<b>会话级整页</b>且不可忽略（未选无法进主线，符合你「允许先不选」但需感知）；B <b>会话级零感知</b>，依赖用户自行进设置；C 的弹窗可被“取消/关闭”绕过，感知最弱。<br/>
+  <b>Pending 区分：</b> pending 时（探测中 3s）在 A 中显示为同一位置的 <b>等待态</b>（ spinner + “正在探测后端 · 3s 超时未决 — 可重试或手动选择”），isOther 才显示上面的选择器；B/C 无法区分 pending 与 isOther。
+</div>
+</body>
+</html>

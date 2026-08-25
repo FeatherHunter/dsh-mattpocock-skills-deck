@@ -261,14 +261,15 @@
     }
     // #189 · 切换三选一确认态（全局 per-store，复用 wf.bind + 三缓存失效）
     export const DEFAULT_SWITCH_PROMPT_ZH = '现有 issues 保留在原后端，切换后不可见，切回可见'
+    // #191 · targetId=null 进入"目标待选"态（仓库名右侧按钮直弹 Modal，target 由 Modal 内 radio 选）
     export const openSwitchConfirm = function (st, targetId) {
       const cur = st.selection ? st.selection.backendId : null
-      if (cur === targetId) return false
       if (cur == null) return false
+      if (targetId != null && cur === targetId) return false
       st.switchConfirm = {
         open: true,
         curBackendId: cur,
-        targetBackendId: targetId,
+        targetBackendId: targetId == null ? null : targetId,
         prompt: DEFAULT_SWITCH_PROMPT_ZH,
         option: 'keep',
         clearInput: '',
@@ -315,6 +316,8 @@
     export const confirmSwitchConfirm = function (st) {
       const sc = st.switchConfirm
       if (!sc || sc.confirming) return
+      // #191：目标待选态时 Modal 内未选 target，确认按钮禁用（与 isTargetPending 共用阻断语义）
+      if (sc.targetBackendId == null) return
       if (sc.option === 'migrate' && sc.criChecks && !sc.criChecks.allOk) return
       if (sc.option === 'clear' && sc.clearInput !== '确认清空') return
       sc.confirming = true; emit(st)

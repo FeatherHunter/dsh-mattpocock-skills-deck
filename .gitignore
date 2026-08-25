@@ -8,12 +8,18 @@ _research/
 .tmp-screenshots/
 .dsh-waystation-cache/
 .dsh-mattskillsdeck-cache/
+.tmp/
+.dsh-tmp/
 
-# 根级临时件
+# 根级临时件（debug / 抓取 / 原始导出）
 /dsh-market-registry.csv
 /dsh-market-registry.json
 /issue-path-mechanisms-r3.html
 /issue15-body.md
+/issue110_raw.md
+/111-body-100.md
+/111-body-raw.md
+/.tmp-*
 /package.json
 /package-lock.json
 /tests/playwright-e2e-probe.js

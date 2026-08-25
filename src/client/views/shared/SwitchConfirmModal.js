@@ -26,7 +26,9 @@ export const SwitchConfirmModal = (props) => {
   const criDetails = cri ? [cri.c1, cri.c4, cri.c5].filter(Boolean) : []
   const migrateBlocked = isMigrate && !criLoading && !criOk
   const clearNeedInput = isClear && sc.clearInput !== '确认清空'
-  const confirmDisabled = sc.confirming || (isMigrate && (criLoading || !criOk)) || (isClear && clearNeedInput)
+  // #191：目标待选态时（targetBackendId==null）确认按钮禁用；option=keep/migrate/clear 任选后都可点（target 由独立 radio 决定）
+  const isTargetPending = sc.targetBackendId == null
+  const confirmDisabled = sc.confirming || isTargetPending || (isMigrate && (criLoading || !criOk)) || (isClear && clearNeedInput)
   const doClose = function () {
     if (typeof closeSwitchConfirm === 'function') { closeSwitchConfirm(s) } else { s.switchConfirm = null; emit(s) }
   }
@@ -83,13 +85,37 @@ export const SwitchConfirmModal = (props) => {
         h('span', { style: { flex: 1 } }),
         h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { padding: '2px 6px' } }, '✕'),
       ]),
-      h('div', { style: { fontSize: 11, color: '#8b8b95', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
-        h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: curColor, flex: 'none' } }), h('span', { style: { fontWeight: 600, color: curColor } }, curLabel)]),
-        h('span', null, '→'),
-        h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: targetColor, flex: 'none' } }), h('span', { style: { fontWeight: 600, color: targetColor } }, targetLabel)]),
-        h('span', { style: { flex: 1 } }),
-        h('span', { style: { fontSize: 10, color: '#8b8b95' } }, 'wf.bind per-cwd 幂等'),
-      ]),
+      // #191：目标待选态（targetBackendId==null）渲染 target radio；已选态保留原 curLabel→targetLabel
+      (function(){
+        const modules = (s.backendModules || [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]).filter(function(m){ return String(m.id).toLowerCase() !== 'other' })
+        const onPick = function(id){
+          if (s.switchConfirm.targetBackendId === id) return
+          s.switchConfirm.targetBackendId = id
+          // 切换 target 后 CRI 需要重拉（不同后端的 CRI 不同；migrate 选过就再加载一次）
+          s.switchConfirm.criChecks = null
+          s.switchConfirm.criLoading = true
+          emit(s)
+          if (typeof loadSwitchCri === 'function') loadSwitchCri(s)
+        }
+        const headerRow = h('div', { style: { fontSize: 11, color: '#8b8b95', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
+          h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: curColor, flex: 'none' } }), h('span', { style: { fontWeight: 600, color: curColor } }, curLabel)]),
+          h('span', null, '→'),
+          sc.targetBackendId == null
+            ? h('span', { style: { fontSize: 11, color: '#8b8b95', fontStyle: 'italic' } }, '选择目标后端…')
+            : h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: targetColor, flex: 'none' } }), h('span', { style: { fontWeight: 600, color: targetColor } }, targetLabel)]),
+          h('span', { style: { flex: 1 } }),
+          h('span', { style: { fontSize: 10, color: '#8b8b95' } }, 'wf.bind per-cwd 幂等'),
+        ])
+        if (sc.targetBackendId != null) return headerRow
+        const picker = h('div', { style: { display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' } }, modules.map(function(m){
+          const col = typeof backendColorOf === 'function' ? backendColorOf(m.id) : '#6e7681'
+          return h('button', { key: m.id, type: 'button', onClick: function(){ onPick(m.id) }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, border: '1px solid ' + col, background: 'transparent', color: col, fontSize: 12, fontWeight: 600, cursor: 'pointer' } }, [
+            h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: col, flex: 'none' } }),
+            h('span', null, m.label || m.id),
+          ])
+        }))
+        return h('div', null, [headerRow, picker])
+      })(),
       h('div', { style: { fontSize: 11, color: '#e6edf3', background: 'rgba(88,166,255,.08)', border: '1px solid rgba(88,166,255,.25)', borderRadius: 8, padding: '8px 10px', marginBottom: 10 } }, [
         h('div', { style: { fontWeight: 600, marginBottom: 4 } }, tr('switch.hint')),
         h('div', { style: { color: '#8b8b95' } }, tr('switch.hintDesc')),
