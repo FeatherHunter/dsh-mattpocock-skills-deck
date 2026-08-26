@@ -29,3 +29,14 @@ _research/
 /client.js
 /host.js
 /package/lib/
+
+# ===== teach skill ¡ª teaching workspace (ignored, durable across resets) =====
+/MISSION.md
+/RESOURCES.md
+/NOTES.md
+/GLOSSARY.md
+/lessons/
+/reference/
+/learning-records/
+/assets/teach.css
+/assets/quiz.js
