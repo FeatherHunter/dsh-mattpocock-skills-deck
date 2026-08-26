@@ -664,9 +664,43 @@ export default {
     // 按 updatedAt 倒序；labels 带 name + color（GitHub 配置色）；state 区分 open/closed；
     // v18：assignees 带出（状态栏「占用」按列表 issue 口径：已认领 + 被阻塞）
     async function fetchIssues(cwd) {
-      // #374/#375：--limit 500 覆盖仓库全量（2026-08-14 实测 349 issue），并带出 createdAt（排序维度）
-      // #44 T2-fix（map#37）：显式 --repo 绕过 gh 多远程推断，同 fetchMaps
+      // #374/#375：--limit 500 覆盖仓库全量，并带出 createdAt；为取 author.avatarUrl 改用 gh api（gh issue list 的 author 不含 avatarUrl，见 b7442da 后用户反馈“未显示真人头像”）
+      //   gh api repos/.../issues?state=all&per_page=100 --paginate 直接给出 user.avatar_url，零额外 user 查询
+      // #44 T2-fix：显式 --repo 绕过多远程推断
       const repo2 = await getRepoKey(cwd)
+      // 优先 gh api（带 avatar）
+      if (repo2) {
+        const apiUrl = 'repos/' + repo2.owner + '/' + repo2.name + '/issues?state=all&per_page=100'
+        const r2 = await runGh(['api', '--paginate', apiUrl, '--jq', '.[] | select(.pull_request == null) | {number: .number, title: .title, state: .state, labels: .labels, assignees: .assignees, user: .user, updated_at: .updated_at, created_at: .created_at}'], cwd)
+        if (r2.ok) {
+          try {
+            const text = String(r2.text || '').trim()
+            // --jq 输出为 JSON Lines（每行一个对象），非数组；兼容数组与单对象两种
+            let arr = []
+            if (text.startsWith('[')) arr = JSON.parse(text)
+            else if (text) {
+              const lines = text.split('\n').filter(function(s){return s.trim()})
+              for (let i=0;i<lines.length;i++) { try{ const o=JSON.parse(lines[i]); if(o && typeof o.number==='number') arr.push(o)}catch(e){} }
+              if (!arr.length) { try{ arr = JSON.parse('['+lines.join(',')+']')}catch(e){} }
+            }
+            const issues = arr.map(function (x) {
+              return {
+                number: x.number,
+                title: x.title,
+                state: (String(x.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN'),
+                assignees: (x.assignees || []).map(function (a) { return a.login }),
+                labels: (x.labels || []).map(function (l) { return { name: l.name, color: l.color || '' } }),
+                author: (x.user && x.user.login) ? { login: x.user.login, name: (x.user.name || ''), avatarUrl: (x.user.avatar_url || '') } : undefined,
+                updatedAt: x.updated_at,
+                createdAt: x.created_at,
+              }
+            })
+            issues.sort(function (a, b) { return String(b.updatedAt).localeCompare(String(a.updatedAt)) })
+            if (issues.length) return { ok: true, issues: issues }
+          } catch (e) { /* fall through to gh issue list */ }
+        }
+      }
+      // 回退：gh issue list（无 avatar，仅 login；UI 将回退为 person SVG）
       const argsAll = ['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,title,labels,state,assignees,author,updatedAt,createdAt']
       if (repo2) argsAll.push('--repo', repo2.owner + '/' + repo2.name)
       const r = await runGh(argsAll, cwd)
@@ -802,7 +836,7 @@ export default {
       if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
       if (!numbers || !numbers.length) return { ok: true, issues: {} }
       // 构造 aliases 查询：query($owner:String!,$name:String!){repository(...){m0:issue(number:409){...} m1:issue(...){...}}}
-      const frag = 'number title state body url author{login avatarUrl} labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url author{login avatarUrl} labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}}}}'
+      const frag = 'number title state body url author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}}}}'
       const sel = numbers.map(function (n, i) { return 'm' + i + ':issue(number:' + n + '){' + frag + '}' }).join(' ')
       const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){' + sel + '}}'
       let last = null
@@ -890,7 +924,7 @@ export default {
       const repo = await getRepoKey(cwd)
       if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
       if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
-      const frag = 'number title state body url updatedAt createdAt closedAt author{login avatarUrl} labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}} blocking(first:20){nodes{number title state}}'
+      const frag = 'number title state body url updatedAt createdAt closedAt author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}} blocking(first:20){nodes{number title state}}'
       const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issue(number:' + n + '){' + frag + '}}}'
       let last = null
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -918,15 +952,8 @@ export default {
     }
 
     async function buildSnapshot(cwd) {
-      // B 方案扩展：取当前 GH 登录人（viewer），用于“本人不显、他人分色”
-      let viewerLogin = null
-      try {
-        const vr = await runGh(['api', 'user', '--jq', '.login'], cwd)
-        if (vr.ok) {
-          const v = String(vr.text || '').trim().replace(/^"|"$/g, '')
-          if (v && v !== 'null' && v !== '') viewerLogin = v
-        }
-      } catch (e) {}
+      let viewerLogin = null // 由 Tracker.getCurrentUser 填充（后端接口返回当前用户，UI 仅对比，不直调 gh）
+      let viewer = null
       const repo = await getRepoKey(cwd)
       // v1.3.3 提速：map 列表直接从全量 issues 过滤（fetchMaps 单独调用省去 —— 原 11 次 → 9 次 gh 调用）
       const fi = await fetchIssues(cwd)
@@ -975,11 +1002,27 @@ export default {
       //   （count=0 → changed=false），且基线只在 changed=true 时才滑动 → 编辑被**永久吞掉**，UI 永不刷新。
       //   正确语义：基线只能由 probe 自己推进（检测到 change 时置为「本次探测时刻」）；build 完成 ≠ client 已渲染该
       //   快照，无权动基线。首次 probe（since=undefined）自然走全量返回 → 视为 changed → 建立基线（符合原注释意图）。
+      // B 方案：viewerLogin 经 Tracker.getCurrentUser（后端接口）获取，UI 仅做 login 对比，不直调 gh，不硬编码 backendId
       // #155：Selection/RepositoryRef 增量（registry.select/describe → wf.snapshot {repository, selection}）
       let selection = null
       let repository = null
       try {
         const reg = await getTrackerRegistry()
+        // 预取 viewer（供 UI “本人不显”对比），失败则保持 null（全显）
+        try {
+          const tmpReg = reg
+          const tmpHandle = { cwd: cwd }
+          const tmpCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:r.code } } }
+          const selForViewer = await tmpReg.select(tmpHandle, tmpCtx)
+          const vid = selForViewer && selForViewer.backendId
+          if (vid) {
+            const tr = tmpReg.get(vid)
+            if (tr && typeof tr.getCurrentUser === 'function') {
+              const vr = await tr.getCurrentUser({ backend: vid, refId: (tmpHandle.refId||''), name: '', url: '' }, tmpCtx)
+              if (vr && vr.ok && vr.data && vr.data.login) { viewerLogin = String(vr.data.login).trim(); viewer = vr.data }
+            }
+          }
+        } catch (e) {}
         if (reg && typeof reg.select === 'function') {
           const handle = { cwd: cwd }
           const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:r.code } } }
@@ -1041,7 +1084,8 @@ export default {
         backendModules: backendModules,
         selection: selection,
         capabilities: (typeof _capDiag !== 'undefined' ? _capDiag : null),
-        viewerLogin: viewerLogin, // B 方案：当前 GH 登录人，用于本人不显
+        viewer: viewer, // 后端接口返回当前用户（Actor），UI 据此做“本人不显”对比
+        viewerLogin: viewerLogin, // 兼容旧 UI（string），与 viewer.login 同步
       }
     }
 

@@ -42,17 +42,19 @@ import { STATE, ISSUE_TYPE, ERROR_KIND, CONTRACT_VERSION } from '../../shared/tr
  * @property {(repo: RepositoryRef, key: string, assignees: AssigneeInput[], opts?: SetOpts, ctx: OpContext) => Promise<OpResult<Issue>>} setAssignees
  * @property {(repo: RepositoryRef, key: string, parentKey: string|null, opts?: SetOpts, ctx: OpContext) => Promise<OpResult<Issue>>} setParent
  * @property {(repo: RepositoryRef, key: string, blockers: string[], opts?: SetOpts, ctx: OpContext) => Promise<OpResult<Issue>>} setBlockedBy self∈blockers→conflict；写后环检，成环→conflict 不落盘
+ * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('../../shared/tracker/shape.js').Actor>>} getCurrentUser 当前登录人（viewer），GitHub 返回 Actor，Markdown/GitLab 返回 unsupported（MISSING）
  */
 
 /**
  * 操作名清单（= OpName；能力零声明，只有动词）。
  * 无 detect（身份=matches+select+describe）；无 snapshot/children（宿主编排便利，非契约）。
- * @typedef {'preflight'|'list'|'get'|'getDependencies'|'create'|'close'|'reopen'|'comment'|'update'|'setLabels'|'setAssignees'|'setParent'|'setBlockedBy'} OpName
+ * @typedef {'preflight'|'list'|'get'|'getDependencies'|'create'|'close'|'reopen'|'comment'|'update'|'setLabels'|'setAssignees'|'setParent'|'setBlockedBy'|'getCurrentUser'} OpName
  */
 export const OPERATIONS = Object.freeze([
   'preflight', 'list', 'get', 'getDependencies',
   'create', 'close', 'reopen', 'comment',
   'update', 'setLabels', 'setAssignees', 'setParent', 'setBlockedBy',
+  'getCurrentUser',
 ])
 
 /**

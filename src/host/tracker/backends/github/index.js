@@ -74,6 +74,29 @@ export function createGithubBackend(ctx) {
     setAssignees: (repo, key, assignees, opts, opCtx) => setAssignees(repo, key, assignees, opts, opCtx || ctx),
     setParent: (repo, key, parentKey, opts, opCtx) => setParent(repo, key, parentKey, opts, opCtx || ctx),
     setBlockedBy: (repo, key, blockers, opts, opCtx) => setBlockedBy(repo, key, blockers, opts, opCtx || ctx),
+    getCurrentUser: async (repo, opCtx) => {
+      const c = ghClient(opCtx || ctx)
+      const r = await c.execGh(['api', 'user', '--jq', '{login: .login, name: .name, avatarUrl: .avatar_url}'], { cwd: (opCtx && opCtx.cwd) || (ctx && ctx.cwd) })
+      if (!r.ok) {
+        const kind = (r.error && r.error.kind) || 'unsupported'
+        // 未登录或无权限 → 返回 unsupported，UI 将不做“本人不显”过滤（全显）
+        if (kind === 'auth' || kind === 'unsupported') return { ok: false, error: { kind: ERROR_KIND.UNSUPPORTED, message: r.error && r.error.message || 'viewer unsupported' } }
+        return { ok: false, error: r.error }
+      }
+      try {
+        const j = JSON.parse(r.data.stdout || r.data.text || '{}')
+        const login = String(j.login || '').trim()
+        if (!login) return { ok: false, error: { kind: ERROR_KIND.UNSUPPORTED, message: 'viewer login empty' } }
+        const actor = { login }
+        if (j.name) actor.name = String(j.name)
+        if (j.avatarUrl) actor.avatarUrl = String(j.avatarUrl)
+        else if (j.avatar_url) actor.avatarUrl = String(j.avatar_url)
+        actor.kind = 'user'
+        return { ok: true, data: actor }
+      } catch (e) {
+        return { ok: false, error: { kind: ERROR_KIND.PARSE, message: String(e.message || e) } }
+      }
+    },
   }
 }
 
