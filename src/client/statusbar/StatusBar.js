@@ -308,8 +308,9 @@ export const StatusBar = (props) => {
     h(SkillFloatList, { s: s }),
   ])
   // #196 · 状态栏胶囊移除 backend segment 后不再在此处挂 SwitchConfirmModal（仍由 Dock/Overlay 挂载，状态机保留）
-  const _gateActive = _isOtherSBGate || (_selSBGate && _selSBGate.pending && !!s.cwd)
-  const firstBlock = _gateActive ? null : ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
+  const _isGatePending = !!(_selSBGate && _selSBGate.pending && !!s.cwd)
+  const _gateActive = _isOtherSBGate || _isGatePending
+  const firstBlock = _gateActive ? 'gate' : ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
   const fbMods = [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
   const normMods = function(r){
     let ms=null
@@ -354,6 +355,10 @@ export const StatusBar = (props) => {
     try{s.setupPickOpen=false;emit(s);}catch(e){}
     try{inject(s,promptText('setupRun',{trackerLine:line,trackerChoice:choice,backendNote:note}))}catch(e){try{inject(s,promptText('setupRun'))}catch{}}
   }
+  const openGate = function(){
+    s.gateModalOpen=true;if(!s.gateSelected)s.gateSelected='github';s.gateError='';emit(s);
+    if(typeof host!=='undefined'&&host.call){s.gateLoading=true;emit(s);host.call('wf.registry',{cwd:s.cwd||''}).then(function(r){s.gateLoading=false;let m=null;if(r&&r.ok&&Array.isArray(r.modules))m=r.modules;else if(r&&Array.isArray(r.modules))m=r.modules;else if(r&&r.value&&Array.isArray(r.value.modules))m=r.value.modules;if(Array.isArray(m)&&m.length){const f=m.filter(function(x){return String(x.id).toLowerCase()!=='other'});const fin=f.length?f:m;if(fin.length){s.backendModules=m;try{if(typeof setPresentationMap==='function')setPresentationMap(m)}catch(e){}const ids=fin.map(function(x){return x.id});if(!s.gateSelected||ids.indexOf(s.gateSelected)<0)s.gateSelected=fin[0].id}}emit(s)}).catch(function(){s.gateLoading=false;emit(s)});}
+  }
   const setupPickCard = s.setupPickOpen ? (function(){
     const mods=s.setupPickModules||[];const rec=s.setupPickRecommended||'github';const sel=s.setupPickSelected||rec
     return h('div', { style:{ width:'100%', maxWidth:560, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:10, background:'var(--dsw-alias-bg-layer-2,#16181d)', padding:10, boxShadow:'0 8px 24px rgba(0,0,0,.35)' } }, [
@@ -388,7 +393,11 @@ export const StatusBar = (props) => {
     ])
   }
   return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0' } }, [
-    firstBlock === 'ghcli'
+    firstBlock === 'gate'
+      ? (_isGatePending
+          ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', color:'#f59e0b', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }), h('span', { style:{ flex:1, fontSize:12 } }, '正在探测后端'), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(245,158,11,.6)', fontSize:11 }, onClick:function(){ loadSnapshot(s,true,true) } }, '重试') ])
+          : h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, tr('banner.gate')), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, onClick: openGate }, tr('banner.gateBtn')) ]))
+      : firstBlock === 'ghcli'
       // #195 修复(第二轮)：hint 直接为后端提供的完整 prompt（多态），UI 直接 inject；移除副按钮
       ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { var c = (s.checks || []).find(function(x){return x.id===4}); var h = c && c.hint || ''; if (h) inject(s, h) })
       : firstBlock === 'ghauth'

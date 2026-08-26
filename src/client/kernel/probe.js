@@ -10,7 +10,11 @@
     export const pendingSnapshotByCwd = new Map() // Map<normCwd,{promise,controller}> dedup 30s
     export const normCwdClientProbe = function(k){ try{ return String(k||'').toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,'')||'/'; }catch(e){ return String(k||''); } }
     export const loadChecks = (st, force, silent) => {
-      if (st.checking) return Promise.resolve()
+      if (st.checking && !force) return Promise.resolve()
+      // #195 约束：force 直通 + 看门狗（防 st.checking 永锁导致重查无反应）
+      if (st.checking && force) { try { st.checking = false } catch {} }
+      let watchdog = null
+      if (force) watchdog = setTimeout(function(){ try{ if(st.checking){ st.checking=false; st.checksMode='err'; st.checksError='timeout: wf.status 10s'; emit(st); } }catch{} }, 10000)
       if (typeof host === 'undefined' || typeof host.call !== 'function') {
         st.checksMode = 'err'
         st.checksError = tr('err.hostUnavailable')
@@ -18,11 +22,13 @@
         return Promise.resolve()
       }
       st.checking = true
+      if (watchdog) { /* watchdog 已设 */ }
       // v1.5 T10 R7：silent（手动刷新走静默路径）不切 loading 态
       if (force && !silent) st.checksMode = 'loading'
       emit(st)
       const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, force ? { force: true } : {}, { lang: promptLang() })
       return host.call('wf.status', args).then(function (res) {
+        if(watchdog) try{ clearTimeout(watchdog) }catch{}
         st.checking = false
         if (res && res.checks && res.checks.length) {
           st.checks = res.checks
@@ -35,6 +41,7 @@
         }
         emit(st)
       }).catch(function (e) {
+        if(watchdog) try{ clearTimeout(watchdog) }catch{}
         st.checking = false
         st.checksMode = 'err'
         st.checksError = String((e && e.message) || e).slice(0, 160)
@@ -412,7 +419,8 @@
       } catch (e) { /* 忽略 */ }
     }
     export const refreshAll = function (st) {
-      if (st.refreshing) return
+      if (st.refreshing) { try{ st.refreshing=false; spinAll(false); }catch{} }
+      // #195 约束：refreshAll 永不因 refreshing 锁死（重查按钮必须有反应）
       st.refreshing = true
       // 先发 RPC（异步即返回），再触发渲染 —— 避免重渲染挡住数据请求
       var p1 = loadChecks(st, true, true)
