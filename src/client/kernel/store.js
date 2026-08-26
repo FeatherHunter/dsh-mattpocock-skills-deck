@@ -539,8 +539,9 @@
     export const frontierCount = (st) => openIssuesOf(st).length - occCount(st)
     // v1.5 T1：BUG / 诊断计数（open 且带对应标签，与「可接」同口径）
     export const hasLabelOf = function (x, nm) { return (x.labels || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
+    export const isTriageLike = function (x) { const labs = (x && x.labels) || []; if (!Array.isArray(labs) || labs.length === 0) return true; return labs.some(function (l) { return (typeof l === 'string' ? l : l.name) === 'needs-triage' }) }
     export const bugCount = (st) => openIssuesOf(st).filter(function (x) { return hasLabelOf(x, 'bug') }).length
-    export const triageCount = (st) => openIssuesOf(st).filter(function (x) { return hasLabelOf(x, 'needs-triage') }).length
+    export const triageCount = (st) => openIssuesOf(st).filter(function (x) { return isTriageLike(x) }).length
 
     // v19：共享 —— 标签配置色映射（从快照 issues 收集 GitHub label 配置色，动态查询非写死）
     export const buildColorOf = function (st) {
@@ -563,7 +564,8 @@
     export const actionColorOf = function (x, colorOf) {
       const has = function (nm) { return (x.labels || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
       const bc = function (nm, fb) { const cc = colorOf[nm]; return cc ? '#' + cc : fb }
-      if (has('needs-triage')) return bc('needs-triage', '#f59e0b')
+      const _isTriageLike = !(x.labels && x.labels.length) || has('needs-triage')
+      if (_isTriageLike) return bc('needs-triage', '#f59e0b')
       if (has('bug')) return bc('bug', '#f87171')
       if (has('wayfinder:grilling')) return bc('wayfinder:grilling', '#d93f0b')
       return '#c084fc'
@@ -572,7 +574,8 @@
     export const rowActionText = function (st, x) {
       const url = 'https://github.com/' + repoStr(st) + '/issues/' + x.number
       const has = function (nm) { return (x.labels || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
-      if (has('needs-triage')) return renderTemplate('diagnose', { url: url })
+      const _isTriageLike = !(x.labels && x.labels.length) || has('needs-triage')
+      if (_isTriageLike) return renderTemplate('diagnose', { url: url })
       if (has('bug')) return renderTemplate('fix', { url: url })
       if (has('wayfinder:grilling')) return renderTemplate('discuss', { url: url })
       return startText(st, x)
@@ -582,6 +585,7 @@
     export const mkRowAction = function (st, x, narrow, colorOf) {
       const url = 'https://github.com/' + repoStr(st) + '/issues/' + x.number
       const has = function (nm) { return (x.labels || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
+      const _isTriageLike = !(x.labels && x.labels.length) || has('needs-triage')
       const isLight = function (hex) {
         try {
           const hh = String(hex || '').replace('#', '')
@@ -602,7 +606,7 @@
       }
       // v21：技能命令 + URL + 统一引导句（不再重复灌输技能内部流程）
       // v25 · T2b：诊断/修复/讨论走模板渲染（用户可自定义静态文本，{url} 注入）
-      if (has('needs-triage')) return mk('chat', tr('act.diagnose'), rowActionText(st, x), btnColor('needs-triage', '#f59e0b'))
+      if (_isTriageLike) return mk('chat', tr('act.diagnose'), rowActionText(st, x), btnColor('needs-triage', '#f59e0b'))
       if (has('bug')) return mk('hammer', tr('act.fix'), rowActionText(st, x), btnColor('bug', '#f87171'))
       if (has('wayfinder:grilling')) return mk('chat', tr('act.discuss'), rowActionText(st, x), btnColor('wayfinder:grilling', '#d93f0b'))
       return mk('play', tr('act.execute'), rowActionText(st, x), '#c084fc')

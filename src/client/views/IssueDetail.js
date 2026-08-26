@@ -92,9 +92,10 @@ export const IssueDetail = function (props) {
       const title = src.title || ('#' + issueNumber)
       const body = src.body || ''
       const has = function (nm) { return labelArr.some(function (l) { return (l.name || l) === nm }) }
+      const _isTriageLikeLocal = !labelArr.length || has('needs-triage')
       const fakeIssue = { number: issueNumber, title: title, labels: labelArr.map(function (l) { return typeof l === 'string' ? { name: l } : l }), state: stateRaw }
       const primaryBtn = (function () {
-        if (has('needs-triage')) return mkRowAction(st, fakeIssue, false, colorOf)
+        if (_isTriageLikeLocal) return mkRowAction(st, fakeIssue, false, colorOf)
         if (has('bug')) return mkRowAction(st, fakeIssue, false, colorOf)
         if (has('wayfinder:grilling')) return mkRowAction(st, fakeIssue, false, colorOf)
         return mkRowAction(st, fakeIssue, false, colorOf)

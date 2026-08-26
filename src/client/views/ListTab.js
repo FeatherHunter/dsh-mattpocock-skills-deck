@@ -134,7 +134,9 @@ export     const ListTab = ({ st, narrow }) => {
       const byLabel = function (x) {
         const ls = st.lblFilters || []
         if (!ls.length) return true
-        return (x.labels || []).some(function (l) { return ls.indexOf(l.name) >= 0 })
+        const labs = x.labels || []
+        if (!labs.length) return ls.indexOf('needs-triage') >= 0
+        return labs.some(function (l) { return ls.indexOf(l.name) >= 0 })
       }
       const openRows = sortedMaps.concat(sortedOpen)
       const openFiltered = (st.lblFilters && st.lblFilters.length) ? openRows.filter(byLabel) : openRows
