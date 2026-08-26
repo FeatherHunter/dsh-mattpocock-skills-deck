@@ -1,8 +1,8 @@
 /**
  * tracker/chain.js — 契约层「检查项 / 检查链条 / 动作词汇表」一等公民定义（host + client 共用，纯类型 + 纯函数，无 IO）。
  *
- * 生效日期：2026-08-26 13:13
- * 效力规则：本文件以 map #224（2026-08-26 13:13）规约为基线；与更早方案冲突以本规约为准；
+ * 生效日期：2026-08-26 18:00
+ * 效力规则：本文件以 #217（2026-08-26 18:00）规约为基线；与更早方案冲突以本规约为准；
  *           未来任何定版方案若改动本规约，以未来版本为准；落盘文件须携带此头（见 CONTEXT.md「版本与效力」）。
  *
  * 第一性原理（#217 定版，承接 #215 地图与 #198 五票结论）：
@@ -19,7 +19,7 @@
  * 动作不承诺修复，检查才判定状态（D5 原则）：
  *  - 动作只声明意图，不宣称已修复；链条推进只来自重求值（宿主重探谓词 + 求值器重跑）。
  *
- * 版本与效力：2026-08-26 定版（承接 CONTEXT.md 2026-08-26 13:13 基线，以更新日期者为准）。
+ * 版本与效力：2026-08-26 18:00 定版（承接 CONTEXT.md 2026-08-26 18:00 基线，以更新日期者为准）。
  *  - 本文件为契约层唯一真源；后端与 UI 共读同一形状，防漂移；遇枚举外类型 = 诚实 unsupported。
  *  - 变更须在对应子图内先明确推翻本契约（第一性原理：先定契约，再谈子图内部决定）。
  */
@@ -544,7 +544,7 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
 
   const isComplete = chainState === 'allDone'
   const hasBlockingFailure = currentIndex !== null
-  const blockingCheck = hasBlockingFailure ? deriveCheckId(chain[currentIndex]) : null
+  const blockingCheck = hasBlockingFailure ? (steps[currentIndex]?.id || (()=>{ try{ return deriveCheckId(chain[currentIndex]) } catch { return '__bad_'+currentIndex } })()) : null
 
   return {
     steps,
