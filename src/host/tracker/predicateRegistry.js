@@ -145,7 +145,9 @@ export function createPredicateRegistry(opts = {}) {
     if (!Array.isArray(chain) || chain.length === 0) return out
     const tasks = chain.map(async (item) => {
       const id = item && item.id
-      const check = item && item.check
+      let check = item && item.check
+      // B2 fix: 兼容 chain 校验通过的 string 简写（G5 诚实，此处归一为 backend）
+      if (typeof check === 'string') check = { kind: 'backend', id: check }
       if (!id || !check) { out[id || '__bad__'] = makeResult('pending', 'bad item'); return }
       try {
         let r

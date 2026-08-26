@@ -24,7 +24,7 @@
  *  - 变更须在对应子图内先明确推翻本契约（第一性原理：先定契约，再谈子图内部决定）。
  */
 
-import { BACKEND_KIND } from './constants.js'
+import { BACKEND_KIND as _BACKEND_KIND } from './constants.js' // reserved for catalog validation, not used directly
 import { ERROR_KIND as _EK } from './constants.js'
 const ERROR_KIND = _EK || { PARSE: 'parse', UNSUPPORTED: 'unsupported' }
 
@@ -444,7 +444,15 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
 
   for (let i=0;i<chain.length;i++) {
     const item = chain[i]
-    const id = deriveCheckId(item)
+    let id
+    try { id = deriveCheckId(item) } catch (e) {
+      // B5 fix: 畸形项不抛崩整链，降级为 pending 单步，detail 透传供日志二分
+      const badIdx = i
+      steps.push({ id: '__bad_'+badIdx, check: item && item.check || null, status: CHECK_STATE.PENDING, show: null, actions: [], isApplicable: true, blockedBy: foundHead ? headBlockedBy : null, detail: String((e && e.message) || e) })
+      // 首个畸形即视为链头（pending），后续一律 pending
+      if (!foundHead) { currentIndex = badIdx; foundHead = true; headBlockedBy = '__bad_'+badIdx }
+      continue
+    }
     const raw = getVal(item)
     // 归一化
     let norm = raw

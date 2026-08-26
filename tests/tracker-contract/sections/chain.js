@@ -36,7 +36,8 @@ function runChainTests() {
   {
     const item = mkItem('bad-act', {kind:'primitive', primitive:'env', key:'HOME'}, null, { show:{fallback:'x'}, actions:[{type:'unknown-type'}] })
     const e = validateCheckItem(item)
-    out.push(assert('chain · validate 非法 action type 必错', e.length>0, e.join(';')))
+    // B10 fix: 未知类型 = 诚实 unsupported，不判错（留给 UI dispatcher 诚实失败），故校验应通过
+    out.push(assert('chain · validate 未知 action type 不判错（留给 dispatcher unsupported）', e.length===0, e.join(';')))
   }
   {
     const item = mkItem('form-bad', {kind:'primitive', primitive:'env', key:'HOME'}, null, { show:{fallback:'x'}, actions:[{type:'form', schema:[{name:'a', type:'text', labelKey:'l'}]}] })

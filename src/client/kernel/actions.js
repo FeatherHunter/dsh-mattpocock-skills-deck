@@ -47,8 +47,22 @@ export function createActionDispatcher(ctx) {
         if (typeof ctx.inject !== 'function') {
           return { ok: false, error: { kind: 'unsupported', message: 'inject not available in this context' }, action }
         }
-        // 约定：inject(prompt, args)；prompt 模板由 host 侧 prompt registry 提供（如 hint prompt:installSkills）
-        await ctx.inject(action.prompt, action.args || {})
+        // B4 fix: 优先经 ctx.resolvePrompt 解析完整引导文案（host prompt registry），无则回落直接注入 prompt 名
+        let promptText = action.prompt
+        let promptArgs = action.args || {}
+        if (typeof ctx.resolvePrompt === 'function') {
+          try {
+            const resolved = await ctx.resolvePrompt(action.prompt, promptArgs)
+            if (typeof resolved === 'string' && resolved) promptText = resolved
+            else if (resolved && typeof resolved.text === 'string') {
+              promptText = resolved.text
+              if (resolved.args) promptArgs = resolved.args
+            }
+          } catch {}
+        } else if (typeof ctx.tr === 'function' && action.prompt.startsWith('prompt:')) {
+          try { promptText = ctx.tr(action.prompt, promptArgs) } catch {}
+        }
+        await ctx.inject(promptText, promptArgs)
         return { ok: true, action }
       }
       if (t === ACTION_TYPE.OPEN_URL) {
@@ -61,13 +75,15 @@ export function createActionDispatcher(ctx) {
         return { ok: true, action }
       }
       if (t === ACTION_TYPE.RPC) {
-        if (typeof action.method !== 'string' || !action.method) {
+        const method = action.method || action.endpoint
+        if (typeof method !== 'string' || !method) {
           return { ok: false, error: { kind: 'parse', message: 'rpc needs method:string' }, action }
         }
         if (typeof ctx.hostCall !== 'function') {
           return { ok: false, error: { kind: 'unsupported', message: 'hostCall not available' }, action }
         }
-        await ctx.hostCall(action.method, action.params)
+        const params = action.params !== undefined ? action.params : action.args
+        await ctx.hostCall(method, params)
         return { ok: true, action }
       }
       if (t === ACTION_TYPE.FORM) {
@@ -82,12 +98,27 @@ export function createActionDispatcher(ctx) {
         }
         // 表单渲染为异步交互：此处只触发渲染，提交时再 dispatch submitAction
         await ctx.renderForm(action.schema, async (values) => {
-          // 将表单值合并进 submitAction.params（高质量：保留原 params，不覆盖）
           const merged = Object.assign({}, action.submitAction)
           if (values && typeof values === 'object') {
-            merged.params = Object.assign({}, merged.params || {}, values)
+            // B3 fix: 按 submitAction 类型决定合并目标（inject-prompt 用 args，其余用 params），兼容别名
+            if (merged.type === ACTION_TYPE.INJECT_PROMPT) {
+              merged.args = Object.assign({}, merged.args || merged.params || {}, values)
+              if (merged.params && !merged.args) merged.args = merged.params
+            } else {
+              // rpc/form/refresh 等：优先 params，兼容 args 别名
+              const base = merged.params !== undefined ? merged.params : merged.args
+              if (merged.type === ACTION_TYPE.RPC) {
+                // 保持与 RPC 别名一致
+                merged.params = Object.assign({}, base || {}, values)
+                if (action.submitAction.args) merged.args = merged.params
+              } else {
+                merged.params = Object.assign({}, base || {}, values)
+              }
+            }
           }
-          await dispatch(merged)
+          const res = await dispatch(merged)
+          // 显式透传失败（防静默吞）
+          if (!res.ok) throw new Error(res.error.message)
         })
         return { ok: true, action }
       }
