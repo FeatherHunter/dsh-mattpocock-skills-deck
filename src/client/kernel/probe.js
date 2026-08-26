@@ -190,7 +190,7 @@
       const doLoad = function () {
         // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
         try{ const _nk=normCwdClientProbe(st.cwd||''); const _pend=pendingSnapshotByCwd.get(_nk); if(_pend&&_pend.promise) return _pend.promise; }catch(e){}
-        if (st.snapLoading && !force) return Promise.resolve()
+        // fix H1: remove global snapLoading guard — rely on per-cwd pendingSnapshotByCwd dedup (gate flake, #diagnosing-bugs)
         if (typeof host === 'undefined' || typeof host.call !== 'function') {
           st.snapMode = 'err'
           st.snapError = tr('err.hostUnavailable')
@@ -214,7 +214,14 @@
         const _timeoutP = new Promise((_,rej)=>{ _timer=setTimeout(()=>{ try{_ctrl.abort();}catch{}; rej(new Error('client loadSnapshot timeout 30s')); },30000); });
         const p = Promise.race([_rawP, _timeoutP]).finally(function(){ try{clearTimeout(_timer);}catch{}; });
         try{ pendingSnapshotByCwd.set(_normKeyP,{promise:p, controller:_ctrl}); p.finally(function(){ try{ pendingSnapshotByCwd.delete(_normKeyP);}catch{} }); }catch(e){}
+        const _reqNorm = _normKeyP // capture request cwd for H2 stale discard
         return p.then(function (snap) {
+          // fix H2 stale discard — if cwd switched during flight, drop stale fallback (gate flake guard)
+          if (_reqNorm !== normCwdClientProbe(st.cwd||'')) {
+            st.snapLoading = false
+            try{ pendingSnapshotByCwd.delete(_normKeyP)}catch(e){}
+            return
+          }
           st.snapLoading = false
           if (snap && (snap.notModified===true || snap.status===304)) {
             // 304 zero emit per spec: version unchanged -> keep old table, no UI change
