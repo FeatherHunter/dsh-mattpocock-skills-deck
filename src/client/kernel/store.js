@@ -428,8 +428,28 @@
     }
     export const applySnapshotSelection = function (st, snap) {
       if (!st || !snap) return
-      if (snap.selection !== undefined) { st.selection = snap.selection; if (st.cwd) setCachedSelection(st.cwd, snap.selection) }
-      if (snap.repository !== undefined) { st.repository = snap.repository; if (st.cwd) setCachedRepository(st.cwd, snap.repository) }
+      if (snap.selection !== undefined) {
+        const cur = st.selection
+        const nxt = snap.selection
+        // first-principles guard (idle refresh flake): fallback null should not silently overwrite a previously established matches/explicit.
+        // explicit null (source==='explicit') is intentional Other; fallback null with pending===undefined is suspicious transient (e.g., .git read race).
+        const isSuspiciousFallback = !!(nxt && nxt.backendId===null && !nxt.pending && nxt.source==='fallback' && cur && cur.backendId && cur.backendId!==null)
+        if (isSuspiciousFallback) {
+          // preserve last known good, keep cached selection
+        } else {
+          st.selection = nxt; if (st.cwd) setCachedSelection(st.cwd, nxt)
+        }
+      }
+      if (snap.repository !== undefined) {
+        const curSel = st.selection
+        const nxtSel = snap.selection
+        const isSuspiciousFallback2 = !!(nxtSel && nxtSel.backendId===null && !nxtSel.pending && nxtSel.source==='fallback' && curSel && curSel.backendId)
+        if (isSuspiciousFallback2) {
+          // keep old repository as well
+        } else {
+          st.repository = snap.repository; if (st.cwd) setCachedRepository(st.cwd, snap.repository)
+        }
+      }
       if (snap.backendModules) { st.backendModules = snap.backendModules; setPresentationMap(snap.backendModules) }
       if (snap.repository && snap.repository.backend) {
         // 兼容旧 snapshot.repo 字段

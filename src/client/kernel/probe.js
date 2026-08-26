@@ -247,9 +247,16 @@
             st.snapError = null
             // #155：同步 selection/repository 镜像
             try { if (typeof applySnapshotSelection === 'function') applySnapshotSelection(st, snap) } catch {}
-            // #58 缓存优先：落 per-cwd 内存表，供新 store 秒开
-            try { const c = snap.repoRoot || st.cwd; if (c) setCachedSnapshot(c, snap) } catch (e) { /* 忽略 */ }
-            try { if (st.cwd) setCachedSnapshot(st.cwd, snap) } catch (e) { /* 忽略 */ }
+            // #58 缓存优先：落 per-cwd 内存表，供新 store 秒开 — suspicious fallback 不污染缓存
+            try {
+              const nxt = snap.selection
+              const cur = st.selection
+              const isSuspicious = !!(nxt && nxt.backendId===null && !nxt.pending && nxt.source==='fallback' && cur && cur.backendId)
+              if (!isSuspicious) {
+                const c = snap.repoRoot || st.cwd; if (c) setCachedSnapshot(c, snap)
+                if (st.cwd) setCachedSnapshot(st.cwd, snap)
+              }
+            } catch (e) { /* 忽略 */ }
             // 拉取 backendModules（若 snapshot 未带，则另调 registry）
             try {
               if (!st.backendModules && typeof host !== 'undefined' && host.call) {
