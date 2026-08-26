@@ -240,6 +240,7 @@ export     const ListTab = ({ st, narrow }) => {
             (isMap && mapObj && mapObj.stats) ? ringOf(mapObj.stats) : null,
             !isOpen ? h('span', { className: 'dsws-chip', style: { fontSize: 10, marginRight: 0, flex: 'none', background: 'rgba(139,139,149,.12)', color: '#8b8b95', border: '1px solid rgba(139,139,149,.35)' } }, [Ic({ n: 'check', size: 9 }), h('span', null, tr('map.subClosed'))]) : null,
           ]),
+          (x.author && x.author.login) ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2, fontSize: 11, color: '#8b8b95' } }, [h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0 } }, [Ic({ n: 'person', size: 11 }), h('span', { className: 'dsws-ellip', style: { maxWidth: 200 }, title: '@' + x.author.login }, '@' + x.author.login)])]) : null,
           // 行2：标签贪心折叠（单行不换行）+ 按钮组（常显）（T1 Map #120：marginTop 8→2，全局收紧至 8px = gap6+mt2，所有行一致）
           h('div', { style: { marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, width: '100%' } }, [
             h('div', { className: 'dsws-tags', 'data-dsws-labels': JSON.stringify(labels.map(function (l) { return l.name })) }, [

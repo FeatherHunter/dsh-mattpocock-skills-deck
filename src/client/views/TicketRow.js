@@ -22,6 +22,7 @@ export     const TicketRow = React.memo(({ st, g, t, indent, colorOf }) => {
             h('span', { className: 'dsws-tt-wrap', style: { flex: 1 }, title: t.title }, t.title),
           ]),
           h('div', { className: 'dsws-tt-sub', style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
+            (t.author && t.author.login) ? subItem('person', '#8b8b95', '@' + t.author.login) : null,
             t.claimedBy ? subItem('person', '#58a6ff', tr('map.subClaimed', { who: t.claimedBy })) : null,
             // #370：被阻塞 chip 只显示仍 OPEN 的阻塞者（与 compute/主列表/按钮抑制口径一致）
             blocked ? subItem('lock', '#f0883e', tr('map.subBlocked', { who: blockerNames(t, g.m) })) : null,

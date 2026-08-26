@@ -586,6 +586,7 @@ export default {
         blocks: ((raw.blocking && raw.blocking.nodes) || []).map(function (b) { return b.number }),
         labels: labels, url: raw.url,
         progress: parseProgress(raw.body),  // v1.5 T12：issue 正文进度块（## 进度：N%），null = 未表达
+        author: (raw.author && raw.author.login) ? { login: raw.author.login, name: (raw.author.name || ''), avatarUrl: (raw.author.avatarUrl || raw.author.avatar_url || '') } : (raw.user && raw.user.login ? { login: raw.user.login, avatarUrl: raw.user.avatar_url || '' } : undefined),
       }
     }
 
@@ -666,7 +667,7 @@ export default {
       // #374/#375：--limit 500 覆盖仓库全量（2026-08-14 实测 349 issue），并带出 createdAt（排序维度）
       // #44 T2-fix（map#37）：显式 --repo 绕过 gh 多远程推断，同 fetchMaps
       const repo2 = await getRepoKey(cwd)
-      const argsAll = ['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,title,labels,state,assignees,updatedAt,createdAt']
+      const argsAll = ['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,title,labels,state,assignees,author,updatedAt,createdAt']
       if (repo2) argsAll.push('--repo', repo2.owner + '/' + repo2.name)
       const r = await runGh(argsAll, cwd)
       if (!r.ok) return { ok: false, error: r }
@@ -679,6 +680,7 @@ export default {
             state: x.state,
             assignees: (x.assignees || []).map(function (a) { return a.login }),
             labels: (x.labels || []).map(function (l) { return { name: l.name, color: l.color || '' } }),
+            author: (x.author && x.author.login) ? { login: x.author.login, name: (x.author.name || ''), avatarUrl: (x.author.avatarUrl || x.author.avatar_url || '') } : undefined,
             updatedAt: x.updatedAt,
             createdAt: x.createdAt,
           }
@@ -771,6 +773,7 @@ export default {
               body: s.body || '', url: s.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + s.number),
               labels: { nodes: (s.labels || []).map(function (l) { return { name: l.name } }) },
               assignees: { nodes: (s.assignees || []).map(function (a) { return { login: a.login } }) },
+              author: (s.user && s.user.login) ? { login: s.user.login, name: (s.user.name || ''), avatarUrl: (s.user.avatar_url || '') } : undefined,
               blockedBy: { nodes: blockedBy.map(function (b) { return { number: b } }) },
             })
           }
@@ -778,6 +781,7 @@ export default {
             number: m.number, title: m.title, state: (m.state === 'closed' ? 'CLOSED' : 'OPEN'),
             body: m.body || '', url: m.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + m.number),
             labels: { nodes: (m.labels || []).map(function (l) { return { name: l.name } }) },
+            author: (m.user && m.user.login) ? { login: m.user.login, name: (m.user.name || ''), avatarUrl: (m.user.avatar_url || '') } : undefined,
             subIssues: { totalCount: nodes.length, nodes: nodes },
           }
         } catch (e) { issues['m' + i] = null }
@@ -798,7 +802,7 @@ export default {
       if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
       if (!numbers || !numbers.length) return { ok: true, issues: {} }
       // 构造 aliases 查询：query($owner:String!,$name:String!){repository(...){m0:issue(number:409){...} m1:issue(...){...}}}
-      const frag = 'number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}}}}'
+      const frag = 'number title state body url author{login name avatarUrl} labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url author{login name avatarUrl} labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}}}}'
       const sel = numbers.map(function (n, i) { return 'm' + i + ':issue(number:' + n + '){' + frag + '}' }).join(' ')
       const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){' + sel + '}}'
       let last = null
@@ -870,6 +874,7 @@ export default {
           number: issue.number, title: issue.title, state: (String(issue.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN'),
           body: issue.body || '', url: issue.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + n),
           updatedAt: issue.updated_at, createdAt: issue.created_at, closedAt: issue.closed_at,
+          author: (issue.user && issue.user.login) ? { login: issue.user.login, name: (issue.user.name || ''), avatarUrl: (issue.user.avatar_url || '') } : undefined,
           labels: { nodes: (issue.labels || []).map(function (l) { return { name: l.name, color: l.color || '' } }) },
           assignees: { nodes: (issue.assignees || []).map(function (a) { return { login: a.login } }) },
           comments: comments,
@@ -885,7 +890,7 @@ export default {
       const repo = await getRepoKey(cwd)
       if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
       if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
-      const frag = 'number title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}} blocking(first:20){nodes{number title state}}'
+      const frag = 'number title state body url updatedAt createdAt closedAt author{login name avatarUrl} labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}} blocking(first:20){nodes{number title state}}'
       const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issue(number:' + n + '){' + frag + '}}}'
       let last = null
       for (let attempt = 0; attempt < 2; attempt++) {
