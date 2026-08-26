@@ -10,6 +10,7 @@
  *      兜底 NETWORK；conflict 透传非 regex）
  *   5. deck 段：progressOf / levelOf（环 visited 守卫 + NFD 按 0 计）/ stats / blockedByKeys / labels 并集
  *   6. snapshot 段：composeSnapshot（非 op）/ 双缓存 / invalidate·clear / 快路径（完整才用）/ unsupported 不缓存
+ *   7. chain 段：检查项形状校验 + 纯函数求值（done/current/fail/pending/na + na 不阻塞 + 进度口径）+ 动作词汇表五种 + form 完整（非 op）/ 双缓存 / invalidate·clear / 快路径（完整才用）/ unsupported 不缓存
  *
  * 每段含「✗ probe」违规样例自证测试会逮。
  * 运行：node tests/verify-tracker-contract.js
@@ -26,6 +27,7 @@ import registrySection from './tracker-contract/sections/registry.js'
 import preflightSection from './tracker-contract/sections/preflight.js'
 import deckSection from './tracker-contract/sections/deck.js'
 import snapshotSection from './tracker-contract/sections/snapshot.js'
+import chainSection from './tracker-contract/sections/chain.js'
 
 const results = [
   ...runContractTests(compliant), // 合规 → 应全 PASS
@@ -149,7 +151,7 @@ try {
   results.push({ name: 'demo-mini · playback/import failed', ok: false, detail: String(e && e.stack || e) })
 }
 
-for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection]) {
+for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection]) {
   try {
     const r = await s.run()
     results.push(...r)

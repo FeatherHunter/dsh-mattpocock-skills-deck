@@ -1,6 +1,6 @@
 # Tracker 契约层 · 目录架构决策记录
 
-> 日期：2026-08-23 · 决策者：FeatherHunter（维护者）
+> 日期：2026-08-23 初版 · 2026-08-26 18:00 增补 #217 链契约（chain.js / predicateRegistry / actions / catalog）· 决策者：FeatherHunter（维护者）
 > 范围：本文件记录「定稿 Tracker 契约」MAP（#112）的一处**架构级目录决定**——契约层及其配套（后端、平台层、测试）的目录/文件如何组织。此决定是子图 #113（平台层）、#114–#116（各后端）的**实现骨架**。
 > 约束：讨论假设读者只懂「用户角度功能」，不预装插件内部知识——概念与理由在正文内即席解释。
 
@@ -34,11 +34,13 @@ MattSkillsDeck 是 DeepSeek Harness（DSH）里的「地图/任务」生态：�
 
 1. `src/seam/ → src/bridge/`（DSH host↔client 绑定桥；「缝」一词还给架构语义）。「已定、**重构时应用**」——改名牵动 build.mjs 与全部 import，属后续 God-file 拆分轮（#113/#114），本骨架未涉及；骨架期间代码仍在 `src/seam/`。
 2. **契约层分两处**：
-   - `shared/tracker/`：**形状 + 常量**（host/client 共用、纯类型无 IO）。
-   - `host/tracker/`：**契约/registry/capability/preflight/backends**（host 侧逻辑）。
+   - `shared/tracker/`：**形状 + 常量 + 检查链条契约**（host/client 共用、纯类型/纯函数无 IO；新增 `chain.js` 一等公民 + `check-catalog.js` 目录边界）—— #217 定版。
+   - `host/tracker/`：**契约/registry/capability/preflight/backends/predicateRegistry**（host 侧逻辑；新增 `predicateRegistry.js` 宿主谓词注册表，纯函数 `evaluateChain` 的异步前置）。
+   - `client/kernel/`：新增 `actions.js` 动作分发器（UI 层执行器，契约层形状的唯一消费者）。
 3. **后端 = 目录，按操作域拆文件**（避免单文件过大、AI 实现不漏分支）。
 4. **平台层 = 接口 + 每 OS 一个子目录**（`darwin/` `win32/` `linux/`），内部归 `#113` 设计。
-5. **测试用领域名，不用缩写**（无 `g4.test` 这类命名）：`tests/tracker-contract/` + `tests/verify-tracker-contract.js`。
+5. **测试用领域名，不用缩写**（无 `g4.test` 这类命名）：`tests/tracker-contract/` + `tests/verify-tracker-contract.js` + `tests/tracker-contract/sections/chain.js`（#217 链契约测试）。
+6. **ADR**：`docs/adr/20260826-check-item-chain-contract.md`（#217 本票定版，版本与效力 2026-08-26 18:00）。
 
 ---
 
@@ -53,7 +55,9 @@ src/
 │   ├── parser.js                  (existing)
 │   └── tracker/
 │       ├── shape.js               ← 归一化完整形状（RepositoryRef/Issue/Comment/Label/MapNode/BackendStatus）
-│       └── constants.js           ← backend kind / state / capability-signal 枚举
+│       ├── constants.js           ← backend kind / state / capability-signal 枚举
+│       ├── chain.js               ← 检查项/链条/动作词汇表一等公民 + 纯函数求值器（#217，契约层唯一真源）
+│       └── check-catalog.js       ← 通用/后端检查目录边界与迁移映射（#217，14 必迁对齐）
 │
 ├── host/
 │   ├── index.js                   ← 插件入口（瘦）：装配 platform + tracker + rpc，注册即止
@@ -83,8 +87,10 @@ src/
 │   └── rpc/
 │       ├── status.js  snapshot.js  issue.js  claim.js  ...   ← wf.* 薄编排（调 tracker → 回 client）
 │
-├── client/                        ⌈ UI（不变）⌉
-│   ├── kernel/  panel/  statusbar/  views/  views/shared/
+├── client/                        ⌈ UI（不变，#217 新增 actions dispatcher）⌉
+│   ├── kernel/
+│   │   ├── actions.js             ← 动作分发器（UI 层执行器，#217）
+│   │   └── ...  panel/  statusbar/  views/  views/shared/
 │
 └── tests/
     ├── tracker-contract/
