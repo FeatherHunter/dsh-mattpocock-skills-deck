@@ -306,7 +306,7 @@ export     const DetailsDock = (props) => {
             h('span', { style:{ fontSize:11, color:'#58a6ff', border:'1px solid rgba(56,139,253,.4)', borderRadius:6, padding:'1px 6px', background:'rgba(56,139,253,.12)' } }, '去选择'),
           ]),
           h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'0 2px' } }, '选择后将回到主线流程（列表/状态栏正常可用），仅设置页可见引导已隐藏主线'),
-          _gateOpen ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) _closeGateModal() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.55)', display:'flex', alignItems:'center', justifyContent:'center', padding:'16px', zIndex:5 } }, [
+          _gateOpen ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) _closeGateModal() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.55)', display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'12px 16px', paddingTop:'12px', zIndex:5 } }, [
             h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:'16px', width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
               h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, '请选择 Tracker 后端以继续')]),
               h('div', { style:{ fontSize:11, color:'#8b8b95', marginBottom:10, lineHeight:1.5 } }, '不同后端的初始化与前置检查不同，选择后将回到主线流程（列表/状态栏正常可用）'),
