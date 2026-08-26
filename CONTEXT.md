@@ -33,3 +33,11 @@
 - **后端物理隔离**: 不同后端的检测链按后端独立，Markdown 卷子上不出现 GitHub 行，跨后端误导靠行不存在根治，无需 NA 标记。
 - **N 动态**: 检查总数不再固定，`N = 通用链题数 + 当前后端链题数` 动态求和，分开计数、分开渲染。
 - **五方职责**: UI 层（只消费契约产物渲染）/ 契约层（定义接口与求值）/ 后端层（声明检查目录与动作、实现操作）/ 平台抽象层（封装 OS 能力原语）/ OS 底座层（各 OS 具体实现）。
+## 内部 UI 端口词条（2026-08-27 定版 · #221）
+
+- **内部端口（internal seat）**: 面板内 5 个私有渲染落点的单体（banner-seat / dock-seat / statusbar-seat / modal-seat / toast-seat）。 _Avoid_: 内部槽位、内部座位（与官方槽位混用时）
+- **私有总线（internal bus）**: 5 个内部端口的集合；UI 层内核的私有渲染总线，非壳层能力，非契约层。 _Avoid_: 总线能力、槽位总线
+- **父槽复用**: 内部端口不自创顶级 root 子，必须寄生于已占据的官方父槽 `children` 中声明，随父坍缩自动回收。已占据 3 父槽：`shell.overlay` 托 banner/modal/toast、`details` 托 dock、`conversation.input.dock` 托 statusbar。
+- **治理同构**: 内部端口的声明/排序/注入/回收语义与官方 slots 完全同构；排序为 `priority→order` 双层（`lowest wins`，层表 `SYSTEM_SHADOW:-1/DEFAULT:0/FALLBACK:1`，插件段 `[100,1000]`，内部定死 `10/20/30`）。
+- **scope 三态**: 内部端口的作用域三态 —— `root`（常驻，随插件生命周期；内容可随活跃会话派生，如 banner）/ `session`（随会话）/ `session-maybe`（有会话按会话、无会话占位不崩，如 dock）。
+- **后端可插拔（UI 侧）**: 本插件内多后端经 `checkCatalog` 新增后端目录项，UI 自动经 5 端口呈现；不开放跨插件直接注册端口（扩展服务句柄仅为本插件内后端模块间的 `registerTab` 样板，非跨插件公共 API；未来对外需另起 ADR + allowlist）。
