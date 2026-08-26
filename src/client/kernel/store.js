@@ -130,14 +130,20 @@
           return
         }
         let maxTs = _issuePathPollTs
+        let needProbe = false
         res.events.forEach(function (ev) {
           if (ev && ev.ref) {
             recordIssuePath(st, ev.ref, ev.source, ev.title)
             if (ev.ts && ev.ts > maxTs) maxTs = ev.ts
+            if (ev.source === 'gh-create' || ev.source === 'gh-edit' || ev.source === 'claim') needProbe = true
           }
         })
         if (res.serverNow && res.serverNow > maxTs) maxTs = res.serverNow
         _issuePathPollTs = maxTs
+        // #213: 增量刷新 — 检测到创建/编辑事件后 8s 内触发 probe，实现不整页的自动更新（老架构回归）
+        if (needProbe) {
+          try { if (typeof scheduleActionProbe === 'function') scheduleActionProbe(); else if (typeof probeNow === 'function') probeNow(false); } catch {}
+        }
       }).catch(function () { _issuePathPolling = false })
     }
     export let _issuePathPollTimer = null

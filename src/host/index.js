@@ -311,14 +311,35 @@ export default {
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400) }
       }
       // issuePath · 1A：runGh 白名单检测（仅成功路径；失败不记路径污染；--add-assignee 为 claim 通道，交由 wf.claim 推送 source='claim'）
+      // #213: 增量刷新 — create/edit/close/comment/reopen 均失效快照缓存，支撑右侧面板不整页的增量更新
       try {
         const a = Array.isArray(args) ? args : []
-        if (a.length >= 2 && a[0] === 'issue' && /^(edit|close|comment|reopen)$/.test(String(a[1]))) {
-          const hasAssignee = a.indexOf('--add-assignee') >= 0
-          if (!hasAssignee) {
-            let hit = null
-            for (let i = 2; i < a.length; i++) if (/^\d+$/.test(String(a[i]))) { hit = a[i]; break }
-            if (hit) pushIssuePathEvent(hit, 'gh-edit')
+        if (a.length >= 2 && a[0] === 'issue' && /^(create|edit|close|comment|reopen)$/.test(String(a[1]))) {
+          if (String(a[1]) === 'create') {
+            try {
+              const txt = String(out.text || '').trim()
+              let n = null
+              const mUrl = txt.match(/\/issues\/(\d+)/)
+              if (mUrl) n = mUrl[1]
+              else {
+                try { const j = JSON.parse(txt); n = j.number || j.id || (Array.isArray(j) && j[0] && j[0].number) } catch {}
+                if (!n) { const mNum = txt.match(/\b(\d{1,6})\b/); if (mNum) n = mNum[1] }
+              }
+              if (n) {
+                pushIssuePathEvent(n, 'gh-create')
+                try { cache = { ts: 0, snapshot: null, error: null, cwd: cwd } } catch {}
+              }
+            } catch {}
+          } else {
+            const hasAssignee = a.indexOf('--add-assignee') >= 0
+            if (!hasAssignee) {
+              let hit = null
+              for (let i = 2; i < a.length; i++) if (/^\d+$/.test(String(a[i]))) { hit = a[i]; break }
+              if (hit) {
+                pushIssuePathEvent(hit, 'gh-edit')
+                try { cache = { ts: 0, snapshot: null, error: null, cwd: cwd } } catch {}
+              }
+            }
           }
         }
       } catch (e) { /* 检测失败不影响主流程 */ }
