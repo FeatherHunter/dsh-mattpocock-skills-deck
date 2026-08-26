@@ -568,6 +568,7 @@
       if (_isTriageLike) return bc('needs-triage', '#f59e0b')
       if (has('bug')) return bc('bug', '#f87171')
       if (has('wayfinder:grilling')) return bc('wayfinder:grilling', '#d93f0b')
+      if (has('wayfinder:research')) return bc('wayfinder:research', '#0ea5e9')
       return '#c084fc'
     }
     // #361：行级动作注入文本的单一真源（诊断/修复/讨论/执行）—— 新会话打开与行内动作共用
@@ -578,6 +579,7 @@
       if (_isTriageLike) return renderTemplate('diagnose', { url: url })
       if (has('bug')) return renderTemplate('fix', { url: url })
       if (has('wayfinder:grilling')) return renderTemplate('discuss', { url: url })
+      if (has('wayfinder:research')) return renderTemplate('research', { url: url })
       return startText(st, x)
     }
     // v19：共享 —— 行级动作（列表与 map 详情共用）：按 label 四选一（诊断/修复/讨论/执行），预填输入框；
@@ -609,6 +611,7 @@
       if (_isTriageLike) return mk('chat', tr('act.diagnose'), rowActionText(st, x), btnColor('needs-triage', '#f59e0b'))
       if (has('bug')) return mk('hammer', tr('act.fix'), rowActionText(st, x), btnColor('bug', '#f87171'))
       if (has('wayfinder:grilling')) return mk('chat', tr('act.discuss'), rowActionText(st, x), btnColor('wayfinder:grilling', '#d93f0b'))
+      if (has('wayfinder:research')) return mk('search', tr('act.research'), rowActionText(st, x), btnColor('wayfinder:research', '#0ea5e9'))
       return mk('play', tr('act.execute'), rowActionText(st, x), '#c084fc')
     }
     // v19：交接文档时间戳文件名（YYYYMMDD-HHMMSS）

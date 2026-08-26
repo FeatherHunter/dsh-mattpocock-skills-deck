@@ -28,7 +28,7 @@
     // 模板存储（T2b 扩展全部动作；T2a 先承载 execute = 旧 custom）
     export const TPL_KEY = 'dsws.templates'
     export const templates = (function () {
-      const d = { diagnose: '', fix: '', discuss: '', execute: '', handoff1: '', handoff2: '', fixate: '' }
+      const d = { diagnose: '', fix: '', discuss: '', research: '', execute: '', handoff1: '', handoff2: '', fixate: '' }
       try {
         const raw = localStorage.getItem(TPL_KEY)
         if (raw) return Object.assign(d, JSON.parse(raw))
@@ -57,12 +57,12 @@
     export const PH = ['url', 'number', 'title', 'ts', 'file', 'path']
     // 各模板可用占位符（编辑器 chips 展示）
     export const TPL_PH = {
-      diagnose: ['url'], fix: ['url'], discuss: ['url'], execute: ['number', 'url', 'title'],
+      diagnose: ['url'], fix: ['url'], discuss: ['url'], research: ['url'], execute: ['number', 'url', 'title'],
       handoff1: ['ts'], handoff2: ['path', 'file'], fixate: [],
     }
     // 强制占位符表（T1 规格 §3）：缺失拒绝保存
     export const TPL_REQUIRED = {
-      diagnose: ['url'], fix: ['url'], discuss: ['url'], execute: ['url'],
+      diagnose: ['url'], fix: ['url'], discuss: ['url'], research: ['url'], execute: ['url'],
       handoff1: ['ts'], handoff2: ['path'], fixate: [],
     }
     // 默认模板文本（空 = 用默认；T1 规格 §3 默认文本 = 现状代码文本）
@@ -71,6 +71,7 @@
       diagnose: function () { return promptText('tpl.diagnose') },
       fix: function () { return promptText('tpl.fix') },
       discuss: function () { return promptText('tpl.discuss') },
+      research: function () { return promptText('tpl.research') },
       execute: function () { return promptText('tpl.execute') },
       handoff1: function () { return promptText('tpl.handoff1') },
       handoff2: function () { return promptText('tpl.handoff2') },
