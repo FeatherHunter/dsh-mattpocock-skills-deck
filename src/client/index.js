@@ -141,8 +141,9 @@ export default {
       prototype: ['prototype', 'p', '原型'],
       grilling: ['grilling', 'g', '对齐'],
       task: ['task', 't', '任务'],
+      map: ['map', 'm', '地图'],
     }
-    const TYPE_ICON = { research: 'search', prototype: 'hammer', grilling: 'chat', task: 'gear' }
+    const TYPE_ICON = { research: 'search', prototype: 'hammer', grilling: 'chat', task: 'gear', map: 'map' }
 
     // ============================================================
     // 2. 外观方案（图标 + 动作词，可切换）

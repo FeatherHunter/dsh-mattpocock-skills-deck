@@ -8,7 +8,7 @@ export     const TypeChip = ({ type }) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
       const t = TYPE_LABEL[type] || [type, '', type]
-      const cls = { research: 'dsws-chip-r', prototype: 'dsws-chip-p', grilling: 'dsws-chip-g', task: 'dsws-chip-t' }[type] || ''
+      const cls = { research: 'dsws-chip-r', prototype: 'dsws-chip-p', grilling: 'dsws-chip-g', task: 'dsws-chip-t', map: 'dsws-chip-m' }[type] || ''
       return h('span', { className: 'dsws-chip ' + cls }, [
         Ic({ n: TYPE_ICON[type] || 'dot', size: 11 }),
         h('span', null, tr('type.' + type)),
