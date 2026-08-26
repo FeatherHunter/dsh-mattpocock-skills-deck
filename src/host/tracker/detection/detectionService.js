@@ -14,17 +14,21 @@
 
 import { detectExplicit } from './explicitDetector.js'
 
-function buildOpContextBase(cwd, platform, fs, timers) {
+function buildOpContextBase(cwd, platform, fs, timers, exec) {
   return {
     cwd,
     platform,
     fs: fs || (platform && platform.fs) || null,
+    // OpContext 契约 = BackendContext & {cwd, signal}；BackendContext 必含 exec（contract.js）。
+    // #幽灵修复：preflight 的 ghClient/glab 依赖 ctx.exec 执行 gh/glab——缺失时假报 env 失败
+    // （"ctx.exec unavailable"→被 wf.status 派生为「gh 未找到」黄条）。
+    exec: (typeof exec === 'function') ? exec : null,
     timers: timers || { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id) },
     signal: undefined,
   }
 }
 
-export function createDetectionService({ registry, getPlatform, getFs, getTimers, workspaceStore, skillProbe, resolveRepoHandle } = {}) {
+export function createDetectionService({ registry, getPlatform, getFs, getTimers, workspaceStore, skillProbe, resolveRepoHandle, exec } = {}) {
   const store = workspaceStore || null
   // skillProbe 为可选：未注入时返回空技能集（正交，复用 host probeSkill 旧逻辑但不在二联版强依赖）
   const probeSkills = typeof skillProbe === 'function' ? skillProbe : async () => ({ ok: true, missing: [], probes: {} })
@@ -54,7 +58,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
 
     // ② matches > fallback（经 registry.select，含 pending/multiHit + 超时 3000ms + AbortSignal）
     if (!selection) {
-      const opCtx = buildOpContextBase(cwd, platform, fs, timers)
+      const opCtx = buildOpContextBase(cwd, platform, fs, timers, exec)
       // 若调用方传 signal，可在此注入 opCtx.signal = opts.signal（registry withTimeout 内部会合并）
       if (opts.signal) opCtx.signal = opts.signal
       selection = await registry.select(handle, opCtx)
@@ -74,7 +78,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       try {
         const tracker = registry.get(selection.backendId)
         if (tracker && typeof tracker.preflight === 'function') {
-          const opCtx2 = buildOpContextBase(cwd, platform, fs, timers)
+          const opCtx2 = buildOpContextBase(cwd, platform, fs, timers, exec)
           if (opts.signal) opCtx2.signal = opts.signal
           // preflight 可能经 ghClient 走 subprocess，需传 platform
           opCtx2.platform = platform

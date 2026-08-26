@@ -206,6 +206,36 @@ export default {
       } catch { _workspaceStore = { get: () => null, set: () => {}, has: () => false, clear: () => {}, invalidate: () => {}, keys: () => [], onRegistryBindStale: () => {} } }
       return _workspaceStore
     }
+    // #幽灵修复：BackendContext.exec（contract.js §BackendContext）——preflight 经 ghClient/glab 执行 gh/glab。
+    // 契约形状 {stdout,stderr,code}；exit code≠0 不抛（调用方判）；超时 terminate；opts.timeout/signal 透传。
+    async function detectionExec(cmd, args, opts) {
+      const argv = [String(cmd)].concat(args || [])
+      const c = (opts && opts.cwd) || ''
+      let handle
+      try {
+        handle = subprocess.spawn({
+          argv: argv,
+          cwd: c || DEFAULT_CWD,
+          stdio: { stdin: 'ignore', stdout: { maxBytes: 4 * 1024 * 1024 }, stderr: { maxBytes: 256 * 1024 } },
+          graceMs: 2000,
+        })
+      } catch (e) {
+        throw new Error('exec spawn failed: ' + String((e && e.message) || e))
+      }
+      const timeoutMs = (opts && opts.timeout != null) ? opts.timeout : TIMEOUT_MS
+      let outcome
+      try {
+        outcome = await Promise.race([
+          handle.done,
+          timer.timeout(timeoutMs).then(function () { try { handle.terminate() } catch (e2) {} return { exitCode: -1, signal: 'timeout' } }),
+        ])
+      } catch (e) {
+        outcome = { exitCode: -1, signal: 'error' }
+      }
+      const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
+      const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
+      return { stdout: out.text || '', stderr: err.text || '', code: outcome.exitCode }
+    }
     async function getDetectionService() {
       if (_detectionService) return _detectionService
       const registry = await getTrackerRegistry()
@@ -229,7 +259,7 @@ export default {
           }
           return { ok: missing.length === 0, missing, probes }
         }
-        _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => ({ setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } }), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }) })
+        _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => ({ setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } }), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }), exec: detectionExec })
       } catch (e) {
         // 兜底：最小二联（explicit → matches）不含 preflight/skill
         _detectionService = {
@@ -1229,7 +1259,16 @@ export default {
         if (det.preflight) {
           const kind = det.preflight.error && det.preflight.error.kind
           const msg = det.preflight.error && det.preflight.error.message || ''
-          if (det.preflight.ok) {
+          // #幽灵修复：preflight 是「选中后端」的环境门禁。非 github 后端（gitlab/markdown…）的 env 失败
+          // （如 glab not found）≠ gh 未安装——c4「gh CLI 可用」/c5「gh 已登录」必须真实独立探测主机 gh
+          // （装没装 gh 与后端无关），后端 preflight 只承载 c6（后端真实环境，如 glab/path/网络）。
+          if (backendId && backendId !== 'github') {
+            c4 = await checkGhCli(lang)
+            c5 = await checkGhAuth(lang)
+            c6 = det.preflight.ok
+              ? { ok: true, level: 'ok', detail: 'preflight ok (' + backendId + ')', hint: '' }
+              : { ok: false, level: 'bad', detail: msg.slice(0, 200), hint: (det.preflight && det.preflight.prompt) || '' }
+          } else if (det.preflight.ok) {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
             c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : '已登录', hint: '' }
             c6 = { ok: true, level: 'ok', detail: 'api.github.com 200', hint: '' }
