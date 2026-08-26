@@ -1,24 +1,24 @@
-/**
- * dsh-mattpocock-skills-deck �� Host �루���ݲ�ʵ�� �� T3 #345��
+﻿/**
+ * dsh-mattpocock-skills-deck · Host 半（数据层实现 · T3 #345）
  *
- * ʵ�֣�
- *   1. gh ��װ�㣺resolveExecutable ���� �� ���� DSH_GH_PATH/ϵͳ gh��30s ��ʱ��timer race + terminate����
- *      �����һ����auth / network / notfound / exit����
- *   2. ��������gh issue list ö�� wayfinder:map �� ÿ map һ�� GraphQL��subIssues + labels + assignees +
- *      blockedBy + blocking���� ��װ���գ�map ��������� + tickets + stats ���飩��
- *   3. RPC��wf.ping / wf.snapshot��5s ���棩/ wf.refresh��
- *   4. ��ѯ��timer 60s ˢ�»��� + ���ϴ� stats diff��P2 toast Ԥ���ֶΣ���
- *   5. ǰ�ü���̵㣨#344����wf.status ���� 8 ���⣨�ֿⶨλ / setup ���� / tracker=GitHub /
- *      gh CLI / gh ��¼ / API �ɴ� / wayfinder ˫��̽�� / ask-matt ˫��̽�⣩�����
- *      { ok, level, detail, hint }[]��������� 30s��args.force ǿ���ز顣
+ * 实现：
+ *   1. gh 封装层：resolveExecutable 解析 → 兜底 DSH_GH_PATH/系统 gh；30s 超时（timer race + terminate）；
+ *      错误归一化（auth / network / notfound / exit）。
+ *   2. 数据流：gh issue list 枚举 wayfinder:map → 每 map 一次 GraphQL（subIssues + labels + assignees +
+ *      blockedBy + blocking）→ 组装快照（map 五区块解析 + tickets + stats 分组）。
+ *   3. RPC：wf.ping / wf.snapshot（5s 缓存）/ wf.refresh。
+ *   4. 轮询：timer 60s 刷新缓存 + 与上次 stats diff（P2 toast 预留字段）。
+ *   5. 前置检查绿点（#344）：wf.status —— 8 项检测（仓库定位 / setup 已跑 / tracker=GitHub /
+ *      gh CLI / gh 登录 / API 可达 / wayfinder 双层探测 / ask-matt 双层探测），输出
+ *      { ok, level, detail, hint }[]；结果缓存 30s，args.force 强制重查。
  *
- * ����֤��.charting/verify.js����ʵ���� PASS�������� frontier/claimed/blocked �� GitHub ҳ��һ�£�
- * 9 �� open map �н� 4 ���� Destination ���� body ����ȫ���ݴ��
+ * 已验证（.charting/verify.js，真实数据 PASS）：分组 frontier/claimed/blocked 与 GitHub 页面一致；
+ * 9 张 open map 中仅 4 张有 Destination —— body 解析全部容错。
  *
- * ���ļ����� = cordis_define �� code.host���� JS �����壬���� Cordis Plugin����
+ * 本文件内容 = cordis_define 的 code.host（纯 JS 函数体，返回 Cordis Plugin）。
  */
 
-// ===== �淶���ԣ�dynamic dialect����harness Ϊ���ɱ�����pkg entry �ṩ shim =====
+// ===== 规范方言（dynamic dialect）：harness 为自由变量；pkg entry 提供 shim =====
 export default {
   inject: ['connection'],
   apply(ctx) {
@@ -27,8 +27,8 @@ export default {
     const fs = ctx.get('fs')
     if (subprocess === undefined || timer === undefined) return
 
-    // B3 rpc host �� shim��harness.handle('wf.x') �� Map + connection.rpc.handle('/dsws') dispatch
-    // ���� C ԭ�����ƺ� pkg ��ڲ��پ� build.mjs ע�� shim����ΪԴ�ļ��Դ������� ReferenceError: harness is not defined
+    // B3 rpc host 侧 shim：harness.handle('wf.x') → Map + connection.rpc.handle('/dsws') dispatch
+    // 方案 C 原样复制后 pkg 入口不再经 build.mjs 注入 shim，改为源文件自带，避免 ReferenceError: harness is not defined
     const __DSW_HANDLERS__ = new Map()
     const harness = {
       handle: (method, fn) => {
@@ -37,36 +37,28 @@ export default {
       }
     }
 
-    // ============ ���� ============
-    // v1.5.0������������������ gh ·���� platform.env.get('DSH_GH_PATH')��#171 migrated����ֱ�� process.env��
-    // Ĭ�Ϲ����� = DSH ���̵�ǰĿ¼���ɱ� wf.snapshot args.cwd ���ǣ�ȥ����Ӳ���룩
+    // ============ 配置 ============
+    // v1.5.0（公共发布）：兜底 gh 路径经 platform.env.get('DSH_GH_PATH')（#171 migrated，零直读 process.env）
+    // 默认工作区 = DSH 进程当前目录（可被 wf.snapshot args.cwd 覆盖；去本机硬编码）
     const DEFAULT_CWD = (typeof process !== 'undefined' && typeof process.cwd === 'function') ? process.cwd() : ''
     const TIMEOUT_MS = 30000
-    // v1.3.3 ���٣����ջ��� 5s �� 60s�����򿪻������л��棬����ÿ��ȫ���ؽ� 11 �� gh ���ã�
+    // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
     const CACHE_MS = 60000
-    const STATUS_CACHE_MS = 30000  // ǰ�ü�������棨#344��
+    const STATUS_CACHE_MS = 30000  // 前置检查结果缓存（#344）
     const SKILL_PROBE_DIRS = ['.agents/skills', '.minimax/skills', '.claude/skills']  // #171 migrated: posix canonical via platform.path
-    // v1.5 T11 + #149 �޸���ȫ���̺��ļ���̽�������������� prompt ���õļ��� + �������ܣ���� 7/8 ȡǰ��������� 9 �ۺ�ȫ������ �� `setup-matt-pocock-skills` Ϊ 10 ����ͼ���� ��1.1 ����ȱ����λ��#150 Q6��
+    // v1.5 T11 + #149 修复：全流程核心技能探测名单（各动作 prompt 引用的技能 + 基础技能；检查 7/8 取前两个，检查 9 聚合全量）— 补 `setup-matt-pocock-skills` 为 10 名（图快照 §1.1 相邻缺陷正位，#150 Q6）
     const SKILL_PROBE_NAMES = ['wayfinder', 'triage', 'grilling', 'grill-me', 'implement', 'ask-matt', 'research', 'prototype', 'handoff', 'setup-matt-pocock-skills']
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
 
-    // ============ ״̬ ============
+    // ============ 状态 ============
     let ghPath = null
-    // #195 �޸���ʧ�ܲ����û��� ���� ghLastError ���������һ��ʧ�ܣ�����ʽ���������޸����´� resolveGh ����Ϊ null�������ʵ���״�ʧ����������
+    // #195 修复：失败不永久缓存 —— ghLastError 仅保留最近一次失败（覆盖式），环境修复后下次 resolveGh 覆盖为 null；不像旧实现首次失败永不重试
     let ghLastError = null
-    let repoKeys = {}  // v12��repoKey �� cwd ���棨�л��ֿ�Ựʱ���ٴ��ֿ⣩
-    let cacheMap = new Map()
-    const CACHE_LRU_MAX = 20
+    let repoKeys = {}  // v12：repoKey 按 cwd 缓存（切换仓库会话时不再串仓库）
     let cache = { ts: 0, snapshot: null, error: null, cwd: null }
-    function normKey(k){ try{ return String(k||'').toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,'')||'/'; }catch(e){ return String(k||''); } }
-    function touchLRU(map, key, val){ if(map.has(key)) map.delete(key); map.set(key,val); if(map.size>CACHE_LRU_MAX){ const first=map.keys().next().value; map.delete(first); } return val; }
-    function getCacheByCwd(cwdRaw){ const k=normKey(cwdRaw); return cacheMap.get(k)||null; }
-    function setCacheByCwd(cwdRaw, entry){ const k=normKey(cwdRaw); const e=Object.assign({},entry,{k}); touchLRU(cacheMap,k,e); try{ cache={ts:e.ts||Date.now(), snapshot:e.snapshot||null, error:e.error||null, cwd:cwdRaw}; }catch{} return e; }
-    function snapshotVersionOf(snap){ try{ const iss=(snap&&Array.isArray(snap.issues))?snap.issues:[]; const sorted=iss.map(function(x){return String(x.number)+':'+String(x.state||'')+':'+String(x.updatedAt||'')}).sort().join('|'); let h=0; for(let i=0;i<sorted.length;i++) h=((h<<5)-h+sorted.charCodeAt(i))|0; const hex=(h>>>0).toString(16).padStart(8,'0'); try{ if(typeof require==='function'){ const cr=require('crypto'); if(cr&&cr.createHash){ return cr.createHash('sha1').update(sorted).digest('hex').slice(0,12); } } }catch(e){} return hex; }catch(e){ return '0'; } }
-    function issueIndexVersion(idx){ try{ const keys=Object.keys(idx||{}).sort(); const str=keys.map(function(k){return k+':'+idx[k]}).join('|'); try{ const cr=require('crypto'); if(cr&&cr.createHash) return cr.createHash('sha1').update(str).digest('hex').slice(0,12); }catch(e){} let h=0; for(let i=0;i<str.length;i++) h=((h<<5)-h+str.charCodeAt(i))|0; return (h>>>0).toString(16).padStart(8,'0'); }catch(e){ return '0'; } }
-    let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s ���棨�� cwd+lang ���֣�
-    let userHome = null                                     // ����ռλ��#171 ��Ǩ platform.getHome�������ƽ̨ memoize��
-    // ============ Tracker Registry��#155 �� ���ѡ�� UI��============
+    let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s 缓存（按 cwd+lang 区分）
+    let userHome = null                                     // 保留占位（#171 已迁 platform.getHome，缓存归平台 memoize）
+    // ============ Tracker Registry（#155 · 后端选择 UI）============
     let _trackerRegistry = null
     let _trackerRegistryInit = null
     async function getTrackerRegistry() {
@@ -81,7 +73,7 @@ export default {
           const regMod = await import('./tracker/registry.js')
           const createRegistry = regMod.createRegistry || regMod.default
           const reg = createRegistry({}, { matchesTimeout: 3000 })
-          // ע�����ú�ˣ�github/markdown/gitlab����ʧ�ܺ��ԣ����ֿ��ã�
+          // 注册内置后端（github/markdown/gitlab），失败忽略（保持可用）
           try {
             const ghMod = await import('./tracker/backends/github/index.js')
             const m = ghMod.githubModule || ghMod.defaultModule || ghMod.default
@@ -104,7 +96,7 @@ export default {
           try { ctx.set && ctx.set('trackerRegistry', reg) } catch {}
           return reg
         } catch (e) {
-          // ���䣺�� registry���� explicit ������
+          // 回落：空 registry（仅 explicit 能力）
           try {
             const regMod2 = await import('./tracker/registry.js')
             const cr = regMod2.createRegistry || regMod2.default
@@ -116,10 +108,10 @@ export default {
       _trackerRegistry = await _trackerRegistryInit
       return _trackerRegistry
     }
-    // ����Ԥ�ȣ������������̣�
+    // 触发预热（不阻塞主流程）
     try { getTrackerRegistry().catch(()=>{}) } catch {}
-    // ============ ƽ̨����#171 �� createPlatform ���Ե�����============
-    // ��һ��ԭ���ƽ̨���� + ����ƴ + ˫բ���������� ctx.get('platform') ������ fallback���� import �﷨���� D7 dev host vm.Script ������
+    // ============ 平台抽象（#171 · createPlatform 惰性单例）============
+    // 第一性原理：平台单点 + 零手拼 + 双闸不变量；经 ctx.get('platform') 或内联 fallback（零 import 语法，避 D7 dev host vm.Script 阻塞）
     let _platform = null
     let _platformInit = null
     async function getPlatform() {
@@ -196,8 +188,8 @@ export default {
       _platform = await _platformInit
       return _platform
     }
-    // ============ ̽�⼶�� �� workspaceStore + detectionService��#152 �� #150 Q1-Q7��============
-    // �Ĳ��ϸ� + �����������Ǽ� + per-workspace �ڴ� Map<handleKey��Selection> ������ + pending ������ + wf.bind ������
+    // ============ 探测级联 · workspaceStore + detectionService（#152 · #150 Q1-Q7）============
+    // 四层严格 + 轻量化二联骨架 + per-workspace 内存 Map<handleKey→Selection> 不落盘 + pending 不缓存 + wf.bind 薄兼容
     let _workspaceStore = null
     let _detectionService = null
     async function getWorkspaceStore() {
@@ -206,7 +198,7 @@ export default {
         const mod = await import('./tracker/detection/workspaceStore.js')
         const create = mod.createWorkspaceStore || mod.default
         _workspaceStore = create({ ttl: STATUS_CACHE_MS })
-        // registry stale �����#150 Q3 unregister stale �� emit bind��
+        // registry stale 清理（#150 Q3 unregister stale → emit bind）
         try {
           const reg = await getTrackerRegistry()
           if (reg && typeof reg.on === 'function') reg.on('bind', (evt) => { if (evt && evt.stale) { try { _workspaceStore.onRegistryBindStale(evt.handle) } catch {} } })
@@ -223,7 +215,7 @@ export default {
       try {
         const mod = await import('./tracker/detection/detectionService.js')
         const create = mod.createDetectionService || mod.default
-        // skillProbe ���������� probeSkill ˫Դ�߼���10 ���� setup ��λ��
+        // skillProbe 内联（复用 probeSkill 双源逻辑，10 名含 setup 正位）
         const skillProbe = async ({ cwd }) => {
           const probes = {}
           let missing = []
@@ -235,11 +227,19 @@ export default {
               if (r.level !== 'ok') missing.push(name)
             } catch { probes[name] = { ok: false, level: 'bad' }; missing.push(name) }
           }
-          return { ok: missing.length === 0, missing, probes }
+          // #191: backendModules passthrough (presentation palette) for UI setPresentationMap
+      let backendModules = null;
+      try {
+        const regM = await getTrackerRegistry();
+        if (regM && typeof regM.modules === 'function') {
+          backendModules = regM.modules().map(function (m) { return { id: m.id, label: m.label, presentation: m.presentation } });
+        }
+      } catch (e) {}
+      return { ok: missing.length === 0, missing, probes }
         }
         _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => ({ setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } }), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }) })
       } catch (e) {
-        // ���ף���С������explicit �� matches������ preflight/skill
+        // 兜底：最小二联（explicit → matches）不含 preflight/skill
         _detectionService = {
           detect: async (handle, opts) => {
             const plat = await getPlatform()
@@ -255,35 +255,32 @@ export default {
       return _detectionService
     }
 
-    let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6��#2 MVP����probe since ʱ������� repoKey ���루ֻ�� probe ��⵽ change ʱ�ƽ���build ���ö��� ���� ������̵�ͬ���ڱ༭���� buildSnapshot ��ע�ͣ�
-    let lastIssueIndexByRepo = {}                          // #2 deletion fix�������ϴ�ȫ�� issue ���������ڷ��� GitHub ɾ��/״̬��ʧ
-    let pendingIssuePathEvents = []                       // issuePath — 1A+1B · runGh + wf.claim -> client via wf.issuePathPoll (cap 100)
-    // #211 host watcher A (0-2s structured second rename, pinned)
-    let newSessionWatchers = new Map()
-    function cleanWatcher(sid){ const w=newSessionWatchers.get(sid); if(w&&w.timer) try{clearTimeout(w.timer)}catch(e){} newSessionWatchers.delete(sid) }
+    let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；build 不得动它 —— 否则会吞掉同窗口编辑，见 buildSnapshot 处注释）
+    let lastIssueIndexByRepo = {}                          // #2 deletion fix：保存上次全量 issue 索引，用于发现 GitHub 删除/状态消失
+    let pendingIssuePathEvents = []                       // issuePath · 1A+1B 检测队列（runGh 白名单 + wf.claim），client via wf.issuePathPoll 拉取，cap 100
 
-    // ============ gh ��װ ============
-    // #195 �޸���resolveGh ���ٻ���ʧ�ܣ�ghLastError �����һ��ʧ�ܣ������޸����´�̽�⼴�ָ���
+    // ============ gh 封装 ============
+    // #195 修复：resolveGh 不再缓存失败（ghLastError 仅最近一次失败，环境修复后下次探测即恢复）
     async function resolveGh() {
       if (ghPath) return ghPath
       const platform = await getPlatform()
       try {
         const p = await platform.resolveExecutable('gh')
         if (p) { ghPath = p; ghLastError = null; return ghPath }
-        ghLastError = 'gh �����ã�PATH �� gh���� DSH_GH_PATH δ���ã��ٷ���װ����� https://cli.github.com/��'
+        ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
         return null
       } catch (e) {
         const fb = platform.env.get('DSH_GH_PATH') || ''
-        if (!fb) { ghLastError = 'gh �����ã�PATH �� gh���� DSH_GH_PATH δ���ã��ٷ���װ����� https://cli.github.com/��'; return null }
+        if (!fb) { ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'; return null }
         try {
           const info = await platform.fs.lstat(fb)
           if (info) { ghPath = fb; ghLastError = null; return ghPath }
         } catch (e2) {}
-        ghLastError = 'gh �����ã�PATH �� gh���� DSH_GH_PATH δ���ã��ٷ���װ����� https://cli.github.com/��'
+        ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
         return null
       }
     }
-    // #195 �޸���force ̽��·���� resetGhCache ��ճɹ����棬ǿ���´� resolveGh ��̽
+    // #195 修复：force 探测路径调 resetGhCache 清空成功缓存，强制下次 resolveGh 重探
     function resetGhCache() { ghPath = null; ghLastError = null }
 
     async function runGh(args, cwd) {
@@ -321,7 +318,7 @@ export default {
         else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400) }
       }
-      // issuePath �� 1A��runGh ��������⣨���ɹ�·����ʧ�ܲ���·����Ⱦ��--add-assignee Ϊ claim ͨ�������� wf.claim ���� source='claim'��
+      // issuePath · 1A：runGh 白名单检测（仅成功路径；失败不记路径污染；--add-assignee 为 claim 通道，交由 wf.claim 推送 source='claim'）
       try {
         const a = Array.isArray(args) ? args : []
         if (a.length >= 2 && a[0] === 'issue' && /^(edit|close|comment|reopen)$/.test(String(a[1]))) {
@@ -332,11 +329,11 @@ export default {
             if (hit) pushIssuePathEvent(hit, 'gh-edit')
           }
         }
-      } catch (e) { /* ���ʧ�ܲ�Ӱ�������� */ }
+      } catch (e) { /* 检测失败不影响主流程 */ }
       return { ok: true, text: out.text || '' }
     }
 
-    // ͨ�ý���ִ�У�#344 ǰ�ü���ã�git / cmd �ȣ����� shell�����󲻹�һ����
+    // 通用进程执行（#344 前置检查用：git / cmd 等，不经 shell，错误不归一化）
     async function execProc(argv, cwd) {
       let handle
       try {
@@ -370,13 +367,13 @@ export default {
       return platform.resolveExecutable('git')
     }
 
-    // �û���Ŀ¼��#171 ��Ǩ platform.getHome��ԭ cmd.exe ̽��� win32 ��Ч����ƽ̨��ͳһ��
+    // 用户主目录（#171 已迁 platform.getHome；原 cmd.exe 探测仅 win32 生效，现平台层统一）
     async function getHome() {
       const platform = await getPlatform()
       return platform.getHome()
     }
 
-    // ============ issuePath �� 1A\+1B �¼����� ============
+    // ============ issuePath · 1A\+1B 事件队列 ============
     function pushIssuePathEvent(ref, source, title) {
       const n = Number(ref)
       if (!n || isNaN(n)) return
@@ -384,10 +381,10 @@ export default {
       if (pendingIssuePathEvents.length > 100) pendingIssuePathEvents.shift()
     }
 
-    // ============ v1.5 T9��git ����� + ���̻��棨�������뿪��============
-    // git rev-parse --show-toplevel ��������Ҹ���Ƕ�ײֿ⣨��Ŀ¼������ .git��git ԭ��ͣ������� ���� �����û�Ҫ��
-    let repoRoots = {}           // ��·���� cwd ����
-    let cacheDirResolved = null  // ����Ŀ¼�����Խ�����
+    // ============ v1.5 T9：git 根检测 + 磁盘缓存（跨重启秒开）============
+    // git rev-parse --show-toplevel 层层上溯找根；嵌套仓库（子目录含独立 .git）git 原生停在最近根 —— 符合用户要求
+    let repoRoots = {}           // 根路径按 cwd 缓存
+    let cacheDirResolved = null  // 缓存目录（惰性解析）
     async function getRepoRoot(cwd) {
       const key = cwd || DEFAULT_CWD
       if (repoRoots[key] !== undefined) return repoRoots[key]
@@ -400,15 +397,15 @@ export default {
       }
       return repoRoots[key]
     }
-    // ����Ŀ¼��<DSH ���� cwd>/.dsh-mattskillsdeck-cache/��T9 �޸���fs ɳ�� workspace-write ֻ���� cwd �£�
-    //   ~/.dsh ��ɳ���ⱻ�� �� ��������д�룻���� process.cwd() ��㣬�������뿪��v1.6.17 ���� waystation �� MattSkillsDeck��
+    // 缓存目录：<DSH 进程 cwd>/.dsh-mattskillsdeck-cache/（T9 修复：fs 沙箱 workspace-write 只允许 cwd 下，
+    //   ~/.dsh 在沙箱外被拒 → 缓存永不写入；改用 process.cwd() 落点，跨重启秒开；v1.6.17 更名 waystation → MattSkillsDeck）
     async function getCacheDir() {
       if (cacheDirResolved) return cacheDirResolved
       const platform = await getPlatform()
       const cwd0 = (typeof process !== 'undefined' && process.cwd) ? process.cwd() : DEFAULT_CWD
       if (!cwd0) return null
       cacheDirResolved = platform.path.join(cwd0, '.dsh-mattskillsdeck-cache')
-      try { const pfs = platform.fs; if (pfs !== undefined && typeof pfs.mkdir === 'function') await pfs.mkdir(cacheDirResolved) } catch (e) { /* �Ѵ��ڻ򲻿ɽ���writeText ���Խ� */ }
+      try { const pfs = platform.fs; if (pfs !== undefined && typeof pfs.mkdir === 'function') await pfs.mkdir(cacheDirResolved) } catch (e) { /* 已存在或不可建，writeText 会自建 */ }
       return cacheDirResolved
     }
     function cacheFileName(repo) {
@@ -432,23 +429,23 @@ export default {
         if (fs === undefined || typeof fs.writeText !== 'function' || typeof fs.resolve !== 'function') return
         const dir = await getCacheDir(); if (!dir) return
         const fn = cacheFileName(repo); if (!fn) return
-        // T9 �޸���fs ����� writeText Ҫ�� resolve() ���ص� target ����{targetKey,displayPath}��������ֱ�Ӵ�·���ַ���
+        // T9 修复：fs 服务的 writeText 要求 resolve() 返回的 target 对象（{targetKey,displayPath}），不能直接传路径字符串
         const platform = await getPlatform()
         const t = await platform.fs.resolve(platform.path.join(dir, fn))
         await fs.writeText(t, JSON.stringify(snap))
-      } catch (e) { /* дʧ�ܲ�Ӱ�������� */ }
+      } catch (e) { /* 写失败不影响主流程 */ }
     }
 
     async function getRepoKey(cwd) {
       const key = cwd || DEFAULT_CWD
       if (repoKeys[key]) return repoKeys[key]
-      // v1.5 T11��map#37 �� #38 R1 + #40 R2 ���룩��
-      //   ��Զ���� gh ��ѡ upstream��context/remote.go::remoteNameSortScore upstream(3)>github(2)>origin(1)����
-      //   �޲� `gh repo view` ��Զ����ԭ���ߡ���Ϊ����ʽ `git remote get-url origin` + parseGithubRepo ��ѡ��
-      //   ʧ���� .git/config ֱ�������ײ��� gh repo view��ͬ checkRepo ���÷���ͬԴ����
+      // v1.5 T11（map#37 · #38 R1 + #40 R2 输入）：
+      //   多远程下 gh 必选 upstream（context/remote.go::remoteNameSortScore upstream(3)>github(2)>origin(1)），
+      //   无参 `gh repo view` 永远返回原作者。改为：显式 `git remote get-url origin` + parseGithubRepo 首选，
+      //   失败再 .git/config 直读，兜底才用 gh repo view（同 checkRepo 已用方案同源）。
       const root = await getRepoRoot(key)
       const execCwd = root || key
-      // Tier 1��git remote get-url origin + parseGithubRepo��SSH/HTTPS ���� parseRegex ���ǣ�
+      // Tier 1：git remote get-url origin + parseGithubRepo（SSH/HTTPS 都由 parseRegex 覆盖）
       const git = await resolveGit()
       if (git) {
         const r = await execProc([git, '-C', execCwd, 'remote', 'get-url', 'origin'], execCwd)
@@ -457,7 +454,7 @@ export default {
           if (k) { repoKeys[key] = k; return k }
         }
       }
-      // Tier 2��.git/config ֱ�� origin��git �����Ʋ����� / `remote get-url` ʧ��ʱ��
+      // Tier 2：.git/config 直读 origin（git 二进制不可用 / `remote get-url` 失败时）
       if (fs !== undefined) {
         try {
           const t = await fs.resolve('.git/config', { cwd: execCwd })
@@ -467,9 +464,9 @@ export default {
             const k = parseGithubRepo(um[1])
             if (k) { repoKeys[key] = k; return k }
           }
-        } catch (e) { /* �� Tier 3 */ }
+        } catch (e) { /* 落 Tier 3 */ }
       }
-      // Tier 3��gh repo view ���ף��� GitHub �ֿ� / ��Ե��������������ݣ�
+      // Tier 3：gh repo view 兜底（非 GitHub 仓库 / 边缘情况；保持向后兼容）
       const r = await runGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], execCwd)
       if (!r.ok) return null
       const s = r.text.trim()
@@ -479,9 +476,9 @@ export default {
       return repoKeys[key]
     }
 
-    // ============ ������ ============
-    // T16������Ԥ���� ���� �� BOM + ���� \n ��ԭΪ��ʵ���У���ʷ����ʽ body Ҳ�ܽ�����
-    //   ������������ʵ���м��ٶ����� \n �������ڣ���ƪ��ѹ��һ�У�������������������
+    // ============ 数据流 ============
+    // T16：正文预处理 —— 剥 BOM + 字面 \n 还原为真实换行（历史坏格式 body 也能解析）
+    //   触发条件：真实换行极少而字面 \n 大量存在（整篇被压成一行）；避免误伤正常正文
     function normalizeBody(raw) {
       let s = String(raw || '').replace(/^\uFEFF/, '')
       const realNL = (s.match(/\n/g) || []).length
@@ -507,7 +504,7 @@ export default {
       out.notes = clean(sec['Notes']).join(' ')
       out.decisions = clean(sec['Decisions so far']).filter(function (l) { return l.indexOf('- [') === 0 }).map(function (l) {
         const t = l.match(/\[(.+?)\]\((.+?)\)/)
-        const g = l.replace(/^-\s*\[.+?\]\(.+?\)\s*[-�C��]?\s*/, '')
+        const g = l.replace(/^-\s*\[.+?\]\(.+?\)\s*[-–—]?\s*/, '')
         return { title: t ? t[1] : l, url: t ? t[2] : '', gist: g }
       })
       out.fog = clean(sec['Not yet specified']).filter(function (l) { return l.indexOf('<!--') !== 0 })
@@ -515,21 +512,21 @@ export default {
       return out
     }
 
-    // v1.5 T12 �޶���B4�������ȿ��������ê�� ���� ������ = ��Լ�̶��½ڡ�## ���ȣ�N%������ê�������У�������ʾ��/�����ı��ٳ֣�#459/#460 ʵ֤��
-    //   1) �����У�## ���ȣ�90%������ markdown ���� �� ���������Σ�
-    //   2) ���ױ��壺���ȣ�90% / Progress: 90%���ޱ������ �� ����ע�ͳ�ŵ��
-    //   3) ȫ�Ķ��ף�������֣�������Ʊ���ָ�ʽ �� ����󲻽ٳ�ǰ���㣩
+    // v1.5 T12 修订（B4）：进度块解析三级锚定 —— 进度区 = 契约固定章节「## 进度：N%」，先锚定标题行，防正文示例/规则文本劫持（#459/#460 实证）
+    //   1) 标题行：## 进度：90%（行首 markdown 标题 · 进度区正形）
+    //   2) 行首变体：进度：90% / Progress: 90%（无标题符号 · 兑现注释承诺）
+    //   3) 全文兜底：任意出现（兼容老票随手格式 · 放最后不劫持前两层）
     function parseProgress(body) {
-  if (!body) return null
-  const s = String(body)
-  const m = s.match(/^\s*#{1,6}\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
-    || s.match(/^\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
-    || s.match(/(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/i)
-  if (!m) return null
-  const n = parseInt(m[1], 10)
-  if (isNaN(n)) return null
-  return Math.max(0, Math.min(100, n))
-}
+      if (!body) return null
+      const s = String(body)
+      const m = s.match(/^\s*#{1,6}\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
+        || s.match(/^\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
+        || s.match(/(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/i)
+      if (!m) return null
+      const n = parseInt(m[1], 10)
+      if (isNaN(n)) return null
+      return Math.max(0, Math.min(100, n))
+    }
 
     function mapTicket(raw) {
       const labels = ((raw.labels && raw.labels.nodes) || []).map(function (x) { return x.name })
@@ -545,14 +542,14 @@ export default {
         blockedBy: ((raw.blockedBy && raw.blockedBy.nodes) || []).map(function (b) { return b.number }),
         blocks: ((raw.blocking && raw.blocking.nodes) || []).map(function (b) { return b.number }),
         labels: labels, url: raw.url,
-        progress: parseProgress(raw.body),  // v1.5 T12��issue ���Ľ��ȿ飨## ���ȣ�N%����null = δ���
+        progress: parseProgress(raw.body),  // v1.5 T12：issue 正文进度块（## 进度：N%），null = 未表达
       }
     }
 
-    // v1.4��T1 #442����blockedBy DAG �·����ȷֲ�
-    //   level(root) = 0������������level(x) = 1 + max(level(����ֱ��������))
-    //   ͬ�� = ���������� �� �ɲ��У���� = ���봮�У��ϲ�ȫ closed �Ž�����
-    //   ���� { byNumber: {n: level}, levels: [{level, open, closed, total, frontier, claimed, blocked, numbers:[]}] }
+    // v1.4（T1 #442）：blockedBy DAG 最长路径深度分层
+    //   level(root) = 0（无依赖）；level(x) = 1 + max(level(所有直接阻塞者))
+    //   同层 = 无依赖互斥 → 可并行；层间 = 必须串行（上层全 closed 才解锁）
+    //   返回 { byNumber: {n: level}, levels: [{level, open, closed, total, frontier, claimed, blocked, numbers:[]}] }
     function computeLevels(tickets) {
       const byNum = {}
       tickets.forEach(function (t) { byNum[t.number] = t })
@@ -578,7 +575,7 @@ export default {
         if (t.state === 'CLOSED') layer.closed++
         else layer.open++
       })
-      // ����״̬ϸ�֣�frontier/claimed/blocked ��㣩
+      // 层内状态细分（frontier/claimed/blocked 归层）
       const openBlocker = function (b) { const t = byNum[b]; return t !== undefined && t.state === 'OPEN' }
       levels.forEach(function (layer) {
         const openT = tickets.filter(function (t) { return byNumber[t.number] === layer.level && t.state === 'OPEN' })
@@ -586,7 +583,7 @@ export default {
         layer.claimed = openT.filter(function (t) { return t.claimedBy }).length
         layer.blocked = openT.filter(function (t) { return !t.claimedBy && t.blockedBy.some(openBlocker) }).length
       })
-      // �޳��ն���levels ����������������� undefined��
+      // 剔除空洞（levels 数组可能因跳级出现 undefined）
       const compact = levels.filter(Boolean)
       return { byNumber: byNumber, levels: compact }
     }
@@ -600,7 +597,7 @@ export default {
       const frontier = open.filter(function (t) { return !t.claimedBy && !t.blockedBy.some(openBlocker) })
       const claimed = open.filter(function (t) { return t.claimedBy })
       const blocked = open.filter(function (t) { return !t.claimedBy && t.blockedBy.some(openBlocker) })
-      // v1.4��T1 #442������ DAG �ֲ㣨client ��Ⱦ©���ֲ��ã�
+      // v1.4（T1 #442）：附 DAG 分层（client 渲染漏斗分层用）
       const lv = computeLevels(tickets)
       return {
         total: tickets.length, open: open.length, closed: closed.length,
@@ -610,7 +607,7 @@ export default {
     }
 
     async function fetchMaps(cwd) {
-      // #44 T2-fix��map#37������ʽ --repo �ƹ� gh �� Fork �ϵĶ�Զ���ƶϣ�upstream ���ȣ�
+      // #44 T2-fix（map#37）：显式 --repo 绕过 gh 在 Fork 上的多远程推断（upstream 优先）
       const repo = await getRepoKey(cwd)
       const argsMap = ['issue', 'list', '--state', 'open', '--label', 'wayfinder:map', '--json', 'number,title,body,labels,assignees,state,updatedAt']
       if (repo) argsMap.push('--repo', repo.owner + '/' + repo.name)
@@ -619,12 +616,12 @@ export default {
       try { return { ok: true, maps: JSON.parse(r.text) } } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
     }
 
-    // ȫ�� issue��open + closed��Client �б� open ���ԡ��ײ����ѹرա��۵��У���
-    // �� updatedAt ����labels �� name + color��GitHub ����ɫ����state ���� open/closed��
-    // v18��assignees ������״̬����ռ�á����б� issue �ھ��������� + ��������
+    // 全部 issue（open + closed，Client 列表 open 常显、底部「已关闭」折叠行），
+    // 按 updatedAt 倒序；labels 带 name + color（GitHub 配置色）；state 区分 open/closed；
+    // v18：assignees 带出（状态栏「占用」按列表 issue 口径：已认领 + 被阻塞）
     async function fetchIssues(cwd) {
-      // #374/#375��--limit 500 ���ǲֿ�ȫ����2026-08-14 ʵ�� 349 issue���������� createdAt������ά�ȣ�
-      // #44 T2-fix��map#37������ʽ --repo �ƹ� gh ��Զ���ƶϣ�ͬ fetchMaps
+      // #374/#375：--limit 500 覆盖仓库全量（2026-08-14 实测 349 issue），并带出 createdAt（排序维度）
+      // #44 T2-fix（map#37）：显式 --repo 绕过 gh 多远程推断，同 fetchMaps
       const repo2 = await getRepoKey(cwd)
       const argsAll = ['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,title,labels,state,assignees,updatedAt,createdAt']
       if (repo2) argsAll.push('--repo', repo2.owner + '/' + repo2.name)
@@ -648,10 +645,10 @@ export default {
       } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
     }
 
-    // #2 deletion fix������ȫ���������ڷ���ɾ�����رպ��ؿ���
+    // #2 deletion fix：轻量全量索引用于发现删除、关闭和重开。
     async function fetchIssueIndex(cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: '�޷����� owner/repo' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
       const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100'
       const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd)
       if (!r.ok) return { ok: false, error: r }
@@ -694,63 +691,20 @@ export default {
       } catch (e) { return null }
     }
     const adoptSnapshot = function (snap, cwd) {
-      setCacheByCwd(cwd,{snapshot:snap, version:snap.version||'', ts:Date.now(), error:null})
+      cache = { ts: Date.now(), snapshot: snap, error: null, cwd: cwd }
       if (snap && snap.repo) rememberIssueIndex(snap.repo, issueIndexFromSnapshot(snap))
       return snap
     }
-    let pendingByCwd = new Map()
-    async function ensureSnapshot(cwdRaw, opts){
-      opts=opts||{};
-      const cwd = await normCwd(cwdRaw);
-      const k = normKey(cwd);
-      const defNorm = normKey(DEFAULT_CWD);
-      if((!cwdRaw || k===defNorm) && cwd===defNorm){
-        try{ const rr=await getRepoRoot(cwd); if(!rr) return {ok:false, error:'not a git repository (DEFAULT_CWD not gitRoot)', kind:'env', notGitRoot:true}; }catch(e){}
-      }
-      const cached = cacheMap.get(k);
-      if(opts.ifNoneMatch && cached && cached.version && cached.version===opts.ifNoneMatch){
-        return {ok:true, notModified:true, status:304, version:cached.version, snapshot:cached.snapshot, ts:cached.ts};
-      }
-      if(pendingByCwd.has(k)) return pendingByCwd.get(k).promise;
-      let controller=null; try{ controller=typeof AbortController!=='undefined'?new AbortController():{signal:{aborted:false}, abort(){this.signal.aborted=true}}; }catch(e){ controller={signal:{aborted:false}, abort(){}}; }
-      let timerId=null;
-      const p=(async()=>{
-        try{
-          const timeout = new Promise((_,rej)=>{ timerId=setTimeout(()=>{ try{controller.abort();}catch{}; rej(new Error('ensureSnapshot timeout 30s')); },30000); });
-          const work=(async()=>{
-            if(controller.signal.aborted) throw new Error('aborted');
-            const snap=await buildSnapshot(cwd);
-            if(!snap||snap.ok!==true) throw new Error((snap&&snap.error)||'build failed');
-            try{ const v=snapshotVersionOf(snap); snap.version=v; snap.etag=v; }catch{}
-            if(opts.ifNoneMatch && snap.version===opts.ifNoneMatch) return {ok:true, notModified:true, status:304, version:snap.version, snapshot:snap};
-            setCacheByCwd(cwd,{snapshot:snap, version:snap.version||'', ts:Date.now(), error:null});
-            try{ await writeDiskCache(snap.repo, snap); }catch{}
-            return {ok:true, snapshot:snap, version:snap.version, status:200};
-          })();
-          const res=await Promise.race([work, timeout]);
-          return res;
-        }catch(e){
-          const old=cacheMap.get(k);
-          return {ok:false, error:String((e&&e.message)||e), snapshot: old?old.snapshot:null, version: old?old.version:null};
-        }finally{
-          if(timerId) clearTimeout(timerId);
-          pendingByCwd.delete(k);
-        }
-      })();
-      pendingByCwd.set(k,{promise:p, controller:controller});
-      return p;
-    }
 
 
-
-    // v1.5 B5�����ֹѪ �� ��һ��ԭ�����GraphQL ���ľ�ʱ�� REST ����ͨ�� ����
-    //   GraphQL �����ӶȼƵ㣨5000 ��/h��aliases ���ѯһ�ο����ٵ㣩��REST ������ƴ�
-    //   ��5000 ��/h���븴�Ӷ��޹أ������ľ�ʱ GraphQL ȫ�ң�REST �Կ��� �� ��岻�հס�
-    //   �� map��issue ���� + sub_issues + ÿ��Ʊ blocked_by��client ֻ���� blockedBy��
-    //   blocking ����װʡһ�����󣩣������ GraphQL ͬ���� { 'm<i>': {...} }������ mapTicket ��Ķ���
+    // v1.5 B5（配额止血 · 第一性原理）：GraphQL 配额耗尽时的 REST 降级通道 ——
+    //   GraphQL 按复杂度计点（5000 点/h，aliases 大查询一次可数百点），REST 按请求计次
+    //   （5000 次/h，与复杂度无关）。配额耗尽时 GraphQL 全挂，REST 仍可用 → 面板不空白。
+    //   逐 map：issue 详情 + sub_issues + 每子票 blocked_by（client 只消费 blockedBy，
+    //   blocking 不组装省一半请求）；输出与 GraphQL 同构的 { 'm<i>': {...} }，下游 mapTicket 零改动。
     async function fetchMapsDetailREST(numbers, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: '�޷����� owner/repo' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
       if (!numbers || !numbers.length) return { ok: true, issues: {} }
       const issues = {}
       for (let i = 0; i < numbers.length; i++) {
@@ -768,7 +722,7 @@ export default {
             try {
               const bb = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + s.number + '/dependencies/blocked_by'], cwd)
               if (bb.ok) blockedBy = (JSON.parse(bb.text) || []).map(function (x) { return x.number })
-            } catch (e2) { /* ������ѯʧ�ܸ�Ʊ blockedBy �ÿգ����������� */ }
+            } catch (e2) { /* 依赖查询失败该票 blockedBy 置空，不阻塞整体 */ }
             nodes.push({
               number: s.number, title: s.title, state: (s.state === 'closed' ? 'CLOSED' : 'OPEN'),
               body: s.body || '', url: s.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + s.number),
@@ -794,13 +748,13 @@ export default {
     }
 
 
-    // v1.3.3 ���٣�GraphQL aliases һ�β�ѯȫ�� map ���飨8 �� �� 1 �Σ�Windows �´��� 8��2.4s �� ���� ~3.6s��
-    //   ÿ�� map һ�� alias��m0/m1/...������Ӧ�� alias ȡ��������ʧ���������� 1 ��
+    // v1.3.3 提速：GraphQL aliases 一次查询全部 map 详情（8 次 → 1 次，Windows 下串行 8×2.4s → 单次 ~3.6s）
+    //   每个 map 一个 alias（m0/m1/...），响应按 alias 取；网络类失败整批重试 1 次
     async function fetchMapsDetail(numbers, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: '�޷����� owner/repo��git remote �� gh repo view ʧ�ܣ�' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
       if (!numbers || !numbers.length) return { ok: true, issues: {} }
-      // ���� aliases ��ѯ��query($owner:String!,$name:String!){repository(...){m0:issue(number:409){...} m1:issue(...){...}}}
+      // 构造 aliases 查询：query($owner:String!,$name:String!){repository(...){m0:issue(number:409){...} m1:issue(...){...}}}
       const frag = 'number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}}}}'
       const sel = numbers.map(function (n, i) { return 'm' + i + ':issue(number:' + n + '){' + frag + '}' }).join(' ')
       const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){' + sel + '}}'
@@ -809,7 +763,7 @@ export default {
         const r = await runGh(['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name], cwd)
         if (!r.ok) {
           last = r
-          // v1.5 B5��GraphQL ���ľ���RATE_LIMIT���� �Զ����� REST ͨ���������� 2 �ΰ��գ�ֱ�ӽ�����
+          // v1.5 B5：GraphQL 配额耗尽（RATE_LIMIT）→ 自动降级 REST 通道（不重试 2 次白烧，直接降级）
           if (isRateLimitError(r)) return fetchMapsDetailREST(numbers, cwd)
           if (r.kind !== 'network') return { ok: false, error: r }
           continue
@@ -817,23 +771,23 @@ export default {
         try {
           const j = JSON.parse(r.text)
           if (j.errors) {
-            // v1.5 B5��GraphQL ���� errors���� RATE_LIMIT���� REST ����
+            // v1.5 B5：GraphQL 返回 errors（含 RATE_LIMIT）→ REST 降级
             if (isRateLimitError({ error: JSON.stringify(j.errors) })) return fetchMapsDetailREST(numbers, cwd)
             return { ok: false, error: { kind: 'graphql', error: JSON.stringify(j.errors).slice(0, 300) } }
           }
           return { ok: true, issues: j.data.repository }
         } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
       }
-      return { ok: false, error: last || { kind: 'network', error: 'GraphQL aliases ����ʧ�ܣ����Ժ���ʧ�ܣ�' } }
+      return { ok: false, error: last || { kind: 'network', error: 'GraphQL aliases 请求失败（重试后仍失败）' } }
     }
 
-    // T2 #7 �� fetchIssueDetail �� issue ����ͨ·������ fetchMapsDetail ˼·����������/�� issue ���ϲ� aliases��
-    // GraphQL �ֶΰ� T2 ��Լ��number title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}}
-    // ���ֹѪ��GraphQL �����ӶȼƵ�ʧ�� �� RATE_LIMIT ������� REST ���ף�REST ������ʧ���ÿգ����岻��
-    // ������״�� fetchMapsDetail ���� {ok,error,issue?}��kind ϸ�� env|parse|graphql|network|rateLimit|notFound|404
+    // T2 #7 · fetchIssueDetail 单 issue 数据通路（复用 fetchMapsDetail 思路，独立别名/单 issue 不合并 aliases）
+    // GraphQL 字段按 T2 契约：number title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}}
+    // 配额止血：GraphQL 按复杂度计点失败 → RATE_LIMIT 鉴别后切 REST 兜底；REST 逐请求失败置空，整体不崩
+    // 错误形状与 fetchMapsDetail 对齐 {ok,error,issue?}；kind 细化 env|parse|graphql|network|rateLimit|notFound|404
     async function fetchIssueDetailREST(n, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: '�޷����� owner/repo��git remote �� gh repo view ʧ�ܣ�' } }
+      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
       try {
         const r = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n], cwd)
         if (!r.ok) {
@@ -886,8 +840,8 @@ export default {
 
     async function fetchIssueDetail(n, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: '�޷����� owner/repo��git remote �� gh repo view ʧ�ܣ�' } }
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'ȱ�� number' } }
+      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
       const frag = 'number title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}} blocking(first:20){nodes{number title state}}'
       const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issue(number:' + n + '){' + frag + '}}}'
       let last = null
@@ -912,18 +866,18 @@ export default {
           return { ok: true, issue: issue }
         } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
       }
-      return { ok: false, error: last || { kind: 'network', message: 'GraphQL �� issue ����ʧ�ܣ����Ժ���ʧ�ܣ�' } }
+      return { ok: false, error: last || { kind: 'network', message: 'GraphQL 单 issue 请求失败（重试后仍失败）' } }
     }
 
     async function buildSnapshot(cwd) {
       const repo = await getRepoKey(cwd)
-      // v1.3.3 ���٣�map �б�ֱ�Ӵ�ȫ�� issues ���ˣ�fetchMaps ��������ʡȥ ���� ԭ 11 �� �� 9 �� gh ���ã�
+      // v1.3.3 提速：map 列表直接从全量 issues 过滤（fetchMaps 单独调用省去 —— 原 11 次 → 9 次 gh 调用）
       const fi = await fetchIssues(cwd)
       const issues = fi.ok ? fi.issues : []
       const mapsMeta = fi.ok ? fi.issues.filter(function (x) {
         return x.state === 'OPEN' && (x.labels || []).some(function (l) { return l.name === 'wayfinder:map' })
       }) : []
-      // #375��ȫ�� label �б������ label����ȡʧ���ݴ��ÿգ����������չ�����client ������
+      // #375：全量 label 列表（含空 label；获取失败容错置空，不阻塞快照构建，client 降级）
       let labels = []
       const fl = await runGh(['label', 'list', '--json', 'name,color'], cwd)
       if (fl.ok) {
@@ -932,7 +886,7 @@ export default {
           if (Array.isArray(ls)) labels = ls.map(function (l) { return { name: l.name, color: l.color || '' } })
         } catch (e) { labels = [] }
       }
-      // v1.3.3 ���٣�GraphQL aliases һ�β�ȫ�� map ���飨ԭÿ map һ�� GraphQL��8 �δ��� ~19s �� 1 �� ~4s��
+      // v1.3.3 提速：GraphQL aliases 一次查全部 map 详情（原每 map 一次 GraphQL，8 次串行 ~19s → 1 次 ~4s）
       const d = await fetchMapsDetail(mapsMeta.map(function (m) { return m.number }), cwd)
       const detailOk = d.ok
       const maps = []
@@ -946,7 +900,7 @@ export default {
         const subs = (issue.subIssues && issue.subIssues.nodes) || []
         const tickets = subs.map(mapTicket)
         const bp = parseMapBody(issue.body)
-        // v1.4��T1 #442����ÿ��Ʊ�� level��DAG �·����ȣ���client ��Ⱦ©���ֲ�ֱ��ȡ
+        // v1.4（T1 #442）：每张票挂 level（DAG 最长路径深度），client 渲染漏斗分层直接取
         const lvInfo = computeLevels(tickets)
         tickets.forEach(function (t) { t.level = lvInfo.byNumber[t.number] })
         const stats = groupTickets(tickets)
@@ -958,24 +912,24 @@ export default {
           tickets: tickets, stats: stats,
         })
       }
-      // v1.5 R2 + R2-fix-6��#2 MVP E2E ʵ֤ 2026-08-18����probe since ����**����**�� buildSnapshot ���ʼ��/�ƽ���
-      //   ԭʵ�֡�buildSnapshot ĩβ lastProbeAtByRepo[rk]=now���и�������̬�������һ snapshot build��cache-miss/
-      //    refresh���������ĳ�α༭**֮��**����ѻ����Ƶ��༭ʱ��**֮��** �� �´� probe since=���� �鲻���ñ༭
-      //   ��count=0 �� changed=false�����һ���ֻ�� changed=true ʱ�Ż��� �� �༭��**�����̵�**��UI ����ˢ�¡�
-      //   ��ȷ���壺����ֻ���� probe �Լ��ƽ�����⵽ change ʱ��Ϊ������̽��ʱ�̡�����build ��� �� client ����Ⱦ��
-      //   ���գ���Ȩ�����ߡ��״� probe��since=undefined����Ȼ��ȫ������ �� ��Ϊ changed �� �������ߣ�����ԭע����ͼ����
-      // #155��Selection/RepositoryRef ������registry.select/describe �� wf.snapshot {repository, selection}��
+      // v1.5 R2 + R2-fix-6（#2 MVP E2E 实证 2026-08-18）：probe since 基线**不得**在 buildSnapshot 里初始化/推进。
+      //   原实现「buildSnapshot 末尾 lastProbeAtByRepo[rk]=now」有个致命竞态：面板任一 snapshot build（cache-miss/
+      //    refresh）若发生在某次编辑**之后**，会把基线推到编辑时刻**之后** → 下次 probe since=基线 查不到该编辑
+      //   （count=0 → changed=false），且基线只在 changed=true 时才滑动 → 编辑被**永久吞掉**，UI 永不刷新。
+      //   正确语义：基线只能由 probe 自己推进（检测到 change 时置为「本次探测时刻」）；build 完成 ≠ client 已渲染该
+      //   快照，无权动基线。首次 probe（since=undefined）自然走全量返回 → 视为 changed → 建立基线（符合原注释意图）。
+      // #155：Selection/RepositoryRef 增量（registry.select/describe → wf.snapshot {repository, selection}）
       let selection = null
       let repository = null
       try {
         const reg = await getTrackerRegistry()
         if (reg && typeof reg.select === 'function') {
           const handle = { cwd: cwd }
-          const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: async (cmd, args, opts) => execProc([cmd, ...args], (opts && opts.cwd) || cwd), timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} } }
-          // ������ϼ�����G5 ����ϣ����������أ������� host �ӽ� fill ͳ��
+          const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} } }
+          // 能力诊断计数（G5 仅诊断，不驱动隐藏）——按 host 视角 fill 统计
           const capCount = (function(iss){
             let present=0, emptyCnt=0, missing=0
-            // ���ף��� labels Ϊ���������ֶΰ� shape �����ֶμ�����
+            // 简易：以 labels 为例，其余字段按 shape 能力字段集计数
             const fields=['author','assignees','labels','milestone','customFields','reason','blockedBy','comments','closedAt']
             iss.forEach(function(it){
               fields.forEach(function(f){
@@ -987,49 +941,37 @@ export default {
             })
             return {present, empty: emptyCnt, missing}
           })(issues)
-          // select ������
+          // select 三级联
           const sel = await reg.select(handle, ctxSel)
           selection = sel
           if (sel && sel.backendId) {
             try { repository = reg.describe(handle, sel.backendId) } catch {}
-            // markdown ���� url Ϊ�գ�github ������ github.com url
+            // markdown 本地 url 为空，github 则尽量补 github.com url
             if (repository && !repository.url && sel.backendId==='github' && repo) {
               repository.url = 'https://github.com/' + repo.owner + '/' + repo.name
               repository.name = repo.owner + '/' + repo.name
               repository.refId = repo.owner + '/' + repo.name
             }
           } else {
-            // fallback ʱ repository �Ը�ռλ������ UI ������
+            // fallback 时 repository 仍给占位（用于 UI 泛化）
             if (repo) repository = { backend: 'github', refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: 'https://github.com/' + repo.owner + '/' + repo.name }
             else repository = null
           }
-          // ���������ҵ� snapshot �� ChecksTab ��Ͽ�
+          // 能力计数挂到 snapshot 供 ChecksTab 诊断卡
           var _capDiag = capCount
         }
-      } catch (e) { /* ���� null������������ */ }
-      let _snapVer='';
-      // #191: backendModules passthrough (presentation palette) for UI setPresentationMap
-      let backendModules = null
-      try {
-        const regM = await getTrackerRegistry()
-        if (regM && typeof regM.modules === 'function') {
-          backendModules = regM.modules().map(function (m) { return { id: m.id, label: m.label, presentation: m.presentation } })
-        }
-      } catch (e) {}
- try{ const tmpIdx={}; (issues||[]).forEach(function(it){ if(it&&it.number!=null) tmpIdx[String(it.number)]=String(it.state||'').toUpperCase()+'|'+String(it.updatedAt||''); }); _snapVer=issueIndexVersion(tmpIdx); }catch{}
+      } catch (e) { /* 保持 null，不阻塞快照 */ }
       return {
         ok: true,
-        version: _snapVer,
-        etag: _snapVer,
         repo: repo,
-        repoRoot: await getRepoRoot(cwd),  // v1.5 T9��git ��·�������ֿ��������� setup ��飩
+        repoRoot: await getRepoRoot(cwd),  // v1.5 T9：git 根路径（供仓库身份组件与 setup 检查）
         updatedAt: new Date().toISOString(),
         generatedMs: Date.now(),
         env: { ghPath: ghPath, ghError: ghLastError },
         maps: maps,
         issues: issues,
         labels: labels,
-        fallback: d.fallback || null,  // v1.5 B5��'rest' = GraphQL ���ľ��ѽ��� REST��client ����ʾ��
+        fallback: d.fallback || null,  // v1.5 B5：'rest' = GraphQL 配额耗尽已降级 REST（client 可提示）
         repository: repository,
         backendModules: backendModules,
         selection: selection,
@@ -1037,8 +979,8 @@ export default {
       }
     }
 
-    // ============ ǰ�ü�飨#344 �� wf.status��============
-    // ���� git Զ�� URL �� GitHub owner/repo���� GitHub ���� null
+    // ============ 前置检查（#344 · wf.status）============
+    // 解析 git 远程 URL → GitHub owner/repo；非 GitHub 返回 null
     function parseGithubRepo(url) {
       const s = String(url || '').trim()
       const m = s.match(/github\.com[\/:]([^\/\s]+)\/([^\/\s]+?)(?:\.git)?\s*$/)
@@ -1046,7 +988,7 @@ export default {
       return { owner: m[1], name: m[2] }
     }
 
-    // ��� 1 �� �ֿⶨλ
+    // 检查 1 · 仓库定位
     async function checkRepo(cwd, lang) {
       const git = await resolveGit()
       if (git) {
@@ -1054,14 +996,14 @@ export default {
         if (r.ok) {
           const key = parseGithubRepo(r.text)
           if (key) return { ok: true, level: 'ok', detail: key.owner + '/' + key.name, hint: '', repo: key }
-          return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + r.text.trim().slice(0, 80) : '�� git Զ�̵��� GitHub��' + r.text.trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : '��ǰԶ�̲��� GitHub', repo: null }
+          return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + r.text.trim().slice(0, 80) : '有 git 远程但非 GitHub：' + r.text.trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : '当前远程不是 GitHub', repo: null }
         }
         if (/not a git repository|does not appear to be a git repository|fatal/i.test(r.error || '')) {
-          return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Current directory is not a git repo' : '��ǰĿ¼���� git �ֿ�', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : '�� GitHub �ֿ���ʹ�ñ����', repo: null }
+          return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Current directory is not a git repo' : '当前目录不是 git 仓库', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : '在 GitHub 仓库内使用本插件', repo: null }
         }
-        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'git query failed: ' + String(r.error || '').slice(0, 120) : 'git ��ѯʧ�ܣ�' + String(r.error || '').slice(0, 120), hint: (lang === 'en') ? 'Check git and repo state' : '��� git ��ֿ�״̬', repo: null }
+        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'git query failed: ' + String(r.error || '').slice(0, 120) : 'git 查询失败：' + String(r.error || '').slice(0, 120), hint: (lang === 'en') ? 'Check git and repo state' : '检查 git 与仓库状态', repo: null }
       }
-      // ���ף����� .git/config��git ��ִ�в�����ʱ��
+      // 兜底：解析 .git/config（git 可执行不可用时）
       if (fs !== undefined) {
         try {
           const t = await fs.resolve('.git/config', { cwd: cwd })
@@ -1070,31 +1012,31 @@ export default {
           if (um) {
             const key = parseGithubRepo(um[1])
             if (key) return { ok: true, level: 'ok', detail: key.owner + '/' + key.name, hint: '', repo: key }
-            return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + um[1].trim().slice(0, 80) : '�� git Զ�̵��� GitHub��' + um[1].trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : '��ǰԶ�̲��� GitHub', repo: null }
+            return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + um[1].trim().slice(0, 80) : '有 git 远程但非 GitHub：' + um[1].trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : '当前远程不是 GitHub', repo: null }
           }
-        } catch (e) { /* �䵽�·� bad */ }
+        } catch (e) { /* 落到下方 bad */ }
       }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot locate the repo (git unavailable and no .git/config)' : '�޷���λ�ֿ⣨git ���������� .git/config��', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : '�� GitHub �ֿ���ʹ�ñ����', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot locate the repo (git unavailable and no .git/config)' : '无法定位仓库（git 不可用且无 .git/config）', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : '在 GitHub 仓库内使用本插件', repo: null }
     }
 
-    // ��� 2 �� setup ��ִ��
+    // 检查 2 · setup 已执行
     async function checkSetup(cwd, lang) {
-      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot detect' : 'fs ���񲻿��ã��޷����', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '�������� /setup-matt-pocock-skills', repo: null }
+      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot detect' : 'fs 服务不可用，无法检测', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
       try {
-        // v1.5 B1����Ϊ��� git ��Ŀ¼��⣨�Ự cwd �ڲֿ���Ŀ¼ʱ�����󱨡�û�г�ʼ������
+        // v1.5 B1：改为针对 git 根目录检测（会话 cwd 在仓库子目录时不再误报「没有初始化」）
         const root = await getRepoRoot(cwd)
         const base = root || cwd
         const info = await fs.lstat('docs/agents/issue-tracker.md', { cwd: base })
-        if (info) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md ����', hint: '', repo: null }
-      } catch (e) { /* �䵽�·� bad */ }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md missing' : 'docs/agents/issue-tracker.md ������', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '�������� /setup-matt-pocock-skills', repo: null }
+        if (info) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md 存在', hint: '', repo: null }
+      } catch (e) { /* 落到下方 bad */ }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md missing' : 'docs/agents/issue-tracker.md 不存在', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
     }
 
-    // ��� 3 �� tracker = GitHub
+    // 检查 3 · tracker = GitHub
     async function checkTracker(cwd, lang) {
-      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot determine tracker' : 'fs ���񲻿��ã��޷��ж� tracker', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '�������� /setup-matt-pocock-skills', repo: null }
+      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot determine tracker' : 'fs 服务不可用，无法判定 tracker', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
       try {
-        // #455 B1 ��ȫ���� checkSetup һ����� git ��Ŀ¼�����Ự cwd �ڲֿ���Ŀ¼ʱ���󱨡��޷���ȡ����
+        // #455 B1 补全：与 checkSetup 一致针对 git 根目录读（会话 cwd 在仓库子目录时不误报「无法读取」）
         const root = await getRepoRoot(cwd)
         const base = root || cwd
         const t = await fs.resolve('docs/agents/issue-tracker.md', { cwd: base })
@@ -1102,41 +1044,41 @@ export default {
         if (/github/i.test(txt) && /gh\s+(issue|api|auth)|GitHub Issues/i.test(txt)) {
           return { ok: true, level: 'ok', detail: 'GitHub Issues + gh CLI', hint: '', repo: null }
         }
-        return { ok: false, level: 'warn', detail: (lang === 'en') ? 'issue-tracker.md exists but is not the GitHub template' : 'issue-tracker.md ���ڵ��� GitHub ģ��', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills and pick the GitHub tracker' : '���� /setup-matt-pocock-skills ��ѡ GitHub tracker', repo: null }
+        return { ok: false, level: 'warn', detail: (lang === 'en') ? 'issue-tracker.md exists but is not the GitHub template' : 'issue-tracker.md 存在但非 GitHub 模板', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills and pick the GitHub tracker' : '运行 /setup-matt-pocock-skills 重选 GitHub tracker', repo: null }
       } catch (e) {
-        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot read issue-tracker.md' : '�޷���ȡ issue-tracker.md', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '�������� /setup-matt-pocock-skills', repo: null }
+        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot read issue-tracker.md' : '无法读取 issue-tracker.md', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
       }
     }
 
-    // ��� 4 �� gh CLI ����
+    // 检查 4 · gh CLI 可用
     async function checkGhCli(lang) {
       const exe = await resolveGh()
-      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found �� install GitHub CLI first (https://cli.github.com/)' : 'gh δ�ҵ������Ȱ�װ GitHub CLI��https://cli.github.com/��', hint: '��Ϊ DSH ��װ GitHub CLI��gh������ ��������������� gh��\n\n1. �ȼ�飺�ն�ִ�� gh --version���а汾����� �� ֱ�ӻ㱨��װ�汾����������Ҫ�ظ���װ��\n2. �� gh �� OS ��װ��Windows �� winget install --id GitHub.cli; macOS �� rew install gh; Linux �� sudo apt install gh;\n3. ��װ����֤���ؿ��ն�ʹ PATH ��Ч��gh --version ����汾�ţ�\n4. �� gh ��װ�� DSH �Ա�δ��װ���㻷����顸�ز⡹��ť������ DSH Desktop��\n5. ��ɺ�㱨��gh �汾�� + ��gh CLI ���á����ѱ��̡�', repo: null }
+      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version；有版本号输出 → 直接汇报已装版本并结束，不要重复安装；\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → rew install gh; Linux → sudo apt install gh;\n3. 安装后验证：重开终端使 PATH 生效，gh --version 输出版本号；\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重测」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。', repo: null }
       return { ok: true, level: 'ok', detail: exe, hint: '', repo: null }
     }
 
-    // ��� 5 �� gh �ѵ�¼
+    // 检查 5 · gh 已登录
     async function checkGhAuth(lang) {
       const r = await runGh(['auth', 'status'])
       if (r.ok) {
         const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]
-        return { ok: true, level: 'ok', detail: first || ((lang === 'en') ? 'Logged in' : '�ѵ�¼'), hint: '', repo: null }
+        return { ok: true, level: 'ok', detail: first || ((lang === 'en') ? 'Logged in' : '已登录'), hint: '', repo: null }
       }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not logged into GitHub: run gh auth login (browser auth; official docs in hint)' : 'δ��¼ GitHub������ gh auth login���������Ȩ���ٷ��ĵ��� hint��', hint: 'https://cli.github.com/manual/gh_auth_login', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not logged into GitHub: run gh auth login (browser auth; official docs in hint)' : '未登录 GitHub：运行 gh auth login（浏览器授权，官方文档见 hint）', hint: 'https://cli.github.com/manual/gh_auth_login', repo: null }
     }
 
-    // ��� 6 �� API �ɴ�� repo �� repos/<owner>/<name>�������� user��
+    // 检查 6 · API 可达（有 repo 用 repos/<owner>/<name>，否则退 user）
     async function checkApi(cwd, repo, lang) {
       const endpoint = repo ? ('repos/' + repo.owner + '/' + repo.name) : 'user'
       const r = await runGh(['api', endpoint], cwd)
-      if (r.ok) return { ok: true, level: 'ok', detail: 'api.github.com 200 �� ' + endpoint, hint: '', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'API request failed (' + r.kind + ')' : 'API ����ʧ�ܣ�' + r.kind + '��', hint: (lang === 'en') ? 'Check network / token scopes' : '������� / Token Ȩ��', repo: null }
+      if (r.ok) return { ok: true, level: 'ok', detail: 'api.github.com 200 · ' + endpoint, hint: '', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'API request failed (' + r.kind + ')' : 'API 请求失败（' + r.kind + '）', hint: (lang === 'en') ? 'Check network / token scopes' : '检查网络 / Token 权限', repo: null }
     }
 
-    // ��� 7/8 �� ���ܰ�װ̽�⣨#373 �İ壺��̬ ���� �Ѱ�װ/δ��װ��ȥ����ɿ��ġ����ء��ж���
-    //   ������ skills �����롸��ǰ�Ự���ء�����ͬһ�����ģ����񲻿���ʱ���󱨡�δ���ء���
+    // 检查 7/8 · 技能安装探测（#373 拍板：两态 —— 已安装/未安装；去掉不可靠的「挂载」判定：
+    //   宿主级 skills 服务与「当前会话挂载」不是同一上下文，服务不可用时会误报「未挂载」）
     const SKILL_INSTALL_URL = 'https://github.com/mattpocock/skills'
-    // v1.6�����ܰ�װ���� prompt ���ձ�� client PROMPTS ע����installSkills ��Ŀ����hint �� prompt: ����Э�飨prompt:installSkills���� client ȡ˫���ı�
+    // v1.6：技能安装引导 prompt 已收编进 client PROMPTS 注册表（installSkills 条目）；hint 用 prompt: 键名协议（prompt:installSkills）由 client 取双语文本
     async function probeSkill(name, lang) {
       let session = false
       const skills = ctx.get('skills')
@@ -1152,32 +1094,32 @@ export default {
             const probePath = await platform.path.joinHome(SKILL_PROBE_DIRS[i], name)
             const info = await platform.fs.lstat(probePath)
             if (info) { fsFound = '~/' + SKILL_PROBE_DIRS[i] + '/' + name; break }
-          } catch (e) { /* ����̽����һ��Ŀ¼ */ }
+          } catch (e) { /* 继续探测下一个目录 */ }
         }
       }
-      // ��̬��#373 ���� ��һ��Դ���� = �Ѱ�װ���� ok�������� = δ��װ���� bad + �ٷ��ֿ��ַ��
-      if (session && fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted �� ' + fsFound + ')' : '�Ѱ�װ���Ự�ѹ��� �� ' + fsFound + '��', hint: '', repo: null }
-      if (session) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted)' : '�Ѱ�װ���Ự�ѹ��أ�', hint: '', repo: null }
-      if (fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (' + fsFound + ')' : '�Ѱ�װ��' + fsFound + '��', hint: '', repo: null }
-      if (home === null) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed (cannot probe user home)' : 'δ��װ���޷�̽���û���Ŀ¼��', hint: 'prompt:installSkills', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed' : 'δ��װ', hint: 'prompt:installSkills', repo: null }
+      // 两态：#373 —— 任一来源发现 = 已安装（绿 ok）；均无 = 未安装（红 bad + 官方仓库地址）
+      if (session && fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted · ' + fsFound + ')' : '已安装（会话已挂载 · ' + fsFound + '）', hint: '', repo: null }
+      if (session) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted)' : '已安装（会话已挂载）', hint: '', repo: null }
+      if (fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (' + fsFound + ')' : '已安装（' + fsFound + '）', hint: '', repo: null }
+      if (home === null) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed (cannot probe user home)' : '未安装（无法探测用户主目录）', hint: 'prompt:installSkills', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills', repo: null }
     }
 
-    // v1.5 T11����� 9 �� ���ļ����׼��ۺϣ�ȫ���̼���ȱʧ��⣩
+    // v1.5 T11：检查 9 · 核心技能套件聚合（全流程技能缺失检测）
     async function probeSkillSuite(lang) {
       const missing = []
       for (let i = 0; i < SKILL_PROBE_NAMES.length; i++) {
         const r = await probeSkill(SKILL_PROBE_NAMES[i], lang)
         if (r.level !== 'ok') missing.push(SKILL_PROBE_NAMES[i])
       }
-      if (!missing.length) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '���ļ����׼��Ѱ�װ��' + SKILL_PROBE_NAMES.length + ' ����', hint: '', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Missing: ' + missing.join(' / ') : 'ȱʧ��' + missing.join(' / '), hint: 'prompt:installSkills', repo: null }
+      if (!missing.length) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Missing: ' + missing.join(' / ') : '缺失：' + missing.join(' / '), hint: 'prompt:installSkills', repo: null }
     }
 
     const CHECK_NAMES = function (lang) {
       return (lang === 'en')
         ? ['Repo located', 'Setup run', 'Tracker = GitHub', 'gh CLI available', 'gh logged in', 'API reachable', 'wayfinder skill', 'ask-matt skill', 'Core skill suite']
-        : ['�ֿⶨλ', 'setup ��ִ��', 'tracker = GitHub', 'gh CLI ����', 'gh �ѵ�¼', 'API �ɴ�', 'wayfinder ����', 'ask-matt ����', '���ļ����׼�']
+        : ['仓库定位', 'setup 已执行', 'tracker = GitHub', 'gh CLI 可用', 'gh 已登录', 'API 可达', 'wayfinder 技能', 'ask-matt 技能', '核心技能套件']
     }
 
     async function buildStatus(cwd, lang) {
@@ -1206,18 +1148,18 @@ export default {
       }
     }
 
-    // ============ RPC��#152 �� ̽����ţ�wf.detect �� RPC + wf.status ������������============
-    // ��һ��ԭ���ǰ��ֻ�� wf.detect/wf.status �� DetectionResult��#150 Q1����̽���� OS ֱ���� platform��
-    // per-workspace �� handleKey=cwd|refId �ڴ� Map �����̣�Q3����pending �����棨Q6����Ψһд·�� wf.bind��registry.bind��Q4��
+    // ============ RPC（#152 · 探测编排：wf.detect 新 RPC + wf.status 薄兼容派生）============
+    // 第一性原理：前端只调 wf.detect/wf.status 拿 DetectionResult（#150 Q1）；探测零 OS 直碰经 platform；
+    // per-workspace 按 handleKey=cwd|refId 内存 Map 不落盘（Q3）；pending 不缓存（Q6）；唯一写路径 wf.bind→registry.bind（Q4）
     harness.handle('wf.detect', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
-      // #195 �޸���force ̽����� gh �������棨��ʵ���״�ʧ�����û��棬force Ҳ�Ȳ�������
+      // #195 修复：force 探测清空 gh 解析缓存（旧实现首次失败永久缓存，force 也救不回来）
       if (force) resetGhCache()
       try {
         const svc = await getDetectionService()
         const res = await svc.detect({ cwd }, { force })
-        // �Կ�ʽ��ensure DetectionResult ��̬���� selection/pending/multiHit���� #125��
+        // 对抗式：ensure DetectionResult 形态（含 selection/pending/multiHit，按 #125）
         return { ok: true, ...res }
       } catch (e) {
         return { ok: false, error: String((e && e.message) || e) }
@@ -1227,10 +1169,10 @@ export default {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
       const lang = (args && args.lang === 'en') ? 'en' : 'zh'
-      // #195 �޸���force ̽����� gh �������棨��ʵ���״�ʧ�����û��棩
+      // #195 修复：force 探测清空 gh 解析缓存（旧实现首次失败永久缓存）
       if (force) resetGhCache()
       const now = Date.now()
-      // ���Ա��Ų㣺������ detectionService��Q7 DetectionResult + preflight + skillProbes �� ���� 9 checks �����ݣ�
+      // 尝试编排层：优先走 detectionService（Q7 DetectionResult + preflight + skillProbes → 派生 9 checks 薄兼容）
       try {
         const svc = await getDetectionService()
         const det = await svc.detect({ cwd }, { force })
@@ -1238,56 +1180,56 @@ export default {
         const backendId = sel && sel.backendId
         const cacheKeyOk = !force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && statusCache.backendId === (backendId || null) && now - statusCache.ts < STATUS_CACHE_MS
         if (cacheKeyOk) return statusCache.status
-        // ���� 9 checks ������ͼ��#150 Q7��checks �����ں�� deprecate���� selection Ϊ��Դ��
-        // 1) repo ��λ������ detection repoHandle + ���� git ̽�ⶵ�ף�������� checkRepo �ȼۣ�
+        // 派生 9 checks 兼容视图（#150 Q7：checks 过渡期后可 deprecate，仅 selection 为真源）
+        // 1) repo 定位（复用 detection repoHandle + 轻量 git 探测兜底，保持与旧 checkRepo 等价）
         const c1Legacy = await checkRepo(cwd, lang)
-        // 2-3) setup/tracker �� explicit ��������һ��parseIssueTracker �����š�ok������ warn���ա�bad��
+        // 2-3) setup/tracker 由 explicit 解析二合一（parseIssueTracker 高置信→ok，否则 warn；空→bad）
         const parsed = det.explicit && det.explicit.parsed
         let c2, c3
         if (parsed && parsed.explicitBackendId) {
-          c2 = { ok: true, level: 'ok', detail: (lang==='en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md ����', hint: '' }
+          c2 = { ok: true, level: 'ok', detail: (lang==='en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md 存在', hint: '' }
           const labelMap = { github: 'GitHub Issues + gh CLI', gitlab: 'GitLab Issues + glab', markdown: 'Local Markdown (.scratch)' }
           const lbl = labelMap[parsed.explicitBackendId] || parsed.explicitBackendId
           c3 = { ok: true, level: 'ok', detail: lbl, hint: '' }
         } else {
           c2 = await checkSetup(cwd, lang)
-          // ������ʽ������ selection ������ĳ��ˣ���Ϊ tracker �Ѿ�
+          // 若无显式声明但 selection 已命中某后端，视为 tracker 已决
           if (backendId) c3 = { ok: true, level: 'ok', detail: backendId, hint: '' }
           else c3 = await checkTracker(cwd, lang)
         }
-        // 4-6) gh/cli/auth/api �ۺ��� preflight�����к���ԣ�Q6����δ���� fallback ���������
+        // 4-6) gh/cli/auth/api 聚合自 preflight（命中后惰性；Q6），未命中 fallback 保留旧三项
         let c4, c5, c6
         if (det.preflight) {
           const kind = det.preflight.error && det.preflight.error.kind
           const msg = det.preflight.error && det.preflight.error.message || ''
           if (det.preflight.ok) {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : '�ѵ�¼', hint: '' }
+            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : '已登录', hint: '' }
             c6 = { ok: true, level: 'ok', detail: 'api.github.com 200', hint: '' }
           } else if (kind === 'env') {
-            // #195 �޸���hint ����Ϊ prompt:installGh���� installSkills / ghAuthGuide ͬģʽ����UI ����ť�Զ� inject
-            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found �� install GitHub CLI first (https://cli.github.com/)' : 'gh δ�ҵ������Ȱ�װ GitHub CLI��https://cli.github.com/��', hint: (det.preflight && det.preflight.prompt) ? det.preflight.prompt : '��Ϊ DSH ��װ GitHub CLI��gh������ ��������������� gh��\n\n1. �ȼ�飺�ն�ִ�� gh --version;\n2. �� gh �� OS ��װ��Windows �� winget install --id GitHub.cli; macOS �� rew install gh; Linux �� sudo apt install gh;\n3. ��װ����֤��gh --version;\n4. �� gh ��װ�� DSH �Ա�δ��װ���㡸�ز⡹������ DSH��\n5. ��ɺ�㱨��' }
-            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : 'δ��¼ GitHub������ gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
+            // #195 修复：hint 升级为 prompt:installGh（与 installSkills / ghAuthGuide 同模式），UI 主按钮自动 inject
+            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: (det.preflight && det.preflight.prompt) ? det.preflight.prompt : '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version;\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → rew install gh; Linux → sudo apt install gh;\n3. 安装后验证：gh --version;\n4. 若 gh 已装但 DSH 仍报未安装：点「重测」或重启 DSH；\n5. 完成后汇报。' }
+            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           } else if (kind === 'auth') {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : 'δ��¼ GitHub������ gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
+            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           } else {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : '�ѵ�¼', hint: '' }
+            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : '已登录', hint: '' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           }
         } else if (backendId && !det.selection.pending) {
-          // ���е� preflight ��δ������lazy δ���������˾������Ա�����
+          // 命中但 preflight 尚未产出（lazy 未调），回退旧三项以保兼容
           c4 = await checkGhCli(lang)
           c5 = await checkGhAuth(lang)
           c6 = await checkApi(cwd, c1Legacy.repo, lang)
         } else {
-          // pending/fallback �������� preflight��Q6������Ӧ�� surface Ϊ pending ����̬
+          // pending/fallback 场景不调 preflight（Q6），相应项 surface 为 pending 阻塞态
           if (sel && sel.pending) {
             const hint = 'pending:explicit-bind'
-            const pendingDetail = (lang==='en') ? 'Detecting�� pending (select a backend or retry)' : '̽��δ�� �� �ȴ�/������ʽѡ��'
+            const pendingDetail = (lang==='en') ? 'Detecting… pending (select a backend or retry)' : '探测未决 · 等待/建议显式选择'
             c4 = { ok: false, level: 'warn', detail: pendingDetail, hint }
             c5 = { ok: false, level: 'warn', detail: pendingDetail, hint }
             c6 = { ok: false, level: 'warn', detail: pendingDetail, hint }
@@ -1297,21 +1239,21 @@ export default {
             c6 = await checkApi(cwd, c1Legacy.repo, lang)
           }
         }
-        // 7-9) skill ���������� det.skillProbes����������� probeSkill��
+        // 7-9) skill 正交（复用 det.skillProbes，若无则回退 probeSkill）
         let c7, c8, c9
         if (det.skillProbes && det.skillProbes.probes) {
           const p = det.skillProbes.probes
           const toCheck = (name) => {
             const r = p[name]
-            if (!r) return { ok: false, level: 'bad', detail: (lang==='en') ? 'Not installed' : 'δ��װ', hint: 'prompt:installSkills' }
+            if (!r) return { ok: false, level: 'bad', detail: (lang==='en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills' }
             return { ok: r.level==='ok', level: r.level, detail: r.detail, hint: r.hint }
           }
           c7 = toCheck(SKILL_PROBE_NAMES[0])
-          c8 = toCheck(SKILL_PROBE_NAMES[5]) // ask-matt ��λ��#149 C8 triage��ask-matt��
-          // suite �ۺ�
+          c8 = toCheck(SKILL_PROBE_NAMES[5]) // ask-matt 正位（#149 C8 triage→ask-matt）
+          // suite 聚合
           const missing = det.skillProbes.missing || []
-          if (!missing.length) c9 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '���ļ����׼��Ѱ�װ��' + SKILL_PROBE_NAMES.length + ' ����', hint: '' }
-          else c9 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Missing: ' + missing.join(' / ') : 'ȱʧ��' + missing.join(' / '), hint: 'prompt:installSkills' }
+          if (!missing.length) c9 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '' }
+          else c9 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Missing: ' + missing.join(' / ') : '缺失：' + missing.join(' / '), hint: 'prompt:installSkills' }
         } else {
           c7 = await probeSkill(SKILL_PROBE_NAMES[0], lang)
           c8 = await probeSkill(SKILL_PROBE_NAMES[5], lang)
@@ -1319,10 +1261,10 @@ export default {
         }
         const raw = [c1Legacy, c2, c3, c4, c5, c6, c7, c8, c9]
         const checks = raw.map(function (c, i) {
-          // ���ǲ���ʾ��multiHit ͸��������ڣ�Q5��
+          // 覆盖层提示：multiHit 透传纠正入口（Q5）
           let hint = c.hint
           if (i===2 && sel && sel.multiHit) hint = (hint ? hint + ' ' : '') + 'multiHit:' + sel.multiHit.join(',')
-          if (sel && sel.pending && i>=3 && i<=5 && c.level!=='warn') { /* pending ���� 4-6 ���� */ }
+          if (sel && sel.pending && i>=3 && i<=5 && c.level!=='warn') { /* pending 已在 4-6 处理 */ }
           return { id: i + 1, name: CHECK_NAMES(lang)[i], ok: c.level === 'ok', level: c.level, detail: c.detail, hint: hint }
         })
         const status = {
@@ -1334,14 +1276,14 @@ export default {
           checks: checks,
           ready: checks.filter(function (c) { return c.ok }).length,
           total: checks.length,
-          // ���������Ų���Դ��Q7��
+          // 新增：编排层真源（Q7）
           selection: sel,
           detection: det,
         }
         statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang, backendId: backendId || null }
         return status
       } catch (e) {
-        // ����ʧ�ܻ��˾�·�������أ�
+        // 编排失败回退旧路径（保守）
       }
       if (!force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && now - statusCache.ts < STATUS_CACHE_MS) return statusCache.status
       try {
@@ -1358,11 +1300,11 @@ export default {
       return { ok: true, ts: Date.now() }
     })
 
-    // v13���� sessionId ����Ự����Ŀ¼��client �л��Ի�ʱ�ã����� sessions.meta ��Ȩ���ֶΣ�
-    // �������� client �²� ConversationSnapshot �ֶ�����
-    // ������� �� �ɶ��ı���fetchMaps/buildSnapshot �׳����� {kind, error} ����String() ��� [object Object]
+    // v13：按 sessionId 反查会话工作目录（client 切换对话时用；宿主 sessions.meta 是权威字段，
+    // 不再依赖 client 猜测 ConversationSnapshot 字段名）
+    // 错误对象 → 可读文本：fetchMaps/buildSnapshot 抛出的是 {kind, error} 对象，String() 会变 [object Object]
     const errText = function (e) {
-      if (e === undefined || e === null) return 'δ֪����'
+      if (e === undefined || e === null) return '未知错误'
       if (typeof e === 'string') return e
       if (typeof e.message === 'string') return e.message
       if (typeof e.error === 'string') return e.error
@@ -1371,12 +1313,12 @@ export default {
 
     harness.handle('wf.cwd', async function (args) {
       const sid = args && args.sessionId
-      if (!sid) return { ok: false, error: 'ȱ�� sessionId' }
+      if (!sid) return { ok: false, error: '缺少 sessionId' }
       const sessions = ctx.get('sessions')
-      if (sessions === undefined || typeof sessions.get !== 'function') return { ok: false, error: 'sessions ���񲻿���' }
+      if (sessions === undefined || typeof sessions.get !== 'function') return { ok: false, error: 'sessions 服务不可用' }
       try {
         const s = sessions.get(sid)
-        // �ִ� DSH �� Session �ṹ��header.cwd ΪȨ�������ݾ� meta / ֱ�� cwd �ֶ�
+        // 现代 DSH 的 Session 结构：header.cwd 为权威；兼容旧 meta / 直接 cwd 字段
         const header = s && (s.header || s.meta)
         const cwd = header && (header.cwd || header.path || header.worktree || header.projectDir || header.directory)
         if (typeof cwd === 'string' && cwd) return { ok: true, cwd: cwd }
@@ -1384,121 +1326,80 @@ export default {
         const cwd2 = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory)
         if (typeof cwd2 === 'string' && cwd2) return { ok: true, cwd: cwd2 }
         if (s && typeof s.cwd === 'string' && s.cwd) return { ok: true, cwd: s.cwd }
-        return { ok: false, error: '�Ự�� cwd ��Ϣ' }
+        return { ok: false, error: '会话无 cwd 信息' }
       } catch (e) {
         return { ok: false, error: errText(e) }
       }
     })
 
-    // #179 ������������ cwd �Զ� DEFAULT_CWD ����󶵵ף����⡰û�вֿ⡱�հף������ͻ����ѱ�֤ͬ sid �й������ഥ�����մ�����
+    // #179 回切自愈：空 cwd 仍兜 DEFAULT_CWD 作最后兜底（避免“没有仓库”空白），但客户端已保证同 sid 切工作区亦触发，空窗极短
     harness.handle('wf.snapshot', async function (args) {
-      const rawCwd = (args && args.cwd) || DEFAULT_CWD
-      const cwd = await normCwd(rawCwd)
-      const ifNoneMatch = args && (args.ifNoneMatch || args.version || args.etag) || null
-      const defNorm2 = normKey(DEFAULT_CWD); const curNorm2 = normKey(cwd);
-      if((!args || !args.cwd) && curNorm2===defNorm2){ try{ const rr2=await getRepoRoot(cwd); if(!rr2) return {ok:false, error:'not a git repository (DEFAULT_CWD not gitRoot)', kind:'env'}; }catch{}
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const now = Date.now()
+      if (cache.snapshot && cache.cwd === cwd) {
+        const current = await cacheSnapshotIsCurrent(cache.snapshot, cwd)
+        if (current === true || (current === null && now - cache.ts < CACHE_MS)) return cache.snapshot
       }
-      const hit = getCacheByCwd(cwd);
-      if(hit && hit.snapshot){
-        if(ifNoneMatch && hit.version && hit.version===ifNoneMatch) return {ok:true, notModified:true, status:304, version:hit.version};
-        const current = await cacheSnapshotIsCurrent(hit.snapshot, cwd);
-        if(current===true || (current===null && Date.now()-hit.ts < CACHE_MS)){
-          if(ifNoneMatch && hit.version===ifNoneMatch) return {ok:true, notModified:true, status:304, version:hit.version};
-          return hit.snapshot;
-        }
-      }
-      try{
+      try {
+        // #2 deletion fix：磁盘快照只用于秒开；命中后先校验 issue 索引，删除/状态变化时立即重建。
         const repo0 = await getRepoKey(cwd)
         const disk = await readDiskCache(repo0)
-        if(disk){
-          const currentDisk = await cacheSnapshotIsCurrent(disk, cwd)
-          if(currentDisk!==false){
-            try{ const vDisk=snapshotVersionOf(disk); disk.version=vDisk; disk.etag=vDisk; }catch{}
-            if(ifNoneMatch && disk.version===ifNoneMatch) return {ok:true, notModified:true, status:304, version:disk.version};
-            const adopted=Object.assign({},disk,{fromCache:true});
-            setCacheByCwd(cwd,{snapshot:adopted, version:disk.version||'', ts:Date.now(), error:null});
-            return adopted;
-          }
+        if (disk) {
+          const current = await cacheSnapshotIsCurrent(disk, cwd)
+          if (current !== false) return adoptSnapshot(Object.assign({}, disk, { fromCache: true }), cwd)
         }
-        const ens = await ensureSnapshot(cwd, {ifNoneMatch:ifNoneMatch});
-        if(ens && ens.notModified) return {ok:true, notModified:true, status:304, version:ens.version};
-        if(ens && ens.ok && ens.snapshot) return ens.snapshot;
-        const snap = await buildSnapshot(cwd);
-        try{ const v=snapshotVersionOf(snap); snap.version=v; snap.etag=v; }catch{}
-        if(ifNoneMatch && snap.version===ifNoneMatch) return {ok:true, notModified:true, status:304, version:snap.version};
-        setCacheByCwd(cwd,{snapshot:snap, version:snap.version||'', ts:Date.now(), error:null});
-        await writeDiskCache(snap.repo, snap);
-        return snap;
-      }catch(e){
-        const oldHit=getCacheByCwd(cwd);
-        if(oldHit && oldHit.snapshot) return {ok:false, error:errText(e), snapshot:oldHit.snapshot, version:oldHit.version, env:{ghError:ghLastError}};
-        return {ok:false, error:errText(e), env:{ghError:ghLastError}};
-      }
-    })
-    harness.handle('wf.refresh', async function (args) {
-      const rawCwd = (args && args.cwd) || DEFAULT_CWD
-      const cwd = await normCwd(rawCwd)
-      const ifNoneMatch = args && (args.ifNoneMatch || args.version) || null
-      resetGhCache()
-      try{
-        const ens = await ensureSnapshot(cwd, {ifNoneMatch:ifNoneMatch});
-        if(ens && ens.notModified) return {ok:true, notModified:true, status:304, version:ens.version};
-        if(ens && ens.ok && ens.snapshot) return ens.snapshot;
-        const snap = await buildSnapshot(cwd);
-        try{ const v=snapshotVersionOf(snap); snap.version=v; snap.etag=v; }catch{}
-        setCacheByCwd(cwd,{snapshot:snap, version:snap.version||'', ts:Date.now(), error:null});
-        await writeDiskCache(snap.repo, snap);
-        return snap;
-      }catch(e){
-        const oldHit2=getCacheByCwd(cwd);
-        if(oldHit2 && oldHit2.snapshot) return {ok:false, error:errText(e), snapshot:oldHit2.snapshot, version:oldHit2.version};
-        return {ok:false, error:errText(e)};
+        const snap = await buildSnapshot(cwd)
+        await writeDiskCache(snap.repo, snap)
+        return adoptSnapshot(snap, cwd)
+      } catch (e) {
+        cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
+        return { ok: false, error: errText(e), env: { ghError: ghLastError } }
       }
     })
 
-    // #155    // #155 + #152����˰󶨣�per-workspace ���ǣ�Ψһд·������д issue-tracker.md��+ ע����ѯ + detection ����ʧЧ
-    // #176 + #190 �޸���cwd ��һ������ֱͨ + ��Գ��� fs.resolve + home ��̽��
-    // ����workspaces ������ client runtime ��¶�� item.path ��������������� "matt-demo-markdown"����
-    // ���� wf.selection �� select() �������� markdown.matches �յ���� cwd��plat.join(cwd,...) ������ԣ�
-    // fs.resolve Ĭ�ϻ��ڽ��� cwd ����ʧ�� �� matches false �� fallback �� UI "δ��"��
-    // ��һ������ handler �յ����� cwd��markdown.matches ���� docs/agents/issue-tracker.md �� Markdown �Զ���
-    async function normCwd(raw){
-      let ret='';
-      if(!raw) ret=DEFAULT_CWD;
-      else {
-        let resolved=null;
-        try{
-          const plat=await getPlatform();
-          if(plat&&plat.path&&typeof plat.path.isAbsolute==='function'&&plat.path.isAbsolute(raw)) resolved=plat.path.normalize(raw);
-        }catch{}
-        if(resolved) ret=resolved;
-        else {
-          try{
-            const fss=ctx.get('fs');
-            if(fss&&typeof fss.resolve==='function'){
-              const t=await fss.resolve(raw);
-              const target=(t&&typeof t==='object')?(t.path||t.target):t;
-              if(typeof target==='string'&&target&&(/^[A-Za-z]:[\\/]/.test(target)||/^\//.test(target))) resolved=target;
-            }
-          }catch{}
-          if(resolved) ret=resolved;
-          else {
-            try{
-              const plat=await getPlatform();
-              const home=plat&&typeof plat.getHome==='function'?await plat.getHome():null;
-              if(home&&plat.path) ret=plat.path.join(home,raw);
-              else ret=raw;
-            }catch{ ret=raw; }
-          }
-        }
+    harness.handle('wf.refresh', async function (args) {
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
+      resetGhCache()
+      try {
+        const snap = await buildSnapshot(cwd)
+        // v1.5 T9：刷新后落盘，下次重启秒开
+        await writeDiskCache(snap.repo, snap)
+        return adoptSnapshot(snap, cwd)
+      } catch (e) {
+        cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
+        return { ok: false, error: errText(e) }
       }
+    })
+
+    // #155 + #152：后端绑定（per-workspace 覆盖，唯一写路径不回写 issue-tracker.md）+ 注册表查询 + detection 缓存失效
+    // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）
+    // 根因：workspaces 服务在 client runtime 暴露的 item.path 可能是相对名（如 "matt-demo-markdown"），
+    // 传给 wf.selection 后 select() 三级联中 markdown.matches 收到相对 cwd，plat.join(cwd,...) 仍是相对，
+    // fs.resolve 默认基于进程 cwd 解析失败 → matches false → fallback → UI "未绑定"。
+    // 归一后所有 handler 收到绝对 cwd，markdown.matches 命中 docs/agents/issue-tracker.md → Markdown 自动。
+    async function normCwd(raw){
+      if(!raw) return DEFAULT_CWD
       try{
-        const plat=await getPlatform();
-        if(plat&&plat.path&&typeof plat.path.normalize==='function') ret=plat.path.normalize(ret);
+        const plat=await getPlatform()
+        if(plat&&plat.path&&typeof plat.path.isAbsolute==='function'&&plat.path.isAbsolute(raw)) return plat.path.normalize(raw)
       }catch{}
-      try{ ret=String(ret).toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,''); }catch{}
-      if(!ret) ret=String(raw||DEFAULT_CWD).toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/')||'/';
-      return ret;
+      // 相对：DSH fs.resolve 试探（DSH 平台 fs 可能感知 workspaces 根）
+      try{
+        const fss=ctx.get('fs')
+        if(fss&&typeof fss.resolve==='function'){
+          const t=await fss.resolve(raw)
+          const target=(t&&typeof t==='object')?(t.path||t.target):t
+          if(typeof target==='string'&&target&&(/^[A-Za-z]:[\\/]/.test(target)||/^\//.test(target))) return target
+        }
+      }catch{}
+      // home 试探（windows + posix）
+      try{
+        const plat=await getPlatform()
+        const home=plat&&typeof plat.getHome==='function'?await plat.getHome():null
+        if(home&&plat.path) return plat.path.join(home,raw)
+      }catch{}
+      return raw
     }
     
     harness.handle('wf.bind', async function (args) {
@@ -1508,13 +1409,13 @@ export default {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
         const handle = { cwd: cwd }
-        // null = ��ʽ�޺�ˣ�Other �����գ���'other' �����ð� registry �ܾ�
+        // null = 显式无后端（Other 逃生舱）；'other' 已弃用按 registry 拒绝
         reg.bind(handle, backendId === undefined ? null : backendId)
-        // ʧЧ���� + ״̬ + ̽�������棨per-workspace �л�����̨��Q3��workspaceStore �ڴ浥��ʧЧ��
-        try{ const _ck2=normKey(cwd); if(cacheMap.has(_ck2)) cacheMap.delete(_ck2); else cacheMap.clear(); }catch{}; cache = { ts: 0, snapshot: null, error: null, cwd: null }
+        // 失效快照 + 状态 + 探测三缓存（per-workspace 切换不串台，Q3；workspaceStore 内存单例失效）
+        cache = { ts: 0, snapshot: null, error: null, cwd: null }
         try { statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null } } catch {}
         try { const ws = await getWorkspaceStore(); ws.invalidate(handle) } catch {}
-        try { if (_detectionService) { /* �´� detect ���� */ } } catch {}
+        try { if (_detectionService) { /* 下次 detect 重算 */ } } catch {}
         return { ok: true, cwd: cwd, backendId: backendId === undefined ? null : backendId }
       } catch (e) {
         const msg = String((e && e.message) || e)
@@ -1562,18 +1463,18 @@ export default {
     harness.handle('wf.issueDetail', async function (args) {
       const n = args && args.number
       const cwd = (args && args.cwd) || DEFAULT_CWD
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'ȱ�� number' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
       try {
         const r = await fetchIssueDetail(Number(n), cwd)
         return r
       } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
     })
-    // T5 #10 �� ���۷�ҳ�������ҳ cursor�������� client �� 600ms ���ƣ���ҳ 50��ʧ�������� 3 �ζ��ף�
+    // T5 #10 · 评论分页（反向分页 cursor，节流由 client 侧 600ms 控制；单页 50，失败重试与 3 次兜底）
     async function fetchIssueCommentsREST(n, after, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: '�޷����� owner/repo' } }
+      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo' } }
       try {
-        // REST ��ҳ��after Ϊ�Ѽ��������� "50"����page = floor(after/50)+1��GraphQL cursor �������˻�Ϊ page 2 ��
+        // REST 分页：after 为已加载数（如 "50"），page = floor(after/50)+1；GraphQL cursor 场景下退化为 page 2 起
         let page = 1
         if (after) {
           const num = Number(after)
@@ -1597,11 +1498,11 @@ export default {
     }
     async function fetchIssueComments(n, after, cwd) {
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: '�޷����� owner/repo' } }
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'ȱ�� number' } }
-      // GraphQL ���ȣ�cursor ��ҳ��
+      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
+      // GraphQL 优先（cursor 分页）
       const query = 'query($owner:String!,$name:String!,$n:Int!,$after:String){repository(owner:$owner,name:$name){issue(number:$n){comments(first:50, after:$after){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}}}}}'
-      // after Ϊ null ʱ�����ַ�����GraphQL ����Ϊ�� cursor���׶Σ����贫�ݱ��� after ���򱨴������ -F after= ֵ�������׶�
+      // after 为 null 时传空字符串，GraphQL 会视为空 cursor（首段）；需传递变量 after 否则报错，故用 -F after= 值，空则首段
       const afterVal = after || null
       for (let attempt = 0; attempt < 2; attempt++) {
         const args = ['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name, '-F', 'n=' + n]
@@ -1626,61 +1527,54 @@ export default {
           return { ok: true, nodes: com.nodes || [], pageInfo: com.pageInfo || { hasNextPage: false, endCursor: null } }
         } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
       }
-      return { ok: false, error: { kind: 'network', message: 'GraphQL ���۷�ҳ����ʧ�ܣ����Ժ���ʧ�ܣ�' } }
+      return { ok: false, error: { kind: 'network', message: 'GraphQL 评论分页请求失败（重试后仍失败）' } }
     }
     harness.handle('wf.issueComments', async function (args) {
       const n = args && args.number
       const after = args && args.after
       const cwd = (args && args.cwd) || DEFAULT_CWD
-      if (!n) return { ok: false, error: { kind: 'parse', message: 'ȱ�� number' } }
+      if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
       try {
         const r = await fetchIssueComments(Number(n), after != null ? String(after) : null, cwd)
         return r
       } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
     })
 
-    // v1.5 R2��#2 MVP����probe ���� `since` ʱ���̽��ȫ issue ��������ͼ + ��Ʊ + ��������
-    //   1 �� REST ���ø���ȫ�ֿ�仯��ԭʵ�� `labels=wayfinder:map` ��ƥ���ͼ�����
-    //   **©��������Ʊ�仯**�������ɽ�/����/������/�ѹرշ��飨DESIGN.md ��5.2��������Ʊ��
-    //   ��"�б������״̬"��since ���壺��������ǿ� = ���ϴο��������б仯 �� ��Ϊ changed��
-    //   ������� REST 5000/h �أ������� GraphQL 5000 ��/h�������մ���
+    // v1.5 R2（#2 MVP）：probe 改用 `since` 时间戳探测全 issue 增量（地图 + 子票 + 其他），
+    //   1 次 REST 调用覆盖全仓库变化。原实现 `labels=wayfinder:map` 仅匹配地图本身，
+    //   **漏检所有子票变化**——面板可接/阻塞/已认领/已关闭分组（DESIGN.md §5.2）都是子票，
+    //   故"列表不更新状态"。since 语义：返回数组非空 = 自上次快照以来有变化 → 视为 changed。
+    //   配额仍走 REST 5000/h 池（独立于 GraphQL 5000 点/h），不烧穿。
     harness.handle('wf.probe', async function (args) {
-      const rawCwd = (args && args.cwd) || DEFAULT_CWD
-      const cwd = await normCwd(rawCwd)
-      const ifNoneMatch = args && (args.ifNoneMatch || args.version || args.etag) || null
-      try{
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      try {
         const remote = await fetchIssueIndex(cwd)
-        if(!remote.ok) return {ok:false, error:errText(remote.error||'probe failed')}
-        const repo=remote.repo; const rk1=repo.owner+'/'+repo.name;
-        const vRemote = issueIndexVersion(remote.index);
-        const cached = getCacheByCwd(cwd);
-        const known = lastIssueIndexByRepo[rk1] || (cached&&cached.snapshot?issueIndexFromSnapshot(cached.snapshot):{}) || {};
-        if(ifNoneMatch && vRemote===ifNoneMatch) return {ok:true, changed:false, notModified:true, status:304, version:vRemote, repo:repo, count:remote.count, since:lastProbeAtByRepo[rk1]||null};
-        if(cached && cached.version && cached.version===vRemote) return {ok:true, changed:false, notModified:true, status:304, version:vRemote, repo:repo, count:remote.count, since:lastProbeAtByRepo[rk1]||null};
-        const changed = issueIndexChanged(known, remote.index);
-        rememberIssueIndex(repo, remote.index);
-        lastProbeAtByRepo[rk1] = new Date().toISOString();
-        if(!changed) return {ok:true, changed:false, notModified:true, status:304, version:vRemote, repo:repo, count:remote.count, since:lastProbeAtByRepo[rk1]};
-        const hit=getCacheByCwd(cwd);
-        if(hit) { hit.ts=0; }
-        if(cache && normKey(cache.cwd)===normKey(cwd)) cache.ts=0;
-        return {ok:true, changed:true, status:200, version:vRemote, repo:repo, count:remote.count, since:lastProbeAtByRepo[rk1]};
-      }catch(e){ return {ok:false, error:errText(e)}; }
+        if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe 失败') }
+        const repo = remote.repo
+        const rk1 = repo.owner + '/' + repo.name
+        const known = lastIssueIndexByRepo[rk1] || issueIndexFromSnapshot(cache.snapshot)
+        const changed = issueIndexChanged(known, remote.index)
+        rememberIssueIndex(repo, remote.index)
+        lastProbeAtByRepo[rk1] = new Date().toISOString()
+        if (changed) cache = { ts: 0, snapshot: null, error: null, cwd: cwd }  // 删除/状态变化同样失效缓存
+        return { ok: true, changed: changed, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
+      } catch (e) { return { ok: false, error: errText(e) } }
     })
-    // ============ �����ĵ���issue #12 BUG4 �� ˫�ط��� �� ��·����============
-    // DSH ɳ���� fs.stat ���ص� info.mtime ��̬���ɿأ�Date / ISO �� / �뼶 Unix / ���ػ��� / null / NaN����
-    // ԭ `typeof number ? mt : Date.parse(String(mt))` �� Date ����򲻿� parse ��̬���� NaN��
-    // ԭ sort ���� `b.mtime - a.mtime` �� mtime ���/NaN ʱ Array.sort ��Ϊ equal �� ԭ˳���� ��
-    // fs.listDir �����ֵ��򷵻� �� ���ļ���Ȼ�ŵ�һ �� mds[0].name = �ֵ�����С = ��һ��д�루BUG����
+
+    // ============ 交接文档（issue #12 BUG4 · 双重防御 · 副路径）============
+    // DSH 沙箱里 fs.stat 返回的 info.mtime 形态不可控（Date / ISO 串 / 秒级 Unix / 本地化串 / null / NaN）；
+    // 原 `typeof number ? mt : Date.parse(String(mt))` 在 Date 对象或不可 parse 形态都得 NaN；
+    // 原 sort 单键 `b.mtime - a.mtime` 在 mtime 相等/NaN 时 Array.sort 视为 equal → 原顺序保留 →
+    // fs.listDir 按名字典序返回 → 老文件天然排第一 → mds[0].name = 字典序最小 = 上一次写入（BUG）。
     //
-    // �ӹ̣���·�� �� �α�����
-    //   - parseHandoffMtime��isFinite �ϸ�У�� + Date ʵ�� getTime ���ȣ��κ��޷� parse ����̬��ȫ�� 0
-    //     ��NaN/null/undefined/0/���� parse �� �� 0��
-    //   - pickLatestHandoff��mtime desc ���� + name desc ���ף�ʱ����ļ��� = �ֵ��� = ʱ���򣩣�
-    //     mtime �˻�Ϊ 0 ���˻���̬��NaN/null/ȫ 0/ȫ�� finite��һ���� name desc �����ֵ������
+    // 加固（副路径 · 治本）：
+    //   - parseHandoffMtime：isFinite 严格校验 + Date 实例 getTime 优先；任何无法 parse 的形态安全归 0
+    //     （NaN/null/undefined/0/不可 parse 串 → 0）
+    //   - pickLatestHandoff：mtime desc 主键 + name desc 兜底（时间戳文件名 = 字典序 = 时间序）；
+    //     mtime 退化为 0 的退化形态（NaN/null/全 0/全等 finite）一律走 name desc 返回字典序最大
     //
-    // ע������˻���̬��new=NaN+old=valid���� mtime ���ң�sort �ӹ��޷����� ���� ����·��
-    //     `wf.handoffResolve(args.name)` �ڿͻ����ѵ����һ��ʱֱ�ӷ��ظ� name ���ϡ�
+    // 注：混合退化形态（new=NaN+old=valid）的 mtime 倒挂，sort 加固无法区分 —— 由主路径
+    //     `wf.handoffResolve(args.name)` 在客户端已点过第一击时直接返回该 name 保障。
     const parseHandoffMtime = function (raw) {
       if (typeof raw === 'number') return isFinite(raw) ? raw : 0
       if (raw instanceof Date) { const t = raw.getTime(); return isFinite(t) ? t : 0 }
@@ -1692,16 +1586,16 @@ export default {
       const sorted = mds.slice().sort(function (a, b) {
         const dt = (b.mtime || 0) - (a.mtime || 0)
         if (dt !== 0) return dt
-        // name desc ���ף�ʱ����ļ�����YYYYMMDD-HHMMSS���ֵ��� = ʱ����
+        // name desc 兜底：时间戳文件名（YYYYMMDD-HHMMSS）字典序 = 时间序
         if (b.name < a.name) return -1
         if (b.name > a.name) return 1
         return 0
       })
       return sorted[0].name
     }
-    // ����Ŀ¼ɨ�裨handoffLatest + handoffResolve ���ã����� �κ� fs �����쳣������Ϊ������
+    // 共享目录扫描（handoffLatest + handoffResolve 共用）—— 任何 fs 调用异常都降级为空数组
     const scanHandoffDir = async function (cwd) {
-      if (fs === undefined) return { error: 'fs ���񲻿���', mds: [] }
+      if (fs === undefined) return { error: 'fs 服务不可用', mds: [] }
       try {
         const dir = await fs.resolve('.scratch/handoff', { cwd: cwd })
         const entries = await fs.listDir(dir)
@@ -1719,11 +1613,11 @@ export default {
         }
         return { mds: mds }
       } catch (e) {
-        return { mds: [] }  // Ŀ¼������/���ɶ� = ��û�н����ĵ�
+        return { mds: [] }  // 目录不存在/不可读 = 还没有交接文档
       }
     }
 
-    // v19����ѯ .scratch/handoff/ �����µĽ����ĵ����� mtime ���� + name desc ���� �� �ӹ̺󣩣��������Ӹ��»Ự��Ԥ�� + ����
+    // v19：查询 .scratch/handoff/ 下最新的交接文档（按 mtime 倒序 + name desc 兜底 · 加固后），供「交接给新会话」预填 + 复制
     harness.handle('wf.handoffLatest', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const r = await scanHandoffDir(cwd)
@@ -1731,41 +1625,41 @@ export default {
       return { ok: true, file: pickLatestHandoff(r.mds) }
     })
 
-    // issue #12 BUG4 �� ��·�����ͻ��˴������ļ�������һ��ģ����Ⱦ���� handoffFile��ʱ�ϸ񷵻ظ��ļ���
-    //   ��Ŀ¼�� �� ������������ �� ���� null�����˻� mtime ���£����� fallback �����ļ����û�����
-    //   �� args.name���û���δ�����һ������ˢ�º� / ֱ�ӵ��Ұ룩�� �� mtime ���£��� handoffLatest ͬ���壩��
-    // �����ڳ��棺���桸name ����Ŀ¼Ҳ fallback �� mtime ���¡���ʵ�ʳ����±���֤Ϊ��ģʽ ���� �� AI ��ûд��
-    // �ĵ�ʱ��handoffFile ���˵��ļ�δ���̣���fallback �����Ұ������ҵ㿪����������ϴε����ĵ������޸�Ŀ����㣡�
+    // issue #12 BUG4 · 主路径：客户端带期望文件名（第一击模板渲染出的 handoffFile）时严格返回该文件：
+    //   在目录里 → 返回它；不在 → 返回 null（不退回 mtime 最新，避免 fallback 到老文件误导用户）。
+    //   无 args.name（用户从未点过第一击，如刷新后 / 直接点右半）→ 走 mtime 最新（与 handoffLatest 同语义）。
+    // 区别于初版：初版「name 不在目录也 fallback 到 mtime 最新」在实际场景下被验证为反模式 —— 当 AI 还没写完
+    // 文档时（handoffFile 设了但文件未落盘），fallback 会让右半亮蓝且点开后错误引用上次的老文档，与修复目标相悖。
     harness.handle('wf.handoffResolve', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const r = await scanHandoffDir(cwd)
       if (r.error) return { ok: false, error: r.error }
       const want = args && args.name
       if (!want) return { ok: true, file: pickLatestHandoff(r.mds) }
-      // ǰ׺ƥ�䣨#71 �̱����ļ�����{ts}-<�̱���>.md����want �� * ��β �� ƥ�� name �Ը�ǰ׺��ͷ��ȡ����
+      // 前缀匹配（#71 短标题文件名：{ts}-<短标题>.md）：want 以 * 结尾 → 匹配 name 以该前缀开头，取最新
       if (want.slice(-1) === '*') {
         const prefix = want.slice(0, -1)
         const m = r.mds.filter(function (x) { return x.name.indexOf(prefix) === 0 })
         if (m.length) return { ok: true, file: pickLatestHandoff(m) }
         return { ok: true, file: null }
       }
-      // ��ȷƥ�䣺��Ŀ¼�� �� ������������ �� ���� null�����˻� mtime ���£����� fallback �����ļ����û�����
+      // 精确匹配：在目录里 → 返回它；不在 → 返回 null（不退回 mtime 最新，避免 fallback 到老文件误导用户）。
       if (r.mds.some(function (m) { return m.name === want })) return { ok: true, file: want }
       return { ok: true, file: null }
     })
 
-    // ============ ���죨��ʼ�� Issue ���� �� T5 #347��============
-    // �û��� UI �����ȷ�Ͽ�ʼ���ҹ�ѡ�������ã�gh issue edit <n> --add-assignee @me��
-    // д����ǰ UI �Ѷ���ȷ�ϣ��û������ͬ�⣩������ approval ����RESEARCH-NOTES ��3 ���ۣ���
+    // ============ 认领（开始此 Issue 流程 · T5 #347）============
+    // 用户在 UI 点击「确认开始」且勾选认领后调用：gh issue edit <n> --add-assignee @me。
+    // 写操作前 UI 已二次确认（用户点击即同意），不走 approval 服务（RESEARCH-NOTES §3 结论）。
     harness.handle('wf.claim', async function (args) {
       const n = args && args.number
       const cwd = (args && args.cwd) || DEFAULT_CWD
-      if (!n) return { ok: false, error: 'ȱ�ٲ��� number��ticket �ţ�' }
+      if (!n) return { ok: false, error: '缺少参数 number（ticket 号）' }
       const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: '�޷����� owner/repo��git remote �� gh repo view ʧ�ܣ�' } }
+      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
       const r = await runGh(['issue', 'edit', String(n), '--add-assignee', '@me'], cwd)
       if (!r.ok) return { ok: false, error: r }
-      // ����ɹ� �� ȡ��ǰ�û� login �����չʾ��ʧЧ���ջ��棬���´� wf.snapshot ������ assignee
+      // 认领成功 → 取当前用户 login 供面板展示；失效快照缓存，让下次 wf.snapshot 拉到新 assignee
       let assignedTo = ''
       const u = await runGh(['api', 'user', '-q', '.login'])
       if (u.ok) assignedTo = u.text.trim()
@@ -1774,7 +1668,7 @@ export default {
       return { ok: true, number: n, assignedTo: assignedTo, url: 'https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + String(n) }
     })
 
-        // ============ issuePath �� 1A+1B ����ͨ����client ��ѯ�� ============
+        // ============ issuePath · 1A+1B 推送通道（client 轮询） ============
     harness.handle('wf.issuePathPoll', async function (args) {
       const since = args && typeof args.since === 'number' ? args.since : 0
       const out = pendingIssuePathEvents.filter(function (e) { return e.ts > since })
@@ -1783,120 +1677,32 @@ export default {
     harness.handle('wf.issuePathPush', async function (args) {
       const n = args && args.number
       const src = args && args.source ? String(args.source) : 'mention'
-      if (!n) return { ok: false, error: 'ȱ�� number' }
+      if (!n) return { ok: false, error: '缺少 number' }
       pushIssuePathEvent(n, src, args && args.title)
       return { ok: true }
     })
-    // #211 host watcher A (0-2s 结构化二次 rename, pinned 可覆盖, 数十行内)
-    harness.handle('wf.registerNewSessionWatcher', async function(args){
-      const sid = args && args.sessionId;
-      if(!sid) return {ok:false,error:'missing sessionId'};
-      const cwd = (args && args.cwd) || DEFAULT_CWD;
-      const placeholder = (args && args.placeholder) || '[New]';
-      let beforeCount = null;
-      try {
-        const idx = await fetchIssueIndex(cwd);
-        if(idx && idx.ok) beforeCount = idx.count;
-      } catch(e){}
-      const watcher = {sid:sid,placeholder:placeholder,placeholderTs:Date.now(),cwd:cwd,beforeCount:beforeCount,startTs:Date.now(),timer:null};
-      newSessionWatchers.set(sid, watcher);
-      const poll = async function(){
-        const w = newSessionWatchers.get(sid);
-        if(!w) return;
-        if(Date.now() - w.startTs > 120000){ cleanWatcher(sid); return; }
-        try {
-          const cur = await fetchIssueIndex(cwd);
-          if(cur && cur.ok){
-            const afterCount = cur.count;
-            if(w.beforeCount != null && afterCount > w.beforeCount){
-              try {
-                const r = await runGh(['issue','list','--state','all','--limit','1','--json','number,title'], cwd);
-                if(r.ok){
-                  const arr = JSON.parse(r.text);
-                  if(arr && arr.length){
-                    const it = arr[0];
-                    let title = String(it.title || '').replace(/\s+/g,' ').trim();
-                    try {
-                      const sessions = ctx.get('sessions');
-                      if(sessions && typeof sessions.scope === 'function' && typeof sessions.sessionOf === 'function'){
-                        const scope = sessions.scope(sid);
-                        const face = scope ? sessions.sessionOf(scope) : null;
-                        if(face && typeof face.rename === 'function'){
-                          const prefix = '[#' + it.number + ']';
-                          const maxBytes = 120;
-                          let t2 = title;
-                          try {
-                            if(typeof Buffer !== 'undefined' && Buffer.byteLength){
-                              const baseB = Buffer.byteLength(prefix + ' ', 'utf8');
-                              if(Buffer.byteLength(prefix + ' ' + t2, 'utf8') > maxBytes){
-                                const ell = '…';
-                                const ellB = Buffer.byteLength(ell,'utf8');
-                                let acc = 0;
-                                let out = '';
-                                for(const ch of t2){
-                                  const b = Buffer.byteLength(ch,'utf8');
-                                  if(baseB + acc + b + ellB > maxBytes) break;
-                                  acc += b;
-                                  out += ch;
-                                }
-                                t2 = out.trimEnd() + ell;
-                              }
-                            }
-                          } catch(e){}
-                          const finalTitle = t2 ? prefix + ' ' + t2 : prefix;
-                          await face.rename(finalTitle);
-                          try{ pushIssuePathEvent(it.number,'create',title); }catch(e){}
-                          cleanWatcher(sid);
-                          return;
-                        }
-                      }
-                    } catch(e){}
-                    try{ pushIssuePathEvent(it.number,'create',title); }catch(e){}
-                  }
-                }
-              } catch(e){}
-            }
-            w.beforeCount = afterCount;
-          }
-        } catch(e){}
-        w.timer = setTimeout(poll, 900);
-      };
-      watcher.timer = setTimeout(poll, 700);
-      return {ok:true};
-    });
-    harness.handle('wf.cancelNewSessionWatcher', async function(args){
-      const sid = args && args.sessionId;
-      if(sid) cleanWatcher(sid);
-      return {ok:true};
-    });
-    harness.handle('wf.awaitCreatedIssue', async function(args){
-      const sid = args && args.sessionId;
-      const w = newSessionWatchers.get(sid);
-      if(w) return {ok:true, watching:true};
-      return {ok:true, watching:false};
-    });
 
-    // ============ #190��wf.openFolder �� �򿪱����ļ��У�Markdown ��˲ֿ��������============
-    // ���룺{ cwd }��ƽ̨�ַ���win32 explorer / darwin open / linux xdg-open���� platform.resolveExecutable����subprocess.spawn ��
+    // ============ #190：wf.openFolder — 打开本地文件夹（Markdown 后端仓库名点击）============
+    // 输入：{ cwd }；平台分发：win32 explorer / darwin open / linux xdg-open（经 platform.resolveExecutable），subprocess.spawn 打开
     harness.handle('wf.openFolder', async function (args) {
       const cwd = (args && (args.cwd || args.path)) || DEFAULT_CWD
-      if (!cwd) return { ok: false, error: 'ȱ�� cwd' }
+      if (!cwd) return { ok: false, error: '缺少 cwd' }
       try {
         const platform = await getPlatform()
         const os = platform.os || (typeof process !== 'undefined' && process.platform) || 'win32'
         const openerName = os === 'win32' ? 'explorer' : os === 'darwin' ? 'open' : 'xdg-open'
         const opener = await platform.resolveExecutable(openerName)
-        if (!opener) return { ok: false, error: '�Ҳ���������' + openerName }
-        // cwd ��һ��platform.path ����ָ����
+        if (!opener) return { ok: false, error: '找不到打开器：' + openerName }
+        // cwd 归一（platform.path 处理分隔符）
         let target = String(cwd)
         try { if (platform.path && typeof platform.path.normalize === 'function') target = platform.path.normalize(target) } catch {}
-        // win32 explorer �豣��ԭ�ָ����darwin/linux �� posix ����
+        // win32 explorer 需保持原分隔符；darwin/linux 用 posix 兼容
         const argv = [opener, target]
         try {
           const handle = subprocess.spawn({ argv: argv, cwd: DEFAULT_CWD || target, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
-          // ���ȴ���ɣ�fire-and-forget���� spawn ͬ���״�����Ϊʧ��
+          // 不等待完成，fire-and-forget；若 spawn 同步抛错则视为失败
           if (handle && handle.done) {
-            // �첽�����̵������δ���� rejection Ӱ����壻�ɹ�������
+            // 异步错误吞掉，避免未处理 rejection 影响面板；成功即返回
             handle.done.catch(function(){})
           }
         } catch (e) {
@@ -1908,25 +1714,25 @@ export default {
       }
     })
 
-    // ============ �쿨���ַ�����T1 #34 �� �޲ֿ�ʱһ�����ַ�����============
-    // ���룺{ cwd, name, visibility }��visibility = 'public' | 'private'��Ĭ�� private��
-    // ���̣�̽�� git/gh/auth��ǰ�ã��� git init(������ git ������) �� git add . �� git commit --allow-empty���� user.* ���ף��� gh repo create --source=. --push���� --remote origin �Ѵ���ʱ�� set-url + push ��֧��
-    // ���أ�{ ok: true, repo: { owner, name } } | { ok: false, errorKind, error, repoUrl? }
-    // errorKind: no-git / no-gh / not-logged-in / already-exists / network / permission��6 �������ݲݸ��е� bad-name ����ӳ��Ϊ permission��
+    // ============ 红卡建仓发布（T1 #34 · 无仓库时一键建仓发布）============
+    // 输入：{ cwd, name, visibility }（visibility = 'public' | 'private'，默认 private）
+    // 流程：探测 git/gh/auth（前置）→ git init(若已是 git 则跳过) → git add . → git commit --allow-empty（含 user.* 兜底）→ gh repo create --source=. --push（或 --remote origin 已存在时走 set-url + push 分支）
+    // 返回：{ ok: true, repo: { owner, name } } | { ok: false, errorKind, error, repoUrl? }
+    // errorKind: no-git / no-gh / not-logged-in / already-exists / network / permission（6 档，兼容草稿中的 bad-name 兜底映射为 permission）
     harness.handle('wf.initPublish', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const name = args && args.name ? String(args.name).trim() : ''
       const visibility = (args && args.visibility) === 'public' ? 'public' : 'private'
-      if (!name) return { ok: false, errorKind: 'bad-name', error: '�ֿ���Ϊ��' }
+      if (!name) return { ok: false, errorKind: 'bad-name', error: '仓库名为空' }
       if (!/^[A-Za-z0-9._-]+$/.test(name) || name.length > 100) {
-        return { ok: false, errorKind: 'bad-name', error: '�ֿ�����֧����ĸ/����/._- �� ��100��' + name }
+        return { ok: false, errorKind: 'bad-name', error: '仓库名仅支持字母/数字/._- 且 ≤100：' + name }
       }
       const visFlag = visibility === 'public' ? '--public' : '--private'
-      // ǰ��̽�⣺git / gh / auth��ʧ�ܿ췵�������ѸĶ���������
+      // 前置探测：git / gh / auth（失败快返，避免已改动工作区）
       const git = await resolveGit()
-      if (!git) return { ok: false, errorKind: 'no-git', error: 'δ�ҵ� git���밲װ https://git-scm.com/��' }
+      if (!git) return { ok: false, errorKind: 'no-git', error: '未找到 git（请安装 https://git-scm.com/）' }
       const gh = await resolveGh()
-      if (!gh) return { ok: false, errorKind: 'no-gh', error: ghLastError || 'δ�ҵ� gh���밲װ https://cli.github.com/��', prompt: '��Ϊ DSH ��װ GitHub CLI��gh������ ��������������� gh��\n\n1. �ȼ�飺�ն�ִ�� `gh --version`���а汾����� �� ֱ�ӻ㱨��װ�汾����������Ҫ�ظ���װ��\n2. �� gh �� OS ��װ��Windows �� `winget install --id GitHub.cli`; macOS �� `brew install gh`; Linux �� `sudo apt install gh`;\n3. ��װ����֤���ؿ��ն�ʹ PATH ��Ч��`gh --version` ����汾�ţ�\n4. �� gh ��װ�� DSH �Ա�δ��װ���㻷����顸�ز⡹��ť������ DSH Desktop��\n5. ��ɺ�㱨��gh �汾�� + ��gh CLI ���á����ѱ��̡�' }
+      if (!gh) return { ok: false, errorKind: 'no-gh', error: ghLastError || '未找到 gh（请安装 https://cli.github.com/）', prompt: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 `gh --version`；有版本号输出 → 直接汇报已装版本并结束，不要重复安装；\n2. 无 gh 则按 OS 安装：Windows → `winget install --id GitHub.cli`; macOS → `brew install gh`; Linux → `sudo apt install gh`;\n3. 安装后验证：重开终端使 PATH 生效，`gh --version` 输出版本号；\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重测」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。' }
       const authR = await runGh(['auth', 'status'], cwd)
       if (!authR.ok) {
         const t = String(authR.error || '').toLowerCase()
@@ -1935,12 +1741,12 @@ export default {
         }
         return { ok: false, errorKind: 'not-logged-in', error: authR.error }
       }
-      // ȡ��ǰ��¼�û������� already-exists ʱƴ repoUrl ��ɹ��� owner ���ף�
+      // 取当前登录用户（用于 already-exists 时拼 repoUrl 与成功后 owner 兜底）
       let currentUser = ''
       try {
         const u = await runGh(['api', 'user', '-q', '.login'], cwd)
         if (u.ok) currentUser = u.text.trim()
-      } catch (e) { /* ���� */ }
+      } catch (e) { /* 忽略 */ }
       const classifyCreateError = function (errText, kind) {
         const low = String(errText || '').toLowerCase()
         if (/already exists|name already exists|already exists on github|repository.*already exists/i.test(low)) return 'already-exists'
@@ -1950,7 +1756,7 @@ export default {
         if (kind === 'auth') return 'not-logged-in'
         return 'permission'
       }
-      // 1. git init�������� git �ֿ����������� getRepoRoot ̽�� + �建�棩
+      // 1. git init（若已是 git 仓库则跳过；含 getRepoRoot 探测 + 清缓存）
       try {
         const probe = await execProc([git, '-C', cwd, 'rev-parse', '--is-inside-work-tree'], cwd)
         if (!probe.ok) {
@@ -1959,7 +1765,7 @@ export default {
             const k = classifyCreateError(initR.error, null)
             return { ok: false, errorKind: k === 'already-exists' ? 'permission' : k, error: initR.error }
           }
-          // ʧЧ repoRoots ����
+          // 失效 repoRoots 缓存
           if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
           if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
         }
@@ -1978,7 +1784,7 @@ export default {
         const k = classifyCreateError(addR.error, null)
         return { ok: false, errorKind: k, error: addR.error }
       }
-      // 3. git commit --allow-empty���� identity ȱʧ���ף�
+      // 3. git commit --allow-empty（含 identity 缺失兜底）
       let commitR = await execProc([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
       if (!commitR.ok) {
         const low = String(commitR.error || '').toLowerCase()
@@ -1992,7 +1798,7 @@ export default {
           return { ok: false, errorKind: k, error: commitR.error }
         }
       }
-      // 4. ̽�� remote origin �Ƿ��Ѵ��ڣ����� gh ���÷�֧��
+      // 4. 探测 remote origin 是否已存在（决定 gh 调用分支）
       let hasOrigin = false
       try {
         const ro = await execProc([git, 'remote', 'get-url', 'origin'], cwd)
@@ -2007,14 +1813,14 @@ export default {
           return { ok: false, errorKind: kind, error: cr.error, repoUrl: repoUrl }
         }
       } else {
-        // origin �Ѵ��ڣ��ȴ���Զ�ֿ̲⣨���� --source������ set-url + push
+        // origin 已存在：先创建远程仓库（不带 --source），再 set-url + push
         const cr2 = await runGh(['repo', 'create', name, visFlag], cwd)
         if (!cr2.ok) {
           const kind = classifyCreateError(cr2.error, cr2.kind)
           const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
           return { ok: false, errorKind: kind, error: cr2.error, repoUrl: repoUrl }
         }
-        // �����½��ֿ� URL��gh ����� https://github.com/owner/name��
+        // 解析新建仓库 URL（gh 输出含 https://github.com/owner/name）
         let remoteUrl = ''
         if (currentUser) remoteUrl = 'https://github.com/' + currentUser + '/' + name + '.git'
         else {
@@ -2030,35 +1836,35 @@ export default {
           return { ok: false, errorKind: kind, error: pushR.error }
         }
       }
-      // �ɹ���ʧЧȫ�����棬ʹͷ�� owner/repo ��������
+      // 成功后失效全部缓存，使头部 owner/repo 立即出现
       cache = { ts: 0, snapshot: null, error: null, cwd: null }
       statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }
       if (cwd && repoKeys[cwd] !== undefined) delete repoKeys[cwd]
       if (repoKeys[DEFAULT_CWD] !== undefined) delete repoKeys[DEFAULT_CWD]
       if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
       if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
-      // ������ getRepoKey �ؽ�����parseGithubRepo���������� currentUser
+      // 优先用 getRepoKey 重解析（parseGithubRepo），兜底用 currentUser
       let owner = currentUser
       try {
         const rk = await getRepoKey(cwd)
         if (rk && rk.owner) owner = rk.owner
         else if (rk && rk.name) owner = owner || ''
-      } catch (e) { /* ���� */ }
-      // �� getRepoKey ��ȡ�������� currentUser������ currentUser Ϊ׼
+      } catch (e) { /* 兜底 */ }
+      // 若 getRepoKey 仍取不到但有 currentUser，则以 currentUser 为准
       if (!owner) {
         try {
           const u2 = await runGh(['api', 'user', '-q', '.login'], cwd)
           if (u2.ok) owner = u2.text.trim()
-        } catch (e2) { /* ���� */ }
+        } catch (e2) { /* 忽略 */ }
       }
       return { ok: true, repo: { owner: owner, name: name } }
     })
 
-    // ============ ��ѯ���Ѱ� #348 �İ� Q3 �رգ�60s ȫ�� �� 8 map �� 2400-4800 GraphQL points/h �� 5000 �޶============
-    // ˢ�²��� = ���ֶ���״̬��/��尴ť wf.refresh��+ ����弴ˢ��client �� loadSnapshot����
-    // P1 ����״̬�仯 toast ���ѣ��ٿ��ǵ�Ƶ�Զ�����ʱ�ָ����鲢�۲�����
+    // ============ 轮询：已按 #348 拍板 Q3 关闭（60s 全量 × 8 map ≈ 2400-4800 GraphQL points/h 贴 5000 限额）============
+    // 刷新策略 = 纯手动（状态条/面板按钮 wf.refresh）+ 打开面板即刷（client 侧 loadSnapshot）。
+    // P1 若做状态变化 toast 提醒，再考虑低频自动（届时恢复本块并观察配额）。
 
-    // B3 rpc ͨ��ע�᣺/dsws �� dispatch ���loopback Ȩ����
+    // B3 rpc 通道注册：/dsws → dispatch 表（loopback 权威）
     try {
       const connection = ctx.get('connection')
       if (connection !== undefined && connection.rpc !== undefined && typeof connection.rpc.handle === 'function') {

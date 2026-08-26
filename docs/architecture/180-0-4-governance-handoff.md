@@ -27,7 +27,7 @@
 
 ### 人机协作指引（装 CLI / 登录）
 - **装 CLI 与登录统一走 `prompt:` 注入**，宿主仅检测不自动装/登
-- 底层返 `hint:'prompt:installGh' / 'prompt:ghAuthLogin'`，UI 主按钮“注入指引”→ `inject()` → 等用户回车让 AI 按 OS 给 `winget/brew install gh` 或 `gh auth login` 浏览器授权；副按钮保留“打开安装页/复制命令”兜底
+- 底层经 `preflight.prompt` 透传完整 prompt 文本（多态，`hint` 即完整文本，UI 直接 `inject(hint)`）；`gh` 缺失时后端 `ghPreflight` 返回 `GH_INSTALL_PROMPT`（`winget/brew/apt` + `gh --version`），UI 单按钮“AI 引导安装”直注后端文案（`prompt:installGh` key 已废止，`openUrl('https://cli.github.com/')` 副按钮已移除）；`gh auth` 仍 `prompt:ghAuthLogin` 待迁（#59）
 - 分两阶段链式：`gh` 缺 → 只显安装卡；装好重检才显登录卡
 
 ## 约束

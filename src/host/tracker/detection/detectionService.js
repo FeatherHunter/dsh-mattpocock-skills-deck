@@ -33,9 +33,14 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     const cwd = (handle && handle.cwd) || ''
     const force = !!opts.force
     // per-workspace 缓存（Q6 pending 不缓存；force 直通）
+    // #195 修复：env 失败不缓存（gh 可随时安装，缓存会导致“已装仍报未装”）；仅 pending 已在上游跳过，此处追加 env 守卫
     if (!force && store) {
       const cached = store.get(handle)
-      if (cached && cached.selection && !cached.selection.pending) return cached
+      if (cached && cached.selection && !cached.selection.pending) {
+        const pf = cached.preflight
+        const isEnvFail = pf && !pf.ok && pf.error && pf.error.kind === 'env'
+        if (!isEnvFail) return cached
+      }
     }
 
     const platform = getPlatform ? await getPlatform() : null
@@ -95,8 +100,11 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     }
 
     // 缓存：pending 不缓存（Q6）；force 重算后仍按同规则决定是否入缓存
+    // #195 修复：env 失败不入缓存（见上）
     if (store && selection && !selection.pending) {
-      try { store.set(handle, result) } catch {}
+      const pf2 = result.preflight
+      const isEnvFail2 = pf2 && !pf2.ok && pf2.error && pf2.error.kind === 'env'
+      if (!isEnvFail2) { try { store.set(handle, result) } catch {} }
     }
     return result
   }
