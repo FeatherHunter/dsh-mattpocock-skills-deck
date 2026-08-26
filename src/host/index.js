@@ -1,4 +1,4 @@
-﻿/**
+/**
  * dsh-mattpocock-skills-deck · Host 半（数据层实现 · T3 #345）
  *
  * 实现：
@@ -281,7 +281,7 @@ export default {
       }
     }
     // #195 修复：force 探测路径调 resetGhCache 清空成功缓存，强制下次 resolveGh 重探
-    function resetGhCache() { ghPath = null; ghLastError = null }
+    function resetGhCache() { ghPath = null; ghLastError = null; statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null }; try { if (_workspaceStore && typeof _workspaceStore.clear === 'function') _workspaceStore.clear(); } catch {} try { getWorkspaceStore().then(function(ws){ try{ ws.clear(); }catch(e){} }).catch(function(){}); } catch {} }
 
     async function runGh(args, cwd) {
       const exe = await resolveGh()
@@ -1179,7 +1179,13 @@ export default {
         const sel = det.selection
         const backendId = sel && sel.backendId
         const cacheKeyOk = !force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && statusCache.backendId === (backendId || null) && now - statusCache.ts < STATUS_CACHE_MS
-        if (cacheKeyOk) return statusCache.status
+        // #195 修复：env 失败不走缓存（避免已装仍报未装）
+        if (cacheKeyOk) {
+          const cachedChecks = statusCache.status && statusCache.status.checks
+          const cachedGh = cachedChecks && cachedChecks.find(function(c){ return c.id===4 })
+          const isCachedEnv = cachedGh && cachedGh.level==='bad' && cachedGh.hint && cachedGh.hint.includes('GitHub CLI')
+          if (!isCachedEnv) return statusCache.status
+        }
         // 派生 9 checks 兼容视图（#150 Q7：checks 过渡期后可 deprecate，仅 selection 为真源）
         // 1) repo 定位（复用 detection repoHandle + 轻量 git 探测兜底，保持与旧 checkRepo 等价）
         const c1Legacy = await checkRepo(cwd, lang)
@@ -1280,7 +1286,11 @@ export default {
           selection: sel,
           detection: det,
         }
-        statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang, backendId: backendId || null }
+        // #195 修复：env 失败不入缓存（见上）
+        const curGh = status && status.checks && status.checks.find(function(c){ return c.id===4 })
+        const isCurEnv = curGh && curGh.level==='bad' && curGh.hint && curGh.hint.includes('GitHub CLI')
+        if (!isCurEnv) statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang, backendId: backendId || null }
+        else statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null }
         return status
       } catch (e) {
         // 编排失败回退旧路径（保守）
@@ -1288,7 +1298,11 @@ export default {
       if (!force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && now - statusCache.ts < STATUS_CACHE_MS) return statusCache.status
       try {
         const status = await buildStatus(cwd, lang)
-        statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang, backendId: null }
+        // #195 修复：env 失败不入缓存（buildStatus 回退路径）
+        const curGh2 = status && status.checks && status.checks.find(function(c){ return c.id===4 })
+        const isCurEnv2 = curGh2 && curGh2.level==='bad' && curGh2.hint && curGh2.hint.includes('GitHub CLI')
+        if (!isCurEnv2) statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang, backendId: null }
+        else statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null }
         return status
       } catch (e) {
         statusCache = { ts: Date.now(), status: null, error: String((e && e.message) || e), cwd: cwd, lang: lang, backendId: null }
