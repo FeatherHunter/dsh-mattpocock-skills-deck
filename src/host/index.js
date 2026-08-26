@@ -918,6 +918,15 @@ export default {
     }
 
     async function buildSnapshot(cwd) {
+      // B 方案扩展：取当前 GH 登录人（viewer），用于“本人不显、他人分色”
+      let viewerLogin = null
+      try {
+        const vr = await runGh(['api', 'user', '--jq', '.login'], cwd)
+        if (vr.ok) {
+          const v = String(vr.text || '').trim().replace(/^"|"$/g, '')
+          if (v && v !== 'null' && v !== '') viewerLogin = v
+        }
+      } catch (e) {}
       const repo = await getRepoKey(cwd)
       // v1.3.3 提速：map 列表直接从全量 issues 过滤（fetchMaps 单独调用省去 —— 原 11 次 → 9 次 gh 调用）
       const fi = await fetchIssues(cwd)
@@ -1032,6 +1041,7 @@ export default {
         backendModules: backendModules,
         selection: selection,
         capabilities: (typeof _capDiag !== 'undefined' ? _capDiag : null),
+        viewerLogin: viewerLogin, // B 方案：当前 GH 登录人，用于本人不显
       }
     }
 

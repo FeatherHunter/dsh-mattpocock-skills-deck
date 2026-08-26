@@ -5,6 +5,8 @@
  */
 export     const MAP_ROW_GUARD_NARROW = 320
 export     const MAP_ROW_GUARD_WIDE = 440
+export     const authorPalette = ['#58a6ff','#a371f7','#f778ba','#ff7b72','#ffa657','#7ee787','#79c0ff','#d2a8ff','#ffab70','#56d364']
+export     const authorColor = function(l){let h=0;for(let i=0;i<l.length;i++)h=(h*31+l.charCodeAt(i))%authorPalette.length;return authorPalette[h];}
 export     const fitMapRows = function () {
       if (typeof document === 'undefined') return
       const rows = document.querySelectorAll('.dsws-aggrow')
@@ -236,11 +238,10 @@ export     const ListTab = ({ st, narrow }) => {
               isMap ? h('span', { className: 'dsws-chip dsws-chip-m', style: { fontSize: 11, fontWeight: 600, lineHeight: 1.7, padding: '0 8px' } }, [Ic({ n: 'map', size: 11 }), h('span', null, tr('list.mapChip'))]) : null,
               h('span', { className: 'dsws-idnum', style: { color: numColor, borderColor: numColor } }, '#' + (x.key != null ? x.key : x.number)),
             ]),
-            h('span', { className: 'dsws-tt-wrap', style: { flex: 1, fontWeight: isMap ? 600 : undefined, color: isOpen ? undefined : 'var(--dsw-alias-label-secondary,#a1a1aa)' }, title: x.title }, x.title),
+            h('span', { className: 'dsws-tt-wrap', style: { flex: 1, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontWeight: isMap ? 600 : undefined, color: isOpen ? undefined : 'var(--dsw-alias-label-secondary,#a1a1aa)' }, title: x.title }, [h('span', { style: { flex: 1, minWidth: 0 } }, x.title), (x.author && x.author.login && x.author.login !== ((st.snapshot && st.snapshot.viewerLogin) || '')) ? h('span', { className: 'dsws-chip', style: { fontSize: 10, background: hexA(authorColor(x.author.login), 0.18), color: authorColor(x.author.login), border: '1px solid ' + (darken(authorColor(x.author.login), 0.16) || 'rgba(0,0,0,.2)'), display: 'inline-flex', alignItems: 'center', gap: 3, flex: 'none' } }, [Ic({ n: 'person', size: 10 }), h('span', null, '@' + x.author.login)]) : null]),
             (isMap && mapObj && mapObj.stats) ? ringOf(mapObj.stats) : null,
             !isOpen ? h('span', { className: 'dsws-chip', style: { fontSize: 10, marginRight: 0, flex: 'none', background: 'rgba(139,139,149,.12)', color: '#8b8b95', border: '1px solid rgba(139,139,149,.35)' } }, [Ic({ n: 'check', size: 9 }), h('span', null, tr('map.subClosed'))]) : null,
           ]),
-          (x.author && x.author.login) ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2, fontSize: 11, color: '#8b8b95' } }, [h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0 } }, [Ic({ n: 'person', size: 11 }), h('span', { className: 'dsws-ellip', style: { maxWidth: 200 }, title: '@' + x.author.login }, '@' + x.author.login)])]) : null,
           // 行2：标签贪心折叠（单行不换行）+ 按钮组（常显）（T1 Map #120：marginTop 8→2，全局收紧至 8px = gap6+mt2，所有行一致）
           h('div', { style: { marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, width: '100%' } }, [
             h('div', { className: 'dsws-tags', 'data-dsws-labels': JSON.stringify(labels.map(function (l) { return l.name })) }, [

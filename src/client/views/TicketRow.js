@@ -4,6 +4,8 @@
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  */
     // ---- 5.3 票务行（地图详情内：标题/阻塞来源 ellipsis；v19：按标签给 诊断/修复/讨论/执行 动作，预填输入框）----
+export     const ticketAuthorPalette = ['#58a6ff','#a371f7','#f778ba','#ff7b72','#ffa657','#7ee787','#79c0ff','#d2a8ff','#ffab70','#56d364']
+export     const ticketAuthorColor = function(l){let h=0;for(let i=0;i<l.length;i++)h=(h*31+l.charCodeAt(i))%ticketAuthorPalette.length;return ticketAuthorPalette[h];}
 export     const TicketRow = React.memo(({ st, g, t, indent, colorOf }) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -19,10 +21,12 @@ export     const TicketRow = React.memo(({ st, g, t, indent, colorOf }) => {
             // T2 #3：编号前置
             h('span', { style: { color: 'var(--dsw-alias-label-caption,#8b8b95)', fontSize: 11, flex: 'none' } }, '#' + t.number),
             TypeChip({ type: t.type }),
-            h('span', { className: 'dsws-tt-wrap', style: { flex: 1 }, title: t.title }, t.title),
+            h('span', { className: 'dsws-tt-wrap', style: { flex: 1, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
+              h('span', { style: { flex: 1, minWidth: 0 } }, t.title),
+              (t.author && t.author.login && t.author.login !== ((st.snapshot && st.snapshot.viewerLogin) || '')) ? h('span', { className: 'dsws-chip', style: { fontSize: 10, background: hexA(ticketAuthorColor(t.author.login), 0.18), color: ticketAuthorColor(t.author.login), border: '1px solid ' + (darken(ticketAuthorColor(t.author.login), 0.16) || 'rgba(0,0,0,.2)'), display: 'inline-flex', alignItems: 'center', gap: 3 } }, [Ic({ n: 'person', size: 10 }), h('span', null, '@' + t.author.login)]) : null
+            ]),
           ]),
           h('div', { className: 'dsws-tt-sub', style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
-            (t.author && t.author.login) ? subItem('person', '#8b8b95', '@' + t.author.login) : null,
             t.claimedBy ? subItem('person', '#58a6ff', tr('map.subClaimed', { who: t.claimedBy })) : null,
             // #370：被阻塞 chip 只显示仍 OPEN 的阻塞者（与 compute/主列表/按钮抑制口径一致）
             blocked ? subItem('lock', '#f0883e', tr('map.subBlocked', { who: blockerNames(t, g.m) })) : null,
