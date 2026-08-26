@@ -71,16 +71,16 @@ export const SwitchConfirmModal = (props) => {
   // #191（用户反馈）：顶部固定（标题 + 按钮恒定），内容区独立向下延伸滚动——按钮永不跳动
   const cardStyle = { boxSizing: 'border-box', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 560, maxHeight: '90vh', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12, background: 'var(--dsw-alias-bg-layer-2,#16181d)', boxShadow: '0 16px 48px rgba(0,0,0,.5)', padding: 16 }
   const bodyStyle = { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }
-  // #191（用户反馈）：未选 target 时三选一禁用（radio disabled + 整体置灰）；选中 target 后自动选中 keep（推荐）
+  // #191（用户反馈）：去圆点，点整行即选中；未选 target 时整行禁用置灰
   const radioRow = function (id, checked, label, desc, badge) {
     const col = id === 'keep' ? '#4ade80' : id === 'migrate' ? '#f59e0b' : '#f87171'
     const disabled = isTargetPending
-    return h('label', { key: id, style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, border: checked ? '1px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: checked ? 'rgba(88,166,255,.06)' : 'transparent', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1 } }, [
-      h('input', { type: 'radio', name: 'dsws-switch-opt', checked: checked, disabled: disabled, onChange: function () { onOption(id) }, style: { marginTop: 3 } }),
-      h('span', { style: { flex: 1 } }, [
+    return h('div', { key: id, onClick: function(){ if(disabled) return; onOption(id) }, style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, border: checked ? '1px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: checked ? 'rgba(88,166,255,.06)' : 'transparent', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1 } }, [
+      h('span', { style: { flex: 1, minWidth: 0 } }, [
         h('span', { style: { fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 } }, [
           h('span', null, label),
           badge ? h('span', { style: { fontSize: 10, color: col, border: '1px solid ' + col, borderRadius: 4, padding: '0 4px', lineHeight: 1.6 } }, badge) : null,
+          checked ? h('span', { style: { fontSize: 10, color: col, border: '1px solid ' + col, borderRadius: 4, padding: '0 4px', lineHeight: 1.6 } }, '已选') : null,
           checked && id === 'keep' ? h('span', { style: { fontSize: 10, color: '#4ade80' } }, '● 推荐') : null,
         ]),
         h('span', { style: { fontSize: 11, color: '#8b8b95', display: 'block', marginTop: 2 } }, desc),
