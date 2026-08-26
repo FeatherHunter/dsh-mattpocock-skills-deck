@@ -46,7 +46,7 @@ console.log('\n— 枚举 —')
     check(sv.includes('current'), '步骤状态含 current')
     check(sv.includes('fail'), '步骤状态含 fail')
     check(sv.includes('pending'), '步骤状态含 pending')
-    check(sv.includes('na'), '步骤状态含 na（目录视图）')
+    check(!sv.includes('na'), '步骤状态不含 na（2026-08-27 已删）')
   }
   const chainVer = mod.CHAIN_VERSION
   check(typeof chainVer === 'number' && chainVer >= 1, 'CHAIN_VERSION 存在 — got=' + chainVer)
@@ -60,7 +60,7 @@ console.log('\n— 枚举 —')
     const fs = await import('node:fs')
     const txt = fs.readFileSync('src/shared/tracker/chain.js', 'utf8')
     check(txt.includes('永不被数据路径读取') || txt.includes('永不进入数据路径'), 'G5 双名制注释存在（动作/检查项不入数据路径）')
-    check(txt.includes('2026-08-26'), '生效日期 2026-08-26 携带')
+    check(txt.includes('2026-08-27'), '生效日期 2026-08-27 携带')
     check(txt.includes('推进只来自重求值') || txt.includes('重求值'), 'D5 推进原则注释存在（动作不承诺修复）')
   } catch {}
 }
@@ -173,15 +173,15 @@ console.log('\n— 求值器（纯函数） —')
   check(snapFailSecond.steps[1].isCurrent === true, '第二步 fail isCurrent true')
   check(snapFailSecond.steps[2].status === 'pending', '第二步 fail 第三步 pending')
 
-  // 3.4 na 不阻塞：na 视为已通过但不计分母
-  const snapNa = evaluateChain(chain, { 'git.repo': 'pass', 'gh.cli': 'na', 'gh.auth': 'pass' })
-  check(snapNa.steps[1].status === 'na', 'gh.cli=na 时状态 na — got=' + snapNa.steps[1].status)
-  check(snapNa.steps[2].status === 'done', 'na 后一步可继续 done')
-  check(snapNa.applicableCount === 2, 'na 不计分母 applicableCount=2 — got=' + snapNa.applicableCount)
-  check(snapNa.doneCount === 2, 'na 场景 doneCount=2 — got=' + snapNa.doneCount)
-  // 校验就绪计数口径
-  const prog = chainProgress(snapNa)
-  check(prog.done === 2 && prog.total === 2 && prog.percent === 100, 'na 口径 progress 2/2 100% — got=' + JSON.stringify(prog))
+  // 3.4 删 na（2026-08-27）：旧 na 输入现归 pending 且计分母
+  const snapNaLike = evaluateChain(chain, { 'git.repo': 'pass', 'gh.cli': 'na', 'gh.auth': 'pass' })
+  check(snapNaLike.steps[1].status === 'pending', '旧 na 输入现归 pending — got=' + snapNaLike.steps[1].status)
+  check(snapNaLike.steps[1].status !== 'na', '无 na 状态')
+  check(snapNaLike.applicableCount === 3, '删 na 后 applicableCount=total=3 — got=' + snapNaLike.applicableCount)
+  check(snapNaLike.steps[1].isApplicable === true, '删 na 后 isApplicable 恒 true')
+  // 校验就绪计数口径（无 na 分母污染）
+  const prog = chainProgress(snapNaLike)
+  check(prog.total === 3, '删 na 后 progress total=3 — got=' + JSON.stringify(prog))
 
   // 3.5 重求值覆盖：同一链，先 fail 后 pass，重跑即推进（无动作回调记忆）
   const snapBefore = evaluateChain(chain, { 'git.repo': 'fail', 'gh.cli': 'pass', 'gh.auth': 'pass' })

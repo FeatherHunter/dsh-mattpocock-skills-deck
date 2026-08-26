@@ -79,8 +79,8 @@ function runChainTests() {
   {
     const chain = [mkItem('a', {kind:'backend', id:'gh:installed', backendId:'github'})]
     const snap = evaluateChain(chain, { a:'na' })
-    out.push(assert('chain · 单项 na → na/allDone', snap.steps[0].status===CHECK_STATE.NA && snap.chainState==='allDone' && snap.applicableCount===0, JSON.stringify(snap)))
-    out.push(assert('chain · na 分母 0 percent 100', chainProgress(snap).percent===100, JSON.stringify(chainProgress(snap))))
+    out.push(assert('chain · 旧 na 输入现归 pending（2026-08-27 已删 na）', snap.steps[0].status===CHECK_STATE.PENDING, JSON.stringify(snap)))
+    out.push(assert('chain · 删 na 后无 NA 状态', snap.steps[0].status!==CHECK_STATE.NA, JSON.stringify(snap)))
   }
   {
     const chain = [mkItem('a', {kind:'primitive', primitive:'commandExists', command:'gh'}), mkItem('b', {kind:'primitive', primitive:'env', key:'HOME'})]
@@ -98,9 +98,9 @@ function runChainTests() {
       mkItem('b', {kind:'backend', id:'gh:installed'}),
       mkItem('c', {kind:'primitive', primitive:'env', key:'HOME'}),
     ]
-    const snap = evaluateChain(chain, { a:'pass', b:'na', c:'fail' })
-    out.push(assert('chain · na 不阻塞', snap.steps[1].status===CHECK_STATE.NA && snap.steps[2].status===CHECK_STATE.CURRENT, JSON.stringify(snap.steps.map(s=>s.status))))
-    out.push(assert('chain · na 分母 2 done 1 → 50%', chainProgress(snap).percent===50, JSON.stringify(chainProgress(snap))))
+    const snap = evaluateChain(chain, { a:'pass', b:'pending', c:'fail' })
+    out.push(assert('chain · 刪 na 後 pending 阻塞', snap.steps[1].status===CHECK_STATE.PENDING && snap.steps[2].status===CHECK_STATE.PENDING, JSON.stringify(snap.steps.map(s=>s.status))))
+    out.push(assert('chain · 删 na 后 applicableCount=total', snap.applicableCount===3, JSON.stringify(snap)))
   }
   {
     const chain = [mkItem('a', {kind:'primitive', primitive:'env', key:'HOME'}), mkItem('b', {kind:'primitive', primitive:'env', key:'HOME'})]

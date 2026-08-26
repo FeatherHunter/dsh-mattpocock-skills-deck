@@ -1,6 +1,6 @@
-# ADR：检查项 / 检查链条契约与 G5 双名制修订（#217）
+# ADR：检查项 / 检查链条契约与 G5 双名制修订（#217，#219/#245 修订 2026-08-27）
 
-> 日期：2026-08-26 定版
+> 日期：2026-08-26 定版 · 2026-08-27 修订（按 #219 grilling 定版与 #245 规约删 NA，状态集 5→4）
 > 地位：承接 #215 地图与 #198 五票结论，作为 #215 后续编排链与 88 条硬编码下沉的共享约束。
 > 版本与效力：本文件落盘后，凡与本决策冲突的旧方案/契约/讨论，**以本文件（更新日期者）为准**；未来任何讨论若改动本决策，**以未来版本为准**（CONTEXT.md 同款两条规则）。
 
@@ -19,10 +19,10 @@
 为「检查项 / 检查链条」定**可被验收**的契约：
 
 1. **检查项形状** `{check, onPass:{show,actions}, onFail:{show,actions}}` 的谓词形态、展示与动作数据结构；
-2. **链条求值**：契约层纯函数求值器（喂状态 → 出步骤快照）、宿主谓词注册表、`done/current/fail/pending/na` 状态集与推进规则；
+2. **链条求值**：契约层纯函数求值器（喂状态 → 出步骤快照）、宿主谓词注册表、`done/current/fail/pending` 四态与推进规则（2026-08-27 起删 `na`）；
 3. **动作词汇表 v1**：`inject-prompt / open-url / rpc / form / refresh` 是否够、`form` schema 是否接受、执行分发器归属；
 4. **G5 双名制修订**：操作能力（运行时事实）vs 界面检查项（声明式 UI 语言），契约文档改写点；
-5. **目录边界**：通用检查目录与后端检查目录的划分（技能探测等通用项 vs gh/glab/仓库定位等后端项）。
+5. **目录边界**：通用检查目录与后端检查目录的划分（技能探测等通用项 vs gh/glab/仓库定位等后端项）；通用恒脱离后端可检测，后端按物理隔离，N 动态。
 
 ---
 
@@ -40,6 +40,9 @@
 - **检查项永不进入数据路径**：只驱动 UI 展示与动作入口（声明式 UI 语言）。
 - **链推进只来自重求值**：重新问谓词、探测真实状态，不来自动作回调；`open-url` 等为信息性动作，不宣称修复、不推进链。
 - **五方职责**：UI（只消费契约产物渲染）/ 契约层（定义接口与求值）/ 后端层（声明目录与动作、实现操作）/ 平台抽象层（封装 OS 能力原语）/ OS 底座层（各 OS 具体实现）。
+- **通用脱离后端**：通用检查的真值不随 backendId 改变，可在 OS 平台抽象层直接检测；准入通用目录的必要条件。
+- **后端物理隔离**：不同后端的检测链按后端独立，Markdown 卷子上不出现 GitHub 行，跨后端误导靠行不存在根治，无需 NA。
+- **N 动态**：`N = 通用链题数 + 当前后端链题数` 动态求和，分开计数、分开渲染。
 - **高质量要求**：不计时间成本，不做最小可用；要求无 bug 且功能齐全（本票按此执行）。
 
 ---
@@ -71,20 +74,19 @@ type Check =
 
   原语覆盖通用探测（gh/glab 存在性、文件存在性、环境变量、技能探测）；后端/preflight 覆盖专用门禁。
 
-- **Show**：`{i18nKey, params?, fallback?, hint?}` —— i18n 单信源，UI 透传；允许 `null`（如 `na` 时不展示）。
+- **Show**：`{i18nKey, params?, fallback?, hint?}` —— i18n 单信源，UI 透传；允许 `null`。
 - **FieldSchema（form）**：`{name, type:'text'|'number'|'date'|'single'|'multi', labelKey, required?, options?, placeholderKey?, defaultValue?}` —— v1 就完整，不做占位。
 
 ### 5.2 链条求值（纯函数）
 
 - **位置**：`src/shared/tracker/chain.js` `evaluateChain(chain, predicateResults)` —— 纯函数，无 IO，宿主先 `resolveAll` 再喂入。
-- **输入**：`predicateResults: Record<id, 'pass'|'fail'|'na'|null>`（`null`=pending，超时亦 pending）。
+- **输入**：`predicateResults: Record<id, 'pass'|'fail'|null>`（`null`=pending，超时亦 pending；2026-08-27 起不再有 `'na'`）。
 - **输出**：`ChainSnapshot{steps, currentIndex, doneCount, applicableCount, totalCount, chainState}` + `StepSnapshot{status, show, actions, isApplicable, blockedBy}`。
-- **状态集**：`done（通过）/ current（链头可行动，含动作）/ fail（链头失败无动作，terminal）/ pending（探测中或被前步阻塞）/ na（不适用）`。
-  - 顺序求值：前步非 `done`/`na` 则后步一律 `pending`（被阻塞）；
-  - `na` 不阻塞链，不计就绪分母与胶囊汇总；
+- **状态集**：`done（通过）/ current（链头可行动，含动作）/ fail（链头失败无动作，terminal）/ pending（探测中或被前步阻塞）` 四态（2026-08-27 起删 `na`）。
+  - 顺序求值：前步非 `done` 则后步一律 `pending`（被阻塞）；
   - 有动作的失败 → `current`（高亮），无动作的失败 → `fail`（红态），二者皆为链头失败的两种视觉。
 - **推进**：只来自重求值（宿主重新 `resolveAll` 后再调 `evaluateChain`）；动作回调不直接改 `status`。
-- **口径**：`chainProgress` 分子 `doneCount` 分母 `applicableCount = total - na`；`capsuleSummary` 同口径，`na` 永不计。
+- **口径**：`chainProgress` 分子 `doneCount` 分母 `applicableCount = total`（2026-08-27 起 `na` 已删，分母不再 `total - na`）；`capsuleSummary` 同口径。
 
 ### 5.3 动作词汇表 v1
 
@@ -100,14 +102,14 @@ type Check =
 - **操作能力（capability）**：数据路径的能力 = 运行时调用结果（无能力表、无分支、调用即知；`unsupported` 桩诚实失败）—— 见 `src/host/tracker/capability.js` 与 `src/host/tracker/contract.js`。
 - **界面检查项（check item）**：声明式 UI 语言的一等公民（本契约），永不进入数据路径。
 - **改写点**：
-  - `CONTEXT.md` 版本升至 2026-08-26，高亮双名制与 5 个新词条，写明效力规则；
+  - `CONTEXT.md` 版本升至 2026-08-27，删 `na` 词条，增“通用脱离后端、后端物理隔离、N 动态”三词条，写明效力规则；
   - `docs/architecture/tracker-backend-design-contract.md` 保持最小，仅引用本 ADR，不随子图决定增重；
   - 全仓 `capability` 旧语义批改（本票执行时 grep 覆盖，不留残留）。
 
 ### 5.5 目录边界
 
 - **判据**：真值是否随 `backendId` 改变 —— 不变 → 通用；改变 → 后端。形式化，可执行。
-- **通用目录**（ `src/shared/tracker/check-catalog.js GENERIC_CATALOG` ）：技能探测（wayfinder/setup-mattpocock-skills/ask-matt）、用户主目录可解析、工作区已初始化（`docs/agents/issue-tracker.md` 存在）—— 5 项，适用于所有后端，若某后端显式不需要则该项在链中标 `na` 而非移入后端。
+- **通用目录**（ `src/shared/tracker/check-catalog.js GENERIC_CATALOG` ）：技能探测（wayfinder/setup-mattpocock-skills/ask-matt）、用户主目录可解析、工作区已初始化（`docs/agents/issue-tracker.md` 存在）—— 5 项，适用于所有后端。
 - **后端目录**：
   - GitHub：`gh:installed / gh:authed / gh:repoAccess / gh:labels`；
   - GitLab：`glab:installed / glab:authed / glab:repoAccess`；
@@ -142,5 +144,11 @@ type Check =
 ## 8. 关联
 
 - 输入：` .scratch/research/ui-hardcode-inventory-20260826.md`（88 条，67 必迁）、#215 原规约（评论区存档）、#198 五票结论、charting 讨论存档（动作三层分置 + 链推进原则）。
-- 输出：`src/shared/tracker/chain.js`、`src/host/tracker/predicateRegistry.js`、`src/client/kernel/actions.js`、`src/shared/tracker/check-catalog.js`、本 ADR、`CONTEXT.md` 2026-08-26 升版、`tests/` 链契约测试。
+- 输出：`src/shared/tracker/chain.js`、`src/host/tracker/predicateRegistry.js`、`src/client/kernel/actions.js`、`src/shared/tracker/check-catalog.js`、本 ADR、`CONTEXT.md` 2026-08-27 升版、`tests/` 链契约测试。
 - 下游：编排链设计票（合并目录成开门链/检测链）、227-231 落地票（消费 `MIGRATION_MAP`）。
+
+---
+
+## 9. 修订记录（2026-08-27，#219/#245，#246 落地）
+
+- 删 `na`：通用恒脱离后端可检测、后端物理隔离、N 动态，跨后端误导靠行不存在根治，状态集 5→4，`applicableCount = total`，`predicateResults` 不再含 `'na'`，`CHECK_STATE.NA` 删除。

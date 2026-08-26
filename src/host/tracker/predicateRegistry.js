@@ -1,20 +1,20 @@
 /**
  * tracker/predicateRegistry.js — 宿主谓词注册表（异步 resolve → 纯函数输入）。
  *
- * 第一性原理（#217 定版）：
- *  - 契约层 evaluateChain 为纯函数（喂状态 → 出步骤快照），无 IO；宿主负责把真实世界 resolve 成 Record<id, 'pass'|'fail'|'na'|null>。
+ * 第一性原理（#217 定版，2026-08-27 修订 #219/#245 删 na）：
+ *  - 契约层 evaluateChain 为纯函数（喂状态 → 出步骤快照），无 IO；宿主负责把真实世界 resolve 成 Record<id, 'pass'|'fail'|null>（2026-08-27 起无 na）。
  *  - 谓词执行只在宿主（Node）侧，经平台抽象层（platform）访问 OS，不在契约层/ UI 层执行。
  *  - 三层 check kind 分发：primitive（通用原语）/ backend（后端专属）/ preflight（复用既有门禁）。
  *  - 超时按 pending 处理（不抛、不阻塞整链），诚实透传 detail。
  *
- * 版本：2026-08-26 与 src/shared/tracker/chain.js 同步。
+ * 版本：2026-08-27 与 src/shared/tracker/chain.js 同步，删 na。
  */
 
 import { PRIMITIVE_KIND } from '../../shared/tracker/chain.js'
 
 /**
  * @typedef {Object} PredicateResult
- * @property {'pass'|'fail'|'na'|'pending'} status
+ * @property {'pass'|'fail'|'pending'} status
  * @property {string} [detail] 人读细节（日志用）
  * @property {string} [hint] 引导文案透传（与 Show.hint 同源，供链快照复用）
  */
@@ -137,7 +137,7 @@ export function createPredicateRegistry(opts = {}) {
   /**
    * 解析整条链的所有谓词（并行 + 超时按 pending）。
    * - primitive：直接 execPrimitive
-   * - backend/preflight：查注册表；未注册 → 'na'（对当前宿主不适用，诚实不猜）
+   * - backend/preflight：查注册表；未注册 → 'pending'（2026-08-27 起删 na，行不存在而非标 na，诚实不猜）
    * - 超时 → pending（不抛，不阻塞其他）
    */
   async function resolveAll(chain, ctx) {
@@ -169,8 +169,8 @@ export function createPredicateRegistry(opts = {}) {
           let fn = null
           for (const k of keysToTry) if (map.has(k)) { fn = map.get(k); break }
           if (!fn) {
-            // 未注册 = 对当前宿主/后端不适用 → na（高质量：不误判 fail）
-            r = makeResult('na', 'predicate not registered: ' + (check.id || ''))
+            // 未注册 = 对当前宿主/后端不适用 → pending（2026-08-27 起删 na，行不存在而非标 na，不误判 fail）
+            r = makeResult('pending', 'predicate not registered: ' + (check.id || ''))
           } else {
             const raced = await withTimeout(fn(check, ctx), timeout)
             if (raced && raced.__timeout) r = makeResult('pending', 'timeout after ' + timeout + 'ms')
@@ -181,7 +181,7 @@ export function createPredicateRegistry(opts = {}) {
         }
         // 归一化 status
         const s = r && r.status
-        if (s !== 'pass' && s !== 'fail' && s !== 'na' && s !== 'pending') r.status = 'pending'
+        if (s !== 'pass' && s !== 'fail' && s !== 'pending') r.status = 'pending' // 2026-08-27 起无 na
         out[id] = r
       } catch (e) {
         out[id] = makeResult('pending', String((e && e.message) || e))
@@ -195,9 +195,9 @@ export function createPredicateRegistry(opts = {}) {
 }
 
 /**
- * 将 resolveAll 的结果转为 evaluateChain 的输入（Record<id, 'pass'|'fail'|'na'|null>）。
+ * 将 resolveAll 的结果转为 evaluateChain 的输入（Record<id, 'pass'|'fail'|null>，2026-08-27 起无 na）。
  * @param {Record<string, PredicateResult>} resolved
- * @returns {Record<string, 'pass'|'fail'|'na'|null>}
+ * @returns {Record<string, 'pass'|'fail'|null>}
  */
 export function toPredicateResults(resolved) {
   const out = {}
@@ -205,7 +205,6 @@ export function toPredicateResults(resolved) {
     const s = v && v.status
     if (s === 'pass') out[k] = 'pass'
     else if (s === 'fail') out[k] = 'fail'
-    else if (s === 'na') out[k] = 'na'
     else out[k] = null // pending/unknown → null（evaluateChain 视为 pending）
   }
   return out

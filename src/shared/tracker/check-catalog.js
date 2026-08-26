@@ -1,13 +1,13 @@
 /**
- * tracker/check-catalog.js — 通用检查目录与后端检查目录边界（#217 定版）。
+ * tracker/check-catalog.js — 通用检查目录与后端检查目录边界（#217 定版，2026-08-27 修订 #219/#245 删 na）。
  *
  * 第一性原理：
- *  - 通用 = 真值不随 backendId 改变（所有后端都要问）；后端 = 真值随 backendId 改变（仅该后端需要）。
+ *  - 通用 = 真值不随 backendId 改变（所有后端都要问，恒脱离后端可检测）；后端 = 真值随 backendId 改变（仅该后端需要，物理隔离）。
  *  - 判据形式化：若把 backendId 从 'github' 切到 'markdown' / 'gitlab'，该检查的期望结果不变 → 通用；否则 → 后端。
- *  - 'na' 不适用：通用项对特定后端的「不适用」用 'na' 表达，而不是把通用项移入后端目录。
+ *  - 2026-08-27 起删 na：通用恒适用，无不适用场景；后端按物理隔离，行不存在而非标 na。
  *  - 本文件为目录边界的唯一真源，供编排链票（开门链 / 前置环境检测链）直接消费；后续新增检查必须先在此分类。
  *
- * 依据：.scratch/research/ui-hardcode-inventory-20260826.md 类别 8（host 检查链 14 项必迁）+ #198 五票结论。
+ * 依据：.scratch/research/ui-hardcode-inventory-20260826.md 类别 8（host 检查链 14 项必迁）+ #198 五票结论 + #219 定版。
  */
 
 import { PRIMITIVE_KIND } from './chain.js'
@@ -23,7 +23,7 @@ import { PRIMITIVE_KIND } from './chain.js'
  * @property {string} origin 盘点来源（文件:行号或 inventory 类别）
  */
 
-/** 通用检查目录（与后端无关，所有后端都要问；若某后端不适用则该项在链中标 'na'）。 */
+/** 通用检查目录（与后端无关，所有后端都要问，恒适用，无 na）。 */
 export const GENERIC_CATALOG = Object.freeze([
   {
     id: 'skill:wayfinder',
@@ -67,7 +67,7 @@ export const GENERIC_CATALOG = Object.freeze([
   },
 ])
 
-/** GitHub 后端检查目录（仅 github 适用；其他后端在链中为 'na'）。 */
+/** GitHub 后端检查目录（仅 github 适用，物理隔离，其他后端该行不存在）。 */
 export const GITHUB_CATALOG = Object.freeze([
   {
     id: 'gh:installed',
@@ -171,7 +171,7 @@ export function scopeOf(checkId) {
 }
 
 /**
- * 按 backendId 过滤出适用目录（通用 + 该后端），不适用项标 'na' 的依据。
+ * 按 backendId 过滤出适用目录（通用 + 该后端），2026-08-27 起无 na，行不存在而非标 na。
  * @param {'github'|'markdown'|'gitlab'|null} backendId
  * @returns {CatalogItem[]}
  */

@@ -5,12 +5,12 @@
  * 效力规则：本文件以 #217（2026-08-26 18:00）规约为基线；与更早方案冲突以本规约为准；
  *           未来任何定版方案若改动本规约，以未来版本为准；落盘文件须携带此头（见 CONTEXT.md「版本与效力」）。
  *
- * 第一性原理（#217 定版，承接 #215 地图与 #198 五票结论）：
+ * 第一性原理（#217 定版，承接 #215 地图与 #198 五票结论；2026-08-27 修订 #219/#245 #246 落地删 na）：
  *  - 声明式 UI 语言：{check, onPass:{show,actions}, onFail:{show,actions}} 只驱动展示与动作入口，**永不进入数据路径**。
  *  - 操作能力（capability）= 运行时调用结果（G5：无能力表、无分支、调用即知、unsupported 诚实失败）——与检查项正交。
  *  - 检查链条 = 有序检查项序列；前步通过才进入下一步；**推进只来自重求值**（重新问谓词、探测真实状态），不来自动作回调。
  *  - 动作词汇表跨层协议：形状定义与类型枚举在契约层（本文件），执行器 dispatcher 在 UI 层（client/kernel/actions.js），动作声明在后端模块/通用目录。
- *  - 'na'（不适用）= 检查项对当前后端不适用；渲染 muted、就绪计数与胶囊汇总均不计入分母。
+ *  - 2026-08-27 修订：删 'na'，通用恒脱离后端可检测、后端物理隔离、N 动态，跨后端误导靠行不存在根治。
  *
  * G5 双名制（D4）落地：
  *  - 动作/检查项数据**永不被数据路径读取**（不得进入任何 Tracker op 的实现分支，不得作为能力判据）；
@@ -19,7 +19,7 @@
  * 动作不承诺修复，检查才判定状态（D5 原则）：
  *  - 动作只声明意图，不宣称已修复；链条推进只来自重求值（宿主重探谓词 + 求值器重跑）。
  *
- * 版本与效力：2026-08-26 18:00 定版（承接 CONTEXT.md 2026-08-26 18:00 基线，以更新日期者为准）。
+ * 版本与效力：2026-08-27 修订（承接 CONTEXT.md 2026-08-27 基线，以更新日期者为准，删 na）。
  *  - 本文件为契约层唯一真源；后端与 UI 共读同一形状，防漂移；遇枚举外类型 = 诚实 unsupported。
  *  - 变更须在对应子图内先明确推翻本契约（第一性原理：先定契约，再谈子图内部决定）。
  */
@@ -31,16 +31,15 @@ const ERROR_KIND = _EK || { PARSE: 'parse', UNSUPPORTED: 'unsupported' }
 /** 契约形状版本（供日志/审计）。 */
 export const CHAIN_VERSION = 1
 
-/** 检查项状态集（链条求值输出）。枚举值小写短横线，契约层稳定。 */
+/** 检查项状态集（链条求值输出）。枚举值小写短横线，契约层稳定。2026-08-27 起删 NA，四态。 */
 export const CHECK_STATE = Object.freeze({
   DONE: 'done',       // 检查通过，链条前进
   CURRENT: 'current', // 链头未通过且有可执行动作（需用户/ AI 立即处理）—— 高亮态
   FAIL: 'fail',       // 链头未通过且无可执行动作（ terminal 失败，需人工介入）—— 红态
   PENDING: 'pending', // 探测中（输入为 null/缺位）或被前步阻塞—— 灰态/ spinner
-  NA: 'na',           // 对当前后端不适用—— muted，不计分母，不阻塞链
 })
 
-/** 别名：步骤状态（票面文案 done/current/fail/pending + 目录视图 na；与 CHECK_STATE 同值）。 */
+/** 别名：步骤状态（done/current/fail/pending 四态；与 CHECK_STATE 同值，2026-08-27 起无 na）。 */
 export const STEP_STATUS = CHECK_STATE
 
 /** 动作类型枚举（v1 五种，契约层唯一真源）。 */
@@ -173,9 +172,9 @@ export function isKnownActionType(type) {
  * @property {string} id 对应 CheckItem.id（或回退 check 串）
  * @property {string|Check} check 原检查描述（透传）
  * @property {import('./constants.js').CHECK_STATE} status CHECK_STATE 之一
- * @property {Show|null} show 当前应展示的 show（按 status 选 onPass/onFail，na 时为 null）
+ * @property {Show|null} show 当前应展示的 show（按 status 选 onPass/onFail）
  * @property {Action[]} actions 当前应展示的 actions（同上）
- * @property {boolean} isApplicable 是否适用（na=false，其余 true）
+ * @property {boolean} isApplicable 是否适用（2026-08-27 起恒 true，删 na）
  * @property {string|null} blockedBy 前序未通过项 id（若被阻塞）
  * @property {boolean} isCurrent 是否为链头当前步（仅一处 true）
  * @property {boolean} isBlocking 是否阻塞后续
@@ -185,9 +184,9 @@ export function isKnownActionType(type) {
  * ChainSnapshot — 整条链的求值快照（纯函数产出，宿主计算一次，UI 无脑渲染）。
  * @typedef {Object} ChainSnapshot
  * @property {StepSnapshot[]} steps 每步快照（与输入 chain 等长，顺序一致）
- * @property {number|null} currentIndex 链头索引（首个非 done/na 的索引；全 done/全 na 时 null）
- * @property {number} doneCount 已通过数（不计 na）
- * @property {number} applicableCount 适用项总数（总长 - na 数）
+ * @property {number|null} currentIndex 链头索引（首个非 done 的索引；全 done 时 null，2026-08-27 起无 na）
+ * @property {number} doneCount 已通过数
+ * @property {number} applicableCount 适用项总数（= total，2026-08-27 起删 na）
  * @property {number} totalCount 总长
  * @property {'allDone'|'hasCurrent'|'pending'|'empty'} chainState 链整体态
  * @property {string} version CHAIN_VERSION 字符串化
@@ -219,14 +218,12 @@ function deriveCheckId(item) {
 }
 
 function normalizeResult(v) {
-  if (v === 'na' || v === 'NA') return 'na'
   if (v === true || v === 'pass' || v === 'done' || v === 'PASS') return 'pass'
   if (v === false || v === 'fail' || v === 'FAIL') return 'fail'
   if (v == null) return 'pending'
   if (typeof v === 'object' && v !== null) {
     if (v.status === 'pass' || v.status === 'done' || v.ok === true) return 'pass'
     if (v.status === 'fail' || v.ok === false) return 'fail'
-    if (v.status === 'na') return 'na'
     if (v.status === 'pending') return 'pending'
   }
   return String(v)
@@ -381,24 +378,22 @@ export function validateChain(chain) {
 // ---------- 求值器（纯函数，宿主喂「已求值的状态」→ 出步骤快照） ----------
 
 /**
- * 契约层纯函数求值器。
- * 输入：静态 chain + 已 resolve 的 predicateResults（Record<id|check, 'pass'|'fail'|'na'|null>，null=pending）；
+ * 契约层纯函数求值器（2026-08-27 起删 na，四态）。
+ * 输入：静态 chain + 已 resolve 的 predicateResults（Record<id|check, 'pass'|'fail'|null>，null=pending）；
  * 输出：每步 StepSnapshot + 链整体 ChainSnapshot。
  * 约束：
- *  - 顺序求值：前步非 done/na 则后步一律 pending（被前步阻塞），与真实宿主探测一致；
- *  - 'na' 不阻塞链（视为已完成但不计分母）；
+ *  - 顺序求值：前步非 done 则后步一律 pending（被前步阻塞），与真实宿主探测一致；
  *  - 推进只来自重求值（调用方需重新 resolve predicateResults 再调本函数，动作回调不直接改 status）；
  *  - 诚实失败：枚举外 action type 在此不拦（留给 UI dispatcher 报 unsupported），求值器只定 status。
  *
  * @param {Chain} chain
- * @param {Record<string, 'pass'|'fail'|'na'|null|boolean|Object>|Map<string, any>|Function} predicateResults
- * @param {{backendId?: string, includeNa?: boolean}} [opts]
+ * @param {Record<string, 'pass'|'fail'|null|boolean|Object>|Map<string, any>|Function} predicateResults
+ * @param {{backendId?: string}} [opts]
  * @returns {ChainSnapshot}
  */
 export function evaluateChain(chain, predicateResults = {}, opts = {}) {
   if (!Array.isArray(chain)) throw new Error('evaluateChain: chain must be array')
   const results = predicateResults
-  const includeNa = opts && opts.includeNa !== undefined ? !!opts.includeNa : true
 
   // 统一取结果：支持 Map、对象、函数；键按 item.id 回退 check 字符串
   const getVal = (item) => {
@@ -438,7 +433,6 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
   const steps = []
   let currentIndex = null
   let doneCount = 0
-  let naCount = 0
   let foundHead = false
   let headBlockedBy = null
 
@@ -454,7 +448,7 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
       continue
     }
     const raw = getVal(item)
-    // 归一化
+    // 归一化（2026-08-27 起无 na）
     let norm = raw
     if (raw === true) norm = 'pass'
     else if (raw === false) norm = 'fail'
@@ -463,13 +457,11 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
       const s = raw.trim().toLowerCase()
       if (s === 'pass' || s === 'done' || s === 'true' || s === 'ok') norm = 'pass'
       else if (s === 'fail' || s === 'false' || s === 'bad') norm = 'fail'
-      else if (s === 'na' || s === 'n/a' || s === 'not-applicable') norm = 'na'
       else if (s === 'pending' || s === '') norm = 'pending'
       else norm = 'pending'
     } else if (isPlainObject(raw)) {
       if (raw.status === 'pass' || raw.status === 'done' || raw.ok === true) norm = 'pass'
       else if (raw.status === 'fail' || raw.ok === false) norm = 'fail'
-      else if (raw.status === 'na') norm = 'na'
       else norm = 'pending'
     } else {
       norm = 'pending'
@@ -483,14 +475,7 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
     let isCurrent = false
     let isBlocking = false
 
-    if (norm === 'na') {
-      status = CHECK_STATE.NA
-      isApplicable = false
-      naCount++
-      show = null
-      actions = []
-      blockedBy = null
-    } else if (!foundHead) {
+    if (!foundHead) {
       if (norm === 'pass') {
         status = CHECK_STATE.DONE
         show = item.onPass && item.onPass.show ? item.onPass.show : null
@@ -531,10 +516,9 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
   }
 
   const totalCount = chain.length
-  const applicableCount = totalCount - naCount
+  const applicableCount = totalCount
   let chainState = 'empty'
   if (totalCount === 0) chainState = 'empty'
-  else if (applicableCount === 0) chainState = 'allDone'
   else if (currentIndex === null) chainState = 'allDone'
   else {
     const cur = steps[currentIndex]
@@ -563,7 +547,7 @@ export function evaluateChain(chain, predicateResults = {}, opts = {}) {
 }
 
 /**
- * 便捷：判断链是否完成（全部 done/na，无阻塞）。
+ * 便捷：判断链是否完成（全部 done，无阻塞，2026-08-27 起无 na）。
  * @param {ChainSnapshot} snap
  * @returns {boolean}
  */
@@ -582,10 +566,9 @@ export function currentStepOf(snap) {
 }
 
 /**
- * 就绪计数口径（契约层统一，供状态栏/胶囊/面板共用）。
- *  - 分子 = doneCount（不计 na、pending、fail/current）
- *  - 分母 = applicableCount（总长 - na）
- *  - na 永不计入；pending/fail/current 均未完成。
+ * 就绪计数口径（契约层统一，供状态栏/胶囊/面板共用，2026-08-27 起无 na）。
+ *  - 分子 = doneCount（不计 pending、fail/current）
+ *  - 分母 = applicableCount（= total）
  * @param {ChainSnapshot} snap
  * @returns {{done:number, total:number, percent:number|null}}
  */
@@ -600,7 +583,7 @@ export function chainProgress(snap) {
 /**
  * 胶囊汇总口径：返回链状态的人读摘要（供 UI 胶囊/ badge 消费，纯数据）。
  * @param {ChainSnapshot} snap
- * @returns {{kind:'done'|'current'|'fail'|'pending'|'na'|'empty', labelKey:string, fallback:string}}
+ * @returns {{kind:'done'|'current'|'fail'|'pending'|'empty', labelKey:string, fallback:string}}
  */
 export function capsuleSummary(snap) {
   if (!snap || snap.totalCount===0) return { kind:'empty', labelKey:'chain.empty', fallback:'无检查' }
