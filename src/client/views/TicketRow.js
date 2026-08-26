@@ -4,8 +4,7 @@
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  */
     // ---- 5.3 票务行（地图详情内：标题/阻塞来源 ellipsis；v19：按标签给 诊断/修复/讨论/执行 动作，预填输入框）----
-export     const ticketAuthorPalette = ['#58a6ff','#a371f7','#f778ba','#ff7b72','#ffa657','#7ee787','#79c0ff','#d2a8ff','#ffab70','#56d364']
-export     const ticketAuthorColor = function(l){let h=0;for(let i=0;i<l.length;i++)h=(h*31+l.charCodeAt(i))%ticketAuthorPalette.length;return ticketAuthorPalette[h];}
+export     const ticketAuthorColor = function(l){let h=0;for(let i=0;i<l.length;i++)h=(h*31+l.charCodeAt(i))%360;h=(h*137.508)%360;let s=0.72,ll=0.5,c=(1-Math.abs(2*ll-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=ll-c/2,r=0,g=0,b=0;if(h<60){r=c;g=x}else if(h<120){r=x;g=c}else if(h<180){g=c;b=x}else if(h<240){g=x;b=c}else if(h<300){r=x;b=c}else{r=c;b=x}r=Math.round((r+m)*255);g=Math.round((g+m)*255);b=Math.round((b+m)*255);return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');}
 export     const TicketRow = React.memo(({ st, g, t, indent, colorOf }) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
