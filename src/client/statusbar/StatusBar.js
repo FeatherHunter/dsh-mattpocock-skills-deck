@@ -60,7 +60,7 @@ export const StatusBar = (props) => {
   // Guard: interval transient with empty cwd should not hide capsule (prevent forced empty)
   const _selSBGate = s.selection || (s.snapshot && s.snapshot.selection) || null
   const _isOtherSBGateRaw = !!(_selSBGate && _selSBGate.backendId===null && !_selSBGate.pending)
-  const _isOtherSBGate = _isOtherSBGateRaw && !!s.cwd
+  const _isOtherSBGate = _isOtherSBGateRaw && !!s.cwd && s.snapMode==='real' && !!s.snapshot
   const go = function (tab) {
     if (_isOtherSBGate && tab!=='settings') { try{ s.tab='settings'; }catch(e){}; return }
     s.tab = tab; openPanel(s)
