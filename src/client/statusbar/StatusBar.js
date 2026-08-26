@@ -356,9 +356,11 @@ export const StatusBar = (props) => {
     try{inject(s,promptText('setupRun',{trackerLine:line,trackerChoice:choice,backendNote:note}))}catch(e){try{inject(s,promptText('setupRun'))}catch{}}
   }
   const openGate = function(){
-    s.gateModalOpen=true;if(!s.gateSelected)s.gateSelected='github';s.gateError='';emit(s);
+    s.gateModalOpen=true;s.gateModalSource='status';if(!s.gateSelected)s.gateSelected='github';s.gateError='';emit(s);
     if(typeof host!=='undefined'&&host.call){s.gateLoading=true;emit(s);host.call('wf.registry',{cwd:s.cwd||''}).then(function(r){s.gateLoading=false;let m=null;if(r&&r.ok&&Array.isArray(r.modules))m=r.modules;else if(r&&Array.isArray(r.modules))m=r.modules;else if(r&&r.value&&Array.isArray(r.value.modules))m=r.value.modules;if(Array.isArray(m)&&m.length){const f=m.filter(function(x){return String(x.id).toLowerCase()!=='other'});const fin=f.length?f:m;if(fin.length){s.backendModules=m;try{if(typeof setPresentationMap==='function')setPresentationMap(m)}catch(e){}const ids=fin.map(function(x){return x.id});if(!s.gateSelected||ids.indexOf(s.gateSelected)<0)s.gateSelected=fin[0].id}}emit(s)}).catch(function(){s.gateLoading=false;emit(s)});}
   }
+  const closeGate = function(){ s.gateModalOpen=false; s.gateModalSource=null; s.gateError=''; emit(s); };
+  const confirmGateStatus = function(){ const id=s.gateSelected||'github'; if(String(id).toLowerCase()==='other'){ s.gateError='Other 已弃用，请选择 GitHub/Markdown/GitLab'; emit(s); return; } const prev=s.selection; const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null; const nxt={backendId:id,source:'explicit',ref:repoRef}; s.selection=nxt; try{ if(s.cwd)selectionByCwd[s.cwd]=nxt }catch(e){} s.gateModalOpen=false; s.gateModalSource=null; emit(s); if(typeof host!=='undefined'&&host.call){ host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){ const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok); if(ok){ s.tab='list'; emit(s); try{ flash(s,'已绑定 '+(typeof labelOf==='function'?labelOf(id):String(id)),'ok') }catch(e){} try{ const l=(typeof setupTrackerLine==='function'?setupTrackerLine(id):''); const c=(typeof setupTrackerChoice==='function'?setupTrackerChoice(id):''); const n=(typeof setupBackendNote==='function'?setupBackendNote(id):''); const tt=(typeof promptText==='function'?promptText('setupRun',{trackerLine:l,trackerChoice:c,backendNote:n}):''); if(tt) try{ inject(s,tt) }catch(e){} }catch(e){} loadSnapshot(s,true,true); } else { s.selection=prev; try{ if(s.cwd)selectionByCwd[s.cwd]=prev }catch(e){} emit(s); try{ flash(s,'切换失败:'+String(res&&(res.error||res.message)||'unknown'),'warn') }catch(e){} } }).catch(function(){ s.selection=prev; try{ if(s.cwd)selectionByCwd[s.cwd]=prev }catch(e){} emit(s); }); } };
   const setupPickCard = s.setupPickOpen ? (function(){
     const mods=s.setupPickModules||[];const rec=s.setupPickRecommended||'github';const sel=s.setupPickSelected||rec
     return h('div', { style:{ width:'100%', maxWidth:560, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:10, background:'var(--dsw-alias-bg-layer-2,#16181d)', padding:10, boxShadow:'0 8px 24px rgba(0,0,0,.35)' } }, [
@@ -392,7 +394,7 @@ export const StatusBar = (props) => {
       h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: onBtn }, btnLabel),
     ])
   }
-  return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0' } }, [
+  return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0', position:'relative' } }, [
     firstBlock === 'gate'
       ? (_isGatePending
           ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', color:'#f59e0b', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }), h('span', { style:{ flex:1, fontSize:12 } }, '正在探测后端'), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(245,158,11,.6)', fontSize:11 }, onClick:function(){ loadSnapshot(s,true,true) } }, '重试') ])
@@ -409,5 +411,17 @@ export const StatusBar = (props) => {
             ])
           : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.detail) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills')) }),
     capsule,
+    (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) closeGate() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10, borderRadius:8, padding:12 } }, [
+      h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:14, width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
+        h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, '请选择 Tracker 后端以继续')]),
+        h('div', { style:{ fontSize:11, color:'#8b8b95', marginBottom:10, lineHeight:1.5 } }, '不同后端的初始化与前置检查不同，选择后将回到主线流程'),
+        s.gateLoading ? h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'6px 0' } }, '加载中…') : h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, (s.backendModules||[{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]).filter(function(m){return String(m.id).toLowerCase()!=='other'}).map(function(m){
+          const isSel=s.gateSelected===m.id; const col=(typeof backendColorOf==='function'?backendColorOf(m.id):'#6e7681'); const isRec=(s.backendModules||[{id:'github',label:'GitHub'}])[0]&& (s.backendModules||[{id:'github',label:'GitHub'}])[0].id===m.id;
+          return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border:isSel?'1px solid '+col:'1px solid var(--dsw-alias-border-l1,#2a2d35)', background:isSel?'rgba(88,166,255,.08)':'transparent', cursor:'pointer' } }, [ h('input',{type:'radio',checked:isSel,onChange:function(){s.gateSelected=m.id;emit(s)}}), h('span',{style:{width:8,height:8,borderRadius:'50%',background:col,flex:'none'}}), h('span',{style:{fontSize:12,fontWeight:600}},m.label), h('span',{style:{fontSize:10,color:'#8b8b95'}},m.id), h('span',{style:{flex:1}}), isRec?h('span',{style:{fontSize:10,color:'#4ade80',border:'1px solid #4ade80',borderRadius:4,padding:'0 4px'}},'推荐'):null ])
+        })),
+        s.gateError ? h('div', { style:{ fontSize:11, color:'#f87171', marginTop:8 } }, s.gateError) : null,
+        h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 } }, [ h('button',{className:'dsws-btn ghost',onClick:closeGate,style:{fontSize:12}},'取消'), h('button',{className:'dsws-btn',style:{background:'#58a6ff',borderColor:'#58a6ff',color:'#0b1220',fontWeight:700,fontSize:12},onClick:confirmGateStatus},'确认并继续') ])
+      ])
+    ]) : null),
   ])
 }
