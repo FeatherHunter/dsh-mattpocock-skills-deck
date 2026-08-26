@@ -60,7 +60,7 @@ export const StatusBar = (props) => {
   // Guard: interval transient with empty cwd should not hide capsule (prevent forced empty)
   const _selSBGate = s.selection || (s.snapshot && s.snapshot.selection) || null
   const _isOtherSBGateRaw = !!(_selSBGate && _selSBGate.backendId===null && !_selSBGate.pending)
-  const _isOtherSBGate = _isOtherSBGateRaw && !!s.cwd && s.snapMode === 'real' && !!s.snapshot
+  const _isOtherSBGate = _isOtherSBGateRaw && !!s.cwd
   const go = function (tab) {
     if (_isOtherSBGate && tab!=='settings') { try{ s.tab='settings'; }catch(e){}; return }
     s.tab = tab; openPanel(s)
@@ -308,7 +308,8 @@ export const StatusBar = (props) => {
     h(SkillFloatList, { s: s }),
   ])
   // #196 · 状态栏胶囊移除 backend segment 后不再在此处挂 SwitchConfirmModal（仍由 Dock/Overlay 挂载，状态机保留）
-  const firstBlock = ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
+  const _gateActive = _isOtherSBGate || (_selSBGate && _selSBGate.pending && !!s.cwd)
+  const firstBlock = _gateActive ? null : ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
   const fbMods = [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
   const normMods = function(r){
     let ms=null
