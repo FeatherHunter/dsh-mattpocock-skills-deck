@@ -191,7 +191,7 @@ export function createPredicateRegistry(opts = {}) {
     return out
   }
 
-  return { register, has, resolveAll, _map: map }
+  return { register, has, resolveAll, get _map(){ return new Map(map) } } // D-3 fix: _map 只读拷贝，不暴露内部可变 Map
 }
 
 /**
