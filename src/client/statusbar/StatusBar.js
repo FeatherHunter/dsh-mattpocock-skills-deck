@@ -346,6 +346,14 @@ export const StatusBar = (props) => {
     if(typeof host!=='undefined'&&host.call)host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){const ok=res&&(res.ok||(res.value&&res.value.ok));if(ok){try{flash(s,'已选择 '+(typeof labelOf==='function'?labelOf(id):id),'ok')}catch{};loadSnapshot(s,true,true)}else{s.selection=prev;emit(s);try{flash(s,'切换失败:'+String(res&&(res.error||res.message)||'unknown'),'warn')}catch{}}}).catch(function(){s.selection=prev;emit(s)})
     try{inject(s,promptText('setupRun',{trackerLine:line,trackerChoice:choice,backendNote:note}))}catch(e){try{inject(s,promptText('setupRun'))}catch{}}
   }
+  const onSetupInit = function(){
+    const id=s.selection && s.selection.backendId!=null ? s.selection.backendId : (s.setupPickSelected||s.setupPickRecommended||'github');
+    const line=typeof setupTrackerLine==='function'?setupTrackerLine(id):'本仓库为 GitHub \u2192 提议 GitHub Issues';
+    const choice=typeof setupTrackerChoice==='function'?setupTrackerChoice(id):'GitHub Issues';
+    const note=typeof setupBackendNote==='function'?setupBackendNote(id):'';
+    try{s.setupPickOpen=false;emit(s);}catch(e){}
+    try{inject(s,promptText('setupRun',{trackerLine:line,trackerChoice:choice,backendNote:note}))}catch(e){try{inject(s,promptText('setupRun'))}catch{}}
+  }
   const setupPickCard = s.setupPickOpen ? (function(){
     const mods=s.setupPickModules||[];const rec=s.setupPickRecommended||'github';const sel=s.setupPickSelected||rec
     return h('div', { style:{ width:'100%', maxWidth:560, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:10, background:'var(--dsw-alias-bg-layer-2,#16181d)', padding:10, boxShadow:'0 8px 24px rgba(0,0,0,.35)' } }, [
@@ -387,7 +395,7 @@ export const StatusBar = (props) => {
         ? bann(tr('banner.ghauth'), tr('banner.ghauthBtn'), function () { openUrl('https://cli.github.com/manual/gh_auth_login') })
         : firstBlock === 'setup'
           ? h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, width:'100%' } }, [
-              bann(tr('banner.setup'), tr('banner.setupBtn'), openSetupPick),
+              bann(tr('banner.setup'), tr('banner.setupBtn'), onSetupInit),
               setupPickCard,
             ])
           : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.detail) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills')) }),

@@ -227,15 +227,7 @@ export default {
               if (r.level !== 'ok') missing.push(name)
             } catch { probes[name] = { ok: false, level: 'bad' }; missing.push(name) }
           }
-          // #191: backendModules passthrough (presentation palette) for UI setPresentationMap
-      let backendModules = null;
-      try {
-        const regM = await getTrackerRegistry();
-        if (regM && typeof regM.modules === 'function') {
-          backendModules = regM.modules().map(function (m) { return { id: m.id, label: m.label, presentation: m.presentation } });
-        }
-      } catch (e) {}
-      return { ok: missing.length === 0, missing, probes }
+          return { ok: missing.length === 0, missing, probes }
         }
         _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => ({ setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } }), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }) })
       } catch (e) {
@@ -961,6 +953,14 @@ export default {
           var _capDiag = capCount
         }
       } catch (e) { /* 保持 null，不阻塞快照 */ }
+      // #191: backendModules 透传（presentation 色板）—— 修复 ReferenceError: backendModules is not defined (#195 遗漏)
+      let backendModules = null
+      try {
+        const regM = await getTrackerRegistry()
+        if (regM && typeof regM.modules === 'function') {
+          backendModules = regM.modules().map(function (m) { return { id: m.id, label: m.label, presentation: m.presentation } })
+        }
+      } catch (e2) {}
       return {
         ok: true,
         repo: repo,
