@@ -123,8 +123,9 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
     if (sha256(a) !== sha256(b)) { shaOk = false; console.log(`    sha256 不一致: shared/${rel}`) }
   }
   check(shaOk, 'package/shared 与 src/shared 逐文件 sha256 一致')
-  check(srcSharedFiles.length === 8, `src/shared 8 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 8, `package/shared 8 文件（实得 ${pkgSharedFiles.length}）`)
+  // #265 起新增 naming-guardian.js（命名守护核心，host import + client splice 双消费）→ 共享真源 9 文件
+  check(srcSharedFiles.length === 9, `src/shared 9 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 9, `package/shared 9 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

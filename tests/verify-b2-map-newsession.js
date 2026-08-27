@@ -79,7 +79,8 @@ const buildEnv = function (src, lang) {
   }
   const completePromptSrc = extractBetween(src, 'const completePrompt = function (st, num, title, total, closed) {', "const FIXATE_PROMPT = function () { return promptText('fixate') }")
   const completePrompt = new Function('COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText)
-  const startTextSrc = extractBetween(src, 'const startText = (st, t) => {', "const SESSION_TITLE_PREFIX = '[MattSkills]'")
+  // #265 起 router 的命名契约段迁至 shared/naming-guardian.js；终止锚点随迁（#265 后稳定存在于源与产物）
+  const startTextSrc = extractBetween(src, 'const startText = (st, t) => {', '// 契约 #205 会话标题')
   const startText = new Function('repoStr', 'promptText', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', startTextSrc + '; return startText')(repoStr, promptText, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix)
   return { startText: startText }
 }
