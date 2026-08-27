@@ -9,6 +9,12 @@
  *   D5 路径形态全量委托 node:path.posix（sep='/'），零自实现（沿 #113 D1）；joinHome = path.join(await getHome(), ...segs)。
  *   D6 反斜杠在 darwin 是合法文件名字符，不作分隔符；deck 永不 home+'\\'+dir。
  *
+ * v1.7.2（fix/skill-probe-fallback-and-list）· D1 例外条款：
+ *   Electron 主进程在某些升级/重启窗口期内，`os.homedir()` 返回空字符串（HOME 未就绪），
+ *   会导致 probeSkill 整段 fs 探测被跳过，UI 全员报「未安装」。fallback 在主源空时读取
+ *   `process.env.HOME`（仅当主源为空或抛错）——不违反「主源单一真相」原则（fallback 不覆盖正常结果）。
+ *   修复后 D1 在「主源有真值」时仍 100% 适用；仅「主源空/抛」时才让 env 兜底。
+ *
  * 通用包装（缓存 / throw→null / path 委托 / fs 透传 / env 视图）由 `platform/index.js:composePlatform` 单点提供，
  * 本文件只提供 OS 专属原语（pathImpl / getHome / resolveExecutable），不重复实现通用层。
  */
@@ -25,16 +31,20 @@ function resolveHomedir(ctx, opts) {
 
 export default function darwinAdapter(ctx, opts) {
   const homedir = resolveHomedir(ctx, opts)
+  // v1.7.2：D1 例外条款——主源空时读 process.env.HOME 兜底（仅 darwin；win32 由 win32 adapter 自行处理 USERPROFILE/HOMEDRIVE）
+  const envFallback = () => {
+    try { return (process && process.env && (process.env.HOME || process.env.USERPROFILE)) || '' } catch { return '' }
+  }
   return {
     os: 'darwin',
     /** 路径数学全委托 node:path.posix（零自实现；各 OS 不得重实现）。 */
     pathImpl: nodePath.posix,
-    /** getHome：os.homedir() 直接采用，空串→null，抛异常→null（单一真相，不二次读 HOME）。 */
+    /** getHome：os.homedir() 主源；空串/抛错时回退 process.env.HOME（v1.7.2 例外条款） */
     async getHome() {
       try {
-        return homedir() || null
+        return homedir() || envFallback() || null
       } catch {
-        return null
+        try { return envFallback() || null } catch { return null }
       }
     },
     /**

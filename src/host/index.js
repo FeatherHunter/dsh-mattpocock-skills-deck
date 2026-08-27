@@ -47,7 +47,9 @@ export default {
     const STATUS_CACHE_MS = 30000  // 前置检查结果缓存（#344）
     const SKILL_PROBE_DIRS = ['.agents/skills', '.minimax/skills', '.claude/skills']  // #171 migrated: posix canonical via platform.path
     // v1.5 T11 + #149 修复：全流程核心技能探测名单（各动作 prompt 引用的技能 + 基础技能；检查 7/8 取前两个，检查 9 聚合全量）— 补 `setup-matt-pocock-skills` 为 10 名（图快照 §1.1 相邻缺陷正位，#150 Q6）
-    const SKILL_PROBE_NAMES = ['wayfinder', 'triage', 'grilling', 'grill-me', 'implement', 'ask-matt', 'research', 'prototype', 'handoff', 'setup-matt-pocock-skills']
+    // v1.7.2（fix/skill-probe-fallback-and-list）：补 `grill-with-docs` 为第 11 名（用户机器实测目录存在但未列入探测，UI 永远无法提示它未装；
+    //     grill-me 与 grill-with-docs 同源不同语义，前者是问答，后者专攻文档调研；不列就会让探测清单与用户实际目录脱节）
+    const SKILL_PROBE_NAMES = ['wayfinder', 'triage', 'grilling', 'grill-me', 'grill-with-docs', 'implement', 'ask-matt', 'research', 'prototype', 'handoff', 'setup-matt-pocock-skills']
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
 
     // ============ 状态 ============
@@ -1100,6 +1102,12 @@ export default {
     //   宿主级 skills 服务与「当前会话挂载」不是同一上下文，服务不可用时会误报「未挂载」）
     const SKILL_INSTALL_URL = 'https://github.com/mattpocock/skills'
     // v1.6：技能安装引导 prompt 已收编进 client PROMPTS 注册表（installSkills 条目）；hint 用 prompt: 键名协议（prompt:installSkills）由 client 取双语文本
+    // v1.7.2（fix/skill-probe-fallback-and-list）：probeSkill 加两源兜底——
+    //   源 A：用户主目录下 ~/.agents/skills 等（依赖 platform.getHome，正常情况）；
+    //   源 B：cwd 相对探测 —— DSH 进程 cwd 经常就是工作区根（用户「在仓库里运行 DSH」），即便 getHome 异常，
+    //         ./.agents/skills / ./.dsh/skills 也是合法安装位置；DSH 的 dsh-fs-sandbox 不限制读路径（danger-full-access
+    //         下 read 穿透沙箱），安全无损。
+    //   detail 同时附 source（session/user-home/cwd-relative/empty），便于 UI 区分诊断与真正的「未装」。
     async function probeSkill(name, lang) {
       let session = false
       const skills = ctx.get('skills')
@@ -1107,23 +1115,37 @@ export default {
         try { session = !!(await skills.get(name)) } catch (e) { session = false }
       }
       let fsFound = null
+      let probeSource = null
       const home = await getHome()
+      // 源 A：用户主目录（joinHome）
       if (fs !== undefined && home) {
         for (let i = 0; i < SKILL_PROBE_DIRS.length; i++) {
           try {
             const platform = await getPlatform()
             const probePath = await platform.path.joinHome(SKILL_PROBE_DIRS[i], name)
             const info = await platform.fs.lstat(probePath)
-            if (info) { fsFound = '~/' + SKILL_PROBE_DIRS[i] + '/' + name; break }
+            if (info) { fsFound = '~/' + SKILL_PROBE_DIRS[i] + '/' + name; probeSource = 'user-home'; break }
           } catch (e) { /* 继续探测下一个目录 */ }
         }
       }
+      // 源 B：cwd 相对探测（getHome 失败 / home 不可达时兜底；DSH 进程 cwd = DEFAULT_CWD）
+      if (!fsFound && fs !== undefined) {
+        for (const rel of ['.agents/skills', '.dsh/skills']) {
+          try {
+            const platform = await getPlatform()
+            const probePath = platform.path.join(DEFAULT_CWD || '', rel, name)
+            const info = await platform.fs.lstat(probePath)
+            if (info) { fsFound = probePath; probeSource = 'cwd-relative'; break }
+          } catch (e) { /* 继续 */ }
+        }
+      }
       // 两态：#373 —— 任一来源发现 = 已安装（绿 ok）；均无 = 未安装（红 bad + 官方仓库地址）
-      if (session && fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted · ' + fsFound + ')' : '已安装（会话已挂载 · ' + fsFound + '）', hint: '', repo: null }
-      if (session) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted)' : '已安装（会话已挂载）', hint: '', repo: null }
-      if (fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (' + fsFound + ')' : '已安装（' + fsFound + '）', hint: '', repo: null }
-      if (home === null) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed (cannot probe user home)' : '未安装（无法探测用户主目录）', hint: 'prompt:installSkills', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills', repo: null }
+      if (session && fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted · ' + fsFound + ')' : '已安装（会话已挂载 · ' + fsFound + '）', hint: '', repo: null, source: 'session' }
+      if (session) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted)' : '已安装（会话已挂载）', hint: '', repo: null, source: 'session' }
+      if (fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (' + fsFound + ')' : '已安装（' + fsFound + '）', hint: '', repo: null, source: probeSource }
+      // 未发现：诊断 hint 区分原因，避免 banner 一律误导为「未安装」
+      if (home === null) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed (cannot probe user home; cwd also has no match)' : '未安装（无法探测用户主目录，且 cwd 下未命中）', hint: 'prompt:installSkills', repo: null, source: 'home-unreachable' }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills', repo: null, source: 'empty' }
     }
 
     // v1.5 T11：检查 9 · 核心技能套件聚合（全流程技能缺失检测）
@@ -1151,7 +1173,10 @@ export default {
       const c5 = await checkGhAuth(lang)
       const c6 = await checkApi(cwd, c1.repo, lang)
       const c7 = await probeSkill(SKILL_PROBE_NAMES[0], lang)
-      const c8 = await probeSkill(SKILL_PROBE_NAMES[1], lang)
+      // v1.7.2（fix/skill-probe-fallback-and-list）：legacy 回退路径的 c8 之前错指 SKILL_PROBE_NAMES[1]（=triage），
+      //   与 detectionService 路径（line 1279 修正为 [5]=ask-matt）不一致 —— 当 wf.status 走 buildStatus fallback 时
+      //   c8 这行就误报 triage（与 CHECK_NAMES[7]='ask-matt 技能' 标签不符）。正位为 [5]（ask-matt）。
+      const c8 = await probeSkill(SKILL_PROBE_NAMES[6], lang)
       const c9 = await probeSkillSuite(lang)
       const raw = [c1, c2, c3, c4, c5, c6, c7, c8, c9]
       const checks = raw.map(function (c, i) {
@@ -1276,14 +1301,14 @@ export default {
             return { ok: r.level==='ok', level: r.level, detail: r.detail, hint: r.hint }
           }
           c7 = toCheck(SKILL_PROBE_NAMES[0])
-          c8 = toCheck(SKILL_PROBE_NAMES[5]) // ask-matt 正位（#149 C8 triage→ask-matt）
+          c8 = toCheck(SKILL_PROBE_NAMES[6]) // ask-matt 正位（#149 C8 triage→ask-matt）
           // suite 聚合
           const missing = det.skillProbes.missing || []
           if (!missing.length) c9 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '' }
           else c9 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Missing: ' + missing.join(' / ') : '缺失：' + missing.join(' / '), hint: 'prompt:installSkills' }
         } else {
           c7 = await probeSkill(SKILL_PROBE_NAMES[0], lang)
-          c8 = await probeSkill(SKILL_PROBE_NAMES[5], lang)
+          c8 = await probeSkill(SKILL_PROBE_NAMES[6], lang)
           c9 = await probeSkillSuite(lang)
         }
         const raw = [c1Legacy, c2, c3, c4, c5, c6, c7, c8, c9]

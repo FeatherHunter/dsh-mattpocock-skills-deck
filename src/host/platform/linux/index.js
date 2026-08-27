@@ -9,6 +9,10 @@
  *   L5 路径形态：全量委托 `node:path.posix`（sep='/'），零自实现（沿 #113 D1）。
  *   L6 ~/$VAR 展开：平台层不展开（shell 语义归调用方；path.posix 不展开 ~/ 语义）。
  *
+ * v1.7.2（fix/skill-probe-fallback-and-list）· L1 例外条款：
+ *   容器/沙箱/headless 环境下 `os.homedir()` 可能返回空字符串（passwd 缺失 / nss 解析失败）。
+ *   fallback 在主源空时读取 `process.env.HOME` / `USERPROFILE`（同 darwin 例外条款）；仅主源为空才启用。
+ *
  * 通用包装（缓存 / throw→null / path 委托 / fs 透传 / env 视图）由 `platform/index.js:composePlatform` 单点提供，
  * 本文件只提供 OS 专属原语（pathImpl / getHome / resolveExecutable），不重复实现通用层。
  */
@@ -25,16 +29,19 @@ function resolveHomedir(ctx, opts) {
 
 export default function linuxAdapter(ctx, opts) {
   const homedir = resolveHomedir(ctx, opts)
+  const envFallback = () => {
+    try { return (process && process.env && (process.env.HOME || process.env.USERPROFILE)) || '' } catch { return '' }
+  }
   return {
     os: 'linux',
     /** 路径数学全委托 node:path.posix（零自实现；各 OS 不得重实现）。 */
     pathImpl: nodePath.posix,
-    /** getHome：os.homedir() 直接采用，空串→null，抛异常→null（容器最小镜像/无 passwd 场景）。 */
+    /** getHome：os.homedir() 主源；空串/抛错时回退 process.env.HOME（v1.7.2 L1 例外条款） */
     async getHome() {
       try {
-        return homedir() || null
+        return homedir() || envFallback() || null
       } catch {
-        return null
+        try { return envFallback() || null } catch { return null }
       }
     },
     /**
