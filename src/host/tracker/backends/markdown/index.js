@@ -119,7 +119,8 @@ export const markdownModule = {
   },
   create: createMarkdownBackend,
   matches,
-  // #231：本地 Markdown 无远程链接 —— 空 links 为诚实形状（UI 按「无链接」渲染）
+  // #231：本地 Markdown 无远程链接 —— 空 links 为诚实形状；开仓动作为打开本地文件夹（契约动作声明，UI 通用执行）
   links: {},
+  openRepository: 'folder',
 }
 export default createMarkdownBackend

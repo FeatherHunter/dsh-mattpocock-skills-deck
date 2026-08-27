@@ -118,6 +118,7 @@ function gatePrecheck(code, label) {
   try {
     new vm.Script(`(async () => {\n${code}\n})()`, { filename: `cordis-dyn-${label}.js` })
   } catch (e) {
+    if (process.env.DSH_PRECHECK_LOC) console.error('LOC '+label+' :: '+(e.stack||'').split('\n').slice(1,3).join(' | '))
     throw new Error(`[G门禁] ${label} precheckCode 失败：${e.message}`)
   }
 }

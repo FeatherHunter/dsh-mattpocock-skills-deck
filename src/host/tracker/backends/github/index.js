@@ -73,6 +73,8 @@ export const links = {
 }
 /** 界面能力位（D8 末段）：仅驱动 UI 引导入口（标签补全步骤），永不被数据路径读取。 */
 export const capabilities = { labelsGuide: true, repoCreateChain: true }
+/** #231：开仓契约动作——url 型由 UI 以浏览器新窗打开 describe().url。 */
+export const openRepository = 'url'
 /** 注入文案数据（类别7核销）：键→双语全文；名单从 src/shared/labels.js 动态拼装，零第二份字面量名单。 */
 export const prompts = (function () {
   const names = CANONICAL_LABELS.map(function (l) { return (l && l.name) ? String(l.name) : String(l) })
@@ -86,6 +88,16 @@ export const prompts = (function () {
     ghAuthLogin: {
       zh: '请完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。',
       en: 'Please complete gh login: run gh auth login and finish browser authorization; afterwards run gh auth status to confirm.',
+    },
+    noGhPrompt: {
+      zh: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version；\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli；macOS → brew install gh；Linux → sudo apt install gh。',
+      en: 'Install the GitHub CLI (gh) for DSH — all panel data depends on it:\n\n1. Check first: run gh --version;\n2. If missing, install per OS: Windows → winget install --id GitHub.cli; macOS → brew install gh; Linux → sudo apt install gh.',
+    },
+    errorKinds: {
+      'no-git': { zh: '未找到 git，请先安装 Git', en: 'git not found — please install Git' },
+      'no-gh': { zh: '未找到 gh，请先安装 GitHub CLI', en: 'gh not found — please install GitHub CLI' },
+      'not-logged-in': { zh: '未登录 GitHub，请先执行 gh auth login', en: 'Not logged into GitHub — run gh auth login' },
+      'already-exists': { zh: '同名仓库已存在（可在平台查看）', en: 'Repository already exists (view it on the platform)' },
     },
   }
 })()

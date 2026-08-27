@@ -86,6 +86,9 @@ export function searchUrl(name) {
 
 export const linkPattern = /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+)/g
 
+/** #231：开仓契约动作——url 型由 UI 以浏览器新窗打开 describe().url。 */
+export const openRepository = 'url'
+
 /** #231：client 渲染模板数据（UI-lane 只读）。 */
 export const links = {
   issueUrlTemplate: 'https://gitlab.com/{refId}/-/issues/{key}',

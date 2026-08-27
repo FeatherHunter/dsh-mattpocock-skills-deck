@@ -21,6 +21,12 @@ export function firstBackendIdOf(list) {
   const f = otherFiltered(list)
   return (f[0] && f[0].id) || ''
 }
+/** 开仓契约动作解析（#231）：'folder' | 'url' | ''（未声明且无 url 即诚实无动作）。 */
+export function repositoryActionOf(st, bid) {
+  const mm = moduleMetaOf(st, bid)
+  if (mm && mm.openRepository === 'folder') return 'folder'
+  return ''
+}
 /** 当前会话某后端的 UI-lane 描述数据（links/capabilities/openRepository/prompts）；无数据返回 null。 */
 export function moduleMetaOf(st, bid) {
   const ms = st && st.backendModules
