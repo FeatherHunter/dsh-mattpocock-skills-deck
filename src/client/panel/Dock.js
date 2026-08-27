@@ -237,14 +237,18 @@ export     const DetailsDock = (props) => {
           (function(){
             let repoRef = (s.repository || (s.snapshot && s.snapshot.repository) || null)
             const sel = s.selection || (s.snapshot && s.snapshot.selection) || null
-            // #284 修复（2026-08-28）：已选后端但仓库引用缺失（markdown 本地形态 / github 装在非 git 目录）——
-            //   不是「没有后端」，按已选后端派生 chip（后端名 · 目录名），如实呈现后端，仓库定位问题交给环境检查红牌。
-            if (!repoRef && sel && sel.backendId) {
+            // 2026-08-28 语义收紧（用户复核）：头部 chip 是「仓库身份」位——不允许「后端名 · 目录名」伪身份（冒充仓库已识别）。
+            //   markdown 本地型：目录即仓库（host describe 已产目录名，此处同形态防御）；远程型缺失 = 异常，
+            //   如实警示「未识别仓库」并指引环境检查红牌，不造伪身份。
+            if (!repoRef && sel && sel.backendId === 'markdown') {
               try {
-                const nm = ((typeof labelOf === 'function') ? labelOf(sel.backendId) : String(sel.backendId))
-                  + (s.cwd ? ' · ' + String(s.cwd).split(/[\\/]/).filter(Boolean).pop() : '')
-                repoRef = { name: nm, refId: String(s.cwd || ''), backend: sel.backendId, url: '' }
+                const nm = String(s.cwd || '').split(/[\\/]/).filter(Boolean).pop() || 'markdown'
+                repoRef = { name: nm, refId: String(s.cwd || ''), backend: 'markdown', url: '' }
               } catch (e) {}
+            }
+            if (!repoRef && sel && sel.backendId) {
+              // 远程型后端（github/gitlab）已选但仓库引用缺失：诚实警示，不冒充仓库名；诊断交由环境检查 gh:remote 红牌
+              return h('span', { title: tr('panel.repoUnidentifiedTitle'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f59e0b', background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.5)', borderRadius: 6, padding: '1px 8px', flex: 'none', whiteSpace: 'nowrap' } }, [Ic({ n: 'alert', size: 11 }), h('span', null, tr('panel.repoUnidentified'))])
             }
             if (!repoRef) return h('span', { title: tr('panel.noRepoTitle'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f87171', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.5)', borderRadius: 6, padding: '1px 8px', flex: 'none', whiteSpace: 'nowrap' } }, [Ic({ n: 'alert', size: 11 }), h('span', null, tr('panel.noRepo'))])
             const bid = sel ? sel.backendId : (repoRef.backend || firstBackendIdOf(null))
