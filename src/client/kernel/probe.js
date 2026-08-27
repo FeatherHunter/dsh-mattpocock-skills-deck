@@ -18,7 +18,9 @@
         const inflight = _chainInflightByCwd.get(norm)
         if (inflight) return inflight
       }
-      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, force ? { force:true } : {})
+      // 2026-08-28 修复（后端物理隔离）：链的后端段必须与 UI 当前绑定的后端一致——
+      //   此前只传 cwd，host 回退到 detect 自产的 selection（默认 github），导致 markdown 工作区出现 GitHub 检查行。
+      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {}, force ? { force:true } : {})
       const p = host.call('wf.chain', args).then(function(res){
         if (res && res.ok && (res.fullSnapshot || res.snapshot)) {
           st.chainSnapshot = res.fullSnapshot || res.snapshot

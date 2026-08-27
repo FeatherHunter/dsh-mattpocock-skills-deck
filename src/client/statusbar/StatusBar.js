@@ -56,7 +56,8 @@ export const StatusBar = (props) => {
   React.useEffect(function () { loadChain(s, false); if (!snapFresh(s)) loadSnapshot(s, false, true) }, [])
   const csx = checksumsOf(s)
   const { fr, bugN, triageN, n, timeStr, setup, amber, skillsCheck, skillsBad, ghCliBad, ghAuthBad } = csx
-  // #187 门控：未选择且非 pending 时状态栏整条 dsws-capsule 不渲染（仅设置页可见引导），pending 时保留等待态
+  // 2026-08-28 优化3：胶囊状态栏任何情况下都不隐藏（#187「未选后端隐藏整条」门控退休，仅留导航引导）。
+  // _isOtherSBGate 仍用于 go()：未选后端（backendId=null 且非 pending）时点击面板分段 → 设置页引导。
   // Guard: interval transient with empty cwd should not hide capsule (prevent forced empty)
   const _selSBGate = s.selection || (s.snapshot && s.snapshot.selection) || null
   const _isOtherSBGateRaw = !!(_selSBGate && _selSBGate.backendId===null && !_selSBGate.pending)
@@ -243,7 +244,8 @@ export const StatusBar = (props) => {
       clearInterval(poll)
     }
   }, [])
-  const capsule = _isOtherSBGate ? null : h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { if(_isOtherSBGate) return; openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: iw + 'px' } }, [
+  // 优化3：胶囊恒渲染（任何情况下不隐藏）；未选后端时其上方叠加 gate 蓝条引导入口
+  const capsule = h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: iw + 'px' } }, [
     h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
       Icon({ scheme: s.ui.icon, size: 14 }),
       h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
@@ -310,7 +312,12 @@ export const StatusBar = (props) => {
   // #196 · 状态栏胶囊移除 backend segment 后不再在此处挂 SwitchConfirmModal（仍由 Dock/Overlay 挂载，状态机保留）
   const _isGatePending = !!(_selSBGate && _selSBGate.pending && !!s.cwd)
   const _gateActive = _isOtherSBGate || _isGatePending
-  const firstBlock = _gateActive ? 'gate' : ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
+  // BUG2 修复（2026-08-28）：后端未确定（无 selection 或 backendId 为空）时只显示门控条——
+  //   链快照（wf.chain）常早于选择回填到达，若此刻开放 setup/skills 黄条判定，
+  //   全新工作区会「尚未初始化/技能缺失」黄条一闪而过，再跳到正确的 gate 蓝条。
+  //   后端确定后才走依赖链引导（ghcli → ghauth → setup → skills）。
+  const _backendUndecided = !(_selSBGate && _selSBGate.backendId)
+  const firstBlock = (_gateActive || _backendUndecided) ? 'gate' : ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
   const normMods = function(r){
     let ms=null
     if(r&&r.ok&&r.value&&Array.isArray(r.value.modules)) ms=r.value.modules
@@ -377,7 +384,7 @@ export const StatusBar = (props) => {
     ])
   })() : null
   if (!firstBlock) {
-    if (_isOtherSBGate) return h('div', { style: { display: 'none' } }, [])
+    // 优化3：胶囊任何情况下不隐藏（#187 的 display:none 分支已移除）——无 banner 时即纯胶囊
     return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: RDOM ? 'hidden' : 'visible' } }, [capsule])
   }
   const bann = function (text, btnLabel, onBtn) {

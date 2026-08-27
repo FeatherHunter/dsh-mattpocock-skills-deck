@@ -61,6 +61,8 @@ export const PRIMITIVE_KIND = Object.freeze({
   FILE_EXISTS: 'fileExists',       // 例：{path:'.git/config'} / {path:'docs/agents/issue-tracker.md'}
   ENV: 'env',                      // 例：{key:'HOME'}
   SKILL_PROBE: 'skillProbe',       // 例：{skill:'wayfinder'}
+  HOME_DIR: 'homeDir',             // 例：{} — 用户主目录可解析：一律问平台层（#171：win32 不读 HOME，走 os.homedir→USERPROFILE；linux/mac 走 os.homedir），
+                                   //   不再直接读 process.env.HOME（Windows 从不设置该变量，会误报 HOME not set）
 })
 
 /** 展示等级（蓝/黄/红条；与 SHOW_LEVELS 同义，小写）。 */

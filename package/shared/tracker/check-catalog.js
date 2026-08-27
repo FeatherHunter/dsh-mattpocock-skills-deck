@@ -58,8 +58,12 @@ export const GENERIC_CATALOG = Object.freeze([
     label: '用户主目录可解析',
     scope: 'generic',
     backends: ['github','markdown','gitlab'],
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.ENV, key: 'HOME' },
-    origin: 'platform/getHome (inventory 类别 8)',
+    // /homeDir（2026-08-28 修复）：主目录判定只问平台层（#171：win32 不读 HOME，走 os.homedir→USERPROFILE；linux/mac 走 os.homedir）。
+    //   原 ENV(HOME) 在 Windows 必然误报「HOME not set」（Windows 从不设置该环境变量）。
+    //   为什么是通用检查：技能判装的单一根 ~/.agents/skills（#276/#281）由此解析，三后端共用同一用户级根，
+    //   换后端期望结果不变 → 按 #217 形式化判据归入通用；失败 = 环境级异常（daemon/容器/服务账户），应诚实红牌而非把技能误判为未安装。
+    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.HOME_DIR },
+    origin: 'platform/getHome (inventory 类别 8) — #171 平台层统一',
   },
   {
     id: 'tracker:initialized',
@@ -262,7 +266,7 @@ export const GENERIC_CHECK_ITEMS = Object.freeze([
   },
   {
     id: 'env:home',
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.ENV, key: 'HOME' },
+    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.HOME_DIR },
     onPass: { show: { i18nKey: 'check.env.home.pass', fallback: '用户主目录可解析', level: 'info' }, actions: [] },
     onFail: { show: { i18nKey: 'check.env.home.fail', fallback: '用户主目录不可解析', level: 'warn' }, actions: [{ type: ACTION_TYPE.REFRESH, target: 'chain' }] },
     label: '用户主目录可解析',

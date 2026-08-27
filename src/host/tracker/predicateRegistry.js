@@ -76,6 +76,16 @@ async function execPrimitive(check, ctx) {
         return makeResult('fail', String((e && e.message) || e))
       }
     }
+    if (kind === PRIMITIVE_KIND.HOME_DIR) {
+      // /homeDir（2026-08-28 修复）：主目录判装只问平台层——win32 不读 HOME（os.homedir→USERPROFILE），linux/mac 走 os.homedir；
+      //   原 ENV(HOME) 在 Windows 必然误报「HOME not set」，主目录明明可解析却判 fail。
+      //   平台层不可用 → 诚实 pending（不猜）；解析失败 → fail（环境级异常：daemon/容器/服务账户无用户上下文）。
+      if (!p || typeof p.getHome !== 'function') return makeResult('pending', 'platform.getHome unavailable')
+      try {
+        const h = await p.getHome()
+        return h ? makeResult('pass', h) : makeResult('fail', 'user home not resolved')
+      } catch (e) { return makeResult('pending', String((e && e.message) || e)) }
+    }
     if (kind === PRIMITIVE_KIND.ENV) {
       const key = check.key
       const env = p && p.env ? p.env : null
