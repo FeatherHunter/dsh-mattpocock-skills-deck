@@ -1486,8 +1486,13 @@ export default {
         }
         const platform = await getPlatform()
         const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true }) }).catch(function(){ return null })
-        let backendId = args && args.backendId
-        if (!backendId && selMod && selMod.selection && selMod.selection.backendId) backendId = selMod.selection.backendId
+        // 2026-08-28 语义修正（锚即真相，Q4 契约）：落盘主锚（detect 的 explicit/matches 判定）是权威——
+        //   工作区「错误地用 GitHub 模板初始化」→ 检测就是 github（工作区名字不影响检测）；
+        //   客户端绑定仅在 detect 无结论（无锚 fallback null / 探测中）时兜底，旧绑定记忆不得篡改已落盘的真相。
+        const selDetected = selMod && selMod.selection
+        let backendId = (selDetected && selDetected.backendId)
+          ? selDetected.backendId
+          : (args && args.backendId) || null
         const genMod = await import('./tracker/generic.js')
         const predMod = await import('./tracker/predicateRegistry.js')
         const registry = predMod.createPredicateRegistry({ timeout: 3000 })

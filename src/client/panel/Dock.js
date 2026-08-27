@@ -237,10 +237,14 @@ export     const DetailsDock = (props) => {
           (function(){
             let repoRef = (s.repository || (s.snapshot && s.snapshot.repository) || null)
             const sel = s.selection || (s.snapshot && s.snapshot.selection) || null
-            // #284 修复（2026-08-28）：本地文件型后端（markdown）没有远程仓库引用是正常形态——
-            //   按已选后端派生本地仓库名（目录名），头部不再误显示「没有后端」红标。
-            if (!repoRef && sel && sel.backendId === 'markdown') {
-              try { const nm = String(s.cwd || '').split(/[\\/]/).filter(Boolean).pop() || 'markdown'; repoRef = { name: nm, refId: String(s.cwd || ''), backend: 'markdown', url: '' } } catch (e) {}
+            // #284 修复（2026-08-28）：已选后端但仓库引用缺失（markdown 本地形态 / github 装在非 git 目录）——
+            //   不是「没有后端」，按已选后端派生 chip（后端名 · 目录名），如实呈现后端，仓库定位问题交给环境检查红牌。
+            if (!repoRef && sel && sel.backendId) {
+              try {
+                const nm = ((typeof labelOf === 'function') ? labelOf(sel.backendId) : String(sel.backendId))
+                  + (s.cwd ? ' · ' + String(s.cwd).split(/[\\/]/).filter(Boolean).pop() : '')
+                repoRef = { name: nm, refId: String(s.cwd || ''), backend: sel.backendId, url: '' }
+              } catch (e) {}
             }
             if (!repoRef) return h('span', { title: tr('panel.noRepoTitle'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f87171', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.5)', borderRadius: 6, padding: '1px 8px', flex: 'none', whiteSpace: 'nowrap' } }, [Ic({ n: 'alert', size: 11 }), h('span', null, tr('panel.noRepo'))])
             const bid = sel ? sel.backendId : (repoRef.backend || firstBackendIdOf(null))
