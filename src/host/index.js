@@ -1154,6 +1154,15 @@ export default {
           selection = sel
           if (sel && sel.backendId) {
             try { repository = reg.describe(handle, sel.backendId) } catch {}
+            // 2026-08-28 加固（Dock「后端名 · 目录名」兜底根因）：describe 以 handle.refId 为准，handle 无 refId 时退化为
+            //   「目录名 + 无 url」——正常 GitHub 仓库也会因临时 fs/git 读取差异落入该弱结果，UI 头部只剩兜底形态。
+            //   refId/name 是身份真相（url 才受 links.repoUrlTemplate 意愿位约束）：getRepoKey 可解析即无条件补全 owner/name。
+            if ((!repository || !repository.refId) && repo && repo.owner) {
+              try { repository = reg.describe({ cwd: cwd, refId: repo.owner + '/' + repo.name }, sel.backendId) } catch (eDesc2) {}
+            }
+            if ((!repository || !repository.refId) && repo && repo.owner) {
+              try { repository = { backend: sel.backendId, refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: '' } } catch (eD2) {}
+            }
             // #231：后端特判删除 —— 是否补链由该后端 links.repoUrlTemplate 意愿位声明；补全走其自身 describe（单源产出 refId/name/url）
             if (repository && !repository.url && sel.backendId && repo && repo.owner) {
               var wantsUrlSeed = false
