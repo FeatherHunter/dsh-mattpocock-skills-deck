@@ -189,6 +189,7 @@ const KERNEL_MODULES = [
  *  标记拼回闭包 —— 原文零复制（去行首 export），两半共用同一份实现文本，无第二处命名真源。 */
 const SHARED_SPLICE = [
   { marker: '// ==== shared:namingGuardian (spliced by build) ====', file: 'src/shared/naming-guardian.js' },
+  { marker: '// ==== shared:trackerSync (spliced by build) ====', file: 'src/shared/tracker/sync.js' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------

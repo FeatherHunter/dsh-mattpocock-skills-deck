@@ -127,8 +127,33 @@
       if (_issuePathPolling) return
       if (typeof host === 'undefined' || typeof host.call !== 'function') return
       _issuePathPolling = true
-      host.call('wf.issuePathPoll', { since: _issuePathPollTs }).then(function (res) {
+      // #232 · 上报可见工作区参与面板增量同步（推进只来自重求值）；hidden 时传空表回落旧链路
+      const cwdsOut = (function () {
+        const arr = []
+        try {
+          const vis = (typeof document === 'undefined' || !document.visibilityState || document.visibilityState === 'visible')
+          if (vis) {
+            if (typeof shared === 'object' && shared && shared.cwd) arr.push(shared.cwd)
+            if (typeof stores === 'object') Object.keys(stores).forEach(function (k) {
+              const c = stores[k] && stores[k].cwd
+              if (c && arr.indexOf(c) < 0) arr.push(c)
+            })
+          }
+        } catch (eCwd) {}
+        return arr.slice(0, ((typeof SYNC === 'object' && SYNC && SYNC.MAX_POLLED_CWDS) || 12))
+      })()
+      host.call('wf.issuePathPoll', { since: _issuePathPollTs, cwds: cwdsOut }).then(function (res) {
         _issuePathPolling = false
+        // #232 · 宿主已对真实索引完成重求值并验证差值 → 短窗合并探针（1.2s）；
+        //   行级变更最终仍走 probeNow → wf.probe changed 判定 → 静默重算 → diff 闪烁，无乐观插入。
+        try {
+          const dcs = res && Array.isArray(res.dirtyCwds) ? res.dirtyCwds : []
+          if (dcs.length && typeof scheduleDirtyProbe === 'function') {
+            const hitShared = (typeof shared === 'object' && shared && shared.cwd) ? dcs.indexOf(shared.cwd) >= 0 : false
+            const hitSelf = st && st.cwd ? dcs.indexOf(String(st.cwd)) >= 0 : false
+            if (hitShared || hitSelf) scheduleDirtyProbe()
+          }
+        } catch (eDirty) {}
         if (!res || !res.ok || !Array.isArray(res.events) || !res.events.length) {
           if (res && typeof res.serverNow === 'number') _issuePathPollTs = res.serverNow
           return
@@ -139,7 +164,9 @@
           if (ev && ev.ref) {
             recordIssuePath(st, ev.ref, ev.source, ev.title)
             if (ev.ts && ev.ts > maxTs) maxTs = ev.ts
-            if (ev.source === 'gh-create' || ev.source === 'gh-edit' || ev.source === 'claim') needProbe = true
+            // #232 · 探针触发源词汇表单源化（shared/tracker/sync.js）：#213 三源 + index-dirty
+            //       共享模块经 SHARED_SPLICE 必然在场；缺位时静默降级由 60s 全量探针兜底。
+            if (typeof needProbeSource === 'function' && needProbeSource(ev.source)) needProbe = true
             // #266 即时信号（认领/推送/白名单创建）：nudge host「等待建号」→ 索引差值提前结算，
             // 归属仍按同仓库最早占位/草稿档判定（事件不携带会话身份，不做 per-session 绑定）
             if ((ev.source === 'gh-create' || ev.source === 'claim') && st && st.sessionId) {

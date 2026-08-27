@@ -152,6 +152,7 @@ export default {
     // 2. 外观方案（图标 + 动作词，可切换）
     // ============================================================
     // ==== shared:namingGuardian (spliced by build) ====
+    // ==== shared:trackerSync (spliced by build) ====
     // ==== kernel:icons (spliced by build) ====
 
     // ============================================================

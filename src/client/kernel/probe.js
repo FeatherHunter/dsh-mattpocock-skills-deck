@@ -447,6 +447,20 @@
         probeNow(false)
       }, 8000)
     }
+    // #232 · 已验证脏信号专用短窗探针 —— 宿主重求值命中差值后触发，1.2s 合并突发多写，
+    //   区别于动作长窗（8s，供 UI 动作后使用）。两窗并存：短窗先行收敛，长窗兜底重复探测
+    //   无害（probe 为轻量单查）；最终刷新仍必须经 wf.probe changed 判定，不引入乐观路径。
+    export const DIRTY_PROBE_DEBOUNCE_MS = ((typeof SYNC === 'object' && SYNC && SYNC.DIRTY_PROBE_DEBOUNCE_MS) || 1200)
+    export let _dirtyProbePending = false
+    export const scheduleDirtyProbe = function () {
+      if (_dirtyProbePending) return
+      _dirtyProbePending = true
+      if (timer === undefined) { _dirtyProbePending = false; return }
+      timer.timeout(function () {
+        _dirtyProbePending = false
+        probeNow(false)
+      }, DIRTY_PROBE_DEBOUNCE_MS)
+    }
     export const startAutoProbe = function () {
       if (shared._probeTimer) return
       // v1.5 R2-fix：跨 reload 清理旧 timer（dev_reload_package 后 JS setInterval 不自动清理，
