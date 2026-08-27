@@ -9,6 +9,7 @@
  */
 
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
+import { CANONICAL_LABELS } from '../../../../shared/labels.js'
 import { ghClient } from './client.js'
 import { ghPreflight } from './preflight.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setAssignees } from './issues.js'
@@ -61,6 +62,33 @@ export function searchUrl(name) {
 }
 
 export const linkPattern = /github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/(\d+)/g
+
+// ============ UI-lane 描述数据（#231 类别7核销 · 宿主沙箱外只读）：链接模板/能力位/注入文案 后端单源 ============
+/** #231：client 渲染与链接识别的模板数据；null 字段=诚实缺该形态。 */
+export const links = {
+  issueUrlTemplate: 'https://github.com/{refId}/issues/{key}',
+  repoUrlTemplate: 'https://github.com/{refId}',
+  searchUrlTemplate: 'https://github.com/search?q={q}',
+  linkPatternSource: 'github\\.com\\/[^\\/\\s]+\\/[^\\/\\s]+\\/issues\\/(\\d+)',
+}
+/** 界面能力位（D8 末段）：仅驱动 UI 引导入口（标签补全步骤），永不被数据路径读取。 */
+export const capabilities = { labelsGuide: true }
+/** 注入文案数据（类别7核销）：键→双语全文；名单从 src/shared/labels.js 动态拼装，零第二份字面量名单。 */
+export const prompts = (function () {
+  const names = CANONICAL_LABELS.map(function (l) { return (l && l.name) ? String(l.name) : String(l) })
+  const zhNames = names.join(', ')
+  const enNames = names.join(', ')
+  return {
+    ensureLabels: {
+      zh: '请为当前仓库补全缺失的核心标签（共 ' + names.length + ' 个）：\n\n必备标签：' + zhNames + '\n\n步骤：\n- [ ] 先检查现有标签（gh api repos/{owner}/{repo}/labels 或 gh label list --json name；名大小写不敏感）\n- [ ] 对缺失的每个标签执行 gh label create --repo {owner}/{repo} --name "<name>" --color <color> --description "<desc>"（已存在跳过，幂等；失败不回滚仓库）\n- [ ] 完成后用 gh label list 复查直至齐全\n\n色值/描述以 src/shared/labels.js 单源为准，仅校验名子集。',
+      en: 'Please complete the missing canonical labels (' + names.length + ' total):\n\nRequired labels: ' + enNames + '\n\nSteps:\n- [ ] Check existing labels first (gh api repos/{owner}/{repo}/labels or gh label list --json name; case-insensitive)\n- [ ] For each missing label run gh label create --repo {owner}/{repo} --name "<name>" --color <color> --description "<desc>" (skip if exists, idempotent; do not rollback on failure)\n- [ ] Re-check via gh label list afterwards until complete\n\nColors/descriptions are single-sourced in src/shared/labels.js; verification is name-subset only.',
+    },
+    ghAuthLogin: {
+      zh: '请完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。',
+      en: 'Please complete gh login: run gh auth login and finish browser authorization; afterwards run gh auth status to confirm.',
+    },
+  }
+})()
 
 // ============ 仓库定位（async）：getRepoKey 迁移（原 host/index.js 三级 Tier 语义不变） ============
 /**
@@ -502,6 +530,9 @@ export const githubModule = {
   issueUrl,
   searchUrl,
   linkPattern,
+  links,
+  capabilities,
+  prompts,
   checks,
 }
 

@@ -39,7 +39,7 @@ export     const TicketRow = React.memo(({ st, g, t, indent, colorOf }) => {
           // #361 能力保留（同 cwd + 自动命名 + 预填指令）；#394：去 ghost/icon-only，与 nav.handoff 解耦
           //   marginLeft:4 与左侧 mkRowAction 形成隐式分组（动作组 vs 辅助组）
           h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, t) }, title: tr('list.newSessionLabel'), style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: actionColorOf(t, colorOf), borderColor: 'transparent', color: isLightHex(actionColorOf(t, colorOf)) ? '#140a1e' : '#ffffff' } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))]),
-          h('a', { className: 'dsws-btn ghost', title: tr('list.openInGithubTitle', { n: t.number }), href: issueUrlFor(st, t.number), target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '3px 6px' } }, Ic({ n: 'link', size: 12 })),
+          h('a', { className: 'dsws-btn ghost', title: tr('list.openInTrackerTitle', { n: t.number }), href: issueUrlFor(st, t.number), target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '3px 6px' } }, Ic({ n: 'link', size: 12 })),
         ]) : h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, t.number), target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none' } }, tr('act.view')),
       ])
       })

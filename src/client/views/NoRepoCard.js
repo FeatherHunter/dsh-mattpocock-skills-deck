@@ -116,10 +116,11 @@ export     const NoRepoCard = function (props) {
           card.loading = false
           if (res && res.ok) {
             const repoStr2 = res.repo && res.repo.owner ? res.repo.owner + '/' + res.repo.name : (res.repo && res.repo.name ? res.repo.name : card.name)
-            // #188 纯 UI：Markdown 跳过标签步骤（GitHub 专属）
+            // #231（能力位）：未声明 capabilities.labelsGuide 的后端一律跳过标签步骤（Markdown 即此形状；未来后端声明后自动获得引导，D8 末段）
             const sel2 = st.selection || (st.snapshot && st.snapshot.selection) || null
-            const isMd = !!(sel2 && sel2.backendId === 'markdown')
-            if (isMd) {
+            const meta2 = (typeof moduleMetaOf === 'function' && sel2) ? moduleMetaOf(st, sel2.backendId) : null
+            const labelsGuide = !!(meta2 && meta2.capabilities && meta2.capabilities.labelsGuide)
+            if (!labelsGuide) {
               flash(st, tr('panel.noRepoCreateSuccess', { repo: repoStr2 }), 'ok')
               card.expanded = false; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st)
               loadSnapshot(st, true, true); loadChecks(st, true, true)
@@ -242,7 +243,15 @@ export     const NoRepoCard = function (props) {
         const titleText = missing.length===0 ? tr('panel.labelsStepAllOk', {total: total}) : tr('panel.labelsStepTitle', {have: have, total: total})
         const doInject = function(){
           try{
-            const txt = (typeof promptText==='function') ? promptText('ensureLabels') : ''
+            const txt = (function(){
+              try{
+                const bidI=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId
+                const mmI=(typeof moduleMetaOf==='function'&&bidI!=null)?moduleMetaOf(st,bidI):null
+                const ppI=mmI&&mmI.prompts&&mmI.prompts.ensureLabels
+                if(ppI){ const lg=(typeof promptLang==='function')?promptLang():'zh'; const t=(lg==='en'&&ppI.en)?String(ppI.en):String(ppI.zh||''); if(t) return t }
+              }catch(e){}
+              return (typeof promptText==='function') ? promptText('ensureLabels') : ''
+            })()
             if (txt && typeof inject==='function') { inject(st, txt) }
             else if (typeof copyText==='function' && txt){ copyText(st, txt, tr('panel.labelsStepInjected')) }
           }catch(e){}

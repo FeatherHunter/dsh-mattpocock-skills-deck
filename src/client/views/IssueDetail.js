@@ -73,7 +73,7 @@ export const IssueDetail = function (props) {
             h('span', null, kind + ': ' + String(msg).slice(0, 160)),
             h('span', { style: { flex: 1 } }),
             h('button', { className: 'dsws-btn primary', onClick: doRetry, style: { padding: '1px 8px', fontSize: 11, background: '#f87171', borderColor: 'transparent', color: '#fff' } }, '重试'),
-            h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { padding: '1px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'link', size: 11 }), h('span', null, '去 GitHub')]),
+            h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { padding: '1px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('detail.viewOnTracker'))]),
           ]),
         ])
       }
@@ -173,7 +173,7 @@ export const IssueDetail = function (props) {
             detail ? h('span', { style: { fontSize: 10, color: isStale ? '#f59e0b' : '#8b8b95' } }, isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')) : null,
             h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, { number: issueNumber, title: title, labels: labelArr }) }, title: tr('list.newSessionLabel'), style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))]),
             h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); copyUrl(issueNumber) }, title: tr('list.copyLinkTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'clipboard', size: 13 })),
-            h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', title: tr('list.openInGithubTitle', { n: issueNumber }), style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 13 })),
+            h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', title: tr('list.openInTrackerTitle', { n: issueNumber }), style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 13 })),
           ]),
         ]),
         // 顶部 err 横幅（有 src 时可重试，不遮挡主体）
@@ -273,7 +273,7 @@ export const IssueDetail = function (props) {
               return h('div', { style: { marginTop: 8, padding: '8px 10px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' } }, [
                 Ic({ n: 'alert', size: 11 }),
                 h('span', null, '以下评论未加载，'),
-                h('a', { href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { color: '#58a6ff', textDecoration: 'underline' } }, '点此去 GitHub 查看'),
+                h('a', { href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { color: '#58a6ff', textDecoration: 'underline' } }, tr('detail.viewOnTrackerHint')),
               ])
             }
             const hasMore = (src.comments && src.comments.pageInfo) ? src.comments.pageInfo.hasNextPage : commentsNodes.length >= 50
@@ -306,7 +306,7 @@ export const IssueDetail = function (props) {
             color: st.cmtError.kind === 'rate-limit' ? '#f59e0b' : '#f87171' } }, [
             Ic({ n: 'alert', size: 11 }),
             h('span', null, cmtErrTextOf(st.cmtError)),
-            st.cmtError.kind === 'auth' ? h('a', { href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { color: '#58a6ff', textDecoration: 'underline' } }, '去 GitHub') : null,
+            st.cmtError.kind === 'auth' ? h('a', { href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { color: '#58a6ff', textDecoration: 'underline' } }, tr('detail.authFailCta')) : null,
           ]) : null,
           h('textarea', {
             value: st.cmtDraft || '',
@@ -335,7 +335,7 @@ export const IssueDetail = function (props) {
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 } }, [
           primaryBtn,
           h('span', { style: { flex: 1 } }),
-          !canComment ? h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, 'read-only · 写操作请走 新会话 / 去 GitHub') : null,
+          !canComment ? h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.readOnlyHint')) : null,
         ]),
       ])
     }

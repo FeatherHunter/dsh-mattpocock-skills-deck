@@ -77,6 +77,8 @@
     }
     // v1.5 T4/T5：Matt 技能仓库（介绍卡 GitHub 链接）
     export const MATT_REPO = 'https://github.com/mattpocock/skills'
+// #231 过渡兜底（清尾批随双端一致窗口删除）：无 links 元数据窗口期的 legacy 拼装，非第二真源
+const LEGACY_ISSUE_URL = 'https://github.com/{refId}/issues/{key}'
     export const MAP_EXECUTE_PROMPT = function () { return promptText('mapExecute') }
     export const COMPLETE_PROMPT = function () { return promptText('complete') }
     // T16：正文格式契约（写/改 issue 正文的动作统一追加）
@@ -88,7 +90,7 @@
     export const NEW_BUG_FIELDS_BODY_EN = function () { return '\n\nActual (what happened; may include impact):\nExpected (what should happen / expected result):\nReproduction ([Preamble / Scenario] + numbered steps):\nEnvironment (OS + browser + plugin version):' }
     // v5（#77 grilling 定版 2026-08-21）：mapHead 自包含化 —— 标识头三字段内联 complete 顶部，completePrompt 补 title 参数并填 {n}/{title}/{url}
     export const completePrompt = function (st, num, title, total, closed) {
-      const url = 'https://github.com/' + repoStr(st) + '/issues/' + String(num || '')
+      const url = (typeof issueUrlFor === 'function') ? issueUrlFor(st, String(num || '')) : LEGACY_ISSUE_URL.split('{refId}').join(repoStr(st)).split('{key}').join(String(num || ''))
       return '/wayfinder ' + url + '\n\n' +
         COMPLETE_PROMPT().split('{n}').join(String(num || '')).split('{title}').join(String(title || '')).split('{url}').join(url).split('{total}').join(String(total)).split('{closed}').join(String(closed))
     }

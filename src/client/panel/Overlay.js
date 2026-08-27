@@ -160,7 +160,7 @@ export     const OverlayPanel = (props) => {
             if(ok){
               s.tab='list'
               emit(s)
-              try{ flash(s, '已绑定 ' + (typeof labelOf==='function'?labelOf(id):String(id)), 'ok') }catch(e){}
+              try{ flash(s, tr('switch.bindOk', { label: (typeof labelOf==='function'?labelOf(id):String(id)) }), 'ok') }catch(e){}
               try{
                 // #230（D10）：占位符由后端描述数据填充，UI 不再拼装
                 const txt = (typeof setupRunPrompt==='function'? setupRunPrompt(s, id) : '')
@@ -169,7 +169,7 @@ export     const OverlayPanel = (props) => {
               loadSnapshot(s,true,true)
             } else {
               s.selection=prev; try{ if(s.cwd) selectionByCwd[s.cwd]=prev }catch(e){}; emit(s)
-              try{ flash(s, '绑定失败:'+String((res&&(res.error||res.message))||'unknown').slice(0,120), 'warn') }catch(e){}
+              try{ flash(s, tr('switch.bindFail',{err:String((res&&(res.error||res.message))||'unknown').slice(0,120)}), 'warn') }catch(e){}
             }
           }).catch(function(e){
             s.selection=prev; try{ if(s.cwd) selectionByCwd[s.cwd]=prev }catch(e2){}; emit(s)
@@ -232,7 +232,7 @@ export     const OverlayPanel = (props) => {
           h('span', { 'data-head-title': 1, style: { fontWeight: 600, whiteSpace: 'nowrap', flex: 'none' } }, tr('panel.title')),
           // v19-35：「真数据」→ 显示 repo 名；#190 Markdown 本地文件夹分支（backend==='markdown' 时 host.call('wf.openFolder',{cwd})，GitHub/GitLab 保持 openUrl）
           (function(){
-            const repoRef = (s.repository || (s.snapshot && s.snapshot.repository) || (s.snapshot && s.snapshot.repo ? { backend:'github', name: s.snapshot.repo.owner+'/'+s.snapshot.repo.name, refId: s.snapshot.repo.owner+'/'+s.snapshot.repo.name, url: repoUrlFor(s) } : null))
+            const repoRef = (s.repository || (s.snapshot && s.snapshot.repository) || null)
             const sel = s.selection || (s.snapshot && s.snapshot.selection) || null
             const isErr = s.snapMode === 'err'
             const isLoading = s.snapMode === 'loading'

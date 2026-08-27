@@ -105,7 +105,10 @@ export const OPERATIONS = Object.freeze([
  * @property {(handle: RepoHandle, backendId: string) => import('../../shared/tracker/shape.js').RepositoryRef} [describe] 可选：出 RepositoryRef（refId/name/url）；未提供时 registry 回退骨架（markdown cwd，其余 ''）
  * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} [issueUrl] 可选：票链接（github https://github.com/{refId}/issues/{key}，gitlab https://gitlab.com/{refId}/-/issues/{key}，markdown ''）
  * @property {(name: string) => string} [searchUrl] 可选：仓库名搜索链接（github https://github.com/search?q=...）
- * @property {{trackerLine: string, trackerChoice: string, backendNote: string, labelReqs: string}} [setupPrompt] 可选只读 UI 描述数据（#230 D10 键入 locale）：声明 setupRun 占位符对应的 client locale 双语键名；界面检查项通道，永不被数据路径读取。未声明时 UI 用缺省键组兜底
+ * @property {{trackerLine: string, trackerChoice: string, backendNote: string, labelReqs: string}} [setupPrompt]
+ * @property {{issueUrlTemplate?: string, repoUrlTemplate?: string, searchUrlTemplate?: string, linkPatternSource?: string}} [links] 可选只读描述数据（#231）：client URL 构造/链接识别的单源模板；空对象=诚实「无链接」形状
+ * @property {{labelsGuide?: boolean}} [capabilities] 可选界面能力位（#231 · D8 末段落地）：仅驱动 UI 引导入口显示，G5 红线不变——永不被数据路径读取
+ * @property {Object.<string, {zh: string, en: string}>} [prompts] 可选注入文案数据（#231 类别7核销）：键→双语全文（ensureLabels/ghAuthLogin 等），client 仅透传 inject 不持有品牌语义 可选只读 UI 描述数据（#230 D10 键入 locale）：声明 setupRun 占位符对应的 client locale 双语键名；界面检查项通道，永不被数据路径读取。未声明时 UI 用缺省键组兜底
  * @property {RegExp|string} [linkPattern] 可选：链接识别正则（如 /github\\.com\/[^\/\\s]+\/[^\/\\s]+\/issues\/(\\d+)/）
  */
 

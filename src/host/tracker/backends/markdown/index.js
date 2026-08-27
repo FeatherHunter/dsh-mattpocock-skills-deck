@@ -119,5 +119,7 @@ export const markdownModule = {
   },
   create: createMarkdownBackend,
   matches,
+  // #231：本地 Markdown 无远程链接 —— 空 links 为诚实形状（UI 按「无链接」渲染）
+  links: {},
 }
 export default createMarkdownBackend

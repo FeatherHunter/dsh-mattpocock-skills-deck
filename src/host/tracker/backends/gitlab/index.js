@@ -86,6 +86,14 @@ export function searchUrl(name) {
 
 export const linkPattern = /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+)/g
 
+/** #231：client 渲染模板数据（UI-lane 只读）。 */
+export const links = {
+  issueUrlTemplate: 'https://gitlab.com/{refId}/-/issues/{key}',
+  repoUrlTemplate: 'https://gitlab.com/{refId}',
+  searchUrlTemplate: 'https://gitlab.com/search?search={q}',
+  linkPatternSource: 'gitlab\\.com\\/[^\\/\\s]+\\/[^\\/\\s]+\\/-\\/issues\\/(\\d+)',
+}
+
 /**
  * 创建 GitLab 后端适配器（13 ops 完整形状）。
  * @param {Object} ctx BackendContext（platform/fs/exec/timers/log）
@@ -129,6 +137,7 @@ export const gitlabBackend = {
   issueUrl,
   searchUrl,
   linkPattern,
+  links,
   // #191：品牌色完整色板（B 方案定版 · #177）
   presentation: {
     color: '#c25100',

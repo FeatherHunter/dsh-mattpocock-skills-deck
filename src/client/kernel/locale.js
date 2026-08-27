@@ -113,7 +113,13 @@
         'cfg.previewTitle': '示例 issue 标题',
         'list.tagsCollapseTitle': '收起标签',
         'list.copyLinkTitle': '复制链接',
-        'list.openInGithubTitle': '在 GitHub 上查看 #{n}',
+        // #231（类别6·泛化）：链接去处由后端 links 决定，文案不再指向具体平台
+        'list.openInTrackerTitle': '在当前 Tracker 打开 #{n}',
+        'detail.viewOnTracker': '打开原票',
+        'detail.viewOnTrackerHint': '点此打开原票查看',
+        'detail.authFailCta': '去原平台处理后重试',
+        'detail.readOnlyHint': 'read-only · 写操作请走 新会话 / 打开原票',
+        'list.openInGithubTitle': '在 GitHub 上查看 #{n}', // 过渡遗留：清尾批删除
         'list.mapTitle': '查看地图详情',
         'list.issueDetailTitle': '查看 issue 详情',
         'list.state.all': '全部', 'list.state.open': 'Open', 'list.state.closed': '已关闭', 'list.state.blocked': '阻塞', 'list.state.frontier': '可接',
@@ -446,7 +452,13 @@
         'cfg.previewTitle': 'Sample issue title',
         'list.tagsCollapseTitle': 'Collapse labels',
         'list.copyLinkTitle': 'Copy link',
-        'list.openInGithubTitle': 'Open #{n} on GitHub',
+        // #231 (category-6 generalization): link target comes from backend links
+        'list.openInTrackerTitle': 'Open #{n} in the current tracker',
+        'detail.viewOnTracker': 'Open issue',
+        'detail.viewOnTrackerHint': 'Click to open the issue',
+        'detail.authFailCta': 'Resolve on the platform, then retry',
+        'detail.readOnlyHint': 'read-only · write actions live in a new session or on the platform',
+        'list.openInGithubTitle': 'Open #{n} on GitHub', // transitional; removed by sweep commit
         'list.mapTitle': 'View map details',
         'list.issueDetailTitle': 'View issue details',
         'list.state.all': 'All', 'list.state.open': 'Open', 'list.state.closed': 'Closed', 'list.state.blocked': 'Blocked', 'list.state.frontier': 'Ready',
