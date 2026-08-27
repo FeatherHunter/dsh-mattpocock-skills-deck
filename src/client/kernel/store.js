@@ -140,6 +140,11 @@
             recordIssuePath(st, ev.ref, ev.source, ev.title)
             if (ev.ts && ev.ts > maxTs) maxTs = ev.ts
             if (ev.source === 'gh-create' || ev.source === 'gh-edit' || ev.source === 'claim') needProbe = true
+            // #266 即时信号（认领/推送/白名单创建）：nudge host「等待建号」→ 索引差值提前结算，
+            // 归属仍按同仓库最早占位/草稿档判定（事件不携带会话身份，不做 per-session 绑定）
+            if ((ev.source === 'gh-create' || ev.source === 'claim') && st && st.sessionId) {
+              try { if (typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.awaitCreatedIssue', { sessionId: st.sessionId }).catch(function () {}) } catch (eWait) {}
+            }
           }
         })
         if (res.serverNow && res.serverNow > maxTs) maxTs = res.serverNow

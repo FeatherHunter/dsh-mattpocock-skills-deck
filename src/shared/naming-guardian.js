@@ -1,11 +1,12 @@
 /**
- * src/shared/naming-guardian.js — 命名守护核心纯函数（#265 · 分级命名守护一期）
+ * src/shared/naming-guardian.js — 命名守护核心纯函数（#265/#266 · 分级命名守护一期）
  *
  * 契约（#264 规约 · 单缝原则）：本模块是命名判定的唯一真源 —— 占位识别、分档状态机、
  * 标题合成（草稿档 + 编号档，清洗截断沿用 #205 既有规则与 UTF-8 120 字节预算）、
- * 值比对锁判定、跟踪态结构与计划单产出。host 半运行时 import() 本模块；client 半由
- * scripts/build.mjs 以 SHARED_SPLICE 方式将本文件声明体拼回 src/client/index.js 闭包
- * （一源两物，与 kernel/leaf splice 同模式），两半均不另写第二处命名实现。
+ * 值比对锁判定、跟踪态结构、计划单产出与编号归属（#266 建号感知：issue 索引差值纯函数）。
+ * host 半运行时 import() 本模块；client 半由 scripts/build.mjs 以 SHARED_SPLICE 方式将
+ * 本文件声明体拼回 src/client/index.js 闭包（一源两物，与 kernel/leaf splice 同模式），
+ * 两半均不另写第二处命名实现。
  *
  * 生效日期：2026-08-28
  * 效力规则：本文件以 #264 规约 + #260 五决议 + ADR 20260827 为基线；与更早方案冲突以
@@ -165,7 +166,7 @@ export const NAMING_STAGES = {
 // 线索宽限：注册后等待面包屑线索的窗口；到时无线索 → 裸档 P1 升级（每会话 P1 至多一次）
 export const NAMING_HINT_GRACE_MS = 20000
 
-export function createTrackingState({ sessionId, baselineTitle, repoKey }) {
+export function createTrackingState({ sessionId, baselineTitle, repoKey, cwd }) {
   const now = Date.now()
   return {
     sessionId: String(sessionId || ''),
@@ -175,6 +176,12 @@ export function createTrackingState({ sessionId, baselineTitle, repoKey }) {
     locked: false,
     hint: null,
     repoKey: repoKey || null,
+    // #266 追加：cwd（索引快照执行上下文）、number/numberTitle（获号信息）、
+    // numberedDone（编号档 rename 已落定，防重复出单/循环）——均为增量字段，盘上旧账兼容。
+    cwd: cwd || null,
+    number: null,
+    numberTitle: null,
+    numberedDone: false,
     createdAt: now,
     updatedAt: now,
   }
@@ -198,15 +205,27 @@ export function reduceTrackingState(state, event) {
     if (!next.locked && ev.title) {
       if (next.stage === NAMING_STAGES.PLACEHOLDER) next.stage = NAMING_STAGES.DRAFT
       next.lastMachineTitle = String(ev.title)
+      // #266：编号档 rename 落定判定 —— 接受标题携带同一 [#n] 前缀即视为编号档完成
+      // （防止非编号名（如草稿档）的 renamed 抢占 numberedDone，杜绝重复出单/循环）
+      if (next.stage === NAMING_STAGES.NUMBERED && next.number != null) {
+        const pfx = '[' + '#' + String(next.number) + ']'
+        if (String(ev.title).indexOf(pfx) === 0) next.numberedDone = true
+      }
       next.updatedAt = Date.now()
     }
   } else if (ev.type === 'locked') {
     next.locked = true
     next.updatedAt = Date.now()
   } else if (ev.type === 'numbered') {
-    // 预留 #266：编号信号（建号感知恢复后消费；本期仅保留跃迁路径）
+    // #266 编号信号（host 索引差值/即时信号消费）。守卫：#264 手改锁定永不触碰；
+    // 已有编号且不同 → 防串名（AC5）；相同编号 → 允许幂等重放携带标题。
+    if (next.locked || ev.number == null) return state
+    const evNum = Number(ev.number)
+    if (!isFinite(evNum) || evNum <= 0) return state
+    if (next.number != null && Number(next.number) !== evNum) return state
     next.stage = NAMING_STAGES.NUMBERED
-    if (ev.number != null) next.number = Number(ev.number)
+    next.number = evNum
+    if (ev.title != null) next.numberTitle = String(ev.title).slice(0, 500)
     next.updatedAt = Date.now()
   }
   return next
@@ -220,6 +239,27 @@ export function reduceTrackingState(state, event) {
 export function planOrderFor(state, now, hintGraceMs) {
   if (!state) return null
   if (state.locked) return null
+  // #266：编号档（P2）—— 获号会话产出 numbered 订单（携编号+issue 标题，语言无关，
+  // 合成经 newSessionTitle 在界面半执行，[#n] 前缀契约 #205 永不破坏）；
+  // 已落定（numberedDone / 机器最后写入值 == 目标名）→ 收敛不出单（防重复/循环）。
+  if (state.stage === NAMING_STAGES.NUMBERED) {
+    if (state.number == null || state.numberedDone) return null
+    const title = state.numberTitle || ''
+    let target = null
+    try { target = newSessionTitle({ number: state.number, title: title }) } catch (e) { return null }
+    if (state.lastMachineTitle != null && state.lastMachineTitle === target) return null
+    return {
+      sessionId: state.sessionId,
+      kind: 'numbered',
+      number: state.number,
+      title: title,
+      lock: {
+        lastMachineTitle: state.lastMachineTitle,
+        baselineTitle: state.baselineTitle,
+        locked: state.locked,
+      },
+    }
+  }
   if (state.stage !== NAMING_STAGES.PLACEHOLDER) return null
   const ts = typeof now === 'number' ? now : Date.now()
   const grace = typeof hintGraceMs === 'number' ? hintGraceMs : NAMING_HINT_GRACE_MS
@@ -234,4 +274,55 @@ export function planOrderFor(state, now, hintGraceMs) {
       locked: state.locked,
     },
   }
+}
+
+// ============ 编号归属（#266 · 建号感知 · issue 索引差值纯函数）============
+// 底座（#264 F1/F2 修复义务）：宿主周期性快照仓库 issue 列表，新出现的编号归属给同仓库
+// 最早仍处占位/草稿档的受踪会话（多候选歧义取最早；无可归者不入计划单）。判定的唯一
+// 真源 = 本模块（host 半调用；client 半无编号来源，仅消费 numbered 订单）。
+
+/** 当前索引相对上一快照新增的编号（升序；prev 为空视为基线，无新增）。 */
+export function newNumbersSince(prevIndex, currIndex) {
+  const out = []
+  if (!currIndex || typeof currIndex !== 'object') return out
+  for (const k of Object.keys(currIndex)) {
+    const n = Number(k)
+    if (!isFinite(n) || n <= 0) continue
+    if (!prevIndex || !Object.prototype.hasOwnProperty.call(prevIndex, k)) out.push(n)
+  }
+  out.sort(function (a, b) { return a - b })
+  return out
+}
+
+/** 是否仍处于「等待编号」状态：未锁、尚未获号、仍处占位/草稿档。 */
+export function isNumberAwaitStage(state) {
+  return !!(state && !state.locked && state.number == null &&
+    (state.stage === NAMING_STAGES.PLACEHOLDER || state.stage === NAMING_STAGES.DRAFT))
+}
+
+/**
+ * 编号归属（纯函数 · 每仓库一次调用）：对新增编号（升序）逐一分配给候选受踪会话
+ * （同仓库、最早者优先：createdAt → updatedAt → sessionId 三级排序保证确定性）；
+ * 候选耗尽即止——剩余编号不入计划单，留待后续快照（无可归者不入计划单）。
+ * @returns [{ sessionId, number, title }]
+ */
+export function attributeNewNumbers({ prevIndex, currIndex, sessions }) {
+  const nums = newNumbersSince(prevIndex, currIndex)
+  if (!nums.length) return []
+  const candidates = (Array.isArray(sessions) ? sessions : [])
+    .filter(isNumberAwaitStage)
+    .sort(function (a, b) {
+      const ca = Number(a.createdAt || 0); const cb = Number(b.createdAt || 0)
+      if (ca !== cb) return ca - cb
+      const ua = Number(a.updatedAt || 0); const ub = Number(b.updatedAt || 0)
+      if (ua !== ub) return ua - ub
+      return String(a.sessionId || '').localeCompare(String(b.sessionId || ''))
+    })
+  const out = []
+  for (let i = 0; i < nums.length && i < candidates.length; i++) {
+    const c = candidates[i]
+    const info = (currIndex && currIndex[String(nums[i])]) || null
+    out.push({ sessionId: c.sessionId, number: nums[i], title: info ? String(info.title || '') : '' })
+  }
+  return out
 }

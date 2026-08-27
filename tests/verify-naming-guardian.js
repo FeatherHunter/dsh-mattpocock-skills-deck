@@ -140,6 +140,13 @@ console.log('\n— 单一真源守卫 —')
   for (const op of ['wf.namingRegister', 'wf.namingSignal', 'wf.namingPlan', 'wf.namingResult']) {
     check(hostSrc.includes("'" + op + "'"), 'host 注册操作 ' + op)
   }
+  // #266：建号感知三操作复原 —— e98f636 曾整块静默删除（#258 F1），此断言令再删必红（AC3）
+  for (const op of ['wf.registerNewSessionWatcher', 'wf.cancelNewSessionWatcher', 'wf.awaitCreatedIssue']) {
+    check(hostSrc.includes("'" + op + "'"), 'host 注册操作（#211 复原 · 建号感知） ' + op)
+  }
+  check(hostSrc.includes('core.attributeNewNumbers') && hostSrc.includes('core.isNumberAwaitStage'), 'host 索引差值/候选取样走共享核心纯函数')
+  check(hostSrc.includes('function namingSweepNow()') && hostSrc.includes('function namingSweepSoon('), 'host 索引差值结算 + 即时推进存在')
+  check(!hostSrc.includes('newSessionWatchers'), '旧 #211 内存轮询结构（newSessionWatchers Map）已退役（职责并入持久化守护）')
   check(hostSrc.includes('.dsh-mattskillsdeck-cache') && hostSrc.includes("naming-guardian.json"), '跟踪态落盘既有缓存目录')
   check(hostSrc.includes('startNamingGuardianLoop()'), 'host 常驻轻量任务随 apply 启动')
 
@@ -151,9 +158,12 @@ console.log('\n— 单一真源守卫 —')
 
   const apiSrc = readFileSync(join(ROOT, 'src/client/kernel/api.js'), 'utf8')
   // （namingSignal 的 client 发送点在 store.js recordIssuePath，下一节单独断言）
-  for (const needle of ["host.call('wf.namingPlan'", "host.call('wf.namingRegister'", "host.call('wf.namingResult'", 'executeNamingOrder(', 'evaluateRenameLock(', 'composeDraftTitle(']) {
+  for (const needle of ["host.call('wf.namingPlan'", "host.call('wf.registerNewSessionWatcher'", "host.call('wf.cancelNewSessionWatcher'", "host.call('wf.namingResult'", 'executeNamingOrder(', 'evaluateRenameLock(', 'composeDraftTitle(', 'newSessionTitle(', "o.kind === 'numbered'"]) {
     check(apiSrc.includes(needle), '界面渲染钩子链存在：' + needle.replace(/^\s+/, ''))
   }
+  const storeSrc0 = readFileSync(join(ROOT, 'src/client/kernel/store.js'), 'utf8')
+  check(storeSrc0.includes("host.call('wf.awaitCreatedIssue'"), '认领/推送/白名单创建即时 nudge 接入（pollIssuePathHost）')
+  check(!apiSrc.includes('pendingNewSessions') && !apiSrc.includes('startNewSessionRenamePoll') && !apiSrc.includes('tryAutoRename'), '旧 #211 内存双通道簿记（pending map/轮询/自动改名）全库清除')
 
   const routerSrc = readFileSync(join(ROOT, 'src/client/kernel/router.js'), 'utf8')
   check(!/(export\s+)?(const|function)\s+(SESSION_TITLE_MAX_BYTES|SESSION_TITLE_RE_ALLOW_BARE|SESSION_TITLE_PREFIX|cleanTitleText|utf8Bytes|truncateTitleUtf8|newSessionTitle|isNewPlaceholderTitle|newSessionTitleNew|composeDraftTitle)\b/.test(routerSrc), 'router.js 无第二处命名真源声明')
@@ -166,6 +176,84 @@ console.log('\n— 单一真源守卫 —')
   check(hostClean, 'userRenamed 死代码全库清除（host 半）')
   const dupInClientKernel = (apiSrc.match(/function\s+(composeDraftTitle|evaluateRenameLock|isPlaceholderTitle)\s*\(/g) || []).length
   eq(dupInClientKernel, 0, 'client 内核无第二份核心实现（由共享核心 splice 注入）')
+}
+
+// ---------- 8) 编号跃迁消费（P2 · #266）----------
+console.log('\n— 编号跃迁（P2 · 建号感知消费）—')
+{
+  const base = m.createTrackingState({ sessionId: 'n1', baselineTitle: '[New] 新建需求', repoKey: 'o/r', cwd: 'C:/x' })
+  // 占位 → 编号（跳过草稿档）：编号优先于草稿（D1 分档层级）
+  const stNum = m.reduceTrackingState(base, { type: 'numbered', number: 42, title: '修复闪退' })
+  eq(stNum.stage, m.NAMING_STAGES.NUMBERED, '编号信号 → 升入编号档')
+  eq(stNum.number, 42, '编号随信号入账')
+  eq(stNum.numberTitle, '修复闪退', 'issue 标题随信号入账')
+  const o = m.planOrderFor(stNum, Date.now(), 20000)
+  check(!!o && o.kind === 'numbered' && o.sessionId === 'n1' && o.number === 42 && o.title === '修复闪退', '编号档出 numbered 订单（携编号+标题，无语言字面量）')
+  check(!!o && !!o.lock && o.lock.baselineTitle === '[New] 新建需求' && o.lock.lastMachineTitle === null, 'numbered 订单附值比对锁信息')
+  // 落定收敛：renamed 接受 [#n] 标题 → numberedDone → 不再出单
+  const stDone = m.reduceTrackingState(stNum, { type: 'renamed', title: '[#42] 修复闪退' })
+  eq(stDone.numberedDone, true, '编号档 rename 落定标记（matched [#n] 前缀）')
+  eq(m.planOrderFor(stDone, Date.now(), 20000), null, '落定后不再出 numbered 单（防重复）')
+  // 草稿档名（非 [#n] 前缀）的 renamed 不得抢占 numberedDone
+  const stDraftFirst = m.reduceTrackingState(stNum, { type: 'renamed', title: '[草稿] 修复闪退' })
+  eq(stDraftFirst.numberedDone, false, '非编号名 renamed 不误标 numberedDone')
+  const oRetry = m.planOrderFor(stDraftFirst, Date.now(), 20000)
+  check(!!oRetry && oRetry.kind === 'numbered', '仍在等 numbered 单（重试语义）')
+  // 守卫：锁定后编号信号忽略；已有不同编号忽略（防串名 AC5）；同编号允许幂等重放标题
+  const stLockedN = m.reduceTrackingState(base, { type: 'locked' })
+  const stLockedAfter = m.reduceTrackingState(stLockedN, { type: 'numbered', number: 7, title: 'x' })
+  eq(stLockedAfter.stage, m.NAMING_STAGES.PLACEHOLDER, '锁定会话编号信号忽略（永不触碰）')
+  const stConflict = m.reduceTrackingState(stNum, { type: 'numbered', number: 99, title: 'y' })
+  eq(stConflict.number, 42, '已有不同编号 → 防串名不覆盖')
+  const stSame = m.reduceTrackingState(stNum, { type: 'numbered', number: 42, title: '修复闪退（改名后）' })
+  eq(stSame.numberTitle, '修复闪退（改名后）', '同编号幂等重放携带最新标题')
+  // 草稿 → 编号桥接：draft 阶段停发 P1 单、发 numbered 单
+  const stDraft = m.reduceTrackingState(base, { type: 'signal', hint: '线索A' })
+  const stDraftRenamed = m.reduceTrackingState(stDraft, { type: 'renamed', title: '[草稿] 线索A' })
+  eq(stDraftRenamed.stage, m.NAMING_STAGES.DRAFT, 'P1 落地（基线规约不变）')
+  const stDraftNum = m.reduceTrackingState(stDraftRenamed, { type: 'numbered', number: 3, title: 'c3' })
+  eq(stDraftNum.stage, m.NAMING_STAGES.NUMBERED, '草稿档升编号档')
+  const oDraftNum = m.planOrderFor(stDraftNum, Date.now(), 20000)
+  check(!!oDraftNum && oDraftNum.kind === 'numbered' && oDraftNum.number === 3, '草稿→编号只发 numbered 单')
+}
+
+// ---------- 9) 编号归属纯函数（#266 · issue 索引差值底座）----------
+console.log('\n— 编号归属（索引差值 · 纯函数）—')
+{
+  const idx1 = { '1': { title: 'a1' }, '2': { title: 'b2', state: 'OPEN', updatedAt: 'u2' } }
+  const idx2 = { '1': { title: 'a1' }, '2': { title: 'b2', state: 'OPEN', updatedAt: 'u2' }, '5': { title: 'e5' }, '3': { title: 'c3' } }
+  eq(JSON.stringify(m.newNumbersSince(idx1, idx2)), '[3,5]', '差值取新增编号且升序')
+  eq(JSON.stringify(m.newNumbersSince(idx1, idx1)), '[]', '无变化 → 无新增')
+  eq(JSON.stringify(m.newNumbersSince(null, idx1)), '[1,2]', '无前置基线 → 全量（host 侧首轮仅建档不归属）')
+  eq(JSON.stringify(m.newNumbersSince(idx1, null)), '[]', '当前快照缺失 → 无新增')
+  const awake = { sessionId: 'a', createdAt: 100, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false, number: null }
+  check(m.isNumberAwaitStage(awake), '占位未锁未获号 → 等待中')
+  check(!m.isNumberAwaitStage(Object.assign({}, awake, { stage: m.NAMING_STAGES.NUMBERED, number: 1 })), '已获号 → 不再等待')
+  check(!m.isNumberAwaitStage(Object.assign({}, awake, { locked: true })), '锁定 → 不再等待')
+  check(!m.isNumberAwaitStage(Object.assign({}, awake, { stage: m.NAMING_STAGES.REFINED })), '精修档 → 不再等待')
+  const sessions = [
+    { sessionId: 'b', createdAt: 200, updatedAt: 200, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false },
+    { sessionId: 'a', createdAt: 100, updatedAt: 100, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false },
+    { sessionId: 'c', createdAt: 150, updatedAt: 150, stage: m.NAMING_STAGES.DRAFT, locked: false },
+    { sessionId: 'd', createdAt: 50, updatedAt: 50, stage: m.NAMING_STAGES.PLACEHOLDER, locked: true },
+    { sessionId: 'e', createdAt: 60, updatedAt: 60, stage: m.NAMING_STAGES.NUMBERED, locked: false, number: 1 },
+  ]
+  const assigned = m.attributeNewNumbers({ prevIndex: idx1, currIndex: idx2, sessions: sessions })
+  eq(assigned.length, 2, '两新号两候选（锁/已获号排除）')
+  eq(assigned[0].sessionId, 'a', '歧义取最早（createdAt 100）')
+  eq(assigned[0].number, 3, '编号升序分配')
+  eq(assigned[0].title, 'c3', '标题随号携带')
+  eq(assigned[1].sessionId, 'c', '次早（draft 档可被归属）')
+  eq(assigned[1].number, 5, '次号给次早候选')
+  const few = m.attributeNewNumbers({ prevIndex: idx1, currIndex: idx2, sessions: sessions.slice(0, 1) })
+  eq(few.length, 1, '候选耗尽即止（无可归者不入计划单）')
+  const none = m.attributeNewNumbers({ prevIndex: idx1, currIndex: idx1, sessions: sessions })
+  eq(none.length, 0, '无新编号 → 无归属')
+  const sameTs = m.attributeNewNumbers({ prevIndex: idx1, currIndex: idx2, sessions: [
+    { sessionId: 'z', createdAt: 100, updatedAt: 100, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false },
+    { sessionId: 'a', createdAt: 100, updatedAt: 100, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false },
+  ] })
+  eq(sameTs[0].sessionId, 'a', '同时间戳以 sessionId 决胜（确定性）')
 }
 
 console.log(failed ? '\n存在失败' : '\n全部通过 (' + total + ' checks)')

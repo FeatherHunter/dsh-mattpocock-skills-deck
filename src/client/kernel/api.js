@@ -76,9 +76,11 @@ export let pendingDraftTargetSid = null
         }
       } catch (e) {}
     }
-    // 执行一条计划单：值比对锁判定（判手改即锁定回报，永不触碰）→ 本机语言合成草稿名 → face.rename → 回报
+    // 执行一条计划单：值比对锁判定（判手改即锁定回报，永不触碰）→ 按档位合成目标名
+    //   （draft 本机语言落地 composeDraftTitle；numbered 语言无关 newSessionTitle —— [#n] 前缀
+    //    契约 #205 由共享核心保证永不破坏）→ face.rename → 回报
     export function executeNamingOrder(o) {
-      if (!o || o.kind !== 'draft' || !o.sessionId) return
+      if (!o || !o.sessionId) return
       const sid = o.sessionId
       const lock = o.lock || {}
       const cur = namingCurrentTitleOf(sid)
@@ -86,10 +88,19 @@ export let pendingDraftTargetSid = null
       const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
       if (judge === 'locked' || lock.locked) { reportNamingResult(sid, 'locked', { currentTitle: cur }); return }
       if (judge === 'unknown') return
-      let langIsEn = false
-      try { langIsEn = typeof promptLang === 'function' && promptLang() === 'en' } catch (eLang) {}
-      const target = composeDraftTitle({ hint: o.hint, lang: langIsEn ? 'en' : 'zh' })
-      if (!target || target === cur) { reportNamingResult(sid, 'renamed', { title: cur }); return }  // 已在位（如上次改名落定但回报失败）→ 收敛记账
+      let target = null
+      if (o.kind === 'draft') {
+        let langIsEn = false
+        try { langIsEn = typeof promptLang === 'function' && promptLang() === 'en' } catch (eLang) {}
+        target = composeDraftTitle({ hint: o.hint, lang: langIsEn ? 'en' : 'zh' })
+      } else if (o.kind === 'numbered') {
+        const num = Number(o.number)
+        if (!isFinite(num) || num <= 0) return
+        try { target = newSessionTitle({ number: num, title: o.title || '' }) } catch (eT) { return }
+      } else {
+        return
+      }
+      if (!target || target === cur) { reportNamingResult(sid, 'renamed', { title: cur || target }); return }  // 已在位（如上次改名落定但回报失败）→ 收敛记账
       try {
         const sessions = ctx.get('sessions')
         if (!sessions || typeof sessions.scope !== 'function' || typeof sessions.sessionOf !== 'function') return
@@ -103,6 +114,8 @@ export let pendingDraftTargetSid = null
       } catch (eExec) {}
     }
     // 渲染钩子：拉取计划单 → 执行 → 回报（防重入；host 无单时零开销）
+    // #266 追加：tracked 终局清理 —— 已终局（锁定/编号落定）且会话已不存在于 DSH 列表的
+    //   受踪账目经 wf.cancelNewSessionWatcher 注销（防账目堆积；未终局项绝不误删）。
     export function namingGuardianKick() {
       if (typeof host === 'undefined' || typeof host.call !== 'function') return
       if (_namingPullBusy) return
@@ -111,6 +124,20 @@ export let pendingDraftTargetSid = null
         _namingPullBusy = false
         if (!res || !res.ok || !Array.isArray(res.orders)) return
         for (let i = 0; i < res.orders.length; i++) executeNamingOrder(res.orders[i])
+        try {
+          if (!Array.isArray(res.tracked)) return
+          const sessions = ctx.get('sessions')
+          if (!sessions || !sessions.list || typeof sessions.list.getSnapshot !== 'function') return
+          const snap = sessions.list.getSnapshot()
+          const rows = snap && snap.byId ? snap.byId : null
+          if (!rows) return
+          for (let i = 0; i < res.tracked.length; i++) {
+            const t = res.tracked[i]
+            if (t && t.done && !rows[t.sessionId]) {
+              host.call('wf.cancelNewSessionWatcher', { sessionId: t.sessionId }).catch(function () {})
+            }
+          }
+        } catch (eClean) {}
       }).catch(function () { _namingPullBusy = false })
     }
     // 常驻拉询（web 半加载即活，面板未开也续跑；globalThis 单例句柄清热重载遗留环）
@@ -308,7 +335,9 @@ export let pendingDraftTargetSid = null
                 const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(name0) : /^\[New\] /.test(String(name0)))
                 if (!isPlaceholder) return
                 if (typeof host !== 'undefined' && typeof host.call === 'function') {
-                  host.call('wf.namingRegister', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns) : null) }).then(function () { namingGuardianKick() }).catch(function () {})
+                  // #266：注册走 #211 复原名「注册监视」（wf.registerNewSessionWatcher，host 侧为收编跟踪态 + 索引基线）；
+                  // wf.namingRegister 为 #265 兼容别名，双名同本体，守卫钉死。
+                  host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns) : null) }).then(function () { namingGuardianKick() }).catch(function () {})
                 }
               } catch (eReg) {}
             }
