@@ -77,10 +77,18 @@ export default {
           } catch {}
           try {
             const mdMod = await import('./tracker/backends/markdown/index.js')
-            const mkCreate = mdMod.createMarkdownBackend || mdMod.createBackend || mdMod.default
-            const mkMatches = mdMod.matches
-            const mdPresentation = mdMod.markdownModule?.presentation || mdMod.presentation
-            const mdModule = mkCreate ? { id: 'markdown', label: 'Markdown', presentation: mdPresentation || { color: '#1a7f37' }, create: mkCreate, matches: mkMatches || (async()=>false) } : null
+            // #230（D10）修复 2026-08-28：必须注册【完整模块】——markdownModule 携带 setupPrompt 键表（locale 键名），
+            //   wf.registry 原样转发到 st.backendModules，setupRunPrompt 按它取 markdown 模板文案（"本地 Markdown 模板…"）。
+            //   此前 host 重新拼装只保留 id/label/presentation/create/matches，setupPrompt 丢失 → 弹窗选 markdown 后
+            //   注入的 setup 提示词落入缺省键组（GitHub 模板，谎称"已按默认 GitHub 初始化"），导致错误地生成 GitHub 主锚。
+            const fullMdModule = mdMod.markdownModule || null
+            let mdModule = fullMdModule
+            if (!mdModule) {
+              const mkCreate = mdMod.createMarkdownBackend || mdMod.createBackend || mdMod.default
+              const mkMatches = mdMod.matches
+              const mdPresentation = mdMod.markdownModule?.presentation || mdMod.presentation
+              mdModule = mkCreate ? { id: 'markdown', label: 'Markdown', presentation: mdPresentation || { color: '#1a7f37' }, create: mkCreate, matches: mkMatches || (async()=>false) } : null
+            }
             if (mdModule) try { reg.register(mdModule) } catch {}
           } catch {}
           try {
