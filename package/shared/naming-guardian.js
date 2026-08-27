@@ -164,7 +164,8 @@ export const NAMING_STAGES = {
 }
 
 // ---- P3 精修二期预留说明（接口注释级 · 一期收官清点 #267）----
-// 本期不含存量回填与 LLM 精修；精修档 RENAMED/REFINED 目前零消费：reducer 对未知事件类型
+// 两期边界：本期不含存量回填（#261 裁决否决 · map Out of scope 维持现状）也不含 LLM 精修；
+// 精修档 RENAMED/REFINED 目前零消费：reducer 对未知事件类型
 // 静默忽略（天然预留），planOrderFor 对 REFINED 档恒不出单。二期精修立票（承接 map
 // #257「Not yet specified」）时的接缝约定：① reduceTrackingState 增 'refined' 入账事件
 // （携 LLM 语义段，先过值比对锁 + [#n] 前缀不可破坏）；② planOrderFor 为 REFINED 档
