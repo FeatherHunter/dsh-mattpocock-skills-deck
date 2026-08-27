@@ -170,6 +170,7 @@ function wireCtx(body) {
  *  index.js 中每模块原位置留标记 `// ==== kernel:<name> (spliced by build) ====`，
  *  构建时把模块文件声明体（去行首 export）拼回标记处 —— 闭包内原位，行为零变化。 */
 const KERNEL_MODULES = [
+  { name: 'link', file: 'src/client/kernel/link.js' },
   { name: 'styles', file: 'src/client/kernel/styles.js' },
   { name: 'locale', file: 'src/client/kernel/locale.js' },
   { name: 'icons', file: 'src/client/kernel/icons.js' },
@@ -209,6 +210,7 @@ const LEAF_MODULES = [
   { id: 'seg', file: 'src/client/statusbar/Seg.js' },
   { id: 'checksums', file: 'src/client/statusbar/checksums.js' },
   { id: 'statusBar', file: 'src/client/statusbar/StatusBar.js' },
+  { id: 'chainRenderer', file: 'src/client/views/shared/ChainRenderer.js' },
   { id: 'skillFloatList', file: 'src/client/floating/SkillFloatList.js' },
   { id: 'pop', file: 'src/client/floating/Pop.js' },
 ]

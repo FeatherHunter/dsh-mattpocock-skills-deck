@@ -57,6 +57,50 @@ export     const NoRepoCard = function (props) {
           ]),
         ])
       }
+      // #228 替换红卡：Markdown 物理隔离（行不存在而非 fail）— 通用链下 repoBad 在 markdown 不展示红卡（真机验收）
+      const bidNoRepo = sel && sel.backendId
+      if (bidNoRepo === 'markdown') {
+        // Markdown 后端：仓库检查由通用/环境链承载，github 红卡永不显示（#228 验收：Markdown 工作区不出现红卡）
+        // 若未来 chainSnapshot 为真源，此分支由链快照的行不存在自动根治；此处为过渡期显式隔离
+        if (!labelVisible) return null
+      }
+      // #228 链失败态渲染（草案：github 后端目录失败态替代手写红卡；若 host 已提供 chainSnapshot 且当前步为建仓链，则委托 ChainRenderer 渲染）
+      const chainSnapForNoRepo = (function(){
+        try{
+          if (st.chainSnapshot && st.chainSnapshot.steps) return st.chainSnapshot
+          if (typeof checksToChainSnapshot === 'function' && cs && cs.length) return checksToChainSnapshot(cs)
+        }catch(e){}
+        return null
+      })()
+      const isChainRepoFail = chainSnapForNoRepo && chainSnapForNoRepo.steps && chainSnapForNoRepo.steps.some(function(s){ return String(s.id)==='1' && s.status==='fail' })
+      // 若链快照表明当前链头是建仓相关（且非 markdown），优先由 ChainRenderer 承接（新链 renderer 为真源）；旧红卡仅作兼容兜底
+      if (isChainRepoFail && bidNoRepo === 'github' && chainSnapForNoRepo && chainSnapForNoRepo.currentIndex!=null) {
+        // 尝试构造 dispatcher 供链渲染（同 ChecksTab 复用逻辑）
+        try{
+          const disp = (typeof createActionDispatcher==='function') ? createActionDispatcher({
+            inject: function(t,a){ try{ inject(st,t) }catch(e){} },
+            openUrl: function(u){ try{ openUrl(u) }catch(e){} },
+            hostCall: function(m,p){ if(typeof host!=='undefined'&& host.call) return host.call(m,p); return Promise.reject(new Error('hostCall unavailable')) },
+            renderForm: function(schema, onSubmit){ try{ onSubmit({}) }catch(e){} },
+            refresh: async function(){ try{ if(typeof host!=='undefined'&& host.call) await host.call('wf.detect',{cwd:st.cwd||'', force:true}) }catch(e){}; try{ loadChecks(st,true,true) }catch(e){}; try{ loadSnapshot(st,true,true) }catch(e){} },
+            tr: tr,
+            resolvePrompt: function(id,pa){ try{ return promptText(id,pa)}catch(e){ return '' } }
+          }) : null
+          if (disp) {
+            // 交由 ChainRenderer 渲染（覆盖旧红卡；旧逻辑不再直接调用 wf.initPublish，而是经 form→rpc→refresh）
+            // 但为兼容当前无 chain 表单的过渡期，若链中无 form 动作，仍回退旧红卡；有 form 则直接渲染链
+            const cur = chainSnapForNoRepo.steps[chainSnapForNoRepo.currentIndex]
+            const hasForm = cur && cur.actions && cur.actions.some(function(a){ return a && a.type==='form' })
+            if (hasForm) {
+              return (function(){
+                const h2 = (React && React.createElement) ? React.createElement : (cx && cx.h ? cx.h : function(){} )
+                // 复用 ChainRenderer 叶模块（build 已拼入）
+                try{ return h2(ChainRenderer, { snapshot: chainSnapForNoRepo, dispatcher: disp, st: st }) }catch(e){ return null }
+              })()
+            }
+          }
+        }catch(e){}
+      }
       const show = repoBad && !dismissed
       const labelVisible = !!(card.labelStep && card.labelStep.visible)
       if (!show && !labelVisible) return null
@@ -175,7 +219,7 @@ export     const NoRepoCard = function (props) {
               // #195 修复(第二轮)：no-gh 直接用后端提供的 prompt（多态），移除 <a> 链接兜底
               kind === 'no-gh' ? h('button', { onClick: function () { var p = card.prompt || card.errorPrompt || ''; if (p && typeof inject === 'function') inject(st, p); else if (typeof inject === 'function') { var fallback='请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 `gh --version`;\n2. 无 gh 则按 OS 安装：Windows → `winget install --id GitHub.cli`; macOS → `brew install gh`; Linux → `sudo apt install gh`;'; inject(st, fallback) } }, style: { marginLeft: 8, background: 'transparent', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)', borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, 'AI 引导安装') : null,
               kind === 'not-logged-in' ? h('a', { href: 'https://cli.github.com/manual/gh_auth_login', target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去登录') : null,
-              kind === 'already-exists' ? h('a', { href: card.errorRepoUrl || ('https://github.com/search?q=' + encodeURIComponent(card.name)), target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去查看') : null,
+              kind === 'already-exists' ? h('a', { href: card.errorRepoUrl || searchUrlFor(st, card.name), target: '_blank', rel: 'noreferrer', style: { marginLeft: 8, color: '#58a6ff', textDecoration: 'underline', fontSize: 11 } }, '去查看') : null,
               kind === 'network' ? h('button', { onClick: doSubmit, disabled: card.loading, style: { marginLeft: 8, background: 'transparent', color: col, border: '1px solid ' + col, borderRadius: 4, padding: '1px 6px', cursor: 'pointer', fontSize: 11 } }, '重试') : null,
             ])
           })() : null,

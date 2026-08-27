@@ -1,13 +1,17 @@
 /**
  * tracker/predicateRegistry.js — 宿主谓词注册表（异步 resolve → 纯函数输入）。
  *
- * 第一性原理（#217 定版，2026-08-27 修订 #219/#245 删 na）：
- *  - 契约层 evaluateChain 为纯函数（喂状态 → 出步骤快照），无 IO；宿主负责把真实世界 resolve 成 Record<id, 'pass'|'fail'|null>（2026-08-27 起无 na）。
- *  - 谓词执行只在宿主（Node）侧，经平台抽象层（platform）访问 OS，不在契约层/ UI 层执行。
- *  - 三层 check kind 分发：primitive（通用原语）/ backend（后端专属）/ preflight（复用既有门禁）。
- *  - 超时按 pending 处理（不抛、不阻塞整链），诚实透传 detail。
+ * 生效日期：2026-08-28
+ * 效力规则：本文件以 #226 规约为基线；与更早方案冲突以本规约为准；未来任何定版方案若改动本规约，以未来版本为准（见 CONTEXT.md「版本与效力」）。
  *
- * 版本：2026-08-27 与 src/shared/tracker/chain.js 同步，删 na。
+ * 第一性原理（#217 定版，2026-08-28 修订 #219/#245/#226 删 na，通用谓词原语）：
+ *  - 契约层 evaluateChain 为纯函数（喂状态 → 出步骤快照），无 IO；宿主负责把真实世界 resolve 成 Record<id, 'pass'|'fail'|null>（2026-08-27 起无 na）。
+ *  - 谓词执行只在宿主（Node）侧，经平台抽象层（platform）访问 OS，不在契约层/ UI 层执行；全部只读探测，失败返回而非抛（#226 验收）。
+ *  - 三层 check kind 分发：primitive（通用原语 fs/exec/gh/技能探测）/ backend（后端专属）/ preflight（复用既有门禁）。
+ *  - 宿主可知的原语（fs/exec/gh/技能探测）供检查项 check 引用，全部只读探测；注册表验形状不验内容（与 tracker registry 哲学一致，#226）。
+ *  - 超时按 pending 处理（不抛、不阻塞整链），诚实透传 detail；谓词只读，永不写文件/环境。
+ *
+ * 版本：2026-08-28 与 src/shared/tracker/chain.js + check-catalog.js 同步，删 na，通用原语注册表。
  */
 
 import { PRIMITIVE_KIND } from '../../shared/tracker/chain.js'

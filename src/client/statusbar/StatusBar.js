@@ -403,7 +403,7 @@ export const StatusBar = (props) => {
       // #195 修复(第二轮)：hint 直接为后端提供的完整 prompt（多态），UI 直接 inject；移除副按钮
       ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { var c = (s.checks || []).find(function(x){return x.id===4}); var h = c && c.hint || ''; if (h) inject(s, h) })
       : firstBlock === 'ghauth'
-        ? bann(tr('banner.ghauth'), tr('banner.ghauthBtn'), function () { openUrl('https://cli.github.com/manual/gh_auth_login') })
+        ? bann(tr('banner.ghauth'), tr('banner.ghauthBtn'), function () { inject(s, promptText('ghAuthLogin')) })
         : firstBlock === 'setup'
           ? h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, width:'100%' } }, [
               bann(tr('banner.setup'), tr('banner.setupBtn'), onSetupInit),

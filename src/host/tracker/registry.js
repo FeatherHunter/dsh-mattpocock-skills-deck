@@ -150,11 +150,83 @@ export function createRegistry(backendCtx = {}, opts = {}) {
     for (const handle of staleHandles) emit('bind', { handle, backendId: null, stale: true })
   }
 
-  /** 出 RepositoryRef：refId/name/url 生成策略。骨架最小实现（markdown refId=cwd；远端 URL 解析归 #114/#116 后端）。 */
+  /** 出 RepositoryRef：转发 BackendModule.describe（可选），回退骨架（#220 · registry 只转发）。 */
   function describe(handle, backendId) {
+    const entry = byId.get(backendId)
+    if (entry && entry.mod && typeof entry.mod.describe === 'function') {
+      try {
+        const r = entry.mod.describe(handle, backendId)
+        if (r && typeof r === 'object' && typeof r.refId === 'string') {
+          return {
+            backend: r.backend || backendId,
+            refId: r.refId || '',
+            name: r.name || r.refId || (handle.cwd || backendId),
+            url: typeof r.url === 'string' ? r.url : '',
+          }
+        }
+        if (r && typeof r === 'object') return r
+      } catch (e) { /* 回退骨架 */ }
+    }
+    // 也尝试 tracker 实例上的 describe（若模块经 create 暴露）
+    try {
+      const tr = entry && entry.tracker
+      if (tr && typeof tr.describe === 'function') {
+        const r2 = tr.describe(handle, backendId)
+        if (r2 && typeof r2 === 'object' && typeof r2.refId === 'string') {
+          return {
+            backend: r2.backend || backendId,
+            refId: r2.refId || '',
+            name: r2.name || r2.refId || (handle.cwd || backendId),
+            url: typeof r2.url === 'string' ? r2.url : '',
+          }
+        }
+      }
+    } catch (e) {}
+    // 骨架回退：markdown 用 cwd，其余空（等价旧行为）
     const refId = handle.refId || (backendId === 'markdown' ? handle.cwd : '')
     const name = refId || (handle.cwd || backendId)
     return { backend: backendId, refId, name, url: '' }
+  }
+
+  /** issueUrl 只读 view：转发 BackendModule.issueUrl / tracker.issueUrl，回退按 backendId 拼装（#220）。 */
+  function issueUrl(backendId, ref, key) {
+    const entry = byId.get(backendId)
+    if (entry && entry.mod && typeof entry.mod.issueUrl === 'function') {
+      try { const u = entry.mod.issueUrl(ref, String(key)); if (typeof u === 'string') return u } catch (e) {}
+    }
+    try {
+      const tr = entry && entry.tracker
+      if (tr && typeof tr.issueUrl === 'function') {
+        const u2 = tr.issueUrl(ref, String(key)); if (typeof u2 === 'string') return u2
+      }
+    } catch (e) {}
+    if (backendId === 'github' && ref && ref.refId) return 'https://github.com/' + ref.refId + '/issues/' + String(key)
+    if (backendId === 'gitlab' && ref && ref.refId) return 'https://gitlab.com/' + ref.refId + '/-/issues/' + String(key)
+    return ''
+  }
+
+  /** linkPattern 只读 view：转发 BackendModule.linkPattern。 */
+  function linkPattern(backendId) {
+    const entry = byId.get(backendId)
+    if (entry && entry.mod && entry.mod.linkPattern) return entry.mod.linkPattern
+    try { const tr = entry && entry.tracker; if (tr && tr.linkPattern) return tr.linkPattern } catch (e) {}
+    if (backendId === 'github') return /github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/(\d+)/g
+    if (backendId === 'gitlab') return /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+)/g
+    return null
+  }
+
+  /** searchUrl 只读 view：转发 BackendModule.searchUrl。 */
+  function searchUrl(backendId, name) {
+    const entry = byId.get(backendId)
+    if (entry && entry.mod && typeof entry.mod.searchUrl === 'function') {
+      try { const u = entry.mod.searchUrl(String(name)); if (typeof u === 'string') return u } catch (e) {}
+    }
+    try {
+      const tr = entry && entry.tracker
+      if (tr && typeof tr.searchUrl === 'function') { const u2 = tr.searchUrl(String(name)); if (typeof u2 === 'string') return u2 }
+    } catch (e) {}
+    if (backendId === 'github') return 'https://github.com/search?q=' + encodeURIComponent(String(name))
+    return ''
   }
 
   return {
@@ -257,8 +329,11 @@ export function createRegistry(backendCtx = {}, opts = {}) {
       return byHandle.has(k) ? byHandle.get(k).backendId : undefined
     },
 
-    /** 出 RepositoryRef：refId/name/url 生成策略（骨架最小实现，见上方 describe 注释）。 */
+    /** 出 RepositoryRef：转发 BackendModule.describe，见上方。 */
     describe,
+    issueUrl,
+    linkPattern,
+    searchUrl,
 
     /** 事件订阅（register/unregister/bind）；返回取消订阅；监听抛错隔离。 */
     on(event, fn) {

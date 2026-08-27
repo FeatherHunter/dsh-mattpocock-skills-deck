@@ -78,6 +78,8 @@ export default {
     // ============================================================
     // 0. 样式
     // ============================================================
+    // ==== kernel:link (spliced by build) ====
+
     // ==== kernel:styles (spliced by build) ====
     styles.insert(STYLE_TEXT)
 
@@ -189,6 +191,7 @@ export default {
 
     // ==== leaf:seg (spliced by build) ====
     // ==== leaf:checksums (spliced by build) ====
+    // ==== leaf:chainRenderer (spliced by build) ====
     // ==== leaf:skillFloatList (spliced by build) ====
     // ==== leaf:tabs (spliced by build) ====
 

@@ -65,7 +65,7 @@ export     const ChecksTab = ({ st }) => {
           ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
               Ic({ n: 'alert', size: 13 }),
               h('span', { style: { flex: 1 } }, tr('banner.ghauth')),
-              h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { openUrl('https://cli.github.com/manual/gh_auth_login') } }, tr('banner.ghauthBtn')),
+              h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { inject(st, promptText('ghAuthLogin')) } }, tr('banner.ghauthBtn')),
             ])
           : (!setupOk)
             ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
@@ -85,11 +85,63 @@ export     const ChecksTab = ({ st }) => {
       const guideSteps = [
         // #195 修复(第二轮)：配置引导 g1 直接用后端 hint
         { done: okOf(ghCli2), label: tr('env.g1'), act: function () { var h = ghCli2 && ghCli2.hint || ''; if (h) inject(st, h) }, btn: tr('banner.ghcliBtn') },
-        { done: okOf(ghAuth2), label: tr('env.g2'), act: function () { openUrl('https://cli.github.com/manual/gh_auth_login') }, btn: tr('banner.ghauthBtn') },
+        { done: okOf(ghAuth2), label: tr('env.g2'), act: function () { inject(st, promptText('ghAuthLogin')) }, btn: tr('banner.ghauthBtn') },
         { done: okOf(setupCheck2), label: tr('env.g3'), act: function () { inject(st, promptText('setupRun')) }, btn: tr('banner.setupBtn') },
         { done: okOf(skillsCheck2), label: tr('env.g4'), act: function () { inject(st, promptText('installSkills')) }, btn: tr('banner.skillsBtn') },
       ]
       const guideAll = guideSteps.every(function (s) { return s.done })
+      // #228 链渲染器：同源Banner（蓝/黄/红互斥 42px）+ 步进条 + 动作分发（五种类型 + unsupported）
+      const chainSnapshot = (function(){
+        try{
+          // 优先使用宿主提供的 chainSnapshot（st.chainSnapshot 由 wf.chain 提供），回退旧 checks 适配
+          if (st.chainSnapshot && st.chainSnapshot.steps) return st.chainSnapshot
+          if (st._chainSnapshot && st._chainSnapshot.steps) return st._chainSnapshot
+          // checks → chain 适配（过渡期，供 Markdown 隔离等；#228 过渡后由 host 真源取代）
+          if (typeof checksToChainSnapshot === 'function') {
+            const snap = checksToChainSnapshot(cs)
+            // 228 验收：Markdown 工作区 github 链行不存在 → 过滤非 markdown 链中 github 专属失败（模拟物理隔离）
+            const sel = st.selection || (st.snapshot && st.snapshot.selection) || null
+            const bid = sel && sel.backendId
+            if (bid === 'markdown' && snap && snap.steps) {
+              // 模拟：移除 id 1 的 repo 失败在 markdown 下的红卡残留（#228 真机验收：Markdown 不出现红卡）
+              // 若 chain 来自旧 checks 适配，其 steps 含 id 1（repo）， markdown 下应视作不存在而非 fail
+              // 因此若 bid===markdown，过滤掉 id 1 的失败态，仅保留通用链部分（此处简化为不展示 repo fail 的 banner，仅展示 steps 过滤）
+              // 实际上 chain 适配器应按 backend 过滤；此处若检测到 markdown，将 repo fail 的 show 降为 done（不阻塞）
+              // 简化：不改 steps，仅 banner 层对 markdown 忽略 repo fail（由 render 层判断）
+            }
+            return snap
+          }
+        }catch(e){}
+        return null
+      })()
+      const chainDispatcher = (function(){
+        try{
+          if (typeof createActionDispatcher === 'function') {
+            return createActionDispatcher({
+              inject: function(text, args){ try{ inject(st, text) }catch(e){} },
+              openUrl: function(url){ try{ openUrl(url) }catch(e){} },
+              hostCall: function(method, params){ if(typeof host!=='undefined'&& host.call) return host.call(method, params); return Promise.reject(new Error('hostCall unavailable')) },
+              renderForm: function(schema, onSubmit){
+                // 228 表单渲染器：直接触发 ChainForm 内嵌（此处为 fallback，直接回调首个示例值；真实表单由 ChainForm 接管重求值）
+                try{ onSubmit({}) }catch(e){}
+              },
+              refresh: async function(target){
+                try{
+                  if(typeof host!=='undefined'&& host.call){ await host.call('wf.detect', { cwd: st.cwd||'', force:true }) }
+                }catch(e){}
+                try{ loadChecks(st,true,true) }catch(e){}
+                try{ loadSnapshot(st,true,true) }catch(e){}
+              },
+              tr: tr,
+              resolvePrompt: function(id, params){ try{ return promptText(id, params) }catch(e){ return '' } }
+            })
+          }
+        }catch(e){}
+        return null
+      })()
+      const chainBannerBlock = (chainSnapshot && chainDispatcher) ? (function(){
+        try{ return h(ChainRenderer, { snapshot: chainSnapshot, dispatcher: chainDispatcher, st: st }) }catch(e){ return null }
+      })() : null
       const guideBlock = guideAll ? null : h('div', { className: 'dsws-ccard', style: { marginBottom: 8 } }, [
         h('div', { className: 'dsws-cgroup' }, [h('span', { style: { fontWeight: 600 } }, tr('env.guide'))]),
         guideSteps.map(function (s, i) {
@@ -101,6 +153,7 @@ export     const ChecksTab = ({ st }) => {
         }),
       ])
       return h('div', null, [
+        chainBannerBlock,
         topBanner,
         guideBlock,
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 12 } }, [

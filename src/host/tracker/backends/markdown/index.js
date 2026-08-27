@@ -58,6 +58,9 @@ export function describe(handle, backendId){
   const name=finalRef?finalRef.split(/[\\/]/).pop()||finalRef:backendId
   return{backend:backendId,refId:finalRef,name:name||backendId,url:''}
 }
+export function issueUrl(ref, key) { return '' }
+export function searchUrl(name) { return '' }
+export const linkPattern = null
 export function createMarkdownBackend(ctx){
   const unsupported=(op)=>({ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown '+op+' unsupported (labels MISSING per #134)'}})
   return{
@@ -96,6 +99,10 @@ export function createMarkdownBackend(ctx){
 export const markdownModule = {
   id: 'markdown',
   label: 'Markdown',
+  describe,
+  issueUrl,
+  searchUrl,
+  linkPattern,
   // #191：品牌色完整色板（B 方案定版 · #177）
   presentation: {
     color: '#1a7f37',

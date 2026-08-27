@@ -1,0 +1,300 @@
+<!-- PROTOTYPE — throwaway, not production — author display variants for #236 -->
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototype — #236 作者展示 3 方案（?variant=A|B|C）</title>
+<style>
+  :root { --bg:#0f0f12; --panel:#1a1a1f; --border:#2a2d35; --text:#e6e6eb; --muted:#8b8b95; --chip-bg:rgba(188,140,255,.16); --chip-border:rgba(188,140,255,.6); --author:#8b8b95; --claimed:#58a6ff; --blocked:#f0883e; }
+  *{box-sizing:border-box} body{margin:0;font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+  .wrap{max-width:900px;margin:0 auto;padding:24px 16px 80px}
+  h1{font-size:18px;margin:0 0 4px} .sub{font-size:12px;color:var(--muted);margin-bottom:16px}
+  .question{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:13px}
+  .question b{color:#c084fc}
+  .dsws-aggrow{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:8px 10px;border-radius:8px;border:1px solid transparent;background:var(--panel);margin-bottom:10px}
+  .dsws-aggrow:hover{background:rgba(255,255,255,.04);border-color:var(--border)}
+  .row1{display:flex;align-items:flex-start;gap:8px;width:100%}
+  .dsws-idcol{display:flex;flex-direction:column;gap:4px;flex:none}
+  .dsws-idnum{font-size:11px;padding:1px 6px;border-radius:999px;border:1px solid #3fb950;color:#3fb950}
+  .dsws-tt-wrap{flex:1;font-size:13px;font-weight:500;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:break-word}
+  .dsws-chip{font-size:10px;padding:0 6px;border-radius:99px;border:1px solid var(--chip-border);background:var(--chip-bg);color:#bc8cff;display:inline-flex;align-items:center;gap:4px}
+  .dsws-tags{display:flex;align-items:center;gap:4px;flex-wrap:nowrap;overflow:hidden;flex:1;min-width:0}
+  .dsws-more{border-style:dashed;opacity:.7}
+  .dsws-blocked{background:rgba(248,113,113,.16)!important;color:#f87171!important;border-color:rgba(248,113,113,.55)!important}
+  .author-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;font-size:11px;color:var(--author)}
+  .author-chip{display:inline-flex;align-items:center;gap:3px;min-width:0;color:var(--author)}
+  .ellip{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .btn{font-size:11px;padding:1px 8px;border-radius:6px;border:1px solid transparent;background:#3fb950;color:#0c1a10;cursor:pointer}
+  .ghost{font-size:11px;padding:1px 6px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+  .ring{width:28px;height:28px;border-radius:50%;border:3px solid #2a2d35;border-top-color:#c084fc;display:inline-block;flex:none}
+  .label{font-size:11px;color:var(--muted);margin:12px 0 6px;display:flex;align-items:center;gap:6px}
+  .label i{font-style:normal;font-size:10px;padding:1px 6px;border-radius:99px;background:rgba(255,255,255,.08);border:1px solid var(--border)}
+  .missing-hint{font-size:11px;color:var(--muted);background:rgba(255,255,255,.04);border:1px dashed var(--border);border-radius:6px;padding:6px 8px;margin:4px 0 12px}
+  /* Variant B inline chip */
+  .inline-author{margin-left:6px}
+  /* Variant C right column */
+  .row-c{display:flex;align-items:center;gap:8px}
+  .row-c .main{flex:1;min-width:0}
+  .row-c .author-col{flex:none;width:130px;display:flex;align-items:center;justify-content:flex-end;gap:6px;font-size:11px;color:var(--author);border-left:1px solid var(--border);padding-left:8px}
+  .avatar{width:16px;height:16px;border-radius:50%;background:#2a2d35;display:inline-block;flex:none;overflow:hidden}
+  .avatar img{width:100%;height:100%;object-fit:cover}
+  /* TicketRow */
+  .trow{display:flex;align-items:center;gap:12px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);margin-bottom:8px}
+  .trow .tt{flex:1;min-width:0}
+  .trow .tt-name{display:flex;align-items:center;gap:6px}
+  .trow .tt-sub{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;margin-top:4px}
+  .subItem{display:inline-flex;align-items:center;gap:3px;min-width:0}
+  /* Switcher */
+  .switcher{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#1f1f25;border:1px solid #3a3a45;color:var(--text);border-radius:999px;padding:6px 10px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:9999;font-size:13px}
+  .switcher button{width:28px;height:28px;border-radius:50%;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer;display:grid;place-items:center}
+  .switcher button:hover{background:rgba(255,255,255,.08)}
+  .switcher .cur{font-weight:600;min-width:160px;text-align:center}
+  .switcher .hint{font-size:10px;color:var(--muted)}
+  @media(max-width:520px){ .row-c .author-col{width:90px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Prototype — #236 作者在列表中的展示（3 方案 · ?variant=A|B|C）</h1>
+  <div class="sub">基于 <code>src/client/views/ListTab.js:243</code>（347 行）与 <code>TicketRow.js:25</code> 现实现状，零分支 <code>'author' in issue && login</code>；数据来自 <code>src/host/index.js:669/803/893</code> 的 <code>author{login avatarUrl}</code>（GraphQL 已修 <code>b3349a7</code>，REST 回退 <code>user.login</code>）</div>
+
+  <div class="question">
+    <b>问题：</b> 当后端为 <b>GitHub</b> 时，issue 的作者应如何在**列表行**与**地图票行**中展示，使 <b>有则显、无则不占位</b>（<code>MISSING</code>/<code>EMPTY</code> 不渲染），且**不挤压标签贪心折叠**（<code>tagsFit.js:9-31</code> + <code>fitMapRows 320/440</code>），同时与 <code>claimedBy(蓝)/blocked(橙)</code> 的视觉权重分层？
+    <br>下方 3 方案均满足 <b>前端对后端零知识</b>（无 <code>backendId</code> 分支），仅靠 <code>author.login</code> 有无渲染；<b>Markdown</b>（<code>delete author</code>）自动不显。
+  </div>
+
+  <div id="app"></div>
+
+  <div style="font-size:11px;color:var(--muted);margin-top:18px;border-top:1px solid var(--border);padding-top:10px">
+    <b>如何判断：</b> 每方案标题下第一行为 <b>GitHub 有作者</b>（<code>@FeatherHunter</code>），第二行为 <b>Markdown MISSING</b>（该行应<strong>无作者行且不留白</strong>），第三行为 <b>GitHub EMPTY（login:''）</b>（同不显）。<br>
+    <b>TicketRow</b> 为地图详情内子票的 <code>dsws-tt-sub</code> 形态（<code>TicketRow.js:25</code> 现实现已加 <code>@author(灰)</code> 首位）。
+  </div>
+</div>
+
+<div class="switcher" id="switcher" aria-label="prototype switcher">
+  <button id="prev" title="Prev (←)">‹</button>
+  <div class="cur" id="cur">A — 子信息行（当前落地 2155b10）</div>
+  <button id="next" title="Next (→)">›</button>
+  <span class="hint">← → 快捷键 · URL ?variant=</span>
+</div>
+
+<script>
+// ---- Mock data（与真实 normalize 产出一致）----
+const issues = [
+  { number: 234, key:'234', title:'健康检查误报“未检测到核心技能套件”（mattpocock/skills 已正确安装并可用）', state:'OPEN', labels:[{name:'enhancement',color:'a2eeef'},{name:'bug',color:'d73a4a'}], author:{login:'pioneerAlone', avatarUrl:''}, assignees:[] },
+  { number: 233, key:'233', title:'MAP详情页 ticket 行补齐「新会话」按钮（与列表页一致）', state:'OPEN', labels:[{name:'enhancement',color:'a2eeef'}], author:undefined }, // Markdown MISSING
+  { number: 231, key:'231', title:'落地：硬编码尾账清理与 backendId 门禁', state:'OPEN', labels:[{name:'ready-for-agent',color:'0e8a16'}], author:{login:'', avatarUrl:''} }, // EMPTY
+  { number: 240, key:'240', title:'讨论：issue 列表作者展示设计定版（位置/样式/头像与登录名/多后端兼容）', state:'OPEN', labels:[{name:'wayfinder:grilling',color:'9D7CD8'}], author:{login:'FeatherHunter', avatarUrl:'https://avatars.githubusercontent.com/u/12967785?v=4'}, assignees:[] },
+];
+const tickets = [
+  { number: 240, title:'讨论：issue 列表作者展示设计定版', type:'grilling', state:'OPEN', blockedBy:[], author:{login:'FeatherHunter'}, claimedBy:'', labels:['wayfinder:grilling'] },
+  { number: 241, title:'讨论：Markdown/GitLab 暂不实现边界', type:'grilling', state:'OPEN', blockedBy:[237], author:undefined, claimedBy:'', labels:[] },
+  { number: 239, title:'研究：前端列表作者显示现状盘点', type:'research', state:'CLOSED', blockedBy:[], author:{login:'pioneerAlone'}, claimedBy:'', labels:[] },
+];
+
+// ---- Variant definitions ----
+const variants = {
+  A: { key:'A', name:'子信息行（当前落地 2155b10）', desc:'标题与标签之间独立作者行（灰 person + @login，不进 dsws-tags）' },
+  B: { key:'B', name:'标题同行徽标', desc:'作者 chip 紧跟标题右侧（inline），与 map 徽章/圆环同行' },
+  C: { key:'C', name:'右侧固定列（头像）', desc:'作者在行最右侧固定 130px 列，头像 16px 圆 + @login，窄屏 90px' },
+};
+
+// ---- Helpers ----
+const h = (tag, attrs={}, children=[]) => {
+  const el = document.createElement(tag);
+  for(const [k,v] of Object.entries(attrs)){
+    if(k==='className') el.className=v;
+    else if(k==='style' && typeof v==='object') Object.assign(el.style, v);
+    else if(k.startsWith('on') && typeof v==='function') el.addEventListener(k.slice(2).toLowerCase(), v);
+    else if(v!=null) el.setAttribute(k, v);
+  }
+  const ch = Array.isArray(children)? children : [children];
+  for(const c of ch){ if(c==null) continue; if(typeof c==='string') el.appendChild(document.createTextNode(c)); else el.appendChild(c); }
+  return el;
+};
+const Ic = (n) => {
+  const svgMap = {person: `<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 13c0-2.5 2-4.5 6-4.5S14 10.5 14 13v1H2v-1Z"/></svg>`, lock: `<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M4 7V5a4 4 0 1 1 8 0v2h1a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h1Zm2-2a2 2 0 1 1 4 0v2H6V5Z"/></svg>`, check: `<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M6.5 11.5L3 8l1.2-1.2L6.5 9.1 11.8 3.8 13 5z"/></svg>`, map: `<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M2 2l5-1 5 1v11l-5-1-5 1z"/></svg>`, 'external-link': `<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 11L11 5M11 5H6M11 5v5"/></svg>`, link: `<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M6 8H10M8 6v4M4 8a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z"/></svg>`, search: `<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5L13 13"/></svg>`, chat: `<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M2 3h12v7H5l-3 3z"/></svg>`, gear: `<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm4.9-1.6l1.2-.7-.9-1.5-1.3.4a5.5 5.5 0 0 0-.7-.7l.4-1.3-1.5-.9-.7 1.2a5.5 5.5 0 0 0-1.4 0l-.7-1.2-1.5.9.4 1.3a5.5 5.5 0 0 0-.7.7l-1.3-.4-.9 1.5 1.2.7a5.5 5.5 0 0 0 0 1.4l-1.2.7.9 1.5 1.3-.4c.2.3.4.5.7.7l-.4 1.3 1.5.9.7-1.2c.5.1.9.1 1.4 0l.7 1.2 1.5-.9-.4-1.3c.3-.2.5-.4.7-.7l1.3.4.9-1.5-1.2-.7a5.5 5.5 0 0 0 0-1.4Z"/></svg>` };
+  const s = h('span', {style:{display:'inline-flex', alignItems:'center', lineHeight:'1', color:'currentColor'}}); s.innerHTML = svgMap[n] || '•'; const svgEl = s.firstChild; if(svgEl) svgEl.style.display='block'; return s;
+};
+
+// ---- Variant A: sub-info row (current) ----
+function VariantA(){
+  const root = h('div', {});
+  root.appendChild(h('div', {className:'label'}, ['ListTab — 主列表 ', h('i', {}, 'A 子信息行（当前）')]));
+  for(const x of issues){
+    const row = h('div', {className:'dsws-aggrow'});
+    const row1 = h('div', {style:{display:'flex', alignItems:'flex-start', gap:'8px', width:'100%'}});
+    row1.appendChild(h('span', {className:'dsws-idcol'}, [h('span', {className:'dsws-idnum'}, '#'+x.key)]));
+    row1.appendChild(h('span', {className:'dsws-tt-wrap', style:{flex:'1'}}, x.title));
+    row1.appendChild(h('span', {className:'ring'}));
+    row.appendChild(row1);
+    if(x.author && x.author.login){
+      const ar = h('div', {className:'author-row'});
+      ar.appendChild(h('span', {className:'author-chip'}, [Ic('person'), h('span', {className:'ellip', title:'@'+x.author.login}, '@'+x.author.login)]));
+      row.appendChild(ar);
+    } else {
+      // MISSING/EMPTY → 不渲染，且不留白（此 div 不创建，验证点）
+    }
+    const row2 = h('div', {style:{marginTop:'2px', display:'flex', alignItems:'center', gap:'6px', width:'100%'}});
+    const tags = h('div', {className:'dsws-tags'});
+    for(const l of x.labels) tags.appendChild(h('span', {className:'dsws-chip'}, l.name));
+    row2.appendChild(tags);
+    const btns = h('div', {style:{display:'flex', gap:'6px', marginLeft:'auto'}});
+    btns.appendChild(h('button', {className:'btn'}, '新会话'));
+    btns.appendChild(h('button', {className:'ghost'}, '🔗'));
+    row2.appendChild(btns);
+    row.appendChild(row2);
+    if(!x.author || !x.author.login){
+      const hint = h('div', {className:'missing-hint'}, '↑ 此行为 MISSING/EMPTY 示例：无作者行且不占位（符合 shape.js:132 MISSING=省略）');
+      row.appendChild(hint);
+    }
+    root.appendChild(row);
+  }
+  root.appendChild(h('div', {className:'label'}, ['TicketRow — 地图详情内 ', h('i', {}, 'A 首位 @author(灰) + claimedBy(蓝)')]));
+  for(const t of tickets){
+    const r = h('div', {className:'trow'});
+    const tt = h('div', {className:'tt'});
+    tt.appendChild(h('div', {className:'tt-name'}, [h('span', {style:{fontSize:'11px', color:'#8b8b95'}}, '#'+t.number), h('span', {className:'dsws-tt-wrap', style:{flex:'1'}}, t.title)]));
+    const sub = h('div', {className:'tt-sub'});
+    if(t.author && t.author.login) sub.appendChild(h('span', {className:'subItem', style:{color:'#8b8b95', display:'inline-flex', alignItems:'center', gap:'3px'}}, [Ic('person'), h('span', {className:'ellip', style:{maxWidth:'200px'}}, '@'+t.author.login)]));
+    if(t.claimedBy) sub.appendChild(h('span', {className:'subItem', style:{color:'#58a6ff'}}, [Ic('person'), '认领 '+t.claimedBy]));
+    sub.appendChild(h('span', {className:'subItem', style:{color:'#3fb950'}}, [Ic('check'), t.state]));
+    tt.appendChild(sub);
+    r.appendChild(tt);
+    r.appendChild(h('button', {className:'btn'}, '新会话'));
+    root.appendChild(r);
+  }
+  return root;
+}
+
+// ---- Variant B: inline title chip — 分人分色 + 本人不显（viewer=FeatherHunter）----
+const authorColor = function(l){let h=0;for(let i=0;i<l.length;i++)h=(h*31+l.charCodeAt(i))%360;h=(h*137.508)%360;let s=0.72,ll=0.5,c=(1-Math.abs(2*ll-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=ll-c/2,r=0,g=0,b=0;if(h<60){r=c;g=x}else if(h<120){r=x;g=c}else if(h<180){g=c;b=x}else if(h<240){g=x;b=c}else if(h<300){r=x;b=c}else{r=c;b=x}r=Math.round((r+m)*255);g=Math.round((g+m)*255);b=Math.round((b+m)*255);return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');};
+const viewerLogin = 'FeatherHunter'; // 模拟当前 GH 登录人（host 的 viewerLogin），本人不显 — HSL 360色，20人无碰撞（golden angle 137.5°）
+function VariantB(){
+  const root = h('div', {});
+  root.appendChild(h('div', {className:'label'}, ['ListTab — ', h('i', {}, 'B 标题同行徽标（inline chip，分人分色，本人不显）')]));
+  for(const x of issues){
+    const row = h('div', {className:'dsws-aggrow'});
+    const row1 = h('div', {style:{display:'flex', alignItems:'center', gap:'8px', width:'100%'}});
+    row1.appendChild(h('span', {className:'dsws-idcol'}, [h('span', {className:'dsws-idnum'}, '#'+x.key)]));
+    const titleWrap = h('span', {className:'dsws-tt-wrap', style:{flex:'1', display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap'}});
+    titleWrap.appendChild(h('span', {style:{flex:'1'}}, x.title));
+    if(x.author && x.author.login && x.author.login !== viewerLogin){
+      const c = authorColor(x.author.login);
+      titleWrap.appendChild(x.author.avatarUrl ? h('img', {src: x.author.avatarUrl, style:{width:'16px', height:'16px', borderRadius:'50%', border:'2px solid '+c, flex:'none'}, title:'@'+x.author.login, alt:x.author.login}) : h('span', {style:{width:'16px', height:'16px', borderRadius:'50%', background: c+'2e', border:'2px solid '+c, display:'inline-flex', alignItems:'center', justifyContent:'center', flex:'none'}, title:'@'+x.author.login}, [Ic('person')]));
+    }
+    row1.appendChild(titleWrap);
+    row1.appendChild(h('span', {className:'ring'}));
+    row.appendChild(row1);
+    const row2 = h('div', {style:{marginTop:'2px', display:'flex', alignItems:'center', gap:'6px'}});
+    const tags = h('div', {className:'dsws-tags'});
+    for(const l of x.labels) tags.appendChild(h('span', {className:'dsws-chip'}, l.name));
+    row2.appendChild(tags);
+    row2.appendChild(h('div', {style:{marginLeft:'auto', display:'flex', gap:'6px'}} , [h('button', {className:'btn'}, '新会话'), h('button', {className:'ghost'}, '🔗')]));
+    row.appendChild(row2);
+    if(!x.author || !x.author.login) row.appendChild(h('div', {className:'missing-hint'}, '↑ MISSING/EMPTY：标题同行无 chip，不挤压标题（标题仍限2行）'));
+    root.appendChild(row);
+  }
+  root.appendChild(h('div', {className:'label'}, ['TicketRow — ', h('i', {}, 'B 标题同行徽标')]));
+  for(const t of tickets){
+    const r = h('div', {className:'trow'});
+    const tt = h('div', {className:'tt'});
+    const name = h('div', {className:'tt-name'});
+    name.appendChild(h('span', {style:{fontSize:'11px', color:'#8b8b95'}}, '#'+t.number));
+    name.appendChild(h('span', {className:'dsws-tt-wrap', style:{flex:'1', display:'flex', gap:'6px', alignItems:'center'}}, [t.title, (t.author&&t.author.login && t.author.login !== viewerLogin)? (t.author.avatarUrl ? h('img', {src: t.author.avatarUrl, style:{width:'16px', height:'16px', borderRadius:'50%', border:'2px solid '+authorColor(t.author.login), flex:'none'}, title:'@'+t.author.login, alt:t.author.login}) : h('span', {style:{width:'16px', height:'16px', borderRadius:'50%', background: authorColor(t.author.login)+'2e', border:'2px solid '+authorColor(t.author.login), display:'inline-flex', alignItems:'center', justifyContent:'center', flex:'none'}, title:'@'+t.author.login}, [Ic('person')])) : null]));
+    tt.appendChild(name);
+    const sub = h('div', {className:'tt-sub'});
+    if(t.claimedBy) sub.appendChild(h('span', {className:'subItem', style:{color:'#58a6ff'}}, [Ic('person'), t.claimedBy]));
+    sub.appendChild(h('span', {className:'subItem', style:{color:'#3fb950'}}, [Ic('check'), t.state]));
+    tt.appendChild(sub);
+    r.appendChild(tt);
+    r.appendChild(h('button', {className:'btn'}, '新会话'));
+    root.appendChild(r);
+  }
+  return root;
+}
+
+// ---- Variant C: right fixed column with avatar ----
+function VariantC(){
+  const root = h('div', {});
+  root.appendChild(h('div', {className:'label'}, ['ListTab — ', h('i', {}, 'C 右侧固定列（头像 + @login）')]));
+  for(const x of issues){
+    const row = h('div', {className:'dsws-aggrow'});
+    const rowC = h('div', {className:'row-c'});
+    const main = h('div', {className:'main'});
+    const row1 = h('div', {style:{display:'flex', gap:'8px', alignItems:'flex-start'}});
+    row1.appendChild(h('span', {className:'dsws-idcol'}, [h('span', {className:'dsws-idnum'}, '#'+x.key)]));
+    row1.appendChild(h('span', {className:'dsws-tt-wrap', style:{flex:'1'}}, x.title));
+    row1.appendChild(h('span', {className:'ring'}));
+    main.appendChild(row1);
+    const row2 = h('div', {style:{marginTop:'2px', display:'flex', gap:'6px'}});
+    const tags = h('div', {className:'dsws-tags'});
+    for(const l of x.labels) tags.appendChild(h('span', {className:'dsws-chip'}, l.name));
+    row2.appendChild(tags);
+    row2.appendChild(h('div', {style:{marginLeft:'auto', display:'flex', gap:'6px'}}, [h('button', {className:'btn'}, '新会话')]));
+    main.appendChild(row2);
+    rowC.appendChild(main);
+    const authorCol = h('div', {className:'author-col'});
+    if(x.author && x.author.login){
+      const av = h('span', {className:'avatar'});
+      if(x.author.avatarUrl) { const img=h('img', {src:x.author.avatarUrl}); av.appendChild(img); } else av.textContent='👤';
+      authorCol.appendChild(av);
+      authorCol.appendChild(h('span', {className:'ellip', style:{maxWidth:'90px'}, title:'@'+x.author.login}, '@'+x.author.login));
+    } else {
+      authorCol.appendChild(h('span', {style:{color:'var(--muted)', fontSize:'10px'}}, '—'));
+      authorCol.style.opacity='.4';
+    }
+    // MISSING/EMPTY 在右侧列仍占位但置 —，便于对齐；若需不占位可 display:none（此方案为对齐优先）
+    rowC.appendChild(authorCol);
+    row.appendChild(rowC);
+    if(!x.author || !x.author.login) row.appendChild(h('div', {className:'missing-hint'}, '↑ MISSING/EMPTY：右侧列置 —（占位以保对齐，窄屏 90px）；若需不占位可改为 display:none'));
+    root.appendChild(row);
+  }
+  root.appendChild(h('div', {className:'label'}, ['TicketRow — ', h('i', {}, 'C 右侧头像列')]));
+  for(const t of tickets){
+    const r = h('div', {className:'trow', style:{display:'flex'}});
+    const tt = h('div', {className:'tt', style:{flex:'1'}});
+    tt.appendChild(h('div', {className:'tt-name'}, [h('span', {style:{fontSize:'11px', color:'#8b8b95'}}, '#'+t.number), h('span', {className:'dsws-tt-wrap', style:{flex:'1'}}, t.title)]));
+    const sub = h('div', {className:'tt-sub'});
+    if(t.claimedBy) sub.appendChild(h('span', {className:'subItem', style:{color:'#58a6ff'}}, [Ic('person'), t.claimedBy]));
+    sub.appendChild(h('span', {className:'subItem', style:{color:'#3fb950'}}, [Ic('check'), t.state]));
+    tt.appendChild(sub);
+    r.appendChild(tt);
+    const col = h('div', {style:{display:'flex', alignItems:'center', gap:'6px', width:'130px', justifyContent:'flex-end', borderLeft:'1px solid var(--border)', paddingLeft:'8px', fontSize:'11px', color:'#8b8b95'}});
+    if(t.author && t.author.login){ const av=h('span', {className:'avatar'}); av.textContent='👤'; col.appendChild(av); col.appendChild(h('span', {}, '@'+t.author.login)); } else { col.appendChild(h('span', {style:{opacity:.4}}, '—')); }
+    r.appendChild(col);
+    r.appendChild(h('button', {className:'btn'}, '新会话'));
+    root.appendChild(r);
+  }
+  return root;
+}
+
+// ---- Switcher ----
+const variantMap = {A:VariantA, B:VariantB, C:VariantC};
+function getVariant(){ const p=new URLSearchParams(location.search); const v=(p.get('variant')||'A').toUpperCase(); return variantMap[v]? v : 'A'; }
+function setVariant(v){
+  const url=new URL(location.href); url.searchParams.set('variant', v); history.replaceState(null,'',url);
+  render();
+}
+function render(){
+  const v=getVariant();
+  const app=document.getElementById('app');
+  app.innerHTML='';
+  const fn=variantMap[v];
+  app.appendChild(fn());
+  const cur=document.getElementById('cur');
+  cur.textContent = v+' — '+variants[v].name;
+  cur.title = variants[v].desc;
+}
+document.getElementById('prev').onclick=()=>{ const cur=getVariant(); const keys=Object.keys(variants); const idx=keys.indexOf(cur); setVariant(keys[(idx-1+keys.length)%keys.length]); };
+document.getElementById('next').onclick=()=>{ const cur=getVariant(); const keys=Object.keys(variants); const idx=keys.indexOf(cur); setVariant(keys[(idx+1)%keys.length]); };
+document.addEventListener('keydown', (e)=>{
+  if(e.target.matches('input,textarea,[contenteditable]')) return;
+  if(e.key==='ArrowLeft') document.getElementById('prev').click();
+  if(e.key==='ArrowRight') document.getElementById('next').click();
+});
+render();
+</script>
+</body>
+</html>

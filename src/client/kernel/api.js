@@ -270,7 +270,7 @@ export let pendingDraftTargetSid = null
           if (ns && st.snapshot) { ns.snapshot = st.snapshot; ns.snapMode = 'real'; ns.cwd = cwd }
           // issuePath · 新会话锚点：把本次打开的 issue 记为新会话的起点（Q10 A+B）
           try {
-            const __refs = (function (t) { const o=[]; const s=String(t||''); const re=/github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/(\d+)/g; let mm; while((mm=re.exec(s))!==null) o.push(Number(mm[1])); return o })(text)
+            const __refs = (function (t) { const o=[]; const s=String(t||''); const re=/(?:github\.com|gitlab\.com)\/[^\/\s]+\/[^\/\s]+(?:\/-\/)?\/issues\/(\d+)/g; let mm; while((mm=re.exec(s))!==null) o.push(Number(mm[1])); return o })(text)
             if (__refs.length && ns) {
               const __tg = String(title || '').slice(0,80)
               recordIssuePath(ns, __refs[0], 'claim', __tg)
@@ -310,7 +310,7 @@ export let pendingDraftTargetSid = null
     export const extractIssueRefs = function (text) {
       const out = []
       const s = String(text || '')
-      const urlRe = /github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/(\d+)/g
+      const urlRe = /(?:github\.com|gitlab\.com)\/[^\/\s]+\/[^\/\s]+(?:\/-\/)?\/issues\/(\d+)/g
       let m
       while ((m = urlRe.exec(s)) !== null) out.push(Number(m[1]))
       return out

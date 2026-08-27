@@ -14,6 +14,8 @@ const EXPECTED_OPNAMES = [
   'preflight', 'list', 'get', 'getDependencies',
   'create', 'close', 'reopen', 'comment',
   'update', 'setLabels', 'setAssignees', 'setParent', 'setBlockedBy',
+  'getCurrentUser',
+  'initProject',
 ]
 const LEGACY_OPS = ['detect', 'label', 'subIssue', 'blockedBy', 'syncSnapshot']
 

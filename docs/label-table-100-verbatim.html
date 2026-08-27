@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>100% 逐字总表 — 来自原版技能正文</title>
+<style>
+  body{font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; margin:32px; color:#24292f; line-height:1.5; background:#fff;}
+  h1{font-size:22px; margin:0 0 8px;}
+  .sub{color:#57606a; font-size:13px; margin-bottom:20px;}
+  .note{background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:12px 16px; font-size:13px; margin-bottom:20px;}
+  table{border-collapse:collapse; width:100%; font-size:13px;}
+  th,td{border:1px solid #d0d7de; padding:8px 10px; text-align:left; vertical-align:top;}
+  th{background:#f6f8fa; font-weight:600; white-space:nowrap;}
+  td code{background:#f6f8fa; padding:1px 5px; border-radius:4px; font-size:12px; border:1px solid #e5e8eb;}
+  .src{white-space:nowrap; color:#57606a;}
+  .mono{font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px;}
+  caption{caption-side:bottom; padding:10px; color:#57606a; font-size:12px;}
+  .tag{display:inline-block; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:600; border:1px solid #d0d7de;}
+  .tag-bug{background:#ffebe9; border-color:#ff8182; color:#cf222e;}
+  .tag-needs{background:#fff8c5; border-color:#d4a72c; color:#9a6700;}
+  .tag-ready{background:#dafbe1; border-color:#4ac26b; color:#1a7f37;}
+  .tag-wont{background:#f6f8fa; color:#57606a;}
+  .tag-map{background:#ddf4ff; border-color:#54aeff; color:#0550ae;}
+  .tag-wf{background:#fbefff; border-color:#d2a8ff; color:#8250df;}
+</style>
+</head>
+<body>
+<h1>100% 逐字总表（不再合成“task+ready-for-agent”这种二阶规则）</h1>
+<div class="sub">来源：<span class="mono">wayfinder / triage / setup-matt-pocock-skills / issue-tracker.md / ask-matt</span> 原版正文逐字摘录 · 单仓实际字符串 1:1 落盘于 <span class="mono">docs/agents/triage-labels.md</span></div>
+
+<div class="note">
+<strong>第一性：</strong>标签是<strong>角色（role）</strong>，不是字符串。正源五态为 canonical role names，实际字符串是否等于角色名由 <span class="mono">docs/agents/triage-labels.md</span> 的映射决定（本仓为 1:1 默认）。<br>
+<strong>强制三标签</strong>（仓规 <span class="mono">docs/agents/issue-tracker.md</span> Mandatory label set）必须存在且每新 issue 必带其一：<code>bug</code> / <code>needs-triage</code> / <code>wayfinder:grilling</code>。
+</div>
+
+<table>
+<thead>
+<tr>
+  <th>标签字符串<br><span style="font-weight:400; color:#57606a;">（本仓实际）</span></th>
+  <th>正源技能<br><span style="font-weight:400; color:#57606a;">（逐字出处）</span></th>
+  <th>角色归属</th>
+  <th>逐字含义 / 原文</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><span class="tag tag-bug">bug</span></td>
+  <td class="src">triage + 仓规强制<br><span class="mono">triage/SKILL.md §Roles</span><br><span class="mono">issue-tracker.md §Mandatory</span></td>
+  <td>category + 强制</td>
+  <td>something is broken<br><span style="color:#57606a;">— drives deck's fix action and BUG filter</span></td>
+</tr>
+<tr>
+  <td><span class="tag tag-bug">enhancement</span></td>
+  <td class="src">triage<br><span class="mono">triage/SKILL.md §Roles</span></td>
+  <td>category</td>
+  <td>new feature or improvement</td>
+</tr>
+<tr>
+  <td><span class="tag tag-needs">needs-triage</span></td>
+  <td class="src">triage + 仓规强制<br><span class="mono">triage/SKILL.md §Roles</span></td>
+  <td>state + 强制</td>
+  <td>maintainer needs to evaluate<br><span style="color:#57606a;">— drives deck's diagnose action and TRIAGE filter</span></td>
+</tr>
+<tr>
+  <td><span class="tag tag-needs">needs-info</span></td>
+  <td class="src">triage<br><span class="mono">triage/SKILL.md §Roles</span></td>
+  <td>state</td>
+  <td>waiting on reporter for more information</td>
+</tr>
+<tr>
+  <td><span class="tag tag-ready">ready-for-agent</span></td>
+  <td class="src">triage<br><span class="mono">triage/SKILL.md §Roles</span></td>
+  <td>state</td>
+  <td>fully specified, ready for an AFK agent</td>
+</tr>
+<tr>
+  <td><span class="tag">ready-for-human</span></td>
+  <td class="src">triage<br><span class="mono">triage/SKILL.md §Roles</span></td>
+  <td>state</td>
+  <td>needs human implementation</td>
+</tr>
+<tr>
+  <td><span class="tag tag-wont">wontfix</span></td>
+  <td class="src">triage<br><span class="mono">triage/SKILL.md §Roles</span></td>
+  <td>state</td>
+  <td>will not be actioned</td>
+</tr>
+<tr>
+  <td><span class="tag tag-map">wayfinder:map</span></td>
+  <td class="src">wayfinder<br><span class="mono">wayfinder/SKILL.md §The Map</span></td>
+  <td>map 制品</td>
+  <td>The map is a single issue on this repo's issue tracker, labelled <code>wayfinder:map</code> — the canonical artifact.</td>
+</tr>
+<tr>
+  <td><span class="tag tag-wf">wayfinder:research</span></td>
+  <td class="src">wayfinder<br><span class="mono">wayfinder/SKILL.md §Ticket Types</span></td>
+  <td>ticket type AFK</td>
+  <td>Reading documentation, third-party APIs, or local resources … Resolved by a <code>/research</code> subagent.</td>
+</tr>
+<tr>
+  <td><span class="tag tag-wf">wayfinder:prototype</span></td>
+  <td class="src">wayfinder<br><span class="mono">wayfinder/SKILL.md §Ticket Types</span></td>
+  <td>ticket type HITL</td>
+  <td>Raise the fidelity of the discussion by making a cheap, rough, concrete artifact …</td>
+</tr>
+<tr>
+  <td><span class="tag tag-wf">wayfinder:grilling</span></td>
+  <td class="src">wayfinder + 仓规强制<br><span class="mono">wayfinder/SKILL.md §Ticket Types</span></td>
+  <td>ticket type HITL + 强制</td>
+  <td>Conversation. The default case. Always invoke the <code>/grilling</code> and <code>/domain-modeling</code> skills.<br><span style="color:#57606a;">— drives deck's discuss action</span></td>
+</tr>
+<tr>
+  <td><span class="tag tag-wf">wayfinder:task</span></td>
+  <td class="src">wayfinder<br><span class="mono">wayfinder/SKILL.md §Ticket Types</span></td>
+  <td>ticket type HITL or AFK</td>
+  <td>Manual work that must happen before a decision can be made — … earns its place by unblocking a decision, not by delivering the destination.</td>
+</tr>
+</tbody>
+<caption>注：本表仅列正源逐字标签；“<code>task+ready-for-agent → implement</code>”等二阶组合为 <span class="mono">ask-matt</span> 的流程推导（<span class="mono">Tickets that /to-tickets produced are already agent-ready, so don't triage them.</span> 等），非标签正源逐字，故不入本表。</caption>
+</table>
+
+<div class="note" style="margin-top:16px;">
+<strong>映射说明：</strong>本仓 <span class="mono">docs/agents/triage-labels.md</span> 为 1:1 默认（<span class="mono">ready-for-agent → ready-for-agent</span> 等），故“正源原文”即“实际字符串”。若他仓在 <span class="mono">setup-matt-pocock-skills</span> 中改过映射，则以该仓 <span class="mono">triage-labels.md</span> 为准，正源角色名不变。
+</div>
+</body>
+</html>

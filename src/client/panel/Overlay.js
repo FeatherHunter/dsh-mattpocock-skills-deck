@@ -241,7 +241,7 @@ export     const OverlayPanel = (props) => {
           h('span', { 'data-head-title': 1, style: { fontWeight: 600, whiteSpace: 'nowrap', flex: 'none' } }, tr('panel.title')),
           // v19-35：「真数据」→ 显示 repo 名；#190 Markdown 本地文件夹分支（backend==='markdown' 时 host.call('wf.openFolder',{cwd})，GitHub/GitLab 保持 openUrl）
           (function(){
-            const repoRef = (s.repository || (s.snapshot && s.snapshot.repository) || (s.snapshot && s.snapshot.repo ? { backend:'github', name: s.snapshot.repo.owner+'/'+s.snapshot.repo.name, refId: s.snapshot.repo.owner+'/'+s.snapshot.repo.name, url:'https://github.com/'+s.snapshot.repo.owner+'/'+s.snapshot.repo.name } : null))
+            const repoRef = (s.repository || (s.snapshot && s.snapshot.repository) || (s.snapshot && s.snapshot.repo ? { backend:'github', name: s.snapshot.repo.owner+'/'+s.snapshot.repo.name, refId: s.snapshot.repo.owner+'/'+s.snapshot.repo.name, url: repoUrlFor(s) } : null))
             const sel = s.selection || (s.snapshot && s.snapshot.selection) || null
             const isErr = s.snapMode === 'err'
             const isLoading = s.snapMode === 'loading'

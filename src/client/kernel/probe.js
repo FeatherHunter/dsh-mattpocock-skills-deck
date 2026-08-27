@@ -7,6 +7,21 @@
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
     export const CHECKS_TOTAL = 9   // v1.5 T11 起 9 项检测（含核心技能套件）
+    // #228 链渲染器主机侧数据：wf.chain 通用链快照（按后端动态，refresh 联动）
+    export const loadChain = function(st, force){
+      if (typeof host === 'undefined' || typeof host.call !== 'function') return Promise.resolve(null)
+      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, force ? { force:true } : {})
+      return host.call('wf.chain', args).then(function(res){
+        if (res && res.ok && res.snapshot) { st.chainSnapshot = res.snapshot; st.chain = res.chain; st.chainResolved = res.resolved; emit(st); return res.snapshot }
+        try{
+          if (st.checks && st.checks.length && typeof checksToChainSnapshot === 'function') {
+            const snap = checksToChainSnapshot(st.checks)
+            if (snap) { st.chainSnapshot = snap; emit(st); return snap }
+          }
+        }catch(e){}
+        return null
+      }).catch(function(e){ return null })
+    }
     export const pendingSnapshotByCwd = new Map() // Map<normCwd,{promise,controller}> dedup 30s
     export const normCwdClientProbe = function(k){ try{ return String(k||'').toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,'')||'/'; }catch(e){ return String(k||''); } }
     export const loadChecks = (st, force, silent) => {
@@ -40,6 +55,7 @@
           st.checksError = (res && res.error) ? String(res.error).slice(0, 160) : tr('err.statusEmpty')
         }
         emit(st)
+        try{ if(typeof loadChain==='function') loadChain(st, force ? true:false).catch(function(){}) }catch(e){}
       }).catch(function (e) {
         if(watchdog) try{ clearTimeout(watchdog) }catch{}
         st.checking = false
@@ -439,9 +455,10 @@
       // 先发 RPC（异步即返回），再触发渲染 —— 避免重渲染挡住数据请求
       var p1 = loadChecks(st, true, true)
       var p2 = loadSnapshot(st, true, true)
+      var p3 = (typeof loadChain==='function' ? loadChain(st, true).catch(function(){}) : Promise.resolve())
       spinAll(true)
       emit(st)
-      Promise.all([p1, p2]).then(function () {
+      Promise.all([p1, p2, p3]).then(function () {
         st.refreshing = false
         spinAll(false)
         emit(st)

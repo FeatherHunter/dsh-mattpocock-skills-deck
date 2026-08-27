@@ -1174,7 +1174,7 @@ export default {
         const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]
         return { ok: true, level: 'ok', detail: first || ((lang === 'en') ? 'Logged in' : '已登录'), hint: '', repo: null }
       }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not logged into GitHub: run gh auth login (browser auth; official docs in hint)' : '未登录 GitHub：运行 gh auth login（浏览器授权，官方文档见 hint）', hint: 'https://cli.github.com/manual/gh_auth_login', repo: null }
+      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not logged into GitHub: run gh auth login (browser auth; official docs in hint)' : '未登录 GitHub：运行 gh auth login（浏览器授权，官方文档见 hint）', hint: 'prompt:ghAuthLogin', repo: null }
     }
 
     // 检查 6 · API 可达（有 repo 用 repos/<owner>/<name>，否则退 user）
@@ -1334,11 +1334,11 @@ export default {
           } else if (kind === 'env') {
             // #195 修复：hint 升级为 prompt:installGh（与 installSkills / ghAuthGuide 同模式），UI 主按钮自动 inject
             c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: (det.preflight && det.preflight.prompt) ? det.preflight.prompt : '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version;\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → rew install gh; Linux → sudo apt install gh;\n3. 安装后验证：gh --version;\n4. 若 gh 已装但 DSH 仍报未安装：点「重测」或重启 DSH；\n5. 完成后汇报。' }
-            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
+            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'prompt:ghAuthLogin' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           } else if (kind === 'auth') {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'https://cli.github.com/manual/gh_auth_login' }
+            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'prompt:ghAuthLogin' }
             c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
           } else {
             c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
@@ -1429,6 +1429,40 @@ export default {
       }
     })
 
+    // #228 链渲染器主机侧：通用链快照（契约层纯函数求值，谓词只读探测，失败返回不抛，超时 pending）
+    harness.handle('wf.chain', async function (args) {
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const force = !!(args && args.force)
+      if (force) resetGhCache()
+      try{
+        const platform = await getPlatform()
+        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force }) }).catch(function(){ return null })
+        let backendId = args && args.backendId
+        if (!backendId && selMod && selMod.selection && selMod.selection.backendId) backendId = selMod.selection.backendId
+        const genMod = await import('./tracker/generic.js')
+        const predMod = await import('./tracker/predicateRegistry.js')
+        const registry = predMod.createPredicateRegistry({ timeout: 3000 })
+        if (typeof genMod.registerGenericPredicates === 'function') genMod.registerGenericPredicates(registry)
+        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, selection: selMod && selMod.selection, explicitBackendId: selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId }
+        const kind = (args && args.kind) || 'all'
+        const chainAndSnap = await genMod.resolveGenericChain(registry, ctx, kind)
+        let backendChain = null
+        try{
+          if (backendId) {
+            const catMod2 = await import('../shared/tracker/check-catalog.js')
+            const chainMod = await import('../shared/tracker/chain.js')
+            const items = (catMod2.catalogFor ? catMod2.catalogFor(backendId) : []).filter(function(c){ return c.scope==='backend' }).map(function(ci){ return catMod2.catalogItemToCheckItem ? catMod2.catalogItemToCheckItem(ci) : null }).filter(Boolean)
+            if (items.length) {
+              const errs = chainMod.validateChain ? chainMod.validateChain(items) : []
+              backendChain = { chain: items, errors: errs }
+            }
+          }
+        }catch(e){}
+        return { ok: true, backendId: backendId || null, chain: chainAndSnap.chain, resolved: chainAndSnap.resolved, snapshot: chainAndSnap.snapshot, backendChain: backendChain }
+      }catch(e){
+        return { ok: false, error: String((e && e.message)||e) }
+      }
+    })
     harness.handle('wf.ping', async function () {
       return { ok: true, ts: Date.now() }
     })

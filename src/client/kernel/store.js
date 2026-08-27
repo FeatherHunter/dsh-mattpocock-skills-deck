@@ -593,7 +593,7 @@
     }
     // #361：行级动作注入文本的单一真源（诊断/修复/讨论/执行）—— 新会话打开与行内动作共用
     export const rowActionText = function (st, x) {
-      const url = 'https://github.com/' + repoStr(st) + '/issues/' + x.number
+      const url = issueUrlFor(st, x.number)
       const has = function (nm) { return (x.labels || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
       const _isTriageLike = !(x.labels && x.labels.length) || has('needs-triage')
       if (_isTriageLike) return renderTemplate('diagnose', { url: url })
@@ -605,7 +605,7 @@
     // v19：共享 —— 行级动作（列表与 map 详情共用）：按 label 四选一（诊断/修复/讨论/执行），预填输入框；
     // 按钮主体色 = 对应 label 的 GitHub 配置色（YIQ 感知亮度定文字色）
     export const mkRowAction = function (st, x, narrow, colorOf) {
-      const url = 'https://github.com/' + repoStr(st) + '/issues/' + x.number
+      const url = issueUrlFor(st, x.number)
       const has = function (nm) { return (x.labels || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
       const _isTriageLike = !(x.labels && x.labels.length) || has('needs-triage')
       const isLight = function (hex) {

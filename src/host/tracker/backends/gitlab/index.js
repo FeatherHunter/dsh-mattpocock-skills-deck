@@ -65,6 +65,27 @@ async function matches(handle, ctx) {
   }
 }
 
+export function describe(handle, backendId) {
+  const rawRef = handle && typeof handle.refId === 'string' && handle.refId ? String(handle.refId).trim() : ''
+  const cwd = handle && typeof handle.cwd === 'string' ? String(handle.cwd) : ''
+  let refId = rawRef
+  const name = refId || (cwd ? cwd.split(/[\\/]/).pop() || cwd : backendId) || backendId
+  const url = refId && refId.includes('/') ? 'https://gitlab.com/' + refId : ''
+  return { backend: backendId, refId: refId || '', name, url }
+}
+
+export function issueUrl(ref, key) {
+  const refId = ref && typeof ref.refId === 'string' ? ref.refId : ''
+  if (!refId) return ''
+  return 'https://gitlab.com/' + refId + '/-/issues/' + String(key)
+}
+
+export function searchUrl(name) {
+  return 'https://gitlab.com/search?search=' + encodeURIComponent(String(name || ''))
+}
+
+export const linkPattern = /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+)/g
+
 /**
  * 创建 GitLab 后端适配器（13 ops 完整形状）。
  * @param {Object} ctx BackendContext（platform/fs/exec/timers/log）
@@ -75,6 +96,8 @@ export function createGitlabBackend(ctx) {
 
   return {
     id: 'gitlab',
+    describe: (handle) => describe(handle, 'gitlab'),
+    issueUrl: (ref, key) => issueUrl(ref, key),
     preflight: (handle, opCtx) => glabPreflight(handle, opCtx || ctx),
     list: (repo, filter, opCtx) => listIssues(ctx, repo, filter, opCtx || ctx),
     get: (repo, key, opts, opCtx) => getIssue(ctx, repo, key, opts, opCtx || ctx),
@@ -95,6 +118,10 @@ export function createGitlabBackend(ctx) {
 export const gitlabBackend = {
   id: 'gitlab',
   label: 'GitLab',
+  describe,
+  issueUrl,
+  searchUrl,
+  linkPattern,
   // #191：品牌色完整色板（B 方案定版 · #177）
   presentation: {
     color: '#c25100',

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>技能何时用 — wayfinder / triage / to-spec / to-tickets / implement</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; margin:32px; color:#24292f; line-height:1.6; background:#fff;}
+  h1{font-size:22px; margin:0 0 6px;}
+  .sub{color:#57606a; font-size:13px; margin-bottom:18px;}
+  .note{background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:12px 16px; font-size:13px; margin-bottom:18px;}
+  h2{font-size:16px; margin:28px 0 10px; padding-bottom:6px; border-bottom:1px solid #d0d7de;}
+  table{border-collapse:collapse; width:100%; font-size:13px; margin:10px 0 16px;}
+  th,td{border:1px solid #d0d7de; padding:8px 10px; text-align:left; vertical-align:top;}
+  th{background:#f6f8fa; font-weight:600;}
+  td code{background:#f6f8fa; padding:1px 5px; border-radius:4px; font-size:12px; border:1px solid #e5e8eb;}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px;}
+  .tag{display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; border:1px solid #d0d7de;}
+  .c-triage{background:#fff8c5; border-color:#d4a72c; color:#9a6700;}
+  .c-wayfinder{background:#fbefff; border-color:#d2a8ff; color:#8250df;}
+  .c-spec{background:#ddf4ff; border-color:#54aeff; color:#0550ae;}
+  .c-tickets{background:#dafbe1; border-color:#4ac26b; color:#1a7f37;}
+  .c-impl{background:#ffebe9; border-color:#ff8182; color:#cf222e;}
+  .flow{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:12px 0 6px; font-size:13px;}
+  .flow .box{border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; background:#f6f8fa; text-align:center; min-width:110px;}
+  .flow .arrow{color:#57606a; font-weight:700;}
+  .flow .box b{display:block; font-size:13px;}
+  .flow .box span{font-size:11px; color:#57606a;}
+  ul{margin:6px 0 10px 18px; font-size:13px;}
+  .foot{color:#57606a; font-size:12px; margin-top:22px; padding-top:12px; border-top:1px solid #d0d7de;}
+</style>
+</head>
+<body>
+<h1>技能何时用 — <span class="mono">wayfinder / triage / to-spec / to-tickets / implement</span></h1>
+<div class="sub">正源：<span class="mono">ask-matt / triage / wayfinder / to-spec / to-tickets / implement</span> 原版逐字 · 本次实战以 <span class="mono">Map #248 → Spec #255 → Ticket #256</span> 为例</div>
+
+<div class="note">
+<strong>一句话：</strong><span class="tag c-triage">triage</span> 与 <span class="tag c-wayfinder">wayfinder</span> 是<strong>起点</strong>（贴标签 / 产决策），<span class="tag c-spec">to-spec</span> / <span class="tag c-tickets">to-tickets</span> / <span class="tag c-impl">implement</span> 是<strong>主路径</strong>（消费 <code>ready-for-agent</code> 去落地）。前两者定义标签，后三者消费标签。
+</div>
+
+<h2>主路径（ask-matt 原文）</h2>
+<div class="flow">
+  <div class="box"><b>grill-with-docs</b><span>磨 idea（有工作区）</span></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>to-spec</b><span>压成 Spec</span></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>to-tickets</b><span>拆竖切片</span></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>implement</b><span>per ticket 落地</span></div>
+</div>
+<div class="note" style="margin-top:10px;">
+<span class="mono">Wayfinder</span> 是<strong>最重</strong>的起点：<span class="mono">When the map clears, it hands off, it doesn't build: merge onto the main flow at /to-spec</span> —— 雾清后必须先 <code>to-spec</code> 再 <code>to-tickets</code>，直跳 <code>implement</code> 会丢掉 <code>Decisions so far</code>。仅当它在第二步就判定“无雾、小活”时才可不经 <code>to-spec</code> 直 <code>implement</code>。
+</div>
+
+<table>
+<thead>
+<tr>
+  <th>技能</th>
+  <th>在 ask-matt 的位置</th>
+  <th>看什么标签</th>
+  <th>干什么（逐字）</th>
+  <th>例子（本次）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><span class="tag c-triage">triage</span></td>
+  <td>起点分流<br><span class="mono">Bugs and requests piling up → /triage</span></td>
+  <td>读 <code>bug / enhancement</code> 与<br><code>needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix</code> 五态</td>
+  <td><strong>贴标签</strong>：把散票从 <code>needs-triage</code> 贴到 <code>ready-for-agent</code> / <code>ready-for-human</code> / <code>wontfix</code>；<span class="mono">don't triage tickets that /to-tickets produced</span></td>
+  <td>—</td>
+</tr>
+<tr>
+  <td><span class="tag c-wayfinder">wayfinder</span></td>
+  <td>最重起点<br><span class="mono">A huge, foggy effort → /wayfinder</span></td>
+  <td>产 <code>wayfinder:map</code> + 子票<br><code>wayfinder:research / prototype / grilling / task</code></td>
+  <td><strong>产决策，不交付</strong>：<span class="mono">Plan, don't do</span>；清雾后交棒 <code>to-spec</code></td>
+  <td>Map #248 + 5 子票 #249-253</td>
+</tr>
+<tr>
+  <td><span class="tag c-spec">to-spec</span></td>
+  <td>主路径 Yes → <code>to-spec</code></td>
+  <td>不看标签，看对话与 <code>Decisions so far</code></td>
+  <td><strong>压成 Spec</strong>：<span class="mono">turn the thread into a spec</span>，产 <code>ready-for-agent</code> Spec</td>
+  <td>Spec #255</td>
+</tr>
+<tr>
+  <td><span class="tag c-tickets">to-tickets</span></td>
+  <td><code>to-spec</code> 之后</td>
+  <td>读 Spec</td>
+  <td><strong>拆竖切片</strong>：<span class="mono">tracer-bullet vertical slices, each declaring blocking edges</span></td>
+  <td>Ticket #256（Blocked by: None）</td>
+</tr>
+<tr>
+  <td><span class="tag c-impl">implement</span></td>
+  <td>末端<br><span class="mono">/implement per ticket, /clear between each</span></td>
+  <td>只认 <code>ready-for-agent</code></td>
+  <td><strong>落地</strong>：<span class="mono">driving /tdd internally — one red-green slice at a time — then /code-review</span></td>
+  <td>待跑 #256</td>
+</tr>
+</tbody>
+</table>
+
+<h2>为什么那张“100% 逐字表”只出现 2 个技能</h2>
+<ul>
+  <li>那张表是<strong>“标签是谁定义的”</strong>—— <code>triage</code> 定义五态，<code>wayfinder</code> 定义 <code>wayfinder:*</code>，<code>setup</code> 把默认字符串 1:1 落盘到 <span class="mono">triage-labels.md</span>。后三者（<code>to-spec / to-tickets / implement</code>）<strong>不定义新标签</strong>，只<strong>消费</strong> <code>ready-for-agent</code> 去干活，故不出现在“标签定义表”。</li>
+  <li>若把“标签驱动谁”也列上，才会出现五技能对照——即本表。</li>
+</ul>
+
+<div class="foot">正源逐字出处：<span class="mono">wayfinder/SKILL.md §The Map/§Tickets</span> · <span class="mono">triage/SKILL.md §Roles</span> · <span class="mono">setup-matt-pocock-skills/SKILL.md §Section B</span> · <span class="mono">ask-matt/SKILL.md §The main flow / On-ramps</span> · <span class="mono">to-spec/SKILL.md §Process</span> · <span class="mono">to-tickets/SKILL.md §Process</span> · <span class="mono">implement/SKILL.md</span></div>
+</body>
+</html>
