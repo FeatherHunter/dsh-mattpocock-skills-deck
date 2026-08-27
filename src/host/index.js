@@ -8,9 +8,7 @@
  *      blockedBy + blocking）→ 组装快照（map 五区块解析 + tickets + stats 分组）。
  *   3. RPC：wf.ping / wf.snapshot（5s 缓存）/ wf.refresh。
  *   4. 轮询：timer 60s 刷新缓存 + 与上次 stats diff（P2 toast 预留字段）。
- *   5. 前置检查绿点（#344）：wf.status —— 8 项检测（仓库定位 / setup 已跑 / tracker=GitHub /
- *      gh CLI / gh 登录 / API 可达 / wayfinder 双层探测 / ask-matt 双层探测），输出
- *      { ok, level, detail, hint }[]；结果缓存 30s，args.force 强制重查。
+ *   5. 检查链快照（#228/#284）：wf.chain —— 通用链 + 当前后端链求值快照，替代九格目录视图。
  *
  * 已验证（.charting/verify.js，真实数据 PASS）：分组 frontier/claimed/blocked 与 GitHub 页面一致；
  * 9 张 open map 中仅 4 张有 Destination —— body 解析全部容错。
@@ -44,7 +42,7 @@ export default {
     const TIMEOUT_MS = 30000
     // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
     const CACHE_MS = 60000
-    const STATUS_CACHE_MS = 30000  // 前置检查结果缓存（#344）
+    const STATUS_CACHE_MS = 30000  // workspaceStore 探测级联 TTL（#344 沿革 · #284 保留）
     // 技能名单（#280 单一真源：与 check-catalog 同步，拼写以真实目录为准；B 语义由 skills.get 覆盖）
     const SKILL_PROBE_NAMES = ['ask-matt','code-review','codebase-design','diagnosing-bugs','domain-modeling','grill-with-docs','implement','improve-codebase-architecture','prototype','research','resolving-merge-conflicts','setup-matt-pocock-skills','tdd','to-spec','to-tickets','triage','wayfinder','wizard','grill-me','grilling','handoff','teach','to-questionnaire','wait-what','writing-for-agents'] // 25 项 engineering+productivity 单一真源（shared/matt-skills.js）
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
@@ -55,7 +53,6 @@ export default {
     let ghLastError = null
     let repoKeys = {}  // v12：repoKey 按 cwd 缓存（切换仓库会话时不再串仓库）
     let cache = { ts: 0, snapshot: null, error: null, cwd: null }
-    let statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }  // wf.status 30s 缓存（按 cwd+lang 区分）
     let userHome = null                                     // 保留占位（#171 已迁 platform.getHome，缓存归平台 memoize）
     // ============ Tracker Registry（#155 · 后端选择 UI）============
     let _trackerRegistry = null
@@ -306,7 +303,7 @@ export default {
       }
     }
     // #195 修复：force 探测路径调 resetGhCache 清空成功缓存，强制下次 resolveGh 重探
-    function resetGhCache() { ghPath = null; ghLastError = null; statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null }; try { if (_workspaceStore && typeof _workspaceStore.clear === 'function') _workspaceStore.clear(); } catch {} try { getWorkspaceStore().then(function(ws){ try{ ws.clear(); }catch(e){} }).catch(function(){}); } catch {} }
+    function resetGhCache() { ghPath = null; ghLastError = null; try { if (_workspaceStore && typeof _workspaceStore.clear === 'function') _workspaceStore.clear(); } catch {} try { getWorkspaceStore().then(function(ws){ try{ ws.clear(); }catch(e){} }).catch(function(){}); } catch {} }
 
     async function runGh(args, cwd) {
       const exe = await resolveGh()
@@ -588,7 +585,7 @@ export default {
       // v1.5 T11（map#37 · #38 R1 + #40 R2 输入）：
       //   多远程下 gh 必选 upstream（context/remote.go::remoteNameSortScore upstream(3)>github(2)>origin(1)），
       //   无参 `gh repo view` 永远返回原作者。改为：显式 `git remote get-url origin` + parseGithubRepo 首选，
-      //   失败再 .git/config 直读，兜底才用 gh repo view（同 checkRepo 已用方案同源）。
+//   失败再 .git/config 直读，兜底才用 gh repo view（与 getRepoKey 方案同源）。
       const root = await getRepoRoot(key)
       const execCwd = root || key
       // Tier 1：git remote get-url origin + parseGithubRepo（SSH/HTTPS 都由 parseRegex 覆盖）
@@ -1197,101 +1194,40 @@ export default {
       }
     }
 
-    // ============ 前置检查（#344 · wf.status）============
+    // ============ git 远程解析（getRepoKey 与后端谓词复用，#284）============
     // 解析 git 远程 URL → GitHub owner/repo；非 GitHub 返回 null
     function parseGithubRepo(url) {
       const s = String(url || '').trim()
       const m = s.match(/github\.com[\/:]([^\/\s]+)\/([^\/\s]+?)(?:\.git)?\s*$/)
       if (!m) return null
       return { owner: m[1], name: m[2] }
-    }
 
-    // 检查 1 · 仓库定位
-    async function checkRepo(cwd, lang) {
-      const git = await resolveGit()
-      if (git) {
-        const r = await execProc([git, '-C', cwd, 'remote', 'get-url', 'origin'], cwd)
-        if (r.ok) {
-          const key = parseGithubRepo(r.text)
-          if (key) return { ok: true, level: 'ok', detail: key.owner + '/' + key.name, hint: '', repo: key }
-          return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + r.text.trim().slice(0, 80) : '有 git 远程但非 GitHub：' + r.text.trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : '当前远程不是 GitHub', repo: null }
-        }
-        if (/not a git repository|does not appear to be a git repository|fatal/i.test(r.error || '')) {
-          return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Current directory is not a git repo' : '当前目录不是 git 仓库', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : '在 GitHub 仓库内使用本插件', repo: null }
-        }
-        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'git query failed: ' + String(r.error || '').slice(0, 120) : 'git 查询失败：' + String(r.error || '').slice(0, 120), hint: (lang === 'en') ? 'Check git and repo state' : '检查 git 与仓库状态', repo: null }
-      }
-      // 兜底：解析 .git/config（git 可执行不可用时）
-      if (fs !== undefined) {
-        try {
-          const t = await fs.resolve('.git/config', { cwd: cwd })
-          const txt = await fs.readText(t)
-          const um = txt.match(/url\s*=\s*(.+)/)
-          if (um) {
-            const key = parseGithubRepo(um[1])
-            if (key) return { ok: true, level: 'ok', detail: key.owner + '/' + key.name, hint: '', repo: key }
-            return { ok: true, level: 'warn', detail: (lang === 'en') ? 'Has a git remote but not GitHub: ' + um[1].trim().slice(0, 80) : '有 git 远程但非 GitHub：' + um[1].trim().slice(0, 80), hint: (lang === 'en') ? 'Remote is not GitHub' : '当前远程不是 GitHub', repo: null }
-          }
-        } catch (e) { /* 落到下方 bad */ }
-      }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot locate the repo (git unavailable and no .git/config)' : '无法定位仓库（git 不可用且无 .git/config）', hint: (lang === 'en') ? 'Use this plugin inside a GitHub repo' : '在 GitHub 仓库内使用本插件', repo: null }
-    }
-
-    // 检查 2 · setup 已执行
-    async function checkSetup(cwd, lang) {
-      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot detect' : 'fs 服务不可用，无法检测', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
+    // #284：markdown 后端谓词：本地图谱可解析（复用 backends/markdown/parse.js parseMd）
+    async function mdParseOkPredicate(platform, cwd) {
       try {
-        // v1.5 B1：改为针对 git 根目录检测（会话 cwd 在仓库子目录时不再误报「没有初始化」）
-        const root = await getRepoRoot(cwd)
-        const base = root || cwd
-        const info = await fs.lstat('docs/agents/issue-tracker.md', { cwd: base })
-        if (info) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md 存在', hint: '', repo: null }
-      } catch (e) { /* 落到下方 bad */ }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'docs/agents/issue-tracker.md missing' : 'docs/agents/issue-tracker.md 不存在', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
+        const hasMap = await fileExistsChainRel(platform, cwd, '.scratch/map.md')
+        if (hasMap !== true) return { status: 'fail', detail: '.scratch/map.md missing — created by initialization' }
+        const abs = await platform.fs.resolve('.scratch/map.md', { cwd: cwd })
+        const text = await platform.fs.readText(abs)
+        const mod = await import('./backends/markdown/parse.js')
+        const parseMd = mod.parseMd || mod.default
+        if (typeof parseMd === 'function') { parseMd(String(text || ''), {}); return { status: 'pass', detail: 'local map parses OK' } }
+        return { status: 'pending', detail: 'parseMd not exported' }
+      } catch (e) { return { status: 'fail', detail: 'local map parse failed: ' + String((e && e.message) || e) } }
     }
-
-    // 检查 3 · tracker = GitHub
-    async function checkTracker(cwd, lang) {
-      if (fs === undefined) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'fs service unavailable, cannot determine tracker' : 'fs 服务不可用，无法判定 tracker', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
+    async function fileExistsChainRel(platform, cwd, rel) {
       try {
-        // #455 B1 补全：与 checkSetup 一致针对 git 根目录读（会话 cwd 在仓库子目录时不误报「无法读取」）
-        const root = await getRepoRoot(cwd)
-        const base = root || cwd
-        const t = await fs.resolve('docs/agents/issue-tracker.md', { cwd: base })
-        const txt = await fs.readText(t)
-        if (/github/i.test(txt) && /gh\s+(issue|api|auth)|GitHub Issues/i.test(txt)) {
-          return { ok: true, level: 'ok', detail: 'GitHub Issues + gh CLI', hint: '', repo: null }
-        }
-        return { ok: false, level: 'warn', detail: (lang === 'en') ? 'issue-tracker.md exists but is not the GitHub template' : 'issue-tracker.md 存在但非 GitHub 模板', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills and pick the GitHub tracker' : '运行 /setup-matt-pocock-skills 重选 GitHub tracker', repo: null }
-      } catch (e) {
-        return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Cannot read issue-tracker.md' : '无法读取 issue-tracker.md', hint: (lang === 'en') ? 'Run /setup-matt-pocock-skills first' : '请先运行 /setup-matt-pocock-skills', repo: null }
-      }
+        if (!platform || !platform.fs || typeof platform.fs.resolve !== 'function') return null
+        const abs = await platform.fs.resolve(rel, { cwd: cwd })
+        if (typeof platform.fs.exists === 'function') return (await platform.fs.exists(abs)) === true
+        if (typeof platform.fs.readText === 'function') { try { await platform.fs.readText(abs); return true } catch { return false } }
+        if (typeof platform.fs.lstat === 'function') { try { const info = await platform.fs.lstat(abs); return !!info } catch { return false } }
+        return null
+      } catch (e) { return false }
     }
 
-    // 检查 4 · gh CLI 可用
-    async function checkGhCli(lang) {
-      const exe = await resolveGh()
-      if (!exe) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version；有版本号输出 → 直接汇报已装版本并结束，不要重复安装；\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → rew install gh; Linux → sudo apt install gh;\n3. 安装后验证：重开终端使 PATH 生效，gh --version 输出版本号；\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重测」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。', repo: null }
-      return { ok: true, level: 'ok', detail: exe, hint: '', repo: null }
     }
 
-    // 检查 5 · gh 已登录
-    async function checkGhAuth(lang) {
-      const r = await runGh(['auth', 'status'])
-      if (r.ok) {
-        const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]
-        return { ok: true, level: 'ok', detail: first || ((lang === 'en') ? 'Logged in' : '已登录'), hint: '', repo: null }
-      }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not logged into GitHub: run gh auth login (browser auth; official docs in hint)' : '未登录 GitHub：运行 gh auth login（浏览器授权，官方文档见 hint）', hint: 'prompt:ghAuthLogin', repo: null }
-    }
-
-    // 检查 6 · API 可达（有 repo 用 repos/<owner>/<name>，否则退 user）
-    async function checkApi(cwd, repo, lang) {
-      const endpoint = repo ? ('repos/' + repo.owner + '/' + repo.name) : 'user'
-      const r = await runGh(['api', endpoint], cwd)
-      if (r.ok) return { ok: true, level: 'ok', detail: 'api.github.com 200 · ' + endpoint, hint: '', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'API request failed (' + r.kind + ')' : 'API 请求失败（' + r.kind + '）', hint: (lang === 'en') ? 'Check network / token scopes' : '检查网络 / Token 权限', repo: null }
-    }
 
     // 检查 7/8 · 技能安装探测（#373 拍板：两态 —— 已安装/未安装；去掉不可靠的「挂载」判定：
     //   宿主级 skills 服务与「当前会话挂载」不是同一上下文，服务不可用时会误报「未挂载」）
@@ -1316,11 +1252,10 @@ export default {
       if (name) delete skillPendingState[String(name)]
       else for (const k in skillPendingState) delete skillPendingState[k]
     }
-    // 失效广播的统一收口：探针计数 + statusCache + 检测级联缓存（workspaceStore）一并失效，
-    // 保证事件到达后下一次 wf.status（无需 force）即全量重判——否则 detect 的 store 快照会冻住旧 skillProbes。
+    // 失效广播的统一收口：探针计数 + 检测级联缓存（workspaceStore）一并失效，
+    // 保证事件到达后下一步 wf.chain/wf.detect（无需 force）即全量重判——否则 detect 的 store 快照会冻住旧 skillProbes。
     function invalidateSkillProbeCaches() {
       resetSkillPendingState()
-      try { statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null } } catch {}
       try { getWorkspaceStore().then(function (ws) { try { ws.clear() } catch {} }).catch(function () {}) } catch {}
     }
     function ensureSkillsInvalidateSubscription() {
@@ -1502,60 +1437,9 @@ export default {
         return { ok: false, level: 'bad', detail: reason.detail, hint: reason.hint, repo: null, reason: 'missing' }
       }
     }
-    // v1.5 T11：检查 9 · 核心技能套件聚合（全流程技能缺失检测）
-    async function probeSkillSuite(lang) {
-      const missing = []
-      let hasPending = false
-      let pendingError = null
-      let pendingCount = 0
-      for (let i = 0; i < SKILL_PROBE_NAMES.length; i++) {
-        const r = await probeSkill(SKILL_PROBE_NAMES[i], lang)
-        if (r.level === 'pending') { hasPending = true; pendingCount += 1; if (!pendingError && r.error) pendingError = r.error }
-        else if (r.level !== 'ok') missing.push(SKILL_PROBE_NAMES[i])
-      }
-      if (hasPending) {
-        const detail = (lang === 'en')
-          ? 'Waiting for skills service... (' + pendingCount + ' pending)' + (pendingError ? ': ' + pendingError : '')
-          : '等待技能服务就绪…（' + pendingCount + ' 项待定）' + (pendingError ? '：' + pendingError : '')
-        return { ok: false, level: 'pending', detail, hint: SKILL_PENDING_HINT_PREFIX, repo: null, pending: true, error: pendingError }
-      }
-      if (!missing.length) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Missing: ' + missing.join(' / ') : '缺失：' + missing.join(' / '), hint: 'prompt:installSkills', repo: null }
-    }
-    const CHECK_NAMES = function (lang) {
-      return (lang === 'en')
-        ? ['Repo located', 'Setup run', 'Tracker = GitHub', 'gh CLI available', 'gh logged in', 'API reachable', 'wayfinder skill', 'ask-matt skill', 'Core skill suite']
-        : ['仓库定位', 'setup 已执行', 'tracker = GitHub', 'gh CLI 可用', 'gh 已登录', 'API 可达', 'wayfinder 技能', 'ask-matt 技能', '核心技能套件']
-    }
 
-    async function buildStatus(cwd, lang) {
-      const c1 = await checkRepo(cwd, lang)
-      const c2 = await checkSetup(cwd, lang)
-      const c3 = await checkTracker(cwd, lang)
-      const c4 = await checkGhCli(lang)
-      const c5 = await checkGhAuth(lang)
-      const c6 = await checkApi(cwd, c1.repo, lang)
-      const c7 = await probeSkill(SKILL_PROBE_NAMES[0], lang)
-      const c8 = await probeSkill(SKILL_PROBE_NAMES[1], lang)
-      const c9 = await probeSkillSuite(lang)
-      const raw = [c1, c2, c3, c4, c5, c6, c7, c8, c9]
-      const checks = raw.map(function (c, i) {
-        return { id: i + 1, name: CHECK_NAMES(lang)[i], ok: c.level === 'ok', level: c.level, detail: c.detail, hint: c.hint }
-      })
-      return {
-        ok: true,
-        updatedAt: new Date().toISOString(),
-        cwd: cwd,
-        repo: c1.repo,
-        ghPath: ghPath,
-        checks: checks,
-        ready: checks.filter(function (c) { return c.ok }).length,
-        total: checks.length,
-      }
-    }
-
-    // ============ RPC（#152 · 探测编排：wf.detect 新 RPC + wf.status 薄兼容派生）============
-    // 第一性原理：前端只调 wf.detect/wf.status 拿 DetectionResult（#150 Q1）；探测零 OS 直碰经 platform；
+    // ============ RPC（#152 · 探测编排：wf.detect 新 RPC + wf.chain 检查链快照）============
+    // 第一性原理：前端只调 wf.detect/wf.chain 拿 DetectionResult（#150 Q1）；探测零 OS 直碰经 platform；
     // per-workspace 按 handleKey=cwd|refId 内存 Map 不落盘（Q3）；pending 不缓存（Q6）；唯一写路径 wf.bind→registry.bind（Q4）
     harness.handle('wf.detect', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
@@ -1571,222 +1455,9 @@ export default {
         return { ok: false, error: String((e && e.message) || e) }
       }
     })
-    harness.handle('wf.status', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
-      const force = !!(args && args.force)
-      const lang = (args && args.lang === 'en') ? 'en' : 'zh'
-      // #195 修复：force 探测清空 gh 解析缓存（旧实现首次失败永久缓存）
-      if (force) resetGhCache()
-      const now = Date.now()
-      // 尝试编排层：优先走 detectionService（Q7 DetectionResult + preflight + skillProbes → 派生 9 checks 薄兼容）
-      try {
-        const svc = await getDetectionService()
-        const det = await svc.detect({ cwd }, { force })
-        const sel = det.selection
-        const backendId = sel && sel.backendId
-        const cacheKeyOk = !force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && statusCache.backendId === (backendId || null) && now - statusCache.ts < STATUS_CACHE_MS
-        // #195 修复：env 失败不走缓存（避免已装仍报未装）
-        if (cacheKeyOk) {
-          const cachedChecks = statusCache.status && statusCache.status.checks
-          const cachedGh = cachedChecks && cachedChecks.find(function(c){ return c.id===4 })
-          const isCachedEnv = cachedGh && cachedGh.level==='bad' && cachedGh.hint && cachedGh.hint.includes('GitHub CLI')
-          if (!isCachedEnv) return statusCache.status
-        }
-        // #229 目录视图主线：通用目录 + 当前后端目录合并（9→N 动态，物理隔离：跨后端无关行不存在）。
-        // 失败（模块导入受限 / 派生异常 / 空结果）→ 落入下方 legacy 9 项兼容视图，不抛不阻断。
-        try {
-          const derMod = await import('./tracker/statusDerive.js')
-          if (derMod && typeof derMod.deriveStatusView === 'function') {
-            let _repoChkMemo = null
-            const derived = await derMod.deriveStatusView({
-              cwd: cwd,
-              lang: lang,
-              platform: await getPlatform(),
-              selection: sel || null,
-              delegates: {
-                // 委托既有探测实现（零重复造轮子）；repo 定位惰性 + 记忆化（非 github 后端不白跑 git 探测）
-                github: async function () {
-                  if (!_repoChkMemo) _repoChkMemo = await checkRepo(cwd, lang)
-                  const c4 = await checkGhCli(lang)
-                  const c5 = await checkGhAuth(lang)
-                  const c6 = await checkApi(cwd, _repoChkMemo.repo, lang)
-                  return { c1: _repoChkMemo, c4: c4, c5: c5, c6: c6 }
-                },
-                skillProbe: async function (name) {
-                  // #281：复用同轮 detect 的 skillProbes 结果（避免单次 wf.status 重探 25 名；等待计数仅随真实探针轮次推进）
-                  const dp = det.skillProbes && det.skillProbes.probes && det.skillProbes.probes[name]
-                  if (dp) return dp
-                  return probeSkill(name, lang)
-                },
-              },
-            })
-            if (derived && Array.isArray(derived.checks) && derived.checks.length) {
-              const statusDir = {
-                ok: true,
-                updatedAt: new Date().toISOString(),
-                cwd: cwd,
-                repo: derived.repoRef || null,
-                ghPath: ghPath,
-                checks: derived.checks,
-                // 口径（#246 删 na · #229）：pending 不计入分子分母
-                ready: derived.ready,
-                total: derived.total,
-                view: derived.view,
-                sections: derived.sections,
-                // 新增：编排层真源（Q7），与 legacy 视图同构透传
-                selection: sel,
-                detection: det,
-              }
-              // #195 同款启发式：github env 失败不入缓存（gh 行 bad 且带安装引导）
-              const curGhD = statusDir.checks.find(function(c){ return c.key === 'gh:installed' || c.id === 4 })
-              const isCurEnvD = !!(curGhD && curGhD.level === 'bad' && curGhD.hint && String(curGhD.hint).includes('GitHub CLI'))
-              if (!isCurEnvD) statusCache = { ts: Date.now(), status: statusDir, error: null, cwd: cwd, lang: lang, backendId: backendId || null }
-              else statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null }
-              return statusDir
-            }
-          }
-        } catch (eDir) {
-          /* 目录派生不可用 → legacy 兼容视图 */ }
-        // 派生 9 checks 兼容视图（#150 Q7：checks 过渡期后可 deprecate，仅 selection 为真源）
-        // 1) repo 定位（复用 detection repoHandle + 轻量 git 探测兜底，保持与旧 checkRepo 等价）
-        const c1Legacy = await checkRepo(cwd, lang)
-        // 2-3) setup/tracker 由 explicit 解析二合一（parseIssueTracker 高置信→ok，否则 warn；空→bad）
-        const parsed = det.explicit && det.explicit.parsed
-        let c2, c3
-        if (parsed && parsed.explicitBackendId) {
-          c2 = { ok: true, level: 'ok', detail: (lang==='en') ? 'docs/agents/issue-tracker.md exists' : 'docs/agents/issue-tracker.md 存在', hint: '' }
-          const labelMap = { github: 'GitHub Issues + gh CLI', gitlab: 'GitLab Issues + glab', markdown: 'Local Markdown (.scratch)' }
-          const lbl = labelMap[parsed.explicitBackendId] || parsed.explicitBackendId
-          c3 = { ok: true, level: 'ok', detail: lbl, hint: '' }
-        } else {
-          c2 = await checkSetup(cwd, lang)
-          // 若无显式声明但 selection 已命中某后端，视为 tracker 已决
-          if (backendId) c3 = { ok: true, level: 'ok', detail: backendId, hint: '' }
-          else c3 = await checkTracker(cwd, lang)
-        }
-        // 4-6) gh/cli/auth/api 聚合自 preflight（命中后惰性；Q6），未命中 fallback 保留旧三项
-        let c4, c5, c6
-        if (det.preflight) {
-          const kind = det.preflight.error && det.preflight.error.kind
-          const msg = det.preflight.error && det.preflight.error.message || ''
-          // #幽灵修复：preflight 是「选中后端」的环境门禁。非 github 后端（gitlab/markdown…）的 env 失败
-          // （如 glab not found）≠ gh 未安装——c4「gh CLI 可用」/c5「gh 已登录」必须真实独立探测主机 gh
-          // （装没装 gh 与后端无关），后端 preflight 只承载 c6（后端真实环境，如 glab/path/网络）。
-          if (backendId && backendId !== 'github') {
-            c4 = await checkGhCli(lang)
-            c5 = await checkGhAuth(lang)
-            c6 = det.preflight.ok
-              ? { ok: true, level: 'ok', detail: 'preflight ok (' + backendId + ')', hint: '' }
-              : { ok: false, level: 'bad', detail: msg.slice(0, 200), hint: (det.preflight && det.preflight.prompt) || '' }
-          } else if (det.preflight.ok) {
-            c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : '已登录', hint: '' }
-            c6 = { ok: true, level: 'ok', detail: 'api.github.com 200', hint: '' }
-          } else if (kind === 'env') {
-            // #195 修复：hint 升级为 prompt:installGh（与 installSkills / ghAuthGuide 同模式），UI 主按钮自动 inject
-            c4 = { ok: false, level: 'bad', detail: (lang==='en') ? 'gh not found — install GitHub CLI first (https://cli.github.com/)' : 'gh 未找到，请先安装 GitHub CLI（https://cli.github.com/）', hint: (det.preflight && det.preflight.prompt) ? det.preflight.prompt : '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version;\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → rew install gh; Linux → sudo apt install gh;\n3. 安装后验证：gh --version;\n4. 若 gh 已装但 DSH 仍报未安装：点「重测」或重启 DSH；\n5. 完成后汇报。' }
-            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'prompt:ghAuthLogin' }
-            c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
-          } else if (kind === 'auth') {
-            c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Not logged into GitHub: run gh auth login' : '未登录 GitHub：运行 gh auth login', hint: 'prompt:ghAuthLogin' }
-            c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
-          } else {
-            c4 = { ok: true, level: 'ok', detail: ghPath || 'gh', hint: '' }
-            c5 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Logged in' : '已登录', hint: '' }
-            c6 = { ok: false, level: 'bad', detail: msg.slice(0,200), hint: '' }
-          }
-        } else if (backendId && !det.selection.pending) {
-          // 命中但 preflight 尚未产出（lazy 未调），回退旧三项以保兼容
-          c4 = await checkGhCli(lang)
-          c5 = await checkGhAuth(lang)
-          c6 = await checkApi(cwd, c1Legacy.repo, lang)
-        } else {
-          // pending/fallback 场景不调 preflight（Q6），相应项 surface 为 pending 阻塞态
-          if (sel && sel.pending) {
-            const hint = 'pending:explicit-bind'
-            const pendingDetail = (lang==='en') ? 'Detecting… pending (select a backend or retry)' : '探测未决 · 等待/建议显式选择'
-            c4 = { ok: false, level: 'warn', detail: pendingDetail, hint }
-            c5 = { ok: false, level: 'warn', detail: pendingDetail, hint }
-            c6 = { ok: false, level: 'warn', detail: pendingDetail, hint }
-          } else {
-            c4 = await checkGhCli(lang)
-            c5 = await checkGhAuth(lang)
-            c6 = await checkApi(cwd, c1Legacy.repo, lang)
-          }
-        }
-        // 7-9) skill 正交（复用 det.skillProbes，若无则回退 probeSkill；#281 等待与分拣）
-        let c7, c8, c9
-        if (det.skillProbes && det.skillProbes.probes) {
-          const p = det.skillProbes.probes
-          const toCheck = (name) => {
-            const r = p[name]
-            if (!r) return { ok: false, level: 'bad', detail: (lang==='en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills' }
-            return { ok: r.level==='ok', level: r.level, detail: r.detail, hint: r.hint }
-          }
-          c7 = toCheck(SKILL_PROBE_NAMES[0])
-          c8 = toCheck(SKILL_PROBE_NAMES[5])
-          const missing = det.skillProbes.missing || []
-          const hasPending = !!(det.skillProbes.hasPending || det.skillProbes.pending)
-          const pendingError = det.skillProbes.pendingError || null
-          if (hasPending) {
-            const detail = (lang==='en')
-              ? 'Waiting for skills service... ' + (pendingError ? ': ' + String(pendingError).slice(0,120) : '')
-              : '等待技能服务就绪… ' + (pendingError ? '：' + String(pendingError).slice(0,120) : '')
-            c9 = { ok: false, level: 'pending', detail, hint: SKILL_PENDING_HINT_PREFIX }
-          } else if (!missing.length) c9 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '' }
-          else c9 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Missing: ' + missing.join(' / ') : '缺失：' + missing.join(' / '), hint: 'prompt:installSkills' }
-        } else {
-          c7 = await probeSkill(SKILL_PROBE_NAMES[0], lang)
-          c8 = await probeSkill(SKILL_PROBE_NAMES[5], lang)
-          c9 = await probeSkillSuite(lang)
-        }
-        const raw = [c1Legacy, c2, c3, c4, c5, c6, c7, c8, c9]
-        const checks = raw.map(function (c, i) {
-          // 覆盖层提示：multiHit 透传纠正入口（Q5）
-          let hint = c.hint
-          if (i===2 && sel && sel.multiHit) hint = (hint ? hint + ' ' : '') + 'multiHit:' + sel.multiHit.join(',')
-          if (sel && sel.pending && i>=3 && i<=5 && c.level!=='warn') { /* pending 已在 4-6 处理 */ }
-          return { id: i + 1, name: CHECK_NAMES(lang)[i], ok: c.level === 'ok', level: c.level, detail: c.detail, hint: hint }
-        })
-        const status = {
-          ok: true,
-          updatedAt: new Date().toISOString(),
-          cwd: cwd,
-          repo: c1Legacy.repo,
-          ghPath: ghPath,
-          checks: checks,
-          ready: checks.filter(function (c) { return c.ok }).length,
-          total: checks.length,
-          // 新增：编排层真源（Q7）
-          selection: sel,
-          detection: det,
-        }
-        // #195 修复：env 失败不入缓存（见上）
-        const curGh = status && status.checks && status.checks.find(function(c){ return c.id===4 })
-        const isCurEnv = curGh && curGh.level==='bad' && curGh.hint && curGh.hint.includes('GitHub CLI')
-        if (!isCurEnv) statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang, backendId: backendId || null }
-        else statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null }
-        return status
-      } catch (e) {
-        // 编排失败回退旧路径（保守）
-      }
-      if (!force && statusCache.status && statusCache.cwd === cwd && statusCache.lang === lang && now - statusCache.ts < STATUS_CACHE_MS) return statusCache.status
-      try {
-        const status = await buildStatus(cwd, lang)
-        // #195 修复：env 失败不入缓存（buildStatus 回退路径）
-        const curGh2 = status && status.checks && status.checks.find(function(c){ return c.id===4 })
-        const isCurEnv2 = curGh2 && curGh2.level==='bad' && curGh2.hint && curGh2.hint.includes('GitHub CLI')
-        if (!isCurEnv2) statusCache = { ts: Date.now(), status: status, error: null, cwd: cwd, lang: lang, backendId: null }
-        else statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null }
-        return status
-      } catch (e) {
-        statusCache = { ts: Date.now(), status: null, error: String((e && e.message) || e), cwd: cwd, lang: lang, backendId: null }
-        return { ok: false, error: String((e && e.message) || e), checks: [], ready: 0, total: CHECK_NAMES(lang).length }
-      }
-    })
 
-    // #228 链渲染器主机侧：通用链快照（契约层纯函数求值，谓词只读探测，失败返回不抛，超时 pending）
+    // #228/#284 链渲染器主机侧：通用链 + 当前后端链求值快照（契约层纯函数求值，谓词只读探测，失败返回不抛，超时 pending）
+    // #284 增强：backend 谓词由 host 既有探测包装注册（repoRemote/repoAccess/ghAuth/mdParseOk），后端链不再只是声明。
     harness.handle('wf.chain', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
@@ -1801,6 +1472,33 @@ export default {
         const registry = predMod.createPredicateRegistry({ timeout: 3000 })
         if (typeof genMod.registerGenericPredicates === 'function') genMod.registerGenericPredicates(registry)
         const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, selection: selMod && selMod.selection, explicitBackendId: selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId }
+        // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
+        try { registry.register('backend:github:repoRemote', async function (check, pctx) {
+          try {
+            const rk = await getRepoKey(pctx && pctx.cwd || cwd)
+            if (rk && rk.owner && rk.name) return { status: 'pass', detail: rk.owner + '/' + rk.name }
+            return { status: 'fail', detail: 'repo not located' }
+          } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
+        }) } catch (e) {}
+        try { registry.register('backend:github:repoAccess', async function (check, pctx) {
+          try {
+            const rk = await getRepoKey(pctx && pctx.cwd || cwd)
+            if (!rk || !rk.owner || !rk.name) return { status: 'fail', detail: 'repo not located' }
+            const r = await runGh(['api', 'repos/' + rk.owner + '/' + rk.name], pctx && pctx.cwd || cwd)
+            if (r.ok) return { status: 'pass', detail: 'api.github.com 200' }
+            return { status: 'fail', detail: 'API request failed (' + String(r.kind || '') + ')' }
+          } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
+        }) } catch (e) {}
+        try { registry.register('preflight:ghAuth', async function (check, pctx) {
+          try {
+            const r = await runGh(['auth', 'status'])
+            if (r.ok) { const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]; return { status: 'pass', detail: first || 'Logged in' } }
+            return { status: 'fail', detail: 'Not logged in: run gh auth login' }
+          } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
+        }) } catch (e) {}
+        try { registry.register('backend:markdown:parseOk', async function (check, pctx) {
+          try { return await mdParseOkPredicate(platform, pctx && pctx.cwd || cwd) } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
+        }) } catch (e) {}
         const kind = (args && args.kind) || 'all'
         const chainAndSnap = await genMod.resolveGenericChain(registry, ctx, kind)
         let backendChain = null
@@ -1808,14 +1506,31 @@ export default {
           if (backendId) {
             const catMod2 = await import('../shared/tracker/check-catalog.js')
             const chainMod = await import('../shared/tracker/chain.js')
-            const items = (catMod2.catalogFor ? catMod2.catalogFor(backendId) : []).filter(function(c){ return c.scope==='backend' }).map(function(ci){ return catMod2.catalogItemToCheckItem ? catMod2.catalogItemToCheckItem(ci) : null }).filter(Boolean)
+            const items = (catMod2.catalogFor ? catMod2.catalogFor(backendId) : []).filter(function(c){ return c.scope==='backend' && c.id !== 'gh:labels' }).map(function(ci){ return catMod2.catalogItemToCheckItem ? catMod2.catalogItemToCheckItem(ci) : null }).filter(Boolean)
             if (items.length) {
+              const resolved = await registry.resolveAll(items, ctx)
+              const predResults = predMod.toPredicateResults ? predMod.toPredicateResults(resolved) : resolved
+              const snapshot = chainMod.evaluateChain ? chainMod.evaluateChain(items, predResults) : null
               const errs = chainMod.validateChain ? chainMod.validateChain(items) : []
-              backendChain = { chain: items, errors: errs }
+              backendChain = { chain: items, resolved: resolved, snapshot: snapshot, errors: errs }
             }
           }
         }catch(e){}
-        return { ok: true, backendId: backendId || null, chain: chainAndSnap.chain, resolved: chainAndSnap.resolved, snapshot: chainAndSnap.snapshot, backendChain: backendChain }
+        // #284：全链 = 通用链 + 后端链（串行求值：前置未全 done 时后端项被阻塞为 pending）
+        let fullSnapshot = null
+        let fullChain = null
+        try {
+          if (backendChain && backendChain.chain && backendChain.chain.length) {
+            const chainMod3 = await import('../shared/tracker/chain.js')
+            fullChain = chainAndSnap.chain.concat(backendChain.chain)
+            const fullResolved = Object.assign({}, chainAndSnap.resolved || {}, backendChain.resolved || {})
+            fullSnapshot = chainMod3.evaluateChain ? chainMod3.evaluateChain(fullChain, predMod.toPredicateResults ? predMod.toPredicateResults(fullResolved) : fullResolved) : null
+          } else {
+            fullChain = chainAndSnap.chain
+            fullSnapshot = chainAndSnap.snapshot
+          }
+        } catch (e) { fullSnapshot = chainAndSnap.snapshot; fullChain = chainAndSnap.chain }
+        return { ok: true, backendId: backendId || null, chain: chainAndSnap.chain, resolved: chainAndSnap.resolved, snapshot: chainAndSnap.snapshot, backendChain: backendChain, fullChain: fullChain, fullSnapshot: fullSnapshot }
       }catch(e){
         return { ok: false, error: String((e && e.message)||e) }
       }
@@ -1937,7 +1652,6 @@ export default {
         reg.bind(handle, backendId === undefined ? null : backendId)
         // 失效快照 + 状态 + 探测三缓存（per-workspace 切换不串台，Q3；workspaceStore 内存单例失效）
         cache = { ts: 0, snapshot: null, error: null, cwd: null }
-        try { statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null } } catch {}
         try { const ws = await getWorkspaceStore(); ws.invalidate(handle) } catch {}
         try { if (_detectionService) { /* 下次 detect 重算 */ } } catch {}
         return { ok: true, cwd: cwd, backendId: backendId === undefined ? null : backendId }
@@ -2747,7 +2461,6 @@ export default {
       }
       // 成功后失效全部缓存，使头部 owner/repo 立即出现
       cache = { ts: 0, snapshot: null, error: null, cwd: null }
-      statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null }
       if (cwd && repoKeys[cwd] !== undefined) delete repoKeys[cwd]
       if (repoKeys[DEFAULT_CWD] !== undefined) delete repoKeys[DEFAULT_CWD]
       if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
