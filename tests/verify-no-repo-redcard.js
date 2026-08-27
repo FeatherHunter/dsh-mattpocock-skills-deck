@@ -68,8 +68,8 @@ check(cli.includes("checkRepo") && cli.includes("level === 'bad'") && cli.includ
 check(pcli.includes("checkRepo") && pcli.includes("level === 'bad'"), 'package client 含触发判据镜像');
 check(cli.includes("h(NoRepoCard") && cli.includes("NoRepoCard"), 'client ListTab 顶部插入 NoRepoCard（h(NoRepoCard)）');
 check(pcli.includes("h(NoRepoCard"), 'package client ListTab 插入 NoRepoCard 镜像');
-check(cli.includes("if (cr && cr.level === 'bad' && !isNoRepoDismissed") && cli.includes("return null; return nBad"), 'client ListTab 原 nBad banner 被红卡取代（showRed 时隐藏）');
-check(pcli.includes("if (cr && cr.level === 'bad' && !isNoRepoDismissed"), 'package client 原 nBad banner 取代镜像');
+check(cli.includes("cr.status === 'fail'") && cli.includes("!isNoRepoDismissed") && cli.includes("return null; return nBad"), 'client ListTab 原 nBad banner 被红卡取代（showRed 时隐藏，#284 链派生）');
+check(pcli.includes("cr.status === 'fail'") && pcli.includes("!isNoRepoDismissed"), 'package client 原 nBad banner 取代镜像（#284 链派生）');
 
 // 6) 红卡组件与表单（仓库名输入预填 cwd 尾段可改 + Public/Private 单选 visibility 默认 Private + 错误条 + 主按钮 loading 态）
 check(cli.includes("const NoRepoCard") && cli.includes("Ic({ n: 'alert'"), 'client 含 NoRepoCard 组件（Ic alert + 标题/副标题）');
@@ -95,7 +95,7 @@ check(cli.includes("panel.noRepoCardDone") && cli.includes("st.tab = 'list'"), '
 check(pcli.includes("panel.noRepoCardDone"), 'package client ChecksTab 弱化镜像');
 check(cli.includes("setNoRepoDismissed(st.cwd, false)") && cli.includes("tr('panel.noRepoReset')"), 'client ChecksTab 提供“重置忽略”入口（setNoRepoDismissed false + Reset）');
 check(pcli.includes("setNoRepoDismissed(st.cwd, false)"), 'package client 重置忽略镜像');
-check(cli.includes("bad.filter(function (c) { return c.id !== 1 })") || cli.includes("displayBad"), 'client ChecksTab 过滤 checkRepo:bad（弱化后不重复显示）');
+check(cli.includes("remoteStep && remoteStep.show") && cli.includes("noRepoCardDone"), 'client ChecksTab 弱化 no-repo（链派生，不再重复显示）');
 
 // 9) 产物特征（T5 #98 后：单产物存在性校验，双源 AND 由构建保证）
 // 不再断言 client.js ↔ package/lib/client.js 双源一致性，仅校验产物（含至少一个产物）含关键特征
