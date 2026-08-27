@@ -24,7 +24,7 @@ export const SwitchConfirmModal = (props) => {
   const isKeep = sc.option === 'keep'
   const isMigrate = sc.option === 'migrate'
   const isClear = sc.option === 'clear'
-  // CRI：仅迁移分支阻断（wf.status 1/4/5）
+  // CRI：仅迁移分支阻断（链步骤 gh:remote/gh:installed/gh:authed）
   const cri = sc.criChecks
   const criLoading = !!sc.criLoading
   const criOk = cri ? !!cri.allOk : false

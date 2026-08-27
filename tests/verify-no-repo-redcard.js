@@ -87,8 +87,8 @@ check(cli.includes("isNoRepoNameValid(card.name)") && cli.includes("disabled: ca
 // 7) 提交链路（调 host.call('wf.initPublish', { name, visibility }) —— T0 一源出两物后 pkg 同源，走 host shim 而非手写 rpcCall）
 check(cli.includes("host.call('wf.initPublish'") && cli.includes("name: card.name") && cli.includes("visibility: card.visibility"), 'client 提交调 host.call(\'wf.initPublish\', { cwd, name, visibility })');
 check(pcli.includes("host.call('wf.initPublish'") && pcli.includes("name: card.name"), 'package client 提交调 host.call(\'wf.initPublish\') 镜像（seam host shim）');
-check(cli.includes("loadSnapshot(st, true, true)") && cli.includes("loadChecks(st, true, true)"), 'client 成功后刷新 snapshot + checks（头部出现新 owner/repo）');
-check(pcli.includes("loadSnapshot(st, true, true)") && pcli.includes("loadChecks(st, true, true)"), 'package client 成功后刷新镜像（同源 loadSnapshot/loadChecks）');
+check(cli.includes("loadSnapshot(st, true, true)") && cli.includes("loadChain(st, true)"), 'client 成功后刷新 snapshot + checks（头部出现新 owner/repo）');
+check(pcli.includes("loadSnapshot(st, true, true)") && pcli.includes("loadChain(st, true)"), 'package client 成功后刷新镜像（同源 loadSnapshot/loadChain）');
 
 // 8) ChecksTab 弱化与重置（红卡出现时隐藏 ListTab 原 banner；ChecksTab 中 checkRepo:bad 弱化为“已在首屏引导 · 切换到 ListTab 完成”；dismiss 后“重置忽略”）
 check(cli.includes("panel.noRepoCardDone") && cli.includes("st.tab = 'list'"), 'client ChecksTab 弱化：checkRepo:bad → 已在首屏引导 + 切换到 ListTab');

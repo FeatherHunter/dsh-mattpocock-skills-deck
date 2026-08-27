@@ -59,7 +59,9 @@ async function execPrimitive(check, ctx) {
       if (!p || !p.fs || typeof p.fs.resolve !== 'function') return makeResult('pending', 'platform.fs unavailable')
       // 优先用 platform.fs.resolve + readText 探测；不存在即 fail
       try {
-        const abs = await p.fs.resolve(rel, { cwd: ctx.cwd })
+        const abs0 = await p.fs.resolve(rel, { cwd: ctx.cwd })
+        // #284：resolve 可能返回 target-shaped 对象（真实 DSH fs 契约）——取 path 再交给探测分支
+        const abs = (abs0 && typeof abs0 === 'object' && abs0 !== null && typeof abs0.path === 'string') ? abs0.path : abs0
         // 尝试 stat 式探测（若平台提供 exists/readText）
         if (typeof p.fs.exists === 'function') {
           const ok = await p.fs.exists(abs)
@@ -82,7 +84,19 @@ async function execPrimitive(check, ctx) {
     }
     if (kind === PRIMITIVE_KIND.SKILL_PROBE) {
       const skill = check.skill
-      // 技能探测经平台 fs 直接探测 ~/.agents/skills/<skill> （#280 单一尺度：仅标准根；#281 轻探永不绿的纪律由 host probeSkill 承载，此处为通用链 fallback，仅探标准根）
+      // #284：优先走 host 注入的判装原语（ctx.skillProbe = DSH 注册表查询 + 红牌分拣 + 等待契约）；
+      //   仅未注入时回退标准根 fs 探测（#280 单一尺度：仅标准根 .agents/skills；#281 轻探永不绿的纪律由 host probeSkill 承载）
+      if (ctx && typeof ctx.skillProbe === 'function') {
+        try {
+          const r = await ctx.skillProbe(skill)
+          if (r && typeof r === 'object') {
+            if (r.level === 'ok') return makeResult('pass', r.detail || (skill + ' ok'), r.hint)
+            if (r.level === 'pending') return makeResult('pending', r.detail || ('waiting'), r.hint)
+            return makeResult('fail', r.detail || (skill + ' not ok'), r.hint)
+          }
+          if (r && r.status) return r
+        } catch (e) { return makeResult('pending', 'skillProbe error: ' + String((e && e.message) || e)) }
+      }
       if (!p || typeof p.getHome !== 'function' || !p.fs) return makeResult('pending', 'platform unavailable for skillProbe')
       try {
         const home = await p.getHome()
@@ -162,6 +176,7 @@ export function createPredicateRegistry(opts = {}) {
           const keysToTry = []
           if (check.kind === 'backend') {
             if (check.id) keysToTry.push('backend:' + (backendId || '*') + ':' + check.id)
+            if (check.id) keysToTry.push('backend:*:' + check.id)
             if (check.id) keysToTry.push(check.id)
           } else {
             if (check.id) keysToTry.push('preflight:' + check.id)

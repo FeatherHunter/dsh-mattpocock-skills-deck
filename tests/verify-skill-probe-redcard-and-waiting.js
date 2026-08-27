@@ -15,7 +15,33 @@ function check(ok, msg, detail='') {
   else { failed = true; console.log('  FAIL ' + msg + (detail ? ' — ' + String(detail).slice(0,800) : '')) }
 }
 
-console.log('== #281 红牌分拣与等待合同门禁 ==')
+// #284 迁移桥：wf.status 已退役，断言目标改为 wf.chain 全链快照；把链步骤归一化为旧行形状（key/level/detail/hint）
+function chainToRow(chainRes) {
+  const v = chainRes && chainRes.value ? chainRes.value : chainRes
+  const snap = (v && (v.fullSnapshot || v.snapshot)) || null
+  const steps = (snap && Array.isArray(snap.steps)) ? snap.steps : []
+  return {
+    checks: steps.map(function (s) {
+      const show = s.show || {}
+      return {
+        key: s.id, id: s.id,
+        name: show.fallback || s.id,
+        level: s.status === 'done' ? 'ok' : (s.status === 'pending' ? 'pending' : 'bad'),
+        ok: s.status === 'done',
+        detail: show.desc || '',
+        hint: show.hint || '',
+      }
+    }),
+  }
+}
+const callChain = async (dispatch, payload) => {
+  if (!dispatch) return { checks: [] }
+  // 链为串行求值：前置（已选后端/已初始化）须通过，技能步才会被求值；测试环境显式给定后端
+  const res = await dispatch('chain', Object.assign({}, payload, { backendId: 'github', force: true }))
+  return chainToRow(res)
+}
+
+console.log('== #281 红牌分拣与等待合同门禁（#284 迁移：断言经 wf.chain 全链快照）==')
 
 // ---------- 1. 源码门禁 ----------
 console.log('\n— 验收1：源码门禁（纪律与线索） —')
@@ -41,9 +67,10 @@ console.log('\n— 验收1：源码门禁（纪律与线索） —')
   check(candCount === 1, 'predicateRegistry 仅一个 .agents/skills 候选 — 实际 ' + candCount)
 }
 {
-  const sdSrc = readFileSync('src/host/tracker/statusDerive.js', 'utf8')
-  check(!/setup-mattpocock-skills/.test(sdSrc), 'statusDerive 无错拼')
-  check(/setup-matt-pocock-skills/.test(sdSrc), 'statusDerive 含正确拼写')
+  // #284：statusDerive.js 已随九格目录视图退役；拼写防线移到链目录（check-catalog 单一真源）
+  const catSrc = readFileSync('src/shared/tracker/check-catalog.js', 'utf8')
+  check(!/setup-mattpocock-skills/.test(catSrc), 'check-catalog 无错拼（setup-matt-pocock-skills）')
+  check(/setup-matt-pocock-skills/.test(catSrc), 'check-catalog 含正确拼写')
 }
 {
   const adrPath = 'docs/adr/20260828-skill-probe-redcard-and-waiting.md'
@@ -75,7 +102,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
   // 构造带轻探的 host 实例：skills.get 返回 null，fs 控制文件是否存在与合法性
   const hostUrl = new URL('../src/host/index.js', import.meta.url)
   // 动态构造测试用的 ctx
-  // 使用真实 host 源码的 probeSkill 逻辑：需加载宿主并触发 wf.status
+  // 使用真实 host 源码的 probeSkill 逻辑：需加载宿主并触发 wf.chain（#284 迁移）
   const tmpHome = mkdtempSync(join(tmpdir(), 'home281-'))
   const platformStub = {
     os: 'linux',
@@ -178,21 +205,19 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
     try { (mod.apply ?? mod).call(null, ctx) } catch (e) { console.log('apply error', e) }
     // 等待平台初始化
     await new Promise(r=> setTimeout(r, 50))
-    // 调用 wf.status 并检查 wayfinder 行的 detail 区分
+    // 调用 wf.chain 并检查 wayfinder 步骤的 detail 区分（#284 迁移）
     // 场景 A：目录完全缺失 -> 应为缺失
     files.clear()
+    // #284：链串行求值需要前置通过 —— 预置 issue-tracker.md（tracker:initialized）
+    files.set(join(tmpHome, 'docs/agents/issue-tracker.md'), '# tracker\n\ntracker: markdown')
     // 需要触发一次订阅（probe 会尝试订阅）
     let statusA = null
     {
       const dispatch = handlers['/dsws']
-      if (dispatch) {
-        const rawA = await dispatch('status', { cwd: tmpHome, lang: 'zh', force: true })
-        statusA = rawA && rawA.value ? rawA.value : (rawA && rawA.ok === false ? null : rawA)
-        if (!statusA && rawA && rawA.ok === false) statusA = rawA
-      }
+      statusA = await callChain(dispatch, { cwd: tmpHome, lang: 'zh' })
     }
     if (!statusA || !Array.isArray(statusA.checks)) {
-      check(false, 'wf.status 返回检查数组（缺失场景）', JSON.stringify(statusA).slice(0,500))
+      check(false, 'wf.chain 返回链快照（缺失场景）', JSON.stringify(statusA).slice(0,500))
     } else {
       const rowWay = statusA.checks.find(c=> c.key==='skill:wayfinder' || String(c.name).includes('wayfinder'))
       check(!!rowWay, '找到 wayfinder 检查行（缺失场景）')
@@ -212,10 +237,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
     let statusB = null
     {
       const dispatch = handlers['/dsws']
-      if (dispatch) {
-        const rawB = await dispatch('status', { cwd: tmpHome, lang: 'zh', force: true })
-        statusB = rawB && rawB.value ? rawB.value : rawB
-      }
+      statusB = await callChain(dispatch, { cwd: tmpHome, lang: 'zh' })
     }
     if (statusB && Array.isArray(statusB.checks)) {
       const rowWayB = statusB.checks.find(c=> c.key==='skill:wayfinder' || String(c.name).includes('wayfinder'))
@@ -226,7 +248,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
         check(rowWayB.detail !== statusA.checks.find(c=> c.key==='skill:wayfinder').detail, '坏名片与缺失的 detail 不混同')
       }
     } else {
-      check(false, 'wf.status 返回检查数组（坏名片场景）')
+      check(false, 'wf.chain 返回链快照（坏名片场景）')
     }
 
     // 清理：移除坏卡，回到缺失，确保可逆
@@ -235,10 +257,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
     let statusC = null
     {
       const dispatch = handlers['/dsws']
-      if (dispatch) {
-        const rawC = await dispatch('status', { cwd: tmpHome, lang: 'zh', force: true })
-        statusC = rawC && rawC.value ? rawC.value : rawC
-      }
+      statusC = await callChain(dispatch, { cwd: tmpHome, lang: 'zh' })
     }
     const rowC = statusC && statusC.checks ? statusC.checks.find(c=> c.key==='skill:wayfinder') : null
     if (rowC) check(rowC.detail.includes('缺失') || rowC.detail.includes('未安装'), '移走坏卡后回到缺失', rowC.detail)
@@ -249,7 +268,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
       files.set(wfDir2 + '/.dir', 'dir')
       let statusD1 = null
       const dispatchD1 = handlers['/dsws']
-      if (dispatchD1) { const rawD1 = await dispatchD1('status', { cwd: tmpHome, lang: 'zh', force: true }); statusD1 = rawD1 && rawD1.value ? rawD1.value : rawD1 }
+      statusD1 = await callChain(dispatchD1, { cwd: tmpHome, lang: 'zh' })
       const rowD1 = statusD1 && statusD1.checks ? statusD1.checks.find(c=> c.key==='skill:wayfinder') : null
       check(rowD1 && rowD1.level==='bad', '目录在·SKILL.md 缺失 → 红牌（bad）', JSON.stringify(rowD1))
       check(rowD1 && /无效/.test(rowD1.detail), '目录在·SKILL.md 缺失 detail 含“无效”', rowD1 && rowD1.detail)
@@ -264,7 +283,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
       blockedRead.add(cardP3)
       let statusD2 = null
       const dispatchD2 = handlers['/dsws']
-      if (dispatchD2) { const rawD2 = await dispatchD2('status', { cwd: tmpHome, lang: 'zh', force: true }); statusD2 = rawD2 && rawD2.value ? rawD2.value : rawD2 }
+      statusD2 = await callChain(dispatchD2, { cwd: tmpHome, lang: 'zh' })
       const rowD2 = statusD2 && statusD2.checks ? statusD2.checks.find(c=> c.key==='skill:wayfinder') : null
       check(rowD2 && rowD2.level==='bad', '名片存在但不可读 → 红牌（bad）', JSON.stringify(rowD2))
       check(rowD2 && /无效/.test(rowD2.detail), '名片不可读 detail 含“无效”', rowD2 && rowD2.detail)
@@ -293,9 +312,11 @@ console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
     async getHome() { return tmpHome2 },
     async resolveExecutable() { return null },
     env: { get: () => undefined, has: () => false },
-    fs: { resolve: async (p)=>String(p), readText: async ()=>{throw new Error('not found')}, lstat: async ()=>undefined, exists: async ()=>false },
+    fs: { resolve: async (p)=>String(p), readText: async (p)=>{ if (String(p).includes('issue-tracker.md')) return '# tracker'; throw new Error('not found') }, lstat: async ()=>undefined, exists: async (p)=>String(p).includes('issue-tracker.md') },
   }
   const offPath = '/tmp/other-skills/wayfinder'
+  // #284：链串行求值需要前置通过
+  const fsMock2Off = { async resolve(p){ return String(p) }, async readText(){ throw new Error('not found') }, async lstat(){ return undefined }, async exists(){ return false } }
   const skillsOffMock = {
     async get(name) {
       if (name === 'wayfinder') return { name, path: offPath }
@@ -309,6 +330,12 @@ console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
     async lstat(){ return undefined },
     async exists(){ return false },
   }
+  // #284：前置通过需要 issue-tracker.md 存在（exists 与 readText 双通道）
+  fsMock2.readText = async (p) => {
+    if (String(p).includes('issue-tracker.md')) return '# tracker\n\ntracker: markdown'
+    throw new Error('not found')
+  }
+  fsMock2.exists = async (p) => String(p).includes('issue-tracker.md')
   const subprocess2 = { async resolveExecutable(){return null}, spawn(){ return { done: Promise.resolve({exitCode:0}), collected:{stdout:{readFrom:()=>({text:''})}, stderr:{readFrom:()=>({text:''})}}, terminate(){} } } }
   const timer2 = { timeout: (a,b)=> (typeof a==='function'? setTimeout(a,b): new Promise(r=>setTimeout(r,a))) }
   const handlers2 = {}
@@ -334,10 +361,7 @@ console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
   let statusOff = null
   {
     const dispatch = handlers2['/dsws']
-    if (dispatch) {
-      const rawOff = await dispatch('status', { cwd: tmpHome2, lang: 'zh', force: true })
-      statusOff = rawOff && rawOff.value ? rawOff.value : rawOff
-    }
+    statusOff = await callChain(dispatch, { cwd: tmpHome2, lang: 'zh' })
   }
   if (statusOff && Array.isArray(statusOff.checks)) {
     const row = statusOff.checks.find(c=> c.key==='skill:wayfinder')
@@ -347,7 +371,7 @@ console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
       check(row.detail.includes(offPath) || row.detail.includes('来源') || row.detail.includes('source'), '绿牌 detail 含来源路径', row.detail)
     }
   } else {
-    check(false, 'wf.status 返回（异处副本）', JSON.stringify(statusOff).slice(0,600))
+    check(false, 'wf.chain 返回（异处副本）', JSON.stringify(statusOff).slice(0,600))
   }
   rmSync(tmpHome2, {recursive:true, force:true})
 }
@@ -362,9 +386,15 @@ console.log('\n— 验收4：等待态 有界推进 + 失效广播 + 封顶失�
     async getHome(){ return tmpHome3 },
     async resolveExecutable(){return null},
     env: { get:()=>undefined, has:()=>false },
-    fs: { resolve: async(p)=>String(p), readText: async()=>{throw new Error('not found')}, lstat: async()=>undefined, exists: async()=>false },
+    fs: { resolve: async(p)=>String(p), readText: async (p)=>{ if (String(p).includes('issue-tracker.md')) return '# tracker'; throw new Error('not found') }, lstat: async()=>undefined, exists: async (p)=>String(p).includes('issue-tracker.md') },
   }
   const fsMock3 = { async resolve(p){return String(p)}, async readText(){throw new Error('not found')}, async lstat(){return undefined}, async exists(){return false} }
+  // #284：前置通过需要 issue-tracker.md 存在（exists 与 readText 双通道）
+  fsMock3.readText = async (p) => {
+    if (String(p).includes('issue-tracker.md')) return '# tracker\n\ntracker: markdown'
+    throw new Error('not found')
+  }
+  fsMock3.exists = async (p) => String(p).includes('issue-tracker.md')
   let shouldThrow = true
   let capturedHandler = null
   let installedSet = new Set()
@@ -405,14 +435,14 @@ console.log('\n— 验收4：等待态 有界推进 + 失效广播 + 封顶失�
   const getStatus = async () => {
     const dispatch = handlers3['/dsws']
     if (!dispatch) return null
-    const raw = await dispatch('status', { cwd: tmpHome3, lang: 'zh', force: true })
-    return raw && raw.value ? raw.value : raw
+    return await callChain(dispatch, { cwd: tmpHome3, lang: 'zh' })
   }
+  // #284 断链回归：广播后【无 force】一次 chain 亦须全量重判（callChain 固定 force 仅用于显式刷新路径；此处直接 dispatch）
   const getStatusPlain = async () => {
     const dispatch = handlers3['/dsws']
     if (!dispatch) return null
-    const raw = await dispatch('status', { cwd: tmpHome3, lang: 'zh' })
-    return raw && raw.value ? raw.value : raw
+    const res = await dispatch('chain', { cwd: tmpHome3, lang: 'zh', backendId: 'github' })
+    return chainToRow(res)
   }
   let s1 = await getStatus()
   let s2 = await getStatus()
@@ -435,7 +465,7 @@ console.log('\n— 验收4：等待态 有界推进 + 失效广播 + 封顶失�
     eventFired = true
     await new Promise(r=> setTimeout(r,20))
   }
-  // 断链回归（#281 对抗复核）：事件到达必须清 workspaceStore——无 force 的下一次 wf.status 也必须全量重判转绿
+  // 断链回归（#281 对抗复核）：事件到达必须清 workspaceStore——无 force 的下一次 wf.chain 也必须全量重判转绿
   const sEvent = await getStatusPlain()
   const rowEvent = sEvent && sEvent.checks ? sEvent.checks.find(c=> c.key==='skill:wayfinder') : null
   check(eventFired, '失效广播已捕获并触发')

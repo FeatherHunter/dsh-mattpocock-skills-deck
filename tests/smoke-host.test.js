@@ -2,7 +2,7 @@
 // 加载 package/lib/index.js（ESM），用宿主 stub ctx 调用 apply，断言：
 //   1) name / inject 正确
 //   2) apply 注册 /dsws 通道（connection.rpc.handle 被调用，authority=loopback）
-//   3) dispatch 命中 harness.handle 注册的 handler（wf.status → status）
+//   3) dispatch 命中 harness.handle 注册的 handler（wf.chain → chain）
 // 用法: node tests/smoke-host.test.js
 import { readFileSync } from 'node:fs'
 import * as esbuild from 'esbuild'

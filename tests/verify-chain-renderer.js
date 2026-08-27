@@ -27,7 +27,7 @@ check(cr.includes('ChainBanner'), 'ChainRenderer 含 ChainBanner')
 check(cr.includes('ChainRenderer'), 'ChainRenderer 含 ChainRenderer')
 check(cr.includes('ChainSteps'), 'ChainRenderer 含 ChainSteps')
 check(cr.includes('ChainForm'), 'ChainRenderer 含 ChainForm')
-check(cr.includes('checksToChainSnapshot'), '含 checks→chain 适配器')
+check(!cr.includes('checksToChainSnapshot'), '#284：checks→chain 适配器已随九格目录视图退役')
 check(cr.includes('isSupportedActionType'), '含 isSupportedActionType')
 
 console.log('')
@@ -152,15 +152,7 @@ try{
     ],
     currentIndex:1, doneCount:1, applicableCount:3, totalCount:3, chainState:'hasCurrent', version:'1'
   }
-  // 直接测试 checksToChainSnapshot 适配器
-  const { checksToChainSnapshot } = await import('../src/client/views/shared/ChainRenderer.js')
-  const checks = [
-    { id:1, name:'仓库定位', level:'bad', detail:'not found', hint:'prompt:ghAuthLogin', ok:false },
-    { id:2, name:'setup', level:'ok', detail:'ok', hint:'', ok:true }
-  ]
-  const snap2 = checksToChainSnapshot(checks)
-  check(snap2 && snap2.steps.length===2, 'checksToChainSnapshot 产出 steps')
-  check(snap2.currentIndex===0, 'checksToChainSnapshot 当前步为 fail 的首项')
+  // #284：适配器测试撤销；链快照形态由契约层 chain.js evaluateChain 自证（见 verify-chain.js）
   // 渲染 ChainRenderer（需要 DswsCtx 与 dispatcher）
   const { DswsCtx, createCx } = await import('../src/client/kernel/ctx.js')
   const { createActionDispatcher } = await import('../src/client/kernel/actions.js')

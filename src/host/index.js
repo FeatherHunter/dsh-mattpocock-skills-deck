@@ -1464,14 +1464,15 @@ export default {
       if (force) resetGhCache()
       try{
         const platform = await getPlatform()
-        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force }) }).catch(function(){ return null })
+        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true }) }).catch(function(){ return null })
         let backendId = args && args.backendId
         if (!backendId && selMod && selMod.selection && selMod.selection.backendId) backendId = selMod.selection.backendId
         const genMod = await import('./tracker/generic.js')
         const predMod = await import('./tracker/predicateRegistry.js')
         const registry = predMod.createPredicateRegistry({ timeout: 3000 })
         if (typeof genMod.registerGenericPredicates === 'function') genMod.registerGenericPredicates(registry)
-        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, selection: selMod && selMod.selection, explicitBackendId: selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId }
+        const chainLang = (args && args.lang === 'en') ? 'en' : 'zh'
+        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, selection: selMod && selMod.selection, explicitBackendId: selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
         // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx) {
           try {
@@ -1530,7 +1531,26 @@ export default {
             fullSnapshot = chainAndSnap.snapshot
           }
         } catch (e) { fullSnapshot = chainAndSnap.snapshot; fullChain = chainAndSnap.chain }
-        return { ok: true, backendId: backendId || null, chain: chainAndSnap.chain, resolved: chainAndSnap.resolved, snapshot: chainAndSnap.snapshot, backendChain: backendChain, fullChain: fullChain, fullSnapshot: fullSnapshot }
+        // #284：富化链快照——谓词结果的 detail/hint 合并进步骤 show（红牌分拣文案经链到达 UI）
+        const enrichSnap = function (snap, resolvedMap) {
+          try {
+            if (!snap || !Array.isArray(snap.steps) || !resolvedMap) return snap
+            const rMap = resolvedMap || {}
+            const steps = snap.steps.map(function (s) {
+              const rd = rMap[s.id] || null
+              if (!rd || (!rd.detail && !rd.hint)) return s
+              const base = s.show || {}
+              return Object.assign({}, s, { show: Object.assign({}, base, rd.detail ? { desc: base.desc || rd.detail } : {}, rd.hint ? { hint: base.hint || rd.hint } : {}) })
+            })
+            return Object.assign({}, snap, { steps: steps })
+          } catch (e) { return snap }
+        }
+        const allResolved = Object.assign({}, chainAndSnap.resolved || {}, (backendChain && backendChain.resolved) || {})
+        const genericSnap = enrichSnap(chainAndSnap.snapshot, chainAndSnap.resolved)
+        const backendSnapE = (backendChain && backendChain.snapshot) ? enrichSnap(backendChain.snapshot, backendChain.resolved) : (backendChain && backendChain.snapshot)
+        if (backendChain) backendChain.snapshot = backendSnapE
+        fullSnapshot = enrichSnap(fullSnapshot, allResolved)
+        return { ok: true, backendId: backendId || null, chain: chainAndSnap.chain, resolved: chainAndSnap.resolved, snapshot: genericSnap, backendChain: backendChain, fullChain: fullChain, fullSnapshot: fullSnapshot }
       }catch(e){
         return { ok: false, error: String((e && e.message)||e) }
       }

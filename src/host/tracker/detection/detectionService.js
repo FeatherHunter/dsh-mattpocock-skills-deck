@@ -91,7 +91,8 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
 
     // 技能正交探测（10 名，含 setup-matt-pocock-skills 正位；复用 host probeSkill 逻辑）
     let skillProbes = null
-    try { skillProbes = await probeSkills({ cwd, platform }) } catch { skillProbes = null }
+    // #284：wf.chain 只取 selection，跳过 25 名技能探测（避免等待计数被链加载外的轮次推进；计数仅随真实探针轮次推进）
+    if (!opts.skipSkillProbes) { try { skillProbes = await probeSkills({ cwd, platform }) } catch { skillProbes = null } }
 
     const result = {
       handle: { cwd },

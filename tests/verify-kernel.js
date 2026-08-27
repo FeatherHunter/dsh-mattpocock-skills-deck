@@ -18,7 +18,7 @@ const MODULES = [
   { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'BODY_FORMAT', 'completePrompt', 'FIXATE_PROMPT'] },
   { name: 'config', exports: ['CFG_KEY', 'cfg', 'templates', 'migrateStartCfg', 'TPL_DEFAULT', 'renderTemplate', 'validateTemplate'] },
   { name: 'store', exports: ['DEFAULT_PANEL_H', 'makeStore', 'shared', 'stores', 'storeOf', 'emit', 'sub', 'useStore', 'compute', 'recordIssuePath', 'ensureNoRepoCard', 'mkRowAction', 'timeStampStr'] },
-  { name: 'probe', exports: ['CHECKS_TOTAL', 'loadChecks', 'loadSnapshot', 'probeNow', 'startAutoProbe', 'refreshAll', 'diffSnapshots', 'snapFresh', 'broadcastCfg'] },
+  { name: 'probe', exports: ['loadChain', 'chainSteps', 'chainStep', 'readyCount', 'envTotal', 'envLabel', 'setupCheck', 'loadSnapshot', 'probeNow', 'startAutoProbe', 'refreshAll', 'diffSnapshots', 'snapFresh', 'broadcastCfg'] },
   { name: 'router', exports: ['openPagePanel', 'openDockPanel', 'openPanel', 'togglePanel', 'ensureSidebarTab', 'repoStr', 'startText', 'newWayfinderText', 'newBugWayfinderText'] },
   { name: 'api', exports: ['injectFixate', 'probeHandoffReady', 'doHandoff', 'doHandoffOpen', 'openTextInNewSession', 'inject', 'copyText', 'pendingDraft'] },
 ]
