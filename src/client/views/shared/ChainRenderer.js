@@ -112,7 +112,7 @@
             // 主动触发一次重求值（接入现有探测/轮询/快照刷新机制：st.refresh 或 host.call('wf.detect', {force:true})）
             try{
               if (dispatcher && dispatcher._refresh) await dispatcher._refresh()
-              else if (typeof host !== 'undefined' && host.call) { await host.call('wf.detect', { cwd: st.cwd||'', force:true }); if(st.cwd) { try{ loadSnapshot(st,true,true) }catch(e){}; try{ loadChecks(st,true,true) }catch(e){} } }
+              else if (typeof host !== 'undefined' && host.call) { await host.call('wf.detect', { cwd: st.cwd||'', force:true }); if(st.cwd) { try{ loadSnapshot(st,true,true) }catch(e){}; try{ loadChain(st,true) }catch(e){} } }
             }catch(e){}
           }
         }catch(e){ try{ flash(st, String((e&&e.message)||e).slice(0,200), 'warn') }catch(_){} }
@@ -223,41 +223,7 @@
       ])
     }
 
-    // 适配器：把旧 wf.status 9 checks 适配为 ChainSnapshot（过渡期兼容，供 228 渐进迁移；最终由 host wf.chain 真源取代）
-    export function checksToChainSnapshot(checks) {
-      try{
-        if (!Array.isArray(checks) || !checks.length) return null
-        const steps = checks.map(function(c){
-          const lvl = c.level
-          const isOk = lvl==='ok' || c.ok===true
-          const status = isOk ? 'done' : (lvl==='warn' ? 'current' : (lvl==='bad' ? 'fail' : 'pending'))
-          const show = isOk ? { fallback: c.name||String(c.id), level:'info' } : { fallback: c.name||String(c.id), desc: String(c.detail||''), level: (lvl==='bad'?'bad': lvl==='warn'?'warn':'info') }
-          // hint → 动作映射（OSS 兼容）：prompt:xxx → inject-prompt，http→open-url，其余 refresh
-          const hint = String(c.hint||'')
-          let actions = []
-          if (!isOk) {
-            if (hint.indexOf('prompt:')===0 || hint.indexOf('prompt:')>=0) {
-              const p = hint.indexOf('prompt:')>=0 ? hint.slice(hint.indexOf('prompt:')+7).split(' ')[0] : hint.slice(7)
-              const promptId = p.split(':')[0] || 'installSkills'
-              // 228 关键：gh 登录 hint 不再是 URL，而是 prompt:ghAuthLogin（替换 openUrl）
-              const normalized = (c.id===5 && /^https?:/i.test(hint)) ? 'ghAuthLogin' : promptId
-              actions = [{ type:'inject-prompt', prompt: normalized }]
-            } else if (/^https?:\/\//i.test(hint)) {
-              actions = [{ type:'open-url', url: hint }]
-            } else if (hint && hint.length) {
-              // 后端完整 prompt 文案 → inject-prompt
-              actions = [{ type:'inject-prompt', prompt: hint.slice(0,120) }]
-            } else {
-              actions = [{ type:'refresh', target:'chain' }]
-            }
-          }
-          return { id:String(c.id), check: String(c.id), status: status, show: show, actions: actions, isApplicable:true, blockedBy: null, isCurrent: !isOk, isBlocking: !isOk }
-        })
-        const curIdx = steps.findIndex(function(s){ return s.status!=='done' })
-        const allDone = curIdx<0
-        return { steps: steps, currentIndex: allDone? null : curIdx, doneCount: steps.filter(function(s){ return s.status==='done' }).length, applicableCount: steps.length, totalCount: steps.length, chainState: allDone ? 'allDone' : (steps[curIdx].status==='pending' ? 'pending' : 'hasCurrent'), version:'1' }
-      }catch(e){ return null }
-    }
+    // #284：旧 wf.status 9 checks → ChainSnapshot 适配器已随九格目录视图退役（链快照由 host wf.chain 真源产出）。
 
     // 未知类型 Honest unsupported 校验辅助（供测试/门禁调用）
     export function isSupportedActionType(type) {

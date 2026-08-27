@@ -143,15 +143,18 @@ export const SwitchConfirmModal = (props) => {
           h('span', null, criLoading ? tr('switch.criLoading') : migrateBlocked ? tr('switch.criBlocked') : tr('switch.criOk')),
         ]),
         !criLoading ? h('div', { style: { marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 } }, criDetails.map(function (c) {
-          const ok = c && c.ok
+          // #284：CRI 项现为链步骤（status/show 派生 ok 与文案）
+          const ok = !!(c && c.status === 'done')
           const col = ok ? '#4ade80' : '#f87171'
-          return h('div', { key: c.id, style: { display: 'flex', alignItems: 'center', gap: 6, color: col, fontSize: 11 } }, [
+          const cName = (c && c.show && (c.show.fallback || c.show.title || c.show.i18nKey)) || (c && c.id) || ''
+          const cDetail = (c && c.show && c.show.desc) || ''
+          return h('div', { key: c && c.id, style: { display: 'flex', alignItems: 'center', gap: 6, color: col, fontSize: 11 } }, [
             h('span', { style: { fontSize: 10 } }, ok ? '✓' : '✕'),
-            h('span', { style: { fontWeight: 600 } }, c.name || ('#' + c.id)),
-            h('span', { style: { color: '#8b8b95', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, c.detail || ''),
+            h('span', { style: { fontWeight: 600 } }, cName),
+            h('span', { style: { color: '#8b8b95', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, cDetail),
           ])
         })) : null,
-        migrateBlocked ? h('div', { style: { marginTop: 6, color: '#f87171', fontSize: 11 } }, 'prompt: ' + (criDetails.filter(function (c) { return !c.ok }).map(function (c) { return c.hint || c.detail }).join('；') || tr('switch.criHintFallback'))) : null,
+        migrateBlocked ? h('div', { style: { marginTop: 6, color: '#f87171', fontSize: 11 } }, 'prompt: ' + (criDetails.filter(function (c) { return c && c.status !== 'done' }).map(function (c) { return (c && c.show && c.show.hint) || (c && c.show && c.show.desc) || '' }).join('；') || tr('switch.criHintFallback'))) : null,
         isMigrate ? h('div', { style: { marginTop: 6, color: '#8b8b95', fontSize: 10 } }, tr('switch.migrateNote')) : null,
       ]) : null,
       isClear ? h('div', { style: { border: '1px solid rgba(248,113,113,.45)', background: 'rgba(248,113,113,.08)', borderRadius: 8, padding: '8px 10px', marginBottom: 10 } }, [

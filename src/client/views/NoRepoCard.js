@@ -19,9 +19,9 @@ export     const NoRepoCard = function (props) {
       const h = cx ? cx.h : React.createElement
       const st = props.st
       const card = ensureNoRepoCard(st)
-      const cs = activeChecks(st)
-      const checkRepo = findCheck(cs, 'gh:remote')
-      const repoBad = !!(checkRepo && checkRepo.level === 'bad')
+      // #284：判 repo 缺位改从链快照步骤派生（gh:remote 失败）
+      const checkRepo = chainStep(st, 'gh:remote')
+      const repoBad = !!(checkRepo && checkRepo.status === 'fail')
       const dismissed = isNoRepoDismissed(st.cwd)
       // #155：Selection 三态优先于 checkRepo（显式无后端/pending 态不走 NoRepo 红卡分支）
       const sel = st.selection || (st.snapshot && st.snapshot.selection) || null
@@ -67,11 +67,10 @@ export     const NoRepoCard = function (props) {
       const chainSnapForNoRepo = (function(){
         try{
           if (st.chainSnapshot && st.chainSnapshot.steps) return st.chainSnapshot
-          if (typeof checksToChainSnapshot === 'function' && cs && cs.length) return checksToChainSnapshot(cs)
         }catch(e){}
         return null
       })()
-      const isChainRepoFail = chainSnapForNoRepo && chainSnapForNoRepo.steps && chainSnapForNoRepo.steps.some(function(s){ return String(s.id)==='1' && s.status==='fail' })
+      const isChainRepoFail = chainSnapForNoRepo && chainSnapForNoRepo.steps && chainSnapForNoRepo.steps.some(function(s){ return String(s.id)==='gh:remote' && s.status==='fail' })
       // 若链快照表明当前链头是建仓相关（且非 markdown），优先由 ChainRenderer 承接（新链 renderer 为真源）；旧红卡仅作兼容兜底
       const repoCreateChainNoRepo = !!(metaNoRepo && metaNoRepo.capabilities && metaNoRepo.capabilities.repoCreateChain)
       if (isChainRepoFail && repoCreateChainNoRepo && chainSnapForNoRepo && chainSnapForNoRepo.currentIndex!=null) {
@@ -82,7 +81,7 @@ export     const NoRepoCard = function (props) {
             openUrl: function(u){ try{ openUrl(u) }catch(e){} },
             hostCall: function(m,p){ if(typeof host!=='undefined'&& host.call) return host.call(m,p); return Promise.reject(new Error('hostCall unavailable')) },
             renderForm: function(schema, onSubmit){ try{ onSubmit({}) }catch(e){} },
-            refresh: async function(){ try{ if(typeof host!=='undefined'&& host.call) await host.call('wf.detect',{cwd:st.cwd||'', force:true}) }catch(e){}; try{ loadChecks(st,true,true) }catch(e){}; try{ loadSnapshot(st,true,true) }catch(e){} },
+            refresh: async function(){ try{ if(typeof host!=='undefined'&& host.call) await host.call('wf.detect',{cwd:st.cwd||'', force:true}) }catch(e){}; try{ loadChain(st,true) }catch(e){}; try{ loadSnapshot(st,true,true) }catch(e){} },
             tr: tr,
             resolvePrompt: function(id,pa){ try{ if(id==='setupRun'&&typeof setupRunPrompt==='function') return setupRunPrompt(st); return promptText(id,pa)}catch(e){ return '' } }
           }) : null
@@ -123,7 +122,7 @@ export     const NoRepoCard = function (props) {
             if (!labelsGuide) {
               flash(st, tr('panel.noRepoCreateSuccess', { repo: repoStr2 }), 'ok')
               card.expanded = false; card.error = ''; card.errorKind = ''; card.errorRepoUrl = ''; emit(st)
-              loadSnapshot(st, true, true); loadChecks(st, true, true)
+              loadSnapshot(st, true, true); loadChain(st, true)
               return
             }
             // GitHub：进入标签步骤 Modal（不设常驻黄条，流程内单步）
@@ -159,7 +158,7 @@ export     const NoRepoCard = function (props) {
                 }
               }catch(e){ if(card.labelStep) card.labelStep.checking=false; emit(st) }
             }).catch(function(){ if(card.labelStep) card.labelStep.checking=false; emit(st) })
-            loadChecks(st, true, true)
+            loadChain(st, true)
           } else {
             const kind = (res && res.errorKind) || 'unknown'
             const raw = (res && res.error) || ''

@@ -338,16 +338,17 @@
       if (typeof host === 'undefined' || typeof host.call !== 'function') {
         sc.criLoading = false; sc.criChecks = { allOk: false, c1: null, c4: null, c5: null }; emit(st); return
       }
-      let lang = 'zh'
-      try { lang = (typeof promptLang === 'function' ? promptLang() : 'zh') } catch {}
-      host.call('wf.status', { cwd: st.cwd || '', lang: lang }).then(function (res) {
+      // #284：CRI 迁移到链快照（wf.chain 全链步骤一步取齐）
+      host.call('wf.chain', { cwd: st.cwd || '' }).then(function (res) {
         if (!st.switchConfirm) return
-        const checks = (res && res.checks) || []
-        // #229 目录视图：按 key 定位（legacy 数字 id 经 findCheck 桥兼容）
-        const c1 = findCheck(checks, 'gh:remote')
-        const c4 = findCheck(checks, 'gh:installed')
-        const c5 = findCheck(checks, 'gh:authed')
-        const allOk = !!(c1 && c1.ok && c4 && c4.ok && c5 && c5.ok)
+        const snap = (res && (res.fullSnapshot || res.snapshot)) || null
+        const steps = (snap && Array.isArray(snap.steps)) ? snap.steps : []
+        const byId = function (id) { return steps.find(function (s) { return String(s.id) === String(id) }) || null }
+        const c1 = byId('gh:remote')
+        const c4 = byId('gh:installed')
+        const c5 = byId('gh:authed')
+        const ok = function (x) { return !!(x && x.status === 'done') }
+        const allOk = ok(c1) && ok(c4) && ok(c5)
         st.switchConfirm.criChecks = { c1: c1, c4: c4, c5: c5, allOk: allOk }
         st.switchConfirm.criLoading = false
         emit(st)
@@ -395,7 +396,7 @@
         closeSwitchConfirm(st)
         try {
           if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true)
-          if (typeof loadChecks === 'function') loadChecks(st, true, true)
+          if (typeof loadChain === 'function') loadChain(st, true)
         } catch {}
       }).catch(function (e) { doFail(e && e.message || e) })
     }

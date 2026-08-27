@@ -176,8 +176,8 @@ export default {
     // v1.5 T3：面板默认高度固定 1/2（用户拍板彻底移除 panelHeight 配置 —— details 列高度与它无关，配置不生效）
     // ==== kernel:store (spliced by build) ====
 
-    // ---- 环境检查（#344 · host.call('wf.status')；host 侧 30s 缓存 / force 重查）----
-    // v12：失败不再兜假数据 —— 非 real 状态一律视为未知（--/8），不展示假绿点
+    // ---- 环境检查链（#228/#284 · host.call('wf.chain')；通用链 + 后端链全链快照）----
+    // #284：九格目录视图（wf.status/checks）退役，读数点位全部改从链快照派生
     // ==== kernel:probe (spliced by build) ====
     // 打开形式（#373 用户拍板 2026-08-14）：仅右侧 details 列（停靠）一种形式。
     //   已移除：① Document PiP 独立小窗（Electron 无法创建 PiP 窗口、曾致桌面卡死 —— 代码不再含 pip 形态）；

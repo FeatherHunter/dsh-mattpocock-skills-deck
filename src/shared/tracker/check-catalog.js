@@ -38,11 +38,11 @@ export const GENERIC_CATALOG = Object.freeze([
     origin: 'host/index.js:SKILL_PROBE_NAMES (inventory 类别 8)',
   },
   {
-    id: 'skill:setup-mattpocock-skills',
-    label: '技能 setup-mattpocock-skills 已安装',
+    id: 'skill:setup-matt-pocock-skills',
+    label: '技能 setup-matt-pocock-skills 已安装',
     scope: 'generic',
     backends: ['github','markdown','gitlab'],
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'setup-mattpocock-skills' },
+    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'setup-matt-pocock-skills' },
     origin: 'host/index.js:SKILL_PROBE_NAMES',
   },
   {
@@ -202,7 +202,7 @@ export function catalogFor(backendId) {
  */
 export const MIGRATION_MAP = Object.freeze({
   'skill:wayfinder': 'GENERIC_CATALOG[0]',
-  'skill:setup-mattpocock-skills': 'GENERIC_CATALOG[1]',
+  'skill:setup-matt-pocock-skills': 'GENERIC_CATALOG[1]',
   'skill:ask-matt': 'GENERIC_CATALOG[2]',
   'env:home': 'GENERIC_CATALOG[3]',
   'tracker:initialized': 'GENERIC_CATALOG[4]',
@@ -245,11 +245,11 @@ export const GENERIC_CHECK_ITEMS = Object.freeze([
     group: 'env',
   },
   {
-    id: 'skill:setup-mattpocock-skills',
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'setup-mattpocock-skills' },
-    onPass: { show: { i18nKey: 'check.skill.setup-mattpocock-skills.pass', fallback: '技能 setup-mattpocock-skills 已安装', level: 'info' }, actions: [] },
-    onFail: { show: { i18nKey: 'check.skill.setup-mattpocock-skills.fail', fallback: '技能 setup-mattpocock-skills 未安装', level: 'bad', hint: 'prompt:installSkills' }, actions: [{ type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills' }] },
-    label: '技能 setup-mattpocock-skills 已安装',
+    id: 'skill:setup-matt-pocock-skills',
+    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'setup-matt-pocock-skills' },
+    onPass: { show: { i18nKey: 'check.skill.setup-matt-pocock-skills.pass', fallback: '技能 setup-matt-pocock-skills 已安装', level: 'info' }, actions: [] },
+    onFail: { show: { i18nKey: 'check.skill.setup-matt-pocock-skills.fail', fallback: '技能 setup-matt-pocock-skills 未安装', level: 'bad', hint: 'prompt:installSkills' }, actions: [{ type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills' }] },
+    label: '技能 setup-matt-pocock-skills 已安装',
     group: 'env',
   },
   {

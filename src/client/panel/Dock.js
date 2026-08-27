@@ -44,7 +44,7 @@ export     const DetailsDock = (props) => {
             s.cwd = cwd
             const hydrated = hydrateFromCache(s)
             emit(s)
-            loadChecks(s, false)
+            loadChain(s, false)
             // 回切必刷：cwd 变了就重拉快照（不依赖 snapFresh），确保仓库名与后端跟随
             loadSnapshot(s, false, !!hydrated)
             return true
@@ -66,7 +66,7 @@ export     const DetailsDock = (props) => {
             const base = cwdBasename(cwd)
             if (base && snap.repo.name !== base) polluted = true
           }
-          if (polluted) { loadSnapshot(s, false, true); loadChecks(s, false); return true }
+          if (polluted) { loadSnapshot(s, false, true); loadChain(s, false); return true }
           return false
         }
         if (summaryCwd) { if(apply(summaryCwd)) return }
@@ -116,8 +116,8 @@ export     const DetailsDock = (props) => {
           }
           return false
         })()
-        if (isPolluted) { loadSnapshot(s, false); loadChecks(s, false); return }
-        if (!snapFresh(s)) loadSnapshot(s, false); loadChecks(s, false)
+        if (isPolluted) { loadSnapshot(s, false); loadChain(s, false); return }
+        if (!snapFresh(s)) loadSnapshot(s, false); loadChain(s, false)
       }, [sid, summaryCwd, s.cwd, s.snapshot && s.snapshot.repoRoot, s.snapshot && s.snapshot.repository && s.snapshot.repository.name, s.snapshot && s.snapshot.repo && s.snapshot.repo.name])
       const closeDock = function () {
         if (props && typeof props.closeDetails === 'function') props.closeDetails()
