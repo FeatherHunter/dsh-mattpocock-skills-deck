@@ -184,61 +184,10 @@
       const body = renderTemplate('execute', { number: String(t.number), url: url, title: t.title })
       return withWayfinderPrefix(body)
     }
-    // 契约 #205 会话标题 = [#n] + 单空格 + 清洗后标题（120 bytes 预算，前缀永不截断）
-    // 正则：/^\[#\d+\] .+/  （空标题兜底允许 /^\[#\d+\]$/）
-    // 预算：120 UTF-8 bytes（含前缀与分隔空格），超长仅截 title 尾部 + …
-    // 清洗：复用 DSH cleanTitleText — 剥控制/方向/隐形字符，空白归一为单空格并 trim，emoji 保留
-    export const SESSION_TITLE_MAX_BYTES = 120;
-    export const SESSION_TITLE_RE = /^\[#\d+\] .+/;
-    export const SESSION_TITLE_RE_ALLOW_BARE = /^\[#\d+\](?: .+)?$/;
-    // 预留：占位前缀供 Tabs/StatusBar 后续接入（#211），保持 SESSION_TITLE_PREFIX 兼容旧路径；已移除 [MattSkills] 后缀式
-    export const SESSION_TITLE_PREFIX = '[New]';
-    export const SESSION_TITLE_NEW_RE = /^\[New\] (新建需求|新建 Bug|New Requirement|New Bug)$/;
-    export function isNewPlaceholderTitle(s) { return SESSION_TITLE_NEW_RE.test(String(s || '').trim()); }
-    export function newSessionTitleNew(type, lang) {
-      const bug = String(type || '').toLowerCase().indexOf('bug') >= 0;
-      let en = false;
-      if (lang) { try { en = String(lang).toLowerCase().indexOf('en') === 0; } catch (e) {} }
-      else { try { en = (typeof promptLang === 'function' ? promptLang() === 'en' : false); } catch (e) {} }
-      if (en) return '[New] ' + (bug ? 'New Bug' : 'New Requirement');
-      return '[New] ' + (bug ? '新建 Bug' : '新建需求');
-    }
-    export function cleanTitleText(s) {
-      let t = String(s || '');
-      t = t.replace(/\x1B\][^\x07]*\x07/g, '').replace(/\x1B\[[0-9;]*[A-Za-z]/g, '').replace(/\x1B[^\x5B\x5D\x07]/g, '');
-      t = t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
-      t = t.replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, ' ');
-      t = t.replace(/\s+/g, ' ').trim();
-      return t;
-    }
-    export function utf8Bytes(str) {
-      if (typeof Buffer !== 'undefined' && Buffer.byteLength) return Buffer.byteLength(str, 'utf8');
-      try { return new TextEncoder().encode(str).length; } catch (e) { return str.length; }
-    }
-    export function truncateTitleUtf8(prefix, title, maxBytes) {
-      const sep = ' ';
-      const base = prefix + sep;
-      const baseBytes = utf8Bytes(base);
-      if (utf8Bytes(title) + baseBytes <= maxBytes) return title;
-      const ellipsis = '…';
-      const ellipsisBytes = utf8Bytes(ellipsis);
-      let acc = 0; let out = '';
-      for (const ch of title) {
-        const b = utf8Bytes(ch);
-        if (baseBytes + acc + b + ellipsisBytes > maxBytes) break;
-        acc += b; out += ch;
-      }
-      return out.trimEnd() + ellipsis;
-    }
-    export const newSessionTitle = (t) => {
-      const n = String(t && t.number != null ? t.number : '').trim();
-      if (!/^\d+$/.test(n)) throw new Error('newSessionTitle: invalid number ' + n);
-      const prefix = `[#${n}]`;
-      let title = cleanTitleText(t && t.title != null ? t.title : '');
-      if (!title) return prefix;
-      title = truncateTitleUtf8(prefix, title, SESSION_TITLE_MAX_BYTES);
-      return prefix + ' ' + title;
-    };
+    // 契约 #205 会话标题（[#n] + 清洗/截断 120 bytes 预算）与占位四式判定已迁至命名守护共享核心
+    // src/shared/naming-guardian.js（#265 · 单一真源；构建时经 shared:namingGuardian splice 拼入本闭包）。
+    // 本文件不再声明任何命名真源：SESSION_TITLE_* / isNewPlaceholderTitle / newSessionTitleNew /
+    // cleanTitleText / utf8Bytes / truncateTitleUtf8 / newSessionTitle 均以上述共享核心为准。
     // v1.5 T6：新增 wayfinder prompt —— /wayfinder + 仓库信息 + 需求引导（用户拍板：prompt 带仓库信息）
     // T16 补强（#463 复核 F2）：建图入口同样挂正文格式契约（新建 map 正文从源头防字面 \\n / BOM）
     // v7（#62 grill）：输入位绝对末尾 —— BODY_FORMAT 在中段，末尾追加 需求描述：/ Requirement:（满足 Q4）

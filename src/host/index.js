@@ -1046,15 +1046,20 @@ export default {
           selection = sel
           if (sel && sel.backendId) {
             try { repository = reg.describe(handle, sel.backendId) } catch {}
-            // markdown 本地 url 为空，github 则尽量补 github.com url
-            if (repository && !repository.url && sel.backendId==='github' && repo) {
-              repository.url = 'https://github.com/' + repo.owner + '/' + repo.name
-              repository.name = repo.owner + '/' + repo.name
-              repository.refId = repo.owner + '/' + repo.name
+            // #231：后端特判删除 —— 是否补链由该后端 links.repoUrlTemplate 意愿位声明；补全走其自身 describe（单源产出 refId/name/url）
+            if (repository && !repository.url && sel.backendId && repo && repo.owner) {
+              var wantsUrlSeed = false
+              try {
+                var modsHere = (reg && typeof reg.modules === 'function') ? reg.modules() : []
+                for (var mi = 0; mi < modsHere.length; mi++) {
+                  if (modsHere[mi] && modsHere[mi].id === sel.backendId && modsHere[mi].links && modsHere[mi].links.repoUrlTemplate) { wantsUrlSeed = true; break }
+                }
+              } catch (eSeed) {}
+              if (wantsUrlSeed) { try { repository = reg.describe({ cwd: cwd, refId: repo.owner + '/' + repo.name }, sel.backendId) } catch (eDesc) {} }
             }
           } else {
-            // fallback 时 repository 仍给占位（用于 UI 泛化）
-            if (repo) repository = { backend: 'github', refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: 'https://github.com/' + repo.owner + '/' + repo.name }
+            // fallback（无选择）时诚实占位：不带任何品牌 url，UI 按「无链接」渲染
+            if (repo) repository = { backend: '', refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: '' }
             else repository = null
           }
           // 能力计数挂到 snapshot 供 ChecksTab 诊断卡
@@ -1066,7 +1071,7 @@ export default {
       try {
         const regM = await getTrackerRegistry()
         if (regM && typeof regM.modules === 'function') {
-          backendModules = regM.modules().map(function (m) { return { id: m.id, label: m.label, presentation: m.presentation } })
+          backendModules = regM.modules().map(function (m) { return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}) })
         }
       } catch (e2) {}
       return {
@@ -1659,7 +1664,7 @@ export default {
       try {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
-        const mods = reg.modules().map(function(m){ return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}) }) // #230：转发后端声明的 setup 描述数据键（键入 locale）
+        const mods = reg.modules().map(function(m){ return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}) }) // #230：转发后端声明的 setup 描述数据键（键入 locale）
         const cwd = (args && args.cwd) || DEFAULT_CWD
         let bound = undefined
         try { bound = reg.bound({ cwd: cwd }) } catch {}
@@ -1938,6 +1943,130 @@ export default {
       return { ok: true }
     })
 
+    // ============ 命名守护（#265 · 草稿档垂直线 · host 半）============
+    // 分工（#264 D2）：本侧为常驻轻量任务 —— 持跟踪态（落盘 .dsh-mattskillsdeck-cache/naming-guardian.json，
+    // 写入方式与现缓存一致：platform.fs.resolve + fs.writeText）并维护状态；「待办改名计划单」经
+    // wf.namingPlan 供界面侧渲染钩子拉取。纯判定真源 = ../shared/naming-guardian.js（运行时 import，
+    // 与 check-catalog 同模式），本文件不含第二处命名实现。
+    let _namingCore = null
+    let _namingCoreInit = null
+    async function getNamingCore() {
+      if (_namingCore) return _namingCore
+      if (!_namingCoreInit) {
+        _namingCoreInit = (async function () {
+          try { const m = await import('../shared/naming-guardian.js'); _namingCore = m; return m } catch (e) { return null }
+        })()
+      }
+      return _namingCoreInit
+    }
+    const NAMING_STATE_FILE = 'naming-guardian.json'
+    const NAMING_TICK_MS = 15000
+    let _namingState = null            // { version:1, sessions:{sid:跟踪态} } 内存态（加载自磁盘，变更防抖落盘）
+    let _namingStateDirty = false
+    let _namingPersistTimer = null
+    let _namingLoopTimer = null
+    function namingDefaultState() { return { version: 1, sessions: {} } }
+    async function loadNamingState() {
+      if (_namingState) return _namingState
+      _namingState = namingDefaultState()
+      try {
+        if (fs !== undefined && typeof fs.readText === 'function' && typeof fs.resolve === 'function') {
+          const dir = await getCacheDir()
+          if (dir) {
+            const platform2 = await getPlatform()
+            const t = await platform2.fs.resolve(platform2.path.join(dir, NAMING_STATE_FILE))
+            const txt = await fs.readText(t)
+            if (txt) {
+              const j = JSON.parse(txt)
+              if (j && j.version === 1 && j.sessions && typeof j.sessions === 'object') { _namingState = j; if (!_namingState.sessions) _namingState.sessions = {} }
+            }
+          }
+        }
+      } catch (eLoad) { /* 损坏/缺失即回默认空态，注册侧原子重建 */ }
+      return _namingState
+    }
+    async function persistNamingState() {
+      _namingStateDirty = false
+      try {
+        if (fs === undefined || typeof fs.writeText !== 'function' || typeof fs.resolve !== 'function') return
+        const dir = await getCacheDir(); if (!dir) return
+        const platform2 = await getPlatform()
+        const t = await platform2.fs.resolve(platform2.path.join(dir, NAMING_STATE_FILE))
+        await fs.writeText(t, JSON.stringify(_namingState || namingDefaultState()))
+      } catch (ePersist) { /* 写失败不影响主流程，下轮 tick 重试 */ }
+    }
+    function markNamingStateDirty() {
+      _namingStateDirty = true
+      if (_namingPersistTimer) return
+      _namingPersistTimer = timer.timeout(function () { _namingPersistTimer = null; if (_namingStateDirty) persistNamingState() }, 1200)
+    }
+    function namingLoopTick() {
+      try { if (_namingStateDirty) persistNamingState() } catch (eTick) {}
+      _namingLoopTimer = timer.timeout(namingLoopTick, NAMING_TICK_MS)
+    }
+    function startNamingGuardianLoop() {
+      // 热重载守卫：上一代 apply 遗留的循环先清（globalThis 单例句柄）
+      try {
+        if (typeof globalThis !== 'undefined' && globalThis.__dswsNamingGuardianLoop) { try { clearTimeout(globalThis.__dswsNamingGuardianLoop) } catch (e0) {} }
+      } catch (eG) {}
+      _namingLoopTimer = timer.timeout(namingLoopTick, NAMING_TICK_MS)
+      try { if (typeof globalThis !== 'undefined') globalThis.__dswsNamingGuardianLoop = _namingLoopTimer } catch (eK) {}
+    }
+
+    harness.handle('wf.namingRegister', async function (args) {
+      const sid = args && args.sessionId
+      const baseline = args && args.baselineTitle
+      if (!sid || !baseline) return { ok: false, error: { kind: 'parse', message: '缺少 sessionId/baselineTitle' } }
+      const core = await getNamingCore()
+      if (!core || !core.isPlaceholderTitle(baseline)) return { ok: false, error: { kind: 'parse', message: 'baselineTitle 非占位四式' } }
+      const st = await loadNamingState()
+      if (!st.sessions[sid]) st.sessions[sid] = core.createTrackingState({ sessionId: sid, baselineTitle: baseline, repoKey: (args && args.repoKey) || null })
+      if (args && args.hint) st.sessions[sid] = core.reduceTrackingState(st.sessions[sid], { type: 'signal', hint: String(args.hint).slice(0, 80) })
+      markNamingStateDirty()
+      return { ok: true }
+    })
+
+    harness.handle('wf.namingSignal', async function (args) {
+      const sid = args && args.sessionId
+      const hint = args && args.hint
+      if (!sid || !hint) return { ok: true }
+      const st = await loadNamingState()
+      const entry = st.sessions[sid]
+      if (!entry) return { ok: true }   // 非受踪会话：信号无属主，忽略
+      const core = await getNamingCore()
+      if (!core) return { ok: true }
+      if (!entry.locked) { st.sessions[sid] = core.reduceTrackingState(entry, { type: 'signal', hint: String(hint).slice(0, 80) }); markNamingStateDirty() }
+      return { ok: true }
+    })
+
+    harness.handle('wf.namingPlan', async function () {
+      const core = await getNamingCore()
+      if (!core) return { ok: true, orders: [] }
+      const st = await loadNamingState()
+      const orders = []
+      for (const sid in st.sessions) {
+        const o = core.planOrderFor(st.sessions[sid], Date.now(), core.NAMING_HINT_GRACE_MS)
+        if (o) orders.push(o)
+      }
+      return { ok: true, orders: orders }
+    })
+
+    harness.handle('wf.namingResult', async function (args) {
+      const sid = args && args.sessionId
+      const outcome = args && args.outcome
+      if (!sid || !outcome) return { ok: false, error: { kind: 'parse', message: '缺少 sessionId/outcome' } }
+      const st = await loadNamingState()
+      const entry = st.sessions[sid]
+      if (!entry) return { ok: true }
+      const core = await getNamingCore()
+      if (!core) return { ok: true }
+      // renamed/locked 入账；failed 不动账（留待下一轮渲染钩子重试；#267 收口有限重试预算）
+      if (outcome === 'renamed' && args.title) st.sessions[sid] = core.reduceTrackingState(entry, { type: 'renamed', title: String(args.title) })
+      else if (outcome === 'locked') st.sessions[sid] = core.reduceTrackingState(entry, { type: 'locked' })
+      markNamingStateDirty()
+      return { ok: true }
+    })
+
     // ============ #190：wf.openFolder — 打开本地文件夹（Markdown 后端仓库名点击）============
     // 输入：{ cwd }；平台分发：win32 explorer / darwin open / linux xdg-open（经 platform.resolveExecutable），subprocess.spawn 打开
     harness.handle('wf.openFolder', async function (args) {
@@ -2119,6 +2248,9 @@ export default {
     // ============ 轮询：已按 #348 拍板 Q3 关闭（60s 全量 × 8 map ≈ 2400-4800 GraphQL points/h 贴 5000 限额）============
     // 刷新策略 = 纯手动（状态条/面板按钮 wf.refresh）+ 打开面板即刷（client 侧 loadSnapshot）。
     // P1 若做状态变化 toast 提醒，再考虑低频自动（届时恢复本块并观察配额）。
+
+    // #265：命名守护常驻轻量任务启动（脏账落盘心跳；守护块见上）
+    startNamingGuardianLoop()
 
     // B3 rpc 通道注册：/dsws → dispatch 表（loopback 权威）
     try {

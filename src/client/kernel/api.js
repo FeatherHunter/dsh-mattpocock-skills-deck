@@ -38,76 +38,94 @@
 // r4（#62/#63 回归 2026-08-21）：旧 r3 用 boolean consumedDraftRef 导致首次消费后 ref=true 常驻，任何新会话 effect 直接 return（62/63 新开会话不注入）；且 pendingDraft 为全局单变量，旧会话重渲染若 deps 含 props 可能抢先消费。r4 改为 sid 锚定：pendingDraftTargetSid 记录新会话 sid，消费侧仅当 pendingDraftTargetSid===props.sessionId 才消费，且 ref 按 sid 存储。
 export let pendingDraft = null
 export let pendingDraftTargetSid = null
-    // #211 双通道重命名：A host watcher + B 兜底轮询 1s/120s，独立 map 互不互斥，失败保持 [New] + toast
-    export let pendingNewSessions = new Map()
-    export const NEW_SESSION_POLL_INTERVAL = 1000
-    export const NEW_SESSION_POLL_MAX = 120
-    export function stopRenamePoll(sid) {
-      const ent = pendingNewSessions.get(sid)
-      if (ent) { ent.stopped = true; if (ent.timer) try { clearTimeout(ent.timer) } catch (e) {} pendingNewSessions.delete(sid) }
-      try { if (typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.cancelNewSessionWatcher', { sessionId: sid }).catch(function(){}) } catch(e){}
-    }
-    export function tryAutoRename(sid, placeholder, placeholderTs, number, rawTitle) {
-      const ent = pendingNewSessions.get(sid)
-      if (!ent || ent.stopped) return
-      const now = Date.now()
-      const elapsed = now - (placeholderTs || ent.placeholderTs || 0)
-      if (elapsed < 5000 && ent.userRenamed) { ent.stopped = true; if (ent.timer) try{clearTimeout(ent.timer)}catch(e){} pendingNewSessions.delete(sid); return }
-      let finalTitle = ''
+    // ============ 命名守护（#265 · 草稿档垂直线 · 界面半渲染钩子）============
+    // 分工（#264 D2）：host 常驻轻量任务持跟踪态并产出「待办改名计划单」（wf.namingPlan）；
+    // 本侧只做渲染钩子 —— 拉取计划单、按本机语言落地档位词、经会话门面（face.rename）执行改名、回报结果。
+    // 纯判定真源 = src/shared/naming-guardian.js（构建经 shared:namingGuardian splice 注入本闭包，无第二处实现）。
+    // 旧 #211 的 5 秒手改跳过标记（死代码）自本版起全面移除：手改保护由值比对锁真检测承担。
+    export const NAMING_POLL_MS = 5000
+    let _namingPollTimer = null
+    let _namingPullBusy = false
+    // 值比对锁的「当前标题」来源：sessions.list 快照 byId[sid].title（Dsh SessionManager 列表投影）
+    export function namingCurrentTitleOf(sid) {
       try {
-        const t = { number: number, title: rawTitle || '' }
-        finalTitle = (typeof newSessionTitle === 'function') ? newSessionTitle(t) : ('[#'+number+'] '+(rawTitle||''))
-      } catch(e){ finalTitle = '[#'+number+'] '+(rawTitle||'') }
+        const sessions = ctx.get('sessions')
+        if (!sessions || !sessions.list || typeof sessions.list.getSnapshot !== 'function') return null
+        const snap = sessions.list.getSnapshot()
+        const row = snap && snap.byId ? snap.byId[sid] : null
+        if (row && typeof row.title === 'string' && row.title) return row.title
+      } catch (e) {}
+      return null
+    }
+    // 面包屑语义线索：claim 源节点优先，其次首节点（与 recordIssuePath 记账同源 · CONTEXT「面包屑」词条）
+    export function namingHintOf(st) {
+      try {
+        const ip = st && st.issuePath
+        if (ip && Array.isArray(ip.nodes) && ip.nodes.length) {
+          const claim = ip.nodes.find(function (n) { return n.source === 'claim' && n.title })
+          const src = claim || ip.nodes[0]
+          return src && src.title ? String(src.title).slice(0, 80) : null
+        }
+      } catch (e) {}
+      return null
+    }
+    function reportNamingResult(sid, outcome, extra) {
+      try {
+        if (typeof host !== 'undefined' && typeof host.call === 'function') {
+          host.call('wf.namingResult', Object.assign({ sessionId: sid, outcome: outcome }, extra || {})).catch(function () {})
+        }
+      } catch (e) {}
+    }
+    // 执行一条计划单：值比对锁判定（判手改即锁定回报，永不触碰）→ 本机语言合成草稿名 → face.rename → 回报
+    export function executeNamingOrder(o) {
+      if (!o || o.kind !== 'draft' || !o.sessionId) return
+      const sid = o.sessionId
+      const lock = o.lock || {}
+      const cur = namingCurrentTitleOf(sid)
+      if (cur === null) return  // 当前标题不可读：本轮跳过，绝不盲写
+      const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
+      if (judge === 'locked' || lock.locked) { reportNamingResult(sid, 'locked', { currentTitle: cur }); return }
+      if (judge === 'unknown') return
+      let langIsEn = false
+      try { langIsEn = typeof promptLang === 'function' && promptLang() === 'en' } catch (eLang) {}
+      const target = composeDraftTitle({ hint: o.hint, lang: langIsEn ? 'en' : 'zh' })
+      if (!target || target === cur) { reportNamingResult(sid, 'renamed', { title: cur }); return }  // 已在位（如上次改名落定但回报失败）→ 收敛记账
       try {
         const sessions = ctx.get('sessions')
         if (!sessions || typeof sessions.scope !== 'function' || typeof sessions.sessionOf !== 'function') return
         const scope = sessions.scope(sid)
         const face = scope ? sessions.sessionOf(scope) : null
         if (!face || typeof face.rename !== 'function') return
-        face.rename(finalTitle).then(function(){
-          const e2 = pendingNewSessions.get(sid)
-          if (e2) { e2.stopped = true; if (e2.timer) try{clearTimeout(e2.timer)}catch(e){} pendingNewSessions.delete(sid) }
-          try { if (typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.cancelNewSessionWatcher', { sessionId: sid }).catch(function(){}) } catch(e){}
-          try { const ns = (typeof storeOf==='function'?storeOf(sid):null); if (ns) flash(ns, tr('toast.sessionRenamed', {n:String(number), title: rawTitle||''}), 'ok') } catch(e){}
-        }).catch(function(){})
-      } catch(e){}
+        Promise.resolve(face.rename(target)).then(function (r) {
+          if (r && r.ok) reportNamingResult(sid, 'renamed', { title: (r.value && r.value.title) || target })
+          else reportNamingResult(sid, 'failed', { error: (r && r.error && r.error.message) || 'rename failed' })
+        }).catch(function () { reportNamingResult(sid, 'failed', { error: 'rename rejected' }) })
+      } catch (eExec) {}
     }
-    export function startNewSessionRenamePoll(sid, placeholder, placeholderTs, cwd) {
-      if (pendingNewSessions.has(sid)) return
-      const ent = { placeholder: placeholder, placeholderTs: placeholderTs, cwd: cwd, tries: 0, timer: null, stopped: false, userRenamed: false }
-      pendingNewSessions.set(sid, ent)
-      const tick = function(){
-        if (ent.stopped || !pendingNewSessions.has(sid)) return
-        if (ent.tries >= NEW_SESSION_POLL_MAX) {
-          const e = pendingNewSessions.get(sid)
-          if (e) { e.stopped = true; if (e.timer) try{clearTimeout(e.timer)}catch(e2){} pendingNewSessions.delete(sid) }
-          try { const ns = (typeof storeOf==='function'?storeOf(sid):null); const stx = ns || {sessionId:sid}; flash(stx, tr('toast.newSessionKeepPlaceholder'), 'warn') } catch(e){}
-          try { if (typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.cancelNewSessionWatcher', { sessionId: sid }).catch(function(){}) } catch(e){}
-          return
+    // 渲染钩子：拉取计划单 → 执行 → 回报（防重入；host 无单时零开销）
+    export function namingGuardianKick() {
+      if (typeof host === 'undefined' || typeof host.call !== 'function') return
+      if (_namingPullBusy) return
+      _namingPullBusy = true
+      host.call('wf.namingPlan', {}).then(function (res) {
+        _namingPullBusy = false
+        if (!res || !res.ok || !Array.isArray(res.orders)) return
+        for (let i = 0; i < res.orders.length; i++) executeNamingOrder(res.orders[i])
+      }).catch(function () { _namingPullBusy = false })
+    }
+    // 常驻拉询（web 半加载即活，面板未开也续跑；globalThis 单例句柄清热重载遗留环）
+    export function startNamingGuardianPoll() {
+      try {
+        if (typeof globalThis !== 'undefined') {
+          const prev = globalThis.__dswsNamingPollTimer
+          if (prev) try { clearTimeout(prev) } catch (ePrev) {}
         }
-        ent.tries++
-        if (typeof host !== 'undefined' && typeof host.call === 'function') {
-          host.call('wf.issuePathPoll', { since: (typeof _issuePathPollTs !== 'undefined' ? _issuePathPollTs : 0) }).then(function(res){
-            if (ent.stopped) return
-            if (res && res.ok && Array.isArray(res.events) && res.events.length) {
-              for (let i=0;i<res.events.length;i++) {
-                const ev = res.events[i]
-                if (ev && ev.ref) { tryAutoRename(sid, placeholder, placeholderTs, ev.ref, ev.title||''); if (!pendingNewSessions.has(sid)) break }
-              }
-            } else if (res && Array.isArray(res) && res.length) {
-              // 兼容旧形状
-              res.forEach(function(ev){ if(ev&&ev.ref) tryAutoRename(sid, placeholder, placeholderTs, ev.ref, ev.title||'') })
-            }
-            if (!ent.stopped && pendingNewSessions.has(sid)) ent.timer = setTimeout(tick, NEW_SESSION_POLL_INTERVAL)
-          }).catch(function(){ if (!ent.stopped && pendingNewSessions.has(sid)) ent.timer = setTimeout(tick, NEW_SESSION_POLL_INTERVAL) })
-        } else {
-          if (!ent.stopped && pendingNewSessions.has(sid)) ent.timer = setTimeout(tick, NEW_SESSION_POLL_INTERVAL)
-        }
-      }
-      ent.timer = setTimeout(tick, NEW_SESSION_POLL_INTERVAL)
-      if (typeof host !== 'undefined' && typeof host.call === 'function') {
-        try { host.call('wf.registerNewSessionWatcher', { sessionId: sid, placeholder: placeholder, cwd: cwd }).then(function(r){ if (r && r.ok && r.number) tryAutoRename(sid, placeholder, placeholderTs, r.number, r.title||'') }).catch(function(){}) } catch(e){}
-      }
+      } catch (eGuard) {}
+      if (_namingPollTimer) return
+      namingGuardianKick()
+      const tick = function () { namingGuardianKick(); _namingPollTimer = setTimeout(tick, NAMING_POLL_MS) }
+      _namingPollTimer = setTimeout(tick, NAMING_POLL_MS)
+      try { if (typeof globalThis !== 'undefined') globalThis.__dswsNamingPollTimer = _namingPollTimer } catch (eKeep) {}
     }
     // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑
     // 需求1·二阶段 rev（2026-08-18）：灰/亮双态的真实依据 = 磁盘上确实存在交接文档（wf.handoffLatest 探测）。
@@ -277,23 +295,29 @@ export let pendingDraftTargetSid = null
               for (let _i=1; _i<__refs.length; _i++) recordIssuePath(ns, __refs[_i], 'mention', '')
             }
           } catch (e) {}
-          // 自动命名（失败不阻塞打开）- #211 占位标题已在创建前确定，跟随 harness 语言
+          // 自动命名（失败不阻塞打开）— 占位标题在创建前已确定，跟随 harness 语言；
+          // 改名落定后把会话交给命名守护（#265）：以宿主实际接受的归一化占位标题为基准注册跟踪态，
+          // 附面包屑语义线索；此后常驻渲染钩子按计划单执行草稿档升级，值比对锁守护手改。
           const __placeholderTitle = title
-          const __placeholderTs = Date.now()
           try {
             const scopeCtx = sessions.scope(sid)
             const face = scopeCtx ? sessions.sessionOf(scopeCtx) : undefined
-            if (face && typeof face.rename === 'function') face.rename(title).catch(function () { /* 命名失败忽略 */ })
-          } catch (e) { /* 命名失败忽略 */ }
-          // #211 双通道：占位 [New] 态若命中则启动 host watcher A + client 兜底 B；在新会话内获号后二次 rename 为 [#n] title
-          try {
-            const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(__placeholderTitle) : /^\[New\] /.test(String(__placeholderTitle)))
-            if (isPlaceholder) {
-              // 在新会话 store 上标记占位，便于手动 rename 检测（5s 内用户优先）
-              try { if (ns) { ns._placeholderTitle = __placeholderTitle; ns._placeholderTs = __placeholderTs } } catch(e){}
-              startNewSessionRenamePoll(sid, __placeholderTitle, __placeholderTs, cwd)
+            const registerTracked = function (acceptedTitle) {
+              try {
+                const name0 = acceptedTitle || __placeholderTitle
+                const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(name0) : /^\[New\] /.test(String(name0)))
+                if (!isPlaceholder) return
+                if (typeof host !== 'undefined' && typeof host.call === 'function') {
+                  host.call('wf.namingRegister', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns) : null) }).then(function () { namingGuardianKick() }).catch(function () {})
+                }
+              } catch (eReg) {}
             }
-          } catch(e){}
+            const runRename = (face && typeof face.rename === 'function') ? Promise.resolve(face.rename(title)) : Promise.resolve(null)
+            runRename.then(function (rRename) {
+              const accepted = (rRename && rRename.ok && rRename.value && rRename.value.title) ? rRename.value.title : null
+              registerTracked(accepted)
+            }).catch(function () { registerTracked(null) })
+          } catch (eName) { /* 命名失败忽略 */ }
           // 预填（r4）：写入 pendingDraft + 目标 sid 锚定，消费侧仅新会话消费，杜绝旧会话抢先
           pendingDraft = text
           pendingDraftTargetSid = sid

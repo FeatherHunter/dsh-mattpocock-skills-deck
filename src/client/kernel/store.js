@@ -94,6 +94,8 @@
         if (title && !last.title) last.title = String(title).slice(0, 80)
         ip.current = n
         ip.updatedAt = now
+        // #265 命名守护：面包屑线索信号（host 忽略未受踪会话；线索即面包屑节点标题）
+        try { if (st.sessionId && title && typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.namingSignal', { sessionId: st.sessionId, hint: String(title).slice(0, 80) }).catch(function () {}) } catch (eSigA) {}
         persistIssuePath(st); emit(st); return true
       }
       ip.nodes.push({ ref: n, source: String(source || 'auto'), ts: now, title: String(title || '').slice(0, 80) })
@@ -101,6 +103,8 @@
       if (ip.nodes.length) ip.anchor = ip.nodes[0].ref
       ip.current = n
       ip.updatedAt = now
+      // #265 命名守护：面包屑线索信号（host 忽略未受踪会话；线索即面包屑节点标题）
+      try { if (st.sessionId && title && typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.namingSignal', { sessionId: st.sessionId, hint: String(title).slice(0, 80) }).catch(function () {}) } catch (eSigB) {}
       persistIssuePath(st); emit(st); return true
     }
     export const reanchorIssuePath = function (st, ref) {

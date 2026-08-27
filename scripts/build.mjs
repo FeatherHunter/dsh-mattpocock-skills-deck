@@ -183,6 +183,13 @@ const KERNEL_MODULES = [
   { name: 'router', file: 'src/client/kernel/router.js' },
 ]
 
+// ---------- 共享核心拼装（一源两物 · #265）----------
+/** 共享纯函数模块（src/shared/*）：host 半运行时 import()；client 半按与 kernel 同模式的
+ *  标记拼回闭包 —— 原文零复制（去行首 export），两半共用同一份实现文本，无第二处命名真源。 */
+const SHARED_SPLICE = [
+  { marker: '// ==== shared:namingGuardian (spliced by build) ====', file: 'src/shared/naming-guardian.js' },
+]
+
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
 /** 叶子组件模块清单（G3 共享 → views/shared/ · G4 严格一文件 ≤350 行）。
  *  与 kernel 同模式：index.js 中原位置留标记 `// ==== leaf:<id> (spliced by build) ====`，
@@ -228,6 +235,11 @@ function wireModules(body) {
   for (const m of LEAF_MODULES) {
     const marker = `// ==== leaf:${m.id} (spliced by build) ====`
     if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 LEAF_MODULES 注册`)
+    out = out.replace(marker, extractModuleBlock(m.file))
+  }
+  for (const m of SHARED_SPLICE) {
+    const marker = m.marker
+    if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 SHARED_SPLICE 注册`)
     out = out.replace(marker, extractModuleBlock(m.file))
   }
   // 反向检查：src 下有叶子文件却未在 LEAF_MODULES 登记（比“忘贴纸条”更隐蔽）
