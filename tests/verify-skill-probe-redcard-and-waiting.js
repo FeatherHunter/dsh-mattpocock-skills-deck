@@ -37,7 +37,8 @@ function chainToRow(chainRes) {
 const callChain = async (dispatch, payload) => {
   if (!dispatch) return { checks: [] }
   // 链为串行求值：前置（已选后端/已初始化）须通过，技能步才会被求值；测试环境显式给定后端
-  const res = await dispatch('chain', Object.assign({}, payload, { backendId: 'github', force: true }))
+  // #284 修订：链上检查项逐项独立求值（不依赖前置通过）——测试不再注入后端、不再预置初始化文件
+  const res = await dispatch('chain', Object.assign({}, payload, { force: true }))
   return chainToRow(res)
 }
 
@@ -208,8 +209,6 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
     // 调用 wf.chain 并检查 wayfinder 步骤的 detail 区分（#284 迁移）
     // 场景 A：目录完全缺失 -> 应为缺失
     files.clear()
-    // #284：链串行求值需要前置通过 —— 预置 issue-tracker.md（tracker:initialized）
-    files.set(join(tmpHome, 'docs/agents/issue-tracker.md'), '# tracker\n\ntracker: markdown')
     // 需要触发一次订阅（probe 会尝试订阅）
     let statusA = null
     {
@@ -312,7 +311,7 @@ console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
     async getHome() { return tmpHome2 },
     async resolveExecutable() { return null },
     env: { get: () => undefined, has: () => false },
-    fs: { resolve: async (p)=>String(p), readText: async (p)=>{ if (String(p).includes('issue-tracker.md')) return '# tracker'; throw new Error('not found') }, lstat: async ()=>undefined, exists: async (p)=>String(p).includes('issue-tracker.md') },
+    fs: { resolve: async (p)=>String(p), readText: async ()=>{throw new Error('not found')}, lstat: async ()=>undefined, exists: async ()=>false },
   }
   const offPath = '/tmp/other-skills/wayfinder'
   // #284：链串行求值需要前置通过
@@ -330,12 +329,6 @@ console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
     async lstat(){ return undefined },
     async exists(){ return false },
   }
-  // #284：前置通过需要 issue-tracker.md 存在（exists 与 readText 双通道）
-  fsMock2.readText = async (p) => {
-    if (String(p).includes('issue-tracker.md')) return '# tracker\n\ntracker: markdown'
-    throw new Error('not found')
-  }
-  fsMock2.exists = async (p) => String(p).includes('issue-tracker.md')
   const subprocess2 = { async resolveExecutable(){return null}, spawn(){ return { done: Promise.resolve({exitCode:0}), collected:{stdout:{readFrom:()=>({text:''})}, stderr:{readFrom:()=>({text:''})}}, terminate(){} } } }
   const timer2 = { timeout: (a,b)=> (typeof a==='function'? setTimeout(a,b): new Promise(r=>setTimeout(r,a))) }
   const handlers2 = {}
@@ -386,15 +379,9 @@ console.log('\n— 验收4：等待态 有界推进 + 失效广播 + 封顶失�
     async getHome(){ return tmpHome3 },
     async resolveExecutable(){return null},
     env: { get:()=>undefined, has:()=>false },
-    fs: { resolve: async(p)=>String(p), readText: async (p)=>{ if (String(p).includes('issue-tracker.md')) return '# tracker'; throw new Error('not found') }, lstat: async()=>undefined, exists: async (p)=>String(p).includes('issue-tracker.md') },
+    fs: { resolve: async(p)=>String(p), readText: async ()=>{throw new Error('not found')}, lstat: async()=>undefined, exists: async ()=>false },
   }
   const fsMock3 = { async resolve(p){return String(p)}, async readText(){throw new Error('not found')}, async lstat(){return undefined}, async exists(){return false} }
-  // #284：前置通过需要 issue-tracker.md 存在（exists 与 readText 双通道）
-  fsMock3.readText = async (p) => {
-    if (String(p).includes('issue-tracker.md')) return '# tracker\n\ntracker: markdown'
-    throw new Error('not found')
-  }
-  fsMock3.exists = async (p) => String(p).includes('issue-tracker.md')
   let shouldThrow = true
   let capturedHandler = null
   let installedSet = new Set()
@@ -441,7 +428,7 @@ console.log('\n— 验收4：等待态 有界推进 + 失效广播 + 封顶失�
   const getStatusPlain = async () => {
     const dispatch = handlers3['/dsws']
     if (!dispatch) return null
-    const res = await dispatch('chain', { cwd: tmpHome3, lang: 'zh', backendId: 'github' })
+    const res = await dispatch('chain', { cwd: tmpHome3, lang: 'zh' })
     return chainToRow(res)
   }
   let s1 = await getStatus()
