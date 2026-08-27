@@ -13,6 +13,10 @@ process.chdir(tmp)
 
 let failures = 0
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
+const sleep = (ms) => new Promise(function (res) { setTimeout(res, ms) })
+// #266：gh api 索引快照由 stub 返回（测试可控；新号出现模拟「面板关闭期间会话内建号」）
+const GH_BASE = '{"number":1,"title":"既有一","state":"OPEN","updatedAt":"u1"}\n{"number":2,"title":"既有二","state":"CLOSED","updatedAt":"u2"}\n'
+let ghIndexText = GH_BASE
 
 // fs 服务适配器：resolve 直通路径 + readText/writeText 走真实文件系统
 const fsSvc = {
@@ -26,13 +30,14 @@ const platformSvc = {
   getHome: async () => tmp,
   path: pathMod,
   fs: fsSvc,
-  resolveExecutable: async () => null,
+  resolveExecutable: async () => 'gh',
   env: { get: () => undefined },
 }
 
 function makeCtx(capture) {
-  const subprocess = { async resolveExecutable() { return null }, spawn() { return { stdout: { on: () => {} }, stderr: { on: () => {} }, on: () => {}, terminate: () => {}, done: Promise.resolve({ exitCode: 0 }), collected: {} } } }
-  const timer = { timeout: (fn, ms) => setTimeout(fn, ms) }
+  const subprocess = { async resolveExecutable() { return 'gh' }, spawn() { return { stdout: { on: () => {} }, stderr: { on: () => {} }, on: () => {}, terminate: () => {}, done: Promise.resolve({ exitCode: 0 }), collected: { stdout: { readFrom: () => ({ text: ghIndexText }) }, stderr: { readFrom: () => ({ text: '' }) } } } } }
+  // host 的真实 timer 服务双签名：timeout(fn, ms) 节流 / timeout(ms) → Promise（runGh 超时竞速用）
+  const timer = { timeout: (a, b) => (typeof a === 'function' ? setTimeout(a, b) : new Promise(function (res) { setTimeout(res, a) })) }
   const services = { subprocess, timer, fs: fsSvc, platform: platformSvc, connection: { rpc: { handle: (p, fn) => { capture.fn = fn } } } }
   return { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
 }
@@ -94,6 +99,35 @@ try {
   ;((m3.apply ?? m3.default?.apply))(makeCtx(d3))
   const planLock = await callHandler(d3.fn, 'namingPlan', {})
   check(planLock.ok === true && Array.isArray(planLock.orders) && planLock.orders.every(function (o) { return o.sessionId !== 'io-s3' }), '再次重启后 locked 会话仍永不出单（值比对锁持久化成立）')
+  // ---- #266：索引差值底座跨重启（面板关闭期间建号 → 重启后 attributed）----
+  // 实例一内：注册 io-s4（repoKey acme/demo）+ 基线建档（GH_BASE，无归属，索引落盘）
+  const reg4 = await callHandler(d1.fn, 'registerNewSessionWatcher', { sessionId: 'io-s4', baselineTitle: '[New] New Bug', cwd: '', repoKey: 'acme/demo' })
+  check(reg4.ok === true, 'registerNewSessionWatcher 受理（#266 实例一）')
+  await callHandler(d1.fn, 'awaitCreatedIssue', { sessionId: 'io-s4' })
+  await sleep(2600)  // 注册 nudge 结算（基线，800ms 窗）+ 1.2s 防抖落盘窗口
+  {
+    const jIdx = JSON.parse(readFileSync(stateFile, 'utf8'))
+    check(jIdx.indexes && jIdx.indexes['acme/demo'] && jIdx.indexes['acme/demo']['2'], '索引快照随账目落盘（差值底座持久化）')
+  }
+  // 模拟「面板关闭（DSH 进程被重启）期间会话内建号」：新实例加载盘上账 → 索引含新号 77
+  ghIndexText = GH_BASE + '{"number":77,"title":"关闭期间建的需求","state":"OPEN","updatedAt":"u77"}\n'
+  const mod4Raw = await import('../package/lib/index.js?restart=266')
+  const m4 = mod4Raw.default ?? mod4Raw
+  let d4 = {}
+  ;((m4.apply ?? m4.default?.apply))(makeCtx(d4))
+  const await4 = await callHandler(d4.fn, 'awaitCreatedIssue', { sessionId: 'io-s4' })
+  check(!!await4 && await4.ok === true && await4.watching === true, '重启后 io-s4 仍在等待建号')
+  await sleep(600)
+  const plan4 = await callHandler(d4.fn, 'namingPlan', {})
+  const order4 = (plan4 && Array.isArray(plan4.orders)) ? plan4.orders.find(function (o) { return o.sessionId === 'io-s4' }) : null
+  check(!!order4 && order4.kind === 'numbered' && order4.number === 77 && order4.title === '关闭期间建的需求', '重启后差值结算 → numbered 订单（#266 跨重启归属）')
+  const res4 = await callHandler(d4.fn, 'namingResult', { sessionId: 'io-s4', outcome: 'renamed', title: '[#77] 关闭期间建的需求' })
+  check(!!res4 && res4.ok === true, '重启后 numbered renamed 回报受理')
+  const plan4Done = await callHandler(d4.fn, 'namingPlan', {})
+  check(!!plan4Done && Array.isArray(plan4Done.orders) && plan4Done.orders.every(function (o) { return o.sessionId !== 'io-s4' }), '重启后落定收敛不再出单')
+  await callHandler(d4.fn, 'cancelNewSessionWatcher', { sessionId: 'io-s4' })
+  const plan4Prune = await callHandler(d4.fn, 'namingPlan', {})
+  check(!!plan4Prune && Array.isArray(plan4Prune.orders) && plan4Prune.orders.every(function (o) { return o.sessionId !== 'io-s4' }), '取消监视后清账（终局清理通道可用）')
 } catch (e) {
   check(false, 'IO 冒烟异常: ' + String((e && e.stack || e)).split('\n').slice(0, 4).join(' | '))
 } finally {
