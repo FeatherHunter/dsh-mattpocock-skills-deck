@@ -256,5 +256,85 @@ console.log('\n— 编号归属（索引差值 · 纯函数）—')
   eq(sameTs[0].sessionId, 'a', '同时间戳以 sessionId 决胜（确定性）')
 }
 
+// ---------- 10) 失败可见性与有限重试（#267 · F4）----------
+console.log('\n— 失败可见性与有限重试（#267）—')
+{
+  const st0 = m.createTrackingState({ sessionId: 'f1', baselineTitle: '[New] 新建需求', repoKey: null })
+  const st1 = m.reduceTrackingState(st0, { type: 'signal', hint: '登录闪退' })
+  // 第一次失败：入账（计数/时刻/摘要），冷却窗内静默、窗外自愈
+  const fa = m.reduceTrackingState(st1, { type: 'renameFailed', error: 'boom-1' })
+  eq(fa.failCount, 1, 'renameFailed 入账计数')
+  check(typeof fa.lastFailAt === 'number' && fa.lastFailAt > 0, '失败时刻入账')
+  eq(fa.lastError, 'boom-1', '错误摘要入账')
+  eq(m.planOrderFor(fa, fa.lastFailAt + 1000, 20000), null, '冷却窗内不重复出单（自愈窗口）')
+  check(!!m.planOrderFor(fa, fa.lastFailAt + 46000, 20000), '冷却窗外重新出单（瞬时故障可自愈）')
+  eq(m.namingFailureInfo(fa), null, '未达预算上限 → 无定败画像')
+  // 连败达上限：定败 —— 永不再出单，失败画像携完整字段供面板呈现
+  let stx = st1
+  for (let i = 0; i < m.NAMING_RETRY_MAX; i++) stx = m.reduceTrackingState(stx, { type: 'renameFailed', error: 'boom-' + (i + 1) })
+  eq(stx.failCount, m.NAMING_RETRY_MAX, '连败累计达预算上限')
+  eq(m.planOrderFor(stx, stx.lastFailAt + 99999999, 20000), null, '定败后永不再出单')
+  const fi = m.namingFailureInfo(stx)
+  check(!!fi && fi.sessionId === 'f1' && fi.stage === m.NAMING_STAGES.PLACEHOLDER && fi.kind === 'draft', '定败画像：身份 + 档位 + 形态')
+  check(fi && fi.hint === '登录闪退' && fi.count === m.NAMING_RETRY_MAX && fi.error === 'boom-3', '定败画像：线索 / 次数 / 末次错误')
+  check(fi && fi.lock && fi.lock.baselineTitle === '[New] 新建需求' && fi.lock.lastMachineTitle === null && fi.lock.locked === false, '定败画像附值比对锁信息（协商化解依据）')
+  // 化解路 A：手改 → locked 终局 → 提醒撤下
+  const stMan = m.reduceTrackingState(stx, { type: 'locked' })
+  eq(m.planOrderFor(stMan, Date.now(), 20000), null, '手改锁定后不出单（永不触碰）')
+  eq(m.namingFailureInfo(stMan), null, '锁定即化解：定败画像清零')
+  // 化解路 B：值一致收敛（上次实际落定但回报丢失）→ renamed 记账清账
+  const rec = m.reduceTrackingState(stx, { type: 'renamed', title: '[草稿] 登录闪退' })
+  eq(rec.failCount, 0, '成功改名清账（预算重开）')
+  eq(rec.lastError, null, '成功改名清错误摘要')
+  eq(rec.stage, m.NAMING_STAGES.DRAFT, '值一致收敛仍完成档位跃迁')
+  eq(m.namingFailureInfo(rec), null, '收敛后定败画像消失')
+  // 编号跃迁 = 换目标重开预算（草稿期连败不得拖累编号档命名义务）
+  const base2 = m.createTrackingState({ sessionId: 'f2', baselineTitle: '[New] 新建需求', repoKey: 'o/r' })
+  let stD2 = base2
+  for (let i = 0; i < m.NAMING_RETRY_MAX; i++) stD2 = m.reduceTrackingState(stD2, { type: 'renameFailed', error: 'e' })
+  const stN2 = m.reduceTrackingState(stD2, { type: 'numbered', number: 9, title: 't9' })
+  eq(stN2.failCount, 0, '全新获号重开预算（防跨档拖累）')
+  check(!!m.planOrderFor(stN2, Date.now(), 20000) && m.planOrderFor(stN2, Date.now(), 20000).kind === 'numbered', '编号档新预算立即可出单')
+  // 防御：锁定会话收不到也记不了失败入账
+  const stL2 = m.reduceTrackingState(base2, { type: 'locked' })
+  const stLF = m.reduceTrackingState(stL2, { type: 'renameFailed', error: 'nope' })
+  eq(stLF.failCount, 0, '锁定会话失败入账忽略')
+}
+
+// ---------- 11) 守卫断言随迁（#267 · F4 · 防 e98f636 式静默删除）----------
+console.log('\n— #267 守卫断言 —')
+{
+  const hostG = readFileSync(join(ROOT, 'src/host/index.js'), 'utf8')
+  check(hostG.includes("outcome === 'failed'"), 'host namingResult 收 failed 回报')
+  check(hostG.includes("{ type: 'renameFailed', error: args.error }"), 'host failed 走共享核心 renameFailed 入账（单一真源）')
+  check(hostG.includes('core.namingFailureInfo(s)'), 'host 定败画像取自共享核心纯函数')
+  check(hostG.includes('failures: failures'), 'wf.namingPlan 回包携带 failures 清单')
+  check(hostG.includes('exhausted: !!core.namingFailureInfo(next)'), 'failed 回报回执携带定败标记')
+  // 预算常量只活在共享核心（两半均不得私藏第二份预算实现）
+  check(!hostG.includes('NAMING_RETRY_MAX') && !hostG.includes('NAMING_RETRY_COOLDOWN_MS'), 'host 半无私藏重试预算常量')
+
+  const apiG = readFileSync(join(ROOT, 'src/client/kernel/api.js'), 'utf8')
+  check(apiG.includes('function reconcileNamingFailure'), '界面半协商化解函数存在（只读探测绝不盲写）')
+  check(apiG.includes('function applyNamingFailurePanel'), '面板级同步函数存在（共享 store 落账）')
+  check(apiG.includes('Array.isArray(res.failures)') && apiG.includes('reconcileNamingFailure(fails[i])') && apiG.includes('applyNamingFailurePanel(fails)'), '渲染钩子拉询链消费 failures 清单')
+  check(apiG.includes("evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })"), '协商化解走同一值比对锁真源')
+  check(!apiG.includes('NAMING_RETRY_MAX') && !apiG.includes('NAMING_RETRY_COOLDOWN_MS'), 'client 内核无私藏重试预算常量')
+
+  const dockG = readFileSync(join(ROOT, 'src/client/panel/Dock.js'), 'utf8')
+  check(dockG.includes("cx.storeSvc.useStore(null)") || dockG.includes('useStore(null)'), 'DetailsDock 订阅共享 store（面板级而非会话级）')
+  check(dockG.includes('shS.namingFailures'), 'Dock 横幅消费共享 store 定败清单')
+  check(dockG.includes("'data-naming-fail-banner': '1'"), '面板级定败横幅节点存在（非目标会话内 toast）')
+  check(dockG.includes("tr('naming.failTitle')") && dockG.includes("tr('naming.failHint')"), '横幅文案经 locale（双语跟随）')
+
+  const locG = readFileSync(join(ROOT, 'src/client/kernel/locale.js'), 'utf8')
+  for (const k of ['naming.failTitle', 'naming.failHint', 'naming.stageDraft']) {
+    check(locG.split("'" + k + "':").length - 1 === 2, 'locale 双语配对键：' + k)
+  }
+
+  const coreG = readFileSync(join(ROOT, 'src/shared/naming-guardian.js'), 'utf8')
+  check(coreG.includes('export const NAMING_RETRY_MAX') && coreG.includes('export const NAMING_RETRY_COOLDOWN_MS'), '重试预算常量单一真源在共享核心')
+  check(coreG.includes("kind: state.stage === NAMING_STAGES.NUMBERED ? 'numbered' : 'draft'"), '定败画像档位形态判定在核心')
+}
+
 console.log(failed ? '\n存在失败' : '\n全部通过 (' + total + ' checks)')
 process.exit(failed ? 1 : 0)

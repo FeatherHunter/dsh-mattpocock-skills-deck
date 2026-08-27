@@ -175,6 +175,10 @@
         'rz.n': '拖上边 = 加高面板', 'rz.s': '拖下边 = 加高面板', 'rz.e': '拖右边 = 加宽面板', 'rz.w': '拖左边 = 加宽面板',
         'rz.ne': '右上角缩放', 'rz.nw': '左上角缩放', 'rz.se': '右下角缩放', 'rz.sw': '左下角缩放',
         'toast.injectedHandoff': '已注入 /handoff 交接模板（含时间戳文件名），确认后发送',
+        // #267：命名链路定败的面板级横幅（有限重试耗尽后的失败可见性）
+        'naming.failTitle': '自动改名未成功（重试已达上限）',
+        'naming.failHint': '可手动为下列会话改名收尾；你亲手改过的名字永不被机器改写。',
+        'naming.stageDraft': '草稿档',
         'toast.copiedHandoff': '已复制交接文档指令',
         'toast.copiedHandoffFile': '已复制交接文档指令：{file}',
         'toast.handoffGrey': '请先点「交接」生成交接文档',
@@ -514,6 +518,10 @@
         'rz.n': 'Drag the top edge up = grow taller', 'rz.s': 'Drag the bottom edge down = grow taller', 'rz.e': 'Drag the right edge right = grow wider', 'rz.w': 'Drag the left edge left = grow wider',
         'rz.ne': 'Resize NE', 'rz.nw': 'Resize NW', 'rz.se': 'Resize SE', 'rz.sw': 'Resize SW',
         'toast.injectedHandoff': '/handoff template injected (timestamped filename) — confirm before sending',
+        // #267: panel-level banner for exhausted auto-rename retries
+        'naming.failTitle': 'Auto-rename failed (retry budget exhausted)',
+        'naming.failHint': 'Rename these sessions manually to finish; your manual names are never overwritten.',
+        'naming.stageDraft': 'draft tier',
         'toast.copiedHandoff': 'Handoff command copied',
         'toast.copiedHandoffFile': 'Handoff command copied: {file}',
         'toast.handoffGrey': 'Click Handoff first to generate the handoff doc',

@@ -113,6 +113,56 @@ export let pendingDraftTargetSid = null
         }).catch(function () { reportNamingResult(sid, 'failed', { error: 'rename rejected' }) })
       } catch (eExec) {}
     }
+    // ==== 面板级失败可见性（#267 · F4）====
+    // 定败（有限重试耗尽）会话的两条化解路，均「只读探测、绝不盲写」：
+    //   手改 → 值比对锁判 locked 回报（「手改永不被覆盖」闭环收尾，横幅随锁定终局消失）；
+    //   值一致（上次实际改名已落定但回报丢失）→ 按目标名收敛记账 renamed。
+    export function reconcileNamingFailure(f) {
+      if (!f || !f.sessionId || typeof evaluateRenameLock !== 'function') return false
+      const sid = f.sessionId
+      const cur = namingCurrentTitleOf(sid)
+      if (!cur) return false
+      const lock = f.lock || {}
+      const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
+      if (judge === 'unknown') return false
+      if (judge === 'locked' || lock.locked) { reportNamingResult(sid, 'locked', { currentTitle: cur }); return true }
+      let target = null
+      if (f.kind === 'numbered' || f.stage === NAMING_STAGES.NUMBERED) {
+        const num = Number(f.number)
+        if (!(isFinite(num) && num > 0)) return false
+        try { target = newSessionTitle({ number: num, title: f.numberTitle || '' }) } catch (eT) { return false }
+      } else {
+        let langIsEn = false
+        try { langIsEn = typeof promptLang === 'function' && promptLang() === 'en' } catch (eLang) {}
+        target = composeDraftTitle({ hint: f.hint, lang: langIsEn ? 'en' : 'zh' })
+      }
+      if (target && target === cur) { reportNamingResult(sid, 'renamed', { title: cur }); return true }
+      return false
+    }
+    // 定败清单 → 共享 store（DetailsDock 常驻横幅消费）；账目里会话已消失的不呈现（防幽灵横幅，账不动）。
+    export function applyNamingFailurePanel(failures) {
+      try {
+        const arr = Array.isArray(failures) ? failures : []
+        let rows = null
+        try {
+          const sessions = ctx.get('sessions')
+          if (sessions && sessions.list && typeof sessions.list.getSnapshot === 'function') {
+            const snap = sessions.list.getSnapshot()
+            rows = snap && snap.byId ? snap.byId : {}
+          }
+        } catch (eR) {}
+        const vis = arr.filter(function (f) { return f && f.sessionId && (!rows || rows[f.sessionId]) }).map(function (f) {
+          return Object.assign({}, f, { _title: (rows && rows[f.sessionId] && rows[f.sessionId].title) ? String(rows[f.sessionId].title) : '' })
+        })
+        const sh = storeOf(null)
+        const key = JSON.stringify(vis)
+        if (sh.namingFailKey !== key || !sh.namingFailures) {
+          sh.namingFailKey = key
+          sh.namingFailures = vis
+          emit(sh)
+        }
+      } catch (eF) {}
+    }
     // 渲染钩子：拉取计划单 → 执行 → 回报（防重入；host 无单时零开销）
     // #266 追加：tracked 终局清理 —— 已终局（锁定/编号落定）且会话已不存在于 DSH 列表的
     //   受踪账目经 wf.cancelNewSessionWatcher 注销（防账目堆积；未终局项绝不误删）。
@@ -124,6 +174,12 @@ export let pendingDraftTargetSid = null
         _namingPullBusy = false
         if (!res || !res.ok || !Array.isArray(res.orders)) return
         for (let i = 0; i < res.orders.length; i++) executeNamingOrder(res.orders[i])
+        // #267：定败清单 → 只读协商化解 + 落共享 store（面板级横幅；化解即自动撤下）
+        try {
+          const fails = Array.isArray(res.failures) ? res.failures : []
+          for (let i = 0; i < fails.length; i++) { try { reconcileNamingFailure(fails[i]) } catch (eRec) {} }
+          applyNamingFailurePanel(fails)
+        } catch (ePanel) {}
         try {
           if (!Array.isArray(res.tracked)) return
           const sessions = ctx.get('sessions')

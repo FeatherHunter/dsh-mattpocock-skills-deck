@@ -19,6 +19,8 @@ export     const DetailsDock = (props) => {
       const h = cx ? cx.h : React.createElement
       const summaryCwd = (props && typeof props.useSessions === 'function' && sid) ? props.useSessions(function (x) { return (x.byId && x.byId[sid]) ? x.byId[sid].cwd : undefined }) : undefined
       const s = cx ? cx.storeSvc.useStore(sid) : useStore(sid)
+      // #267：共享 store 订阅 —— 命名链路定败清单（namingFailures）由渲染钩子落账，横幅消费
+      const shS = cx ? cx.storeSvc.useStore(null) : useStore(null)
       const layoutSvc = ctx.get('layout')
       const dockRef = React.useRef(null)
       const [dw, setDw] = React.useState(460)
@@ -281,6 +283,30 @@ export     const DetailsDock = (props) => {
             h('button', { className:'dsws-btn', onClick:function(){ s.tab='list'; emit(s) }, style:{ fontSize:10, padding:'1px 6px', flex:'none', background:'#f59e0b', borderColor:'transparent', color:'#fff' } }, '去设置页绑定'),
           ])
           return null
+        })(),
+        // #267：命名链路定败的面板级常驻提醒（目标会话内不再闪 toast 而是面板层可见；
+        //   账面在共享 store，值比对化解——手改锁定/值一致收敛——后下一轮拉询自动撤下）
+        (function(){
+          const fls = ((shS && Array.isArray(shS.namingFailures)) ? shS.namingFailures : []).filter(function (f) { return f && f.sessionId })
+          if (!fls.length) return null
+          const items = []
+          for (let i = 0; i < fls.length && i < 3; i++) {
+            const f = fls[i]
+            const label = f._title || String(f.sessionId).slice(0, 10)
+            const tag = f.number != null ? ('#' + f.number) : tr('naming.stageDraft')
+            items.push(h('div', { key: f.sessionId || i, style: { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 } }, [
+              h('span', { style: { fontWeight: 700, flex: 'none' } }, tag),
+              h('span', { title: String(f.error || ''), style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, label),
+            ]))
+          }
+          return h('div', { 'data-naming-fail-banner': '1', style: { margin: '0 12px 6px', padding: '5px 8px', background: 'rgba(248,113,113,.10)', border: '1px solid rgba(248,113,113,.45)', color: '#f87171', fontSize: 11, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 3, flex: 'none' } }, [
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
+              Ic({ n: 'alert', size: 12, color: '#f87171' }),
+              h('span', { style: { fontWeight: 700, flex: 'none' } }, tr('naming.failTitle')),
+              h('span', { style: { fontWeight: 700, border: '1px solid rgba(248,113,113,.45)', borderRadius: 4, padding: '0 4px', flex: 'none' } }, String(fls.length)),
+            ]),
+            h('div', { style: { fontSize: 10, opacity: 0.85 } }, tr('naming.failHint')),
+          ].concat(items))
         })(),
         // 标签行下沿 = 与对话/轨迹一致的横线；右侧：刷新按钮 + 版本号（v1.3.3）— 门控时隐藏（容器不挂载语义：业务 tabs 不渲染，仅 Banner/Modal 可见）
         (_isPending || _isOther) ? null : h('div', { className: 'dsws-tabs', ref: tabsRef, style: { padding: '0 12px 7px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items),

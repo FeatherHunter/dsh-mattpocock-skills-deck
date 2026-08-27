@@ -2164,10 +2164,11 @@ export default {
 
     harness.handle('wf.namingPlan', async function () {
       const core = await getNamingCore()
-      if (!core) return { ok: true, orders: [], tracked: [] }
+      if (!core) return { ok: true, orders: [], tracked: [], failures: [] }
       const st = await loadNamingState()
       const orders = []
       const tracked = []
+      const failures = []   // #267：定败清单（有限重试耗尽）→ 面板级提醒（DetailsDock 横幅）
       for (const sid in st.sessions) {
         const s = st.sessions[sid]
         if (!s) continue
@@ -2184,8 +2185,11 @@ export default {
           }
         }
         tracked.push({ sessionId: sid, stage: s.stage, done: done })
+        // #267：定败画像随单回包 —— 化解前持续呈现；字段裁剪由共享核心统一裁定
+        const fi = core.namingFailureInfo(s)
+        if (fi) failures.push(fi)
       }
-      return { ok: true, orders: orders, tracked: tracked }
+      return { ok: true, orders: orders, tracked: tracked, failures: failures }
     })
 
     harness.handle('wf.namingResult', async function (args) {
@@ -2199,7 +2203,8 @@ export default {
       if (!core) return { ok: true }
       // renamed/locked 入账并即时持久化（#265 崩溃窗口补强）：锁账丢失会危及「手改永不被覆盖」，
       // 升级账丢失会让重启续跑多付一次改名——均为关键状态变更，不当延迟落盘。
-      // failed 不动账不写盘（留待下一轮渲染钩子重试；#267 收口有限重试预算）。
+      // #267：failed 同样即时落盘 —— 有限重试预算（连败计数/冷却窗）跨拉询与重启一致，
+      // 耗尽即定败并入 namingPlan.failures 面板级清单；预算语义由共享核心统一裁定。
       if (outcome === 'renamed' && args.title) {
         st.sessions[sid] = core.reduceTrackingState(entry, { type: 'renamed', title: String(args.title) })
         await persistNamingState()
@@ -2209,6 +2214,12 @@ export default {
         st.sessions[sid] = core.reduceTrackingState(entry, { type: 'locked' })
         await persistNamingState()
         return { ok: true }
+      }
+      if (outcome === 'failed') {
+        const next = core.reduceTrackingState(entry, { type: 'renameFailed', error: args.error })
+        st.sessions[sid] = next
+        await persistNamingState()
+        return { ok: true, exhausted: !!core.namingFailureInfo(next) }
       }
       return { ok: true }
     })
