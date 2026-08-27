@@ -232,10 +232,23 @@
     // T2 #7 · fetchIssueDetail 缓存与状态（独立于 snapshot，按 issue 号 60s TTL）
     export const ISSUE_CACHE_TTL = ((typeof SYNC === 'object' && SYNC && SYNC.ISSUE_CACHE_TTL) || 60000)
     // #155：后端选择 per-cwd 状态（权威来自 host snapshot.selection/repository；client 仅镜像乐观）
+    // 2026-08-28 修复「反复出现『该工作区还没有设置 — 点击选择后端』」：绑定记忆曾只存内存（selectionByCwd 对象），
+    //   DSH 重启/页面刷新后全部丢失；host 侧 registry.byHandle 与 workspaceStore 同样不落盘，唯一落盘锚是
+    //   issue-tracker.md 标题——只绑定过而未初始化的工作区，重启后 detect 回 fallback null，
+    //   于是每次打开会话都判定「未设置」。现改为 localStorage 持久化（与 listPrefs/labelClicks 同例），
+    //   打开会话 hydrate 即恢复绑定，重启不再丢。
     export const selectionByCwd = {}
     export const repositoryByCwd = {}
-    export const getCachedSelection = function (cwd) { return cwd ? selectionByCwd[cwd] : null }
-    export const setCachedSelection = function (cwd, sel) { if (cwd) selectionByCwd[cwd] = sel }
+    export const SELECTION_BY_CWD_KEY = 'dsws.selectionByCwd'
+    ;(function () {
+      try {
+        const raw = localStorage.getItem(SELECTION_BY_CWD_KEY)
+        if (raw) { const m = JSON.parse(raw); if (m && typeof m === 'object') { for (const k of Object.keys(m)) { if (!(k in selectionByCwd)) selectionByCwd[k] = m[k] } } }
+      } catch (e) { /* 存储不可用降级为仅内存 */ }
+    })()
+    const persistSelectionByCwd = function () { try { localStorage.setItem(SELECTION_BY_CWD_KEY, JSON.stringify(selectionByCwd)) } catch (e) { /* 忽略 */ } }
+    export const getCachedSelection = function (cwd) { return cwd ? (selectionByCwd[cwd] || null) : null }
+    export const setCachedSelection = function (cwd, sel) { if (cwd) { selectionByCwd[cwd] = sel; persistSelectionByCwd() } }
     export const getCachedRepository = function (cwd) { return cwd ? repositoryByCwd[cwd] : null }
     export const setCachedRepository = function (cwd, repo) { if (cwd) repositoryByCwd[cwd] = repo }
     export const labelOf = function (backendId) {
@@ -372,11 +385,11 @@
       const repoRef = st.repository || (st.snapshot && st.snapshot.repository) || null
       const optimistic = { backendId: targetId, source: 'explicit', ref: repoRef }
       st.selection = optimistic
-      try { if (st.cwd) selectionByCwd[st.cwd] = optimistic } catch {}
+      try { if (st.cwd) setCachedSelection(st.cwd, optimistic) } catch {}
       emit(st)
       const doFail = function (msg) {
         st.selection = prevSel
-        try { if (st.cwd) selectionByCwd[st.cwd] = prevSel } catch {}
+        try { if (st.cwd) setCachedSelection(st.cwd, prevSel) } catch {}
         sc.confirming = false; emit(st)
         try { flash(st, tr('switch.bindFail', { err: String(msg).slice(0, 120) }), 'warn') } catch {}
       }

@@ -151,7 +151,7 @@ export     const OverlayPanel = (props) => {
         const repoRef = s.repository || (s.snapshot && s.snapshot.repository) || null
         const next = { backendId: id, source: 'explicit', ref: repoRef }
         s.selection = next
-        try{ if(s.cwd) selectionByCwd[s.cwd]=next }catch(e){}
+        try{ if(s.cwd) setCachedSelection(s.cwd,next) }catch(e){}
         s.gateModalOpen=false
         emit(s)
         if(typeof host!=='undefined' && host.call){
@@ -168,11 +168,11 @@ export     const OverlayPanel = (props) => {
               }catch(e){}
               loadSnapshot(s,true,true)
             } else {
-              s.selection=prev; try{ if(s.cwd) selectionByCwd[s.cwd]=prev }catch(e){}; emit(s)
+              s.selection=prev; try{ if(s.cwd) setCachedSelection(s.cwd,prev) }catch(e){}; emit(s)
               try{ flash(s, tr('switch.bindFail',{err:String((res&&(res.error||res.message))||'unknown').slice(0,120)}), 'warn') }catch(e){}
             }
           }).catch(function(e){
-            s.selection=prev; try{ if(s.cwd) selectionByCwd[s.cwd]=prev }catch(e2){}; emit(s)
+            s.selection=prev; try{ if(s.cwd) setCachedSelection(s.cwd,prev) }catch(e2){}; emit(s)
             try{ flash(s, '绑定失败:'+String(e && e.message || e).slice(0,120), 'warn') }catch(e3){}
           })
         }
