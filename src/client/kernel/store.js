@@ -361,6 +361,8 @@
     export const makeStore = () => ({
       open: false, tab: 'list', activeMap: null, activeIssue: null,
       issueCache: {}, issueMode: 'idle', issueError: null, issueDetail: null, issueCommentsMoreLoading: false, issueCommentsFailCount: 0, issueCommentsHasMore: true,
+      // #255 评论输入区（受控）：草稿/提交态/分流错误/服务端确认闪烁
+      cmtDraft: '', cmtSending: false, cmtError: null, cmtConfirm: null,
       notice: null, injector: null, tick: 0,
       pos: null, size: { w: 460, h: DEFAULT_PANEL_H },
       // 外观定死（用户拍板：图标/动作词不可配置）

@@ -1659,7 +1659,7 @@ export default {
       try {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
-        const mods = reg.modules().map(function(m){ return { id: m.id, label: m.label, presentation: m.presentation } })
+        const mods = reg.modules().map(function(m){ return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}) }) // #230：转发后端声明的 setup 描述数据键（键入 locale）
         const cwd = (args && args.cwd) || DEFAULT_CWD
         let bound = undefined
         try { bound = reg.bound({ cwd: cwd }) } catch {}
@@ -1753,6 +1753,45 @@ export default {
       if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
       try {
         const r = await fetchIssueComments(Number(n), after != null ? String(after) : null, cwd)
+        return r
+      } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
+    })
+
+    // #255 · IssueDetail 评论输入区（GitHub 单点 · MISSING 零分支）· 宿主透传 = 本次唯一宿主改动。
+    // 第一性原理：能力 = 运行时事实（G5 调用即知，无能力表）；路径 = registry.select → tracker.comment（契约第 8 号 op），
+    // 预检不进入评论链（去耦合：评论路径与预检仅共享错误分类常量）。成功即失效面板快照缓存（#213 白名单同语义），
+    // 推进只来自重求值（client 击穿详情缓存重取 + probe 增量确认），无乐观插入。错误直透 TrackerError{kind,message}。
+    harness.handle('wf.commentIssue', async function (args) {
+      const n = args && args.number
+      const body = args && args.body
+      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+      if (!n || isNaN(Number(n))) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
+      if (typeof body !== 'string' || !body.trim()) return { ok: false, error: { kind: 'parse', message: '评论内容为空' } }
+      try {
+        const reg = await getTrackerRegistry()
+        if (!reg) return { ok: false, error: { kind: 'env', message: 'registry unavailable' } }
+        const handle = { cwd: cwd }
+        const opCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, cargs, opts){ const argv=[String(cmd)].concat(cargs||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:r.code } } }
+        let sel = null
+        try { sel = await reg.select(handle, opCtx) } catch (eSel) {}
+        if (!sel || !sel.backendId) return { ok: false, error: { kind: 'unsupported', message: '未选择可用 tracker 后端，无法评论' } }
+        let repoRef = null
+        try { repoRef = reg.describe({ cwd: cwd }, sel.backendId) } catch (eDesc) {}
+        if (repoRef && !repoRef.refId && sel.backendId === 'github') {
+          // refId 补全（host 编排职责，与 buildSnapshot 同语义：git remote → .git/config → gh repo view 三级解析）
+          try {
+            const rk = await getRepoKey(cwd)
+            if (rk && rk.owner && rk.name) { repoRef.refId = rk.owner + '/' + rk.name; repoRef.name = repoRef.refId; repoRef.url = 'https://github.com/' + repoRef.refId }
+          } catch (eRk) {}
+        }
+        if (!repoRef || !repoRef.refId) return { ok: false, error: { kind: 'not-found', message: '无法解析目标仓库（refId missing）' } }
+        const tracker = reg.get(sel.backendId)
+        if (!tracker || typeof tracker.comment !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + sel.backendId + "' 未实现 comment" } }
+        const r = await tracker.comment(repoRef, String(Number(n)), String(body), opCtx)
+        if (r && r.ok) {
+          // 写操作成功 → 失效面板快照缓存（#213 同语义；右侧列表增量由 client 静默重取快照经差异产出）
+          try { cache = { ts: 0, snapshot: null, error: null, cwd: cwd } } catch {}
+        }
         return r
       } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
     })

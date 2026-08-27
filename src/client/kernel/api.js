@@ -460,3 +460,31 @@ export let pendingDraftTargetSid = null
         return { ok: false, error: { kind: 'network', message: String((e && e.message) || e) } }
       })
     }
+    // #255 · 详情页评论提交（GitHub 单点）：宿主透传 wf.commentIssue → tracker.comment（契约 op）。
+    // 本函数只做：调透传端点 + 规范化 OpResult 错误（auth / rate-limit|rateLimit / 其他），不动 UI 状态；
+    // 推进序列由视图编排 —— 成功后清空输入、fetchIssueDetail(force) 击穿详情缓存重取、probeNow 静默快照刷新，
+    // 全程无乐观插入（新评论必须来自服务端重取的证据）。
+    export const submitIssueComment = function (st, n, body) {
+      const num = Number(n)
+      if (!num || isNaN(num)) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number' } })
+      const text = String(body == null ? '' : body)
+      if (!text.trim()) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'comment body required' } })
+      if (typeof host === 'undefined' || typeof host.call !== 'function') {
+        return Promise.resolve({ ok: false, error: { kind: 'env', message: tr('err.hostUnavailable') } })
+      }
+      const cwdArg = st.cwd ? { cwd: st.cwd } : {}
+      return host.call('wf.commentIssue', Object.assign({ number: num, body: text }, cwdArg)).then(function (res) {
+        if (!res) return { ok: false, error: { kind: 'network', message: tr('err.snapshotEmpty') } }
+        if (res.ok === true) return { ok: true, comment: res.data != null ? res.data : (res.comment || null) }
+        const err = res.error || {}
+        // 契约 canonical kind（rate-limit/not-found）与 wf 遗产通道拼写（rateLimit/notFound）双兼容
+        let k = String(err.kind || '')
+        if (/rate.?limit/i.test(k + ' ' + String(err.message || ''))) k = 'rate-limit'
+        else if (k === 'rateLimit' || k === 'rate_limit') k = 'rate-limit'
+        else if (k === 'notFound' || k === 'notfound' || k === '404') k = 'not-found'
+        else if (!k) k = 'network'
+        return { ok: false, error: { kind: k, message: String(err.message || err.error || 'comment failed') } }
+      }).catch(function (e) {
+        return { ok: false, error: { kind: 'network', message: String((e && e.message) || e) } }
+      })
+    }

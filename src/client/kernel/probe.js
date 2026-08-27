@@ -190,12 +190,23 @@
         Object.keys(iy).forEach(function (k) {
           if (!ix[k]) { sub = true; out.issueFlash[Number(k)] = 'added'; return }
           var a2 = ix[k], b2 = iy[k]
-          if (a2.state !== b2.state || a2.progress !== b2.progress || a2.claimedBy !== b2.claimedBy || lbl(a2) !== lbl(b2)) { sub = true; out.issueFlash[Number(k)] = 'changed' }
+          if (a2.state !== b2.state || a2.progress !== b2.progress || a2.claimedBy !== b2.claimedBy || lbl(a2) !== lbl(b2) || String(a2.updatedAt || '') !== String(b2.updatedAt || '')) { sub = true; out.issueFlash[Number(k)] = 'changed' }
         })
         if (Object.keys(ix).length !== Object.keys(iy).length) sub = true
         if (x.state !== y.state || x.title !== y.title || lbl(x) !== lbl(y) || sub) out.changed.push(Number(n))
       })
-      Object.keys(a).forEach(function (n) { if (!b[n]) out.removed.push(Number(n)) })
+      // #255 · 孤儿票（根票）对比 —— 右侧主列表行闪烁的数据源补口：原实现只遍历 maps 子票，
+      // 根票（parentKey=null）任何变化都不产 rowFlash；且把核心字段 updatedAt 纳入比较元组——
+      // GitHub 加评论会 bump updated_at，probe 索引（STATE|updated_at）判 changed 触发静默重建后，
+      // 闪烁由本差异真实产出（重求值推进，无乐观假设）。
+      const ia = {}; if (oldS && Array.isArray(oldS.issues)) oldS.issues.forEach(function (i) { if (i && i.number != null) ia[i.number] = i })
+      const iy0 = {}; if (newS && Array.isArray(newS.issues)) newS.issues.forEach(function (i) { if (i && i.number != null) iy0[i.number] = i })
+      Object.keys(iy0).forEach(function (k) {
+        if (!ia[k]) { out.added.push(Number(k)); return }
+        var xa = ia[k], ya = iy0[k]
+        if (xa.state !== ya.state || xa.title !== ya.title || lbl(xa) !== lbl(ya) || String(xa.updatedAt || '') !== String(ya.updatedAt || '')) out.changed.push(Number(k))
+      })
+      Object.keys(ia).forEach(function (k) { if (!iy0[k]) out.removed.push(Number(k)) })
       return out
     }
     // R5：高亮定时清除（防堆积；一次只排一个 timer）
