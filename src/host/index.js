@@ -1296,6 +1296,56 @@ export default {
           const isCachedEnv = cachedGh && cachedGh.level==='bad' && cachedGh.hint && cachedGh.hint.includes('GitHub CLI')
           if (!isCachedEnv) return statusCache.status
         }
+        // #229 目录视图主线：通用目录 + 当前后端目录合并（9→N 动态，物理隔离：跨后端无关行不存在）。
+        // 失败（模块导入受限 / 派生异常 / 空结果）→ 落入下方 legacy 9 项兼容视图，不抛不阻断。
+        try {
+          const derMod = await import('./tracker/statusDerive.js')
+          if (derMod && typeof derMod.deriveStatusView === 'function') {
+            let _repoChkMemo = null
+            const derived = await derMod.deriveStatusView({
+              cwd: cwd,
+              lang: lang,
+              platform: await getPlatform(),
+              selection: sel || null,
+              delegates: {
+                // 委托既有探测实现（零重复造轮子）；repo 定位惰性 + 记忆化（非 github 后端不白跑 git 探测）
+                github: async function () {
+                  if (!_repoChkMemo) _repoChkMemo = await checkRepo(cwd, lang)
+                  const c4 = await checkGhCli(lang)
+                  const c5 = await checkGhAuth(lang)
+                  const c6 = await checkApi(cwd, _repoChkMemo.repo, lang)
+                  return { c1: _repoChkMemo, c4: c4, c5: c5, c6: c6 }
+                },
+                skillProbe: async function (name) { return probeSkill(name, lang) },
+              },
+            })
+            if (derived && Array.isArray(derived.checks) && derived.checks.length) {
+              const statusDir = {
+                ok: true,
+                updatedAt: new Date().toISOString(),
+                cwd: cwd,
+                repo: derived.repoRef || null,
+                ghPath: ghPath,
+                checks: derived.checks,
+                // 口径（#246 删 na · #229）：pending 不计入分子分母
+                ready: derived.ready,
+                total: derived.total,
+                view: derived.view,
+                sections: derived.sections,
+                // 新增：编排层真源（Q7），与 legacy 视图同构透传
+                selection: sel,
+                detection: det,
+              }
+              // #195 同款启发式：github env 失败不入缓存（gh 行 bad 且带安装引导）
+              const curGhD = statusDir.checks.find(function(c){ return c.key === 'gh:installed' || c.id === 4 })
+              const isCurEnvD = !!(curGhD && curGhD.level === 'bad' && curGhD.hint && String(curGhD.hint).includes('GitHub CLI'))
+              if (!isCurEnvD) statusCache = { ts: Date.now(), status: statusDir, error: null, cwd: cwd, lang: lang, backendId: backendId || null }
+              else statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null }
+              return statusDir
+            }
+          }
+        } catch (eDir) {
+          /* 目录派生不可用 → legacy 兼容视图 */ }
         // 派生 9 checks 兼容视图（#150 Q7：checks 过渡期后可 deprecate，仅 selection 为真源）
         // 1) repo 定位（复用 detection repoHandle + 轻量 git 探测兜底，保持与旧 checkRepo 等价）
         const c1Legacy = await checkRepo(cwd, lang)
