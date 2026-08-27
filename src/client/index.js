@@ -242,6 +242,8 @@ export default {
       if (minX === Infinity) return 0
       return maxX - tr.x
     }
+    // ==== leaf:namingFailBanner (spliced by build) ====
+
     // ==== leaf:dock (spliced by build) ====
 
     // ==== leaf:overlay (spliced by build) ====

@@ -321,10 +321,12 @@ console.log('\n— #267 守卫断言 —')
   check(!apiG.includes('NAMING_RETRY_MAX') && !apiG.includes('NAMING_RETRY_COOLDOWN_MS'), 'client 内核无私藏重试预算常量')
 
   const dockG = readFileSync(join(ROOT, 'src/client/panel/Dock.js'), 'utf8')
-  check(dockG.includes("cx.storeSvc.useStore(null)") || dockG.includes('useStore(null)'), 'DetailsDock 订阅共享 store（面板级而非会话级）')
-  check(dockG.includes('shS.namingFailures'), 'Dock 横幅消费共享 store 定败清单')
-  check(dockG.includes("'data-naming-fail-banner': '1'"), '面板级定败横幅节点存在（非目标会话内 toast）')
-  check(dockG.includes("tr('naming.failTitle')") && dockG.includes("tr('naming.failHint')"), '横幅文案经 locale（双语跟随）')
+  check(dockG.includes('h(NamingFailBanner)'), 'DetailsDock 挂载面板级定败横幅（NamingFailBanner 叶子组件）')
+  const bannerG = readFileSync(join(ROOT, 'src/client/panel/NamingFailBanner.js'), 'utf8')
+  check(bannerG.includes('cx.storeSvc.useStore(null)'), '横幅自订阅共享 store（面板级而非会话级）')
+  check(bannerG.includes('shS.namingFailures'), '横幅消费共享 store 定败清单（渲染钩子落账）')
+  check(bannerG.includes("'data-naming-fail-banner': '1'"), '面板级定败横幅节点存在（非目标会话内 toast）')
+  check(bannerG.includes("tr('naming.failTitle')") && bannerG.includes("tr('naming.failHint')") && bannerG.includes("tr('naming.stageDraft')"), '横幅文案经 locale（双语跟随）')
 
   const locG = readFileSync(join(ROOT, 'src/client/kernel/locale.js'), 'utf8')
   for (const k of ['naming.failTitle', 'naming.failHint', 'naming.stageDraft']) {

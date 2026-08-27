@@ -30,6 +30,7 @@ const LEAVES = [
   { file: 'src/client/views/SettingsPage.js', exports: ['TPL_NAMES', 'TPL_DESC', 'TPL_EDIT_IDS', 'PREVIEW_VALUES', 'SettingsPage'], components: ['SettingsPage'] },
   { file: 'src/client/views/RunPanel.js', exports: ['RunPanel'], components: ['RunPanel'] },
   { file: 'src/client/panel/Dock.js', exports: ['DetailsDock'], components: ['DetailsDock'] },
+  { file: 'src/client/panel/NamingFailBanner.js', exports: ['NamingFailBanner'], components: ['NamingFailBanner'] },
   { file: 'src/client/panel/Overlay.js', exports: ['OverlayPanel'], components: ['OverlayPanel'] },
   { file: 'src/client/statusbar/Seg.js', exports: ['num', 'seg'], components: [] },
   { file: 'src/client/statusbar/checksums.js', exports: ['checksumsOf'], components: [] },

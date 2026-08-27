@@ -215,6 +215,7 @@ const LEAF_MODULES = [
   { id: 'settingsPage', file: 'src/client/views/SettingsPage.js' },
   { id: 'runPanel', file: 'src/client/views/RunPanel.js' },
   { id: 'dock', file: 'src/client/panel/Dock.js' },
+  { id: 'namingFailBanner', file: 'src/client/panel/NamingFailBanner.js' },
   { id: 'overlay', file: 'src/client/panel/Overlay.js' },
   { id: 'seg', file: 'src/client/statusbar/Seg.js' },
   { id: 'checksums', file: 'src/client/statusbar/checksums.js' },

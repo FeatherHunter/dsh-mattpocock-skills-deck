@@ -128,6 +128,49 @@ try {
   await callHandler(d4.fn, 'cancelNewSessionWatcher', { sessionId: 'io-s4' })
   const plan4Prune = await callHandler(d4.fn, 'namingPlan', {})
   check(!!plan4Prune && Array.isArray(plan4Prune.orders) && plan4Prune.orders.every(function (o) { return o.sessionId !== 'io-s4' }), '取消监视后清账（终局清理通道可用）')
+  // ---- #267：有限重试 + 面板级定败可见性（真实磁盘跨重启的预算持久化 · 值比对化解收尾）----
+  // 剧本：连败三次达上限 → 定败出面板级清单（不再出单）→ 跨重启清单仍在 → 用户手改 → 值比对
+  // 锁终局化解，提醒撤下。全程零 sleep 依赖（冷却窗以「不出单」断言，不等待墙上时钟）。
+  const regS = await callHandler(d4.fn, 'namingRegister', { sessionId: 'io-s5', baselineTitle: '[New] 新建需求', cwd: '', hint: '定败样例' })
+  check(regS.ok === true, '#267 注册受踪（io-s5）')
+  const fA = await callHandler(d4.fn, 'namingResult', { sessionId: 'io-s5', outcome: 'failed', error: 'face 拒绝 #1' })
+  check(!!fA && fA.ok === true && fA.exhausted === false, '#267 fail#1 受理且回执未达上限')
+  const jF1 = JSON.parse(readFileSync(stateFile, 'utf8'))
+  check(jF1.sessions['io-s5'] && jF1.sessions['io-s5'].failCount === 1 && typeof jF1.sessions['io-s5'].lastFailAt === 'number' && jF1.sessions['io-s5'].lastError === 'face 拒绝 #1', '#267 失败入账即时落盘（计数/时刻/摘要 · 预算跨重启底座）')
+  const planC = await callHandler(d4.fn, 'namingPlan', {})
+  check(!!planC && Array.isArray(planC.orders) && planC.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 冷却窗内不重复出单（瞬时故障自愈窗口生效）')
+  // 重启一（实例 267a）：预算与冷却随盘恢复 —— 不因 DSH 重启归零、不重复出单
+  const mod6Raw = await import('../package/lib/index.js?restart=267a')
+  const m6 = mod6Raw.default ?? mod6Raw
+  let d6 = {}
+  ;((m6.apply ?? m6.default?.apply))(makeCtx(d6))
+  const planCR = await callHandler(d6.fn, 'namingPlan', {})
+  check(!!planCR && Array.isArray(planCR.orders) && planCR.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 重启后冷却窗依旧生效（预算从盘恢复，未归零）')
+  await callHandler(d6.fn, 'namingResult', { sessionId: 'io-s5', outcome: 'failed', error: 'face 拒绝 #2' })
+  const fB = await callHandler(d6.fn, 'namingResult', { sessionId: 'io-s5', outcome: 'failed', error: 'face 拒绝 #3' })
+  check(!!fB && fB.ok === true && fB.exhausted === true, '#267 连败第三次回执标注定败')
+  const planX = await callHandler(d6.fn, 'namingPlan', {})
+  check(!!planX && Array.isArray(planX.orders) && planX.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 定败后永不再出单（有限重试耗尽即收敛）')
+  const fx5 = (planX && Array.isArray(planX.failures)) ? planX.failures.find(function (f) { return f.sessionId === 'io-s5' }) : null
+  check(!!fx5 && fx5.count === 3 && fx5.error === 'face 拒绝 #3' && fx5.kind === 'draft' && fx5.hint === '定败样例', '#267 面板级定败清单携完整画像（次数/末次错误/档位形态/线索）')
+  check(!!fx5 && !!fx5.lock && fx5.lock.baselineTitle === '[New] 新建需求', '#267 定败画像附值比对锁信息（协商化解依据随清单下发）')
+  // 重启二（实例 267b）：定败清单仍在 —— 面板提醒跨重启不丢；依旧零出单
+  const mod7Raw = await import('../package/lib/index.js?restart=267b')
+  const m7 = mod7Raw.default ?? mod7Raw
+  let d7 = {}
+  ;((m7.apply ?? m7.default?.apply))(makeCtx(d7))
+  const planXR = await callHandler(d7.fn, 'namingPlan', {})
+  const fx5r = (planXR && Array.isArray(planXR.failures)) ? planXR.failures.find(function (f) { return f.sessionId === 'io-s5' }) : null
+  check(!!fx5r && fx5r.count === 3, '#267 重启后定败清单仍在（面板级提醒跨重启不丢账）')
+  check(!!planXR && Array.isArray(planXR.orders) && planXR.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 重启后定败目标仍永不出单')
+  // 化解路 A（主路）：用户手改 → 界面半值比对判锁回报 locked → 终局并撤下提醒
+  const man = await callHandler(d7.fn, 'namingResult', { sessionId: 'io-s5', outcome: 'locked' })
+  check(!!man && man.ok === true, '#267 手改锁定回报受理（值比对锁真检测由界面半执行）')
+  const planM = await callHandler(d7.fn, 'namingPlan', {})
+  check(!!planM && Array.isArray(planM.failures) && !planM.failures.some(function (f) { return f.sessionId === 'io-s5' }), '#267 化解后定败清单撤下（横幅自动消失语义）')
+  check(!!planM && Array.isArray(planM.orders) && planM.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 锁定终局后永不出单（手改永不被覆盖闭环）')
+  const jFM = JSON.parse(readFileSync(stateFile, 'utf8'))
+  check(jFM.sessions['io-s5'] && jFM.sessions['io-s5'].locked === true, '#267 锁定终局即时落盘')
 } catch (e) {
   check(false, 'IO 冒烟异常: ' + String((e && e.stack || e)).split('\n').slice(0, 4).join(' | '))
 } finally {
