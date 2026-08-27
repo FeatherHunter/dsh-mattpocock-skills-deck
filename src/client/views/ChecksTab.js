@@ -12,6 +12,8 @@ export     const ChecksTab = ({ st }) => {
       const bad = cs.filter(function (c) { return c.level === 'bad' })
       const warn = cs.filter(function (c) { return c.level === 'warn' })
       const ok = cs.filter(function (c) { return c.level === 'ok' })
+      // #229：pending（诚实未知/未接入）置灰分组展示，不计入 ready/total 口径
+      const pend = cs.filter(function (c) { return c.level === 'pending' })
       // #373：hint 支持两种形态 —— URL（可打开/复制）或 /命令（「用 /xxx 处理」按钮，保留兼容）
       const actBtn = (c) => {
         const hint = c.hint || ''
@@ -46,10 +48,14 @@ export     const ChecksTab = ({ st }) => {
         items.map(card),
       ]) : null
       // 环境检查页顶部横幅（用户拍板 2026-08-16 + 2026-08-17：依赖链 gh → 登录 → setup → 技能，显示第一个缺失项）
-      const ghCli2 = activeChecks(st).find(function (c) { return c.id === 4 })
-      const ghAuth2 = activeChecks(st).find(function (c) { return c.id === 5 })
-      const skillsCheck2 = activeChecks(st).find(function (c) { return c.id === 9 })
-      const setupCheck2 = activeChecks(st).find(function (c) { return c.id === 2 })
+      // #229 目录视图：按 key 定位（legacy 数字 id 经 findCheck 桥兼容回退视图）；技能 = 三通用行的最差者
+      const cs0 = activeChecks(st)
+      const ghCli2 = findCheck(cs0, 'gh:installed')
+      const ghAuth2 = findCheck(cs0, 'gh:authed')
+      const _skillRowsChk = ['skill:wayfinder', 'skill:setup-mattpocock-skills', 'skill:ask-matt'].map(function (k) { return findCheck(cs0, k) }).filter(Boolean)
+      const _suiteRowChk = cs0.find(function (c) { return c.id === 9 })
+      const skillsCheck2 = (_skillRowsChk.find(function (r) { return r.level !== 'ok' })) || _suiteRowChk || _skillRowsChk[0] || null
+      const setupCheck2 = findCheck(cs0, 'tracker:initialized')
       const skillsOk = !skillsCheck2 || skillsCheck2.level === 'ok'
       const setupOk = !setupCheck2 || setupCheck2.level === 'ok'
       const ghCliOk2 = !ghCli2 || ghCli2.level === 'ok'
@@ -81,14 +87,13 @@ export     const ChecksTab = ({ st }) => {
                 ])
               : null
       // v1.5 配置引导顺序区（用户拍板 2026-08-17）：依赖链 1-2-3-4，完成自动勾选
-      const okOf = function (c) { return !c || c.level === 'ok' }
-      const guideSteps = [
-        // #195 修复(第二轮)：配置引导 g1 直接用后端 hint
-        { done: okOf(ghCli2), label: tr('env.g1'), act: function () { var h = ghCli2 && ghCli2.hint || ''; if (h) inject(st, h) }, btn: tr('banner.ghcliBtn') },
-        { done: okOf(ghAuth2), label: tr('env.g2'), act: function () { inject(st, promptText('ghAuthLogin')) }, btn: tr('banner.ghauthBtn') },
-        { done: okOf(setupCheck2), label: tr('env.g3'), act: function () { inject(st, promptText('setupRun')) }, btn: tr('banner.setupBtn') },
-        { done: okOf(skillsCheck2), label: tr('env.g4'), act: function () { inject(st, promptText('installSkills')) }, btn: tr('banner.skillsBtn') },
-      ]
+      const okOf = function (c) { return !!(c && c.level === 'ok') }
+      // #229 泛化：引导步骤由目录行派生 —— 行不存在（非当前后端）则步骤不出现；标签用双语行名（locale 类别 6 去 GitHub 硬编码）
+      const guideSteps = []
+      if (ghCli2) guideSteps.push({ done: okOf(ghCli2), label: ghCli2.name || tr('env.step.ghcli'), act: function () { var h = ghCli2 && ghCli2.hint || ''; if (h) inject(st, h) }, btn: tr('banner.ghcliBtn') })
+      if (ghAuth2) guideSteps.push({ done: okOf(ghAuth2), label: ghAuth2.name || tr('env.step.ghauth'), act: function () { inject(st, promptText('ghAuthLogin')) }, btn: tr('banner.ghauthBtn') })
+      if (setupCheck2) guideSteps.push({ done: okOf(setupCheck2), label: setupCheck2.name || tr('env.step.setup'), act: function () { inject(st, promptText('setupRun')) }, btn: tr('banner.setupBtn') })
+      if (skillsCheck2) guideSteps.push({ done: okOf(skillsCheck2), label: skillsCheck2.name || tr('env.step.skills'), act: function () { inject(st, promptText('installSkills')) }, btn: tr('banner.skillsBtn') })
       const guideAll = guideSteps.every(function (s) { return s.done })
       // #228 链渲染器：同源Banner（蓝/黄/红互斥 42px）+ 步进条 + 动作分发（五种类型 + unsupported）
       const chainSnapshot = (function(){
@@ -158,6 +163,13 @@ export     const ChecksTab = ({ st }) => {
         guideBlock,
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 12 } }, [
           h('span', { style: { display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'gear', size: 12 }), h('span', null, tr('env.title', { n: envLabel(st) }))]),
+          // #229 / D7：c3 不再是检查 —— 后端身份改为 selection 只读芯片（pending 时显示探测中）
+          (function () {
+            const selTop = st.selection || (st.snapshot && st.snapshot.selection) || null
+            if (selTop && selTop.backendId) return h('span', { title: tr('banner.setupPickHint'), style: { fontSize: 10, lineHeight: '16px', padding: '1px 8px', borderRadius: 99, border: '1px solid rgba(139,140,255,.45)', color: '#9a9aff' } }, String(selTop.backendId))
+            if (selTop && selTop.pending) return h('span', { style: { fontSize: 10, color: '#8b8b95' } }, tr('env.detecting'))
+            return null
+          })(),
           h('span', { style: { flex: 1 } }),
           h('button', { className: 'dsws-btn', disabled: st.checking || st.refreshing, onClick: function () { refreshAll(st) }, style: { fontSize: 11, padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
             h('span', { className: 'dsws-rficon' + ((st.checking || st.refreshing) ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]),
@@ -165,14 +177,15 @@ export     const ChecksTab = ({ st }) => {
           ]),
         ]),
         // T2 #35 · ChecksTab 弱化：红卡显示时 checkRepo:bad 行弱化为“已在首屏引导 · 切换到 ListTab 完成”；dismiss 后提供“重置忽略”入口
-        (function () { const cr = cs.find(function (c) { return c.id === 1 }); const dismissed = isNoRepoDismissed(st.cwd); const showRed = !!(cr && cr.level === 'bad' && !dismissed); if (!showRed) return null; return h('div', { className: 'dsws-ccard', style: { opacity: 0.85, borderColor: 'rgba(139,139,149,.35)', background: 'rgba(139,139,149,.08)', marginBottom: 6 } }, [h('div', { className: 'nm', style: { color: '#8b8b95' } }, cr.name), h('div', { className: 'dt', style: { color: '#8b8b95' } }, tr('panel.noRepoCardDone')), h('div', { className: 'act' }, [h('button', { className: 'dsws-btn', onClick: function () { st.tab = 'list'; emit(st) }, style: { fontSize: 11, padding: '2px 8px' } }, tr('panel.tabList'))])]) })(),
-        (function () { const dismissed = isNoRepoDismissed(st.cwd); if (!dismissed) return null; const cr = cs.find(function (c) { return c.id === 1 }); if (!cr || cr.level !== 'bad') return null; return h('div', { className: 'dsws-ccard', style: { borderColor: 'rgba(248,113,113,.35)', background: 'rgba(248,113,113,.06)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 } }, [h('span', { style: { fontSize: 11, color: '#f87171', flex: 1 } }, tr('panel.noRepoCardDismiss') + ' · ' + (cr.detail || '')), h('button', { className: 'dsws-btn', onClick: function () { setNoRepoDismissed(st.cwd, false); emit(st) }, style: { fontSize: 11, padding: '2px 8px', flex: 'none' } }, tr('panel.noRepoReset'))]) })(),
+        (function () { const cr = findCheck(cs, 'gh:remote'); const dismissed = isNoRepoDismissed(st.cwd); const showRed = !!(cr && cr.level === 'bad' && !dismissed); if (!showRed) return null; return h('div', { className: 'dsws-ccard', style: { opacity: 0.85, borderColor: 'rgba(139,139,149,.35)', background: 'rgba(139,139,149,.08)', marginBottom: 6 } }, [h('div', { className: 'nm', style: { color: '#8b8b95' } }, cr.name), h('div', { className: 'dt', style: { color: '#8b8b95' } }, tr('panel.noRepoCardDone')), h('div', { className: 'act' }, [h('button', { className: 'dsws-btn', onClick: function () { st.tab = 'list'; emit(st) }, style: { fontSize: 11, padding: '2px 8px' } }, tr('panel.tabList'))])]) })(),
+        (function () { const dismissed = isNoRepoDismissed(st.cwd); if (!dismissed) return null; const cr = findCheck(cs, 'gh:remote'); if (!cr || cr.level !== 'bad') return null; return h('div', { className: 'dsws-ccard', style: { borderColor: 'rgba(248,113,113,.35)', background: 'rgba(248,113,113,.06)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 } }, [h('span', { style: { fontSize: 11, color: '#f87171', flex: 1 } }, tr('panel.noRepoCardDismiss') + ' · ' + (cr.detail || '')), h('button', { className: 'dsws-btn', onClick: function () { setNoRepoDismissed(st.cwd, false); emit(st) }, style: { fontSize: 11, padding: '2px 8px', flex: 'none' } }, tr('panel.noRepoReset'))]) })(),
         st.checksMode === 'err' ? h('div', { className: 'dsws-banner bad', style: { cursor: 'default' } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('env.failFull', { err: st.checksError }))]) : null,
         st.checksMode === 'loading' ? h('div', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 12, marginBottom: 6 } }, tr('env.detecting')) : null,
-        (function () { const cr = cs.find(function (c) { return c.id === 1 }); const dismissed = isNoRepoDismissed(st.cwd); const showRed = !!(cr && cr.level === 'bad' && !dismissed); const displayBad = showRed ? bad.filter(function (c) { return c.id !== 1 }) : bad; const cnt = displayBad.length; return cnt ? h('div', { className: 'dsws-banner bad', style: { cursor: 'default' } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('env.missingBanner', { n: cnt }))]) : null })(),
-        (function () { const cr = cs.find(function (c) { return c.id === 1 }); const dismissed = isNoRepoDismissed(st.cwd); const showRed = !!(cr && cr.level === 'bad' && !dismissed); const displayBad = showRed ? bad.filter(function (c) { return c.id !== 1 }) : bad; return grp(tr('env.missing'), '#f87171', displayBad) })(),
+        (function () { const cr = findCheck(cs, 'gh:remote'); const dismissed = isNoRepoDismissed(st.cwd); const showRed = !!(cr && cr.level === 'bad' && !dismissed); const displayBad = showRed ? bad.filter(function (c) { return c.key !== 'gh:remote' && c.id !== 1 }) : bad; const cnt = displayBad.length; return cnt ? h('div', { className: 'dsws-banner bad', style: { cursor: 'default' } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('env.missingBanner', { n: cnt }))]) : null })(),
+        (function () { const cr = findCheck(cs, 'gh:remote'); const dismissed = isNoRepoDismissed(st.cwd); const showRed = !!(cr && cr.level === 'bad' && !dismissed); const displayBad = showRed ? bad.filter(function (c) { return c.key !== 'gh:remote' && c.id !== 1 }) : bad; return grp(tr('env.missing'), '#f87171', displayBad) })(),
         grp(tr('env.partial'), '#f59e0b', warn),
         grp(tr('env.ready'), '#4ade80', ok),
+        grp(tr('env.pending'), '#8b8b95', pend),
         // #155 Q7：能力诊断折叠卡（默认收起，不进渲染分支；G5 能力视图仅诊断不驱动隐藏）
         (function(){
           const snap = st.snapshot

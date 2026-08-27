@@ -20,7 +20,7 @@ export     const NoRepoCard = function (props) {
       const st = props.st
       const card = ensureNoRepoCard(st)
       const cs = activeChecks(st)
-      const checkRepo = cs.find(function (c) { return c.id === 1 })
+      const checkRepo = findCheck(cs, 'gh:remote')
       const repoBad = !!(checkRepo && checkRepo.level === 'bad')
       const dismissed = isNoRepoDismissed(st.cwd)
       // #155：Selection 三态优先于 checkRepo（显式无后端/pending 态不走 NoRepo 红卡分支）

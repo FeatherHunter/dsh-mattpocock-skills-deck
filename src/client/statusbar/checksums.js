@@ -14,12 +14,14 @@ export const checksumsOf = function (s) {
   const timeStr = timeOf(s.snapshot) || (s.checksUpdatedAt ? s.checksUpdatedAt.slice(5, 16) : '') || '-- --:--'
   const setup = setupCheck(s)
   const amber = s.checksMode === 'real' && setup && setup.level !== 'ok'
-  // v1.5 T11：核心技能套件检测（检查 9）
-  const skillsCheck = (s.checks || []).find(function (c) { return c.id === 9 })
+  // v1.5 T11 + #229：核心技能检测 = 三个通用技能行的最差者（legacy 回退视图保留 id 9 聚合行兼容）
+  const _suiteRow = (s.checks || []).find(function (c) { return c.id === 9 })
+  const _skillRows9 = ['skill:wayfinder', 'skill:setup-mattpocock-skills', 'skill:ask-matt'].map(function (k) { return findCheck(s.checks, k) }).filter(Boolean)
+  const skillsCheck = (_skillRows9.find(function (r) { return r.level !== 'ok' })) || _suiteRow || _skillRows9[0] || null
   const skillsBad = s.checksMode === 'real' && skillsCheck && skillsCheck.level !== 'ok'
-  // v1.5 引导依赖链（用户拍板 2026-08-17）：gh CLI → gh 登录 → setup → 技能 —— banner 显示依赖链上第一个缺失项
-  const ghCliCheck = (s.checks || []).find(function (c) { return c.id === 4 })
-  const ghAuthCheck = (s.checks || []).find(function (c) { return c.id === 5 })
+  // v1.5 引导依赖链（用户拍板 2026-08-17）：gh CLI → gh 登录 → setup → 技能 —— banner 显示依赖链上第一个缺失项（#229 行不存在则该环节跳过）
+  const ghCliCheck = findCheck(s.checks, 'gh:installed')
+  const ghAuthCheck = findCheck(s.checks, 'gh:authed')
   // #195 修复：warn（pending 探测态）不再当 bad —— 与 gh 是否安装无关的 UI 语义错误（pending 时 banner 文案误导为「未安装」）
   const ghCliBad = s.checksMode === 'real' && ghCliCheck && ghCliCheck.level === 'bad'
   const ghAuthBad = s.checksMode === 'real' && ghAuthCheck && ghAuthCheck.level === 'bad'

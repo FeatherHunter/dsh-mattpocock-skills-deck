@@ -65,11 +65,22 @@
       })
     }
     export const activeChecks = (st) => (st.checksMode === 'real' && st.checks && st.checks.length) ? st.checks : []
-    export const readyCount = (st) => { const cs = activeChecks(st); return cs.length ? cs.filter(function (c) { return c.level === 'ok' }).length : -1 }
-    // v14-22：返回纯数字串（'6/9' / '--/9'），由状态栏 num() 固定宽度渲染；分母 = 实际检查项数（动态，不再硬编码）
-    export const envTotal = (st) => { const cs = activeChecks(st); return cs.length || CHECKS_TOTAL }
+    // #229 目录视图：行 key ↔ 数字 legacy id 双形态查找桥（目录视图行带 key；legacy 回退视图仅数字 id）
+    export const CHECK_KEY_LEGACY = { 'gh:remote': 1, 'tracker:initialized': 2, 'gh:installed': 4, 'gh:authed': 5, 'gh:repoAccess': 6, 'skill:wayfinder': 7, 'skill:ask-matt': 8 }
+    export const findCheck = (cs, key) => {
+      const arr = Array.isArray(cs) ? cs : []
+      const hit = arr.find(function (c) { return c.key === key || c.id === key })
+      if (hit) return hit
+      const legacyNum = CHECK_KEY_LEGACY[String(key)]
+      if (legacyNum !== undefined) return arr.find(function (c) { return c.id === legacyNum }) || null
+      return null
+    }
+    // #229 计数口径：pending（诚实未知/未接入）不渲染置灰计入、不计入分子分母
+    export const readyCount = (st) => { const cs = activeChecks(st).filter(function (c) { return c.level !== 'pending' }); return cs.length ? cs.filter(function (c) { return c.level === 'ok' }).length : -1 }
+    // v14-22：返回纯数字串（'6/9' / '--/9'），由状态栏 num() 固定宽度渲染；分母 = 非待定检查项数（动态，不再硬编码）
+    export const envTotal = (st) => { const cs = activeChecks(st).filter(function (c) { return c.level !== 'pending' }); return cs.length || CHECKS_TOTAL }
     export const envLabel = (st) => { const n = readyCount(st); const t = envTotal(st); return n < 0 ? '--/' + t : n + '/' + t }
-    export const setupCheck = (st) => (st.checks || []).find(function (c) { return c.id === 2 })
+    export const setupCheck = (st) => findCheck((st && st.checks) || [], 'tracker:initialized')
 
     // #370：blockerNames 只列「仍 OPEN」的阻塞者（GitHub 依赖边在阻塞者关闭后仍保留，需按状态过滤）
     export const openBlockers = (t, m) => t.blockedBy.filter(function (b) {

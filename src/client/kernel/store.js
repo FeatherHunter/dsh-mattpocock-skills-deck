@@ -298,9 +298,10 @@
       host.call('wf.status', { cwd: st.cwd || '', lang: lang }).then(function (res) {
         if (!st.switchConfirm) return
         const checks = (res && res.checks) || []
-        const c1 = checks.find(function (c) { return c.id === 1 })
-        const c4 = checks.find(function (c) { return c.id === 4 })
-        const c5 = checks.find(function (c) { return c.id === 5 })
+        // #229 目录视图：按 key 定位（legacy 数字 id 经 findCheck 桥兼容）
+        const c1 = findCheck(checks, 'gh:remote')
+        const c4 = findCheck(checks, 'gh:installed')
+        const c5 = findCheck(checks, 'gh:authed')
         const allOk = !!(c1 && c1.ok && c4 && c4.ok && c5 && c5.ok)
         st.switchConfirm.criChecks = { c1: c1, c4: c4, c5: c5, allOk: allOk }
         st.switchConfirm.criLoading = false

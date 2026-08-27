@@ -295,7 +295,7 @@ export     const ListTab = ({ st, narrow }) => {
           h('span', { style: { flex: 1 } }),
           // T2 #2：刷新按钮已上移至 OverlayPanel tabs 行（L1932）
         ]),
-        (function () { const cr = cs.find(function (c) { return c.id === 1 }); if (cr && cr.level === 'bad' && !isNoRepoDismissed(st.cwd)) return null; return nBad > 0 ? h('div', { className: 'dsws-banner bad', onClick: function () { st.tab = 'checks'; emit(st) } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('list.envWarn', { n: nBad }))]) : null })(),
+        (function () { const cr = findCheck(cs, 'gh:remote'); if (cr && cr.level === 'bad' && !isNoRepoDismissed(st.cwd)) return null; return nBad > 0 ? h('div', { className: 'dsws-banner bad', onClick: function () { st.tab = 'checks'; emit(st) } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('list.envWarn', { n: nBad }))]) : null })(),
         // #374/#375：状态过滤 + 排序 + label 过滤 chips（全部小号紧凑同排，窄屏换行不增高；展开态点选 label 不收起）
         h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0, marginBottom: 6 } }, [
           ['all', 'open', 'closed', 'blocked', 'frontier'].map(function (k) {
