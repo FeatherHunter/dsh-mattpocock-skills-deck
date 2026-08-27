@@ -1,8 +1,10 @@
 /**
  * tracker/check-catalog.js — 通用检查目录与后端检查目录边界（#217 定版，2026-08-28 修订 #219/#245/#226 删 na，通用链视图）。
  *
- * 生效日期：2026-08-28
+ * 生效日期：2026-08-29（#282 刷新：十技能单一真源化）
  * 效力规则：本文件以 #226 规约为基线；与更早方案冲突以本规约为准；未来任何定版方案若改动本规约，以未来版本为准（见 CONTEXT.md「版本与效力」）。
+ *   #282 增订：通用目录中技能条目由 shared/matt-skills.js 单一真源派生（MATT_SKILLS 10 项），
+ *     构建期提示词占位与客户端渲染同步同一数组，名单逐项相等的单一真源断言以此为准。
  *
  * 第一性原理：
  *  - 通用 = 真值不随 backendId 改变（所有后端都要问，恒脱离后端可检测）；后端 = 真值随 backendId 改变（仅该后端需要，物理隔离）。
@@ -15,6 +17,7 @@
  */
 
 import { PRIMITIVE_KIND, ACTION_TYPE } from './chain.js'
+import { MATT_SKILLS } from '../matt-skills.js'
 
 /**
  * 目录项形态（目录只描述，不执行；执行由 predicateRegistry + 后端 preflight 完成）。
@@ -29,30 +32,16 @@ import { PRIMITIVE_KIND, ACTION_TYPE } from './chain.js'
 
 /** 通用检查目录（与后端无关，所有后端都要问，恒适用，无 na）。 */
 export const GENERIC_CATALOG = Object.freeze([
-  {
-    id: 'skill:wayfinder',
-    label: '技能 wayfinder 已安装',
-    scope: 'generic',
-    backends: ['github','markdown','gitlab'],
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'wayfinder' },
-    origin: 'host/index.js:SKILL_PROBE_NAMES (inventory 类别 8)',
-  },
-  {
-    id: 'skill:setup-mattpocock-skills',
-    label: '技能 setup-mattpocock-skills 已安装',
-    scope: 'generic',
-    backends: ['github','markdown','gitlab'],
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'setup-mattpocock-skills' },
-    origin: 'host/index.js:SKILL_PROBE_NAMES',
-  },
-  {
-    id: 'skill:ask-matt',
-    label: '技能 ask-matt 已安装',
-    scope: 'generic',
-    backends: ['github','markdown','gitlab'],
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'ask-matt' },
-    origin: 'host/index.js:SKILL_PROBE_NAMES',
-  },
+  ...MATT_SKILLS.map(function(name) {
+    return {
+      id: 'skill:' + name,
+      label: '技能 ' + name + ' 已安装',
+      scope: 'generic',
+      backends: ['github','markdown','gitlab'],
+      check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: name },
+      origin: 'shared/matt-skills.js (MATT_SKILLS)',
+    }
+  }),
   {
     id: 'env:home',
     label: '用户主目录可解析',
@@ -198,14 +187,22 @@ export function catalogFor(backendId) {
 }
 
 /**
- * 14 项必迁映射（inventory 类别 8 → 本目录 id），供下游 227-231 直接消费。
+ * 必迁映射（inventory 类别 8 → 本目录 id），供下游 227-231 直接消费。
+ * #282 刷新：由 14 项扩展为 12+ 项，技能条目 10 项全量映射（原仅 3 项），索引按 MATT_SKILLS 顺序 0..9。
  */
 export const MIGRATION_MAP = Object.freeze({
   'skill:wayfinder': 'GENERIC_CATALOG[0]',
-  'skill:setup-mattpocock-skills': 'GENERIC_CATALOG[1]',
-  'skill:ask-matt': 'GENERIC_CATALOG[2]',
-  'env:home': 'GENERIC_CATALOG[3]',
-  'tracker:initialized': 'GENERIC_CATALOG[4]',
+  'skill:triage': 'GENERIC_CATALOG[1]',
+  'skill:grilling': 'GENERIC_CATALOG[2]',
+  'skill:grill-me': 'GENERIC_CATALOG[3]',
+  'skill:implement': 'GENERIC_CATALOG[4]',
+  'skill:ask-matt': 'GENERIC_CATALOG[5]',
+  'skill:research': 'GENERIC_CATALOG[6]',
+  'skill:prototype': 'GENERIC_CATALOG[7]',
+  'skill:handoff': 'GENERIC_CATALOG[8]',
+  'skill:setup-matt-pocock-skills': 'GENERIC_CATALOG[9]',
+  'env:home': 'GENERIC_CATALOG[10]',
+  'tracker:initialized': 'GENERIC_CATALOG[11]',
   'gh:installed': 'GITHUB_CATALOG[0]',
   'gh:authed': 'GITHUB_CATALOG[1]',
   'gh:repoAccess': 'GITHUB_CATALOG[2]',
@@ -236,30 +233,16 @@ function showFor(id, passTitle, failTitle, failLevel, failHint) {
 // 动作词汇表：inject-prompt（推进型，配合重求值）/ open-url（信息型）/ rpc / form / refresh（执行型）
 // 原则：动作不承诺修复，检查才判定状态；未知类型 = 诚实 unsupported。
 export const GENERIC_CHECK_ITEMS = Object.freeze([
-  {
-    id: 'skill:wayfinder',
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'wayfinder' },
-    onPass: { show: { i18nKey: 'check.skill.wayfinder.pass', fallback: '技能 wayfinder 已安装', level: 'info' }, actions: [] },
-    onFail: { show: { i18nKey: 'check.skill.wayfinder.fail', fallback: '技能 wayfinder 未安装', level: 'bad', hint: 'prompt:installSkills' }, actions: [{ type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills' }] },
-    label: '技能 wayfinder 已安装',
-    group: 'env',
-  },
-  {
-    id: 'skill:setup-mattpocock-skills',
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'setup-mattpocock-skills' },
-    onPass: { show: { i18nKey: 'check.skill.setup-mattpocock-skills.pass', fallback: '技能 setup-mattpocock-skills 已安装', level: 'info' }, actions: [] },
-    onFail: { show: { i18nKey: 'check.skill.setup-mattpocock-skills.fail', fallback: '技能 setup-mattpocock-skills 未安装', level: 'bad', hint: 'prompt:installSkills' }, actions: [{ type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills' }] },
-    label: '技能 setup-mattpocock-skills 已安装',
-    group: 'env',
-  },
-  {
-    id: 'skill:ask-matt',
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'ask-matt' },
-    onPass: { show: { i18nKey: 'check.skill.ask-matt.pass', fallback: '技能 ask-matt 已安装', level: 'info' }, actions: [] },
-    onFail: { show: { i18nKey: 'check.skill.ask-matt.fail', fallback: '技能 ask-matt 未安装', level: 'bad', hint: 'prompt:installSkills' }, actions: [{ type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills' }] },
-    label: '技能 ask-matt 已安装',
-    group: 'env',
-  },
+  ...MATT_SKILLS.map(function(name) {
+    return {
+      id: 'skill:' + name,
+      check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: name },
+      onPass: { show: { i18nKey: 'check.skill.' + name + '.pass', fallback: '技能 ' + name + ' 已安装', level: 'info' }, actions: [] },
+      onFail: { show: { i18nKey: 'check.skill.' + name + '.fail', fallback: '技能 ' + name + ' 未安装', level: 'bad', hint: 'prompt:installSkills' }, actions: [{ type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills' }] },
+      label: '技能 ' + name + ' 已安装',
+      group: 'env',
+    }
+  }),
   {
     id: 'env:home',
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.ENV, key: 'HOME' },

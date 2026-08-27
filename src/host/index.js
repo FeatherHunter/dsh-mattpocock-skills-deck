@@ -45,6 +45,76 @@ export default {
     // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
     const CACHE_MS = 60000
     const STATUS_CACHE_MS = 30000  // 前置检查结果缓存（#344）
+    // ============ 统一路径入口（交付块2 · ADR 第四条）============
+    // original description in, canonical key out
+    function normalizeWorkspacePath(raw, platform){
+      if(raw==null) return '';
+      let s = String(raw).trim();
+      if(!s) return s;
+      try{
+        if(platform && platform.path && typeof platform.path.normalize==='function'){
+          let n = platform.path.normalize(s);
+          const sep = platform.path.sep;
+          let isRoot = false;
+          if(platform.os==='win32'){
+            isRoot = /^[A-Za-z]:\\$/.test(n) || /^\\\\[^\\]+\\[^\\]+\\?$/.test(n) || n==='\\' || n==='/';
+          } else {
+            isRoot = n==='/';
+          }
+          if(!isRoot){
+            while(n.length>1 && n.endsWith(sep)) n=n.slice(0,-1);
+            const otherSep = sep==='\\' ? '/' : '\\';
+            while(n.length>1 && n.endsWith(otherSep)) n=n.slice(0,-1);
+          }
+          if(platform.os==='win32') n=n.toLowerCase();
+          return n;
+        }
+      }catch{}
+      return s;
+    }
+    async function toWorkspaceKey(raw){
+      let input = raw;
+      if(input==null || (typeof input==='string' && !input.trim())){
+        try{ input = (typeof process!=='undefined' && process.cwd) ? process.cwd() : DEFAULT_CWD; }catch{ input = DEFAULT_CWD; }
+        if(!input) input = DEFAULT_CWD;
+      }
+      if(typeof input!=='string') input=String(input);
+      input=input.trim();
+      if(!input){
+        try{ input = (typeof process!=='undefined' && process.cwd) ? process.cwd() : DEFAULT_CWD; }catch{ input = DEFAULT_CWD; }
+      }
+      let platform=null;
+      try{ platform = await getPlatform(); }catch{}
+      try{
+        if(platform && platform.path && typeof platform.path.isAbsolute==='function' && platform.path.isAbsolute(input)){
+          return normalizeWorkspacePath(input, platform);
+        }
+      }catch{}
+      try{
+        const fss = ctx.get('fs');
+        if(fss && typeof fss.resolve==='function'){
+          const t = await fss.resolve(input);
+          const target = (t && typeof t==='object') ? (t.path || t.target || t.displayPath || '') : t;
+          if(typeof target==='string' && target){
+            const isAbs = (platform && platform.path && typeof platform.path.isAbsolute==='function')
+              ? platform.path.isAbsolute(target)
+              : (/^[A-Za-z]:[\\\/]/.test(target) || /^\//.test(target) || /^\\\\/.test(target));
+            if(isAbs) return normalizeWorkspacePath(target, platform);
+          }
+        }
+      }catch{}
+      try{
+        if(platform && typeof platform.getHome==='function'){
+          const home = await platform.getHome();
+          if(home && platform.path){
+            const joined = platform.path.join(home, input);
+            return normalizeWorkspacePath(joined, platform);
+          }
+        }
+      }catch{}
+      if(platform) return normalizeWorkspacePath(input, platform);
+      return input;
+    }
     const SKILL_PROBE_DIRS = ['.agents/skills', '.minimax/skills', '.claude/skills']  // #171 migrated: posix canonical via platform.path
     // v1.5 T11 + #149 修复：全流程核心技能探测名单（各动作 prompt 引用的技能 + 基础技能；检查 7/8 取前两个，检查 9 聚合全量）— 补 `setup-matt-pocock-skills` 为 10 名（图快照 §1.1 相邻缺陷正位，#150 Q6）
     const SKILL_PROBE_NAMES = ['wayfinder', 'triage', 'grilling', 'grill-me', 'implement', 'ask-matt', 'research', 'prototype', 'handoff', 'setup-matt-pocock-skills']
@@ -455,7 +525,8 @@ export default {
         // 先补齐 cwd→repoKey 映射（getRepoKey 自带 repoKeys 缓存；解析失败者进低频重试闸）
         const items = []
         for (let i = 0; i < cwdList.length; i++) {
-          const cwd = String(cwdList[i] || '')
+          const _rawCwd = String(cwdList[i] || '');
+          const cwd = await toWorkspaceKey(_rawCwd)
           if (!cwd) continue
           let rk = null
           for (const k in panelSyncCwdOfRepo) { if (panelSyncCwdOfRepo[k] === cwd) { rk = k; break } }
@@ -529,7 +600,8 @@ export default {
     let repoRoots = {}           // 根路径按 cwd 缓存
     let cacheDirResolved = null  // 缓存目录（惰性解析）
     async function getRepoRoot(cwd) {
-      const key = cwd || DEFAULT_CWD
+      const _rawKey = cwd || DEFAULT_CWD;
+      const key = await toWorkspaceKey(_rawKey);
       if (repoRoots[key] !== undefined) return repoRoots[key]
       repoRoots[key] = null
       const git = await resolveGit()
@@ -580,7 +652,8 @@ export default {
     }
 
     async function getRepoKey(cwd) {
-      const key = cwd || DEFAULT_CWD
+      const _rawKey2 = cwd || DEFAULT_CWD;
+      const key = await toWorkspaceKey(_rawKey2);
       if (repoKeys[key]) return repoKeys[key]
       // v1.5 T11（map#37 · #38 R1 + #40 R2 输入）：
       //   多远程下 gh 必选 upstream（context/remote.go::remoteNameSortScore upstream(3)>github(2)>origin(1)），
@@ -1367,7 +1440,7 @@ export default {
     // 第一性原理：前端只调 wf.detect/wf.status 拿 DetectionResult（#150 Q1）；探测零 OS 直碰经 platform；
     // per-workspace 按 handleKey=cwd|refId 内存 Map 不落盘（Q3）；pending 不缓存（Q6）；唯一写路径 wf.bind→registry.bind（Q4）
     harness.handle('wf.detect', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       const force = !!(args && args.force)
       // #195 修复：force 探测清空 gh 解析缓存（旧实现首次失败永久缓存，force 也救不回来）
       if (force) resetGhCache()
@@ -1381,7 +1454,7 @@ export default {
       }
     })
     harness.handle('wf.status', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       const force = !!(args && args.force)
       const lang = (args && args.lang === 'en') ? 'en' : 'zh'
       // #195 修复：force 探测清空 gh 解析缓存（旧实现首次失败永久缓存）
@@ -1586,7 +1659,7 @@ export default {
 
     // #228 链渲染器主机侧：通用链快照（契约层纯函数求值，谓词只读探测，失败返回不抛，超时 pending）
     harness.handle('wf.chain', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       const force = !!(args && args.force)
       if (force) resetGhCache()
       try{
@@ -1656,7 +1729,7 @@ export default {
 
     // #179 回切自愈：空 cwd 仍兜 DEFAULT_CWD 作最后兜底（避免“没有仓库”空白），但客户端已保证同 sid 切工作区亦触发，空窗极短
     harness.handle('wf.snapshot', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       const now = Date.now()
       if (cache.snapshot && cache.cwd === cwd) {
         const current = await cacheSnapshotIsCurrent(cache.snapshot, cwd)
@@ -1680,7 +1753,7 @@ export default {
     })
 
     harness.handle('wf.refresh', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
       resetGhCache()
       try {
@@ -1700,32 +1773,10 @@ export default {
     // 传给 wf.selection 后 select() 三级联中 markdown.matches 收到相对 cwd，plat.join(cwd,...) 仍是相对，
     // fs.resolve 默认基于进程 cwd 解析失败 → matches false → fallback → UI "未绑定"。
     // 归一后所有 handler 收到绝对 cwd，markdown.matches 命中 docs/agents/issue-tracker.md → Markdown 自动。
-    async function normCwd(raw){
-      if(!raw) return DEFAULT_CWD
-      try{
-        const plat=await getPlatform()
-        if(plat&&plat.path&&typeof plat.path.isAbsolute==='function'&&plat.path.isAbsolute(raw)) return plat.path.normalize(raw)
-      }catch{}
-      // 相对：DSH fs.resolve 试探（DSH 平台 fs 可能感知 workspaces 根）
-      try{
-        const fss=ctx.get('fs')
-        if(fss&&typeof fss.resolve==='function'){
-          const t=await fss.resolve(raw)
-          const target=(t&&typeof t==='object')?(t.path||t.target):t
-          if(typeof target==='string'&&target&&(/^[A-Za-z]:[\\/]/.test(target)||/^\//.test(target))) return target
-        }
-      }catch{}
-      // home 试探（windows + posix）
-      try{
-        const plat=await getPlatform()
-        const home=plat&&typeof plat.getHome==='function'?await plat.getHome():null
-        if(home&&plat.path) return plat.path.join(home,raw)
-      }catch{}
-      return raw
-    }
+    async function normCwd(raw){ return toWorkspaceKey(raw); }
     
     harness.handle('wf.bind', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       const backendId = args && ('backendId' in args ? args.backendId : args.backend)
       try {
         const reg = await getTrackerRegistry()
@@ -1752,7 +1803,7 @@ export default {
         const list = typeof reg.allBindings === 'function' ? reg.allBindings() : []
         const bindings = await Promise.all(list.map(async function (b) {
           const rawCwd = b.cwd || (b.handle && b.handle.cwd) || ''
-          const cwd = await normCwd(rawCwd)
+          const cwd = await toWorkspaceKey(rawCwd)
           let ref = null
           if (b.backendId) { try { ref = reg.describe({ cwd: cwd }, b.backendId) } catch {} }
           return { cwd: cwd, backendId: b.backendId, source: 'explicit', ref: ref }
@@ -1765,14 +1816,14 @@ export default {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
         const mods = reg.modules().map(function(m){ return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}, m.openRepository ? { openRepository: m.openRepository } : {}) }) // #230：转发后端声明的 setup 描述数据键（键入 locale）
-        const cwd = (args && args.cwd) || DEFAULT_CWD
+        const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
         let bound = undefined
         try { bound = reg.bound({ cwd: cwd }) } catch {}
         return { ok: true, modules: mods, bound: bound }
       } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
     })
     harness.handle('wf.selection', async function (args) {
-      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       try {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
@@ -1784,7 +1835,7 @@ export default {
     })
     harness.handle('wf.issueDetail', async function (args) {
       const n = args && args.number
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
       try {
         const r = await fetchIssueDetail(Number(n), cwd)
@@ -1854,7 +1905,7 @@ export default {
     harness.handle('wf.issueComments', async function (args) {
       const n = args && args.number
       const after = args && args.after
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
       try {
         const r = await fetchIssueComments(Number(n), after != null ? String(after) : null, cwd)
@@ -1869,7 +1920,7 @@ export default {
     harness.handle('wf.commentIssue', async function (args) {
       const n = args && args.number
       const body = args && args.body
-      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       if (!n || isNaN(Number(n))) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
       if (typeof body !== 'string' || !body.trim()) return { ok: false, error: { kind: 'parse', message: '评论内容为空' } }
       try {
@@ -1907,7 +1958,7 @@ export default {
     //   故"列表不更新状态"。since 语义：返回数组非空 = 自上次快照以来有变化 → 视为 changed。
     //   配额仍走 REST 5000/h 池（独立于 GraphQL 5000 点/h），不烧穿。
     harness.handle('wf.probe', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       try {
         const remote = await fetchIssueIndex(cwd)
         if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe 失败') }
@@ -1980,7 +2031,7 @@ export default {
 
     // v19：查询 .scratch/handoff/ 下最新的交接文档（按 mtime 倒序 + name desc 兜底 · 加固后），供「交接给新会话」预填 + 复制
     harness.handle('wf.handoffLatest', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       const r = await scanHandoffDir(cwd)
       if (r.error) return { ok: false, error: r.error }
       return { ok: true, file: pickLatestHandoff(r.mds) }
@@ -1992,7 +2043,7 @@ export default {
     // 区别于初版：初版「name 不在目录也 fallback 到 mtime 最新」在实际场景下被验证为反模式 —— 当 AI 还没写完
     // 文档时（handoffFile 设了但文件未落盘），fallback 会让右半亮蓝且点开后错误引用上次的老文档，与修复目标相悖。
     harness.handle('wf.handoffResolve', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       const r = await scanHandoffDir(cwd)
       if (r.error) return { ok: false, error: r.error }
       const want = args && args.name
@@ -2014,7 +2065,7 @@ export default {
     // 写操作前 UI 已二次确认（用户点击即同意），不走 approval 服务（RESEARCH-NOTES §3 结论）。
     harness.handle('wf.claim', async function (args) {
       const n = args && args.number
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       if (!n) return { ok: false, error: '缺少参数 number（ticket 号）' }
       const repo = await getRepoKey(cwd)
       if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
@@ -2268,7 +2319,7 @@ export default {
       if (!sid || !baseline) return { ok: false, error: { kind: 'parse', message: '缺少 sessionId/baselineTitle' } }
       const core = await getNamingCore()
       if (!core || !core.isPlaceholderTitle(baseline)) return { ok: false, error: { kind: 'parse', message: 'baselineTitle 非占位四式' } }
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       let repoKey = namingRepoKeyOf(args)
       if (!repoKey) repoKey = await namingResolveRepoKey(cwd)
       const st = await loadNamingState()
@@ -2392,7 +2443,7 @@ export default {
     // ============ #190：wf.openFolder — 打开本地文件夹（Markdown 后端仓库名点击）============
     // 输入：{ cwd }；平台分发：win32 explorer / darwin open / linux xdg-open（经 platform.resolveExecutable），subprocess.spawn 打开
     harness.handle('wf.openFolder', async function (args) {
-      const cwd = (args && (args.cwd || args.path)) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && (args.cwd || args.path)) || DEFAULT_CWD)
       if (!cwd) return { ok: false, error: '缺少 cwd' }
       try {
         const platform = await getPlatform()
@@ -2427,7 +2478,7 @@ export default {
     // 返回：{ ok: true, repo: { owner, name } } | { ok: false, errorKind, error, repoUrl? }
     // errorKind: no-git / no-gh / not-logged-in / already-exists / network / permission（6 档，兼容草稿中的 bad-name 兜底映射为 permission）
     harness.handle('wf.initPublish', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await toWorkspaceKey((args && args.cwd) || DEFAULT_CWD)
       const name = args && args.name ? String(args.name).trim() : ''
       const visibility = (args && args.visibility) === 'public' ? 'public' : 'private'
       if (!name) return { ok: false, errorKind: 'bad-name', error: '仓库名为空' }
