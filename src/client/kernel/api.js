@@ -288,7 +288,7 @@ export let pendingDraftTargetSid = null
           if (ns && st.snapshot) { ns.snapshot = st.snapshot; ns.snapMode = 'real'; ns.cwd = cwd }
           // issuePath · 新会话锚点：把本次打开的 issue 记为新会话的起点（Q10 A+B）
           try {
-            const __refs = (function (t) { const o=[]; const s=String(t||''); const re=/(?:github\.com|gitlab\.com)\/[^\/\s]+\/[^\/\s]+(?:\/-\/)?\/issues\/(\d+)/g; let mm; while((mm=re.exec(s))!==null) o.push(Number(mm[1])); return o })(text)
+            const __refs = (typeof issueRefNumbersFrom==='function') ? issueRefNumbersFrom(text) : [] // #231：锚点识别改由后端 linkPatternSource 驱动
             if (__refs.length && ns) {
               const __tg = String(title || '').slice(0,80)
               recordIssuePath(ns, __refs[0], 'claim', __tg)
@@ -332,12 +332,8 @@ export let pendingDraftTargetSid = null
       openTextInNewSession(st, rowActionText(st, x), newSessionTitle(x))
     }
     export const extractIssueRefs = function (text) {
-      const out = []
-      const s = String(text || '')
-      const urlRe = /(?:github\.com|gitlab\.com)\/[^\/\s]+\/[^\/\s]+(?:\/-\/)?\/issues\/(\d+)/g
-      let m
-      while ((m = urlRe.exec(s)) !== null) out.push(Number(m[1]))
-      return out
+      // #231：真源在各后端 links.linkPatternSource；无快照时经 shared 缓存解析，未达则 helper 内 LEGACY 过渡
+      return (typeof issueRefNumbersFrom === 'function') ? issueRefNumbersFrom(text) : []
     }
     export const inject = (st, text) => {
       if (st.injector) { st.injector(text); flash(st, tr('toast.injected'), 'ok') }

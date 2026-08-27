@@ -80,11 +80,38 @@ export const repoUrlFor = (st) => {
   if (!refId || !refId.includes('/')) return ''
   return leg.repo.split('{refId}').join(refId)
 }
+/** 新会话锚点/提及识别（#231）：扫描正则来自各后端 links.linkPatternSource 声明；元数据未达窗口落入文末 LEGACY 组合式。 */
+export function issueRefNumbersFrom(text, st) {
+  const s = String(text || '')
+  if (!s) return []
+  const ms = (st && Array.isArray(st.backendModules)) ? st.backendModules
+    : ((typeof shared !== 'undefined' && shared && Array.isArray(shared.backendModules)) ? shared.backendModules : null)
+  const srcs = []
+  if (ms) { for (let i = 0; i < ms.length; i++) { const m = ms[i]; if (m && m.links && m.links.linkPatternSource) srcs.push(String(m.links.linkPatternSource)) } }
+  if (!srcs.length) {
+    // LEGACY_LINK_TEMPLATES 同窗过渡：组合 github/gitlab 两式扫描
+    const out = []
+    const re = /(?:github\.com|gitlab\.com)\/[^\/\s]+\/[^\/\s]+(?:\/-\/)?\/issues\/(\d+)/g // LEGACY_LINK_TEMPLATES
+    let mm
+    while ((mm = re.exec(s)) !== null) out.push(Number(mm[1]))
+    return out
+  }
+  const out = []
+  const have = {}
+  for (let k = 0; k < srcs.length; k++) {
+    try {
+      const re = new RegExp(srcs[k], 'g')
+      let m
+      while ((m = re.exec(s)) !== null) { const n = Number(m[1]); if (!have[n]) { have[n] = true; out.push(n) } }
+    } catch (e) {}
+  }
+  return out
+}
 /**
  * 过渡期遗留映射（#231 清尾批删除）：仅覆盖快照尚未携带 links 元数据的窗口。
  * 形态与各后端模块声明完全一致；此处存在只为行为零回归，不是第二真源——真源在各模块。
  */
 const LEGACY_LINK_TEMPLATES = {
-  github: { issue: 'https://github.com/{refId}/issues/{key}', repo: 'https://github.com/{refId}', search: 'https://github.com/search?q={q}' },
-  gitlab: { issue: 'https://gitlab.com/{refId}/-/issues/{key}', repo: 'https://gitlab.com/{refId}', search: 'https://gitlab.com/search?search={q}' },
+  github: { issue: 'https://github.com/{refId}/issues/{key}', repo: 'https://github.com/{refId}', search: 'https://github.com/search?q={q}' }, // LEGACY_LINK_TEMPLATES
+  gitlab: { issue: 'https://gitlab.com/{refId}/-/issues/{key}', repo: 'https://gitlab.com/{refId}', search: 'https://gitlab.com/search?search={q}' }, // LEGACY_LINK_TEMPLATES
 }

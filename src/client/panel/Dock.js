@@ -247,10 +247,9 @@ export     const DetailsDock = (props) => {
             const href = repoRef.url || ''
             const inner = [h('svg', { viewBox: '0 0 16 16', width: 11, height: 11, fill: 'currentColor', style: { flex: 'none' } }, [h('path', { d: 'M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 8h8.5V1.5z' })]), h('span', { 'data-repo-text': 1, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, repoRef.name)]
             const chipStyle = { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: col, backgroundColor: bg, border: '1px solid transparent', borderRadius: 6, padding: '1px 8px', flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', borderColor: bdc, colorScheme: 'light dark' }
-            // #190：Markdown 本地文件夹分支 — backend==='markdown' 时 onClick host.call('wf.openFolder',{cwd})，GitHub/GitLab 保持 openUrl(href)；空 url 不再 span（Markdown 仍可点）
-            const bidNorm = String(bid || '').toLowerCase()
-            const isMarkdown = bidNorm === 'markdown'
-            if (isMarkdown) {
+            // #231（契约动作）：开仓行为由后端 openRepository 声明驱动 —— folder 型注入 wf.openFolder，url 型浏览器原生新窗；无声明且无 url 即无动作（诚实渲染）
+            const act = repositoryActionOf(s, bid)
+            if (act === 'folder') {
               return h('a', { href: 'javascript:void(0)', title: repoRef.name, 'data-repo-chip': 1, style: Object.assign({}, chipStyle, { cursor:'pointer' }), onClick: function(e){ try{ if(e&&e.preventDefault) e.preventDefault() }catch(_){}; try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openFolder',{cwd: s.cwd||''}) }catch(__){} } }, inner)
             }
             if (!href) return h('span', { title: repoRef.name, 'data-repo-chip': 1, style: Object.assign({}, chipStyle, { cursor:'default' }) }, inner)

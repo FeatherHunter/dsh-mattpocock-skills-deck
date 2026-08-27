@@ -104,16 +104,7 @@ export     const ChecksTab = ({ st }) => {
           // checks → chain 适配（过渡期，供 Markdown 隔离等；#228 过渡后由 host 真源取代）
           if (typeof checksToChainSnapshot === 'function') {
             const snap = checksToChainSnapshot(cs)
-            // 228 验收：Markdown 工作区 github 链行不存在 → 过滤非 markdown 链中 github 专属失败（模拟物理隔离）
-            const sel = st.selection || (st.snapshot && st.snapshot.selection) || null
-            const bid = sel && sel.backendId
-            if (bid === 'markdown' && snap && snap.steps) {
-              // 模拟：移除 id 1 的 repo 失败在 markdown 下的红卡残留（#228 真机验收：Markdown 不出现红卡）
-              // 若 chain 来自旧 checks 适配，其 steps 含 id 1（repo）， markdown 下应视作不存在而非 fail
-              // 因此若 bid===markdown，过滤掉 id 1 的失败态，仅保留通用链部分（此处简化为不展示 repo fail 的 banner，仅展示 steps 过滤）
-              // 实际上 chain 适配器应按 backend 过滤；此处若检测到 markdown，将 repo fail 的 show 降为 done（不阻塞）
-              // 简化：不改 steps，仅 banner 层对 markdown 忽略 repo fail（由 render 层判断）
-            }
+            // #229/#231：markdown 行不存在已由 wf.status 链目录视图真源承载；checks 过渡适配不做任何后端特判
             return snap
           }
         }catch(e){}

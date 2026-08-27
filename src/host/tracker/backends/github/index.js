@@ -72,7 +72,7 @@ export const links = {
   linkPatternSource: 'github\\.com\\/[^\\/\\s]+\\/[^\\/\\s]+\\/issues\\/(\\d+)',
 }
 /** 界面能力位（D8 末段）：仅驱动 UI 引导入口（标签补全步骤），永不被数据路径读取。 */
-export const capabilities = { labelsGuide: true }
+export const capabilities = { labelsGuide: true, repoCreateChain: true }
 /** 注入文案数据（类别7核销）：键→双语全文；名单从 src/shared/labels.js 动态拼装，零第二份字面量名单。 */
 export const prompts = (function () {
   const names = CANONICAL_LABELS.map(function (l) { return (l && l.name) ? String(l.name) : String(l) })

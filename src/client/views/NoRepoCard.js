@@ -57,13 +57,11 @@ export     const NoRepoCard = function (props) {
           ]),
         ])
       }
-      // #228 替换红卡：Markdown 物理隔离（行不存在而非 fail）— 通用链下 repoBad 在 markdown 不展示红卡（真机验收）
+      // #228/#231：物理隔离由「行不存在」承载；未声明标签能力的后端不进入建仓卡流程（能力位判据，非 id 判据）
       const bidNoRepo = sel && sel.backendId
-      if (bidNoRepo === 'markdown') {
-        // Markdown 后端：仓库检查由通用/环境链承载，github 红卡永不显示（#228 验收：Markdown 工作区不出现红卡）
-        // 若未来 chainSnapshot 为真源，此分支由链快照的行不存在自动根治；此处为过渡期显式隔离
-        if (!labelVisible) return null
-      }
+      const metaNoRepo = (typeof moduleMetaOf === 'function') ? moduleMetaOf(st, bidNoRepo) : null
+      const labelsGuideNoRepo = !!(metaNoRepo && metaNoRepo.capabilities && metaNoRepo.capabilities.labelsGuide)
+      if (!labelsGuideNoRepo && !labelVisible) return null
       // #228 链失败态渲染（草案：github 后端目录失败态替代手写红卡；若 host 已提供 chainSnapshot 且当前步为建仓链，则委托 ChainRenderer 渲染）
       const chainSnapForNoRepo = (function(){
         try{
@@ -74,7 +72,8 @@ export     const NoRepoCard = function (props) {
       })()
       const isChainRepoFail = chainSnapForNoRepo && chainSnapForNoRepo.steps && chainSnapForNoRepo.steps.some(function(s){ return String(s.id)==='1' && s.status==='fail' })
       // 若链快照表明当前链头是建仓相关（且非 markdown），优先由 ChainRenderer 承接（新链 renderer 为真源）；旧红卡仅作兼容兜底
-      if (isChainRepoFail && bidNoRepo === 'github' && chainSnapForNoRepo && chainSnapForNoRepo.currentIndex!=null) {
+      const repoCreateChainNoRepo = !!(metaNoRepo && metaNoRepo.capabilities && metaNoRepo.capabilities.repoCreateChain)
+      if (isChainRepoFail && repoCreateChainNoRepo && chainSnapForNoRepo && chainSnapForNoRepo.currentIndex!=null) {
         // 尝试构造 dispatcher 供链渲染（同 ChecksTab 复用逻辑）
         try{
           const disp = (typeof createActionDispatcher==='function') ? createActionDispatcher({

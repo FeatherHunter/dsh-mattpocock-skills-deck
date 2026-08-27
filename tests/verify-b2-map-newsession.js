@@ -62,6 +62,9 @@ const buildEnv = function (src, lang) {
     return s
   }
   const repoStr = function () { return 'FeatherHunter/SKILLS' }
+  // #231 沙箱替身：产品 completePrompt 兜底引用的过渡模板常量（同形即可，值仅用于断言 URL）
+  const LEGACY_ISSUE_URL = 'https://github.com/{refId}/issues/{key}'
+  const issueUrlFor = function (st, key) { return LEGACY_ISSUE_URL.split('{refId}').join('FeatherHunter/SKILLS').split('{key}').join(String(key == null ? '' : key)) }
   // 2026-08-18（需求修复）：常量已函数化（语言切换实时重算）—— 沙箱同样以函数注入
   const COMPLETE_PROMPT = function () { return promptText('complete') }
   const BODY_FORMAT = function () { return promptText('bodyFormat') }
@@ -78,10 +81,10 @@ const buildEnv = function (src, lang) {
     return '/wayfinder\n' + body
   }
   const completePromptSrc = extractBetween(src, 'const completePrompt = function (st, num, title, total, closed) {', "const FIXATE_PROMPT = function () { return promptText('fixate') }")
-  const completePrompt = new Function('COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText)
+  const completePrompt = new Function('COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', 'LEGACY_ISSUE_URL', completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText, LEGACY_ISSUE_URL)
   // #265 起 router 的命名契约段迁至 shared/naming-guardian.js；终止锚点随迁（#265 后稳定存在于源与产物）
   const startTextSrc = extractBetween(src, 'const startText = (st, t) => {', '// 契约 #205 会话标题')
-  const startText = new Function('repoStr', 'promptText', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', startTextSrc + '; return startText')(repoStr, promptText, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix)
+  const startText = new Function('repoStr', 'promptText', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', 'issueUrlFor', 'LEGACY_ISSUE_URL', startTextSrc + '; return startText')(repoStr, promptText, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix, issueUrlFor, LEGACY_ISSUE_URL)
   return { startText: startText }
 }
 

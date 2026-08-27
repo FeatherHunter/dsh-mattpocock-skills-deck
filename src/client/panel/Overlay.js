@@ -243,14 +243,14 @@ export     const OverlayPanel = (props) => {
               ])
             }
             const bid = sel ? sel.backendId : (repoRef.backend || firstBackendIdOf(null))
-            const bidNorm = String(bid || '').toLowerCase()
-            const isMarkdown = bidNorm === 'markdown'
+            // #231（契约动作）：开仓行为由后端 openRepository 声明驱动 —— folder 型注入 wf.openFolder，url 型浏览器原生新窗；无声明且无 url 即无动作（诚实渲染）
+            const act = repositoryActionOf(s, bid)
             const href = repoRef.url || ''
             const displayName = repoRef.name || repoStr(s)
             const baseStyle = { display: 'inline-flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
             const chipClass = 'dsws-chip ' + (isErr ? 'dsws-chip-t' : 'dsws-chip-m')
             const inner = [Ic({ n: isErr ? 'alert' : 'info', size: 11 }), h('span', { 'data-repo-text': 1, className: 'dsws-ellip', title: displayName, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, displayName)]
-            if (isMarkdown) {
+            if (act === 'folder') {
               return h('a', { href: 'javascript:void(0)', 'data-repo-chip': 1, className: chipClass, style: Object.assign({}, baseStyle, { cursor:'pointer', textDecoration:'none' }), title: displayName, onClick: function(e){ try{ if(e&&e.preventDefault) e.preventDefault() }catch(_){}; try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openFolder',{cwd: s.cwd||''}) }catch(__){} } }, inner)
             }
             if (href) {
