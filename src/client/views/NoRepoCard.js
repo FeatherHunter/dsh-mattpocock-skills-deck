@@ -61,7 +61,8 @@ export     const NoRepoCard = function (props) {
       const bidNoRepo = sel && sel.backendId
       const metaNoRepo = (typeof moduleMetaOf === 'function') ? moduleMetaOf(st, bidNoRepo) : null
       const labelsGuideNoRepo = !!(metaNoRepo && metaNoRepo.capabilities && metaNoRepo.capabilities.labelsGuide)
-      if (!labelsGuideNoRepo && !labelVisible) return null
+      const labelVisibleEarly = !!(card.labelStep && card.labelStep.visible)
+      if (!labelsGuideNoRepo && !labelVisibleEarly) return null
       // #228 链失败态渲染（草案：github 后端目录失败态替代手写红卡；若 host 已提供 chainSnapshot 且当前步为建仓链，则委托 ChainRenderer 渲染）
       const chainSnapForNoRepo = (function(){
         try{
@@ -249,7 +250,7 @@ export     const NoRepoCard = function (props) {
                 const ppI=mmI&&mmI.prompts&&mmI.prompts.ensureLabels
                 if(ppI){ const lg=(typeof promptLang==='function')?promptLang():'zh'; const t=(lg==='en'&&ppI.en)?String(ppI.en):String(ppI.zh||''); if(t) return t }
               }catch(e){}
-              return (typeof promptText==='function') ? promptText('ensureLabels') : ''
+              return '' // 无声明即诚实无注入（引导入口由能力位控制，本 Modal 仅在已声明后端可见）
             })()
             if (txt && typeof inject==='function') { inject(st, txt) }
             else if (typeof copyText==='function' && txt){ copyText(st, txt, tr('panel.labelsStepInjected')) }

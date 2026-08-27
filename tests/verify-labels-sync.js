@@ -41,8 +41,12 @@ check(subOk, 'CANONICAL 10 为上游 19 的子集（名子集，不卡色）')
 function readClient(p){ try{ return fs.readFileSync(p,'utf8')}catch(e){ return ''} }
 const cli = readClient(clientPath)
 const pcli = readClient(pkgClientPath)
-check(cli.includes('"ensureLabels"') || cli.includes("'ensureLabels'") || cli.includes('ensureLabels'), 'client.js 含 PROMPTS.ensureLabels')
-check(pcli.includes('"ensureLabels"') || pcli.includes("'ensureLabels'") || pcli.includes('ensureLabels'), 'package/lib/client.js 含 PROMPTS.ensureLabels')
+check(cli.includes('ensureLabels'), 'client.js 含 ensureLabels（#231 起真源为 github 后端模块 prompts 声明）')
+check(pcli.includes('ensureLabels'), 'package/lib/client.js 含 ensureLabels（同上）')
+const ghModPath = path.join(ROOT, 'src/host/tracker/backends/github/index.js')
+let ghTxt=''; try{ ghTxt=fs.readFileSync(ghModPath,'utf8') }catch(e){}
+check(ghTxt.includes('CANONICAL_LABELS.map'), 'github 后端模块从 shared 单源动态拼装名单')
+check(ghTxt.includes('ensureLabels'), 'github 后端模块声明 ensureLabels 双语数据')
 expected.forEach(n=>{
   check(cli.includes(n), `client ensureLabels 含 ${n}`)
   check(pcli.includes(n), `package ensureLabels 含 ${n}`)
@@ -52,7 +56,7 @@ expected.forEach(n=>{
 check(cli.includes('CANONICAL_LABELS_188')||cli.includes('missingLabels188'), 'client 含标签步骤 helper（名子集计算）')
 check(cli.includes('panel.labelsStepTitle'), 'client 含 labelsStepTitle i18n')
 check(cli.includes('panel.labelsStepAction'), 'client 含 labelsStepAction i18n')
-check(cli.includes("promptText('ensureLabels')") || cli.includes('promptText("ensureLabels")') || cli.includes("promptText('ensureLabels')"), 'NoRepoCard 注入 prompt:ensureLabels')
+check(cli.includes('prompts.ensureLabels'), 'NoRepoCard 注入优先后端 ensureLabels 数据（#231 元数据直取）')
 check(cli.includes("backendId === 'markdown'")||cli.includes('backendId==="markdown"')||cli.includes("markdown"), 'NoRepoCard 含 Markdown 跳过（GitHub 专属）')
 check(!cli.includes('wf.status') || cli.includes('dsws-labels-modal'), 'client 标签步骤为 Modal（非 wf.status 常驻 warn 黄条）')
 check(cli.includes('dsws-labels-modal') && cli.includes('dsws-labels-overlay'), 'client 含 labels Modal 样式（dsws-labels-modal/overlay）')
