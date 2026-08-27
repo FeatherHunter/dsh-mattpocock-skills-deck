@@ -1256,6 +1256,8 @@ export default {
     // 保证事件到达后下一步 wf.chain/wf.detect（无需 force）即全量重判——否则 detect 的 store 快照会冻住旧 skillProbes。
     function invalidateSkillProbeCaches() {
       resetSkillPendingState()
+      // #284 修订（对抗式审查 2026-08-28）：链快照缓存一并失效——广播到达后【无 force】即全量重判（与 #281 断链回归一致）
+      try { chainCache = { ts: 0, key: null, value: null } } catch {}
       try { getWorkspaceStore().then(function (ws) { try { ws.clear() } catch {} }).catch(function () {}) } catch {}
     }
     function ensureSkillsInvalidateSubscription() {
@@ -1458,11 +1460,21 @@ export default {
 
     // #228/#284 链渲染器主机侧：通用链 + 当前后端链求值快照（契约层纯函数求值，谓词只读探测，失败返回不抛，超时 pending）
     // #284 增强：backend 谓词由 host 既有探测包装注册（repoRemote/repoAccess/ghAuth/mdParseOk），后端链不再只是声明。
+    // #284 修订（对抗式审查 2026-08-28）：30s per(cwd+backendId+lang) 缓存——面板多组件挂载不再重复 25 名技能探测与 gh 网络调用；
+    //   等待计数只随真实探针轮次（force）推进，不被 UI 刷新次数偷换。
+    let chainCache = { ts: 0, key: null, value: null }
+    const CHAIN_CACHE_MS = 30000
     harness.handle('wf.chain', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const force = !!(args && args.force)
+      const chainLang = (args && args.lang === 'en') ? 'en' : 'zh'
       if (force) resetGhCache()
       try{
+        // 缓存命中（force 绕过；探测 pending 结果不缓存——与旧 statusCache 同纪律）
+        const cacheKey = cwd + '|' + String(args && args.backendId || '') + '|' + chainLang
+        if (!force && chainCache.value && chainCache.key === cacheKey && Date.now() - chainCache.ts < CHAIN_CACHE_MS) {
+          return chainCache.value
+        }
         const platform = await getPlatform()
         const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true }) }).catch(function(){ return null })
         let backendId = args && args.backendId
@@ -1471,7 +1483,6 @@ export default {
         const predMod = await import('./tracker/predicateRegistry.js')
         const registry = predMod.createPredicateRegistry({ timeout: 3000 })
         if (typeof genMod.registerGenericPredicates === 'function') genMod.registerGenericPredicates(registry)
-        const chainLang = (args && args.lang === 'en') ? 'en' : 'zh'
         const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, selection: selMod && selMod.selection, explicitBackendId: selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
         // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx) {
@@ -1502,6 +1513,40 @@ export default {
         }) } catch (e) {}
         const kind = (args && args.kind) || 'all'
         const chainAndSnap = await genMod.resolveGenericChain(registry, ctx, kind)
+        // #284 修订（对抗式审查 2026-08-28）：链上检查项【逐项独立求值】——
+        //   evaluateChain 的串行被阻塞语义会把「已算出但前置未过」的判定（技能缺失红牌、gh 未装提示）吞成 pending；
+        //   此为 #281 红牌契约与 #229「pending=诚实未知」的不诚实表达。改为：所有步骤保留自身判定（全貌诊断），
+        //   链只表达「首个未通过步 = 当前引导步」（currentIndex），引导与诊断合二为一。
+        const stepEvalParallel = function (items, resolved) {
+          try {
+            const rMap = resolved || {}
+            const steps = (items || []).map(function (it) {
+              const rd = rMap[it.id]
+              const isPass = rd === 'pass'
+              const isFail = rd === 'fail'
+              const status = isPass ? 'done' : (isFail ? (((it.onFail && Array.isArray(it.onFail.actions) && it.onFail.actions.length)) ? 'current' : 'fail') : 'pending')
+              const show = isPass ? ((it.onPass && it.onPass.show) || null) : ((it.onFail && it.onFail.show) || null)
+              const actions = isFail && it.onFail && Array.isArray(it.onFail.actions) ? it.onFail.actions : []
+              return { id: it.id, check: it.check, status: status, show: show, actions: actions, isApplicable: true, blockedBy: null, isCurrent: false, isBlocking: status !== 'done' }
+            })
+            const firstNotDone = steps.findIndex(function (s) { return s.status !== 'done' })
+            const allDone = firstNotDone < 0
+            const snapshot = {
+              steps: steps,
+              currentIndex: allDone ? null : firstNotDone,
+              failedIndex: firstNotDone,
+              doneCount: steps.filter(function (s) { return s.status === 'done' }).length,
+              applicableCount: steps.length,
+              totalCount: steps.length,
+              chainState: allDone ? 'allDone' : (steps[firstNotDone].status === 'pending' ? 'pending' : 'hasCurrent'),
+              version: '1',
+            }
+            if (allDone) { snapshot.isComplete = true } else { snapshot.isComplete = false; snapshot.hasBlockingFailure = steps[firstNotDone].status !== 'pending'; snapshot.blockingCheck = steps[firstNotDone].id }
+            return snapshot
+          } catch (e) { return null }
+        }
+        const genPredResults = predMod.toPredicateResults ? predMod.toPredicateResults(chainAndSnap.resolved || {}) : (chainAndSnap.resolved || {})
+        const genericSnapRaw = stepEvalParallel(genMod.getGenericChain ? genMod.getGenericChain(kind) : (chainAndSnap.chain || []), genPredResults)
         let backendChain = null
         try{
           if (backendId) {
@@ -1511,24 +1556,35 @@ export default {
             if (items.length) {
               const resolved = await registry.resolveAll(items, ctx)
               const predResults = predMod.toPredicateResults ? predMod.toPredicateResults(resolved) : resolved
-              const snapshot = chainMod.evaluateChain ? chainMod.evaluateChain(items, predResults) : null
+              const snapshot = stepEvalParallel(items, predResults)
               const errs = chainMod.validateChain ? chainMod.validateChain(items) : []
               backendChain = { chain: items, resolved: resolved, snapshot: snapshot, errors: errs }
             }
           }
         }catch(e){}
-        // #284：全链 = 通用链 + 后端链（串行求值：前置未全 done 时后端项被阻塞为 pending）
+        // #284 修订（对抗式审查 2026-08-28）：后端链【独立求值】——不再与通用链串行拼接，
+        //   消除「env:home 未通过 → gh CLI/登录/仓库可达全被阻塞」的假依赖；fullSnapshot 为两段步骤的
+        //   「拼接视图」（各步状态保留自身判定），引导语义仍为 通用段 → 后端段，但不再互相锁步。
         let fullSnapshot = null
         let fullChain = null
         try {
-          if (backendChain && backendChain.chain && backendChain.chain.length) {
-            const chainMod3 = await import('../shared/tracker/chain.js')
-            fullChain = chainAndSnap.chain.concat(backendChain.chain)
-            const fullResolved = Object.assign({}, chainAndSnap.resolved || {}, backendChain.resolved || {})
-            fullSnapshot = chainMod3.evaluateChain ? chainMod3.evaluateChain(fullChain, predMod.toPredicateResults ? predMod.toPredicateResults(fullResolved) : fullResolved) : null
-          } else {
-            fullChain = chainAndSnap.chain
-            fullSnapshot = chainAndSnap.snapshot
+          const chainMod3 = await import('../shared/tracker/chain.js')
+          const genSnap = genericSnapRaw || chainAndSnap.snapshot
+          const backSnap = (backendChain && backendChain.snapshot) || null
+          const genSteps = (genSnap && Array.isArray(genSnap.steps)) ? genSnap.steps : []
+          const backSteps = (backSnap && Array.isArray(backSnap.steps)) ? backSnap.steps : []
+          fullChain = chainAndSnap.chain.concat((backendChain && backendChain.chain) ? backendChain.chain : [])
+          const allSteps = genSteps.concat(backSteps)
+          const firstNotDone = allSteps.findIndex(function (s) { return s.status !== 'done' })
+          const allDone = firstNotDone < 0
+          fullSnapshot = {
+            steps: allSteps,
+            currentIndex: allDone ? null : firstNotDone,
+            doneCount: allSteps.filter(function (s) { return s.status === 'done' }).length,
+            applicableCount: allSteps.length,
+            totalCount: allSteps.length,
+            chainState: allDone ? 'allDone' : (allSteps[firstNotDone].status === 'pending' ? 'pending' : 'hasCurrent'),
+            version: '1',
           }
         } catch (e) { fullSnapshot = chainAndSnap.snapshot; fullChain = chainAndSnap.chain }
         // #284：富化链快照——谓词结果的 detail/hint 合并进步骤 show（红牌分拣文案经链到达 UI）
@@ -1546,11 +1602,18 @@ export default {
           } catch (e) { return snap }
         }
         const allResolved = Object.assign({}, chainAndSnap.resolved || {}, (backendChain && backendChain.resolved) || {})
-        const genericSnap = enrichSnap(chainAndSnap.snapshot, chainAndSnap.resolved)
+        const genericSnap = enrichSnap(genericSnapRaw || chainAndSnap.snapshot, chainAndSnap.resolved)
         const backendSnapE = (backendChain && backendChain.snapshot) ? enrichSnap(backendChain.snapshot, backendChain.resolved) : (backendChain && backendChain.snapshot)
         if (backendChain) backendChain.snapshot = backendSnapE
         fullSnapshot = enrichSnap(fullSnapshot, allResolved)
-        return { ok: true, backendId: backendId || null, chain: chainAndSnap.chain, resolved: chainAndSnap.resolved, snapshot: genericSnap, backendChain: backendChain, fullChain: fullChain, fullSnapshot: fullSnapshot }
+        const result = { ok: true, backendId: backendId || null, chain: chainAndSnap.chain, resolved: chainAndSnap.resolved, snapshot: genericSnap, backendChain: backendChain, fullChain: fullChain, fullSnapshot: fullSnapshot }
+        // #284 修订：探针出现 pending（诚实未知）的结果不缓存（与旧 statusCache 同纪律——防已装仍报未装冻结）
+        const hasPendingProbe = (function () {
+          const steps = (fullSnapshot && Array.isArray(fullSnapshot.steps)) ? fullSnapshot.steps : []
+          return steps.some(function (s) { return s.status === 'pending' })
+        })()
+        if (!hasPendingProbe) chainCache = { ts: Date.now(), key: cacheKey, value: result }
+        return result
       }catch(e){
         return { ok: false, error: String((e && e.message)||e) }
       }

@@ -74,6 +74,7 @@
         'setup.default.labelReqs': '，并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个',
         // #229 口径：pending = 诚实未知/未接入，置灰展示、不计入就绪计数
         'env.pending': '等待探测',
+        'env.waitingBlocked': '等待前置：{by}',
         'act.diagnose': '诊断',
         'act.fix': '修复',
         'act.discuss': '讨论',
@@ -417,6 +418,7 @@
         'setup.default.labelReqs': ', and ensure the repo has the complete label set the skills need (the five triage-role labels + the wayfinder labels wayfinder:map / research / prototype / grilling / task) \u2014 not just a few',
         // #229 semantics: pending = honestly unknown / not wired, shown grey and excluded from ready counts
         'env.pending': 'Pending probes',
+        'env.waitingBlocked': 'Waiting on: {by}',
         'act.diagnose': 'Diagnose',
         'act.fix': 'Fix',
         'act.discuss': 'Discuss',

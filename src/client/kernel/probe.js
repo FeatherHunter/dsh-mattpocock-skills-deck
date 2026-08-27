@@ -8,10 +8,18 @@
  */
     // #228/#284 链渲染器主机侧数据：wf.chain 全链快照（通用链 + 后端链，按后端动态，refresh 联动）
     // #284 迁移：九格目录视图（wf.status/checks）退役，全部读数点位改从链快照派生。
+    // #284 修订（对抗式审查 2026-08-28）：并发门——同 cwd 同轮次的 in-flight 请求复用；
+    //   面板多组件（ChecksTab/StatusBar/Dock）挂载并发调用不再重复触发 25 名技能探测与 gh 网络调用。
+    const _chainInflightByCwd = new Map()
     export const loadChain = function(st, force){
       if (typeof host === 'undefined' || typeof host.call !== 'function') return Promise.resolve(null)
+      const norm = normCwdClientProbe(st.cwd)
+      if (!force) {
+        const inflight = _chainInflightByCwd.get(norm)
+        if (inflight) return inflight
+      }
       const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, force ? { force:true } : {})
-      return host.call('wf.chain', args).then(function(res){
+      const p = host.call('wf.chain', args).then(function(res){
         if (res && res.ok && (res.fullSnapshot || res.snapshot)) {
           st.chainSnapshot = res.fullSnapshot || res.snapshot
           st.chain = res.chain
@@ -23,7 +31,9 @@
           return st.chainSnapshot
         }
         return null
-      }).catch(function(e){ return null })
+      }).catch(function(e){ return null }).finally(function(){ try { _chainInflightByCwd.delete(norm) } catch (e) {} })
+      if (!force) _chainInflightByCwd.set(norm, p)
+      return p
     }
     export const pendingSnapshotByCwd = new Map() // Map<normCwd,{promise,controller}> dedup 30s
     export const normCwdClientProbe = function(k){ try{ return String(k||'').toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,'')||'/'; }catch(e){ return String(k||''); } }
@@ -37,7 +47,7 @@
     export const readyCount = (st) => { const cs = chainSteps(st).filter(function (s) { return s.status !== 'pending' }); return cs.length ? cs.filter(function (s) { return s.status === 'done' }).length : -1 }
     export const envTotal = (st) => { const cs = chainSteps(st).filter(function (s) { return s.status !== 'pending' }); return cs.length }
     // v14-22：返回纯数字串（'6/9' / '--/9'），由状态栏 num() 固定宽度渲染；分母 = 非待定步数（动态）
-    export const envLabel = (st) => { const n = readyCount(st); const t = envTotal(st); return n < 0 ? '--/' + t : n + '/' + t }
+    export const envLabel = (st) => { const n = readyCount(st); const t = envTotal(st); if (t <= 0) return '--'; return n < 0 ? '--/' + t : n + '/' + t }
     export const setupCheck = (st) => chainStep(st, 'tracker:initialized')
 
     // #370：blockerNames 只列「仍 OPEN」的阻塞者（GitHub 依赖边在阻塞者关闭后仍保留，需按状态过滤）

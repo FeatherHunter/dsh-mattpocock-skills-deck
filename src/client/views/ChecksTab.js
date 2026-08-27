@@ -55,11 +55,20 @@ export const ChecksTab = ({ st }) => {
     const meta = statusMeta(s)
     const label = (s.show && (s.show.fallback || s.show.title || s.show.i18nKey)) || s.id
     const desc = (s.show && (s.show.desc || '')) || ''
+    // #284 修订（对抗式审查 2026-08-28）：pending 分两种——被前置阻塞（blockedBy 指明前置步）与诚实探测中；
+    //   阻塞必须在 UI 明示，避免把「尚未轮到」误读为「探测中/未接入」（正是 #276 反对的不诚实状态）。
+    let blockedNote = ''
+    if (s.status === 'pending' && s.blockedBy) {
+      const blocker = steps.find(function (x) { return String(x.id) === String(s.blockedBy) }) || null
+      const blockerName = (blocker && blocker.show && (blocker.show.fallback || blocker.show.title)) || s.blockedBy
+      blockedNote = tr('env.waitingBlocked', { by: String(blockerName) })
+    }
+    const finalDesc = blockedNote ? (desc ? desc + ' \u00b7 ' + blockedNote : blockedNote) : desc
     return h('div', { key: s.id || i, className: 'dsws-ccard', style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } }, [
       h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: meta.dot, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' } }, meta.label),
       h('span', { style: { flex: 1, minWidth: 0 } }, [
         h('span', { className: 'nm', style: { color: meta.color } }, String(label)),
-        desc ? h('div', { className: 'dt dsws-ellip', title: desc, style: { color: '#8b8b95' } }, desc) : null,
+        finalDesc ? h('div', { className: 'dt dsws-ellip', title: finalDesc, style: { color: '#8b8b95' } }, finalDesc) : null,
       ]),
     ])
   }) : null
