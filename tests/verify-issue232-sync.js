@@ -44,7 +44,7 @@ async function main() {
   check(SYNC.EVAL_GAP_MS >= 4000, 'SYNC.EVAL_GAP_MS 配额闸 ≥4s')
 
   // #232 视线门控追加：同步链路节拍真源（client 内核只许派生引用，杜绝第二份字面量真相）
-  for (const nm of ['POLL_GRID_MS', 'ACTION_PROBE_WINDOW_MS', 'FALLBACK_PROBE_MS', 'FOCUS_PROBE_MIN_MS']) {
+  for (const nm of ['POLL_GRID_MS', 'ACTION_PROBE_WINDOW_MS', 'FALLBACK_PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'SNAP_FRESH_MS', 'ISSUE_CACHE_TTL']) {
     check(typeof SYNC[nm] === 'number' && SYNC[nm] > 0 && Object.isFrozen(SYNC), 'SYNC.' + nm + ' 契约层在场且冻结')
   }
 
@@ -127,6 +127,12 @@ async function main() {
   check(/setInterval\(function \(\) \{[\s\S]{0,400}?visibilityState[\s\S]{0,200}?\}, PROBE_MS\)/.test(probeSrc), 'R3 · 兜底探针 interval 内含视线门控（页签隐藏不发起新扫描）')
   check(!probeSrc.includes("host.call('wf.refresh', { cwd: cwd })"), 'R3 · 空组 wf.refresh 大查询兜底已移除（无人观看 cwd 零重建请求）')
   check(/fix H2 stale discard[\s\S]{0,700}setCachedSnapshot\(_reqNorm, snap\)/.test(probeSrc), 'R4 · H2 stale-discard 分支将结果落 per-cwd LRU（在途响应到达即落地）')
+
+  // 对抗评审收尾断言（5e7f219 后 fixup）：
+  check(storeSrc.includes('SYNC.ISSUE_CACHE_TTL') && probeSrc.includes('SYNC.SNAP_FRESH_MS'), '详情 TTL 与面板新鲜阈值升格契约层（同值双源清零）')
+  check(((probeSrc.match(/visibilityState !== 'visible'/g) || []).length) >= 3, 'R3 闸覆盖三处发起入口：兜底 interval + 动作长窗回调 + 短窗回调（发起时刻资格复检）')
+  check(probeSrc.includes("addEventListener('visibilitychange'"), '切页签恢复通道二在场（visibilitychange，与 focus 共用限流）')
+  check(storeSrc.includes('delete s2.status'), '落缓存前剥除 notModified/status/cached 传输态标记')
   const bSrc = readSrc('scripts/build.mjs')
   check(bSrc.includes("file: 'src/shared/tracker/sync.js'"), 'build SHARED_SPLICE 已登记 trackerSync（一源两物）')
   const ciSrc = readSrc('src/client/index.js')

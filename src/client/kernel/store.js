@@ -132,6 +132,7 @@
       //   看着的工作区，stores 内是同样开着面板的其余工作区。R2 切换 = StatusBar.apply 换绑 cwd，
       //   轮询主体随队列转移；R3 hidden 页签上报空表且兜底探针同闸；R4 在途结果落地见
       //   loadSnapshot 的 H2 分支（写入 per-cwd LRU，不直接 emit 换视图的 store）。
+      //   注：本函数的面包屑参数 st 钉死于首次挂载 store（#213 先例），recordIssuePath/hitSelf 不随切换迁移。
       const cwdsOut = (function () {
         const arr = []
         try {
@@ -229,7 +230,7 @@
     export const clearActiveIssue = function (st) { st.activeIssue = null; emit(st) }
     export const clearActiveDetail = function (st) { st.activeMap = null; st.activeIssue = null; emit(st) }
     // T2 #7 · fetchIssueDetail 缓存与状态（独立于 snapshot，按 issue 号 60s TTL）
-    export const ISSUE_CACHE_TTL = 60000
+    export const ISSUE_CACHE_TTL = ((typeof SYNC === 'object' && SYNC && SYNC.ISSUE_CACHE_TTL) || 60000)
     // #155：后端选择 per-cwd 状态（权威来自 host snapshot.selection/repository；client 仅镜像乐观）
     export const selectionByCwd = {}
     export const repositoryByCwd = {}
@@ -434,7 +435,9 @@
     export const touchLRUClient = function(map,key,val){ if(map.has(key)) map.delete(key); map.set(key,val); if(map.size>SNAP_CWD_LRU_MAX){ const first=map.keys().next().value; map.delete(first);} return val; }
     export const getCachedSnapshot = function (cwd) { try{ const k=normKeyClient(cwd); const e=snapshotByCwd.get(k); return e?e.snapshot||e:null; }catch(e){ return null; } }
     export const getCachedEntry = function(cwd){ try{ const k=normKeyClient(cwd); return snapshotByCwd.get(k)||null; }catch(e){ return null; } }
-    export const setCachedSnapshot = function (cwd, snap) { if(!cwd||!snap||snap.ok!==true||!Array.isArray(snap.maps)) return; try{ const k=normKeyClient(cwd); const ver=snap.version||snap.etag||''; const ent={snapshot:snap, version:ver, ts:Date.now()}; touchLRUClient(snapshotByCwd,k,ent); }catch(e){} }
+    export const setCachedSnapshot = function (cwd, snap) { if(!cwd||!snap||snap.ok!==true||!Array.isArray(snap.maps)) return; let s2=snap; if(snap.notModified===true||snap.status===304||snap.cached===true){ // #232 · 落库前剥除响应传输态标记（仅属当次请求，不属缓存实体）
+      try{ s2=Object.assign({},snap); delete s2.notModified; delete s2.status; delete s2.cached; }catch(eS){ return } }
+      try{ const k=normKeyClient(cwd); const ver=s2.version||s2.etag||''; const ent={snapshot:s2, version:ver, ts:Date.now()}; touchLRUClient(snapshotByCwd,k,ent); }catch(e){} }
     export const getSnapshotVersion = function(cwd){ try{ const e=getCachedEntry(cwd); return e?e.version||'':''; }catch(e){ return ''; } }
     export const hydrateFromCache = function (st) {
       if (!st || !st.cwd) return false

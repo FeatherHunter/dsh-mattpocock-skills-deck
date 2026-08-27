@@ -448,6 +448,9 @@
       _actionProbePending = true
       if (timer === undefined) { _actionProbePending = false; return }
       timer.timeout(function () {
+        // #232 R3 · 发起时刻资格复检：排队期间页签已藏 → 跳过本次发起新扫描；
+        // 已发出的在途请求不受影响（R4 由 loadSnapshot 分支保障），恢复通道见 startAutoProbe。
+        try { if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') { _actionProbePending = false; return } } catch (e232ag) {}
         _actionProbePending = false
         probeNow(false)
       }, ((typeof SYNC === 'object' && SYNC && SYNC.ACTION_PROBE_WINDOW_MS) || 8000))
@@ -462,6 +465,8 @@
       _dirtyProbePending = true
       if (timer === undefined) { _dirtyProbePending = false; return }
       timer.timeout(function () {
+        // #232 R3 · 同上：脏信号成立的余波回到可见态后由栅格首拍重新喂入，此处不再对藏页发起。
+        try { if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') { _dirtyProbePending = false; return } } catch (e232dg) {}
         _dirtyProbePending = false
         probeNow(false)
       }, DIRTY_PROBE_DEBOUNCE_MS)
@@ -482,6 +487,13 @@
       }, PROBE_MS)
       if (typeof globalThis !== 'undefined') globalThis.__dswsOldProbeTimer = shared._probeTimer
       if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('focus', function () { probeNow(true) })
+      // #232 · 同一聚焦窗口内切页签不触发 window focus —— 补挂 visibilitychange 作为第二恢复通道
+      //   （hidden 期间积压的差值由首拍栅格上报 + 本监听双保险收敛；共用 FOCUS_PROBE_MIN_MS 限流）。
+      if (typeof document !== 'undefined' && document.addEventListener) {
+        document.addEventListener('visibilitychange', function () {
+          try { if (document.visibilityState === 'visible') probeNow(true) } catch (e232v) {}
+        })
+      }
     }
 
     // v1.5 T10 R7（用户拍板）：手动刷新（状态栏「更新」/ 列表「刷新」/ 检查页「重新检查」）
@@ -514,7 +526,7 @@
     // #376：打开面板即保证新鲜 —— 未就绪/失败 → force 加载（有「加载中」反馈）；
     //   已就绪但过期（>60s）→ 触发加载；已就绪且新鲜（≤60s）→ 直接展示不重复请求（配额友好）。
     //   force 不被 snapLoading 守卫丢弃（#370 已修），加载中打开面板最终也会完成并展示。
-    export const SNAP_FRESH_MS = 60000
+    export const SNAP_FRESH_MS = ((typeof SYNC === 'object' && SYNC && SYNC.SNAP_FRESH_MS) || 60000)
     export const snapFresh = function (st) {
       if (!st.snapshot || !st.snapshot.generatedMs) return false
       try { return (Date.now() - st.snapshot.generatedMs) <= SNAP_FRESH_MS } catch (e) { return false }

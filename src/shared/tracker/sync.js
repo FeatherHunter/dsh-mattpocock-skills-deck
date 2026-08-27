@@ -24,7 +24,7 @@ export const SYNC = Object.freeze({
   SOURCE_GH_EDIT: 'gh-edit',
   SOURCE_CLAIM: 'claim',
   SOURCE_INDEX_DIRTY: 'index-dirty',
-  /** 同一 repoKey 两次增量求值的最小间隔（配额闸；4s poll 栅格下实际周期 = ceil(gap/4000)*4s）。 */
+  /** 同一 repoKey 两次增量求值的最小间隔（配额闸；实际周期 = POLL_GRID_MS 的整数倍向上取整）。 */
   EVAL_GAP_MS: 4500,
   /** 每个 poll tick 至多求值的 cwd 数（多工作区轮转公平性上限）。 */
   EVALS_PER_TICK: 2,
@@ -39,7 +39,7 @@ export const SYNC = Object.freeze({
   DIRTY_ECHO_TTL_MS: 60000,
   /** 回执表容量上限（按 cwd 计；超限裁最旧，防御异常膨胀）。 */
   DIRTY_MAP_CAP: 50,
-  /** 单会话上报 cwd 上限（client 与 host 共用的唯一截断真源；#232 视线门控下 = 正在看的工作区数）。 */
+  /** 单会话上报 cwd 上限（client 与 host 共用的唯一截断真源；#232 视线门控下 = 打开会话所属工作区数，含多面板并列场景）。 */
   MAX_POLLED_CWDS: 12,
 
   // ---- #232 追加 · 同步链路节拍真源（client 内核禁止出现第二份字面量真相）----
@@ -47,10 +47,14 @@ export const SYNC = Object.freeze({
   POLL_GRID_MS: 4000,
   /** 动作后探针长窗（#213「一次轻量 REST」语义的词汇表升级为常量单源）。 */
   ACTION_PROBE_WINDOW_MS: 8000,
-  /** 兜底全量探针周期（无脏信号时的最低频安全网；页签隐藏时跳过发起——#232 R3）。 */
+  /** 兜底全量探针周期（无脏信号时的最低频安全网；页签隐藏时跳过发起——#232 R3）。与 FOCUS_PROBE_MIN_MS 数值相同纯属巧合，语义独立、调参不得隐式联动。 */
   FALLBACK_PROBE_MS: 60000,
   /** 回到前台触发的探针限流间隔（切换工作区回来的恢复通道——#232 R2）。 */
   FOCUS_PROBE_MIN_MS: 60000,
+  /** 打开面板的快照即时新鲜阈值（超阈才发起一次加载；≤阈纯展示零请求）。 */
+  SNAP_FRESH_MS: 60000,
+  /** Issue 详情单条缓存 TTL（列表新鲜度之外的独立维度；写后 bump 由宿主失效路径承接）。 */
+  ISSUE_CACHE_TTL: 60000,
 })
 
 /** 求值态工厂（Data Clumps 收敛：字段形状与 noteEval* 纯转移同住契约层）。 */
