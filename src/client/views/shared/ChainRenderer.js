@@ -112,7 +112,7 @@
             // 主动触发一次重求值（接入现有探测/轮询/快照刷新机制：st.refresh 或 host.call('wf.detect', {force:true})）
             try{
               if (dispatcher && dispatcher._refresh) await dispatcher._refresh()
-              else if (typeof host !== 'undefined' && host.call) { await host.call('wf.detect', { cwd: st.cwd||'', force:true }); if(st.cwd) { try{ loadSnapshot(st,true,true) }catch(e){}; try{ loadChain(st,true) }catch(e){} } }
+              else if (typeof host !== 'undefined' && host.call) { await host.call('wf.detect', { cwd: st.cwd||'', force:true, backendId:(st.selection&&st.selection.backendId)||undefined }); if(st.cwd) { try{ loadSnapshot(st,true,true) }catch(e){}; try{ loadChain(st,true) }catch(e){} } }
             }catch(e){}
           }
         }catch(e){ try{ flash(st, String((e&&e.message)||e).slice(0,200), 'warn') }catch(_){} }

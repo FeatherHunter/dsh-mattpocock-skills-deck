@@ -28,7 +28,7 @@ export const ChecksTab = ({ st }) => {
           },
           refresh: async function (target) {
             try {
-              if (typeof host !== 'undefined' && host.call) { await host.call('wf.detect', { cwd: st.cwd || '', force: true }) }
+              if (typeof host !== 'undefined' && host.call) { await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (st.selection && st.selection.backendId) || undefined }) }
             } catch (e) {}
             try { loadChain(st, true) } catch (e) {}
             try { loadSnapshot(st, true, true) } catch (e) {}

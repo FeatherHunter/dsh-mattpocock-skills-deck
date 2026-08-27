@@ -81,7 +81,7 @@ export     const NoRepoCard = function (props) {
             openUrl: function(u){ try{ openUrl(u) }catch(e){} },
             hostCall: function(m,p){ if(typeof host!=='undefined'&& host.call) return host.call(m,p); return Promise.reject(new Error('hostCall unavailable')) },
             renderForm: function(schema, onSubmit){ try{ onSubmit({}) }catch(e){} },
-            refresh: async function(){ try{ if(typeof host!=='undefined'&& host.call) await host.call('wf.detect',{cwd:st.cwd||'', force:true}) }catch(e){}; try{ loadChain(st,true) }catch(e){}; try{ loadSnapshot(st,true,true) }catch(e){} },
+            refresh: async function(){ try{ if(typeof host!=='undefined'&& host.call) await host.call('wf.detect',{cwd:st.cwd||'', force:true, backendId:(st.selection&&st.selection.backendId)||undefined}) }catch(e){}; try{ loadChain(st,true) }catch(e){}; try{ loadSnapshot(st,true,true) }catch(e){} },
             tr: tr,
             resolvePrompt: function(id,pa){ try{ if(id==='setupRun'&&typeof setupRunPrompt==='function') return setupRunPrompt(st); return promptText(id,pa)}catch(e){ return '' } }
           }) : null

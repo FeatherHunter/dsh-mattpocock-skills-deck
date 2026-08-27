@@ -1059,7 +1059,7 @@ export default {
       return { ok: false, error: last || { kind: 'network', message: 'GraphQL 单 issue 请求失败（重试后仍失败）' } }
     }
 
-    async function buildSnapshot(cwd) {
+    async function buildSnapshot(cwd, hintBackendId) {
       let viewerLogin = null // 由 Tracker.getCurrentUser 填充（后端接口返回当前用户，UI 仅对比，不直调 gh）
       let viewer = null
       const repo = await getRepoKey(cwd)
@@ -1153,7 +1153,7 @@ export default {
           //   经 detectionService 判定（explicit 主锚 → matches → fallback），主锚是权威。
           //   此前快照裸 registry.select 不读主锚：「GitHub 版锚 + 非 git 目录」在快照侧判 fallback null，
           //   客户端保留旧 markdown 意向 → 头部 chip=Markdown 与环境检查=github（链按锚判定）互相矛盾（用户观察）。
-          const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { skipSkillProbes: true }) }).catch(function(){ return null })
+          const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: hintBackendId || undefined }) }).catch(function(){ return null })
           let sel = selMod && selMod.selection
           if (!sel || !sel.backendId) {
             // detect 无结论（fallback null / 服务不可用）：退回裸 select（bind 记忆 → matches）兼容旧行为
@@ -1476,7 +1476,7 @@ export default {
       if (force) resetGhCache()
       try {
         const svc = await getDetectionService()
-        const res = await svc.detect({ cwd }, { force })
+        const res = await svc.detect({ cwd }, { force, hintBackendId: (args && args.backendId) || undefined })
         // 对抗式：ensure DetectionResult 形态（含 selection/pending/multiHit，按 #125）
         return { ok: true, ...res }
       } catch (e) {
@@ -1502,7 +1502,8 @@ export default {
           return chainCache.value
         }
         const platform = await getPlatform()
-        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true }) }).catch(function(){ return null })
+        // 用户显式选择（客户端持久化绑定）作为 detect hint——「主锚 > 用户选择 > matches」层级，见 detectionService.detect
+        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined }) }).catch(function(){ return null })
         // 2026-08-28 语义修正（锚即真相，Q4 契约）：落盘主锚（detect 的 explicit/matches 判定）是权威——
         //   工作区「错误地用 GitHub 模板初始化」→ 检测就是 github（工作区名字不影响检测）；
         //   客户端绑定仅在 detect 无结论（无锚 fallback null / 探测中）时兜底，旧绑定记忆不得篡改已落盘的真相。
@@ -1710,7 +1711,7 @@ export default {
           const current = await cacheSnapshotIsCurrent(disk, cwd)
           if (current !== false) return adoptSnapshot(Object.assign({}, disk, { fromCache: true }), cwd)
         }
-        const snap = await buildSnapshot(cwd)
+        const snap = await buildSnapshot(cwd, args && args.backendId)
         await writeDiskCache(snap.repo, snap)
         return adoptSnapshot(snap, cwd)
       } catch (e) {
@@ -1724,7 +1725,7 @@ export default {
       // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
       resetGhCache()
       try {
-        const snap = await buildSnapshot(cwd)
+        const snap = await buildSnapshot(cwd, args && args.backendId)
         // v1.5 T9：刷新后落盘，下次重启秒开
         await writeDiskCache(snap.repo, snap)
         return adoptSnapshot(snap, cwd)

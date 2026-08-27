@@ -56,7 +56,18 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     let selection = explicitRes.selection
     const explicit = { raw: explicitRes.raw, parsed: explicitRes.parsed }
 
-    // ② matches > fallback（经 registry.select，含 pending/multiHit + 超时 3000ms + AbortSignal）
+    // ② 用户显式选择（持久化意图，2026-08-28 拍板层级：主锚 > 用户选择 > 自动识别(matches) > 兜底）
+    //    客户端持久化绑定经 opts.hintBackendId 上报——与 registry.select 的 explicit(bind 记忆) 同权，并跨重启可用；
+    //    未注册 id 忽略（诚实）→ 落 matches；主锚有结论时本分支不参与（锚即真相优先）。
+    if (!selection && opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId)) {
+      try {
+        let ref = null
+        try { ref = registry.describe(handle, opts.hintBackendId) } catch {}
+        selection = { backendId: opts.hintBackendId, source: 'explicit', ref }
+      } catch (eHint) {}
+    }
+
+    // ③ matches > fallback（经 registry.select，含 pending/multiHit + 超时 3000ms + AbortSignal）
     if (!selection) {
       const opCtx = buildOpContextBase(cwd, platform, fs, timers, exec)
       // 若调用方传 signal，可在此注入 opCtx.signal = opts.signal（registry withTimeout 内部会合并）

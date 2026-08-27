@@ -214,7 +214,8 @@
         if (force && !silent && !hasCache) st.snapMode = 'loading'
         emit(st)
         const ver = (typeof getSnapshotVersion==='function'? getSnapshotVersion(st.cwd):'') || (st.snapshot&&st.snapshot.version)||'';
-        const args = Object.assign({}, st.cwd ? { cwd: st.cwd, ifNoneMatch: ver, version: ver } : (ver?{ifNoneMatch:ver,version:ver}:{}))
+        // 2026-08-28 方案B：客户端持久化选择随快照上报——detect 在主锚无结论时优先采纳（用户选择 > 自动识别）
+        const args = Object.assign({}, st.cwd ? { cwd: st.cwd, ifNoneMatch: ver, version: ver } : (ver?{ifNoneMatch:ver,version:ver}:{}), (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {})
         const _normKeyP = normCwdClientProbe(st.cwd||'');
         let _ctrl=null; try{ _ctrl=typeof AbortController!=='undefined'?new AbortController():{signal:{aborted:false},abort(){}}; }catch(e){ _ctrl={signal:{aborted:false},abort(){}}; }
         let _timer=null;

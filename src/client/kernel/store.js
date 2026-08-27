@@ -413,6 +413,37 @@
         } catch {}
       }).catch(function (e) { doFail(e && e.message || e) })
     }
+    // 方案3（2026-08-28 拍板）：清除后端选择 —— 删除主锚/想重新走选择流程时的逃生舱。
+    //   wf.bind(null) = 显式无后端（registry 契约：byHandle 记 null，select ① 回 explicit null），
+    //   客户端经 mergeSelection 的 explicit-null 分支覆盖（S6），此后 gate「还没有设置」重新引导。
+    export const clearBackendBinding = function (st) {
+      if (!st || !st.cwd) return false
+      const prev = st.selection
+      const nxt = { backendId: null, source: 'explicit' }
+      st.selection = nxt
+      try { if (st.cwd) setCachedSelection(st.cwd, nxt) } catch {}
+      try { if (typeof closeSwitchConfirm === 'function') closeSwitchConfirm(st) } catch {}
+      emit(st)
+      if (typeof host === 'undefined' || typeof host.call !== 'function') { try { flash(st, tr('switch.bindFail', { err: 'host.call 不可用' }), 'warn') } catch {}; return true }
+      host.call('wf.bind', { cwd: st.cwd || '', backendId: null }).then(function (res) {
+        const ok = res && (res.ok === true || (res.value && res.value.ok === true) || res.ok)
+        if (ok) { try { flash(st, tr('switch.clearBindOk'), 'ok') } catch {} }
+        else {
+          st.selection = prev
+          try { if (st.cwd) setCachedSelection(st.cwd, prev) } catch {}
+          emit(st)
+          try { flash(st, tr('switch.bindFail', { err: String((res && (res.error || res.message)) || 'unknown') }), 'warn') } catch {}
+        }
+        try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch {}
+        try { if (typeof loadChain === 'function') loadChain(st, true) } catch {}
+      }).catch(function (e) {
+        st.selection = prev
+        try { if (st.cwd) setCachedSelection(st.cwd, prev) } catch {}
+        emit(st)
+        try { flash(st, '清除失败:' + String((e && e.message) || e).slice(0, 120), 'warn') } catch {}
+      })
+      return true
+    }
     export const makeStore = () => ({
       open: false, tab: 'list', activeMap: null, activeIssue: null,
       issueCache: {}, issueMode: 'idle', issueError: null, issueDetail: null, issueCommentsMoreLoading: false, issueCommentsFailCount: 0, issueCommentsHasMore: true,
