@@ -1171,6 +1171,18 @@ export default {
             if ((!repository || !repository.refId) && repo && repo.owner) {
               try { repository = { backend: sel.backendId, refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: '' } } catch (eD2) {}
             }
+            // 2026-08-28 契约修正（用户复核）：仓库名一律由后端 describe 经契约层产出，UI 层零派生——
+            //   markdown 本地形态（目录即仓库）同样经 describe 给出 name=目录名；describe 异常/弱结果时
+            //   host 侧按目录名兜底（数据产生在半，UI 直显），绝不把「前端拼装」当作仓库身份来源。
+            if (!repository) {
+              try { repository = reg.describe({ cwd: cwd, refId: cwd }, sel.backendId) } catch (eNa) {}
+            }
+            if (!repository) {
+              try {
+                const nm = String(cwd || '').split(/[\\/]/).filter(Boolean).pop() || sel.backendId
+                repository = { backend: sel.backendId, refId: String(cwd || ''), name: nm, url: '' }
+              } catch (eNb) {}
+            }
             // #231：后端特判删除 —— 是否补链由该后端 links.repoUrlTemplate 意愿位声明；补全走其自身 describe（单源产出 refId/name/url）
             if (repository && !repository.url && sel.backendId && repo && repo.owner) {
               var wantsUrlSeed = false
