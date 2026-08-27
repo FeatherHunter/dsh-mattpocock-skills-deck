@@ -1,0 +1,459 @@
+// tests/verify-skill-probe-redcard-and-waiting.js — #281 红牌分拣与等待合同门禁
+// 覆盖：缺失 vs 名片无效分拣 · 异处副本绿+来源 · 等待 pending 有界 · 失效广播事件驱动 · 封顶失败携带原文
+import { readFileSync, existsSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+let failed = false
+let total = 0
+let passed = 0
+function check(ok, msg, detail='') {
+  total++
+  if (ok) { passed++; console.log('  PASS ' + msg) }
+  else { failed = true; console.log('  FAIL ' + msg + (detail ? ' — ' + String(detail).slice(0,800) : '')) }
+}
+
+console.log('== #281 红牌分拣与等待合同门禁 ==')
+
+// ---------- 1. 源码门禁 ----------
+console.log('\n— 验收1：源码门禁（纪律与线索） —')
+{
+  const hostSrc = readFileSync('src/host/index.js', 'utf8')
+  check(hostSrc.includes('SKILL_PENDING_MAX'), 'src/host/index.js 含 SKILL_PENDING_MAX（有界等待）')
+  check(hostSrc.includes('lightProbeReason'), '含 lightProbeReason（轻探分拣）')
+  check(hostSrc.includes('isSkillCardValid'), '含 isSkillCardValid（名片校验）')
+  check(hostSrc.includes('ensureSkillsInvalidateSubscription'), '含失效广播订阅')
+  check(hostSrc.includes('pending:skills-unavailable'), '含 pending hint 前缀')
+  check(!/SKILL_PROBE_DIRS/.test(hostSrc), '仍无 SKILL_PROBE_DIRS（单一尺度未回退）')
+  check(hostSrc.includes('source:') || hostSrc.includes('来源：'), '绿牌来源路径逻辑存在')
+  // 轻探仅涉标准根
+  const lightProbeSnippet = hostSrc.slice(hostSrc.indexOf('async function lightProbeReason'))
+  check(lightProbeSnippet.includes('.agents') && lightProbeSnippet.includes('SKILL.md'), '轻探仅涉标准根 SKILL.md')
+  check(!lightProbeSnippet.includes('.claude') && !lightProbeSnippet.includes('.minimax'), '轻探不含 .claude/.minimax（已退役）')
+}
+{
+  const predSrc = readFileSync('src/host/tracker/predicateRegistry.js', 'utf8')
+  check(!predSrc.includes('.claude'), 'predicateRegistry 无 .claude（仅标准根）')
+  // 确保仅一个候选
+  const candCount = (predSrc.match(/\.agents\/skills/g) || []).length
+  check(candCount === 1, 'predicateRegistry 仅一个 .agents/skills 候选 — 实际 ' + candCount)
+}
+{
+  const sdSrc = readFileSync('src/host/tracker/statusDerive.js', 'utf8')
+  check(!/setup-mattpocock-skills/.test(sdSrc), 'statusDerive 无错拼')
+  check(/setup-matt-pocock-skills/.test(sdSrc), 'statusDerive 含正确拼写')
+}
+{
+  const adrPath = 'docs/adr/20260828-skill-probe-redcard-and-waiting.md'
+  check(existsSync(adrPath), 'ADR 第三、五条已落纸：' + adrPath)
+  if (existsSync(adrPath)) {
+    const adr = readFileSync(adrPath, 'utf8')
+    check(adr.includes('看一眼文件只用于解释原因') || adr.includes('One Glance'), 'ADR 含“看一眼”纪律')
+    check(adr.includes('等待合同') || adr.includes('Waiting'), 'ADR 含等待合同')
+    check(adr.includes('SKILL_PENDING_MAX') || adr.includes('有界'), 'ADR 含封顶/有界')
+  }
+  // 产物一致性：build 产物与 src 同步（防陈旧产物派发）
+  {
+    const pkgLog = 'package/lib/index.js'
+    check(existsSync(pkgLog), '构建产物存在：' + pkgLog)
+    if (existsSync(pkgLog)) {
+      const lib = readFileSync(pkgLog, 'utf8')
+      check(lib.includes('SKILL_PENDING_MAX'), 'pkg 产物含 SKILL_PENDING_MAX（产物不陈旧）')
+      check(lib.includes('lightProbeReason'), 'pkg 产物含 lightProbeReason')
+      check(lib.includes('probeFsExists'), 'pkg 产物含 probeFsExists（path-shaped 纪律）')
+      check(!/SKILL_PROBE_DIRS/.test(lib), 'pkg 产物无 SKILL_PROBE_DIRS')
+      check(!lib.includes('.claude'), 'pkg 产物无 .claude（仅标准根）')
+    }
+  }
+}
+
+// ---------- 2. 集成缝：缺失 vs 无效分拣 ----------
+console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） —')
+{
+  // 构造带轻探的 host 实例：skills.get 返回 null，fs 控制文件是否存在与合法性
+  const hostUrl = new URL('../src/host/index.js', import.meta.url)
+  // 动态构造测试用的 ctx
+  // 使用真实 host 源码的 probeSkill 逻辑：需加载宿主并触发 wf.status
+  const tmpHome = mkdtempSync(join(tmpdir(), 'home281-'))
+  const platformStub = {
+    os: 'linux',
+    path: {
+      join: (...a) => join(...a),
+      normalize: (p) => p,
+      dirname: (p) => p.slice(0, p.lastIndexOf('/')),
+      basename: (p) => p.split('/').pop(),
+      isAbsolute: (p) => p.startsWith('/'),
+      sep: '/',
+    },
+    async getHome() { return tmpHome },
+    async resolveExecutable() { return null },
+    env: { get: () => undefined, has: () => false },
+    fs: null, // 占位
+  }
+  // fs 内存映射
+  const files = new Map()
+  const blockedRead = new Set() // 模拟「文件在但读不了」
+  const fsMock = {
+    // 真实 DSH fs 契约形状：resolve 返回 target 对象（target-shaped 读接口使用）
+    async resolve(p, opts) {
+      if (p && typeof p === 'object') return p
+      const base = (opts && opts.cwd) ? String(opts.cwd) : ''
+      const joined = base ? join(base, String(p)) : String(p)
+      return { path: joined }
+    },
+    // readText：target-shaped —— 只接受 resolve 返回值（对象）；裸字符串直接拒（防喂错 API）
+    async readText(target) {
+      const k = (target && typeof target === 'object') ? String(target.path) : null
+      if (!k) throw new Error('readText requires target object (resolve result)')
+      if (blockedRead.has(k)) throw new Error('read denied: ' + k)
+      if (files.has(k)) return files.get(k)
+      throw new Error('not found: ' + k)
+    },
+    // lstat：path-shaped —— 只接受裸字符串路径；传 target 对象即抛（真实契约如此）
+    async lstat(p) {
+      if (typeof p !== 'string') throw new Error('lstat requires string path')
+      const k = p
+      if (files.has(k)) return { type: 'file' }
+      if (files.has(k + '/.dir')) return { type: 'directory' }
+      const prefix = k.endsWith('/') ? k : k + '/'
+      for (const fk of files.keys()) if (fk.startsWith(prefix)) return { type: 'directory' }
+      return undefined
+    },
+    // exists：path-shaped
+    async exists(p) {
+      if (typeof p !== 'string') return false
+      return files.has(p)
+    }
+  }
+  platformStub.fs = fsMock
+
+  // skills mock：始终未命中（供轻探分拣）
+  let skillsShouldThrow = false
+  let invalidateHandler = null
+  const skillsMock = {
+    async get(name) {
+      if (skillsShouldThrow) throw new Error('service down: skills unavailable')
+      return null
+    },
+    on(event, handler) {
+      if (event === 'invalidate' || event === 'didInvalidate') invalidateHandler = handler
+      return () => { invalidateHandler = null }
+    },
+    off(event, handler) { if (invalidateHandler === handler) invalidateHandler = null },
+    trigger() { if (invalidateHandler) invalidateHandler() }
+  }
+
+  const subprocess = {
+    async resolveExecutable() { return null },
+    spawn() { return { done: Promise.resolve({ exitCode: 0 }), collected: { stdout: { readFrom: () => ({ text: '' }) }, stderr: { readFrom: () => ({ text: '' }) } }, terminate() {} } }
+  }
+  const timer = {
+    timeout: (a,b) => (typeof a==='function' ? setTimeout(a,b) : new Promise(r=>setTimeout(r,a))),
+    interval: () => () => {},
+  }
+  const connection = { rpc: { handle: (path, fn) => { handlers[path] = fn } } }
+  const handlers = {}
+  const ctx = {
+    get(k) {
+      if (k === 'skills') return skillsMock
+      if (k === 'fs') return fsMock
+      if (k === 'platform') return platformStub
+      if (k === 'subprocess') return subprocess
+      if (k === 'timer') return timer
+      if (k === 'connection') return connection
+      if (k === 'sessions') return { get: () => null }
+      return undefined
+    },
+    effect: (fn) => { try { const d = fn(); return typeof d==='function'?d:()=>{} } catch { return ()=>{} } },
+    set: () => {}
+  }
+
+  // 加载 host
+  let hostMod
+  try { hostMod = await import(hostUrl.href) } catch (e) { check(false, '导入 src/host/index.js 失败', String(e)); hostMod = null }
+  if (hostMod) {
+    const mod = hostMod.default ?? hostMod
+    try { (mod.apply ?? mod).call(null, ctx) } catch (e) { console.log('apply error', e) }
+    // 等待平台初始化
+    await new Promise(r=> setTimeout(r, 50))
+    // 调用 wf.status 并检查 wayfinder 行的 detail 区分
+    // 场景 A：目录完全缺失 -> 应为缺失
+    files.clear()
+    // 需要触发一次订阅（probe 会尝试订阅）
+    let statusA = null
+    {
+      const dispatch = handlers['/dsws']
+      if (dispatch) {
+        const rawA = await dispatch('status', { cwd: tmpHome, lang: 'zh', force: true })
+        statusA = rawA && rawA.value ? rawA.value : (rawA && rawA.ok === false ? null : rawA)
+        if (!statusA && rawA && rawA.ok === false) statusA = rawA
+      }
+    }
+    if (!statusA || !Array.isArray(statusA.checks)) {
+      check(false, 'wf.status 返回检查数组（缺失场景）', JSON.stringify(statusA).slice(0,500))
+    } else {
+      const rowWay = statusA.checks.find(c=> c.key==='skill:wayfinder' || String(c.name).includes('wayfinder'))
+      check(!!rowWay, '找到 wayfinder 检查行（缺失场景）')
+      if (rowWay) {
+        check(rowWay.level==='bad', '缺失场景 wayfinder 为 bad', JSON.stringify(rowWay))
+        check(rowWay.detail.includes('缺失') || rowWay.detail.includes('missing') || rowWay.detail.includes('未安装'), '缺失场景 detail 含“缺失/未安装”', rowWay.detail)
+        check(rowWay.level!=='ok', '轻探永不产生绿（缺失场景）')
+      }
+    }
+
+    // 场景 B：放入坏名片（目录存在但 SKILL.md 非法） -> 应为名片无效
+    // 准备坏卡：frontmatter 无 name 或 name 错误
+    const badCardPath = join(tmpHome, '.agents', 'skills', 'wayfinder', 'SKILL.md')
+    files.set(badCardPath, '---\nname: wrong-name\n---\n# bad')
+    // 也标记目录存在
+    files.set(join(tmpHome, '.agents', 'skills', 'wayfinder') + '/.dir', 'dir')
+    let statusB = null
+    {
+      const dispatch = handlers['/dsws']
+      if (dispatch) {
+        const rawB = await dispatch('status', { cwd: tmpHome, lang: 'zh', force: true })
+        statusB = rawB && rawB.value ? rawB.value : rawB
+      }
+    }
+    if (statusB && Array.isArray(statusB.checks)) {
+      const rowWayB = statusB.checks.find(c=> c.key==='skill:wayfinder' || String(c.name).includes('wayfinder'))
+      check(!!rowWayB, '找到 wayfinder 检查行（坏名片场景）')
+      if (rowWayB) {
+        check(rowWayB.level==='bad', '坏名片场景 wayfinder 为 bad', JSON.stringify(rowWayB))
+        check(rowWayB.detail.includes('无效') || rowWayB.detail.includes('Invalid'), '坏名片 detail 含“无效”', rowWayB.detail)
+        check(rowWayB.detail !== statusA.checks.find(c=> c.key==='skill:wayfinder').detail, '坏名片与缺失的 detail 不混同')
+      }
+    } else {
+      check(false, 'wf.status 返回检查数组（坏名片场景）')
+    }
+
+    // 清理：移除坏卡，回到缺失，确保可逆
+    files.delete(badCardPath)
+    files.delete(join(tmpHome, '.agents', 'skills', 'wayfinder') + '/.dir')
+    let statusC = null
+    {
+      const dispatch = handlers['/dsws']
+      if (dispatch) {
+        const rawC = await dispatch('status', { cwd: tmpHome, lang: 'zh', force: true })
+        statusC = rawC && rawC.value ? rawC.value : rawC
+      }
+    }
+    const rowC = statusC && statusC.checks ? statusC.checks.find(c=> c.key==='skill:wayfinder') : null
+    if (rowC) check(rowC.detail.includes('缺失') || rowC.detail.includes('未安装'), '移走坏卡后回到缺失', rowC.detail)
+
+    // 场景 C：目录在但 SKILL.md 缺失 → 名片无效（验收用例1 真实形态；回归 path-shaped 契约缺陷）
+    {
+      const wfDir2 = join(tmpHome, '.agents', 'skills', 'wayfinder')
+      files.set(wfDir2 + '/.dir', 'dir')
+      let statusD1 = null
+      const dispatchD1 = handlers['/dsws']
+      if (dispatchD1) { const rawD1 = await dispatchD1('status', { cwd: tmpHome, lang: 'zh', force: true }); statusD1 = rawD1 && rawD1.value ? rawD1.value : rawD1 }
+      const rowD1 = statusD1 && statusD1.checks ? statusD1.checks.find(c=> c.key==='skill:wayfinder') : null
+      check(rowD1 && rowD1.level==='bad', '目录在·SKILL.md 缺失 → 红牌（bad）', JSON.stringify(rowD1))
+      check(rowD1 && /无效/.test(rowD1.detail), '目录在·SKILL.md 缺失 detail 含“无效”', rowD1 && rowD1.detail)
+      files.delete(wfDir2 + '/.dir')
+    }
+
+    // 场景 D：名片存在但读不了 → 名片无效（不可读）
+    {
+      const wfDir3 = join(tmpHome, '.agents', 'skills', 'wayfinder')
+      const cardP3 = join(wfDir3, 'SKILL.md')
+      files.set(cardP3, '---\nname: wayfinder\n---')
+      blockedRead.add(cardP3)
+      let statusD2 = null
+      const dispatchD2 = handlers['/dsws']
+      if (dispatchD2) { const rawD2 = await dispatchD2('status', { cwd: tmpHome, lang: 'zh', force: true }); statusD2 = rawD2 && rawD2.value ? rawD2.value : rawD2 }
+      const rowD2 = statusD2 && statusD2.checks ? statusD2.checks.find(c=> c.key==='skill:wayfinder') : null
+      check(rowD2 && rowD2.level==='bad', '名片存在但不可读 → 红牌（bad）', JSON.stringify(rowD2))
+      check(rowD2 && /无效/.test(rowD2.detail), '名片不可读 detail 含“无效”', rowD2 && rowD2.detail)
+      blockedRead.delete(cardP3)
+      files.delete(cardP3)
+    }
+
+    rmSync(tmpHome, { recursive: true, force: true })
+  }
+}
+
+// ---------- 3. 异处同名副本绿 + 来源行 ----------
+console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
+{
+  const tmpHome2 = mkdtempSync(join(tmpdir(), 'home281-off-'))
+  const platformStub2 = {
+    os: 'linux',
+    path: {
+      join: (...a) => join(...a),
+      normalize: (p) => p,
+      dirname: (p) => p.slice(0, p.lastIndexOf('/')),
+      basename: (p) => p.split('/').pop(),
+      isAbsolute: (p) => p.startsWith('/'),
+      sep: '/',
+    },
+    async getHome() { return tmpHome2 },
+    async resolveExecutable() { return null },
+    env: { get: () => undefined, has: () => false },
+    fs: { resolve: async (p)=>String(p), readText: async ()=>{throw new Error('not found')}, lstat: async ()=>undefined, exists: async ()=>false },
+  }
+  const offPath = '/tmp/other-skills/wayfinder'
+  const skillsOffMock = {
+    async get(name) {
+      if (name === 'wayfinder') return { name, path: offPath }
+      return null
+    },
+    on() { return ()=>{} },
+  }
+  const fsMock2 = {
+    async resolve(p){ return String(p) },
+    async readText(){ throw new Error('not found') },
+    async lstat(){ return undefined },
+    async exists(){ return false },
+  }
+  const subprocess2 = { async resolveExecutable(){return null}, spawn(){ return { done: Promise.resolve({exitCode:0}), collected:{stdout:{readFrom:()=>({text:''})}, stderr:{readFrom:()=>({text:''})}}, terminate(){} } } }
+  const timer2 = { timeout: (a,b)=> (typeof a==='function'? setTimeout(a,b): new Promise(r=>setTimeout(r,a))) }
+  const handlers2 = {}
+  const ctx2 = {
+    get(k){
+      if(k==='skills') return skillsOffMock
+      if(k==='fs') return fsMock2
+      if(k==='platform') return platformStub2
+      if(k==='subprocess') return subprocess2
+      if(k==='timer') return timer2
+      if(k==='connection') return { rpc: { handle: (p,fn)=>{handlers2[p]=fn} } }
+      if(k==='sessions') return { get: ()=>null }
+      return undefined
+    },
+    effect: (fn)=>{ try{ const d=fn(); return typeof d==='function'?d:()=>{} } catch{return ()=>{}} },
+    set: ()=>{},
+  }
+  const hostUrl2 = new URL('../src/host/index.js', import.meta.url)
+  const hostMod2 = await import(hostUrl2.href)
+  const mod2 = hostMod2.default ?? hostMod2
+  try { (mod2.apply ?? mod2).call(null, ctx2) } catch{}
+  await new Promise(r=> setTimeout(r,50))
+  let statusOff = null
+  {
+    const dispatch = handlers2['/dsws']
+    if (dispatch) {
+      const rawOff = await dispatch('status', { cwd: tmpHome2, lang: 'zh', force: true })
+      statusOff = rawOff && rawOff.value ? rawOff.value : rawOff
+    }
+  }
+  if (statusOff && Array.isArray(statusOff.checks)) {
+    const row = statusOff.checks.find(c=> c.key==='skill:wayfinder')
+    check(!!row, '找到 wayfinder 绿牌行（异处副本）')
+    if (row) {
+      check(row.level==='ok', '异处有效副本为绿', JSON.stringify(row))
+      check(row.detail.includes(offPath) || row.detail.includes('来源') || row.detail.includes('source'), '绿牌 detail 含来源路径', row.detail)
+    }
+  } else {
+    check(false, 'wf.status 返回（异处副本）', JSON.stringify(statusOff).slice(0,600))
+  }
+  rmSync(tmpHome2, {recursive:true, force:true})
+}
+
+// ---------- 4. 等待态有界与失效广播 ----------
+console.log('\n— 验收4：等待态 有界推进 + 失效广播 + 封顶失败 —')
+{
+  const tmpHome3 = mkdtempSync(join(tmpdir(), 'home281-wait-'))
+  const platformStub3 = {
+    os: 'linux',
+    path: { join: (...a)=>join(...a), normalize:(p)=>p, dirname:(p)=>p.slice(0,p.lastIndexOf('/')), basename:(p)=>p.split('/').pop(), isAbsolute:(p)=>p.startsWith('/'), sep:'/' },
+    async getHome(){ return tmpHome3 },
+    async resolveExecutable(){return null},
+    env: { get:()=>undefined, has:()=>false },
+    fs: { resolve: async(p)=>String(p), readText: async()=>{throw new Error('not found')}, lstat: async()=>undefined, exists: async()=>false },
+  }
+  const fsMock3 = { async resolve(p){return String(p)}, async readText(){throw new Error('not found')}, async lstat(){return undefined}, async exists(){return false} }
+  let shouldThrow = true
+  let capturedHandler = null
+  let installedSet = new Set()
+  const skillsMock3 = {
+    async get(name){
+      if (shouldThrow) throw new Error('skills service down for test: ECONNREFUSED')
+      if (installedSet.has(name)) return { name, path: join(tmpHome3, '.agents','skills', name) }
+      return null
+    },
+    on(event, handler){
+      if (event==='invalidate' || event==='didInvalidate') capturedHandler = handler
+      return ()=>{ capturedHandler=null }
+    },
+    off(event, handler){ if(capturedHandler===handler) capturedHandler=null },
+    trigger(){ if(capturedHandler) capturedHandler() }
+  }
+  const handlers3 = {}
+  const ctx3 = {
+    get(k){
+      if(k==='skills') return skillsMock3
+      if(k==='fs') return fsMock3
+      if(k==='platform') return platformStub3
+      if(k==='subprocess') return { async resolveExecutable(){return null}, spawn(){ return { done: Promise.resolve({exitCode:0}), collected:{stdout:{readFrom:()=>({text:''})}, stderr:{readFrom:()=>({text:''})}}, terminate(){} } } }
+      if(k==='timer') return { timeout: (a,b)=> (typeof a==='function'? setTimeout(a,b): new Promise(r=>setTimeout(r,a))) }
+      if(k==='connection') return { rpc: { handle: (p,fn)=>{handlers3[p]=fn} } }
+      if(k==='sessions') return { get: ()=>null }
+      return undefined
+    },
+    effect: (fn)=>{ try{ const d=fn(); return typeof d==='function'?d:()=>{} } catch{return ()=>{}} },
+    set: ()=>{},
+  }
+  const hostUrl3 = new URL('../src/host/index.js', import.meta.url)
+  const hostMod3 = await import(hostUrl3.href)
+  const mod3 = hostMod3.default ?? hostMod3
+  try{ (mod3.apply ?? mod3).call(null, ctx3) } catch{}
+  await new Promise(r=> setTimeout(r,50))
+  // 连续 force 调用 4 次，验证前 3 pending，第 4 bad 且携带原文
+  const getStatus = async () => {
+    const dispatch = handlers3['/dsws']
+    if (!dispatch) return null
+    const raw = await dispatch('status', { cwd: tmpHome3, lang: 'zh', force: true })
+    return raw && raw.value ? raw.value : raw
+  }
+  const getStatusPlain = async () => {
+    const dispatch = handlers3['/dsws']
+    if (!dispatch) return null
+    const raw = await dispatch('status', { cwd: tmpHome3, lang: 'zh' })
+    return raw && raw.value ? raw.value : raw
+  }
+  let s1 = await getStatus()
+  let s2 = await getStatus()
+  let s3 = await getStatus()
+  let s4 = await getStatus()
+  const pendingLevels = [s1,s2,s3].map(s=> s && s.checks ? s.checks.find(c=> c.key==='skill:wayfinder').level : 'missing')
+  check(pendingLevels[0]==='pending' && pendingLevels[1]==='pending' && pendingLevels[2]==='pending', '前 3 次均为 pending（有界等待）', pendingLevels.join(','))
+  const c4 = s4 && s4.checks ? s4.checks.find(c=> c.key==='skill:wayfinder') : null
+  check(c4 && c4.level==='bad', '第 4 次封顶转 bad', JSON.stringify(c4))
+  if (c4) check(c4.detail.includes('ECONNREFUSED') || c4.detail.includes('service down') || c4.detail.includes('不可用'), '封顶失败携带原文', c4.detail)
+
+  // 广播到达后有界推进转绿（不反复跳动）
+  // 重置：让服务恢复，并触发广播
+  shouldThrow = false
+  installedSet.add('wayfinder')
+  // 触发广播（模拟 DSH 核心的技能目录失效广播）
+  let eventFired = false
+  if (capturedHandler) {
+    capturedHandler()
+    eventFired = true
+    await new Promise(r=> setTimeout(r,20))
+  }
+  // 断链回归（#281 对抗复核）：事件到达必须清 workspaceStore——无 force 的下一次 wf.status 也必须全量重判转绿
+  const sEvent = await getStatusPlain()
+  const rowEvent = sEvent && sEvent.checks ? sEvent.checks.find(c=> c.key==='skill:wayfinder') : null
+  check(eventFired, '失效广播已捕获并触发')
+  check(rowEvent && rowEvent.level==='ok', '广播后【无 force】转绿（workspaceStore/statusCache 已失效，事件驱动推进）', JSON.stringify(rowEvent))
+  // 再次无 force 保持绿（不闪烁）
+  const sEvent2 = await getStatusPlain()
+  const rowEvent2 = sEvent2 && sEvent2.checks ? sEvent2.checks.find(c=> c.key==='skill:wayfinder') : null
+  check(rowEvent2 && rowEvent2.level==='ok', '再次【无 force】保持绿（不闪烁）', JSON.stringify(rowEvent2))
+  // force 显式刷新路径亦稳定
+  const sAfter = await getStatus()
+  const rowAfter = sAfter && sAfter.checks ? sAfter.checks.find(c=> c.key==='skill:wayfinder') : null
+  check(rowAfter && rowAfter.level==='ok', 'force 刷新仍绿（显式刷新兜底）', JSON.stringify(rowAfter))
+  const sAfter2 = await getStatus()
+  const rowAfter2 = sAfter2 && sAfter2.checks ? sAfter2.checks.find(c=> c.key==='skill:wayfinder') : null
+  check(rowAfter2 && rowAfter2.level==='ok', '再次 force 保持绿（不闪烁）', JSON.stringify(rowAfter2))
+
+  rmSync(tmpHome3, {recursive:true, force:true})
+}
+
+console.log('\n' + (failed ? `#281 门禁失败 ${total-passed}/${total}` : `#281 门禁全部通过 ${passed}/${total}`))
+process.exit(failed ? 1 : 0)

@@ -45,9 +45,8 @@ export default {
     // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
     const CACHE_MS = 60000
     const STATUS_CACHE_MS = 30000  // 前置检查结果缓存（#344）
-    const SKILL_PROBE_DIRS = ['.agents/skills', '.minimax/skills', '.claude/skills']  // #171 migrated: posix canonical via platform.path
-    // v1.5 T11 + #149 修复：全流程核心技能探测名单（各动作 prompt 引用的技能 + 基础技能；检查 7/8 取前两个，检查 9 聚合全量）— 补 `setup-matt-pocock-skills` 为 10 名（图快照 §1.1 相邻缺陷正位，#150 Q6）
-    const SKILL_PROBE_NAMES = ['wayfinder', 'triage', 'grilling', 'grill-me', 'implement', 'ask-matt', 'research', 'prototype', 'handoff', 'setup-matt-pocock-skills']
+    // 技能名单（#280 单一真源：与 check-catalog 同步，拼写以真实目录为准；B 语义由 skills.get 覆盖）
+    const SKILL_PROBE_NAMES = ['ask-matt','code-review','codebase-design','diagnosing-bugs','domain-modeling','grill-with-docs','implement','improve-codebase-architecture','prototype','research','resolving-merge-conflicts','setup-matt-pocock-skills','tdd','to-spec','to-tickets','triage','wayfinder','wizard','grill-me','grilling','handoff','teach','to-questionnaire','wait-what','writing-for-agents'] // 25 项 engineering+productivity 单一真源（shared/matt-skills.js）
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
 
     // ============ 状态 ============
@@ -249,15 +248,19 @@ export default {
         const skillProbe = async ({ cwd }) => {
           const probes = {}
           let missing = []
+          let hasPending = false
+          let pendingError = null
           for (let i = 0; i < SKILL_PROBE_NAMES.length; i++) {
             const name = SKILL_PROBE_NAMES[i]
             try {
               const r = await probeSkill(name, 'zh')
               probes[name] = r
-              if (r.level !== 'ok') missing.push(name)
-            } catch { probes[name] = { ok: false, level: 'bad' }; missing.push(name) }
+              if (r.level === 'pending') { hasPending = true; if (!pendingError && r.error) pendingError = r.error }
+              else if (r.level !== 'ok') missing.push(name)
+            } catch (e) { const err = String((e && e.message) || e); probes[name] = { ok: false, level: 'bad', detail: err, hint: 'prompt:installSkills', error: err }; missing.push(name) }
           }
-          return { ok: missing.length === 0, missing, probes }
+          const ok = missing.length === 0 && !hasPending
+          return { ok, missing, probes, hasPending, pendingError, pending: hasPending }
         }
         _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => ({ setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } }), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }), exec: detectionExec })
       } catch (e) {
@@ -1294,43 +1297,231 @@ export default {
     //   宿主级 skills 服务与「当前会话挂载」不是同一上下文，服务不可用时会误报「未挂载」）
     const SKILL_INSTALL_URL = 'https://github.com/mattpocock/skills'
     // v1.6：技能安装引导 prompt 已收编进 client PROMPTS 注册表（installSkills 条目）；hint 用 prompt: 键名协议（prompt:installSkills）由 client 取双语文本
-    async function probeSkill(name, lang) {
-      let session = false
-      const skills = ctx.get('skills')
-      if (skills !== undefined) {
-        try { session = !!(await skills.get(name)) } catch (e) { session = false }
+    // 判装唯一尺度（#280）：只以 DSH 注册表回答为准 — 一行查询即定绿/红，B 语义（别处同名有效副本亦算已安装）
+    // 绝不触盘：辅助文件轻探永不产生绿色（该纪律见 #281）
+    // #281 红牌分拣与等待合同（第三、五条推论）：
+    //   - 绿：注册表命中即绿；若非标准根，附来源路径一行（B 语义可视化）
+    //   - 红：注册表未命中时，轻探目标根区分「缺失」与「名片无效」；轻探永不产生绿
+    //   - 等待：skills 服务不可用时显式 pending，订阅失效广播后有界推进，封顶转失败并附原文
+    const SKILL_PENDING_MAX = 3
+    const SKILL_PENDING_HINT_PREFIX = 'pending:skills-unavailable'
+    const skillPendingState = {}
+    let _skillsInvalidateSub = null
+    function getOrCreatePendingState(name) {
+      const k = String(name || '')
+      if (!skillPendingState[k]) skillPendingState[k] = { attempts: 0, lastError: null }
+      return skillPendingState[k]
+    }
+    function resetSkillPendingState(name) {
+      if (name) delete skillPendingState[String(name)]
+      else for (const k in skillPendingState) delete skillPendingState[k]
+    }
+    // 失效广播的统一收口：探针计数 + statusCache + 检测级联缓存（workspaceStore）一并失效，
+    // 保证事件到达后下一次 wf.status（无需 force）即全量重判——否则 detect 的 store 快照会冻住旧 skillProbes。
+    function invalidateSkillProbeCaches() {
+      resetSkillPendingState()
+      try { statusCache = { ts: 0, status: null, error: null, cwd: null, lang: null, backendId: null } } catch {}
+      try { getWorkspaceStore().then(function (ws) { try { ws.clear() } catch {} }).catch(function () {}) } catch {}
+    }
+    function ensureSkillsInvalidateSubscription() {
+      if (_skillsInvalidateSub) return
+      try {
+        const skills = ctx.get('skills')
+        if (!skills) return
+        let off = null
+        if (typeof skills.onDidInvalidate === 'function') {
+          off = skills.onDidInvalidate(() => { invalidateSkillProbeCaches() })
+          _skillsInvalidateSub = off
+        } else if (typeof skills.on === 'function') {
+          const handler = () => { invalidateSkillProbeCaches() }
+          try { skills.on('invalidate', handler); _skillsInvalidateSub = () => { try { skills.off && skills.off('invalidate', handler) } catch {} } } catch {}
+          if (!_skillsInvalidateSub) {
+            try { skills.on('didInvalidate', handler); _skillsInvalidateSub = () => { try { skills.off && skills.off('didInvalidate', handler) } catch {} } } catch {}
+          }
+        } else if (typeof skills.subscribe === 'function') {
+          try { off = skills.subscribe(() => { invalidateSkillProbeCaches() }); _skillsInvalidateSub = off } catch {}
+        }
+        if (_skillsInvalidateSub) {
+          try { ctx.effect(() => () => { try { if (typeof _skillsInvalidateSub === 'function') _skillsInvalidateSub(); } catch {} _skillsInvalidateSub = null }) } catch {}
+        }
+      } catch {}
+    }
+    function isSkillCardValid(skillText, expectedName) {
+      try {
+        const s = String(skillText || '')
+        const m = s.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/)
+        if (!m) return false
+        const front = m[1]
+        const nameMatch = front.match(/^\s*name\s*:\s*["']?([^"'\r\n]+?)["']?\s*$/m)
+        if (!nameMatch) return false
+        const foundName = String(nameMatch[1] || '').trim()
+        return foundName === String(expectedName || '').trim()
+      } catch { return false }
+    }
+    // 路径存在性探测（path-shaped 纪律：lstat/exists 接受裸路径字符串；target-shaped 仅 readText/writeText 用 resolve 返回值）
+    async function probeFsExists(curFs, platform, pathStr) {
+      if (!pathStr) return false
+      try {
+        if (curFs && typeof curFs.lstat === 'function') {
+          const info = await curFs.lstat(pathStr)
+          if (info) return true
+        }
+      } catch {}
+      try {
+        if (platform && platform.fs && typeof platform.fs.lstat === 'function') {
+          const info = await platform.fs.lstat(pathStr)
+          if (info) return true
+        }
+      } catch {}
+      try {
+        if (platform && platform.fs && typeof platform.fs.exists === 'function') {
+          const ok = await platform.fs.exists(pathStr)
+          if (ok) return true
+        }
+      } catch {}
+      return false
+    }
+    async function lightProbeReason(skillName, lang) {
+      const curFs = ctx.get('fs')
+      let platform = null
+      try { platform = await getPlatform() } catch {}
+      if (!curFs || !platform) {
+        return { kind: 'missing', detail: (lang === 'en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills' }
       }
-      let fsFound = null
-      const home = await getHome()
-      if (fs !== undefined && home) {
-        for (let i = 0; i < SKILL_PROBE_DIRS.length; i++) {
+      let home = null
+      try { home = await platform.getHome() } catch {}
+      if (!home) {
+        return { kind: 'missing', detail: (lang === 'en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills' }
+      }
+      const standardDir = platform.path.join(home, '.agents', 'skills', skillName)
+      const cardPath = platform.path.join(standardDir, 'SKILL.md')
+      let cardTarget = null
+      try {
+        if (typeof curFs.resolve === 'function') cardTarget = await curFs.resolve(cardPath)
+        else cardTarget = cardPath
+      } catch { cardTarget = null }
+      let content = null
+      let readable = false
+      if (cardTarget && typeof curFs.readText === 'function') {
+        try { content = await curFs.readText(cardTarget); readable = true } catch { readable = false }
+      }
+      if (readable) {
+        // 名片可读：校验 frontmatter；合法但注册表查无 = 诚实报「缺失」（不放行、有 hint 指明安装路径）
+        const valid = isSkillCardValid(content, skillName)
+        if (!valid) {
+          return { kind: 'invalid', detail: (lang === 'en') ? 'Invalid skill card' : '名片无效', hint: 'prompt:installSkills' }
+        }
+        return { kind: 'missing', detail: (lang === 'en') ? 'Not installed (missing)' : '未安装（缺失）', hint: 'prompt:installSkills' }
+      }
+      // 名片不可读：区分「文件存在但读不了」与「文件不存在」
+      const cardExists = await probeFsExists(curFs, platform, cardPath)
+      if (cardExists) {
+        return { kind: 'invalid', detail: (lang === 'en') ? 'Invalid skill card (SKILL.md unreadable)' : '名片无效（SKILL.md 不可读）', hint: 'prompt:installSkills' }
+      }
+      const dirExists = await probeFsExists(curFs, platform, standardDir)
+      if (dirExists) {
+        return { kind: 'invalid', detail: (lang === 'en') ? 'Invalid skill card (SKILL.md missing)' : '名片无效（SKILL.md 缺失）', hint: 'prompt:installSkills' }
+      }
+      return { kind: 'missing', detail: (lang === 'en') ? 'Not installed (missing)' : '未安装（缺失）', hint: 'prompt:installSkills' }
+    }
+    async function probeSkill(skillName, lang) {
+      try { ensureSkillsInvalidateSubscription() } catch {}
+      const skills = ctx.get('skills')
+      let found = null
+      let foundPath = null
+      let skillsError = null
+      if (skills !== undefined && skills !== null) {
+        try {
+          const res = await skills.get(skillName)
+          if (res) {
+            found = res
+            if (typeof res === 'object') {
+              foundPath = res.path || res.dir || res.location || res.file || res.uri || res.source || null
+              if (!foundPath && res.metadata && typeof res.metadata === 'object') foundPath = res.metadata.path || null
+            } else if (typeof res === 'string') {
+              foundPath = res
+            }
+          }
+        } catch (e) {
+          skillsError = String((e && e.message) || e || 'skills.get failed')
+        }
+      } else {
+        skillsError = 'skills service unavailable'
+      }
+      if (found) {
+        let detail = (lang === 'en') ? 'Installed' : '已安装'
+        let hint = ''
+        let isOffRoot = false
+        if (foundPath) {
           try {
-            const platform = await getPlatform()
-            const probePath = await platform.path.joinHome(SKILL_PROBE_DIRS[i], name)
-            const info = await platform.fs.lstat(probePath)
-            if (info) { fsFound = '~/' + SKILL_PROBE_DIRS[i] + '/' + name; break }
-          } catch (e) { /* 继续探测下一个目录 */ }
+            const plat = await getPlatform()
+            const home = await plat.getHome()
+            if (home) {
+              const standard = plat.path.join(home, '.agents', 'skills', skillName)
+              const normFoundRaw = String(foundPath)
+              const normStd = plat.path.normalize(String(standard))
+              const normFound = plat.path.normalize(normFoundRaw)
+              let cmpFound = normFound
+              let cmpStd = normStd
+              if (plat.os === 'win32') { cmpFound = cmpFound.toLowerCase(); cmpStd = cmpStd.toLowerCase() }
+              let foundDir = cmpFound
+              try {
+                if (foundDir.toLowerCase().endsWith('skill.md')) foundDir = plat.path.dirname(foundDir)
+                if (foundDir.length > 1 && (foundDir.endsWith('/') || foundDir.endsWith('\\'))) foundDir = foundDir.slice(0, -1)
+              } catch {}
+              let stdDir = cmpStd
+              try { if (stdDir.length > 1 && (stdDir.endsWith('/') || stdDir.endsWith('\\'))) stdDir = stdDir.slice(0, -1) } catch {}
+              isOffRoot = foundDir !== stdDir
+            } else {
+              isOffRoot = true
+            }
+          } catch { isOffRoot = false }
+        }
+        if (isOffRoot && foundPath) {
+          const srcLine = (lang === 'en') ? ' (source: ' + foundPath + ')' : '（来源：' + foundPath + '）'
+          detail = detail + srcLine
+        }
+        try { resetSkillPendingState(skillName) } catch {}
+        return { ok: true, level: 'ok', detail, hint, sourcePath: foundPath || undefined, repo: null }
+      }
+      if (skillsError) {
+        const st = getOrCreatePendingState(skillName)
+        st.attempts += 1
+        st.lastError = skillsError
+        if (st.attempts <= SKILL_PENDING_MAX) {
+          return { ok: false, level: 'pending', detail: (lang === 'en') ? 'Waiting for skills service... (' + st.attempts + '/' + SKILL_PENDING_MAX + ')' : '等待技能服务就绪…（' + st.attempts + '/' + SKILL_PENDING_MAX + '）', hint: SKILL_PENDING_HINT_PREFIX + ':' + st.attempts, repo: null, pending: true, attempts: st.attempts, maxAttempts: SKILL_PENDING_MAX, error: skillsError }
+        } else {
+          return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Skills service unavailable: ' + skillsError : '技能服务不可用：' + skillsError, hint: 'prompt:installSkills', repo: null, error: skillsError }
         }
       }
-      // 两态：#373 —— 任一来源发现 = 已安装（绿 ok）；均无 = 未安装（红 bad + 官方仓库地址）
-      if (session && fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted · ' + fsFound + ')' : '已安装（会话已挂载 · ' + fsFound + '）', hint: '', repo: null }
-      if (session) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (session-mounted)' : '已安装（会话已挂载）', hint: '', repo: null }
-      if (fsFound) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Installed (' + fsFound + ')' : '已安装（' + fsFound + '）', hint: '', repo: null }
-      if (home === null) return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed (cannot probe user home)' : '未安装（无法探测用户主目录）', hint: 'prompt:installSkills', repo: null }
-      return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills', repo: null }
+      const reason = await lightProbeReason(skillName, lang)
+      try { resetSkillPendingState(skillName) } catch {}
+      if (reason.kind === 'invalid') {
+        return { ok: false, level: 'bad', detail: reason.detail, hint: reason.hint, repo: null, reason: 'invalid' }
+      } else {
+        return { ok: false, level: 'bad', detail: reason.detail, hint: reason.hint, repo: null, reason: 'missing' }
+      }
     }
-
     // v1.5 T11：检查 9 · 核心技能套件聚合（全流程技能缺失检测）
     async function probeSkillSuite(lang) {
       const missing = []
+      let hasPending = false
+      let pendingError = null
+      let pendingCount = 0
       for (let i = 0; i < SKILL_PROBE_NAMES.length; i++) {
         const r = await probeSkill(SKILL_PROBE_NAMES[i], lang)
-        if (r.level !== 'ok') missing.push(SKILL_PROBE_NAMES[i])
+        if (r.level === 'pending') { hasPending = true; pendingCount += 1; if (!pendingError && r.error) pendingError = r.error }
+        else if (r.level !== 'ok') missing.push(SKILL_PROBE_NAMES[i])
+      }
+      if (hasPending) {
+        const detail = (lang === 'en')
+          ? 'Waiting for skills service... (' + pendingCount + ' pending)' + (pendingError ? ': ' + pendingError : '')
+          : '等待技能服务就绪…（' + pendingCount + ' 项待定）' + (pendingError ? '：' + pendingError : '')
+        return { ok: false, level: 'pending', detail, hint: SKILL_PENDING_HINT_PREFIX, repo: null, pending: true, error: pendingError }
       }
       if (!missing.length) return { ok: true, level: 'ok', detail: (lang === 'en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '', repo: null }
       return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Missing: ' + missing.join(' / ') : '缺失：' + missing.join(' / '), hint: 'prompt:installSkills', repo: null }
     }
-
     const CHECK_NAMES = function (lang) {
       return (lang === 'en')
         ? ['Repo located', 'Setup run', 'Tracker = GitHub', 'gh CLI available', 'gh logged in', 'API reachable', 'wayfinder skill', 'ask-matt skill', 'Core skill suite']
@@ -1421,7 +1612,12 @@ export default {
                   const c6 = await checkApi(cwd, _repoChkMemo.repo, lang)
                   return { c1: _repoChkMemo, c4: c4, c5: c5, c6: c6 }
                 },
-                skillProbe: async function (name) { return probeSkill(name, lang) },
+                skillProbe: async function (name) {
+                  // #281：复用同轮 detect 的 skillProbes 结果（避免单次 wf.status 重探 25 名；等待计数仅随真实探针轮次推进）
+                  const dp = det.skillProbes && det.skillProbes.probes && det.skillProbes.probes[name]
+                  if (dp) return dp
+                  return probeSkill(name, lang)
+                },
               },
             })
             if (derived && Array.isArray(derived.checks) && derived.checks.length) {
@@ -1519,7 +1715,7 @@ export default {
             c6 = await checkApi(cwd, c1Legacy.repo, lang)
           }
         }
-        // 7-9) skill 正交（复用 det.skillProbes，若无则回退 probeSkill）
+        // 7-9) skill 正交（复用 det.skillProbes，若无则回退 probeSkill；#281 等待与分拣）
         let c7, c8, c9
         if (det.skillProbes && det.skillProbes.probes) {
           const p = det.skillProbes.probes
@@ -1529,10 +1725,16 @@ export default {
             return { ok: r.level==='ok', level: r.level, detail: r.detail, hint: r.hint }
           }
           c7 = toCheck(SKILL_PROBE_NAMES[0])
-          c8 = toCheck(SKILL_PROBE_NAMES[5]) // ask-matt 正位（#149 C8 triage→ask-matt）
-          // suite 聚合
+          c8 = toCheck(SKILL_PROBE_NAMES[5])
           const missing = det.skillProbes.missing || []
-          if (!missing.length) c9 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '' }
+          const hasPending = !!(det.skillProbes.hasPending || det.skillProbes.pending)
+          const pendingError = det.skillProbes.pendingError || null
+          if (hasPending) {
+            const detail = (lang==='en')
+              ? 'Waiting for skills service... ' + (pendingError ? ': ' + String(pendingError).slice(0,120) : '')
+              : '等待技能服务就绪… ' + (pendingError ? '：' + String(pendingError).slice(0,120) : '')
+            c9 = { ok: false, level: 'pending', detail, hint: SKILL_PENDING_HINT_PREFIX }
+          } else if (!missing.length) c9 = { ok: true, level: 'ok', detail: (lang==='en') ? 'Core skill suite installed (' + SKILL_PROBE_NAMES.length + ')' : '核心技能套件已安装（' + SKILL_PROBE_NAMES.length + ' 个）', hint: '' }
           else c9 = { ok: false, level: 'bad', detail: (lang==='en') ? 'Missing: ' + missing.join(' / ') : '缺失：' + missing.join(' / '), hint: 'prompt:installSkills' }
         } else {
           c7 = await probeSkill(SKILL_PROBE_NAMES[0], lang)

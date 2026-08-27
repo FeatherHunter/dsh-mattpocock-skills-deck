@@ -82,15 +82,12 @@ async function execPrimitive(check, ctx) {
     }
     if (kind === PRIMITIVE_KIND.SKILL_PROBE) {
       const skill = check.skill
-      // 技能探测经平台 fs 直接探测 ~/.agents/skills/<skill> 或 cwd 相对路径；多平台路径由 platform.getHome 提供
+      // 技能探测经平台 fs 直接探测 ~/.agents/skills/<skill> （#280 单一尺度：仅标准根；#281 轻探永不绿的纪律由 host probeSkill 承载，此处为通用链 fallback，仅探标准根）
       if (!p || typeof p.getHome !== 'function' || !p.fs) return makeResult('pending', 'platform unavailable for skillProbe')
       try {
         const home = await p.getHome()
         const candidates = [
           home ? (p.path.join(home, '.agents', 'skills', skill)) : null,
-          home ? (p.path.join(home, '.claude', 'skills', skill)) : null, // 兼容旧路径
-          // cwd 相对 .agents/skills
-          ctx.cwd ? (p.path.join(ctx.cwd, '.agents', 'skills', skill)) : null,
         ].filter(Boolean)
         for (const cand of candidates) {
           try {
