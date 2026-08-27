@@ -18,7 +18,7 @@ T9 数据架构 v2 要求：**重启 DSH 打开面板秒出数据**（磁盘缓�
 |---|---|---|---|
 | 1 | inject 缺 fs 声明 | 读 DSH host runner 源码 missingServices 逻辑 | fs 服务名确认是 "fs"（super(ctx,"fs")）；inject 加 fs 无害但非根因 |
 | 2 | writeText API 契约错 | 读 fs-local 源码 | **确认**：writeText(target,...) 要求 resolve() 返回的 {targetKey,displayPath} 对象，不能传路径字符串 → 修复 |
-| 3 | 加载的不是改的文件 | dev_plugin_status 列 loader entries | **确认加载的是** profiles/web/node_modules/dsh-waystation/lib/index.js（我们覆盖的文件）|
+| 3 | 加载的不是改的文件 | dev_plugin_status 列 loader entries | **确认加载的是** profiles/web/node_modules/dsh-mattpocock-skills-deck/lib/index.js（我们覆盖的文件） // 旧名 dsh-waystation 已于 v1.7.1 归档|
 | 4 | host 半没 apply | dev 诊断工具探测 | **确认 fs 能拿到**（ctx.get('fs')=object），host 在工作（RPC 正常）|
 | 5 | **fs 沙箱拒绝写 ~/.dsh** | staging 工具实测写入 | **★ 真根因**：file access denied under workspace-write mode —— fs 沙箱只允许 process.cwd() 下写入 |
 
@@ -82,15 +82,15 @@ execute: function (args, ctx) {
 要点：返回**字符串**而非对象（框架会序列化对象成 [object Object]）；异步用 Promise 链。
 
 ### 7.4 DSH 插件加载路径（排查确认）
-- profile 配置：profiles/web/cordis.patch.yml → insert dsh-waystation
-- 包位置：profiles/web/node_modules/dsh-waystation/lib/index.js（nodeLinker: hoisted，实际以真实目录存在）
+- profile 配置：profiles/web/cordis.patch.yml → insert dsh-mattpocock-skills-deck // 旧名 dsh-waystation（v1.7.1 前）
+- 包位置：profiles/web/node_modules/dsh-mattpocock-skills-deck/lib/index.js（nodeLinker: hoisted，实际以真实目录存在） // 旧路径 dsh-waystation 已归档
 - 验证加载：dev_plugin_status 列出 loader entries（entry 路径即真实加载文件）
 
 ## 8. 已知局限 / 后续改进（不阻塞，待拍板）
 
 1. **缓存目录依赖 DSH 进程 cwd**：换启动方式（如手动 dsh web）会变 cwd → 缓存目录变 → 缓存静默失效。正解是用 DSH storage 服务（不受沙箱限制），但探测时 ctx.get('storage') 方法为 undefined（RPC 壳），需进一步调研。
 2. **AppData 是系统可清理区**：磁盘清理可能删缓存（无害，只是重新全量加载一次）。
-3. **版本对齐**：profile package.json 声明 dsh-waystation: 1.3.2，实际内容 v1.5 —— 发布 v1.5.0 后重新安装对齐，避免 pnpm 还原旧文件。
+3. **版本对齐**：profile package.json 声明 dsh-mattpocock-skills-deck: 1.7.1，实际内容一致 —— 若声明仍为 dsh-waystation: 1.3.2 且内容为旧 v1.5，属迁移前残留，执行 `dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org` 对齐。
 
 ## 9. 相关 commit
 

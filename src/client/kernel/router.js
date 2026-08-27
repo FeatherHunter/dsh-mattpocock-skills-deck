@@ -75,19 +75,23 @@
       try {
         const bs = ctx.get('betterSidebar')
         if (!(bs && typeof bs.registerTab === 'function')) return false
-        const WaystationSidebarTab = function (props) {
+        const DeckSidebarTab = function (props) {
           const scope = props && props.scope
           const sessionId = scope ? scope.sessionId : undefined
           return h('div', { style: { height: '100%', overflow: 'hidden' } }, h(DetailsDock, { sessionId: sessionId }))
         }
+        // 第一性原理：对外品牌为 MattSkillsDeck，新 id 为 deck:map，旧 waystation:map 为 LEGACY 兼容（旧布局/旧会话存储）
+        // 单一真源：panel.title 来自 locale，新旧 id 共用同一组件，行为一致
         sidebarTabDisposer = bs.registerTab({
-          id: 'waystation:map',
+          id: 'deck:map',
           title: function () { return tr('panel.title') },
           icon: function () { return Ic({ n: 'map', size: 14 }) },
           order: 60,
           single: true,
-          component: WaystationSidebarTab,
+          component: DeckSidebarTab,
         })
+        // LEGACY 别名：兼容已存的 waystation:map 打开记录（不额外 disposer，单注册器以新 id 为主）
+        try { bs.registerTab({ id: 'waystation:map', title: function () { return tr('panel.title') }, icon: function () { return Ic({ n: 'map', size: 14 }) }, order: 60, single: true, component: DeckSidebarTab }) } catch (e) {}
         return true
       } catch (e) { return false }
     }
@@ -100,7 +104,7 @@
         //   新会话时宿主尚未 setSession(该 id) → store sessionId 为 undefined → openTab 静默 return，面板不开。
         //   显式传当前 store 的 sessionId 后走 reduceFor(scope.sessionId) 路径（按给定 id 初始化布局），面板正常展开。
         //   仅当 st.sessionId 有值时传 scope（无值时传 {sessionId:undefined} 会令 targetsInactiveSession=true 走错分支）。
-        bs.openTab({ type: 'waystation:map', path: 'waystation:map' }, st.sessionId ? { sessionId: st.sessionId } : undefined)  // path seed → 内容型打开 → 自动展开面板
+        bs.openTab({ type: 'deck:map', path: 'deck:map' }, st.sessionId ? { sessionId: st.sessionId } : undefined)  // path seed → 内容型打开 → 自动展开面板
         // 打开 tab 即视为面板已开（数据新鲜直接展示）
         // #58 缓存优先：与 openPagePanel 同逻辑，含 per-cwd 水合
         if (!st.cwd) {

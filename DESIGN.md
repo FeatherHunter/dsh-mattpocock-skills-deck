@@ -1,5 +1,7 @@
 # DSH-Waystation · 设计文档（规划稿）
 
+> **归档**：本文为 `dsh-waystation` 时期（v1.5 前）规划稿，已冻结。当前品牌为 `dsh-mattpocock-skills-deck`（Matt Skills Deck，v1.7.1+），实现以 `src/` 真源 + `DESIGN.md` 归档对照为准，新设计见 `docs/adr/` 与 `ARCHITECTURE-SPLIT.md`。
+
 > wayfinder 的 DSH 驿站：不开网页，实时看地图、认领 frontier、固化决策、按需点亮技能。
 >
 > 本文件为**规划稿**，尚未实现。插件名「DSH-Waystation」已确认（2026-08-14）。

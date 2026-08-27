@@ -11,12 +11,12 @@
  *   状态栏胶囊允许换行（窄栏不再截断）。
  *
  * v25 变更（map #364）：
- *   T2a：配置页骨架（settings.plugins.tab「Waystation」+ 持久化 + 广播）；
+ *   T2a：配置页骨架（settings.plugins.tab「MattSkillsDeck」+ 持久化 + 广播）；
  *   T2b：动作模板编辑器 + 占位符保护；
  *   T3（#366）：dsws locale 命名空间 zh/en 字典，全控件文字双语跟随 harness 语言（GitHub 数据不翻译）。
  *
  * v25 变更（map #364 · T2a）：
- *   50. 配置页骨架：settings.plugins.tab「Waystation」注册（设置 → 插件可见）；
+ *   50. 配置页骨架：settings.plugins.tab「MattSkillsDeck」注册（设置 → 插件可见）；
  *       三组既有配置迁入（面板默认高度三档 / 开始模板 / 外观）；
  *       配置持久化 dsws.cfg + dsws.templates（旧 dsws.startCfg 自动迁移）；
  *       保存后广播同步所有会话 store（修复外观/尺寸不持久化隐性 bug）；
@@ -296,7 +296,7 @@ export default {
     slots.inject('tool.view.cordis', function () {
       return slots.register({ name: 'tool.view.cordis', key: 'self' }, withCx(RunPanel))
     })
-    // v25-50：配置页（设置 → 插件 → Waystation；与 opencode 主题同模式）
+    // v25-50：配置页（设置 → 插件 → MattSkillsDeck；与 opencode 主题同模式）
     slots.inject('settings.plugins.tab', function () {
       return slots.register({ name: 'settings.plugins.tab', id: 'dsws-settings', order: 40, label: function () { return tr('panel.title') } }, withCx(SettingsPage))
     })
@@ -311,7 +311,7 @@ export default {
       return slots.register({ name: 'details', id: 'dsws-details', order: 10, priority: -1 }, withCx(DetailsDock))
     })
 
-    // v1.4.1：apply 时尽力注册「Waystation」tab；better-sidebar 服务未就绪（加载晚于本模块）→ 定时重试（最多 10 次）
+    // v1.4.1：apply 时尽力注册 better-sidebar tab（MattSkillsDeck）；better-sidebar 服务未就绪（加载晚于本模块）→ 定时重试（最多 10 次）
     //   卸载（HMR / 插件禁用）时清理 disposer + 重试定时器
     if (!ensureSidebarTab()) {
       let tries = 0

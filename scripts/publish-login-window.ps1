@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # publish-login-window.ps1 - npm login + publish (two steps)
 #   UTF-8(BOM) required - Chinese comments break under GBK
 # ============================================================
@@ -56,7 +56,11 @@ Write-Host ''
 Write-Host '============================================================'
 Write-Host ('publish exit code: ' + $LASTEXITCODE)
 if ($LASTEXITCODE -eq 0) {
-    Write-Host '  SUCCESS: + dsh-waystation@1.3.3'
+    # 第一性原理：SUCCESS 文不再硬编码，动态读 package.json（兼容 Set-Location 后 $PackageDir 仍有效，回退读当前目录）
+    $pkgInfo = $null
+    try { $pkgInfo = Get-Content (Join-Path $PackageDir 'package.json') -Raw | ConvertFrom-Json } catch {}
+    if (-not $pkgInfo) { try { $pkgInfo = Get-Content './package.json' -Raw | ConvertFrom-Json } catch {} }
+    if ($pkgInfo -and $pkgInfo.name -and $pkgInfo.version) { Write-Host ("  SUCCESS: + $($pkgInfo.name)@$($pkgInfo.version)") } else { Write-Host '  SUCCESS: publish exit 0 (check + <package>@<version> above)' }
 } else {
     Write-Host '  FAILED - please copy window content to Agent'
 }
