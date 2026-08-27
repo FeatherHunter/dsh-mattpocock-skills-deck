@@ -77,7 +77,7 @@ export     const ChecksTab = ({ st }) => {
             ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
                 Ic({ n: 'alert', size: 13 }),
                 h('span', { style: { flex: 1 } }, tr('banner.setup')),
-                h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { inject(st, promptText('setupRun')) } }, tr('banner.setupBtn')),
+                h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: function () { inject(st, setupRunPrompt(st)) } }, tr('banner.setupBtn')),
               ])
             : (!skillsOk)
               ? h('div', { className: 'dsws-banner warn', style: { cursor: 'default', marginBottom: 8 } }, [
@@ -92,7 +92,7 @@ export     const ChecksTab = ({ st }) => {
       const guideSteps = []
       if (ghCli2) guideSteps.push({ done: okOf(ghCli2), label: ghCli2.name || tr('env.step.ghcli'), act: function () { var h = ghCli2 && ghCli2.hint || ''; if (h) inject(st, h) }, btn: tr('banner.ghcliBtn') })
       if (ghAuth2) guideSteps.push({ done: okOf(ghAuth2), label: ghAuth2.name || tr('env.step.ghauth'), act: function () { inject(st, promptText('ghAuthLogin')) }, btn: tr('banner.ghauthBtn') })
-      if (setupCheck2) guideSteps.push({ done: okOf(setupCheck2), label: setupCheck2.name || tr('env.step.setup'), act: function () { inject(st, promptText('setupRun')) }, btn: tr('banner.setupBtn') })
+      if (setupCheck2) guideSteps.push({ done: okOf(setupCheck2), label: setupCheck2.name || tr('env.step.setup'), act: function () { inject(st, setupRunPrompt(st)) }, btn: tr('banner.setupBtn') })
       if (skillsCheck2) guideSteps.push({ done: okOf(skillsCheck2), label: skillsCheck2.name || tr('env.step.skills'), act: function () { inject(st, promptText('installSkills')) }, btn: tr('banner.skillsBtn') })
       const guideAll = guideSteps.every(function (s) { return s.done })
       // #228 链渲染器：同源Banner（蓝/黄/红互斥 42px）+ 步进条 + 动作分发（五种类型 + unsupported）
@@ -138,7 +138,7 @@ export     const ChecksTab = ({ st }) => {
                 try{ loadSnapshot(st,true,true) }catch(e){}
               },
               tr: tr,
-              resolvePrompt: function(id, params){ try{ return promptText(id, params) }catch(e){ return '' } }
+              resolvePrompt: function(id, params){ try{ if(id==='setupRun'&&typeof setupRunPrompt==='function') return setupRunPrompt(st); return promptText(id, params) }catch(e){ return '' } }
             })
           }
         }catch(e){}

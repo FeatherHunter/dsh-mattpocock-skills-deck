@@ -169,10 +169,8 @@ export     const OverlayPanel = (props) => {
               emit(s)
               try{ flash(s, '已绑定 ' + (typeof labelOf==='function'?labelOf(id):String(id)), 'ok') }catch(e){}
               try{
-                const line = (typeof setupTrackerLine==='function'? setupTrackerLine(id) : '本仓库为 GitHub \u2192 提议 GitHub Issues')
-                const choice = (typeof setupTrackerChoice==='function'? setupTrackerChoice(id) : 'GitHub Issues')
-                const note = (typeof setupBackendNote==='function'? setupBackendNote(id) : '')
-                const txt = (typeof promptText==='function'? promptText('setupRun', {trackerLine:line, trackerChoice:choice, backendNote:note}) : '')
+                // #230（D10）：占位符由后端描述数据填充，UI 不再拼装
+                const txt = (typeof setupRunPrompt==='function'? setupRunPrompt(s, id) : '')
                 if (txt) { try{ inject(s, txt) }catch(e){} }
               }catch(e){}
               loadSnapshot(s,true,true)

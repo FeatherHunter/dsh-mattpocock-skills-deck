@@ -118,6 +118,13 @@ export function createGitlabBackend(ctx) {
 export const gitlabBackend = {
   id: 'gitlab',
   label: 'GitLab',
+  // #230（D10 · 键入 locale）：setup 提示词描述数据 —— 只声明 client locale 双语键名，文案不落后端（双语单源）
+  setupPrompt: {
+    trackerLine: 'setup.gitlab.trackerLine',
+    trackerChoice: 'setup.gitlab.trackerChoice',
+    backendNote: 'setup.gitlab.backendNote',
+    labelReqs: 'setup.gitlab.labelReqs',
+  },
   describe,
   issueUrl,
   searchUrl,

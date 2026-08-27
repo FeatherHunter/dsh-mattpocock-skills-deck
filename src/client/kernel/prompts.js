@@ -23,7 +23,7 @@
       "tpl.handoff1": { version: 3, placeholders: ['ts'], use: '交接第一击（写交接文档）', zh: '/handoff 把当前会话生成交接文档，写到 .scratch/handoff/{ts}-<短标题>.md（相对当前工作目录）。<短标题> 是你给这次交接起的一个简短标题（中文 ≤10 字 / 英文 ≤20 字符，跟随当前会话语言，用连字符或下划线代替空格），让人一眼认出这是哪件事的交接。\n\n交接文档是给一个没有本次会话记忆的 agent 接手的——请站在它的视角，确保它能凭文档无缝继续，而不是靠猜或回翻本次会话。从第一性原理出发。', en: '/handoff Create a handoff doc from this session, written to .scratch/handoff/{ts}-<short>.md (relative to the current working directory). <short> is a brief title you give this handoff (zh ≤10 chars / en ≤20 chars, in the current session language, use hyphen or underscore instead of spaces) so a human can tell at a glance what it is about.\n\nThis doc is for an agent with no memory of this session — write from its perspective, so it can continue seamlessly without guessing or revisiting this session. Approach from first principles.' },
       "tpl.handoff2": { version: 3, placeholders: ['path'], use: '交接第二击（读交接文档）', zh: '请阅读 {path}（上一会话生成的交接文档），复述你的理解后再继续推进：\n\n## 复述理解\n- [ ] 结论：本会话已确认的决定与成果\n- [ ] 未完成事项：下一步要继续的事\n- [ ] 建议 skill：新会话接手时应加载的技能\n- [ ] 把以上三点复述给我；若有遗漏或不确定 → 先问我确认，不猜\n\n## 继续推进\n- [ ] 从第一性原理出发，继续完成未完成事项', en: 'Read the handoff doc {path} (from the previous session), restate your understanding, then continue:\n\n## Restate understanding\n- [ ] Conclusions: decisions and outcomes confirmed this session\n- [ ] Unfinished: what to continue next\n- [ ] Suggested skills: skills the new session should load\n- [ ] Restate the three points to me; if anything is missing or uncertain → ask me first, do not guess\n\n## Continue\n- [ ] From first principles, continue with the unfinished work' },
       "installSkills": { version: 2, placeholders: [], use: '技能安装引导 · DSH 专用（横幅 / 引导 g4 / 设置页复制）', zh: '请为 DSH 安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）：\n\n1. 先检查：确认 ~/.agents/skills 下这 10 个技能已全部就位：wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills。已全部就位 → 直接汇报已装技能清单并结束，不要重复安装；\n2. 有缺失则安装：优先用官方安装器 `npx -y skills@latest add mattpocock/skills -a cline -g --copy -y`（安装器未列出 DSH，但 `-a cline` 的全局目录恰为 ~/.agents/skills，与 DSH 读取目录一致；`--copy` 用复制而非符号链接，防 npx 缓存清理后断链）；若无 npx 或安装失败，回退：克隆 https://github.com/mattpocock/skills，把 skills/engineering 与 skills/productivity 目录下的全部技能复制到 ~/.agents/skills；\n3. 安装目标是 DSH 读取的用户级技能目录：~/.agents/skills —— 不要装进其他工具的技能目录（如 ~/.claude/skills）；\n4. 安装后复验：第 1 步的 10 个技能已全部就位；\n5. 完成后汇报安装结果与已装技能清单。', en: 'Install the Matt Pocock skills collection (mattpocock/skills) for DSH:\n\n1. Check first: confirm these 10 skills are all present under ~/.agents/skills: wayfinder / triage / grilling / grill-me / implement / ask-matt / research / prototype / handoff / setup-matt-pocock-skills. If all are present, report the installed skill list and stop — do not reinstall;\n2. If any are missing, install: prefer the official installer `npx -y skills@latest add mattpocock/skills -a cline -g --copy -y` (the installer does not list DSH, but `-a cline` installs globally into ~/.agents/skills — the same directory DSH reads; `--copy` copies instead of symlinking so npx cache cleanup cannot break the links); if npx is unavailable or fails, fall back: clone https://github.com/mattpocock/skills and copy all skills from skills/engineering and skills/productivity into ~/.agents/skills;\n3. Install into the user-level skill directory DSH reads: ~/.agents/skills — do not install into the skill directories of other tools (e.g. ~/.claude/skills);\n4. After install, re-verify: all 10 skills from step 1 are in place;\n5. When done, report the result and the installed skill list.' },
-      "setupRun": { version: 8, placeholders: ['trackerLine', 'trackerChoice', 'backendNote'], use: '环境检查横幅 · setup 未执行按钮（仅初始化记录配置，不安装/克隆技能；v8 后端选择状态化）', zh: '/setup-matt-pocock-skills\n\n初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：\n1. 按技能流程选择 issue tracker：{trackerLine}，由用户确认；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 {trackerChoice}；triage 标签保留默认五角色），并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。{backendNote}', en: '/setup-matt-pocock-skills\n\nBootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths — it does not install or clone any skills):\n1. Follow the skill flow to pick the issue tracker: {trackerLine}, confirm with the user;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose {trackerChoice} as the tracker; keep the default triage-role labels), and ensure the repo has the complete label set the skills need (the five triage-role labels + the wayfinder labels wayfinder:map / research / prototype / grilling / task) — not just a few; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green).{backendNote}' },
+      "setupRun": { version: 9, placeholders: ['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs'], use: '环境检查横幅 · setup 未执行按钮（仅初始化记录配置，不安装/克隆技能；v9 #230 D10 描述数据化：占位符值由后端声明的键入 locale 数据填充；labelReqs=按后端的标签要求条款，Markdown 为空即不要求标签齐全）', zh: '/setup-matt-pocock-skills\n\n初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：\n1. 按技能流程选择 issue tracker：{trackerLine}，由用户确认；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 {trackerChoice}；triage 标签保留默认五角色）{labelReqs}；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。{backendNote}', en: '/setup-matt-pocock-skills\n\nBootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths — it does not install or clone any skills):\n1. Follow the skill flow to pick the issue tracker: {trackerLine}, confirm with the user;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose {trackerChoice} as the tracker; keep the default triage-role labels){labelReqs}; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green).{backendNote}' },
       "newWayfinder": { version: 10, placeholders: ['repo'], use: '「+ 新建需求」按钮 · 清单式（A★）', zh: '/wayfinder\n请帮我处理一个需求（严格遵循 wayfinder 技能规则）。\n仓库（已自动填入当前工作区）：{repo}\n\n## 澄清\n- [ ] 对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认\n\n## 判断分类（先查仓库已有 wayfinder:map 和 issue，确认是否做过）\n- [ ] 新增：全新需求 → 新建 map\n  - [ ] 写出 map：Destination + Notes + plan\n  - [ ] 把每个 tickets 以 sub-issue 关联到该 map\n  - [ ] 用 Blocked by: #<n> 行表示阻塞关系\n- [ ] 复用：这个需求之前已做过（已有 map / issue）→ 打开复用它，不重复建\n- [ ] 直接实现：需求很小 → 建一个 issue 直接实现，不建大 map\n\n## 自查（对检查清单做检查）\n- [ ] 逐项核对上面每个 `- [ ]`：是否已落实、无遗漏；漏项补上，不跳过\n- [ ] 结束前按进度契约更新（## 进度：N% + 下一步；95% 须写明待确认什么，未确认不得 close）\n', en: '/wayfinder\nPlease handle a requirement (strictly follow the wayfinder skill rules).\nRepo (auto-filled from current workspace): {repo}\n\n## Clarify\n- [ ] If you hold assumptions about the goal / scope / preferences, settle them with the grilling skill — never assume\n\n## Decide the case (check existing wayfinder:map and issues first)\n- [ ] Add: a brand-new requirement → build a new map\n  - [ ] Write the map: Destination + Notes + plan\n  - [ ] Wire each ticket as a sub-issue of the map\n  - [ ] Express blocking with `Blocked by: #<n>` lines\n- [ ] Reuse: this requirement has been done before (existing map / issue) → open and reuse it, do not build a new one\n- [ ] Directly implement: the requirement is small → create a single issue and implement it directly, no big map\n\n## Self-check (verify the checklist)\n- [ ] Go through every `- [ ]` above: confirmed done, no gaps; fill anything missed, do not skip\n- [ ] Before finishing, update per the progress contract (## Progress: N% + next step)\n' },
       "newBugWayfinder": { version: 4, placeholders: ['repo'], use: '「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行）', zh: '/wayfinder\n请帮我新增一个 BUG 单（按 wayfinder 技能规则处理）。\n仓库：{repo}', en: '/wayfinder\nPlease help me file a new BUG ticket (follow the wayfinder skill rules).\nRepo: {repo}' },
       "ghAuthLogin": { version: 1, placeholders: [], use: 'gh 登录引导 · 链失败态 inject-prompt（#228 替换 openUrl 硬编码，动作不承诺修复，检查才判定）', zh: '请为本机完成 GitHub CLI 登录（gh auth login）：\n\n1. 终端执行 gh auth login \n2. 按向导选择 GitHub.com → HTTPS → Yes → 浏览器授权（OAuth）\n3. 完成后执行 gh auth status 验证已登录\n4. 回到面板点击「刷新」或等待自动重查，链条将自动推进\n5. 若遇网络/代理问题，请检查 gh config 与网络后重试', en: 'Please complete GitHub CLI login (gh auth login):\n\n1. Run gh auth login in terminal\n2. Choose GitHub.com → HTTPS → Yes → browser OAuth\n3. Verify with gh auth status\n4. Refresh the panel or wait for auto re-check; the chain will advance via re-evaluation\n5. If network/proxy issues, check gh config and retry' },
@@ -37,42 +37,43 @@
       } catch (e) { return 'zh' }
     }
     // 取 prompt：promptText(id) 或 promptText(id, { 占位符: 值 })
-    // v8 setupRun 状态化：trackerLine / trackerChoice / backendNote 随后端选择变化，缺省为 GitHub（兼容老调用 promptText('setupRun')）
+    // v9（#230 · D10）：setupRun 的 client 内置缺省分支已删 —— 占位符一律由后端描述数据（BackendModule.setupPrompt 键入 locale）经 setupRunParamsFrom 填充
     export const promptText = function (id, params) {
       const p = PROMPTS[id]
       if (!p) return ''
       let s = (promptLang() === 'en' && p.en) ? p.en : (p.zh || '')
-      if (id === 'setupRun') {
-        const defaults = promptLang() === 'en'
-          ? { trackerLine: 'this repo is on GitHub \u2192 propose GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '' }
-          : { trackerLine: '本仓库为 GitHub \u2192 提议 GitHub Issues', trackerChoice: 'GitHub Issues', backendNote: '' }
-        const merged = {}
-        for (const k in defaults) merged[k] = defaults[k]
-        if (params) for (const k in params) if (Object.prototype.hasOwnProperty.call(params, k)) merged[k] = String(params[k])
-        s = s.replace(/\{(\w+)\}/g, function (m, name) { return Object.prototype.hasOwnProperty.call(merged, name) ? String(merged[name]) : m })
-        return s
-      }
       if (params) s = s.replace(/\{(\w+)\}/g, function (m, name) { return Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : m })
       return s
     }
-    // setupRun 后端状态块（供 StatusBar 卡片按按钮取值，文案不含 wf.bind 等宿主黑话）
-    export const setupBackendNote = function (backendId) {
-      const isEn = promptLang() === 'en'
-      if (backendId === 'markdown') return isEn ? '\n\nSelected backend: Markdown \u2014 please generate docs/agents/issue-tracker.md from the local Markdown template (.scratch structure).' : '\n\n本次已选后端：Markdown \u2014 请按本地 Markdown 模板生成 docs/agents/issue-tracker.md（.scratch 结构）'
-      if (backendId === 'gitlab') return isEn ? '\n\nSelected backend: GitLab \u2014 please generate docs/agents/issue-tracker.md from the GitLab template.' : '\n\n本次已选后端：GitLab \u2014 请按 GitLab 模板生成 docs/agents/issue-tracker.md'
-      if (backendId === 'github') return isEn ? '\n\nSelected backend: GitHub \u2014 please generate docs/agents/issue-tracker.md from the GitHub template.' : '\n\n本次已选后端：GitHub \u2014 请按 GitHub 模板生成 docs/agents/issue-tracker.md'
-      return isEn ? '\n\nNo backend explicitly selected, defaulting to GitHub; you can switch anytime in Settings \u2192 Backend.' : '\n\n本次未指定后端，已按默认 GitHub 初始化；可在设置页随时切换'
+    // #230（D10 · 2026-08-28 生效）setupRun 后端描述数据（键入 locale 方案定版）：
+    // 旧 setupTrackerLine/setupTrackerChoice/setupBackendNote 三函数（client 内 backendId 分支硬编码双语值）删除；
+    // 后端模块经 BackendModule.setupPrompt 声明「locale 键名」，wf.registry 转发到 st.backendModules，此处只做 键→值 解析与占位符填充 —— client 零 backendId 分支。
+    // 数据缺失/未声明后端的兜底 = SETUP_DEFAULT_PROMPT_KEYS（与旧「缺省 GitHub」行为等价：未知 id 同样落到该缺省键组）。
+    export const SETUP_DEFAULT_PROMPT_KEYS = {
+      trackerLine: 'setup.default.trackerLine',
+      trackerChoice: 'setup.default.trackerChoice',
+      backendNote: 'setup.default.backendNote',
+      labelReqs: 'setup.default.labelReqs',
     }
-    export const setupTrackerLine = function (backendId) {
-      const isEn = promptLang() === 'en'
-      if (backendId === 'markdown') return isEn ? 'this repo uses local files \u2192 propose Local markdown' : '本仓库为本地文件 \u2192 提议 Local markdown'
-      if (backendId === 'gitlab') return isEn ? 'this repo is on GitLab \u2192 propose GitLab Issues' : '本仓库为 GitLab \u2192 提议 GitLab Issues'
-      return isEn ? 'this repo is on GitHub \u2192 propose GitHub Issues' : '本仓库为 GitHub \u2192 提议 GitHub Issues'
+    // 纯函数：modules = wf.registry modules 数组（元素可带 setupPrompt 键表）；dictOverride 供单测直喂 locale 字典（单测不依赖闭包 L）
+    export const setupRunParamsFrom = function (modules, backendId, dictOverride) {
+      const list = Array.isArray(modules) ? modules : []
+      let m = null
+      for (let i = 0; i < list.length; i++) { if (list[i] && String(list[i].id) === String(backendId)) { m = list[i]; break } }
+      const declared = (m && m.setupPrompt) || SETUP_DEFAULT_PROMPT_KEYS
+      let dict = dictOverride || null
+      if (!dict) { try { dict = (typeof L !== 'undefined' && L && L[promptLang()]) ? L[promptLang()] : null } catch (e) {} }
+      const out = {}
+      ;['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs'].forEach(function (k) {
+        try { out[k] = (dict && dict[declared[k]] != null) ? String(dict[declared[k]]) : '' } catch (e) { out[k] = '' }
+      })
+      return out
     }
-    export const setupTrackerChoice = function (backendId) {
-      if (backendId === 'markdown') return 'Local markdown'
-      if (backendId === 'gitlab') return 'GitLab Issues'
-      return 'GitHub Issues'
+    // UI 统一入口：显式 backendId 优先（绑定/切换流程）；否则当前 selection；再无 → 缺省键组。所有注入路径一律走这里。
+    export const setupRunPrompt = function (st, backendId) {
+      const sel = st && st.selection && st.selection.backendId != null ? st.selection.backendId : null
+      const id = backendId != null ? backendId : sel
+      return promptText('setupRun', setupRunParamsFrom(st && st.backendModules, id))
     }
     // v1.5 T4/T5：Matt 技能仓库（介绍卡 GitHub 链接）
     export const MATT_REPO = 'https://github.com/mattpocock/skills'

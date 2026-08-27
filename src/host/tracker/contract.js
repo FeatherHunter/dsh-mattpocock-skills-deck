@@ -105,6 +105,7 @@ export const OPERATIONS = Object.freeze([
  * @property {(handle: RepoHandle, backendId: string) => import('../../shared/tracker/shape.js').RepositoryRef} [describe] 可选：出 RepositoryRef（refId/name/url）；未提供时 registry 回退骨架（markdown cwd，其余 ''）
  * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} [issueUrl] 可选：票链接（github https://github.com/{refId}/issues/{key}，gitlab https://gitlab.com/{refId}/-/issues/{key}，markdown ''）
  * @property {(name: string) => string} [searchUrl] 可选：仓库名搜索链接（github https://github.com/search?q=...）
+ * @property {{trackerLine: string, trackerChoice: string, backendNote: string, labelReqs: string}} [setupPrompt] 可选只读 UI 描述数据（#230 D10 键入 locale）：声明 setupRun 占位符对应的 client locale 双语键名；界面检查项通道，永不被数据路径读取。未声明时 UI 用缺省键组兜底
  * @property {RegExp|string} [linkPattern] 可选：链接识别正则（如 /github\\.com\/[^\/\\s]+\/[^\/\\s]+\/issues\/(\\d+)/）
  */
 

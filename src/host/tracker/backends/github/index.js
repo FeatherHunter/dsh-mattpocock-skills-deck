@@ -489,6 +489,13 @@ export const githubModule = {
     bg: 'light-dark(#ddf4ff, rgba(56,139,253,.15))',
     border: 'light-dark(rgba(84,174,255,.4), rgba(56,139,253,.4))',
   },
+  // #230（D10 · 键入 locale）：setup 提示词描述数据 —— 只声明 client locale 双语键名，文案不落后端（双语单源）
+  setupPrompt: {
+    trackerLine: 'setup.github.trackerLine',
+    trackerChoice: 'setup.github.trackerChoice',
+    backendNote: 'setup.github.backendNote',
+    labelReqs: 'setup.github.labelReqs',
+  },
   create: createGithubBackend,
   matches: githubMatches,
   describe,

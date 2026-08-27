@@ -110,6 +110,13 @@ export const markdownModule = {
     bg: 'light-dark(rgba(26,127,55,.12), rgba(63,185,80,.14))',
     border: 'light-dark(rgba(26,127,55,.25), rgba(63,185,80,.30))',
   },
+  // #230（D10 · 键入 locale）：setup 描述数据键；labelReqs='' → Markdown 注入的 setupRun 不要求标签齐全
+  setupPrompt: {
+    trackerLine: 'setup.markdown.trackerLine',
+    trackerChoice: 'setup.markdown.trackerChoice',
+    backendNote: 'setup.markdown.backendNote',
+    labelReqs: 'setup.markdown.labelReqs',
+  },
   create: createMarkdownBackend,
   matches,
 }

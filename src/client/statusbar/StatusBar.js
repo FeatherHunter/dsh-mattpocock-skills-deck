@@ -337,30 +337,24 @@ export const StatusBar = (props) => {
   const cancelSetupPick = function(){closeSetupPick()}
   const confirmSetupPick = function(){
     const id=s.setupPickSelected||s.setupPickRecommended||'github'
-    const line=typeof setupTrackerLine==='function'?setupTrackerLine(id):'本仓库为 GitHub \u2192 提议 GitHub Issues'
-    const choice=typeof setupTrackerChoice==='function'?setupTrackerChoice(id):'GitHub Issues'
-    const note=typeof setupBackendNote==='function'?setupBackendNote(id):''
     const prev=s.selection
     s.selection={backendId:id,source:'explicit',ref:(s.repository||(s.snapshot&&s.snapshot.repository)||null)}
     try{if(s.cwd)selectionByCwd[s.cwd]=s.selection}catch{}
     emit(s);closeSetupPick()
     if(typeof host!=='undefined'&&host.call)host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){const ok=res&&(res.ok||(res.value&&res.value.ok));if(ok){try{flash(s,'已选择 '+(typeof labelOf==='function'?labelOf(id):id),'ok')}catch{};loadSnapshot(s,true,true)}else{s.selection=prev;emit(s);try{flash(s,'切换失败:'+String(res&&(res.error||res.message)||'unknown'),'warn')}catch{}}}).catch(function(){s.selection=prev;emit(s)})
-    try{inject(s,promptText('setupRun',{trackerLine:line,trackerChoice:choice,backendNote:note}))}catch(e){try{inject(s,promptText('setupRun'))}catch{}}
+    try{inject(s,setupRunPrompt(s,id))}catch(e){} // #230（D10）：占位符由后端描述数据填充
   }
   const onSetupInit = function(){
     const id=s.selection && s.selection.backendId!=null ? s.selection.backendId : (s.setupPickSelected||s.setupPickRecommended||'github');
-    const line=typeof setupTrackerLine==='function'?setupTrackerLine(id):'本仓库为 GitHub \u2192 提议 GitHub Issues';
-    const choice=typeof setupTrackerChoice==='function'?setupTrackerChoice(id):'GitHub Issues';
-    const note=typeof setupBackendNote==='function'?setupBackendNote(id):'';
     try{s.setupPickOpen=false;emit(s);}catch(e){}
-    try{inject(s,promptText('setupRun',{trackerLine:line,trackerChoice:choice,backendNote:note}))}catch(e){try{inject(s,promptText('setupRun'))}catch{}}
+    try{inject(s,setupRunPrompt(s,id))}catch(e){} // #230（D10）：占位符由后端描述数据填充
   }
   const openGate = function(){
     s.gateModalOpen=true;s.gateModalSource='status';if(!s.gateSelected)s.gateSelected='github';s.gateError='';emit(s);
     if(typeof host!=='undefined'&&host.call){s.gateLoading=true;emit(s);host.call('wf.registry',{cwd:s.cwd||''}).then(function(r){s.gateLoading=false;let m=null;if(r&&r.ok&&Array.isArray(r.modules))m=r.modules;else if(r&&Array.isArray(r.modules))m=r.modules;else if(r&&r.value&&Array.isArray(r.value.modules))m=r.value.modules;if(Array.isArray(m)&&m.length){const f=m.filter(function(x){return String(x.id).toLowerCase()!=='other'});const fin=f.length?f:m;if(fin.length){s.backendModules=m;try{if(typeof setPresentationMap==='function')setPresentationMap(m)}catch(e){}const ids=fin.map(function(x){return x.id});if(!s.gateSelected||ids.indexOf(s.gateSelected)<0)s.gateSelected=fin[0].id}}emit(s)}).catch(function(){s.gateLoading=false;emit(s)});}
   }
   const closeGate = function(){ s.gateModalOpen=false; s.gateModalSource=null; s.gateError=''; emit(s); };
-  const confirmGateStatus = function(){ const id=s.gateSelected||'github'; if(String(id).toLowerCase()==='other'){ s.gateError='Other 已弃用，请选择 GitHub/Markdown/GitLab'; emit(s); return; } const prev=s.selection; const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null; const nxt={backendId:id,source:'explicit',ref:repoRef}; s.selection=nxt; try{ if(s.cwd)selectionByCwd[s.cwd]=nxt }catch(e){} s.gateModalOpen=false; s.gateModalSource=null; emit(s); if(typeof host!=='undefined'&&host.call){ host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){ const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok); if(ok){ s.tab='list'; emit(s); try{ flash(s,'已绑定 '+(typeof labelOf==='function'?labelOf(id):String(id)),'ok') }catch(e){} try{ const l=(typeof setupTrackerLine==='function'?setupTrackerLine(id):''); const c=(typeof setupTrackerChoice==='function'?setupTrackerChoice(id):''); const n=(typeof setupBackendNote==='function'?setupBackendNote(id):''); const tt=(typeof promptText==='function'?promptText('setupRun',{trackerLine:l,trackerChoice:c,backendNote:n}):''); if(tt) try{ inject(s,tt) }catch(e){} }catch(e){} loadSnapshot(s,true,true); } else { s.selection=prev; try{ if(s.cwd)selectionByCwd[s.cwd]=prev }catch(e){} emit(s); try{ flash(s,'切换失败:'+String(res&&(res.error||res.message)||'unknown'),'warn') }catch(e){} } }).catch(function(){ s.selection=prev; try{ if(s.cwd)selectionByCwd[s.cwd]=prev }catch(e){} emit(s); }); } };
+  const confirmGateStatus = function(){ const id=s.gateSelected||'github'; if(String(id).toLowerCase()==='other'){ s.gateError='Other 已弃用，请选择 GitHub/Markdown/GitLab'; emit(s); return; } const prev=s.selection; const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null; const nxt={backendId:id,source:'explicit',ref:repoRef}; s.selection=nxt; try{ if(s.cwd)selectionByCwd[s.cwd]=nxt }catch(e){} s.gateModalOpen=false; s.gateModalSource=null; emit(s); if(typeof host!=='undefined'&&host.call){ host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){ const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok); if(ok){ s.tab='list'; emit(s); try{ flash(s,'已绑定 '+(typeof labelOf==='function'?labelOf(id):String(id)),'ok') }catch(e){} try{ const tt=(typeof setupRunPrompt==='function'?setupRunPrompt(s,id):''); if(tt) try{ inject(s,tt) }catch(e){} }catch(e){} loadSnapshot(s,true,true); } else { s.selection=prev; try{ if(s.cwd)selectionByCwd[s.cwd]=prev }catch(e){} emit(s); try{ flash(s,'切换失败:'+String(res&&(res.error||res.message)||'unknown'),'warn') }catch(e){} } }).catch(function(){ s.selection=prev; try{ if(s.cwd)selectionByCwd[s.cwd]=prev }catch(e){} emit(s); }); } };
   const setupPickCard = s.setupPickOpen ? (function(){
     const mods=s.setupPickModules||[];const rec=s.setupPickRecommended||'github';const sel=s.setupPickSelected||rec
     return h('div', { style:{ width:'100%', maxWidth:560, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:10, background:'var(--dsw-alias-bg-layer-2,#16181d)', padding:10, boxShadow:'0 8px 24px rgba(0,0,0,.35)' } }, [

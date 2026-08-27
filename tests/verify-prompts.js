@@ -53,7 +53,7 @@ const check = function (file) {
   // 旧形式残留
   ;["tr('prompt.", "'prompt.\'" ].forEach(function (bad) { if (src.includes(bad)) problems.push('旧字典引用残留 ' + bad) })
   // #77（G16）：版本号 bump —— 契约变更的条目必须升版（防回退）；五片段删除后注册表 15 条
-  const V_MIN = { 'tpl.diagnose': 5, 'tpl.execute': 5, 'mapExecute': 5, 'complete': 5, 'newWayfinder': 10, 'setupRun': 7, 'fixate': 2, 'progress': 3, 'bodyFormat': 3 }
+  const V_MIN = { 'tpl.diagnose': 5, 'tpl.execute': 5, 'mapExecute': 5, 'complete': 5, 'newWayfinder': 10, 'setupRun': 9, 'fixate': 2, 'progress': 3, 'bodyFormat': 3 }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
     if (!p) problems.push('契约缺条目 ' + id)
