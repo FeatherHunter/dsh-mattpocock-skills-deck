@@ -101,7 +101,7 @@ export const SwitchConfirmModal = (props) => {
       // #191：内容区独立滚动（向下延伸），起始标记
       h('div', { style: bodyStyle }, [
       (function(){
-        const modules = (s.backendModules || [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]).filter(function(m){ return String(m.id).toLowerCase() !== 'other' })
+        const modules = otherFiltered(s.backendModules)
         const onPick = function(id){
           if (s.switchConfirm.targetBackendId === id) return
           s.switchConfirm.targetBackendId = id

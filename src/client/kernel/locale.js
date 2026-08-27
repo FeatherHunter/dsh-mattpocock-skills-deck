@@ -225,6 +225,11 @@
         'panel.noRepoErr.permission': '权限不足，请检查登录账号',
         'panel.noRepoErr.unknown': '创建失败，请查看错误详情',
         'panel.noRepoErr.git-commit-failed': 'Git 提交失败',
+        // #231 · 类别5收编：通用闸层文案键（默认后端语义单源化为「registry 首项」，名单兜底见 kernel/builtin-backends.js）
+        'switch.gateOtherErr': 'Other 已弃用，请选择 GitHub / Markdown / GitLab',
+        'switch.pleaseSelectTracker': '请选择 Tracker 后端以继续',
+        'switch.gateIntro': '不同后端的初始化与前置检查不同，选择后将回到主线流程',
+        'panel.loadingShort': '加载中…',
         // #189 · 切换三选一确认 Modal（#186 定版：默认保留 + prompt 可编辑 + CRI 仅阻断迁移）
         'switch.title': '切换 Tracker 后端',
         'switch.hint': '确认切换？',
@@ -552,6 +557,11 @@
         'panel.noRepoErr.permission': 'Permission denied — check login account',
         'panel.noRepoErr.unknown': 'Creation failed — see error details',
         'panel.noRepoErr.git-commit-failed': 'Git commit failed',
+        // #231 · category-5 consolidation: generic gate strings (default-backend semantic = registry head; name fallback lives in kernel/builtin-backends.js)
+        'switch.gateOtherErr': 'Other is deprecated — pick GitHub / Markdown / GitLab',
+        'switch.pleaseSelectTracker': 'Choose a tracker backend to continue',
+        'switch.gateIntro': 'Initialization and preflight differ per backend; picking one returns you to the main flow.',
+        'panel.loadingShort': 'Loading…',
         // #189 · switch confirm modal
         'switch.title': 'Switch Tracker Backend',
         'switch.hint': 'Confirm switch?',

@@ -198,9 +198,12 @@
     export const setCachedRepository = function (cwd, repo) { if (cwd) repositoryByCwd[cwd] = repo }
     export const labelOf = function (backendId) {
       if (backendId == null) return 'Other'
-      const map = { github: 'GitHub', markdown: 'Markdown', gitlab: 'GitLab' }
-      if (map[backendId]) return map[backendId]
-      return String(backendId)
+      try {
+        const ms = (typeof shared !== 'undefined' && shared && Array.isArray(shared.backendModules)) ? shared.backendModules : null
+        if (ms) { for (let _i = 0; _i < ms.length; _i++) { const m = ms[_i]; if (m && m.id === backendId && m.label) return m.label } }
+      } catch (_e) {}
+      const b = builtinLabelOf(backendId)
+      return b || String(backendId)
     }
     // 契约：后端是颜色的单一真源（presentation.color 单值），UI 只做 light-dark 与透明度派生
     export const presentationById = {}

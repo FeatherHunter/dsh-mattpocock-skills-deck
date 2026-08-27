@@ -112,18 +112,11 @@ export     const OverlayPanel = (props) => {
       const _showBackendFullscreen2 = _isPending2 || _isOther2
       // Overlay 与 Dock 共享同一 store gate 状态（同一工作区同一 modal）
       const _gateOpen2 = !!s.gateModalOpen
-      const _gateModules2 = (function(){
-        const ms = s.backendModules
-        if (Array.isArray(ms) && ms.length) {
-          const f = ms.filter(function(m){ return String(m.id).toLowerCase()!=='other' })
-          return f.length ? f : [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
-        }
-        return [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
-      })()
+      const _gateModules2 = otherFiltered(s.backendModules)
       const _openGateModal2 = function(){
         s.gateModalOpen = true
         if (!s.gateSelected) {
-          const first = _gateModules2 && _gateModules2[0] ? _gateModules2[0].id : 'github'
+          const first = (_gateModules2 && _gateModules2[0]) ? _gateModules2[0].id : firstBackendIdOf(null)
           s.gateSelected = first
         }
         s.gateError = ''
@@ -152,8 +145,8 @@ export     const OverlayPanel = (props) => {
       }
       const _closeGateModal2 = function(){ s.gateModalOpen=false; s.gateError=''; emit(s) }
       const _confirmGate2 = function(){
-        const id = s.gateSelected || (_gateModules2[0] && _gateModules2[0].id) || 'github'
-        if (String(id).toLowerCase()==='other') { s.gateError='Other 已弃用，请选择 GitHub/Markdown/GitLab'; emit(s); return }
+        const id = s.gateSelected || ((_gateModules2[0] && _gateModules2[0].id)) || firstBackendIdOf(_gateModules2)
+        if (String(id).toLowerCase()==='other') { s.gateError=tr('switch.gateOtherErr'); emit(s); return }
         const prev = s.selection
         const repoRef = s.repository || (s.snapshot && s.snapshot.repository) || null
         const next = { backendId: id, source: 'explicit', ref: repoRef }
@@ -249,7 +242,7 @@ export     const OverlayPanel = (props) => {
                 h('span', { 'data-repo-text': 1, className: 'dsws-ellip', title: repoStr(s), style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, isErr ? tr('panel.snapErr') : isLoading ? tr('panel.loading') : repoStr(s)),
               ])
             }
-            const bid = sel ? sel.backendId : (repoRef.backend || 'github')
+            const bid = sel ? sel.backendId : (repoRef.backend || firstBackendIdOf(null))
             const bidNorm = String(bid || '').toLowerCase()
             const isMarkdown = bidNorm === 'markdown'
             const href = repoRef.url || ''

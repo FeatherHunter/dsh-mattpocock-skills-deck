@@ -170,6 +170,7 @@ function wireCtx(body) {
  *  index.js 中每模块原位置留标记 `// ==== kernel:<name> (spliced by build) ====`，
  *  构建时把模块文件声明体（去行首 export）拼回标记处 —— 闭包内原位，行为零变化。 */
 const KERNEL_MODULES = [
+  { name: 'backendList', file: 'src/client/kernel/builtin-backends.js' },
   { name: 'link', file: 'src/client/kernel/link.js' },
   { name: 'styles', file: 'src/client/kernel/styles.js' },
   { name: 'locale', file: 'src/client/kernel/locale.js' },

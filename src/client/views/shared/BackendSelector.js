@@ -4,7 +4,7 @@
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  */
 export const BackendSelector = (props) => {
-  const modules = props.modules && props.modules.length ? props.modules : [{ id: 'github', label: 'GitHub' }, { id: 'markdown', label: 'Markdown' }, { id: 'gitlab', label: 'GitLab' }]
+  const modules = (typeof otherFiltered === 'function') ? otherFiltered(props.modules) : ((props.modules && props.modules.length) ? props.modules : [])
   const curBackendId = props.curBackendId !== undefined ? props.curBackendId : null
   const curSource = props.curSource || 'fallback'
   const curSelection = props.curSelection || null

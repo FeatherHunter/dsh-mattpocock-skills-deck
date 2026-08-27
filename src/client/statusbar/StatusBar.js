@@ -311,7 +311,6 @@ export const StatusBar = (props) => {
   const _isGatePending = !!(_selSBGate && _selSBGate.pending && !!s.cwd)
   const _gateActive = _isOtherSBGate || _isGatePending
   const firstBlock = _gateActive ? 'gate' : ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
-  const fbMods = [{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]
   const normMods = function(r){
     let ms=null
     if(r&&r.ok&&r.value&&Array.isArray(r.value.modules)) ms=r.value.modules
@@ -319,24 +318,24 @@ export const StatusBar = (props) => {
     else if(r&&r.modules&&Array.isArray(r.modules)) ms=r.modules
     if(!Array.isArray(ms)) return null
     const f=ms.filter(function(m){return String(m.id).toLowerCase()!=='other'})
-    return f.length?f:fbMods.slice()
+    return f.length?f:null
   }
   const ensureSetupPickModules = function(cb){
     if(s.setupPickModules&&s.setupPickModules.length){cb(s.setupPickModules);return}
-    if(typeof host==='undefined'||typeof host.call!=='function'){s.setupPickModules=fbMods.slice();cb(s.setupPickModules);return}
+    if(typeof host==='undefined'||typeof host.call!=='function'){s.setupPickModules=[];cb(s.setupPickModules);return}
     s.setupPickLoading=true;emit(s)
     host.call('wf.registry',{cwd:s.cwd||''}).then(function(r){
       s.setupPickLoading=false
       const ms=normMods(r)
-      if(ms){s.setupPickModules=ms;const cur=s.selection&&s.selection.backendId!=null?s.selection.backendId:'github';s.setupPickRecommended=cur;if(!s.setupPickSelected)s.setupPickSelected=cur;emit(s);cb(ms);return}
+      if(ms){s.setupPickModules=ms;const cur=s.selection&&s.selection.backendId!=null?s.selection.backendId:firstBackendIdOf(null);s.setupPickRecommended=cur;if(!s.setupPickSelected)s.setupPickSelected=cur;emit(s);cb(ms);return}
       s.setupPickErr=String(r&&(r.error||r.message)||'unknown').slice(0,120);emit(s);cb([])
     }).catch(function(e){s.setupPickLoading=false;s.setupPickErr=String(e).slice(0,120);emit(s);cb([])})
   }
-  const openSetupPick = function(){s.setupPickOpen=true;if(!s.setupPickSelected){const cur=s.selection&&s.selection.backendId!=null?s.selection.backendId:'github';s.setupPickSelected=cur;s.setupPickRecommended=cur}ensureSetupPickModules(function(){emit(s)});emit(s)}
+  const openSetupPick = function(){s.setupPickOpen=true;if(!s.setupPickSelected){const cur=s.selection&&s.selection.backendId!=null?s.selection.backendId:firstBackendIdOf(null);s.setupPickSelected=cur;s.setupPickRecommended=cur}ensureSetupPickModules(function(){emit(s)});emit(s)}
   const closeSetupPick = function(){s.setupPickOpen=false;s.setupPickErr='';emit(s)}
   const cancelSetupPick = function(){closeSetupPick()}
   const confirmSetupPick = function(){
-    const id=s.setupPickSelected||s.setupPickRecommended||'github'
+    const id=s.setupPickSelected||s.setupPickRecommended||firstBackendIdOf(null)
     const prev=s.selection
     s.selection={backendId:id,source:'explicit',ref:(s.repository||(s.snapshot&&s.snapshot.repository)||null)}
     try{if(s.cwd)selectionByCwd[s.cwd]=s.selection}catch{}
@@ -345,22 +344,22 @@ export const StatusBar = (props) => {
     try{inject(s,setupRunPrompt(s,id))}catch(e){} // #230（D10）：占位符由后端描述数据填充
   }
   const onSetupInit = function(){
-    const id=s.selection && s.selection.backendId!=null ? s.selection.backendId : (s.setupPickSelected||s.setupPickRecommended||'github');
+    const id=s.selection && s.selection.backendId!=null ? s.selection.backendId : (s.setupPickSelected||s.setupPickRecommended||firstBackendIdOf(null));
     try{s.setupPickOpen=false;emit(s);}catch(e){}
     try{inject(s,setupRunPrompt(s,id))}catch(e){} // #230（D10）：占位符由后端描述数据填充
   }
   const openGate = function(){
-    s.gateModalOpen=true;s.gateModalSource='status';if(!s.gateSelected)s.gateSelected='github';s.gateError='';emit(s);
+    s.gateModalOpen=true;s.gateModalSource='status';if(!s.gateSelected)s.gateSelected=firstBackendIdOf(null);s.gateError='';emit(s);
     if(typeof host!=='undefined'&&host.call){s.gateLoading=true;emit(s);host.call('wf.registry',{cwd:s.cwd||''}).then(function(r){s.gateLoading=false;let m=null;if(r&&r.ok&&Array.isArray(r.modules))m=r.modules;else if(r&&Array.isArray(r.modules))m=r.modules;else if(r&&r.value&&Array.isArray(r.value.modules))m=r.value.modules;if(Array.isArray(m)&&m.length){const f=m.filter(function(x){return String(x.id).toLowerCase()!=='other'});const fin=f.length?f:m;if(fin.length){s.backendModules=m;try{if(typeof setPresentationMap==='function')setPresentationMap(m)}catch(e){}const ids=fin.map(function(x){return x.id});if(!s.gateSelected||ids.indexOf(s.gateSelected)<0)s.gateSelected=fin[0].id}}emit(s)}).catch(function(){s.gateLoading=false;emit(s)});}
   }
   const closeGate = function(){ s.gateModalOpen=false; s.gateModalSource=null; s.gateError=''; emit(s); };
-  const confirmGateStatus = function(){ const id=s.gateSelected||'github'; if(String(id).toLowerCase()==='other'){ s.gateError='Other 已弃用，请选择 GitHub/Markdown/GitLab'; emit(s); return; } const prev=s.selection; const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null; const nxt={backendId:id,source:'explicit',ref:repoRef}; s.selection=nxt; try{ if(s.cwd)selectionByCwd[s.cwd]=nxt }catch(e){} s.gateModalOpen=false; s.gateModalSource=null; emit(s); if(typeof host!=='undefined'&&host.call){ host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){ const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok); if(ok){ s.tab='list'; emit(s); try{ flash(s,'已绑定 '+(typeof labelOf==='function'?labelOf(id):String(id)),'ok') }catch(e){} try{ const tt=(typeof setupRunPrompt==='function'?setupRunPrompt(s,id):''); if(tt) try{ inject(s,tt) }catch(e){} }catch(e){} loadSnapshot(s,true,true); } else { s.selection=prev; try{ if(s.cwd)selectionByCwd[s.cwd]=prev }catch(e){} emit(s); try{ flash(s,'切换失败:'+String(res&&(res.error||res.message)||'unknown'),'warn') }catch(e){} } }).catch(function(){ s.selection=prev; try{ if(s.cwd)selectionByCwd[s.cwd]=prev }catch(e){} emit(s); }); } };
+  const confirmGateStatus = function(){ const id=s.gateSelected||firstBackendIdOf(null); if(String(id).toLowerCase()==='other'){ s.gateError=tr('switch.gateOtherErr'); emit(s); return; } const prev=s.selection; const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null; const nxt={backendId:id,source:'explicit',ref:repoRef}; s.selection=nxt; try{ if(s.cwd)selectionByCwd[s.cwd]=nxt }catch(e){} s.gateModalOpen=false; s.gateModalSource=null; emit(s); if(typeof host!=='undefined'&&host.call){ host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){ const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok); if(ok){ s.tab='list'; emit(s); try{ flash(s,'已绑定 '+(typeof labelOf==='function'?labelOf(id):String(id)),'ok') }catch(e){} try{ const tt=(typeof setupRunPrompt==='function'?setupRunPrompt(s,id):''); if(tt) try{ inject(s,tt) }catch(e){} }catch(e){} loadSnapshot(s,true,true); } else { s.selection=prev; try{ if(s.cwd)selectionByCwd[s.cwd]=prev }catch(e){} emit(s); try{ flash(s,'切换失败:'+String(res&&(res.error||res.message)||'unknown'),'warn') }catch(e){} } }).catch(function(){ s.selection=prev; try{ if(s.cwd)selectionByCwd[s.cwd]=prev }catch(e){} emit(s); }); } };
   const setupPickCard = s.setupPickOpen ? (function(){
-    const mods=s.setupPickModules||[];const rec=s.setupPickRecommended||'github';const sel=s.setupPickSelected||rec
+    const mods=s.setupPickModules||[];const rec=s.setupPickRecommended||firstBackendIdOf(null);const sel=s.setupPickSelected||rec
     return h('div', { style:{ width:'100%', maxWidth:560, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:10, background:'var(--dsw-alias-bg-layer-2,#16181d)', padding:10, boxShadow:'0 8px 24px rgba(0,0,0,.35)' } }, [
       h('div', { style:{ fontSize:12, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:8 } }, [Ic({n:'compass',size:12}), h('span', null, tr('banner.setupPickTitle')), s.setupPickLoading ? h('span', {style:{fontSize:10,color:'#8b8b95'}}, tr('list.loading')) : null]),
       s.setupPickErr ? h('div', {style:{fontSize:11,color:'#f87171', marginBottom:6}}, s.setupPickErr) : null,
-      h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, (mods.length?mods:fbMods).map(function(m){
+      h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, (mods.length?mods:supportedBackendViews()).map(function(m){
         const isRec=rec===m.id;const isSel=sel===m.id;const col=typeof backendColorOf==='function'?backendColorOf(m.id):''
         return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 9px', borderRadius:8, border: isSel ? '1px solid '+col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSel ? 'rgba(88,166,255,.08)' : 'transparent', cursor:'pointer' } }, [
           h('input', { type:'radio', name:'setup-pick', checked: isSel, onChange: function(){ s.setupPickSelected=m.id; emit(s) } }),
@@ -407,10 +406,10 @@ export const StatusBar = (props) => {
     capsule,
     (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) closeGate() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10, borderRadius:8, padding:12 } }, [
       h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:14, width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
-        h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, '请选择 Tracker 后端以继续')]),
-        h('div', { style:{ fontSize:11, color:'#8b8b95', marginBottom:10, lineHeight:1.5 } }, '不同后端的初始化与前置检查不同，选择后将回到主线流程'),
-        s.gateLoading ? h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'6px 0' } }, '加载中…') : h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, (s.backendModules||[{id:'github',label:'GitHub'},{id:'markdown',label:'Markdown'},{id:'gitlab',label:'GitLab'}]).filter(function(m){return String(m.id).toLowerCase()!=='other'}).map(function(m){
-          const isSel=s.gateSelected===m.id; const col=(typeof backendColorOf==='function'?backendColorOf(m.id):'#6e7681'); const isRec=(s.backendModules||[{id:'github',label:'GitHub'}])[0]&& (s.backendModules||[{id:'github',label:'GitHub'}])[0].id===m.id;
+        h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, tr('switch.pleaseSelectTracker'))]),
+        h('div', { style:{ fontSize:11, color:'#8b8b95', marginBottom:10, lineHeight:1.5 } }, tr('switch.gateIntro')),
+        s.gateLoading ? h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'6px 0' } }, tr('panel.loadingShort')) : h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, otherFiltered(s.backendModules).map(function(m){
+          const isSel=s.gateSelected===m.id; const col=(typeof backendColorOf==='function'?backendColorOf(m.id):'#6e7681'); const isRec=(s.backendModules||[])[0] && (s.backendModules||[])[0].id===m.id;
           return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border:isSel?'1px solid '+col:'1px solid var(--dsw-alias-border-l1,#2a2d35)', background:isSel?'rgba(88,166,255,.08)':'transparent', cursor:'pointer' } }, [ h('input',{type:'radio',checked:isSel,onChange:function(){s.gateSelected=m.id;emit(s)}}), h('span',{style:{width:8,height:8,borderRadius:'50%',background:col,flex:'none'}}), h('span',{style:{fontSize:12,fontWeight:600}},m.label), h('span',{style:{fontSize:10,color:'#8b8b95'}},m.id), h('span',{style:{flex:1}}), isRec?h('span',{style:{fontSize:10,color:'#4ade80',border:'1px solid #4ade80',borderRadius:4,padding:'0 4px'}},'推荐'):null ])
         })),
         s.gateError ? h('div', { style:{ fontSize:11, color:'#f87171', marginTop:8 } }, s.gateError) : null,
