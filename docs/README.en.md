@@ -31,10 +31,11 @@ dsh plugin --profile web add dsh-better-sidebar
 
 > 💡 The panel looks best inside [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)'s VSCode-style sidebar (side-by-side list & detail). It still works without it (right details column), just a bit tighter on narrow screens.
 
-**③ Install MattSkills**
+**③ Install MattSkills** — latest `v1.7.2` (`npm view` verified)
 
 ```bash
 dsh plugin --profile web add dsh-mattpocock-skills-deck
+# or pin latest: dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.2 --registry https://registry.npmjs.org
 ```
 
 **④ Or let your AI do it** — copy the prompt below to your AI; it reads the repo, checks your environment, and installs only what's missing (it skips what's already there):
@@ -47,18 +48,18 @@ Then check the environment and install what's missing (skip what's already insta
 
 ![See what you get — DSH in 30 seconds](../assets/after-install-en.svg)
 
-Refresh and it's on — zero config, and the rest is handled.
+Refresh and it's on — zero config, and the rest is handled. Latest `v1.7.2` — https://www.npmjs.com/package/dsh-mattpocock-skills-deck
 
-Without a global install: `npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck`
+Without a global install: `npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck` // latest `v1.7.2`
 
 Update / remove: `dsh plugin --profile web update|remove dsh-mattpocock-skills-deck`
 
 > **⚠️ Still showing the old version after update? (DSH platform issue, not a bug in this plugin)**
-> This is caused by **DSH Desktop's** `pnpm` supply-chain policy `minimumReleaseAge` — freshly published versions are **silently ignored** by `dsh plugin update` / the Plugin Market's "Update" button (`pnpm update` shows no error but doesn't update, wait a few hours). **Please fully quit DSH and reopen it, then hard-refresh the page (Ctrl+F5)** to see the new version (e.g. `v1.6.14`). If you just published and the update still doesn't take effect, run explicitly:
+> This is caused by **DSH Desktop's** `pnpm` supply-chain policy `minimumReleaseAge` — freshly published versions are **silently ignored** by `dsh plugin update` / the Plugin Market's "Update" button (`pnpm update` shows no error but doesn't update, wait a few hours). **Please fully quit DSH and reopen it, then hard-refresh the page (Ctrl+F5)** to see the new version (e.g. `v1.7.2`). If you just published and the update still doesn't take effect, run explicitly:
 > ```bash
 > dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
 > ```
-> or retry after a few hours. This is a DSH platform behavior, reproduced as `pnpm update` → `Packages: -2` still `1.0.0`; `pnpm add @1.6.14` → `Added 1` succeeds.
+> or retry after a few hours. This is a DSH platform behavior, reproduced as `pnpm update` → `Packages: -2` still `1.0.0`; `pnpm add @1.7.2` → `Added 1` succeeds.
 
 ## 🎮 The idea
 
