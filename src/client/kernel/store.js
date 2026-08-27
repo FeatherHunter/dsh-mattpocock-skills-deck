@@ -470,7 +470,8 @@
           changed=true
         }
         // 同步 selection/repository 镜像（per-cwd）
-        if (c.selection !== undefined) { st.selection = c.selection; setCachedSelection(st.cwd, c.selection) }
+        // 2026-08-28 审查：快照 selection 合并统一走 mergeSelection——旧快照的 fallback null 不得覆盖新意图（LocalStorage 绑定）
+        if (c.selection !== undefined) { if (mergeSelection(st, c.selection)) changed = true }
         if (c.repository !== undefined) { st.repository = c.repository; setCachedRepository(st.cwd, c.repository) }
         // backendModules 缓存
         if (c.backendModules) { st.backendModules = c.backendModules; setPresentationMap(c.backendModules) }
@@ -486,19 +487,40 @@
       }
       return changed
     }
+    /**
+     * 客户端 selection 合并唯一点（2026-08-28 覆盖逻辑审查修正）。
+     * 优先级：真相（backendId 非空 / explicit 显式 Other）> 意图（localStorage 持久化绑定）> fallback null 尊重意图 > pending 保留。
+     *  - explicit/matches（backendId 非空）：落盘/绑定真相 → 覆盖并写回缓存（意图自愈为真相）
+     *  - explicit null（source='explicit'，用户显式无后端逃生舱）：明确意图 → 覆盖
+     *  - fallback null（source='fallback'，无锚无匹配）：尊重客户端持久化意图——cur 已选则不覆盖不写缓存；
+     *    同时等效承接旧 isSuspiciousFallback 的 idle-refresh flake 防抖（flake 即 fallback null，不覆盖即防抖、不污染 localStorage）
+     *  - pending（探测中）：保留现状，不闪
+     * @returns {boolean} 是否发生覆盖（changed）
+     */
+    export const mergeSelection = function (st, incoming) {
+      if (!incoming || typeof incoming !== 'object') return false
+      if (!incoming.backendId) {
+        if (incoming.pending) return false
+        if (incoming.source === 'explicit') {
+          st.selection = incoming
+          if (st.cwd) setCachedSelection(st.cwd, incoming)
+          return true
+        }
+        const cur = st.selection
+        if (cur && cur.backendId) return false // fallback null：尊重意图，不覆盖不写缓存
+        st.selection = incoming
+        if (st.cwd) setCachedSelection(st.cwd, incoming)
+        return true
+      }
+      st.selection = incoming
+      if (st.cwd) setCachedSelection(st.cwd, incoming)
+      return true
+    }
     export const applySnapshotSelection = function (st, snap) {
       if (!st || !snap) return
       if (snap.selection !== undefined) {
-        const cur = st.selection
-        const nxt = snap.selection
-        // first-principles guard (idle refresh flake): fallback null should not silently overwrite a previously established matches/explicit.
-        // explicit null (source==='explicit') is intentional Other; fallback null with pending===undefined is suspicious transient (e.g., .git read race).
-        const isSuspiciousFallback = !!(nxt && nxt.backendId===null && !nxt.pending && nxt.source==='fallback' && cur && cur.backendId && cur.backendId!==null)
-        if (isSuspiciousFallback) {
-          // preserve last known good, keep cached selection
-        } else {
-          st.selection = nxt; if (st.cwd) setCachedSelection(st.cwd, nxt)
-        }
+        // 2026-08-28 审查：合并语义收口到 mergeSelection——真相>意图>fallback 尊重意图>pending 保留
+        mergeSelection(st, snap.selection)
       }
       if (snap.repository !== undefined) {
         const curSel = st.selection
