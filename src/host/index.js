@@ -1209,8 +1209,11 @@ export default {
       const m = s.match(/github\.com[\/:]([^\/\s]+)\/([^\/\s]+?)(?:\.git)?\s*$/)
       if (!m) return null
       return { owner: m[1], name: m[2] }
+    }
 
     // #284：markdown 后端谓词：本地图谱可解析（复用 backends/markdown/parse.js parseMd）
+    // 2026-08-28 修复：本函数与 fileExistsChainRel 曾被误嵌套在 parseGithubRepo 函数体内，
+    //   作用域外（wf.chain 谓词注册处）不可见 → 运行时 ReferenceError「mdParseOkPredicate is not defined」。
     async function mdParseOkPredicate(platform, cwd) {
       try {
         const hasMap = await fileExistsChainRel(platform, cwd, '.scratch/map.md')
@@ -1232,8 +1235,6 @@ export default {
         if (typeof platform.fs.lstat === 'function') { try { const info = await platform.fs.lstat(abs); return !!info } catch { return false } }
         return null
       } catch (e) { return false }
-    }
-
     }
 
 
@@ -1491,7 +1492,16 @@ export default {
         const predMod = await import('./tracker/predicateRegistry.js')
         const registry = predMod.createPredicateRegistry({ timeout: 3000 })
         if (typeof genMod.registerGenericPredicates === 'function') genMod.registerGenericPredicates(registry)
-        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, selection: selMod && selMod.selection, explicitBackendId: selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
+        // #284 一致性修复（2026-08-28）：客户端显式绑定（backendId）优先——主锚与绑定不一致的过渡态（如锚=GitHub 版、
+        //   用户已绑 markdown）链不得两面矛盾（后端段 markdown、开门段 explicit:github）；selection/explicit 归一为绑定侧。
+        const selRaw = selMod && selMod.selection
+        const selConsistent = (selRaw && backendId && selRaw.backendId !== backendId)
+          ? Object.assign({}, selRaw, { backendId: backendId })
+          : selRaw
+        const expConsistent = (selConsistent && selConsistent.backendId)
+          ? selConsistent.backendId
+          : ((selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId) || null)
+        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, selection: selConsistent, explicitBackendId: expConsistent, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
         // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx) {
           try {

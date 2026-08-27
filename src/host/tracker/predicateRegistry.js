@@ -65,7 +65,13 @@ async function execPrimitive(check, ctx) {
         // 尝试 stat 式探测（若平台提供 exists/readText）
         if (typeof p.fs.exists === 'function') {
           const ok = await p.fs.exists(abs)
-          return ok ? makeResult('pass', rel + ' exists') : makeResult('fail', rel + ' not found')
+          if (ok) return makeResult('pass', rel + ' exists')
+          // #284 修复（2026-08-28）：目录型检查（如 md:.scratch）——DSH fs.exists 可能只对文件为真，
+          //   目录用 listDir/stat/lstat 兜底判定存在（.scratch 明明是目录却报 not found）。
+          if (typeof p.fs.listDir === 'function') { try { await p.fs.listDir(abs); return makeResult('pass', rel + ' exists (dir)') } catch (eD) {} }
+          if (typeof p.fs.stat === 'function') { try { const st = await p.fs.stat(abs); if (st) return makeResult('pass', rel + ' exists') } catch (eS) {} }
+          if (typeof p.fs.lstat === 'function') { try { const info = await p.fs.lstat(abs); if (info) return makeResult('pass', rel + ' exists') } catch (eL) {} }
+          return makeResult('fail', rel + ' not found')
         }
         if (typeof p.fs.readText === 'function') {
           try { await p.fs.readText(abs); return makeResult('pass', rel + ' exists') } catch { return makeResult('fail', rel + ' not found') }
