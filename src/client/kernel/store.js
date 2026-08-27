@@ -417,7 +417,7 @@
       cwd: '', lblFilters: [], skillView: 'list', expLabels: false,
       // #374：状态过滤 + 排序（默认 更新时间↓，与现状一致）
       stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
-      checks: null, checksUpdatedAt: '', checksMode: 'loading', checksError: null, checking: false,
+      chainSnapshot: null, chainLoadedAt: '', backendChain: null, fullChain: null,
       snapMode: 'loading', snapError: null, snapLoading: false,
       refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, handoffSearching: false, skillsOpen: false, skillHover: null, skillTip: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
       noRepoCard: { expanded: false, name: '', visibility: 'private', loading: false, error: '', errorKind: '', errorRepoUrl: '' },

@@ -6,81 +6,39 @@
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
-    export const CHECKS_TOTAL = 9   // v1.5 T11 起 9 项检测（含核心技能套件）
-    // #228 链渲染器主机侧数据：wf.chain 通用链快照（按后端动态，refresh 联动）
+    // #228/#284 链渲染器主机侧数据：wf.chain 全链快照（通用链 + 后端链，按后端动态，refresh 联动）
+    // #284 迁移：九格目录视图（wf.status/checks）退役，全部读数点位改从链快照派生。
     export const loadChain = function(st, force){
       if (typeof host === 'undefined' || typeof host.call !== 'function') return Promise.resolve(null)
       const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, force ? { force:true } : {})
       return host.call('wf.chain', args).then(function(res){
-        if (res && res.ok && res.snapshot) { st.chainSnapshot = res.snapshot; st.chain = res.chain; st.chainResolved = res.resolved; emit(st); return res.snapshot }
-        try{
-          if (st.checks && st.checks.length && typeof checksToChainSnapshot === 'function') {
-            const snap = checksToChainSnapshot(st.checks)
-            if (snap) { st.chainSnapshot = snap; emit(st); return snap }
-          }
-        }catch(e){}
+        if (res && res.ok && (res.fullSnapshot || res.snapshot)) {
+          st.chainSnapshot = res.fullSnapshot || res.snapshot
+          st.chain = res.chain
+          st.fullChain = res.fullChain || null
+          st.chainResolved = res.resolved
+          st.backendChain = res.backendChain || null
+          st.chainLoadedAt = nowStr()
+          emit(st)
+          return st.chainSnapshot
+        }
         return null
       }).catch(function(e){ return null })
     }
     export const pendingSnapshotByCwd = new Map() // Map<normCwd,{promise,controller}> dedup 30s
     export const normCwdClientProbe = function(k){ try{ return String(k||'').toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,'')||'/'; }catch(e){ return String(k||''); } }
-    export const loadChecks = (st, force, silent) => {
-      if (st.checking && !force) return Promise.resolve()
-      // #195 约束：force 直通 + 看门狗（防 st.checking 永锁导致重查无反应）
-      if (st.checking && force) { try { st.checking = false } catch {} }
-      let watchdog = null
-      if (force) watchdog = setTimeout(function(){ try{ if(st.checking){ st.checking=false; st.checksMode='err'; st.checksError='timeout: wf.status 10s'; emit(st); } }catch{} }, 10000)
-      if (typeof host === 'undefined' || typeof host.call !== 'function') {
-        st.checksMode = 'err'
-        st.checksError = tr('err.hostUnavailable')
-        emit(st)
-        return Promise.resolve()
-      }
-      st.checking = true
-      if (watchdog) { /* watchdog 已设 */ }
-      // v1.5 T10 R7：silent（手动刷新走静默路径）不切 loading 态
-      if (force && !silent) st.checksMode = 'loading'
-      emit(st)
-      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, force ? { force: true } : {}, { lang: promptLang() })
-      return host.call('wf.status', args).then(function (res) {
-        if(watchdog) try{ clearTimeout(watchdog) }catch{}
-        st.checking = false
-        if (res && res.checks && res.checks.length) {
-          st.checks = res.checks
-          st.checksUpdatedAt = nowStr()
-          st.checksMode = 'real'
-          st.checksError = null
-        } else {
-          st.checksMode = 'err'
-          st.checksError = (res && res.error) ? String(res.error).slice(0, 160) : tr('err.statusEmpty')
-        }
-        emit(st)
-        try{ if(typeof loadChain==='function') loadChain(st, force ? true:false).catch(function(){}) }catch(e){}
-      }).catch(function (e) {
-        if(watchdog) try{ clearTimeout(watchdog) }catch{}
-        st.checking = false
-        st.checksMode = 'err'
-        st.checksError = String((e && e.message) || e).slice(0, 160)
-        emit(st)
-      })
-    }
-    export const activeChecks = (st) => (st.checksMode === 'real' && st.checks && st.checks.length) ? st.checks : []
-    // #229 目录视图：行 key ↔ 数字 legacy id 双形态查找桥（目录视图行带 key；legacy 回退视图仅数字 id）
-    export const CHECK_KEY_LEGACY = { 'gh:remote': 1, 'tracker:initialized': 2, 'gh:installed': 4, 'gh:authed': 5, 'gh:repoAccess': 6, 'skill:wayfinder': 7, 'skill:ask-matt': 8 }
-    export const findCheck = (cs, key) => {
-      const arr = Array.isArray(cs) ? cs : []
-      const hit = arr.find(function (c) { return c.key === key || c.id === key })
-      if (hit) return hit
-      const legacyNum = CHECK_KEY_LEGACY[String(key)]
-      if (legacyNum !== undefined) return arr.find(function (c) { return c.id === legacyNum }) || null
-      return null
-    }
+    // ---- 链快照派生读数（#284：单一口径，链步骤即检查项）----
+    export const chainSteps = (st) => (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : []
+    export const chainStep = (st, id) => chainSteps(st).find(function (s) { return String(s.id) === String(id) }) || null
+    export const chainStepStatus = (st, id) => { const s = chainStep(st, id); return s ? s.status : 'pending' }
+    export const chainStepOk = (st, id) => chainStepStatus(st, id) === 'done'
+    export const chainStepBad = (st, id) => { const sts = chainStepStatus(st, id); return sts === 'current' || sts === 'fail' }
     // #229 计数口径：pending（诚实未知/未接入）不渲染置灰计入、不计入分子分母
-    export const readyCount = (st) => { const cs = activeChecks(st).filter(function (c) { return c.level !== 'pending' }); return cs.length ? cs.filter(function (c) { return c.level === 'ok' }).length : -1 }
-    // v14-22：返回纯数字串（'6/9' / '--/9'），由状态栏 num() 固定宽度渲染；分母 = 非待定检查项数（动态，不再硬编码）
-    export const envTotal = (st) => { const cs = activeChecks(st).filter(function (c) { return c.level !== 'pending' }); return cs.length || CHECKS_TOTAL }
+    export const readyCount = (st) => { const cs = chainSteps(st).filter(function (s) { return s.status !== 'pending' }); return cs.length ? cs.filter(function (s) { return s.status === 'done' }).length : -1 }
+    export const envTotal = (st) => { const cs = chainSteps(st).filter(function (s) { return s.status !== 'pending' }); return cs.length }
+    // v14-22：返回纯数字串（'6/9' / '--/9'），由状态栏 num() 固定宽度渲染；分母 = 非待定步数（动态）
     export const envLabel = (st) => { const n = readyCount(st); const t = envTotal(st); return n < 0 ? '--/' + t : n + '/' + t }
-    export const setupCheck = (st) => findCheck((st && st.checks) || [], 'tracker:initialized')
+    export const setupCheck = (st) => chainStep(st, 'tracker:initialized')
 
     // #370：blockerNames 只列「仍 OPEN」的阻塞者（GitHub 依赖边在阻塞者关闭后仍保留，需按状态过滤）
     export const openBlockers = (t, m) => t.blockedBy.filter(function (b) {
@@ -511,12 +469,12 @@
       // #195 约束：refreshAll 永不因 refreshing 锁死（重查按钮必须有反应）
       st.refreshing = true
       // 先发 RPC（异步即返回），再触发渲染 —— 避免重渲染挡住数据请求
-      var p1 = loadChecks(st, true, true)
+      var p1 = (typeof loadChain === 'function' ? loadChain(st, true).catch(function(){}) : Promise.resolve())
       var p2 = loadSnapshot(st, true, true)
-      var p3 = (typeof loadChain==='function' ? loadChain(st, true).catch(function(){}) : Promise.resolve())
+      var p3 = Promise.resolve()
       spinAll(true)
       emit(st)
-      Promise.all([p1, p2, p3]).then(function () {
+      Promise.all([p1, p2]).then(function () {
         st.refreshing = false
         spinAll(false)
         emit(st)
