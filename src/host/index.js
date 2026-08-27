@@ -1149,8 +1149,16 @@ export default {
             })
             return {present, empty: emptyCnt, missing}
           })(issues)
-          // select 三级联
-          const sel = await reg.select(handle, ctxSel)
+          // select 三级联（2026-08-28 真源统一）：快照 selection 与 wf.chain/wf.detect 同构——
+          //   经 detectionService 判定（explicit 主锚 → matches → fallback），主锚是权威。
+          //   此前快照裸 registry.select 不读主锚：「GitHub 版锚 + 非 git 目录」在快照侧判 fallback null，
+          //   客户端保留旧 markdown 意向 → 头部 chip=Markdown 与环境检查=github（链按锚判定）互相矛盾（用户观察）。
+          const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { skipSkillProbes: true }) }).catch(function(){ return null })
+          let sel = selMod && selMod.selection
+          if (!sel || !sel.backendId) {
+            // detect 无结论（fallback null / 服务不可用）：退回裸 select（bind 记忆 → matches）兼容旧行为
+            try { sel = await reg.select(handle, ctxSel) } catch (eSel) { sel = null }
+          }
           selection = sel
           if (sel && sel.backendId) {
             try { repository = reg.describe(handle, sel.backendId) } catch {}
