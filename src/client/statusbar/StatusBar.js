@@ -40,7 +40,7 @@ export const StatusBar = (props) => {
         s.cwd = cwd
         const hydrated = hydrateFromCache(s)
         emit(s)
-        loadChecks(s, false)
+        loadChain(s, false)
         if (!hydrated || !snapFresh(s)) loadSnapshot(s, false, !!hydrated)
       }
     }
@@ -53,7 +53,7 @@ export const StatusBar = (props) => {
       }).catch(function () {})
     }
   }, [sid, summaryCwd])
-  React.useEffect(function () { loadChecks(s, false); if (!snapFresh(s)) loadSnapshot(s, false, true) }, [])
+  React.useEffect(function () { loadChain(s, false); if (!snapFresh(s)) loadSnapshot(s, false, true) }, [])
   const csx = checksumsOf(s)
   const { fr, bugN, triageN, n, timeStr, setup, amber, skillsCheck, skillsBad, ghCliBad, ghAuthBad } = csx
   // #187 门控：未选择且非 pending 时状态栏整条 dsws-capsule 不渲染（仅设置页可见引导），pending 时保留等待态
@@ -394,7 +394,7 @@ export const StatusBar = (props) => {
           : h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, tr('banner.gate')), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, onClick: openGate }, tr('banner.gateBtn')) ]))
       : firstBlock === 'ghcli'
       // #195 修复(第二轮)：hint 直接为后端提供的完整 prompt（多态），UI 直接 inject；移除副按钮
-      ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { var c = (s.checks || []).find(function(x){return x.id===4}); var h = c && c.hint || ''; if (h) inject(s, h) })
+      ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { var c = chainStep(s, 'gh:installed'); var h = (c && c.show && c.show.hint) || ''; if (h) inject(s, h) })
       : firstBlock === 'ghauth'
         ? bann(tr('banner.ghauth'), tr('banner.ghauthBtn'), function () { var _bid=(s.selection&&s.selection.backendId!=null)?s.selection.backendId:null; var _mm=(typeof moduleMetaOf==='function'&&_bid!=null)?moduleMetaOf(s,_bid):null; var _pp=_mm&&_mm.prompts&&_mm.prompts.ghAuthLogin; var _lg=(typeof promptLang==='function')?promptLang():'zh'; var _t=_pp?((_lg==='en'&&_pp.en)?String(_pp.en):String(_pp.zh||'')):(typeof promptText==='function'?promptText('ghAuthLogin'):''); if(_t) inject(s,_t) })
         : firstBlock === 'setup'
@@ -402,7 +402,7 @@ export const StatusBar = (props) => {
               bann(tr('banner.setup'), tr('banner.setupBtn'), onSetupInit),
               setupPickCard,
             ])
-          : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.detail) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills')) }),
+          : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.show && (skillsCheck.show.fallback || skillsCheck.show.desc || '')) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills')) }),
     capsule,
     (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) closeGate() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10, borderRadius:8, padding:12 } }, [
       h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:14, width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [

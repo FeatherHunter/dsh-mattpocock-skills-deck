@@ -1,10 +1,8 @@
 name: verify
 
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+  schedule:
+    - cron: '0 2 * * *'  # 每天一次：UTC 02:00 = 北京时间 10:00，公开仓免费额度内
   workflow_dispatch:
 
 jobs:
