@@ -26,6 +26,17 @@ console.log('== ① 三级联探测正确性（explicit>matches>fallback + pendi
   ok(p3.explicitBackendId==='markdown', 'parse markdown')
   const p4 = parseIssueTracker('random text no keyword')
   ok(p4.explicitBackendId===null && p4.confidence==='none', 'parse none')
+  // #277 标题优先回归：GitHub 标题 + markdown/.scratch 正文 不再误判为 markdown（焊死）
+  const p5 = parseIssueTracker('# Issue tracker: GitHub\n\n为什么没有 markdown 渲染')
+  ok(p5.explicitBackendId==='github' && p5.confidence==='high' && p5.reason==='title-github', 'parse #277 github title wins over markdown body (zh)')
+  const p6 = parseIssueTracker('# Issue tracker: GitHub\n docs mention markdown and .scratch')
+  ok(p6.explicitBackendId==='github' && p6.confidence==='high', 'parse #277 github title wins over markdown/.scratch body')
+  const p7 = parseIssueTracker('mention .scratch without title')
+  ok(p7.explicitBackendId===null && p7.confidence==='none', 'parse #277 markdown body without title -> null (explicit only title, matches handles .scratch)')
+  const p8 = parseIssueTracker('# Issue tracker: Markdown\n also mentions github')
+  ok(p8.explicitBackendId==='markdown' && p8.confidence==='high', 'parse #277 markdown title wins over github body')
+  const p9 = parseIssueTracker('# Issue tracker: GitLab\n also mentions markdown and github')
+  ok(p9.explicitBackendId==='gitlab' && p9.confidence==='high', 'parse #277 gitlab title wins over markdown/github body')
 }
 // explicitDetector via mock platform
 {
