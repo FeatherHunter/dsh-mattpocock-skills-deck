@@ -114,6 +114,8 @@ export default {
       { name: 'wayfinder', level: 'warn', use: '巨型项目决策地图（本插件服务的对象）' },
       { name: 'triage', level: 'ok', use: 'issue 状态机流转：categorise→verify→grill' },
       { name: 'grilling', level: 'ok', use: '穷追不舍的对齐提问（设计树）' },
+      { name: 'grill-me', level: 'ok', use: 'issue 讨论对齐（grilling 票的动作入口）' },
+      { name: 'grill-with-docs', level: 'ok', use: '基于文档调研的 grilling 变体（带外部资料检索）' },
       { name: 'domain-modeling', level: 'ok', use: '领域术语与统一语言' },
       { name: 'research', level: 'ok', use: '后台调研，写进 repo 内 markdown 并引源' },
       { name: 'prototype', level: 'ok', use: '一次性原型回答设计问题' },
@@ -133,7 +135,7 @@ export default {
     const TYPE_SKILLS = {
       research: ['research'],
       prototype: ['prototype'],
-      grilling: ['grilling', 'domain-modeling'],
+      grilling: ['grilling', 'domain-modeling', 'grill-with-docs'],
       task: ['implement'],
     }
     const TYPE_LABEL = {
