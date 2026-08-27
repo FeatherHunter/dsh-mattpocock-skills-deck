@@ -2022,7 +2022,9 @@ export default {
       const st = await loadNamingState()
       if (!st.sessions[sid]) st.sessions[sid] = core.createTrackingState({ sessionId: sid, baselineTitle: baseline, repoKey: (args && args.repoKey) || null })
       if (args && args.hint) st.sessions[sid] = core.reduceTrackingState(st.sessions[sid], { type: 'signal', hint: String(args.hint).slice(0, 80) })
-      markNamingStateDirty()
+      // 即时持久化（#265 崩溃窗口补强）：注册只在会话创建时发生一次，若只走防抖，宽限期内进程
+      // 被杀会让该会话永久失察（客户端不会重注册）——关键事件必须落盘后才算受理。
+      await persistNamingState()
       return { ok: true }
     })
 
@@ -2060,10 +2062,19 @@ export default {
       if (!entry) return { ok: true }
       const core = await getNamingCore()
       if (!core) return { ok: true }
-      // renamed/locked 入账；failed 不动账（留待下一轮渲染钩子重试；#267 收口有限重试预算）
-      if (outcome === 'renamed' && args.title) st.sessions[sid] = core.reduceTrackingState(entry, { type: 'renamed', title: String(args.title) })
-      else if (outcome === 'locked') st.sessions[sid] = core.reduceTrackingState(entry, { type: 'locked' })
-      markNamingStateDirty()
+      // renamed/locked 入账并即时持久化（#265 崩溃窗口补强）：锁账丢失会危及「手改永不被覆盖」，
+      // 升级账丢失会让重启续跑多付一次改名——均为关键状态变更，不当延迟落盘。
+      // failed 不动账不写盘（留待下一轮渲染钩子重试；#267 收口有限重试预算）。
+      if (outcome === 'renamed' && args.title) {
+        st.sessions[sid] = core.reduceTrackingState(entry, { type: 'renamed', title: String(args.title) })
+        await persistNamingState()
+        return { ok: true }
+      }
+      if (outcome === 'locked') {
+        st.sessions[sid] = core.reduceTrackingState(entry, { type: 'locked' })
+        await persistNamingState()
+        return { ok: true }
+      }
       return { ok: true }
     })
 
