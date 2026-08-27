@@ -8,8 +8,8 @@
  *   F3 三后端名单字面量 {id:'github',label:'GitHub',…} —— 仅允许 kernel/builtin-backends.js 单源。
  *
  * 许可证（LICENSED，行级内容匹配，是过渡债务的显式登记处，清尾批删码后自动收紧）：
- *   LEGACY_LINK_TEMPLATES / MATT_REPO|mattpocock/skills|skills@latest|installSkills /
- *   PREVIEW_VALUES / typeof issueUrlFor|typeof repoUrlFor 守卫行 / LEGACY_ISSUE_URL
+ *   MATT_REPO | mattpocock/skills | skills@latest | installSkills（与后端无关的技能仓库常量与安装指引）
+ *   PREVIEW_VALUES（设置页演示数据）；清尾批后 LEGACY_LINK_TEMPLATES/typeof 守卫/LEGACY_ISSUE_URL 已全部删除，不再登记
  * 扫描前剥离块注释与整行注释，注记里的旧词不再误报。
  */
 const fs = require('fs')
@@ -24,7 +24,7 @@ const bad = function (name) { failed = true; console.log('  FAIL', name) }
 const RE_F1 = /(===|==)\s*['"](github|gitlab|markdown)['"]|['"](github|gitlab|markdown)['"]\s*(===|==)/
 const RE_F2 = /https:\/\/github\.com|https:\/\/gitlab\.com/
 const RE_F3 = /\{\s*id:\s*'(github|markdown|gitlab)'\s*,\s*label:/
-const RE_LICENSED = /LEGACY_LINK_TEMPLATES|MATT_REPO|mattpocock\/skills|skills@latest|installSkills|PREVIEW_VALUES|typeof issueUrlFor|typeof repoUrlFor|LEGACY_ISSUE_URL/
+const RE_LICENSED = /MATT_REPO|mattpocock\/skills|skills@latest|installSkills|PREVIEW_VALUES/ // #231 清尾后仅剩可留项：技能仓库常量/安装指引文案/演示预览值
 function stripComments(buf) { return buf.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '') }
 
 function scanLabel(rel, buf) {

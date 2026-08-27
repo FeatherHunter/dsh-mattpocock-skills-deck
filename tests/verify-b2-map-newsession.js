@@ -62,9 +62,22 @@ const buildEnv = function (src, lang) {
     return s
   }
   const repoStr = function () { return 'FeatherHunter/SKILLS' }
-  // #231 沙箱替身：产品 completePrompt 兜底引用的过渡模板常量（同形即可，值仅用于断言 URL）
-  const LEGACY_ISSUE_URL = 'https://github.com/{refId}/issues/{key}'
-  const issueUrlFor = function (st, key) { return LEGACY_ISSUE_URL.split('{refId}').join('FeatherHunter/SKILLS').split('{key}').join(String(key == null ? '' : key)) }
+  // #231 清尾终态沙箱替身：与产品 link.js 同算法——模板取自 st.backendModules 各后端 links 声明
+  const issueUrlFor = function (st, key) {
+    const n = String(key == null ? '' : key).trim()
+    if (!n) return ''
+    const sel = st && (st.selection || (st.snapshot && st.snapshot.selection))
+    const bid = sel ? sel.backendId : null
+    if (bid == null) return ''
+    const ms = st && Array.isArray(st.backendModules) ? st.backendModules : null
+    let tpl = ''
+    if (ms) for (let i = 0; i < ms.length; i++) { const m = ms[i]; if (m && m.id === bid && m.links) { tpl = String(m.links.issueUrlTemplate || ''); break } }
+    if (!tpl) return ''
+    const repo = st && st.snapshot && (st.snapshot.repository || st.snapshot.repo)
+    const refId = repo ? (repo.refId || ((repo.owner && repo.name) ? repo.owner + '/' + repo.name : '')) : ''
+    if (!refId) return ''
+    return tpl.split('{refId}').join(refId).split('{key}').join(n)
+  }
   // 2026-08-18（需求修复）：常量已函数化（语言切换实时重算）—— 沙箱同样以函数注入
   const COMPLETE_PROMPT = function () { return promptText('complete') }
   const BODY_FORMAT = function () { return promptText('bodyFormat') }
@@ -81,15 +94,15 @@ const buildEnv = function (src, lang) {
     return '/wayfinder\n' + body
   }
   const completePromptSrc = extractBetween(src, 'const completePrompt = function (st, num, title, total, closed) {', "const FIXATE_PROMPT = function () { return promptText('fixate') }")
-  const completePrompt = new Function('COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', 'LEGACY_ISSUE_URL', completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText, LEGACY_ISSUE_URL)
+  const completePrompt = new Function('COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', 'issueUrlFor', completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText, issueUrlFor)
   // #265 起 router 的命名契约段迁至 shared/naming-guardian.js；终止锚点随迁（#265 后稳定存在于源与产物）
   const startTextSrc = extractBetween(src, 'const startText = (st, t) => {', '// 契约 #205 会话标题')
-  const startText = new Function('repoStr', 'promptText', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', 'issueUrlFor', 'LEGACY_ISSUE_URL', startTextSrc + '; return startText')(repoStr, promptText, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix, issueUrlFor, LEGACY_ISSUE_URL)
+  const startText = new Function('repoStr', 'promptText', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', 'issueUrlFor', startTextSrc + '; return startText')(repoStr, promptText, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix, issueUrlFor)
   return { startText: startText }
 }
 
 // ---- 测试数据 ----
-const ST = { snapshot: { maps: [{ number: 305, stats: { total: 3, closed: 1 } }] } }
+const ST = { snapshot: { maps: [{ number: 305, stats: { total: 3, closed: 1 } }], repository: { backend: 'github', refId: 'FeatherHunter/SKILLS', name: 'FeatherHunter/SKILLS' }, selection: { backendId: 'github', source: 'explicit' } }, backendModules: [ { id: 'github', label: 'GitHub', links: { issueUrlTemplate: 'https://github.com/{refId}/issues/{key}', repoUrlTemplate: 'https://github.com/{refId}', searchUrlTemplate: 'https://github.com/search?q={q}' } } ] }
 const mapIssue = function (number, title, stats) {
   const t = { number: number, title: title, labels: [{ name: 'wayfinder:map' }] }
   if (stats) t.stats = stats
