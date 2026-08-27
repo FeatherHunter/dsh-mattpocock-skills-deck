@@ -52,7 +52,7 @@ export     const ChecksTab = ({ st }) => {
       const cs0 = activeChecks(st)
       const ghCli2 = findCheck(cs0, 'gh:installed')
       const ghAuth2 = findCheck(cs0, 'gh:authed')
-      const _skillRowsChk = ['skill:wayfinder', 'skill:setup-mattpocock-skills', 'skill:ask-matt'].map(function (k) { return findCheck(cs0, k) }).filter(Boolean)
+      const _skillRowsChk = ['skill:wayfinder', 'skill:setup-matt-pocock-skills', 'skill:ask-matt'].map(function (k) { return findCheck(cs0, k) }).filter(Boolean)
       const _suiteRowChk = cs0.find(function (c) { return c.id === 9 })
       const skillsCheck2 = (_skillRowsChk.find(function (r) { return r.level !== 'ok' })) || _suiteRowChk || _skillRowsChk[0] || null
       const setupCheck2 = findCheck(cs0, 'tracker:initialized')

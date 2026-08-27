@@ -16,7 +16,7 @@ export const checksumsOf = function (s) {
   const amber = s.checksMode === 'real' && setup && setup.level !== 'ok'
   // v1.5 T11 + #229：核心技能检测 = 三个通用技能行的最差者（legacy 回退视图保留 id 9 聚合行兼容）
   const _suiteRow = (s.checks || []).find(function (c) { return c.id === 9 })
-  const _skillRows9 = ['skill:wayfinder', 'skill:setup-mattpocock-skills', 'skill:ask-matt'].map(function (k) { return findCheck(s.checks, k) }).filter(Boolean)
+  const _skillRows9 = ['skill:wayfinder', 'skill:setup-matt-pocock-skills', 'skill:ask-matt'].map(function (k) { return findCheck(s.checks, k) }).filter(Boolean)
   const skillsCheck = (_skillRows9.find(function (r) { return r.level !== 'ok' })) || _suiteRow || _skillRows9[0] || null
   const skillsBad = s.checksMode === 'real' && skillsCheck && skillsCheck.level !== 'ok'
   // v1.5 引导依赖链（用户拍板 2026-08-17）：gh CLI → gh 登录 → setup → 技能 —— banner 显示依赖链上第一个缺失项（#229 行不存在则该环节跳过）

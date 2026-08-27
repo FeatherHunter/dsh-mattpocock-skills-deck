@@ -35,7 +35,7 @@ export const ROW_NAMES = Object.freeze({
   'selection:backendSelected': { zh: '已选择后端', en: 'Backend selected' },
   'tracker:initialized': { zh: '工作区已初始化', en: 'Workspace initialized' },
   'skill:wayfinder': { zh: 'wayfinder 技能已安装', en: 'wayfinder skill installed' },
-  'skill:setup-mattpocock-skills': { zh: 'setup-mattpocock-skills 技能已安装', en: 'setup-mattpocock-skills skill installed' },
+  'skill:setup-matt-pocock-skills': { zh: 'setup-matt-pocock-skills 技能已安装', en: 'setup-matt-pocock-skills skill installed' },
   'skill:ask-matt': { zh: 'ask-matt 技能已安装', en: 'ask-matt skill installed' },
   'env:home': { zh: '用户主目录可解析', en: 'User home resolvable' },
   'gh:remote': { zh: '仓库定位', en: 'Repo located' },
@@ -61,7 +61,7 @@ export const LEGACY_ID = Object.freeze({
 })
 
 /** 展示顺序：开门组 → 通用环境组 → 后端分区（目录内稳定排序）。 */
-export const GENERIC_ORDER = Object.freeze(['selection:backendSelected', 'tracker:initialized', 'skill:wayfinder', 'skill:setup-mattpocock-skills', 'skill:ask-matt', 'env:home'])
+export const GENERIC_ORDER = Object.freeze(['selection:backendSelected', 'tracker:initialized', 'skill:wayfinder', 'skill:setup-matt-pocock-skills', 'skill:ask-matt', 'env:home'])
 
 function nameFor(key, lang) {
   const t = ROW_NAMES[key]
@@ -253,7 +253,7 @@ export async function deriveStatusView(deps) {
   rows.push(initRow)
 
   // —— 通用 · 环境组（技能 ×3 + HOME）——
-  const SKILL_KEYS = ['skill:wayfinder', 'skill:setup-mattpocock-skills', 'skill:ask-matt']
+  const SKILL_KEYS = ['skill:wayfinder', 'skill:setup-matt-pocock-skills', 'skill:ask-matt']
   for (const key of SKILL_KEYS) {
     const row = baseRow(key, lang)
     const skillName = key.slice('skill:'.length)
