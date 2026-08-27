@@ -3,6 +3,7 @@
 //   A) 契约层纯函数单元（src/shared/tracker/sync.js 直接 import）
 //   B) 五层接线静态断言（源文件特征；防有人悄悄拆掉接线）
 //   C) 宿主分发端到端（stub gh 索引差值：建档不判脏 → gap 内静默 → 差值命中回执 dirtyCwds）
+//   #232 追加：视线门控（R1–R4）节拍单源断言 + 脏信号回执持久性端到端
 // 用法: node tests/verify-issue232-sync.js（C 段需要先 node scripts/build.mjs 生成 package/lib）
 
 const fs = require('fs')
@@ -41,6 +42,11 @@ async function main() {
   check(S.deriveDirty(BASE, {}) === false, 'deriveDirty 空增量集 → 静默')
   // 有意取舍：删除票在 since 视图不可见 → 交由 60s 全量探针兜底，此处仅固化行为防误改
   check(SYNC.EVAL_GAP_MS >= 4000, 'SYNC.EVAL_GAP_MS 配额闸 ≥4s')
+
+  // #232 视线门控追加：同步链路节拍真源（client 内核只许派生引用，杜绝第二份字面量真相）
+  for (const nm of ['POLL_GRID_MS', 'ACTION_PROBE_WINDOW_MS', 'FALLBACK_PROBE_MS', 'FOCUS_PROBE_MIN_MS']) {
+    check(typeof SYNC[nm] === 'number' && SYNC[nm] > 0 && Object.isFrozen(SYNC), 'SYNC.' + nm + ' 契约层在场且冻结')
+  }
 
   // advanceBaseline：不改入参、覆盖推进
   const b0 = Object.assign({}, BASE)
@@ -111,6 +117,16 @@ async function main() {
   const probeSrc = readSrc('src/client/kernel/probe.js').replace(/\r\n/g, '\n')
   check(probeSrc.includes('export const scheduleDirtyProbe') && probeSrc.includes('SYNC.DIRTY_PROBE_DEBOUNCE_MS'), '内核短窗探针去抖值单源自 SYNC（消灭同值双源）')
   check(probeSrc.includes('export const scheduleActionProbe'), '#213 动作长窗原样保留（零回归）')
+
+  // #232 视线门控（R1–R4）· client 内核接线断言
+  check(storeSrc.includes('SYNC.POLL_GRID_MS'), '轮询栅格真源自契约层派生（UI 层不硬编码知道底层几秒刷一次）')
+  check(/setTimeout\(tick,\s*\(\(typeof SYNC/.test(storeSrc) && !/setTimeout\(tick,\s*\d{3,}\)/.test(storeSrc), '栅格裸字面量已清零（仅剩派生表达式内的兜底形态）')
+  for (const nm of ['FALLBACK_PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'ACTION_PROBE_WINDOW_MS']) {
+    check(probeSrc.includes('SYNC.' + nm), 'probe 节拍单源：SYNC.' + nm + ' 派生在场')
+  }
+  check(/setInterval\(function \(\) \{[\s\S]{0,400}?visibilityState[\s\S]{0,200}?\}, PROBE_MS\)/.test(probeSrc), 'R3 · 兜底探针 interval 内含视线门控（页签隐藏不发起新扫描）')
+  check(!probeSrc.includes("host.call('wf.refresh', { cwd: cwd })"), 'R3 · 空组 wf.refresh 大查询兜底已移除（无人观看 cwd 零重建请求）')
+  check(/fix H2 stale discard[\s\S]{0,700}setCachedSnapshot\(_reqNorm, snap\)/.test(probeSrc), 'R4 · H2 stale-discard 分支将结果落 per-cwd LRU（在途响应到达即落地）')
   const bSrc = readSrc('scripts/build.mjs')
   check(bSrc.includes("file: 'src/shared/tracker/sync.js'"), 'build SHARED_SPLICE 已登记 trackerSync（一源两物）')
   const ciSrc = readSrc('src/client/index.js')
@@ -187,6 +203,21 @@ async function main() {
 
       const p4 = await callHandler('issuePathPoll', { cwds: [TCWD], visible: false })
       check(!!p4 && p4.ok === true, 'visible=false 仅跳过评估，响应结构完好')
+
+      // #232 · 视线门控下的消费语义与重复发现回归：
+      //   宿主在同一调用内原子完成「求值→标脏→回执→覆盖者消费」；跨轮持久的未取走条目
+      //   只来自竞速超时余波（>3.5s 求值）与多客户端窗口场景，TTL 对这类孤儿自愈。
+      const p7a = await callHandler('issuePathPoll', { cwds: [TCWD], visible: true })
+      check(p7a.ok === true && Array.isArray(p7a.dirtyCwds) && p7a.dirtyCwds.indexOf(TCWD) < 0, '发现轮已同轮送达并摘除（确认式消费：发现即交付，切走前在途结果由客户端 R4 缓存落地兜住）')
+      const p7b = await callHandler('issuePathPoll', { cwds: [TCWD], visible: true })
+      check(Array.isArray(p7b.dirtyCwds) && p7b.dirtyCwds.indexOf(TCWD) < 0, '摘除后不再回执（防重复触发探针风暴）')
+      // 长会话第二次真实变更走同一闭环（多轮修改均可达）
+      ghApiText += '\n' + jline(43, 'open', '2026-08-27T13:00:00Z')
+      const p8 = await callHandler('issuePathPoll', { cwds: [TCWD], visible: true })
+      check(!!p8 && p8.ok === true, '二次变更 gap 内静默复测（配额账持续成立）')
+      await new Promise(function (res) { setTimeout(res, SYNC.EVAL_GAP_MS + 600) })
+      const p9 = await callHandler('issuePathPoll', { cwds: [TCWD], visible: true })
+      check(p9.ok === true && Array.isArray(p9.dirtyCwds) && p9.dirtyCwds.indexOf(TCWD) >= 0, '二次差值命中 → 再次回执（长会话多轮变更链路稳定）')
     } catch (eRun) {
       check(false, '分发端到端异常: ' + String((eRun && eRun.message) || eRun))
     }

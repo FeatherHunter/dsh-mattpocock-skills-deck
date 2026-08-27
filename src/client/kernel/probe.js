@@ -256,6 +256,10 @@
         return p.then(function (snap) {
           // fix H2 stale discard — if cwd switched during flight, drop stale fallback (gate flake guard)
           if (_reqNorm !== normCwdClientProbe(st.cwd||'')) {
+            // #232 R4 · 在途结果必须落地：请求发出时该 cwd 正被观看，响应到达即写 per-cwd LRU 缓存，
+            // 切回时 hydrateFromCache 秒显最新数据（零新请求）。仍不给换视图后的 store 直接 emit
+            // （#45 串台回归防线不动）；setCachedSnapshot 自带 ok/maps 守卫，坏形自然丢弃。
+            try { setCachedSnapshot(_reqNorm, snap) } catch (e232r4) {}
             st.snapLoading = false
             try{ pendingSnapshotByCwd.delete(_normKeyP)}catch(e){}
             return
@@ -342,8 +346,9 @@
     //   ② changed 只刷新与本次探测 cwd 相同的 store（多仓库会话并发不互串）；
     //   ③ focus 触发限流 ≥60s（窗口来回切换不再疯狂烧）。
     //   与 R1 区别：probe 范围从 `labels=wayfinder:map`（仅地图）扩到 `since=<ISO>`（全 issue，含子票）—— 见 host 侧 `case 'probe'`。
-    export const PROBE_MS = 60000
-    export const FOCUS_PROBE_MIN_MS = 60000
+    // #232 · 节拍真源单源化：兜底探针周期由契约层派生（字面量仅作防御性兜底；UI 层不得硬编码知道底层几秒刷一次）
+    export const PROBE_MS = ((typeof SYNC === 'object' && SYNC && SYNC.FALLBACK_PROBE_MS) || 60000)
+    export const FOCUS_PROBE_MIN_MS = ((typeof SYNC === 'object' && SYNC && SYNC.FOCUS_PROBE_MIN_MS) || 60000)
     export let lastFocusProbe = 0
     // v1.5 T10 R9（Q4 拍板 · DESIGN.md 12.2）：关键动作后延迟探测 —— 完成/执行/交接后面板尽快反映 GitHub 变化；
     //   防抖（一次只排一个）+ 探测本身 1 次轻量 REST，配额安全
@@ -370,9 +375,9 @@
             if (st.cwd === cwd) group.push(st)
           })
           if (!group.length) {
-            if (typeof host !== 'undefined' && typeof host.call === 'function') {
-              host.call('wf.refresh', { cwd: cwd }).catch(function () {})
-            }
+            // #232 R3 · 应用时刻该 cwd 已无任何 store 持有（用户已切走）：不再为无人观看的工作区
+            // 发起 wf.refresh 全量重建（旧兜底 = 一次大查询，违反「非当前工作区不刷新」）。
+            // 切回该工作区时由 StatusBar.apply 的加载链路补新鲜度，这里静默放行即可。
             return
           }
           const primary = group[0]
@@ -445,7 +450,7 @@
       timer.timeout(function () {
         _actionProbePending = false
         probeNow(false)
-      }, 8000)
+      }, ((typeof SYNC === 'object' && SYNC && SYNC.ACTION_PROBE_WINDOW_MS) || 8000))
     }
     // #232 · 已验证脏信号专用短窗探针 —— 宿主重求值命中差值后触发，1.2s 合并突发多写，
     //   区别于动作长窗（8s，供 UI 动作后使用）。两窗并存：短窗先行收敛，长窗兜底重复探测
@@ -469,7 +474,12 @@
         try { clearInterval(globalThis.__dswsOldProbeTimer) } catch (e) { /* 忽略 */ }
         globalThis.__dswsOldProbeTimer = null
       }
-      shared._probeTimer = setInterval(function () { probeNow(false) }, PROBE_MS)
+      shared._probeTimer = setInterval(function () {
+        // #232 R3 · 视线门控：页签隐藏（无人在看）时不发起新扫描 —— 非当前工作区零刷新流量。
+        // 回到前台由 focus 探针（下方监听，FOCUS_PROBE_MIN_MS 限流）与轮询栅格自然续上（R2 恢复通道）。
+        try { if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return } catch (e232g) {}
+        probeNow(false)
+      }, PROBE_MS)
       if (typeof globalThis !== 'undefined') globalThis.__dswsOldProbeTimer = shared._probeTimer
       if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('focus', function () { probeNow(true) })
     }

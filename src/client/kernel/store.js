@@ -127,7 +127,11 @@
       if (_issuePathPolling) return
       if (typeof host === 'undefined' || typeof host.call !== 'function') return
       _issuePathPolling = true
-      // #232 · 上报可见工作区参与面板增量同步（推进只来自重求值）；hidden 时传空表回落旧链路
+      // #232 · 上报可见工作区参与面板增量同步（推进只来自重求值）；hidden 时传空表回落旧链路。
+      //   视线门控语义（R1–R4）：队列 = 可见页签内「被打开会话持有」的 cwd —— shared.cwd 是当前
+      //   看着的工作区，stores 内是同样开着面板的其余工作区。R2 切换 = StatusBar.apply 换绑 cwd，
+      //   轮询主体随队列转移；R3 hidden 页签上报空表且兜底探针同闸；R4 在途结果落地见
+      //   loadSnapshot 的 H2 分支（写入 per-cwd LRU，不直接 emit 换视图的 store）。
       const cwdsOut = (function () {
         const arr = []
         try {
@@ -187,7 +191,8 @@
       if (_issuePathPollTimer) return
       const tick = function () {
         if (st) pollIssuePathHost(st)
-        _issuePathPollTimer = setTimeout(tick, 4000)
+        // #232 · 栅格真源自契约层派生（client 不私藏节拍真相；字面量仅防御性兜底）
+        _issuePathPollTimer = setTimeout(tick, ((typeof SYNC === 'object' && SYNC && SYNC.POLL_GRID_MS) || 4000))
       }
       tick()
     }
