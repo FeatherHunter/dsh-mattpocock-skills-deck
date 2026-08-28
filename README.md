@@ -214,3 +214,30 @@ MIT © FeatherHunter
 也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 
 </div>
+
+<h2 align="center"><sub>CONNECT</sub><br>加入我们</h2>
+
+<div align="center">
+
+扫码加入话题群，或添加作者为联系人——二维码永久有效。
+
+<table>
+<tr>
+<td align="center" valign="top" width="320">
+<img src="assets/qr-topic-group.png" width="280" alt="扫码加入话题群，dsh-mattpocock-skills 的组织">
+<br>
+<strong>加入话题群</strong>
+<br>
+<sub>dsh-mattpocock-skills · 该二维码永久有效</sub>
+</td>
+<td align="center" valign="top" width="320">
+<img src="assets/qr-hunter-contact.png" width="280" alt="扫码添加猎羽为联系人">
+<br>
+<strong>添加猎羽</strong>
+<br>
+<sub>猎羽 · 用户 418832 的组织</sub>
+</td>
+</tr>
+</table>
+
+</div>
