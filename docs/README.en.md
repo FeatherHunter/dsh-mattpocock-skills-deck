@@ -217,25 +217,12 @@ And thanks to everyone who left thoughts in comments and discussions. If you hit
 
 <div align="center">
 
-Scan to join the topic group or add the author — QR codes never expire.
+Scan to join the topic group — QR code never expires. Casual chat in the group, bugs and feature requests via Issues for better traceability.
 
-<table>
-<tr>
-<td align="center" valign="top" width="320">
 <img src="../assets/qr-topic-group.png" width="280" alt="Scan to join topic group, dsh-mattpocock-skills">
 <br>
 <strong>Join topic group</strong>
 <br>
 <sub>dsh-mattpocock-skills · permanent QR code</sub>
-</td>
-<td align="center" valign="top" width="320">
-<img src="../assets/qr-hunter-contact.png" width="280" alt="Scan to add Hunter as contact">
-<br>
-<strong>Add Hunter</strong>
-<br>
-<sub>Hunter · Organization of user 418832</sub>
-</td>
-</tr>
-</table>
 
 </div>
