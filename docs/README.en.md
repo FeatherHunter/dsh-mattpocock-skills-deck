@@ -47,7 +47,7 @@ Refresh and it works — zero config.
 <details>
 <summary>Better on narrow screens: pair it with better-sidebar</summary>
 
-Inside better-sidebar's VSCode-style sidebar, the list and the detail view sit side by side. It works without it (details open in the right column), you just switch back and forth on narrow windows.
+We recommend pairing with better-sidebar: view the list and details side by side in a VSCode-style sidebar for the best experience.
 
 ```bash
 dsh plugin --profile web add dsh-better-sidebar
@@ -197,14 +197,17 @@ MIT © FeatherHunter
 
 <h2 align="center"><sub>THANKS</sub><br>Thanks</h2>
 
-<div align="center">
+<div align="left">
 
 Thanks to everyone who opened an issue, sent a PR, or joined a discussion — you made this plugin better bit by bit.
 
-- [@pioneerAlone](https://github.com/pioneerAlone) — reported #274, #234 and landed PR #273
-- [@Shimmernight](https://github.com/Shimmernight) — filed #277 and PRs #287, #275, #106
-- [@angenet](https://github.com/angenet) — reported #295, #262 on macOS checks
-- [@hyperion2144](https://github.com/hyperion2144) — reported #110 and more
+[@pioneerAlone](https://github.com/pioneerAlone) — reported #274, #234 and landed PR #273
+
+[@Shimmernight](https://github.com/Shimmernight) — filed #277 and PRs #287, #275, #106
+
+[@angenet](https://github.com/angenet) — reported #295, #262 on macOS checks
+
+[@hyperion2144](https://github.com/hyperion2144) — reported #110 and more
 
 And thanks to everyone who left thoughts in comments and discussions. If you hit a problem or have an idea, feel free to open an issue or start a discussion.
 

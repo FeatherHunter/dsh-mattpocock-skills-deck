@@ -49,7 +49,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 <details>
 <summary>窄屏更好用？配个 better-sidebar</summary>
 
-面板在 better-sidebar 的 VSCode 风侧边栏里可以并排看列表与详情；不装也能用（右侧详情列），只是窄屏时要来回切换。
+推荐搭配 better-sidebar：在 VSCode 风格的侧边栏里并排查看列表与详情，体验更佳。
 
 ```bash
 dsh plugin --profile web add dsh-better-sidebar
@@ -199,14 +199,17 @@ MIT © FeatherHunter
 
 <h2 align="center"><sub>THANKS</sub><br>致谢</h2>
 
-<div align="center">
+<div align="left">
 
 感谢每一位提交 Issue、PR 与参与讨论的朋友，是你们让这个插件一点点变好。
 
-- [@pioneerAlone](https://github.com/pioneerAlone) — 反馈了 #274、#234 等状态栏与健康检查误报，并提交了修复 PR #273
-- [@Shimmernight](https://github.com/Shimmernight) — 提交了 #277 等 Issue，以及 PR #287、#275、#106（toast 主题、命名修正、macOS 适配）
-- [@angenet](https://github.com/angenet) — 反馈了 #295、#262 等 macOS 环境检测问题
-- [@hyperion2144](https://github.com/hyperion2144) — 反馈了 #110 等环境检查问题
+[@pioneerAlone](https://github.com/pioneerAlone) — 反馈了 #274、#234 等状态栏与健康检查误报，并提交了修复 PR #273
+
+[@Shimmernight](https://github.com/Shimmernight) — 提交了 #277 等 Issue，以及 PR #287、#275、#106（toast 主题、命名修正、macOS 适配）
+
+[@angenet](https://github.com/angenet) — 反馈了 #295、#262 等 macOS 环境检测问题
+
+[@hyperion2144](https://github.com/hyperion2144) — 反馈了 #110 等环境检查问题
 
 也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 
