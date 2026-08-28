@@ -184,7 +184,7 @@ export function createPredicateRegistry(opts = {}) {
         let r
         if (check.kind === 'primitive') {
           const raced = await withTimeout(execPrimitive(check, ctx), timeout)
-          if (raced && raced.__timeout) r = makeResult('pending', 'timeout after ' + timeout + 'ms')
+          if (raced && raced.__timeout) r = makeResult('pending', 'timeout after ' + timeout + 'ms (probe hung or network slow; re-check later)')
           else r = raced
         } else if (check.kind === 'backend' || check.kind === 'preflight') {
           // key 规则：backend: 'backend:<backendId>:<id>' 或 'preflight:<id>'；兼容直接 id
@@ -205,7 +205,7 @@ export function createPredicateRegistry(opts = {}) {
             r = makeResult('pending', 'predicate not registered: ' + (check.id || ''))
           } else {
             const raced = await withTimeout(fn(check, ctx), timeout)
-            if (raced && raced.__timeout) r = makeResult('pending', 'timeout after ' + timeout + 'ms')
+            if (raced && raced.__timeout) r = makeResult('pending', 'timeout after ' + timeout + 'ms (probe hung or network slow; re-check later)')
             else r = raced
           }
         } else {

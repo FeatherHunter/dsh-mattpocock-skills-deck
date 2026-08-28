@@ -1667,7 +1667,10 @@ export default {
         }
         const genMod = await import('./tracker/generic.js')
         const predMod = await import('./tracker/predicateRegistry.js')
-        const registry = predMod.createPredicateRegistry({ timeout: 3000 })
+        // 2026-08-28 实机修复：单谓词超时 3000ms → 15000ms。
+        //   gh auth status / gh api 是真实网络调用（本机曾多次 TLS schannel 握手失败），3 秒必然超时，
+        //   导致「gh 已登录」「仓库可达」被误判并展示误导性修复指引；15s 给慢网络留余地（runGh 内部 30s 兜底）。
+        const registry = predMod.createPredicateRegistry({ timeout: 15000 })
         if (typeof genMod.registerGenericPredicates === 'function') genMod.registerGenericPredicates(registry)
         // #284 一致性修复（2026-08-28）：客户端显式绑定（backendId）优先——主锚与绑定不一致的过渡态（如锚=GitHub 版、
         //   用户已绑 markdown）链不得两面矛盾（后端段 markdown、开门段 explicit:github）；selection/explicit 归一为绑定侧。
@@ -1693,6 +1696,8 @@ export default {
             if (!rk || !rk.owner || !rk.name) return { status: 'fail', detail: 'repo not located' }
             const r = await runGh(['api', 'repos/' + rk.owner + '/' + rk.name], pctx && pctx.cwd || cwd)
             if (r.ok) return { status: 'pass', detail: 'api.github.com 200' }
+            // 2026-08-28 实机修复：网络失败 → pending（诚实未知），不再挂「创建并发布」——网络不通时创建必然失败
+            if (r.kind === 'network') return { status: 'pending', detail: 'API network failure: ' + String(r.error || '').slice(0, 240) }
             return { status: 'fail', detail: 'API request failed (' + String(r.kind || '') + ')' }
           } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
@@ -1700,7 +1705,13 @@ export default {
           try {
             const r = await runGh(['auth', 'status'])
             if (r.ok) { const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]; return { status: 'pass', detail: first || 'Logged in' } }
-            return { status: 'fail', detail: 'Not logged in: run gh auth login' }
+            // 2026-08-28 实机修复：仅当明确「未登录」（kind=auth）才判 fail 并展示登录指引；
+            //   网络失败/其他异常归 pending（诚实未知），避免在 TLS 网络抖动时误导用户「未登录」。
+            const kind = r.kind || 'exit'
+            const errMsg = String(r.error || '').slice(0, 240)
+            if (kind === 'auth') return { status: 'fail', detail: 'Not logged in: run gh auth login' }
+            if (kind === 'network') return { status: 'pending', detail: 'gh auth status network failure: ' + errMsg }
+            return { status: 'pending', detail: 'gh auth status failed (' + kind + '): ' + errMsg }
           } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
         try { registry.register('backend:markdown:parseOk', async function (check, pctx) {
