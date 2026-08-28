@@ -153,6 +153,16 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 </details>
 
+<h2 align="center"><sub>ARCHITECTURE</sub><br>架构</h2>
+
+<div align="center">
+
+想看代码是怎么组织的？这份可交互架构图由 AI 生成，把整体结构、数据流与关键状态都画出来了，支持深色与浅色主题切换，也能导出为图片。
+
+直接用浏览器打开 [`docs/architecture/MattSkills-architecture.html`](docs/architecture/MattSkills-architecture.html) 就能看，无需起服务。源数据在同目录的 `mattskills.architecture.json`，更多文字说明在同目录的 `*.md` 文件里。
+
+</div>
+
 <h2 align="center"><sub>DEVELOPMENT</sub><br>开发</h2>
 
 改代码只改 `src/`；根目录的 `client.js`、`host.js` 与 `package/lib/` 都是构建产物，别手改。
@@ -184,5 +194,20 @@ bash scripts/build.sh       # 构建 + 同步到已装的 DSH
 
 个人作品，与 [mattpocock/skills](https://github.com/mattpocock/skills) 官方没有关系。
 MIT © FeatherHunter
+
+</div>
+
+<h2 align="center"><sub>THANKS</sub><br>致谢</h2>
+
+<div align="center">
+
+感谢每一位提交 Issue、PR 与参与讨论的朋友，是你们让这个插件一点点变好。
+
+- [@pioneerAlone](https://github.com/pioneerAlone) — 反馈了 #274、#234 等状态栏与健康检查误报，并提交了修复 PR #273
+- [@Shimmernight](https://github.com/Shimmernight) — 提交了 #277 等 Issue，以及 PR #287、#275、#106（toast 主题、命名修正、macOS 适配）
+- [@angenet](https://github.com/angenet) — 反馈了 #295、#262 等 macOS 环境检测问题
+- [@hyperion2144](https://github.com/hyperion2144) — 反馈了 #110 等环境检查问题
+
+也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 
 </div>
