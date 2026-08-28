@@ -52,7 +52,23 @@ export default {
   apply(ctx) {
     const slots = ctx.get('slots')
     if (slots === undefined) return
-    const timer = ctx.get('timer')
+    // 2026-08-28 实机修复：timer 服务在部分宿主上下文（better-sidebar tab / Web 壳）可能未注入、
+    //   或仅提供 setTimeout 而无 timeout 方法——曾出现「Cannot read properties of undefined (reading 'timeout')」
+    //   整面板红条（better-sidebar RenderBoundary 捕获）。
+    //   根治：timer 恒为非空包装对象——timeout 优先走原服务；缺失时降级原服务的 setTimeout；再缺失用全局 setTimeout。
+    const _timerRaw = ctx.get('timer')
+    const timer = {
+      timeout: function (fn, ms) {
+        try {
+          if (_timerRaw && typeof _timerRaw.timeout === 'function') return _timerRaw.timeout(fn, ms)
+          if (_timerRaw && typeof _timerRaw.setTimeout === 'function') return _timerRaw.setTimeout(fn, ms)
+          return setTimeout(fn, ms)
+        } catch (e) { try { return setTimeout(fn, ms) } catch (e2) { return null } }
+      },
+      setTimeout: function (fn, ms) {
+        return timer.timeout(fn, ms)
+      },
+    }
     const h = React.createElement
     // issue #3：浮层挂顶层 —— createPortal 到 document.body，让 position:fixed 的视口坐标与
     //   z-index 真正全局生效。宿主输入区祖先若带 transform / filter / backdrop-filter /
