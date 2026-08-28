@@ -1174,7 +1174,8 @@ export default {
           //   客户端保留旧 markdown 意向 → 头部 chip=Markdown 与环境检查=github（链按锚判定）互相矛盾（用户观察）。
           const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: hintBackendId || undefined }) }).catch(function(){ return null })
           let sel = selMod && selMod.selection
-          if (!sel || !sel.backendId) {
+          // #297 失效维度：显式空（source explicit + null）是权威“无后端”（空目录 stale），不退回裸 select，否则旧绑定会复活
+          if (!sel || (sel.backendId == null && (!sel.source || sel.source !== 'explicit'))) {
             // detect 无结论（fallback null / 服务不可用）：退回裸 select（bind 记忆 → matches）兼容旧行为
             try { sel = await reg.select(handle, ctxSel) } catch (eSel) { sel = null }
           }
@@ -1640,9 +1641,15 @@ export default {
         //   工作区「错误地用 GitHub 模板初始化」→ 检测就是 github（工作区名字不影响检测）；
         //   客户端绑定仅在 detect 无结论（无锚 fallback null / 探测中）时兜底，旧绑定记忆不得篡改已落盘的真相。
         const selDetected = selMod && selMod.selection
-        let backendId = (selDetected && selDetected.backendId)
-          ? selDetected.backendId
-          : (args && args.backendId) || null
+        // #297 失效维度：显式空（backendId null + source explicit）是权威“无后端”结论（如空目录 stale），不得再用旧 hint 兜底，否则蓝条永不重现
+        let backendId
+        if (selDetected && selDetected.backendId) {
+          backendId = selDetected.backendId
+        } else if (selDetected && selDetected.source === 'explicit' && selDetected.backendId === null) {
+          backendId = null
+        } else {
+          backendId = (args && args.backendId) || null
+        }
         const genMod = await import('./tracker/generic.js')
         const predMod = await import('./tracker/predicateRegistry.js')
         const registry = predMod.createPredicateRegistry({ timeout: 3000 })
