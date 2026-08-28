@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "MattSkills 架构 · dsh-mattpocock-skills-deck",
+    "output": "MattSkills-architecture.html",
+    "quality_profile": "showcase",
+    "locale": "zh-CN",
+    "viewBox": [
+      1196,
+      608
+    ],
+    "repository": {
+      "url": "https://github.com/FeatherHunter/dsh-mattpocock-skills-deck",
+      "revision": "eea4e317501255ae4ed190b4ca1f765c4fb3f195"
+    },
+    "views": [
+      {
+        "id": "main-request-path",
+        "label": "主请求路径",
+        "focus": [
+          "user",
+          "panel",
+          "host",
+          "backends"
+        ],
+        "note": "从面板点击到 host 组装快照、回渲染的主干数据通路。"
+      },
+      {
+        "id": "data-sources",
+        "label": "数据来源",
+        "focus": [
+          "host",
+          "backends",
+          "remotes",
+          "mdfiles"
+        ],
+        "note": "三种可插拔后端分别对接 GitHub / GitLab 与本地 Markdown 卷子。"
+      },
+      {
+        "id": "contract-layer",
+        "label": "契约层",
+        "focus": [
+          "shared",
+          "panel",
+          "host"
+        ],
+        "note": "src/shared 的 parser / chain / catalog 同时供给两侧半区。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "用户",
+      "sublabel": "DSH Web GUI",
+      "pos": [
+        16,
+        108
+      ],
+      "size": [
+        150,
+        98
+      ]
+    },
+    {
+      "id": "panel",
+      "type": "frontend",
+      "label": "Client 半 · React 面板",
+      "sublabel": "src/client · views/statusbar",
+      "pos": [
+        222,
+        104
+      ],
+      "size": [
+        208,
+        102
+      ],
+      "sources": [
+        {
+          "path": "src/client/index.js"
+        },
+        {
+          "path": "src/client/kernel/ctx.js"
+        }
+      ]
+    },
+    {
+      "id": "host",
+      "type": "backend",
+      "label": "Host 半 · 数据层",
+      "sublabel": "tracker · 快照缓存 60s",
+      "pos": [
+        486,
+        104
+      ],
+      "size": [
+        204,
+        102
+      ],
+      "sources": [
+        {
+          "path": "src/host/index.js"
+        }
+      ]
+    },
+    {
+      "id": "backends",
+      "type": "backend",
+      "label": "Tracker 后端",
+      "sublabel": "github / gitlab / markdown",
+      "pos": [
+        746,
+        104
+      ],
+      "size": [
+        188,
+        102
+      ],
+      "sources": [
+        {
+          "path": "src/host/tracker/backends/github/index.js"
+        },
+        {
+          "path": "src/host/tracker/backends/markdown/index.js"
+        }
+      ]
+    },
+    {
+      "id": "remotes",
+      "type": "external",
+      "label": "GitHub / GitLab",
+      "sublabel": "REST + GraphQL API",
+      "pos": [
+        990,
+        108
+      ],
+      "size": [
+        176,
+        94
+      ]
+    },
+    {
+      "id": "mdfiles",
+      "type": "database",
+      "label": "本地 Markdown 卷子",
+      "sublabel": "issue 文件读写",
+      "pos": [
+        745,
+        442
+      ],
+      "size": [
+        190,
+        98
+      ],
+      "sources": [
+        {
+          "path": "src/host/tracker/backends/markdown/read.js"
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "type": "external",
+      "label": "mattpocock/skills",
+      "sublabel": ".agents/skills 技能目录",
+      "pos": [
+        488,
+        442
+      ],
+      "size": [
+        200,
+        98
+      ]
+    },
+    {
+      "id": "shared",
+      "type": "backend",
+      "label": "共享契约层",
+      "sublabel": "parser / chain / catalog",
+      "pos": [
+        214,
+        448
+      ],
+      "size": [
+        224,
+        100
+      ],
+      "sources": [
+        {
+          "path": "src/shared/parser.js"
+        },
+        {
+          "path": "src/shared/tracker/check-catalog.js"
+        },
+        {
+          "path": "src/shared/naming-guardian.js"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "DSH Web 进程（Cordis code.client）",
+      "wraps": [
+        "panel"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "DSH Host 进程（Cordis code.host）",
+      "wraps": [
+        "host",
+        "backends"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "契约层 · 两侧共用",
+      "wraps": [
+        "shared"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "open-panel",
+      "from": "user",
+      "to": "panel",
+      "label": "打开面板"
+    },
+    {
+      "id": "call-wf",
+      "from": "panel",
+      "to": "host",
+      "label": "RPC /dsws",
+      "variant": "emphasis"
+    },
+    {
+      "id": "assemble-snapshot",
+      "from": "host",
+      "to": "backends",
+      "label": "组装快照"
+    },
+    {
+      "id": "call-api",
+      "from": "backends",
+      "to": "remotes"
+    },
+    {
+      "id": "rw-sheets",
+      "from": "backends",
+      "to": "mdfiles",
+      "label": "读写卷子",
+      "variant": "dashed",
+      "labelDy": 24
+    },
+    {
+      "id": "probe-skills",
+      "from": "host",
+      "to": "skills",
+      "label": "双层探测",
+      "variant": "dashed",
+      "labelDy": 24
+    },
+    {
+      "id": "shared-to-panel",
+      "from": "shared",
+      "to": "panel",
+      "label": "parser · naming-guardian",
+      "variant": "dashed",
+      "labelDy": -64
+    },
+    {
+      "id": "shared-to-host",
+      "from": "shared",
+      "to": "host",
+      "label": "check-catalog · sync",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "一源两物",
+      "items": [
+        "src/ 真源 → scripts/build.mjs esbuild 双 entry",
+        "_dev 产 cordis_define 函数体，_pkg 产 ModuleLoader 形态",
+        "seam 六绑定 B1–B6 换方言，G 门禁编译校验"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "数据流",
+      "items": [
+        "gh issue list 枚举 wayfinder:map → GraphQL 组装快照",
+        "wf.snapshot 缓存 60s；timer 60s diff 轮询",
+        "wf.status 输出 8 项前置检查 {ok, level, detail, hint}"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "检查链 · 动作 · 命名守护",
+      "items": [
+        "检查链推进只来自重求值，不来自动作回调",
+        "动作词汇表 inject-prompt / open-url / rpc / form / refresh",
+        "host 跟踪状态落盘 + 渲染钩子 face.rename（手改锁定）"
+      ]
+    }
+  ]
+}
