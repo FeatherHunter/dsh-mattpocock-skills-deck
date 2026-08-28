@@ -6,16 +6,18 @@ export function normalizeWorkspacePath(raw, platform) {
     if (platform && platform.path && typeof platform.path.normalize === 'function') {
       let n = platform.path.normalize(s);
       const sep = platform.path.sep;
-      let isRoot = false;
+      // 根保持原样：盘符根（D:\，normalize 恒带尾反斜杠）、裸斜杠、POSIX 根。
+      // UNC 共享根（\\srv\share）不进根白名单——带尾斜杠与不带必须洗成同一把钥匙，
+      // 统一落到"去尾斜杠后的共享形态"，否则同工作区两种写法仍会分桶（verify-3-workspace-switch P1 在案）。
+      let keepAsIs = false;
       if (platform.os === 'win32') {
-        isRoot = /^[A-Za-z]:\\$/.test(n) || /^\\\\[^\\]+\\[^\\]+\\?$/.test(n) || n === '\\' || n === '/';
+        keepAsIs = /^[A-Za-z]:\\$/.test(n) || n === '\\' || n === '/';
       } else {
-        isRoot = n === '/';
+        keepAsIs = n === '/';
       }
-      if (!isRoot) {
-        while (n.length>1 && n.endsWith(sep)) n=n.slice(0,-1);
+      if (!keepAsIs) {
         const otherSep = sep==='\\' ? '/' : '\\';
-        while(n.length>1 && n.endsWith(otherSep)) n=n.slice(0,-1);
+        while (n.length>1 && (n.endsWith(sep) || n.endsWith(otherSep))) n=n.slice(0,-1);
       }
       if(platform.os==='win32') n=n.toLowerCase();
       return n;

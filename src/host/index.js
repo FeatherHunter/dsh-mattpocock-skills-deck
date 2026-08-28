@@ -532,12 +532,28 @@ export default {
       }
     }
 
+    // ============ 规整工作区钥匙（地图 #278 A 方案 · #279 落地）============
+    // 同一工作区经会话快照不同字段上报时写法可能不同（盘符大小写/尾斜杠/斜杠方向）。
+    // 按工作区分桶的抽屉（repoKeys/repoRoots/chainCache/workspaceStore/快照单槽）统一在
+    // 读写删三侧使用 canonicalWorkspaceKey 洗出的规整钥匙——读写删同形，失效删除才删得中。
+    // 绝对路径（主流形态）在洗衣机内部短路，零 fs 调用；异常时回退原串（读写删仍同形）。
+    let _workspaceKeyMod = null
+    async function canonicalKey(raw) {
+      try {
+        if (!_workspaceKeyMod) _workspaceKeyMod = await import('./workspaceKey.js')
+        const m = _workspaceKeyMod
+        const fn = m.canonicalWorkspaceKey || (m.default && m.default.canonicalWorkspaceKey)
+        if (typeof fn !== 'function') return raw
+        return await fn(raw, { getPlatform, getFs: () => fs, getDefaultCwd: () => DEFAULT_CWD })
+      } catch (e) { return raw }
+    }
+
     // ============ v1.5 T9：git 根检测 + 磁盘缓存（跨重启秒开）============
     // git rev-parse --show-toplevel 层层上溯找根；嵌套仓库（子目录含独立 .git）git 原生停在最近根 —— 符合用户要求
     let repoRoots = {}           // 根路径按 cwd 缓存
     let cacheDirResolved = null  // 缓存目录（惰性解析）
     async function getRepoRoot(cwd) {
-      const key = cwd || DEFAULT_CWD
+      const key = await canonicalKey(cwd || DEFAULT_CWD)
       if (repoRoots[key] !== undefined) return repoRoots[key]
       repoRoots[key] = null
       const git = await resolveGit()
@@ -588,7 +604,7 @@ export default {
     }
 
     async function getRepoKey(cwd) {
-      const key = cwd || DEFAULT_CWD
+      const key = await canonicalKey(cwd || DEFAULT_CWD)
       if (repoKeys[key]) return repoKeys[key]
       // v1.5 T11（map#37 · #38 R1 + #40 R2 输入）：
       //   多远程下 gh 必选 upstream（context/remote.go::remoteNameSortScore upstream(3)>github(2)>origin(1)），
@@ -1485,7 +1501,7 @@ export default {
     // 第一性原理：前端只调 wf.detect/wf.chain 拿 DetectionResult（#150 Q1）；探测零 OS 直碰经 platform；
     // per-workspace 按 handleKey=cwd|refId 内存 Map 不落盘（Q3）；pending 不缓存（Q6）；唯一写路径 wf.bind→registry.bind（Q4）
     harness.handle('wf.detect', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const force = !!(args && args.force)
       // #195 修复：force 探测清空 gh 解析缓存（旧实现首次失败永久缓存，force 也救不回来）
       if (force) resetGhCache()
@@ -1506,7 +1522,7 @@ export default {
     let chainCache = { ts: 0, key: null, value: null }
     const CHAIN_CACHE_MS = 30000
     harness.handle('wf.chain', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const force = !!(args && args.force)
       const chainLang = (args && args.lang === 'en') ? 'en' : 'zh'
       if (force) resetGhCache()
@@ -1721,7 +1737,7 @@ export default {
 
     // #179 回切自愈：空 cwd 仍兜 DEFAULT_CWD 作最后兜底（避免“没有仓库”空白），但客户端已保证同 sid 切工作区亦触发，空窗极短
     harness.handle('wf.snapshot', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const now = Date.now()
       if (cache.snapshot && cache.cwd === cwd) {
         const current = await cacheSnapshotIsCurrent(cache.snapshot, cwd)
@@ -1790,7 +1806,7 @@ export default {
     }
     
     harness.handle('wf.bind', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const backendId = args && ('backendId' in args ? args.backendId : args.backend)
       try {
         const reg = await getTrackerRegistry()
@@ -2536,9 +2552,9 @@ export default {
             const k = classifyCreateError(initR.error, null)
             return { ok: false, errorKind: k === 'already-exists' ? 'permission' : k, error: initR.error }
           }
-          // 失效 repoRoots 缓存
-          if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
-          if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
+          // 失效 repoRoots 缓存（规整钥匙与写入侧同形，删除才删得中）
+          const rk1 = await canonicalKey(cwd || DEFAULT_CWD)
+          if (rk1 && repoRoots[rk1] !== undefined) delete repoRoots[rk1]
         }
       } catch (e) {
         const initR = await execProc([git, 'init'], cwd)
@@ -2546,8 +2562,8 @@ export default {
           const k = classifyCreateError(initR.error, null)
           return { ok: false, errorKind: k === 'already-exists' ? 'permission' : k, error: initR.error }
         }
-        if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
-        if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
+        const rk2 = await canonicalKey(cwd || DEFAULT_CWD)
+        if (rk2 && repoRoots[rk2] !== undefined) delete repoRoots[rk2]
       }
       // 2. git add .
       const addR = await execProc([git, 'add', '.'], cwd)
@@ -2609,10 +2625,9 @@ export default {
       }
       // 成功后失效全部缓存，使头部 owner/repo 立即出现
       cache = { ts: 0, snapshot: null, error: null, cwd: null }
-      if (cwd && repoKeys[cwd] !== undefined) delete repoKeys[cwd]
-      if (repoKeys[DEFAULT_CWD] !== undefined) delete repoKeys[DEFAULT_CWD]
-      if (cwd && repoRoots[cwd] !== undefined) delete repoRoots[cwd]
-      if (repoRoots[DEFAULT_CWD] !== undefined) delete repoRoots[DEFAULT_CWD]
+      const rk3 = await canonicalKey(cwd || DEFAULT_CWD)
+      if (rk3 && repoKeys[rk3] !== undefined) delete repoKeys[rk3]
+      if (rk3 && repoRoots[rk3] !== undefined) delete repoRoots[rk3]
       // 优先用 getRepoKey 重解析（parseGithubRepo），兜底用 currentUser
       let owner = currentUser
       try {

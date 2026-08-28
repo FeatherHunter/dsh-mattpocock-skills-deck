@@ -13,6 +13,7 @@
  */
 
 import { detectExplicit } from './explicitDetector.js'
+import { canonicalWorkspaceKey } from '../../workspaceKey.js'
 
 function buildOpContextBase(cwd, platform, fs, timers, exec) {
   return {
@@ -34,6 +35,14 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
   const probeSkills = typeof skillProbe === 'function' ? skillProbe : async () => ({ ok: true, missing: [], probes: {} })
 
   async function detect(handle, opts = {}) {
+    // 规整钥匙（地图 #278 A 方案）：workspaceStore 按 handleKey=cwd|refId 分桶，写读删必须同形。
+    // 入口先洗 cwd（空值保持空串——上层 handler 已回退 DEFAULT_CWD；洗钥匙异常则回退原串）。
+    if (handle && typeof handle.cwd === 'string' && handle.cwd) {
+      try {
+        const ck = await canonicalWorkspaceKey(handle.cwd, { getPlatform, getFs })
+        if (ck) handle = Object.assign({}, handle, { cwd: ck })
+      } catch (e) {}
+    }
     const cwd = (handle && handle.cwd) || ''
     const force = !!opts.force
     // per-workspace 缓存（Q6 pending 不缓存；force 直通）
