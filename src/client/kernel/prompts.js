@@ -69,8 +69,15 @@
       return out
     }
     // UI 统一入口：显式 backendId 优先（绑定/切换流程）；否则当前 selection；再无 → 缺省键组。所有注入路径一律走这里。
+    // 2026-08-28 修复“未指定”回退：显式选择已落在 host + localStorage selectionByCwd，但 prompt 之前只读 s.selection（单会话乐观），
+    // 新会话/快照未水合时为 null 导致永远 default。现按权威链 s.selection → snapshot.selection → getCachedSelection(cwd) 取 id，保持 UI 零硬编码。
     export const setupRunPrompt = function (st, backendId) {
-      const sel = st && st.selection && st.selection.backendId != null ? st.selection.backendId : null
+      let sel = null
+      try {
+        if (st && st.selection && st.selection.backendId != null) sel = st.selection.backendId
+        else if (st && st.snapshot && st.snapshot.selection && st.snapshot.selection.backendId != null) sel = st.snapshot.selection.backendId
+        else if (st && st.cwd && typeof getCachedSelection === 'function') { const cs = getCachedSelection(st.cwd); if (cs && cs.backendId != null) sel = cs.backendId }
+      } catch {}
       const id = backendId != null ? backendId : sel
       return promptText('setupRun', setupRunParamsFrom(st && st.backendModules, id))
     }
