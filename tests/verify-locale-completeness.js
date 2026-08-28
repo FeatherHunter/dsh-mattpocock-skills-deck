@@ -65,7 +65,8 @@ const BASELINE = {
   'kernel/icons.js': 8,
   'kernel/router.js': 1,
   'kernel/store.js': 6, // 2026-08-29 二次实测：v1.7.3 后提交使残留 4→6，按封顶章程重登记（只许缩小不许增大）
-  'kernel/slotRenderer.js': 41, // 2026-08-28 #308 modal-seat 落地 + wizard 扩展：向导步进条/上下步/合并提交/目录选择/队列提示等文案，按封顶章程登记（24→41）
+  'kernel/actions.js': 1, // 2026-08-28 #317 wizard 队列与提交闭环：RPC 业务失败透传文案，按封顶章程登记（0→1）
+  'kernel/slotRenderer.js': 46, // 2026-08-28 #308 modal-seat 落地 + wizard 扩展：向导步进条/上下步/合并提交/目录选择/队列提示等文案，按封顶章程登记（24→41→46 #317 队列与失败回跳细化）
   'panel/Dock.js': 21,
   'panel/Overlay.js': 17,
   'statusbar/StatusBar.js': 17,
