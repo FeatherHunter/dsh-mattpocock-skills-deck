@@ -164,7 +164,7 @@ export default {
     //   每条：{ version, placeholders, use, zh, en }；运行时按当前语言经 promptText(id, params) 取用
     //   占位符契约：文本内 {x} 必须声明在 placeholders；promptText 只替换已声明参数（未知保留）
     //   原则：所有 prompt 相对所引用技能（wayfinder/grilling/triage 等）只做「追加扩展要求」，绝不覆盖技能自身规则。
-    //   审阅：docs/prompts-review.html / .md · 契约校验：tests/verify-prompts.js
+    //   审阅：docs/reviews/prompts-review-v1.5.html / .md · 契约校验：tests/verify-prompts.js
     // ============================================================
     // ==== kernel:prompts (spliced by build) ====
     // ==== kernel:config (spliced by build) ====

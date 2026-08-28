@@ -7,13 +7,13 @@
 <!--
   PROTOTYPE — throwaway from day one
   Question: 新建工作区首次 /setup-matt-pocock-skills 引导，如何让用户感知 #111 的多后端（GitHub/Markdown/GitLab/Other per-workspace）而获得最好体验？
-  Plan: Four variants of the setup onboarding multi-backend hint, switchable via ?variant=, on prototype-setup-backend.html (standalone throwaway route, sub-shape B)
+  Plan: Four variants of the setup onboarding multi-backend hint, switchable via ?variant=, on setup-multi-backend-variants.html (standalone throwaway route, sub-shape B)
   Variants:
     A — 文末非阻塞提示（Chat 内嵌小字 + 跳转链接）
     B — 阻塞式四选一确认卡（Chat 内单选卡片 + 双按钮）
     C — 二次 amber 横幅（setup 完成后顶部常驻可关闭横幅）
     D — 混合（A 文案 + C 横幅，推荐方案）
-  Run: 双击本文件或 `npx serve .` 后打开 http://localhost:3000/prototype-setup-backend.html?variant=A
+  Run: 双击本文件或 `npx serve docs` 后打开 http://localhost:3000/prototype/setup-multi-backend-variants.html?variant=A
   Capture: 选中后将答案与本文件一起 commit 到 throwaway 分支，main 仅保留落地的 A'+C 决策。
 -->
 <style>
@@ -107,7 +107,7 @@
 
   <div style="margin-top:10px;color:var(--muted);font-size:12px">
     <b>如何试：</b> 用底部悬浮条左右切换（键盘 ← → 也可）→ 每个方案里按按钮点一点看效果 → 底部状态会实时显示当前 `selection.backendId / source / banner 已读`。
-    文件：<code>prototype-setup-backend.html</code> · 单文件双击即开，无后端，无持久化（内存态，刷新重置）。
+    文件：<code>docs/prototype/setup-multi-backend-variants.html</code> · 单文件双击即开，无后端，无持久化（内存态，刷新重置）。
   </div>
 </div>
 

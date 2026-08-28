@@ -386,7 +386,7 @@
         "viewerChromeActive": false,
         "viewerChromeOk": true,
         "resolvedTheme": "light",
-        "file": "MattSkills-architecture.visual-check.1440x900.light.png"
+        "file": "mattskills-architecture-visual-check.1440x900.light.png"
       },
       {
         "width": 1440,
@@ -414,7 +414,7 @@
         "viewerChromeActive": false,
         "viewerChromeOk": true,
         "resolvedTheme": "dark",
-        "file": "MattSkills-architecture.visual-check.1440x900.dark.png"
+        "file": "mattskills-architecture-visual-check.1440x900.dark.png"
       },
       {
         "width": 2048,
@@ -442,7 +442,7 @@
         "viewerChromeActive": false,
         "viewerChromeOk": true,
         "resolvedTheme": "light",
-        "file": "MattSkills-architecture.visual-check.2048x1320.light.png"
+        "file": "mattskills-architecture-visual-check.2048x1320.light.png"
       },
       {
         "width": 2048,
@@ -470,13 +470,13 @@
         "viewerChromeActive": false,
         "viewerChromeOk": true,
         "resolvedTheme": "dark",
-        "file": "MattSkills-architecture.visual-check.2048x1320.dark.png"
+        "file": "mattskills-architecture-visual-check.2048x1320.dark.png"
       }
     ],
-    "contactSheet": "MattSkills-architecture.visual-check.html"
+    "contactSheet": "mattskills-architecture-visual-check.html"
   },
   "sidecars": {
-    "receipt": "MattSkills-architecture.visual-check.json",
-    "contactSheet": "MattSkills-architecture.visual-check.html"
+    "receipt": "mattskills-architecture-visual-check.json",
+    "contactSheet": "mattskills-architecture-visual-check.html"
   }
 }
