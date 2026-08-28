@@ -1,96 +1,181 @@
-# 🧠 dsh-mattpocock-skills-deck
+<h1 align="center">dsh-mattpocock-skills-deck</h1>
 
-**🌐 [中文](../README.md) · [English](README.en.md)**
+<div align="center">
 
-**Part the fog, see the end — the task bar handles the rest. Plug [mattpocock/skills](https://github.com/mattpocock/skills) into DSH as a game-like mission system (MattSkills).**
+[中文](../README.md) · **English**
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
-[![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck)
-[![dsh-plugin](https://img.shields.io/badge/dsh-plugin-orange.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck)
-[![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills)
+**Part the fog of war, see the end — MattSkillsDeck handles the rest.**  
+Turn [mattpocock/skills](https://github.com/mattpocock/skills) into a game-like mission system inside DSH.
 
-![hero](../assets/hero-en.svg)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE) [![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![dsh-plugin](https://img.shields.io/badge/dsh-plugin-orange.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck) [![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills)
 
-> Install it — 30 seconds. The task bar handles the rest.
+<img src="../assets/panel-list-zh.png" width="640" alt="MattSkills panel: mission list, progress rings, one-click actions">
 
-## 🚀 Install it (30 seconds)
+<sub>A mission board you can see, and act on.</sub>
 
-Three commands, each copyable on its own — skip anything you've already installed:
+**Install in 30 seconds.**
 
-**① Install the DSH CLI (first time only)**
+</div>
+
+<h2 align="center"><sub>INSTALL</sub><br>Install</h2>
+
+<div align="center">
+
+One prerequisite: [DSH](https://www.npmjs.com/package/@deepseek-ai/dsh) (DeepSeek Harness, an AI coding desktop). You give instructions, the AI does the work — and MattSkills turns that work into missions on a panel.
+
+</div>
 
 ```bash
+# ① Install the DSH CLI (skip if already installed)
 npm install -g @deepseek-ai/dsh
+
+# ② Install MattSkills
+dsh plugin --profile web add dsh-mattpocock-skills-deck
 ```
 
-**② Optional but recommended: better-sidebar (skip if installed)**
+<div align="center">
+
+Refresh and it works — zero config.
+
+</div>
+
+<details>
+<summary>Better on narrow screens: pair it with better-sidebar</summary>
+
+Inside better-sidebar's VSCode-style sidebar, the list and the detail view sit side by side. It works without it (details open in the right column), you just switch back and forth on narrow windows.
 
 ```bash
 dsh plugin --profile web add dsh-better-sidebar
 ```
 
-> 💡 The panel looks best inside [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)'s VSCode-style sidebar (side-by-side list & detail). It still works without it (right details column), just a bit tighter on narrow screens.
+</details>
 
-**③ Install MattSkills** — latest `v1.7.3` (`npm view` verified)
+<details>
+<summary>Let your AI install it for you</summary>
 
-```bash
-dsh plugin --profile web add dsh-mattpocock-skills-deck
-# or pin latest: dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.3 --registry https://registry.npmjs.org
-```
-
-**④ Or let your AI do it** — copy the prompt below to your AI; it reads the repo, checks your environment, and installs only what's missing (it skips what's already there):
+Paste this to your AI — it will read the repo, check the environment, and install what's missing:
 
 ```text
-Please help me install the DeepSeek Harness plugin dsh-mattpocock-skills-deck (MattSkills).
-First read the repo README: https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
-Then check the environment and install what's missing (skip what's already installed), and give a brief summary when done.
+Please install the DeepSeek Harness plugin dsh-mattpocock-skills-deck (MattSkills).
+Read the repo README first: https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
+Then check the environment and install as needed (skip what's already installed), and report back briefly.
 ```
 
-![See what you get — DSH in 30 seconds](../assets/after-install-en.svg)
+</details>
 
-Refresh and it's on — zero config, and the rest is handled. Latest `v1.7.3` — https://www.npmjs.com/package/dsh-mattpocock-skills-deck
+<details>
+<summary>No global install / when updates don't take effect</summary>
 
-Without a global install: `npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck` // latest `v1.7.3`
+```bash
+# Install a pinned version
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.3 --registry https://registry.npmjs.org
 
-Update / remove: `dsh plugin --profile web update|remove dsh-mattpocock-skills-deck`
+# No global install (pin a version like above for extra safety)
+npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
 
-> **⚠️ Still showing the old version after update? (DSH platform issue, not a bug in this plugin)**
-> This is caused by **DSH Desktop's** `pnpm` supply-chain policy `minimumReleaseAge` — freshly published versions are **silently ignored** by `dsh plugin update` / the Plugin Market's "Update" button (`pnpm update` shows no error but doesn't update, wait a few hours). **Please fully quit DSH and reopen it, then hard-refresh the page (Ctrl+F5)** to see the new version (e.g. `v1.7.3`). If you just published and the update still doesn't take effect, run explicitly:
-> ```bash
-> dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
-> ```
-> or retry after a few hours. This is a DSH platform behavior, reproduced as `pnpm update` → `Packages: -2` still `1.0.0`; `pnpm add @1.7.3` → `Added 1` succeeds.
+# When an update is silently skipped, point at the official registry
+dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
+```
 
-## 🎮 The idea
+</details>
 
-Matt Pocock's skills are excellent: wayfinder draws a **map** that parts the fog and shows the end. But a map only shows you where the end is — someone still has to walk every step.
+Upgrade · uninstall:
 
-MattSkills adds a **task system** on top of the map, turning the skills into a game-like mission console inside DSH:
+```bash
+dsh plugin --profile web update dsh-mattpocock-skills-deck   # upgrade
+dsh plugin --profile web remove dsh-mattpocock-skills-deck   # uninstall
+```
 
-- **Claim tasks** — every playable point on the map is a "claim" task; tap to take it
-- **Move forward** — finish one sub-task, the progress ring advances, the next task appears
-- **Save & hand off** — mark "blocked" when stuck; "park" takes a zero-loss snapshot; hand off to keep context when you switch sessions
+<h2 align="center"><sub>WHY</sub><br>Why MattSkills</h2>
 
-The fog is still there — but now you have a map and a task bar.
+<div align="center">
 
-> Unofficial: this project is a third-party companion to Matt Pocock Skills, with no affiliation to mattpocock/skills.
+Matt Pocock's [skills](https://github.com/mattpocock/skills) are excellent: wayfinder draws a map and walks you through the fog to the goal. But once the map is drawn — **how do you walk each step under your feet?**
 
-![What it is](../assets/what-it-is-en.svg)
+MattSkills adds a mission system on top of that map:
 
-## 📖 Features
+**A mission board you can see** — repo ISSUES stop being a flat log. MattSkills moves them into the DSH sidebar: open, blocked, closed in their own lanes, progress rings right where you glance.
 
-![Features](../assets/features-en.svg)
+**A workbench that acts** — every mission card is a button: diagnose, fix, run, new session. One click and the AI goes to work; how far it got, where it stalled, all written on the card.
 
-Full docs: [package/README.md](../package/README.md) · Design: [DESIGN.md](../DESIGN.md) · Changelog: [CHANGELOG.md](../CHANGELOG.md)
+The map owns the goal. MattSkills owns the steps.
 
-## 💛 More from the author
+<img src="../assets/statusbar-zh.png" width="720" alt="DSH bottom task bar">
 
-If you like this plugin, you might also like:
+<sub>The task bar lives at the bottom of DSH: open, blocked, archived, handed off — one strip.</sub>
 
-[![dsh-opencode-palette](../assets/other-palette-en.svg)](https://github.com/FeatherHunter/dsh-opencode-palette)
+</div>
 
-[![dsh-prompt](../assets/other-prompt-en.svg)](https://github.com/FeatherHunter/dsh-prompt)
+<h2 align="center"><sub>IN ACTION</sub><br>In action</h2>
 
-## License
+<div align="center">
 
+<img src="../assets/issue-detail-zh.png" width="640" alt="ISSUE detail view">
+
+<sub>Open an issue: description, author, one-click new session.</sub>
+
+<img src="../assets/issue-comment-zh.png" width="560" alt="Comment right in the panel">
+
+<sub>Never touch the terminal: comment, respond to issues, run diagnostics in the panel.</sub>
+
+<img src="../assets/statusbar-skills-menu-zh.png" width="480" alt="Task bar quick entry">
+
+<sub>Far right of the task bar: every Matt skill, one click away.</sub>
+
+Matt's official skills site (docs and tutorials): [aihero.dev/skills](https://www.aihero.dev/skills)
+
+</div>
+
+<h2 align="center"><sub>FAQ</sub><br>FAQ</h2>
+
+<details open>
+<summary>Still on the old version after updating?</summary>
+
+That's the pnpm supply-chain policy (`minimumReleaseAge`) in the DSH desktop app: freshly published versions are silently skipped by `dsh plugin update` and the marketplace's update button for a few hours. Fully quit DSH and reopen, then hard-refresh with Ctrl+F5. If it still hasn't updated, install explicitly from the official registry:
+
+```bash
+dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
+```
+
+</details>
+
+<details>
+<summary>Can I use it on a narrow window without better-sidebar?</summary>
+
+Yes. The mission list lives in the main panel and details open in the right column; install better-sidebar later if you want them side by side.
+
+</details>
+
+<h2 align="center"><sub>DEVELOPMENT</sub><br>Development</h2>
+
+Edit `src/` only — `client.js`, `host.js` at the repo root and `package/lib/` are build artifacts, don't touch them.
+
+```bash
+node scripts/build.mjs      # build
+npm run test:smoke          # smoke tests
+npm run verify              # contract checks
+bash scripts/build.sh       # build + sync into an installed DSH
+```
+
+The full build / verify / sync / publish workflow lives in [DEV-WORKFLOW.md](../DEV-WORKFLOW.md).
+
+<h2 align="center"><sub>MORE</sub><br>More from the author</h2>
+
+<div align="center">
+
+If you like this plugin, these might help too:
+
+**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** — 34 classic opencode themes for DSH, one click, persisted across restarts
+
+**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** — A prompt toolbox: 24 deep templates a click away, stop copy-pasting
+
+**[dsh-chinese-skill-patch](https://github.com/FeatherHunter/dsh-chinese-skill-patch)** — Use Chinese skill names in DSH directly: type /私 to reach 私家大厨, no English renaming needed
+
+---
+
+Questions or ideas? [Open an issue](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues) or start a thread in [discussions](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions)
+
+A personal project, not affiliated with [mattpocock/skills](https://github.com/mattpocock/skills).
 MIT © FeatherHunter
+
+</div>

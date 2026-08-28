@@ -1,46 +1,61 @@
-# 🧠 dsh-mattpocock-skills-deck
+<h1 align="center">dsh-mattpocock-skills-deck</h1>
 
-**🌐 [中文](README.md) · [English](docs/README.en.md)**
+<div align="center">
 
-**拨开迷雾看见终点，剩下的交给任务栏 —— 把 [mattpocock/skills](https://github.com/mattpocock/skills) 变成 DSH 里的游戏任务系统（MattSkills）。**
+**中文** · [English](docs/README.en.md)
 
-*Part the fog, see the end — the task bar handles the rest.*
+**拨开战争迷雾看见终点，剩下的交给 MattSkillsDeck。**  
+把 [mattpocock/skills](https://github.com/mattpocock/skills) 变成 DSH 里的游戏任务系统。
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck)
-[![dsh-plugin](https://img.shields.io/badge/dsh-plugin-orange.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck)
-[![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills)
+*Part the fog of war, see the end — MattSkillsDeck handles the rest.*
 
-![hero](assets/hero-zh.svg)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![dsh-plugin](https://img.shields.io/badge/dsh-plugin-orange.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck) [![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills)
 
-> 装它，30 秒。剩下的交给任务栏。
+<img src="assets/panel-list-zh.png" width="640" alt="MattSkills 面板：任务列表、进度环与一键操作">
 
-## 🚀 装它（30 秒）
+<sub>一块看得见、派得动的任务板。</sub>
 
-三个命令分开复制 — 已装过的步骤直接跳过：
+**装它，30 秒。**
 
-**① 安装 DSH CLI（仅首次 · 一次性）**
+</div>
+
+<h2 align="center"><sub>INSTALL</sub><br>安装</h2>
+
+<div align="center">
+
+前置只有一个：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness，AI 编码桌面端）。在 DSH 里，你下指令、AI 干活；MattSkills 把这些活变成面板上的任务。
+
+</div>
 
 ```bash
+# ① 安装 DSH CLI（已装跳过）
 npm install -g @deepseek-ai/dsh
+
+# ② 安装 MattSkills
+dsh plugin --profile web add dsh-mattpocock-skills-deck
 ```
 
-**② 前置推荐：better-sidebar（可选 · 已装可跳过）**
+<div align="center">
+
+刷新即生效，零配置。
+
+</div>
+
+<details>
+<summary>窄屏更好用？配个 better-sidebar</summary>
+
+面板在 better-sidebar 的 VSCode 风侧边栏里可以并排看列表与详情；不装也能用（右侧详情列），只是窄屏时要来回切换。
 
 ```bash
 dsh plugin --profile web add dsh-better-sidebar
 ```
 
-> 💡 面板在 [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) 的 VSCode 风侧边栏打开效果最好（并排看列表 / 详情）。不装也能用（右侧 details 列），只是窄屏体验略逊。
+</details>
 
-**③ 安装 MattSkills** — 最新 `v1.7.3`（`npm view` 已验）
+<details>
+<summary>把安装交给你的 AI</summary>
 
-```bash
-dsh plugin --profile web add dsh-mattpocock-skills-deck
-# 或显式最新：dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.3 --registry https://registry.npmjs.org
-```
-
-**④ 或者：把安装交给你的 AI** —— 复制下面这段提示词发给你的 AI，它会读仓库、检查环境、按需安装（已装的自动跳过）：
+复制下面这段发给你的 AI，它会读仓库、检查环境、按需安装：
 
 ```text
 请帮我安装 DeepSeek Harness 插件 dsh-mattpocock-skills-deck（MattSkills）。
@@ -48,71 +63,121 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 然后自行检查环境并按需安装（已装的跳过），完成后简要汇报结果。
 ```
 
-![装完长这样 · 30 秒后的 DSH](assets/after-install-zh.svg)
+</details>
 
-刷新即生效，零配置 —— 剩下的交给 AI。
-
-## 🎮 设计理念
-
-Matt Pocock 的 skills 很强：wayfinder 先画一张 **map**，拨开迷雾、看到终点。但地图只告诉你终点在哪——路要一步一步走，每一步谁来推？
-
-MattSkills 在 map 之上加了一层**任务系统**，把 skills 变成 DSH 里一套游戏式的操作台：
-
-- **接任务** —— 地图上每个可推进的点都是「可接」任务，点一下接过来
-- **推进一步** —— 完成一个子任务，进度圆环走一格，下一个任务自动浮现
-- **随时存档** —— 卡住了标记「阻塞」；要离开就「沉淀」快照；回来或交接给同伴，上下文一点不丢
-
-迷雾还在，但你已经有了地图和任务栏。
-
-免全局安装：`npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck`  // 最新 `v1.7.3`，见 https://www.npmjs.com/package/dsh-mattpocock-skills-deck
-
-升级 / 卸载：`dsh plugin --profile web update|remove dsh-mattpocock-skills-deck`
-
-> **⚠️ 更新后仍显示旧版本？（DSH 平台问题，非本插件 BUG）**
-> 这是 **DSH 桌面端**的 `pnpm` 供应链策略 `minimumReleaseAge` 导致——刚发布的新版本会被 `dsh plugin update` / 插件市场的“更新”按钮**静默忽略**（`pnpm update` 不报错但也不更新，需等待数小时）。**更新后请务必完全退出 DSH 再重开，并 Ctrl+F5 刷新页面**才能看到新版本（如 `v1.7.3`）。若刚发布后立即更新仍不生效，请显式执行：
-> ```bash
-> dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
-> ```
-> 或等待数小时后重试。此为 DSH 平台行为，已实测复现（`pnpm update` → `Packages: -2` 仍 `1.0.0`；`pnpm add @1.7.3` → `Added 1` 才成功）。
-
-![它是什么](assets/what-it-is-zh.svg)
-
-> 非官方：本项目是 Matt Pocock Skills 的第三方配套工具，与 mattpocock/skills 无隶属关系。
-
-## 📖 功能详解
-
-![功能详解](assets/features-zh.svg)
-
-完整使用说明见 [package/README.md](package/README.md)；设计定稿见 [DESIGN.md](DESIGN.md)；变更历史见 [CHANGELOG.md](CHANGELOG.md)。
-
-## 🛠️ 开发（贡献者）
-
-> 仓库只见 `src/` 为真源，`client.js`/`host.js`/`package/lib/*` 为构建产物（`npm run build` 生成，`gitignore`）。
+<details>
+<summary>免全局安装 / 更新不生效时怎么装</summary>
 
 ```bash
-# 1. 改 src/ 真源（永不手改产物）
-# 2. 构建
-node scripts/build.mjs          # 或 bash scripts/build.sh --no-sync
-# 或 npm run build
+# 给定最新版本号安装
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.3 --registry https://registry.npmjs.org
 
-# 3. 验证（冒烟 + 契约）
-npm run test:smoke   # 4 项：client/host/dispatch/render（含面板/状态栏/tab 关键路径）
-npm run verify       # 9 项：t3-locale/skill-tooltip/bug-entry/no-repo-redcard/kernel/leaves/ctx/parse-leaf/tabsfold-leaf
+# 免全局安装（想更稳，像上面一样锁版本）
+npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
 
-# 4. 同步到 DSH（若已装插件）
-bash scripts/build.sh   # 构建 + 同步到 ~/.dsh/profiles/web/node_modules/dsh-mattpocock-skills-deck
+# 更新被静默忽略时，显式指定官方源
+dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
 ```
 
-详见 [DEV-WORKFLOW.md](DEV-WORKFLOW.md)（构建流 / 验证 / 同步 / 发布三段式）。
+</details>
 
-## 💛 作者的其他作品
+升级 · 卸载：
+
+```bash
+dsh plugin --profile web update dsh-mattpocock-skills-deck   # 升级
+dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
+```
+
+<h2 align="center"><sub>WHY</sub><br>为什么要做 MattSkills</h2>
+
+<div align="center">
+
+Matt Pocock 的 [skills 套件](https://github.com/mattpocock/skills)里，wayfinder 非常强大：能画出一张地图，带你穿过迷雾，抵达终点。但是，**你脚下的每一步该如何走呢？**
+
+MattSkills 在地图之上加了一层任务系统：
+
+**一块看得见的任务板** —— 仓库里的 ISSUE 不再是流水账：MattSkills 把它们搬进 DSH 侧边栏，可接、阻塞、已关闭各归各位，进度环走到哪一格，一眼看清
+
+**一个会干活的操作台** —— 每张任务卡本身就是按钮：诊断、修复、执行、新会话，点一下，AI 就去干活；干到哪一步、卡在哪里，卡上写得清清楚楚
+
+地图管终点，MattSkills 管脚下。
+
+<img src="assets/statusbar-zh.png" width="720" alt="DSH 底部任务栏">
+
+<sub>DSH 底部的任务栏：可接、阻塞、沉淀、交接，全在这一条。</sub>
+
+</div>
+
+<h2 align="center"><sub>IN ACTION</sub><br>真机演示</h2>
+
+<div align="center">
+
+<img src="assets/issue-detail-zh.png" width="640" alt="ISSUE 详情页">
+
+<sub>点开一个 ISSUE：描述、作者、一键新会话。</sub>
+
+<img src="assets/issue-comment-zh.png" width="560" alt="面板内直接评论">
+
+<sub>不动终端：在面板里直接评论、响应 ISSUE、跑诊断。</sub>
+
+<img src="assets/statusbar-skills-menu-zh.png" width="480" alt="状态栏快捷入口">
+
+<sub>状态栏最右侧：Matt 技能套件一键直达。</sub>
+
+Matt 的 skills 官网（文档与教程）：[aihero.dev/skills](https://www.aihero.dev/skills)
+
+</div>
+
+<h2 align="center"><sub>FAQ</sub><br>常见问题</h2>
+
+<details open>
+<summary>更新之后还是旧版本？</summary>
+
+这是 DSH 桌面端的 pnpm 供应链策略（`minimumReleaseAge`）导致的：刚发布的版本，几个小时内 `dsh plugin update` 和插件市场的「更新」按钮都会静默跳过。更新后请完全退出 DSH 再重开，按 Ctrl+F5 刷新页面；还没更新的话，显式指定官方源装一次：
+
+```bash
+dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
+```
+
+</details>
+
+<details>
+<summary>不装 better-sidebar，窄屏能用吗？</summary>
+
+能。任务列表在主面板，详情走右侧列；需要并排对照时再装 better-sidebar 就行。
+
+</details>
+
+<h2 align="center"><sub>DEVELOPMENT</sub><br>开发</h2>
+
+改代码只改 `src/`；根目录的 `client.js`、`host.js` 与 `package/lib/` 都是构建产物，别手改。
+
+```bash
+node scripts/build.mjs      # 构建
+npm run test:smoke          # 冒烟测试
+npm run verify              # 契约验证
+bash scripts/build.sh       # 构建 + 同步到已装的 DSH
+```
+
+构建 / 验证 / 同步 / 发布的完整流程见 [DEV-WORKFLOW.md](DEV-WORKFLOW.md)。
+
+<h2 align="center"><sub>MORE</sub><br>作者的其他作品</h2>
+
+<div align="center">
 
 喜欢这个插件的话，这些可能你也用得上：
 
-[![dsh-opencode-palette](assets/other-palette-zh.svg)](https://github.com/FeatherHunter/dsh-opencode-palette)
+**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** —— 34 款 opencode 经典配色一键换装 DSH，即点即换，重启不丢
 
-[![dsh-prompt](assets/other-prompt-zh.svg)](https://github.com/FeatherHunter/dsh-prompt)
+**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** —— Prompt 工具箱：24 条深度模板随手点，别再复制粘贴
 
-## License
+**[dsh-chinese-skill-patch](https://github.com/FeatherHunter/dsh-chinese-skill-patch)** —— 让 DSH 直接用中文技能名：输入 /私 就能直达「私家大厨」，技能不必改英文名
 
+---
+
+有问题、有想法？[提交 ISSUE](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues)，或到 [讨论区](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions)聊聊
+
+个人作品，与 [mattpocock/skills](https://github.com/mattpocock/skills) 官方没有关系。
 MIT © FeatherHunter
+
+</div>
