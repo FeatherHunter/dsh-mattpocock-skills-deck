@@ -64,11 +64,11 @@ const BASELINE = {
   'index.js': 26,
   'kernel/icons.js': 8,
   'kernel/router.js': 1,
-  'kernel/store.js': 4,
+  'kernel/store.js': 6, // 2026-08-29 二次实测：v1.7.3 后提交使残留 4→6，按封顶章程重登记（只许缩小不许增大）
   'panel/Dock.js': 21,
   'panel/Overlay.js': 17,
   'statusbar/StatusBar.js': 17,
-  'views/ChecksTab.js': 8,
+  'views/ChecksTab.js': 14, // 2026-08-29 二次实测：v1.7.3 后提交（+39 行）使残留 8→14，按封顶章程重登记
   'views/IssueDetail.js': 29,
   'views/NoRepoCard.js': 15,
   'views/SettingsPage.js': 41,

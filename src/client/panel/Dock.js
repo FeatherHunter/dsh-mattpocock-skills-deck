@@ -8,10 +8,8 @@
     //   （占位者 props 亦注入 closeDetails）；宽度 300-520px 可拖拽；关闭时子树不卸载（状态保留）。
     // issue #15：tabs 行内容放不下时折叠为纯图标（内容自适应 + 滞回防抖）
 export     const DetailsDock = (props) => {
-      // #45 回归（2026-08-20 续）：切绘画/工作区后右面板串台
-      // 根因：原 DetailsDock 仅在挂载时跑一次副作用（deps []），且直接取 props.sessionId（details 槽位在宿主里常为空 → 退回 shared 单例），
-      //   导致：① 切绘画（sessionId 变化）不重跑水合/加载，旧绘画的 polluted snapshot 常驻；② 非 current 工作区的 snapshot 经 shared 广播后，details 常显 shared.cwd（首工作区）快照。
-      // 修复：① 用 props.useSessions 权威信号跟随当前会话（hookCurrent）与精确 cwd（summaryCwd），props.sessionId / scope.sessionId 优先；② 副作用 deps 改为 [sid]/[sid,summaryCwd]，切绘画即触发 cwd 同步 + 水合；③ 空 deps 根除。
+      // #45 回归：切绘画/工作区后右面板串台——原实现挂载仅跑一次副作用（deps []）且直接取 props.sessionId（宿主 details 槽常空 → 退回 shared 单例），
+      //   切会话不重跑水合、非 current 快照经 shared 广播串台；修复 = 跟随 useSessions 权威信号（hookCurrent）+ 精确 cwd（summaryCwd），副作用 deps 随 [sid]/[sid,summaryCwd] 重跑。
       const hookCurrent = (props && typeof props.useSessions === 'function') ? props.useSessions(function (x) { return x.current }) : undefined
       const propSid = props && (props.sessionId || (props.scope && props.scope.sessionId) || (props.session && props.session.id))
       const sid = propSid || hookCurrent
@@ -78,11 +76,6 @@ export     const DetailsDock = (props) => {
           host.call('wf.cwd', { sessionId: sid }).then(function (res) {
             if (res && res.ok && res.cwd) apply(res.cwd)
           }).catch(function () {})
-        } else {
-          // 兜底：若当前 s.cwd 为空且已有 snapshot 为“没有仓库”，尝试用 s.cwd 已有值强制刷新一次
-          if (!s.cwd && s.snapshot && !s.snapshot.repository && !s.snapshot.repo) {
-            // 保持空窗不空白，下次 summaryCwd 到来即校正
-          }
         }
       }, [sid, summaryCwd])
       // 初始/污染自愈：随 sid 变化重跑（修复空 deps），并额外监听 summaryCwd/s.cwd 变化以覆盖“同 sid 切工作区”场景
