@@ -10,7 +10,7 @@ Issues live as GitHub issues, driven through the `gh` CLI. See `docs/agents/issu
 
 ### Triage labels
 
-Five canonical triage roles map to this repo's labels; the mandatory label set is `bug` / `needs-triage` / `wayfinder:grilling`. See `docs/agents/triage-labels.md`.
+Five canonical triage roles (`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`) plus five wayfinder labels (`wayfinder:map` / `research` / `prototype` / `grilling` / `task`). See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 

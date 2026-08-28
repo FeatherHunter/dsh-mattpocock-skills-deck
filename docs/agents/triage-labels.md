@@ -20,4 +20,14 @@ This repo's deck uses a mandatory label set alongside the triage roles. These th
 - `needs-triage` — unexamined issue awaiting diagnosis (drives the diagnose action / TRIAGE filter; this is also the canonical `needs-triage` role above)
 - `wayfinder:grilling` — an open decision/discussion ticket (drives the discuss action; wayfinder's `grilling` ticket type)
 
+## Wayfinder label set
+
+The `/wayfinder` skill requires all five wayfinder labels to exist. Every wayfinder child ticket carries exactly one of them:
+
+- `wayfinder:map` — the parent map issue (Notes / Decisions-so-far / Fog)
+- `wayfinder:research` — research ticket
+- `wayfinder:prototype` — prototype ticket
+- `wayfinder:grilling` — grilling/discussion ticket
+- `wayfinder:task` — implementation task ticket
+
 Edit the right-hand column to match whatever vocabulary you actually use.
