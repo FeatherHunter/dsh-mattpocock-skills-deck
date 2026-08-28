@@ -285,29 +285,63 @@ export default {
     }
 
     // ============================================================
-    // 6. 插槽注册
+    // 6. 插槽注册（#298 幂等：与 ensureSidebarTab 同构，二次 apply/HMR 不增生）
     // ============================================================
-    slots.inject('shell.overlay', function () {
+    // 模块级闸门：每个槽位仅注入一次；卸载时经 ctx.effect 复位，允许重装后重注
+    const __slotOnce = {}
+    const __slotDisposers = {}
+    const __injectOnce = function (slotName, factory) {
+      if (__slotOnce[slotName]) return
+      __slotOnce[slotName] = true
+      let disp = null
+      try {
+        slots.inject(slotName, function () {
+          try {
+            disp = factory()
+          } catch (e) {
+            __slotOnce[slotName] = false
+            throw e
+          }
+          __slotDisposers[slotName] = disp
+          return function () {
+            try { if (disp) disp() } catch (e) { /* 忽略 */ }
+            __slotDisposers[slotName] = null
+          }
+        })
+      } catch (e) {
+        __slotOnce[slotName] = false
+        __slotDisposers[slotName] = null
+        throw e
+      }
+      ctx.effect(function () {
+        return function () {
+          __slotOnce[slotName] = false
+          try { const d = __slotDisposers[slotName]; if (d) d() } catch (e) { /* 忽略 */ }
+          __slotDisposers[slotName] = null
+        }
+      }, 'dsws: slot ' + slotName)
+    }
+    __injectOnce('shell.overlay', function () {
       return slots.register({ name: 'shell.overlay', id: 'dsws-overlay-v5', order: 10 }, withCx(OverlayPanel))
     })
-    slots.inject('conversation.input.dock', function () {
+    __injectOnce('conversation.input.dock', function () {
       return slots.register({ name: 'conversation.input.dock', id: 'dsh-mattpocock-skills-deck', order: 40 }, withCx(StatusBar))
     })
-    slots.inject('tool.view.cordis', function () {
+    __injectOnce('tool.view.cordis', function () {
       return slots.register({ name: 'tool.view.cordis', key: 'self' }, withCx(RunPanel))
     })
     // v25-50：配置页（设置 → 插件 → MattSkillsDeck；与 opencode 主题同模式）
-    slots.inject('settings.plugins.tab', function () {
+    __injectOnce('settings.plugins.tab', function () {
       return slots.register({ name: 'settings.plugins.tab', id: 'dsws-settings', order: 40, label: function () { return tr('panel.title') } }, withCx(SettingsPage))
     })
     // v1.5 T2：设置左侧直达 —— settings.section 左栏条目（与插件页 tab 双入口，复用同一 SettingsPage）
     //   order 18 = 紧跟 插件页15 之后（用户拍板 2026-08-16：15 < 18 < AgentPresets20 < better-sidebar100）
-    slots.inject('settings.section', function () {
+    __injectOnce('settings.section', function () {
       return slots.register({ name: 'settings.section', id: 'dsws-settings-section', order: 18, label: function () { return tr('panel.title') } }, withCx(SettingsPage))
     })
     // 原型：右侧停靠（details 槽位 · 替换内置工具详情面板；single 槽动态注册优先级低 → 胜出）
     // priority: -1 低于内置详情面板的默认 0 → 无冲突且「低者胜出」替换内置面板
-    slots.inject('details', function () {
+    __injectOnce('details', function () {
       return slots.register({ name: 'details', id: 'dsws-details', order: 10, priority: -1 }, withCx(DetailsDock))
     })
 

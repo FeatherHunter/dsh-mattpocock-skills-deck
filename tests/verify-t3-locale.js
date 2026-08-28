@@ -44,9 +44,12 @@ const check = function (file) {
   })
   // T0（#93）一源出两物后：pkg 由规范源（动态版）构建，tool.view.cordis 不再缺失 —— 两产物注册数一致。
   // v26 移除 sidebar.footer.action 后：shell.overlay / conversation.input.dock / tool.view.cordis / settings.plugins.tab / details = 5；v1.5 T2 新增 settings.section = 6。
-  const n = (src.match(/slots\.inject\('/g) || []).length
+  // #298 幂等：6 槽位经 __injectOnce 注入，底层 slots.inject 仅剩 helper 内 1 处（变量式调用，不计入字面量 ' 统计）；此处校验幂等注册数
+  const nOnce = (src.match(/__injectOnce\s*\('/g) || []).length
+  const nRaw = (src.match(/slots\.inject\('/g) || []).length
   const expectInject = 6
-  if (n !== expectInject) problems.push('slots.inject 注册数异常 ' + n + '（期望 ' + expectInject + '）')
+  if (nOnce !== expectInject) problems.push('__injectOnce 注册数异常 ' + nOnce + '（期望 ' + expectInject + '）')
+  if (nRaw !== 0) problems.push('slots.inject\' 裸露数异常 ' + nRaw + '（期望 0，#298 后应经 __injectOnce）')
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
   else console.log('  PASS', file, '(' + zh.size + ' 键 × zh/en，' + used.size + ' 处引用)')
 }
