@@ -1,6 +1,6 @@
 {
   "name": "dsh-mattpocock-skills-deck",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "private": true,
   "scripts": {
     "build": "node scripts/build.mjs",

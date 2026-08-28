@@ -33,11 +33,11 @@ dsh plugin --profile web add dsh-better-sidebar
 
 > 💡 面板在 [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) 的 VSCode 风侧边栏打开效果最好（并排看列表 / 详情）。不装也能用（右侧 details 列），只是窄屏体验略逊。
 
-**③ 安装 MattSkills** — 最新 `v1.7.2`（`npm view` 已验）
+**③ 安装 MattSkills** — 最新 `v1.7.3`（`npm view` 已验）
 
 ```bash
 dsh plugin --profile web add dsh-mattpocock-skills-deck
-# 或显式最新：dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.2 --registry https://registry.npmjs.org
+# 或显式最新：dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.3 --registry https://registry.npmjs.org
 ```
 
 **④ 或者：把安装交给你的 AI** —— 复制下面这段提示词发给你的 AI，它会读仓库、检查环境、按需安装（已装的自动跳过）：
@@ -64,16 +64,16 @@ MattSkills 在 map 之上加了一层**任务系统**，把 skills 变成 DSH �
 
 迷雾还在，但你已经有了地图和任务栏。
 
-免全局安装：`npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck`  // 最新 `v1.7.2`，见 https://www.npmjs.com/package/dsh-mattpocock-skills-deck
+免全局安装：`npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck`  // 最新 `v1.7.3`，见 https://www.npmjs.com/package/dsh-mattpocock-skills-deck
 
 升级 / 卸载：`dsh plugin --profile web update|remove dsh-mattpocock-skills-deck`
 
 > **⚠️ 更新后仍显示旧版本？（DSH 平台问题，非本插件 BUG）**
-> 这是 **DSH 桌面端**的 `pnpm` 供应链策略 `minimumReleaseAge` 导致——刚发布的新版本会被 `dsh plugin update` / 插件市场的“更新”按钮**静默忽略**（`pnpm update` 不报错但也不更新，需等待数小时）。**更新后请务必完全退出 DSH 再重开，并 Ctrl+F5 刷新页面**才能看到新版本（如 `v1.7.2`）。若刚发布后立即更新仍不生效，请显式执行：
+> 这是 **DSH 桌面端**的 `pnpm` 供应链策略 `minimumReleaseAge` 导致——刚发布的新版本会被 `dsh plugin update` / 插件市场的“更新”按钮**静默忽略**（`pnpm update` 不报错但也不更新，需等待数小时）。**更新后请务必完全退出 DSH 再重开，并 Ctrl+F5 刷新页面**才能看到新版本（如 `v1.7.3`）。若刚发布后立即更新仍不生效，请显式执行：
 > ```bash
 > dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
 > ```
-> 或等待数小时后重试。此为 DSH 平台行为，已实测复现（`pnpm update` → `Packages: -2` 仍 `1.0.0`；`pnpm add @1.7.2` → `Added 1` 才成功）。
+> 或等待数小时后重试。此为 DSH 平台行为，已实测复现（`pnpm update` → `Packages: -2` 仍 `1.0.0`；`pnpm add @1.7.3` → `Added 1` 才成功）。
 
 ![它是什么](assets/what-it-is-zh.svg)
 
