@@ -47,18 +47,18 @@ export const Z_ORDER = Object.freeze({ modal: 300, toast: 200, banner: 100 })
 export const SLOT_SCOPE = Object.freeze({ ROOT: 'root', SESSION_MAYBE: 'session-maybe', SESSION: 'session' })
 export const SLOT_KIND = Object.freeze({ LIST: 'list', SINGLE: 'single' })
 
-// 挂接规则（ADR 5.4）：modal 仅 fail+form
+// 挂接规则（ADR 5.4 + 2026-08-28 wizard 扩展）：modal 仅 fail+(form|wizard)
 export function shouldShowInModal(step) {
   if (!step || typeof step !== 'object') return false
   if (step.status !== 'fail') return false
   const acts = step.actions
   if (!Array.isArray(acts) || !acts.length) return false
-  for (let i = 0; i < acts.length; i++) { const a = acts[i]; if (a && a.type === 'form') return true }
+  for (let i = 0; i < acts.length; i++) { const a = acts[i]; if (a && (a.type === 'form' || a.type === 'wizard')) return true }
   return false
 }
 
 export function isModalAction(action, stepStatus) {
-  if (!action || action.type !== 'form') return false
+  if (!action || (action.type !== 'form' && action.type !== 'wizard')) return false
   if (stepStatus !== 'fail') return false
   return true
 }
@@ -68,4 +68,29 @@ export function getFormAction(step) {
   if (!step || !Array.isArray(step.actions)) return null
   for (let i = 0; i < step.actions.length; i++) { const a = step.actions[i]; if (a && a.type === 'form') return a }
   return null
+}
+
+// 工具：取 step 的 wizard 动作（首个，2026-08-28）
+export function getWizardAction(step) {
+  if (!step || !Array.isArray(step.actions)) return null
+  for (let i = 0; i < step.actions.length; i++) { const a = step.actions[i]; if (a && a.type === 'wizard') return a }
+  return null
+}
+
+export function getModalAction(step) {
+  return getFormAction(step) || getWizardAction(step)
+}
+
+// 工具：取 wizard 的 steps（归一化，每步至少含 schema）
+export function getWizardSteps(wizardAction) {
+  if (!wizardAction || wizardAction.type !== 'wizard') return []
+  const raw = wizardAction.steps
+  if (!Array.isArray(raw) || !raw.length) return []
+  const out = []
+  for (let i = 0; i < raw.length; i++) {
+    const s = raw[i] || {}
+    const schema = Array.isArray(s.schema) ? s.schema : (Array.isArray(s.fields) ? s.fields : [])
+    out.push({ title: typeof s.title === 'string' ? s.title : '', schema: schema })
+  }
+  return out
 }

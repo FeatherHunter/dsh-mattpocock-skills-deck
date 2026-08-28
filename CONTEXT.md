@@ -42,6 +42,12 @@
 - **scope 三态**: 内部端口的作用域三态 —— `root`（常驻，随插件生命周期；内容可随活跃会话派生，如 banner）/ `session`（随会话）/ `session-maybe`（有会话按会话、无会话占位不崩，如 dock）。
 - **后端可插拔（UI 侧）**: 本插件内多后端经 `checkCatalog` 新增后端目录项，UI 自动经 5 端口呈现；不开放跨插件直接注册端口（扩展服务句柄仅为本插件内后端模块间的 `registerTab` 样板，非跨插件公共 API；未来对外需另起 ADR + allowlist）。
 
+## 向导词条（2026-08-28 定版 · #308 wizard 扩展，承接 #221）
+
+- **向导（wizard）**: `modal-seat` 内按序完成的多步表单旅程，单弹窗内分页呈现；每步为 `FieldSchema[]` 的字段集合，按步校验（`required/pattern`），最后一步才合并全步值一次性提交（`submitAction`），可返回改前一步、取消即丢弃整向导（不落盘）。 _Avoid_: 多弹窗队列（向导占队列 1 位，不拆步排队）、分步提交（向导内不按步发 `rpc`）
+- **步骤（wizard step）**: 向导的一页，形状 `{title?, schema}`，`title` 无则回落“步骤 n/总数”；步进条以数字圆点 + 标题呈现 `1 选目录 · 2 填信息 · 3 确认`，当前步高亮、已完成打 `✓`。 _Avoid_: 把步骤当独立 `form` 动作
+- **顺序队列（wizard queue）**: `modal-seat` 的单例排队语义扩展——`form` 与 `wizard` 同在 `st._formModalQueue` 中各占 1 位，当前弹窗 `open` 时新来者排队，关闭后 80ms 自动弹出下一个；向导的每步不占位，保证原子性。 _Avoid_: 层级叠加（向导内不盖新弹窗）
+
 ## 会话命名治理词条（2026-08-27 定版 · #260/#261）
 
 - **占位（placeholder）**: 插件自建会话创建瞬间的初始标题态 `[New] 新建需求 / [New] 新建 Bug / New Requirement / New Bug`，等待首次有意义改名。 _Avoid_: 草稿（与草稿档混用时）

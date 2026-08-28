@@ -42,13 +42,14 @@ export const CHECK_STATE = Object.freeze({
 /** 别名：步骤状态（done/current/fail/pending 四态；与 CHECK_STATE 同值，2026-08-27 起无 na）。 */
 export const STEP_STATUS = CHECK_STATE
 
-/** 动作类型枚举（v1 五种，契约层唯一真源）。 */
+/** 动作类型枚举（v1 六种，契约层唯一真源；2026-08-28 新增 wizard 向导）。 */
 export const ACTION_TYPE = Object.freeze({
   INJECT_PROMPT: 'inject-prompt', // 推进型：注入提示词，配合重求值推进（例：gh auth login 引导）
   OPEN_URL: 'open-url',           // 信息型：打开链接，不宣称修复、不推进链
   RPC: 'rpc',                     // 执行型：host.call（例：wf.openFolder）
   FORM: 'form',                   // 执行型：内嵌字段表单，提交后走 submitAction
   REFRESH: 'refresh',             // 执行型：触发重求值（例：重探）
+  WIZARD: 'wizard',               // 执行型：多步向导（单弹窗内分页，Q5 定版：按步校验、最后一起提交、可返回、取消丢弃）
 })
 
 /** 别名：动作词汇表枚举（兼容票面命名 ACTION_TYPES）。 */
@@ -146,6 +147,9 @@ export function isKnownActionType(type) {
  * @property {FieldSchema[]} [schema] 字段模式（type=form 时必有；兼容 fields）
  * @property {FieldSchema[]} [fields]
  * @property {Action} [submitAction] 提交动作（type=form 时必有，通常为 rpc 或 inject-prompt；兼容 submit）
+ * // wizard（2026-08-28 Q5 定版：单弹窗内分页，按步校验、最后一起提交、可返回、取消丢弃）
+ * @property {Array<{title?: string, schema: FieldSchema[]}>} [steps] 向导步骤（type=wizard 时必有，每步 schema 复用 FieldSchema，title 无则回落“步骤 n/总数”）
+ * @property {Action} [submitAction] 提交动作（type=wizard 时必有，合并全步 values 后触发）
  * @property {Object} [form] 兼容票面 form:{title,desc,fields,submit:{endpoint}}
  * @property {Object} [submit]
  * // refresh
