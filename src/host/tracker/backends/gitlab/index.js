@@ -150,6 +150,58 @@ export const gitlabBackend = {
   },
   create: createGitlabBackend,
   matches,
+  prompts,
+  fixes,
 }
+
+/** 修复契约注入文案（GitLab 后端，双语单源；供 fixes 引用，host 组装时解析）。 */
+export const prompts = {
+  glabInstallFix: {
+    zh: '请为 DSH 安装 GitLab CLI（glab）：\n1. 先检查：终端执行 glab --version；\n2. 无 glab 则按 OS 安装：Windows → winget install --id GitLab.gitlab-cli（或 scoop install glab）；macOS → brew install glab；Linux → 按 gitlab.com/gitlab-org/cli 官方方式安装；\n3. 安装完成后请用户点「重查」。',
+    en: 'Install the GitLab CLI (glab) for DSH:\n1. Check first: glab --version;\n2. If missing, install per OS: Windows → winget install --id GitLab.gitlab-cli (or scoop install glab); macOS → brew install glab; Linux → follow gitlab.com/gitlab-org/cli official install;\n3. After install, ask the user to re-check.',
+  },
+  glabLoginFix: {
+    zh: '请完成 glab 登录（glab auth login）：按向导选择 GitLab.com → HTTPS → 浏览器授权（OAuth）；完成后 glab auth status 验证；然后请用户点「重查」。',
+    en: 'Complete glab login: glab auth login → GitLab.com → HTTPS → browser OAuth; verify with glab auth status; then ask the user to re-check.',
+  },
+  glabRepoFix: {
+    zh: '当前工作区未解析出 GitLab 仓库（glab 无法定位 owner/project）。请先向用户确认意图：\nA. 本地项目（不需要 GitLab）→ 切换到「本地 Markdown」后端；\nB. 确实要用 GitLab → 核对 remote 指向（git remote get-url origin / glab config），或 glab repo create 创建并关联；\n完成后请用户点「重查」。',
+    en: 'No GitLab repository resolved for the current workspace. Confirm intent: A. local project → switch to "Local Markdown"; B. GitLab really wanted → verify the remote (git remote get-url origin / glab config), or create/associate via glab repo create; then ask the user to re-check.',
+  },
+}
+
+/** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。 */
+export const fixes = Object.freeze({
+  'glab:installed': {
+    hint: {
+      zh: 'glab CLI 未安装。点「安装指引」获取各平台安装命令，完成后重查。',
+      en: 'glab CLI is not installed. Use the install guide, then re-check.',
+    },
+    actions: [
+      { type: 'inject-prompt', prompt: 'glabInstallFix', label: { zh: '安装指引', en: 'Install guide' } },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+  'glab:authed': {
+    hint: {
+      zh: 'glab 尚未登录。点「登录指引」注入 glab auth login 操作步骤，完成后重查。',
+      en: 'glab is not logged in. Use the login guide, then re-check.',
+    },
+    actions: [
+      { type: 'inject-prompt', prompt: 'glabLoginFix', label: { zh: '登录指引', en: 'Login guide' } },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+  'glab:repoAccess': {
+    hint: {
+      zh: 'GitLab 仓库不可达（可能未定位仓库 / 无权限 / 网络不通）。点「修复指引」排查，完成后重查。',
+      en: 'GitLab repository not reachable (not located / permission / network). Use the fix guide, then re-check.',
+    },
+    actions: [
+      { type: 'inject-prompt', prompt: 'glabRepoFix', label: { zh: '修复指引', en: 'Fix guide' } },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+})
 
 export default createGitlabBackend

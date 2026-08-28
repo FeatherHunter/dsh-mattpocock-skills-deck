@@ -75,6 +75,67 @@ export const links = {
 export const capabilities = { labelsGuide: true, repoCreateChain: true }
 /** #231：开仓契约动作——url 型由 UI 以浏览器新窗打开 describe().url。 */
 export const openRepository = 'url'
+
+// ============ 修复契约（Fix Contract · 2026-08-28）：检查失败 → 修复指引（后端知识单源） ============
+/**
+ * 每个后端检查项的失败修复知识：hint（人读指引，随链渲染）+ actions（词汇表动作）。
+ * host wf.chain 组装时按语言解析进 onFail.show.hint / onFail.actions（见 tracker/fixContract.js）；
+ * UI 只渲染与分发，不识别后端、不推导修复步骤。
+ * 文案引用本模块 prompts 键：ghAuthLogin / noGhPrompt / repoRemoteFix / repoAccessFix（双语单源）。
+ */
+export const fixes = Object.freeze({
+  'gh:installed': {
+    hint: {
+      zh: 'gh CLI 未安装。点「安装指引」获取各平台安装命令，完成后重查。',
+      en: 'gh CLI is not installed. Use the install guide, then re-check.',
+    },
+    actions: [
+      { type: 'inject-prompt', prompt: 'noGhPrompt', label: { zh: '安装指引', en: 'Install guide' } },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+  'gh:authed': {
+    hint: {
+      zh: 'gh 尚未登录。点「登录指引」注入 gh auth login 操作步骤，完成后重查。',
+      en: 'gh is not logged in. Use the login guide, then re-check.',
+    },
+    actions: [
+      { type: 'inject-prompt', prompt: 'ghAuthLogin', label: { zh: '登录指引', en: 'Login guide' } },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+  'gh:remote': {
+    hint: {
+      zh: '当前目录不是 GitHub 仓库。优先修复：点「创建并发布」把它初始化为 GitHub 仓库（填仓库名与可见性）；若这是本地项目、不打算用 GitHub，再切换「本地 Markdown」后端。',
+      en: 'This directory is not a GitHub repository. Preferred fix: "Create & publish" initializes it as a GitHub repo (name + visibility); switch to "Local Markdown" only if this stays off GitHub.',
+    },
+    // 修复动作三件套：form 发布（恢复 T1#34 红卡「创建并发布」链路，走 wf.initPublish → github initProject）+
+    //   inject 修复指引（含切换 Markdown 备选）+ refresh 重查。UI 只渲染分发。
+    actions: [
+      {
+        type: 'form',
+        label: { zh: '创建并发布', en: 'Create & publish' },
+        schema: [
+          { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$' },
+          { name: 'visibility', type: 'single', label: { zh: '可见性', en: 'Visibility' }, options: ['private', 'public'], defaultValue: 'private' },
+        ],
+        submitAction: { type: 'rpc', method: 'wf.initPublish', params: {} },
+      },
+      { type: 'inject-prompt', prompt: 'repoRemoteFix', label: { zh: '修复指引', en: 'Fix guide' } },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+  'gh:repoAccess': {
+    hint: {
+      zh: '仓库路径无法经 GitHub API 访问（可能不存在 / 无权限 / 网络不通）。点「修复指引」排查，或先核对仓库存在性与 gh 登录身份。',
+      en: 'Repository not reachable via the GitHub API (missing / permission / network). Use the fix guide, or verify the repo and gh identity first.',
+    },
+    actions: [
+      { type: 'inject-prompt', prompt: 'repoAccessFix', label: { zh: '修复指引', en: 'Fix guide' } },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+})
 /** 注入文案数据（类别7核销）：键→双语全文；名单从 src/shared/labels.js 动态拼装，零第二份字面量名单。 */
 export const prompts = (function () {
   const names = CANONICAL_LABELS.map(function (l) { return (l && l.name) ? String(l.name) : String(l) })
@@ -92,6 +153,14 @@ export const prompts = (function () {
     noGhPrompt: {
       zh: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version；\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli；macOS → brew install gh；Linux → sudo apt install gh。',
       en: 'Install the GitHub CLI (gh) for DSH — all panel data depends on it:\n\n1. Check first: run gh --version;\n2. If missing, install per OS: Windows → winget install --id GitHub.cli; macOS → brew install gh; Linux → sudo apt install gh.',
+    },
+    repoRemoteFix: {
+      zh: '当前工作区不是 GitHub 仓库（git remote 无法解析为 owner/name）。优先路径：把本目录发布为 GitHub 仓库——用户可在「创建并发布」表单填写仓库名与可见性（公开/私有）提交（等价命令 gh repo create <name> --public/--private --source=. --push；非 Git 仓库由流程自动 git init）。仅当用户明确这是本地项目（不打算用 GitHub）时，才提示切换到「本地 Markdown」后端。不要替用户上传不属于本工作区的代码；创建前与用户确认仓库名与可见性。',
+      en: 'No GitHub repository could be resolved for the current workspace (git remote origin → owner/name failed). Confirm intent with the user, then do one of:\n\nA. Local project (no GitHub needed) → tell the user to switch to the "Local Markdown" backend in the top picker; the check passes after re-check;\nB. GitHub is really wanted → ① if a Git repo: git remote add origin https://github.com/<owner>/<repo>.git (repo must exist, or first gh repo create <repo> --public/--private --source=. --push); ② if not a Git repo: git init first, then ①; ③ after pushing, ask the user to re-check.\nNever upload code that does not belong to this workspace; confirm repo name and visibility (public/private) with the user before creating.',
+    },
+    repoAccessFix: {
+      zh: '当前仓库无法通过 GitHub API 访问（gh api repos/{owner}/{name} 失败）。请按序排查：\n1. 仓库存在性：gh repo view <owner>/<name> --json nameWithOwner；不存在 → 与用户确认后执行 gh repo create（仓库名/可见性先确认）；\n2. 访问权限：gh auth status 确认登录账号；私有仓库需该账号有权限（403/404 都可能是权限问题）；\n3. 网络/代理：gh config get http_proxy 与网络连通性。\n排查修复后请用户点「重查」。',
+      en: 'The repository is not reachable via the GitHub API (gh api repos/{owner}/{name} failed). Investigate in order:\n1. Existence: gh repo view <owner>/<name> --json nameWithOwner; if missing → confirm with the user, then gh repo create (confirm name/visibility first);\n2. Permissions: gh auth status to confirm the account; private repos need access for this account (403/404 can both be permission issues);\n3. Network/proxy: gh config get http_proxy and connectivity.\nAfter fixing, ask the user to re-check.',
     },
     errorKinds: {
       'no-git': { zh: '未找到 git，请先安装 Git', en: 'git not found — please install Git' },
@@ -546,6 +615,7 @@ export const githubModule = {
   capabilities,
   prompts,
   checks,
+  fixes,
 }
 
 export default createGithubBackend

@@ -96,6 +96,42 @@ export function createMarkdownBackend(ctx){
     parse:parseMd,
   }
 }
+/** 修复契约注入文案（Markdown 后端本地语义，双语单源；供 fixes 引用，host 组装时解析）。 */
+export const prompts = {
+  mdParseFix: {
+    zh: '本地 Markdown 图谱解析失败（parseOk 未通过）。请按序检查：\n1. .scratch/map.md 是否存在且为合法 markdown（UTF-8、无 BOM、字段名未被改坏）；\n2. 图谱文件格式是否被破坏（YAML 头/字段名/分隔符；对照 parse.js 期望的字段集）；\n3. 修复后请用户点「重查」。若文件损坏，与用户确认后先备份再重建。',
+    en: 'Local Markdown graph parse failed (parseOk not passed). Check in order:\n1. .scratch/map.md exists and is valid markdown (UTF-8, no BOM, field names intact);\n2. File format not corrupted (YAML header / field names / separators; compare with the fields expected by parse.js);\n3. After fixing, ask the user to re-check. If corrupted, back it up before rebuilding with user confirmation.',
+  },
+  mdWritableFix: {
+    zh: '.scratch 目录不可写。请检查：① 目录是否存在；② 文件系统权限（Windows ACL / POSIX chmod）；③ 挂载点是否只读。修复后请用户点「重查」。',
+    en: '.scratch is not writable. Check: ① the directory exists; ② filesystem permissions (Windows ACL / POSIX chmod); ③ read-only mount. After fixing, ask the user to re-check.',
+  },
+}
+
+/** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。 */
+export const fixes = Object.freeze({
+  'md:scratchWritable': {
+    hint: {
+      zh: '.scratch 目录不可写。点「修复指引」检查目录权限，完成后重查。',
+      en: '.scratch is not writable. Use the fix guide to check directory permissions, then re-check.',
+    },
+    actions: [
+      { type: 'inject-prompt', prompt: 'mdWritableFix', label: { zh: '修复指引', en: 'Fix guide' } },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+  'md:parseOk': {
+    hint: {
+      zh: '本地图谱解析失败（.scratch/map.md 或图谱文件格式异常）。点「修复指引」让 AI 检查文件格式，完成后重查。',
+      en: 'Local graph parse failed (.scratch/map.md or file format). Use the fix guide, then re-check.',
+    },
+    actions: [
+      { type: 'inject-prompt', prompt: 'mdParseFix', label: { zh: '修复指引', en: 'Fix guide' } },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+})
+
 export const markdownModule = {
   id: 'markdown',
   label: 'Markdown',
@@ -122,5 +158,7 @@ export const markdownModule = {
   // #231：本地 Markdown 无远程链接 —— 空 links 为诚实形状；开仓动作为打开本地文件夹（契约动作声明，UI 通用执行）
   links: {},
   openRepository: 'folder',
+  prompts,
+  fixes,
 }
 export default createMarkdownBackend

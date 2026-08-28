@@ -51,6 +51,35 @@ export const ChecksTab = ({ st }) => {
     if (sts === 'fail') return { dot: '#ef4444', color: '#f87171', label: '\u2715' }
     return { dot: '#6b7280', color: '#a1a1aa', label: '\u2026' }
   }
+  // 修复契约（2026-08-28）：hint = 修复指引文案（host 由后端 fixes 解析；'prompt:' 前缀经 resolvePrompt 解出，UI 零派生）；
+  //   动作按钮 = 检查失败时的可执行修复入口（inject-prompt / open-url / rpc / form / refresh），执行后走既有重求值闭环。
+  const miniActionLabel = function (a) {
+    const t = a && a.type
+    if (t === 'inject-prompt') return (a && a.label) || '注入修复指引'
+    if (t === 'open-url') return '打开链接'
+    if (t === 'rpc') return (a && (a.method || a.endpoint)) || '执行'
+    if (t === 'form') return (a && a.label) || '填写表单'
+    if (t === 'refresh') return '重查'
+    return 'unsupported: ' + String(t || 'unknown')
+  }
+  const runAction = async function (a) {
+    if (!chainDispatcher) return
+    try {
+      const res = await chainDispatcher.dispatch(a)
+      if (!res || !res.ok) { try { flash(st, String((res && res.error && res.error.message) || '动作失败'), 'warn') } catch (e) {} }
+    } catch (e) { try { flash(st, String((e && e.message) || e).slice(0, 200), 'warn') } catch (e2) {} }
+  }
+  const hintTextOf = function (s) {
+    const raw = (s && s.show && (s.show.hint || '')) || ''
+    if (!raw) return ''
+    if (typeof raw === 'string' && raw.indexOf('prompt:') === 0) {
+      const pk = raw.slice(7)
+      if (chainDispatcher && typeof chainDispatcher.resolvePrompt === 'function') {
+        try { const r = chainDispatcher.resolvePrompt(pk, {}); if (typeof r === 'string' && r) return r } catch (e) {}
+      }
+    }
+    return typeof raw === 'string' ? raw : ''
+  }
   const stepRows = steps.length ? steps.map(function (s, i) {
     const meta = statusMeta(s)
     const label = (s.show && (s.show.fallback || s.show.title || s.show.i18nKey)) || s.id
@@ -64,11 +93,21 @@ export const ChecksTab = ({ st }) => {
       blockedNote = tr('env.waitingBlocked', { by: String(blockerName) })
     }
     const finalDesc = blockedNote ? (desc ? desc + ' \u00b7 ' + blockedNote : blockedNote) : desc
+    const hintText = hintTextOf(s)
+    // 明细只渲染非表单动作：form（如「创建并发布」）由上方 banner 的 ChainRenderer 内嵌表单呈现（本页 dispatcher 无 renderForm 容器）
+    const fixActions = (s.status === 'fail' || s.status === 'current') ? (Array.isArray(s.actions) ? s.actions.filter(function (a) { return a && a.type !== 'form' }) : []) : []
+    const actButtons = (chainDispatcher && fixActions.length) ? h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 } }, fixActions.map(function (a, ai) {
+      const alabel = miniActionLabel(a)
+      const unsupported = String(alabel).indexOf('unsupported:') === 0
+      return h('button', { key: 'fix-' + ai, className: 'dsws-btn' + (unsupported ? ' ghost' : ''), tabIndex: 0, disabled: unsupported, onClick: function () { runAction(a) }, style: { fontSize: 11, padding: '2px 8px', flex: 'none' } }, alabel)
+    })) : null
     return h('div', { key: s.id || i, className: 'dsws-ccard', style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } }, [
       h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: meta.dot, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' } }, meta.label),
       h('span', { style: { flex: 1, minWidth: 0 } }, [
         h('span', { className: 'nm', style: { color: meta.color } }, String(label)),
         finalDesc ? h('div', { className: 'dt dsws-ellip', title: finalDesc, style: { color: '#8b8b95' } }, finalDesc) : null,
+        hintText ? h('div', { className: 'dt', style: { color: '#d97706', lineHeight: 1.5, marginTop: 2, whiteSpace: 'pre-wrap' } }, hintText) : null,
+        actButtons,
       ]),
     ])
   }) : null

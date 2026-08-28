@@ -43,11 +43,12 @@
       const h = cx ? cx.h : React.createElement
       const t = action && action.type
       // 已知类型的按钮文案（i18n 单源，失败也透传 fallback）
+      // 按钮文案：label 优先（host 组装时由后端 fixes 解析成双语短词）；无 label 用 UI 通用词（动作类型是契约词汇表，UI 按类型给通用文案合法）
       const labelMap = {
-        'inject-prompt': (action.prompt || action.promptId || '注入') ,
+        'inject-prompt': (action.label) || '注入修复指引',
         'open-url': '打开链接',
         'rpc': (action.method || action.endpoint || '执行'),
-        'form': '填写表单',
+        'form': (action.label) || '填写表单',
         'refresh': '重查',
       }
       const label = labelMap[t] || ('unsupported: ' + String(t||'unknown'))

@@ -1608,8 +1608,17 @@ export default {
           if (backendId) {
             const catMod2 = await import('../shared/tracker/check-catalog.js')
             const chainMod = await import('../shared/tracker/chain.js')
-            const items = (catMod2.catalogFor ? catMod2.catalogFor(backendId) : []).filter(function(c){ return c.scope==='backend' && c.id !== 'gh:labels' }).map(function(ci){ return catMod2.catalogItemToCheckItem ? catMod2.catalogItemToCheckItem(ci) : null }).filter(Boolean)
+            let items = (catMod2.catalogFor ? catMod2.catalogFor(backendId) : []).filter(function(c){ return c.scope==='backend' && c.id !== 'gh:labels' }).map(function(ci){ return catMod2.catalogItemToCheckItem ? catMod2.catalogItemToCheckItem(ci) : null }).filter(Boolean)
+            // 修复契约（2026-08-28）：后端声明 fixes（hint + 修复动作）→ 按语言解析附到检查项 onFail——
+            //   检查失败即有修复入口（注入指引/重查），UI 零派生只渲染分发；后端未声明 fixes 则保持默认（重查）。
             if (items.length) {
+              try {
+                const fixMod = await import('./tracker/fixContract.js')
+                const regT = await getTrackerRegistry()
+                const tmods = (regT && typeof regT.modules === 'function') ? regT.modules() : []
+                const tmod = (tmods || []).find(function (m) { return m && String(m.id) === String(backendId) && m.fixes }) || null
+                if (tmod && fixMod.attachFixContract) items = fixMod.attachFixContract(items, tmod, chainLang, { cwd: cwd })
+              } catch (e) {}
               const resolved = await registry.resolveAll(items, ctx)
               const predResults = predMod.toPredicateResults ? predMod.toPredicateResults(resolved) : resolved
               const snapshot = stepEvalParallel(items, predResults)
@@ -1780,6 +1789,40 @@ export default {
       return raw
     }
     
+    // ============ 发布链路恢复（T1 #34 红卡「创建并发布」→ wf.initPublish；2026-08-28 修复契约 form 动作回归宿主）============
+    // 工作区不是 GitHub 仓库时的修复：git init → commit → gh repo create --source=. --push（github module initProject，与旧 wf.initPublish 等价）。
+    // 返回形状对齐动作分发器（ChainForm/ChainRenderer 读 res.ok + res.error{kind,message}）；errorKind 顶层冗余供诊断。
+    harness.handle('wf.initPublish', async function (args) {
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const name = args && args.name ? String(args.name).trim() : ''
+      const visibility = (args && args.visibility === 'public') ? 'public' : 'private'
+      try {
+        const platform = await getPlatform()
+        const reg = await getTrackerRegistry()
+        if (!reg) return { ok: false, error: { kind: 'unknown', message: 'registry unavailable' }, errorKind: 'unknown' }
+        const tracker = (typeof reg.get === 'function') ? reg.get('github') : null
+        if (!tracker || typeof tracker.initProject !== 'function') {
+          return { ok: false, error: { kind: 'unsupported', message: 'github initProject unsupported' }, errorKind: 'unsupported' }
+        }
+        const res = await tracker.initProject({ cwd: cwd }, { name: name, visibility: visibility }, { platform: platform, cwd: cwd })
+        if (res && res.ok) {
+          // 发布成功：失效本 cwd 的仓库键/gh 解析/快照/检测缓存，下一轮重新识别（真实仓库 → github 身份齐备）
+          try { if (repoKeys) { delete repoKeys[cwd] } } catch {}
+          try { resetGhCache() } catch {}
+          try { cache = { ts: 0, snapshot: null, error: null, cwd: null } } catch {}
+          try { const ws = await getWorkspaceStore(); ws.invalidate({ cwd: cwd }) } catch {}
+          return { ok: true, repo: res.data || null, cwd: cwd }
+        }
+        const err = (res && res.error) || { kind: 'unknown', message: '发布失败' }
+        const msg = String(err.message || '发布失败').slice(0, 400)
+        const out = { ok: false, error: { kind: err.kind || 'unknown', message: msg }, errorKind: err.kind || 'unknown' }
+        if (err.repoUrl) out.repoUrl = err.repoUrl
+        return out
+      } catch (e) {
+        const m = String((e && e.message) || e).slice(0, 400)
+        return { ok: false, error: { kind: 'unknown', message: m }, errorKind: 'unknown' }
+      }
+    })
     harness.handle('wf.bind', async function (args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
       const backendId = args && ('backendId' in args ? args.backendId : args.backend)
