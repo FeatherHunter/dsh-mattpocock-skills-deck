@@ -41,7 +41,7 @@ export const ChecksTab = ({ st }) => {
     return null
   })()
   const chainBannerBlock = (chainSnapshot && chainDispatcher) ? (function () {
-    try { return h(ChainRenderer, { snapshot: chainSnapshot, dispatcher: chainDispatcher, st: st }) } catch (e) { return null }
+    try { return h(ChainRenderer, { snapshot: chainSnapshot, dispatcher: chainDispatcher, st: st, showSteps: false }) } catch (e) { return null }
   })() : null
   // 垂直步骤明细：每步 = 状态圆点 + 名称 + 描述（动作按钮由 banner 的 ChainRenderer 承担，明细不再重复）
   const statusMeta = function (s) {

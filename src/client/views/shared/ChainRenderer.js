@@ -206,7 +206,7 @@
     }
 
     // 完整链渲染器：Banner + Steps + 表单槽（供 ChecksTab/Dock 复用；五座位正式抽象前按现有位置渲染 #228 边界）
-    export const ChainRenderer = function({ snapshot, dispatcher, st }) {
+    export const ChainRenderer = function({ snapshot, dispatcher, st, showSteps = true }) {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
       if (!snapshot) return null
@@ -216,7 +216,8 @@
       const curStep = (curIdx!=null && snapshot.steps[curIdx]) ? snapshot.steps[curIdx] : null
       const formAction = curStep && Array.isArray(curStep.actions) ? curStep.actions.find(function(a){ return a && a.type==='form' }) : null
       return h('div', { className:'dsws-chain-renderer', style:{ display:'flex', flexDirection:'column' } }, [
-        h(ChainSteps, { snapshot:snapshot }),
+        // #296 实机反馈：水平步进条与下方垂直明细信息重复，检查页隐藏（组件保留，其他宿主按需开启）
+        showSteps ? h(ChainSteps, { snapshot:snapshot }) : null,
         h(ChainBanner, { snapshot:snapshot, dispatcher:dispatcher, st:st }),
         formAction ? h(ChainForm, { key:'chain-form', action:formAction, dispatcher:dispatcher, st:st }) : null,
         // chainState 调试用（仅开发时可见，生产可隐藏；暂展示 small）
