@@ -1,11 +1,11 @@
 /**
- * client/kernel/slotRenderer.js — 槽位渲染器（ADR #221 §5.4 + 本票 #308 modal-seat 落地）。
+ * client/kernel/slotRenderer.js — 槽位渲染器（ADR #221 §5.4 + 本票 #308 modal-seat 落地 + 2026-08-28 wizard 扩展）。
  *
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的拼接标记处。
  * 零 import 语法（防 D7 vm.Script 阻塞）。
  *
- * 职责：把 ChainSnapshot 的 form 动作渲染到 modal-seat（主区居中遮罩弹窗，复用 .dsws-modal/.dsws-modalbox + Overlay 门控 Modal 先例）。
+ * 职责：把 ChainSnapshot 的 form/wizard 动作渲染到 modal-seat（主区居中遮罩弹窗，复用 .dsws-modal/.dsws-modalbox + Overlay 门控 Modal 先例）。
  * 形态：Service 包一层——不直接注册官方 slots 的 children，本文件只提供纯渲染逻辑与开关，
  *       由调用方（ChecksTab 的 dispatcher renderForm）在需要的时机打开 modal，走重求值闭环。
  *
@@ -15,14 +15,15 @@
 
     export const SLOT_RENDERER_VERSION = 1
 
-    // 动作类型内联（与 chain.js / actions.js 同值，零 import）
-    const SR_ACTION_TYPE = Object.freeze({ FORM: 'form', INJECT_PROMPT: 'inject-prompt', RPC: 'rpc', REFRESH: 'refresh', OPEN_URL: 'open-url' })
+    // 动作类型内联（与 chain.js / actions.js 同值，零 import；2026-08-28 新增 wizard）
+    const SR_ACTION_TYPE = Object.freeze({ FORM: 'form', INJECT_PROMPT: 'inject-prompt', RPC: 'rpc', REFRESH: 'refresh', OPEN_URL: 'open-url', WIZARD: 'wizard' })
 
     // 确保 st 上有 formModal 槽位状态（per-store，非全局；与 gateModalOpen 同模式）
     // 新增：st._formModalQueue 用于顺序队列（A 方案），保证单例一次一个但可排队
+    // 扩展：支持 wizard（isWizard + steps + stepIndex + valuesByStep）
     export function ensureFormModal(st) {
       if (!st) return null
-      if (!st.formModal) st.formModal = { open: false, schema: [], submitAction: null, onSubmit: null, label: '', stepId: '', pending: false }
+      if (!st.formModal) st.formModal = { open: false, schema: [], submitAction: null, onSubmit: null, label: '', stepId: '', pending: false, isWizard: false, steps: null, stepIndex: 0, valuesByStep: null }
       if (!st._formModalQueue) st._formModalQueue = []
       return st.formModal
     }
@@ -31,29 +32,69 @@
       return st && Array.isArray(st._formModalQueue) ? st._formModalQueue.length : 0
     }
 
+    function _normSteps(raw) {
+      if (!Array.isArray(raw) || !raw.length) return []
+      const out = []
+      for (let i = 0; i < raw.length; i++) {
+        const s = raw[i] || {}
+        const schema = Array.isArray(s.schema) ? s.schema : (Array.isArray(s.fields) ? s.fields : [])
+        const title = typeof s.title === 'string' ? s.title : (typeof s.label === 'string' ? s.label : '')
+        out.push({ title: title, schema: schema })
+      }
+      return out
+    }
+
     export function openFormModal(st, formAction, onSubmit) {
       if (!st) return
       const m = ensureFormModal(st)
       const action = formAction || {}
-      // 若当前已有弹窗在展示或提交中，则排队（顺序队列 A）
+      const isWizard = action.type === 'wizard'
+      // 若当前已有弹窗在展示或提交中，则排队（顺序队列 A，wizard 占 1 位）
       if (m.open) {
         if (!st._formModalQueue) st._formModalQueue = []
         st._formModalQueue.push({ formAction: action, onSubmit: typeof onSubmit === 'function' ? onSubmit : null })
         try { if (typeof flash === 'function') flash(st, '已加入队列（' + String(_queueLen(st)) + ' 个待处理）', 'info') } catch(_){}
         return
       }
-      m.open = true
-      m.schema = Array.isArray(action.schema) ? action.schema : (Array.isArray(action.fields) ? action.fields : [])
-      // submitAction 取 submitAction || submit || form.submit 兼容
-      m.submitAction = action.submitAction || action.submit || (action.form && action.form.submit) || null
-      m.onSubmit = typeof onSubmit === 'function' ? onSubmit : null
-      // label 可能是字符串或 {zh,en} 对象，需兼容（fixContract 已按 lang 解析为字符串，但兜底处理对象）
-      let lbl = action.label
-      if (lbl && typeof lbl === 'object' && !Array.isArray(lbl)) {
-        lbl = lbl.zh || lbl.en || lbl.fallback || String(lbl)
+      if (isWizard) {
+        const steps = _normSteps(action.steps)
+        if (!steps.length) return
+        m.isWizard = true
+        m.steps = steps
+        m.stepIndex = 0
+        m.valuesByStep = []
+        for (let i = 0; i < steps.length; i++) {
+          const init = {}
+          const sch = steps[i].schema
+          for (let j = 0; j < sch.length; j++) { const f = sch[j]; if (f && f.defaultValue != null) init[f.name] = String(f.defaultValue) }
+          m.valuesByStep.push(init)
+        }
+        m.schema = []
+        m.submitAction = action.submitAction || action.submit || (action.form && action.form.submit) || null
+        let lbl = action.label
+        if (lbl && typeof lbl === 'object' && !Array.isArray(lbl)) lbl = lbl.zh || lbl.en || lbl.fallback || String(lbl)
+        m.label = lbl && typeof lbl === 'string' ? lbl : (action.label ? String(action.label) : '向导')
+        m.stepId = action._stepId || ''
+        m.pending = false
+      } else {
+        m.isWizard = false
+        m.steps = null
+        m.stepIndex = 0
+        m.valuesByStep = null
+        m.open = true
+        m.schema = Array.isArray(action.schema) ? action.schema : (Array.isArray(action.fields) ? action.fields : [])
+        m.submitAction = action.submitAction || action.submit || (action.form && action.form.submit) || null
+        m.onSubmit = typeof onSubmit === 'function' ? onSubmit : null
+        let lbl = action.label
+        if (lbl && typeof lbl === 'object' && !Array.isArray(lbl)) lbl = lbl.zh || lbl.en || lbl.fallback || String(lbl)
+        m.label = lbl && typeof lbl === 'string' ? lbl : (action.label ? String(action.label) : (action.type === 'form' ? '填写表单' : ''))
+        m.stepId = action._stepId || ''
+        m.pending = false
+        try { if (typeof emit === 'function') emit(st) } catch (e) { try { st.tick = (st.tick||0)+1 } catch(_) {} }
+        return
       }
-      m.label = lbl && typeof lbl === 'string' ? lbl : (action.label ? String(action.label) : (action.type === 'form' ? '填写表单' : ''))
-      m.stepId = action._stepId || ''
+      m.open = true
+      m.onSubmit = typeof onSubmit === 'function' ? onSubmit : null
       m.pending = false
       try { if (typeof emit === 'function') emit(st) } catch (e) { try { st.tick = (st.tick||0)+1 } catch(_) {} }
     }
@@ -63,11 +104,11 @@
       const hadQueue = st._formModalQueue && st._formModalQueue.length > 0
       st.formModal.open = false
       st.formModal.pending = false
+      // wizard 状态保留至下一次 open 时重置，关闭时不清 isWizard 以便队列消费时重建
       try { if (typeof emit === 'function') emit(st) } catch (e) { try { st.tick = (st.tick||0)+1 } catch(_) {} }
-      // 顺序队列：关闭后若有排队，下一帧自动弹出下一个（保持单例一次一个但不丢请求）
+      // 顺序队列：关闭后若有排队，下一帧自动弹出下一个（保持单例一次一个但不丢请求，wizard 占 1 位）
       if (hadQueue) {
         const next = st._formModalQueue.shift()
-        // 下一帧再开，避免与当前 close 的渲染冲突
         try {
           if (typeof timer !== 'undefined' && timer && typeof timer.setTimeout === 'function') {
             timer.setTimeout(function(){ try { openFormModal(st, next.formAction, next.onSubmit) } catch(_){} }, 80)
@@ -82,26 +123,39 @@
 
     // 对外便捷：给 dispatcher 用的一级 renderForm 实现（直接打开 modal-seat）
     // 按你的要求：以后只用 openFormModal，本函数保留为 createModalRenderForm 的别名，避免旧调用回退到 no-op
+    // 支持 form 与 wizard：若 schema 含 steps 则按 wizard 处理
     export function createModalRenderForm(st) {
       return function (schema, onSubmit) {
-        // actions.js 调用的 schema 为数组，onSubmit(values) 负责合并到 submitAction 并 dispatch
-        // 统一走 openFormModal，保证排队语义一致
+        // 兼容：若 schema 是 wizard 形状（{steps}），则按 wizard；否则按 form
+        if (schema && typeof schema === 'object' && !Array.isArray(schema) && Array.isArray(schema.steps)) {
+          openFormModal(st, { type: 'wizard', steps: schema.steps, label: schema.label || '向导', submitAction: schema.submitAction }, onSubmit)
+          return
+        }
         const fakeAction = { type: SR_ACTION_TYPE.FORM, schema: schema, submitAction: null, label: '填写表单' }
         openFormModal(st, fakeAction, onSubmit)
       }
     }
 
-    // 纯函数：校验 modal 是否应只在 fail+form 时打开（诚实守门，供测试/门禁调用）
+    // 纯函数：校验 modal 是否应只在 fail+(form|wizard) 时打开（诚实守门，供测试/门禁调用）
     export function canOpenModalForStep(step) {
       if (!step || typeof step !== 'object') return false
       if (step.status !== 'fail') return false
       const acts = step.actions
       if (!Array.isArray(acts)) return false
-      for (let i = 0; i < acts.length; i++) { const a = acts[i]; if (a && a.type === SR_ACTION_TYPE.FORM) return true }
+      for (let i = 0; i < acts.length; i++) { const a = acts[i]; if (a && (a.type === SR_ACTION_TYPE.FORM || a.type === SR_ACTION_TYPE.WIZARD)) return true }
       return false
     }
 
-    // 弹窗组件：读取 st.formModal，渲染遮罩 + 居中盒 + 表单
+    export function canOpenWizardForStep(step) {
+      if (!step || typeof step !== 'object') return false
+      if (step.status !== 'fail') return false
+      const acts = step.actions
+      if (!Array.isArray(acts)) return false
+      for (let i = 0; i < acts.length; i++) { const a = acts[i]; if (a && a.type === SR_ACTION_TYPE.WIZARD) return true }
+      return false
+    }
+
+    // 弹窗组件：读取 st.formModal，渲染遮罩 + 居中盒 + 表单/向导
     export const FormModalSeat = function (props) {
       const st = props && props.st ? props.st : null
       const cx = (typeof DswsCtx !== 'undefined' && DswsCtx) ? React.useContext(DswsCtx) : null
@@ -109,54 +163,40 @@
       if (!st) return null
       const m = st.formModal
       if (!m || !m.open) return null
-      const schema = Array.isArray(m.schema) ? m.schema : []
-      // 受控表单值（useState 必须在组件顶层无条件调用；空 schema 时兜底空对象）
+      const isWizard = !!m.isWizard && Array.isArray(m.steps) && m.steps.length > 0
+      const wizardSteps = isWizard ? m.steps : null
+      const stepIndex = isWizard ? (typeof m.stepIndex === 'number' ? m.stepIndex : 0) : 0
+      const curSchema = isWizard ? (wizardSteps[stepIndex] ? wizardSteps[stepIndex].schema : []) : (Array.isArray(m.schema) ? m.schema : [])
+      const totalSteps = isWizard ? wizardSteps.length : 1
+      // 受控表单值：wizard 按步隔离，form 单值
       const [vals, setVals] = React.useState(function () {
-        const init = {}
-        for (let i = 0; i < schema.length; i++) { const f = schema[i]; if (f && f.defaultValue != null) init[f.name] = String(f.defaultValue) }
-        return init
+        if (isWizard) {
+          const cur = m.valuesByStep && m.valuesByStep[stepIndex] ? m.valuesByStep[stepIndex] : {}
+          const init = Object.assign({}, cur)
+          // 补 defaultValue
+          for (let i = 0; i < curSchema.length; i++) { const f = curSchema[i]; if (f && f.defaultValue != null && init[f.name] === undefined) init[f.name] = String(f.defaultValue) }
+          return init
+        } else {
+          const init = {}
+          for (let i = 0; i < curSchema.length; i++) { const f = curSchema[i]; if (f && f.defaultValue != null) init[f.name] = String(f.defaultValue) }
+          return init
+        }
       })
-      // 同步：schema 变化时重置（仅 open 期间首次）
+      // 同步：schema/步骤变化时重置（wizard 切步时从 valuesByStep 恢复）
       React.useEffect(function () {
-        const init = {}
-        for (let i = 0; i < schema.length; i++) { const f = schema[i]; if (f && f.defaultValue != null) init[f.name] = String(f.defaultValue) }
-        setVals(init)
-      }, [m.schema && m.schema.length, m.open])
+        if (isWizard) {
+          const cur = m.valuesByStep && m.valuesByStep[stepIndex] ? m.valuesByStep[stepIndex] : {}
+          const init = Object.assign({}, cur)
+          for (let i = 0; i < curSchema.length; i++) { const f = curSchema[i]; if (f && f.defaultValue != null && init[f.name] === undefined) init[f.name] = String(f.defaultValue) }
+          setVals(init)
+        } else {
+          const init = {}
+          for (let i = 0; i < curSchema.length; i++) { const f = curSchema[i]; if (f && f.defaultValue != null) init[f.name] = String(f.defaultValue) }
+          setVals(init)
+        }
+      }, [isWizard, stepIndex, m.steps ? m.steps.length : 0, m.schema ? m.schema.length : 0, m.open])
       const onClose = function () { try { closeFormModal(st) } catch (e) {} }
       const onOverlayClick = function (e) { if (e && e.target === e.currentTarget) onClose() }
-      const onSubmit = async function () {
-        // 校验 required + pattern（与 ChainForm 同口径）
-        for (let i = 0; i < schema.length; i++) {
-          const f = schema[i]
-          if (f && f.required) { const v = String(vals[f.name] || '').trim(); if (!v) { try { if (typeof flash === 'function') flash(st, String(f.label || f.name) + ' 必填', 'warn') } catch(_){} return } }
-          if (f && f.pattern) { try { const re = new RegExp(f.pattern); if (!re.test(String(vals[f.name] || ''))) { try { if (typeof flash === 'function') flash(st, String(f.label || f.name) + ' 格式不正确', 'warn') } catch(_){} return } } catch(_){} }
-        }
-        if (!m.onSubmit) { try { if (typeof flash === 'function') flash(st, '表单缺少提交句柄', 'warn') } catch(_){} return }
-        const cb = m.onSubmit
-        m.pending = true
-        try { if (typeof emit === 'function') emit(st) } catch(_){}
-        try {
-          await cb(vals)
-          // 提交成功：关弹窗并走宿主重求值（cb 内部已调 dispatch(merged)，其内会触发 refresh 或由调用方处理）
-          // 关闭时会自动消费队列中的下一个（若有）
-          m.pending = false
-          try { closeFormModal(st) } catch(_){ m.open = false; try { if (typeof emit === 'function') emit(st) } catch(__){} }
-          try { if (typeof flash === 'function') flash(st, '已提交，链条重查中…', 'ok') } catch(_){}
-          // 主动触发一次重求值兜底（若 cb 的 dispatcher 未自带 refresh）
-          try {
-            if (typeof host !== 'undefined' && host.call) {
-              await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (st.selection && st.selection.backendId) || undefined })
-              try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch(_){}
-              try { if (typeof loadChain === 'function') loadChain(st, true) } catch(_){}
-            }
-          } catch(_){}
-        } catch (e) {
-          m.pending = false
-          try { if (typeof emit === 'function') emit(st) } catch(_){}
-          try { if (typeof flash === 'function') flash(st, String((e && e.message) || e).slice(0, 200), 'warn') } catch(_){}
-        }
-      }
-      // 目录/文件选择：调用宿主原生选择器（wf.pickDirectory / wf.pickFile），失败回落为手输
       const onPick = function (f) {
         return async function () {
           if (m.pending) return
@@ -174,9 +214,9 @@
             try { if (typeof emit === 'function') emit(st) } catch(_){}
             if (res && res.ok && typeof res.path === 'string' && res.path) {
               const nxt = Object.assign({}, vals); nxt[f.name] = res.path; setVals(nxt)
+              if (isWizard && m.valuesByStep && m.valuesByStep[stepIndex]) { m.valuesByStep[stepIndex] = Object.assign({}, nxt) }
               try { if (typeof flash === 'function') flash(st, '已选择：' + res.path, 'ok') } catch(_){}
             } else if (res && res.ok === false && res.error && String(res.error).toLowerCase().indexOf('cancel') < 0) {
-              // 取消不提示，其他错误提示
               try { if (typeof flash === 'function') flash(st, String(res.error).slice(0,200), 'warn') } catch(_){}
             }
           } catch (e) {
@@ -186,8 +226,112 @@
           }
         }
       }
-      const fields = schema.map(function (f, idx) {
-        const id = 'modal-form-' + String(f.name || idx)
+      // 校验当前步（Q3 按步校验）
+      const validateCurrent = function () {
+        for (let i = 0; i < curSchema.length; i++) {
+          const f = curSchema[i]
+          if (f && f.required) { const v = String(vals[f.name] || '').trim(); if (!v) { try { if (typeof flash === 'function') flash(st, String(f.label || f.name) + ' 必填', 'warn') } catch(_){} return false } }
+          if (f && f.pattern) { try { const re = new RegExp(f.pattern); if (!re.test(String(vals[f.name] || ''))) { try { if (typeof flash === 'function') flash(st, String(f.label || f.name) + ' 格式不正确', 'warn') } catch(_){} return false } } catch(_){} }
+        }
+        return true
+      }
+      const onPrev = function () {
+        if (!isWizard || stepIndex <= 0) return
+        // 保存当前步值
+        if (m.valuesByStep) m.valuesByStep[stepIndex] = Object.assign({}, vals)
+        m.stepIndex = stepIndex - 1
+        try { if (typeof emit === 'function') emit(st) } catch(_){}
+      }
+      const onNext = function () {
+        if (!isWizard) return
+        if (!validateCurrent()) return
+        if (m.valuesByStep) m.valuesByStep[stepIndex] = Object.assign({}, vals)
+        if (stepIndex < totalSteps - 1) {
+          m.stepIndex = stepIndex + 1
+          try { if (typeof emit === 'function') emit(st) } catch(_){}
+        }
+      }
+      const onWizardSubmit = async function () {
+        if (isWizard && !validateCurrent()) return
+        if (isWizard && m.valuesByStep) m.valuesByStep[stepIndex] = Object.assign({}, vals)
+        // 合并全步值（Q3 最后一起提交）
+        let merged = {}
+        if (isWizard) {
+          for (let i = 0; i < m.valuesByStep.length; i++) {
+            const part = m.valuesByStep[i] || {}
+            for (const k in part) if (Object.prototype.hasOwnProperty.call(part, k)) merged[k] = part[k]
+          }
+        } else {
+          merged = Object.assign({}, vals)
+        }
+        // 校验全量 required/pattern（兜底）
+        const allSchemas = isWizard ? (function(){ const a=[]; for(let i=0;i<wizardSteps.length;i++) a.push(...wizardSteps[i].schema); return a })() : curSchema
+        for (let i = 0; i < allSchemas.length; i++) {
+          const f = allSchemas[i]
+          if (f && f.required) { const v = String(merged[f.name] || '').trim(); if (!v) { try { if (typeof flash === 'function') flash(st, String(f.label || f.name) + ' 必填', 'warn') } catch(_){}
+            // Q8 自动回跳到含该字段的步骤
+            if (isWizard) {
+              for (let si=0; si<wizardSteps.length; si++) { const sch=wizardSteps[si].schema; for(let fi=0;fi<sch.length;fi++) if(sch[fi].name===f.name){ m.stepIndex=si; try{ if(typeof emit==='function') emit(st)}catch(_){}; return } }
+            } else return
+          }}
+        }
+        if (!m.onSubmit) { try { if (typeof flash === 'function') flash(st, '表单缺少提交句柄', 'warn') } catch(_){} return }
+        const cb = m.onSubmit
+        m.pending = true
+        try { if (typeof emit === 'function') emit(st) } catch(_){}
+        try {
+          await cb(merged)
+          m.pending = false
+          try { closeFormModal(st) } catch(_){ m.open = false; try { if (typeof emit === 'function') emit(st) } catch(__){} }
+          try { if (typeof flash === 'function') flash(st, '已提交，链条重查中…', 'ok') } catch(_){}
+          try {
+            if (typeof host !== 'undefined' && host.call) {
+              await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (st.selection && st.selection.backendId) || undefined })
+              try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch(_){}
+              try { if (typeof loadChain === 'function') loadChain(st, true) } catch(_){}
+            }
+          } catch(_){}
+        } catch (e) {
+          m.pending = false
+          try { if (typeof emit === 'function') emit(st) } catch(_){}
+          const msg = String((e && e.message) || e)
+          const low = msg.toLowerCase()
+          // Q8 失败不关，自动回跳到错误相关步（already-exists/bad-name → 含 name 的步）
+          if (isWizard && (low.indexOf('already exists')>=0 || low.indexOf('bad-name')>=0 || low.indexOf('already')>=0 || low.indexOf('name')>=0)) {
+            for (let si=0; si<wizardSteps.length; si++) {
+              const sch=wizardSteps[si].schema
+              for(let fi=0;fi<sch.length;fi++) if(sch[fi].name==='name'){ m.stepIndex=si; try{ if(typeof emit==='function') emit(st)}catch(_){}; break }
+            }
+          }
+          try { if (typeof flash === 'function') flash(st, msg.slice(0, 200), 'warn') } catch(_){}
+        }
+      }
+      const onSubmit = isWizard ? onWizardSubmit : async function () {
+        if (!validateCurrent()) return
+        if (!m.onSubmit) { try { if (typeof flash === 'function') flash(st, '表单缺少提交句柄', 'warn') } catch(_){} return }
+        const cb = m.onSubmit
+        m.pending = true
+        try { if (typeof emit === 'function') emit(st) } catch(_){}
+        try {
+          await cb(vals)
+          m.pending = false
+          try { closeFormModal(st) } catch(_){ m.open = false; try { if (typeof emit === 'function') emit(st) } catch(__){} }
+          try { if (typeof flash === 'function') flash(st, '已提交，链条重查中…', 'ok') } catch(_){}
+          try {
+            if (typeof host !== 'undefined' && host.call) {
+              await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (st.selection && st.selection.backendId) || undefined })
+              try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch(_){}
+              try { if (typeof loadChain === 'function') loadChain(st, true) } catch(_){}
+            }
+          } catch(_){}
+        } catch (e) {
+          m.pending = false
+          try { if (typeof emit === 'function') emit(st) } catch(_){}
+          try { if (typeof flash === 'function') flash(st, String((e && e.message) || e).slice(0, 200), 'warn') } catch(_){}
+        }
+      }
+      const fields = curSchema.map(function (f, idx) {
+        const id = 'modal-form-' + String(f.name || idx) + (isWizard ? '-s' + stepIndex : '')
         const rawLabel = (f && (f.label || f.labelKey)) || (f && f.name) || String(idx)
         const label = typeof rawLabel === 'object' && rawLabel !== null ? (rawLabel.zh || rawLabel.en || String(rawLabel)) : String(rawLabel)
         const placeholder = (function(){
@@ -225,7 +369,6 @@
       // 焦点聚集：打开时自动聚焦首控件，TAB 在弹窗内循环（不外泄），ESC 关闭
       React.useEffect(function () {
         if (!m.open) return
-        // 自动聚焦首个可聚焦控件
         const t = (typeof timer !== 'undefined' && timer && typeof timer.setTimeout === 'function') ? timer.setTimeout : (typeof setTimeout === 'function' ? setTimeout : null)
         const focusFirst = function(){
           try {
@@ -257,18 +400,42 @@
         }
         try { document.addEventListener('keydown', onKey) } catch(_){}
         return function () { try { document.removeEventListener('keydown', onKey) } catch(_){} }
-      }, [m.open])
-      const box = h('div', { className: 'dsws-modalbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': m.label || '表单', style: { width: 460, maxWidth: '94vw' }, onClick: function (e) { e.stopPropagation() } }, [
+      }, [m.open, stepIndex])
+      // 步进条（Q6 数字圆点 + 标题）
+      const stepper = isWizard ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' } }, wizardSteps.map(function(s, i){
+        const active = i === stepIndex
+        const done = i < stepIndex
+        const bg = done ? '#16a34a' : active ? '#58a6ff' : '#2a2d35'
+        const color = done || active ? '#fff' : '#8b8b95'
+        const title = s.title || ('步骤 ' + String(i+1))
+        return h('div', { key: i, style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
+          h('span', { style: { width: 22, height: 22, borderRadius: '50%', background: bg, color: color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 } }, done ? '✓' : String(i+1)),
+          h('span', { style: { fontSize: 11, color: active ? '#e6edf3' : '#8b8b95', fontWeight: active ? 600 : 400 } }, title),
+          i < wizardSteps.length - 1 ? h('span', { style: { width: 16, height: 1, background: '#2a2d35', flex: 'none' } }) : null
+        ])
+      })) : null
+      const navRow = isWizard ? h('div', { style: { display: 'flex', gap: 6, justifyContent: 'space-between', marginTop: 8, alignItems: 'center' } }, [
+        h('div', { style: { display: 'flex', gap: 6 } }, [
+          h('button', { className: 'dsws-btn', onClick: onClose, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px' } }, '取消'),
+          stepIndex > 0 ? h('button', { className: 'dsws-btn', onClick: onPrev, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px' } }, '上一步') : null
+        ]),
+        h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
+          h('span', { style: { fontSize: 10, color: '#8b8b95' } }, String(stepIndex+1) + ' / ' + String(totalSteps)),
+          stepIndex < totalSteps - 1 ? h('button', { className: 'dsws-btn primary', onClick: onNext, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px', background: '#58a6ff', borderColor: '#58a6ff', color: '#0b1220', fontWeight: 600 } }, '下一步') : h('button', { className: 'dsws-btn primary', onClick: onSubmit, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px', background: m.pending ? '#6b7280' : '#58a6ff', borderColor: m.pending ? '#6b7280' : '#58a6ff', color: '#0b1220', fontWeight: 600, opacity: m.pending ? 0.7 : 1 } }, m.pending ? '提交中…' : '提交')
+        ])
+      ]) : h('div', { style: { display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 } }, [
+        h('button', { className: 'dsws-btn', onClick: onClose, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px' } }, '取消'),
+        h('button', { className: 'dsws-btn primary', onClick: onSubmit, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px', background: m.pending ? '#6b7280' : '#58a6ff', borderColor: m.pending ? '#6b7280' : '#58a6ff', color: '#0b1220', fontWeight: 600, opacity: m.pending ? 0.7 : 1 } }, m.pending ? '提交中…' : '提交'),
+      ])
+      const box = h('div', { className: 'dsws-modalbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': m.label || (isWizard ? '向导' : '表单'), style: { width: 480, maxWidth: '94vw' }, onClick: function (e) { e.stopPropagation() } }, [
         h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } }, [
-          h('div', { style: { fontSize: 13, fontWeight: 600, color: '#e6edf3' } }, m.label || '填写表单'),
+          h('div', { style: { fontSize: 13, fontWeight: 600, color: '#e6edf3' } }, m.label || (isWizard ? '向导' : '填写表单')),
           h('button', { className: 'dsws-btn ghost', 'aria-label': '关闭', onClick: onClose, disabled: !!m.pending, style: { fontSize: 12, padding: '2px 8px' } }, '✕'),
         ]),
-        h('div', { style: { fontSize: 11, color: '#8b8b95', marginBottom: 8, lineHeight: 1.5 } }, '请填写后提交，提交后将自动重查。' + (_queueLen(st) > 0 ? '（队列中还有 ' + String(_queueLen(st)) + ' 个待处理）' : '')),
+        isWizard ? h('div', { style: { fontSize: 11, color: '#8b8b95', marginBottom: 4 } }, (wizardSteps[stepIndex].title || ('步骤 ' + String(stepIndex+1))) + ' — 请填写后继续' + (_queueLen(st) > 0 ? '（队列中还有 ' + String(_queueLen(st)) + ' 个待处理）' : '')) : h('div', { style: { fontSize: 11, color: '#8b8b95', marginBottom: 8, lineHeight: 1.5 } }, '请填写后提交，提交后将自动重查。' + (_queueLen(st) > 0 ? '（队列中还有 ' + String(_queueLen(st)) + ' 个待处理）' : '')),
+        stepper,
         ...fields,
-        h('div', { style: { display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 } }, [
-          h('button', { className: 'dsws-btn', onClick: onClose, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px' } }, '取消'),
-          h('button', { className: 'dsws-btn primary', onClick: onSubmit, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px', background: m.pending ? '#6b7280' : '#58a6ff', borderColor: m.pending ? '#6b7280' : '#58a6ff', color: '#0b1220', fontWeight: 600, opacity: m.pending ? 0.7 : 1 } }, m.pending ? '提交中…' : '提交'),
-        ]),
+        navRow,
       ])
       // portalTop 挂到 body，避免被面板裁剪（与 issue #3 同理）
       const overlayNode = h('div', { className: 'dsws-modal', role: 'presentation', onClick: onOverlayClick, style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 } }, [box])
