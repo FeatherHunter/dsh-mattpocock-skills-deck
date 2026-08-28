@@ -268,6 +268,7 @@ export default {
         // skillProbe 内联（复用 probeSkill 双源逻辑；列表 = shared/matt-skills.js 单源，25 项）
         // #280/#fix-banner：旧版硬编码 10 名，遗漏 grill-with-docs / wizard / grill-me / to-questionnaire / wait-what / writing-for-agents 等导致横幅永远报警
         const skillProbe = async ({ cwd }) => {
+          // probeNames ≈ shared/matt-skills.js:MATT_SKILL_PROBE_NAMES（单源）；改探测集只改 shared 一处即可
           const probeNames = await getMattSkillProbeNames()
           const probes = {}
           let missing = []
