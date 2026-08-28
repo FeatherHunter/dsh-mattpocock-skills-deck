@@ -91,7 +91,8 @@
           component: DeckSidebarTab,
         })
         // LEGACY 别名：兼容已存的 waystation:map 打开记录（不额外 disposer，单注册器以新 id 为主）
-        try { bs.registerTab({ id: 'waystation:map', title: function () { return tr('panel.title') }, icon: function () { return Ic({ n: 'map', size: 14 }) }, order: 60, single: true, component: DeckSidebarTab }) } catch (e) {}
+        // #298 补充：该别名仅为旧会话/旧布局的兼容打开，不应在 better-sidebar 的「+」添加菜单中单独出现；设 hidden:true 隐藏
+        try { bs.registerTab({ id: 'waystation:map', title: function () { return tr('panel.title') }, icon: function () { return Ic({ n: 'map', size: 14 }) }, order: 60, single: true, hidden: true, component: DeckSidebarTab }) } catch (e) {}
         return true
       } catch (e) { return false }
     }
