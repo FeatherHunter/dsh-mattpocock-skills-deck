@@ -2534,6 +2534,33 @@ export default {
         const fi = core.namingFailureInfo(s)
         if (fi) failures.push(fi)
       }
+      // #315 隔离修复：同仓库下若存在带 hint 的草稿单，则抑制同仓库的裸档单（hint == null），避免无线索会话被误改
+      // 保证「只改有线索的目标会话」，裸档会话保持占位直到自身产生线索；同仓库判定以 repoKey 为键
+      try {
+        const byRepoHasHint = {}
+        for (let i = 0; i < orders.length; i++) {
+          const o = orders[i]
+          if (o && o.kind === 'draft' && o.hint) {
+            const so = st.sessions[o.sessionId]
+            const rk = so && so.repoKey
+            if (rk) byRepoHasHint[rk] = true
+          }
+        }
+        if (Object.keys(byRepoHasHint).length) {
+          const kept = []
+          for (let i = 0; i < orders.length; i++) {
+            const o = orders[i]
+            if (o && o.kind === 'draft' && !o.hint) {
+              const so = st.sessions[o.sessionId]
+              const rk = so && so.repoKey
+              if (rk && byRepoHasHint[rk]) continue
+            }
+            kept.push(o)
+          }
+          orders.length = 0
+          for (let i = 0; i < kept.length; i++) orders.push(kept[i])
+        }
+      } catch (eFilter) {}
       return { ok: true, orders: orders, tracked: tracked, failures: failures }
     })
 
