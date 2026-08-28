@@ -159,7 +159,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 想看代码是怎么组织的？这份可交互架构图由 AI 生成，把整体结构、数据流与关键状态都画出来了，支持深色与浅色主题切换，也能导出为图片。
 
-[在线预览（推荐）](https://featherhunter.github.io/dsh-mattpocock-skills-deck/docs/architecture/MattSkills-architecture.html) · 本地克隆后直接打开 [`docs/architecture/MattSkills-architecture.html`](docs/architecture/MattSkills-architecture.html) 也能看，无需起服务。源数据在同目录的 `mattskills.architecture.json`，更多文字说明在同目录的 `*.md` 文件里。
+[在线预览（推荐）](https://featherhunter.github.io/dsh-mattpocock-skills-deck/architecture/MattSkills-architecture.html) · 本地克隆后直接打开 [`docs/architecture/MattSkills-architecture.html`](docs/architecture/MattSkills-architecture.html) 也能看，无需起服务。源数据在同目录的 `mattskills.architecture.json`，更多文字说明在同目录的 `*.md` 文件里。
 
 </div>
 

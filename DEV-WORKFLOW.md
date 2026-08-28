@@ -211,3 +211,18 @@ npm run test:smoke
 - **开发**：`bash scripts/build.sh`（构建 → 同步 profile）
 - **发布前**：`npm pack` 前 `prepare` 自动跑 `node scripts/build.mjs`，产物进 tgz（git 忽略的不影响发布）
 - **安装**：`dsh plugin --profile web add dsh-mattpocock-skills-deck` 拉 tgz 内的 `package/lib/*`，无需仓库内 lib
+
+---
+
+## 8. Pages 静态站点（docs/ 为根）
+
+> Pages 已启用：`main` 分支的 `docs/` 目录即网站根目录。推送后约 1 分钟生效，访问地址为 `https://featherhunter.github.io/dsh-mattpocock-skills-deck/<docs 下相对路径>`。仓库 About 的 Homepage 已指向 `architecture/MattSkills-architecture.html` 的在线预览，`docs/.nojekyll` 已放置以跳过 Jekyll 处理。
+
+**落盘规约（必遵守）：**
+
+1. **位置固定**：所有需要生成并对外在线预览的 HTML 文件（架构图、原型、调研可视化、报告、演示页等）必须放在 `docs/` 下的相应子目录中，禁止放在仓库根目录、`src/`、`package/` 或其它与 Pages 无关的位置。
+2. **目录与文件名必须可溯源**：子目录名与 HTML 文件名要能直接对应到当前任务与内容，方便日后按文件路径就能找回上下文。命名用英文 `kebab-case` 小写，必要时带上日期或关联的 issue/PR 编号。
+   - 正确示例：`docs/architecture/MattSkills-architecture.html`（架构可视化主图）、`docs/prototype/readme-variants-20260828.html`（README 多方案原型）、`docs/research/20260828-session-governance.html`（会话治理调研）
+   - 避免：`docs/a.html`、`docs/test.html`、`docs/new-page.html`（看不出任务）
+3. **链接同步更新**：新增或移动 `docs/` 下的 HTML 后，需同步更新 `README.md` / `docs/README.en.md` 中对应章节的在线预览链接（前缀为 `https://featherhunter.github.io/dsh-mattpocock-skills-deck/` + `docs` 下相对路径去掉 `docs/`），并保持本地相对路径 `docs/...` 的「本地直接打开也能看」说明。
+4. **不提交 Pages 构建产物**：Pages 仅托管手写或工具生成的 `docs/**/*.html`，不要把 `client.js` / `host.js` 等构建产物移入 `docs/`。
