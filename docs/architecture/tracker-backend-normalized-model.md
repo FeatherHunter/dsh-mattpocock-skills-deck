@@ -1,3 +1,8 @@
+> ⚠️ 已废弃（2026-08-28 起）— 本文档标题与正文中出现的 `capability-by-fill` 为旧口径，已由 G5 双轨取代：**操作能力** = 运行时试出来、**检查项** = 声明式卡片 `{check, show, actions}` 各走各的。为保留追溯，标题与旧段落暂不改名，仅加本提示正本清源。以后请以 `docs/adr/20260826-check-item-chain-contract.md`（G5 双名制）与 `CONTEXT.md` 为准。
+> **版本与效力**：以更新者为准（同 CONTEXT.md 规则）。
+>
+> 跳转：新口径见 ADR §5.4 与 CONTEXT.md “操作能力 / 界面检查项”。
+
 # Tracker 后端抽象契约 · 完整数据形状 + capability-by-fill 推导
 
 > 本文件是子图 #112「定稿 Tracker 契约」内子票「定稿契约：完整数据形状 + capability-by-fill 推导」(#127) 的解答产物，供子图 #114–#119 各后端实现时的共享归一化模型。
