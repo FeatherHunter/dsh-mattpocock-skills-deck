@@ -2814,8 +2814,9 @@ export default {
         }
         // 2) 尝试 DSH 平台暴露的 picker（若未来 platform 提供）
         try {
-          const plat = (typeof platform !== 'undefined' && platform && typeof platform.pickDirectory === 'function') ? platform : null
-          if (plat) {
+          let plat = null
+          try { plat = await getPlatform() } catch(_){}
+          if (plat && typeof plat.pickDirectory === 'function') {
             const p = await plat.pickDirectory(initial || cwd)
             if (p) return { ok: true, path: String(p) }
           }
@@ -2840,8 +2841,9 @@ export default {
           } catch(_){}
         }
         try {
-          const plat = (typeof platform !== 'undefined' && platform && typeof platform.pickFile === 'function') ? platform : null
-          if (plat) {
+          let plat = null
+          try { plat = await getPlatform() } catch(_){}
+          if (plat && typeof plat.pickFile === 'function') {
             const p = await plat.pickFile(initial || cwd)
             if (p) return { ok: true, path: String(p) }
           }

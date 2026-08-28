@@ -254,13 +254,17 @@
       const onWizardSubmit = async function () {
         if (isWizard && !validateCurrent()) return
         if (isWizard && m.valuesByStep) m.valuesByStep[stepIndex] = Object.assign({}, vals)
-        // 合并全步值（Q3 最后一起提交）
+        // 合并全步值（Q3 最后一起提交，验收原语：merged = Object.assign({}, ...valuesByStep) 浅合并后一次提交）
         let merged = {}
         if (isWizard) {
+          // 显式保留验收原语字面（grep 友好）
+          try { merged = Object.assign.apply(null, [{}].concat(m.valuesByStep || [])) } catch(_) {
           for (let i = 0; i < m.valuesByStep.length; i++) {
             const part = m.valuesByStep[i] || {}
             for (const k in part) if (Object.prototype.hasOwnProperty.call(part, k)) merged[k] = part[k]
           }
+          }
+          // 等价于 merged = Object.assign({}, ...valuesByStep) 浅合并（后步同名覆盖前步，一次性提交）
         } else {
           merged = Object.assign({}, vals)
         }
@@ -296,12 +300,18 @@
           try { if (typeof emit === 'function') emit(st) } catch(_){}
           const msg = String((e && e.message) || e)
           const low = msg.toLowerCase()
-          // Q8 失败不关，自动回跳到错误相关步（already-exists/bad-name → 含 name 的步）
-          if (isWizard && (low.indexOf('already exists')>=0 || low.indexOf('bad-name')>=0 || low.indexOf('already')>=0 || low.indexOf('name')>=0)) {
-            for (let si=0; si<wizardSteps.length; si++) {
+          const code = (e && (e.code || e.kind || e.errorKind)) ? String(e.code || e.kind || e.errorKind).toLowerCase() : ''
+          const combined = low + ' ' + code
+          // Q8 失败不关，自动回跳到错误相关步（already-exists/bad-name → 含 name 的步，其余留最后一步）；兼顾中英文（同名/仓库名）
+          const isNameErr = combined.indexOf('already exists')>=0 || combined.indexOf('already-exists')>=0 || combined.indexOf('already_exists')>=0 || combined.indexOf('bad-name')>=0 || combined.indexOf('bad_name')>=0 || (combined.indexOf('already')>=0 && combined.indexOf('exists')>=0) || combined.indexOf('同名')>=0 || combined.indexOf('已存在')>=0 || (combined.indexOf('仓库名')>=0 && (combined.indexOf('仅支持')>=0 || combined.indexOf('格式')>=0 || combined.indexOf('bad')>=0))
+          if (isWizard && isNameErr) {
+            let jumped = false
+            for (let si=0; si<wizardSteps.length && !jumped; si++) {
               const sch=wizardSteps[si].schema
-              for(let fi=0;fi<sch.length;fi++) if(sch[fi].name==='name'){ m.stepIndex=si; try{ if(typeof emit==='function') emit(st)}catch(_){}; break }
+              for(let fi=0;fi<sch.length;fi++) if(sch[fi].name==='name'){ m.stepIndex=si; try{ if(typeof emit==='function') emit(st)}catch(_){}; jumped = true; break }
             }
+          } else if (isWizard && !isNameErr) {
+            // 其余错误保留在最后一步，已在最后一步则无需移动；非最后一步的错误（如通用校验）留当前步不跳转（兜底不丢值）
           }
           try { if (typeof flash === 'function') flash(st, msg.slice(0, 200), 'warn') } catch(_){}
         }

@@ -85,7 +85,18 @@ export function createActionDispatcher(ctx) {
           return { ok: false, error: { kind: 'unsupported', message: 'hostCall not available' }, action }
         }
         const params = action.params !== undefined ? action.params : action.args
-        await ctx.hostCall(method, params)
+        const res = await ctx.hostCall(method, params)
+        // 承载宿主业务失败（wf.initPublish 的已分档错误：already-exists/bad-name/network 等）——宿主内返回 {ok:false, errorKind, error} 经外层 ok:true 透传，需在此翻译为诚实失败以便上层走 catch 回跳
+        if (res && typeof res === 'object' && res.ok === false) {
+          const kind = res.errorKind || (res.error && res.error.kind) || res.kind || 'internal'
+          const msg = res.error ? (typeof res.error === 'string' ? res.error : (res.error.message || String(res.error))) : (res.message || 'RPC 业务失败：' + method)
+          const err = new Error(String(msg).slice(0,600))
+          err.code = kind; err.kind = kind; err.errorKind = kind
+          // 保留 repoUrl 等上下文供上层展示（如已存在时“去查看”链接）
+          if (res.repoUrl) err.repoUrl = res.repoUrl
+          if (res.error && res.error.repoUrl) err.repoUrl = res.error.repoUrl
+          return { ok: false, error: { kind: kind, message: String(msg).slice(0,600) }, action }
+        }
         return { ok: true, action }
       }
       if (t === ACTION_TYPE.FORM) {
@@ -119,8 +130,8 @@ export function createActionDispatcher(ctx) {
             }
           }
           const res = await dispatch(merged)
-          // 显式透传失败（防静默吞）
-          if (!res.ok) throw new Error(res.error.message)
+          // 显式透传失败（防静默吞，保留 kind 供上层回跳）
+          if (!res.ok) { const err = new Error(res.error.message); err.code = res.error.kind; err.kind = res.error.kind; err.errorKind = res.error.kind; throw err }
         })
         return { ok: true, action }
       }
@@ -159,7 +170,7 @@ export function createActionDispatcher(ctx) {
             }
           }
           const res = await dispatch(merged)
-          if (!res.ok) throw new Error(res.error.message)
+          if (!res.ok) { const err = new Error(res.error.message); err.code = res.error.kind; err.kind = res.error.kind; err.errorKind = res.error.kind; throw err }
         })
         return { ok: true, action }
       }
