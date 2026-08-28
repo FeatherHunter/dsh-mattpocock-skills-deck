@@ -46,11 +46,19 @@ export let pendingDraftTargetSid = null
     export const NAMING_POLL_MS = 5000
     let _namingPollTimer = null
     let _namingPullBusy = false
-    // 值比对锁的「当前标题」来源：sessions.list 快照 byId[sid].title（Dsh SessionManager 列表投影）
+    // 值比对锁的「当前标题」来源：优先 sessions.get(sid) 实时标题（若宿主暴露，即时而非快照），回退到 sessions.list 快照 byId[sid].title
     export function namingCurrentTitleOf(sid) {
       try {
         const sessions = ctx.get('sessions')
-        if (!sessions || !sessions.list || typeof sessions.list.getSnapshot !== 'function') return null
+        if (!sessions) return null
+        // 优先实时接口（若可用，规避 5s 快照旧照片竞态；见 #315 手改被盖的 TOCTOU）
+        try {
+          if (typeof sessions.get === 'function') {
+            const s = sessions.get(sid)
+            if (s && typeof s.title === 'string' && s.title) return s.title
+          }
+        } catch (eGet) {}
+        if (!sessions.list || typeof sessions.list.getSnapshot !== 'function') return null
         const snap = sessions.list.getSnapshot()
         const row = snap && snap.byId ? snap.byId[sid] : null
         if (row && typeof row.title === 'string' && row.title) return row.title
