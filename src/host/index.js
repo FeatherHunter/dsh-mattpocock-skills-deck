@@ -1449,11 +1449,26 @@ export default {
     }
     function evidenceSummary(channels, lang) {
       if (!channels || !channels.length) return ''
-      const parts = []
+      const stOf = function (c) { return c.result === 'valid' ? '命中' : (c.result === 'invalid' ? '无效' : (c.result === 'missing' ? '未找到' : String(c.result || '?'))) }
+      // 按通道分组：同通道结果一致 → 合并成一条（如 fs=未找到×4）；不一致才逐条展开（人读优先，横幅不刷屏）
+      const byChan = {}
       for (let i = 0; i < channels.length; i++) {
         const c = channels[i]
-        const st = c.result === 'valid' ? '命中' : (c.result === 'invalid' ? '无效' : (c.result === 'missing' ? '未找到' : String(c.result || '?')))
-        parts.push(c.root + '·' + c.channel + '=' + st)
+        const key = String(c.channel || '?')
+        if (!byChan[key]) byChan[key] = []
+        byChan[key].push(c)
+      }
+      const parts = []
+      for (const key of Object.keys(byChan)) {
+        const list = byChan[key]
+        const label = (key === 'registry') ? 'registry' : key
+        const uniq = []
+        for (let i = 0; i < list.length; i++) { const s = stOf(list[i]); if (uniq.indexOf(s) < 0) uniq.push(s) }
+        if (uniq.length === 1) {
+          parts.push(label + '=' + uniq[0] + (list.length > 1 ? ('×' + list.length) : ''))
+        } else {
+          for (let i = 0; i < list.length; i++) parts.push(label + ':' + list[i].root + '=' + stOf(list[i]))
+        }
       }
       return (lang === 'en') ? ('; probed: ' + parts.join(', ')) : ('；已查：' + parts.join('，'))
     }
