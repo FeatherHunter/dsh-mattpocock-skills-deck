@@ -1828,12 +1828,14 @@ export default {
         if (backendChain) backendChain.snapshot = backendSnapE
         fullSnapshot = enrichSnap(fullSnapshot, allResolved)
         const result = { ok: true, backendId: backendId || null, chain: chainAndSnap.chain, resolved: chainAndSnap.resolved, snapshot: genericSnap, backendChain: backendChain, fullChain: fullChain, fullSnapshot: fullSnapshot }
-        // #284 修订：探针出现 pending（诚实未知）的结果不缓存（与旧 statusCache 同纪律——防已装仍报未装冻结）
-        const hasPendingProbe = (function () {
+        // #284 修订 + 2026-08-28 B 方案（用户定版）：链未全绿（仍存在 pending/fail/current 步骤）不写 30s 缓存——
+        //   未完成区是动态区（修复由对话/终端发生在链外），panel 轮询每次真探测，修复完成即自动变绿；
+        //   全部通过（done）才缓存（全绿后零重复探测，client 轮询也随之停止）。
+        const chainNotAllDone = (function () {
           const steps = (fullSnapshot && Array.isArray(fullSnapshot.steps)) ? fullSnapshot.steps : []
-          return steps.some(function (s) { return s.status === 'pending' })
+          return steps.some(function (s) { return s.status !== 'done' })
         })()
-        if (!hasPendingProbe) chainCache = { ts: Date.now(), key: cacheKey, value: result }
+        if (!chainNotAllDone) chainCache = { ts: Date.now(), key: cacheKey, value: result }
         return result
       }catch(e){
         return { ok: false, error: String((e && e.message)||e) }

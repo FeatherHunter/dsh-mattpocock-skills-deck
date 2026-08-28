@@ -10,6 +10,20 @@ export const ChecksTab = ({ st }) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   React.useEffect(function () { loadChain(st, false) }, [])
+  // B 方案（2026-08-28 用户定版）：链未全绿时每 20s 静默重查一次——修复（在对话/终端完成）后面板自动变绿，
+  //   无需手动点「重新检查」；host 侧对未全绿快照不写 30s 缓存，poll 每次真探测；链全部通过后定时器停止（零开销）。
+  React.useEffect(function () {
+    const pollTimer = setInterval(function () {
+      try {
+        const steps = chainSteps(st)
+        if (!steps.length) return
+        if (steps.every(function (s) { return s.status === 'done' })) return
+        if (st.refreshing) return
+        loadChain(st, false)
+      } catch (e) {}
+    }, 20000)
+    return function () { try { clearInterval(pollTimer) } catch (e) {} }
+  }, [])
   // #284：单一口径 = 链快照步骤（pending = 诚实未知/未接入，置灰展示，不计入 ready/total）
   const steps = chainSteps(st)
   const chainSnapshot = st.chainSnapshot || null
