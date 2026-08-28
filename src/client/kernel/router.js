@@ -80,8 +80,10 @@
           const sessionId = scope ? scope.sessionId : undefined
           return h('div', { style: { height: '100%', overflow: 'hidden' } }, h(DetailsDock, { sessionId: sessionId }))
         }
-        // 第一性原理：对外品牌为 MattSkillsDeck，新 id 为 deck:map，旧 waystation:map 为 LEGACY 兼容（旧布局/旧会话存储）
-        // 单一真源：panel.title 来自 locale，新旧 id 共用同一组件，行为一致
+        // 第一性原理：对外品牌为 MattSkillsDeck，单一 tab id = deck:map。
+        // #fix-two-sliders：旧版同时注册 deck:map + waystation:map 两份同 component、同 order、同 single 的注册器，
+        //   better-sidebar 按 id 区分 tab 条目，结果 better-sidebar 显示两条 slider（用户报告「MattSkills slider 两个」）。
+        //   修复：只注册 deck:map；旧会话中存的 waystation:map 打开记录由下方 normalizeLegacyTabId() 改写到 deck:map 后再 open。
         sidebarTabDisposer = bs.registerTab({
           id: 'deck:map',
           title: function () { return tr('panel.title') },
@@ -93,7 +95,7 @@
         // LEGACY 别名：兼容已存的 waystation:map 打开记录（不额外 disposer，单注册器以新 id 为主）
         // #298 补充：该别名仅为旧会话/旧布局的兼容打开，不应在 better-sidebar 的「+」添加菜单中单独出现；设 hidden:true 隐藏
         try { bs.registerTab({ id: 'waystation:map', title: function () { return tr('panel.title') }, icon: function () { return Ic({ n: 'map', size: 14 }) }, order: 60, single: true, hidden: true, component: DeckSidebarTab }) } catch (e) {}
-        return true
+  return true
       } catch (e) { return false }
     }
     export const openInSidebar = function (st) {

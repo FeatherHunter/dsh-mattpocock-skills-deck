@@ -46,8 +46,21 @@ export default {
     // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
     const CACHE_MS = 60000
     const STATUS_CACHE_MS = 30000  // workspaceStore 探测级联 TTL（#344 沿革 · #284 保留）
-    // 技能名单（#280 单一真源：与 check-catalog 同步，拼写以真实目录为准；B 语义由 skills.get 覆盖）
-    const SKILL_PROBE_NAMES = ['ask-matt','code-review','codebase-design','diagnosing-bugs','domain-modeling','grill-with-docs','implement','improve-codebase-architecture','prototype','research','resolving-merge-conflicts','setup-matt-pocock-skills','tdd','to-spec','to-tickets','triage','wayfinder','wizard','grill-me','grilling','handoff','teach','to-questionnaire','wait-what','writing-for-agents'] // 25 项 engineering+productivity 单一真源（shared/matt-skills.js）
+    // 技能名单（#280 单一真源：与 check-catalog + client SKILLS 同步；拼写以真实目录为准，B 语义由 skills.get 覆盖）
+    // 真源 = shared/matt-skills.js（MATT_SKILL_PROBE_NAMES）。本字段由 getMattSkillProbeNames() 惰性加载。
+    let SKILL_PROBE_NAMES = null
+    async function getMattSkillProbeNames() {
+      if (SKILL_PROBE_NAMES) return SKILL_PROBE_NAMES
+      try {
+        const m = await import('../shared/matt-skills.js')
+        SKILL_PROBE_NAMES = (m && (m.MATT_SKILL_PROBE_NAMES || m.default?.MATT_SKILL_PROBE_NAMES)) || null
+        if (!SKILL_PROBE_NAMES) throw new Error('shared/matt-skills.js 未导出 MATT_SKILL_PROBE_NAMES')
+      } catch (e) {
+        // 兜底：内联一份与真源一致的常量（仅在 shared 文件丢失时使用；CI/构建必须保证真源在场）
+        SKILL_PROBE_NAMES = ['ask-matt','code-review','codebase-design','diagnosing-bugs','domain-modeling','grill-with-docs','implement','improve-codebase-architecture','prototype','research','resolving-merge-conflicts','setup-matt-pocock-skills','tdd','to-spec','to-tickets','triage','wayfinder','wizard','grill-me','grilling','handoff','teach','to-questionnaire','wait-what','writing-for-agents']
+      }
+      return SKILL_PROBE_NAMES
+    }
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
 
     // ============ 状态 ============
@@ -252,14 +265,16 @@ export default {
       try {
         const mod = await import('./tracker/detection/detectionService.js')
         const create = mod.createDetectionService || mod.default
-        // skillProbe 内联（复用 probeSkill 双源逻辑，10 名含 setup 正位）
+        // skillProbe 内联（复用 probeSkill 双源逻辑；列表 = shared/matt-skills.js 单源，25 项）
+        // #280/#fix-banner：旧版硬编码 10 名，遗漏 grill-with-docs / wizard / grill-me / to-questionnaire / wait-what / writing-for-agents 等导致横幅永远报警
         const skillProbe = async ({ cwd }) => {
+          const probeNames = await getMattSkillProbeNames()
           const probes = {}
           let missing = []
           let hasPending = false
           let pendingError = null
-          for (let i = 0; i < SKILL_PROBE_NAMES.length; i++) {
-            const name = SKILL_PROBE_NAMES[i]
+          for (let i = 0; i < probeNames.length; i++) {
+            const name = probeNames[i]
             try {
               const r = await probeSkill(name, 'zh', cwd)
               probes[name] = r

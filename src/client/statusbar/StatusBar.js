@@ -409,8 +409,7 @@ export const StatusBar = (props) => {
               bann(tr('banner.setup'), tr('banner.setupBtn'), onSetupInit),
               setupPickCard,
             ])
-          : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.show && (skillsCheck.show.desc || skillsCheck.show.fallback || '')) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills')) }),
-    capsule,
+          : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.show && (skillsCheck.show.fallback || skillsCheck.show.desc || '')) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills', installSkillsParams())) }),psule,
     (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) closeGate() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10, borderRadius:8, padding:12 } }, [
       h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:14, width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
         h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, tr('switch.pleaseSelectTracker'))]),
