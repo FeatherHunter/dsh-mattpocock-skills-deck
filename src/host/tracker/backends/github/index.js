@@ -106,41 +106,59 @@ export const fixes = Object.freeze({
   },
   'gh:remote': {
     hint: {
-      zh: '当前目录不是 GitHub 仓库。优先修复：点「创建并发布」把它初始化为 GitHub 仓库（填仓库名与可见性）；若这是本地项目、不打算用 GitHub，再切换「本地 Markdown」后端。',
-      en: 'This directory is not a GitHub repository. Preferred fix: "Create & publish" initializes it as a GitHub repo (name + visibility); switch to "Local Markdown" only if this stays off GitHub.',
+      zh: '此目录未关联 GitHub 仓库，创建后即可继续。',
+      en: 'This directory is not linked to a GitHub repo — create one to continue.',
     },
-    // 修复动作三件套：form 发布（恢复 T1#34 红卡「创建并发布」链路，走 wf.initPublish → github initProject）+
-    //   inject 修复指引（含切换 Markdown 备选）+ refresh 重查。UI 只渲染分发。
+    // 修复动作（2026-08-28 用户定版）：wizard 两步（仓库名 → 可见性），走 wf.initPublish → github initProject；
+    //   移除「修复指引」inject-prompt 主按钮：有 form/wizard 时注入文本不再以按钮出现（之前讨论判定为不合理功能）。
     actions: [
       {
-        type: 'form',
+        type: 'wizard',
         label: { zh: '创建并发布', en: 'Create & publish' },
-        schema: [
-          { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$' },
-          { name: 'visibility', type: 'single', label: { zh: '可见性', en: 'Visibility' }, options: ['private', 'public'], defaultValue: 'private' },
+        steps: [
+          {
+            title: { zh: '仓库信息', en: 'Repository info' },
+            schema: [
+              { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$', preview: { zh: '将创建 https://github.com/{owner}/{name}', en: 'Will create https://github.com/{owner}/{name}' } },
+            ],
+          },
+          {
+            title: { zh: '可见性', en: 'Visibility' },
+            schema: [
+              { name: 'visibility', type: 'single', label: { zh: '可见性', en: 'Visibility' }, options: ['private', 'public'], optionSubs: { private: { zh: '仅自己', en: 'Only you' }, public: { zh: '所有人', en: 'Everyone' } }, defaultValue: 'private' },
+            ],
+          },
         ],
         submitAction: { type: 'rpc', method: 'wf.initPublish', params: {} },
       },
-      { type: 'inject-prompt', prompt: 'repoRemoteFix', label: { zh: '修复指引', en: 'Fix guide' } },
       { type: 'refresh', target: 'chain' },
     ],
   },
   'gh:repoAccess': {
     hint: {
-      zh: '仓库路径无法经 GitHub API 访问（可能不存在 / 无权限 / 网络不通）。点「修复指引」排查，或先核对仓库存在性与 gh 登录身份。',
-      en: 'Repository not reachable via the GitHub API (missing / permission / network). Use the fix guide, or verify the repo and gh identity first.',
+      zh: '仓库路径无法经 GitHub API 访问（可能不存在 / 无权限 / 网络不通），创建后即可继续。',
+      en: 'Repository not reachable via the GitHub API (missing / permission / network) — create it to continue.',
     },
     actions: [
       {
-        type: 'form',
+        type: 'wizard',
         label: { zh: '创建并发布', en: 'Create & publish' },
-        schema: [
-          { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$' },
-          { name: 'visibility', type: 'single', label: { zh: '可见性', en: 'Visibility' }, options: ['private', 'public'], defaultValue: 'private' },
+        steps: [
+          {
+            title: { zh: '仓库信息', en: 'Repository info' },
+            schema: [
+              { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$', preview: { zh: '将创建 https://github.com/{owner}/{name}', en: 'Will create https://github.com/{owner}/{name}' } },
+            ],
+          },
+          {
+            title: { zh: '可见性', en: 'Visibility' },
+            schema: [
+              { name: 'visibility', type: 'single', label: { zh: '可见性', en: 'Visibility' }, options: ['private', 'public'], optionSubs: { private: { zh: '仅自己', en: 'Only you' }, public: { zh: '所有人', en: 'Everyone' } }, defaultValue: 'private' },
+            ],
+          },
         ],
         submitAction: { type: 'rpc', method: 'wf.initPublish', params: {} },
       },
-      { type: 'inject-prompt', prompt: 'repoAccessFix', label: { zh: '修复指引', en: 'Fix guide' } },
       { type: 'refresh', target: 'chain' },
     ],
   },

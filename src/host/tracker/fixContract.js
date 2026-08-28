@@ -77,19 +77,39 @@ export function attachFixContract(items, mod, lang, opts = {}) {
         const lb = pickLang(a.label, lang)
         if (typeof lb === 'string') out.label = lb
       }
-      // form 动作：字段 label/placeholder 双语解析 + cwd 注入（submitAction.params.cwd、name 字段 placeholder）
-      if (a.type === 'form' && Array.isArray(a.schema)) {
-        out.schema = a.schema.map(function (f) {
-          if (!f || typeof f !== 'object') return f
-          const nf = Object.assign({}, f)
-          if (f.label) { const fl = pickLang(f.label, lang); if (typeof fl === 'string') nf.label = fl }
-          if (f.placeholder) { const fp = pickLang(f.placeholder, lang); if (typeof fp === 'string') nf.placeholder = fp }
-          if (cwd && f.name === 'name' && !nf.placeholder) {
-            const bs = String(cwd).split(/[\\/]/).filter(Boolean).pop()
-            if (bs) nf.placeholder = bs
-          }
-          return nf
-        })
+      // form/wizard 动作：字段 label/placeholder/optionSubs/preview 双语解析 + cwd 注入（submitAction.params.cwd、name 字段 placeholder）
+      const normField = function (f) {
+        if (!f || typeof f !== 'object') return f
+        const nf = Object.assign({}, f)
+        if (f.label) { const fl = pickLang(f.label, lang); if (typeof fl === 'string') nf.label = fl }
+        if (f.placeholder) { const fp = pickLang(f.placeholder, lang); if (typeof fp === 'string') nf.placeholder = fp }
+        if (f.optionSubs && typeof f.optionSubs === 'object' && !Array.isArray(f.optionSubs)) {
+          const subs = {}
+          for (const k in f.optionSubs) { const sv = pickLang(f.optionSubs[k], lang); if (typeof sv === 'string') subs[k] = sv }
+          nf.optionSubs = subs
+        }
+        if (f.preview && typeof f.preview === 'object' && !Array.isArray(f.preview)) {
+          const pv = pickLang(f.preview, lang)
+          if (typeof pv === 'string') nf.preview = pv
+        }
+        if (cwd && f.name === 'name' && !nf.placeholder) {
+          const bs = String(cwd).split(/[\\/]/).filter(Boolean).pop()
+          if (bs) nf.placeholder = bs
+        }
+        return nf
+      }
+      // form/wizard 动作：schema 字段双语解析 + submitAction cwd 注入
+      if ((a.type === 'form' && Array.isArray(a.schema)) || (a.type === 'wizard' && Array.isArray(a.steps) && a.steps.length)) {
+        if (a.type === 'form') {
+          out.schema = a.schema.map(normField)
+        } else {
+          out.steps = a.steps.map(function (step) {
+            const ns = Object.assign({}, step)
+            if (step.schema && Array.isArray(step.schema)) ns.schema = step.schema.map(normField)
+            if (step.title) { const st = pickLang(step.title, lang); if (typeof st === 'string') ns.title = st }
+            return ns
+          })
+        }
         if (a.submitAction && typeof a.submitAction === 'object' && cwd) {
           const sa = Object.assign({}, a.submitAction)
           const base = sa.params || {}

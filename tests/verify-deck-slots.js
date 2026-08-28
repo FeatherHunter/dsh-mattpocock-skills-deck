@@ -138,12 +138,12 @@ try{
   // gh:remote 的 form
   const hasRemoteForm = gh.includes("'gh:remote'") && gh.slice(gh.indexOf("'gh:remote'"), gh.indexOf("'gh:remote'")+2000).includes("type: 'form'") || gh.includes('gh:remote') && gh.includes("Create & publish")
   check(hasRemoteForm, 'gh:remote 含 form[创建并发布]')
-  // gh:repoAccess 的 form（本票补的）
+  // gh:repoAccess 的 form/wizard（2026-08-28 用户定版：升级为 2 步 wizard，仍走 modal-seat、wf.initPublish）
   const repoAccessBlock = gh.slice(gh.indexOf("'gh:repoAccess'"), gh.indexOf("'gh:repoAccess'")+3000)
-  check(repoAccessBlock.includes("type: 'form'"), 'gh:repoAccess 追加 form')
-  check(repoAccessBlock.includes("wf.initPublish"), 'gh:repoAccess form → wf.initPublish')
-  check(repoAccessBlock.includes("name") && repoAccessBlock.includes("visibility"), 'gh:repoAccess form 含 name+visibility')
-  check(repoAccessBlock.includes("pattern") && repoAccessBlock.includes("A-Za-z0-9"), 'gh:repoAccess form 含仓库名校验')
+  check(repoAccessBlock.includes("type: 'wizard'") || repoAccessBlock.includes("type: 'form'"), 'gh:repoAccess 追加 form|wizard')
+  check(repoAccessBlock.includes("wf.initPublish"), 'gh:repoAccess form|wizard → wf.initPublish')
+  check(repoAccessBlock.includes("name") && repoAccessBlock.includes("visibility"), 'gh:repoAccess 含 name+visibility')
+  check(repoAccessBlock.includes("pattern") && repoAccessBlock.includes("A-Za-z0-9"), 'gh:repoAccess 含仓库名校验')
   // 校验两者 schema 同形：都含 name text required + visibility single
   const remoteBlock = gh.slice(gh.indexOf("'gh:remote'"), gh.indexOf("'gh:remote'")+3000)
   const bothHaveSingle = remoteBlock.includes("single") && repoAccessBlock.includes("single")

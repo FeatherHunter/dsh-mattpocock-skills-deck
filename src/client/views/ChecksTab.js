@@ -128,21 +128,22 @@ export const ChecksTab = ({ st }) => {
     }
     const finalDesc = blockedNote ? (desc ? desc + ' \u00b7 ' + blockedNote : blockedNote) : desc
     const hintText = hintTextOf(s)
-    // #308 modal-seat：表单改走槽位弹窗（不再内嵌），明细行放开 form 过滤，按钮点击即弹 modal
+    // #308 modal-seat：表单改走槽位弹窗；2026-08-28 用户定版：每行只保留一个主修复动作（form/wizard 优先，
+    //   其次 inject-prompt/rpc），按钮置于行右侧；refresh 不再单独成按钮（顶部已有「重新检查」）。
     const fixActions = (s.status === 'fail' || s.status === 'current') ? (Array.isArray(s.actions) ? s.actions : []) : []
-    const actButtons = (chainDispatcher && fixActions.length) ? h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 } }, fixActions.map(function (a, ai) {
-      const alabel = miniActionLabel(a)
-      const unsupported = String(alabel).indexOf('unsupported:') === 0
-      return h('button', { key: 'fix-' + ai, className: 'dsws-btn' + (unsupported ? ' ghost' : ''), tabIndex: 0, disabled: unsupported, onClick: function () { runAction(a) }, style: { fontSize: 11, padding: '2px 8px', flex: 'none' } }, alabel)
-    })) : null
-    return h('div', { key: s.id || i, className: 'dsws-ccard', style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } }, [
+    const primaryAction = (chainDispatcher && fixActions.length) ? (fixActions.find(function (a) { return a && (a.type === 'form' || a.type === 'wizard') }) || fixActions.find(function (a) { return a && (a.type === 'inject-prompt' || a.type === 'rpc') }) || null) : null
+    const primaryBtn = primaryAction ? (function () {
+      const alabel = miniActionLabel(primaryAction)
+      return h('button', { key: 'fix-primary', className: 'dsws-btn primary', tabIndex: 0, onClick: function () { runAction(primaryAction) }, style: { fontSize: 12, padding: '6px 14px', flex: 'none', whiteSpace: 'nowrap' } }, alabel)
+    })() : null
+    return h('div', { key: s.id || i, className: 'dsws-ccard', style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, padding: primaryBtn ? '10px 12px' : undefined, border: primaryBtn ? '1px solid var(--dsw-alias-border-l1,#2a2d35)' : undefined, borderRadius: 10, background: primaryBtn ? 'var(--dsw-alias-bg-layer-1,#10131a)' : undefined } }, [
       h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: meta.dot, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' } }, meta.label),
       h('span', { style: { flex: 1, minWidth: 0 } }, [
-        h('span', { className: 'nm', style: { color: meta.color } }, String(label)),
+        h('span', { className: 'nm', style: { color: meta.color, fontWeight: primaryBtn ? 600 : 400 } }, String(label)),
         finalDesc ? h('div', { className: 'dt dsws-ellip', title: finalDesc, style: { color: '#8b8b95' } }, finalDesc) : null,
         hintText ? h('div', { className: 'dt', style: { color: '#d97706', lineHeight: 1.5, marginTop: 2, whiteSpace: 'pre-wrap' } }, hintText) : null,
-        actButtons,
       ]),
+      primaryBtn,
     ])
   }) : null
   // #308 modal-seat 挂载点（shell.overlay / root / single，复用 .dsws-modal 遮罩）
