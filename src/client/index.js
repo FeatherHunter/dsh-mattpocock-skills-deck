@@ -188,6 +188,8 @@ export default {
     // v10：沉淀 = 会话级动作 —— 注入「零丢失快照」prompt（默认文本见 §2.5 FIXATE_PROMPT，T2b 可编辑）
     // ==== kernel:api (spliced by build) ====
 
+    // ==== kernel:actions (spliced by build) ====
+
     // ==== leaf:chips (spliced by build) ====
     // ==== leaf:backendSelector (spliced by build) ====
     // ==== leaf:switchConfirmModal (spliced by build) ====

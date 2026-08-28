@@ -180,6 +180,7 @@ const KERNEL_MODULES = [
   { name: 'config', file: 'src/client/kernel/config.js' },
   { name: 'store', file: 'src/client/kernel/store.js' },
   { name: 'api', file: 'src/client/kernel/api.js' },
+  { name: 'actions', file: 'src/client/kernel/actions.js' },
   { name: 'probe', file: 'src/client/kernel/probe.js' },
   { name: 'router', file: 'src/client/kernel/router.js' },
 ]

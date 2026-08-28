@@ -10,7 +10,9 @@
  *    动作不承诺修复，检查才判定状态——动作回调不直接改链状态，必须走重求值（refresh）。
  */
 
-import { ACTION_TYPE } from '../../shared/tracker/chain.js'
+// 动作类型闭包常量（与 src/shared/tracker/chain.js 的 ACTION_TYPE 同值；本文件为 UI 执行器，
+// 遵守「零 import 语法」约定——防 D7 dev host vm.Script 阻塞；枚举若变更须同步（契约校验兜底））
+const ACTION_TYPE = Object.freeze({ INJECT_PROMPT: 'inject-prompt', OPEN_URL: 'open-url', RPC: 'rpc', FORM: 'form', REFRESH: 'refresh' })
 
 /**
  * @typedef {Object} ActionContext

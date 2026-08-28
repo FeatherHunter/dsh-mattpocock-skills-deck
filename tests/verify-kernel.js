@@ -21,6 +21,7 @@ const MODULES = [
   { name: 'probe', exports: ['loadChain', 'chainSteps', 'chainStep', 'readyCount', 'envTotal', 'envLabel', 'setupCheck', 'loadSnapshot', 'probeNow', 'startAutoProbe', 'refreshAll', 'diffSnapshots', 'snapFresh', 'broadcastCfg'] },
   { name: 'router', exports: ['openPagePanel', 'openDockPanel', 'openPanel', 'togglePanel', 'ensureSidebarTab', 'repoStr', 'startText', 'newWayfinderText', 'newBugWayfinderText'] },
   { name: 'api', exports: ['injectFixate', 'probeHandoffReady', 'doHandoff', 'doHandoffOpen', 'openTextInNewSession', 'inject', 'copyText', 'pendingDraft'] },
+  { name: 'actions', exports: ['createActionDispatcher'] },
 ]
 const SOURCES = [
   'src/client/index.js', 'scripts/build.mjs', 'package/package.json',
