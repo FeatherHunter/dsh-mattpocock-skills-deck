@@ -293,6 +293,37 @@ export function validateAction(action) {
       }
       return { ok: true }
     }
+    case ACTION_TYPE.WIZARD: {
+      const steps = action.steps
+      if (!Array.isArray(steps) || steps.length === 0) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard 需 steps 非空数组（至少一项）' } }
+      for (let si = 0; si < steps.length; si++) {
+        const s = steps[si]
+        if (!s || typeof s !== 'object') return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.steps[' + si + '] 必须为对象' } }
+        const schema = s.schema || s.fields
+        if (!Array.isArray(schema)) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.steps[' + si + '].schema/fields 必须为数组' } }
+        // 允许空 schema（单步空表单的占位校验在门禁层），但若有字段则校验形状复用 FieldSchema
+        for (let fi = 0; fi < schema.length; fi++) {
+          const f = schema[fi]
+          if (!f || typeof f !== 'object' || !f.name || typeof f.name !== 'string' || !String(f.name).trim()) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.steps[' + si + '].fields[' + fi + '].name 必填' } }
+          const hasLabel = (f.label && typeof f.label === 'string' && String(f.label).trim()) || (f.labelKey && typeof f.labelKey === 'string' && String(f.labelKey).trim()) || (f.name && typeof f.name === 'string')
+          // 兼容：wizard 复用 FieldSchema 允许仅 name（label 回落 name），但若显式提供则需非空字符串
+          if (f.label !== undefined && f.label !== null && typeof f.label !== 'string') return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.steps[' + si + '].fields[' + fi + '].label 必须为字符串' } }
+          if (f.type !== undefined && f.type !== null) {
+            const vt = String(f.type).trim()
+            if (vt && !['text','number','date','single','multi','directory','file'].includes(vt)) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.steps[' + si + '].fields[' + fi + '].type 非法：' + vt } }
+          }
+        }
+      }
+      if (!getSubmit || typeof getSubmit !== 'object') return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard 需 submitAction/submit' } }
+      const subType = getSubmit.type
+      const subEndpoint = getSubmit.endpoint || getSubmit.method
+      if (subType && !VALID_ACTION_TYPES.has(String(subType).trim())) {
+        // 未知提交类型按 unsupported 透传
+      } else if (!subType && !subEndpoint) {
+        return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.submit 需 type 或 endpoint' } }
+      }
+      return { ok: true }
+    }
     case ACTION_TYPE.REFRESH: {
       return { ok: true }
     }

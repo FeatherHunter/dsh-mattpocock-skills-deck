@@ -64,3 +64,26 @@
       for (let i = 0; i < step.actions.length; i++) { const a = step.actions[i]; if (a && a.type === 'wizard') return a }
       return null
     }
+
+    export function getFormAction(step) {
+      if (!step || !Array.isArray(step.actions)) return null
+      for (let i = 0; i < step.actions.length; i++) { const a = step.actions[i]; if (a && a.type === 'form') return a }
+      return null
+    }
+
+    export function getModalAction(step) {
+      return getFormAction(step) || getWizardAction(step)
+    }
+
+    export function getWizardSteps(wizardAction) {
+      if (!wizardAction || wizardAction.type !== 'wizard') return []
+      const raw = wizardAction.steps
+      if (!Array.isArray(raw) || !raw.length) return []
+      const out = []
+      for (let i = 0; i < raw.length; i++) {
+        const s = raw[i] || {}
+        const schema = Array.isArray(s.schema) ? s.schema : (Array.isArray(s.fields) ? s.fields : [])
+        out.push({ title: typeof s.title === 'string' ? s.title : '', schema: schema })
+      }
+      return out
+    }

@@ -12,7 +12,7 @@
 
 // 动作类型闭包常量（与 src/shared/tracker/chain.js 的 ACTION_TYPE 同值；本文件为 UI 执行器，
 // 遵守「零 import 语法」约定——防 D7 dev host vm.Script 阻塞；枚举若变更须同步（契约校验兜底））
-const ACTION_TYPE = Object.freeze({ INJECT_PROMPT: 'inject-prompt', OPEN_URL: 'open-url', RPC: 'rpc', FORM: 'form', REFRESH: 'refresh' })
+const ACTION_TYPE = Object.freeze({ INJECT_PROMPT: 'inject-prompt', OPEN_URL: 'open-url', RPC: 'rpc', FORM: 'form', REFRESH: 'refresh', WIZARD: 'wizard' })
 
 /**
  * @typedef {Object} ActionContext
@@ -120,6 +120,45 @@ export function createActionDispatcher(ctx) {
           }
           const res = await dispatch(merged)
           // 显式透传失败（防静默吞）
+          if (!res.ok) throw new Error(res.error.message)
+        })
+        return { ok: true, action }
+      }
+      if (t === ACTION_TYPE.WIZARD) {
+        const steps = action.steps
+        if (!Array.isArray(steps) || steps.length === 0) {
+          return { ok: false, error: { kind: 'parse', message: 'wizard needs steps: {title, schema}[]' }, action }
+        }
+        if (!action.submitAction || typeof action.submitAction.type !== 'string') {
+          // 兼容 submit 别名
+          const alt = action.submit || (action.form && action.form.submit)
+          if (!alt || typeof alt.type !== 'string') {
+            return { ok: false, error: { kind: 'parse', message: 'wizard needs submitAction:Action' }, action }
+          }
+          action.submitAction = alt
+        }
+        if (typeof ctx.renderForm !== 'function') {
+          return { ok: false, error: { kind: 'unsupported', message: 'renderForm not available' }, action }
+        }
+        // 单步 wizard 当单页表单：与 form 同形态，仅改用 steps 载荷；提交时合并全步值后走 submitAction（label 透传，空时由 slotRenderer 回落为“向导”，保持 locale 封顶）
+        const wizardPayload = { type: 'wizard', steps: steps, label: action.label, submitAction: action.submitAction }
+        await ctx.renderForm(wizardPayload, async (values) => {
+          const merged = Object.assign({}, action.submitAction)
+          if (values && typeof values === 'object') {
+            if (merged.type === ACTION_TYPE.INJECT_PROMPT) {
+              merged.args = Object.assign({}, merged.args || merged.params || {}, values)
+              if (merged.params && !merged.args) merged.args = merged.params
+            } else {
+              const base = merged.params !== undefined ? merged.params : merged.args
+              if (merged.type === ACTION_TYPE.RPC) {
+                merged.params = Object.assign({}, base || {}, values)
+                if (action.submitAction.args) merged.args = merged.params
+              } else {
+                merged.params = Object.assign({}, base || {}, values)
+              }
+            }
+          }
+          const res = await dispatch(merged)
           if (!res.ok) throw new Error(res.error.message)
         })
         return { ok: true, action }

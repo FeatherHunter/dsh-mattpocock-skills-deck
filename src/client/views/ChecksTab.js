@@ -25,17 +25,34 @@ export const ChecksTab = ({ st }) => {
           hostCall: function (method, params) { if (typeof host !== 'undefined' && host.call) return host.call(method, params); return Promise.reject(new Error('hostCall unavailable')) },
           renderForm: function (schema, onSubmit) {
             try {
-              // #308 modal-seat：只用 openFormModal（顺序队列，失败不关，焦点聚集），不再手写 m.open 赋值
+              // #308 modal-seat + #318 wizard 单步：只用 openFormModal（顺序队列，失败不关，焦点聚集），不再手写 m.open 赋值
+              // 兼容：wizard 载荷为 {type:'wizard', steps:[{schema}], label, submitAction}，form 为数组 schema
+              const isWizardPayload = schema && typeof schema === 'object' && !Array.isArray(schema) && Array.isArray(schema.steps)
               if (typeof openFormModal === 'function') {
-                openFormModal(st, { type: 'form', schema: schema, label: '填写表单' }, onSubmit)
+                if (isWizardPayload) {
+                  // 单步 wizard 当单页表单：复用 modal-seat，向导感知渲染会在弹窗内分页（1 步即单页）；label 空时由 slotRenderer 回落“向导”，避免 ChecksTab 硬编码中文越 baseline
+                  openFormModal(st, { type: 'wizard', steps: schema.steps, label: schema.label || '', submitAction: schema.submitAction || null }, onSubmit)
+                } else {
+                  openFormModal(st, { type: 'form', schema: schema, label: '填写表单' }, onSubmit)
+                }
               } else if (typeof ensureFormModal === 'function') {
                 // 兜底：旧 API（理论不可达，仅防产物不同步）
                 const m = ensureFormModal(st)
-                m.open = true
-                m.schema = Array.isArray(schema) ? schema : []
-                m.onSubmit = typeof onSubmit === 'function' ? onSubmit : null
-                m.label = '填写表单'
-                m.pending = false
+                if (isWizardPayload) {
+                  // 向导兜底：仍按 form 打开首步 schema（降级可用，label 空时由后续渲染回落）
+                  const firstSchema = (Array.isArray(schema.steps[0] && schema.steps[0].schema) ? schema.steps[0].schema : (Array.isArray(schema.steps[0] && schema.steps[0].fields) ? schema.steps[0].fields : []))
+                  m.open = true
+                  m.schema = firstSchema
+                  m.onSubmit = typeof onSubmit === 'function' ? onSubmit : null
+                  m.label = schema.label || ''
+                  m.pending = false
+                } else {
+                  m.open = true
+                  m.schema = Array.isArray(schema) ? schema : []
+                  m.onSubmit = typeof onSubmit === 'function' ? onSubmit : null
+                  m.label = '填写表单'
+                  m.pending = false
+                }
                 try { if (typeof emit === 'function') emit(st) } catch (e2) { try { st.tick = (st.tick||0)+1 } catch(_) {} }
               } else {
                 try { onSubmit({}) } catch (e2) {}
@@ -75,6 +92,7 @@ export const ChecksTab = ({ st }) => {
     if (t === 'open-url') return '打开链接'
     if (t === 'rpc') return (a && (a.method || a.endpoint)) || '执行'
     if (t === 'form') return (a && a.label) || '填写表单'
+    if (t === 'wizard') return (a && a.label) || 'Wizard'
     if (t === 'refresh') return '重查'
     return 'unsupported: ' + String(t || 'unknown')
   }

@@ -1,5 +1,5 @@
 /**
- * tests/verify-deck-slots.js — #308 五座位 modal-seat 门禁（ADR #221 §5.1/§5.4/§8）
+ * tests/verify-deck-slots.js — #308 五座位 modal-seat 门禁（ADR #221 §5.1/§5.4/§8）+ #318 wizard 单步扩展
  *
  * 验收（#308）：
  * - 槽位声明：src/shared/ui/slots.js + src/client/kernel/slots.js + src/client/kernel/slotRenderer.js 存在且含 5 端口定义
@@ -7,6 +7,11 @@
  * - 后端缺口：gh:remote 与 gh:repoAccess 均含 form[创建并发布]（name+visibility → wf.initPublish）
  * - UI 挂接：ChecksTab 明细行放开 form 过滤；renderForm 打开 modal-seat（非 no-op）；ChainRenderer 不再内嵌 ChainForm
  * - 外观：遮罩 + 居中盒复用 .dsws-modal/.dsws-modalbox + portalTop，支持遮罩/取消/ESC 关闭，提交后重求值
+ * 验收（#318 wizard 单步）：
+ * - chain.js 新增 ACTION_TYPE.WIZARD，形状 wizard{ label, steps[{title, schema: FieldSchema[]}], submitAction }，steps 至少一项，每步 schema 复用 FieldSchema（含 directory/file）
+ * - slots 守门扩展为 fail+(form|wizard)，getWizardAction / getWizardSteps 可用
+ * - modal-seat 能把单步 wizard（1 步）当单页表单在弹窗呈现、校验并提交，提交后重求值
+ * - 形状锁：getWizardSteps({type:'wizard', steps:[{schema:[{name:'a'}]}]}).length===1 && shouldShowInModal({status:'fail', actions:[{type:'wizard', steps:[{schema:[]}]}]})===true
  *
  * 运行：node tests/verify-deck-slots.js
  */
@@ -55,9 +60,9 @@ try{
 }catch(e){ check(false, '五端口声明异常: '+e.message)}
 
 console.log('')
-console.log('-- 3) modal 仅 fail+form 挂接（ADR 5.4） --')
+console.log('-- 3) modal 仅 fail+(form|wizard) 挂接（ADR 5.4 + #318 wizard 扩展） --')
 try{
-  const { shouldShowInModal, getFormAction } = await import('../src/shared/ui/slots.js')
+  const { shouldShowInModal, getFormAction, getWizardAction, getWizardSteps, getModalAction } = await import('../src/shared/ui/slots.js')
   check(shouldShowInModal({ status:'fail', actions:[{type:'form', schema:[]}] })===true, 'shouldShowInModal fail+form → true')
   check(shouldShowInModal({ status:'fail', actions:[{type:'inject-prompt'}] })===false, 'shouldShowInModal fail 无 form → false')
   check(shouldShowInModal({ status:'done', actions:[{type:'form'}] })===false, 'shouldShowInModal done+form → false')
@@ -65,17 +70,58 @@ try{
   check(shouldShowInModal({ status:'pending', actions:[{type:'form'}] })===false, 'shouldShowInModal pending+form → false')
   check(shouldShowInModal(null)===false, 'shouldShowInModal null → false')
   check(getFormAction({ actions:[{type:'inject-prompt'}, {type:'form', label:'x'}] })?.type==='form', 'getFormAction 取首个 form')
-  // kernel 同判据
-  const { shouldShowInModal: kShould, canOpenModalForStep } = await import('../src/client/kernel/slots.js').catch(()=>({}))
+  // #318 wizard 守门
+  check(shouldShowInModal({ status:'fail', actions:[{type:'wizard', steps:[{schema:[]}]}] })===true, 'shouldShowInModal fail+wizard → true（#318 单步最小）')
+  check(shouldShowInModal({ status:'fail', actions:[{type:'wizard', steps:[{schema:[{name:'a'}]}]}] })===true, 'shouldShowInModal fail+wizard 单步含字段 → true')
+  check(shouldShowInModal({ status:'done', actions:[{type:'wizard', steps:[{schema:[]}]}] })===false, 'shouldShowInModal done+wizard → false')
+  check(shouldShowInModal({ status:'current', actions:[{type:'wizard', steps:[{schema:[]}]}] })===false, 'shouldShowInModal current+wizard → false')
+  check(getWizardAction({ actions:[{type:'inject-prompt'}, {type:'wizard', steps:[{schema:[]}]}] })?.type==='wizard', 'getWizardAction 取首个 wizard')
+  check(typeof getWizardSteps === 'function', 'getWizardSteps 可用（shared）')
+  // 形状锁（#318 验收）：getWizardSteps 单步断言 + 守门
+  const wizardShapeLock = (function(){ try { return getWizardSteps({type:'wizard', steps:[{schema:[{name:'a'}]}]}).length===1 && shouldShowInModal({status:'fail', actions:[{type:'wizard', steps:[{schema:[]}]}]})===true } catch(e){ return false } })()
+  check(wizardShapeLock===true, 'wizard 形状锁：getWizardSteps(...).length===1 && shouldShowInModal fail+wizard === true')
+  check(getWizardSteps({type:'wizard', steps:[{schema:[{name:'a'}]}]}).length===1, 'getWizardSteps 单步 → 1')
+  check(getWizardSteps({type:'wizard', steps:[{schema:[]}]}).length===1, 'getWizardSteps 空 schema 单步 → 1')
+  check(getWizardSteps({type:'form', schema:[]}).length===0, 'getWizardSteps 非 wizard → 0')
+  check(Array.isArray(getWizardSteps({type:'wizard', steps:[{title:'第一步', schema:[{name:'x', label:'X'}]}]})), 'getWizardSteps 归一化含 title')
+  if (typeof getModalAction === 'function') {
+    check(getModalAction({ actions:[{type:'wizard', steps:[{schema:[]}]}] })?.type==='wizard', 'getModalAction 优先取 wizard')
+    check(getModalAction({ actions:[{type:'form', schema:[]} ]})?.type==='form', 'getModalAction 取 form')
+  }
+  // kernel 同判据（wizard 扩展）
+  const { shouldShowInModal: kShould, canOpenModalForStep, getWizardSteps: kGetWizardSteps, getWizardAction: kGetWizardAction } = await import('../src/client/kernel/slots.js').catch(()=>({}))
   if (typeof kShould === 'function') {
     check(kShould({ status:'fail', actions:[{type:'form'}] })===true, 'kernel shouldShowInModal fail+form → true')
+    check(kShould({ status:'fail', actions:[{type:'wizard', steps:[{schema:[]}]}] })===true, 'kernel shouldShowInModal fail+wizard → true（#318）')
+    check(kShould({ status:'done', actions:[{type:'wizard', steps:[{schema:[]}]}] })===false, 'kernel done+wizard → false')
+  }
+  if (typeof kGetWizardSteps === 'function') {
+    check(kGetWizardSteps({type:'wizard', steps:[{schema:[{name:'a'}]}]}).length===1, 'kernel getWizardSteps 单步 → 1（#318）')
+  }
+  if (typeof kGetWizardAction === 'function') {
+    check(kGetWizardAction({ actions:[{type:'wizard', steps:[{schema:[]}]}] })?.type==='wizard', 'kernel getWizardAction 可用')
   }
   const sr = await import('../src/client/kernel/slotRenderer.js').catch(()=>({}))
   if (typeof sr.canOpenModalForStep === 'function') {
     check(sr.canOpenModalForStep({ status:'fail', actions:[{type:'form'}] })===true, 'slotRenderer canOpenModalForStep fail+form → true')
     check(sr.canOpenModalForStep({ status:'fail', actions:[{type:'inject-prompt'}] })===false, 'slotRenderer fail 无 form → false')
     check(sr.canOpenModalForStep({ status:'current', actions:[{type:'form'}] })===false, 'slotRenderer current+form → false')
+    check(sr.canOpenModalForStep({ status:'fail', actions:[{type:'wizard', steps:[{schema:[]}]}] })===true, 'slotRenderer canOpenModalForStep fail+wizard → true（#318 单步）')
+    check(sr.canOpenModalForStep({ status:'done', actions:[{type:'wizard', steps:[{schema:[]}]}] })===false, 'slotRenderer done+wizard → false')
   }
+  if (typeof sr.canOpenWizardForStep === 'function') {
+    check(sr.canOpenWizardForStep({ status:'fail', actions:[{type:'wizard', steps:[{schema:[]}]}] })===true, 'slotRenderer canOpenWizardForStep fail+wizard → true')
+  }
+  // chain.js 契约层 wizard 校验
+  try {
+    const { validateAction, ACTION_TYPE } = await import('../src/shared/tracker/chain.js')
+    check(ACTION_TYPE.WIZARD==='wizard', 'ACTION_TYPE.WIZARD === wizard')
+    check(validateAction({type:'wizard', steps:[{schema:[{name:'a', label:'A'}]}], submitAction:{type:'rpc', method:'wf.test'}}).ok===true, 'validateAction wizard 单步合法 → ok')
+    check(validateAction({type:'wizard', steps:[], submitAction:{type:'rpc', method:'wf.test'}}).ok===false, 'validateAction wizard 空 steps → fail')
+    check(validateAction({type:'wizard', steps:[{schema:[{name:'a'}]}], submitAction:{type:'rpc', method:'wf.test'}}).ok===true, 'validateAction wizard directory/file 兼容仅 name → ok（#318）')
+    check(validateAction({type:'wizard', steps:[{schema:[{name:'p', type:'directory', label:'目录'}]}], submitAction:{type:'rpc', method:'wf.test'}}).ok===true, 'validateAction wizard directory 类型 → ok')
+    check(validateAction({type:'wizard', steps:[{schema:[{name:'f', type:'file', label:'文件'}]}], submitAction:{type:'rpc', method:'wf.test'}}).ok===true, 'validateAction wizard file 类型 → ok')
+  } catch(e) { check(false, 'chain wizard 校验异常: '+e.message) }
 }catch(e){ check(false, 'modal 挂接运行时异常: '+e.message)}
 
 console.log('')
