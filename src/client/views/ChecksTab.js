@@ -87,10 +87,8 @@ export const ChecksTab = ({ st }) => {
     } catch (e) {}
     return null
   })()
-  const chainBannerBlock = (chainSnapshot && chainDispatcher) ? (function () {
-    try { return h(ChainRenderer, { snapshot: chainSnapshot, dispatcher: chainDispatcher, st: st, showSteps: false }) } catch (e) { return null }
-  })() : null
-  // 垂直步骤明细：每步 = 状态圆点 + 名称 + 描述（动作按钮由 banner 的 ChainRenderer 承担，明细不再重复）
+  // B Timeline 定版（2026-08-28）：顶部不渲染 ChainBanner（原型无横幅——FAIL 状态由行内红卡+右置主按钮表达）；
+  //   垂直步骤明细：每步 = 状态圆点 + 名称 + 描述（动作按钮按行级 primaryAction 渲染）
   const statusMeta = function (s) {
     const sts = s.status
     if (sts === 'done') return { dot: '#16a34a', color: '#4ade80', label: '\u2713' }
@@ -164,7 +162,6 @@ export const ChecksTab = ({ st }) => {
   const formModalNode = (typeof FormModalSeat === 'function') ? (function(){ try { return h(FormModalSeat, { st: st }) } catch(e){ return null } })() : null
   return h('div', null, [
     formModalNode,
-    chainBannerBlock,
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 12 } }, [
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'gear', size: 12 }), h('span', null, tr('env.title', { n: envLabel(st) }))]),
       (function () {
@@ -179,9 +176,8 @@ export const ChecksTab = ({ st }) => {
         h('span', null, tr('env.recheck')),
       ]),
     ]),
-    // no-repo 弱化卡（与旧行为一致：红卡显示时弱化为提示，dismiss 后提供重置入口）
-    (function () { const dismissed = isNoRepoDismissed(st.cwd); const showRed = remoteBad && !dismissed; if (!showRed) return null; return h('div', { className: 'dsws-ccard', style: { opacity: 0.85, borderColor: 'rgba(139,139,149,.35)', background: 'rgba(139,139,149,.08)', marginBottom: 6 } }, [h('div', { className: 'nm', style: { color: '#8b8b95' } }, (remoteStep && remoteStep.show && (remoteStep.show.fallback || remoteStep.show.title)) || tr('nav.takeable')), h('div', { className: 'dt', style: { color: '#8b8b95' } }, tr('panel.noRepoCardDone')), h('div', { className: 'act' }, [h('button', { className: 'dsws-btn', onClick: function () { st.tab = 'list'; emit(st) }, style: { fontSize: 11, padding: '2px 8px' } }, tr('panel.tabList'))])]) })(),
-    (function () { const dismissed = isNoRepoDismissed(st.cwd); if (!dismissed) return null; if (!remoteBad) return null; return h('div', { className: 'dsws-ccard', style: { borderColor: 'rgba(248,113,113,.35)', background: 'rgba(248,113,113,.06)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 } }, [h('span', { style: { fontSize: 11, color: '#f87171', flex: 1 } }, tr('panel.noRepoCardDismiss') + ' \u00b7 ' + (remoteStep && remoteStep.show && (remoteStep.show.desc || ''))), h('button', { className: 'dsws-btn', onClick: function () { setNoRepoDismissed(st.cwd, false); emit(st) }, style: { fontSize: 11, padding: '2px 8px', flex: 'none' } }, tr('panel.noRepoReset'))]) })(),
+    // B Timeline 定版（2026-08-28）：无 no-repo 弱化卡/恢复卡——远端未关联由行内红卡（gh:remote FAIL 行）表达；
+    //   dismiss 状态机保留在 store（向后兼容），不再在检查页顶部占用空间
     stepRows,
     // #155 Q7：能力诊断折叠卡（默认收起，不进渲染分支；G5 能力视图仅诊断不驱动隐藏）
     (function () {

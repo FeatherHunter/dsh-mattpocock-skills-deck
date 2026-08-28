@@ -285,8 +285,8 @@ export     const ListTab = ({ st, narrow }) => {
           }),
           h('span', { key: 'f-label-clear', className: 'dsws-chip', onClick: function (e) { e.stopPropagation(); st.lblFilters = []; emit(st) }, style: { fontSize: 10, cursor: 'pointer', background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid rgba(255,255,255,.15)' } }, tr('list.filterClear')),
         ]) : null,
-        // T2 #35 · 首屏最优先红卡（ListTab 顶部 · KPI 之上 · 唯一闸门 checkRepo:bad && !dismissed）
-        h(NoRepoCard, { st: st }),
+        // B Timeline 定版（2026-08-28）：全屏红卡（NoRepoCard）不再挂载于列表页顶部——
+        //   远端未关联/环境未就绪由检查页行内红卡表达，列表页保持 KPI + 列表（无顶部错误信息）
         // KPI 行 + 环境提示（v18-30：可接/占用 = 列表 open issue 口径）
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
           kpi(frontierCount(st), tr('list.kpi.takeable'), 'target', '#4ade80'),
@@ -295,7 +295,7 @@ export     const ListTab = ({ st, narrow }) => {
           h('span', { style: { flex: 1 } }),
           // T2 #2：刷新按钮已上移至 OverlayPanel tabs 行（L1932）
         ]),
-        (function () { const cr = chainStep(st, 'gh:remote'); if (cr && cr.status === 'fail' && !isNoRepoDismissed(st.cwd)) return null; return nBad > 0 ? h('div', { className: 'dsws-banner bad', onClick: function () { st.tab = 'checks'; emit(st) } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('list.envWarn', { n: nBad }))]) : null })(),
+        // B Timeline 定版（2026-08-28）：「N 项环境未就绪」红条已移除（顶部无错误信息；状态由检查页行级表达）
         // #374/#375：状态过滤 + 排序 + label 过滤 chips（全部小号紧凑同排，窄屏换行不增高；展开态点选 label 不收起）
         h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0, marginBottom: 6 } }, [
           ['all', 'open', 'closed', 'blocked', 'frontier'].map(function (k) {
