@@ -181,6 +181,8 @@ const KERNEL_MODULES = [
   { name: 'store', file: 'src/client/kernel/store.js' },
   { name: 'api', file: 'src/client/kernel/api.js' },
   { name: 'actions', file: 'src/client/kernel/actions.js' },
+  { name: 'slots', file: 'src/client/kernel/slots.js' },
+  { name: 'slotRenderer', file: 'src/client/kernel/slotRenderer.js' },
   { name: 'probe', file: 'src/client/kernel/probe.js' },
   { name: 'router', file: 'src/client/kernel/router.js' },
 ]
@@ -191,6 +193,7 @@ const KERNEL_MODULES = [
 const SHARED_SPLICE = [
   { marker: '// ==== shared:namingGuardian (spliced by build) ====', file: 'src/shared/naming-guardian.js' },
   { marker: '// ==== shared:trackerSync (spliced by build) ====', file: 'src/shared/tracker/sync.js' },
+  { marker: '// ==== shared:slots (spliced by build) ====', file: 'src/shared/ui/slots.js' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------

@@ -24,7 +24,22 @@ export const ChecksTab = ({ st }) => {
           openUrl: function (url) { try { openUrl(url) } catch (e) {} },
           hostCall: function (method, params) { if (typeof host !== 'undefined' && host.call) return host.call(method, params); return Promise.reject(new Error('hostCall unavailable')) },
           renderForm: function (schema, onSubmit) {
-            try { onSubmit({}) } catch (e) {}
+            try {
+              // #308 modal-seat：把 form 渲染从横幅内嵌升级为槽位弹窗（用户点击才弹，复用 actions.js 的 schema+onSubmit 闭包）
+              if (typeof ensureFormModal === 'function') {
+                const m = ensureFormModal(st)
+                m.open = true
+                m.schema = Array.isArray(schema) ? schema : []
+                m.onSubmit = typeof onSubmit === 'function' ? onSubmit : null
+                m.label = '填写表单'
+                m.pending = false
+                try { if (typeof emit === 'function') emit(st) } catch (e2) { try { st.tick = (st.tick||0)+1 } catch(_) {} }
+              } else if (typeof openFormModal === 'function') {
+                try { openFormModal(st, { type: 'form', schema: schema, label: '填写表单' }, onSubmit) } catch (e2) { try { onSubmit({}) } catch (_) {} }
+              } else {
+                try { onSubmit({}) } catch (e2) {}
+              }
+            } catch (e) {}
           },
           refresh: async function (target) {
             try {
@@ -94,8 +109,8 @@ export const ChecksTab = ({ st }) => {
     }
     const finalDesc = blockedNote ? (desc ? desc + ' \u00b7 ' + blockedNote : blockedNote) : desc
     const hintText = hintTextOf(s)
-    // 明细只渲染非表单动作：form（如「创建并发布」）由上方 banner 的 ChainRenderer 内嵌表单呈现（本页 dispatcher 无 renderForm 容器）
-    const fixActions = (s.status === 'fail' || s.status === 'current') ? (Array.isArray(s.actions) ? s.actions.filter(function (a) { return a && a.type !== 'form' }) : []) : []
+    // #308 modal-seat：表单改走槽位弹窗（不再内嵌），明细行放开 form 过滤，按钮点击即弹 modal
+    const fixActions = (s.status === 'fail' || s.status === 'current') ? (Array.isArray(s.actions) ? s.actions : []) : []
     const actButtons = (chainDispatcher && fixActions.length) ? h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 } }, fixActions.map(function (a, ai) {
       const alabel = miniActionLabel(a)
       const unsupported = String(alabel).indexOf('unsupported:') === 0
@@ -111,7 +126,10 @@ export const ChecksTab = ({ st }) => {
       ]),
     ])
   }) : null
+  // #308 modal-seat 挂载点（shell.overlay / root / single，复用 .dsws-modal 遮罩）
+  const formModalNode = (typeof FormModalSeat === 'function') ? (function(){ try { return h(FormModalSeat, { st: st }) } catch(e){ return null } })() : null
   return h('div', null, [
+    formModalNode,
     chainBannerBlock,
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 12 } }, [
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'gear', size: 12 }), h('span', null, tr('env.title', { n: envLabel(st) }))]),

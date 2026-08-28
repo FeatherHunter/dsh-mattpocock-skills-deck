@@ -131,6 +131,15 @@ export const fixes = Object.freeze({
       en: 'Repository not reachable via the GitHub API (missing / permission / network). Use the fix guide, or verify the repo and gh identity first.',
     },
     actions: [
+      {
+        type: 'form',
+        label: { zh: '创建并发布', en: 'Create & publish' },
+        schema: [
+          { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$' },
+          { name: 'visibility', type: 'single', label: { zh: '可见性', en: 'Visibility' }, options: ['private', 'public'], defaultValue: 'private' },
+        ],
+        submitAction: { type: 'rpc', method: 'wf.initPublish', params: {} },
+      },
       { type: 'inject-prompt', prompt: 'repoAccessFix', label: { zh: '修复指引', en: 'Fix guide' } },
       { type: 'refresh', target: 'chain' },
     ],

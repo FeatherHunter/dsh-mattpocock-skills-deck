@@ -205,21 +205,18 @@
       ].concat(formActions.length ? [ h('div', { key:'chain-form-slot', style:{ position:'absolute' } }, []) ] : []))
     }
 
-    // 完整链渲染器：Banner + Steps + 表单槽（供 ChecksTab/Dock 复用；五座位正式抽象前按现有位置渲染 #228 边界）
+    // 完整链渲染器：Banner + Steps（#308 modal-seat：表单不再内嵌，按 ADR 5.4 仅 fail+form 走弹窗；此处移除 ChainForm 内嵌，保留提示）
     export const ChainRenderer = function({ snapshot, dispatcher, st, showSteps = true }) {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
       if (!snapshot) return null
       const hasSteps = Array.isArray(snapshot.steps) && snapshot.steps.length>0
       if (!hasSteps) return null
-      const curIdx = snapshot.currentIndex
-      const curStep = (curIdx!=null && snapshot.steps[curIdx]) ? snapshot.steps[curIdx] : null
-      const formAction = curStep && Array.isArray(curStep.actions) ? curStep.actions.find(function(a){ return a && a.type==='form' }) : null
+      // #308：form 不再内嵌于横幅/渲染器，改为 modal-seat 弹窗（用户点击才弹）
       return h('div', { className:'dsws-chain-renderer', style:{ display:'flex', flexDirection:'column' } }, [
         // #296 实机反馈：水平步进条与下方垂直明细信息重复，检查页隐藏（组件保留，其他宿主按需开启）
         showSteps ? h(ChainSteps, { snapshot:snapshot }) : null,
         h(ChainBanner, { snapshot:snapshot, dispatcher:dispatcher, st:st }),
-        formAction ? h(ChainForm, { key:'chain-form', action:formAction, dispatcher:dispatcher, st:st }) : null,
         // chainState 调试用（仅开发时可见，生产可隐藏；暂展示 small）
         snapshot.chainState==='allDone' ? h('div', { style:{ fontSize:10, color:'#4ade80', padding:'2px 6px' } }, '✓ 链条已全部通过') : null,
       ])

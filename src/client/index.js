@@ -153,6 +153,7 @@ export default {
     // ============================================================
     // ==== shared:namingGuardian (spliced by build) ====
     // ==== shared:trackerSync (spliced by build) ====
+    // ==== shared:slots (spliced by build) ====
     // ==== kernel:icons (spliced by build) ====
 
     // ============================================================
@@ -189,6 +190,8 @@ export default {
     // ==== kernel:api (spliced by build) ====
 
     // ==== kernel:actions (spliced by build) ====
+    // ==== kernel:slots (spliced by build) ====
+    // ==== kernel:slotRenderer (spliced by build) ====
 
     // ==== leaf:chips (spliced by build) ====
     // ==== leaf:backendSelector (spliced by build) ====
