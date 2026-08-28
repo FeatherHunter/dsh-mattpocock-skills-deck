@@ -125,35 +125,6 @@ export function createGitlabBackend(ctx) {
   }
 }
 
-/** BackendModule（registry可插拔） */
-export const gitlabBackend = {
-  id: 'gitlab',
-  label: 'GitLab',
-  // #230（D10 · 键入 locale）：setup 提示词描述数据 —— 只声明 client locale 双语键名，文案不落后端（双语单源）
-  setupPrompt: {
-    trackerLine: 'setup.gitlab.trackerLine',
-    trackerChoice: 'setup.gitlab.trackerChoice',
-    backendNote: 'setup.gitlab.backendNote',
-    labelReqs: 'setup.gitlab.labelReqs',
-  },
-  describe,
-  issueUrl,
-  searchUrl,
-  linkPattern,
-  links,
-  // #191：品牌色完整色板（B 方案定版 · #177）
-  presentation: {
-    color: '#c25100',
-    darkColor: '#ff9a5c',
-    bg: 'light-dark(rgba(194,81,0,.12), rgba(255,154,92,.14))',
-    border: 'light-dark(rgba(194,81,0,.25), rgba(255,154,92,.30))',
-  },
-  create: createGitlabBackend,
-  matches,
-  prompts,
-  fixes,
-}
-
 /** 修复契约注入文案（GitLab 后端，双语单源；供 fixes 引用，host 组装时解析）。 */
 export const prompts = {
   glabInstallFix: {
@@ -203,5 +174,34 @@ export const fixes = Object.freeze({
     ],
   },
 })
+
+/** BackendModule（registry可插拔） */
+export const gitlabBackend = {
+  id: 'gitlab',
+  label: 'GitLab',
+  // #230（D10 · 键入 locale）：setup 提示词描述数据 —— 只声明 client locale 双语键名，文案不落后端（双语单源）
+  setupPrompt: {
+    trackerLine: 'setup.gitlab.trackerLine',
+    trackerChoice: 'setup.gitlab.trackerChoice',
+    backendNote: 'setup.gitlab.backendNote',
+    labelReqs: 'setup.gitlab.labelReqs',
+  },
+  describe,
+  issueUrl,
+  searchUrl,
+  linkPattern,
+  links,
+  // #191：品牌色完整色板（B 方案定版 · #177）
+  presentation: {
+    color: '#c25100',
+    darkColor: '#ff9a5c',
+    bg: 'light-dark(rgba(194,81,0,.12), rgba(255,154,92,.14))',
+    border: 'light-dark(rgba(194,81,0,.25), rgba(255,154,92,.30))',
+  },
+  create: createGitlabBackend,
+  matches,
+  prompts,
+  fixes,
+}
 
 export default createGitlabBackend
