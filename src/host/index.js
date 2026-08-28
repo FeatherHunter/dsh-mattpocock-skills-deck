@@ -2768,6 +2768,63 @@ export default {
       return { ok: true, repo: { owner: owner, name: name } }
     })
 
+    // ============ 原生选择器（DSH directory/file picker，供 modal-seat 的 directory/file 字段使用） ============
+    // 前端字段 type:'directory' | 'file' 的“浏览…”按钮会调 wf.pickDirectory / wf.pickFile
+    // 宿主侧优先走平台/宿主自带的原生对话框（若 DSH / Electron 暴露），否则回落为手输提示（ok:false）
+    harness.handle('wf.pickDirectory', async function (args) {
+      const cwd = (args && (args.cwd || args.initial)) ? String(args.cwd || args.initial) : DEFAULT_CWD
+      const initial = args && args.initial ? String(args.initial) : cwd
+      try {
+        // 1) 尝试 Electron dialog（DSH Desktop 主进程）
+        let electron = null
+        try { electron = typeof require === 'function' ? require('electron') : null } catch(_){}
+        if (electron && electron.dialog && typeof electron.dialog.showOpenDialogSync === 'function') {
+          try {
+            const picked = electron.dialog.showOpenDialogSync({ properties: ['openDirectory'], defaultPath: initial || cwd })
+            if (Array.isArray(picked) && picked[0]) return { ok: true, path: String(picked[0]) }
+            return { ok: false, error: 'cancelled', errorKind: 'cancelled' }
+          } catch(_){}
+        }
+        // 2) 尝试 DSH 平台暴露的 picker（若未来 platform 提供）
+        try {
+          const plat = (typeof platform !== 'undefined' && platform && typeof platform.pickDirectory === 'function') ? platform : null
+          if (plat) {
+            const p = await plat.pickDirectory(initial || cwd)
+            if (p) return { ok: true, path: String(p) }
+          }
+        } catch(_){}
+        // 3) 回落：宿主暂无原生对话框能力，提示手输（前端会保留输入框可用）
+        return { ok: false, error: '当前环境暂无原生目录选择器，请手动输入路径', errorKind: 'no-picker' }
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e), errorKind: 'internal' }
+      }
+    })
+    harness.handle('wf.pickFile', async function (args) {
+      const cwd = (args && (args.cwd || args.initial)) ? String(args.cwd || args.initial) : DEFAULT_CWD
+      const initial = args && args.initial ? String(args.initial) : cwd
+      try {
+        let electron = null
+        try { electron = typeof require === 'function' ? require('electron') : null } catch(_){}
+        if (electron && electron.dialog && typeof electron.dialog.showOpenDialogSync === 'function') {
+          try {
+            const picked = electron.dialog.showOpenDialogSync({ properties: ['openFile'], defaultPath: initial || cwd })
+            if (Array.isArray(picked) && picked[0]) return { ok: true, path: String(picked[0]) }
+            return { ok: false, error: 'cancelled', errorKind: 'cancelled' }
+          } catch(_){}
+        }
+        try {
+          const plat = (typeof platform !== 'undefined' && platform && typeof platform.pickFile === 'function') ? platform : null
+          if (plat) {
+            const p = await plat.pickFile(initial || cwd)
+            if (p) return { ok: true, path: String(p) }
+          }
+        } catch(_){}
+        return { ok: false, error: '当前环境暂无原生文件选择器，请手动输入路径', errorKind: 'no-picker' }
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e), errorKind: 'internal' }
+      }
+    })
+
     // ============ 轮询：已按 #348 拍板 Q3 关闭（60s 全量 × 8 map ≈ 2400-4800 GraphQL points/h 贴 5000 限额）============
     // 刷新策略 = 纯手动（状态条/面板按钮 wf.refresh）+ 打开面板即刷（client 侧 loadSnapshot）。
     // P1 若做状态变化 toast 提醒，再考虑低频自动（届时恢复本块并观察配额）。

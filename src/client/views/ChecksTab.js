@@ -25,8 +25,11 @@ export const ChecksTab = ({ st }) => {
           hostCall: function (method, params) { if (typeof host !== 'undefined' && host.call) return host.call(method, params); return Promise.reject(new Error('hostCall unavailable')) },
           renderForm: function (schema, onSubmit) {
             try {
-              // #308 modal-seat：把 form 渲染从横幅内嵌升级为槽位弹窗（用户点击才弹，复用 actions.js 的 schema+onSubmit 闭包）
-              if (typeof ensureFormModal === 'function') {
+              // #308 modal-seat：只用 openFormModal（顺序队列，失败不关，焦点聚集），不再手写 m.open 赋值
+              if (typeof openFormModal === 'function') {
+                openFormModal(st, { type: 'form', schema: schema, label: '填写表单' }, onSubmit)
+              } else if (typeof ensureFormModal === 'function') {
+                // 兜底：旧 API（理论不可达，仅防产物不同步）
                 const m = ensureFormModal(st)
                 m.open = true
                 m.schema = Array.isArray(schema) ? schema : []
@@ -34,8 +37,6 @@ export const ChecksTab = ({ st }) => {
                 m.label = '填写表单'
                 m.pending = false
                 try { if (typeof emit === 'function') emit(st) } catch (e2) { try { st.tick = (st.tick||0)+1 } catch(_) {} }
-              } else if (typeof openFormModal === 'function') {
-                try { openFormModal(st, { type: 'form', schema: schema, label: '填写表单' }, onSubmit) } catch (e2) { try { onSubmit({}) } catch (_) {} }
               } else {
                 try { onSubmit({}) } catch (e2) {}
               }

@@ -115,7 +115,7 @@ export function isKnownActionType(type) {
  * FieldSchema — form 动作的字段模式（v1 完整，含校验元数据）。
  * @typedef {Object} FieldSchema
  * @property {string} name 字段名（提交时 key）
- * @property {'text'|'number'|'date'|'single'|'multi'} [type]
+ * @property {'text'|'number'|'date'|'single'|'multi'|'directory'|'file'} [type]
  * @property {string} [label] 人读标签（兼容 labelKey）
  * @property {string} [labelKey] i18n 键
  * @property {boolean} [required]

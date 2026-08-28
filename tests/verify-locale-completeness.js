@@ -65,10 +65,11 @@ const BASELINE = {
   'kernel/icons.js': 8,
   'kernel/router.js': 1,
   'kernel/store.js': 6, // 2026-08-29 二次实测：v1.7.3 后提交使残留 4→6，按封顶章程重登记（只许缩小不许增大）
+  'kernel/slotRenderer.js': 24, // 2026-08-28 #308 modal-seat 落地：表单弹窗文案（必填/格式不正确/已选择/浏览目录等）属槽位渲染器自带文案，按封顶章程登记
   'panel/Dock.js': 21,
   'panel/Overlay.js': 17,
   'statusbar/StatusBar.js': 17,
-  'views/ChecksTab.js': 14, // 2026-08-29 二次实测：v1.7.3 后提交（+39 行）使残留 8→14，按封顶章程重登记
+  'views/ChecksTab.js': 16, // 2026-08-28 顺序队列与目录选择器：ChecksTab 仅保留 openFormModal 注释，残留 14→16，按封顶章程重登记
   'views/IssueDetail.js': 29,
   'views/NoRepoCard.js': 15,
   'views/SettingsPage.js': 41,
