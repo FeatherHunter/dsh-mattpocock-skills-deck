@@ -9,6 +9,9 @@
  *   3. RPC：wf.ping / wf.snapshot（5s 缓存）/ wf.refresh。
  *   4. 轮询：timer 60s 刷新缓存 + 与上次 stats diff（P2 toast 预留字段）。
  *   5. 检查链快照（#228/#284）：wf.chain —— 通用链 + 当前后端链求值快照，替代九格目录视图。
+ *   6. 技能判装多通道并联（#296）：注册表未命中时并联探标准根（DSH fs 服务 + 插件只读直读）。
+ *      直读是对「探测零 OS 直碰」的限定例外——只读、仅技能标准根候选路径，契约见
+ *      docs/adr/20260828-skill-probe-union-channels.md。
  *
  * 已验证（.charting/verify.js，真实数据 PASS）：分组 frontier/claimed/blocked 与 GitHub 页面一致；
  * 9 张 open map 中仅 4 张有 Destination —— body 解析全部容错。
@@ -258,7 +261,7 @@ export default {
           for (let i = 0; i < SKILL_PROBE_NAMES.length; i++) {
             const name = SKILL_PROBE_NAMES[i]
             try {
-              const r = await probeSkill(name, 'zh')
+              const r = await probeSkill(name, 'zh', cwd)
               probes[name] = r
               if (r.level === 'pending') { hasPending = true; if (!pendingError && r.error) pendingError = r.error }
               else if (r.level !== 'ok') missing.push(name)
@@ -1375,50 +1378,141 @@ export default {
       } catch {}
       return false
     }
-    async function lightProbeReason(skillName, lang) {
+    // #296 多通道并联探针（契约修订见 docs/adr/20260828-skill-probe-union-channels.md）：
+    // 判装口径从「注册表唯一绿」修订为「任一通道有效即已安装」——修复协议（installSkills 提示词以
+    // ~/.agents/skills 盘上齐全为成功）与检测口径必须用同一把尺；通道全空才红，红时附各通道判据。
+    // 通道：REGISTRY（probeSkill 上游已查）· FS_USER/FS_PROJECT（DSH fs 服务读用户/项目标准根）
+    //       · DIRECT（插件只读直读同一批候选根——#296 决策：只读、仅技能标准根，绕开工作区作用域限制）。
+    // 纪律：轻探只读；直读仅在技能标准根使用，绝不写、绝不读其他路径；绿牌需名片合法（frontmatter name 匹配）。
+    async function directSkillCardRead(absPath) {
+      try {
+        const mod = await import('node:fs/promises')
+        const fsp = mod.default || mod
+        return await fsp.readFile(absPath, 'utf8')
+      } catch { return null }
+    }
+    // #296：直读存在性探测（只读；用于 .git 项目根识别的兜底——围栏环境 DSH fs 服务可能读不到祖目录）
+    async function directPathExists(absPath) {
+      try {
+        const mod = await import('node:fs/promises')
+        const fsp = mod.default || mod
+        const st = await fsp.stat(absPath)
+        return !!st
+      } catch { return false }
+    }
+    async function findProjectRootDir(cwd, platform) {
+      if (!cwd || !platform || !platform.path || typeof platform.path.join !== 'function' || typeof platform.path.dirname !== 'function') return null
+      try {
+        let cur = String(cwd)
+        const curFs = ctx.get('fs')
+        while (true) {
+          const gitPath = platform.path.join(cur, '.git')
+          if (await probeFsExists(curFs, platform, gitPath)) return cur
+          if (await directPathExists(gitPath)) return cur
+          const parent = platform.path.dirname(cur)
+          if (parent === cur) return null
+          cur = parent
+        }
+      } catch { return null }
+    }
+    // fs 服务通道探卡：返回 { result: 'valid'|'invalid'|'missing'|'unavailable', detail? }
+    async function probeCardViaFs(curFs, platform, cardPath, dirPath, skillName) {
+      let cardTarget = null
+      try {
+        if (curFs && typeof curFs.resolve === 'function') cardTarget = await curFs.resolve(cardPath)
+        else cardTarget = cardPath
+      } catch { cardTarget = null }
+      if (cardTarget && curFs && typeof curFs.readText === 'function') {
+        try {
+          const content = await curFs.readText(cardTarget)
+          if (isSkillCardValid(content, skillName)) return { result: 'valid' }
+          return { result: 'invalid', detail: 'frontmatter invalid' }
+        } catch (e) {
+          const cardExists = await probeFsExists(curFs, platform, cardPath)
+          if (cardExists) return { result: 'invalid', detail: 'SKILL.md unreadable' }
+          const dirExists = await probeFsExists(curFs, platform, dirPath)
+          if (dirExists) return { result: 'invalid', detail: 'SKILL.md missing' }
+          return { result: 'missing' }
+        }
+      }
+      return { result: 'unavailable', detail: 'fs probe unavailable' }
+    }
+    // 直读通道探卡：只读、仅标准技能根；readFile 失败一律视为未找到（证据留给其他通道分类）
+    async function probeCardViaDirect(cardPath, skillName) {
+      try {
+        const content = await directSkillCardRead(cardPath)
+        if (content == null) return { result: 'missing' }
+        if (isSkillCardValid(content, skillName)) return { result: 'valid' }
+        return { result: 'invalid', detail: 'frontmatter invalid' }
+      } catch { return { result: 'missing' } }
+    }
+    function evidenceSummary(channels, lang) {
+      if (!channels || !channels.length) return ''
+      const parts = []
+      for (let i = 0; i < channels.length; i++) {
+        const c = channels[i]
+        const st = c.result === 'valid' ? '命中' : (c.result === 'invalid' ? '无效' : (c.result === 'missing' ? '未找到' : String(c.result || '?')))
+        parts.push(c.root + '·' + c.channel + '=' + st)
+      }
+      return (lang === 'en') ? ('; probed: ' + parts.join(', ')) : ('；已查：' + parts.join('，'))
+    }
+    async function lightProbeReason(skillName, lang, cwd) {
       const curFs = ctx.get('fs')
       let platform = null
       try { platform = await getPlatform() } catch {}
-      if (!curFs || !platform) {
-        return { kind: 'missing', detail: (lang === 'en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills' }
+      if (!platform) {
+        return { kind: 'missing', detail: (lang === 'en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills', channels: [{ channel: 'fs', root: 'user-agents', result: 'unavailable', detail: 'platform unavailable' }] }
       }
       let home = null
       try { home = await platform.getHome() } catch {}
       if (!home) {
-        return { kind: 'missing', detail: (lang === 'en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills' }
+        return { kind: 'missing', detail: (lang === 'en') ? 'Not installed' : '未安装', hint: 'prompt:installSkills', channels: [] }
       }
-      const standardDir = platform.path.join(home, '.agents', 'skills', skillName)
-      const cardPath = platform.path.join(standardDir, 'SKILL.md')
-      let cardTarget = null
+      // 候选根：用户标准根（.agents/skills 优先，.dsh/skills 次之）+ 项目根（.dsh/skills + .agents/skills）
+      const candidates = [
+        { label: 'user', root: 'user-agents', dir: platform.path.join(home, '.agents', 'skills', skillName) },
+        { label: 'user', root: 'user-dsh', dir: platform.path.join(home, '.dsh', 'skills', skillName) },
+      ]
       try {
-        if (typeof curFs.resolve === 'function') cardTarget = await curFs.resolve(cardPath)
-        else cardTarget = cardPath
-      } catch { cardTarget = null }
-      let content = null
-      let readable = false
-      if (cardTarget && typeof curFs.readText === 'function') {
-        try { content = await curFs.readText(cardTarget); readable = true } catch { readable = false }
-      }
-      if (readable) {
-        // 名片可读：校验 frontmatter；合法但注册表查无 = 诚实报「缺失」（不放行、有 hint 指明安装路径）
-        const valid = isSkillCardValid(content, skillName)
-        if (!valid) {
-          return { kind: 'invalid', detail: (lang === 'en') ? 'Invalid skill card' : '名片无效', hint: 'prompt:installSkills' }
+        const projRoot = cwd ? await findProjectRootDir(cwd, platform) : null
+        if (projRoot) {
+          candidates.push({ label: 'project', root: 'project-dsh', dir: platform.path.join(projRoot, '.dsh', 'skills', skillName) })
+          candidates.push({ label: 'project', root: 'project-agents', dir: platform.path.join(projRoot, '.agents', 'skills', skillName) })
         }
-        return { kind: 'missing', detail: (lang === 'en') ? 'Not installed (missing)' : '未安装（缺失）', hint: 'prompt:installSkills' }
+      } catch {}
+      const channels = []
+      let validHit = null
+      let invalidSeen = false
+      // ① fs 服务通道（DSH 沙箱 fs——现行构建读穿透；旧环境可能受工作区作用域限制，由 ② 顶替）
+      for (let i = 0; i < candidates.length && !validHit; i++) {
+        const cand = candidates[i]
+        const cardPath = platform.path.join(cand.dir, 'SKILL.md')
+        const r = await probeCardViaFs(curFs, platform, cardPath, cand.dir, skillName)
+        channels.push({ channel: 'fs', root: cand.root, path: cardPath, result: r.result, detail: r.detail || '' })
+        if (r.result === 'valid') validHit = { path: cardPath, dir: cand.dir, via: 'fs:' + cand.root }
+        else if (r.result === 'invalid') invalidSeen = true
       }
-      // 名片不可读：区分「文件存在但读不了」与「文件不存在」
-      const cardExists = await probeFsExists(curFs, platform, cardPath)
-      if (cardExists) {
-        return { kind: 'invalid', detail: (lang === 'en') ? 'Invalid skill card (SKILL.md unreadable)' : '名片无效（SKILL.md 不可读）', hint: 'prompt:installSkills' }
+      // ② 直读通道（插件只读直读——不经过 DSH fs 服务，绕开工作区作用域限制；仅技能标准根）
+      if (!validHit) {
+        for (let i = 0; i < candidates.length && !validHit; i++) {
+          const cand = candidates[i]
+          const cardPath = platform.path.join(cand.dir, 'SKILL.md')
+          const r = await probeCardViaDirect(cardPath, skillName)
+          channels.push({ channel: 'direct', root: cand.root, path: cardPath, result: r.result, detail: r.detail || '' })
+          if (r.result === 'valid') validHit = { path: cardPath, dir: cand.dir, via: 'direct:' + cand.root }
+          else if (r.result === 'invalid') invalidSeen = true
+        }
       }
-      const dirExists = await probeFsExists(curFs, platform, standardDir)
-      if (dirExists) {
-        return { kind: 'invalid', detail: (lang === 'en') ? 'Invalid skill card (SKILL.md missing)' : '名片无效（SKILL.md 缺失）', hint: 'prompt:installSkills' }
+      if (validHit) {
+        // 新契约：任一通道命中合法名片即已安装（附来源 + 注册表未收录的如实注记）
+        return { kind: 'ok', detail: (lang === 'en') ? 'Installed' : '已安装', hint: '', sourcePath: validHit.path, via: validHit.via, registryMiss: true, channels }
       }
-      return { kind: 'missing', detail: (lang === 'en') ? 'Not installed (missing)' : '未安装（缺失）', hint: 'prompt:installSkills' }
+      if (invalidSeen) {
+        return { kind: 'invalid', detail: (lang === 'en') ? 'Invalid skill card' : '名片无效', hint: 'prompt:installSkills', channels }
+      }
+      return { kind: 'missing', detail: (lang === 'en') ? 'Not installed (missing)' : '未安装（缺失）', hint: 'prompt:installSkills', channels }
     }
-    async function probeSkill(skillName, lang) {
+    async function probeSkill(skillName, lang, cwd) {
       try { ensureSkillsInvalidateSubscription() } catch {}
       const skills = ctx.get('skills')
       let found = null
@@ -1426,7 +1520,7 @@ export default {
       let skillsError = null
       if (skills !== undefined && skills !== null) {
         try {
-          const res = await skills.get(skillName)
+          const res = await skills.get(skillName, cwd ? { cwd } : undefined)
           if (res) {
             found = res
             if (typeof res === 'object') {
@@ -1476,7 +1570,7 @@ export default {
           detail = detail + srcLine
         }
         try { resetSkillPendingState(skillName) } catch {}
-        return { ok: true, level: 'ok', detail, hint, sourcePath: foundPath || undefined, repo: null }
+        return { ok: true, level: 'ok', detail, hint, sourcePath: foundPath || undefined, repo: null, channels: [{ channel: 'registry', root: 'registry', result: 'hit', detail: foundPath || '' }] }
       }
       if (skillsError) {
         const st = getOrCreatePendingState(skillName)
@@ -1488,13 +1582,20 @@ export default {
           return { ok: false, level: 'bad', detail: (lang === 'en') ? 'Skills service unavailable: ' + skillsError : '技能服务不可用：' + skillsError, hint: 'prompt:installSkills', repo: null, error: skillsError }
         }
       }
-      const reason = await lightProbeReason(skillName, lang)
+      const reason = await lightProbeReason(skillName, lang, cwd)
       try { resetSkillPendingState(skillName) } catch {}
-      if (reason.kind === 'invalid') {
-        return { ok: false, level: 'bad', detail: reason.detail, hint: reason.hint, repo: null, reason: 'invalid' }
-      } else {
-        return { ok: false, level: 'bad', detail: reason.detail, hint: reason.hint, repo: null, reason: 'missing' }
+      const allCh = [{ channel: 'registry', root: 'registry', result: 'miss', detail: '' }].concat(reason.channels || [])
+      const ev = evidenceSummary(allCh, lang)
+      if (reason.kind === 'ok') {
+        // #296 新契约：注册表未收录但任一通道命中合法名片 → 按盘上事实判已安装（附来源与如实注记）
+        const srcLine = reason.sourcePath ? ((lang === 'en') ? ' (source: ' + reason.sourcePath + ')' : '（来源：' + reason.sourcePath + '）') : ''
+        const regNote = (lang === 'en') ? ' (DSH catalog miss; judged by disk facts)' : '（DSH 技能清单未收录，按盘上事实判定）'
+        return { ok: true, level: 'ok', detail: reason.detail + srcLine + regNote, hint: '', sourcePath: reason.sourcePath || undefined, repo: null, via: reason.via, channels: allCh }
       }
+      if (reason.kind === 'invalid') {
+        return { ok: false, level: 'bad', detail: reason.detail + ev, hint: reason.hint, repo: null, reason: 'invalid', channels: allCh }
+      }
+      return { ok: false, level: 'bad', detail: reason.detail + ev, hint: reason.hint, repo: null, reason: 'missing', channels: allCh }
     }
 
     // ============ RPC（#152 · 探测编排：wf.detect 新 RPC + wf.chain 检查链快照）============
@@ -1555,7 +1656,7 @@ export default {
         const expConsistent = (selConsistent && selConsistent.backendId)
           ? selConsistent.backendId
           : ((selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId) || null)
-        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, selection: selConsistent, explicitBackendId: expConsistent, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
+        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, selection: selConsistent, explicitBackendId: expConsistent, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
         // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx) {
           try {

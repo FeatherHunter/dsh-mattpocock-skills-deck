@@ -1,5 +1,7 @@
-// tests/verify-skill-probe-redcard-and-waiting.js — #281 红牌分拣与等待合同门禁
+// tests/verify-skill-probe-redcard-and-waiting.js — #281 红牌分拣与等待合同门禁（#296 修订：多通道并联判装）
 // 覆盖：缺失 vs 名片无效分拣 · 异处副本绿+来源 · 等待 pending 有界 · 失效广播事件驱动 · 封顶失败携带原文
+// #296 新增：注册表未命中时「任一通道有效即已安装」——fs 通道合法名片 → 绿；fs 通道被挡（工作区作用域）
+//           但直读通道可读 → 绿（#296 用户环境形态回归）；通道全空才红且附各通道判据。
 import { readFileSync, existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
@@ -55,6 +57,9 @@ console.log('\n— 验收1：源码门禁（纪律与线索） —')
   check(hostSrc.includes('pending:skills-unavailable'), '含 pending hint 前缀')
   check(!/SKILL_PROBE_DIRS/.test(hostSrc), '仍无 SKILL_PROBE_DIRS（单一尺度未回退）')
   check(hostSrc.includes('source:') || hostSrc.includes('来源：'), '绿牌来源路径逻辑存在')
+  check(hostSrc.includes('directSkillCardRead'), '#296: host 含只读直读通道（directSkillCardRead）')
+  check(hostSrc.includes('probeCardViaDirect'), '#296: host 含直读探卡（probeCardViaDirect）')
+  check(hostSrc.includes('evidenceSummary'), '#296: host 含判据摘要（evidenceSummary）')
   // 轻探仅涉标准根
   const lightProbeSnippet = hostSrc.slice(hostSrc.indexOf('async function lightProbeReason'))
   check(lightProbeSnippet.includes('.agents') && lightProbeSnippet.includes('SKILL.md'), '轻探仅涉标准根 SKILL.md')
@@ -82,6 +87,13 @@ console.log('\n— 验收1：源码门禁（纪律与线索） —')
     check(adr.includes('等待合同') || adr.includes('Waiting'), 'ADR 含等待合同')
     check(adr.includes('SKILL_PENDING_MAX') || adr.includes('有界'), 'ADR 含封顶/有界')
   }
+  const adrUnionPath = 'docs/adr/20260828-skill-probe-union-channels.md'
+  check(existsSync(adrUnionPath), '#296 ADR 已落纸：' + adrUnionPath)
+  if (existsSync(adrUnionPath)) {
+    const uadr = readFileSync(adrUnionPath, 'utf8')
+    check(uadr.includes('任一通道') || uadr.includes('union'), '#296 ADR 含「任一通道有效」规则')
+    check(uadr.includes('直读'), '#296 ADR 含直读通道边界')
+  }
   // 产物一致性：build 产物与 src 同步（防陈旧产物派发）
   {
     const pkgLog = 'package/lib/index.js'
@@ -91,6 +103,7 @@ console.log('\n— 验收1：源码门禁（纪律与线索） —')
       check(lib.includes('SKILL_PENDING_MAX'), 'pkg 产物含 SKILL_PENDING_MAX（产物不陈旧）')
       check(lib.includes('lightProbeReason'), 'pkg 产物含 lightProbeReason')
       check(lib.includes('probeFsExists'), 'pkg 产物含 probeFsExists（path-shaped 纪律）')
+      check(lib.includes('directSkillCardRead'), 'pkg 产物含 directSkillCardRead（产物不陈旧）')
       check(!/SKILL_PROBE_DIRS/.test(lib), 'pkg 产物无 SKILL_PROBE_DIRS')
       check(!lib.includes('.claude'), 'pkg 产物无 .claude（仅标准根）')
     }
@@ -367,6 +380,130 @@ console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
     check(false, 'wf.chain 返回（异处副本）', JSON.stringify(statusOff).slice(0,600))
   }
   rmSync(tmpHome2, {recursive:true, force:true})
+}
+
+// ---------- 3.5 多通道并联判装（#296 修订）----------
+console.log('\n— 验收3.5：多通道并联 — 注册表未命中时任一通道合法即绿 —')
+{
+  const tmpHome5 = mkdtempSync(join(tmpdir(), 'home296-'))
+  const realSkillDir = join(tmpHome5, '.agents', 'skills', 'wayfinder')
+  const realCard = join(realSkillDir, 'SKILL.md')
+  mkdirSync(realSkillDir, { recursive: true })
+  const validContent = '---\nname: wayfinder\ndescription: test\n---\n# card\n'
+  writeFileSync(realCard, validContent) // 5b 用：真实盘上文件
+  const platformStub5 = {
+    os: 'linux',
+    path: { join: (...a)=>join(...a), normalize:(p)=>p, dirname:(p)=>p.slice(0,p.lastIndexOf('/')), basename:(p)=>p.split('/').pop(), isAbsolute:(p)=>p.startsWith('/'), sep:'/' },
+    async getHome(){ return tmpHome5 },
+    async resolveExecutable(){return null},
+    env: { get:()=>undefined, has:()=>false },
+    fs: null,
+  }
+  const files5 = new Map()
+  const blocked5 = new Set()
+  const fsMock5 = {
+    async resolve(p, opts) {
+      if (p && typeof p === 'object') return p
+      const base = (opts && opts.cwd) ? String(opts.cwd) : ''
+      const joined = base ? join(base, String(p)) : String(p)
+      return { path: joined }
+    },
+    async readText(target) {
+      const k = (target && typeof target === 'object') ? String(target.path) : null
+      if (!k) throw new Error('readText requires target object')
+      if (blocked5.has(k)) throw new Error('read denied (workspace scope): ' + k)
+      if (files5.has(k)) return files5.get(k)
+      throw new Error('not found: ' + k)
+    },
+    async lstat(p) {
+      if (typeof p !== 'string') throw new Error('lstat requires string path')
+      if (files5.has(p)) return { type: 'file' }
+      if (files5.has(p + '/.dir')) return { type: 'directory' }
+      const prefix = p.endsWith('/') ? p : p + '/'
+      for (const fk of files5.keys()) if (fk.startsWith(prefix)) return { type: 'directory' }
+      return undefined
+    },
+    async exists(p) { if (typeof p !== 'string') return false; return files5.has(p) }
+  }
+  platformStub5.fs = fsMock5
+  let invalidateHandler5 = null
+  const skillsOffMiss5 = {
+    async get(name) { return null }, // 注册表始终未命中 → 走盘上通道
+    on(event, handler) { if (event === 'invalidate' || event === 'didInvalidate') invalidateHandler5 = handler; return () => { invalidateHandler5 = null } },
+    off(event, handler) { if (invalidateHandler5 === handler) invalidateHandler5 = null },
+    trigger() { if (invalidateHandler5) invalidateHandler5() },
+  }
+  const subprocess5 = { async resolveExecutable(){return null}, spawn(){ return { done: Promise.resolve({exitCode:0}), collected:{stdout:{readFrom:()=>({text:''})}, stderr:{readFrom:()=>({text:''})}}, terminate(){} } } }
+  const timer5 = { timeout: (a,b)=> (typeof a==='function'? setTimeout(a,b): new Promise(r=>setTimeout(r,a))) }
+  const handlers5 = {}
+  const ctx5 = {
+    get(k){
+      if(k==='skills') return skillsOffMiss5
+      if(k==='fs') return fsMock5
+      if(k==='platform') return platformStub5
+      if(k==='subprocess') return subprocess5
+      if(k==='timer') return timer5
+      if(k==='connection') return { rpc: { handle: (p,fn)=>{handlers5[p]=fn} } }
+      if(k==='sessions') return { get: ()=>null }
+      return undefined
+    },
+    effect: (fn)=>{ try{ const d=fn(); return typeof d==='function'?d:()=>{} } catch{return ()=>{}} },
+    set: ()=>{},
+  }
+  const hostUrl5 = new URL('../src/host/index.js', import.meta.url)
+  const hostMod5 = await import(hostUrl5.href)
+  const mod5 = hostMod5.default ?? hostMod5
+  try{ (mod5.apply ?? mod5).call(null, ctx5) } catch{}
+  await new Promise(r=> setTimeout(r,50))
+  const call5 = async () => {
+    const dispatch = handlers5['/dsws']
+    return await callChain(dispatch, { cwd: tmpHome5, lang: 'zh' })
+  }
+  const call5Plain = async () => {
+    const dispatch = handlers5['/dsws']
+    const res = await dispatch('chain', { cwd: tmpHome5, lang: 'zh' })
+    return chainToRow(res)
+  }
+  // 5a：fs 通道可读的合法名片（mock 内存文件；真实盘上此刻已有同路径文件 → 任一命中即可）→ 绿 + 来源
+  const cardKey = join(tmpHome5, '.agents', 'skills', 'wayfinder', 'SKILL.md')
+  files5.set(cardKey, validContent)
+  let s5a = await call5()
+  const row5a = s5a && s5a.checks ? s5a.checks.find(c=> c.key==='skill:wayfinder') : null
+  check(row5a && row5a.level==='ok', '注册表未命中 + fs 通道合法名片 → 绿（新契约）', JSON.stringify(row5a))
+  check(row5a && /来源|source/.test(row5a.detail), 'fs 通道绿牌 detail 含来源路径', row5a && row5a.detail)
+  // 5b：fs 通道被挡（模拟工作区作用域限制）+ 真实盘上文件可直读 → 绿（#296 用户环境形态）
+  files5.delete(cardKey)
+  blocked5.add(cardKey)
+  let s5b = await call5()
+  const row5b = s5b && s5b.checks ? s5b.checks.find(c=> c.key==='skill:wayfinder') : null
+  check(row5b && row5b.level==='ok', 'fs 通道被挡 + 直读通道命中 → 绿（#296 用户环境形态）', JSON.stringify(row5b))
+  check(row5b && /来源|source/.test(row5b.detail), '直读绿牌 detail 含来源路径', row5b && row5b.detail)
+  // 5c：移走真实文件 → 全通道空 → 红·缺失（回退成立）
+  rmSync(realSkillDir, { recursive: true, force: true })
+  blocked5.delete(cardKey)
+  let s5c = await call5()
+  const row5c = s5c && s5c.checks ? s5c.checks.find(c=> c.key==='skill:wayfinder') : null
+  check(row5c && row5c.level==='bad', '全通道空 → 红·缺失（回退成立）', JSON.stringify(row5c))
+  check(row5c && /缺失|未安装|missing/.test(row5c.detail), '红牌 detail 含缺失语义', row5c && row5c.detail)
+  check(row5c && /已查：|probed:/.test(row5c.detail), '红牌 detail 附各通道判据', row5c && row5c.detail)
+  // 5d：恢复真实文件 + 刷新 → 绿（双向一致性：移除变红、恢复即绿，不刷新缓存滞后）
+  mkdirSync(realSkillDir, { recursive: true })
+  writeFileSync(realCard, validContent)
+  let s5d = await call5()
+  const row5d = s5d && s5d.checks ? s5d.checks.find(c=> c.key==='skill:wayfinder') : null
+  check(row5d && row5d.level==='ok', '恢复文件后刷新 → 绿（双向一致性）', JSON.stringify(row5d))
+  // 5d2：恢复后【无 force】刷新——模拟 DSH 目录失效广播（真机由 watcher 触发），清缓存后即绿（30s 缓存不滞后）
+  skillsOffMiss5.trigger()
+  let s5d2 = await call5Plain()
+  const row5d2 = s5d2 && s5d2.checks ? s5d2.checks.find(c=> c.key==='skill:wayfinder') : null
+  check(row5d2 && row5d2.level==='ok', '恢复 + 失效广播后【无 force】即绿（缓存不滞后）', JSON.stringify(row5d2))
+  // 5e：子目录工作区（~/xxxx 形态：同一主目录下的子目录）→ 与 ~ 工作区同果（不随 cwd 翻转）
+  const subCwd = join(tmpHome5, 'work-subbir')
+  mkdirSync(subCwd, { recursive: true })
+  let s5e = await call5()
+  const row5e = s5e && s5e.checks ? s5e.checks.find(c=> c.key==='skill:wayfinder') : null
+  check(row5e && row5e.level==='ok', '子目录工作区（~/xxxx 形态）→ 仍绿（不随 cwd 翻转）', JSON.stringify(row5e))
+  rmSync(tmpHome5, { recursive: true, force: true })
 }
 
 // ---------- 4. 等待态有界与失效广播 ----------
