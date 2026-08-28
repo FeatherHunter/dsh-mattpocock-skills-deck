@@ -203,7 +203,7 @@ MIT © FeatherHunter
 
 感谢每一位提交 Issue、PR 与参与讨论的朋友，是你们让这个插件一点点变好。
 
-[@pioneerAlone](https://github.com/pioneerAlone) — 反馈了 #274、#234 等状态栏与健康检查误报，并提交了修复 PR #273
+[@pioneerAlone](https://github.com/pioneerAlone) — 反馈了 #298（details/better-sidebar 重复，附完整复现与截图）、#274、#234 等状态栏与健康检查误报，并提交了修复 PR #273，感谢你让「重装后到处异常」的体感得以一次清爽修复 🌹
 
 [@Shimmernight](https://github.com/Shimmernight) — 提交了 #277 等 Issue，以及 PR #287、#275、#106（toast 主题、命名修正、macOS 适配）
 
