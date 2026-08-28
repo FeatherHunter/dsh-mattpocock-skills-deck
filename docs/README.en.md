@@ -11,7 +11,7 @@ Turn [mattpocock/skills](https://github.com/mattpocock/skills) into a game-like 
 
 <img src="../assets/panel-list-zh.png" width="640" alt="MattSkills panel: mission list, progress rings, one-click actions">
 
-<sub>A mission board you can see, and act on.</sub>
+<strong>A mission board you can see, and act on.</strong>
 
 **Install in 30 seconds.**
 
@@ -29,8 +29,13 @@ One prerequisite: [DSH](https://www.npmjs.com/package/@deepseek-ai/dsh) (DeepSee
 # ① Install the DSH CLI (skip if already installed)
 npm install -g @deepseek-ai/dsh
 
-# ② Install MattSkills
+# ② Better on narrow screens (optional): pair with better-sidebar
+dsh plugin --profile web add dsh-better-sidebar
+
+# ③ Install MattSkills
 dsh plugin --profile web add dsh-mattpocock-skills-deck
+# Pin to latest for extra stability (currently 1.7.3):
+# dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.3 --registry https://registry.npmjs.org
 ```
 
 <div align="center">
@@ -102,7 +107,7 @@ The map owns the goal. MattSkills owns the steps.
 
 <img src="../assets/statusbar-zh.png" width="720" alt="DSH bottom task bar">
 
-<sub>The task bar lives at the bottom of DSH: open, blocked, archived, handed off — one strip.</sub>
+<strong>The task bar lives at the bottom of DSH: open, blocked, archived, handed off — one strip.</strong>
 
 </div>
 
@@ -112,15 +117,15 @@ The map owns the goal. MattSkills owns the steps.
 
 <img src="../assets/issue-detail-zh.png" width="640" alt="ISSUE detail view">
 
-<sub>Open an issue: description, author, one-click new session.</sub>
+<strong>Open an issue: description, author, one-click new session.</strong>
 
 <img src="../assets/issue-comment-zh.png" width="560" alt="Comment right in the panel">
 
-<sub>Never touch the terminal: comment, respond to issues, run diagnostics in the panel.</sub>
+<strong>Never touch the terminal: comment, respond to issues, run diagnostics in the panel.</strong>
 
 <img src="../assets/statusbar-skills-menu-zh.png" width="480" alt="Task bar quick entry">
 
-<sub>Far right of the task bar: every Matt skill, one click away.</sub>
+<strong>Far right of the task bar: every Matt skill, one click away.</strong>
 
 Matt's official skills site (docs and tutorials): [aihero.dev/skills](https://www.aihero.dev/skills)
 
