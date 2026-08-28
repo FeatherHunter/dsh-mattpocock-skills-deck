@@ -5,13 +5,13 @@
 **中文** · [English](docs/README.en.md)
 
 **拨开战争迷雾看见终点，剩下的交给 MattSkillsDeck。**  
-把 [mattpocock/skills](https://github.com/mattpocock/skills) 变成 DSH 里的游戏任务系统。
+让 [mattpocock/skills](https://github.com/mattpocock/skills) 在 DSH 里化作一块看得见、派得动的任务板。
 
 *Part the fog of war, see the end — MattSkillsDeck handles the rest.*
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![dsh-plugin](https://img.shields.io/badge/dsh-plugin-orange.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck) [![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills)
 
-<img src="assets/panel-list-zh.png" width="640" alt="MattSkills 面板：任务列表、进度环与一键操作">
+<img src="assets/panel-list-zh.png" width="640" alt="MattSkillsDeck 面板：任务列表、进度环与一键操作">
 
 <strong>一块看得见、派得动的任务板。</strong>
 
@@ -23,7 +23,7 @@
 
 <div align="center">
 
-前置只有一个：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness，AI 编码桌面端）。在 DSH 里，你下指令、AI 干活；MattSkills 把这些活变成面板上的任务。
+前置只有一个：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness，AI 编码桌面端）。在 DSH 里，你下指令、AI 干活；MattSkillsDeck 把这些活变成面板上的任务。
 
 </div>
 
@@ -34,7 +34,7 @@ npm install -g @deepseek-ai/dsh
 # ② 窄屏更好用（可选）：配个 better-sidebar 并排看更舒服
 dsh plugin --profile web add dsh-better-sidebar
 
-# ③ 安装 MattSkills
+# ③ 安装 MattSkillsDeck
 dsh plugin --profile web add dsh-mattpocock-skills-deck
 # 锁定最新版更稳（当前 1.7.3）：
 # dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.3 --registry https://registry.npmjs.org
@@ -63,7 +63,7 @@ dsh plugin --profile web add dsh-better-sidebar
 复制下面这段发给你的 AI，它会读仓库、检查环境、按需安装：
 
 ```text
-请帮我安装 DeepSeek Harness 插件 dsh-mattpocock-skills-deck（MattSkills）。
+请帮我安装 DeepSeek Harness 插件 dsh-mattpocock-skills-deck（MattSkillsDeck）。
 先读仓库 README：https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
 然后自行检查环境并按需安装（已装的跳过），完成后简要汇报结果。
 ```
@@ -93,19 +93,19 @@ dsh plugin --profile web update dsh-mattpocock-skills-deck   # 升级
 dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 ```
 
-<h2 align="center"><sub>WHY</sub><br>为什么要做 MattSkills</h2>
+<h2 align="center"><sub>WHY</sub><br>为什么要做 MattSkillsDeck</h2>
 
 <div align="center">
 
 Matt Pocock 的 [skills 套件](https://github.com/mattpocock/skills)里，wayfinder 非常强大：能画出一张地图，带你穿过迷雾，抵达终点。但是，**你脚下的每一步该如何走呢？**
 
-MattSkills 在地图之上加了一层任务系统：
+MattSkillsDeck 在地图之上加了一层任务系统：
 
-**一块看得见的任务板** —— 仓库里的 ISSUE 不再是流水账：MattSkills 把它们搬进 DSH 侧边栏，可接、阻塞、已关闭各归各位，进度环走到哪一格，一眼看清
+**一块看得见的任务板** —— 仓库里的 ISSUE 不再是流水账：MattSkillsDeck 把它们搬进 DSH 侧边栏，可接、阻塞、已关闭各归各位，进度环走到哪一格，一眼看清
 
 **一个会干活的操作台** —— 每张任务卡本身就是按钮：诊断、修复、执行、新会话，点一下，AI 就去干活；干到哪一步、卡在哪里，卡上写得清清楚楚
 
-地图管终点，MattSkills 管脚下。
+地图管终点，MattSkillsDeck 管脚下。
 
 <img src="assets/statusbar-zh.png" width="720" alt="DSH 底部任务栏">
 
@@ -159,7 +159,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 想看代码是怎么组织的？这份可交互架构图由 AI 生成，把整体结构、数据流与关键状态都画出来了，支持深色与浅色主题切换，也能导出为图片。
 
-直接用浏览器打开 [`docs/architecture/MattSkills-architecture.html`](docs/architecture/MattSkills-architecture.html) 就能看，无需起服务。源数据在同目录的 `mattskills.architecture.json`，更多文字说明在同目录的 `*.md` 文件里。
+[在线预览（推荐）](https://featherhunter.github.io/dsh-mattpocock-skills-deck/docs/architecture/MattSkills-architecture.html) · 本地克隆后直接打开 [`docs/architecture/MattSkills-architecture.html`](docs/architecture/MattSkills-architecture.html) 也能看，无需起服务。源数据在同目录的 `mattskills.architecture.json`，更多文字说明在同目录的 `*.md` 文件里。
 
 </div>
 
