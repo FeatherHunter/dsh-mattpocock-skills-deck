@@ -1696,9 +1696,11 @@ export default {
             if (!rk || !rk.owner || !rk.name) return { status: 'fail', detail: 'repo not located' }
             const r = await runGh(['api', 'repos/' + rk.owner + '/' + rk.name], pctx && pctx.cwd || cwd)
             if (r.ok) return { status: 'pass', detail: 'api.github.com 200' }
-            // 2026-08-28 实机修复：网络失败 → pending（诚实未知），不再挂「创建并发布」——网络不通时创建必然失败
-            if (r.kind === 'network') return { status: 'pending', detail: 'API network failure: ' + String(r.error || '').slice(0, 240) }
-            return { status: 'fail', detail: 'API request failed (' + String(r.kind || '') + ')' }
+            // 2026-08-28 实机复核修正（用户反馈：仓库已找到却提示创建发布——错误）：只有「确定仓库不存在/无权限」
+            //   （kind=notfound）才判 fail 并挂「创建并发布」修复动作；未登录（auth）/网络/其他异常一律 pending（诚实未知）——
+            //   仓库已定位（gh:remote 通过）而 gh 未登录时，链条唯一引导是 gh:authed 行的「登录指引」，绝不该误导用户去创建仓库。
+            if (r.kind === 'notfound') return { status: 'fail', detail: 'API 404: repo not found (may not exist or no access)' }
+            return { status: 'pending', detail: 'API not accessible (' + String(r.kind || 'exit') + '): ' + String(r.error || '').slice(0, 240) }
           } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
         try { registry.register('preflight:ghAuth', async function (check, pctx) {
