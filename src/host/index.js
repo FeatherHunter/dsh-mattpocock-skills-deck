@@ -346,7 +346,7 @@ export default {
       if (outcome.exitCode !== 0) {
         let kind = 'exit'
         const t = all.toLowerCase()
-        if (/not logged in|auth failed|bad credentials/i.test(t)) kind = 'auth'
+        if (/not logged in|auth failed|bad credentials|failed to log in|token.*invalid|keyring|re-authenticate|auth refresh/i.test(t)) kind = 'auth'
         else if (/404|not found|could not resolve to an? (issue|pull request)/i.test(t)) kind = 'notfound'
         else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400) }
@@ -1711,7 +1711,7 @@ export default {
             //   网络失败/其他异常归 pending（诚实未知），避免在 TLS 网络抖动时误导用户「未登录」。
             const kind = r.kind || 'exit'
             const errMsg = String(r.error || '').slice(0, 240)
-            if (kind === 'auth') return { status: 'fail', detail: 'Not logged in: run gh auth login' }
+            if (kind === 'auth') return { status: 'fail', detail: 'gh credential invalid or not logged in: re-authenticate (gh auth refresh / gh auth login)' }
             if (kind === 'network') return { status: 'pending', detail: 'gh auth status network failure: ' + errMsg }
             return { status: 'pending', detail: 'gh auth status failed (' + kind + '): ' + errMsg }
           } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
@@ -1733,7 +1733,11 @@ export default {
               const isPass = rd === 'pass'
               const isFail = rd === 'fail'
               const status = isPass ? 'done' : (isFail ? (((it.onFail && Array.isArray(it.onFail.actions) && it.onFail.actions.length)) ? 'current' : 'fail') : 'pending')
-              const show = isPass ? ((it.onPass && it.onPass.show) || null) : ((it.onFail && it.onFail.show) || null)
+              // 2026-08-28 实机复核修正（用户反馈：pending 行仍显示修复指引与「未登录」提示——误导）：
+              //   pending（诚实未知）只保留检查项名称，不带 onFail 修复文案（hint）与修复动作（actions 已按 isFail 过滤）；
+              //   fail/current 才展示修复指引。修复文案只随真实失败出现。
+              const _pendingShow = (function () { const bb = (it.onFail && it.onFail.show) || {}; const oo = {}; if (bb.fallback != null) oo.fallback = bb.fallback; if (bb.title != null) oo.title = bb.title; if (bb.i18nKey != null) oo.i18nKey = bb.i18nKey; return oo })()
+              const show = isPass ? ((it.onPass && it.onPass.show) || null) : (isFail ? ((it.onFail && it.onFail.show) || null) : _pendingShow)
               const actions = isFail && it.onFail && Array.isArray(it.onFail.actions) ? it.onFail.actions : []
               return { id: it.id, check: it.check, status: status, show: show, actions: actions, isApplicable: true, blockedBy: null, isCurrent: false, isBlocking: status !== 'done' }
             })

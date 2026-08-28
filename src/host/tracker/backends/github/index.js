@@ -96,8 +96,8 @@ export const fixes = Object.freeze({
   },
   'gh:authed': {
     hint: {
-      zh: 'gh 尚未登录。点「登录指引」注入 gh auth login 操作步骤，完成后重查。',
-      en: 'gh is not logged in. Use the login guide, then re-check.',
+      zh: 'gh 未登录或凭证已失效。点「登录指引」注入重新认证步骤（gh auth login / gh auth refresh -h github.com），完成后重查。',
+      en: 'gh is not logged in or the credential has expired. Use the login guide to re-authenticate (gh auth login / gh auth refresh -h github.com), then re-check.',
     },
     actions: [
       { type: 'inject-prompt', prompt: 'ghAuthLogin', label: { zh: '登录指引', en: 'Login guide' } },
