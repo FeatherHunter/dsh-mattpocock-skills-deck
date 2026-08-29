@@ -17,20 +17,31 @@ export async function readDir(ctx, dirPath){
 }
 export async function exists(ctx, fullPath){
   const fs=getFs(ctx);if(!fs)return false
-  // DSH fs 形状约定（platform/index.js）：lstat 是 path-shaped（吃原始路径）；resolve 返回 target 仅供 readText/stat/listDir 等 target-shaped 调用。
-  // 修复：先按文档形状传原始路径；resolve-target 形状仅作兼容回落。原实现先传 target 且 catch 直接 return false，
-  // 导致宿主内 exists 恒 false → markdown 枚举 0 → 面板 maps=0（#331 观察的「列表空白」总根因）。
-  if(typeof fs.lstat==='function'){try{const st=await fs.lstat(fullPath);return!!st}catch{}}
-  if(typeof fs.resolve==='function'&&typeof fs.lstat==='function'){try{const t=await fs.resolve(fullPath);const st=await fs.lstat(t);return!!st}catch{}}
-  if(typeof fs.stat==='function'){try{const st=await fs.stat(fullPath);return!!st}catch{}}
-  if(typeof fs.access==='function'){try{await fs.access(fullPath);return true}catch{}}
-  return false
+  // DSH 文件沙箱区分两种形状：lstat 是“路径形”（直接吃字符串路径），stat / listDir / readText 是“目标形”（需先 resolve 成 handle）。
+  // 原实现误将 lstat 当目标形（resolve 后再 lstat），导致 DSH 侧抛 path.trim 异常并直接返回 false，Markdown 永远找不到 map.md。
+  // 修复：按形状正确分流，且失败时透传尝试下一分支，不提前 return false。
+  if(typeof fs.lstat==='function'){
+    try{ const st=await fs.lstat(fullPath); if(st) return true; }catch{}
+    // 兼容：某些环境 lstat 可能需要 handle 形态（虽与契约不符），尝试 resolve 后再 lstat
+    if(typeof fs.resolve==='function'){
+      try{ const t=await fs.resolve(fullPath); const st2=await fs.lstat(t); if(st2) return true; }catch{}
+    }
+  }
+  if(typeof fs.stat==='function'){
+    if(typeof fs.resolve==='function'){
+      try{ const t=await fs.resolve(fullPath); const st=await fs.stat(t); if(st) return true; }catch{}
+    }
+    try{ const st=await fs.stat(fullPath); if(st) return true; }catch{}
+  }
+  if(typeof fs.access==='function'){try{await fs.access(fullPath);return true}catch{return false}}
+  // 兜底：尝试直接读一字节判断存在（对只读沙箱最宽容）
+  try{ await readTextFile(ctx, fullPath); return true; }catch{ return false; }
 }
 export async function statFile(ctx, fullPath){
   const fs=getFs(ctx);if(!fs)return null
   if(typeof fs.resolve==='function'&&typeof fs.stat==='function'){try{const t=await fs.resolve(fullPath);return await fs.stat(t)}catch{return null}}
   if(typeof fs.stat==='function'){try{return await fs.stat(fullPath)}catch{return null}}
-  if(typeof fs.lstat==='function'){try{const t=typeof fs.resolve==='function'?await fs.resolve(fullPath):fullPath;return await fs.lstat(t)}catch{return null}}
+  if(typeof fs.lstat==='function'){try{return await fs.lstat(fullPath)}catch{try{const t=typeof fs.resolve==='function'?await fs.resolve(fullPath):fullPath;return await fs.lstat(t)}catch{return null}}}
   return null
 }
 export async function readFile(ctx, path){

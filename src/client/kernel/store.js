@@ -779,13 +779,15 @@
     export const bugCount = (st) => openIssuesOf(st).filter(function (x) { return hasLabelOf(x, 'bug') }).length
     export const triageCount = (st) => openIssuesOf(st).filter(function (x) { return isTriageLike(x) }).length
 
-    // v19：共享 —— 标签配置色映射（从快照 issues 收集 GitHub label 配置色，动态查询非写死）
+    // v19：共享 —— 标签配置色映射（聚合：快照全量 labels + 票面最终色；票面色已是“查 triage-labels.md 再兜底默认 11 色”后的最终色，不直读 labelPalette）
     export const buildColorOf = function (st) {
       const colorOf = {}
+      const snapLabels = (st.snapshot && Array.isArray(st.snapshot.labels)) ? st.snapshot.labels : []
+      snapLabels.forEach(function (l) { if (l && l.name && l.color) colorOf[String(l.name).trim()] = String(l.color).trim().replace(/^#/, '') })
       const issues = (st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []
-      issues.forEach(function (x) {
-        (x.labels || []).forEach(function (l) { if (l.color && !colorOf[l.name]) colorOf[l.name] = l.color })
-      })
+      issues.forEach(function (x) { (x.labels || []).forEach(function (l) { if (l && l.name && l.color) colorOf[String(l.name).trim()] = String(l.color).trim().replace(/^#/, '') }) })
+      const maps = (st.snapshot && Array.isArray(st.snapshot.maps)) ? st.snapshot.maps : []
+      maps.forEach(function (m) { (m.tickets || []).forEach(function (t) { (t.labels || []).forEach(function (l) { if (l && l.name && l.color) colorOf[String(l.name).trim()] = String(l.color).trim().replace(/^#/, '') }) }) })
       return colorOf
     }
     // T9：行级动作主色计算（与 mkRowAction 共享 · 给新会话按钮复用：与执行按钮同 label 主色）

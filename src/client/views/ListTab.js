@@ -91,19 +91,15 @@ export     const ListTab = ({ st, narrow }) => {
       const occ = groups.reduce(function (n, g) { return n + g.blocked.length + g.claimed.length }, 0)
       // #284：环境坏项计数改从链快照步骤派生（fail/current 均为需处理项）
       const nBad = chainSteps(st).filter(function (s) { return s.status === 'fail' || s.status === 'current' }).length
-      // 标签统计（open + closed 全量）与配色
-      const stat = {}
-      const colorOf = {}
-      issues.forEach(function (x) {
-        (x.labels || []).forEach(function (l) {
-          stat[l.name] = (stat[l.name] || 0) + 1
-          if (l.color && !colorOf[l.name]) colorOf[l.name] = l.color
-        })
-      })
-      const tagNames = Object.keys(stat).sort(function (a, b) { return stat[b] - stat[a] })
-      // #375：全量 label（快照 labels 字段优先；旧快照无该字段降级 issue 统计）；配色并入 label 列表色
+      // 标签统计（含地图子票）与配色：票面最终色（工作区改色已在票面），不直读 palette
+      const stat = {}, colorOf = {}
       const snapLabels = (st.snapshot && Array.isArray(st.snapshot.labels)) ? st.snapshot.labels : null
-      if (snapLabels) snapLabels.forEach(function (l) { if (l.color && !colorOf[l.name]) colorOf[l.name] = l.color })
+      if (snapLabels) snapLabels.forEach(function (l) { if (l && l.name && l.color) colorOf[String(l.name).trim()] = String(l.color).trim().replace(/^#/, '') })
+      const allForColor = issues.slice()
+      ;(st.snapshot.maps||[]).forEach(function(m){(m.tickets||[]).forEach(function(t){allForColor.push(t)})})
+      allForColor.forEach(function (x) {(x.labels||[]).forEach(function(l){const nm=l&&l.name?String(l.name).trim():'';if(!nm)return;stat[nm]=(stat[nm]||0)+1;if(l.color)colorOf[nm]=String(l.color).trim().replace(/^#/, '')})})
+      const tagNames = Object.keys(stat).sort(function (a, b) { return stat[b] - stat[a] })
+      // #375：全量 label（快照 labels 字段优先；旧快照无该字段降级 issue 统计）；配色按票面最终色已覆盖，缺失才用快照表
       const labelNames = snapLabels ? snapLabels.map(function (l) { return l.name }) : tagNames.slice()
       // 点击记忆双键排序：次数降序 → 最近点击降序 → 出现频次降序 → 名称序
       const sortedLabels = labelNames.slice().sort(function (a, b) {
