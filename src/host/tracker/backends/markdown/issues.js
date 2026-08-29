@@ -71,21 +71,17 @@ async function loadPaletteMap(ctx){
       const t=line.trim()
       if(!t.startsWith('|')) continue
       if(t.includes('---')) continue
-      const cells=t.split('|').map(s=>s.trim()).filter(Boolean)
+      const cells=t.split('|').map(s=>s.trim().replace(/[`]/g,'')).filter(Boolean)
       if(cells.length<2) continue
-      // Try to detect Color column: first cell should be color like #fbca04 or fbca04
-      let colorRaw=cells[0]||''
-      let labelRaw=cells[2]||cells[1]||''
-      // Clean backticks and #
-      colorRaw=colorRaw.replace(/[`]/g,'').replace(/^#/,'').trim().toLowerCase()
-      labelRaw=labelRaw.replace(/[`]/g,'').trim()
-      if(!labelRaw) continue
-      // Extract hex
-      const m=colorRaw.match(/([0-9a-f]{6}|[0-9a-f]{3})/i)
-      if(!m) continue
-      const hex=m[1].toLowerCase().padEnd(6,'0').slice(0,6)
-      if(!/^[0-9a-f]{6}$/.test(hex)) continue
-      map[labelRaw]=hex
+      const hexOf=function(v){const clean=String(v||'').replace(/[`]/g,'').trim();const m=clean.replace(/^#/,'').match(/([0-9a-fA-F]{6}|[0-9a-fA-F]{3})/);return m?(m[1].toLowerCase().padEnd(6,'0').slice(0,6)):''}
+      // #323 联调：兼容两种布局——①旧四列 Color|…|Label（第一格=色）；②定稿三列 Label|Color|Meaning（第二格=色）
+      let colorRaw='', labelRaw=''
+      const c0=hexOf(cells[0]); const c1=hexOf(cells[1])
+      if(c0 && !c1){ colorRaw=c0; labelRaw=cells[2]||cells[1]||'' }
+      else if(c1){ colorRaw=c1; labelRaw=cells[0]||'' }
+      else continue
+      if(!labelRaw || !/^[0-9a-f]{6}$/.test(colorRaw)) continue
+      map[labelRaw]=colorRaw
     }
     // If map empty, return null to fallback to static
     if(Object.keys(map).length===0) return null
