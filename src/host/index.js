@@ -2011,7 +2011,15 @@ export default {
           if (!tracker) throw new Error('unknown backend ' + backendId)
           let repoRef = null
           try { repoRef = reg.describe({ cwd }, backendId) } catch {}
-          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          if (!repoRef || !repoRef.refId) {
+            // #331 观察到的冷启动缺陷：describe 可能返回 refId 为空串的对象（如 GitHub 未跑检测时），
+            // 仅判空对象会让空 refId 透传到后端（repo.refId missing or malformed）。此处补检测兜底。
+            try {
+              const rk = await getRepoKey(cwd)
+              if (rk && rk.owner && rk.name) repoRef = { backend: backendId, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
+            } catch {}
+            if (!repoRef || !repoRef.refId) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          }
           const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
           const { createSnapshotComposer } = await import('./tracker/snapshot.js')
           const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
@@ -2087,6 +2095,15 @@ export default {
             viewerLogin: null,
             deck: inner.deck,
           }
+          try {
+            const _fsModLog2 = await import('node:fs/promises');
+            const _fsLog2 = _fsModLog2.default || _fsModLog2;
+            const _logPathLog2 = 'D:/tmp/wf-snapshot.log';
+            let _prevLog2 = '';
+            try { _prevLog2 = await _fsLog2.readFile(_logPathLog2, 'utf8'); } catch {}
+            const _lineLog2 = "\n[" + new Date().toISOString() + "] snapshot return maps=" + snap.maps.length + " issues=" + snap.issues.length + " labels=" + snap.labels.length;
+            await _fsLog2.writeFile(_logPathLog2, _prevLog2 + _lineLog2, 'utf8');
+          } catch {}
           return adoptSnapshot(snap, cwd)
         }
         // 统一契约：所有后端均走 composeSnapshot，不再硬走 buildSnapshot 直调 gh
@@ -2126,7 +2143,7 @@ export default {
         if (!tracker2) throw new Error('unknown backend ' + backendId2)
         let repoRef2 = null
         try { repoRef2 = reg2.describe({ cwd }, backendId2) } catch {}
-        if (!repoRef2) {
+        if (!repoRef2 || !repoRef2.refId) {
           try {
             const rk = await getRepoKey(cwd)
             if (rk && rk.owner && rk.name) repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
@@ -2238,7 +2255,15 @@ export default {
           if (!tracker) throw new Error('unknown backend ' + backendId)
           let repoRef = null
           try { repoRef = reg.describe({ cwd }, backendId) } catch {}
-          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          if (!repoRef || !repoRef.refId) {
+            // #331 观察到的冷启动缺陷：describe 可能返回 refId 为空串的对象（如 GitHub 未跑检测时），
+            // 仅判空对象会让空 refId 透传到后端（repo.refId missing or malformed）。此处补检测兜底。
+            try {
+              const rk = await getRepoKey(cwd)
+              if (rk && rk.owner && rk.name) repoRef = { backend: backendId, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
+            } catch {}
+            if (!repoRef || !repoRef.refId) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          }
           const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
           const { createSnapshotComposer } = await import('./tracker/snapshot.js')
           const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
@@ -2324,6 +2349,15 @@ export default {
             viewerLogin: null,
             deck: inner.deck,
           }
+          try {
+            const _fsModLog2 = await import('node:fs/promises');
+            const _fsLog2 = _fsModLog2.default || _fsModLog2;
+            const _logPathLog2 = 'D:/tmp/wf-snapshot.log';
+            let _prevLog2 = '';
+            try { _prevLog2 = await _fsLog2.readFile(_logPathLog2, 'utf8'); } catch {}
+            const _lineLog2 = "\n[" + new Date().toISOString() + "] snapshot return maps=" + snap.maps.length + " issues=" + snap.issues.length + " labels=" + snap.labels.length;
+            await _fsLog2.writeFile(_logPathLog2, _prevLog2 + _lineLog2, 'utf8');
+          } catch {}
           return adoptSnapshot(snap, cwd)
         }
         // 统一走编排器（所有后端）
@@ -2362,7 +2396,7 @@ export default {
         if (!tracker2) throw new Error('unknown backend ' + backendId2)
         let repoRef2 = null
         try { repoRef2 = reg2.describe({ cwd }, backendId2) } catch {}
-        if (!repoRef2) {
+        if (!repoRef2 || !repoRef2.refId) {
           try {
             const rk = await getRepoKey(cwd)
             if (rk && rk.owner && rk.name) repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
@@ -2561,7 +2595,15 @@ export default {
           if (!tracker || typeof tracker.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 get" } }
           let repoRef = null
           try { repoRef = reg.describe({ cwd }, backendId) } catch {}
-          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          if (!repoRef || !repoRef.refId) {
+            // #331 观察到的冷启动缺陷：describe 可能返回 refId 为空串的对象（如 GitHub 未跑检测时），
+            // 仅判空对象会让空 refId 透传到后端（repo.refId missing or malformed）。此处补检测兜底。
+            try {
+              const rk = await getRepoKey(cwd)
+              if (rk && rk.owner && rk.name) repoRef = { backend: backendId, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
+            } catch {}
+            if (!repoRef || !repoRef.refId) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          }
           const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
           const key = String(n).padStart(2, '0')
           const r = await tracker.get(repoRef, key, {}, opCtx)
@@ -2690,7 +2732,15 @@ export default {
           if (!tracker || typeof tracker.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 get" } }
           let repoRef = null
           try { repoRef = reg.describe({ cwd }, backendId) } catch {}
-          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          if (!repoRef || !repoRef.refId) {
+            // #331 观察到的冷启动缺陷：describe 可能返回 refId 为空串的对象（如 GitHub 未跑检测时），
+            // 仅判空对象会让空 refId 透传到后端（repo.refId missing or malformed）。此处补检测兜底。
+            try {
+              const rk = await getRepoKey(cwd)
+              if (rk && rk.owner && rk.name) repoRef = { backend: backendId, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
+            } catch {}
+            if (!repoRef || !repoRef.refId) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          }
           const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
           const key = String(n).padStart(2, '0')
           const r = await tracker.get(repoRef, key, {}, opCtx)
