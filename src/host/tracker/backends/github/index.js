@@ -119,7 +119,7 @@ export const fixes = Object.freeze({
           {
             title: { zh: '仓库信息', en: 'Repository info' },
             schema: [
-              { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$', preview: { zh: '将创建 https://github.com/{owner}/{name}', en: 'Will create https://github.com/{owner}/{name}' } },
+              { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$', defaultFrom: 'cwd-basename', preview: { zh: '将创建 https://github.com/{owner}/{name}', en: 'Will create https://github.com/{owner}/{name}' } },
             ],
           },
           {
@@ -147,7 +147,7 @@ export const fixes = Object.freeze({
           {
             title: { zh: '仓库信息', en: 'Repository info' },
             schema: [
-              { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$', preview: { zh: '将创建 https://github.com/{owner}/{name}', en: 'Will create https://github.com/{owner}/{name}' } },
+              { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$', defaultFrom: 'cwd-basename', preview: { zh: '将创建 https://github.com/{owner}/{name}', en: 'Will create https://github.com/{owner}/{name}' } },
             ],
           },
           {

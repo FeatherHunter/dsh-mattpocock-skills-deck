@@ -55,13 +55,15 @@ function resolvePrompt(promptValue, mod, lang) {
  * @param {import('../../shared/tracker/chain.js').CheckItem[]} items
  * @param {{id?: string, fixes?: Object, prompts?: Object}} mod 后端模块（fixes/prompts 单源）
  * @param {'zh'|'en'} lang
- * @param {{cwd?: string}} [opts] cwd 供 form 动作注入：submitAction.params.cwd + 仓库名字段 placeholder
+ * @param {{cwd?: string, owner?: string}} [opts] cwd 供 form 动作注入：submitAction.params.cwd + 仓库名字段 placeholder；
+ *   owner = 当前 GitHub 登录用户名（host 预解析），用于替换 preview 模板 {owner}——避免 UI 层显示占位字面量
  * @returns {import('../../shared/tracker/chain.js').CheckItem[]}
  */
 export function attachFixContract(items, mod, lang, opts = {}) {
   if (!Array.isArray(items)) return items
   if (!mod || !mod.fixes || typeof mod.fixes !== 'object' || Array.isArray(mod.fixes)) return items
   const cwd = (opts && typeof opts.cwd === 'string' && opts.cwd) ? String(opts.cwd) : ''
+  const owner = (opts && typeof opts.owner === 'string' && opts.owner) ? String(opts.owner).trim() : ''
   return items.map(function (it) {
     if (!it || !it.id) return it
     const fix = mod.fixes[it.id]
@@ -92,9 +94,20 @@ export function attachFixContract(items, mod, lang, opts = {}) {
           const pv = pickLang(f.preview, lang)
           if (typeof pv === 'string') nf.preview = pv
         }
-        if (cwd && f.name === 'name' && !nf.placeholder) {
+        // owner 真值化（2026-08-28 用户反馈「owner/... 占位」）：host 已解析登录用户名则替换 {owner}；
+        //   未提供（未登录/网络失败）保留 {owner} 占位，UI 层兜底显示（诚实：未知不冒充）
+        if (typeof nf.preview === 'string' && owner && nf.preview.indexOf('{owner}') >= 0) {
+          nf.preview = nf.preview.split('{owner}').join(owner)
+        }
+        if (cwd && f.name === 'name') {
           const bs = String(cwd).split(/[\\/]/).filter(Boolean).pop()
-          if (bs) nf.placeholder = bs
+          if (bs && !nf.placeholder) nf.placeholder = bs
+          // defaultFrom（2026-08-28 用户反馈）：预填默认仓库名 = 工作区尾段（清洗为合法名），
+          //   提交后预览立即显示真实名字（不再出现 '...'）；清洗不通过则回落 placeholder（不预填）
+          if (f.defaultFrom === 'cwd-basename' && nf.defaultValue == null) {
+            const clean = String(bs || '').replace(/[^A-Za-z0-9._-]/g, '-').replace(/^-+|-+$/g, '')
+            if (/^[A-Za-z0-9._-]{1,100}$/.test(clean)) nf.defaultValue = clean
+          }
         }
         return nf
       }

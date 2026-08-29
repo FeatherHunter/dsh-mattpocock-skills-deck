@@ -1773,7 +1773,20 @@ export default {
                 const regT = await getTrackerRegistry()
                 const tmods = (regT && typeof regT.modules === 'function') ? regT.modules() : []
                 const tmod = (tmods || []).find(function (m) { return m && String(m.id) === String(backendId) && m.fixes }) || null
-                if (tmod && fixMod.attachFixContract) items = fixMod.attachFixContract(items, tmod, chainLang, { cwd: cwd })
+                // 2026-08-28 用户反馈「owner/... 占位」：预解析当前 GitHub 登录用户名（仅 github 后端、最快 2.5s 超时，
+                //   失败静默空）→ fixContract 将其替换进 preview 模板 {owner}——预览显示真实用户名（如 FeatherHunter），
+                //   不再显示字面量 "owner"；未登录/网络失败时保留占位（UI 诚实兜底）
+                let _fixOwner = ''
+                try {
+                  if (String(backendId) === 'github') {
+                    const _u = await Promise.race([
+                      runGh(['api', 'user', '-q', '.login']),
+                      timer.timeout(2500).then(function () { return null }),
+                    ])
+                    if (_u && _u.ok) _fixOwner = String(_u.text || '').trim()
+                  }
+                } catch (e) { }
+                if (tmod && fixMod.attachFixContract) items = fixMod.attachFixContract(items, tmod, chainLang, { cwd: cwd, owner: _fixOwner })
               } catch (e) {}
               const resolved = await registry.resolveAll(items, ctx)
               const predResults = predMod.toPredicateResults ? predMod.toPredicateResults(resolved) : resolved
