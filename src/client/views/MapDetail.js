@@ -11,6 +11,11 @@ export     const MapDetail = ({ st, g }) => {
       const m = g.m
       const colorOf = buildColorOf(st)
       const tickets = m.tickets || []
+      // 区块字段防御性兜底：快照组装层已恒填 EMPTY（[] / ''），旧磁盘缓存/异常数据仍可能缺失，
+      // 缺失时按空区块渲染（曾因 m.decisions 等 undefined 直接读 .length 抛 Cannot read properties of undefined）
+      const decisions = Array.isArray(m.decisions) ? m.decisions : []
+      const fogList = Array.isArray(m.fog) ? m.fog : []
+      const outOfScope = Array.isArray(m.outOfScope) ? m.outOfScope : []
       const levels = (m.stats && m.stats.levels) || []
       const totalLayers = levels.length
       // 当前层 = 第一个含 open 票的层（无 open 全 done → 最后一层）
@@ -27,7 +32,7 @@ export     const MapDetail = ({ st, g }) => {
         const blk = (t.blockedBy || []).map(function (b) { return tickets.find(function (x) { return x.number === b }) }).filter(Boolean)
         return blk.some(function (b) { return b.state === 'OPEN' })
       }
-      const fogTitles = (m.fog || []).map(function (f) { return String(f).trim() })
+      const fogTitles = fogList.map(function (f) { return String(f).trim() })
       const isFogTitle = function (t) { return fogTitles.some(function (f) { return f && t.title && t.title.indexOf(f) >= 0 }) }
       // v1.4：同层内排序 —— 可执行（open 且非迷雾）最左 → open 被阻塞 → 已关闭靠右（一眼看到当前能做什么）
       Object.keys(byLevel).forEach(function (lv) {
@@ -227,8 +232,8 @@ export     const MapDetail = ({ st, g }) => {
         ]),
         // 折叠块：Decisions / Fog / Out of scope（保留信息展示）
         h('details', { style: { marginTop: 10, marginBottom: 4 } }, [
-          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.decisions', { n: m.decisions.length })),
-          h('div', { style: { fontSize: 12, paddingLeft: 8 } }, m.decisions.map(function (d, i) {
+          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.decisions', { n: decisions.length })),
+          h('div', { style: { fontSize: 12, paddingLeft: 8 } }, decisions.map(function (d, i) {
             return h('div', { key: i, style: { margin: '2px 0' } }, [
               h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, '· '),
               (d.url ? h('a', { href: d.url, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'underline' } }, d.title) : h('span', null, d.title)),
@@ -237,14 +242,14 @@ export     const MapDetail = ({ st, g }) => {
           })),
         ]),
         h('details', { style: { marginBottom: 4 } }, [
-          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.fog', { n: m.fog.length })),
-          h('div', { style: { fontSize: 12, paddingLeft: 8 } }, m.fog.map(function (f, i) {
+          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.fog', { n: fogList.length })),
+          h('div', { style: { fontSize: 12, paddingLeft: 8 } }, fogList.map(function (f, i) {
             return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + f))
           })),
         ]),
         h('details', { style: { marginBottom: 4 } }, [
-          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.outOfScope', { n: m.outOfScope.length })),
-          h('div', { style: { fontSize: 12, paddingLeft: 8 } }, m.outOfScope.map(function (o, i) {
+          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.outOfScope', { n: outOfScope.length })),
+          h('div', { style: { fontSize: 12, paddingLeft: 8 } }, outOfScope.map(function (o, i) {
             return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + o))
           })),
         ]),
