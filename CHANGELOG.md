@@ -5,6 +5,7 @@
 - **根因**：wf.snapshot 对 GitHub 后端改为统一走编排器（composeSnapshot，[#309](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/309) 双后端解耦）后，map 正文五区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）不再解析——旧 gh 直连路径（buildSnapshot）的 parseMapBody 成了死代码，快照里的 map 缺 decisions/fog/outOfScope 字段；列表页 Map 行仍可点击，详情页 MapDetail 直接读 m.decisions.length 等，即抛 Cannot read properties of undefined (reading 'length')。
 - **修复**：①组装层 src/host/tracker/snapshot.js 在 assembleSnapshot 统一用 shared/parser.js::parseMapBody 解析 map 正文并恒填五区块（EMPTY 数组/字符串，不 MISSING），所有后端（GitHub/Markdown/GitLab）行为一致；②客户端 src/client/views/MapDetail.js 对三个区块做 Array.isArray 兜底，旧磁盘缓存/异常数据也不会崩。
 - **验证**：verify-tracker-contract 新增 map 区块解析 + EMPTY 兜底两类断言（384 通过）；新增 verify-mapdetail-fields（src 与双产物文本门禁，已挂入 npm run verify 链）；npm run test:smoke 通过；版本 1.7.4 → 1.7.5。
+- **缓存**：磁盘快照 cacheFormat 2→3，旧格式一律视为陈旧强制重建（防详情页从旧缓存读到空区块）。
 - **影响**：GitHub 后端点击 map 行正常进入漏斗详情页，Destination/Notes/Decisions/迷雾/Out of scope 恢复展示。
 
 ## 2026-08-27 · v1.7.3 发布：修复“装了却提示未检测到核心技能套件”六步全链收口（规格 #276 · 地图 #278）

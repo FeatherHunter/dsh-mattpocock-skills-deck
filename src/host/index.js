@@ -582,8 +582,9 @@ export default {
         const txt = await fs.readText(p)
         if (!txt) return null
         const j = JSON.parse(txt)
-        // cacheFormat 2 之后才可读（旧小写 state 快照视为陈旧，强制重建，防“重启后仍显示全 open”的错户数据）
-        if (j && j.ok === true && Array.isArray(j.maps) && typeof j.generatedMs === 'number' && j.cacheFormat === 2) return j
+        // cacheFormat 3 之后才可读（2→3：1.7.5 新增 map 五区块解析；旧快照缺 decisions/fog/outOfScope,destination,notes，
+        // 视为陈旧强制重建，详情页不再抛且区块可展示；沿用 #327 的小写 state 防御）
+        if (j && j.ok === true && Array.isArray(j.maps) && typeof j.generatedMs === 'number' && j.cacheFormat === 3) return j
         return null
       } catch (e) { return null }
     }
@@ -595,8 +596,8 @@ export default {
         // T9 修复：fs 服务的 writeText 要求 resolve() 返回的 target 对象（{targetKey,displayPath}），不能直接传路径字符串
         const platform = await getPlatform()
         const t = await platform.fs.resolve(platform.path.join(dir, fn))
-        // 缓存格式版本 2：#327 面板状态归一升级后（composer 小写 → 适配层大写），旧格式（小写 state）一律视为不新鲜，强制重建
-        await fs.writeText(t, JSON.stringify(Object.assign({}, snap, { cacheFormat: 2 })))
+        // 缓存格式版本 3：1.7.5 map 五区块（见上），旧格式一律视为不新鲜
+        await fs.writeText(t, JSON.stringify(Object.assign({}, snap, { cacheFormat: 3 })))
       } catch (e) { /* 写失败不影响主流程 */ }
     }
 
@@ -2837,7 +2838,51 @@ export default {
     //   故"列表不更新状态"。since 语义：返回数组非空 = 自上次快照以来有变化 → 视为 changed。
     //   配额仍走 REST 5000/h 池（独立于 GraphQL 5000 点/h），不烧穿。
     harness.handle('wf.probe', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
+      // 第一性原理分发：markdown 等走轻量 list 探针，github 仍走 gh issue index
+      let _selProbe = null
+      try {
+        const svc = await getDetectionService()
+        if (svc && typeof svc.detect === 'function') {
+          const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+          if (det && det.selection) _selProbe = det.selection
+        }
+      } catch {}
+      if (!_selProbe || (_selProbe.backendId == null && (!_selProbe.source || _selProbe.source !== 'explicit'))) {
+        try {
+          const regTmp = await getTrackerRegistry()
+          const sel2 = await regTmp.select({ cwd }, { cwd, platform: await getPlatform(), fs: ctx.get('fs') })
+          if (sel2) _selProbe = sel2
+        } catch {}
+      }
+      const useProbeTracker = _selProbe && _selProbe.backendId && _selProbe.backendId !== 'github' && _selProbe.backendId !== '' && _selProbe.backendId !== 'other'
+      if (useProbeTracker) {
+        try {
+          const reg = await getTrackerRegistry()
+          const tracker = reg.get(_selProbe.backendId)
+          if (tracker && typeof tracker.list === 'function') {
+            let repoRef = null
+            try { repoRef = reg.describe({ cwd }, _selProbe.backendId) } catch {}
+            if (!repoRef) repoRef = { backend: _selProbe.backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || _selProbe.backendId, url: '' }
+            const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+            const r = await tracker.list(repoRef, {}, opCtx)
+            if (!r || !r.ok) return { ok: false, error: errText((r && r.error) || 'probe list 失败') }
+            const all = Array.isArray(r.data) ? r.data : []
+            // 轻量索引：key -> state
+            const idx = {}
+            all.forEach(function(it){ const k = it && (it.key != null ? String(it.key).padStart(2,'0') : (it.number != null ? String(it.number).padStart(2,'0') : '')); if(k) idx[k] = String(it.state||'OPEN').toUpperCase() })
+            const rk1 = _selProbe.backendId + ':' + cwd
+            const known = lastIssueIndexByRepo[rk1] || {}
+            const changed = issueIndexChanged(known, idx)
+            rememberIssueIndex({ owner: _selProbe.backendId, name: cwd }, idx)
+            // 兼容 remember 的 repoKey 形态：用 backendId+cwd 作 key，避免与 github 的 owner/name 串
+            lastIssueIndexByRepo[rk1] = idx
+            lastProbeAtByRepo[rk1] = new Date().toISOString()
+            if (changed) cache = { ts: 0, snapshot: null, error: null, cwd: cwd }
+            return { ok: true, changed: changed, repo: { owner: _selProbe.backendId, name: String(cwd).split(/[\\/]/).pop()||'' }, count: all.length, since: lastProbeAtByRepo[rk1] }
+          }
+        } catch (e) { return { ok: false, error: errText(e) } }
+      }
       try {
         const remote = await fetchIssueIndex(cwd)
         if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe 失败') }
@@ -2847,7 +2892,7 @@ export default {
         const changed = issueIndexChanged(known, remote.index)
         rememberIssueIndex(repo, remote.index)
         lastProbeAtByRepo[rk1] = new Date().toISOString()
-        if (changed) cache = { ts: 0, snapshot: null, error: null, cwd: cwd }  // 删除/状态变化同样失效缓存
+        if (changed) cache = { ts: 0, snapshot: null, error: null, cwd: cwd }
         return { ok: true, changed: changed, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
       } catch (e) { return { ok: false, error: errText(e) } }
     })
