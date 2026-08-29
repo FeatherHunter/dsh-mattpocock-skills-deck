@@ -463,17 +463,6 @@ export function attributeNewNumbers({ prevIndex, currIndex, sessions }) {
         if (!hint) continue
         try { if (isHintRelatedToTitle(hint, title)) { picked = c; break; } } catch (e) {}
       }
-      if (!picked) {
-        const hasAnyHinted = candidates.some(function (c) { return !used.has(c.sessionId) && c.hint; });
-        if (!hasAnyHinted) {
-          for (let j = 0; j < candidates.length; j++) {
-            const c = candidates[j]
-            if (used.has(c.sessionId)) continue
-            if (c.hint) continue
-            picked = c; break
-          }
-        }
-      }
       if (!picked) continue
     } else {
       for (let j = 0; j < candidates.length; j++) {

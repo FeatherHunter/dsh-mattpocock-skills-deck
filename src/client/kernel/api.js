@@ -442,10 +442,33 @@ export let pendingDraftTargetSid = null
               const accepted = (rRename && rRename.ok && rRename.value && rRename.value.title) ? rRename.value.title : null
               registerTracked(accepted)
             }).catch(function () { registerTracked(null) })
+            // #315 根治（2026-08-29 现网复盘 · 空白会话被壳复用为「新会话行」）：
+            //   DSH 壳（dsh-client-ui-workspace）把工作区内「无任何消息」的会话当作临时新会话行
+            //   （blank session = provisional New Session row）。本流程此前只把提示词写入 pendingDraft
+            //   （草稿），会话保持空白 —— 用户之后点击「新会话」会复用该空白会话；当它收到首条
+            //   消息后，这一行标题立即从「新会话」切换成其原有规范标题（如 [#314] …），表现为
+            //   「新会话被自动改名」。对策：创建/改名后立即经会话门面把提示词作为首条消息提交
+            //   （face.prompt 成功 → 会话出生即非空白，blank 位立即清除，永不被壳当作新会话行复用）。
+            //   门面无 prompt 能力时回退原预填草稿路径（旧体验不回归）；prompt 异步失败则尽力补挂
+            //   草稿（状态栏挂载时消费，竞态无害）。
+            const seedNewSession = function () {
+              try {
+                if (face && typeof face.prompt === 'function' && text) {
+                  const sp = Promise.resolve(face.prompt([{ type: 'text', text: text }], 'queue'))
+                  sp.then(function (rSeed) {
+                    if (!rSeed || !rSeed.ok) { pendingDraft = text; pendingDraftTargetSid = sid }
+                  }).catch(function () { pendingDraft = text; pendingDraftTargetSid = sid })
+                  return true
+                }
+              } catch (eSeed) {}
+              return false
+            }
+            if (!seedNewSession()) {
+              // 预填（r4）：写入 pendingDraft + 目标 sid 锚定，消费侧仅新会话消费，杜绝旧会话抢先
+              pendingDraft = text
+              pendingDraftTargetSid = sid
+            }
           } catch (eName) { /* 命名失败忽略 */ }
-          // 预填（r4）：写入 pendingDraft + 目标 sid 锚定，消费侧仅新会话消费，杜绝旧会话抢先
-          pendingDraft = text
-          pendingDraftTargetSid = sid
           sessions.open(sid)
           flash(st, tr('toast.newSessionOpened'), 'ok')
         }).catch(function () { doFallback() })

@@ -233,8 +233,8 @@ console.log('\n— 编号归属（索引差值 · 纯函数）—')
   check(!m.isNumberAwaitStage(Object.assign({}, awake, { stage: m.NAMING_STAGES.REFINED })), '精修档 → 不再等待')
   const sessions = [
     { sessionId: 'b', createdAt: 200, updatedAt: 200, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false },
-    { sessionId: 'a', createdAt: 100, updatedAt: 100, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false },
-    { sessionId: 'c', createdAt: 150, updatedAt: 150, stage: m.NAMING_STAGES.DRAFT, locked: false },
+    { sessionId: 'a', createdAt: 100, updatedAt: 100, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false, hint: 'c3' },
+    { sessionId: 'c', createdAt: 150, updatedAt: 150, stage: m.NAMING_STAGES.DRAFT, locked: false, hint: 'e5' },
     { sessionId: 'd', createdAt: 50, updatedAt: 50, stage: m.NAMING_STAGES.PLACEHOLDER, locked: true },
     { sessionId: 'e', createdAt: 60, updatedAt: 60, stage: m.NAMING_STAGES.NUMBERED, locked: false, number: 1 },
   ]
@@ -246,12 +246,12 @@ console.log('\n— 编号归属（索引差值 · 纯函数）—')
   eq(assigned[1].sessionId, 'c', '次早（draft 档可被归属）')
   eq(assigned[1].number, 5, '次号给次早候选')
   const few = m.attributeNewNumbers({ prevIndex: idx1, currIndex: idx2, sessions: sessions.slice(0, 1) })
-  eq(few.length, 1, '候选耗尽即止（无可归者不入计划单）')
+  eq(few.length, 0, '候选耗尽即止（裸会话不配号，无可归者不入计划单）')
   const none = m.attributeNewNumbers({ prevIndex: idx1, currIndex: idx1, sessions: sessions })
   eq(none.length, 0, '无新编号 → 无归属')
   const sameTs = m.attributeNewNumbers({ prevIndex: idx1, currIndex: idx2, sessions: [
-    { sessionId: 'z', createdAt: 100, updatedAt: 100, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false },
-    { sessionId: 'a', createdAt: 100, updatedAt: 100, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false },
+    { sessionId: 'z', createdAt: 100, updatedAt: 100, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false, hint: 'c3' },
+    { sessionId: 'a', createdAt: 100, updatedAt: 100, stage: m.NAMING_STAGES.PLACEHOLDER, locked: false, hint: 'c3' },
   ] })
   eq(sameTs[0].sessionId, 'a', '同时间戳以 sessionId 决胜（确定性）')
 }
