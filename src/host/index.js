@@ -1934,16 +1934,13 @@ export default {
     // #179 回切自愈：空 cwd 仍兜 DEFAULT_CWD 作最后兜底（避免“没有仓库”空白），但客户端已保证同 sid 切工作区亦触发，空窗极短
     harness.handle('wf.snapshot', async function (args) {
       try {
-        const _logFs = ctx.get('fs');
-        if (_logFs && typeof _logFs.writeText === 'function' && typeof _logFs.resolve === 'function') {
-          try {
-            const _logPath = await _logFs.resolve('D:/tmp/wf-snapshot.log');
-            let _prev = '';
-            try { _prev = await _logFs.readText(_logPath); } catch {}
-            const _line = "\n[" + new Date().toISOString() + "] wf.snapshot rawCwd=" + JSON.stringify(args && args.cwd) + " cwd=" + JSON.stringify(await canonicalKey((args && args.cwd) || DEFAULT_CWD)) + " hint=" + JSON.stringify(args && args.backendId);
-            await _logFs.writeText(_logPath, _prev + _line);
-          } catch {}
-        }
+        const _fsMod = await import('node:fs/promises');
+        const _fs = _fsMod.default || _fsMod;
+        const _logPath = 'D:/tmp/wf-snapshot.log';
+        let _prev = '';
+        try { _prev = await _fs.readFile(_logPath, 'utf8'); } catch {}
+        const _line = "\n[" + new Date().toISOString() + "] wf.snapshot rawCwd=" + JSON.stringify(args && args.cwd) + " cwd=" + JSON.stringify(await canonicalKey((args && args.cwd) || DEFAULT_CWD)) + " hint=" + JSON.stringify(args && args.backendId);
+        await _fs.writeFile(_logPath, _prev + _line, 'utf8');
       } catch {}
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const now = Date.now()
@@ -1967,16 +1964,13 @@ export default {
       }
       const useComposerEarly = _selEarly && _selEarly.backendId && _selEarly.backendId !== 'github' && _selEarly.backendId !== '' && _selEarly.backendId !== 'other'
       try {
-        const _logFs2 = ctx.get('fs');
-        if (_logFs2 && typeof _logFs2.writeText === 'function' && typeof _logFs2.resolve === 'function') {
-          try {
-            const _logPath2 = await _logFs2.resolve('D:/tmp/wf-snapshot.log');
-            let _prev2 = '';
-            try { _prev2 = await _logFs2.readText(_logPath2); } catch {}
-            const _line2 = "\n[" + new Date().toISOString() + "] selection=" + JSON.stringify(_selEarly) + " useComposer=" + useComposerEarly;
-            await _logFs2.writeText(_logPath2, _prev2 + _line2);
-          } catch {}
-        }
+        const _fsMod2 = await import('node:fs/promises');
+        const _fs2 = _fsMod2.default || _fsMod2;
+        const _logPath2 = 'D:/tmp/wf-snapshot.log';
+        let _prev2 = '';
+        try { _prev2 = await _fs2.readFile(_logPath2, 'utf8'); } catch {}
+        const _line2 = "\n[" + new Date().toISOString() + "] selection=" + JSON.stringify(_selEarly) + " useComposer=" + useComposerEarly;
+        await _fs2.writeFile(_logPath2, _prev2 + _line2, 'utf8');
       } catch {}
       if (cache.snapshot && cache.cwd === cwd) {
         // GitHub 路径才用 issue 索引校验；Markdown 等走通用缓存时只看时间与 backend 是否一致
