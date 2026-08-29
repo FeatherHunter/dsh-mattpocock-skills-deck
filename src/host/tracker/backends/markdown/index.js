@@ -115,11 +115,10 @@ export const defaultLabelPalette = [
 ]
 /** 修复契约注入文案（Markdown 后端本地语义，双语单源；供 fixes 引用，host 组装时解析）。 */
 export const prompts = {
-  // 2026-08-29 定版（用户）：地图缺失时的修复指引 = 注入 wayfinder 技能构造关卡地图（不是让 AI 检查文件格式）。
-  //   文案人话：用户面向说「关卡地图 / 本地数据目录」，技术名（.scratch / map.md）只括注保留。
+  // 2026-08-29 定版（用户）：注入只放 /wayfinder 命令与需求占位，规则由技能自身负责，不加解释。
   wayfinderMapBuild: {
-    zh: '请为当前项目（本地 Markdown 后端）执行 wayfinder 技能：把项目里的任务与决策组织成本地关卡地图（map.md），写入本地数据目录 .scratch 下（根地图 .scratch/map.md，或一关一个子目录 .scratch/<关卡名>/map.md）。完成后请用户点「重查」。',
-    en: 'Run the wayfinder skill for this project (Local Markdown backend): organize the project tasks and decisions into the local track map (map.md), written under the local data directory .scratch (root map .scratch/map.md, or one subdirectory per track .scratch/<track-name>/map.md). After it is done, ask the user to re-check.',
+    zh: '/wayfinder (请输入任务需求)',
+    en: '/wayfinder (enter the task requirement)',
   },
 }
 
