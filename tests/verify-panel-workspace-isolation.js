@@ -10,9 +10,9 @@ function checkFile(path){
   const ok = (cond, msg)=> { checks.push({msg, pass: !!cond}); console.log((cond?'  PASS ':'  FAIL ')+msg+ ' :: '+path); if(!cond) console.error('    ✗',msg) }
   // 1) 必须包含 refreshGroup 辅助（按 cwd 分组）
   ok(/const refreshGroup\s*=\s*function\s*\(cwd\)/.test(src), '存在 refreshGroup(cwd) 按组刷新辅助')
-  // 2) 组收集必须精确匹配 cwd === 探查 cwd
-  ok(/if\s*\(\s*shared\.cwd\s*===\s*cwd\s*\)/.test(src) || /shared\.cwd\s*===\s*cwd/.test(src), 'shared 仅当 cwd === probed cwd 时入组')
-  ok(/if\s*\(\s*st\.cwd\s*===\s*cwd\s*\)/.test(src) || /st\.cwd\s*===\s*cwd/.test(src), 'stores 仅当 st.cwd === cwd 时入组')
+  // 2) 组收集必须精确匹配 cwd === 探查 cwd（#324 升级为归一键相等，兼容直接相等与 keyOf 相等）
+  ok(/if\s*\(\s*shared\.cwd\s*===\s*cwd\s*\)/.test(src) || /shared\.cwd\s*===\s*cwd/.test(src) || /keyOf\(shared\.cwd\)\s*===/.test(src) || /keyOf\(shared\.cwd\)/.test(src), 'shared 仅当 cwd === probed cwd 时入组（含归一键）')
+  ok(/if\s*\(\s*st\.cwd\s*===\s*cwd\s*\)/.test(src) || /st\.cwd\s*===\s*cwd/.test(src) || /keyOf\(st\.cwd\)/.test(src), 'stores 仅当 st.cwd === cwd 时入组（含归一键）')
   // 3) 禁止旧全量广播模式：不应出现无条件 Object.keys(stores).forEach(... st2.snapshot = newSnap) 且中间无 cwd 过滤
   // 我们检测旧缺陷指纹：if (cwd && !st2.cwd) st2.cwd = cwd 后直接全量赋值且无 cwd 过滤的连续段
   const hasOldAssign = /if\s*\(\s*cwd\s*&&\s*!st2\.cwd\s*\)\s*st2\.cwd\s*=\s*cwd/.test(src)

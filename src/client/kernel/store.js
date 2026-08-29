@@ -243,14 +243,16 @@
     ;(function () {
       try {
         const raw = localStorage.getItem(SELECTION_BY_CWD_KEY)
-        if (raw) { const m = JSON.parse(raw); if (m && typeof m === 'object') { for (const k of Object.keys(m)) { if (!(k in selectionByCwd)) selectionByCwd[k] = m[k] } } }
+        if (raw) { const m = JSON.parse(raw); if (m && typeof m === 'object') { for (const k of Object.keys(m)) { const nk = (typeof keyOf === 'function' ? keyOf(k) : k); if (!(nk in selectionByCwd)) selectionByCwd[nk] = m[k]; else {
+          // 已归一键存在：保留现有，旧原始键丢弃
+        } } } }
       } catch (e) { /* 存储不可用降级为仅内存 */ }
     })()
     const persistSelectionByCwd = function () { try { localStorage.setItem(SELECTION_BY_CWD_KEY, JSON.stringify(selectionByCwd)) } catch (e) { /* 忽略 */ } }
-    export const getCachedSelection = function (cwd) { return cwd ? (selectionByCwd[cwd] || null) : null }
-    export const setCachedSelection = function (cwd, sel) { if (cwd) { selectionByCwd[cwd] = sel; persistSelectionByCwd() } }
-    export const getCachedRepository = function (cwd) { return cwd ? repositoryByCwd[cwd] : null }
-    export const setCachedRepository = function (cwd, repo) { if (cwd) repositoryByCwd[cwd] = repo }
+    export const getCachedSelection = function (cwd) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); return cwd ? (selectionByCwd[k] || null) : null } catch(e){ return cwd ? (selectionByCwd[cwd] || null) : null } }
+    export const setCachedSelection = function (cwd, sel) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); if (cwd && k) { selectionByCwd[k] = sel; persistSelectionByCwd() } } catch(e){ if (cwd) { selectionByCwd[cwd] = sel; persistSelectionByCwd() } } }
+    export const getCachedRepository = function (cwd) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); return cwd ? repositoryByCwd[k] : null } catch(e){ return cwd ? repositoryByCwd[cwd] : null } }
+    export const setCachedRepository = function (cwd, repo) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); if (cwd && k) repositoryByCwd[k] = repo } catch(e){ if (cwd) repositoryByCwd[cwd] = repo } }
     export const labelOf = function (backendId) {
       if (backendId == null) return 'Other'
       try {
@@ -474,28 +476,42 @@
     export const shared = makeStore()
     export const stores = {}
     // #58 缓存优先：按 cwd 的内存快照表（新 store 秒开 + 跨会话同 cwd 共享，避免空 cwd 探路 miss）
+    // 单源工作区键（#301 / #324）：全库仅一份 keyOf，经 shared:workspaceKey 拼入
     export const SNAP_CWD_LRU_MAX = 20
     export const snapshotByCwd = new Map() // Map<normCwd,{snapshot,version,ts}> LRU20
-    export const normKeyClient = function(k){ try{ return String(k||'').toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,'')||'/'; }catch(e){ return String(k||''); } }
     export const touchLRUClient = function(map,key,val){ if(map.has(key)) map.delete(key); map.set(key,val); if(map.size>SNAP_CWD_LRU_MAX){ const first=map.keys().next().value; map.delete(first);} return val; }
-    export const getCachedSnapshot = function (cwd) { try{ const k=normKeyClient(cwd); const e=snapshotByCwd.get(k); return e?e.snapshot||e:null; }catch(e){ return null; } }
-    export const getCachedEntry = function(cwd){ try{ const k=normKeyClient(cwd); return snapshotByCwd.get(k)||null; }catch(e){ return null; } }
+    export const getCachedSnapshot = function (cwd) { try{ const k=keyOf(cwd); const e=snapshotByCwd.get(k); return e?e.snapshot||e:null; }catch(e){ return null; } }
+    export const getCachedEntry = function(cwd){ try{ const k=keyOf(cwd); return snapshotByCwd.get(k)||null; }catch(e){ return null; } }
     export const setCachedSnapshot = function (cwd, snap) { if(!cwd||!snap||snap.ok!==true||!Array.isArray(snap.maps)) return; let s2=snap; if(snap.notModified===true||snap.status===304||snap.cached===true){ // #232 · 落库前剥除响应传输态标记（仅属当次请求，不属缓存实体）
       try{ s2=Object.assign({},snap); delete s2.notModified; delete s2.status; delete s2.cached; }catch(eS){ return } }
-      try{ const k=normKeyClient(cwd); const ver=s2.version||s2.etag||''; const ent={snapshot:s2, version:ver, ts:Date.now()}; touchLRUClient(snapshotByCwd,k,ent); }catch(e){} }
+      try{ const k=keyOf(cwd); const ver=s2.version||s2.etag||''; const ent={snapshot:s2, version:ver, ts:Date.now()}; touchLRUClient(snapshotByCwd,k,ent); }catch(e){} }
     export const getSnapshotVersion = function(cwd){ try{ const e=getCachedEntry(cwd); return e?e.version||'':''; }catch(e){ return ''; } }
+    // 链快照共享缓存（#324 · 键 = 工作区键 + 后端 id，随后端不同，新会话首见即秒显）
+    export const CHAIN_CWD_LRU_MAX = 20
+    export const chainByCwd = new Map() // Map<keyOf(cwd)+'|'+backendId, {snapshot, ts}>
+    export const getChainCacheKey = function(cwd, backendId){ try{ return keyOf(cwd) + '|' + String(backendId||''); }catch(e){ return String(cwd||'')+'|'+String(backendId||''); } }
+    export const getCachedChain = function(cwd, backendId){ try{ const k=getChainCacheKey(cwd, backendId); const e=chainByCwd.get(k); return e?e.snapshot:null; }catch(e){ return null; } }
+    export const setCachedChain = function(cwd, backendId, snap){ if(!cwd||!snap) return; try{ const k=getChainCacheKey(cwd, backendId); const ent={snapshot:snap, ts:Date.now()}; if(chainByCwd.has(k)) chainByCwd.delete(k); chainByCwd.set(k, ent); if(chainByCwd.size>CHAIN_CWD_LRU_MAX){ const first=chainByCwd.keys().next().value; chainByCwd.delete(first);} }catch(e){} }
     export const hydrateFromCache = function (st) {
       if (!st || !st.cwd) return false
-      const c = getCachedSnapshot(st.cwd); try{ if(c){ const _k=normKeyClient(st.cwd); const _e=snapshotByCwd.get(_k); if(_e) touchLRUClient(snapshotByCwd,_k,_e);} }catch(e){}
+      const c = getCachedSnapshot(st.cwd); try{ if(c){ const _k=keyOf(st.cwd); const _e=snapshotByCwd.get(_k); if(_e) touchLRUClient(snapshotByCwd,_k,_e);} }catch(e){}
       let changed=false
       if (c) {
-        if (!st.snapshot || c.generatedMs !== st.snapshot.generatedMs) {
+        // 版本取舍：以最新生成时间者胜（水合与扇出一致，#301 契约）
+        const incomingMs = c.generatedMs || 0
+        const curMs = (st.snapshot && st.snapshot.generatedMs) || 0
+        if (!st.snapshot || incomingMs > curMs) {
           st.snapshot = c
           st.snapMode = 'real'
           st.snapError = null
           st.snapLoading = false
           changed=true
-        } else if (st.snapMode !== 'real') {
+        } else if (st.snapMode !== 'real' && incomingMs === curMs) {
+          st.snapMode = 'real'
+          st.snapError = null
+          changed=true
+        } else if (!st.snapshot && c) {
+          st.snapshot = c
           st.snapMode = 'real'
           st.snapError = null
           changed=true
@@ -516,6 +532,28 @@
         const rep = getCachedRepository(st.cwd)
         if (rep) { st.repository = rep; changed=true }
       }
+      // 链快照共享水合（#324 · 键 = 工作区键 + 后端 id）
+      try {
+        const backendId = (st.selection && st.selection.backendId) || (c && c.selection && c.selection.backendId) || ''
+        const cachedChain = getCachedChain(st.cwd, backendId)
+        if (cachedChain && !st.chainSnapshot) {
+          st.chainSnapshot = cachedChain
+          st.chain = cachedChain.chain || cachedChain
+          st.fullChain = cachedChain.fullChain || null
+          st.backendChain = cachedChain.backendChain || null
+          st.chainLoadedAt = (typeof nowStr === 'function' ? nowStr() : '')
+          changed = true
+        } else if (cachedChain && st.chainSnapshot) {
+          // 已有链但缓存更新：以生成时间或加载时间新者为准
+          const curT = st.chainLoadedAt || 0
+          const cachedT = (cachedChain.generatedMs || cachedChain.ts || 0)
+          // 简化：若不同对象则更新，保持最终一致
+          if (cachedChain !== st.chainSnapshot) {
+            // 保留选择：若缓存非空则覆盖，确保同工作区链一致
+            // 不强制覆盖，避免闪烁，仅当缺失时秒显已处理；扇出时会统一覆盖
+          }
+        }
+      } catch (eChainHydrate) {}
       return changed
     }
     /**

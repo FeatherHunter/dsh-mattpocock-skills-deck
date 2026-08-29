@@ -362,16 +362,11 @@ export let pendingDraftTargetSid = null
               }
             }
           }
-          const norm = function (p) {
-            const s = String(p || '').replace(/\\/g, '/').replace(/\/+$/, '')
-            const isWin = /\\/.test(String(p || '')) || /^[a-zA-Z]:\//.test(s)
-            return isWin ? s.toLowerCase() : s
-          }
-          const targetNorm = norm(cwd)
+          const targetNorm = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'').replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase())
           for (let i = 0; i < items.length; i++) {
             const w = items[i]
             const wPath = w.path || w.cwd
-            if (wPath && norm(wPath) === targetNorm) {
+            if (wPath && (typeof keyOf === 'function' ? keyOf(wPath) : String(wPath||'').replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()) === targetNorm) {
               const wid = w.workspaceId || w.id
               if (wid) return Promise.resolve(wid)
             }
@@ -390,9 +385,30 @@ export let pendingDraftTargetSid = null
         ensureWorkspaceId(cwd).then(function (workspaceId) {
           const createOpts = workspaceId ? { workspaceId: workspaceId } : { cwd: cwd }
           sessions.create(createOpts).then(function (sid) {
-          // v1.5：新会话继承当前快照（同仓库同 cwd）—— 面板/状态栏秒显，避免冷缓存全量重建卡顿
+          // 新会话秒显共享缓存为唯一来源（#301 / #324）：同工作区共享缓存在 storeOf 已尝试水合，此处 cwd 刚赋值需再次水合
+          // 移除“继承打开它的会话 snapshot”作为版本来源；无共享缓存时可作兜底
           const ns = storeOf(sid)
-          if (ns && st.snapshot) { ns.snapshot = st.snapshot; ns.snapMode = 'real'; ns.cwd = cwd }
+          if (ns) {
+            ns.cwd = cwd
+            const hydrated = (typeof hydrateFromCache === 'function' ? hydrateFromCache(ns) : false)
+            if (!hydrated) {
+              // 无共享缓存且源会话有快照且同工作区：临时兜底（避免首开无数据转圈）
+              try {
+                const hasShared = (typeof getCachedSnapshot === 'function' ? getCachedSnapshot(cwd) : null)
+                if (!hasShared && st.snapshot && st.cwd && (typeof keyOf === 'function' ? keyOf(st.cwd) : String(st.cwd||'')) === (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||''))) {
+                  ns.snapshot = st.snapshot
+                  ns.snapMode = 'real'
+                }
+              } catch(eFb){ if (st.snapshot) { ns.snapshot = st.snapshot; ns.snapMode='real'; } }
+            }
+            // 版本以最新 generatedMs 者胜：若源快照更新，则以最新者为准（hydrate 已处理，但兜底后需校正）
+            try {
+              const sharedSnap = (typeof getCachedSnapshot === 'function' ? getCachedSnapshot(cwd) : null)
+              if (sharedSnap && ns.snapshot && sharedSnap.generatedMs && ns.snapshot.generatedMs && sharedSnap.generatedMs > ns.snapshot.generatedMs) {
+                ns.snapshot = sharedSnap
+              }
+            } catch(eVer){}
+          }
           // issuePath · 新会话锚点：把本次打开的 issue 记为新会话的起点（Q10 A+B）
           try {
             const __refs = (typeof issueRefNumbersFrom==='function') ? issueRefNumbersFrom(text) : [] // #231：锚点识别改由后端 linkPatternSource 驱动
