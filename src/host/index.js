@@ -2071,17 +2071,118 @@ export default {
           }
           return adoptSnapshot(snap, cwd)
         }
-        // GitHub 路径保持原有 buildSnapshot + 磁盘缓存
-        // #2 deletion fix：磁盘快照只用于秒开；命中后先校验 issue 索引，删除/状态变化时立即重建。
-        const repo0 = await getRepoKey(cwd)
-        const disk = await readDiskCache(repo0)
-        if (disk) {
-          const current = await cacheSnapshotIsCurrent(disk, cwd)
-          if (current !== false) return adoptSnapshot(Object.assign({}, disk, { fromCache: true }), cwd)
+        // 统一契约：所有后端均走 composeSnapshot，不再硬走 buildSnapshot 直调 gh
+        if (!_sel || !_sel.backendId) {
+          const repoRoot = await getRepoRoot(cwd)
+          let backendModules = null
+          try {
+            const regM = await getTrackerRegistry()
+            if (regM && typeof regM.modules === 'function') {
+              backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+            }
+          } catch {}
+          const snap = {
+            ok: true,
+            repo: null,
+            repoRoot,
+            updatedAt: new Date().toISOString(),
+            generatedMs: Date.now(),
+            env: { ghPath, ghError: ghLastError },
+            maps: [],
+            issues: [],
+            labels: [],
+            repository: null,
+            backendModules,
+            selection: _sel,
+            capabilities: null,
+            viewer: null,
+            viewerLogin: null,
+            deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+          }
+          return adoptSnapshot(snap, cwd)
         }
-        const snap = await buildSnapshot(cwd, args && args.backendId)
-        await writeDiskCache(snap.repo, snap)
-        return adoptSnapshot(snap, cwd)
+        // GitHub 同样走编排器（经 registry.get('github').list），不再直调 buildSnapshot 硬走 gh
+        const reg2 = await getTrackerRegistry()
+        const backendId2 = _sel.backendId
+        const tracker2 = reg2.get(backendId2)
+        if (!tracker2) throw new Error('unknown backend ' + backendId2)
+        let repoRef2 = null
+        try { repoRef2 = reg2.describe({ cwd }, backendId2) } catch {}
+        if (!repoRef2) {
+          try {
+            const rk = await getRepoKey(cwd)
+            if (rk && rk.owner && rk.name) repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
+            else repoRef2 = { backend: backendId2, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId2, url: '' }
+          } catch { repoRef2 = { backend: backendId2, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId2, url: '' } }
+        }
+        const repo0b = await getRepoKey(cwd)
+        const diskb = await readDiskCache(repo0b)
+        if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
+          const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
+          if (currentb !== false) return adoptSnapshot(Object.assign({}, diskb, { fromCache: true }), cwd)
+        }
+        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+        const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
+        const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
+        const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b)
+        if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
+        const inner2 = res2.snapshot
+        ;(inner2.maps || []).forEach(function(m){ 
+          if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
+          try {
+            const tickets = m.tickets || []
+            const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
+            tickets.forEach(function(t){ 
+              if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
+              else if (t.key != null && lvInfo.byKey && lvInfo.byKey[t.key] != null) t.level = lvInfo.byKey[t.key]
+            })
+            const stats = (typeof groupTickets === 'function') ? groupTickets(tickets) : { total: tickets.length, open: tickets.filter(function(x){return x.state!=='CLOSED'}).length, closed: tickets.filter(function(x){return x.state==='CLOSED'}).length, frontier:0, claimed:0, blocked:0, levels:[], levelOf:{} }
+            m.stats = stats
+          } catch {}
+        })
+        ;(inner2.issues || []).forEach(function(it){ if (it.number == null && it.key != null) { const nn = parseInt(it.key,10); if(!isNaN(nn)) it.number = nn; } })
+        let allForList2 = [].concat(inner2.maps || []).concat((inner2.maps||[]).flatMap(function(m){ return m.tickets||[]; })).concat(inner2.issues||[])
+        const labels2 = inner2.labels || (function(){
+          const mm = {}
+          ;[].concat(inner2.maps||[]).concat(inner2.issues||[]).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
+          return Object.entries(mm).map(function(e){ return {name:e[0], color:e[1]} })
+        })()
+        let backendModules2 = null
+        try {
+          const regM2 = await getTrackerRegistry()
+          if (regM2 && typeof regM2.modules === 'function') {
+            backendModules2 = regM2.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+          }
+        } catch {}
+        const repoRoot2 = await getRepoRoot(cwd)
+        let viewer2 = null, viewerLogin2 = null
+        try {
+          const tr = reg2.get(backendId2)
+          if (tr && typeof tr.getCurrentUser === 'function') {
+            const vr = await tr.getCurrentUser(repoRef2, ctx2b)
+            if (vr && vr.ok && vr.data) { viewer2 = vr.data; viewerLogin2 = vr.data.login || null }
+          }
+        } catch {}
+        const snap2 = {
+          ok: true,
+          repo: repo0b,
+          repoRoot: repoRoot2,
+          updatedAt: new Date().toISOString(),
+          generatedMs: Date.now(),
+          env: { ghPath, ghError: ghLastError },
+          maps: inner2.maps,
+          issues: allForList2,
+          labels: labels2,
+          repository: repoRef2,
+          backendModules: backendModules2,
+          selection: _sel,
+          capabilities: null,
+          viewer: viewer2,
+          viewerLogin: viewerLogin2,
+          deck: inner2.deck,
+        }
+        await writeDiskCache(snap2.repo, snap2)
+        return adoptSnapshot(snap2, cwd)
       } catch (e) {
         cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
         return { ok: false, error: errText(e), env: { ghError: ghLastError } }
@@ -2134,6 +2235,16 @@ export default {
               if (!isNaN(n)) m.number = n
             }
             if (m.key != null) m.key = String(m.key)
+            try {
+              const tickets = m.tickets || []
+              const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
+              tickets.forEach(function(t){ 
+                if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
+                else if (t.key != null && lvInfo.byKey && lvInfo.byKey[t.key] != null) t.level = lvInfo.byKey[t.key]
+              })
+              const stats = (typeof groupTickets === 'function') ? groupTickets(tickets) : { total: tickets.length, open: tickets.filter(function(x){return x.state!=='CLOSED'}).length, closed: tickets.filter(function(x){return x.state==='CLOSED'}).length, frontier:0, claimed:0, blocked:0, levels:[], levelOf:{} }
+              m.stats = stats
+            } catch {}
             allForList.push(m)
           })
           flatTickets.forEach(function(t){
@@ -2197,10 +2308,117 @@ export default {
           }
           return adoptSnapshot(snap, cwd)
         }
-        const snap = await buildSnapshot(cwd, args && args.backendId)
-        // v1.5 T9：刷新后落盘，下次重启秒开
-        await writeDiskCache(snap.repo, snap)
-        return adoptSnapshot(snap, cwd)
+        // 统一走编排器（所有后端）
+        if (!_sel || !_sel.backendId) {
+          const repoRoot = await getRepoRoot(cwd)
+          let backendModules = null
+          try {
+            const regM = await getTrackerRegistry()
+            if (regM && typeof regM.modules === 'function') {
+              backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+            }
+          } catch {}
+          const snap = {
+            ok: true,
+            repo: null,
+            repoRoot,
+            updatedAt: new Date().toISOString(),
+            generatedMs: Date.now(),
+            env: { ghPath, ghError: ghLastError },
+            maps: [],
+            issues: [],
+            labels: [],
+            repository: null,
+            backendModules,
+            selection: _sel,
+            capabilities: null,
+            viewer: null,
+            viewerLogin: null,
+            deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+          }
+          return adoptSnapshot(snap, cwd)
+        }
+        const reg2 = await getTrackerRegistry()
+        const backendId2 = _sel.backendId
+        const tracker2 = reg2.get(backendId2)
+        if (!tracker2) throw new Error('unknown backend ' + backendId2)
+        let repoRef2 = null
+        try { repoRef2 = reg2.describe({ cwd }, backendId2) } catch {}
+        if (!repoRef2) {
+          try {
+            const rk = await getRepoKey(cwd)
+            if (rk && rk.owner && rk.name) repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
+            else repoRef2 = { backend: backendId2, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId2, url: '' }
+          } catch { repoRef2 = { backend: backendId2, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId2, url: '' } }
+        }
+        const repo0b = await getRepoKey(cwd)
+        const diskb = await readDiskCache(repo0b)
+        if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
+          const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
+          if (currentb !== false) return adoptSnapshot(Object.assign({}, diskb, { fromCache: true }), cwd)
+        }
+        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+        const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
+        const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
+        const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b)
+        if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
+        const inner2 = res2.snapshot
+        ;(inner2.maps || []).forEach(function(m){ 
+          if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
+          try {
+            const tickets = m.tickets || []
+            const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
+            tickets.forEach(function(t){ 
+              if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
+              else if (t.key != null && lvInfo.byKey && lvInfo.byKey[t.key] != null) t.level = lvInfo.byKey[t.key]
+            })
+            const stats = (typeof groupTickets === 'function') ? groupTickets(tickets) : { total: tickets.length, open: tickets.filter(function(x){return x.state!=='CLOSED'}).length, closed: tickets.filter(function(x){return x.state==='CLOSED'}).length, frontier:0, claimed:0, blocked:0, levels:[], levelOf:{} }
+            m.stats = stats
+          } catch {}
+        })
+        ;(inner2.issues || []).forEach(function(it){ if (it.number == null && it.key != null) { const nn = parseInt(it.key,10); if(!isNaN(nn)) it.number = nn; } })
+        let allForList2 = [].concat(inner2.maps || []).concat((inner2.maps||[]).flatMap(function(m){ return m.tickets||[]; })).concat(inner2.issues||[])
+        const labels2 = inner2.labels || (function(){
+          const mm = {}
+          ;[].concat(inner2.maps||[]).concat(inner2.issues||[]).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
+          return Object.entries(mm).map(function(e){ return {name:e[0], color:e[1]} })
+        })()
+        let backendModules2 = null
+        try {
+          const regM2 = await getTrackerRegistry()
+          if (regM2 && typeof regM2.modules === 'function') {
+            backendModules2 = regM2.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+          }
+        } catch {}
+        const repoRoot2 = await getRepoRoot(cwd)
+        let viewer2 = null, viewerLogin2 = null
+        try {
+          const tr = reg2.get(backendId2)
+          if (tr && typeof tr.getCurrentUser === 'function') {
+            const vr = await tr.getCurrentUser(repoRef2, ctx2b)
+            if (vr && vr.ok && vr.data) { viewer2 = vr.data; viewerLogin2 = vr.data.login || null }
+          }
+        } catch {}
+        const snap2 = {
+          ok: true,
+          repo: repo0b,
+          repoRoot: repoRoot2,
+          updatedAt: new Date().toISOString(),
+          generatedMs: Date.now(),
+          env: { ghPath, ghError: ghLastError },
+          maps: inner2.maps,
+          issues: allForList2,
+          labels: labels2,
+          repository: repoRef2,
+          backendModules: backendModules2,
+          selection: _sel,
+          capabilities: null,
+          viewer: viewer2,
+          viewerLogin: viewerLogin2,
+          deck: inner2.deck,
+        }
+        await writeDiskCache(snap2.repo, snap2)
+        return adoptSnapshot(snap2, cwd)
       } catch (e) {
         cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
         return { ok: false, error: errText(e) }
