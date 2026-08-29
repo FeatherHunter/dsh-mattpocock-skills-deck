@@ -10,6 +10,7 @@ export     const MapDetail = ({ st, g }) => {
       const h = cx ? cx.h : React.createElement
       const m = g.m
       const colorOf = buildColorOf(st)
+      const wayfinderTypeOf = function(t){ const ls=(t.labels||[]); for(let i=0;i<ls.length;i++){ const n=typeof ls[i]==='string'?ls[i]:ls[i].name; if(n==='wayfinder:map') return 'map'; if(n==='wayfinder:research') return 'research'; if(n==='wayfinder:prototype') return 'prototype'; if(n==='wayfinder:grilling') return 'grilling'; if(n==='wayfinder:task') return 'task'; } const tt=t.type||''; if(['research','prototype','grilling','task','map'].indexOf(tt)>=0) return tt; return 'issue'; };
       const tickets = m.tickets || []
       // 区块字段防御性兜底：快照组装层已恒填 EMPTY（[] / ''），旧磁盘缓存/异常数据仍可能缺失，
       // 缺失时按空区块渲染（曾因 m.decisions 等 undefined 直接读 .length 抛 Cannot read properties of undefined）
@@ -79,7 +80,7 @@ export     const MapDetail = ({ st, g }) => {
           (function(){ const _u=issueUrlFor(st, t.number); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e){ e.stopPropagation(); const u=issueUrlFor(st, t.number); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h('a', { className: 'dsws-btn ghost', title: tr('list.openInTrackerTitle', { n: t.number }), href: _u, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 11 })) : h('button', { className: 'dsws-btn ghost', title: tr('list.openInTrackerTitle', { n: t.number }), onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 11 })); })(),
         ] : [])
         // v1.4 修复：图标名必须用 Ic 支持的（search/hammer/chat/gear），原 mag/bolt/wrench 不存在 → 节点图标空白
-        const ic = t.type === 'research' ? 'search' : t.type === 'prototype' ? 'hammer' : t.type === 'grilling' ? 'chat' : t.type === 'map' ? 'map' : 'gear'
+        const _wt = wayfinderTypeOf(t); const ic = _wt === 'research' ? 'search' : _wt === 'prototype' ? 'hammer' : _wt === 'grilling' ? 'chat' : _wt === 'map' ? 'map' : _wt === 'task' ? 'gear' : 'gear'
         return h('div', {
           key: t.number,
           className: nodeCls(t),
@@ -89,8 +90,8 @@ export     const MapDetail = ({ st, g }) => {
             h('span', { className: 'icbox' }, Ic({ n: ic, size: 12 })),
             h('div', { style: { flex: 1, minWidth: 0 } }, [
               h('div', { className: 'meta' }, [
-                h('span', { className: 'no' }, '#' + t.number),
-                TypeChip({ type: t.type }),
+                h('span', { className: 'no' }, '#' + (t.key != null ? t.key : t.number)),
+                TypeChip({ type: wayfinderTypeOf(t) }),
               ]),
               h('div', { className: 'tt', title: t.title }, t.title),
               h('div', { className: 'sub', style: { fontSize: 8, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginTop: 1, minHeight: 12, display: 'flex', gap: 5, flexWrap: 'wrap' } }, [

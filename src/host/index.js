@@ -2192,6 +2192,8 @@ export default {
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
           try {
             const tickets = m.tickets || []
+            // 补 number（GitHub 仅有 key，UI 用 number 展示）
+            tickets.forEach(function(t){ if(t && t.key != null && t.number == null){ const nn=parseInt(t.key,10); if(!isNaN(nn)) t.number=nn; if(t.key!=null) t.key=String(t.key) } })
             const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
             tickets.forEach(function(t){ 
               if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
@@ -2469,6 +2471,8 @@ export default {
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
           try {
             const tickets = m.tickets || []
+            // 补 number（GitHub 仅有 key，UI 用 number 展示）
+            tickets.forEach(function(t){ if(t && t.key != null && t.number == null){ const nn=parseInt(t.key,10); if(!isNaN(nn)) t.number=nn; if(t.key!=null) t.key=String(t.key) } })
             const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
             tickets.forEach(function(t){ 
               if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
