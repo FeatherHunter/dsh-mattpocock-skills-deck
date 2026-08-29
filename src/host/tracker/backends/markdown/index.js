@@ -152,6 +152,8 @@ export const markdownModule = {
     trackerChoice: 'setup.markdown.trackerChoice',
     backendNote: 'setup.markdown.backendNote',
     labelReqs: 'setup.markdown.labelReqs',
+    // #323（2026-08-29 生效）：标签调色盘规则经此注入 —— 票内 Labels 只写名字、颜色查 docs/agents/triage-labels.md 调色盘表
+    paletteNote: 'setup.markdown.paletteNote',
   },
   create: createMarkdownBackend,
   matches,

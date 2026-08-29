@@ -64,6 +64,8 @@
         'setup.markdown.trackerChoice': 'Local markdown',
         'setup.markdown.backendNote': '\n\n本次已选后端：Markdown \u2014 请按本地 Markdown 模板生成 docs/agents/issue-tracker.md（.scratch 结构）',
         'setup.markdown.labelReqs': '',
+        // #323（2026-08-29 生效）：本地 Markdown 标签调色盘规则 —— 票内 Labels 行只写名字，颜色查 docs/agents/triage-labels.md 调色盘表
+        'setup.markdown.paletteNote': '本地 Markdown 的标签走「调色盘」：票内 `Labels:` 行只写标签名字（如 `Labels: wayfinder:grilling, bug`），颜色统一查 `docs/agents/triage-labels.md` 的调色盘表；表里没有的名字显示为灰色；改颜色只改那一处。',
         'setup.gitlab.trackerLine': '本仓库为 GitLab \u2192 提议 GitLab Issues',
         'setup.gitlab.trackerChoice': 'GitLab Issues',
         'setup.gitlab.backendNote': '\n\n本次已选后端：GitLab \u2014 请按 GitLab 模板生成 docs/agents/issue-tracker.md',
@@ -413,6 +415,8 @@
         'setup.markdown.trackerChoice': 'Local markdown',
         'setup.markdown.backendNote': '\n\nSelected backend: Markdown \u2014 please generate docs/agents/issue-tracker.md from the local Markdown template (.scratch structure).',
         'setup.markdown.labelReqs': '',
+        // #323 (2026-08-29): local Markdown label palette rule — Labels line writes names only, colors come from docs/agents/triage-labels.md
+        'setup.markdown.paletteNote': 'Local Markdown labels use a palette: write only label names on the `Labels:` line (e.g. `Labels: wayfinder:grilling, bug`); each name\'s color comes from the palette table in `docs/agents/triage-labels.md`, and a name missing from the table renders grey; change a color once, in that table.',
         'setup.gitlab.trackerLine': 'this repo is on GitLab \u2192 propose GitLab Issues',
         'setup.gitlab.trackerChoice': 'GitLab Issues',
         'setup.gitlab.backendNote': '\n\nSelected backend: GitLab \u2014 please generate docs/agents/issue-tracker.md from the GitLab template.',

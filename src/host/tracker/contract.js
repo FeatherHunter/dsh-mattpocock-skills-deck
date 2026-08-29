@@ -105,7 +105,7 @@ export const OPERATIONS = Object.freeze([
  * @property {(handle: RepoHandle, backendId: string) => import('../../shared/tracker/shape.js').RepositoryRef} [describe] 可选：出 RepositoryRef（refId/name/url）；未提供时 registry 回退骨架（markdown cwd，其余 ''）
  * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} [issueUrl] 可选：票链接（github https://github.com/{refId}/issues/{key}，gitlab https://gitlab.com/{refId}/-/issues/{key}，markdown ''）
  * @property {(name: string) => string} [searchUrl] 可选：仓库名搜索链接（github https://github.com/search?q=...）
- * @property {{trackerLine: string, trackerChoice: string, backendNote: string, labelReqs: string}} [setupPrompt]
+ * @property {{trackerLine: string, trackerChoice: string, backendNote: string, labelReqs: string, paletteNote?: string}} [setupPrompt]
  * @property {{issueUrlTemplate?: string, repoUrlTemplate?: string, searchUrlTemplate?: string, linkPatternSource?: string}} [links] 可选只读描述数据（#231）：client URL 构造/链接识别的单源模板；空对象=诚实「无链接」形状
  * @property {{labelsGuide?: boolean, repoCreateChain?: boolean}} [capabilities]
  * @property {'url'|'folder'} [openRepository] 开仓契约动作（#231）：url=浏览器新窗打开 describe().url；folder=host wf.openFolder；未声明且无 url 即诚实无动作 可选界面能力位（#231 · D8 末段落地）：仅驱动 UI 引导入口显示，G5 红线不变——永不被数据路径读取

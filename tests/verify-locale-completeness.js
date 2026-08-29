@@ -49,7 +49,7 @@ const REQUIRED = [
   'switch.gateOtherErr', 'switch.pleaseSelectTracker', 'switch.gateIntro',
   'panel.loadingShort',
   'setup.github.trackerLine', 'setup.github.labelReqs',
-  'setup.markdown.trackerLine', 'setup.markdown.labelReqs',
+  'setup.markdown.trackerLine', 'setup.markdown.labelReqs', 'setup.markdown.paletteNote',
   'setup.gitlab.trackerLine', 'setup.gitlab.labelReqs',
   'setup.default.trackerLine', 'setup.default.labelReqs',
   'panel.labelsStepTitle', 'panel.labelsStepDesc',
