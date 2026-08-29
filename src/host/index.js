@@ -2170,11 +2170,39 @@ export default {
         let repoRef2 = null
         try { repoRef2 = reg2.describe({ cwd }, backendId2) } catch {}
         if (!repoRef2 || !repoRef2.refId) {
-          try {
-            const rk = await getRepoKey(cwd)
-            if (rk && rk.owner && rk.name) repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
-            else repoRef2 = { backend: backendId2, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId2, url: '' }
-          } catch { repoRef2 = { backend: backendId2, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId2, url: '' } }
+          const rk = await getRepoKey(cwd)
+          if (rk && rk.owner && rk.name) {
+            repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
+          } else {
+            const repoRootNoRepo = await getRepoRoot(cwd)
+            let backendModulesNoRepo = null
+            try {
+              const regMNo = await getTrackerRegistry()
+              if (regMNo && typeof regMNo.modules === 'function') {
+                backendModulesNoRepo = regMNo.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+              }
+            } catch {}
+            const _selNoRepo = (typeof _sel !== 'undefined' ? _sel : (typeof _selEarly !== 'undefined' ? _selEarly : null))
+            const snapNoRepo = {
+              ok: true,
+              repo: null,
+              repoRoot: repoRootNoRepo,
+              updatedAt: new Date().toISOString(),
+              generatedMs: Date.now(),
+              env: { ghPath, ghError: ghLastError },
+              maps: [],
+              issues: [],
+              labels: [],
+              repository: null,
+              backendModules: backendModulesNoRepo,
+              selection: _selNoRepo,
+              capabilities: null,
+              viewer: null,
+              viewerLogin: null,
+              deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+            }
+            return adoptSnapshot(snapNoRepo, cwd)
+          }
         }
         const repo0b = await getRepoKey(cwd)
         const diskb = await readDiskCache(repo0b)
@@ -2449,11 +2477,39 @@ export default {
         let repoRef2 = null
         try { repoRef2 = reg2.describe({ cwd }, backendId2) } catch {}
         if (!repoRef2 || !repoRef2.refId) {
-          try {
-            const rk = await getRepoKey(cwd)
-            if (rk && rk.owner && rk.name) repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
-            else repoRef2 = { backend: backendId2, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId2, url: '' }
-          } catch { repoRef2 = { backend: backendId2, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId2, url: '' } }
+          const rk = await getRepoKey(cwd)
+          if (rk && rk.owner && rk.name) {
+            repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
+          } else {
+            const repoRootNoRepo = await getRepoRoot(cwd)
+            let backendModulesNoRepo = null
+            try {
+              const regMNo = await getTrackerRegistry()
+              if (regMNo && typeof regMNo.modules === 'function') {
+                backendModulesNoRepo = regMNo.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+              }
+            } catch {}
+            const _selNoRepo = (typeof _sel !== 'undefined' ? _sel : (typeof _selEarly !== 'undefined' ? _selEarly : null))
+            const snapNoRepo = {
+              ok: true,
+              repo: null,
+              repoRoot: repoRootNoRepo,
+              updatedAt: new Date().toISOString(),
+              generatedMs: Date.now(),
+              env: { ghPath, ghError: ghLastError },
+              maps: [],
+              issues: [],
+              labels: [],
+              repository: null,
+              backendModules: backendModulesNoRepo,
+              selection: _selNoRepo,
+              capabilities: null,
+              viewer: null,
+              viewerLogin: null,
+              deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+            }
+            return adoptSnapshot(snapNoRepo, cwd)
+          }
         }
         const repo0b = await getRepoKey(cwd)
         const diskb = await readDiskCache(repo0b)
