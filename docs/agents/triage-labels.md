@@ -2,7 +2,7 @@
 
 The skills speak in terms of five canonical triage roles. This file maps those roles to the actual label strings used in this repo's tracker.
 
-For the **local Markdown backend** this file is also the **label palette**: a ticket's `Labels:` line writes only label *names* (for example `Labels: wayfinder:grilling, bug`); the deck looks each name up in the table below to get its color. A name that is not listed anywhere renders **grey**, and changing a label's color is done once, here.
+For the **local Markdown backend** this file is also the **label palette**: a ticket's `Labels:` line writes only label *names* (for example `Labels: wayfinder:grilling, bug`); the panel colors each name from this table. Default colors are pre-filled here from the local backend's own palette, and to change a label's color you edit the matching row's Color value in this table; a name missing from the table renders grey.
 
 ## Label palette
 
@@ -20,7 +20,7 @@ For the **local Markdown backend** this file is also the **label palette**: a ti
 | `#9d7cd8` | — | `wayfinder:grilling` | Grilling / discussion ticket (HITL) |
 | `#10b981` | — | `wayfinder:task` | Task ticket (HITL or AFK) |
 
-Add any custom label as a new row here; both the GitHub repo labels and the local palette are documented by this single table.
+Add any custom label as a new row here; this table is the local Markdown backend's own label palette (defaults pre-filled; edits here override).
 
 When a skill mentions a role (for example "apply the AFK-ready triage label"), use the corresponding label string from this table.
 

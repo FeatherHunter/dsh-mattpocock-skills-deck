@@ -96,6 +96,23 @@ export function createMarkdownBackend(ctx){
     parse:parseMd,
   }
 }
+/** #323（2026-08-29 定版复核）：本地 Markdown 后端自己的默认调色盘（不依赖 GitHub）——
+ *  这里是本地标签结构与默认色值的真源；模块经契约层（BackendModule.labelPalette）提供给面板，
+ *  工作区 docs/agents/triage-labels.md 的调色盘表为用户可见的覆盖/改色层（默认按此真源预填）。
+ *  颜色渲染由面板底层按 labelPalette + 工作区覆盖查色，AI 不参与。 */
+export const defaultLabelPalette = [
+  { name: 'bug', color: 'd73a4a' },
+  { name: 'needs-triage', color: 'fbca04' },
+  { name: 'needs-info', color: '5319e7' },
+  { name: 'ready-for-agent', color: '0e8a16' },
+  { name: 'ready-for-human', color: 'b60205' },
+  { name: 'wontfix', color: 'ffffff' },
+  { name: 'wayfinder:map', color: '8b5cf6' },
+  { name: 'wayfinder:research', color: '0ea5e9' },
+  { name: 'wayfinder:prototype', color: 'f59e0b' },
+  { name: 'wayfinder:grilling', color: '9d7cd8' },
+  { name: 'wayfinder:task', color: '10b981' },
+]
 /** 修复契约注入文案（Markdown 后端本地语义，双语单源；供 fixes 引用，host 组装时解析）。 */
 export const prompts = {
   // 2026-08-29 人话改写（用户反馈：".scratch/图谱/map.md"是黑话，第一阅读看不懂指的是什么）：
@@ -154,9 +171,11 @@ export const markdownModule = {
     trackerChoice: 'setup.markdown.trackerChoice',
     backendNote: 'setup.markdown.backendNote',
     labelReqs: 'setup.markdown.labelReqs',
-    // #323（2026-08-29 生效）：标签调色盘规则经此注入 —— 票内 Labels 只写名字、颜色查 docs/agents/triage-labels.md 调色盘表
+    // #323（2026-08-29 定版复核）：注入只讲规则（票带 Labels 行只写名 + 改色入口），颜色机制/色值由 labelPalette 真源与面板底层负责
     paletteNote: 'setup.markdown.paletteNote',
   },
+  // #323（2026-08-29 定版复核）：本地后端自己的默认调色盘（结构/label/颜色）经契约层供给面板；工作区表为用户覆盖层
+  labelPalette: defaultLabelPalette,
   create: createMarkdownBackend,
   matches,
   // #231：本地 Markdown 无远程链接 —— 空 links 为诚实形状；开仓动作为打开本地文件夹（契约动作声明，UI 通用执行）

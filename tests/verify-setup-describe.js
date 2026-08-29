@@ -37,10 +37,10 @@ const LABEL_REQS = {
   zh: '，并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个',
   en: ', and ensure the repo has the complete label set the skills need (the five triage-role labels + the wayfinder labels wayfinder:map / research / prototype / grilling / task) ' + EMDASH + ' not just a few',
 }
-// #323（2026-08-29 生效）：本地 Markdown 标签调色盘规则值（与 locale 键 setup.markdown.paletteNote 逐字节等值）
+// #323（2026-08-29 定版复核 · 用户三条拍板）：AI 只需知道「票会带 Labels 行、只写标签名」；颜色由面板底层按 labelPalette 上色；改色入口=调色盘表对应行
 const PALETTE_NOTE = {
-  zh: '本地 Markdown 的标签走「调色盘」：票内 `Labels:` 行只写标签名字（如 `Labels: wayfinder:grilling, bug`），不写颜色；颜色统一查 `docs/agents/triage-labels.md` 里的「调色盘表」。调色盘表 = 在现有三列（mattpocock 角色 / 本仓库标签 / 含义）左上加一列 `Color`（十六进制色值，如 `#8b5cf6`）的四列表格，每行一个标签；本仓库两列标签名 1:1 相同（正源角色名 = 实际字符串），若他仓改过映射以该表为准。本仓库固定色值（沿用本仓库 GitHub 标签现有色值）：wayfinder:map=#8b5cf6、wayfinder:research=#0ea5e9、wayfinder:prototype=#f59e0b、wayfinder:grilling=#9d7cd8、wayfinder:task=#10b981、bug=#d73a4a、needs-triage=#fbca04、needs-info=#5319e7、ready-for-agent=#0e8a16、ready-for-human=#b60205、wontfix=#ffffff；自定义标签在本表加一行。初始化时请确保 `docs/agents/triage-labels.md` 已含此调色盘表——若该文件只有三列或缺 Color 列，就把每行补上 Color 并按上述「标签=色值」增补表行，不要删掉原有列；若已有此表，核对即可。表里没有的名字显示为灰色 `#cccccc`；改标签 = 重写该票 `Labels:` 行的名字；改颜色只改表那一处。',
-  en: "Local Markdown labels use a palette: a ticket writes only label names on the `Labels:` line (e.g. `Labels: wayfinder:grilling, bug`), never colors; look up the color in the palette table inside `docs/agents/triage-labels.md`. The palette table is a four-column table that adds a `Color` column (hex value, e.g. `#8b5cf6`) on the left of the existing three columns (mattpocock role / our tracker label / meaning), one row per label; in this repo the two label-name columns are 1:1 (canonical role name = actual string); if another repo remaps, that repo table wins. Fixed values for this repo (from this repo GitHub labels): wayfinder:map=#8b5cf6, wayfinder:research=#0ea5e9, wayfinder:prototype=#f59e0b, wayfinder:grilling=#9d7cd8, wayfinder:task=#10b981, bug=#d73a4a, needs-triage=#fbca04, needs-info=#5319e7, ready-for-agent=#0e8a16, ready-for-human=#b60205, wontfix=#ffffff; add custom labels as new rows there. During setup make sure `docs/agents/triage-labels.md` already contains this palette table: if the file only has three columns or lacks a Color column, add a Color column to each row and append the rows above with their fixed colors — keep the existing columns; if the table already exists, just verify it. A name missing from the table renders grey `#cccccc`; changing a ticket labels means rewriting that ticket `Labels:` line names; change a color once, in that table.",
+  zh: '本地 Markdown 的票可以带标签：票内加一行 `Labels:`，只写标签名字（如 `Labels: wayfinder:grilling, bug`，多个用逗号分隔），不要写颜色；颜色由看板自动上色（默认色值已预填好），想改颜色就改 `docs/agents/triage-labels.md` 调色盘表里对应行的 Color 值。',
+  en: "Local Markdown tickets can carry labels: add a `Labels:` line to a ticket with only label names (e.g. `Labels: wayfinder:grilling, bug`, comma-separated), never colors; the panel colors them automatically (default colors are pre-filled); to change a color, edit the Color value of the matching row in the palette table in `docs/agents/triage-labels.md`.",
 }
 
 // setupRun 全文期望：帧 = v10 模板静态文本（除五占位符）；值来自金样 / PALETTE_NOTE
@@ -69,14 +69,20 @@ async function main() {
     const i = src.indexOf('setupPrompt:')
     check(i >= 0, 'backend ' + b + ' 声明 setupPrompt')
     if (i < 0) continue
-    const seg = src.slice(i, i + 400)
+    const seg = src.slice(i, i + 700)
     const keys = {}
     const re = /(trackerLine|trackerChoice|backendNote|labelReqs|paletteNote)\s*:\s*'([^']+)'/g
     let m
     while ((m = re.exec(seg)) !== null) keys[m[1]] = m[2]
     ;['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs'].forEach((k) => check(!!keys[k], 'backend ' + b + ' setupPrompt.' + k + ' 已声明'))
     // #323：paletteNote 仅本地 Markdown 声明（其余后端不声明 → 按空串解析，零影响）
-    if (b === 'markdown') check(!!keys['paletteNote'], 'backend markdown setupPrompt.paletteNote 已声明（#323 调色盘注入）')
+    if (b === 'markdown') {
+      check(!!keys['paletteNote'], 'backend markdown setupPrompt.paletteNote 已声明（#323 调色盘注入）')
+      // #323（定版复核）：本地后端自持默认调色盘（结构/label/颜色经契约层供给面板；工作区表为覆盖层）
+      check(src.includes('export const defaultLabelPalette') && src.includes('labelPalette: defaultLabelPalette'), 'markdown 模块声明默认调色盘 labelPalette（#323 定版复核）')
+      const paletteEntries = (src.match(/\{ name: '[^']+', color: '[0-9a-fA-F]{3,8}' \}/g) || [])
+      check(paletteEntries.length >= 11, 'markdown defaultLabelPalette 含 11 行默认标签（实得 ' + paletteEntries.length + '）')
+    }
     stubs.push({ id: b, setupPrompt: keys })
   }
   // host wf.registry 转发
