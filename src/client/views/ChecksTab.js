@@ -100,7 +100,7 @@ export const ChecksTab = ({ st }) => {
   //   动作按钮 = 检查失败时的可执行修复入口（inject-prompt / open-url / rpc / form / refresh），执行后走既有重求值闭环。
   const miniActionLabel = function (a) {
     const t = a && a.type
-    if (t === 'inject-prompt') return (a && a.label) || '注入修复指引'
+    if (t === 'inject-prompt') return (a && a.label) || '执行'
     if (t === 'open-url') return '打开链接'
     if (t === 'rpc') return (a && (a.method || a.endpoint)) || '执行'
     if (t === 'form') return (a && a.label) || '填写表单'

@@ -84,10 +84,12 @@ export const openRepository = 'url'
  * 文案引用本模块 prompts 键：ghAuthLogin / noGhPrompt / repoRemoteFix / repoAccessFix（双语单源）。
  */
 export const fixes = Object.freeze({
+  // 2026-08-29（审查 S1/S2）：hint 只做「状态翻译」——说清这行为什么红、不修会怎样、有无第二条路；
+  //   不再指挥点击（按钮自己会说话）、不贴命令（命令在指引全文里）、去掉与判定矛盾的「网络不通」表述。
   'gh:installed': {
     hint: {
-      zh: 'gh CLI 未安装。点「安装指引」获取各平台安装命令，完成后重查。',
-      en: 'gh CLI is not installed. Use the install guide, then re-check.',
+      zh: 'GitHub 助手（gh）还没安装，安装后即可继续。',
+      en: 'The GitHub CLI (gh) is not installed yet — install it to continue.',
     },
     actions: [
       { type: 'inject-prompt', prompt: 'noGhPrompt', label: { zh: '安装指引', en: 'Install guide' } },
@@ -96,8 +98,8 @@ export const fixes = Object.freeze({
   },
   'gh:authed': {
     hint: {
-      zh: 'gh 未登录或凭证已失效。点「登录指引」注入重新认证步骤（gh auth login / gh auth refresh -h github.com），完成后重查。',
-      en: 'gh is not logged in or the credential has expired. Use the login guide to re-authenticate (gh auth login / gh auth refresh -h github.com), then re-check.',
+      zh: 'GitHub 登录状态已失效，重新登录后即可继续。',
+      en: 'The GitHub login has expired — sign in again to continue.',
     },
     actions: [
       { type: 'inject-prompt', prompt: 'ghAuthLogin', label: { zh: '登录指引', en: 'Login guide' } },
@@ -106,8 +108,8 @@ export const fixes = Object.freeze({
   },
   'gh:remote': {
     hint: {
-      zh: '此目录未关联 GitHub 仓库，创建后即可继续。',
-      en: 'This directory is not linked to a GitHub repo — create one to continue.',
+      zh: '此目录未关联 GitHub 仓库。想用 GitHub 就点「创建并发布」；想用本地 Markdown，可在顶端切换后端后再查。',
+      en: 'This directory is not linked to a GitHub repo. To use GitHub, click "Create & publish"; to use local Markdown, switch the backend at the top and re-check.',
     },
     // 修复动作（2026-08-28 用户定版）：wizard 两步（仓库名 → 可见性），走 wf.initPublish → github initProject；
     //   移除「修复指引」inject-prompt 主按钮：有 form/wizard 时注入文本不再以按钮出现（之前讨论判定为不合理功能）。
@@ -136,8 +138,8 @@ export const fixes = Object.freeze({
   },
   'gh:repoAccess': {
     hint: {
-      zh: '仓库路径无法经 GitHub API 访问（可能不存在 / 无权限 / 网络不通），创建后即可继续。',
-      en: 'Repository not reachable via the GitHub API (missing / permission / network) — create it to continue.',
+      zh: '仓库在 GitHub 上访问不到（可能还没创建，或你没有权限）。确认后点「创建并发布」；若只是网络问题，它会显示为等待状态。',
+      en: 'The repo is not accessible on GitHub (it may not exist yet, or you lack access). Confirm, then "Create & publish"; if it is only a network issue, this shows as waiting instead.',
     },
     actions: [
       {
@@ -182,11 +184,11 @@ export const prompts = (function () {
       en: 'Install the GitHub CLI (gh) for DSH — all panel data depends on it:\n\n1. Check first: run gh --version;\n2. If missing, install per OS: Windows → winget install --id GitHub.cli; macOS → brew install gh; Linux → sudo apt install gh.',
     },
     repoRemoteFix: {
-      zh: '当前工作区不是 GitHub 仓库（git remote 无法解析为 owner/name）。优先路径：把本目录发布为 GitHub 仓库——用户可在「创建并发布」表单填写仓库名与可见性（公开/私有）提交（等价命令 gh repo create <name> --public/--private --source=. --push；非 Git 仓库由流程自动 git init）。仅当用户明确这是本地项目（不打算用 GitHub）时，才提示切换到「本地 Markdown」后端。不要替用户上传不属于本工作区的代码；创建前与用户确认仓库名与可见性。',
+      zh: '当前工作区不是 GitHub 仓库（git remote 无法解析为 owner/name）。优先路径：把本目录发布为 GitHub 仓库——用户可在「创建并发布」表单填写仓库名与可见性（公开/私有）提交（等价命令 gh repo create <name> --public/--private --source=. --push；非 Git 仓库由流程自动 git init）。仅当用户明确这是本地项目（不打算用 GitHub）时，才提示切换到「本地 Markdown」后端。不要替用户上传不属于本工作区的代码；创建前与用户确认仓库名与可见性。完成后请用户点「重新检查」。',
       en: 'No GitHub repository could be resolved for the current workspace (git remote origin → owner/name failed). Confirm intent with the user, then do one of:\n\nA. Local project (no GitHub needed) → tell the user to switch to the "Local Markdown" backend in the top picker; the check passes after re-check;\nB. GitHub is really wanted → ① if a Git repo: git remote add origin https://github.com/<owner>/<repo>.git (repo must exist, or first gh repo create <repo> --public/--private --source=. --push); ② if not a Git repo: git init first, then ①; ③ after pushing, ask the user to re-check.\nNever upload code that does not belong to this workspace; confirm repo name and visibility (public/private) with the user before creating.',
     },
     repoAccessFix: {
-      zh: '当前仓库无法通过 GitHub API 访问（gh api repos/{owner}/{name} 失败）。请按序排查：\n1. 仓库存在性：gh repo view <owner>/<name> --json nameWithOwner；不存在 → 与用户确认后执行 gh repo create（仓库名/可见性先确认）；\n2. 访问权限：gh auth status 确认登录账号；私有仓库需该账号有权限（403/404 都可能是权限问题）；\n3. 网络/代理：gh config get http_proxy 与网络连通性。\n排查修复后请用户点「重查」。',
+      zh: '当前仓库无法通过 GitHub API 访问（gh api repos/{owner}/{name} 失败）。请按序排查：\n1. 仓库存在性：gh repo view <owner>/<name> --json nameWithOwner；不存在 → 与用户确认后执行 gh repo create（仓库名/可见性先确认）；\n2. 访问权限：gh auth status 确认登录账号；私有仓库需该账号有权限（403/404 都可能是权限问题）；\n3. 网络/代理：gh config get http_proxy 与网络连通性。\n排查修复后请用户点「重新检查」。',
       en: 'The repository is not reachable via the GitHub API (gh api repos/{owner}/{name} failed). Investigate in order:\n1. Existence: gh repo view <owner>/<name> --json nameWithOwner; if missing → confirm with the user, then gh repo create (confirm name/visibility first);\n2. Permissions: gh auth status to confirm the account; private repos need access for this account (403/404 can both be permission issues);\n3. Network/proxy: gh config get http_proxy and connectivity.\nAfter fixing, ask the user to re-check.',
     },
     errorKinds: {
@@ -275,10 +277,11 @@ export async function getRepoKey(cwd, ctx) {
  * 4 项：仓库定位(github remote 可解析) / gh CLI / gh 已登录 / API 可达
  * 每项形状：{id, label, check, origin}，与 shared/check-catalog 对齐（此处为运行时 view，轻量复用）
  */
+// 2026-08-29（审查 S1）：label 与 check-catalog GITHUB_CATALOG 同步人话化——两处必须字面一致（单一口径）。
 export const GITHUB_CHECKS = Object.freeze([
   {
     id: 'gh:remote',
-    label: 'GitHub 远端可解析（git remote origin → owner/name）',
+    label: '已关联 GitHub 仓库',
     scope: 'backend',
     backends: ['github'],
     check: { kind: 'backend', id: 'repoRemote', backendId: 'github' },
@@ -286,7 +289,7 @@ export const GITHUB_CHECKS = Object.freeze([
   },
   {
     id: 'gh:installed',
-    label: 'GitHub CLI (gh) 已安装',
+    label: 'GitHub 助手（gh）已安装',
     scope: 'backend',
     backends: ['github'],
     check: { kind: 'primitive', primitive: 'commandExists', command: 'gh' },
@@ -294,7 +297,7 @@ export const GITHUB_CHECKS = Object.freeze([
   },
   {
     id: 'gh:authed',
-    label: 'gh 已登录（gh auth status）',
+    label: '已登录 GitHub',
     scope: 'backend',
     backends: ['github'],
     check: { kind: 'preflight', id: 'ghAuth' },
@@ -302,7 +305,7 @@ export const GITHUB_CHECKS = Object.freeze([
   },
   {
     id: 'gh:repoAccess',
-    label: '仓库可达（gh api repos/{owner}/{name}）',
+    label: '仓库在 GitHub 上可访问',
     scope: 'backend',
     backends: ['github'],
     check: { kind: 'backend', id: 'repoAccess', backendId: 'github' },
@@ -390,7 +393,7 @@ export async function initProject(handle, input, ctx) {
   const git = await resolveGitLocal()
   if (!git) return { ok: false, error: { kind: 'no-git', message: '未找到 git（请安装 https://git-scm.com/）' } }
   const gh = await resolveGhLocal()
-  if (!gh) return { ok: false, error: { kind: 'no-gh', message: '未找到 gh（请安装 https://cli.github.com/）', prompt: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version;\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → brew install gh; Linux → sudo apt install gh;\n3. 安装后验证：gh --version;\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重测」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。' } }
+  if (!gh) return { ok: false, error: { kind: 'no-gh', message: '未找到 gh（请安装 https://cli.github.com/）', prompt: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version;\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → brew install gh; Linux → sudo apt install gh;\n3. 安装后验证：gh --version;\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重新检查」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。' } }
   // auth 探测
   try {
     const c = ghClient(ctx)

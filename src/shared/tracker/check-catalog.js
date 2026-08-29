@@ -80,8 +80,10 @@ export const GENERIC_CATALOG = Object.freeze([
  */
 export const GITHUB_CATALOG = Object.freeze([
   {
+    // 2026-08-29 人话化（对抗式审查 S1）：标题 = 用户的任务语言（"已关联/已登录/可访问"），
+    //   技术名（gh）只括注一次；原黑话（远端可解析 / origin / repoAccess）移入本注释存档。
     id: 'gh:remote',
-    label: 'GitHub 远端可解析（git remote origin → owner/name）',
+    label: '已关联 GitHub 仓库',
     scope: 'backend',
     backends: ['github'],
     check: { kind: 'backend', id: 'repoRemote', backendId: 'github' },
@@ -89,7 +91,7 @@ export const GITHUB_CATALOG = Object.freeze([
   },
   {
     id: 'gh:installed',
-    label: 'GitHub CLI (gh) 已安装',
+    label: 'GitHub 助手（gh）已安装',
     scope: 'backend',
     backends: ['github'],
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.COMMAND_EXISTS, command: 'gh' },
@@ -97,7 +99,7 @@ export const GITHUB_CATALOG = Object.freeze([
   },
   {
     id: 'gh:authed',
-    label: 'gh 已登录（gh auth status）',
+    label: '已登录 GitHub',
     scope: 'backend',
     backends: ['github'],
     check: { kind: 'preflight', id: 'ghAuth' },
@@ -105,7 +107,7 @@ export const GITHUB_CATALOG = Object.freeze([
   },
   {
     id: 'gh:repoAccess',
-    label: '仓库可达（gh api repos/{owner}/{name}）',
+    label: '仓库在 GitHub 上可访问',
     scope: 'backend',
     backends: ['github'],
     check: { kind: 'backend', id: 'repoAccess', backendId: 'github' },
@@ -247,7 +249,7 @@ export const GENERIC_CHECK_ITEMS = Object.freeze([
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'wayfinder' },
     onPass: { show: { i18nKey: 'check.skill.wayfinder.pass', fallback: '技能 wayfinder 已安装', level: 'info' }, actions: [] },
     onFail: { show: { i18nKey: 'check.skill.wayfinder.fail', fallback: '技能 wayfinder 未安装', level: 'bad', hint: 'prompt:installSkillsFix' }, actions: [
-      { type: ACTION_TYPE.FORM, label: '帮我安装', schema: [{ name: 'mode', type: 'single', label: '安装方式', options: ['AI 按指引安装（推荐）', '自动执行安装命令（npx）'], defaultValue: 'AI 按指引安装（推荐）' }], submitAction: { type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills', args: {} } },
+      { type: ACTION_TYPE.FORM, label: '帮我安装', schema: [{ name: 'mode', type: 'single', label: '安装方式', options: ['让 AI 一步步引导安装（推荐）', '让 AI 直接执行安装命令'], defaultValue: '让 AI 一步步引导安装（推荐）' }], submitAction: { type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills', args: {} } },
       { type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills', label: '安装指引' },
       { type: ACTION_TYPE.REFRESH, target: 'chain' },
     ] },
@@ -259,7 +261,7 @@ export const GENERIC_CHECK_ITEMS = Object.freeze([
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'setup-matt-pocock-skills' },
     onPass: { show: { i18nKey: 'check.skill.setup-matt-pocock-skills.pass', fallback: '技能 setup-matt-pocock-skills 已安装', level: 'info' }, actions: [] },
     onFail: { show: { i18nKey: 'check.skill.setup-matt-pocock-skills.fail', fallback: '技能 setup-matt-pocock-skills 未安装', level: 'bad', hint: 'prompt:installSkillsFix' }, actions: [
-      { type: ACTION_TYPE.FORM, label: '帮我安装', schema: [{ name: 'mode', type: 'single', label: '安装方式', options: ['AI 按指引安装（推荐）', '自动执行安装命令（npx）'], defaultValue: 'AI 按指引安装（推荐）' }], submitAction: { type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills', args: {} } },
+      { type: ACTION_TYPE.FORM, label: '帮我安装', schema: [{ name: 'mode', type: 'single', label: '安装方式', options: ['让 AI 一步步引导安装（推荐）', '让 AI 直接执行安装命令'], defaultValue: '让 AI 一步步引导安装（推荐）' }], submitAction: { type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills', args: {} } },
       { type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills', label: '安装指引' },
       { type: ACTION_TYPE.REFRESH, target: 'chain' },
     ] },
@@ -271,7 +273,7 @@ export const GENERIC_CHECK_ITEMS = Object.freeze([
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'ask-matt' },
     onPass: { show: { i18nKey: 'check.skill.ask-matt.pass', fallback: '技能 ask-matt 已安装', level: 'info' }, actions: [] },
     onFail: { show: { i18nKey: 'check.skill.ask-matt.fail', fallback: '技能 ask-matt 未安装', level: 'bad', hint: 'prompt:installSkillsFix' }, actions: [
-      { type: ACTION_TYPE.FORM, label: '帮我安装', schema: [{ name: 'mode', type: 'single', label: '安装方式', options: ['AI 按指引安装（推荐）', '自动执行安装命令（npx）'], defaultValue: 'AI 按指引安装（推荐）' }], submitAction: { type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills', args: {} } },
+      { type: ACTION_TYPE.FORM, label: '帮我安装', schema: [{ name: 'mode', type: 'single', label: '安装方式', options: ['让 AI 一步步引导安装（推荐）', '让 AI 直接执行安装命令'], defaultValue: '让 AI 一步步引导安装（推荐）' }], submitAction: { type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills', args: {} } },
       { type: ACTION_TYPE.INJECT_PROMPT, prompt: 'installSkills', label: '安装指引' },
       { type: ACTION_TYPE.REFRESH, target: 'chain' },
     ] },
@@ -290,7 +292,7 @@ export const GENERIC_CHECK_ITEMS = Object.freeze([
     id: 'tracker:initialized',
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.FILE_EXISTS, path: 'docs/agents/issue-tracker.md' },
     onPass: { show: { i18nKey: 'check.tracker.initialized.pass', fallback: '工作区已初始化', level: 'info' }, actions: [] },
-    onFail: { show: { i18nKey: 'check.tracker.initialized.fail', fallback: '工作区未初始化', level: 'warn', hint: 'prompt:setupRun' }, actions: [{ type: ACTION_TYPE.INJECT_PROMPT, prompt: 'setupRun' }] },
+    onFail: { show: { i18nKey: 'check.tracker.initialized.fail', fallback: '工作区未初始化', level: 'warn', hint: 'prompt:setupRun' }, actions: [{ type: ACTION_TYPE.INJECT_PROMPT, prompt: 'setupRun', label: '执行初始化' }] },
     label: '工作区已初始化（docs/agents/issue-tracker.md 存在）',
     group: 'gate',
   },
@@ -324,12 +326,13 @@ export function catalogItemToCheckItem(catalogItem) {
   if (!catalogItem || typeof catalogItem !== 'object') throw new Error('catalogItem must be object')
   const found = GENERIC_CHECK_ITEMS.find(c => c.id === catalogItem.id) || GENERIC_GATE_CHAIN.find(c => c.id === catalogItem.id)
   if (found) return found
-  // 后端目录项（github/gitlab/markdown）复用 catalogItem 的 check，补默认 Show/Action
+  // 后端目录项（github/gitlab/markdown）复用 catalogItem 的 check，补默认 Show/Action。
+  // 2026-08-29（审查 S1）：fallback = 纯标题——状态由行首圆点（✓/✗）与红卡表达，不再拼英文 OK/FAIL 后缀（中英混排）。
   return {
     id: catalogItem.id,
     check: catalogItem.check,
-    onPass: { show: { i18nKey: 'check.' + catalogItem.id + '.pass', fallback: catalogItem.label + ' OK', level: 'info' }, actions: [] },
-    onFail: { show: { i18nKey: 'check.' + catalogItem.id + '.fail', fallback: catalogItem.label + ' FAIL', level: 'bad' }, actions: [{ type: ACTION_TYPE.REFRESH, target: 'chain' }] },
+    onPass: { show: { i18nKey: 'check.' + catalogItem.id + '.pass', fallback: catalogItem.label, level: 'info' }, actions: [] },
+    onFail: { show: { i18nKey: 'check.' + catalogItem.id + '.fail', fallback: catalogItem.label, level: 'bad' }, actions: [{ type: ACTION_TYPE.REFRESH, target: 'chain' }] },
     label: catalogItem.label,
     group: catalogItem.scope === 'generic' ? 'env' : 'backend',
   }
