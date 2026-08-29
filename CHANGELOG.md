@@ -1,3 +1,21 @@
+## 2026-08-30 · v1.7.7 设计：重命名高精度优先（宁不改不错）
+
+- **目标**：会话重命名必须贴合其真实任务，无法高置信度判断时保持原名而非错配。
+- **设计（第一性原理）**：以“高精度优先、低召回可接受”为准则——错配的代价远高于漏配。仅当会话语义线索（hint，经 cleanTitleText + 去“任务: ”等前缀）与新 issue 标题共享长度≥4 的连续子串（或精确相等/≥4 包含）时才视为相关；通用前缀（“任务: ”）已剥除，避免“任务: 日志” vs “任务: 支付”因共享“任务: ”被误判相关。短串（<4 如 “111”“c3”）仅精确相等才算相关，杜绝 “111” 误配任意编号。
+- **实现**：`src/shared/naming-guardian.js#isHintRelatedToTitle` 由原“任意 2 字子串即相关”收紧为上述 4 字规则；`attributeNewNumbers` 对有标题 issue 保持“无 hint 永不配号”并依赖该判定（首匹配即得，歧义场景因判定收紧自然落为 0 匹配而跳过，留待后续快照；漏配好于错配）。
+- **验证**：`node tests/verify-naming-guardian.js` 164 项全绿；`isHintRelatedToTitle('修复登录闪退','修复支付闪退')=false`、`'c3' vs 'c3'=true`、`'111' vs '[#335] ...'=false` 手工复核；`npm run verify` 全绿，`node scripts/build.mjs` 双产物已同步。
+
+
+## 2026-08-30 · v1.7.6 发布：回滚“新会话自动发送”并加固 Map 详情点击链路（#315 约束收口）
+
+- **背景**：v1.7.5 后的 #315 修复曾将 `openTextInNewSession` 改为 `face.prompt` 自动注入首条消息，使会话“出生即非空白”以躲避壳的空白复用（blank = provisional New Session row）。用户最新拍板：右侧面板“新增需求/新增 BUG”必须保留“先填草稿、让用户自己输入再发送”的体验，**不允许点击就自动发出去**——该自动发送路径必须回滚。
+- **回滚（路径 A 约束收口）**：`src/client/kernel/api.js:openTextInNewSession` 移除 `seedNewSession / face.prompt` 自动发送块，恢复 `pendingDraft = text; pendingDraftTargetSid = sid` 唯一路径（r4 sid 锚定不变）。会话保持空白，空白被壳复用为临时新会话行的风险改由“裸会话永不配有标题号”（路径 B 已修复，见下）而非自动发送来缓解。对应门禁 `tests/verify-newsession-blank-seed-315.js` 重写为草稿-only 断言（有/无 prompt 能力均不调 prompt、只挂草稿，三处文本守护：不含 seedNewSession/face.prompt 含 pendingDraft 挂载与回滚注释），双源 24 项全绿。
+- **保留（路径 B 已修复）**：`src/shared/naming-guardian.js#attributeNewNumbers` 的裸会话 fallback 已删（`hasAnyHinted` 块 → `if (!picked) continue`），有标题 issue 永不配给无 hint 裸会话；`tests/verify-naming-guardian.js` 164 项全绿。`111` 这类裸会话不再随机配号为 311/314/315/336。
+- **加固（Map 详情点击失效）**：用户报障 Map 详情页“讨论”等按钮拿不到 issue 信息、点“新会话”无响应。根因：`rowActionText` 经 `issueUrlFor` 取 url 时若 backendModules/仓库引用未就绪则返回空，prompt 以空 url 注入导致 AI 无法识别票号；`newSessionTitle` 对非数字 number 抛错导致 `openInNewSession` 整句中断无响应。修复：① `src/client/kernel/store.js#rowActionText` 加空 url 回退 `#number/#key` 与 `startText` 异常回退；② `src/client/kernel/api.js#openInNewSession` 包 try/catch，對非数字 number 回退 `[#n] title / [New]` 标题并对文本回退 `#number`，点击永不静默。
+- **验证**：`node scripts/build.mjs` 一源两物（client.js 675k / package/lib/client.js 677k）已同步到 `profiles/web`；`npm run verify` 全绿（含 verify-naming-guardian 164 + verify-newsession-blank-seed-315 24 + 其它门禁），`verify-locale-completeness` 封顶合规（api.js 回退标题改用 `[New]` 无 CJK 字符串增量）。
+- **影响**：面板“新增需求/新增 BUG”恢复草稿可编辑体验；Map 详情的“执行/讨论/研究/诊断”与“新会话”按钮在缺 url/异常 number 场景下仍可注入可用 prompt 并成功开新会话；`111` 裸会话不再串号；空白复用本身需壳侧配合， deck 侧已以最小侵入缓解并保留追溯注释。
+
+
 # dsh-mattpocock-skills-deck 变更历史
 
 ## 2026-08-29 · v1.7.5 发布：修复 GitHub 后端点击 Map 行进详情页报 Cannot read properties of undefined (reading 'length')
