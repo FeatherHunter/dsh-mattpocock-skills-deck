@@ -90,6 +90,52 @@ export async function getDependenciesForKey(ctx, repo, key){
   let blocking=[]
   const dirs=await listEffortDirs(ctx)
   const searchDirs = dirs.length ? dirs : [null]
+  // 回填 blockedBy 标题（文件约束内满足契约：被引文件首行标题即 title）
+  try {
+    for(let _i=0; _i<blockedBy.length; _i++){
+      const ref=blockedBy[_i]
+      if(ref && ref.title) continue
+      const rk=ref && ref.key ? String(ref.key).padStart(2,'0') : ''
+      if(!rk) continue
+      let foundTitle='', foundState=''
+      for(const dir of searchDirs){
+        let idirTmp
+        if(dir) idirTmp=plat.join(dir,'issues')
+        else idirTmp=issuesDir(repo,ctx)
+        try{
+          const filesTmp=await readDir(ctx,idirTmp)
+          for(const f of filesTmp){
+            const m=/^(\d+)-/.exec(f)
+            if(!m) continue
+            if(m[1].padStart(2,'0')!==rk) continue
+            const fullTmp=plat.join(idirTmp,f)
+            try{
+              const txtTmp=await readTextFile(ctx,fullTmp)
+              const issTmp=parseMd(txtTmp,{key:rk,parentKey:'00',isMap:false})
+              foundTitle=issTmp.title||''
+              foundState=issTmp.state||''
+              break
+            }catch{}
+          }
+          if(foundTitle) break
+        }catch{}
+      }
+      if(!foundTitle && rk==='00'){
+        for(const dir of dirs){
+          const mapP=plat.join(dir,'map.md')
+          try{
+            const txtMap=await readTextFile(ctx,mapP)
+            const issMap=parseMd(txtMap,{key:'00',parentKey:null,isMap:true})
+            foundTitle=issMap.title||''
+            foundState=issMap.state||''
+            if(foundTitle) break
+          }catch{}
+        }
+      }
+      if(foundTitle) ref.title=foundTitle
+      if(foundState) ref.state=foundState
+    }
+  } catch {}
   for(const dir of searchDirs){
     let idir
     if(dir) idir=plat.join(dir,'issues')

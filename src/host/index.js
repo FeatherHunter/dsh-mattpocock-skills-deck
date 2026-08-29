@@ -2069,6 +2069,22 @@ export default {
               backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
             }
           } catch {}
+          // B: 补全调色盘全量（文件约束内满足契约：triage 表即全量表，未用标签也常驻，色取默认表；已用标签的色已在 labels 中为票面最终色）
+          try {
+            if(backendId==='markdown' && Array.isArray(labels) && backendModules){
+              const mdMod = backendModules.find(function(m){ return m && m.id==='markdown' && Array.isArray(m.labelPalette) })
+              const palette = mdMod && mdMod.labelPalette
+              if(Array.isArray(palette) && palette.length){
+                const have = {}
+                labels.forEach(function(l){ if(l && l.name) have[String(l.name).trim()] = true })
+                palette.forEach(function(p){
+                  const nm = p && p.name ? String(p.name).trim() : ''
+                  if(!nm || have[nm]) return
+                  labels.push({name: nm, color: String(p.color||'cccccc').replace(/^#/,'')})
+                })
+              }
+            }
+          } catch {}
           const repoRoot = await getRepoRoot(cwd)
           const snap = {
             ok: true,
@@ -2304,6 +2320,22 @@ export default {
             const regM = await getTrackerRegistry()
             if (regM && typeof regM.modules === 'function') {
               backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+            }
+          } catch {}
+          // B: 补全调色盘全量（文件约束内满足契约：triage 表即全量表，未用标签也常驻，色取默认表；已用标签的色已在 labels 中为票面最终色）
+          try {
+            if(backendId==='markdown' && Array.isArray(labels) && backendModules){
+              const mdMod = backendModules.find(function(m){ return m && m.id==='markdown' && Array.isArray(m.labelPalette) })
+              const palette = mdMod && mdMod.labelPalette
+              if(Array.isArray(palette) && palette.length){
+                const have = {}
+                labels.forEach(function(l){ if(l && l.name) have[String(l.name).trim()] = true })
+                palette.forEach(function(p){
+                  const nm = p && p.name ? String(p.name).trim() : ''
+                  if(!nm || have[nm]) return
+                  labels.push({name: nm, color: String(p.color||'cccccc').replace(/^#/,'')})
+                })
+              }
             }
           } catch {}
           const repoRoot = await getRepoRoot(cwd)

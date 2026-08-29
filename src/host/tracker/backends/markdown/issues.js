@@ -194,6 +194,22 @@ export async function listIssues(ctx,repo,filter={}){
         }catch{}
       }
     }
+    // A: 回填 blockedBy 的 title/state（文件约束内满足契约：Blocked by 行只存 key，标题从被引文件首行取）
+    try {
+      const byKey = {}
+      out.forEach(function(it){ if(it && it.key) byKey[String(it.key).padStart(2,'0')] = it })
+      out.forEach(function(it){
+        if(!it || !Array.isArray(it.blockedBy)) return
+        it.blockedBy.forEach(function(ref){
+          const k = ref && ref.key ? String(ref.key).padStart(2,'0') : ''
+          const target = k ? byKey[k] : null
+          if(target){
+            if(!ref.title) ref.title = target.title || ''
+            ref.state = target.state || ref.state || 'OPEN'
+          }
+        })
+      })
+    } catch {}
     let filtered=out
     if(filter){
       if(filter.type)filtered=filtered.filter(x=>x.type===filter.type)
