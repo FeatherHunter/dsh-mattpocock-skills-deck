@@ -297,21 +297,13 @@ export default {
     async function resolveGh() {
       if (ghPath) return ghPath
       const platform = await getPlatform()
-      try {
-        const p = await platform.resolveExecutable('gh')
-        if (p) { ghPath = p; ghLastError = null; return ghPath }
-        ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
-        return null
-      } catch (e) {
-        const fb = platform.env.get('DSH_GH_PATH') || ''
-        if (!fb) { ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'; return null }
-        try {
-          const info = await platform.fs.lstat(fb)
-          if (info) { ghPath = fb; ghLastError = null; return ghPath }
-        } catch (e2) {}
-        ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
-        return null
-      }
+      // 2026-08-29 去重（research 实锤「DSH_GH_PATH 三端不一致」）：DSH_GH_PATH 兜底已下沉至 composePlatform
+      //   通用层单点拥有（platform.resolveExecutable('gh') 内置 env.get+lstat 校验），此处不再重复实现，
+      //   host 只保留未命中的诚实错误信息与 ghPath 缓存。
+      const p = await platform.resolveExecutable('gh').catch(function () { return null })
+      if (p) { ghPath = p; ghLastError = null; return ghPath }
+      ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
+      return null
     }
     // #195 修复：force 探测路径调 resetGhCache 清空成功缓存，强制下次 resolveGh 重探
     function resetGhCache() { ghPath = null; ghLastError = null; try { if (_workspaceStore && typeof _workspaceStore.clear === 'function') _workspaceStore.clear(); } catch {} try { getWorkspaceStore().then(function(ws){ try{ ws.clear(); }catch(e){} }).catch(function(){}); } catch {} }

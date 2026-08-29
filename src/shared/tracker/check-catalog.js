@@ -150,14 +150,16 @@ export const GITLAB_CATALOG = Object.freeze([
 ])
 
 /** Markdown 后端检查目录（仅 markdown 适用）。 */
+// 2026-08-29 修正（research 实锤）：md:scratchWritable 原用 FILE_EXISTS 只判「存在」、从不测「可写」，
+//   标签与检测条件不符；改为 DIR_WRITABLE（写探测原语，谓词只读纪律的唯一例外——验证性写、写完清理）。
 export const MARKDOWN_CATALOG = Object.freeze([
   {
     id: 'md:scratchWritable',
     label: '.scratch 目录可写',
     scope: 'backend',
     backends: ['markdown'],
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.FILE_EXISTS, path: '.scratch' },
-    origin: 'backends/markdown/preflight.js / inventory 类别 8',
+    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.DIR_WRITABLE, path: '.scratch' },
+    origin: 'backends/markdown/preflight.js / inventory 类别 8 / research 2026-08-29',
   },
   {
     id: 'md:parseOk',

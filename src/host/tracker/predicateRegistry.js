@@ -10,6 +10,8 @@
  *  - 三层 check kind 分发：primitive（通用原语 fs/exec/gh/技能探测）/ backend（后端专属）/ preflight（复用既有门禁）。
  *  - 宿主可知的原语（fs/exec/gh/技能探测）供检查项 check 引用，全部只读探测；注册表验形状不验内容（与 tracker registry 哲学一致，#226）。
  *  - 超时按 pending 处理（不抛、不阻塞整链），诚实透传 detail；谓词只读，永不写文件/环境。
+ *  - 2026-08-29 修订（可写性判据）：唯一例外 = DIR_WRITABLE 原语，向被检目录写 2 字节临时探针并清理——
+ *    跨 OS 唯一可靠的「可写」判据（Windows 无 POSIX 权限位）；fs 无 writeText 时回退存在性并如实注明。
  *
  * 版本：2026-08-28 与 src/shared/tracker/chain.js + check-catalog.js 同步，删 na，通用原语注册表。
  */
@@ -80,6 +82,55 @@ async function execPrimitive(check, ctx) {
         return makeResult('pending', 'fs probe unavailable')
       } catch (e) {
         return makeResult('fail', String((e && e.message) || e))
+      }
+    }
+    if (kind === PRIMITIVE_KIND.DIR_WRITABLE) {
+      // dirWritable：目录「存在且可写」——写探测（往目录写固定名临时探针，写完尽力清理）。
+      //   为什么不用 stat/lstat 权限位：Windows 无 POSIX mode 位、ACL 不可靠，唯一跨三端一致的判据是真实写入。
+      //   谓词只读纪律的唯一例外（2026-08-29）：本探测向被检目录写 2 字节探针并删除，属验证性写、无业务副作用。
+      //   fs 无 writeText 能力（异常宿主）→ 回退存在性判定并如实注明（链仍能完成，不卡 pending）；
+      //   目标路径 resolve 失败/不存在 → fail（与 FILE_EXISTS 语义一致）。
+      const rel = check.path
+      if (!p || !p.fs || typeof p.fs.resolve !== 'function') return makeResult('pending', 'platform.fs unavailable')
+      try {
+        const abs0 = await p.fs.resolve(rel, { cwd: ctx.cwd })
+        const abs = (abs0 && typeof abs0 === 'object' && abs0 !== null && typeof abs0.path === 'string') ? abs0.path : abs0
+        if (!abs) return makeResult('fail', rel + ' not found')
+        const probeName = '.dsh-write-probe'
+        const probeAbs = (typeof p.path.join === 'function') ? p.path.join(abs, probeName) : (String(abs).replace(/[\/]+$/, '') + '/' + probeName)
+        if (typeof p.fs.writeText === 'function') {
+          try {
+            await p.fs.writeText(probeAbs, 'ok')
+            // 清理（尽力而为：不同宿主 fs 的删除方法名不一，逐一尝试；全部缺失时保留固定名单文件——它只出现在「可写」目录内）
+            const cleaners = ['unlink', 'remove', 'rm', 'delete']
+            for (const m of cleaners) {
+              if (typeof p.fs[m] === 'function') {
+                try { await p.fs[m](probeAbs); break } catch (eC) {}
+              }
+            }
+            return makeResult('pass', rel + ' exists & writable')
+          } catch (e) {
+            return makeResult('fail', rel + ' not writable: ' + String((e && e.message) || e).slice(0, 200))
+          }
+        }
+        // 无写探测能力 → 回退存在性（详情如实注明未验证可写；链可完成）
+        if (typeof p.fs.exists === 'function') {
+          try {
+            const ok = await p.fs.exists(abs)
+            if (ok) return makeResult('pass', rel + ' exists (writable not verified: fs has no writeText)')
+            if (typeof p.fs.listDir === 'function') { try { await p.fs.listDir(abs); return makeResult('pass', rel + ' exists (dir, writable not verified: fs has no writeText)') } catch (eD) {} }
+            if (typeof p.fs.stat === 'function') { try { const st = await p.fs.stat(abs); if (st) return makeResult('pass', rel + ' exists (writable not verified: fs has no writeText)') } catch (eS) {} }
+            return makeResult('fail', rel + ' not found')
+          } catch (e) {
+            return makeResult('fail', rel + ' not writable: ' + String((e && e.message) || e).slice(0, 200))
+          }
+        }
+        if (typeof p.fs.readText === 'function') {
+          try { await p.fs.readText(abs); return makeResult('pass', rel + ' exists (writable not verified: fs has no writeText)') } catch { return makeResult('fail', rel + ' not found') }
+        }
+        return makeResult('pending', 'fs probe unavailable')
+      } catch (e) {
+        return makeResult('fail', String((e && e.message) || e).slice(0, 200))
       }
     }
     if (kind === PRIMITIVE_KIND.HOME_DIR) {

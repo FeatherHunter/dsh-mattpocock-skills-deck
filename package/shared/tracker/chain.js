@@ -64,6 +64,8 @@ export const PRIMITIVE_KIND = Object.freeze({
   SKILL_PROBE: 'skillProbe',       // 例：{skill:'wayfinder'}
   HOME_DIR: 'homeDir',             // 例：{} — 用户主目录可解析：一律问平台层（#171：win32 不读 HOME，走 os.homedir→USERPROFILE；linux/mac 走 os.homedir），
                                    //   不再直接读 process.env.HOME（Windows 从不设置该变量，会误报 HOME not set）
+  DIR_WRITABLE: 'dirWritable',     // 例：{path:'.scratch'} — 目录「存在且可写」：写探测（往目录写临时探针并清理），
+                                   //   跨 OS 唯一可靠的「可写」判据（stat/lstat 的权限位在 Windows 不可靠）；谓词只读纪律的唯一例外
 })
 
 /** 展示等级（蓝/黄/红条；与 SHOW_LEVELS 同义，小写）。 */
@@ -349,6 +351,7 @@ export function validateCheckItem(item) {
       if (!VALID_PRIMITIVES.has(c.primitive)) errors.push('primitive must be one of ' + [...VALID_PRIMITIVES].join(','))
       if (c.primitive === PRIMITIVE_KIND.COMMAND_EXISTS && typeof c.command !== 'string') errors.push('commandExists needs command:string')
       if (c.primitive === PRIMITIVE_KIND.FILE_EXISTS && typeof c.path !== 'string') errors.push('fileExists needs path:string')
+      if (c.primitive === PRIMITIVE_KIND.DIR_WRITABLE && typeof c.path !== 'string') errors.push('dirWritable needs path:string')
       if (c.primitive === PRIMITIVE_KIND.ENV && typeof c.key !== 'string') errors.push('env needs key:string')
       if (c.primitive === PRIMITIVE_KIND.SKILL_PROBE && typeof c.skill !== 'string') errors.push('skillProbe needs skill:string')
     }

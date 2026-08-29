@@ -6,7 +6,8 @@
  *         path 同步方法全委托 node:path（win32→win32, POSIX→posix），joinHome=async path.join(await getHome(),...segs)，
  *         resolveExecutable 包装 subprocess.throw→null，env 只读视图 get/has，getHome 终身缓存。
  *   #168 L1-L6 定版：L1 os.homedir()||null 不读 HOME 第二真相；L2 空串/异常→null；L3 sh 直透无别名；
- *         L4 gh 先 PATH 后 DSH_GH_PATH+lstat 兜底≠覆盖；L5 全量委托 node:path.posix sep='/'; L6 ~/$VAR 不展开属 shell 语义。
+ *         L4 gh 先 PATH 后 DSH_GH_PATH+lstat 兜底≠覆盖（2026-08-29 修订：兜底下沉至 composePlatform 通用层单点拥有，
+ *         本适配器仅直透；G10-G12 经 createPlatform 验证的正是通用层行为）；L5 全量委托 node:path.posix sep='/'; L6 ~/$VAR 不展开属 shell 语义。
  *   #169 落地：src/host/platform/linux/index.js 按上述实现（pathImpl=nodePath.posix + getHome try/catch→null + sh直透 + gh兜底+lstat + ~不展开）
  *
  * 推导不变量（容器可判真 13 项 = 本文件断言）：

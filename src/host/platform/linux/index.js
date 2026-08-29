@@ -6,6 +6,7 @@
  *   L2 HOME 空/未设：空串视作未设；`os.homedir()` 抛异常或返回空串/falsy → catch → null（覆盖容器最小镜像/无 passwd 场景）。
  *   L3 sh 别名：不做别名，直透 DSH `subprocess.resolveExecutable('sh')` 原名（linux 无 sh.exe）。
  *   L4 gh 非常规安装：先 PATH（DSH `resolveExecutable('gh')`）后 `DSH_GH_PATH` 兜底 + `fs.lstat` 校验，兜底≠覆盖。
+ *        —— 2026-08-29 修订：该兜底【下沉至 composePlatform 通用层单点拥有】，本适配器不再实现（三端一致）。
  *   L5 路径形态：全量委托 `node:path.posix`（sep='/'），零自实现（沿 #113 D1）。
  *   L6 ~/$VAR 展开：平台层不展开（shell 语义归调用方；path.posix 不展开 ~/ 语义）。
  *
@@ -38,33 +39,14 @@ export default function linuxAdapter(ctx, opts) {
       }
     },
     /**
-     * resolveExecutable：按 G 决议 L3/L4
+     * resolveExecutable：按 G 决议 L3/L4（2026-08-29 修订：DSH_GH_PATH 兜底下沉至 composePlatform 通用层——
+     *   三个 OS 底座行为一致，本适配器不再重复实现，仅直透）。
      * - sh 等通用名：直透 DSH `subprocess.resolveExecutable(name)`，找不到时 throw → 由通用层 composePlatform 转 null。
-     * - gh：先 PATH（DSH 解析），未命中 throw 后查 DSH_GH_PATH + fs.lstat 校验存在才返回，否则继续 throw → null。
+     * - gh：同直透；PATH 未命中时由通用层读 env.DSH_GH_PATH + fs.lstat 校验兜底（原 L4 逻辑已移除，单一真源）。
      */
     async resolveExecutable(name) {
       const subprocess = ctx.get('subprocess')
-      try {
-        return await subprocess.resolveExecutable(name)
-      } catch (e) {
-        if (name === 'gh') {
-          const envSrc =
-            (opts && opts.env && typeof opts.env === 'object' && opts.env) ||
-            (typeof process !== 'undefined' && process.env ? process.env : null)
-          const fallback = envSrc && envSrc.DSH_GH_PATH ? envSrc.DSH_GH_PATH : ''
-          if (!fallback) throw e
-          try {
-            const fs = ctx.get('fs')
-            if (!fs || typeof fs.lstat !== 'function') throw e
-            const info = await fs.lstat(fallback)
-            if (info) return fallback
-          } catch {
-            throw e
-          }
-          throw e
-        }
-        throw e
-      }
+      return subprocess.resolveExecutable(name)
     },
   }
 }
