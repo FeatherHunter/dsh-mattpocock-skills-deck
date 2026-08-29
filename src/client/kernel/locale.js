@@ -64,8 +64,8 @@
         'setup.markdown.trackerChoice': 'Local markdown',
         'setup.markdown.backendNote': '\n\n本次已选后端：Markdown \u2014 请按本地 Markdown 模板生成 docs/agents/issue-tracker.md（.scratch 结构）',
         'setup.markdown.labelReqs': '',
-        // #323（2026-08-29 定版复核 · 用户三条拍板）：AI 只需要知道票带 Labels 行且只写名；颜色=面板底层自动上色（默认色值已预填）；改色入口=调色盘表对应行
-        'setup.markdown.paletteNote': '本地 Markdown 的票可以带标签：票内加一行 `Labels:`，只写标签名字（如 `Labels: wayfinder:grilling, bug`，多个用逗号分隔），不要写颜色；颜色由看板自动上色（默认色值已预填好），想改颜色就改 `docs/agents/triage-labels.md` 调色盘表里对应行的 Color 值。',
+        // #323（2026-08-29 第三轮修正 · 用户澄清）：注入文案须负责「构造」工作区 triage-labels.md 调色盘——定义表形状、预填色值、指示初始化落位；颜色渲染机制（查色/上色/回灰）不属 AI 知识
+        'setup.markdown.paletteNote': '本地 Markdown 的票可以带标签：票内加一行 `Labels:`，只写标签名字（如 `Labels: wayfinder:grilling, bug`，多个用逗号分隔），不写颜色。标签颜色由 `docs/agents/triage-labels.md` 里的调色盘表提供：该表 = 在现有三列（mattpocock 角色 / 本仓库标签 / 含义）左边加一列 `Color`（十六进制色值，如 `#8b5cf6`），每行一个标签；本仓库预填色值：wayfinder:map=#8b5cf6、wayfinder:research=#0ea5e9、wayfinder:prototype=#f59e0b、wayfinder:grilling=#9d7cd8、wayfinder:task=#10b981、bug=#d73a4a、needs-triage=#fbca04、needs-info=#5319e7、ready-for-agent=#0e8a16、ready-for-human=#b60205、wontfix=#ffffff；自定义标签在本表加一行。初始化时请确保 `docs/agents/triage-labels.md` 已含此调色盘表——若该文件只有三列或缺 Color 列，就为每行补上 Color 并按上述「标签=色值」增补表行，不要删掉原有列；若已有此表则核对。想改颜色就改表里对应行的 Color 值。',
         'setup.gitlab.trackerLine': '本仓库为 GitLab \u2192 提议 GitLab Issues',
         'setup.gitlab.trackerChoice': 'GitLab Issues',
         'setup.gitlab.backendNote': '\n\n本次已选后端：GitLab \u2014 请按 GitLab 模板生成 docs/agents/issue-tracker.md',
@@ -415,8 +415,8 @@
         'setup.markdown.trackerChoice': 'Local markdown',
         'setup.markdown.backendNote': '\n\nSelected backend: Markdown \u2014 please generate docs/agents/issue-tracker.md from the local Markdown template (.scratch structure).',
         'setup.markdown.labelReqs': '',
-        // #323 (2026-08-29 review · user 3 rulings): AI only needs to know tickets carry a Labels line with names only; colors = panel auto-coloring (defaults pre-filled); change-color entry = the table row
-        'setup.markdown.paletteNote': 'Local Markdown tickets can carry labels: add a `Labels:` line to a ticket with only label names (e.g. `Labels: wayfinder:grilling, bug`, comma-separated), never colors; the panel colors them automatically (default colors are pre-filled); to change a color, edit the Color value of the matching row in the palette table in `docs/agents/triage-labels.md`.',
+        // #323 (2026-08-29 round-3 fix · user clarified): the injection note must BUILD the workspace palette table — shape + pre-filled values + landing instruction; rendering mechanics (lookup/coloring/grey) are not AI knowledge
+        'setup.markdown.paletteNote': 'Local Markdown tickets can carry labels: add a `Labels:` line to a ticket with only label names (e.g. `Labels: wayfinder:grilling, bug`, comma-separated), never colors. Label colors come from the palette table in `docs/agents/triage-labels.md`: that table adds a `Color` column (hex value, e.g. `#8b5cf6`) on the left of the existing three columns (mattpocock role / our tracker label / meaning), one row per label; pre-filled values for this repo: wayfinder:map=#8b5cf6, wayfinder:research=#0ea5e9, wayfinder:prototype=#f59e0b, wayfinder:grilling=#9d7cd8, wayfinder:task=#10b981, bug=#d73a4a, needs-triage=#fbca04, needs-info=#5319e7, ready-for-agent=#0e8a16, ready-for-human=#b60205, wontfix=#ffffff; custom labels get a new row there. During setup make sure `docs/agents/triage-labels.md` already contains this palette table: if the file only has three columns or lacks a Color column, add a Color column to each row and append the rows above with their fixed colors — keep the existing columns; if the table already exists, just verify it. To change a color, edit the Color value of the matching row in the table.',
         'setup.gitlab.trackerLine': 'this repo is on GitLab \u2192 propose GitLab Issues',
         'setup.gitlab.trackerChoice': 'GitLab Issues',
         'setup.gitlab.backendNote': '\n\nSelected backend: GitLab \u2014 please generate docs/agents/issue-tracker.md from the GitLab template.',
