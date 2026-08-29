@@ -484,8 +484,73 @@
     export const getCachedEntry = function(cwd){ try{ const k=keyOf(cwd); return snapshotByCwd.get(k)||null; }catch(e){ return null; } }
     export const setCachedSnapshot = function (cwd, snap) { if(!cwd||!snap||snap.ok!==true||!Array.isArray(snap.maps)) return; let s2=snap; if(snap.notModified===true||snap.status===304||snap.cached===true){ // #232 · 落库前剥除响应传输态标记（仅属当次请求，不属缓存实体）
       try{ s2=Object.assign({},snap); delete s2.notModified; delete s2.status; delete s2.cached; }catch(eS){ return } }
-      try{ const k=keyOf(cwd); const ver=s2.version||s2.etag||''; const ent={snapshot:s2, version:ver, ts:Date.now()}; touchLRUClient(snapshotByCwd,k,ent); }catch(e){} }
+      try{ const k=keyOf(cwd); const ver=s2.version||s2.etag||''; const ent={snapshot:s2, version:ver, ts:Date.now(), key:k, lastProbeAt:getProbeAt(k)}; touchLRUClient(snapshotByCwd,k,ent); try{ diskPutSnapshot(k, ent) }catch(eD1){} }catch(e){} }
     export const getSnapshotVersion = function(cwd){ try{ const e=getCachedEntry(cwd); return e?e.version||'':''; }catch(e){ return ''; } }
+    // ============ #327 特性 A/B：上次探测时间 + 快照多级缓存（内存→磁盘→网络）============
+    export const lastProbeAtByCwd = new Map() // Map<normCwd, ms> —— 对该工作区完成任一次检查（探针/刷新/快照校验）即推进，数据不变也走针
+    export const getProbeAt = function (cwd) { try { const v = lastProbeAtByCwd.get(keyOf(cwd)); return v || 0 } catch (e) { return 0 } }
+    export const touchProbeAt = function (cwd, ms) {
+      try {
+        const k = keyOf(cwd); if (!k) return
+        lastProbeAtByCwd.set(k, ms || Date.now())
+        // 组内全量会话走针：同 cwd 的 shared/stores 全部 emit，状态栏随重渲染取新时间
+        try { if (shared.cwd && keyOf(shared.cwd) === k) emit(shared) } catch (e1) {}
+        try { Object.keys(stores).forEach(function (kk) { const st2 = stores[kk]; if (st2 && st2.cwd && keyOf(st2.cwd) === k) emit(st2) }) } catch (e2) {}
+      } catch (e) {}
+    }
+    export const SNAP_DISK_CAP = 24
+    const _snapDbPromise = (function () {
+      try {
+        if (typeof window === 'undefined' || !window.indexedDB || !window.indexedDB.open) return null
+        return new Promise(function (resolve) {
+          let req
+          try { req = window.indexedDB.open('dsws-cache', 1) } catch (e0) { resolve(null); return }
+          req.onupgradeneeded = function () { try { req.result.createObjectStore('snapshots') } catch (e00) {} }
+          req.onsuccess = function () { resolve(req.result) }
+          req.onerror = function () { resolve(null) }
+          req.onblocked = function () { resolve(null) }
+        })
+      } catch (e) { return null }
+    })()
+    // 落盘：fire-and-forget；条目形如 {key, snapshot, version, ts, lastProbeAt}；超出 SNAP_DISK_CAP 按最旧淘汰
+    export const diskPutSnapshot = function (k, entry) {
+      try {
+        if (!_snapDbPromise || !k || !entry) return
+        _snapDbPromise.then(function (db) {
+          if (!db) return
+          try {
+            const st = db.transaction('snapshots', 'readwrite').objectStore('snapshots')
+            st.put(entry, k)
+            const allReq = st.getAll()
+            allReq.onsuccess = function () {
+              try {
+                const rows = (allReq.result || []).filter(function (r) { return r && r.key })
+                if (rows.length <= SNAP_DISK_CAP) return
+                rows.sort(function (a, b) { return (a.ts || 0) - (b.ts || 0) })
+                const kill = rows.slice(0, rows.length - SNAP_DISK_CAP)
+                const tx2 = db.transaction('snapshots', 'readwrite').objectStore('snapshots')
+                kill.forEach(function (r) { try { tx2.delete(r.key) } catch (e3) {} })
+              } catch (eEv) {}
+            }
+          } catch (eTx) {}
+        }).catch(function () {})
+      } catch (e) {}
+    }
+    export const diskGetSnapshot = function (k) {
+      try {
+        if (!_snapDbPromise || !k) return Promise.resolve(null)
+        return _snapDbPromise.then(function (db) {
+          if (!db) return null
+          return new Promise(function (resolve) {
+            try {
+              const req = db.transaction('snapshots', 'readonly').objectStore('snapshots').get(k)
+              req.onsuccess = function () { try { resolve(req.result || null) } catch (e2) { resolve(null) } }
+              req.onerror = function () { resolve(null) }
+            } catch (e) { resolve(null) }
+          })
+        }).catch(function () { return null })
+      } catch (e) { return Promise.resolve(null) }
+    }
     // 链快照共享缓存（#324 · 键 = 工作区键 + 后端 id，随后端不同，新会话首见即秒显）
     export const CHAIN_CWD_LRU_MAX = 20
     export const chainByCwd = new Map() // Map<keyOf(cwd)+'|'+backendId, {snapshot, ts}>

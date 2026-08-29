@@ -145,6 +145,11 @@
         return String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
       } catch (e) { return '' }
     }
+    // #327 特性 A：同格式的毫秒重载（状态栏「上次探测时间」用——数据不变也走针）
+    export const timeOfMs = (ms) => {
+      if (!ms) return ''
+      try { const d = new Date(ms); return String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') } catch (e) { return '' }
+    }
     // ============================================================
     // 4. 配置广播（v25-50：配置保存后同步所有会话 store 的面板尺寸；外观定死不广播）
     // ============================================================
@@ -214,7 +219,7 @@
     // 快照（#346：面板数据源；force 走 wf.refresh 全量重建；wf.snapshot 侧 5s 缓存）
     // #58 缓存优先：按 cwd 内存快照 + 空 cwd 同步，避免首开空 cwd 探路 miss 缓存导致 100-400ms 闪 loading
     export const loadSnapshot = function (st, force, silent) {
-      const doLoad = function () {
+      const doLoad = async function () {
         // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
         try{ const _nk=keyOf(st.cwd||''); const _pend=pendingSnapshotByCwd.get(_nk); if(_pend&&_pend.promise) {
           // 同 cwd 在途复用：新调用方挂载后从共享缓存水合，不再发第二份请求
@@ -233,10 +238,26 @@
         }
         // #58 先水合 per-cwd 缓存，实现秒开
         hydrateFromCache(st)
-        const hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))
+        let hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))
+        // #327 特性 B · 多级缓存：内存未命中先查磁盘（IndexedDB）——命中即秒显旧数据，随后照常发起网络校验
+        //（不出现可见加载态；磁盘读约几十毫秒，先读后发请求的次序天然避免遮罩闪现）
+        if (!hasCache) {
+          try {
+            const ent = await diskGetSnapshot(keyOf(st.cwd || ''))
+            if (ent && ent.snapshot && !st.snapshot && !getCachedSnapshot(st.cwd)) {
+              try {
+                setCachedSnapshot(st.cwd, ent.snapshot)
+                try { if (ent.lastProbeAt && ent.lastProbeAt > getProbeAt(st.cwd)) lastProbeAtByCwd.set(keyOf(st.cwd), ent.lastProbeAt) } catch (ePA2) {}
+                hydrateFromCache(st)
+                emit(st)
+              } catch (eHyd2) {}
+              hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))
+            }
+          } catch (eDisk) {}
+        }
         st.snapLoading = true
         // v1.5 T9：silent（后台静默刷新）不显示加载遮罩、不弹错误 toast
-        // #58 缓存优先：已有缓存时不显示全屏 loading，静默刷新
+        // #58 缓存优先：已有缓存（含磁盘命中）时不显示全屏 loading，静默刷新
         if (force && !silent && !hasCache) st.snapMode = 'loading'
         emit(st)
         const ver = (typeof getSnapshotVersion==='function'? getSnapshotVersion(st.cwd):'') || (st.snapshot&&st.snapshot.version)||'';
@@ -251,6 +272,8 @@
         try{ pendingSnapshotByCwd.set(_normKeyP,{promise:p, controller:_ctrl}); p.finally(function(){ try{ pendingSnapshotByCwd.delete(_normKeyP);}catch{} }); }catch(e){}
         const _reqNorm = _normKeyP // capture request cwd for H2 stale discard
         return p.then(function (snap) {
+          // #327 特性 A：对该工作区完成了一次检查（成功/304/串台落地均算——请求已真实发出并返回）→ 时间走针
+          try { if (snap && (snap.ok === true || snap.notModified === true || snap.status === 304)) touchProbeAt(_normKeyP) } catch (ePA) {}
           // fix H2 stale discard — if cwd switched during flight, drop stale fallback (gate flake guard)
           const _curNorm = keyOf(st.cwd||'');
           if (_reqNorm !== _curNorm) {
@@ -365,6 +388,8 @@
       //   兜底路径按 sessionId→cwd 精确映射赋值，避免把任意首个 cwd 错绑到所有空 store。
       const refreshGroup = function (cwd) {
         return host.call('wf.probe', { cwd: cwd }).then(function (res) {
+          // #327 特性 A：探测完成即走针（无论是否检出变化）
+          try { if (res && res.ok) touchProbeAt(cwd) } catch (ePA) {}
           if (!(res && res.ok && res.changed)) return
           const group = []
           const normWanted = keyOf(cwd)
