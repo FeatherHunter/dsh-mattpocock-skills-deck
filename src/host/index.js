@@ -1258,14 +1258,16 @@ export default {
     // #284：markdown 后端谓词：本地图谱可解析（复用 backends/markdown/parse.js parseMd）
     // 2026-08-28 修复：本函数与 fileExistsChainRel 曾被误嵌套在 parseGithubRepo 函数体内，
     //   作用域外（wf.chain 谓词注册处）不可见 → 运行时 ReferenceError「mdParseOkPredicate is not defined」。
-    async function mdParseOkPredicate(platform, cwd) {
+    async function mdParseOkPredicate(platform, cwd, lang) {
       try {
         // 2026-08-29 修复（用户实证：图谱落在 .scratch/<图谱名>/map.md；原只查根 .scratch/map.md 必然误报 missing）：
         //   与 backends/markdown matches() 数据模型同构——候选 = 根谱 .scratch/map.md + 各子谱 .scratch/*/map.md；
         //   全部缺失 = 图谱未初始化（fail，指引先做 Markdown 初始化）；存在但解析抛错 = 格式损坏（fail，附错误原文）。
+        //   用户可见 detail 一律人话（无黑话：目录叫「本地数据目录」、文件叫「关卡地图」、.scratch/map.md 只括注）。
+        const zh = lang === 'zh'
         const cands = await mdMapCandidates(platform, cwd)
         if (cands.length === 0) {
-          return { status: 'fail', detail: 'no map.md under .scratch — run Local Markdown setup (initialization) first' }
+          return { status: 'fail', detail: zh ? '尚未生成关卡地图（先执行本地 Markdown 初始化）' : 'No map file yet — run Local Markdown setup first' }
         }
         const mod = await import('./backends/markdown/parse.js')
         const parseMd = mod.parseMd || mod.default
@@ -1280,13 +1282,13 @@ export default {
             parseMd(String(text || ''), {})
             const dir = platform.path.dirname(abs)
             const slug = dir === platform.path.join(cwd, '.scratch') ? 'root' : platform.path.basename(dir)
-            return { status: 'pass', detail: 'local map parses OK (' + slug + ')' }
+            return { status: 'pass', detail: zh ? ('关卡地图已就绪（' + slug + '）') : ('local map parses OK (' + slug + ')') }
           } catch (e) {
             lastErr = String((e && e.message) || e).slice(0, 200)
           }
         }
-        return { status: 'fail', detail: 'local map parse failed: ' + lastErr }
-      } catch (e) { return { status: 'fail', detail: 'local map parse failed: ' + String((e && e.message) || e).slice(0, 200) } }
+        return { status: 'fail', detail: zh ? ('关卡地图无法解析：' + lastErr) : ('local map parse failed: ' + lastErr) }
+      } catch (e) { return { status: 'fail', detail: (lang === 'zh' ? '关卡地图检查出错：' : 'local map check failed: ') + String((e && e.message) || e).slice(0, 200) } }
     }
     /** 图谱文件候选（与 matches() 数据模型同构）：根谱 .scratch/map.md + 子谱 .scratch/<name>/map.md。 */
     async function mdMapCandidates(platform, cwd) {
@@ -1750,7 +1752,7 @@ export default {
           } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
         try { registry.register('backend:markdown:parseOk', async function (check, pctx) {
-          try { return await mdParseOkPredicate(platform, pctx && pctx.cwd || cwd) } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
+          try { return await mdParseOkPredicate(platform, pctx && pctx.cwd || cwd, chainLang) } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
         const kind = (args && args.kind) || 'all'
         const chainAndSnap = await genMod.resolveGenericChain(registry, ctx, kind)

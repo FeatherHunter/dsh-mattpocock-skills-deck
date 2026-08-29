@@ -98,15 +98,15 @@ export function createMarkdownBackend(ctx){
 }
 /** 修复契约注入文案（Markdown 后端本地语义，双语单源；供 fixes 引用，host 组装时解析）。 */
 export const prompts = {
-  // 2026-08-29 对齐多谱模型（用户实证：图谱落在 .scratch/<图谱名>/map.md，根 .scratch/map.md 只是其中一种形态）：
-  //   修复指引同时覆盖「图谱缺失（未初始化）」与「图谱损坏（格式/文件坏）」两种真实失败。
+  // 2026-08-29 人话改写（用户反馈：".scratch/图谱/map.md"是黑话，第一阅读看不懂指的是什么）：
+  //   用户面向一律说「本地数据目录（隐藏文件夹 .scratch）」「关卡地图（map.md）」；技术名只括注保留，供排查定位。
   mdParseFix: {
-    zh: '本地 Markdown 图谱缺失或解析失败（parseOk 未通过）。请按序检查：\n1. 图谱文件是否存在：.scratch/map.md，或 .scratch/<图谱名>/map.md（每个本地关卡对应一个子目录）；\n2. 存在但解析失败：检查是否合法 markdown（UTF-8、无 BOM、字段名未被改坏、YAML 头/分隔符对照 parse.js 期望的字段集）；\n3. 两者都缺失：说明图谱尚未初始化——先执行 Markdown 初始化生成图谱，再重查。若文件已损坏，与用户确认后先备份再重建。',
-    en: 'Local Markdown graph missing or parse failed (parseOk not passed). Check in order:\n1. Does the graph file exist: .scratch/map.md, or .scratch/<graph-name>/map.md (one subdirectory per local track)?\n2. If it exists but fails to parse: is it valid markdown (UTF-8, no BOM, field names intact, YAML header / separators matching the fields parse.js expects)?\n3. If both are missing: the graph has not been initialized yet, run Markdown initialization first, then re-check. If a file is corrupted, back it up before rebuilding with user confirmation.',
+    zh: '本项目的本地关卡地图（map.md，放在本地数据目录 .scratch 下）还没就绪：很可能是还没初始化生成，也可能是文件存在但内容不符合格式。请按序检查：\n1. 地图文件在不在：.scratch/map.md（根地图），或 .scratch/<关卡名>/map.md（一关一个子目录）；\n2. 文件在但读不了/解析报错：内容是否为正常文本（UTF-8、无 BOM），卡片与决策的字段是否被改坏、开头与分隔符是否符合约定（对照解析器期望的字段）；\n3. 两种位置都没有：说明还没初始化——先执行本地 Markdown 初始化生成地图，再重查。若文件已损坏，先备份再重建（与用户确认）。',
+    en: 'The local track map (map.md under the hidden .scratch folder) is not ready yet: either it has not been initialized, or it exists but does not match the expected format. Check in order:\n1. Where is the map file: .scratch/map.md (root map) or .scratch/<track-name>/map.md (one subdirectory per track)?\n2. If the file exists but cannot be read/parsed: is the content plain text (UTF-8, no BOM), are the card/decision fields intact, and do the header and separators match what the parser expects?\n3. If neither location has the file: initialization has not run yet, run Local Markdown setup first, then re-check. If a file is corrupted, back it up before rebuilding (confirm with the user).',
   },
   mdWritableFix: {
-    zh: '.scratch 目录不可写。请检查：① 目录是否存在；② 文件系统权限（Windows ACL / POSIX chmod）；③ 挂载点是否只读。修复后请用户点「重查」。',
-    en: '.scratch is not writable. Check: ① the directory exists; ② filesystem permissions (Windows ACL / POSIX chmod); ③ read-only mount. After fixing, ask the user to re-check.',
+    zh: '本项目的本地数据目录（隐藏文件夹 .scratch）当前不可用：可能是目录还没创建（需要先初始化），也可能是系统不允许往里面写（权限只读、磁盘挂载为只读等）。请按序检查：① 目录是否存在（项目根目录下 .scratch）；② 文件系统是否允许写入（Windows 权限，或 macOS/Linux 的读写权限）；③ 目录所在的磁盘或挂载点是否为只读。修好后请用户点「重查」。',
+    en: 'The local data directory (hidden folder .scratch) is not usable: either it has not been created yet (initialization needed), or the system does not allow writing into it (read-only permissions, read-only mount, etc.). Check in order: ① does the directory exist (.scratch under the project root)? ② does the filesystem allow writing (Windows permissions, or macOS/Linux read-write permissions)? ③ is the disk or mount point read-only? After fixing, ask the user to re-check.',
   },
 }
 
@@ -114,8 +114,8 @@ export const prompts = {
 export const fixes = Object.freeze({
   'md:scratchWritable': {
     hint: {
-      zh: '.scratch 目录不可用（未创建或不可写）。点「修复指引」检查目录状态，完成后重查。',
-      en: '.scratch is unusable (missing or not writable). Use the fix guide to check the directory, then re-check.',
+      zh: '本项目的本地数据目录还没就绪（可能未初始化，也可能系统不允许写入）。点「修复指引」让 AI 检查，完成后重查。',
+      en: 'The local data directory is not ready (maybe not initialized, or the system does not allow writing). Use the fix guide to check, then re-check.',
     },
     actions: [
       { type: 'inject-prompt', prompt: 'mdWritableFix', label: { zh: '修复指引', en: 'Fix guide' } },
@@ -124,8 +124,8 @@ export const fixes = Object.freeze({
   },
   'md:parseOk': {
     hint: {
-      zh: '本地图谱缺失或解析失败（.scratch/map.md 或 .scratch/<图谱名>/map.md）。点「修复指引」检查图谱位置与文件格式，完成后重查。',
-      en: 'Local graph missing or parse failed (.scratch/map.md or .scratch/<graph-name>/map.md). Use the fix guide, then re-check.',
+      zh: '本项目的关卡地图还没就绪（可能未初始化生成，也可能文件已损坏）。点「修复指引」让 AI 检查，完成后重查。',
+      en: 'The local track map is not ready (maybe not initialized yet, or the file is damaged). Use the fix guide to check, then re-check.',
     },
     actions: [
       { type: 'inject-prompt', prompt: 'mdParseFix', label: { zh: '修复指引', en: 'Fix guide' } },

@@ -155,7 +155,7 @@ export const GITLAB_CATALOG = Object.freeze([
 export const MARKDOWN_CATALOG = Object.freeze([
   {
     id: 'md:scratchWritable',
-    label: '.scratch 目录可写',
+    label: '本地数据目录可读写',
     scope: 'backend',
     backends: ['markdown'],
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.DIR_WRITABLE, path: '.scratch' },
@@ -163,7 +163,7 @@ export const MARKDOWN_CATALOG = Object.freeze([
   },
   {
     id: 'md:parseOk',
-    label: '本地图谱可解析',
+    label: '本地关卡地图可读取',
     scope: 'backend',
     backends: ['markdown'],
     check: { kind: 'backend', id: 'parseOk', backendId: 'markdown' },
