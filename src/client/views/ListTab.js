@@ -143,7 +143,7 @@ export     const ListTab = ({ st, narrow }) => {
         : (st.stateFilter === 'frontier' ? openFiltered.filter(function (x) { return !isOccupied(st, x) }) : openFiltered)) : []
       const filteredClosed = showClosedList ? ((st.lblFilters && st.lblFilters.length) ? closedSorted.filter(byLabel) : closedSorted) : []
       const has = function (x, nm) { return (x.labels || []).some(function (l) { return l.name === nm }) }
-      const findMap = function (num) { return (st.snapshot && st.snapshot.maps || []).find(function (m) { return m.number === num }) }
+      const findMap = function (num) { const maps=st.snapshot&&st.snapshot.maps||[];const k=num!=null?String(num).padStart(2,'0'):'';return maps.find(function(m){return m.number===num||String(m.number)===String(num)||(m.key!=null&&String(m.key).padStart(2,'0')===k)}) }
       const openBlocked = function (blk) { setActiveMap(st, blk.map) }
       // v14-18：chips 常显深一档边框（边框色 = label 色 HSL 亮度 -16%）
       const chip = (nm, withCount, on, isAll) => {

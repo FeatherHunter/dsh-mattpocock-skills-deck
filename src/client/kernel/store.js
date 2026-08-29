@@ -216,14 +216,14 @@
     // T1 #6 · IssueDetail 状态机（与 activeMap 互斥，in-panel 详情页 · v1.7.0）
     export const setActiveMap = function (st, n) {
       const v = (n == null) ? null : Number(n)
-      st.activeMap = (v && !isNaN(v)) ? v : null
+      st.activeMap = (v != null && !isNaN(v)) ? v : null
       if (st.activeMap !== null) st.activeIssue = null
       emit(st)
     }
     export const clearActiveMap = function (st) { st.activeMap = null; emit(st) }
     export const setActiveIssue = function (st, n) {
       const v = (n == null) ? null : Number(n)
-      st.activeIssue = (v && !isNaN(v)) ? v : null
+      st.activeIssue = (v != null && !isNaN(v)) ? v : null
       if (st.activeIssue !== null) st.activeMap = null
       emit(st)
     }
