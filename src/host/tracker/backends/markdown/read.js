@@ -17,10 +17,13 @@ export async function readDir(ctx, dirPath){
 }
 export async function exists(ctx, fullPath){
   const fs=getFs(ctx);if(!fs)return false
-  if(typeof fs.resolve==='function'&&typeof fs.lstat==='function'){try{const t=await fs.resolve(fullPath);const st=await fs.lstat(t);return!!st}catch{return false}}
-  if(typeof fs.lstat==='function'){try{const st=await fs.lstat(fullPath);return!!st}catch{return false}}
-  if(typeof fs.stat==='function'){try{const st=await fs.stat(fullPath);return!!st}catch{return false}}
-  if(typeof fs.access==='function'){try{await fs.access(fullPath);return true}catch{return false}}
+  // DSH fs 形状约定（platform/index.js）：lstat 是 path-shaped（吃原始路径）；resolve 返回 target 仅供 readText/stat/listDir 等 target-shaped 调用。
+  // 修复：先按文档形状传原始路径；resolve-target 形状仅作兼容回落。原实现先传 target 且 catch 直接 return false，
+  // 导致宿主内 exists 恒 false → markdown 枚举 0 → 面板 maps=0（#331 观察的「列表空白」总根因）。
+  if(typeof fs.lstat==='function'){try{const st=await fs.lstat(fullPath);return!!st}catch{}}
+  if(typeof fs.resolve==='function'&&typeof fs.lstat==='function'){try{const t=await fs.resolve(fullPath);const st=await fs.lstat(t);return!!st}catch{}}
+  if(typeof fs.stat==='function'){try{const st=await fs.stat(fullPath);return!!st}catch{}}
+  if(typeof fs.access==='function'){try{await fs.access(fullPath);return true}catch{}}
   return false
 }
 export async function statFile(ctx, fullPath){
