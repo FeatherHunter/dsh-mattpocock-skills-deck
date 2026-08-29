@@ -64,8 +64,8 @@
         'setup.markdown.trackerChoice': 'Local markdown',
         'setup.markdown.backendNote': '\n\n本次已选后端：Markdown \u2014 请按本地 Markdown 模板生成 docs/agents/issue-tracker.md（.scratch 结构）',
         'setup.markdown.labelReqs': '',
-        // #323（2026-08-29 生效）：本地 Markdown 标签调色盘规则 —— 票内 Labels 行只写名字，颜色查 docs/agents/triage-labels.md 调色盘表
-        'setup.markdown.paletteNote': '本地 Markdown 的标签走「调色盘」：票内 `Labels:` 行只写标签名字（如 `Labels: wayfinder:grilling, bug`），颜色统一查 `docs/agents/triage-labels.md` 的调色盘表；表里没有的名字显示为灰色；改颜色只改那一处。',
+        // #323（2026-08-29 生效）：本地 Markdown 标签调色盘规则 —— 定义调色盘表形状与固定色值，并指示初始化时落到 docs/agents/triage-labels.md
+        'setup.markdown.paletteNote': '本地 Markdown 的标签走「调色盘」：票内 `Labels:` 行只写标签名字（如 `Labels: wayfinder:grilling, bug`），不写颜色；颜色统一查 `docs/agents/triage-labels.md` 里的「调色盘表」。调色盘表的形状 = 一节 `## Label palette` 加一张 markdown 表格，表头三列 `Color | Label | Meaning`，每行一个标签：Color 为十六进制色值（如 `#8b5cf6`）、Label 为标签名、Meaning 为一句话含义。本仓库固定色值：wayfinder:map=#8b5cf6、wayfinder:research=#0ea5e9、wayfinder:prototype=#f59e0b、wayfinder:grilling=#9d7cd8、wayfinder:task=#10b981、bug=#d73a4a、needs-triage=#fbca04、needs-info=#5319e7、ready-for-agent=#0e8a16、ready-for-human=#b60205、wontfix=#ffffff；自定义标签在本表加一行。初始化时请确保 `docs/agents/triage-labels.md` 已含此调色盘表——若该文件只有三列表（角色/标签/含义）或缺 Color 列，就把每行补上 Color 并按上述「标签=色值」增补表行，不要删掉原有列；若已有此表，核对即可。表里没有的名字显示为灰色；改颜色只改表那一处。',
         'setup.gitlab.trackerLine': '本仓库为 GitLab \u2192 提议 GitLab Issues',
         'setup.gitlab.trackerChoice': 'GitLab Issues',
         'setup.gitlab.backendNote': '\n\n本次已选后端：GitLab \u2014 请按 GitLab 模板生成 docs/agents/issue-tracker.md',
@@ -415,8 +415,8 @@
         'setup.markdown.trackerChoice': 'Local markdown',
         'setup.markdown.backendNote': '\n\nSelected backend: Markdown \u2014 please generate docs/agents/issue-tracker.md from the local Markdown template (.scratch structure).',
         'setup.markdown.labelReqs': '',
-        // #323 (2026-08-29): local Markdown label palette rule — Labels line writes names only, colors come from docs/agents/triage-labels.md
-        'setup.markdown.paletteNote': 'Local Markdown labels use a palette: write only label names on the `Labels:` line (e.g. `Labels: wayfinder:grilling, bug`); each name\'s color comes from the palette table in `docs/agents/triage-labels.md`, and a name missing from the table renders grey; change a color once, in that table.',
+        // #323 (2026-08-29): local Markdown label palette rule — defines the palette table shape and fixed colors, instructs init to land them in docs/agents/triage-labels.md
+        'setup.markdown.paletteNote': 'Local Markdown labels use a palette: a ticket writes only label names on the `Labels:` line (e.g. `Labels: wayfinder:grilling, bug`), never colors; look up the color in the palette table inside `docs/agents/triage-labels.md`. The palette table has the shape of a `## Label palette` section with a markdown table whose header is `Color | Label | Meaning` — one row per label: Color is a hex value (e.g. `#8b5cf6`), Label is the name, Meaning is a one-line description. Fixed values for this repo: wayfinder:map=#8b5cf6, wayfinder:research=#0ea5e9, wayfinder:prototype=#f59e0b, wayfinder:grilling=#9d7cd8, wayfinder:task=#10b981, bug=#d73a4a, needs-triage=#fbca04, needs-info=#5319e7, ready-for-agent=#0e8a16, ready-for-human=#b60205, wontfix=#ffffff; add custom labels as new rows there. During setup make sure `docs/agents/triage-labels.md` already contains this palette table: if the file only has the three-column role table (role / label / meaning) or lacks a Color column, add a Color column to each row and append the rows above with their fixed colors — keep the existing columns; if the table already exists, just verify it. A name missing from the table renders grey; change a color once, in that table.',
         'setup.gitlab.trackerLine': 'this repo is on GitLab \u2192 propose GitLab Issues',
         'setup.gitlab.trackerChoice': 'GitLab Issues',
         'setup.gitlab.backendNote': '\n\nSelected backend: GitLab \u2014 please generate docs/agents/issue-tracker.md from the GitLab template.',
