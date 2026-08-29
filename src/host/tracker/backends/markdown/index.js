@@ -98,9 +98,11 @@ export function createMarkdownBackend(ctx){
 }
 /** 修复契约注入文案（Markdown 后端本地语义，双语单源；供 fixes 引用，host 组装时解析）。 */
 export const prompts = {
+  // 2026-08-29 对齐多谱模型（用户实证：图谱落在 .scratch/<图谱名>/map.md，根 .scratch/map.md 只是其中一种形态）：
+  //   修复指引同时覆盖「图谱缺失（未初始化）」与「图谱损坏（格式/文件坏）」两种真实失败。
   mdParseFix: {
-    zh: '本地 Markdown 图谱解析失败（parseOk 未通过）。请按序检查：\n1. .scratch/map.md 是否存在且为合法 markdown（UTF-8、无 BOM、字段名未被改坏）；\n2. 图谱文件格式是否被破坏（YAML 头/字段名/分隔符；对照 parse.js 期望的字段集）；\n3. 修复后请用户点「重查」。若文件损坏，与用户确认后先备份再重建。',
-    en: 'Local Markdown graph parse failed (parseOk not passed). Check in order:\n1. .scratch/map.md exists and is valid markdown (UTF-8, no BOM, field names intact);\n2. File format not corrupted (YAML header / field names / separators; compare with the fields expected by parse.js);\n3. After fixing, ask the user to re-check. If corrupted, back it up before rebuilding with user confirmation.',
+    zh: '本地 Markdown 图谱缺失或解析失败（parseOk 未通过）。请按序检查：\n1. 图谱文件是否存在：.scratch/map.md，或 .scratch/<图谱名>/map.md（每个本地关卡对应一个子目录）；\n2. 存在但解析失败：检查是否合法 markdown（UTF-8、无 BOM、字段名未被改坏、YAML 头/分隔符对照 parse.js 期望的字段集）；\n3. 两者都缺失：说明图谱尚未初始化——先执行 Markdown 初始化生成图谱，再重查。若文件已损坏，与用户确认后先备份再重建。',
+    en: 'Local Markdown graph missing or parse failed (parseOk not passed). Check in order:\n1. Does the graph file exist: .scratch/map.md, or .scratch/<graph-name>/map.md (one subdirectory per local track)?\n2. If it exists but fails to parse: is it valid markdown (UTF-8, no BOM, field names intact, YAML header / separators matching the fields parse.js expects)?\n3. If both are missing: the graph has not been initialized yet, run Markdown initialization first, then re-check. If a file is corrupted, back it up before rebuilding with user confirmation.',
   },
   mdWritableFix: {
     zh: '.scratch 目录不可写。请检查：① 目录是否存在；② 文件系统权限（Windows ACL / POSIX chmod）；③ 挂载点是否只读。修复后请用户点「重查」。',
@@ -112,8 +114,8 @@ export const prompts = {
 export const fixes = Object.freeze({
   'md:scratchWritable': {
     hint: {
-      zh: '.scratch 目录不可写。点「修复指引」检查目录权限，完成后重查。',
-      en: '.scratch is not writable. Use the fix guide to check directory permissions, then re-check.',
+      zh: '.scratch 目录不可用（未创建或不可写）。点「修复指引」检查目录状态，完成后重查。',
+      en: '.scratch is unusable (missing or not writable). Use the fix guide to check the directory, then re-check.',
     },
     actions: [
       { type: 'inject-prompt', prompt: 'mdWritableFix', label: { zh: '修复指引', en: 'Fix guide' } },
@@ -122,8 +124,8 @@ export const fixes = Object.freeze({
   },
   'md:parseOk': {
     hint: {
-      zh: '本地图谱解析失败（.scratch/map.md 或图谱文件格式异常）。点「修复指引」让 AI 检查文件格式，完成后重查。',
-      en: 'Local graph parse failed (.scratch/map.md or file format). Use the fix guide, then re-check.',
+      zh: '本地图谱缺失或解析失败（.scratch/map.md 或 .scratch/<图谱名>/map.md）。点「修复指引」检查图谱位置与文件格式，完成后重查。',
+      en: 'Local graph missing or parse failed (.scratch/map.md or .scratch/<graph-name>/map.md). Use the fix guide, then re-check.',
     },
     actions: [
       { type: 'inject-prompt', prompt: 'mdParseFix', label: { zh: '修复指引', en: 'Fix guide' } },

@@ -1260,15 +1260,56 @@ export default {
     //   作用域外（wf.chain 谓词注册处）不可见 → 运行时 ReferenceError「mdParseOkPredicate is not defined」。
     async function mdParseOkPredicate(platform, cwd) {
       try {
-        const hasMap = await fileExistsChainRel(platform, cwd, '.scratch/map.md')
-        if (hasMap !== true) return { status: 'fail', detail: '.scratch/map.md missing — created by initialization' }
-        const abs = await platform.fs.resolve('.scratch/map.md', { cwd: cwd })
-        const text = await platform.fs.readText(abs)
+        // 2026-08-29 修复（用户实证：图谱落在 .scratch/<图谱名>/map.md；原只查根 .scratch/map.md 必然误报 missing）：
+        //   与 backends/markdown matches() 数据模型同构——候选 = 根谱 .scratch/map.md + 各子谱 .scratch/*/map.md；
+        //   全部缺失 = 图谱未初始化（fail，指引先做 Markdown 初始化）；存在但解析抛错 = 格式损坏（fail，附错误原文）。
+        const cands = await mdMapCandidates(platform, cwd)
+        if (cands.length === 0) {
+          return { status: 'fail', detail: 'no map.md under .scratch — run Local Markdown setup (initialization) first' }
+        }
         const mod = await import('./backends/markdown/parse.js')
         const parseMd = mod.parseMd || mod.default
-        if (typeof parseMd === 'function') { parseMd(String(text || ''), {}); return { status: 'pass', detail: 'local map parses OK' } }
-        return { status: 'pending', detail: 'parseMd not exported' }
-      } catch (e) { return { status: 'fail', detail: 'local map parse failed: ' + String((e && e.message) || e) } }
+        if (typeof parseMd !== 'function') return { status: 'pending', detail: 'parseMd not exported' }
+        let lastErr = ''
+        for (const abs of cands) {
+          try {
+            // target-shaped 配对：readText 需 receive resolve 的返回值（兼容 mock 传字符串形态）
+            let tgt = abs
+            try { tgt = await platform.fs.resolve(abs, { cwd: cwd }) } catch (eR) { tgt = abs }
+            const text = await platform.fs.readText(tgt)
+            parseMd(String(text || ''), {})
+            const dir = platform.path.dirname(abs)
+            const slug = dir === platform.path.join(cwd, '.scratch') ? 'root' : platform.path.basename(dir)
+            return { status: 'pass', detail: 'local map parses OK (' + slug + ')' }
+          } catch (e) {
+            lastErr = String((e && e.message) || e).slice(0, 200)
+          }
+        }
+        return { status: 'fail', detail: 'local map parse failed: ' + lastErr }
+      } catch (e) { return { status: 'fail', detail: 'local map parse failed: ' + String((e && e.message) || e).slice(0, 200) } }
+    }
+    /** 图谱文件候选（与 matches() 数据模型同构）：根谱 .scratch/map.md + 子谱 .scratch/<name>/map.md。 */
+    async function mdMapCandidates(platform, cwd) {
+      const out = []
+      try {
+        if (!platform || !platform.fs || typeof platform.fs.resolve !== 'function') return out
+        const abs0 = await platform.fs.resolve('.scratch', { cwd: cwd })
+        const abs = (abs0 && typeof abs0 === 'object' && abs0 !== null && typeof abs0.path === 'string') ? abs0.path : abs0
+        if (!abs) return out
+        if (await fileExistsChainRel(platform, cwd, platform.path.join(abs, 'map.md'))) out.push(platform.path.join(abs, 'map.md'))
+        if (typeof platform.fs.listDir === 'function') {
+          try {
+            const entries = await platform.fs.listDir(abs)
+            for (const e of entries) {
+              const name = typeof e === 'string' ? e : (e && e.name) || ''
+              if (!name || name.startsWith('.')) continue
+              const cand = platform.path.join(abs, name, 'map.md')
+              if (await fileExistsChainRel(platform, cwd, cand)) out.push(cand)
+            }
+          } catch (eL) {}
+        }
+      } catch (e) {}
+      return out
     }
     async function fileExistsChainRel(platform, cwd, rel) {
       try {
