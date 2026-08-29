@@ -20,11 +20,11 @@ export const ISSUE_FRAGMENT = [
   'createdAt',
   'updatedAt',
   'closedAt',
-  'author{login name avatarUrl __typename}',
+  'author{login avatarUrl __typename ... on User{name} ... on Organization{name}}',
   'assignees(first:50){nodes{login name avatarUrl __typename}}',
   'labels(first:50){nodes{name color description}}',
   'milestone{title description state dueOn}',
-  'comments(first:50){nodes{id author{login name avatarUrl __typename} authorAssociation body createdAt updatedAt editedAt}}',
+  'comments(first:50){nodes{id author{login avatarUrl __typename ... on User{name} ... on Organization{name}} authorAssociation body createdAt updatedAt lastEditedAt}}',
   'parent{number}',
   'blockedBy(first:50){nodes{number title state}}',
 ].join(' ')

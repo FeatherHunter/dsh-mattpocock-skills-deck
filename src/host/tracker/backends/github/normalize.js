@@ -140,7 +140,9 @@ function normalizeComments(raw) {
     }
     if (typeof n.id === 'string' || typeof n.id === 'number') c.id = String(n.id)
     if (typeof n.editedAt === 'string' || n.editedAt === null) c.editedAt = n.editedAt
+    else if (typeof n.lastEditedAt === 'string' || n.lastEditedAt === null) c.editedAt = n.lastEditedAt
     else if (typeof n.edited_at === 'string' || n.edited_at === null) c.editedAt = n.edited_at
+    else if (typeof n.last_edited_at === 'string' || n.last_edited_at === null) c.editedAt = n.last_edited_at
     out.push(c)
   }
   return out
