@@ -52,9 +52,9 @@ export function parseMd(text, meta) {
       }
     }
   }
-  // Labels: 调色盘模型（#312 定版）——票只写名，色在总表，缺行按空、非法段丢弃、没冒号视为缺行
+  // Labels: 调色盘模型（#312 定版）——票只写名，色在总表，缺行按空、非法段丢弃、没冒号视为缺行；兼容历史单数 Label:
   let labels = []
-  const labelsMatch = /^\s*Labels\s*[:\uFF1A][ \t]*([^\n]*)/im.exec(raw)
+  const labelsMatch = /^\s*Labels?\s*[:\uFF1A][ \t]*([^\n]*)/im.exec(raw)
   if (labelsMatch) {
     const rawNames = labelsMatch[1] || ''
     // 逗号（含全角）分隔，仅名字
