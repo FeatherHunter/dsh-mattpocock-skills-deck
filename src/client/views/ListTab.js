@@ -96,7 +96,7 @@ export     const ListTab = ({ st, narrow }) => {
       const snapLabels = (st.snapshot && Array.isArray(st.snapshot.labels)) ? st.snapshot.labels : null
       if (snapLabels) snapLabels.forEach(function (l) { if (l && l.name && l.color) colorOf[String(l.name).trim()] = String(l.color).trim().replace(/^#/, '') })
       const allForColor = issues.slice()
-      ;(st.snapshot.maps||[]).forEach(function(m){(m.tickets||[]).forEach(function(t){allForColor.push(t)})})
+      ;(st.snapshot && Array.isArray(st.snapshot.maps) ? st.snapshot.maps : []).forEach(function(m){(m.tickets||[]).forEach(function(t){allForColor.push(t)})})
       allForColor.forEach(function (x) {(x.labels||[]).forEach(function(l){const nm=l&&l.name?String(l.name).trim():'';if(!nm)return;stat[nm]=(stat[nm]||0)+1;if(l.color)colorOf[nm]=String(l.color).trim().replace(/^#/, '')})})
       const tagNames = Object.keys(stat).sort(function (a, b) { return stat[b] - stat[a] })
       // #375：全量 label（快照 labels 字段优先；旧快照无该字段降级 issue 统计）；配色按票面最终色已覆盖，缺失才用快照表
