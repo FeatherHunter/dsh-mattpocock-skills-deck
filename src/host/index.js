@@ -1935,28 +1935,55 @@ export default {
     harness.handle('wf.snapshot', async function (args) {
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const now = Date.now()
+      // 第一性原理分发前置：先算 selection，再决定缓存与数据链路（避免旧 GitHub 缓存遮住 Markdown）
+      let _selEarly = null
+      try {
+        const svc = await getDetectionService()
+        if (svc && typeof svc.detect === 'function') {
+          const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+          if (det && det.selection) _selEarly = det.selection
+        }
+      } catch {}
+      if (!_selEarly || (_selEarly.backendId == null && (!_selEarly.source || _selEarly.source !== 'explicit'))) {
+        try {
+          const regTmp = await getTrackerRegistry()
+          const tmpHandle = { cwd }
+          const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+          if (sel2) _selEarly = sel2
+        } catch {}
+      }
+      const useComposerEarly = _selEarly && _selEarly.backendId && _selEarly.backendId !== 'github' && _selEarly.backendId !== '' && _selEarly.backendId !== 'other'
       if (cache.snapshot && cache.cwd === cwd) {
-        const current = await cacheSnapshotIsCurrent(cache.snapshot, cwd)
-        if (current === true || (current === null && now - cache.ts < CACHE_MS)) return cache.snapshot
+        // GitHub 路径才用 issue 索引校验；Markdown 等走通用缓存时只看时间与 backend 是否一致
+        if (useComposerEarly) {
+          const cachedBackend = cache.snapshot.selection && cache.snapshot.selection.backendId
+          if (cachedBackend === _selEarly.backendId && now - cache.ts < CACHE_MS) return cache.snapshot
+        } else {
+          const current = await cacheSnapshotIsCurrent(cache.snapshot, cwd)
+          if (current === true || (current === null && now - cache.ts < CACHE_MS)) return cache.snapshot
+        }
       }
       try {
-        // 第一性原理分发：按探测结果决定走哪条数据链路（显式 > matches > fallback，hint 仅二级），契约层为唯一分发点
-        let _sel = null
-        try {
-          const svc = await getDetectionService()
-          if (svc && typeof svc.detect === 'function') {
-            const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
-            if (det && det.selection) _sel = det.selection
-          }
-        } catch {}
-        if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+        // 复用已算的 selection，避免二次探测
+        let _sel = _selEarly
+        if (!_sel) {
           try {
-            const regTmp = await getTrackerRegistry()
-            const tmpHandle = { cwd }
-            const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
-            const sel2 = await regTmp.select(tmpHandle, tmpCtx)
-            if (sel2) _sel = sel2
+            const svc = await getDetectionService()
+            if (svc && typeof svc.detect === 'function') {
+              const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+              if (det && det.selection) _sel = det.selection
+            }
           } catch {}
+          if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+            try {
+              const regTmp = await getTrackerRegistry()
+              const tmpHandle = { cwd }
+              const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+              const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+              if (sel2) _sel = sel2
+            } catch {}
+          }
         }
         const useComposer = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
         if (useComposer) {
