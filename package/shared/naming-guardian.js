@@ -408,8 +408,38 @@ export function isHintRelatedToTitle(hint, title) {
 export function attributeNewNumbers({ prevIndex, currIndex, sessions }) {
   const nums = newNumbersSince(prevIndex, currIndex)
   if (!nums.length) return []
+  // 先找出所有“查旧票”的会话：hint 与已有工单标题相关且该工单不是本次新号
+  const existingTitles = []
+  try {
+    const allIdx = currIndex || {}
+    for (const k of Object.keys(allIdx)) {
+      if (nums.includes(Number(k))) continue
+      const v = allIdx[k]
+      const t = v && typeof v === 'object' ? String(v.title || '') : String(v || '')
+      if (t) existingTitles.push(t)
+    }
+    if (prevIndex) {
+      for (const k of Object.keys(prevIndex)) {
+        if (nums.includes(Number(k))) continue
+        const v = prevIndex[k]
+        const t = v && typeof v === 'object' ? String(v.title || '') : String(v || '')
+        if (t && !existingTitles.includes(t)) existingTitles.push(t)
+      }
+    }
+  } catch (e) {}
+  const isInvestigating = function (hint) {
+    if (!hint) return false
+    for (let i = 0; i < existingTitles.length; i++) {
+      try { if (isHintRelatedToTitle(hint, existingTitles[i])) return true } catch (e) {}
+    }
+    return false
+  }
   const candidates = (Array.isArray(sessions) ? sessions : [])
-    .filter(isNumberAwaitStage)
+    .filter(function (s) {
+      if (!isNumberAwaitStage(s)) return false
+      if (s.hint && isInvestigating(s.hint)) return false
+      return true
+    })
     .sort(function (a, b) {
       const ca = Number(a.createdAt || 0); const cb = Number(b.createdAt || 0)
       if (ca !== cb) return ca - cb
