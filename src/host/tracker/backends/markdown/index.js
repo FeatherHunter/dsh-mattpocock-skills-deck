@@ -115,37 +115,26 @@ export const defaultLabelPalette = [
 ]
 /** 修复契约注入文案（Markdown 后端本地语义，双语单源；供 fixes 引用，host 组装时解析）。 */
 export const prompts = {
-  // 2026-08-29 人话改写（用户反馈：".scratch/图谱/map.md"是黑话，第一阅读看不懂指的是什么）：
-  //   用户面向一律说「本地数据目录（隐藏文件夹 .scratch）」「关卡地图（map.md）」；技术名只括注保留，供排查定位。
-  mdParseFix: {
-    zh: '本项目的本地关卡地图（map.md，放在本地数据目录 .scratch 下）还没就绪：很可能是还没初始化生成，也可能是文件存在但内容不符合格式。请按序检查：\n1. 地图文件在不在：.scratch/map.md（根地图），或 .scratch/<关卡名>/map.md（一关一个子目录）；\n2. 文件在但读不了/解析报错：内容是否为正常文本（UTF-8、无 BOM），卡片与决策的字段是否被改坏、开头与分隔符是否符合约定（对照解析器期望的字段）；\n3. 两种位置都没有：说明还没初始化——先执行本地 Markdown 初始化生成地图，再重查。若文件已损坏，先备份再重建（与用户确认）。',
-    en: 'The local track map (map.md under the hidden .scratch folder) is not ready yet: either it has not been initialized, or it exists but does not match the expected format. Check in order:\n1. Where is the map file: .scratch/map.md (root map) or .scratch/<track-name>/map.md (one subdirectory per track)?\n2. If the file exists but cannot be read/parsed: is the content plain text (UTF-8, no BOM), are the card/decision fields intact, and do the header and separators match what the parser expects?\n3. If neither location has the file: initialization has not run yet, run Local Markdown setup first, then re-check. If a file is corrupted, back it up before rebuilding (confirm with the user).',
-  },
-  mdWritableFix: {
-    zh: '本项目的本地数据目录（隐藏文件夹 .scratch）当前不可用：可能是目录还没创建（需要先初始化），也可能是系统不允许往里面写（权限只读、磁盘挂载为只读等）。请按序检查：① 目录是否存在（项目根目录下 .scratch）；② 文件系统是否允许写入（Windows 权限，或 macOS/Linux 的读写权限）；③ 目录所在的磁盘或挂载点是否为只读。修好后请用户点「重查」。',
-    en: 'The local data directory (hidden folder .scratch) is not usable: either it has not been created yet (initialization needed), or the system does not allow writing into it (read-only permissions, read-only mount, etc.). Check in order: ① does the directory exist (.scratch under the project root)? ② does the filesystem allow writing (Windows permissions, or macOS/Linux read-write permissions)? ③ is the disk or mount point read-only? After fixing, ask the user to re-check.',
+  // 2026-08-29 定版（用户）：地图缺失时的修复指引 = 注入 wayfinder 技能构造关卡地图（不是让 AI 检查文件格式）。
+  //   文案人话：用户面向说「关卡地图 / 本地数据目录」，技术名（.scratch / map.md）只括注保留。
+  wayfinderMapBuild: {
+    zh: '请为当前项目（本地 Markdown 后端）执行 wayfinder 技能：把项目里的任务与决策组织成本地关卡地图（map.md），写入本地数据目录 .scratch 下（根地图 .scratch/map.md，或一关一个子目录 .scratch/<关卡名>/map.md）。完成后请用户点「重查」。',
+    en: 'Run the wayfinder skill for this project (Local Markdown backend): organize the project tasks and decisions into the local track map (map.md), written under the local data directory .scratch (root map .scratch/map.md, or one subdirectory per track .scratch/<track-name>/map.md). After it is done, ask the user to re-check.',
   },
 }
 
-/** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。 */
+/** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。
+ * 2026-08-29 用户定版：
+ *  - md:scratchWritable 不提供修复指引（后端无法修复目录存在/权限问题——行 fail 仅如实展示，无按钮）；
+ *  - md:parseOk 的修复指引 = 注入 wayfinder 技能构造关卡地图（地图缺失才失败，唯一真实修复路径是生成地图）。 */
 export const fixes = Object.freeze({
-  'md:scratchWritable': {
-    hint: {
-      zh: '本项目的本地数据目录还没就绪（可能未初始化，也可能系统不允许写入）。点「修复指引」让 AI 检查，完成后重查。',
-      en: 'The local data directory is not ready (maybe not initialized, or the system does not allow writing). Use the fix guide to check, then re-check.',
-    },
-    actions: [
-      { type: 'inject-prompt', prompt: 'mdWritableFix', label: { zh: '修复指引', en: 'Fix guide' } },
-      { type: 'refresh', target: 'chain' },
-    ],
-  },
   'md:parseOk': {
     hint: {
-      zh: '本项目的关卡地图还没就绪（可能未初始化生成，也可能文件已损坏）。点「修复指引」让 AI 检查，完成后重查。',
-      en: 'The local track map is not ready (maybe not initialized yet, or the file is damaged). Use the fix guide to check, then re-check.',
+      zh: '本项目的关卡地图还没生成。点「执行 wayfinder 构造地图」让 AI 用 wayfinder 技能生成地图，完成后重查。',
+      en: 'The local track map has not been created yet. Use "Build map with wayfinder" to have AI generate the map via the wayfinder skill, then re-check.',
     },
     actions: [
-      { type: 'inject-prompt', prompt: 'mdParseFix', label: { zh: '修复指引', en: 'Fix guide' } },
+      { type: 'inject-prompt', prompt: 'wayfinderMapBuild', label: { zh: '执行 wayfinder 构造地图', en: 'Build map with wayfinder' } },
       { type: 'refresh', target: 'chain' },
     ],
   },

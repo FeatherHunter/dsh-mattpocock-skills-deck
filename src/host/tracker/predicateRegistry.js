@@ -88,45 +88,66 @@ async function execPrimitive(check, ctx) {
       // dirWritable：目录「存在且可写」——写探测（往目录写固定名临时探针，写完尽力清理）。
       //   为什么不用 stat/lstat 权限位：Windows 无 POSIX mode 位、ACL 不可靠，唯一跨三端一致的判据是真实写入。
       //   谓词只读纪律的唯一例外（2026-08-29）：本探测向被检目录写 2 字节探针并删除，属验证性写、无业务副作用。
-      //   fs 无 writeText 能力（异常宿主）→ 回退存在性判定并如实注明（链仍能完成，不卡 pending）；
-      //   目标路径 resolve 失败/不存在 → fail（与 FILE_EXISTS 语义一致）。
+      //   2026-08-29 实机修复（用户反馈 "The "path" argument must be of type string. Received an instance of Object"）：
+      //     fs.resolve 返回的是 target 对象（形状随宿主，无 .path 字符串），原实现把它喂进 path.join 必抛 TypeError。
+      //     修正：绝不对 resolve 输出做字符串操作；所有 fs 调用配对 resolve → 方法；字符串拼接只发生在 rel/cwd 上。
+      //   fs 无 writeText 能力（异常宿主）→ 回退存在性判定并如实注明（链仍能完成，不卡 pending）。
       const rel = check.path
+      const zh = !!(ctx && ctx.lang === 'zh')
       if (!p || !p.fs || typeof p.fs.resolve !== 'function') return makeResult('pending', 'platform.fs unavailable')
+      const probeRel = (typeof p.path.join === 'function') ? p.path.join(rel, '.dsh-write-probe') : (rel + '/.dsh-write-probe')
       try {
-        const abs0 = await p.fs.resolve(rel, { cwd: ctx.cwd })
-        const abs = (abs0 && typeof abs0 === 'object' && abs0 !== null && typeof abs0.path === 'string') ? abs0.path : abs0
-        if (!abs) return makeResult('fail', rel + ' not found')
-        const probeName = '.dsh-write-probe'
-        const probeAbs = (typeof p.path.join === 'function') ? p.path.join(abs, probeName) : (String(abs).replace(/[\/]+$/, '') + '/' + probeName)
+        // 1) 目录存在性尽力判定。判据（与 FILE_EXISTS 同哲学）：
+        //    - 有探测能力（exists/listDir/stat 任一）且全数未证明存在 → 视为不存在（诚实 fail）；
+        //    - 无任何探测能力（异常宿主/mock）→ 不臆断（dirExists=null），交写探测作最终判据；
+        //    - 目录型真相（#284：DSH fs.exists 可能只对文件为真）由 exists→listDir→stat 链兜底。
+        let dirExists = null
+        let probeCaps = 0
+        try {
+          const dirT = await p.fs.resolve(rel, { cwd: ctx.cwd })
+          if (typeof p.fs.exists === 'function') {
+            probeCaps++
+            try { if ((await p.fs.exists(dirT)) === true) dirExists = true } catch (eE) {}
+          }
+          if (dirExists !== true && typeof p.fs.listDir === 'function') {
+            probeCaps++
+            try { await p.fs.listDir(dirT); dirExists = true } catch (eD) {}
+          }
+          if (dirExists !== true && typeof p.fs.stat === 'function') {
+            probeCaps++
+            try { const st = await p.fs.stat(dirT); if (st) dirExists = true } catch (eS) {}
+          }
+          if (dirExists !== true && probeCaps > 0) dirExists = false
+        } catch (eR) {
+          dirExists = false
+        }
+        if (dirExists === false) return makeResult('fail', zh ? '目录不存在' : rel + ' not found')
+        // 2) 写探测（resolve(探针相对路径) → writeText；清理同理用该 target）
         if (typeof p.fs.writeText === 'function') {
           try {
-            await p.fs.writeText(probeAbs, 'ok')
-            // 清理（尽力而为：不同宿主 fs 的删除方法名不一，逐一尝试；全部缺失时保留固定名单文件——它只出现在「可写」目录内）
+            const probeT = await p.fs.resolve(probeRel, { cwd: ctx.cwd })
+            await p.fs.writeText(probeT, 'ok')
             const cleaners = ['unlink', 'remove', 'rm', 'delete']
             for (const m of cleaners) {
               if (typeof p.fs[m] === 'function') {
-                try { await p.fs[m](probeAbs); break } catch (eC) {}
+                try { await p.fs[m](probeT); break } catch (eC) {}
               }
             }
-            return makeResult('pass', rel + ' exists & writable')
+            return makeResult('pass', zh ? '目录可读写' : rel + ' exists & writable')
           } catch (e) {
-            return makeResult('fail', rel + ' not writable: ' + String((e && e.message) || e).slice(0, 200))
+            return makeResult('fail', (zh ? '目录不可写：' : 'not writable: ') + String((e && e.message) || e).slice(0, 200))
           }
         }
-        // 无写探测能力 → 回退存在性（详情如实注明未验证可写；链可完成）
-        if (typeof p.fs.exists === 'function') {
-          try {
-            const ok = await p.fs.exists(abs)
-            if (ok) return makeResult('pass', rel + ' exists (writable not verified: fs has no writeText)')
-            if (typeof p.fs.listDir === 'function') { try { await p.fs.listDir(abs); return makeResult('pass', rel + ' exists (dir, writable not verified: fs has no writeText)') } catch (eD) {} }
-            if (typeof p.fs.stat === 'function') { try { const st = await p.fs.stat(abs); if (st) return makeResult('pass', rel + ' exists (writable not verified: fs has no writeText)') } catch (eS) {} }
-            return makeResult('fail', rel + ' not found')
-          } catch (e) {
-            return makeResult('fail', rel + ' not writable: ' + String((e && e.message) || e).slice(0, 200))
-          }
+        // 3) 无写探测能力 → 回退存在性（详情如实注明未验证可写；链可完成）
+        if (dirExists === true) {
+          return makeResult('pass', zh ? '目录存在（fs 无写探测能力，未验证可写）' : rel + ' exists (writable not verified: fs has no writeText)')
         }
         if (typeof p.fs.readText === 'function') {
-          try { await p.fs.readText(abs); return makeResult('pass', rel + ' exists (writable not verified: fs has no writeText)') } catch { return makeResult('fail', rel + ' not found') }
+          try {
+            const t0 = await p.fs.resolve(rel, { cwd: ctx.cwd })
+            await p.fs.readText(t0)
+            return makeResult('pass', zh ? '目录存在（fs 无写探测能力，未验证可写）' : rel + ' exists (writable not verified: fs has no writeText)')
+          } catch { return makeResult('fail', zh ? '目录不存在' : rel + ' not found') }
         }
         return makeResult('pending', 'fs probe unavailable')
       } catch (e) {

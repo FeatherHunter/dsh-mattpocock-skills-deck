@@ -131,6 +131,26 @@ async function main() {
     check(validateCheckItem(badItem).some((e) => /dirWritable needs path/.test(e)), 'D6 dirWritable 缺 path 被校验拦截', JSON.stringify(validateCheckItem(badItem)))
   }
 
+  // D7：实机崩溃回归（用户反馈 "The path argument must be of type string. Received an instance of Object"）——
+  //   fs.resolve 返回 target 对象（无 .path 字符串 / 形状随宿主）时，绝不因 path.join 抛 TypeError 而误判失败
+  {
+    const mkWritable = (shape) => ({
+      path: { join: (...a) => a.join('/') },
+      env: { get: () => undefined, has: () => false },
+      fs: {
+        resolve: async (p, o) => {
+          const s = o && o.cwd ? o.cwd + '/' + p : p
+          return shape === 'with-path' ? { path: s } : { kind: 'file', rel: p }
+        },
+        writeText: async (t, c) => { /* 收到 target 即可，不比较内容 */ },
+      },
+    })
+    const rA = await runProbe(mkWritable('with-path'), '/ws')
+    check(rA.status === 'pass', 'D7 resolve 返回 {path} 对象 → 不抛 TypeError，判定 pass', rA.detail)
+    const rB = await runProbe(mkWritable('no-path'), '/ws')
+    check(rB.status === 'pass', 'D7 resolve 返回无 path 键的对象（最坏形状）→ 同样 pass', rB.detail)
+  }
+
   console.log(`\ndirWritable 契约：${passed}/${total} 通过${failed ? ' — 有失败' : ''}`)
   if (failed) process.exit(1)
   console.log('全部通过 — 可写探测原语行为成立（存在≠可写，写探测为判据）')

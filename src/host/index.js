@@ -1273,15 +1273,14 @@ export default {
         const parseMd = mod.parseMd || mod.default
         if (typeof parseMd !== 'function') return { status: 'pending', detail: 'parseMd not exported' }
         let lastErr = ''
-        for (const abs of cands) {
+        for (const rel of cands) {
           try {
-            // target-shaped 配对：readText 需 receive resolve 的返回值（兼容 mock 传字符串形态）
-            let tgt = abs
-            try { tgt = await platform.fs.resolve(abs, { cwd: cwd }) } catch (eR) { tgt = abs }
+            // target-shaped 配对：readText 必须 receive resolve 的返回值（2026-08-29 实机修复：曾直接 readText(字符串) 且对 resolve 输出做 join 致 TypeError）
+            const tgt = await platform.fs.resolve(rel, { cwd: cwd })
             const text = await platform.fs.readText(tgt)
             parseMd(String(text || ''), {})
-            const dir = platform.path.dirname(abs)
-            const slug = dir === platform.path.join(cwd, '.scratch') ? 'root' : platform.path.basename(dir)
+            const dir = platform.path.dirname(rel)
+            const slug = dir === '.scratch' ? 'root' : platform.path.basename(dir)
             return { status: 'pass', detail: zh ? ('关卡地图已就绪（' + slug + '）') : ('local map parses OK (' + slug + ')') }
           } catch (e) {
             lastErr = String((e && e.message) || e).slice(0, 200)
@@ -1290,23 +1289,24 @@ export default {
         return { status: 'fail', detail: zh ? ('关卡地图无法解析：' + lastErr) : ('local map parse failed: ' + lastErr) }
       } catch (e) { return { status: 'fail', detail: (lang === 'zh' ? '关卡地图检查出错：' : 'local map check failed: ') + String((e && e.message) || e).slice(0, 200) } }
     }
-    /** 图谱文件候选（与 matches() 数据模型同构）：根谱 .scratch/map.md + 子谱 .scratch/<name>/map.md。 */
+    /** 关卡地图候选（与 matches() 数据模型同构）：根地图 .scratch/map.md + 各关子目录 .scratch/<name>/map.md。
+     * 2026-08-29 实机修复：候选存【相对路径字符串】（供 dirname/basename 与 display），存在性经
+     *   fileExistsChainRel(相对路径) 判定；绝不做 platform.path.join(resolve输出)（resolve 返回 target 对象，join 必 TypeError）。 */
     async function mdMapCandidates(platform, cwd) {
       const out = []
       try {
         if (!platform || !platform.fs || typeof platform.fs.resolve !== 'function') return out
-        const abs0 = await platform.fs.resolve('.scratch', { cwd: cwd })
-        const abs = (abs0 && typeof abs0 === 'object' && abs0 !== null && typeof abs0.path === 'string') ? abs0.path : abs0
-        if (!abs) return out
-        if (await fileExistsChainRel(platform, cwd, platform.path.join(abs, 'map.md'))) out.push(platform.path.join(abs, 'map.md'))
+        let dirT = null
+        try { dirT = await platform.fs.resolve('.scratch', { cwd: cwd }) } catch (eR) { return out }
+        if (await fileExistsChainRel(platform, cwd, '.scratch/map.md')) out.push('.scratch/map.md')
         if (typeof platform.fs.listDir === 'function') {
           try {
-            const entries = await platform.fs.listDir(abs)
+            const entries = await platform.fs.listDir(dirT)
             for (const e of entries) {
               const name = typeof e === 'string' ? e : (e && e.name) || ''
               if (!name || name.startsWith('.')) continue
-              const cand = platform.path.join(abs, name, 'map.md')
-              if (await fileExistsChainRel(platform, cwd, cand)) out.push(cand)
+              const candRel = '.scratch/' + name + '/map.md'
+              if (await fileExistsChainRel(platform, cwd, candRel)) out.push(candRel)
             }
           } catch (eL) {}
         }
@@ -1716,7 +1716,7 @@ export default {
         const expConsistent = (selConsistent && selConsistent.backendId)
           ? selConsistent.backendId
           : ((selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId) || null)
-        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, selection: selConsistent, explicitBackendId: expConsistent, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
+        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
         // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx) {
           try {
