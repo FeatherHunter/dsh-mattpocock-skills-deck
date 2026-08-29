@@ -88,7 +88,7 @@ export const fixes = Object.freeze({
   //   不再指挥点击（按钮自己会说话）、不贴命令（命令在指引全文里）、去掉与判定矛盾的「网络不通」表述。
   'gh:installed': {
     hint: {
-      zh: 'GitHub 助手（gh）还没安装，安装后即可继续。',
+      zh: 'GitHub 助手（gh cli）还没安装，安装后即可继续。',
       en: 'The GitHub CLI (gh) is not installed yet — install it to continue.',
     },
     actions: [
@@ -289,7 +289,7 @@ export const GITHUB_CHECKS = Object.freeze([
   },
   {
     id: 'gh:installed',
-    label: 'GitHub 助手（gh）已安装',
+    label: 'GitHub 助手（gh cli）已安装',
     scope: 'backend',
     backends: ['github'],
     check: { kind: 'primitive', primitive: 'commandExists', command: 'gh' },
