@@ -39,8 +39,8 @@ const LABEL_REQS = {
 }
 // #323（2026-08-29 第三轮修正 · 用户澄清）：注入文案负责构造工作区调色盘表——表形状 + 预填色值 + 落位指令 + 改色入口；渲染机制不属 AI 知识
 const PALETTE_NOTE = {
-  zh: '本地 Markdown 的票可以带标签：票内加一行 `Labels:`，只写标签名字（如 `Labels: wayfinder:grilling, bug`，多个用逗号分隔），不写颜色。标签颜色由 `docs/agents/triage-labels.md` 里的调色盘表提供：该表 = 在现有三列（mattpocock 角色 / 本仓库标签 / 含义）左边加一列 `Color`（十六进制色值，如 `#8b5cf6`），每行一个标签；本仓库预填色值：wayfinder:map=#8b5cf6、wayfinder:research=#0ea5e9、wayfinder:prototype=#f59e0b、wayfinder:grilling=#9d7cd8、wayfinder:task=#10b981、bug=#d73a4a、needs-triage=#fbca04、needs-info=#5319e7、ready-for-agent=#0e8a16、ready-for-human=#b60205、wontfix=#ffffff；自定义标签在本表加一行。初始化时请确保 `docs/agents/triage-labels.md` 已含此调色盘表——若该文件只有三列或缺 Color 列，就为每行补上 Color 并按上述「标签=色值」增补表行，不要删掉原有列；若已有此表则核对。想改颜色就改表里对应行的 Color 值。',
-  en: "Local Markdown tickets can carry labels: add a `Labels:` line to a ticket with only label names (e.g. `Labels: wayfinder:grilling, bug`, comma-separated), never colors. Label colors come from the palette table in `docs/agents/triage-labels.md`: that table adds a `Color` column (hex value, e.g. `#8b5cf6`) on the left of the existing three columns (mattpocock role / our tracker label / meaning), one row per label; pre-filled values for this repo: wayfinder:map=#8b5cf6, wayfinder:research=#0ea5e9, wayfinder:prototype=#f59e0b, wayfinder:grilling=#9d7cd8, wayfinder:task=#10b981, bug=#d73a4a, needs-triage=#fbca04, needs-info=#5319e7, ready-for-agent=#0e8a16, ready-for-human=#b60205, wontfix=#ffffff; custom labels get a new row there. During setup make sure `docs/agents/triage-labels.md` already contains this palette table: if the file only has three columns or lacks a Color column, add a Color column to each row and append the rows above with their fixed colors — keep the existing columns; if the table already exists, just verify it. To change a color, edit the Color value of the matching row in the table.",
+  zh: '请在 `docs/agents/triage-labels.md` 中增加「标签调色盘」表，规则如下：在现有三列（mattpocock 角色 / 本仓库标签 / 含义）左边增加一列 `Color`（十六进制色值，如 `#8b5cf6`），每行一个标签；本仓库预填色值：wayfinder:map=#8b5cf6、wayfinder:research=#0ea5e9、wayfinder:prototype=#f59e0b、wayfinder:grilling=#9d7cd8、wayfinder:task=#10b981、bug=#d73a4a、needs-triage=#fbca04、needs-info=#5319e7、ready-for-agent=#0e8a16、ready-for-human=#b60205、wontfix=#ffffff；自定义标签在本表加一行；若已有此表则核对补缺。想改颜色就改对应行的 Color 值。',
+  en: "Add a label palette table to `docs/agents/triage-labels.md`, per these rules: add a `Color` column (hex value, e.g. `#8b5cf6`) on the left of the existing three columns (mattpocock role / our tracker label / meaning), one row per label; pre-filled values for this repo: wayfinder:map=#8b5cf6, wayfinder:research=#0ea5e9, wayfinder:prototype=#f59e0b, wayfinder:grilling=#9d7cd8, wayfinder:task=#10b981, bug=#d73a4a, needs-triage=#fbca04, needs-info=#5319e7, ready-for-agent=#0e8a16, ready-for-human=#b60205, wontfix=#ffffff; custom labels get a new row there; if the table already exists, verify and fill gaps. To change a color, edit the Color value of the matching row.",
 }
 
 // setupRun 全文期望：帧 = v10 模板静态文本（除五占位符）；值来自金样 / PALETTE_NOTE
@@ -137,7 +137,7 @@ async function main() {
   const mdTxt = P.promptText('setupRun', P.setupRunParamsFrom(stubs, 'markdown', L.zh))
   check(mdTxt.indexOf('确保仓库中技能所需标签齐全') < 0, 'markdown 注入文本不再要求「标签齐全」')
   // #323：markdown 注入文本含调色盘规则；github 不含（非本地后端口径）
-  check(mdTxt.indexOf('调色盘') >= 0 && mdTxt.indexOf('docs/agents/triage-labels.md') >= 0 && mdTxt.indexOf('Labels:') >= 0, 'markdown 注入文本含调色盘规则（#323）')
+  check(mdTxt.indexOf('调色盘') >= 0 && mdTxt.indexOf('docs/agents/triage-labels.md') >= 0 && mdTxt.indexOf('Color') >= 0, 'markdown 注入文本含「增加调色盘表」指令（#323 · 第四轮：票格式规则归 setup 技能，不重复）')
   const ghTxt = P.promptText('setupRun', P.setupRunParamsFrom(stubs, 'github', L.zh))
   check(ghTxt.indexOf('确保仓库中技能所需标签齐全') >= 0, 'github 注入文本保留标签齐全要求')
   check(ghTxt.indexOf('调色盘') < 0, 'github 注入文本不含调色盘规则（非本地后端口径）')
