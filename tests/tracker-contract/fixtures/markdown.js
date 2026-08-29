@@ -5,7 +5,7 @@
  *  - 来源有数据 → 逐项映射正确
  *  - 单 key、无 number/subIssues、无 blocking
  *  - state 两态
- *  - 空值 → 能实现字段 EMPTY、不能实现 MISSING（labels/milestone/auth）
+ *  - 空值 → 能实现字段 EMPTY、不能实现 MISSING（milestone/auth）—— #312 后 labels 已实现
  *  - diagnoseCapabilities 日志二分
  *  - frontier/indeterminate/NOT-FOUND 安全 blocked
  *
@@ -78,8 +78,8 @@ export const markdownFixture = {
   mappings: [],
   // 覆盖 harness 的通用断言：单独为 markdown 定制
   // implementedFields：本地支持 → 必须 EMPTY（存在且空）而非 MISSING
-  implementedFields: ['assignees', 'blockedBy', 'comments', 'reason'],
-  missingFields: ['labels', 'milestone'],
+  implementedFields: ['assignees', 'blockedBy', 'comments', 'reason', 'labels'],
+  missingFields: ['milestone'],
   deckCases: [
     {
       name: 'empty-open-unclaimed',
@@ -138,7 +138,7 @@ export function markdownExtraAssertions() {
   assert('empty state open', e.state === 'open', e.state)
   assert('empty assignees EMPTY', 'assignees' in e && Array.isArray(e.assignees), JSON.stringify(e.assignees))
   assert('empty blockedBy EMPTY', 'blockedBy' in e && Array.isArray(e.blockedBy) && e.blockedBy.length === 0, JSON.stringify(e.blockedBy))
-  assert('no labels field', !('labels' in e), JSON.stringify(e.labels))
+  assert('labels EMPTY', 'labels' in e && Array.isArray(e.labels) && e.labels.length===0, JSON.stringify(e.labels))
   assert('no milestone field', !('milestone' in e), 'milestone present')
   assert('no number field', !('number' in e), 'number present')
   assert('no subIssues field', !('subIssues' in e), 'subIssues present')

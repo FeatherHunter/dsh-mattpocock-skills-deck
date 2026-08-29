@@ -1,7 +1,23 @@
-﻿import { STATE, ISSUE_TYPE } from '../../../../shared/tracker/constants.js'
+import { STATE, ISSUE_TYPE } from '../../../../shared/tracker/constants.js'
 
 function slugify(s) {
   return String(s || '').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]+/g, '-').replace(/\-+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'untitled'
+}
+
+// 调色盘：与 docs/agents/triage-labels.md 同位，票里只写名、色在总表（#312 定版）
+// 这里是本地后端自己的默认调色盘真源，与 src/host/tracker/backends/markdown/index.js 保持一致
+const PALETTE = {
+  'bug': 'd73a4a',
+  'needs-triage': 'fbca04',
+  'needs-info': '5319e7',
+  'ready-for-agent': '0e8a16',
+  'ready-for-human': 'b60205',
+  'wontfix': 'ffffff',
+  'wayfinder:map': '8b5cf6',
+  'wayfinder:research': '0ea5e9',
+  'wayfinder:prototype': 'f59e0b',
+  'wayfinder:grilling': '9d7cd8',
+  'wayfinder:task': '10b981',
 }
 
 export function parseMd(text, meta) {
@@ -35,6 +51,22 @@ export function parseMd(text, meta) {
         blockedBy.push({ key: k, title: '', state: STATE.OPEN })
       }
     }
+  }
+  // Labels: 调色盘模型（#312 定版）——票只写名，色在总表，缺行按空、非法段丢弃、没冒号视为缺行
+  let labels = []
+  const labelsMatch = /^\s*Labels\s*[:\uFF1A][ \t]*([^\n]*)/im.exec(raw)
+  if (labelsMatch) {
+    const rawNames = labelsMatch[1] || ''
+    // 逗号（含全角）分隔，仅名字
+    const parts = rawNames.split(/[,\uFF0C]+/).map((s) => s.trim()).filter(Boolean)
+    for (const name of parts) {
+      if (!name) continue
+      const color = PALETTE[name] || 'cccccc'
+      labels.push({ name, color, description: '' })
+    }
+  } else {
+    // 缺行按空（不抛、空数组）
+    labels = []
   }
   let comments = []
   const cmAnchor = /^\s*##\s*Comments\s*$/im
@@ -95,6 +127,7 @@ export function parseMd(text, meta) {
     parentKey,
     blockedBy,
     comments,
+    labels,
   }
   if (customFields) issue.customFields = customFields
   if (statusRaw) {

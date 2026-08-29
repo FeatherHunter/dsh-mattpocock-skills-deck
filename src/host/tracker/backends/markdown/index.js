@@ -3,7 +3,7 @@ import { mdPath } from './path.js'
 import { parseMd } from './parse.js'
 import { normalizeIssue } from './normalize.js'
 import { readTextFile, exists } from './read.js'
-import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue } from './issues.js'
+import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue, setLabelsIssue } from './issues.js'
 import { getDependenciesForKey } from './graph.js'
 import { addComment } from './comments.js'
 import nodePath from 'node:path'
@@ -62,20 +62,38 @@ export function issueUrl(ref, key) { return '' }
 export function searchUrl(name) { return '' }
 export const linkPattern = null
 export function createMarkdownBackend(ctx){
-  const unsupported=(op)=>({ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown '+op+' unsupported (labels MISSING per #134)'}})
   return{
     id:'markdown',
     preflight: async (handle,opCtx)=>{
       const c=opCtx||ctx
       try{
+        const plat=getPlat(c)
+        const cwd=(handle&&handle.cwd)||(c&&c.cwd)||''
+        // 检查全局 .scratch 下是否有任意 map.md 或 docs 声明
+        if(cwd){
+          const root=plat.join(cwd,'.scratch')
+          try{
+            const fs=c&&c.platform?c.platform.fs:(c&&c.fs)||(c&&typeof c.get==='function'?c.get('fs'):null)
+            let entries=[]
+            if(fs&&typeof fs.resolve==='function'&&typeof fs.listDir==='function'){try{const t=await fs.resolve(root);entries=await fs.listDir(t)}catch{}}
+            else if(fs&&typeof fs.readdir==='function'){try{entries=await fs.readdir(root)}catch{}}
+            for(const e of entries){
+              const name=typeof e==='string'?e:(e&&e.name)||''
+              if(!name||name.startsWith('.'))continue
+              const cand=plat.join(root,name,'map.md')
+              if(await exists(c,cand)) return{ok:true}
+            }
+            if(await exists(c,plat.join(root,'map.md'))) return{ok:true}
+          }catch{}
+        }
         const repo=handle&&handle.backend?handle:describe(handle,'markdown')
         const mapP=mdPath(repo,'map',undefined,c)
         if(await exists(c,mapP))return{ok:true}
-        const plat=getPlat(c)
-        const cwd=(handle&&handle.cwd)||(c&&c.cwd)||''
-        if(cwd){
-          const root=plat.join(cwd,'.scratch')
-          if(await exists(c,plat.join(root,'map.md')))return{ok:true}
+        const plat2=getPlat(c)
+        const cwd2=(handle&&handle.cwd)||(c&&c.cwd)||''
+        if(cwd2){
+          const root=plat2.join(cwd2,'.scratch')
+          if(await exists(c,plat2.join(root,'map.md')))return{ok:true}
         }
         return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'markdown map.md not-found'}}
       }catch(e){const kind=e&&e.kind?e.kind:ERROR_KIND.ENV;return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
@@ -88,10 +106,12 @@ export function createMarkdownBackend(ctx){
     reopen:(repo,key,opCtx)=>reopenIssue(opCtx||ctx,repo,key),
     comment:(repo,key,body,opCtx)=>addComment(opCtx||ctx,repo,key,body),
     update:(repo,key,patch,opCtx)=>updateIssue(opCtx||ctx,repo,key,patch),
-    setLabels:()=>unsupported('setLabels'),
+    setLabels:(repo,key,labels,opts,opCtx)=>setLabelsIssue(opCtx||ctx,repo,key,labels),
     setAssignees:(repo,key,assignees,opts,opCtx)=>setAssigneesIssue(opCtx||ctx,repo,key,assignees),
     setParent:(repo,key,parentKey,opts,opCtx)=>setParentIssue(opCtx||ctx,repo,key,parentKey),
     setBlockedBy:(repo,key,blockers,opts,opCtx)=>setBlockedByIssue(opCtx||ctx,repo,key,blockers),
+    getCurrentUser: async ()=>({ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown getCurrentUser unsupported'}}),
+    initProject: async ()=>({ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown initProject unsupported'}}),
     normalize:normalizeIssue,
     parse:parseMd,
   }
