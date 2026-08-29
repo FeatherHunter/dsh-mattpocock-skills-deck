@@ -582,7 +582,8 @@ export default {
         const txt = await fs.readText(p)
         if (!txt) return null
         const j = JSON.parse(txt)
-        if (j && j.ok === true && Array.isArray(j.maps) && typeof j.generatedMs === 'number') return j
+        // cacheFormat 2 之后才可读（旧小写 state 快照视为陈旧，强制重建，防“重启后仍显示全 open”的错户数据）
+        if (j && j.ok === true && Array.isArray(j.maps) && typeof j.generatedMs === 'number' && j.cacheFormat === 2) return j
         return null
       } catch (e) { return null }
     }
@@ -594,7 +595,8 @@ export default {
         // T9 修复：fs 服务的 writeText 要求 resolve() 返回的 target 对象（{targetKey,displayPath}），不能直接传路径字符串
         const platform = await getPlatform()
         const t = await platform.fs.resolve(platform.path.join(dir, fn))
-        await fs.writeText(t, JSON.stringify(snap))
+        // 缓存格式版本 2：#327 面板状态归一升级后（composer 小写 → 适配层大写），旧格式（小写 state）一律视为不新鲜，强制重建
+        await fs.writeText(t, JSON.stringify(Object.assign({}, snap, { cacheFormat: 2 })))
       } catch (e) { /* 写失败不影响主流程 */ }
     }
 
@@ -688,6 +690,23 @@ export default {
       const n = parseInt(m[1], 10)
       if (isNaN(n)) return null
       return Math.max(0, Math.min(100, n))
+    }
+
+    // 客户端契约：state 按旧链路大写 OPEN/CLOSED（mapTicket 曾如此）；composer 归一为小写 open/closed，
+    //   在此适配层统一升格，避免客户端把全部 closed 误判为 open（#327 面板“0 已关闭/大量错误状态”根因）。
+    const upcaseState = function (s) { return String(s || '').toUpperCase() === 'CLOSED' ? 'CLOSED' : 'OPEN' }
+    const upcaseSnapStates = function (inner) {
+      if (!inner || typeof inner !== 'object') return inner
+      ;(inner.maps || []).forEach(function (m) {
+        m.state = upcaseState(m.state)
+        ;(m.tickets || []).forEach(function (t) {
+          t.state = upcaseState(t.state)
+          if (Array.isArray(t.blockedBy)) t.blockedBy.forEach(function (b) { if (b && typeof b === 'object' && b.state != null) b.state = upcaseState(b.state) })
+          if (Array.isArray(t.blocking)) t.blocking.forEach(function (b) { if (b && typeof b === 'object' && b.state != null) b.state = upcaseState(b.state) })
+        })
+      })
+      ;(inner.issues || []).forEach(function (it) { it.state = upcaseState(it.state) })
+      return inner
     }
 
     function mapTicket(raw) {
@@ -1933,15 +1952,6 @@ export default {
 
     // #179 回切自愈：空 cwd 仍兜 DEFAULT_CWD 作最后兜底（避免“没有仓库”空白），但客户端已保证同 sid 切工作区亦触发，空窗极短
     harness.handle('wf.snapshot', async function (args) {
-      try {
-        const _fsMod = await import('node:fs/promises');
-        const _fs = _fsMod.default || _fsMod;
-        const _logPath = 'D:/tmp/wf-snapshot.log';
-        let _prev = '';
-        try { _prev = await _fs.readFile(_logPath, 'utf8'); } catch {}
-        const _line = "\n[" + new Date().toISOString() + "] wf.snapshot rawCwd=" + JSON.stringify(args && args.cwd) + " cwd=" + JSON.stringify(await canonicalKey((args && args.cwd) || DEFAULT_CWD)) + " hint=" + JSON.stringify(args && args.backendId);
-        await _fs.writeFile(_logPath, _prev + _line, 'utf8');
-      } catch {}
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const now = Date.now()
       // 第一性原理分发前置：先算 selection，再决定缓存与数据链路（避免旧 GitHub 缓存遮住 Markdown）
@@ -1963,15 +1973,6 @@ export default {
         } catch {}
       }
       const useComposerEarly = _selEarly && _selEarly.backendId && _selEarly.backendId !== 'github' && _selEarly.backendId !== '' && _selEarly.backendId !== 'other'
-      try {
-        const _fsMod2 = await import('node:fs/promises');
-        const _fs2 = _fsMod2.default || _fsMod2;
-        const _logPath2 = 'D:/tmp/wf-snapshot.log';
-        let _prev2 = '';
-        try { _prev2 = await _fs2.readFile(_logPath2, 'utf8'); } catch {}
-        const _line2 = "\n[" + new Date().toISOString() + "] selection=" + JSON.stringify(_selEarly) + " useComposer=" + useComposerEarly;
-        await _fs2.writeFile(_logPath2, _prev2 + _line2, 'utf8');
-      } catch {}
       if (cache.snapshot && cache.cwd === cwd) {
         // GitHub 路径才用 issue 索引校验；Markdown 等走通用缓存时只看时间与 backend 是否一致
         if (useComposerEarly) {
@@ -2012,12 +2013,12 @@ export default {
           let repoRef = null
           try { repoRef = reg.describe({ cwd }, backendId) } catch {}
           if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
-          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
           const { createSnapshotComposer } = await import('./tracker/snapshot.js')
           const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2)
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
-          const inner = res.snapshot
+                    const inner = upcaseSnapStates(res.snapshot)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
           const allForList = []
           ;(inner.maps || []).forEach(function(m){
@@ -2126,7 +2127,7 @@ export default {
         if (!tracker2) throw new Error('unknown backend ' + backendId2)
         let repoRef2 = null
         try { repoRef2 = reg2.describe({ cwd }, backendId2) } catch {}
-        if (!repoRef2) {
+        if (!repoRef2 || !repoRef2.refId) {
           try {
             const rk = await getRepoKey(cwd)
             if (rk && rk.owner && rk.name) repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
@@ -2139,12 +2140,12 @@ export default {
           const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
           if (currentb !== false) return adoptSnapshot(Object.assign({}, diskb, { fromCache: true }), cwd)
         }
-        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
         const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b)
         if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
-        const inner2 = res2.snapshot
+                  const inner2 = upcaseSnapStates(res2.snapshot)
         ;(inner2.maps || []).forEach(function(m){ 
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
           try {
@@ -2239,12 +2240,12 @@ export default {
           let repoRef = null
           try { repoRef = reg.describe({ cwd }, backendId) } catch {}
           if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
-          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
           const { createSnapshotComposer } = await import('./tracker/snapshot.js')
           const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2)
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
-          const inner = res.snapshot
+                    const inner = upcaseSnapStates(res.snapshot)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
           const allForList = []
           ;(inner.maps || []).forEach(function(m){
@@ -2362,7 +2363,7 @@ export default {
         if (!tracker2) throw new Error('unknown backend ' + backendId2)
         let repoRef2 = null
         try { repoRef2 = reg2.describe({ cwd }, backendId2) } catch {}
-        if (!repoRef2) {
+        if (!repoRef2 || !repoRef2.refId) {
           try {
             const rk = await getRepoKey(cwd)
             if (rk && rk.owner && rk.name) repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
@@ -2375,12 +2376,12 @@ export default {
           const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
           if (currentb !== false) return adoptSnapshot(Object.assign({}, diskb, { fromCache: true }), cwd)
         }
-        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
         const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b)
         if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
-        const inner2 = res2.snapshot
+                  const inner2 = upcaseSnapStates(res2.snapshot)
         ;(inner2.maps || []).forEach(function(m){ 
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
           try {
