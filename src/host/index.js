@@ -2020,10 +2020,19 @@ export default {
             } catch {}
             if (!repoRef || !repoRef.refId) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
           }
-          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
           const { createSnapshotComposer } = await import('./tracker/snapshot.js')
           const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2)
+          try {
+            const _fsModErr = await import('node:fs/promises');
+            const _fsErr = _fsModErr.default || _fsModErr;
+            const _logPathErr = 'D:/tmp/wf-snapshot.log';
+            let _prevErr = '';
+            try { _prevErr = await _fsErr.readFile(_logPathErr, 'utf8'); } catch {}
+            const _lineErr = "\n[" + new Date().toISOString() + "] compose res ok=" + res.ok + " err=" + JSON.stringify(res.error||null) + " maps=" + ((res.snapshot&&res.snapshot.maps)||[]).length;
+            await _fsErr.writeFile(_logPathErr, _prevErr + _lineErr, 'utf8');
+          } catch {}
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
           const inner = res.snapshot
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
@@ -2156,7 +2165,7 @@ export default {
           const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
           if (currentb !== false) return adoptSnapshot(Object.assign({}, diskb, { fromCache: true }), cwd)
         }
-        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
         const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b)
@@ -2264,10 +2273,19 @@ export default {
             } catch {}
             if (!repoRef || !repoRef.refId) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
           }
-          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
           const { createSnapshotComposer } = await import('./tracker/snapshot.js')
           const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2)
+          try {
+            const _fsModErr = await import('node:fs/promises');
+            const _fsErr = _fsModErr.default || _fsModErr;
+            const _logPathErr = 'D:/tmp/wf-snapshot.log';
+            let _prevErr = '';
+            try { _prevErr = await _fsErr.readFile(_logPathErr, 'utf8'); } catch {}
+            const _lineErr = "\n[" + new Date().toISOString() + "] compose res ok=" + res.ok + " err=" + JSON.stringify(res.error||null) + " maps=" + ((res.snapshot&&res.snapshot.maps)||[]).length;
+            await _fsErr.writeFile(_logPathErr, _prevErr + _lineErr, 'utf8');
+          } catch {}
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
           const inner = res.snapshot
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
@@ -2409,7 +2427,7 @@ export default {
           const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
           if (currentb !== false) return adoptSnapshot(Object.assign({}, diskb, { fromCache: true }), cwd)
         }
-        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
         const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b)
