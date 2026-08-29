@@ -91,7 +91,7 @@ export const GITHUB_CATALOG = Object.freeze([
   },
   {
     id: 'gh:installed',
-    label: 'GitHub 助手（gh）已安装',
+    label: 'GitHub 助手（gh cli）已安装',
     scope: 'backend',
     backends: ['github'],
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.COMMAND_EXISTS, command: 'gh' },
