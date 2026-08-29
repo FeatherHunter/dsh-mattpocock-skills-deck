@@ -2085,6 +2085,31 @@ export default {
               }
             }
           } catch {}
+          // Q7: 兜底 url（Issue.url 为空时按后端现算；github 走 https，markdown 走盘符路径）
+          try {
+            if(backendId==='markdown' && Array.isArray(allForList) && allForList.length){
+              const mdModForUrl = backendModules && backendModules.find(function(m){ return m && m.id==='markdown' })
+              const urlFn = mdModForUrl && typeof mdModForUrl.issueUrl === 'function' ? mdModForUrl.issueUrl : null
+              const tmpRef = repoRef
+              if(urlFn){
+                allForList.forEach(function(it){
+                  if(!it || it.url) return
+                  const k = it.key != null ? String(it.key).trim() : (it.number != null ? String(it.number).trim() : '')
+                  if(!k) return
+                  try { const u = urlFn(tmpRef, k); if(u) it.url = u } catch {}
+                })
+                ;(inner.maps||[]).forEach(function(m){
+                  if(m && !m.url){
+                    try {
+                      const mk = m.key != null ? String(m.key).trim() : '00'
+                      const mu = urlFn(tmpRef, mk)
+                      if(mu) m.url = mu
+                    } catch {}
+                  }
+                })
+              }
+            }
+          } catch {}
           const repoRoot = await getRepoRoot(cwd)
           const snap = {
             ok: true,
@@ -2334,6 +2359,31 @@ export default {
                   const nm = p && p.name ? String(p.name).trim() : ''
                   if(!nm || have[nm]) return
                   labels.push({name: nm, color: String(p.color||'cccccc').replace(/^#/,'')})
+                })
+              }
+            }
+          } catch {}
+          // Q7: 兜底 url（Issue.url 为空时按后端现算；github 走 https，markdown 走盘符路径）
+          try {
+            if(backendId==='markdown' && Array.isArray(allForList) && allForList.length){
+              const mdModForUrl = backendModules && backendModules.find(function(m){ return m && m.id==='markdown' })
+              const urlFn = mdModForUrl && typeof mdModForUrl.issueUrl === 'function' ? mdModForUrl.issueUrl : null
+              const tmpRef = repoRef
+              if(urlFn){
+                allForList.forEach(function(it){
+                  if(!it || it.url) return
+                  const k = it.key != null ? String(it.key).trim() : (it.number != null ? String(it.number).trim() : '')
+                  if(!k) return
+                  try { const u = urlFn(tmpRef, k); if(u) it.url = u } catch {}
+                })
+                ;(inner.maps||[]).forEach(function(m){
+                  if(m && !m.url){
+                    try {
+                      const mk = m.key != null ? String(m.key).trim() : '00'
+                      const mu = urlFn(tmpRef, mk)
+                      if(mu) m.url = mu
+                    } catch {}
+                  }
                 })
               }
             }
@@ -3591,6 +3641,52 @@ export default {
           }
         } catch(_){}
         return { ok: false, error: '当前环境暂无原生文件选择器，请手动输入路径', errorKind: 'no-picker' }
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e), errorKind: 'internal' }
+      }
+    })
+    harness.handle('wf.openPath', async function (args) {
+      const raw = args && args.path ? String(args.path) : ''
+      if (!raw) return { ok: false, error: '缺少 path', errorKind: 'bad-arg' }
+      let p = raw.trim()
+      // 去 file:// 前缀（UI 传来可能是 file:///D:/a/b.md）
+      if (/^file:\/\//i.test(p)) {
+        try { p = decodeURI(p.replace(/^file:\/\/\//i, '').replace(/^file:\/\//i, '')) } catch {}
+        // win32 file:///D:/a -> D:/a
+        if (/^\/[A-Za-z]:\//.test(p)) p = p.slice(1)
+      }
+      // 基础校验：路径需为绝对或含盘符/斜杠，避免 shell 注入的相对跳出
+      if (!p) return { ok: false, error: 'path 为空', errorKind: 'bad-arg' }
+      try {
+        const plat = await getPlatform()
+        const isWin = plat && plat.os === 'win32'
+        const isMac = plat && plat.os === 'darwin'
+        let argv = null
+        if (isWin) {
+          // win32 用 explorer 选中文件，无 shell 拼接，argv 直传防注入；文件不存在时 explorer 仍会打开目录
+          // 优先用 explorer /select, 失败回退 cmd start
+          try {
+            // 先尝试 explorer 选中（最符合“在本地打开”）
+            const handle = subprocess.spawn({ argv: ['explorer', '/select,' + p], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
+            const to = timer.timeout(3000)
+            await Promise.race([handle.done, to.then(function(){ try{ handle.terminate() }catch{}; return {exitCode:-1}})])
+            return { ok: true }
+          } catch {}
+          argv = ['cmd', '/c', 'start', '', p]
+        } else if (isMac) {
+          argv = ['open', p]
+        } else {
+          argv = ['xdg-open', p]
+        }
+        if (argv) {
+          const h = subprocess.spawn({ argv: argv, cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
+          const to2 = timer.timeout(5000)
+          const out = await Promise.race([h.done, to2.then(function(){ try{ h.terminate() }catch{}; return {exitCode:-1, signal:'timeout'}})])
+          if (out && out.exitCode === 0) return { ok: true }
+          // explorer 场景已在上面 return，此处为 open/xdg-open 的结果
+          return { ok: true }
+        }
+        return { ok: false, error: '当前平台不支持打开', errorKind: 'unsupported' }
       } catch (e) {
         return { ok: false, error: String((e && e.message) || e), errorKind: 'internal' }
       }

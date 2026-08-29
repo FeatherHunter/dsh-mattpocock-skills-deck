@@ -58,9 +58,18 @@ export function describe(handle, backendId){
   const name=finalRef?finalRef.split(/[\\/]/).pop()||finalRef:backendId
   return{backend:backendId,refId:finalRef,name:name||backendId,url:''}
 }
-export function issueUrl(ref, key) { return '' }
+export function issueUrl(ref, key) {
+  try {
+    if (ref == null || key == null) return ''
+    const k = String(key).trim()
+    if (!k) return ''
+    // 文件约束内现算：mdPath 已处理 refId 绝对/相对、repo.path、getRoot 三分支
+    // UI 拿到的是裸盘符路径（D:\…\issues\01-xxx.md），由 wf.openPath 按 OS 打开，不经 file:// 编码
+    return mdPath(ref, 'issue', k, { cwd: (ref && ref.refId) || '' })
+  } catch { return '' }
+}
 export function searchUrl(name) { return '' }
-export const linkPattern = null
+export const linkPattern = "#(\\d+)"
 export function createMarkdownBackend(ctx){
   return{
     id:'markdown',
@@ -186,8 +195,8 @@ export const markdownModule = {
   labelPalette: defaultLabelPalette,
   create: createMarkdownBackend,
   matches,
-  // #231：本地 Markdown 无远程链接 —— 空 links 为诚实形状；开仓动作为打开本地文件夹（契约动作声明，UI 通用执行）
-  links: {},
+  // #231：本地 Markdown 无远程链接 —— issueUrl 由后端现算为裸盘符路径，links 仅留提及识别正则；开仓为打开文件夹
+  links: { linkPatternSource: "#(\\d+)" },
   openRepository: 'folder',
   prompts,
   fixes,
