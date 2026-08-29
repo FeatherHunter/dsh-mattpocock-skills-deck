@@ -61,7 +61,7 @@ for (const f of clientFiles) {
   const src = fs.readFileSync(f, 'utf8')
 
   // 5) PROBE_MS = 60000（不再是 5min）
-  check(src.includes('PROBE_MS = 60000'), f + ' PROBE_MS 默认 60s（#2 MVP · 用户感知阈值）')
+  check(src.includes('SYNC.FALLBACK_PROBE_MS') && /\|\| 60000\)/.test(src), f + ' PROBE_MS 默认 60s（#232 节拍单源 · FALLBACK_PROBE_MS 兜底 60000）')
   check(!src.includes('PROBE_MS = 300000'), f + ' 无残留 5min 默认值')
 }
 

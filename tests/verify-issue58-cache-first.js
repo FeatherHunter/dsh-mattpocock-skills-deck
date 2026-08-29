@@ -73,7 +73,7 @@ for(const [name, src] of [['client.js', client], ['package/lib/client.js', pkg]]
 
 // 7) probeNow 多工作区隔离延续（#45 不回归）
 for(const [name, src] of [['client.js', client], ['package/lib/client.js', pkg]]){
-  check(/refreshGroup/.test(src) && /st\.cwd === cwd/.test(src), 'probeNow 按 cwd 分组隔离（#45 延续）', name)
+  check(/refreshGroup/.test(src) && /keyOf\(st\.cwd\) === normWanted/.test(src), 'probeNow 按 cwd 归一键分组隔离（#324 · #45 延续）', name)
   check(/sidToCwd/.test(src), '兜底 sidToCwd 精确映射保留', name)
   // #58 兜底后新增水合
   check(src.includes('hydrateFromCache(st)') && src.includes('sidToCwd'), '兜底补 cwd 后水合 per-cwd', name)
