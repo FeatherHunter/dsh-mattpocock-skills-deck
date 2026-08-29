@@ -1940,6 +1940,111 @@ export default {
         if (current === true || (current === null && now - cache.ts < CACHE_MS)) return cache.snapshot
       }
       try {
+        // 第一性原理分发：按探测结果决定走哪条数据链路（显式 > matches > fallback，hint 仅二级），契约层为唯一分发点
+        let _sel = null
+        try {
+          const svc = await getDetectionService()
+          if (svc && typeof svc.detect === 'function') {
+            const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+            if (det && det.selection) _sel = det.selection
+          }
+        } catch {}
+        if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+          try {
+            const regTmp = await getTrackerRegistry()
+            const tmpHandle = { cwd }
+            const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+            const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+            if (sel2) _sel = sel2
+          } catch {}
+        }
+        const useComposer = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
+        if (useComposer) {
+          const reg = await getTrackerRegistry()
+          const backendId = _sel.backendId
+          const tracker = reg.get(backendId)
+          if (!tracker) throw new Error('unknown backend ' + backendId)
+          let repoRef = null
+          try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const { createSnapshotComposer } = await import('./tracker/snapshot.js')
+          const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
+          const res = await composer.composeSnapshot(backendId, repoRef, ctx2)
+          if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
+          const inner = res.snapshot
+          const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
+          const allForList = []
+          ;(inner.maps || []).forEach(function(m){
+            if (m.key != null && m.number == null) {
+              const n = parseInt(m.key, 10)
+              if (!isNaN(n)) m.number = n
+            }
+            if (m.key != null) m.key = String(m.key)
+            allForList.push(m)
+          })
+          flatTickets.forEach(function(t){
+            if (t.key != null && t.number == null) {
+              const n = parseInt(t.key, 10)
+              if (!isNaN(n)) t.number = n
+            }
+            if (t.key != null) t.key = String(t.key)
+            if (Array.isArray(t.blockedBy)) {
+              t.blockedBy = t.blockedBy.map(function(ref){
+                if (typeof ref === 'number') return ref
+                if (ref && typeof ref === 'object' && ref.key != null) {
+                  const nk = String(ref.key)
+                  const nn = parseInt(nk, 10)
+                  if (!isNaN(nn)) return nn
+                  return nk
+                }
+                return ref
+              })
+            }
+            allForList.push(t)
+          })
+          ;(inner.issues || []).forEach(function(it){
+            if (it.key != null && it.number == null) {
+              const n = parseInt(it.key, 10)
+              if (!isNaN(n)) it.number = n
+            }
+            if (it.key != null) it.key = String(it.key)
+            allForList.push(it)
+          })
+          const labels = inner.labels || (function(){
+            const mm = {}
+            ;[].concat(inner.maps || []).concat(flatTickets).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
+            return Object.entries(mm).map(function(e){ return {name:e[0], color:e[1]} })
+          })()
+          let backendModules = null
+          try {
+            const regM = await getTrackerRegistry()
+            if (regM && typeof regM.modules === 'function') {
+              backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+            }
+          } catch {}
+          const repoRoot = await getRepoRoot(cwd)
+          const snap = {
+            ok: true,
+            repo: null,
+            repoRoot: repoRoot,
+            updatedAt: new Date().toISOString(),
+            generatedMs: Date.now(),
+            env: { ghPath: ghPath, ghError: ghLastError },
+            maps: inner.maps,
+            issues: allForList,
+            labels: labels,
+            repository: repoRef,
+            backendModules: backendModules,
+            selection: _sel,
+            capabilities: null,
+            viewer: null,
+            viewerLogin: null,
+            deck: inner.deck,
+          }
+          return adoptSnapshot(snap, cwd)
+        }
+        // GitHub 路径保持原有 buildSnapshot + 磁盘缓存
         // #2 deletion fix：磁盘快照只用于秒开；命中后先校验 issue 索引，删除/状态变化时立即重建。
         const repo0 = await getRepoKey(cwd)
         const disk = await readDiskCache(repo0)
@@ -1961,6 +2066,110 @@ export default {
       // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
       resetGhCache()
       try {
+        // 第一性原理分发：与 wf.snapshot 同构
+        let _sel = null
+        try {
+          const svc = await getDetectionService()
+          if (svc && typeof svc.detect === 'function') {
+            const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+            if (det && det.selection) _sel = det.selection
+          }
+        } catch {}
+        if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+          try {
+            const regTmp = await getTrackerRegistry()
+            const tmpHandle = { cwd }
+            const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+            const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+            if (sel2) _sel = sel2
+          } catch {}
+        }
+        const useComposer = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
+        if (useComposer) {
+          const reg = await getTrackerRegistry()
+          const backendId = _sel.backendId
+          const tracker = reg.get(backendId)
+          if (!tracker) throw new Error('unknown backend ' + backendId)
+          let repoRef = null
+          try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const { createSnapshotComposer } = await import('./tracker/snapshot.js')
+          const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
+          const res = await composer.composeSnapshot(backendId, repoRef, ctx2)
+          if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
+          const inner = res.snapshot
+          const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
+          const allForList = []
+          ;(inner.maps || []).forEach(function(m){
+            if (m.key != null && m.number == null) {
+              const n = parseInt(m.key, 10)
+              if (!isNaN(n)) m.number = n
+            }
+            if (m.key != null) m.key = String(m.key)
+            allForList.push(m)
+          })
+          flatTickets.forEach(function(t){
+            if (t.key != null && t.number == null) {
+              const n = parseInt(t.key, 10)
+              if (!isNaN(n)) t.number = n
+            }
+            if (t.key != null) t.key = String(t.key)
+            if (Array.isArray(t.blockedBy)) {
+              t.blockedBy = t.blockedBy.map(function(ref){
+                if (typeof ref === 'number') return ref
+                if (ref && typeof ref === 'object' && ref.key != null) {
+                  const nk = String(ref.key)
+                  const nn = parseInt(nk, 10)
+                  if (!isNaN(nn)) return nn
+                  return nk
+                }
+                return ref
+              })
+            }
+            allForList.push(t)
+          })
+          ;(inner.issues || []).forEach(function(it){
+            if (it.key != null && it.number == null) {
+              const n = parseInt(it.key, 10)
+              if (!isNaN(n)) it.number = n
+            }
+            if (it.key != null) it.key = String(it.key)
+            allForList.push(it)
+          })
+          const labels = inner.labels || (function(){
+            const mm = {}
+            ;[].concat(inner.maps || []).concat(flatTickets).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
+            return Object.entries(mm).map(function(e){ return {name:e[0], color:e[1]} })
+          })()
+          let backendModules = null
+          try {
+            const regM = await getTrackerRegistry()
+            if (regM && typeof regM.modules === 'function') {
+              backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+            }
+          } catch {}
+          const repoRoot = await getRepoRoot(cwd)
+          const snap = {
+            ok: true,
+            repo: null,
+            repoRoot: repoRoot,
+            updatedAt: new Date().toISOString(),
+            generatedMs: Date.now(),
+            env: { ghPath: ghPath, ghError: ghLastError },
+            maps: inner.maps,
+            issues: allForList,
+            labels: labels,
+            repository: repoRef,
+            backendModules: backendModules,
+            selection: _sel,
+            capabilities: null,
+            viewer: null,
+            viewerLogin: null,
+            deck: inner.deck,
+          }
+          return adoptSnapshot(snap, cwd)
+        }
         const snap = await buildSnapshot(cwd, args && args.backendId)
         // v1.5 T9：刷新后落盘，下次重启秒开
         await writeDiskCache(snap.repo, snap)
@@ -2060,9 +2269,68 @@ export default {
     })
     harness.handle('wf.issueDetail', async function (args) {
       const n = args && args.number
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
       if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
       try {
+        // 第一性原理分发：按探测结果走对应后端
+        let _sel = null
+        try {
+          const svc = await getDetectionService()
+          if (svc && typeof svc.detect === 'function') {
+            const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+            if (det && det.selection) _sel = det.selection
+          }
+        } catch {}
+        if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+          try {
+            const regTmp = await getTrackerRegistry()
+            const tmpHandle = { cwd }
+            const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+            const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+            if (sel2) _sel = sel2
+          } catch {}
+        }
+        const useTracker = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
+        if (useTracker) {
+          const reg = await getTrackerRegistry()
+          const backendId = _sel.backendId
+          const tracker = reg.get(backendId)
+          if (!tracker || typeof tracker.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 get" } }
+          let repoRef = null
+          try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const key = String(n).padStart(2, '0')
+          const r = await tracker.get(repoRef, key, {}, opCtx)
+          if (!r || !r.ok) return r
+          // 统一为 fetchIssueDetail 的返回形状（{ok, issue}），便于客户端复用
+          const iss = r.data
+          // 适配客户端期望的 issue 形状：补充 number / labels 节点等
+          if (iss && iss.key != null && iss.number == null) {
+            const nn = parseInt(iss.key, 10)
+            if (!isNaN(nn)) iss.number = nn
+          }
+          // 将 key 归一为字符串
+          if (iss && iss.key != null) iss.key = String(iss.key)
+          // 详情需要包含 comments / blockedBy 等，markdown 的 get 已包含
+          return { ok: true, issue: {
+            number: iss.number != null ? iss.number : (iss.key ? parseInt(iss.key,10) : n),
+            title: iss.title || '',
+            state: iss.state === 'closed' ? 'CLOSED' : 'OPEN',
+            body: iss.body || '',
+            url: iss.url || '',
+            updatedAt: iss.updatedAt || '',
+            createdAt: iss.createdAt || '',
+            closedAt: iss.closedAt || null,
+            author: iss.author,
+            labels: { nodes: (iss.labels || []).map(function(l){ return { name: l.name, color: l.color || '' } }) },
+            assignees: { nodes: (iss.assignees || []).map(function(a){ return typeof a === 'string' ? { login: a } : a }) },
+            comments: iss.comments || { nodes: [] },
+            subIssues: iss.subIssues || { totalCount: 0, nodes: [] },
+            blockedBy: { nodes: (iss.blockedBy || []).map(function(b){ if (typeof b === 'number') return { number: b }; if (b && b.key != null) { const nn = parseInt(b.key,10); return { number: isNaN(nn) ? b.key : nn, title: b.title||'', state: b.state==='closed'?'CLOSED':'OPEN' }; } return b; }) },
+            blocking: { nodes: [] },
+          } }
+        }
         const r = await fetchIssueDetail(Number(n), cwd)
         return r
       } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
@@ -2130,9 +2398,49 @@ export default {
     harness.handle('wf.issueComments', async function (args) {
       const n = args && args.number
       const after = args && args.after
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
       if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
       try {
+        // 第一性原理分发
+        let _sel = null
+        try {
+          const svc = await getDetectionService()
+          if (svc && typeof svc.detect === 'function') {
+            const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+            if (det && det.selection) _sel = det.selection
+          }
+        } catch {}
+        if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+          try {
+            const regTmp = await getTrackerRegistry()
+            const tmpHandle = { cwd }
+            const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+            const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+            if (sel2) _sel = sel2
+          } catch {}
+        }
+        const useTracker = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
+        if (useTracker) {
+          const reg = await getTrackerRegistry()
+          const backendId = _sel.backendId
+          const tracker = reg.get(backendId)
+          if (!tracker || typeof tracker.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 get" } }
+          let repoRef = null
+          try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const key = String(n).padStart(2, '0')
+          const r = await tracker.get(repoRef, key, {}, opCtx)
+          if (!r || !r.ok) return r
+          const iss = r.data
+          const nodes = (iss.comments || []).map(function(c){ return { author: c.author || { login: '' }, authorAssociation: c.authorAssociation || '', body: c.body || '', createdAt: c.createdAt || '', updatedAt: c.updatedAt || '' } })
+          // 简单分页：after 为已加载数
+          const afterNum = after != null ? Number(after) : 0
+          const start = isNaN(afterNum) ? 0 : afterNum
+          const pageNodes = nodes.slice(start, start + 50)
+          const hasNext = start + 50 < nodes.length
+          return { ok: true, nodes: pageNodes, pageInfo: { hasNextPage: hasNext, endCursor: String(start + pageNodes.length) } }
+        }
         const r = await fetchIssueComments(Number(n), after != null ? String(after) : null, cwd)
         return r
       } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
@@ -2290,8 +2598,58 @@ export default {
     // 写操作前 UI 已二次确认（用户点击即同意），不走 approval 服务（RESEARCH-NOTES §3 结论）。
     harness.handle('wf.claim', async function (args) {
       const n = args && args.number
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
       if (!n) return { ok: false, error: '缺少参数 number（ticket 号）' }
+      // 第一性原理分发
+      let _sel = null
+      try {
+        const svc = await getDetectionService()
+        if (svc && typeof svc.detect === 'function') {
+          const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+          if (det && det.selection) _sel = det.selection
+        }
+      } catch {}
+      if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+        try {
+          const regTmp = await getTrackerRegistry()
+          const tmpHandle = { cwd }
+          const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+          if (sel2) _sel = sel2
+        } catch {}
+      }
+      const useTracker = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
+      if (useTracker) {
+        const reg = await getTrackerRegistry()
+        const backendId = _sel.backendId
+        const tracker = reg.get(backendId)
+        if (!tracker || typeof tracker.setAssignees !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 setAssignees" } }
+        let repoRef = null
+        try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+        if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+        const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+        const key = String(n).padStart(2, '0')
+        // 尝试取当前用户
+        let assignee = 'me'
+        try {
+          if (tracker.getCurrentUser) {
+            const ur = await tracker.getCurrentUser(repoRef, opCtx)
+            if (ur && ur.ok && ur.data && ur.data.login) assignee = String(ur.data.login)
+          }
+        } catch {}
+        // 若仍为 me，尝试 gh
+        if (assignee === 'me') {
+          try {
+            const u = await runGh(['api', 'user', '-q', '.login'])
+            if (u.ok && u.text.trim()) assignee = u.text.trim()
+          } catch {}
+        }
+        const r = await tracker.setAssignees(repoRef, key, [assignee], {}, opCtx)
+        if (!r || !r.ok) return r
+        cache = { ts: 0, snapshot: null, error: null }
+        try { pushIssuePathEvent(n, 'claim') } catch (e) {}
+        return { ok: true, number: n, assignedTo: assignee, url: '' }
+      }
       const repo = await getRepoKey(cwd)
       if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
       const r = await runGh(['issue', 'edit', String(n), '--add-assignee', '@me'], cwd)
