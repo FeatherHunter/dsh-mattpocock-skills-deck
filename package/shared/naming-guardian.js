@@ -380,6 +380,31 @@ export function isNumberAwaitStage(state) {
  * 候选耗尽即止——剩余编号不入计划单，留待后续快照（无可归者不入计划单）。
  * @returns [{ sessionId, number, title }]
  */
+/**
+ * 语义相关性判定（#315 追加修复 · 防无关新号错配）
+ * 当会话 hint（如调查308的标题）与新 issue 标题（如309）完全无关时，不应配号。
+ * 规则：hint 非空时要求与 title 共享长度≥2 子串，否则判无关。
+ */
+export function isHintRelatedToTitle(hint, title) {
+  const h = String(hint || '').trim();
+  const t = String(title || '').trim();
+  if (!h || !t) return false;
+  const hl = h.toLowerCase();
+  const tl = t.toLowerCase();
+  if (tl.includes(hl) || hl.includes(tl)) return true;
+  for (let i = 0; i < hl.length - 1; i++) {
+    const sub = hl.slice(i, i + 2).trim();
+    if (sub.length < 2) continue;
+    if (tl.includes(sub)) return true;
+  }
+  for (let i = 0; i < tl.length - 1; i++) {
+    const sub = tl.slice(i, i + 2).trim();
+    if (sub.length < 2) continue;
+    if (hl.includes(sub)) return true;
+  }
+  return false;
+}
+
 export function attributeNewNumbers({ prevIndex, currIndex, sessions }) {
   const nums = newNumbersSince(prevIndex, currIndex)
   if (!nums.length) return []
@@ -393,10 +418,42 @@ export function attributeNewNumbers({ prevIndex, currIndex, sessions }) {
       return String(a.sessionId || '').localeCompare(String(b.sessionId || ''))
     })
   const out = []
-  for (let i = 0; i < nums.length && i < candidates.length; i++) {
-    const c = candidates[i]
-    const info = (currIndex && currIndex[String(nums[i])]) || null
-    out.push({ sessionId: c.sessionId, number: nums[i], title: info ? String(info.title || '') : '' })
+  const used = new Set()
+  for (let i = 0; i < nums.length; i++) {
+    const num = nums[i]
+    const info = (currIndex && currIndex[String(num)]) || null
+    const title = info ? String(info.title || info.state || '') : ''
+    const hasTitle = !!(info && typeof info === 'object' && info.title)
+    let picked = null
+    if (hasTitle) {
+      for (let j = 0; j < candidates.length; j++) {
+        const c = candidates[j]
+        if (used.has(c.sessionId)) continue
+        const hint = c.hint
+        if (!hint) continue
+        try { if (isHintRelatedToTitle(hint, title)) { picked = c; break; } } catch (e) {}
+      }
+      if (!picked) {
+        const hasAnyHinted = candidates.some(function (c) { return !used.has(c.sessionId) && c.hint; });
+        if (!hasAnyHinted) {
+          for (let j = 0; j < candidates.length; j++) {
+            const c = candidates[j]
+            if (used.has(c.sessionId)) continue
+            if (c.hint) continue
+            picked = c; break
+          }
+        }
+      }
+      if (!picked) continue
+    } else {
+      for (let j = 0; j < candidates.length; j++) {
+        const c = candidates[j]
+        if (!used.has(c.sessionId)) { picked = c; break; }
+      }
+      if (!picked) break
+    }
+    used.add(picked.sessionId)
+    out.push({ sessionId: picked.sessionId, number: num, title: title })
   }
   return out
 }

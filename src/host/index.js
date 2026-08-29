@@ -1720,35 +1720,41 @@ export default {
         // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx) {
           try {
+            // 2026-08-29（审查 S1）：detail 双语——中文界面不出现英文黑话行
+            const zh = (pctx && pctx.lang) !== 'en'
             const rk = await getRepoKey(pctx && pctx.cwd || cwd)
             if (rk && rk.owner && rk.name) return { status: 'pass', detail: rk.owner + '/' + rk.name }
-            return { status: 'fail', detail: 'repo not located' }
+            return { status: 'fail', detail: zh ? '未找到 GitHub 仓库关联（git remote 未指向 GitHub）' : 'repo not located' }
           } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
         try { registry.register('backend:github:repoAccess', async function (check, pctx) {
           try {
+            // 2026-08-29（审查 S1/S2）：detail 双语；pending 文案如实说明「网络/登录态未知」，不与 fail 混淆
+            const zh = (pctx && pctx.lang) !== 'en'
             const rk = await getRepoKey(pctx && pctx.cwd || cwd)
-            if (!rk || !rk.owner || !rk.name) return { status: 'fail', detail: 'repo not located' }
+            if (!rk || !rk.owner || !rk.name) return { status: 'fail', detail: zh ? '未找到 GitHub 仓库关联' : 'repo not located' }
             const r = await runGh(['api', 'repos/' + rk.owner + '/' + rk.name], pctx && pctx.cwd || cwd)
-            if (r.ok) return { status: 'pass', detail: 'api.github.com 200' }
+            if (r.ok) return { status: 'pass', detail: zh ? 'GitHub 接口访问正常' : 'api.github.com 200' }
             // 2026-08-28 实机复核修正（用户反馈：仓库已找到却提示创建发布——错误）：只有「确定仓库不存在/无权限」
             //   （kind=notfound）才判 fail 并挂「创建并发布」修复动作；未登录（auth）/网络/其他异常一律 pending（诚实未知）——
             //   仓库已定位（gh:remote 通过）而 gh 未登录时，链条唯一引导是 gh:authed 行的「登录指引」，绝不该误导用户去创建仓库。
-            if (r.kind === 'notfound') return { status: 'fail', detail: 'API 404: repo not found (may not exist or no access)' }
-            return { status: 'pending', detail: 'API not accessible (' + String(r.kind || 'exit') + '): ' + String(r.error || '').slice(0, 240) }
+            if (r.kind === 'notfound') return { status: 'fail', detail: zh ? 'GitHub 上访问不到该仓库（可能还没创建，或你没有权限）' : 'API 404: repo not found (may not exist or no access)' }
+            return { status: 'pending', detail: zh ? '暂无法确认仓库可访问（网络或登录态未知）：' + String(r.error || '').slice(0, 160) : 'API not accessible (' + String(r.kind || 'exit') + '): ' + String(r.error || '').slice(0, 240) }
           } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
         try { registry.register('preflight:ghAuth', async function (check, pctx) {
           try {
+            // 2026-08-29（审查 S1）：detail 双语——fail 说清「登录失效」，pending 如实区分网络与未知
+            const zh = (pctx && pctx.lang) !== 'en'
             const r = await runGh(['auth', 'status'])
-            if (r.ok) { const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]; return { status: 'pass', detail: first || 'Logged in' } }
+            if (r.ok) { const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]; return { status: 'pass', detail: first || (zh ? '已登录' : 'Logged in') } }
             // 2026-08-28 实机修复：仅当明确「未登录」（kind=auth）才判 fail 并展示登录指引；
             //   网络失败/其他异常归 pending（诚实未知），避免在 TLS 网络抖动时误导用户「未登录」。
             const kind = r.kind || 'exit'
             const errMsg = String(r.error || '').slice(0, 240)
-            if (kind === 'auth') return { status: 'fail', detail: 'gh credential invalid or not logged in: re-authenticate (gh auth refresh / gh auth login)' }
-            if (kind === 'network') return { status: 'pending', detail: 'gh auth status network failure: ' + errMsg }
-            return { status: 'pending', detail: 'gh auth status failed (' + kind + '): ' + errMsg }
+            if (kind === 'auth') return { status: 'fail', detail: zh ? 'GitHub 登录状态已失效（重新登录 gh auth login / refresh）' : 'gh credential invalid or not logged in: re-authenticate (gh auth refresh / gh auth login)' }
+            if (kind === 'network') return { status: 'pending', detail: zh ? '网络异常，暂时无法确认登录状态' : 'gh auth status network failure: ' + errMsg }
+            return { status: 'pending', detail: zh ? '暂时无法确认登录状态（' + kind + '）' : 'gh auth status failed (' + kind + '): ' + errMsg }
           } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
         try { registry.register('backend:markdown:parseOk', async function (check, pctx) {
@@ -2506,6 +2512,21 @@ export default {
             if (prev) assigned = core.attributeNewNumbers({ prevIndex: prev, currIndex: r.index, sessions: grp.sessions })
             // prev 为空：首轮基线。基线同样必须入库（防下一轮把存量全量当新编号）
           } catch (eA) { assigned = [] }
+          // #315 追加修复：无关新号不硬配。
+          try {
+            if (assigned.length && core.isHintRelatedToTitle) {
+              const kept = [];
+              for (let i = 0; i < assigned.length; i++) {
+                const a = assigned[i];
+                const entry = st.sessions[a.sessionId];
+                if (!entry) { kept.push(a); continue; }
+                const hint = entry.hint;
+                if (hint) { try { if (!core.isHintRelatedToTitle(hint, a.title)) continue; } catch (eRel) {} }
+                kept.push(a);
+              }
+              assigned = kept;
+            }
+          } catch (eFilter) {}
           let changed = false
           for (let i = 0; i < assigned.length; i++) {
             const a = assigned[i]
