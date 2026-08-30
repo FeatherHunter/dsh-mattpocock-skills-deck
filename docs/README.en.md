@@ -201,9 +201,11 @@ MIT © FeatherHunter
 
 Thanks to everyone who opened an issue, sent a PR, or joined a discussion — you made this plugin better bit by bit.
 
-[@pioneerAlone](https://github.com/pioneerAlone) — reported #298 (duplicate details/better-sidebar with clear repro), #274, #234 and landed PR #273 — thanks for making the reinstall experience smooth again 🌹
+[@pioneerAlone](https://github.com/pioneerAlone) — reported #298 (duplicate details/better-sidebar with clear repro), #274, #234 and landed PRs #273, #316 — thanks for making the reinstall experience smooth again 🌹
 
 [@Shimmernight](https://github.com/Shimmernight) — filed #277 and PRs #287, #275, #106
+
+[@21967201](https://github.com/21967201) — opened PR #321 (triage + wayfinder labels docs)
 
 [@angenet](https://github.com/angenet) — reported #295, #262 on macOS checks
 
