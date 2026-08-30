@@ -21,5 +21,10 @@
   },
   "allowScripts": {
     "esbuild@0.28.2": true
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./package/cordis.patch.yml"
+    }
   }
 }
