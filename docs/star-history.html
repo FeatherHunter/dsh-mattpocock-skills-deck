@@ -10,7 +10,7 @@
 :root{--bg:#0b0e14;--fg:#e6edf3;--muted:#9aa3b2;--border:#1f2937;--card:#111827}
 *{box-sizing:border-box}body{margin:0;font-family:"Patrick Hand",cursive;background:var(--bg);color:var(--fg);line-height:1.6}
 header{max-width:900px;margin:0 auto;padding:28px 20px 0;text-align:center}h1{margin:0;font-size:26px;letter-spacing:0.02em}p.lead{margin:6px 0 0;color:var(--muted);font-size:14px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
-.card{max-width:900px;margin:20px auto;padding:18px;background:var(--card);border:2px solid var(--border);border-radius:14px;box-shadow:4px 4px 0 rgba(255,255,255,0.05)}
+.card{max-width:900px;margin:20px auto;padding:18px 24px 18px 18px;background:var(--card);border:2px solid var(--border);border-radius:14px;box-shadow:4px 4px 0 rgba(255,255,255,0.05);overflow:visible}
 svg{width:100%!important;height:auto!important;display:block;overflow:visible}
 .stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
 .stat{flex:1 1 140px;background:var(--bg);border:2px solid var(--border);border-radius:10px;padding:12px;text-align:center}
@@ -36,19 +36,24 @@ async function load(){
   }
   const labels = data.map(d=>d.date.slice(5).replace("-","/"));
   const totals = data.map(d=>d.total);
+  const dailys = data.map(d=>d.daily);
   const last = data[data.length-1];
-  const maxDaily = Math.max(...data.map(d=>d.daily));
-  document.getElementById("stats").innerHTML = `<div class=stat><b>${last.total}</b><span>当前 Stars</span></div><div class=stat><b>${maxDaily}</b><span>单日峰值</span></div><div class=stat><b>${data.length}</b><span>有星之日</span></div>`;
+  const maxDaily = Math.max(...dailys);
+  const avgDaily = (dailys.reduce((a,b)=>a+b,0)/dailys.length).toFixed(1);
+  document.getElementById("stats").innerHTML = `<div class=stat><b>${last.total}</b><span>当前 Stars</span></div><div class=stat><b>${maxDaily}</b><span>单日峰值</span></div><div class=stat><b>${avgDaily}</b><span>日均新增</span></div><div class=stat><b>${data.length}</b><span>有星之日</span></div>`;
   const svg = document.getElementById("chart");
-  // Fix right-edge clipping: dynamic xTickCount and responsive SVG
-  const tickCount = Math.min(8, Math.max(3, labels.length));
+  // Fix right-edge clipping: fewer ticks and extra right padding
+  const tickCount = Math.min(5, Math.max(3, Math.ceil(labels.length / 2)));
   new chartXkcd.Line(svg, {
     title: "GitHub Stars",
     xLabel: "Date",
     yLabel: "Stars",
     data: {
       labels,
-      datasets: [{ label: "dsh-mattpocock-skills-deck", data: totals }]
+      datasets: [
+        { label: "Total Stars", data: totals },
+        { label: "Daily New", data: dailys }
+      ]
     },
     options: {
       xTickCount: tickCount,
@@ -59,7 +64,7 @@ async function load(){
       dotSize: 0.5,
       strokeColor: "white",
       backgroundColor: "#0b0e14",
-      dataColors: ["#ff6b6b"],
+      dataColors: ["#ff6b6b", "#38bdf8"],
       fontFamily: "Patrick Hand"
     }
   });

@@ -233,6 +233,8 @@ Scan to join the topic group — QR code never expires. Casual chat in the group
 
 <div align="center">
 
-<a href="https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html">View Star History (Interactive) — Hand-drawn</a>
+<a href="https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html">
+  <img src="https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.svg" alt="Star History Chart" width="800">
+</a>
 
 </div>
