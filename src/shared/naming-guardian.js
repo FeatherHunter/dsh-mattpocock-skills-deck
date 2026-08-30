@@ -390,26 +390,37 @@ export function isNumberAwaitStage(state) {
  * @returns [{ sessionId, number, title }]
  */
 /**
- * 语义相关性判定（#315 追加修复 · 防无关新号错配）
- * 当会话 hint（如调查308的标题）与新 issue 标题（如309）完全无关时，不应配号。
- * 规则：hint 非空时要求与 title 共享长度≥2 子串，否则判无关。
+ * 语义相关性判定（#315 加固 · 高精度优先）
+ * 目标：会话重命名必须贴合其真实任务，宁可不改名也不错配。
+ * 当 hint 与新 issue 标题完全无关时，不应配号。
+ * 规则（宁严勿宽）：
+ * - 先经 cleanTitleText 与去前缀（“任务: ”等）清洗，排除通用前缀误判；
+ * - 精确相等即相关；
+ * - 长度≥4 的包含即相关（避免短词如“修复”2字误判）；
+ * - 否则要求共享长度≥4 的连续子串（对中文/英文均有效）；
+ * - 短串（<4）仅精确相等才算相关，避免 “111” 误配。
  */
 export function isHintRelatedToTitle(hint, title) {
-  const h = String(hint || '').trim();
-  const t = String(title || '').trim();
+  const hRaw = cleanTitleText(hint || '');
+  const tRaw = cleanTitleText(title || '');
+  if (!hRaw || !tRaw) return false;
+  const stripPrefix = function(s) { return String(s).replace(/^[^:：]{1,12}[:：]\s*/, '').trim(); };
+  const hStripped = stripPrefix(hRaw);
+  const tStripped = stripPrefix(tRaw);
+  const h = hStripped.toLowerCase();
+  const t = tStripped.toLowerCase();
   if (!h || !t) return false;
-  const hl = h.toLowerCase();
-  const tl = t.toLowerCase();
-  if (tl.includes(hl) || hl.includes(tl)) return true;
-  for (let i = 0; i < hl.length - 1; i++) {
-    const sub = hl.slice(i, i + 2).trim();
-    if (sub.length < 2) continue;
-    if (tl.includes(sub)) return true;
-  }
-  for (let i = 0; i < tl.length - 1; i++) {
-    const sub = tl.slice(i, i + 2).trim();
-    if (sub.length < 2) continue;
-    if (hl.includes(sub)) return true;
+  if (h === t) return true;
+  if (h.length >= 4 && t.includes(h)) return true;
+  if (t.length >= 4 && h.includes(t)) return true;
+  const short = h.length < t.length ? h : t;
+  const long = h.length < t.length ? t : h;
+  if (short.length >= 4) {
+    for (let i = 0; i <= short.length - 4; i++) {
+      const sub = short.slice(i, i + 4);
+      if (!sub.trim() || /^[\s:：,，。.]+$/.test(sub)) continue;
+      if (long.includes(sub)) return true;
+    }
   }
   return false;
 }
