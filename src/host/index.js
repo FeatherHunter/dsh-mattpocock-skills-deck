@@ -1417,7 +1417,10 @@ export default {
     }
     function isSkillCardValid(skillText, expectedName) {
       try {
-        const s = String(skillText || '')
+        // #295 加固：先剥首个 UTF-8 BOM 再做 frontmatter 匹配——Windows 编辑器另存的 SKILL.md
+        //   带隐形 BOM 前缀时 frontmatter 本身合法，此前被误判「名片无效 · frontmatter invalid」。
+        //   仅剥离开头一个 BOM：非 BOM 输入逐字节透传（行为差集实测为空），name 精确匹配防冒名机制不变。
+        const s = String(skillText || '').replace(/^\uFEFF/, '')
         const m = s.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/)
         if (!m) return false
         const front = m[1]

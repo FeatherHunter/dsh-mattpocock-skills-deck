@@ -506,6 +506,108 @@ console.log('\n— 验收3.5：多通道并联 — 注册表未命中时任一�
   rmSync(tmpHome5, { recursive: true, force: true })
 }
 
+// ---------- 3.6 BOM 名片（#295 加固）----------
+console.log('\n— 验收3.6：BOM 名片 — Windows 编辑器另存的合法名片不再误判无效 —')
+{
+  const tmpHome6 = mkdtempSync(join(tmpdir(), 'home295-bom-'))
+  const realSkillDir6 = join(tmpHome6, '.agents', 'skills', 'wayfinder')
+  const realCard6 = join(realSkillDir6, 'SKILL.md')
+  mkdirSync(realSkillDir6, { recursive: true })
+  const bomContent = '\uFEFF---\nname: wayfinder\ndescription: bom\n---\n# card\n'
+  writeFileSync(realCard6, bomContent) // 真实盘上 BOM 名片（直读通道用）
+  const platformStub6 = {
+    os: 'linux',
+    path: { join: (...a)=>join(...a), normalize:(p)=>p, dirname:(p)=>p.slice(0,p.lastIndexOf('/')), basename:(p)=>p.split('/').pop(), isAbsolute:(p)=>p.startsWith('/'), sep:'/' },
+    async getHome(){ return tmpHome6 },
+    async resolveExecutable(){return null},
+    env: { get:()=>undefined, has:()=>false },
+    fs: null,
+  }
+  const files6 = new Map()
+  const blocked6 = new Set()
+  const fsMock6 = {
+    async resolve(p, opts) {
+      if (p && typeof p === 'object') return p
+      const base = (opts && opts.cwd) ? String(opts.cwd) : ''
+      const joined = base ? join(base, String(p)) : String(p)
+      return { path: joined }
+    },
+    async readText(target) {
+      const k = (target && typeof target === 'object') ? String(target.path) : null
+      if (!k) throw new Error('readText requires target object')
+      if (blocked6.has(k)) throw new Error('read denied (workspace scope): ' + k)
+      if (files6.has(k)) return files6.get(k)
+      throw new Error('not found: ' + k)
+    },
+    async lstat(p) {
+      if (typeof p !== 'string') throw new Error('lstat requires string path')
+      if (files6.has(p)) return { type: 'file' }
+      if (files6.has(p + '/.dir')) return { type: 'directory' }
+      return undefined
+    },
+    async exists(p) { if (typeof p !== 'string') return false; return files6.has(p) }
+  }
+  platformStub6.fs = fsMock6
+  let invalidateHandler6 = null
+  const skillsMiss6 = {
+    async get(name) { return null }, // 注册表始终未命中 → 走盘上通道
+    on(event, handler) { if (event === 'invalidate' || event === 'didInvalidate') invalidateHandler6 = handler; return () => { invalidateHandler6 = null } },
+    off(event, handler) { if (invalidateHandler6 === handler) invalidateHandler6 = null },
+  }
+  const subprocess6 = { async resolveExecutable(){return null}, spawn(){ return { done: Promise.resolve({exitCode:0}), collected:{stdout:{readFrom:()=>({text:''})}, stderr:{readFrom:()=>({text:''})}}, terminate(){} } } }
+  const timer6 = { timeout: (a,b)=> (typeof a==='function'? setTimeout(a,b): new Promise(r=>setTimeout(r,a))) }
+  const handlers6 = {}
+  const ctx6 = {
+    get(k){
+      if(k==='skills') return skillsMiss6
+      if(k==='fs') return fsMock6
+      if(k==='platform') return platformStub6
+      if(k==='subprocess') return subprocess6
+      if(k==='timer') return timer6
+      if(k==='connection') return { rpc: { handle: (p,fn)=>{handlers6[p]=fn} } }
+      if(k==='sessions') return { get: ()=>null }
+      return undefined
+    },
+    effect: (fn)=>{ try{ const d=fn(); return typeof d==='function'?d:()=>{} } catch{return ()=>{}} },
+    set: ()=>{},
+  }
+  const hostUrl6 = new URL('../src/host/index.js', import.meta.url)
+  const hostMod6 = await import(hostUrl6.href)
+  const mod6 = hostMod6.default ?? hostMod6
+  try{ (mod6.apply ?? mod6).call(null, ctx6) } catch{}
+  await new Promise(r=> setTimeout(r,50))
+  const call6 = async () => {
+    const dispatch = handlers6['/dsws']
+    return await callChain(dispatch, { cwd: tmpHome6, lang: 'zh' })
+  }
+  // 6a：fs 通道读 BOM 名片 → 绿（旧代码此处误判「名片无效 · frontmatter invalid」）
+  const cardKey6 = join(tmpHome6, '.agents', 'skills', 'wayfinder', 'SKILL.md')
+  files6.set(cardKey6, bomContent)
+  const s6a = await call6()
+  const row6a = s6a && s6a.checks ? s6a.checks.find(c=> c.key==='skill:wayfinder' || String(c.name).includes('wayfinder')) : null
+  check(row6a && row6a.level==='ok', 'fs 通道 BOM 名片 → 绿（#295 加固）', JSON.stringify(row6a))
+  check(row6a && /来源|source/.test(row6a.detail), 'BOM 绿牌 detail 含来源路径', row6a && row6a.detail)
+  // 6b：fs 被挡 + 直读真实盘上 BOM 文件 → 绿（与 #296 形态叠加：围栏环境 + BOM 文件）
+  files6.delete(cardKey6)
+  blocked6.add(cardKey6)
+  const s6b = await call6()
+  const row6b = s6b && s6b.checks ? s6b.checks.find(c=> c.key==='skill:wayfinder' || String(c.name).includes('wayfinder')) : null
+  check(row6b && row6b.level==='ok', 'fs 被挡 + 直读 BOM 名片 → 绿', JSON.stringify(row6b))
+  // 6c：BOM + 错名 → 仍判名片无效（加固不放松防冒名：name 精确匹配原样保留）
+  const badDir6 = join(tmpHome6, '.agents', 'skills', 'ask-matt')
+  mkdirSync(badDir6, { recursive: true })
+  const badCard6 = join(badDir6, 'SKILL.md')
+  const bomWrong6 = '\uFEFF---\nname: wrong-name\n---\n# bad\n'
+  writeFileSync(badCard6, bomWrong6)
+  files6.set(join(tmpHome6, '.agents', 'skills', 'ask-matt', 'SKILL.md'), bomWrong6)
+  const s6c = await call6()
+  const row6c = s6c && s6c.checks ? s6c.checks.find(c=> c.key==='skill:ask-matt' || String(c.name).includes('ask-matt')) : null
+  check(row6c && row6c.level==='bad', 'BOM + 错名 → 仍为红牌（防冒名不放松）', JSON.stringify(row6c))
+  check(row6c && /无效|Invalid/.test(row6c.detail), 'BOM + 错名 detail 含「无效」', row6c && row6c.detail)
+  blocked6.delete(cardKey6)
+  rmSync(tmpHome6, { recursive: true, force: true })
+}
+
 // ---------- 4. 等待态有界与失效广播 ----------
 console.log('\n— 验收4：等待态 有界推进 + 失效广播 + 封顶失败 —')
 {
