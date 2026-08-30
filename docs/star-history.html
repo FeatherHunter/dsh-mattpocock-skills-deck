@@ -8,79 +8,52 @@
 <style>
 @import url('"https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap"');
 :root{--bg:#0b0e14;--fg:#e6edf3;--muted:#9aa3b2;--border:#1f2937;--card:#111827}
-*{box-sizing:border-box}body{margin:0;font-family:"Patrick Hand",cursive;background:var(--bg);color:var(--fg);line-height:1.6}
-header{max-width:1200px;margin:0 auto;padding:28px 24px 0;text-align:center}h1{margin:0;font-size:26px;letter-spacing:0.02em}
-.card{max-width:1200px;margin:20px auto;padding:48px 80px 36px 80px;background:var(--card);border:2px solid var(--border);border-radius:16px;box-shadow:4px 4px 0 rgba(255,255,255,0.05);overflow:visible}
-svg{width:100%!important;height:auto!important;display:block;overflow:visible}
-.stats{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px;font-family:"Patrick Hand",cursive}
-.stat{flex:1 1 160px;background:var(--bg);border:2.5px solid var(--border);border-radius:14px;padding:14px;text-align:center;transform:rotate(-0.2deg);box-shadow:2px 2px 0 rgba(255,255,255,0.04)}
-.stat:nth-child(even){transform:rotate(0.3deg)}
-.stat b{font-size:22px;display:block;font-family:"Patrick Hand",cursive}.stat span{color:var(--muted);font-size:12px}
-.note{max-width:900px;margin:0 auto;padding:0 20px 28px;color:var(--muted);font-size:12px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}a{color:#a78bfa;text-decoration:none}a:hover{text-decoration:underline}
+*{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:"Patrick Hand",cursive}
+.page{max-width:960px;margin:0 auto;padding:32px 24px 40px}
+.hd{text-align:center;margin-bottom:20px}h1{margin:0;font-size:28px;letter-spacing:0.02em}
+.card{background:var(--card);border:2.5px solid var(--border);border-radius:16px;padding:24px;box-shadow:4px 4px 0 rgba(255,255,255,0.06)}
+.chart-wrap{position:relative;width:100%;height:420px}
+.chart-wrap svg{width:100%!important;height:100%!important;display:block}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:22px}
+@media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--bg);border:2.5px solid var(--border);border-radius:12px;padding:14px;text-align:center;transform:rotate(-0.15deg)}
+.stat:nth-child(2){transform:rotate(0.2deg)}
+.stat:nth-child(3){transform:rotate(-0.1deg)}
+.stat:nth-child(4){transform:rotate(0.15deg)}
+.stat b{font-size:22px;display:block}
+.stat span{color:var(--muted);font-size:12px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
 </style>
 </head>
 <body>
-<header>
-<h1>⭐ Star History</h1>
-</header>
+<div class="page">
+<div class="hd"><h1>⭐ Star History</h1></div>
 <div class="card">
-<svg id="chart"></svg>
+<div class="chart-wrap"><svg id="chart"></svg></div>
 <div class="stats" id="stats"></div>
+</div>
 </div>
 <script>
 async function load(){
-  let data = null;
-  const urls = [new URL("star-history.json", location.href).href, "https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.json", "https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history.json"];
-  for (const url of urls) { try { const res = await fetch(url, {cache:"no-store"}); if (!res.ok) continue; const j = await res.json(); if (Array.isArray(j) && j.length) { data = j; break; } } catch(e) {} }
-  if (!data) throw new Error("star-history.json not found");
-  if(!Array.isArray(data) || data.length===0){
-    document.querySelector("#chart").outerHTML = "<p style=color:var(--muted);text-align:center;padding:40px>暂无数据</p>";
-    return;
-  }
-  const labels = data.map(d=>d.date.slice(5).replace("-","/"));
-  const totals = data.map(d=>d.total);
-  const dailys = data.map(d=>d.daily);
-  const last = data[data.length-1];
-  const maxDaily = Math.max(...dailys);
-  const avgDaily = (dailys.reduce((a,b)=>a+b,0)/dailys.length).toFixed(1);
-  document.getElementById("stats").innerHTML = `<div class=stat><b>${last.total}</b><span>当前 Stars</span></div><div class=stat><b>${maxDaily}</b><span>单日峰值</span></div><div class=stat><b>${avgDaily}</b><span>日均新增</span></div><div class=stat><b>${data.length}</b><span>有星之日</span></div>`;
-  const svg = document.getElementById("chart");
-  // Fix crowding: show every other date, more right margin via chart padding
-  const tickCount = Math.min(4, Math.max(3, Math.ceil(labels.length / 3)));
-  new chartXkcd.Line(svg, {
-    title: "",
-    xLabel: "Date",
-    yLabel: "Stars",
-    data: {
-      labels,
-      datasets: [
-        { label: "Total Stars", data: totals },
-        { label: "Daily New", data: dailys }
-      ]
-    },
-    options: {
-      xTickCount: tickCount,
-      yTickCount: 4,
-      legendPosition: chartXkcd.config.positionType.upLeft,
-      showLine: true,
-      timeFormat: "MM/DD",
-      dotSize: 0.5,
-      strokeColor: "white",
-      backgroundColor: "#0b0e14",
-      dataColors: ["#ff6b6b", "#38bdf8"],
-      fontFamily: "Patrick Hand"
-    }
+  let data=null;
+  const urls=[new URL("star-history.json",location.href).href,"https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.json","https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history.json"];
+  for(const url of urls){try{const r=await fetch(url,{cache:"no-store"});if(!r.ok)continue;const j=await r.json();if(Array.isArray(j)&&j.length){data=j;break;}}catch(e){}}
+  if(!data) throw new Error("star-history.json not found");
+  const labels=data.map(d=>d.date.slice(5).replace("-","/"));
+  const totals=data.map(d=>d.total);
+  const dailys=data.map(d=>d.daily);
+  const last=data[data.length-1];
+  const maxDaily=Math.max(...dailys);
+  const avg=(dailys.reduce((a,b)=>a+b,0)/dailys.length).toFixed(1);
+  document.getElementById("stats").innerHTML=`<div class=stat><b>${last.total}</b><span>当前 Stars</span></div><div class=stat><b>${maxDaily}</b><span>单日峰值</span></div><div class=stat><b>${avg}</b><span>日均新增</span></div><div class=stat><b>${data.length}</b><span>有星之日</span></div>`;
+  const svg=document.getElementById("chart");
+  new chartXkcd.Line(svg,{
+    xLabel:"Date",
+    yLabel:"Stars",
+    data:{labels,datasets:[{label:"Total Stars",data:totals},{label:"Daily New",data:dailys}]},
+    options:{xTickCount:Math.min(5,Math.max(3,Math.ceil(labels.length/3))),yTickCount:4,legendPosition:chartXkcd.config.positionType.upLeft,showLine:true,dotSize:0.5,strokeColor:"white",backgroundColor:"#0b0e14",dataColors:["#ff6b6b","#38bdf8"],fontFamily:"Patrick Hand",unxkcdify:false}
   });
-  // Ensure SVG scales without clipping on small screens
-  svg.style.width = "100%";
-  svg.style.height = "auto";
-  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 }
-load().catch(e=>{ document.querySelector("#chart").outerHTML = "<p style=color:#ef4444;text-align:center;padding:40px>加载失败："+e.message+"</p>"; });
+load().catch(e=>{document.getElementById("chart").outerHTML=`<p style="color:#ef4444;text-align:center;padding:40px">加载失败：${e.message}</p>`});
 </script>
 </body>
 </html>
-
-
-
-
