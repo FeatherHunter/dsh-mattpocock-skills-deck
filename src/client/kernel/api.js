@@ -385,19 +385,32 @@ export let pendingDraftTargetSid = null
         ensureWorkspaceId(cwd).then(function (workspaceId) {
           let reuseSid = null
           try {
-            const curSid = st.sessionId
-            if (curSid && sessions.list && typeof sessions.list.getSnapshot === 'function') {
+            if (sessions.list && typeof sessions.list.getSnapshot === 'function') {
               const snap = sessions.list.getSnapshot()
-              const row = snap.byId[curSid]
-              if (row && row.blank) {
-                const rowCwd = row.cwd || ''
-                const normRow = typeof keyOf === 'function' ? keyOf(rowCwd) : String(rowCwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
-                const normCwd2 = typeof keyOf === 'function' ? keyOf(cwd) : String(cwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
-                if (normRow === normCwd2 || !normRow) {
-                  const curIsBug = /Bug/i.test(row.title || '')
-                  const newIsBug = /Bug/i.test(title || '')
-                  if (curIsBug === newIsBug) reuseSid = curSid
+              const normCwd2 = typeof keyOf === 'function' ? keyOf(cwd) : String(cwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
+              const curSid = st.sessionId
+              if (curSid) {
+                const curRow = snap.byId[curSid]
+                if (curRow && curRow.blank) {
+                  const rowCwd = curRow.cwd || ''
+                  const normRow = typeof keyOf === 'function' ? keyOf(rowCwd) : String(rowCwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
+                  if (normRow === normCwd2 || !normRow) reuseSid = curSid
                 }
+              }
+              if (!reuseSid) {
+                let best = null
+                let bestTime = -1
+                for (const sid in snap.byId) {
+                  const row = snap.byId[sid]
+                  if (!row || !row.blank) continue
+                  if (row.id === curSid) continue
+                  const rowCwd = row.cwd || ''
+                  const normRow = typeof keyOf === 'function' ? keyOf(rowCwd) : String(rowCwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
+                  if (normRow !== normCwd2 && normRow) continue
+                  const t = row.updatedAt || 0
+                  if (t > bestTime) { bestTime = t; best = sid }
+                }
+                if (best) reuseSid = best
               }
             }
           } catch(eReuse) {}
