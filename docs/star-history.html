@@ -9,10 +9,10 @@
 @import url('"https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap"');
 :root{--bg:#0b0e14;--fg:#e6edf3;--muted:#9aa3b2;--border:#1f2937;--card:#111827}
 *{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:"Patrick Hand",cursive}
-.page{max-width:960px;margin:0 auto;padding:32px 24px 40px}
+.page{max-width:960px;margin:0 auto;padding:40px 24px 40px}
 .hd{text-align:center;margin-bottom:20px}h1{margin:0;font-size:28px;letter-spacing:0.02em}
-.card{background:var(--card);border:2.5px solid var(--border);border-radius:16px;padding:32px;box-shadow:4px 4px 0 rgba(255,255,255,0.06)}
-.chart-wrap{position:relative;width:100%;height:480px}
+.card{background:var(--card);border:2.5px solid var(--border);border-radius:16px;padding:40px;box-shadow:4px 4px 0 rgba(255,255,255,0.06)}
+.chart-wrap{position:relative;width:100%;height:520px}
 .chart-wrap svg{width:100%!important;height:100%!important;display:block}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:22px}
 @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
@@ -57,4 +57,5 @@ load().catch(e=>{document.getElementById("chart").outerHTML=`<p style="color:#ef
 </script>
 </body>
 </html>
+
 

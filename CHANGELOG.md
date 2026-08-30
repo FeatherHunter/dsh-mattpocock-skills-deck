@@ -1,5 +1,13 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-30 · v1.7.7 发布：Star History 视口与内嵌加固、技能名片 BOM 兼容
+
+- **Star History 视口加固**：多轮扩大卡片与图表四周留白（64px→80px）、卡片与图表容器解耦（图表独占固定高度、统计区网格独立）、手绘风格与数据分离，动态 xTickCount 与 SVG 响应式自适应，确保 README 与独立页在窄/宽视口下均无裁切，标签与曲线完整可见（对应提交 5d36c0e、b4e3f2b、2fe18d2、c46764b、0908fe5）。
+- **Star History 内嵌与缓存修复**：README 内嵌由 Pages 代理切换为 `raw.githubusercontent.com` 直链、改用 PNG 直链并追加 `v=2` 缓存刷新参数、移除图表冗余标题使页面仅保留单一 Star History、修正 fetch 为基于 location 的绝对路径以兼容 Pages 与 GitHub 预览，实现聚合纯函数与增量更新脚本及每日自动更新 Action，生成的手绘 PNG 确保 GitHub camo 稳定渲染（对应提交 d3244c4、b7989ad、79a15c1、113304b、9df8c69、a149ba5、ea285e1、e2ba839 等）。
+- **Star History 自建链路补全**：新增 `docs/star-history.*` 纯函数聚合、`scripts/star-history.mjs` 与 `update-star-history.mjs` 增量更新、`.github/workflows/star-history.yml` 每日自动更新，手绘图表与静态预览增加每日新增曲线与图例，系统性解决破图与 Failed to fetch（对应提交 8ad4a56、5e5f2a7）。
+- **技能名片 BOM 兼容**：SKILL.md 带 UTF-8 BOM 时不再误报`名片无效`，环境检查红牌准确性提升（对应提交 b459deb）。
+- **验证**：`node scripts/build.mjs` OK，双产物 `client.js` / `package/lib/client.js` 同源，`DSW_VERSION=v1.7.7`；`npm pack --dry-run` 67 文件清洁；`npm run verify` 全绿。
+
 ## 2026-08-30 · v1.7.6 发布：GitHub 地图与 Markdown 跳转加固、状态栏与多级缓存增强
 
 - **GitHub 地图详情修复**：补齐 map 正文五区块解析（`parseMapBody` 统一落盘）与详情页空值兜底，`cacheFormat` 2→3 强制旧缓存重建；修复 `#00` 点击与 `setActiveMap` 判空、GitHub 快照 GraphQL 字段（`Actor.name` / `IssueComment.editedAt`）失配、composer 小写 state 误判等，导致详情页 `Cannot read properties of undefined` 的系列回归（对应提交 9b8d989、4a9c6be、b6d796e、b0a9857、604d9ca）。

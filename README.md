@@ -36,8 +36,8 @@ dsh plugin --profile web add dsh-better-sidebar
 
 # ③ 安装 MattSkillsDeck
 dsh plugin --profile web add dsh-mattpocock-skills-deck
-# 锁定最新版更稳（当前 1.7.6）：
-# dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.6 --registry https://registry.npmjs.org
+# 锁定最新版更稳（当前 1.7.7）：
+# dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.7 --registry https://registry.npmjs.org
 ```
 
 <div align="center">
@@ -75,7 +75,7 @@ dsh plugin --profile web add dsh-better-sidebar
 
 ```bash
 # 给定最新版本号安装
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.6 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.7 --registry https://registry.npmjs.org
 
 # 免全局安装（想更稳，像上面一样锁版本）
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
