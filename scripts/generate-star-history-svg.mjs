@@ -1,7 +1,7 @@
 ﻿import fs from "fs";
 const data = JSON.parse(fs.readFileSync("docs/star-history.json", "utf8"));
 if (!data.length) { console.log("No data"); process.exit(0); }
-const width = 800, height = 420, pad = 45;
+const width = 800, height = 420, pad = 70;
 const xs = data.map(d => new Date(d.date).getTime());
 const totals = data.map(d => d.total);
 const dailys = data.map(d => d.daily);
@@ -26,3 +26,5 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${
 </svg>`;
 fs.writeFileSync("docs/star-history.svg", svg);
 console.log("Wrote docs/star-history.svg");
+
+
