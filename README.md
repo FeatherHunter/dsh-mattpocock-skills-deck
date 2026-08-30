@@ -235,6 +235,6 @@ MIT © FeatherHunter
 
 <div align="center">
 
-[![Star History Chart](https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history.png)](https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html)
+[![Star History Chart](https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history.png?v=2)](https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html)
 
 </div>
