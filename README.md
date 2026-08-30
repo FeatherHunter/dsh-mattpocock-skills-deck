@@ -33,12 +33,16 @@ npm install -g @deepseek-ai/dsh
 
 # ② 安装 MattSkillsDeck —— --profile 必填：装进你实际使用的 DSH 入口对应的 profile
 #    （装错 profile 等于没装，重启多少次都不会加载）
-dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用（绝大多数人）
-# dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
+dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
+#     或者
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用
 # 锁定最新版更稳（当前 1.7.7）：
-# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.7 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.7 --registry https://registry.npmjs.org
+#     或者
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.7 --registry https://registry.npmjs.org
 
 # ③ 窄屏更好用（可选）：better-sidebar 记得装进同一个 profile
+dsh plugin --profile web add dsh-better-sidebar
 dsh plugin --profile desktop add dsh-better-sidebar
 ```
 
@@ -52,9 +56,9 @@ dsh plugin --profile desktop add dsh-better-sidebar
 <summary>窄屏更好用？配个 better-sidebar</summary>
 
 推荐搭配 better-sidebar：在 VSCode 风格的侧边栏里并排查看列表与详情，体验更佳。
-注意装进**同一个 profile**（下例以桌面应用为例，web 服务用户换成 `--profile web`）：
 
 ```bash
+dsh plugin --profile web add dsh-better-sidebar
 dsh plugin --profile desktop add dsh-better-sidebar
 ```
 
