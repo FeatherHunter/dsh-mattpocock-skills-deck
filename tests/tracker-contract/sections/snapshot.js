@@ -163,6 +163,41 @@ export async function run() {
       `fastUsed=${fastUsed} listCalls=${listCalls}`)
   }
 
+  // ── map 正文五区块（Destination/Notes/Decisions so far/Not yet specified/Out of scope）──
+  // 回归：快照经 composeSnapshot 后，map 必须携带解析后的区块字段。UI 详情页（MapDetail）
+  // 直接读 m.decisions.length / m.fog.length / m.outOfScope.length；GitHub 后端切到编排器后
+  // 曾漏解析正文，点击 Map 行进详情页即报 Cannot read properties of undefined (reading 'length')。
+  {
+    const MAP_BODY = [
+      { key: 'm1', type: 'map', title: 'M', state: 'open', body: '## Destination\n做好一件事\n## Notes\n背景说明\n## Decisions so far\n- [定版：先修详情页](https://example.com/1) 理由一\n## Not yet specified\n- 迷雾一\n<!-- 注释不进入迷雾 -->\n## Out of scope\n- 不做二\n', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
+      { key: 'm2', type: 'map', title: 'M2', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
+    ]
+    const registry = createRegistry({}, { matchesTimeout: 50 })
+    registry.register({
+      id: 'mapbody', label: 'mapbody',
+      create: () => ({ list: async () => ({ ok: true, data: MAP_BODY }) }),
+      matches: async () => true,
+    })
+    const composer = createSnapshotComposer(registry, { snapshotTtl: 50, depsTtl: 50 })
+    const r = await composer.composeSnapshot('mapbody', ref, {})
+    const m1 = r.snapshot.maps.find((x) => x.key === 'm1')
+    const m2 = r.snapshot.maps.find((x) => x.key === 'm2')
+    await assert('map 区块解析：destination/notes/decisions/fog/outOfScope 命中正文',
+      m1 && m1.destination === '做好一件事' && m1.notes === '背景说明'
+        && Array.isArray(m1.decisions) && m1.decisions.length === 1
+        && m1.decisions[0].title === '定版：先修详情页' && m1.decisions[0].url === 'https://example.com/1'
+        && Array.isArray(m1.fog) && m1.fog.length === 1 && m1.fog[0] === '- 迷雾一'
+        && Array.isArray(m1.outOfScope) && m1.outOfScope.length === 1 && m1.outOfScope[0] === '- 不做二',
+      JSON.stringify({ m1: m1 && { destination: m1.destination, notes: m1.notes, decisions: m1.decisions, fog: m1.fog, outOfScope: m1.outOfScope } }))
+    await assert('map 区块字段恒为 EMPTY（正文为空也给数组/字符串，不 MISSING）',
+      m2 && Array.isArray(m2.decisions) && m2.decisions.length === 0
+        && Array.isArray(m2.fog) && m2.fog.length === 0
+        && Array.isArray(m2.outOfScope) && m2.outOfScope.length === 0
+        && typeof m2.destination === 'string' && m2.destination === ''
+        && typeof m2.notes === 'string' && m2.notes === '',
+      JSON.stringify({ m2: m2 && { destination: m2.destination, notes: m2.notes, decisions: m2.decisions, fog: m2.fog, outOfScope: m2.outOfScope } }))
+  }
+
   // ── 未知后端 ──
   {
     const composer = createSnapshotComposer(createRegistry({}, { matchesTimeout: 50 }), {})

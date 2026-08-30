@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #303 · 面板数据按工作区共享（A 现状 vs B 目标）</title>
+<style>
+:root{--bg:#0c0e12;--panel:#16181d;--card:#1c1f27;--card2:#20242e;--border:#2a2d35;--border2:#3a3f4a;--text:#e6edf3;--muted:#a1a1aa;--caption:#8b8b95;--primary:#c084fc;--primary2:#a855f7;--success:#4ade80;--error:#f87171;--blue:#58a6ff;--amber:#fbbf24}
+html[data-theme="light"]{--bg:#f6f8fa;--panel:#ffffff;--card:#f6f8fa;--card2:#eef1f4;--border:#e5e7eb;--border2:#d1d5db;--text:#0f1115;--muted:#5b6470;--caption:#9ca3af;--primary:#8b5cf6;--success:#16a34a;--error:#dc2626;--blue:#0969da;--amber:#b45309}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.55}
+html[data-theme="light"],html[data-theme="light"] body{background:#f6f8fa}
+.badge{position:fixed;top:8px;left:8px;background:#ff3b30;color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;z-index:9999;letter-spacing:.02em}
+.theme-toggle{position:fixed;top:8px;right:12px;z-index:9999;display:flex;gap:6px}
+.theme-toggle button{font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer}
+.theme-toggle button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.wrap{max-width:1560px;margin:0 auto;padding:26px 18px 90px}
+h1{font-size:17px;margin:16px 0 6px}
+.sub{font-size:13px;color:var(--muted);margin-bottom:14px}
+.sub b{color:var(--text)}
+.code{font-family:Consolas,"SF Mono",Menlo,monospace;font-size:12px}
+.mono{font-family:Consolas,"SF Mono",Menlo,monospace}
+.hint{font-size:12px;color:var(--caption)}
+.modebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px}
+.mode-seg{display:inline-flex;border:1px solid var(--border2);border-radius:10px;overflow:hidden}
+.mode-seg button{font-size:13px;padding:7px 16px;border:0;background:var(--panel);color:var(--muted);cursor:pointer;font-weight:600}
+.mode-seg button.active{background:var(--primary);color:#fff}
+.mode-seg button.active.a{background:var(--error);color:#fff}
+.mode-seg button.active.b{background:var(--success);color:#101}
+.mode-label{font-size:12px;color:var(--caption);max-width:560px}
+.btn{font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn:hover{border-color:var(--border2)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+.btn.danger{background:var(--card);border-color:rgba(248,113,113,.4);color:var(--error)}
+.btn.ghost{background:transparent;color:var(--muted);border-color:transparent}
+.btn[disabled],.btn.disabled{opacity:.55;cursor:not-allowed}
+.cols{display:grid;grid-template-columns:420px 1fr 400px;gap:12px;align-items:start}
+@media(max-width:1280px){.cols{grid-template-columns:1fr}}
+.card{border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:12px;margin-bottom:10px}
+.card h3{margin:0 0 8px;font-size:13px;display:flex;align-items:center;gap:8px;justify-content:space-between}
+.sect-title{font-size:12px;font-weight:700;color:var(--caption);text-transform:uppercase;letter-spacing:.06em;margin:14px 2px 8px}
+.mock{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.mock .chips{display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:var(--card2);border-bottom:1px solid var(--border)}
+.chip{font-size:12px;padding:3px 9px;border-radius:99px;border:1px solid var(--border);background:var(--panel);cursor:pointer;color:var(--muted)}
+.chip.active{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+.chip .ref{opacity:.75;font-size:10px}
+.mock-head{padding:9px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--card2)}
+.mock-head .title{font-size:13px;font-weight:700}
+.mock-head .meta{font-size:11px;color:var(--muted)}
+.tabs{display:flex;gap:2px;padding:6px 10px 0;border-bottom:1px solid var(--border)}
+.tabs button{font-size:12px;padding:5px 11px;border:0;background:transparent;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tabs button.active{color:var(--text);border-bottom-color:var(--primary)}
+.tabs button .dot{color:var(--error)}
+.mock-body{min-height:230px;padding:9px 10px;position:relative}
+.row{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;border:1px solid transparent;margin-bottom:5px;background:var(--card);font-size:12.5px}
+.row.flash{background:rgba(192,132,252,.14);border-color:rgba(192,132,252,.5)}
+.row .st{font-size:10px;padding:1px 7px;border-radius:99px;border:1px solid var(--border);color:var(--muted);flex:none}
+.row .st.open{color:var(--success);border-color:rgba(74,222,128,.4)}
+.row .st.closed{color:var(--caption);border-color:var(--border)}
+.row .tt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .cm{font-size:10px;color:var(--blue);flex:none}
+.flash-note{font-size:11px;color:var(--primary);margin:2px 0 6px}
+.overlay{position:absolute;inset:0;background:rgba(10,11,15,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text);z-index:5;border-radius:0 0 12px 12px}
+html[data-theme="light"] .overlay{background:rgba(255,255,255,.8)}
+.spinner{width:26px;height:26px;border-radius:50%;border:3px solid var(--border2);border-top-color:var(--primary);animation:spin 0.9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.overlay .txt{font-size:12.5px;color:var(--muted)}
+.ov-note{font-size:11px;color:var(--caption)}
+.statusbar{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--border);background:var(--card2);font-size:11.5px;color:var(--muted);flex-wrap:wrap}
+.statusbar .key{color:var(--blue)}
+.fresh-ok{color:var(--success)}
+.fresh-stale{color:var(--amber)}
+.fresh-none{color:var(--error)}
+.mini-spinner{display:inline-block;width:11px;height:11px;border-radius:50%;border:2px solid var(--border2);border-top-color:var(--primary);animation:spin .9s linear infinite;vertical-align:-1px}
+.log{font-size:12px;max-height:330px;overflow:auto;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px 10px}
+.log::-webkit-scrollbar{width:8px}
+.log::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
+.lg{padding:3px 4px;border-bottom:1px dashed var(--border);display:flex;gap:8px;align-items:baseline}
+.lg:last-child{border-bottom:0}
+.lg .t{font-size:10px;color:var(--caption);flex:none;min-width:46px}
+.lg .m{flex:1}
+.lg.info .m{color:var(--text)}
+.lg.ok .m{color:var(--success)}
+.lg.warn .m{color:var(--amber)}
+.lg.err .m{color:var(--error)}
+.lg .cnt{font-size:10px;color:var(--caption);flex:none}
+.scen-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.scen-tabs button{font-size:12px;padding:5px 10px;border-radius:99px;border:1px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer}
+.scen-tabs button.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.step{display:flex;gap:9px;padding:8px;border:1px solid var(--border);border-radius:10px;margin-bottom:7px;background:var(--card);align-items:flex-start}
+.step .no{font-size:11px;font-weight:700;color:var(--caption);flex:none;width:20px;text-align:center;margin-top:3px}
+.step .bd{flex:1}
+.step .hd{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.step .nm{font-size:13px;font-weight:600}
+.step .nt{font-size:12px;color:var(--muted);margin-top:3px}
+.step.done{opacity:.62}
+.step.done .no{color:var(--success)}
+.step.cur{outline:1px solid var(--primary2);outline-offset:0}
+.step .btn{padding:4px 10px;font-size:12px}
+.state-grid{display:flex;flex-direction:column;gap:6px}
+.kbox{border:1px solid var(--border);border-radius:10px;background:var(--card);padding:8px 9px;font-size:12px}
+.kbox .kh{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:4px}
+.kbox .kk{font-weight:700;font-size:12.5px}
+.kbox .kv{color:var(--muted);font-size:11.5px;line-height:1.5}
+.kbox .badge2{font-size:10px;padding:1px 7px;border-radius:99px;border:1px solid var(--border);color:var(--muted)}
+.kbox .badge2.hot{color:var(--amber);border-color:rgba(251,191,36,.45)}
+.kbox .badge2.good{color:var(--success);border-color:rgba(74,222,128,.4)}
+.kbox .badge2.bad{color:var(--error);border-color:rgba(248,113,113,.45)}
+.sbox{border:1px solid var(--border);border-radius:10px;background:var(--card);padding:8px 9px;font-size:12px;margin-bottom:6px}
+.sbox .sh{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.sbox .nm{font-weight:600}
+.sbox .kv{color:var(--muted);font-size:11.5px;margin-top:3px;line-height:1.55}
+.pv{color:var(--blue)}
+.shared{color:var(--success)}
+.cnt-table{width:100%;font-size:12px;border-collapse:collapse}
+.cnt-table th,.cnt-table td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--border)}
+.cnt-table th{color:var(--caption);font-weight:600;text-align:left}
+.cnt-table td:first-child{text-align:left}
+.cnt-table td.big{font-weight:700}
+.cnt-table td.a{color:var(--error)}
+.cnt-table td.b{color:var(--success)}
+.diagram{display:flex;flex-direction:column;gap:0;padding:6px 0}
+.dlayer{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:10px}
+.dlayer .dl-head{font-size:12px;font-weight:700;margin-bottom:8px;color:var(--text)}
+.dlayer .dl-caption{font-size:11px;color:var(--muted);margin-bottom:6px}
+.dbxes{display:flex;gap:8px;flex-wrap:wrap}
+.dbox{border:1px solid var(--border2);border-radius:9px;background:var(--card2);padding:7px 9px;font-size:11.5px;min-width:150px}
+.dbox .db-t{font-weight:700;margin-bottom:4px;display:flex;gap:6px;align-items:center}
+.dbox .db-v{color:var(--muted);line-height:1.5}
+.dbox .pri-chips{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+.pri-chip{font-size:9.5px;padding:1px 6px;border-radius:99px;background:rgba(88,166,255,.12);color:var(--blue);border:1px solid rgba(88,166,255,.28)}
+.shared-chip{font-size:9.5px;padding:1px 6px;border-radius:99px;background:rgba(74,222,128,.1);color:var(--success);border:1px solid rgba(74,222,128,.3)}
+.dconn{display:flex;flex-direction:column;align-items:center;padding:2px 0}
+.dconn .ln{width:2px;height:16px;background:var(--border2)}
+.dconn .lab{font-size:10.5px;color:var(--caption);margin:1px 0}
+.dconn .lab b{color:var(--text)}
+.notes-list{font-size:12.5px;color:var(--muted);line-height:1.7}
+.notes-list li{margin-bottom:5px}
+.diff-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.diff-table th,.diff-table td{border:1px solid var(--border);padding:7px 9px;text-align:left;vertical-align:top}
+.diff-table th{background:var(--card);font-size:12px;color:var(--caption)}
+.diff-table td.dim{font-weight:700;white-space:nowrap;color:var(--text)}
+.diff-table td.av{color:var(--muted)}
+.diff-table td.bv{color:var(--text)}
+.diff-table td.bv .need{color:var(--amber);font-weight:600}
+.diff-table td a{color:var(--blue);text-decoration:none}
+.mstatic{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+@media(max-width:1080px){.mstatic{grid-template-columns:1fr}}
+.mcard{border:1px solid var(--border);border-radius:10px;background:var(--card);padding:9px 10px;font-size:12px}
+.mcard .mt{font-weight:700;margin-bottom:4px}
+.mcard .mv{color:var(--muted);line-height:1.6}
+.collapse{border:1px solid var(--border);border-radius:10px;background:var(--card);margin-bottom:9px;overflow:hidden}
+.collapse>summary{padding:8px 11px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--muted)}
+.collapse .cb{padding:8px 12px 10px;font-size:12px;color:var(--muted);line-height:1.7}
+.footer{font-size:11.5px;color:var(--caption);margin-top:18px;border-top:1px solid var(--border);padding-top:10px}
+</style>
+</head>
+<body>
+<div class="badge">PROTOTYPE · 未参与验收 · 仅供 #304 实现参考（#303 已由维护者定夺关闭）</div>
+<div class="theme-toggle"><button data-th="dark" class="active">暗</button><button data-th="light">亮</button></div>
+<div class="wrap">
+<h1>面板数据能否「按工作区共享一份、新会话秒显不转圈」？—— A 现状 vs B 目标 可交互对比原型</h1>
+<div class="sub">
+<b>本原型要回答的问题：</b>同一工作区（文件夹）的多个会话，共享同一份面板数据、新开会话秒显缓存并随下次定时静默更新——这个状态模型与交互边界（何时秒显、何时静默、何时必须显示遮罩），是否比现状更合理、可直接拍板？<br>
+<b>怎么用：</b>先在上方选 <b>A 现状</b> 或 <b>B 目标</b>，再到「演练场景」选一条动线点「开始」，按步骤点击；每一步后看右侧状态面板与下方事件日志的变化。也可直接点自由操作按钮任意乱按。<br>
+<b>声明：</b>本原型<b>不含任何真实网络请求</b>，只示意状态流转与视觉差异；A 模式行为按研究报告 #300 的行号事实建模，个别偶发场景为脚本化示意（见「与现行差异 → 来源与假设」）。
+</div>
+
+<div class="modebar">
+  <div class="mode-seg" id="modeSeg">
+    <button data-mode="A">A · 现状（按会话）</button>
+    <button data-mode="B" class="active">B · 目标（按工作区共享）</button>
+  </div>
+  <button class="btn" id="btnAuto">⏱ 自动节拍：关</button>
+  <button class="btn" id="btnReset">↺ 重置</button>
+  <div class="mode-label" id="modeDesc"></div>
+</div>
+
+<div class="cols">
+  <div>
+    <div class="sect-title">① 面板视觉（当前活跃会话）</div>
+    <div class="mock" id="mockPanel"></div>
+  </div>
+
+  <div>
+    <div class="sect-title">② 演练场景与自由操作</div>
+    <div class="card">
+      <div class="scen-tabs" id="scenTabs"></div>
+      <div id="scenBody"></div>
+    </div>
+    <div class="sect-title">③ 自由操作按钮</div>
+    <div class="card" id="freePlay"></div>
+    <div class="sect-title">④ 事件日志（含请求计数）</div>
+    <div class="card" style="padding:8px">
+      <div class="log" id="logBox"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sect-title">⑤ 状态面板：工作区共享抽屉 vs 会话状态盒</div>
+    <div class="card"><div class="state-grid" id="stateBox"></div></div>
+    <div class="sect-title">⑥ 请求计数对比（本模式累加，切模式清零）</div>
+    <div class="card" style="padding:8px">
+      <table class="cnt-table" id="cntTable"></table>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <h3>📊 数据模型示意：会话状态盒 + 工作区级共享抽屉（B 目标）</h3>
+  <div class="diagram" id="diagram"></div>
+</div>
+
+<div class="card" style="margin-top:10px">
+  <h3>🆚 与现行链路的差异说明（A 现状 → B 目标）</h3>
+  <div class="mstatic">
+    <div class="mcard"><div class="mt">⚡ 秒显（有数据必秒显）</div><div class="mv">打开/切换/新开面板 = 首帧即渲染旧数据，<b>零遮罩零转圈</b>。状态栏徽标显示「最后更新 X 秒前」。</div></div>
+    <div class="mcard"><div class="mt">🔔 静默更新（有数据不打扰）</div><div class="mv">定时探针/后台刷新成功后数据<b>无感替换</b>，仅变化的行闪烁 2.6s 自动清除；无遮罩、无 toast。</div></div>
+    <div class="mcard"><div class="mt">🚫 可见加载态（唯一例外）</div><div class="mv">仅当<b>该工作区完全无可展示数据</b>（首开/缓存被挤掉）才出现全屏遮罩；用户显式刷新 = 按钮 spinner，永不遮罩。</div></div>
+  </div>
+  <div id="diffArea"></div>
+</div>
+
+<div class="footer">
+  产物：原型 <span class="mono">docs/prototype/303-panel-workspace-shared.html</span>（main @bd6a76d，与分支 prototype/panel-shared-303 @521e582 同 blob）。<b>本文件不参与验收</b>——#303 已由维护者定夺关闭，仅作 #304 实现参考草样。<br>
+  输入：地图 #299 · 研究报告 #300（分支 research/panel-refresh-299）· 定版 #301 · 规格 #324 · 触发矩阵决议 #302。概念口径见 CONTEXT.md「面板共享语义词条」。
+</div>
+</div>
+
+<script>
+(function(){
+'use strict';
+/* ============================================================
+   核心：纯状态机（可独立抽出复用；页面只是薄壳）
+   无框架、无网络；world 为普通对象，step(world, action) 返回新 world + events
+   ============================================================ */
+var SNAP_N = 0, CHAIN_N = 0;
+
+function keyOf(cwd){
+  // 共享层唯一规整键（#324）：win32 折叠大小写 + 斜杠归一 + 去尾斜杠；演示 POSIX 同规则保留大小写
+  var s = String(cwd || '');
+  s = s.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/+$/, '');
+  var isWin = /^[a-zA-Z]:\//.test(s);
+  if (isWin) s = s.toLowerCase();
+  return s || '/';
+}
+function normKeyClient(cwd){
+  // A 现状：客户端 LRU 键（#300 §6 —— 与 probe 各写一份的折叠版本）
+  return keyOf(cwd);
+}
+function rawOf(target, writing){
+  if (target === 'A') return writing === 'variant' ? 'd:\\WORK\\repoA\\' : 'D:\\work\\repoA';
+  if (target === 'B') return writing === 'variant' ? 'd:\\WORK\\repoB\\' : 'D:\\work\\repoB';
+  return 'D:\\work\\repoC';
+}
+function wkOf(target, writing){ return keyOf(rawOf(target, writing)); }
+function wkLabel(wk){
+  if (wk === keyOf('D:\\work\\repoA')) return 'A · d:/work/repoa';
+  if (wk === keyOf('D:\\work\\repoB')) return 'B · d:/work/repoB';
+  if (wk === keyOf('D:\\work\\repoC')) return 'C · d:/work/repoC';
+  return wk;
+}
+var RAW_A = 'D:\\work\\repoA', RAW_B = 'D:\\work\\repoB', RAW_AV = 'd:\\WORK\\repoA\\', RAW_BV = 'd:\\WORK\\repoB\\', RAW_C = 'D:\\work\\repoC';
+var WK_A = keyOf(RAW_A), WK_B = keyOf(RAW_B), WK_C = keyOf(RAW_C);
+
+function baseRows(wk){
+  if (wk === WK_C) return [
+    {id:'c1', st:'open', tt:'README · 首次索引', cm:0},
+    {id:'c2', st:'open', tt:'环境检查：仓库可达性', cm:0},
+    {id:'c3', st:'open', tt:'技能清单（探测中）', cm:0}
+  ];
+  if (wk === WK_B) return [
+    {id:'b1', st:'open', tt:'触发矩阵：可见 vs 静默边界', cm:3},
+    {id:'b2', st:'open', tt:'新会话秒显缓存语义', cm:8},
+    {id:'b3', st:'open', tt:'跨工作区切换必须可见更新', cm:2},
+    {id:'b4', st:'closed', tt:'节拍保留声明与冲突登记', cm:0},
+    {id:'b5', st:'open', tt:'加载态互斥规则', cm:5}
+  ];
+  return [
+    {id:'a1', st:'open', tt:'同工作区共享语义（#301 定版）', cm:4},
+    {id:'a2', st:'open', tt:'键单源：keyOf 归一规则', cm:9},
+    {id:'a3', st:'open', tt:'链快照按工作区共享', cm:1},
+    {id:'a4', st:'open', tt:'研究：现行链路全盘点', cm:0},
+    {id:'a5', st:'closed', tt:'LRU20 与队尾保活', cm:0},
+    {id:'a6', st:'open', tt:'dirty 漏窗修复', cm:2}
+  ];
+}
+function cloneRows(rows){
+  return rows.map(function(r){ return {id:r.id, st:r.st, tt:r.tt, cm:r.cm}; });
+}
+
+function makeSnap(world, key, genAt, prevId){
+  SNAP_N += 1;
+  var id = 'snap#' + SNAP_N;
+  var prev = prevId ? world.snapObjs[prevId] : null;
+  var rows = prev ? cloneRows(prev.rows) : cloneRows(baseRows(keyOf(key)));
+  // 模拟 GitHub 上有新事件：翻一行状态、涨一条评论
+  var idx = (world.snapVersion[key] || 0) % rows.length;
+  var r = rows[idx];
+  if (r.st === 'open') { r.st = 'closed'; } else { r.st = 'open'; }
+  r.cm += 1;
+  var idx2 = (idx + 2) % rows.length;
+  rows[idx2].cm += 1;
+  world.snapVersion[key] = (world.snapVersion[key] || 0) + 1;
+  world.snapObjs[id] = { id:id, key:keyOf(key), ver:world.snapVersion[key], genAt:genAt, rows:rows, changed:[idx, idx2] };
+  return id;
+}
+function makeChain(key, genAt){
+  CHAIN_N += 1;
+  var id = 'chain#' + CHAIN_N;
+  world.chainObjs[id] = { id:id, key:key, genAt:genAt, steps:[
+    {n:'工作区识别', ok:true}, {n:'后端令牌', ok:true}, {n:'仓库索引', ok:true}
+  ]};
+  return id;
+}
+function freshOf(world, genAt){
+  if (genAt == null) return 'none';
+  var age = world.now - genAt;
+  if (age <= 60) return 'fresh';
+  return 'stale';
+}
+
+function createWorld(mode){
+  SNAP_N = 0; CHAIN_N = 0;
+  var w = {
+    mode: mode || 'B', now: 0, tickN: 0,
+    sessions: {}, active: 'S1', sidN: 2,
+    snapObjs: {}, chainObjs: {}, snapVersion: {},
+    drawer: {}, lru: [], hostBucket: {}, remote: {}, inflight: {},
+    counters: { wfcwd:0, wfprobe:0, wfrefresh:0, wfsnapshot:0, chain:0 },
+    logs: []
+  };
+  // A 工作区数据：5s 前生成（新鲜）；B 工作区数据：90s 前生成（故意超过 60s 阈值，用于「切回秒显旧数据+静默」演示）
+  w.snapObjs['a1'] = { id:'a1', key:WK_A, ver:1, genAt:-5, rows:cloneRows(baseRows(WK_A)), changed:[] };
+  w.snapObjs['b1'] = { id:'b1', key:WK_B, ver:1, genAt:-90, rows:cloneRows(baseRows(WK_B)), changed:[] };
+  w.snapVersion[WK_A] = 1; w.snapVersion[WK_B] = 1;
+  w.chainObjs['ca1'] = { id:'ca1', key:WK_A, genAt:-30, steps:[{n:'工作区识别',ok:true},{n:'后端令牌',ok:true},{n:'仓库索引',ok:true}] };
+  w.chainObjs['cb1'] = { id:'cb1', key:WK_B, genAt:-300, steps:[{n:'工作区识别',ok:true},{n:'后端令牌',ok:true},{n:'仓库索引',ok:true}] };
+  if (mode === 'B'){
+    w.drawer[WK_A] = { snap:'a1', chain:'ca1', pending:false };
+    w.drawer[WK_B] = { snap:'b1', chain:'cb1', pending:false };
+    w.sessions.S1 = mkSession(w, '会话 1 · A', RAW_A, WK_A, 'a1', 'ca1', 'S1');
+    w.sessions.S2 = mkSession(w, '会话 2 · B', RAW_B, WK_B, 'b1', 'cb1', 'S2');
+  } else {
+    w.lru = [{ key:WK_A, snap:'a1' }, { key:WK_B, snap:'b1' }];
+    w.hostBucket[RAW_A] = { ver:1, snap:'a1' };
+    w.hostBucket[RAW_B] = { ver:1, snap:'b1' };
+    w.sessions.S1 = mkSession(w, '会话 1 · A', RAW_A, WK_A, 'a1', 'ca1', 'S1');
+    w.sessions.S2 = mkSession(w, '会话 2 · B', RAW_B, WK_B, 'b1', 'cb1', 'S2');
+  }
+  w.active = 'S1';
+  w.logs.push({ t:'T+0', tone:'info', msg:'初始化：会话 1（A）已带数据（5s 前）· 会话 2（B）已带数据（90s 前，已过 60s 新鲜阈值）' });
+  return w;
+}
+function mkSession(world, label, cwd, wk, snap, chain, fixedSid){
+  var sid;
+  if (fixedSid) { sid = fixedSid; } else { world.sidN += 1; sid = 'S' + world.sidN; }
+  if (!label) label = '会话 ' + world.sidN;
+  world.sessions[sid] = {
+    sid:sid, label:label, cwd:cwd, wk:wk, raw:cwd,
+    snapRef:snap || null, chainRef:chain || null, spinner:0, chainSpin:0,
+    priv:{ tab:'list', filter:'open · 更新时间↓', draft:false, activeMap:'#324', breadcrumb:'起点：状态栏打开' },
+    flash:false, flashRows:null
+  };
+  return world.sessions[sid];
+}
+function logEv(world, tone, msg, cnt){
+  var c = cnt ? cnt : '';
+  world.logs.push({ t:'T+' + world.now + 's', tone:tone, msg:msg, cnt:c });
+}
+function sessionsOf(world, wk){
+  var out = [];
+  for (var k in world.sessions){ var s = world.sessions[k]; if (s.wk === wk) out.push(s); }
+  return out;
+}
+function sessionsOfRaw(world, raw){
+  var out = [];
+  for (var k in world.sessions){ var s = world.sessions[k]; if (s.raw === raw) out.push(s); }
+  return out;
+}
+function bump(world, key){
+  if (key === WK_A || key === WK_C){ /* 计数按工作区口径 */ }
+}
+
+/* ---------- step：纯函数（返回 {world, events}；world 原地更新，页面持有引用） ---------- */
+function step(world, action){
+  var ev = [];
+  var at = function(tone, msg, cnt){ ev.push({ tone:tone, msg:msg, cnt:cnt }); };
+  var w = world;
+
+  if (action.type === 'setMode'){
+    w.mode = action.mode;
+    at('info', '模式切换 → ' + (action.mode === 'B' ? 'B 目标（按工作区共享抽屉）' : 'A 现状（按会话各跑）') + '；请求计数清零');
+  }
+  else if (action.type === 'reset'){
+    w = createWorld(w.mode);
+    at('info', '已重置为初始世界');
+  }
+  else if (action.type === 'tick'){
+    tick(w, at);
+  }
+  else if (action.type === 'openSession'){
+    openSession(w, action.target, action.writing, at);
+  }
+  else if (action.type === 'activate'){
+    activate(w, action.sid, at);
+  }
+  else if (action.type === 'makeChange'){
+    var s = w.sessions[w.active];
+    var key = w.mode === 'B' ? s.wk : s.raw;
+    w.remote[key] = true;
+    at('warn', '远端变化已标记（GitHub 有新事件写入）：' + (w.mode === 'B' ? wkLabel(key) : key) + ' —— 等下一次定时探针判定');
+  }
+  else if (action.type === 'manualRefresh'){
+    manualRefresh(w, at);
+  }
+  else if (action.type === 'viewChain'){
+    viewChain(w, w.active, at);
+  }
+  return { world:w, events:ev };
+}
+
+function tick(w, at){
+  w.now += 4; w.tickN += 1;
+  var fin = [];
+  // —— 1) 结算在途请求（上一拍发起的快照/刷新落地）——
+  for (var key in w.inflight){
+    w.inflight[key] -= 1;
+    if (w.inflight[key] <= 0){
+      var done = resolveInflight(w, key);
+      for (var i = 0; i < done.length; i++) fin.push(done[i]);
+    }
+  }
+  for (var i2 = 0; i2 < fin.length; i2++) at('ok', fin[i2].msg, fin[i2].cnt);
+  // 会话级 spinner（首开加载）
+  var resolvedSids = [];
+  for (var sid in w.sessions){
+    var s = w.sessions[sid];
+    if (s.spinner > 0){
+      s.spinner -= 1;
+      if (s.spinner === 0){
+        var d = w.mode === 'B' ? w.drawer[s.wk] : null;
+        var lk = w.mode === 'B' ? null : lruEntry(w, s.wk);
+        if (!s.snapRef){
+          if (w.mode === 'B'){
+            var nid = makeSnap(w, s.wk, w.now, d && d.snap);
+            d.snap = nid; d.pending = false;
+            s.snapRef = nid;
+            resolvedSids.push(s.sid + '@' + nid);
+          } else {
+            var nid2 = makeSnap(w, s.wk, w.now, (lk ? lk.snap : null) || null);
+            s.snapRef = nid2;
+            w.lru = upsertLru(w, s.wk, nid2);
+            w.hostBucket[s.raw] = { ver:w.snapObjs[nid2].ver, snap:nid2 };
+            resolvedSids.push(s.sid + '@' + nid2);
+          }
+        }
+      }
+    }
+    if (s.chainSpin > 0){
+      s.chainSpin -= 1;
+      if (s.chainSpin === 0 && !s.chainRef){
+        if (w.mode === 'B'){
+          var dd = w.drawer[s.wk];
+          if (dd && dd.chain){ s.chainRef = dd.chain; at('ok', '检查链：宿主返回 → 落抽屉并按「工作区键+后端 id」共享：' + dd.chain); }
+          else { var cidC = makeChain(s.wk, w.now); if (dd) dd.chain = cidC; s.chainRef = cidC; at('ok', '检查链：宿主重建完成（' + cidC + '）'); }
+        } else {
+          var cidA = makeChain(s.wk, w.now);
+          s.chainRef = cidA;
+          at('ok', '检查链：宿主重建完成（' + cidA + '，键未归一重算）');
+        }
+      }
+    }
+  }
+  for (var j = 0; j < resolvedSids.length; j++){
+    var parts = resolvedSids[j].split('@');
+    at('ok', '会话 ' + parts[0] + ' 首开加载完成 → 快照 ' + parts[1] + '（可见加载态解除）');
+  }
+  // —— 2) 探针：对每个持有工作区判定变化 ——
+  var keys = [];
+  for (var sid2 in w.sessions){
+    var s2 = w.sessions[sid2];
+    var k2 = w.mode === 'B' ? s2.wk : s2.raw;
+    if (keys.indexOf(k2) < 0) keys.push(k2);
+  }
+  if (!keys.length){ at('info', '探针：无工作区持有者 → 零动作（hidden 视线门控同义）'); return; }
+  var probeMsg = [];
+  for (var j2 = 0; j2 < keys.length; j2++){
+    var key3 = keys[j2];
+    w.counters.wfprobe += 1;
+    if (w.remote[key3]){
+      w.remote[key3] = false;
+      // 发起一次强制刷新（B：按工作区；A：按原始串分组）
+      if (w.mode === 'B'){
+        w.inflight[key3] = 1;
+        w.counters.wfrefresh += 1;
+        probeMsg.push({ tone:'ok', msg:'探针 ' + wkLabel(key3) + '：判定变化 → 单次 wf.refresh 在途（aliases 一次求值）' });
+      } else {
+        var rawG = key3;
+        w.inflight[rawG] = 1;
+        w.counters.wfrefresh += 1;
+        var n2 = sessionsOfRaw(w, rawG).length;
+        probeMsg.push({ tone:'ok', msg:'探针 ' + rawG + '（原始串分组）：判定变化 → wf.refresh ×' + n2 + '（组内 ' + n2 + ' 会话按会话各打？否——按组一次）' });
+      }
+      // 差异提示：变体是否并组
+      if (w.mode === 'A'){
+        var sameWkC = sessionsOf(w, keyOf(rawG)).length;
+        var diffRaw = sessionsOfRaw(w, rawG).length;
+        if (sameWkC > diffRaw){
+          probeMsg.push({ tone:'warn', msg:'⚠ 同一物理目录被拆成多个原始串分组（' + keyOf(rawG) + ' 下有 ' + sameWkC + ' 会话、本组 ' + diffRaw + ' 个）—— 重复求值，未按工作区归并' });
+        }
+      }
+    } else {
+      probeMsg.push({ tone:'info', msg:'探针 ' + (w.mode === 'B' ? wkLabel(key3) : key3) + '：无变化 → 零动作' });
+    }
+  }
+  for (var j3 = 0; j3 < probeMsg.length; j3++){
+    at(probeMsg[j3].tone, probeMsg[j3].msg);
+  }
+}
+function lruEntry(w, wk){
+  for (var i = 0; i < w.lru.length; i++){ if (w.lru[i].key === wk) return w.lru[i]; }
+  return null;
+}
+function upsertLru(w, wk, snap){
+  var out = [];
+  for (var i = 0; i < w.lru.length; i++){ if (w.lru[i].key !== wk) out.push(w.lru[i]); }
+  out.unshift({ key:wk, snap:snap });
+  while (out.length > 20) out.pop();
+  return out;
+}
+function resolveInflight(w, key){
+  var res = [];
+  var s1 = sessionsOf(w, key); // B：工作区组
+  var s2 = sessionsOfRaw(w, key); // A：原始串组
+  var group = w.mode === 'B' ? s1 : s2;
+  if (!group.length){
+    res.push({ msg:'刷新落地：该 ' + (w.mode === 'B' ? '工作区' : '分组') + ' 已无会话持有（切走了）→ 仅落缓存，不扇出（#232 R3）' });
+    return res;
+  }
+  var prevId = group[0].snapRef || (w.mode === 'B' ? (w.drawer[key] && w.drawer[key].snap) : null);
+  var nid = makeSnap(w, key, w.now, prevId);
+  var changed = w.snapObjs[nid].changed;
+  if (w.mode === 'B'){
+    if (w.drawer[key]) { w.drawer[key].snap = nid; w.drawer[key].pending = false; }
+    for (var i = 0; i < group.length; i++){
+      var st = group[i];
+      st.flash = true; st.flashRows = changed;
+      if (st.snapRef !== nid){
+        if (st.snapRef){ res.push({ msg:'静默替换：' + (st.snapRef ? st.snapRef : '') + ' → ' + nid + '（同对象扇出到 ' + group.length + ' 会话，变化行闪烁 2.6s）' }); }
+        else { res.push({ msg:'扇出补上：' + st.sid + ' 在途搭班车完成 → ' + nid }); }
+      }
+      st.snapRef = nid;
+    }
+  } else {
+    var lk = lruEntry(w, keyOf(key));
+    w.lru = upsertLru(w, keyOf(key), nid);
+    w.hostBucket[key] = { ver:w.snapObjs[nid].ver, snap:nid };
+    var names = [];
+    for (var j = 0; j < group.length; j++){
+      var st2 = group[j];
+      st2.flash = true; st2.flashRows = changed;
+      st2.snapRef = nid;
+      names.push(st2.sid);
+    }
+    res.push({ msg:'分组刷新落地：' + key + ' → ' + nid + '（扇出到 ' + names.join('/') + '，各自成为新副本引用）' });
+    if (sessionsOf(w, keyOf(key)).length > group.length){
+      res.push({ msg:'⚠ 同工作区另一变体分组未拿到本次数据（版本分叉根因：#300 §6 键不一致）' });
+    }
+  }
+  return res;
+}
+function openSession(w, target, writing, at){
+  if (w.mode === 'B'){
+    var raw = rawOf(target, writing);
+    var wk = keyOf(raw);
+    var d = w.drawer[wk];
+    var st = mkSession(w, '会话 ' + (w.sidN + 1) + ' · ' + (target === 'C' ? '全新 C' : wkLabel(wk)), raw, wk, null, null);
+    w.active = st.sid;
+    if (d && d.snap){
+      st.snapRef = d.snap;
+      var so = w.snapObjs[d.snap];
+      var f = freshOf(w, so.genAt);
+      at('ok', 'keyOf(' + raw + ') → ' + wkLabel(wk) + ' → 共享抽屉命中 → 秒显快照 ' + d.snap + '（与同工作区会话同一对象、同一指针）');
+      if (f === 'fresh'){ at('info', '数据在 60s 新鲜阈值内 → 零动作（不发起任何请求）'); }
+      else {
+        w.counters.wfsnapshot += 1;
+        at('info', '数据超过新鲜阈值（' + (w.now - so.genAt) + 's）→ 展示旧数据 + 背后静默 wf.snapshot（宿主 60s 缓存，常免网络）', 'snapshot+1');
+      }
+      if (d.chain){ st.chainRef = d.chain; at('ok', '链快照一并秒显：' + d.chain + '（键 = 工作区键 + 后端 id，检查页首见不等待）'); }
+    } else {
+      st.spinner = 1;
+      at('err', '抽屉无 ' + wkLabel(wk) + ' 的数据 → 首开/缓存完全缺失 → 可见加载态（全屏遮罩，本图唯一合法遮罩）');
+      at('info', '发出首载请求（wf.snapshot），下一拍落地');
+    }
+  } else {
+    // A 现状
+    var raw2 = rawOf(target, writing);
+    var wk2 = keyOf(raw2);
+    var st2 = mkSession(w, '会话 ' + (w.sidN + 1) + ' · ' + target, raw2, wk2, null, null);
+    w.active = st2.sid;
+    w.counters.wfcwd += 1;
+    at('info', 'ensureCwd → wf.cwd（会话级往返；#300 §5-A：每新会话 1 次）', 'cwd+1');
+    var lk = lruEntry(w, wk2);
+    var hb = w.hostBucket[raw2];
+    if (lk){ at('ok', '客户端 LRU（normKeyClient 折叠大小写/斜杠）命中 → 秒显 ' + lk.snap); }
+    else { at('warn', '客户端 LRU 未命中 → 无缓存兜底'); }
+    if (hb){ at('info', '宿主槽命中（原始键不折叠）→ 静默路径（304 语义，零重建）'); }
+    else {
+      at('warn', '⚠ 宿主槽未命中（canonicalKey 按原始串分桶、win32 不折叠大小写）→ 需全量重建补数据');
+    }
+    var spin = 0;
+    if (writing === 'variant'){
+      spin = 2;
+      at('err', '⚠ 偶发转圈（脚本化示意）：变体写法落点 → cwd 解析竞态 1 拍 + 宿主槽重建 1 拍，共 2 拍可见遮罩');
+    } else if (!lk){
+      spin = 1;
+      at('err', 'URL 无缓存 → 可见加载态 1 拍');
+    }
+    st2.spinner = spin;
+    var fresh2 = lk ? freshOf(w, w.snapObjs[lk.snap].genAt) : 'none';
+    if (fresh2 === 'fresh'){ at('info', '面板挂载：数据新鲜（≤60s）→ 零动作直接展示'); }
+    else {
+      w.counters.wfsnapshot += 1;
+      at('info', '面板挂载：超阈 → 按会话各跑一次 loadSnapshot（#300 §7.2）', 'snapshot+1');
+    }
+  }
+}
+function activate(w, sid, at){
+  if (!w.sessions[sid]) return;
+  w.active = sid;
+  var st = w.sessions[sid];
+  if (w.mode === 'B'){
+    var d = w.drawer[st.wk];
+    if (!d || !d.snap){
+      if (st.spinner > 0){ at('err', '切换：该工作区无数据且首载在途 → 维持可见加载态'); }
+      else { at('err', '切换：工作区无数据 → 可见加载态 + 首载请求'); st.spinner = 1; }
+      return;
+    }
+    var so = w.snapObjs[d.snap];
+    var f = freshOf(w, so.genAt);
+    at('ok', '切换会话 → 直接展示 ' + d.snap + '（工作区抽共享，与同工作区会话同一数据）');
+    if (f === 'fresh'){ at('info', '数据新鲜（60s 阈值内）→ 零动作'); }
+    else {
+      w.counters.wfsnapshot += 1;
+      at('info', '数据过期（' + (w.now - so.genAt) + 's 前生成）→ 展示旧数据 + 背后静默刷新（无遮罩）', 'snapshot+1');
+    }
+  } else {
+    var lk = lruEntry(w, st.wk);
+    if (lk){
+      var so2 = w.snapObjs[lk.snap];
+      var f2 = freshOf(w, so2.genAt);
+      if (f2 === 'fresh'){ at('ok', '切换会话 → 水合 LRU 命中 ' + lk.snap + '，新鲜 → 直接展示'); }
+      else {
+        w.counters.wfsnapshot += 1;
+        at('info', '切换会话 → 水合 LRU 命中 ' + lk.snap + '，但过期 → 展示旧数据 + 按会话 loadSnapshot（静默）', 'snapshot+1');
+      }
+    } else {
+      at('err', '切换会话 → 无缓存 → 可见加载态');
+      st.spinner = 1;
+    }
+  }
+}
+function manualRefresh(w, at){
+  var st = w.sessions[w.active];
+  if (w.mode === 'B'){
+    var d = w.drawer[st.wk];
+    if (!d || !d.snap){ st.spinner = 1; at('err', '显式刷新：无数据 → 可见加载态'); return; }
+    w.inflight[st.wk] = 1;
+    w.counters.wfrefresh += 1;
+    at('ok', '显式刷新（强制）：按钮 spinner（无遮罩）；单次 wf.refresh 在途，下一拍落地扇出', 'refresh+1');
+  } else {
+    var grp = sessionsOfRaw(w, st.raw);
+    var n = grp.length;
+    w.inflight[st.raw] = 1;
+    w.counters.wfrefresh += n;
+    at('warn', 'refreshAll：按会话逐一 force ×' + n + '（' + grp.map(function(s){return s.sid;}).join('/') + '）—— 同工作区本可一次求值，现状各打一次（#300 §5-C）', 'refresh+' + n);
+  }
+}
+function viewChain(w, sid, at){
+  var st = w.sessions[sid];
+  if (!st) return;
+  if (w.mode === 'B'){
+    var d = w.drawer[st.wk];
+    if (d && d.chain){
+      st.chainRef = d.chain;
+      at('ok', '检查页首见：直接秒显共享链快照 ' + d.chain + '（键 = 工作区键 + 后端 id，零宿主往返）');
+    } else {
+      at('info', '检查页首见：抽屉无链快照 → 宿主 1 拍重建（链缓存 30s 同源）');
+      st.chainSpin = 1;
+    }
+  } else {
+    w.counters.chain += 1;
+    at('info', '检查页首见：链快照按会话存储 → 宿主往返/重建（#300 §5-D：缓存键未归一，变体写法可能重算 25 项技能探测）', 'chain+1');
+    st.chainSpin = 1;
+  }
+}
+
+/* ============================================================
+   页面壳（薄层，仅渲染 + 转发按钮为 step 动作）
+   ============================================================ */
+var world = createWorld('B');
+var autoTimer = null, autoOn = false;
+var scenActive = 's1';
+var scenProg = {}; // scenId -> step index
+window.__protoErr = [];
+
+var SCEN = [
+  { id:'s1', title:'动线一 · A→B→A 切换工作区',
+    desc:'两条主线之一：在 A、B 两个工作区之间来回切换。关注点：切回已缓存工作区是否秒显旧数据、绝不闪遮罩；过期数据是否背后静默更新。',
+    steps:[
+      { act:{type:'activate', sid:'S2'}, name:'切到会话 2（工作区 B）',
+        note:'B 数据 90s 前生成（已过 60s 新鲜阈）。B：直接展示旧 B 数据 + 背后静默刷新，无遮罩；A：水合 LRU 命中，也展示旧数据 + 按会话 loadSnapshot（看事件日志的请求差异）。' },
+      { act:{type:'tick'}, name:'定时探针（静默校验判定）',
+        note:'探针：无变化 → 零动作。B 的静默校验已在「切到会话 2」时发起（宿主 60s 缓存，无变化即不动）；全程无遮罩。' },
+      { act:{type:'makeChange'}, name:'制造远端变化（B）',
+        note:'模拟 GitHub 有新 issue 事件写入 B 工作区。' },
+      { act:{type:'tick'}, name:'定时探针（变化判定 + 刷新在途）',
+        note:'B：判定变化命中 → 单次 wf.refresh 在途（aliases 一次求值，无遮罩），下一拍落地扇出；A：按原始串分组判定，有几组打几次（看右下请求计数）。' },
+      { act:{type:'activate', sid:'S1'}, name:'切回会话 1（工作区 A）',
+        note:'B：直接展示 A 数据（若 A 过期则旧数据 + 静默），永不闪遮罩；观察「跨工作区切换 = 内容必须可见更新、但不可遮罩」。' },
+      { act:{type:'tick'}, name:'定时探针（刷新落地收尾）',
+        note:'上一拍发起的刷新落地：B 工作区全部会话拿到同一对象（行闪烁 2.6s）；对比右下计数——B 全程 wf.refresh=1，A 每组各 +1。收尾：整条动线 B 模式零遮罩。' }
+    ]},
+  { id:'s2', title:'动线二 · 新开同工作区会话（B）',
+    desc:'两条主线之二：在同一工作区里再开新会话。关注点：新会话是否秒显缓存、是否偶发转圈、同物理目录的写法差异是否被正确归并。',
+    steps:[
+      { act:{type:'openSession', target:'B', writing:'std'}, name:'新开会话 3（标准写法 D:\\work\\repoB）',
+        note:'B：keyOf → 抽屉命中 → 秒显 + 同一对象指针；A：继承/水合也能秒显，但多 1 次会话级 wf.cwd + 1 次 loadSnapshot。' },
+      { act:{type:'openSession', target:'B', writing:'variant'}, name:'新开会话 4（变体写法 d:\\WORK\\repoB\\）',
+        note:'B：keyOf 归一 → 仍是同一工作区（同一抽屉），秒显同对象——写法差异零影响；A：客户端 LRU 折叠命中但宿主槽未命中 → 脚本化偶发转圈 2 拍（研究 #300 §6/§9 待查线的示意）。' },
+      { act:{type:'tick'}, name:'定时探针（观察重复求值）',
+        note:'B：每个工作区 1 次探针；A：按原始串分组——B 标准写法与变体写法算两组，同物理目录探针 ×2（看右下计数）。' },
+      { act:{type:'makeChange'}, name:'制造远端变化（当前活跃会话）',
+        note:'变化标记在变体组（A）或工作区 B（B）上。' },
+      { act:{type:'tick'}, name:'定时探针（变化判定 + 刷新在途）',
+        note:'B：1 次 wf.refresh 在途（下一拍落地）；A：变化组 1 次、其余组探针照常——同一物理目录被拆两组时版本可能发叉。' },
+      { act:{type:'tick'}, name:'下一拍（落地 + 扇出）',
+        note:'B：3 个 B 会话同对象闪烁（无遮罩）；A：变化组各自落地，若标准组与变体组版本不齐日志会给出警告。' }
+    ]},
+  { id:'s3', title:'边界 · 全新工作区 C 首开（唯一合法遮罩）',
+    desc:'验证「可见加载态只发生在完全无数据时」的边界（触发矩阵判定轴）。',
+    steps:[
+      { act:{type:'openSession', target:'C', writing:'std'}, name:'首开全新工作区 C',
+        note:'两模式都：抽屉/LRU 无任何数据 → 可见遮罩（本图唯一合法遮罩）。B 加载 1 拍、A 多 1 次会话级 wf.cwd。' },
+      { act:{type:'tick'}, name:'定时探针（首载落地）',
+        note:'遮罩解除，数据到达。C 工作区自此有缓存。' },
+      { act:{type:'openSession', target:'C', writing:'std'}, name:'再开一个 C 工作区会话',
+        note:'已有缓存 → 两模式都秒显：B 同对象秒显；A 水合 LRU 命中秒显（但日志仍带会话级往返）。' }
+    ]},
+  { id:'s4', title:'定时扇出 · 随下次定时静默更新',
+    desc:'「新会话秒显后，背后随下一次定时静默更新」的完整闭环。',
+    steps:[
+      { act:{type:'makeChange'}, name:'制造远端变化（当前工作区）',
+        note:'先污染远端，再等定时。' },
+      { act:{type:'tick'}, name:'定时探针（判定变化 → 单次求值）',
+        note:'B：一次 wf.refresh + 扇出；A：分组各自判定（若变体被拆开则重复）。' },
+      { act:{type:'tick'}, name:'下一拍落地（可选看）',
+        note:'落地细节：同对象引用、行闪烁 2.6s、无遮罩。' },
+      { act:{type:'openSession', target:'A', writing:'std'}, name:'变化后新开 A 会话',
+        note:'B：直接拿到最新数据（抽屉已更新）；A：继承/水合拿的是上一拍数据，可能需再静默刷新补上——「偶发先见旧数据」的体感差异。' }
+    ]},
+  { id:'s5', title:'在途 30s · 新会话搭同一班车',
+    desc:'相同工作区的在途请求，新会话必须复用（30 秒在途复用），不许再发一次。',
+    steps:[
+      { act:{type:'makeChange'}, name:'制造远端变化（B）', note:'准备触发一次刷新。' },
+      { act:{type:'tick'}, name:'定时探针（刷新在途）',
+        note:'B：wf.refresh 在途 1 拍（请求已发出、未返回）；A：同。' },
+      { act:{type:'openSession', target:'B', writing:'std'}, name:'在途期间新开 B 会话',
+        note:'B：抽屉 pending → 搭同一班车（不新增请求），下一拍一起拿到；A：新会话自己再发一次 loadSnapshot（请求数翻倍）。' },
+      { act:{type:'tick'}, name:'下一拍（在途落地）',
+        note:'落地：全组拿到同一对象（B）；A 各组版本可能不齐。' }
+    ]},
+  { id:'s6', title:'检查链 · 首见秒显',
+    desc:'环境检查链快照按「工作区键 + 后端 id」共享，新会话首见即秒显（#324 新增纳入共享）。',
+    steps:[
+      { act:{type:'activate', sid:'S2'}, name:'切到会话 2（B）', note:'准备看检查页。' },
+      { act:{type:'viewChain'}, name:'打开「检查」页签（首见）',
+        note:'B：抽屉链快照命中 → 秒显，零宿主往返；A：链按会话存储 + 宿主缓存键未归一 → 首见宿主 1 拍（计数 +1）。' },
+      { act:{type:'openSession', target:'B', writing:'std'}, name:'新开会话（再看检查页）',
+        note:'B：新会话由抽屉一并秒显（含链快照）；A：只有面板快照，链仍按会话首见宿主。' },
+      { act:{type:'viewChain'}, name:'新会话打开「检查」页签',
+        note:'B：抽屉命中 → 秒显、零宿主往返；A：链首见仍是一次宿主往返（计数 chain+1）——对比明显。' },
+      { act:{type:'tick'}, name:'下一拍（A 的链落地）',
+        note:'落地：A 链重建完成；B 全程零请求。' }
+    ]}
+];
+
+/* ---------- 渲染 ---------- */
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtNow(w, genAt){
+  var age = w.now - genAt;
+  return Math.max(0, age) + 's 前';
+}
+function renderAll(){
+  renderMode();
+  renderMock();
+  renderLog();
+  renderState();
+  renderCounts();
+  renderScen();
+  renderStatic();
+}
+function renderMode(){
+  document.getElementById('modeDesc').textContent = world.mode === 'B'
+    ? 'B 目标：按工作区键单次求值，结果扇出到同工作区全量会话；新会话秒显缓存、随定时静默更新；仅无数据才遮罩。'
+    : 'A 现状：按会话各跑一次 loadSnapshot；分组用原始串；三套键归一不一；链快照不共享；新会话偶发转圈（#300）。';
+  var btns = document.querySelectorAll('#modeSeg button');
+  for (var i = 0; i < btns.length; i++){
+    var b = btns[i];
+    b.className = (b.getAttribute('data-mode') === world.mode ? 'active ' + world.mode : '');
+  }
+}
+function renderMock(){
+  var st = world.sessions[world.active];
+  if (!st){ document.getElementById('mockPanel').innerHTML = '<div class="mock-body">无活跃会话</div>'; return; }
+  var html = '';
+  // 会话 chips
+  html += '<div class="chips">';
+  var names = Object.keys(world.sessions);
+  for (var i = 0; i < names.length; i++){
+    var s = world.sessions[names[i]];
+    var ref = s.snapRef ? ' · ' + s.snapRef : ' · 无数据';
+    html += '<span class="chip' + (s.sid === world.active ? ' active' : '') + '" data-sid="' + s.sid + '">' + esc(s.label) + '<span class="ref">' + (s.snapRef ? ref : '') + '</span></span>';
+  }
+  html += '</div>';
+  // 头部
+  var so = st.snapRef ? world.snapObjs[st.snapRef] : null;
+  var age = so ? fmtNow(world, so.genAt) : '—';
+  var f = so ? freshOf(world, so.genAt) : 'none';
+  var fBadge = f === 'fresh'
+    ? '<span class="fresh-ok">✓ 新鲜（≤60s）</span>'
+    : (f === 'stale' ? '<span class="fresh-stale">⚠ 已过期（>60s）· 展示旧数据+静默幕后翻新</span>' : '<span class="fresh-none">无数据</span>');
+  html += '<div class="mock-head"><span class="title">📖 ' + esc(st.label) + '</span>'
+    + '<span class="meta mono">' + esc(st.cwd) + '</span>'
+    + '<span class="meta" style="color:var(--blue)">键 ' + wkLabel(st.wk) + '</span>'
+    + '<span class="meta">' + (st.snapRef ? '对象 ' + st.snapRef + ' · v' + (so ? so.ver : '') : '') + '</span></div>';
+  // 页签
+  var tabBtns = [['list','列表'], ['map','地图'], ['detail','详情'], ['chain','检查']];
+  html += '<div class="tabs">';
+  for (var t = 0; t < tabBtns.length; t++){
+    var tt = tabBtns[t];
+    html += '<button data-tab="' + tt[0] + '" class="' + (st.priv.tab === tt[0] ? 'active' : '') + '">' + tt[1] + '</button>';
+  }
+  html += '</div>';
+  // 体
+  html += '<div class="mock-body" id="mockBody">';
+  if (st.priv.tab === 'chain'){
+    if (st.chainRef){
+      var co = world.chainObjs[st.chainRef];
+      html += '<div class="flash-note">检查链 · ' + st.chainRef + '（生成 ' + fmtNow(world, co.genAt) + '）</div>';
+      for (var c = 0; c < co.steps.length; c++){
+        var cp = co.steps[c];
+        html += '<div class="row"><span class="st open">✓</span><span class="tt">' + esc(cp.n) + '</span></div>';
+      }
+    } else {
+      html += '<div class="flash-note">检查链 · 首见加载中…</div>';
+      html += '<div class="row"><span class="tt" style="color:var(--muted)">等待宿主返回（1 拍）</span></div>';
+    }
+  } else {
+    if (so){
+      if (st.flash){
+        html += '<div class="flash-note">🔔 静默更新：变化行闪烁 2.6s 后自动清除（无遮罩、无提示条）</div>';
+      }
+      for (var r = 0; r < so.rows.length; r++){
+        var row = so.rows[r];
+        var fl = st.flash && st.flashRows && st.flashRows.indexOf(r) >= 0;
+        html += '<div class="row' + (fl ? ' flash' : '') + '">'
+          + '<span class="st ' + row.st + '">' + (row.st === 'open' ? 'open' : 'closed') + '</span>'
+          + '<span class="tt">' + esc(row.tt) + '</span>'
+          + '<span class="cm">' + row.cm + ' 评论</span></div>';
+      }
+    } else {
+      html += '<div class="row"><span class="tt" style="color:var(--muted)">尚无数据（首开或缓存缺失）</span></div>';
+    }
+  }
+  // 遮罩
+  if (st.spinner > 0){
+    html += '<div class="overlay"><div class="spinner"></div><div class="txt">正在加载面板数据…</div><div class="ov-note">可见加载态：仅「完全无可展示数据」或本场景脚本化偶发时出现</div></div>';
+  }
+  html += '</div>';
+  // 状态栏
+  var manualSpin = world.inflight[world.mode === 'B' ? st.wk : st.raw] ? ' <span class="mini-spinner"></span>' : '';
+  html += '<div class="statusbar">'
+    + '<span>📁 <span class="key mono">' + esc(st.wk === '/' ? st.cwd : wkLabel(st.wk)) + '</span></span>'
+    + '<span>最后更新：' + (so ? fmtNow(world, so.genAt) : '—') + '</span>'
+    + '<span>' + fBadge + '</span>'
+    + '<span style="flex:1"></span>'
+    + '<button class="btn" data-act="refresh" style="padding:3px 9px;font-size:11.5px">↻ 更新' + manualSpin + '</button>'
+    + '</div>';
+  document.getElementById('mockPanel').innerHTML = html;
+}
+function renderLog(){
+  var box = document.getElementById('logBox');
+  var html = '';
+  for (var i = 0; i < world.logs.length; i++){
+    var lg = world.logs[i];
+    html += '<div class="lg ' + lg.tone + '"><span class="t">' + lg.t + '</span><span class="m">' + esc(lg.msg) + '</span>' + (lg.cnt ? '<span class="cnt">' + esc(lg.cnt) + '</span>' : '') + '</div>';
+  }
+  box.innerHTML = html;
+  box.scrollTop = box.scrollHeight;
+}
+function renderState(){
+  var html = '';
+  if (world.mode === 'B'){
+    html += '<div style="font-size:11.5px;color:var(--caption)">工作区级共享抽屉（唯一按工作区键缓存；会话侧只留指针）</div>';
+    var keys = Object.keys(world.drawer);
+    if (!keys.length) html += '<div class="kbox"><span style="color:var(--muted)">（空）</span></div>';
+    for (var i = 0; i < keys.length; i++){
+      var k = keys[i];
+      var d = world.drawer[k];
+      var so = d.snap ? world.snapObjs[d.snap] : null;
+      html += '<div class="kbox">'
+        + '<div class="kh"><span class="kk mono">' + wkLabel(k) + '</span>'
+        + (d.pending ? '<span class="badge2 hot">在途 30s</span>' : '<span class="badge2 good">空闲</span>')
+        + '</div>'
+        + '<div class="kv">面板快照：' + (so ? '<span class="shared">' + so.id + '</span> · v' + so.ver + ' · 生成 ' + fmtNow(world, so.genAt) + ' · 最新生成时间者胜(LRU20 队尾保活)' : '无') + '</div>'
+        + '<div class="kv">链快照：' + (d.chain ? '<span class="shared">' + d.chain + '</span>（键 = 工作区键 + 后端 id，生成 ' + fmtNow(world, world.chainObjs[d.chain].genAt) + '）' : '无') + '</div>'
+        + '<div class="kv">后端选择集：GitHub（工作区级意图，下次水合生效，不即时跳变）</div>'
+        + '</div>';
+    }
+  } else {
+    html += '<div style="font-size:11.5px;color:var(--caption)">A 现状存储：客户端 LRU（折叠键）+ 宿主桶（原始键，不折叠大小写）—— 两套键并存即重复求值根因</div>';
+    html += '<div class="kbox"><div class="kh"><span class="kk">客户端快照 LRU（normKeyClient=折叠）</span></div>';
+    for (var l = 0; l < world.lru.length; l++){
+      var le = world.lru[l];
+      html += '<div class="kv">' + wkLabel(le.key) + ' → ' + le.snap + '（' + fmtNow(world, world.snapObjs[le.snap].genAt) + '，上限 20 队尾保活）</div>';
+    }
+    html += '</div>';
+    html += '<div class="kbox"><div class="kh"><span class="kk">宿主槽（canonicalKey=原始串分桶）</span></div>';
+    for (var h in world.hostBucket){
+      var hb = world.hostBucket[h];
+      html += '<div class="kv mono">' + esc(h) + ' → v' + hb.ver + ' / ' + hb.snap + '</div>';
+    }
+    html += '</div>';
+  }
+  // 会话盒
+  html += '<div style="font-size:11.5px;color:var(--caption);margin-top:8px">会话状态盒（私有行为态不共享）</div>';
+  var sids = Object.keys(world.sessions);
+  for (var j = 0; j < sids.length; j++){
+    var s = world.sessions[sids[j]];
+    var so2 = s.snapRef ? world.snapObjs[s.snapRef] : null;
+    var isAct = s.sid === world.active;
+    html += '<div class="sbox"' + (isAct ? ' style="outline:1px solid var(--primary2)"' : '') + '>'
+      + '<div class="sh"><span class="nm">' + esc(s.label) + (isAct ? '（活跃）' : '') + '</span>'
+      + '<span class="badge2 ' + (so2 ? 'good' : 'bad') + '">' + (so2 ? s.snapRef : '无数据' + (s.spinner ? '·加载中' : '')) + '</span></div>'
+      + '<div class="kv mono">cwd: ' + esc(s.cwd) + '</div>'
+      + '<div class="kv">工作区键 <span class="pv mono">' + wkLabel(s.wk) + '</span>'
+      + (world.mode === 'B' ? ' · 快照引用同对象' : ' · 快照为进程内副本引用') + '</div>'
+      + '<div class="kv">私有：页签 ' + s.priv.tab + ' · 筛选「' + esc(s.priv.filter) + '」' + (s.priv.draft ? ' · 有草稿' : '') + ' · 面包屑 ' + esc(s.priv.breadcrumb) + '</div>'
+      + '</div>';
+  }
+  document.getElementById('stateBox').innerHTML = html;
+}
+function renderCounts(){
+  var c = world.counters;
+  var other = world.mode === 'B' ? 'A' : 'B';
+  var rows = [
+    ['wf.cwd（会话级 cwd 解析）', c.wfcwd],
+    ['wf.probe（轻量变化探测）', c.wfprobe],
+    ['wf.refresh（全量求值/aliases 大查询）', c.wfrefresh],
+    ['wf.snapshot（60s 宿主缓存静默校验）', c.wfsnapshot],
+    ['检查链宿主往返', c.chain]
+  ];
+  var html = '<tr><th>请求（本模式累加</th><th style="text-align:right">' + world.mode + '</th></tr>';
+  for (var i = 0; i < rows.length; i++){
+    html += '<tr><td>' + rows[i][0] + '</td><td class="big ' + (world.mode === 'B' ? 'b' : 'a') + '">' + rows[i][1] + '</td></tr>';
+  }
+  html += '<tr><td style="color:var(--caption)">切到 ' + other + ' 模式后计数清零</td><td></td></tr>';
+  document.getElementById('cntTable').innerHTML = html;
+}
+function renderScen(){
+  // tabs
+  var th = '';
+  for (var i = 0; i < SCEN.length; i++){
+    th += '<button data-scen="' + SCEN[i].id + '" class="' + (SCEN[i].id === scenActive ? 'active' : '') + '">' + SCEN[i].title + '</button>';
+  }
+  document.getElementById('scenTabs').innerHTML = th;
+  var sc = null;
+  for (var j = 0; j < SCEN.length; j++){ if (SCEN[j].id === scenActive) sc = SCEN[j]; }
+  var html = '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">' + esc(sc.desc) + '</div>';
+  html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">'
+    + '<span style="font-size:12px;color:var(--caption)">本场景模式：</span>'
+    + '<span class="mode-seg">'
+    + '<button data-scenmode="A" class="' + (world.mode === 'A' ? 'active a' : '') + '">A 现状</button>'
+    + '<button data-scenmode="B" class="' + (world.mode === 'B' ? 'active b' : '') + '">B 目标</button>'
+    + '</span>'
+    + '<button class="btn primary" data-restart="' + sc.id + '">▶ 开始/重跑本场景</button>'
+    + '<span style="font-size:11px;color:var(--caption)">开始时会重置世界；步骤按钮逐一点击执行。</span>'
+    + '</div>';
+  var stIx = (scenProg[sc.id] || 0);
+  for (var k = 0; k < sc.steps.length; k++){
+    var stp = sc.steps[k];
+    var cls = k < stIx ? 'done' : (k === stIx ? 'cur' : '');
+    var dis = k !== stIx ? ' disabled' : '';
+    html += '<div class="step ' + cls + '"><div class="no">' + (k + 1) + '</div><div class="bd">'
+      + '<div class="hd"><span class="nm">' + esc(stp.name) + '</span>'
+      + '<button class="btn' + dis + '" data-step="' + k + '">' + (k < stIx ? '已执行 ✓' : '▶ 执行') + '</button></div>'
+      + '<div class="nt">' + esc(stp.note) + '</div></div></div>';
+  }
+  if (stIx >= sc.steps.length){
+    html += '<div style="font-size:12.5px;color:var(--success);margin-top:4px">✓ 本场景走完。可点「重跑」换模式 A/B 同场景对比。</div>';
+  }
+  document.getElementById('scenBody').innerHTML = html;
+}
+function renderStatic(){
+  // 数据模型图
+  var dhtml = '';
+  dhtml += '<div class="dlayer"><div class="dl-head">① 会话层 · 会话状态盒（私有行为态 + 指向抽屉的快照指针）</div><div class="dl-caption">每个会话一个状态盒；阅读/交互/草稿行为态互不共享；快照只留指针。</div><div class="dbxes">';
+  var sids = Object.keys(world.sessions);
+  for (var i = 0; i < Math.min(sids.length, 4); i++){
+    var s = world.sessions[sids[i]];
+    var so = s.snapRef ? world.snapObjs[s.snapRef] : null;
+    dhtml += '<div class="dbox"><div class="db-t">' + esc(s.label) + ' <span class="shared-chip" style="margin-left:auto">指针 ' + (so ? so.id : '—') + '</span></div>'
+      + '<div class="db-v">快照：' + (so ? '同对象引用' : '无') + '<br>链：' + (s.chainRef || '—') + '<div class="pri-chips"><span class="pri-chip">当前地图/issue</span><span class="pri-chip">筛选</span><span class="pri-chip">面包屑</span><span class="pri-chip">评论草稿</span></div></div></div>';
+  }
+  dhtml += '</div></div>';
+  dhtml += '<div class="dconn"><div class="ln"></div><div class="lab">↑ 扇出：组内单次求值，同对象赋值给全部指针 ↓</div><div class="ln"></div></div>';
+  dhtml += '<div class="dlayer"><div class="dl-head">② 共享层 · 工作区级共享抽屉（按工作区键 keyOf 单源分桶 · 客户端 LRU20 队尾保活）</div><div class="dl-caption">共享抽屉 = 数据真源；会话盒里的指针都指向这里。</div><div class="dbxes">';
+  dhtml += '<div class="dbox"><div class="db-t">工作区 A <span class="mono" style="font-weight:400">d:/work/repoa</span></div><div class="db-v"><span class="shared-chip">面板快照 snap#x（v+genAt 最新生成时间者胜）</span><br><span class="shared-chip">链快照（键 = 工作区键+后端 id）</span><br><span class="shared-chip">后端选择集（下次水合生效）</span><br><span class="shared-chip">仓库信息 / 后端模块</span><br>在途 30s 共享 promise（命中即搭班车）</div></div>';
+  dhtml += '<div class="dbox"><div class="db-t">工作区 B <span class="mono" style="font-weight:400">d:/work/repob</span></div><div class="db-v">…同样五类共享数据 + 在途去重…<br><span style="color:var(--muted)">变体写法 d:\\WORK\\repoB\\ 经 keyOf 后即本桶</span></div></div>';
+  dhtml += '</div></div>';
+  dhtml += '<div class="dconn"><div class="ln"></div><div class="lab">↓ 每工作区每拍 1 次 wf.probe → 变化才 1 次 wf.refresh（aliases），失败静默重试 ↓</div><div class="ln"></div></div>';
+  dhtml += '<div class="dlayer"><div class="dl-head">③ 远端 · 宿主与 GitHub</div><div class="dbxes"><div class="dbox"><div class="db-t">宿主</div><div class="db-v">wf.probe（轻量）→ wf.refresh（全量）→ 快照单槽 60s 缓存；节拍单源 SYNC。</div></div><div class="dbox"><div class="db-t">GitHub</div><div class="db-v">真实求值唯一发生地；本原型不含真实请求。</div></div></div></div>';
+  dhtml += '<div class="dconn"><div class="ln"></div><div class="lab">⏱ 新会话 hydrate 时序：创建 → keyOf(cwd) → 读抽屉 → 首帧前秒显 → 超阈则静默 wf.snapshot → 下次定时扇出；去重四点：①组内单次求值 ②在途 30s 复用 ③链在途 ④最新生成时间者胜</div></div>';
+  document.getElementById('diagram').innerHTML = dhtml;
+
+  // 差异表
+  var rows = [
+    ['求值单位', '按会话各跑一次 loadSnapshot；4 处重复分支（#300 §5-A/B/C/D）', '按工作区键单次求值 + 组内扇出（主链路已存在，统一键后无重复）'],
+    ['分组键', '原始串严格相等（probe.js refreshGroup）', 'keyOf(cwd) 单源（win32 折叠/斜杠归一/去尾斜杠；POSIX 保留）'],
+    ['键归一', '三套各自为政（store 与 probe 两份重复 + api 变体 + Dock）+ 宿主不折叠', '唯一 keyOf，客户端只用字符串归一，宿主包装同一函数'],
+    ['宿主分桶', 'canonicalKey 原始串分桶、win32 不折叠大小写 → 变体双桶', '同一规整键 → 单桶单槽'],
+    ['新会话水合', 'ns.snapshot = 源会话快照（逐会话继承）+ 客户端 LRU 兜底', '从共享抽屉按工作区键水合（最新生成时间者胜），先于首帧'],
+    ['新会话 cwd 解析', '每会话一次 wf.cwd（#300 §5-A）', '复用工作区映射/getCwdSync，零会话级往返'],
+    ['链快照', '按会话存 st.chainSnapshot；缓存键未归一变体重算 25 项探测', '抽屉按「工作区键+后端 id」共享，新会话首见即秒显'],
+    ['在途去重', 'pendingSnapshotByCwd 按归一键（部分满足）；refreshAll 仍逐会话', '抽屉内同一 promise 30s 复用；任意新会话搭同一班车'],
+    ['加载态触发', '有缓存仍可能遮罩（cwd 竞态/分桶错位/无继承）', '仅「完全无可展示数据」才可见遮罩；超阈 = 展示旧数据+静默'],
+    ['dirty 传播', 'store.js:158 仅查发起轮询的会话 → 首拍漏报（#300 §9 P0）', '任一持有会话命中即排短窗探针'],
+    ['扇出对象', '各会话各自副本，变体间版本可能分叉', '同对象赋值（引用相等），扇出 + 行闪烁 2.6s'],
+    ['工作区切换', '无残留（#45 串台已修）但每次切换附带会话级请求', '直接展示新区数据；同工作区任意会话数据完全一致']
+  ];
+  var thtml = '<table class="diff-table"><tr><th style="width:110px">维度</th><th style="width:46%">A 现状</th><th>B 目标</th></tr>';
+  for (var r = 0; r < rows.length; r++){
+    var row = rows[r];
+    var bv = row[2].indexOf('唯一') >= 0 || row[2].indexOf('已存在') >= 0 ? row[2] : row[2];
+    thtml += '<tr><td class="dim">' + row[0] + '</td><td class="av">' + row[1] + '</td><td class="bv">' + bv + '</td></tr>';
+  }
+  thtml += '</table>';
+  thtml += '<details class="collapse" style="margin-top:10px"><summary>来源与假设（哪些是代码事实、哪些是脚本化示意）</summary><div class="cb">'
+    + '<b>代码事实（行号来源：#300 研究报告 · research/panel-refresh-299 分支）：</b>'
+    + '<ul class="notes-list">'
+    + '<li>4 处按会话重复：ensureCwd 每会话 wf.cwd（api.js:307-318）；probeNow 空 cwd 分支（probe.js:388）；refreshAll 逐 store force（probe.js:480-495）；wf.chain 缓存键未归一（host/index.js:1625-1634）。</li>'
+    + '<li>三套归一不一来：normKeyClient（store.js:479）与 normCwdClientProbe（probe.js:41）两份相同、api.js norm（斜杠折叠+条件小写）、Dock.js（仅斜杠折叠）；宿主 canonicalWorkspaceKey win32 不折叠大小写（src/host/workspaceKey.js）。</li>'
+    + '<li>分组按原始串严格相等（probe.js:346）；refreshGroup 按工作区组内单次求值 + 扇出已存在（probe.js:339-375）。</li>'
+    + '<li>链快照按会话存（st.chainSnapshot），storeOf 水合不含链；宿主 CHAIN_CACHE_MS=30s 键未归一。</li>'
+    + '<li>新会话继承：api.js:395 ns.snapshot = st.snapshot；openTextInNewSession 全程见 #300 §7.1。</li>'
+    + '<li>dirty 漏窗：store.js:158 hitShared||hitSelf 仅查发起轮询的会话（#300 §9 P0）。</li>'
+    + '</ul>'
+    + '<b>脚本化示意（本原型为讲清行为而设，具体根因仍以 #300 §9「待查」与维护者判定为准）：</b>'
+    + '<ul class="notes-list">'
+    + '<li>A 模式「变体写法新会话转圈 2 拍」：是多个真实缺口的合成演示（cwd 解析竞态 + 宿主槽未命中 + 版本分叉），单次出现概率取决于时序与写法落点，即标题所说的「偶发」。</li>'
+    + '<li>请求耗时统一为「1 拍（4s）」，真实宿主往返为亚秒级；转圈的视觉体感由遮罩时长展现。</li>'
+    + '<li>远端变化由「制造远端变化」按钮驱动，真实场景为 GitHub 写入或宿主面板索引增量命中 dirtyCwds。</li>'
+    + '<li>B 目标行为按规格 #324 与触发矩阵决议 #302 建模；与 #304 实现票可能有实现细节差异，以规格为准。</li>'
+    + '</ul>'
+    + '</div></details>';
+  document.getElementById('diffArea').innerHTML = thtml;
+}
+
+/* ---------- 派发 ---------- */
+function dispatch(act){
+  var res = step(world, act);
+  world = res.world;
+  for (var i = 0; i < res.events.length; i++){
+    world.logs.push({ t:'T+' + world.now + 's', tone:res.events[i].tone, msg:res.events[i].msg, cnt:res.events[i].cnt || '' });
+  }
+  if (world.logs.length > 400) world.logs = world.logs.slice(-400);
+  window.__world = world;
+  renderAll();
+}
+function resetWorld(newMode){
+  world = createWorld(newMode || world.mode);
+  window.__world = world;
+  scenProg = {};
+  renderAll();
+}
+function startScen(id){
+  var sc = null;
+  for (var j = 0; j < SCEN.length; j++){ if (SCEN[j].id === id) sc = SCEN[j]; }
+  if (!sc) return;
+  world = createWorld(world.mode);
+  window.__world = world;
+  scenProg[id] = 0;
+  world.logs.push({ t:'T+0', tone:'ok', msg:'场景启动：' + sc.title + '（模式 ' + (world.mode === 'B' ? 'B 目标' : 'A 现状') + '）' });
+  renderAll();
+}
+
+/* ---------- 事件绑定 ---------- */
+document.getElementById('modeSeg').addEventListener('click', function(e){
+  var b = e.target.closest('button');
+  if (!b) return;
+  dispatch({ type:'setMode', mode:b.getAttribute('data-mode') });
+  scenProg = {};
+});
+document.getElementById('btnReset').addEventListener('click', function(){ resetWorld(); });
+document.getElementById('btnAuto').addEventListener('click', function(){
+  autoOn = !autoOn;
+  document.getElementById('btnAuto').textContent = '⏱ 自动节拍：' + (autoOn ? '开' : '关');
+  if (autoOn){
+    autoTimer = setInterval(function(){
+      if (world.logs.length && world.logs[world.logs.length - 1].msg.indexOf('--- 节拍 ---') >= 0){}
+      dispatch({ type:'tick' });
+      world.logs.push({ t:'', tone:'info', msg:'--- 自动节拍 ---' });
+    }, 4000);
+  } else {
+    clearInterval(autoTimer);
+  }
+});
+document.getElementById('scenTabs').addEventListener('click', function(e){
+  var b = e.target.closest('button');
+  if (!b) return;
+  scenActive = b.getAttribute('data-scen');
+  renderScen();
+});
+document.getElementById('scenBody').addEventListener('click', function(e){
+  var rb = e.target.closest('button[data-restart]');
+  if (rb){ startScen(rb.getAttribute('data-restart')); return; }
+  var sm = e.target.closest('button[data-scenmode]');
+  if (sm){
+    dispatch({ type:'setMode', mode:sm.getAttribute('data-scenmode') });
+    scenProg = {};
+    return;
+  }
+  var stb = e.target.closest('button[data-step]');
+  if (stb){
+    var sc2 = null;
+    for (var j = 0; j < SCEN.length; j++){ if (SCEN[j].id === scenActive) sc2 = SCEN[j]; }
+    if (sc2){
+      var ix = parseInt(stb.getAttribute('data-step'), 10);
+      var cur = scenProg[sc2.id] || 0;
+      if (ix === cur){
+        var act = sc2.steps[ix].act;
+        dispatch(act);
+        scenProg[sc2.id] = cur + 1;
+        renderScen();
+      }
+    }
+  }
+});
+document.getElementById('mockPanel').addEventListener('click', function(e){
+  var chip = e.target.closest('.chip[data-sid]');
+  if (chip){ dispatch({ type:'activate', sid:chip.getAttribute('data-sid') }); return; }
+  var tab = e.target.closest('button[data-tab]');
+  if (tab){
+    if (tab.getAttribute('data-tab') === 'chain'){ dispatch({ type:'viewChain' }); }
+    world.sessions[world.active].priv.tab = tab.getAttribute('data-tab');
+    renderMock(); renderState();
+    return;
+  }
+  var rf = e.target.closest('button[data-act="refresh"]');
+  if (rf){ dispatch({ type:'manualRefresh' }); return; }
+});
+// 自由操作按钮
+var freeHtml = '';
+var fb = [
+  ['openA', '新开会话 A（标准写法）', { type:'openSession', target:'A', writing:'std' }],
+  ['openAv', '新开会话 A（变体写法）', { type:'openSession', target:'A', writing:'variant' }],
+  ['openB', '新开会话 B（标准写法）', { type:'openSession', target:'B', writing:'std' }],
+  ['openBv', '新开会话 B（变体写法）', { type:'openSession', target:'B', writing:'variant' }],
+  ['openC', '新开会话 C（全新工作区）', { type:'openSession', target:'C', writing:'std' }],
+  ['chg', '⚡ 制造远端变化（当前活跃工作区）', { type:'makeChange' }],
+  ['tick', '⏱ 定时探针（1 拍 = 4s）', { type:'tick' }],
+  ['rw', '↻ 显式刷新（状态栏「更新」语义）', { type:'manualRefresh' }]
+];
+for (var f = 0; f < fb.length; f++){
+  freeHtml += '<button class="btn" data-free="' + fb[f][0] + '" style="margin:0 6px 6px 0">' + fb[f][1] + '</button>';
+}
+document.getElementById('freePlay').innerHTML = freeHtml;
+document.getElementById('freePlay').addEventListener('click', function(e){
+  var b = e.target.closest('button[data-free]');
+  if (!b) return;
+  var key = b.getAttribute('data-free');
+  for (var j = 0; j < fb.length; j++){
+    if (fb[j][0] === key){ dispatch(fb[j][2]); return; }
+  }
+});
+// 主题
+document.querySelectorAll('.theme-toggle button').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    document.documentElement.setAttribute('data-theme', btn.getAttribute('data-th'));
+    document.querySelectorAll('.theme-toggle button').forEach(function(x){ x.className = ''; });
+    btn.className = 'active';
+  });
+});
+window.onerror = function(msg, src, line){
+  window.__protoErr.push('ERR ' + msg + ' @' + line);
+};
+window.__world = world;
+window.__dbg = function(){ return { prog: JSON.parse(JSON.stringify(scenProg)), active: scenActive }; };
+renderAll();
+})();
+</script>
+</body>
+</html>

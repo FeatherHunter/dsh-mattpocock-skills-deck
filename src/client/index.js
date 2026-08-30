@@ -52,7 +52,23 @@ export default {
   apply(ctx) {
     const slots = ctx.get('slots')
     if (slots === undefined) return
-    const timer = ctx.get('timer')
+    // 2026-08-28 实机修复：timer 服务在部分宿主上下文（better-sidebar tab / Web 壳）可能未注入、
+    //   或仅提供 setTimeout 而无 timeout 方法——曾出现「Cannot read properties of undefined (reading 'timeout')」
+    //   整面板红条（better-sidebar RenderBoundary 捕获）。
+    //   根治：timer 恒为非空包装对象——timeout 优先走原服务；缺失时降级原服务的 setTimeout；再缺失用全局 setTimeout。
+    const _timerRaw = ctx.get('timer')
+    const timer = {
+      timeout: function (fn, ms) {
+        try {
+          if (_timerRaw && typeof _timerRaw.timeout === 'function') return _timerRaw.timeout(fn, ms)
+          if (_timerRaw && typeof _timerRaw.setTimeout === 'function') return _timerRaw.setTimeout(fn, ms)
+          return setTimeout(fn, ms)
+        } catch (e) { try { return setTimeout(fn, ms) } catch (e2) { return null } }
+      },
+      setTimeout: function (fn, ms) {
+        return timer.timeout(fn, ms)
+      },
+    }
     const h = React.createElement
     // #fix-two-sliders：一次性迁移旧会话中存的 waystation:map 打开记录 → deck:map
     //   仅在 better-sidebar 提供持久化 API 时执行；best-effort，失败不抛（仅 console.warn）
@@ -177,6 +193,7 @@ export default {
     // ============================================================
     // v24-48：面板默认高度 = 屏幕约 1/2
     // v1.5 T3：面板默认高度固定 1/2（用户拍板彻底移除 panelHeight 配置 —— details 列高度与它无关，配置不生效）
+    // ==== shared:workspaceKey (spliced by build) ====
     // ==== kernel:store (spliced by build) ====
 
     // ---- 环境检查链（#228/#284 · host.call('wf.chain')；通用链 + 后端链全链快照）----

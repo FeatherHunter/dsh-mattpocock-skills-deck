@@ -5,7 +5,7 @@
  *   D1 getHome 主源 = `os.homedir() || null`，不二次读 process.env.HOME 第二真相（#129 POSIX 直接采用；重复读 env 属契约修订）。
  *   D2 兜底链全部由 os.homedir 内部承载（HOME → getpwuid(pw_dir)），失败仅剩 try/catch → null；H5 抛异常归一为 null。
  *   D3 别名仅 sh→sh 恒等；cmd/cmd.exe 在 darwin 不生效（预期 null）；gh 不做别名，PATH 失败仅透传 null。
- *   D4 gh 的 homebrew/nix DSH_GH_PATH 兜底由上层 resolveGh 承载，平台层不硬编码 /opt/homebrew/bin。
+ *   D4 gh 的 homebrew/nix DSH_GH_PATH 兜底由 composePlatform 通用层统一承载（2026-08-29 下沉，三端一致），平台层不硬编码 /opt/homebrew/bin。
  *   D5 路径形态全量委托 node:path.posix（sep='/'），零自实现（沿 #113 D1）；joinHome = path.join(await getHome(), ...segs)。
  *   D6 反斜杠在 darwin 是合法文件名字符，不作分隔符；deck 永不 home+'\\'+dir。
  *

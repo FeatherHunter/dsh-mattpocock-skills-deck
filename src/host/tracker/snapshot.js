@@ -17,6 +17,7 @@
 
 import { ERROR_KIND } from '../../shared/tracker/constants.js'
 import { deriveDeck } from '../../shared/tracker/deck-derive.js'
+import { parseMapBody } from '../../shared/parser.js'
 
 /** 组装（纯函数）：maps（挂一层 tickets）+ 未挂图票（孤儿：破链 / 根票；map 节点本身不算孤儿——它已在 maps[] 作为容器）。 */
 function assembleSnapshot(repo, all) {
@@ -31,7 +32,21 @@ function assembleSnapshot(repo, all) {
   }
   const maps = all
     .filter((i) => i && i.type === 'map')
-    .map((m) => Object.assign({}, m, { tickets: (byParent.get(m.key) || []).map((t) => Object.assign({}, t)) }))
+    .map((m) => {
+      // map 正文五区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）：
+      // 后端形状只保证 body；UI 详情页（MapDetail）直接消费解析结果（m.decisions.length 等），
+      // GitHub 切到编排器后曾漏解析，点 Map 行进详情页即报 Cannot read properties of undefined (reading 'length')。
+      // 在组装层统一解析补齐（与旧 gh 直连路径一致），无区块也给 EMPTY（'' / []），不 MISSING。
+      const bp = parseMapBody(m.body)
+      return Object.assign({}, m, {
+        tickets: (byParent.get(m.key) || []).map((t) => Object.assign({}, t)),
+        destination: bp.destination,
+        notes: bp.notes,
+        decisions: bp.decisions,
+        fog: bp.fog,
+        outOfScope: bp.outOfScope,
+      })
+    })
   const attached = new Set()
   for (const m of maps) for (const t of m.tickets) attached.add(t.key)
   // issues = 未挂在任何 map 下的「非 map」票（破链票指 parentKey 指向已删/不存在 map；根票 parentKey=null 也在此——它们无 map 归属）

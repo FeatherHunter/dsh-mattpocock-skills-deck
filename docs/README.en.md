@@ -34,8 +34,8 @@ dsh plugin --profile web add dsh-better-sidebar
 
 # ③ Install MattSkillsDeck
 dsh plugin --profile web add dsh-mattpocock-skills-deck
-# Pin to latest for extra stability (currently 1.7.3):
-# dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.3 --registry https://registry.npmjs.org
+# Pin to latest for extra stability (currently 1.7.6):
+# dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.6 --registry https://registry.npmjs.org
 ```
 
 <div align="center">
@@ -73,7 +73,7 @@ Then check the environment and install as needed (skip what's already installed)
 
 ```bash
 # Install a pinned version
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.3 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.6 --registry https://registry.npmjs.org
 
 # No global install (pin a version like above for extra safety)
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
@@ -201,9 +201,11 @@ MIT © FeatherHunter
 
 Thanks to everyone who opened an issue, sent a PR, or joined a discussion — you made this plugin better bit by bit.
 
-[@pioneerAlone](https://github.com/pioneerAlone) — reported #298 (duplicate details/better-sidebar with clear repro), #274, #234 and landed PR #273 — thanks for making the reinstall experience smooth again 🌹
+[@pioneerAlone](https://github.com/pioneerAlone) — reported #298 (duplicate details/better-sidebar with clear repro), #274, #234 and landed PRs #273, #316 — thanks for making the reinstall experience smooth again 🌹
 
 [@Shimmernight](https://github.com/Shimmernight) — filed #277 and PRs #287, #275, #106
+
+[@21967201](https://github.com/21967201) — opened PR #321 (triage + wayfinder labels docs)
 
 [@angenet](https://github.com/angenet) — reported #295, #262 on macOS checks
 

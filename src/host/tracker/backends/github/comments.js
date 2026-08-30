@@ -61,7 +61,7 @@ export async function addComment(repo, key, body, ctx) {
       createdAt: (raw && (raw.createdAt || raw.created_at)) || new Date().toISOString(),
       updatedAt: (raw && (raw.updatedAt || raw.updated_at)) || new Date().toISOString(),
     }
-    if (raw && (raw.editedAt || raw.edited_at)) comment.editedAt = raw.editedAt || raw.edited_at
+    if (raw && (raw.editedAt || raw.lastEditedAt || raw.edited_at || raw.last_edited_at)) comment.editedAt = raw.editedAt || raw.lastEditedAt || raw.edited_at || raw.last_edited_at
     return { ok: true, data: comment }
   } catch (e) {
     const kind = classifyGhError(e)

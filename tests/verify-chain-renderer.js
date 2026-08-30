@@ -122,7 +122,7 @@ const noRepo = file('src/client/views/NoRepoCard.js')
 check(noRepo.includes('markdown') && noRepo.includes('Markdown 工作区不出现红卡') || noRepo.includes('bidNoRepo'), 'NoRepoCard 含 markdown 隔离')
 check(noRepo.includes('ChainRenderer') || noRepo.includes('chainSnap'), 'NoRepoCard 含 chain 委托')
 const listTab = file('src/client/views/ListTab.js')
-check(listTab.includes('NoRepoCard'), 'ListTab 仍引用 NoRepoCard（委托链）')
+check(!listTab.includes('h(NoRepoCard'), 'ListTab 已移除全屏红卡挂载（B Timeline 定版 2026-08-28：行内红卡表达，顶部无错误信息）')
 
 console.log('')
 console.log('-- 7) 重求值联动 --')

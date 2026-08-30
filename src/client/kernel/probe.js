@@ -13,24 +13,43 @@
     const _chainInflightByCwd = new Map()
     export const loadChain = function(st, force){
       if (typeof host === 'undefined' || typeof host.call !== 'function') return Promise.resolve(null)
-      const norm = normCwdClientProbe(st.cwd)
+      // 链共享键 = 工作区键 + 后端 id（#324），确保按工作区单次求值且按后端隔离
+      const _backendIdForChain = (st.selection && st.selection.backendId) || ''
+      const norm = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, _backendIdForChain) : ((typeof keyOf === 'function' ? keyOf(st.cwd) : String(st.cwd||'')) + '|' + String(_backendIdForChain)))
       if (!force) {
         const inflight = _chainInflightByCwd.get(norm)
         if (inflight) return inflight
+        // 链共享缓存命中即秒显（#324 新会话首见即秒显）
+        try {
+          const cached = (typeof getCachedChain === 'function' ? getCachedChain(st.cwd, _backendIdForChain) : null)
+          if (cached) {
+            st.chainSnapshot = cached
+            st.chain = cached.chain || cached
+            st.fullChain = cached.fullChain || null
+            st.backendChain = cached.backendChain || null
+            st.chainLoadedAt = (typeof nowStr === 'function' ? nowStr() : '')
+            // 已秒显则不发请求，直接返回
+            // 但仍需让调用方感知已就绪，返回已解析的 promise
+            return Promise.resolve(cached)
+          }
+        } catch (eCache) {}
       }
       // 2026-08-28 修复（后端物理隔离）：链的后端段必须与 UI 当前绑定的后端一致——
       //   此前只传 cwd，host 回退到 detect 自产的 selection（默认 github），导致 markdown 工作区出现 GitHub 检查行。
       const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {}, force ? { force:true } : {})
       const p = host.call('wf.chain', args).then(function(res){
         if (res && res.ok && (res.fullSnapshot || res.snapshot)) {
-          st.chainSnapshot = res.fullSnapshot || res.snapshot
+          const snap = res.fullSnapshot || res.snapshot
+          st.chainSnapshot = snap
           st.chain = res.chain
           st.fullChain = res.fullChain || null
           st.chainResolved = res.resolved
           st.backendChain = res.backendChain || null
           st.chainLoadedAt = nowStr()
+          // 落共享缓存，供同工作区其他会话秒显
+          try { if (typeof setCachedChain === 'function') setCachedChain(st.cwd, _backendIdForChain, snap) } catch(eSet){}
           emit(st)
-          return st.chainSnapshot
+          return snap
         }
         return null
       }).catch(function(e){ return null }).finally(function(){ try { _chainInflightByCwd.delete(norm) } catch (e) {} })
@@ -38,7 +57,7 @@
       return p
     }
     export const pendingSnapshotByCwd = new Map() // Map<normCwd,{promise,controller}> dedup 30s
-    export const normCwdClientProbe = function(k){ try{ return String(k||'').toLowerCase().replace(/\\/g,'/').replace(/\/+/g,'/').replace(/\/$/,'')||'/'; }catch(e){ return String(k||''); } }
+    // 单源工作区键（#301 / #324）：全库仅一份 keyOf（shared:workspaceKey），此处已无重复定义
     // ---- 链快照派生读数（#284：单一口径，链步骤即检查项）----
     export const chainSteps = (st) => (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : []
     export const chainStep = (st, id) => chainSteps(st).find(function (s) { return String(s.id) === String(id) }) || null
@@ -126,6 +145,11 @@
         return String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
       } catch (e) { return '' }
     }
+    // #327 特性 A：同格式的毫秒重载（状态栏「上次探测时间」用——数据不变也走针）
+    export const timeOfMs = (ms) => {
+      if (!ms) return ''
+      try { const d = new Date(ms); return String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') } catch (e) { return '' }
+    }
     // ============================================================
     // 4. 配置广播（v25-50：配置保存后同步所有会话 store 的面板尺寸；外观定死不广播）
     // ============================================================
@@ -195,9 +219,16 @@
     // 快照（#346：面板数据源；force 走 wf.refresh 全量重建；wf.snapshot 侧 5s 缓存）
     // #58 缓存优先：按 cwd 内存快照 + 空 cwd 同步，避免首开空 cwd 探路 miss 缓存导致 100-400ms 闪 loading
     export const loadSnapshot = function (st, force, silent) {
-      const doLoad = function () {
+      const doLoad = async function () {
         // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
-        try{ const _nk=normCwdClientProbe(st.cwd||''); const _pend=pendingSnapshotByCwd.get(_nk); if(_pend&&_pend.promise) return _pend.promise; }catch(e){}
+        try{ const _nk=keyOf(st.cwd||''); const _pend=pendingSnapshotByCwd.get(_nk); if(_pend&&_pend.promise) {
+          // 同 cwd 在途复用：新调用方挂载后从共享缓存水合，不再发第二份请求
+          return _pend.promise.then(function(snap){
+            // 在途结果已落 per-cwd 缓存（首发方 then 中 setCachedSnapshot），此处仅水合当前 store
+            try{ hydrateFromCache(st); emit(st); }catch(eHyd){}
+            return snap;
+          }).catch(function(e){ throw e; });
+        } }catch(e){}
         // fix H1: remove global snapLoading guard — rely on per-cwd pendingSnapshotByCwd dedup (gate flake, #diagnosing-bugs)
         if (typeof host === 'undefined' || typeof host.call !== 'function') {
           st.snapMode = 'err'
@@ -207,16 +238,32 @@
         }
         // #58 先水合 per-cwd 缓存，实现秒开
         hydrateFromCache(st)
-        const hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))
+        let hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))
+        // #327 特性 B · 多级缓存：内存未命中先查磁盘（IndexedDB）——命中即秒显旧数据，随后照常发起网络校验
+        //（不出现可见加载态；磁盘读约几十毫秒，先读后发请求的次序天然避免遮罩闪现）
+        if (!hasCache) {
+          try {
+            const ent = await diskGetSnapshot(keyOf(st.cwd || ''))
+            if (ent && ent.snapshot && !st.snapshot && !getCachedSnapshot(st.cwd)) {
+              try {
+                setCachedSnapshot(st.cwd, ent.snapshot)
+                try { if (ent.lastProbeAt && ent.lastProbeAt > getProbeAt(st.cwd)) lastProbeAtByCwd.set(keyOf(st.cwd), ent.lastProbeAt) } catch (ePA2) {}
+                hydrateFromCache(st)
+                emit(st)
+              } catch (eHyd2) {}
+              hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))
+            }
+          } catch (eDisk) {}
+        }
         st.snapLoading = true
         // v1.5 T9：silent（后台静默刷新）不显示加载遮罩、不弹错误 toast
-        // #58 缓存优先：已有缓存时不显示全屏 loading，静默刷新
+        // #58 缓存优先：已有缓存（含磁盘命中）时不显示全屏 loading，静默刷新
         if (force && !silent && !hasCache) st.snapMode = 'loading'
         emit(st)
         const ver = (typeof getSnapshotVersion==='function'? getSnapshotVersion(st.cwd):'') || (st.snapshot&&st.snapshot.version)||'';
         // 2026-08-28 方案B：客户端持久化选择随快照上报——detect 在主锚无结论时优先采纳（用户选择 > 自动识别）
         const args = Object.assign({}, st.cwd ? { cwd: st.cwd, ifNoneMatch: ver, version: ver } : (ver?{ifNoneMatch:ver,version:ver}:{}), (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {})
-        const _normKeyP = normCwdClientProbe(st.cwd||'');
+        const _normKeyP = keyOf(st.cwd||'');
         let _ctrl=null; try{ _ctrl=typeof AbortController!=='undefined'?new AbortController():{signal:{aborted:false},abort(){}}; }catch(e){ _ctrl={signal:{aborted:false},abort(){}}; }
         let _timer=null;
         const _rawP = force ? host.call('wf.refresh', args) : host.call('wf.snapshot', args);
@@ -225,8 +272,11 @@
         try{ pendingSnapshotByCwd.set(_normKeyP,{promise:p, controller:_ctrl}); p.finally(function(){ try{ pendingSnapshotByCwd.delete(_normKeyP);}catch{} }); }catch(e){}
         const _reqNorm = _normKeyP // capture request cwd for H2 stale discard
         return p.then(function (snap) {
+          // #327 特性 A：对该工作区完成了一次检查（成功/304/串台落地均算——请求已真实发出并返回）→ 时间走针
+          try { if (snap && (snap.ok === true || snap.notModified === true || snap.status === 304)) touchProbeAt(_normKeyP) } catch (ePA) {}
           // fix H2 stale discard — if cwd switched during flight, drop stale fallback (gate flake guard)
-          if (_reqNorm !== normCwdClientProbe(st.cwd||'')) {
+          const _curNorm = keyOf(st.cwd||'');
+          if (_reqNorm !== _curNorm) {
             // #232 R4 · 在途结果必须落地：请求发出时该 cwd 正被观看，响应到达即写 per-cwd LRU 缓存，
             // 切回时 hydrateFromCache 秒显最新数据（零新请求）。仍不给换视图后的 store 直接 emit
             // （#45 串台回归防线不动）；setCachedSnapshot 自带 ok/maps 守卫，坏形自然丢弃。
@@ -338,12 +388,15 @@
       //   兜底路径按 sessionId→cwd 精确映射赋值，避免把任意首个 cwd 错绑到所有空 store。
       const refreshGroup = function (cwd) {
         return host.call('wf.probe', { cwd: cwd }).then(function (res) {
+          // #327 特性 A：探测完成即走针（无论是否检出变化）
+          try { if (res && res.ok) touchProbeAt(cwd) } catch (ePA) {}
           if (!(res && res.ok && res.changed)) return
           const group = []
-          if (shared.cwd === cwd) group.push(shared)
+          const normWanted = keyOf(cwd)
+          if (shared.cwd && keyOf(shared.cwd) === normWanted) group.push(shared)
           Object.keys(stores).forEach(function (k) {
             const st = stores[k]
-            if (st.cwd === cwd) group.push(st)
+            if (st.cwd && keyOf(st.cwd) === normWanted) group.push(st)
           })
           if (!group.length) {
             // #232 R3 · 应用时刻该 cwd 已无任何 store 持有（用户已切走）：不再为无人观看的工作区
@@ -374,12 +427,15 @@
           }).catch(function () { /* 忽略 */ })
         }).catch(function () { /* 探测失败忽略 */ })
       }
-      const cwds = []
-      if (shared.cwd) cwds.push(shared.cwd)
+      // 按工作区归一键去重（#324 · 同工作区只探一次）
+      const cwdsByNorm = new Map()
+      const addCwd = function(cwd){ try{ const nk=keyOf(cwd); if(!nk) return; if(!cwdsByNorm.has(nk)) cwdsByNorm.set(nk, cwd); }catch(e){ if(cwd && !Array.from(cwdsByNorm.values()).includes(cwd)) cwdsByNorm.set(String(cwd), cwd); } }
+      if (shared.cwd) addCwd(shared.cwd)
       Object.keys(stores).forEach(function (k) {
         const c = stores[k] && stores[k].cwd
-        if (c && cwds.indexOf(c) < 0) cwds.push(c)
+        if (c) addCwd(c)
       })
+      const cwds = Array.from(cwdsByNorm.values())
       if (!cwds.length) {
         const sids = []
         if (shared.sessionId) sids.push(shared.sessionId)
@@ -387,14 +443,15 @@
         if (!sids.length) return
         Promise.all(sids.map(function (sid) { return host.call('wf.cwd', { sessionId: sid }).catch(function () { return null }) })).then(function (results) {
           const sidToCwd = {}
-          const foundCwds = []
+          const foundCwdsByNorm = new Map()
           for (let i = 0; i < sids.length; i++) {
             const r = results[i]
             if (r && r.ok && r.cwd) {
               sidToCwd[sids[i]] = r.cwd
-              if (foundCwds.indexOf(r.cwd) < 0) foundCwds.push(r.cwd)
+              try{ const nk=keyOf(r.cwd); if(nk && !foundCwdsByNorm.has(nk)) foundCwdsByNorm.set(nk, r.cwd); }catch(e){ if(foundCwdsByNorm.size===0 || !Array.from(foundCwdsByNorm.values()).includes(r.cwd)) foundCwdsByNorm.set(String(r.cwd), r.cwd); }
             }
           }
+          const foundCwds = Array.from(foundCwdsByNorm.values())
           if (!foundCwds.length) return
           Object.keys(stores).forEach(function (k) {
             const st = stores[k]

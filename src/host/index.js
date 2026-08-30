@@ -313,21 +313,13 @@ export default {
     async function resolveGh() {
       if (ghPath) return ghPath
       const platform = await getPlatform()
-      try {
-        const p = await platform.resolveExecutable('gh')
-        if (p) { ghPath = p; ghLastError = null; return ghPath }
-        ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
-        return null
-      } catch (e) {
-        const fb = platform.env.get('DSH_GH_PATH') || ''
-        if (!fb) { ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'; return null }
-        try {
-          const info = await platform.fs.lstat(fb)
-          if (info) { ghPath = fb; ghLastError = null; return ghPath }
-        } catch (e2) {}
-        ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
-        return null
-      }
+      // 2026-08-29 去重（research 实锤「DSH_GH_PATH 三端不一致」）：DSH_GH_PATH 兜底已下沉至 composePlatform
+      //   通用层单点拥有（platform.resolveExecutable('gh') 内置 env.get+lstat 校验），此处不再重复实现，
+      //   host 只保留未命中的诚实错误信息与 ghPath 缓存。
+      const p = await platform.resolveExecutable('gh').catch(function () { return null })
+      if (p) { ghPath = p; ghLastError = null; return ghPath }
+      ghLastError = 'gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）'
+      return null
     }
     // #195 修复：force 探测路径调 resetGhCache 清空成功缓存，强制下次 resolveGh 重探
     function resetGhCache() { ghPath = null; ghLastError = null; try { if (_workspaceStore && typeof _workspaceStore.clear === 'function') _workspaceStore.clear(); } catch {} try { getWorkspaceStore().then(function(ws){ try{ ws.clear(); }catch(e){} }).catch(function(){}); } catch {} }
@@ -362,7 +354,7 @@ export default {
       if (outcome.exitCode !== 0) {
         let kind = 'exit'
         const t = all.toLowerCase()
-        if (/not logged in|auth failed|bad credentials/i.test(t)) kind = 'auth'
+        if (/not logged in|auth failed|bad credentials|failed to log in|token.*invalid|keyring|re-authenticate|auth refresh/i.test(t)) kind = 'auth'
         else if (/404|not found|could not resolve to an? (issue|pull request)/i.test(t)) kind = 'notfound'
         else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400) }
@@ -606,7 +598,9 @@ export default {
         const txt = await fs.readText(p)
         if (!txt) return null
         const j = JSON.parse(txt)
-        if (j && j.ok === true && Array.isArray(j.maps) && typeof j.generatedMs === 'number') return j
+        // cacheFormat 3 之后才可读（2→3：1.7.5 新增 map 五区块解析；旧快照缺 decisions/fog/outOfScope,destination,notes，
+        // 视为陈旧强制重建，详情页不再抛且区块可展示；沿用 #327 的小写 state 防御）
+        if (j && j.ok === true && Array.isArray(j.maps) && typeof j.generatedMs === 'number' && j.cacheFormat === 3) return j
         return null
       } catch (e) { return null }
     }
@@ -618,7 +612,8 @@ export default {
         // T9 修复：fs 服务的 writeText 要求 resolve() 返回的 target 对象（{targetKey,displayPath}），不能直接传路径字符串
         const platform = await getPlatform()
         const t = await platform.fs.resolve(platform.path.join(dir, fn))
-        await fs.writeText(t, JSON.stringify(snap))
+        // 缓存格式版本 3：1.7.5 map 五区块（见上），旧格式一律视为不新鲜
+        await fs.writeText(t, JSON.stringify(Object.assign({}, snap, { cacheFormat: 3 })))
       } catch (e) { /* 写失败不影响主流程 */ }
     }
 
@@ -712,6 +707,23 @@ export default {
       const n = parseInt(m[1], 10)
       if (isNaN(n)) return null
       return Math.max(0, Math.min(100, n))
+    }
+
+    // 客户端契约：state 按旧链路大写 OPEN/CLOSED（mapTicket 曾如此）；composer 归一为小写 open/closed，
+    //   在此适配层统一升格，避免客户端把全部 closed 误判为 open（#327 面板“0 已关闭/大量错误状态”根因）。
+    const upcaseState = function (s) { return String(s || '').toUpperCase() === 'CLOSED' ? 'CLOSED' : 'OPEN' }
+    const upcaseSnapStates = function (inner) {
+      if (!inner || typeof inner !== 'object') return inner
+      ;(inner.maps || []).forEach(function (m) {
+        m.state = upcaseState(m.state)
+        ;(m.tickets || []).forEach(function (t) {
+          t.state = upcaseState(t.state)
+          if (Array.isArray(t.blockedBy)) t.blockedBy.forEach(function (b) { if (b && typeof b === 'object' && b.state != null) b.state = upcaseState(b.state) })
+          if (Array.isArray(t.blocking)) t.blocking.forEach(function (b) { if (b && typeof b === 'object' && b.state != null) b.state = upcaseState(b.state) })
+        })
+      })
+      ;(inner.issues || []).forEach(function (it) { it.state = upcaseState(it.state) })
+      return inner
     }
 
     function mapTicket(raw) {
@@ -1247,7 +1259,7 @@ export default {
           // 2026-08-28 修复：快照 backendModules 必须与 wf.registry 上报同构（含 setupPrompt 键表）——
           //   缺 setupPrompt 时 setupRunParamsFrom 匹配不到该后端 → 注入的 setup 提示词落回默认键组（GitHub 版），
           //   表现为「选了 gitlab/markdown，点初始化按钮注入的却还是默认 GitHub」（用户观察）。
-          backendModules = regM.modules().map(function (m) { return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.openRepository ? { openRepository: m.openRepository } : {}) })
+          backendModules = regM.modules().map(function (m) { return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.labelPalette ? { labelPalette: m.labelPalette } : {}, m.openRepository ? { openRepository: m.openRepository } : {}) })
         }
       } catch (e2) {}
       return {
@@ -1282,17 +1294,60 @@ export default {
     // #284：markdown 后端谓词：本地图谱可解析（复用 backends/markdown/parse.js parseMd）
     // 2026-08-28 修复：本函数与 fileExistsChainRel 曾被误嵌套在 parseGithubRepo 函数体内，
     //   作用域外（wf.chain 谓词注册处）不可见 → 运行时 ReferenceError「mdParseOkPredicate is not defined」。
-    async function mdParseOkPredicate(platform, cwd) {
+    async function mdParseOkPredicate(platform, cwd, lang) {
       try {
-        const hasMap = await fileExistsChainRel(platform, cwd, '.scratch/map.md')
-        if (hasMap !== true) return { status: 'fail', detail: '.scratch/map.md missing — created by initialization' }
-        const abs = await platform.fs.resolve('.scratch/map.md', { cwd: cwd })
-        const text = await platform.fs.readText(abs)
+        // 2026-08-29 修复（用户实证：图谱落在 .scratch/<图谱名>/map.md；原只查根 .scratch/map.md 必然误报 missing）：
+        //   与 backends/markdown matches() 数据模型同构——候选 = 根谱 .scratch/map.md + 各子谱 .scratch/*/map.md；
+        //   全部缺失 = 图谱未初始化（fail，指引先做 Markdown 初始化）；存在但解析抛错 = 格式损坏（fail，附错误原文）。
+        //   用户可见 detail 一律人话（无黑话：目录叫「本地数据目录」、文件叫「关卡地图」、.scratch/map.md 只括注）。
+        const zh = lang === 'zh'
+        const cands = await mdMapCandidates(platform, cwd)
+        if (cands.length === 0) {
+          return { status: 'fail', detail: zh ? '尚未生成关卡地图（先执行本地 Markdown 初始化）' : 'No map file yet — run Local Markdown setup first' }
+        }
         const mod = await import('./backends/markdown/parse.js')
         const parseMd = mod.parseMd || mod.default
-        if (typeof parseMd === 'function') { parseMd(String(text || ''), {}); return { status: 'pass', detail: 'local map parses OK' } }
-        return { status: 'pending', detail: 'parseMd not exported' }
-      } catch (e) { return { status: 'fail', detail: 'local map parse failed: ' + String((e && e.message) || e) } }
+        if (typeof parseMd !== 'function') return { status: 'pending', detail: 'parseMd not exported' }
+        let lastErr = ''
+        for (const rel of cands) {
+          try {
+            // target-shaped 配对：readText 必须 receive resolve 的返回值（2026-08-29 实机修复：曾直接 readText(字符串) 且对 resolve 输出做 join 致 TypeError）
+            const tgt = await platform.fs.resolve(rel, { cwd: cwd })
+            const text = await platform.fs.readText(tgt)
+            parseMd(String(text || ''), {})
+            const dir = platform.path.dirname(rel)
+            const slug = dir === '.scratch' ? 'root' : platform.path.basename(dir)
+            return { status: 'pass', detail: zh ? ('关卡地图已就绪（' + slug + '）') : ('local map parses OK (' + slug + ')') }
+          } catch (e) {
+            lastErr = String((e && e.message) || e).slice(0, 200)
+          }
+        }
+        return { status: 'fail', detail: zh ? ('关卡地图无法解析：' + lastErr) : ('local map parse failed: ' + lastErr) }
+      } catch (e) { return { status: 'fail', detail: (lang === 'zh' ? '关卡地图检查出错：' : 'local map check failed: ') + String((e && e.message) || e).slice(0, 200) } }
+    }
+    /** 关卡地图候选（与 matches() 数据模型同构）：根地图 .scratch/map.md + 各关子目录 .scratch/<name>/map.md。
+     * 2026-08-29 实机修复：候选存【相对路径字符串】（供 dirname/basename 与 display），存在性经
+     *   fileExistsChainRel(相对路径) 判定；绝不做 platform.path.join(resolve输出)（resolve 返回 target 对象，join 必 TypeError）。 */
+    async function mdMapCandidates(platform, cwd) {
+      const out = []
+      try {
+        if (!platform || !platform.fs || typeof platform.fs.resolve !== 'function') return out
+        let dirT = null
+        try { dirT = await platform.fs.resolve('.scratch', { cwd: cwd }) } catch (eR) { return out }
+        if (await fileExistsChainRel(platform, cwd, '.scratch/map.md')) out.push('.scratch/map.md')
+        if (typeof platform.fs.listDir === 'function') {
+          try {
+            const entries = await platform.fs.listDir(dirT)
+            for (const e of entries) {
+              const name = typeof e === 'string' ? e : (e && e.name) || ''
+              if (!name || name.startsWith('.')) continue
+              const candRel = '.scratch/' + name + '/map.md'
+              if (await fileExistsChainRel(platform, cwd, candRel)) out.push(candRel)
+            }
+          } catch (eL) {}
+        }
+      } catch (e) {}
+      return out
     }
     async function fileExistsChainRel(platform, cwd, rel) {
       try {
@@ -1683,7 +1738,10 @@ export default {
         }
         const genMod = await import('./tracker/generic.js')
         const predMod = await import('./tracker/predicateRegistry.js')
-        const registry = predMod.createPredicateRegistry({ timeout: 3000 })
+        // 2026-08-28 实机修复：单谓词超时 3000ms → 15000ms。
+        //   gh auth status / gh api 是真实网络调用（本机曾多次 TLS schannel 握手失败），3 秒必然超时，
+        //   导致「gh 已登录」「仓库可达」被误判并展示误导性修复指引；15s 给慢网络留余地（runGh 内部 30s 兜底）。
+        const registry = predMod.createPredicateRegistry({ timeout: 15000 })
         if (typeof genMod.registerGenericPredicates === 'function') genMod.registerGenericPredicates(registry)
         // #284 一致性修复（2026-08-28）：客户端显式绑定（backendId）优先——主锚与绑定不一致的过渡态（如锚=GitHub 版、
         //   用户已绑 markdown）链不得两面矛盾（后端段 markdown、开门段 explicit:github）；selection/explicit 归一为绑定侧。
@@ -1694,33 +1752,49 @@ export default {
         const expConsistent = (selConsistent && selConsistent.backendId)
           ? selConsistent.backendId
           : ((selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId) || null)
-        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, selection: selConsistent, explicitBackendId: expConsistent, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
+        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
         // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx) {
           try {
+            // 2026-08-29（审查 S1）：detail 双语——中文界面不出现英文黑话行
+            const zh = (pctx && pctx.lang) !== 'en'
             const rk = await getRepoKey(pctx && pctx.cwd || cwd)
             if (rk && rk.owner && rk.name) return { status: 'pass', detail: rk.owner + '/' + rk.name }
-            return { status: 'fail', detail: 'repo not located' }
+            return { status: 'fail', detail: zh ? '未找到 GitHub 仓库关联（git remote 未指向 GitHub）' : 'repo not located' }
           } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
         try { registry.register('backend:github:repoAccess', async function (check, pctx) {
           try {
+            // 2026-08-29（审查 S1/S2）：detail 双语；pending 文案如实说明「网络/登录态未知」，不与 fail 混淆
+            const zh = (pctx && pctx.lang) !== 'en'
             const rk = await getRepoKey(pctx && pctx.cwd || cwd)
-            if (!rk || !rk.owner || !rk.name) return { status: 'fail', detail: 'repo not located' }
+            if (!rk || !rk.owner || !rk.name) return { status: 'fail', detail: zh ? '未找到 GitHub 仓库关联' : 'repo not located' }
             const r = await runGh(['api', 'repos/' + rk.owner + '/' + rk.name], pctx && pctx.cwd || cwd)
-            if (r.ok) return { status: 'pass', detail: 'api.github.com 200' }
-            return { status: 'fail', detail: 'API request failed (' + String(r.kind || '') + ')' }
+            if (r.ok) return { status: 'pass', detail: zh ? 'GitHub 接口访问正常' : 'api.github.com 200' }
+            // 2026-08-28 实机复核修正（用户反馈：仓库已找到却提示创建发布——错误）：只有「确定仓库不存在/无权限」
+            //   （kind=notfound）才判 fail 并挂「创建并发布」修复动作；未登录（auth）/网络/其他异常一律 pending（诚实未知）——
+            //   仓库已定位（gh:remote 通过）而 gh 未登录时，链条唯一引导是 gh:authed 行的「登录指引」，绝不该误导用户去创建仓库。
+            if (r.kind === 'notfound') return { status: 'fail', detail: zh ? 'GitHub 上访问不到该仓库（可能还没创建，或你没有权限）' : 'API 404: repo not found (may not exist or no access)' }
+            return { status: 'pending', detail: zh ? '暂无法确认仓库可访问（网络或登录态未知）：' + String(r.error || '').slice(0, 160) : 'API not accessible (' + String(r.kind || 'exit') + '): ' + String(r.error || '').slice(0, 240) }
           } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
         try { registry.register('preflight:ghAuth', async function (check, pctx) {
           try {
+            // 2026-08-29（审查 S1）：detail 双语——fail 说清「登录失效」，pending 如实区分网络与未知
+            const zh = (pctx && pctx.lang) !== 'en'
             const r = await runGh(['auth', 'status'])
-            if (r.ok) { const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]; return { status: 'pass', detail: first || 'Logged in' } }
-            return { status: 'fail', detail: 'Not logged in: run gh auth login' }
+            if (r.ok) { const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]; return { status: 'pass', detail: first || (zh ? '已登录' : 'Logged in') } }
+            // 2026-08-28 实机修复：仅当明确「未登录」（kind=auth）才判 fail 并展示登录指引；
+            //   网络失败/其他异常归 pending（诚实未知），避免在 TLS 网络抖动时误导用户「未登录」。
+            const kind = r.kind || 'exit'
+            const errMsg = String(r.error || '').slice(0, 240)
+            if (kind === 'auth') return { status: 'fail', detail: zh ? 'GitHub 登录状态已失效（重新登录 gh auth login / refresh）' : 'gh credential invalid or not logged in: re-authenticate (gh auth refresh / gh auth login)' }
+            if (kind === 'network') return { status: 'pending', detail: zh ? '网络异常，暂时无法确认登录状态' : 'gh auth status network failure: ' + errMsg }
+            return { status: 'pending', detail: zh ? '暂时无法确认登录状态（' + kind + '）' : 'gh auth status failed (' + kind + '): ' + errMsg }
           } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
         try { registry.register('backend:markdown:parseOk', async function (check, pctx) {
-          try { return await mdParseOkPredicate(platform, pctx && pctx.cwd || cwd) } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
+          try { return await mdParseOkPredicate(platform, pctx && pctx.cwd || cwd, chainLang) } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
         }) } catch (e) {}
         const kind = (args && args.kind) || 'all'
         const chainAndSnap = await genMod.resolveGenericChain(registry, ctx, kind)
@@ -1736,7 +1810,11 @@ export default {
               const isPass = rd === 'pass'
               const isFail = rd === 'fail'
               const status = isPass ? 'done' : (isFail ? (((it.onFail && Array.isArray(it.onFail.actions) && it.onFail.actions.length)) ? 'current' : 'fail') : 'pending')
-              const show = isPass ? ((it.onPass && it.onPass.show) || null) : ((it.onFail && it.onFail.show) || null)
+              // 2026-08-28 实机复核修正（用户反馈：pending 行仍显示修复指引与「未登录」提示——误导）：
+              //   pending（诚实未知）只保留检查项名称，不带 onFail 修复文案（hint）与修复动作（actions 已按 isFail 过滤）；
+              //   fail/current 才展示修复指引。修复文案只随真实失败出现。
+              const _pendingShow = (function () { const bb = (it.onFail && it.onFail.show) || {}; const oo = {}; if (bb.fallback != null) oo.fallback = bb.fallback; if (bb.title != null) oo.title = bb.title; if (bb.i18nKey != null) oo.i18nKey = bb.i18nKey; return oo })()
+              const show = isPass ? ((it.onPass && it.onPass.show) || null) : (isFail ? ((it.onFail && it.onFail.show) || null) : _pendingShow)
               const actions = isFail && it.onFail && Array.isArray(it.onFail.actions) ? it.onFail.actions : []
               return { id: it.id, check: it.check, status: status, show: show, actions: actions, isApplicable: true, blockedBy: null, isCurrent: false, isBlocking: status !== 'done' }
             })
@@ -1772,7 +1850,20 @@ export default {
                 const regT = await getTrackerRegistry()
                 const tmods = (regT && typeof regT.modules === 'function') ? regT.modules() : []
                 const tmod = (tmods || []).find(function (m) { return m && String(m.id) === String(backendId) && m.fixes }) || null
-                if (tmod && fixMod.attachFixContract) items = fixMod.attachFixContract(items, tmod, chainLang, { cwd: cwd })
+                // 2026-08-28 用户反馈「owner/... 占位」：预解析当前 GitHub 登录用户名（仅 github 后端、最快 2.5s 超时，
+                //   失败静默空）→ fixContract 将其替换进 preview 模板 {owner}——预览显示真实用户名（如 FeatherHunter），
+                //   不再显示字面量 "owner"；未登录/网络失败时保留占位（UI 诚实兜底）
+                let _fixOwner = ''
+                try {
+                  if (String(backendId) === 'github') {
+                    const _u = await Promise.race([
+                      runGh(['api', 'user', '-q', '.login']),
+                      timer.timeout(2500).then(function () { return null }),
+                    ])
+                    if (_u && _u.ok) _fixOwner = String(_u.text || '').trim()
+                  }
+                } catch (e) { }
+                if (tmod && fixMod.attachFixContract) items = fixMod.attachFixContract(items, tmod, chainLang, { cwd: cwd, owner: _fixOwner })
               } catch (e) {}
               const resolved = await registry.resolveAll(items, ctx)
               const predResults = predMod.toPredicateResults ? predMod.toPredicateResults(resolved) : resolved
@@ -1827,12 +1918,14 @@ export default {
         if (backendChain) backendChain.snapshot = backendSnapE
         fullSnapshot = enrichSnap(fullSnapshot, allResolved)
         const result = { ok: true, backendId: backendId || null, chain: chainAndSnap.chain, resolved: chainAndSnap.resolved, snapshot: genericSnap, backendChain: backendChain, fullChain: fullChain, fullSnapshot: fullSnapshot }
-        // #284 修订：探针出现 pending（诚实未知）的结果不缓存（与旧 statusCache 同纪律——防已装仍报未装冻结）
-        const hasPendingProbe = (function () {
+        // #284 修订 + 2026-08-28 B 方案（用户定版）：链未全绿（仍存在 pending/fail/current 步骤）不写 30s 缓存——
+        //   未完成区是动态区（修复由对话/终端发生在链外），panel 轮询每次真探测，修复完成即自动变绿；
+        //   全部通过（done）才缓存（全绿后零重复探测，client 轮询也随之停止）。
+        const chainNotAllDone = (function () {
           const steps = (fullSnapshot && Array.isArray(fullSnapshot.steps)) ? fullSnapshot.steps : []
-          return steps.some(function (s) { return s.status === 'pending' })
+          return steps.some(function (s) { return s.status !== 'done' })
         })()
-        if (!hasPendingProbe) chainCache = { ts: Date.now(), key: cacheKey, value: result }
+        if (!chainNotAllDone) chainCache = { ts: Date.now(), key: cacheKey, value: result }
         return result
       }catch(e){
         return { ok: false, error: String((e && e.message)||e) }
@@ -1878,21 +1971,325 @@ export default {
     harness.handle('wf.snapshot', async function (args) {
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const now = Date.now()
+      // 第一性原理分发前置：先算 selection，再决定缓存与数据链路（避免旧 GitHub 缓存遮住 Markdown）
+      let _selEarly = null
+      try {
+        const svc = await getDetectionService()
+        if (svc && typeof svc.detect === 'function') {
+          const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+          if (det && det.selection) _selEarly = det.selection
+        }
+      } catch {}
+      if (!_selEarly || (_selEarly.backendId == null && (!_selEarly.source || _selEarly.source !== 'explicit'))) {
+        try {
+          const regTmp = await getTrackerRegistry()
+          const tmpHandle = { cwd }
+          const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+          if (sel2) _selEarly = sel2
+        } catch {}
+      }
+      const useComposerEarly = _selEarly && _selEarly.backendId && _selEarly.backendId !== 'github' && _selEarly.backendId !== '' && _selEarly.backendId !== 'other'
       if (cache.snapshot && cache.cwd === cwd) {
-        const current = await cacheSnapshotIsCurrent(cache.snapshot, cwd)
-        if (current === true || (current === null && now - cache.ts < CACHE_MS)) return cache.snapshot
+        // GitHub 路径才用 issue 索引校验；Markdown 等走通用缓存时只看时间与 backend 是否一致
+        if (useComposerEarly) {
+          const cachedBackend = cache.snapshot.selection && cache.snapshot.selection.backendId
+          if (cachedBackend === _selEarly.backendId && now - cache.ts < CACHE_MS) return cache.snapshot
+        } else {
+          const current = await cacheSnapshotIsCurrent(cache.snapshot, cwd)
+          if (current === true || (current === null && now - cache.ts < CACHE_MS)) return cache.snapshot
+        }
       }
       try {
-        // #2 deletion fix：磁盘快照只用于秒开；命中后先校验 issue 索引，删除/状态变化时立即重建。
-        const repo0 = await getRepoKey(cwd)
-        const disk = await readDiskCache(repo0)
-        if (disk) {
-          const current = await cacheSnapshotIsCurrent(disk, cwd)
-          if (current !== false) return adoptSnapshot(Object.assign({}, disk, { fromCache: true }), cwd)
+        // 复用已算的 selection，避免二次探测
+        let _sel = _selEarly
+        if (!_sel) {
+          try {
+            const svc = await getDetectionService()
+            if (svc && typeof svc.detect === 'function') {
+              const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+              if (det && det.selection) _sel = det.selection
+            }
+          } catch {}
+          if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+            try {
+              const regTmp = await getTrackerRegistry()
+              const tmpHandle = { cwd }
+              const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+              const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+              if (sel2) _sel = sel2
+            } catch {}
+          }
         }
-        const snap = await buildSnapshot(cwd, args && args.backendId)
-        await writeDiskCache(snap.repo, snap)
-        return adoptSnapshot(snap, cwd)
+        const useComposer = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
+        if (useComposer) {
+          const reg = await getTrackerRegistry()
+          const backendId = _sel.backendId
+          const tracker = reg.get(backendId)
+          if (!tracker) throw new Error('unknown backend ' + backendId)
+          let repoRef = null
+          try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
+          const { createSnapshotComposer } = await import('./tracker/snapshot.js')
+          const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
+          const res = await composer.composeSnapshot(backendId, repoRef, ctx2)
+          if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
+                    const inner = upcaseSnapStates(res.snapshot)
+          const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
+          const allForList = []
+          ;(inner.maps || []).forEach(function(m){
+            if (m.key != null && m.number == null) {
+              const n = parseInt(m.key, 10)
+              if (!isNaN(n)) m.number = n
+            }
+            if (m.key != null) m.key = String(m.key)
+            allForList.push(m)
+          })
+          flatTickets.forEach(function(t){
+            if (t.key != null && t.number == null) {
+              const n = parseInt(t.key, 10)
+              if (!isNaN(n)) t.number = n
+            }
+            if (t.key != null) t.key = String(t.key)
+            if (Array.isArray(t.blockedBy)) {
+              t.blockedBy = t.blockedBy.map(function(ref){
+                if (typeof ref === 'number') return ref
+                if (ref && typeof ref === 'object' && ref.key != null) {
+                  const nk = String(ref.key)
+                  const nn = parseInt(nk, 10)
+                  if (!isNaN(nn)) return nn
+                  return nk
+                }
+                return ref
+              })
+            }
+            allForList.push(t)
+          })
+          ;(inner.issues || []).forEach(function(it){
+            if (it.key != null && it.number == null) {
+              const n = parseInt(it.key, 10)
+              if (!isNaN(n)) it.number = n
+            }
+            if (it.key != null) it.key = String(it.key)
+            allForList.push(it)
+          })
+          const labels = inner.labels || (function(){
+            const mm = {}
+            ;[].concat(inner.maps || []).concat(flatTickets).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
+            return Object.entries(mm).map(function(e){ return {name:e[0], color:e[1]} })
+          })()
+          let backendModules = null
+          try {
+            const regM = await getTrackerRegistry()
+            if (regM && typeof regM.modules === 'function') {
+              backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+            }
+          } catch {}
+          // B: 补全调色盘全量（文件约束内满足契约：triage 表即全量表，未用标签也常驻，色取默认表；已用标签的色已在 labels 中为票面最终色）
+          try {
+            if(backendId==='markdown' && Array.isArray(labels) && backendModules){
+              const mdMod = backendModules.find(function(m){ return m && m.id==='markdown' && Array.isArray(m.labelPalette) })
+              const palette = mdMod && mdMod.labelPalette
+              if(Array.isArray(palette) && palette.length){
+                const have = {}
+                labels.forEach(function(l){ if(l && l.name) have[String(l.name).trim()] = true })
+                palette.forEach(function(p){
+                  const nm = p && p.name ? String(p.name).trim() : ''
+                  if(!nm || have[nm]) return
+                  labels.push({name: nm, color: String(p.color||'cccccc').replace(/^#/,'')})
+                })
+              }
+            }
+          } catch {}
+          // Q7: 兜底 url（Issue.url 为空时按后端现算；github 走 https，markdown 走盘符路径）
+          try {
+            if(backendId==='markdown' && Array.isArray(allForList) && allForList.length){
+              const mdModForUrl = backendModules && backendModules.find(function(m){ return m && m.id==='markdown' })
+              const urlFn = mdModForUrl && typeof mdModForUrl.issueUrl === 'function' ? mdModForUrl.issueUrl : null
+              const tmpRef = repoRef
+              if(urlFn){
+                allForList.forEach(function(it){
+                  if(!it || it.url) return
+                  const k = it.key != null ? String(it.key).trim() : (it.number != null ? String(it.number).trim() : '')
+                  if(!k) return
+                  try { const u = urlFn(tmpRef, k); if(u) it.url = u } catch {}
+                })
+                ;(inner.maps||[]).forEach(function(m){
+                  if(m && !m.url){
+                    try {
+                      const mk = m.key != null ? String(m.key).trim() : '00'
+                      const mu = urlFn(tmpRef, mk)
+                      if(mu) m.url = mu
+                    } catch {}
+                  }
+                })
+              }
+            }
+          } catch {}
+          const repoRoot = await getRepoRoot(cwd)
+          const snap = {
+            ok: true,
+            repo: null,
+            repoRoot: repoRoot,
+            updatedAt: new Date().toISOString(),
+            generatedMs: Date.now(),
+            env: { ghPath: ghPath, ghError: ghLastError },
+            maps: inner.maps,
+            issues: allForList,
+            labels: labels,
+            repository: repoRef,
+            backendModules: backendModules,
+            selection: _sel,
+            capabilities: null,
+            viewer: null,
+            viewerLogin: null,
+            deck: inner.deck,
+          }
+          return adoptSnapshot(snap, cwd)
+        }
+        // 统一契约：所有后端均走 composeSnapshot，不再硬走 buildSnapshot 直调 gh
+        if (!_sel || !_sel.backendId) {
+          const repoRoot = await getRepoRoot(cwd)
+          let backendModules = null
+          try {
+            const regM = await getTrackerRegistry()
+            if (regM && typeof regM.modules === 'function') {
+              backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+            }
+          } catch {}
+          const snap = {
+            ok: true,
+            repo: null,
+            repoRoot,
+            updatedAt: new Date().toISOString(),
+            generatedMs: Date.now(),
+            env: { ghPath, ghError: ghLastError },
+            maps: [],
+            issues: [],
+            labels: [],
+            repository: null,
+            backendModules,
+            selection: _sel,
+            capabilities: null,
+            viewer: null,
+            viewerLogin: null,
+            deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+          }
+          return adoptSnapshot(snap, cwd)
+        }
+        // GitHub 同样走编排器（经 registry.get('github').list），不再直调 buildSnapshot 硬走 gh
+        const reg2 = await getTrackerRegistry()
+        const backendId2 = _sel.backendId
+        const tracker2 = reg2.get(backendId2)
+        if (!tracker2) throw new Error('unknown backend ' + backendId2)
+        let repoRef2 = null
+        try { repoRef2 = reg2.describe({ cwd }, backendId2) } catch {}
+        if (!repoRef2 || !repoRef2.refId) {
+          const rk = await getRepoKey(cwd)
+          if (rk && rk.owner && rk.name) {
+            repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
+          } else {
+            const repoRootNoRepo = await getRepoRoot(cwd)
+            let backendModulesNoRepo = null
+            try {
+              const regMNo = await getTrackerRegistry()
+              if (regMNo && typeof regMNo.modules === 'function') {
+                backendModulesNoRepo = regMNo.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+              }
+            } catch {}
+            const _selNoRepo = (typeof _sel !== 'undefined' ? _sel : (typeof _selEarly !== 'undefined' ? _selEarly : null))
+            const snapNoRepo = {
+              ok: true,
+              repo: null,
+              repoRoot: repoRootNoRepo,
+              updatedAt: new Date().toISOString(),
+              generatedMs: Date.now(),
+              env: { ghPath, ghError: ghLastError },
+              maps: [],
+              issues: [],
+              labels: [],
+              repository: null,
+              backendModules: backendModulesNoRepo,
+              selection: _selNoRepo,
+              capabilities: null,
+              viewer: null,
+              viewerLogin: null,
+              deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+            }
+            return adoptSnapshot(snapNoRepo, cwd)
+          }
+        }
+        const repo0b = await getRepoKey(cwd)
+        const diskb = await readDiskCache(repo0b)
+        if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
+          const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
+          if (currentb !== false) return adoptSnapshot(Object.assign({}, diskb, { fromCache: true }), cwd)
+        }
+        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
+        const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
+        const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
+        const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b)
+        if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
+                  const inner2 = upcaseSnapStates(res2.snapshot)
+        ;(inner2.maps || []).forEach(function(m){ 
+          if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
+          try {
+            const tickets = m.tickets || []
+            // 补 number（GitHub 仅有 key，UI 用 number 展示）
+            tickets.forEach(function(t){ if(t && t.key != null && t.number == null){ const nn=parseInt(t.key,10); if(!isNaN(nn)) t.number=nn; if(t.key!=null) t.key=String(t.key) } })
+            const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
+            tickets.forEach(function(t){ 
+              if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
+              else if (t.key != null && lvInfo.byKey && lvInfo.byKey[t.key] != null) t.level = lvInfo.byKey[t.key]
+            })
+            const stats = (typeof groupTickets === 'function') ? groupTickets(tickets) : { total: tickets.length, open: tickets.filter(function(x){return x.state!=='CLOSED'}).length, closed: tickets.filter(function(x){return x.state==='CLOSED'}).length, frontier:0, claimed:0, blocked:0, levels:[], levelOf:{} }
+            m.stats = stats
+          } catch {}
+        })
+        ;(inner2.issues || []).forEach(function(it){ if (it.number == null && it.key != null) { const nn = parseInt(it.key,10); if(!isNaN(nn)) it.number = nn; } })
+        let allForList2 = [].concat(inner2.maps || []).concat((inner2.maps||[]).flatMap(function(m){ return m.tickets||[]; })).concat(inner2.issues||[])
+        const labels2 = inner2.labels || (function(){
+          const mm = {}
+          ;[].concat(inner2.maps||[]).concat(inner2.issues||[]).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
+          return Object.entries(mm).map(function(e){ return {name:e[0], color:e[1]} })
+        })()
+        let backendModules2 = null
+        try {
+          const regM2 = await getTrackerRegistry()
+          if (regM2 && typeof regM2.modules === 'function') {
+            backendModules2 = regM2.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+          }
+        } catch {}
+        const repoRoot2 = await getRepoRoot(cwd)
+        let viewer2 = null, viewerLogin2 = null
+        try {
+          const tr = reg2.get(backendId2)
+          if (tr && typeof tr.getCurrentUser === 'function') {
+            const vr = await tr.getCurrentUser(repoRef2, ctx2b)
+            if (vr && vr.ok && vr.data) { viewer2 = vr.data; viewerLogin2 = vr.data.login || null }
+          }
+        } catch {}
+        const snap2 = {
+          ok: true,
+          repo: repo0b,
+          repoRoot: repoRoot2,
+          updatedAt: new Date().toISOString(),
+          generatedMs: Date.now(),
+          env: { ghPath, ghError: ghLastError },
+          maps: inner2.maps,
+          issues: allForList2,
+          labels: labels2,
+          repository: repoRef2,
+          backendModules: backendModules2,
+          selection: _sel,
+          capabilities: null,
+          viewer: viewer2,
+          viewerLogin: viewerLogin2,
+          deck: inner2.deck,
+        }
+        await writeDiskCache(snap2.repo, snap2)
+        return adoptSnapshot(snap2, cwd)
       } catch (e) {
         cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
         return { ok: false, error: errText(e), env: { ghError: ghLastError } }
@@ -1904,10 +2301,302 @@ export default {
       // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
       resetGhCache()
       try {
-        const snap = await buildSnapshot(cwd, args && args.backendId)
-        // v1.5 T9：刷新后落盘，下次重启秒开
-        await writeDiskCache(snap.repo, snap)
-        return adoptSnapshot(snap, cwd)
+        // 第一性原理分发：与 wf.snapshot 同构
+        let _sel = null
+        try {
+          const svc = await getDetectionService()
+          if (svc && typeof svc.detect === 'function') {
+            const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+            if (det && det.selection) _sel = det.selection
+          }
+        } catch {}
+        if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+          try {
+            const regTmp = await getTrackerRegistry()
+            const tmpHandle = { cwd }
+            const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+            const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+            if (sel2) _sel = sel2
+          } catch {}
+        }
+        const useComposer = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
+        if (useComposer) {
+          const reg = await getTrackerRegistry()
+          const backendId = _sel.backendId
+          const tracker = reg.get(backendId)
+          if (!tracker) throw new Error('unknown backend ' + backendId)
+          let repoRef = null
+          try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
+          const { createSnapshotComposer } = await import('./tracker/snapshot.js')
+          const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
+          const res = await composer.composeSnapshot(backendId, repoRef, ctx2)
+          if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
+                    const inner = upcaseSnapStates(res.snapshot)
+          const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
+          const allForList = []
+          ;(inner.maps || []).forEach(function(m){
+            if (m.key != null && m.number == null) {
+              const n = parseInt(m.key, 10)
+              if (!isNaN(n)) m.number = n
+            }
+            if (m.key != null) m.key = String(m.key)
+            try {
+              const tickets = m.tickets || []
+              const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
+              tickets.forEach(function(t){ 
+                if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
+                else if (t.key != null && lvInfo.byKey && lvInfo.byKey[t.key] != null) t.level = lvInfo.byKey[t.key]
+              })
+              const stats = (typeof groupTickets === 'function') ? groupTickets(tickets) : { total: tickets.length, open: tickets.filter(function(x){return x.state!=='CLOSED'}).length, closed: tickets.filter(function(x){return x.state==='CLOSED'}).length, frontier:0, claimed:0, blocked:0, levels:[], levelOf:{} }
+              m.stats = stats
+            } catch {}
+            allForList.push(m)
+          })
+          flatTickets.forEach(function(t){
+            if (t.key != null && t.number == null) {
+              const n = parseInt(t.key, 10)
+              if (!isNaN(n)) t.number = n
+            }
+            if (t.key != null) t.key = String(t.key)
+            if (Array.isArray(t.blockedBy)) {
+              t.blockedBy = t.blockedBy.map(function(ref){
+                if (typeof ref === 'number') return ref
+                if (ref && typeof ref === 'object' && ref.key != null) {
+                  const nk = String(ref.key)
+                  const nn = parseInt(nk, 10)
+                  if (!isNaN(nn)) return nn
+                  return nk
+                }
+                return ref
+              })
+            }
+            allForList.push(t)
+          })
+          ;(inner.issues || []).forEach(function(it){
+            if (it.key != null && it.number == null) {
+              const n = parseInt(it.key, 10)
+              if (!isNaN(n)) it.number = n
+            }
+            if (it.key != null) it.key = String(it.key)
+            allForList.push(it)
+          })
+          const labels = inner.labels || (function(){
+            const mm = {}
+            ;[].concat(inner.maps || []).concat(flatTickets).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
+            return Object.entries(mm).map(function(e){ return {name:e[0], color:e[1]} })
+          })()
+          let backendModules = null
+          try {
+            const regM = await getTrackerRegistry()
+            if (regM && typeof regM.modules === 'function') {
+              backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+            }
+          } catch {}
+          // B: 补全调色盘全量（文件约束内满足契约：triage 表即全量表，未用标签也常驻，色取默认表；已用标签的色已在 labels 中为票面最终色）
+          try {
+            if(backendId==='markdown' && Array.isArray(labels) && backendModules){
+              const mdMod = backendModules.find(function(m){ return m && m.id==='markdown' && Array.isArray(m.labelPalette) })
+              const palette = mdMod && mdMod.labelPalette
+              if(Array.isArray(palette) && palette.length){
+                const have = {}
+                labels.forEach(function(l){ if(l && l.name) have[String(l.name).trim()] = true })
+                palette.forEach(function(p){
+                  const nm = p && p.name ? String(p.name).trim() : ''
+                  if(!nm || have[nm]) return
+                  labels.push({name: nm, color: String(p.color||'cccccc').replace(/^#/,'')})
+                })
+              }
+            }
+          } catch {}
+          // Q7: 兜底 url（Issue.url 为空时按后端现算；github 走 https，markdown 走盘符路径）
+          try {
+            if(backendId==='markdown' && Array.isArray(allForList) && allForList.length){
+              const mdModForUrl = backendModules && backendModules.find(function(m){ return m && m.id==='markdown' })
+              const urlFn = mdModForUrl && typeof mdModForUrl.issueUrl === 'function' ? mdModForUrl.issueUrl : null
+              const tmpRef = repoRef
+              if(urlFn){
+                allForList.forEach(function(it){
+                  if(!it || it.url) return
+                  const k = it.key != null ? String(it.key).trim() : (it.number != null ? String(it.number).trim() : '')
+                  if(!k) return
+                  try { const u = urlFn(tmpRef, k); if(u) it.url = u } catch {}
+                })
+                ;(inner.maps||[]).forEach(function(m){
+                  if(m && !m.url){
+                    try {
+                      const mk = m.key != null ? String(m.key).trim() : '00'
+                      const mu = urlFn(tmpRef, mk)
+                      if(mu) m.url = mu
+                    } catch {}
+                  }
+                })
+              }
+            }
+          } catch {}
+          const repoRoot = await getRepoRoot(cwd)
+          const snap = {
+            ok: true,
+            repo: null,
+            repoRoot: repoRoot,
+            updatedAt: new Date().toISOString(),
+            generatedMs: Date.now(),
+            env: { ghPath: ghPath, ghError: ghLastError },
+            maps: inner.maps,
+            issues: allForList,
+            labels: labels,
+            repository: repoRef,
+            backendModules: backendModules,
+            selection: _sel,
+            capabilities: null,
+            viewer: null,
+            viewerLogin: null,
+            deck: inner.deck,
+          }
+          return adoptSnapshot(snap, cwd)
+        }
+        // 统一走编排器（所有后端）
+        if (!_sel || !_sel.backendId) {
+          const repoRoot = await getRepoRoot(cwd)
+          let backendModules = null
+          try {
+            const regM = await getTrackerRegistry()
+            if (regM && typeof regM.modules === 'function') {
+              backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+            }
+          } catch {}
+          const snap = {
+            ok: true,
+            repo: null,
+            repoRoot,
+            updatedAt: new Date().toISOString(),
+            generatedMs: Date.now(),
+            env: { ghPath, ghError: ghLastError },
+            maps: [],
+            issues: [],
+            labels: [],
+            repository: null,
+            backendModules,
+            selection: _sel,
+            capabilities: null,
+            viewer: null,
+            viewerLogin: null,
+            deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+          }
+          return adoptSnapshot(snap, cwd)
+        }
+        const reg2 = await getTrackerRegistry()
+        const backendId2 = _sel.backendId
+        const tracker2 = reg2.get(backendId2)
+        if (!tracker2) throw new Error('unknown backend ' + backendId2)
+        let repoRef2 = null
+        try { repoRef2 = reg2.describe({ cwd }, backendId2) } catch {}
+        if (!repoRef2 || !repoRef2.refId) {
+          const rk = await getRepoKey(cwd)
+          if (rk && rk.owner && rk.name) {
+            repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
+          } else {
+            const repoRootNoRepo = await getRepoRoot(cwd)
+            let backendModulesNoRepo = null
+            try {
+              const regMNo = await getTrackerRegistry()
+              if (regMNo && typeof regMNo.modules === 'function') {
+                backendModulesNoRepo = regMNo.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+              }
+            } catch {}
+            const _selNoRepo = (typeof _sel !== 'undefined' ? _sel : (typeof _selEarly !== 'undefined' ? _selEarly : null))
+            const snapNoRepo = {
+              ok: true,
+              repo: null,
+              repoRoot: repoRootNoRepo,
+              updatedAt: new Date().toISOString(),
+              generatedMs: Date.now(),
+              env: { ghPath, ghError: ghLastError },
+              maps: [],
+              issues: [],
+              labels: [],
+              repository: null,
+              backendModules: backendModulesNoRepo,
+              selection: _selNoRepo,
+              capabilities: null,
+              viewer: null,
+              viewerLogin: null,
+              deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+            }
+            return adoptSnapshot(snapNoRepo, cwd)
+          }
+        }
+        const repo0b = await getRepoKey(cwd)
+        const diskb = await readDiskCache(repo0b)
+        if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
+          const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
+          if (currentb !== false) return adoptSnapshot(Object.assign({}, diskb, { fromCache: true }), cwd)
+        }
+        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
+        const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
+        const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
+        const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b)
+        if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
+                  const inner2 = upcaseSnapStates(res2.snapshot)
+        ;(inner2.maps || []).forEach(function(m){ 
+          if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
+          try {
+            const tickets = m.tickets || []
+            // 补 number（GitHub 仅有 key，UI 用 number 展示）
+            tickets.forEach(function(t){ if(t && t.key != null && t.number == null){ const nn=parseInt(t.key,10); if(!isNaN(nn)) t.number=nn; if(t.key!=null) t.key=String(t.key) } })
+            const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
+            tickets.forEach(function(t){ 
+              if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
+              else if (t.key != null && lvInfo.byKey && lvInfo.byKey[t.key] != null) t.level = lvInfo.byKey[t.key]
+            })
+            const stats = (typeof groupTickets === 'function') ? groupTickets(tickets) : { total: tickets.length, open: tickets.filter(function(x){return x.state!=='CLOSED'}).length, closed: tickets.filter(function(x){return x.state==='CLOSED'}).length, frontier:0, claimed:0, blocked:0, levels:[], levelOf:{} }
+            m.stats = stats
+          } catch {}
+        })
+        ;(inner2.issues || []).forEach(function(it){ if (it.number == null && it.key != null) { const nn = parseInt(it.key,10); if(!isNaN(nn)) it.number = nn; } })
+        let allForList2 = [].concat(inner2.maps || []).concat((inner2.maps||[]).flatMap(function(m){ return m.tickets||[]; })).concat(inner2.issues||[])
+        const labels2 = inner2.labels || (function(){
+          const mm = {}
+          ;[].concat(inner2.maps||[]).concat(inner2.issues||[]).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
+          return Object.entries(mm).map(function(e){ return {name:e[0], color:e[1]} })
+        })()
+        let backendModules2 = null
+        try {
+          const regM2 = await getTrackerRegistry()
+          if (regM2 && typeof regM2.modules === 'function') {
+            backendModules2 = regM2.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+          }
+        } catch {}
+        const repoRoot2 = await getRepoRoot(cwd)
+        let viewer2 = null, viewerLogin2 = null
+        try {
+          const tr = reg2.get(backendId2)
+          if (tr && typeof tr.getCurrentUser === 'function') {
+            const vr = await tr.getCurrentUser(repoRef2, ctx2b)
+            if (vr && vr.ok && vr.data) { viewer2 = vr.data; viewerLogin2 = vr.data.login || null }
+          }
+        } catch {}
+        const snap2 = {
+          ok: true,
+          repo: repo0b,
+          repoRoot: repoRoot2,
+          updatedAt: new Date().toISOString(),
+          generatedMs: Date.now(),
+          env: { ghPath, ghError: ghLastError },
+          maps: inner2.maps,
+          issues: allForList2,
+          labels: labels2,
+          repository: repoRef2,
+          backendModules: backendModules2,
+          selection: _sel,
+          capabilities: null,
+          viewer: viewer2,
+          viewerLogin: viewerLogin2,
+          deck: inner2.deck,
+        }
+        await writeDiskCache(snap2.repo, snap2)
+        return adoptSnapshot(snap2, cwd)
       } catch (e) {
         cache = { ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }
         return { ok: false, error: errText(e) }
@@ -1983,7 +2672,7 @@ export default {
       try {
         const reg = await getTrackerRegistry()
         if (!reg) return { ok: false, error: 'registry unavailable' }
-        const mods = reg.modules().map(function(m){ return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}, m.openRepository ? { openRepository: m.openRepository } : {}) }) // #230：转发后端声明的 setup 描述数据键（键入 locale）
+        const mods = reg.modules().map(function(m){ return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.labelPalette ? { labelPalette: m.labelPalette } : {}, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}, m.openRepository ? { openRepository: m.openRepository } : {}) }) // #230：转发后端声明的 setup 描述数据键（键入 locale）· #323：转发后端默认调色盘（labelPalette）
         const cwd = (args && args.cwd) || DEFAULT_CWD
         let bound = undefined
         try { bound = reg.bound({ cwd: cwd }) } catch {}
@@ -2003,9 +2692,68 @@ export default {
     })
     harness.handle('wf.issueDetail', async function (args) {
       const n = args && args.number
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
       if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
       try {
+        // 第一性原理分发：按探测结果走对应后端
+        let _sel = null
+        try {
+          const svc = await getDetectionService()
+          if (svc && typeof svc.detect === 'function') {
+            const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+            if (det && det.selection) _sel = det.selection
+          }
+        } catch {}
+        if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+          try {
+            const regTmp = await getTrackerRegistry()
+            const tmpHandle = { cwd }
+            const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+            const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+            if (sel2) _sel = sel2
+          } catch {}
+        }
+        const useTracker = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
+        if (useTracker) {
+          const reg = await getTrackerRegistry()
+          const backendId = _sel.backendId
+          const tracker = reg.get(backendId)
+          if (!tracker || typeof tracker.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 get" } }
+          let repoRef = null
+          try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const key = String(n).padStart(2, '0')
+          const r = await tracker.get(repoRef, key, {}, opCtx)
+          if (!r || !r.ok) return r
+          // 统一为 fetchIssueDetail 的返回形状（{ok, issue}），便于客户端复用
+          const iss = r.data
+          // 适配客户端期望的 issue 形状：补充 number / labels 节点等
+          if (iss && iss.key != null && iss.number == null) {
+            const nn = parseInt(iss.key, 10)
+            if (!isNaN(nn)) iss.number = nn
+          }
+          // 将 key 归一为字符串
+          if (iss && iss.key != null) iss.key = String(iss.key)
+          // 详情需要包含 comments / blockedBy 等，markdown 的 get 已包含
+          return { ok: true, issue: {
+            number: iss.number != null ? iss.number : (iss.key ? parseInt(iss.key,10) : n),
+            title: iss.title || '',
+            state: iss.state === 'closed' ? 'CLOSED' : 'OPEN',
+            body: iss.body || '',
+            url: iss.url || '',
+            updatedAt: iss.updatedAt || '',
+            createdAt: iss.createdAt || '',
+            closedAt: iss.closedAt || null,
+            author: iss.author,
+            labels: { nodes: (iss.labels || []).map(function(l){ return { name: l.name, color: l.color || '' } }) },
+            assignees: { nodes: (iss.assignees || []).map(function(a){ return typeof a === 'string' ? { login: a } : a }) },
+            comments: iss.comments || { nodes: [] },
+            subIssues: iss.subIssues || { totalCount: 0, nodes: [] },
+            blockedBy: { nodes: (iss.blockedBy || []).map(function(b){ if (typeof b === 'number') return { number: b }; if (b && b.key != null) { const nn = parseInt(b.key,10); return { number: isNaN(nn) ? b.key : nn, title: b.title||'', state: b.state==='closed'?'CLOSED':'OPEN' }; } return b; }) },
+            blocking: { nodes: [] },
+          } }
+        }
         const r = await fetchIssueDetail(Number(n), cwd)
         return r
       } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
@@ -2073,9 +2821,49 @@ export default {
     harness.handle('wf.issueComments', async function (args) {
       const n = args && args.number
       const after = args && args.after
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
       if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
       try {
+        // 第一性原理分发
+        let _sel = null
+        try {
+          const svc = await getDetectionService()
+          if (svc && typeof svc.detect === 'function') {
+            const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+            if (det && det.selection) _sel = det.selection
+          }
+        } catch {}
+        if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+          try {
+            const regTmp = await getTrackerRegistry()
+            const tmpHandle = { cwd }
+            const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+            const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+            if (sel2) _sel = sel2
+          } catch {}
+        }
+        const useTracker = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
+        if (useTracker) {
+          const reg = await getTrackerRegistry()
+          const backendId = _sel.backendId
+          const tracker = reg.get(backendId)
+          if (!tracker || typeof tracker.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 get" } }
+          let repoRef = null
+          try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+          if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+          const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const key = String(n).padStart(2, '0')
+          const r = await tracker.get(repoRef, key, {}, opCtx)
+          if (!r || !r.ok) return r
+          const iss = r.data
+          const nodes = (iss.comments || []).map(function(c){ return { author: c.author || { login: '' }, authorAssociation: c.authorAssociation || '', body: c.body || '', createdAt: c.createdAt || '', updatedAt: c.updatedAt || '' } })
+          // 简单分页：after 为已加载数
+          const afterNum = after != null ? Number(after) : 0
+          const start = isNaN(afterNum) ? 0 : afterNum
+          const pageNodes = nodes.slice(start, start + 50)
+          const hasNext = start + 50 < nodes.length
+          return { ok: true, nodes: pageNodes, pageInfo: { hasNextPage: hasNext, endCursor: String(start + pageNodes.length) } }
+        }
         const r = await fetchIssueComments(Number(n), after != null ? String(after) : null, cwd)
         return r
       } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
@@ -2126,7 +2914,51 @@ export default {
     //   故"列表不更新状态"。since 语义：返回数组非空 = 自上次快照以来有变化 → 视为 changed。
     //   配额仍走 REST 5000/h 池（独立于 GraphQL 5000 点/h），不烧穿。
     harness.handle('wf.probe', async function (args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
+      // 第一性原理分发：markdown 等走轻量 list 探针，github 仍走 gh issue index
+      let _selProbe = null
+      try {
+        const svc = await getDetectionService()
+        if (svc && typeof svc.detect === 'function') {
+          const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+          if (det && det.selection) _selProbe = det.selection
+        }
+      } catch {}
+      if (!_selProbe || (_selProbe.backendId == null && (!_selProbe.source || _selProbe.source !== 'explicit'))) {
+        try {
+          const regTmp = await getTrackerRegistry()
+          const sel2 = await regTmp.select({ cwd }, { cwd, platform: await getPlatform(), fs: ctx.get('fs') })
+          if (sel2) _selProbe = sel2
+        } catch {}
+      }
+      const useProbeTracker = _selProbe && _selProbe.backendId && _selProbe.backendId !== 'github' && _selProbe.backendId !== '' && _selProbe.backendId !== 'other'
+      if (useProbeTracker) {
+        try {
+          const reg = await getTrackerRegistry()
+          const tracker = reg.get(_selProbe.backendId)
+          if (tracker && typeof tracker.list === 'function') {
+            let repoRef = null
+            try { repoRef = reg.describe({ cwd }, _selProbe.backendId) } catch {}
+            if (!repoRef) repoRef = { backend: _selProbe.backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || _selProbe.backendId, url: '' }
+            const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+            const r = await tracker.list(repoRef, {}, opCtx)
+            if (!r || !r.ok) return { ok: false, error: errText((r && r.error) || 'probe list 失败') }
+            const all = Array.isArray(r.data) ? r.data : []
+            // 轻量索引：key -> state
+            const idx = {}
+            all.forEach(function(it){ const k = it && (it.key != null ? String(it.key).padStart(2,'0') : (it.number != null ? String(it.number).padStart(2,'0') : '')); if(k) idx[k] = String(it.state||'OPEN').toUpperCase() })
+            const rk1 = _selProbe.backendId + ':' + cwd
+            const known = lastIssueIndexByRepo[rk1] || {}
+            const changed = issueIndexChanged(known, idx)
+            rememberIssueIndex({ owner: _selProbe.backendId, name: cwd }, idx)
+            // 兼容 remember 的 repoKey 形态：用 backendId+cwd 作 key，避免与 github 的 owner/name 串
+            lastIssueIndexByRepo[rk1] = idx
+            lastProbeAtByRepo[rk1] = new Date().toISOString()
+            if (changed) cache = { ts: 0, snapshot: null, error: null, cwd: cwd }
+            return { ok: true, changed: changed, repo: { owner: _selProbe.backendId, name: String(cwd).split(/[\\/]/).pop()||'' }, count: all.length, since: lastProbeAtByRepo[rk1] }
+          }
+        } catch (e) { return { ok: false, error: errText(e) } }
+      }
       try {
         const remote = await fetchIssueIndex(cwd)
         if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe 失败') }
@@ -2136,7 +2968,7 @@ export default {
         const changed = issueIndexChanged(known, remote.index)
         rememberIssueIndex(repo, remote.index)
         lastProbeAtByRepo[rk1] = new Date().toISOString()
-        if (changed) cache = { ts: 0, snapshot: null, error: null, cwd: cwd }  // 删除/状态变化同样失效缓存
+        if (changed) cache = { ts: 0, snapshot: null, error: null, cwd: cwd }
         return { ok: true, changed: changed, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
       } catch (e) { return { ok: false, error: errText(e) } }
     })
@@ -2233,8 +3065,58 @@ export default {
     // 写操作前 UI 已二次确认（用户点击即同意），不走 approval 服务（RESEARCH-NOTES §3 结论）。
     harness.handle('wf.claim', async function (args) {
       const n = args && args.number
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
       if (!n) return { ok: false, error: '缺少参数 number（ticket 号）' }
+      // 第一性原理分发
+      let _sel = null
+      try {
+        const svc = await getDetectionService()
+        if (svc && typeof svc.detect === 'function') {
+          const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+          if (det && det.selection) _sel = det.selection
+        }
+      } catch {}
+      if (!_sel || (_sel.backendId == null && (!_sel.source || _sel.source !== 'explicit'))) {
+        try {
+          const regTmp = await getTrackerRegistry()
+          const tmpHandle = { cwd }
+          const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const sel2 = await regTmp.select(tmpHandle, tmpCtx)
+          if (sel2) _sel = sel2
+        } catch {}
+      }
+      const useTracker = _sel && _sel.backendId && _sel.backendId !== 'github' && _sel.backendId !== '' && _sel.backendId !== 'other'
+      if (useTracker) {
+        const reg = await getTrackerRegistry()
+        const backendId = _sel.backendId
+        const tracker = reg.get(backendId)
+        if (!tracker || typeof tracker.setAssignees !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 setAssignees" } }
+        let repoRef = null
+        try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+        if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+        const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+        const key = String(n).padStart(2, '0')
+        // 尝试取当前用户
+        let assignee = 'me'
+        try {
+          if (tracker.getCurrentUser) {
+            const ur = await tracker.getCurrentUser(repoRef, opCtx)
+            if (ur && ur.ok && ur.data && ur.data.login) assignee = String(ur.data.login)
+          }
+        } catch {}
+        // 若仍为 me，尝试 gh
+        if (assignee === 'me') {
+          try {
+            const u = await runGh(['api', 'user', '-q', '.login'])
+            if (u.ok && u.text.trim()) assignee = u.text.trim()
+          } catch {}
+        }
+        const r = await tracker.setAssignees(repoRef, key, [assignee], {}, opCtx)
+        if (!r || !r.ok) return r
+        cache = { ts: 0, snapshot: null, error: null }
+        try { pushIssuePathEvent(n, 'claim') } catch (e) {}
+        return { ok: true, number: n, assignedTo: assignee, url: '' }
+      }
       const repo = await getRepoKey(cwd)
       if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
       const r = await runGh(['issue', 'edit', String(n), '--add-assignee', '@me'], cwd)
@@ -2455,6 +3337,21 @@ export default {
             if (prev) assigned = core.attributeNewNumbers({ prevIndex: prev, currIndex: r.index, sessions: grp.sessions })
             // prev 为空：首轮基线。基线同样必须入库（防下一轮把存量全量当新编号）
           } catch (eA) { assigned = [] }
+          // #315 追加修复：无关新号不硬配。
+          try {
+            if (assigned.length && core.isHintRelatedToTitle) {
+              const kept = [];
+              for (let i = 0; i < assigned.length; i++) {
+                const a = assigned[i];
+                const entry = st.sessions[a.sessionId];
+                if (!entry) { kept.push(a); continue; }
+                const hint = entry.hint;
+                if (hint) { try { if (!core.isHintRelatedToTitle(hint, a.title)) continue; } catch (eRel) {} }
+                kept.push(a);
+              }
+              assigned = kept;
+            }
+          } catch (eFilter) {}
           let changed = false
           for (let i = 0; i < assigned.length; i++) {
             const a = assigned[i]
@@ -2550,6 +3447,33 @@ export default {
         const fi = core.namingFailureInfo(s)
         if (fi) failures.push(fi)
       }
+      // #315 隔离修复：同仓库下若存在带 hint 的草稿单，则抑制同仓库的裸档单（hint == null），避免无线索会话被误改
+      // 保证「只改有线索的目标会话」，裸档会话保持占位直到自身产生线索；同仓库判定以 repoKey 为键
+      try {
+        const byRepoHasHint = {}
+        for (let i = 0; i < orders.length; i++) {
+          const o = orders[i]
+          if (o && o.kind === 'draft' && o.hint) {
+            const so = st.sessions[o.sessionId]
+            const rk = so && so.repoKey
+            if (rk) byRepoHasHint[rk] = true
+          }
+        }
+        if (Object.keys(byRepoHasHint).length) {
+          const kept = []
+          for (let i = 0; i < orders.length; i++) {
+            const o = orders[i]
+            if (o && o.kind === 'draft' && !o.hint) {
+              const so = st.sessions[o.sessionId]
+              const rk = so && so.repoKey
+              if (rk && byRepoHasHint[rk]) continue
+            }
+            kept.push(o)
+          }
+          orders.length = 0
+          for (let i = 0; i < kept.length; i++) orders.push(kept[i])
+        }
+      } catch (eFilter) {}
       return { ok: true, orders: orders, tracked: tracked, failures: failures }
     })
 
@@ -2803,8 +3727,9 @@ export default {
         }
         // 2) 尝试 DSH 平台暴露的 picker（若未来 platform 提供）
         try {
-          const plat = (typeof platform !== 'undefined' && platform && typeof platform.pickDirectory === 'function') ? platform : null
-          if (plat) {
+          let plat = null
+          try { plat = await getPlatform() } catch(_){}
+          if (plat && typeof plat.pickDirectory === 'function') {
             const p = await plat.pickDirectory(initial || cwd)
             if (p) return { ok: true, path: String(p) }
           }
@@ -2829,13 +3754,60 @@ export default {
           } catch(_){}
         }
         try {
-          const plat = (typeof platform !== 'undefined' && platform && typeof platform.pickFile === 'function') ? platform : null
-          if (plat) {
+          let plat = null
+          try { plat = await getPlatform() } catch(_){}
+          if (plat && typeof plat.pickFile === 'function') {
             const p = await plat.pickFile(initial || cwd)
             if (p) return { ok: true, path: String(p) }
           }
         } catch(_){}
         return { ok: false, error: '当前环境暂无原生文件选择器，请手动输入路径', errorKind: 'no-picker' }
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e), errorKind: 'internal' }
+      }
+    })
+    harness.handle('wf.openPath', async function (args) {
+      const raw = args && args.path ? String(args.path) : ''
+      if (!raw) return { ok: false, error: '缺少 path', errorKind: 'bad-arg' }
+      let p = raw.trim()
+      // 去 file:// 前缀（UI 传来可能是 file:///D:/a/b.md）
+      if (/^file:\/\//i.test(p)) {
+        try { p = decodeURI(p.replace(/^file:\/\/\//i, '').replace(/^file:\/\//i, '')) } catch {}
+        // win32 file:///D:/a -> D:/a
+        if (/^\/[A-Za-z]:\//.test(p)) p = p.slice(1)
+      }
+      // 基础校验：路径需为绝对或含盘符/斜杠，避免 shell 注入的相对跳出
+      if (!p) return { ok: false, error: 'path 为空', errorKind: 'bad-arg' }
+      try {
+        const plat = await getPlatform()
+        const isWin = plat && plat.os === 'win32'
+        const isMac = plat && plat.os === 'darwin'
+        let argv = null
+        if (isWin) {
+          // win32 用 explorer 选中文件，无 shell 拼接，argv 直传防注入；文件不存在时 explorer 仍会打开目录
+          // 优先用 explorer /select, 失败回退 cmd start
+          try {
+            // 先尝试 explorer 选中（最符合“在本地打开”）
+            const handle = subprocess.spawn({ argv: ['explorer', '/select,' + p], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
+            const to = timer.timeout(3000)
+            await Promise.race([handle.done, to.then(function(){ try{ handle.terminate() }catch{}; return {exitCode:-1}})])
+            return { ok: true }
+          } catch {}
+          argv = ['cmd', '/c', 'start', '', p]
+        } else if (isMac) {
+          argv = ['open', p]
+        } else {
+          argv = ['xdg-open', p]
+        }
+        if (argv) {
+          const h = subprocess.spawn({ argv: argv, cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
+          const to2 = timer.timeout(5000)
+          const out = await Promise.race([h.done, to2.then(function(){ try{ h.terminate() }catch{}; return {exitCode:-1, signal:'timeout'}})])
+          if (out && out.exitCode === 0) return { ok: true }
+          // explorer 场景已在上面 return，此处为 open/xdg-open 的结果
+          return { ok: true }
+        }
+        return { ok: false, error: '当前平台不支持打开', errorKind: 'unsupported' }
       } catch (e) {
         return { ok: false, error: String((e && e.message) || e), errorKind: 'internal' }
       }

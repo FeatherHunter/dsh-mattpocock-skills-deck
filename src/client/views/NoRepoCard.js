@@ -80,7 +80,14 @@ export     const NoRepoCard = function (props) {
             inject: function(t,a){ try{ inject(st,t) }catch(e){} },
             openUrl: function(u){ try{ openUrl(u) }catch(e){} },
             hostCall: function(m,p){ if(typeof host!=='undefined'&& host.call) return host.call(m,p); return Promise.reject(new Error('hostCall unavailable')) },
-            renderForm: function(schema, onSubmit){ try{ onSubmit({}) }catch(e){} },
+            renderForm: function(schema, onSubmit){
+              try {
+                const isWizardPayload = schema && typeof schema === 'object' && !Array.isArray(schema) && Array.isArray(schema.steps)
+                if (typeof openFormModal === 'function') {
+                  openFormModal(st, isWizardPayload ? { type: 'wizard', steps: schema.steps, label: schema.label || '', submitAction: schema.submitAction || null } : { type: 'form', schema: schema, label: '填写表单' }, onSubmit)
+                } else { try{ onSubmit({}) }catch(e){} }
+              } catch(e){ try{ onSubmit({}) }catch(e2){} }
+            },
             refresh: async function(){ try{ if(typeof host!=='undefined'&& host.call) await host.call('wf.detect',{cwd:st.cwd||'', force:true, backendId:(st.selection&&st.selection.backendId)||undefined}) }catch(e){}; try{ loadChain(st,true) }catch(e){}; try{ loadSnapshot(st,true,true) }catch(e){} },
             tr: tr,
             resolvePrompt: function(id,pa){ try{ if(id==='setupRun'&&typeof setupRunPrompt==='function') return setupRunPrompt(st); return promptText(id,pa)}catch(e){ return '' } }
@@ -89,12 +96,16 @@ export     const NoRepoCard = function (props) {
             // 交由 ChainRenderer 渲染（覆盖旧红卡；旧逻辑不再直接调用 wf.initPublish，而是经 form→rpc→refresh）
             // 但为兼容当前无 chain 表单的过渡期，若链中无 form 动作，仍回退旧红卡；有 form 则直接渲染链
             const cur = chainSnapForNoRepo.steps[chainSnapForNoRepo.currentIndex]
-            const hasForm = cur && cur.actions && cur.actions.some(function(a){ return a && a.type==='form' })
+            const hasForm = cur && cur.actions && cur.actions.some(function(a){ return a && (a.type==='form' || a.type==='wizard') })
             if (hasForm) {
               return (function(){
                 const h2 = (React && React.createElement) ? React.createElement : (cx && cx.h ? cx.h : function(){} )
-                // 复用 ChainRenderer 叶模块（build 已拼入）
-                try{ return h2(ChainRenderer, { snapshot: chainSnapForNoRepo, dispatcher: disp, st: st }) }catch(e){ return null }
+                // 复用 ChainRenderer 叶模块（build 已拼入）；wizard/form 弹窗需挂载 FormModalSeat
+                try{
+                  const chainNode = h2(ChainRenderer, { snapshot: chainSnapForNoRepo, dispatcher: disp, st: st })
+                  if (typeof FormModalSeat === 'function') return h2('div', null, [ h2(FormModalSeat, { st: st }), chainNode ])
+                  return chainNode
+                }catch(e){ return null }
               })()
             }
           }

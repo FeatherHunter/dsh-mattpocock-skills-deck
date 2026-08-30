@@ -29,6 +29,38 @@
 2. EMPTY vs MISSING：能实现但来源无 → EMPTY；**不能实现 → 省略字段（MISSING）**＝能力缺失。
 3. 日志二分：host 记录归一化后每字段填/空；不引入运行期内省或能力分支。
 
+## 房间纪律（#326 承接 #313 D1-D6）
+
+两条纪律，CI 硬卡，本地 npm run verify 可复现。
+
+纪律一：代码门禁 —— 禁止跨房引用（verify-no-cross-import）
+
+- 扫描域：src/host/tracker/backends/github/、gitlab/、markdown/ 三座内置后端，两两禁止相互 import；examples/demo-mini 等第三方扩展不在域内。
+- 检查对象：静态 import / export ... from 与动态 import('...') 的字面量说明符；每条违规输出文件、行号、目标房间。
+- 白名单（允许引用，其余一律禁止）：
+  - node 内置模块（含 node: 前缀与裸名如 path / fs）
+  - 同房间内相对路径（解析后仍在 src/host/tracker/backends/<self>/ 内）
+  - src/shared/tracker/**
+  - src/shared/labels.js
+  - src/host/tracker/preflight.js
+  - src/host/platform/**
+- 纪律：后端文件的引用说明符必须是字面量字符串（import(someVar) 视为违规）；host 主程序引用后端（如 #284 复用 markdown 解析）不在检查范围。
+
+纪律二：会话门禁 —— 一次会话只改一房（verify-no-mixed-session）
+
+- 判定对象：PR 的全量改动清单（base...head），非单次提交。
+- 房间口径：仅 src/host/tracker/backends/<name>/** 属于房间文件；tests/、契约测试夹具、src/shared/** 等不归属任何房间。
+- 无对比基准（如 push 到主分支、浅克隆取不到 base）时自动跳过，不报失败。
+- 失败时输出混入的房内文件清单（按房间分组）。
+
+跨房 = 拆票，无豁免
+
+不设豁免标记、例外名单；跨房事务按纪律拆成两张票、分次实施。仅改公共文件（如 src/shared/**）不会触发会话门禁，因此「抽公共代码」可合法进行。
+
+常驻位置
+
+白名单与两条纪律同时写入本文件与两条门禁的常量，新增共享依赖须改白名单并在票据留痕（#313 D2）。
+
 ## 第三方扩展（#117 #148 范式）
 
 第三方（Jira/Linear/Gitea/自建等，非一等后端）**不在** `src/host/tracker/backends` 内，按 `examples/demo-mini/` 样板照抄：

@@ -121,14 +121,23 @@ export function draftWordFor(lang) {
 }
 
 /**
- * 草稿标题合成：面包屑语义线索优先（[草稿] <线索>），无线索裸档（[草稿]/[Draft]）；
+ * 草稿标题合成：面包屑语义线索优先（[草稿][新增需求/BUG] <线索>），无线索则仅类型标签；
  * 清洗截断沿用 #205 规则与 UTF-8 120 字节总预算（含前缀，前缀永不截断）。
+ * baselineTitle 用于区分“新增需求”与“新增BUG”（取自注册占位），为用户要求“[草稿][新增需求]xxx”而加。
  */
-export function composeDraftTitle({ hint, lang }) {
+export function composeDraftTitle({ hint, lang, baselineTitle }) {
   const prefix = '[' + draftWordFor(lang) + ']'
+  let typeTag = ''
+  if (baselineTitle) {
+    const bt = String(baselineTitle)
+    const isBug = /Bug/i.test(bt)
+    if (isBug) typeTag = (String(lang).toLowerCase().indexOf('en') === 0 ? '[New Bug]' : '[新增BUG]')
+    else typeTag = (String(lang).toLowerCase().indexOf('en') === 0 ? '[New Requirement]' : '[新增需求]')
+  }
+  const fullPrefix = typeTag ? prefix + typeTag : prefix
   const rawHint = cleanTitleText(hint || '')
-  if (!rawHint) return prefix
-  return prefix + ' ' + truncateTitleUtf8(prefix, rawHint, SESSION_TITLE_MAX_BYTES)
+  if (!rawHint) return fullPrefix
+  return fullPrefix + ' ' + truncateTitleUtf8(fullPrefix, rawHint, SESSION_TITLE_MAX_BYTES)
 }
 
 // ============ 值比对锁（#260 决议 · 取代 userRenamed 死代码）============
@@ -380,11 +389,77 @@ export function isNumberAwaitStage(state) {
  * 候选耗尽即止——剩余编号不入计划单，留待后续快照（无可归者不入计划单）。
  * @returns [{ sessionId, number, title }]
  */
+/**
+ * 语义相关性判定（#315 加固 · 高精度优先）
+ * 目标：会话重命名必须贴合其真实任务，宁可不改名也不错配。
+ * 当 hint 与新 issue 标题完全无关时，不应配号。
+ * 规则（宁严勿宽）：
+ * - 先经 cleanTitleText 与去前缀（“任务: ”等）清洗，排除通用前缀误判；
+ * - 精确相等即相关；
+ * - 长度≥4 的包含即相关（避免短词如“修复”2字误判）；
+ * - 否则要求共享长度≥4 的连续子串（对中文/英文均有效）；
+ * - 短串（<4）仅精确相等才算相关，避免 “111” 误配。
+ */
+export function isHintRelatedToTitle(hint, title) {
+  const hRaw = cleanTitleText(hint || '');
+  const tRaw = cleanTitleText(title || '');
+  if (!hRaw || !tRaw) return false;
+  const stripPrefix = function(s) { return String(s).replace(/^[^:：]{1,12}[:：]\s*/, '').trim(); };
+  const hStripped = stripPrefix(hRaw);
+  const tStripped = stripPrefix(tRaw);
+  const h = hStripped.toLowerCase();
+  const t = tStripped.toLowerCase();
+  if (!h || !t) return false;
+  if (h === t) return true;
+  if (h.length >= 4 && t.includes(h)) return true;
+  if (t.length >= 4 && h.includes(t)) return true;
+  const short = h.length < t.length ? h : t;
+  const long = h.length < t.length ? t : h;
+  if (short.length >= 4) {
+    for (let i = 0; i <= short.length - 4; i++) {
+      const sub = short.slice(i, i + 4);
+      if (!sub.trim() || /^[\s:：,，。.]+$/.test(sub)) continue;
+      if (long.includes(sub)) return true;
+    }
+  }
+  return false;
+}
+
 export function attributeNewNumbers({ prevIndex, currIndex, sessions }) {
   const nums = newNumbersSince(prevIndex, currIndex)
   if (!nums.length) return []
+  // 先找出所有“查旧票”的会话：hint 与已有工单标题相关且该工单不是本次新号
+  const existingTitles = []
+  try {
+    const allIdx = currIndex || {}
+    for (const k of Object.keys(allIdx)) {
+      if (nums.includes(Number(k))) continue
+      const v = allIdx[k]
+      const t = v && typeof v === 'object' ? String(v.title || '') : String(v || '')
+      if (t) existingTitles.push(t)
+    }
+    if (prevIndex) {
+      for (const k of Object.keys(prevIndex)) {
+        if (nums.includes(Number(k))) continue
+        const v = prevIndex[k]
+        const t = v && typeof v === 'object' ? String(v.title || '') : String(v || '')
+        if (t && !existingTitles.includes(t)) existingTitles.push(t)
+      }
+    }
+  } catch (e) {}
+  const isInvestigating = function (hint) {
+    if (!hint) return false
+    for (let i = 0; i < existingTitles.length; i++) {
+      try { if (isHintRelatedToTitle(hint, existingTitles[i])) return true } catch (e) {}
+    }
+    return false
+  }
   const candidates = (Array.isArray(sessions) ? sessions : [])
-    .filter(isNumberAwaitStage)
+    .filter(function (s) {
+      if (!isNumberAwaitStage(s)) return false
+      if (s.hint && isInvestigating(s.hint)) return false
+      return true
+    })
     .sort(function (a, b) {
       const ca = Number(a.createdAt || 0); const cb = Number(b.createdAt || 0)
       if (ca !== cb) return ca - cb
@@ -393,10 +468,31 @@ export function attributeNewNumbers({ prevIndex, currIndex, sessions }) {
       return String(a.sessionId || '').localeCompare(String(b.sessionId || ''))
     })
   const out = []
-  for (let i = 0; i < nums.length && i < candidates.length; i++) {
-    const c = candidates[i]
-    const info = (currIndex && currIndex[String(nums[i])]) || null
-    out.push({ sessionId: c.sessionId, number: nums[i], title: info ? String(info.title || '') : '' })
+  const used = new Set()
+  for (let i = 0; i < nums.length; i++) {
+    const num = nums[i]
+    const info = (currIndex && currIndex[String(num)]) || null
+    const title = info ? String(info.title || info.state || '') : ''
+    const hasTitle = !!(info && typeof info === 'object' && info.title)
+    let picked = null
+    if (hasTitle) {
+      for (let j = 0; j < candidates.length; j++) {
+        const c = candidates[j]
+        if (used.has(c.sessionId)) continue
+        const hint = c.hint
+        if (!hint) continue
+        try { if (isHintRelatedToTitle(hint, title)) { picked = c; break; } } catch (e) {}
+      }
+      if (!picked) continue
+    } else {
+      for (let j = 0; j < candidates.length; j++) {
+        const c = candidates[j]
+        if (!used.has(c.sessionId)) { picked = c; break; }
+      }
+      if (!picked) break
+    }
+    used.add(picked.sessionId)
+    out.push({ sessionId: picked.sessionId, number: num, title: title })
   }
   return out
 }

@@ -46,11 +46,19 @@ export let pendingDraftTargetSid = null
     export const NAMING_POLL_MS = 5000
     let _namingPollTimer = null
     let _namingPullBusy = false
-    // 值比对锁的「当前标题」来源：sessions.list 快照 byId[sid].title（Dsh SessionManager 列表投影）
+    // 值比对锁的「当前标题」来源：优先 sessions.get(sid) 实时标题（若宿主暴露，即时而非快照），回退到 sessions.list 快照 byId[sid].title
     export function namingCurrentTitleOf(sid) {
       try {
         const sessions = ctx.get('sessions')
-        if (!sessions || !sessions.list || typeof sessions.list.getSnapshot !== 'function') return null
+        if (!sessions) return null
+        // 优先实时接口（若可用，规避 5s 快照旧照片竞态；见 #315 手改被盖的 TOCTOU）
+        try {
+          if (typeof sessions.get === 'function') {
+            const s = sessions.get(sid)
+            if (s && typeof s.title === 'string' && s.title) return s.title
+          }
+        } catch (eGet) {}
+        if (!sessions.list || typeof sessions.list.getSnapshot !== 'function') return null
         const snap = sessions.list.getSnapshot()
         const row = snap && snap.byId ? snap.byId[sid] : null
         if (row && typeof row.title === 'string' && row.title) return row.title
@@ -92,7 +100,7 @@ export let pendingDraftTargetSid = null
       if (o.kind === 'draft') {
         let langIsEn = false
         try { langIsEn = typeof promptLang === 'function' && promptLang() === 'en' } catch (eLang) {}
-        target = composeDraftTitle({ hint: o.hint, lang: langIsEn ? 'en' : 'zh' })
+        target = composeDraftTitle({ hint: o.hint, lang: langIsEn ? 'en' : 'zh', baselineTitle: (o.lock && o.lock.baselineTitle) || '' })
       } else if (o.kind === 'numbered') {
         const num = Number(o.number)
         if (!isFinite(num) || num <= 0) return
@@ -107,6 +115,22 @@ export let pendingDraftTargetSid = null
         const scope = sessions.scope(sid)
         const face = scope ? sessions.sessionOf(scope) : null
         if (!face || typeof face.rename !== 'function') return
+        // #315 防御：若面对象暴露会话标识，校验必须与订单 sid 一致，防止跨会话错写（宿主对非当前会话面解析回退到当前会话时拦截）
+        try {
+          const faceSid = (face && (face.sessionId || face.id || face.sid)) || (scope && (scope.sessionId || scope.id || scope.sid))
+          if (faceSid && String(faceSid) !== String(sid)) {
+            reportNamingResult(sid, 'failed', { error: 'session face mismatch: expected ' + sid + ' got ' + faceSid })
+            return
+          }
+        } catch (eFaceCheck) {}
+        // 二次校验：执行前再次确认当前标题仍为判定时的 cur，防止并发改名竞态错写
+        try {
+          const cur2 = namingCurrentTitleOf(sid)
+          if (cur2 !== cur) {
+            reportNamingResult(sid, 'failed', { error: 'title changed before rename' })
+            return
+          }
+        } catch (eCur2) {}
         Promise.resolve(face.rename(target)).then(function (r) {
           if (r && r.ok) reportNamingResult(sid, 'renamed', { title: (r.value && r.value.title) || target })
           else reportNamingResult(sid, 'failed', { error: (r && r.error && r.error.message) || 'rename failed' })
@@ -134,7 +158,7 @@ export let pendingDraftTargetSid = null
       } else {
         let langIsEn = false
         try { langIsEn = typeof promptLang === 'function' && promptLang() === 'en' } catch (eLang) {}
-        target = composeDraftTitle({ hint: f.hint, lang: langIsEn ? 'en' : 'zh' })
+        target = composeDraftTitle({ hint: f.hint, lang: langIsEn ? 'en' : 'zh', baselineTitle: (lock && lock.baselineTitle) || '' })
       }
       if (target && target === cur) { reportNamingResult(sid, 'renamed', { title: cur }); return true }
       return false
@@ -338,16 +362,11 @@ export let pendingDraftTargetSid = null
               }
             }
           }
-          const norm = function (p) {
-            const s = String(p || '').replace(/\\/g, '/').replace(/\/+$/, '')
-            const isWin = /\\/.test(String(p || '')) || /^[a-zA-Z]:\//.test(s)
-            return isWin ? s.toLowerCase() : s
-          }
-          const targetNorm = norm(cwd)
+          const targetNorm = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'').replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase())
           for (let i = 0; i < items.length; i++) {
             const w = items[i]
             const wPath = w.path || w.cwd
-            if (wPath && norm(wPath) === targetNorm) {
+            if (wPath && (typeof keyOf === 'function' ? keyOf(wPath) : String(wPath||'').replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()) === targetNorm) {
               const wid = w.workspaceId || w.id
               if (wid) return Promise.resolve(wid)
             }
@@ -364,11 +383,137 @@ export let pendingDraftTargetSid = null
       ensureCwd().then(function (cwd) {
         if (!cwd) { doFallback(); return }
         ensureWorkspaceId(cwd).then(function (workspaceId) {
+          let reuseSid = null
+          try {
+            if (sessions.list && typeof sessions.list.getSnapshot === 'function') {
+              const snap = sessions.list.getSnapshot()
+              const normCwd2 = typeof keyOf === 'function' ? keyOf(cwd) : String(cwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
+              const curSid = st.sessionId
+              if (curSid) {
+                const curRow = snap.byId[curSid]
+                if (curRow && curRow.blank) {
+                  const rowCwd = curRow.cwd || ''
+                  const normRow = typeof keyOf === 'function' ? keyOf(rowCwd) : String(rowCwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
+                  if (normRow === normCwd2 || !normRow) reuseSid = curSid
+                }
+              }
+              if (!reuseSid) {
+                let best = null
+                let bestTime = -1
+                for (const sid in snap.byId) {
+                  const row = snap.byId[sid]
+                  if (!row || !row.blank) continue
+                  if (row.id === curSid) continue
+                  const rowCwd = row.cwd || ''
+                  const normRow = typeof keyOf === 'function' ? keyOf(rowCwd) : String(rowCwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
+                  if (normRow !== normCwd2 && normRow) continue
+                  const t = row.updatedAt || 0
+                  if (t > bestTime) { bestTime = t; best = sid }
+                }
+                if (best) reuseSid = best
+              }
+            }
+          } catch(eReuse) {}
+          if (reuseSid) {
+            const sid = reuseSid
+            const ns = storeOf(sid)
+            if (ns) {
+              ns.cwd = cwd
+              const hydrated = (typeof hydrateFromCache === 'function' ? hydrateFromCache(ns) : false)
+              if (!hydrated) {
+                try {
+                  const hasShared = (typeof getCachedSnapshot === 'function' ? getCachedSnapshot(cwd) : null)
+                  if (!hasShared && st.snapshot && st.cwd && (typeof keyOf === 'function' ? keyOf(st.cwd) : String(st.cwd||'')) === (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||''))) {
+                    ns.snapshot = st.snapshot
+                    ns.snapMode = 'real'
+                  }
+                } catch(eFb){ if (st.snapshot) { ns.snapshot = st.snapshot; ns.snapMode='real'; } }
+              }
+              try {
+                const sharedSnap = (typeof getCachedSnapshot === 'function' ? getCachedSnapshot(cwd) : null)
+                if (sharedSnap && ns.snapshot && sharedSnap.generatedMs && ns.snapshot.generatedMs && sharedSnap.generatedMs > ns.snapshot.generatedMs) {
+                  ns.snapshot = sharedSnap
+                }
+              } catch(eVer){}
+            }
+            try {
+              const __refs = (typeof issueRefNumbersFrom==='function') ? issueRefNumbersFrom(text) : []
+              if (__refs.length && ns) {
+                const __tg = String(title || '').slice(0,80)
+                recordIssuePath(ns, __refs[0], 'claim', __tg)
+                for (let _i=1; _i<__refs.length; _i++) recordIssuePath(ns, __refs[_i], 'mention', '')
+              }
+            } catch (e) {}
+            const __placeholderTitle = title
+            try {
+              const scopeCtx = sessions.scope(sid)
+              const face = scopeCtx ? sessions.sessionOf(scopeCtx) : undefined
+              const registerTracked = function (acceptedTitle) {
+                try {
+                  const name0 = acceptedTitle || __placeholderTitle
+                  const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(name0) : /^\[New\] /.test(String(name0)))
+                  if (!isPlaceholder) return
+                  if (typeof host !== 'undefined' && typeof host.call === 'function') {
+                    host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns) : null) }).then(function () { namingGuardianKick() }).catch(function () {})
+                  }
+                } catch (eReg) {}
+              }
+              const needRename = (function(){ try { const curTitle = (typeof namingCurrentTitleOf==='function'? namingCurrentTitleOf(sid) : null); return curTitle !== title; } catch(e){ return true; }})()
+              const runRename = needRename && face && typeof face.rename === 'function' ? Promise.resolve(face.rename(title)) : Promise.resolve(null)
+              runRename.then(function (rRename) {
+                const accepted = (rRename && rRename.ok && rRename.value && rRename.value.title) ? rRename.value.title : null
+                registerTracked(accepted)
+              }).catch(function () { registerTracked(null) })
+              if (sid === st.sessionId) {
+                try {
+                  if (ns && typeof ns.injector === 'function') {
+                    ns.injector(text)
+                  } else if (typeof inject === 'function') {
+                    inject(ns || st, text)
+                  } else {
+                    pendingDraft = text
+                    pendingDraftTargetSid = sid
+                    try { emit(ns || st) } catch(eEmit){}
+                  }
+                } catch(eDirect){
+                  pendingDraft = text
+                  pendingDraftTargetSid = sid
+                }
+              } else {
+                pendingDraft = text
+                pendingDraftTargetSid = sid
+              }
+            } catch (eName) {}
+            try { if (typeof sessions.open === 'function') sessions.open(sid) } catch(eOpen){}
+            flash(st, tr('toast.newSessionOpened'), 'ok')
+            return
+          }
           const createOpts = workspaceId ? { workspaceId: workspaceId } : { cwd: cwd }
           sessions.create(createOpts).then(function (sid) {
-          // v1.5：新会话继承当前快照（同仓库同 cwd）—— 面板/状态栏秒显，避免冷缓存全量重建卡顿
+          // 新会话秒显共享缓存为唯一来源（#301 / #324）：同工作区共享缓存在 storeOf 已尝试水合，此处 cwd 刚赋值需再次水合
+          // 移除“继承打开它的会话 snapshot”作为版本来源；无共享缓存时可作兜底
           const ns = storeOf(sid)
-          if (ns && st.snapshot) { ns.snapshot = st.snapshot; ns.snapMode = 'real'; ns.cwd = cwd }
+          if (ns) {
+            ns.cwd = cwd
+            const hydrated = (typeof hydrateFromCache === 'function' ? hydrateFromCache(ns) : false)
+            if (!hydrated) {
+              // 无共享缓存且源会话有快照且同工作区：临时兜底（避免首开无数据转圈）
+              try {
+                const hasShared = (typeof getCachedSnapshot === 'function' ? getCachedSnapshot(cwd) : null)
+                if (!hasShared && st.snapshot && st.cwd && (typeof keyOf === 'function' ? keyOf(st.cwd) : String(st.cwd||'')) === (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||''))) {
+                  ns.snapshot = st.snapshot
+                  ns.snapMode = 'real'
+                }
+              } catch(eFb){ if (st.snapshot) { ns.snapshot = st.snapshot; ns.snapMode='real'; } }
+            }
+            // 版本以最新 generatedMs 者胜：若源快照更新，则以最新者为准（hydrate 已处理，但兜底后需校正）
+            try {
+              const sharedSnap = (typeof getCachedSnapshot === 'function' ? getCachedSnapshot(cwd) : null)
+              if (sharedSnap && ns.snapshot && sharedSnap.generatedMs && ns.snapshot.generatedMs && sharedSnap.generatedMs > ns.snapshot.generatedMs) {
+                ns.snapshot = sharedSnap
+              }
+            } catch(eVer){}
+          }
           // issuePath · 新会话锚点：把本次打开的 issue 记为新会话的起点（Q10 A+B）
           try {
             const __refs = (typeof issueRefNumbersFrom==='function') ? issueRefNumbersFrom(text) : [] // #231：锚点识别改由后端 linkPatternSource 驱动
@@ -402,10 +547,13 @@ export let pendingDraftTargetSid = null
               const accepted = (rRename && rRename.ok && rRename.value && rRename.value.title) ? rRename.value.title : null
               registerTracked(accepted)
             }).catch(function () { registerTracked(null) })
+            // prefill (r4): write pendingDraft + target sid anchor; consumer side only the new session consumes, avoiding old session race
+            // #315 回滚 (2026-08-30 user constraint): keep draft-first UX (先填草稿、让用户自己输入再发送), no auto-send via face.prompt;
+            //   blank-reuse risk is mitigated by naming-guardian bare-session never gets numbered (path B fixed) rather than auto-send
+            //   (see handoff 20260830-014242).
+            pendingDraft = text
+            pendingDraftTargetSid = sid
           } catch (eName) { /* 命名失败忽略 */ }
-          // 预填（r4）：写入 pendingDraft + 目标 sid 锚定，消费侧仅新会话消费，杜绝旧会话抢先
-          pendingDraft = text
-          pendingDraftTargetSid = sid
           sessions.open(sid)
           flash(st, tr('toast.newSessionOpened'), 'ok')
         }).catch(function () { doFallback() })
@@ -413,8 +561,25 @@ export let pendingDraftTargetSid = null
       })
     }
     // #361 原入口：行级「在新会话打开」保留（rowActionText 文本 + 票标题命名）
+    // 2026-08-30 hardening: newSessionTitle throws on non-numeric number (prevent silent MapDetail new-session no-op), rowActionText falls back to #number when url missing
     export const openInNewSession = function (st, x) {
-      openTextInNewSession(st, rowActionText(st, x), newSessionTitle(x))
+      let title = null
+      try { title = newSessionTitle(x) } catch(e) {
+        const n = (x && (x.number != null ? x.number : x.key != null ? x.key : ''))
+        const base = (x && x.title) ? String(x.title).slice(0,80) : ''
+        title = (n !== '' ? '[#' + String(n) + '] ' + base : '[New]')
+        if (!title || title === '[#] ') title = '[New]'
+      }
+      let text = ''
+      try { text = rowActionText(st, x) } catch(e) {
+        try { text = rowActionText(st, x) } catch(e2) { text = '' }
+        if (!text) {
+          const u = (typeof issueUrlFor === 'function' ? (function(){ try{ return issueUrlFor(st, x && x.number) }catch(_){ return '' } })() : '')
+          const uu = u || (x && x.number != null ? '#' + String(x.number) : '')
+          text = uu ? ('/wayfinder ' + uu) : '/wayfinder'
+        }
+      }
+      openTextInNewSession(st, text, title)
     }
     export const extractIssueRefs = function (text) {
       // #231：真源在各后端 links.linkPatternSource；无快照时经 shared 缓存解析，未达则 helper 内 LEGACY 过渡

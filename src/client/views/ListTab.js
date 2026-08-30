@@ -91,19 +91,15 @@ export     const ListTab = ({ st, narrow }) => {
       const occ = groups.reduce(function (n, g) { return n + g.blocked.length + g.claimed.length }, 0)
       // #284：环境坏项计数改从链快照步骤派生（fail/current 均为需处理项）
       const nBad = chainSteps(st).filter(function (s) { return s.status === 'fail' || s.status === 'current' }).length
-      // 标签统计（open + closed 全量）与配色
-      const stat = {}
-      const colorOf = {}
-      issues.forEach(function (x) {
-        (x.labels || []).forEach(function (l) {
-          stat[l.name] = (stat[l.name] || 0) + 1
-          if (l.color && !colorOf[l.name]) colorOf[l.name] = l.color
-        })
-      })
-      const tagNames = Object.keys(stat).sort(function (a, b) { return stat[b] - stat[a] })
-      // #375：全量 label（快照 labels 字段优先；旧快照无该字段降级 issue 统计）；配色并入 label 列表色
+      // 标签统计（含地图子票）与配色：票面最终色（工作区改色已在票面），不直读 palette
+      const stat = {}, colorOf = {}
       const snapLabels = (st.snapshot && Array.isArray(st.snapshot.labels)) ? st.snapshot.labels : null
-      if (snapLabels) snapLabels.forEach(function (l) { if (l.color && !colorOf[l.name]) colorOf[l.name] = l.color })
+      if (snapLabels) snapLabels.forEach(function (l) { if (l && l.name && l.color) colorOf[String(l.name).trim()] = String(l.color).trim().replace(/^#/, '') })
+      const allForColor = issues.slice()
+      ;(st.snapshot && Array.isArray(st.snapshot.maps) ? st.snapshot.maps : []).forEach(function(m){(m.tickets||[]).forEach(function(t){allForColor.push(t)})})
+      allForColor.forEach(function (x) {(x.labels||[]).forEach(function(l){const nm=l&&l.name?String(l.name).trim():'';if(!nm)return;stat[nm]=(stat[nm]||0)+1;if(l.color)colorOf[nm]=String(l.color).trim().replace(/^#/, '')})})
+      const tagNames = Object.keys(stat).sort(function (a, b) { return stat[b] - stat[a] })
+      // #375：全量 label（快照 labels 字段优先；旧快照无该字段降级 issue 统计）；配色按票面最终色已覆盖，缺失才用快照表
       const labelNames = snapLabels ? snapLabels.map(function (l) { return l.name }) : tagNames.slice()
       // 点击记忆双键排序：次数降序 → 最近点击降序 → 出现频次降序 → 名称序
       const sortedLabels = labelNames.slice().sort(function (a, b) {
@@ -147,7 +143,7 @@ export     const ListTab = ({ st, narrow }) => {
         : (st.stateFilter === 'frontier' ? openFiltered.filter(function (x) { return !isOccupied(st, x) }) : openFiltered)) : []
       const filteredClosed = showClosedList ? ((st.lblFilters && st.lblFilters.length) ? closedSorted.filter(byLabel) : closedSorted) : []
       const has = function (x, nm) { return (x.labels || []).some(function (l) { return l.name === nm }) }
-      const findMap = function (num) { return (st.snapshot && st.snapshot.maps || []).find(function (m) { return m.number === num }) }
+      const findMap = function (num) { const maps=st.snapshot&&st.snapshot.maps||[];const k=num!=null?String(num).padStart(2,'0'):'';return maps.find(function(m){return m.number===num||String(m.number)===String(num)||(m.key!=null&&String(m.key).padStart(2,'0')===k)}) }
       const openBlocked = function (blk) { setActiveMap(st, blk.map) }
       // v14-18：chips 常显深一档边框（边框色 = label 色 HSL 亮度 -16%）
       const chip = (nm, withCount, on, isAll) => {
@@ -262,9 +258,14 @@ export     const ListTab = ({ st, narrow }) => {
                 h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''), onClick: function (e) { e.stopPropagation(); openInNewSession(st, x) }, title: tr('list.newSessionLabel'), style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: mapDone ? '#3fb950' : actionColorOf(x, colorOf), borderColor: 'transparent', color: mapDone ? '#0c1a10' : (isLightHex(actionColorOf(x, colorOf)) ? '#140a1e' : '#ffffff') } }, [Ic({ n: 'external-link', size: 10 }), narrow ? null : h('span', null, tr('list.newSessionLabel'))]),
               ]) : null,
               isOpen ? h('div', { className: 'dsws-aux', style: { display: 'flex', gap: 2, alignItems: 'center', flex: 'none' } }, [
-                // v1.3.3：复制/外链图标增大 11 → 13
+                // v1.3.3：复制/外链图标增大 11 → 13；Q6 解耦：复制=绝对路径/链接，跳转=按 url 前缀分流（https 开网页，file 盘符调 wf.openPath）
                 h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); copyUrl(x) }, title: tr('list.copyLinkTitle'), style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'clipboard', size: 13 })),
-                h('a', { className: 'dsws-btn ghost', title: tr('list.openInTrackerTitle', { n: x.number }), href: issueUrlFor(st, x.number), target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 })),
+                (function(){
+                  const _u = issueUrlFor(st, x.number);
+                  const _isHttp = /^https?:\/\//i.test(String(_u||''));
+                  const _openLocal = function(e){ e.stopPropagation(); const u=issueUrlFor(st, x.number); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } };
+                  return _isHttp ? h('a', { className: 'dsws-btn ghost', title: tr('list.openInTrackerTitle', { n: x.number }), href: _u, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 })) : h('button', { className: 'dsws-btn ghost', title: tr('list.openInTrackerTitle', { n: x.number }), onClick: _openLocal, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 }));
+                })(),
               ]) : null,
             ]),
           ]),
@@ -285,8 +286,8 @@ export     const ListTab = ({ st, narrow }) => {
           }),
           h('span', { key: 'f-label-clear', className: 'dsws-chip', onClick: function (e) { e.stopPropagation(); st.lblFilters = []; emit(st) }, style: { fontSize: 10, cursor: 'pointer', background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid rgba(255,255,255,.15)' } }, tr('list.filterClear')),
         ]) : null,
-        // T2 #35 · 首屏最优先红卡（ListTab 顶部 · KPI 之上 · 唯一闸门 checkRepo:bad && !dismissed）
-        h(NoRepoCard, { st: st }),
+        // B Timeline 定版（2026-08-28）：全屏红卡（NoRepoCard）不再挂载于列表页顶部——
+        //   远端未关联/环境未就绪由检查页行内红卡表达，列表页保持 KPI + 列表（无顶部错误信息）
         // KPI 行 + 环境提示（v18-30：可接/占用 = 列表 open issue 口径）
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
           kpi(frontierCount(st), tr('list.kpi.takeable'), 'target', '#4ade80'),
@@ -295,7 +296,7 @@ export     const ListTab = ({ st, narrow }) => {
           h('span', { style: { flex: 1 } }),
           // T2 #2：刷新按钮已上移至 OverlayPanel tabs 行（L1932）
         ]),
-        (function () { const cr = chainStep(st, 'gh:remote'); if (cr && cr.status === 'fail' && !isNoRepoDismissed(st.cwd)) return null; return nBad > 0 ? h('div', { className: 'dsws-banner bad', onClick: function () { st.tab = 'checks'; emit(st) } }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('list.envWarn', { n: nBad }))]) : null })(),
+        // B Timeline 定版（2026-08-28）：「N 项环境未就绪」红条已移除（顶部无错误信息；状态由检查页行级表达）
         // #374/#375：状态过滤 + 排序 + label 过滤 chips（全部小号紧凑同排，窄屏换行不增高；展开态点选 label 不收起）
         h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0, marginBottom: 6 } }, [
           ['all', 'open', 'closed', 'blocked', 'frontier'].map(function (k) {

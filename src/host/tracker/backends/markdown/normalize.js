@@ -1,7 +1,6 @@
 import { parseMd } from './parse.js'
 export function normalizeIssue(text, meta){
   const issue=parseMd(text,meta)
-  if('labels' in issue)delete issue.labels
   if('milestone' in issue)delete issue.milestone
   if('author' in issue)delete issue.author
   if('number' in issue)delete issue.number
@@ -20,6 +19,8 @@ export function normalizeIssue(text, meta){
   if(!('blockedBy' in issue)||!Array.isArray(issue.blockedBy))issue.blockedBy=[]
   if(!('comments' in issue)||!Array.isArray(issue.comments))issue.comments=[]
   if(!('reason' in issue)){issue.reason=issue.state==='closed'?'completed':''}
+  // labels 按 #312 定版为能力字段但已实现：票里 Labels 行只写名、色在总表，未收录回灰，缺行按空 []（不再 MISSING）
+  if(!('labels' in issue)||!Array.isArray(issue.labels))issue.labels=[]
   return issue
 }
 export default normalizeIssue

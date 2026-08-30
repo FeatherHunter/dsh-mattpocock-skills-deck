@@ -3,7 +3,7 @@ import { mdPath } from './path.js'
 import { parseMd } from './parse.js'
 import { normalizeIssue } from './normalize.js'
 import { readTextFile, exists } from './read.js'
-import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue } from './issues.js'
+import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue, setLabelsIssue } from './issues.js'
 import { getDependenciesForKey } from './graph.js'
 import { addComment } from './comments.js'
 import nodePath from 'node:path'
@@ -58,24 +58,51 @@ export function describe(handle, backendId){
   const name=finalRef?finalRef.split(/[\\/]/).pop()||finalRef:backendId
   return{backend:backendId,refId:finalRef,name:name||backendId,url:''}
 }
-export function issueUrl(ref, key) { return '' }
+export function issueUrl(ref, key) {
+  try {
+    if (ref == null || key == null) return ''
+    const k = String(key).trim()
+    if (!k) return ''
+    // 文件约束内现算：mdPath 已处理 refId 绝对/相对、repo.path、getRoot 三分支
+    // UI 拿到的是裸盘符路径（D:\…\issues\01-xxx.md），由 wf.openPath 按 OS 打开，不经 file:// 编码
+    return mdPath(ref, 'issue', k, { cwd: (ref && ref.refId) || '' })
+  } catch { return '' }
+}
 export function searchUrl(name) { return '' }
-export const linkPattern = null
+export const linkPattern = "#(\\d+)"
 export function createMarkdownBackend(ctx){
-  const unsupported=(op)=>({ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown '+op+' unsupported (labels MISSING per #134)'}})
   return{
     id:'markdown',
     preflight: async (handle,opCtx)=>{
       const c=opCtx||ctx
       try{
+        const plat=getPlat(c)
+        const cwd=(handle&&handle.cwd)||(c&&c.cwd)||''
+        // 检查全局 .scratch 下是否有任意 map.md 或 docs 声明
+        if(cwd){
+          const root=plat.join(cwd,'.scratch')
+          try{
+            const fs=c&&c.platform?c.platform.fs:(c&&c.fs)||(c&&typeof c.get==='function'?c.get('fs'):null)
+            let entries=[]
+            if(fs&&typeof fs.resolve==='function'&&typeof fs.listDir==='function'){try{const t=await fs.resolve(root);entries=await fs.listDir(t)}catch{}}
+            else if(fs&&typeof fs.readdir==='function'){try{entries=await fs.readdir(root)}catch{}}
+            for(const e of entries){
+              const name=typeof e==='string'?e:(e&&e.name)||''
+              if(!name||name.startsWith('.'))continue
+              const cand=plat.join(root,name,'map.md')
+              if(await exists(c,cand)) return{ok:true}
+            }
+            if(await exists(c,plat.join(root,'map.md'))) return{ok:true}
+          }catch{}
+        }
         const repo=handle&&handle.backend?handle:describe(handle,'markdown')
         const mapP=mdPath(repo,'map',undefined,c)
         if(await exists(c,mapP))return{ok:true}
-        const plat=getPlat(c)
-        const cwd=(handle&&handle.cwd)||(c&&c.cwd)||''
-        if(cwd){
-          const root=plat.join(cwd,'.scratch')
-          if(await exists(c,plat.join(root,'map.md')))return{ok:true}
+        const plat2=getPlat(c)
+        const cwd2=(handle&&handle.cwd)||(c&&c.cwd)||''
+        if(cwd2){
+          const root=plat2.join(cwd2,'.scratch')
+          if(await exists(c,plat2.join(root,'map.md')))return{ok:true}
         }
         return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'markdown map.md not-found'}}
       }catch(e){const kind=e&&e.kind?e.kind:ERROR_KIND.ENV;return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
@@ -88,45 +115,54 @@ export function createMarkdownBackend(ctx){
     reopen:(repo,key,opCtx)=>reopenIssue(opCtx||ctx,repo,key),
     comment:(repo,key,body,opCtx)=>addComment(opCtx||ctx,repo,key,body),
     update:(repo,key,patch,opCtx)=>updateIssue(opCtx||ctx,repo,key,patch),
-    setLabels:()=>unsupported('setLabels'),
+    setLabels:(repo,key,labels,opts,opCtx)=>setLabelsIssue(opCtx||ctx,repo,key,labels),
     setAssignees:(repo,key,assignees,opts,opCtx)=>setAssigneesIssue(opCtx||ctx,repo,key,assignees),
     setParent:(repo,key,parentKey,opts,opCtx)=>setParentIssue(opCtx||ctx,repo,key,parentKey),
     setBlockedBy:(repo,key,blockers,opts,opCtx)=>setBlockedByIssue(opCtx||ctx,repo,key,blockers),
+    getCurrentUser: async ()=>({ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown getCurrentUser unsupported'}}),
+    initProject: async ()=>({ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown initProject unsupported'}}),
     normalize:normalizeIssue,
     parse:parseMd,
   }
 }
+/** #323（2026-08-29 定版复核）：本地 Markdown 后端自己的默认调色盘（不依赖 GitHub）——
+ *  这里是本地标签结构与默认色值的真源；模块经契约层（BackendModule.labelPalette）提供给面板，
+ *  工作区 docs/agents/triage-labels.md 的调色盘表为用户可见的覆盖/改色层（默认按此真源预填）。
+ *  颜色渲染由面板底层按 labelPalette + 工作区覆盖查色，AI 不参与。 */
+export const defaultLabelPalette = [
+  { name: 'bug', color: 'd73a4a' },
+  { name: 'needs-triage', color: 'fbca04' },
+  { name: 'needs-info', color: '5319e7' },
+  { name: 'ready-for-agent', color: '0e8a16' },
+  { name: 'ready-for-human', color: 'b60205' },
+  { name: 'wontfix', color: 'ffffff' },
+  { name: 'wayfinder:map', color: '8b5cf6' },
+  { name: 'wayfinder:research', color: '0ea5e9' },
+  { name: 'wayfinder:prototype', color: 'f59e0b' },
+  { name: 'wayfinder:grilling', color: '9d7cd8' },
+  { name: 'wayfinder:task', color: '10b981' },
+]
 /** 修复契约注入文案（Markdown 后端本地语义，双语单源；供 fixes 引用，host 组装时解析）。 */
 export const prompts = {
-  mdParseFix: {
-    zh: '本地 Markdown 图谱解析失败（parseOk 未通过）。请按序检查：\n1. .scratch/map.md 是否存在且为合法 markdown（UTF-8、无 BOM、字段名未被改坏）；\n2. 图谱文件格式是否被破坏（YAML 头/字段名/分隔符；对照 parse.js 期望的字段集）；\n3. 修复后请用户点「重查」。若文件损坏，与用户确认后先备份再重建。',
-    en: 'Local Markdown graph parse failed (parseOk not passed). Check in order:\n1. .scratch/map.md exists and is valid markdown (UTF-8, no BOM, field names intact);\n2. File format not corrupted (YAML header / field names / separators; compare with the fields expected by parse.js);\n3. After fixing, ask the user to re-check. If corrupted, back it up before rebuilding with user confirmation.',
-  },
-  mdWritableFix: {
-    zh: '.scratch 目录不可写。请检查：① 目录是否存在；② 文件系统权限（Windows ACL / POSIX chmod）；③ 挂载点是否只读。修复后请用户点「重查」。',
-    en: '.scratch is not writable. Check: ① the directory exists; ② filesystem permissions (Windows ACL / POSIX chmod); ③ read-only mount. After fixing, ask the user to re-check.',
+  // 2026-08-29 定版（用户）：注入只放 /wayfinder 命令与需求占位，规则由技能自身负责，不加解释。
+  wayfinderMapBuild: {
+    zh: '/wayfinder (请输入任务需求)',
+    en: '/wayfinder (enter the task requirement)',
   },
 }
 
-/** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。 */
+/** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。
+ * 2026-08-29 用户定版：
+ *  - md:scratchWritable 不提供修复指引（后端无法修复目录存在/权限问题——行 fail 仅如实展示，无按钮）；
+ *  - md:parseOk 的修复指引 = 注入 wayfinder 技能构造关卡地图（地图缺失才失败，唯一真实修复路径是生成地图）。 */
 export const fixes = Object.freeze({
-  'md:scratchWritable': {
-    hint: {
-      zh: '.scratch 目录不可写。点「修复指引」检查目录权限，完成后重查。',
-      en: '.scratch is not writable. Use the fix guide to check directory permissions, then re-check.',
-    },
-    actions: [
-      { type: 'inject-prompt', prompt: 'mdWritableFix', label: { zh: '修复指引', en: 'Fix guide' } },
-      { type: 'refresh', target: 'chain' },
-    ],
-  },
   'md:parseOk': {
     hint: {
-      zh: '本地图谱解析失败（.scratch/map.md 或图谱文件格式异常）。点「修复指引」让 AI 检查文件格式，完成后重查。',
-      en: 'Local graph parse failed (.scratch/map.md or file format). Use the fix guide, then re-check.',
+      zh: '本项目的关卡地图还没生成。点「执行 wayfinder 构造地图」让 AI 用 wayfinder 技能生成地图，完成后重查。',
+      en: 'The local track map has not been created yet. Use "Build map with wayfinder" to have AI generate the map via the wayfinder skill, then re-check.',
     },
     actions: [
-      { type: 'inject-prompt', prompt: 'mdParseFix', label: { zh: '修复指引', en: 'Fix guide' } },
+      { type: 'inject-prompt', prompt: 'wayfinderMapBuild', label: { zh: '执行 wayfinder 构造地图', en: 'Build map with wayfinder' } },
       { type: 'refresh', target: 'chain' },
     ],
   },
@@ -152,11 +188,15 @@ export const markdownModule = {
     trackerChoice: 'setup.markdown.trackerChoice',
     backendNote: 'setup.markdown.backendNote',
     labelReqs: 'setup.markdown.labelReqs',
+    // #323（2026-08-29 定版复核）：注入只讲规则（票带 Labels 行只写名 + 改色入口），颜色机制/色值由 labelPalette 真源与面板底层负责
+    paletteNote: 'setup.markdown.paletteNote',
   },
+  // #323（2026-08-29 定版复核）：本地后端自己的默认调色盘（结构/label/颜色）经契约层供给面板；工作区表为用户覆盖层
+  labelPalette: defaultLabelPalette,
   create: createMarkdownBackend,
   matches,
-  // #231：本地 Markdown 无远程链接 —— 空 links 为诚实形状；开仓动作为打开本地文件夹（契约动作声明，UI 通用执行）
-  links: {},
+  // #231：本地 Markdown 无远程链接 —— issueUrl 由后端现算为裸盘符路径，links 仅留提及识别正则；开仓为打开文件夹
+  links: { linkPatternSource: "#(\\d+)" },
   openRepository: 'folder',
   prompts,
   fixes,

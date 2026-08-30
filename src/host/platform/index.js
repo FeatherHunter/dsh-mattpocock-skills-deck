@@ -15,7 +15,9 @@
  *     `node:path.posix`）；各 OS 不得重实现路径数学，否则 self-made join 即第二真相、即 bug 农场。
  *     另含唯一异步成员 `joinHome(...segs)` = `path.join(await getHome(), ...segs)`——deck 永不字符串拼接 `'\\'`。
  *   - `resolveExecutable(name)`：包装 DSH `subprocess.resolveExecutable`；DSH 找不到时 throw →
- *     本层 try/catch **转 null**（返回 `Promise<string|null>`）。
+ *     本层 try/catch **转 null**（返回 `Promise<string|null>`）。**2026-08-29 起**：`gh` 的
+ *     DSH_GH_PATH 兜底（env 读取 + fs.lstat 校验）由本层**单点拥有**，三个 OS 底座一致（linux 适配器的
+ *     原兜底已于同日移除，不再重复实现）。
  *   - `fs`：**透传** `ctx.get('fs')`（DSH dsh-fs-sandbox：读穿透沙箱、写有栅栏）；**无 `mkdir`**。
  *     注意 **path-shaped（lstat / resolve）vs target-shaped（readText / writeText / stat / listDir）**——
  *     实现者勿把裸路径串直接喂给 target-shaped 方法。
@@ -99,15 +101,30 @@ export async function composePlatform(ctx, osName, adapter, opts) {
   const spec = adapter(ctx, opts)
   const getHome = memoize(() => spec.getHome())
   const path = buildPath(spec.pathImpl, getHome)
-  const resolveExecutable = async (name) => {
-    try {
-      return await spec.resolveExecutable(name)
-    } catch {
-      return null
-    }
-  }
   const fs = ctx.get('fs') // DSH 沙箱 fs（读穿透、写有栅栏）——透传，不叠白名单。
   const envSource = (opts && opts.env) || process.env
+  // 2026-08-29 统一（research 实锤「三底座 DSH_GH_PATH 不一致」）：gh 的 DSH_GH_PATH 兜底【单点下沉到通用层】——
+  //   PATH 解析失败（返回 null / 抛错）时，读取 env.DSH_GH_PATH + fs.lstat 校验存在才返回；三个 OS 底座行为由此一致。
+  //   各 OS 适配器不重复实现（linux 原自带兜底 2026-08-29 移除，见 linux/index.js）；host resolveGh / ghClient 均经本包装获益。
+  const resolveExecutable = async (name) => {
+    let direct = null
+    try {
+      direct = await spec.resolveExecutable(name)
+    } catch {
+      direct = null
+    }
+    if (direct) return direct
+    if (name === 'gh') {
+      const fb = envSource && typeof envSource.get === 'function' ? envSource.get('DSH_GH_PATH') : (envSource ? envSource['DSH_GH_PATH'] : '')
+      if (fb && fs && typeof fs.lstat === 'function') {
+        try {
+          const info = await fs.lstat(fb)
+          if (info) return fb
+        } catch { /* 兜底失败 → null，交由调用方诚实报告 */ }
+      }
+    }
+    return null
+  }
   return Object.freeze({
     os: osName,
     getHome,

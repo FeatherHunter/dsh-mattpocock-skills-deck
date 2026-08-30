@@ -43,12 +43,47 @@
       return parentSlotId === 'shell.overlay' || parentSlotId === 'details' || parentSlotId === 'conversation.input.dock'
     }
 
-    // 挂接：modal 仅 fail+form（与 shared/ui/slots.js shouldShowInModal 同判据，零依赖冗余）
+    // 挂接：modal 仅 fail+(form|wizard)（与 shared/ui/slots.js shouldShowInModal 同判据，零依赖冗余；2026-08-28 wizard 扩展）
     export function shouldShowInModal(step) {
       if (!step || typeof step !== 'object') return false
       if (step.status !== 'fail') return false
       const acts = step.actions
       if (!Array.isArray(acts) || !acts.length) return false
-      for (let i = 0; i < acts.length; i++) { const a = acts[i]; if (a && a.type === 'form') return true }
+      for (let i = 0; i < acts.length; i++) { const a = acts[i]; if (a && (a.type === 'form' || a.type === 'wizard')) return true }
       return false
+    }
+
+    export function isModalAction(action, stepStatus) {
+      if (!action || (action.type !== 'form' && action.type !== 'wizard')) return false
+      if (stepStatus !== 'fail') return false
+      return true
+    }
+
+    export function getWizardAction(step) {
+      if (!step || !Array.isArray(step.actions)) return null
+      for (let i = 0; i < step.actions.length; i++) { const a = step.actions[i]; if (a && a.type === 'wizard') return a }
+      return null
+    }
+
+    export function getFormAction(step) {
+      if (!step || !Array.isArray(step.actions)) return null
+      for (let i = 0; i < step.actions.length; i++) { const a = step.actions[i]; if (a && a.type === 'form') return a }
+      return null
+    }
+
+    export function getModalAction(step) {
+      return getFormAction(step) || getWizardAction(step)
+    }
+
+    export function getWizardSteps(wizardAction) {
+      if (!wizardAction || wizardAction.type !== 'wizard') return []
+      const raw = wizardAction.steps
+      if (!Array.isArray(raw) || !raw.length) return []
+      const out = []
+      for (let i = 0; i < raw.length; i++) {
+        const s = raw[i] || {}
+        const schema = Array.isArray(s.schema) ? s.schema : (Array.isArray(s.fields) ? s.fields : [])
+        out.push({ title: typeof s.title === 'string' ? s.title : '', schema: schema })
+      }
+      return out
     }

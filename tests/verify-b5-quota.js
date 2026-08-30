@@ -59,9 +59,9 @@ for (const f of ['client.js', 'package/lib/client.js']) {
   const tag = f.indexOf('package/') >= 0 ? 'pkg' : 'cli'
 
   // R2（#2 MVP）：probe 默认 60s（不再是 5min）
-  check(src.includes('PROBE_MS = 60000'), f + ' probe 默认 60s（#2 MVP · R1 是 300000）')
+  check(src.includes('SYNC.FALLBACK_PROBE_MS') && /\|\| 60000\)/.test(src), f + ' probe 默认 60s（#232 节拍单源 · FALLBACK_PROBE_MS 兜底 60000）')
   check(!src.includes('PROBE_MS = 300000'), f + ' 无残留 5min 默认值（PROBE_MS 全部为 60000）')
-  check(src.includes('FOCUS_PROBE_MIN_MS = 60000'), f + ' focus 触发限流 ≥60s（防窗口来回切换疯狂烧）')
+  check(src.includes('SYNC.FOCUS_PROBE_MIN_MS') && /\|\| 60000\)/.test(src), f + ' focus 触发限流 ≥60s（#232 节拍单源 · FOCUS_PROBE_MIN_MS 兜底 60000）')
   // T10 R9 重构后 probe 逻辑位于 probeNow（startAutoProbe 仅剩定时器装配）——切片锚点随之更新
   // R2-fix-5（#2 MVP E2E）：changed 后 await primary（组内首个） 的 loadSnapshot 完成 → 组内快照复制 + emit（#45 按 cwd 隔离，组间不互串）
   const probeBlock = src.slice(src.indexOf('const probeNow'), src.indexOf('const startAutoProbe'))

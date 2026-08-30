@@ -10,6 +10,8 @@
  *  - 三层 check kind 分发：primitive（通用原语 fs/exec/gh/技能探测）/ backend（后端专属）/ preflight（复用既有门禁）。
  *  - 宿主可知的原语（fs/exec/gh/技能探测）供检查项 check 引用，全部只读探测；注册表验形状不验内容（与 tracker registry 哲学一致，#226）。
  *  - 超时按 pending 处理（不抛、不阻塞整链），诚实透传 detail；谓词只读，永不写文件/环境。
+ *  - 2026-08-29 修订（可写性判据）：唯一例外 = DIR_WRITABLE 原语，向被检目录写 2 字节临时探针并清理——
+ *    跨 OS 唯一可靠的「可写」判据（Windows 无 POSIX 权限位）；fs 无 writeText 时回退存在性并如实注明。
  *
  * 版本：2026-08-28 与 src/shared/tracker/chain.js + check-catalog.js 同步，删 na，通用原语注册表。
  */
@@ -43,6 +45,12 @@ function makeResult(status, detail, hint) {
   return r
 }
 
+/** 2026-08-29（审查 S1）：谓词 detail 双语——detail 会经 enrichSnap 直出到 UI 行内描述，
+ *  中文界面不得出现英文黑话行。按 ctx.lang（wf.chain 注入）取词；lang 缺省 zh（面板主语言）。 */
+function detailFor(ctx, zhText, enText) {
+  return (ctx && ctx.lang === 'en') ? enText : zhText
+}
+
 /** 通用原语执行器（primitive）。 */
 async function execPrimitive(check, ctx) {
   const p = ctx && ctx.platform ? ctx.platform : null
@@ -50,9 +58,11 @@ async function execPrimitive(check, ctx) {
   try {
     if (kind === PRIMITIVE_KIND.COMMAND_EXISTS) {
       const cmd = check.command
-      if (!p || typeof p.resolveExecutable !== 'function') return makeResult('pending', 'platform.resolveExecutable unavailable')
+      if (!p || typeof p.resolveExecutable !== 'function') return makeResult('pending', detailFor(ctx, '系统找不到命令的能力不可用', 'platform.resolveExecutable unavailable'))
       const hit = await p.resolveExecutable(cmd)
-      return hit ? makeResult('pass', cmd + ' found: ' + hit) : makeResult('fail', cmd + ' not found in PATH')
+      return hit
+        ? makeResult('pass', detailFor(ctx, '已找到 ' + cmd + '：' + hit, cmd + ' found: ' + hit))
+        : makeResult('fail', detailFor(ctx, '未找到命令 ' + cmd + '（可能还没安装）', cmd + ' not found in PATH'))
     }
     if (kind === PRIMITIVE_KIND.FILE_EXISTS) {
       const rel = check.path
@@ -65,38 +75,108 @@ async function execPrimitive(check, ctx) {
         // 尝试 stat 式探测（若平台提供 exists/readText）
         if (typeof p.fs.exists === 'function') {
           const ok = await p.fs.exists(abs)
-          if (ok) return makeResult('pass', rel + ' exists')
+          if (ok) return makeResult('pass', detailFor(ctx, rel + ' 已存在', rel + ' exists'))
           // #284 修复（2026-08-28）：目录型检查（如 md:.scratch）——DSH fs.exists 可能只对文件为真，
           //   目录用 listDir/stat/lstat 兜底判定存在（.scratch 明明是目录却报 not found）。
-          if (typeof p.fs.listDir === 'function') { try { await p.fs.listDir(abs); return makeResult('pass', rel + ' exists (dir)') } catch (eD) {} }
-          if (typeof p.fs.stat === 'function') { try { const st = await p.fs.stat(abs); if (st) return makeResult('pass', rel + ' exists') } catch (eS) {} }
-          if (typeof p.fs.lstat === 'function') { try { const info = await p.fs.lstat(abs); if (info) return makeResult('pass', rel + ' exists') } catch (eL) {} }
-          return makeResult('fail', rel + ' not found')
+          if (typeof p.fs.listDir === 'function') { try { await p.fs.listDir(abs); return makeResult('pass', detailFor(ctx, rel + ' 已存在（目录）', rel + ' exists (dir)')) } catch (eD) {} }
+          if (typeof p.fs.stat === 'function') { try { const st = await p.fs.stat(abs); if (st) return makeResult('pass', detailFor(ctx, rel + ' 已存在', rel + ' exists')) } catch (eS) {} }
+          if (typeof p.fs.lstat === 'function') { try { const info = await p.fs.lstat(abs); if (info) return makeResult('pass', detailFor(ctx, rel + ' 已存在', rel + ' exists')) } catch (eL) {} }
+          return makeResult('fail', detailFor(ctx, rel + ' 不存在', rel + ' not found'))
         }
         if (typeof p.fs.readText === 'function') {
-          try { await p.fs.readText(abs); return makeResult('pass', rel + ' exists') } catch { return makeResult('fail', rel + ' not found') }
+          try { await p.fs.readText(abs); return makeResult('pass', detailFor(ctx, rel + ' 已存在', rel + ' exists')) } catch { return makeResult('fail', detailFor(ctx, rel + ' 不存在', rel + ' not found')) }
         }
         // 无探测能力 → pending（诚实，不猜）
-        return makeResult('pending', 'fs probe unavailable')
+        return makeResult('pending', detailFor(ctx, '文件探测能力不可用', 'fs probe unavailable'))
       } catch (e) {
         return makeResult('fail', String((e && e.message) || e))
+      }
+    }
+    if (kind === PRIMITIVE_KIND.DIR_WRITABLE) {
+      // dirWritable：目录「存在且可写」——写探测（往目录写固定名临时探针，写完尽力清理）。
+      //   为什么不用 stat/lstat 权限位：Windows 无 POSIX mode 位、ACL 不可靠，唯一跨三端一致的判据是真实写入。
+      //   谓词只读纪律的唯一例外（2026-08-29）：本探测向被检目录写 2 字节探针并删除，属验证性写、无业务副作用。
+      //   2026-08-29 实机修复（用户反馈 "The "path" argument must be of type string. Received an instance of Object"）：
+      //     fs.resolve 返回的是 target 对象（形状随宿主，无 .path 字符串），原实现把它喂进 path.join 必抛 TypeError。
+      //     修正：绝不对 resolve 输出做字符串操作；所有 fs 调用配对 resolve → 方法；字符串拼接只发生在 rel/cwd 上。
+      //   fs 无 writeText 能力（异常宿主）→ 回退存在性判定并如实注明（链仍能完成，不卡 pending）。
+      const rel = check.path
+      const zh = !!(ctx && ctx.lang === 'zh')
+      if (!p || !p.fs || typeof p.fs.resolve !== 'function') return makeResult('pending', 'platform.fs unavailable')
+      const probeRel = (typeof p.path.join === 'function') ? p.path.join(rel, '.dsh-write-probe') : (rel + '/.dsh-write-probe')
+      try {
+        // 1) 目录存在性尽力判定。判据（与 FILE_EXISTS 同哲学）：
+        //    - 有探测能力（exists/listDir/stat 任一）且全数未证明存在 → 视为不存在（诚实 fail）；
+        //    - 无任何探测能力（异常宿主/mock）→ 不臆断（dirExists=null），交写探测作最终判据；
+        //    - 目录型真相（#284：DSH fs.exists 可能只对文件为真）由 exists→listDir→stat 链兜底。
+        let dirExists = null
+        let probeCaps = 0
+        try {
+          const dirT = await p.fs.resolve(rel, { cwd: ctx.cwd })
+          if (typeof p.fs.exists === 'function') {
+            probeCaps++
+            try { if ((await p.fs.exists(dirT)) === true) dirExists = true } catch (eE) {}
+          }
+          if (dirExists !== true && typeof p.fs.listDir === 'function') {
+            probeCaps++
+            try { await p.fs.listDir(dirT); dirExists = true } catch (eD) {}
+          }
+          if (dirExists !== true && typeof p.fs.stat === 'function') {
+            probeCaps++
+            try { const st = await p.fs.stat(dirT); if (st) dirExists = true } catch (eS) {}
+          }
+          if (dirExists !== true && probeCaps > 0) dirExists = false
+        } catch (eR) {
+          dirExists = false
+        }
+        if (dirExists === false) return makeResult('fail', zh ? '目录不存在' : rel + ' not found')
+        // 2) 写探测（resolve(探针相对路径) → writeText；清理同理用该 target）
+        if (typeof p.fs.writeText === 'function') {
+          try {
+            const probeT = await p.fs.resolve(probeRel, { cwd: ctx.cwd })
+            await p.fs.writeText(probeT, 'ok')
+            const cleaners = ['unlink', 'remove', 'rm', 'delete']
+            for (const m of cleaners) {
+              if (typeof p.fs[m] === 'function') {
+                try { await p.fs[m](probeT); break } catch (eC) {}
+              }
+            }
+            return makeResult('pass', zh ? '目录可读写' : rel + ' exists & writable')
+          } catch (e) {
+            return makeResult('fail', (zh ? '目录不可写：' : 'not writable: ') + String((e && e.message) || e).slice(0, 200))
+          }
+        }
+        // 3) 无写探测能力 → 回退存在性（详情如实注明未验证可写；链可完成）
+        if (dirExists === true) {
+          return makeResult('pass', zh ? '目录存在（fs 无写探测能力，未验证可写）' : rel + ' exists (writable not verified: fs has no writeText)')
+        }
+        if (typeof p.fs.readText === 'function') {
+          try {
+            const t0 = await p.fs.resolve(rel, { cwd: ctx.cwd })
+            await p.fs.readText(t0)
+            return makeResult('pass', zh ? '目录存在（fs 无写探测能力，未验证可写）' : rel + ' exists (writable not verified: fs has no writeText)')
+          } catch { return makeResult('fail', zh ? '目录不存在' : rel + ' not found') }
+        }
+        return makeResult('pending', 'fs probe unavailable')
+      } catch (e) {
+        return makeResult('fail', String((e && e.message) || e).slice(0, 200))
       }
     }
     if (kind === PRIMITIVE_KIND.HOME_DIR) {
       // /homeDir（2026-08-28 修复）：主目录判装只问平台层——win32 不读 HOME（os.homedir→USERPROFILE），linux/mac 走 os.homedir；
       //   原 ENV(HOME) 在 Windows 必然误报「HOME not set」，主目录明明可解析却判 fail。
       //   平台层不可用 → 诚实 pending（不猜）；解析失败 → fail（环境级异常：daemon/容器/服务账户无用户上下文）。
-      if (!p || typeof p.getHome !== 'function') return makeResult('pending', 'platform.getHome unavailable')
+      if (!p || typeof p.getHome !== 'function') return makeResult('pending', detailFor(ctx, '平台主目录能力不可用', 'platform.getHome unavailable'))
       try {
         const h = await p.getHome()
-        return h ? makeResult('pass', h) : makeResult('fail', 'user home not resolved')
+        return h ? makeResult('pass', h) : makeResult('fail', detailFor(ctx, '用户主目录无法解析（系统级环境异常）', 'user home not resolved'))
       } catch (e) { return makeResult('pending', String((e && e.message) || e)) }
     }
     if (kind === PRIMITIVE_KIND.ENV) {
       const key = check.key
       const env = p && p.env ? p.env : null
       const val = env && typeof env.get === 'function' ? env.get(key) : (typeof process !== 'undefined' ? process.env[key] : undefined)
-      return val ? makeResult('pass', key + '=set') : makeResult('fail', key + ' not set')
+      return val ? makeResult('pass', key + '=set') : makeResult('fail', detailFor(ctx, key + ' 未设置', key + ' not set'))
     }
     if (kind === PRIMITIVE_KIND.SKILL_PROBE) {
       const skill = check.skill
@@ -113,7 +193,7 @@ async function execPrimitive(check, ctx) {
           if (r && r.status) return r
         } catch (e) { return makeResult('pending', 'skillProbe error: ' + String((e && e.message) || e)) }
       }
-      if (!p || typeof p.getHome !== 'function' || !p.fs) return makeResult('pending', 'platform unavailable for skillProbe')
+      if (!p || typeof p.getHome !== 'function' || !p.fs) return makeResult('pending', detailFor(ctx, '平台能力不可用，无法探测技能', 'platform unavailable for skillProbe'))
       try {
         const home = await p.getHome()
         const candidates = [
@@ -122,13 +202,13 @@ async function execPrimitive(check, ctx) {
         for (const cand of candidates) {
           try {
             if (typeof p.fs.exists === 'function') {
-              if (await p.fs.exists(cand)) return makeResult('pass', skill + ' found at ' + cand)
+              if (await p.fs.exists(cand)) return makeResult('pass', detailFor(ctx, skill + ' 已找到：' + cand, skill + ' found at ' + cand))
             } else if (typeof p.fs.readText === 'function') {
-              try { await p.fs.readText(p.path.join(cand, 'SKILL.md')); return makeResult('pass', skill + ' found') } catch {}
+              try { await p.fs.readText(p.path.join(cand, 'SKILL.md')); return makeResult('pass', detailFor(ctx, skill + ' 已找到', skill + ' found')) } catch {}
             }
           } catch {}
         }
-        return makeResult('fail', skill + ' not found')
+        return makeResult('fail', detailFor(ctx, skill + ' 未找到', skill + ' not found'))
       } catch (e) {
         return makeResult('pending', String((e && e.message) || e))
       }
@@ -184,7 +264,7 @@ export function createPredicateRegistry(opts = {}) {
         let r
         if (check.kind === 'primitive') {
           const raced = await withTimeout(execPrimitive(check, ctx), timeout)
-          if (raced && raced.__timeout) r = makeResult('pending', 'timeout after ' + timeout + 'ms')
+          if (raced && raced.__timeout) r = makeResult('pending', 'timeout after ' + timeout + 'ms (probe hung or network slow; re-check later)')
           else r = raced
         } else if (check.kind === 'backend' || check.kind === 'preflight') {
           // key 规则：backend: 'backend:<backendId>:<id>' 或 'preflight:<id>'；兼容直接 id
@@ -205,7 +285,7 @@ export function createPredicateRegistry(opts = {}) {
             r = makeResult('pending', 'predicate not registered: ' + (check.id || ''))
           } else {
             const raced = await withTimeout(fn(check, ctx), timeout)
-            if (raced && raced.__timeout) r = makeResult('pending', 'timeout after ' + timeout + 'ms')
+            if (raced && raced.__timeout) r = makeResult('pending', 'timeout after ' + timeout + 'ms (probe hung or network slow; re-check later)')
             else r = raced
           }
         } else {

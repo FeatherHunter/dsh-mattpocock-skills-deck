@@ -1,6 +1,8 @@
-// verify-no-repo-redcard.js — T2 #35 · 无仓库红卡（ListTab 首屏最优先）+ Public/Private 表单 + 双源同步
+// verify-no-repo-redcard.js — T2 #35 · 无仓库红卡（历史定版）+ Public/Private 表单 + 双源同步
 // 用法: node tests/verify-no-repo-redcard.js
-// 验收：非仓库目录首屏必见红卡；点卡展开表单；选 Private 创建后头部出现新 owner/repo；点“忽略”后卡片消失且刷新不复现，重置后复现。
+// 2026-08-28 B Timeline 定版修订：全屏红卡（ListTab 首屏）与顶部弱化/重置卡退役——
+//   远端未关联由检查页行内红卡（gh:remote FAIL 行）表达；本门禁改为验组件/表单/提交链路保留、
+//   ListTab/ChecksTab「不再挂载红卡与顶部错误信息」，其余（i18n/样式 token/dismiss 状态机/initPublish 链路）维持。
 const fs = require('fs');
 const host = fs.readFileSync('host.js', 'utf8');
 const pkgHost = fs.readFileSync('package/lib/index.js', 'utf8');
@@ -63,13 +65,14 @@ check(pcli.includes("ensureNoRepoCard"), 'package client 含 ensureNoRepoCard �
 check(cli.includes("noRepoCard: { expanded") && cli.includes("visibility: 'private'"), 'client makeStore 含 noRepoCard（expanded/name/visibility/loading/error + 默认 private）');
 check(pcli.includes("noRepoCard: { expanded"), 'package client makeStore 含 noRepoCard 镜像');
 
-// 5) 触发判据（唯一闸门：checkRepo.level===bad && !dismissed；warn/ok 不显；已 dismiss 不显；ListTab 原 nBad banner 被取代）
-check(cli.includes("checkRepo") && cli.includes("level === 'bad'") && cli.includes("isNoRepoDismissed"), 'client 含触发判据 checkRepo.level===bad && !isNoRepoDismissed');
+// 5) B Timeline 定版（2026-08-28）退役验收：ListTab 顶部全屏红卡与 nBad 环境警告红条不再挂载；
+//    行内红卡（gh:remote FAIL 行）与组件/表单/提交链路保留（见 6/7 段）
+check(cli.includes("checkRepo") && cli.includes("level === 'bad'") && cli.includes("isNoRepoDismissed"), 'client 含触发判据 checkRepo.level===bad && !isNoRepoDismissed（组件内保留）');
 check(pcli.includes("checkRepo") && pcli.includes("level === 'bad'"), 'package client 含触发判据镜像');
-check(cli.includes("h(NoRepoCard") && cli.includes("NoRepoCard"), 'client ListTab 顶部插入 NoRepoCard（h(NoRepoCard)）');
-check(pcli.includes("h(NoRepoCard"), 'package client ListTab 插入 NoRepoCard 镜像');
-check(cli.includes("cr.status === 'fail'") && cli.includes("!isNoRepoDismissed") && cli.includes("return null; return nBad"), 'client ListTab 原 nBad banner 被红卡取代（showRed 时隐藏，#284 链派生）');
-check(pcli.includes("cr.status === 'fail'") && pcli.includes("!isNoRepoDismissed"), 'package client 原 nBad banner 取代镜像（#284 链派生）');
+check(!cli.includes("h(NoRepoCard"), 'client ListTab 已移除全屏红卡挂载（h(NoRepoCard) 不存在）');
+check(!pcli.includes("h(NoRepoCard"), 'package client ListTab 已移除红卡挂载镜像');
+check(!cli.includes("list.envWarn', { n: nBad"), 'client ListTab 已移除 nBad 环境警告红条');
+check(!pcli.includes("list.envWarn', { n: nBad"), 'package client 已移除 nBad 红条镜像');
 
 // 6) 红卡组件与表单（仓库名输入预填 cwd 尾段可改 + Public/Private 单选 visibility 默认 Private + 错误条 + 主按钮 loading 态）
 check(cli.includes("const NoRepoCard") && cli.includes("Ic({ n: 'alert'"), 'client 含 NoRepoCard 组件（Ic alert + 标题/副标题）');
@@ -90,12 +93,13 @@ check(pcli.includes("host.call('wf.initPublish'") && pcli.includes("name: card.n
 check(cli.includes("loadSnapshot(st, true, true)") && cli.includes("loadChain(st, true)"), 'client 成功后刷新 snapshot + checks（头部出现新 owner/repo）');
 check(pcli.includes("loadSnapshot(st, true, true)") && pcli.includes("loadChain(st, true)"), 'package client 成功后刷新镜像（同源 loadSnapshot/loadChain）');
 
-// 8) ChecksTab 弱化与重置（红卡出现时隐藏 ListTab 原 banner；ChecksTab 中 checkRepo:bad 弱化为“已在首屏引导 · 切换到 ListTab 完成”；dismiss 后“重置忽略”）
-check(cli.includes("panel.noRepoCardDone") && cli.includes("st.tab = 'list'"), 'client ChecksTab 弱化：checkRepo:bad → 已在首屏引导 + 切换到 ListTab');
-check(pcli.includes("panel.noRepoCardDone"), 'package client ChecksTab 弱化镜像');
-check(cli.includes("setNoRepoDismissed(st.cwd, false)") && cli.includes("tr('panel.noRepoReset')"), 'client ChecksTab 提供“重置忽略”入口（setNoRepoDismissed false + Reset）');
-check(pcli.includes("setNoRepoDismissed(st.cwd, false)"), 'package client 重置忽略镜像');
-check(cli.includes("remoteStep && remoteStep.show") && cli.includes("noRepoCardDone"), 'client ChecksTab 弱化 no-repo（链派生，不再重复显示）');
+// 8) B Timeline 定版（2026-08-28）：ChecksTab 顶部弱化卡/恢复卡退役（远端未关联 = 行内红卡表达；dismiss 状态机保留于 store）
+check(!cli.includes("tr('panel.noRepoCardDone')"), 'client ChecksTab 已移除 no-repo 弱化卡（红色顶部信息）');
+check(!pcli.includes("tr('panel.noRepoCardDone')"), 'package client 已移除弱化卡镜像');
+check(!cli.includes("setNoRepoDismissed(st.cwd, false)"), 'client ChecksTab 已移除「重置忽略」入口');
+check(!pcli.includes("setNoRepoDismissed(st.cwd, false)"), 'package client 已移除重置镜像');
+check(!cli.includes("remoteStep && remoteStep.show"), 'client ChecksTab 已移除链派生弱化卡');
+check(cli.includes("remoteBad") && cli.includes("remoteStep && remoteStep.status"), 'client ChecksTab 保留 remote 判定（行内红卡源）');
 
 // 9) 产物特征（T5 #98 后：单产物存在性校验，双源 AND 由构建保证）
 // 不再断言 client.js ↔ package/lib/client.js 双源一致性，仅校验产物（含至少一个产物）含关键特征

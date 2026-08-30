@@ -126,9 +126,10 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // #265 起新增 naming-guardian.js（命名守护核心，host import + client splice 双消费）；
   // #232 起新增 tracker/sync.js（面板增量同步求值器，同双消费模式）
   // #308 起新增 ui/slots.js（五座位声明，host import + client splice 双消费）
-  // #fix-banner 新增 matt-skills.js（Matt 技能套件 25 项真源，host import + client splice 双消费）→ 共享真源 12 文件
-  check(srcSharedFiles.length === 12, `src/shared 12 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 12, `package/shared 12 文件（实得 ${pkgSharedFiles.length}）`)
+  // #fix-banner 新增 matt-skills.js（Matt 技能套件 25 项真源，host import + client splice 双消费）→ 共享真源 13 文件
+  // #324 起新增 workspaceKey.js（工作区键单源，#301 / #324 规格，host 包装 + client 共享）→ 共享真源 13 文件
+  check(srcSharedFiles.length === 13, `src/shared 13 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 13, `package/shared 13 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

@@ -12,7 +12,9 @@ export const checksumsOf = function (s) {
   const bugN = bugCount(s)
   const triageN = triageCount(s)
   const n = readyCount(s)
-  const timeStr = timeOf(s.snapshot) || (s.chainLoadedAt ? s.chainLoadedAt.slice(5, 16) : '') || '-- --:--'
+  // #327 特性 A：优先显示「上次探测时间」（数据不变也走针）；无探测记录回落快照生成时间/链加载时间
+  const _probeMs = (s.cwd && typeof getProbeAt === 'function') ? getProbeAt(s.cwd) : 0
+  const timeStr = (_probeMs && typeof timeOfMs === 'function' ? timeOfMs(_probeMs) : '') || timeOf(s.snapshot) || (s.chainLoadedAt ? s.chainLoadedAt.slice(5, 16) : '') || '-- --:--'
   const setup = setupCheck(s)
   const setupSts = setup ? setup.status : 'pending'
   const amber = setupSts !== 'done' && setupSts !== 'pending'

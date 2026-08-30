@@ -42,13 +42,14 @@ export const CHECK_STATE = Object.freeze({
 /** 别名：步骤状态（done/current/fail/pending 四态；与 CHECK_STATE 同值，2026-08-27 起无 na）。 */
 export const STEP_STATUS = CHECK_STATE
 
-/** 动作类型枚举（v1 五种，契约层唯一真源）。 */
+/** 动作类型枚举（v1 六种，契约层唯一真源；2026-08-28 新增 wizard 向导）。 */
 export const ACTION_TYPE = Object.freeze({
   INJECT_PROMPT: 'inject-prompt', // 推进型：注入提示词，配合重求值推进（例：gh auth login 引导）
   OPEN_URL: 'open-url',           // 信息型：打开链接，不宣称修复、不推进链
   RPC: 'rpc',                     // 执行型：host.call（例：wf.openFolder）
   FORM: 'form',                   // 执行型：内嵌字段表单，提交后走 submitAction
   REFRESH: 'refresh',             // 执行型：触发重求值（例：重探）
+  WIZARD: 'wizard',               // 执行型：多步向导（单弹窗内分页，Q5 定版：按步校验、最后一起提交、可返回、取消丢弃）
 })
 
 /** 别名：动作词汇表枚举（兼容票面命名 ACTION_TYPES）。 */
@@ -63,6 +64,8 @@ export const PRIMITIVE_KIND = Object.freeze({
   SKILL_PROBE: 'skillProbe',       // 例：{skill:'wayfinder'}
   HOME_DIR: 'homeDir',             // 例：{} — 用户主目录可解析：一律问平台层（#171：win32 不读 HOME，走 os.homedir→USERPROFILE；linux/mac 走 os.homedir），
                                    //   不再直接读 process.env.HOME（Windows 从不设置该变量，会误报 HOME not set）
+  DIR_WRITABLE: 'dirWritable',     // 例：{path:'.scratch'} — 目录「存在且可写」：写探测（往目录写临时探针并清理），
+                                   //   跨 OS 唯一可靠的「可写」判据（stat/lstat 的权限位在 Windows 不可靠）；谓词只读纪律的唯一例外
 })
 
 /** 展示等级（蓝/黄/红条；与 SHOW_LEVELS 同义，小写）。 */
@@ -146,6 +149,9 @@ export function isKnownActionType(type) {
  * @property {FieldSchema[]} [schema] 字段模式（type=form 时必有；兼容 fields）
  * @property {FieldSchema[]} [fields]
  * @property {Action} [submitAction] 提交动作（type=form 时必有，通常为 rpc 或 inject-prompt；兼容 submit）
+ * // wizard（2026-08-28 Q5 定版：单弹窗内分页，按步校验、最后一起提交、可返回、取消丢弃）
+ * @property {Array<{title?: string, schema: FieldSchema[]}>} [steps] 向导步骤（type=wizard 时必有，每步 schema 复用 FieldSchema，title 无则回落“步骤 n/总数”）
+ * @property {Action} [submitAction] 提交动作（type=wizard 时必有，合并全步 values 后触发）
  * @property {Object} [form] 兼容票面 form:{title,desc,fields,submit:{endpoint}}
  * @property {Object} [submit]
  * // refresh
@@ -289,6 +295,37 @@ export function validateAction(action) {
       }
       return { ok: true }
     }
+    case ACTION_TYPE.WIZARD: {
+      const steps = action.steps
+      if (!Array.isArray(steps) || steps.length === 0) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard 需 steps 非空数组（至少一项）' } }
+      for (let si = 0; si < steps.length; si++) {
+        const s = steps[si]
+        if (!s || typeof s !== 'object') return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.steps[' + si + '] 必须为对象' } }
+        const schema = s.schema || s.fields
+        if (!Array.isArray(schema)) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.steps[' + si + '].schema/fields 必须为数组' } }
+        // 允许空 schema（单步空表单的占位校验在门禁层），但若有字段则校验形状复用 FieldSchema
+        for (let fi = 0; fi < schema.length; fi++) {
+          const f = schema[fi]
+          if (!f || typeof f !== 'object' || !f.name || typeof f.name !== 'string' || !String(f.name).trim()) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.steps[' + si + '].fields[' + fi + '].name 必填' } }
+          const hasLabel = (f.label && typeof f.label === 'string' && String(f.label).trim()) || (f.labelKey && typeof f.labelKey === 'string' && String(f.labelKey).trim()) || (f.name && typeof f.name === 'string')
+          // 兼容：wizard 复用 FieldSchema 允许仅 name（label 回落 name），但若显式提供则需非空字符串
+          if (f.label !== undefined && f.label !== null && typeof f.label !== 'string') return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.steps[' + si + '].fields[' + fi + '].label 必须为字符串' } }
+          if (f.type !== undefined && f.type !== null) {
+            const vt = String(f.type).trim()
+            if (vt && !['text','number','date','single','multi','directory','file'].includes(vt)) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.steps[' + si + '].fields[' + fi + '].type 非法：' + vt } }
+          }
+        }
+      }
+      if (!getSubmit || typeof getSubmit !== 'object') return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard 需 submitAction/submit' } }
+      const subType = getSubmit.type
+      const subEndpoint = getSubmit.endpoint || getSubmit.method
+      if (subType && !VALID_ACTION_TYPES.has(String(subType).trim())) {
+        // 未知提交类型按 unsupported 透传
+      } else if (!subType && !subEndpoint) {
+        return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.submit 需 type 或 endpoint' } }
+      }
+      return { ok: true }
+    }
     case ACTION_TYPE.REFRESH: {
       return { ok: true }
     }
@@ -314,6 +351,7 @@ export function validateCheckItem(item) {
       if (!VALID_PRIMITIVES.has(c.primitive)) errors.push('primitive must be one of ' + [...VALID_PRIMITIVES].join(','))
       if (c.primitive === PRIMITIVE_KIND.COMMAND_EXISTS && typeof c.command !== 'string') errors.push('commandExists needs command:string')
       if (c.primitive === PRIMITIVE_KIND.FILE_EXISTS && typeof c.path !== 'string') errors.push('fileExists needs path:string')
+      if (c.primitive === PRIMITIVE_KIND.DIR_WRITABLE && typeof c.path !== 'string') errors.push('dirWritable needs path:string')
       if (c.primitive === PRIMITIVE_KIND.ENV && typeof c.key !== 'string') errors.push('env needs key:string')
       if (c.primitive === PRIMITIVE_KIND.SKILL_PROBE && typeof c.skill !== 'string') errors.push('skillProbe needs skill:string')
     }

@@ -94,11 +94,11 @@ if (registered && typeof registered.fn === 'function') {
   }
   try {
     // 注册监视（#211 复原名）：占位基准 + repoKey；注册后 800ms 内打索引基线（GH_BASE）
-    const regWatch = await callHandler('registerNewSessionWatcher', { sessionId: 'smoke-266', baselineTitle: '[New] 新建需求', cwd: '', repoKey: 'acme/demo', hint: null })
+    const regWatch = await callHandler('registerNewSessionWatcher', { sessionId: 'smoke-266', baselineTitle: '[New] 新建需求', cwd: '', repoKey: 'acme/demo', hint: '新建的修复需求' })
     check(!!regWatch && regWatch.ok === true, 'registerNewSessionWatcher 受理（注册监视复原）')
     await sleep(1100)  // 等待基线建档（无归属）
     const planBase = await callHandler('namingPlan', {})
-    check(!!planBase && Array.isArray(planBase.orders) && planBase.orders.length === 0, '首轮基线不归属（存量全量不当新编号）')
+    check(!!planBase && Array.isArray(planBase.orders) && planBase.orders.length === 1 && planBase.orders[0].kind === 'draft', '首轮基线仅 draft（存量不当编号）')
 
     // 等待建号：状态查询 + nudge 结算 —— stub 切到含新号 42 的快照
     ghIndexText = GH_BASE + '{"number":42,"title":"新建的修复需求","state":"OPEN","updatedAt":"u42"}\n'

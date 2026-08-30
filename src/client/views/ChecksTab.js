@@ -10,6 +10,20 @@ export const ChecksTab = ({ st }) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   React.useEffect(function () { loadChain(st, false) }, [])
+  // B 方案（2026-08-28 用户定版）：链未全绿时每 20s 静默重查一次——修复（在对话/终端完成）后面板自动变绿，
+  //   无需手动点「重新检查」；host 侧对未全绿快照不写 30s 缓存，poll 每次真探测；链全部通过后定时器停止（零开销）。
+  React.useEffect(function () {
+    const pollTimer = setInterval(function () {
+      try {
+        const steps = chainSteps(st)
+        if (!steps.length) return
+        if (steps.every(function (s) { return s.status === 'done' })) return
+        if (st.refreshing) return
+        loadChain(st, false)
+      } catch (e) {}
+    }, 20000)
+    return function () { try { clearInterval(pollTimer) } catch (e) {} }
+  }, [])
   // #284：单一口径 = 链快照步骤（pending = 诚实未知/未接入，置灰展示，不计入 ready/total）
   const steps = chainSteps(st)
   const chainSnapshot = st.chainSnapshot || null
@@ -25,17 +39,34 @@ export const ChecksTab = ({ st }) => {
           hostCall: function (method, params) { if (typeof host !== 'undefined' && host.call) return host.call(method, params); return Promise.reject(new Error('hostCall unavailable')) },
           renderForm: function (schema, onSubmit) {
             try {
-              // #308 modal-seat：只用 openFormModal（顺序队列，失败不关，焦点聚集），不再手写 m.open 赋值
+              // #308 modal-seat + #318 wizard 单步：只用 openFormModal（顺序队列，失败不关，焦点聚集），不再手写 m.open 赋值
+              // 兼容：wizard 载荷为 {type:'wizard', steps:[{schema}], label, submitAction}，form 为数组 schema
+              const isWizardPayload = schema && typeof schema === 'object' && !Array.isArray(schema) && Array.isArray(schema.steps)
               if (typeof openFormModal === 'function') {
-                openFormModal(st, { type: 'form', schema: schema, label: '填写表单' }, onSubmit)
+                if (isWizardPayload) {
+                  // 单步 wizard 当单页表单：复用 modal-seat，向导感知渲染会在弹窗内分页（1 步即单页）；label 空时由 slotRenderer 回落“向导”，避免 ChecksTab 硬编码中文越 baseline
+                  openFormModal(st, { type: 'wizard', steps: schema.steps, label: schema.label || '', submitAction: schema.submitAction || null }, onSubmit)
+                } else {
+                  openFormModal(st, { type: 'form', schema: schema, label: '填写表单' }, onSubmit)
+                }
               } else if (typeof ensureFormModal === 'function') {
                 // 兜底：旧 API（理论不可达，仅防产物不同步）
                 const m = ensureFormModal(st)
-                m.open = true
-                m.schema = Array.isArray(schema) ? schema : []
-                m.onSubmit = typeof onSubmit === 'function' ? onSubmit : null
-                m.label = '填写表单'
-                m.pending = false
+                if (isWizardPayload) {
+                  // 向导兜底：仍按 form 打开首步 schema（降级可用，label 空时由后续渲染回落）
+                  const firstSchema = (Array.isArray(schema.steps[0] && schema.steps[0].schema) ? schema.steps[0].schema : (Array.isArray(schema.steps[0] && schema.steps[0].fields) ? schema.steps[0].fields : []))
+                  m.open = true
+                  m.schema = firstSchema
+                  m.onSubmit = typeof onSubmit === 'function' ? onSubmit : null
+                  m.label = schema.label || ''
+                  m.pending = false
+                } else {
+                  m.open = true
+                  m.schema = Array.isArray(schema) ? schema : []
+                  m.onSubmit = typeof onSubmit === 'function' ? onSubmit : null
+                  m.label = '填写表单'
+                  m.pending = false
+                }
                 try { if (typeof emit === 'function') emit(st) } catch (e2) { try { st.tick = (st.tick||0)+1 } catch(_) {} }
               } else {
                 try { onSubmit({}) } catch (e2) {}
@@ -56,10 +87,8 @@ export const ChecksTab = ({ st }) => {
     } catch (e) {}
     return null
   })()
-  const chainBannerBlock = (chainSnapshot && chainDispatcher) ? (function () {
-    try { return h(ChainRenderer, { snapshot: chainSnapshot, dispatcher: chainDispatcher, st: st, showSteps: false }) } catch (e) { return null }
-  })() : null
-  // 垂直步骤明细：每步 = 状态圆点 + 名称 + 描述（动作按钮由 banner 的 ChainRenderer 承担，明细不再重复）
+  // B Timeline 定版（2026-08-28）：顶部不渲染 ChainBanner（原型无横幅——FAIL 状态由行内红卡+右置主按钮表达）；
+  //   垂直步骤明细：每步 = 状态圆点 + 名称 + 描述（动作按钮按行级 primaryAction 渲染）
   const statusMeta = function (s) {
     const sts = s.status
     if (sts === 'done') return { dot: '#16a34a', color: '#4ade80', label: '\u2713' }
@@ -71,10 +100,11 @@ export const ChecksTab = ({ st }) => {
   //   动作按钮 = 检查失败时的可执行修复入口（inject-prompt / open-url / rpc / form / refresh），执行后走既有重求值闭环。
   const miniActionLabel = function (a) {
     const t = a && a.type
-    if (t === 'inject-prompt') return (a && a.label) || '注入修复指引'
+    if (t === 'inject-prompt') return (a && a.label) || '执行'
     if (t === 'open-url') return '打开链接'
     if (t === 'rpc') return (a && (a.method || a.endpoint)) || '执行'
     if (t === 'form') return (a && a.label) || '填写表单'
+    if (t === 'wizard') return (a && a.label) || 'Wizard'
     if (t === 'refresh') return '重查'
     return 'unsupported: ' + String(t || 'unknown')
   }
@@ -110,28 +140,28 @@ export const ChecksTab = ({ st }) => {
     }
     const finalDesc = blockedNote ? (desc ? desc + ' \u00b7 ' + blockedNote : blockedNote) : desc
     const hintText = hintTextOf(s)
-    // #308 modal-seat：表单改走槽位弹窗（不再内嵌），明细行放开 form 过滤，按钮点击即弹 modal
+    // #308 modal-seat：表单改走槽位弹窗；2026-08-28 用户定版：每行只保留一个主修复动作（form/wizard 优先，
+    //   其次 inject-prompt/rpc），按钮置于行右侧；refresh 不再单独成按钮（顶部已有「重新检查」）。
     const fixActions = (s.status === 'fail' || s.status === 'current') ? (Array.isArray(s.actions) ? s.actions : []) : []
-    const actButtons = (chainDispatcher && fixActions.length) ? h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 } }, fixActions.map(function (a, ai) {
-      const alabel = miniActionLabel(a)
-      const unsupported = String(alabel).indexOf('unsupported:') === 0
-      return h('button', { key: 'fix-' + ai, className: 'dsws-btn' + (unsupported ? ' ghost' : ''), tabIndex: 0, disabled: unsupported, onClick: function () { runAction(a) }, style: { fontSize: 11, padding: '2px 8px', flex: 'none' } }, alabel)
-    })) : null
-    return h('div', { key: s.id || i, className: 'dsws-ccard', style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } }, [
+    const primaryAction = (chainDispatcher && fixActions.length) ? (fixActions.find(function (a) { return a && (a.type === 'form' || a.type === 'wizard') }) || fixActions.find(function (a) { return a && (a.type === 'inject-prompt' || a.type === 'rpc') }) || null) : null
+    const primaryBtn = primaryAction ? (function () {
+      const alabel = miniActionLabel(primaryAction)
+      return h('button', { key: 'fix-primary', className: 'dsws-btn primary', tabIndex: 0, onClick: function () { runAction(primaryAction) }, style: { fontSize: 12, padding: '6px 14px', flex: 'none', whiteSpace: 'nowrap' } }, alabel)
+    })() : null
+    return h('div', { key: s.id || i, className: 'dsws-ccard', style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, padding: primaryBtn ? '10px 12px' : undefined, border: primaryBtn ? '1px solid var(--dsw-alias-border-l1,#2a2d35)' : undefined, borderRadius: 10, background: primaryBtn ? 'var(--dsw-alias-bg-layer-1,#10131a)' : undefined } }, [
       h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: meta.dot, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' } }, meta.label),
       h('span', { style: { flex: 1, minWidth: 0 } }, [
-        h('span', { className: 'nm', style: { color: meta.color } }, String(label)),
+        h('span', { className: 'nm', style: { color: meta.color, fontWeight: primaryBtn ? 600 : 400 } }, String(label)),
         finalDesc ? h('div', { className: 'dt dsws-ellip', title: finalDesc, style: { color: '#8b8b95' } }, finalDesc) : null,
         hintText ? h('div', { className: 'dt', style: { color: '#d97706', lineHeight: 1.5, marginTop: 2, whiteSpace: 'pre-wrap' } }, hintText) : null,
-        actButtons,
       ]),
+      primaryBtn,
     ])
   }) : null
   // #308 modal-seat 挂载点（shell.overlay / root / single，复用 .dsws-modal 遮罩）
   const formModalNode = (typeof FormModalSeat === 'function') ? (function(){ try { return h(FormModalSeat, { st: st }) } catch(e){ return null } })() : null
   return h('div', null, [
     formModalNode,
-    chainBannerBlock,
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 12 } }, [
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'gear', size: 12 }), h('span', null, tr('env.title', { n: envLabel(st) }))]),
       (function () {
@@ -146,9 +176,8 @@ export const ChecksTab = ({ st }) => {
         h('span', null, tr('env.recheck')),
       ]),
     ]),
-    // no-repo 弱化卡（与旧行为一致：红卡显示时弱化为提示，dismiss 后提供重置入口）
-    (function () { const dismissed = isNoRepoDismissed(st.cwd); const showRed = remoteBad && !dismissed; if (!showRed) return null; return h('div', { className: 'dsws-ccard', style: { opacity: 0.85, borderColor: 'rgba(139,139,149,.35)', background: 'rgba(139,139,149,.08)', marginBottom: 6 } }, [h('div', { className: 'nm', style: { color: '#8b8b95' } }, (remoteStep && remoteStep.show && (remoteStep.show.fallback || remoteStep.show.title)) || tr('nav.takeable')), h('div', { className: 'dt', style: { color: '#8b8b95' } }, tr('panel.noRepoCardDone')), h('div', { className: 'act' }, [h('button', { className: 'dsws-btn', onClick: function () { st.tab = 'list'; emit(st) }, style: { fontSize: 11, padding: '2px 8px' } }, tr('panel.tabList'))])]) })(),
-    (function () { const dismissed = isNoRepoDismissed(st.cwd); if (!dismissed) return null; if (!remoteBad) return null; return h('div', { className: 'dsws-ccard', style: { borderColor: 'rgba(248,113,113,.35)', background: 'rgba(248,113,113,.06)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 } }, [h('span', { style: { fontSize: 11, color: '#f87171', flex: 1 } }, tr('panel.noRepoCardDismiss') + ' \u00b7 ' + (remoteStep && remoteStep.show && (remoteStep.show.desc || ''))), h('button', { className: 'dsws-btn', onClick: function () { setNoRepoDismissed(st.cwd, false); emit(st) }, style: { fontSize: 11, padding: '2px 8px', flex: 'none' } }, tr('panel.noRepoReset'))]) })(),
+    // B Timeline 定版（2026-08-28）：无 no-repo 弱化卡/恢复卡——远端未关联由行内红卡（gh:remote FAIL 行）表达；
+    //   dismiss 状态机保留在 store（向后兼容），不再在检查页顶部占用空间
     stepRows,
     // #155 Q7：能力诊断折叠卡（默认收起，不进渲染分支；G5 能力视图仅诊断不驱动隐藏）
     (function () {

@@ -34,8 +34,8 @@ export     const DetailsDock = (props) => {
       React.useEffect(function () {
         const apply = function (cwd) {
           if (!cwd) return false
-          const norm = String(cwd).replace(/\\/g,'/').replace(/\/+$/,'')
-          const cur = String(s.cwd||'').replace(/\\/g,'/').replace(/\/+$/,'')
+          const norm = (typeof keyOf==='function'?keyOf(cwd):String(cwd).replace(/\\/g,'/').replace(/\/+$/,''))
+          const cur = (typeof keyOf==='function'?keyOf(s.cwd||''):String(s.cwd||'').replace(/\\/g,'/').replace(/\/+$/,''))
           const need = norm !== cur
           // 每次 cwd 变更都强制刷新（即使 hydrate 命中），避免“回切仍为旧快照/没有仓库”空白
           if (need) {
@@ -51,7 +51,7 @@ export     const DetailsDock = (props) => {
           const snap = s.snapshot
           let polluted = false
           if (snap && snap.repoRoot) {
-            const rr = String(snap.repoRoot).replace(/\\/g,'/').replace(/\/+$/,'')
+            const rr = (typeof keyOf==='function'?keyOf(snap.repoRoot):String(snap.repoRoot).replace(/\\/g,'/').replace(/\/+$/,''))
             if (norm !== rr && !norm.startsWith(rr + '/') && !rr.startsWith(norm + '/')) polluted = true
           } else if (snap && snap.repository && snap.repository.name) {
             const n = String(snap.repository.name)
@@ -89,8 +89,8 @@ export     const DetailsDock = (props) => {
           if (!s.snapshot || !s.cwd) return false
           const snap = s.snapshot
           if (snap.repoRoot) {
-            const rr = String(snap.repoRoot).replace(/\\/g,'/').replace(/\/+$/,'')
-            const cw = String(s.cwd).replace(/\\/g,'/').replace(/\/+$/,'')
+            const rr = (typeof keyOf==='function'?keyOf(snap.repoRoot):String(snap.repoRoot).replace(/\\/g,'/').replace(/\/+$/,''))
+            const cw = (typeof keyOf==='function'?keyOf(s.cwd):String(s.cwd).replace(/\\/g,'/').replace(/\/+$/,''))
             if (cw === rr) return false
             if (cw.startsWith(rr + '/')) return false
             if (rr.startsWith(cw + '/')) return false

@@ -101,7 +101,7 @@ try {
   check(planLock.ok === true && Array.isArray(planLock.orders) && planLock.orders.every(function (o) { return o.sessionId !== 'io-s3' }), '再次重启后 locked 会话仍永不出单（值比对锁持久化成立）')
   // ---- #266：索引差值底座跨重启（面板关闭期间建号 → 重启后 attributed）----
   // 实例一内：注册 io-s4（repoKey acme/demo）+ 基线建档（GH_BASE，无归属，索引落盘）
-  const reg4 = await callHandler(d1.fn, 'registerNewSessionWatcher', { sessionId: 'io-s4', baselineTitle: '[New] New Bug', cwd: '', repoKey: 'acme/demo' })
+  const reg4 = await callHandler(d1.fn, 'registerNewSessionWatcher', { sessionId: 'io-s4', baselineTitle: '[New] New Bug', cwd: '', repoKey: 'acme/demo', hint: '关闭期间建的需求' })
   check(reg4.ok === true, 'registerNewSessionWatcher 受理（#266 实例一）')
   await callHandler(d1.fn, 'awaitCreatedIssue', { sessionId: 'io-s4' })
   await sleep(2600)  // 注册 nudge 结算（基线，800ms 窗）+ 1.2s 防抖落盘窗口

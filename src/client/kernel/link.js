@@ -39,8 +39,16 @@ function __patternSources(st) {
   return out
 }
 export const issueUrlFor = (st, key) => {
+  // 优先用后端现算的 url（markdown 的盘符路径已在快照 issues[].url 中）；回退到模板渲染（github）
   const n = String(key || '').trim()
   if (!n) return ''
+  // 快照直取：若当前快照中该 key 已有 url（markdown 文件路径），直接用，避免模板为空时回空
+  try {
+    const snap = st && st.snapshot
+    const all = snap ? [].concat(snap.issues||[]).concat((snap.maps||[]).flatMap(function(m){return m.tickets||[]})) : []
+    const hit = all.find(function(x){ return String(x.key).padStart(2,'0')===String(n).padStart(2,'0') || String(x.number)===String(n) })
+    if(hit && hit.url) return String(hit.url)
+  } catch {}
   const meta = __metaLinks(st)
   if (!meta) return ''
   const tpl = String(meta.issueUrlTemplate || '')
@@ -48,6 +56,14 @@ export const issueUrlFor = (st, key) => {
   const refId = __refIdOf(st)
   if (!refId) return ''
   return tpl.split('{refId}').join(refId).split('{key}').join(n)
+}
+// 统一打开：https 走新页，file 盘符走宿主 wf.openPath（UI 零分支）
+export const openIssueUrl = function(st, key, host){
+  const u = issueUrlFor(st, key)
+  if(!u) return false
+  if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} return true }
+  try{ if(host && typeof host.call==='function'){ host.call('wf.openPath',{path:u}); return true } }catch{}
+  return false
 }
 export const searchUrlFor = (st, name) => {
   const n = String(name || '').trim()

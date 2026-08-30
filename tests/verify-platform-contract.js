@@ -96,6 +96,8 @@ console.log('\n== 零手拼 / 静态 import（I2 零手拼·双闸） ==')
   check(idxSrc.includes('REGISTRY') && idxSrc.includes('Object.freeze'), 'REGISTRY 冻结静态表存在')
   check(idxSrc.includes('memoize'), '通用层 memoize 终身缓存存在')
   check(idxSrc.includes('joinHome'), '通用层 joinHome 异步成员存在')
+  // 2026-08-29（research 实锤「三底座不一致」）：DSH_GH_PATH 兜底由 composePlatform 通用层单点拥有
+  check(idxSrc.includes('DSH_GH_PATH'), 'platform/index.js 通用层含 DSH_GH_PATH 兜底（单点拥有，三端一致）')
 }
 {
   const darwinRaw = fs.readFileSync('src/host/platform/darwin/index.js', 'utf8')
@@ -129,8 +131,9 @@ console.log('\n== 零手拼 / 静态 import（I2 零手拼·双闸） ==')
   check(linuxRaw.includes('pathImpl') && linuxRaw.includes('nodePath.posix'), 'linux pathImpl === node:path.posix')
   check(/try\s*\{[\s\S]*?homedir\(\)[\s\S]*?\}\s*catch/.test(linuxRaw), 'linux getHome含try/catch→null（L2 容器兜底）')
   check(!linuxSrc.includes('sh.exe'), 'linux 无 sh→sh.exe 别名（仅 win32 有，L3）')
-  check(linuxRaw.includes('DSH_GH_PATH'), 'linux 含 DSH_GH_PATH 兜底（L4 gh 先PATH后兜底）')
-  check(linuxRaw.includes('lstat'), 'linux gh兜底含 fs.lstat 校验')
+  // 2026-08-29 修订（research 实锤「三底座不一致」）：DSH_GH_PATH 兜底下沉到 composePlatform 通用层单点拥有——
+  //   linux 适配器不再实现（同 darwin/win32 直透），平台层三端行为一致。
+  check(!linuxSrc.includes('DSH_GH_PATH'), 'linux 适配器无 DSH_GH_PATH 处理（已归 composePlatform 通用层，L4 修订）')
   check(!/HOME/.test(linuxSrc) || linuxSrc.includes('DSH_GH_PATH'), 'linux ~/$VAR 不展开（L6）')
   check(linuxRaw.includes('homedir') && linuxRaw.includes('resolveHomedir'), 'linux 注入钩子 homedir 存在（可测性 #131）')
 }
@@ -542,6 +545,19 @@ async function runLinux() {
     const ctxNoEnv = makeCtx(sp, fakeFs2)
     const platNoEnv = await createPlatform(ctxNoEnv, 'linux', { env: {} })
     check((await platNoEnv.resolveExecutable('gh')) === null, 'linux G12 无DSH_GH_PATH→null')
+  }
+  // G13.5 三端同一兜底（2026-08-29 下沉验收）：darwin/win32 覆盖下 DSH_GH_PATH+lstat 兜底与 linux 行为一致
+  {
+    const fakePath = '/tmp/fake-gh-135'
+    const spFail = { resolveExecutable: async () => { throw new Error('not found') } }
+    const fsHit = { lstat: async (p) => p === fakePath ? { isFile: () => true } : null, readText: async()=> '', writeText: async()=>{}, resolve: (x)=>x, listDir: async()=>[], stat: async()=>null }
+    const pDarwin = await createPlatform(makeCtx(spFail, fsHit), 'darwin', { env: { DSH_GH_PATH: fakePath } })
+    check((await pDarwin.resolveExecutable('gh')) === fakePath, 'darwin 覆盖：DSH_GH_PATH+lstat 兜底生效（与 linux 同行为）')
+    const pWin32 = await createPlatform(makeCtx(spFail, fsHit), 'win32', { env: { DSH_GH_PATH: fakePath } })
+    check((await pWin32.resolveExecutable('gh')) === fakePath, 'win32 覆盖：DSH_GH_PATH+lstat 兜底生效（与 linux 同行为）')
+    const fsMiss = { lstat: async () => null, readText: async()=> '', writeText: async()=>{}, resolve: (x)=>x, listDir: async()=>[], stat: async()=>null }
+    const pDarwinMiss = await createPlatform(makeCtx(spFail, fsMiss), 'darwin', { env: { DSH_GH_PATH: '/tmp/not-exist-135' } })
+    check((await pDarwinMiss.resolveExecutable('gh')) === null, 'darwin 覆盖：DSH_GH_PATH 不存在→null（lstat 校验）')
   }
   // G13 env不展开 + joinHome语义
   {
