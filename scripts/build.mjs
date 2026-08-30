@@ -194,6 +194,7 @@ const SHARED_SPLICE = [
   { marker: '// ==== shared:namingGuardian (spliced by build) ====', file: 'src/shared/naming-guardian.js' },
   { marker: '// ==== shared:trackerSync (spliced by build) ====', file: 'src/shared/tracker/sync.js' },
   { marker: '// ==== shared:slots (spliced by build) ====', file: 'src/shared/ui/slots.js' },
+  { marker: '// ==== shared:mattSkills (spliced by build) ====', file: 'src/shared/matt-skills.js' },
   { marker: '// ==== shared:workspaceKey (spliced by build) ====', file: 'src/shared/workspaceKey.js' },
 ]
 

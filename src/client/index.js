@@ -70,6 +70,24 @@ export default {
       },
     }
     const h = React.createElement
+    // #fix-two-sliders：一次性迁移旧会话中存的 waystation:map 打开记录 → deck:map
+    //   仅在 better-sidebar 提供持久化 API 时执行；best-effort，失败不抛（仅 console.warn）
+    try {
+      const bs0 = ctx.get && ctx.get('betterSidebar')
+      if (bs0 && typeof bs0.migrateLegacyTabIds === 'function') {
+        try { bs0.migrateLegacyTabIds({ 'waystation:map': 'deck:map' }) } catch (e) { try { console.warn('[MattSkillsDeck] migrateLegacyTabIds failed:', e && e.message) } catch {} }
+      } else if (bs0 && typeof bs0.listOpenTabs === 'function') {
+        // 退化路径：扫描打开列表 → 替换 → 持久化
+        try {
+          const open = bs0.listOpenTabs() || []
+          const rename = open.filter(function (t) { return t && t.id === 'waystation:map' })
+          for (let i = 0; i < rename.length; i++) {
+            try { if (typeof bs0.closeTab === 'function') bs0.closeTab('waystation:map') } catch {}
+            try { if (typeof bs0.openTab === 'function') bs0.openTab({ type: 'deck:map', path: 'deck:map' }, rename[i].scope) } catch {}
+          }
+        } catch (e) { try { console.warn('[MattSkillsDeck] legacy migrate fallback failed:', e && e.message) } catch {} }
+      }
+    } catch {}
     // issue #3：浮层挂顶层 —— createPortal 到 document.body，让 position:fixed 的视口坐标与
     //   z-index 真正全局生效。宿主输入区祖先若带 transform / filter / backdrop-filter /
     //   will-change / contain，fixed 的包含块会降级为该祖先（坐标偏移 + 被 overflow 裁剪），
@@ -127,28 +145,12 @@ export default {
     // 1. 技能目录 + 场景推荐映射
     // ============================================================
     // T3：描述在渲染时 tr('skilldesc.<name>')（此处 use 字段为中文静态参考）
-    const SKILLS = [
-      { name: 'ask-matt', level: 'warn', use: '技能路由器：不知道该用哪个 skill 时问它' },
-      { name: 'setup-matt-pocock-skills', level: 'ok', use: '仓库初始化：issue tracker / 标签 / 文档路径' },
-      { name: 'wayfinder', level: 'warn', use: '巨型项目决策地图（本插件服务的对象）' },
-      { name: 'triage', level: 'ok', use: 'issue 状态机流转：categorise→verify→grill' },
-      { name: 'grilling', level: 'ok', use: '穷追不舍的对齐提问（设计树）' },
-      { name: 'domain-modeling', level: 'ok', use: '领域术语与统一语言' },
-      { name: 'research', level: 'ok', use: '后台调研，写进 repo 内 markdown 并引源' },
-      { name: 'prototype', level: 'ok', use: '一次性原型回答设计问题' },
-      { name: 'implement', level: 'warn', use: '把规格落成代码（task 型 ticket）' },
-      { name: 'code-review', level: 'ok', use: '按标准 + 规格双轴审查改动' },
-      { name: 'codebase-design', level: 'ok', use: '深模块设计词汇' },
-      { name: 'diagnosing-bugs', level: 'ok', use: '硬 bug 与性能回归诊断循环' },
-      { name: 'improve-codebase-architecture', level: 'ok', use: '扫 deepening opportunities 出 HTML 报告' },
-      { name: 'tdd', level: 'ok', use: '红-绿-重构' },
-      { name: 'handoff', level: 'warn', use: '把当前对话压缩成交接文档' },
-      { name: 'teach', level: 'ok', use: '跨 session 教你新技能' },
-      { name: 'to-spec', level: 'warn', use: '把讨论固化成规格' },
-      { name: 'to-tickets', level: 'warn', use: '把规格拆成 tickets' },
-      { name: 'resolving-merge-conflicts', level: 'ok', use: '解决合并冲突' },
-      { name: 'writing-great-skills', level: 'warn', use: '写出优秀技能' },
-    ]
+    // ==== shared:mattSkills (spliced by build) ====
+    // #fix-banner：动态占位供 installSkills prompt 使用；probeList/probeCount 由 SKILLS 派生（与 host MATT_SKILL_PROBE_NAMES 同源）
+    const installSkillsParams = function () {
+      const names = (Array.isArray(SKILLS) ? SKILLS : []).map(function (s) { return s && s.name }).filter(Boolean)
+      return { probeList: names.join(' / '), probeCount: String(names.length) }
+    }
     const TYPE_SKILLS = {
       research: ['research'],
       prototype: ['prototype'],
