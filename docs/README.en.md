@@ -228,3 +228,13 @@ Scan to join the topic group — QR code never expires. Casual chat in the group
 <sub>dsh-mattpocock-skills · permanent QR code</sub>
 
 </div>
+
+<h2 align="center"><sub>STAR HISTORY</sub><br>Star History</h2>
+
+<div align="center">
+
+<a href="https://star-history.com/#FeatherHunter/dsh-mattpocock-skills-deck&Date">
+  <img src="https://api.star-history.com/svg?repos=FeatherHunter/dsh-mattpocock-skills-deck&type=Date" alt="Star History Chart">
+</a>
+
+</div>

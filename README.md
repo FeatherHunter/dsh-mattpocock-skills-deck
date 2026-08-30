@@ -23,7 +23,7 @@
 
 <div align="center">
 
-前置只有一个：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness，AI 编码桌面端）。在 DSH 里，你下指令、AI 干活；MattSkillsDeck 把这些活变成面板上的任务。
+前置只有一个：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness）。在 DSH 里，你下指令、AI 干活；MattSkillsDeck 把这些活变成面板上的任务。
 
 </div>
 
@@ -228,5 +228,15 @@ MIT © FeatherHunter
 <strong>加入话题群</strong>
 <br>
 <sub>dsh-mattpocock-skills · 该二维码永久有效</sub>
+
+</div>
+
+<h2 align="center"><sub>STAR HISTORY</sub><br>Star History</h2>
+
+<div align="center">
+
+<a href="https://star-history.com/#FeatherHunter/dsh-mattpocock-skills-deck&Date">
+  <img src="https://api.star-history.com/svg?repos=FeatherHunter/dsh-mattpocock-skills-deck&type=Date" alt="Star History Chart">
+</a>
 
 </div>
