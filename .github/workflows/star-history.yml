@@ -1,4 +1,4 @@
-﻿name: Star History
+name: Star History
 on:
   schedule:
     - cron: "17 2 * * *"
@@ -13,8 +13,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install deps
-        run: npm ci --ignore-scripts || npm install
       - name: Fetch star history
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -23,15 +21,25 @@ jobs:
           REPO="FeatherHunter/dsh-mattpocock-skills-deck"
           gh api -H "Accept: application/vnd.github.star+json" "repos/$REPO/stargazers" --paginate --jq ".[].starred_at" > /tmp/stars.txt || true
           if [ ! -s /tmp/stars.txt ]; then echo "No stars fetched"; exit 0; fi
-          node scripts/update-star-history.mjs
+          node scripts/update-star-history.mjs /tmp/stars.txt
           node scripts/generate-star-history-svg.mjs
-          npx --yes playwright install --with-deps chromium
-          node scripts/screenshot-star-history.mjs || echo "PNG generation failed, using SVG only"
+      - name: Bump README cache stamp
+        run: |
+          node -e "
+            const fs = require('fs');
+            const stamp = new Date().toISOString().slice(0,10).replace(/-/g,'');
+            for (const f of ['README.md','docs/README.en.md']) {
+              let s = fs.readFileSync(f,'utf8');
+              s = s.replace(/(star-history-(?:dark|light)[.]svg[?]v=)[0-9]+/g, (m, p1) => p1 + stamp);
+              fs.writeFileSync(f, s);
+            }
+            console.log('cache stamp:', stamp);
+          "
       - name: Commit if changed
         run: |
-          if git diff --quiet docs/star-history.json docs/star-history.svg docs/star-history.png; then echo "No change"; exit 0; fi
+          if git diff --quiet docs/star-history.json docs/star-history-dark.svg docs/star-history-light.svg README.md docs/README.en.md; then echo "No change"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/star-history.json docs/star-history.svg docs/star-history.png
-          git commit -m "chore: update star history"
+          git add docs/star-history.json docs/star-history-dark.svg docs/star-history-light.svg README.md docs/README.en.md
+          git commit -m "每日更新 Star History：追加拉取到的星标数据并重新生成手绘双主题图表"
           git push
