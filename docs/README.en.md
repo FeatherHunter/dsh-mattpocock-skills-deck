@@ -7,6 +7,8 @@
 **Part the fog of war, see the end — MattSkillsDeck handles the rest.**  
 A playable task board for [mattpocock/skills](https://github.com/mattpocock/skills) in DSH — visible, dispatchable, trackable.
 
+*Your ⭐ is the brightest star in my night sky.*
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE) [![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![dsh-plugin](https://img.shields.io/badge/dsh-plugin-orange.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck) [![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills)
 
 <img src="../assets/panel-list-zh.png" width="640" alt="MattSkillsDeck panel: mission list, progress rings, one-click actions">
@@ -233,8 +235,6 @@ Scan to join the topic group — QR code never expires. Casual chat in the group
 <sub>dsh-mattpocock-skills · permanent QR code</sub>
 
 </div>
-
-<h2 align="center"><sub>STAR HISTORY</sub><br>Star History</h2>
 
 <div align="center">
 

@@ -7,6 +7,8 @@
 **拨开战争迷雾看见终点，剩下的交给 MattSkillsDeck。**  
 让 [mattpocock/skills](https://github.com/mattpocock/skills) 在 DSH 里化作一块看得见、派得动的任务板。
 
+你的 ⭐是我夜空中最亮的星。
+
 *Part the fog of war, see the end — MattSkillsDeck handles the rest.*
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![dsh-plugin](https://img.shields.io/badge/dsh-plugin-orange.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck) [![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills)
@@ -23,7 +25,7 @@
 
 <div align="center">
 
-前置只有一个：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness）。在 DSH 里，你下指令、AI 干活；MattSkillsDeck 把这些活变成面板上的任务。
+前置要求：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness）。在 DSH 里，你下指令、AI 干活；MattSkillsDeck 把这些活变成面板上的任务。
 
 </div>
 
@@ -240,8 +242,6 @@ MIT © FeatherHunter
 <sub>dsh-mattpocock-skills · 该二维码永久有效</sub>
 
 </div>
-
-<h2 align="center"><sub>STAR HISTORY</sub><br>Star History</h2>
 
 <div align="center">
 
