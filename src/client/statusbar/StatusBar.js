@@ -221,15 +221,27 @@ export const StatusBar = (props) => {
     cap.classList.remove('dsws-no-anim')
   }
   React.useEffect(function () {
-    const ta = document.querySelector('textarea.uV2eYG_input')
-    if (ta) inputRef.current = ta
+    let roInput = null
     const applyInput = function () {
-      if (!inputRef.current) return
-      try { setIw(inputRef.current.getBoundingClientRect().width) } catch (e) {}
+      try {
+        const fresh = document.querySelector('textarea.uV2eYG_input')
+        const ta = fresh || inputRef.current
+        if (!ta) return
+        if (fresh && fresh !== inputRef.current) {
+          try { if (roInput) roInput.disconnect() } catch (e) {}
+          inputRef.current = fresh
+          try { if (roInput) roInput.observe(fresh) } catch (e) {}
+        }
+        const w = ta.getBoundingClientRect().width
+        // 过滤异常 0 宽（工作区切换时旧节点脱离文档会返回 0），保留上一次有效宽度避免胶囊瞬间消失
+        if (w > 16) setIw(w)
+      } catch (e) {}
     }
+    const initial = document.querySelector('textarea.uV2eYG_input')
+    if (initial) inputRef.current = initial
     applyInput()
-    const roInput = new ResizeObserver(applyInput)
-    if (inputRef.current) roInput.observe(inputRef.current)
+    roInput = new ResizeObserver(applyInput)
+    if (inputRef.current) { try { roInput.observe(inputRef.current) } catch (e) {} }
     const roFold = new ResizeObserver(function () { applyFold() })
     const applyAll = function () { applyInput(); applyFold() }
     applyFold()
@@ -238,7 +250,7 @@ export const StatusBar = (props) => {
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyFold)
     const poll = setInterval(applyAll, 2000)
     return function () {
-      try { roInput.disconnect() } catch (e) {}
+      try { if (roInput) roInput.disconnect() } catch (e) {}
       try { roFold.disconnect() } catch (e) {}
       window.removeEventListener('resize', applyAll)
       clearInterval(poll)
@@ -410,7 +422,8 @@ export const StatusBar = (props) => {
               bann(tr('banner.setup'), tr('banner.setupBtn'), onSetupInit),
               setupPickCard,
             ])
-          : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.show && (skillsCheck.show.fallback || skillsCheck.show.desc || '')) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills', installSkillsParams())) }),psule,
+          : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.show && (skillsCheck.show.fallback || skillsCheck.show.desc || '')) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills', installSkillsParams())) }),
+    capsule,
     (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) closeGate() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10, borderRadius:8, padding:12 } }, [
       h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:14, width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
         h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, tr('switch.pleaseSelectTracker'))]),
