@@ -442,32 +442,12 @@ export let pendingDraftTargetSid = null
               const accepted = (rRename && rRename.ok && rRename.value && rRename.value.title) ? rRename.value.title : null
               registerTracked(accepted)
             }).catch(function () { registerTracked(null) })
-            // #315 根治（2026-08-29 现网复盘 · 空白会话被壳复用为「新会话行」）：
-            //   DSH 壳（dsh-client-ui-workspace）把工作区内「无任何消息」的会话当作临时新会话行
-            //   （blank session = provisional New Session row）。本流程此前只把提示词写入 pendingDraft
-            //   （草稿），会话保持空白 —— 用户之后点击「新会话」会复用该空白会话；当它收到首条
-            //   消息后，这一行标题立即从「新会话」切换成其原有规范标题（如 [#314] …），表现为
-            //   「新会话被自动改名」。对策：创建/改名后立即经会话门面把提示词作为首条消息提交
-            //   （face.prompt 成功 → 会话出生即非空白，blank 位立即清除，永不被壳当作新会话行复用）。
-            //   门面无 prompt 能力时回退原预填草稿路径（旧体验不回归）；prompt 异步失败则尽力补挂
-            //   草稿（状态栏挂载时消费，竞态无害）。
-            const seedNewSession = function () {
-              try {
-                if (face && typeof face.prompt === 'function' && text) {
-                  const sp = Promise.resolve(face.prompt([{ type: 'text', text: text }], 'queue'))
-                  sp.then(function (rSeed) {
-                    if (!rSeed || !rSeed.ok) { pendingDraft = text; pendingDraftTargetSid = sid }
-                  }).catch(function () { pendingDraft = text; pendingDraftTargetSid = sid })
-                  return true
-                }
-              } catch (eSeed) {}
-              return false
-            }
-            if (!seedNewSession()) {
-              // 预填（r4）：写入 pendingDraft + 目标 sid 锚定，消费侧仅新会话消费，杜绝旧会话抢先
-              pendingDraft = text
-              pendingDraftTargetSid = sid
-            }
+            // prefill (r4): write pendingDraft + target sid anchor; consumer side only the new session consumes, avoiding old session race
+            // #315 回滚 (2026-08-30 user constraint): keep draft-first UX (先填草稿、让用户自己输入再发送), no auto-send via face.prompt;
+            //   blank-reuse risk is mitigated by naming-guardian bare-session never gets numbered (path B fixed) rather than auto-send
+            //   (see handoff 20260830-014242).
+            pendingDraft = text
+            pendingDraftTargetSid = sid
           } catch (eName) { /* 命名失败忽略 */ }
           sessions.open(sid)
           flash(st, tr('toast.newSessionOpened'), 'ok')
@@ -476,8 +456,25 @@ export let pendingDraftTargetSid = null
       })
     }
     // #361 原入口：行级「在新会话打开」保留（rowActionText 文本 + 票标题命名）
+    // 2026-08-30 hardening: newSessionTitle throws on non-numeric number (prevent silent MapDetail new-session no-op), rowActionText falls back to #number when url missing
     export const openInNewSession = function (st, x) {
-      openTextInNewSession(st, rowActionText(st, x), newSessionTitle(x))
+      let title = null
+      try { title = newSessionTitle(x) } catch(e) {
+        const n = (x && (x.number != null ? x.number : x.key != null ? x.key : ''))
+        const base = (x && x.title) ? String(x.title).slice(0,80) : ''
+        title = (n !== '' ? '[#' + String(n) + '] ' + base : '[New]')
+        if (!title || title === '[#] ') title = '[New]'
+      }
+      let text = ''
+      try { text = rowActionText(st, x) } catch(e) {
+        try { text = rowActionText(st, x) } catch(e2) { text = '' }
+        if (!text) {
+          const u = (typeof issueUrlFor === 'function' ? (function(){ try{ return issueUrlFor(st, x && x.number) }catch(_){ return '' } })() : '')
+          const uu = u || (x && x.number != null ? '#' + String(x.number) : '')
+          text = uu ? ('/wayfinder ' + uu) : '/wayfinder'
+        }
+      }
+      openTextInNewSession(st, text, title)
     }
     export const extractIssueRefs = function (text) {
       // #231：真源在各后端 links.linkPatternSource；无快照时经 shared 缓存解析，未达则 helper 内 LEGACY 过渡
