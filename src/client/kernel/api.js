@@ -464,8 +464,25 @@ export let pendingDraftTargetSid = null
                 const accepted = (rRename && rRename.ok && rRename.value && rRename.value.title) ? rRename.value.title : null
                 registerTracked(accepted)
               }).catch(function () { registerTracked(null) })
-              pendingDraft = text
-              pendingDraftTargetSid = sid
+              if (sid === st.sessionId) {
+                try {
+                  if (ns && typeof ns.injector === 'function') {
+                    ns.injector(text)
+                  } else if (typeof inject === 'function') {
+                    inject(ns || st, text)
+                  } else {
+                    pendingDraft = text
+                    pendingDraftTargetSid = sid
+                    try { emit(ns || st) } catch(eEmit){}
+                  }
+                } catch(eDirect){
+                  pendingDraft = text
+                  pendingDraftTargetSid = sid
+                }
+              } else {
+                pendingDraft = text
+                pendingDraftTargetSid = sid
+              }
             } catch (eName) {}
             try { if (typeof sessions.open === 'function') sessions.open(sid) } catch(eOpen){}
             flash(st, tr('toast.newSessionOpened'), 'ok')
