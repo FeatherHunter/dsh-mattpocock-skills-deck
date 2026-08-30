@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
 *{box-sizing:border-box}body{margin:0;font-family:"Patrick Hand",cursive;background:var(--bg);color:var(--fg);line-height:1.6}
 header{max-width:900px;margin:0 auto;padding:28px 20px 0;text-align:center}h1{margin:0;font-size:26px;letter-spacing:0.02em}p.lead{margin:6px 0 0;color:var(--muted);font-size:14px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
 .card{max-width:900px;margin:20px auto;padding:18px;background:var(--card);border:2px solid var(--border);border-radius:14px;box-shadow:4px 4px 0 rgba(255,255,255,0.05)}
-svg{width:100%!important;height:auto!important;display:block}
+svg{width:100%!important;height:auto!important;display:block;overflow:visible}
 .stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
 .stat{flex:1 1 140px;background:var(--bg);border:2px solid var(--border);border-radius:10px;padding:12px;text-align:center}
 .stat b{font-size:22px;display:block;font-family:"Patrick Hand",cursive}.stat span{color:var(--muted);font-size:12px}
@@ -21,13 +21,11 @@ svg{width:100%!important;height:auto!important;display:block}
 <body>
 <header>
 <h1>⭐ Star History</h1>
-<p class="lead">dsh-mattpocock-skills-deck · 手绘版星标历史 · 每日增量更新 · <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck">GitHub</a></p>
 </header>
 <div class="card">
 <svg id="chart"></svg>
 <div class="stats" id="stats"></div>
 </div>
-<p class="note">数据来源：GitHub stargazers <code>starred_at</code> 按日聚合 · 文件 <code>star-history.json</code> · 更新：GitHub Action 每日定时 · 风格：chart.xkcd 手绘</p>
 <script>
 async function load(){
   const res = await fetch("star-history.json", {cache:"no-store"});
@@ -42,6 +40,8 @@ async function load(){
   const maxDaily = Math.max(...data.map(d=>d.daily));
   document.getElementById("stats").innerHTML = `<div class=stat><b>${last.total}</b><span>当前 Stars</span></div><div class=stat><b>${maxDaily}</b><span>单日峰值</span></div><div class=stat><b>${data.length}</b><span>有星之日</span></div>`;
   const svg = document.getElementById("chart");
+  // Fix right-edge clipping: dynamic xTickCount and responsive SVG
+  const tickCount = Math.min(8, Math.max(3, labels.length));
   new chartXkcd.Line(svg, {
     title: "GitHub Stars",
     xLabel: "Date",
@@ -51,7 +51,7 @@ async function load(){
       datasets: [{ label: "dsh-mattpocock-skills-deck", data: totals }]
     },
     options: {
-      xTickCount: 6,
+      xTickCount: tickCount,
       yTickCount: 4,
       legendPosition: chartXkcd.config.positionType.upLeft,
       showLine: true,
@@ -63,6 +63,10 @@ async function load(){
       fontFamily: "Patrick Hand"
     }
   });
+  // Ensure SVG scales without clipping on small screens
+  svg.style.width = "100%";
+  svg.style.height = "auto";
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 }
 load().catch(e=>{ document.querySelector("#chart").outerHTML = "<p style=color:#ef4444;text-align:center;padding:40px>加载失败："+e.message+"</p>"; });
 </script>
