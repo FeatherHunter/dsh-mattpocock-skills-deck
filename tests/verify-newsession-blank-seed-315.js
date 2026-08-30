@@ -1,20 +1,19 @@
-// tests/verify-newsession-blank-seed-315.js — #315 根治回归：新会话出生即非空白
+// tests/verify-newsession-blank-seed-315.js — #315 草稿体验守护（2026-08-30 回滚版）
 // 用法: node tests/verify-newsession-blank-seed-315.js [file...]（默认 src 源 + package/lib/client.js 双源）
 //
-// #315 因果链（2026-08-29 现网复盘）：deck 的 openTextInNewSession 创建会话 + 命名后只把提示词
-// 写入 pendingDraft（草稿），会话保持「零消息」= DSH 壳（dsh-client-ui-workspace）眼中的
-// 「临时新会话行」（blank session = provisional New Session row）。用户之后点「新会话」会复用该
-// 空白会话；首条消息落地后这一行标题立即从「新会话」切换成其原有规范标题（如 [#314] …），
-// 表现为「新会话被自动改名」。
+// 背景：#315 曾因 openTextInNewSession 创建空白会话（pendingDraft-only）被壳复用为 provisional New Session row
+//   导致“新会话被自动改名”。2026-08-29 曾改为 face.prompt 自动发送使会话出生即非空白，但违背用户约束：
+//   “右侧面板‘新增需求/新增BUG’必须保留‘先填草稿、让用户自己输入再发送’，不允许点击就自动发出去”。
+//   故 2026-08-30 回滚为草稿-only：任何情况下都不自动调 face.prompt，只挂 pendingDraft/targetSid.
 //
-// 验收标准（本回归）：
-//   a) 创建/改名成功后立即经会话门面 face.prompt([{type:'text',text}],'queue') 提交首条消息
-//      （会话出生即非空白，壳永不再把它当作新会话行复用）；
-//   b) 门面无 prompt 能力时回退原预填草稿路径（pendingDraft/target sid 设置，旧体验不回归）；
-//   c) 双源一致（src 与构建产物逐字 splice 保留）。
+// 验收标准（本回归·回滚后）：
+//   a) 无论 face 是否具备 prompt 能力，都不调用 face.prompt（保留草稿体验）；
+//   b) 创建/改名后写入 pendingDraft = 提示词 且 pendingDraftTargetSid = 新会话 sid；
+//   c) 双源一致（src 与构建产物逐字 splice 保留）；
+//   d) 源码中不含 seedNewSession / face.prompt 自动发送逻辑（防回退）。
 //
 // 本测试不复制 openTextInNewSession 逻辑：从目标文件提取真实函数源码并在沙箱以忠实替身执行
-// （与 verify-b2-map-newsession.js 同范式），能抓住「逻辑改坏 / 双源漂移」两类回归。
+// （与 verify-b2-map-newsession.js 同范式），能抓住“逻辑改坏 / 双源漂移”两类回归。
 const fs = require('fs')
 
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api.js', 'package/lib/client.js']
@@ -80,7 +79,7 @@ function check(ok, msg) {
 
 const sleep = (ms) => new Promise(function (res) { setTimeout(res, ms) })
 
-console.log('== #315 新会话出生即非空白（blank-seed）回归 ==')
+console.log('== #315 新会话草稿体验守护（2026-08-30 回滚）==')
 
 async function main() {
 for (const file of files) {
@@ -91,21 +90,22 @@ for (const file of files) {
   let fnSrc
   try { fnSrc = extractOpenFn(src) } catch (e) { check(false, file + ' 源码锚点可提取 — ' + e.message); continue }
   check(true, file + ' openTextInNewSession 源码可提取（锚点保留）')
+  // 文本级守护：不含自动发送逻辑
+  check(fnSrc.indexOf('seedNewSession') < 0, file + ' 源码不含 seedNewSession（已回滚）')
+  check(fnSrc.indexOf('face.prompt(') < 0 && fnSrc.indexOf('seedNewSession') < 0, file + ' 源码不含 face.prompt 自动发送（草稿-only）')
+  check(fnSrc.indexOf('pendingDraft = text') >= 0, file + ' 源码含 pendingDraft = text（草稿挂载）')
+  check(fnSrc.indexOf('pendingDraftTargetSid = sid') >= 0, file + ' 源码含 pendingDraftTargetSid = sid（sid 锚定）')
+  check(fnSrc.indexOf('#315 回滚') >= 0 || fnSrc.indexOf('先填草稿') >= 0, file + ' 源码含回滚注释（可追溯）')
 
-  // a) 主路径：prompt 提交首条消息（出生即非空白），草稿不挂
+  // a) 有 prompt 能力的面对象：也不应调用 prompt（草稿-only）
   const env = runSandbox(fnSrc, 'with-prompt')
   await sleep(40)
   check(env.rec.created && env.rec.created.workspaceId === 'ws9', file + ' 创建调用携带 workspaceId（同工作区）')
   check(env.rec.opened === 'sid-1', file + ' 创建后 open 切换到新会话')
-  check(env.rec.promptCalls.length === 1, file + ' face.prompt 恰好调用一次（首条消息提交）')
-  if (env.rec.promptCalls.length === 1) {
-    const c = env.rec.promptCalls[0].content
-    check(Array.isArray(c) && c.length === 1 && c[0].type === 'text' && String(c[0].text).indexOf('/wayfinder') === 0, file + ' prompt 内容 = 提示词文本 parts（[{type:text,text}]）')
-    check(env.rec.promptCalls[0].mode === 'queue', file + ' prompt mode = queue（追加语义，非中断）')
-  }
-  check(env.dbg.pendingDraft === null && env.dbg.pendingDraftTargetSid === null, file + ' 主路径不挂草稿（避免与首条消息双发）')
+  check(env.rec.promptCalls.length === 0, file + ' 有 prompt 能力时也不调用 face.prompt（草稿-only 约束）')
+  check(env.dbg.pendingDraft === '/wayfinder 调查 #315 的提示词' && env.dbg.pendingDraftTargetSid === 'sid-1', file + ' 有 prompt 能力时仍挂草稿（pendingDraft + target sid）')
 
-  // b) 门面无 prompt 能力 → 回退原预填草稿路径
+  // b) 无 prompt 能力 → 同样挂草稿
   const env2 = runSandbox(fnSrc, 'no-prompt')
   await sleep(40)
   check(env2.rec.promptCalls.length === 0, file + ' 无 prompt 能力时不调用 prompt')

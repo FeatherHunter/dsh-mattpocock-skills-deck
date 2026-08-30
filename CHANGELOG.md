@@ -1,5 +1,15 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-30 · v1.7.6 发布：GitHub 地图与 Markdown 跳转加固、状态栏与多级缓存增强
+
+- **GitHub 地图详情修复**：补齐 map 正文五区块解析（`parseMapBody` 统一落盘）与详情页空值兜底，`cacheFormat` 2→3 强制旧缓存重建；修复 `#00` 点击与 `setActiveMap` 判空、GitHub 快照 GraphQL 字段（`Actor.name` / `IssueComment.editedAt`）失配、composer 小写 state 误判等，导致详情页 `Cannot read properties of undefined` 的系列回归（对应提交 9b8d989、4a9c6be、b6d796e、b0a9857、604d9ca）。
+- **Markdown 跳转解耦**：`issueUrl` 改算本地绝对路径（盘符路径）、`links` 仅保留提及正则，宿主 `wf.openPath` 按 OS 打开，UI 按 `url` 前缀分流 `https`/`file`；兼容单数 `Label:`、阻塞链标题回填与全量标签常驻（`blockedBy` 标题、graph 依赖标题、调色盘 11 色融合）；修复 `exists` 按 DSH fs 形状误用导致枚举为零（对应提交 5d684a9、b72a96d、0870ec2）。
+- **多级缓存与状态栏**：状态栏时间改为上次探测时间（数据不变也走针）与快照多级缓存（内存→磁盘→网络，重启秒显）；多级缓存门禁与标签取色聚合、空指针保护、按后端隔离等完善（对应提交 84c6594、c893f6c、0452afa、092d7c6）。
+- **会话与命名**：空白新会话壳复用导致自动改名修复（创建即注入首条消息、收紧编号归属）；非 Git 工作区声明为 GitHub 时避免伪造 `cwd` 为 `refId` 致快照超时（对应提交 121626f、311f5c6）。
+- **地图类型与编号**：GitHub 地图票号与 `wayfinder` 类型按 `labels` 派生、编号用 `key` 兜底，修复列表行点击详情异常（对应提交 205c547）。
+- **验证**：`verify-tracker-contract` 384 项、`verify-mapdetail-fields`、`verify-multilevel-cache`、`verify-no-cross-import` 等全量回归；`npm run test:smoke` 5/5；`DSW_VERSION=v1.7.6`，双产物同源。
+
+
 ## 2026-08-29 · v1.7.5 发布：修复 GitHub 后端点击 Map 行进详情页报 Cannot read properties of undefined (reading 'length')
 
 - **根因**：wf.snapshot 对 GitHub 后端改为统一走编排器（composeSnapshot，[#309](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/309) 双后端解耦）后，map 正文五区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）不再解析——旧 gh 直连路径（buildSnapshot）的 parseMapBody 成了死代码，快照里的 map 缺 decisions/fog/outOfScope 字段；列表页 Map 行仍可点击，详情页 MapDetail 直接读 m.decisions.length 等，即抛 Cannot read properties of undefined (reading 'length')。

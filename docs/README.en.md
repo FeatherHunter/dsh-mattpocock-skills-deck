@@ -34,8 +34,8 @@ dsh plugin --profile web add dsh-better-sidebar
 
 # ③ Install MattSkillsDeck
 dsh plugin --profile web add dsh-mattpocock-skills-deck
-# Pin to latest for extra stability (currently 1.7.3):
-# dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.3 --registry https://registry.npmjs.org
+# Pin to latest for extra stability (currently 1.7.6):
+# dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.6 --registry https://registry.npmjs.org
 ```
 
 <div align="center">
@@ -73,7 +73,7 @@ Then check the environment and install as needed (skip what's already installed)
 
 ```bash
 # Install a pinned version
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.3 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.6 --registry https://registry.npmjs.org
 
 # No global install (pin a version like above for extra safety)
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
