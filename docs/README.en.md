@@ -1,11 +1,11 @@
-﻿<h1 align="center">dsh-mattpocock-skills-deck</h1>
+<h1 align="center">dsh-mattpocock-skills-deck</h1>
 
 <div align="center">
 
-[涓枃](../README.md) 路 **English**
+[中文](../README.md) · **English**
 
-**Part the fog of war, see the end 鈥?MattSkillsDeck handles the rest.**  
-A playable task board for [mattpocock/skills](https://github.com/mattpocock/skills) in DSH 鈥?visible, dispatchable, trackable.
+**Part the fog of war, see the end — MattSkillsDeck handles the rest.**  
+A playable task board for [mattpocock/skills](https://github.com/mattpocock/skills) in DSH — visible, dispatchable, trackable.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE) [![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![dsh-plugin](https://img.shields.io/badge/dsh-plugin-orange.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck) [![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills)
 
@@ -21,18 +21,18 @@ A playable task board for [mattpocock/skills](https://github.com/mattpocock/skil
 
 <div align="center">
 
-One prerequisite: [DSH](https://www.npmjs.com/package/@deepseek-ai/dsh) (DeepSeek Harness, an AI coding desktop). You give instructions, the AI does the work 鈥?and MattSkillsDeck turns that work into missions on a panel.
+One prerequisite: [DSH](https://www.npmjs.com/package/@deepseek-ai/dsh) (DeepSeek Harness, an AI coding desktop). You give instructions, the AI does the work — and MattSkillsDeck turns that work into missions on a panel.
 
 </div>
 
 ```bash
-# 鈶?Install the DSH CLI (skip if already installed)
+# ① Install the DSH CLI (skip if already installed)
 npm install -g @deepseek-ai/dsh
 
-# 鈶?Better on narrow screens (optional): pair with better-sidebar
+# ② Better on narrow screens (optional): pair with better-sidebar
 dsh plugin --profile web add dsh-better-sidebar
 
-# 鈶?Install MattSkillsDeck
+# ③ Install MattSkillsDeck
 dsh plugin --profile web add dsh-mattpocock-skills-deck
 # Pin to latest for extra stability (currently 1.7.6):
 # dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.6 --registry https://registry.npmjs.org
@@ -40,7 +40,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 
 <div align="center">
 
-Refresh and it works 鈥?zero config.
+Refresh and it works — zero config.
 
 </div>
 
@@ -58,7 +58,7 @@ dsh plugin --profile web add dsh-better-sidebar
 <details>
 <summary>Let your AI install it for you</summary>
 
-Paste this to your AI 鈥?it will read the repo, check the environment, and install what's missing:
+Paste this to your AI — it will read the repo, check the environment, and install what's missing:
 
 ```text
 Please install the DeepSeek Harness plugin dsh-mattpocock-skills-deck (MattSkillsDeck).
@@ -84,7 +84,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 </details>
 
-Upgrade 路 uninstall:
+Upgrade · uninstall:
 
 ```bash
 dsh plugin --profile web update dsh-mattpocock-skills-deck   # upgrade
@@ -95,19 +95,19 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # uninstall
 
 <div align="center">
 
-Matt Pocock's [skills](https://github.com/mattpocock/skills) are excellent: wayfinder draws a map and walks you through the fog to the goal. But once the map is drawn 鈥?**how do you walk each step under your feet?**
+Matt Pocock's [skills](https://github.com/mattpocock/skills) are excellent: wayfinder draws a map and walks you through the fog to the goal. But once the map is drawn — **how do you walk each step under your feet?**
 
 MattSkillsDeck adds a mission system on top of that map:
 
-**A mission board you can see** 鈥?repo ISSUES stop being a flat log. MattSkillsDeck moves them into the DSH sidebar: open, blocked, closed in their own lanes, progress rings right where you glance.
+**A mission board you can see** — repo ISSUES stop being a flat log. MattSkillsDeck moves them into the DSH sidebar: open, blocked, closed in their own lanes, progress rings right where you glance.
 
-**A workbench that acts** 鈥?every mission card is a button: diagnose, fix, run, new session. One click and the AI goes to work; how far it got, where it stalled, all written on the card.
+**A workbench that acts** — every mission card is a button: diagnose, fix, run, new session. One click and the AI goes to work; how far it got, where it stalled, all written on the card.
 
 The map owns the goal. MattSkillsDeck owns the steps.
 
 <img src="../assets/statusbar-zh.png" width="720" alt="DSH bottom task bar">
 
-<strong>The task bar lives at the bottom of DSH: open, blocked, archived, handed off 鈥?one strip.</strong>
+<strong>The task bar lives at the bottom of DSH: open, blocked, archived, handed off — one strip.</strong>
 
 </div>
 
@@ -155,15 +155,15 @@ Yes. The mission list lives in the main panel and details open in the right colu
 
 <div align="center">
 
-Want to see how the code is put together? This interactive diagram was generated by AI 鈥?it lays out the overall structure, data flow and key states, with dark and light themes and image export.
+Want to see how the code is put together? This interactive diagram was generated by AI — it lays out the overall structure, data flow and key states, with dark and light themes and image export.
 
-[Open online (recommended)](https://featherhunter.github.io/dsh-mattpocock-skills-deck/architecture/MattSkills-architecture.html) 路 or just open [`architecture/MattSkills-architecture.html`](architecture/MattSkills-architecture.html) locally in your browser 鈥?no server needed. The source data lives next to it as `mattskills.architecture.json`, with more write-ups in the `*.md` files in the same folder.
+[Open online (recommended)](https://featherhunter.github.io/dsh-mattpocock-skills-deck/architecture/MattSkills-architecture.html) · or just open [`architecture/MattSkills-architecture.html`](architecture/MattSkills-architecture.html) locally in your browser — no server needed. The source data lives next to it as `mattskills.architecture.json`, with more write-ups in the `*.md` files in the same folder.
 
 </div>
 
 <h2 align="center"><sub>DEVELOPMENT</sub><br>Development</h2>
 
-Edit `src/` only 鈥?`client.js`, `host.js` at the repo root and `package/lib/` are build artifacts, don't touch them.
+Edit `src/` only — `client.js`, `host.js` at the repo root and `package/lib/` are build artifacts, don't touch them.
 
 ```bash
 node scripts/build.mjs      # build
@@ -180,18 +180,18 @@ The full build / verify / sync / publish workflow lives in [DEV-WORKFLOW.md](../
 
 If you like this plugin, these might help too:
 
-**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** 鈥?34 classic opencode themes for DSH, one click, persisted across restarts
+**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** — 34 classic opencode themes for DSH, one click, persisted across restarts
 
-**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** 鈥?A prompt toolbox: 24 deep templates a click away, stop copy-pasting
+**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** — A prompt toolbox: 24 deep templates a click away, stop copy-pasting
 
-**[dsh-chinese-skill-patch](https://github.com/FeatherHunter/dsh-chinese-skill-patch)** 鈥?Use Chinese skill names in DSH directly: type /绉?to reach 绉佸澶у帹, no English renaming needed
+**[dsh-chinese-skill-patch](https://github.com/FeatherHunter/dsh-chinese-skill-patch)** — Use Chinese skill names in DSH directly: type /私 to reach 私家大厨, no English renaming needed
 
 ---
 
 Questions or ideas? [Open an issue](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues) or start a thread in [discussions](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions)
 
 A personal project, not affiliated with [mattpocock/skills](https://github.com/mattpocock/skills).
-MIT 漏 FeatherHunter
+MIT © FeatherHunter
 
 </div>
 
@@ -199,17 +199,17 @@ MIT 漏 FeatherHunter
 
 <div align="left">
 
-Thanks to everyone who opened an issue, sent a PR, or joined a discussion 鈥?you made this plugin better bit by bit.
+Thanks to everyone who opened an issue, sent a PR, or joined a discussion — you made this plugin better bit by bit.
 
-[@pioneerAlone](https://github.com/pioneerAlone) 鈥?reported #298 (duplicate details/better-sidebar with clear repro), #274, #234 and landed PRs #273, #316 鈥?thanks for making the reinstall experience smooth again 馃尮
+[@pioneerAlone](https://github.com/pioneerAlone) — reported #298 (duplicate details/better-sidebar with clear repro), #274, #234 and landed PRs #273, #316 — thanks for making the reinstall experience smooth again 🌹
 
-[@Shimmernight](https://github.com/Shimmernight) 鈥?filed #277 and PRs #287, #275, #106
+[@Shimmernight](https://github.com/Shimmernight) — filed #277 and PRs #287, #275, #106
 
-[@21967201](https://github.com/21967201) 鈥?opened PR #321 (triage + wayfinder labels docs)
+[@21967201](https://github.com/21967201) — opened PR #321 (triage + wayfinder labels docs)
 
-[@angenet](https://github.com/angenet) 鈥?reported #295, #262 on macOS checks
+[@angenet](https://github.com/angenet) — reported #295, #262 on macOS checks
 
-[@hyperion2144](https://github.com/hyperion2144) 鈥?reported #110 and more
+[@hyperion2144](https://github.com/hyperion2144) — reported #110 and more
 
 And thanks to everyone who left thoughts in comments and discussions. If you hit a problem or have an idea, feel free to open an issue or start a discussion.
 
@@ -219,13 +219,13 @@ And thanks to everyone who left thoughts in comments and discussions. If you hit
 
 <div align="center">
 
-Scan to join the topic group 鈥?QR code never expires. Casual chat in the group, bugs and feature requests via Issues for better traceability.
+Scan to join the topic group — QR code never expires. Casual chat in the group, bugs and feature requests via Issues for better traceability.
 
 <img src="../assets/qr-topic-group.png" width="280" alt="Scan to join topic group, dsh-mattpocock-skills">
 <br>
 <strong>Join topic group</strong>
 <br>
-<sub>dsh-mattpocock-skills 路 permanent QR code</sub>
+<sub>dsh-mattpocock-skills · permanent QR code</sub>
 
 </div>
 
@@ -233,7 +233,6 @@ Scan to join the topic group 鈥?QR code never expires. Casual chat in the group
 
 <div align="center">
 
-<a href="https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html">View Star History (Interactive)</a>
+<a href="https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html">View Star History (Interactive) — Hand-drawn</a>
 
 </div>
-

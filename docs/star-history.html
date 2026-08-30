@@ -1,40 +1,70 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Star History — dsh-mattpocock-skills-deck</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.xkcd@1.1/dist/chart.xkcd.min.js"></script>
 <style>
-:root{--bg:#ffffff;--fg:#172033;--muted:#667085;--border:#e5e7eb;--card:#f9fafb;--accent:#7c3aed}
-@media(prefers-color-scheme:dark){:root{--bg:#0b0e14;--fg:#e6edf3;--muted:#9aa3b2;--border:#1f2937;--card:#111827}}
-*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg)}
-header{max-width:900px;margin:0 auto;padding:28px 20px 0}h1{margin:0;font-size:22px}p.lead{margin:6px 0 0;color:var(--muted);font-size:14px}
-.card{max-width:900px;margin:20px auto;padding:18px;background:var(--card);border:1px solid var(--border);border-radius:14px}canvas{width:100%!important}
-.stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}.stat{flex:1 1 140px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px}.stat b{font-size:20px;display:block}.stat span{color:var(--muted);font-size:12px}
-.note{max-width:900px;margin:0 auto;padding:0 20px 28px;color:var(--muted);font-size:12px}a{color:var(--accent)}
+@import url('"https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap"');
+:root{--bg:#0b0e14;--fg:#e6edf3;--muted:#9aa3b2;--border:#1f2937;--card:#111827}
+*{box-sizing:border-box}body{margin:0;font-family:"Patrick Hand",cursive;background:var(--bg);color:var(--fg);line-height:1.6}
+header{max-width:900px;margin:0 auto;padding:28px 20px 0;text-align:center}h1{margin:0;font-size:26px;letter-spacing:0.02em}p.lead{margin:6px 0 0;color:var(--muted);font-size:14px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+.card{max-width:900px;margin:20px auto;padding:18px;background:var(--card);border:2px solid var(--border);border-radius:14px;box-shadow:4px 4px 0 rgba(255,255,255,0.05)}
+svg{width:100%!important;height:auto!important;display:block}
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+.stat{flex:1 1 140px;background:var(--bg);border:2px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+.stat b{font-size:22px;display:block;font-family:"Patrick Hand",cursive}.stat span{color:var(--muted);font-size:12px}
+.note{max-width:900px;margin:0 auto;padding:0 20px 28px;color:var(--muted);font-size:12px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}a{color:#a78bfa;text-decoration:none}a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
-<header><h1>Star History</h1><p class="lead">dsh-mattpocock-skills-deck · Self-hosted star history · Daily update · <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck">GitHub</a></p></header>
-<div class="card"><canvas id="chart" height="320"></canvas><div class="stats" id="stats"></div></div>
-<p class="note">Data: GitHub stargazers starred_at aggregated by day · File star-history.json · Updated by GitHub Action daily</p>
+<header>
+<h1>⭐ Star History</h1>
+<p class="lead">dsh-mattpocock-skills-deck · 手绘版星标历史 · 每日增量更新 · <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck">GitHub</a></p>
+</header>
+<div class="card">
+<svg id="chart"></svg>
+<div class="stats" id="stats"></div>
+</div>
+<p class="note">数据来源：GitHub stargazers <code>starred_at</code> 按日聚合 · 文件 <code>star-history.json</code> · 更新：GitHub Action 每日定时 · 风格：chart.xkcd 手绘</p>
 <script>
 async function load(){
   const res = await fetch("star-history.json", {cache:"no-store"});
   const data = await res.json();
-  if(!Array.isArray(data) || data.length===0){ document.getElementById("chart").outerHTML = "<p style=color:var(--muted);text-align:center;padding:40px>No data</p>"; return; }
-  const labels = data.map(d=>d.date);
+  if(!Array.isArray(data) || data.length===0){
+    document.querySelector("#chart").outerHTML = "<p style=color:var(--muted);text-align:center;padding:40px>暂无数据</p>";
+    return;
+  }
+  const labels = data.map(d=>d.date.slice(5).replace("-","/"));
   const totals = data.map(d=>d.total);
-  const dailys = data.map(d=>d.daily);
   const last = data[data.length-1];
-  document.getElementById("stats").innerHTML = `<div class=stat><b>${last.total}</b><span>Current Stars</span></div><div class=stat><b>${dailys.reduce((a,b)=>a+b,0)}</b><span>Total increment</span></div><div class=stat><b>${Math.max(...dailys)}</b><span>Daily peak</span></div>`;
-  const ctx = document.getElementById("chart").getContext("2d");
-  const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const grid = isDark ? "#1f2937" : "#e5e7eb"; const text = isDark ? "#9aa3b2" : "#667085";
-  new Chart(ctx, { type: "line", data: { labels, datasets: [{ label: "Total", data: totals, borderColor: "#7c3aed", backgroundColor: "rgba(124,58,237,0.12)", fill: true, tension: 0.3, pointRadius: 2 }, { label: "Daily", data: dailys, borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.12)", type: "bar", yAxisID: "y1" }] }, options: { responsive: true, interaction: { mode: "index", intersect: false }, scales: { x: { grid: { color: grid }, ticks: { color: text, maxRotation:0, autoSkip:true, maxTicksLimit:8 } }, y: { grid: { color: grid }, ticks: { color: text }, title: { display:true, text:"Total", color:text } }, y1: { position: "right", grid:{display:false}, ticks:{color:text}, title:{display:true,text:"Daily",color:text} } }, plugins:{legend:{labels:{color:text}}, tooltip:{callbacks:{footer:(items)=>{ const i=items[0].dataIndex; return "Daily: "+dailys[i]; }}}}}});
+  const maxDaily = Math.max(...data.map(d=>d.daily));
+  document.getElementById("stats").innerHTML = `<div class=stat><b>${last.total}</b><span>当前 Stars</span></div><div class=stat><b>${maxDaily}</b><span>单日峰值</span></div><div class=stat><b>${data.length}</b><span>有星之日</span></div>`;
+  const svg = document.getElementById("chart");
+  new chartXkcd.Line(svg, {
+    title: "GitHub Stars",
+    xLabel: "Date",
+    yLabel: "Stars",
+    data: {
+      labels,
+      datasets: [{ label: "dsh-mattpocock-skills-deck", data: totals }]
+    },
+    options: {
+      xTickCount: 6,
+      yTickCount: 4,
+      legendPosition: chartXkcd.config.positionType.upLeft,
+      showLine: true,
+      timeFormat: "MM/DD",
+      dotSize: 0.5,
+      strokeColor: "white",
+      backgroundColor: "#0b0e14",
+      dataColors: ["#ff6b6b"],
+      fontFamily: "Patrick Hand"
+    }
+  });
 }
-load().catch(e=>{ document.getElementById("chart").outerHTML = "<p style=color:#ef4444;text-align:center;padding:40px>Failed: "+e.message+"</p>"; });
+load().catch(e=>{ document.querySelector("#chart").outerHTML = "<p style=color:#ef4444;text-align:center;padding:40px>加载失败："+e.message+"</p>"; });
 </script>
 </body>
 </html>
