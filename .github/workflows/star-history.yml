@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install deps
+        run: npm ci --ignore-scripts || npm install
       - name: Fetch star history
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -20,11 +25,13 @@ jobs:
           if [ ! -s /tmp/stars.txt ]; then echo "No stars fetched"; exit 0; fi
           node scripts/update-star-history.mjs
           node scripts/generate-star-history-svg.mjs
+          npx --yes playwright install --with-deps chromium
+          node scripts/screenshot-star-history.mjs || echo "PNG generation failed, using SVG only"
       - name: Commit if changed
         run: |
-          if git diff --quiet docs/star-history.json docs/star-history.svg; then echo "No change"; exit 0; fi
+          if git diff --quiet docs/star-history.json docs/star-history.svg docs/star-history.png; then echo "No change"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/star-history.json docs/star-history.svg
+          git add docs/star-history.json docs/star-history.svg docs/star-history.png
           git commit -m "chore: update star history"
           git push
