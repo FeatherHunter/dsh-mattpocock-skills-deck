@@ -45,6 +45,7 @@ export const BackendSelector = (props) => {
   const srcColor = curSource === 'explicit' ? '#4ade80' : curSource === 'matches' ? '#58a6ff' : '#8b8b95'
   // #191：面板内覆盖层锚点（SwitchConfirmModal 就地渲染 absolute 相对此容器）
   return h('div', { style: { position: 'relative' } }, [
+    h('div', { style:{ fontSize:11, color:'#f59e0b', background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.25)', borderRadius:6, padding:'6px 8px', marginBottom:8 } }, tr('gate.wipNotice')),
     h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, modules.map(function (m) {
       const isOn = curBackendId === m.id
       const multiHitMark = isMultiHit && curSelection.multiHit.indexOf(m.id) >= 0 ? h('span', { style: { fontSize: 10, color: '#f59e0b', border: '1px solid #f59e0b', borderRadius: 4, padding: '0 4px' } }, '⚠ 多命中') : null

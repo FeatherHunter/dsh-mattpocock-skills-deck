@@ -122,6 +122,7 @@ export const SwitchConfirmModal = (props) => {
             : h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: targetColor, flex: 'none' } }), h('span', { style: { fontWeight: 600, color: targetColor } }, targetLabel)]),
           h('span', { style: { flex: 1 } }),
         ])
+        const wipBanner = h('div', { style:{ fontSize:11, color:'#f59e0b', background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.25)', borderRadius:6, padding:'6px 8px', marginBottom:10 } }, tr('gate.wipNotice'));
         // #191（用户反馈）：picker 永远渲染（即使已选也可重选 target）
         const picker = h('div', { style: { display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' } }, modules.map(function(m){
           const col = typeof backendColorOf === 'function' ? backendColorOf(m.id) : ''
@@ -131,7 +132,7 @@ export const SwitchConfirmModal = (props) => {
             h('span', null, m.label || m.id),
           ])
         }))
-        return h('div', null, [headerRow, picker])
+        return h('div', null, [headerRow, wipBanner, picker])
       })(),
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 } }, [
         radioRow('keep', isKeep, tr('switch.optKeep'), tr('switch.optKeepDesc'), null),

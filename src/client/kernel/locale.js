@@ -245,6 +245,7 @@
         'switch.gateOtherErr': 'Other 已弃用，请选择 GitHub / Markdown / GitLab',
         'switch.pleaseSelectTracker': '请选择 Tracker 后端以继续',
         'switch.gateIntro': '不同后端的初始化与前置检查不同，选择后将回到主线流程',
+        'gate.wipNotice': 'Markdown 预览，GitLab 筹备中',
         'panel.loadingShort': '加载中…',
         // #189 · 切换三选一确认 Modal（#186 定版：默认保留 + prompt 可编辑 + CRI 仅阻断迁移）
         'switch.title': '切换 Tracker 后端',
@@ -595,6 +596,7 @@
         'switch.gateOtherErr': 'Other is deprecated — pick GitHub / Markdown / GitLab',
         'switch.pleaseSelectTracker': 'Choose a tracker backend to continue',
         'switch.gateIntro': 'Initialization and preflight differ per backend; picking one returns you to the main flow.',
+        'gate.wipNotice': 'Markdown preview, GitLab in preparation',
         'panel.loadingShort': 'Loading…',
         // #189 · switch confirm modal
         'switch.title': 'Switch Tracker Backend',
