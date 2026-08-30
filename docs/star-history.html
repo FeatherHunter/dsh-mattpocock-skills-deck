@@ -28,7 +28,7 @@ svg{width:100%!important;height:auto!important;display:block;overflow:visible}
 </div>
 <script>
 async function load(){
-  const res = await fetch("star-history.json", {cache:"no-store"});
+  const res = await fetch(new URL("star-history.json", location.href).href, {cache:"no-store"});
   const data = await res.json();
   if(!Array.isArray(data) || data.length===0){
     document.querySelector("#chart").outerHTML = "<p style=color:var(--muted);text-align:center;padding:40px>暂无数据</p>";
@@ -45,7 +45,7 @@ async function load(){
   // Fix right-edge clipping: fewer ticks and extra right padding
   const tickCount = Math.min(5, Math.max(3, Math.ceil(labels.length / 2)));
   new chartXkcd.Line(svg, {
-    title: "GitHub Stars",
+    title: "",
     xLabel: "Date",
     yLabel: "Stars",
     data: {
