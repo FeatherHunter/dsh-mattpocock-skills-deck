@@ -100,7 +100,7 @@ export let pendingDraftTargetSid = null
       if (o.kind === 'draft') {
         let langIsEn = false
         try { langIsEn = typeof promptLang === 'function' && promptLang() === 'en' } catch (eLang) {}
-        target = composeDraftTitle({ hint: o.hint, lang: langIsEn ? 'en' : 'zh' })
+        target = composeDraftTitle({ hint: o.hint, lang: langIsEn ? 'en' : 'zh', baselineTitle: (o.lock && o.lock.baselineTitle) || '' })
       } else if (o.kind === 'numbered') {
         const num = Number(o.number)
         if (!isFinite(num) || num <= 0) return
@@ -158,7 +158,7 @@ export let pendingDraftTargetSid = null
       } else {
         let langIsEn = false
         try { langIsEn = typeof promptLang === 'function' && promptLang() === 'en' } catch (eLang) {}
-        target = composeDraftTitle({ hint: f.hint, lang: langIsEn ? 'en' : 'zh' })
+        target = composeDraftTitle({ hint: f.hint, lang: langIsEn ? 'en' : 'zh', baselineTitle: (lock && lock.baselineTitle) || '' })
       }
       if (target && target === cur) { reportNamingResult(sid, 'renamed', { title: cur }); return true }
       return false

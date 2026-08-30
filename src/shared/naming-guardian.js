@@ -121,14 +121,23 @@ export function draftWordFor(lang) {
 }
 
 /**
- * 草稿标题合成：面包屑语义线索优先（[草稿] <线索>），无线索裸档（[草稿]/[Draft]）；
+ * 草稿标题合成：面包屑语义线索优先（[草稿][新增需求/BUG] <线索>），无线索则仅类型标签；
  * 清洗截断沿用 #205 规则与 UTF-8 120 字节总预算（含前缀，前缀永不截断）。
+ * baselineTitle 用于区分“新增需求”与“新增BUG”（取自注册占位），为用户要求“[草稿][新增需求]xxx”而加。
  */
-export function composeDraftTitle({ hint, lang }) {
+export function composeDraftTitle({ hint, lang, baselineTitle }) {
   const prefix = '[' + draftWordFor(lang) + ']'
+  let typeTag = ''
+  if (baselineTitle) {
+    const bt = String(baselineTitle)
+    const isBug = /Bug/i.test(bt)
+    if (isBug) typeTag = (String(lang).toLowerCase().indexOf('en') === 0 ? '[New Bug]' : '[新增BUG]')
+    else typeTag = (String(lang).toLowerCase().indexOf('en') === 0 ? '[New Requirement]' : '[新增需求]')
+  }
+  const fullPrefix = typeTag ? prefix + typeTag : prefix
   const rawHint = cleanTitleText(hint || '')
-  if (!rawHint) return prefix
-  return prefix + ' ' + truncateTitleUtf8(prefix, rawHint, SESSION_TITLE_MAX_BYTES)
+  if (!rawHint) return fullPrefix
+  return fullPrefix + ' ' + truncateTitleUtf8(fullPrefix, rawHint, SESSION_TITLE_MAX_BYTES)
 }
 
 // ============ 值比对锁（#260 决议 · 取代 userRenamed 死代码）============
