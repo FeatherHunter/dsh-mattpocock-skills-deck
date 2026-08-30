@@ -15,7 +15,10 @@
       // v0.3 渐进式折叠：按钮按 data-priority 逐个折叠（priority 小=重要=晚折叠），max-width 动画平滑过渡
       '.dsws-tabs .dsws-tab > span:last-child,.dsws-tabs .dsws-btn > span:last-child{max-width:120px;overflow:hidden;white-space:nowrap;transition:max-width .25s ease,opacity .2s ease,margin .25s ease}',
       '.dsws-tabs .dsws-tab.collapsed > span:last-child,.dsws-tabs .dsws-btn.collapsed > span:last-child{max-width:0;opacity:0;margin-left:-4px;margin-right:-4px}',
-      '.dsws-tabs > span:last-child{transition:max-width .25s ease,opacity .2s ease;overflow:hidden;white-space:nowrap}',
+      '.dsws-tabs > span:last-child,.dsws-tabs > a:last-child{transition:max-width .25s ease,opacity .2s ease;overflow:hidden;white-space:nowrap}',
+      // #repo-link：版本号为链接（span→a）——基线色与去 UA 下划线移入样式表（内联设 color 会盖住 :hover），hover 提亮+下划线
+      '.dsws-tabs .dsws-ver{color:var(--dsw-alias-label-caption,#8b8b95);text-decoration:none;cursor:pointer}',
+      '.dsws-tabs .dsws-ver:hover{color:var(--dsw-alias-label-secondary,#a1a1aa);text-decoration:underline}',
       '.dsws-tabs .dsws-tab.collapsed,.dsws-tabs .dsws-btn.collapsed{padding-left:6px;padding-right:6px;transition:padding .25s ease}',
       '.dsws-tabs.dsws-no-anim *,.dsws-tabs.dsws-no-anim{transition:none!important}',
       '.dsws-body{flex:1;overflow-y:auto;padding:10px 12px}',

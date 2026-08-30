@@ -108,6 +108,9 @@ export default {
       return portalTop(h('div', props || {}, children))
     }
     const DSW_VERSION = __DSW_VERSION__
+    // #repo-link：版本号可点，新窗打开插件仓库主页；URL 构建期从 package/package.json 的 repository 字段
+    // 注入（客户端源码零 URL 字面量，过硬编码门禁 F2；产物字面量已在门禁 RE_LICENSED 登记）。
+    const DSW_REPO_URL = __DSW_REPO_URL__
 
     // ============================================================
     // 0. 样式

@@ -9,6 +9,7 @@
  *
  * 许可证（LICENSED，行级内容匹配，是过渡债务的显式登记处，清尾批删码后自动收紧）：
  *   MATT_REPO | mattpocock/skills | skills@latest | installSkills（与后端无关的技能仓库常量与安装指引）
+ *   dsh-mattpocock-skills-deck（#repo-link：本插件自身仓库主页 URL，构建期注入产物，与后端无关）
  *   PREVIEW_VALUES（设置页演示数据）；清尾批后 LEGACY_LINK_TEMPLATES/typeof 守卫/LEGACY_ISSUE_URL 已全部删除，不再登记
  * 扫描前剥离块注释与整行注释，注记里的旧词不再误报。
  */
@@ -24,7 +25,7 @@ const bad = function (name) { failed = true; console.log('  FAIL', name) }
 const RE_F1 = /(===|==)\s*['"](github|gitlab|markdown)['"]|['"](github|gitlab|markdown)['"]\s*(===|==)/
 const RE_F2 = /https:\/\/github\.com|https:\/\/gitlab\.com/
 const RE_F3 = /\{\s*id:\s*'(github|markdown|gitlab)'\s*,\s*label:/
-const RE_LICENSED = /MATT_REPO|mattpocock\/skills|skills@latest|installSkills|PREVIEW_VALUES/ // #231 清尾后仅剩可留项：技能仓库常量/安装指引文案/演示预览值
+const RE_LICENSED = /MATT_REPO|mattpocock\/skills|skills@latest|installSkills|PREVIEW_VALUES|dsh-mattpocock-skills-deck/ // #231 清尾后仅剩可留项：技能仓库常量/安装指引文案/演示预览值；#repo-link 登记本插件自身仓库主页 URL（构建注入产物）
 function stripComments(buf) { return buf.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '') }
 
 function scanLabel(rel, buf) {
