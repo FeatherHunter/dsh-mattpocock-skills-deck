@@ -31,18 +31,20 @@
 # ① 安装 DSH CLI（已装跳过）
 npm install -g @deepseek-ai/dsh
 
-# ② 窄屏更好用（可选）：配个 better-sidebar 并排看更舒服
-dsh plugin --profile web add dsh-better-sidebar
-
-# ③ 安装 MattSkillsDeck
-dsh plugin --profile web add dsh-mattpocock-skills-deck
+# ② 安装 MattSkillsDeck —— --profile 必填：装进你实际使用的 DSH 入口对应的 profile
+#    （装错 profile 等于没装，重启多少次都不会加载）
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用（绝大多数人）
+# dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
 # 锁定最新版更稳（当前 1.7.7）：
-# dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.7 --registry https://registry.npmjs.org
+# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.7 --registry https://registry.npmjs.org
+
+# ③ 窄屏更好用（可选）：better-sidebar 记得装进同一个 profile
+dsh plugin --profile desktop add dsh-better-sidebar
 ```
 
 <div align="center">
 
-刷新即生效，零配置。
+装完**重启一次对应的 DSH 入口**即生效：桌面应用完全退出并重开 DSH Desktop；web 服务重启 `dsh web` 后刷新页面。零配置。
 
 </div>
 
@@ -50,9 +52,10 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 <summary>窄屏更好用？配个 better-sidebar</summary>
 
 推荐搭配 better-sidebar：在 VSCode 风格的侧边栏里并排查看列表与详情，体验更佳。
+注意装进**同一个 profile**（下例以桌面应用为例，web 服务用户换成 `--profile web`）：
 
 ```bash
-dsh plugin --profile web add dsh-better-sidebar
+dsh plugin --profile desktop add dsh-better-sidebar
 ```
 
 </details>
@@ -65,6 +68,7 @@ dsh plugin --profile web add dsh-better-sidebar
 ```text
 请帮我安装 DeepSeek Harness 插件 dsh-mattpocock-skills-deck（MattSkillsDeck）。
 先读仓库 README：https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
+先确认我实际使用的 DSH 入口对应哪个 profile（DSH Desktop 桌面应用 → desktop；自启 web 服务 → web），把插件装进正确的 profile；
 然后自行检查环境并按需安装（已装的跳过），完成后简要汇报结果。
 ```
 
@@ -72,6 +76,8 @@ dsh plugin --profile web add dsh-better-sidebar
 
 <details>
 <summary>免全局安装 / 更新不生效时怎么装</summary>
+
+下面命令以 web profile 为例——**DSH Desktop 桌面应用用户请把所有 `--profile web` 换成 `--profile desktop`**。
 
 ```bash
 # 给定最新版本号安装
@@ -86,7 +92,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 </details>
 
-升级 · 卸载：
+升级 · 卸载（desktop profile 用户把 `--profile web` 换成 `--profile desktop`）：
 
 ```bash
 dsh plugin --profile web update dsh-mattpocock-skills-deck   # 升级

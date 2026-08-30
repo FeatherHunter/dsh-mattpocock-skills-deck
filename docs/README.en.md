@@ -29,28 +29,30 @@ One prerequisite: [DSH](https://www.npmjs.com/package/@deepseek-ai/dsh) (DeepSee
 # ① Install the DSH CLI (skip if already installed)
 npm install -g @deepseek-ai/dsh
 
-# ② Better on narrow screens (optional): pair with better-sidebar
-dsh plugin --profile web add dsh-better-sidebar
-
-# ③ Install MattSkillsDeck
-dsh plugin --profile web add dsh-mattpocock-skills-deck
+# ② Install MattSkillsDeck — --profile is required: target the profile matching the DSH
+#    entry you actually use (a wrong profile = the plugin never loads, restarts won't help)
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # DSH Desktop app (most users)
+# dsh plugin --profile web add dsh-mattpocock-skills-deck     # self-started web server (dsh web)
 # Pin to latest for extra stability (currently 1.7.7):
-# dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.7 --registry https://registry.npmjs.org
+# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.7 --registry https://registry.npmjs.org
+
+# ③ Better on narrow screens (optional): install better-sidebar into the SAME profile
+dsh plugin --profile desktop add dsh-better-sidebar
 ```
 
 <div align="center">
 
-Refresh and it works — zero config.
+One restart of the matching DSH entry and it works — zero config. Desktop app: fully quit and reopen DSH Desktop. Web server: restart dsh web, then refresh the page.
 
 </div>
 
 <details>
 <summary>Better on narrow screens: pair it with better-sidebar</summary>
 
-We recommend pairing with better-sidebar: view the list and details side by side in a VSCode-style sidebar for the best experience.
+We recommend pairing with better-sidebar: view the list and details side by side in a VSCode-style sidebar for the best experience. Install it into the SAME profile as the plugin (example below targets the desktop app; web-server users: use --profile web).
 
 ```bash
-dsh plugin --profile web add dsh-better-sidebar
+dsh plugin --profile desktop add dsh-better-sidebar
 ```
 
 </details>
@@ -63,6 +65,7 @@ Paste this to your AI — it will read the repo, check the environment, and inst
 ```text
 Please install the DeepSeek Harness plugin dsh-mattpocock-skills-deck (MattSkillsDeck).
 Read the repo README first: https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
+First figure out which profile matches the DSH entry I actually use (DSH Desktop app → desktop; self-started web server → web) and install into that profile.
 Then check the environment and install as needed (skip what's already installed), and report back briefly.
 ```
 
@@ -70,6 +73,8 @@ Then check the environment and install as needed (skip what's already installed)
 
 <details>
 <summary>No global install / when updates don't take effect</summary>
+
+The examples below use the web profile — DSH Desktop app users: replace every `--profile web` with `--profile desktop`.
 
 ```bash
 # Install a pinned version
@@ -84,7 +89,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 </details>
 
-Upgrade · uninstall:
+Upgrade · uninstall (desktop-profile users: replace `--profile web` with `--profile desktop`):
 
 ```bash
 dsh plugin --profile web update dsh-mattpocock-skills-deck   # upgrade
