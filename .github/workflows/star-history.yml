@@ -1,0 +1,29 @@
+﻿name: Star History
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch star history
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          REPO="FeatherHunter/dsh-mattpocock-skills-deck"
+          gh api -H "Accept: application/vnd.github.star+json" "repos/$REPO/stargazers" --paginate --jq ".[].starred_at" > /tmp/stars.txt || true
+          if [ ! -s /tmp/stars.txt ]; then echo "No stars fetched"; exit 0; fi
+          node scripts/update-star-history.mjs
+      - name: Commit if changed
+        run: |
+          if git diff --quiet docs/star-history.json; then echo "No change"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/star-history.json
+          git commit -m "chore: update star history"
+          git push

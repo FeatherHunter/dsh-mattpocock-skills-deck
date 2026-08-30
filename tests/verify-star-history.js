@@ -1,0 +1,12 @@
+import { aggregateByDay, mergeHistory } from '../scripts/star-history.mjs';
+import assert from 'node:assert/strict';
+assert.deepEqual(aggregateByDay([]), [], 'empty');
+assert.deepEqual(aggregateByDay(['2026-08-17T03:19:47Z','2026-08-17T10:00:00Z']), [{date:'2026-08-17',total:2,daily:2}]);
+const sample=['2026-08-17T03:19:47Z','2026-08-19T07:53:02Z','2026-08-19T09:11:17Z','2026-08-20T05:24:04Z','2026-08-20T15:21:41Z','2026-08-22T07:53:52Z','2026-08-22T09:58:44Z'];
+assert.deepEqual(aggregateByDay(sample), [{date:'2026-08-17',total:1,daily:1},{date:'2026-08-19',total:3,daily:2},{date:'2026-08-20',total:5,daily:2},{date:'2026-08-22',total:7,daily:2}]);
+const existing=[{date:'2026-08-17',total:1,daily:1},{date:'2026-08-19',total:3,daily:2}];
+const next=[{date:'2026-08-20',total:5,daily:2}];
+assert.deepEqual(mergeHistory(existing,next), [{date:'2026-08-17',total:1,daily:1},{date:'2026-08-19',total:3,daily:2},{date:'2026-08-20',total:5,daily:2}]);
+const full=[{date:'2026-08-17',total:1,daily:1},{date:'2026-08-19',total:3,daily:2},{date:'2026-08-20',total:5,daily:2}];
+assert.deepEqual(mergeHistory(existing,full), full);
+console.log('verify-star-history: all passed');
