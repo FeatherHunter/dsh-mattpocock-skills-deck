@@ -383,6 +383,81 @@ export let pendingDraftTargetSid = null
       ensureCwd().then(function (cwd) {
         if (!cwd) { doFallback(); return }
         ensureWorkspaceId(cwd).then(function (workspaceId) {
+          let reuseSid = null
+          try {
+            const curSid = st.sessionId
+            if (curSid && sessions.list && typeof sessions.list.getSnapshot === 'function') {
+              const snap = sessions.list.getSnapshot()
+              const row = snap.byId[curSid]
+              if (row && row.blank) {
+                const rowCwd = row.cwd || ''
+                const normRow = typeof keyOf === 'function' ? keyOf(rowCwd) : String(rowCwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
+                const normCwd2 = typeof keyOf === 'function' ? keyOf(cwd) : String(cwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
+                if (normRow === normCwd2 || !normRow) {
+                  const curIsBug = /Bug/i.test(row.title || '')
+                  const newIsBug = /Bug/i.test(title || '')
+                  if (curIsBug === newIsBug) reuseSid = curSid
+                }
+              }
+            }
+          } catch(eReuse) {}
+          if (reuseSid) {
+            const sid = reuseSid
+            const ns = storeOf(sid)
+            if (ns) {
+              ns.cwd = cwd
+              const hydrated = (typeof hydrateFromCache === 'function' ? hydrateFromCache(ns) : false)
+              if (!hydrated) {
+                try {
+                  const hasShared = (typeof getCachedSnapshot === 'function' ? getCachedSnapshot(cwd) : null)
+                  if (!hasShared && st.snapshot && st.cwd && (typeof keyOf === 'function' ? keyOf(st.cwd) : String(st.cwd||'')) === (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||''))) {
+                    ns.snapshot = st.snapshot
+                    ns.snapMode = 'real'
+                  }
+                } catch(eFb){ if (st.snapshot) { ns.snapshot = st.snapshot; ns.snapMode='real'; } }
+              }
+              try {
+                const sharedSnap = (typeof getCachedSnapshot === 'function' ? getCachedSnapshot(cwd) : null)
+                if (sharedSnap && ns.snapshot && sharedSnap.generatedMs && ns.snapshot.generatedMs && sharedSnap.generatedMs > ns.snapshot.generatedMs) {
+                  ns.snapshot = sharedSnap
+                }
+              } catch(eVer){}
+            }
+            try {
+              const __refs = (typeof issueRefNumbersFrom==='function') ? issueRefNumbersFrom(text) : []
+              if (__refs.length && ns) {
+                const __tg = String(title || '').slice(0,80)
+                recordIssuePath(ns, __refs[0], 'claim', __tg)
+                for (let _i=1; _i<__refs.length; _i++) recordIssuePath(ns, __refs[_i], 'mention', '')
+              }
+            } catch (e) {}
+            const __placeholderTitle = title
+            try {
+              const scopeCtx = sessions.scope(sid)
+              const face = scopeCtx ? sessions.sessionOf(scopeCtx) : undefined
+              const registerTracked = function (acceptedTitle) {
+                try {
+                  const name0 = acceptedTitle || __placeholderTitle
+                  const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(name0) : /^\[New\] /.test(String(name0)))
+                  if (!isPlaceholder) return
+                  if (typeof host !== 'undefined' && typeof host.call === 'function') {
+                    host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns) : null) }).then(function () { namingGuardianKick() }).catch(function () {})
+                  }
+                } catch (eReg) {}
+              }
+              const needRename = (function(){ try { const curTitle = (typeof namingCurrentTitleOf==='function'? namingCurrentTitleOf(sid) : null); return curTitle !== title; } catch(e){ return true; }})()
+              const runRename = needRename && face && typeof face.rename === 'function' ? Promise.resolve(face.rename(title)) : Promise.resolve(null)
+              runRename.then(function (rRename) {
+                const accepted = (rRename && rRename.ok && rRename.value && rRename.value.title) ? rRename.value.title : null
+                registerTracked(accepted)
+              }).catch(function () { registerTracked(null) })
+              pendingDraft = text
+              pendingDraftTargetSid = sid
+            } catch (eName) {}
+            try { if (typeof sessions.open === 'function') sessions.open(sid) } catch(eOpen){}
+            flash(st, tr('toast.newSessionOpened'), 'ok')
+            return
+          }
           const createOpts = workspaceId ? { workspaceId: workspaceId } : { cwd: cwd }
           sessions.create(createOpts).then(function (sid) {
           // 新会话秒显共享缓存为唯一来源（#301 / #324）：同工作区共享缓存在 storeOf 已尝试水合，此处 cwd 刚赋值需再次水合
