@@ -189,26 +189,78 @@ export const StatusBar = (props) => {
   }
   React.useEffect(function () {
     let roInput = null
+    let roFallback = null
+    // 兼容新旧 DSH Alpha：新版输入区为 [data-composer-card] / .krUYjW_card + [data-composer-input]（Lexical），旧版为 textarea.uV2eYG_input
+    // 对齐方式在新版中改为基于 CSS 变量 --dsh-composer-card-max-width / --dsh-composer-side-clearance 的居中卡片，
+    // 旧版仅依赖 textarea 宽度。新版若仍只查 textarea 则永远为 null，iw 卡死为 780，胶囊不再随对话框变窄。
+    const findInputTarget = function(){
+      try {
+        return document.querySelector('[data-composer-card]') ||
+               document.querySelector('.krUYjW_card') ||
+               document.querySelector('[data-composer-input]') ||
+               document.querySelector('.krUYjW_input') ||
+               document.querySelector('textarea.uV2eYG_input') ||
+               document.querySelector('textarea') ||
+               null;
+      } catch(e){ return null; }
+    }
+    const findFallbackWidth = function(){
+      try {
+        const cap = foldRef.current;
+        if (cap && cap.parentElement) {
+          const pw = cap.parentElement.getBoundingClientRect().width;
+          if (pw > 16) {
+            const style = window.getComputedStyle(cap.parentElement);
+            const padL = parseFloat(style.paddingLeft)||0;
+            const padR = parseFloat(style.paddingRight)||0;
+            const avail = pw - padL - padR;
+            if (avail > 16) return avail;
+            return pw - 16;
+          }
+        }
+        const stack = document.querySelector('[data-slot="conversation.input.dock"]') ||
+                      document.querySelector('._4RFuWq_composerStack') ||
+                      document.querySelector('.krUYjW_root') ||
+                      document.querySelector('[data-composer-card]') ||
+                      document.querySelector('.krUYjW_card');
+        if (stack) {
+          const w = stack.getBoundingClientRect().width;
+          if (w > 16) return w;
+        }
+      } catch(e){}
+      return 0;
+    }
     const applyInput = function () {
       try {
-        const fresh = document.querySelector('textarea.uV2eYG_input')
+        const fresh = findInputTarget()
         const ta = fresh || inputRef.current
-        if (!ta) return
         if (fresh && fresh !== inputRef.current) {
           try { if (roInput) roInput.disconnect() } catch (e) {}
           inputRef.current = fresh
           try { if (roInput) roInput.observe(fresh) } catch (e) {}
         }
-        const w = ta.getBoundingClientRect().width
-        // 过滤异常 0 宽（工作区切换时旧节点脱离文档会返回 0），保留上一次有效宽度避免胶囊瞬间消失
-        if (w > 16) setIw(w)
+        let w = 0
+        if (ta) {
+          try { w = ta.getBoundingClientRect().width } catch(e){}
+        }
+        if (!w || w <= 16) {
+          w = findFallbackWidth()
+        }
+        if (w > 16) setIw(Math.round(w))
       } catch (e) {}
     }
-    const initial = document.querySelector('textarea.uV2eYG_input')
+    const initial = findInputTarget()
     if (initial) inputRef.current = initial
     applyInput()
     roInput = new ResizeObserver(applyInput)
     if (inputRef.current) { try { roInput.observe(inputRef.current) } catch (e) {} }
+    try {
+      const fb = (foldRef.current && foldRef.current.parentElement) ? foldRef.current.parentElement : document.querySelector('._4RFuWq_composerStack') || document.querySelector('.krUYjW_root');
+      if (fb) {
+        roFallback = new ResizeObserver(applyInput)
+        try { roFallback.observe(fb) } catch(e){}
+      }
+    } catch(e){}
     const roFold = new ResizeObserver(function () { applyFold() })
     const applyAll = function () { applyInput(); applyFold() }
     applyFold()
@@ -218,13 +270,14 @@ export const StatusBar = (props) => {
     const poll = setInterval(applyAll, 2000)
     return function () {
       try { if (roInput) roInput.disconnect() } catch (e) {}
+      try { if (roFallback) roFallback.disconnect() } catch(e){}
       try { roFold.disconnect() } catch (e) {}
       window.removeEventListener('resize', applyAll)
       clearInterval(poll)
     }
   }, [])
   // 优化3：胶囊恒渲染（任何情况下不隐藏）；未选后端时其上方叠加 gate 蓝条引导入口
-  const capsule = h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: iw + 'px' } }, [
+  const capsule = h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: iw + 'px', boxSizing: 'border-box', margin: '0 auto' } }, [
     h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
       Icon({ scheme: s.ui.icon, size: 14 }),
       h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
@@ -332,7 +385,7 @@ export const StatusBar = (props) => {
   })() : null
   if (!firstBlock) {
     // 优化3：胶囊任何情况下不隐藏（#187 的 display:none 分支已移除）——无 banner 时即纯胶囊
-    return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: RDOM ? 'hidden' : 'visible' } }, [capsule])
+    return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: '3px var(--dsh-composer-side-clearance,8px) 0', overflow: RDOM ? 'hidden' : 'visible', margin: '0 auto' } }, [capsule])
   }
   const bann = function (text, btnLabel, onBtn) {
     return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
@@ -341,7 +394,7 @@ export const StatusBar = (props) => {
       h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: onBtn }, btnLabel),
     ])
   }
-  return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0', position:'relative' } }, [
+  return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px var(--dsh-composer-side-clearance,8px) 0', position:'relative', width: '100%', maxWidth: '100%', boxSizing: 'border-box', margin: '0 auto' } }, [
     firstBlock === 'gate'
       ? (_isGatePending
           ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', color:'#f59e0b', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }), h('span', { style:{ flex:1, fontSize:12 } }, '正在探测后端'), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(245,158,11,.6)', fontSize:11 }, onClick:function(){ loadSnapshot(s,true,true) } }, '重试') ])

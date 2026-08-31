@@ -78,7 +78,7 @@ const statChecks = function (src, tag) {
   ok('R13 · 旧 fit-content 弃用（不再无条件跟随 children 自然宽）', !/\.dsws-capsule\{[^}]*width:fit-content/.test(src) && !/style:\s*\{[^}]*width:\s*'fit-content'/.test(src))
   ok('R9 · StatusBar 用 document.querySelector 找 DSH 输入框 textarea.uV2eYG_input', /document\.querySelector\(['"]textarea\.uV2eYG_input['"]\)/.test(src))
   ok('R9 · ResizeObserver 监听 inputRef（iw 对齐信号）', /roInput\.observe\(inputRef\.current\)/.test(src))
-  ok('R9 · useEffect 清理 disconnect ResizeObserver（防泄漏）', /roInput\.disconnect\(\)[\s\S]{0,80}roFold\.disconnect\(\)/.test(src))
+  ok('R9 · useEffect 清理 disconnect ResizeObserver（防泄漏）', /roInput\.disconnect\(\)[\s\S]{0,200}roFold\.disconnect\(\)/.test(src))
   ok('R9 · 轮询兜底（DSH shell 切换对话时 textarea 重新挂载）', /setInterval\(applyAll, 2000\)/.test(src))
   ok('R12 · !firstBlock 分支 wrapper 含 flex:\'none\'（防 flex-shrink 压矮）', /display:\s*'flex',\s*flex:\s*'none',\s*justifyContent:\s*'center'/.test(src))
   ok('R12 · firstBlock 分支 wrapper 含 flex:\'none\'（横幅 + 胶囊列布局同样防压缩）', /display:\s*'flex',\s*flex:\s*'none',\s*flexDirection:\s*'column'/.test(src))

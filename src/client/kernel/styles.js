@@ -119,6 +119,9 @@
       // #16 R11（用户验收反馈 2026-08-18 R10 后）：capsule 固定宽 = iw → children 居中后左右空白随 children 缩小而变大。
       //   改为 CSS width:fit-content（默认 children 自然宽）；inline maxWidth:iw 防止 capsule 比输入框宽（pixel 对齐 R10 保留）。
       '.dsws-capsule{max-width:min(100%,1400px);width:100%;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
+      // DSH Alpha 对齐修复（2026-08-31）：新版输入区卡片宽度由 --dsh-composer-card-max-width + --dsh-composer-side-clearance 驱动，
+      // 旧版仅用 textarea 宽度。胶囊与卡片同源变量，保证“外框=卡片外框”在任意版本下像素级对齐；变量不存在时回退到 min(100%,1400px)。
+      '.dsws-capsule{max-width:var(--dsh-composer-card-max-width, min(100%,1400px))}',
       // dn>=1 时 capsule 变 fit-content 自然宽居中（用户 B 方案：dn=4 后 capsule 不再缩）
       '',
       // 外层 wrapper 调试钩子见 StatusBar render 处 inline style 注释
