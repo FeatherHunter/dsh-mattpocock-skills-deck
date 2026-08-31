@@ -143,7 +143,16 @@ export     const MapDetail = ({ st, g }) => {
           ]),
           h('span', { className: 'dsws-chip dsws-chip-m' }, [Ic({ n: 'map', size: 11 }), h('span', null, 'wayfinder:map')]),
           h('span', { style: { flex: 1 } }),
-          (m.stats && m.stats.total > 0 && m.stats.closed === m.stats.total)
+          (m.stats && m.stats.total === 0)
+            ? h('button', { className: 'dsws-btn primary', title: tr('map.inspectTitle'), onClick: function () {
+                let t2 = ''
+                try { t2 = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2 = promptText('mapInspect', { n: String(m.number||''), title: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2) t2 = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2 } catch(_){ t2 = startText(st, m) } }
+                inject(st, t2)
+              }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 600 } }, [
+                Ic({ n: 'search', size: 10 }),
+                h('span', null, tr('act.inspect')),
+              ])
+            : (m.stats && m.stats.total > 0 && m.stats.closed === m.stats.total)
             ? h('button', { className: 'dsws-btn primary', title: tr('map.doneTitle'), onClick: function () {
                 const text = completePrompt(st, m.number, m.stats.total, m.stats.closed)
                 inject(st, text)
@@ -212,7 +221,16 @@ export     const MapDetail = ({ st, g }) => {
             h('div', { className: 'title' }, tr('map.destCap')),
             h('div', { className: 'acts' }, [
               // v1.4：底部按钮与顶部同语义 —— 完成态「完成」（COMPLETE_PROMPT 同列表）/ 未完成「执行」（execute 模板）
-              (m.stats && m.stats.total > 0 && m.stats.closed === m.stats.total)
+              (m.stats && m.stats.total === 0)
+                ? h('button', { className: 'dsws-btn primary', title: tr('map.inspectTitle'), onClick: function () {
+                    let t2b = ''
+                    try { t2b = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2b = promptText('mapInspect', { n: String(m.number||''), title: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2b) t2b = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2b } catch(_){ t2b = startText(st, m)} }
+                    inject(st, t2b)
+                  }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 700 } }, [
+                    Ic({ n: 'search', size: 11 }),
+                    h('span', null, tr('act.inspect')),
+                  ])
+                : (m.stats && m.stats.total > 0 && m.stats.closed === m.stats.total)
                 ? h('button', { className: 'dsws-btn primary', title: tr('map.doneTitle'), onClick: function () {
                     const text = completePrompt(st, m.number, m.stats.total, m.stats.closed)
                     inject(st, text)

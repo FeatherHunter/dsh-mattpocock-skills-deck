@@ -179,6 +179,10 @@
           const mo = ((st.snapshot && st.snapshot.maps) || []).find(function (m) { return m.number === t.number })
           return mo ? mo.stats : null
         })()
+        const empty = !!(stats && stats.total === 0)
+        if (empty) {
+          try { return inspectPrompt(st, t.number, t.title) } catch(e) { return '/wayfinder ' + url + '\n\n' + promptText('mapInspect', { n: String(t.number || ''), title: (t.title || ''), url: url }) }
+        }
         const done = !!(stats && stats.total > 0 && stats.closed === stats.total)
         if (done) {
           // #77 定版：mapHead 自包含化 —— 标识头已内联 complete v5，head 外挂删除

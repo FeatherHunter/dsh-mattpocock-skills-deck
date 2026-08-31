@@ -38,10 +38,10 @@ npm install -g @deepseek-ai/dsh
 dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
 #     或者
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用
-# 锁定最新版更稳（当前 1.7.8）：
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.8 --registry https://registry.npmjs.org
+# 锁定最新版更稳（当前 1.7.9）：
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.9 --registry https://registry.npmjs.org
 #     或者
-dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.8 --registry https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.9 --registry https://registry.npmjs.org
 
 # ③ 窄屏更好用（可选）：better-sidebar 记得装进同一个 profile
 dsh plugin --profile web add dsh-better-sidebar
@@ -87,7 +87,7 @@ dsh plugin --profile desktop add dsh-better-sidebar
 
 ```bash
 # 给定最新版本号安装
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.8 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.9 --registry https://registry.npmjs.org
 
 # 免全局安装（想更稳，像上面一样锁版本）
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck

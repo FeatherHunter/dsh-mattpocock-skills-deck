@@ -1,5 +1,12 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-31 · v1.7.9 发布：状态栏胶囊在新版对话框中变窄问题的收口
+
+- **状态栏胶囊修复**：从第一性原理改用同源 CSS 变量驱动——外框改为 width:100% + max-width:var(--dsh-composer-card-max-width)，外层 wrapper 改用 var(--dsh-composer-side-clearance) 回退 8px，与宿主输入卡同源；移除 iw/inputRef 状态与 textarea.uV2eYG_input 硬编码查询，折叠仅观察胶囊及其父容器尺寸变化触发 applyFold，确保在 DSH Alpha 新版 Lexical 输入区（[data-composer-card]/.krUYjW_card）中胶囊外框随对话框同源伸缩且不再卡死 780（对应提交 ac94af5）。
+- **空地图检查**：新增 map 空态 0/0 诊断与一键修复入口——当 map 统计为 0/0 时编号徽章与动作按钮切琥珀色检查态，注入空地图修复提示词，复用 wayfinder 技能完成子议题关联修复（对应 prompts 新增 mapInspect、router 空态分支、ListTab/MapDetail 联动、locale 双语）。
+- **文档同步**：README 安装指引中锁定版本全量由 1.7.8 同步为 1.7.9，对齐已合入的状态栏修复与空地图检查；英文文档与包内说明同步更新。
+- **验证**：node scripts/build.mjs OK，双产物 client.js / package/lib/client.js 同源，DSW_VERSION=v1.7.9；npm pack --dry-run 67 文件清洁（lib/shared/cordis.patch.yml 白名单）；npm run verify 全绿（含双产物一致性、平台契约、胶囊窄态、发布契约）。
+
 ## 2026-08-31 · v1.7.8 发布：状态栏胶囊修复与文档收尾
 
 - **状态栏胶囊修复**：纠正 f09ce91 合入时 psule 拼写错误导致的 skills 横幅抛错，并修复输入框宽度探测在工作区切换后因旧节点宽度为 0 而将胶囊压扁的问题，确保在 matt-demo-github 与多工作区切换后胶囊保持可见且宽度非 0（对应提交 7e217b0、13a4606）。
@@ -415,11 +422,3 @@
 - verify-handoff-split.js 升级为 rev 契约（22 静态 + 8 行为场景 × 双源）
 
 ## v1.0.0 正式发布（2026-08-17 · 新包名首发）
-
-- 插件更名为 **dsh-mattpocock-skills-deck**（Matt Skills Deck），仓库迁移至 https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
-- 插件 id：dsh-waystation → dsh-mattpocock-skills-deck（cordis.patch.yml / client 注册 / export name / data-plugin / 会话标题前缀）
-- 显示名：Waystation → Matt Skills Deck（胶囊 / 面板标题 / 设置页 / 配置页）
-- 内部契约保留：/dsws RPC 通道 · dsws- CSS 前缀 · waystation:map tab type（缓存目录 v1.6.17 已更名 .dsh-waystation-cache → .dsh-mattskillsdeck-cache）
-- 版本从旧包 dsh-waystation@1.5.0 语义继承，新包以 1.0.0 首发；旧包 dsh-waystation@1.5.0（npm）仍可用，不再迭代
-
----
