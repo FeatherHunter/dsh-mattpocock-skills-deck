@@ -162,14 +162,14 @@ console.log('\n— 单一真源守卫 —')
     check(apiSrc.includes(needle), '界面渲染钩子链存在：' + needle.replace(/^\s+/, ''))
   }
   const storeSrc0 = readFileSync(join(ROOT, 'src/client/kernel/store.js'), 'utf8')
-  check(storeSrc0.includes("host.call('wf.awaitCreatedIssue'"), '认领/推送/白名单创建即时 nudge 接入（pollIssuePathHost）')
+  check(!storeSrc0.includes("host.call('wf.awaitCreatedIssue'") && !storeSrc0.includes('pollIssuePathHost'), '认领/推送 nudge 的面包屑通道已随 issuePath 彻底移除（#345）；host 侧 wf.awaitCreatedIssue 仍由索引差值驱动')
   check(!apiSrc.includes('pendingNewSessions') && !apiSrc.includes('startNewSessionRenamePoll') && !apiSrc.includes('tryAutoRename'), '旧 #211 内存双通道簿记（pending map/轮询/自动改名）全库清除')
 
   const routerSrc = readFileSync(join(ROOT, 'src/client/kernel/router.js'), 'utf8')
   check(!/(export\s+)?(const|function)\s+(SESSION_TITLE_MAX_BYTES|SESSION_TITLE_RE_ALLOW_BARE|SESSION_TITLE_PREFIX|cleanTitleText|utf8Bytes|truncateTitleUtf8|newSessionTitle|isNewPlaceholderTitle|newSessionTitleNew|composeDraftTitle)\b/.test(routerSrc), 'router.js 无第二处命名真源声明')
 
   const storeSrc = readFileSync(join(ROOT, 'src/client/kernel/store.js'), 'utf8')
-  check(storeSrc.includes("host.call('wf.namingSignal'"), '面包屑线索信号接入（recordIssuePath）')
+  check(!storeSrc.includes("host.call('wf.namingSignal'") && !storeSrc.includes('recordIssuePath'), '面包屑线索信号已随 issuePath 彻底移除（#345）；host 侧 wf.namingSignal 仍保留供其余线索源使用')
   const allClient = routerSrc + apiSrc + storeSrc + clientIdx
   check(!allClient.includes('userRenamed'), 'userRenamed 死代码全库清除（client 半）')
   const hostClean = !hostSrc.includes('userRenamed')

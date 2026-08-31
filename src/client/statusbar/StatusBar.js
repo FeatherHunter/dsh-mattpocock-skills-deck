@@ -32,7 +32,6 @@ export const StatusBar = (props) => {
   }, [props.sessionId, props.inputActions])
   React.useEffect(function () {
     probeHandoffReady(s)
-    ensureIssuePath(s); startIssuePathPoll(s)
   }, [])
   React.useEffect(function () {
     const apply = function (cwd) {
@@ -70,8 +69,6 @@ export const StatusBar = (props) => {
   const foldRef = React.useRef(null)
   const bugAnchorRef = React.useRef(null)
   const bugCloseRef = React.useRef(null)
-  const issuePathAnchorRef = React.useRef(null)
-  const issuePathCloseRef = React.useRef(null)
   const backendAnchorRef = React.useRef(null)
   const backendCloseRef = React.useRef(null)
   const [iw, setIw] = React.useState(780)
@@ -92,18 +89,6 @@ export const StatusBar = (props) => {
     s.bugMenuPos = p
     return true
   }
-  const placeIssuePathPop = function () {
-    const p = placeOverlay(issuePathAnchorRef.current, 'left')
-    if (!p) return false
-    if (p.left !== undefined && typeof window !== 'undefined' && window.innerWidth) {
-      const maxLeft = Math.max(8, window.innerWidth - 320)
-      if (p.left > maxLeft) p.left = maxLeft
-    }
-    const old = s.issuePathPos
-    if (old && old.left === p.left && old.bottom === p.bottom) return false
-    s.issuePathPos = p
-    return true
-  }
   const clearClose = function (ref) {
     if (ref.current !== null) { clearTimeout(ref.current); ref.current = null }
   }
@@ -111,11 +96,6 @@ export const StatusBar = (props) => {
     clearClose(bugCloseRef)
     if (!s.bugMenuOpen && !s.bugMenuPos && !s.bugMenuHover) return
     s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; emit(s)
-  }
-  const closeIssuePath = function () {
-    clearClose(issuePathCloseRef)
-    if (!s.issuePathHover && !s.issuePathPos) return
-    s.issuePathHover = false; s.issuePathPos = null; emit(s)
   }
   const scheduleClose = function (ref, fn) {
     clearClose(ref)
@@ -127,16 +107,6 @@ export const StatusBar = (props) => {
     if (s.skillsOpen || s.skillPopPos || s.skillHover || s.skillTip) { s.skillsOpen = false; s.skillHover = null; s.skillTip = null; s.skillPopPos = null; changed = true }
     if (!s.bugMenuOpen) { s.bugMenuOpen = true; changed = true }
     if (placeBugMenu()) changed = true
-    if (changed) emit(s)
-  }
-  const showIssuePath = function () {
-    clearClose(issuePathCloseRef); clearClose(bugCloseRef); clearClose(backendCloseRef)
-    let changed = false
-    if (s.bugMenuOpen || s.bugMenuPos || s.bugMenuHover) { s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; changed = true }
-    if (s.backendMenuOpen || s.backendMenuPos) { s.backendMenuOpen = false; s.backendMenuPos = null; changed = true }
-    if (s.skillsOpen || s.skillPopPos || s.skillHover || s.skillTip) { s.skillsOpen = false; s.skillHover = null; s.skillTip = null; s.skillPopPos = null; changed = true }
-    if (!s.issuePathHover) { s.issuePathHover = true; changed = true }
-    if (placeIssuePathPop()) changed = true
     if (changed) emit(s)
   }
   const placeBackendMenu = function () {
@@ -153,17 +123,16 @@ export const StatusBar = (props) => {
     s.backendMenuOpen = false; s.backendMenuPos = null; emit(s)
   }
   const showBackendMenu = function () {
-    clearClose(backendCloseRef); clearClose(bugCloseRef); clearClose(issuePathCloseRef)
+    clearClose(backendCloseRef); clearClose(bugCloseRef)
     let changed = false
     if (s.bugMenuOpen || s.bugMenuPos || s.bugMenuHover) { s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; changed = true }
-    if (s.issuePathHover || s.issuePathPos) { s.issuePathHover = false; s.issuePathPos = null; changed = true }
     if (s.skillsOpen || s.skillPopPos || s.skillHover || s.skillTip) { s.skillsOpen = false; s.skillHover = null; s.skillTip = null; s.skillPopPos = null; changed = true }
     if (!s.backendMenuOpen) { s.backendMenuOpen = true; changed = true }
     if (placeBackendMenu()) changed = true
     if (changed) emit(s)
   }
   React.useEffect(function () {
-    if (!s.bugMenuOpen && !s.issuePathHover && !s.backendMenuOpen) return undefined
+    if (!s.bugMenuOpen && !s.backendMenuOpen) return undefined
     let raf = null
     let disposed = false
     const reposition = function () {
@@ -173,7 +142,6 @@ export const StatusBar = (props) => {
         if (disposed) return
         let changed = false
         if (s.bugMenuOpen && placeBugMenu()) changed = true
-        if (s.issuePathHover && placeIssuePathPop()) changed = true
         if (s.backendMenuOpen && placeBackendMenu()) changed = true
         if (changed) emit(s)
       }
@@ -184,7 +152,6 @@ export const StatusBar = (props) => {
     window.addEventListener('resize', reposition)
     const ro = new ResizeObserver(reposition)
     if (bugAnchorRef.current) ro.observe(bugAnchorRef.current)
-    if (issuePathAnchorRef.current) ro.observe(issuePathAnchorRef.current)
     if (backendAnchorRef.current) ro.observe(backendAnchorRef.current)
     reposition()
     return function () {
@@ -196,9 +163,9 @@ export const StatusBar = (props) => {
       }
       document.removeEventListener('scroll', reposition, true)
       window.removeEventListener('resize', reposition)
-      clearClose(bugCloseRef); clearClose(issuePathCloseRef); clearClose(backendCloseRef)
+      clearClose(bugCloseRef); clearClose(backendCloseRef)
     }
-  }, [s.bugMenuOpen, s.issuePathHover])
+  }, [s.bugMenuOpen, s.backendMenuOpen])
   const applyFold = function () {
     const cap = foldRef.current
     if (!cap) return
@@ -283,39 +250,6 @@ export const StatusBar = (props) => {
       h('span', { className: 'dsws-split-part', onClick: function (e) { e.stopPropagation(); doHandoffOpen(s) }, title: s.handoffReady ? tr('nav.handoffReadyTitle') : tr('nav.handoffGreyTitle'), style: s.handoffReady ? { color: '#58a6ff' } : { color: '#8b8b95', opacity: 0.55, cursor: 'default' } }, [
         s.handoffSearching ? h('span', { className: 'dsws-spinner', style: { width: 12, height: 12, borderWidth: 2, boxSizing: 'border-box', display: 'inline-block', verticalAlign: '-2px' } }) : Ic({ n: s.handoffReady ? 'handoff-open' : 'handoff-off', size: 12 }),
       ]),
-    ]),
-    h('span', { ref: issuePathAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showIssuePath, onMouseLeave: function () { scheduleClose(issuePathCloseRef, closeIssuePath) } }, [
-      h('span', { className: 'dsws-seg' + (s.issuePathHover ? ' on' : ''), onClick: function (e) { e.stopPropagation(); if (s.issuePath && s.issuePath.current) { s.tab='list'; openPanel(s) } }, title: s.issuePath && s.issuePath.current ? '当前处理 #' + s.issuePath.current + ' · hover 查看路径 · 点击打开列表' : '尚未选择当前 Issue · 点击操作会自动记录', style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: s.issuePath && s.issuePath.current ? '#4ade80' : '#6b7280', border: s.issuePathHover ? '1px solid rgba(74,222,128,.45)' : '1px solid transparent', background: s.issuePathHover ? 'rgba(74,222,128,.12)' : 'transparent', borderRadius: 99, padding: '2px 7px' } }, [
-        Ic({ n: 'pin', size: 12 }),
-        h('span', { 'data-fold-priority': 10 }, s.issuePath && s.issuePath.current ? '#' + s.issuePath.current : '--'),
-      ]),
-      s.issuePathHover ? PortalOverlay({ className: 'dsws-issuepath-pop', onMouseEnter: function () { clearClose(issuePathCloseRef) }, onMouseLeave: function () { scheduleClose(issuePathCloseRef, closeIssuePath) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'fixed', left: s.issuePathPos ? s.issuePathPos.left : 0, bottom: s.issuePathPos ? s.issuePathPos.bottom : 0, padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.45)', minWidth: 260, maxWidth: 380 } }, [
-        h('div', { style: { fontSize: 11, fontWeight: 700, color: 'var(--dsw-alias-label-primary,#e6edf3)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 } }, [
-          h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'pin', size: 12 }), h('span', null, '当前路径')]),
-          h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', fontWeight: 400 } }, s.issuePath && s.issuePath.nodes && s.issuePath.nodes.length ? 'anchor #' + s.issuePath.anchor + ' · ' + s.issuePath.nodes.length + ' 节点' : '空'),
-          h('span', { style: { marginLeft: 'auto', display: 'inline-flex', gap: 4 } }, [
-            h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); clearIssuePath(s); closeIssuePath() }, style: { fontSize: 10, padding: '2px 6px' } }, '清空'),
-          ]),
-        ]),
-        (s.issuePath && s.issuePath.nodes && s.issuePath.nodes.length) ? h('div', { style: { maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 } }, s.issuePath.nodes.slice(-20).reverse().map(function (nd) {
-          const isCur = nd.ref === s.issuePath.current
-          const isAnchor = nd.ref === s.issuePath.anchor
-          const t = new Date(nd.ts || Date.now()); const tm = String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0')
-          const srcColor = nd.source === 'claim' ? '#4ade80' : nd.source === 'gh-edit' ? '#58a6ff' : nd.source === 'mention' ? '#f59e0b' : '#8b8b95'
-          const srcLabel = nd.source === 'claim' ? 'claim' : nd.source === 'gh-edit' ? 'gh-edit' : nd.source === 'mention' ? 'mention' : nd.source
-          return h('div', { key: nd.ts + '-' + nd.ref, onClick: function (e) { e.stopPropagation(); reanchorIssuePath(s, nd.ref) }, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 6, background: isCur ? 'rgba(74,222,128,.14)' : 'transparent', border: isCur ? '1px solid rgba(74,222,128,.35)' : '1px solid transparent', cursor: 'pointer' } }, [
-            h('span', { style: { fontSize: 11, fontFamily: 'Consolas,Menlo,monospace', color: isCur ? '#4ade80' : 'var(--dsw-alias-label-primary,#e6edf3)', fontWeight: isCur ? 700 : 500 } }, '#' + nd.ref + (isAnchor ? ' ⚓' : '')),
-            h('span', { style: { fontSize: 10, color: srcColor, border: '1px solid ' + srcColor, borderRadius: 4, padding: '0 4px', lineHeight: 1.6 } }, srcLabel),
-            h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tm),
-            nd.title ? h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 } }, nd.title) : null,
-            isCur ? h('span', { style: { fontSize: 10, color: '#4ade80', fontWeight: 700 } }, '← 当前') : null,
-          ])
-        })) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '6px 0' } }, '暂无路径 · 点击任意 issue 行的“执行/诊断/修复”或在新会话中打开 issue 会自动记录'),
-        h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', marginTop: 6, paddingTop: 4, display: 'flex', alignItems: 'center', gap: 4 } }, [
-          h('span', null, '点击节点可重锚起点'),
-          h('span', { style: { marginLeft: 'auto' } }, '上限 100 · 本地持久'),
-        ]),
-      ]) : null,
     ]),
     seg('dot', [h('span', { 'data-fold-priority': 8 }, tr('nav.env')), num(envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') }, tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) })),
     h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, title: tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', { 'data-fold-priority': 4 }, tr('nav.refresh')), h('span', { 'data-fold-priority': 9 }, ' ' + timeStr)]),

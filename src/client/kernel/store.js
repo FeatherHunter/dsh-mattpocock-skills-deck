@@ -30,173 +30,8 @@
       return {}
     })()
     export const saveLabelClicks = function () { try { localStorage.setItem(LABEL_CLICKS_KEY, JSON.stringify(labelClicks)) } catch (e) {} }
-    // ============  issuePath · 状态栏当前处理 Issue 轨迹（v1.7.0 map #79 · S-rec）============
-    export const ISSUE_PATH_KEY = 'dsws.issuePath'
-    export const ISSUE_PATH_MAX = 100
-    export const ISSUE_PATH_DEBOUNCE_MS = 500
-    export let _issuePathSaveTimer = null
-    export const loadIssuePathMap = function () {
-      try {
-        const raw = localStorage.getItem(ISSUE_PATH_KEY)
-        if (!raw) return {}
-        const o = JSON.parse(raw)
-        return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}
-      } catch (e) { return {} }
-    }
-    export const saveIssuePathMapNow = function (map) {
-      try { localStorage.setItem(ISSUE_PATH_KEY, JSON.stringify(map)) } catch (e) {}
-    }
-    export const persistIssuePath = function (st) {
-      if (!st || !st.issuePath) return
-      if (_issuePathSaveTimer) try { clearTimeout(_issuePathSaveTimer) } catch (e) {}
-      _issuePathSaveTimer = setTimeout(function () {
-        _issuePathSaveTimer = null
-        try {
-          const map = loadIssuePathMap()
-          const key = st.sessionId || '__shared'
-          map[key] = st.issuePath
-          const keys = Object.keys(map)
-          if (keys.length > 8) {
-            keys.sort(function (a, b) { return (map[a].updatedAt || 0) - (map[b].updatedAt || 0) })
-            while (Object.keys(map).length > 8) delete map[keys.shift()]
-          }
-          saveIssuePathMapNow(map)
-        } catch (e) {}
-      }, ISSUE_PATH_DEBOUNCE_MS)
-    }
-    export const ensureIssuePath = function (st) {
-      if (st.issuePath && Array.isArray(st.issuePath.nodes)) return st.issuePath
-      const key = st.sessionId || '__shared'
-      const map = loadIssuePathMap()
-      if (map[key] && Array.isArray(map[key].nodes)) {
-        st.issuePath = map[key]
-        if (!st.issuePath.sessionId) st.issuePath.sessionId = st.sessionId || ''
-        if (typeof st.issuePath.anchor !== 'number') st.issuePath.anchor = st.issuePath.nodes.length ? st.issuePath.nodes[0].ref : null
-        if (typeof st.issuePath.current !== 'number') st.issuePath.current = st.issuePath.nodes.length ? st.issuePath.nodes[st.issuePath.nodes.length - 1].ref : null
-        return st.issuePath
-      }
-      st.issuePath = { sessionId: st.sessionId || '', anchor: null, nodes: [], current: null, updatedAt: 0 }
-      return st.issuePath
-    }
-    export const recordIssuePath = function (st, ref, source, title) {
-      const n = Number(ref)
-      if (!n || isNaN(n)) return false
-      ensureIssuePath(st)
-      const ip = st.issuePath
-      const now = Date.now()
-      ip.sessionId = st.sessionId || ''
-      if (!ip.nodes) ip.nodes = []
-      if (ip.anchor == null) ip.anchor = n
-      const last = ip.nodes.length ? ip.nodes[ip.nodes.length - 1] : null
-      if (last && last.ref === n && (now - (last.ts || 0)) < 2000) {
-        last.ts = now
-        if (source) last.source = source
-        if (title && !last.title) last.title = String(title).slice(0, 80)
-        ip.current = n
-        ip.updatedAt = now
-        // #265 命名守护：面包屑线索信号（host 忽略未受踪会话；线索即面包屑节点标题）
-        try { if (st.sessionId && title && typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.namingSignal', { sessionId: st.sessionId, hint: String(title).slice(0, 80) }).catch(function () {}) } catch (eSigA) {}
-        persistIssuePath(st); emit(st); return true
-      }
-      ip.nodes.push({ ref: n, source: String(source || 'auto'), ts: now, title: String(title || '').slice(0, 80) })
-      if (ip.nodes.length > ISSUE_PATH_MAX) ip.nodes.shift()
-      if (ip.nodes.length) ip.anchor = ip.nodes[0].ref
-      ip.current = n
-      ip.updatedAt = now
-      // #265 命名守护：面包屑线索信号（host 忽略未受踪会话；线索即面包屑节点标题）
-      try { if (st.sessionId && title && typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.namingSignal', { sessionId: st.sessionId, hint: String(title).slice(0, 80) }).catch(function () {}) } catch (eSigB) {}
-      persistIssuePath(st); emit(st); return true
-    }
-    export const reanchorIssuePath = function (st, ref) {
-      const n = Number(ref)
-      if (!n || isNaN(n) || !st.issuePath || !st.issuePath.nodes.length) return false
-      const found = st.issuePath.nodes.find(function (x) { return x.ref === n })
-      if (!found) return false
-      st.issuePath.anchor = n
-      st.issuePath.current = n
-      st.issuePath.updatedAt = Date.now()
-      persistIssuePath(st); emit(st); return true
-    }
-    export const clearIssuePath = function (st) {
-      st.issuePath = { sessionId: st.sessionId || '', anchor: null, nodes: [], current: null, updatedAt: Date.now() }
-      persistIssuePath(st); emit(st)
-    }
-    export let _issuePathPollTs = 0
-    export let _issuePathPolling = false
-    export const pollIssuePathHost = function (st) {
-      if (_issuePathPolling) return
-      if (typeof host === 'undefined' || typeof host.call !== 'function') return
-      _issuePathPolling = true
-      // #232 · 上报可见工作区参与面板增量同步（推进只来自重求值）；hidden 时传空表回落旧链路。
-      //   视线门控语义（R1–R4）：队列 = 可见页签内「被打开会话持有」的 cwd —— shared.cwd 是当前
-      //   看着的工作区，stores 内是同样开着面板的其余工作区。R2 切换 = StatusBar.apply 换绑 cwd，
-      //   轮询主体随队列转移；R3 hidden 页签上报空表且兜底探针同闸；R4 在途结果落地见
-      //   loadSnapshot 的 H2 分支（写入 per-cwd LRU，不直接 emit 换视图的 store）。
-      //   注：本函数的面包屑参数 st 钉死于首次挂载 store（#213 先例），recordIssuePath/hitSelf 不随切换迁移。
-      const cwdsOut = (function () {
-        const arr = []
-        try {
-          const vis = (typeof document === 'undefined' || !document.visibilityState || document.visibilityState === 'visible')
-          if (vis) {
-            if (typeof shared === 'object' && shared && shared.cwd) arr.push(shared.cwd)
-            if (typeof stores === 'object') Object.keys(stores).forEach(function (k) {
-              const c = stores[k] && stores[k].cwd
-              if (c && arr.indexOf(c) < 0) arr.push(c)
-            })
-          }
-        } catch (eCwd) {}
-        return arr.slice(0, ((typeof SYNC === 'object' && SYNC && SYNC.MAX_POLLED_CWDS) || 12))
-      })()
-      host.call('wf.issuePathPoll', { since: _issuePathPollTs, cwds: cwdsOut }).then(function (res) {
-        _issuePathPolling = false
-        // #232 · 宿主已对真实索引完成重求值并验证差值 → 短窗合并探针（1.2s）；
-        //   行级变更最终仍走 probeNow → wf.probe changed 判定 → 静默重算 → diff 闪烁，无乐观插入。
-        try {
-          const dcs = res && Array.isArray(res.dirtyCwds) ? res.dirtyCwds : []
-          if (dcs.length && typeof scheduleDirtyProbe === 'function') {
-            const hitShared = (typeof shared === 'object' && shared && shared.cwd) ? dcs.indexOf(shared.cwd) >= 0 : false
-            const hitSelf = st && st.cwd ? dcs.indexOf(String(st.cwd)) >= 0 : false
-            if (hitShared || hitSelf) scheduleDirtyProbe()
-          }
-        } catch (eDirty) {}
-        if (!res || !res.ok || !Array.isArray(res.events) || !res.events.length) {
-          if (res && typeof res.serverNow === 'number') _issuePathPollTs = res.serverNow
-          return
-        }
-        let maxTs = _issuePathPollTs
-        let needProbe = false
-        res.events.forEach(function (ev) {
-          if (ev && ev.ref) {
-            recordIssuePath(st, ev.ref, ev.source, ev.title)
-            if (ev.ts && ev.ts > maxTs) maxTs = ev.ts
-            // #232 · 探针触发源词汇表单源化（shared/tracker/sync.js）：#213 三源 + index-dirty
-            //       共享模块经 SHARED_SPLICE 必然在场；缺位时静默降级由 60s 全量探针兜底。
-            if (typeof needProbeSource === 'function' && needProbeSource(ev.source)) needProbe = true
-            // #266 即时信号（认领/推送/白名单创建）：nudge host「等待建号」→ 索引差值提前结算，
-            // 归属仍按同仓库最早占位/草稿档判定（事件不携带会话身份，不做 per-session 绑定）
-            if ((ev.source === 'gh-create' || ev.source === 'claim') && st && st.sessionId) {
-              try { if (typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.awaitCreatedIssue', { sessionId: st.sessionId }).catch(function () {}) } catch (eWait) {}
-            }
-          }
-        })
-        if (res.serverNow && res.serverNow > maxTs) maxTs = res.serverNow
-        _issuePathPollTs = maxTs
-        // #213: 增量刷新 — 检测到创建/编辑事件后 8s 内触发 probe，实现不整页的自动更新（老架构回归）
-        if (needProbe) {
-          try { if (typeof scheduleActionProbe === 'function') scheduleActionProbe(); else if (typeof probeNow === 'function') probeNow(false); } catch {}
-        }
-      }).catch(function () { _issuePathPolling = false })
-    }
-    export let _issuePathPollTimer = null
-    export const startIssuePathPoll = function (st) {
-      if (_issuePathPollTimer) return
-      const tick = function () {
-        if (st) pollIssuePathHost(st)
-        // #232 · 栅格真源自契约层派生（client 不私藏节拍真相；字面量仅防御性兜底）
-        _issuePathPollTimer = setTimeout(tick, ((typeof SYNC === 'object' && SYNC && SYNC.POLL_GRID_MS) || 4000))
-      }
-      tick()
-    }
+    // 彻底移除：清理遗留的 dsws.issuePath（v1.7.0 遗留，见 #345 移除落地）
+    try { localStorage.removeItem('dsws.issuePath'); } catch (e) {}
     // T2 #35 · 无仓库红卡状态机（按 cwd 维度持久化 dismiss；表单态 expanded/name/visibility/loading/error）
     export const NOREPO_DISMISS_PREFIX = 'dsws:noRepoDismiss:'
     export const cwdHash = function (s) { let h = 0; const t = String(s || ''); for (let i = 0; i < t.length; i++) h = ((h << 5) - h + t.charCodeAt(i)) | 0; return String(h >>> 0) }
@@ -468,8 +303,6 @@
       snapMode: 'loading', snapError: null, snapLoading: false,
       refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, handoffSearching: false, skillsOpen: false, skillHover: null, skillTip: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
       noRepoCard: { expanded: false, name: '', visibility: 'private', loading: false, error: '', errorKind: '', errorRepoUrl: '' },
-      issuePath: { sessionId: '', anchor: null, nodes: [], current: null, updatedAt: 0 },
-      issuePathHover: false, issuePathPos: null,
       switchConfirm: null,
       gateModalOpen: false, gateSelected: null, gateLoading: false, gateError: '',
     })
@@ -700,7 +533,7 @@
       return ''
     }
     export const storeOf = (sid) => {
-      if (!sid) { ensureIssuePath(shared); return shared }
+      if (!sid) { return shared }
       let st = stores[sid]
       if (!st) {
         st = makeStore(); st.sessionId = sid; stores[sid] = st
@@ -710,14 +543,12 @@
           if (sync) st.cwd = sync
         }
         if (st.cwd) hydrateFromCache(st)
-        ensureIssuePath(st)
       } else {
         // 已有 store 若 cwd 仍空且可同步补齐，立即水合
         if (!st.cwd) {
           const sync = getCwdSync(sid)
           if (sync) { st.cwd = sync; hydrateFromCache(st) }
         }
-        ensureIssuePath(st)
       }
       return st
     }

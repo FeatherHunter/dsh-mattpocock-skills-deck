@@ -65,16 +65,8 @@ export let pendingDraftTargetSid = null
       } catch (e) {}
       return null
     }
-    // 面包屑语义线索：claim 源节点优先，其次首节点（与 recordIssuePath 记账同源 · CONTEXT「面包屑」词条）
     export function namingHintOf(st) {
-      try {
-        const ip = st && st.issuePath
-        if (ip && Array.isArray(ip.nodes) && ip.nodes.length) {
-          const claim = ip.nodes.find(function (n) { return n.source === 'claim' && n.title })
-          const src = claim || ip.nodes[0]
-          return src && src.title ? String(src.title).slice(0, 80) : null
-        }
-      } catch (e) {}
+      // 彻底移除：原从 issuePath 面包屑取线索（#345），现恒为 null
       return null
     }
     function reportNamingResult(sid, outcome, extra) {
@@ -436,14 +428,7 @@ export let pendingDraftTargetSid = null
                 }
               } catch(eVer){}
             }
-            try {
-              const __refs = (typeof issueRefNumbersFrom==='function') ? issueRefNumbersFrom(text) : []
-              if (__refs.length && ns) {
-                const __tg = String(title || '').slice(0,80)
-                recordIssuePath(ns, __refs[0], 'claim', __tg)
-                for (let _i=1; _i<__refs.length; _i++) recordIssuePath(ns, __refs[_i], 'mention', '')
-              }
-            } catch (e) {}
+            // 彻底移除：issuePath 锚点记账已移除（#345）
             const __placeholderTitle = title
             try {
               const scopeCtx = sessions.scope(sid)
@@ -514,15 +499,7 @@ export let pendingDraftTargetSid = null
               }
             } catch(eVer){}
           }
-          // issuePath · 新会话锚点：把本次打开的 issue 记为新会话的起点（Q10 A+B）
-          try {
-            const __refs = (typeof issueRefNumbersFrom==='function') ? issueRefNumbersFrom(text) : [] // #231：锚点识别改由后端 linkPatternSource 驱动
-            if (__refs.length && ns) {
-              const __tg = String(title || '').slice(0,80)
-              recordIssuePath(ns, __refs[0], 'claim', __tg)
-              for (let _i=1; _i<__refs.length; _i++) recordIssuePath(ns, __refs[_i], 'mention', '')
-            }
-          } catch (e) {}
+          // 彻底移除：issuePath 新会话锚点已移除（#345）
           // 自动命名（失败不阻塞打开）— 占位标题在创建前已确定，跟随 harness 语言；
           // 改名落定后把会话交给命名守护（#265）：以宿主实际接受的归一化占位标题为基准注册跟踪态，
           // 附面包屑语义线索；此后常驻渲染钩子按计划单执行草稿档升级，值比对锁守护手改。
@@ -581,23 +558,11 @@ export let pendingDraftTargetSid = null
       }
       openTextInNewSession(st, text, title)
     }
-    export const extractIssueRefs = function (text) {
-      // #231：真源在各后端 links.linkPatternSource；无快照时经 shared 缓存解析，未达则 helper 内 LEGACY 过渡
-      return (typeof issueRefNumbersFrom === 'function') ? issueRefNumbersFrom(text) : []
-    }
+    // 彻底移除：extractIssueRefs 已移除（#345）
     export const inject = (st, text) => {
       if (st.injector) { st.injector(text); flash(st, tr('toast.injected'), 'ok') }
       else copyText(st, text, tr('toast.copiedFallback'))
-      // issuePath · 1C 提及识别（主路径 URL 扫描，零误判；#\d+ 辅路径待 toast 确认，首版仅 URL 自动记）
-      try {
-        const refs = extractIssueRefs(text)
-        if (refs.length) {
-          const titleGuess = (text && text.split('\n').slice(0, 3).join(' ').slice(0, 80)) || ''
-          recordIssuePath(st, refs[0], 'mention', titleGuess)
-          for (let i = 1; i < refs.length; i++) recordIssuePath(st, refs[i], 'mention', '')
-          try { if (typeof host !== 'undefined' && typeof host.call === 'function') host.call('wf.issuePathPush', { number: refs[0], source: 'mention', title: titleGuess }).catch(function () {}) } catch (e) {}
-        }
-      } catch (e) {}
+      // 彻底移除：issuePath 提及识别已移除（#345）
       // v1.5 T10 R9（Q4 拍板）：关键动作（完成/执行/交接/认领）后延迟探测，面板尽快反映变化
       scheduleActionProbe()
     }

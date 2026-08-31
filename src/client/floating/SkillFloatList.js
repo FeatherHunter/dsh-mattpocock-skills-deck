@@ -1,7 +1,7 @@
 /**
  * floating/SkillFloatList.js — 技能悬浮列表（5.2 状态栏末段 · 2026-08-18 需求 2）
  * 自 StatusBar.js 拆出（#97 T4）：自持 skillAnchorRef/skillCloseRef 与 show/close/placement 状态机，
- * 互斥逻辑（关 bug 菜单 / issuePath 弹层）经 s 状态直接操作（与原实现同语义）。
+ * 互斥逻辑（关 bug 菜单）经 s 状态直接操作。
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  */
@@ -44,12 +44,11 @@ export const SkillFloatList = function (props) {
     clearClose(skillCloseRef)
     let changed = false
     if (s.bugMenuOpen || s.bugMenuPos || s.bugMenuHover) { s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; changed = true }
-    if (s.issuePathHover || s.issuePathPos) { s.issuePathHover = false; s.issuePathPos = null; changed = true }
     if (!s.skillsOpen) { s.skillsOpen = true; changed = true }
     if (placeSkillPop()) changed = true
     if (changed) emit(s)
   }
-  // 悬浮定位：scroll/resize 时重算（与 bug/issuePath 弹层同机制，各持各的监听）
+  // 悬浮定位：scroll/resize 时重算
   React.useEffect(function () {
     if (!s.skillsOpen) return undefined
     let raf = null

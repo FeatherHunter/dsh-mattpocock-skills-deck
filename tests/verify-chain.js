@@ -36,7 +36,8 @@ console.log('\n— 枚举 —')
     check(vals.includes('rpc'), '动作枚举含 rpc')
     check(vals.includes('form'), '动作枚举含 form')
     check(vals.includes('refresh'), '动作枚举含 refresh')
-    check(vals.length === 5, '动作枚举恰 5 种 — got=' + vals.length)
+    check(vals.includes('wizard'), '动作枚举含 wizard（2026-08-28 向导扩展）')
+    check(vals.length === 6, '动作枚举恰 6 种 — got=' + vals.length)
   }
   const states = mod.CHECK_STATE || mod.STEP_STATUS
   check(!!states, 'CHECK_STATE/STEP_STATUS 存在')

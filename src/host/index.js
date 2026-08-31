@@ -306,8 +306,6 @@ export default {
 
     let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；build 不得动它 —— 否则会吞掉同窗口编辑，见 buildSnapshot 处注释）
     let lastIssueIndexByRepo = {}                          // #2 deletion fix：保存上次全量 issue 索引，用于发现 GitHub 删除/状态消失
-    let pendingIssuePathEvents = []                       // issuePath · 1A+1B 检测队列（runGh 白名单 + wf.claim），client via wf.issuePathPoll 拉取，cap 100
-
     // ============ gh 封装 ============
     // #195 修复：resolveGh 不再缓存失败（ghLastError 仅最近一次失败，环境修复后下次探测即恢复）
     async function resolveGh() {
@@ -359,41 +357,16 @@ export default {
         else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400) }
       }
-      // issuePath · 1A：runGh 白名单检测（仅成功路径；失败不记路径污染；--add-assignee 为 claim 通道，交由 wf.claim 推送 source='claim'）
-      // #213: 增量刷新 — create/edit/close/comment/reopen 均失效快照缓存，支撑右侧面板不整页的增量更新
+      // 彻底移除：issuePath 1A 白名单检测已移除（#345），只保留两项与面包屑无关的职责：
+      //   ① create/edit 等写操作失效快照缓存，支撑右侧面板增量更新；
+      //   ② create 成功仍触发 namingSweepSoon(500)——#266 建号感知快路径（新会话 0.5-2s 内归属编号档）不随面包屑退役。
       try {
         const a = Array.isArray(args) ? args : []
         if (a.length >= 2 && a[0] === 'issue' && /^(create|edit|close|comment|reopen)$/.test(String(a[1]))) {
-          if (String(a[1]) === 'create') {
-            try {
-              const txt = String(out.text || '').trim()
-              let n = null
-              const mUrl = txt.match(/\/issues\/(\d+)/)
-              if (mUrl) n = mUrl[1]
-              else {
-                try { const j = JSON.parse(txt); n = j.number || j.id || (Array.isArray(j) && j[0] && j[0].number) } catch {}
-                if (!n) { const mNum = txt.match(/\b(\d{1,6})\b/); if (mNum) n = mNum[1] }
-              }
-              if (n) {
-                pushIssuePathEvent(n, 'gh-create')
-                try { cache = { ts: 0, snapshot: null, error: null, cwd: cwd } } catch {}
-                // #266 即时信号（白名单检测）：runGh 成功即推索引差值结算 —— 面板侧建号 0.5-2s 内归属
-                try { namingSweepSoon(500) } catch (eW) {}
-              }
-            } catch {}
-          } else {
-            const hasAssignee = a.indexOf('--add-assignee') >= 0
-            if (!hasAssignee) {
-              let hit = null
-              for (let i = 2; i < a.length; i++) if (/^\d+$/.test(String(a[i]))) { hit = a[i]; break }
-              if (hit) {
-                pushIssuePathEvent(hit, 'gh-edit')
-                try { cache = { ts: 0, snapshot: null, error: null, cwd: cwd } } catch {}
-              }
-            }
-          }
+          try { cache = { ts: 0, snapshot: null, error: null, cwd: cwd } } catch {}
+          if (String(a[1]) === 'create') { try { namingSweepSoon(500) } catch (eW) {} }
         }
-      } catch (e) { /* 检测失败不影响主流程 */ }
+      } catch (e) {}
       return { ok: true, text: out.text || '' }
     }
 
@@ -435,112 +408,6 @@ export default {
     async function getHome() {
       const platform = await getPlatform()
       return platform.getHome()
-    }
-
-    // ============ issuePath · 1A\+1B 事件队列 ============
-    function pushIssuePathEvent(ref, source, title) {
-      const n = Number(ref)
-      if (!n || isNaN(n)) return
-      pendingIssuePathEvents.push({ ref: n, source: String(source || 'gh-edit'), ts: Date.now(), title: String(title || '') })
-      if (pendingIssuePathEvents.length > 100) pendingIssuePathEvents.shift()
-    }
-
-    // ============ #232 · 面板增量同步（契约层谓词喂入 · 推进只来自重求值）============
-    // 五层职责：gh 探测原语（runGh/execProc）已在上方封装（平台/OS 底座层）；此处为宿主编排——
-    // 把真实远端索引的轻 REST 求值结果喂给契约层（shared/tracker/sync.js）谓词，命中差值即失效
-    // 快照缓存并经 wf.issuePathPoll 回执 dirtyCwds。两条不变量：
-    //   ① 绝不写 lastIssueIndexByRepo —— 否则会吞掉 wf.probe 的 changed 判定，UI 永不刷新；
-    //   ② 不推 issuePath 事件 —— 面包屑是「issue 流转路径」记录，不承载纯数据脏信号。
-    // AI 会话直接经 shell 的 gh 写操作在插件进程之外，唯一诚实通道就是重求值；失败静默，
-    // 旧 60s 全量探针链路保持原样兜底。状态为内存态，热重载后首轮自动重新建档（无假阳性）。
-    let _panelSyncCore = null
-    async function getPanelSyncCore() {
-      if (_panelSyncCore) return _panelSyncCore
-      try { _panelSyncCore = await import('../shared/tracker/sync.js'); return _panelSyncCore } catch (e) { return null }
-    }
-    const panelSyncByKey = {}        // repoKey → 求值态 { baseline, maxUpd, lastEvalAt, failures, suspendedUntil, resolving }
-    const panelSyncCwdOfRepo = {}    // repoKey → 最近一次上报的 cwd（求值执行目录）
-    const panelSyncRepoTriedAt = {}  // cwd → repoKey 解析失败的低频重试闸（10min 内不再打扰 getRepoKey）
-    let panelDirtySince = {}         // cwd → 标脏时刻（确认式回执：未过期每轮回执，被上报 cwd 取走即清）
-    let _panelSyncBusy = false       // 单飞闸：多 store 多会话并发轮询时同一时刻至多一个评估流程
-
-    async function panelSyncEvaluate(cwdList) {
-      if (_panelSyncBusy) return
-      _panelSyncBusy = true
-      try {
-        const core = await getPanelSyncCore()
-        if (!core) return
-        const now = Date.now()
-        // 先补齐 cwd→repoKey 映射（getRepoKey 自带 repoKeys 缓存；解析失败者进低频重试闸）
-        const items = []
-        for (let i = 0; i < cwdList.length; i++) {
-          const cwd = String(cwdList[i] || '')
-          if (!cwd) continue
-          let rk = null
-          for (const k in panelSyncCwdOfRepo) { if (panelSyncCwdOfRepo[k] === cwd) { rk = k; break } }
-          if (!rk) {
-            const triedAt = panelSyncRepoTriedAt[cwd] || 0
-            if (now - triedAt < 600000) continue
-            panelSyncRepoTriedAt[cwd] = now
-            const repo = await getRepoKey(cwd)
-            rk = (repo && repo.owner && repo.name) ? (repo.owner + '/' + repo.name) : null
-            if (rk) panelSyncCwdOfRepo[rk] = cwd
-          }
-          if (rk) items.push({ cwd: cwd, id: rk })
-        }
-        if (!items.length) return
-        const cands = core.pickSyncCandidates(items, panelSyncByKey, now)
-        for (let i = 0; i < cands.length; i++) {
-          const cwd = cands[i]
-          let rk = null
-          for (const k in panelSyncCwdOfRepo) { if (panelSyncCwdOfRepo[k] === cwd) { rk = k; break } }
-          if (!rk) continue
-          if (!panelSyncByKey[rk]) panelSyncByKey[rk] = core.createSyncState()
-          else panelSyncByKey[rk].resolving = true
-          try {
-            await panelSyncEvalOne(rk, cwd, core)
-          } finally {
-            const s2 = panelSyncByKey[rk]
-            if (s2) s2.resolving = false
-          }
-        }
-      } catch (e) { /* 求值异常静默：旧探针链路仍兜底 */ } finally { _panelSyncBusy = false }
-    }
-
-    async function panelSyncEvalOne(repoKey, cwd, core) {
-      const st = panelSyncByKey[repoKey]
-      if (!st) return
-      const now = Date.now()
-      let url = 'repos/' + repoKey + '/issues?state=all&per_page=100'
-      if (st.baseline !== null) {
-        // 增量视图：since 下界取基线水位回看重叠窗口；首看建档走全量
-        const floorIso = core.sinceFloor(st.maxUpd)
-        if (floorIso) url += '&since=' + encodeURIComponent(floorIso)
-      }
-      const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd)
-      if (!r.ok) {
-        panelSyncByKey[repoKey] = core.noteEvalFailure(st, now)
-        return
-      }
-      const entries = core.parseIndexEntries(r.text)
-      const dirty = core.deriveDirty(st.baseline, entries)   // 先判差值再推进基线（顺序不可反）
-      panelSyncByKey[repoKey] = core.noteEvalSuccess(Object.assign({}, st, {
-        baseline: core.advanceBaseline(st.baseline, entries),
-        maxUpd: core.bumpMaxUpdated(st.maxUpd, entries),
-      }), now)
-      if (dirty) {
-        // 差值命中：失效快照缓存（#213 白名单同语义）+ 标脏待回执。行级变更仍必须由 client 经
-        // probeNow → wf.probe（真值再确认）→ loadSnapshot(force silent) → diffSnapshots 收敛，零乐观插入。
-        try { cache = { ts: 0, snapshot: null, error: null, cwd: cwd } } catch {}
-        panelDirtySince[cwd] = Date.now()
-        // 容量防御：裁掉最旧（正常情况下限 = 活跃工作区数）
-        const ks = Object.keys(panelDirtySince)
-        if (ks.length > core.SYNC.DIRTY_MAP_CAP) {
-          let oldestK = ks[0]
-          for (let j = 1; j < ks.length; j++) if (panelDirtySince[ks[j]] < panelDirtySince[oldestK]) oldestK = ks[j]
-          delete panelDirtySince[oldestK]
-        }
-      }
     }
 
     // ============ 规整工作区钥匙（地图 #278 A 方案 · #279 落地）============
@@ -1575,29 +1442,6 @@ export default {
       let invalidSeen = false
       // ① fs 服务通道（DSH 沙箱 fs——现行构建读穿透；旧环境可能受工作区作用域限制，由 ② 顶替）
       for (let i = 0; i < candidates.length && !validHit; i++) {
-        const cand = candidates[i]
-        const cardPath = platform.path.join(cand.dir, 'SKILL.md')
-        const r = await probeCardViaFs(curFs, platform, cardPath, cand.dir, skillName)
-        channels.push({ channel: 'fs', root: cand.root, path: cardPath, result: r.result, detail: r.detail || '' })
-        if (r.result === 'valid') validHit = { path: cardPath, dir: cand.dir, via: 'fs:' + cand.root }
-        else if (r.result === 'invalid') invalidSeen = true
-      }
-      // ② 直读通道（插件只读直读——不经过 DSH fs 服务，绕开工作区作用域限制；仅技能标准根）
-      if (!validHit) {
-        for (let i = 0; i < candidates.length && !validHit; i++) {
-          const cand = candidates[i]
-          const cardPath = platform.path.join(cand.dir, 'SKILL.md')
-          const r = await probeCardViaDirect(cardPath, skillName)
-          channels.push({ channel: 'direct', root: cand.root, path: cardPath, result: r.result, detail: r.detail || '' })
-          if (r.result === 'valid') validHit = { path: cardPath, dir: cand.dir, via: 'direct:' + cand.root }
-          else if (r.result === 'invalid') invalidSeen = true
-        }
-      }
-      if (validHit) {
-        // 新契约：任一通道命中合法名片即已安装（附来源 + 注册表未收录的如实注记）
-        return { kind: 'ok', detail: (lang === 'en') ? 'Installed' : '已安装', hint: '', sourcePath: validHit.path, via: validHit.via, registryMiss: true, channels }
-      }
-      if (invalidSeen) {
         return { kind: 'invalid', detail: (lang === 'en') ? 'Invalid skill card' : '名片无效', hint: 'prompt:installSkills', channels }
       }
       return { kind: 'missing', detail: (lang === 'en') ? 'Not installed (missing)' : '未安装（缺失）', hint: 'prompt:installSkills', channels }
@@ -1725,38 +1569,6 @@ export default {
         }
         const platform = await getPlatform()
         // 用户显式选择（客户端持久化绑定）作为 detect hint——「主锚 > 用户选择 > matches」层级，见 detectionService.detect
-        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined }) }).catch(function(){ return null })
-        // 2026-08-28 语义修正（锚即真相，Q4 契约）：落盘主锚（detect 的 explicit/matches 判定）是权威——
-        //   工作区「错误地用 GitHub 模板初始化」→ 检测就是 github（工作区名字不影响检测）；
-        //   客户端绑定仅在 detect 无结论（无锚 fallback null / 探测中）时兜底，旧绑定记忆不得篡改已落盘的真相。
-        const selDetected = selMod && selMod.selection
-        // #297 失效维度：显式空（backendId null + source explicit）是权威“无后端”结论（如空目录 stale），不得再用旧 hint 兜底，否则蓝条永不重现
-        let backendId
-        if (selDetected && selDetected.backendId) {
-          backendId = selDetected.backendId
-        } else if (selDetected && selDetected.source === 'explicit' && selDetected.backendId === null) {
-          backendId = null
-        } else {
-          backendId = (args && args.backendId) || null
-        }
-        const genMod = await import('./tracker/generic.js')
-        const predMod = await import('./tracker/predicateRegistry.js')
-        // 2026-08-28 实机修复：单谓词超时 3000ms → 15000ms。
-        //   gh auth status / gh api 是真实网络调用（本机曾多次 TLS schannel 握手失败），3 秒必然超时，
-        //   导致「gh 已登录」「仓库可达」被误判并展示误导性修复指引；15s 给慢网络留余地（runGh 内部 30s 兜底）。
-        const registry = predMod.createPredicateRegistry({ timeout: 15000 })
-        if (typeof genMod.registerGenericPredicates === 'function') genMod.registerGenericPredicates(registry)
-        // #284 一致性修复（2026-08-28）：客户端显式绑定（backendId）优先——主锚与绑定不一致的过渡态（如锚=GitHub 版、
-        //   用户已绑 markdown）链不得两面矛盾（后端段 markdown、开门段 explicit:github）；selection/explicit 归一为绑定侧。
-        const selRaw = selMod && selMod.selection
-        const selConsistent = (selRaw && backendId && selRaw.backendId !== backendId)
-          ? Object.assign({}, selRaw, { backendId: backendId })
-          : selRaw
-        const expConsistent = (selConsistent && selConsistent.backendId)
-          ? selConsistent.backendId
-          : ((selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId) || null)
-        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
-        // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx) {
           try {
             // 2026-08-29（审查 S1）：detail 双语——中文界面不出现英文黑话行
@@ -2397,7 +2209,6 @@ export default {
               backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
             }
           } catch {}
-          // B: 补全调色盘全量（文件约束内满足契约：triage 表即全量表，未用标签也常驻，色取默认表；已用标签的色已在 labels 中为票面最终色）
           try {
             if(backendId==='markdown' && Array.isArray(labels) && backendModules){
               const mdMod = backendModules.find(function(m){ return m && m.id==='markdown' && Array.isArray(m.labelPalette) })
@@ -3117,7 +2928,6 @@ export default {
         const r = await tracker.setAssignees(repoRef, key, [assignee], {}, opCtx)
         if (!r || !r.ok) return r
         cache = { ts: 0, snapshot: null, error: null }
-        try { pushIssuePathEvent(n, 'claim') } catch (e) {}
         return { ok: true, number: n, assignedTo: assignee, url: '' }
       }
       const repo = await getRepoKey(cwd)
@@ -3129,66 +2939,7 @@ export default {
       const u = await runGh(['api', 'user', '-q', '.login'])
       if (u.ok) assignedTo = u.text.trim()
       cache = { ts: 0, snapshot: null, error: null }
-      try { pushIssuePathEvent(n, 'claim') } catch (e) {}
       return { ok: true, number: n, assignedTo: assignedTo, url: 'https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + String(n) }
-    })
-
-        // ============ issuePath · 1A+1B 推送通道（client 轮询） ============
-    harness.handle('wf.issuePathPoll', async function (args) {
-      const since = args && typeof args.since === 'number' ? args.since : 0
-      let cwdsIn = []
-      let visible = true
-      try {
-        const coreCap0 = await getPanelSyncCore()
-        const capN = (coreCap0 && coreCap0.SYNC && coreCap0.SYNC.MAX_POLLED_CWDS) || 12
-        cwdsIn = (args && Array.isArray(args.cwds))
-          ? args.cwds.filter(function (c) { return typeof c === 'string' && !!c }).slice(0, capN)
-          : []
-        visible = !(args && args.visible === false)
-      } catch (eArgs) {}
-      // #232 · 可见工作区的增量重求值（竞速护栏 3.5s：轮询面包屑通道不被拖死；
-      //   超时的余波在下一轮 tick 以 dirtyCwds 送达）。旧客户端不带 cwds → 行为与 #213 版本完全一致。
-      if (visible && cwdsIn.length) {
-        try {
-          await Promise.race([
-            panelSyncEvaluate(cwdsIn),
-            new Promise(function (res2) { timer.timeout(res2, 3500) }),
-          ]).catch(function () {})
-        } catch (ePollEval) { /* 评估异常不影响面包屑事件通道 */ }
-      }
-      const out = pendingIssuePathEvents.filter(function (e) { return e.ts > since })
-      // #232 · 确认式回执：未过期脏 cwd 每轮回执（重复无害——客户端短窗探针幂等合并，且 probe
-      //   changed 判定兜住）；仅当「本轮可见且上报覆盖到该 cwd」才算送达并即刻摘除；TTL 自愈防孤儿。
-      const dirtyCwds = []
-      try {
-        const coreSync = await getPanelSyncCore()
-        const ttl = (coreSync && coreSync.SYNC.DIRTY_ECHO_TTL_MS) || 60000
-        const cap = (coreSync && coreSync.SYNC.DIRTY_MAP_CAP) || 50
-        const nowMs = Date.now()
-        const keys = Object.keys(panelDirtySince)
-        for (let i = 0; i < keys.length; i++) {
-          const k = keys[i]
-          if (nowMs - panelDirtySince[k] > ttl) { delete panelDirtySince[k]; continue }
-          dirtyCwds.push(k)
-        }
-        // 容量防御：超限裁最旧（正常情况下限 = 活跃工作区数）
-        if (panelDirtySince && Object.keys(panelDirtySince).length > cap) {
-          const ks = Object.keys(panelDirtySince)
-          ks.sort(function (a, b) { return panelDirtySince[a] - panelDirtySince[b] })
-          while (ks.length > cap) delete panelDirtySince[ks.shift()]
-        }
-        if (visible && cwdsIn.length) {
-          for (let j = 0; j < cwdsIn.length; j++) delete panelDirtySince[cwdsIn[j]]
-        }
-      } catch (eEcho) { /* 回执层异常不影响面包屑通道；60s 全量探针兜底 */ }
-      return { ok: true, events: out.slice(-100), serverNow: Date.now(), dirtyCwds: dirtyCwds }
-    })
-    harness.handle('wf.issuePathPush', async function (args) {
-      const n = args && args.number
-      const src = args && args.source ? String(args.source) : 'mention'
-      if (!n) return { ok: false, error: '缺少 number' }
-      pushIssuePathEvent(n, src, args && args.title)
-      return { ok: true }
     })
 
     // ============ 命名守护（#265 · 草稿档垂直线 · host 半）============

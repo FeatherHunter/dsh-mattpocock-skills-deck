@@ -92,7 +92,7 @@ async function main() {
   const hostStart = hostSrc.indexOf('#232 · 面板增量同步')
   const syncEnd = hostSrc.indexOf('============ v1.5 T9：git 根检测', hostStart)
   const pollAt = hostSrc.indexOf("harness.handle('wf.issuePathPoll'")
-  check(hostStart > 0 && syncEnd > hostStart && pollAt > syncEnd, '#232 同步块位于事件队列之后、v1.5 T9 之前（装配次序合法）')
+  check(hostStart === -1 && pollAt === -1, '#232 面包屑通道与面板同步搭车位已随 #345 整块移除（hostStart/pollAt 均 -1）；变更检测由 wf.probe 的 since 语义原生承担')
   if (hostStart > 0 && syncEnd > hostStart) {
     const syncBlock = hostSrc.slice(hostStart, syncEnd)
     check(syncBlock.includes('getPanelSyncCore') && syncBlock.includes('../shared/tracker/sync.js'), '宿主经运行时 import 使用契约层单一真源')
@@ -109,18 +109,18 @@ async function main() {
     check(pollChunk.includes('dirtyCwds: dirtyCwds'), '响应回执 dirtyCwds 字段')
   }
   const storeSrc = readSrc('src/client/kernel/store.js').replace(/\r\n/g, '\n')
-  check(storeSrc.includes("host.call('wf.issuePathPoll', { since: _issuePathPollTs, cwds: cwdsOut })"), 'client poll 上报可见 cwd 列表')
-  check(storeSrc.includes('document.visibilityState'), 'hidden 时不上报 cwd（自动回落旧链路）')
-  check(storeSrc.includes('needProbeSource(ev.source)'), '探针触发源词汇表单源化（消灭三源字面量集合）')
-  check(!storeSrc.includes("ev.source === 'gh-create' || ev.source === 'gh-edit'"), '旧三源字面量判定已移除（第二真源清零）')
-  check(storeSrc.includes('if (hitShared || hitSelf) scheduleDirtyProbe()'), 'dirtyCwds 命中本工作区 → 短窗探针')
+  check(!storeSrc.includes("host.call('wf.issuePathPoll'"), 'client poll 通道已随 #345 彻底移除（不再上报可见 cwd 列表）')
+  check(!storeSrc.includes('pollIssuePathHost'), 'client 轮询函数 pollIssuePathHost 已随 #345 移除（视线门控随通道一并退役）')
+  check(!storeSrc.includes('needProbeSource(ev.source)'), '探针触发源判定已随面包屑通道移除（#345）；needProbeSource 纯函数保留于契约层供单测')
+  check(!storeSrc.includes("ev.source === 'gh-create'"), '旧三源字面量判定已移除（第二真源清零）')
+  check(!storeSrc.includes('scheduleDirtyProbe') && !storeSrc.includes('dirtyCwds'), 'dirtyCwds 回执消费已随 #345 移除（宿主侧缓存失效由 runGh 白名单与 wf.probe 承担）')
   const probeSrc = readSrc('src/client/kernel/probe.js').replace(/\r\n/g, '\n')
-  check(probeSrc.includes('export const scheduleDirtyProbe') && probeSrc.includes('SYNC.DIRTY_PROBE_DEBOUNCE_MS'), '内核短窗探针去抖值单源自 SYNC（消灭同值双源）')
+  check(!probeSrc.includes('scheduleDirtyProbe') && !probeSrc.includes('DIRTY_PROBE_DEBOUNCE_MS'), '内核短窗探针 scheduleDirtyProbe 已随 #345 移除（唯一触发源 dirtyCwds 回执不复存在）')
   check(probeSrc.includes('export const scheduleActionProbe'), '#213 动作长窗原样保留（零回归）')
 
   // #232 视线门控（R1–R4）· client 内核接线断言
-  check(storeSrc.includes('SYNC.POLL_GRID_MS'), '轮询栅格真源自契约层派生（UI 层不硬编码知道底层几秒刷一次）')
-  check(/setTimeout\(tick,\s*\(\(typeof SYNC/.test(storeSrc) && !/setTimeout\(tick,\s*\d{3,}\)/.test(storeSrc), '栅格裸字面量已清零（仅剩派生表达式内的兜底形态）')
+  check(!storeSrc.includes('SYNC.POLL_GRID_MS'), '面包屑轮询栅格已随 #345 移除（POLL_GRID_MS 契约常量保留于契约层）')
+  check(!/setTimeout\(tick,/.test(storeSrc), 'store 无轮询 tick 残留（栅格表达式随通道一并清除）')
   for (const nm of ['FALLBACK_PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'ACTION_PROBE_WINDOW_MS']) {
     check(probeSrc.includes('SYNC.' + nm), 'probe 节拍单源：SYNC.' + nm + ' 派生在场')
   }
@@ -130,7 +130,7 @@ async function main() {
 
   // 对抗评审收尾断言（5e7f219 后 fixup）：
   check(storeSrc.includes('SYNC.ISSUE_CACHE_TTL') && probeSrc.includes('SYNC.SNAP_FRESH_MS'), '详情 TTL 与面板新鲜阈值升格契约层（同值双源清零）')
-  check(((probeSrc.match(/visibilityState !== 'visible'/g) || []).length) >= 3, 'R3 闸覆盖三处发起入口：兜底 interval + 动作长窗回调 + 短窗回调（发起时刻资格复检）')
+  check(((probeSrc.match(/visibilityState !== 'visible'/g) || []).length) >= 2, 'R3 闸覆盖两处发起入口：兜底 interval + 动作长窗回调（短窗回调已随 #345 移除；发起时刻资格复检保留）')
   check(probeSrc.includes("addEventListener('visibilitychange'"), '切页签恢复通道二在场（visibilitychange，与 focus 共用限流）')
   check(storeSrc.includes('delete s2.status'), '落缓存前剥除 notModified/status/cached 传输态标记')
   const bSrc = readSrc('scripts/build.mjs')
@@ -142,7 +142,9 @@ async function main() {
 
   // ===================== C · 宿主分发端到端（需先构建）=====================
   const pkgIndex = path.join(ROOT, 'package/lib/index.js')
-  if (!fs.existsSync(pkgIndex)) {
+  if (pollAt === -1) {
+    console.log('  SKIP  C 段（#345 彻底移除后 issuePathPoll 分发通道不复存在，端到端断言随之退役；变更检测回归 wf.probe 原生 since 语义）')
+  } else if (!fs.existsSync(pkgIndex)) {
     console.log('  SKIP  C 段（先运行 node scripts/build.mjs 生成 package/lib）')
   } else {
     const TCWD = 'D:/0fake-ws/sync-demo'
