@@ -306,6 +306,7 @@ export default {
 
     let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；build 不得动它 —— 否则会吞掉同窗口编辑，见 buildSnapshot 处注释）
     let lastIssueIndexByRepo = {}                          // #2 deletion fix：保存上次全量 issue 索引，用于发现 GitHub 删除/状态消失
+
     // ============ gh 封装 ============
     // #195 修复：resolveGh 不再缓存失败（ghLastError 仅最近一次失败，环境修复后下次探测即恢复）
     async function resolveGh() {
@@ -1442,6 +1443,29 @@ export default {
       let invalidSeen = false
       // ① fs 服务通道（DSH 沙箱 fs——现行构建读穿透；旧环境可能受工作区作用域限制，由 ② 顶替）
       for (let i = 0; i < candidates.length && !validHit; i++) {
+        const cand = candidates[i]
+        const cardPath = platform.path.join(cand.dir, 'SKILL.md')
+        const r = await probeCardViaFs(curFs, platform, cardPath, cand.dir, skillName)
+        channels.push({ channel: 'fs', root: cand.root, path: cardPath, result: r.result, detail: r.detail || '' })
+        if (r.result === 'valid') validHit = { path: cardPath, dir: cand.dir, via: 'fs:' + cand.root }
+        else if (r.result === 'invalid') invalidSeen = true
+      }
+      // ② 直读通道（插件只读直读——不经过 DSH fs 服务，绕开工作区作用域限制；仅技能标准根）
+      if (!validHit) {
+        for (let i = 0; i < candidates.length && !validHit; i++) {
+          const cand = candidates[i]
+          const cardPath = platform.path.join(cand.dir, 'SKILL.md')
+          const r = await probeCardViaDirect(cardPath, skillName)
+          channels.push({ channel: 'direct', root: cand.root, path: cardPath, result: r.result, detail: r.detail || '' })
+          if (r.result === 'valid') validHit = { path: cardPath, dir: cand.dir, via: 'direct:' + cand.root }
+          else if (r.result === 'invalid') invalidSeen = true
+        }
+      }
+      if (validHit) {
+        // 新契约：任一通道命中合法名片即已安装（附来源 + 注册表未收录的如实注记）
+        return { kind: 'ok', detail: (lang === 'en') ? 'Installed' : '已安装', hint: '', sourcePath: validHit.path, via: validHit.via, registryMiss: true, channels }
+      }
+      if (invalidSeen) {
         return { kind: 'invalid', detail: (lang === 'en') ? 'Invalid skill card' : '名片无效', hint: 'prompt:installSkills', channels }
       }
       return { kind: 'missing', detail: (lang === 'en') ? 'Not installed (missing)' : '未安装（缺失）', hint: 'prompt:installSkills', channels }
@@ -1569,6 +1593,38 @@ export default {
         }
         const platform = await getPlatform()
         // 用户显式选择（客户端持久化绑定）作为 detect hint——「主锚 > 用户选择 > matches」层级，见 detectionService.detect
+        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined }) }).catch(function(){ return null })
+        // 2026-08-28 语义修正（锚即真相，Q4 契约）：落盘主锚（detect 的 explicit/matches 判定）是权威——
+        //   工作区「错误地用 GitHub 模板初始化」→ 检测就是 github（工作区名字不影响检测）；
+        //   客户端绑定仅在 detect 无结论（无锚 fallback null / 探测中）时兜底，旧绑定记忆不得篡改已落盘的真相。
+        const selDetected = selMod && selMod.selection
+        // #297 失效维度：显式空（backendId null + source explicit）是权威“无后端”结论（如空目录 stale），不得再用旧 hint 兜底，否则蓝条永不重现
+        let backendId
+        if (selDetected && selDetected.backendId) {
+          backendId = selDetected.backendId
+        } else if (selDetected && selDetected.source === 'explicit' && selDetected.backendId === null) {
+          backendId = null
+        } else {
+          backendId = (args && args.backendId) || null
+        }
+        const genMod = await import('./tracker/generic.js')
+        const predMod = await import('./tracker/predicateRegistry.js')
+        // 2026-08-28 实机修复：单谓词超时 3000ms → 15000ms。
+        //   gh auth status / gh api 是真实网络调用（本机曾多次 TLS schannel 握手失败），3 秒必然超时，
+        //   导致「gh 已登录」「仓库可达」被误判并展示误导性修复指引；15s 给慢网络留余地（runGh 内部 30s 兜底）。
+        const registry = predMod.createPredicateRegistry({ timeout: 15000 })
+        if (typeof genMod.registerGenericPredicates === 'function') genMod.registerGenericPredicates(registry)
+        // #284 一致性修复（2026-08-28）：客户端显式绑定（backendId）优先——主锚与绑定不一致的过渡态（如锚=GitHub 版、
+        //   用户已绑 markdown）链不得两面矛盾（后端段 markdown、开门段 explicit:github）；selection/explicit 归一为绑定侧。
+        const selRaw = selMod && selMod.selection
+        const selConsistent = (selRaw && backendId && selRaw.backendId !== backendId)
+          ? Object.assign({}, selRaw, { backendId: backendId })
+          : selRaw
+        const expConsistent = (selConsistent && selConsistent.backendId)
+          ? selConsistent.backendId
+          : ((selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId) || null)
+        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
+        // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx) {
           try {
             // 2026-08-29（审查 S1）：detail 双语——中文界面不出现英文黑话行
@@ -2209,6 +2265,7 @@ export default {
               backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
             }
           } catch {}
+          // B: 补全调色盘全量（文件约束内满足契约：triage 表即全量表，未用标签也常驻，色取默认表；已用标签的色已在 labels 中为票面最终色）
           try {
             if(backendId==='markdown' && Array.isArray(labels) && backendModules){
               const mdMod = backendModules.find(function(m){ return m && m.id==='markdown' && Array.isArray(m.labelPalette) })
