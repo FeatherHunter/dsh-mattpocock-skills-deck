@@ -1,0 +1,96 @@
+name: 发布 vX.Y.Z
+description: 按发布 Runbook 创建一次发布（8+4+2 清单），支持网页填版本与对话触发双入口同源
+title: "发布 vX.Y.Z"
+labels: ["release"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > 规范：[发布 Runbook · 生效日期 2026-08-31](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/blob/main/docs/releases/RELEASE-RUNBOOK.md) — 冲突时以更新日期者为准
+
+        本议题由发布模板生成（网页卡与对话触发双入口同源）。请将标题与正文中的 `vX.Y.Z` 替换为本次实际版本号（例如 `v1.7.9`），并按清单勾选执行。
+  - type: input
+    id: version
+    attributes:
+      label: 版本号
+      description: 填写本次发布版本号，例如 v1.7.9（未填时请勿猜测，需追问）
+      placeholder: "vX.Y.Z，例如 v1.7.9"
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        ## 8 项对外展示清单（必改，逐项可校验）
+
+        以下 8 项为每次发布必核的对外展示，清单不随技术细节漂移。
+  - type: checkboxes
+    id: checklist-8
+    attributes:
+      label: 8 项对外展示清单
+      description: 逐项勾选，确保对外可视位置无遗漏
+      options:
+        - label: "1. 根 `package.json` 与 `package/package.json` 版本同源且等于 `vX.Y.Z`"
+          required: true
+        - label: "2. `README.md` 三处锁定版本已对齐 `vX.Y.Z`（安装示例与锁定版本说明）"
+          required: true
+        - label: "3. `docs/README.en.md` 英文安装示例已对齐 `vX.Y.Z`"
+          required: true
+        - label: "4. `package/README.md` 首段版本已对齐 `vX.Y.Z`"
+          required: true
+        - label: "5. `CHANGELOG.md` 新增节已按统一模板编写（日期、版本、主题、提炼、对应提交、验证与影响）且与 GitHub Release 说明同文"
+          required: true
+        - label: "6. GitHub 仓库 About 描述已与 `package.json` 的 `description` 同句、逐项可校验且 human-first，无夸大（话题与描述同源）"
+          required: true
+        - label: "7. GitHub 话题包含 `dsh-plugin`"
+          required: true
+        - label: "8. `package.json` 的 `description` 与 `keywords` 已审核，awesome 描述按需已更新（仅实质变化时提交 PR，单条目、不手改生成产物、含冒号描述已加引号）"
+          required: true
+  - type: checkboxes
+    id: checklist-4
+    attributes:
+      label: 4 项隔离门禁（任一失败即阻断发布）
+      description: 在隔离环境中执行，不污染工作区与已装形态
+      options:
+        - label: "1. 在隔离环境执行构建与全部校验（`node scripts/build.mjs` 等），不污染当前工作区与已装形态"
+          required: true
+        - label: "2. 构建产物新鲜度与双产物一致性校验通过（根产物与包内产物逐字节一致）"
+          required: true
+        - label: "3. 冒烟测试与打包预览通过（`npm run test:smoke`、`npm pack --dry-run` 白名单与密钥检查）"
+          required: true
+        - label: "4. 官方源包名占用预检通过（`npm view --registry https://registry.npmjs.org --prefer-online` 显式跳过缓存）"
+          required: true
+  - type: checkboxes
+    id: checklist-2
+    attributes:
+      label: 2 项发布验证（官方源与已装形态）
+      description: 发布后独立可验证已生效
+      options:
+        - label: "1. 官方源查询验证通过（`npm view dsh-mattpocock-skills-deck --registry https://registry.npmjs.org --prefer-online` 可查到 `vX.Y.Z`）"
+          required: true
+        - label: "2. 已装形态验证通过（在已装 DSH 中版本号可见，面板行为符合发布内容）"
+          required: true
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        ## 发布顺序（无回滚）
+
+        1. 本地门禁全绿后提交并推送到 `main`
+        2. 发布到官方源（`npm publish --registry https://registry.npmjs.org`，网页 2FA 扫码一次）
+        3. 查询验证（`npm view --prefer-online`）
+        4. 打标签并推送（`git tag vX.Y.Z && git push origin vX.Y.Z`）
+        5. 创建 GitHub Release 并附产物说明（与 CHANGELOG 同文）
+        6. 验证已装形态
+
+        > 向导：基于 `wizard/template.sh` 的只扫码旅程（分段清屏、进度、显式打开链接、确认、落盘与收尾），可中断重跑且已落盘值被记住。详见 Runbook 第 6 节。
+
+        ---
+
+        ## 备注
+
+        - 本模板与 `docs/releases/release-issue-template.md` 同源，正文逐字一致（首行即引用 Runbook）。
+        - 未提供版本号时请勿猜测，需追问确认。
+        - awesome 侧更新保持按需原则，单条目且不手改生成产物。
+
+        > 对话触发：对 AI 说“按发布规范发版 vX.Y.Z”即可由 AI 代为创建同模板议题（读取本模板与 Runbook 后执行 gh issue create）。
