@@ -258,12 +258,16 @@
       const doLoad = async function () {
         // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
         try{ const _nk=keyOf(st.cwd||''); const _pend=pendingSnapshotByCwd.get(_nk); if(_pend&&_pend.promise) {
-          // 同 cwd 在途复用：新调用方挂载后从共享缓存水合，不再发第二份请求
-          return _pend.promise.then(function(snap){
-            // 在途结果已落 per-cwd 缓存（首发方 then 中 setCachedSnapshot），此处仅水合当前 store
-            try{ hydrateFromCache(st); emit(st); }catch(eHyd){}
-            return snap;
-          }).catch(function(e){ throw e; });
+          // #366 修复：force 不复用非 force 的在途请求——手动刷新必须走到 wf.refresh
+          const _shouldReuse = !force || _pend.force === true;
+          if (_shouldReuse) {
+            // 同 cwd 在途复用：新调用方挂载后从共享缓存水合，不再发第二份请求
+            return _pend.promise.then(function(snap){
+              // 在途结果已落 per-cwd 缓存（首发方 then 中 setCachedSnapshot），此处仅水合当前 store
+              try{ hydrateFromCache(st); emit(st); }catch(eHyd){}
+              return snap;
+            }).catch(function(e){ throw e; });
+          }
         } }catch(e){}
         // fix H1: remove global snapLoading guard — rely on per-cwd pendingSnapshotByCwd dedup (gate flake, #diagnosing-bugs)
         if (typeof host === 'undefined' || typeof host.call !== 'function') {
@@ -305,7 +309,7 @@
         const _rawP = force ? host.call('wf.refresh', args) : host.call('wf.snapshot', args);
         const _timeoutP = new Promise((_,rej)=>{ _timer=setTimeout(()=>{ try{_ctrl.abort();}catch{}; rej(new Error('client loadSnapshot timeout 30s')); },30000); });
         const p = Promise.race([_rawP, _timeoutP]).finally(function(){ try{clearTimeout(_timer);}catch{}; });
-        try{ pendingSnapshotByCwd.set(_normKeyP,{promise:p, controller:_ctrl}); p.finally(function(){ try{ pendingSnapshotByCwd.delete(_normKeyP);}catch{} }); }catch(e){}
+        try{ pendingSnapshotByCwd.set(_normKeyP,{promise:p, controller:_ctrl, force: !!force}); p.finally(function(){ try{ const cur=pendingSnapshotByCwd.get(_normKeyP); if(cur && cur.promise===p) pendingSnapshotByCwd.delete(_normKeyP);}catch{} }); }catch(e){}
         const _reqNorm = _normKeyP // capture request cwd for H2 stale discard
         return p.then(function (snap) {
           // #327 特性 A：对该工作区完成了一次检查（成功/304/串台落地均算——请求已真实发出并返回）→ 时间走针
@@ -318,7 +322,7 @@
             // （#45 串台回归防线不动）；setCachedSnapshot 自带 ok/maps 守卫，坏形自然丢弃。
             try { setCachedSnapshot(_reqNorm, snap) } catch (e232r4) {}
             st.snapLoading = false
-            try{ pendingSnapshotByCwd.delete(_normKeyP)}catch(e){}
+            try{ const cur2=pendingSnapshotByCwd.get(_normKeyP); if(cur2 && cur2.promise===p) pendingSnapshotByCwd.delete(_normKeyP);}catch(e){}
             return
           }
           st.snapLoading = false
@@ -565,6 +569,53 @@
       spinAll(true)
       emit(st)
       Promise.all([p1, p2]).then(function () {
+        // #366 修复：强制刷新后扇出到同工作区全组（对齐 probeNow→refreshGroup 的扇出契约）
+        try {
+          const newSnap = st.snapshot
+          if (newSnap && newSnap.ok === true && Array.isArray(newSnap.maps)) {
+            const normWanted = (typeof keyOf === 'function' ? keyOf(st.cwd||'') : String(st.cwd||''))
+            if (normWanted) {
+              const group = []
+              try { if (shared && shared.cwd && keyOf(shared.cwd) === normWanted && shared !== st) group.push(shared) } catch(e0){}
+              try { Object.keys(stores).forEach(function(k){ const st2=stores[k]; if(st2 && st2.cwd && keyOf(st2.cwd)===normWanted && st2!==st) group.push(st2) }) } catch(e1){}
+              group.forEach(function(st2){
+                try { st2.lastDiff = diffSnapshots(st2.snapshot, newSnap) } catch(eDiff){}
+                st2.rowFlash = {}
+                st2.issueFlash = {}
+                try {
+                  const _df = st2.lastDiff
+                  if (_df) {
+                    _df.added.forEach(function(n){ st2.rowFlash[n]='added' })
+                    _df.changed.forEach(function(n){ st2.rowFlash[n]='changed' })
+                    if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function(k){ st2.issueFlash[Number(k)]=_df.issueFlash[k] })
+                    if (_df.removed && _df.removed.length) try{ flash(st2, tr('panel.diffRemoved',{n:_df.removed.length}), 'info') }catch(eFlash){}
+                  }
+                } catch(e2){}
+                st2.snapshot = newSnap
+                st2.snapMode = 'real'
+                st2.snapError = null
+                try{ if(typeof applySnapshotSelection==='function') applySnapshotSelection(st2, newSnap)}catch(eSel){}
+                try{ scheduleFlashClear(st2)}catch(eSch){}
+                emit(st2)
+              })
+            }
+          }
+        } catch(eFan){}
+        // 链快照同工作区扇出（#366 补充：refreshAll 同时刷新 chain，保持状态栏与面板链一致）
+        try {
+          const newChainSnap = st.chainSnapshot
+          if (newChainSnap && typeof newChainSnap === 'object') {
+            const normWanted2 = (typeof keyOf === 'function' ? keyOf(st.cwd||'') : String(st.cwd||''))
+            if (normWanted2) {
+              const group2 = []
+              try { if (shared && shared.cwd && keyOf(shared.cwd) === normWanted2 && shared !== st && shared.chainSnapshot !== newChainSnap) group2.push(shared) } catch(e0c){}
+              try { Object.keys(stores).forEach(function(k){ const st2=stores[k]; if(st2 && st2.cwd && keyOf(st2.cwd)===normWanted2 && st2!==st && st2.chainSnapshot !== newChainSnap) group2.push(st2) }) } catch(e1c){}
+              group2.forEach(function(st2){
+                try { st2.chainSnapshot = newChainSnap; if(newChainSnap.chain) st2.chain = newChainSnap.chain; if(newChainSnap.fullChain) st2.fullChain = newChainSnap.fullChain; if(newChainSnap.backendChain!==undefined) st2.backendChain = newChainSnap.backendChain; st2.chainLoadedAt = st.chainLoadedAt; emit(st2) } catch(eChain){}
+              })
+            }
+          }
+        } catch(eFan2){}
         st.refreshing = false
         spinAll(false)
         emit(st)

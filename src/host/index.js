@@ -2398,12 +2398,8 @@ export default {
             return adoptSnapshot(snapNoRepo, cwd)
           }
         }
-        const repo0b = await getRepoKey(cwd)
-        const diskb = await readDiskCache(repo0b)
-        if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
-          const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
-          if (currentb !== false) return adoptSnapshot(Object.assign({}, diskb, { fromCache: true }), cwd)
-        }
+        // #366 fix: wf.refresh must bypass disk cache short-circuit (force rebuild with fresh generatedMs)
+        void 0;
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
         const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
