@@ -71,15 +71,18 @@ const statChecks = function (src, tag) {
   ok('V2 · 不再有 let dn 阈值计算', !/let dn = 0/.test(src))
   // 注：DetailsDock（#15 面板列宽）自有 [dw,setDw]，不在此处断言（非 StatusBar 胶囊体系）
 
-  // 期望（R13 对齐）：capsule 外框像素级对齐输入框
+  // 期望（R13 对齐 - 第一性原理 B）：胶囊与输入卡同源，不再 JS 量像素
+  // 旧 R13 iw 已退休，改为 CSS 变量驱动：width:100% + max-width:var(--dsh-composer-card-max-width)
   ok('R13 · 胶囊 CSS 默认 width:100%（撑满 wrapper=输入区）', /\.dsws-capsule\{[^}]*width:100%/.test(src))
-  ok('R13 · 胶囊 CSS box-sizing:border-box（外框 = iw = textarea 外框）', /\.dsws-capsule\{[^}]*box-sizing:border-box/.test(src))
-  ok('R13 · inline width = iw + px（外框始终 = 输入框外框）', /style:\s*\{[^}]*width:\s*iw\s*\+\s*'px'[\s\S]{0,60}maxWidth:\s*iw\s*\+\s*'px'/.test(src))
-  ok('R13 · 旧 fit-content 弃用（不再无条件跟随 children 自然宽）', !/\.dsws-capsule\{[^}]*width:fit-content/.test(src) && !/style:\s*\{[^}]*width:\s*'fit-content'/.test(src))
-  ok('R9 · StatusBar 用 document.querySelector 找 DSH 输入框 textarea.uV2eYG_input', /document\.querySelector\(['"]textarea\.uV2eYG_input['"]\)/.test(src))
-  ok('R9 · ResizeObserver 监听 inputRef（iw 对齐信号）', /roInput\.observe\(inputRef\.current\)/.test(src))
-  ok('R9 · useEffect 清理 disconnect ResizeObserver（防泄漏）', /roInput\.disconnect\(\)[\s\S]{0,80}roFold\.disconnect\(\)/.test(src))
-  ok('R9 · 轮询兜底（DSH shell 切换对话时 textarea 重新挂载）', /setInterval\(applyAll, 2000\)/.test(src))
+  ok('R13 · 胶囊 CSS box-sizing:border-box', /\.dsws-capsule\{[^}]*box-sizing:border-box/.test(src))
+  ok('R13 · 胶囊 CSS max-width 复用宿主变量 --dsh-composer-card-max-width（与输入卡同源）', /--dsh-composer-card-max-width/.test(src))
+  ok('R13 · inline 胶囊 width:100%（不再用 iw 像素）', /className:\s*['"]dsws-capsule['"][\s\S]{0,120}width:\s*'100%'/.test(src))
+  ok('R13 · inline 不再含 iw 像素（旧方案已退休）', !/width:\s*iw\s*\+\s*'px'/.test(src))
+  ok('R13 · 旧 fit-content 弃用', !/\.dsws-capsule\{[^}]*width:fit-content/.test(src) && !/style:\s*\{[^}]*width:\s*'fit-content'/.test(src))
+  ok('R9 · 第一性原理：不再查询特定 textarea 类名（已去耦）', !/textarea\.uV2eYG_input/.test(src))
+  ok('R9 · ResizeObserver 监听 foldRef 及其 parent（可用宽变化即折叠）', /new ResizeObserver\(function\s*\(\)\s*\{\s*applyFold\(\)\s*\}\)[\s\S]{0,300}roFold\.observe\(foldRef\.current\)/.test(src) && /roParent\.observe/.test(src))
+  ok('R9 · useEffect 清理断开 roFold/roParent（防泄漏）', /roFold\.disconnect\(\)[\s\S]{0,120}roParent\.disconnect\(\)/.test(src))
+  ok('R9 · 轮询兜底保留（字体/宿主重排）', /setInterval\(applyAll, 2000\)/.test(src))
   ok('R12 · !firstBlock 分支 wrapper 含 flex:\'none\'（防 flex-shrink 压矮）', /display:\s*'flex',\s*flex:\s*'none',\s*justifyContent:\s*'center'/.test(src))
   ok('R12 · firstBlock 分支 wrapper 含 flex:\'none\'（横幅 + 胶囊列布局同样防压缩）', /display:\s*'flex',\s*flex:\s*'none',\s*flexDirection:\s*'column'/.test(src))
   ok('R6b · !firstBlock 分支 wrapper 不再含 alignItems:\'stretch\'', !/display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,200}alignItems:\s*'stretch'/.test(src))

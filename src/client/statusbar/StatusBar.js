@@ -65,13 +65,11 @@ export const StatusBar = (props) => {
     if (_isOtherSBGate && tab!=='settings') { try{ s.tab='settings'; }catch(e){}; return }
     s.tab = tab; openPanel(s)
   }
-  const inputRef = React.useRef(null)
   const foldRef = React.useRef(null)
   const bugAnchorRef = React.useRef(null)
   const bugCloseRef = React.useRef(null)
   const backendAnchorRef = React.useRef(null)
   const backendCloseRef = React.useRef(null)
-  const [iw, setIw] = React.useState(780)
   const placeOverlay = function (el, align) {
     if (!el || typeof window === 'undefined') return null
     const r = el.getBoundingClientRect()
@@ -188,43 +186,30 @@ export const StatusBar = (props) => {
     cap.classList.remove('dsws-no-anim')
   }
   React.useEffect(function () {
-    let roInput = null
-    const applyInput = function () {
-      try {
-        const fresh = document.querySelector('textarea.uV2eYG_input')
-        const ta = fresh || inputRef.current
-        if (!ta) return
-        if (fresh && fresh !== inputRef.current) {
-          try { if (roInput) roInput.disconnect() } catch (e) {}
-          inputRef.current = fresh
-          try { if (roInput) roInput.observe(fresh) } catch (e) {}
-        }
-        const w = ta.getBoundingClientRect().width
-        // 过滤异常 0 宽（工作区切换时旧节点脱离文档会返回 0），保留上一次有效宽度避免胶囊瞬间消失
-        if (w > 16) setIw(w)
-      } catch (e) {}
-    }
-    const initial = document.querySelector('textarea.uV2eYG_input')
-    if (initial) inputRef.current = initial
-    applyInput()
-    roInput = new ResizeObserver(applyInput)
-    if (inputRef.current) { try { roInput.observe(inputRef.current) } catch (e) {} }
+    // 第一性原理方案 B：胶囊宽度不再 JS 设像素，完全由 CSS 变量 --dsh-composer-card-max-width 驱动（与输入卡同源）。
+    // 旧方案量具体 textarea 卡死 780 的根因已消除；此处仅负责内容折叠（applyFold）对可用宽度的响应。
+    // 可用宽 = 胶囊 clientWidth（已由 CSS 随对话框 --dsh-conversation-column-width 自动伸缩），
+    // 因此只需观察胶囊及其父容器的尺寸变化即可触发折叠，无需再监听输入框。
     const roFold = new ResizeObserver(function () { applyFold() })
-    const applyAll = function () { applyInput(); applyFold() }
+    const roParent = new ResizeObserver(function () { applyFold() })
+    const applyAll = function () { applyFold() }
     applyFold()
-    if (foldRef.current) roFold.observe(foldRef.current)
+    if (foldRef.current) {
+      roFold.observe(foldRef.current)
+      try { if (foldRef.current.parentElement) roParent.observe(foldRef.current.parentElement) } catch(e){}
+    }
     window.addEventListener('resize', applyAll)
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyFold)
     const poll = setInterval(applyAll, 2000)
     return function () {
-      try { if (roInput) roInput.disconnect() } catch (e) {}
       try { roFold.disconnect() } catch (e) {}
+      try { roParent.disconnect() } catch(e){}
       window.removeEventListener('resize', applyAll)
       clearInterval(poll)
     }
   }, [])
   // 优化3：胶囊恒渲染（任何情况下不隐藏）；未选后端时其上方叠加 gate 蓝条引导入口
-  const capsule = h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { openPanel(s) }, style: { position: 'relative', width: iw + 'px', maxWidth: iw + 'px' } }, [
+  const capsule = h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { openPanel(s) }, style: { position: 'relative', width: '100%', boxSizing: 'border-box' } }, [
     h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
       Icon({ scheme: s.ui.icon, size: 14 }),
       h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
