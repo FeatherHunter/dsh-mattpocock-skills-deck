@@ -149,6 +149,10 @@ export const prompts = {
     zh: '/wayfinder (请输入任务需求)',
     en: '/wayfinder (enter the task requirement)',
   },
+  subIssue: {
+    zh: '创后 setParent(map.key) 建边；以 list({parentKey}) 校验计数与预期一致',
+    en: 'setParent(map.key) after creation; verify with list({parentKey}) equals expected'
+  },
 }
 
 /** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。

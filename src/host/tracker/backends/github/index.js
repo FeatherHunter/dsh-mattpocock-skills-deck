@@ -191,6 +191,10 @@ export const prompts = (function () {
       zh: '当前仓库无法通过 GitHub API 访问（gh api repos/{owner}/{name} 失败）。请按序排查：\n1. 仓库存在性：gh repo view <owner>/<name> --json nameWithOwner；不存在 → 与用户确认后执行 gh repo create（仓库名/可见性先确认）；\n2. 访问权限：gh auth status 确认登录账号；私有仓库需该账号有权限（403/404 都可能是权限问题）；\n3. 网络/代理：gh config get http_proxy 与网络连通性。\n排查修复后请用户点「重新检查」。',
       en: 'The repository is not reachable via the GitHub API (gh api repos/{owner}/{name} failed). Investigate in order:\n1. Existence: gh repo view <owner>/<name> --json nameWithOwner; if missing → confirm with the user, then gh repo create (confirm name/visibility first);\n2. Permissions: gh auth status to confirm the account; private repos need access for this account (403/404 can both be permission issues);\n3. Network/proxy: gh config get http_proxy and connectivity.\nAfter fixing, ask the user to re-check.',
     },
+    subIssue: {
+      zh: '先 gh api repos/{owner}/{repo}/issues/{child} --jq .id 取子议题数据库 id，再 gh api repos/{owner}/{repo}/issues/{map}/sub_issues -X POST -F sub_issue_id={id} 建边；以 gh api repos/{owner}/{repo}/issues/{map}/sub_issues --jq length 校验计数与预期一致',
+      en: 'first gh api repos/{owner}/{repo}/issues/{child} --jq .id for child id, then gh api repos/{owner}/{repo}/issues/{map}/sub_issues -X POST -F sub_issue_id={id}; verify with gh api repos/{owner}/{repo}/issues/{map}/sub_issues --jq length equals expected'
+    },
     errorKinds: {
       'no-git': { zh: '未找到 git，请先安装 Git', en: 'git not found — please install Git' },
       'no-gh': { zh: '未找到 gh，请先安装 GitHub CLI', en: 'gh not found — please install GitHub CLI' },

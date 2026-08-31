@@ -139,6 +139,10 @@ export const prompts = {
     zh: '当前工作区未解析出 GitLab 仓库（glab 无法定位 owner/project）。请先向用户确认意图：\nA. 本地项目（不需要 GitLab）→ 切换到「本地 Markdown」后端；\nB. 确实要用 GitLab → 核对 remote 指向（git remote get-url origin / glab config），或 glab repo create 创建并关联；\n完成后请用户点「重查」。',
     en: 'No GitLab repository resolved for the current workspace. Confirm intent: A. local project → switch to "Local Markdown"; B. GitLab really wanted → verify the remote (git remote get-url origin / glab config), or create/associate via glab repo create; then ask the user to re-check.',
   },
+  subIssue: {
+    zh: '通过 GitLab API 的子议题关联建边；以 list({parentKey}) 校验计数与预期一致',
+    en: 'via GitLab API sub-issue association; verify with list({parentKey}) equals expected'
+  },
 }
 
 /** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。 */
