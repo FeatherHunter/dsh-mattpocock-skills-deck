@@ -11,6 +11,32 @@
     // #284 修订（对抗式审查 2026-08-28）：并发门——同 cwd 同轮次的 in-flight 请求复用；
     //   面板多组件（ChecksTab/StatusBar/Dock）挂载并发调用不再重复触发 25 名技能探测与 gh 网络调用。
     const _chainInflightByCwd = new Map()
+    // #344 修复（2026-08-31）：链自动重求值 — 当链非全绿时周期 force 重算，直至全绿后停止
+    // 原理：tracker:initialized 等声明式检查的推进只来自重求值，初始化完成后文件写入为链外事件；
+    // 宿主侧链缓存“未全绿不缓存”已保证 force 可穿透，但客户端无自动触发导致黄条常驻需手动点“重查”。
+    // 本调度在每次链加载后检查，若存在非 done 步骤则 8s 后自动 force 重算，跨工作区隔离、单定时器防抖。
+    const CHAIN_AUTO_POLL_MS = 8000
+    const _chainAutoPollTimers = new Map()
+    export const scheduleChainAutoRefresh = function(st, ms){
+      try{
+        const bid = (st.selection && st.selection.backendId) || ''
+        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, bid) : String(st.cwd||'')+'|'+String(bid))
+        if(!key || _chainAutoPollTimers.has(key)) return
+        const delay = (typeof ms === 'number' && ms>0) ? ms : CHAIN_AUTO_POLL_MS
+        const tid = (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function')
+          ? timer.timeout(function(){ _chainAutoPollTimers.delete(key); try{ const snap = st.chainSnapshot; const steps = snap && Array.isArray(snap.steps) ? snap.steps : []; const notDone = steps.some(function(s){ return s.status !== 'done' }); if(notDone && st.cwd) loadChain(st, true) }catch(e){} }, delay)
+          : setTimeout(function(){ _chainAutoPollTimers.delete(key); try{ const snap = st.chainSnapshot; const steps = snap && Array.isArray(snap.steps) ? snap.steps : []; const notDone = steps.some(function(s){ return s.status !== 'done' }); if(notDone && st.cwd) loadChain(st, true) }catch(e){} }, delay)
+        _chainAutoPollTimers.set(key, tid)
+      }catch(e){}
+    }
+    export const cancelChainAutoRefresh = function(st){
+      try{
+        const bid = (st.selection && st.selection.backendId) || ''
+        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, bid) : String(st.cwd||'')+'|'+String(bid))
+        const tid = _chainAutoPollTimers.get(key)
+        if(tid){ try{ clearTimeout(tid) }catch(e){} _chainAutoPollTimers.delete(key) }
+      }catch(e){}
+    }
     export const loadChain = function(st, force){
       if (typeof host === 'undefined' || typeof host.call !== 'function') return Promise.resolve(null)
       // 链共享键 = 工作区键 + 后端 id（#324），确保按工作区单次求值且按后端隔离
@@ -49,10 +75,20 @@
           // 落共享缓存，供同工作区其他会话秒显
           try { if (typeof setCachedChain === 'function') setCachedChain(st.cwd, _backendIdForChain, snap) } catch(eSet){}
           emit(st)
+          // #344 自动重求值调度：非全绿时安排下一次 force 重算，全绿时取消
+          try{
+            const steps = snap && Array.isArray(snap.steps) ? snap.steps : []
+            const notDone = steps.some(function(s){ return s.status !== 'done' })
+            if(notDone) scheduleChainAutoRefresh(st, CHAIN_AUTO_POLL_MS)
+            else cancelChainAutoRefresh(st)
+          }catch(eAuto){}
           return snap
         }
         return null
-      }).catch(function(e){ return null }).finally(function(){ try { _chainInflightByCwd.delete(norm) } catch (e) {} })
+      }).catch(function(e){
+        // #344 加固：宿主异常也安排重试（探测暂时不可用时 8s 后再探，避免黄条卡死）
+        try{ const snapPrev = st.chainSnapshot; const stepsPrev = snapPrev && Array.isArray(snapPrev.steps) ? snapPrev.steps : []; const notDonePrev = stepsPrev.length ? stepsPrev.some(function(s){ return s.status !== 'done' }) : true; if(notDonePrev && st.cwd) scheduleChainAutoRefresh(st, CHAIN_AUTO_POLL_MS) }catch(eRetry){}
+        return null }).finally(function(){ try { _chainInflightByCwd.delete(norm) } catch (e) {} })
       if (!force) _chainInflightByCwd.set(norm, p)
       return p
     }

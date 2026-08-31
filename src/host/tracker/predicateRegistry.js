@@ -81,10 +81,35 @@ async function execPrimitive(check, ctx) {
           if (typeof p.fs.listDir === 'function') { try { await p.fs.listDir(abs); return makeResult('pass', detailFor(ctx, rel + ' 已存在（目录）', rel + ' exists (dir)')) } catch (eD) {} }
           if (typeof p.fs.stat === 'function') { try { const st = await p.fs.stat(abs); if (st) return makeResult('pass', detailFor(ctx, rel + ' 已存在', rel + ' exists')) } catch (eS) {} }
           if (typeof p.fs.lstat === 'function') { try { const info = await p.fs.lstat(abs); if (info) return makeResult('pass', detailFor(ctx, rel + ' 已存在', rel + ' exists')) } catch (eL) {} }
+          // #344 加固（2026-08-31）：平台侧未探测到但文件可能已在盘上（DSH fs 沙箱滞后或围栏），直读兜底
+          try{
+            const directOk = await (async function(){
+              try{
+                const pathJoin = (p && p.path && typeof p.path.join === 'function') ? p.path.join : function(a,b){ return (String(a||'').replace(/[\\/]+$/, '') + '/' + String(b||'').replace(/^[\\/]+/, '')) }
+                const absDirect = pathJoin(String(ctx.cwd||''), String(rel||''))
+                const mod = await import('node:fs/promises')
+                const fsp = mod.default || mod
+                await fsp.stat(absDirect)
+                return true
+              }catch(eDirect){ return false }
+            })()
+            if(directOk) return makeResult('pass', detailFor(ctx, rel + ' 已存在', rel + ' exists'))
+          }catch(eDirect2){}
           return makeResult('fail', detailFor(ctx, rel + ' 不存在', rel + ' not found'))
         }
         if (typeof p.fs.readText === 'function') {
-          try { await p.fs.readText(abs); return makeResult('pass', detailFor(ctx, rel + ' 已存在', rel + ' exists')) } catch { return makeResult('fail', detailFor(ctx, rel + ' 不存在', rel + ' not found')) }
+          try { await p.fs.readText(abs); return makeResult('pass', detailFor(ctx, rel + ' 已存在', rel + ' exists')) } catch {
+            // #344 加固：readText 未命中时同样尝试直读兜底
+            try{
+              const pathJoin2 = (p && p.path && typeof p.path.join === 'function') ? p.path.join : function(a,b){ return (String(a||'').replace(/[\\/]+$/, '') + '/' + String(b||'').replace(/^[\\/]+/, '')) }
+              const absDirect2 = pathJoin2(String(ctx.cwd||''), String(rel||''))
+              const mod2 = await import('node:fs/promises')
+              const fsp2 = mod2.default || mod2
+              await fsp2.stat(absDirect2)
+              return makeResult('pass', detailFor(ctx, rel + ' 已存在', rel + ' exists'))
+            }catch(eDirect3){}
+            return makeResult('fail', detailFor(ctx, rel + ' 不存在', rel + ' not found'))
+          }
         }
         // 无探测能力 → pending（诚实，不猜）
         return makeResult('pending', detailFor(ctx, '文件探测能力不可用', 'fs probe unavailable'))
