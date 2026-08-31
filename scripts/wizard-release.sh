@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# scripts/wizard-release.sh — 只扫码的发布向导（基于 wizard/template.sh）
+# scripts/wizard-release.sh — 只扫码的发布向导（基于 wizard/template.sh，AI 全驱动零手动命令）
 #
 # 旅程：确认提交已推送与工作区干净 → 发布并弹浏览器完成 2FA → 官方源验证 → 已装形态验证
 # 体验：需要浏览器授权时在用户桌面弹出可见窗口并打开授权链接，用户仅需扫码一次，
 #       其余轮询与验证由工具在后台完成；可中断重跑，已落盘值被记住。
+# 原则：零手动命令 — 本向导由 AI 触发与步进（AI 执行 bash/scripts 与 git/npm/gh），人仅扫码；禁止要求人手动敲命令。
 # 发布契约：以单一高层 gate（tests/verify-release-contract.js）覆盖 8 项清单同源性与双入口一致性，
 #           任一失败即阻断，不为每项各起低层测试。
 # 用法：

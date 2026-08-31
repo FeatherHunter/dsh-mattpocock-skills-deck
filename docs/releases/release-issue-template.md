@@ -1,5 +1,7 @@
 > 规范：[发布 Runbook · 生效日期 2026-08-31](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/blob/main/docs/releases/RELEASE-RUNBOOK.md) — 冲突时以更新日期者为准
 
+> **零手动命令**：本议题创建后，**AI 全驱动执行**（AI 按 Runbook 跑向导、执行 `git`/`npm`/`gh`、落盘与轮询），**人只需在浏览器授权页扫码一次**；**禁止要求人手动敲任何命令**，清单中的命令为 AI 的执行清单。
+
 # 发布 vX.Y.Z
 
 > 本议题由发布模板生成（网页卡或对话触发双入口同源）。请将标题与正文中的 `vX.Y.Z` 替换为本次实际版本号（例如 `v1.7.9`），并按清单勾选执行。语义化口径：修补递增用于缺陷与收口、次版本递增用于新增能力、主版本递增用于破坏契约。
@@ -53,7 +55,7 @@
 5. 创建 GitHub Release 并附产物说明（与 CHANGELOG 同文）
 6. 验证已装形态
 
-> 向导：`bash scripts/wizard-release.sh vX.Y.Z` 基于 `wizard/template.sh` 的只扫码旅程（分段清屏、进度、显式打开链接、确认、落盘与收尾，6 段：工作区与推送确认 → 隔离门禁 → 发布弹浏览器一次扫码 → 官方源轮询 → 已装形态验证），可中断重跑且已落盘值在 `.wizard-release.env` 中被记住；契约由 `tests/verify-release-contract.js` 单一高层 gate 保障，失败即阻断。详见 `docs/releases/RELEASE-RUNBOOK.md` 第 6、11 节。
+> 向导：由 **AI 触发** `bash scripts/wizard-release.sh vX.Y.Z`（基于 `wizard/template.sh` 的只扫码旅程，AI 全驱动）（分段清屏、进度、显式打开链接、确认、落盘与收尾，6 段：工作区与推送确认 → 隔离门禁 → 发布弹浏览器一次扫码 → 官方源轮询 → 已装形态验证），可中断重跑且已落盘值在 `.wizard-release.env` 中被记住；契约由 `tests/verify-release-contract.js` 单一高层 gate 保障，失败即阻断。详见 `docs/releases/RELEASE-RUNBOOK.md` 第 6、11 节。
 
 ---
 
