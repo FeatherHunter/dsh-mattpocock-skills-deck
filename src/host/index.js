@@ -2398,6 +2398,7 @@ export default {
             return adoptSnapshot(snapNoRepo, cwd)
           }
         }
+        const repo0b = await getRepoKey(cwd)
         // #366 fix: wf.refresh must bypass disk cache short-circuit (force rebuild with fresh generatedMs)
         void 0;
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }

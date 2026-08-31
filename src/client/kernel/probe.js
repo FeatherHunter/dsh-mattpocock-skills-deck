@@ -563,7 +563,9 @@
       // #195 约束：refreshAll 永不因 refreshing 锁死（重查按钮必须有反应）
       st.refreshing = true
       // 先发 RPC（异步即返回），再触发渲染 —— 避免重渲染挡住数据请求
-      var p1 = (typeof loadChain === 'function' ? loadChain(st, true).catch(function(){}) : Promise.resolve())
+      var _p1Raw = (typeof loadChain === 'function' ? loadChain(st, true).catch(function(){}) : Promise.resolve())
+      // #366 补充：链刷新兜底超时，避免宿主链探测卡住导致按钮一直转圈
+      var p1 = new Promise(function(resolve){ var _t=setTimeout(function(){ try{ resolve(null); }catch(e){} }, 15000); _p1Raw.then(function(v){ clearTimeout(_t); resolve(v); }).catch(function(){ clearTimeout(_t); resolve(null); }); });
       var p2 = loadSnapshot(st, true, true)
       var p3 = Promise.resolve()
       spinAll(true)
