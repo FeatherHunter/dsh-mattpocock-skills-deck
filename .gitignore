@@ -40,3 +40,5 @@ _research/
 /learning-records/
 /assets/teach.css
 /assets/quiz.js
+.env
+.wizard-release.env

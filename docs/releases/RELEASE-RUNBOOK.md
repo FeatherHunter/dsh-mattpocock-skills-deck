@@ -75,11 +75,13 @@
 
 ## 6. 向导子流程的封装（基于 wizard/template.sh 统一向导库）
 
-向导基于统一的向导库，按分段清屏、进度、显式打开链接、确认、落盘与收尾的节律组织：
+向导基于统一的向导库 `wizard/template.sh`，按分段清屏、进度、显式打开链接、确认、落盘与收尾的节律组织：
 
-- 旅程覆盖：确认提交已推送与工作区干净 → 发布并弹浏览器 → 官方源验证 → 已装形态验证与面板行为复核。
-- 中途可中断重跑，已落盘值被记住（`.env` 或向导记忆文件）。
-- 每一段只聚焦当前任务，可重复执行。
+- 库文件：`wizard/template.sh`（提供 `_clear`/`banner`/`stage` 分段清屏与进度、`open_url` 显式打开链接、`pause`/`confirm` 确认、`write_env`/`ENV_FILE` 落盘与 `finish` 收尾，以及 `poll_npm_version` 轮询辅助；被各向导 `source`，可中断重跑且已落盘值被记住）
+- 发布向导：`scripts/wizard-release.sh`（基于 `wizard/template.sh`，6 段旅程，可中断重跑，已落盘值在 `.wizard-release.env` 中被记住，重跑时自动回填）
+- 旅程覆盖：确认提交已推送与工作区干净 → 发布并弹浏览器完成 2FA → 官方源验证（后台轮询） → 已装形态验证与面板行为复核
+- 每一段只聚焦当前任务，可重复执行；落盘键为 `WIZARD_RELEASE_VERSION` 等，`--dry-run` 可仅演练门禁
+- 校验阻断：向导首段即调用 `tests/verify-release-contract.js` 单一高层校验，任一失败即阻断后续发布步骤
 
 ---
 
@@ -124,12 +126,14 @@
 
 ## 11. 验证
 
-- 发布校验以单一高层的发布契约校验覆盖全部 8 项清单与双入口的一致性，优于为每个清单项各自补低层测试。
-- 校验断言：版本同源、说明锁定、变更历史与 Release 同文、包白名单、模板与网页卡同源；校验失败时给出待改清单且阻断后续发布。
-- 将被测试的模块：runbook 文档的存在性与引用关系、模板与网页卡的渲染一致性、向导脚本的语法与可执行性、隔离门禁链的闭环、双产物一致性。
+- 发布校验以单一高层的发布契约校验覆盖全部 8 项清单与双入口的一致性，优于为每个清单项各自补低层测试。单一入口：`node tests/verify-release-contract.js --version vX.Y.Z`（亦可无参，自动取 `package.json` 当前版本）。
+- 校验断言：版本同源、说明锁定、变更历史与 Release 同文、包白名单、模板与网页卡同源、向导契约（`wizard/template.sh` 与 `scripts/wizard-release.sh` 的只扫码旅程与落盘语义）；校验失败时给出待改清单且阻断后续发布（`exit 1`）。
+- 向导联动：`scripts/wizard-release.sh` 首段即调用本 gate，失败直接 `exit 1`，不进入 `npm publish`；`--dry-run` 仍执行校验但演示后续旅程。
+- 将被测试的模块：runbook 文档的存在性与引用关系、模板与网页卡的渲染一致性、向导脚本的语法与可执行性（`bash -n`）、隔离门禁链的闭环、双产物一致性；双入口一致性由 `tests/verify-release-template.js` 另行保障，两门禁均挂入 `npm run verify`。
 
 ---
 
 ## 附：修订记录
 
 - 2026-08-31 初版：以 map #353 的 Implementation Decisions 为基线固化，生效日期 2026-08-31。
+- 2026-08-31 增补 #356：落地 `wizard/template.sh` 统一向导库与 `scripts/wizard-release.sh` 只扫码向导（6 段旅程、分段清屏/进度/显式打开链接/确认/落盘与收尾、可中断重跑、浏览器授权页仅扫码一次、后台轮询验证），并新增单一高层发布契约校验 `tests/verify-release-contract.js`（覆盖版本同源等 6 类，失败给待改清单且阻断发布）。

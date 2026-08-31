@@ -53,7 +53,7 @@
 5. 创建 GitHub Release 并附产物说明（与 CHANGELOG 同文）
 6. 验证已装形态
 
-> 向导：基于 `wizard/template.sh` 的只扫码旅程（分段清屏、进度、显式打开链接、确认、落盘与收尾），可中断重跑且已落盘值被记住。详见 `docs/releases/RELEASE-RUNBOOK.md` 第 6 节。
+> 向导：`bash scripts/wizard-release.sh vX.Y.Z` 基于 `wizard/template.sh` 的只扫码旅程（分段清屏、进度、显式打开链接、确认、落盘与收尾，6 段：工作区与推送确认 → 隔离门禁 → 发布弹浏览器一次扫码 → 官方源轮询 → 已装形态验证），可中断重跑且已落盘值在 `.wizard-release.env` 中被记住；契约由 `tests/verify-release-contract.js` 单一高层 gate 保障，失败即阻断。详见 `docs/releases/RELEASE-RUNBOOK.md` 第 6、11 节。
 
 ---
 

@@ -1,5 +1,11 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-08-31 · v1.7.8 发布：状态栏胶囊修复与文档收尾
+
+- **状态栏胶囊修复**：纠正 f09ce91 合入时 psule 拼写错误导致的 skills 横幅抛错，并修复输入框宽度探测在工作区切换后因旧节点宽度为 0 而将胶囊压扁的问题，确保在 matt-demo-github 与多工作区切换后胶囊保持可见且宽度非 0（对应提交 7e217b0、13a4606）。
+- **文档收尾**：README 安装指引中锁定版本全量由 1.7.7 同步为 1.7.8，对齐已合入的状态栏修复；Star History 每日更新追加。
+- **验证**：`node scripts/build.mjs` OK，双产物 `client.js` / `package/lib/client.js` 同源，`DSW_VERSION=v1.7.8`；`npm pack --dry-run` 69 文件清洁（lib/shared/cordis.patch.yml 白名单）；`npm run verify` 全绿（含双产物一致性与平台契约）。
+
 ## 2026-08-30 · v1.7.7 发布：Star History 视口与内嵌加固、技能名片 BOM 兼容
 
 - **Star History 视口加固**：多轮扩大卡片与图表四周留白（64px→80px）、卡片与图表容器解耦（图表独占固定高度、统计区网格独立）、手绘风格与数据分离，动态 xTickCount 与 SVG 响应式自适应，确保 README 与独立页在窄/宽视口下均无裁切，标签与曲线完整可见（对应提交 5d36c0e、b4e3f2b、2fe18d2、c46764b、0908fe5）。
