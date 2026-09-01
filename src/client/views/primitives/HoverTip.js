@@ -5,9 +5,12 @@
  *  visible受控, onVisibleChange/onShow/onHide, zIndex 2147483000 } 包裹式用法。
  * 样式单真源 STYLE_TEXT，挂顶经 portalTop，小三角随翻转同步，失败不抛。
  */
+let __hoverTipGlobalActive=null,__hoverTipGlobalSeq=0
+
 export const HoverTip = function (props) {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
+  const __hoverTipIdRef=React.useRef(null);if(__hoverTipIdRef.current===null)__hoverTipIdRef.current=++__hoverTipGlobalSeq;const __hoverTipId=__hoverTipIdRef.current
   const rawContent = (props.content !== undefined && props.content !== null) ? props.content : props.children
   let trigger = null
   let tipContent = rawContent
@@ -51,16 +54,8 @@ export const HoverTip = function (props) {
   const clearTimer = function () {
     if (hideTimerRef.current !== null) { try { clearTimeout(hideTimerRef.current) } catch (e) {} hideTimerRef.current = null }
   }
-  const scheduleShow = function () {
-    clearTimer()
-    if (delayShow <= 0) setVisible(true)
-    else hideTimerRef.current = setTimeout(function () { hideTimerRef.current = null; setVisible(true) }, delayShow)
-  }
-  const scheduleHide = function () {
-    clearTimer()
-    if (delayHide <= 0) setVisible(false)
-    else hideTimerRef.current = setTimeout(function () { hideTimerRef.current = null; setVisible(false) }, delayHide)
-  }
+  const scheduleShow=function(){clearTimer();if(__hoverTipGlobalActive&&__hoverTipGlobalActive.id!==__hoverTipId){try{__hoverTipGlobalActive.hide()}catch(e){}__hoverTipGlobalActive=null}const doShow=function(){setVisible(true);__hoverTipGlobalActive={id:__hoverTipId,hide:function(){try{clearTimer();setVisible(false)}catch(e){}}};};if(delayShow<=0)doShow();else hideTimerRef.current=setTimeout(function(){hideTimerRef.current=null;doShow()},delayShow)}
+  const scheduleHide=function(){clearTimer();const doHide=function(){setVisible(false);if(__hoverTipGlobalActive&&__hoverTipGlobalActive.id===__hoverTipId)__hoverTipGlobalActive=null};if(delayHide<=0)doHide();else hideTimerRef.current=setTimeout(function(){hideTimerRef.current=null;doHide()},delayHide)}
   const computePos = function (mp) {
     if (typeof window === 'undefined') return null
     const vpW = window.innerWidth
@@ -153,7 +148,7 @@ export const HoverTip = function (props) {
       return function () { try { el.removeEventListener('mouseenter', onEnter) } catch (e) {}; try { el.removeEventListener('mousemove', onMove) } catch (e) {}; try { el.removeEventListener('mouseleave', onLeave) } catch (e) {} }
     }, [isControlled, mode])
   }
-  const tooltipStyle = { position: 'fixed', left: pos.left, top: pos.top, transform: 'translateY(-50%)', maxWidth: maxWidth, zIndex: zIndex, padding: '4px 8px', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
+  const tooltipStyle = { position: 'fixed', left: pos.left, top: pos.top, transform: 'translateY(-50%)', maxWidth: maxWidth, zIndex: zIndex, padding: '6px 10px', borderRadius: 8, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
   let tipPortal = null
   if (visible && hasTip) {
     const live = computePos(mousePos) || pos
@@ -168,15 +163,16 @@ export const HoverTip = function (props) {
     } catch (e) {}
     const caretStyle = {
       position: 'absolute',
-      width: 8, height: 8,
+      width: 6, height: 6,
       background: 'var(--dsw-alias-bg-layer-3,#0c0e12)',
       borderLeft: flippedX ? 'none' : '1px solid var(--dsw-alias-border-l2,#3a3f4a)',
       borderTop: flippedX ? 'none' : '1px solid var(--dsw-alias-border-l2,#3a3f4a)',
       borderRight: flippedX ? '1px solid var(--dsw-alias-border-l2,#3a3f4a)' : 'none',
       borderBottom: flippedX ? '1px solid var(--dsw-alias-border-l2,#3a3f4a)' : 'none',
       top: '50%',
-      left: flippedX ? 'auto' : '-4px',
-      right: flippedX ? '-4px' : 'auto',
+      left: flippedX ? 'auto' : '-3px',
+      right: flippedX ? '-3px' : 'auto',
+      borderRadius: 1,
       transform: flippedX ? 'translateY(-50%) rotate(225deg)' : 'translateY(-50%) rotate(45deg)',
     }
     const caret = h('div', { style: caretStyle })
