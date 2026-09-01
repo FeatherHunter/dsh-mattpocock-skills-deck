@@ -88,25 +88,8 @@ export default {
         } catch (e) { try { console.warn('[MattSkillsDeck] legacy migrate fallback failed:', e && e.message) } catch {} }
       }
     } catch {}
-    // issue #3：浮层挂顶层 —— createPortal 到 document.body，让 position:fixed 的视口坐标与
-    //   z-index 真正全局生效。宿主输入区祖先若带 transform / filter / backdrop-filter /
-    //   will-change / contain，fixed 的包含块会降级为该祖先（坐标偏移 + 被 overflow 裁剪），
-    //   这正是技能 tooltip 被遮挡/截断的根因。取不到 react-dom 时退化为原地渲染（不劣于现状）。
-    const RDOM = (function () {
-      try { if (typeof ReactDOM !== 'undefined' && ReactDOM && ReactDOM.createPortal) return ReactDOM } catch (e) { /* noop */ }
-      try { if (typeof window !== 'undefined' && window.ReactDOM && window.ReactDOM.createPortal) return window.ReactDOM } catch (e) { /* noop */ }
-      try { if (typeof require === 'function') { const m = require('react-dom'); if (m && m.createPortal) return m } } catch (e) { /* noop */ }
-      return null
-    })()
-    const portalTop = function (node) {
-      if (RDOM && typeof document !== 'undefined' && document.body) return RDOM.createPortal(node, document.body)
-      return node
-    }
+    // ==== kernel:portal (spliced by build) ====
     // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
-    // issue #22：交互弹层统一挂到 body，避免被状态栏布局 wrapper 裁剪。
-    const PortalOverlay = function (props, children) {
-      return portalTop(h('div', props || {}, children))
-    }
     const DSW_VERSION = __DSW_VERSION__
     // #repo-link：版本号可点，新窗打开插件仓库主页；URL 构建期从 package/package.json 的 repository 字段
     // 注入（客户端源码零 URL 字面量，过硬编码门禁 F2；产物字面量已在门禁 RE_LICENSED 登记）。

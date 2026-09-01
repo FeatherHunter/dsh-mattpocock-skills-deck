@@ -13,6 +13,7 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 const PRODUCTS = ['client.js', 'package/lib/client.js']
 const MODULES = [
   { name: 'styles', exports: ['STYLE_TEXT'] },
+  { name: 'portal', exports: ['RDOM', 'portalTop', 'PortalOverlay'] },
   { name: 'locale', exports: ['L'] },
   { name: 'icons', exports: ['ICON_SCHEMES', 'WORD_SCHEMES', 'Icon', 'Ic'] },
   { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'BODY_FORMAT', 'completePrompt', 'FIXATE_PROMPT'] },
@@ -66,7 +67,7 @@ async function main() {
       '双产物无 ' + m.name + ' 拼接标记残留')
   }
   const spot = [
-    ['const STYLE_TEXT = [', 'const L = {', 'const Ic = ({ n', 'const PROMPTS = {', 'const cfg = (function', 'const shared = makeStore()', 'const loadSnapshot = function', 'const openPanel = function', 'const inject = (st, text)'],
+    ['const STYLE_TEXT = [', 'const portalTop = function', 'const L = {', 'const Ic = ({ n', 'const PROMPTS = {', 'const cfg = (function', 'const shared = makeStore()', 'const loadSnapshot = function', 'const openPanel = function', 'const inject = (st, text)'],
   ][0]
   spot.forEach((k) => {
     check(cli.includes(k) && pcli.includes(k), '双产物含 ' + k.slice(0, 30) + '…（' + (cli.includes(k) ? '✓' : '✗') + '/' + (pcli.includes(k) ? '✓' : '✗') + '）')
