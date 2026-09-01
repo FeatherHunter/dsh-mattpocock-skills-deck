@@ -38,10 +38,10 @@ npm install -g @deepseek-ai/dsh
 dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
 #     或者
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用
-# 锁定最新版更稳（当前 1.7.10）：
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.10 --registry https://registry.npmjs.org
+# 锁定最新版更稳（当前 1.7.11）：
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.11 --registry https://registry.npmjs.org
 #     或者
-dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.10 --registry https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.11 --registry https://registry.npmjs.org
 
 # ③ 窄屏更好用（可选）：better-sidebar 记得装进同一个 profile
 dsh plugin --profile web add dsh-better-sidebar
@@ -87,7 +87,7 @@ dsh plugin --profile desktop add dsh-better-sidebar
 
 ```bash
 # 给定最新版本号安装
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.10 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.11 --registry https://registry.npmjs.org
 
 # 免全局安装（想更稳，像上面一样锁版本）
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
@@ -104,6 +104,20 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 dsh plugin --profile web update dsh-mattpocock-skills-deck   # 升级
 dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 ```
+
+<details>
+<summary>技能随包可用，无需手动 <code>npx skills add</code>（bundled 兜底）</summary>
+
+本插件已随包内置 **mattpocock/skills 的 25 个技能**（快照 **v1.2.3**，见 `package/bundled-skills/VERSION`），装好即用，无需再执行 `npx -y skills@latest add mattpocock/skills` 或 `git clone`：
+
+- **发现路径**：DSH 通过 `bundledSkillDir` 以 `rank 600（bundled 兜底）` 发现，随包消失（`dsh plugin remove` 后自动移除）；体积增量 ≤ 5 MB，已在 `verify-bundled-skills` 设硬门禁。
+- **覆盖规则**：你在 `~/.agents/skills` 手装的同名技能以 `rank 500（user-agents）` 优先覆盖随包版本——团队可在仓库或用户目录自定义覆盖，始终以你的版本为准。
+- **三态环境检查**：面板的 `skill:wayfinder / skill:setup-matt-pocock-skills / skill:ask-matt` 三项在“空 HOME → bundled 绿、有效 HOME → user 500 绿、无效名片 → 红牌 + 证据链”三种工作区下均已回归（见 `tests/verify-bundled-trio-matrix.js` 与 `docs/reviews/390-bundled-trio-matrix.md`）。
+- **合规与同步**：随包分发保留 `MIT LICENSE（Copyright (c) 2026 Matt Pocock）` 于 `package/bundled-skills/LICENSE`；快照与 `src/shared/matt-skills.js` 单源一致，同步纪律为 `node scripts/sync-matt-skills.mjs --pin v1.2.3 --verify`（纯手动，不挂 prepare）。
+- **默认零污染**：默认不写 `~/.agents/skills`；如需将技能复制进用户目录以便提交到 git，留待后续显式“复制到 ~/.agents/skills”按钮（需用户点确认才写，当前首版暂缓）。
+
+> 首通道已绿：空 HOME 下 `ctx.skills.get('wayfinder')` 直接命中 bundled，无需在 `lightProbeReason` 回退分支再查 bundled（R1 结论，T3 回归已固化）。
+</details>
 
 <h2 align="center"><sub>WHY</sub><br>为什么要做 MattSkillsDeck</h2>
 

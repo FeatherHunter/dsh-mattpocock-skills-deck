@@ -1,5 +1,13 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-09-01 · v1.7.11 发布：技能随包可用（mattpocock/skills@v1.2.3 零代码 bundled）
+
+- **随包兜底（#388/#389/#390 承接 #385/#386/#387 定版，R1 结论“首通道已绿”）**：插件内置 **mattpocock/skills v1.2.3** 的 25 个技能（engineering 18 + productivity 7，`package/bundled-skills/` 含 `LICENSE` 与 `VERSION=v1.2.3`），经 `ctx.skills.registerProvider` 以 `rank 600（bundled）` 兜底发现——用户在 `~/.agents/skills` 手装的 `rank 500` 优先覆盖；新增同步纪律 `node scripts/sync-matt-skills.mjs --pin v1.2.3 --verify`（纯手动，不挂 prepare）与双门禁 `verify-matt-skills-sync` / `verify-bundled-skills`（5 MB 硬卡）、`verify-bundled-discovery` / `verify-bundled-trio-matrix` 三态回归；`package/package.json:files` 增 `bundled-skills`，`npm pack --dry-run` 增量 ≤ 5 MB，`node scripts/build.mjs` 双产物同源。
+- **三态回归（T3 此票）**：空 HOME（bundled 兜底绿）/ 有 HOME 有效（user 500 覆盖 600）/ 有无效名片（红牌分拣 + evidenceSummary）三种工作区在 `wf.detect / wf.chain` 的技能三检查（`skill:wayfinder / skill:setup-matt-pocock-skills / skill:ask-matt`）均已回归——新增 `tests/verify-bundled-trio-matrix.js`（33 项）固化“首通道已绿，无需在 `lightProbeReason` 回退分支补 bundled”的 R1 结论；真机矩阵截图与日志归档 `docs/reviews/390-bundled-trio-matrix.md`。
+- **默认零污染**：默认不写 `~/.agents/skills`；“复制到 ~/.agents/skills”显式动作（`copyBundledToHome`）首版暂缓，需用户确认才写，留待后续评估（R1 已定版首版不做）。
+- **文档与合规**：README `INSTALL` 章新增“技能随包可用”说明（兜底、覆盖、同步、零污染）；MIT 合规保留 `package/bundled-skills/LICENSE`。快照来源：`https://github.com/mattpocock/skills/tree/v1.2.3/skills`（2026-08-06 patch，仍 25 个，无新增 skill 名）。
+- **验证**：`node scripts/build.mjs` OK，`npm run verify` 全绿（含新增 `verify-bundled-trio-matrix`），`verify-bundled-skills` 与 `verify-bundled-discovery` 同步绿，`dsh plugin remove` 后随包消失无残留。
+
 ## 2026-09-01 · v1.7.10 发布：新建会话 PTC 门禁与工作区回退及交接链路收口
 
 - **单点工厂与复用闸门（#363 承接 #361/#362 的可判定门禁）**：新增 buildCreateOpts 与 createPTCSession 单点工厂，显式携带 agentPreset:'ptc' 并原子化挂载 pendingDraft 为唯一会话创建出口，防 default 漂移；新增 isReusableBlank/getRowPreset/isHealthyPreset 两级同形复用闸门，空会话永不复用且字面 code 判不健康，被拒必走新建分支仅隔离不清理；改造 openTextInNewSession 的 reuseSid 两级判定与创建分支，经工厂保证显式 ptc 与首条同次原子化，满足 #362 三判据 P+A，新增门禁 tests/verify-newsession-preset-guard.js（68 项，双源一致）并并入 npm run verify（对应提交 9d90ce4）。

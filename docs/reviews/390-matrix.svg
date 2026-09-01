@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" style="background:#0a0c10">
+  <rect width="960" height="520" fill="#0a0c10" rx="12"/>
+  <text x="24" y="36" font-family="sans-serif" font-size="18" font-weight="700" fill="#c084fc">390 三态回归矩阵 — bundled 零代码随包可用</text>
+  <text x="24" y="56" font-family="monospace" font-size="11" fill="#8b8b95">mattpocock/skills@v1.2.3 · 25 技能 · rank 600 兜底 / 500 覆盖 · 2026-09-01 T3</text>
+  <!-- header -->
+  <rect x="24" y="76" width="912" height="36" fill="#16181d" stroke="#2a2d35" rx="6"/>
+  <text x="32" y="98" font-family="sans-serif" font-size="11" font-weight="700" fill="#e6edf3">场景</text>
+  <text x="180" y="98" font-family="sans-serif" font-size="11" font-weight="700" fill="#e6edf3">~/.agents/skills 状态</text>
+  <text x="380" y="98" font-family="sans-serif" font-size="11" font-weight="700" fill="#e6edf3">三检查</text>
+  <text x="620" y="98" font-family="sans-serif" font-size="11" font-weight="700" fill="#e6edf3">来源 rank</text>
+  <text x="740" y="98" font-family="sans-serif" font-size="11" font-weight="700" fill="#e6edf3">结果</text>
+  <text x="830" y="98" font-family="sans-serif" font-size="11" font-weight="700" fill="#e6edf3">证据</text>
+  <!-- row A -->
+  <rect x="24" y="120" width="912" height="72" fill="#16181d" stroke="#2a2d35" rx="6"/>
+  <text x="32" y="144" font-family="sans-serif" font-size="13" font-weight="700" fill="#e6edf3">A：空 HOME</text>
+  <text x="32" y="162" font-family="sans-serif" font-size="10" fill="#8b8b95">全新工作区</text>
+  <text x="180" y="148" font-family="sans-serif" font-size="11" fill="#e6edf3">不存在</text>
+  <text x="380" y="144" font-family="sans-serif" font-size="11" fill="#e6edf3">wayfinder ✓</text>
+  <text x="380" y="160" font-family="sans-serif" font-size="11" fill="#e6edf3">setup ✓  ask-matt ✓</text>
+  <text x="620" y="148" font-family="monospace" font-size="11" fill="#58a6ff">bundled 600</text>
+  <text x="740" y="148" font-family="sans-serif" font-size="13" fill="#2ecc71">🟢 绿</text>
+  <text x="830" y="144" font-family="monospace" font-size="9" fill="#a1a1aa">[bundled] 25</text>
+  <text x="830" y="158" font-family="monospace" font-size="9" fill="#a1a1aa">wayfinder 600</text>
+  <!-- row B -->
+  <rect x="24" y="200" width="912" height="72" fill="#16181d" stroke="#2a2d35" rx="6"/>
+  <text x="32" y="224" font-family="sans-serif" font-size="13" font-weight="700" fill="#e6edf3">B：有效 HOME</text>
+  <text x="32" y="242" font-family="sans-serif" font-size="10" fill="#8b8b95">手装 3 个 500</text>
+  <text x="180" y="224" font-family="sans-serif" font-size="11" fill="#e6edf3">存在有效卡片</text>
+  <text x="180" y="240" font-family="monospace" font-size="9" fill="#8b8b95">~/.agents/skills/*</text>
+  <text x="380" y="224" font-family="sans-serif" font-size="11" fill="#e6edf3">wayfinder ✓</text>
+  <text x="380" y="240" font-family="sans-serif" font-size="11" fill="#e6edf3">setup ✓  ask-matt ✓</text>
+  <text x="620" y="224" font-family="monospace" font-size="11" fill="#58a6ff">user 500 &gt; 600</text>
+  <text x="620" y="240" font-family="monospace" font-size="9" fill="#8b8b95">覆盖 bundled</text>
+  <text x="740" y="228" font-family="sans-serif" font-size="13" fill="#2ecc71">🟢 绿</text>
+  <text x="830" y="224" font-family="monospace" font-size="9" fill="#a1a1aa">[bundled] 覆盖日志</text>
+  <text x="830" y="238" font-family="monospace" font-size="9" fill="#a1a1aa">winner 500</text>
+  <!-- row C -->
+  <rect x="24" y="280" width="912" height="88" fill="#16181d" stroke="#2a2d35" rx="6"/>
+  <text x="32" y="304" font-family="sans-serif" font-size="13" font-weight="700" fill="#e6edf3">C：无效名片</text>
+  <text x="32" y="322" font-family="sans-serif" font-size="10" fill="#8b8b95">name 不匹配</text>
+  <text x="180" y="308" font-family="sans-serif" font-size="11" fill="#e6edf3">存在无效卡片</text>
+  <text x="180" y="324" font-family="monospace" font-size="9" fill="#8b8b95">SKILL.md invalid</text>
+  <text x="380" y="304" font-family="sans-serif" font-size="11" fill="#e6edf3">wayfinder ✗</text>
+  <text x="380" y="320" font-family="sans-serif" font-size="10" fill="#ff6b6b">红牌 invalid</text>
+  <text x="380" y="336" font-family="sans-serif" font-size="10" fill="#8b8b95">setup/ask-matt 仍绿</text>
+  <text x="620" y="312" font-family="monospace" font-size="11" fill="#ff6b6b">—</text>
+  <text x="740" y="312" font-family="sans-serif" font-size="13" fill="#ff6b6b">🔴 红牌</text>
+  <text x="740" y="330" font-family="monospace" font-size="8" fill="#ff6b6b">evidenceSummary</text>
+  <text x="830" y="308" font-family="monospace" font-size="8" fill="#a1a1aa">[direct:user-agents=</text>
+  <text x="830" y="320" font-family="monospace" font-size="8" fill="#ff6b6b">无效 | user-dsh=未找到]</text>
+  <text x="830" y="336" font-family="monospace" font-size="8" fill="#a1a1aa">channels 含 invalid</text>
+  <!-- footer -->
+  <rect x="24" y="380" width="912" height="72" fill="#1a1e27" stroke="#2a2d35" rx="6"/>
+  <text x="32" y="400" font-family="sans-serif" font-size="11" font-weight="700" fill="#c084fc">首通道已绿 · 无需补 lightProbeReason 回退分支</text>
+  <text x="32" y="418" font-family="monospace" font-size="9" fill="#a1a1aa">host 仅首通道 ctx.skills.registerProvider rank600 兜底；lightProbe 不查 bundled，fallback 仍正确分拣 invalid/缺失</text>
+  <text x="32" y="434" font-family="monospace" font-size="9" fill="#8b8b95">零污染：package/bundled-skills 随包消失 · 复制按钮暂缓（R1 首版不做，需确认才写 ~）</text>
+  <text x="24" y="476" font-family="sans-serif" font-size="10" fill="#8b8b95">验证：tests/verify-bundled-discovery.js (98) + tests/verify-bundled-trio-matrix.js (33) 全绿 · npm run verify 全绿</text>
+  <text x="24" y="492" font-family="monospace" font-size="9" fill="#6a6a7a">docs/reviews/390-bundled-trio-matrix.md · 2026-09-01 T3</text>
+</svg>
