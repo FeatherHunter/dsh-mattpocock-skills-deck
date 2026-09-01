@@ -186,6 +186,7 @@ const KERNEL_MODULES = [
   { name: 'backendList', file: 'src/client/kernel/builtin-backends.js' },
   { name: 'link', file: 'src/client/kernel/link.js' },
   { name: 'styles', file: 'src/client/kernel/styles.js' },
+  { name: 'portal', file: 'src/client/kernel/portal.js' },
   { name: 'locale', file: 'src/client/kernel/locale.js' },
   { name: 'icons', file: 'src/client/kernel/icons.js' },
   { name: 'prompts', file: 'src/client/kernel/prompts.js' },
