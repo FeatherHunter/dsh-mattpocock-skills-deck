@@ -111,7 +111,7 @@ export const IssueDetail = function (props) {
       const actTextColor = (typeof isLightHex === 'function' && isLightHex(actColor)) ? '#140a1e' : '#ffffff'
       const subNodes = (src.subIssues && src.subIssues.nodes) ? src.subIssues.nodes : []
       const subTotal = (src.subIssues && typeof src.subIssues.totalCount === 'number') ? src.subIssues.totalCount : subNodes.length
-      const blockedNodes = (src.blockedBy && src.blockedBy.nodes) ? src.blockedBy.nodes : []
+      const blockedNodes = (src.blockedBy && Array.isArray(src.blockedBy.nodes)) ? src.blockedBy.nodes : (Array.isArray(src.blockedBy) ? src.blockedBy.map(b=> b&&typeof b==='object' ? {number:b.number??(b.key!=null?parseInt(String(b.key),10):''),key:String(b.key??b.number??''),title:b.title||'',state:b.state||'OPEN'} : {number:parseInt(String(b),10)||String(b),key:String(b),title:'',state:'OPEN'}) : [])
       const commentsNodes = (src.comments && src.comments.nodes) ? src.comments.nodes : []
       // #255 提交确认闪烁下标：仅当 force 重取后的评论里真实存在 body 全等匹配项才点亮
       // （新评论必须来自服务端重取的证据；定时清空归位，无乐观假设）

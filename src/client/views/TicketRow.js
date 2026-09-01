@@ -9,8 +9,21 @@ export     const TicketRow = React.memo(({ st, g, t, indent, colorOf }) => {
       const wayfinderTypeOf = function(x){ const ls=(x.labels||[]); for(let i=0;i<ls.length;i++){ const n=typeof ls[i]==='string'?ls[i]:ls[i].name; if(n==='wayfinder:map') return 'map'; if(n==='wayfinder:research') return 'research'; if(n==='wayfinder:prototype') return 'prototype'; if(n==='wayfinder:grilling') return 'grilling'; if(n==='wayfinder:task') return 'task'; } const tt=x.type||''; if(['research','prototype','grilling','task','map'].indexOf(tt)>=0) return tt; return 'issue'; };
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
-      const openBlocker = function (b) { const bt = g.m.tickets.find(function (x) { return x.number === b }); return bt && bt.state === 'OPEN' }
-      const blocked = t.state === 'OPEN' && t.blockedBy.some(openBlocker)
+      // #383 修复：直消费 IssueRef 状态，跨域阻塞者按 NOT-FOUND 安全阻塞，兼容旧 numbers
+      const openBlocker = function (b) {
+        if (b && typeof b === 'object') {
+          const s = String(b.state || '').toUpperCase()
+          if (s) return s === 'OPEN'
+          const key = b.key != null ? String(b.key) : (b.number != null ? String(b.number) : '')
+          const bt = key ? g.m.tickets.find(function (x) { return String(x.number) === key || String(x.key) === key }) : null
+          if (!bt) return true
+          return String(bt.state || '').toUpperCase() === 'OPEN'
+        }
+        const bt = g.m.tickets.find(function (x) { return x.number === b || String(x.number) === String(b) })
+        if (!bt) return true
+        return String(bt.state || '').toUpperCase() === 'OPEN'
+      }
+      const blocked = String(t.state || '').toUpperCase() === 'OPEN' && t.blockedBy.some(openBlocker)
       const subItem = (icon, color, text) => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, color: color, minWidth: 0 } }, [
         Ic({ n: icon, size: 11 }),
         h('span', { className: 'dsws-ellip', style: { maxWidth: 200 }, title: text }, text),

@@ -28,10 +28,23 @@ export     const MapDetail = ({ st, g }) => {
       const byLevel = {}
       tickets.forEach(function (t) { const lv = (typeof t.level === 'number') ? t.level : 0; (byLevel[lv] = byLevel[lv] || []).push(t) })
       // 迷雾：fog 票（Not yet specified）+ 被阻塞且其阻塞者 open 的票（半雾）；D7 视觉遮蔽
+      // #383 修复：直消费 IssueRef 状态，跨域阻塞者按 NOT-FOUND 安全阻塞，兼容旧 numbers，大小写不敏感
       const isFog = function (t) {
-        if (t.state !== 'OPEN') return false
-        const blk = (t.blockedBy || []).map(function (b) { return tickets.find(function (x) { return x.number === b }) }).filter(Boolean)
-        return blk.some(function (b) { return b.state === 'OPEN' })
+        if (String(t.state || '').toUpperCase() !== 'OPEN') return false
+        const hasOpen = (t.blockedBy || []).some(function (b) {
+          if (b && typeof b === 'object') {
+            const s = String(b.state || '').toUpperCase()
+            if (s) return s === 'OPEN'
+            const key = b.key != null ? String(b.key) : (b.number != null ? String(b.number) : '')
+            const bt = key ? tickets.find(function (x) { return String(x.number) === key || String(x.key) === key }) : null
+            if (!bt) return true
+            return String(bt.state || '').toUpperCase() === 'OPEN'
+          }
+          const bt = tickets.find(function (x) { return x.number === b || String(x.number) === String(b) })
+          if (!bt) return true
+          return String(bt.state || '').toUpperCase() === 'OPEN'
+        })
+        return hasOpen
       }
       const fogTitles = fogList.map(function (f) { return String(f).trim() })
       const isFogTitle = function (t) { return fogTitles.some(function (f) { return f && t.title && t.title.indexOf(f) >= 0 }) }

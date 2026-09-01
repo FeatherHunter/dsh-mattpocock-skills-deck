@@ -108,12 +108,28 @@
     export const setupCheck = (st) => chainStep(st, 'tracker:initialized')
 
     // #370：blockerNames 只列「仍 OPEN」的阻塞者（GitHub 依赖边在阻塞者关闭后仍保留，需按状态过滤）
+    // #383 修复：直消费 blockedBy 的 IssueRef 状态（大小写不敏感），跨 map/跨域阻塞者按 NOT-FOUND 安全阻塞（见 deck-derive），同时兼容旧 numbers 形态
     export const openBlockers = (t, m) => t.blockedBy.filter(function (b) {
-      const bt = m.tickets.find(function (x) { return x.number === b })
-      return bt !== undefined && bt.state === 'OPEN'
+      if (b && typeof b === 'object') {
+        const s = String(b.state || '').toUpperCase()
+        if (s) return s === 'OPEN'
+        const key = b.key != null ? String(b.key) : (b.number != null ? String(b.number) : '')
+        const bt = key ? m.tickets.find(function (x) { return String(x.number) === key || String(x.key) === key }) : null
+        if (!bt) return true
+        return String(bt.state || '').toUpperCase() === 'OPEN'
+      }
+      const bt = m.tickets.find(function (x) { return x.number === b || String(x.number) === String(b) })
+      if (!bt) return true
+      return String(bt.state || '').toUpperCase() === 'OPEN'
     })
     export const blockerNames = (t, m) => openBlockers(t, m).map(function (b) {
-      const bt = m.tickets.find(function (x) { return x.number === b })
+      if (b && typeof b === 'object') {
+        const key = b.key != null ? String(b.key) : (b.number != null ? String(b.number) : '')
+        const bt = key ? m.tickets.find(function (x) { return String(x.number) === key || String(x.key) === key }) : null
+        if (bt) return bt.title
+        return b.title ? b.title : ('#' + key)
+      }
+      const bt = m.tickets.find(function (x) { return x.number === b || String(x.number) === String(b) })
       return bt ? bt.title : ('#' + b)
     }).join('；')
 

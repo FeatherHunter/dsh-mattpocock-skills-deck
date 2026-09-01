@@ -767,8 +767,39 @@ export default {
     const issueIndexFromSnapshot = function (snap) {
       const index = {}
       const items = snap && Array.isArray(snap.issues) ? snap.issues : []
+      const maps = snap && Array.isArray(snap.maps) ? snap.maps : []
+      // #383 探针需感知阻塞变化：index 串联 blockedBy（大小写不敏感，排序稳定），与 fetchIssueIndex 同口径
+      const blockedSigOf = function (x) {
+        try {
+          const arr = x && x.blockedBy
+          if (!arr || !arr.length) return ''
+          if (Array.isArray(arr)) return arr.map(function (b) {
+            if (b && typeof b === 'object') {
+              const k = b.key != null ? String(b.key) : (b.number != null ? String(b.number) : String(b))
+              const s = b.state ? String(b.state).toUpperCase() : ''
+              return k + (s ? ':' + s : '')
+            }
+            return String(b)
+          }).sort().join(',')
+          return ''
+        } catch (e) { return '' }
+      }
       items.forEach(function (item) {
-        if (item && item.number !== undefined && item.number !== null) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '')
+        if (item && item.number !== undefined && item.number !== null) {
+          const bs = blockedSigOf(item)
+          index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '') + '|' + bs
+        }
+      })
+      maps.forEach(function (m) {
+        const tickets = m && m.tickets ? m.tickets : []
+        tickets.forEach(function (t) {
+          if (t && t.number !== undefined && t.number !== null) {
+            const bs = blockedSigOf(t)
+            // map 票的 key 加前缀避免与 issue 号冲突（探针按 number 字符串索引，需区分域）
+            const k = 'map:' + String(m.number != null ? m.number : m.key) + ':' + String(t.number)
+            index[k] = String(t.state || '').toUpperCase() + '|' + String(t.updatedAt || '') + '|' + bs
+          }
+        })
       })
       return index
     }
@@ -2799,7 +2830,8 @@ export default {
           if (sel2) _selProbe = sel2
         } catch {}
       }
-      const useProbeTracker = _selProbe && _selProbe.backendId && _selProbe.backendId !== 'github' && _selProbe.backendId !== '' && _selProbe.backendId !== 'other'
+      // #383 统一走 tracker list 探针（含 blockedBy），github 亦可经 registry.get('github').list 取 blockedBy，避免 fetchIssueIndex 轻量索引丢失阻塞信息
+      const useProbeTracker = _selProbe && _selProbe.backendId && _selProbe.backendId !== '' && _selProbe.backendId !== 'other'
       if (useProbeTracker) {
         try {
           const reg = await getTrackerRegistry()
@@ -2812,9 +2844,16 @@ export default {
             const r = await tracker.list(repoRef, {}, opCtx)
             if (!r || !r.ok) return { ok: false, error: errText((r && r.error) || 'probe list 失败') }
             const all = Array.isArray(r.data) ? r.data : []
-            // 轻量索引：key -> state
+            // #383 轻量索引：key -> state|blockedBy（与 issueIndexFromSnapshot 同口径，阻塞变化可被探针感知）
             const idx = {}
-            all.forEach(function(it){ const k = it && (it.key != null ? String(it.key).padStart(2,'0') : (it.number != null ? String(it.number).padStart(2,'0') : '')); if(k) idx[k] = String(it.state||'OPEN').toUpperCase() })
+            all.forEach(function(it){ const k = it && (it.key != null ? String(it.key).padStart(2,'0') : (it.number != null ? String(it.number).padStart(2,'0') : '')); if(k) {
+              let bs = ''
+              try {
+                const arr = it.blockedBy
+                if (arr && Array.isArray(arr) && arr.length) bs = arr.map(function(b){ const kk=b&&typeof b==='object'?(b.key!=null?String(b.key):(b.number!=null?String(b.number):String(b))):String(b); const s=b&&typeof b==='object'&&b.state?String(b.state).toUpperCase():''; return kk+(s?':'+s:'') }).sort().join(',')
+              } catch(e) {}
+              idx[k] = String(it.state||'OPEN').toUpperCase() + '|' + bs
+            } })
             const rk1 = _selProbe.backendId + ':' + cwd
             const known = lastIssueIndexByRepo[rk1] || {}
             const changed = issueIndexChanged(known, idx)

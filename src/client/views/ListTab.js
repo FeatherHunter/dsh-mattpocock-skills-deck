@@ -65,8 +65,8 @@ export     const ListTab = ({ st, narrow }) => {
         }
       }, [])
       const issues = (st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []
-      const openIssues = issues.filter(function (x) { return x.state !== 'CLOSED' })
-      const closedIssues = issues.filter(function (x) { return x.state === 'CLOSED' })
+      const openIssues = issues.filter(function (x) { return String(x.state || '').toUpperCase() !== 'CLOSED' })
+      const closedIssues = issues.filter(function (x) { return String(x.state || '').toUpperCase() === 'CLOSED' })
       // #374：多维排序 —— map 行恒置顶，map 组与普通组各自按所选维度排序；默认 更新时间↓（与现状一致）
       const sortIssues = function (arr) {
         const dir = st.sortDir === 'asc' ? 1 : -1
@@ -112,17 +112,8 @@ export     const ListTab = ({ st, narrow }) => {
         if (fa !== fb) return fb - fa
         return String(a).localeCompare(String(b))
       })
-      // v15-26：主列表关联 map 子票阻塞信息（open 阻塞者才算阻塞；数据来自快照 maps.tickets.blockedBy，无需额外请求）
-      const blockOf = {}
-      ;(st.snapshot && st.snapshot.maps || []).forEach(function (m) {
-        const byNum = {}
-        m.tickets.forEach(function (t) { byNum[t.number] = t })
-        m.tickets.forEach(function (t) {
-          if (!t.blockedBy || !t.blockedBy.length) return
-          const openBlockers = t.blockedBy.filter(function (b) { const bt = byNum[b]; return bt && bt.state === 'OPEN' })
-          if (openBlockers.length) blockOf[t.number] = { map: m.number, mapTitle: m.title, by: openBlockers }
-        })
-      })
+      // #383 修复：直消费 blockedBy（含 IssueRef/旧 numbers），大小写不敏感，NOT-FOUND 安全阻塞，补齐通用议题
+      const blockOf={}; const gbl={}; (st.snapshot.issues||[]).forEach(it=>{const k=it.key??it.number; if(k!=null) gbl[String(k)]=it}); (st.snapshot.maps||[]).forEach(m=>m.tickets.forEach(t=>{const k=t.key??t.number; if(k!=null) gbl[String(k)]=t;})); (st.snapshot.maps||[]).forEach(m=>{const by={}; m.tickets.forEach(t=>{by[t.number]=t; if(t.key!=null) by[String(t.key)]=t}); m.tickets.forEach(t=>{ if(!t.blockedBy||!t.blockedBy.length) return; const ob=t.blockedBy.filter(b=>{ if(b&&typeof b==='object'){ const s=String(b.state||'').toUpperCase(); if(s) return s==='OPEN'; const k=b.key??b.number; const bt=k!=null?by[String(k)]:null; if(!bt) return true; return String(bt.state||'').toUpperCase()==='OPEN'; } const bt=by[b]; if(!bt) return true; return String(bt.state||'').toUpperCase()==='OPEN';}); if(ob.length) blockOf[t.number??t.key]={map:m.number,mapTitle:m.title,by:ob};});}); (st.snapshot.issues||[]).forEach(x=>{ if(!x.blockedBy||!x.blockedBy.length) return; const k=x.number??x.key; if(blockOf[k]) return; const ob=x.blockedBy.filter(b=>{ if(b&&typeof b==='object'){ const s=String(b.state||'').toUpperCase(); if(s) return s==='OPEN'; const kk=b.key??b.number; const f=kk!=null?gbl[String(kk)]:null; if(!f) return true; return String(f.state||'').toUpperCase()==='OPEN'; } const f=gbl[String(b)]; if(!f) return true; return String(f.state||'').toUpperCase()==='OPEN';}); if(ob.length) blockOf[k]={map:null,mapTitle:'',by:ob};});
       // #374：状态过滤（全部/Open/阻塞/已关闭）与 label 过滤叠加
       // v1.3.3 T3：blocked 过滤真正实现 —— open 且存在 open 阻塞者（blockOf 命中）
       const showOpen = st.stateFilter !== 'closed'
@@ -144,7 +135,7 @@ export     const ListTab = ({ st, narrow }) => {
       const filteredClosed = showClosedList ? ((st.lblFilters && st.lblFilters.length) ? closedSorted.filter(byLabel) : closedSorted) : []
       const has = function (x, nm) { return (x.labels || []).some(function (l) { return l.name === nm }) }
       const findMap = function (num) { const maps=st.snapshot&&st.snapshot.maps||[];const k=num!=null?String(num).padStart(2,'0'):'';return maps.find(function(m){return m.number===num||String(m.number)===String(num)||(m.key!=null&&String(m.key).padStart(2,'0')===k)}) }
-      const openBlocked = function (blk) { setActiveMap(st, blk.map) }
+      const openBlocked = function (blk) { if (blk && blk.map != null) setActiveMap(st, blk.map) }
       // v14-18：chips 常显深一档边框（边框色 = label 色 HSL 亮度 -16%）
       const chip = (nm, withCount, on, isAll) => {
         const c = colorOf[nm]
@@ -200,7 +191,7 @@ export     const ListTab = ({ st, narrow }) => {
         const isMap = (x.type === 'map') || has(x, 'wayfinder:map')
         const mapObj = isMap ? findMap(x.number) : null
         // v15-26：被阻塞判定（open 阻塞者）→ 隐藏动作按钮 + 红色「被阻塞」标签（点击跳所属 map 详情）
-        const blk = blockOf[x.number]
+        const blk = blockOf[x.number != null ? x.number : x.key] || blockOf[String(x.number != null ? x.number : x.key)]
         const blocked = !!(blk && blk.by && blk.by.length)
         const mapDone=!!(isMap&&mapObj&&mapObj.stats&&mapObj.stats.total>0&&mapObj.stats.closed===mapObj.stats.total);const mapEmpty=!!(isMap&&mapObj&&mapObj.stats&&mapObj.stats.total===0)
         const numColor=mapDone?'#3fb950':mapEmpty?'#f59e0b':actionColorOf(x,colorOf)
@@ -242,7 +233,7 @@ export     const ListTab = ({ st, narrow }) => {
                 return h('span', { key: i, className: 'dsws-chip', style: { fontSize: 10, background: hexA(l.color, 0.18) || 'rgba(188,140,255,.16)', color: l.color ? '#' + l.color : '#bc8cff', border: '1px solid ' + (darken(l.color, 0.16) || 'rgba(188,140,255,.6)') } }, l.name)
               }),
               labels.length > 0 ? h('span', { key: 'more', className: 'dsws-chip dsws-more', onClick: openPop, title: tr('list.tagsTitle', { names: allNames }) }, '+0') : null,
-              blocked ? h('span', { key: 'blk', className: 'dsws-chip dsws-blocked', onClick: function (e) { e.stopPropagation(); openBlocked(blk) }, title: tr('list.blockedTitle', { by: blk.by.map(function (b) { return '#' + b }).join('、') }), style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)', cursor: 'pointer' } }, [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]) : null,
+              blocked ? h('span', { key: 'blk', className: 'dsws-chip dsws-blocked', onClick: function (e) { e.stopPropagation(); openBlocked(blk) }, title: tr('list.blockedTitle', { by: blk.by.map(function (b) { const k = (b && typeof b === 'object') ? (b.key != null ? b.key : b.number) : b; return '#' + k }).join('、') }), style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)', cursor: blk && blk.map != null ? 'pointer' : 'default' } }, [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]) : null,
             ]),
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', marginLeft: 'auto' } }, [
               isOpen && !blocked ? h('div', { style: { display: 'flex', gap: 3, alignItems: 'center', flex: 'none' } }, [mapEmpty?h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),title:tr('map.inspectTitle'),onClick:function(e){e.stopPropagation();let t='';try{t=inspectPrompt(st,x.number,x.title)}catch{const u=typeof issueUrlFor==='function'?(function(){try{return issueUrlFor(st,x.number)}catch(_){return''}})():'',uu=u||(x.number!=null?'#'+String(x.number):'');t=uu?'/wayfinder '+uu:'/wayfinder';try{t=promptText('mapInspect',{n:String(x.number||''),title:String(x.title||''),url:u});if(u)t='/wayfinder '+u+'\n\n'+t}catch(_){}}inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#f59e0b',borderColor:'transparent',color:'#140a1e',fontWeight:600}},[Ic({n:'search',size:10}),narrow?null:h('span',null,tr('act.inspect'))]):mapDone?h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),title:tr('map.doneTitle'),onClick:function(e){e.stopPropagation();const t=completePrompt(st,x.number,mapObj.stats.total,mapObj.stats.closed);inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#3fb950',borderColor:'transparent',color:'#0c1a10',fontWeight:600}},[Ic({n:'check',size:10}),narrow?null:h('span',null,tr('act.done'))]):mkRowAction(st,x,narrow,colorOf),h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();openInNewSession(st,x)},title:tr('list.newSessionLabel'),style:{textDecoration:'none',display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',marginLeft:4,background:mapEmpty?'#f59e0b':mapDone?'#3fb950':actionColorOf(x,colorOf),borderColor:'transparent',color:mapEmpty?'#140a1e':mapDone?'#0c1a10':(isLightHex(actionColorOf(x,colorOf))?'#140a1e':'#ffffff')}},[Ic({n:'external-link',size:10}),narrow?null:h('span',null,tr('list.newSessionLabel'))]),]) : null,

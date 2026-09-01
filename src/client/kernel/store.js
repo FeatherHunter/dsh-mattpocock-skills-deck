@@ -585,18 +585,73 @@
 
     // v18-30：状态栏可接/占用改用「列表 open issue」口径（与面板列表一致）：
     //   可接 = open issue 中未认领且未被 open 阻塞；占用 = 已认领 + 被阻塞；两者之和 = 全部 open issue
-    export const openIssuesOf = (st) => ((st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []).filter(function (x) { return x.state !== 'CLOSED' })
+    export const openIssuesOf = (st) => ((st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []).filter(function (x) { return String(x.state || '').toUpperCase() !== 'CLOSED' })
     export const isOccupied = function (st, x) {
       if (x.assignees && x.assignees.length) return true
+      // 1) 直接消费 x 自身的 blockedBy（契约 IssueRef[] 或 legacy numbers），按 state==='OPEN' 视为被阻塞（大小写不敏感；无 state 的旧数据按 NOT-FOUND 安全阻塞，见 deck-derive）
+      if (x.blockedBy && x.blockedBy.length) {
+        // 构造全局 lookup（key/number -> state）供旧 numbers 形态回退
+        let byKeyGlobal = null
+        const getByKeyGlobal = function () {
+          if (byKeyGlobal) return byKeyGlobal
+          byKeyGlobal = {}
+          const issues = (st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []
+          const maps = (st.snapshot && Array.isArray(st.snapshot.maps)) ? st.snapshot.maps : []
+          issues.forEach(function (it) {
+            const k = it.key != null ? String(it.key) : (it.number != null ? String(it.number) : '')
+            if (k) byKeyGlobal[k] = it
+            if (it.number != null) byKeyGlobal[String(it.number)] = it
+          })
+          maps.forEach(function (m) {
+            (m.tickets || []).forEach(function (t) {
+              const k = t.key != null ? String(t.key) : (t.number != null ? String(t.number) : '')
+              if (k) byKeyGlobal[k] = t
+              if (t.number != null) byKeyGlobal[String(t.number)] = t
+            })
+          })
+          return byKeyGlobal
+        }
+        const hasOpen = x.blockedBy.some(function (b) {
+          if (b && typeof b === 'object') {
+            const s = String(b.state || '').toUpperCase()
+            if (s) return s === 'OPEN'
+            // 无 state 的对象（旧 numbers 包装或 key-only）：回退查全局
+            const key = b.key != null ? String(b.key) : (b.number != null ? String(b.number) : '')
+            if (!key) return true
+            const found = getByKeyGlobal()[key]
+            if (!found) return true
+            return String(found.state || '').toUpperCase() === 'OPEN'
+          } else {
+            const key = String(b)
+            const found = getByKeyGlobal()[key]
+            if (!found) return true
+            return String(found.state || '').toUpperCase() === 'OPEN'
+          }
+        })
+        if (hasOpen) return true
+      }
+      // 2) 兼容旧路径：x 可能是通用议题但其阻塞信息仅存在于 map 票的快照（按 number 关联），按地图内 lookup 兜底
       const maps = (st.snapshot && st.snapshot.maps) || []
       for (let mi = 0; mi < maps.length; mi++) {
         const m = maps[mi]
         if (!m.tickets || !m.tickets.length) continue
         const byNum = {}
-        m.tickets.forEach(function (t) { byNum[t.number] = t })
-        const t = byNum[x.number]
+        m.tickets.forEach(function (t) { byNum[t.number] = t; if (t.key != null) byNum[String(t.key)] = t })
+        const t = byNum[x.number] || (x.key != null ? byNum[String(x.key)] : null)
         if (t && t.blockedBy && t.blockedBy.length) {
-          const openBlockers = t.blockedBy.filter(function (b) { const bt = byNum[b]; return bt && bt.state === 'OPEN' })
+          const openBlockers = t.blockedBy.filter(function (b) {
+            if (b && typeof b === 'object') {
+              const s = String(b.state || '').toUpperCase()
+              if (s) return s === 'OPEN'
+              const key = b.key != null ? String(b.key) : (b.number != null ? String(b.number) : '')
+              const bt = key ? byNum[key] : null
+              if (!bt) return true
+              return String(bt.state || '').toUpperCase() === 'OPEN'
+            }
+            const bt = byNum[b]
+            if (!bt) return true
+            return String(bt.state || '').toUpperCase() === 'OPEN'
+          })
           if (openBlockers.length) return true
         }
       }
