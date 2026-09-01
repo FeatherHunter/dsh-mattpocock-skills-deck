@@ -16,8 +16,14 @@ export const Tip = function(props){
   merged.maxWidth = p.maxWidth !== undefined ? p.maxWidth : preset.maxWidth
   merged.flip = p.flip !== undefined ? p.flip : preset.flip
   merged.zIndex = p.zIndex !== undefined ? p.zIndex : preset.zIndex
+  // T2 a11y：若 content 为字符串且触发元素无 aria-label，自动补 aria-label（不覆盖显式值）
+  let effChildren = children
+  if (typeof content === 'string' && content && children && typeof children === 'object' && children.props && !children.props['aria-label'] && !children.props['aria-labelledby']) {
+    try { if (typeof React !== 'undefined' && typeof React.cloneElement === 'function') effChildren = React.cloneElement(children, { 'aria-label': content }); } catch (e) {}
+  }
   if (content !== undefined) merged.content = content
-  if (children !== undefined) merged.children = children
+  if (effChildren !== undefined) merged.children = effChildren
+  else if (children !== undefined) merged.children = children
   if (p.targetRef !== undefined) merged.targetRef = p.targetRef
   if (p.visible !== undefined) merged.visible = p.visible
   if (p.onVisibleChange !== undefined) merged.onVisibleChange = p.onVisibleChange

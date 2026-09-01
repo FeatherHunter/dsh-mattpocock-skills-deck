@@ -131,6 +131,8 @@ export const HoverTip = function (props) {
       onMouseMove: function (e) { if (origProps.onMouseMove) try { origProps.onMouseMove(e) } catch (e2) {} handleMove(e) },
       onMouseLeave: function (e) { if (origProps.onMouseLeave) try { origProps.onMouseLeave(e) } catch (e2) {} handleLeave(e) },
     }
+    // T2 a11y：若提示为字符串且触发元素无 aria-label，自动补（不覆盖显式值）
+    try { if (typeof tipContent === 'string' && tipContent && origProps && !origProps['aria-label'] && !origProps['aria-labelledby']) cloneProps['aria-label'] = tipContent } catch (e) {}
     if (typeof React.cloneElement === 'function') triggerNode = React.cloneElement(trigger, cloneProps)
     else triggerNode = h('span', { ref: mergedRef, onMouseEnter: handleEnter, onMouseMove: handleMove, onMouseLeave: handleLeave, style: { display: 'inline-flex' } }, trigger)
   }

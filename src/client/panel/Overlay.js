@@ -239,7 +239,7 @@ export     const OverlayPanel = (props) => {
             if (isErr || isLoading || !repoRef) {
               return h('span', { 'data-repo-chip': 1, className: 'dsws-chip ' + (isErr ? 'dsws-chip-t' : 'dsws-chip-m'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' } }, [
                 Ic({ n: isErr ? 'alert' : 'info', size: 11 }),
-                h('span', { 'data-repo-text': 1, className: 'dsws-ellip', title: repoStr(s), style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, isErr ? tr('panel.snapErr') : isLoading ? tr('panel.loading') : repoStr(s)),
+                h(Tip, { content: repoStr(s) }, h('span', { 'data-repo-text': 1, className: 'dsws-ellip', 'aria-label': repoStr(s), style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, isErr ? tr('panel.snapErr') : isLoading ? tr('panel.loading') : repoStr(s))),
               ])
             }
             const bid = sel ? sel.backendId : (repoRef.backend || firstBackendIdOf(null))
@@ -249,20 +249,20 @@ export     const OverlayPanel = (props) => {
             const displayName = repoRef.name || repoStr(s)
             const baseStyle = { display: 'inline-flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
             const chipClass = 'dsws-chip ' + (isErr ? 'dsws-chip-t' : 'dsws-chip-m')
-            const inner = [Ic({ n: isErr ? 'alert' : 'info', size: 11 }), h('span', { 'data-repo-text': 1, className: 'dsws-ellip', title: displayName, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, displayName)]
+            const inner = [Ic({ n: isErr ? 'alert' : 'info', size: 11 }), h(Tip, { content: displayName }, h('span', { 'data-repo-text': 1, className: 'dsws-ellip', 'aria-label': displayName, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, displayName))]
             if (act === 'folder') {
-              return h('a', { href: 'javascript:void(0)', 'data-repo-chip': 1, className: chipClass, style: Object.assign({}, baseStyle, { cursor:'pointer', textDecoration:'none' }), title: displayName, onClick: function(e){ try{ if(e&&e.preventDefault) e.preventDefault() }catch(_){}; try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openFolder',{cwd: s.cwd||''}) }catch(__){} } }, inner)
+              return h(Tip, { content: displayName }, h('a', { href: 'javascript:void(0)', 'data-repo-chip': 1, className: chipClass, style: Object.assign({}, baseStyle, { cursor:'pointer', textDecoration:'none' }), 'aria-label': displayName, onClick: function(e){ try{ if(e&&e.preventDefault) e.preventDefault() }catch(_){}; try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openFolder',{cwd: s.cwd||''}) }catch(__){} } }, inner))
             }
             if (href) {
               // #191（用户反馈）：GitHub/GitLab 路径只 target='_blank'（浏览器原生新窗口），去掉 onClick openUrl 防双开
-              return h('a', { href: href, target: '_blank', rel: 'noreferrer', 'data-repo-chip': 1, className: chipClass, style: Object.assign({}, baseStyle, { cursor:'pointer', textDecoration:'none' }), title: tr('panel.repoTitle') }, inner)
+              return h(Tip, { content: tr('panel.repoTitle') }, h('a', { href: href, target: '_blank', rel: 'noreferrer', 'data-repo-chip': 1, className: chipClass, style: Object.assign({}, baseStyle, { cursor:'pointer', textDecoration:'none' }), 'aria-label': tr('panel.repoTitle') }, inner))
             }
-            return h('span', { 'data-repo-chip': 1, className: chipClass, style: Object.assign({}, baseStyle, { cursor:'default' }), title: displayName }, inner)
+            return h(Tip, { content: displayName }, h('span', { 'data-repo-chip': 1, className: chipClass, style: Object.assign({}, baseStyle, { cursor:'default' }), 'aria-label': displayName }, inner))
           })(),
           // #191 · 仓库名右侧切换按钮（与 Dock 镜像 · pending 灰置 · _isOther 隐藏）
-          (function(){ if(_isOther2) return null; var _sel=s.selection||(s.snapshot&&s.snapshot.selection)||null, _bid=_sel?_sel.backendId:null; if(_bid==null) return null; var _pend=!!(_sel&&_sel.pending), _col=(typeof backendColorOf==='function'?backendColorOf(_bid):'#6e7681'); return h('button',{'data-repo-switch':1,type:'button',title:_pend?'切换后端 · 探测中不可用':'切换后端','aria-label':'切换后端','aria-disabled':_pend?'true':'false',disabled:_pend,onClick:function(e){try{if(e&&e.preventDefault)e.preventDefault();if(e&&e.stopPropagation)e.stopPropagation()}catch(_){};if(_pend)return;try{openSwitchConfirm(s,null)}catch(_){}},style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:16,height:16,borderRadius:4,flex:'none',border:'1px solid '+_col,color:_col,background:'transparent',cursor:_pend?'not-allowed':'pointer',opacity:_pend?0.45:1,fontSize:10,lineHeight:1,padding:0,colorScheme:'light dark'}},Ic({n:'swap',size:10})) })(),
+          (function(){ if(_isOther2) return null; var _sel=s.selection||(s.snapshot&&s.snapshot.selection)||null, _bid=_sel?_sel.backendId:null; if(_bid==null) return null; var _pend=!!(_sel&&_sel.pending), _col=(typeof backendColorOf==='function'?backendColorOf(_bid):'#6e7681'); return h(Tip, { content: _pend ? '切换后端 · 探测中不可用' : '切换后端' }, h('button',{'data-repo-switch':1,type:'button','aria-label':'切换后端','aria-disabled':_pend?'true':'false',disabled:_pend,onClick:function(e){try{if(e&&e.preventDefault)e.preventDefault();if(e&&e.stopPropagation)e.stopPropagation()}catch(_){};if(_pend)return;try{openSwitchConfirm(s,null)}catch(_){}},style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:16,height:16,borderRadius:4,flex:'none',border:'1px solid '+_col,color:_col,background:'transparent',cursor:_pend?'not-allowed':'pointer',opacity:_pend?0.45:1,fontSize:10,lineHeight:1,padding:0,colorScheme:'light dark'}},Ic({n:'swap',size:10}))) })(),
           h('span', { style: { flex: 1 } }),
-          h('button', { className: 'dsws-btn ghost', title: tr('panel.closeTitle'), onClick: function () { s.open = false; emit(s) }, style: { display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 12 })),
+          h(Tip, { content: tr('panel.closeTitle') }, h('button', { className: 'dsws-btn ghost', 'aria-label': tr('panel.closeTitle'), onClick: function () { s.open = false; emit(s) }, style: { display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 12 }))),
         ]),
                 (_isPending2 || _isOther2) ? null : h('div', { className: 'dsws-tabs', ref: tabsRef, style: { display: 'flex', alignItems: 'center', gap: 4 } }, tabs.items),
         _isPending2 ? h('div', { className: 'dsws-body', onMouseDown: onBodyDown, style:{ display:'flex', alignItems:'center', justifyContent:'center', padding:'12px' } }, [
@@ -315,14 +315,14 @@ export     const OverlayPanel = (props) => {
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,
           s.tab === 'checks' ? h(ChecksTab, { st: s }) : null,
         ]),
-        h('div', { className: 'dsws-rz dsws-rz-n', onMouseDown: onResizeDown('n'), title: tr('rz.n') }),
-        h('div', { className: 'dsws-rz dsws-rz-s', onMouseDown: onResizeDown('s'), title: tr('rz.s') }),
-        h('div', { className: 'dsws-rz dsws-rz-e', onMouseDown: onResizeDown('e'), title: tr('rz.e') }),
-        h('div', { className: 'dsws-rz dsws-rz-w', onMouseDown: onResizeDown('w'), title: tr('rz.w') }),
-        h('div', { className: 'dsws-rz dsws-rz-ne', onMouseDown: onResizeDown('ne'), title: tr('rz.ne') }),
-        h('div', { className: 'dsws-rz dsws-rz-nw', onMouseDown: onResizeDown('nw'), title: tr('rz.nw') }),
-        h('div', { className: 'dsws-rz dsws-rz-se', onMouseDown: onResizeDown('se'), title: tr('rz.se') }),
-        h('div', { className: 'dsws-rz dsws-rz-sw', onMouseDown: onResizeDown('sw'), title: tr('rz.sw') }),
+        h(Tip, { content: tr('rz.n') }, h('div', { className: 'dsws-rz dsws-rz-n', onMouseDown: onResizeDown('n'), 'aria-label': tr('rz.n') })),
+        h(Tip, { content: tr('rz.s') }, h('div', { className: 'dsws-rz dsws-rz-s', onMouseDown: onResizeDown('s'), 'aria-label': tr('rz.s') })),
+        h(Tip, { content: tr('rz.e') }, h('div', { className: 'dsws-rz dsws-rz-e', onMouseDown: onResizeDown('e'), 'aria-label': tr('rz.e') })),
+        h(Tip, { content: tr('rz.w') }, h('div', { className: 'dsws-rz dsws-rz-w', onMouseDown: onResizeDown('w'), 'aria-label': tr('rz.w') })),
+        h(Tip, { content: tr('rz.ne') }, h('div', { className: 'dsws-rz dsws-rz-ne', onMouseDown: onResizeDown('ne'), 'aria-label': tr('rz.ne') })),
+        h(Tip, { content: tr('rz.nw') }, h('div', { className: 'dsws-rz dsws-rz-nw', onMouseDown: onResizeDown('nw'), 'aria-label': tr('rz.nw') })),
+        h(Tip, { content: tr('rz.se') }, h('div', { className: 'dsws-rz dsws-rz-se', onMouseDown: onResizeDown('se'), 'aria-label': tr('rz.se') })),
+        h(Tip, { content: tr('rz.sw') }, h('div', { className: 'dsws-rz dsws-rz-sw', onMouseDown: onResizeDown('sw'), 'aria-label': tr('rz.sw') })),
         // #189 · 切换三选一 Modal（全局 per-store）
         (s.switchConfirm && s.switchConfirm.open && typeof SwitchConfirmModal === 'function' ? h(SwitchConfirmModal, { sessionId: cur }) : null),
         // v1.5 T10 R7：刷新遮罩已废除（手动刷新走静默路径，无「刷新中」）

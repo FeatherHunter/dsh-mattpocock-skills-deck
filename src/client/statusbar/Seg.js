@@ -5,7 +5,7 @@
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  */
 export const num = (txt, minW) => h('span', { className: 'dsws-num', style: minW ? { minWidth: minW } : null }, txt)
-export const seg = (icon, label, color, onGo, title) => h('span', { className: 'dsws-seg', onClick: function (e) { e.stopPropagation(); onGo() }, title: title || '', style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: color } }, [
+export const seg = (icon, label, color, onGo) => h('span', { className: 'dsws-seg', onClick: function (e) { e.stopPropagation(); onGo() }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: color } }, [
   Ic({ n: icon, size: 12 }),
   label,
 ])
