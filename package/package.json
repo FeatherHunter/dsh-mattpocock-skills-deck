@@ -21,7 +21,8 @@
   "files": [
     "lib",
     "shared",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "bundled-skills"
   ],
   "keywords": [
     "dsh",

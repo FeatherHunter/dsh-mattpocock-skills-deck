@@ -114,6 +114,103 @@ if (existsSync(INST_SHARED)) {
   console.log('[note] installed shared/matt-skills.js 缺失；host 将回退到 inline fallback（不阻断，但建议 pnpm install 重生成）')
 }
 
+// --- 7. bundled-skills 与单源一致性（#386 G1 / #387 G2 · 空目录期跳过） ---
+const BUNDLED_DIR = path.join(ROOT, 'package/bundled-skills')
+const BUNDLED_VERSION = 'v1.2.3'
+if (!existsSync(BUNDLED_DIR)) {
+  console.log('[note] package/bundled-skills 不存在，跳过 bundled 一致性校验（早期分支容忍）')
+} else {
+  const { readdirSync: _readdirSync } = require('node:fs')
+  // a) 25 目录数与集合双向差集 0（真源 = MATT_SKILL_PROBE_NAMES）
+  let bundledNames = []
+  try {
+    bundledNames = _readdirSync(BUNDLED_DIR, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()
+  } catch {}
+  // 从 shared 解析真源集合
+  let probeNames = []
+  try {
+    const shared = readFileSync(SRC_SHARED, 'utf8')
+    const m = shared.match(/export const MATT_SKILL_PROBE_NAMES\s*=\s*\[([\s\S]*?)\]/)
+    if (m) probeNames = [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]).sort()
+  } catch {}
+  if (probeNames.length === 25) {
+    check(bundledNames.length === 25, `bundled 技能数 25（当前 ${bundledNames.length}）`)
+    const miss = probeNames.filter(n => !bundledNames.includes(n))
+    const extra = bundledNames.filter(n => !probeNames.includes(n))
+    check(miss.length === 0 && extra.length === 0, `bundled 集合与单源双向差集 0（缺 ${miss.join(',')||'无'}；多 ${extra.join(',')||'无'}）`)
+  } else {
+    console.log('[note] shared 单源未解析到 25 项，跳过集合比对')
+  }
+  // b) 逐目录 SKILL.md 的 name: == 目录名
+  for (const name of bundledNames) {
+    const mdPath = path.join(BUNDLED_DIR, name, 'SKILL.md')
+    if (!existsSync(mdPath)) { check(false, `bundled ${name}/SKILL.md 缺失`); continue }
+    const md = readFileSync(mdPath, 'utf8')
+    // 复刻 parseFrontmatter 的 frontmatter 提取（首行 --- 到下一个独立 ---）
+    const firstEnd = md.indexOf('\n')
+    let fmName = null
+    if (firstEnd !== -1 && md.slice(0, firstEnd).replace(/\r$/, '') === '---') {
+      const start = firstEnd + 1
+      const lines = md.slice(start).split('\n')
+      let closing = -1; let cursor = start
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        const ls = cursor; const le = cursor + line.length
+        if (line.replace(/\r$/, '') === '---') { closing = ls; break }
+        cursor = le + 1
+      }
+      if (closing !== -1) {
+        const front = md.slice(start, closing)
+        const mm = front.match(/^name:\s*(.+)$/m)
+        if (mm) {
+          let v = mm[1].trim()
+          if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1)
+          fmName = v.trim()
+        }
+      }
+    }
+    check(fmName === name, `bundled ${name}/SKILL.md frontmatter name:="${fmName}" 与目录名一致`)
+    if (fmName && !/^[\p{L}0-9]+(?:-[\p{L}0-9]+)*$/u.test(fmName)) {
+      check(false, `bundled ${name} 非法 skill 名 ${fmName}`)
+    }
+  }
+  // c) LICENSE 与 VERSION
+  const licPath = path.join(BUNDLED_DIR, 'LICENSE')
+  if (existsSync(licPath)) {
+    const lic = readFileSync(licPath, 'utf8')
+    check(lic.includes('Copyright (c) 2026 Matt Pocock'), 'bundled LICENSE 含 Copyright (c) 2026 Matt Pocock')
+  } else {
+    check(false, 'bundled LICENSE 缺失')
+  }
+  const verPath = path.join(BUNDLED_DIR, 'VERSION')
+  if (existsSync(verPath)) {
+    const ver = readFileSync(verPath, 'utf8').trim()
+    check(ver === BUNDLED_VERSION, `bundled VERSION==${BUNDLED_VERSION}（当前 ${ver}）`)
+  } else {
+    check(false, 'bundled VERSION 缺失')
+  }
+  // d) 上游新 tag 探测（离线跳过，仅 warn）
+  try {
+    const { spawnSync } = require('node:child_process')
+    const ls = spawnSync('git', ['ls-remote', '--tags', 'https://github.com/mattpocock/skills'], { encoding: 'utf8', timeout: 5000 })
+    if (ls.status === 0 && ls.stdout) {
+      const tags = [...ls.stdout.matchAll(/refs\/tags\/(v[\\d.]+)\^?\{\}/g)].map(m => m[1])
+        .concat([...ls.stdout.matchAll(/refs\/tags\/(v[\\d.]+)\s/g)].map(m => m[1]))
+      const uniq = [...new Set(tags)].sort()
+      const latest = uniq[uniq.length - 1]
+      if (latest && latest !== BUNDLED_VERSION) {
+        console.log(`[warn] 上游已发布新 tag ${latest}，当前 pin ${BUNDLED_VERSION} 落后（请评估是否需要 sync）`)
+      } else if (latest) {
+        console.log(`[info] 上游最新 tag ${latest} 与 pin 一致`)
+      }
+    } else {
+      console.log('[note] git ls-remote 探测跳过（离线或无输出）')
+    }
+  } catch (e) {
+    console.log('[note] 上游 tag 探测跳过：' + e.message)
+  }
+}
+
 console.log('\n=== verify-matt-skills-sync ===')
 if (failures === 0) {
   console.log('ALL CHECKS PASS')
