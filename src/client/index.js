@@ -200,6 +200,7 @@ export default {
 
     // ==== leaf:chips (spliced by build) ====
     // ==== leaf:hoverTip (spliced by build) ====
+    // ==== leaf:tip (spliced by build) ====
     // ==== leaf:backendSelector (spliced by build) ====
     // ==== leaf:switchConfirmModal (spliced by build) ====
 

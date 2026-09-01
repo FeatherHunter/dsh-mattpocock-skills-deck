@@ -15,6 +15,7 @@ const check = (ok, level, msg) => {
 const ALLOWLIST = new Set([
   'src/client/kernel/portal.js',
   'src/client/views/primitives/HoverTip.js',
+  'src/client/views/primitives/Tip.js',
 ])
 function collectFiles(dir, out) {
   const abs = path.resolve(dir)

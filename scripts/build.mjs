@@ -219,6 +219,7 @@ const SHARED_SPLICE = [
 const LEAF_MODULES = [
   { id: 'chips', file: 'src/client/views/shared/chips.js' },
   { id: 'hoverTip', file: 'src/client/views/primitives/HoverTip.js' },
+  { id: 'tip', file: 'src/client/views/primitives/Tip.js' },
   { id: 'backendSelector', file: 'src/client/views/shared/BackendSelector.js' },
   { id: 'switchConfirmModal', file: 'src/client/views/shared/SwitchConfirmModal.js' },
   { id: 'md', file: 'src/client/views/shared/md.js' },
