@@ -35,8 +35,8 @@ npm install -g @deepseek-ai/dsh
 #    entry you actually use (a wrong profile = the plugin never loads, restarts won't help)
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # DSH Desktop app (most users)
 # dsh plugin --profile web add dsh-mattpocock-skills-deck     # self-started web server (dsh web)
-# Pin to latest for extra stability (currently 1.7.9):
-# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.9 --registry https://registry.npmjs.org
+# Pin to latest for extra stability (currently 1.7.10):
+# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.10 --registry https://registry.npmjs.org
 
 # ③ Better on narrow screens (optional): install better-sidebar into the SAME profile
 dsh plugin --profile desktop add dsh-better-sidebar
@@ -80,7 +80,7 @@ The examples below use the web profile — DSH Desktop app users: replace every 
 
 ```bash
 # Install a pinned version
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.9 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.10 --registry https://registry.npmjs.org
 
 # No global install (pin a version like above for extra safety)
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck

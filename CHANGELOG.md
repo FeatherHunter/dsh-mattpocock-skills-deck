@@ -1,5 +1,13 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-09-01 · v1.7.10 发布：新建会话 PTC 门禁与工作区回退及交接链路收口
+
+- **单点工厂与复用闸门（#363 承接 #361/#362 的可判定门禁）**：新增 buildCreateOpts 与 createPTCSession 单点工厂，显式携带 agentPreset:'ptc' 并原子化挂载 pendingDraft 为唯一会话创建出口，防 default 漂移；新增 isReusableBlank/getRowPreset/isHealthyPreset 两级同形复用闸门，空会话永不复用且字面 code 判不健康，被拒必走新建分支仅隔离不清理；改造 openTextInNewSession 的 reuseSid 两级判定与创建分支，经工厂保证显式 ptc 与首条同次原子化，满足 #362 三判据 P+A，新增门禁 tests/verify-newsession-preset-guard.js（68 项，双源一致）并并入 npm run verify（对应提交 9d90ce4）。
+- **工作区回退与首条保真及 alpha 兼容（#364）**：工作区回退矩阵显式化——ensureWorkspaceId 优先复用已登记工作区，未命中则按需创建并兼容多形态快照，创建失败或无效回落 null 使上层走 {cwd,ptc} 而非阻断；针对 alpha 入参更名，path 抛 bad-request 时自动重试 {cwd}；buildCreateOpts 两分支互斥必带 ptc，createPTCSession 对 workspaceId / agentPreset 更名做兼容回退，保证首条不丢；复用与创建分支均以 sid 锚定，空 cwd 时直接回退注入当前会话，新增门禁 tests/verify-newsession-workspace-fallback.js（84 项，双源一致）并并入 npm run verify，构建双源同步，verify 全绿（对应提交 c8e0a8c）。
+- **交接链路统一经单点工厂（#364 续 · handoff 收口）**：doHandoffOpen 的 finish 改走统一单点工厂 openTextInNewSession（带 handoff 标题）原子化注入首条并保留剪贴板复制；兜底分支经 sessions.create 显式 ptc + 工作区，修复原 ws.startSession 未显式 ptc/工作区且 pendingDraftTargetSid=null 导致的幽灵复活与抢消费；同步更新 tests/verify-handoff-split.js 门禁，校验 openTextInNewSession 调用与不再裸调 ws.startSession（对应本次未提交改动，随版合入）。
+- **文档同步**：README 安装指引中锁定版本全量由 1.7.9 同步为 1.7.10，对齐已合入的新建会话门禁与工作区回退；英文文档与包内说明同步更新。
+- **验证**：node scripts/build.mjs OK，双产物 client.js / package/lib/client.js 同源，DSW_VERSION=v1.7.10；npm pack --dry-run 67 文件清洁（lib/shared/cordis.patch.yml 白名单）；npm run verify 全绿（含双产物一致性、平台契约、新会话预设门禁、工作区回退门禁、交接分割门禁、发布契约）。
+
 ## 2026-08-31 · v1.7.9 发布：状态栏胶囊在新版对话框中变窄问题的收口
 
 - **状态栏胶囊修复**：从第一性原理改用同源 CSS 变量驱动——外框改为 width:100% + max-width:var(--dsh-composer-card-max-width)，外层 wrapper 改用 var(--dsh-composer-side-clearance) 回退 8px，与宿主输入卡同源；移除 iw/inputRef 状态与 textarea.uV2eYG_input 硬编码查询，折叠仅观察胶囊及其父容器尺寸变化触发 applyFold，确保在 DSH Alpha 新版 Lexical 输入区（[data-composer-card]/.krUYjW_card）中胶囊外框随对话框同源伸缩且不再卡死 780（对应提交 ac94af5）。
@@ -410,15 +418,3 @@
 - 交接段由「交接」+「新会话交接」两个独立胶囊合并为**分割按钮**：共外框 + 细分隔线（1px×14px，bg=var(--dsw-alias-border-l1)），左半「交接」（Icon handoff + 文字）/ 右半「交接出去」（Icon handoff-open），左右各自点击区与 tooltip 保留，hover 沿用 seg 背景
 - **灰/亮双态**：store 新增 handoffReady（默认 false）；第一击生成成功 → 右半亮蓝 #58a6ff + tooltip「开新会话并预填交接文档路径」；未 ready → 半透明灰（opacity .6 / 文字色 #8b8b95）+ 新 tooltip「尚未生成交接文档：先点「交接」生成」
 - **引导门**：未点过第一击时点击右半 → 先探测磁盘 .scratch/handoff/ 最新文档（host wf.handoffLatest 按 mtime 取最新）→ 有 latest 才置 ready + 开新会话并预填 /read；没有 → toast 引导「请先点「交接」生成交接文档」且**不再开空会话**（删除原「无文档仍开新会话」的糊涂分支，含宿主通道不可用 / 探测失败兜底）
-- 新增 i18n 键：nav.handoffGreyTitle / toast.handoffGrey（zh/en）；同时移除被引导门取代的 3 个已无引用的历史 toast 键（toast.copiedHandoffNoLatest / toast.handoffNotFound / toast.copiedHandoffFail），t3-locale 净增 -1 → 232 键 × zh/en
-- 新增回归测试 tests/verify-handoff-split.js（静态契约 + 引导门行为沙箱：双源 × 5 场景）
-- 双源镜像同步（client.js ↔ package/lib/client.js）· 已同步 DSH 安装目录
-
-### 交接按钮 rev（同日 · #1 · 用户 UI 反馈两处）
-
-- **无文档即禁止开新会话**：删除「本会话点过第一击即放行」的旁路——doHandoffOpen 任何情况下都先探测磁盘 .scratch/handoff/ 真实文档，有 latest 才置 ready + 开新会话；没有 → toast 引导且**绝不打开空会话**；右半未就绪呈禁用态（灰 + opacity .55 + 自定义 SVG「文档+斜杠」禁用图标 handoff-off + cursor default，替换系统红圈光标，tooltip 引导）
-- **灰/亮依据改为「磁盘真实文档」**：新增 probeHandoffReady（探测 → 写 st.handoffReady + emit 重渲染）；StatusBar 挂载即探测；第一击只注入模板并触发立即 + 10s 延迟再探测，文档一成文右半自动亮蓝可点（不再仅凭第一击就亮）
-- **边框/分隔线 hover 才显**：分割按钮外框边框与细分隔线改为常驻透明、hover 时浮现（与 沉淀/诊断/bug 等 seg 按钮一致），hover 背景沿用 seg
-- verify-handoff-split.js 升级为 rev 契约（22 静态 + 8 行为场景 × 双源）
-
-## v1.0.0 正式发布（2026-08-17 · 新包名首发）

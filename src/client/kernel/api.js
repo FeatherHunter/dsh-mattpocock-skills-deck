@@ -375,18 +375,25 @@ export let pendingDraftTargetSid = null
       if (now - lastHandoffOpenTs < 800) return  // 800ms 内重复点击忽略
       lastHandoffOpenTs = now
       st.handoffSearching = true; emit(st)  // 搜索动画：右半转圈
-      const ws = ctx.get('workspaces')
       const doneSearch = function () { st.handoffSearching = false; emit(st) }  // 2s 后恢复，避免闪烁
       const finish = function (file, msg) {
         const text = handoffReadText(file, st.cwd)
-        pendingDraft = text
-        pendingDraftTargetSid = null
-        copyText(st, text, msg || tr('toast.copiedHandoff'))
-        if (ws && typeof ws.startSession === 'function') {
-          ws.startSession()
+        // 复制到剪贴板仍保留，便于粘贴；主路径经统一单点工厂开新 PTC 会话并原子化注入首条（修复：原 ws.startSession 未显式 ptc/工作区且 pendingDraftTargetSid=null 导致幽灵复活与抢消费）
+        try { copyText(st, text, msg || tr('toast.copiedHandoff')) } catch (e) {}
+        const handoffTitle = (function(){ try{ var base = (typeof tr==='function'? tr('nav.handoff') : 'Handoff'); return '[New] ' + base; }catch(e){ return '[New] Handoff' } })()
+        if (typeof openTextInNewSession === 'function') {
+          openTextInNewSession(st, text, handoffTitle)
         } else {
-          pendingDraft = null
-          pendingDraftTargetSid = null
+          // 兜底：无工厂时仍尝试 sessions.create 显式 ptc
+          try {
+            const sessions = ctx.get('sessions')
+            const cwd = st.cwd || ''
+            if (sessions && typeof sessions.create === 'function') {
+              const createOpts = (typeof buildCreateOpts === 'function') ? buildCreateOpts(null, cwd) : { cwd: cwd, agentPreset: 'ptc' }
+              const p = (typeof createPTCSession === 'function') ? createPTCSession(sessions, null, cwd, text) : sessions.create(createOpts).then(function(sid){ pendingDraft=text; pendingDraftTargetSid=sid; return sid })
+              p.then(function(sid){ try{ sessions.open(sid) }catch(e){} }).catch(function(){ try{ inject(st,text) }catch(e2){} })
+            } else { inject(st, text) }
+          } catch(e3){ try{ inject(st,text)}catch(e4){} }
         }
         setTimeout(doneSearch, 2000)  // 至少转 2s
       }

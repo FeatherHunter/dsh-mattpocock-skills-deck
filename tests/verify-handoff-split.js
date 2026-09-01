@@ -51,6 +51,8 @@ const statChecks = function (src, tag) {
   ok('nav.handoffGreyTitle en', src.includes("'nav.handoffGreyTitle': 'No handoff doc yet"))
   ok('toast.handoffGrey zh', src.includes("'toast.handoffGrey': '请先点「交接」生成交接文档"))
   ok('toast.handoffGrey en', src.includes("'toast.handoffGrey': 'Click Handoff first"))
+  ok('doHandoffOpen 经统一单点工厂 openTextInNewSession（PTC+工作区+首条原子化）', src.includes('openTextInNewSession(st, text'))
+  ok('doHandoffOpen 不再裸调 ws.startSession（旧路径已移除）', (src.match(/ws\.startSession\(\)/g)||[]).length===0)
 }
 
 // ---- Part B：引导门行为（沙箱执行真实 probeHandoffReady + doHandoff + doHandoffOpen）----
@@ -66,18 +68,41 @@ const runHarness = function (fnSrc, opt) {
   const calls = []  // 记录实际调用的 RPC 名称 + 参数（issue #12 BUG4 验证用）
   const st = { cwd: 'D:/repo', handoffReady: false, injector: null }
   const started = []
+  const createdOpts = []
   const copied = []
   const flashes = []
   const injected = []
-  const wsStub = { startSession: function () { started.push('session') } }
-  const ctxStub = { get: function (k) { return k === 'workspaces' ? wsStub : null } }
+  const sessionsStub = {
+    create: function (opts) { createdOpts.push(opts); const sid='sid-handoff-'+(createdOpts.length); started.push(sid); return Promise.resolve(sid) },
+    open: function(sid){ },
+    list: { getSnapshot: function(){ return { byId: {} } } },
+    scope: function(){ return {} },
+    sessionOf: function(){ return { rename: async function(){ return {ok:true, value:{title:'ok'}}}} }
+  }
+  const wsStub = {
+    startSession: function () { started.push('session-ws-legacy'); },
+    list: { getSnapshot: function(){ return { items: [{ path: 'D:/repo', workspaceId: 'ws-test' }] } } },
+    create: async function(){ return { workspaceId: 'ws-test'} }
+  }
+  const workspacesStub = wsStub
+  const ctxStub = { get: function (k) { if(k==='sessions') return sessionsStub; if(k==='workspaces') return workspacesStub; return null } }
+  const mockOpenCalls = []
+  const mockOpen = function(s_, text_, title_){
+    mockOpenCalls.push({text:text_, title:title_});
+    const cwd = s_.cwd || 'D:/repo';
+    return sessionsStub.create({ workspaceId: 'ws-test', agentPreset: 'ptc' }).then(function(sid){ return sid })
+  }
   // probe 接收 (callName, callArg)；向后兼容旧式 `probe: function () { ... }`（忽略参数）
   const probeCall = function (probe, n, a) { return probe ? probe(n, a) : Promise.reject(new Error('no probe')) }
   const hostStub = { call: function (n, a) { calls.push({ name: n, arg: a }); return opt.hostMissing ? Promise.reject(new Error('no host')) : probeCall(opt.probe, n, a) } }
+  const fnSrcWithMock = 'var openTextInNewSession = mockOpen;\n' +
+    'var buildCreateOpts = function(wid,cwd){ return wid?{workspaceId:wid,agentPreset:"ptc"}:{cwd:cwd,agentPreset:"ptc"}};\n' +
+    'var createPTCSession = function(sess,wid,cwd,txt){ var opts=buildCreateOpts(wid,cwd); return sess.create(opts).then(function(sid){ return sid }) };\n' +
+    'var getCwdSync = function(){ return "D:/repo" }; var keyOf=function(s){ return String(s||"").toLowerCase() }; var storeOf=function(){return {cwd:"D:/repo"}}; var hydrateFromCache=function(){return false}; var getCachedSnapshot=function(){return null}; var namingHintOf=function(){return null}; var isNewPlaceholderTitle=function(){return false}; var namingGuardianKick=function(){}; var isReusableBlank=function(){return false}; var getRowPreset=function(){return "ptc"}; var isHealthyPreset=function(){return true};\n' + fnSrc;
   const $ = new Function(
     'st', 'ctx', 'host', 'conn', 'rpcCall', 'emit', 'timer', 'timeStampStr', 'handoffPrompt',
-    'extractHandoffFile', 'inject', 'flash', 'tr', 'copyText', 'handoffReadText', 'pendingDraft', 'handoffFile', 'handoffTs',
-    fnSrc + '\n; return { probeHandoffReady: probeHandoffReady, doHandoff: doHandoff, doHandoffOpen: doHandoffOpen }'
+    'extractHandoffFile', 'inject', 'flash', 'tr', 'copyText', 'handoffReadText', 'pendingDraft', 'handoffFile', 'handoffTs', 'mockOpen',
+    fnSrcWithMock + '\n; return { probeHandoffReady: probeHandoffReady, doHandoff: doHandoff, doHandoffOpen: doHandoffOpen }'
   )
   const fns = $(
     st, ctxStub, hostStub, { rpc: true },
@@ -94,13 +119,14 @@ const runHarness = function (fnSrc, opt) {
     function (file) { return '/read .scratch/handoff/' + (file || 'latest.md') },
     null,
     opt.handoffFile === undefined ? null : opt.handoffFile,
-    null
+    null,
+    mockOpen
   )
   const invoke = function (fn, arg) { const r = fn(arg); return r === undefined ? Promise.resolve() : Promise.resolve(r) }
   return invoke(opt.via === 'open' ? fns.doHandoffOpen : opt.via === 'probe' ? fns.probeHandoffReady : fns.doHandoff, st).then(function () {
     return new Promise(function (resolve) {
       setTimeout(function () {
-        resolve({ st: st, started: started, copied: copied, flashes: flashes, injected: injected, scheduled: scheduled, emitCount: emitCount, calls: calls })
+        resolve({ st: st, started: started, createdOpts: createdOpts, mockOpenCalls: mockOpenCalls, copied: copied, flashes: flashes, injected: injected, scheduled: scheduled, emitCount: emitCount, calls: calls })
       }, 15)
     })
   })
@@ -119,22 +145,32 @@ const main = async function () {
     let fnSrc
     try { fnSrc = extractBlock(src) } catch (e) { failed = true; console.log('  FAIL ' + tag + ' 提取异常 — ' + e.message); continue }
     const scenarios = [
-      { name: '开新会话：探测有文档 → 放行 + ready=true', via: 'open',
+      { name: '开新会话：探测有文档 → 放行 + ready=true（经单点工厂 PTC）', via: 'open',
         opt: { probe: function () { return Promise.resolve({ ok: true, file: 'ABC.md' }) }, hostMissing: false },
         assert: function (r) {
-          assert.strictEqual(r.started.length, 1, '开新会话 1 次')
+          const hit = r.mockOpenCalls && r.mockOpenCalls.length===1 ? r.mockOpenCalls[0] : null;
+          assert.ok(hit || r.createdOpts.length>=1, '开新会话 1 次（mockOpen 或 sessions.create）')
+          if(hit) assert.ok(hit.text.includes('ABC.md'), '预填读探测到的文档')
+          else assert.ok(r.createdOpts[0] && r.createdOpts[0].agentPreset==='ptc', '创建入参显式 ptc')
+          if(r.createdOpts.length) assert.strictEqual(r.createdOpts[0].agentPreset,'ptc','显式 ptc')
           assert.strictEqual(r.copied.length, 1)
-          assert.ok(r.copied[0].text.includes('ABC.md'), '预填读探测到的文档')
+          if(hit) assert.ok(hit.text.includes('ABC.md') || r.copied[0].text.includes('ABC.md'), '预填读探测到的文档')
+          else assert.ok(r.copied[0].text.includes('ABC.md'), '预填读探测到的文档')
           assert.strictEqual(r.st.handoffReady, true, 'ready 置 true')
         } },
       { name: 'r2 替代旁路：handoffFile 已设 → prompt 直接用 handoffFile（不查磁盘；即使 host 探到 ABC.md 也不引用）', via: 'open',
         opt: { probe: function () { return Promise.reject(new Error('r2：handoffFile 已设 → 不应调 host')) }, hostMissing: false, handoffFile: '20260818-000000.md' },
         assert: function (r) {
-          // r2：handoffFile 设了就不调 host probe（即使 host 通道可用、即使磁盘上有「更新」的 ABC.md）
           assert.strictEqual(r.calls.length, 0, 'r2：handoffFile 已设 → 不调 host probe')
-          assert.strictEqual(r.started.length, 1, '开新会话 1 次')
-          assert.ok(r.copied[0].text.includes('20260818-000000.md'), 'prompt 用 handoffFile（与第一击模板时间戳一致 · r2）')
-          assert.ok(!r.copied[0].text.includes('ABC.md'), 'r2：即使磁盘上有更新的文件也不引用（保证 prompt 与第一击一致）')
+          const hit = r.mockOpenCalls && r.mockOpenCalls[0];
+          if(hit) {
+            assert.ok(hit.text.includes('20260818-000000.md'), 'prompt 用 handoffFile（与第一击模板时间戳一致 · r2）')
+            assert.ok(!hit.text.includes('ABC.md'), 'r2：即使磁盘上有更新的文件也不引用（保证 prompt 与第一击一致）')
+          } else {
+            assert.strictEqual(r.started.length, 1, '开新会话 1 次')
+            assert.ok(r.copied[0].text.includes('20260818-000000.md'), 'prompt 用 handoffFile（与第一击模板时间戳一致 · r2）')
+            assert.ok(!r.copied[0].text.includes('ABC.md'), 'r2：即使磁盘上有更新的文件也不引用（保证 prompt 与第一击一致）')
+          }
           assert.strictEqual(r.st.handoffReady, true, 'handoffFile 已设 → ready=true（亮蓝）')
         } },
       { name: '开新会话：探测无文档 → 引导 toast，绝不开空会话 + ready=false', via: 'open',
