@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>[P1] HoverTip 原型验证 — 鼠标跟随 vs 锚点跟随 | #379 prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  :root{
+    --bg:#0a0a0f; --panel:#16181d; --panel2:#10131a; --border:#2a2d35; --border2:#3a3f4a;
+    --text:#e6edf3; --sub:#a1a1aa; --dim:#7d8590;
+    --acc:#c084fc; --acc2:#bc8cff; --green:#4ade80; --amber:#f59e0b; --red:#f87171; --blue:#58a6ff;
+    --mono:Consolas,ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,PingFang SC,Helvetica,Arial,sans-serif;line-height:1.55}
+  header{max-width:1120px;margin:0 auto;padding:28px 20px 12px}
+  header .tag{display:inline-block;background:rgba(192,132,252,.15);border:1px solid rgba(192,132,252,.35);color:var(--acc2);border-radius:99px;padding:2px 10px;font-size:11px;margin-bottom:8px}
+  header h1{font-size:21px;line-height:1.35}
+  header h1 em{color:var(--acc);font-style:normal}
+  header p{color:var(--sub);font-size:13px;margin-top:8px;max-width:860px}
+  header .meta{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px}
+  header .links a{color:var(--blue);text-decoration:none;font-size:12px;margin-right:12px}
+  header .links a:hover{text-decoration:underline}
+  main{max-width:1120px;margin:0 auto;padding:8px 20px 80px}
+  .grid{display:grid;grid-template-columns:320px 1fr;gap:16px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .ph{padding:12px 14px;border-bottom:1px solid var(--border);font-size:13px;font-weight:650;display:flex;align-items:center;gap:8px}
+  .ph .dot{width:8px;height:8px;border-radius:50%;background:var(--acc)}
+  .ph small{font-weight:400;color:var(--sub);font-size:11px;margin-left:auto}
+  .pb{padding:12px 14px}
+  label{font-size:12px;color:var(--sub);display:block;margin:10px 0 4px}
+  label:first-child{margin-top:0}
+  select,input[type=text],input[type=number]{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:6px 8px;font-size:12px}
+  input[type=range]{width:100%}
+  .row{display:flex;gap:8px;align-items:center}
+  .row .flex{flex:1}
+  .check{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text)}
+  .check input{accent-color:var(--acc)}
+  .btn{border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer}
+  .btn.primary{background:var(--acc);color:#140a1e;border-color:transparent;font-weight:600}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--sub)}
+  .btn.small{padding:4px 8px;font-size:11px}
+  .seg2{display:inline-flex;background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:2px;gap:2px}
+  .seg2 button{border:none;background:transparent;color:var(--sub);padding:4px 10px;border-radius:999px;font-size:12px;cursor:pointer}
+  .seg2 button.on{background:var(--acc);color:#140a1e;font-weight:600}
+  .state{font-family:var(--mono);font-size:11px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:8px;white-space:pre-wrap;word-break:break-all;max-height:320px;overflow:auto}
+  .badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid}
+  .badge.ok{background:rgba(74,222,128,.12);color:var(--green);border-color:rgba(74,222,128,.35)}
+  .badge.warn{background:rgba(245,158,11,.12);color:var(--amber);border-color:rgba(245,158,11,.35)}
+  .badge.info{background:rgba(88,166,255,.12);color:var(--blue);border-color:rgba(88,166,255,.35)}
+  .stageWrap{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#0c0e12}
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--panel2)}
+  .tabs button{flex:1;background:transparent;border:none;color:var(--sub);padding:10px 8px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent}
+  .tabs button.on{color:var(--text);border-bottom-color:var(--acc);background:rgba(192,132,252,.08);font-weight:600}
+  .stage{position:relative;height:360px;background:var(--panel2);overflow:hidden;cursor:crosshair}
+  .stage .info{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.08);color:#a1a1aa;font-size:10px;padding:4px 6px;border-radius:6px;font-family:var(--mono);pointer-events:none}
+  .anchor{position:absolute;width:96px;height:28px;background:var(--panel);border:1px solid var(--border2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--sub);cursor:pointer;user-select:none}
+  .anchor:hover{border-color:var(--acc);color:var(--text)}
+  .anchor.active{border-color:var(--acc);background:rgba(192,132,252,.15);color:var(--acc)}
+  .mousePad{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--dim);font-size:12px}
+  .mousePad.show{display:flex}
+  .hovertip{position:fixed;max-width:220px;z-index:2147483000;padding:6px 10px;border-radius:7px;background:var(--panel);border:1px solid var(--border2);color:var(--text);font-size:11px;line-height:1.5;pointer-events:none;box-shadow:0 8px 30px rgba(0,0,0,.45);transform:translateY(-50%);transition:left .08s, top .08s}
+  .hovertip .caret{position:absolute;left:-6px;top:50%;transform:translateY(-50%);width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:6px solid var(--border2)}
+  .hovertip .caret i{position:absolute;left:1px;top:-5px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-right:5px solid var(--panel)}
+  .hovertip.flipX .caret{left:auto;right:-6px;border-right:none;border-left:6px solid var(--border2)}
+  .hovertip.flipX .caret i{left:auto;right:1px;border-right:none;border-left:5px solid var(--panel)}
+  .hovertip.flipY{transform:none}
+  .portalNote{font-size:11px;color:var(--dim);padding:8px 12px;border-top:1px solid var(--border);background:rgba(255,255,255,.02)}
+  .portalNote b{color:var(--sub)}
+  .checklist{list-style:none}
+  .checklist li{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;align-items:flex-start}
+  .checklist li span:first-child{flex:none;width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;margin-top:1px}
+  .checklist li.ok span:first-child{background:rgba(74,222,128,.15);color:var(--green)}
+  .checklist li.warn span:first-child{background:rgba(245,158,11,.15);color:var(--amber)}
+  .floatBar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#16181d;border:1px solid var(--border2);border-radius:999px;padding:6px 10px;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:9999}
+  .floatBar button{width:28px;height:28px;border-radius:50%;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer}
+  .floatBar .label{font-size:12px;color:var(--sub);min-width:140px;text-align:center}
+  .floatBar .label b{color:var(--text)}
+  .hint{font-size:11px;color:var(--dim);margin-top:6px}
+  .kv{display:grid;grid-template-columns:110px 1fr;gap:4px 10px;font-size:11px}
+  .kv dt{color:var(--dim)}
+  .kv dd{color:var(--text);font-family:var(--mono)}
+</style>
+</head>
+<body>
+<header>
+  <div class="tag">PROTOTYPE · throwaway · #379</div>
+  <h1><em>HoverTip</em> 低保真原型 — 鼠标跟随 vs 锚点跟随 <span style="font-weight:400;color:var(--sub)">· 翻转 / 限宽 / 偏移 / 挂顶一致性验证</span></h1>
+  <p>本题回答：<b>G2 契约的 HoverTip 接口是否可用一个控件覆盖现有的 5 处悬浮需求</b>（两套已落地悬浮为必证，另 3 处为窄视口/滚动/富文本的扩展需求）。原型不接真实 store，全部状态走局部参数，挂顶经 <code>portalTop</code> 落到 <code>document.body</code>，翻转按视口自动计算。</p>
+  <div class="meta">分支 prototype/hovertip-379 · 单文件双击即开 · 3 态通过顶栏切换 · 维护者点评“是否覆盖 5 处需求”后结论回流 G2（已在 #393 落盘，本原型为可行性补证）</div>
+  <div class="links" style="margin-top:6px">
+    <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/379" target="_blank">#379 票</a>
+    <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/377" target="_blank">#377 G2 契约</a>
+    <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/373" target="_blank">#373 地图</a>
+  </div>
+</header>
+<main>
+  <div class="grid">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="panel">
+        <div class="ph"><span class="dot"></span> 参数面板 <small>即改即现，对应 G2 接口表</small></div>
+        <div class="pb">
+          <label>跟随模式 mode</label>
+          <div class="seg2" id="modeSeg">
+            <button class="on" data-mode="anchor">anchor 锚点</button>
+            <button data-mode="mouse">mouse 鼠标</button>
+          </div>
+          <div class="hint">anchor 读 targetRef.getBoundingClientRect()；mouse 跟 clientX/Y。默认 anchor（G2 推荐）</div>
+          <label>内容 content <span style="color:var(--dim);font-weight:400">（支持 string；VNode/函数形态由契约保留，此处以字符串演示）</span></label>
+          <input type="text" id="contentInput" value="技能说明：research — 阅读文档与本地资源，产出可引用结论"/>
+          <label>偏移 offset <span id="offsetLabel" style="color:var(--acc)">anchor {x:8, y:0}</span></label>
+          <div class="row">
+            <div class="flex"><div class="hint" style="margin:0 0 2px">x</div><input type="range" id="offX" min="-20" max="40" value="8"/></div>
+            <div class="flex"><div class="hint" style="margin:0 0 2px">y</div><input type="range" id="offY" min="-20" max="40" value="0"/></div>
+            <div style="font-family:var(--mono);font-size:11px;min-width:52px;text-align:right"><span id="offXv">8</span>, <span id="offYv">0</span></div>
+          </div>
+          <label>限宽 maxWidth <span id="mwLabel" style="color:var(--dim)">220</span> px</label>
+          <input type="range" id="mw" min="140" max="360" value="220"/>
+          <div class="hint">G2 默认 220（与 skillTip 220 对齐，238 为翻转阈值实宽）。贴边时 clamp 不越界</div>
+          <label>翻转 flip</label>
+          <label class="check"><input type="checkbox" id="flip" checked/> <span>auto 按视口自动翻转（caret 同步变向，place() 私有于 HoverTip）</span></label>
+          <label>延时 delay <span style="color:var(--dim)">show 0 / hide 160（G2 单 timer）</span></label>
+          <div class="row" style="gap:6px">
+            <button class="btn small" id="btnShow">立显 show</button>
+            <button class="btn small" id="btnHide">延时关 hide(160ms)</button>
+            <span id="delayState" style="font-size:11px;color:var(--dim)">空闲</span>
+          </div>
+          <label>层级 zIndex</label>
+          <div class="state" style="padding:6px 8px">2147483000（固定，高于面板 9999 / modal 10000 / note 10001，复用 skillPop 现值，经 portalTop 挂顶）</div>
+          <label>挂顶 portalTop</label>
+          <label class="check"><input type="checkbox" id="portal" checked/> <span>经 portalTop 挂到 document.body（RDOM 缺失时原地退化，失败不抛）</span></label>
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn primary" id="btnVisible" style="flex:1">显隐：开</button>
+            <button class="btn" id="btnReset">重置为 G2 默认</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="dot" style="background:var(--green)"></span> 当前状态 <small>每次交互后重渲染</small></div>
+        <div class="pb">
+          <div class="state" id="stateBox"></div>
+          <div class="hint">props 与计算后的 placement（left/top/flipped/caret）。可对照 G2 接口表逐项核验</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="dot" style="background:var(--amber)"></span> 覆盖 5 处需求清单 <small>维护者点评点</small></div>
+        <div class="pb">
+          <ul class="checklist" id="checklist">
+            <li class="ok"><span>✓</span><div><b>① SettingsPage cfgTip（鼠标跟随）</b><br/><span style="color:var(--sub)">需 mouse 模式 · offset 14,12 · 260×40 阈值 · 本原型切到 mouse 后在下方鼠标垫移动即验证；时序 0/160 单 timer，已覆盖</span></div></li>
+            <li class="ok"><span>✓</span><div><b>② SkillFloatList skillTip（锚点跟随）</b><br/><span style="color:var(--sub)">需 anchor 模式 · offset 8,0 · maxWidth 220 · 实宽 238 翻转 · 滚动/ResizeObserver 重算 · 本原型点任意锚点即验证，贴右自动翻左</span></div></li>
+            <li class="ok"><span>✓</span><div><b>③ Tabs 折叠提示（窄视口 238 阈值）</b><br/><span style="color:var(--sub)">需 anchor + 翻转 auto + 小三角同步 · 本原型将锚点拖到右侧边缘即可触发，与 ② 同阈值同逻辑</span></div></li>
+            <li class="ok"><span>✓</span><div><b>④ 弹窗/浮层不被裁剪（portal 挂顶）</b><br/><span style="color:var(--sub)">需 portalTop 挂 document.body · zIndex 2147483000 · RDOM 缺失退化 · 本原型 tooltip 已挂到 body，祖先 transform 不影响，可在审查元素中核验</span></div></li>
+            <li class="ok"><span>✓</span><div><b>⑤ 富文本/懒求值内容（后续不改接口）</b><br/><span style="color:var(--sub)">需 content 支持 string | VNode | ()=>VNode，content 优先于 children · 本原型以字符串演示，契约已预留形态，调用方传函数即可</span></div></li>
+          </ul>
+          <div style="margin-top:10px;padding:8px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.35);border-radius:8px;font-size:12px">
+            <b style="color:var(--green)">结论（预填，待维护者拍板）：</b> 5 项均可由同一 HoverTip 契约覆盖，无需第二套定位/翻转/挂顶分支。建议维持 G2 推荐打包不变，进入 T1/T2 直接落地。
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="panel">
+        <div class="ph"><span class="dot" style="background:var(--blue)"></span> 三态舞台 <small>默认 / 翻转 / 跟随 · 点击锚点或在鼠标垫移动触发</small></div>
+        <div class="stageWrap">
+          <div class="tabs" id="stateTabs">
+            <button class="on" data-state="default">默认 Default</button>
+            <button data-state="flip">翻转 Flip</button>
+            <button data-state="follow">跟随 Follow</button>
+          </div>
+          <div class="stage" id="stage">
+            <div class="info" id="stageInfo">视口 800×360 · 拖动锚点可改 rect · 缩放窗口看翻转</div>
+            <div class="anchor" style="left:46%;top:44%" data-id="c">锚点 · 居中</div>
+            <div class="anchor" style="left:72%;top:18%" data-id="tr">锚点 · 贴右上</div>
+            <div class="anchor" style="left:78%;top:68%" data-id="br">锚点 · 贴右下</div>
+            <div class="anchor" style="left:12%;top:62%" data-id="bl">锚点 · 贴左下</div>
+            <div class="anchor" style="left:6%;top:14%" data-id="tl">锚点 · 贴左上</div>
+            <div class="mousePad" id="mousePad">鼠标在此区域移动，tooltip 将跟随（mouse 模式）</div>
+          </div>
+          <div class="portalNote">挂顶：<b>tooltip 节点已挂到 document.body</b>（而非 stage 容器），经 <code>portalTop</code> 渲染，<code>position:fixed</code> 的视口坐标与 <code>z-index:2147483000</code> 全局生效，祖先 <code>transform</code> 不会裁剪。关闭 portal 复选框可对比“未挂顶被裁剪”的差异。</div>
+        </div>
+        <div style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn small" id="btnCenterAnchor">选中居中锚点</button>
+          <button class="btn small" id="btnEdgeAnchor">选中贴右锚点（触发翻转）</button>
+          <button class="btn small" id="btnMouseMode">切 mouse 并测跟随</button>
+          <button class="btn small" id="btnResize">模拟窄视口 420px</button>
+          <span style="font-size:11px;color:var(--dim)">键盘 ← → 可切三态，鼠标在舞台移动时自动跟随（mouse 模式）</span>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="dot" style="background:var(--acc)"></span> 引导式走查 <small>按序点击，重现 3 态的关键分支</small></div>
+        <div class="pb">
+          <div class="tabs" id="walkTabs" style="border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+            <button class="on" data-walk="w1" style="font-size:11px">走查 1：默认呈现</button>
+            <button data-walk="w2" style="font-size:11px">走查 2：贴边翻转</button>
+            <button data-walk="w3" style="font-size:11px">走查 3：两种跟随</button>
+          </div>
+          <div id="walkBody" style="margin-top:10px"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="dot" style="background:var(--dim)"></span> 接口表（来自 G2 决议）<small>HoverTip(props)</small></div>
+        <div class="pb">
+          <div class="state" style="font-size:11px;line-height:1.6">HoverTip(props) // h 工厂，经 DswsCtx 取 h/timer/localeSvc，消费 kernel/portal.js 的 portalTop
+{
+  content?: string | VNode | () => VNode, // 主入口，富内容不改接口
+  children?: string | VNode,              // 别名，content != null 时忽略
+  mode?: 'anchor' | 'mouse',              // 默认 'anchor'，首轮不做 'fixed'
+  targetRef?: Ref<Element>,                // mode=anchor 时锚点
+  offset?: { x: number, y: number },      // 默认 anchor {8,0} / mouse {14,12}
+  maxWidth?: number,                       // 默认 220
+  flip?: boolean,                          // 默认 true（auto 按 window 视口，caret 随翻转自动上下/左右）
+  delay?: { show: number, hide: number }, // 默认 {show:0, hide:160}
+  visible?: boolean,                       // 受控优先，未传则非受控局部 state
+  onVisibleChange?: (next: boolean) => void,
+  onShow?: () => void,
+  onHide?: () => void,
+  zIndex?: number,                         // 默认 2147483000
+}</div>
+          <div class="hint" style="margin-top:8px">状态：默认非受控局部 state，支持 visible 受控兜底；T2 一次性删除 s.skillTip/s.cfgTip/s.skillHover 等全局键，不留 shim。样式走 STYLE_TEXT，气泡 pointerEvents none。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <section style="margin-top:16px">
+    <div class="ph"><span class="dot" style="background:var(--green)"></span> 自由探索按钮 <small>任意顺序点，观察状态与定位变化</small></div>
+    <div class="pb" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" data-act="toggleMode">切换 mode（anchor↔mouse）</button>
+      <button class="btn" data-act="toggleFlip">切换 flip 开/关</button>
+      <button class="btn" data-act="mw220">maxWidth 220</button>
+      <button class="btn" data-act="mw260">maxWidth 260</button>
+      <button class="btn" data-act="offsetA">offset anchor 8,0</button>
+      <button class="btn" data-act="offsetM">offset mouse 14,12</button>
+      <button class="btn" data-act="show">显示</button>
+      <button class="btn" data-act="hide">隐藏（160ms）</button>
+      <button class="btn" data-act="moveEdge">把锚点移到贴边</button>
+      <button class="btn" data-act="scroll">模拟 scroll 重算</button>
+      <button class="btn" data-act="resize">模拟 resize 重算</button>
+    </div>
+  </section>
+</main>
+<div class="floatBar" id="floatBar">
+  <button id="prevState">←</button>
+  <div class="label" id="barLabel"><b>A · 默认 Default</b> — 居中锚点无翻转</div>
+  <button id="nextState">→</button>
+</div>
+<script>
+function placeHoverTip(opts){
+  const vp = opts.viewport || { w: window.innerWidth, h: window.innerHeight };
+  const off = opts.offset || {x:8,y:0};
+  const mw = opts.maxWidth || 220;
+  const estW = Math.min(mw, 220) + 16 + 2;
+  const estH = 40;
+  let x, y, flippedX=false, flippedY=false;
+  if(opts.mode==='mouse'){
+    x = (opts.mouse?opts.mouse.x: 200) + off.x;
+    y = (opts.mouse?opts.mouse.y: 200) + off.y;
+    if(opts.flip){
+      if(x + estW > vp.w) { x = (opts.mouse?opts.mouse.x:200) - off.x - estW; flippedX=true; }
+      if(y + estH > vp.h) { y = (opts.mouse?opts.mouse.y:200) - off.y - estH; flippedY=true; }
+    }
+    x = Math.max(4, Math.min(x, vp.w - estW - 4));
+    y = Math.max(4, Math.min(y, vp.h - estH - 4));
+  } else {
+    const r = opts.anchorRect;
+    if(!r) return null;
+    x = r.right + off.x;
+    y = r.top + r.height/2;
+    if(opts.flip){
+      if(x + estW > vp.w) { x = r.left - off.x - estW; flippedX=true; }
+      if(y + estH/2 > vp.h - 8) { y = Math.max(estH/2, vp.h - estH/2 - 8); flippedY=true; }
+      if(y - estH/2 < 8) { y = estH/2 + 8; flippedY=true; }
+    }
+    x = Math.max(4, Math.min(x, vp.w - estW - 4));
+    y = Math.max(estH/2+4, Math.min(y, vp.h - estH/2 -4));
+  }
+  return { left:x, top:y, flippedX, flippedY, caret: flippedX ? 'left' : 'right', estW, estH };
+}
+const state = {
+  mode: 'anchor',
+  offset: {x:8,y:0},
+  maxWidth: 220,
+  flip: true,
+  visible: true,
+  content: document.getElementById('contentInput')?document.getElementById('contentInput').value : '技能说明：research — 阅读文档与本地资源，产出可引用结论',
+  delay:{show:0, hide:160},
+  portal:true,
+  stage:'default',
+  activeAnchorId:'c',
+  mouse:{x:0,y:0},
+  hideTimer:null,
+};
+const stageEl = document.getElementById('stage');
+const mousePad = document.getElementById('mousePad');
+const tip = document.createElement('div');
+tip.className='hovertip';
+tip.innerHTML='<span class="caret"><i></i></span><span id="tipText"></span>';
+document.body.appendChild(tip);
+const tipText = tip.querySelector('#tipText');
+function getActiveRect(){
+  const el = stageEl.querySelector('.anchor.active');
+  if(!el) return null;
+  return el.getBoundingClientRect();
+}
+function viewport(){ return { w: window.innerWidth, h: window.innerHeight }; }
+function renderTip(){
+  const visible = state.visible;
+  if(!visible){ tip.style.display='none'; return; }
+  tip.style.display='';
+  tip.style.maxWidth = state.maxWidth + 'px';
+  tip.style.zIndex = '2147483000';
+  tip.style.pointerEvents = 'none';
+  tipText.textContent = state.content || '(空内容)';
+  const isPortal = state.portal;
+  if(!isPortal){
+    if(tip.parentElement!==stageEl){ stageEl.appendChild(tip); tip.style.position='absolute'; }
+  } else {
+    if(tip.parentElement!==document.body){ document.body.appendChild(tip); tip.style.position='fixed'; }
+  }
+  let place;
+  if(state.mode==='mouse'){
+    const m = state.mouse && (state.mouse.x||state.mouse.y) ? state.mouse : (function(){
+      const r = stageEl.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2};
+    })();
+    place = placeHoverTip({mode:'mouse', mouse:m, offset:state.offset, maxWidth:state.maxWidth, flip:state.flip, viewport:viewport()});
+    if(place){ tip.style.left = place.left+'px'; tip.style.top = place.top+'px'; tip.style.transform = place.flippedY? 'none':'translateY(-50%)'; }
+  } else {
+    const rect = getActiveRect();
+    if(!rect){ tip.style.display='none'; return; }
+    place = placeHoverTip({mode:'anchor', anchorRect:rect, offset:state.offset, maxWidth:state.maxWidth, flip:state.flip, viewport:viewport()});
+    if(place){ tip.style.left = place.left+'px'; tip.style.top = place.top+'px'; tip.style.transform='translateY(-50%)'; }
+  }
+  tip.classList.toggle('flipX', !!(place && place.flippedX));
+  tip.classList.toggle('flipY', !!(place && place.flippedY));
+  const sb = document.getElementById('stateBox');
+  if(sb){
+    const rect = getActiveRect();
+    sb.textContent = JSON.stringify({
+      props:{ mode:state.mode, offset:state.offset, maxWidth:state.maxWidth, flip:state.flip, visible:state.visible, delay:state.delay, zIndex:2147483000, portal: isPortal? 'portalTop -> document.body' : 'inline (退化，未挂顶)' },
+      content: state.content,
+      anchor: rect ? { left:Math.round(rect.left), top:Math.round(rect.top), right:Math.round(rect.right), width:Math.round(rect.width), height:Math.round(rect.height) } : null,
+      mouse: state.mode==='mouse' ? state.mouse : null,
+      placement: place || null,
+      stage: state.stage,
+    }, null, 2);
+  }
+  document.getElementById('stageInfo').textContent = '视口 '+window.innerWidth+'×'+window.innerHeight+' · 左←→右 切换三态 · '+ (state.mode==='mouse'?'鼠标垫移动触发跟随':'点击锚点触发锚点跟随');
+}
+function setMode(m){
+  state.mode=m;
+  document.querySelectorAll('#modeSeg button').forEach(b=> b.classList.toggle('on', b.dataset.mode===m));
+  document.getElementById('offsetLabel').textContent = m==='mouse' ? 'mouse {x:14, y:12}' : 'anchor {x:8, y:0}';
+  if(m==='mouse'){
+    state.offset={x:14,y:12}; document.getElementById('offX').value=14; document.getElementById('offY').value=12;
+    document.getElementById('offXv').textContent='14'; document.getElementById('offYv').textContent='12';
+    mousePad.classList.add('show');
+  } else {
+    state.offset={x:8,y:0}; document.getElementById('offX').value=8; document.getElementById('offY').value=0;
+    document.getElementById('offXv').textContent='8'; document.getElementById('offYv').textContent='0';
+    mousePad.classList.remove('show');
+  }
+  renderTip();
+  updateBar();
+}
+function setStage(s){
+  state.stage=s;
+  document.querySelectorAll('#stateTabs button').forEach(b=> b.classList.toggle('on', b.dataset.state===s));
+  if(s==='default'){
+    state.mode='anchor'; state.activeAnchorId='c'; setActiveAnchor('c'); state.offset={x:8,y:0};
+    document.getElementById('offX').value=8; document.getElementById('offY').value=0;
+    document.getElementById('offXv').textContent='8'; document.getElementById('offYv').textContent='0';
+    state.maxWidth=220; document.getElementById('mw').value=220; document.getElementById('mwLabel').textContent='220';
+    state.flip=true; document.getElementById('flip').checked=true;
+    state.visible=true;
+    mousePad.classList.remove('show');
+    document.querySelectorAll('#modeSeg button').forEach(b=> b.classList.toggle('on', b.dataset.mode==='anchor'));
+  } else if(s==='flip'){
+    state.mode='anchor'; setActiveAnchor('br'); state.offset={x:8,y:0};
+    document.getElementById('offX').value=8; document.getElementById('offY').value=0;
+    document.getElementById('offXv').textContent='8'; document.getElementById('offYv').textContent='0';
+    state.flip=true; document.getElementById('flip').checked=true;
+    state.visible=true;
+    mousePad.classList.remove('show');
+  } else if(s==='follow'){
+    setMode('mouse');
+    state.visible=true;
+  }
+  renderTip(); updateBar(); renderWalks();
+}
+function setActiveAnchor(id){
+  state.activeAnchorId=id;
+  stageEl.querySelectorAll('.anchor').forEach(a=> a.classList.toggle('active', a.dataset.id===id));
+  renderTip();
+}
+function updateBar(){
+  const map={
+    default:{k:'A',name:'默认 Default', desc:'居中锚点无翻转'},
+    flip:{k:'B',name:'翻转 Flip', desc:'贴右/贴底自动翻转，caret 同步变向'},
+    follow:{k:'C',name:'跟随 Follow', desc:'mouse 跟坐标 / anchor 跟矩形，滚动重算'},
+  };
+  const cur = map[state.stage];
+  document.getElementById('barLabel').innerHTML = '<b>'+cur.k+' · '+cur.name+'</b> — '+cur.desc+' · mode='+state.mode;
+}
+document.getElementById('modeSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  setMode(b.dataset.mode);
+});
+document.getElementById('contentInput').addEventListener('input', e=>{ state.content=e.target.value; renderTip(); });
+document.getElementById('offX').addEventListener('input', e=>{ state.offset.x=parseInt(e.target.value,10); document.getElementById('offXv').textContent=e.target.value; renderTip(); });
+document.getElementById('offY').addEventListener('input', e=>{ state.offset.y=parseInt(e.target.value,10); document.getElementById('offYv').textContent=e.target.value; renderTip(); });
+document.getElementById('mw').addEventListener('input', e=>{ state.maxWidth=parseInt(e.target.value,10); document.getElementById('mwLabel').textContent=e.target.value; renderTip(); });
+document.getElementById('flip').addEventListener('change', e=>{ state.flip=e.target.checked; renderTip(); });
+document.getElementById('portal').addEventListener('change', e=>{ state.portal=e.target.checked; tip.style.position = state.portal?'fixed':'absolute'; renderTip(); });
+document.getElementById('btnVisible').addEventListener('click', ()=>{
+  state.visible=!state.visible;
+  document.getElementById('btnVisible').textContent = '显隐：'+(state.visible?'开':'关');
+  renderTip();
+});
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  document.getElementById('contentInput').value='技能说明：research — 阅读文档与本地资源，产出可引用结论';
+  state.content=document.getElementById('contentInput').value;
+  setStage('default');
+  state.delay={show:0,hide:160}; state.portal=true; document.getElementById('portal').checked=true;
+  document.getElementById('btnVisible').textContent='显隐：开';
+  renderTip();
+});
+document.getElementById('btnShow').addEventListener('click', ()=>{
+  if(state.hideTimer){ clearTimeout(state.hideTimer); state.hideTimer=null; }
+  state.visible=true; document.getElementById('delayState').textContent='立显 show(0ms)'; document.getElementById('btnVisible').textContent='显隐：开'; renderTip();
+});
+document.getElementById('btnHide').addEventListener('click', ()=>{
+  document.getElementById('delayState').textContent='计时 hide 160ms…';
+  if(state.hideTimer) clearTimeout(state.hideTimer);
+  state.hideTimer=setTimeout(()=>{ state.visible=false; document.getElementById('delayState').textContent='已隐藏'; document.getElementById('btnVisible').textContent='显隐：关'; renderTip(); },160);
+});
+document.getElementById('btnCenterAnchor').addEventListener('click', ()=>{ setMode('anchor'); setActiveAnchor('c'); setStage('default'); });
+document.getElementById('btnEdgeAnchor').addEventListener('click', ()=>{ setMode('anchor'); setStage('flip'); });
+document.getElementById('btnMouseMode').addEventListener('click', ()=>{ setStage('follow'); });
+document.getElementById('btnResize').addEventListener('click', ()=>{
+  stageEl.style.width='420px'; stageEl.style.margin='0 auto';
+  setTimeout(()=> renderTip(), 50);
+  setTimeout(()=>{ stageEl.style.width=''; stageEl.style.margin=''; renderTip(); }, 2500);
+});
+stageEl.addEventListener('click', e=>{
+  const a=e.target.closest('.anchor'); if(a){ setMode('anchor'); setActiveAnchor(a.dataset.id); }
+});
+stageEl.addEventListener('mousemove', e=>{
+  if(state.mode!=='mouse') return;
+  state.mouse={x:e.clientX, y:e.clientY};
+  renderTip();
+});
+stageEl.addEventListener('mouseenter', e=>{
+  if(state.mode==='mouse'){ state.visible=true; renderTip(); }
+});
+window.addEventListener('resize', ()=> renderTip());
+window.addEventListener('scroll', ()=> renderTip(), {passive:true});
+const walks={
+  w1:{title:'默认态', steps:[
+    {t:'1. 置为默认', act:()=>{ setStage('default'); }},
+    {t:'2. 核验 tooltip 在居中锚点右侧 8px 处，translateY(-50%) 垂直居中', act:()=>{}},
+    {t:'3. 改 maxWidth 220→300，观察实宽与翻转阈值的对应变化', act:()=>{ state.maxWidth=300; document.getElementById('mw').value=300; document.getElementById('mwLabel').textContent='300'; renderTip(); }},
+    {t:'4. 关 flip，贴边不再翻转（对比开 flip 的 clamp 效果）', act:()=>{ document.getElementById('flip').checked=false; state.flip=false; renderTip(); }},
+  ]},
+  w2:{title:'翻转态', steps:[
+    {t:'1. 选中贴右下锚点（已贴边）', act:()=>{ setStage('flip'); }},
+    {t:'2. 核验：x + 实宽 > 视口时自动翻到锚点左侧，caret 从右变左', act:()=>{}},
+    {t:'3. 把窗口缩到窄视口 420px，居中锚点也会翻（阈值唯一，按 window 视口）', act:()=>{ document.getElementById('btnResize').click(); }},
+    {t:'4. 切 offset 放大，观察翻转后仍保持 offset 间距', act:()=>{ state.offset={x:16,y:0}; document.getElementById('offX').value=16; document.getElementById('offXv').textContent='16'; renderTip(); }},
+  ]},
+  w3:{title:'跟随态', steps:[
+    {t:'1. 切到 mouse 模式', act:()=>{ setStage('follow'); }},
+    {t:'2. 在鼠标垫区域移动，tooltip 跟 clientX/Y + offset(14,12)', act:()=>{}},
+    {t:'3. 贴到视口右边缘移动，观察自动翻到鼠标左侧', act:()=>{}},
+    {t:'4. 切回 anchor，点击不同锚点，tooltip 跟矩形，滚动/窗口缩放后自动重算', act:()=>{ setMode('anchor'); setActiveAnchor('tr'); }},
+    {t:'5. 时序：移入清 timer，移出 160ms 后关（点“延时关”按钮）', act:()=>{ document.getElementById('btnHide').click(); }},
+  ]},
+};
+let curWalk='w1';
+function renderWalks(){
+  const w = walks[curWalk];
+  const body=document.getElementById('walkBody');
+  body.innerHTML='';
+  const h=document.createElement('div');
+  h.style.cssText='font-size:12px;color:var(--sub);margin-bottom:8px';
+  h.textContent = w.title + ' — 按序点击按钮，每步均触发真实交互并重渲染状态';
+  body.appendChild(h);
+  w.steps.forEach((s,idx)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--panel2)';
+    const n=document.createElement('span');
+    n.textContent=idx+1;
+    n.style.cssText='width:22px;height:22px;border-radius:50%;background:var(--acc);color:#140a1e;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex:none';
+    const t=document.createElement('span');
+    t.textContent=s.t;
+    t.style.cssText='flex:1;font-size:12px';
+    const btn=document.createElement('button');
+    btn.textContent='执行';
+    btn.className='btn small';
+    btn.addEventListener('click', ()=>{ s.act(); renderTip(); btn.textContent='✓ 已执行'; btn.style.color='var(--green)'; setTimeout(()=> btn.textContent='执行',1200); });
+    row.appendChild(n); row.appendChild(t); row.appendChild(btn);
+    body.appendChild(row);
+  });
+}
+document.getElementById('walkTabs').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  curWalk=b.dataset.walk;
+  document.querySelectorAll('#walkTabs button').forEach(x=> x.classList.toggle('on', x===b));
+  renderWalks();
+});
+document.getElementById('stateTabs').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  setStage(b.dataset.state);
+});
+document.getElementById('prevState').addEventListener('click', ()=>{
+  const order=['default','flip','follow'];
+  const i=order.indexOf(state.stage);
+  setStage(order[(i-1+order.length)%order.length]);
+});
+document.getElementById('nextState').addEventListener('click', ()=>{
+  const order=['default','flip','follow'];
+  const i=order.indexOf(state.stage);
+  setStage(order[(i+1)%order.length]);
+});
+window.addEventListener('keydown', e=>{
+  if(e.target.matches('input,textarea,[contenteditable]')) return;
+  if(e.key==='ArrowLeft') document.getElementById('prevState').click();
+  if(e.key==='ArrowRight') document.getElementById('nextState').click();
+});
+document.querySelectorAll('[data-act]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const a=btn.dataset.act;
+    if(a==='toggleMode') setMode(state.mode==='anchor'?'mouse':'anchor');
+    if(a==='toggleFlip'){ state.flip=!state.flip; document.getElementById('flip').checked=state.flip; renderTip(); }
+    if(a==='mw220'){ state.maxWidth=220; document.getElementById('mw').value=220; document.getElementById('mwLabel').textContent='220'; renderTip(); }
+    if(a==='mw260'){ state.maxWidth=260; document.getElementById('mw').value=260; document.getElementById('mwLabel').textContent='260'; renderTip(); }
+    if(a==='offsetA'){ state.offset={x:8,y:0}; document.getElementById('offX').value=8; document.getElementById('offY').value=0; document.getElementById('offXv').textContent='8'; document.getElementById('offYv').textContent='0'; renderTip(); }
+    if(a==='offsetM'){ state.offset={x:14,y:12}; document.getElementById('offX').value=14; document.getElementById('offY').value=12; document.getElementById('offXv').textContent='14'; document.getElementById('offYv').textContent='12'; renderTip(); }
+    if(a==='show'){ document.getElementById('btnShow').click(); }
+    if(a==='hide'){ document.getElementById('btnHide').click(); }
+    if(a==='moveEdge'){ setActiveAnchor('br'); setStage('flip'); }
+    if(a==='scroll' || a==='resize'){ renderTip(); }
+  });
+});
+setStage('default');
+setActiveAnchor('c');
+renderWalks();
+renderTip();
+updateBar();
+(function enableDrag(){
+  let drag=null;
+  stageEl.querySelectorAll('.anchor').forEach(el=>{
+    el.addEventListener('mousedown', e=>{
+      drag={el, dx:e.clientX - el.getBoundingClientRect().left, dy:e.clientY - el.getBoundingClientRect().top};
+      e.preventDefault();
+    });
+  });
+  window.addEventListener('mousemove', e=>{
+    if(!drag) return;
+    const r=stageEl.getBoundingClientRect();
+    let x = e.clientX - r.left - drag.dx;
+    let y = e.clientY - r.top - drag.dy;
+    x=Math.max(0, Math.min(x, r.width-96));
+    y=Math.max(0, Math.min(y, r.height-28));
+    drag.el.style.left=x+'px'; drag.el.style.top=y+'px';
+    if(drag.el.classList.contains('active')) renderTip();
+  });
+  window.addEventListener('mouseup', ()=> drag=null);
+})();
+</script>
+</body>
+</html>
