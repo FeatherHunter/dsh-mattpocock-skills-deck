@@ -105,6 +105,7 @@ export const IssueDetail = function (props) {
         if (has('bug')) return mkRowAction(st, fakeIssue, false, colorOf)
         if (has('wayfinder:grilling')) return mkRowAction(st, fakeIssue, false, colorOf)
         if (has('wayfinder:research')) return mkRowAction(st, fakeIssue, false, colorOf)
+        if (has('wayfinder:prototype')) return mkRowAction(st, fakeIssue, false, colorOf)
         return mkRowAction(st, fakeIssue, false, colorOf)
       })()
       const actColor = (typeof actionColorOf === 'function') ? actionColorOf(fakeIssue, colorOf) : stateColor
