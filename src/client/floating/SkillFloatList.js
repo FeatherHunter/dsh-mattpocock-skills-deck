@@ -37,7 +37,7 @@ export const SkillFloatList = function (props) {
   const closeSkillPop = function () {
     clearClose(skillCloseRef)
     if (!s.skillsOpen && !s.skillPopPos && !s.skillHover) return
-    s.skillsOpen = false; s.skillHover = null; s.skillTip = null; s.skillPopPos = null; emit(s)
+    s.skillsOpen = false; s.skillHover = null; s.skillPopPos = null; emit(s)
   }
   const scheduleClose = function (ref, fn) {
     clearClose(ref)

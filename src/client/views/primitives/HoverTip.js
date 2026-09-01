@@ -1,25 +1,9 @@
 /**
  * views/primitives/HoverTip.js — 统一悬浮提示原子控件（G2 契约首轮定版，T2 首批落地 #381）
- *
  * 契约：HoverTip(props) 工厂，局部 state 闭环，经 DswsCtx 取 h，消费 kernel/portal 的 portalTop。
- *   props {
- *     content?: string | VNode | () => VNode, // 主入口，content!=null 时忽略 children
- *     children?: string | VNode,              // 别名，当内容同时 children 为触发器元素时视为包裹对象
- *     mode?: 'anchor' | 'mouse',              // 默认 'anchor'
- *     targetRef?: Ref,                         // mode=anchor 时锚点（可选，与内部包裹二选一）
- *     offset?: { x: number, y: number },      // anchor {8,0} / mouse {14,12}
- *     maxWidth?: number,                       // 默认 220
- *     flip?: boolean,                          // 默认 true 按视口自动翻转
- *     delay?: { show: number, hide: number }, // 默认 {show:0, hide:160}
- *     visible?: boolean,                       // 受控时外部决定显隐
- *     onVisibleChange?: (next)=>void,
- *     onShow?: ()=>void, onHide?: ()=>void,
- *     zIndex?: number,                         // 默认 2147483000
- *   }
- * 用法（包裹式，T2 迁移首选）：
- *   h(HoverTip, { content: '提示', mode: 'anchor' }, h('div', null, '锚点'))
- *   h(HoverTip, { content: '提示', mode: 'mouse' },  h('span', null, '芯片'))
- * 内容惰性：content 支持 ()=>VNode。样式单真源 STYLE_TEXT，挂顶经 portalTop，失败不抛。
+ * props { content|children, mode anchor|mouse, offset, maxWidth 220, flip true, delay 0/160,
+ *  visible受控, onVisibleChange/onShow/onHide, zIndex 2147483000 } 包裹式用法。
+ * 样式单真源 STYLE_TEXT，挂顶经 portalTop，小三角随翻转同步，失败不抛。
  */
 export const HoverTip = function (props) {
   const cx = React.useContext(DswsCtx)
@@ -81,7 +65,7 @@ export const HoverTip = function (props) {
     if (typeof window === 'undefined') return null
     const vpW = window.innerWidth
     const vpH = window.innerHeight
-    const estW = maxWidth + 16 + 2 // tip.x + 238 > window.innerWidth — 阈值与实宽对齐（220+16+2=238，HoverTip 统一）
+    const estW = maxWidth + 16 + 2
     const estH = 40
     if (mode === 'mouse') {
       const mp2 = mp || mousePos
@@ -169,30 +153,34 @@ export const HoverTip = function (props) {
       return function () { try { el.removeEventListener('mouseenter', onEnter) } catch (e) {}; try { el.removeEventListener('mousemove', onMove) } catch (e) {}; try { el.removeEventListener('mouseleave', onLeave) } catch (e) {} }
     }, [isControlled, mode])
   }
-  const tooltipStyle = {
-    position: 'fixed',
-    left: pos.left,
-    top: pos.top,
-    transform: 'translateY(-50%)',
-    maxWidth: maxWidth,
-    zIndex: zIndex,
-    padding: '4px 8px',
-    borderRadius: 6,
-    background: 'var(--dsw-alias-bg-layer-3,#0c0e12)',
-    border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)',
-    color: 'var(--dsw-alias-label-primary,#e6edf3)',
-    fontSize: 11,
-    lineHeight: 1.5,
-    pointerEvents: 'none',
-    boxShadow: '0 4px 16px rgba(0,0,0,.4)',
-    whiteSpace: 'pre-wrap',
-    wordBreak: 'break-word',
-  }
+  const tooltipStyle = { position: 'fixed', left: pos.left, top: pos.top, transform: 'translateY(-50%)', maxWidth: maxWidth, zIndex: zIndex, padding: '4px 8px', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
   let tipPortal = null
   if (visible && hasTip) {
     const live = computePos(mousePos) || pos
     const style = Object.assign({}, tooltipStyle, { left: live.left, top: live.top })
-    tipPortal = portalTop(h('div', { style: style }, tipContent))
+    let flippedX = false
+    try {
+      if (mode === 'mouse' && mousePos) flippedX = live.left < mousePos.x
+      else if (mode === 'anchor' && anchorRef && anchorRef.current && anchorRef.current.getBoundingClientRect) {
+        const r = anchorRef.current.getBoundingClientRect()
+        if (r) flippedX = live.left < r.left
+      }
+    } catch (e) {}
+    const caretStyle = {
+      position: 'absolute',
+      width: 8, height: 8,
+      background: 'var(--dsw-alias-bg-layer-3,#0c0e12)',
+      borderLeft: flippedX ? 'none' : '1px solid var(--dsw-alias-border-l2,#3a3f4a)',
+      borderTop: flippedX ? 'none' : '1px solid var(--dsw-alias-border-l2,#3a3f4a)',
+      borderRight: flippedX ? '1px solid var(--dsw-alias-border-l2,#3a3f4a)' : 'none',
+      borderBottom: flippedX ? '1px solid var(--dsw-alias-border-l2,#3a3f4a)' : 'none',
+      top: '50%',
+      left: flippedX ? 'auto' : '-4px',
+      right: flippedX ? '-4px' : 'auto',
+      transform: flippedX ? 'translateY(-50%) rotate(225deg)' : 'translateY(-50%) rotate(45deg)',
+    }
+    const caret = h('div', { style: caretStyle })
+    tipPortal = portalTop(h('div', { style: style }, [caret, tipContent]))
   }
   if (triggerNode) return h(React.Fragment, null, triggerNode, tipPortal)
   return tipPortal
