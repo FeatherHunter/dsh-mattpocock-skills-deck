@@ -10,9 +10,8 @@ export     const SettingsPage = (props) => {
       const h = cx ? cx.h : React.createElement
       // T5 修订：订阅 store（设置页独立于面板 dock，需自己订阅 shared 才能渲染 flash toast）
       const sharedSt = cx ? cx.storeSvc.useStore(props && props.sessionId) : useStore(props && props.sessionId)
-      const showCfgTip=function(e,t){ const tip={x:e.clientX+14,y:e.clientY+12,text:t}; if(typeof window!=='undefined'){ if(tip.x+260>window.innerWidth) tip.x=e.clientX-14-260; if(tip.y+40>window.innerHeight) tip.y=e.clientY-12-40 } sharedSt.cfgTip=tip; emit(sharedSt) }
-      const moveCfgTip=function(e){ if(!sharedSt.cfgTip) return; const tip={x:e.clientX+14,y:e.clientY+12,text:sharedSt.cfgTip.text}; if(tip.x+260>window.innerWidth) tip.x=e.clientX-14-260; if(tip.y+40>window.innerHeight) tip.y=e.clientY-12-40; sharedSt.cfgTip=tip; emit(sharedSt) }
-      const hideCfgTip=function(){ if(sharedSt.cfgTip){ sharedSt.cfgTip=null; emit(sharedSt) } }
+      // T2 HoverTip 迁移：cfgTip 的定位/翻转/挂顶已由 HoverTip(mode='mouse') 统一，移除 sharedSt.cfgTip 全局时序
+      // 旧 showCfgTip/moveCfgTip/hideCfgTip 三件套置换为 HoverTip 契约，行为零变化（翻转阈值与样式走 HoverTip 统一表）
       // #190 修复：client 侧 cwd 归一（绝对直通；相对原样交给 host normCwd）。
       const normCwdClient=function(raw){
         if(!raw) return ''
@@ -150,10 +149,10 @@ export     const SettingsPage = (props) => {
         setTimeout(function () { try { ta.focus(); ta.setSelectionRange(pos, pos) } catch (e) { /* 忽略 */ } }, 0)
       }
       const chip = function (id, n, req) {
-        return h('span', { key: n, className: 'dsws-cfg-chip' + (req ? ' req' : ''), onMouseEnter:function(e){ showCfgTip(e, req ? tr('cfg.chipReq') : tr('cfg.chipInsert')) }, onMouseMove:moveCfgTip, onMouseLeave:hideCfgTip, onClick: function () { insertPh(id, n) } }, [
+        return h(HoverTip, { key: n, content: req ? tr('cfg.chipReq') : tr('cfg.chipInsert'), mode: 'mouse', maxWidth: 220 }, h('span', { className: 'dsws-cfg-chip' + (req ? ' req' : ''), onClick: function () { insertPh(id, n) } }, [
           h('span', null, '{' + n + '}'),
           req ? h('span', { className: 'must' }, tr('cfg.must')) : null,
-        ])
+        ]))
       }
       const tplCard = function (id) {
         const val = tpls[id] || ''
@@ -250,9 +249,9 @@ export     const SettingsPage = (props) => {
                   const srcTitle=source==='explicit'?'显式：你在右侧面板选过，已写入 byHandle':source==='matches'?'自动：按仓库内容自动命中':'未指定：未显式且未自动命中，回退 Other'
                   const base=cwd.split(/[\\/]/).pop()||cwd
                   return h('div',{ key:cwd, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden', minHeight:28 }},[
-                    h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 }, onMouseEnter:function(e){ showCfgTip(e,cwd) }, onMouseMove:moveCfgTip, onMouseLeave:hideCfgTip }, base),
+                    h(HoverTip, { content: cwd, mode: 'mouse', maxWidth: 220 }, h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 } }, base)),
                     h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11, minWidth:72, justifyContent:'flex-end' }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap', minWidth:36, textAlign:'center'}},label) ]),
-                    h('span',{ onMouseEnter:function(e){ showCfgTip(e,srcTitle) }, onMouseMove:moveCfgTip, onMouseLeave:hideCfgTip, style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel),
+                    h(HoverTip, { content: srcTitle, mode: 'mouse', maxWidth: 220 }, h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel)),
                   ])
                 }))
               ])
@@ -314,6 +313,7 @@ export     const SettingsPage = (props) => {
           h('button', { className: 'dsws-cfg-btn', onClick: resetAll }, tr('cfg.resetAll')),
           h('button', { className: 'dsws-cfg-save', onClick: save }, [Ic({ n: 'check', size: 13 }), h('span', null, tr('cfg.saveAll'))]),
         ]),
-        sharedSt.cfgTip ? portalTop(h('div', { style:{ position:'fixed', left:sharedSt.cfgTip.x, top:sharedSt.cfgTip.y, maxWidth:260, zIndex:2147483000, padding:'5px 8px', borderRadius:6, background:'var(--dsw-alias-bg-layer-3,#0c0e12)', border:'1px solid var(--dsw-alias-border-l2,#3a3f4a)', color:'var(--dsw-alias-label-primary,#e6edf3)', fontSize:11, lineHeight:1.5, pointerEvents:'none', boxShadow:'0 4px 16px rgba(0,0,0,.4)', whiteSpace:'pre-wrap', wordBreak:'break-word' }}, sharedSt.cfgTip.text)) : null,
+        // T2 HoverTip 迁移：移除 sharedSt.cfgTip 全局 portal，改由 HoverTip 统一（行为零变化，翻转/样式走契约）
+        null,
       ])
     }

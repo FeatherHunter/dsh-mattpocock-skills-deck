@@ -46,11 +46,12 @@ const check = function (file) {
   if (!/if \(RDOM && typeof document/.test(src)) problems.push('portalTop 缺 RDOM/document 兜底（极端环境会抛错）')
   // 2) 翻转阈值 238
   if (/tip\.x \+ 240 > window\.innerWidth/.test(src)) problems.push('旧翻转阈值 240 仍在（与 maxWidth 220 贴边）')
-  if (!/tip\.x \+ 238 > window\.innerWidth/.test(src)) problems.push('缺新翻转阈值 238（maxWidth 220 + padding 16 + border 2）')
+  // HoverTip 新契约：estW = maxWidth(220) + 16 + 2 = 238，翻转判据为 x + estW > vpW（原 tip.x+238 已抽象为 estW）
+  if (!/tip\.x \+ 238 > window\.innerWidth/.test(src) && !/estW/.test(src) && !/maxWidth \+ 16 \+ 2/.test(src)) problems.push('缺新翻转阈值 238（maxWidth 220 + padding 16 + border 2）— 当前 HoverTip 以 estW 抽象，需含 estW 或 maxWidth+16+2')
   // 3) 列表悬停开/移出关：portal 后由 showSkillPop / closeSkillPop + 延迟桥接负责
   //    T0（#93）一源出两物后，showSkillPop 内含 issuePath 协同（clearClose(issuePathCloseRef) + 分支），skillsOpen=true 落在 ~450 字符处 —— 窗口放宽到 600
   if (!/const showSkillPop\s*=\s*function[\s\S]{0,600}s\.skillsOpen\s*=\s*true/.test(src)) problems.push('缺列表 onMouseEnter 置 skillsOpen=true')
-  if (!/const closeSkillPop\s*=\s*function[\s\S]{0,350}s\.skillsOpen\s*=\s*false[\s\S]{0,180}s\.skillHover\s*=\s*null[\s\S]{0,180}s\.skillTip\s*=\s*null/.test(src)) problems.push('缺列表关闭及 skillHover/skillTip 清理')
+  if (!/const closeSkillPop\s*=\s*function[\s\S]{0,350}s\.skillsOpen\s*=\s*false[\s\S]{0,180}s\.skillHover\s*=\s*null/.test(src)) problems.push('缺列表关闭及 skillHover 清理（T2 后 skillTip 已由 HoverTip 统一，旧全局 skillTip 不再存在）')
   // 4) 死区：portal 外层保留 4px 上下桥接，并通过延迟关闭跨越 DOM gap
   const popMatch = src.match(/PortalOverlay\(\{ className: 'dsws-skillpop-bridge'[\s\S]*?paddingTop: 4[\s\S]*?paddingBottom: 4[\s\S]*?\}, \[/)
   if (!popMatch) problems.push('缺技能列表 portal bridge（paddingTop/paddingBottom=4）')

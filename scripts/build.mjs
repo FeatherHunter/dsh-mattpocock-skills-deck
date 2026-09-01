@@ -218,6 +218,7 @@ const SHARED_SPLICE = [
  *  组件经 React.useContext(DswsCtx) 消费 cx（ARCHITECTURE-CTX.md §2）。 */
 const LEAF_MODULES = [
   { id: 'chips', file: 'src/client/views/shared/chips.js' },
+  { id: 'hoverTip', file: 'src/client/views/primitives/HoverTip.js' },
   { id: 'backendSelector', file: 'src/client/views/shared/BackendSelector.js' },
   { id: 'switchConfirmModal', file: 'src/client/views/shared/SwitchConfirmModal.js' },
   { id: 'md', file: 'src/client/views/shared/md.js' },
