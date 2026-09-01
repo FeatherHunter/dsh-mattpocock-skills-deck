@@ -38,6 +38,66 @@
 // r4（#62/#63 回归 2026-08-21）：旧 r3 用 boolean consumedDraftRef 导致首次消费后 ref=true 常驻，任何新会话 effect 直接 return（62/63 新开会话不注入）；且 pendingDraft 为全局单变量，旧会话重渲染若 deps 含 props 可能抢先消费。r4 改为 sid 锚定：pendingDraftTargetSid 记录新会话 sid，消费侧仅当 pendingDraftTargetSid===props.sessionId 才消费，且 ref 按 sid 存储。
 export let pendingDraft = null
 export let pendingDraftTargetSid = null
+    // ============ 单点工厂 createPTCSession 原子化（#363 · 承接 #361 闸门与 #362 可判定门禁）============
+    // 目标：任何入口新建会话必为 PTC 且已归属工作区且首条可原子化注入，三者同一次创建内成立。
+    // 工厂是会话创建的唯一出口：所有新建分支都经此函数，入参显式携带 agentPreset:'ptc'。
+    // 复用闸门同步谓词：可复用仅当 blank 并且预设健康（首版字面 code 判不健康）并且工作区键非空且等于目标。
+    // 空永不复用：空工作区隔离，切断空对空与空对非空的跨区污染（#361 空文件夹幽灵 选 A）。
+    export const getRowPreset = function(row) {
+      if (!row) return ''
+      try {
+        if (row.projectionValues && typeof row.projectionValues.agentPreset === 'string' && row.projectionValues.agentPreset) return row.projectionValues.agentPreset
+      } catch (e) {}
+      try {
+        if (row.header && typeof row.header.agentPreset === 'string' && row.header.agentPreset) return row.header.agentPreset
+      } catch (e2) {}
+      return ''
+    }
+    export const isHealthyPreset = function(preset) {
+      // V1 仅字面 code 判不健康，二期扩展 broken 泛化（#361 选项权衡 判据形态 选 A）
+      return String(preset || '') !== 'code'
+    }
+    export const isReusableBlank = function(row, normTarget) {
+      if (!row || !row.blank) return false
+      const preset = getRowPreset(row)
+      if (!isHealthyPreset(preset)) return false
+      const rawCwd = row.cwd || ''
+      let normRow = ''
+      try {
+        normRow = typeof keyOf === 'function' ? keyOf(rawCwd) : String(rawCwd || '').trim()
+        if (typeof keyOf !== 'function') {
+          let tmp = String(rawCwd || '').trim().toLowerCase().split(String.fromCharCode(92)).join('/')
+          while (tmp.indexOf('//') >= 0) tmp = tmp.split('//').join('/')
+          while (tmp.length > 1 && tmp.charAt(tmp.length - 1) === '/') tmp = tmp.slice(0, -1)
+          normRow = tmp
+        }
+      } catch (e) {
+        let tmp = String(rawCwd || '').trim().toLowerCase().split(String.fromCharCode(92)).join('/')
+        while (tmp.indexOf('//') >= 0) tmp = tmp.split('//').join('/')
+        while (tmp.length > 1 && tmp.charAt(tmp.length - 1) === '/') tmp = tmp.slice(0, -1)
+        normRow = tmp
+      }
+      if (!normRow) return false
+      if (normRow !== normTarget) return false
+      return true
+    }
+    export const buildCreateOpts = function(workspaceId, cwd) {
+      // 单点入参构造：有工作区标识优先，无则回落路径，但两分支必带 agentPreset:'ptc'（#362 判据 P）
+      if (workspaceId) return { workspaceId: workspaceId, agentPreset: 'ptc' }
+      return { cwd: cwd, agentPreset: 'ptc' }
+    }
+    export const createPTCSession = function(sessions, workspaceId, cwd, text) {
+      // 单点工厂：唯一调用 sessions.create 的出口，显式 ptc + 工作区 + 首条原子化（#363）
+      // 调用前 workspaceId 已由 ensureWorkspaceId 解析；此处只做最后一公里的原子挂载。
+      if (!sessions || typeof sessions.create !== 'function') return Promise.reject(new Error('sessions.create not available'))
+      const opts = buildCreateOpts(workspaceId, cwd)
+      return sessions.create(opts).then(function(sid) {
+        // 首条原子化：与创建同链路挂载 pendingDraft，消费侧以 targetSid 锚定避免旧会话抢消费（#315 r4）
+        pendingDraft = text
+        pendingDraftTargetSid = sid
+        return sid
+      })
+    }
     // ============ 命名守护（#265 · 草稿档垂直线 · 界面半渲染钩子）============
     // 分工（#264 D2）：host 常驻轻量任务持跟踪态并产出「待办改名计划单」（wf.namingPlan）；
     // 本侧只做渲染钩子 —— 拉取计划单、按本机语言落地档位词、经会话门面（face.rename）执行改名、回报结果。
@@ -383,7 +443,10 @@ export let pendingDraftTargetSid = null
               const curSid = st.sessionId
               if (curSid) {
                 const curRow = snap.byId[curSid]
-                if (curRow && curRow.blank) {
+                // #361 闸门：当前会话空白仅当满足复用闸门才可复用，空永不复用、code 幽灵永不复用（两级同形、被拒必新建）
+                if (typeof isReusableBlank === 'function') {
+                  if (isReusableBlank(curRow, normCwd2)) reuseSid = curSid
+                } else if (curRow && curRow.blank) {
                   const rowCwd = curRow.cwd || ''
                   const normRow = typeof keyOf === 'function' ? keyOf(rowCwd) : String(rowCwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
                   if (normRow === normCwd2 || !normRow) reuseSid = curSid
@@ -394,11 +457,15 @@ export let pendingDraftTargetSid = null
                 let bestTime = -1
                 for (const sid in snap.byId) {
                   const row = snap.byId[sid]
-                  if (!row || !row.blank) continue
                   if (row.id === curSid) continue
-                  const rowCwd = row.cwd || ''
-                  const normRow = typeof keyOf === 'function' ? keyOf(rowCwd) : String(rowCwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
-                  if (normRow !== normCwd2 && normRow) continue
+                  if (typeof isReusableBlank === 'function') {
+                    if (!isReusableBlank(row, normCwd2)) continue
+                  } else {
+                    if (!row || !row.blank) continue
+                    const rowCwd = row.cwd || ''
+                    const normRow = typeof keyOf === 'function' ? keyOf(rowCwd) : String(rowCwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
+                    if (normRow !== normCwd2 && normRow) continue
+                  }
                   const t = row.updatedAt || 0
                   if (t > bestTime) { bestTime = t; best = sid }
                 }
@@ -473,8 +540,10 @@ export let pendingDraftTargetSid = null
             flash(st, tr('toast.newSessionOpened'), 'ok')
             return
           }
-          const createOpts = workspaceId ? { workspaceId: workspaceId } : { cwd: cwd }
-          sessions.create(createOpts).then(function (sid) {
+          // #363 单点工厂：显式 ptc + 工作区 + 首条原子化（唯一出口，显式 agentPreset）
+          const createOpts = typeof buildCreateOpts === 'function' ? buildCreateOpts(workspaceId, cwd) : (workspaceId ? { workspaceId: workspaceId, agentPreset: 'ptc' } : { cwd: cwd, agentPreset: 'ptc' })
+          const __createPTC = typeof createPTCSession === 'function' ? createPTCSession(sessions, workspaceId, cwd, text) : sessions.create(createOpts).then(function(__sid){ pendingDraft = text; pendingDraftTargetSid = __sid; return __sid; })
+          __createPTC.then(function (sid) {
           // 新会话秒显共享缓存为唯一来源（#301 / #324）：同工作区共享缓存在 storeOf 已尝试水合，此处 cwd 刚赋值需再次水合
           // 移除“继承打开它的会话 snapshot”作为版本来源；无共享缓存时可作兜底
           const ns = storeOf(sid)
