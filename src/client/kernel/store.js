@@ -681,7 +681,7 @@
           onClick: function (e) { e.stopPropagation(); inject(st, text) },
           style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: colorHex, borderColor: 'transparent', color: light ? '#140a1e' : '#ffffff' },
           title: label,
-        }, [Ic({ n: icon, size: 10 }), narrow ? null : h('span', null, label)])
+        }, [Ic({ n: icon, size: icon === 'prototype' ? 12 : 10 }), narrow ? null : h('span', null, label)])
       }
       // v21：技能命令 + URL + 统一引导句（不再重复灌输技能内部流程）
       // v25 · T2b：诊断/修复/讨论走模板渲染（用户可自定义静态文本，{url} 注入）
