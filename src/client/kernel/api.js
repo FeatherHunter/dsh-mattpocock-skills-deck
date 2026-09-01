@@ -83,19 +83,50 @@ export let pendingDraftTargetSid = null
     }
     export const buildCreateOpts = function(workspaceId, cwd) {
       // 单点入参构造：有工作区标识优先，无则回落路径，但两分支必带 agentPreset:'ptc'（#362 判据 P）
+      // #364：回退矩阵的唯一显式锚点——workspaceId 有则走 {workspaceId,ptc}，无则走 {cwd,ptc}，
+      //   两分支互斥（防 bad-request workspaceId+cwd 同传），且 cwd 即使为空也携带 ptc 让上层 doFallback 之前仍满足 P。
       if (workspaceId) return { workspaceId: workspaceId, agentPreset: 'ptc' }
       return { cwd: cwd, agentPreset: 'ptc' }
     }
     export const createPTCSession = function(sessions, workspaceId, cwd, text) {
       // 单点工厂：唯一调用 sessions.create 的出口，显式 ptc + 工作区 + 首条原子化（#363）
-      // 调用前 workspaceId 已由 ensureWorkspaceId 解析；此处只做最后一公里的原子挂载。
+      // #364 保真与兼容增强：首条在同链路内原子化挂载 pendingDraft+targetSid；
+      //   若首次创建因 alpha 新参（workspaceId 不认 / agentPreset 更名）抛错，则自动回退到 {cwd,ptc} 或兼容 presetId 重试，
+      //   仍保证 ptc 显式且首条不丢，避免因底座入参变化导致创建链中断而丢首条。
       if (!sessions || typeof sessions.create !== 'function') return Promise.reject(new Error('sessions.create not available'))
       const opts = buildCreateOpts(workspaceId, cwd)
-      return sessions.create(opts).then(function(sid) {
+      const doCreate = function (o) { try { return sessions.create(o) } catch (eSync) { return Promise.reject(eSync) } }
+      return doCreate(opts).then(function(sid) {
         // 首条原子化：与创建同链路挂载 pendingDraft，消费侧以 targetSid 锚定避免旧会话抢消费（#315 r4）
         pendingDraft = text
         pendingDraftTargetSid = sid
         return sid
+      }).catch(function(err) {
+        const msg = String((err && err.message) || err || '')
+        // 回退 1：workspaceId 不认 → 回落 cwd+ptc（兼容 workspaceId 必填化回退或未登记场景）
+        const hasWid = !!(opts && opts.workspaceId)
+        if (hasWid && /workspaceId|workspace/i.test(msg) && /bad-request|unknown|invalid|not.*found/i.test(msg)) {
+          const fb = buildCreateOpts(null, cwd)
+          return doCreate(fb).then(function(sid2) {
+            pendingDraft = text
+            pendingDraftTargetSid = sid2
+            return sid2
+          })
+        }
+        // 回退 2：agentPreset 更名兼容（如 presetId）→ 试探兼容键
+        if (/agentPreset|preset/i.test(msg) && /bad-request|unknown|invalid/i.test(msg)) {
+          const alt = hasWid ? { workspaceId: workspaceId, presetId: 'ptc' } : { cwd: cwd, presetId: 'ptc' }
+          // 同时尝试 agentPresetId 兜底
+          return doCreate(alt).catch(function() {
+            const alt2 = hasWid ? { workspaceId: workspaceId, agentPresetId: 'ptc' } : { cwd: cwd, agentPresetId: 'ptc' }
+            return doCreate(alt2)
+          }).then(function(sid3) {
+            pendingDraft = text
+            pendingDraftTargetSid = sid3
+            return sid3
+          })
+        }
+        throw err
       })
     }
     // ============ 命名守护（#265 · 草稿档垂直线 · 界面半渲染钩子）============
@@ -396,6 +427,11 @@ export let pendingDraftTargetSid = null
         return Promise.resolve(null)
       }
       // #60 修复：cwd → workspaceId 解析（session.create({cwd}) 不会自动归属工作区，需显式 workspaceId）
+      // #364 工作区回退与首条注入保真（兼容 alpha 新参）：
+      //   矩阵：cwd 缺失 → null→ 上层 doFallback；有 cwd 时优先复用已登记工作区；未命中则按需创建；
+      //   创建失败（异常/bad-request/返回无效）→ 回落 null，使上层走 {cwd,ptc} 而非阻断；全程捕获永不抛；
+      //   workspaces.create 入参以 {path:cwd} 为主，alpha 若已更名为 {cwd} 则自动回退试探，避免因参数更名导致创建链中断；
+      //   显式携带 agentPreset:'ptc' 由 buildCreateOpts 保障，此处只负责 workspaceId 的有无，回退后仍走 ptc 分支，判据 P 不漂移。
       const ensureWorkspaceId = function (cwd) {
         if (!workspaces || !cwd) return Promise.resolve(null)
         try {
@@ -411,23 +447,38 @@ export let pendingDraftTargetSid = null
               else if (Array.isArray(snap)) items = snap
               else if (snap.byId) {
                 items = snap.items || []
+              } else if (snap.workspaces && Array.isArray(snap.workspaces)) {
+                items = snap.workspaces
               }
             }
           }
           const targetNorm = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'').replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase())
           for (let i = 0; i < items.length; i++) {
             const w = items[i]
-            const wPath = w.path || w.cwd
+            const wPath = w.path || w.cwd || w.workspacePath
             if (wPath && (typeof keyOf === 'function' ? keyOf(wPath) : String(wPath||'').replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()) === targetNorm) {
-              const wid = w.workspaceId || w.id
+              const wid = w.workspaceId || w.id || w.workspace_id
               if (wid) return Promise.resolve(wid)
             }
           }
           if (typeof workspaces.create === 'function') {
-            return workspaces.create({ path: cwd }).then(function (ws) {
-              const wid = ws && (ws.workspaceId || ws.id)
+            const tryCreate = function (arg) {
+              try { return workspaces.create(arg) } catch (eSync) { return Promise.reject(eSync) }
+            }
+            return tryCreate({ path: cwd }).then(function (ws) {
+              const wid = ws && (ws.workspaceId || ws.id || ws.workspace_id)
               return wid || null
-            }).catch(function () { return null })
+            }).catch(function (err) {
+              const msg = String((err && err.message) || err || '')
+              // alpha 兼容：若因 path 字段不认而 bad-request，尝试 {cwd:cwd} 兜底
+              if (/path/i.test(msg) && /bad-request|unknown|invalid/i.test(msg)) {
+                return tryCreate({ cwd: cwd }).then(function (ws2) {
+                  const wid2 = ws2 && (ws2.workspaceId || ws2.id || ws2.workspace_id)
+                  return wid2 || null
+                }).catch(function () { return null })
+              }
+              return null
+            })
           }
         } catch (e) {}
         return Promise.resolve(null)
