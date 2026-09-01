@@ -67,7 +67,7 @@
         case 'bug': return h('svg', common, [h('path', { d: 'M8 2l1.88 1.88' }), h('path', { d: 'M14.12 3.88L16 2' }), h('path', { d: 'M9 7.13v-1a3.003 3.003 0 116 0v1' }), h('path', { d: 'M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6' }), h('path', { d: 'M12 20v-9' }), h('path', { d: 'M6.53 9C4.6 8.8 3 7.1 3 5' }), h('path', { d: 'M6 13H2' }), h('path', { d: 'M3 21c0-2.1 1.7-3.9 3.8-4' }), h('path', { d: 'M20.97 5c0 2.1-1.6 3.8-3.5 4' }), h('path', { d: 'M22 13h-4' }), h('path', { d: 'M17.2 17c2.1.1 3.8 1.9 3.8 4' })])
         // issue #100：定位图钉 pin —— 状态栏 issuePath 胶囊（替代 emoji 📌），复用 Icon pin 的图钉形态
         case 'pin': return h('svg', common, [h('path', { d: 'M12 21s-6-5.1-6-10a6 6 0 1112 0c0 4.9-6 10-6 10z' }), h('circle', { cx: 12, cy: 11, r: 2.2, fill: 'currentColor', stroke: 'none' })])
-        case 'prototype': return h('svg', common, [h('rect', { x: 3.5, y: 9, width: 12.2, height: 8.6, rx: 2, opacity: 0.45 }), h('rect', { x: 8.3, y: 4.4, width: 12.2, height: 8.6, rx: 2 })])
+        case 'prototype': return h('svg', common, [h('rect', { x: 3, y: 8.5, width: 13, height: 9, rx: 2, opacity: 0.52 }), h('rect', { x: 7.8, y: 3.8, width: 13, height: 9, rx: 2 })])
         default: return null
       }
     }
