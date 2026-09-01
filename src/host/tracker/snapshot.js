@@ -96,7 +96,7 @@ export function createSnapshotComposer(registry, opts = {}) {
       }
       const sk = snapKeyOf(backendId, ref)
       const cachedEntry = snapCache.get(sk);
-      if (o && o.ifNoneMatch && cachedEntry && cachedEntry.version && cachedEntry.version===o.ifNoneMatch) {
+      if (!o.force && o.ifNoneMatch && cachedEntry && cachedEntry.version && cachedEntry.version===o.ifNoneMatch) {
         return { ok: true, notModified:true, status:304, version:cachedEntry.version, snapshot:cachedEntry.snapshot, cached:true };
       }
       if (!o.force && fresh(cachedEntry, snapshotTtl)) {
@@ -124,7 +124,7 @@ export function createSnapshotComposer(registry, opts = {}) {
       try{ const ver=snapshotVersionOf(snapshot); snapshot.version=ver; snapshot.etag=ver; }catch(e){}
       const ent={snapshot, version:snapshot.version||'', at:Date.now()};
       touchSnapLRU(sk, ent);
-      if(o && o.ifNoneMatch && ent.version===o.ifNoneMatch) return {ok:true, notModified:true, status:304, version:ent.version, snapshot};
+      if(!o.force && o.ifNoneMatch && ent.version===o.ifNoneMatch) return {ok:true, notModified:true, status:304, version:ent.version, snapshot};
       return { ok: true, snapshot, version:ent.version }
     },
 
