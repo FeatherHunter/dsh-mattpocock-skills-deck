@@ -1,5 +1,16 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-09-02 · v1.7.12 发布：悬浮体系收口（44 处 title 迁移为 Tip500 薄预设 + 单例互斥 + 门禁成型）
+
+- **薄预设与门禁定版（T1 #403）**：新增 `src/client/views/primitives/Tip.js` 与 `Tip500` 薄封装（`pending 500ms + 薄样式 padding 7px 12px`），并落地 `tests/verify-no-title.js` 轻量门禁（一源两物：注释/字符串去误报、// 截断修复、白名单 PREVIEW_VALUES 豁免）；该门禁与 `verify-t3-locale` 等并入 `npm run verify` 全绿（对应提交 a96ebef）。
+- **壳层 24 处清零（T2 #404）**：`Dock / Overlay / StatusBar / SkillFloat` 等壳层 24 处 `title` 统一迁移为 `Tip500`，统一鼠标手柄与跟随气泡，构建与全量校验全绿（对应提交 2dd938f）。
+- **内容区 27 处清零与 44 处一次性闭环（T3 #405 承接 #402 收尾）**：`ListTab 9 + MapDetail 9 + IssueDetail 7 + ChecksTab 2` 及关联 14 文件共 60 处变更，`MapDetail` 三元闭合与 `SettingsPage` 逗号修复，`Tip.js` 注释去误报，`verify-no-title 2/3/5` 三档门禁全绿，全局 `title` 残留 0，全量 44 处一次性清零（对应提交 77f7a36、18dd54e 漏迁补齐）。
+- **交互加固与体验收口（T3 溢出与回补）**：`HoverTip` 按内容长度动态估宽防过度 flip 远左、外层行 `Tip` 在子按钮悬停时抑制消除双气泡（4824f39）、新会话与查看地图双气泡全局 `pending` 互斥（a2f4aaf）、行级动作 `mkRowAction` 统一 `Tip500` 消除原生提示（632794f）、`Tip` 样式透传与薄厚不冲突（886061f）、气泡文案避免复读可见文字并补充解释（1eff0f7）、A+B 格式去圆点（26b38e9），以及 `MapDetail` 漏迁与门禁误判的健壮性修复（18dd54e）。
+- **原型与悬浮底座前置（G1/G2）**：悬浮底座与 `HoverTip` 基础、复用门禁、小三角翻转与独立验证（89f5623、55ab2bf、8b7a02c、96b83da），以及原型按钮体系（e02f84b、4f53f40、7e1d9ef、56e746d、fb7ea30、f5103d1）为本版悬浮收口的前置能力，已随版合入验证。
+- **验证**：`node scripts/build.mjs` OK，双产物 `client.js / package/lib/client.js` 同源，`DSW_VERSION=v1.7.12`；`npm pack --dry-run` 64 文件清洁（`lib/shared/cordis.patch.yml` 白名单）；`npm run verify` 全绿（含 `verify-no-title`、`verify-hovertip`、`verify-t3-locale`、双产物一致性、平台契约等）；`npm run test:smoke` 5/5。
+- **影响**：所有原生 `title` 提示已替换为跟随式 `Tip` 气泡，悬停 500ms 触发、单例互斥不重叠、长标题按 `maxWidth` 换行；窄屏与行内按钮不再双显；为后续配置面板等新视图提供统一悬浮契约。
+
+
 ## 2026-09-01 · v1.7.11 发布：技能随包可用（mattpocock/skills@v1.2.3 零代码 bundled）
 
 - **随包兜底（#388/#389/#390 承接 #385/#386/#387 定版，R1 结论“首通道已绿”）**：插件内置 **mattpocock/skills v1.2.3** 的 25 个技能（engineering 18 + productivity 7，`package/bundled-skills/` 含 `LICENSE` 与 `VERSION=v1.2.3`），经 `ctx.skills.registerProvider` 以 `rank 600（bundled）` 兜底发现——用户在 `~/.agents/skills` 手装的 `rank 500` 优先覆盖；新增同步纪律 `node scripts/sync-matt-skills.mjs --pin v1.2.3 --verify`（纯手动，不挂 prepare）与双门禁 `verify-matt-skills-sync` / `verify-bundled-skills`（5 MB 硬卡）、`verify-bundled-discovery` / `verify-bundled-trio-matrix` 三态回归；`package/package.json:files` 增 `bundled-skills`，`npm pack --dry-run` 增量 ≤ 5 MB，`node scripts/build.mjs` 双产物同源。
@@ -390,39 +401,3 @@
 ## 2026-08-18 · newBugWayfinder 7 字段挪到 prompt 末尾（#1 BUG3 补强 · #4 v2）
 
 - **BUG**：用户报告「+ 新增BUG单」预填的 prompt 中 7 字段（背景 / 场景 / 现象 / 复现步骤 / 期望行为 / 实际行为 / 影响范围）位于流程说明之后、正文格式契约之前——属于中途输入位，违反 #1 BUG3「输入位一律末尾」原则（v5 同款反模式）
-- **修复**：`newBugWayfinder` v1→v2，注册表模板从「流程说明 + 7 字段」收敛为「流程说明 + 末尾指引」；7 字段空白 body 抽出为 `NEW_BUG_FIELDS_BODY()`，由 `newBugWayfinderText` 在 `promptText + BODY_FORMAT` **之后**追加，落在真正的模板末尾
-- 验收：7 字段保持在 BODY_FORMAT 之后；`tests/verify-bug-entry.js` v2 适配（注册表禁中途输入位 + NEW_BUG_FIELDS_BODY 7 字段齐备 + 拼接契约断言）
-- 双源镜像同步（client.js ↔ package/lib/client.js）· 已同步 DSH 安装目录（hash 校验 True）
-
-## 2026-08-18 · 新增BUG单入口（issue #4）
-
-- **需求**：「+ 新增BUG单」按钮（右侧面板 tabs 行「+ 新建需求」旁，dock + sidebar 两处渲染）+ 状态栏「BUG 2」悬停菜单「新增」——点击都在新会话（同 cwd）打开并预填 /wayfinder 的 BUG 专用 prompt（新注册表条目 `newBugWayfinder`）
-- **模板**：7 字段中英双语（背景 / 场景 / 现象 / 复现步骤 / 期望行为 / 实际行为 / 影响范围，每行一项 + 冒号）；按用户拍板不硬编码平台——写「新建带 bug 标签的 ISSUE」，不写死 gh issue create（未来用户未必在 GitHub 平台）
-- **交互**：BUG 计数段点击仍开 bug 过滤列表（行为不破坏）；悬停弹「新增」菜单（React 容器包含关系，跨 4px 间隔无悬停闪烁）
-- 新增 Ic `bug` 虫形图标 / i18n 键 panel.newBug / panel.newBugTitle / nav.bugNew / nav.bugNewTitle（zh/en）/ store 状态 bugMenuOpen
-- 新增回归测试 tests/verify-bug-entry.js（注册表字段齐备 / 双语 / 平台中立 / 接线次数 / 双源一致）
-- 双源镜像同步（client.js ↔ package/lib/client.js）· 已同步 DSH 安装目录
-
-## 2026-08-18 · 修复当前 DSH 插件发现的问题（issue #1）
-
-- **BUG1/3**：`newWayfinder` prompt 的「需求描述：」输入位移到模板**末尾**（v5→v6，中英同步；全量审计确认仅此模板有中途输入位）
-- **BUG2**：「+ 新建需求」点击改为**在当前工作区新开会话并预填 prompt**（复用 `openTextInNewSession`，失败降级为当前会话注入）
-- **需求1**：交接按钮右侧新增「新会话交接」SVG 小按钮（handoff-open 图标）——点击 = 原「第二击」：复制交接读取 prompt + 开新会话；交接按钮本体不再变字（中英适配）
-- **需求2**：状态栏末尾新增技能列表 SVG 按钮（2×2 网格）——点击**向上展开** 20 个技能名列表，点击技能名插入 /<技能名> 到当前会话，悬停显示一句话作用（skilldesc 双语）
-- **契约回归修复**：`verify-progress` / `verify-b2-map-newsession` 适配 prompt 常量函数化形态（`BODY_FORMAT()` / `FIXATE_PROMPT()`）
-- 一并落库工作区既有未提交 i18n 双语改造（host 环境检查 lang 参数 + client prompt 函数化 + 安装引导 prompt 修订）
-- 双源镜像同步（client.js ↔ package/lib/client.js）· 已同步 DSH 安装目录
-
-### 技能浮层体验优化（同日 · issue #1）
-
-- 移除浮层顶部「技能」标题，列表保持纯技能名
-- 滚动条改为跟随主题（WebKit + Firefox 双写法）
-- 自研快速悬浮提示（即时、行右侧、右溢出翻转；替代原生 title 的慢延迟），内容=一句话 skilldesc
-- 行 hover 视觉反馈：背景高亮 + 文字变亮 + 左侧紫色 accent
-- 底部常驻操作提示「点击技能名 → 插入到当前会话」（中英）
-
-### 交接分割按钮 + 状态传达（同日 · issue #1 · 需求1 二阶段）
-
-- 交接段由「交接」+「新会话交接」两个独立胶囊合并为**分割按钮**：共外框 + 细分隔线（1px×14px，bg=var(--dsw-alias-border-l1)），左半「交接」（Icon handoff + 文字）/ 右半「交接出去」（Icon handoff-open），左右各自点击区与 tooltip 保留，hover 沿用 seg 背景
-- **灰/亮双态**：store 新增 handoffReady（默认 false）；第一击生成成功 → 右半亮蓝 #58a6ff + tooltip「开新会话并预填交接文档路径」；未 ready → 半透明灰（opacity .6 / 文字色 #8b8b95）+ 新 tooltip「尚未生成交接文档：先点「交接」生成」
-- **引导门**：未点过第一击时点击右半 → 先探测磁盘 .scratch/handoff/ 最新文档（host wf.handoffLatest 按 mtime 取最新）→ 有 latest 才置 ready + 开新会话并预填 /read；没有 → toast 引导「请先点「交接」生成交接文档」且**不再开空会话**（删除原「无文档仍开新会话」的糊涂分支，含宿主通道不可用 / 探测失败兜底）
