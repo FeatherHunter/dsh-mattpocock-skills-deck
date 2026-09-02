@@ -45,8 +45,19 @@ export function ghClient(ctx) {
     }
     try {
       const p = await platform.resolveExecutable('gh')
-      if (!p) return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable returned null' } }
-      return { ok: true, ghPath: p }
+      if (p) return { ok: true, ghPath: p }
+      // 回退：platform 未找到时，尝试直接通过 ctx.exec 探测 gh 是否在 PATH 可执行（Windows 上 where/直接 spawn）
+      // 避免因为 subprocess.resolveExecutable 的 PATH 与 pwsh 的 PATH 不一致导致 414 这类外部建票永远拉不到
+      if (exec) {
+        try {
+          const probe = await exec('gh', ['--version'], { cwd: cwd || getCwd(ctx, undefined), timeout: 3000 })
+          if (probe && probe.stdout && String(probe.stdout).includes('gh version')) {
+            return { ok: true, ghPath: 'gh' }
+          }
+          if (probe && probe.code === 0) return { ok: true, ghPath: 'gh' }
+        } catch {}
+      }
+      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable returned null and gh --version probe failed' } }
     } catch (e) {
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: String((e && e.message) || e || 'gh not found') } }
     }
