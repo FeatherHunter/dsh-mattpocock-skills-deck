@@ -3786,7 +3786,9 @@ export default {
           const mUrl = String(cr.text || '').match(/https:\/\/github\.com\/[^\s\/]+\/[^\s\/]+/)
           const repoUrl = mUrl ? mUrl[0] : ((kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined)
           const owner = currentUser || (mUrl ? (mUrl[0].split('/')[3] || '') : '')
-          return { ok: false, errorKind: kind, error: cr.error, repoUrl: repoUrl, repo: repoUrl ? { owner: owner, name: name } : undefined, halfCreated: !!repoUrl }
+          // 半成功 = 「我们刚创建成功但推送未完成」；already-exists 是仓库原本已存在（只给去查看，不给重试推送）
+          const halfCreated = (kind !== 'already-exists') && !!repoUrl
+          return { ok: false, errorKind: kind, error: cr.error, repoUrl: repoUrl, repo: repoUrl ? { owner: owner, name: name } : undefined, halfCreated: halfCreated }
         }
       } else {
         // origin 已存在：先创建远程仓库（不带 --source），再 set-url + push

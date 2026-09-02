@@ -13,7 +13,8 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 // 1) 宿主：半成功数据契约（push 失败分支 + 原子分支 stdout 解析）+ 重试推送 RPC
 check(host.includes("harness.handle('wf.retryPush'"), 'host 含 wf.retryPush handle（重试推送 RPC）');
 check(pkgHost.includes("harness.handle('wf.retryPush'"), 'package index 含 wf.retryPush 镜像');
-check(host.includes("halfCreated: !!repoUrl"), 'host 半成功返回 halfCreated 标记（push 失败 + 原子分支）');
+check(host.includes("halfCreated: !!repoUrl") || host.includes("(kind !== 'already-exists') && !!repoUrl"), 'host 半成功返回 halfCreated 标记（push 失败 + 原子分支）');
+check(host.includes("(kind !== 'already-exists') && !!repoUrl"), 'host 半成功判定排除 already-exists（同名已存在不误标重试推送）');
 check(host.includes("cr.text || ''"), 'host 原子分支失败时解析 stdout 仓库地址（runGh 保留输出）');
 check(host.includes("repoUrl: repoUrl, repo: repoUrl"), 'host 半成功返回 repoUrl + repo（前端可拼真值链接）');
 check(host.includes("'push', '-u', 'origin', 'HEAD'") && host.includes("'remote', 'get-url', 'origin'") && host.includes("'remote', 'add', 'origin'"), 'host retryPush 仅推送：origin 缺失补齐 → push -u origin HEAD');
