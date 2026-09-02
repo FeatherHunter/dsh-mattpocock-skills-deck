@@ -26,6 +26,10 @@ const src = readFileSync(resolve(ROOT, 'src/host/tracker/backends/github/issues.
 check(src.includes('fetchAllIssuesREST'), 'issues.js 含 fetchAllIssuesREST（REST 分页降级）')
 check(src.includes('repairParentLinksREST'), 'issues.js 含 repairParentLinksREST（sub_issues 树边修复）')
 check(src.includes('applyIssueFilter'), 'issues.js 含 applyIssueFilter（两路共用过滤）')
+const normSrc = readFileSync(resolve(ROOT, 'src/host/tracker/backends/github/normalize.js'), 'utf8')
+check(normSrc.includes('html_url'), 'normalize.js 优先 html_url（REST 展示地址）')
+const probeSrc = readFileSync(resolve(ROOT, 'src/client/kernel/probe.js'), 'utf8')
+check(probeSrc.includes('sanitizeIssueUrls') && probeSrc.includes('api\\.github\\.com'), 'probe.js 入库前归一 api.github.com 链接（客户端兜底）')
 
 // ---------- 2) 行为断言（stub 双路）----------
 const { listIssues, getIssue } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/backends/github/issues.js')).href)
@@ -81,6 +85,7 @@ if (lr && lr.ok) {
   const i414 = data.find((x) => String(x.key) === '414')
   check(!!i414, 'listIssues: 返回含 414')
   check(i414 && i414.parentKey === '7', 'listIssues: 414 树边修复 parentKey=7（got ' + (i414 && i414.parentKey) + '）')
+  check(i414 && i414.url === 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/414', 'listIssues: 414 url 为页面地址（REST html_url 优先，got ' + (i414 && i414.url) + '）')
   const i8 = data.find((x) => String(x.key) === '8')
   check(i8 && i8.parentKey === '7', 'listIssues: 8 树边修复 parentKey=7')
   const m7 = data.find((x) => String(x.key) === '7')

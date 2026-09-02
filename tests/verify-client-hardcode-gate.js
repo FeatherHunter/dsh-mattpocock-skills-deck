@@ -25,7 +25,7 @@ const bad = function (name) { failed = true; console.log('  FAIL', name) }
 const RE_F1 = /(===|==)\s*['"](github|gitlab|markdown)['"]|['"](github|gitlab|markdown)['"]\s*(===|==)/
 const RE_F2 = /https:\/\/github\.com|https:\/\/gitlab\.com/
 const RE_F3 = /\{\s*id:\s*'(github|markdown|gitlab)'\s*,\s*label:/
-const RE_LICENSED = /MATT_REPO|mattpocock\/skills|skills@latest|installSkills|PREVIEW_VALUES|dsh-mattpocock-skills-deck/ // #231 清尾后仅剩可留项：技能仓库常量/安装指引文案/演示预览值；#repo-link 登记本插件自身仓库主页 URL（构建注入产物）
+const RE_LICENSED = /MATT_REPO|mattpocock\/skills|skills@latest|installSkills|PREVIEW_VALUES|dsh-mattpocock-skills-deck|SANITIZE_API_URL/ // #231 清尾后仅剩可留项：技能仓库常量/安装指引文案/演示预览值；#repo-link 登记本插件自身仓库主页 URL（构建注入产物）；#420 登记 SANITIZE_API_URL（REST 快照 API 地址归一为页面地址的平台字面量）
 function stripComments(buf) { return buf.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '') }
 
 function scanLabel(rel, buf) {

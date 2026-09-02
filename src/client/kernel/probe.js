@@ -252,6 +252,24 @@
         emit(st)
       }, 2600)
     }
+    // #420 修复（REST 降级快照的 url 归一）：REST 形状的 url 是 api.github.com 的 API 地址，
+    // 展示/装填一律用页面地址。此处在快照入库前统一归一，所有消费点（行链接/装填提示词/复制）零分支。
+    export const sanitizeIssueUrls = function (snap) {
+      try {
+        if (!snap || typeof snap !== 'object') return snap
+        const fix = function (u) {
+          if (typeof u !== 'string' || !u) return u
+          return u.replace(/^https:\/\/api\.github\.com\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)([?#].*)?$/, 'https://github.com/$1/$2/issues/$3') // SANITIZE_API_URL
+        }
+        ;(Array.isArray(snap.issues) ? snap.issues : []).forEach(function (it) { if (it && it.url) it.url = fix(it.url) })
+        ;(Array.isArray(snap.maps) ? snap.maps : []).forEach(function (m) {
+          if (!m) return
+          if (m.url) m.url = fix(m.url)
+          ;(Array.isArray(m.tickets) ? m.tickets : []).forEach(function (t) { if (t && t.url) t.url = fix(t.url) })
+        })
+      } catch (e) {}
+      return snap
+    }
     // 快照（#346：面板数据源；force 走 wf.refresh 全量重建；wf.snapshot 侧 5s 缓存）
     // #58 缓存优先：按 cwd 内存快照 + 空 cwd 同步，避免首开空 cwd 探路 miss 缓存导致 100-400ms 闪 loading
     export const loadSnapshot = function (st, force, silent) {
@@ -334,6 +352,7 @@
             return;
           }
           if (snap && snap.ok === true && Array.isArray(snap.maps)) {
+            try { snap = sanitizeIssueUrls(snap) } catch (eSan) {}
             // v1.5 T10 R4：数据层增量 diff（新旧快照对比）—— 供多视图增量与 R5 视觉
             st.lastDiff = diffSnapshots(st.snapshot, snap)
             st.rowFlash = {}

@@ -192,7 +192,7 @@ export function normalizeIssue(raw) {
     title: raw && typeof raw.title === 'string' ? raw.title : '',
     state,
     body: raw && typeof raw.body === 'string' ? raw.body : '',
-    url: raw && typeof raw.url === 'string' ? raw.url : (typeof raw.html_url === 'string' ? raw.html_url : ''),
+    url: raw && typeof raw.html_url === 'string' && raw.html_url ? raw.html_url : (raw && typeof raw.url === 'string' ? raw.url : ''),
     createdAt: raw && typeof raw.createdAt === 'string' ? raw.createdAt : (typeof raw.created_at === 'string' ? raw.created_at : ''),
     updatedAt: raw && typeof raw.updatedAt === 'string' ? raw.updatedAt : (typeof raw.updated_at === 'string' ? raw.updated_at : ''),
     closedAt: raw && (typeof raw.closedAt === 'string' || raw.closedAt === null) ? raw.closedAt : (raw && (typeof raw.closed_at === 'string' || raw.closed_at === null) ? raw.closed_at : null),
