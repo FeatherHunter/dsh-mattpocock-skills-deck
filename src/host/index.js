@@ -947,7 +947,39 @@ export default {
       if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
       const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100'
       const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd)
-      if (!r.ok) return { ok: false, error: r }
+      // 优先解析 gh api 的输出，即使 r.ok===false 但 text 中已有部分数据（如 414/415 在前两页已返回，仅第3页 unexpected EOF 导致 exit 1），也尝试解析，避免因单页网络抖动就判 unknown 回旧
+      const tryParseIndex = function(text) {
+        try {
+          const index = {}
+          const lines = String(text || '').split(/\r?\n/).filter(Boolean)
+          lines.forEach(function (line) {
+            try { const item = JSON.parse(line); if (item && item.number !== undefined && item.number !== null) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '') } catch {}
+          })
+          if (Object.keys(index).length) return { ok: true, repo: repo, index: index, count: Object.keys(index).length }
+        } catch {}
+        return null
+      }
+      if (r && r.text) {
+        const parsed = tryParseIndex(r.text)
+        if (parsed) return parsed
+      }
+      if (!r.ok) {
+        // 回退：gh api 整体失败时，用 gh issue list 全量兜底（与 fetchIssues 同策略），确保外部建票 60s 内可被发现
+        const fallback = await runGh(['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,state,updatedAt'], cwd)
+        const fbParsed = fallback && fallback.text ? tryParseIndex(fallback.text.replace(/\[|\]/g, '').split('},').join('}\n')) : null
+        // 更稳妥的 fallback 解析：直接 JSON 数组
+        try {
+          if (fallback && fallback.ok && fallback.text) {
+            const arr = JSON.parse(fallback.text)
+            if (Array.isArray(arr) && arr.length) {
+              const idx = {}
+              arr.forEach(function(it){ if(it && it.number!=null) idx[String(it.number)] = String(it.state||'').toUpperCase() + '|' + String(it.updatedAt||'') })
+              if (Object.keys(idx).length) return { ok: true, repo: repo, index: idx, count: Object.keys(idx).length }
+            }
+          }
+        } catch {}
+        return { ok: false, error: r }
+      }
       try {
         const index = {}
         const lines = String(r.text || '').split(/\r?\n/).filter(Boolean)
