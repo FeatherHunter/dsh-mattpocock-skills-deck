@@ -153,7 +153,9 @@ export const HoverTip = function (props) {
       return function () { try { el.removeEventListener('mouseenter', onEnter) } catch (e) {}; try { el.removeEventListener('mousemove', onMove) } catch (e) {}; try { el.removeEventListener('mouseleave', onLeave) } catch (e) {} }
     }, [isControlled, mode])
   }
-  const tooltipStyle = { position: 'fixed', left: pos.left, top: pos.top, transform: 'translateY(-50%)', maxWidth: maxWidth, zIndex: zIndex, padding: '7px 12px', borderRadius: 10, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 8px 24px rgba(0,0,0,.45)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
+  const _pad = props.padding !== undefined ? props.padding : '7px 12px'
+  const tooltipStyle = { position: 'fixed', left: pos.left, top: pos.top, transform: 'translateY(-50%)', maxWidth: maxWidth, zIndex: zIndex, padding: _pad, borderRadius: 10, background: props.background || 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: props.border || '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 8px 24px rgba(0,0,0,.45)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
+  if (props.style && typeof props.style === 'object') Object.assign(tooltipStyle, props.style)
   let tipPortal = null
   if (visible && hasTip) {
     const live = computePos(mousePos) || pos
@@ -182,7 +184,9 @@ export const HoverTip = function (props) {
       transform: flippedX ? 'translateY(-50%) rotate(225deg)' : 'translateY(-50%) rotate(45deg)',
     }
     const caret = showCaret ? h('div', { style: caretStyle }) : null
-    tipPortal = portalTop(h('div', { style: style }, showCaret ? [caret, tipContent] : [tipContent]))
+    const _tipProps = { style: style }
+    if (props.className) _tipProps.className = props.className
+    tipPortal = portalTop(h('div', _tipProps, showCaret ? [caret, tipContent] : [tipContent]))
   }
   if (triggerNode) return h(React.Fragment, null, triggerNode, tipPortal)
   return tipPortal

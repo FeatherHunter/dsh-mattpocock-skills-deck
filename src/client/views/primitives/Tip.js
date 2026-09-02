@@ -9,7 +9,7 @@ export const Tip = function(props){
   const p = props || {}
   const content = p.content
   const children = p.children
-  const preset = { mode: 'mouse', delay: { show: 500, hide: 160 }, maxWidth: 220, flip: true, zIndex: 2147483000 }
+  const preset = { mode: 'mouse', delay: { show: 500, hide: 160 }, maxWidth: 220, flip: true, zIndex: 2147483000, padding: '7px 12px' }
   const merged = {}
   merged.mode = p.mode !== undefined ? p.mode : preset.mode
   merged.delay = p.delay !== undefined ? p.delay : preset.delay
@@ -31,5 +31,10 @@ export const Tip = function(props){
   if (p.onHide !== undefined) merged.onHide = p.onHide
   if (p.caret !== undefined) merged.caret = p.caret
   if (p.offset !== undefined) merged.offset = p.offset
+  merged.padding = p.padding !== undefined ? p.padding : preset.padding
+  if (p.style !== undefined) merged.style = p.style
+  if (p.className !== undefined) merged.className = p.className
+  if (p.background !== undefined) merged.background = p.background
+  if (p.border !== undefined) merged.border = p.border
   return HoverTip(merged)
 }
