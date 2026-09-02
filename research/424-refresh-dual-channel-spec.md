@@ -43,7 +43,7 @@
   - normalize 兼容双形状（labels 数组或 nodes / user 或 author / html_url 或 url / created_at 等），单条 REST 失败不丢整页。
 - **链接归一**（双层，互不依赖）：
   - 宿主层：normalizeIssue 优先 `html_url`（REST 展示地址），GraphQL 仅有 `url`（即页面地址）→ 回退；此修复随宿主重启生效。
-  - 客户端层：快照入库前统一经 `sanitizeIssueUrls` 把 `https://api.github.com/repos/{o}/{n}/issues/{id}` 映射为页面地址（单缝，覆盖面板/详情/装填/复制）；刷新页面即生效。
+  - **URL 形态归属 = 后端单缝**（v1 修订：客户端层不做任何后端专属归一——UI 是各后端 URL 的盲消费方，github 后端知识不得进入 client kernel）。原客户端 `sanitizeIssueUrls` 临时 shim 已移除（它是免宿主重启的过渡手段，违反后端无关原则）；宿主 normalize 优先 `html_url` 后，任意来源的 url 都为页面地址，随宿主重启生效。
 - **门禁许可登记**：client-hardcode-gate 的 F2 规则新增行级标记 `SANITIZE_API_URL` 登记归一器中的平台字面量（该门禁的「显式登记处」约定）。
 - **诚实失败语义**：GraphQL 失败+REST 首页失败 → 返回错误对象（含 kind/message），不做「失败→当成功→返回旧数据」的静默吞错。
 - **操作事实（非代码决策但影响验收）**：DSH Desktop 启动后由 dsh-plugin-desktop 显式擦除 `loader.internal`，故桌面端无 HMR/热更通道——宿主代码变更必须重启桌面（或 CLI web 环）验证；客户端变更刷新页面即可。
@@ -69,6 +69,7 @@
 
 ## Further Notes
 
+- **架构红线（用户确认）**：UI（client kernel）对任何后端零耦合——URL 形态由各后端自己的 normalize 负责（gitlab/markdown 各自独立文件，本次未触碰；回归门禁新增强断言 `客户端 kernel 不含 github 专属 url 归一`）。
 - **教训（本次最大收获）**：08-29（d02e54b「所有后端统一走编排器」）把 GitHub 刷新主链路从「REST 为主 + GraphQL 别名 + REST 降级通道」换成 GraphQL 单通道，丢掉了防弹层；09-02 本机对 GraphQL 大响应（≈500KB）开始高频 `unexpected EOF`（5 次 3 败；小查询全过；绕过代理直连 5/5 全成功 → 代理/网络对大响应不稳），单通道被打穿 → 静默旧快照。**经验法规：任何数据通道迁移必须同步保留/重建降级通道。**
 - **顺带发现的两点（建议后续票，本次未改）**：
   1. `wf.snapshot` 非 force 打开路径在 `fetchIssueIndex` 失败（返回 null）时仍会把旧盘快照当「较新」返回（`cacheSnapshotIsCurrent` null→非 false），与「拉不到远端≠没变化」的原则相悖；本次主修复在 force 刷新路径，打开路径建议单独评估。

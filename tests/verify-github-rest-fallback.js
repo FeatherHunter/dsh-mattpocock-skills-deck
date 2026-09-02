@@ -29,7 +29,7 @@ check(src.includes('applyIssueFilter'), 'issues.js 含 applyIssueFilter（两路
 const normSrc = readFileSync(resolve(ROOT, 'src/host/tracker/backends/github/normalize.js'), 'utf8')
 check(normSrc.includes('html_url'), 'normalize.js 优先 html_url（REST 展示地址）')
 const probeSrc = readFileSync(resolve(ROOT, 'src/client/kernel/probe.js'), 'utf8')
-check(probeSrc.includes('sanitizeIssueUrls') && probeSrc.includes('api\\.github\\.com'), 'probe.js 入库前归一 api.github.com 链接（客户端兜底）')
+check(!probeSrc.includes('sanitizeIssueUrls') && !probeSrc.includes('api\\.github\\.com'), '客户端 kernel 不含 github 专属 url 归一（后端无关，UI 零耦合）')
 
 // ---------- 2) 行为断言（stub 双路）----------
 const { listIssues, getIssue } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/backends/github/issues.js')).href)
