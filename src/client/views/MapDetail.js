@@ -76,7 +76,7 @@ export     const MapDetail = ({ st, g }) => {
         // 补齐「新会话」按钮（与列表页 issueRow 一致）：primary 色随 actionColorOf，浅色自动深字，marginLeft 4 与 mkRowAction 成组
         const acts = h('div', { className: 'acts' }, (t.state === 'OPEN' && !blocked) ? [
           mkRowAction(st, t, false, colorOf),
-          h(Tip, { content: tr('list.newSessionLabel') }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, t) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: actionColorOf(t, colorOf), borderColor: 'transparent', color: isLightHex(actionColorOf(t, colorOf)) ? '#140a1e' : '#ffffff' } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))])),
+          h(Tip, { content: tr('tip.newSession', { n: t.number }) }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, t) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: actionColorOf(t, colorOf), borderColor: 'transparent', color: isLightHex(actionColorOf(t, colorOf)) ? '#140a1e' : '#ffffff' } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))])),
           (function(){ const _u=issueUrlFor(st, t.number); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e){ e.stopPropagation(); const u=issueUrlFor(st, t.number); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h('a', { className: 'dsws-btn ghost', title: tr('list.openInTrackerTitle', { n: t.number }), href: _u, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 11 })) : h('button', { className: 'dsws-btn ghost', title: tr('list.openInTrackerTitle', { n: t.number }), onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 11 })); })(),
         ] : [])
         // v1.4 修复：图标名必须用 Ic 支持的（search/hammer/chat/gear），原 mag/bolt/wrench 不存在 → 节点图标空白
@@ -93,7 +93,7 @@ export     const MapDetail = ({ st, g }) => {
                 h('span', { className: 'no' }, '#' + (t.key != null ? t.key : t.number)),
                 TypeChip({ type: wayfinderTypeOf(t) }),
               ]),
-              h(Tip, { content: t.title }, h('div', { className: 'tt' }, t.title)),
+              h(Tip, { content: tr('tip.fullTitle', { t: t.title }) }, h('div', { className: 'tt' }, t.title)),
               h('div', { className: 'sub', style: { fontSize: 8, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginTop: 1, minHeight: 12, display: 'flex', gap: 5, flexWrap: 'wrap' } }, [
                 t.state === 'CLOSED' ? h('span', { style: { color: '#3fb950', display: 'inline-flex', alignItems: 'center', gap: 2 } }, [Ic({ n: 'check', size: 8 }), h('span', null, tr('map.subClosed'))]) : null,
                 t.claimedBy ? h('span', { style: { color: '#58a6ff', display: 'inline-flex', alignItems: 'center', gap: 2 } }, [Ic({ n: 'person', size: 8 }), h('span', null, t.claimedBy)]) : null,
@@ -176,7 +176,7 @@ export     const MapDetail = ({ st, g }) => {
         // T14：map 编号徽章 —— 标题前方、紫色、与列表 map 行同款（dsws-idnum）
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, marginBottom: 2 } }, [
           h('span', { className: 'dsws-idnum', style: { color: '#c084fc', borderColor: '#c084fc', flex: 'none' } }, '#' + m.number),
-          h(Tip, { content: m.title }, h('div', { className: 'dsws-mtitle dsws-tt-wrap', style: { flex: 1, minWidth: 0 } }, m.title)),
+          h(Tip, { content: tr('tip.fullTitle', { t: m.title }) }, h('div', { className: 'dsws-mtitle dsws-tt-wrap', style: { flex: 1, minWidth: 0 } }, m.title)),
         ]),
         m.error ? h('div', { style: { color: '#f87171', fontSize: 11, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 11 }), h('span', null, String((m.error && m.error.error) || tr('list.loadFail')).slice(0, 160))]) : null,
         // D2：分段静态进度条 = 地图层缩略图（无动画，唯一真相源）

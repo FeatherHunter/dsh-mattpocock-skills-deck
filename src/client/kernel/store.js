@@ -676,7 +676,18 @@
       const btnColor = function (nm, fb) { const c = colorOf[nm]; return c ? '#' + c : fb }
       const mk = (icon, label, text, colorHex) => {
         const light = isLight(colorHex)
-        return h(Tip, { content: label }, h('button', {
+        const tipByLabel = (function(){
+          try {
+            if (label === tr('act.diagnose')) return tr('tip.diagnose')
+            if (label === tr('act.fix')) return tr('tip.fix')
+            if (label === tr('act.discuss')) return tr('tip.discuss')
+            if (label === tr('act.research')) return tr('tip.research')
+            if (label === tr('act.prototype')) return tr('tip.prototype')
+            if (label === tr('act.execute')) return tr('tip.execute')
+          } catch(e){}
+          return label
+        })()
+        return h(Tip, { content: tipByLabel }, h('button', {
           className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''),
           onClick: function (e) { e.stopPropagation(); inject(st, text) },
           style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', background: colorHex, borderColor: 'transparent', color: light ? '#140a1e' : '#ffffff' },
