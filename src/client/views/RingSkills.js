@@ -29,7 +29,7 @@ export     const RingSkills = ({ st, rec, list }) => {
             Dot({ level: sk.level }),
             h('div', { className: 'dsws-tt' }, [
               h('div', { className: 'dsws-tt-name', style: on ? { color: '#c084fc' } : null }, [h('span', null, '/' + sk.name), on ? Ic({ n: 'star', size: 11, color: '#c084fc' }) : null]),
-              h(Tip, { content: tr('tip.skillDesc', { desc: tr('skilldesc.' + sk.name) }) }, h('div', { className: 'dsws-tt-sub dsws-ellip' }, tr('skilldesc.' + sk.name))),
+              h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.skillDesc')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, tr('skilldesc.' + sk.name))]) }, h('div', { className: 'dsws-tt-sub dsws-ellip' }, tr('skilldesc.' + sk.name))),
             ]),
             h('button', { className: 'dsws-btn', onClick: function () { inject(st, '/' + sk.name) } }, tr('act.load')),
           ])

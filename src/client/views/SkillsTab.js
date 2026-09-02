@@ -25,7 +25,7 @@ export     const SkillsTab = ({ st }) => {
               h('span', null, '/' + sk.name),
               on ? Ic({ n: 'star', size: 11, color: '#c084fc' }) : null,
             ]),
-            h(Tip, { content: tr('tip.skillUse', { use: sk.use }) }, h('div', { className: 'dsws-tt-sub dsws-ellip' }, sk.use)),
+            h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.skillUse')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, sk.use)]) }, h('div', { className: 'dsws-tt-sub dsws-ellip' }, sk.use)),
           ]),
           h('button', { className: 'dsws-btn', onClick: function () { inject(st, '/' + sk.name) } }, tr('act.load')),
         ])
