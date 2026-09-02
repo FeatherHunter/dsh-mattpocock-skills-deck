@@ -196,10 +196,14 @@ export const prompts = (function () {
       en: 'first gh api repos/{owner}/{repo}/issues/{child} --jq .id for child id, then gh api repos/{owner}/{repo}/issues/{map}/sub_issues -X POST -F sub_issue_id={id}; verify with gh api repos/{owner}/{repo}/issues/{map}/sub_issues --jq length equals expected'
     },
     errorKinds: {
+      'bad-name': { zh: '仓库名仅支持字母、数字、._- 且不超过 100 个字符', en: 'Repo name supports only letters, digits, ._- and at most 100 characters' },
       'no-git': { zh: '未找到 git，请先安装 Git', en: 'git not found — please install Git' },
       'no-gh': { zh: '未找到 gh，请先安装 GitHub CLI', en: 'gh not found — please install GitHub CLI' },
       'not-logged-in': { zh: '未登录 GitHub，请先执行 gh auth login', en: 'Not logged into GitHub — run gh auth login' },
-      'already-exists': { zh: '同名仓库已存在（可在平台查看）', en: 'Repository already exists (view it on the platform)' },
+      'already-exists': { zh: '同名仓库已存在（平台可查看）', en: 'Repository already exists (view it on the platform)' },
+      'network': { zh: '网络异常，请重试', en: 'Network error — please retry' },
+      'permission': { zh: '权限不足，请检查登录账号', en: 'Permission denied — check your login account' },
+      'half-created': { zh: '仓库已创建，但本地推送未完成', en: 'Repository created, but the local push failed' },
     },
   }
 })()

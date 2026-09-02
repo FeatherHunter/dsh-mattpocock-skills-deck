@@ -92,12 +92,19 @@ export function createActionDispatcher(ctx) {
           const msg = res.error ? (typeof res.error === 'string' ? res.error : (res.error.message || String(res.error))) : (res.message || 'RPC 业务失败：' + method)
           const err = new Error(String(msg).slice(0,600))
           err.code = kind; err.kind = kind; err.errorKind = kind
-          // 保留 repoUrl 等上下文供上层展示（如已存在时“去查看”链接）
+          // #420/#426：保留 repoUrl/repo/halfCreated 上下文供上层展示（半成功链接、重试入口）——绝不静默
           if (res.repoUrl) err.repoUrl = res.repoUrl
+          if (res.repo) err.repo = res.repo
+          if (res.halfCreated) err.halfCreated = true
           if (res.error && res.error.repoUrl) err.repoUrl = res.error.repoUrl
-          return { ok: false, error: { kind: kind, message: String(msg).slice(0,600) }, action }
+          const failure = { kind: kind, message: String(msg).slice(0,600) }
+          if (res.repoUrl) failure.repoUrl = res.repoUrl
+          if (res.repo) failure.repo = res.repo
+          if (res.halfCreated) failure.halfCreated = true
+          return { ok: false, error: failure, action }
         }
-        return { ok: true, action }
+        // #419/#425：成功结果透传给上层（向导成功弹窗需 repo:{owner,name} 拼真值链接）
+        return { ok: true, action, data: (res && typeof res === 'object' && res.ok === true) ? res : undefined }
       }
       if (t === ACTION_TYPE.FORM) {
         if (!Array.isArray(action.schema)) {
@@ -131,7 +138,9 @@ export function createActionDispatcher(ctx) {
           }
           const res = await dispatch(merged)
           // 显式透传失败（防静默吞，保留 kind 供上层回跳）
-          if (!res.ok) { const err = new Error(res.error.message); err.code = res.error.kind; err.kind = res.error.kind; err.errorKind = res.error.kind; throw err }
+          if (!res.ok) { const err = new Error(res.error.message); err.code = res.error.kind; err.kind = res.error.kind; err.errorKind = res.error.kind; if (res.error.repoUrl) err.repoUrl = res.error.repoUrl; if (res.error.repo) err.repo = res.error.repo; if (res.error.halfCreated) err.halfCreated = true; throw err }
+          // #419/#425：成功返回透传（含 data:{ok,repo}），弹窗层据此展示成功弹窗与真值链接
+          return res
         })
         return { ok: true, action }
       }
@@ -170,7 +179,9 @@ export function createActionDispatcher(ctx) {
             }
           }
           const res = await dispatch(merged)
-          if (!res.ok) { const err = new Error(res.error.message); err.code = res.error.kind; err.kind = res.error.kind; err.errorKind = res.error.kind; throw err }
+          if (!res.ok) { const err = new Error(res.error.message); err.code = res.error.kind; err.kind = res.error.kind; err.errorKind = res.error.kind; if (res.error.repoUrl) err.repoUrl = res.error.repoUrl; if (res.error.repo) err.repo = res.error.repo; if (res.error.halfCreated) err.halfCreated = true; throw err }
+          // #419/#425：成功返回透传（含 data:{ok,repo}），弹窗层据此展示成功弹窗与真值链接
+          return res
         })
         return { ok: true, action }
       }

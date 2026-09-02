@@ -3782,8 +3782,11 @@ export default {
         const cr = await runGh(['repo', 'create', name, visFlag, '--source=.', '--push'], cwd)
         if (!cr.ok) {
           const kind = classifyCreateError(cr.error, cr.kind)
-          const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
-          return { ok: false, errorKind: kind, error: cr.error, repoUrl: repoUrl }
+          // #420/#426 半成功契约：gh 失败时仍保留 stdout，可解析出仓库地址（或 already-exists 且已知用户）→ 回带 repoUrl/repo/halfCreated
+          const mUrl = String(cr.text || '').match(/https:\/\/github\.com\/[^\s\/]+\/[^\s\/]+/)
+          const repoUrl = mUrl ? mUrl[0] : ((kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined)
+          const owner = currentUser || (mUrl ? (mUrl[0].split('/')[3] || '') : '')
+          return { ok: false, errorKind: kind, error: cr.error, repoUrl: repoUrl, repo: repoUrl ? { owner: owner, name: name } : undefined, halfCreated: !!repoUrl }
         }
       } else {
         // origin 已存在：先创建远程仓库（不带 --source），再 set-url + push
@@ -3791,7 +3794,7 @@ export default {
         if (!cr2.ok) {
           const kind = classifyCreateError(cr2.error, cr2.kind)
           const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
-          return { ok: false, errorKind: kind, error: cr2.error, repoUrl: repoUrl }
+          return { ok: false, errorKind: kind, error: cr2.error, repoUrl: repoUrl, repo: repoUrl ? { owner: currentUser || '', name: name } : undefined }
         }
         // 解析新建仓库 URL（gh 输出含 https://github.com/owner/name）
         let remoteUrl = ''
@@ -3806,7 +3809,10 @@ export default {
         const pushR = await execProc([git, 'push', '-u', 'origin', 'HEAD'], cwd)
         if (!pushR.ok) {
           const kind = classifyCreateError(pushR.error, null)
-          return { ok: false, errorKind: kind, error: pushR.error }
+          // #420/#426 半成功：远端仓库已创建、仅本地推送失败 → 回带 repoUrl/repo/halfCreated，前端展示链接与重试入口
+          const repoUrl = remoteUrl ? remoteUrl.replace(/\.git$/, '') : (currentUser ? ('https://github.com/' + currentUser + '/' + name) : undefined)
+          const owner = currentUser || (repoUrl ? (repoUrl.split('/')[3] || '') : '')
+          return { ok: false, errorKind: kind, error: pushR.error, repoUrl: repoUrl, repo: repoUrl ? { owner: owner, name: name } : undefined, halfCreated: !!repoUrl }
         }
       }
       // 成功后失效全部缓存，使头部 owner/repo 立即出现
@@ -3828,7 +3834,30 @@ export default {
           if (u2.ok) owner = u2.text.trim()
         } catch (e2) { /* 忽略 */ }
       }
-      return { ok: true, repo: { owner: owner, name: name } }
+      return { ok: true, repo: { owner: owner, name: name }, repoUrl: owner ? ('https://github.com/' + owner + '/' + name) : '' }
+    })
+
+    // ============ 重试推送（#420/#426 定版：仅推送，不动建仓）============
+    // 入参：{ cwd, name, repoUrl, owner }（半成功时由前端从 initPublish 结果带出）
+    // 流程：origin 缺失则以 repoUrl 补 remote → git push -u origin HEAD；成功 ok:true（前端走成功闭环），失败回带半成功契约
+    harness.handle('wf.retryPush', async function (args) {
+      const cwd = (args && args.cwd) || DEFAULT_CWD
+      const name = args && args.name ? String(args.name).trim() : ''
+      const repoUrl = args && typeof args.repoUrl === 'string' && args.repoUrl ? String(args.repoUrl) : ''
+      const owner = args && args.owner ? String(args.owner) : ''
+      const git = await resolveGit()
+      if (!git) return { ok: false, errorKind: 'no-git', error: '未找到 git（请安装 https://git-scm.com/）' }
+      try {
+        const ro = await execProc([git, 'remote', 'get-url', 'origin'], cwd)
+        if (!ro.ok && repoUrl) { await execProc([git, 'remote', 'add', 'origin', repoUrl + '.git'], cwd) }
+      } catch (e) { /* remote 缺失时兜底 */ }
+      const pushR = await execProc([git, 'push', '-u', 'origin', 'HEAD'], cwd)
+      if (pushR.ok) {
+        try { cache = { ts: 0, snapshot: null, error: null, cwd: null } } catch (eCache) { /* 缓存失效兜底 */ }
+        return { ok: true, repo: { owner: owner, name: name }, repoUrl: owner ? ('https://github.com/' + owner + '/' + name) : '' }
+      }
+      const kind = classifyCreateError(pushR.error, null)
+      return { ok: false, errorKind: kind, error: pushR.error, repoUrl: repoUrl || undefined, repo: { owner: owner, name: name }, halfCreated: true }
     })
 
     // ============ 原生选择器（DSH directory/file picker，供 modal-seat 的 directory/file 字段使用） ============

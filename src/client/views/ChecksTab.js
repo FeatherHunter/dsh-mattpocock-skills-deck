@@ -144,9 +144,11 @@ export const ChecksTab = ({ st }) => {
     //   其次 inject-prompt/rpc），按钮置于行右侧；refresh 不再单独成按钮（顶部已有「重新检查」）。
     const fixActions = (s.status === 'fail' || s.status === 'current') ? (Array.isArray(s.actions) ? s.actions : []) : []
     const primaryAction = (chainDispatcher && fixActions.length) ? (fixActions.find(function (a) { return a && (a.type === 'form' || a.type === 'wizard') }) || fixActions.find(function (a) { return a && (a.type === 'inject-prompt' || a.type === 'rpc') }) || null) : null
+    // #419/#425 同步守卫：成功同步态/超时未确认态下禁用创建按钮（仓库已确认创建，防重复提交）
+    const repoSync = st.repoSync || null
     const primaryBtn = primaryAction ? (function () {
       const alabel = miniActionLabel(primaryAction)
-      return h('button', { key: 'fix-primary', className: 'dsws-btn primary', tabIndex: 0, onClick: function () { runAction(primaryAction) }, style: { fontSize: 12, padding: '6px 14px', flex: 'none', whiteSpace: 'nowrap' } }, alabel)
+      return h('button', { key: 'fix-primary', className: 'dsws-btn primary', tabIndex: 0, disabled: !!repoSync, onClick: function () { runAction(primaryAction) }, style: { fontSize: 12, padding: '6px 14px', flex: 'none', whiteSpace: 'nowrap' } }, alabel)
     })() : null
     return h('div', { key: s.id || i, className: 'dsws-ccard', style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, padding: primaryBtn ? '10px 12px' : undefined, border: primaryBtn ? '1px solid var(--dsw-alias-border-l1,#2a2d35)' : undefined, borderRadius: 10, background: primaryBtn ? 'var(--dsw-alias-bg-layer-1,#10131a)' : undefined } }, [
       h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: meta.dot, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' } }, meta.label),
@@ -178,6 +180,20 @@ export const ChecksTab = ({ st }) => {
     ]),
     // B Timeline 定版（2026-08-28）：无 no-repo 弱化卡/恢复卡——远端未关联由行内红卡（gh:remote FAIL 行）表达；
     //   dismiss 状态机保留在 store（向后兼容），不再在检查页顶部占用空间
+    // #419/#425 同步过渡态与 30s 超时未确认态（含「点此重新检查」；此态下不恢复创建按钮）
+    (function () {
+      const rs = st.repoSync || null
+      if (!rs) return null
+      if (rs.phase === 'syncing') return h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid #2b3a2b', background: 'rgba(74,222,128,.06)', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-success-primary,#4ade80)', marginBottom: 6 } }, [
+        h('span', { className: 'dsws-rficon dsws-spin' }, [Ic({ n: 'refresh', size: 11 })]),
+        h('span', null, tr('panel.repoSync.syncing')),
+        h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginLeft: 2 } }, '（' + tr('panel.repoSync.guardHint') + '）'),
+      ])
+      return h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid #5a4a1f', background: 'rgba(251,191,36,.07)', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-warning-primary,#fbbf24)', marginBottom: 6, flexWrap: 'wrap' } }, [
+        h('span', null, tr('panel.repoSync.timeout')),
+        h('button', { className: 'dsws-btn', onClick: function () { try { if (typeof retryRepoSync === 'function') retryRepoSync(st) } catch (e) {} }, style: { fontSize: 11, padding: '2px 8px' } }, tr('env.recheck')),
+      ])
+    })(),
     stepRows,
     // #155 Q7：能力诊断折叠卡（默认收起，不进渲染分支；G5 能力视图仅诊断不驱动隐藏）
     (function () {

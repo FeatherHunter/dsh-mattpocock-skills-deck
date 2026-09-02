@@ -23,7 +23,7 @@
     // 扩展：支持 wizard（isWizard + steps + stepIndex + valuesByStep）
     export function ensureFormModal(st) {
       if (!st) return null
-      if (!st.formModal) st.formModal = { open: false, schema: [], submitAction: null, onSubmit: null, label: '', stepId: '', pending: false, isWizard: false, steps: null, stepIndex: 0, valuesByStep: null }
+      if (!st.formModal) st.formModal = { open: false, schema: [], submitAction: null, onSubmit: null, label: '', stepId: '', pending: false, isWizard: false, steps: null, stepIndex: 0, valuesByStep: null, fail: null, success: null }
       if (!st._formModalQueue) st._formModalQueue = []
       return st.formModal
     }
@@ -50,7 +50,9 @@
       const action = formAction || {}
       const isWizard = action.type === 'wizard'
       // 若当前已有弹窗在展示或提交中，则排队（顺序队列 A，wizard 占 1 位）
+      // #419/#425 向导单例：打开期间再次触发直接忽略（去抖不入队），杜绝队列 80ms 重开的“回退到第一步”同形路径；form 保持原队列语义
       if (m.open) {
+        if (isWizard) return
         if (!st._formModalQueue) st._formModalQueue = []
         st._formModalQueue.push({ formAction: action, onSubmit: typeof onSubmit === 'function' ? onSubmit : null })
         try { if (typeof flash === 'function') flash(st, '已加入队列（' + String(_queueLen(st)) + ' 个待处理）', 'info') } catch(_){}
@@ -104,6 +106,7 @@
       const hadQueue = st._formModalQueue && st._formModalQueue.length > 0
       st.formModal.open = false
       st.formModal.pending = false
+      st.formModal.fail = null
       // wizard 状态保留至下一次 open 时重置，关闭时不清 isWizard 以便队列消费时重建
       try { if (typeof emit === 'function') emit(st) } catch (e) { try { st.tick = (st.tick||0)+1 } catch(_) {} }
       // 顺序队列：关闭后若有排队，下一帧自动弹出下一个（保持单例一次一个但不丢请求，wizard 占 1 位）
@@ -119,6 +122,113 @@
           }
         } catch(_){ try { openFormModal(st, next.formAction, next.onSubmit) } catch(__){} }
       }
+    }
+
+    // ---- #419/#425 成功闭环与 #420/#426 失败文案（helpers，纯函数 + st 级状态）----
+    function resolveFailText(st, dispKind, code, rawMsg) {
+      let bkText = ''
+      try {
+        const sel2 = st.selection || (st.snapshot && st.snapshot.selection) || null
+        const bid = sel2 && sel2.backendId
+        const mm = (typeof moduleMetaOf === 'function' && bid != null) ? moduleMetaOf(st, bid) : null
+        const ek = mm && mm.prompts && mm.prompts.errorKinds && mm.prompts.errorKinds[dispKind]
+        if (ek) { const lg = (typeof promptLang === 'function') ? promptLang() : 'zh'; bkText = String((lg === 'en' && ek.en) ? ek.en : (ek.zh || '')) }
+      } catch (e) { /* 后端数据兜底 */ }
+      let mapped = ''
+      try { const key = 'panel.noRepoErr.' + dispKind; const v = tr(key); if (v !== key) mapped = v } catch (e) { /* locale 兜底 */ }
+      let fb = ''
+      try { fb = tr('panel.noRepoErr.half-created') } catch (e) { /* 兜底 */ }
+      let base = bkText || mapped || rawMsg || ''
+      if (dispKind === 'half-created') { base = (bkText || mapped || fb || '') + (rawMsg ? '：' + String(rawMsg).slice(0, 120) : '') }
+      return base
+    }
+    export function startRepoSync(st) {
+      if (!st) return
+      st.repoSync = { phase: 'syncing', at: Date.now() }
+      try { if (typeof emit === 'function') emit(st) } catch (e) { try { st.tick = (st.tick||0)+1 } catch(_){} }
+      try {
+        const t = (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function') ? timer.timeout : (typeof setTimeout === 'function' ? setTimeout : null)
+        if (t) t(function(){ if (st.repoSync && st.repoSync.phase === 'syncing') { st.repoSync = { phase: 'timeout', at: Date.now() }; try { if (typeof emit === 'function') emit(st) } catch(_){} } }, 30000)
+      } catch (e) { /* 超时兜底失败不阻断 */ }
+    }
+    export function finishRepoSync(st) {
+      if (!st || !st.repoSync) return
+      try {
+        const remote = (typeof chainStep === 'function') ? chainStep(st, 'gh:remote') : null
+        if (remote && remote.status === 'done') { st.repoSync = null }
+        else { st.repoSync = { phase: 'timeout', at: Date.now() } }
+      } catch (e) { st.repoSync = { phase: 'timeout', at: Date.now() } }
+      try { if (typeof emit === 'function') emit(st) } catch (e) { try { st.tick = (st.tick||0)+1 } catch(_){} }
+    }
+    export function retryRepoSync(st) {
+      if (!st) return Promise.resolve()
+      try { if (st.repoSync) st.repoSync = { phase: 'syncing', at: Date.now() }; if (typeof emit === 'function') emit(st) } catch(_){}
+      return (async function () {
+        try {
+          if (typeof host !== 'undefined' && host.call) {
+            await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (st.selection && st.selection.backendId) || undefined })
+          }
+          try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch(_){}
+          try { if (typeof loadChain === 'function') await loadChain(st, true) } catch(_){}
+        } catch (e) { /* 重查失败由 finishRepoSync 定态 */ }
+        finishRepoSync(st)
+      })()
+    }
+    function runRepoSyncRecheck(st) {
+      return (async function () {
+        try {
+          if (typeof host !== 'undefined' && host.call) {
+            await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (st.selection && st.selection.backendId) || undefined })
+          }
+          try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch(_){}
+          try { if (typeof loadChain === 'function') await loadChain(st, true) } catch(_){}
+        } catch (e) { /* 重查异常照常定态 */ }
+        finishRepoSync(st)
+      })()
+    }
+    function closeSuccess(st) {
+      if (!st || !st.formModal) return
+      st.formModal.success = null
+      try { if (typeof emit === 'function') emit(st) } catch (e) { try { st.tick = (st.tick||0)+1 } catch(_){} }
+    }
+    function visLabelOf(visibility) {
+      const lg = (typeof promptLang === 'function') ? promptLang() : 'zh'
+      const v = String(visibility || 'public')
+      if (v === 'private') return lg === 'en' ? 'private' : '私有'
+      return lg === 'en' ? 'public' : '公开'
+    }
+    function retryPushFlow(st, m) {
+      const fail = m && m.fail
+      const repo = fail && fail.repo ? fail.repo : null
+      const repoUrl = fail && fail.link ? fail.link : ''
+      if (!repo) return
+      m.pending = true
+      m.fail = null
+      try { if (typeof emit === 'function') emit(st) } catch(_){}
+      ;(async function () {
+        try {
+          let res = null
+          if (typeof host !== 'undefined' && host.call) res = await host.call('wf.retryPush', { cwd: st.cwd || '', name: repo.name || '', owner: repo.owner || '', repoUrl: repoUrl })
+          m.pending = false
+          if (res && res.ok && res.repo) {
+            // 重试成功 → 走成功闭环（成功弹窗 + 同步过渡态 + 后台重查）
+            try { if (st && Array.isArray(st._formModalQueue)) st._formModalQueue = [] } catch(_){}
+            try { closeFormModal(st) } catch(_){ m.open = false }
+            const r2 = res.repo
+            m.success = { owner: r2.owner || '', name: r2.name || '', url: (res && res.repoUrl) ? res.repoUrl : '', visLabel: visLabelOf(m.lastVis) }
+            startRepoSync(st)
+            runRepoSyncRecheck(st)
+          } else {
+            const code = (res && res.errorKind) ? String(res.errorKind).toLowerCase() : 'network'
+            m.fail = { kind: 'half-created', code: code, text: resolveFailText(st, 'half-created', code, String((res && res.error) || '')), link: repoUrl || null, repo: repo, halfCreated: true }
+          }
+        } catch (e) {
+          m.pending = false
+          const code = (e && (e.code || e.errorKind)) ? String(e.code || e.kind || e.errorKind).toLowerCase() : 'network'
+          m.fail = { kind: 'half-created', code: code, text: resolveFailText(st, 'half-created', code, String((e && e.message) || e)), link: repoUrl || null, repo: repo, halfCreated: true }
+        }
+        try { if (typeof emit === 'function') emit(st) } catch(_){}
+      })()
     }
 
     // 对外便捷：给 dispatcher 用的一级 renderForm 实现（直接打开 modal-seat）
@@ -162,7 +272,10 @@
       const h = (cx && cx.h) ? cx.h : React.createElement
       if (!st) return null
       const m = st.formModal
-      if (!m || !m.open) return null
+      if (!m) return null
+      // #419/#425：成功弹窗态（m.success 且向导已关）与表单态共用一组 hooks（末尾条件分支渲染）
+      const isSuccess = !!(m.success && !m.open)
+      if (!m.open && !isSuccess) return null
       const isWizard = !!m.isWizard && Array.isArray(m.steps) && m.steps.length > 0
       const wizardSteps = isWizard ? m.steps : null
       const stepIndex = isWizard ? (typeof m.stepIndex === 'number' ? m.stepIndex : 0) : 0
@@ -195,7 +308,7 @@
           setVals(init)
         }
       }, [isWizard, stepIndex, m.steps ? m.steps.length : 0, m.schema ? m.schema.length : 0, m.open])
-      const onClose = function () { try { closeFormModal(st) } catch (e) {} }
+      const onClose = function () { try { if (m.success) { m.success = null; try { if (typeof emit === 'function') emit(st) } catch(_){} } closeFormModal(st) } catch (e) {} }
       const onOverlayClick = function (e) { if (e && e.target === e.currentTarget) onClose() }
       const onPick = function (f) {
         return async function () {
@@ -237,6 +350,7 @@
       }
       const onPrev = function () {
         if (!isWizard || stepIndex <= 0) return
+        m.fail = null
         // 保存当前步值
         if (m.valuesByStep) m.valuesByStep[stepIndex] = Object.assign({}, vals)
         m.stepIndex = stepIndex - 1
@@ -245,6 +359,7 @@
       const onNext = function () {
         if (!isWizard) return
         if (!validateCurrent()) return
+        m.fail = null
         if (m.valuesByStep) m.valuesByStep[stepIndex] = Object.assign({}, vals)
         if (stepIndex < totalSteps - 1) {
           m.stepIndex = stepIndex + 1
@@ -284,36 +399,45 @@
         m.pending = true
         try { if (typeof emit === 'function') emit(st) } catch(_){}
         try {
-          await cb(merged)
+          m.lastVis = String((merged && merged.visibility) || 'public')
+          const out = await cb(merged)
           m.pending = false
+          // #419/#425：成功后丢弃队列残留（向导单例），再关闭向导
+          try { if (st && Array.isArray(st._formModalQueue)) st._formModalQueue = [] } catch(_){}
           try { closeFormModal(st) } catch(_){ m.open = false; try { if (typeof emit === 'function') emit(st) } catch(__){} }
-          try { if (typeof flash === 'function') flash(st, '已提交，链条重查中…', 'ok') } catch(_){}
-          try {
-            if (typeof host !== 'undefined' && host.call) {
-              await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (st.selection && st.selection.backendId) || undefined })
-              try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch(_){}
-              try { if (typeof loadChain === 'function') loadChain(st, true) } catch(_){}
-            }
-          } catch(_){}
+          // #419/#425 成功弹窗：真值链接 + 在 GitHub 打开/完成；无 repo 数据时诚实回落为提示
+          const repoData = (out && out.data && out.data.ok) ? out.data : null
+          const repo = repoData && repoData.repo ? repoData.repo : null
+          if (repo && (repo.owner || repo.name)) {
+            m.success = { owner: repo.owner || '', name: repo.name || '', url: (repoData && repoData.repoUrl) ? repoData.repoUrl : '', visLabel: visLabelOf(m.lastVis) }
+          } else {
+            try { if (typeof flash === 'function') flash(st, '已提交，链条重查中…', 'ok') } catch(_){}
+          }
+          // 同步过渡态 + 后台重查（弹窗出现时即开始，不等用户点「完成」）
+          startRepoSync(st)
+          runRepoSyncRecheck(st)
+          try { if (typeof emit === 'function') emit(st) } catch(_){}
         } catch (e) {
           m.pending = false
-          try { if (typeof emit === 'function') emit(st) } catch(_){}
           const msg = String((e && e.message) || e)
-          const low = msg.toLowerCase()
           const code = (e && (e.code || e.kind || e.errorKind)) ? String(e.code || e.kind || e.errorKind).toLowerCase() : ''
-          const combined = low + ' ' + code
-          // Q8 失败不关，自动回跳到错误相关步（already-exists/bad-name → 含 name 的步，其余留最后一步）；兼顾中英文（同名/仓库名）
-          const isNameErr = combined.indexOf('already exists')>=0 || combined.indexOf('already-exists')>=0 || combined.indexOf('already_exists')>=0 || combined.indexOf('bad-name')>=0 || combined.indexOf('bad_name')>=0 || (combined.indexOf('already')>=0 && combined.indexOf('exists')>=0) || combined.indexOf('同名')>=0 || combined.indexOf('已存在')>=0 || (combined.indexOf('仓库名')>=0 && (combined.indexOf('仅支持')>=0 || combined.indexOf('格式')>=0 || combined.indexOf('bad')>=0))
-          if (isWizard && isNameErr) {
+          const halfCreated = !!(e && e.halfCreated)
+          const repoUrl = (e && e.repoUrl) ? String(e.repoUrl).replace(/\.git$/, '') : ''
+          // #420/#426：失败内联错误条（errorKind 精确回跳；删除九条件文本启发式；文案后端优先 locale 兜底）
+          const dispKind = halfCreated ? 'half-created' : (code || 'unknown')
+          m.fail = { kind: dispKind, code: code, text: resolveFailText(st, dispKind, code, msg), link: repoUrl || null, repo: (e && e.repo) ? e.repo : null, halfCreated: halfCreated }
+          if (isWizard && (code === 'bad-name' || code === 'already-exists')) {
             let jumped = false
             for (let si=0; si<wizardSteps.length && !jumped; si++) {
               const sch=wizardSteps[si].schema
               for(let fi=0;fi<sch.length;fi++) if(sch[fi].name==='name'){ m.stepIndex=si; try{ if(typeof emit==='function') emit(st)}catch(_){}; jumped = true; break }
             }
-          } else if (isWizard && !isNameErr) {
-            // 其余错误保留在最后一步，已在最后一步则无需移动；非最后一步的错误（如通用校验）留当前步不跳转（兜底不丢值）
           }
-          try { if (typeof flash === 'function') flash(st, msg.slice(0, 200), 'warn') } catch(_){}
+          // #420定版：no-gh / not-logged-in 自动注入指引（复用既有文案）
+          if (code === 'no-gh' || code === 'not-logged-in') {
+            try { if (typeof inject === 'function') inject(st, (typeof promptText === 'function' ? promptText(code === 'no-gh' ? 'noGhPrompt' : 'ghAuthLogin') : '')) } catch(_){}
+          }
+          try { if (typeof emit === 'function') emit(st) } catch(_){}
         }
       }
       const onSubmit = isWizard ? onWizardSubmit : async function () {
@@ -453,8 +577,36 @@
         isWizard ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginBottom: 4 } }, (wizardSteps[stepIndex].title || ('步骤 ' + String(stepIndex+1))) + ' — 请填写后继续' + (_queueLen(st) > 0 ? '（队列中还有 ' + String(_queueLen(st)) + ' 个待处理）' : '')) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginBottom: 8, lineHeight: 1.5 } }, '请填写后提交，提交后将自动重查。' + (_queueLen(st) > 0 ? '（队列中还有 ' + String(_queueLen(st)) + ' 个待处理）' : '')),
         stepper,
         ...fields,
+        // #420/#426：失败内联错误条（常驻；链接 + 半成功重试入口；关闭/重新提交时清除）
+        (m.fail && (m.fail.text || m.fail.link || m.fail.halfCreated)) ? h('div', { role: 'alert', style: { marginTop: 2, border: '1px solid rgba(248,113,113,.45)', background: 'rgba(248,113,113,.10)', borderRadius: 8, padding: '8px 10px', fontSize: 12, color: '#fca5a5', lineHeight: 1.5 } }, [
+          h('div', null, String(m.fail.text || '')),
+          (m.fail.link || m.fail.halfCreated) ? h('div', { style: { display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' } }, [
+            m.fail.link ? h('span', { style: { color: '#58a6ff', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }, onClick: function(){ try { if (typeof openUrl === 'function') openUrl(m.fail.link) } catch(_){} } }, (typeof tr === 'function' ? tr('panel.successModal.openBtn') : 'Open on GitHub')) : null,
+            m.fail.halfCreated ? h('button', { className: 'dsws-btn', onClick: function(){ try { retryPushFlow(st, m) } catch(_){ try { flash(st, 'retry push failed', 'warn') } catch(__){} } }, disabled: !!m.pending, style: { fontSize: 11, padding: '3px 9px' } }, (typeof tr === 'function' ? tr('panel.retryPushBtn') : 'Retry push')) : null,
+          ]) : null,
+        ]) : null,
         navRow,
       ])
+      // #419/#425：成功弹窗（复用 modal-seat，向导关闭后成功态独占展示）
+      if (isSuccess) {
+        const sv = m.success || {}
+        const sBody = sv.url ? (function(){ try { return tr('panel.successModal.body', { owner: sv.owner || '...', repo: sv.name || '...', vis: sv.visLabel || '公开' }) } catch(_){ return 'Repository created' } })() : (function(){ try { return tr('panel.successModal.bodyFallback', { repo: sv.name || '...', vis: sv.visLabel || '公开' }) } catch(_){ return 'Repository created' } })()
+        const sBox = h('div', { className: 'dsws-modalbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': (typeof tr === 'function' ? tr('panel.successModal.title') : 'Repository created'), style: { width: 480, maxWidth: '94vw', borderColor: '#2b4a33' }, onClick: function (e) { e.stopPropagation() } }, [
+          h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } }, [
+            h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, (typeof tr === 'function' ? tr('panel.successModal.title') : 'Repository created')),
+            h('button', { className: 'dsws-btn ghost', 'aria-label': (typeof tr === 'function' ? tr('panel.successModal.doneBtn') : 'Done'), onClick: onClose, style: { fontSize: 12, padding: '2px 8px' } }, '✕'),
+          ]),
+          h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', lineHeight: 1.6 } }, sBody),
+          sv.url ? h('div', { style: { margin: '8px 0' } }, [ h('span', { style: { color: '#58a6ff', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2, wordBreak: 'break-all' }, onClick: function(){ try { if (typeof openUrl === 'function') openUrl(sv.url) } catch(_){} } }, sv.url) ]) : null,
+          h('div', { className: 'foot', style: { display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8, alignItems: 'center' } }, [
+            sv.url ? h('button', { className: 'dsws-btn primary', onClick: function(){ try { if (typeof openUrl === 'function') openUrl(sv.url) } catch(_){} }, style: { fontSize: 12, padding: '6px 14px', fontWeight: 600 } }, (typeof tr === 'function' ? tr('panel.successModal.openBtn') : 'Open on GitHub')) : null,
+            h('button', { className: 'dsws-btn', onClick: onClose, style: { fontSize: 11, padding: '4px 10px' } }, (typeof tr === 'function' ? tr('panel.successModal.doneBtn') : 'Done')),
+          ]),
+        ])
+        const sOverlay = h('div', { className: 'dsws-modal', role: 'presentation', onClick: onOverlayClick, style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 } }, [sBox])
+        try { if (typeof portalTop === 'function') return portalTop(sOverlay) } catch(_){}
+        return sOverlay
+      }
       // portalTop 挂到 body，避免被面板裁剪（与 issue #3 同理）
       const overlayNode = h('div', { className: 'dsws-modal', role: 'presentation', onClick: onOverlayClick, style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 } }, [box])
       try {
