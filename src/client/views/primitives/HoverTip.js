@@ -60,7 +60,9 @@ export const HoverTip = function (props) {
     if (typeof window === 'undefined') return null
     const vpW = window.innerWidth
     const vpH = window.innerHeight
-    const estW = maxWidth + 16 + 2
+    let estW = maxWidth + 16 + 2
+    // T3修复：短文本按字符估宽，避免 238 固定值对“新会话”等小气泡过度 flip 导致远左
+    try{ if(typeof tipContent==='string' && tipContent){ const dyn = String(tipContent).length * 7 + 32; estW = Math.min(estW, Math.max(56, dyn)); } }catch(e){}
     const estH = 40
     if (mode === 'mouse') {
       const mp2 = mp || mousePos
@@ -110,6 +112,7 @@ export const HoverTip = function (props) {
   }, [visible, hasTip, mousePos, mode, maxWidth, flip, offset.x, offset.y])
   React.useEffect(function () { return function () { clearTimer() } }, [])
   const handleEnter = function (e) {
+    try{ if(anchorRefInternal.current && e.target && e.target!==anchorRefInternal.current && e.target.closest){ const inner=e.target.closest('button, a'); if(inner && anchorRefInternal.current.contains(inner) && inner!==anchorRefInternal.current) return; } }catch(_){}
     if (mode === 'mouse') setMousePos({ x: e.clientX, y: e.clientY })
     clearTimer()
     scheduleShow()
