@@ -877,6 +877,62 @@ export default {
       try { return { ok: true, maps: JSON.parse(r.text) } } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
     }
 
+    // 手动分页兜底：gh api --paginate 在本机偶发 unexpected EOF 时，按页拉取避免单页失败拖垮全量
+    // 首选 --paginate 成功即走快路径；失败则按 page=1..N 逐页拉，单页失败若有 text 则解析该页部分数据，否则中断
+    // 该路径在 4c6508c 的 100 截断基础上补全全量，避免 100 截断导致旧票丢失（回归风险）
+    async function fetchAllIssuesManual(cwd, repo) {
+      if (!repo) return { ok: false, error: { kind: 'env', error: 'missing repo' } };
+      let all = [];
+      for (let page = 1; page <= 10; page++) {
+        const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100&page=' + page;
+        const r = await runGh(['api', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, title: .title, state: .state, labels: .labels, assignees: .assignees, user: .user, updated_at: .updated_at, created_at: .created_at}'], cwd);
+        const raw = r && (r.ok ? r.text : (r.text || ''));
+        if (!raw || !String(raw).trim()) { if (page === 1) return { ok: false, error: r }; break; }
+        try {
+          const txt = String(raw).trim();
+          let arr = [];
+          if (txt.startsWith('[')) { try { arr = JSON.parse(txt); } catch {} }
+          if (!arr.length && txt) {
+            const lines = txt.split('\n').filter(function(s){return s.trim();});
+            for (let i=0;i<lines.length;i++) { try { const o=JSON.parse(lines[i]); if(o && typeof o.number==='number') arr.push(o); } catch(e){} }
+            if (!arr.length) { try { arr = JSON.parse('['+lines.join(',')+']'); } catch(e){} }
+          }
+          if (!arr.length) { if (page===1) return { ok:false, error: r }; break; }
+          const issues = arr.map(function(x){ return { number:x.number, title:x.title, state:(String(x.state).toLowerCase()==='closed'?'CLOSED':'OPEN'), assignees:(x.assignees||[]).map(function(a){return a.login;}), labels:(x.labels||[]).map(function(l){return {name:l.name,color:l.color||''};}), author:(x.user&&x.user.login)?{login:x.user.login,name:(x.user.name||''),avatarUrl:(x.user.avatar_url||'')}:undefined, updatedAt:x.updated_at, createdAt:x.created_at }; });
+          all = all.concat(issues);
+          if (arr.length < 100) break;
+        } catch (e) { if (page===1) return { ok:false, error: r }; break; }
+        if (!r.ok) break;
+      }
+      if (all.length) { all.sort(function(a,b){ return String(b.updatedAt).localeCompare(String(a.updatedAt)); }); return { ok:true, issues: all }; }
+      return { ok:false, error:{kind:'empty', error:'manual paginate empty'} };
+    }
+    async function fetchAllIndexManual(cwd, repo) {
+      if (!repo) return { ok:false, error:{kind:'env', error:'missing repo'} };
+      let idx = {};
+      for (let page=1; page<=10; page++) {
+        const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100&page=' + page;
+        const r = await runGh(['api', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd);
+        const raw = r && (r.ok ? r.text : (r.text||''));
+        if (!raw || !String(raw).trim()) { if(page===1) return {ok:false, error:r}; break; }
+        try {
+          const txt = String(raw).trim();
+          let arr = [];
+          if (txt.startsWith('[')) { try{ arr=JSON.parse(txt);}catch{} }
+          if (!arr.length && txt) {
+            const lines = txt.split('\n').filter(Boolean);
+            for(let i=0;i<lines.length;i++){ try{ const o=JSON.parse(lines[i]); if(o&&o.number!=null) arr.push(o);}catch(e){} }
+            if(!arr.length){ try{ arr=JSON.parse('['+lines.join(',')+']');}catch(e){} }
+          }
+          if (!arr.length) { if(page===1) return {ok:false, error:r}; break; }
+          for(let i=0;i<arr.length;i++){ const it=arr[i]; if(it&&it.number!=null) { idx[String(it.number)] = String(it.state||'').toUpperCase() + '|' + String(it.updatedAt||''); } }
+          if (arr.length < 100) break;
+        } catch(e){ if(page===1) return {ok:false, error:r}; break; }
+        if (!r.ok) break;
+      }
+      if (Object.keys(idx).length) return { ok:true, repo:repo, index:idx, count:Object.keys(idx).length };
+      return { ok:false, error:{kind:'empty', error:'manual index empty'} };
+    }
     // 全部 issue（open + closed，Client 列表 open 常显、底部「已关闭」折叠行），
     // 按 updatedAt 倒序；labels 带 name + color（GitHub 配置色）；state 区分 open/closed；
     // v18：assignees 带出（状态栏「占用」按列表 issue 口径：已认领 + 被阻塞）
@@ -916,6 +972,13 @@ export default {
             if (issues.length) return { ok: true, issues: issues }
           } catch (e) { /* fall through to gh issue list */ }
         }
+      }
+      // 手动分页兜底：--paginate 失败时按页拉取全量，避免 100 截断丢失旧票
+      if (repo2) {
+        try {
+          const manual = await fetchAllIssuesManual(cwd, repo2);
+          if (manual.ok && manual.issues && manual.issues.length) return manual;
+        } catch (e) {}
       }
       // 回退：gh issue list（无 avatar，仅 login；UI 将回退为 person SVG）
       // 修复 unexpected EOF：500 在部分网络下触发 GraphQL 大查询 EOF，回退改用 100 并重试一次
@@ -976,6 +1039,11 @@ export default {
         if (parsed) return parsed
       }
       if (!r.ok) {
+        // 手动分页兜底：优先按页拉全量索引，避免 100 截断丢失旧票（如删除检测）
+        try {
+          const manualIdx = await fetchAllIndexManual(cwd, repo);
+          if (manualIdx.ok && manualIdx.index && Object.keys(manualIdx.index).length) return manualIdx;
+        } catch (e) {}
         // 回退：gh api 整体失败时，用 gh issue list 全量兜底（与 fetchIssues 同策略），确保外部建票 60s 内可被发现
         // 500 在部分网络下触发 unexpected EOF，改用 100 并重试
         let fallback = await runGh(['issue', 'list', '--state', 'all', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
