@@ -39,10 +39,32 @@ for (const root of SCAN_ROOTS){
       const raw = lines[i]
       const t = raw.trim()
       if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) continue
-      const code = raw.split('//')[0]
+      // 去注释需避开字符串内的 //（如 https:// 与正则 /^https?:\/\//），逐字符扫描，字符串内 // 不截断
+      let code = raw
+      {
+        let inS=false, inD=false, inB=false, esc=false, cut=-1
+        for (let ci=0; ci<code.length; ci++){
+          const ch=code[ci]
+          if (esc){ esc=false; continue }
+          if (ch==='\\'){ esc=true; continue }
+          if (!inS && !inD && !inB){
+            if (ch==="'") inS=true
+            else if (ch==='"') inD=true
+            else if (ch==='`') inB=true
+            else if (ch==='/' && code[ci+1]==='/'){ cut=ci; break }
+            else if (ch==='/' && code[ci+1]==='*'){ cut=ci; break }
+          } else {
+            if (inS && ch==="'") inS=false
+            else if (inD && ch==='"') inD=false
+            else if (inB && ch==='`') inB=false
+          }
+        }
+        if (cut>=0) code = code.slice(0, cut)
+      }
       const m = code.match(TITLE_RE)
       if (m) {
         if (code.includes('aria-label')) continue
+        if (code.includes('PREVIEW_VALUES')) continue
         fileHits += m.length
         for (let k=0;k<m.length;k++) hits.push(f + ':' + (i+1))
       }
