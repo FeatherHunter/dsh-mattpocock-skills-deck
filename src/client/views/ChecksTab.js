@@ -152,7 +152,7 @@ export const ChecksTab = ({ st }) => {
       h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: meta.dot, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' } }, meta.label),
       h('span', { style: { flex: 1, minWidth: 0 } }, [
         h('span', { className: 'nm', style: { color: meta.color, fontWeight: primaryBtn ? 600 : 400 } }, String(label)),
-        finalDesc ? h('div', { className: 'dt dsws-ellip', title: finalDesc, style: { color: '#8b8b95' } }, finalDesc) : null,
+        finalDesc ? h(Tip, { content: finalDesc }, h('div', { className: 'dt dsws-ellip', style: { color: '#8b8b95' } }, finalDesc)) : null,
         hintText ? h('div', { className: 'dt', style: { color: '#d97706', lineHeight: 1.5, marginTop: 2, whiteSpace: 'pre-wrap' } }, hintText) : null,
       ]),
       primaryBtn,
@@ -166,7 +166,7 @@ export const ChecksTab = ({ st }) => {
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'gear', size: 12 }), h('span', null, tr('env.title', { n: envLabel(st) }))]),
       (function () {
         const selTop = st.selection || (st.snapshot && st.snapshot.selection) || null
-        if (selTop && selTop.backendId) return h('span', { title: tr('banner.setupPickHint'), style: { fontSize: 10, lineHeight: '16px', padding: '1px 8px', borderRadius: 99, border: '1px solid rgba(139,140,255,.45)', color: '#9a9aff' } }, String(selTop.backendId))
+        if (selTop && selTop.backendId) return h(Tip, { content: tr('banner.setupPickHint') }, h('span', { style: { fontSize: 10, lineHeight: '16px', padding: '1px 8px', borderRadius: 99, border: '1px solid rgba(139,140,255,.45)', color: '#9a9aff' } }, String(selTop.backendId)))
         if (selTop && selTop.pending) return h('span', { style: { fontSize: 10, color: '#8b8b95' } }, tr('env.detecting'))
         return null
       })(),

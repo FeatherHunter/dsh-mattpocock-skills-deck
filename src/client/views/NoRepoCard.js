@@ -197,7 +197,7 @@ export     const NoRepoCard = function (props) {
             h('div', { className: 'ttl' }, tr('panel.noRepoCardTitle')),
             h('div', { className: 'desc' }, tr('panel.noRepoCardDesc')),
           ]),
-          h('button', { className: 'dsws-btn ghost', title: tr('panel.noRepoCardDismiss'), onClick: function (e) { e.stopPropagation(); doDismiss() }, style: { padding: '2px 6px', flex: 'none' } }, Ic({ n: 'x', size: 12 })),
+          h(Tip, { content: tr('panel.noRepoCardDismiss') }, h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); doDismiss() }, style: { padding: '2px 6px', flex: 'none' } }, Ic({ n: 'x', size: 12 }))),
         ]),
         h('div', { className: 'acts' }, !card.expanded ? [
           h('button', { className: 'dsws-btn primary', onClick: doExpand, style: { background: '#f87171', borderColor: 'transparent', color: '#fff', fontWeight: 600, fontSize: 11, padding: '3px 10px' } }, tr('panel.noRepoCardAction')),

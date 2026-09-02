@@ -94,7 +94,7 @@ export const SwitchConfirmModal = (props) => {
         typeof Ic === 'function' ? Ic({ n: 'compass', size: 14 }) : h('span', null, '◉'),
         h('span', { style: { fontSize: 13, fontWeight: 700, flex: 'none' } }, tr('switch.title')),
         h('span', { style: { flex: 1 } }),
-        h('button', { className: 'dsws-btn ghost', title: tr('switch.clearBindTitle'), onClick: function () { try { if (typeof clearBackendBinding === 'function') clearBackendBinding(s) } catch (e) {} }, style: { fontSize: 12, padding: '2px 10px', color: '#f87171', borderColor: 'rgba(248,113,113,.45)' } }, tr('switch.clearBind')),
+        h(Tip, { content: tr('switch.clearBindTitle') }, h('button', { className: 'dsws-btn ghost', onClick: function () { try { if (typeof clearBackendBinding === 'function') clearBackendBinding(s) } catch (e) {} }, style: { fontSize: 12, padding: '2px 10px', color: '#f87171', borderColor: 'rgba(248,113,113,.45)' } }, tr('switch.clearBind'))),
         h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { fontSize: 12, padding: '2px 10px' } }, tr('switch.cancel')),
         h('button', { className: 'dsws-btn', disabled: confirmDisabled, onClick: doConfirm, style: { fontSize: 12, padding: '2px 10px', background: confirmDisabled ? '#2a2d35' : '#58a6ff', borderColor: confirmDisabled ? '#2a2d35' : '#58a6ff', color: confirmDisabled ? '#8b8b95' : '#0b1220', fontWeight: 700, cursor: confirmDisabled ? 'not-allowed' : 'pointer' } }, sc.confirming ? tr('switch.confirming') : tr('switch.confirm')),
         h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { padding: '2px 6px' } }, '✕'),

@@ -25,7 +25,7 @@ export     const SkillsTab = ({ st }) => {
               h('span', null, '/' + sk.name),
               on ? Ic({ n: 'star', size: 11, color: '#c084fc' }) : null,
             ]),
-            h('div', { className: 'dsws-tt-sub dsws-ellip', title: sk.use }, sk.use),
+            h(Tip, { content: sk.use }, h('div', { className: 'dsws-tt-sub dsws-ellip' }, sk.use)),
           ]),
           h('button', { className: 'dsws-btn', onClick: function () { inject(st, '/' + sk.name) } }, tr('act.load')),
         ])

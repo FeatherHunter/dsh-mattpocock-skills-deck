@@ -44,7 +44,7 @@ export const useTabsRow = function (s, tabsRef) {
     h('button', { className: 'dsws-btn', 'data-priority': 3, onMouseMove: function (e) { tabsTip(e, tr('list.refresh'), 3) }, onMouseLeave: tabsTipOff, onClick: function () { refreshAll(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none' } }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('list.refresh'))]),
     (tabTip && portalTop) ? portalTop(h('div', { style: { position: 'fixed', left: tabTip.x, top: tabTip.y, zIndex: 2147483000, padding: '4px 8px', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)', maxWidth: 220 } }, tabTip.text)) : null,
     // #repo-link：版本号可点——新窗打开插件仓库主页（DSW_REPO_URL 构建期注入，见 index.js；hover 样式在 styles.js .dsws-ver）
-    h('a', { className: 'dsws-ver', href: DSW_REPO_URL, target: '_blank', rel: 'noreferrer', title: DSW_REPO_URL, style: { fontSize: 9, flex: 'none', fontVariantNumeric: 'tabular-nums' } }, DSW_VERSION),
+    h(Tip, { content: DSW_REPO_URL }, h('a', { className: 'dsws-ver', href: DSW_REPO_URL, target: '_blank', rel: 'noreferrer', style: { fontSize: 9, flex: 'none', fontVariantNumeric: 'tabular-nums' } }, DSW_VERSION)),
   ]
   return { tabsRef: tabsRef, items: items }
 }

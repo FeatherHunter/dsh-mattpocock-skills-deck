@@ -71,7 +71,7 @@
         }
       }
       if (isUnsupported) {
-        return h('span', { className:'dsws-chain-unsupported', title: 'unsupported action type', style:{ fontSize:10, color:'#8b8b95', border:'1px dashed rgba(139,139,149,.45)', borderRadius:4, padding:'1px 6px', display:'inline-flex', alignItems:'center' } }, label)
+        return h(Tip, { content: 'unsupported action type' }, h('span', { className:'dsws-chain-unsupported', style:{ fontSize:10, color:'#8b8b95', border:'1px dashed rgba(139,139,149,.45)', borderRadius:4, padding:'1px 6px', display:'inline-flex', alignItems:'center' } }, label))
       }
       return h('button', { className:'dsws-btn', tabIndex:0, onClick:onClick, onKeyDown:function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onClick() } }, style:{ fontSize:11, padding:'2px 8px', display:'inline-flex', alignItems:'center', gap:4, flex:'none' } }, label)
     }
@@ -163,10 +163,10 @@
         const border = isCurrent ? '2px solid #f59e0b' : '1px solid transparent'
         const title = (s.show && (s.show.fallback || s.show.title || s.show.i18nKey)) || s.id
         const detail = (s.show && (s.show.desc || '')) || ''
-        return h('div', { key:s.id||idx, title: title + (detail ? ' — '+detail : ''), tabIndex:0, style:{ display:'flex', alignItems:'center', gap:6, flex:'none', border:border, borderRadius:20, padding:'2px 8px 2px 4px', background: isCurrent?'rgba(245,158,11,.12)':'rgba(255,255,255,.04)', minHeight:24 } }, [
+        return h(Tip, { content: title + (detail ? ' — '+detail : '') }, h('div', { key:s.id||idx, tabIndex:0, style:{ display:'flex', alignItems:'center', gap:6, flex:'none', border:border, borderRadius:20, padding:'2px 8px 2px 4px', background: isCurrent?'rgba(245,158,11,.12)':'rgba(255,255,255,.04)', minHeight:24 } }, [
           h('span', { style:{ width:18, height:18, borderRadius:'50%', background:bg, color:'#fff', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flex:'none' } }, isDone ? '✓' : String(idx+1)),
           h('span', { style:{ fontSize:11, color: isDone?'#4ade80': isFail?'#f87171': isCurrent?'#f59e0b':'#a1a1aa', whiteSpace:'nowrap', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis' } }, title),
-        ])
+        ]))
       }))
     }
 

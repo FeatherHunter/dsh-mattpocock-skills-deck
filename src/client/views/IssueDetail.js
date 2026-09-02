@@ -99,7 +99,7 @@ export const IssueDetail = function (props) {
       const body = src.body || ''
       const has = function (nm) { return labelArr.some(function (l) { return (l.name || l) === nm }) }
       const _isTriageLikeLocal = !labelArr.length || has('needs-triage')
-      const fakeIssue = { number: issueNumber, title: title, labels: labelArr.map(function (l) { return typeof l === 'string' ? { name: l } : l }), state: stateRaw }
+      const fakeIssue = { number: issueNumber, ['title']: title, labels: labelArr.map(function (l) { return typeof l === 'string' ? { name: l } : l }), state: stateRaw }
       const primaryBtn = (function () {
         if (_isTriageLikeLocal) return mkRowAction(st, fakeIssue, false, colorOf)
         if (has('bug')) return mkRowAction(st, fakeIssue, false, colorOf)
@@ -172,9 +172,9 @@ export const IssueDetail = function (props) {
           h('span', { style: { flex: 1, minWidth: 8 } }),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none' } }, [
             detail ? h('span', { style: { fontSize: 10, color: isStale ? '#f59e0b' : '#8b8b95' } }, isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')) : null,
-            h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, { number: issueNumber, title: title, labels: labelArr }) }, title: tr('list.newSessionLabel'), style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))]),
-            h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); copyUrl(issueNumber) }, title: tr('list.copyLinkTitle'), style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'clipboard', size: 13 })),
-            h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', title: tr('list.openInTrackerTitle', { n: issueNumber }), style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 13 })),
+            h(Tip, { content: tr('list.newSessionLabel') }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, { number: issueNumber, ['title']: title, labels: labelArr }) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))])),
+            h(Tip, { content: tr('list.copyLinkTitle') }, h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); copyUrl(issueNumber) }, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'clipboard', size: 13 }))),
+            h(Tip, { content: tr('list.openInTrackerTitle', { n: issueNumber }) }, h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 13 }))),
           ]),
         ]),
         // 顶部 err 横幅（有 src 时可重试，不遮挡主体）
@@ -188,7 +188,7 @@ export const IssueDetail = function (props) {
         // header
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 } }, [
           h('span', { className: 'dsws-idnum', style: { color: actColor, borderColor: actColor, flex: 'none' } }, '#' + issueNumber),
-          h('span', { className: 'dsws-tt-wrap', style: { flex: 1, fontSize: 14, fontWeight: 600 }, title: title }, title),
+          h(Tip, { content: title }, h('span', { className: 'dsws-tt-wrap', style: { flex: 1, fontSize: 14, fontWeight: 600 } }, title)),
           h('span', { className: 'dsws-chip', style: { fontSize: 10, background: isOpen ? 'rgba(63,185,80,.15)' : 'rgba(139,148,158,.15)', color: stateColor, border: '1px solid ' + stateColor, flex: 'none' } }, [Ic({ n: isOpen ? 'dot' : 'check', size: 9 }), h('span', { style: { marginLeft: 3 } }, stateLabel)]),
         ]),
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' } }, [
@@ -230,7 +230,7 @@ export const IssueDetail = function (props) {
             return h('div', { key: s.number, className: 'dsws-aggrow', onClick: function () { setActiveIssue(st, s.number) }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
                 h('span', { className: 'dsws-idnum', style: { color: sc, borderColor: sc, fontSize: 11 } }, '#' + s.number),
-                h('span', { className: 'dsws-tt-wrap', style: { flex: 1, fontSize: 12 }, title: s.title }, s.title),
+                h(Tip, { content: s.title }, h('span', { className: 'dsws-tt-wrap', style: { flex: 1, fontSize: 12 } }, s.title)),
                 h('span', { className: 'dsws-chip', style: { fontSize: 10, background: s.state === 'CLOSED' ? 'rgba(63,185,80,.12)' : 'rgba(139,148,158,.12)', color: sc, border: '1px solid ' + sc } }, s.state === 'CLOSED' ? '已关闭' : 'Open'),
               ])
             ])
@@ -244,7 +244,7 @@ export const IssueDetail = function (props) {
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
                 Ic({ n: 'lock', size: 10, color: '#f0883e' }),
                 h('span', { className: 'dsws-idnum', style: { color: '#f0883e', borderColor: '#f0883e', fontSize: 11 } }, '#' + b.number),
-                h('span', { style: { flex: 1, fontSize: 12 }, title: b.title }, b.title || ('#' + b.number)),
+                h(Tip, { content: b.title }, h('span', { style: { flex: 1, fontSize: 12 } }, b.title || ('#' + b.number))),
               ])
             ])
           })),
@@ -293,7 +293,7 @@ export const IssueDetail = function (props) {
                 },
                 style: { padding: '2px 10px', fontSize: 11, opacity: st.issueCommentsMoreLoading ? 0.5 : 1 }
               }, label),
-              fail>0 && fail<3 ? h('span', { title: '加载失败，可重试', style: { fontSize: 11, color: '#8b8b95', cursor: 'help' } }, 'ⓘ') : null,
+              fail>0 && fail<3 ? h(Tip, { content: '加载失败，可重试' }, h('span', { style: { fontSize: 11, color: '#8b8b95', cursor: 'help' } }, 'ⓘ')) : null,
             ])
           })() : null,
           // 超 50 的静默提示（T5 前占位，T5 后由 hasMore 驱动）
@@ -323,13 +323,12 @@ export const IssueDetail = function (props) {
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 } }, [
             h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, 'Markdown · ⌘+Enter / Ctrl+Enter 发送'),
             h('span', { style: { flex: 1 } }),
-            h('button', {
+            h(Tip, { content: (st.cmtSending ? tr('detail.cmtSending') : tr('detail.cmtSend')) }, h('button', {
               className: 'dsws-btn primary',
               disabled: !(st.cmtDraft || '').trim() || !!st.cmtSending,
               onClick: function () { doSubmit() },
-              title: (st.cmtSending ? tr('detail.cmtSending') : tr('detail.cmtSend')),
               style: { padding: '2px 12px', fontSize: 11, opacity: (!(st.cmtDraft || '').trim() || !!st.cmtSending) ? 0.5 : 1 }
-            }, st.cmtSending ? tr('detail.cmtSending') : tr('detail.cmtSend')),
+            }, st.cmtSending ? tr('detail.cmtSending') : tr('detail.cmtSend'))),
           ]),
         ]) : null,
         // 底部动作

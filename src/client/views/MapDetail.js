@@ -76,7 +76,7 @@ export     const MapDetail = ({ st, g }) => {
         // 补齐「新会话」按钮（与列表页 issueRow 一致）：primary 色随 actionColorOf，浅色自动深字，marginLeft 4 与 mkRowAction 成组
         const acts = h('div', { className: 'acts' }, (t.state === 'OPEN' && !blocked) ? [
           mkRowAction(st, t, false, colorOf),
-          h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, t) }, title: tr('list.newSessionLabel'), style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: actionColorOf(t, colorOf), borderColor: 'transparent', color: isLightHex(actionColorOf(t, colorOf)) ? '#140a1e' : '#ffffff' } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))]),
+          h(Tip, { content: tr('list.newSessionLabel') }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, t) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: actionColorOf(t, colorOf), borderColor: 'transparent', color: isLightHex(actionColorOf(t, colorOf)) ? '#140a1e' : '#ffffff' } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))])),
           (function(){ const _u=issueUrlFor(st, t.number); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e){ e.stopPropagation(); const u=issueUrlFor(st, t.number); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h('a', { className: 'dsws-btn ghost', title: tr('list.openInTrackerTitle', { n: t.number }), href: _u, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 11 })) : h('button', { className: 'dsws-btn ghost', title: tr('list.openInTrackerTitle', { n: t.number }), onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 11 })); })(),
         ] : [])
         // v1.4 修复：图标名必须用 Ic 支持的（search/hammer/chat/gear），原 mag/bolt/wrench 不存在 → 节点图标空白
@@ -93,7 +93,7 @@ export     const MapDetail = ({ st, g }) => {
                 h('span', { className: 'no' }, '#' + (t.key != null ? t.key : t.number)),
                 TypeChip({ type: wayfinderTypeOf(t) }),
               ]),
-              h('div', { className: 'tt', title: t.title }, t.title),
+              h(Tip, { content: t.title }, h('div', { className: 'tt' }, t.title)),
               h('div', { className: 'sub', style: { fontSize: 8, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginTop: 1, minHeight: 12, display: 'flex', gap: 5, flexWrap: 'wrap' } }, [
                 t.state === 'CLOSED' ? h('span', { style: { color: '#3fb950', display: 'inline-flex', alignItems: 'center', gap: 2 } }, [Ic({ n: 'check', size: 8 }), h('span', null, tr('map.subClosed'))]) : null,
                 t.claimedBy ? h('span', { style: { color: '#58a6ff', display: 'inline-flex', alignItems: 'center', gap: 2 } }, [Ic({ n: 'person', size: 8 }), h('span', null, t.claimedBy)]) : null,
@@ -144,39 +144,39 @@ export     const MapDetail = ({ st, g }) => {
           h('span', { className: 'dsws-chip dsws-chip-m' }, [Ic({ n: 'map', size: 11 }), h('span', null, 'wayfinder:map')]),
           h('span', { style: { flex: 1 } }),
           (m.stats && m.stats.total === 0)
-            ? h('button', { className: 'dsws-btn primary', title: tr('map.inspectTitle'), onClick: function () {
+            ? h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
                 let t2 = ''
-                try { t2 = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2 = promptText('mapInspect', { n: String(m.number||''), title: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2) t2 = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2 } catch(_){ t2 = startText(st, m) } }
+                try { t2 = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2 = promptText('mapInspect', { n: String(m.number||''), ['title']: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2) t2 = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2 } catch(_){ t2 = startText(st, m) } }
                 inject(st, t2)
               }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 600 } }, [
                 Ic({ n: 'search', size: 10 }),
                 h('span', null, tr('act.inspect')),
-              ])
+              ]))
             : (m.stats && m.stats.total > 0 && m.stats.closed === m.stats.total)
-            ? h('button', { className: 'dsws-btn primary', title: tr('map.doneTitle'), onClick: function () {
+            ? h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
                 const text = completePrompt(st, m.number, m.stats.total, m.stats.closed)
                 inject(st, text)
               }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 600 } }, [
                 Ic({ n: 'check', size: 10 }),
                 h('span', null, tr('act.done')),
-              ])
-            : h('button', { className: 'dsws-btn primary', title: tr('map.executeTitle'), onClick: function () {
+              ]))
+            : h(Tip, { content: tr('map.executeTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
                 // v1.4：map 推进式执行（startText 检测 wayfinder:map → MAP_EXECUTE_PROMPT）
                 inject(st, startText(st, m))
               }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11 } }, [
                 Ic({ n: 'play', size: 10 }),
                 h('span', null, tr('act.execute')),
-              ]),
+              ])),
           // v1.5 B2（O5）：详情页「在新会话打开」—— 与 执行/完成 同语义，开新会话推进该 map
-          h('button', { className: 'dsws-btn ghost', title: tr('map.newSessionTitle'), onClick: function () { openInNewSession(st, m) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, flex: 'none' } }, [
+          h(Tip, { content: tr('map.newSessionTitle') }, h('button', { className: 'dsws-btn ghost', onClick: function () { openInNewSession(st, m) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, flex: 'none' } }, [
             Ic({ n: 'external-link', size: 10 }),
             h('span', null, tr('list.newSessionLabel')),
-          ]),
+          ])),
         ]),
         // T14：map 编号徽章 —— 标题前方、紫色、与列表 map 行同款（dsws-idnum）
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, marginBottom: 2 } }, [
           h('span', { className: 'dsws-idnum', style: { color: '#c084fc', borderColor: '#c084fc', flex: 'none' } }, '#' + m.number),
-          h('div', { className: 'dsws-mtitle dsws-tt-wrap', style: { flex: 1, minWidth: 0 }, title: m.title }, m.title),
+          h(Tip, { content: m.title }, h('div', { className: 'dsws-mtitle dsws-tt-wrap', style: { flex: 1, minWidth: 0 } }, m.title)),
         ]),
         m.error ? h('div', { style: { color: '#f87171', fontSize: 11, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 11 }), h('span', null, String((m.error && m.error.error) || tr('list.loadFail')).slice(0, 160))]) : null,
         // D2：分段静态进度条 = 地图层缩略图（无动画，唯一真相源）
@@ -185,7 +185,7 @@ export     const MapDetail = ({ st, g }) => {
             h('span', { className: 'cap' }, tr('map.progressCap')),
             h('div', { className: 'segs' }, levels.map(function (l, i) {
               const segCls = i < curLevel ? 'seg past' : (i === curLevel ? 'seg curr' : 'seg future')
-              return h('div', { key: i, className: segCls, title: tr('map.layer', { n: i + 1 }) })
+              return h(Tip, { content: tr('map.layer', { n: i + 1 }) }, h('div', { key: i, className: segCls }))
             })),
           ]),
           h('div', { className: 'row2' }, [
@@ -222,29 +222,29 @@ export     const MapDetail = ({ st, g }) => {
             h('div', { className: 'acts' }, [
               // v1.4：底部按钮与顶部同语义 —— 完成态「完成」（COMPLETE_PROMPT 同列表）/ 未完成「执行」（execute 模板）
               (m.stats && m.stats.total === 0)
-                ? h('button', { className: 'dsws-btn primary', title: tr('map.inspectTitle'), onClick: function () {
+                ? h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
                     let t2b = ''
-                    try { t2b = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2b = promptText('mapInspect', { n: String(m.number||''), title: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2b) t2b = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2b } catch(_){ t2b = startText(st, m)} }
+                    try { t2b = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2b = promptText('mapInspect', { n: String(m.number||''), ['title']: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2b) t2b = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2b } catch(_){ t2b = startText(st, m)} }
                     inject(st, t2b)
                   }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 700 } }, [
                     Ic({ n: 'search', size: 11 }),
                     h('span', null, tr('act.inspect')),
-                  ])
+                  ]))
                 : (m.stats && m.stats.total > 0 && m.stats.closed === m.stats.total)
-                ? h('button', { className: 'dsws-btn primary', title: tr('map.doneTitle'), onClick: function () {
+                ? h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
                     const text = completePrompt(st, m.number, m.stats.total, m.stats.closed)
                     inject(st, text)
                   }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 700 } }, [
                     Ic({ n: 'check', size: 11 }),
                     h('span', null, tr('act.done')),
-                  ])
-                : h('button', { className: 'dsws-btn primary', title: tr('map.executeTitle'), onClick: function () {
+                  ]))
+                : h(Tip, { content: tr('map.executeTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
                     // v1.4：map 推进式执行（startText 检测 wayfinder:map → MAP_EXECUTE_PROMPT）
                     inject(st, startText(st, m))
                   }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#4ade80', borderColor: 'transparent', color: '#04120a', fontWeight: 700 } }, [
                     Ic({ n: 'play', size: 11 }),
                     h('span', null, tr('act.execute')),
-                  ]),
+                  ])),
               (function(){ const _u=issueUrlFor(st, m.number); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e){ e.stopPropagation(); const u=issueUrlFor(st, m.number); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))]) : h('button', { className: 'dsws-btn ghost', onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))]); })(),
             ]),
           ]),
