@@ -2047,8 +2047,10 @@ export default {
         } catch {}
       }
       const useComposerEarly = _selEarly && _selEarly.backendId && _selEarly.backendId !== 'github' && _selEarly.backendId !== '' && _selEarly.backendId !== 'other'
-      if (cache.snapshot && cache.cwd === cwd) {
+      const isForce = !!(args && args.force)
+      if (!isForce && cache.snapshot && cache.cwd === cwd) {
         // GitHub 路径才用 issue 索引校验；Markdown 等走通用缓存时只看时间与 backend 是否一致
+        // 权威动作 force 必须无条件重建，不走此短路（P2 要求）
         if (useComposerEarly) {
           const cachedBackend = cache.snapshot.selection && cache.snapshot.selection.backendId
           if (cachedBackend === _selEarly.backendId && now - cache.ts < CACHE_MS) return cache.snapshot
