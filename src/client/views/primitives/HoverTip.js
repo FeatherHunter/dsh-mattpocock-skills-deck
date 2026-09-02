@@ -5,7 +5,7 @@
  *  visible受控, onVisibleChange/onShow/onHide, zIndex 2147483000 } 包裹式用法。
  * 样式单真源 STYLE_TEXT，挂顶经 portalTop，小三角随翻转同步，失败不抛。
  */
-let __hoverTipGlobalActive=null,__hoverTipGlobalSeq=0
+let __hoverTipGlobalActive=null,__hoverTipGlobalSeq=0,__hoverTipGlobalPending=null
 
 export const HoverTip = function (props) {
   const cx = React.useContext(DswsCtx)
@@ -54,7 +54,7 @@ export const HoverTip = function (props) {
   const clearTimer = function () {
     if (hideTimerRef.current !== null) { try { clearTimeout(hideTimerRef.current) } catch (e) {} hideTimerRef.current = null }
   }
-  const scheduleShow=function(){clearTimer();if(__hoverTipGlobalActive&&__hoverTipGlobalActive.id!==__hoverTipId){try{__hoverTipGlobalActive.hide()}catch(e){}__hoverTipGlobalActive=null}const doShow=function(){setVisible(true);__hoverTipGlobalActive={id:__hoverTipId,hide:function(){try{clearTimer();setVisible(false)}catch(e){}}};};if(delayShow<=0)doShow();else hideTimerRef.current=setTimeout(function(){hideTimerRef.current=null;doShow()},delayShow)}
+  const scheduleShow=function(){clearTimer();try{ if(__hoverTipGlobalPending && __hoverTipGlobalPending.id!==__hoverTipId){ try{ clearTimeout(__hoverTipGlobalPending.timer);}catch(e){} try{ __hoverTipGlobalPending.clear();}catch(e){} __hoverTipGlobalPending=null; } }catch(e){} if(__hoverTipGlobalActive&&__hoverTipGlobalActive.id!==__hoverTipId){try{__hoverTipGlobalActive.hide()}catch(e){}__hoverTipGlobalActive=null}const doShow=function(){setVisible(true);__hoverTipGlobalActive={id:__hoverTipId,hide:function(){try{clearTimer();setVisible(false)}catch(e){}}}; __hoverTipGlobalPending=null;};if(delayShow<=0)doShow();else { const t=setTimeout(function(){hideTimerRef.current=null; doShow();},delayShow); hideTimerRef.current=t; __hoverTipGlobalPending={id:__hoverTipId, timer:t, clear:function(){ try{ clearTimeout(t);}catch(e){} try{ setVisible(false);}catch(e){} }}; }}
   const scheduleHide=function(){clearTimer();const doHide=function(){setVisible(false);if(__hoverTipGlobalActive&&__hoverTipGlobalActive.id===__hoverTipId)__hoverTipGlobalActive=null};if(delayHide<=0)doHide();else hideTimerRef.current=setTimeout(function(){hideTimerRef.current=null;doHide()},delayHide)}
   const computePos = function (mp) {
     if (typeof window === 'undefined') return null
