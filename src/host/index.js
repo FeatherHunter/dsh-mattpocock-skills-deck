@@ -550,7 +550,7 @@ export default {
         if (/not logged in|auth failed|bad credentials|failed to log in|token.*invalid|keyring|re-authenticate|auth refresh/i.test(t)) kind = 'auth'
         else if (/404|not found|could not resolve to an? (issue|pull request)/i.test(t)) kind = 'notfound'
         else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
-        return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400) }
+        return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }
       }
       // 彻底移除：issuePath 1A 白名单检测已移除（#345），只保留两项与面包屑无关的职责：
       //   ① create/edit 等写操作失效快照缓存，支撑右侧面板增量更新；
