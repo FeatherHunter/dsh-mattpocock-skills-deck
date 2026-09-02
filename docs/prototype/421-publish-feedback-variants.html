@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<!--
+  PROTOTYPE（抛弃式，非生产）：创建并发布向导的成功/失败反馈形态对比（#421）
+  计划一句话：五个变体（A 现状基线 / B 成功弹窗·定版 / C 轻量提示条 / D 失败内联错误条·定版 / E 失败现状闪条），
+  同一"路由"（面板 + 向导弹窗），?variant= 切换，底部悬浮切换条，内嵌可点击的 stub 流程与状态读取。
+  数据为演示 stub：owner FeatherHunter / 仓库名 dsh-im-companion / 公开。视觉 token 取自 dsh-mattpocock-skills-deck 真实组件。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原型 #421 · 创建并发布反馈形态对比</title>
+<style>
+  :root{
+    --bg-page:#0c0e12; --bg-panel:#10131a; --bg-card:#16181d; --bg-layer1:#10131a;
+    --border:#2a2d35; --border2:#3a3f4a;
+    --text:#e6edf3; --text2:#a1a1aa; --cap:#8b8b95;
+    --ok:#4ade80; --warn:#fbbf24; --danger:#f87171; --link:#58a6ff; --purple:#c084fc;
+    --done:#16a34a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg-page);color:var(--text);font-family:"Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;min-height:100vh}
+  .notice{position:sticky;top:0;z-index:60;background:#1a1424;border-bottom:1px solid var(--border);padding:8px 16px;font-size:12px;color:var(--cap);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .notice b{color:var(--purple)}
+  .wrap{padding:16px 0 90px;display:flex;flex-direction:column;align-items:center;gap:14px}
+  .panel{width:860px;max-width:96vw;background:var(--bg-panel);border:1px solid var(--border);border-radius:14px;overflow:hidden;position:relative;min-height:520px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  .phead{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);font-size:12px}
+  .phead .tt{color:var(--text2)}
+  .chip{border:1px solid var(--border);border-radius:999px;padding:2px 10px;font-size:11px;color:var(--text);background:var(--bg-card)}
+  .chip.repo{color:var(--link);border-color:#1f3a5f;background:#0e1726}
+  .pbody{padding:14px}
+  .sec{font-size:11px;color:var(--cap);letter-spacing:.08em;margin:2px 0 8px}
+  .chaincard{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+  .crow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed #262a33}
+  .crow:last-child{border-bottom:0}
+  .badge{font-size:10px;border-radius:6px;padding:2px 7px;font-weight:600;flex:none}
+  .badge.fail{background:rgba(248,113,113,.14);color:var(--danger);border:1px solid rgba(248,113,113,.35)}
+  .badge.ok{background:rgba(74,222,128,.12);color:var(--ok);border:1px solid rgba(74,222,128,.3)}
+  .badge.pend{background:rgba(251,191,36,.1);color:var(--warn);border:1px solid rgba(251,191,36,.3)}
+  .crow .t{flex:1}
+  .crow .d{font-size:11px;color:var(--cap)}
+  .btn{border:1px solid var(--border);background:var(--bg-card);color:var(--text);border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+  .btn:hover{border-color:var(--border2)}
+  .btn.primary{background:var(--purple);border-color:transparent;color:#140a1e;font-weight:600}
+  .btn.blue{background:#58a6ff;border-color:transparent;color:#0b1220;font-weight:600}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--text2)}
+  .btn.sm{padding:3px 9px;font-size:11px}
+  .synrow{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #2b3a2b;background:rgba(74,222,128,.06);border-radius:10px;font-size:12px;color:var(--ok);margin-top:10px;flex-wrap:wrap}
+  .timeoutrow{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #5a4a1f;background:rgba(251,191,36,.07);border-radius:10px;font-size:12px;color:var(--warn);margin-top:10px;flex-wrap:wrap}
+  .link{color:var(--link);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+  .spin{width:12px;height:12px;border:2px solid rgba(74,222,128,.3);border-top-color:var(--ok);border-radius:50%;display:inline-block;animation:sp 1s linear infinite;flex:none}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .toast{position:absolute;top:0;left:0;right:0;transform:translateY(-110%);transition:transform .25s ease;z-index:70;display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:12px;border-bottom:1px solid var(--border)}
+  .toast.show{transform:translateY(0)}
+  .toast.ok{background:#0f2417;border-bottom-color:#20412c;color:var(--ok)}
+  .toast.warn{background:#2a2410;border-bottom-color:#4c3f1c;color:var(--warn)}
+  .toast .x{margin-left:auto;cursor:pointer;color:var(--cap)}
+  .modal{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal.show{display:flex}
+  .mbox{width:480px;max-width:92%;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:0 18px 60px rgba(0,0,0,.6)}
+  .mhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .mhead .tt{font-size:13px;font-weight:600}
+  .msub{font-size:11px;color:var(--cap);margin-bottom:4px}
+  .steps{display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .stepdot{display:flex;align-items:center;gap:6px}
+  .dot{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+  .dot.done{background:var(--done);color:#fff}
+  .dot.act{background:var(--link);color:#fff}
+  .dot.idle{background:var(--border)}
+  .stitle{font-size:11px;color:var(--text2);font-weight:600}
+  .field{margin-bottom:8px}
+  .flabel{font-size:11px;color:var(--text2);display:flex;gap:4px;align-items:center;margin-bottom:4px}
+  .req{color:var(--danger)}
+  input[type=text]{width:100%;font-size:12px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-layer1);color:var(--text);font-family:inherit}
+  .preview{font-size:12px;font-weight:500;color:var(--link);margin-top:2px;word-break:break-all}
+  .opts{display:flex;gap:8px}
+  .opt{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 8px;border:1px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;white-space:nowrap;transition:border-color .12s,background .12s}
+  .opt .rd{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--border2);flex:none;display:grid;place-items:center}
+  .opt .sub{font-size:11px;font-weight:400;color:var(--cap)}
+  .opt.act{border-color:var(--purple);background:rgba(192,132,252,.08);color:var(--text)}
+  .opt.act .rd{border-color:var(--purple)}
+  .opt.act .rd i{width:7px;height:7px;border-radius:50%;background:var(--purple);display:block}
+  .foot{display:flex;gap:6px;justify-content:space-between;margin-top:8px;align-items:center}
+  .foot .l,.foot .r{display:flex;gap:6px;align-items:center}
+  .errbar{margin-top:2px;border:1px solid rgba(248,113,113,.45);background:rgba(248,113,113,.10);border-radius:8px;padding:8px 10px;font-size:12px;color:#fca5a5}
+  .errbar .acts{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center}
+  .errbar .tag{font-size:10px;color:var(--cap);margin-right:4px}
+  .inject{margin-top:6px;border:1px dashed #5a4a1f;background:rgba(251,191,36,.05);border-radius:8px;padding:7px 10px;font-size:11px;color:var(--warn)}
+  .anno{font-size:11px;color:#c4a5e8;background:rgba(192,132,252,.06);border:1px dashed rgba(192,132,252,.35);border-radius:8px;padding:6px 10px;margin-top:8px}
+  .switcher{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:200;display:flex;align-items:center;gap:6px;background:#1c1f28;border:1px solid var(--border2);border-radius:999px;padding:6px 10px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+  .switcher .nav{width:26px;height:26px;border-radius:50%;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:14px;line-height:1}
+  .switcher .label{font-size:11px;color:var(--text2);min-width:150px;text-align:center}
+  .switcher .label b{color:var(--purple)}
+  .switcher .tabs{display:flex;gap:4px}
+  .switcher .tab{border:1px solid transparent;color:var(--cap);background:transparent;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer}
+  .switcher .tab.cur{border-color:var(--purple);color:var(--purple);background:rgba(192,132,252,.08)}
+  .statebox{width:860px;max-width:96vw;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-size:11px;color:var(--cap)}
+  .statebox .row{display:flex;gap:12px;flex-wrap:wrap;padding:3px 0}
+  .statebox b{color:var(--text2);font-weight:600}
+  .tl{font-size:10.5px;color:var(--cap);line-height:1.6;margin-top:6px;border-top:1px dashed #262a33;padding-top:6px}
+</style>
+</head>
+<body>
+<div class="notice">
+  <b>PROTOTYPE · 抛弃式原型（issue #421）</b>
+  <span>创建并发布向导的成功/失败反馈形态对比 · 数据为 stub（FeatherHunter / dsh-im-companion · 公开）· 流程为演示，不产生真实请求 · ←/→ 切换变体</span>
+</div>
+
+<div class="wrap">
+  <div class="panel" id="panel">
+    <div class="phead">
+      <span class="tt">DSH · 工作区面板</span>
+      <span class="chip repo" id="repoChip" style="display:none">FeatherHunter/dsh-im-companion</span>
+      <span class="chip" id="backChip">后端：GitHub</span>
+      <span style="margin-left:auto;color:var(--cap);font-size:11px" id="headMode">未关联仓库</span>
+    </div>
+    <div class="toast ok" id="toast"><span id="toastIcon">✓</span><span id="toastText"></span><span class="x" id="toastX">✕</span></div>
+    <div class="pbody">
+      <div class="sec">首屏 · 环境检查</div>
+      <div class="chaincard">
+        <div class="crow">
+          <span class="badge" id="bRemote">fail</span>
+          <div class="t">已关联 GitHub 仓库<div class="d" id="dRemote"></div></div>
+          <button class="btn primary sm" id="btnCreate">创建并发布</button>
+        </div>
+        <div class="crow">
+          <span class="badge" id="bAccess">fail</span>
+          <div class="t">仓库在 GitHub 上可访问<div class="d" id="dAccess"></div></div>
+        </div>
+      </div>
+      <div id="syncState"></div>
+    </div>
+
+    <div class="modal" id="modal">
+      <div class="mbox">
+        <div class="mhead">
+          <div class="tt">创建并发布</div>
+          <button class="btn ghost sm" id="btnClose">✕</button>
+        </div>
+        <div class="msub" id="msub">仓库信息 — 请填写后继续</div>
+        <div class="steps" id="steps">
+          <div class="stepdot"><span class="dot act" id="sd0dot">1</span><span class="stitle">仓库信息</span></div>
+          <span style="width:16px;height:1px;background:var(--border)"></span>
+          <div class="stepdot"><span class="dot idle" id="sd1dot">2</span><span class="stitle">可见性</span></div>
+        </div>
+        <div id="fields"></div>
+        <div id="errArea"></div>
+        <div id="injectArea"></div>
+        <div class="foot">
+          <div class="l">
+            <button class="btn" id="btnCancel">取消</button>
+            <button class="btn" id="btnPrev" style="display:none">上一步</button>
+          </div>
+          <div class="r">
+            <span style="font-size:10px;color:var(--cap)" id="stepNo"></span>
+            <button class="btn blue" id="btnNext">下一步</button>
+            <button class="btn blue" id="btnSubmit" style="display:none">提交</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="smModal">
+      <div class="mbox" style="border-color:#2b4a33">
+        <div class="mhead"><div class="tt">仓库已创建</div><button class="btn ghost sm" id="succX">✕</button></div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.6">FeatherHunter/dsh-im-companion 已创建为<span style="color:var(--text)">公开</span>仓库，正在同步到面板…</div>
+        <div style="margin:8px 0"><span class="link" id="succLink">https://github.com/FeatherHunter/dsh-im-companion</span></div>
+        <div class="foot"><div class="l"><span style="font-size:10px;color:var(--cap)">链接可先打开，同步仍在进行</span></div>
+        <div class="r"><button class="btn primary" id="succOpen">在 GitHub 打开</button><button class="btn" id="succDone">完成</button></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statebox">
+    <div style="font-weight:600;color:var(--text2);margin-bottom:2px">当前状态读取（故意外显）</div>
+    <div class="row" id="stateRow"></div>
+    <div class="tl" id="tl"></div>
+  </div>
+</div>
+
+<div class="switcher">
+  <button class="nav" id="prevV">‹</button>
+  <div class="label" id="vLabel"></div>
+  <button class="nav" id="nextV">›</button>
+  <div class="tabs" id="vTabs"></div>
+</div>
+
+<script>
+/* ============ 变体定义 ============ */
+var VARIANTS = [
+  { key:'A', name:'现状基线：关弹窗 + 2.8s 提示条（无链接）' },
+  { key:'B', name:'成功弹窗（定版）：链接 + 同步守卫' },
+  { key:'C', name:'轻量提示条：可点链接 + 同步守卫' },
+  { key:'D', name:'失败内联错误条（定版）：逐档展示' },
+  { key:'E', name:'失败现状闪条：2.8s 消失（对照）' }
+];
+var S = { variant:'A', step:1, modal:true, pending:false, name:'dsh-im-companion', vis:'public',
+  syncing:false, timeout:false, toast:null, err:null, injected:false, errKind:'network',
+  chainRemote:'fail', chainAccess:'fail', repoChip:false, ext:false, log:[] };
+var KIND = {
+  'already-exists': { zh:'同名仓库已存在，可点击「去 GitHub 查看」', step:1, link:'https://github.com/FeatherHunter/dsh-im-companion', btn:'去 GitHub 查看', inject:false },
+  'network':        { zh:'网络异常，请重试', step:2, link:null, btn:null, inject:false },
+  'not-logged-in':  { zh:'未登录 GitHub，请先登录后重试', step:2, link:null, btn:null, inject:true },
+  'bad-name':       { zh:'仓库名仅支持字母、数字、._- 且不超过 100 个字符', step:1, link:null, btn:null, inject:false },
+  'half-success':   { zh:'仓库已创建，但本地推送未完成：网络超时。可去 GitHub 查看，或重试推送', step:2, link:'https://github.com/FeatherHunter/dsh-im-companion', btn:'重试推送', inject:false, half:true }
+};
+var $ = function(id){ return document.getElementById(id); };
+function log(t){ S.log.push(t); renderTL(); }
+function renderTL(){ $('tl').innerHTML = '时间线：' + S.log.map(function(t){ return '<span>'+t+'</span> · '; }).join(''); }
+
+/* ============ 渲染 ============ */
+function renderState(){
+  $('repoChip').style.display = S.repoChip ? '' : 'none';
+  $('headMode').textContent = S.repoChip ? '仓库视图' : '未关联仓库';
+  var bR=$('bRemote'), bA=$('bAccess');
+  bR.className = 'badge ' + (S.chainRemote==='ok'?'ok':'fail');
+  bA.className = 'badge ' + (S.chainAccess==='ok'?'ok':'fail');
+  bR.textContent = S.chainRemote==='ok' ? 'pass' : 'fail';
+  bA.textContent = S.chainAccess==='ok' ? 'pass' : 'fail';
+  $('dRemote').textContent = S.chainRemote==='ok' ? 'git remote → FeatherHunter/dsh-im-companion' : '此目录未关联 GitHub 仓库（可重试）';
+  $('dAccess').textContent = S.chainAccess==='ok' ? 'gh api 200 · 可访问' : '仓库在 GitHub 上访问不到（可能尚未创建或无权限）';
+  var createBtn = $('btnCreate');
+  createBtn.style.display = (S.chainRemote==='fail') ? '' : 'none';
+  createBtn.disabled = S.syncing || S.timeout;
+  var t = $('toast');
+  if (S.toast){ t.className = 'toast ' + S.toast.kind + ' show'; $('toastText').innerHTML = S.toast.html; $('toastIcon').textContent = S.toast.kind==='ok'?'✓':'!'; }
+  else { t.className = 'toast ok'; $('toastText').innerHTML=''; }
+  var ss = $('syncState');
+  if (S.syncing && !S.timeout) ss.innerHTML = '<div class="synrow"><span class="spin"></span>正在同步仓库信息…（创建按钮已禁用）<button class="btn sm" id="simTimeout">模拟 30s 超时</button></div>';
+  else if (S.timeout) ss.innerHTML = '<div class="timeoutrow"><span>⏱</span>仍未看到新仓库，<span class="link" id="recheck">点此重新检查</span></div>';
+  else ss.innerHTML = '';
+  var st=$('simTimeout'); if (st) st.onclick=function(){ S.timeout=true; log('T+30s（模拟）超时 → 未确认态：不恢复创建按钮'); renderState(); };
+  var rk=$('recheck'); if (rk) rk.onclick = doRecheck;
+  $('modal').className = 'modal' + (S.modal ? ' show' : '');
+  $('smModal').className = 'modal' + (S.ext ? ' show' : '');
+  $('msub').textContent = S.step===1 ? '仓库信息 — 请填写后继续' : '可见性 — 请填写后继续';
+  var d0=$('sd0dot'), d1=$('sd1dot');
+  d0.className = 'dot ' + (S.step>1 ? 'done' : 'act'); d0.textContent = S.step>1 ? '✓' : '1';
+  d1.className = 'dot ' + (S.step===2 ? 'act' : 'idle'); d1.textContent = '2';
+  $('stepNo').textContent = S.step + ' / 2';
+  $('btnPrev').style.display = S.step===2 ? '' : 'none';
+  $('btnNext').style.display = (S.step===1 && !S.pending) ? '' : 'none';
+  $('btnSubmit').style.display = (S.step===2 && !S.pending) ? '' : 'none';
+  var f=$('fields'); f.innerHTML='';
+  if (S.step===1){
+    f.innerHTML = '<div class="field"><div class="flabel">仓库名<span class="req">*</span></div>'+
+      '<input type="text" id="nameInput" value="'+S.name+'">'+
+      '<div class="preview">将创建 https://github.com/FeatherHunter/'+S.name+'</div></div>';
+    var ni=$('nameInput');
+    if (ni){ ni.oninput = function(e){ S.name = e.target.value||''; renderState(); }; }
+  } else {
+    f.innerHTML = '<div class="field"><div class="flabel">可见性</div><div class="opts">'+
+      '<div class="opt'+(S.vis==='private'?' act':'')+'" id="optPrivate"><span class="rd">'+(S.vis==='private'?'<i></i>':'')+'</span>private<span class="sub">仅自己</span></div>'+
+      '<div class="opt'+(S.vis==='public'?' act':'')+'" id="optPublic"><span class="rd">'+(S.vis==='public'?'<i></i>':'')+'</span>public<span class="sub">所有人</span></div>'+
+      '</div></div>';
+    $('optPrivate').onclick = function(){ S.vis='private'; renderState(); };
+    $('optPublic').onclick = function(){ S.vis='public'; renderState(); };
+  }
+  if (S.variant==='D'){
+    var chips = '<div class="field" style="margin-top:4px"><div class="flabel">【原型演示】失败档位（点档位看错误条；也可选档后点「提交」真实走流程）</div><div style="display:flex;gap:4px;flex-wrap:wrap">'+
+      ['already-exists','network','not-logged-in','bad-name','half-success'].map(function(k){
+        return '<button class="btn sm" data-kind="'+k+'" style="'+(S.errKind===k?'border-color:var(--purple);color:var(--purple);':'')+'">'+k+'</button>';
+      }).join('')+'</div></div>';
+    f.innerHTML = f.innerHTML + chips;
+    f.querySelectorAll('button[data-kind]').forEach(function(b){
+      b.onclick=function(){
+        S.errKind=b.getAttribute('data-kind');
+        S.step = KIND[S.errKind].step;
+        S.err = S.errKind;
+        S.injected = !!KIND[S.errKind].inject;
+        log('档位切换 → '+S.errKind+'（预览错误条；点「提交」以该档真实走失败）');
+        renderState();
+      };
+    });
+  }
+  var ea=$('errArea'); ea.innerHTML='';
+  if (S.err){
+    var k = KIND[S.err]||{};
+    var html = '<div class="errbar"><span class="tag">['+S.err+']</span>'+k.zh;
+    if (k.link){ html += '<div class="acts"><span class="link" id="errLink">'+k.btn+'</span>' + (k.half?'<button class="btn sm" id="retryPush">重试推送</button>':'') + '</div>'; }
+    ea.innerHTML = html;
+    var el=$('errLink'); if (el) el.onclick = function(){ log('T+0s 演示：新标签打开 '+k.link+'（stub）'); };
+    var rp=$('retryPush'); if (rp) rp.onclick = doRetryPush;
+  } else if (S.variant==='E' && S.toast && S.toast.kind==='warn'){
+    ea.innerHTML = '<div class="anno">对照点：失败只以 2.8 秒顶部提示条呈现，之后无任何常驻说明、无链接（正因如此才有变体 D）。</div>';
+  }
+  var ia=$('injectArea'); ia.innerHTML='';
+  if (S.injected){
+    ia.innerHTML = '<div class="inject">已自动注入登录指引：请运行 gh auth login 并按提示在浏览器完成授权（演示 stub）。</div>';
+  }
+  var row = $('stateRow');
+  row.innerHTML =
+    '<span>变体 <b>'+S.variant+'</b></span>' +
+    '<span>向导 <b>'+(S.modal?'开':'关')+'</b></span>' +
+    '<span>步骤 <b>'+S.step+'/2</b></span>' +
+    '<span>提交中 <b>'+(S.pending?'是':'否')+'</b></span>' +
+    '<span>成功弹窗 <b>'+(S.ext?'是':'否')+'</b></span>' +
+    '<span>同步 <b>'+(S.syncing?'中':(S.timeout?'超时':'无'))+'</b></span>' +
+    '<span>错误 <b>'+(S.err||'无')+'</b></span>' +
+    '<span>注入 <b>'+(S.injected?'是':'否')+'</b></span>' +
+    '<span>链 <b>'+S.chainRemote+'/'+S.chainAccess+'</b></span>' +
+    '<span>仓库头 <b>'+(S.repoChip?'已显示':'无')+'</b></span>';
+}
+
+/* ============ 流程 stub ============ */
+function resetFlow(){
+  S.step=1; S.modal=true; S.pending=false; S.err=null; S.injected=false; S.syncing=false; S.timeout=false; S.ext=false;
+  S.chainRemote='fail'; S.chainAccess='fail'; S.repoChip=false; S.toast=null; S.log=[];
+  log('重置 → 向导打开（第 1 步）· 点击「下一步 → 提交」体验流程');
+  renderState();
+}
+function submit(){
+  if (S.pending) return;
+  S.pending=true; log('T+0s 提交，提交中…');
+  renderState();
+  setTimeout(function(){
+    S.pending=false;
+    if (S.variant==='E') failFlowE();
+    else if (S.variant==='D') failFlow(S.errKind);
+    else successFlow();
+  }, 700);
+}
+function successFlow(){
+  if (S.variant==='B'){
+    S.modal=false; S.ext=true; S.syncing=true;
+    log('T+0.7s 成功：弹成功弹窗（真值链接）+ 面板同步过渡态（创建按钮禁用）');
+  } else if (S.variant==='C'){
+    S.modal=false; S.syncing=true;
+    S.toast={kind:'ok', html:'仓库已创建：FeatherHunter/dsh-im-companion（公开）· <span class="link">在 GitHub 打开 →</span>（8s 自动消失）'};
+    log('T+0.7s 成功：顶部提示条（带可点链接）+ 同步守卫');
+    setTimeout(function(){ if (S.toast){ S.toast=null; renderState(); } }, 8000);
+  } else {
+    S.modal=false;
+    S.toast={kind:'ok', html:'已提交，链条重查中…（无链接，2.8s 消失）'};
+    log('T+0.7s 成功：仅提示条无链接；面板仍无仓库（空窗风险：可再点创建）');
+    setTimeout(function(){ if (S.toast){ S.toast=null; renderState(); } }, 2800);
+    setTimeout(function(){ if (S.variant==='A'){ S.chainRemote='ok'; S.chainAccess='ok'; S.repoChip=true; log('T+5s 链才转绿（演示空窗时长）'); renderState(); } }, 5000);
+  }
+  renderState();
+}
+function failFlow(kind){
+  S.err = kind;
+  var k = KIND[kind];
+  S.step = k.step;
+  S.injected = !!k.inject;
+  log('T+0.7s 失败['+kind+']' + (k.inject?' + 自动注入指引':'') + (k.half?'（半成功：仓库已建，但本地未推送）':''));
+  renderState();
+}
+function failFlowE(){
+  S.toast={kind:'warn', html:'网络异常，请重试（2.8s 消失）'};
+  S.modal=true;
+  log('T+0.7s 失败[network]：仅黄条提示 2.8s；模态未关、无常驻错误说明');
+  renderState();
+  setTimeout(function(){ if (S.toast && S.toast.kind==='warn'){ S.toast=null; renderState(); } }, 2800);
+}
+function doRetryPush(){
+  S.err=null; S.pending=true; log('T+0s 重试推送…');
+  renderState();
+  setTimeout(function(){
+    S.pending=false; S.modal=false; S.ext=true; S.syncing=true;
+    S.chainRemote='ok'; S.chainAccess='ok'; S.repoChip=true;
+    log('T+0.8s 重试成功 → 走成功闭环（同变体 B：弹窗 + 同步）');
+    renderState();
+  }, 800);
+}
+function closeSuccessModal(){
+  S.ext=false; S.syncing=false; S.timeout=false;
+  S.chainRemote='ok'; S.chainAccess='ok'; S.repoChip=true;
+  log('T+0s 点「完成」→ 同步完成，链转绿，仓库头出现');
+  renderState();
+}
+function doRecheck(){
+  S.timeout=false; S.syncing=true;
+  log('T+0s 重新检查 → 重跑检测');
+  renderState();
+  setTimeout(function(){ S.syncing=false; S.chainRemote='ok'; S.chainAccess='ok'; S.repoChip=true; log('T+1s 检测完成 → 链转绿'); renderState(); }, 1000);
+}
+
+/* ============ 变体切换 ============ */
+function applyVariant(v){
+  S.variant=v;
+  if (v==='D') S.errKind='network';
+  resetFlow();
+  if (v==='D'){
+    S.errKind='network';
+    var sel = $('errKindSel');
+  }
+  var url = new URL(location.href); url.searchParams.set('variant', v);
+  history.replaceState(null,'',url);
+  var cur = VARIANTS.find(function(x){return x.key===v;});
+  $('vLabel').innerHTML = '<b>'+v+'</b> ' + cur.name;
+  var tabs=$('vTabs'); tabs.innerHTML='';
+  VARIANTS.forEach(function(it){ var t=document.createElement('button'); t.className='tab'+(it.key===v?' cur':''); t.textContent=it.key; t.onclick=function(){applyVariant(it.key);}; tabs.appendChild(t); });
+  if (v==='D') log('提示：变体 D 点档位即可预览错误条，或选档后点「提交」真实走失败');
+  renderState();
+}
+function cycle(dir){
+  var i = VARIANTS.findIndex(function(x){return x.key===S.variant;});
+  var n = (i+dir+VARIANTS.length)%VARIANTS.length;
+  applyVariant(VARIANTS[n].key);
+}
+document.addEventListener('keydown', function(e){
+  var tag = (e.target && e.target.tagName) || '';
+  if (tag==='INPUT' || tag==='TEXTAREA' || (e.target && e.target.isContentEditable)) return;
+  if (e.key==='ArrowLeft'){ cycle(-1); }
+  if (e.key==='ArrowRight'){ cycle(1); }
+});
+$('prevV').onclick=function(){cycle(-1);};
+$('nextV').onclick=function(){cycle(1);};
+
+/* ============ 绑定 ============ */
+$('btnClose').onclick=function(){ S.modal=false; renderState(); };
+$('btnCancel').onclick=function(){ S.modal=false; S.err=null; S.injected=false; renderState(); };
+$('btnPrev').onclick=function(){ S.step=1; S.err=null; renderState(); };
+$('btnNext').onclick=function(){ S.step=2; S.err=null; log('T+0s 下一步 → 可见性'); renderState(); };
+$('btnSubmit').onclick=submit;
+$('btnCreate').onclick=function(){ resetFlow(); };
+$('toastX').onclick=function(){ S.toast=null; renderState(); };
+$('succDone').onclick=closeSuccessModal;
+$('succX').onclick=closeSuccessModal;
+$('succOpen').onclick=function(){ log('T+0s 演示：新标签打开 GitHub 仓库页（stub）'); };
+$('succLink').onclick=function(){ log('T+0s 演示：新标签打开 GitHub 仓库页（stub）'); };
+var q = new URLSearchParams(location.search).get('variant');
+applyVariant(q && VARIANTS.some(function(x){return x.key===q;}) ? q : 'A');
+</script>
+</body>
+</html>
