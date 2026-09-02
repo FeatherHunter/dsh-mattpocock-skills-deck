@@ -21,8 +21,8 @@ export     const TicketRow = React.memo(({ st, g, t, indent, colorOf }) => {
             // T2 #3：编号前置
             h('span', { style: { color: 'var(--dsw-alias-label-caption,#8b8b95)', fontSize: 11, flex: 'none' } }, '#' + (t.key != null ? t.key : t.number)),
             TypeChip({ type: wayfinderTypeOf(t) }),
-            h('span', { className: 'dsws-tt-wrap', style: { flex: 1, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
-              h('span', { style: { flex: 1, minWidth: 0 } }, t.title),
+            h('span', { style: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 } }, [
+              h('span', { className: 'dsws-tt-wrap', style: { flex: 1, minWidth: 0 } }, t.title),
               (t.author && t.author.login && t.author.login !== ((st.snapshot && (st.snapshot.viewer && st.snapshot.viewer.login || st.snapshot.viewerLogin)) || '')) ? (t.author.avatarUrl ? h(Tip, { content: (t.author.name ? t.author.name + ' (@' + t.author.login + ')' : '@' + t.author.login) }, h('img', { src: t.author.avatarUrl, style: { width: 16, height: 16, borderRadius: '50%', border: '2px solid ' + ticketAuthorColor(t.author.login), flex: 'none' }, alt: t.author.login })) : h(Tip, { content: (t.author.name ? t.author.name + ' (@' + t.author.login + ')' : '@' + t.author.login) }, h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: hexA(ticketAuthorColor(t.author.login), 0.18), border: '2px solid ' + ticketAuthorColor(t.author.login), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' } }, [Ic({ n: 'person', size: 10 })]))) : null
             ]),
           ]),
