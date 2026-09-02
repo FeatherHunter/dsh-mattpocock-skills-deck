@@ -918,9 +918,21 @@ export default {
         }
       }
       // 回退：gh issue list（无 avatar，仅 login；UI 将回退为 person SVG）
-      const argsAll = ['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,title,labels,state,assignees,author,updatedAt,createdAt']
-      if (repo2) argsAll.push('--repo', repo2.owner + '/' + repo2.name)
-      const r = await runGh(argsAll, cwd)
+      // 修复 unexpected EOF：500 在部分网络下触发 GraphQL 大查询 EOF，回退改用 100 并重试一次
+      const tryList = async function(limit) {
+        const a = ['issue', 'list', '--state', 'all', '--limit', String(limit), '--json', 'number,title,labels,state,assignees,author,updatedAt,createdAt']
+        if (repo2) a.push('--repo', repo2.owner + '/' + repo2.name)
+        return runGh(a, cwd)
+      }
+      let r = await tryList(100)
+      if (!r.ok && String(r.error||'').toLowerCase().includes('unexpected eof')) {
+        r = await tryList(100)
+      }
+      if (!r.ok) {
+        // 500 回退已不可靠，改用 open 100 再 all 100 的分段拉取（open 100 必含 414 这类新 open 票）
+        const rOpen = await runGh(['issue', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,labels,state,assignees,author,updatedAt,createdAt', '--repo', repo2.owner + '/' + repo2.name], cwd)
+        if (rOpen.ok) r = rOpen
+      }
       if (!r.ok) return { ok: false, error: r }
       try {
         const all = JSON.parse(r.text)
@@ -965,7 +977,14 @@ export default {
       }
       if (!r.ok) {
         // 回退：gh api 整体失败时，用 gh issue list 全量兜底（与 fetchIssues 同策略），确保外部建票 60s 内可被发现
-        const fallback = await runGh(['issue', 'list', '--state', 'all', '--limit', '500', '--json', 'number,state,updatedAt'], cwd)
+        // 500 在部分网络下触发 unexpected EOF，改用 100 并重试
+        let fallback = await runGh(['issue', 'list', '--state', 'all', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
+        if (!fallback.ok && String(fallback.error||'').toLowerCase().includes('unexpected eof')) {
+          fallback = await runGh(['issue', 'list', '--state', 'all', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
+        }
+        if (!fallback.ok) {
+          fallback = await runGh(['issue', 'list', '--state', 'open', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
+        }
         const fbParsed = fallback && fallback.text ? tryParseIndex(fallback.text.replace(/\[|\]/g, '').split('},').join('}\n')) : null
         // 更稳妥的 fallback 解析：直接 JSON 数组
         try {
