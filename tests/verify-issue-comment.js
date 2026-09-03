@@ -16,7 +16,7 @@ const hostComments = fs.readFileSync('src/host/commentThreads.js', 'utf8') // H5
 const hostSide = host + hostComments
 const phostComments = fs.readFileSync('package/lib/commentThreads.js', 'utf8')
 const phostSide = phost + phostComments
-const detailSrc = fs.readFileSync('src/client/views/IssueDetail.js', 'utf8')
+const detailSrc = ['src/client/views/IssueDetail.js', 'src/client/views/IssueDetailComments.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // V3 #463：评论区搬到评论文件，拼合断言意图不变（输入区与提交逻辑在评论文件）
 const apiSrc = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 原 api.js 已消除，读三文件拼合断言（评论提交在输入输出文件）
 const probeSrc = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言（本变量仅作源存在性 tripwire，行为断言走构建产物）
 const localeSrc = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 原 locale.js 已瘦身为合并器（无键仅合并逻辑），读四文件拼合断言（评论键在流程文案文件）

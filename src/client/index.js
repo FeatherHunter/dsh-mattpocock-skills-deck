@@ -231,12 +231,12 @@ export default {
 
     // ==== leaf:mapDetail (spliced by build) ====
 
-    // ==== leaf:IssueDetail (spliced by build) ====
+    // ==== leaf:IssueDetailComments (spliced by build) ==== // ==== leaf:IssueDetail (spliced by build) ====
 
     // ==== leaf:tagsFit (spliced by build) ====
     // ==== leaf:pop (spliced by build) ====
     // ==== leaf:noRepoCard (spliced by build) ====
-    // ==== leaf:listTab (spliced by build) ====
+    // ==== leaf:ListTabRow (spliced by build) ==== // ==== leaf:listTab (spliced by build) ====
 
     // ==== leaf:ringSkills (spliced by build) ====
 
@@ -273,7 +273,7 @@ export default {
 
     // ==== leaf:overlay (spliced by build) ====
 
-    // ==== leaf:settingsPage (spliced by build) ====
+    // ==== leaf:SettingsWorkspaces (spliced by build) ==== // ==== leaf:settingsPage (spliced by build) ====
 
     // ==== leaf:runPanel (spliced by build) ====
 

@@ -75,9 +75,11 @@ const BASELINE = {
   'panel/Overlay.js': 17,
   'statusbar/StatusBar.js': 17,
   'views/ChecksTab.js': 16, // 2026-08-28 顺序队列与目录选择器：ChecksTab 仅保留 openFormModal 注释，残留 14→16，按封顶章程重登记
-  'views/IssueDetail.js': 29,
+  'views/IssueDetail.js': 16, // #463 V3 由 IssueDetail.js 拆出评论区：主文件留 16 串（合计 29，与原持平）
+  'views/IssueDetailComments.js': 13, // #463 V3 由 IssueDetail.js 拆出：评论区分得 13 串
   'views/NoRepoCard.js': 15,
-  'views/SettingsPage.js': 41,
+  'views/SettingsPage.js': 12, // #463 V3 由 SettingsPage.js 拆出后端总览：主文件留 12 串
+  'views/SettingsWorkspaces.js': 28, // #463 V3 由 SettingsPage.js 拆出：总览分得 28 串（合计 40，原 41 封顶有 1 串松弛，见票）
   'views/shared/BackendSelector.js': 10,
   'views/shared/ChainRenderer.js': 17,
   'views/shared/SwitchConfirmModal.js': 5,

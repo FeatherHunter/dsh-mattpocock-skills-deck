@@ -56,7 +56,7 @@ check(apiCli.includes('ISSUE_CACHE_TTL'), 'api 复用 ISSUE_CACHE_TTL')
 check(apiCli.includes('issueCache'), 'api 操作 issueCache')
 
 // —— IssueDetail 视图分支
-const detailCli = fs.readFileSync('src/client/views/IssueDetail.js','utf8')
+const detailCli = ['src/client/views/IssueDetail.js', 'src/client/views/IssueDetailComments.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // V3 #463：评论区搬到评论文件，拼合断言意图不变
 check(detailCli.includes('fetchIssueDetail'), 'IssueDetail 调 fetchIssueDetail')
 check(detailCli.includes('issueMode'), 'IssueDetail 读 issueMode')
 check(detailCli.includes('issueError'), 'IssueDetail 读 issueError')

@@ -48,7 +48,7 @@ console.log("旧结构对照：dsws-tt-wrap 计算 display =", bcs.display);
 checks.push(["反证成立：旧结构 dsws-tt-wrap 计算 display ≠ -webkit-box（内联覆盖使 clamp 失效）", bcs.display !== "-webkit-box"]);
 for (const [name, pass] of checks) { if (!pass) ok = false; }
 console.log("---");
-const lt = fs.readFileSync("src/client/views/ListTab.js", "utf8");
+const lt = ["src/client/views/ListTab.js", "src/client/views/ListTabRow.js"].map((f) => fs.readFileSync(f, "utf8")).join("\n"); // V3 #463：行渲染（含标题截断）搬到行文件，拼合断言意图不变
 const tr = fs.readFileSync("src/client/views/TicketRow.js", "utf8");
 function hasClampSource(src) { return src.indexOf("className: 'dsws-tt-wrap'") >= 0; }
 function noInlineDisplayOnWrap(src) {

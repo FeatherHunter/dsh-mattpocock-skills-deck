@@ -21,12 +21,15 @@ const LEAVES = [
   { file: 'src/client/views/shared/Tabs.js', exports: ['useTabsRow'], components: [] },
   { file: 'src/client/views/TicketRow.js', exports: ['TicketRow'], components: ['TicketRow'] },
   { file: 'src/client/views/MapDetail.js', exports: ['MapDetail'], components: ['MapDetail'] },
+  { file: 'src/client/views/IssueDetailComments.js', exports: ['renderIssueDetailComments'], components: [] }, // V3 #463 由 IssueDetail.js 拆出：评论区（无组件，纯函数）
   { file: 'src/client/views/IssueDetail.js', exports: ['IssueDetail'], components: ['IssueDetail'] },
   { file: 'src/client/views/NoRepoCard.js', exports: ['NoRepoCard'], components: ['NoRepoCard'] },
+  { file: 'src/client/views/ListTabRow.js', exports: ['listIssueRow'], components: [] }, // V3 #463 由 ListTab.js 拆出：单行渲染（无组件，纯函数）
   { file: 'src/client/views/ListTab.js', exports: ['ListTab'], components: ['ListTab'] },
   { file: 'src/client/views/RingSkills.js', exports: ['RingSkills'], components: ['RingSkills'] },
   { file: 'src/client/views/SkillsTab.js', exports: ['SkillsTab'], components: ['SkillsTab'] },
   { file: 'src/client/views/ChecksTab.js', exports: ['ChecksTab'], components: ['ChecksTab'] },
+  { file: 'src/client/views/SettingsWorkspaces.js', exports: ['useWsOverview', 'renderWsOverview'], components: [] }, // V3 #463 由 SettingsPage.js 拆出：后端总览（数据钩子 + 分组渲染）
   { file: 'src/client/views/SettingsPage.js', exports: ['TPL_NAMES', 'TPL_DESC', 'TPL_EDIT_IDS', 'PREVIEW_VALUES', 'SettingsPage'], components: ['SettingsPage'] },
   { file: 'src/client/views/RunPanel.js', exports: ['RunPanel'], components: ['RunPanel'] },
   { file: 'src/client/panel/Dock.js', exports: ['DetailsDock'], components: ['DetailsDock'] },

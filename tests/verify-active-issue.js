@@ -5,9 +5,9 @@ const check=(ok,msg)=>{ console.log((ok?'  PASS ':'  FAIL ')+msg); if(!ok) faile
 const cli = fs.readFileSync('client.js','utf8')
 const pcli = fs.readFileSync('package/lib/client.js','utf8')
 const storeSrc = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 原 store.js 已消除，读四文件拼合断言（互斥语义在 prefs，初始状态在 snapshot）
-const listSrc = fs.readFileSync('src/client/views/ListTab.js','utf8')
+const listSrc = ['src/client/views/ListTab.js', 'src/client/views/ListTabRow.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // V3 #463：行渲染搬到行文件，拼合断言意图不变（组装仍在主文件）
 const dockSrc = fs.readFileSync('src/client/panel/Dock.js','utf8')
-const detailSrc = fs.readFileSync('src/client/views/IssueDetail.js','utf8')
+const detailSrc = ['src/client/views/IssueDetail.js', 'src/client/views/IssueDetailComments.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // V3 #463：评论区搬到评论文件，拼合断言意图不变
 
 // —— store 字段与互斥语义
 check(storeSrc.includes('activeIssue'), 'store 含 activeIssue')
