@@ -4,6 +4,8 @@
 const fs = require('fs');
 const host = fs.readFileSync('host.js', 'utf8');
 const pkgHost = fs.readFileSync('package/lib/index.js', 'utf8');
+const pubSrc = fs.readFileSync('src/host/publishFlow.js', 'utf8'); // #450 H6：发布/推送体已搬入 publishFlow.js（注册仍在 host），体断言跟随
+const pkgPub = fs.readFileSync('package/lib/publishFlow.js', 'utf8'); // package 镜像跟随（构建原样复制）
 const cli = fs.readFileSync('client.js', 'utf8');
 const pcli = fs.readFileSync('package/lib/client.js', 'utf8');
 const ghSrc = fs.readFileSync('src/host/tracker/backends/github/index.js', 'utf8');
@@ -13,12 +15,12 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 // 1) 宿主：半成功数据契约（push 失败分支 + 原子分支 stdout 解析）+ 重试推送 RPC
 check(host.includes("harness.handle('wf.retryPush'"), 'host 含 wf.retryPush handle（重试推送 RPC）');
 check(pkgHost.includes("harness.handle('wf.retryPush'"), 'package index 含 wf.retryPush 镜像');
-check(host.includes("halfCreated: !!repoUrl") || host.includes("(kind !== 'already-exists') && !!repoUrl"), 'host 半成功返回 halfCreated 标记（push 失败 + 原子分支）');
-check(host.includes("(kind !== 'already-exists') && !!repoUrl"), 'host 半成功判定排除 already-exists（同名已存在不误标重试推送）');
-check(host.includes("cr.text || ''"), 'host 原子分支失败时解析 stdout 仓库地址（runGh 保留输出）');
-check(host.includes("repoUrl: repoUrl, repo: repoUrl"), 'host 半成功返回 repoUrl + repo（前端可拼真值链接）');
-check(host.includes("'push', '-u', 'origin', 'HEAD'") && host.includes("'remote', 'get-url', 'origin'") && host.includes("'remote', 'add', 'origin'"), 'host retryPush 仅推送：origin 缺失补齐 → push -u origin HEAD');
-check(pkgHost.includes("halfCreated"), 'package index 半成功契约镜像');
+check(pubSrc.includes("halfCreated: !!repoUrl") || pubSrc.includes("(kind !== 'already-exists') && !!repoUrl"), 'host 半成功返回 halfCreated 标记（push 失败 + 原子分支）');
+check(pubSrc.includes("(kind !== 'already-exists') && !!repoUrl"), 'host 半成功判定排除 already-exists（同名已存在不误标重试推送）');
+check(pubSrc.includes("cr.text || ''"), 'host 原子分支失败时解析 stdout 仓库地址（runGh 保留输出）');
+check(pubSrc.includes("repoUrl: repoUrl, repo: repoUrl"), 'host 半成功返回 repoUrl + repo（前端可拼真值链接）');
+check(pubSrc.includes("'push', '-u', 'origin', 'HEAD'") && pubSrc.includes("'remote', 'get-url', 'origin'") && pubSrc.includes("'remote', 'add', 'origin'"), 'host retryPush 仅推送：origin 缺失补齐 → push -u origin HEAD');
+check(pkgPub.includes("halfCreated"), 'package index 半成功契约镜像');
 
 // 2) 前端分发层：RPC 成功结果透传 + 失败上下文保留（repo/repoUrl/halfCreated）
 check(cli.includes("data: (res && typeof res === 'object' && res.ok === true)"), 'actions RPC 成功结果透传 data（成功弹窗可拼真值链接）');

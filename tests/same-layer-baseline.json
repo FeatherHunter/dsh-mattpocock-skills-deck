@@ -524,6 +524,51 @@
       "count": 1,
       "owner": "二批·320-host #461",
       "note": "V1 拆分：注册表机制引用原语执行器"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./handoffClaim.js",
+      "resolved": "src/host/handoffClaim.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-6/6 #450",
+      "note": "H6 接线：index 动态加载交接认领模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./namingGuardian.js",
+      "resolved": "src/host/namingGuardian.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-6/6 #450",
+      "note": "H6 接线：index 动态加载命名守护模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./publishFlow.js",
+      "resolved": "src/host/publishFlow.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-6/6 #450",
+      "note": "H6 接线：index 动态加载建仓发布模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./pickerShell.js",
+      "resolved": "src/host/pickerShell.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-6/6 #450",
+      "note": "H6 接线：index 动态加载选择器外壳模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./ticketGrouping.js",
+      "resolved": "src/host/ticketGrouping.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-6/6 #450",
+      "note": "H6 接线：index 动态加载分组纯函数模块（装配扇入，用户定夺追加第 5 件）"
     }
   ]
 }

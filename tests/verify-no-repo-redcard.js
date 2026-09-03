@@ -6,6 +6,8 @@
 const fs = require('fs');
 const host = fs.readFileSync('host.js', 'utf8');
 const pkgHost = fs.readFileSync('package/lib/index.js', 'utf8');
+const pubSrc = fs.readFileSync('src/host/publishFlow.js', 'utf8'); // #450 H6：initPublish 体已搬入 publishFlow.js（注册仍在 host），体断言跟随
+const pkgPub = fs.readFileSync('package/lib/publishFlow.js', 'utf8'); // package 镜像跟随（构建原样复制）
 const cli = fs.readFileSync('client.js', 'utf8');
 const pcli = fs.readFileSync('package/lib/client.js', 'utf8');
 let failed = false;
@@ -16,17 +18,17 @@ check(host.includes("harness.handle('wf.initPublish'"), 'host 含 wf.initPublish
 // T0（#93）seam 化：pkg host 由规范源构建，harness.handle 经 seam 落入 __DSW_HANDLERS__ Map（不再是手写 case 开关）
 // #172 方案 C 原样复制：package/lib/index.js = src/host/index.js 原文件，__DSW_HANDLERS__ 仅旧拼接存在，新包仅需 harness.handle
 check(pkgHost.includes("harness.handle('wf.initPublish'"), 'package index 含 initPublish dispatch（seam Map 形态 / 方案 C 原样复制）');
-check(host.includes("resolveGit()") && host.includes("resolveGh()"), 'host initPublish 探测 git/gh');
-check(host.includes("rev-parse") && host.includes("'init'"), 'host initPublish 含 git init 逻辑（rev-parse 探测 + init）');
-check(host.includes("git commit") && host.includes("initial commit") && host.includes("--allow-empty"), 'host initPublish 含 git add + commit --allow-empty');
-check(host.includes("auth', 'status'") || host.includes("auth', 'status'"), 'host initPublish 含 gh auth status');
-check(host.includes("gh', 'repo', 'create'") || host.includes("'repo', 'create'") || host.includes("repo', 'create'"), 'host initPublish 含 gh repo create');
-check(host.includes("--public") && host.includes("--private") && host.includes("--source=.") && host.includes("--push"), 'host initPublish 含 --public/--private --source=. --push');
-check(host.includes("already-exists") && host.includes("network") && host.includes("permission") && host.includes("not-logged-in") && host.includes("no-git") && host.includes("no-gh"), 'host initPublish 含 6 errorKind（no-git/no-gh/not-logged-in/already-exists/network/permission）');
-check(host.includes("bad-name") && host.includes("^[A-Za-z0-9._-]+$"), 'host initPublish 含 bad-name 校验（正则 + 长度）');
-check(pkgHost.includes("already-exists") && pkgHost.includes("no-git"), 'package index initPublish 镜像 6 errorKind');
-check(host.includes("cache = { ts: 0") && host.includes("repoKeys"), 'host initPublish 成功后失效缓存 + repoKeys');
-check(pkgHost.includes("cache = { ts: 0") && pkgHost.includes("repoKeys"), 'package index initPublish 失效缓存镜像');
+check(pubSrc.includes("resolveGit()") && pubSrc.includes("resolveGh()"), 'host initPublish 探测 git/gh');
+check(pubSrc.includes("rev-parse") && pubSrc.includes("'init'"), 'host initPublish 含 git init 逻辑（rev-parse 探测 + init）');
+check(pubSrc.includes("git commit") && pubSrc.includes("initial commit") && pubSrc.includes("--allow-empty"), 'host initPublish 含 git add + commit --allow-empty');
+check(pubSrc.includes("auth', 'status'") || pubSrc.includes("auth', 'status'"), 'host initPublish 含 gh auth status');
+check(pubSrc.includes("gh', 'repo', 'create'") || pubSrc.includes("'repo', 'create'") || pubSrc.includes("repo', 'create'"), 'host initPublish 含 gh repo create');
+check(pubSrc.includes("--public") && pubSrc.includes("--private") && pubSrc.includes("--source=.") && pubSrc.includes("--push"), 'host initPublish 含 --public/--private --source=. --push');
+check(pubSrc.includes("already-exists") && pubSrc.includes("network") && pubSrc.includes("permission") && pubSrc.includes("not-logged-in") && pubSrc.includes("no-git") && pubSrc.includes("no-gh"), 'host initPublish 含 6 errorKind（no-git/no-gh/not-logged-in/already-exists/network/permission）');
+check(pubSrc.includes("bad-name") && pubSrc.includes("^[A-Za-z0-9._-]+$"), 'host initPublish 含 bad-name 校验（正则 + 长度）');
+check(pkgPub.includes("already-exists") && pkgPub.includes("no-git"), 'package index initPublish 镜像 6 errorKind');
+check(pubSrc.includes("setCache({ ts: 0") && pubSrc.includes("repoKeys"), 'host initPublish 成功后失效缓存 + repoKeys');
+check(pkgPub.includes("setCache({ ts: 0") && pkgPub.includes("repoKeys"), 'package index initPublish 失效缓存镜像');
 
 // 2) i18n 键（zh + en 双语，跟随 harness locale）
 const zhKeys = ['panel.noRepoCardTitle','panel.noRepoCardDesc','panel.noRepoCardAction','panel.noRepoCardDismiss','panel.noRepoCardDone','panel.noRepoFormName','panel.noRepoFormNameHint','panel.noRepoFormVisibility','panel.noRepoFormPublic','panel.noRepoFormPrivate','panel.noRepoFormSubmit','panel.noRepoFormCancel','panel.noRepoFormSubmitting','panel.noRepoReset','panel.noRepoCreateSuccess'];

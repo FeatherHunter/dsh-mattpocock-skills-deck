@@ -135,7 +135,7 @@ console.log('\n— 跟踪态 / 状态机 / 计划单 —')
 // ---------- 7) 单一真源守卫（防 e98f636 式静默删除 / 第二处实现回流）----------
 console.log('\n— 单一真源守卫 —')
 {
-  const hostSrc = readFileSync(join(ROOT, 'src/host/index.js'), 'utf8')
+  const hostSrc = ['index.js', 'namingGuardian.js'].map((f) => readFileSync(join(ROOT, 'src/host', f), 'utf8')).join('\n') // #450 H6：命名 host 半已搬入 namingGuardian.js，此处读两文件拼合断言（注册仍在 index，体在新模块）
   check(hostSrc.includes("import('../shared/naming-guardian.js')"), 'host 半运行时引用共享核心')
   for (const op of ['wf.namingRegister', 'wf.namingSignal', 'wf.namingPlan', 'wf.namingResult']) {
     check(hostSrc.includes("'" + op + "'"), 'host 注册操作 ' + op)
@@ -304,7 +304,7 @@ console.log('\n— 失败可见性与有限重试（#267）—')
 // ---------- 11) 守卫断言随迁（#267 · F4 · 防 e98f636 式静默删除）----------
 console.log('\n— #267 守卫断言 —')
 {
-  const hostG = readFileSync(join(ROOT, 'src/host/index.js'), 'utf8')
+  const hostG = ['index.js', 'namingGuardian.js'].map((f) => readFileSync(join(ROOT, 'src/host', f), 'utf8')).join('\n') // #450 H6：同上（namingResult/failures 体随命名模块搬迁）
   check(hostG.includes("outcome === 'failed'"), 'host namingResult 收 failed 回报')
   check(hostG.includes("{ type: 'renameFailed', error: args.error }"), 'host failed 走共享核心 renameFailed 入账（单一真源）')
   check(hostG.includes('core.namingFailureInfo(s)'), 'host 定败画像取自共享核心纯函数')

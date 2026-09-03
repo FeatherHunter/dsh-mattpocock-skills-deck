@@ -17,7 +17,8 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 // ---- 产物清单与驱动重建的源（T1：断言目标必须是「当前构建产物」，而非磁盘任意文件）----
 const PRODUCTS = ['host.js', 'package/lib/index.js']
 // H2 #446：宿主侧实现分散在两处（解析三函数搬到 mapBody.js，分组两函数留守 index.js）；产物侧同理跟随，意图不变。
-const SOURCES = ['src/host/index.js', 'src/host/mapBody.js', 'src/host/issueList.js', 'src/host/issueDetail.js', 'scripts/build.mjs', 'package/package.json']
+// #450 H6：分组两函数搬入 ticketGrouping.js（三处合流：mapBody + ticketGrouping + index）；新鲜度与抽取同理跟随。
+const SOURCES = ['src/host/index.js', 'src/host/mapBody.js', 'src/host/ticketGrouping.js', 'src/host/issueList.js', 'src/host/issueDetail.js', 'scripts/build.mjs', 'package/package.json']
 
 function productStale(prod) {
   if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mjs）'
@@ -68,8 +69,10 @@ async function main() {
   const srcHost = fs.readFileSync('src/host/index.js', 'utf8')
   const srcMap = fs.readFileSync('src/host/mapBody.js', 'utf8')
   const pkgMap = fs.readFileSync('package/lib/mapBody.js', 'utf8')
-  const hostSide = srcMap + '\n' + host
-  const pkgSide = pkgMap + '\n' + pkg
+  const srcGroup = fs.readFileSync('src/host/ticketGrouping.js', 'utf8')
+  const pkgGroup = fs.readFileSync('package/lib/ticketGrouping.js', 'utf8')
+  const hostSide = srcMap + '\n' + srcGroup + '\n' + host
+  const pkgSide = pkgMap + '\n' + pkgGroup + '\n' + pkg
 
   // ---- 加载叶子（ESM import，Windows 需 file:// URL）----
   const leaf = await import('file://' + path.resolve('src/shared/parser.js').replace(/\\/g, '/'))
@@ -131,14 +134,13 @@ async function main() {
   check(gt.total === 5 && gt.open === 4 && gt.closed === 1 && gt.frontier === 1 && gt.claimed === 1 && gt.blocked === 2, '真值 groupTickets 分组计数（frontier=#1, claimed=#2, blocked=#3+#4）')
 
   // ---- Part E：文本逐字断言（T1 新增；构建 = 文本组合，产物函数文本必须与 src 内联逐字一致）----
-  const srcStay = rawAll(srcHost)
-  const devStay = rawAll(host)
-  const pkgStay = rawAll(pkg)
+  // #450 H6：分组两函数搬入 ticketGrouping.js，_dev 单文件不再内嵌模块体；逐字锚到 _pkg 装配（src index+分组 === pkg index+分组合集，原样复制不变量由 build.mjs 校验）。
+  const srcStay = rawAll(srcHost + '\n' + srcGroup)
+  const pkgStay = rawAll(pkg + '\n' + pkgGroup)
   const srcMapRaw = rawAll(srcMap)
   const pkgMapRaw = rawAll(pkgMap)
-  check(!!srcStay.trim() && !!devStay.trim() && !!pkgStay.trim() && !!srcMapRaw.trim() && !!pkgMapRaw.trim(), '文本抽取：留守两函数与搬迁三函数在 src/两产物均可抽取')
-  check(srcStay === devStay, '文本逐字：产物(_dev) 留守函数文本 === src/host/index.js 内联')
-  check(srcStay === pkgStay, '文本逐字：产物(_pkg) 留守函数文本 === src/host/index.js 内联')
+  check(!!srcStay.trim() && !!pkgStay.trim() && !!srcMapRaw.trim() && !!pkgMapRaw.trim(), '文本抽取：分组两函数（ticketGrouping）与搬迁三函数在 src/pkg 装配均可抽取')
+  check(srcStay === pkgStay, '文本逐字：pkg 装配体 === src 装配体（index 残留空 + 分组模块，原样复制）')
   check(srcMapRaw === pkgMapRaw, '文本逐字：package/lib/mapBody.js === src/host/mapBody.js（原样复制）')
 
   // ---- Part D 已移除（T5 #98：双源镜像文本断言由运行时冒烟取代；保留 Part C 真值表 + Part E src↔产物逐字）----
