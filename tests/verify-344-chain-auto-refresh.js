@@ -36,7 +36,10 @@ try{
   check(predSrc.includes("import('node:fs/promises')"), 'predicateRegistry.js 含直读兜底 import');
   check(predSrc.includes('absDirect') || predSrc.includes('directOk'), 'predicateRegistry.js 有直读路径分支');
   const hostBuilt = readFileSync('host.js','utf8');
-  check(hostBuilt.includes('344') || hostBuilt.includes('directOk') || hostBuilt.includes('absDirect'), '构建产物 host.js 含加固（或等价）');
+  // 构建为分包形态：加固住在 package/lib/tracker/predicateRegistry.js，host.js 以运行时 import 挂载（非内联），故断言指向真实发货产物而非 bundle 文本
+  const shippedPred = readFileSync('package/lib/tracker/predicateRegistry.js','utf8');
+  check(shippedPred.includes('directOk') && shippedPred.includes('absDirect'), '发货产物 tracker/predicateRegistry.js 含加固（directOk/absDirect）');
+  check(hostBuilt.includes('predicateRegistry'), '构建产物 host.js 保留加固模块挂载边');
 }catch(e){ check(false, '读取 host 相关文件', String(e.message)); }
 
 // 3. 功能性：FILE_EXISTS 直读兜底在 mock 平台失效时仍能 pass
