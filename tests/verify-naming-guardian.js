@@ -328,7 +328,7 @@ console.log('\n— #267 守卫断言 —')
   check(bannerG.includes("'data-naming-fail-banner': '1'"), '面板级定败横幅节点存在（非目标会话内 toast）')
   check(bannerG.includes("tr('naming.failTitle')") && bannerG.includes("tr('naming.failHint')") && bannerG.includes("tr('naming.stageDraft')"), '横幅文案经 locale（双语跟随）')
 
-  const locG = readFileSync(join(ROOT, 'src/client/kernel/locale.js'), 'utf8')
+  const locG = ['locale-panel.js', 'locale-flow.js', 'locale-word.js', 'locale.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #458 K5：locale.js 已拆为三片段加合并器，此处读四文件拼合断言（naming 三键在 word 片段）
   for (const k of ['naming.failTitle', 'naming.failHint', 'naming.stageDraft']) {
     check(locG.split("'" + k + "':").length - 1 === 2, 'locale 双语配对键：' + k)
   }

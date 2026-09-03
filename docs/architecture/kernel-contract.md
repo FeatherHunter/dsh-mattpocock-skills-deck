@@ -33,7 +33,10 @@
 
 | 模块文件 | 导出（接口） | 依赖（闭包内引用） | 说明 |
 |---|---|---|---|
-| `kernel/locale.js` | `L`（zh/en 字典） | 无 | tr 绑定（`localeSvc.bind('dsws')`）由 index.js 装配；字典为唯一真源，verify-t3-locale 契约 |
+| `kernel/locale-panel.js`（标记名 `localePanel`） | `L_PANEL`（导航、面板、横幅、环境、初始化引导五组，zh/en 双语） | 无 | 字典片段之一（#458 由 `locale.js` 拆出，304 行） |
+| `kernel/locale-flow.js`（标记名 `localeFlow`） | `L_FLOW`（动作、类型、列表、配置、详情、地图、提示七组，zh/en 双语） | 无 | 字典片段之一（#458 由 `locale.js` 拆出，302 行） |
+| `kernel/locale-word.js`（标记名 `localeWord`） | `L_WORD`（技能、检查、浮层、命名、切换、进度、错误、模板、运行、技能描述十二组，zh/en 双语） | 无 | 字典片段之一（#458 由 `locale.js` 拆出，245 行） |
+| `kernel/locale.js`（标记名 `locale`，合并器） | `L`（`Object.assign` 合并三片段 zh/en，key 一个不改只搬家） | `L_PANEL`/`L_FLOW`/`L_WORD`（定义时引用，标记位顺序保证先片段后合并） | tr 绑定（`localeSvc.bind('dsws')`）由 index.js 装配；字典为唯一真源，verify-t3-locale 契约；合并器 13 行 |
 | `kernel/prompts.js` | `PROMPTS`、`promptLang`、`promptText`、`SETUP_DEFAULT_PROMPT_KEYS`、`setupRunParamsFrom`、`setupRunPrompt`、`NEW_WAYFINDER_DEFAULT_WIRING`、`newWayfinderParamsFrom`、`newWayfinderPrompt`、`MATT_REPO`、`MAP_EXECUTE_PROMPT`、`COMPLETE_PROMPT`、`BODY_FORMAT`、`NEW_BUG_FIELDS_BODY`、`NEW_BUG_FIELDS_BODY_EN`、`completePrompt`、`inspectPrompt`、`FIXATE_PROMPT` | localeSvc（promptLang）、L/locale 字典与 L 兜底（setupRunParamsFrom）、repoStr（router，调用时） | PROMPTS 注册表契约见 tests/verify-prompts.js；setupRun 占位符由后端声明键（BackendModule.setupPrompt → wf.registry）经 setupRunParamsFrom 填充（#230 · D10 键入 locale，2026-08-28 生效；#230 已删 setupTrackerLine/Choice/BackendNote 三函数） |
 | `kernel/icons.js` | `ICON_SCHEMES`、`WORD_SCHEMES`、`Icon`、`Ic` | h（React.createElement 自由变量） | 通用图标集（统一 SVG stroke 风格） |
 | `kernel/styles.js` | `STYLE_TEXT` | 无 | 样式唯一真源；index 标记处保留 `styles.insert(STYLE_TEXT)` 调用 |

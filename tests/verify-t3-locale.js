@@ -9,7 +9,7 @@ const targets = files.length ? files : ['client.js', 'package/lib/client.js']
 let failed = false
 const check = function (file) {
   const src = fs.readFileSync(file, 'utf8')
-  const dictStart = src.indexOf('const L = {')
+  const dictStart = src.indexOf('const L_PANEL = {') >= 0 ? src.indexOf('const L_PANEL = {') : src.indexOf('const L = {') // #458 K5：locale.js 已拆为三片段加合并器，产物中字典真源为 L_PANEL/L_FLOW/L_WORD 三块加 L 合并器，此处从首片段切到装配点才能含全键（单切 L 合并器仅含 Object.assign 无键）
   if (dictStart < 0) { console.log('  FAIL', file, '无 L 字典'); failed = true; return }
   const dictEnd = src.indexOf('const localeSvc = ctx.get', dictStart)
   const dictBlock = src.slice(dictStart, dictEnd)

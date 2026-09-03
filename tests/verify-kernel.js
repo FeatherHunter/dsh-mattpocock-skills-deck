@@ -1,6 +1,6 @@
-// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 24 模块契约验证（#444 对齐后基准 + #454 K1 拆分 + #455 K2 拆分 + #456 K3 拆分 + #457 K4 拆分）
+// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 27 模块契约验证（#444 对齐后基准 + #454 K1 拆分 + #455 K2 拆分 + #456 K3 拆分 + #457 K4 拆分 + #458 K5 拆分）
 // 验证：
-//   1) kernel 24 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表 + #444 对齐新增 backendList/link/slots/slotRenderer，其中 slotRenderer 经 #454 拆为 queue/repo-sync/modal-view 三文件，store 经 #455 拆为 prefs/switch/snapshot/derived 四文件，probe 经 #456 拆为 chain/snapshot/auto 三文件，api 经 #457 拆为 naming/new-session/io 三文件）
+//   1) kernel 27 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表 + #444 对齐新增 backendList/link/slots/slotRenderer，其中 slotRenderer 经 #454 拆为 queue/repo-sync/modal-view 三文件，store 经 #455 拆为 prefs/switch/snapshot/derived 四文件，probe 经 #456 拆为 chain/snapshot/auto 三文件，api 经 #457 拆为 naming/new-session/io 三文件，locale 经 #458 拆为 panel/flow/word 三片段加合并器）
 //   2) 构建产物（_dev client.js / _pkg package/lib/client.js）已拼接全部模块（一源两物 · 无标记残留）
 //   3) 双产物模块段关键特征一致（行为零变化证明）
 //   4) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-ctx 同口径）
@@ -14,6 +14,9 @@ const PRODUCTS = ['client.js', 'package/lib/client.js']
 const MODULES = [
   { name: 'styles', exports: ['STYLE_TEXT'] },
   { name: 'portal', exports: ['RDOM', 'portalTop', 'PortalOverlay'] },
+  { name: 'localePanel', file: 'locale-panel', exports: ['L_PANEL'] },
+  { name: 'localeFlow', file: 'locale-flow', exports: ['L_FLOW'] },
+  { name: 'localeWord', file: 'locale-word', exports: ['L_WORD'] },
   { name: 'locale', exports: ['L'] },
   { name: 'icons', exports: ['ICON_SCHEMES', 'WORD_SCHEMES', 'Icon', 'Ic'] },
   { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'BODY_FORMAT', 'completePrompt', 'FIXATE_PROMPT'] },

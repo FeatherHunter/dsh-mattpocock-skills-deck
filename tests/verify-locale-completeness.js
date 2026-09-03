@@ -17,7 +17,8 @@ const ok = function (name) { passed++; console.log('  PASS', name) }
 const bad = function (name) { failed = true; console.log('  FAIL', name) }
 
 // ---------- A. locale 键集合 ----------
-const locSrc = fs.readFileSync(path.join(root, 'src', 'client', 'kernel', 'locale.js'), 'utf8')
+const LOCALE_SRC_FILES = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale.js'] // #458 K5：locale.js 已拆为三片段加合并器，此处读四文件拼起来的内容断言（panel 含导航面板横幅环境引导，flow 含动作类型列表配置详情地图提示，word 含技能检查浮层命名切换进度错误模板运行描述，合并器含 L 合并逻辑）
+const locSrc = LOCALE_SRC_FILES.map((f) => fs.readFileSync(path.join(root, f), 'utf8')).join('\n')
 function sliceAfter(buf, marker) { const i = buf.indexOf(marker); return i < 0 ? '' : buf.slice(i) }
 function keysOf(seg) {
   const re = /'([a-zA-Z0-9_.]+)':\s*'((?:[^'\\]|\\.)*)'/g
@@ -93,7 +94,7 @@ const seen = {}
 })(SRC_CLIENT)
 function inspect(file) {
   const rel = path.relative(SRC_CLIENT, file).replace(/\\/g, '/')
-  if (rel === 'kernel/locale.js' || rel === 'kernel/prompts.js') return
+  if (rel === 'kernel/locale.js' || rel === 'kernel/locale-panel.js' || rel === 'kernel/locale-flow.js' || rel === 'kernel/locale-word.js' || rel === 'kernel/prompts.js') return // #458 K5：三片段与合并器均为双语定义本体，不入清单（与原 locale.js 同口径）
   const buf = stripComments(fs.readFileSync(file, 'utf8'))
   let count = 0
   const strRe = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g

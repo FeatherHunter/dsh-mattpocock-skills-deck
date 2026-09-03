@@ -111,6 +111,9 @@ export default {
     // v1.5：全部 prompt（GUIDE_LINE/MAP_EXECUTE/COMPLETE/FIXATE/TPL_DEFAULT/setup/newWayfinder/mapHead）
     //   集中为 L 字典 prompt.*（zh/en 双语跟随 DSH 语言），审阅与优化见 docs/prompts-review.md。
     // ============================================================
+    // ==== kernel:localePanel (spliced by build) ====
+    // ==== kernel:localeFlow (spliced by build) ====
+    // ==== kernel:localeWord (spliced by build) ====
     // ==== kernel:locale (spliced by build) ====
     const localeSvc = ctx.get('locale')
     if (localeSvc && typeof localeSvc.register === 'function') {
