@@ -48,6 +48,12 @@ console.log('\n== ④ 无旧字段检查 ==')
     'src/host/tracker/backends/markdown/read.js',
     'src/host/tracker/backends/markdown/write.js',
     'src/host/tracker/backends/markdown/issues.js',
+    'src/host/tracker/backends/markdown/issues-locate.js',
+    'src/host/tracker/backends/markdown/issues-labels.js',
+    'src/host/tracker/backends/markdown/issues-read.js',
+    'src/host/tracker/backends/markdown/issues-create.js',
+    'src/host/tracker/backends/markdown/issues-status.js',
+    'src/host/tracker/backends/markdown/issues-patch.js',
     'src/host/tracker/backends/markdown/graph.js',
     'src/host/tracker/backends/markdown/comments.js',
   ]
