@@ -5,30 +5,57 @@
   "entries": [
     {
       "file": "src/host/index.js",
+      "spec": "./remotePredicates.js",
+      "resolved": "src/host/remotePredicates.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-3/6 #447",
+      "note": "H3 接线：index 动态加载远端谓词模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./skillProbe.js",
+      "resolved": "src/host/skillProbe.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-3/6 #447",
+      "note": "H3 接线：index 动态加载技能探测模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./detectChain.js",
+      "resolved": "src/host/detectChain.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-3/6 #447",
+      "note": "H3 接线：index 动态加载探测编排模块（装配扇入）"
+    },
+    {
+      "file": "src/host/detectChain.js",
       "spec": "./tracker/generic.js",
       "resolved": "src/host/tracker/generic.js",
       "layer": "host",
       "count": 1,
-      "owner": "二批·host域拆分票（待按最新行数开票）",
-      "note": "宿主入口动态拉起通用检查链（装配扇入）"
+      "owner": "二批·host-3/6 #447",
+      "note": "H3 搬迁：通用检查链装配随函数搬入本文件"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/detectChain.js",
       "spec": "./tracker/predicateRegistry.js",
       "resolved": "src/host/tracker/predicateRegistry.js",
       "layer": "host",
       "count": 1,
-      "owner": "二批·host域拆分票（待按最新行数开票）",
-      "note": "宿主入口动态拉起谓词注册表（装配扇入）"
+      "owner": "二批·host-3/6 #447",
+      "note": "H3 搬迁：谓词注册表装配随函数搬入本文件"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/detectChain.js",
       "spec": "./tracker/fixContract.js",
       "resolved": "src/host/tracker/fixContract.js",
       "layer": "host",
       "count": 1,
-      "owner": "二批·host域拆分票（待按最新行数开票）",
-      "note": "宿主入口动态拉起修复契约（装配扇入）"
+      "owner": "二批·host-3/6 #447",
+      "note": "H3 搬迁：修复契约装配随函数搬入本文件"
     },
     {
       "file": "src/host/index.js",

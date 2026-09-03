@@ -126,8 +126,18 @@ async function main() {
   const g2 = idxAt('async function getRepoKey(')
   const g2r = rkfAt('async function getRepoKey(')
   ;((g2 >= 0 && hasTok(idx.slice(g2, g2 + 5), 'canonical')) || (g2r >= 0 && hasTok(rkf.slice(g2r, g2r + 5), 'canonical'))) ? ok('getRepoKey 首行规整') : bad('getRepoKey 首行未见规整钥匙')
-  guardSite('wf.chain 入口规整', "harness.handle('wf.chain'", 1, 6)
-  guardSite('wf.detect 入口规整', "harness.handle('wf.detect'", 1, 6)
+  // H3 #447：wf.chain/wf.detect 处理器体已搬到 src/host/detectChain.js，守卫跟随代码位置。
+  const dcf = linesOf(path.join('src', 'host', 'detectChain.js'))
+  const guardSiteMoved = function (name, anchor, before, after, movedFn, mBefore, mAfter) {
+    const at = idxAt(anchor);
+    if (at >= 0 && hasTok(idx.slice(Math.max(0, at - before), at + after + 1), 'canonical')) return ok(name);
+    let mat = -1;
+    for (let i = 0; i < dcf.length; i++) { if (dcf[i].indexOf(movedFn) >= 0) { mat = i; break; } }
+    if (mat < 0) return bad(name + 'no fn');
+    hasTok(dcf.slice(Math.max(0, mat - mBefore), mat + mAfter + 1), 'canonical') ? ok(name) : bad(name + 'no canonical');
+  }
+  guardSiteMoved('wf.chain 入口规整', "harness.handle('wf.chain'", 1, 6, 'async function handleChain(', 0, 3);
+  guardSiteMoved('wf.detect 入口规整', "harness.handle('wf.detect'", 1, 6, 'async function handleDetect(', 0, 3);
   guardSite('wf.snapshot 入口规整', "harness.handle('wf.snapshot'", 1, 6)
   guardSite('wf.bind 入口规整', "harness.handle('wf.bind'", 1, 8)
   const d1 = idxAt('delete repoKeys[')
