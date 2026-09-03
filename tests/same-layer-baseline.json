@@ -1,0 +1,304 @@
+{
+  "version": 1,
+  "recordedAt": "2026-09-03",
+  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。backends 三房间不在此清单（仍由老门禁管同房间放行）。",
+  "entries": [
+    {
+      "file": "src/host/index.js",
+      "spec": "./tracker/registry.js",
+      "resolved": "src/host/tracker/registry.js",
+      "layer": "host",
+      "count": 2,
+      "owner": "二批·host域拆分票（待按最新行数开票）",
+      "note": "宿主入口动态拉起 tracker 注册表（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./tracker/detection/workspaceStore.js",
+      "resolved": "src/host/tracker/detection/workspaceStore.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（待按最新行数开票）",
+      "note": "宿主入口动态拉起工作区存储（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./tracker/detection/detectionService.js",
+      "resolved": "src/host/tracker/detection/detectionService.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（待按最新行数开票）",
+      "note": "宿主入口动态拉起探测服务（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./tracker/detection/explicitDetector.js",
+      "resolved": "src/host/tracker/detection/explicitDetector.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（待按最新行数开票）",
+      "note": "宿主入口动态拉起显式探测器（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./workspaceKey.js",
+      "resolved": "src/host/workspaceKey.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（待按最新行数开票）",
+      "note": "宿主入口动态读取工作区键（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./tracker/generic.js",
+      "resolved": "src/host/tracker/generic.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（待按最新行数开票）",
+      "note": "宿主入口动态拉起通用检查链（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./tracker/predicateRegistry.js",
+      "resolved": "src/host/tracker/predicateRegistry.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（待按最新行数开票）",
+      "note": "宿主入口动态拉起谓词注册表（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./tracker/fixContract.js",
+      "resolved": "src/host/tracker/fixContract.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（待按最新行数开票）",
+      "note": "宿主入口动态拉起修复契约（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./tracker/snapshot.js",
+      "resolved": "src/host/tracker/snapshot.js",
+      "layer": "host",
+      "count": 4,
+      "owner": "二批·host域拆分票（待按最新行数开票）",
+      "note": "宿主入口四处动态拉起快照编排器（装配扇入）"
+    },
+    {
+      "file": "src/host/tracker/index.js",
+      "spec": "./contract.js",
+      "resolved": "src/host/tracker/contract.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
+      "note": "tracker 聚合出口重出契约定义"
+    },
+    {
+      "file": "src/host/tracker/index.js",
+      "spec": "./registry.js",
+      "resolved": "src/host/tracker/registry.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
+      "note": "tracker 聚合出口重出注册表"
+    },
+    {
+      "file": "src/host/tracker/index.js",
+      "spec": "./capability.js",
+      "resolved": "src/host/tracker/capability.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
+      "note": "tracker 聚合出口重出能力诊断"
+    },
+    {
+      "file": "src/host/tracker/index.js",
+      "spec": "./preflight.js",
+      "resolved": "src/host/tracker/preflight.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
+      "note": "tracker 聚合出口重出预检"
+    },
+    {
+      "file": "src/host/tracker/index.js",
+      "spec": "./snapshot.js",
+      "resolved": "src/host/tracker/snapshot.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
+      "note": "tracker 聚合出口重出快照编排器"
+    },
+    {
+      "file": "src/host/tracker/registry.js",
+      "spec": "./contract.js",
+      "resolved": "src/host/tracker/contract.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
+      "note": "注册表引用契约里的操作与类型定义"
+    },
+    {
+      "file": "src/host/tracker/generic.js",
+      "spec": "./predicateRegistry.js",
+      "resolved": "src/host/tracker/predicateRegistry.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
+      "note": "通用检查链调用谓词注册表求值"
+    },
+    {
+      "file": "src/host/tracker/detection/detectionService.js",
+      "spec": "./explicitDetector.js",
+      "resolved": "src/host/tracker/detection/explicitDetector.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
+      "note": "探测服务调用显式探测器"
+    },
+    {
+      "file": "src/host/tracker/detection/detectionService.js",
+      "spec": "../../workspaceKey.js",
+      "resolved": "src/host/workspaceKey.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
+      "note": "探测服务读取宿主工作区键"
+    },
+    {
+      "file": "src/host/tracker/detection/explicitDetector.js",
+      "spec": "./parseIssueTracker.js",
+      "resolved": "src/host/tracker/detection/parseIssueTracker.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
+      "note": "显式探测器调用解析器"
+    },
+    {
+      "file": "src/host/platform/index.js",
+      "spec": "./darwin/index.js",
+      "resolved": "src/host/platform/darwin/index.js",
+      "layer": "platform",
+      "count": 1,
+      "owner": "二批·host域拆分票（platform 装配扇出）",
+      "note": "平台入口按系统分发苹果实现"
+    },
+    {
+      "file": "src/host/platform/index.js",
+      "spec": "./win32/index.js",
+      "resolved": "src/host/platform/win32/index.js",
+      "layer": "platform",
+      "count": 1,
+      "owner": "二批·host域拆分票（platform 装配扇出）",
+      "note": "平台入口按系统分发视窗实现"
+    },
+    {
+      "file": "src/host/platform/index.js",
+      "spec": "./linux/index.js",
+      "resolved": "src/host/platform/linux/index.js",
+      "layer": "platform",
+      "count": 1,
+      "owner": "二批·host域拆分票（platform 装配扇出）",
+      "note": "平台入口按系统分发 Linux 实现"
+    },
+    {
+      "file": "src/shared/tracker/chain.js",
+      "spec": "./constants.js",
+      "resolved": "src/shared/tracker/constants.js",
+      "layer": "shared",
+      "count": 2,
+      "owner": "二批·shared拆分票（待开，须先修门禁对照表）",
+      "note": "检查链引用常量定义"
+    },
+    {
+      "file": "src/shared/tracker/check-catalog.js",
+      "spec": "./chain.js",
+      "resolved": "src/shared/tracker/chain.js",
+      "layer": "shared",
+      "count": 1,
+      "owner": "二批·shared拆分票（待开，须先修门禁对照表）",
+      "note": "检查目录引用检查链的类型与求值"
+    },
+    {
+      "file": "src/shared/tracker/deck-derive.js",
+      "spec": "./constants.js",
+      "resolved": "src/shared/tracker/constants.js",
+      "layer": "shared",
+      "count": 1,
+      "owner": "二批·shared拆分票（待开，须先修门禁对照表）",
+      "note": "看板派生引用状态常量"
+    },
+    {
+      "file": "src/shared/tracker/shape.js",
+      "spec": "./constants.js",
+      "resolved": "src/shared/tracker/constants.js",
+      "layer": "shared",
+      "count": 1,
+      "owner": "二批·shared拆分票（待开，须先修门禁对照表）",
+      "note": "数据形状引用状态与类型常量"
+    },
+    {
+      "file": "src/seam/index.js",
+      "spec": "./runtime.js",
+      "resolved": "src/seam/runtime.js",
+      "layer": "seam",
+      "count": 1,
+      "owner": "二批·seam拆分票（待开，聚合出口）",
+      "note": "接缝聚合出口重出运行时绑定"
+    },
+    {
+      "file": "src/seam/index.js",
+      "spec": "./rpc.js",
+      "resolved": "src/seam/rpc.js",
+      "layer": "seam",
+      "count": 1,
+      "owner": "二批·seam拆分票（待开，聚合出口）",
+      "note": "接缝聚合出口重出远程调用绑定"
+    },
+    {
+      "file": "src/seam/index.js",
+      "spec": "./style.js",
+      "resolved": "src/seam/style.js",
+      "layer": "seam",
+      "count": 1,
+      "owner": "二批·seam拆分票（待开，聚合出口）",
+      "note": "接缝聚合出口重出样式绑定"
+    },
+    {
+      "file": "src/seam/index.js",
+      "spec": "./timer.js",
+      "resolved": "src/seam/timer.js",
+      "layer": "seam",
+      "count": 1,
+      "owner": "二批·seam拆分票（待开，聚合出口）",
+      "note": "接缝聚合出口重出定时器绑定"
+    },
+    {
+      "file": "src/seam/index.js",
+      "spec": "./editor.js",
+      "resolved": "src/seam/editor.js",
+      "layer": "seam",
+      "count": 1,
+      "owner": "二批·seam拆分票（待开，聚合出口）",
+      "note": "接缝聚合出口重出编辑器绑定"
+    },
+    {
+      "file": "src/seam/index.js",
+      "spec": "./sidebar.js",
+      "resolved": "src/seam/sidebar.js",
+      "layer": "seam",
+      "count": 1,
+      "owner": "二批·seam拆分票（待开，聚合出口）",
+      "note": "接缝聚合出口重出侧边栏绑定"
+    },
+    {
+      "file": "src/seam/index.js",
+      "spec": "./gate.js",
+      "resolved": "src/seam/gate.js",
+      "layer": "seam",
+      "count": 1,
+      "owner": "二批·seam拆分票（待开，聚合出口）",
+      "note": "接缝聚合出口重出门禁绑定"
+    }
+  ]
+}
