@@ -200,7 +200,7 @@ try{
 console.log('')
 console.log('-- 9) 五座位边界与契约四态 --')
 try{
-  const { CHECK_STATE, ACTION_TYPE } = await import('../src/shared/tracker/chain.js')
+  const { CHECK_STATE, ACTION_TYPE } = await import('../src/shared/tracker/chain-types.js')
   check(CHECK_STATE.DONE==='done' && CHECK_STATE.CURRENT==='current' && CHECK_STATE.FAIL==='fail' && CHECK_STATE.PENDING==='pending', '四态 done/current/fail/pending')
   check(!('NA' in CHECK_STATE) && !('na' in CHECK_STATE), '无 NA 状态')
   check(Object.values(ACTION_TYPE).includes('inject-prompt') && Object.values(ACTION_TYPE).includes('refresh'), 'ACTION_TYPE 含 5 种')

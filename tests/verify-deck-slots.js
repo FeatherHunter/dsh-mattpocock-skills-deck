@@ -33,10 +33,10 @@ console.log('')
 console.log('-- 1) 规划产出文件存在 --')
 check(existsSync('src/shared/ui/slots.js'), 'src/shared/ui/slots.js 存在')
 check(existsSync('src/client/kernel/slots.js'), 'src/client/kernel/slots.js 存在')
-check(existsSync('src/client/kernel/slotRenderer.js'), 'src/client/kernel/slotRenderer.js 存在')
+check(existsSync('src/client/kernel/slotRenderer-queue.js') && existsSync('src/client/kernel/slotRenderer-repo-sync.js') && existsSync('src/client/kernel/slotRenderer-modal-view.js'), '三弹窗文件存在（原 slotRenderer.js 已拆为三文件）')
 check(!existsSync('src/shared/ui/slots.js') || file('src/shared/ui/slots.js').includes('SLOTS_VERSION'), 'shared/ui/slots.js 含版本')
 check(!existsSync('src/client/kernel/slots.js') || file('src/client/kernel/slots.js').includes('SLOTS_KERNEL_VERSION'), 'kernel/slots.js 含版本')
-check(!existsSync('src/client/kernel/slotRenderer.js') || file('src/client/kernel/slotRenderer.js').includes('SLOT_RENDERER_VERSION'), 'kernel/slotRenderer.js 含版本')
+check(['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js'].map(file).join('\n').includes('SLOT_RENDERER_VERSION'), '三弹窗文件拼合含版本')
 
 console.log('')
 console.log('-- 2) 五端口声明（ADR 5.1） --')
@@ -106,7 +106,7 @@ try{
   if (typeof kGetWizardAction === 'function') {
     check(kGetWizardAction({ actions:[{type:'wizard', steps:[{schema:[]}]}] })?.type==='wizard', 'kernel getWizardAction 可用')
   }
-  const sr = await import('../src/client/kernel/slotRenderer.js').catch(()=>({}))
+  const sr = await import('../src/client/kernel/slotRenderer-queue.js').catch(()=>({})) // 守门函数在排队文件，弹窗本体在视图文件（文本断言走拼合）
   if (typeof sr.canOpenModalForStep === 'function') {
     check(sr.canOpenModalForStep({ status:'fail', actions:[{type:'form'}] })===true, 'slotRenderer canOpenModalForStep fail+form → true')
     check(sr.canOpenModalForStep({ status:'fail', actions:[{type:'inject-prompt'}] })===false, 'slotRenderer fail 无 form → false')
@@ -119,7 +119,8 @@ try{
   }
   // chain.js 契约层 wizard 校验
   try {
-    const { validateAction, ACTION_TYPE } = await import('../src/shared/tracker/chain.js')
+    const { ACTION_TYPE } = await import('../src/shared/tracker/chain-types.js')
+    const { validateAction } = await import('../src/shared/tracker/chain-validate.js')
     check(ACTION_TYPE.WIZARD==='wizard', 'ACTION_TYPE.WIZARD === wizard')
     check(validateAction({type:'wizard', steps:[{schema:[{name:'a', label:'A'}]}], submitAction:{type:'rpc', method:'wf.test'}}).ok===true, 'validateAction wizard 单步合法 → ok')
     check(validateAction({type:'wizard', steps:[], submitAction:{type:'rpc', method:'wf.test'}}).ok===false, 'validateAction wizard 空 steps → fail')
@@ -189,7 +190,7 @@ try{
 console.log('')
 console.log('-- 7) slotRenderer 外观与交互（遮罩 + 居中盒 + 校验 + 重求值） --')
 try{
-  const sr = file('src/client/kernel/slotRenderer.js')
+  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js'].map(file).join('\n') // 原单文件已拆三，读拼合断言
   check(sr.includes('FormModalSeat'), 'slotRenderer 含 FormModalSeat')
   check(sr.includes('ensureFormModal') && sr.includes('openFormModal') && sr.includes('closeFormModal'), 'slotRenderer 含 ensure/open/close 三件套')
   check(sr.includes('dsws-modal') && sr.includes('dsws-modalbox'), 'slotRenderer 复用 .dsws-modal/.dsws-modalbox')
@@ -221,9 +222,9 @@ try{
 console.log('')
 console.log('-- 9) 向导多步分页与步进导航（#319） --')
 try{
-  const sr = file('src/client/kernel/slotRenderer.js')
+  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js'].map(file).join('\n') // 原单文件已拆三，读拼合断言
   const shared = file('src/shared/ui/slots.js')
-  const chain = file('src/shared/tracker/chain.js')
+  const chain = file('src/shared/tracker/chain-types.js') + '\n' + file('src/shared/tracker/chain-validate.js') + '\n' + file('src/shared/tracker/chain-evaluate.js')
   // 单弹窗内分页 + 步进条数字圆点 + 标题
   check(sr.includes('isWizard') && sr.includes('wizardSteps'), 'slotRenderer 含 isWizard/wizardSteps（向导感知）')
   check(sr.includes('stepIndex') && sr.includes('totalSteps'), 'slotRenderer 含 stepIndex/totalSteps（分页状态）')
@@ -262,11 +263,11 @@ try{
   check(sr.includes('_normSteps') && sr.includes('steps'), 'slotRenderer _normSteps 归一化')
   // shared / chain 多步契约
   check(shared.includes('getWizardSteps') && shared.includes("title: typeof s.title === 'string'"), 'shared getWizardSteps 归一化 title')
-  check(chain.includes("ACTION_TYPE.WIZARD") && chain.includes('wizard'), 'chain.js 含 WIZARD 类型')
+  check(chain.includes("ACTION_TYPE.WIZARD") && chain.includes('wizard'), 'chain-types 含 WIZARD 类型')
   // 多步 shape 校验（至少两步）
   try{
     const { validateAction, getWizardSteps } = await import('../src/shared/ui/slots.js').then(()=>({})).catch(()=>({}))
-    const { validateAction: va } = await import('../src/shared/tracker/chain.js')
+    const { validateAction: va } = await import('../src/shared/tracker/chain-validate.js')
     check(va({type:'wizard', steps:[{title:'第一步', schema:[{name:'a', label:'A'}]}, {title:'第二步', schema:[{name:'b', label:'B'}]}], submitAction:{type:'rpc', method:'wf.test'}}).ok===true, 'validateAction wizard 两步合法 → ok')
     check(va({type:'wizard', steps:[{title:'第一步', schema:[{name:'a', type:'directory', label:'目录'}]}, {title:'第二步', schema:[{name:'b', type:'file', label:'文件'}]}], submitAction:{type:'rpc', method:'wf.test'}}).ok===true, 'validateAction wizard 多步 directory/file → ok')
     const sw = (await import('../src/shared/ui/slots.js')).getWizardSteps

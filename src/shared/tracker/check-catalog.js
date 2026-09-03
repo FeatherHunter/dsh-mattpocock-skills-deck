@@ -14,7 +14,7 @@
  * 依据：.scratch/research/ui-hardcode-inventory-20260826.md 类别 8（host 检查链 14 项必迁）+ #198 五票结论 + #219 定版 + #224 v2 2026-08-28。
  */
 
-import { PRIMITIVE_KIND, ACTION_TYPE } from './chain.js'
+import { PRIMITIVE_KIND, ACTION_TYPE } from './chain-types.js'
 
 /**
  * 目录项形态（目录只描述，不执行；执行由 predicateRegistry + 后端 preflight 完成）。
@@ -23,7 +23,7 @@ import { PRIMITIVE_KIND, ACTION_TYPE } from './chain.js'
  * @property {string} label 人读标签
  * @property {'generic'|'backend'} scope 通用或后端
  * @property {string[]} backends 适用后端（generic 为 ['github','markdown','gitlab']，backend 为子集）
- * @property {import('./chain.js').Check} check 谓词描述（primitive/backend/preflight）
+ * @property {import('./chain-types.js').Check} check 谓词描述（primitive/backend/preflight）
  * @property {string} origin 盘点来源（文件:行号或 inventory 类别）
  */
 
@@ -319,8 +319,8 @@ export const GENERIC_CHAIN = Object.freeze([...GENERIC_GATE_CHAIN, ...GENERIC_EN
 
 /**
  * CatalogItem → CheckItem 转换（供后端目录复用，验形状不验内容）。
- * @param {import('./chain.js').Check} catalogItem
- * @returns {import('./chain.js').CheckItem}
+ * @param {import('./chain-types.js').Check} catalogItem
+ * @returns {import('./chain-types.js').CheckItem}
  */
 export function catalogItemToCheckItem(catalogItem) {
   if (!catalogItem || typeof catalogItem !== 'object') throw new Error('catalogItem must be object')
@@ -340,7 +340,7 @@ export function catalogItemToCheckItem(catalogItem) {
 
 /**
  * 验形状（目录项形状校验，供 predicateRegistry 与 tracker registry 同哲学）。
- * @param {import('./chain.js').CheckItem} item
+ * @param {import('./chain-types.js').CheckItem} item
  * @returns {string[]} errors 为空即形状合法
  */
 export function validateGenericShape(item) {

@@ -238,6 +238,15 @@
       "note": "检查目录引用检查链的类型与求值"
     },
     {
+      "file": "src/shared/tracker/check-catalog.js",
+      "spec": "./chain-types.js",
+      "resolved": "src/shared/tracker/chain-types.js",
+      "layer": "shared",
+      "count": 1,
+      "owner": "二批·S1 #451",
+      "note": "S1 调用方改路径：检查目录改指拆分后的类型文件（原 chain.js 已消除）"
+    },
+    {
       "file": "src/shared/tracker/deck-derive.js",
       "spec": "./constants.js",
       "resolved": "src/shared/tracker/constants.js",

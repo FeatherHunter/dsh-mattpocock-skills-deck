@@ -52,12 +52,12 @@ function resolvePrompt(promptValue, mod, lang) {
 
 /**
  * 把修复契约附到检查项序列（后端目录项；未声明 fixes 的项保持原样）。
- * @param {import('../../shared/tracker/chain.js').CheckItem[]} items
+ * @param {import('../../shared/tracker/chain-types.js').CheckItem[]} items
  * @param {{id?: string, fixes?: Object, prompts?: Object}} mod 后端模块（fixes/prompts 单源）
  * @param {'zh'|'en'} lang
  * @param {{cwd?: string, owner?: string}} [opts] cwd 供 form 动作注入：submitAction.params.cwd + 仓库名字段 placeholder；
  *   owner = 当前 GitHub 登录用户名（host 预解析），用于替换 preview 模板 {owner}——避免 UI 层显示占位字面量
- * @returns {import('../../shared/tracker/chain.js').CheckItem[]}
+ * @returns {import('../../shared/tracker/chain-types.js').CheckItem[]}
  */
 export function attachFixContract(items, mod, lang, opts = {}) {
   if (!Array.isArray(items)) return items

@@ -17,9 +17,12 @@ console.log('== 契约层 chain.js（#225）==')
 
 let mod
 try {
-  mod = await import('../src/shared/tracker/chain.js')
+  const typesMod = await import('../src/shared/tracker/chain-types.js')
+  const validateMod = await import('../src/shared/tracker/chain-validate.js')
+  const evaluateMod = await import('../src/shared/tracker/chain-evaluate.js')
+  mod = { ...typesMod, ...validateMod, ...evaluateMod }
 } catch (e) {
-  console.log('  FAIL import chain.js — ' + String(e && e.message || e))
+  console.log('  FAIL import chain-types/validate/evaluate — ' + String(e && e.message || e))
   console.log(e && e.stack)
   process.exit(1)
 }
@@ -59,7 +62,7 @@ console.log('\n— 枚举 —')
   // G5 双名制注释：动作数据永不被数据路径读取 — 检查文件含该注释
   try {
     const fs = await import('node:fs')
-    const txt = fs.readFileSync('src/shared/tracker/chain.js', 'utf8')
+    const txt = fs.readFileSync('src/shared/tracker/chain-types.js', 'utf8') + '\n' + fs.readFileSync('src/shared/tracker/chain-validate.js', 'utf8') + '\n' + fs.readFileSync('src/shared/tracker/chain-evaluate.js', 'utf8')
     check(txt.includes('永不被数据路径读取') || txt.includes('永不进入数据路径'), 'G5 双名制注释存在（动作/检查项不入数据路径）')
     check(txt.includes('2026-08-27'), '生效日期 2026-08-27 携带')
     check(txt.includes('推进只来自重求值') || txt.includes('重求值'), 'D5 推进原则注释存在（动作不承诺修复）')

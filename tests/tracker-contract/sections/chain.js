@@ -2,7 +2,9 @@
  * tests/tracker-contract/sections/chain.js — 链条契约测试（#217，高质量门禁）。
  */
 
-import { validateCheckItem, validateChain, evaluateChain, chainProgress, capsuleSummary, CHECK_STATE, ACTION_TYPE } from '../../../src/shared/tracker/chain.js'
+import { CHECK_STATE, ACTION_TYPE } from '../../../src/shared/tracker/chain-types.js'
+import { validateCheckItem, validateChain } from '../../../src/shared/tracker/chain-validate.js'
+import { evaluateChain, chainProgress, capsuleSummary } from '../../../src/shared/tracker/chain-evaluate.js'
 
 function assert(name, cond, detail) { return { name, ok: !!cond, detail: detail || '' } }
 
