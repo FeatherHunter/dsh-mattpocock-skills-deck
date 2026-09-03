@@ -11,7 +11,8 @@
  *    describe / MIGRATE_KEY；unregister stale 通知携带真实 handle。
  */
 
-import { createRegistry, TrackerRegistryError, MIGRATE_KEY } from '../../../src/host/tracker/registry.js'
+import { createRegistry } from '../../../src/host/tracker/registryCore.js' // V1 #461：registry.js 已拆为三块
+import { TrackerRegistryError, MIGRATE_KEY } from '../../../src/host/tracker/registryShape.js' // V1 #461：错误类与迁移键随形状文件搬出
 
 const mkModule = (id, over = {}) => Object.assign({
   id,

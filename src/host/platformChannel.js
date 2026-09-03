@@ -16,7 +16,7 @@ export function createPlatformChannel(deps) {
           if (injected && typeof injected.select === 'function') { _trackerRegistry = injected; return _trackerRegistry }
         } catch {}
         try {
-          const regMod = await import('./tracker/registry.js')
+          const regMod = await import('./tracker/registryCore.js') // V1 #461：registry.js 已拆为三块，装配入口为 registryCore.js
           const createRegistry = regMod.createRegistry || regMod.default
           const reg = createRegistry({}, { matchesTimeout: 3000 })
           // 注册内置后端（github/markdown/gitlab），失败忽略（保持可用）
@@ -52,7 +52,7 @@ export function createPlatformChannel(deps) {
         } catch (e) {
           // 回落：空 registry（仅 explicit 能力）
           try {
-            const regMod2 = await import('./tracker/registry.js')
+            const regMod2 = await import('./tracker/registryCore.js') // V1 #461：同上（回落分支）
             const cr = regMod2.createRegistry || regMod2.default
             _trackerRegistry = cr({}, { matchesTimeout: 3000 })
             return _trackerRegistry

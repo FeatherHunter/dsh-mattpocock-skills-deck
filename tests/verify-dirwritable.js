@@ -18,8 +18,9 @@
 const assert = require('node:assert/strict')
 
 async function main() {
-  const { createPredicateRegistry } = await import('../src/host/tracker/predicateRegistry.js')
-  const { PRIMITIVE_KIND, validateCheckItem } = await import('../src/shared/tracker/chain.js')
+  const { createPredicateRegistry } = await import('../src/host/tracker/predicateCore.js') // V1 #461：predicateRegistry.js 已拆为两块
+  const { PRIMITIVE_KIND } = await import('../src/shared/tracker/chain-types.js')
+  const { validateCheckItem } = await import('../src/shared/tracker/chain-validate.js')
   const { catalogFor } = await import('../src/shared/tracker/check-catalog.js')
 
   let failed = false

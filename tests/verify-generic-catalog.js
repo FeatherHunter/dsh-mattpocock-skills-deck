@@ -19,8 +19,8 @@ console.log('== 通用检查目录与谓词原语注册表 (#226) ==')
 let catalogMod, chainMod, predMod, genericMod
 try {
   catalogMod = await import('../src/shared/tracker/check-catalog.js')
-  chainMod = await import('../src/shared/tracker/chain.js')
-  predMod = await import('../src/host/tracker/predicateRegistry.js')
+  chainMod = { ...(await import('../src/shared/tracker/chain-types.js')), ...(await import('../src/shared/tracker/chain-validate.js')), ...(await import('../src/shared/tracker/chain-evaluate.js')) }
+  predMod = await import('../src/host/tracker/predicateCore.js') // V1 #461：predicateRegistry.js 已拆为两块
   genericMod = await import('../src/host/tracker/generic.js')
 } catch (e) {
   console.log('  FAIL import modules — ' + String(e && e.message || e))
@@ -181,7 +181,7 @@ console.log('\n— 验收5：无 na 承载字段 —')
   try {
     const fs = await import('node:fs')
     const txt1 = fs.readFileSync('src/shared/tracker/check-catalog.js','utf8')
-    const txt2 = fs.readFileSync('src/host/tracker/predicateRegistry.js','utf8')
+    const txt2 = fs.readFileSync('src/host/tracker/predicateCore.js','utf8') + fs.readFileSync('src/host/tracker/predicatePrimitives.js','utf8') // V1 #461：断言覆盖随拆分两文件
     const txt3 = fs.readFileSync('src/host/tracker/generic.js','utf8')
     // 允许注释中提及 "删 na"，但不应有 '"na"' 字段或 CHECK_STATE.NA 引用
     const bad1 = /CHECK_STATE\.NA/.test(txt1) || /CHECK_STATE\.NA/.test(txt2) || /CHECK_STATE\.NA/.test(txt3)

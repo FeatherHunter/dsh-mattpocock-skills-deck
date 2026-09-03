@@ -129,7 +129,7 @@ try {
     const proxyHint = hasClose ? `has close (unexpected) — ${JSON.stringify(closeRes)?.slice(0,200)}` : 'no close (proxy will handle — expected for 4-op demo)'
     results.push({ name: 'demo-mini · proxy hint: unimplemented ops via registry', ok: true, detail: proxyHint })
     // registry 包装验证：demoModule 经 registry 后，缺的 9 ops 应为 unsupported 桩
-    const { createRegistry } = await import('../src/host/tracker/registry.js')
+    const { createRegistry } = await import('../src/host/tracker/registryCore.js') // V1 #461：registry.js 已拆为三块
     const { demoModule } = await import('../examples/demo-mini/index.js')
     const reg = createRegistry(demoCtx)
     const disp = reg.register(demoModule)

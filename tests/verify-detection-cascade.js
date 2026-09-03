@@ -10,7 +10,7 @@ import { parseIssueTracker } from '../src/host/tracker/detection/parseIssueTrack
 import { detectExplicit } from '../src/host/tracker/detection/explicitDetector.js'
 import { createWorkspaceStore } from '../src/host/tracker/detection/workspaceStore.js'
 import { createDetectionService } from '../src/host/tracker/detection/detectionService.js'
-import { createRegistry } from '../src/host/tracker/registry.js'
+import { createRegistry } from '../src/host/tracker/registryCore.js' // V1 #461：registry.js 已拆为三块
 
 let passed=0, failed=0
 function ok(cond, msg){ if(cond){console.log('  PASS '+msg); passed++} else {console.log('  FAIL '+msg); failed++} }

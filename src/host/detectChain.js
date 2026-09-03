@@ -50,7 +50,7 @@ export function createDetectChain(deps) {
           backendId = (args && args.backendId) || null
         }
         const genMod = await import('./tracker/generic.js')
-        const predMod = await import('./tracker/predicateRegistry.js')
+        const predMod = await import('./tracker/predicateCore.js') // V1 #461：predicateRegistry.js 已拆为两块
         // 2026-08-28 实机修复：单谓词超时 3000ms → 15000ms。
         //   gh auth status / gh api 是真实网络调用（本机曾多次 TLS schannel 握手失败），3 秒必然超时，
         //   导致「gh 已登录」「仓库可达」被误判并展示误导性修复指引；15s 给慢网络留余地（runGh 内部 30s 兜底）。
@@ -153,7 +153,7 @@ export function createDetectChain(deps) {
         try{
           if (backendId) {
             const catMod2 = await import('../shared/tracker/check-catalog.js')
-            const chainMod = await import('../shared/tracker/chain.js')
+            const chainMod = await import('../shared/tracker/chain-validate.js')
             let items = (catMod2.catalogFor ? catMod2.catalogFor(backendId) : []).filter(function(c){ return c.scope==='backend' && c.id !== 'gh:labels' }).map(function(ci){ return catMod2.catalogItemToCheckItem ? catMod2.catalogItemToCheckItem(ci) : null }).filter(Boolean)
             // 修复契约（2026-08-28）：后端声明 fixes（hint + 修复动作）→ 按语言解析附到检查项 onFail——
             //   检查失败即有修复入口（注入指引/重查），UI 零派生只渲染分发；后端未声明 fixes 则保持默认（重查）。
@@ -192,7 +192,7 @@ export function createDetectChain(deps) {
         let fullSnapshot = null
         let fullChain = null
         try {
-          const chainMod3 = await import('../shared/tracker/chain.js')
+          const chainMod3 = await import('../shared/tracker/chain-validate.js')
           const genSnap = genericSnapRaw || chainAndSnap.snapshot
           const backSnap = (backendChain && backendChain.snapshot) || null
           const genSteps = (genSnap && Array.isArray(genSnap.steps)) ? genSnap.steps : []

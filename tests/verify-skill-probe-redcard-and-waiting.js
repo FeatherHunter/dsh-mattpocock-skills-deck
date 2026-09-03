@@ -66,11 +66,11 @@ console.log('\n— 验收1：源码门禁（纪律与线索） —')
   check(!lightProbeSnippet.includes('.claude') && !lightProbeSnippet.includes('.minimax'), '轻探不含 .claude/.minimax（已退役）')
 }
 {
-  const predSrc = readFileSync('src/host/tracker/predicateRegistry.js', 'utf8')
-  check(!predSrc.includes('.claude'), 'predicateRegistry 无 .claude（仅标准根）')
+  const predSrc = readFileSync('src/host/tracker/predicatePrimitives.js', 'utf8') // V1 #461：技能探测随原语执行器搬出
+  check(!predSrc.includes('.claude'), 'predicatePrimitives 无 .claude（仅标准根）')
   // 确保仅一个候选
   const candCount = (predSrc.match(/\.agents\/skills/g) || []).length
-  check(candCount === 1, 'predicateRegistry 仅一个 .agents/skills 候选 — 实际 ' + candCount)
+  check(candCount === 1, 'predicatePrimitives 仅一个 .agents/skills 候选 — 实际 ' + candCount)
 }
 {
   // #284：statusDerive.js 已随九格目录视图退役；拼写防线移到链目录（check-catalog 单一真源）

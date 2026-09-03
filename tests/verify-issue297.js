@@ -1,4 +1,4 @@
-import { createRegistry } from '../src/host/tracker/registry.js';
+import { createRegistry } from '../src/host/tracker/registryCore.js'; // V1 #461：registry.js 已拆为三块
 import { createDetectionService } from '../src/host/tracker/detection/detectionService.js';
 import { createWorkspaceStore } from '../src/host/tracker/detection/workspaceStore.js';
 

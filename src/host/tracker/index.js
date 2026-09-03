@@ -8,7 +8,9 @@
  */
 
 export { TRACKER_CONTRACT, OPERATIONS, NORMALIZE_RULES } from './contract.js'
-export { createRegistry, TrackerRegistryError, MIGRATE_KEY, TRACKER_REGISTRY } from './registry.js'
+export { createRegistry, TRACKER_REGISTRY } from './registryCore.js' // V1 #461：registry.js 已拆为三块
+// V1 #461：形状错误类与迁移键随 registryShape.js 搬出（聚合出口保持原名）
+export { TrackerRegistryError, MIGRATE_KEY } from './registryShape.js'
 export { diagnoseCapabilities, hasField, isEmpty, CAPABILITY } from './capability.js'
 export { classifyError, fail, PREFLIGHT } from './preflight.js'
 export { createSnapshotComposer, SNAPSHOT } from './snapshot.js'

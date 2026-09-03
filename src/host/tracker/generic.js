@@ -15,8 +15,10 @@
  */
 
 import { GENERIC_CATALOG, GENERIC_CHECK_ITEMS, GENERIC_GATE_CHAIN, GENERIC_ENV_CHAIN, GENERIC_CHAIN, catalogFor, catalogItemToCheckItem } from '../../shared/tracker/check-catalog.js'
-import { validateCheckItem, validateChain, evaluateChain, CHECK_STATE } from '../../shared/tracker/chain.js'
-import { createPredicateRegistry, toPredicateResults } from './predicateRegistry.js'
+import { CHECK_STATE } from '../../shared/tracker/chain-types.js'
+import { validateCheckItem, validateChain } from '../../shared/tracker/chain-validate.js'
+import { evaluateChain } from '../../shared/tracker/chain-evaluate.js'
+import { createPredicateRegistry, toPredicateResults } from './predicateCore.js' // V1 #461：predicateRegistry.js 已拆为两块，装配入口为 predicateCore.js
 
 // 版本标识（供日志/审计；与 CATALOG_VERSION / CHAIN_VERSION 同步）
 export const GENERIC_VERSION = 1
@@ -73,7 +75,7 @@ export function getGenericCatalog(_backendId = null) {
 /**
  * 获取通用链（门/环境分段已就绪，可直接喂 evaluateChain）。
  * @param {'gate'|'env'|'all'} kind
- * @returns {import('../../shared/tracker/chain.js').CheckItem[]}
+ * @returns {import('../../shared/tracker/chain-types.js').CheckItem[]}
  */
 export function getGenericChain(kind = 'all') {
   if (kind === 'gate') return [...GENERIC_GATE_CHAIN]
@@ -83,7 +85,7 @@ export function getGenericChain(kind = 'all') {
 
 /**
  * 通用检查形状校验（验形状不验内容，与 registry 同哲学）。
- * @param {import('../../shared/tracker/chain.js').CheckItem[]} chain
+ * @param {import('../../shared/tracker/chain-types.js').CheckItem[]} chain
  * @returns {string[]} errors
  */
 export function validateGenericChain(chain) {
@@ -93,9 +95,9 @@ export function validateGenericChain(chain) {
 /**
  * 解析通用链（只读探测 + 超时按 pending，#226）。
  * @param {ReturnType<typeof createPredicateRegistry>} registry 已注册通用谓词的 registry
- * @param {import('./predicateRegistry.js').PredicateContext} ctx
+ * @param {import('./predicatePrimitives.js').PredicateContext} ctx // V1 #461：类型定义随 predicatePrimitives.js 搬出
  * @param {'gate'|'env'|'all'} kind
- * @returns {Promise<{chain: import('../../shared/tracker/chain.js').CheckItem[], resolved: Record<string, import('./predicateRegistry.js').PredicateResult>, snapshot: import('../../shared/tracker/chain.js').ChainSnapshot}>}
+ * @returns {Promise<{chain: import('../../shared/tracker/chain-types.js').CheckItem[], resolved: Record<string, import('./predicatePrimitives.js').PredicateResult>, snapshot: import('../../shared/tracker/chain-types.js').ChainSnapshot}>}
  */
 export async function resolveGenericChain(registry, ctx, kind = 'all') {
   const chain = getGenericChain(kind)

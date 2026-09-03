@@ -416,6 +416,105 @@
       "count": 1,
       "owner": "二批·host-2/6 #446",
       "note": "H2 接线：index 动态加载详情快照模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./workspaceCwd.js",
+      "resolved": "src/host/workspaceCwd.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-5/6 #449",
+      "note": "H5 接线：index 动态加载工作区归一模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./commentThreads.js",
+      "resolved": "src/host/commentThreads.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-5/6 #449",
+      "note": "H5 接线：index 动态加载评论线程模块（装配扇入）"
+    },
+    {
+      "file": "src/host/platformChannel.js",
+      "spec": "./tracker/registryCore.js",
+      "resolved": "src/host/tracker/registryCore.js",
+      "layer": "host",
+      "count": 2,
+      "owner": "二批·320-host #461",
+      "note": "V1 调用方改路径：平台通道装配改指注册表新装配入口"
+    },
+    {
+      "file": "src/host/tracker/index.js",
+      "spec": "./registryCore.js",
+      "resolved": "src/host/tracker/registryCore.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·320-host #461",
+      "note": "V1 聚合出口改指注册表主体"
+    },
+    {
+      "file": "src/host/tracker/index.js",
+      "spec": "./registryShape.js",
+      "resolved": "src/host/tracker/registryShape.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·320-host #461",
+      "note": "V1 聚合出口改指形状文件（错误类与迁移键）"
+    },
+    {
+      "file": "src/host/tracker/registryCore.js",
+      "spec": "./registryShape.js",
+      "resolved": "src/host/tracker/registryShape.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·320-host #461",
+      "note": "V1 拆分：主体引用形状校验与包桩"
+    },
+    {
+      "file": "src/host/tracker/registryCore.js",
+      "spec": "./registryViews.js",
+      "resolved": "src/host/tracker/registryViews.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·320-host #461",
+      "note": "V1 拆分：主体引用只读视图"
+    },
+    {
+      "file": "src/host/tracker/registryShape.js",
+      "spec": "./contract.js",
+      "resolved": "src/host/tracker/contract.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·320-host #461",
+      "note": "V1 拆分：形状文件引用契约操作表（包桩用）"
+    },
+    {
+      "file": "src/host/detectChain.js",
+      "spec": "./tracker/predicateCore.js",
+      "resolved": "src/host/tracker/predicateCore.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·320-host #461",
+      "note": "V1 调用方改路径：探测编排改指谓词新装配入口"
+    },
+    {
+      "file": "src/host/tracker/generic.js",
+      "spec": "./predicateCore.js",
+      "resolved": "src/host/tracker/predicateCore.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·320-host #461",
+      "note": "V1 调用方改路径：通用链改指谓词新装配入口"
+    },
+    {
+      "file": "src/host/tracker/predicateCore.js",
+      "spec": "./predicatePrimitives.js",
+      "resolved": "src/host/tracker/predicatePrimitives.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·320-host #461",
+      "note": "V1 拆分：注册表机制引用原语执行器"
     }
   ]
 }
