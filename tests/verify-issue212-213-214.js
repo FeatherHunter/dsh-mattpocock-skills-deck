@@ -68,9 +68,16 @@ assert(probeTxt.includes('PROBE_MS = 60000') || probeTxt.includes('PROBE_MS'), '
 assert(probeTxt.includes('refreshGroup') && probeTxt.includes('loadSnapshot'), '#213: client refreshGroup calls loadSnapshot on probe changed (incremental, not full page)');
 
 const hostTxt2 = fs.readFileSync(hostPath, 'utf8');
-assert(hostTxt2.includes("gh-create"), '#213: host handles gh-create for incremental refresh');
+// #345 退役：gh-create/gh-edit 事件通道已移除（host 与 client 双边零命中），变更发现改由 wf.probe 时间戳增量承担（见 232 门禁）；此处锁死退役，防止另起第二通道
+assert(!hostTxt2.includes("gh-create"), '#213: gh-create 事件通道已退役（host 无处理，变更发现走 wf.probe since）');
 const storeTxt = ['../src/client/kernel/store-prefs.js','../src/client/kernel/store-switch.js','../src/client/kernel/store-snapshot.js','../src/client/kernel/store-derived.js'].map((rel) => fs.readFileSync(path.join(__dirname, rel), 'utf8')).join('\n'); // 顺带 455 遗留：store.js 已拆为四文件（同 verify-issue232-sync 模式），读四文件拼起来的内容断言
-assert(storeTxt.includes('needProbe') && storeTxt.includes('scheduleActionProbe'), '#213: client triggers probe on gh-create/gh-edit (pollIssuePathHost)');
+// 触发词搬家：旧标记不得回流仓库（仓库只存状态）；动作后探测住在 api.js 的动作点，此处锁新家不断线（K4 拆 api.js 时须同票重指三个新文件拼合）
+assert(!storeTxt.includes('needProbe') && !storeTxt.includes('pollIssuePathHost'), '#213: 旧触发词未回流仓库（触发住动作点，不住状态）');
+const apiSrc = fs.readFileSync(path.join(__dirname, '../src/client/kernel/api.js'), 'utf8'); // K4 预告：api.js 消除后此处改读三个新文件拼合
+const injectBody = apiSrc.slice(apiSrc.indexOf('export const inject = (st, text)'), apiSrc.indexOf('export const openUrl'));
+const cmtBody = apiSrc.slice(apiSrc.indexOf('export const fetchIssueComments'), apiSrc.indexOf('export const submitIssueComment'));
+assert(injectBody.includes('scheduleActionProbe()'), '#213: 关键动作后延迟探测（inject 内调用，面板尽快反映变化）');
+assert(cmtBody.includes('scheduleActionProbe()'), '#213: 发评论成功后延迟探测（fetchIssueComments 成功分支内调用）');
 
 if (failures.length) {
   console.log('\n=== ' + failures.length + ' FAILURES — loop RED ===');
