@@ -31,6 +31,33 @@
       "note": "H3 接线：index 动态加载探测编排模块（装配扇入）"
     },
     {
+      "file": "src/host/index.js",
+      "spec": "./sessionLifecycle.js",
+      "resolved": "src/host/sessionLifecycle.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-4/6 #448",
+      "note": "H4 接线：index 动态加载会话启停模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./sessionSnapshot.js",
+      "resolved": "src/host/sessionSnapshot.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-4/6 #448",
+      "note": "H4 接线：index 动态加载会话快照模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./sessionRefresh.js",
+      "resolved": "src/host/sessionRefresh.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-4/6 #448",
+      "note": "H4 接线：index 动态加载会话刷新模块（装配扇入）"
+    },
+    {
       "file": "src/host/detectChain.js",
       "spec": "./tracker/generic.js",
       "resolved": "src/host/tracker/generic.js",
@@ -58,13 +85,22 @@
       "note": "H3 搬迁：修复契约装配随函数搬入本文件"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/sessionSnapshot.js",
       "spec": "./tracker/snapshot.js",
       "resolved": "src/host/tracker/snapshot.js",
       "layer": "host",
-      "count": 4,
-      "owner": "二批·host域拆分票（待按最新行数开票）",
-      "note": "宿主入口四处动态拉起快照编排器（装配扇入）"
+      "count": 2,
+      "owner": "二批·host-4/6 #448",
+      "note": "H4 搬迁：快照编排器装配随函数搬入本文件"
+    },
+    {
+      "file": "src/host/sessionRefresh.js",
+      "spec": "./tracker/snapshot.js",
+      "resolved": "src/host/tracker/snapshot.js",
+      "layer": "host",
+      "count": 2,
+      "owner": "二批·host-4/6 #448",
+      "note": "H4 搬迁：快照编排器装配随函数搬入本文件"
     },
     {
       "file": "src/host/tracker/index.js",

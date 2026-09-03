@@ -5,7 +5,7 @@
   "files": {
     "src/client/index.js": 394,
     "src/client/statusbar/StatusBar.js": 380,
-    "src/host/index.js": 2189,
+    "src/host/index.js": 1507,
     "src/shared/naming-guardian.js": 498,
     "src/shared/tracker/chain.js": 682,
     "src/shared/tracker/check-catalog.js": 356
