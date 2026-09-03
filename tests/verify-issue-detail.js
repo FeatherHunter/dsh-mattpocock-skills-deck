@@ -9,7 +9,8 @@ const host = fs.readFileSync('host.js','utf8')
 const phost = fs.readFileSync('package/lib/index.js','utf8')
 // H2 #446：详情实现搬到 issueDetail.js（行为零变化）；双通道存在性断言跟随位置，意图不变。
 const hostDetail = fs.readFileSync('src/host/issueDetail.js','utf8')
-const hostSide = host + hostDetail
+const hostComments = fs.readFileSync('src/host/commentThreads.js','utf8') // H5 #449：评论通路搬到评论电话文件，拼合断言意图不变
+const hostSide = host + hostDetail + hostComments
 const mdCli = (()=>{ const i=cli.indexOf('const MD_LINK_RE'); const e=cli.indexOf('// ============================================================', i+10); return e>i?cli.slice(i,e):cli.slice(i,i+9000) })()
 
 // —— host 双通道存在性
@@ -18,8 +19,8 @@ check(phost.includes("harness.handle('wf.issueDetail'") || phost.includes("wf.is
 check(host.includes('async function fetchIssueDetail('), 'host 含 fetchIssueDetail')
 check(host.includes('async function fetchIssueDetailREST('), 'host 含 fetchIssueDetailREST')
 check(host.includes("harness.handle('wf.issueComments'"), 'host 含 wf.issueComments handle')
-check(host.includes('async function fetchIssueComments('), 'host 含 fetchIssueComments')
-check(host.includes('async function fetchIssueCommentsREST('), 'host 含 fetchIssueCommentsREST')
+check(hostSide.includes('async function fetchIssueComments('), 'host 含 fetchIssueComments')
+check(hostSide.includes('async function fetchIssueCommentsREST('), 'host 含 fetchIssueCommentsREST')
 check(hostSide.includes("comments(first:50){nodes{author{login}"), 'host GraphQL 含 comments(first:50) with author')
 check(hostSide.includes("pageInfo{hasNextPage endCursor}"), 'host GraphQL 含 pageInfo{hasNextPage endCursor}')
 check(hostSide.includes("labels(first:20){nodes{name color}}"), 'host GraphQL 含 labels color')
