@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "recordedAt": "2026-09-03",
+  "note": "零增长基线：只许减不许增；达标文件由各自拆分票移出。计数口径与 verify-leaves 相同（源码按换行符切分，含空行注释）。",
+  "files": {
+    "src/host/index.js": 3994,
+    "src/client/kernel/api.js": 852,
+    "src/client/kernel/locale.js": 820,
+    "src/client/kernel/store.js": 741,
+    "src/host/tracker/backends/markdown/issues.js": 683,
+    "src/shared/tracker/chain.js": 682,
+    "src/host/tracker/backends/github/index.js": 660,
+    "src/client/kernel/probe.js": 634,
+    "src/client/kernel/slotRenderer.js": 617,
+    "src/shared/naming-guardian.js": 498,
+    "src/host/tracker/backends/github/issues.js": 486,
+    "src/client/index.js": 382,
+    "src/client/statusbar/StatusBar.js": 380,
+    "src/shared/tracker/check-catalog.js": 356
+  }
+}
