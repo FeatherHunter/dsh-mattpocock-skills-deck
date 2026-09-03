@@ -16,7 +16,10 @@
 // （与 verify-b2-map-newsession.js 同范式），能抓住“逻辑改坏 / 双源漂移”两类回归。
 const fs = require('fs')
 
-const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api.js', 'package/lib/client.js']
+const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'] // #457 K4：api.js 已拆为三文件，src 侧读三文件拼合
+const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-new-session.js+api-io.js（拼合）', 'package/lib/client.js']
+const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退全量（跨 naming 与 new-session，单文件含不全）
+const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：三文件全存在才算存在
 
 // ---- 提取真实函数源码 ----
 function extractOpenFn(src) {
@@ -84,9 +87,9 @@ console.log('== #315 新会话草稿体验守护（2026-08-30 回滚）==')
 async function main() {
 for (const file of files) {
   console.log('--- ' + file + ' ---')
-  if (!fs.existsSync(file)) { check(false, file + ' 存在'); continue }
+  if (!testExists(file)) { check(false, file + ' 存在'); continue }
   let src
-  try { src = fs.readFileSync(file, 'utf8') } catch (e) { check(false, file + ' 可读 — ' + e.message); continue }
+  try { src = readTestSrc(file) } catch (e) { check(false, file + ' 可读 — ' + e.message); continue }
   let fnSrc
   try { fnSrc = extractOpenFn(src) } catch (e) { check(false, file + ' 源码锚点可提取 — ' + e.message); continue }
   check(true, file + ' openTextInNewSession 源码可提取（锚点保留）')

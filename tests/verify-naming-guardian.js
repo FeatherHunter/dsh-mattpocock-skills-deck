@@ -156,7 +156,7 @@ console.log('\n— 单一真源守卫 —')
   check(clientIdx.includes('// ==== shared:namingGuardian (spliced by build) ===='), 'client 闭包挂共享核心拼接标记')
   check(clientIdx.includes('startNamingGuardianPoll()'), 'client apply 启动常驻渲染钩子拉询')
 
-  const apiSrc = readFileSync(join(ROOT, 'src/client/kernel/api.js'), 'utf8')
+  const apiSrc = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：api.js 已拆为三文件，此处读三文件拼起来的内容断言（naming 含命名守护全家与工厂，new-session 含 openTextInNewSession，io 含 openInNewSession/inject）
   // （namingSignal 的 client 发送点在 store.js recordIssuePath，下一节单独断言）
   for (const needle of ["host.call('wf.namingPlan'", "host.call('wf.registerNewSessionWatcher'", "host.call('wf.cancelNewSessionWatcher'", "host.call('wf.namingResult'", 'executeNamingOrder(', 'evaluateRenameLock(', 'composeDraftTitle(', 'newSessionTitle(', "o.kind === 'numbered'"]) {
     check(apiSrc.includes(needle), '界面渲染钩子链存在：' + needle.replace(/^\s+/, ''))
@@ -313,7 +313,7 @@ console.log('\n— #267 守卫断言 —')
   // 预算常量只活在共享核心（两半均不得私藏第二份预算实现）
   check(!hostG.includes('NAMING_RETRY_MAX') && !hostG.includes('NAMING_RETRY_COOLDOWN_MS'), 'host 半无私藏重试预算常量')
 
-  const apiG = readFileSync(join(ROOT, 'src/client/kernel/api.js'), 'utf8')
+  const apiG = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：同上（reconcile/apply 在 naming，拉询链跨三文件）
   check(apiG.includes('function reconcileNamingFailure'), '界面半协商化解函数存在（只读探测绝不盲写）')
   check(apiG.includes('function applyNamingFailurePanel'), '面板级同步函数存在（共享 store 落账）')
   check(apiG.includes('Array.isArray(res.failures)') && apiG.includes('reconcileNamingFailure(fails[i])') && apiG.includes('applyNamingFailurePanel(fails)'), '渲染钩子拉询链消费 failures 清单')

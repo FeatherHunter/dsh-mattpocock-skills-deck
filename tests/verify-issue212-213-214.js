@@ -73,7 +73,7 @@ assert(!hostTxt2.includes("gh-create"), '#213: gh-create 事件通道已退役�
 const storeTxt = ['../src/client/kernel/store-prefs.js','../src/client/kernel/store-switch.js','../src/client/kernel/store-snapshot.js','../src/client/kernel/store-derived.js'].map((rel) => fs.readFileSync(path.join(__dirname, rel), 'utf8')).join('\n'); // 顺带 455 遗留：store.js 已拆为四文件（同 verify-issue232-sync 模式），读四文件拼起来的内容断言
 // 触发词搬家：旧标记不得回流仓库（仓库只存状态）；动作后探测住在 api.js 的动作点，此处锁新家不断线（K4 拆 api.js 时须同票重指三个新文件拼合）
 assert(!storeTxt.includes('needProbe') && !storeTxt.includes('pollIssuePathHost'), '#213: 旧触发词未回流仓库（触发住动作点，不住状态）');
-const apiSrc = fs.readFileSync(path.join(__dirname, '../src/client/kernel/api.js'), 'utf8'); // K4 预告：api.js 消除后此处改读三个新文件拼合
+const apiSrc = ['../src/client/kernel/api-naming.js','../src/client/kernel/api-new-session.js','../src/client/kernel/api-io.js'].map((rel) => fs.readFileSync(path.join(__dirname, rel), 'utf8')).join('\n'); // #457 K4：api.js 已拆为三文件，读三文件拼合断言（inject 在 io，评论探测在 io）
 const injectBody = apiSrc.slice(apiSrc.indexOf('export const inject = (st, text)'), apiSrc.indexOf('export const openUrl'));
 const cmtBody = apiSrc.slice(apiSrc.indexOf('export const fetchIssueComments'), apiSrc.indexOf('export const submitIssueComment'));
 assert(injectBody.includes('scheduleActionProbe()'), '#213: 关键动作后延迟探测（inject 内调用，面板尽快反映变化）');

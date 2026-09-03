@@ -15,7 +15,10 @@
 
 const fs = require('fs')
 
-const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api.js', 'package/lib/client.js']
+const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'] // #457 K4：api.js 已拆为三文件，src 侧读三文件拼合
+const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-new-session.js+api-io.js（拼合）', 'package/lib/client.js']
+const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退全量（跨 naming 与 new-session，单文件含不全）
+const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：三文件全存在才算存在
 
 function extractOpenFn(src) {
   const marker = 'const openTextInNewSession = function (st, text, title) {'
@@ -66,9 +69,9 @@ function keyOf(raw) {
 
 async function testFile(file) {
   console.log('--- ' + file + ' ---')
-  if (!fs.existsSync(file)) { check(false, file + ' 存在'); return }
+  if (!testExists(file)) { check(false, file + ' 存在'); return }
   let src
-  try { src = fs.readFileSync(file, 'utf8') } catch(e) { check(false, file + ' 可读 — ' + e.message); return }
+  try { src = readTestSrc(file) } catch(e) { check(false, file + ' 可读 — ' + e.message); return }
   let factoryBlock
   try { factoryBlock = extractFactoryBlock(src) } catch(e) { check(false, file + ' 工厂块可提取 — ' + e.message); return }
   check(true, file + ' 单点工厂块可提取')

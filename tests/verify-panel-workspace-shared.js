@@ -48,7 +48,7 @@ else {
 
 // 全库仅一份归一实现：除 workspaceKey.js 外，不应再出现 toLowerCase + replace(\)
 console.log('\n2) 归一函数全库仅一份（重复定义清零）')
-const kernelFiles = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js','src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js','src/client/kernel/api.js','src/client/panel/Dock.js'] // #456 K3：probe.js 已拆为三文件，逐文件扫描
+const kernelFiles = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js','src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js','src/client/kernel/api-naming.js','src/client/kernel/api-new-session.js','src/client/kernel/api-io.js','src/client/panel/Dock.js'] // #457 K4：api.js 已拆为三文件，逐文件扫描
 const dupPattern = /\.toLowerCase\(\)\.replace\(.*\\\\/
 let dupCount = 0
 for (const rel of kernelFiles) {
@@ -114,7 +114,7 @@ if (read('src/client/kernel/probe-auto.js').includes('shared.cwd === cwd') && !r
 
 // 6) 新会话秒显
 console.log('\n6) 新会话秒显共享缓存')
-const apiTxt = read('src/client/kernel/api.js')
+const apiTxt = ['src/client/kernel/api-naming.js','src/client/kernel/api-new-session.js','src/client/kernel/api-io.js'].map(read).join('\n') // #457 K4：api.js 已拆为三文件，读三文件拼合断言（openText/hydrate 在 new-session）
 if (/ns\.snapshot\s*=\s*st\.snapshot/.test(apiTxt)) {
   // 检查是否已被改造为带 hydrate 兜底的版本（允许在 hydrate 失败兜底时出现，但不应是直接继承）
   const directInherit = /if \(ns && st\.snapshot\) \{ ns\.snapshot = st\.snapshot/.test(apiTxt)

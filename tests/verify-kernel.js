@@ -1,6 +1,6 @@
-// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 22 模块契约验证（#444 对齐后基准 + #454 K1 拆分 + #455 K2 拆分 + #456 K3 拆分）
+// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 24 模块契约验证（#444 对齐后基准 + #454 K1 拆分 + #455 K2 拆分 + #456 K3 拆分 + #457 K4 拆分）
 // 验证：
-//   1) kernel 22 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表 + #444 对齐新增 backendList/link/slots/slotRenderer，其中 slotRenderer 经 #454 拆为 queue/repo-sync/modal-view 三文件，store 经 #455 拆为 prefs/switch/snapshot/derived 四文件，probe 经 #456 拆为 chain/snapshot/auto 三文件）
+//   1) kernel 24 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表 + #444 对齐新增 backendList/link/slots/slotRenderer，其中 slotRenderer 经 #454 拆为 queue/repo-sync/modal-view 三文件，store 经 #455 拆为 prefs/switch/snapshot/derived 四文件，probe 经 #456 拆为 chain/snapshot/auto 三文件，api 经 #457 拆为 naming/new-session/io 三文件）
 //   2) 构建产物（_dev client.js / _pkg package/lib/client.js）已拼接全部模块（一源两物 · 无标记残留）
 //   3) 双产物模块段关键特征一致（行为零变化证明）
 //   4) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-ctx 同口径）
@@ -26,7 +26,9 @@ const MODULES = [
   { name: 'probeSnapshot', file: 'probe-snapshot', exports: ['pendingSnapshotByCwd', 'hexA', 'darken', 'nowStr', 'timeOf', 'timeOfMs', 'broadcastCfg', 'diffSnapshots', '_flashClearPending', 'scheduleFlashClear', 'loadSnapshot'] },
   { name: 'probeAuto', file: 'probe-auto', exports: ['PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'lastFocusProbe', '_actionProbePending', 'probeNow', 'scheduleActionProbe', 'startAutoProbe', 'spinAll', 'refreshAll', 'SNAP_FRESH_MS', 'snapFresh'] },
   { name: 'router', exports: ['openPagePanel', 'openDockPanel', 'openPanel', 'togglePanel', 'ensureSidebarTab', 'repoStr', 'startText', 'newWayfinderText', 'newBugWayfinderText'] },
-  { name: 'api', exports: ['injectFixate', 'probeHandoffReady', 'doHandoff', 'doHandoffOpen', 'openTextInNewSession', 'inject', 'copyText', 'pendingDraft'] },
+  { name: 'apiNaming', file: 'api-naming', exports: ['injectFixate', 'handoffTs', 'handoffFile', 'handoffPrompt', 'extractHandoffFile', 'absHandoffPath', 'handoffReadText', 'pendingDraft', 'pendingDraftTargetSid', 'getRowPreset', 'isHealthyPreset', 'isReusableBlank', 'buildCreateOpts', 'createPTCSession', 'NAMING_POLL_MS', 'namingCurrentTitleOf', 'namingHintOf', 'executeNamingOrder', 'reconcileNamingFailure', 'applyNamingFailurePanel', 'namingGuardianKick', 'startNamingGuardianPoll'] },
+  { name: 'apiNewSession', file: 'api-new-session', exports: ['probeHandoffReady', 'doHandoff', 'doHandoffOpen', 'openTextInNewSession'] },
+  { name: 'apiIo', file: 'api-io', exports: ['openInNewSession', 'inject', 'openUrl', 'copyText', 'fetchIssueDetail', 'clearIssueDetailCache', 'fetchIssueComments', 'submitIssueComment'] },
   { name: 'actions', exports: ['createActionDispatcher', 'ACTIONS_VERSION'] },
   { name: 'backendList', file: 'builtin-backends', exports: ['BUILTIN_BACKENDS', 'builtinLabelOf', 'otherFiltered', 'firstBackendIdOf', 'repositoryActionOf', 'moduleMetaOf'] },
   { name: 'link', exports: ['issueUrlFor', 'openIssueUrl', 'searchUrlFor', 'repoUrlFor', 'issueRefNumbersFrom'] },

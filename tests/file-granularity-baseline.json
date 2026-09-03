@@ -3,8 +3,7 @@
   "recordedAt": "2026-09-03",
   "note": "零增长基线：只许减不许增；达标文件由各自拆分票移出。",
   "files": {
-    "src/client/index.js": 389,
-    "src/client/kernel/api.js": 852,
+    "src/client/index.js": 391,
     "src/client/kernel/locale.js": 820,
     "src/client/statusbar/StatusBar.js": 380,
     "src/host/index.js": 2801,
