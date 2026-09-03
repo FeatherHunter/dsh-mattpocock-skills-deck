@@ -11,8 +11,6 @@
     "src/client/kernel/store.js": 741,
     "src/client/statusbar/StatusBar.js": 380,
     "src/host/index.js": 3994,
-    "src/host/tracker/backends/github/index.js": 660,
-    "src/host/tracker/backends/github/issues.js": 486,
     "src/shared/naming-guardian.js": 498,
     "src/shared/tracker/chain.js": 682,
     "src/shared/tracker/check-catalog.js": 356
