@@ -1798,8 +1798,28 @@ export default {
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
           try {
             const tickets = m.tickets || []
-            // 补 number（GitHub 仅有 key，UI 用 number 展示）
-            tickets.forEach(function(t){ if(t && t.key != null && t.number == null){ const nn=parseInt(t.key,10); if(!isNaN(nn)) t.number=nn; if(t.key!=null) t.key=String(t.key) } })
+            // 补 number（GitHub 仅有 key，旧的地图列表和地图详情用 number 展示）
+            // 把新形状的阻塞边压成旧视图要的数字数组，把认领人数组派生为旧视图要的认领名字符串，再算层级和统计
+            tickets.forEach(function(t){
+              if(t && t.key != null && t.number == null){ const nn=parseInt(t.key,10); if(!isNaN(nn)) t.number=nn; if(t.key!=null) t.key=String(t.key) }
+              if (t && Array.isArray(t.blockedBy)) {
+                t.blockedBy = t.blockedBy.map(function(ref){
+                  if (typeof ref === 'number') return ref
+                  if (ref && typeof ref === 'object' && ref.key != null) {
+                    const nk = String(ref.key)
+                    const nn = parseInt(nk, 10)
+                    if (!isNaN(nn)) return nn
+                    return nk
+                  }
+                  return ref
+                })
+              }
+              if (t && t.claimedBy == null) {
+                const owners = t.assignees
+                if (Array.isArray(owners) && owners.length) t.claimedBy = (owners[0] && owners[0].login) || ''
+                else t.claimedBy = ''
+              }
+            })
             const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
             tickets.forEach(function(t){ 
               if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
@@ -2102,8 +2122,28 @@ export default {
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
           try {
             const tickets = m.tickets || []
-            // 补 number（GitHub 仅有 key，UI 用 number 展示）
-            tickets.forEach(function(t){ if(t && t.key != null && t.number == null){ const nn=parseInt(t.key,10); if(!isNaN(nn)) t.number=nn; if(t.key!=null) t.key=String(t.key) } })
+            // 补 number（GitHub 仅有 key，旧的地图列表和地图详情用 number 展示）
+            // 把新形状的阻塞边压成旧视图要的数字数组，把认领人数组派生为旧视图要的认领名字符串，再算层级和统计
+            tickets.forEach(function(t){
+              if(t && t.key != null && t.number == null){ const nn=parseInt(t.key,10); if(!isNaN(nn)) t.number=nn; if(t.key!=null) t.key=String(t.key) }
+              if (t && Array.isArray(t.blockedBy)) {
+                t.blockedBy = t.blockedBy.map(function(ref){
+                  if (typeof ref === 'number') return ref
+                  if (ref && typeof ref === 'object' && ref.key != null) {
+                    const nk = String(ref.key)
+                    const nn = parseInt(nk, 10)
+                    if (!isNaN(nn)) return nn
+                    return nk
+                  }
+                  return ref
+                })
+              }
+              if (t && t.claimedBy == null) {
+                const owners = t.assignees
+                if (Array.isArray(owners) && owners.length) t.claimedBy = (owners[0] && owners[0].login) || ''
+                else t.claimedBy = ''
+              }
+            })
             const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
             tickets.forEach(function(t){ 
               if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]

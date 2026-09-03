@@ -7,7 +7,7 @@
     "src/client/kernel/api.js": 852,
     "src/client/kernel/locale.js": 820,
     "src/client/statusbar/StatusBar.js": 380,
-    "src/host/index.js": 3370,
+    "src/host/index.js": 3410,
     "src/shared/naming-guardian.js": 498,
     "src/shared/tracker/chain.js": 682,
     "src/shared/tracker/check-catalog.js": 356
