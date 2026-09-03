@@ -1486,7 +1486,7 @@ export default {
         if (cands.length === 0) {
           return { status: 'fail', detail: zh ? '尚未生成关卡地图（先执行本地 Markdown 初始化）' : 'No map file yet — run Local Markdown setup first' }
         }
-        const mod = await import('./backends/markdown/parse.js')
+        const mod = await import('./tracker/backends/markdown/parse.js')
         const parseMd = mod.parseMd || mod.default
         if (typeof parseMd !== 'function') return { status: 'pending', detail: 'parseMd not exported' }
         let lastErr = ''
