@@ -44,7 +44,9 @@ if (!existsSync(SRC_SHARED)) {
 if (existsSync(SRC_HOST)) {
   const t = readFileSync(SRC_HOST, 'utf8')
   check(!/const SKILL_PROBE_NAMES\s*=\s*\['ask-matt'/.test(t), 'src/host/index.js 不再内联 SKILL_PROBE_NAMES 字面量')
-  check(/await import\(['"]\.\.\/shared\/matt-skills\.js['"]\)/.test(t), 'src/host/index.js 经 await import 读 shared/matt-skills.js')
+  // H1 #445：该 await import 已原样搬到 src/host/bootstrap.js，断言跟随代码位置，意图不变。
+  const tb = existsSync(path.join(ROOT, 'src/host/bootstrap.js')) ? readFileSync(path.join(ROOT, 'src/host/bootstrap.js'), 'utf8') : ''
+  check(/await import\(['"]\.\.\/shared\/matt-skills\.js['"]\)/.test(t) || /await import\(['"]\.\.\/shared\/matt-skills\.js['"]\)/.test(tb), 'src/host/index.js 经 await import 读 shared/matt-skills.js')
   check(/getMattSkillProbeNames\s*\(/.test(t), 'src/host/index.js 暴露 getMattSkillProbeNames() 惰性加载器')
 }
 

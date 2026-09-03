@@ -5,51 +5,6 @@
   "entries": [
     {
       "file": "src/host/index.js",
-      "spec": "./tracker/registry.js",
-      "resolved": "src/host/tracker/registry.js",
-      "layer": "host",
-      "count": 2,
-      "owner": "二批·host域拆分票（待按最新行数开票）",
-      "note": "宿主入口动态拉起 tracker 注册表（装配扇入）"
-    },
-    {
-      "file": "src/host/index.js",
-      "spec": "./tracker/detection/workspaceStore.js",
-      "resolved": "src/host/tracker/detection/workspaceStore.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（待按最新行数开票）",
-      "note": "宿主入口动态拉起工作区存储（装配扇入）"
-    },
-    {
-      "file": "src/host/index.js",
-      "spec": "./tracker/detection/detectionService.js",
-      "resolved": "src/host/tracker/detection/detectionService.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（待按最新行数开票）",
-      "note": "宿主入口动态拉起探测服务（装配扇入）"
-    },
-    {
-      "file": "src/host/index.js",
-      "spec": "./tracker/detection/explicitDetector.js",
-      "resolved": "src/host/tracker/detection/explicitDetector.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（待按最新行数开票）",
-      "note": "宿主入口动态拉起显式探测器（装配扇入）"
-    },
-    {
-      "file": "src/host/index.js",
-      "spec": "./workspaceKey.js",
-      "resolved": "src/host/workspaceKey.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（待按最新行数开票）",
-      "note": "宿主入口动态读取工作区键（装配扇入）"
-    },
-    {
-      "file": "src/host/index.js",
       "spec": "./tracker/generic.js",
       "resolved": "src/host/tracker/generic.js",
       "layer": "host",
@@ -299,6 +254,78 @@
       "count": 1,
       "owner": "二批·seam拆分票（待开，聚合出口）",
       "note": "接缝聚合出口重出门禁绑定"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./bootstrap.js",
+      "resolved": "src/host/bootstrap.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-1/6 #445",
+      "note": "H1 接线：index 动态加载启动模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./platformChannel.js",
+      "resolved": "src/host/platformChannel.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-1/6 #445",
+      "note": "H1 接线：index 动态加载平台通道模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./repoKeys.js",
+      "resolved": "src/host/repoKeys.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-1/6 #445",
+      "note": "H1 接线：index 动态加载仓库钥匙模块（装配扇入）"
+    },
+    {
+      "file": "src/host/platformChannel.js",
+      "spec": "./tracker/registry.js",
+      "resolved": "src/host/tracker/registry.js",
+      "layer": "host",
+      "count": 2,
+      "owner": "二批·host-1/6 #445",
+      "note": "H1 搬迁：注册表装配随函数搬入本文件"
+    },
+    {
+      "file": "src/host/platformChannel.js",
+      "spec": "./tracker/detection/workspaceStore.js",
+      "resolved": "src/host/tracker/detection/workspaceStore.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-1/6 #445",
+      "note": "H1 搬迁：工作区存储装配随函数搬入本文件"
+    },
+    {
+      "file": "src/host/platformChannel.js",
+      "spec": "./tracker/detection/detectionService.js",
+      "resolved": "src/host/tracker/detection/detectionService.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-1/6 #445",
+      "note": "H1 搬迁：探测服务装配随函数搬入本文件"
+    },
+    {
+      "file": "src/host/platformChannel.js",
+      "spec": "./tracker/detection/explicitDetector.js",
+      "resolved": "src/host/tracker/detection/explicitDetector.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-1/6 #445",
+      "note": "H1 搬迁：兜底探测器装配随函数搬入本文件"
+    },
+    {
+      "file": "src/host/repoKeys.js",
+      "spec": "./workspaceKey.js",
+      "resolved": "src/host/workspaceKey.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-1/6 #445",
+      "note": "H1 搬迁：工作区钥匙装配随函数搬入本文件"
     }
   ]
 }

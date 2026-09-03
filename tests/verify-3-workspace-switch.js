@@ -110,7 +110,10 @@ async function main() {
   const hasTok = function (arr, tok) { return arr.some(function (l) { return l.indexOf(tok) >= 0 }) }
 
   const idx = linesOf(path.join('src', 'host', 'index.js'))
+  // H1 #445：getRepoRoot/getRepoKey/canonicalKey 已原样搬到 src/host/repoKeys.js，守卫跟随代码位置（意图不变：在场即查）。
+  const rkf = linesOf(path.join('src', 'host', 'repoKeys.js'))
   const idxAt = function (tok) { for (let i = 0; i < idx.length; i++) { if (idx[i].indexOf(tok) >= 0) return i } return -1 }
+  const rkfAt = function (tok) { for (let i = 0; i < rkf.length; i++) { if (rkf[i].indexOf(tok) >= 0) return i } return -1 }
   const guardSite = function (name, anchor, before, after) {
     const at = idxAt(anchor)
     if (at < 0) return bad(name + '：锚点未找到 ' + anchor)
@@ -118,9 +121,11 @@ async function main() {
   }
 
   const g1 = idxAt('async function getRepoRoot(')
-  ;(g1 >= 0 && hasTok(idx.slice(g1, g1 + 5), 'canonical')) ? ok('getRepoRoot 首行规整') : bad('getRepoRoot 首行未见规整钥匙')
+  const g1r = rkfAt('async function getRepoRoot(')
+  ;((g1 >= 0 && hasTok(idx.slice(g1, g1 + 5), 'canonical')) || (g1r >= 0 && hasTok(rkf.slice(g1r, g1r + 5), 'canonical'))) ? ok('getRepoRoot 首行规整') : bad('getRepoRoot 首行未见规整钥匙')
   const g2 = idxAt('async function getRepoKey(')
-  ;(g2 >= 0 && hasTok(idx.slice(g2, g2 + 5), 'canonical')) ? ok('getRepoKey 首行规整') : bad('getRepoKey 首行未见规整钥匙')
+  const g2r = rkfAt('async function getRepoKey(')
+  ;((g2 >= 0 && hasTok(idx.slice(g2, g2 + 5), 'canonical')) || (g2r >= 0 && hasTok(rkf.slice(g2r, g2r + 5), 'canonical'))) ? ok('getRepoKey 首行规整') : bad('getRepoKey 首行未见规整钥匙')
   guardSite('wf.chain 入口规整', "harness.handle('wf.chain'", 1, 6)
   guardSite('wf.detect 入口规整', "harness.handle('wf.detect'", 1, 6)
   guardSite('wf.snapshot 入口规整', "harness.handle('wf.snapshot'", 1, 6)
@@ -129,7 +134,7 @@ async function main() {
   ;(d1 >= 0 && hasTok(idx.slice(Math.max(0, d1 - 6), d1 + 1), 'canonical')) ? ok('建仓失效点 repoKeys 删除前规整') : bad('repoKeys 删除前未见规整钥匙（删不中即缓存僵尸）')
   const d2 = idxAt('delete repoRoots[')
   ;(d2 >= 0 && hasTok(idx.slice(Math.max(0, d2 - 6), d2 + 1), 'canonical')) ? ok('建仓失效点 repoRoots 删除前规整') : bad('repoRoots 删除前未见规整钥匙（删不中即缓存僵尸）')
-  hasTok(idx, 'workspaceKey.js') ? ok('index.js 引入 workspaceKey 模块') : bad('index.js 未引入 workspaceKey 模块')
+  ;(hasTok(idx, 'workspaceKey.js') || hasTok(rkf, 'workspaceKey.js')) ? ok('index.js 引入 workspaceKey 模块') : bad('index.js 未引入 workspaceKey 模块')
 
   const ds = linesOf(path.join('src', 'host', 'tracker', 'detection', 'detectionService.js'))
   let dsAt = -1

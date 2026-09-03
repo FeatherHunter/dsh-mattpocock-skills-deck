@@ -33,10 +33,13 @@ check(detailPkg.includes('Array.isArray(m.decisions)'), '构建产物 package/li
 check(!/m\.decisions\.length/.test(detailCli) && !/m\.decisions\.length/.test(detailPkg), '构建产物无 m.decisions.length 直读')
 check(snapPkg.includes('decisions: bp.decisions') && snapPkg.includes('parseMapBody'), '构建产物 package/lib/tracker/snapshot.js 含补齐')
 check(parserShared.includes('export function parseMapBody'), '构建产物 package/shared/parser.js 提供 parseMapBody')
+// H1 #445：磁盘缓存读写已原样搬到 src/host/repoKeys.js（构建原样复制到 package/lib/repoKeys.js），断言跟随代码位置，意图不变。
 const hostSrc = read('src/host/index.js')
-check(hostSrc.includes('cacheFormat === 3') && hostSrc.includes('cacheFormat: 3'), 'src/host 磁盘缓存格式已升至 3（旧快照视为陈旧）')
+const hostRepoKeys = read('src/host/repoKeys.js')
+check((hostSrc.includes('cacheFormat === 3') || hostRepoKeys.includes('cacheFormat === 3')) && (hostSrc.includes('cacheFormat: 3') || hostRepoKeys.includes('cacheFormat: 3')), 'src/host 磁盘缓存格式已升至 3（旧快照视为陈旧）')
 const hostPkg = read('package/lib/index.js')
-check(hostPkg.includes('cacheFormat === 3') && hostPkg.includes('cacheFormat: 3'), '构建产物 package/lib/index.js 缓存格式已升至 3')
+const hostRepoKeysPkg = read('package/lib/repoKeys.js')
+check((hostPkg.includes('cacheFormat === 3') || hostRepoKeysPkg.includes('cacheFormat === 3')) && (hostPkg.includes('cacheFormat: 3') || hostRepoKeysPkg.includes('cacheFormat: 3')), '构建产物 package/lib/index.js 缓存格式已升至 3')
 
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过')

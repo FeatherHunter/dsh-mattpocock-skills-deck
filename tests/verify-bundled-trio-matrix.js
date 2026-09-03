@@ -285,7 +285,9 @@ async function main(){
     const hasBundledInLightProbe = lightProbeSection.includes('bundled') || lightProbeSection.includes('BUNDLED') || lightProbeSection.includes('bundledSkillDir');
     check(!hasBundledInLightProbe, 'lightProbeReason 源码不含 bundled（回退分支未查 bundled，符合 R1“首通道已绿，无需补齐”） evidence no bundled in lightProbe');
     bl('lightProbeReason contains bundled? '+hasBundledInLightProbe+' => 结论：无需补齐，首通道 skills.get 已绿');
-    const hasBundledProvider = hostSrc.includes('bundled-mattpocock') && hostSrc.includes('registerProvider');
+    // H1 #445：bundled provider 注册已原样搬到 src/host/bootstrap.js，断言跟随代码位置，意图不变。
+    const hostBoot = readFileSync(path.join(ROOT,'src/host/bootstrap.js'),'utf8');
+    const hasBundledProvider = (hostSrc.includes('bundled-mattpocock') || hostBoot.includes('bundled-mattpocock')) && (hostSrc.includes('registerProvider') || hostBoot.includes('registerProvider'));
     check(hasBundledProvider, 'host 含 bundled provider 注册（首通道） evidence registerProvider');
     // GENERIC_CHECK_ITEMS 的技能三项在空 HOME 下为 pass 的首通道证据已在 A 场景验证
     check(true, '首通道已绿结论：空 HOME 下 skills.get 命中 bundled 600，无需 lightProbe 补 bundled evidence bundled first channel');
