@@ -36,7 +36,7 @@ const kinds = ['env','parse','graphql','network','rateLimit','notFound','404']
 kinds.forEach(k=> check(host.includes(k) || cli.includes(k), '错误 kind 含 '+k))
 
 // —— client store 形状
-const storeCli = fs.readFileSync('src/client/kernel/store.js','utf8')
+const storeCli = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 原 store.js 已消除，读四文件拼合断言（缓存形状在 snapshot，互斥语义在 prefs）
 check(storeCli.includes('issueCache'), 'store 含 issueCache')
 check(storeCli.includes('ISSUE_CACHE_TTL'), 'store 含 ISSUE_CACHE_TTL')
 check(storeCli.includes('60000'), 'store TTL 60000')
@@ -46,7 +46,7 @@ check(storeCli.includes('issueCommentsMoreLoading'), 'store 含 issueCommentsMor
 check(storeCli.includes('issueCommentsFailCount') || storeCli.includes('issueCommentsHasMore'), 'store 含 issueCommentsFailCount/hasMore')
 
 // —— client api 形状
-const apiCli = fs.readFileSync('src/client/kernel/api.js','utf8')
+const apiCli = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 原 api.js 已消除，读三文件拼合断言（详情数据通路在输入输出文件）
 check(apiCli.includes('fetchIssueDetail'), 'api 含 fetchIssueDetail')
 check(apiCli.includes('fetchIssueComments'), 'api 含 fetchIssueComments')
 check(apiCli.includes("host.call('wf.issueDetail'"), 'api 调 wf.issueDetail')

@@ -59,9 +59,7 @@ for (const f of allLeaves) {
     'src/client/statusbar/StatusBar.js',
     'src/client/index.js',
     'src/client/floating/SkillFloatList.js',
-    'src/client/kernel/styles.js',
-    'src/client/kernel/store.js',
-    'src/client/kernel/slotRenderer.js',
+    'src/client/kernel/styles.js', // 原 store.js 与 slotRenderer.js 已拆为多文件（无残留即删豁免，新文件经实测无重复样板）
   ])
   if (STOCK_NON_TOOLTIP.has(f)) continue
   let src = ''

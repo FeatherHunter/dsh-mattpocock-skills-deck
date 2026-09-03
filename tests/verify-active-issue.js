@@ -4,7 +4,7 @@ let failed=false
 const check=(ok,msg)=>{ console.log((ok?'  PASS ':'  FAIL ')+msg); if(!ok) failed=true }
 const cli = fs.readFileSync('client.js','utf8')
 const pcli = fs.readFileSync('package/lib/client.js','utf8')
-const storeSrc = fs.readFileSync('src/client/kernel/store.js','utf8')
+const storeSrc = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 原 store.js 已消除，读四文件拼合断言（互斥语义在 prefs，初始状态在 snapshot）
 const listSrc = fs.readFileSync('src/client/views/ListTab.js','utf8')
 const dockSrc = fs.readFileSync('src/client/panel/Dock.js','utf8')
 const detailSrc = fs.readFileSync('src/client/views/IssueDetail.js','utf8')
