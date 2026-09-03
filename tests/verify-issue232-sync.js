@@ -108,7 +108,7 @@ async function main() {
     check(pollChunk.includes('Promise.race') && pollChunk.includes('3500'), '重求值带 3.5s 竞速护栏（面包屑轮询不被拖死）')
     check(pollChunk.includes('dirtyCwds: dirtyCwds'), '响应回执 dirtyCwds 字段')
   }
-  const storeSrc = readSrc('src/client/kernel/store.js').replace(/\r\n/g, '\n')
+  const storeSrc = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js'].map(readSrc).join('\n').replace(/\r\n/g, '\n') // #455 K2：store.js 已拆为四文件，此处读四文件拼起来的内容断言（SYNC.ISSUE_CACHE_TTL 在 prefs，delete s2.status 在 snapshot）
   check(!storeSrc.includes("host.call('wf.issuePathPoll'"), 'client poll 通道已随 #345 彻底移除（不再上报可见 cwd 列表）')
   check(!storeSrc.includes('pollIssuePathHost'), 'client 轮询函数 pollIssuePathHost 已随 #345 移除（视线门控随通道一并退役）')
   check(!storeSrc.includes('needProbeSource(ev.source)'), '探针触发源判定已随面包屑通道移除（#345）；needProbeSource 纯函数保留于契约层供单测')

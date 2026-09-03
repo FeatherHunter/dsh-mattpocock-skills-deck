@@ -64,7 +64,8 @@ const BASELINE = {
   'index.js': 26,
   'kernel/icons.js': 8,
   'kernel/router.js': 1,
-  'kernel/store.js': 6, // 2026-08-29 二次实测：v1.7.3 后提交使残留 4→6，按封顶章程重登记（只许缩小不许增大）
+  'kernel/store-switch.js': 5, // #455 K2 由 store.js 拆出：切换确认分得 5 串（合计 6，与原持平，注释已剥离不计）
+  'kernel/store-snapshot.js': 1, // #455 K2 由 store.js 拆出：存储核分得 1 串（makeStore 外观词）
   'kernel/actions.js': 1, // 2026-08-28 #317 wizard 队列与提交闭环：RPC 业务失败透传文案，按封顶章程登记（0→1）
   'kernel/slotRenderer-queue.js': 6, // #454 K1 由 slotRenderer.js 拆出：打开入口与守门分得 6 串（合计 44，较原 46 缩小，注释已剥离不计）
   'kernel/slotRenderer-repo-sync.js': 2, // #454 K1 由 slotRenderer.js 拆出：同步流程分得 2 串

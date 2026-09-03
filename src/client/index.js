@@ -180,7 +180,10 @@ export default {
     // v24-48：面板默认高度 = 屏幕约 1/2
     // v1.5 T3：面板默认高度固定 1/2（用户拍板彻底移除 panelHeight 配置 —— details 列高度与它无关，配置不生效）
     // ==== shared:workspaceKey (spliced by build) ====
-    // ==== kernel:store (spliced by build) ====
+    // ==== kernel:storePrefs (spliced by build) ====
+    // ==== kernel:storeSwitch (spliced by build) ====
+    // ==== kernel:storeSnapshot (spliced by build) ====
+    // ==== kernel:storeDerived (spliced by build) ====
 
     // ---- 环境检查链（#228/#284 · host.call('wf.chain')；通用链 + 后端链全链快照）----
     // #284：九格目录视图（wf.status/checks）退役，读数点位全部改从链快照派生
