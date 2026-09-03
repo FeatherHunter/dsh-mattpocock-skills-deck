@@ -1,6 +1,6 @@
-// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 15 模块契约验证（#444 对齐后基准）
+// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 17 模块契约验证（#444 对齐后基准 + #454 K1 拆分）
 // 验证：
-//   1) kernel 15 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表 + #444 对齐新增 backendList/link/slots/slotRenderer）
+//   1) kernel 17 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表 + #444 对齐新增 backendList/link/slots/slotRenderer，其中 slotRenderer 经 #454 拆为 queue/repo-sync/modal-view 三文件）
 //   2) 构建产物（_dev client.js / _pkg package/lib/client.js）已拼接全部模块（一源两物 · 无标记残留）
 //   3) 双产物模块段关键特征一致（行为零变化证明）
 //   4) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-ctx 同口径）
@@ -26,7 +26,9 @@ const MODULES = [
   { name: 'backendList', file: 'builtin-backends', exports: ['BUILTIN_BACKENDS', 'builtinLabelOf', 'otherFiltered', 'firstBackendIdOf', 'repositoryActionOf', 'moduleMetaOf'] },
   { name: 'link', exports: ['issueUrlFor', 'openIssueUrl', 'searchUrlFor', 'repoUrlFor', 'issueRefNumbersFrom'] },
   { name: 'slots', exports: ['SLOTS_KERNEL_VERSION', 'SLOT_DEFS_KERNEL', 'MODAL_SEAT_ID', 'orderOf', 'isScopeValid', 'canDeclareIn', 'shouldShowInModal', 'isModalAction', 'getWizardAction', 'getFormAction', 'getModalAction', 'getWizardSteps'] },
-  { name: 'slotRenderer', exports: ['SLOT_RENDERER_VERSION', 'ensureFormModal', 'openFormModal', 'closeFormModal', 'startRepoSync', 'finishRepoSync', 'retryRepoSync', 'createModalRenderForm', 'canOpenModalForStep', 'canOpenWizardForStep', 'FormModalSeat'] },
+  { name: 'slotRendererQueue', file: 'slotRenderer-queue', exports: ['SLOT_RENDERER_VERSION', 'ensureFormModal', 'openFormModal', 'closeFormModal', 'createModalRenderForm', 'canOpenModalForStep', 'canOpenWizardForStep'] },
+  { name: 'slotRendererRepoSync', file: 'slotRenderer-repo-sync', exports: ['startRepoSync', 'finishRepoSync', 'retryRepoSync'] },
+  { name: 'slotRendererModalView', file: 'slotRenderer-modal-view', exports: ['FormModalSeat'] },
 ]
 const kernelFileOf = (m) => 'src/client/kernel/' + (m.file || m.name) + '.js'
 const SOURCES = [

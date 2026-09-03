@@ -47,7 +47,9 @@
 | `kernel/link.js` | `issueUrlFor`、`openIssueUrl`、`searchUrlFor`、`repoUrlFor`、`issueRefNumbersFrom` | 无（调用时收 `st`/`host`） | 问题链接与搜索链接纯函数 |
 | `kernel/actions.js` | `createActionDispatcher`、`ACTIONS_VERSION` | 闭包内 `host`/`store`/`probe`（调用时） | 动作分发器（表单提交、注入、开链接、刷新） |
 | `kernel/slots.js` | `SLOTS_KERNEL_VERSION`、`SLOT_DEFS_KERNEL`、`MODAL_SEAT_ID`、`orderOf`、`isScopeValid`、`canDeclareIn`、`shouldShowInModal`、`isModalAction`、`getWizardAction`、`getFormAction`、`getModalAction`、`getWizardSteps` | 无 | 五个内部端口声明与向导动作判断（寄生官方父槽，随父坍缩回收） |
-| `kernel/slotRenderer.js` | `SLOT_RENDERER_VERSION`、`ensureFormModal`、`openFormModal`、`closeFormModal`、`startRepoSync`、`finishRepoSync`、`retryRepoSync`、`createModalRenderForm`、`canOpenModalForStep`、`canOpenWizardForStep`、`FormModalSeat` | flash（store，调用时）、`repoUrlFor`（link，调用时） | 槽位渲染器：表单与向导弹窗渲染、仓库同步流程 |
+| `kernel/slotRenderer-queue.js`（标记名 `slotRendererQueue`） | `SLOT_RENDERER_VERSION`、`ensureFormModal`、`openFormModal`、`closeFormModal`、`createModalRenderForm`、`canOpenModalForStep`、`canOpenWizardForStep` | flash（store，调用时） | 槽位渲染器之队列与开关 + 打开入口与守门（#454 由 `slotRenderer.js` 拆出；`createModalRenderForm` 为 `openFormModal` 别名，守门寄放本文件以保 modal-view 单文件达标） |
+| `kernel/slotRenderer-repo-sync.js`（标记名 `slotRendererRepoSync`） | `startRepoSync`、`finishRepoSync`、`retryRepoSync` | flash（store，调用时）、`repoUrlFor`（link，调用时） | 槽位渲染器之仓库同步流程与失败文案（#454 由 `slotRenderer.js` 拆出；`retryPushFlow` 等内部 helpers 同文件） |
+| `kernel/slotRenderer-modal-view.js`（标记名 `slotRendererModalView`） | `FormModalSeat` | flash（store，调用时）、`repoUrlFor`（link，调用时） | 槽位渲染器之弹窗本体（#454 由 `slotRenderer.js` 拆出；348 行组件独占一文件，头注释仅一行以保 350 行门槛，后续增行须再拆） |
 
 ## 边界裁定（G3 Q3 · #91 拍板）
 

@@ -195,7 +195,9 @@ const KERNEL_MODULES = [
   { name: 'api', file: 'src/client/kernel/api.js' },
   { name: 'actions', file: 'src/client/kernel/actions.js' },
   { name: 'slots', file: 'src/client/kernel/slots.js' },
-  { name: 'slotRenderer', file: 'src/client/kernel/slotRenderer.js' },
+  { name: 'slotRendererQueue', file: 'src/client/kernel/slotRenderer-queue.js' },
+  { name: 'slotRendererRepoSync', file: 'src/client/kernel/slotRenderer-repo-sync.js' },
+  { name: 'slotRendererModalView', file: 'src/client/kernel/slotRenderer-modal-view.js' },
   { name: 'probe', file: 'src/client/kernel/probe.js' },
   { name: 'router', file: 'src/client/kernel/router.js' },
 ]
