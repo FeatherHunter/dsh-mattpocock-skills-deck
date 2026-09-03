@@ -1,4 +1,4 @@
-// tests/verify-session-title.js — #210/#205 会话标题契约 12 例（真源：src/shared/naming-guardian.js，#265 迁移）
+// tests/verify-session-title.js — #210/#205 会话标题契约 12 例（真源：src/shared/naming-titles.js，#265 迁移，S2 #452 拆出）
 // 用法: node tests/verify-session-title.js
 const fs = require('fs');
 const path = require('path');
@@ -11,14 +11,13 @@ const eq = (a, b, msg) => {
   ok(cond, msg);
 };
 
-// ---- 1) 文件级契约：共享核心含所需导出与正则（#265 起命名真源 = src/shared/naming-guardian.js）----
-const corePath = path.join(__dirname, '..', 'src/shared/naming-guardian.js');
-const src = fs.readFileSync(corePath, 'utf8');
-ok(src.includes('SESSION_TITLE_MAX_BYTES'), 'naming-guardian.js 含 SESSION_TITLE_MAX_BYTES');
-ok(src.includes('SESSION_TITLE_RE'), 'naming-guardian.js 含 SESSION_TITLE_RE');
-ok(src.includes('cleanTitleText'), 'naming-guardian.js 含 cleanTitleText');
-ok(src.includes('truncateTitleUtf8'), 'naming-guardian.js 含 truncateTitleUtf8');
-ok(src.includes('newSessionTitle'), 'naming-guardian.js 含 newSessionTitle');
+// ---- 1) 文件级契约：共享核心含所需导出与正则（#265 起命名真源 = src/shared/naming-titles.js，S2 #452 拆出）----
+const src = ['naming-titles.js', 'naming-tracking.js', 'naming-attribution.js'].map((f) => fs.readFileSync(path.join(__dirname, '..', 'src/shared', f), 'utf8')).join('\n');
+ok(src.includes('SESSION_TITLE_MAX_BYTES'), '命名标题文件含 SESSION_TITLE_MAX_BYTES');
+ok(src.includes('SESSION_TITLE_RE'), '命名标题文件含 SESSION_TITLE_RE');
+ok(src.includes('cleanTitleText'), '命名标题文件含 cleanTitleText');
+ok(src.includes('truncateTitleUtf8'), '命名标题文件含 truncateTitleUtf8');
+ok(src.includes('newSessionTitle'), '命名标题文件含 newSessionTitle');
 ok(!src.includes("SESSION_TITLE_PREFIX = '[MattSkills]'"), '无 [MattSkills] 旧前缀');
 ok(src.includes('SESSION_TITLE_MAX_BYTES = 120'), 'MAX_BYTES=120');
 ok(src.includes('/^\\[#\\d+\\] .+/'), '#n 正则存在');
@@ -30,7 +29,8 @@ ok(!/export\s+(const|function)\s+(SESSION_TITLE_MAX_BYTES|cleanTitleText|newSess
 
 (async () => {
   // ---- 2) 功能级：直接复跑共享核心实现（与产物同源的同一份文本）----
-  const m = await import('../src/shared/naming-guardian.js');
+  const [titlesMod, trackingMod, attributionMod] = await Promise.all([import('../src/shared/naming-titles.js'), import('../src/shared/naming-tracking.js'), import('../src/shared/naming-attribution.js')]);
+  const m = Object.assign({}, titlesMod, trackingMod, attributionMod);
   const cleanTitleText = m.cleanTitleText;
   const utf8Bytes = m.utf8Bytes;
   const truncateTitleUtf8 = m.truncateTitleUtf8;

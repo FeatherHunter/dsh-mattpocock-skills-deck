@@ -1,12 +1,12 @@
 // src/host/namingGuardian.js —— 命名守护 host 半（H6 #450 从 host/index.js 479–821 搬出，纯结构、行为零变化）。
 // 以后谁改它：改命名跟踪态、守护循环或建号感知结算的人。预估约350行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；即时推进经 index 同步委托转供给 _repo 接线；边界：../shared/naming-guardian.js 同名不同层归 S2 #452，本文件只动 host 半。
+// 接线：由 index.js 动态 import 加载；即时推进经 index 同步委托转供给 _repo 接线；边界：../shared 命名标题等 3 文件同名不同层归 S2 #452（此处合并引用），本文件只动 host 半。
 export function createNamingGuardian(deps) {
   const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh } = deps
   // ============ 命名守护（#265 · 草稿档垂直线 · host 半）============
   // 分工（#264 D2）：本侧为常驻轻量任务 —— 持跟踪态（落盘 .dsh-mattskillsdeck-cache/naming-guardian.json，
   // 写入方式与现缓存一致：platform.fs.resolve + fs.writeText）并维护状态；「待办改名计划单」经
-  // wf.namingPlan 供界面侧渲染钩子拉取。纯判定真源 = ../shared/naming-guardian.js（运行时 import，
+  // wf.namingPlan 供界面侧渲染钩子拉取。纯判定真源 = ../shared/naming-titles.js 等 3 个文件（运行时引用合并，
   // 与 check-catalog 同模式），本文件不含第二处命名实现。
   let _namingCore = null
   let _namingCoreInit = null
@@ -14,7 +14,7 @@ export function createNamingGuardian(deps) {
     if (_namingCore) return _namingCore
     if (!_namingCoreInit) {
       _namingCoreInit = (async function () {
-        try { const m = await import('../shared/naming-guardian.js'); _namingCore = m; return m } catch (e) { return null }
+        try { const ms = await Promise.all([import('../shared/naming-titles.js'), import('../shared/naming-tracking.js'), import('../shared/naming-attribution.js')]); _namingCore = Object.assign({}, ms[0], ms[1], ms[2]); return _namingCore } catch (e) { return null }
       })()
     }
     return _namingCoreInit

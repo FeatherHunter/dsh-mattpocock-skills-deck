@@ -1,5 +1,9 @@
 // tests/verify-naming-isolation-315.js — #315 隔离修复回归（草稿裸档抑制）
-import * as core from '../src/shared/naming-guardian.js';
+import * as namingTitles from '../src/shared/naming-titles.js';
+import * as namingTracking from '../src/shared/naming-tracking.js';
+import * as namingAttribution from '../src/shared/naming-attribution.js';
+// S2（#452）：命名共享核心已拆为 3 个文件，此处同时引用再合并。
+const core = Object.assign({}, namingTitles, namingTracking, namingAttribution);
 
 let failed = false;
 let total = 0;

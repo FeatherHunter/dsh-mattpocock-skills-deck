@@ -17,13 +17,19 @@ function check(ok, msg, detail) {
 }
 const eq = (a, b, msg) => check(a === b, msg, 'expected ' + JSON.stringify(b) + ', got ' + JSON.stringify(a))
 
-console.log('== 命名守护核心 naming-guardian.js（#265）==')
+console.log('== 命名守护核心 naming-titles/tracking/attribution.js（#265 · S2 #452 三文件合并）==')
 
 let m
 try {
-  m = await import('../src/shared/naming-guardian.js')
+  // S2（#452）：命名共享核心已拆为 3 个文件，此处同时引用再合并（与宿主半同做法）。
+  const [titlesMod, trackingMod, attributionMod] = await Promise.all([
+    import('../src/shared/naming-titles.js'),
+    import('../src/shared/naming-tracking.js'),
+    import('../src/shared/naming-attribution.js'),
+  ])
+  m = Object.assign({}, titlesMod, trackingMod, attributionMod)
 } catch (e) {
-  console.log('  FAIL import src/shared/naming-guardian.js — ' + String((e && e.message) || e))
+  console.log('  FAIL import naming-titles/tracking/attribution — ' + String((e && e.message) || e))
   process.exit(1)
 }
 
@@ -136,7 +142,7 @@ console.log('\n— 跟踪态 / 状态机 / 计划单 —')
 console.log('\n— 单一真源守卫 —')
 {
   const hostSrc = ['index.js', 'namingGuardian.js'].map((f) => readFileSync(join(ROOT, 'src/host', f), 'utf8')).join('\n') // #450 H6：命名 host 半已搬入 namingGuardian.js，此处读两文件拼合断言（注册仍在 index，体在新模块）
-  check(hostSrc.includes("import('../shared/naming-guardian.js')"), 'host 半运行时引用共享核心')
+  check(hostSrc.includes("import('../shared/naming-titles.js')") && hostSrc.includes("import('../shared/naming-tracking.js')") && hostSrc.includes("import('../shared/naming-attribution.js')"), 'host 半运行时引用共享核心三文件（引用合并）')
   for (const op of ['wf.namingRegister', 'wf.namingSignal', 'wf.namingPlan', 'wf.namingResult']) {
     check(hostSrc.includes("'" + op + "'"), 'host 注册操作 ' + op)
   }
@@ -151,9 +157,9 @@ console.log('\n— 单一真源守卫 —')
   check(hostSrc.includes('startNamingGuardianLoop()'), 'host 常驻轻量任务随 apply 启动')
 
   const buildSrc = readFileSync(join(ROOT, 'scripts/build.mjs'), 'utf8')
-  check(buildSrc.includes("'src/shared/naming-guardian.js'"), '构建登记 shared splice（client 半同源注入）')
+  check(buildSrc.includes("'src/shared/naming-titles.js'") && buildSrc.includes("'src/shared/naming-tracking.js'") && buildSrc.includes("'src/shared/naming-attribution.js'"), '构建登记 shared splice 三文件（client 半同源注入）')
   const clientIdx = readFileSync(join(ROOT, 'src/client/index.js'), 'utf8')
-  check(clientIdx.includes('// ==== shared:namingGuardian (spliced by build) ===='), 'client 闭包挂共享核心拼接标记')
+  check(clientIdx.includes('// ==== shared:namingTitles (spliced by build) ====') && clientIdx.includes('// ==== shared:namingTracking (spliced by build) ====') && clientIdx.includes('// ==== shared:namingAttribution (spliced by build) ===='), 'client 闭包挂共享核心三拼接标记')
   check(clientIdx.includes('startNamingGuardianPoll()'), 'client apply 启动常驻渲染钩子拉询')
 
   const apiSrc = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：api.js 已拆为三文件，此处读三文件拼起来的内容断言（naming 含命名守护全家与工厂，new-session 含 openTextInNewSession，io 含 openInNewSession/inject）
@@ -333,7 +339,7 @@ console.log('\n— #267 守卫断言 —')
     check(locG.split("'" + k + "':").length - 1 === 2, 'locale 双语配对键：' + k)
   }
 
-  const coreG = readFileSync(join(ROOT, 'src/shared/naming-guardian.js'), 'utf8')
+  const coreG = ['naming-titles.js', 'naming-tracking.js', 'naming-attribution.js'].map((f) => readFileSync(join(ROOT, 'src/shared', f), 'utf8')).join('\n') // S2（#452）：三文件拼合断言
   check(coreG.includes('export const NAMING_RETRY_MAX') && coreG.includes('export const NAMING_RETRY_COOLDOWN_MS'), '重试预算常量单一真源在共享核心')
   check(coreG.includes("kind: state.stage === NAMING_STAGES.NUMBERED ? 'numbered' : 'draft'"), '定败画像档位形态判定在核心')
 }

@@ -196,7 +196,7 @@
       return withWayfinderPrefix(body)
     }
     // 契约 #205 会话标题（[#n] + 清洗/截断 120 bytes 预算）与占位四式判定已迁至命名守护共享核心
-    // src/shared/naming-guardian.js（#265 · 单一真源；构建时经 shared:namingGuardian splice 拼入本闭包）。
+    // src/shared/naming-titles.js 等 3 个文件（#265 · 单一真源；构建时经 shared:namingTitles 等 3 个 splice 拼入本闭包）。
     // 本文件不再声明任何命名真源：SESSION_TITLE_* / isNewPlaceholderTitle / newSessionTitleNew /
     // cleanTitleText / utf8Bytes / truncateTitleUtf8 / newSessionTitle 均以上述共享核心为准。
     // v1.5 T6：新增 wayfinder prompt —— /wayfinder + 仓库信息 + 需求引导（用户拍板：prompt 带仓库信息）

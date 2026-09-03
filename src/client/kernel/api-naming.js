@@ -132,7 +132,7 @@ export let pendingDraftTargetSid = null
     // ============ 命名守护（#265 · 草稿档垂直线 · 界面半渲染钩子）============
     // 分工（#264 D2）：host 常驻轻量任务持跟踪态并产出「待办改名计划单」（wf.namingPlan）；
     // 本侧只做渲染钩子 —— 拉取计划单、按本机语言落地档位词、经会话门面（face.rename）执行改名、回报结果。
-    // 纯判定真源 = src/shared/naming-guardian.js（构建经 shared:namingGuardian splice 注入本闭包，无第二处实现）。
+    // 纯判定真源 = src/shared/naming-titles.js 等 3 个文件（构建经 shared:namingTitles 等 3 个 splice 注入本闭包，无第二处实现）。
     // 旧 #211 的 5 秒手改跳过标记（死代码）自本版起全面移除：手改保护由值比对锁真检测承担。
     export const NAMING_POLL_MS = 5000
     let _namingPollTimer = null
