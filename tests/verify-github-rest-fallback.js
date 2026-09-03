@@ -28,7 +28,7 @@ check(src.includes('repairParentLinksREST'), 'issues.js 含 repairParentLinksRES
 check(src.includes('applyIssueFilter'), 'issues.js 含 applyIssueFilter（两路共用过滤）')
 const normSrc = readFileSync(resolve(ROOT, 'src/host/tracker/backends/github/normalize.js'), 'utf8')
 check(normSrc.includes('html_url'), 'normalize.js 优先 html_url（REST 展示地址）')
-const probeSrc = readFileSync(resolve(ROOT, 'src/client/kernel/probe.js'), 'utf8')
+const probeSrc = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map((f) => readFileSync(resolve(ROOT, f), 'utf8')).join('\n') // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言
 check(!probeSrc.includes('sanitizeIssueUrls') && !probeSrc.includes('api\\.github\\.com'), '客户端 kernel 不含 github 专属 url 归一（后端无关，UI 零耦合）')
 
 // ---------- 2) 行为断言（stub 双路）----------

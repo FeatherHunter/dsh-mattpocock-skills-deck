@@ -3,7 +3,7 @@
 const fs = require('fs');
 let failed = false;
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true; };
-const probe = fs.readFileSync('src/client/kernel/probe.js', 'utf8');
+const probe = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n'); // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言
 check(probe.includes('_shouldReuse = !force || _pend.force === true'), 'probe dedup distinguishes force');
 check(probe.includes('force: !!force'), 'pending entry stores force flag');
 check(probe.includes('cur && cur.promise===p'), 'pending delete is safe');

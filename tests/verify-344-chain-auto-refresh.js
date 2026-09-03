@@ -15,7 +15,7 @@ console.log('== #344 修复验证 ==');
 // 1. client probe 自动重求值存在
 console.log('\n— client 链自动重求值 —');
 try{
-  const probeSrc = readFileSync('src/client/kernel/probe.js','utf8');
+  const probeSrc = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map((f) => readFileSync(f,'utf8')).join('\n'); // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言
   check(probeSrc.includes('CHAIN_AUTO_POLL_MS'), 'probe.js 定义 CHAIN_AUTO_POLL_MS');
   check(probeSrc.includes('scheduleChainAutoRefresh'), 'probe.js 导出 scheduleChainAutoRefresh');
   check(probeSrc.includes('cancelChainAutoRefresh'), 'probe.js 导出 cancelChainAutoRefresh');

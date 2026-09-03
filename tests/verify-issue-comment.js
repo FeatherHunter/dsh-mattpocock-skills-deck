@@ -14,7 +14,7 @@ const host = fs.readFileSync('host.js', 'utf8')
 const phost = fs.readFileSync('package/lib/index.js', 'utf8')
 const detailSrc = fs.readFileSync('src/client/views/IssueDetail.js', 'utf8')
 const apiSrc = fs.readFileSync('src/client/kernel/api.js', 'utf8')
-const probeSrc = fs.readFileSync('src/client/kernel/probe.js', 'utf8')
+const probeSrc = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言（本变量仅作源存在性 tripwire，行为断言走构建产物）
 const localeSrc = fs.readFileSync('src/client/kernel/locale.js', 'utf8')
 
 // ============ host 透传存在性（唯一宿主改动）============

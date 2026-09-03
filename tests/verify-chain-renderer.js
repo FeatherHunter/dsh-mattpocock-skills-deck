@@ -93,7 +93,7 @@ const rendererBody = cr.slice(cr.indexOf('export const ChainRenderer'), cr.index
 check(!rendererBody.includes('h(ChainForm'), 'ChainRenderer 不再内嵌 ChainForm（#308 form 改走 modal-seat）')
 const ctForForm = file('src/client/views/ChecksTab.js')
 check(ctForForm.includes('FormModalSeat') || ctForForm.includes('ensureFormModal'), 'ChecksTab 接入 FormModalSeat（form 走弹窗）')
-const srForForm = file('src/client/kernel/slotRenderer.js')
+const srForForm = ['src/client/kernel/slotRenderer-queue.js','src/client/kernel/slotRenderer-repo-sync.js','src/client/kernel/slotRenderer-modal-view.js'].map(file).join('\n') // 顺带 454 遗留：slotRenderer.js 已拆为三文件，读三文件拼起来的内容断言
 check(srForForm.includes('FormModalSeat') && srForForm.includes('dsws-modal'), 'slotRenderer 含 FormModalSeat 弹窗（含 .dsws-modal）')
 
 console.log('')
@@ -126,7 +126,7 @@ check(!listTab.includes('h(NoRepoCard'), 'ListTab 已移除全屏红卡挂载（
 
 console.log('')
 console.log('-- 7) 重求值联动 --')
-const probe = file('src/client/kernel/probe.js')
+const probe = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map(file).join('\n') // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言
 check(probe.includes('loadChain'), 'probe 含 loadChain')
 check(probe.includes('wf.chain'), 'probe 调用 wf.chain')
 check(probe.includes('loadChain(st, true') , 'refreshAll 联动 loadChain')

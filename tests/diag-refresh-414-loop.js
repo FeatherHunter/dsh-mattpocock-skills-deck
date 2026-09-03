@@ -17,7 +17,7 @@ function check(cond, msg){
 function must(cond, msg){ check(cond, msg); if(!cond) process.exitCode=1; }
 
 const hostSrc = readFileSync(resolve(ROOT,'src/host/index.js'),'utf8');
-const probeSrc = readFileSync(resolve(ROOT,'src/client/kernel/probe.js'),'utf8');
+const probeSrc = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map((f) => readFileSync(resolve(ROOT,f),'utf8')).join('\n'); // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言
 const checksumSrc = readFileSync(resolve(ROOT,'src/client/statusbar/checksums.js'),'utf8');
 console.log('=== 文件断言 ===');
 // isForce 守卫

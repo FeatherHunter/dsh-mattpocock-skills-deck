@@ -26,9 +26,11 @@ const skillProbeChunk = txt.slice(skillProbeIdx, skillProbeEnd + 200);
 assert(!skillProbeChunk.includes('backendModules'), '#214: skillProbe must NOT contain backendModules (was mis-scoped cause of ReferenceError)');
 
 // buildSnapshot must contain let backendModules
-const bsIdx = txt.indexOf('async function buildSnapshot');
-const bsEnd = txt.indexOf('return {\n        ok: true,', bsIdx);
-const bsChunk = txt.slice(bsIdx, bsEnd + 5000);
+// H2 #446：buildSnapshot 已搬到 src/host/issueDetail.js（行为零变化），断言跟随代码位置，意图不变。
+const bsSrc = fs.readFileSync(path.join(__dirname, '../src/host/issueDetail.js'), 'utf8').replace(/\r\n/g, '\n');
+const bsIdx = bsSrc.indexOf('async function buildSnapshot');
+const bsEnd = bsSrc.indexOf('return {\n        ok: true,', bsIdx);
+const bsChunk = bsSrc.slice(bsIdx, bsEnd + 5000);
 assert(bsChunk.includes('let backendModules = null'), '#214: buildSnapshot must define let backendModules = null in its own scope');
 assert(bsChunk.includes('backendModules = regM.modules().map'), '#214: buildSnapshot must compute backendModules from registry');
 assert(bsChunk.includes('backendModules: backendModules'), '#214: snapshot must return backendModules');
@@ -61,15 +63,13 @@ assert(txt.includes("if (changed) cache = { ts: 0, snapshot: null"), '#213: prob
 assert(txt.includes("harness.handle('wf.probe'"), '#213: wf.probe handler exists');
 
 // Client side check
-const probePath = path.join(__dirname, '../src/client/kernel/probe.js');
-const probeTxt = fs.readFileSync(probePath, 'utf8');
+const probeTxt = ['../src/client/kernel/probe-chain.js','../src/client/kernel/probe-snapshot.js','../src/client/kernel/probe-auto.js'].map((rel) => fs.readFileSync(path.join(__dirname, rel), 'utf8')).join('\n'); // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言
 assert(probeTxt.includes('PROBE_MS = 60000') || probeTxt.includes('PROBE_MS'), '#213: client probe interval defined');
 assert(probeTxt.includes('refreshGroup') && probeTxt.includes('loadSnapshot'), '#213: client refreshGroup calls loadSnapshot on probe changed (incremental, not full page)');
 
 const hostTxt2 = fs.readFileSync(hostPath, 'utf8');
 assert(hostTxt2.includes("gh-create"), '#213: host handles gh-create for incremental refresh');
-const storePath = path.join(__dirname, '../src/client/kernel/store.js');
-const storeTxt = fs.readFileSync(storePath, 'utf8');
+const storeTxt = ['../src/client/kernel/store-prefs.js','../src/client/kernel/store-switch.js','../src/client/kernel/store-snapshot.js','../src/client/kernel/store-derived.js'].map((rel) => fs.readFileSync(path.join(__dirname, rel), 'utf8')).join('\n'); // 顺带 455 遗留：store.js 已拆为四文件（同 verify-issue232-sync 模式），读四文件拼起来的内容断言
 assert(storeTxt.includes('needProbe') && storeTxt.includes('scheduleActionProbe'), '#213: client triggers probe on gh-create/gh-edit (pollIssuePathHost)');
 
 if (failures.length) {
