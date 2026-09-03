@@ -1,6 +1,6 @@
-// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 20 模块契约验证（#444 对齐后基准 + #454 K1 拆分 + #455 K2 拆分）
+// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 22 模块契约验证（#444 对齐后基准 + #454 K1 拆分 + #455 K2 拆分 + #456 K3 拆分）
 // 验证：
-//   1) kernel 20 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表 + #444 对齐新增 backendList/link/slots/slotRenderer，其中 slotRenderer 经 #454 拆为 queue/repo-sync/modal-view 三文件，store 经 #455 拆为 prefs/switch/snapshot/derived 四文件）
+//   1) kernel 22 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表 + #444 对齐新增 backendList/link/slots/slotRenderer，其中 slotRenderer 经 #454 拆为 queue/repo-sync/modal-view 三文件，store 经 #455 拆为 prefs/switch/snapshot/derived 四文件，probe 经 #456 拆为 chain/snapshot/auto 三文件）
 //   2) 构建产物（_dev client.js / _pkg package/lib/client.js）已拼接全部模块（一源两物 · 无标记残留）
 //   3) 双产物模块段关键特征一致（行为零变化证明）
 //   4) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-ctx 同口径）
@@ -22,7 +22,9 @@ const MODULES = [
   { name: 'storeSwitch', file: 'store-switch', exports: ['labelOf', 'presentationById', 'setPresentationMap', 'backendColorOf', 'backendBgOf', 'backendBorderOf', 'repoShortName', 'DEFAULT_SWITCH_PROMPT_ZH', 'openSwitchConfirm', 'closeSwitchConfirm', 'loadSwitchCri', 'confirmSwitchConfirm', 'clearBackendBinding'] },
   { name: 'storeSnapshot', file: 'store-snapshot', exports: ['makeStore', 'shared', 'stores', 'storeOf', 'emit', 'sub', 'useStore', 'SNAP_CWD_LRU_MAX', 'snapshotByCwd', 'touchLRUClient', 'getCachedSnapshot', 'getCachedEntry', 'setCachedSnapshot', 'getSnapshotVersion', 'lastProbeAtByCwd', 'getProbeAt', 'touchProbeAt', 'SNAP_DISK_CAP', 'diskPutSnapshot', 'diskGetSnapshot', 'CHAIN_CWD_LRU_MAX', 'chainByCwd', 'getChainCacheKey', 'getCachedChain', 'setCachedChain', 'hydrateFromCache', 'mergeSelection', 'applySnapshotSelection', 'getCwdSync', 'NOTICE_COLOR', 'noticeIcon', 'flash'] },
   { name: 'storeDerived', file: 'store-derived', exports: ['compute', 'frontierAll', 'openIssuesOf', 'isOccupied', 'occCount', 'frontierCount', 'hasLabelOf', 'isTriageLike', 'bugCount', 'triageCount', 'buildColorOf', 'isLightHex', 'actionColorOf', 'rowActionText', 'mkRowAction', 'timeStampStr'] },
-  { name: 'probe', exports: ['loadChain', 'chainSteps', 'chainStep', 'readyCount', 'envTotal', 'envLabel', 'setupCheck', 'loadSnapshot', 'probeNow', 'startAutoProbe', 'refreshAll', 'diffSnapshots', 'snapFresh', 'broadcastCfg'] },
+  { name: 'probeChain', file: 'probe-chain', exports: ['scheduleChainAutoRefresh', 'cancelChainAutoRefresh', 'loadChain', 'chainSteps', 'chainStep', 'chainStepStatus', 'chainStepOk', 'chainStepBad', 'readyCount', 'envTotal', 'envLabel', 'setupCheck', 'openBlockers', 'blockerNames', 'detectCwd'] },
+  { name: 'probeSnapshot', file: 'probe-snapshot', exports: ['pendingSnapshotByCwd', 'hexA', 'darken', 'nowStr', 'timeOf', 'timeOfMs', 'broadcastCfg', 'diffSnapshots', '_flashClearPending', 'scheduleFlashClear', 'loadSnapshot'] },
+  { name: 'probeAuto', file: 'probe-auto', exports: ['PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'lastFocusProbe', '_actionProbePending', 'probeNow', 'scheduleActionProbe', 'startAutoProbe', 'spinAll', 'refreshAll', 'SNAP_FRESH_MS', 'snapFresh'] },
   { name: 'router', exports: ['openPagePanel', 'openDockPanel', 'openPanel', 'togglePanel', 'ensureSidebarTab', 'repoStr', 'startText', 'newWayfinderText', 'newBugWayfinderText'] },
   { name: 'api', exports: ['injectFixate', 'probeHandoffReady', 'doHandoff', 'doHandoffOpen', 'openTextInNewSession', 'inject', 'copyText', 'pendingDraft'] },
   { name: 'actions', exports: ['createActionDispatcher', 'ACTIONS_VERSION'] },

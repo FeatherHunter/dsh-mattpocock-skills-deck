@@ -187,7 +187,9 @@ export default {
 
     // ---- 环境检查链（#228/#284 · host.call('wf.chain')；通用链 + 后端链全链快照）----
     // #284：九格目录视图（wf.status/checks）退役，读数点位全部改从链快照派生
-    // ==== kernel:probe (spliced by build) ====
+    // ==== kernel:probeChain (spliced by build) ====
+    // ==== kernel:probeSnapshot (spliced by build) ====
+    // ==== kernel:probeAuto (spliced by build) ====
     // 打开形式（#373 用户拍板 2026-08-14）：仅右侧 details 列（停靠）一种形式。
     //   已移除：① Document PiP 独立小窗（Electron 无法创建 PiP 窗口、曾致桌面卡死 —— 代码不再含 pip 形态）；
     //   ② 停靠/悬浮双模式记忆（PANEL_MODE_KEY）；③ 状态栏「停靠」seg 与右栏「悬浮」按钮。

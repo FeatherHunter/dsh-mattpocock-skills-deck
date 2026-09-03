@@ -201,7 +201,9 @@ const KERNEL_MODULES = [
   { name: 'slotRendererQueue', file: 'src/client/kernel/slotRenderer-queue.js' },
   { name: 'slotRendererRepoSync', file: 'src/client/kernel/slotRenderer-repo-sync.js' },
   { name: 'slotRendererModalView', file: 'src/client/kernel/slotRenderer-modal-view.js' },
-  { name: 'probe', file: 'src/client/kernel/probe.js' },
+  { name: 'probeChain', file: 'src/client/kernel/probe-chain.js' },
+  { name: 'probeSnapshot', file: 'src/client/kernel/probe-snapshot.js' },
+  { name: 'probeAuto', file: 'src/client/kernel/probe-auto.js' },
   { name: 'router', file: 'src/client/kernel/router.js' },
 ]
 

@@ -48,7 +48,7 @@ else {
 
 // 全库仅一份归一实现：除 workspaceKey.js 外，不应再出现 toLowerCase + replace(\)
 console.log('\n2) 归一函数全库仅一份（重复定义清零）')
-const kernelFiles = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js','src/client/kernel/probe.js','src/client/kernel/api.js','src/client/panel/Dock.js'] // #455 K2：store.js 已拆为四文件，逐文件扫描
+const kernelFiles = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js','src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js','src/client/kernel/api.js','src/client/panel/Dock.js'] // #456 K3：probe.js 已拆为三文件，逐文件扫描
 const dupPattern = /\.toLowerCase\(\)\.replace\(.*\\\\/
 let dupCount = 0
 for (const rel of kernelFiles) {
@@ -72,7 +72,7 @@ else bad('发现 '+dupCount+' 处重复归一实现（应仅 workspaceKey.js 有
 
 // 检查旧的 normKeyClient / normCwdClientProbe 定义已移除
 console.log('\n3) 旧归一别名已移除')
-for (const rel of ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js','src/client/kernel/probe.js']) { // #455 K2：store.js 已拆为四文件，逐文件断言
+for (const rel of ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js','src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js']) { // #456 K3：probe.js 已拆为三文件，逐文件断言
   const txt = read(rel)
   if (/export const normKeyClient/.test(txt)) bad(rel+' 仍含 normKeyClient 定义（应删除）')
   else ok(rel+' 无 normKeyClient')
@@ -90,9 +90,9 @@ const checks = [
   ['src/client/kernel/store-prefs.js', /getCachedRepository.*keyOf/, 'getCachedRepository 按 keyOf'],
   ['src/client/kernel/store-snapshot.js', /getCachedChain.*keyOf|getChainCacheKey/, 'getCachedChain 存在且按 keyOf'],
   ['src/client/kernel/store-snapshot.js', /chainByCwd/, 'chainByCwd 共享缓存存在'],
-  ['src/client/kernel/probe.js', /pendingSnapshotByCwd.*keyOf|keyOf.*pendingSnapshotByCwd/, 'pendingSnapshotByCwd 按 keyOf'],
-  ['src/client/kernel/probe.js', /_chainInflightByCwd.*keyOf|getChainCacheKey/, '_chainInflightByCwd 按 keyOf+backendId'],
-  ['src/client/kernel/probe.js', /keyOf.*cwd.*\|.*backendId|getChainCacheKey/, '链键含 backendId'],
+  ['src/client/kernel/probe-snapshot.js', /pendingSnapshotByCwd.*keyOf|keyOf.*pendingSnapshotByCwd/, 'pendingSnapshotByCwd 按 keyOf'],
+  ['src/client/kernel/probe-chain.js', /_chainInflightByCwd.*keyOf|getChainCacheKey/, '_chainInflightByCwd 按 keyOf+backendId'],
+  ['src/client/kernel/probe-chain.js', /keyOf.*cwd.*\|.*backendId|getChainCacheKey/, '链键含 backendId'],
   ['src/client/kernel/store-snapshot.js', /snapshotByCwd/, 'snapshotByCwd 存在'],
 ]
 for (const [rel, re, msg] of checks) {
@@ -102,12 +102,12 @@ for (const [rel, re, msg] of checks) {
 
 // 5) 扇出分组按归一键
 console.log('\n5) 探针扇出按归一键分组')
-if (has('src/client/kernel/probe.js', /keyOf\(shared\.cwd/) && has('src/client/kernel/probe.js', /keyOf\(st\.cwd/) && has('src/client/kernel/probe.js', /keyOf\(cwd\)/)) {
+if (has('src/client/kernel/probe-auto.js', /keyOf\(shared\.cwd/) && has('src/client/kernel/probe-auto.js', /keyOf\(st\.cwd/) && has('src/client/kernel/probe-auto.js', /keyOf\(cwd\)/)) {
   ok('refreshGroup 与 cwds 去重均使用 keyOf')
 } else bad('refreshGroup 未完全按 keyOf 分组')
-if (has('src/client/kernel/probe.js', /cwdsByNorm/)) ok('cwds 按归一键去重（cwdsByNorm）')
+if (has('src/client/kernel/probe-auto.js', /cwdsByNorm/)) ok('cwds 按归一键去重（cwdsByNorm）')
 else bad('cwds 去重未按归一键')
-if (read('src/client/kernel/probe.js').includes('shared.cwd === cwd') && !read('src/client/kernel/probe.js').includes('keyOf(shared.cwd)')) {
+if (read('src/client/kernel/probe-auto.js').includes('shared.cwd === cwd') && !read('src/client/kernel/probe-auto.js').includes('keyOf(shared.cwd)')) {
   // 若仍存在直接 === 且无 keyOf，则为旧缺陷
   bad('仍存在 shared.cwd === cwd 直接比较（应为 keyOf 相等）')
 } else ok('无直接 shared.cwd === cwd 严格相等分组缺陷')
@@ -216,7 +216,7 @@ testDedup()
 console.log('\n10) 加载态治理（缓存优先、静默刷新）')
 if (has('src/client/kernel/router.js', /getCachedSnapshot/)) ok('router 使用 getCachedSnapshot 判定 hasCache')
 else bad('router 未使用 getCachedSnapshot')
-if (has('src/client/kernel/probe.js', /hasCache.*silent|silent.*hasCache/) || read('src/client/kernel/probe.js').includes("if (force && !silent && !hasCache)")) ok('loadSnapshot 仅无缓存时可见 loading（hasCache 则静默）')
+if (has('src/client/kernel/probe-snapshot.js', /hasCache.*silent|silent.*hasCache/) || read('src/client/kernel/probe-snapshot.js').includes("if (force && !silent && !hasCache)")) ok('loadSnapshot 仅无缓存时可见 loading（hasCache 则静默）')
 else bad('loadSnapshot 加载态判定缺失')
 
 console.log('\n=== 汇总 ===')
