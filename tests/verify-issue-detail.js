@@ -7,6 +7,9 @@ const cli = fs.readFileSync('client.js','utf8')
 const pcli = fs.readFileSync('package/lib/client.js','utf8')
 const host = fs.readFileSync('host.js','utf8')
 const phost = fs.readFileSync('package/lib/index.js','utf8')
+// H2 #446：详情实现搬到 issueDetail.js（行为零变化）；双通道存在性断言跟随位置，意图不变。
+const hostDetail = fs.readFileSync('src/host/issueDetail.js','utf8')
+const hostSide = host + hostDetail
 const mdCli = (()=>{ const i=cli.indexOf('const MD_LINK_RE'); const e=cli.indexOf('// ============================================================', i+10); return e>i?cli.slice(i,e):cli.slice(i,i+9000) })()
 
 // —— host 双通道存在性
@@ -17,16 +20,16 @@ check(host.includes('async function fetchIssueDetailREST('), 'host 含 fetchIssu
 check(host.includes("harness.handle('wf.issueComments'"), 'host 含 wf.issueComments handle')
 check(host.includes('async function fetchIssueComments('), 'host 含 fetchIssueComments')
 check(host.includes('async function fetchIssueCommentsREST('), 'host 含 fetchIssueCommentsREST')
-check(host.includes("comments(first:50){nodes{author{login}"), 'host GraphQL 含 comments(first:50) with author')
-check(host.includes("pageInfo{hasNextPage endCursor}"), 'host GraphQL 含 pageInfo{hasNextPage endCursor}')
-check(host.includes("labels(first:20){nodes{name color}}"), 'host GraphQL 含 labels color')
-check(host.includes("blockedBy(first:20){nodes{number title state}}"), 'host GraphQL 含 blockedBy')
+check(hostSide.includes("comments(first:50){nodes{author{login}"), 'host GraphQL 含 comments(first:50) with author')
+check(hostSide.includes("pageInfo{hasNextPage endCursor}"), 'host GraphQL 含 pageInfo{hasNextPage endCursor}')
+check(hostSide.includes("labels(first:20){nodes{name color}}"), 'host GraphQL 含 labels color')
+check(hostSide.includes("blockedBy(first:20){nodes{number title state}}"), 'host GraphQL 含 blockedBy')
 
 // —— REST 降级逐请求容错
-check(host.includes("repos/' + repo.owner + '/' + repo.name + '/issues/' + n") || host.includes("repos/' + repo.owner"), 'host REST 含 issues/{n} 路径')
-check(host.includes("/comments?per_page=50"), 'host REST 含 comments per_page 50')
-check(host.includes("/sub_issues?per_page=50"), 'host REST 含 sub_issues')
-check(host.includes("/dependencies/blocked_by"), 'host REST 含 blocked_by')
+check(hostSide.includes("repos/' + repo.owner + '/' + repo.name + '/issues/' + n") || hostSide.includes("repos/' + repo.owner"), 'host REST 含 issues/{n} 路径')
+check(hostSide.includes("/comments?per_page=50"), 'host REST 含 comments per_page 50')
+check(hostSide.includes("/sub_issues?per_page=50"), 'host REST 含 sub_issues')
+check(hostSide.includes("/dependencies/blocked_by"), 'host REST 含 blocked_by')
 
 // —— 错误形状 7 档
 const kinds = ['env','parse','graphql','network','rateLimit','notFound','404']

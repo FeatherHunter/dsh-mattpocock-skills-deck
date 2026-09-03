@@ -24,8 +24,15 @@ const norm = function (s) { return s.replace(/\s+/g, '') }
 console.log('B5 + R2: GraphQL 配额止血（跨 repo 隔离 + REST 降级）+ since 探测（#2 MVP）')
 
 // ---- host 侧（host.js + package/lib/index.js）----
+// H2 #446：拉取与快照实现搬到 issueList.js / issueDetail.js（行为零变化）；断言读“宿主侧 bundle”（入口 + 两新文件拼合），意图不变。
+const sideSrc = (f) => {
+  const base = fs.readFileSync(f, 'utf8')
+  const pkg = f.indexOf('package/') >= 0
+  const extra = pkg ? ['package/lib/issueList.js', 'package/lib/issueDetail.js'] : ['src/host/issueList.js', 'src/host/issueDetail.js']
+  return base + '\n' + extra.map((p) => { try { return fs.readFileSync(p, 'utf8') } catch (e) { return '' } }).join('\n')
+}
 for (const f of ['host.js', 'package/lib/index.js']) {
-  const src = fs.readFileSync(f, 'utf8')
+  const src = sideSrc(f)
   const tag = f.indexOf('package/') >= 0 ? 'pkg' : 'cli'
 
   // 1) since 时间戳按 repoKey 隔离（双源）：probe 跨 repo 不互串

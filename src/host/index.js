@@ -95,98 +95,35 @@ export default {
     try { _boot().catch(function(){}) } catch (e0) {}
     try { _plat().then(function(pl){ try { pl.getTrackerRegistry().catch(function(){}) } catch (e1) {} }).catch(function(){}) } catch (e2) {}
 
-    // ============ 数据流 ============
-    // T16：正文预处理 —— 剥 BOM + 字面 \n 还原为真实换行（历史坏格式 body 也能解析）
-    //   触发条件：真实换行极少而字面 \n 大量存在（整篇被压成一行）；避免误伤正常正文
-    function normalizeBody(raw) {
-      let s = String(raw || '').replace(/^\uFEFF/, '')
-      const realNL = (s.match(/\n/g) || []).length
-      const literalNL = (s.match(/\\n/g) || []).length
-      if (realNL < 2 && literalNL > 0) {
-        s = s.replace(/\\n/g, '\n')
-      }
-      return s
-    }
-    function parseMapBody(body) {
-      const out = { destination: '', notes: '', decisions: [], fog: [], outOfScope: [] }
-      if (!body) return out
-      const sec = {}
-      const lines = normalizeBody(body).split(/\r?\n/)
-      let cur = null
-      for (let i = 0; i < lines.length; i++) {
-        const m = lines[i].match(/^##\s+(.+?)\s*$/)
-        if (m) { cur = m[1]; sec[cur] = sec[cur] || []; continue }
-        if (cur) sec[cur].push(lines[i])
-      }
-      const clean = function (arr) { return (arr || []).map(function (s) { return s.trim() }).filter(Boolean) }
-      out.destination = clean(sec['Destination']).join(' ')
-      out.notes = clean(sec['Notes']).join(' ')
-      out.decisions = clean(sec['Decisions so far']).filter(function (l) { return l.indexOf('- [') === 0 }).map(function (l) {
-        const t = l.match(/\[(.+?)\]\((.+?)\)/)
-        const g = l.replace(/^-\s*\[.+?\]\(.+?\)\s*[-–—]?\s*/, '')
-        return { title: t ? t[1] : l, url: t ? t[2] : '', gist: g }
-      })
-      out.fog = clean(sec['Not yet specified']).filter(function (l) { return l.indexOf('<!--') !== 0 })
-      out.outOfScope = clean(sec['Out of scope']).filter(function (l) { return l.indexOf('<!--') !== 0 })
-      return out
-    }
+    // ---- H2 #446 接线：3 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
+    // 留守（行为零变化优先；调用方在 H4/H5/H6 的同步上下文里，动态加载给不出同步函数）：
+    //   computeLevels/groupTickets（H4 三处同步分组）、isRateLimitError（H5 三处同步判别）、
+    //   issueIndexFromSnapshot/issueIndexChanged/rememberIssueIndex（H6 探测同步取值与同刻写表）。
+    let _mapBodyP = null
+    function _mapBody() { if (!_mapBodyP) _mapBodyP = import('./mapBody.js').then(function(m){ return m.createMapBody() }); return _mapBodyP }
+    let _issueListP = null
+    function _issueList() { if (!_issueListP) _issueListP = (async function(){ const mod = await import('./issueList.js'); return mod.createIssueList({ getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, setCache: function(v){ cache = v }, issueIndexFromSnapshot: issueIndexFromSnapshot, issueIndexChanged: issueIndexChanged, rememberIssueIndex: rememberIssueIndex }) })(); return _issueListP }
+    let _issueDetailP = null
+    function _issueDetail() { if (!_issueDetailP) _issueDetailP = (async function(){ const mod = await import('./issueDetail.js'); const mb = await _mapBody(); return mod.createIssueDetail({ getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, execProc: function(){ return execProc.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getDetectionService: function(){ return getDetectionService.apply(null, arguments) }, getRepoRoot: function(){ return getRepoRoot.apply(null, arguments) }, ctx: ctx, timer: timer, getGhPath: function(){ return ghPath }, getGhLastError: function(){ return ghLastError }, fetchIssues: function(){ return fetchIssues.apply(null, arguments) }, fetchMapsDetailREST: function(){ return fetchMapsDetailREST.apply(null, arguments) }, mapTicket: mb.mapTicket, parseMapBody: mb.parseMapBody, computeLevels: computeLevels, groupTickets: groupTickets, isRateLimitError: isRateLimitError }) })(); return _issueDetailP }
+    // ---- H2 #446 委托：原函数名与签名不变，外部调用方零改动 ----
+    async function normalizeBody() { const h = await _mapBody(); return h.normalizeBody.apply(h, arguments) }
+    async function parseMapBody() { const h = await _mapBody(); return h.parseMapBody.apply(h, arguments) }
+    async function parseProgress() { const h = await _mapBody(); return h.parseProgress.apply(h, arguments) }
+    async function mapTicket() { const h = await _mapBody(); return h.mapTicket.apply(h, arguments) }
+    async function fetchMaps() { const h = await _issueList(); return h.fetchMaps.apply(h, arguments) }
+    async function fetchAllIssuesManual() { const h = await _issueList(); return h.fetchAllIssuesManual.apply(h, arguments) }
+    async function fetchAllIndexManual() { const h = await _issueList(); return h.fetchAllIndexManual.apply(h, arguments) }
+    async function fetchIssues() { const h = await _issueList(); return h.fetchIssues.apply(h, arguments) }
+    async function fetchIssueIndex() { const h = await _issueList(); return h.fetchIssueIndex.apply(h, arguments) }
+    async function cacheSnapshotIsCurrent() { const h = await _issueList(); return h.cacheSnapshotIsCurrent.apply(h, arguments) }
+    async function adoptSnapshot() { const h = await _issueList(); return h.adoptSnapshot.apply(h, arguments) }
+    async function fetchMapsDetailREST() { const h = await _issueList(); return h.fetchMapsDetailREST.apply(h, arguments) }
+    async function fetchMapsDetail() { const h = await _issueDetail(); return h.fetchMapsDetail.apply(h, arguments) }
+    async function fetchIssueDetailREST() { const h = await _issueDetail(); return h.fetchIssueDetailREST.apply(h, arguments) }
+    async function fetchIssueDetail() { const h = await _issueDetail(); return h.fetchIssueDetail.apply(h, arguments) }
+    async function buildSnapshot() { const h = await _issueDetail(); return h.buildSnapshot.apply(h, arguments) }
 
-    // v1.5 T12 修订（B4）：进度块解析三级锚定 —— 进度区 = 契约固定章节「## 进度：N%」，先锚定标题行，防正文示例/规则文本劫持（#459/#460 实证）
-    //   1) 标题行：## 进度：90%（行首 markdown 标题 · 进度区正形）
-    //   2) 行首变体：进度：90% / Progress: 90%（无标题符号 · 兑现注释承诺）
-    //   3) 全文兜底：任意出现（兼容老票随手格式 · 放最后不劫持前两层）
-    function parseProgress(body) {
-      if (!body) return null
-      const s = String(body)
-      const m = s.match(/^\s*#{1,6}\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
-        || s.match(/^\s*(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/im)
-        || s.match(/(?:进度|Progress)\s*[：:]\s*(\d{1,3})\s*%/i)
-      if (!m) return null
-      const n = parseInt(m[1], 10)
-      if (isNaN(n)) return null
-      return Math.max(0, Math.min(100, n))
-    }
-
-    // 客户端契约：state 按旧链路大写 OPEN/CLOSED（mapTicket 曾如此）；composer 归一为小写 open/closed，
-    //   在此适配层统一升格，避免客户端把全部 closed 误判为 open（#327 面板“0 已关闭/大量错误状态”根因）。
-    const upcaseState = function (s) { return String(s || '').toUpperCase() === 'CLOSED' ? 'CLOSED' : 'OPEN' }
-    const upcaseSnapStates = function (inner) {
-      if (!inner || typeof inner !== 'object') return inner
-      ;(inner.maps || []).forEach(function (m) {
-        m.state = upcaseState(m.state)
-        ;(m.tickets || []).forEach(function (t) {
-          t.state = upcaseState(t.state)
-          if (Array.isArray(t.blockedBy)) t.blockedBy.forEach(function (b) { if (b && typeof b === 'object' && b.state != null) b.state = upcaseState(b.state) })
-          if (Array.isArray(t.blocking)) t.blocking.forEach(function (b) { if (b && typeof b === 'object' && b.state != null) b.state = upcaseState(b.state) })
-        })
-      })
-      ;(inner.issues || []).forEach(function (it) { it.state = upcaseState(it.state) })
-      return inner
-    }
-
-    function mapTicket(raw) {
-      const labels = ((raw.labels && raw.labels.nodes) || []).map(function (x) { return x.name })
-      let type = 'other'
-      for (let i = 0; i < labels.length; i++) {
-        if (labels[i].indexOf('wayfinder:') === 0) { type = labels[i].slice('wayfinder:'.length) || 'other'; break }
-      }
-      const as = (raw.assignees && raw.assignees.nodes) || []
-      return {
-        number: raw.number, title: raw.title, type: type,
-        state: raw.state === 'CLOSED' ? 'CLOSED' : 'OPEN',
-        claimedBy: as.length ? as[0].login : '',
-        blockedBy: ((raw.blockedBy && raw.blockedBy.nodes) || []).map(function (b) { return b.number }),
-        blocks: ((raw.blocking && raw.blocking.nodes) || []).map(function (b) { return b.number }),
-        labels: labels, url: raw.url,
-        progress: parseProgress(raw.body),  // v1.5 T12：issue 正文进度块（## 进度：N%），null = 未表达
-        author: (raw.author && raw.author.login) ? { login: raw.author.login, name: (raw.author.name || ''), avatarUrl: (raw.author.avatarUrl || raw.author.avatar_url || '') } : (raw.user && raw.user.login ? { login: raw.user.login, avatarUrl: raw.user.avatar_url || '' } : undefined),
-      }
-    }
-
-    // v1.4（T1 #442）：blockedBy DAG 最长路径深度分层
-    //   level(root) = 0（无依赖）；level(x) = 1 + max(level(所有直接阻塞者))
-    //   同层 = 无依赖互斥 → 可并行；层间 = 必须串行（上层全 closed 才解锁）
-    //   返回 { byNumber: {n: level}, levels: [{level, open, closed, total, frontier, claimed, blocked, numbers:[]}] }
+    // H2 #446 留守：computeLevels/groupTickets 留入口（H4 三处同步分组；file3 经显式参数复用同一份）。
     function computeLevels(tickets) {
       const byNum = {}
       tickets.forEach(function (t) { byNum[t.number] = t })
@@ -243,216 +180,25 @@ export default {
       }
     }
 
-    async function fetchMaps(cwd) {
-      // #44 T2-fix（map#37）：显式 --repo 绕过 gh 在 Fork 上的多远程推断（upstream 优先）
-      const repo = await getRepoKey(cwd)
-      const argsMap = ['issue', 'list', '--state', 'open', '--label', 'wayfinder:map', '--json', 'number,title,body,labels,assignees,state,updatedAt']
-      if (repo) argsMap.push('--repo', repo.owner + '/' + repo.name)
-      const r = await runGh(argsMap, cwd)
-      if (!r.ok) return { ok: false, error: r }
-      try { return { ok: true, maps: JSON.parse(r.text) } } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
+    // H2 #446 留守：upcaseState/upcaseSnapStates 留入口（H4 四处同步升格快照状态；动态加载给不出同步函数）。
+    // 客户端契约：state 按旧链路大写 OPEN/CLOSED（mapTicket 曾如此）；composer 归一为小写 open/closed，
+    //   在此适配层统一升格，避免客户端把全部 closed 误判为 open（#327 面板“0 已关闭/大量错误状态”根因）。
+    const upcaseState = function (s) { return String(s || '').toUpperCase() === 'CLOSED' ? 'CLOSED' : 'OPEN' }
+    const upcaseSnapStates = function (inner) {
+      if (!inner || typeof inner !== 'object') return inner
+      ;(inner.maps || []).forEach(function (m) {
+        m.state = upcaseState(m.state)
+        ;(m.tickets || []).forEach(function (t) {
+          t.state = upcaseState(t.state)
+          if (Array.isArray(t.blockedBy)) t.blockedBy.forEach(function (b) { if (b && typeof b === 'object' && b.state != null) b.state = upcaseState(b.state) })
+          if (Array.isArray(t.blocking)) t.blocking.forEach(function (b) { if (b && typeof b === 'object' && b.state != null) b.state = upcaseState(b.state) })
+        })
+      })
+      ;(inner.issues || []).forEach(function (it) { it.state = upcaseState(it.state) })
+      return inner
     }
 
-    // 手动分页兜底：gh api --paginate 在本机偶发 unexpected EOF 时，按页拉取避免单页失败拖垮全量
-    // 首选 --paginate 成功即走快路径；失败则按 page=1..N 逐页拉，单页失败若有 text 则解析该页部分数据，否则中断
-    // 该路径在 4c6508c 的 100 截断基础上补全全量，避免 100 截断导致旧票丢失（回归风险）
-    async function fetchAllIssuesManual(cwd, repo) {
-      if (!repo) return { ok: false, error: { kind: 'env', error: 'missing repo' } };
-      let all = [];
-      for (let page = 1; page <= 10; page++) {
-        const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100&page=' + page;
-        const r = await runGh(['api', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, title: .title, state: .state, labels: .labels, assignees: .assignees, user: .user, updated_at: .updated_at, created_at: .created_at}'], cwd);
-        const raw = r && (r.ok ? r.text : (r.text || ''));
-        if (!raw || !String(raw).trim()) { if (page === 1) return { ok: false, error: r }; break; }
-        try {
-          const txt = String(raw).trim();
-          let arr = [];
-          if (txt.startsWith('[')) { try { arr = JSON.parse(txt); } catch {} }
-          if (!arr.length && txt) {
-            const lines = txt.split('\n').filter(function(s){return s.trim();});
-            for (let i=0;i<lines.length;i++) { try { const o=JSON.parse(lines[i]); if(o && typeof o.number==='number') arr.push(o); } catch(e){} }
-            if (!arr.length) { try { arr = JSON.parse('['+lines.join(',')+']'); } catch(e){} }
-          }
-          if (!arr.length) { if (page===1) return { ok:false, error: r }; break; }
-          const issues = arr.map(function(x){ return { number:x.number, title:x.title, state:(String(x.state).toLowerCase()==='closed'?'CLOSED':'OPEN'), assignees:(x.assignees||[]).map(function(a){return a.login;}), labels:(x.labels||[]).map(function(l){return {name:l.name,color:l.color||''};}), author:(x.user&&x.user.login)?{login:x.user.login,name:(x.user.name||''),avatarUrl:(x.user.avatar_url||'')}:undefined, updatedAt:x.updated_at, createdAt:x.created_at }; });
-          all = all.concat(issues);
-          if (arr.length < 100) break;
-        } catch (e) { if (page===1) return { ok:false, error: r }; break; }
-        if (!r.ok) break;
-      }
-      if (all.length) { all.sort(function(a,b){ return String(b.updatedAt).localeCompare(String(a.updatedAt)); }); return { ok:true, issues: all }; }
-      return { ok:false, error:{kind:'empty', error:'manual paginate empty'} };
-    }
-    async function fetchAllIndexManual(cwd, repo) {
-      if (!repo) return { ok:false, error:{kind:'env', error:'missing repo'} };
-      let idx = {};
-      for (let page=1; page<=10; page++) {
-        const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100&page=' + page;
-        const r = await runGh(['api', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd);
-        const raw = r && (r.ok ? r.text : (r.text||''));
-        if (!raw || !String(raw).trim()) { if(page===1) return {ok:false, error:r}; break; }
-        try {
-          const txt = String(raw).trim();
-          let arr = [];
-          if (txt.startsWith('[')) { try{ arr=JSON.parse(txt);}catch{} }
-          if (!arr.length && txt) {
-            const lines = txt.split('\n').filter(Boolean);
-            for(let i=0;i<lines.length;i++){ try{ const o=JSON.parse(lines[i]); if(o&&o.number!=null) arr.push(o);}catch(e){} }
-            if(!arr.length){ try{ arr=JSON.parse('['+lines.join(',')+']');}catch(e){} }
-          }
-          if (!arr.length) { if(page===1) return {ok:false, error:r}; break; }
-          for(let i=0;i<arr.length;i++){ const it=arr[i]; if(it&&it.number!=null) { idx[String(it.number)] = String(it.state||'').toUpperCase() + '|' + String(it.updatedAt||''); } }
-          if (arr.length < 100) break;
-        } catch(e){ if(page===1) return {ok:false, error:r}; break; }
-        if (!r.ok) break;
-      }
-      if (Object.keys(idx).length) return { ok:true, repo:repo, index:idx, count:Object.keys(idx).length };
-      return { ok:false, error:{kind:'empty', error:'manual index empty'} };
-    }
-    // 全部 issue（open + closed，Client 列表 open 常显、底部「已关闭」折叠行），
-    // 按 updatedAt 倒序；labels 带 name + color（GitHub 配置色）；state 区分 open/closed；
-    // v18：assignees 带出（状态栏「占用」按列表 issue 口径：已认领 + 被阻塞）
-    async function fetchIssues(cwd) {
-      // #374/#375：--limit 500 覆盖仓库全量，并带出 createdAt；为取 author.avatarUrl 改用 gh api（gh issue list 的 author 不含 avatarUrl，见 b7442da 后用户反馈“未显示真人头像”）
-      //   gh api repos/.../issues?state=all&per_page=100 --paginate 直接给出 user.avatar_url，零额外 user 查询
-      // #44 T2-fix：显式 --repo 绕过多远程推断
-      const repo2 = await getRepoKey(cwd)
-      // 优先 gh api（带 avatar）
-      if (repo2) {
-        const apiUrl = 'repos/' + repo2.owner + '/' + repo2.name + '/issues?state=all&per_page=100'
-        const r2 = await runGh(['api', '--paginate', apiUrl, '--jq', '.[] | select(.pull_request == null) | {number: .number, title: .title, state: .state, labels: .labels, assignees: .assignees, user: .user, updated_at: .updated_at, created_at: .created_at}'], cwd)
-        if (r2.ok) {
-          try {
-            const text = String(r2.text || '').trim()
-            // --jq 输出为 JSON Lines（每行一个对象），非数组；兼容数组与单对象两种
-            let arr = []
-            if (text.startsWith('[')) arr = JSON.parse(text)
-            else if (text) {
-              const lines = text.split('\n').filter(function(s){return s.trim()})
-              for (let i=0;i<lines.length;i++) { try{ const o=JSON.parse(lines[i]); if(o && typeof o.number==='number') arr.push(o)}catch(e){} }
-              if (!arr.length) { try{ arr = JSON.parse('['+lines.join(',')+']')}catch(e){} }
-            }
-            const issues = arr.map(function (x) {
-              return {
-                number: x.number,
-                title: x.title,
-                state: (String(x.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN'),
-                assignees: (x.assignees || []).map(function (a) { return a.login }),
-                labels: (x.labels || []).map(function (l) { return { name: l.name, color: l.color || '' } }),
-                author: (x.user && x.user.login) ? { login: x.user.login, name: (x.user.name || ''), avatarUrl: (x.user.avatar_url || '') } : undefined,
-                updatedAt: x.updated_at,
-                createdAt: x.created_at,
-              }
-            })
-            issues.sort(function (a, b) { return String(b.updatedAt).localeCompare(String(a.updatedAt)) })
-            if (issues.length) return { ok: true, issues: issues }
-          } catch (e) { /* fall through to gh issue list */ }
-        }
-      }
-      // 手动分页兜底：--paginate 失败时按页拉取全量，避免 100 截断丢失旧票
-      if (repo2) {
-        try {
-          const manual = await fetchAllIssuesManual(cwd, repo2);
-          if (manual.ok && manual.issues && manual.issues.length) return manual;
-        } catch (e) {}
-      }
-      // 回退：gh issue list（无 avatar，仅 login；UI 将回退为 person SVG）
-      // 修复 unexpected EOF：500 在部分网络下触发 GraphQL 大查询 EOF，回退改用 100 并重试一次
-      const tryList = async function(limit) {
-        const a = ['issue', 'list', '--state', 'all', '--limit', String(limit), '--json', 'number,title,labels,state,assignees,author,updatedAt,createdAt']
-        if (repo2) a.push('--repo', repo2.owner + '/' + repo2.name)
-        return runGh(a, cwd)
-      }
-      let r = await tryList(100)
-      if (!r.ok && String(r.error||'').toLowerCase().includes('unexpected eof')) {
-        r = await tryList(100)
-      }
-      if (!r.ok) {
-        // 500 回退已不可靠，改用 open 100 再 all 100 的分段拉取（open 100 必含 414 这类新 open 票）
-        const rOpen = await runGh(['issue', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,labels,state,assignees,author,updatedAt,createdAt', '--repo', repo2.owner + '/' + repo2.name], cwd)
-        if (rOpen.ok) r = rOpen
-      }
-      if (!r.ok) return { ok: false, error: r }
-      try {
-        const all = JSON.parse(r.text)
-        const issues = all.map(function (x) {
-          return {
-            number: x.number,
-            title: x.title,
-            state: x.state,
-            assignees: (x.assignees || []).map(function (a) { return a.login }),
-            labels: (x.labels || []).map(function (l) { return { name: l.name, color: l.color || '' } }),
-            author: (x.author && x.author.login) ? { login: x.author.login, name: (x.author.name || ''), avatarUrl: (x.author.avatarUrl || x.author.avatar_url || '') } : undefined,
-            updatedAt: x.updatedAt,
-            createdAt: x.createdAt,
-          }
-        })
-        issues.sort(function (a, b) { return String(b.updatedAt).localeCompare(String(a.updatedAt)) })
-        return { ok: true, issues: issues }
-      } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
-    }
-
-    // #2 deletion fix：轻量全量索引用于发现删除、关闭和重开。
-    async function fetchIssueIndex(cwd) {
-      const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
-      const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100'
-      const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd)
-      // 优先解析 gh api 的输出，即使 r.ok===false 但 text 中已有部分数据（如 414/415 在前两页已返回，仅第3页 unexpected EOF 导致 exit 1），也尝试解析，避免因单页网络抖动就判 unknown 回旧
-      const tryParseIndex = function(text) {
-        try {
-          const index = {}
-          const lines = String(text || '').split(/\r?\n/).filter(Boolean)
-          lines.forEach(function (line) {
-            try { const item = JSON.parse(line); if (item && item.number !== undefined && item.number !== null) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '') } catch {}
-          })
-          if (Object.keys(index).length) return { ok: true, repo: repo, index: index, count: Object.keys(index).length }
-        } catch {}
-        return null
-      }
-      if (r && r.text) {
-        const parsed = tryParseIndex(r.text)
-        if (parsed) return parsed
-      }
-      if (!r.ok) {
-        // 手动分页兜底：优先按页拉全量索引，避免 100 截断丢失旧票（如删除检测）
-        try {
-          const manualIdx = await fetchAllIndexManual(cwd, repo);
-          if (manualIdx.ok && manualIdx.index && Object.keys(manualIdx.index).length) return manualIdx;
-        } catch (e) {}
-        // 回退：gh api 整体失败时，用 gh issue list 全量兜底（与 fetchIssues 同策略），确保外部建票 60s 内可被发现
-        // 500 在部分网络下触发 unexpected EOF，改用 100 并重试
-        let fallback = await runGh(['issue', 'list', '--state', 'all', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
-        if (!fallback.ok && String(fallback.error||'').toLowerCase().includes('unexpected eof')) {
-          fallback = await runGh(['issue', 'list', '--state', 'all', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
-        }
-        if (!fallback.ok) {
-          fallback = await runGh(['issue', 'list', '--state', 'open', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
-        }
-        const fbParsed = fallback && fallback.text ? tryParseIndex(fallback.text.replace(/\[|\]/g, '').split('},').join('}\n')) : null
-        // 更稳妥的 fallback 解析：直接 JSON 数组
-        try {
-          if (fallback && fallback.ok && fallback.text) {
-            const arr = JSON.parse(fallback.text)
-            if (Array.isArray(arr) && arr.length) {
-              const idx = {}
-              arr.forEach(function(it){ if(it && it.number!=null) idx[String(it.number)] = String(it.state||'').toUpperCase() + '|' + String(it.updatedAt||'') })
-              if (Object.keys(idx).length) return { ok: true, repo: repo, index: idx, count: Object.keys(idx).length }
-            }
-          }
-        } catch {}
-        return { ok: false, error: r }
-      }
-      try {
-        const index = {}
-        const lines = String(r.text || '').split(/\r?\n/).filter(Boolean)
-        lines.forEach(function (line) {
-          const item = JSON.parse(line)
-          if (item && item.number !== undefined && item.number !== null) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '')
-        })
-        return { ok: true, repo: repo, index: index, count: Object.keys(index).length }
-      } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
-    }
+    // H2 #446 留守：索引小函数留入口（H6 探测同步取值与同刻写表；file2 经显式参数复用同一份）。
     const issueIndexFromSnapshot = function (snap) {
       const index = {}
       const items = snap && Array.isArray(snap.issues) ? snap.issues : []
@@ -472,69 +218,8 @@ export default {
     const rememberIssueIndex = function (repo, index) {
       if (repo && repo.owner && repo.name) lastIssueIndexByRepo[repo.owner + '/' + repo.name] = index
     }
-    const cacheSnapshotIsCurrent = async function (snap, cwd) {
-      try {
-        const remote = await fetchIssueIndex(cwd)
-        if (!remote.ok) return null
-        const current = !issueIndexChanged(issueIndexFromSnapshot(snap), remote.index)
-        if (current) rememberIssueIndex(remote.repo, remote.index)
-        return current
-      } catch (e) { return null }
-    }
-    const adoptSnapshot = function (snap, cwd) {
-      cache = { ts: Date.now(), snapshot: snap, error: null, cwd: cwd }
-      if (snap && snap.repo) rememberIssueIndex(snap.repo, issueIndexFromSnapshot(snap))
-      return snap
-    }
 
-
-    // v1.5 B5（配额止血 · 第一性原理）：GraphQL 配额耗尽时的 REST 降级通道 ——
-    //   GraphQL 按复杂度计点（5000 点/h，aliases 大查询一次可数百点），REST 按请求计次
-    //   （5000 次/h，与复杂度无关）。配额耗尽时 GraphQL 全挂，REST 仍可用 → 面板不空白。
-    //   逐 map：issue 详情 + sub_issues + 每子票 blocked_by（client 只消费 blockedBy，
-    //   blocking 不组装省一半请求）；输出与 GraphQL 同构的 { 'm<i>': {...} }，下游 mapTicket 零改动。
-    async function fetchMapsDetailREST(numbers, cwd) {
-      const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
-      if (!numbers || !numbers.length) return { ok: true, issues: {} }
-      const issues = {}
-      for (let i = 0; i < numbers.length; i++) {
-        const n = numbers[i]
-        try {
-          const d = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n], cwd)
-          if (!d.ok) { issues['m' + i] = null; continue }
-          const m = JSON.parse(d.text)
-          const sub = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/sub_issues?per_page=100'], cwd)
-          const subs = sub.ok ? (JSON.parse(sub.text) || []) : []
-          const nodes = []
-          for (let k = 0; k < subs.length; k++) {
-            const s = subs[k]
-            let blockedBy = []
-            try {
-              const bb = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + s.number + '/dependencies/blocked_by'], cwd)
-              if (bb.ok) blockedBy = (JSON.parse(bb.text) || []).map(function (x) { return x.number })
-            } catch (e2) { /* 依赖查询失败该票 blockedBy 置空，不阻塞整体 */ }
-            nodes.push({
-              number: s.number, title: s.title, state: (s.state === 'closed' ? 'CLOSED' : 'OPEN'),
-              body: s.body || '', url: s.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + s.number),
-              labels: { nodes: (s.labels || []).map(function (l) { return { name: l.name } }) },
-              assignees: { nodes: (s.assignees || []).map(function (a) { return { login: a.login } }) },
-              author: (s.user && s.user.login) ? { login: s.user.login, name: (s.user.name || ''), avatarUrl: (s.user.avatar_url || '') } : undefined,
-              blockedBy: { nodes: blockedBy.map(function (b) { return { number: b } }) },
-            })
-          }
-          issues['m' + i] = {
-            number: m.number, title: m.title, state: (m.state === 'closed' ? 'CLOSED' : 'OPEN'),
-            body: m.body || '', url: m.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + m.number),
-            labels: { nodes: (m.labels || []).map(function (l) { return { name: l.name } }) },
-            author: (m.user && m.user.login) ? { login: m.user.login, name: (m.user.name || ''), avatarUrl: (m.user.avatar_url || '') } : undefined,
-            subIssues: { totalCount: nodes.length, nodes: nodes },
-          }
-        } catch (e) { issues['m' + i] = null }
-      }
-      return { ok: true, issues: issues, fallback: 'rest' }
-    }
-
+    // H2 #446 留守：isRateLimitError 留入口（H5 三处同步判别；file3 经显式参数复用同一份）。
     function isRateLimitError(r) {
       const t = String((r && r.error) || (r && r.kind) || '').toLowerCase()
       return /rate\s*limit|ratelimit|403/.test(t)
@@ -543,301 +228,7 @@ export default {
 
     // v1.3.3 提速：GraphQL aliases 一次查询全部 map 详情（8 次 → 1 次，Windows 下串行 8×2.4s → 单次 ~3.6s）
     //   每个 map 一个 alias（m0/m1/...），响应按 alias 取；网络类失败整批重试 1 次
-    async function fetchMapsDetail(numbers, cwd) {
-      const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
-      if (!numbers || !numbers.length) return { ok: true, issues: {} }
-      // 构造 aliases 查询：query($owner:String!,$name:String!){repository(...){m0:issue(number:409){...} m1:issue(...){...}}}
-      const frag = 'number title state body url author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}}}}'
-      const sel = numbers.map(function (n, i) { return 'm' + i + ':issue(number:' + n + '){' + frag + '}' }).join(' ')
-      const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){' + sel + '}}'
-      let last = null
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const r = await runGh(['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name], cwd)
-        if (!r.ok) {
-          last = r
-          // v1.5 B5：GraphQL 配额耗尽（RATE_LIMIT）→ 自动降级 REST 通道（不重试 2 次白烧，直接降级）
-          if (isRateLimitError(r)) return fetchMapsDetailREST(numbers, cwd)
-          if (r.kind !== 'network') return { ok: false, error: r }
-          continue
-        }
-        try {
-          const j = JSON.parse(r.text)
-          if (j.errors) {
-            // v1.5 B5：GraphQL 返回 errors（含 RATE_LIMIT）→ REST 降级
-            if (isRateLimitError({ error: JSON.stringify(j.errors) })) return fetchMapsDetailREST(numbers, cwd)
-            return { ok: false, error: { kind: 'graphql', error: JSON.stringify(j.errors).slice(0, 300) } }
-          }
-          return { ok: true, issues: j.data.repository }
-        } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
-      }
-      return { ok: false, error: last || { kind: 'network', error: 'GraphQL aliases 请求失败（重试后仍失败）' } }
-    }
 
-    // T2 #7 · fetchIssueDetail 单 issue 数据通路（复用 fetchMapsDetail 思路，独立别名/单 issue 不合并 aliases）
-    // GraphQL 字段按 T2 契约：number title state body url updatedAt createdAt closedAt labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}}
-    // 配额止血：GraphQL 按复杂度计点失败 → RATE_LIMIT 鉴别后切 REST 兜底；REST 逐请求失败置空，整体不崩
-    // 错误形状与 fetchMapsDetail 对齐 {ok,error,issue?}；kind 细化 env|parse|graphql|network|rateLimit|notFound|404
-    async function fetchIssueDetailREST(n, cwd) {
-      const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
-      try {
-        const r = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n], cwd)
-        if (!r.ok) {
-          if (r.kind === 'notfound' || /404/i.test(String(r.error||''))) return { ok: false, error: { kind: '404', message: String(r.error||'not found') } }
-          if (r.kind === 'notfound') return { ok: false, error: { kind: 'notFound', message: String(r.error||'not found') } }
-          if (isRateLimitError(r)) return { ok: false, error: { kind: 'rateLimit', message: String(r.error||'rate limit') } }
-          return { ok: false, error: { kind: r.kind || 'network', message: String(r.error||'request failed') } }
-        }
-        const issue = JSON.parse(r.text)
-        let comments = { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } }
-        let subIssues = { totalCount: 0, nodes: [] }
-        let blockedBy = { nodes: [] }
-        try {
-          const cr = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/comments?per_page=50'], cwd)
-          if (cr.ok) {
-            const arr = JSON.parse(cr.text) || []
-            comments.nodes = arr.map(function (c) { return { author: { login: (c.user && c.user.login) || '' }, authorAssociation: c.author_association || '', body: c.body || '', createdAt: c.created_at, updatedAt: c.updated_at } })
-            comments.pageInfo = { hasNextPage: arr.length === 50, endCursor: String(arr.length) }
-          }
-        } catch (e) {}
-        try {
-          const sr = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/sub_issues?per_page=50'], cwd)
-          if (sr.ok) {
-            const arr = JSON.parse(sr.text) || []
-            subIssues.totalCount = arr.length
-            subIssues.nodes = arr.map(function (s) { return { number: s.number, title: s.title, state: (String(s.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN') } })
-          }
-        } catch (e) {}
-        try {
-          const br = await runGh(['api', 'repos/' + repo.owner + '/' + repo.name + '/issues/' + n + '/dependencies/blocked_by'], cwd)
-          if (br.ok) {
-            const arr = JSON.parse(br.text) || []
-            blockedBy.nodes = arr.map(function (b) { return { number: b.number != null ? b.number : b.id, title: b.title || '', state: (String(b.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN') } })
-          }
-        } catch (e) {}
-        const mapped = {
-          number: issue.number, title: issue.title, state: (String(issue.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN'),
-          body: issue.body || '', url: issue.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + n),
-          updatedAt: issue.updated_at, createdAt: issue.created_at, closedAt: issue.closed_at,
-          author: (issue.user && issue.user.login) ? { login: issue.user.login, name: (issue.user.name || ''), avatarUrl: (issue.user.avatar_url || '') } : undefined,
-          labels: { nodes: (issue.labels || []).map(function (l) { return { name: l.name, color: l.color || '' } }) },
-          assignees: { nodes: (issue.assignees || []).map(function (a) { return { login: a.login } }) },
-          comments: comments,
-          subIssues: subIssues,
-          blockedBy: blockedBy,
-          blocking: { nodes: [] }
-        }
-        return { ok: true, issue: mapped, fallback: 'rest' }
-      } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
-    }
-
-    async function fetchIssueDetail(n, cwd) {
-      const repo = await getRepoKey(cwd)
-      if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
-      if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
-      const frag = 'number title state body url updatedAt createdAt closedAt author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}} blocking(first:20){nodes{number title state}}'
-      const query = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issue(number:' + n + '){' + frag + '}}}'
-      let last = null
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const r = await runGh(['api', 'graphql', '-f', 'query=' + query, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name], cwd)
-        if (!r.ok) {
-          last = r
-          if (isRateLimitError(r)) return fetchIssueDetailREST(n, cwd)
-          if (r.kind === 'notfound' || /not found|could not resolve/i.test(String(r.error||''))) return { ok: false, error: { kind: 'notFound', message: String(r.error||'not found') } }
-          if (r.kind !== 'network') return { ok: false, error: { kind: r.kind || 'network', message: String(r.error||'network') } }
-          continue
-        }
-        try {
-          const j = JSON.parse(r.text)
-          if (j.errors) {
-            if (isRateLimitError({ error: JSON.stringify(j.errors) })) return fetchIssueDetailREST(n, cwd)
-            if (/not found|could not resolve/i.test(JSON.stringify(j.errors))) return { ok: false, error: { kind: 'notFound', message: JSON.stringify(j.errors).slice(0,300) } }
-            return { ok: false, error: { kind: 'graphql', message: JSON.stringify(j.errors).slice(0,300) } }
-          }
-          const issue = j.data && j.data.repository && j.data.repository.issue
-          if (!issue) return { ok: false, error: { kind: 'notFound', message: 'issue not found' } }
-          return { ok: true, issue: issue }
-        } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
-      }
-      return { ok: false, error: last || { kind: 'network', message: 'GraphQL 单 issue 请求失败（重试后仍失败）' } }
-    }
-
-    async function buildSnapshot(cwd, hintBackendId) {
-      let viewerLogin = null // 由 Tracker.getCurrentUser 填充（后端接口返回当前用户，UI 仅对比，不直调 gh）
-      let viewer = null
-      const repo = await getRepoKey(cwd)
-      // v1.3.3 提速：map 列表直接从全量 issues 过滤（fetchMaps 单独调用省去 —— 原 11 次 → 9 次 gh 调用）
-      const fi = await fetchIssues(cwd)
-      const issues = fi.ok ? fi.issues : []
-      const mapsMeta = fi.ok ? fi.issues.filter(function (x) {
-        return x.state === 'OPEN' && (x.labels || []).some(function (l) { return l.name === 'wayfinder:map' })
-      }) : []
-      // #375：全量 label 列表（含空 label；获取失败容错置空，不阻塞快照构建，client 降级）
-      let labels = []
-      const fl = await runGh(['label', 'list', '--json', 'name,color'], cwd)
-      if (fl.ok) {
-        try {
-          const ls = JSON.parse(fl.text)
-          if (Array.isArray(ls)) labels = ls.map(function (l) { return { name: l.name, color: l.color || '' } })
-        } catch (e) { labels = [] }
-      }
-      // v1.3.3 提速：GraphQL aliases 一次查全部 map 详情（原每 map 一次 GraphQL，8 次串行 ~19s → 1 次 ~4s）
-      const d = await fetchMapsDetail(mapsMeta.map(function (m) { return m.number }), cwd)
-      const detailOk = d.ok
-      const maps = []
-      for (let i = 0; i < mapsMeta.length; i++) {
-        const m = mapsMeta[i]
-        const issue = detailOk ? (d.issues['m' + i] || null) : null
-        if (!detailOk || !issue) {
-          maps.push({ number: m.number, title: m.title, state: 'OPEN', error: detailOk ? undefined : d.error, tickets: [], stats: { total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0 } })
-          continue
-        }
-        const subs = (issue.subIssues && issue.subIssues.nodes) || []
-        const tickets = subs.map(mapTicket)
-        const bp = parseMapBody(issue.body)
-        // v1.4（T1 #442）：每张票挂 level（DAG 最长路径深度），client 渲染漏斗分层直接取
-        const lvInfo = computeLevels(tickets)
-        tickets.forEach(function (t) { t.level = lvInfo.byNumber[t.number] })
-        const stats = groupTickets(tickets)
-        const labels2 = ((issue.labels && issue.labels.nodes) || []).map(function (x) { return x.name })
-        maps.push({
-          number: issue.number, title: issue.title, state: issue.state, url: issue.url, labels: labels2,
-          destination: bp.destination, notes: bp.notes,
-          decisions: bp.decisions, fog: bp.fog, outOfScope: bp.outOfScope,
-          tickets: tickets, stats: stats,
-        })
-      }
-      // v1.5 R2 + R2-fix-6（#2 MVP E2E 实证 2026-08-18）：probe since 基线**不得**在 buildSnapshot 里初始化/推进。
-      //   原实现「buildSnapshot 末尾 lastProbeAtByRepo[rk]=now」有个致命竞态：面板任一 snapshot build（cache-miss/
-      //    refresh）若发生在某次编辑**之后**，会把基线推到编辑时刻**之后** → 下次 probe since=基线 查不到该编辑
-      //   （count=0 → changed=false），且基线只在 changed=true 时才滑动 → 编辑被**永久吞掉**，UI 永不刷新。
-      //   正确语义：基线只能由 probe 自己推进（检测到 change 时置为「本次探测时刻」）；build 完成 ≠ client 已渲染该
-      //   快照，无权动基线。首次 probe（since=undefined）自然走全量返回 → 视为 changed → 建立基线（符合原注释意图）。
-      // B 方案：viewerLogin 经 Tracker.getCurrentUser（后端接口）获取，UI 仅做 login 对比，不直调 gh，不硬编码 backendId
-      // #155：Selection/RepositoryRef 增量（registry.select/describe → wf.snapshot {repository, selection}）
-      let selection = null
-      let repository = null
-      try {
-        const reg = await getTrackerRegistry()
-        // 预取 viewer（供 UI “本人不显”对比），失败则保持 null（全显）
-        try {
-          const tmpReg = reg
-          const tmpHandle = { cwd: cwd }
-          const tmpCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:r.code } } }
-          const selForViewer = await tmpReg.select(tmpHandle, tmpCtx)
-          const vid = selForViewer && selForViewer.backendId
-          if (vid) {
-            const tr = tmpReg.get(vid)
-            if (tr && typeof tr.getCurrentUser === 'function') {
-              const vr = await tr.getCurrentUser({ backend: vid, refId: (tmpHandle.refId||''), name: '', url: '' }, tmpCtx)
-              if (vr && vr.ok && vr.data && vr.data.login) { viewerLogin = String(vr.data.login).trim(); viewer = vr.data }
-            }
-          }
-        } catch (e) {}
-        if (reg && typeof reg.select === 'function') {
-          const handle = { cwd: cwd }
-          const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:r.code } } }
-          // 能力诊断计数（G5 仅诊断，不驱动隐藏）——按 host 视角 fill 统计
-          const capCount = (function(iss){
-            let present=0, emptyCnt=0, missing=0
-            // 简易：以 labels 为例，其余字段按 shape 能力字段集计数
-            const fields=['author','assignees','labels','milestone','customFields','reason','blockedBy','comments','closedAt']
-            iss.forEach(function(it){
-              fields.forEach(function(f){
-                if (it[f] === undefined) missing++
-                else if (Array.isArray(it[f]) && it[f].length===0) emptyCnt++
-                else if (it[f]===null || it[f]==='') emptyCnt++
-                else present++
-              })
-            })
-            return {present, empty: emptyCnt, missing}
-          })(issues)
-          // select 三级联（2026-08-28 真源统一）：快照 selection 与 wf.chain/wf.detect 同构——
-          //   经 detectionService 判定（explicit 主锚 → matches → fallback），主锚是权威。
-          //   此前快照裸 registry.select 不读主锚：「GitHub 版锚 + 非 git 目录」在快照侧判 fallback null，
-          //   客户端保留旧 markdown 意向 → 头部 chip=Markdown 与环境检查=github（链按锚判定）互相矛盾（用户观察）。
-          const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: hintBackendId || undefined }) }).catch(function(){ return null })
-          let sel = selMod && selMod.selection
-          // #297 失效维度：显式空（source explicit + null）是权威“无后端”（空目录 stale），不退回裸 select，否则旧绑定会复活
-          if (!sel || (sel.backendId == null && (!sel.source || sel.source !== 'explicit'))) {
-            // detect 无结论（fallback null / 服务不可用）：退回裸 select（bind 记忆 → matches）兼容旧行为
-            try { sel = await reg.select(handle, ctxSel) } catch (eSel) { sel = null }
-          }
-          selection = sel
-          if (sel && sel.backendId) {
-            try { repository = reg.describe(handle, sel.backendId) } catch {}
-            // 2026-08-28 加固（Dock「后端名 · 目录名」兜底根因）：describe 以 handle.refId 为准，handle 无 refId 时退化为
-            //   「目录名 + 无 url」——正常 GitHub 仓库也会因临时 fs/git 读取差异落入该弱结果，UI 头部只剩兜底形态。
-            //   refId/name 是身份真相（url 才受 links.repoUrlTemplate 意愿位约束）：getRepoKey 可解析即无条件补全 owner/name。
-            if ((!repository || !repository.refId) && repo && repo.owner) {
-              try { repository = reg.describe({ cwd: cwd, refId: repo.owner + '/' + repo.name }, sel.backendId) } catch (eDesc2) {}
-            }
-            if ((!repository || !repository.refId) && repo && repo.owner) {
-              try { repository = { backend: sel.backendId, refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: '' } } catch (eD2) {}
-            }
-            // 2026-08-28 契约修正（用户复核）：仓库名一律由后端 describe 经契约层产出，UI 层零派生——
-            //   markdown 本地形态（目录即仓库）同样经 describe 给出 name=目录名；describe 异常/弱结果时
-            //   host 侧按目录名兜底（数据产生在半，UI 直显），绝不把「前端拼装」当作仓库身份来源。
-            if (!repository) {
-              try { repository = reg.describe({ cwd: cwd, refId: cwd }, sel.backendId) } catch (eNa) {}
-            }
-            if (!repository) {
-              try {
-                const nm = String(cwd || '').split(/[\\/]/).filter(Boolean).pop() || sel.backendId
-                repository = { backend: sel.backendId, refId: String(cwd || ''), name: nm, url: '' }
-              } catch (eNb) {}
-            }
-            // #231：后端特判删除 —— 是否补链由该后端 links.repoUrlTemplate 意愿位声明；补全走其自身 describe（单源产出 refId/name/url）
-            if (repository && !repository.url && sel.backendId && repo && repo.owner) {
-              var wantsUrlSeed = false
-              try {
-                var modsHere = (reg && typeof reg.modules === 'function') ? reg.modules() : []
-                for (var mi = 0; mi < modsHere.length; mi++) {
-                  if (modsHere[mi] && modsHere[mi].id === sel.backendId && modsHere[mi].links && modsHere[mi].links.repoUrlTemplate) { wantsUrlSeed = true; break }
-                }
-              } catch (eSeed) {}
-              if (wantsUrlSeed) { try { repository = reg.describe({ cwd: cwd, refId: repo.owner + '/' + repo.name }, sel.backendId) } catch (eDesc) {} }
-            }
-          } else {
-            // fallback（无选择）时诚实占位：不带任何品牌 url，UI 按「无链接」渲染
-            if (repo) repository = { backend: '', refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: '' }
-            else repository = null
-          }
-          // 能力计数挂到 snapshot 供 ChecksTab 诊断卡
-          var _capDiag = capCount
-        }
-      } catch (e) { /* 保持 null，不阻塞快照 */ }
-      // #191: backendModules 透传（presentation 色板）—— 修复 ReferenceError: backendModules is not defined (#195 遗漏)
-      let backendModules = null
-      try {
-        const regM = await getTrackerRegistry()
-        if (regM && typeof regM.modules === 'function') {
-          // 2026-08-28 修复：快照 backendModules 必须与 wf.registry 上报同构（含 setupPrompt 键表）——
-          //   缺 setupPrompt 时 setupRunParamsFrom 匹配不到该后端 → 注入的 setup 提示词落回默认键组（GitHub 版），
-          //   表现为「选了 gitlab/markdown，点初始化按钮注入的却还是默认 GitHub」（用户观察）。
-          backendModules = regM.modules().map(function (m) { return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.labelPalette ? { labelPalette: m.labelPalette } : {}, m.openRepository ? { openRepository: m.openRepository } : {}) })
-        }
-      } catch (e2) {}
-      return {
-        ok: true,
-        repo: repo,
-        repoRoot: await getRepoRoot(cwd),  // v1.5 T9：git 根路径（供仓库身份组件与 setup 检查）
-        updatedAt: new Date().toISOString(),
-        generatedMs: Date.now(),
-        env: { ghPath: ghPath, ghError: ghLastError },
-        maps: maps,
-        issues: issues,
-        labels: labels,
-        fallback: d.fallback || null,  // v1.5 B5：'rest' = GraphQL 配额耗尽已降级 REST（client 可提示）
-        repository: repository,
-        backendModules: backendModules,
-        selection: selection,
-        capabilities: (typeof _capDiag !== 'undefined' ? _capDiag : null),
-        viewer: viewer, // 后端接口返回当前用户（Actor），UI 据此做“本人不显”对比
-        viewerLogin: viewerLogin, // 兼容旧 UI（string），与 viewer.login 同步
-      }
-    }
 
     // ============ git 远程解析（getRepoKey 与后端谓词复用，#284）============
     // 解析 git 远程 URL → GitHub owner/repo；非 GitHub 返回 null

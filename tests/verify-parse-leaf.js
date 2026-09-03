@@ -16,7 +16,8 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 
 // ---- 产物清单与驱动重建的源（T1：断言目标必须是「当前构建产物」，而非磁盘任意文件）----
 const PRODUCTS = ['host.js', 'package/lib/index.js']
-const SOURCES = ['src/host/index.js', 'scripts/build.mjs', 'package/package.json']
+// H2 #446：宿主侧实现分散在两处（解析三函数搬到 mapBody.js，分组两函数留守 index.js）；产物侧同理跟随，意图不变。
+const SOURCES = ['src/host/index.js', 'src/host/mapBody.js', 'src/host/issueList.js', 'src/host/issueDetail.js', 'scripts/build.mjs', 'package/package.json']
 
 function productStale(prod) {
   if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mjs）'
@@ -65,14 +66,18 @@ async function main() {
   const host = fs.readFileSync('host.js', 'utf8')
   const pkg = fs.readFileSync('package/lib/index.js', 'utf8')
   const srcHost = fs.readFileSync('src/host/index.js', 'utf8')
+  const srcMap = fs.readFileSync('src/host/mapBody.js', 'utf8')
+  const pkgMap = fs.readFileSync('package/lib/mapBody.js', 'utf8')
+  const hostSide = srcMap + '\n' + host
+  const pkgSide = pkgMap + '\n' + pkg
 
   // ---- 加载叶子（ESM import，Windows 需 file:// URL）----
   const leaf = await import('file://' + path.resolve('src/shared/parser.js').replace(/\\/g, '/'))
   const names = ['normalizeBody', 'parseMapBody', 'parseProgress', 'computeLevels', 'groupTickets']
   names.forEach((n) => check(typeof leaf[n] === 'function', 'src/shared/parser.js 导出 ' + n))
 
-  // ---- Part A：_dev 产物差分（叶子 === 构建产物 host.js）----
-  const hostFns = extractFns(host)
+  // ---- Part A：_dev 产物差分（叶子 === 宿主侧实现，H2 后为 mapBody.js + host.js 拼回同一作用域）----
+  const hostFns = extractFns(hostSide)
   names.forEach((n) => check(!!hostFns[n], '产物(_dev) host.js 含 ' + n + '（对照基准）'))
 
   // 差分输入集：覆盖典型 + 边界 + 脏数据
@@ -105,7 +110,7 @@ async function main() {
   check(JSON.stringify(leaf.groupTickets(tickets)) === JSON.stringify(hostFns.groupTickets(tickets)), 'diff groupTickets 叶子===产物(_dev)')
 
   // ---- Part B：_pkg 产物差分（同逻辑）----
-  const pkgFns = extractFns(pkg)
+  const pkgFns = extractFns(pkgSide)
   names.forEach((n) => check(!!pkgFns[n], '产物(_pkg) package/lib/index.js 含 ' + n + '（对照基准）'))
   bodies.forEach((b, i) => {
     check(JSON.stringify(leaf.parseMapBody(b)) === JSON.stringify(pkgFns.parseMapBody(b)), 'diff parseMapBody[' + i + '] 叶子===产物(_pkg)')
@@ -126,12 +131,15 @@ async function main() {
   check(gt.total === 5 && gt.open === 4 && gt.closed === 1 && gt.frontier === 1 && gt.claimed === 1 && gt.blocked === 2, '真值 groupTickets 分组计数（frontier=#1, claimed=#2, blocked=#3+#4）')
 
   // ---- Part E：文本逐字断言（T1 新增；构建 = 文本组合，产物函数文本必须与 src 内联逐字一致）----
-  const srcRaw = rawAll(srcHost)
-  const devRaw = rawAll(host)
-  const pkgRaw = rawAll(pkg)
-  check(!!srcRaw.trim() && !!devRaw.trim() && !!pkgRaw.trim(), '文本抽取：src/两产物均含 5 个函数文本')
-  check(srcRaw === devRaw, '文本逐字：产物(_dev) 函数文本 === src/host/index.js 内联')
-  check(srcRaw === pkgRaw, '文本逐字：产物(_pkg) 函数文本 === src/host/index.js 内联')
+  const srcStay = rawAll(srcHost)
+  const devStay = rawAll(host)
+  const pkgStay = rawAll(pkg)
+  const srcMapRaw = rawAll(srcMap)
+  const pkgMapRaw = rawAll(pkgMap)
+  check(!!srcStay.trim() && !!devStay.trim() && !!pkgStay.trim() && !!srcMapRaw.trim() && !!pkgMapRaw.trim(), '文本抽取：留守两函数与搬迁三函数在 src/两产物均可抽取')
+  check(srcStay === devStay, '文本逐字：产物(_dev) 留守函数文本 === src/host/index.js 内联')
+  check(srcStay === pkgStay, '文本逐字：产物(_pkg) 留守函数文本 === src/host/index.js 内联')
+  check(srcMapRaw === pkgMapRaw, '文本逐字：package/lib/mapBody.js === src/host/mapBody.js（原样复制）')
 
   // ---- Part D 已移除（T5 #98：双源镜像文本断言由运行时冒烟取代；保留 Part C 真值表 + Part E src↔产物逐字）----
 

@@ -326,6 +326,33 @@
       "count": 1,
       "owner": "二批·host-1/6 #445",
       "note": "H1 搬迁：工作区钥匙装配随函数搬入本文件"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./mapBody.js",
+      "resolved": "src/host/mapBody.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-2/6 #446",
+      "note": "H2 接线：index 动态加载正文解析模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./issueList.js",
+      "resolved": "src/host/issueList.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-2/6 #446",
+      "note": "H2 接线：index 动态加载列表拉取模块（装配扇入）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./issueDetail.js",
+      "resolved": "src/host/issueDetail.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "二批·host-2/6 #446",
+      "note": "H2 接线：index 动态加载详情快照模块（装配扇入）"
     }
   ]
 }

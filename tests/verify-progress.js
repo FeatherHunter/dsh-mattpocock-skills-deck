@@ -6,11 +6,16 @@ const host = fs.readFileSync('host.js', 'utf8')
 const pkg = fs.readFileSync('package/lib/index.js', 'utf8')
 const cli = fs.readFileSync('client.js', 'utf8')
 const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
+// H2 #446：解析三函数搬到 mapBody.js、详情拼装搬到 issueDetail.js（行为零变化）；断言跟随位置，意图不变。
+const hostMap = fs.readFileSync('src/host/mapBody.js', 'utf8')
+const hostDetail = fs.readFileSync('src/host/issueDetail.js', 'utf8')
+const pkgMap = fs.readFileSync('package/lib/mapBody.js', 'utf8')
+const pkgDetail = fs.readFileSync('package/lib/issueDetail.js', 'utf8')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 // 1) parseProgress 单元测试（从 host 提取函数）
-const fm = host.match(/function parseProgress\(body\) \{[\s\S]*?\n    \}/)
+const fm = hostMap.match(/function parseProgress\(body\) \{[\s\S]*?\n    \}/)
 check(!!fm, 'host 含 parseProgress 定义')
 const parseProgress = fm ? eval('(' + fm[0] + ')') : function () { return null }
 const cases = [
@@ -33,7 +38,7 @@ cases.forEach(function (c) {
 })
 
 // T16: normalizeBody 容错测试（从 host 提取；字面 \\n 还原 + 剥 BOM）
-const nfm = host.match(/function normalizeBody\(raw\) \{[\s\S]*?\n    \}/)
+const nfm = hostMap.match(/function normalizeBody\(raw\) \{[\s\S]*?\n    \}/)
 check(!!nfm, 'host 含 normalizeBody 定义（T16）')
 const normalizeBody = nfm ? eval('(' + nfm[0] + ')') : function (s) { return String(s || '') }
 // 坏格式：BOM + 整篇字面 \\n（无真实换行）
@@ -45,7 +50,7 @@ check(normBad.indexOf('\\n') < 0, 'normalizeBody 不再含字面 \\\\n')
 check(normalizeBody('正常\n正文\n带真实换行') === '正常\n正文\n带真实换行', 'normalizeBody 不误伤正常正文')
 check(normalizeBody('') === '', 'normalizeBody 空串安全')
 // T16 端到端回归（#463/#445）：parseMapBody 必须经 normalizeBody 接线 —— 坏格式 body（BOM + 字面 \n）恢复 Destination
-const pfm = host.match(/function parseMapBody\(body\) \{[\s\S]*?\n    \}/)
+const pfm = hostMap.match(/function parseMapBody\(body\) \{[\s\S]*?\n    \}/)
 check(!!pfm, 'host 含 parseMapBody 定义（T16 端到端）')
 const parseMapBody = pfm ? eval('(' + pfm[0] + ')') : function () { return { destination: '', notes: '' } }
 const e2eOut = parseMapBody(badBody)
@@ -53,16 +58,16 @@ check(e2eOut.destination === 'DSH-Waystation **v1.5**', 'parseMapBody 端到端�
 check(e2eOut.notes === 'note here', 'parseMapBody 端到端恢复 Notes（#445 场景）')
 
 // 2) host/package 均带 progress 字段
-check(host.includes('progress: parseProgress'), 'host mapTicket 带 progress')
-check(pkg.includes('progress: parseProgress'), 'package index mapTicket 带 progress')
-check(pkg.includes('function parseProgress'), 'package index 含 parseProgress')
-check(host.includes('nodes{number title state body url'), 'host frag 子票查询含 body（fetchMapsDetail）')
-check(pkg.includes('nodes{number title state body url'), 'package index frag 子票查询含 body')
-check(host.includes('progress: parseProgress'), 'host mapTicket 带 progress（重复守卫）')
-check(host.includes('function normalizeBody'), 'host 含 normalizeBody（重复守卫）')
-check(pkg.includes('function normalizeBody'), 'package index 含 normalizeBody')
-check(host.includes('normalizeBody(body).split'), 'host parseMapBody 经 normalizeBody 接线（双源）')
-check(pkg.includes('normalizeBody(body).split'), 'package index parseMapBody 经 normalizeBody 接线（双源）')
+check(host.includes('progress: parseProgress') || hostMap.includes('progress: parseProgress'), 'host mapTicket 带 progress')
+check(pkg.includes('progress: parseProgress') || pkgMap.includes('progress: parseProgress'), 'package index mapTicket 带 progress')
+check(pkg.includes('function parseProgress') || pkgMap.includes('function parseProgress'), 'package index 含 parseProgress')
+check(host.includes('nodes{number title state body url') || hostDetail.includes('nodes{number title state body url'), 'host frag 子票查询含 body（fetchMapsDetail）')
+check(pkg.includes('nodes{number title state body url') || pkgDetail.includes('nodes{number title state body url'), 'package index frag 子票查询含 body')
+check(host.includes('progress: parseProgress') || hostMap.includes('progress: parseProgress'), 'host mapTicket 带 progress（重复守卫）')
+check(host.includes('function normalizeBody') || hostMap.includes('function normalizeBody'), 'host 含 normalizeBody（重复守卫）')
+check(pkg.includes('function normalizeBody') || pkgMap.includes('function normalizeBody'), 'package index 含 normalizeBody')
+check(host.includes('normalizeBody(body).split') || hostMap.includes('normalizeBody(body).split'), 'host parseMapBody 经 normalizeBody 接线（双源）')
+check(pkg.includes('normalizeBody(body).split') || pkgMap.includes('normalizeBody(body).split'), 'package index parseMapBody 经 normalizeBody 接线（双源）')
 
 // 3) client/package 均含进度渲染
 check(cli.includes('const tProgressBar'), 'client 含 tProgressBar')
@@ -76,8 +81,8 @@ check(pcli.includes('tProgressBar(t)') && pcli.includes('tStatusBadge(t)'), 'pac
 // B4：0% = 未动工（契约）—— tStatus 0 分支 + parseProgress 标题行锚定守卫
 check(cli.includes('t.progress <= 0'), 'client tStatus 0% → todo（B4）')
 check(pcli.includes('t.progress <= 0'), 'package client tStatus 0% → todo（B4）')
-check(host.includes('#{1,6}'), 'host parseProgress 标题行锚定（B4）')
-check(pkg.includes('#{1,6}'), 'package parseProgress 标题行锚定（B4）')
+check(host.includes('#{1,6}') || hostMap.includes('#{1,6}'), 'host parseProgress 标题行锚定（B4）')
+check(pkg.includes('#{1,6}') || pkgMap.includes('#{1,6}'), 'package parseProgress 标题行锚定（B4）')
 
 // T16: client/package 均含 bodyFormat 契约与追加点
 check(cli.includes('"bodyFormat"'), 'client 含 bodyFormat prompt')
