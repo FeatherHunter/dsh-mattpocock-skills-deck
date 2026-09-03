@@ -128,8 +128,10 @@ async function main() {
   ;((g2 >= 0 && hasTok(idx.slice(g2, g2 + 5), 'canonical')) || (g2r >= 0 && hasTok(rkf.slice(g2r, g2r + 5), 'canonical'))) ? ok('getRepoKey 首行规整') : bad('getRepoKey 首行未见规整钥匙')
   // H3 #447：wf.chain/wf.detect 处理器体已搬到 src/host/detectChain.js，守卫跟随代码位置。
   // H4 #448：wf.snapshot 处理器体已搬到 src/host/sessionSnapshot.js，守卫跟随代码位置（H3 同例）。
+  // H5 #449：wf.bind 处理器体已搬到 src/host/workspaceCwd.js，守卫跟随代码位置（H3 同例）。
   const dcf = linesOf(path.join('src', 'host', 'detectChain.js'))
   const ssf = linesOf(path.join('src', 'host', 'sessionSnapshot.js'))
+  const wcf = linesOf(path.join('src', 'host', 'workspaceCwd.js'))
   const guardSiteMovedIn = function (name, anchor, before, after, fileLines, movedFn, mBefore, mAfter) {
     const at = idxAt(anchor);
     if (at >= 0 && hasTok(idx.slice(Math.max(0, at - before), at + after + 1), 'canonical')) return ok(name);
@@ -144,7 +146,7 @@ async function main() {
   guardSiteMoved('wf.chain 入口规整', "harness.handle('wf.chain'", 1, 6, 'async function handleChain(', 0, 3);
   guardSiteMoved('wf.detect 入口规整', "harness.handle('wf.detect'", 1, 6, 'async function handleDetect(', 0, 3);
   guardSiteMovedIn('wf.snapshot 入口规整', "harness.handle('wf.snapshot'", 1, 6, ssf, 'async function handleSnapshot(', 0, 3);
-  guardSite('wf.bind 入口规整', "harness.handle('wf.bind'", 1, 8)
+  guardSiteMovedIn('wf.bind 入口规整', "harness.handle('wf.bind'", 1, 8, wcf, 'async function handleBind(', 0, 3)
   const d1 = idxAt('delete repoKeys[')
   ;(d1 >= 0 && hasTok(idx.slice(Math.max(0, d1 - 6), d1 + 1), 'canonical')) ? ok('建仓失效点 repoKeys 删除前规整') : bad('repoKeys 删除前未见规整钥匙（删不中即缓存僵尸）')
   const d2 = idxAt('delete repoRoots[')

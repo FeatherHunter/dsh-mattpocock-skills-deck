@@ -87,8 +87,8 @@ async function main() {
     }
     stubs.push({ id: b, setupPrompt: keys })
   }
-  // host wf.registry 转发
-  const hostSrc = fs.readFileSync(path.join(root, 'src/host/index.js'), 'utf8')
+  // host wf.registry 转发（H5 #449：转发体随 handleRegistry 搬入 workspaceCwd.js，断言跟随代码，意图不变）
+  const hostSrc = fs.readFileSync(path.join(root, 'src/host/workspaceCwd.js'), 'utf8')
   check(hostSrc.indexOf('m.setupPrompt ? { setupPrompt: m.setupPrompt }') >= 0, 'host wf.registry 转发 setupPrompt')
   // 快照镜像：locale 双语键一一成对存在（防单一语言漂移）
   const keyList = []
