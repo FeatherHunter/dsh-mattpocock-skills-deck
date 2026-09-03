@@ -47,6 +47,9 @@
         case 'back': return h('svg', common, [h('path', { d: 'M19 12H5' }), h('polyline', { points: '12 19 5 12 12 5' })])
         case 'alert': return h('svg', common, [h('path', { d: 'M12 3l10 18H2z' }), h('path', { d: 'M12 9.5V14' }), h('circle', { cx: 12, cy: 17, r: 0.7, fill: 'currentColor', stroke: 'none' })])
         case 'x': return h('svg', common, [h('path', { d: 'M6 6l12 12M18 6L6 18' })])
+        // #422 · 折叠箭头（横幅收起/展开，stroke 风格与通用集统一）
+        case 'chev-up': return h('svg', common, [h('polyline', { points: '6 15 12 9 18 15' })])
+        case 'chev-down': return h('svg', common, [h('polyline', { points: '6 9 12 15 18 9' })])
         case 'star': return h('svg', common, [h('path', { d: 'M12 3l2.7 5.8 6.3.7-4.7 4.3 1.3 6.2-5.6-3.2-5.6 3.2 1.3-6.2L3 9.5l6.3-.7z', fill: 'currentColor', stroke: 'none' })])
         case 'search': return h('svg', common, [h('circle', { cx: 11, cy: 11, r: 7 }), h('path', { d: 'M21 21l-4.3-4.3' })])
         case 'hammer': return h('svg', common, [h('path', { d: 'M14 4l6 6-2.5 2.5-6-6z' }), h('path', { d: 'M3 21l7.5-7.5' }), h('path', { d: 'M12.5 9.5l2 2' })])

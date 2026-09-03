@@ -84,6 +84,35 @@
       } catch (e) { /* 存储不可用降级为仅内存 */ }
     })()
     const persistSelectionByCwd = function () { try { localStorage.setItem(SELECTION_BY_CWD_KEY, JSON.stringify(selectionByCwd)) } catch (e) { /* 忽略 */ } }
+    // #422 · 提示横幅按工作区收起记忆（默认全部展开；各类提示横幅都可收，由调用方横幅决定是否给收起入口）。
+    //   存法沿用选择集同例：归一键 → 1（收起），缺席即展开；localStorage 不可用时降级为仅内存。
+    export const BANNER_FOLD_KEY = 'dsws.bannerFold'
+    export const bannerFoldByCwd = {}
+    ;(function () {
+      try {
+        const raw = localStorage.getItem(BANNER_FOLD_KEY)
+        if (raw) { const m = JSON.parse(raw); if (m && typeof m === 'object') { for (const k of Object.keys(m)) { const nk = (typeof keyOf === 'function' ? keyOf(k) : k); if (m[k] && !(nk in bannerFoldByCwd)) bannerFoldByCwd[nk] = 1 } } }
+      } catch (e) { /* 存储不可用降级为仅内存 */ }
+    })()
+    const persistBannerFold = function () { try { localStorage.setItem(BANNER_FOLD_KEY, JSON.stringify(bannerFoldByCwd)) } catch (e) { /* 忽略 */ } }
+    export const isBannerFolded = function (cwd) { try { if (!cwd) return false; const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || '')); return !!bannerFoldByCwd[k] } catch (e) { return false } }
+    export const setBannerFolded = function (cwd, folded) {
+      try {
+        const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || ''))
+        if (!cwd || !k) return
+        if (folded) bannerFoldByCwd[k] = 1
+        else delete bannerFoldByCwd[k]
+        persistBannerFold()
+      } catch (e) { /* 忽略 */ }
+      // 同工作区各会话跟随重渲染（与 touchProbeAt 同例；设置页另有本地刷新兜底）
+      try {
+        const nk = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || ''))
+        if (typeof shared !== 'undefined' && shared && shared.cwd && keyOf(shared.cwd) === nk) emit(shared)
+      } catch (e1) {}
+      try {
+        if (typeof stores !== 'undefined') Object.keys(stores).forEach(function (kk) { const st2 = stores[kk]; if (st2 && st2.cwd && keyOf(st2.cwd) === (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || ''))) emit(st2) })
+      } catch (e2) {}
+    }
     export const getCachedSelection = function (cwd) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); return cwd ? (selectionByCwd[k] || null) : null } catch(e){ return cwd ? (selectionByCwd[cwd] || null) : null } }
     export const setCachedSelection = function (cwd, sel) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); if (cwd && k) { selectionByCwd[k] = sel; persistSelectionByCwd() } } catch(e){ if (cwd) { selectionByCwd[cwd] = sel; persistSelectionByCwd() } } }
     export const getCachedRepository = function (cwd) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); return cwd ? repositoryByCwd[k] : null } catch(e){ return cwd ? repositoryByCwd[cwd] : null } }

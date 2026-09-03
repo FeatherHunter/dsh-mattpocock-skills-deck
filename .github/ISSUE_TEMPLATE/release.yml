@@ -94,5 +94,6 @@ body:
         - 本模板与 `docs/releases/release-issue-template.md` 同源，正文逐字一致（首行即引用 Runbook）。
         - 未提供版本号时请勿猜测，需追问确认。
         - awesome 侧更新保持按需原则，单条目且不手改生成产物。
+        - 致谢与安装命令：新版本合入外部贡献时在 `README.md` 致谢区按体例增补一行；中文、英文 README 与包内说明的锁定版本与本次发布同源（见 Runbook 第 2 节）。
 
         > 对话触发：对 AI 说“按发布规范发版 vX.Y.Z”即可由 AI 代为创建同模板议题（读取本模板与 Runbook 后执行 gh issue create）。

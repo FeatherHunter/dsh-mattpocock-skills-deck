@@ -208,6 +208,32 @@ export const StatusBar = (props) => {
       clearInterval(poll)
     }
   }, [])
+  // #196 · 状态栏胶囊移除 backend segment 后不再在此处挂 SwitchConfirmModal（仍由 Dock/Overlay 挂载，状态机保留）
+  const _isGatePending = !!(_selSBGate && _selSBGate.pending && !!s.cwd)
+  const _gateActive = _isOtherSBGate || _isGatePending
+  // BUG2 修复（2026-08-28）：后端未确定（无 selection 或 backendId 为空）时只显示门控条——
+  //   链快照（wf.chain）常早于选择回填到达，若此刻开放 setup/skills 黄条判定，
+  //   全新工作区会「尚未初始化/技能缺失」黄条一闪而过，再跳到正确的 gate 蓝条。
+  //   后端确定后才走依赖链引导（ghcli → ghauth → setup → skills）。
+  const _backendUndecided = !(_selSBGate && _selSBGate.backendId)
+  const firstBlock = (_gateActive || _backendUndecided) ? 'gate' : ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
+  // #422 · 收起整个功能区：横幅上的叉收起横幅与胶囊状态栏（打破胶囊永不隐藏旧规）；默认展开，按工作区记住。
+  const deckFolded = isBannerFolded(s.cwd)
+  const foldBanner = function () { try { setBannerFolded(s.cwd, true) } catch (e) {} }
+  const expandBanner = function () { try { setBannerFolded(s.cwd, false) } catch (e) {} }
+  // 收放按钮：胶囊最右侧的“∨”图标（无文字，技能入口之后）；收起态为带文字的小按钮（悬停与无障碍文案保留全称）。
+  const capsuleToggle = h(Tip, { content: tr('banner.foldDeck') }, h('span', { className: 'dsws-fold-toggle', onClick: function (e) { e.stopPropagation(); foldBanner() }, 'aria-label': tr('banner.foldDeck'), style: { display: 'inline-flex', alignItems: 'center', padding: '2px 2px', borderRadius: 6, color: 'var(--dsw-alias-label-caption,#8b8b95)', cursor: 'pointer', flex: 'none' } }, [
+    Ic({ n: 'chev-down', size: 12 }),
+  ]))
+  if (deckFolded) {
+    // 收起态：只留一颗带文字的小按钮（点即恢复横幅与状态栏；设置页工作区行是另一条恢复路径）
+    return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', padding: '0 8px' } }, [
+      h(Tip, { content: tr('banner.folded') }, h('button', { className: 'dsws-btn ghost', 'aria-label': tr('banner.expandDeck'), onClick: expandBanner, style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, padding: '0 8px', lineHeight: 1.2, border: 'none', borderRadius: 99, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, [
+        Ic({ n: 'chev-up', size: 10 }),
+        h('span', null, tr('banner.expandDeck')),
+      ])),
+    ])
+  }
   // 优化3：胶囊恒渲染（任何情况下不隐藏）；未选后端时其上方叠加 gate 蓝条引导入口
   const capsule = h('div', { className: 'dsws-capsule', ref: foldRef, onClick: function () { openPanel(s) }, style: { position: 'relative', width: '100%', boxSizing: 'border-box' } }, [
     h('span', { className: 'dsws-capsule-word', onClick: function (e) { e.stopPropagation(); togglePanel(s) } }, [
@@ -239,16 +265,8 @@ export const StatusBar = (props) => {
     h(Tip, { content: tr('nav.envTitle', { n: n < 0 ? '?' : String(n), t: String(envTotal(s)) }) }, seg('dot', [h('span', { 'data-fold-priority': 8 }, tr('nav.env')), num(envLabel(s))], n < 0 ? '#f87171' : n === envTotal(s) ? '#4ade80' : '#f59e0b', function () { go('checks') })),
     h(Tip, { content: tr('nav.refreshTitle') }, h('span', { className: 'dsws-timebtn', onClick: function (e) { e.stopPropagation(); refreshAll(s) }, 'aria-label': tr('nav.refreshTitle') }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', { 'data-fold-priority': 4 }, tr('nav.refresh')), h('span', { 'data-fold-priority': 9 }, ' ' + timeStr)])),
     h(SkillFloatList, { s: s }),
+    capsuleToggle,
   ])
-  // #196 · 状态栏胶囊移除 backend segment 后不再在此处挂 SwitchConfirmModal（仍由 Dock/Overlay 挂载，状态机保留）
-  const _isGatePending = !!(_selSBGate && _selSBGate.pending && !!s.cwd)
-  const _gateActive = _isOtherSBGate || _isGatePending
-  // BUG2 修复（2026-08-28）：后端未确定（无 selection 或 backendId 为空）时只显示门控条——
-  //   链快照（wf.chain）常早于选择回填到达，若此刻开放 setup/skills 黄条判定，
-  //   全新工作区会「尚未初始化/技能缺失」黄条一闪而过，再跳到正确的 gate 蓝条。
-  //   后端确定后才走依赖链引导（ghcli → ghauth → setup → skills）。
-  const _backendUndecided = !(_selSBGate && _selSBGate.backendId)
-  const firstBlock = (_gateActive || _backendUndecided) ? 'gate' : ghCliBad ? 'ghcli' : ghAuthBad ? 'ghauth' : amber ? 'setup' : skillsBad ? 'skills' : null
   const normMods = function(r){
     let ms=null
     if(r&&r.ok&&r.value&&Array.isArray(r.value.modules)) ms=r.value.modules
@@ -316,32 +334,34 @@ export const StatusBar = (props) => {
     ])
   })() : null
   if (!firstBlock) {
-    // 优化3：胶囊任何情况下不隐藏（#187 的 display:none 分支已移除）——无 banner 时即纯胶囊
-    return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: RDOM ? 'hidden' : 'visible' } }, [capsule])
+    // 无 banner 时为胶囊 + 常驻收起按钮（#422：收起即整个功能区消失）
+    return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: RDOM ? 'hidden' : 'visible' } }, [capsule])
   }
-  const bann = function (text, btnLabel, onBtn) {
+  const bann = function (text, btnLabel, onBtn, foldable) {
     return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
       Ic({ n: 'alert', size: 13 }),
       h('span', { style: { flex: 1 } }, text),
       h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: onBtn }, btnLabel),
+      foldable ? h(Tip, { content: tr('banner.foldDeck') }, h('button', { className: 'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), onClick: foldBanner, style: { borderColor: 'rgba(245,158,11,.6)', padding: '1px 6px', display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 11 }))) : null,
     ])
   }
   return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0', position:'relative' } }, [
+
     firstBlock === 'gate'
       ? (_isGatePending
-          ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', color:'#f59e0b', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }), h('span', { style:{ flex:1, fontSize:12 } }, '正在探测后端'), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(245,158,11,.6)', fontSize:11 }, onClick:function(){ loadSnapshot(s,true,true) } }, '重试') ])
-          : h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, tr('banner.gate')), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, onClick: openGate }, tr('banner.gateBtn')) ]))
+          ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', color:'#f59e0b', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }), h('span', { style:{ flex:1, fontSize:12 } }, '正在探测后端'), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(245,158,11,.6)', fontSize:11 }, onClick:function(){ loadSnapshot(s,true,true) } }, '重试'), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(245,158,11,.6)', color:'#f59e0b', padding:'1px 6px', display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ])
+          : h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, tr('banner.gate')), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, onClick: openGate }, tr('banner.gateBtn')), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', padding:'1px 6px', display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ]))
       : firstBlock === 'ghcli'
       // #195 修复(第二轮)：hint 直接为后端提供的完整 prompt（多态），UI 直接 inject；移除副按钮
-      ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { var c = chainStep(s, 'gh:installed'); var h = (c && c.show && c.show.hint) || ''; if (h) inject(s, h) })
+      ? bann(tr('banner.ghcli'), tr('banner.ghcliBtn'), function () { var c = chainStep(s, 'gh:installed'); var h = (c && c.show && c.show.hint) || ''; if (h) inject(s, h) }, true)
       : firstBlock === 'ghauth'
-        ? bann(tr('banner.ghauth'), tr('banner.ghauthBtn'), function () { var _bid=(s.selection&&s.selection.backendId!=null)?s.selection.backendId:null; var _mm=(typeof moduleMetaOf==='function'&&_bid!=null)?moduleMetaOf(s,_bid):null; var _pp=_mm&&_mm.prompts&&_mm.prompts.ghAuthLogin; var _lg=(typeof promptLang==='function')?promptLang():'zh'; var _t=_pp?((_lg==='en'&&_pp.en)?String(_pp.en):String(_pp.zh||'')):(typeof promptText==='function'?promptText('ghAuthLogin'):''); if(_t) inject(s,_t) })
+        ? bann(tr('banner.ghauth'), tr('banner.ghauthBtn'), function () { var _bid=(s.selection&&s.selection.backendId!=null)?s.selection.backendId:null; var _mm=(typeof moduleMetaOf==='function'&&_bid!=null)?moduleMetaOf(s,_bid):null; var _pp=_mm&&_mm.prompts&&_mm.prompts.ghAuthLogin; var _lg=(typeof promptLang==='function')?promptLang():'zh'; var _t=_pp?((_lg==='en'&&_pp.en)?String(_pp.en):String(_pp.zh||'')):(typeof promptText==='function'?promptText('ghAuthLogin'):''); if(_t) inject(s,_t) }, true)
         : firstBlock === 'setup'
           ? h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, width:'100%' } }, [
-              bann(tr('banner.setup'), tr('banner.setupBtn'), onSetupInit),
+              bann(tr('banner.setup'), tr('banner.setupBtn'), onSetupInit, true),
               setupPickCard,
             ])
-          : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.show && (skillsCheck.show.fallback || skillsCheck.show.desc || '')) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills', installSkillsParams())) }),
+          : bann(tr('banner.skills', { list: (skillsCheck && skillsCheck.show && (skillsCheck.show.fallback || skillsCheck.show.desc || '')) || '' }), tr('banner.skillsBtn'), function () { inject(s, promptText('installSkills', installSkillsParams())) }, true),
     capsule,
     (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) closeGate() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10, borderRadius:8, padding:12 } }, [
       h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:14, width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [

@@ -48,6 +48,11 @@
         'banner.ghcliBtn': 'AI 引导安装',
         'banner.ghauth': '登录态未就绪 —— 点右侧注入认证引导', // #231 中性化
         'banner.ghauthBtn': '查看登录指南',
+        'banner.foldDeck': '收起MattSkillsDeck',
+        'banner.expandDeck': '展开MattSkillsDeck',
+        'banner.foldShort': '收起',
+        'banner.expandShort': '展开',
+        'banner.folded': 'MattSkillsDeck 已收起，点击展开',
         'env.installBtn': '安装引导',
         'env.guide': '配置引导 · 按顺序完成（步骤随当前后端检查行派生）',
         // #229 泛化：原 env.g1-g4 为 GitHub 硬编码文案；现引导标签默认取双语行名，此处仅兜底
@@ -449,6 +454,11 @@
         'banner.ghcliBtn': 'AI-guided install',
         'banner.ghauth': 'Sign-in prerequisite missing — open guide to authenticate',
         'banner.ghauthBtn': 'View sign-in guide',
+        'banner.foldDeck': 'Collapse MattSkillsDeck',
+        'banner.expandDeck': 'Expand MattSkillsDeck',
+        'banner.foldShort': 'Collapse',
+        'banner.expandShort': 'Expand',
+        'banner.folded': 'MattSkillsDeck is collapsed — click to expand',
         'env.installBtn': 'Install guide',
         'env.guide': 'Setup guide · complete in order (steps derive from current backend check rows)',
         // #229: former env.g1-g4 were GitHub-hardcoded; guide labels now come from bilingual row names, these are fallbacks only

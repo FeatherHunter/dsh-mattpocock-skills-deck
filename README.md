@@ -38,10 +38,10 @@ npm install -g @deepseek-ai/dsh
 dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
 #     或者
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用
-# 锁定最新版更稳（当前 1.7.12）：
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.12 --registry https://registry.npmjs.org
+# 锁定最新版更稳（当前 1.7.13）：
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.13 --registry https://registry.npmjs.org
 #     或者
-dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.12 --registry https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.13 --registry https://registry.npmjs.org
 
 # ③ 窄屏更好用（可选）：better-sidebar 记得装进同一个 profile
 dsh plugin --profile web add dsh-better-sidebar
@@ -87,7 +87,7 @@ dsh plugin --profile desktop add dsh-better-sidebar
 
 ```bash
 # 给定最新版本号安装
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.12 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.13 --registry https://registry.npmjs.org
 
 # 免全局安装（想更稳，像上面一样锁版本）
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
@@ -238,6 +238,8 @@ MIT © FeatherHunter
 [@angenet](https://github.com/angenet) — 反馈了 #295、#262 等 macOS 环境检测问题
 
 [@hyperion2144](https://github.com/hyperion2144) — 反馈了 #110 等环境检查问题
+
+[@tafcear](https://github.com/tafcear) — 反馈了 #422（非编码工作区状态栏降噪诉求），感谢你让非编码工作区不再被初始化横幅打扰 🌹
 
 也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 

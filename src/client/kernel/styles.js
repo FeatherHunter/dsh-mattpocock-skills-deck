@@ -142,6 +142,8 @@
       '.dsws-banner.bad{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.45);color:#f87171}',
       '.dsws-banner.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);color:#fbbf24}',
       '.dsws-banner.ok{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.35);color:#4ade80}',
+      '.dsws-banner-fold-x:hover{opacity:.8}',
+      '.dsws-fold-toggle:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));color:var(--dsw-alias-label-primary,#e6edf3)}',
       // v1.3.3 UI 修复：aggrow 现含两行子块（行1 idcol+标题+圆环 / 行2 标签+按钮），必须纵向堆叠
       // v1.3.3：左侧预留空白减 20%（8px → 6.4px，map 行/普通行一致更紧凑）
       '.dsws-aggrow{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:6px 6.4px;border-radius:6px;border:1px solid transparent}',

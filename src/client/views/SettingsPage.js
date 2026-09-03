@@ -28,6 +28,7 @@ export     const SettingsPage = (props) => {
         TPL_EDIT_IDS.forEach(function (id) { o[id] = templates[id] || '' })
         return o
       })
+      const [foldVer, setFoldVer] = React.useState(0)
       const [saved, setSaved] = React.useState(false)
       const [errs, setErrs] = React.useState([])
       const [resetNote, setResetNote] = React.useState(null)
@@ -248,10 +249,11 @@ export     const SettingsPage = (props) => {
                   const srcColor=source==='explicit'?'#4ade80':source==='matches'?'#58a6ff':'#8b8b95'
                   const srcTitle=source==='explicit'?'显式：你在右侧面板选过，已写入 byHandle':source==='matches'?'自动：按仓库内容自动命中':'未指定：未显式且未自动命中，回退 Other'
                   const base=cwd.split(/[\\/]/).pop()||cwd
-                  return h('div',{ key:cwd, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden', minHeight:28 }},[
+                  return h('div',{ key:cwd + '#' + foldVer, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden', minHeight:28 }},[
                     h(HoverTip, { content: cwd, mode: 'mouse', maxWidth: 220 }, h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 } }, base)),
                     h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11, minWidth:72, justifyContent:'flex-end' }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap', minWidth:36, textAlign:'center'}},label) ]),
                     h(HoverTip, { content: srcTitle, mode: 'mouse', maxWidth: 220 }, h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel)),
+                    h(Tip, { content: tr(typeof isBannerFolded === 'function' && isBannerFolded(cwd) ? 'banner.expandDeck' : 'banner.foldDeck') }, h('button',{ className:'dsws-cfg-btn', style:{ marginLeft:'auto', flex:'none', whiteSpace:'nowrap' }, onClick:function(){ try{ if(typeof setBannerFolded==='function') setBannerFolded(cwd, !(typeof isBannerFolded==='function' && isBannerFolded(cwd))) }catch(e){} setFoldVer(function(v){ return v+1 }) } }, tr(typeof isBannerFolded === 'function' && isBannerFolded(cwd) ? 'banner.expandShort' : 'banner.foldShort'))),
                   ])
                 }))
               ])
