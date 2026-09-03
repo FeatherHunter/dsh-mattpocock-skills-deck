@@ -303,7 +303,7 @@ async function main(){
     check(true, '未向真实 HOME 写入（隔离） evidence no HOME write');
   }
   try {
-    const catSrc = readFileSync(path.join(ROOT,'src/shared/tracker/check-catalog.js'),'utf8');
+    const catSrc = readFileSync(path.join(ROOT,'src/shared/tracker/check-catalog-dirs.js'),'utf8') + readFileSync(path.join(ROOT,'src/shared/tracker/check-catalog-views.js'),'utf8');
     const hasCopyAction = catSrc.includes('copyBundledToHome');
     if (hasCopyAction) {
       // 若已实现，需验证仅在用户确认时写（rpc + confirm）
@@ -321,7 +321,7 @@ async function main(){
   // --- 6) GENERIC_CHECK_ITEMS 形态 ---
   console.log('\n-- 6) GENERIC_CHECK_ITEMS 形态与链完整性 --');
   try {
-    const catSrc2 = readFileSync(path.join(ROOT,'src/shared/tracker/check-catalog.js'),'utf8');
+    const catSrc2 = readFileSync(path.join(ROOT,'src/shared/tracker/check-catalog-dirs.js'),'utf8') + readFileSync(path.join(ROOT,'src/shared/tracker/check-catalog-views.js'),'utf8');
     check(catSrc2.includes("id: 'skill:wayfinder'"), 'catalog 含 skill:wayfinder evidence catalog');
     check(catSrc2.includes("id: 'skill:setup-matt-pocock-skills'"), 'catalog 含 skill:setup-matt-pocock-skills');
     check(catSrc2.includes("id: 'skill:ask-matt'"), 'catalog 含 skill:ask-matt');

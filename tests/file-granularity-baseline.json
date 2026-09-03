@@ -6,7 +6,6 @@
     "src/client/index.js": 394,
     "src/client/statusbar/StatusBar.js": 380,
     "src/host/index.js": 1159,
-    "src/shared/naming-guardian.js": 498,
-    "src/shared/tracker/check-catalog.js": 356
+    "src/shared/naming-guardian.js": 498
   }
 }

@@ -129,9 +129,10 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // #fix-banner 新增 matt-skills.js（Matt 技能套件 25 项真源，host import + client splice 双消费）→ 共享真源 13 文件
   // #324 起新增 workspaceKey.js（工作区键单源，#301 / #324 规格，host 包装 + client 共享）→ 共享真源 13 文件
   // shared-0（#443）接线：S1 拆 chain（682 行拆成 3 个文件，总数 +2）、S2 拆 naming-guardian（498 行拆成 3 个文件，总数 +2）、
-  // S3 拆 check-catalog（356 行拆成 2 个文件，总数 +1）；每张拆分票合入时同票把下面两行的 13 改成新总数并重跑 verify。
-  check(srcSharedFiles.length === 15, `src/shared 15 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 15, `package/shared 15 文件（实得 ${pkgSharedFiles.length}）`)
+  // S3 拆 check-catalog（356 行拆成 2 个文件，总数 +1）；每张拆分票合入时同票把下面两行的计数改成新总数并重跑 verify。
+  // S3（#453）：S2（#452）尚未合入，基数仍为 S1 后的 15，本票 +1 到 16；S2 合入时再 16 改 18。
+  check(srcSharedFiles.length === 16, `src/shared 16 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 16, `package/shared 16 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

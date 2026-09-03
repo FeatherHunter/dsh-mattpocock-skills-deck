@@ -74,7 +74,7 @@ console.log('\n— 验收1：源码门禁（纪律与线索） —')
 }
 {
   // #284：statusDerive.js 已随九格目录视图退役；拼写防线移到链目录（check-catalog 单一真源）
-  const catSrc = readFileSync('src/shared/tracker/check-catalog.js', 'utf8')
+  const catSrc = readFileSync('src/shared/tracker/check-catalog-dirs.js', 'utf8') + readFileSync('src/shared/tracker/check-catalog-views.js', 'utf8')
   check(!/setup-mattpocock-skills/.test(catSrc), 'check-catalog 无错拼（setup-matt-pocock-skills）')
   check(/setup-matt-pocock-skills/.test(catSrc), 'check-catalog 含正确拼写')
 }

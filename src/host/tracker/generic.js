@@ -14,7 +14,8 @@
  * 边界：不做 github/glab 专属项（后端目录另票 #227）。
  */
 
-import { GENERIC_CATALOG, GENERIC_CHECK_ITEMS, GENERIC_GATE_CHAIN, GENERIC_ENV_CHAIN, GENERIC_CHAIN, catalogFor, catalogItemToCheckItem } from '../../shared/tracker/check-catalog.js'
+import { GENERIC_CATALOG, catalogFor } from '../../shared/tracker/check-catalog-dirs.js'
+import { GENERIC_CHECK_ITEMS, GENERIC_GATE_CHAIN, GENERIC_ENV_CHAIN, GENERIC_CHAIN, catalogItemToCheckItem } from '../../shared/tracker/check-catalog-views.js'
 import { CHECK_STATE } from '../../shared/tracker/chain-types.js'
 import { validateCheckItem, validateChain } from '../../shared/tracker/chain-validate.js'
 import { evaluateChain } from '../../shared/tracker/chain-evaluate.js'
@@ -66,7 +67,7 @@ export function registerGenericPredicates(registry) {
 /**
  * 获取通用目录（任意后端下输出一致，#226 验收）。
  * @param {'github'|'markdown'|'gitlab'|null} _backendId 忽略，仅为接口一致；通用目录不随它改变
- * @returns {import('../../shared/tracker/check-catalog.js').CatalogItem[]}
+ * @returns {import('../../shared/tracker/check-catalog-dirs.js').CatalogItem[]}
  */
 export function getGenericCatalog(_backendId = null) {
   return [...GENERIC_CATALOG]

@@ -152,9 +152,10 @@ export function createDetectChain(deps) {
         let backendChain = null
         try{
           if (backendId) {
-            const catMod2 = await import('../shared/tracker/check-catalog.js')
+            const catDirs = await import('../shared/tracker/check-catalog-dirs.js')
+            const catViews = await import('../shared/tracker/check-catalog-views.js')
             const chainMod = await import('../shared/tracker/chain-validate.js')
-            let items = (catMod2.catalogFor ? catMod2.catalogFor(backendId) : []).filter(function(c){ return c.scope==='backend' && c.id !== 'gh:labels' }).map(function(ci){ return catMod2.catalogItemToCheckItem ? catMod2.catalogItemToCheckItem(ci) : null }).filter(Boolean)
+            let items = (catDirs.catalogFor ? catDirs.catalogFor(backendId) : []).filter(function(c){ return c.scope==='backend' && c.id !== 'gh:labels' }).map(function(ci){ return catViews.catalogItemToCheckItem ? catViews.catalogItemToCheckItem(ci) : null }).filter(Boolean)
             // 修复契约（2026-08-28）：后端声明 fixes（hint + 修复动作）→ 按语言解析附到检查项 onFail——
             //   检查失败即有修复入口（注入指引/重查），UI 零派生只渲染分发；后端未声明 fixes 则保持默认（重查）。
             if (items.length) {

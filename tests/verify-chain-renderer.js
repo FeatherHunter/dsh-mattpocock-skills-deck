@@ -187,7 +187,7 @@ try{
   }
   check(unsnap.steps[0].actions[0].type==='weird-type', 'unknown 类型存在')
   // Markdown 隔离：catalogFor 隔离
-  const { catalogFor } = await import('../src/shared/tracker/check-catalog.js')
+  const { catalogFor } = await import('../src/shared/tracker/check-catalog-dirs.js')
   const mdCats = catalogFor('markdown')
   const ghCats = catalogFor('github')
   check(!mdCats.some(c=>c.id==='gh:installed'), 'markdown 目录无 gh:installed')
