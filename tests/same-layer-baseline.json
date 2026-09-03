@@ -68,15 +68,6 @@
     },
     {
       "file": "src/host/detectChain.js",
-      "spec": "./tracker/predicateRegistry.js",
-      "resolved": "src/host/tracker/predicateRegistry.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host-3/6 #447",
-      "note": "H3 搬迁：谓词注册表装配随函数搬入本文件"
-    },
-    {
-      "file": "src/host/detectChain.js",
       "spec": "./tracker/fixContract.js",
       "resolved": "src/host/tracker/fixContract.js",
       "layer": "host",
@@ -113,15 +104,6 @@
     },
     {
       "file": "src/host/tracker/index.js",
-      "spec": "./registry.js",
-      "resolved": "src/host/tracker/registry.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
-      "note": "tracker 聚合出口重出注册表"
-    },
-    {
-      "file": "src/host/tracker/index.js",
       "spec": "./capability.js",
       "resolved": "src/host/tracker/capability.js",
       "layer": "host",
@@ -146,24 +128,6 @@
       "count": 1,
       "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
       "note": "tracker 聚合出口重出快照编排器"
-    },
-    {
-      "file": "src/host/tracker/registry.js",
-      "spec": "./contract.js",
-      "resolved": "src/host/tracker/contract.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
-      "note": "注册表引用契约里的操作与类型定义"
-    },
-    {
-      "file": "src/host/tracker/generic.js",
-      "spec": "./predicateRegistry.js",
-      "resolved": "src/host/tracker/predicateRegistry.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
-      "note": "通用检查链调用谓词注册表求值"
     },
     {
       "file": "src/host/tracker/detection/detectionService.js",
@@ -218,33 +182,6 @@
       "count": 1,
       "owner": "二批·host域拆分票（platform 装配扇出）",
       "note": "平台入口按系统分发 Linux 实现"
-    },
-    {
-      "file": "src/shared/tracker/chain.js",
-      "spec": "./constants.js",
-      "resolved": "src/shared/tracker/constants.js",
-      "layer": "shared",
-      "count": 2,
-      "owner": "二批·shared拆分票（待开，须先修门禁对照表）",
-      "note": "检查链引用常量定义"
-    },
-    {
-      "file": "src/shared/tracker/check-catalog.js",
-      "spec": "./chain.js",
-      "resolved": "src/shared/tracker/chain.js",
-      "layer": "shared",
-      "count": 1,
-      "owner": "二批·shared拆分票（待开，须先修门禁对照表）",
-      "note": "检查目录引用检查链的类型与求值"
-    },
-    {
-      "file": "src/shared/tracker/check-catalog.js",
-      "spec": "./chain-types.js",
-      "resolved": "src/shared/tracker/chain-types.js",
-      "layer": "shared",
-      "count": 1,
-      "owner": "二批·S1 #451",
-      "note": "S1 调用方改路径：检查目录改指拆分后的类型文件（原 chain.js 已消除）"
     },
     {
       "file": "src/shared/tracker/deck-derive.js",
@@ -353,15 +290,6 @@
       "count": 1,
       "owner": "二批·host-1/6 #445",
       "note": "H1 接线：index 动态加载仓库钥匙模块（装配扇入）"
-    },
-    {
-      "file": "src/host/platformChannel.js",
-      "spec": "./tracker/registry.js",
-      "resolved": "src/host/tracker/registry.js",
-      "layer": "host",
-      "count": 2,
-      "owner": "二批·host-1/6 #445",
-      "note": "H1 搬迁：注册表装配随函数搬入本文件"
     },
     {
       "file": "src/host/platformChannel.js",
