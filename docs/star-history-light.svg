@@ -2,31 +2,29 @@
   <style>text{font-family:"Comic Sans MS","Comic Sans","Chalkboard SE","Marker Felt","Segoe Print",cursive;fill:#24292f}</style>
   <rect width="100%" height="100%" fill="#fffdf7"/>
   <text x="420" y="34" text-anchor="middle" font-size="21">⭐ Star History</text>
-  <line x1="64" y1="332.5" x2="804" y2="332.5" stroke="#e8ebf0" stroke-width="1" opacity="0.7"/>
-  <line x1="64" y1="243.0" x2="804" y2="243.0" stroke="#e8ebf0" stroke-width="1" opacity="0.7"/>
-  <line x1="64" y1="153.5" x2="804" y2="153.5" stroke="#e8ebf0" stroke-width="1" opacity="0.7"/>
+  <line x1="64" y1="302.7" x2="804" y2="302.7" stroke="#e8ebf0" stroke-width="1" opacity="0.7"/>
+  <line x1="64" y1="183.3" x2="804" y2="183.3" stroke="#e8ebf0" stroke-width="1" opacity="0.7"/>
   <line x1="64" y1="64.0" x2="804" y2="64.0" stroke="#e8ebf0" stroke-width="1" opacity="0.7"/>
-  <path d="M 64 422 L 156.9 422.5 L 248.7 420.9 L 342.5 421.3 L 433.9 421.5 L 526.6 422.3 L 618.9 422.9 L 712.2 421.2 L 802.9 421.0" stroke="#24292f" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-  <path d="M 64 64 L 64.7 108.5 L 64.0 153.9 L 64.2 198.8 L 64.9 244.2 L 63.3 288.9 L 64.3 333.2 L 64.8 376.5 L 62.8 423.0" stroke="#24292f" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <path d="M 64 422 L 157.1 422.4 L 249.4 421.8 L 342.4 422.5 L 434.9 422.1 L 527.5 422.0 L 618.5 421.0 L 710.5 421.7 L 803.9 421.1" stroke="#24292f" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <path d="M 64 64 L 63.9 108.4 L 64.3 154.5 L 64.8 197.9 L 63.8 244.1 L 63.7 286.7 L 64.0 332.1 L 64.4 376.6 L 63.8 420.9" stroke="#24292f" stroke-width="1.6" fill="none" stroke-linecap="round"/>
   <text x="54" y="426.0" text-anchor="end" font-size="13" fill="#57606a">0</text>
-  <text x="54" y="336.5" text-anchor="end" font-size="13" fill="#57606a">10</text>
-  <text x="54" y="247.0" text-anchor="end" font-size="13" fill="#57606a">20</text>
-  <text x="54" y="157.5" text-anchor="end" font-size="13" fill="#57606a">30</text>
-  <text x="54" y="68.0" text-anchor="end" font-size="13" fill="#57606a">40</text>
+  <text x="54" y="306.7" text-anchor="end" font-size="13" fill="#57606a">20</text>
+  <text x="54" y="187.3" text-anchor="end" font-size="13" fill="#57606a">40</text>
+  <text x="54" y="68.0" text-anchor="end" font-size="13" fill="#57606a">60</text>
   <text x="64.0" y="446" text-anchor="middle" font-size="13" fill="#57606a">08/17</text>
-  <text x="310.7" y="446" text-anchor="middle" font-size="13" fill="#57606a">08/22</text>
-  <text x="508.0" y="446" text-anchor="middle" font-size="13" fill="#57606a">08/26</text>
-  <text x="656.0" y="446" text-anchor="middle" font-size="13" fill="#57606a">08/29</text>
-  <text x="804.0" y="446" text-anchor="middle" font-size="13" fill="#57606a">09/01</text>
+  <text x="325.2" y="446" text-anchor="middle" font-size="13" fill="#57606a">08/23</text>
+  <text x="499.3" y="446" text-anchor="middle" font-size="13" fill="#57606a">08/27</text>
+  <text x="629.9" y="446" text-anchor="middle" font-size="13" fill="#57606a">08/30</text>
+  <text x="804.0" y="446" text-anchor="middle" font-size="13" fill="#57606a">09/03</text>
   <text x="18" y="243" font-size="12" fill="#57606a" transform="rotate(-90 18 243)" text-anchor="middle">Stars</text>
   <text x="420" y="468" font-size="12" fill="#57606a" text-anchor="middle">Date</text>
-  <path d="M 65.0 412.2 C 81.2 410.9, 138.1 405.6, 162.5 404.1 C 186.8 402.6, 186.4 403.5, 211.0 403.4 C 235.7 403.2, 285.4 402.9, 310.3 403.2 C 335.1 403.4, 343.7 407.8, 360.2 404.9 C 376.8 402.1, 392.8 386.0, 409.3 386.0 C 425.9 385.9, 443.0 403.1, 459.6 404.5 C 476.1 406.0, 492.2 394.6, 508.5 394.5 C 524.7 394.4, 540.6 411.2, 557.0 404.0 C 573.4 396.7, 590.4 352.6, 607.0 351.1 C 623.6 349.5, 640.1 387.1, 656.6 394.5 C 673.2 401.9, 690.0 392.6, 706.2 395.6 C 722.4 398.6, 737.7 411.0, 753.8 412.4 C 769.9 413.8, 794.8 405.4, 803.0 404.0" fill="none" stroke="#2f81f7" stroke-width="1.8" stroke-dasharray="6 4" stroke-linecap="round" opacity="0.9"/>
-  <path d="M 64.5 413.2 C 81.0 410.2, 138.8 401.3, 163.4 395.3 C 188.0 389.2, 187.4 383.0, 212.1 377.1 C 236.8 371.1, 287.0 365.4, 311.7 359.6 C 336.4 353.8, 344.1 351.1, 360.3 342.2 C 376.6 333.3, 392.8 315.0, 409.2 306.0 C 425.6 296.9, 442.2 295.5, 458.7 288.0 C 475.3 280.5, 492.0 268.5, 508.5 261.0 C 524.9 253.5, 541.0 257.9, 557.4 242.9 C 573.8 227.8, 590.6 187.1, 607.0 170.6 C 623.4 154.1, 639.3 152.9, 655.6 143.9 C 671.9 134.9, 688.3 122.7, 704.8 116.7 C 721.4 110.7, 738.3 112.1, 754.8 107.7 C 771.2 103.3, 795.4 93.2, 803.6 90.3" fill="none" stroke="#d94f4f" stroke-width="3" stroke-linecap="round"/>
+  <path d="M 64.7 416.3 C 79.0 415.2, 128.9 410.8, 150.5 409.8 C 172.1 408.7, 172.3 410.1, 194.3 410.2 C 216.3 410.3, 260.8 410.5, 282.6 410.4 C 304.4 410.3, 310.9 411.9, 325.1 409.7 C 339.3 407.5, 353.1 397.5, 367.6 397.5 C 382.1 397.4, 397.6 408.1, 412.2 409.3 C 426.8 410.6, 440.6 404.6, 455.2 404.8 C 469.8 404.9, 485.3 415.2, 500.1 410.2 C 514.8 405.1, 529.4 375.2, 543.8 374.3 C 558.1 373.5, 571.9 400.3, 586.3 405.1 C 600.6 409.9, 615.5 401.6, 630.0 403.3 C 644.4 405.0, 658.1 414.4, 672.8 415.4 C 687.4 416.4, 703.2 411.2, 717.9 409.1 C 732.6 407.1, 746.8 402.0, 761.2 403.1 C 775.6 404.2, 797.1 413.5, 804.2 415.6" fill="none" stroke="#2f81f7" stroke-width="1.8" stroke-dasharray="6 4" stroke-linecap="round" opacity="0.9"/>
+  <path d="M 63.9 416.2 C 78.4 414.2, 129.5 408.0, 151.1 403.9 C 172.7 399.9, 171.8 396.0, 193.5 391.9 C 215.2 387.8, 259.1 383.5, 281.1 379.4 C 303.2 375.3, 311.0 373.1, 325.6 367.4 C 340.2 361.7, 354.5 350.9, 368.8 345.1 C 383.2 339.3, 397.2 337.8, 411.7 332.6 C 426.2 327.5, 441.1 319.2, 455.8 314.3 C 470.6 309.5, 485.8 313.2, 500.2 303.5 C 514.5 293.7, 527.6 266.8, 541.9 255.7 C 556.2 244.5, 571.4 242.9, 586.0 236.7 C 600.6 230.4, 615.0 222.4, 629.5 218.3 C 644.1 214.3, 658.7 215.3, 673.3 212.4 C 687.9 209.6, 702.6 205.9, 717.2 201.3 C 731.8 196.6, 746.4 188.1, 760.9 184.3 C 775.3 180.5, 796.7 179.4, 803.8 178.4" fill="none" stroke="#d94f4f" stroke-width="3" stroke-linecap="round"/>
 
   <rect x="78" y="72" width="152" height="52" rx="7" fill="#fffdf7" stroke="#24292f" stroke-width="1.4" opacity="0.92"/>
   <line x1="90" y1="88" x2="116" y2="88" stroke="#d94f4f" stroke-width="3" stroke-linecap="round"/>
   <text x="124" y="92" font-size="13">Total Stars</text>
   <line x1="90" y1="108" x2="116" y2="108" stroke="#2f81f7" stroke-width="2" stroke-dasharray="6 4" stroke-linecap="round"/>
   <text x="124" y="112" font-size="13">Daily New</text>
-  <text x="804" y="466" text-anchor="end" font-size="12" fill="#57606a">37 stars · 2026-09-01</text>
+  <text x="804" y="466" text-anchor="end" font-size="12" fill="#57606a">41 stars · 2026-09-03</text>
 </svg>
