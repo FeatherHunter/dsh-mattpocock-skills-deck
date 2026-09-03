@@ -202,7 +202,11 @@ const KERNEL_MODULES = [
 
 // ---------- 共享核心拼装（一源两物 · #265）----------
 /** 共享纯函数模块（src/shared/*）：host 半运行时 import()；client 半按与 kernel 同模式的
- *  标记拼回闭包 —— 原文零复制（去行首 export），两半共用同一份实现文本，无第二处命名真源。 */
+ *  标记拼回闭包 —— 原文零复制（去行首 export），两半共用同一份实现文本，无第二处命名真源。
+ *  shared-0（#443）接线结论：下面 5 项与 src/client/index.js 里 5 个拼接标记一一对应，已经对齐；
+ *  chain.js（682 行）与 check-catalog.js（356 行）只被 host 半在运行时引用，client 半没有运行时引用，
+ *  所以不进拼接清单，S1/S3 拆分时不新设拼接标记；naming-guardian.js（498 行）两半都要用，
+ *  S2 拆成 3 个文件后须拆成 3 个拼接项与 3 个标记位（做法见 #443 票内接线图），本票先不动功能只留档。 */
 const SHARED_SPLICE = [
   { marker: '// ==== shared:namingGuardian (spliced by build) ====', file: 'src/shared/naming-guardian.js' },
   { marker: '// ==== shared:trackerSync (spliced by build) ====', file: 'src/shared/tracker/sync.js' },
