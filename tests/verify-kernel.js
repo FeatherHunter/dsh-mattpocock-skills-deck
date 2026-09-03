@@ -1,6 +1,6 @@
-// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 9 模块契约验证
+// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 15 模块契约验证（#444 对齐后基准）
 // 验证：
-//   1) kernel 9 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表）
+//   1) kernel 15 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表 + #444 对齐新增 backendList/link/slots/slotRenderer）
 //   2) 构建产物（_dev client.js / _pkg package/lib/client.js）已拼接全部模块（一源两物 · 无标记残留）
 //   3) 双产物模块段关键特征一致（行为零变化证明）
 //   4) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-ctx 同口径）
@@ -22,11 +22,16 @@ const MODULES = [
   { name: 'probe', exports: ['loadChain', 'chainSteps', 'chainStep', 'readyCount', 'envTotal', 'envLabel', 'setupCheck', 'loadSnapshot', 'probeNow', 'startAutoProbe', 'refreshAll', 'diffSnapshots', 'snapFresh', 'broadcastCfg'] },
   { name: 'router', exports: ['openPagePanel', 'openDockPanel', 'openPanel', 'togglePanel', 'ensureSidebarTab', 'repoStr', 'startText', 'newWayfinderText', 'newBugWayfinderText'] },
   { name: 'api', exports: ['injectFixate', 'probeHandoffReady', 'doHandoff', 'doHandoffOpen', 'openTextInNewSession', 'inject', 'copyText', 'pendingDraft'] },
-  { name: 'actions', exports: ['createActionDispatcher'] },
+  { name: 'actions', exports: ['createActionDispatcher', 'ACTIONS_VERSION'] },
+  { name: 'backendList', file: 'builtin-backends', exports: ['BUILTIN_BACKENDS', 'builtinLabelOf', 'otherFiltered', 'firstBackendIdOf', 'repositoryActionOf', 'moduleMetaOf'] },
+  { name: 'link', exports: ['issueUrlFor', 'openIssueUrl', 'searchUrlFor', 'repoUrlFor', 'issueRefNumbersFrom'] },
+  { name: 'slots', exports: ['SLOTS_KERNEL_VERSION', 'SLOT_DEFS_KERNEL', 'MODAL_SEAT_ID', 'orderOf', 'isScopeValid', 'canDeclareIn', 'shouldShowInModal', 'isModalAction', 'getWizardAction', 'getFormAction', 'getModalAction', 'getWizardSteps'] },
+  { name: 'slotRenderer', exports: ['SLOT_RENDERER_VERSION', 'ensureFormModal', 'openFormModal', 'closeFormModal', 'startRepoSync', 'finishRepoSync', 'retryRepoSync', 'createModalRenderForm', 'canOpenModalForStep', 'canOpenWizardForStep', 'FormModalSeat'] },
 ]
+const kernelFileOf = (m) => 'src/client/kernel/' + (m.file || m.name) + '.js'
 const SOURCES = [
   'src/client/index.js', 'scripts/build.mjs', 'package/package.json',
-  ...MODULES.map((m) => 'src/client/kernel/' + m.name + '.js'),
+  ...MODULES.map(kernelFileOf),
 ]
 
 function productStale(prod) {
@@ -50,8 +55,8 @@ async function main() {
 
   // ---- 模块文件 + 导出齐全 ----
   for (const m of MODULES) {
-    const file = 'src/client/kernel/' + m.name + '.js'
-    if (!fs.existsSync(file)) { check(false, m.name + '.js 缺失'); continue }
+    const file = kernelFileOf(m)
+    if (!fs.existsSync(file)) { check(false, file + ' 缺失'); continue }
     const src = fs.readFileSync(file, 'utf8')
     for (const ex of m.exports) {
       const ok = new RegExp('export\\s+(const|let|function|var)\\s+' + ex + '\\b').test(src)
@@ -67,7 +72,7 @@ async function main() {
       '双产物无 ' + m.name + ' 拼接标记残留')
   }
   const spot = [
-    ['const STYLE_TEXT = [', 'const portalTop = function', 'const L = {', 'const Ic = ({ n', 'const PROMPTS = {', 'const cfg = (function', 'const shared = makeStore()', 'const loadSnapshot = function', 'const openPanel = function', 'const inject = (st, text)'],
+    ['const STYLE_TEXT = [', 'const portalTop = function', 'const L = {', 'const Ic = ({ n', 'const PROMPTS = {', 'const cfg = (function', 'const shared = makeStore()', 'const loadSnapshot = function', 'const openPanel = function', 'const inject = (st, text)', 'const BUILTIN_BACKENDS = [', 'const issueUrlFor = (st', 'const SLOT_DEFS_KERNEL = Object.freeze', 'const SLOT_RENDERER_VERSION = 1'],
   ][0]
   spot.forEach((k) => {
     check(cli.includes(k) && pcli.includes(k), '双产物含 ' + k.slice(0, 30) + '…（' + (cli.includes(k) ? '✓' : '✗') + '/' + (pcli.includes(k) ? '✓' : '✗') + '）')
