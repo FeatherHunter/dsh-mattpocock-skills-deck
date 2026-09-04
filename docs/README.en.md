@@ -13,7 +13,7 @@ A playable task board for [mattpocock/skills](https://github.com/mattpocock/skil
 
 <img src="../assets/panel-list-zh.png" width="640" alt="MattSkillsDeck panel: mission list, progress rings, one-click actions">
 
-<strong>A mission board you can see, and act on.</strong>
+<strong>👆 A mission board you can see, and act on.</strong>
 
 **Install in 30 seconds.**
 
@@ -114,7 +114,7 @@ The map owns the goal. MattSkillsDeck owns the steps.
 
 <img src="../assets/statusbar-zh.png" width="720" alt="DSH bottom task bar">
 
-<strong>The task bar lives at the bottom of DSH: open, blocked, archived, handed off — one strip.</strong>
+<strong>👆 The task bar lives at the bottom of DSH: open, blocked, archived, handed off — one strip.</strong>
 
 </div>
 
@@ -124,15 +124,15 @@ The map owns the goal. MattSkillsDeck owns the steps.
 
 <img src="../assets/issue-detail-zh.png" width="640" alt="ISSUE detail view">
 
-<strong>Open an issue: description, author, one-click new session.</strong>
+<strong>👆 Open an issue: description, author, one-click new session.</strong>
 
 <img src="../assets/issue-comment-zh.png" width="560" alt="Comment right in the panel">
 
-<strong>Never touch the terminal: comment, respond to issues, run diagnostics in the panel.</strong>
+<strong>👆 Never touch the terminal: comment, respond to issues, run diagnostics in the panel.</strong>
 
 <img src="../assets/statusbar-skills-menu-zh.png" width="480" alt="Task bar quick entry">
 
-<strong>Far right of the task bar: every Matt skill, one click away.</strong>
+<strong>👆 Far right of the task bar: every Matt skill, one click away.</strong>
 
 Matt's official skills site (docs and tutorials): [aihero.dev/skills](https://www.aihero.dev/skills)
 

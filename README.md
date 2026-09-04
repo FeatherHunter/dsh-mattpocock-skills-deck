@@ -15,7 +15,7 @@
 
 <img src="assets/panel-list-zh.png" width="640" alt="MattSkillsDeck 面板：任务列表、进度环与一键操作">
 
-<strong>一块看得见、派得动的任务板。</strong>
+<strong>👆 一块看得见、派得动的任务板。</strong>
 
 **装它，30 秒。**
 
@@ -135,7 +135,7 @@ MattSkillsDeck 在地图之上加了一层任务系统：
 
 <img src="assets/statusbar-zh.png" width="720" alt="DSH 底部任务栏">
 
-<strong>DSH 底部的任务栏：可接、阻塞、沉淀、交接，全在这一条。</strong>
+<strong>👆 DSH 底部的任务栏：可接、阻塞、沉淀、交接，全在这一条。</strong>
 
 </div>
 
@@ -145,15 +145,15 @@ MattSkillsDeck 在地图之上加了一层任务系统：
 
 <img src="assets/issue-detail-zh.png" width="640" alt="ISSUE 详情页">
 
-<strong>点开一个 ISSUE：描述、作者、一键新会话。</strong>
+<strong>👆 点开一个 ISSUE：描述、作者、一键新会话。</strong>
 
 <img src="assets/issue-comment-zh.png" width="560" alt="面板内直接评论">
 
-<strong>不动终端：在面板里直接评论、响应 ISSUE、跑诊断。</strong>
+<strong>👆 不动终端：在面板里直接评论、响应 ISSUE、跑诊断。</strong>
 
 <img src="assets/statusbar-skills-menu-zh.png" width="480" alt="状态栏快捷入口">
 
-<strong>状态栏最右侧：Matt 技能套件一键直达。</strong>
+<strong>👆 状态栏最右侧：Matt 技能套件一键直达。</strong>
 
 Matt 的 skills 官网（文档与教程）：[aihero.dev/skills](https://www.aihero.dev/skills)
 
