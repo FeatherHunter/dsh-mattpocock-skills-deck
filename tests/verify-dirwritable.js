@@ -32,10 +32,10 @@ async function main() {
     else { failed = true; console.log('  FAIL ' + msg + (detail ? ' — ' + String(detail).slice(0, 400) : '')) }
   }
 
-  const runProbe = async (platform, cwd) => {
+  const runProbe = async (platform, cwd, lang) => {
     const reg = createPredicateRegistry({ timeout: 2000 })
     const chain = [{ id: 'md:scratchWritable', check: { kind: 'primitive', primitive: 'dirWritable', path: '.scratch' } }]
-    const resolved = await reg.resolveAll(chain, { platform, backendId: 'markdown', cwd: cwd || '/ws' })
+    const resolved = await reg.resolveAll(chain, { platform, backendId: 'markdown', cwd: cwd || '/ws', ...(lang ? { lang } : {}) })
     return resolved['md:scratchWritable']
   }
 
@@ -151,6 +151,40 @@ async function main() {
     const rB = await runProbe(mkWritable('no-path'), '/ws')
     check(rB.status === 'pass', 'D7 resolve 返回无 path 键的对象（最坏形状）→ 同样 pass', rB.detail)
   }
+
+  // D8：沙箱拒绝（#476 实锤 workspace-write 栅栏）→ pending（诚实“量不出”，不谎报目录不可写）
+  {
+    const sandboxErr = 'cannot write "/ws/.scratch/.dsh-write-probe": file access denied under workspace-write mode'
+    const mkSandbox = () => ({
+      path: { join: (...a) => a.join('/') },
+      env: { get: () => undefined, has: () => false },
+      fs: {
+        resolve: async (p, o) => (o && o.cwd ? o.cwd + '/' + p : p),
+        writeText: async () => { throw new Error(sandboxErr) },
+      },
+    })
+    const rZh = await runProbe(mkSandbox(), '/ws', 'zh')
+    check(rZh.status === 'pending', 'D8 沙箱拒绝（中文）→ pending 而非 fail', rZh.detail)
+    check(/沙箱/.test(rZh.detail || '') && !/目录不可写/.test(rZh.detail || ''), 'D8 中文详情讲清沙箱、不写“目录不可写”', rZh.detail)
+    const rEn = await runProbe(mkSandbox(), '/ws')
+    check(rEn.status === 'pending', 'D8 沙箱拒绝（英文）→ pending 而非 fail', rEn.detail)
+    check(/sandbox/i.test(rEn.detail || ''), 'D8 英文详情含 sandbox 说明', rEn.detail)
+  }
+
+  // D9：系统级拒绝（EACCES，无沙箱关键词）→ 仍判 fail（D8 正则不过宽的护栏）
+  {
+    const platform = {
+      path: { join: (...a) => a.join('/') },
+      env: { get: () => undefined, has: () => false },
+      fs: {
+        resolve: async (p, o) => (o && o.cwd ? o.cwd + '/' + p : p),
+        writeText: async () => { throw new Error('EACCES: permission denied') },
+      },
+    }
+    const r = await runProbe(platform, '/ws', 'zh')
+    check(r.status === 'fail', 'D9 系统级 EACCES → 仍判 fail', r.detail)
+  }
+
 
   console.log(`\ndirWritable 契约：${passed}/${total} 通过${failed ? ' — 有失败' : ''}`)
   if (failed) process.exit(1)

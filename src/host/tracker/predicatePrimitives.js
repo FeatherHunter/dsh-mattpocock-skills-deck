@@ -162,7 +162,16 @@ export async function execPrimitive(check, ctx) {
             }
             return makeResult('pass', zh ? '目录可读写' : rel + ' exists & writable')
           } catch (e) {
-            return makeResult('fail', (zh ? '目录不可写：' : 'not writable: ') + String((e && e.message) || e).slice(0, 200))
+            // 2026-09-04（#476 实锤）：DSH 文件服务 workspace-write 沙箱只放行进程工作目录下的写，
+            //   沙箱外工作区的探针必被拒。拒信关键词 workspace-write / file access denied 只认沙箱，不认系统；
+            //   此时量不出系统可写性，诚实判 pending（灰态），不谎报“目录不可写”。系统级拒绝（EACCES 等）仍走 fail。
+            const rawMsg = String((e && e.message) || e)
+            if (/workspace-write|file access denied/i.test(rawMsg)) {
+              return makeResult('pending', zh
+                ? '插件的文件服务被沙箱拦住，量不出这个目录是否可写（目录本身存在；请按沙箱限制排查，别按目录权限排查）'
+                : 'sandboxed fs denied the probe; writability not verified (dir exists)')
+            }
+            return makeResult('fail', (zh ? '目录不可写：' : 'not writable: ') + rawMsg.slice(0, 200))
           }
         }
         // 3) 无写探测能力 → 回退存在性（详情如实注明未验证可写；链可完成）
