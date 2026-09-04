@@ -25,15 +25,16 @@ const check = function (file) {
   requireText(/dsws-skillpop[\s\S]{0,500}zIndex:\s*2147483000/, '技能列表缺全局 z-index')
 
   // 定位必须从锚点 rect 得出，并在滚动/缩放后更新。
-  requireText(/const placeOverlay\s*=\s*function[\s\S]{0,300}getBoundingClientRect\(\)/, '缺锚点 rect 定位')
-  requireText(/const placeBugMenu\s*=\s*function[\s\S]{0,450}bugMenuPos/, '缺 BUG 锚点位置状态')
+  // B1 #460：状态栏悬浮菜单旅程搬 StatusMenus.js（placeOverlay/placeBugMenu 改名 Status 前缀），拼合断言意图不变
+  requireText(/const place(Status)?Overlay\s*=\s*function[\s\S]{0,300}getBoundingClientRect\(\)/, '缺锚点 rect 定位')
+  requireText(/const placeStatusBugMenu\s*=\s*function[\s\S]{0,450}bugMenuPos/, '缺 BUG 锚点位置状态')
   requireText(/const placeSkillPop\s*=\s*function[\s\S]{0,450}skillPopPos/, '缺技能锚点位置状态')
   requireText(/addEventListener\(['"]scroll['"][\s\S]{0,900}capture:\s*true/, '缺捕获阶段 scroll 重定位')
   requireText(/addEventListener\(['"]resize['"][\s\S]{0,900}reposition/, '缺 resize 重定位')
 
   // portal 后 trigger -> popup 的鼠标桥接必须有延迟关闭/取消关闭机制。
-  requireText(/const scheduleClose\s*=\s*function[\s\S]{0,180}setTimeout/, '缺 portal 弹层延迟关闭')
-  requireText(/clearClose\([\s\S]{0,120}bugCloseRef|clearClose\([\s\S]{0,120}skillCloseRef/, '缺 portal 弹层取消关闭')
+  requireText(/const schedule(Status)?Close\s*=\s*function[\s\S]{0,180}setTimeout/, '缺 portal 弹层延迟关闭')
+  requireText(/clear(Status)?Close\([\s\S]{0,120}bugCloseRef|clear(Status)?Close\([\s\S]{0,120}skillCloseRef/, '缺 portal 弹层取消关闭')
 
   // 正常 portal 路径保留横向裁剪；没有 ReactDOM 时转 visible，避免 fallback 菜单被同一 wrapper 裁掉。
   requireText(/overflow:\s*RDOM\s*\?\s*'hidden'\s*:\s*'visible'/, 'wrapper 缺 RDOM 条件式裁剪/可用降级')

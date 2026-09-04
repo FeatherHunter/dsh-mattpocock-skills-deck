@@ -265,6 +265,8 @@ const LEAF_MODULES = [
   { id: 'overlay', file: 'src/client/panel/Overlay.js' },
   { id: 'seg', file: 'src/client/statusbar/Seg.js' },
   { id: 'checksums', file: 'src/client/statusbar/checksums.js' },
+  { id: 'StatusMenus', file: 'src/client/statusbar/StatusMenus.js' },
+  { id: 'StatusBackend', file: 'src/client/statusbar/StatusBackend.js' },
   { id: 'statusBar', file: 'src/client/statusbar/StatusBar.js' },
   { id: 'chainRenderer', file: 'src/client/views/shared/ChainRenderer.js' },
   { id: 'skillFloatList', file: 'src/client/floating/SkillFloatList.js' },

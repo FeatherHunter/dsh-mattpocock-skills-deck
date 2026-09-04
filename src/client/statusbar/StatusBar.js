@@ -70,100 +70,14 @@ export const StatusBar = (props) => {
   const bugCloseRef = React.useRef(null)
   const backendAnchorRef = React.useRef(null)
   const backendCloseRef = React.useRef(null)
-  const placeOverlay = function (el, align) {
-    if (!el || typeof window === 'undefined') return null
-    const r = el.getBoundingClientRect()
-    if (!r || (!r.width && !r.height)) return null
-    const p = { bottom: Math.max(0, Math.round(window.innerHeight - r.top)) }
-    if (align === 'right') p.right = Math.max(0, Math.round(window.innerWidth - r.right))
-    else p.left = Math.max(0, Math.round(r.left))
-    return p
-  }
-  const placeBugMenu = function () {
-    const p = placeOverlay(bugAnchorRef.current, 'left')
-    if (!p) return false
-    const old = s.bugMenuPos
-    if (old && old.left === p.left && old.bottom === p.bottom) return false
-    s.bugMenuPos = p
-    return true
-  }
-  const clearClose = function (ref) {
-    if (ref.current !== null) { clearTimeout(ref.current); ref.current = null }
-  }
-  const closeBugMenu = function () {
-    clearClose(bugCloseRef)
-    if (!s.bugMenuOpen && !s.bugMenuPos && !s.bugMenuHover) return
-    s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; emit(s)
-  }
-  const scheduleClose = function (ref, fn) {
-    clearClose(ref)
-    ref.current = setTimeout(function () { ref.current = null; fn() }, 160)
-  }
-  const showBugMenu = function () {
-    clearClose(bugCloseRef)
-    let changed = false
-    if (s.skillsOpen || s.skillPopPos || s.skillHover || s.skillTip) { s.skillsOpen = false; s.skillHover = null; s.skillTip = null; s.skillPopPos = null; changed = true }
-    if (!s.bugMenuOpen) { s.bugMenuOpen = true; changed = true }
-    if (placeBugMenu()) changed = true
-    if (changed) emit(s)
-  }
-  const placeBackendMenu = function () {
-    const p = placeOverlay(backendAnchorRef.current, 'left')
-    if (!p) return false
-    const old = s.backendMenuPos
-    if (old && old.left === p.left && old.bottom === p.bottom) return false
-    s.backendMenuPos = p
-    return true
-  }
-  const closeBackendMenu = function () {
-    clearClose(backendCloseRef)
-    if (!s.backendMenuOpen && !s.backendMenuPos) return
-    s.backendMenuOpen = false; s.backendMenuPos = null; emit(s)
-  }
-  const showBackendMenu = function () {
-    clearClose(backendCloseRef); clearClose(bugCloseRef)
-    let changed = false
-    if (s.bugMenuOpen || s.bugMenuPos || s.bugMenuHover) { s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; changed = true }
-    if (s.skillsOpen || s.skillPopPos || s.skillHover || s.skillTip) { s.skillsOpen = false; s.skillHover = null; s.skillTip = null; s.skillPopPos = null; changed = true }
-    if (!s.backendMenuOpen) { s.backendMenuOpen = true; changed = true }
-    if (placeBackendMenu()) changed = true
-    if (changed) emit(s)
-  }
-  React.useEffect(function () {
-    if (!s.bugMenuOpen && !s.backendMenuOpen) return undefined
-    let raf = null
-    let disposed = false
-    const reposition = function () {
-      if (disposed || raf !== null) return
-      const run = function () {
-        raf = null
-        if (disposed) return
-        let changed = false
-        if (s.bugMenuOpen && placeBugMenu()) changed = true
-        if (s.backendMenuOpen && placeBackendMenu()) changed = true
-        if (changed) emit(s)
-      }
-      if (typeof requestAnimationFrame === 'function') raf = requestAnimationFrame(run)
-      else raf = setTimeout(run, 0)
-    }
-    document.addEventListener('scroll', reposition, { capture: true, passive: true })
-    window.addEventListener('resize', reposition)
-    const ro = new ResizeObserver(reposition)
-    if (bugAnchorRef.current) ro.observe(bugAnchorRef.current)
-    if (backendAnchorRef.current) ro.observe(backendAnchorRef.current)
-    reposition()
-    return function () {
-      disposed = true
-      ro.disconnect()
-      if (raf !== null) {
-        if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf)
-        else clearTimeout(raf)
-      }
-      document.removeEventListener('scroll', reposition, true)
-      window.removeEventListener('resize', reposition)
-      clearClose(bugCloseRef); clearClose(backendCloseRef)
-    }
-  }, [s.bugMenuOpen, s.backendMenuOpen])
+  // 状态栏悬浮菜单定位与开关已搬 StatusMenus.js（B1 #460，纯结构；同闭包拼回直调）。
+  // 以后改悬浮菜单跟随定位与开关的人改 StatusMenus.js，本处只留转调包装。
+  const clearClose = function(ref){ clearStatusClose(ref) }
+  const scheduleClose = function(ref, fn){ scheduleStatusClose(ref, fn) }
+  const closeBugMenu = function(){ closeStatusBugMenu(s, bugCloseRef) }
+  const showBugMenu = function(){ showStatusBugMenu(s, bugAnchorRef, bugCloseRef) }
+  // 菜单重定位副作用已搬 StatusMenus.js 的 useStatusMenus（B1 #460，同闭包拼回），此处单调供装配。
+  useStatusMenus(s, { bugAnchorRef: bugAnchorRef, backendAnchorRef: backendAnchorRef, bugCloseRef: bugCloseRef, backendCloseRef: backendCloseRef })
   const applyFold = function () {
     const cap = foldRef.current
     if (!cap) return
@@ -267,49 +181,14 @@ export const StatusBar = (props) => {
     h(SkillFloatList, { s: s }),
     capsuleToggle,
   ])
-  const normMods = function(r){
-    let ms=null
-    if(r&&r.ok&&r.value&&Array.isArray(r.value.modules)) ms=r.value.modules
-    else if(r&&r.ok&&Array.isArray(r.modules)) ms=r.modules
-    else if(r&&r.modules&&Array.isArray(r.modules)) ms=r.modules
-    if(!Array.isArray(ms)) return null
-    const f=ms.filter(function(m){return String(m.id).toLowerCase()!=='other'})
-    return f.length?f:null
-  }
-  const ensureSetupPickModules = function(cb){
-    if(s.setupPickModules&&s.setupPickModules.length){cb(s.setupPickModules);return}
-    if(typeof host==='undefined'||typeof host.call!=='function'){s.setupPickModules=[];cb(s.setupPickModules);return}
-    s.setupPickLoading=true;emit(s)
-    host.call('wf.registry',{cwd:s.cwd||''}).then(function(r){
-      s.setupPickLoading=false
-      const ms=normMods(r)
-      if(ms){s.setupPickModules=ms;const cur=s.selection&&s.selection.backendId!=null?s.selection.backendId:firstBackendIdOf(null);s.setupPickRecommended=cur;if(!s.setupPickSelected)s.setupPickSelected=cur;emit(s);cb(ms);return}
-      s.setupPickErr=String(r&&(r.error||r.message)||'unknown').slice(0,120);emit(s);cb([])
-    }).catch(function(e){s.setupPickLoading=false;s.setupPickErr=String(e).slice(0,120);emit(s);cb([])})
-  }
-  const openSetupPick = function(){s.setupPickOpen=true;if(!s.setupPickSelected){const cur=s.selection&&s.selection.backendId!=null?s.selection.backendId:firstBackendIdOf(null);s.setupPickSelected=cur;s.setupPickRecommended=cur}ensureSetupPickModules(function(){emit(s)});emit(s)}
-  const closeSetupPick = function(){s.setupPickOpen=false;s.setupPickErr='';emit(s)}
-  const cancelSetupPick = function(){closeSetupPick()}
-  const confirmSetupPick = function(){
-    const id=s.setupPickSelected||s.setupPickRecommended||firstBackendIdOf(null)
-    const prev=s.selection
-    s.selection={backendId:id,source:'explicit',ref:(s.repository||(s.snapshot&&s.snapshot.repository)||null)}
-    try{if(s.cwd)setCachedSelection(s.cwd,s.selection)}catch{}
-    emit(s);closeSetupPick()
-    if(typeof host!=='undefined'&&host.call)host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){const ok=res&&(res.ok||(res.value&&res.value.ok));if(ok){try{flash(s,'已选择 '+(typeof labelOf==='function'?labelOf(id):id),'ok')}catch{};loadSnapshot(s,true,true)}else{s.selection=prev;emit(s);try{flash(s,tr('switch.bindFail',{err:String(res&&(res.error||res.message)||'unknown')}),'warn')}catch{}}}).catch(function(){s.selection=prev;emit(s)})
-    try{inject(s,setupRunPrompt(s,id))}catch(e){} // #230（D10）：占位符由后端描述数据填充
-  }
-  const onSetupInit = function(){
-    const id=s.selection && s.selection.backendId!=null ? s.selection.backendId : (s.setupPickSelected||s.setupPickRecommended||firstBackendIdOf(null));
-    try{s.setupPickOpen=false;emit(s);}catch(e){}
-    try{inject(s,setupRunPrompt(s,id))}catch(e){} // #230（D10）：占位符由后端描述数据填充
-  }
-  const openGate = function(){
-    s.gateModalOpen=true;s.gateModalSource='status';if(!s.gateSelected)s.gateSelected=firstBackendIdOf(null);s.gateError='';emit(s);
-    if(typeof host!=='undefined'&&host.call){s.gateLoading=true;emit(s);host.call('wf.registry',{cwd:s.cwd||''}).then(function(r){s.gateLoading=false;let m=null;if(r&&r.ok&&Array.isArray(r.modules))m=r.modules;else if(r&&Array.isArray(r.modules))m=r.modules;else if(r&&r.value&&Array.isArray(r.value.modules))m=r.value.modules;if(Array.isArray(m)&&m.length){const f=m.filter(function(x){return String(x.id).toLowerCase()!=='other'});const fin=f.length?f:m;if(fin.length){s.backendModules=m;try{if(typeof setPresentationMap==='function')setPresentationMap(m)}catch(e){}const ids=fin.map(function(x){return x.id});if(!s.gateSelected||ids.indexOf(s.gateSelected)<0)s.gateSelected=fin[0].id}}emit(s)}).catch(function(){s.gateLoading=false;emit(s)});}
-  }
-  const closeGate = function(){ s.gateModalOpen=false; s.gateModalSource=null; s.gateError=''; emit(s); };
-  const confirmGateStatus = function(){ const id=s.gateSelected||firstBackendIdOf(null); if(String(id).toLowerCase()==='other'){ s.gateError=tr('switch.gateOtherErr'); emit(s); return; } const prev=s.selection; const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null; const nxt={backendId:id,source:'explicit',ref:repoRef}; s.selection=nxt; try{ if(s.cwd)setCachedSelection(s.cwd,nxt) }catch(e){} s.gateModalOpen=false; s.gateModalSource=null; emit(s); if(typeof host!=='undefined'&&host.call){ host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){ const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok); if(ok){ s.tab='list'; emit(s); try{ flash(s,tr('switch.bindOk',{label:(typeof labelOf==='function'?labelOf(id):String(id))}),'ok') }catch(e){} try{ const tt=(typeof setupRunPrompt==='function'?setupRunPrompt(s,id):''); if(tt) try{ inject(s,tt) }catch(e){} }catch(e){} loadSnapshot(s,true,true); } else { s.selection=prev; try{ if(s.cwd)setCachedSelection(s.cwd,prev) }catch(e){} emit(s); try{ flash(s,tr('switch.bindFail',{err:String(res&&(res.error||res.message)||'unknown')}),'warn') }catch(e){} } }).catch(function(){ s.selection=prev; try{ if(s.cwd)setCachedSelection(s.cwd,prev) }catch(e){} emit(s); }); } };
+  // 状态栏后端选择与门控动作已搬 StatusBackend.js（B1 #460，纯结构；同闭包拼回直调）。
+  // 以后改状态栏后端选择（setup 黄条与 gate 蓝条）的人改 StatusBackend.js，本处只留转调包装。
+  const cancelSetupPick = function(){ cancelStatusSetupPick(s) }
+  const confirmSetupPick = function(){ confirmStatusSetupPick(s) }
+  const onSetupInit = function(){ onStatusSetupInit(s) }
+  const openGate = function(){ openStatusGate(s) }
+  const closeGate = function(){ closeStatusGate(s) }
+  const confirmGateStatus = function(){ confirmStatusGate(s) }
   const setupPickCard = s.setupPickOpen ? (function(){
     const mods=s.setupPickModules||[];const rec=s.setupPickRecommended||firstBackendIdOf(null);const sel=s.setupPickSelected||rec
     return h('div', { style:{ width:'100%', maxWidth:560, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:10, background:'var(--dsw-alias-bg-layer-2,#16181d)', padding:10, boxShadow:'0 8px 24px rgba(0,0,0,.35)' } }, [

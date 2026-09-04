@@ -39,6 +39,8 @@ const LEAVES = [
   { file: 'src/client/panel/Overlay.js', exports: ['OverlayPanel'], components: ['OverlayPanel'] },
   { file: 'src/client/statusbar/Seg.js', exports: ['num', 'seg'], components: [] },
   { file: 'src/client/statusbar/checksums.js', exports: ['checksumsOf'], components: [] },
+  { file: 'src/client/statusbar/StatusMenus.js', exports: ['placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'placeStatusBugMenu', 'closeStatusBugMenu', 'showStatusBugMenu', 'placeStatusBackendMenu', 'closeStatusBackendMenu', 'showStatusBackendMenu', 'useStatusMenus'], components: [] }, // B1 #460 由 StatusBar.js 拆出：悬浮菜单定位与开关（锚点测算加开关加重的定位钩子，无组件，纯函数）
+  { file: 'src/client/statusbar/StatusBackend.js', exports: ['normStatusMods', 'ensureStatusSetupPick', 'openStatusSetupPick', 'closeStatusSetupPick', 'cancelStatusSetupPick', 'confirmStatusSetupPick', 'onStatusSetupInit', 'openStatusGate', 'closeStatusGate', 'confirmStatusGate'], components: [] }, // B1 #460 由 StatusBar.js 拆出：后端选择与门控动作（选后端拉清单确认绑定，无组件，纯函数）
   { file: 'src/client/statusbar/StatusBar.js', exports: ['StatusBar'], components: ['StatusBar'] },
   { file: 'src/client/floating/SkillFloatList.js', exports: ['SkillFloatList'], components: ['SkillFloatList'] },
   { file: 'src/client/floating/Pop.js', exports: ['showPop'], components: [] },
@@ -73,7 +75,7 @@ function main() {
     if (!fs.existsSync(file)) { check(false, file + ' 缺失'); continue }
     const src = fs.readFileSync(file, 'utf8')
     const lines = src.split(/\r?\n/).length
-    const limit = file.includes('StatusBar') ? 450 : 350
+    const limit = 350 // B1 #460：StatusBar 已拆分达标，例外已删，全员 350
     check(lines <= limit, file + ' ≤' + limit + ' 行（G4 · 实际 ' + lines + '）')
     for (const ex of l.exports) {
       const ok = new RegExp('export\\s+(const|let|function|var)\\s+' + ex + '\\b').test(src)
