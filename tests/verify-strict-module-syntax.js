@@ -53,6 +53,7 @@ console.log('  PASS 自检内存夹具全部通过')
 
 // ---- 真实仓库扫描 ----
 function listJsFiles() {
+  if (!fs.existsSync(SRC)) return []
   const out = []
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -85,8 +86,8 @@ for (const abs of files) {
     esbuild.transformSync(code, { loader: 'js', format: 'esm' })
     passCount++
   } catch (e) {
-    const first = String((e && e.message) || e).split('\n')[0]
-    bad(rel + ' 严格解析失败：' + first)
+    const lines = String((e && e.message) || e).split('\n').slice(0, 3).join(' | ')
+    bad(rel + ' 严格解析失败：' + lines)
   }
 }
 
