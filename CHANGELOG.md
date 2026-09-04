@@ -1,5 +1,17 @@
 # dsh-mattpocock-skills-deck 变更历史
 
+## 2026-09-04 · v1.7.14 发布：结构收口完成与市场介绍改版
+
+- **结构收口（地图 #336 关闭，36 票全关）**：`src/` 从 115 个文件到 176 个文件，14 个超标文件清零（宿主入口从 3994 行降到 324 行，只剩组装逻辑）；新文件之间零互相引用，调用方改路径、原文件消除；纯结构拆分，行为零变化，每票带行为对等证明。
+- **防线落盘**：新增文件粒度门禁（超 350 行红、超 500 行阻断发布）与 host/shared/seam/platform 同层互引门禁，基线只许减不许增；孤儿门禁接回验证链；拆分蓝图落盘 `docs/architecture/split-blueprint.md`。
+- **校验加固（#471）**：新增 esbuild 严格模块解析门禁，宽松的本地检查不再放行非法模块语法（构建门禁才是真实 backstop 的口径差已补上）。
+- **孤儿测试修复（#472）**：`verify-t1-initpublish` 改走标准分发通道，建仓发布验证重新通过并接回验证链。
+- **介绍改版（三处同源）**：包介绍、GitHub About、awesome 市场介绍换新文案——安装即自带 25 个 mattpocock 技能（随包 `bundled-skills`，pin v1.2.3，已核对为上游最新 tag，无需手动装技能），右侧面板直接调用；支持范围写明：GitHub issue 为当前主力支持，Markdown 本地文件为预览版，GitLab 暂不在支持范围。
+- **旧节订正**：v1.7.11 一节实际未发布（npm 无此版本、无此标签，功能随 v1.7.12 发出），标题已订正，免得后人误会。
+- **对应提交**：`b17a317..cd92143` 区间 42 提交（地图 #336 全 36 票、#471、#472）与本版发布提交。
+- **验证**：`node scripts/build.mjs` OK，双产物同源；`npm run test:smoke` 通过；`npm run verify` 全绿（含发布契约与模板同源门禁）。
+- **影响**：用户功能零变化（纯结构收口 + 介绍改版）；市场与 About 介绍更新为新文案并加一句暖心收尾；用户按文档复制的安装命令即为最新发布。
+
 ## 2026-09-03 · v1.7.13 发布：非编码工作区降噪（状态栏按工作区收起）与发布规范收口
 
 - **状态栏按工作区收起（#422 承接 #434 落地）**：胶囊最右侧加无文字向下小箭头，点即收起整个功能区（横幅与胶囊状态栏全部消失）；收起态只留一颗带文字的小按钮“展开MattSkillsDeck”，点了整体恢复；蓝色引导条、未初始化黄条、技能黄条、环境类横幅（含探测中）一律可收，记忆按工作区存本机浏览器（键名 `dsws.bannerFold`，沿用工作区键归一，不可用时只记内存）；设置页工作区列表每行同步收起与展开；报错类横幅不受收起影响（对应提交：随本次发布提交合入，#434 关闭时代码尚未提交，共 6 文件）。
@@ -21,7 +33,7 @@
 - **影响**：所有原生 `title` 提示已替换为跟随式 `Tip` 气泡，悬停 500ms 触发、单例互斥不重叠、长标题按 `maxWidth` 换行；窄屏与行内按钮不再双显；为后续配置面板等新视图提供统一悬浮契约。
 
 
-## 2026-09-01 · v1.7.11 发布：技能随包可用（mattpocock/skills@v1.2.3 零代码 bundled）
+## 2026-09-01 · v1.7.11（该版本未发布，内容随 v1.7.12 发出）：技能随包可用（mattpocock/skills@v1.2.3 零代码 bundled）
 
 - **随包兜底（#388/#389/#390 承接 #385/#386/#387 定版，R1 结论“首通道已绿”）**：插件内置 **mattpocock/skills v1.2.3** 的 25 个技能（engineering 18 + productivity 7，`package/bundled-skills/` 含 `LICENSE` 与 `VERSION=v1.2.3`），经 `ctx.skills.registerProvider` 以 `rank 600（bundled）` 兜底发现——用户在 `~/.agents/skills` 手装的 `rank 500` 优先覆盖；新增同步纪律 `node scripts/sync-matt-skills.mjs --pin v1.2.3 --verify`（纯手动，不挂 prepare）与双门禁 `verify-matt-skills-sync` / `verify-bundled-skills`（5 MB 硬卡）、`verify-bundled-discovery` / `verify-bundled-trio-matrix` 三态回归；`package/package.json:files` 增 `bundled-skills`，`npm pack --dry-run` 增量 ≤ 5 MB，`node scripts/build.mjs` 双产物同源。
 - **三态回归（T3 此票）**：空 HOME（bundled 兜底绿）/ 有 HOME 有效（user 500 覆盖 600）/ 有无效名片（红牌分拣 + evidenceSummary）三种工作区在 `wf.detect / wf.chain` 的技能三检查（`skill:wayfinder / skill:setup-matt-pocock-skills / skill:ask-matt`）均已回归——新增 `tests/verify-bundled-trio-matrix.js`（33 项）固化“首通道已绿，无需在 `lightProbeReason` 回退分支补 bundled”的 R1 结论；真机矩阵截图与日志归档 `docs/reviews/390-bundled-trio-matrix.md`。
