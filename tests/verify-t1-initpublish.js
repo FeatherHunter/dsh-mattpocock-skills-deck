@@ -1,11 +1,10 @@
 // verify-t1-initpublish.js — 验证 T1 #34 host 链路：git init + gh repo create
+// 加载方式：经发货产物 package/lib/index.js 的标准分发通道（connection.rpc.handle('/dsws')），与冒烟测试同法。
 const fsx = require('fs')
 const fsp = fsx.promises
 const path = require('path')
 const { spawn, spawnSync } = require('child_process')
 const os = require('os')
-
-const HOST_JS = path.join(__dirname, '..', 'host.js')
 
 function makeMockSubprocess(opts) {
   const ghBehavior = opts.ghBehavior || {} // {authStatus:'ok'|'not-logged-in'|'network', repoCreate:'ok'|'already-exists'|'network'|'permission'}
@@ -32,10 +31,18 @@ function makeMockSubprocess(opts) {
       if (argv[0] && String(argv[0]).toLowerCase().includes('git') && argv.slice(1).join(' ').includes('push')) {
         return { done: Promise.resolve({ exitCode: 0, signal: null }), collected: { stdout: { readFrom: () => ({ text: '' }) }, stderr: { readFrom: () => ({ text: '' }) } }, terminate: () => {} }
       }
-      if (argv[0] === 'MOCK_GH') {
+      // 新 host 另有一条直探兜底：resolveGh 失败后经 subprocess.spawn({ argv: ['gh', '--version'] }) 再探一次。
+      // 真机若装有 gh，直探会命中真 gh 并走真实网络，所以这里把真 gh 二进制也拦进 mock：noGh 时 --version 必失败。
+      const base0 = String(argv[0] || '').split(/[\\/]/).pop().toLowerCase()
+      const isGh = argv[0] === 'MOCK_GH' || base0 === 'gh' || base0 === 'gh.exe'
+      if (isGh) {
         const args = argv.slice(1)
         ghCalls.push({ argv: args, cwd: spec.cwd })
         const join = args.join(' ')
+        if (join.includes('--version')) {
+          if (opts.noGh) return { done: Promise.resolve({ exitCode: 1, signal: null }), collected: { stdout: { readFrom: () => ({ text: '' }) }, stderr: { readFrom: () => ({ text: 'gh not found' }) } }, terminate: () => {} }
+          return { done: Promise.resolve({ exitCode: 0, signal: null }), collected: { stdout: { readFrom: () => ({ text: 'gh version 2.0.0-mock' }) }, stderr: { readFrom: () => ({ text: '' }) } }, terminate: () => {} }
+        }
         // gh auth status
         if (join.includes('auth status')) {
           if (ghBehavior.authStatus === 'not-logged-in') {
@@ -80,7 +87,8 @@ function makeMockSubprocess(opts) {
   }
 }
 const timer = {
-  timeout: ms => new Promise(res => setTimeout(res, ms)),
+  // 双签名：timeout(ms) → Promise（runGh 超时竞速用）/ timeout(fn, ms) 节流（常驻任务用）
+  timeout: (a, b) => (typeof a === 'function' ? setTimeout(a, b) : new Promise(res => setTimeout(res, a))),
   interval: (fn, ms) => { const id = setInterval(fn, ms); if (id.unref) id.unref(); return () => clearInterval(id) },
 }
 const fsSvc = {
@@ -92,14 +100,31 @@ const fsSvc = {
   processPath(t) { return typeof t === 'string' ? t : (t.targetKey || t) },
 }
 function makeSkills() { return { async get() { return undefined }, async list() { return [] } } }
-function loadPlugin(services) {
-  const handlers = {}
-  const harness = { handle: (name, fn) => { handlers[name] = fn } }
-  const ctx = { get: n => services[n], effect: fn => { const d = fn(); return typeof d === 'function' ? d : () => {} } }
-  const fn = new Function('harness', 'ctx', fsx.readFileSync(HOST_JS, 'utf8'))
-  const plugin = fn(harness, ctx)
-  plugin.apply(ctx)
-  return handlers
+// host 通道说明：apply 在内部声明同名 harness，把注册收进内部 Map，再经
+// connection.rpc.handle('/dsws') 对外分发。老写法用 new Function 捕获外层
+// harness.handle 永远收不到注册（#472），且分包形态下动态 import('./publishFlow.js')
+// 在 new Function 里没有模块基址（Cannot find module ... from [eval]），所以走标准分发通道。
+async function loadPlugin(services) {
+  const modRaw = await import('../package/lib/index.js')
+  const mod = modRaw.default ?? modRaw
+  let dispatch = null
+  const connection = {
+    rpc: {
+      handle: (p, fn) => { if (p === '/dsws') dispatch = fn },
+    },
+  }
+  const ctx = {
+    get: n => (n === 'connection' ? connection : services[n]),
+    effect: fn => { const d = fn(); return typeof d === 'function' ? d : () => {} },
+  }
+  ;(mod.apply ?? mod.default?.apply)(ctx)
+  if (typeof dispatch !== 'function') throw new Error('host 未注册 /dsws 分发通道（请先运行 node scripts/build.mjs）')
+  // 分发回的是 { ok:true, value } 信封：处理器原本的返回值装在 value 里，这里拆开再返回。
+  return async (endpoint, args) => {
+    const env = await dispatch(endpoint, args)
+    if (env && typeof env.value === 'object' && env.value !== null && 'ok' in env.value) return env.value
+    return env
+  }
 }
 
 async function main() {
@@ -118,20 +143,20 @@ async function main() {
 
   console.log('--- 场景 A: no-git ---')
   {
-    const h = loadPlugin({ subprocess: makeMockSubprocess({ noGit: true }), timer, fs: fsSvc, skills: makeSkills() })
-    const r = await h['wf.initPublish']({ cwd: workDir, name: 'my-repo', visibility: 'private' })
+    const h = await loadPlugin({ subprocess: makeMockSubprocess({ noGit: true }), timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: workDir, name: 'my-repo', visibility: 'private' })
     expect('no-git → errorKind no-git', r && !r.ok && r.errorKind === 'no-git', JSON.stringify(r))
   }
   console.log('--- 场景 B: no-gh ---')
   {
-    const h = loadPlugin({ subprocess: makeMockSubprocess({ noGh: true }), timer, fs: fsSvc, skills: makeSkills() })
-    const r = await h['wf.initPublish']({ cwd: workDir, name: 'my-repo', visibility: 'private' })
+    const h = await loadPlugin({ subprocess: makeMockSubprocess({ noGh: true }), timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: workDir, name: 'my-repo', visibility: 'private' })
     expect('no-gh → errorKind no-gh', r && !r.ok && r.errorKind === 'no-gh', JSON.stringify(r))
   }
   console.log('--- 场景 C: not-logged-in ---')
   {
-    const h = loadPlugin({ subprocess: makeMockSubprocess({ ghBehavior: { authStatus: 'not-logged-in' } }), timer, fs: fsSvc, skills: makeSkills() })
-    const r = await h['wf.initPublish']({ cwd: workDir, name: 'my-repo', visibility: 'private' })
+    const h = await loadPlugin({ subprocess: makeMockSubprocess({ ghBehavior: { authStatus: 'not-logged-in' } }), timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: workDir, name: 'my-repo', visibility: 'private' })
     expect('not-logged-in → errorKind not-logged-in', r && !r.ok && r.errorKind === 'not-logged-in', JSON.stringify(r))
   }
   console.log('--- 场景 D: already-exists ---')
@@ -139,8 +164,8 @@ async function main() {
     const dir = path.join(tmpBase, 'd-already')
     fsx.mkdirSync(dir, { recursive: true })
     fsx.writeFileSync(path.join(dir, 'README.md'), '# hi')
-    const h = loadPlugin({ subprocess: makeMockSubprocess({ ghBehavior: { repoCreate: 'already-exists' } }), timer, fs: fsSvc, skills: makeSkills() })
-    const r = await h['wf.initPublish']({ cwd: dir, name: 'exists-repo', visibility: 'private' })
+    const h = await loadPlugin({ subprocess: makeMockSubprocess({ ghBehavior: { repoCreate: 'already-exists' } }), timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: dir, name: 'exists-repo', visibility: 'private' })
     expect('already-exists → errorKind already-exists', r && !r.ok && r.errorKind === 'already-exists', JSON.stringify(r))
     expect('already-exists → repoUrl 含 owner', r && r.repoUrl && r.repoUrl.includes('TestUser/exists-repo'), JSON.stringify(r))
   }
@@ -149,8 +174,8 @@ async function main() {
     const dir = path.join(tmpBase, 'e-net')
     fsx.mkdirSync(dir, { recursive: true })
     fsx.writeFileSync(path.join(dir, 'README.md'), '# hi')
-    const h = loadPlugin({ subprocess: makeMockSubprocess({ ghBehavior: { repoCreate: 'network' } }), timer, fs: fsSvc, skills: makeSkills() })
-    const r = await h['wf.initPublish']({ cwd: dir, name: 'net-repo', visibility: 'private' })
+    const h = await loadPlugin({ subprocess: makeMockSubprocess({ ghBehavior: { repoCreate: 'network' } }), timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: dir, name: 'net-repo', visibility: 'private' })
     expect('network → errorKind network', r && !r.ok && r.errorKind === 'network', JSON.stringify(r))
   }
   console.log('--- 场景 F: permission ---')
@@ -158,8 +183,8 @@ async function main() {
     const dir = path.join(tmpBase, 'f-perm')
     fsx.mkdirSync(dir, { recursive: true })
     fsx.writeFileSync(path.join(dir, 'README.md'), '# hi')
-    const h = loadPlugin({ subprocess: makeMockSubprocess({ ghBehavior: { repoCreate: 'permission' } }), timer, fs: fsSvc, skills: makeSkills() })
-    const r = await h['wf.initPublish']({ cwd: dir, name: 'perm-repo', visibility: 'private' })
+    const h = await loadPlugin({ subprocess: makeMockSubprocess({ ghBehavior: { repoCreate: 'permission' } }), timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: dir, name: 'perm-repo', visibility: 'private' })
     expect('permission → errorKind permission', r && !r.ok && r.errorKind === 'permission', JSON.stringify(r))
   }
   console.log('--- 场景 G: 成功（private） ---')
@@ -167,8 +192,8 @@ async function main() {
     const dir = path.join(tmpBase, 'g-ok')
     fsx.mkdirSync(dir, { recursive: true })
     fsx.writeFileSync(path.join(dir, 'README.md'), '# hello g')
-    const h = loadPlugin({ subprocess: makeMockSubprocess({}), timer, fs: fsSvc, skills: makeSkills() })
-    const r = await h['wf.initPublish']({ cwd: dir, name: 'my-new-repo', visibility: 'private' })
+    const h = await loadPlugin({ subprocess: makeMockSubprocess({}), timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: dir, name: 'my-new-repo', visibility: 'private' })
     expect('成功 → ok true', r && r.ok, JSON.stringify(r))
     expect('成功 → repo.name 正确', r && r.repo && r.repo.name === 'my-new-repo', JSON.stringify(r))
     expect('成功 → repo.owner 为 TestUser', r && r.repo && r.repo.owner === 'TestUser', JSON.stringify(r))
@@ -195,8 +220,8 @@ async function main() {
     fsx.writeFileSync(path.join(dir, 'README.md'), '# already git')
     spawnSync('git', ['-C', dir, 'add', '.'])
     spawnSync('git', ['-C', dir, 'commit', '-q', '-m', 'init'])
-    const h = loadPlugin({ subprocess: makeMockSubprocess({}), timer, fs: fsSvc, skills: makeSkills() })
-    const r = await h['wf.initPublish']({ cwd: dir, name: 'public-repo', visibility: 'public' })
+    const h = await loadPlugin({ subprocess: makeMockSubprocess({}), timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: dir, name: 'public-repo', visibility: 'public' })
     expect('public 成功 → ok', r && r.ok, JSON.stringify(r))
     expect('public 成功 → visibility public 透传（通过 ghCalls 检查 visFlag）', (() => {
       const calls = h.subprocess ? [] : [] // loadPlugin内 ghCalls 已在 mock 内，无法直接取；改为重新构造 mock 检查
@@ -205,8 +230,8 @@ async function main() {
   }
   console.log('--- 场景 I: 非法 name → bad-name ---')
   {
-    const h = loadPlugin({ subprocess: makeMockSubprocess({}), timer, fs: fsSvc, skills: makeSkills() })
-    const r = await h['wf.initPublish']({ cwd: workDir, name: 'bad name!', visibility: 'private' })
+    const h = await loadPlugin({ subprocess: makeMockSubprocess({}), timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: workDir, name: 'bad name!', visibility: 'private' })
     expect('非法 name → bad-name', r && !r.ok && r.errorKind === 'bad-name', JSON.stringify(r))
   }
   console.log('--- 场景 J: remote origin 已存在分支 ---')
@@ -218,8 +243,8 @@ async function main() {
     spawnSync('git', ['-C', dir, 'config', 'user.name', 't'])
     spawnSync('git', ['-C', dir, 'remote', 'add', 'origin', 'https://github.com/old/old.git'])
     fsx.writeFileSync(path.join(dir, 'README.md'), '# hi')
-    const h = loadPlugin({ subprocess: makeMockSubprocess({}), timer, fs: fsSvc, skills: makeSkills() })
-    const r = await h['wf.initPublish']({ cwd: dir, name: 'new-repo', visibility: 'private' })
+    const h = await loadPlugin({ subprocess: makeMockSubprocess({}), timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: dir, name: 'new-repo', visibility: 'private' })
     expect('origin 已存在 → ok', r && r.ok, JSON.stringify(r))
     expect('origin 已存在 → push 分支走 set-url', r && r.ok, JSON.stringify(r))
     // 检查 remote 已被改写
