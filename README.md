@@ -13,9 +13,9 @@
 
 [![版本](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck?label=%E7%89%88%E6%9C%AC)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![下载量](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.npmjs.org%2Fdownloads%2Fpoint%2Flast-month%2Fdsh-mattpocock-skills-deck&query=%24.downloads&label=%E4%B8%8B%E8%BD%BD%E9%87%8F&suffix=%2F%E6%9C%88&color=brightgreen)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![最近更新](https://img.shields.io/github/last-commit/FeatherHunter/dsh-mattpocock-skills-deck?label=%E6%9C%80%E8%BF%91%E6%9B%B4%E6%96%B0&color=FE7D37)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/commits/main) [![月提交](https://img.shields.io/github/commit-activity/m/FeatherHunter/dsh-mattpocock-skills-deck?label=%E6%8F%90%E4%BA%A4%E6%95%B0&color=DFAB01)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/graphs/commit-activity) [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-lightgrey.svg)](LICENSE) [![技能包](https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E5%8C%85-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills) [![期待你参与](https://img.shields.io/badge/%E6%9C%9F%E5%BE%85%E4%BD%A0%E5%8F%82%E4%B8%8E-brightgreen.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues)
 
-<img src="assets/panel-list-zh.png" width="640" alt="MattSkillsDeck 面板：任务列表、进度环与一键操作">
+<strong>👇 一块看得见、派得动的任务板。</strong>
 
-<strong>👆 一块看得见、派得动的任务板。</strong>
+<img src="assets/panel-list-zh.png" width="640" alt="MattSkillsDeck 面板：任务列表、进度环与一键操作">
 
 **装它，30 秒。**
 
@@ -133,9 +133,9 @@ MattSkillsDeck 在地图之上加了一层任务系统：
 
 地图管终点，MattSkillsDeck 管脚下。
 
-<img src="assets/statusbar-zh.png" width="720" alt="DSH 底部任务栏">
+<strong>👇 DSH 底部的任务栏：可接、阻塞、沉淀、交接，全在这一条。</strong>
 
-<strong>👆 DSH 底部的任务栏：可接、阻塞、沉淀、交接，全在这一条。</strong>
+<img src="assets/statusbar-zh.png" width="720" alt="DSH 底部任务栏">
 
 </div>
 
@@ -143,17 +143,17 @@ MattSkillsDeck 在地图之上加了一层任务系统：
 
 <div align="center">
 
+<strong>👇 点开一个 ISSUE：描述、作者、一键新会话。</strong>
+
 <img src="assets/issue-detail-zh.png" width="640" alt="ISSUE 详情页">
 
-<strong>👆 点开一个 ISSUE：描述、作者、一键新会话。</strong>
+<strong>👇 不动终端：在面板里直接评论、响应 ISSUE、跑诊断。</strong>
 
 <img src="assets/issue-comment-zh.png" width="560" alt="面板内直接评论">
 
-<strong>👆 不动终端：在面板里直接评论、响应 ISSUE、跑诊断。</strong>
+<strong>👇 状态栏最右侧：Matt 技能套件一键直达。</strong>
 
 <img src="assets/statusbar-skills-menu-zh.png" width="480" alt="状态栏快捷入口">
-
-<strong>👆 状态栏最右侧：Matt 技能套件一键直达。</strong>
 
 Matt 的 skills 官网（文档与教程）：[aihero.dev/skills](https://www.aihero.dev/skills)
 
