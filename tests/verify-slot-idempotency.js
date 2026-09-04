@@ -5,7 +5,8 @@ const path = require('path')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-const src = fs.readFileSync(path.resolve('src/client/index.js'), 'utf8')
+// #459：index.js 已拆出装配（panelAssembly.js），此处读两文件拼起来的内容断言（同一闭包，意图不变）
+const src = ['src/client/index.js', 'src/client/panelAssembly.js'].map((f) => fs.readFileSync(path.resolve(f), 'utf8')).join('\n')
 const dev = fs.readFileSync(path.resolve('client.js'), 'utf8')
 const pkg = fs.readFileSync(path.resolve('package/lib/client.js'), 'utf8')
 

@@ -271,6 +271,8 @@ const LEAF_MODULES = [
   { id: 'chainRenderer', file: 'src/client/views/shared/ChainRenderer.js' },
   { id: 'skillFloatList', file: 'src/client/floating/SkillFloatList.js' },
   { id: 'pop', file: 'src/client/floating/Pop.js' },
+  { id: 'hostShim', file: 'src/client/hostShim.js' }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底加旧标签迁移）
+  { id: 'panelAssembly', file: 'src/client/panelAssembly.js' }, // #459 由 index.js 拆出：面板装配（Ctx 装配加插槽注册加启动收尾）
 ]
 function extractModuleBlock(file) {
   return read(file).split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n').trim()

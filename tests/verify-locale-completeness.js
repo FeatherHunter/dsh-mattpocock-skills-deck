@@ -62,7 +62,8 @@ for (const k of REQUIRED) {
 
 // ---------- C. 硬编码中文基线封顶 ----------
 const BASELINE = {
-  'index.js': 26,
+  'index.js': 25, // #459 由 index.js 拆出装配：主文件留 25 串（合计 26，与原持平）
+  'panelAssembly.js': 1, // #459 由 index.js 拆出：装配分得 1 串（host.call 不可用透传文案）
   'kernel/icons.js': 8,
   'kernel/router.js': 1,
   'kernel/store-switch.js': 5, // #455 K2 由 store.js 拆出：切换确认分得 5 串（合计 6，与原持平，注释已剥离不计）

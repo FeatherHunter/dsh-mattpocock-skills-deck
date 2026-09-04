@@ -2,7 +2,5 @@
   "version": 1,
   "recordedAt": "2026-09-04",
   "note": "零增长基线：只许减不许增；达标文件由各自拆分票移出。",
-  "files": {
-    "src/client/index.js": 394
-  }
+  "files": {}
 }

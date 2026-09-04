@@ -44,6 +44,8 @@ const LEAVES = [
   { file: 'src/client/statusbar/StatusBar.js', exports: ['StatusBar'], components: ['StatusBar'] },
   { file: 'src/client/floating/SkillFloatList.js', exports: ['SkillFloatList'], components: ['SkillFloatList'] },
   { file: 'src/client/floating/Pop.js', exports: ['showPop'], components: [] },
+  { file: 'src/client/hostShim.js', exports: ['timer', 'h'], components: [] }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底加旧标签迁移，无组件，纯函数）
+  { file: 'src/client/panelAssembly.js', exports: ['apiCall', 'cx', 'withCx'], components: [] }, // #459 由 index.js 拆出：面板装配（Ctx 装配加插槽注册加启动收尾，无组件，纯函数）
 ]
 const SOURCES = [
   'src/client/index.js', 'scripts/build.mjs', 'package/package.json',

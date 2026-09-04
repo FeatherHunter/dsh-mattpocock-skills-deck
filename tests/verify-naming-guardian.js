@@ -158,7 +158,7 @@ console.log('\n— 单一真源守卫 —')
 
   const buildSrc = readFileSync(join(ROOT, 'scripts/build.mjs'), 'utf8')
   check(buildSrc.includes("'src/shared/naming-titles.js'") && buildSrc.includes("'src/shared/naming-tracking.js'") && buildSrc.includes("'src/shared/naming-attribution.js'"), '构建登记 shared splice 三文件（client 半同源注入）')
-  const clientIdx = readFileSync(join(ROOT, 'src/client/index.js'), 'utf8')
+  const clientIdx = ['src/client/index.js', 'src/client/panelAssembly.js'].map((f) => readFileSync(join(ROOT, f), 'utf8')).join('\n') // #459：index.js 已拆出装配，此处读两文件拼起来的内容断言
   check(clientIdx.includes('// ==== shared:namingTitles (spliced by build) ====') && clientIdx.includes('// ==== shared:namingTracking (spliced by build) ====') && clientIdx.includes('// ==== shared:namingAttribution (spliced by build) ===='), 'client 闭包挂共享核心三拼接标记')
   check(clientIdx.includes('startNamingGuardianPoll()'), 'client apply 启动常驻渲染钩子拉询')
 
