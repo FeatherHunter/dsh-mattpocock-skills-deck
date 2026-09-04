@@ -9,7 +9,7 @@ A playable task board for [mattpocock/skills](https://github.com/mattpocock/skil
 
 *Your ⭐ is the brightest star in my night sky.*
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE) [![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![dsh-plugin](https://img.shields.io/badge/dsh-plugin-orange.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck) [![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills)
+[![npm](https://img.shields.io/npm/v/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![downloads](https://img.shields.io/npm/dm/dsh-mattpocock-skills-deck)](https://www.npmjs.com/package/dsh-mattpocock-skills-deck) [![last-commit](https://img.shields.io/github/last-commit/FeatherHunter/dsh-mattpocock-skills-deck?color=FE7D37)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/commits/main) [![commit-activity](https://img.shields.io/github/commit-activity/m/FeatherHunter/dsh-mattpocock-skills-deck?color=DFAB01)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/graphs/commit-activity) [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey.svg)](../LICENSE) [![skills](https://img.shields.io/badge/skills-mattpocock%2Fskills-9D7CD8)](https://github.com/mattpocock/skills) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues)
 
 <img src="../assets/panel-list-zh.png" width="640" alt="MattSkillsDeck panel: mission list, progress rings, one-click actions">
 
