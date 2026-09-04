@@ -72,7 +72,8 @@ const BASELINE = {
   'kernel/slotRenderer-repo-sync.js': 2, // #454 K1 由 slotRenderer.js 拆出：同步流程分得 2 串
   'kernel/slotRenderer-modal-view.js': 36, // #454 K1 由 slotRenderer.js 拆出：弹窗本体分得 36 串
   'panel/Dock.js': 21,
-  'panel/Overlay.js': 17,
+  'panel/Overlay.js': 16, // V4 #464 由 Overlay.js 拆出门控：主文件留 16 串（合计 17，与原持平）
+  'panel/OverlayGate.js': 1, // V4 #464 由 Overlay.js 拆出：门控分得 1 串（绑定失败透传文案）
   'statusbar/StatusBar.js': 17,
   'views/ChecksTab.js': 16, // 2026-08-28 顺序队列与目录选择器：ChecksTab 仅保留 openFormModal 注释，残留 14→16，按封顶章程重登记
   'views/IssueDetail.js': 16, // #463 V3 由 IssueDetail.js 拆出评论区：主文件留 16 串（合计 29，与原持平）

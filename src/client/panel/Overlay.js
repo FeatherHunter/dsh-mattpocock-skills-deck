@@ -113,71 +113,11 @@ export     const OverlayPanel = (props) => {
       // Overlay 与 Dock 共享同一 store gate 状态（同一工作区同一 modal）
       const _gateOpen2 = !!s.gateModalOpen
       const _gateModules2 = otherFiltered(s.backendModules)
-      const _openGateModal2 = function(){
-        s.gateModalOpen = true
-        if (!s.gateSelected) {
-          const first = (_gateModules2 && _gateModules2[0]) ? _gateModules2[0].id : firstBackendIdOf(null)
-          s.gateSelected = first
-        }
-        s.gateError = ''
-        emit(s)
-        if (typeof host !== 'undefined' && host.call) {
-          s.gateLoading = true; emit(s)
-          host.call('wf.registry', { cwd: s.cwd || '' }).then(function(r){
-            s.gateLoading = false
-            let mods = null
-            if (r && r.ok && Array.isArray(r.modules)) mods = r.modules
-            else if (r && Array.isArray(r.modules)) mods = r.modules
-            else if (r && r.value && Array.isArray(r.value.modules)) mods = r.value.modules
-            if (Array.isArray(mods) && mods.length) {
-              const filtered = mods.filter(function(m){ return String(m.id).toLowerCase()!=='other' })
-              const fin = filtered.length ? filtered : mods.filter(function(m){ return String(m.id).toLowerCase()!=='other' })
-              if (fin.length) {
-                s.backendModules = mods
-                try{ if (typeof setPresentationMap==='function') setPresentationMap(mods) }catch(e){}
-                const ids = fin.map(function(x){ return x.id })
-                if (!s.gateSelected || ids.indexOf(s.gateSelected)<0) s.gateSelected = fin[0].id
-              }
-            }
-            emit(s)
-          }).catch(function(){ s.gateLoading=false; emit(s) })
-        }
-      }
-      const _closeGateModal2 = function(){ s.gateModalOpen=false; s.gateError=''; emit(s) }
-      const _confirmGate2 = function(){
-        const id = s.gateSelected || ((_gateModules2[0] && _gateModules2[0].id)) || firstBackendIdOf(_gateModules2)
-        if (String(id).toLowerCase()==='other') { s.gateError=tr('switch.gateOtherErr'); emit(s); return }
-        const prev = s.selection
-        const repoRef = s.repository || (s.snapshot && s.snapshot.repository) || null
-        const next = { backendId: id, source: 'explicit', ref: repoRef }
-        s.selection = next
-        try{ if(s.cwd) setCachedSelection(s.cwd,next) }catch(e){}
-        s.gateModalOpen=false
-        emit(s)
-        if(typeof host!=='undefined' && host.call){
-          host.call('wf.bind', { cwd: s.cwd||'', backendId: id }).then(function(res){
-            const ok = res && (res.ok===true || (res.value && res.value.ok===true) || res.ok)
-            if(ok){
-              s.tab='list'
-              emit(s)
-              try{ flash(s, tr('switch.bindOk', { label: (typeof labelOf==='function'?labelOf(id):String(id)) }), 'ok') }catch(e){}
-              try{
-                // #230（D10）：占位符由后端描述数据填充，UI 不再拼装
-                const txt = (typeof setupRunPrompt==='function'? setupRunPrompt(s, id) : '')
-                if (txt) { try{ inject(s, txt) }catch(e){} }
-              }catch(e){}
-              loadSnapshot(s,true,true)
-            } else {
-              s.selection=prev; try{ if(s.cwd) setCachedSelection(s.cwd,prev) }catch(e){}; emit(s)
-              try{ flash(s, tr('switch.bindFail',{err:String((res&&(res.error||res.message))||'unknown').slice(0,120)}), 'warn') }catch(e){}
-            }
-          }).catch(function(e){
-            s.selection=prev; try{ if(s.cwd) setCachedSelection(s.cwd,prev) }catch(e2){}; emit(s)
-            try{ flash(s, '绑定失败:'+String(e && e.message || e).slice(0,120), 'warn') }catch(e3){}
-          })
-        }
-      }
-      const pickBackend2 = function(id){ s.gateSelected=id; emit(s); _confirmGate2() }
+      // 门控动作已搬 OverlayGate.js（open/close/confirm/pick），此处留同名包装供渲染直调（同闭包拼回）
+      const _openGateModal2 = function(){ openOverlayGate(s, _gateModules2) }
+      const _closeGateModal2 = function(){ closeOverlayGate(s) }
+      const _confirmGate2 = function(){ confirmOverlayGate(s, _gateModules2) }
+      const pickBackend2 = function(id){ pickOverlayBackend(s, _gateModules2, id) }
 
       const startDrag = function (e) {
         if (typeof document === 'undefined' || typeof window === 'undefined') return

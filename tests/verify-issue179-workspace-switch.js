@@ -3,7 +3,7 @@
 const fs = require('fs')
 let failed=false
 const check=(ok,msg)=>{ console.log((ok?'  PASS ':'  FAIL ')+msg); if(!ok) failed=true }
-const srcDock = fs.readFileSync('src/client/panel/Dock.js','utf8')
+const srcDock = ['src/client/panel/Dock.js', 'src/client/panel/DockSync.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // V4 #464：跟随逻辑搬到跟随文件，拼合断言意图不变
 const srcHost = fs.readFileSync('src/host/index.js','utf8')
 const builtClient = fs.existsSync('client.js') ? fs.readFileSync('client.js','utf8') : null
 const builtHost = fs.existsSync('host.js') ? fs.readFileSync('host.js','utf8') : null

@@ -269,9 +269,9 @@ export default {
     }
     // ==== leaf:namingFailBanner (spliced by build) ====
 
-    // ==== leaf:dock (spliced by build) ====
+    // ==== leaf:DockSync (spliced by build) ==== // ==== leaf:dock (spliced by build) ====
 
-    // ==== leaf:overlay (spliced by build) ====
+    // ==== leaf:OverlayGate (spliced by build) ==== // ==== leaf:overlay (spliced by build) ====
 
     // ==== leaf:SettingsWorkspaces (spliced by build) ==== // ==== leaf:settingsPage (spliced by build) ====
 
