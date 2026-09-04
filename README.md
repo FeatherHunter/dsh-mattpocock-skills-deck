@@ -200,7 +200,7 @@ npm run verify              # 契约验证
 bash scripts/build.sh       # 构建 + 同步到已装的 DSH
 ```
 
-构建 / 验证 / 同步 / 发布的完整流程见 [DEV-WORKFLOW.md](DEV-WORKFLOW.md)。
+构建 / 验证 / 同步 / 发布的完整流程见 [DEV-WORKFLOW.md](docs/workflow/DEV-WORKFLOW.md)。
 
 <h2 align="center"><sub>MORE</sub><br>作者的其他作品</h2>
 

@@ -179,7 +179,7 @@ npm run verify              # contract checks
 bash scripts/build.sh       # build + sync into an installed DSH
 ```
 
-The full build / verify / sync / publish workflow lives in [DEV-WORKFLOW.md](../DEV-WORKFLOW.md).
+The full build / verify / sync / publish workflow lives in [DEV-WORKFLOW.md](workflow/DEV-WORKFLOW.md).
 
 <h2 align="center"><sub>MORE</sub><br>More from the author</h2>
 

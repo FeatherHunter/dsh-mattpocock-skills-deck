@@ -173,7 +173,7 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck
 - UI 逐版定稿：C 卡片式两行结构、编号/map 竖排、18px 迷你圆环进度、标签贪心折叠 +N 弹窗（自适应面板）、窄屏按钮正方形
 - tabs 行刷新按钮 + 最右侧版本号 v1.3.3
 - 快照性能提速 ~35s → ~12s（GraphQL aliases 批量 + 合并 fetchMaps + 缓存 60s）
-- 开发工作流文档 DEV-WORKFLOW.md（改 bug → 实时生效完整流程）
+- 开发工作流文档 docs/workflow/DEV-WORKFLOW.md（改 bug → 实时生效完整流程）
 
 ## v1.5.0 新增（2026-08-16/17）
 
@@ -196,7 +196,7 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck
   - `lib/client.js` —— 浏览器半 bundle（`window.__ModuleLoader__.load` 注册格式）
 - `README.md` —— 本说明
 - `issues-checklist.html` —— 迭代需求清单（v9–v24，43+ 项）
-- `DESIGN.md` / `prototype.html` —— 设计定稿与原型
+- `docs/DESIGN.md` / `prototype.html` —— 设计定稿与原型
 - `tests/` —— host 逻辑测试（verify-status / verify-panel）
 
 ## 备注

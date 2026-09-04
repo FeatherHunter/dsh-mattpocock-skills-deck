@@ -1,6 +1,6 @@
 # dsh-mattpocock-skills-deck · 最终态架构可视化
 
-> 来源：issue #20（归档+推进中枢 map） + `ARCHITECTURE-SPLIT.md`（方案 v1） + `ARCHITECTURE-CTX.md`（Ctx 定案） + `docs/architecture/kernel-contract.md`（G3 接口冻结） + `ARCHITECTURE-SPLIT-DIAGRAM.svg`（原架构图）
+> 来源：issue #20（归档+推进中枢 map） + `docs/architecture/ARCHITECTURE-SPLIT.md`（方案 v1） + `docs/architecture/ARCHITECTURE-CTX.md`（Ctx 定案） + `docs/architecture/kernel-contract.md`（G3 接口冻结） + `docs/architecture/ARCHITECTURE-SPLIT-DIAGRAM.svg`（原架构图）
 > 状态：map 定稿、T0-T3 ✅ 完成、T4-T5 ⏳ 待推进；本图呈现**T5 收尾后的最终态**，即"未来长成什么样"
 
 ---

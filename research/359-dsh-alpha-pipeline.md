@@ -134,11 +134,11 @@ adopted = await this.agents.ensureSession(sessionId, cwd, request.sessionId !== 
 - **写入**：api.js:531-532 及 reuse 分支 468-469 均为 pendingDraft = text; pendingDraftTargetSid = sid（sid 锚定，r4 修复 #62/#63）。
 - **消费**：消费侧仅当 pendingDraftTargetSid === props.sessionId 时写入 st.injector(text) 或 setDraft，避免旧会话抢消费（注释 36-40）。
 - **约束**：#315 回滚版要求草稿-only，不自动 face.prompt（见 528-529 注释“先填草稿”）。
-- **Alpha 兼容**：InputActions.setDraft 为公开唯一草稿写路径（RESEARCH-NOTES.md §2）。
+- **Alpha 兼容**：InputActions.setDraft 为公开唯一草稿写路径（`docs/research/RESEARCH-NOTES.md` §2）。
 
 ### 7. 验收形态
 
-- **Headless pwsh**：RESEARCH-NOTES 1.4 已验证 gh api / graphql 可用，仅验 GitHub 数据层，不验输入框预填。适合快照层回归。
+- **Headless pwsh**：`docs/research/RESEARCH-NOTES.md` 1.4 已验证 gh api / graphql 可用，仅验 GitHub 数据层，不验输入框预填。适合快照层回归。
 - **ui_drive**：dsh-plugin-ui-debug 支持 ui_drive 按动作脚本驱动并分步截图，ui_shot 存 PNG 后 read_image 断言。适合验证预设与首条 prompt，但需 pnpm run dev:web watcher。
 
 ### 8. 版本与效力

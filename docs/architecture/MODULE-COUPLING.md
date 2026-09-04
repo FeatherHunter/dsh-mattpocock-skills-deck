@@ -1,7 +1,7 @@
 # 模块联动机制 · 架构设计
 
 > 用途：回答「拆开后模块之间如何联动？会破坏架构吗？」
-> 来源：`ARCHITECTURE-SPLIT.md` §4.3 + `ARCHITECTURE-CTX.md` + `docs/architecture/kernel-contract.md` G3 拍板 + 仓库实查（kernel/store.js、kernel/router.js、kernel/probe.js）
+> 来源：`docs/architecture/ARCHITECTURE-SPLIT.md` §4.3 + `docs/architecture/ARCHITECTURE-CTX.md` + `docs/architecture/kernel-contract.md` G3 拍板 + 仓库实查（kernel/store.js、kernel/router.js、kernel/probe.js）
 
 ---
 

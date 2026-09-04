@@ -1,5 +1,5 @@
 // verify-423-title-clamp-browser.js — 真实 Chromium 复现窄面板标题行数截断（#423）
-// 依赖：playwright（含浏览器）；fixture 由 gen-fixture-423.js 从真源 styles.js 生成
+// 依赖：playwright（含浏览器）；fixture 由 scripts/gen-fixture-423.js 从真源 styles.js 生成
 // 判据：以渲染高度（clientHeight ÷ lineHeight = 行数）为准；clamp=2 时固定结构 ≤2 行，旧结构 >2 行（反证）
 const { chromium } = require('playwright');
 const path = require('path');
