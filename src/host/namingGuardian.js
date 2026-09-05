@@ -77,7 +77,7 @@ export function createNamingGuardian(deps) {
     try {
       if (typeof globalThis !== 'undefined' && globalThis.__dswsNamingGuardianLoop) { try { clearTimeout(globalThis.__dswsNamingGuardianLoop) } catch (e0) {} }
     } catch (eG) {}
-    _namingLoopTimer = timer.timeout(namingLoopTick, NAMING_TICK_MS); try { if (logCtx) logCtx.fire('debug', 'timer.schedule', { name: 'naming-guardian', intervalMs: NAMING_TICK_MS }) } catch (eL) {}
+    _namingLoopTimer = timer.timeout(namingLoopTick, NAMING_TICK_MS); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-guardian', intervalMs: NAMING_TICK_MS }) } catch (eL) {}
     try { if (typeof globalThis !== 'undefined') globalThis.__dswsNamingGuardianLoop = _namingLoopTimer } catch (eK) {}
   }
 
