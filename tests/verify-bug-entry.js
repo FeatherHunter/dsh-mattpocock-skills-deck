@@ -1,7 +1,7 @@
-// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约 v3.4：4 项 + 例行紧贴 · v4 #63 grilling 定版：去内部规则+实际→期望+括号单行）
+// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约 v3.4：4 项 + 例行紧贴 · v4 #63 grilling 定版：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行）
 // 用法: node tests/verify-bug-entry.js [file...]（默认 client.js + package/lib/client.js）
 // 验证：
-//   1) PROMPTS 注册表 newBugWayfinder（version≥4/placeholders/use/zh/en），注册表本体为极简（按 wayfinder 技能规则处理），不含内部规则展开，4 字段括号单行在 NEW_BUG_FIELDS_BODY(_EN)（末尾），无 gh 硬编码
+//   1) PROMPTS 注册表 newBugWayfinder（version≥5/placeholders/use/zh/en），注册表本体为极简（按 wayfinder 技能规则处理）+ v5 标签要求（bug 必带+未诊断带 needs-triage，分远端原生/本地标签行），不含内部规则展开，4 字段括号单行在 NEW_BUG_FIELDS_BODY(_EN)（末尾），无 gh 硬编码
 //   2) i18n 键 nav.bugNew / nav.bugNewTitle / panel.newBug / panel.newBugTitle 双语平衡
 //   3) StatusBar BUG 段悬停菜单接线（s.bugMenuOpen + tr('nav.bugNew') + 点「新增」开新会话预填 newBugWayfinderText）
 //   4) 面板「+ 新增BUG单」按钮接线（panel.newBugTitle + openTextInNewSession(newBugWayfinderText) 两处渲染）
@@ -12,6 +12,7 @@
 //   9) 宽度自适应（v3 UX）：弹层无 minWidth
 //  10) hover 反馈（v3 UX）：bugMenuHover 状态 + onMouseEnter/Leave + 条件红染色
 //  11) v4 #63：字段集 = 实际→期望→复现步骤→环境信息（4 项括号单行），顺序实际→期望，无悬行例行，zh/en 分离
+//  12) v5 #475：标签要求 = bug 必带+未诊断带 needs-triage，分远端原生/本地标签行，中英文一致
 const fs = require('fs')
 const files = process.argv.slice(2)
 const targets = files.length ? files : ['client.js', 'package/lib/client.js']
@@ -38,7 +39,7 @@ const check = function (file) {
     const use = m[3]
     const zh = m[4]
     const en = m[5]
-    if (ver < 4) problems.push('newBugWayfinder 版本异常 v' + ver + '（v4 #63 应 ≥4）')
+    if (ver < 5) problems.push('newBugWayfinder 版本异常 v' + ver + '（v5 #475 应 ≥5）')
     if (!use) problems.push('newBugWayfinder 缺 use')
     const ph = phRaw.split(',').map(function (x) { return x.trim().replace(/'/g, '') }).filter(Boolean)
     if (ph.join(',') !== 'repo') problems.push('newBugWayfinder 占位符应为 ["repo"]，实际 ' + JSON.stringify(ph))
@@ -47,6 +48,17 @@ const check = function (file) {
     if (en.indexOf('Please help me file a new BUG ticket (follow the wayfinder skill rules).') < 0) problems.push('newBugWayfinder en 缺极简句 "Please help me file a new BUG ticket (follow the wayfinder skill rules)."')
     if (zh.indexOf('仓库：{repo}') < 0) problems.push('newBugWayfinder zh 缺“仓库：{repo}”')
     if (en.indexOf('Repo: {repo}') < 0) problems.push('newBugWayfinder en 缺 "Repo: {repo}"')
+    // v5 #475：标签要求（bug 必带+未诊断带 needs-triage，分远端原生/本地标签行，中英文一致）
+    if (zh.indexOf('必须带上 bug 标签') < 0) problems.push('newBugWayfinder zh 缺标签要求“必须带上 bug 标签”（v5 #475）')
+    if (zh.indexOf('needs-triage') < 0) problems.push('newBugWayfinder zh 缺 needs-triage 标签要求（v5 #475）')
+    if (zh.indexOf('原生标签') < 0) problems.push('newBugWayfinder zh 缺远端原生标签写法（v5 #475）')
+    if (zh.indexOf('本地 Markdown 后端在正文加标签行') < 0) problems.push('newBugWayfinder zh 缺本地标签行写法（v5 #475）')
+    if (zh.indexOf('Labels: bug, needs-triage') < 0) problems.push('newBugWayfinder zh 缺标签行示例 Labels: bug, needs-triage（v5 #475）')
+    if (en.indexOf('must carry the bug label') < 0) problems.push('newBugWayfinder en 缺 "must carry the bug label"（v5 #475）')
+    if (en.indexOf('needs-triage') < 0) problems.push('newBugWayfinder en 缺 needs-triage 标签要求（v5 #475）')
+    if (en.indexOf('native labels') < 0) problems.push('newBugWayfinder en 缺 native labels 写法（v5 #475）')
+    if (en.indexOf('add a Labels line') < 0) problems.push('newBugWayfinder en 缺 Labels line 写法（v5 #475）')
+    if (en.indexOf('Labels: bug, needs-triage') < 0) problems.push('newBugWayfinder en 缺标签行示例 Labels: bug, needs-triage（v5 #475）')
     // v4 去内部规则：不应含旧的展开式流程说明
     if (zh.indexOf('先澄清') >= 0) problems.push('newBugWayfinder zh 不应含内部规则“先澄清”（v4 已去）')
     if (zh.indexOf('判断分类') >= 0) problems.push('newBugWayfinder zh 不应含内部规则“判断分类”（v4 已去）')
@@ -154,9 +166,9 @@ const check = function (file) {
   ]
   hoverChecks.forEach(function (c) { if (!c.re.test(src)) problems.push('hover 反馈缺：' + c.name) })
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
-  else console.log('  PASS', file, '（newBugWayfinder v' + (m ? m[1] : '?') + ' · 实际→期望括号单行 · locale 切换 · 开新会话接线 ' + opens + ' 处 · i18n 4 键）')
+  else console.log('  PASS', file, '（newBugWayfinder v' + (m ? m[1] : '?') + ' · 实际→期望括号单行 · v5 标签要求 · locale 切换 · 开新会话接线 ' + opens + ' 处 · i18n 4 键）')
 }
-console.log('P1: 新增BUG入口契约（issue #4/#63 v4 · 实际→期望括号单行 + locale 切换）')
+console.log('P1: 新增BUG入口契约（issue #4/#63 v4 · 实际→期望括号单行 + locale 切换 · v5 #475 标签要求）')
 targets.forEach(check)
 // P2 已移除（T5 #98 阶段 3 收尾：产物 = f(src) 一源两物，src 为真源，产物由构建生成；
 // 双源文本镜像断言已由运行时冒烟 + src↔产物逐字断言取代）
