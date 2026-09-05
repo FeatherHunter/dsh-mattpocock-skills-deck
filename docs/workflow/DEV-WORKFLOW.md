@@ -226,4 +226,4 @@ npm run test:smoke
    - 避免：`docs/a.html`、`docs/test.html`、`docs/new-page.html`（看不出任务）
 3. **链接同步更新**：新增或移动 `docs/` 下的 HTML 后，需同步更新 `README.md` / `docs/README.en.md` 中对应章节的在线预览链接（前缀为 `https://featherhunter.github.io/dsh-mattpocock-skills-deck/` + `docs` 下相对路径去掉 `docs/`），并保持本地相对路径 `docs/...` 的「本地直接打开也能看」说明。
 4. **不提交 Pages 构建产物**：Pages 仅托管手写或工具生成的 `docs/**/*.html`，不要把 `client.js` / `host.js` 等构建产物移入 `docs/`。
-5. **豁免（不纳入 Pages）**：`lessons/*.html`、`reference/*.html` 为本地教学配套（依赖 `../assets/teach.css`、`../assets/quiz.js` 等相对路径，构成独立导航），`tests/verify-*.html` 为本地 UI 验收夹具，均不通过 Pages 对外托管，故保留原位，不纳入本规约；如需对外发布，须整体迁入 `docs/` 并同步修正所有相对路径与导航链接。
+5. **教学配套已迁入 `docs/`**：`docs/lessons/*.html`、`docs/reference/*.html` 是教学课程与速查，随 `docs/MISSION.md`、`docs/RESOURCES.md`、`docs/NOTES.md`、`docs/GLOSSARY.md`、`docs/learning-records/` 整组搬入，一并纳入 Pages 对外预览。搬迁时保留了原有的相对关系（课间互链用 `./`，跨目录用 `../reference/`、`../lessons/`，说明文档用 `../MISSION.md`、`../RESOURCES.md`），所有站内链接继续有效。`tests/verify-*.html` 为本地 UI 验收夹具，仍保留原位、不对外托管。

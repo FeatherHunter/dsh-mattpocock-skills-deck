@@ -1,0 +1,95 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>第 9 课 · 大回环校准：8 课十问</title><link rel="stylesheet" href="../assets/teach.css"><script src="../assets/quiz.js"></script></head><body><div class="shell">
+<div class="topnav"><a href="./0008-architecture-and-language.html">← 第 8 课</a><span>·</span><a href="../reference/skill-index.html">索引</a><span>·</span><a href="../reference/glossary.html">词汇</a><span>·</span><a href="../reference/main-flow.html">主流程图</a></div>
+<span class="badge">Lesson 09 · 12 min · Retrieval</span>
+<h1>大回环校准：八课十问<br><span style="color:var(--muted); font-weight:600; font-size:20px">这一课不教任何新东西——只考你已经见过的</span></h1>
+<p class="lead">前 8 课解决的是「<strong>见过</strong>」，长期留住靠的是「<strong>主动回想</strong>」。认知科学结论很稳：检索练习比重读一遍有效得多。所以——先做题，别回头翻笔记。</p>
+<div class="callout"><strong>规则只有一条：</strong> 每道题先凭记忆选。<strong>答错才有奖励</strong>——反馈里藏着你该重看的第几课，点击即可跳回锚点。</div>
+<h2>01 · 大回环测验</h2>
+<div class="quiz">
+<div class="quizhead"><span>Matt Pocock Skills — 全程抽检 10 题</span><span data-score>0 / 10</span></div>
+<div class="progress"><div></div></div>
+
+<div class="qitem"><div style="font-weight:700">1/10 · 把一个模糊想法一路送上线，主流程五步的顺序是？</div><div class="opts">
+<div class="opt" data-correct="true">grill → spec → tickets → implement → review</div>
+<div class="opt">tickets → grill → implement → review → spec</div>
+<div class="opt">spec → review → grill → tickets → implement</div></div>
+<div class="feedback muted">✓ 这条脊柱贯穿全部 25 个 skills 的设计。<a href="./0001-map-and-main-flow.html">↩ 回第 1 课</a></div></div>
+
+<div class="qitem"><div style="font-weight:700">2/10 · 拆票时说的 tracer bullet（曳光弹）指什么？</div><div class="opts">
+<div class="opt" data-correct="true">端到端走通的一条薄垂直切片</div>
+<div class="opt">先铺好三层抽象架再慢慢填肉</div>
+<div class="opt">一口气拆出三十张极细小票子</div></div>
+<div class="feedback muted">✓ 目标是最早拿到整链路的真实反馈，而不是局部完美。<a href="./0005-to-tickets.html">↩ 回第 5 课</a></div></div>
+
+<div class="qitem"><div style="font-weight:700">3/10 · 一个 bug 你连复现都复现不出来，/diagnosing-bugs 的第一步是？</div><div class="opts">
+<div class="opt" data-correct="true">先造一个能反复失败的小回路</div>
+<div class="opt">让 Agent 凭直觉直接动手术刀</div>
+<div class="opt">关掉报错先把其他功能写完</div></div>
+<div class="feedback muted">✓ 没有 tight feedback loop，后面全是玄学。<a href="./0007-entries-and-triage.html">↩ 回第 7 课</a></div></div>
+
+<div class="qitem"><div style="font-weight:700">4/10 · domain-modeling 说维护 CONTEXT.md 能换来什么收益？</div><div class="opts">
+<div class="opt" data-correct="true">用一个词顶替二十个词沟通</div>
+<div class="opt">注释变多使代码更有文艺感</div>
+<div class="opt">编译时间缩短令流水线提速</div></div>
+<div class="feedback muted">✓ 共享词汇表 + ADR，Agent 和人共用一套词。<a href="./0008-architecture-and-language.html">↩ 回第 8 课</a></div></div>
+
+<div class="qitem"><div style="font-weight:700">5/10 · 原始 issue 堆了四十条没人理，你该敲哪个命令？</div><div class="opts">
+<div class="opt" data-correct="true">/triage 分类排序成可领的工作</div>
+<div class="opt">/handoff 写交接让别人去接收</div>
+<div class="opt">/wayfinder 画一张超大任务图</div></div>
+<div class="feedback muted">✓ 四个入口各管一类病：原始堆积找 triage。<a href="./0007-entries-and-triage.html">↩ 回第 7 课</a></div></div>
+
+<div class="qitem"><div style="font-weight:700">6/10 · TDD 循环里「红」这一步的正确动作是？</div><div class="opts">
+<div class="opt" data-correct="true">写个最小测试看它按预期失败</div>
+<div class="opt">把整个功能写完再去补齐测试</div>
+<div class="opt">临时放宽类型让编译器先通过</div></div>
+<div class="feedback muted">✓ 先红后绿：没有失败的测试，就没有证据。<a href="./0006-implement-tdd-review.html">↩ 回第 6 课</a></div></div>
+
+<div class="qitem"><div style="font-weight:700">7/10 · /grill-with-docs 到底在干什么？</div><div class="opts">
+<div class="opt" data-correct="true">反过来采访你并落盘决策文档</div>
+<div class="opt">替你拍板并直接输出规格书稿</div>
+<div class="opt">扫描仓库并生成健康检查报告</div></div>
+<div class="feedback muted">✓ 拷问式访谈，产出决定——和 to-spec 的分工见<a href="./0003-grill-with-docs.html">第 3 课</a>。</div></div>
+
+<div class="qitem"><div style="font-weight:700">8/10 · /to-spec 收尾前必须和你确认的是什么？</div><div class="opts">
+<div class="opt" data-correct="true">seams：模块边界留在哪里切开</div>
+<div class="opt">报价：这个功能要花多少钱来做</div>
+<div class="opt">排期：下周一几点准时开机启动</div></div>
+<div class="feedback muted">✓ 接缝是 spec 的灵魂，直接决定后面好不好测。<a href="./0004-to-spec-and-seams.html">↩ 回第 4 课</a></div></div>
+
+<div class="qitem"><div style="font-weight:700">9/10 · /setup-matt-pocock-skills 要替每个仓库回答的三问？</div><div class="opts">
+<div class="opt" data-correct="true">票在哪 标签叫什么 词在哪仨字</div>
+<div class="opt">啥框架 啥语言 部署到哪家云上</div>
+<div class="opt">谁来管 谁来审 啥时候才发版</div></div>
+<div class="feedback muted">✓ tracker / triage labels / domain docs——三问没答，每张票都要重新吵。<a href="./0002-setup-and-ask-matt.html">↩ 回第 2 课</a></div></div>
+
+<div class="qitem"><div style="font-weight:700">10/10 · /code-review 的两条审查轴分别对着什么？</div><div class="opts">
+<div class="opt" data-correct="true">一轴对标准规范一轴对需求规格</div>
+<div class="opt">两根轴都拿来看缩进括号和换行</div>
+<div class="opt">一根测性能表现一根看界面颜值</div></div>
+<div class="feedback muted">✓ Standards vs Spec 双轴并行 subagent，固定点 diff。<a href="./0006-implement-tdd-review.html">↩ 回第 6 课</a></div></div>
+
+<div style="padding:14px; display:none; background:#f0fdf4; border-top:1px solid #dcfce7" data-done>
+<strong data-score-line>✔️ 完成</strong><p class="mini" style="margin:6px 0 0">对照下方解读卡片定位自己，然后把得分发给你的老师（AI Agent），它会替你写下第一条真正的学习记录。</p></div>
+</div>
+
+<h2>02 · 读分 · 定 ZPD</h2>
+<div class="grid2">
+<div class="card mini"><h3>9–10 分</h3><p class="muted mini">知识层扎实。<strong>缺的不是课，是真跑</strong>：挑本仓库一张真票，从 /grill-with-docs 一路推到 /code-review。</p></div>
+<div class="card mini"><h3>6–8 分</h3><p class="muted mini">脊柱在，细节晃。只重错题对应的那一两课的<strong>锚点段</strong>，别全套重读。</p></div>
+<div class="card mini"><h3>≤5 分</h3><p class="muted mini">正常——堆着看 8 课本来就会这样。从<a href="./0001-map-and-main-flow.html">第 1 课</a>花 20 分钟快走一遍脊柱再回来重测。</p></div>
+<div class="card mini"><h3>间隔重复提醒</h3><p class="muted mini">错过的题：<strong>明天</strong>自测一遍，<strong>三天后</strong>再来打一次这张卷子。留着本页地址就行。</p></div>
+</div>
+
+<h2>03 · 本课作业（3 分钟）</h2>
+<div class="card mini"><ol style="margin:6px 0 0 18px">
+<li>做完上面的 10 题，记下得分与错题号</li>
+<li>回到对话窗口把结果发给老师 → 它会写入 <span class="kbd">learning-records/</span>，作为课程的第一个掌握信号</li>
+<li>顺手点开今日主读物扫一遍分组：<a href="https://www.aihero.dev/skills">aihero.dev/skills 官方总览页（一手来源）</a>，注意 v1.2 新增了 /wait-what 与 /writing-for-agents</li>
+</ol></div>
+
+<div class="footer">
+<p><strong>卡住了？随时问你的老师。</strong>这个页面只是教材，你的 AI Agent 才是随堂教师——解释不清的概念、错题想深挖、想换实战路线，都直接在对话里说。</p>
+<p class="small muted">Mission 对位：本题库覆盖 Mission 成功标准的前三条（配仓 / 主流程 / 四入口）。参考资料：<a href="../reference/main-flow.html">主流程图</a> · <a href="../reference/skill-index.html">25 skills 索引</a> · <a href="../reference/glossary.html">词汇表</a> · <a href="https://www.aihero.dev/skills">官方总览</a></p>
+</div>
+</div></body></html>
