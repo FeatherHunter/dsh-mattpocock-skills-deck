@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#334 原型：设置页调试区与状态栏小入口（低保真）</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#16181d; --panel2:#1c1f26; --border:#2a2d35;
+    --text:#e6e6ea; --muted:#9a9aa5; --caption:#8b8b95;
+    --accent:#bc8cff; --ok:#4ade80; --warn:#fbbf24; --danger:#f87171;
+    --btn:#262a33; --btn-hover:#30353f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;padding:24px}
+  .page{max-width:960px;margin:0 auto}
+  .proto-banner{background:#1a1407;border:1px dashed var(--warn);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#fde68a}
+  .proto-banner b{color:#fff}
+  h1{font-size:20px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .sub code{background:#22242c;padding:1px 6px;border-radius:6px;color:#d8d8de;font-size:12px}
+  .grid{display:grid;gap:16px}
+  @media(min-width:900px){.grid.two{grid-template-columns:1fr 1fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .card h2{font-size:15px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .tag{font-size:11px;border:1px solid var(--border);border-radius:99px;padding:0 8px;color:var(--muted);background:var(--panel2)}
+  .tag.proto{border-style:dashed;color:var(--warn);border-color:var(--warn)}
+  .desc{font-size:12.5px;color:var(--muted);margin:4px 0 12px}
+  .cfg{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#12141a}
+  .cfg-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);font-weight:700}
+  .cfg-head .dot{width:8px;height:8px;border-radius:99px;background:var(--caption)}
+  .cfg-sub{padding:8px 14px;color:var(--muted);font-size:12.5px;border-bottom:1px solid var(--border)}
+  .cfg-group{padding:12px 14px;border-bottom:1px solid var(--border)}
+  .cfg-group:last-child{border-bottom:none}
+  .cfg-gtitle{font-size:13px;font-weight:650;margin-bottom:4px;display:flex;align-items:center;gap:7px}
+  .cfg-gdesc{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+  .cfg-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .sw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:13px}
+  .sw input{display:none}
+  .sw .tr{width:34px;height:19px;border-radius:99px;background:#33363f;position:relative;transition:.15s;flex:none}
+  .sw .tr::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:99px;background:#8b8b95;transition:.15s}
+  .sw input:checked + .tr{background:#1d3a28}
+  .sw input:checked + .tr::after{left:17px;background:var(--ok)}
+  .btn{background:var(--btn);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer}
+  .btn:hover:not(:disabled){background:var(--btn-hover)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{background:#2b2140;border-color:#4c3a7a}
+  .btn.danger{border-color:#5c2b2b;color:#fca5a5}
+  .hint{font-size:12px;color:var(--caption)}
+  .hint.ok{color:var(--ok)} .hint.warn{color:var(--warn)} .hint.err{color:var(--danger)}
+  .placeholder{border:1px dashed #3a3d47;border-radius:8px;padding:8px 10px;color:var(--caption);font-size:12px;background:#14161c}
+  .capsule{display:flex;align-items:center;gap:6px;background:#1e2129;border:1px solid var(--border);border-radius:99px;padding:5px 8px 5px 12px;font-size:12px;position:relative}
+  .capsule .seg{background:#262a33;border-radius:99px;padding:2px 10px;white-space:nowrap}
+  .capsule .spacer{flex:1}
+  .graydot{width:10px;height:10px;border-radius:99px;background:#6b6b75;flex:none;cursor:pointer;border:2px solid transparent}
+  .graydot:hover{border-color:#3a3d47}
+  .graydot.on{background:var(--ok);box-shadow:0 0 6px rgba(74,222,128,.6)}
+  .graydot:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .dotlabel{font-size:11px;color:var(--caption)}
+  .menuwrap{position:relative}
+  .menu{position:absolute;right:0;bottom:26px;min-width:210px;background:#16181d;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.45);padding:4px;display:none;z-index:5}
+  .menu.open{display:block}
+  .menu button{display:flex;width:100%;text-align:left;background:none;border:none;color:var(--text);font-size:13px;padding:8px 10px;border-radius:7px;cursor:pointer;align-items:center;gap:8px}
+  .menu button:hover{background:#22262f}
+  .menu button.danger{color:#fca5a5}
+  .menu .sep{height:1px;background:var(--border);margin:4px 6px}
+  #toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:50;max-width:min(420px,90vw)}
+  .toast{background:#16181d;border:1px solid var(--border);border-left:3px solid var(--ok);border-radius:10px;padding:10px 12px;font-size:12.5px;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+  .toast.err{border-left-color:var(--danger)}
+  .toast .path{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#d8d8de;background:#0e1013;border:1px solid var(--border);border-radius:6px;padding:2px 6px;word-break:break-all;display:inline-block;margin-top:4px}
+  .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+  .modal-mask.open{display:flex}
+  .modal{background:#16181d;border:1px solid var(--border);border-radius:12px;padding:18px;max-width:420px;width:100%}
+  .modal h3{margin:0 0 6px;font-size:15px}
+  .modal p{font-size:13px;color:var(--muted);margin:0 0 14px}
+  .modal .actions{display:flex;justify-content:flex-end;gap:8px}
+  .review{border:1px dashed var(--accent);border-radius:10px;padding:12px 14px;font-size:13px;background:#15131f}
+  .review li{margin:4px 0}
+  .foot{color:var(--caption);font-size:12px;margin-top:16px}
+  kbd{background:#22242c;border:1px solid var(--border);border-radius:5px;padding:0 5px;font-size:11px}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="proto-banner">低保真原型 · 仅静态反馈，不接后端 · 双击本文件即开 · 对应票 <b>#334</b>（Part of #329，前置 #333 已定版）· 以下按钮点后只给静态提示</div>
+  <h1>#334 原型：设置页调试区与状态栏小入口 <span class="tag proto">低保真</span></h1>
+  <div class="sub">已定结构（#333 决议，只实现不质疑）：状态栏常驻小灰点 · 点击弹四键菜单（导出 / 跳转目录 / 复制路径 / 清空）· 设置页调试分区主开关默认关闭并配说明 · 导出内容为当天日志 + 系统信息摘要 · 清空需确认并给反馈。请评审人只看三问：<code>是否过显</code> <code>是否易找到</code> <code>文案是否清晰</code>。</div>
+  <div class="grid">
+    <section class="card">
+      <h2>① 设置页 · 调试分区 <span class="tag">模仿 SettingsPage 分组布局</span></h2>
+      <p class="desc">占位说明：上方两个分组为真实设置页既有分组的灰盒占位，仅示意“调试区在页面偏下位置”；下方“调试 / 诊断日志”分组为本次原型主体。主开关默认 <b>关闭</b>。</p>
+      <div class="cfg" aria-label="设置页示意">
+        <div class="cfg-head"><span class="dot"></span>设置 <span class="hint">· 页面示意（占位）</span></div>
+        <div class="cfg-sub">技能面板的显示与模板配置（占位副标题）。</div>
+        <div class="cfg-group">
+          <div class="cfg-gtitle">🗺 打开位置 <span class="tag">既有占位</span></div>
+          <div class="placeholder">分段选项占位：停靠栏 / 侧边栏（真实页已有，此处不展开）</div>
+        </div>
+        <div class="cfg-group">
+          <div class="cfg-gtitle">▶ 开始模板 <span class="tag">既有占位</span></div>
+          <div class="placeholder">大文本框 + 占位符 chips + 预览占位（真实页已有，此处折叠为一行）</div>
+        </div>
+        <div class="cfg-group" id="debugGroup" style="background:#14161f">
+          <div class="cfg-gtitle">🧪 调试 / 诊断日志 <span class="tag proto">本次原型</span></div>
+          <div class="cfg-gdesc">默认关闭。打开后才会在控制台实时打印详细日志，方便复现问题时使用。但<b>关闭也不影响导出</b>：状态栏小灰点常驻，随时可以导出当天日志交过来定位问题。</div>
+          <div class="cfg-row" style="margin-bottom:10px">
+            <label class="sw"><input type="checkbox" id="debugSwitch"><span class="tr"></span><span id="debugSwitchLabel">调试日志：关（默认）</span></label>
+            <span class="hint" id="switchHint">开时态见右侧状态栏绿点</span>
+          </div>
+          <div class="cfg-row">
+            <button class="btn primary" data-act="export">导出今日日志</button>
+            <button class="btn" data-act="open">打开日志目录</button>
+            <button class="btn" data-act="copy">复制日志路径</button>
+            <button class="btn danger" data-act="clear">清空今日日志</button>
+          </div>
+          <div class="cfg-row" style="margin-top:8px">
+            <span class="hint">导出内容：当天日志 + 系统信息摘要，打成一个 zip 附件（占位文案）。清空会先弹窗确认。</span>
+          </div>
+          <div class="cfg-row" style="margin-top:8px">
+            <label class="hint" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="simulateFail"> 模拟失败态（导出 / 清空走错误提示，演示错误文案）</label>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="card">
+      <h2>② 状态栏 · 常驻小灰点 <span class="tag">模仿 StatusBar 胶囊形态</span></h2>
+      <p class="desc">小灰点固定在胶囊最右侧，只占一位，不抢主流程视线。常驻：有、无日志都显示；颜色区分开关态，点击都弹同一个四键菜单。</p>
+      <div class="grid two">
+        <div>
+          <div class="dotlabel">关时态（默认）：灰点，不显眼</div>
+          <div class="capsule" style="margin-top:6px">
+            <span>🧭 面板</span><span class="seg">🎯 12</span><span class="seg">🐞 3</span><span class="spacer"></span>
+            <span class="menuwrap"><span class="graydot" id="dotOff" tabindex="0" role="button" aria-label="诊断日志菜单（调试关）" title="诊断日志：导出 / 目录 / 路径 / 清空"></span></span>
+          </div>
+        </div>
+        <div>
+          <div class="dotlabel">开时态：绿点，提示正在记详细日志</div>
+          <div class="capsule" style="margin-top:6px">
+            <span>🧭 面板</span><span class="seg">🎯 12</span><span class="seg">🐞 3</span><span class="spacer"></span>
+            <span class="menuwrap"><span class="graydot on" id="dotOn" tabindex="0" role="button" aria-label="诊断日志菜单（调试开）" title="调试开：正在记详细日志"></span></span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="dotlabel">点击后：四键菜单（两个点共用同一菜单，下为可交互演示）</div>
+        <div class="capsule" style="margin-top:6px">
+          <span>🧭 面板</span><span class="seg">🎯 12</span><span class="seg">🐞 3</span><span class="spacer"></span>
+          <span class="menuwrap">
+            <span class="graydot" id="dotDemo" tabindex="0" role="button" aria-label="点我弹出四键菜单" title="点我弹出四键菜单"></span>
+            <span class="menu" id="demoMenu" role="menu">
+              <button data-act="export" role="menuitem">📦 导出今日日志</button>
+              <button data-act="open" role="menuitem">📂 打开日志目录</button>
+              <button data-act="copy" role="menuitem">🔗 复制日志路径</button>
+              <span class="sep"></span>
+              <button data-act="clear" class="danger" role="menuitem">🧹 清空今日日志…</button>
+            </span>
+          </span>
+        </div>
+        <div class="hint" style="margin-top:6px">点击灰点开 / 合菜单；点菜单外空白合上；Esc 也可关闭（与真实悬浮菜单行为一致的占位）。</div>
+      </div>
+    </section>
+  </div>
+  <div class="grid" style="margin-top:16px">
+    <section class="card">
+      <h2>③ 反馈态 <span class="tag">toast · 确认框 · 错误</span></h2>
+      <p class="desc">三个反馈都在本页可点出：导出成功 toast（含路径展示）、清空前确认框、失败／无日志错误态。用右下角 toast + 居中确认框呈现。</p>
+      <div class="cfg-row">
+        <button class="btn primary" data-act="export">预览：导出成功 toast</button>
+        <button class="btn danger" data-act="clear">预览：清空确认框</button>
+        <button class="btn" id="btnErrDemo">预览：错误态 toast</button>
+      </div>
+      <div class="hint" style="margin-top:8px" id="inlineHint">提示区：点上面按钮看右下角反馈；清空要点确认框里的“确认清空”才会提示成功。</div>
+    </section>
+    <section class="review">
+      <b>请评审人重点看（G2 三问回流）：</b>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li><b>是否过显：</b>② 中 10px 常驻灰点在胶囊右侧是否足够低调、有没有抢主流程？</li>
+        <li><b>是否易找到：</b>① 调试区沉底 + ② 小灰点常驻的双入口，沿着设置页往下翻／扫一眼状态栏能找到吗？</li>
+        <li><b>文案是否清晰：</b>“关闭也不影响导出”“当天日志 + 系统信息摘要打成一个 zip”两句是否一次看懂？</li>
+      </ol>
+    </section>
+  </div>
+  <p class="foot">原型文件：<code>prototype/334-debug-entry.html</code> · 内联样式与脚本，无外部依赖 · 今日示例路径：<code>~/.dsh/logs/2026-09-05-debug.zip</code>（占位）· 评审结论请回 #334，勿 close 票。</p>
+</div>
+<div id="toasts" aria-live="polite"></div>
+<div class="modal-mask" id="clearMask" role="dialog" aria-modal="true" aria-labelledby="clearTitle">
+  <div class="modal">
+    <h3 id="clearTitle">确认清空今日日志？</h3>
+    <p>将删除今天的本地诊断日志（当天文件），此操作不可恢复。如需留档请先点“导出今日日志”。（原型占位文案，点确认只弹静态成功提示，不删任何文件。）</p>
+    <div class="actions">
+      <button class="btn" id="clearCancel">取消</button>
+      <button class="btn danger" id="clearConfirm">确认清空</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var TODAY = "2026-09-05";
+  var ZIP = "~/.dsh/logs/" + TODAY + "-debug.zip";
+  var DIR = "~/.dsh/logs/" + TODAY + "/";
+  function failMode(){ return document.getElementById("simulateFail").checked; }
+  function toast(title, bodyHTML, isErr){
+    var box = document.getElementById("toasts");
+    var el = document.createElement("div");
+    el.className = "toast" + (isErr ? " err" : "");
+    el.innerHTML = "<div>" + title + "</div>" + (bodyHTML ? "<div style='color:#9a9aa5;margin-top:2px'>" + bodyHTML + "</div>" : "");
+    box.appendChild(el);
+    while(box.children.length > 3) box.removeChild(box.firstChild);
+    setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 5200);
+  }
+  function hint(text, cls){
+    var h = document.getElementById("inlineHint");
+    h.textContent = text;
+    h.className = "hint" + (cls ? " " + cls : "");
+  }
+  function doExport(){
+    if(failMode()){ toast("❌ 导出失败：日志目录不可写（演示）", "可重试导出，或手动打包目录 <span class='path'>" + DIR + "</span>", true); hint("错误态演示：导出失败，目录不可写。", "err"); return; }
+    toast("✅ 已导出今日日志 + 系统信息摘要", "附件（占位）：<span class='path'>" + ZIP + "</span><br>内容：当天日志 + 系统信息摘要，打成一个 zip，直接发这一个附件即可。", false);
+    hint("导出成功：附件路径见右下角 toast（占位路径）。", "ok");
+  }
+  function doOpen(){
+    toast("📂 已打开日志目录（演示）", "目录（占位）：<span class='path'>" + DIR + "</span>", false);
+    hint("静态反馈：假设已打开系统文件管理器并定位到当日目录。", "");
+  }
+  function doCopy(){
+    var done = function(){
+      toast("🔗 日志路径已复制（演示）", "<span class='path'>" + DIR + "</span>", false);
+      hint("静态反馈：路径已放入剪贴板（原型内为占位）。", "ok");
+    };
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(DIR).then(done, done); }
+      else done();
+    }catch(e){ done(); }
+  }
+  function doClearAsk(){
+    if(failMode()){ toast("❌ 没有可清空的日志（演示）", "今天还没有产生诊断日志，无需清空。", true); hint("错误态演示：无日志可清。", "err"); return; }
+    document.getElementById("clearMask").classList.add("open");
+  }
+  function doClearConfirm(){
+    document.getElementById("clearMask").classList.remove("open");
+    toast("🧹 已清空今日日志（演示）", "已删除 <span class='path'>" + DIR + "</span> 下今天的文件（原型未真删）。", false);
+    hint("清空成功（演示）：今日日志已清空。", "ok");
+  }
+  var acts = { export: doExport, open: doOpen, copy: doCopy, clear: doClearAsk };
+  document.addEventListener("click", function(e){
+    var b = e.target.closest ? e.target.closest("[data-act]") : null;
+    if(b){ var fn = acts[b.getAttribute("data-act")]; if(fn) fn(); }
+    var menu = document.getElementById("demoMenu");
+    if(menu && menu.classList.contains("open") && !e.target.closest(".menuwrap")) menu.classList.remove("open");
+  });
+  function toggleMenu(){ document.getElementById("demoMenu").classList.toggle("open"); }
+  var demo = document.getElementById("dotDemo");
+  demo.addEventListener("click", function(e){ e.stopPropagation(); toggleMenu(); });
+  demo.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleMenu(); } if(e.key==="Escape"){ document.getElementById("demoMenu").classList.remove("open"); } });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape"){ document.getElementById("demoMenu").classList.remove("open"); document.getElementById("clearMask").classList.remove("open"); } });
+  ["dotOff","dotOn"].forEach(function(id){
+    var d = document.getElementById(id);
+    d.addEventListener("click", function(){ toast("📋 四键菜单（演示）", "关／开时态点的都是同一个菜单：导出 / 打开目录 / 复制路径 / 清空。请到下方可交互灰点体验。", false); });
+  });
+  var sw = document.getElementById("debugSwitch");
+  sw.addEventListener("change", function(){
+    var on = sw.checked;
+    document.getElementById("debugSwitchLabel").textContent = on ? "调试日志：开" : "调试日志：关（默认）";
+    document.getElementById("switchHint").textContent = on ? "已开：控制台开始实时打印详细日志（演示）" : "开时态见右侧状态栏绿点";
+    document.getElementById("dotOn").style.outline = on ? "2px solid #4ade80" : "none";
+    toast(on ? "🧪 调试日志已打开（演示）" : "🧪 调试日志已关闭（演示）", on ? "控制台开始实时打印详细日志；小灰点变绿。" : "不再记详细日志；<b>关闭也不影响导出</b>，小灰点仍可导出交日志。", false);
+  });
+  document.getElementById("clearCancel").addEventListener("click", function(){ document.getElementById("clearMask").classList.remove("open"); hint("已取消清空。", ""); });
+  document.getElementById("clearConfirm").addEventListener("click", doClearConfirm);
+  document.getElementById("clearMask").addEventListener("click", function(e){ if(e.target === this) this.classList.remove("open"); });
+  document.getElementById("btnErrDemo").addEventListener("click", function(){ toast("❌ 导出失败：磁盘空间不足（演示）", "请清理后重试，或只发系统信息摘要。", true); hint("错误态演示：磁盘空间不足。", "err"); });
+})();
+</script>
+</body>
+</html>
