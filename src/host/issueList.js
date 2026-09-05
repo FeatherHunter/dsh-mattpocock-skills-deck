@@ -2,7 +2,10 @@
 // 以后谁改它：改列表拉取分页策略、全量索引或缓存有效性的人。预估约 300 行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；getRepoKey/runGh/setCache 与三个索引小函数显式注入；本文件不引用其他新文件。
 export function createIssueList(deps) {
-  const { getRepoKey, runGh, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex } = deps
+  const { getRepoKey, runGh, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, logCtx } = deps
+  // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  let probeSampleN = 0
     async function fetchMaps(cwd) {
       // #44 T2-fix（map#37）：显式 --repo 绕过 gh 在 Fork 上的多远程推断（upstream 优先）
       const repo = await getRepoKey(cwd)
@@ -73,6 +76,7 @@ export function createIssueList(deps) {
     // 按 updatedAt 倒序；labels 带 name + color（GitHub 配置色）；state 区分 open/closed；
     // v18：assignees 带出（状态栏「占用」按列表 issue 口径：已认领 + 被阻塞）
     async function fetchIssues(cwd) {
+      const fetchT0 = Date.now()
       // #374/#375：--limit 500 覆盖仓库全量，并带出 createdAt；为取 author.avatarUrl 改用 gh api（gh issue list 的 author 不含 avatarUrl，见 b7442da 后用户反馈“未显示真人头像”）
       //   gh api repos/.../issues?state=all&per_page=100 --paginate 直接给出 user.avatar_url，零额外 user 查询
       // #44 T2-fix：显式 --repo 绕过多远程推断
@@ -113,7 +117,7 @@ export function createIssueList(deps) {
       if (repo2) {
         try {
           const manual = await fetchAllIssuesManual(cwd, repo2);
-          if (manual.ok && manual.issues && manual.issues.length) return manual;
+          if (manual.ok && manual.issues && manual.issues.length) { try { if (logCtx) logCtx.fire('info', 'issues.fallback', { from: 'gh-api-paginate', to: 'manual-paginate', reason: 'paginate-failed' }) } catch (eL) {}; return manual; }
         } catch (e) {}
       }
       // 回退：gh issue list（无 avatar，仅 login；UI 将回退为 person SVG）
@@ -123,6 +127,7 @@ export function createIssueList(deps) {
         if (repo2) a.push('--repo', repo2.owner + '/' + repo2.name)
         return runGh(a, cwd)
       }
+      try { if (logCtx) { logCtx.fire('info', 'issues.fallback', { from: 'gh-api', to: 'gh-issue-list', reason: 'paginate-failed' }); logCtx.fire('info', 'fallback.chain', { in: 'gh-api-paginate', out: 'gh-issue-list', latencyMs: Date.now() - fetchT0 }) } } catch (eL) {}
       let r = await tryList(100)
       if (!r.ok && String(r.error||'').toLowerCase().includes('unexpected eof')) {
         r = await tryList(100)
@@ -154,6 +159,7 @@ export function createIssueList(deps) {
 
     // #2 deletion fix：轻量全量索引用于发现删除、关闭和重开。
     async function fetchIssueIndex(cwd) {
+      const idxT0 = Date.now()
       const repo = await getRepoKey(cwd)
       if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
       const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100'
@@ -178,10 +184,11 @@ export function createIssueList(deps) {
         // 手动分页兜底：优先按页拉全量索引，避免 100 截断丢失旧票（如删除检测）
         try {
           const manualIdx = await fetchAllIndexManual(cwd, repo);
-          if (manualIdx.ok && manualIdx.index && Object.keys(manualIdx.index).length) return manualIdx;
+          if (manualIdx.ok && manualIdx.index && Object.keys(manualIdx.index).length) { try { if (logCtx) logCtx.fire('info', 'issues.fallback', { from: 'gh-api-paginate', to: 'manual-paginate', reason: 'paginate-failed' }) } catch (eL) {}; return manualIdx; }
         } catch (e) {}
         // 回退：gh api 整体失败时，用 gh issue list 全量兜底（与 fetchIssues 同策略），确保外部建票 60s 内可被发现
         // 500 在部分网络下触发 unexpected EOF，改用 100 并重试
+        try { if (logCtx) { logCtx.fire('info', 'issues.fallback', { from: 'gh-api', to: 'gh-issue-list', reason: 'paginate-failed' }); logCtx.fire('info', 'fallback.chain', { in: 'gh-api-paginate', out: 'gh-issue-list', latencyMs: Date.now() - idxT0 }) } } catch (eL) {}
         let fallback = await runGh(['issue', 'list', '--state', 'all', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
         if (!fallback.ok && String(fallback.error||'').toLowerCase().includes('unexpected eof')) {
           fallback = await runGh(['issue', 'list', '--state', 'all', '--limit', '100', '--json', 'number,state,updatedAt'], cwd)
@@ -217,8 +224,12 @@ export function createIssueList(deps) {
     const cacheSnapshotIsCurrent = async function (snap, cwd) {
       try {
         const remote = await fetchIssueIndex(cwd)
-        if (!remote.ok) return null
-        const current = !issueIndexChanged(issueIndexFromSnapshot(snap), remote.index)
+        if (!remote.ok) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'panelSync.eval', function () { return { repoKeyHash: hash8(String(cwd || '')), baseline: String((snap && (snap.version || snap.generatedMs)) || ''), dirty: true, failures: 1 } }) } catch (eL) {}; return null }
+        const before = issueIndexFromSnapshot(snap)
+        const changed = issueIndexChanged(before, remote.index)
+        const current = !changed
+        try { if (logCtx && logCtx.isEnabled('debug') && changed && ((++probeSampleN % 100) === 0)) logCtx.fire('debug', 'probe.eval', function () { return { repoKeyHash: hash8(remote.repo ? (remote.repo.owner + '/' + remote.repo.name) : String(cwd || '')), count: remote.count || Object.keys(remote.index || {}).length, changed: true } }) } catch (eL) {}
+        try { if (logCtx && logCtx.isEnabled('debug') && changed) logCtx.fire('debug', 'panelSync.eval', function () { return { repoKeyHash: hash8(remote.repo ? (remote.repo.owner + '/' + remote.repo.name) : String(cwd || '')), baseline: String((snap && (snap.version || snap.generatedMs)) || ''), dirty: true, failures: 0 } }) } catch (eL) {}
         if (current) rememberIssueIndex(remote.repo, remote.index)
         return current
       } catch (e) { return null }
@@ -235,6 +246,7 @@ export function createIssueList(deps) {
     //   逐 map：issue 详情 + sub_issues + 每子票 blocked_by（client 只消费 blockedBy，
     //   blocking 不组装省一半请求）；输出与 GraphQL 同构的 { 'm<i>': {...} }，下游 mapTicket 零改动。
     async function fetchMapsDetailREST(numbers, cwd) {
+      try { if (logCtx) logCtx.fire('warn', 'graphql.fallback', { scope: '地图', reason: 'quota-exhausted' }) } catch (eL) {}
       const repo = await getRepoKey(cwd)
       if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
       if (!numbers || !numbers.length) return { ok: true, issues: {} }

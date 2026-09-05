@@ -23,6 +23,7 @@ export const BackendSelector = (props) => {
   } catch {}
   if (!_stForSwitch && typeof shared !== 'undefined') _stForSwitch = shared
   const handlePick = function (targetId) {
+    try { const fromId = (curBackendId !== undefined && curBackendId !== null) ? String(curBackendId) : ''; const toId = (targetId !== undefined && targetId !== null) ? String(targetId) : ''; if (fromId !== toId) log('info', 'backend.switch', { from: fromId, to: toId, cwdHash: dswsLogHash((_stForSwitch && _stForSwitch.cwd) || '') }) } catch (eL) {}
     try {
       if (_stForSwitch && typeof openSwitchConfirm === 'function' && _stForSwitch.selection && _stForSwitch.selection.backendId != null && _stForSwitch.selection.backendId !== targetId) {
         const opened = openSwitchConfirm(_stForSwitch, targetId)

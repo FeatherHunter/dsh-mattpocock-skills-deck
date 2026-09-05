@@ -178,6 +178,7 @@
           }
         }
       } catch (eChainHydrate) {}
+      try { if (changed) log('info', 'snapshot.hydrate', { cwdHash: dswsLogHash(st.cwd), source: 'memory', fresh: true, latencyMs: 0 }) } catch (eL) {}
       return changed
     }
     /**

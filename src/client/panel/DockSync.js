@@ -15,6 +15,7 @@ export const useDockSync = function(s, sid, summaryCwd, props){
           const need = norm !== cur
           // 每次 cwd 变更都强制刷新（即使 hydrate 命中），避免“回切仍为旧快照/没有仓库”空白
           if (need) {
+            try { log('warn', 'dock.rehydrate', { sidHash: dswsLogHash(sid), cwdChanged: true, polluted: false }) } catch (eL) {}
             s.cwd = cwd
             const hydrated = hydrateFromCache(s)
             emit(s)
@@ -40,7 +41,7 @@ export const useDockSync = function(s, sid, summaryCwd, props){
             const base = cwdBasename(cwd)
             if (base && snap.repo.name !== base) polluted = true
           }
-          if (polluted) { loadSnapshot(s, false, true); loadChain(s, false); return true }
+          if (polluted) { try { log('warn', 'dock.rehydrate', { sidHash: dswsLogHash(sid), cwdChanged: false, polluted: true }) } catch (eL) {}; loadSnapshot(s, false, true); loadChain(s, false); return true }
           return false
         }
         if (summaryCwd) { if(apply(summaryCwd)) return }

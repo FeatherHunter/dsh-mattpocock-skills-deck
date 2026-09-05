@@ -11,6 +11,8 @@
     // #284 修订（对抗式审查 2026-08-28）：并发门——同 cwd 同轮次的 in-flight 请求复用；
     //   面板多组件（ChecksTab/StatusBar/Dock）挂载并发调用不再重复触发 25 名技能探测与 gh 网络调用。
     const _chainInflightByCwd = new Map()
+    // #491 房外埋点：在途复用计数（窗口到记一次；dswsLogHash 同闭包见 probe-snapshot.js）。
+    const dswsChainDedupN = { n: 0 }
     // #344 修复（2026-08-31）：链自动重求值 — 当链非全绿时周期 force 重算，直至全绿后停止
     // 原理：tracker:initialized 等声明式检查的推进只来自重求值，初始化完成后文件写入为链外事件；
     // 宿主侧链缓存“未全绿不缓存”已保证 force 可穿透，但客户端无自动触发导致黄条常驻需手动点“重查”。
@@ -44,7 +46,7 @@
       const norm = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, _backendIdForChain) : ((typeof keyOf === 'function' ? keyOf(st.cwd) : String(st.cwd||'')) + '|' + String(_backendIdForChain)))
       if (!force) {
         const inflight = _chainInflightByCwd.get(norm)
-        if (inflight) return inflight
+        if (inflight) { try { dswsChainDedupN.n += 1; if (isEnabled('debug') && dswsChainDedupN.n % 10 === 0) log('debug', 'dedup.hit', { scope: 'chain', keyHash: dswsLogHash(norm) }) } catch (eL) {}; return inflight }
         // 链共享缓存命中即秒显（#324 新会话首见即秒显）
         try {
           const cached = (typeof getCachedChain === 'function' ? getCachedChain(st.cwd, _backendIdForChain) : null)
@@ -63,7 +65,9 @@
       // 2026-08-28 修复（后端物理隔离）：链的后端段必须与 UI 当前绑定的后端一致——
       //   此前只传 cwd，host 回退到 detect 自产的 selection（默认 github），导致 markdown 工作区出现 GitHub 检查行。
       const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {}, force ? { force:true } : {})
+      const chainT0 = Date.now()
       const p = host.call('wf.chain', args).then(function(res){
+        try { if (res && res.ok) log('info', 'host.call', { method: 'wf.chain', latencyMs: Date.now() - chainT0, ok: true, kind: 'chain' }); else log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-not-ok'), 120, 'error')) }) } catch (eL) {}
         if (res && res.ok && (res.fullSnapshot || res.snapshot)) {
           const snap = res.fullSnapshot || res.snapshot
           st.chainSnapshot = snap
@@ -84,8 +88,10 @@
           }catch(eAuto){}
           return snap
         }
+        try { log('warn', 'chain.derive.error', { stepId: 'chain.snapshot', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-derive-empty'), 120, 'error')) }) } catch (eL) {}
         return null
       }).catch(function(e){
+        try { log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }); log('warn', 'chain.derive.error', { stepId: 'chain.load', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
         // #344 加固：宿主异常也安排重试（探测暂时不可用时 8s 后再探，避免黄条卡死）
         try{ const snapPrev = st.chainSnapshot; const stepsPrev = snapPrev && Array.isArray(snapPrev.steps) ? snapPrev.steps : []; const notDonePrev = stepsPrev.length ? stepsPrev.some(function(s){ return s.status !== 'done' }) : true; if(notDonePrev && st.cwd) scheduleChainAutoRefresh(st, CHAIN_AUTO_POLL_MS) }catch(eRetry){}
         return null }).finally(function(){ try { _chainInflightByCwd.delete(norm) } catch (e) {} })

@@ -31,7 +31,9 @@
       // 修复：按 cwd 分组隔离 —— 同 cwd 组内共享 1 次 GraphQL（primary load → 余下拷贝），组间零污染；
       //   兜底路径按 sessionId→cwd 精确映射赋值，避免把任意首个 cwd 错绑到所有空 store。
       const refreshGroup = function (cwd) {
+        const probeT0 = Date.now()
         return host.call('wf.probe', { cwd: cwd }).then(function (res) {
+          try { if (res && res.ok) log('info', 'host.call', { method: 'wf.probe', latencyMs: Date.now() - probeT0, ok: true, kind: 'probe' }); else log('warn', 'host.call.fail', { method: 'wf.probe', kind: 'probe', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'probe-not-ok'), 120, 'error')) }) } catch (eL) {}
           // #327 特性 A：探测完成即走针（无论是否检出变化）
           try { if (res && res.ok) touchProbeAt(cwd) } catch (ePA) {}
           if (!(res && res.ok && res.changed)) return
@@ -69,7 +71,7 @@
               emit(st2)
             })
           }).catch(function () { /* 忽略 */ })
-        }).catch(function () { /* 探测失败忽略 */ })
+        }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.probe', kind: 'probe', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
       }
       // 按工作区归一键去重（#324 · 同工作区只探一次）
       const cwdsByNorm = new Map()

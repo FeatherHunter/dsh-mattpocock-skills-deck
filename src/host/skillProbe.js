@@ -2,7 +2,7 @@
 // 以后谁改它：改技能探测口径或通道的人。预估约340行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；ctx/getPlatform/getWorkspaceStore/resetChainCache 显式注入；本文件不引用其他新文件。
 export function createSkillProbe(deps) {
-  const { ctx, getPlatform, getWorkspaceStore, resetChainCache } = deps
+  const { ctx, getPlatform, getWorkspaceStore, resetChainCache, logCtx } = deps
     // 检查 7/8 · 技能安装探测（#373 拍板：两态 —— 已安装/未安装；去掉不可靠的「挂载」判定：
     //   宿主级 skills 服务与「当前会话挂载」不是同一上下文，服务不可用时会误报「未挂载」）
     const SKILL_INSTALL_URL = 'https://github.com/mattpocock/skills'
@@ -245,6 +245,17 @@ export function createSkillProbe(deps) {
       return { kind: 'missing', detail: (lang === 'en') ? 'Not installed (missing)' : '未安装（缺失）', hint: 'prompt:installSkills', channels }
     }
     async function probeSkill(skillName, lang, cwd) {
+      const res = await probeSkillInner(skillName, lang, cwd)
+      try {
+        if (logCtx) {
+          const via = String((res && res.via) || ((res && res.level === 'ok') ? 'registry' : ((res && (res.pending || res.level === 'pending')) ? 'registry' : 'multi')))
+          logCtx.fire('info', 'skill.probe', { name: String(skillName || ''), level: String((res && res.level) || 'bad'), via: via })
+          try { const st = getOrCreatePendingState(skillName); if (res && res.level === 'bad' && st && st.attempts > SKILL_PENDING_MAX) logCtx.fire('warn', 'skill.pending.cap', { name: String(skillName || ''), attempts: st.attempts, max: SKILL_PENDING_MAX }) } catch (eC) {}
+        }
+      } catch (eL) {}
+      return res
+    }
+    async function probeSkillInner(skillName, lang, cwd) {
       try { ensureSkillsInvalidateSubscription() } catch {}
       const skills = ctx.get('skills')
       let found = null

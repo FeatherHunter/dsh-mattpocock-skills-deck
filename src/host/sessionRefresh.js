@@ -2,9 +2,14 @@
 // 以后谁改它：改强制刷新或磁盘缓存的人。预估约330行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 export function createSessionRefresh(deps) {
-  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx } = deps
+  // #491 房外埋点 helpers：hash8 只记散列；脏回执与组装返回均为低频常驻，直接落盘（库体内兜底）。
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  async function adoptSnapLog(snap, c) { try { if (logCtx && snap && snap.fromCache !== true) logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } catch (e) {} return adoptSnapshot(snap, c) }
   async function handleRefresh(args) {
       const cwd = (args && args.cwd) || DEFAULT_CWD
+      const refT0 = Date.now()
+      try { if (logCtx) logCtx.fire('info', 'panelSync.dirty', { cwdHash: hash8(cwd), ageMs: (function () { try { const c = getCache(); return (c && c.ts) ? Math.max(0, refT0 - c.ts) : 0 } catch (e) { return 0 } })() }) } catch (eL) {}
       // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
       resetGhCache()
       try {
@@ -145,7 +150,7 @@ export function createSessionRefresh(deps) {
             viewerLogin: null,
             deck: inner.deck,
           }
-          return adoptSnapshot(snap, cwd)
+          return adoptSnapLog(snap, cwd)
         }
         // 统一走编排器（所有后端）
         if (!_sel || !_sel.backendId) {
@@ -175,7 +180,7 @@ export function createSessionRefresh(deps) {
             viewerLogin: null,
             deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
           }
-          return adoptSnapshot(snap, cwd)
+          return adoptSnapLog(snap, cwd)
         }
         const reg2 = await getTrackerRegistry()
         const backendId2 = _sel.backendId
@@ -215,7 +220,7 @@ export function createSessionRefresh(deps) {
               viewerLogin: null,
               deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
             }
-            return adoptSnapshot(snapNoRepo, cwd)
+            return adoptSnapLog(snapNoRepo, cwd)
           }
         }
         const repo0b = await getRepoKey(cwd)
@@ -304,7 +309,7 @@ export function createSessionRefresh(deps) {
           deck: inner2.deck,
         }
         await writeDiskCache(snap2.repo, snap2)
-        return adoptSnapshot(snap2, cwd)
+        return adoptSnapLog(snap2, cwd)
       } catch (e) {
         setCache({ ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd })
         return { ok: false, error: errText(e) }

@@ -2,7 +2,12 @@
 // 以后谁改它：改探测编排或检查链快照的人。预估约260行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给；本文件不引用其他新文件。
 export function createDetectChain(deps) {
-  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache } = deps
+  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, logCtx } = deps
+  // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  let chainSampleN = 0
+  let lastPredAt = 0
+  let lastPredStatus = {}
   const CHAIN_CACHE_MS = 30000
   async function handleDetect(args) {
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
@@ -12,6 +17,7 @@ export function createDetectChain(deps) {
       try {
         const svc = await getDetectionService()
         const res = await svc.detect({ cwd }, { force, hintBackendId: (args && args.backendId) || undefined })
+        try { if (logCtx) logCtx.fire('info', 'detection.detect', { cwdHash: hash8(cwd), explicit: !!((res && res.selection && res.selection.source === 'explicit')), pending: !!((res && res.selection && res.selection.pending)), selection: String((res && res.selection && res.selection.backendId) || '') }) } catch (eL) {}
         // 对抗式：ensure DetectionResult 形态（含 selection/pending/multiHit，按 #125）
         return { ok: true, ...res }
       } catch (e) {
@@ -31,6 +37,7 @@ export function createDetectChain(deps) {
         // 缓存命中（force 绕过；探测 pending 结果不缓存——与旧 statusCache 同纪律）
         const cacheKey = cwd + '|' + String(args && args.backendId || '') + '|' + chainLang
         if (!force && getChainCache().value && getChainCache().key === cacheKey && Date.now() - getChainCache().ts < CHAIN_CACHE_MS) {
+          try { if (logCtx && logCtx.isEnabled('debug') && ((++chainSampleN % 100) === 0)) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(cacheKey), lang: chainLang, ageMs: Date.now() - getChainCache().ts } }) } catch (eL) {}
           return getChainCache().value
         }
         const platform = await getPlatform()
@@ -227,6 +234,16 @@ export function createDetectChain(deps) {
           } catch (e) { return snap }
         }
         const allResolved = Object.assign({}, chainAndSnap.resolved || {}, (backendChain && backendChain.resolved) || {})
+        try {
+          if (logCtx && logCtx.isEnabled('debug')) {
+            const nowP = Date.now()
+            if (nowP - lastPredAt > 15000) {
+              lastPredAt = nowP
+              const ids = Object.keys(allResolved || {})
+              for (let pi = 0; pi < ids.length; pi++) { const rd = allResolved[ids[pi]]; const stt = String((rd && (rd.status || rd)) || 'pending'); if (lastPredStatus[ids[pi]] !== stt) { lastPredStatus[ids[pi]] = stt; logCtx.fire('debug', 'chain.predicate', { id: String(ids[pi]), status: stt }) } }
+            }
+          }
+        } catch (eL) {}
         const genericSnap = enrichSnap(genericSnapRaw || chainAndSnap.snapshot, chainAndSnap.resolved)
         const backendSnapE = (backendChain && backendChain.snapshot) ? enrichSnap(backendChain.snapshot, backendChain.resolved) : (backendChain && backendChain.snapshot)
         if (backendChain) backendChain.snapshot = backendSnapE

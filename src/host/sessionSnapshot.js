@@ -2,7 +2,11 @@
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 export function createSessionSnapshot(deps) {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx } = deps
+  // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  let snapSampleN = 0
+  async function adoptSnapLog(snap, c) { try { if (logCtx && snap && snap.fromCache !== true) logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } catch (e) {} return adoptSnapshot(snap, c) }
   async function handleSnapshot(args) {
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const now = Date.now()
@@ -10,17 +14,20 @@ export function createSessionSnapshot(deps) {
       const _selEarly = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
       const useComposerEarly = isComposerSelection(_selEarly)
       const isForce = !!(args && args.force)
+      try { if (logCtx) logCtx.fire('info', 'snapshot.request', { cwdHash: hash8(cwd), backend: String((_selEarly && _selEarly.backendId) || ''), force: isForce }) } catch (eL) {}
       if (!isForce && getCache().snapshot && getCache().cwd === cwd) {
         // GitHub 路径才用 issue 索引校验；Markdown 等走通用缓存时只看时间与 backend 是否一致
         // 权威动作 force 必须无条件重建，不走此短路（P2 要求）
         if (useComposerEarly) {
           const cachedBackend = getCache().snapshot.selection && getCache().snapshot.selection.backendId
-          if (cachedBackend === _selEarly.backendId && now - getCache().ts < CACHE_MS) return getCache().snapshot
+          if (cachedBackend === _selEarly.backendId && now - getCache().ts < CACHE_MS) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - getCache().ts } }) } catch (eL) {}; return getCache().snapshot }
         } else {
           const current = await cacheSnapshotIsCurrent(getCache().snapshot, cwd)
-          if (current === true || (current === null && now - getCache().ts < CACHE_MS)) return getCache().snapshot
+          if (current === true || (current === null && now - getCache().ts < CACHE_MS)) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - getCache().ts } }) } catch (eL) {}; return getCache().snapshot }
         }
       }
+      const missReason = (function () { try { if (isForce) return 'force'; const c = getCache(); if (!c.snapshot) return 'empty'; if (c.cwd !== cwd) return 'cwd-changed'; const cb = c.snapshot.selection && c.snapshot.selection.backendId; const nb = _selEarly && _selEarly.backendId; if (cb !== nb) return 'backend-changed'; return 'expired' } catch (e) { return 'expired' } })()
+      try { if (logCtx) logCtx.fire('info', 'snapshot.cache.miss', { reason: missReason }) } catch (eL) {}
       try {
         // 复用已算的 selection，避免二次探测
         let _sel = _selEarly
@@ -150,7 +157,7 @@ export function createSessionSnapshot(deps) {
             viewerLogin: null,
             deck: inner.deck,
           }
-          return adoptSnapshot(snap, cwd)
+          return adoptSnapLog(snap, cwd)
         }
         // 统一契约：所有后端均走 composeSnapshot，不再硬走 buildSnapshot 直调 gh
         if (!_sel || !_sel.backendId) {
@@ -180,7 +187,7 @@ export function createSessionSnapshot(deps) {
             viewerLogin: null,
             deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
           }
-          return adoptSnapshot(snap, cwd)
+          return adoptSnapLog(snap, cwd)
         }
         // GitHub 同样走编排器（经 registry.get('github').list），不再直调 buildSnapshot 硬走 gh
         const reg2 = await getTrackerRegistry()
@@ -221,14 +228,14 @@ export function createSessionSnapshot(deps) {
               viewerLogin: null,
               deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
             }
-            return adoptSnapshot(snapNoRepo, cwd)
+            return adoptSnapLog(snapNoRepo, cwd)
           }
         }
         const repo0b = await getRepoKey(cwd)
         const diskb = await readDiskCache(repo0b)
         if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
           const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
-          if (currentb !== false) return adoptSnapshot(Object.assign({}, diskb, { fromCache: true }), cwd)
+          if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()) } }) } catch (eL) {}; return adoptSnapLog(Object.assign({}, diskb, { fromCache: true }), cwd) }
         }
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
@@ -313,7 +320,7 @@ export function createSessionSnapshot(deps) {
           deck: inner2.deck,
         }
         await writeDiskCache(snap2.repo, snap2)
-        return adoptSnapshot(snap2, cwd)
+        return adoptSnapLog(snap2, cwd)
       } catch (e) {
         setCache({ ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd })
         return { ok: false, error: errText(e), env: { ghError: getGhLastError() } }

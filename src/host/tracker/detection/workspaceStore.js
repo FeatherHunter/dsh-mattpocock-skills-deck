@@ -11,6 +11,8 @@
 
 const DEFAULT_TTL = 30000
 
+// #491 房外埋点：hash8 只记键散列不记原文。
+function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
 function handleKey(handle) {
   if (!handle || typeof handle !== 'object') throw new Error('bad-handle: handle is required')
   const k = handle.cwd || handle.refId
@@ -20,6 +22,8 @@ function handleKey(handle) {
 
 export function createWorkspaceStore(opts = {}) {
   const ttl = (opts && opts.ttl != null) ? opts.ttl : DEFAULT_TTL
+  const logCtx = (opts && opts.logCtx) || null
+  let wsHitN = 0
   const map = new Map() // key -> { selection, at, raw, parsed }
 
   function isFresh(entry) {
@@ -41,6 +45,7 @@ export function createWorkspaceStore(opts = {}) {
       const e = map.get(k)
       if (!e) return null
       if (!isFresh(e)) { map.delete(k); return null }
+      try { if (logCtx && logCtx.isEnabled('debug') && ((++wsHitN % 100) === 0)) logCtx.fire('debug', 'workspaceStore.hit', function () { return { keyHash: hash8(k), fresh: true, ttlMs: ttl } }) } catch (eL) {}
       return e
     },
     set(handle, payload) {

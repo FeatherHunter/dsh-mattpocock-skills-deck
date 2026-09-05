@@ -21,10 +21,10 @@
           else d.openIn = bsInstalled ? 'sidebar' : 'dock'              // 首次 → 按安装情况默认
         }
         return Object.assign({ withWayfinder: true, openIn: 'dock' }, d)
-      } catch (e) { /* 存储不可用用默认 */ }
+      } catch (e) { try { log('warn', 'storage.fail', { key: CFG_KEY, op: 'read' }) } catch (eL) {} }
       return d
     })()
-    export const saveCfg = function () { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)) } catch (e) {} }
+    export const saveCfg = function () { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)) } catch (e) { try { log('warn', 'storage.fail', { key: CFG_KEY, op: 'write' }) } catch (eL) {} } }
     // 模板存储（T2b 扩展全部动作；T2a 先承载 execute = 旧 custom）
     export const TPL_KEY = 'dsws.templates'
     export const templates = (function () {
@@ -32,10 +32,10 @@
       try {
         const raw = localStorage.getItem(TPL_KEY)
         if (raw) return Object.assign(d, JSON.parse(raw))
-      } catch (e) { /* 存储不可用用默认 */ }
+      } catch (e) { try { log('warn', 'storage.fail', { key: TPL_KEY, op: 'read' }) } catch (eL) {} }
       return d
     })()
-    export const saveTemplates = function () { try { localStorage.setItem(TPL_KEY, JSON.stringify(templates)) } catch (e) {} }
+    export const saveTemplates = function () { try { localStorage.setItem(TPL_KEY, JSON.stringify(templates)) } catch (e) { try { log('warn', 'storage.fail', { key: TPL_KEY, op: 'write' }) } catch (eL) {} } }
     // 迁移：旧 dsws.startCfg（{withWayfinder, custom}）→ cfg.withWayfinder + templates.execute，成功后清旧 key
     export const migrateStartCfg = function () {
       try {

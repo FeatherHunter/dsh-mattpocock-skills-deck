@@ -2,6 +2,9 @@
  * statusbar/StatusBar.js — 输入区状态栏（5.2）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js（spliced）。
  */
+// #491 房外埋点：模块级计数（组件外一次，避免每渲染重置；只记枚举与计数，不记路径原文）。
+const dswsStatusHydN = { n: 0 }
+const dswsStatusFbLast = { reason: '' }
 export const StatusBar = (props) => {
   const sid = props && props.sessionId
   const cx = React.useContext(DswsCtx)
@@ -34,8 +37,9 @@ export const StatusBar = (props) => {
     probeHandoffReady(s)
   }, [])
   React.useEffect(function () {
-    const apply = function (cwd) {
+    const apply = function (cwd, src) {
       if (cwd && cwd !== s.cwd) {
+        try { dswsStatusHydN.n += 1; if (isEnabled('debug') && dswsStatusHydN.n % 100 === 0) log('debug', 'statusbar.hydrate', { cwdSource: String(src || 'unknown') }) } catch (eL) {}
         s.cwd = cwd
         const hydrated = hydrateFromCache(s)
         emit(s)
@@ -43,16 +47,17 @@ export const StatusBar = (props) => {
         if (!hydrated || !snapFresh(s)) loadSnapshot(s, false, !!hydrated)
       }
     }
-    if (summaryCwd) { apply(summaryCwd); return }
+    if (summaryCwd) { apply(summaryCwd, 'summary'); return }
     const cwd0 = detectCwd(props && props.session)
-    if (cwd0) { apply(cwd0); return }
+    if (cwd0) { apply(cwd0, 'session'); return }
     if (sid && typeof host !== 'undefined' && typeof host.call === 'function') {
       host.call('wf.cwd', { sessionId: sid }).then(function (res) {
-        if (res && res.ok && res.cwd) apply(res.cwd)
+        if (res && res.ok && res.cwd) apply(res.cwd, 'wf.cwd')
       }).catch(function () {})
     }
   }, [sid, summaryCwd])
   React.useEffect(function () { loadChain(s, false); if (!snapFresh(s)) loadSnapshot(s, false, true) }, [])
+  React.useEffect(function () { try { const r = !s.snapshot ? 'no-snapshot' : (!s.cwd ? 'no-cwd' : (s.snapMode === 'err' ? 'snap-error' : '')); if (r !== dswsStatusFbLast.reason) { dswsStatusFbLast.reason = r; if (r) log('info', 'statusbar.fallback', { reason: r }) } } catch (eL) {} }, [s.snapshot, s.cwd, s.snapMode])
   const csx = checksumsOf(s)
   const { fr, bugN, triageN, n, timeStr, setup, amber, skillsCheck, skillsBad, ghCliBad, ghAuthBad } = csx
   // 2026-08-28 优化3：胶囊状态栏任何情况下都不隐藏（#187「未选后端隐藏整条」门控退休，仅留导航引导）。

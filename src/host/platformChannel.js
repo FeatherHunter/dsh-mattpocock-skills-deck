@@ -2,7 +2,15 @@
 // 以后谁改它：改平台抽象、后端注册表或探测级联的人。预估约 280 行，超 350 打回。
 // 接线：由 index.js 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；本文件不引用其他新文件。
 export function createPlatformChannel(deps) {
-  const { ctx, subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, getMattSkillProbeNames, probeSkill } = deps
+  const { ctx, subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, getMattSkillProbeNames, probeSkill, logCtx } = deps
+  // #491 房内接线（O2）：backendCtx 不再传空对象。log 兼容旧 ctx.log.warn(text) 调用（只记散列）；logEvent/isEnabled 供房内未来 45 事件埋点（另票）。
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  const backendLogCtx = (logCtx && typeof logCtx.fire === 'function') ? logCtx : null
+  function backendLogEvent(level, event, fields) { try { if (backendLogCtx) backendLogCtx.fire(level, event, fields) } catch (e) {} }
+  function backendLogEnabled(level) { try { return backendLogCtx ? backendLogCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } }
+  function backendCompatLog(level, text) { try { const lv = (level === 'debug') ? 'debug' : ((level === 'info') ? 'info' : ((level === 'error') ? 'error' : 'warn')); if (backendLogCtx) backendLogCtx.fire(lv, 'backend.diagnostic', { errorHash: hash8(text) }) } catch (e) {} }
+  const backendLogCompat = { info: function (m) { backendCompatLog('info', m) }, warn: function (m) { backendCompatLog('warn', m) }, error: function (m) { backendCompatLog('error', m) }, debug: function (m) { backendCompatLog('debug', m) } }
+  const backendCtxForRooms = { log: backendLogCompat, logEvent: backendLogEvent, isEnabled: backendLogEnabled }
   const STATUS_CACHE_MS = 30000  // workspaceStore 探测级联 TTL（#344 沿革 · #284 保留；原 index.js 234 行）
     // ============ Tracker Registry（#155 · 后端选择 UI）============
     let _trackerRegistry = null
@@ -18,7 +26,7 @@ export function createPlatformChannel(deps) {
         try {
           const regMod = await import('./tracker/registryCore.js') // V1 #461：registry.js 已拆为三块，装配入口为 registryCore.js
           const createRegistry = regMod.createRegistry || regMod.default
-          const reg = createRegistry({}, { matchesTimeout: 3000 })
+          const reg = createRegistry(backendCtxForRooms, { matchesTimeout: 3000 })
           // 注册内置后端（github/markdown/gitlab），失败忽略（保持可用）
           try {
             const ghMod = await import('./tracker/backends/github/index.js')
@@ -54,7 +62,7 @@ export function createPlatformChannel(deps) {
           try {
             const regMod2 = await import('./tracker/registryCore.js') // V1 #461：同上（回落分支）
             const cr = regMod2.createRegistry || regMod2.default
-            _trackerRegistry = cr({}, { matchesTimeout: 3000 })
+            _trackerRegistry = cr(backendCtxForRooms, { matchesTimeout: 3000 })
             return _trackerRegistry
           } catch { return null }
         }
@@ -68,7 +76,9 @@ export function createPlatformChannel(deps) {
     // 第一性原理：平台单点 + 零手拼 + 双闸不变量；经 ctx.get('platform') 或内联 fallback（零 import 语法，避 D7 dev host vm.Script 阻塞）
     let _platform = null
     let _platformInit = null
+    let lastPlatformOk = null
     async function getPlatform() {
+      const platT0 = Date.now()
       if (_platform) return _platform
       if (_platformInit) return _platformInit
       _platformInit = (async () => {
@@ -140,6 +150,7 @@ export function createPlatformChannel(deps) {
         return Object.freeze({ os: osName, getHome: getHomeInner, path: pathObj, resolveExecutable, fs: fss, env: envView })
       })()
       _platform = await _platformInit
+      try { const okNow = !!_platform; if (logCtx && logCtx.isEnabled('debug') && okNow !== lastPlatformOk) { lastPlatformOk = okNow; logCtx.fire('debug', 'platform.resolve', function () { return { name: 'platform', ok: okNow, latencyMs: Date.now() - platT0 } }) } } catch (eL) {}
       return _platform
     }
     // ============ 探测级联 · workspaceStore + detectionService（#152 · #150 Q1-Q7）============
@@ -151,7 +162,7 @@ export function createPlatformChannel(deps) {
       try {
         const mod = await import('./tracker/detection/workspaceStore.js')
         const create = mod.createWorkspaceStore || mod.default
-        _workspaceStore = create({ ttl: STATUS_CACHE_MS })
+        _workspaceStore = create({ ttl: STATUS_CACHE_MS, logCtx: logCtx })
         // registry stale 清理（#150 Q3 unregister stale → emit bind）
         try {
           const reg = await getTrackerRegistry()

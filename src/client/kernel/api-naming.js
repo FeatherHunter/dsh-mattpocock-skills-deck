@@ -182,7 +182,7 @@ export let pendingDraftTargetSid = null
       const cur = namingCurrentTitleOf(sid)
       if (cur === null) return  // 当前标题不可读：本轮跳过，绝不盲写
       const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
-      if (judge === 'locked' || lock.locked) { reportNamingResult(sid, 'locked', { currentTitle: cur }); return }
+      if (judge === 'locked' || lock.locked) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur }); return }
       if (judge === 'unknown') return
       let target = null
       if (o.kind === 'draft') {
@@ -196,7 +196,7 @@ export let pendingDraftTargetSid = null
       } else {
         return
       }
-      if (!target || target === cur) { reportNamingResult(sid, 'renamed', { title: cur || target }); return }  // 已在位（如上次改名落定但回报失败）→ 收敛记账
+      if (!target || target === cur) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'renamed', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'renamed', { title: cur || target }); return }  // 已在位（如上次改名落定但回报失败）→ 收敛记账
       try {
         const sessions = ctx.get('sessions')
         if (!sessions || typeof sessions.scope !== 'function' || typeof sessions.sessionOf !== 'function') return
@@ -220,6 +220,7 @@ export let pendingDraftTargetSid = null
           }
         } catch (eCur2) {}
         Promise.resolve(face.rename(target)).then(function (r) {
+          try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: (r && r.ok) ? 'renamed' : 'failed', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}
           if (r && r.ok) reportNamingResult(sid, 'renamed', { title: (r.value && r.value.title) || target })
           else reportNamingResult(sid, 'failed', { error: (r && r.error && r.error.message) || 'rename failed' })
         }).catch(function () { reportNamingResult(sid, 'failed', { error: 'rename rejected' }) })

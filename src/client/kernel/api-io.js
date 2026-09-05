@@ -67,7 +67,9 @@
       }
       st.issueMode = 'loading'; st.issueError = null; emit(st)
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
+      const dtT0 = Date.now()
       return host.call('wf.issueDetail', Object.assign({ number: num }, cwdArg)).then(function (res) {
+        try { if (res && res.ok) log('info', 'host.call', { method: 'wf.issueDetail', latencyMs: Date.now() - dtT0, ok: true, kind: 'detail' }); else log('warn', 'host.call.fail', { method: 'wf.issueDetail', kind: 'detail', errorHash: dswsLogHash(dswsLogTrunc(String(((res && res.error && (res.error.message || res.error.kind)) || 'detail-not-ok')), 120, 'error')) }) } catch (eL) {}
         if (!res) {
           const err = { kind: 'network', message: tr('err.snapshotEmpty') }
           st.issueMode = 'err'; st.issueError = err; st.issueDetail = null; emit(st)
@@ -98,6 +100,7 @@
           return { ok: false, error: err }
         }
       }).catch(function (e) {
+        try { log('warn', 'host.call.fail', { method: 'wf.issueDetail', kind: 'detail', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
         const err = { kind: 'network', message: String((e && e.message) || e) }
         st.issueMode = 'err'; st.issueError = err; st.issueDetail = null; emit(st)
         return { ok: false, error: err }
@@ -123,7 +126,9 @@
       st.issueCommentsMoreLoading = true; emit(st)
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
       const afterArg = (after != null) ? String(after) : (st.issueDetail && st.issueDetail.comments && st.issueDetail.comments.pageInfo && st.issueDetail.comments.pageInfo.endCursor) ? String(st.issueDetail.comments.pageInfo.endCursor) : String((st.issueDetail && st.issueDetail.comments && st.issueDetail.comments.nodes && st.issueDetail.comments.nodes.length) || 0)
+      const cmT0 = Date.now()
       return host.call('wf.issueComments', Object.assign({ number: num, after: afterArg }, cwdArg)).then(function (res) {
+        try { if (res && res.ok) log('info', 'host.call', { method: 'wf.issueComments', latencyMs: Date.now() - cmT0, ok: true, kind: 'comments' }); else log('warn', 'host.call.fail', { method: 'wf.issueComments', kind: 'comments', errorHash: dswsLogHash(dswsLogTrunc(String(((res && res.error && (res.error.message || res.error.kind)) || 'comments-not-ok')), 120, 'error')) }) } catch (eL) {}
         st.issueCommentsMoreLoading = false
         if (!res) {
           st.issueCommentsFailCount = (st.issueCommentsFailCount || 0) + 1; emit(st)
@@ -158,6 +163,7 @@
           return { ok: false, error: err }
         }
       }).catch(function (e) {
+        try { log('warn', 'host.call.fail', { method: 'wf.issueComments', kind: 'comments', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
         st.issueCommentsMoreLoading = false
         st.issueCommentsFailCount = (st.issueCommentsFailCount || 0) + 1
         emit(st)
@@ -177,7 +183,9 @@
         return Promise.resolve({ ok: false, error: { kind: 'env', message: tr('err.hostUnavailable') } })
       }
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
+      const ciT0 = Date.now()
       return host.call('wf.commentIssue', Object.assign({ number: num, body: text }, cwdArg)).then(function (res) {
+        try { if (res && res.ok === true) log('info', 'host.call', { method: 'wf.commentIssue', latencyMs: Date.now() - ciT0, ok: true, kind: 'comment' }); else log('warn', 'host.call.fail', { method: 'wf.commentIssue', kind: 'comment', errorHash: dswsLogHash(dswsLogTrunc(String(((res && res.error && (res.error.message || res.error.kind)) || 'comment-not-ok')), 120, 'error')) }) } catch (eL) {}
         if (!res) return { ok: false, error: { kind: 'network', message: tr('err.snapshotEmpty') } }
         if (res.ok === true) return { ok: true, comment: res.data != null ? res.data : (res.comment || null) }
         const err = res.error || {}
@@ -189,6 +197,7 @@
         else if (!k) k = 'network'
         return { ok: false, error: { kind: k, message: String(err.message || err.error || 'comment failed') } }
       }).catch(function (e) {
+        try { log('warn', 'host.call.fail', { method: 'wf.commentIssue', kind: 'comment', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
         return { ok: false, error: { kind: 'network', message: String((e && e.message) || e) } }
       })
     }

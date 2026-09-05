@@ -36,8 +36,9 @@ export function handleKey(handle) {
 }
 
 /** 缺方法 → uniform unsupported 桩（能力=运行时调用结果；返回不抛）。 */
-export function unsupportedStub(opName, backendId) {
+export function unsupportedStub(opName, backendId, hooks) {
   const stub = async function unsupportedOp() {
+    try { if (hooks && hooks.isEnabled && hooks.isEnabled('debug') && hooks.logEvent) hooks.logEvent('debug', 'registry.stub', { op: String(opName || ''), backendId: String(backendId || '') }) } catch (eL) {}
     return { ok: false, error: { kind: ERROR_KIND.UNSUPPORTED, message: `backend ${backendId} does not implement op ${opName}` } }
   }
   Object.defineProperty(stub, 'name', { value: `${opName}:unsupported`, configurable: true })
@@ -49,7 +50,7 @@ export function unsupportedStub(opName, backendId) {
  *  - id 固定为模块 id（自报不一致 = 说谎 → 拒绝）；
  *  - OP_NAMES 里缺的方法 → unsupported 桩；其余未知属性透传（容器可能有旁路如 snapshotFast，见 snapshot.js）。
  */
-export function wrapTracker(mod, impl) {
+export function wrapTracker(mod, impl, hooks) {
   if (!impl || typeof impl !== 'object') {
     throw new TrackerRegistryError('shape', `create(${mod.id}) must return an object (got ${typeof impl})`)
   }
@@ -62,7 +63,7 @@ export function wrapTracker(mod, impl) {
       const v = Reflect.get(t, prop, receiver)
       if (v !== undefined) return v
       if (typeof prop === 'string' && prop === 'id') return mod.id
-      if (typeof prop === 'string' && OPERATIONS.includes(prop)) return unsupportedStub(prop, mod.id)
+      if (typeof prop === 'string' && OPERATIONS.includes(prop)) return unsupportedStub(prop, mod.id, hooks)
       return undefined
     },
   })

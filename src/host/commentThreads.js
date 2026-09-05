@@ -2,7 +2,7 @@
 // 以后谁改它：改单票详情字段、评论分页读写或增量探针的人。预估约300行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；normCwd 与单票分发前奏经 index 转供给复用（H4 同例），不各留一份拷贝；本文件不引用其他新文件。
 export function createCommentThreads(deps) {
-  const { normCwd, canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo } = deps
+  const { normCwd, canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, logCtx } = deps
   // T5 #10 · 评论分页（反向分页 cursor，节流由 client 侧 600ms 控制；单页 50，失败重试与 3 次兜底）
   async function fetchIssueCommentsREST(n, after, cwd) {
     const repo = await getRepoKey(cwd)
@@ -44,7 +44,7 @@ export function createCommentThreads(deps) {
       else args.push('-F', 'after=')
       const r = await runGh(args, cwd)
       if (!r.ok) {
-        if (isRateLimitError(r)) return fetchIssueCommentsREST(n, after, cwd)
+        if (isRateLimitError(r)) { try { if (logCtx) logCtx.fire('warn', 'graphql.fallback', { scope: '单票', reason: 'rate-limit' }) } catch (eL) {}; return fetchIssueCommentsREST(n, after, cwd) }
         if (r.kind === 'notfound' || /not found|could not resolve/i.test(String(r.error||''))) return { ok: false, error: { kind: 'notFound', message: String(r.error||'not found') } }
         if (r.kind !== 'network') return { ok: false, error: { kind: r.kind || 'network', message: String(r.error||'network') } }
         continue
@@ -52,7 +52,7 @@ export function createCommentThreads(deps) {
       try {
         const j = JSON.parse(r.text)
         if (j.errors) {
-          if (isRateLimitError({ error: JSON.stringify(j.errors) })) return fetchIssueCommentsREST(n, after, cwd)
+          if (isRateLimitError({ error: JSON.stringify(j.errors) })) { try { if (logCtx) logCtx.fire('warn', 'graphql.fallback', { scope: '单票', reason: 'rate-limit' }) } catch (eL) {}; return fetchIssueCommentsREST(n, after, cwd) }
           if (/not found|could not resolve/i.test(JSON.stringify(j.errors))) return { ok: false, error: { kind: 'notFound', message: JSON.stringify(j.errors).slice(0,300) } }
           return { ok: false, error: { kind: 'graphql', message: JSON.stringify(j.errors).slice(0,300) } }
         }

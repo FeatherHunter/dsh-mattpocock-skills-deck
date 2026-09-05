@@ -7,6 +7,12 @@
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
     export const pendingSnapshotByCwd = new Map() // Map<normCwd,{promise,controller}> dedup 30s
+    // #491 房外埋点 helpers（同一闭包拼回后全内核文件可见；只记散列与计数，渲染路径不用）：
+    const dswsLogHash = function (s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+    const dswsScrubHits = {}
+    const dswsScrubN = { n: 0 }
+    const dswsLogTrunc = function (s, n, field) { try { const t = String(s || ''); if (t.length <= n) return t; try { const k = String(field || 'text') + ':T' + n; dswsScrubHits[k] = (dswsScrubHits[k] || 0) + 1; dswsScrubN.n += 1; if (dswsScrubN.n % 50 === 0 && isEnabled('debug')) log('debug', 'privacy.scrub', { field: String(field || 'text'), rule: 'T' + n, hit: true }) } catch (e) {} return t.slice(0, n) } catch (e) { return '' } }
+    const dswsDedupWin = { n: 0 }
     // v11：label 用 GitHub 配置色渲染 —— hex → rgba（.18 背景），无效 hex 返回 null 走兜底
     export const hexA = function (hex, a) {
       try {
@@ -150,6 +156,7 @@
           // #366 修复：force 不复用非 force 的在途请求——手动刷新必须走到 wf.refresh
           const _shouldReuse = !force || _pend.force === true;
           if (_shouldReuse) {
+            try { dswsDedupWin.n += 1; if (isEnabled('debug') && dswsDedupWin.n % 10 === 0) log('debug', 'dedup.hit', { scope: 'snapshot', keyHash: dswsLogHash(_nk) }) } catch (eL) {}
             // 同 cwd 在途复用：新调用方挂载后从共享缓存水合，不再发第二份请求
             return _pend.promise.then(function(snap){
               // 在途结果已落 per-cwd 缓存（首发方 then 中 setCachedSnapshot），此处仅水合当前 store
@@ -195,12 +202,16 @@
         const _normKeyP = keyOf(st.cwd||'');
         let _ctrl=null; try{ _ctrl=typeof AbortController!=='undefined'?new AbortController():{signal:{aborted:false},abort(){}}; }catch(e){ _ctrl={signal:{aborted:false},abort(){}}; }
         let _timer=null;
+        const callT0 = Date.now()
+        const callMethod = force ? 'wf.refresh' : 'wf.snapshot'
+        try { if (isEnabled('debug')) log('debug', 'snapshot.fanout', { sessionIdHash: dswsLogHash(String((st && (st.sessionId || st.cwd)) || '')), stale: false, force: !!force }) } catch (eL) {}
         const _rawP = force ? host.call('wf.refresh', args) : host.call('wf.snapshot', args);
         const _timeoutP = new Promise((_,rej)=>{ _timer=setTimeout(()=>{ try{_ctrl.abort();}catch{}; rej(new Error('client loadSnapshot timeout 30s')); },30000); });
         const p = Promise.race([_rawP, _timeoutP]).finally(function(){ try{clearTimeout(_timer);}catch{}; });
         try{ pendingSnapshotByCwd.set(_normKeyP,{promise:p, controller:_ctrl, force: !!force}); p.finally(function(){ try{ const cur=pendingSnapshotByCwd.get(_normKeyP); if(cur && cur.promise===p) pendingSnapshotByCwd.delete(_normKeyP);}catch{} }); }catch(e){}
         const _reqNorm = _normKeyP // capture request cwd for H2 stale discard
         return p.then(function (snap) {
+          try { const okSnap = !!(snap && (snap.ok === true || snap.notModified === true || snap.status === 304)); const callKind = force ? 'refresh' : 'snapshot'; if (okSnap) log('info', 'host.call', { method: callMethod, latencyMs: Date.now() - callT0, ok: true, kind: callKind }); else log('warn', 'host.call.fail', { method: callMethod, kind: callKind, errorHash: dswsLogHash(dswsLogTrunc(String((snap && snap.error) || 'snapshot-failed'), 120, 'error')) }) } catch (eL) {}
           // #327 特性 A：对该工作区完成了一次检查（成功/304/串台落地均算——请求已真实发出并返回）→ 时间走针
           try { if (snap && (snap.ok === true || snap.notModified === true || snap.status === 304)) touchProbeAt(_normKeyP) } catch (ePA) {}
           // fix H2 stale discard — if cwd switched during flight, drop stale fallback (gate flake guard)
@@ -270,6 +281,7 @@
           }
           emit(st)
         }).catch(function (e) {
+          try { log('warn', 'host.call.fail', { method: callMethod, kind: force ? 'refresh' : 'snapshot', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
           st.snapLoading = false
           st.snapMode = 'err'
           st.snapError = String((e && e.message) || e).slice(0, 160)

@@ -3,8 +3,12 @@
 // 接线：由 index.js 动态 import 动态加载；getPlatform/getWorkspaceStore/setCache/clearWorkspaceStore/namingSweepSoon/parseGithubRepo 显式注入；本文件不引用其他新文件。
 // 显式传参编辑：共享状态归 index.js 持有——ghPath/ghLastError 经存取器读写，repoKeys/repoRoots 按引用共享，cache 重赋值改 setCache；resetGhCache 的 _workspaceStore 直访改 clearWorkspaceStore（状态归 platformChannel）。行为与搬前一致。
 export function createRepoKeys(deps) {
-  const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, parseGithubRepo } = deps
+  const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, parseGithubRepo, logCtx } = deps
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
+  // #491 房外埋点 helpers：hash8 只记散列不记原文；P1 事件外层先判开关再组装字段（字段函数只在守卫通过后求值）。
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  let lastNormKind = ''
+  let lastCanonOut = ''
     // ============ gh 封装 ============
     // #195 修复：resolveGh 不再缓存失败（ghLastError 仅最近一次失败，环境修复后下次探测即恢复）
     async function resolveGh() {
@@ -24,12 +28,14 @@ export function createRepoKeys(deps) {
         if (probeOutcome && probeOutcome.exitCode === 0 && String(outProbe.text||'').includes('gh version')) { setGhPath('gh'); setGhLastError(null); return 'gh' }
       } catch {}
       setGhLastError('gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）')
+      try { if (logCtx) { let hasGhPath = false; try { hasGhPath = !!(platform && platform.env && platform.env.get && platform.env.get('DSH_GH_PATH')) } catch (eH) {} logCtx.fire('warn', 'gh.resolve.fail', { hasDSH_GH_PATH: hasGhPath, errorHash: hash8(getGhLastError()) }) } } catch (eL) {}
       return null
     }
     // #195 修复：force 探测路径调 resetGhCache 清空成功缓存，强制下次 resolveGh 重探
     function resetGhCache() { setGhPath(null); setGhLastError(null); try { if (typeof clearWorkspaceStore === 'function') clearWorkspaceStore(); } catch {} try { getWorkspaceStore().then(function(ws){ try{ ws.clear(); }catch(e){} }).catch(function(){}); } catch {} }
 
     async function runGh(args, cwd) {
+      const ghT0 = Date.now()
       const exe = await resolveGh()
       if (!exe) return { ok: false, kind: 'env', error: getGhLastError() }
       let handle
@@ -41,6 +47,7 @@ export function createRepoKeys(deps) {
           graceMs: 2000,
         })
       } catch (e) {
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         return { ok: false, kind: 'spawn', error: String((e && e.message) || e) }
       }
       const to = timer.timeout(TIMEOUT_MS)
@@ -51,6 +58,7 @@ export function createRepoKeys(deps) {
           to.then(function () { handle.terminate(); return { exitCode: -1, signal: 'timeout' } }),
         ])
       } catch (e) {
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         return { ok: false, kind: 'spawn', error: String((e && e.message) || e) }
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
@@ -62,6 +70,9 @@ export function createRepoKeys(deps) {
         if (/not logged in|auth failed|bad credentials|failed to log in|token.*invalid|keyring|re-authenticate|auth refresh/i.test(t)) kind = 'auth'
         else if (/404|not found|could not resolve to an? (issue|pull request)/i.test(t)) kind = 'notfound'
         else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
+        try { if (logCtx && outcome && outcome.signal === 'timeout') logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: TIMEOUT_MS }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
+        try { if (logCtx && logCtx.isEnabled('debug') && kind !== lastNormKind) { lastNormKind = kind; logCtx.fire('debug', 'error.normalize', function () { return { rawKind: 'exit:' + String((outcome && outcome.exitCode) || -1), mappedKind: kind } }) } } catch (eL) {}
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }
       }
       // 彻底移除：issuePath 1A 白名单检测已移除（#345），只保留两项与面包屑无关的职责：
@@ -74,6 +85,7 @@ export function createRepoKeys(deps) {
           if (String(a[1]) === 'create') { try { namingSweepSoon(500) } catch (eW) {} }
         }
       } catch (e) {}
+      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'ok', exitCode: 0 }) } catch (eL) {}
       return { ok: true, text: out.text || '' }
     }
 
@@ -128,9 +140,11 @@ export function createRepoKeys(deps) {
         if (!_workspaceKeyMod) _workspaceKeyMod = await import('./workspaceKey.js')
         const m = _workspaceKeyMod
         const fn = m.canonicalWorkspaceKey || (m.default && m.default.canonicalWorkspaceKey)
-        if (typeof fn !== 'function') return raw
-        return await fn(raw, { getPlatform, getFs: () => fs, getDefaultCwd: () => DEFAULT_CWD })
-      } catch (e) { return raw }
+        if (typeof fn !== 'function') { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'workspaceKey.canonical', function () { return { rawHash: hash8(raw), normalizedHash: hash8(raw), fallback: true } }) } catch (eL) {}; return raw }
+        const canonOut = await fn(raw, { getPlatform, getFs: () => fs, getDefaultCwd: () => DEFAULT_CWD })
+        try { const fb = String(canonOut) === String(raw); if (logCtx && logCtx.isEnabled('debug') && (fb || canonOut !== lastCanonOut)) { lastCanonOut = canonOut; logCtx.fire('debug', 'workspaceKey.canonical', function () { return { rawHash: hash8(raw), normalizedHash: hash8(canonOut), fallback: fb } }) } } catch (eL) {}
+        return canonOut
+      } catch (e) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'workspaceKey.canonical', function () { return { rawHash: hash8(raw), normalizedHash: hash8(raw), fallback: true } }) } catch (eL) {}; return raw }
     }
 
     // ============ v1.5 T9：git 根检测 + 磁盘缓存（跨重启秒开）============
@@ -192,6 +206,7 @@ export function createRepoKeys(deps) {
     }
 
     async function getRepoKey(cwd) {
+      const rkT0 = Date.now()
       const key = await canonicalKey(cwd || DEFAULT_CWD)
       if (repoKeys[key]) return repoKeys[key]
       // v1.5 T11（map#37 · #38 R1 + #40 R2 输入）：
@@ -206,7 +221,7 @@ export function createRepoKeys(deps) {
         const r = await execProc([git, '-C', execCwd, 'remote', 'get-url', 'origin'], execCwd)
         if (r.ok) {
           const k = parseGithubRepo(r.text)
-          if (k) { repoKeys[key] = k; return k }
+          if (k) { repoKeys[key] = k; try { if (logCtx) logCtx.fire('info', 'repo.resolve.tier', { tier: 1, ok: true, latencyMs: Date.now() - rkT0 }) } catch (eL) {}; return k }
         }
       }
       // Tier 2：.git/config 直读 origin（git 二进制不可用 / `remote get-url` 失败时）
@@ -217,17 +232,18 @@ export function createRepoKeys(deps) {
           const um = txt.match(/\[remote\s+"origin"\][^[]*url\s*=\s*([^\r\n]+)/)
           if (um) {
             const k = parseGithubRepo(um[1])
-            if (k) { repoKeys[key] = k; return k }
+            if (k) { repoKeys[key] = k; try { if (logCtx) logCtx.fire('info', 'repo.resolve.tier', { tier: 2, ok: true, latencyMs: Date.now() - rkT0 }) } catch (eL) {}; return k }
           }
         } catch (e) { /* 落 Tier 3 */ }
       }
       // Tier 3：gh repo view 兜底（非 GitHub 仓库 / 边缘情况；保持向后兼容）
       const r = await runGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], execCwd)
-      if (!r.ok) return null
+      if (!r.ok) { try { if (logCtx) logCtx.fire('info', 'repo.resolve.tier', { tier: 3, ok: false, latencyMs: Date.now() - rkT0 }) } catch (eL) {}; return null }
       const s = r.text.trim()
       const i = s.indexOf('/')
       if (i <= 0) return null
       repoKeys[key] = { owner: s.slice(0, i), name: s.slice(i + 1) }
+      try { if (logCtx) logCtx.fire('info', 'repo.resolve.tier', { tier: 3, ok: true, latencyMs: Date.now() - rkT0 }) } catch (eL) {}
       return repoKeys[key]
     }
   return { resolveGh, resetGhCache, runGh, execProc, resolveGit, getHome, canonicalKey, getRepoRoot, getCacheDir, cacheFileName, readDiskCache, writeDiskCache, getRepoKey }

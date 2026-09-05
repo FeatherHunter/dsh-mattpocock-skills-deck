@@ -32,6 +32,7 @@ export     const SettingsPage = (props) => {
         cfg.openIn = v
         saveCfg()
         broadcastCfg()
+        try { log('info', 'settings.save', { openIn: String(v || ''), tplChangedCount: 0 }) } catch (eL) {}
         setOpenInNote(true)
         if (timer !== undefined) timer.timeout(function () { setOpenInNote(false) }, 2600)
       }
@@ -68,6 +69,7 @@ export     const SettingsPage = (props) => {
         cfg.withWayfinder = wf
         templates.execute = custom
         TPL_EDIT_IDS.forEach(function (id) { templates[id] = tpls[id] })
+        try { let chg = (custom !== templates.execute) ? 1 : 0; TPL_EDIT_IDS.forEach(function (id) { if (tpls[id] !== templates[id]) chg += 1 }); log('info', 'settings.save', { openIn: String(openIn || ''), tplChangedCount: chg }) } catch (eL) {}
         saveCfg(); saveTemplates(); broadcastCfg()
         setSaved(true)
         if (timer !== undefined) timer.timeout(function () { setSaved(false) }, 2000)

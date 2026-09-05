@@ -2,7 +2,7 @@
 // 以后谁改它：改命名跟踪态、守护循环或建号感知结算的人。预估约350行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；即时推进经 index 同步委托转供给 _repo 接线；边界：../shared 命名标题等 3 文件同名不同层归 S2 #452（此处合并引用），本文件只动 host 半。
 export function createNamingGuardian(deps) {
-  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh } = deps
+  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx } = deps
   // ============ 命名守护（#265 · 草稿档垂直线 · host 半）============
   // 分工（#264 D2）：本侧为常驻轻量任务 —— 持跟踪态（落盘 .dsh-mattskillsdeck-cache/naming-guardian.json，
   // 写入方式与现缓存一致：platform.fs.resolve + fs.writeText）并维护状态；「待办改名计划单」经
@@ -28,7 +28,7 @@ export function createNamingGuardian(deps) {
   let _namingLoopTimer = null
   // #266 建号感知：索引差值结算的防重入/防堆积守卫（host 常驻 tick + 即时路径共用）
   let _namingSweepBusy = false
-  let _namingSweepTimer = null
+  let _namingSweepTimer = null; let sweepAnyChanged = false, sweepAssignedTotal = 0, sweepTrigger = 'tick'; function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   function namingDefaultState() { return { version: 1, sessions: {}, indexes: {} } }
   async function loadNamingState() {
     if (_namingState) return _namingState
@@ -77,7 +77,7 @@ export function createNamingGuardian(deps) {
     try {
       if (typeof globalThis !== 'undefined' && globalThis.__dswsNamingGuardianLoop) { try { clearTimeout(globalThis.__dswsNamingGuardianLoop) } catch (e0) {} }
     } catch (eG) {}
-    _namingLoopTimer = timer.timeout(namingLoopTick, NAMING_TICK_MS)
+    _namingLoopTimer = timer.timeout(namingLoopTick, NAMING_TICK_MS); try { if (logCtx) logCtx.fire('debug', 'timer.schedule', { name: 'naming-guardian', intervalMs: NAMING_TICK_MS }) } catch (eL) {}
     try { if (typeof globalThis !== 'undefined') globalThis.__dswsNamingGuardianLoop = _namingLoopTimer } catch (eK) {}
   }
 
@@ -177,18 +177,18 @@ export function createNamingGuardian(deps) {
         }
         if (!st.indexes) st.indexes = {}
         st.indexes[repoKey] = r.index
-        if (changed) await persistNamingState()
-        else markNamingStateDirty()
+        if (changed) { await persistNamingState(); sweepAnyChanged = sweepAnyChanged || changed; sweepAssignedTotal += assigned.length } else markNamingStateDirty()
       }
+      try { const trig = sweepTrigger, cnt = sweepAssignedTotal, chg = sweepAnyChanged; sweepTrigger = 'tick'; sweepAnyChanged = false; sweepAssignedTotal = 0; if (chg && logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'naming.sweep', { trigger: trig, count: cnt }) } catch (eL) {}
     } catch (eSweep) { /* 净失败静默：下轮 tick 重试 */ } finally { _namingSweepBusy = false }
   }
   /** 即时推进：短窗合并（防堆积），注册/白名单/认领推送 nudge 共用。 */
   function namingSweepSoon(delayMs) {
     const delay = typeof delayMs === 'number' ? delayMs : 1500
-    if (_namingSweepTimer) return
+    if (_namingSweepTimer) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-sweep', intervalMs: delay }) } catch (eL) {}; return }
     _namingSweepTimer = timer.timeout(function () {
       _namingSweepTimer = null
-      try { namingSweepNow() } catch (e) {}
+      try { sweepTrigger = 'soon'; namingSweepNow() } catch (e) {}
     }, delay)
   }
 
@@ -309,7 +309,7 @@ export function createNamingGuardian(deps) {
       return { ok: true }
     }
     if (outcome === 'locked') {
-      st.sessions[sid] = core.reduceTrackingState(entry, { type: 'locked' })
+      st.sessions[sid] = core.reduceTrackingState(entry, { type: 'locked' }); try { if (logCtx) logCtx.fire('info', 'naming.lock', { sidHash: hash8(sid), reason: 'user-modified' }) } catch (eL) {}
       await persistNamingState()
       return { ok: true }
     }
