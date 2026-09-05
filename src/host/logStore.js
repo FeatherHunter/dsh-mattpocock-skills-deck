@@ -238,7 +238,15 @@ export function createLogStore(deps) {
       let cwdNow = defaultCwd
       try { cwdNow = (typeof process !== 'undefined' && process.cwd) ? process.cwd() : defaultCwd } catch (e3) {}
       const summary = { pluginVersion: 'unknown', os: osName, cwd: cwdNow, logSwitch: getSwitchState(), header: headerInfo }
-      return { ok: true, fileName: fileName, bytes: String(text || '').length, fallback: true, text: String(text || ''), summary: summary }
+      let dirOut = logDir
+      let pathOut = ''
+      try {
+        dirOut = await resolveTarget(logDir)
+        pathOut = await resolveTarget(await joinLogPath(logDir, fileName))
+      } catch (e4) {
+        try { pathOut = joinPath(logDir, fileName) } catch (e5) { pathOut = '' }
+      }
+      return { ok: true, fileName: fileName, bytes: String(text || '').length, fallback: true, text: String(text || ''), summary: summary, dir: dirOut, path: pathOut }
     } catch (e) { return { ok: false, fileName: fileName, bytes: 0, fallback: true } }
   }
   // 清空电话的宿主实现：手动清空，客户端先弹窗确认，成功与失败都给反馈。
