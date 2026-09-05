@@ -3,14 +3,11 @@
 // 接线：由 index.js 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；本文件不引用其他新文件。
 export function createPlatformChannel(deps) {
   const { ctx, subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, getMattSkillProbeNames, probeSkill, logCtx } = deps
-  // #491 房内接线（O2）：backendCtx 不再传空对象。log 兼容旧 ctx.log.warn(text) 调用（只记散列）；logEvent/isEnabled 供房内未来 45 事件埋点（另票）。
-  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  // #494 O1：旧文本通道退役——backend.diagnostic 不再产生（github 房内零调用；残留 ctx.log.* 调用自动静默，gitlab 房由本房 O 票另行结构化）。房内埋点只走 logEvent/isEnabled。
   const backendLogCtx = (logCtx && typeof logCtx.fire === 'function') ? logCtx : null
   function backendLogEvent(level, event, fields) { try { if (backendLogCtx) backendLogCtx.fire(level, event, fields) } catch (e) {} }
   function backendLogEnabled(level) { try { return backendLogCtx ? backendLogCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } }
-  function backendCompatLog(level, text) { try { const lv = (level === 'debug') ? 'debug' : ((level === 'info') ? 'info' : ((level === 'error') ? 'error' : 'warn')); if (backendLogCtx) backendLogCtx.fire(lv, 'backend.diagnostic', { errorHash: hash8(text) }) } catch (e) {} }
-  const backendLogCompat = { info: function (m) { backendCompatLog('info', m) }, warn: function (m) { backendCompatLog('warn', m) }, error: function (m) { backendCompatLog('error', m) }, debug: function (m) { backendCompatLog('debug', m) } }
-  const backendCtxForRooms = { log: backendLogCompat, logEvent: backendLogEvent, isEnabled: backendLogEnabled }
+  const backendCtxForRooms = { logEvent: backendLogEvent, isEnabled: backendLogEnabled }
   const STATUS_CACHE_MS = 30000  // workspaceStore 探测级联 TTL（#344 沿革 · #284 保留；原 index.js 234 行）
     // ============ Tracker Registry（#155 · 后端选择 UI）============
     let _trackerRegistry = null

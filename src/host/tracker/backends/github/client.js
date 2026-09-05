@@ -13,6 +13,25 @@ import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { fail } from '../../preflight.js'
 import { classifyGhError } from './errors.js'
 
+// 房内埋点（#494 O1）：gh.exec（#5 常驻）/ gh.timeout（#6 告警）/ gh.resolve.fail（#7 告警），字段按 #489 附录 1.4。
+// gh.exec 高频：外层先判 isEnabled（信息），关闭时不组装字段；告警两项常驻直发；参数只记命令名，不记完整参数（避免令牌落盘）。
+function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch { return '00000000' } }
+
+function roomLogEvent(ctx, level, event, fields) {
+  try {
+    const f = ctx && typeof ctx.logEvent === 'function' ? ctx.logEvent : null
+    if (!f) return
+    f(level, event, fields)
+  } catch {}
+}
+
+function roomInfoEnabled(ctx) {
+  try {
+    if (ctx && typeof ctx.isEnabled === 'function') return ctx.isEnabled('info') === true
+    return true
+  } catch { return true }
+}
+
 const TIMEOUT_MS = 30000
 
 function getExec(ctx) {
@@ -38,9 +57,22 @@ export function ghClient(ctx) {
   const platform = getPlatform(ctx)
   const exec = getExec(ctx)
 
+  // #7 gh.resolve.fail（告警，常驻）：只记是否配备用路径与错误散列，不记路径原文。
+  function emitResolveFail(message) {
+    try {
+      let hasGhPath = false
+      try {
+        const env = ctx && ctx.platform && ctx.platform.env ? ctx.platform.env : (platform && platform.env ? platform.env : null)
+        hasGhPath = !!(env && typeof env.get === 'function' && env.get('DSH_GH_PATH'))
+      } catch {}
+      roomLogEvent(ctx, 'warn', 'gh.resolve.fail', { hasDSH_GH_PATH: hasGhPath, errorHash: hash8(message) })
+    } catch {}
+  }
+
   async function resolveGh(cwd) {
     if (!platform) {
       // platform 缺失 → env（按 contract §2，capability-by-fill 不可静默成功）
+      emitResolveFail('gh not found: platform.resolveExecutable unavailable')
       return { ok: false, error: fail(ERROR_KIND.ENV, 'gh not found: platform.resolveExecutable unavailable').error }
     }
     try {
@@ -57,11 +89,30 @@ export function ghClient(ctx) {
           if (probe && probe.code === 0) return { ok: true, ghPath: 'gh' }
         } catch {}
       }
+      emitResolveFail('gh not found: platform.resolveExecutable returned null and gh --version probe failed')
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable returned null and gh --version probe failed' } }
     } catch (e) {
+      emitResolveFail(String((e && e.message) || e || 'gh not found'))
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: String((e && e.message) || e || 'gh not found') } }
     }
   }
+
+  // #5 gh.exec（信息，常驻）：高频路径，外层先判开关，关闭时不组装字段。
+  function emitGhExec(kind, exitCode, t0, cwd) {
+    try {
+      if (!roomInfoEnabled(ctx)) return
+      roomLogEvent(ctx, 'info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, kind: String(kind || 'unknown'), exitCode: typeof exitCode === 'number' ? exitCode : -1 })
+    } catch {}
+  }
+
+  // #6 gh.timeout（告警，常驻）：只记命令名与超时毫秒。
+  function emitGhTimeout(timeoutMs) {
+    try {
+      roomLogEvent(ctx, 'warn', 'gh.timeout', { argv0: 'gh', timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : TIMEOUT_MS })
+    } catch {}
+  }
+
+  function isTimeoutText(t) { return /timeout/i.test(String(t || '')) }
 
   /**
    * 执行 gh 命令，返回 OpResult<{ stdout: string, stderr: string, code: number }>
@@ -69,10 +120,15 @@ export function ghClient(ctx) {
    */
   async function execGh(args, opts = {}) {
     const cwd = getCwd(ctx, opts.cwd)
+    const t0 = Date.now()
     const resolved = await resolveGh(cwd)
-    if (!resolved.ok) return { ok: false, error: resolved.error }
+    if (!resolved.ok) {
+      emitGhExec(resolved.error && resolved.error.kind ? resolved.error.kind : 'env', -1, t0, cwd)
+      return { ok: false, error: resolved.error }
+    }
 
     if (!exec) {
+      emitGhExec('env', -1, t0, cwd)
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'ctx.exec unavailable' } }
     }
 
@@ -87,13 +143,18 @@ export function ghClient(ctx) {
       const stderr = result && typeof result.stderr === 'string' ? result.stderr : ''
       if (code !== 0) {
         const err = { message: stderr || stdout || `gh exit ${code}`, stderr: stderr || stdout, code, stdout }
-        const kind = classifyGhError(err)
+        const kind = classifyGhError(err, ctx)
+        emitGhExec(kind, code, t0, cwd)
+        if (isTimeoutText(stderr) || isTimeoutText(stdout)) emitGhTimeout(timeout)
         return { ok: false, error: { kind, message: String(stderr || stdout || err.message).slice(0, 800) } }
       }
+      emitGhExec('ok', 0, t0, cwd)
       return { ok: true, data: { stdout, stderr, code } }
     } catch (e) {
       // exec 抛的错误（timeout/network 等）→ 归一化
-      const kind = classifyGhError(e)
+      const kind = classifyGhError(e, ctx)
+      emitGhExec(kind, -1, t0, cwd)
+      if (isTimeoutText((e && (e.message || e.stderr)) || e)) emitGhTimeout(timeout)
       const message = String((e && (e.message || e.stderr)) || e || 'gh exec failed').slice(0, 800)
       return { ok: false, error: { kind, message } }
     }

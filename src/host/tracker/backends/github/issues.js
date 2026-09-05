@@ -15,6 +15,17 @@ import { normalizeIssue } from './normalize.js'
 import { classifyGhError } from './errors.js'
 import { LIST_QUERY, GET_QUERY } from './queries.js'
 
+// 房内埋点（#494 O1）：GraphQL→REST 降级分支落同名事件 graphql.fallback（#8 告警）与 issues.fallback（#9 常驻），字段按 #489 附录 1.4。
+// 常驻直发（无外层开关判断，库体内兜底）；无 ctx.logEvent 时静默跳过；只记通道名与原因枚举，不记响应原文。
+function emitRestFallback(ctx, scope) {
+  try {
+    const f = ctx && typeof ctx.logEvent === 'function' ? ctx.logEvent : null
+    if (!f) return
+    f('warn', 'graphql.fallback', { scope, reason: 'graphql-error' })
+    f('info', 'issues.fallback', { from: 'graphql', to: 'rest', reason: 'graphql-error' })
+  } catch {}
+}
+
 export function parseRepo(repo) {
   if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
   const s = repo.refId.trim()
@@ -152,6 +163,7 @@ export async function listIssues(repo, filter, ctx) {
     }
     if (needRest) {
       // 双路兜底：GraphQL 不可用（unexpected EOF / 配额 / 形状差异）→ REST 单页分页 + sub_issues 树边修复
+      emitRestFallback(ctx, '地图')
       const rest = await fetchAllIssuesREST(parsed, ctx)
       if (!rest.ok) return { ok: false, error: rest.error }
       const rawFixed = await repairParentLinksREST(rest.data, parsed, ctx)
@@ -163,7 +175,7 @@ export async function listIssues(repo, filter, ctx) {
     }
     return { ok: true, data: applyIssueFilter(all, filter) }
   } catch (e) {
-    const kind = classifyGhError(e)
+    const kind = classifyGhError(e, ctx)
     return fail(kind, String((e && e.message) || e).slice(0, 800))
   }
 }
@@ -190,7 +202,7 @@ export async function getIssue(repo, key, opts, ctx) {
       try { j = JSON.parse(text) } catch (e) { return fail(ERROR_KIND.PARSE, `get: invalid json ${String(e.message).slice(0, 200)}`) }
       if (j.errors) {
         const msg = JSON.stringify(j.errors).slice(0, 800)
-        const kind = classifyGhError({ message: msg, stderr: msg })
+        const kind = classifyGhError({ message: msg, stderr: msg }, ctx)
         if (!/rate limit|forbidden|unexpected|network|eof/i.test(msg)) return fail(kind, msg)
         // 配额/网络类 GraphQL 错误 → 走 REST 降级（下方单条 REST 通道）
       } else {
@@ -199,6 +211,7 @@ export async function getIssue(repo, key, opts, ctx) {
     }
     if (!issueFromGraphQL) {
       // REST 降级（与 list 同一背景：GraphQL POST 偶发 unexpected EOF，REST 稳定）
+      emitRestFallback(ctx, '单票')
       const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${num}`], { cwd: ctx && ctx.cwd })
       if (!rr.ok) return { ok: false, error: r.ok ? rr.error : r.error }
       let jr
@@ -216,7 +229,7 @@ export async function getIssue(repo, key, opts, ctx) {
     }
     return { ok: true, data: normalized }
   } catch (e) {
-    const kind = classifyGhError(e)
+    const kind = classifyGhError(e, ctx)
     return fail(kind, String((e && e.message) || e).slice(0, 800))
   }
 }
