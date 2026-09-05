@@ -141,6 +141,16 @@ async function testFile(file) {
     check(helpers.isReusableBlank(nonBlank, normTarget) === false, file + ' isReusableBlank 非空白 → 不可复用')
     check(helpers.isReusableBlank(headerCodeFallback, normTarget) === false, file + ' isReusableBlank header code 回退 → 不可复用')
     check(helpers.isReusableBlank(emptyTargetHealthy, keyOf('')) === false, file + ' isReusableBlank 空对空 → 不可复用（悬空桶不续命）')
+    // #478 未知即不可复用：预设读不到或空一律不可复用（投影未到瞬间不得放行）
+    const emptyPresetSame = { blank: true, cwd: 'D:/my-app', projectionValues: { agentPreset: '' }, updatedAt: 7 }
+    const missingPresetSame = { blank: true, cwd: 'D:/my-app', updatedAt: 8 }
+    const whitespacePresetSame = { blank: true, cwd: 'D:/my-app', projectionValues: { agentPreset: '   ' }, updatedAt: 9 }
+    const brokenSame = { blank: true, cwd: 'D:/my-app', projectionValues: { agentPreset: 'broken' }, updatedAt: 10 }
+    check(helpers.isReusableBlank(emptyPresetSame, normTarget) === false, file + ' isReusableBlank 空预设同区 → 不可复用（#478 未知即不可复用）')
+    check(helpers.isReusableBlank(missingPresetSame, normTarget) === false, file + ' isReusableBlank 缺预设字段同区 → 不可复用（#478 未知即不可复用）')
+    check(helpers.isReusableBlank(whitespacePresetSame, normTarget) === false, file + ' isReusableBlank 空白预设同区 → 不可复用（#478 未知即不可复用）')
+    check(helpers.isReusableBlank(brokenSame, normTarget) === false, file + ' isReusableBlank broken 同区 → 不可复用（#478）')
+    check(helpers.isHealthyPreset('') === false && helpers.isHealthyPreset(null) === false && helpers.isHealthyPreset(undefined) === false, file + ' isHealthyPreset 空/缺 → 不健康（#478）')
     // 最久择优仍受闸门约束：多候选中仅健康同区可胜出
     const candidates = [codeSame, emptyCwd, crossHealthy, healthySame]
     let best = null, bestTime=-1

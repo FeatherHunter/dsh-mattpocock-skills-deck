@@ -54,8 +54,13 @@ export let pendingDraftTargetSid = null
       return ''
     }
     export const isHealthyPreset = function(preset) {
-      // V1 仅字面 code 判不健康，二期扩展 broken 泛化（#361 选项权衡 判据形态 选 A）
-      return String(preset || '') !== 'code'
+      // #478 未知即不可复用：读不到或空一律不健康（投影未到瞬间不得放行，随后显形为 code 的幽灵）。
+      // 保留 #361 V1 的字面 code 拒绝并补 broken 拒绝；其余非空值沿用旧语义（未来合法新增预设自动放行，不硬编码四预设名单）。
+      const v = String(preset || '').trim()
+      if (!v) return false
+      if (v === 'code') return false
+      if (v === 'broken') return false
+      return true
     }
     export const isReusableBlank = function(row, normTarget) {
       if (!row || !row.blank) return false
@@ -80,6 +85,13 @@ export let pendingDraftTargetSid = null
       if (!normRow) return false
       if (normRow !== normTarget) return false
       return true
+    }
+    export const describeReuseDecision = function(row, normTarget) {
+      // #478 现场探针（只读、不改行为）：返回脱敏摘要，不记完整路径；供回填偶现快照时把候选分支落到唯一分支。
+      try {
+        const preset = getRowPreset(row)
+        return { blank: !!(row && row.blank), preset: preset || '(empty)', healthy: isHealthyPreset(preset) }
+      } catch (e) { return null }
     }
     export const buildCreateOpts = function(workspaceId, cwd) {
       // 单点入参构造：有工作区标识优先，无则回落路径，但两分支必带 agentPreset:'ptc'（#362 判据 P）
