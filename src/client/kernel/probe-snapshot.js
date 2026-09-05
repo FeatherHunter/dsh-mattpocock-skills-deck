@@ -77,6 +77,16 @@
       applyTo(shared)
       Object.keys(stores).forEach(function (k) { applyTo(stores[k]) })
     }
+    // #490 client 日志底座：开关变更广播（与 broadcastCfg 同构：共享与全组逐个走访并逐个发出更新；
+    //   开关值本身只存一份（logSwitch 内存与 dsws.debug 本地），广播只为让各会话界面刷新）。
+    export const broadcastLogSwitch = function () {
+      const applyTo = function (st) {
+        if (!st) return
+        emit(st)
+      }
+      applyTo(shared)
+      Object.keys(stores).forEach(function (k) { applyTo(stores[k]) })
+    }
 
     // v1.5 T10 R4（用户拍板）：数据层增量 diff —— 变更/新增/删除 按票号对比（含 map 子票级变化），
     //   多视图（列表/map详情/状态栏计数/过滤结果）数据驱动自动增量；diff 结果供 R5 视觉消费

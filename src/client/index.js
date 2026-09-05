@@ -141,6 +141,7 @@ export default {
     // ============================================================
     // ==== kernel:prompts (spliced by build) ====
     // ==== kernel:config (spliced by build) ====
+    // ==== kernel:log (spliced by build) ====
 
     // ============================================================
     // 3. store（v14：按会话隔离；无 sid 时用 shared）

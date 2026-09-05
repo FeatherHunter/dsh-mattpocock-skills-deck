@@ -114,6 +114,9 @@
       }
     }, 'dsh-mattpocock-skills-deck: better-sidebar tab')
 
+    // #490 client 日志底座：开关启动对账（本地秒显已在 log.js 顶层同步完成；
+    //   此处再向宿主读开关，以宿主为准；宿主不可用就保持本地值，不阻断启动）。
+    try { if (typeof reconcileLogSwitch === 'function') reconcileLogSwitch() } catch (e) {}
     // #347：加载真数据快照（repo 链接 + 前置检测兜底），失败静默
     loadSnapshot(shared, false)
     // #265：命名守护常驻渲染钩子（面板未开也续跑；计划单经 wf.namingPlan 拉取后代执行改名）

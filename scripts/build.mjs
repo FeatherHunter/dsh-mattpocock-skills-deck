@@ -194,6 +194,7 @@ const KERNEL_MODULES = [
   { name: 'icons', file: 'src/client/kernel/icons.js' },
   { name: 'prompts', file: 'src/client/kernel/prompts.js' },
   { name: 'config', file: 'src/client/kernel/config.js' },
+  { name: 'log', file: 'src/client/kernel/log.js' },
   { name: 'storePrefs', file: 'src/client/kernel/store-prefs.js' },
   { name: 'storeSwitch', file: 'src/client/kernel/store-switch.js' },
   { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.js' },
