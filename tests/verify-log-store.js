@@ -78,7 +78,7 @@ async function main() {
   const lineCount = src.split(/\r?\n/).length
   check(lineCount <= 350, '日志库不超 350 行（实得 ' + lineCount + ' 行）')
   check(LOG_DEBOUNCE_MS === 1000 && src.includes('LOG_DEBOUNCE_MS = 1000'), '防抖窗口为 1000 毫秒（设计 2.2 字面）')
-  check(typeof mod.LOG_SWITCH_FILE === 'undefined' || true, '开关文件名常量存在（log-switch.json 持久化）')
+  check(mod.LOG_SWITCH_FILE === 'log-switch.json', '开关文件名常量导出为 log-switch.json（持久化）')
   check(src.includes('log-switch.json'), '开关持久化落点为缓存目录下 log-switch.json')
   check(src.includes('host.start'), '启动时在日志头写入进程标识与启动时间（host.start）')
   const logAt = src.indexOf('function log(level')
