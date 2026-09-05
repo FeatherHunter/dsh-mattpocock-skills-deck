@@ -25,6 +25,102 @@ export     const SettingsPage = (props) => {
       const [saved, setSaved] = React.useState(false)
       const [errs, setErrs] = React.useState([])
       const [resetNote, setResetNote] = React.useState(null)
+      // #492调试分组：开关秒显宿主值，经 wf.logSetSwitch 写宿主，底座广播刷新；四键走宿主电话
+      const [dbgPending, setDbgPending] = React.useState(false)
+      const [dbgBusy, setDbgBusy] = React.useState(null)
+      const [clearAsked, setClearAsked] = React.useState(false)
+      const [lastExport, setLastExport] = React.useState(null)
+      const dbgChecked = (function () {
+        try { if (typeof logSwitch !== 'undefined' && logSwitch) return logSwitch.enabled === true } catch (eDbg) {}
+        try { return !!readLocalDebugSwitch().enabled } catch (eDbg2) { return false }
+      })()
+      const hostReady = function () { try { return !!(typeof host !== 'undefined' && host && host.call) } catch (eDbg) { return false } }
+      const todayName = function () { try { const d = new Date(); const p = function (n) { return String(n).padStart(2, '0') }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) } catch (eDbg) { return '' } }
+      const dirOfExport = function (res) { try { const d = res && res.summary && res.summary.header && res.summary.header.dir ? String(res.summary.header.dir) : ''; return d ? (d.replace(/\/+$/, '') + '/logs') : '' } catch (eDbg) { return '' } }
+      const rememberExport = function (res) { try { setLastExport({ dir: dirOfExport(res), fileName: res.fileName || '', fallback: res.fallback === true }) } catch (eDbg) {} }
+      const guardOp = function () {
+        if (dbgBusy) return false
+        if (!hostReady()) { flash(sharedSt, tr('err.hostUnavailable'), 'warn'); return false }
+        return true
+      }
+      const toggleDbg = function (e) {
+        if (dbgPending || !guardOp()) return
+        const next = !!(e && e.target && e.target.checked)
+        setDbgPending(true)
+        try {
+          if (typeof setLogSwitch !== 'function') throw new Error('no-switch')
+          setLogSwitch(next, 1).then(function (res) {
+            setDbgPending(false)
+            const okSw = !!(res && res.ok)
+            flash(sharedSt, tr(!okSw ? 'cfg.dbgSwitchFail' : ((res.enabled === true) ? 'cfg.dbgSwitchOnToast' : 'cfg.dbgSwitchOffToast')), okSw ? 'ok' : 'warn')
+          }).catch(function () { setDbgPending(false); flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') })
+        } catch (errDbg) { setDbgPending(false); flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') }
+      }
+      // 静默取导出结果解析目录位置并缓存，不刷提示，供打开与复制复用
+      const resolveLogDir = function () {
+        if (lastExport && lastExport.dir) return Promise.resolve(lastExport.dir)
+        if (!hostReady()) return Promise.resolve('')
+        try {
+          return host.call('wf.logExport', { format: 'zip' }).then(function (res) {
+            if (!res || res.ok !== true) return ''
+            rememberExport(res)
+            return dirOfExport(res)
+          }).catch(function () { return '' })
+        } catch (eDbg) { return Promise.resolve('') }
+      }
+      const doExport = function () {
+        if (!guardOp()) return
+        setDbgBusy('export')
+        try {
+          host.call('wf.logExport', { format: 'zip' }).then(function (res) {
+            setDbgBusy(null)
+            if (!res || res.ok !== true) { flash(sharedSt, tr('cfg.dbgExportFail'), 'warn'); return }
+            rememberExport(res)
+            let msg = tr('cfg.dbgExportOk', { file: String(res.fileName || '') })
+            if (res.fallback === true) msg = msg + ' ' + tr('cfg.dbgExportFallback')
+            flash(sharedSt, msg, 'ok')
+          }).catch(function () { setDbgBusy(null); flash(sharedSt, tr('cfg.dbgExportFail'), 'warn') })
+        } catch (eDbg) { setDbgBusy(null); flash(sharedSt, tr('cfg.dbgExportFail'), 'warn') }
+      }
+      const doOpen = function () {
+        if (!guardOp()) return
+        setDbgBusy('open')
+        resolveLogDir().then(function (dir) {
+          if (!dir) { setDbgBusy(null); flash(sharedSt, tr('cfg.dbgExportFail'), 'warn'); return }
+          try {
+            host.call('wf.openPath', { path: dir }).then(function (res) {
+              setDbgBusy(null)
+              const okOpen = !!(res && res.ok === true)
+              flash(sharedSt, tr(okOpen ? 'cfg.dbgOpenedDir' : 'cfg.dbgOpenDirFail'), okOpen ? 'ok' : 'warn')
+            }).catch(function () { setDbgBusy(null); flash(sharedSt, tr('cfg.dbgOpenDirFail'), 'warn') })
+          } catch (eDbg) { setDbgBusy(null); flash(sharedSt, tr('cfg.dbgOpenDirFail'), 'warn') }
+        })
+      }
+      const doCopy = function () {
+        if (!guardOp()) return
+        setDbgBusy('copy')
+        resolveLogDir().then(function (dir) {
+          setDbgBusy(null)
+          if (!dir) { flash(sharedSt, tr('cfg.dbgExportFail'), 'warn'); return }
+          try { copyText(sharedSt, dir, tr('cfg.dbgCopied')) } catch (eDbg) { flash(sharedSt, tr('toast.copyFailed'), 'warn') }
+        })
+      }
+      const doClearAsk = function () { if (!dbgBusy) setClearAsked(true) }
+      const doClearCancel = function () { setClearAsked(false) }
+      const doClearConfirm = function () {
+        if (dbgBusy) return
+        if (!hostReady()) { setClearAsked(false); flash(sharedSt, tr('err.hostUnavailable'), 'warn'); return }
+        const name = todayName()
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(name)) { setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn'); return }
+        setDbgBusy('clear')
+        try {
+          host.call('wf.logClear', { date: name }).then(function (res) {
+            setDbgBusy(null); setClearAsked(false)
+            if (!res || res.ok !== true) { flash(sharedSt, tr('cfg.dbgClearFail'), 'warn'); return }
+            flash(sharedSt, tr((res.removed || 0) > 0 ? 'cfg.dbgClearOk' : 'cfg.dbgClearEmpty'), 'ok')
+          }).catch(function () { setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') })
+        } catch (eDbg) { setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') }
+      }
       const taRefs = React.useRef({})
       // v1.4.1：打开位置即时生效 —— seg 点击即写入 cfg + localStorage + 广播（无需滚到底部点保存全部）
       const pickOpenIn = function (v) {
@@ -209,6 +305,32 @@ export     const SettingsPage = (props) => {
             h('a', { href: 'javascript:void(0)', onClick: function () { const el = document.getElementById('dsws-cfg-exec-group'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, style: { color: '#bc8cff', cursor: 'pointer', flex: 'none', textDecoration: 'none' } }, tr('cfg.execHint')),
           ]),
           TPL_EDIT_IDS.map(tplCard),
+        ]),
+        // #492 沉底调试分组（布局文案沿 #334 原型：主开关默认关，写经 wf.logSetSwitch，对账以宿主为准，保存即广播；四键调宿主三电话加复用目录电话）
+        h('div', { className: 'dsws-cfg-group' }, [
+          h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'gear', size: 13 }), h('span', null, tr('cfg.dbgTitle'))]),
+          h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.dbgDesc')),
+          h('div', { className: 'dsws-cfg-row' }, [
+            h('label', { className: 'dsws-cfg-sw' }, [
+              h('input', { type: 'checkbox', checked: dbgChecked, disabled: !!(dbgPending || dbgBusy), onChange: toggleDbg }),
+              h('span', { className: 'tr' }), h('span', null, tr(dbgChecked ? 'cfg.dbgSwitchOn' : 'cfg.dbgSwitchOff')),
+            ]),
+          ]),
+          h('div', { className: 'dsws-cfg-row', style: { flexWrap: 'wrap', gap: 6, marginTop: 8 } }, [
+            h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: doExport }, tr('cfg.dbgExport')),
+            h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: doOpen }, tr('cfg.dbgOpen')),
+            h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: doCopy }, tr('cfg.dbgCopy')),
+            h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: doClearAsk }, tr('cfg.dbgClear')),
+          ]),
+          h('div', { className: 'dsws-cfg-gdesc', style: { marginTop: 6 } }, tr('cfg.dbgPackageHint')),
+          clearAsked ? h('div', { className: 'dsws-cfg-err', style: { marginTop: 8 } }, [
+            h('div', { className: 't' }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('cfg.dbgClearTitle'))]),
+            h('div', null, tr('cfg.dbgClearDesc')),
+            h('div', { style: { display: 'flex', gap: 8, marginTop: 8 } }, [
+              h('button', { className: 'dsws-cfg-btn', onClick: doClearCancel }, tr('switch.cancel')),
+              h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: doClearConfirm }, tr('cfg.dbgConfirmClear')),
+            ]),
+          ]) : null,
         ]),
         // 校验错误提示
         errs.length ? h('div', { className: 'dsws-cfg-err' }, [
