@@ -10,13 +10,14 @@
 //  f) 沙箱：createPTCSession 调用 sessions.create 时必含 ptc 且原子化挂载 pendingDraft
 //  g) 沙箱：openTextInNewSession 集成闸门——喂 code/空/跨区幽灵快照必走新建（非复用），健康同区可复用
 //  h) 双源一致（src 与构建产物逐字 splice 保留）
+//  i) #478 创建后验：verifyFreshPreset 明确 code/broken 判 bad（读不到判 unknown 不阻断）；createVerifiedPTCSession 首坏隔离重建、双坏抛 preset-blocked；open 绝不 open code，双坏大声失败回当前会话
 //
 // 本测试与 verify-newsession-blank-seed-315.js 同范式：从目标文件提取真实源码并在沙箱以忠实替身执行，
 // 能抓住“逻辑改坏 / 双源漂移”两类回归。
 const fs = require('fs')
 
-const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'] // #457 K4：api.js 已拆为三文件，src 侧读三文件拼合
-const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-new-session.js+api-io.js（拼合）', 'package/lib/client.js']
+const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js', 'src/client/kernel/api-preset-guard.js'] // #457 K4 + #478：api 拆分文件 + 预设守卫模块，src 侧读四文件拼合（守卫块经独立锚点提取）
+const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-new-session.js+api-io.js+api-preset-guard.js（拼合）', 'package/lib/client.js']
 const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退全量（跨 naming 与 new-session，单文件含不全）
 const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：三文件全存在才算存在
 
@@ -73,6 +74,23 @@ async function testFile(file) {
   let factoryBlock
   try { factoryBlock = extractFactoryBlock(src) } catch(e) { check(false, file + ' 工厂块可提取 — ' + e.message); return }
   check(true, file + ' 单点工厂块可提取')
+  // #478 预设守卫块经独立锚点提取（拼合源含守卫模块；双产物经构建拼接同样含该块）
+  const presetGuardMarker = '// ============ 预设守卫'
+  let presetGuardSrc = ''
+  const pgStart = src.indexOf(presetGuardMarker)
+  if (pgStart >= 0) {
+    // 构建产物中守卫块后还有后续模块（拼接标记构建时被消费，无残留），必须截到后一模块开头为止，
+    // 否则会把后半个闭包全吞进来导致沙箱重声明；拼合源里守卫是最后一块，自然截到末尾。
+    const pgAfter = pgStart + presetGuardMarker.length
+    const pgEnds = ['probeHandoffReady = function', '// ==== kernel:', '// ==== leaf:', '// ==== shared:']
+      .map((k) => src.indexOf(k, pgAfter)).filter((i) => i >= 0)
+    let pgStop = pgEnds.length ? Math.min.apply(null, pgEnds) : src.length
+    // 命中点可能在行中部（如 const probeHandoffReady 的 const 前缀），必须回退到行首，否则切出半截行
+    const pgLineStart = src.lastIndexOf('\n', pgStop)
+    if (pgLineStart >= pgStart) pgStop = pgLineStart
+    presetGuardSrc = src.slice(pgStart, pgStop)
+  }
+  check(presetGuardSrc.indexOf('createVerifiedPTCSession') >= 0, file + ' 预设守卫块可提取且含后验编排（#478）')
 
   // a) 静態：必含 agentPreset:'ptc'
   const hasPreset = openSrc.indexOf("agentPreset") >= 0 && openSrc.indexOf("'ptc'") >= 0 || openSrc.indexOf('"ptc"') >= 0
@@ -101,6 +119,10 @@ async function testFile(file) {
   check(gateCalls >= 2, file + ' openTextInNewSession 内 isReusableBlank 调用 >=2（两级同形）—实际 ' + gateCalls)
   // 空隔离语义：工厂块内有 "!normRow" 拒绝
   check(factoryBlock.indexOf('!normRow')>=0 && factoryBlock.indexOf('空永不复用')>=0, file + ' 工厂块含空永不复用语义（!normRow 拒绝）')
+  check(presetGuardSrc.indexOf('verifyFreshPreset')>=0 && presetGuardSrc.indexOf('tryQuarantineSession')>=0 && presetGuardSrc.indexOf('describeReuseDecision')>=0, file + ' 预设守卫块含探针/后验/隔离（#478）')
+  // #478 创建后验接线：open 经守卫编排创建，双命中大声失败
+  check(openSrc.indexOf('createVerifiedPTCSession')>=0, file + ' openTextInNewSession 经后验编排创建（#478 绝不 open code）')
+  check(openSrc.indexOf('toast.newSessionPresetBlocked')>=0, file + ' 创建后验双命中走 PresetBlocked 大声失败（#478）')
 
   // d) 沙箱：buildCreateOpts
   try {
@@ -124,7 +146,8 @@ async function testFile(file) {
     const getPresetSrc = block.slice(block.indexOf('const getRowPreset'), block.indexOf('const isHealthyPreset'))
     const healthySrc = block.slice(block.indexOf('const isHealthyPreset'), block.indexOf('const isReusableBlank'))
     const reusableSrc = block.slice(block.indexOf('const isReusableBlank'), block.indexOf('const buildCreateOpts'))
-    const helpers = new Function('keyOf', getPresetSrc + healthySrc + reusableSrc + '; return { getRowPreset, isHealthyPreset, isReusableBlank }')(keyOf)
+    const guardHelpersSrc = presetGuardSrc.replace(/^\s*export\s+/gm, '')
+    const helpers = new Function('keyOf', getPresetSrc + healthySrc + reusableSrc + guardHelpersSrc + '; return { getRowPreset, isHealthyPreset, isReusableBlank, describeReuseDecision, verifyFreshPreset, tryQuarantineSession, createVerifiedPTCSession }')(keyOf)
     const normTarget = keyOf('D:/my-app')
     // 准备 row 变体
     const healthySame = { blank: true, cwd: 'D:/my-app', projectionValues: { agentPreset: 'ptc' }, updatedAt: 1 }
@@ -151,6 +174,33 @@ async function testFile(file) {
     check(helpers.isReusableBlank(whitespacePresetSame, normTarget) === false, file + ' isReusableBlank 空白预设同区 → 不可复用（#478 未知即不可复用）')
     check(helpers.isReusableBlank(brokenSame, normTarget) === false, file + ' isReusableBlank broken 同区 → 不可复用（#478）')
     check(helpers.isHealthyPreset('') === false && helpers.isHealthyPreset(null) === false && helpers.isHealthyPreset(undefined) === false, file + ' isHealthyPreset 空/缺 → 不健康（#478）')
+    // #478 创建后验语义：明确 code/broken 判 bad，读不到判 unknown（快照滞后不阻断）
+    const mkSess = (byId, live) => ({ get: (live === undefined ? undefined : function () { return live }), list: { getSnapshot: () => ({ byId: byId }) } })
+    check(helpers.verifyFreshPreset(mkSess({ s1: { projectionValues: { agentPreset: 'code' } } }), 's1') === 'bad', file + ' verifyFreshPreset code 行 → bad（#478）')
+    check(helpers.verifyFreshPreset(mkSess({ s1: { projectionValues: { agentPreset: 'broken' } } }), 's1') === 'bad', file + ' verifyFreshPreset broken 行 → bad（#478）')
+    check(helpers.verifyFreshPreset(mkSess({ s1: { projectionValues: { agentPreset: 'ptc' } } }), 's1') === 'ok', file + ' verifyFreshPreset ptc 行 → ok（#478）')
+    check(helpers.verifyFreshPreset(mkSess({}, undefined), 's9') === 'unknown', file + ' verifyFreshPreset 快照无此行 → unknown（#478 快照滞后不阻断）')
+    check(helpers.verifyFreshPreset({}, 's9') === 'unknown', file + ' verifyFreshPreset 无快照能力 → unknown（#478）')
+    check(helpers.verifyFreshPreset(mkSess({ s1: { projectionValues: { agentPreset: 'ptc' } } }, { agentPreset: 'code' }), 's1') === 'bad', file + ' verifyFreshPreset 实时对象 code 覆盖快照 → bad（#478）')
+    check(helpers.tryQuarantineSession({ close: function () { return { ok: true } } }, 's1') === true, file + ' tryQuarantineSession 有 close 能力 → 隔离 true（#478）')
+    check(helpers.tryQuarantineSession({}, 's1') === false, file + ' tryQuarantineSession 无关闭能力 → false 但不抛（#478）')
+    check(helpers.tryQuarantineSession(null, 's1') === false, file + ' tryQuarantineSession 空 sessions → false（#478）')
+    // #478 后验编排直测：好会话直接返回；首坏隔离重建后返回好的；双坏抛 preset-blocked
+    try {
+      const okSess = { list: { getSnapshot: () => ({ byId: { a: { projectionValues: { agentPreset: 'ptc' } } } }) } }
+      const sidOk = await helpers.createVerifiedPTCSession(() => Promise.resolve('a'), okSess)
+      check(sidOk === 'a', file + ' 后验编排：好会话直接返回（#478）')
+      const mixClosed = []
+      const mixSess = { close: (sid) => { mixClosed.push(sid); return { ok: true } }, list: { getSnapshot: () => ({ byId: { b1: { projectionValues: { agentPreset: 'code' } }, b2: { projectionValues: { agentPreset: 'ptc' } } } }) } }
+      let n = 0
+      const sidMix = await helpers.createVerifiedPTCSession(() => Promise.resolve(n++ === 0 ? 'b1' : 'b2'), mixSess)
+      check(sidMix === 'b2' && mixClosed.indexOf('b1') >= 0, file + ' 后验编排：首坏隔离重建后返回好的（#478）')
+      const badSess = { list: { getSnapshot: () => ({ byId: { c1: { projectionValues: { agentPreset: 'code' } }, c2: { projectionValues: { agentPreset: 'code' } } } }) } }
+      let m = 0
+      let threw = null
+      try { await helpers.createVerifiedPTCSession(() => Promise.resolve(m++ === 0 ? 'c1' : 'c2'), badSess) } catch (e9) { threw = e9 }
+      check(threw && String(threw.message).indexOf('preset-blocked') >= 0, file + ' 后验编排：双坏抛 preset-blocked（#478）')
+    } catch (eO) { check(false, file + ' 后验编排直测 — ' + (eO && eO.stack || eO)) }
     // 最久择优仍受闸门约束：多候选中仅健康同区可胜出
     const candidates = [codeSame, emptyCwd, crossHealthy, healthySame]
     let best = null, bestTime=-1
@@ -177,7 +227,7 @@ async function testFile(file) {
   try {
     // 复用 openSrc 沙箱：需注入 isReusableBlank 等 helper
     let factory = factoryBlock.replace(/^\s*export\s+/gm, '')
-    const helpersSrc = factory.slice(factory.indexOf('const getRowPreset'), factory.indexOf('const buildCreateOpts'))
+    const helpersSrc = factory.slice(factory.indexOf('const getRowPreset'), factory.indexOf('const buildCreateOpts')) + presetGuardSrc.replace(/^\s*export\s+/gm, '')
     let open = openSrc
     // 替换裸 pendingDraft 为可观测
     open = open.replace(/\bpendingDraft\b/g, '__dbg.pendingDraft')
@@ -246,6 +296,54 @@ async function testFile(file) {
       }
       const { rec } = await runWithSnap(snap, 'cur-code', cwdTarget)
       check(rec.created && rec.opened==='sid-new', file + ' 集成闸门：当前会话为 code 幽灵 → 不复用自身走新建')
+    }
+    // #478 创建后验集成：剧本式 create（首建 code → 隔离重试；双 code → 大声失败，绝不 open code）
+    async function runWithScriptedCreate(snapById, curSid, cwd, sids) {
+      const rec = { created: [], opened: null, closed: [], injected: null, flashes: [] }
+      const dbg = { pendingDraft: null, pendingDraftTargetSid: null }
+      let n = 0
+      const sessionsStub = {
+        create: async (opts)=>{ rec.created.push(JSON.parse(JSON.stringify(opts))); return sids[Math.min(n++, sids.length - 1)] },
+        close: async (sid)=>{ rec.closed.push(sid); return { ok: true } },
+        scope: (sid)=>({sessionId: sid}),
+        sessionOf: ()=>({ rename: async (t)=>({ok:true, value:{title:t}}) }),
+        open: (sid)=>{ rec.opened = sid },
+        list: { getSnapshot: ()=>({ byId: snapById }) }
+      }
+      const workspacesStub = { list: { getSnapshot: ()=>({ items: [{ workspaceId: 'ws1', path: cwd }] }) }, create: async ()=>({workspaceId: 'ws1'}) }
+      const st = { sessionId: curSid, cwd: cwd, snapshot: null }
+      const fn = new Function('st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick',
+        helpersSrc + ';\n' + open + '; return openTextInNewSession'
+      )
+      const openFn = fn(st,'/wayfinder https://github.com/x/issues/1','[#1] test',
+        { get:(k)=> k==='sessions'?sessionsStub:k==='workspaces'?workspacesStub:null },
+        { call: async ()=>({ok:true}) }, dbg,
+        (t)=>{ rec.injected = t }, (m,k)=>{ rec.flashes.push(String(m) + '|' + k) }, (k)=>k, ()=>null, keyOf, ()=>({cwd, snapshot:null}), ()=>false, ()=>null, ()=>null, (t)=>/^\\[New\\] /.test(String(t)), ()=>{}
+      )
+      openFn(st,'/wayfinder https://github.com/x/issues/1','[#1] test')
+      await new Promise(r=>setTimeout(r, 150))
+      return { rec, dbg }
+    }
+    // 场景5：首建命中 code → 隔离并重建，打开第二个好的，绝不打开 code
+    {
+      const snap = {
+        'sid-bad1': { id:'sid-bad1', blank: false, cwd:'D:/my-app', projectionValues:{agentPreset:'code'}, updatedAt: 1 },
+        'sid-good': { id:'sid-good', blank: false, cwd:'D:/my-app', projectionValues:{agentPreset:'ptc'}, updatedAt: 2 },
+      }
+      const { rec } = await runWithScriptedCreate(snap, 'src-sess', cwdTarget, ['sid-bad1', 'sid-good'])
+      check(rec.created.length === 2, file + ' 创建后验：首建 code → 重建一次（#478）')
+      check(rec.closed.indexOf('sid-bad1') >= 0, file + ' 创建后验：code 新会话被隔离（#478）')
+      check(rec.opened === 'sid-good', file + ' 创建后验：打开重建好的会话，绝不打开 code（#478）')
+    }
+    // 场景6：两次都命中 code → 大声失败回当前会话，code 一个都不打开
+    {
+      const snap = {
+        'sid-bad1': { id:'sid-bad1', blank: false, cwd:'D:/my-app', projectionValues:{agentPreset:'code'}, updatedAt: 1 },
+        'sid-bad2': { id:'sid-bad2', blank: false, cwd:'D:/my-app', projectionValues:{agentPreset:'code'}, updatedAt: 2 },
+      }
+      const { rec } = await runWithScriptedCreate(snap, 'src-sess', cwdTarget, ['sid-bad1', 'sid-bad2'])
+      check(rec.opened === null, file + ' 创建后验：双 code → 一个都不打开（#478）')
+      check(rec.injected && rec.flashes.some(function (f) { return f.indexOf('PresetBlocked') >= 0 }), file + ' 创建后验：双 code → 大声失败并回填当前会话（#478）')
     }
   } catch(e) { check(false, file + ' 集成闸门沙箱 — ' + e.stack) }
 }

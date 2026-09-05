@@ -166,6 +166,7 @@ export default {
 
     // v10：沉淀 = 会话级动作 —— 注入「零丢失快照」prompt（默认文本见 §2.5 FIXATE_PROMPT，T2b 可编辑）
     // ==== kernel:apiNaming (spliced by build) ====
+    // ==== kernel:apiPresetGuard (spliced by build) ====
     // ==== kernel:apiNewSession (spliced by build) ====
     // ==== kernel:apiIo (spliced by build) ====
 

@@ -30,6 +30,7 @@ const MODULES = [
   { name: 'probeAuto', file: 'probe-auto', exports: ['PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'lastFocusProbe', '_actionProbePending', 'probeNow', 'scheduleActionProbe', 'startAutoProbe', 'spinAll', 'refreshAll', 'SNAP_FRESH_MS', 'snapFresh'] },
   { name: 'router', exports: ['openPagePanel', 'openDockPanel', 'openPanel', 'togglePanel', 'ensureSidebarTab', 'repoStr', 'startText', 'newWayfinderText', 'newBugWayfinderText'] },
   { name: 'apiNaming', file: 'api-naming', exports: ['injectFixate', 'handoffTs', 'handoffFile', 'handoffPrompt', 'extractHandoffFile', 'absHandoffPath', 'handoffReadText', 'pendingDraft', 'pendingDraftTargetSid', 'getRowPreset', 'isHealthyPreset', 'isReusableBlank', 'buildCreateOpts', 'createPTCSession', 'NAMING_POLL_MS', 'namingCurrentTitleOf', 'namingHintOf', 'executeNamingOrder', 'reconcileNamingFailure', 'applyNamingFailurePanel', 'namingGuardianKick', 'startNamingGuardianPoll'] },
+  { name: 'apiPresetGuard', file: 'api-preset-guard', exports: ['describeReuseDecision', 'verifyFreshPreset', 'tryQuarantineSession', 'createVerifiedPTCSession'] },
   { name: 'apiNewSession', file: 'api-new-session', exports: ['probeHandoffReady', 'doHandoff', 'doHandoffOpen', 'openTextInNewSession'] },
   { name: 'apiIo', file: 'api-io', exports: ['openInNewSession', 'inject', 'openUrl', 'copyText', 'fetchIssueDetail', 'clearIssueDetailCache', 'fetchIssueComments', 'submitIssueComment'] },
   { name: 'actions', exports: ['createActionDispatcher', 'ACTIONS_VERSION'] },

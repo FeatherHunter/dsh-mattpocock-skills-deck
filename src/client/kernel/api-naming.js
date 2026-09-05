@@ -86,13 +86,6 @@ export let pendingDraftTargetSid = null
       if (normRow !== normTarget) return false
       return true
     }
-    export const describeReuseDecision = function(row, normTarget) {
-      // #478 现场探针（只读、不改行为）：返回脱敏摘要，不记完整路径；供回填偶现快照时把候选分支落到唯一分支。
-      try {
-        const preset = getRowPreset(row)
-        return { blank: !!(row && row.blank), preset: preset || '(empty)', healthy: isHealthyPreset(preset) }
-      } catch (e) { return null }
-    }
     export const buildCreateOpts = function(workspaceId, cwd) {
       // 单点入参构造：有工作区标识优先，无则回落路径，但两分支必带 agentPreset:'ptc'（#362 判据 P）
       // #364：回退矩阵的唯一显式锚点——workspaceId 有则走 {workspaceId,ptc}，无则走 {cwd,ptc}，

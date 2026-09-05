@@ -281,7 +281,9 @@
           }
           // #363 单点工厂：显式 ptc + 工作区 + 首条原子化（唯一出口，显式 agentPreset）
           const createOpts = typeof buildCreateOpts === 'function' ? buildCreateOpts(workspaceId, cwd) : (workspaceId ? { workspaceId: workspaceId, agentPreset: 'ptc' } : { cwd: cwd, agentPreset: 'ptc' })
-          const __createPTC = typeof createPTCSession === 'function' ? createPTCSession(sessions, workspaceId, cwd, text) : sessions.create(createOpts).then(function(__sid){ pendingDraft = text; pendingDraftTargetSid = __sid; return __sid; })
+          const __createOnce = function () { return (typeof createPTCSession === 'function') ? createPTCSession(sessions, workspaceId, cwd, text) : sessions.create(createOpts).then(function(__sid){ pendingDraft = text; pendingDraftTargetSid = __sid; return __sid; }) }
+          // #478：经创建后验编排建会话（首建 code 则隔离重建；双 code 抛错，大声失败，绝不 open code）；旧闭包无编排时回退直建。
+          const __createPTC = (typeof createVerifiedPTCSession === 'function') ? createVerifiedPTCSession(__createOnce, sessions) : __createOnce()
           __createPTC.then(function (sid) {
           // 新会话秒显共享缓存为唯一来源（#301 / #324）：同工作区共享缓存在 storeOf 已尝试水合，此处 cwd 刚赋值需再次水合
           // 移除“继承打开它的会话 snapshot”作为版本来源；无共享缓存时可作兜底
@@ -341,7 +343,7 @@
           } catch (eName) { /* 命名失败忽略 */ }
           sessions.open(sid)
           flash(st, tr('toast.newSessionOpened'), 'ok')
-        }).catch(function () { doFallback() })
+        }).catch(function (err) { try { if (String((err && err.message) || '').indexOf('preset-blocked') >= 0) flash(st, tr('toast.newSessionPresetBlocked'), 'warn') } catch (eF) {} doFallback() })
         })
       })
     }
