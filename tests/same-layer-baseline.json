@@ -497,6 +497,15 @@
       "count": 1,
       "owner": "二批·host-6/6 #450",
       "note": "H6 接线：index 动态加载分组纯函数模块（装配扇入，用户定夺追加第 5 件）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./logStore.js",
+      "resolved": "src/host/logStore.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "日志底座·host #490",
+      "note": "#490 接线：index 动态加载宿主日志库（装配扇入，设计 #335 第 1、2、4 章 host 部分）"
     }
   ]
 }

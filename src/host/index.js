@@ -296,6 +296,16 @@ export default {
     harness.handle('wf.pickFile', async function () { const h = await _picker(); return h.handlePickFile.apply(h, arguments) })
     harness.handle('wf.openPath', async function () { const h = await _picker(); return h.handleOpenPath.apply(h, arguments) })
 
+    // ---- #490 host 日志底座：日志库动态加载（D7 禁止静态 import），5 个电话字面以设计 2.5 为准 ----
+    let _logP = null
+    function _log() { if (!_logP) _logP = (async function(){ const mod = await import('./logStore.js'); return mod.createLogStore({ fs: fs, timer: timer, getCacheDir: function(){ return getCacheDir.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, DEFAULT_CWD: DEFAULT_CWD }) })(); return _logP }
+    harness.handle('wf.logBatch', async function (args) { const h = await _log(); return h.handleLogBatch(args) })
+    harness.handle('wf.logExport', async function (args) { const h = await _log(); return h.handleLogExport(args) })
+    harness.handle('wf.logClear', async function (args) { const h = await _log(); return h.handleLogClear(args) })
+    harness.handle('wf.logGetSwitch', async function (args) { const h = await _log(); return h.handleLogGetSwitch(args) })
+    harness.handle('wf.logSetSwitch', async function (args) { const h = await _log(); return h.handleLogSetSwitch(args) })
+    _log().then(function(h){ try { h.loadSwitch().catch(function(){}) } catch (eSw) {} try { h.writeStartupHeader().catch(function(){}) } catch (eHd) {} }).catch(function(){})
+
     // ============ 轮询：已按 #348 拍板 Q3 关闭（60s 全量 × 8 map ≈ 2400-4800 GraphQL points/h 贴 5000 限额）============
     // 刷新策略 = 纯手动（状态条/面板按钮 wf.refresh）+ 打开面板即刷（client 侧 loadSnapshot）。
     // P1 若做状态变化 toast 提醒，再考虑低频自动（届时恢复本块并观察配额）。
