@@ -2,11 +2,10 @@
 // 用法：在插件根目录执行 node tests/verify-log-count.js，可独立运行。
 // 断言文字：常驻 27 条、按需 16 条、总数 43（#22、#34 已退役）；
 // 增删事件必须同步更新附录对照表，否则红。
-// 做法：用 git show 只读退役分支上的附录修订版，核对 counts 字面与编号清单；
+// 做法：读工作区本地附录修订版，核对 counts 字面与编号清单；
 // 再扫描源码里加引号的事件名，逐个点名，退役的两条出现即红。
 const fs = require('fs')
 const path = require('path')
-const { execFileSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -21,13 +20,15 @@ const RESIDENT = ['snapshot.request', 'snapshot.cache.miss', 'repo.resolve.tier'
 const ONDEMAND = ['snapshot.cache.hit', 'probe.eval', 'panelSync.eval', 'registry.stub', 'workspaceStore.hit', 'chain.cache.hit', 'chain.predicate', 'workspaceKey.canonical', 'platform.resolve', 'naming.sweep', 'snapshot.fanout', 'dedup.hit', 'statusbar.hydrate', 'error.normalize', 'timer.schedule', 'privacy.scrub']
 const RETIRED = ['issuePath.push', 'issuePath.record']
 
-// 一、附录修订版字面：只读退役分支，不切换分支，不碰工作区。
+// 一、附录修订版字面：读工作区本地文件（退役线已合入主线，附录随主线走，不再引用分支）。
 let appendix = ''
 try {
-  appendix = execFileSync('git', ['show', 'origin/feat/494-retire:research/489-appendix.md'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
-  check(appendix.length > 1000, '附录修订版可读（退役分支 research/489-appendix.md）')
+  const appendixPath = path.join(ROOT, 'research', '489-appendix.md')
+  check(fs.existsSync(appendixPath), '附录修订版存在（工作区 research/489-appendix.md）')
+  appendix = fs.readFileSync(appendixPath, 'utf8')
+  check(appendix.length > 1000, '附录修订版非空')
 } catch (e) {
-  check(false, '附录修订版可读（git show origin/feat/494-retire:research/489-appendix.md 失败：' + ((e && e.message) || e) + '）')
+  check(false, '附录修订版存在（工作区缺 research/489-appendix.md：' + ((e && e.message) || e) + '）')
 }
 if (appendix) {
   check(appendix.includes('常驻 27 条、按需 16 条、总数 43 条'), '附录 counts 字面为常驻 27 条、按需 16 条、总数 43 条')
