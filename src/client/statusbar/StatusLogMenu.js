@@ -17,6 +17,16 @@ const dswsLogToday = function () {
 const dswsLogHostOk = function () {
   return (typeof host !== 'undefined' && host && typeof host.call === 'function')
 }
+// 导出链路失败原因归一（#499 自监控 50）：解析器只回码，记账统一在用户动作处，一处失败只记一行。
+const dswsLogResolveReason = function (err) {
+  const s = String(err || '')
+  if (s.indexOf('path-missing') >= 0) return 'path-missing'
+  if (s.indexOf('host-unavailable') >= 0) return 'host-unavailable'
+  return 'export-not-ok'
+}
+const dswsLogMenuFail = function (op, reason, err) {
+  try { if (typeof logExportFail === 'function') logExportFail(op, reason, err) } catch (eL) {}
+}
 const dswsLogRemember = function (res) {
   try {
     if (res && typeof res.dir === 'string' && res.dir) dswsLogKnown.dir = res.dir
@@ -155,7 +165,9 @@ export const StatusLogDot = function (props) {
       host.call('wf.logExport', {}).then(function (res) {
         setBusy(null)
         if (!res || res.ok !== true) {
-          try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.exportFailed', { err: 'not-ok' }), 'warn')
+          try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {};
+          dswsLogMenuFail('export', 'export-not-ok', (res && res.error) || 'not-ok')
+          say(tr('logtoast.exportFailed', { err: 'not-ok' }), 'warn')
           return
         }
         dswsLogRemember(res)
@@ -165,11 +177,15 @@ export const StatusLogDot = function (props) {
         setMenuOpen(false)
       }).catch(function (e) {
         setBusy(null)
-        try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.exportFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
+        try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
+        dswsLogMenuFail('export', 'export-not-ok', e)
+        say(tr('logtoast.exportFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
       })
     } catch (e) {
       setBusy(null)
-      try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.exportFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
+      try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
+      dswsLogMenuFail('export', 'export-not-ok', e)
+      say(tr('logtoast.exportFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
     }
   }
   const doOpenDir = function () {
@@ -179,6 +195,7 @@ export const StatusLogDot = function (props) {
     dswsLogEnsurePath().then(function (got) {
       if (!got.ok) {
         setBusy(null)
+        dswsLogMenuFail('openDir', dswsLogResolveReason(got.error), got.error)
         say(tr('logtoast.openFailed', { err: String(got.error || 'unknown').slice(0, 120) }), 'warn')
         return
       }
@@ -189,11 +206,13 @@ export const StatusLogDot = function (props) {
         }).catch(function (e) {
           setBusy(null)
           try { log('warn', 'host.call.fail', { method: 'wf.openPath', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
+          dswsLogMenuFail('openDir', 'open-fail', e)
           say(tr('logtoast.openFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
         })
       } catch (e) {
         setBusy(null)
         try { log('warn', 'host.call.fail', { method: 'wf.openPath', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
+        dswsLogMenuFail('openDir', 'open-fail', e)
         say(tr('logtoast.openFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
       }
     })
@@ -205,12 +224,14 @@ export const StatusLogDot = function (props) {
     dswsLogEnsurePath().then(function (got) {
       setBusy(null)
       if (!got.ok) {
+        dswsLogMenuFail('copyPath', dswsLogResolveReason(got.error), got.error)
         say(tr('logtoast.openFailed', { err: String(got.error || 'unknown').slice(0, 120) }), 'warn')
         return
       }
       try {
         if (typeof copyText === 'function') copyText(store, got.path, tr('logtoast.pathCopied', { path: got.path }))
       } catch (e) {
+        dswsLogMenuFail('copyPath', 'copy-fail', e)
         say(tr('logtoast.openFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
         return
       }

@@ -204,7 +204,10 @@ async function main() {
       await wait(80)
     } catch (e) { threw = true }
     check(threw === false, '写盘失败不抛错（失败只计数）')
-    check(store.getDroppedCount() - before === 3, '写盘失败累计丢弃 3 行（实增 ' + (store.getDroppedCount() - before) + '）')
+    const settledAt = store.getDroppedCount()
+    await wait(80)
+    check(store.getDroppedCount() === settledAt, '全盘皆坏时刷盘链条终止（计数收敛，无新行滋生）')
+    check(store.getDroppedCount() - before === 4, '写盘失败累计丢弃 4 行（实增 ' + (store.getDroppedCount() - before) + '，含失败行自身，防繁殖）')
   }
 
   // ---- 双产物含电话名：真源、开发产物、打包产物三处一致 ----

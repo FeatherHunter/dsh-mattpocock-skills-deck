@@ -67,6 +67,11 @@ const ALLOWED = {
   'detail.cache.hit': ['numHash', 'ageMs'],
   'host.start': ['pid', 'startedAt', 'dir'],
   'privacy.scrub': ['field', 'rule', 'hit'],
+  // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
+  'log.persist.fail': ['op', 'reason', 'dirHash'],
+  'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],
+  'log.switch.watchdog': ['op', 'timeoutMs', 'stage'],
+  'log.export.fail': ['op', 'reason', 'errorHash'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文）：
 // gh.exec 五键、gh.timeout 两键、gh.resolve.fail 两键，
@@ -196,7 +201,7 @@ function collectCalls() {
 const found = collectCalls()
 const names = Object.keys(found).sort()
 
-// 一、全部 49 个事件都有埋点落点，退役的 2 个不在源码里。
+// 一、全部 53 个门禁可见事件都有埋点落点（49 加自监控 4；#46 由自监控门禁覆盖），退役的 2 个不在源码里。
 for (const name of Object.keys(ALLOWED).sort()) {
   check(!!found[name], '事件有埋点落点 ' + name + (found[name] ? '（' + found[name].sites.length + ' 处）' : '（全仓未找到）'))
 }

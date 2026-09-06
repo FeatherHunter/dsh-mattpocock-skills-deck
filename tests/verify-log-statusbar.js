@@ -8,8 +8,7 @@
 //      客户端分支处理 fallback:true 并给出原文件形态提示；
 //   四、反馈闭环：清空确认框（标题＋说明＋取消＋确认清空）与导出成功 toast 含路径展示、
 //      导出／打开／清空三路失败各有错误态；
-//   五、无新增日志事件名：本票两处客户端改动不引入新的点分事件名（计数门禁不被扰动）。
-// #498 修订：复用已计数事件（host.call、host.call.fail）不算新增，仍放行；未知点分名仍红。
+//   五、只许新增自监控事件与复用已计数事件：#499 起菜单失败分支可记 log.export.fail；#498 复用已计数事件（host.call、host.call.fail）不算新增；其余点分事件名仍不许加。
 const fs = require('fs')
 const path = require('path')
 
@@ -67,8 +66,11 @@ function dottedNames(text) {
   for (const m of stripComments(text).matchAll(/['"]([A-Za-z]+(?:\.[A-Za-z][A-Za-z0-9]*)+)['"]/g)) out.push(m[1])
   return out
 }
-const fresh = dottedNames(menu).filter((n) => !n.startsWith('wf.') && ['logmenu', 'logtoast'].indexOf(n.split('.')[0]) < 0 && ['host.call', 'host.call.fail'].indexOf(n) < 0) // #498：复用已计数事件不算新增
-check(fresh.length === 0, '五、菜单组件无新增日志事件名（计数门禁不被扰动）' + (fresh.length ? ' —— ' + fresh.join('、') : ''))
+// #499 自监控 50 与 #498 复用已计数事件允许在此出现（其余事件仍不许加）。
+const SELFMON_MENU = ['log.export.fail', 'host.call', 'host.call.fail']
+const fresh = dottedNames(menu).filter((n) => !n.startsWith('wf.') && ['logmenu', 'logtoast'].indexOf(n.split('.')[0]) < 0 && SELFMON_MENU.indexOf(n) < 0)
+check(fresh.length === 0, '五、菜单组件只许新增自监控事件与复用已计数事件' + (fresh.length ? ' —— 越界：' + fresh.join('、') : ''))
+check(menu.includes("dswsLogMenuFail('export'") && menu.includes("dswsLogMenuFail('openDir'") && menu.includes("dswsLogMenuFail('copyPath'"), '五、导出／打开／复制三路失败分支都记账（经 helper 落 log.export.fail 行）')
 
 // 六、构建接线
 const buildSrc = read('scripts/build.mjs')

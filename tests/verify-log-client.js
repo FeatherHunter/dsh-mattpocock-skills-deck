@@ -150,7 +150,7 @@ async function main() {
     check(res2.ok === false && mod2.logSwitch.enabled === false, '宿主未生效保持本地旧值（关）并返回失败')
   }
 
-  // ---- 批量语义：120 条一次只发 50 条，队列封顶 100 条，多余记丢弃 ----
+  // ---- 批量语义：120 条一次只发 50 条，队列封顶 100 条，多余记丢弃；落定后记一行转发汇总 ----
   {
     const seen = []
     const host = { call(name, args) { seen.push(args); return Promise.resolve({ ok: true, accepted: args.entries.length, dropped: 0 }) } }
@@ -162,7 +162,11 @@ async function main() {
     await mod.sendLogBatch()
     check(seen.length === 1 && seen[0].entries.length === 50, '一次转发最多 50 条（实发 ' + (seen[0] ? seen[0].entries.length : -1) + ' 条）')
     check(typeof seen[0].droppedCount === 'number', '转发带客户端累计丢弃数 droppedCount')
-    check(mod.logQueue.length === 50, '发完 50 条队列剩 50 条（100 减 50）')
+    const summary = mod.logQueue[mod.logQueue.length - 1]
+    check(summary.level === 'warn' && summary.event === 'log.forward.summary', '汇总行为告警级且事件名为 log.forward.summary')
+    check(summary.fields.droppedDelta === 20 && summary.fields.totalDropped === 20, '汇总行带新增数 20 与累计数 20')
+    check(summary.fields.reason === 'queue-full' && typeof summary.fields.windowMs === 'number', '汇总行带原因 queue-full 与窗口毫秒')
+    check(mod.logQueue.length === 51, '发完 50 条剩 50 条未发加 1 行转发汇总')
   }
 
   // ---- 直通与定时：错误立刻排（0 毫秒），普通走 1000 毫秒；转发失败整批记丢弃 ----

@@ -9,6 +9,13 @@ export const LOG_DIR_NAME = 'logs'
 // 开关持久化文件名（设计 1.3：与命名守护 naming-guardian.json 同例，全文覆写，失败不抛错）。
 export const LOG_SWITCH_FILE = 'log-switch.json'
 // 按天文件名：每个自然天一个文件，命名 YYYY-MM-DD.log（如 2026-09-06.log）。只分桶，不自动清理。
+// 短指纹（与客户端散列同算法）：目录只记散列不记原文，失败行自身也只带散列。
+function hashText(text) {
+  let h = 5381
+  const s = String(text || '')
+  for (let i = 0; i < s.length; i++) h = (((h << 5) + h + s.charCodeAt(i)) >>> 0)
+  return ('0000000' + h.toString(16)).slice(-8)
+}
 export function formatLogFileName(date) {
   const d = date instanceof Date ? date : new Date(date)
   const pad = function (n) { return String(n).padStart(2, '0') }
@@ -33,6 +40,13 @@ export function createLogStore(deps) {
   let flushTimer = null
   let flushing = false
   let flushQueued = false
+  // 落盘失败行（#499 自监控 47）：失败先记待发，同轮合并；在途已有一行未落定不再追加，避免失败自我繁殖。
+  let pendingPersistFail = null
+  let persistFailOutstanding = false
+  function notePersistFail(op, reason, dir) {
+    if (!pendingPersistFail) pendingPersistFail = { op: op, reason: reason, dir: String(dir || '') }
+    try { scheduleFlush(false) } catch (e) {}
+  }
   // 启动头信息：每次启动写入进程标识、启动时间与实际目录，事后能区分哪几行来自哪个进程。
   let headerInfo = null
   function later(fn, ms) {
@@ -123,11 +137,18 @@ export function createLogStore(deps) {
       while (queue.length > 0) {
         const batch = queue.splice(0, queue.length)
         try {
-          await writeBatch(batch)
+          if (await writeBatch(batch)) persistFailOutstanding = false
         } catch (e) { dropped += batch.length }
       }
     } finally {
       flushing = false
+      if (pendingPersistFail) {
+        const f = pendingPersistFail; pendingPersistFail = null
+        if (!persistFailOutstanding) {
+          persistFailOutstanding = true
+          try { log('warn', 'log.persist.fail', { op: f.op, reason: f.reason, dirHash: hashText(f.dir) }) } catch (e) {}
+        }
+      }
       if (flushQueued) { flushQueued = false; if (queue.length > 0) scheduleFlush(false) }
     }
   }
@@ -142,10 +163,11 @@ export function createLogStore(deps) {
     }
     if (lines.length === 0) return true
     const text = lines.join('\n') + '\n'
+    let failDir = ''
     try {
       const dir = typeof getCacheDir === 'function' ? await getCacheDir() : null
-      if (!dir) { dropped += lines.length; return false }
-      const logDir = await joinLogPath(dir, LOG_DIR_NAME)
+      if (!dir) { dropped += lines.length; notePersistFail('writeBatch', 'no-dir', ''); return false }
+      const logDir = await joinLogPath(dir, LOG_DIR_NAME); failDir = logDir
       await ensureLogDir(logDir)
       const fileName = formatLogFileName(new Date())
       const target = await resolveTarget(await joinLogPath(logDir, fileName))
@@ -153,7 +175,7 @@ export function createLogStore(deps) {
       try { existing = await readTarget(target) } catch (eRead) { existing = '' }
       await writeTarget(target, String(existing || '') + text)
       return true
-    } catch (eWrite) { dropped += lines.length; return false }
+    } catch (eWrite) { dropped += lines.length; notePersistFail('writeBatch', 'write-fail', failDir); return false }
   }
   // 读累计丢弃数（写盘失败与通道丢弃都只计数不抛错）。
   function getDroppedCount() {
@@ -175,16 +197,18 @@ export function createLogStore(deps) {
       const parsed = JSON.parse(txt)
       if (parsed && typeof parsed.enabled === 'boolean') switchEnabled = parsed.enabled
       if (parsed && typeof parsed.sampleRate === 'number') switchSampleRate = parsed.sampleRate
-    } catch (e) {}
+    } catch (e) { notePersistFail('readBack', 'read-fail', '') }
     return getSwitchState()
   }
   async function persistSwitch() {
+    let failDir = ''
     try {
       const dir = typeof getCacheDir === 'function' ? await getCacheDir() : null
-      if (!dir) return
+      if (!dir) { notePersistFail('persistSwitch', 'no-dir', ''); return }
+      failDir = String(dir || '')
       const target = await resolveTarget(await joinLogPath(dir, LOG_SWITCH_FILE))
       await writeTarget(target, JSON.stringify({ enabled: switchEnabled, sampleRate: switchSampleRate }))
-    } catch (e) {}
+    } catch (e) { notePersistFail('persistSwitch', 'write-fail', failDir) }
   }
   async function setSwitch(enabled, sampleRate) {
     switchEnabled = enabled === true

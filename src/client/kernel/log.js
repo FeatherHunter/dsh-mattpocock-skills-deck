@@ -18,6 +18,8 @@
     export const LOG_FLUSH_MS = 1000
     export const LOG_PACKET_BYTES = 131072
     export const LOG_QUEUE_MAX = 100
+    // 自监控看门狗阈值（#499）：开关写与启动对账超过这么多毫秒未回，就记一行告警自举证。
+    export const LOG_WATCHDOG_MS = 5000
     // 开关形状版本号：以后开关加字段就把这里加一，旧本地值读到缺字段时用默认补齐。
     export const LOG_REV = 1
     // 级别只有四个：error、warn、info、debug（设计 1.2）。
@@ -55,6 +57,8 @@
     export const logQueue = []
     // 累计丢弃数：队列满丢弃、超包裁剪、转发失败都只计数不抛错。
     export const logDroppedState = { count: 0 }
+    // 转发汇总状态（#499 自监控 48）：只记上次汇总位置与最近一次丢弃原因，汇总行本身不逐条。
+    export const logForwardState = { lastSummaryAt: 0, lastSummaryDropped: 0, lastReason: '' }
     export const logFlushTimer = { id: null }
     // 读当前级别是否允许产生日志；关闭时调用处直接返回（设计 1.4 外层判断纪律）。
     // 错误与告警始终允许；其余只在调试开关打开时允许（与宿主 logStore 同名同参同语义）。
@@ -66,7 +70,7 @@
     // 但兜底拦不住调用前已求值的拼接，所以高频调用处仍必须写外层判断，不许省略。
     export const log = function (level, event, fields) {
       if (!isEnabled(level)) return
-      if (logQueue.length >= LOG_QUEUE_MAX) { logDroppedState.count += 1; return }
+      if (logQueue.length >= LOG_QUEUE_MAX) { logDroppedState.count += 1; logForwardState.lastReason = 'queue-full'; return }
       logQueue.push({
         ts: Date.now(),
         level: level,
@@ -101,6 +105,36 @@
         return String(text).length
       } catch (e) { return LOG_PACKET_BYTES + 1 }
     }
+    // 转发汇总行（#499 自监控 48）：批量发送落定后，有新增丢弃才记一行；无丢弃的窗口不打扰。
+    // 汇总行本身走告警直通再触发下一次发送，下一次无新增丢弃即止，链条自然终止。
+    export const maybeForwardSummary = function () {
+      const delta = logDroppedState.count - logForwardState.lastSummaryDropped
+      if (delta <= 0) return
+      logForwardState.lastSummaryDropped = logDroppedState.count
+      const now = Date.now()
+      const windowMs = now - logForwardState.lastSummaryAt
+      logForwardState.lastSummaryAt = now
+      try { log('warn', 'log.forward.summary', { droppedDelta: delta, totalDropped: logDroppedState.count, reason: logForwardState.lastReason || 'send-fail', windowMs: windowMs }) } catch (e) {}
+    }
+    // 散列小函数（与宿主房外埋点同算法；脱敏散列缺席时兜底用，纯散列不记原文）。
+    export const hash8 = function (s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+    // 导出链路行（#499 自监控 50）：状态栏菜单与设置页两处复用；成功路径不调用，失败分支才记一行。
+    export const logExportFail = function (op, reason, err) {
+      try {
+        if (typeof dswsLogHash === 'function' && typeof dswsLogTrunc === 'function') log('warn', 'log.export.fail', { op: op, reason: reason, errorHash: dswsLogHash(dswsLogTrunc(String((err && err.message) || err || reason), 120, 'error')) })
+        else log('warn', 'log.export.fail', { op: op, reason: reason, errorHash: hash8(String((err && err.message) || err || reason)) })
+      } catch (e) {}
+    }
+    // 开关看门狗（#499 自监控 49）：操作与 5 秒计时竞跑，计时先到记一行告警；原调用不取消、不重试、不改返回值。
+    export const watchSwitchOp = function (op, pending) {
+      let settled = false
+      try { if (pending && typeof pending.then === 'function') pending.then(function () { settled = true }, function () { settled = true }) } catch (e) {}
+      const fire = function () { if (!settled) { settled = true; try { log('warn', 'log.switch.watchdog', { op: op, timeoutMs: LOG_WATCHDOG_MS, stage: 'waiting-host' }) } catch (e) {} } }
+      try {
+        if (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function') { timer.timeout(fire, LOG_WATCHDOG_MS); return }
+      } catch (e) {}
+      try { setTimeout(fire, LOG_WATCHDOG_MS) } catch (e2) {}
+    }
     // 发一批：一次最多 50 条；单包超 128KB 或队列超 100 条时先到先截，
     // 裁掉的记入丢弃数并在包尾最后一条记截断标记；失败整批记丢弃，不等待不重试。
     export const sendLogBatch = function () {
@@ -112,23 +146,34 @@
       while (logQueue.length > LOG_QUEUE_MAX) { logQueue.shift(); trimmed += 1 }
       if (trimmed > 0) {
         logDroppedState.count += trimmed
+        logForwardState.lastReason = 'packet-trim'
         try { entries[entries.length - 1].truncated = true } catch (e) {}
       }
       const args = { entries: entries, droppedCount: logDroppedState.count }
+      // 防自激：这一批如果只剩上一行汇总自己，失败只计数不再记新汇总，否则汇总会自己养活自己停不下来。
+      const onlySummary = entries.length === 1 && entries[0] && entries[0].event === 'log.forward.summary'
       if (typeof host === 'undefined' || !host || typeof host.call !== 'function') {
         logDroppedState.count += entries.length
+        logForwardState.lastReason = 'send-fail'
+        if (!onlySummary) maybeForwardSummary()
         return Promise.resolve({ ok: false, sent: 0 })
       }
       try {
         return host.call('wf.logBatch', args).then(function (res) {
-          if (!res || res.ok !== true) logDroppedState.count += entries.length
+          if (!res || res.ok !== true) { logDroppedState.count += entries.length; logForwardState.lastReason = 'host-reject' }
+          if (res && res.ok === true) maybeForwardSummary()
+          else if (!onlySummary) maybeForwardSummary()
           return { ok: !!(res && res.ok === true), sent: entries.length }
         }).catch(function () {
           logDroppedState.count += entries.length
+          logForwardState.lastReason = 'send-fail'
+          if (!onlySummary) maybeForwardSummary()
           return { ok: false, sent: 0 }
         })
       } catch (e) {
         logDroppedState.count += entries.length
+        logForwardState.lastReason = 'send-fail'
+        if (!onlySummary) maybeForwardSummary()
         return Promise.resolve({ ok: false, sent: 0 })
       }
     }
@@ -149,7 +194,9 @@
         return Promise.resolve({ ok: false, enabled: logSwitch.enabled, sampleRate: logSwitch.sampleRate })
       }
       try {
-        return host.call('wf.logGetSwitch', {}).then(function (res) {
+        const pendingGet = host.call('wf.logGetSwitch', {})
+        watchSwitchOp('reconcile', pendingGet)
+        return pendingGet.then(function (res) {
           if (!res || res.ok !== true) return { ok: false, enabled: logSwitch.enabled, sampleRate: logSwitch.sampleRate }
           logSwitch.enabled = res.enabled === true
           if (typeof res.sampleRate === 'number' && isFinite(res.sampleRate)) logSwitch.sampleRate = res.sampleRate
@@ -175,7 +222,9 @@
         return Promise.resolve({ ok: false, enabled: logSwitch.enabled, error: 'host-unavailable' })
       }
       try {
-        return host.call('wf.logSetSwitch', next).then(function (res) {
+        const pendingSet = host.call('wf.logSetSwitch', next)
+        watchSwitchOp('set', pendingSet)
+        return pendingSet.then(function (res) {
           if (!res || res.ok !== true) return { ok: false, enabled: logSwitch.enabled, error: 'host-rejected' }
           logSwitch.enabled = res.enabled === true
           logSwitch.sampleRate = next.sampleRate

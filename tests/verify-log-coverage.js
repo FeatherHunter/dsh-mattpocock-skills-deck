@@ -27,7 +27,7 @@ function listJsFiles(dir) {
 const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const Q = String.fromCharCode(39)
 
-// 电话清单：35 注册减退役 2 个，现役 33 个。增删电话必须同步改本表、附录 1.6 与计数门禁。
+// 电话清单：35 注册减退役 2 个，现役 33 个。增删电话必须同步改本表、附录 1.7 与计数门禁。
 const PHONES = [
   'wf.detect', 'wf.chain', 'wf.cwd', 'wf.snapshot', 'wf.refresh',
   'wf.bind', 'wf.bindings', 'wf.registry', 'wf.selection',
