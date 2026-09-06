@@ -30,19 +30,26 @@ if [[ "${1:-}" == "--no-sync" ]]; then
   exit 0
 fi
 
-echo "==> [3/3] 同步 DSH profile 安装目录"
-PROFILE_NM="$HOME/.dsh/profiles/web/node_modules/dsh-mattpocock-skills-deck"
-if [ ! -d "$PROFILE_NM" ]; then
-  echo "  ! profile 目录不存在：$PROFILE_NM（跳过同步）" >&2
-  exit 0
-fi
-cp -f "$ROOT/package/lib/client.js" "$PROFILE_NM/lib/client.js"
-cp -f "$ROOT/package/lib/index.js"  "$PROFILE_NM/lib/index.js"
-node -e "
+echo "==> [3/3] 同步 DSH profile 安装目录（主战场 desktop 优先，全量同步 lib 防漏文件）"
+SYNCED_ANY=0
+for PROFILE in desktop web; do
+  PROFILE_NM="$HOME/.dsh/profiles/$PROFILE/node_modules/dsh-mattpocock-skills-deck"
+  if [ ! -d "$PROFILE_NM/lib" ]; then
+    echo "  - profile 不存在跳过：$PROFILE" >&2
+    continue
+  fi
+  cp -rf "$ROOT/package/lib/." "$PROFILE_NM/lib/"
+  SYNCED_ANY=1
+  node -e "
 const fs = require('fs')
 const a = fs.readFileSync('package/lib/client.js', 'utf8')
-const b = fs.readFileSync(process.env.HOME + '/.dsh/profiles/web/node_modules/dsh-mattpocock-skills-deck/lib/client.js', 'utf8')
-if (a !== b) { console.error('  ! client.js 同步 hash 校验失败'); process.exit(1) }
-console.log('  client.js 同步 OK（hash 校验通过）')
+const b = fs.readFileSync(process.env.HOME + '/.dsh/profiles/$PROFILE/node_modules/dsh-mattpocock-skills-deck/lib/client.js', 'utf8')
+if (a !== b) { console.error('  ! client.js 同步 hash 校验失败：$PROFILE'); process.exit(1) }
+console.log('  client.js 同步 OK（$PROFILE，hash 校验通过）')
 "
+done
+if [ "$SYNCED_ANY" = "0" ]; then
+  echo "  ! 没有可用 profile，跳过同步" >&2
+  exit 0
+fi
 echo "==> 完成。刷新 DSH 浏览器（Ctrl+F5）即可看到新 client；host 半需重启 DSH 应用。"
