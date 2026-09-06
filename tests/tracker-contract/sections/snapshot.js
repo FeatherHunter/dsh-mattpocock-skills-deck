@@ -198,6 +198,135 @@ export async function run() {
       JSON.stringify({ m2: m2 && { destination: m2.destination, notes: m2.notes, decisions: m2.decisions, fog: m2.fog, outOfScope: m2.outOfScope } }))
   }
 
+  // ── 拉取请求同池（#505 落 #294 形状 A：不分片、不新增集合；同号异类不混键；牌面派生不丢任一）──
+  // 分界：组装层全量保留（普通工单与拉取请求同池），界面按类型过滤归前端页签（#506），本层不过滤。
+  {
+    const base = (o) => Object.assign({ type: 'issue', title: 'T', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }, o)
+    const prData = [
+      base({ key: 'm1', type: 'map', title: 'M' }),
+      base({ key: '5', title: 'Issue5', parentKey: 'm1', isPullRequest: false, mergedAt: null, reviews: [] }),
+      base({ key: '6', title: 'PR6', parentKey: 'm1', isPullRequest: true, mergedAt: null, reviews: [{ state: 'approved', reviewer: { login: 'r1' }, submittedAt: '2024-01-03T00:00:00Z' }] }),
+      base({ key: '5', title: 'PR5-orphan', isPullRequest: true, mergedAt: null, reviews: [] }),
+      base({ key: '7', title: 'PR7-orphan', isPullRequest: true, mergedAt: '2024-02-01T00:00:00Z', reviews: [] }),
+      base({ key: '8', title: 'Legacy8' }), // 无拉取请求能力的后端：三字段全省略（MISSING）
+    ]
+    const registry = createRegistry({}, { matchesTimeout: 50 })
+    registry.register({
+      id: 'prpool', label: 'prpool',
+      create: () => ({ list: async () => ({ ok: true, data: prData }) }),
+      matches: async () => true,
+    })
+    const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
+    const r = await composer.composeSnapshot('prpool', ref, {})
+    const m1 = r.snapshot.maps.find((x) => x.key === 'm1')
+    await assert('同池 tickets：普通工单与拉取请求同挂一图', r.ok === true && m1 && m1.tickets.length === 2 && m1.tickets.some((t) => t.isPullRequest === false) && m1.tickets.some((t) => t.isPullRequest === true), JSON.stringify(m1 && m1.tickets.map((t) => ({ key: t.key, title: t.title, isPullRequest: t.isPullRequest }))))
+    const orphans = r.snapshot.issues
+    await assert('✗ probe: 同号异类不互吞（已挂载工单 5 不吞掉孤儿拉取请求 5）', orphans.length === 3 && orphans.some((t) => t.title === 'PR5-orphan' && t.isPullRequest === true) && orphans.some((t) => t.key === '7') && orphans.some((t) => t.key === '8'), JSON.stringify(orphans.map((t) => t.title)))
+    const pr6 = m1.tickets.find((t) => t.key === '6')
+    const legacy8 = orphans.find((t) => t.key === '8')
+    const issue5 = m1.tickets.find((t) => t.title === 'Issue5')
+    await assert('EMPTY-MISSING 口径：有字段原样带、无字段保持省略', pr6 && Array.isArray(pr6.reviews) && pr6.reviews.length === 1 && pr6.reviews[0].reviewer.login === 'r1' && Array.isArray(issue5.reviews) && issue5.reviews.length === 0 && !Object.prototype.hasOwnProperty.call(legacy8, 'isPullRequest') && !Object.prototype.hasOwnProperty.call(legacy8, 'mergedAt') && !Object.prototype.hasOwnProperty.call(legacy8, 'reviews'), JSON.stringify({ pr6reviews: pr6 && pr6.reviews, legacyKeys: legacy8 && Object.keys(legacy8) }))
+    const po = (r.snapshot.deck && r.snapshot.deck.progressOf) || {}
+    await assert('牌面派生覆盖拉取请求（池内身份全覆盖，不丢任一）', r.snapshot.deck && ('6\0pr' in po) && ('7\0pr' in po) && ('8' in po) && r.snapshot.deck.stats.total === 5, JSON.stringify(r.snapshot.deck && { total: r.snapshot.deck.stats.total, keys: Object.keys(po) }))
+    await assert('✗ probe: 同键双票不丢（普通 5 与拉取请求 5 各记一票）', ('5\0issue' in po) && ('5\0pr' in po) && r.snapshot.deck.stats.total === 5, JSON.stringify(Object.keys(po)))
+    // 版号：只改拉取请求字段也换版号；MISSING 变 EMPTY 也换版号；同数据重建版号不变。
+    const v1 = r.version
+    const rSame = await composer.composeSnapshot('prpool', ref, {}, { force: true })
+    await assert('同数据强制重建 → 版号不变（可复现）', rSame.version === v1, `v1=${v1} again=${rSame.version}`)
+    prData.find((t) => t.title === 'PR6').mergedAt = '2024-03-01T00:00:00Z'
+    const rMerged = await composer.composeSnapshot('prpool', ref, {}, { force: true })
+    await assert('✗ probe: 只改合并时间 → 版号变化（不 served 陈旧 304）', rMerged.version !== v1, `v1=${v1} merged=${rMerged.version}`)
+    prData.find((t) => t.title === 'Legacy8').isPullRequest = false
+    const rMissing = await composer.composeSnapshot('prpool', ref, {}, { force: true })
+    await assert('✗ probe: MISSING 变 EMPTY（false）→ 版号变化', rMissing.version !== rMerged.version, `merged=${rMerged.version} missing=${rMissing.version}`)
+  }
+
+  // ── 缓存键按后端加仓库键隔离 + LRU20 逐出（#505 键策略）──
+  {
+    let listCalls = 0
+    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const mkBackend = () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } })
+    registry.register({ id: 'ka', label: 'ka', create: mkBackend, matches: async () => true })
+    registry.register({ id: 'kb', label: 'kb', create: mkBackend, matches: async () => true })
+    const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
+    await composer.composeSnapshot('ka', ref, {})
+    await composer.composeSnapshot('kb', ref, {})
+    await assert('同仓库键不同后端 → 各建各的缓存（list 调两次）', listCalls === 2, `listCalls=${listCalls}`)
+    for (let i = 0; i < 21; i++) await composer.composeSnapshot('ka', { backend: 'ka', refId: 'repo-' + i, name: 'R' + i, url: '' }, {})
+    const before = listCalls
+    await composer.composeSnapshot('ka', { backend: 'ka', refId: 'repo-0', name: 'R0', url: '' }, {})
+    await assert('✗ probe: LRU20 逐出最早的仓库（第 21 个挤掉第 1 个 → 重新 list）', listCalls === before + 1, `listCalls=${listCalls} before=${before}`)
+    const warm = await composer.composeSnapshot('ka', { backend: 'ka', refId: 'repo-20', name: 'R20', url: '' }, {})
+    await assert('LRU 内仍热 → 不重新 list', listCalls === before + 1 && warm.cached === true, `listCalls=${listCalls}`)
+  }
+
+  // ── 命中刷新 LRU 顺序（#505 小修：命中调 touch 刷新顺序，否则退化成先进先出）──
+  {
+    let listCalls = 0
+    const registry = createRegistry({}, { matchesTimeout: 50 })
+    registry.register({ id: 'lruref', label: 'lruref', create: () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } }), matches: async () => true })
+    const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
+    const R = (i) => ({ backend: 'lruref', refId: 'lru-' + i, name: 'L' + i, url: '' })
+    for (let i = 0; i < 20; i++) await composer.composeSnapshot('lruref', R(i), {})
+    await composer.composeSnapshot('lruref', R(0), {}) // 命中 lru-0 → 刷新为最新
+    await composer.composeSnapshot('lruref', R(20), {}) // 挤掉最久未用的 lru-1，而不是刚命中的 lru-0
+    const before = listCalls
+    const hit0 = await composer.composeSnapshot('lruref', R(0), {})
+    await assert('✗ probe: 命中刷新顺序（刚命中的 lru-0 不被逐出）', listCalls === before && hit0.cached === true, `listCalls=${listCalls} before=${before}`)
+    await composer.composeSnapshot('lruref', R(1), {})
+    await assert('✗ probe: 最久未用被逐出（未命中的 lru-1 重新 list）', listCalls === before + 1, `listCalls=${listCalls} before=${before}`)
+  }
+
+  // ── false 与 MISSING 不再混同（#505 小修三态：同键 false 已挂载不吞 MISSING 孤儿）──
+  {
+    const base = (o) => Object.assign({ type: 'issue', title: 'T', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }, o)
+    const mixed = [
+      base({ key: 'm1', type: 'map', title: 'M' }),
+      base({ key: '9', title: 'Issue9', parentKey: 'm1', isPullRequest: false }),
+      base({ key: '9', title: 'Legacy9' }), // MISSING：三字段全省略
+    ]
+    const registry = createRegistry({}, { matchesTimeout: 50 })
+    registry.register({
+      id: 'fmpool', label: 'fmpool',
+      create: () => ({ list: async () => ({ ok: true, data: mixed }) }),
+      matches: async () => true,
+    })
+    const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
+    const r = await composer.composeSnapshot('fmpool', ref, {})
+    await assert('✗ probe: false 与 MISSING 同键各算各的（孤儿不被吞）', r.ok === true && r.snapshot.issues.some((x) => x.title === 'Legacy9') && r.snapshot.deck.stats.total === 2, JSON.stringify({ issues: r.snapshot.issues.map((x) => x.title), total: r.snapshot.deck && r.snapshot.deck.stats.total }))
+  }
+
+  // ── 组装器房内日志（#505：未命中记常驻原因枚举；命中记按需，关开关不记、开着百分之一采样）──
+  {
+    const fires = []
+    const mkLog = (debugOn) => ({ fire(level, event, fields) { fires.push({ level, event, fields: (typeof fields === 'function') ? fields() : fields }) }, isEnabled(level) { return level === 'info' || (level === 'debug' && debugOn) } })
+    const registry = createRegistry({}, { matchesTimeout: 50 })
+    registry.register({
+      id: 'prlog', label: 'prlog',
+      create: () => ({ list: async () => ({ ok: true, data: ALL }) }),
+      matches: async () => true,
+    })
+    const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000, logCtx: mkLog(true) })
+    await composer.composeSnapshot('prlog', ref, {})
+    const missEmpty = fires.find((f) => f.event === 'snapshot.cache.miss')
+    await assert('未命中记常驻（首建原因记 empty，只记原因枚举）', missEmpty && missEmpty.level === 'info' && missEmpty.fields && missEmpty.fields.reason === 'empty' && Object.keys(missEmpty.fields).join(',') === 'reason', JSON.stringify(missEmpty))
+    fires.length = 0
+    await composer.composeSnapshot('prlog', ref, {}, { force: true })
+    const missForce = fires.find((f) => f.event === 'snapshot.cache.miss')
+    await assert('强制重建记未命中原因 force', missForce && missForce.fields && missForce.fields.reason === 'force', JSON.stringify(missForce))
+    fires.length = 0
+    for (let i = 0; i < 150; i++) await composer.composeSnapshot('prlog', ref, {})
+    const hits = fires.filter((f) => f.event === 'snapshot.cache.hit')
+    await assert('命中记按需（开着百分之一采样：150 次命中记 1 次，只记 kind 与 ageMs）', hits.length === 1 && hits[0].level === 'debug' && hits[0].fields && hits[0].fields.kind === 'snapshot-lru' && typeof hits[0].fields.ageMs === 'number' && Object.keys(hits[0].fields).sort().join(',') === 'ageMs,kind', JSON.stringify(hits))
+    const composerOff = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000, logCtx: mkLog(false) })
+    fires.length = 0
+    await composerOff.composeSnapshot('prlog', ref, {})
+    for (let i = 0; i < 150; i++) await composerOff.composeSnapshot('prlog', ref, {})
+    const hitsOff = fires.filter((f) => f.event === 'snapshot.cache.hit')
+    const missOff = fires.filter((f) => f.event === 'snapshot.cache.miss')
+    await assert('✗ probe: 关调试开关 → 按需命中零记录，常驻未命中照记', hitsOff.length === 0 && missOff.length === 1 && missOff[0].fields.reason === 'empty', `hits=${hitsOff.length} miss=${JSON.stringify(missOff)}`)
+  }
+
   // ── 未知后端 ──
   {
     const composer = createSnapshotComposer(createRegistry({}, { matchesTimeout: 50 }), {})

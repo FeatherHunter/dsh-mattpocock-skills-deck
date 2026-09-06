@@ -77,7 +77,7 @@
 | # | 事件名 | 级别 | 允许字段（白名单，之外不记） | 截断或散列 | 命中正则名 | 原证据（#331 基线追溯） |
 |---|---|---|---|---|---|---|
 | 1 | snapshot.request | 信息 | cwdHash、工作区后端标识、force 是否强制 | H_CWD | R_WIN_ABS、R_HOME_PATH | index.js:1073 快照组装入口、297 找 gh |
-| 3 | snapshot.cache.miss | 信息 | reason 未命中原因（枚举） | —（枚举不截断） | — | index.js:47 缓存超时、589 写盘 |
+| 3 | snapshot.cache.miss | 信息 | reason 未命中原因（枚举 force、empty、version-mismatch、expired） | —（枚举不截断） | — | index.js:47 缓存超时、589 写盘 |
 | 4 | repo.resolve.tier | 信息 | tier 第几层、ok 是否成功、latencyMs 耗时 | —（不记地址原文） | R_REPO_URL | index.js:601、605-638 三层兜底 |
 | 5 | gh.exec | 信息 | argv0 命令名、cwdHash、latencyMs、kind 归一类别、exitCode 退出码 | H_CWD、B_TOKEN | R_TOKEN_BEARER、R_GH_TOKEN | index.js:311 运行 gh、340 类别归一 |
 | 6 | gh.timeout | 告警 | argv0 命令名、timeoutMs 超时毫秒 | — | — | index.js:325 超时、338 |
@@ -112,7 +112,7 @@
 
 | # | 事件名 | 级别 | 允许字段（白名单，之外不记） | 截断或散列 | 命中正则名 | 守卫 | 原证据（#331 基线追溯） |
 |---|---|---|---|---|---|---|
-| 2 | snapshot.cache.hit | 调试 | kind 内存或磁盘、ageMs 缓存多久 | — | — | 采样（如百分之一） | index.js:576 读盘、589 写盘、47 超时 |
+| 2 | snapshot.cache.hit | 调试 | kind 取值 snapshot-lru（快照最近最少使用缓存）、ageMs 缓存多久 | — | — | 采样（如百分之一） | index.js:576 读盘、589 写盘、47 超时 |
 | 11 | probe.eval | 调试 | repoKeyHash 仓库散列、since 增量起点、count 拉到几条、changed 是否有变化 | 散列仓库键 | — | 采样，只记有变化 | index.js:847 拉索引、871 判变化 |
 | 12 | panelSync.eval | 调试 | repoKeyHash、baseline 基线、dirty 是否脏、failures 失败数 | 散列仓库键 | — | 按事件，有变化才记 | index.js:451 求值、494 单个求值 |
 | 15 | registry.stub | 调试 | op 操作名、backendId 后端标识 | — | — | 按事件 | registry.js:41 不支持桩 |

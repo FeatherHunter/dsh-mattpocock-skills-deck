@@ -126,6 +126,22 @@ export async function run() {
     await assert('孤儿（破链）计入 deck stats', deck.stats.total === 1 && deck.stats.frontier === 1, JSON.stringify(deck.stats))
   }
 
+  // ── 池内身份：同号异类计两票（#505 小修：byKey/poolKeys/progressOf 按池内身份，不按裸 key）──
+  {
+    const issue5 = t('5', { assignees: [], isPullRequest: false })
+    const pr5 = t('5', { assignees: [], isPullRequest: true })
+    const deck = deriveDeck({ maps: [m('m1', [issue5, pr5])], issues: [] })
+    await assert('同号异类计两票（普通 5 与拉取请求 5 不丢任一）', deck.stats.total === 2, JSON.stringify(deck.stats))
+    await assert('✗ probe: 双 5 各有牌面（progressOf 按池内身份键入）', ('5\0issue' in deck.progressOf) && ('5\0pr' in deck.progressOf), JSON.stringify(Object.keys(deck.progressOf)))
+    const fals = t('9', { assignees: [], isPullRequest: false })
+    const miss = t('9', { assignees: [] }) // MISSING：无该能力后端省略该字段
+    const deck2 = deriveDeck({ maps: [m('m1', [fals])], issues: [miss] })
+    await assert('✗ probe: false 与 MISSING 不再混同（同键计两票）', deck2.stats.total === 2 && ('9\0issue' in deck2.progressOf) && ('9' in deck2.progressOf), JSON.stringify({ total: deck2.stats.total, keys: Object.keys(deck2.progressOf) }))
+    const bad = t('5', { assignees: [], isPullRequest: 'yes' }) // BAD：字段在但不是布尔值
+    const deck3 = deriveDeck({ maps: [m('m1', [issue5])], issues: [bad] })
+    await assert('✗ probe: BAD 单独隔离（混合返回不断言一致，不抛不吞）', deck3.stats.total === 2 && ('5\0bad' in deck3.progressOf), JSON.stringify({ total: deck3.stats.total, keys: Object.keys(deck3.progressOf) }))
+  }
+
   return out
 }
 

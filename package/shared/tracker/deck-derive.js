@@ -52,16 +52,35 @@ function claimedOf(ticket) {
  * 规则（#124 §5.2）：在 deck 内 lookup(ref.key) 且 state==='open' → true；
  * **NOT-FOUND（破链依赖）→ true（安全 blocked，绝不误判 frontier）**。
  * @param {Object} ticket
- * @param {Map<string, Object>} byKey deck 内全部票（key → Issue）
+ * @param {Map<string, Object>} byPool deck 内全部票（池内身份 → Issue）
+ * @param {Map<string, Object[]>} byBase 裸 key → 同号全部票（老引用回落）
  * @returns {boolean}
  */
-function hasOpenBlocker(ticket, byKey) {
+function poolIdOfTicket(it) {
+  const k = String((it && it.key) || '')
+  if (!hasOwn(it || {}, 'isPullRequest')) return k // MISSING=无能力后端省略，保持裸键（老快照兼容）
+  if (it.isPullRequest === true) return k + '\0pr'
+  if (it.isPullRequest === false) return k + '\0issue' // false 与 MISSING 不再混同，各算各的
+  return k + '\0bad' // BAD=字段在但不是布尔值，单独隔离，不吞不混（混合返回不断言一致）
+}
+
+/** 同号候选：引用自带身份则精确找；老引用无该字段则按裸键找全部同号票（#504 交接：逐票必带 isPullRequest，新引用应带该字段）。 */
+function candidatesOf(ref, byPool, byBase) {
+  if (ref && hasOwn(ref, 'isPullRequest')) {
+    const exact = byPool.get(poolIdOfTicket(ref))
+    return exact ? [exact] : []
+  }
+  const arr = ref && byBase.get(String((ref && ref.key) || ''))
+  return arr || []
+}
+
+function hasOpenBlocker(ticket, byPool, byBase) {
   const refs = ticket.blockedBy
   if (!Array.isArray(refs) || refs.length === 0) return false
   return refs.some((ref) => {
-    const target = byKey.get(ref && ref.key)
-    if (!target) return true // NOT-FOUND → blocked（安全）
-    return target.state === OPEN
+    const cands = candidatesOf(ref, byPool, byBase)
+    if (!cands.length) return true // NOT-FOUND → blocked（安全）
+    return cands.some((c) => c.state === OPEN)
   })
 }
 
@@ -69,13 +88,14 @@ function hasOpenBlocker(ticket, byKey) {
  * DAG 最长路径分层（level(root)=0；level(x)=1+max(level(直接阻塞者))）。
  * 环守卫：visited 栈内重入 → 0（跳过该边）；NOT-FOUND 阻塞者 → 按 0 计（占层级）。
  * @param {Object} ticket
- * @param {Map<string, Object>} byKey
+ * @param {Map<string, Object>} byPool
+ * @param {Map<string, Object[]>} byBase
  * @param {Map<string, number>} memo
  * @param {Set<string>} stack
  * @returns {number}
  */
-function levelOf(ticket, byKey, memo, stack) {
-  const k = ticket.key
+function levelOf(ticket, byPool, byBase, memo, stack) {
+  const k = poolIdOfTicket(ticket)
   if (memo.has(k)) return memo.get(k)
   if (stack.has(k)) return 0 // 环：返回 0 / 跳过该边
   stack.add(k)
@@ -83,8 +103,12 @@ function levelOf(ticket, byKey, memo, stack) {
   const refs = ticket.blockedBy
   if (Array.isArray(refs)) {
     for (const ref of refs) {
-      const target = byKey.get(ref && ref.key)
-      const l = target ? levelOf(target, byKey, memo, stack) : 0 // NOT-FOUND → 0（占层级）
+      const cands = candidatesOf(ref, byPool, byBase)
+      let l = 0 // NOT-FOUND → 0（占层级）
+      for (const target of cands) {
+        const cl = levelOf(target, byPool, byBase, memo, stack)
+        if (cl > l) l = cl
+      }
       if (l > maxL) maxL = l
     }
   }
@@ -107,24 +131,35 @@ export function deriveDeck(input = {}) {
   const maps = Array.isArray(input.maps) ? input.maps : []
   const issues = Array.isArray(input.issues) ? input.issues : []
 
-  // 按 key 唯一化（map 节点也可能出现在父 map.tickets；lookup 全局一份）。
+  // 按池内身份唯一化（同 key 但是否为拉取请求不同，是两票；map 节点也可能出现在父 map.tickets；lookup 全局一份）。
   // 语义（Q4 裁决）：deck 以整个 Snapshot 为单位——**票池**（stats 计数对象）= 各 map.tickets 并集 + issues（孤儿/未挂图票）；
   // **map 节点本身**是容器（父 map.tickets 里的子 map 仍算其父的票，计入池）；map 节点不因「在 maps[] 里」而重复计数，
-  // 但其 key 参与 lookup（跨 map 依赖可解析）。progressOf/labels/blockedByKeys/levelOf 覆盖全部（含 map 节点）。
-  const byKey = new Map()
-  const add = (t) => { if (t && typeof t.key === 'string' && !byKey.has(t.key)) byKey.set(t.key, t) }
+  // 但其池内身份参与 lookup（跨 map 依赖可解析）。progressOf/labels/blockedByKeys/levelOf 覆盖全部（含 map 节点）。
+  // 口径（#505 小修）：false（确认为普通工单）与 MISSING（无能力后端省略）不再混同；BAD（非布尔）单独隔离；混合返回不断言一致。
+  const byPool = new Map()
+  const byBase = new Map() // 裸 key → 同号全部票（老引用无身份字段时的回落查找）
+  const add = (t) => {
+    if (!t || typeof t.key !== 'string') return
+    const pid = poolIdOfTicket(t)
+    if (!byPool.has(pid)) {
+      byPool.set(pid, t)
+      const arr = byBase.get(t.key) || []
+      arr.push(t)
+      byBase.set(t.key, arr)
+    }
+  }
   for (const m of maps) { add(m); for (const t of (m.tickets || [])) add(t) }
   for (const t of issues) add(t)
-  const all = Array.from(byKey.values())
+  const all = Array.from(byPool.values())
 
-  // 票池 = 各 map.tickets 并集 + issues（不含单独出现在 maps[] 的根 map 节点）
+  // 票池 = 各 map.tickets 并集 + issues（不含单独出现在 maps[] 的根 map 节点；按池内身份计，同号异类计两票）
   const poolKeys = new Set()
-  for (const m of maps) for (const t of (m.tickets || [])) if (t && typeof t.key === 'string') poolKeys.add(t.key)
-  for (const t of issues) if (t && typeof t.key === 'string') poolKeys.add(t.key)
+  for (const m of maps) for (const t of (m.tickets || [])) if (t && typeof t.key === 'string') poolKeys.add(poolIdOfTicket(t))
+  for (const t of issues) if (t && typeof t.key === 'string') poolKeys.add(poolIdOfTicket(t))
 
-  // progressOf（每票基数；无 → null）
+  // progressOf（每票基数；无 → null；按池内身份键入，同号异类各记各的）
   const progressOf = {}
-  for (const t of all) progressOf[t.key] = parseProgress(t.body)
+  for (const t of all) progressOf[poolIdOfTicket(t)] = parseProgress(t.body)
 
   // labels 色板目录（全量并集；名称唯一，保留首个颜色；MISSING 字段跳过不崩溃）
   const labelMap = new Map()
@@ -139,28 +174,29 @@ export function deriveDeck(input = {}) {
   }
   const labels = Array.from(labelMap.values())
 
-  // levelOf（DAG 全票；环/NFD 规则见 levelOf）
+  // levelOf（DAG 全票；环/NFD 规则见 levelOf；按池内身份键入）
   const memo = new Map()
   const stack = new Set()
   const levelOfByKey = {}
-  for (const t of all) levelOfByKey[t.key] = levelOf(t, byKey, memo, stack)
+  for (const t of all) levelOfByKey[poolIdOfTicket(t)] = levelOf(t, byPool, byBase, memo, stack)
 
   // stats（独立计数可重叠；frontier ⊥ claimed/blocked/indeterminate；NOT-FOUND→blocked 安全）。
   // 只统计票池（map.tickets + orphan）；map 节点本身是容器，不重复计数。
   const stats = { total: poolKeys.size, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, indeterminate: 0, levels: [], levelOf: levelOfByKey }
   const levelAgg = new Map() // level -> {total, open, closed}
-  for (const key of poolKeys) {
-    const t = byKey.get(key)
+  for (const pid of poolKeys) {
+    const t = byPool.get(pid)
+    if (!t) continue // 孤儿隔离：池键无对应票时跳过，不崩溃
     const isOpen = t.state === OPEN
     if (t.state === CLOSED) stats.closed++
     else if (isOpen) stats.open++
     const claimed = claimedOf(t)
-    const isBlocked = isOpen && hasOpenBlocker(t, byKey)
+    const isBlocked = isOpen && hasOpenBlocker(t, byPool, byBase)
     if (claimed === true) stats.claimed++
     else if (claimed === null) stats.indeterminate++
     if (isBlocked) stats.blocked++
     if (isOpen && claimed === false && !isBlocked) stats.frontier++ // assignees 已知且空 + !claimed + !blocked
-    const lv = levelOfByKey[t.key]
+    const lv = levelOfByKey[pid]
     let agg = levelAgg.get(lv)
     if (!agg) { agg = { level: lv, total: 0, open: 0, closed: 0 }; levelAgg.set(lv, agg) }
     agg.total++
@@ -171,10 +207,10 @@ export function deriveDeck(input = {}) {
     .sort((a, b) => a.level - b.level)
     .map((v) => ({ total: v.total, open: v.open, closed: v.closed })) // 每层（数组）；只载形状声明的字段
 
-  // blockedByKeys（把 IssueRef[] 投影成 UI 使用的 key 数组）
+  // blockedByKeys（把 IssueRef[] 投影成 UI 使用的 key 数组；外层按池内身份键入）
   const blockedByKeys = {}
   for (const t of all) {
-    blockedByKeys[t.key] = (Array.isArray(t.blockedBy) ? t.blockedBy : []).map((r) => r && r.key)
+    blockedByKeys[poolIdOfTicket(t)] = (Array.isArray(t.blockedBy) ? t.blockedBy : []).map((r) => r && r.key)
   }
 
   return { progressOf, labels, stats, blockedByKeys }
