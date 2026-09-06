@@ -1,4 +1,9 @@
 // slotRenderer-modal-view.js — 弹窗本体 FormModalSeat（K1 由 slotRenderer.js 拆出，行为零变化；打开入口与守门见 slotRenderer-queue.js，同步流程见 slotRenderer-repo-sync.js）。
+    const fillDefaults = function (schema, base) {
+      const init = Object.assign({}, base)
+      for (let i = 0; i < schema.length; i++) { const fd = schema[i]; if (fd && fd.defaultValue != null && init[fd.name] === undefined) init[fd.name] = String(fd.defaultValue) }
+      return init
+    }
     export const FormModalSeat = function (props) {
       const st = props && props.st ? props.st : null
       const cx = (typeof DswsCtx !== 'undefined' && DswsCtx) ? React.useContext(DswsCtx) : null
@@ -14,32 +19,15 @@
       const stepIndex = isWizard ? (typeof m.stepIndex === 'number' ? m.stepIndex : 0) : 0
       const curSchema = isWizard ? (wizardSteps[stepIndex] ? wizardSteps[stepIndex].schema : []) : (Array.isArray(m.schema) ? m.schema : [])
       const totalSteps = isWizard ? wizardSteps.length : 1
-      // 受控表单值：wizard 按步隔离，form 单值
+      // 受控表单值：wizard 按步隔离，form 单值（缺省值回填已提纯为 fillDefaults，行为不变）
       const [vals, setVals] = React.useState(function () {
-        if (isWizard) {
-          const cur = m.valuesByStep && m.valuesByStep[stepIndex] ? m.valuesByStep[stepIndex] : {}
-          const init = Object.assign({}, cur)
-          // 补 defaultValue
-          for (let i = 0; i < curSchema.length; i++) { const f = curSchema[i]; if (f && f.defaultValue != null && init[f.name] === undefined) init[f.name] = String(f.defaultValue) }
-          return init
-        } else {
-          const init = {}
-          for (let i = 0; i < curSchema.length; i++) { const f = curSchema[i]; if (f && f.defaultValue != null) init[f.name] = String(f.defaultValue) }
-          return init
-        }
+        if (isWizard) return fillDefaults(curSchema, (m.valuesByStep && m.valuesByStep[stepIndex]) || {})
+        return fillDefaults(curSchema, {})
       })
       // 同步：schema/步骤变化时重置（wizard 切步时从 valuesByStep 恢复）
       React.useEffect(function () {
-        if (isWizard) {
-          const cur = m.valuesByStep && m.valuesByStep[stepIndex] ? m.valuesByStep[stepIndex] : {}
-          const init = Object.assign({}, cur)
-          for (let i = 0; i < curSchema.length; i++) { const f = curSchema[i]; if (f && f.defaultValue != null && init[f.name] === undefined) init[f.name] = String(f.defaultValue) }
-          setVals(init)
-        } else {
-          const init = {}
-          for (let i = 0; i < curSchema.length; i++) { const f = curSchema[i]; if (f && f.defaultValue != null) init[f.name] = String(f.defaultValue) }
-          setVals(init)
-        }
+        if (isWizard) setVals(fillDefaults(curSchema, (m.valuesByStep && m.valuesByStep[stepIndex]) || {}))
+        else setVals(fillDefaults(curSchema, {}))
       }, [isWizard, stepIndex, m.steps ? m.steps.length : 0, m.schema ? m.schema.length : 0, m.open])
       const onClose = function () { try { if (m.success) { m.success = null; try { if (typeof emit === 'function') emit(st) } catch(_){} } closeFormModal(st) } catch (e) {} }
       const onOverlayClick = function (e) { if (e && e.target === e.currentTarget) onClose() }
