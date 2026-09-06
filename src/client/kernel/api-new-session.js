@@ -245,7 +245,7 @@
                   const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(name0) : /^\[New\] /.test(String(name0)))
                   if (!isPlaceholder) return
                   if (typeof host !== 'undefined' && typeof host.call === 'function') {
-                    host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns) : null) }).then(function () { namingGuardianKick() }).catch(function () {})
+                    host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
                   }
                 } catch (eReg) {}
               }
@@ -325,7 +325,7 @@
                 if (typeof host !== 'undefined' && typeof host.call === 'function') {
                   // #266：注册走 #211 复原名「注册监视」（wf.registerNewSessionWatcher，host 侧为收编跟踪态 + 索引基线）；
                   // wf.namingRegister 为 #265 兼容别名，双名同本体，守卫钉死。
-                  host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns) : null) }).then(function () { namingGuardianKick() }).catch(function () {})
+                  host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
                 }
               } catch (eReg) {}
             }

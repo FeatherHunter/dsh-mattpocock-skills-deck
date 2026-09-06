@@ -11,6 +11,7 @@
     const dswsLogHash = function (s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
     const dswsScrubHits = {}
     const dswsScrubN = { n: 0 }
+    const dswsDiskSnapHitN = { n: 0 } // #498 磁盘快照命中采样计数（百一采样，只增不显）
     const dswsLogTrunc = function (s, n, field) { try { const t = String(s || ''); if (t.length <= n) return t; try { const k = String(field || 'text') + ':T' + n; dswsScrubHits[k] = (dswsScrubHits[k] || 0) + 1; dswsScrubN.n += 1; if (dswsScrubN.n % 50 === 0 && isEnabled('debug')) log('debug', 'privacy.scrub', { field: String(field || 'text'), rule: 'T' + n, hit: true }) } catch (e) {} return t.slice(0, n) } catch (e) { return '' } }
     const dswsDedupWin = { n: 0 }
     // v11：label 用 GitHub 配置色渲染 —— hex → rgba（.18 背景），无效 hex 返回 null 走兜底
@@ -188,10 +189,12 @@
                 hydrateFromCache(st)
                 emit(st)
               } catch (eHyd2) {}
+              try { dswsDiskSnapHitN.n += 1; if (isEnabled('debug') && dswsDiskSnapHitN.n % 100 === 0) log('debug', 'client.snapshot.hit', { keyHash: dswsLogHash(keyOf(st.cwd || '')), ageMs: Date.now() - ((ent && (ent.ts || (ent.snapshot && ent.snapshot.generatedMs))) || Date.now()), kind: 'disk' }) } catch (eL) {}
               hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))
             }
           } catch (eDisk) {}
         }
+        try { if (!hasCache && !(st.snapshot || getCachedSnapshot(st.cwd))) log('info', 'client.snapshot.miss', { keyHash: dswsLogHash(keyOf(st.cwd || '')), reason: 'empty' }) } catch (eL) {}
         st.snapLoading = true
         // v1.5 T9：silent（后台静默刷新）不显示加载遮罩、不弹错误 toast
         // #58 缓存优先：已有缓存（含磁盘命中）时不显示全屏 loading，静默刷新

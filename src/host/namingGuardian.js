@@ -64,7 +64,7 @@ export function createNamingGuardian(deps) {
   function markNamingStateDirty() {
     _namingStateDirty = true
     if (_namingPersistTimer) return
-    _namingPersistTimer = timer.timeout(function () { _namingPersistTimer = null; if (_namingStateDirty) persistNamingState() }, 1200)
+    _namingPersistTimer = timer.timeout(function () { _namingPersistTimer = null; if (_namingStateDirty) persistNamingState() }, 1200); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-persist', intervalMs: 1200 }) } catch (eL) {}
   }
   function namingLoopTick() {
     try { if (_namingStateDirty) persistNamingState() } catch (eTick) {}
@@ -344,5 +344,11 @@ export function createNamingGuardian(deps) {
     if (watching) namingSweepSoon(120)
     return { ok: true, watching: watching, stage: (entry && entry.stage) || null }
   }
-  return { namingSweepSoon, namingRegisterHandler, handleNamingSignal, handleNamingPlan, handleNamingResult, handleCancelNewSessionWatcher, handleAwaitCreatedIssue, startNamingGuardianLoop }
+  // #498 电话三态行：命名族 7 电话（注册双名同一本体，按规范入口记 wf.registerNewSessionWatcher）成功 info、失败 warn；高频 namingPlan 成功按需 debug（5 秒轮询，只记行不记体）。
+  function phoneLog(method, kind, level, t0, res, err) { try {
+    if (err !== undefined && err !== null) { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((err && err.message) || err)) }) }
+    else if (res && res.ok) { if (level === 'debug') { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) } else if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
+    else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && ((res.error && res.error.message) || res.error)) || 'naming-not-ok')) }) } catch (eL) {} }
+  function loggedPhone(method, kind, level, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, level, t0, r); return r } catch (e) { phoneLog(method, kind, level, t0, null, e); throw e } } }
+  return { namingSweepSoon, namingRegisterHandler: loggedPhone('wf.registerNewSessionWatcher', 'naming-register', 'info', namingRegisterHandler), handleNamingSignal: loggedPhone('wf.namingSignal', 'naming-signal', 'info', handleNamingSignal), handleNamingPlan: loggedPhone('wf.namingPlan', 'naming-plan', 'debug', handleNamingPlan), handleNamingResult: loggedPhone('wf.namingResult', 'naming-result', 'info', handleNamingResult), handleCancelNewSessionWatcher: loggedPhone('wf.cancelNewSessionWatcher', 'naming-cancel', 'info', handleCancelNewSessionWatcher), handleAwaitCreatedIssue: loggedPhone('wf.awaitCreatedIssue', 'naming-await', 'info', handleAwaitCreatedIssue), startNamingGuardianLoop }
 }

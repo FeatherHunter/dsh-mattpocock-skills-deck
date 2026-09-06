@@ -2,7 +2,7 @@
 // 以后谁改它：改工作区路径归一或后端绑定选择的人。预估约120行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；normCwd 由本文件单一持有，评论线程经 index 转供给复用；本文件不引用其他新文件。
 export function createWorkspaceCwd(deps) {
-  const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, canonicalKey, setCache } = deps
+  const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, canonicalKey, setCache, logCtx } = deps
   // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）
   // 根因：workspaces 服务在 client runtime 暴露的 item.path 可能是相对名（如 "matt-demo-markdown"），
   // 传给 wf.selection 后 select() 三级联中 markdown.matches 收到相对 cwd，plat.join(cwd,...) 仍是相对，
@@ -83,11 +83,17 @@ export function createWorkspaceCwd(deps) {
     try {
       const reg = await getTrackerRegistry()
       if (!reg) return { ok: false, error: 'registry unavailable' }
-      const sel = await reg.select({ cwd: cwd }, { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs') })
+      const sel = await reg.select({ cwd: cwd }, { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'wf.selection' })
       let repoRef = null
       if (sel && sel.backendId) { try { repoRef = reg.describe({ cwd: cwd }, sel.backendId) } catch {} }
       return { ok: true, selection: sel, repository: repoRef }
     } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
   }
-  return { normCwd, handleBind, handleBindings, handleRegistry, handleSelection }
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  function phoneLog(method, kind, t0, res, err) { try {
+    if (err !== undefined && err !== null) { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((err && err.message) || err)) }) }
+    else if (res && res.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
+    else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && (res.error || res.errorKind)) || 'workspace-not-ok')) }) } catch (eL) {} }
+  function loggedPhone(method, kind, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
+  return { normCwd: normCwd, handleBind: loggedPhone('wf.bind', 'bind', handleBind), handleBindings: loggedPhone('wf.bindings', 'bindings', handleBindings), handleRegistry: loggedPhone('wf.registry', 'registry', handleRegistry), handleSelection: loggedPhone('wf.selection', 'selection', handleSelection) }
 }

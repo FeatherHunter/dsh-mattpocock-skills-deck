@@ -21,7 +21,7 @@ export function createDetectChain(deps) {
         // 对抗式：ensure DetectionResult 形态（含 selection/pending/multiHit，按 #125）
         return { ok: true, ...res }
       } catch (e) {
-        return { ok: false, error: String((e && e.message) || e) }
+        try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.detect', kind: 'detect', errorHash: hash8(String((e && e.message) || e)) }) } catch (eL) {}; return { ok: false, error: String((e && e.message) || e) }
       }
   }
     // #228/#284 链渲染器主机侧：通用链 + 当前后端链求值快照（契约层纯函数求值，谓词只读探测，失败返回不抛，超时 pending）
@@ -40,6 +40,7 @@ export function createDetectChain(deps) {
           try { if (logCtx && logCtx.isEnabled('debug') && ((++chainSampleN % 100) === 0)) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(cacheKey), lang: chainLang, ageMs: Date.now() - getChainCache().ts } }) } catch (eL) {}
           return getChainCache().value
         }
+        try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (!getChainCache().value ? 'empty' : (getChainCache().key !== cacheKey ? 'key-changed' : 'expired')) } }) } catch (eL) {}
         const platform = await getPlatform()
         // 用户显式选择（客户端持久化绑定）作为 detect hint——「主锚 > 用户选择 > matches」层级，见 detectionService.detect
         const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined }) }).catch(function(){ return null })

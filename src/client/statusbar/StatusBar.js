@@ -119,7 +119,7 @@ export const StatusBar = (props) => {
     }
     window.addEventListener('resize', applyAll)
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyFold)
-    const poll = setInterval(applyAll, 2000)
+    const poll = setInterval(applyAll, 2000); try { if (isEnabled('debug')) log('debug', 'timer.schedule', { name: 'statusbar-poll', intervalMs: 2000 }) } catch (eL) {}
     return function () {
       try { roFold.disconnect() } catch (e) {}
       try { roParent.disconnect() } catch(e){}

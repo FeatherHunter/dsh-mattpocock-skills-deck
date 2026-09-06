@@ -238,7 +238,7 @@ export function createPlatformChannel(deps) {
             const expFn = expMod.detectExplicit || expMod.default
             const exp = await expFn(handle, { platform: plat, cwd: handle.cwd, fs: fsSvc }, registry)
             let sel = exp.selection
-            if (!sel) { const ctx2 = { cwd: handle.cwd, platform: plat, fs: fsSvc, timers: { setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } } }; sel = await registry.select(handle, ctx2) }
+            if (!sel) { const ctx2 = { cwd: handle.cwd, platform: plat, fs: fsSvc, caller: 'detect', timers: { setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } } }; sel = await registry.select(handle, ctx2) }
             return { handle, selection: sel, repoHandle: { cwd: handle.cwd || '', refId: (sel && sel.ref && sel.ref.refId) || '' }, explicit: { raw: exp.raw, parsed: exp.parsed }, preflight: null, skillProbes: null, at: Date.now() }
           }
         }

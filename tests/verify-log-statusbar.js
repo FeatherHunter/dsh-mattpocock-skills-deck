@@ -9,6 +9,7 @@
 //   四、反馈闭环：清空确认框（标题＋说明＋取消＋确认清空）与导出成功 toast 含路径展示、
 //      导出／打开／清空三路失败各有错误态；
 //   五、无新增日志事件名：本票两处客户端改动不引入新的点分事件名（计数门禁不被扰动）。
+// #498 修订：复用已计数事件（host.call、host.call.fail）不算新增，仍放行；未知点分名仍红。
 const fs = require('fs')
 const path = require('path')
 
@@ -66,7 +67,7 @@ function dottedNames(text) {
   for (const m of stripComments(text).matchAll(/['"]([A-Za-z]+(?:\.[A-Za-z][A-Za-z0-9]*)+)['"]/g)) out.push(m[1])
   return out
 }
-const fresh = dottedNames(menu).filter((n) => !n.startsWith('wf.') && ['logmenu', 'logtoast'].indexOf(n.split('.')[0]) < 0)
+const fresh = dottedNames(menu).filter((n) => !n.startsWith('wf.') && ['logmenu', 'logtoast'].indexOf(n.split('.')[0]) < 0 && ['host.call', 'host.call.fail'].indexOf(n) < 0) // #498：复用已计数事件不算新增
 check(fresh.length === 0, '五、菜单组件无新增日志事件名（计数门禁不被扰动）' + (fresh.length ? ' —— ' + fresh.join('、') : ''))
 
 // 六、构建接线

@@ -134,8 +134,8 @@ export function createRegistry(backendCtx = {}, opts = {}) {
       // ① explicit（bind 记忆）
       if (byHandle.has(k)) {
         const id = byHandle.get(k).backendId
-        if (id === null) { try { if (rlog) rlog('info', 'registry.select', { cwdHash: hash8(handle.cwd), backendId: '', source: 'explicit', latencyMs: Date.now() - selT0 }) } catch (eL) {}; return { backendId: null, source: 'explicit' } } // ref 省略（无后端，不造假）
-        if (byId.has(id)) { try { if (rlog) rlog('info', 'registry.select', { cwdHash: hash8(handle.cwd), backendId: String(id || ''), source: 'explicit', latencyMs: Date.now() - selT0 }) } catch (eL) {}; return { backendId: id, source: 'explicit', ref: describe(byId, handle, id) } }
+        if (id === null) { try { if (rlog) rlog('info', 'registry.select', { cwdHash: hash8(handle.cwd), backendId: '', source: 'explicit', latencyMs: Date.now() - selT0, caller: String((ctx && ctx.caller) || '') }) } catch (eL) {}; return { backendId: null, source: 'explicit' } } // ref 省略（无后端，不造假）
+        if (byId.has(id)) { try { if (rlog) rlog('info', 'registry.select', { cwdHash: hash8(handle.cwd), backendId: String(id || ''), source: 'explicit', latencyMs: Date.now() - selT0, caller: String((ctx && ctx.caller) || '') }) } catch (eL) {}; return { backendId: id, source: 'explicit', ref: describe(byId, handle, id) } }
         // bound stale 兜底 → 落到 matches
       }
       // ② matches（并行；boolean；超时→pending 排除决策集；平局=注册序；AbortSignal 经 ctx.signal 传给模块）
@@ -152,7 +152,7 @@ export function createRegistry(backendCtx = {}, opts = {}) {
       const pendingIds = results.filter((r) => r.pending).map((r) => r.id)
       if (hits.length >= 1) {
         const choice = hits[0] // 注册序（Map 迭代序）
-        try { if (rlog) rlog('info', 'registry.select', { cwdHash: hash8(handle.cwd), backendId: String(choice || ''), source: 'matches', latencyMs: Date.now() - selT0 }) } catch (eL) {}
+        try { if (rlog) rlog('info', 'registry.select', { cwdHash: hash8(handle.cwd), backendId: String(choice || ''), source: 'matches', latencyMs: Date.now() - selT0, caller: String((ctx && ctx.caller) || '') }) } catch (eL) {}
         return {
           backendId: choice, source: 'matches',
           ref: describe(byId, handle, choice),
@@ -165,7 +165,7 @@ export function createRegistry(backendCtx = {}, opts = {}) {
       //    调用方/UI 应表面化为「等待/建议显式 bind」，不得当作干净的「无后端」静默 Other。
       //    pending:true = 仲裁有超时未决，UI/调用方必须显示等待/建议 bind，不得静默 OtherCard；
       //    无 pending 且 backendId===null = 已决无后端（OtherCard 唯一身份分支）。
-      try { if (rlog) rlog('info', 'registry.select', { cwdHash: hash8(handle.cwd), backendId: '', source: 'fallback', latencyMs: Date.now() - selT0 }) } catch (eL) {}
+      try { if (rlog) rlog('info', 'registry.select', { cwdHash: hash8(handle.cwd), backendId: '', source: 'fallback', latencyMs: Date.now() - selT0, caller: String((ctx && ctx.caller) || '') }) } catch (eL) {}
       return { backendId: null, source: 'fallback', pending: pendingIds.length ? true : undefined }
     },
 

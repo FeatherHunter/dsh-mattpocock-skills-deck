@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494：43 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498：49 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -31,7 +31,7 @@ const ALLOWED = {
   'probe.eval': ['repoKeyHash', 'since', 'count', 'changed'],
   'panelSync.eval': ['repoKeyHash', 'baseline', 'dirty', 'failures'],
   'panelSync.dirty': ['cwdHash', 'ageMs'],
-  'registry.select': ['cwdHash', 'backendId', 'source', 'latencyMs'],
+  'registry.select': ['cwdHash', 'backendId', 'source', 'latencyMs', 'caller'],
   'registry.stub': ['op', 'backendId'],
   'detection.detect': ['cwdHash', 'explicit', 'matches', 'pending', 'selection'],
   'workspaceStore.hit': ['keyHash', 'fresh', 'ttlMs'],
@@ -60,6 +60,12 @@ const ALLOWED = {
   'fallback.chain': ['in', 'out', 'latencyMs'],
   'error.normalize': ['rawKind', 'mappedKind', 'httpCode'],
   'timer.schedule': ['name', 'intervalMs'],
+  'chain.cache.miss': ['keyHash', 'lang', 'reason'],
+  'workspaceStore.miss': ['keyHash', 'reason'],
+  'client.snapshot.hit': ['keyHash', 'ageMs', 'kind'],
+  'client.snapshot.miss': ['keyHash', 'reason'],
+  'detail.cache.hit': ['numHash', 'ageMs'],
+  'host.start': ['pid', 'startedAt', 'dir'],
   'privacy.scrub': ['field', 'rule', 'hit'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文）：
@@ -190,7 +196,7 @@ function collectCalls() {
 const found = collectCalls()
 const names = Object.keys(found).sort()
 
-// 一、全部 43 个事件都有埋点落点，退役的 2 个不在源码里。
+// 一、全部 49 个事件都有埋点落点，退役的 2 个不在源码里。
 for (const name of Object.keys(ALLOWED).sort()) {
   check(!!found[name], '事件有埋点落点 ' + name + (found[name] ? '（' + found[name].sites.length + ' 处）' : '（全仓未找到）'))
 }

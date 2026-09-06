@@ -21,7 +21,7 @@ export const ChecksTab = ({ st }) => {
         if (st.refreshing) return
         loadChain(st, false)
       } catch (e) {}
-    }, 20000)
+    }, 20000); try { if (isEnabled('debug')) log('debug', 'timer.schedule', { name: 'checks-poll', intervalMs: 20000 }) } catch (eL) {}
     return function () { try { clearInterval(pollTimer) } catch (e) {} }
   }, [])
   // #284：单一口径 = 链快照步骤（pending = 诚实未知/未接入，置灰展示，不计入 ready/total）

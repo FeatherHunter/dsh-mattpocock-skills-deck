@@ -1,6 +1,6 @@
 // smoke-host-dispatch.test.js — host seam dispatch 端到端验证
 // 验证 harness.handle 注册的 handler 能经 connection.rpc.handle('/dsws') 通道被调用：
-//   wf.ping → ping 端点 → { ok: true, value: 'pong' }
+//   wf.logGetSwitch → logGetSwitch 端点 → { ok: true, enabled, sampleRate }（#498 退役 wf.ping，探活改走免参开关读电话）
 import { readFileSync } from 'node:fs'
 
 const modRaw = await import('../package/lib/index.js')
@@ -39,11 +39,11 @@ let failures = 0
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
 check(!!registered && typeof registered.fn === 'function', 'connection.rpc.handle 收到 dispatch fn')
 
-// 调 dispatch：endpoint 'ping'（动态 host 注册的是 wf.ping → seam 去掉 wf. 前缀）
+// 调 dispatch：endpoint 'logGetSwitch'（免参开关读电话，#498 前为 wf.ping → seam 去掉 wf. 前缀）
 if (registered && typeof registered.fn === 'function') {
-  const res = await registered.fn('ping', {})
-  console.log('  ping 结果:', JSON.stringify(res))
-  check(!!res && res.ok === true, 'ping dispatch ok=true')
+  const res = await registered.fn('logGetSwitch', {})
+  console.log('  logGetSwitch 结果:', JSON.stringify(res))
+  check(!!res && res.ok === true, 'logGetSwitch dispatch ok=true')
   const bad = await registered.fn('nonexistent', {})
   check(!!bad && bad.ok === false, '未知端点 ok=false（RpcResult 错误信封）')
 }

@@ -28,19 +28,22 @@ const dswsLogRemember = function (res) {
   } catch (e) {}
 }
 // resolve known dir/path: use cache, else read-only export call to resolve (no toast here).
+
 const dswsLogEnsurePath = function () {
   if (dswsLogKnown.dir && dswsLogKnown.path) return Promise.resolve({ ok: true, dir: dswsLogKnown.dir, path: dswsLogKnown.path })
-  if (!dswsLogHostOk()) return Promise.resolve({ ok: false, error: 'host-unavailable' })
+  if (!dswsLogHostOk()) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('host-unavailable', 120, 'error')) }) } catch (eL) {}; return Promise.resolve({ ok: false, error: 'host-unavailable' }) }
   try {
     return host.call('wf.logExport', {}).then(function (res) {
-      if (!res || res.ok !== true) return { ok: false, error: 'export-not-ok' }
+      if (!res || res.ok !== true) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {}; return { ok: false, error: 'export-not-ok' } }
       dswsLogRemember(res)
-      if (!dswsLogKnown.dir || !dswsLogKnown.path) return { ok: false, error: 'path-missing' }
+      if (!dswsLogKnown.dir || !dswsLogKnown.path) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('path-missing', 120, 'error')) }) } catch (eL) {}; return { ok: false, error: 'path-missing' } }
       return { ok: true, dir: dswsLogKnown.dir, path: dswsLogKnown.path }
     }).catch(function (e) {
+      try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
       return { ok: false, error: (e && e.message) || String(e) }
     })
   } catch (e) {
+    dswsLogFail('wf.logExport', 'log-resolve', (e && e.message) || e);
     return Promise.resolve({ ok: false, error: (e && e.message) || String(e) })
   }
 }
@@ -152,7 +155,7 @@ export const StatusLogDot = function (props) {
       host.call('wf.logExport', {}).then(function (res) {
         setBusy(null)
         if (!res || res.ok !== true) {
-          say(tr('logtoast.exportFailed', { err: 'not-ok' }), 'warn')
+          try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.exportFailed', { err: 'not-ok' }), 'warn')
           return
         }
         dswsLogRemember(res)
@@ -162,11 +165,11 @@ export const StatusLogDot = function (props) {
         setMenuOpen(false)
       }).catch(function (e) {
         setBusy(null)
-        say(tr('logtoast.exportFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
+        try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.exportFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
       })
     } catch (e) {
       setBusy(null)
-      say(tr('logtoast.exportFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
+      try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.exportFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
     }
   }
   const doOpenDir = function () {
@@ -185,10 +188,12 @@ export const StatusLogDot = function (props) {
           setMenuOpen(false)
         }).catch(function (e) {
           setBusy(null)
+          try { log('warn', 'host.call.fail', { method: 'wf.openPath', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
           say(tr('logtoast.openFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
         })
       } catch (e) {
         setBusy(null)
+        try { log('warn', 'host.call.fail', { method: 'wf.openPath', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
         say(tr('logtoast.openFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
       }
     })
@@ -226,7 +231,7 @@ export const StatusLogDot = function (props) {
         setBusy(null)
         setClearConfirm(false)
         if (!res || res.ok !== true) {
-          say(tr('logtoast.clearFailed', { err: 'not-ok' }), 'warn')
+          try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc('clear-not-ok', 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.clearFailed', { err: 'not-ok' }), 'warn')
           return
         }
         const n = (typeof res.removed === 'number') ? res.removed : 0
@@ -235,12 +240,12 @@ export const StatusLogDot = function (props) {
       }).catch(function (e) {
         setBusy(null)
         setClearConfirm(false)
-        say(tr('logtoast.clearFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
+        try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.clearFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
       })
     } catch (e) {
       setBusy(null)
       setClearConfirm(false)
-      say(tr('logtoast.clearFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
+      try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.clearFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
     }
   }
   const dotColor = debugOn ? '#4ade80' : '#6b6b75'

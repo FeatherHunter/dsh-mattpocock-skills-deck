@@ -39,7 +39,8 @@
     export const SNAP_CWD_LRU_MAX = 20
     export const snapshotByCwd = new Map() // Map<normCwd,{snapshot,version,ts}> LRU20
     export const touchLRUClient = function(map,key,val){ if(map.has(key)) map.delete(key); map.set(key,val); if(map.size>SNAP_CWD_LRU_MAX){ const first=map.keys().next().value; map.delete(first);} return val; }
-    export const getCachedSnapshot = function (cwd) { try{ const k=keyOf(cwd); const e=snapshotByCwd.get(k); return e?e.snapshot||e:null; }catch(e){ return null; } }
+    const dswsClientSnapHitN = { n: 0 } // #498 客户端快照命中采样计数（百一采样，只增不显）
+    export const getCachedSnapshot = function (cwd) { try{ const k=keyOf(cwd); const e=snapshotByCwd.get(k); const s=e?e.snapshot||e:null; try { if (s) { dswsClientSnapHitN.n += 1; if (isEnabled('debug') && dswsClientSnapHitN.n % 100 === 0) log('debug', 'client.snapshot.hit', { keyHash: dswsLogHash(String(k)), ageMs: Date.now()-(((e&&e.ts)||Date.now())), kind: 'memory' }) } } catch(eL){} return s; }catch(e){ return null; } }
     export const getCachedEntry = function(cwd){ try{ const k=keyOf(cwd); return snapshotByCwd.get(k)||null; }catch(e){ return null; } }
     export const setCachedSnapshot = function (cwd, snap) { if(!cwd||!snap||snap.ok!==true||!Array.isArray(snap.maps)) return; let s2=snap; if(snap.notModified===true||snap.status===304||snap.cached===true){ // #232 · 落库前剥除响应传输态标记（仅属当次请求，不属缓存实体）
       try{ s2=Object.assign({},snap); delete s2.notModified; delete s2.status; delete s2.cached; }catch(eS){ return } }

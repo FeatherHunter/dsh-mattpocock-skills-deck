@@ -107,7 +107,9 @@
         sc.criLoading = false; sc.criChecks = { allOk: false, c1: null, c4: null, c5: null }; emit(st); return
       }
       // #284：CRI 迁移到链快照（wf.chain 全链步骤一步取齐）
+      const criT0 = Date.now()
       host.call('wf.chain', { cwd: st.cwd || '' }).then(function (res) {
+        try { if (res && res.ok) log('info', 'host.call', { method: 'wf.chain', latencyMs: Date.now() - criT0, ok: true, kind: 'chain-cri' }); else log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-cri', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-not-ok'), 120, 'error')) }) } catch (eL) {}
         if (!st.switchConfirm) return
         const snap = (res && (res.fullSnapshot || res.snapshot)) || null
         const steps = (snap && Array.isArray(snap.steps)) ? snap.steps : []
@@ -120,7 +122,8 @@
         st.switchConfirm.criChecks = { c1: c1, c4: c4, c5: c5, allOk: allOk }
         st.switchConfirm.criLoading = false
         emit(st)
-      }).catch(function () {
+      }).catch(function (e) {
+        try { log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-cri', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
         if (!st.switchConfirm) return
         st.switchConfirm.criLoading = false
         st.switchConfirm.criChecks = { allOk: false, c1: null, c4: null, c5: null }

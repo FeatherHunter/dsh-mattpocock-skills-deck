@@ -168,7 +168,7 @@ export let pendingDraftTargetSid = null
     function reportNamingResult(sid, outcome, extra) {
       try {
         if (typeof host !== 'undefined' && typeof host.call === 'function') {
-          host.call('wf.namingResult', Object.assign({ sessionId: sid, outcome: outcome }, extra || {})).catch(function () {})
+          host.call('wf.namingResult', Object.assign({ sessionId: sid, outcome: outcome }, extra || {})).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.namingResult', kind: 'naming-result', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
         }
       } catch (e) {}
     }
@@ -285,7 +285,7 @@ export let pendingDraftTargetSid = null
       _namingPullBusy = true
       host.call('wf.namingPlan', {}).then(function (res) {
         _namingPullBusy = false
-        if (!res || !res.ok || !Array.isArray(res.orders)) return
+        if (!res || !res.ok || !Array.isArray(res.orders)) { try { log('warn', 'host.call.fail', { method: 'wf.namingPlan', kind: 'naming-plan', errorHash: dswsLogHash(dswsLogTrunc('plan-not-ok', 120, 'error')) }) } catch (eL) {}; return }
         for (let i = 0; i < res.orders.length; i++) executeNamingOrder(res.orders[i])
         // #267：定败清单 → 只读协商化解 + 落共享 store（面板级横幅；化解即自动撤下）
         try {
@@ -303,11 +303,11 @@ export let pendingDraftTargetSid = null
           for (let i = 0; i < res.tracked.length; i++) {
             const t = res.tracked[i]
             if (t && t.done && !rows[t.sessionId]) {
-              host.call('wf.cancelNewSessionWatcher', { sessionId: t.sessionId }).catch(function () {})
+              host.call('wf.cancelNewSessionWatcher', { sessionId: t.sessionId }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.cancelNewSessionWatcher', kind: 'naming-cancel', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
             }
           }
         } catch (eClean) {}
-      }).catch(function () { _namingPullBusy = false })
+      }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.namingPlan', kind: 'naming-plan', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; _namingPullBusy = false })
     }
     // 常驻拉询（web 半加载即活，面板未开也续跑；globalThis 单例句柄清热重载遗留环）
     export function startNamingGuardianPoll() {
@@ -320,7 +320,7 @@ export let pendingDraftTargetSid = null
       if (_namingPollTimer) return
       namingGuardianKick()
       const tick = function () { namingGuardianKick(); _namingPollTimer = setTimeout(tick, NAMING_POLL_MS) }
-      _namingPollTimer = setTimeout(tick, NAMING_POLL_MS)
+      _namingPollTimer = setTimeout(tick, NAMING_POLL_MS); try { if (isEnabled('debug')) log('debug', 'timer.schedule', { name: 'naming-poll', intervalMs: NAMING_POLL_MS }) } catch (eL) {}
       try { if (typeof globalThis !== 'undefined') globalThis.__dswsNamingPollTimer = _namingPollTimer } catch (eKeep) {}
     }
     // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑

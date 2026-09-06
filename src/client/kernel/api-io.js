@@ -43,6 +43,7 @@
         navigator.clipboard.writeText(text).then(function () { flash(st, okMsg || tr('toast.copied'), 'ok') }).catch(function () { flash(st, tr('toast.copyFailed'), 'warn') })
       } else flash(st, tr('toast.clipboardUnavailable'), 'warn')
     }
+    const dswsDetailHitN = { n: 0 } // #498 详情缓存命中采样计数（百一采样，只增不显）
     // T2 #7 · fetchIssueDetail 数据通路（独立缓存 + GraphQL aliases 思路复用 + REST 降级搬运 + 配额止血）
     // 契约：st.issueCache {[n]:{ts,data}}, st.issueMode='idle'|'loading'|'real'|'err', st.issueDetail, st.issueError
     //   TTL 60s 命中即用，miss 走 host.call('wf.issueDetail')；错误形状与 fetchMapsDetail 对齐 {ok, error:{kind,message}}
@@ -58,6 +59,7 @@
         st.issueMode = 'real'
         st.issueError = null
         emit(st)
+        try { dswsDetailHitN.n += 1; if (isEnabled('debug') && dswsDetailHitN.n % 100 === 0) log('debug', 'detail.cache.hit', { numHash: dswsLogHash(String(num)), ageMs: now - entry.ts }) } catch (eL) {}
         return Promise.resolve({ ok: true, issue: entry.data, fromCache: true })
       }
       if (typeof host === 'undefined' || typeof host.call !== 'function') {

@@ -199,8 +199,7 @@ export function createLogStore(deps) {
       let pid = 0
       try { pid = (typeof process !== 'undefined' && process.pid) || 0 } catch (e) {}
       headerInfo = { pid: pid, startedAt: new Date().toISOString(), dir: dir || defaultCwd || '' }
-      queue.push({ ts: Date.now(), level: 'info', event: 'host.start', fields: { pid: headerInfo.pid, startedAt: headerInfo.startedAt, dir: headerInfo.dir } })
-      scheduleFlush(false)
+      log('info', 'host.start', { pid: headerInfo.pid, startedAt: headerInfo.startedAt, dir: headerInfo.dir })
     } catch (e) {}
     return headerInfo
   }
@@ -208,6 +207,7 @@ export function createLogStore(deps) {
     return headerInfo
   }
   // 记录电话的宿主实现：入参 entries 加客户端累计丢弃数；回参接收条数加宿主侧累计丢弃数。失败降级为丢弃并计数，不背压等待。
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   async function handleLogBatch(args) {
     try {
       const entries = args && Array.isArray(args.entries) ? args.entries : []
@@ -247,7 +247,7 @@ export function createLogStore(deps) {
         try { pathOut = joinPath(logDir, fileName) } catch (e5) { pathOut = '' }
       }
       return { ok: true, fileName: fileName, bytes: String(text || '').length, fallback: true, text: String(text || ''), summary: summary, dir: dirOut, path: pathOut }
-    } catch (e) { return { ok: false, fileName: fileName, bytes: 0, fallback: true } }
+    } catch (e) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: hash8(String((e && e.message) || e)) }) } catch (eL) {}; return { ok: false, fileName: fileName, bytes: 0, fallback: true } }
   }
   // 清空电话的宿主实现：手动清空，客户端先弹窗确认，成功与失败都给反馈。
   async function handleLogClear(args) {
@@ -273,10 +273,10 @@ export function createLogStore(deps) {
         } catch (e) {}
         return { ok: true, removed: removedAll }
       }
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(want)) return { ok: false, removed: 0 }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(want)) { try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: hash8('bad-date') }) } catch (eL) {}; return { ok: false, removed: 0 } }
       const done = await deleteOneFile(logDir, want + '.log')
       return { ok: true, removed: done ? 1 : 0 }
-    } catch (e) { return { ok: false, removed: 0 } }
+    } catch (e) { try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: hash8(String((e && e.message) || e)) }) } catch (eL) {}; return { ok: false, removed: 0 } }
   }
   async function deleteOneFile(logDir, name) {
     try {

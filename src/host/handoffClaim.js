@@ -2,7 +2,7 @@
 // 以后谁改它：改交接文档扫描排序或认领流程的人。预估约170行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；normCwd 经 index 转供给复用（H5 模块）；本文件不引用其他新文件。
 export function createHandoffClaim(deps) {
-  const { fs, DEFAULT_CWD, normCwd, getDetectionService, getTrackerRegistry, getPlatform, ctx, getRepoKey, runGh, setCache } = deps
+  const { fs, DEFAULT_CWD, normCwd, getDetectionService, getTrackerRegistry, getPlatform, ctx, getRepoKey, runGh, setCache, logCtx } = deps
   // ============ 交接文档（issue #12 BUG4 · 双重防御 · 副路径）============
   // DSH 沙箱里 fs.stat 返回的 info.mtime 形态不可控（Date / ISO 串 / 秒级 Unix / 本地化串 / null / NaN）；
   // 原 `typeof number ? mt : Date.parse(String(mt))` 在 Date 对象或不可 parse 形态都得 NaN；
@@ -110,7 +110,7 @@ export function createHandoffClaim(deps) {
       try {
         const regTmp = await getTrackerRegistry()
         const tmpHandle = { cwd }
-        const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+        const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'handoff-claim' }
         const sel2 = await regTmp.select(tmpHandle, tmpCtx)
         if (sel2) _sel = sel2
       } catch {}
@@ -157,5 +157,11 @@ export function createHandoffClaim(deps) {
     setCache({ ts: 0, snapshot: null, error: null })
     return { ok: true, number: n, assignedTo: assignedTo, url: 'https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + String(n) }
   }
-  return { handleHandoffLatest, handleHandoffResolve, handleClaim }
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  function phoneLog(method, kind, t0, res, err) { try {
+    if (err !== undefined && err !== null) { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((err && err.message) || err)) }) }
+    else if (res && res.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
+    else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && (res.error || res.errorKind)) || 'handoff-not-ok')) }) } catch (eL) {} }
+  function loggedPhone(method, kind, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
+  return { handleHandoffLatest: loggedPhone('wf.handoffLatest', 'handoff', handleHandoffLatest), handleHandoffResolve: loggedPhone('wf.handoffResolve', 'handoff', handleHandoffResolve), handleClaim: handleClaim }
 }

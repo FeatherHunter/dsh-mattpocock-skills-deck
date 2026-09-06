@@ -2,7 +2,7 @@
 // 以后谁改它：改打开文件夹或原生目录/文件选择器的人。预估约150行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；本文件不引用其他新文件。
 export function createPickerShell(deps) {
-  const { DEFAULT_CWD, getPlatform, subprocess, timer } = deps
+  const { DEFAULT_CWD, getPlatform, subprocess, timer, logCtx } = deps
   // ============ #190：wf.openFolder — 打开本地文件夹（Markdown 后端仓库名点击）============
   // 输入：{ cwd }；平台分发：win32 explorer / darwin open / linux xdg-open（经 platform.resolveExecutable），subprocess.spawn 打开
   async function handleOpenFolder(args) {
@@ -139,5 +139,11 @@ export function createPickerShell(deps) {
       return { ok: false, error: String((e && e.message) || e), errorKind: 'internal' }
     }
   }
-  return { handleOpenFolder, handlePickDirectory, handlePickFile, handleOpenPath }
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  function phoneLog(method, kind, t0, res, err) { try {
+    if (err !== undefined && err !== null) { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((err && err.message) || err)) }) }
+    else if (res && res.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
+    else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && ((res.error && res.error.message) || res.error || res.errorKind)) || 'picker-not-ok')) }) } catch (eL) {} }
+  function loggedPhone(method, kind, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
+  return { handleOpenFolder: loggedPhone('wf.openFolder', 'picker', handleOpenFolder), handlePickDirectory: loggedPhone('wf.pickDirectory', 'picker', handlePickDirectory), handlePickFile: loggedPhone('wf.pickFile', 'picker', handlePickFile), handleOpenPath: loggedPhone('wf.openPath', 'picker', handleOpenPath) }
 }

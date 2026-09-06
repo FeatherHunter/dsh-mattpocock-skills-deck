@@ -2,7 +2,7 @@
 // 以后谁改它：改建仓发布流程或推送重试的人。预估约190行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；repoKeys/repoRoots 与 H1 同形（对象引用，删除才删得中）；本文件不引用其他新文件。
 export function createPublishFlow(deps) {
-  const { DEFAULT_CWD, resolveGit, resolveGh, getGhLastError, runGh, execProc, canonicalKey, getRepoKey, repoKeys, repoRoots, setCache } = deps
+  const { DEFAULT_CWD, resolveGit, resolveGh, getGhLastError, runGh, execProc, canonicalKey, getRepoKey, repoKeys, repoRoots, setCache, logCtx } = deps
   const classifyCreateError = function (errText, kind) {
     const low = String(errText || '').toLowerCase()
     if (/already exists|name already exists|already exists on github|repository.*already exists/i.test(low)) return 'already-exists'
@@ -177,5 +177,11 @@ export function createPublishFlow(deps) {
     const kind = classifyCreateError(pushR.error, null)
     return { ok: false, errorKind: kind, error: pushR.error, repoUrl: repoUrl || undefined, repo: { owner: owner, name: name }, halfCreated: true }
   }
-  return { handleInitPublish, handleRetryPush }
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  function phoneLog(method, kind, t0, res, err) { try {
+    if (err !== undefined && err !== null) { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((err && err.message) || err)) }) }
+    else if (res && res.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
+    else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && ((res.error && res.error.message) || res.error || res.errorKind)) || 'publish-not-ok')) }) } catch (eL) {} }
+  function loggedPhone(method, kind, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
+  return { handleInitPublish: loggedPhone('wf.initPublish', 'publish', handleInitPublish), handleRetryPush: loggedPhone('wf.retryPush', 'publish', handleRetryPush) }
 }

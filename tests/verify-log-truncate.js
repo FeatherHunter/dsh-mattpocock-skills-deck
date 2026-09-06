@@ -96,7 +96,7 @@ const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 // 四、渲染目录日志调用点名白名单；调用行上不许对象转文本。
 {
   const renderDirs = ['views', 'panel', 'statusbar', 'floating'].map((d) => path.join(ROOT, 'src', 'client', d))
-  const allowFiles = ['SettingsPage.js', 'BackendSelector.js', 'DockSync.js', 'StatusBar.js']
+  const allowFiles = ['SettingsPage.js', 'BackendSelector.js', 'DockSync.js', 'StatusBar.js', 'StatusLogMenu.js', 'ChecksTab.js'] // #498：状态栏四键菜单的目录解析失败行（无对象转文本，见无转文本断言）
   const seen = {}
   for (const d of renderDirs) {
     if (!fs.existsSync(d)) continue

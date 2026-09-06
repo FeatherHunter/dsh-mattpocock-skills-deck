@@ -59,14 +59,16 @@ export     const SettingsPage = (props) => {
       // 静默取导出结果解析目录位置并缓存，不刷提示，供打开与复制复用
       const resolveLogDir = function () {
         if (lastExport && lastExport.dir) return Promise.resolve(lastExport.dir)
-        if (!hostReady()) return Promise.resolve('')
+        if (!hostReady()) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('host-unavailable', 120, 'error')) }) } catch (eL) {}; return Promise.resolve('') }
         try {
           return host.call('wf.logExport', { format: 'zip' }).then(function (res) {
-            if (!res || res.ok !== true) return ''
+            if (!res || res.ok !== true) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {}; return '' }
             rememberExport(res)
-            return dirOfExport(res)
-          }).catch(function () { return '' })
-        } catch (eDbg) { return Promise.resolve('') }
+            const _dir = dirOfExport(res)
+            if (!_dir) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('path-missing', 120, 'error')) }) } catch (eL) {} }
+            return _dir
+          }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; return '' })
+        } catch (eDbg) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc(String((eDbg && eDbg.message) || eDbg), 120, 'error')) }) } catch (eL) {}; return Promise.resolve('') }
       }
       const doExport = function () {
         if (!guardOp()) return
@@ -74,12 +76,12 @@ export     const SettingsPage = (props) => {
         try {
           host.call('wf.logExport', { format: 'zip' }).then(function (res) {
             setDbgBusy(null)
-            if (!res || res.ok !== true) { flash(sharedSt, tr('cfg.dbgExportFail'), 'warn'); return }
+            if (!res || res.ok !== true) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {}; flash(sharedSt, tr('cfg.dbgExportFail'), 'warn'); return }
             rememberExport(res)
             let msg = tr('cfg.dbgExportOk', { file: String(res.fileName || '') })
             if (res.fallback === true) msg = msg + ' ' + tr('cfg.dbgExportFallback')
             flash(sharedSt, msg, 'ok')
-          }).catch(function () { setDbgBusy(null); flash(sharedSt, tr('cfg.dbgExportFail'), 'warn') })
+          }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; setDbgBusy(null); flash(sharedSt, tr('cfg.dbgExportFail'), 'warn') })
         } catch (eDbg) { setDbgBusy(null); flash(sharedSt, tr('cfg.dbgExportFail'), 'warn') }
       }
       const doOpen = function () {
@@ -91,8 +93,8 @@ export     const SettingsPage = (props) => {
             host.call('wf.openPath', { path: dir }).then(function (res) {
               setDbgBusy(null)
               const okOpen = !!(res && res.ok === true)
-              flash(sharedSt, tr(okOpen ? 'cfg.dbgOpenedDir' : 'cfg.dbgOpenDirFail'), okOpen ? 'ok' : 'warn')
-            }).catch(function () { setDbgBusy(null); flash(sharedSt, tr('cfg.dbgOpenDirFail'), 'warn') })
+              if (!okOpen) { try { log('warn', 'host.call.fail', { method: 'wf.openPath', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc('open-not-ok', 120, 'error')) }) } catch (eL) {} }; flash(sharedSt, tr(okOpen ? 'cfg.dbgOpenedDir' : 'cfg.dbgOpenDirFail'), okOpen ? 'ok' : 'warn')
+            }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.openPath', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; setDbgBusy(null); flash(sharedSt, tr('cfg.dbgOpenDirFail'), 'warn') })
           } catch (eDbg) { setDbgBusy(null); flash(sharedSt, tr('cfg.dbgOpenDirFail'), 'warn') }
         })
       }
@@ -116,9 +118,9 @@ export     const SettingsPage = (props) => {
         try {
           host.call('wf.logClear', { date: name }).then(function (res) {
             setDbgBusy(null); setClearAsked(false)
-            if (!res || res.ok !== true) { flash(sharedSt, tr('cfg.dbgClearFail'), 'warn'); return }
+            if (!res || res.ok !== true) { try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc('clear-not-ok', 120, 'error')) }) } catch (eL) {}; flash(sharedSt, tr('cfg.dbgClearFail'), 'warn'); return }
             flash(sharedSt, tr((res.removed || 0) > 0 ? 'cfg.dbgClearOk' : 'cfg.dbgClearEmpty'), 'ok')
-          }).catch(function () { setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') })
+          }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') })
         } catch (eDbg) { setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') }
       }
       const taRefs = React.useRef({})

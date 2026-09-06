@@ -44,7 +44,7 @@ export function createSessionLifecycle(deps) {
       try {
         const regTmp = await getTrackerRegistry()
         const tmpHandle = { cwd }
-        const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+        const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'snapshot-early' }
         const sel2 = await regTmp.select(tmpHandle, tmpCtx)
         if (sel2) sel = sel2
       } catch {}
@@ -55,5 +55,10 @@ export function createSessionLifecycle(deps) {
   function isComposerSelection(sel) {
     return !!(sel && sel.backendId && sel.backendId !== 'github' && sel.backendId !== '' && sel.backendId !== 'other')
   }
-  return { handlePing, handleCwd, selectEarly, isComposerSelection }
+  function phoneLog(method, kind, t0, res, err) { try {
+    if (err !== undefined && err !== null) { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((err && err.message) || err)) }) }
+    else if (res && res.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
+    else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && (res.error || res.errorKind)) || 'cwd-not-ok')) }) } catch (eL) {} }
+  function loggedPhone(method, kind, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
+  return { handlePing: handlePing, handleCwd: loggedPhone('wf.cwd', 'cwd', handleCwd), selectEarly: selectEarly, isComposerSelection: isComposerSelection }
 }

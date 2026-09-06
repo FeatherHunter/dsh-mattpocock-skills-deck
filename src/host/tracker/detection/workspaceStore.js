@@ -43,8 +43,8 @@ export function createWorkspaceStore(opts = {}) {
       let k
       try { k = handleKey(handle) } catch { return null }
       const e = map.get(k)
-      if (!e) return null
-      if (!isFresh(e)) { map.delete(k); return null }
+      if (!e) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'workspaceStore.miss', { keyHash: hash8(k), reason: 'empty' }) } catch (eL) {}; return null }
+      if (!isFresh(e)) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'workspaceStore.miss', { keyHash: hash8(k), reason: 'expired' }) } catch (eL) {}; map.delete(k); return null }
       try { if (logCtx && logCtx.isEnabled('debug') && ((++wsHitN % 100) === 0)) logCtx.fire('debug', 'workspaceStore.hit', function () { return { keyHash: hash8(k), fresh: true, ttlMs: ttl } }) } catch (eL) {}
       return e
     },

@@ -68,7 +68,7 @@ try{
   check(r1.ok===true, 'dispatcher inject-prompt 执行')
   const r2 = await disp.dispatch({type:'open-url', url:'https://example.com'})
   check(r2.ok===true, 'dispatcher open-url 执行')
-  const r3 = await disp.dispatch({type:'rpc', method:'wf.ping', params:{}})
+  const r3 = await disp.dispatch({type:'rpc', method:'wf.logGetSwitch', params:{}})
   check(r3.ok===true, 'dispatcher rpc 执行')
   const r4 = await disp.dispatch({type:'form', schema:[{name:'name', label:'Name', required:true}], submitAction:{type:'rpc', method:'wf.initPublish'}})
   check(r4.ok===true, 'dispatcher form 执行')

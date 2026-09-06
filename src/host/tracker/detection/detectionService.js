@@ -153,7 +153,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       const opCtx = buildOpContextBase(cwd, platform, fs, timers, exec)
       // 若调用方传 signal，可在此注入 opCtx.signal = opts.signal（registry withTimeout 内部会合并）
       if (opts.signal) opCtx.signal = opts.signal
-      selection = await registry.select(handle, opCtx)
+      opCtx.caller = 'detection-service'; selection = await registry.select(handle, opCtx)
     }
 
     // repoHandle：轻量化复用 getRepoKey 语义中的 handle → describe ref

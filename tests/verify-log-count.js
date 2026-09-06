@@ -12,12 +12,12 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志计数门禁（#494：常驻 27、按需 16、总数 43，与退役附录修订版字面一致）')
+console.log('日志计数门禁（#494/#498：常驻 29、按需 20、总数 49，与退役附录修订版字面一致）')
 
-// 附录对照表里的现行清单（1.3 落定后：常驻 27 条编号，另有 2 条已退役只作追溯）。
-const RESIDENT = ['snapshot.request', 'snapshot.cache.miss', 'repo.resolve.tier', 'gh.exec', 'gh.timeout', 'gh.resolve.fail', 'graphql.fallback', 'issues.fallback', 'snapshot.built', 'panelSync.dirty', 'registry.select', 'detection.detect', 'skill.probe', 'skill.pending.cap', 'host.call', 'host.call.fail', 'snapshot.hydrate', 'backend.switch', 'naming.guard', 'naming.lock', 'settings.save', 'panel.open', 'statusbar.fallback', 'dock.rehydrate', 'storage.fail', 'chain.derive.error', 'fallback.chain']
-// 按需 16 条编号（纠偏与落定后均不变）：含 #45，不含已退役。
-const ONDEMAND = ['snapshot.cache.hit', 'probe.eval', 'panelSync.eval', 'registry.stub', 'workspaceStore.hit', 'chain.cache.hit', 'chain.predicate', 'workspaceKey.canonical', 'platform.resolve', 'naming.sweep', 'snapshot.fanout', 'dedup.hit', 'statusbar.hydrate', 'error.normalize', 'timer.schedule', 'privacy.scrub']
+// 附录对照表里的现行清单（1.3 落定后常驻 27 条，#498 增补 #49 与 #51 成 29 条；另有 2 条已退役只作追溯）。
+const RESIDENT = ['snapshot.request', 'snapshot.cache.miss', 'repo.resolve.tier', 'gh.exec', 'gh.timeout', 'gh.resolve.fail', 'graphql.fallback', 'issues.fallback', 'snapshot.built', 'panelSync.dirty', 'registry.select', 'detection.detect', 'skill.probe', 'skill.pending.cap', 'host.call', 'host.call.fail', 'snapshot.hydrate', 'backend.switch', 'naming.guard', 'naming.lock', 'settings.save', 'panel.open', 'statusbar.fallback', 'dock.rehydrate', 'storage.fail', 'chain.derive.error', 'fallback.chain', 'client.snapshot.miss', 'host.start']
+// 按需 20 条编号（#498 增补 #46、#47、#48、#50）：含 #45，不含已退役。
+const ONDEMAND = ['snapshot.cache.hit', 'probe.eval', 'panelSync.eval', 'registry.stub', 'workspaceStore.hit', 'chain.cache.hit', 'chain.predicate', 'workspaceKey.canonical', 'platform.resolve', 'naming.sweep', 'snapshot.fanout', 'dedup.hit', 'statusbar.hydrate', 'error.normalize', 'timer.schedule', 'privacy.scrub', 'chain.cache.miss', 'workspaceStore.miss', 'client.snapshot.hit', 'detail.cache.hit']
 const RETIRED = ['issuePath.push', 'issuePath.record']
 
 // 一、附录修订版字面：读工作区本地文件（退役线已合入主线，附录随主线走，不再引用分支）。
@@ -31,13 +31,13 @@ try {
   check(false, '附录修订版存在（工作区缺 research/489-appendix.md：' + ((e && e.message) || e) + '）')
 }
 if (appendix) {
-  check(appendix.includes('常驻 27 条、按需 16 条、总数 43 条'), '附录 counts 字面为常驻 27 条、按需 16 条、总数 43 条')
-  check(appendix.includes('1、3、4、5、6、7、8、9、10、13、14、16、20、21、26、27、28、31、32、33、35、36、38、39、40、41、42'), '附录常驻编号清单 27 个（不含已退役的 22、34，不含 45）')
-  check(appendix.includes('2、11、12、15、17、18、19、23、24、25、29、30、37、43、44、45'), '附录按需编号清单 16 个（含 45）')
+  check(appendix.includes('常驻 29 条、按需 20 条、总数 49 条'), '附录 counts 字面为常驻 29 条、按需 20 条、总数 49 条')
+  check(appendix.includes('1、3、4、5、6、7、8、9、10、13、14、16、20、21、26、27、28、31、32、33、35、36、38、39、40、41、42、49、51'), '附录常驻编号清单 29 个（不含已退役的 22、34，不含 45；#498 增补 49、51）')
+  check(appendix.includes('2、11、12、15、17、18、19、23、24、25、29、30、37、43、44、45、46、47、48、50'), '附录按需编号清单 20 个（含 45；#498 增补 46、47、48、50）')
   check(appendix.includes('#22') && appendix.includes('#34') && appendix.includes('退役'), '附录记明 #22 与 #34 已退役（行保留只作追溯）')
 }
 
-// 二、源码点名：常驻 27 与按需 16 逐个出现（单双引号都算），退役 2 条不许出现。
+// 二、源码点名：常驻 29 与按需 20 逐个出现（单双引号都算），退役 2 条不许出现。
 function stripComments(t) {
   return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 }
@@ -72,13 +72,13 @@ for (const name of RETIRED) {
   check(!quoted[name], '已退役事件无埋点 ' + name + (quoted[name] ? ' —— 残留于 ' + quoted[name].join('、') : ''))
 }
 
-// 三、总数：已知事件恰为 43 个（常驻 27 加按需 16），退役的不计入。
+// 三、总数：已知事件恰为 49 个（常驻 29 加按需 20），退役的不计入。
 {
   const known = RESIDENT.concat(ONDEMAND)
   const missing = known.filter((n) => !quoted[n])
   const hitKnown = known.filter((n) => quoted[n])
-  check(RESIDENT.length === 27 && ONDEMAND.length === 16 && known.length === 43, '清单总数 43（常驻 27、按需 16）')
-  check(missing.length === 0, '43 个事件全部落点无缺口' + (missing.length ? ' —— 缺口：' + missing.join('、') : '（命中 ' + hitKnown.length + ' 个）'))
+  check(RESIDENT.length === 29 && ONDEMAND.length === 20 && known.length === 49, '清单总数 49（常驻 29、按需 20）')
+  check(missing.length === 0, '49 个事件全部落点无缺口' + (missing.length ? ' —— 缺口：' + missing.join('、') : '（命中 ' + hitKnown.length + ' 个）'))
 }
 
 console.log(failed ? '\n存在失败 — verify-log-count 未通过' : '\n全部通过 — 计数门禁生效（' + total + ' 项断言）')
