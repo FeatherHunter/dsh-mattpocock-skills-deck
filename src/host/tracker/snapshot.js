@@ -25,17 +25,22 @@ import { parseMapBody } from '../../shared/parser.js'
 
 /**
  * 池内身份：key 相同但是否为拉取请求不同，是两个东西（同号异类不混键）。
- * 后缀只在确认为拉取请求时加；false（确认为普通工单）与字段省略（后端无该能力，MISSING）
- * 共用裸 key——同一仓库内同一后端的能力口径一致，不会因此误判。
+ * 三态：true=拉取请求（后缀 \0pr）；false=确认为普通工单（后缀 \0issue）；MISSING=无该能力的后端省略该字段（保持裸 key，老快照兼容）。
+ * false 与 MISSING 不再混同，各算各的；字段在但不是布尔值记 BAD（后缀 \0bad）单独隔离。混合返回不断言一致，不抛错，不吞票。
+ * #504 交接约束：有拉取请求能力的后端逐票必带 isPullRequest（true/false），引用也应带该字段；老引用缺字段时按裸 key 回落找同号票。
  */
 function poolIdOf(it) {
   const k = String((it && it.key) || '')
-  return (it && it.isPullRequest === true) ? (k + '\0pr') : k
+  if (!it || !Object.prototype.hasOwnProperty.call(it, 'isPullRequest')) return k // MISSING
+  if (it.isPullRequest === true) return k + '\0pr'
+  if (it.isPullRequest === false) return k + '\0issue'
+  return k + '\0bad' // BAD：非布尔值，孤儿隔离
 }
 
 /** 组装（纯函数）：maps（挂一层 tickets）+ 未挂图票（孤儿：破链 / 根票；map 节点本身不算孤儿——它已在 maps[] 作为容器）。
  * 同池：拉取请求与普通工单都进 tickets/issues，不分片；拷贝原样带字段（EMPTY 保持空值，MISSING 保持省略）。 */
 function assembleSnapshot(repo, all) {
+  // 口径断言：组装层不判定后端能力是否一致（混合返回不断言一致），只做 pass-through；身份区分靠 poolIdOf（三态），BAD 单独隔离。
   const byParent = new Map()
   for (const it of all) {
     if (!it) continue
@@ -124,10 +129,12 @@ export function createSnapshotComposer(registry, opts = {}) {
       const cachedEntry = snapCache.get(sk);
       if (!o.force && o.ifNoneMatch && cachedEntry && cachedEntry.version && cachedEntry.version===o.ifNoneMatch) {
         try { if (fire && snapLogCtx.isEnabled('debug') && ((++snapHitSampleN % 100) === 0)) fire('debug', 'snapshot.cache.hit', { kind: 'snapshot-lru', ageMs: Date.now() - cachedEntry.at }) } catch (eL) {}
+        touchSnapLRU(sk, cachedEntry) // 命中刷新 LRU 顺序（只动顺序，不改 at；TTL 照原创建时间过期）
         return { ok: true, notModified:true, status:304, version:cachedEntry.version, snapshot:cachedEntry.snapshot, cached:true };
       }
       if (!o.force && fresh(cachedEntry, snapshotTtl)) {
         try { if (fire && snapLogCtx.isEnabled('debug') && ((++snapHitSampleN % 100) === 0)) fire('debug', 'snapshot.cache.hit', { kind: 'snapshot-lru', ageMs: Date.now() - cachedEntry.at }) } catch (eL) {}
+        touchSnapLRU(sk, cachedEntry) // 命中刷新 LRU 顺序（同上；否则退化成先进先出）
         if(o && o.ifNoneMatch && cachedEntry.version===o.ifNoneMatch) return { ok:true, notModified:true, status:304, version:cachedEntry.version, cached:true };
         return { ok: true, snapshot: cachedEntry.snapshot, version:cachedEntry.version, cached: true }
       }

@@ -4,7 +4,8 @@
  * 这是 UI 与后端之间的共同语言。所有后端必须把来源数据**归一化**成本文件的形状：
  *  - **核心字段**（key/type/title/state/body/url/createdAt/updatedAt/closedAt/parentKey）**永远存在**，
  *    来源给不了的用确定空值（`''` / `null`）补齐。
- *  - **能力字段**（author/assignees/labels/milestone/customFields/reason/blockedBy/comments）
+ *  - **能力字段**（author/assignees/labels/milestone/customFields/reason/blockedBy/comments/
+ *    isPullRequest/mergedAt/reviews）
  *    可 MISSING：能实现 → 填值或 `EMPTY`（`[]` / `''` / `null`）；不能实现 → **省略该字段**（MISSING）。
  *  - 空值由 UI 按「现有渲染逻辑」处理（如 labels 空则不渲染标签胶囊），不新增隐藏逻辑。
  *
@@ -96,6 +97,14 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  */
 
 /**
+ * 拉取请求评审细分里的一条评审记录（只读快照，由拉取请求能力后端填充；契约层只定形状）。
+ * @typedef {Object} Review
+ * @property {string} state 评审结论（开放文字；保留写法 approved / changes_requested / commented / dismissed）
+ * @property {Actor} [reviewer] 给出这条评审的人，没有就不写这个字段
+ * @property {string} [submittedAt] 给出评审的时间，没有就不写这个字段
+ */
+
+/**
  * 票/图的轻量引用（不递归展开，用于 blockedBy / blocking / tickets）。
  * @typedef {Object} IssueRef
  * @property {string} key 规范 id（github=String(number)；markdown='<NN>'；gitlab=String(iid)）
@@ -111,7 +120,9 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  *  - 【核心字段】永远存在，缺→`''`/`null`：key / type / title / state / body / url /
  *    createdAt / updatedAt / closedAt / parentKey。
  *  - 【能力字段】可 MISSING：author / assignees / labels / milestone / customFields /
- *    reason / blockedBy / comments。
+ *    reason / blockedBy / comments / isPullRequest / mergedAt / reviews。
+ *  - 【拉取请求扩展】是否为拉取请求、合并时间、评审细分三个字段只在有拉取请求能力的后端出现，
+ *    无能力后端直接省略；不新增独立实体，快照不为拉取请求单独分片（#508 落 #294 形状 A 裁决）。
  *
  * EMPTY vs MISSING：数组 `[]`=EMPTY、省略=MISSING；标量 `''`/`null`；**数组不填 `null`/`undefined`**
  * （`null` 只给 closedAt / parentKey）。EMPTY=有能力但本条无内容；MISSING=无该能力。
@@ -137,6 +148,11 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  * @property {ClosedReason} [reason] closed 时给原因（或 EMPTY=关了但没说明）；open 依后端支持给 ''/省略
  * @property {IssueRef[]} [blockedBy] 谁阻塞我（入边；唯一真源）
  * @property {Comment[]} [comments] 决策记录
+ * @property {boolean} [isPullRequest] 是不是拉取请求。有拉取请求能力的后端在不是拉取请求时写 false，
+ *    只有没有该能力的后端才省略这个字段。诊断日志里前者按值记录，后者记为缺少该能力（MISSING）。
+ *    能判断是否为拉取请求就写 true 或 false，判断不了就省略这个字段。
+ * @property {string|null} [mergedAt] 合并时间，还没合并就是 null；无拉取请求能力的后端省略这个字段
+ * @property {Review[]} [reviews] 评审细分，没有评审就给空数组；无拉取请求能力的后端省略这个字段
  */
 
 /**
@@ -195,8 +211,8 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  * @property {DeckProjection} deck host 计算的 deck 投影
  */
 
-/** 契约形状版本（供日志/审计）。 */
-export const SHAPE_VERSION = 1
+/** 契约形状版本（只给日志和审计看，不触发数据迁移；2 表示加上了拉取请求三个可选扩展字段）。 */
+export const SHAPE_VERSION = 2
 
 /** 让本文件成为真实模块（类型定义是 JSDoc，此处仅作模块存在标识）。 */
 export const TRACKER_SHAPE = Object.freeze({ version: SHAPE_VERSION, STATE, ISSUE_TYPE })

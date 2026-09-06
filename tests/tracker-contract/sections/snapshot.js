@@ -226,7 +226,9 @@ export async function run() {
     const legacy8 = orphans.find((t) => t.key === '8')
     const issue5 = m1.tickets.find((t) => t.title === 'Issue5')
     await assert('EMPTY-MISSING 口径：有字段原样带、无字段保持省略', pr6 && Array.isArray(pr6.reviews) && pr6.reviews.length === 1 && pr6.reviews[0].reviewer.login === 'r1' && Array.isArray(issue5.reviews) && issue5.reviews.length === 0 && !Object.prototype.hasOwnProperty.call(legacy8, 'isPullRequest') && !Object.prototype.hasOwnProperty.call(legacy8, 'mergedAt') && !Object.prototype.hasOwnProperty.call(legacy8, 'reviews'), JSON.stringify({ pr6reviews: pr6 && pr6.reviews, legacyKeys: legacy8 && Object.keys(legacy8) }))
-    await assert('牌面派生覆盖拉取请求（key 全覆盖，不丢任一）', r.snapshot.deck && r.snapshot.deck.progressOf && ('6' in r.snapshot.deck.progressOf) && ('7' in r.snapshot.deck.progressOf) && ('8' in r.snapshot.deck.progressOf) && r.snapshot.deck.stats.total === 4, JSON.stringify(r.snapshot.deck && r.snapshot.deck.stats))
+    const po = (r.snapshot.deck && r.snapshot.deck.progressOf) || {}
+    await assert('牌面派生覆盖拉取请求（池内身份全覆盖，不丢任一）', r.snapshot.deck && ('6\0pr' in po) && ('7\0pr' in po) && ('8' in po) && r.snapshot.deck.stats.total === 5, JSON.stringify(r.snapshot.deck && { total: r.snapshot.deck.stats.total, keys: Object.keys(po) }))
+    await assert('✗ probe: 同键双票不丢（普通 5 与拉取请求 5 各记一票）', ('5\0issue' in po) && ('5\0pr' in po) && r.snapshot.deck.stats.total === 5, JSON.stringify(Object.keys(po)))
     // 版号：只改拉取请求字段也换版号；MISSING 变 EMPTY 也换版号；同数据重建版号不变。
     const v1 = r.version
     const rSame = await composer.composeSnapshot('prpool', ref, {}, { force: true })
@@ -256,6 +258,42 @@ export async function run() {
     await assert('✗ probe: LRU20 逐出最早的仓库（第 21 个挤掉第 1 个 → 重新 list）', listCalls === before + 1, `listCalls=${listCalls} before=${before}`)
     const warm = await composer.composeSnapshot('ka', { backend: 'ka', refId: 'repo-20', name: 'R20', url: '' }, {})
     await assert('LRU 内仍热 → 不重新 list', listCalls === before + 1 && warm.cached === true, `listCalls=${listCalls}`)
+  }
+
+  // ── 命中刷新 LRU 顺序（#505 小修：命中调 touch 刷新顺序，否则退化成先进先出）──
+  {
+    let listCalls = 0
+    const registry = createRegistry({}, { matchesTimeout: 50 })
+    registry.register({ id: 'lruref', label: 'lruref', create: () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } }), matches: async () => true })
+    const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
+    const R = (i) => ({ backend: 'lruref', refId: 'lru-' + i, name: 'L' + i, url: '' })
+    for (let i = 0; i < 20; i++) await composer.composeSnapshot('lruref', R(i), {})
+    await composer.composeSnapshot('lruref', R(0), {}) // 命中 lru-0 → 刷新为最新
+    await composer.composeSnapshot('lruref', R(20), {}) // 挤掉最久未用的 lru-1，而不是刚命中的 lru-0
+    const before = listCalls
+    const hit0 = await composer.composeSnapshot('lruref', R(0), {})
+    await assert('✗ probe: 命中刷新顺序（刚命中的 lru-0 不被逐出）', listCalls === before && hit0.cached === true, `listCalls=${listCalls} before=${before}`)
+    await composer.composeSnapshot('lruref', R(1), {})
+    await assert('✗ probe: 最久未用被逐出（未命中的 lru-1 重新 list）', listCalls === before + 1, `listCalls=${listCalls} before=${before}`)
+  }
+
+  // ── false 与 MISSING 不再混同（#505 小修三态：同键 false 已挂载不吞 MISSING 孤儿）──
+  {
+    const base = (o) => Object.assign({ type: 'issue', title: 'T', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }, o)
+    const mixed = [
+      base({ key: 'm1', type: 'map', title: 'M' }),
+      base({ key: '9', title: 'Issue9', parentKey: 'm1', isPullRequest: false }),
+      base({ key: '9', title: 'Legacy9' }), // MISSING：三字段全省略
+    ]
+    const registry = createRegistry({}, { matchesTimeout: 50 })
+    registry.register({
+      id: 'fmpool', label: 'fmpool',
+      create: () => ({ list: async () => ({ ok: true, data: mixed }) }),
+      matches: async () => true,
+    })
+    const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
+    const r = await composer.composeSnapshot('fmpool', ref, {})
+    await assert('✗ probe: false 与 MISSING 同键各算各的（孤儿不被吞）', r.ok === true && r.snapshot.issues.some((x) => x.title === 'Legacy9') && r.snapshot.deck.stats.total === 2, JSON.stringify({ issues: r.snapshot.issues.map((x) => x.title), total: r.snapshot.deck && r.snapshot.deck.stats.total }))
   }
 
   // ── 组装器房内日志（#505：未命中记常驻原因枚举；命中记按需，关开关不记、开着百分之一采样）──
