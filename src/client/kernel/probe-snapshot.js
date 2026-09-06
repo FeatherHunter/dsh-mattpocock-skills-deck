@@ -159,6 +159,7 @@
             try { dswsDedupWin.n += 1; if (isEnabled('debug') && dswsDedupWin.n % 10 === 0) log('debug', 'dedup.hit', { scope: 'snapshot', keyHash: dswsLogHash(_nk) }) } catch (eL) {}
             // 同 cwd 在途复用：新调用方挂载后从共享缓存水合，不再发第二份请求
             return _pend.promise.then(function(snap){
+              try{ if (isEnabled('debug')) log('debug', 'snapshot.fanout', { sessionIdHash: dswsLogHash(String((st && (st.sessionId || st.cwd)) || '')), stale: false, force: !!(_pend && _pend.force), count: ((_pend.n = (((_pend && _pend.n) || 0) + 1))) }) }catch(eL){}
               // 在途结果已落 per-cwd 缓存（首发方 then 中 setCachedSnapshot），此处仅水合当前 store
               try{ hydrateFromCache(st); emit(st); }catch(eHyd){}
               return snap;

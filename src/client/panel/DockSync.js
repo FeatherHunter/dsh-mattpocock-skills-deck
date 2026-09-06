@@ -86,7 +86,7 @@ export const useDockSync = function(s, sid, summaryCwd, props){
           }
           return false
         })()
-        if (isPolluted) { loadSnapshot(s, false); loadChain(s, false); return }
+        if (isPolluted) { try { log('warn', 'dock.rehydrate', { sidHash: dswsLogHash(sid), cwdChanged: false, polluted: true }) } catch (eL) {}; loadSnapshot(s, false); loadChain(s, false); return }
         if (!snapFresh(s)) loadSnapshot(s, false); loadChain(s, false)
       }, [sid, summaryCwd, s.cwd, s.snapshot && s.snapshot.repoRoot, s.snapshot && s.snapshot.repository && s.snapshot.repository.name, s.snapshot && s.snapshot.repo && s.snapshot.repo.name])
       }

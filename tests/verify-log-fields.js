@@ -45,7 +45,7 @@ const ALLOWED = {
   'host.call': ['method', 'latencyMs', 'ok', 'kind'],
   'host.call.fail': ['method', 'kind', 'errorHash'],
   'snapshot.hydrate': ['cwdHash', 'fresh', 'latencyMs', 'source'],
-  'snapshot.fanout': ['sessionIdHash', 'stale', 'force'],
+  'snapshot.fanout': ['sessionIdHash', 'stale', 'force', 'count'],
   'dedup.hit': ['scope', 'keyHash'],
   'backend.switch': ['from', 'to', 'cwdHash'],
   'naming.guard': ['sidHash', 'outcome', 'hintHash'],

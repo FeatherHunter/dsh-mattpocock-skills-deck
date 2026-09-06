@@ -114,7 +114,7 @@
 | 23 | workspaceKey.canonical | 调试 | rawHash 原始散列、normalizedHash 归一后散列、fallback 是否走兜底 | 双散列，不记原文 | R_WIN_ABS、R_HOME_PATH | 按事件 | workspaceKey.js:28、index.js:536 统一钥匙 |
 | 24 | platform.resolve | 调试 | name 找哪个程序、ok 是否找到、latencyMs | — | — | 按事件 | platform/index.js:30 工厂、index.js:176 找程序 |
 | 25 | naming.sweep | 调试 | trigger 触发来源枚举、count 扫到几条 | 线索只记计数 | — | 节流（只记结果变化） | index.js:365 延迟扫、shared/naming-guardian.js |
-| 29 | snapshot.fanout | 调试 | sessionIdHash 会话散列、stale 是否旧数据、force 是否强制 | 散列会话 | — | 按事件（发起方记一次，接收方只记组大小） | kernel/probe.js:59 在途复用、kernel/store.js 广播 |
+| 29 | snapshot.fanout | 调试 | sessionIdHash 会话散列、stale 是否旧数据、force 是否强制、count 复用组大小（只在接收方带，发起方不带） | 散列会话 | — | 按事件（发起方记一次不带组大小，接收方记组大小加 count） | kernel/probe.js:59 在途复用、kernel/store.js 广播 |
 | 30 | dedup.hit | 调试 | scope 链或快照、keyHash 键散列 | 散列键 | — | 只记计数，窗口到才记一次 | kernel/probe.js:13 在途链、59 在途快照 |
 | 37 | statusbar.hydrate | 调试 | cwdSource 工作区来源枚举 | 不记路径原文 | — | 采样 | statusbar/StatusBar.js:38 跟随水合 |
 | 43 | error.normalize | 调试 | rawKind 原始类别、mappedKind 归一后类别、httpCode 状态码 | H_ERR | R_TOKEN_BEARER、R_GH_TOKEN | 按事件（只记归一后） | index.js:340 类别归一、tracker/errors.js |

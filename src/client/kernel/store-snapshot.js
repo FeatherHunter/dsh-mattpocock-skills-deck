@@ -196,16 +196,19 @@
       if (!incoming.backendId) {
         if (incoming.pending) return false
         if (incoming.source === 'explicit') {
+          try { log('info', 'backend.switch', { from: String((st.selection && st.selection.backendId) || ''), to: String(incoming.backendId || ''), cwdHash: dswsLogHash(st.cwd) }) } catch (eL) {} // 自动合并胜出记一条 #31（串门自证用：合并落定的选择，非用户在界面上手切）
           st.selection = incoming
           if (st.cwd) setCachedSelection(st.cwd, incoming)
           return true
         }
         const cur = st.selection
         if (cur && cur.backendId) return false // fallback null：尊重意图，不覆盖不写缓存
+          try { log('info', 'backend.switch', { from: String((st.selection && st.selection.backendId) || ''), to: String(incoming.backendId || ''), cwdHash: dswsLogHash(st.cwd) }) } catch (eL) {} // 自动合并胜出记一条 #31（串门自证用：合并落定的选择，非用户在界面上手切）
         st.selection = incoming
         if (st.cwd) setCachedSelection(st.cwd, incoming)
         return true
       }
+      try { log('info', 'backend.switch', { from: String((st.selection && st.selection.backendId) || ''), to: String(incoming.backendId || ''), cwdHash: dswsLogHash(st.cwd) }) } catch (eL) {} // 自动合并胜出记一条 #31（串门自证用：合并落定的选择，非用户在界面上手切）
       st.selection = incoming
       if (st.cwd) setCachedSelection(st.cwd, incoming)
       return true
