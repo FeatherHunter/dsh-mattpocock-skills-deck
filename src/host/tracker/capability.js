@@ -36,6 +36,8 @@ const DIAG_FIELDS = [
   // ---- 能力字段（可 MISSING；EMPTY=有能力无内容，MISSING=无能力）----
   'author', 'assignees', 'labels', 'milestone', 'customFields',
   'reason', 'blockedBy', 'comments',
+  // 拉取请求三个可选扩展字段（#508）：有能力后端给值或空，无能力后端省略，诊断日志照此二分
+  'isPullRequest', 'mergedAt', 'reviews',
 ]
 
 /**

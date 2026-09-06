@@ -151,6 +151,64 @@ try {
   results.push({ name: 'demo-mini · playback/import failed', ok: false, detail: String(e && e.stack || e) })
 }
 
+// #508：拉取请求三个可选扩展字段三探针（门禁主体在 harness 2b/2c；这里只证明三件事）：
+// 有拉取请求能力的后端给值能过；无能力后端省略能过；写错类型或另起独立实体会被逮住。
+try {
+  const prCapable = {
+    name: 'pr-shape-capable',
+    normalize: (raw) => Object.assign({}, compliant.normalize(raw), {
+      // 有来源就逐项映射，没有来源就给空值（无内容但有能力），与现有能力字段同一口径
+      isPullRequest: raw.isPullRequest === true,
+      mergedAt: typeof raw.mergedAt === 'string' ? raw.mergedAt : null,
+      reviews: Array.isArray(raw.reviews) ? raw.reviews : [],
+    }),
+    withData: {
+      key: '7', title: 'pr', state: 'open',
+      isPullRequest: true,
+      mergedAt: '2024-02-01T00:00:00Z',
+      reviews: [{ state: 'approved', reviewer: { login: 'alice' }, submittedAt: '2024-01-31T00:00:00Z' }],
+    },
+    emptyData: {},
+    mappings: [
+      { from: 'title', to: 'title' },
+      { from: 'isPullRequest', to: 'isPullRequest' },
+      { from: 'mergedAt', to: 'mergedAt' },
+      { from: 'reviews', to: 'reviews' },
+    ],
+    // 是否为拉取请求是非值，没有“空值”口径，不进 implementedFields，改由下面逐项断言守住类型
+    implementedFields: ['labels', 'assignees', 'comments', 'blockedBy', 'reason', 'mergedAt', 'reviews'],
+    missingFields: ['author', 'milestone', 'customFields'],
+  }
+  results.push(...runContractTests(prCapable))
+  const prEmpty = prCapable.normalize({})
+  results.push({ name: 'pr-shape-capable · empty keeps boolean flag', ok: prEmpty.isPullRequest === false, detail: 'got=' + JSON.stringify(prEmpty.isPullRequest) })
+  // 无能力后端省略三字段：直接复用合规桩（harness 2c 缺席即合法，应全过）
+  const prOmitting = Object.assign({}, compliant, { name: 'pr-shape-omitting' })
+  results.push(...runContractTests(prOmitting))
+  // 写错的必须被逮住：每组故意犯一个错，harness 至少报一个 FAIL 才算门禁有效
+  const malformedGroups = [
+    {
+      label: 'malformed isPullRequest caught',
+      fixture: Object.assign({}, prCapable, { name: 'pr-shape-violating-flag', normalize: (raw) => Object.assign({}, prCapable.normalize(raw), { isPullRequest: 'yes' }) }),
+    },
+    {
+      label: 'malformed reviews caught',
+      fixture: Object.assign({}, prCapable, { name: 'pr-shape-violating-reviews', normalize: (raw) => Object.assign({}, prCapable.normalize(raw), { reviews: [{ reviewer: { login: 'alice' } }] }) }),
+    },
+    {
+      label: 'standalone entity caught',
+      fixture: Object.assign({}, prCapable, { name: 'pr-shape-violating-entity', normalize: (raw) => Object.assign({}, prCapable.normalize(raw), { pullRequests: [] }) }),
+    },
+  ]
+  for (const g of malformedGroups) {
+    const probe = runContractTests(g.fixture)
+    const caught = probe.filter((r) => !r.ok).length > 0
+    results.push({ name: 'pr-shape · ' + g.label, ok: caught, detail: caught ? '' : 'gate missed the planted violation' })
+  }
+} catch (e) {
+  results.push({ name: 'pr-shape · probe-crash', ok: false, detail: String(e && e.stack || e) })
+}
+
 for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection]) {
   try {
     const r = await s.run()
@@ -178,12 +236,15 @@ const gitlabOk = results.filter((r) => r.name.startsWith('gitlab-') && !r.ok).le
 const demoOk = results.filter((r) => r.name.startsWith('demo-mini') && !r.ok).length === 0
 const demoPlaybackOk = results.filter((r) => r.name.startsWith('demo-playback') && !r.ok).length === 0
 const sectionsOk = results.filter((r) => !r.name.startsWith(compliant.name) && !r.name.startsWith(violating.name) && !r.name.startsWith('github-adapter') && !r.name.startsWith('gitlab-') && !r.name.startsWith('demo-mini') && !r.name.startsWith('demo-playback') && !r.ok).length === 0
-if (!(compliantOk && caughtViolation && githubOk && gitlabOk && demoOk && demoPlaybackOk && sectionsOk)) {
+const prShapeOk = results.filter((r) => (r.name.startsWith('pr-shape-capable') || r.name.startsWith('pr-shape-omitting')) && !r.ok).length === 0
+  && results.filter((r) => r.name.startsWith('pr-shape · ') && !r.ok).length === 0
+if (!(compliantOk && caughtViolation && githubOk && gitlabOk && demoOk && demoPlaybackOk && sectionsOk && prShapeOk)) {
   console.error('CONTRACT SKELETON NOT SELF-CONSISTENT')
   if (!githubOk) console.error('GITHUB ADAPTER FAILED G4')
   if (!gitlabOk) console.error('GITLAB ADAPTER FAILED G4')
   if (!demoOk) console.error('DEMO-MINI ADAPTER FAILED G4')
   if (!demoPlaybackOk) console.error('DEMO PLAYBACK FAILED')
+  if (!prShapeOk) console.error('PR SHAPE EXTENSION FAILED (#508)')
   process.exit(1)
 }
 console.log('CONTRACT SKELETON OK')
