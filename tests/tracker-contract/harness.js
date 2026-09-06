@@ -69,6 +69,24 @@ export function runContractTests(t) {
   assert('no number field', !hasOwn(w, 'number'), 'number present=' + JSON.stringify(w.number))
   assert('no subIssues field', !hasOwn(w, 'subIssues'), 'subIssues present=' + JSON.stringify(w.subIssues))
   assert('no blocking field (Issue 无 blocking；blocking 仅 projection/派生)', !hasOwn(w, 'blocking'), 'blocking present=' + JSON.stringify(w.blocking))
+  // 2b) 拉取请求不新增独立实体（#508 落 #294 形状 A 裁决：复用工单形状加三个可选字段，快照不分片）
+  assert('no pullRequests entity collection', !hasOwn(w, 'pullRequests') && !hasOwn(w, 'pullRequest'), 'pullRequests=' + JSON.stringify(w.pullRequests) + ' pullRequest=' + JSON.stringify(w.pullRequest))
+  // 2c) 三个可选扩展字段出现了就必须类型合规；没出现 = 无能力后端省略（MISSING），同样合法
+  if (hasOwn(w, 'isPullRequest')) {
+    assert('isPullRequest boolean', typeof w.isPullRequest === 'boolean', 'got=' + JSON.stringify(w.isPullRequest))
+  }
+  if (hasOwn(w, 'mergedAt')) {
+    assert('mergedAt string|null', w.mergedAt === null || typeof w.mergedAt === 'string', 'got=' + JSON.stringify(w.mergedAt))
+  }
+  if (hasOwn(w, 'reviews')) {
+    // 评审细分出现了就必须是数组（null 也不行）；每条必须有评审结论文字，
+    // 写了评审人就必须有登录名文字，写了评审时间就必须是时间文字。
+    const reviewsOk = Array.isArray(w.reviews) && w.reviews.every((r) => r && typeof r === 'object'
+      && typeof r.state === 'string'
+      && (!hasOwn(r, 'reviewer') || (r.reviewer && typeof r.reviewer === 'object' && typeof r.reviewer.login === 'string'))
+      && (!hasOwn(r, 'submittedAt') || typeof r.submittedAt === 'string'))
+    assert('reviews Review[]（每一条都有评审结论文字）', reviewsOk, 'got=' + JSON.stringify(w.reviews))
+  }
   assert('type ∈ {issue,map}', w.type === 'issue' || w.type === 'map', 'type=' + w.type)
   assert('parentKey core (string|null)', w.parentKey === null || typeof w.parentKey === 'string', 'parentKey=' + JSON.stringify(w.parentKey))
 
