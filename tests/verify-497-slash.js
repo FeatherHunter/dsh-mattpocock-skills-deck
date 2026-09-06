@@ -58,8 +58,9 @@ async function main() {
     const res = await shell.handleOpenFolder({ cwd: 'D:/cache/logs' })
     const target = (captured[0] && captured[0][1]) || ''
     check(res && res.ok === true, 'win32 打开文件夹仍成功（斜杠转换不翻失败）')
-    check(!target.includes('/'), 'win32 打开文件夹的目标路径无正斜杠（实得 ' + target + '）')
-    check(target === 'D:\\cache\\logs', 'win32 正斜杠统一为反斜杠（实得 ' + target + '）')
+    check(!target.replace(/"/g, '').includes('/'), 'win32 打开文件夹的目标路径无正斜杠（实得 ' + target + '）')
+    check(target === '"D:\\cache\\logs"', 'win32 正斜杠统一为反斜杠并加双引号包裹（实得 ' + target + '）')
+    check(target.startsWith('"') && target.endsWith('"'), 'win32 打开文件夹的目标路径含双引号包裹防空格切碎（实得 ' + target + '）')
   }
 
   // win32 打开文件：explorer 选中参数里的文件路径无正斜杠（/select, 开关头不算）。
@@ -70,7 +71,9 @@ async function main() {
     const arg = (captured[0] && captured[0][1]) || ''
     const filePart = String(arg).replace(/^\/select,/, '')
     check(res && res.ok === true, 'win32 打开文件仍成功（斜杠转换不翻失败）')
-    check(!filePart.includes('/'), 'win32 打开文件的目标路径无正斜杠（实得 ' + filePart + '）')
+    check(!filePart.replace(/"/g, '').includes('/'), 'win32 打开文件的目标路径无正斜杠（实得 ' + filePart + '）')
+    check(filePart.startsWith('"') && filePart.endsWith('"'), 'win32 打开文件的选中路径含双引号包裹防空格切碎（实得 ' + filePart + '）')
+    check(String(arg).startsWith('/select,"') && String(arg).endsWith('"'), 'win32 打开文件的选中参数形如 /select,"盘符:\..."（实得 ' + arg + '）')
   }
 
   // darwin 与 linux：正斜杠保持不动（修法只动 win32）。

@@ -19,6 +19,8 @@ export function createPickerShell(deps) {
       try { if (platform.path && typeof platform.path.normalize === 'function') target = platform.path.normalize(target) } catch {}
       // #497：win32 资源管理器认不出正斜杠（含拼接路径与透传的可显示路径），传给 explorer 前统一为反斜杠；darwin/linux 不动
       if (os === 'win32') target = target.replace(/\//g, '\\')
+      // #497 引号：宿主调起层按空格拼参数，含空格路径会被切碎，win32 在 spawn 前加双引号包裹；darwin/linux 不动
+      if (os === 'win32') target = '"' + target + '"'
       const argv = [opener, target]
       try {
         const handle = subprocess.spawn({ argv: argv, cwd: DEFAULT_CWD || target, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
@@ -116,8 +118,10 @@ export function createPickerShell(deps) {
         // 优先用 explorer /select, 失败回退 cmd start
         // #497：explorer 认不出正斜杠，spawn 前统一为反斜杠；darwin/linux 分支不动
         p = p.replace(/\//g, '\\')
+        // #497 引号：宿主调起层按空格拼参数，/select 后路径加双引号包裹防切碎；darwin/linux 不动
+        p = '"' + p + '"'
         try {
-          // 先尝试 explorer 选中（最符合“在本地打开”）
+          // 先尝试 explorer 选中（最符合“在本地打开”），形如 /select,"D:\..."
           const handle = subprocess.spawn({ argv: ['explorer', '/select,' + p], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
           const to = timer.timeout(3000)
           await Promise.race([handle.done, to.then(function(){ try{ handle.terminate() }catch{}; return {exitCode:-1}})])
