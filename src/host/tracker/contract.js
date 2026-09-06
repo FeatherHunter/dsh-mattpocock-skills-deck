@@ -159,6 +159,7 @@ export const OPERATIONS = Object.freeze([
  * @property {'open'|'closed'} [state]
  * @property {string|null} [parentKey] null=根票；省略=全部
  * @property {string[]} [keys] 批量
+ * @property {boolean} [isPullRequest] true=只取拉取请求（#506 界面过滤分界：前端 prFilterForList 登记，后端 github 房已实现）。
  */
 
 /** get 选项（评论分页）。 */

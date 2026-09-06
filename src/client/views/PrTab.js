@@ -4,7 +4,13 @@
  * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
  * 数据：快照组装全留，过滤归前端（prIssuesOf 只收 isPullRequest 为真的票）。
  * 门控：页签显隐由 prTabVisible 驱动（只读能力位，不写后端名字）；无能力回列表由容器侧回退。
- * 列表过滤器登记示例（后端实现，见 #504 正文）：listIssues 传入是否拉取请求为真只取拉取请求。
+ * 列表过滤器接线（#506 小修：消除登记未接线）：本列表以 prFilterForList() 为过滤依据（见下方接线点），
+ * 后端直调示例：listIssues({ refId: 'owner/name' }, prFilterForList(), ctx)，即只取拉取请求；
+ * 后端 github 房已按该字段过滤，contract.js 的 ListFilter 同票登记该字段（界面过滤分界内）。
+ * 详情链路（Overlay 端已核）：悬浮面板 Overlay 本来就没有详情分支，点行后详情走别层——
+ * 右侧停靠 Dock 按 activeIssue 渲染 IssueDetail（与主列表同一机制），本页点行只调 setActiveIssue；#507 再验。
+ * 同号留痕：activeIssue 是裸数字，同号的普通工单与拉取请求进同一个详情，评审合并展示留后续；#507 验。
+ * 评论只读：拉取请求详情只看评论列表，不给输入框（IssueDetail.js 内把 canComment 对拉取请求置假）；首版如此。
  * 日志：复用既有快照链路，无新增跨边界调用与缓存与定时器，故无新增日志点，附录不动。
  * 首版范围：列表显标题与作者与状态与标签与更新五个字段；点行进详情基础加评论查看（复用 IssueDetail）。
  */
@@ -12,7 +18,11 @@ export const PrTab = function (props) {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   const st = props.st
-  const prs = (typeof prIssuesOf === 'function') ? prIssuesOf(st) : []
+  // 接线点：过滤依据取自 prFilterForList（与后端 listIssues 的 ListFilter 同形，调用示例见文件头注释）。
+  const listFilter = (typeof prFilterForList === 'function') ? prFilterForList() : { isPullRequest: true }
+  const onlyPr = !(listFilter && listFilter.isPullRequest === false)
+  const candidates = (typeof prIssuesOf === 'function') ? prIssuesOf(st) : []
+  const prs = onlyPr ? candidates.filter(function (x) { return x && x.isPullRequest === true }) : candidates
   const doRetry = function () { if (typeof loadSnapshot === 'function') loadSnapshot(st, true) }
   const openPr = function (x) {
     var n = (x && x.number != null) ? x.number : (x && x.key != null ? Number(x.key) : null)

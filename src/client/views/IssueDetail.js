@@ -119,7 +119,9 @@ export const IssueDetail = function (props) {
       // 显隐以能力字段有无判：comments 存在即渲染（EMPTY=[] 渲染、MISSING=省略 不渲染），
       // 零后端身份分支。数组形状（契约 Comment[]）与 GraphQL 形状（{nodes,pageInfo}）双兼容。
       const rawComments = src.comments
-      const canComment = !!rawComments && (Array.isArray(rawComments) ? true : !!(typeof rawComments === 'object' && Array.isArray(rawComments.nodes)))
+      let canComment = !!rawComments && (Array.isArray(rawComments) ? true : !!(typeof rawComments === 'object' && Array.isArray(rawComments.nodes)))
+      // #506 首版只读：拉取请求详情只看评论列表，不给输入框（快照与详情任一来源标为拉取请求即只读；评审合并展示留后续，#507 再验）。
+      if ((src && src.isPullRequest === true) || (snapIssue && snapIssue.isPullRequest === true)) canComment = false
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } }, [
         // 顶部固定行
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }, [
