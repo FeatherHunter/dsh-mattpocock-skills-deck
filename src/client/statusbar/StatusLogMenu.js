@@ -27,13 +27,13 @@ const dswsLogResolveReason = function (err) {
 const dswsLogMenuFail = function (op, reason, err) {
   try { if (typeof logExportFail === 'function') logExportFail(op, reason, err) } catch (eL) {}
 }
+const dswsLogPickPath = function (v) { if (typeof v === 'string') return v; if (v && typeof v === 'object') { const c = v.displayPath || v.path || v.__target || v.target; if (typeof c === 'string' && c) return c } return '' } // 回包目录拆盒：字符串直用，目标对象读可显示路径，旧包同样认得出。
 const dswsLogRemember = function (res) {
   try {
-    if (res && typeof res.dir === 'string' && res.dir) dswsLogKnown.dir = res.dir
-    if (res && typeof res.path === 'string' && res.path) dswsLogKnown.path = res.path
+    const d = dswsLogPickPath(res && res.dir), p = dswsLogPickPath(res && res.path)
+    if (d) dswsLogKnown.dir = d; if (p) dswsLogKnown.path = p
     else if (res && typeof res.fileName === 'string' && res.fileName && dswsLogKnown.dir) {
-      const sep = dswsLogKnown.dir.slice(-1) === '/' ? '' : '/'
-      dswsLogKnown.path = dswsLogKnown.dir + sep + res.fileName
+      dswsLogKnown.path = dswsLogKnown.dir + (dswsLogKnown.dir.slice(-1) === '/' ? '' : '/') + res.fileName
     }
   } catch (e) {}
 }

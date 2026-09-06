@@ -75,6 +75,7 @@ export function createLogStore(deps) {
     } catch (e2) {}
     return pathStr
   }
+  function targetToPath(t, fb) { if (typeof t === 'string') return t; if (t && typeof t === 'object') { const c = t.displayPath || t.path || t.__target || t.target; if (typeof c === 'string' && c) return c } return (typeof fb === 'string' && fb) ? fb : '' } // 目标对象拆盒：优先可显示路径，无则回退值，回包只发字符串。
   async function readTarget(target) {
     if (fs !== undefined && fs !== null && typeof fs.readText === 'function') return await fs.readText(target)
     const platform = typeof getPlatform === 'function' ? await getPlatform() : null
@@ -263,16 +264,15 @@ export function createLogStore(deps) {
       let cwdNow = defaultCwd
       try { cwdNow = (typeof process !== 'undefined' && process.cwd) ? process.cwd() : defaultCwd } catch (e3) {}
       const summary = { pluginVersion: 'unknown', os: osName, cwd: cwdNow, logSwitch: getSwitchState(), header: headerInfo }
-      let dirOut = logDir
-      let pathOut = ''
+      let dirOut = logDir, pathOut = ''
       try {
-        dirOut = await resolveTarget(logDir)
-        pathOut = await resolveTarget(await joinLogPath(logDir, fileName))
+        dirOut = targetToPath(await resolveTarget(logDir), logDir)
+        pathOut = targetToPath(await resolveTarget(await joinLogPath(logDir, fileName)), joinPath(logDir, fileName))
       } catch (e4) {
         try { pathOut = joinPath(logDir, fileName) } catch (e5) { pathOut = '' }
       }
       if (!dirOut && !pathOut && baseDir) { try { dirOut = joinPath(baseDir, LOG_DIR_NAME); pathOut = joinPath(dirOut, fileName) } catch (e6) {} }
-      return { ok: true, fileName: fileName, bytes: String(text || '').length, fallback: true, text: String(text || ''), summary: summary, dir: dirOut, path: pathOut }
+      return { ok: true, fileName: fileName, bytes: String(text || '').length, fallback: true, text: String(text || ''), summary: summary, dir: dirOut, path: pathOut } // 上两处拆盒与回退链只产字符串，类型另由门禁断言。
     } catch (e) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: hash8(String((e && e.message) || e)) }) } catch (eL) {}; return { ok: false, fileName: fileName, bytes: 0, fallback: true } }
   }
   // 清空电话的宿主实现：手动清空，客户端先弹窗确认，成功与失败都给反馈。

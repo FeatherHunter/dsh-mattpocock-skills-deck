@@ -47,6 +47,7 @@ check(/fallback:\s*true/.test(store), '三、宿主导出恒 fallback:true（暂
 check(store.includes('text:') && store.includes('summary:'), '三、回退为多文件形态（原文件 text＋摘要 summary）')
 check(/dir:\s*dirOut/.test(store) && /path:\s*pathOut/.test(store), '三、导出回参带绝对 dir 与 path（供跳转与复制）')
 check(menu.includes('fallback === true') && menu.includes('logtoast.exportFallback'), '三、客户端分支处理 fallback 并提示原文件形态')
+check(menu.includes('displayPath'), '三、记住目录兼容对象形态（读 displayPath 拆盒，对象回包同样认得出）')
 
 // 四、反馈闭环
 check(menu.includes('logmenu.clearTitle') && menu.includes('logmenu.clearDesc'), '四、清空确认框有标题与说明')

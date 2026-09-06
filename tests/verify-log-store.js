@@ -164,6 +164,8 @@ async function main() {
     check(batchRes && batchRes.ok === true && batchRes.accepted === 1 && typeof batchRes.dropped === 'number', '记录电话回参与设计 2.5 同形（ok、accepted、dropped）')
     const exportRes = await store.handleLogExport({})
     check(exportRes && exportRes.ok === true && typeof exportRes.fileName === 'string' && typeof exportRes.bytes === 'number' && exportRes.fallback === true, '导出电话回参与设计 2.5 同形（ok、fileName、bytes、fallback）')
+    check(exportRes && typeof exportRes.dir === 'string' && exportRes.dir.length > 0, '497 真修：导出回包 dir 为非空字符串（目标对象已拆盒，不再发对象）')
+    check(exportRes && typeof exportRes.path === 'string' && exportRes.path.length > 0, '497 真修：导出回包 path 为非空字符串（目标对象已拆盒，不再发对象）')
     const clearRes = await store.handleLogClear({ date: '2026-09-06' })
     check(clearRes && typeof clearRes.removed === 'number', '清空电话回参与设计 2.5 同形（ok、removed）')
     const getRes = await store.handleLogGetSwitch()
@@ -223,6 +225,19 @@ async function main() {
     check(JSON.stringify([(res && res.dir), (res && res.path)]).indexOf('/work') >= 0, '497 兜底用启动已知目录（回包目录含启动目录）')
     check(src.includes("hash8('no-dir')") && src.includes("method: 'wf.logExport'"), '497 取目录空记告警行（复用宿主调用失败事件，不新增事件）')
     check(!!(res && res.fileName && /^\d{4}-\d{2}-\d{2}\.log$/.test(res.fileName)), '497 旧回参形状兼容（文件名仍按天命名，只加不减字段）')
+  }
+
+  // ---- 497 真修：文件服务回目标对象（{targetKey, displayPath}）时回包仍为字符串 ----
+  {
+    const mem = makeMemoryFiles()
+    const timer = makeTimer()
+    const realShape = { os: 'test-os', path: { join(...parts) { return parts.join('/').replace(/\/+/g, '/') } }, fs: { async resolve(p) { return { targetKey: 'key:' + String(p), displayPath: String(p) } }, async mkdir() {}, async listDir() { return [] } } }
+    const deps = { fs: makeFs(mem), timer, getCacheDir: async () => '/cache', getPlatform: async () => realShape, DEFAULT_CWD: '/work' }
+    const store = createLogStore(deps)
+    const res = await store.handleLogExport({})
+    check(res && res.ok === true, '497 真修：目标对象形态下导出仍成功（拆盒不翻失败）')
+    check(res && typeof res.dir === 'string' && res.dir.indexOf('/cache/logs') >= 0, '497 真修：目标对象拆盒后 dir 为字符串（含缓存日志目录）')
+    check(res && typeof res.path === 'string' && res.path.indexOf('.log') >= 0, '497 真修：目标对象拆盒后 path 为字符串（含日志文件名）')
   }
 
   // ---- 双产物含电话名：真源、开发产物、打包产物三处一致 ----
