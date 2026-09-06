@@ -40,12 +40,14 @@ const dswsLogRemember = function (res) {
 // resolve known dir/path: use cache, else read-only export call to resolve (no toast here).
 
 const dswsLogEnsurePath = function () {
-  if (dswsLogKnown.dir && dswsLogKnown.path) return Promise.resolve({ ok: true, dir: dswsLogKnown.dir, path: dswsLogKnown.path })
+  if (dswsLogKnown.dir && dswsLogKnown.path) { try { log('info', 'host.call', { method: 'wf.logExport', latencyMs: 0, ok: true, kind: 'log-resolve-cache' }) } catch (eL) {} return Promise.resolve({ ok: true, dir: dswsLogKnown.dir, path: dswsLogKnown.path }) }
+  const t0 = Date.now()
   if (!dswsLogHostOk()) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('host-unavailable', 120, 'error')) }) } catch (eL) {}; return Promise.resolve({ ok: false, error: 'host-unavailable' }) }
   try {
     return host.call('wf.logExport', {}).then(function (res) {
       if (!res || res.ok !== true) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {}; return { ok: false, error: 'export-not-ok' } }
       dswsLogRemember(res)
+      try { log('info', 'host.call', { method: 'wf.logExport', latencyMs: Date.now() - t0, ok: !!(dswsLogKnown.dir && dswsLogKnown.path), kind: 'log-resolve' }) } catch (eL) {}
       if (!dswsLogKnown.dir || !dswsLogKnown.path) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('path-missing', 120, 'error')) }) } catch (eL) {}; return { ok: false, error: 'path-missing' } }
       return { ok: true, dir: dswsLogKnown.dir, path: dswsLogKnown.path }
     }).catch(function (e) {

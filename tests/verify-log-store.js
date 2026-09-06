@@ -210,6 +210,21 @@ async function main() {
     check(store.getDroppedCount() - before === 4, '写盘失败累计丢弃 4 行（实增 ' + (store.getDroppedCount() - before) + '，含失败行自身，防繁殖）')
   }
 
+  // ---- 497 双空不再无声：取目录返回空时导出回包仍带可用目录并记告警 ----
+  {
+    const mem = makeMemoryFiles()
+    const timer = makeTimer()
+    const deps = { fs: makeFs(mem), timer, getCacheDir: async () => '', getPlatform: async () => makePlatform(), DEFAULT_CWD: '/work' }
+    const store = createLogStore(deps)
+    await store.writeStartupHeader()
+    const res = await store.handleLogExport({})
+    check(res && res.ok === true, '497 导出回包仍成功（取目录空不翻失败，保持旧形状）')
+    check(res && (res.dir || res.path), '497 双空不再无声（成功必带可用目录或路径之一）')
+    check(JSON.stringify([(res && res.dir), (res && res.path)]).indexOf('/work') >= 0, '497 兜底用启动已知目录（回包目录含启动目录）')
+    check(src.includes("hash8('no-dir')") && src.includes("method: 'wf.logExport'"), '497 取目录空记告警行（复用宿主调用失败事件，不新增事件）')
+    check(!!(res && res.fileName && /^\d{4}-\d{2}-\d{2}\.log$/.test(res.fileName)), '497 旧回参形状兼容（文件名仍按天命名，只加不减字段）')
+  }
+
   // ---- 双产物含电话名：真源、开发产物、打包产物三处一致 ----
   {
     const devPath = path.join(ROOT, 'host.js')

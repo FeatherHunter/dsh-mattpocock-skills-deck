@@ -248,7 +248,8 @@ export function createLogStore(deps) {
     const fileName = /^\d{4}-\d{2}-\d{2}$/.test(want) ? want + '.log' : formatLogFileName(new Date())
     try {
       const dir = typeof getCacheDir === 'function' ? await getCacheDir() : null
-      const logDir = dir ? await joinLogPath(dir, LOG_DIR_NAME) : ''
+      if (!dir) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: hash8('no-dir') }) } catch (eL) {} }
+      const baseDir = dir || (headerInfo && headerInfo.dir) || defaultCwd || ''; const logDir = baseDir ? await joinLogPath(baseDir, LOG_DIR_NAME) : ''
       let text = ''
       try {
         const target = await resolveTarget(await joinLogPath(logDir, fileName))
@@ -270,6 +271,7 @@ export function createLogStore(deps) {
       } catch (e4) {
         try { pathOut = joinPath(logDir, fileName) } catch (e5) { pathOut = '' }
       }
+      if (!dirOut && !pathOut && baseDir) { try { dirOut = joinPath(baseDir, LOG_DIR_NAME); pathOut = joinPath(dirOut, fileName) } catch (e6) {} }
       return { ok: true, fileName: fileName, bytes: String(text || '').length, fallback: true, text: String(text || ''), summary: summary, dir: dirOut, path: pathOut }
     } catch (e) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: hash8(String((e && e.message) || e)) }) } catch (eL) {}; return { ok: false, fileName: fileName, bytes: 0, fallback: true } }
   }

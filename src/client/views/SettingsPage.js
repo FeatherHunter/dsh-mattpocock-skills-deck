@@ -58,13 +58,15 @@ export     const SettingsPage = (props) => {
       }
       // 静默取导出结果解析目录位置并缓存，不刷提示，供打开与复制复用
       const resolveLogDir = function () {
-        if (lastExport && lastExport.dir) return Promise.resolve(lastExport.dir)
+        if (lastExport && lastExport.dir) { try { log('info', 'host.call', { method: 'wf.logExport', latencyMs: 0, ok: true, kind: 'log-resolve-cache' }) } catch (eL) {} return Promise.resolve(lastExport.dir) }
+        const t0 = Date.now()
         if (!hostReady()) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('host-unavailable', 120, 'error')) }) } catch (eL) {}; return Promise.resolve('') }
         try {
           return host.call('wf.logExport', { format: 'zip' }).then(function (res) {
             if (!res || res.ok !== true) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {}; try { if (typeof logExportFail === 'function') logExportFail('resolve', 'export-not-ok', (res && res.error) || 'not-ok') } catch (eDbg2) {} return '' }
             rememberExport(res)
             const _dir = dirOfExport(res)
+            try { log('info', 'host.call', { method: 'wf.logExport', latencyMs: Date.now() - t0, ok: !!_dir, kind: 'log-resolve' }) } catch (eL) {}
             if (!_dir) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('path-missing', 120, 'error')) }) } catch (eL) {}; try { if (typeof logExportFail === 'function') logExportFail('resolve', 'path-missing', 'path-missing') } catch (eDbg2) {} }
             return _dir
           }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; try { if (typeof logExportFail === 'function') logExportFail('resolve', 'export-not-ok', e) } catch (eDbg2) {}; return '' })
