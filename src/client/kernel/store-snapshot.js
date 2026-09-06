@@ -120,11 +120,17 @@
       if (!st || !st.cwd) return false
       const c = getCachedSnapshot(st.cwd); try{ if(c){ const _k=keyOf(st.cwd); const _e=snapshotByCwd.get(_k); if(_e) touchLRUClient(snapshotByCwd,_k,_e);} }catch(e){}
       let changed=false
+      // 胜负自证（#495）：记合并前双方版本号与谁胜出，串门时单行 #28 即可判定，不用跨行推理
+      let _winnerVer = '', _loserVer = '', _outcome = 'current'
       if (c) {
         // 版本取舍：以最新生成时间者胜（水合与扇出一致，#301 契约）
         const incomingMs = c.generatedMs || 0
         const curMs = (st.snapshot && st.snapshot.generatedMs) || 0
+        const _incVer = String((c && (c.version || c.etag)) || '')
+        const _curVer = String((st.snapshot && (st.snapshot.version || st.snapshot.etag)) || '')
+        _winnerVer = _curVer; _loserVer = _incVer
         if (!st.snapshot || incomingMs > curMs) {
+          _winnerVer = _incVer; _loserVer = _curVer; _outcome = 'incoming'
           st.snapshot = c
           st.snapMode = 'real'
           st.snapError = null
@@ -178,7 +184,7 @@
           }
         }
       } catch (eChainHydrate) {}
-      try { if (changed) log('info', 'snapshot.hydrate', { cwdHash: dswsLogHash(st.cwd), source: 'memory', fresh: true, latencyMs: 0 }) } catch (eL) {}
+      try { if (changed) log('info', 'snapshot.hydrate', { cwdHash: dswsLogHash(st.cwd), source: 'memory', fresh: true, latencyMs: 0, winnerVersion: _winnerVer, loserVersion: _loserVer, outcome: _outcome }) } catch (eL) {}
       return changed
     }
     /**

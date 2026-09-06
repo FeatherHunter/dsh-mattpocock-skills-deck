@@ -87,13 +87,13 @@
 | 22 | issuePath.push（已退役，见 1.3 落定说明） | 信息（已退役，不再埋点） | 原白名单 ref 票号引用、source 来源、queueLen 队列长度（已失效，只作追溯） | H_TITLE（已失效） | R_TOKEN_BEARER（已失效） | index.js:348 白名单、425 入队（已随 #345 移除） |
 | 26 | host.call | 信息 | method 调用的电话名、latencyMs、ok 是否成功、kind 归一类别 | H_CWD | — | client/kernel/probe.js:40 调链、client/index.js 50 起 |
 | 27 | host.call.fail | 告警 | method 电话名、kind 类别、errorHash 错误散列 | H_ERR、T120 | R_TOKEN_BEARER、R_GH_TOKEN | 同上 |
-| 28 | snapshot.hydrate | 信息 | cwdHash、source 来源枚举、fresh 是否新鲜、latencyMs | H_CWD | — | kernel/router.js:9 缓存水合 |
+| 28 | snapshot.hydrate | 信息 | cwdHash、source 来源枚举、fresh 是否新鲜、latencyMs、winnerVersion 胜出方版本号、loserVersion 落败方版本号、outcome 合并结果（incoming 缓存胜出、current 原数据保留） | H_CWD | — | kernel/router.js:9 缓存水合 |
 | 31 | backend.switch | 信息 | from 从哪个后端、to 到哪个后端、cwdHash | H_CWD | — | views/shared/BackendSelector.js、router.js:39 |
 | 32 | naming.guard | 信息 | sidHash 会话散列、outcome 改名结果、hintHash 线索散列 | H_TITLE、T80 | R_TOKEN_BEARER | kernel/api.js:46 改名轮询、shared/naming-guardian.js |
 | 33 | naming.lock | 信息 | sidHash、reason 拦截原因（枚举，如用户手改） | — | — | shared/naming-guardian.js 值比对锁 |
 | 34 | issuePath.record（已退役，见 1.3 落定说明） | 信息（已退役，不再埋点） | 原白名单 ref 票号引用、source 来源、titleHash 标题散列（已失效，只作追溯） | H_TITLE（已失效） | — | kernel/store.js:81 记录（已随 #345 移除） |
 | 35 | settings.save | 信息（纠偏纳入） | openIn 打开位置、tplChangedCount 模板改了几处 | —（不记模板正文） | — | views/SettingsPage.js:37 即时保存 |
-| 36 | panel.open | 信息 | mode 打开形态、hasCache 是否有缓存、snapFresh 快照是否新鲜 | — | — | kernel/router.js:9 页开、39 坞开、99 侧栏开 |
+| 36 | panel.open | 信息 | mode 打开形态、hasCache 是否有缓存、snapFresh 快照是否新鲜、keyHash 工作区键散列、snapVersion 快照版本号、backendId 后端标识 | H_CWD | — | kernel/router.js:9 页开、39 坞开、99 侧栏开 |
 | 38 | statusbar.fallback | 信息（纠偏纳入） | reason 退化原因（枚举） | — | — | statusbar/StatusBar.js:59 胶囊永不隐藏 |
 | 39 | dock.rehydrate | 告警 | sidHash、cwdChanged 工作区是否变了、polluted 是否污染 | H_CWD | R_WIN_ABS | panel/Dock.js:34 跟随、54 污染自愈 |
 | 40 | storage.fail | 告警 | key 键名枚举、op 读或写 | — | — | kernel/store.js:14、kernel/config.js:13 读本地存储 |
