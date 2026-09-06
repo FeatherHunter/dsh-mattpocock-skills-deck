@@ -148,7 +148,9 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  * @property {ClosedReason} [reason] closed 时给原因（或 EMPTY=关了但没说明）；open 依后端支持给 ''/省略
  * @property {IssueRef[]} [blockedBy] 谁阻塞我（入边；唯一真源）
  * @property {Comment[]} [comments] 决策记录
- * @property {boolean} [isPullRequest] 是不是拉取请求；有拉取请求能力的后端在不是拉取请求时写 false，只有无拉取请求能力的后端才省略这个字段，诊断里前者按值记录、后者记 MISSING（#504 选值时照此办：能判断就写 true 或 false，不能判断就省略）
+ * @property {boolean} [isPullRequest] 是不是拉取请求。有拉取请求能力的后端在不是拉取请求时写 false，
+ *    只有没有该能力的后端才省略这个字段。诊断日志里前者按值记录，后者记为缺少该能力（MISSING）。
+ *    能判断是否为拉取请求就写 true 或 false，判断不了就省略这个字段。
  * @property {string|null} [mergedAt] 合并时间，还没合并就是 null；无拉取请求能力的后端省略这个字段
  * @property {Review[]} [reviews] 评审细分，没有评审就给空数组；无拉取请求能力的后端省略这个字段
  */
@@ -209,7 +211,7 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  * @property {DeckProjection} deck host 计算的 deck 投影
  */
 
-/** 契约形状版本（只给日志和审计看，不触发数据迁移；2 = 加上拉取请求三个可选扩展字段，见 #508；打包产物里的版本还是 1，等下次构建才刷新）。 */
+/** 契约形状版本（只给日志和审计看，不触发数据迁移；2 表示加上了拉取请求三个可选扩展字段）。 */
 export const SHAPE_VERSION = 2
 
 /** 让本文件成为真实模块（类型定义是 JSDoc，此处仅作模块存在标识）。 */
