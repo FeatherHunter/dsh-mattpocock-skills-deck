@@ -27,6 +27,8 @@ const dswsLogResolveReason = function (err) {
 const dswsLogMenuFail = function (op, reason, err) {
   try { if (typeof logExportFail === 'function') logExportFail(op, reason, err) } catch (eL) {}
 }
+// 同形宿主失败行收拢（#514 提纯：十一处 host.call.fail 同形记账收一处，事件名级别字段不变）。
+const dswsLogWarnCall = function (method, kind, err) { try { log('warn', 'host.call.fail', { method: method, kind: kind, errorHash: dswsLogHash(dswsLogTrunc(String((err && err.message) || err), 120, 'error')) }) } catch (eL) {} }
 const dswsLogPickPath = function (v) { if (typeof v === 'string') return v; if (v && typeof v === 'object') { const c = v.displayPath || v.path || v.__target || v.target; if (typeof c === 'string' && c) return c } return '' } // 回包目录拆盒：字符串直用，目标对象读可显示路径，旧包同样认得出。
 const dswsLogRemember = function (res) {
   try {
@@ -38,44 +40,38 @@ const dswsLogRemember = function (res) {
   } catch (e) {}
 }
 // resolve known dir/path: use cache, else read-only export call to resolve (no toast here).
-
 const dswsLogEnsurePath = function () {
   if (dswsLogKnown.dir && dswsLogKnown.path) { try { log('info', 'host.call', { method: 'wf.logExport', latencyMs: 0, ok: true, kind: 'log-resolve-cache' }) } catch (eL) {} return Promise.resolve({ ok: true, dir: dswsLogKnown.dir, path: dswsLogKnown.path }) }
   const t0 = Date.now()
-  if (!dswsLogHostOk()) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('host-unavailable', 120, 'error')) }) } catch (eL) {}; return Promise.resolve({ ok: false, error: 'host-unavailable' }) }
+  if (!dswsLogHostOk()) { dswsLogWarnCall('wf.logExport', 'log-resolve', 'host-unavailable'); return Promise.resolve({ ok: false, error: 'host-unavailable' }) }
   try {
     return host.call('wf.logExport', {}).then(function (res) {
-      if (!res || res.ok !== true) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {}; return { ok: false, error: 'export-not-ok' } }
+      if (!res || res.ok !== true) { dswsLogWarnCall('wf.logExport', 'log-resolve', 'export-not-ok'); return { ok: false, error: 'export-not-ok' } }
       dswsLogRemember(res)
       try { log('info', 'host.call', { method: 'wf.logExport', latencyMs: Date.now() - t0, ok: !!(dswsLogKnown.dir && dswsLogKnown.path), kind: 'log-resolve' }) } catch (eL) {}
-      if (!dswsLogKnown.dir || !dswsLogKnown.path) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('path-missing', 120, 'error')) }) } catch (eL) {}; return { ok: false, error: 'path-missing' } }
+      if (!dswsLogKnown.dir || !dswsLogKnown.path) { dswsLogWarnCall('wf.logExport', 'log-resolve', 'path-missing'); return { ok: false, error: 'path-missing' } }
       return { ok: true, dir: dswsLogKnown.dir, path: dswsLogKnown.path }
-    }).catch(function (e) {
-      try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
-      return { ok: false, error: (e && e.message) || String(e) }
-    })
+    }).catch(function (e) { dswsLogWarnCall('wf.logExport', 'log-resolve', e); return { ok: false, error: (e && e.message) || String(e) } })
   } catch (e) {
     dswsLogFail('wf.logExport', 'log-resolve', (e && e.message) || e);
     return Promise.resolve({ ok: false, error: (e && e.message) || String(e) })
   }
+}
+// 悬浮菜单跟随锚点定位（#514 提纯：打开菜单与滚动复位两处同形定位收一处，行为不变）。
+const dswsLogPlaceMenu = function (anchorRef, setMenuPos) {
+  try {
+    if (typeof placeStatusOverlay === 'function' && anchorRef.current) { const p = placeStatusOverlay(anchorRef.current, 'right'); if (p) setMenuPos(p) }
+  } catch (e) {}
 }
 export const StatusLogDot = function (props) {
   const s = props && props.s
   const cx = React.useContext(DswsCtx)
   const hh = cx ? cx.h : React.createElement
   const store = s
-  const openState = React.useState(false)
-  const menuOpen = openState[0]
-  const setMenuOpen = openState[1]
-  const posState = React.useState(null)
-  const menuPos = posState[0]
-  const setMenuPos = posState[1]
-  const busyState = React.useState(null)
-  const busy = busyState[0]
-  const setBusy = busyState[1]
-  const confirmState = React.useState(false)
-  const clearConfirm = confirmState[0]
-  const setClearConfirm = confirmState[1]
+  const [menuOpen, setMenuOpen] = React.useState(false)
+  const [menuPos, setMenuPos] = React.useState(null)
+  const [busy, setBusy] = React.useState(null)
+  const [clearConfirm, setClearConfirm] = React.useState(false)
   const anchorRef = React.useRef(null)
   const closeRef = React.useRef(null)
   const menuRef = React.useRef(null)
@@ -88,22 +84,14 @@ export const StatusLogDot = function (props) {
   }
   const scheduleMenuClose = function () {
     try {
-      if (typeof scheduleStatusClose === 'function' && typeof closeStatusBugMenu === 'function') {
-        scheduleStatusClose(closeRef, function () { setMenuOpen(false) })
-        return
-      }
+      if (typeof scheduleStatusClose === 'function' && typeof closeStatusBugMenu === 'function') { scheduleStatusClose(closeRef, function () { setMenuOpen(false) }); return }
     } catch (e) {}
     try { if (closeRef.current) clearTimeout(closeRef.current) } catch (e2) {}
     closeRef.current = setTimeout(function () { closeRef.current = null; setMenuOpen(false) }, 160)
   }
   const openMenu = function () {
     try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {}
-    try {
-      if (typeof placeStatusOverlay === 'function' && anchorRef.current) {
-        const p = placeStatusOverlay(anchorRef.current, 'right')
-        if (p) setMenuPos(p)
-      }
-    } catch (e) {}
+    dswsLogPlaceMenu(anchorRef, setMenuPos)
     setMenuOpen(true)
   }
   const toggleMenu = function () {
@@ -139,15 +127,7 @@ export const StatusLogDot = function (props) {
   React.useEffect(function () {
     if (!menuOpen) return undefined
     let disposed = false
-    const reposition = function () {
-      if (disposed) return
-      try {
-        if (typeof placeStatusOverlay === 'function' && anchorRef.current) {
-          const p = placeStatusOverlay(anchorRef.current, 'right')
-          if (p) setMenuPos(p)
-        }
-      } catch (e) {}
-    }
+    const reposition = function () { if (disposed) return; dswsLogPlaceMenu(anchorRef, setMenuPos) }
     document.addEventListener('scroll', reposition, { capture: true, passive: true })
     window.addEventListener('resize', reposition)
     return function () {
@@ -167,8 +147,7 @@ export const StatusLogDot = function (props) {
       host.call('wf.logExport', {}).then(function (res) {
         setBusy(null)
         if (!res || res.ok !== true) {
-          try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {};
-          dswsLogMenuFail('export', 'export-not-ok', (res && res.error) || 'not-ok')
+          dswsLogWarnCall('wf.logExport', 'export', 'export-not-ok'); dswsLogMenuFail('export', 'export-not-ok', (res && res.error) || 'not-ok')
           say(tr('logtoast.exportFailed', { err: 'not-ok' }), 'warn')
           return
         }
@@ -179,14 +158,12 @@ export const StatusLogDot = function (props) {
         setMenuOpen(false)
       }).catch(function (e) {
         setBusy(null)
-        try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
-        dswsLogMenuFail('export', 'export-not-ok', e)
+        dswsLogWarnCall('wf.logExport', 'export', e); dswsLogMenuFail('export', 'export-not-ok', e)
         say(tr('logtoast.exportFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
       })
     } catch (e) {
       setBusy(null)
-      try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
-      dswsLogMenuFail('export', 'export-not-ok', e)
+      dswsLogWarnCall('wf.logExport', 'export', e); dswsLogMenuFail('export', 'export-not-ok', e)
       say(tr('logtoast.exportFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
     }
   }
@@ -207,14 +184,12 @@ export const StatusLogDot = function (props) {
           setMenuOpen(false)
         }).catch(function (e) {
           setBusy(null)
-          try { log('warn', 'host.call.fail', { method: 'wf.openPath', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
-          dswsLogMenuFail('openDir', 'open-fail', e)
+          dswsLogWarnCall('wf.openPath', 'open-path', e); dswsLogMenuFail('openDir', 'open-fail', e)
           say(tr('logtoast.openFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
         })
       } catch (e) {
         setBusy(null)
-        try { log('warn', 'host.call.fail', { method: 'wf.openPath', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {};
-        dswsLogMenuFail('openDir', 'open-fail', e)
+        dswsLogWarnCall('wf.openPath', 'open-path', e); dswsLogMenuFail('openDir', 'open-fail', e)
         say(tr('logtoast.openFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
       }
     })
@@ -226,8 +201,7 @@ export const StatusLogDot = function (props) {
     dswsLogEnsurePath().then(function (got) {
       setBusy(null)
       if (!got.ok) {
-        dswsLogMenuFail('copyPath', dswsLogResolveReason(got.error), got.error)
-        say(tr('logtoast.openFailed', { err: String(got.error || 'unknown').slice(0, 120) }), 'warn')
+        dswsLogMenuFail('copyPath', dswsLogResolveReason(got.error), got.error); say(tr('logtoast.openFailed', { err: String(got.error || 'unknown').slice(0, 120) }), 'warn')
         return
       }
       try {
@@ -254,7 +228,7 @@ export const StatusLogDot = function (props) {
         setBusy(null)
         setClearConfirm(false)
         if (!res || res.ok !== true) {
-          try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc('clear-not-ok', 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.clearFailed', { err: 'not-ok' }), 'warn')
+          dswsLogWarnCall('wf.logClear', 'clear', 'clear-not-ok'); say(tr('logtoast.clearFailed', { err: 'not-ok' }), 'warn')
           return
         }
         const n = (typeof res.removed === 'number') ? res.removed : 0
@@ -263,12 +237,12 @@ export const StatusLogDot = function (props) {
       }).catch(function (e) {
         setBusy(null)
         setClearConfirm(false)
-        try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.clearFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
+        dswsLogWarnCall('wf.logClear', 'clear', e); say(tr('logtoast.clearFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
       })
     } catch (e) {
       setBusy(null)
       setClearConfirm(false)
-      try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; say(tr('logtoast.clearFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
+      dswsLogWarnCall('wf.logClear', 'clear', e); say(tr('logtoast.clearFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
     }
   }
   const dotColor = debugOn ? '#4ade80' : '#6b6b75'
@@ -290,24 +264,20 @@ export const StatusLogDot = function (props) {
     onMouseEnter: function () { try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {} },
     style: {
       width: 10, height: 10, borderRadius: 99, background: dotColor, flex: 'none', cursor: 'pointer',
-      boxShadow: debugOn ? '0 0 6px rgba(74,222,128,.6)' : 'none',
-      outline: 'none', display: 'inline-block', verticalAlign: 'middle',
+      boxShadow: debugOn ? '0 0 6px rgba(74,222,128,.6)' : 'none', outline: 'none', display: 'inline-block', verticalAlign: 'middle',
     },
   })
   const itemStyle = function (danger) {
     return {
       display: 'flex', width: '100%', textAlign: 'left', background: 'none', border: 'none',
       color: danger ? '#fca5a5' : 'var(--dsw-alias-label-primary,#e6edf3)',
-      fontSize: 13, padding: '8px 10px', borderRadius: 7, cursor: busy ? 'default' : 'pointer',
-      alignItems: 'center', gap: 8, opacity: busy ? 0.55 : 1,
+      fontSize: 13, padding: '8px 10px', borderRadius: 7, cursor: busy ? 'default' : 'pointer', alignItems: 'center', gap: 8, opacity: busy ? 0.55 : 1,
     }
   }
   const menuItem = function (key, icon, label, fn, danger) {
     const busyLabel = busy === 'export' ? tr('logmenu.exporting') : (busy === 'clear' ? tr('logmenu.clearing') : null)
     const showBusy = !!busy && ((key === 'export' && busy === 'export') || (key === 'clear' && busy === 'clear'))
-    return hh('button', {
-      key: key, role: 'menuitem', disabled: !!busy, onClick: function (e) { try { e.stopPropagation() } catch (e2) {}; fn() }, style: itemStyle(danger),
-    }, [
+    return hh('button', { key: key, role: 'menuitem', disabled: !!busy, onClick: function (e) { try { e.stopPropagation() } catch (e2) {}; fn() }, style: itemStyle(danger) }, [
       (typeof Ic === 'function') ? Ic({ n: icon, size: 13, color: danger ? '#fca5a5' : undefined }) : null,
       hh('span', null, showBusy ? (busyLabel + '…') : label),
     ])
@@ -319,13 +289,9 @@ export const StatusLogDot = function (props) {
     onMouseEnter: function () { try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {} },
     onMouseLeave: function () { scheduleMenuClose() },
     style: {
-      position: 'fixed',
-      right: menuPos ? menuPos.right : 12,
-      bottom: menuPos ? menuPos.bottom : 40,
-      minWidth: 210, padding: 4, zIndex: 2147483000,
+      position: 'fixed', right: menuPos ? menuPos.right : 12, bottom: menuPos ? menuPos.bottom : 40, minWidth: 210, padding: 4, zIndex: 2147483000,
       background: 'var(--dsw-alias-bg-layer-2,#16181d)',
-      border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10,
-      boxShadow: '0 8px 30px rgba(0,0,0,.45)',
+      border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.45)',
     },
   }, [
     hh('div', { role: 'menu', 'aria-label': dotTitle }, [
@@ -341,16 +307,12 @@ export const StatusLogDot = function (props) {
     'data-dsws-logmenu': '1',
     key: 'dsws-logconfirm',
     onClick: function (e) { try { if (e.target === e.currentTarget) setClearConfirm(false) } catch (e2) {} },
-    style: {
-      position: 'fixed', inset: 0, zIndex: 2147483000, display: 'flex',
-      alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.55)', padding: 20,
-    },
+    style: { position: 'fixed', inset: 0, zIndex: 2147483000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.55)', padding: 20 },
   }, [
     hh('div', {
       role: 'dialog', 'aria-label': tr('logmenu.clearTitle'),
       style: {
-        background: 'var(--dsw-alias-bg-layer-2,#16181d)',
-        border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12,
+        background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12,
         padding: 18, width: '100%', maxWidth: 420, boxShadow: '0 8px 30px rgba(0,0,0,.45)',
       },
     }, [
