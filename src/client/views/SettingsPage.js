@@ -10,7 +10,7 @@ export     const SettingsPage = (props) => {
       const h = cx ? cx.h : React.createElement
       // T5 修订：订阅 store（设置页独立于面板 dock，需自己订阅 shared 才能渲染 flash toast）
       const sharedSt = cx ? cx.storeSvc.useStore(props && props.sessionId) : useStore(props && props.sessionId)
-      // T2 HoverTip 迁移：cfgTip 定位/翻转/挂顶已由 HoverTip(mode='mouse') 统一，旧三件套置换为 HoverTip 契约，行为零变化
+      // T2 悬停提示迁移：设置提示框的定位、翻转、挂顶显示已统一交给 HoverTip（mode='mouse'）负责，显示悬停提示、移动悬停提示、隐藏悬停提示三个旧函数（showCfgTip/moveCfgTip/hideCfgTip）已经下线，移除了全局显示时序，翻转阈值与样式走统一配置表，页面行为没有变化
       const [openIn, setOpenIn] = React.useState(cfg.openIn || 'dock')
       const [openInNote, setOpenInNote] = React.useState(false)
       const [wf, setWf] = React.useState(cfg.withWayfinder)
