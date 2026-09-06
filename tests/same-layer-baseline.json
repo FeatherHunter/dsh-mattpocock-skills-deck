@@ -506,6 +506,15 @@
       "count": 1,
       "owner": "日志底座·host #490",
       "note": "#490 接线：index 动态加载宿主日志库（装配扇入，设计 #335 第 1、2、4 章 host 部分）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./dispatchMeta.js",
+      "resolved": "src/host/dispatchMeta.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "收敛·host-7/7 #515",
+      "note": "H7 接线：index 动态加载分发异常纯函数模块（装配扇入，入参散列与错误归类逐行原样搬出）"
     }
   ]
 }
