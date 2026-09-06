@@ -14,9 +14,9 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 
 console.log('日志计数门禁（#494/#498：常驻 29、按需 20、总数 49，与退役附录修订版字面一致）')
 
-// 附录对照表里的现行清单（1.3 落定后常驻 27 条，#498 增补 #49 与 #51 成 29 条；另有 2 条已退役只作追溯）。
+// 附录对照表里的现行清单（1.3 落定后常驻 27 条，#498 增补 #51 与 #55 成 29 条；另有 2 条已退役只作追溯）。
 const RESIDENT = ['snapshot.request', 'snapshot.cache.miss', 'repo.resolve.tier', 'gh.exec', 'gh.timeout', 'gh.resolve.fail', 'graphql.fallback', 'issues.fallback', 'snapshot.built', 'panelSync.dirty', 'registry.select', 'detection.detect', 'skill.probe', 'skill.pending.cap', 'host.call', 'host.call.fail', 'snapshot.hydrate', 'backend.switch', 'naming.guard', 'naming.lock', 'settings.save', 'panel.open', 'statusbar.fallback', 'dock.rehydrate', 'storage.fail', 'chain.derive.error', 'fallback.chain', 'client.snapshot.miss', 'host.start']
-// 按需 20 条编号（#498 增补 #46、#47、#48、#50）：含 #45，不含已退役。
+// 按需 20 条编号（#498 增补 #52、#53、#54、#56）：含 #45，不含已退役。
 const ONDEMAND = ['snapshot.cache.hit', 'probe.eval', 'panelSync.eval', 'registry.stub', 'workspaceStore.hit', 'chain.cache.hit', 'chain.predicate', 'workspaceKey.canonical', 'platform.resolve', 'naming.sweep', 'snapshot.fanout', 'dedup.hit', 'statusbar.hydrate', 'error.normalize', 'timer.schedule', 'privacy.scrub', 'chain.cache.miss', 'workspaceStore.miss', 'client.snapshot.hit', 'detail.cache.hit']
 const RETIRED = ['issuePath.push', 'issuePath.record']
 
