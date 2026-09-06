@@ -17,7 +17,8 @@ export function createPickerShell(deps) {
       // cwd 归一（platform.path 处理分隔符）
       let target = String(cwd)
       try { if (platform.path && typeof platform.path.normalize === 'function') target = platform.path.normalize(target) } catch {}
-      // win32 explorer 需保持原分隔符；darwin/linux 用 posix 兼容
+      // #497：win32 资源管理器认不出正斜杠（含拼接路径与透传的可显示路径），传给 explorer 前统一为反斜杠；darwin/linux 不动
+      if (os === 'win32') target = target.replace(/\//g, '\\')
       const argv = [opener, target]
       try {
         const handle = subprocess.spawn({ argv: argv, cwd: DEFAULT_CWD || target, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
@@ -113,6 +114,8 @@ export function createPickerShell(deps) {
       if (isWin) {
         // win32 用 explorer 选中文件，无 shell 拼接，argv 直传防注入；文件不存在时 explorer 仍会打开目录
         // 优先用 explorer /select, 失败回退 cmd start
+        // #497：explorer 认不出正斜杠，spawn 前统一为反斜杠；darwin/linux 分支不动
+        p = p.replace(/\//g, '\\')
         try {
           // 先尝试 explorer 选中（最符合“在本地打开”）
           const handle = subprocess.spawn({ argv: ['explorer', '/select,' + p], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })

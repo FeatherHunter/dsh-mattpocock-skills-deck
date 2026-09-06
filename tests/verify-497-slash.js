@@ -1,0 +1,94 @@
+// tests/verify-497-slash.js —— #497 win32 打开路径斜杠门禁：传给资源管理器的目标路径不能含正斜杠。
+// 用法：node tests/verify-497-slash.js（在插件根目录）。
+// 背景：宿主打开文件夹与打开文件在 win32 下把含正斜杠的路径原样交给 explorer，
+// 资源管理器认不出，回落到默认位置，用户看到“点了没反应”（电话仍回 ok:true）。
+// 修法：pickerShell.js 里 win32 分支在 spawn 前把目标路径的正斜杠统一为反斜杠；
+// darwin 与 linux 分支保持不动。本门禁逐平台核对传给 spawn 的实际参数。
+const path = require('path')
+const { pathToFileURL } = require('url')
+
+const ROOT = path.resolve(__dirname, '..')
+let failed = false
+let total = 0
+const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+
+console.log('#497 门禁：win32 打开路径无正斜杠（darwin/linux 保持正斜杠）')
+
+// 按指定系统组装宿主依赖：spawn 只记录参数不真打开，计时器立即超时不等待。
+function makeDeps(os, captured) {
+  return {
+    DEFAULT_CWD: 'D:/base',
+    getPlatform: async () => ({
+      os,
+      path: { normalize: (s) => String(s) },
+      resolveExecutable: async (name) => String(name)
+    }),
+    subprocess: {
+      spawn: (opts) => {
+        captured.push((opts && opts.argv) ? opts.argv.slice() : [])
+        return { done: Promise.resolve({ exitCode: 0 }), terminate() {} }
+      }
+    },
+    timer: {
+      timeout: (a) => {
+        if (typeof a === 'number') return Promise.resolve({ exitCode: -1, signal: 'timeout' })
+        return { then(resolve) { resolve({ exitCode: -1 }) } }
+      }
+    },
+    logCtx: null
+  }
+}
+
+async function main() {
+  const modUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'pickerShell.js')).href
+  let mod
+  try {
+    mod = await import(modUrl)
+  } catch (e) {
+    check(false, '打开器可被动态加载（src/host/pickerShell.js）：' + e.message)
+    console.log(failed ? '\n存在失败' : '\n全部通过')
+    process.exit(1)
+  }
+  check(typeof mod.createPickerShell === 'function', '打开器导出工厂函数 createPickerShell')
+
+  // win32 打开文件夹：传给 explorer 的目标路径无正斜杠。
+  {
+    const captured = []
+    const shell = mod.createPickerShell(makeDeps('win32', captured))
+    const res = await shell.handleOpenFolder({ cwd: 'D:/cache/logs' })
+    const target = (captured[0] && captured[0][1]) || ''
+    check(res && res.ok === true, 'win32 打开文件夹仍成功（斜杠转换不翻失败）')
+    check(!target.includes('/'), 'win32 打开文件夹的目标路径无正斜杠（实得 ' + target + '）')
+    check(target === 'D:\\cache\\logs', 'win32 正斜杠统一为反斜杠（实得 ' + target + '）')
+  }
+
+  // win32 打开文件：explorer 选中参数里的文件路径无正斜杠（/select, 开关头不算）。
+  {
+    const captured = []
+    const shell = mod.createPickerShell(makeDeps('win32', captured))
+    const res = await shell.handleOpenPath({ path: 'D:/cache/logs/2026-09-06.log' })
+    const arg = (captured[0] && captured[0][1]) || ''
+    const filePart = String(arg).replace(/^\/select,/, '')
+    check(res && res.ok === true, 'win32 打开文件仍成功（斜杠转换不翻失败）')
+    check(!filePart.includes('/'), 'win32 打开文件的目标路径无正斜杠（实得 ' + filePart + '）')
+  }
+
+  // darwin 与 linux：正斜杠保持不动（修法只动 win32）。
+  {
+    const capturedMac = []
+    const mac = mod.createPickerShell(makeDeps('darwin', capturedMac))
+    await mac.handleOpenPath({ path: '/tmp/a/b.log' })
+    const macArg = (capturedMac[0] && capturedMac[0][1]) || ''
+    check(macArg === '/tmp/a/b.log', 'darwin 打开路径保持正斜杠不动（实得 ' + macArg + '）')
+    const capturedLinux = []
+    const linux = mod.createPickerShell(makeDeps('linux', capturedLinux))
+    await linux.handleOpenFolder({ cwd: 'D:/cache/logs' })
+    const linuxTarget = (capturedLinux[0] && capturedLinux[0][1]) || ''
+    check(linuxTarget === 'D:/cache/logs', 'linux 打开路径保持正斜杠不动（实得 ' + linuxTarget + '）')
+  }
+
+  console.log(failed ? '\n存在失败 ' + total + ' 项' : '\n全部通过 ' + total + ' 项')
+  process.exit(failed ? 1 : 0)
+}
+
+main().catch((e) => { console.error('门禁异常：' + ((e && e.message) || e)); process.exit(1) })
