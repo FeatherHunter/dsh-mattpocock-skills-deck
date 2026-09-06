@@ -122,6 +122,12 @@ export function createNamingGuardian(deps) {
       return { ok: true, index: index }
     } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
   }
+  // 提示词与标题无关的新编号不硬配（#315 追加修复的提纯：逐行原样搬入此处，行为不变）。
+  // 保留规则：找不到会话记录或没有提示词直接保留；判定抛错也保留；只有明确判定无关才丢弃。
+  function keepRelatedAssigned(list, core, sessions) {
+    if (!list.length || !core.isHintRelatedToTitle) return list
+    return list.filter(function (a) { const e = sessions[a.sessionId]; if (!e || !e.hint) return true; try { return core.isHintRelatedToTitle(e.hint, a.title) } catch (eRel) { return true } })
+  }
   /**
    * 索引差值结算（每仓库一次）：新编号（升序）→ 归属同仓库最早仍处占位/草稿档的受踪会话
    * （归属判定为共享核心纯函数 attributeNewNumbers；prev 快照缺失 → 仅基线建档不归属，
@@ -152,21 +158,8 @@ export function createNamingGuardian(deps) {
           if (prev) assigned = core.attributeNewNumbers({ prevIndex: prev, currIndex: r.index, sessions: grp.sessions })
           // prev 为空：首轮基线。基线同样必须入库（防下一轮把存量全量当新编号）
         } catch (eA) { assigned = [] }
-        // #315 追加修复：无关新号不硬配。
-        try {
-          if (assigned.length && core.isHintRelatedToTitle) {
-            const kept = [];
-            for (let i = 0; i < assigned.length; i++) {
-              const a = assigned[i];
-              const entry = st.sessions[a.sessionId];
-              if (!entry) { kept.push(a); continue; }
-              const hint = entry.hint;
-              if (hint) { try { if (!core.isHintRelatedToTitle(hint, a.title)) continue; } catch (eRel) {} }
-              kept.push(a);
-            }
-            assigned = kept;
-          }
-        } catch (eFilter) {}
+        // #315 追加修复：无关新号不硬配（已提纯为 keepRelatedAssigned，行为不变）。
+        try { assigned = keepRelatedAssigned(assigned, core, st.sessions) } catch (eFilter) {}
         let changed = false
         for (let i = 0; i < assigned.length; i++) {
           const a = assigned[i]
