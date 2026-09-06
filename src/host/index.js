@@ -69,23 +69,9 @@ export default {
     function fireLog(level, event, fieldsOrFn) { try { _log().then(function (h) { try { if (!h.isEnabled(level)) return; if (h.getSwitchState) { try { logSwitchCache = h.getSwitchState().enabled === true } catch (eC) {} } const fields = (typeof fieldsOrFn === 'function') ? fieldsOrFn() : fieldsOrFn; h.log(level, event, fields || {}) } catch (e) {} }).catch(function () {}) } catch (e) {} }
     function isLogEnabled(level) { if (level === 'error' || level === 'warn') return true; return logSwitchCache === true }
     const logCtx = { fire: fireLog, isEnabled: isLogEnabled }
-    // 分发异常行（#499 自监控 46）：电话抛错记 error 行；电话名是固定枚举可记原文，入参只记散列，类别沿错误归一口径。
-    function shortArgHash(args) {
-      try {
-        const s = String(JSON.stringify(args) || '').slice(0, 2000)
-        let h = 5381
-        for (let i = 0; i < s.length; i++) h = (((h << 5) + h + s.charCodeAt(i)) >>> 0)
-        return ('0000000' + h.toString(16)).slice(-8)
-      } catch (e) { return 'unknown' }
-    }
-    function dispatchErrorKind(e) {
-      const m = String((e && e.message) || e || '')
-      if (/auth|token|denied|401|403/i.test(m)) return 'auth'
-      if (/network|timeout|ECONN|ENOTFOUND|fetch failed/i.test(m)) return 'network'
-      if (/exit\s*code|exitCode/i.test(m)) return 'exit'
-      if (/not found|ENOENT|404/i.test(m)) return 'notfound'
-      return 'internal'
-    }
+    // H7 #515：分发异常行的两个纯函数（入参散列 shortArgHash + 错误归类 dispatchErrorKind，逐行原样）已搬到 ./dispatchMeta.js；此处只留动态加载器（D7 禁止静态 import）。
+    let _dispatchMetaP = null
+    function _dispatchMeta() { if (!_dispatchMetaP) _dispatchMetaP = import('./dispatchMeta.js').then(function(m){ return m.createDispatchMeta() }); return _dispatchMetaP }
 
     // H1 #445：原 496–720 行（gh 封装/钥匙/缓存）已搬到 ./repoKeys.js。
     // ---- H1 #445 接线：3 新文件动态 import加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
@@ -115,7 +101,7 @@ export default {
     async function readDiskCache() { const h = await _repo(); return h.readDiskCache.apply(h, arguments) }
     async function writeDiskCache() { const h = await _repo(); return h.writeDiskCache.apply(h, arguments) }
     async function getRepoKey() { const h = await _repo(); return h.getRepoKey.apply(h, arguments) }
-    try { _boot().catch(function(){}) } catch (e0) {}
+    try { _boot().catch(function(){}); _dispatchMeta().catch(function(){}) } catch (e0) {}
     try { _plat().then(function(pl){ try { pl.getTrackerRegistry().catch(function(){}) } catch (e1) {} }).catch(function(){}) } catch (e2) {}
 
     // ---- H2 #446 接线：3 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
@@ -349,7 +335,7 @@ export default {
             const value = await fn(payload)
             return { ok: true, value }
           } catch (e) {
-            try { fireLog('error', 'host.dispatch.error', { method: 'wf.' + endpoint, argsHash: shortArgHash(payload), errorKind: dispatchErrorKind(e) }) } catch (eLog) {}
+            try { _dispatchMeta().then(function(dm){ try { fireLog('error', 'host.dispatch.error', { method: 'wf.' + endpoint, argsHash: dm.shortArgHash(payload), errorKind: dm.dispatchErrorKind(e) }) } catch (eInner) {} }).catch(function(){}) } catch (eLog) {}
             return { ok: false, error: { code: 'internal', message: String((e && e.message) || e), details: {} } }
           }
         }, { authority: 'loopback' })
