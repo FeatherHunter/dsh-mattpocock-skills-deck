@@ -10,8 +10,7 @@ export     const SettingsPage = (props) => {
       const h = cx ? cx.h : React.createElement
       // T5 修订：订阅 store（设置页独立于面板 dock，需自己订阅 shared 才能渲染 flash toast）
       const sharedSt = cx ? cx.storeSvc.useStore(props && props.sessionId) : useStore(props && props.sessionId)
-      // T2 HoverTip 迁移：cfgTip 的定位/翻转/挂顶已由 HoverTip(mode='mouse') 统一，移除 sharedSt.cfgTip 全局时序
-      // 旧 showCfgTip/moveCfgTip/hideCfgTip 三件套置换为 HoverTip 契约，行为零变化（翻转阈值与样式走 HoverTip 统一表）
+      // T2 HoverTip 迁移：cfgTip 定位/翻转/挂顶已由 HoverTip(mode='mouse') 统一，旧三件套置换为 HoverTip 契约，行为零变化
       const [openIn, setOpenIn] = React.useState(cfg.openIn || 'dock')
       const [openInNote, setOpenInNote] = React.useState(false)
       const [wf, setWf] = React.useState(cfg.withWayfinder)
