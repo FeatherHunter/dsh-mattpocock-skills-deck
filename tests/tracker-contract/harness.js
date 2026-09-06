@@ -79,7 +79,12 @@ export function runContractTests(t) {
     assert('mergedAt string|null', w.mergedAt === null || typeof w.mergedAt === 'string', 'got=' + JSON.stringify(w.mergedAt))
   }
   if (hasOwn(w, 'reviews')) {
-    const reviewsOk = Array.isArray(w.reviews) && w.reviews.every((r) => r && typeof r === 'object' && typeof r.state === 'string')
+    // 评审细分出现了就必须是数组（null 也不行）；每条必须有评审结论文字，
+    // 写了评审人就必须有登录名文字，写了评审时间就必须是时间文字。
+    const reviewsOk = Array.isArray(w.reviews) && w.reviews.every((r) => r && typeof r === 'object'
+      && typeof r.state === 'string'
+      && (!hasOwn(r, 'reviewer') || (r.reviewer && typeof r.reviewer === 'object' && typeof r.reviewer.login === 'string'))
+      && (!hasOwn(r, 'submittedAt') || typeof r.submittedAt === 'string'))
     assert('reviews Review[]（每一条都有评审结论文字）', reviewsOk, 'got=' + JSON.stringify(w.reviews))
   }
   assert('type ∈ {issue,map}', w.type === 'issue' || w.type === 'map', 'type=' + w.type)

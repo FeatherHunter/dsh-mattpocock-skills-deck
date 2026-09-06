@@ -196,6 +196,10 @@ try {
       fixture: Object.assign({}, prCapable, { name: 'pr-shape-violating-reviews', normalize: (raw) => Object.assign({}, prCapable.normalize(raw), { reviews: [{ reviewer: { login: 'alice' } }] }) }),
     },
     {
+      label: 'malformed mergedAt caught',
+      fixture: Object.assign({}, prCapable, { name: 'pr-shape-violating-mergedAt', normalize: (raw) => Object.assign({}, prCapable.normalize(raw), { mergedAt: 12345 }) }),
+    },
+    {
       label: 'standalone entity caught',
       fixture: Object.assign({}, prCapable, { name: 'pr-shape-violating-entity', normalize: (raw) => Object.assign({}, prCapable.normalize(raw), { pullRequests: [] }) }),
     },
