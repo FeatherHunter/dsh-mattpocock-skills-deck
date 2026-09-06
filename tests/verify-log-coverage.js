@@ -139,4 +139,10 @@ const CALLEE_COVERS = [
 }
 
 console.log(failed ? '\n存在失败 — verify-log-coverage 未通过' : '\n全部通过 — 覆盖门禁生效（' + total + ' 项断言）')
+if (failed) {
+  console.log('')
+  console.log('在“动五种东西（跨边界调用、接口方法、面板读写链路、缓存、定时器）就加日志点”之前先读总纲票 #502。')
+  console.log('常驻还是按需看 docs/design/335-logging-contract.md 第 3 章，字段只取 research/489-appendix.md 白名单；补完重跑本脚本，绿了再谈功能。')
+  console.log('总纲票 https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/502')
+}
 process.exit(failed ? 1 : 0)
