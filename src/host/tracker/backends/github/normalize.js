@@ -174,6 +174,12 @@ function normalizeBlockedBy(raw) {
 // 双路输入：GraphQL pullRequest 节点（mergedAt/reviews.nodes）与 REST pull 对象
 // （merged_at/pull_request 标记/reviews 数组）都认；来源没有内容给空值（null/[]），
 // GitHub 有该能力所以逐票必带 isPullRequest（true/false），坏值按空值收敛，不断言缺失。
+// 取舍（与 queries.js 同口径）：列表走 REST 时评审恒为空数组（列表不拉 /reviews，见 pulls.js），
+// 列表走 GraphQL 时评审与评论各给 20 条（工单评论 50 条是历史配额，拉取请求取 20 条省配额），
+// #506 前端房只做展示不依赖明细，点开单票才有真值。
+// 缺边（与 queries.js 同口径）：拉取请求类型原生没有 parent 与 blockedBy 边（2026-09-06 真仓探针已确认），
+// 所以查询侧首版不取这两条边；归一侧仍走同一函数（deriveParentKey 给 null，normalizeBlockedBy 给空数组），
+// milestone 在拉取请求类型可用，查询侧已补取，缺内容时归一给省略，与工单一致。
 function normalizeReview(n) {
   if (!n || typeof n !== 'object') return null
   if (typeof n.state !== 'string' || n.state === '') return null
@@ -193,7 +199,7 @@ function normalizeReviews(raw) {
   let nodes = null
   if (raw && raw.reviews && Array.isArray(raw.reviews.nodes)) nodes = raw.reviews.nodes
   else if (raw && Array.isArray(raw.reviews)) nodes = raw.reviews
-  else return [] // 无来源 → EMPTY（GitHub 恒可实现；REST 列表页无评审明细也给 []，单票页才有真值）
+  else return [] // 无来源 → EMPTY（GitHub 恒可实现；REST 列表页无评审明细恒给 []，单票页 enrichSinglePR 才补真值，#506 展示不依赖条数）
   const out = []
   for (const n of nodes) {
     const r = normalizeReview(n)

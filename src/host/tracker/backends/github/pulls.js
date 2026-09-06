@@ -37,7 +37,10 @@ export async function fetchAllPullsREST(parsed, ctx) {
   return { ok: true, data: out }
 }
 
-// REST 富化：/issues 条目里的拉取请求只有标记没有合并时间，按号补上（找不到就保持 null）。
+// REST 同口径（与 queries.js 缺边说明一致）：列表只补合并时间，不补树边与评审明细。
+// /issues 条目里的拉取请求只有标记没有合并时间，按号补上（找不到就保持 null）；
+// 树边不补是因为 sub_issues 树接口只有工单条目可用，拉取请求条目没有 parent 来源；
+// 评审明细不补是因为列表逐票拉 /reviews 太费配额，列表评审恒给空数组，单票 enrichSinglePR 才拉真值。
 export function enrichRestPRs(issueRaws, pullRaws) {
   const byNum = new Map()
   for (const p of (pullRaws || [])) {

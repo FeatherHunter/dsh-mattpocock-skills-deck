@@ -15,16 +15,28 @@ import { normalizeIssue } from './normalize.js'
 import { classifyGhError } from './errors.js'
 import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY } from './queries.js'
 import { fetchAllPullsREST, enrichRestPRs, enrichSinglePR } from './pulls.js'
+import { pickFallbackReason } from './fallback-reason.js'
 
 // 房内埋点（#494 O1）：GraphQL→REST 降级分支落同名事件 graphql.fallback（#8 告警）与 issues.fallback（#9 常驻）+ fallback.chain（#42 常驻），字段按 #489 附录 1.4。
 // 常驻直发（无外层开关判断，库体内兜底）；无 ctx.logEvent 时静默跳过；只记通道名与原因枚举，不记响应原文。
-function emitRestFallback(ctx, scope, latencyMs) {
+// 降级原因分类（#504 雾证据补强）：细分原因实现见 fallback-reason.js（房内拆文件不拆房），此处只留落点。
+// 超时 → timeout；限流 → rate-limit；企业版主机 → ghe-host；其余 → graphql-error；只复用现有事件名与字段，附录不动。
+function emitRestFallback(ctx, scope, latencyMs, reason) {
   try {
     const f = ctx && typeof ctx.logEvent === 'function' ? ctx.logEvent : null
     if (!f) return
-    f('warn', 'graphql.fallback', { scope, reason: 'graphql-error' })
-    f('info', 'issues.fallback', { from: 'graphql', to: 'rest', reason: 'graphql-error' })
+    const r = typeof reason === 'string' && reason ? reason : 'graphql-error'
+    f('warn', 'graphql.fallback', { scope, reason: r })
+    f('info', 'issues.fallback', { from: 'graphql', to: 'rest', reason: r })
     f('info', 'fallback.chain', { in: 'graphql', out: 'rest', latencyMs: typeof latencyMs === 'number' ? latencyMs : 0 })
+  } catch {}
+}
+// 坏节点计数（#504 可观测）：列表逐票归一失败会丢票，聚合计数后复用 error.normalize 调试事件记一行，不新增事件名，附录不动。
+// 高频路径：同行判断调试开关，关闭时不组装字段；只记范围与丢票计数，不记票原文。
+function emitBadNodes(ctx, scope, dropped, total) {
+  try {
+    if (!dropped) return
+    if (ctx && typeof ctx.isEnabled === 'function' && ctx.isEnabled('debug') && typeof ctx.logEvent === 'function') ctx.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:' + scope + ':' + dropped + '/' + total, mappedKind: 'parse' })
   } catch {}
 }
 
@@ -142,6 +154,11 @@ export async function listIssues(repo, filter, ctx) {
     let after = null
     let hasNext = true
     let needRest = false
+    let firstRestCause = null
+    let droppedIssues = 0
+    let seenIssues = 0
+    let droppedPulls = 0
+    let seenPulls = 0
     // 分页先取 100，超量分页
     while (hasNext) {
       // 构造带变量查询：gh api graphql -f query -F owner -F name -F first -F after
@@ -150,17 +167,18 @@ export async function listIssues(repo, filter, ctx) {
       if (after) args.push('-F', `after=${after}`)
       else args.push('-F', 'after=')
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
-      if (!r.ok) { needRest = true; break }
+      if (!r.ok) { needRest = true; if (!firstRestCause) firstRestCause = (r && r.error) || r; break }
       const text = r.data.stdout || ''
       let j
-      try { j = JSON.parse(text) } catch (e) { needRest = true; break }
-      if (j.errors) { needRest = true; break }
+      try { j = JSON.parse(text) } catch (e) { needRest = true; if (!firstRestCause) firstRestCause = e; break }
+      if (j.errors) { needRest = true; if (!firstRestCause) firstRestCause = { message: JSON.stringify(j.errors).slice(0, 800) }; break }
       const repoData = j.data && j.data.repository
-      if (!repoData) { needRest = true; break }
+      if (!repoData) { needRest = true; if (!firstRestCause) firstRestCause = { message: 'graphql: missing repository' }; break }
       const issues = repoData.issues
-      if (!issues || !Array.isArray(issues.nodes)) { needRest = true; break }
+      if (!issues || !Array.isArray(issues.nodes)) { needRest = true; if (!firstRestCause) firstRestCause = { message: 'graphql: missing issues.nodes' }; break }
       for (const n of issues.nodes) {
-        try { all.push(normalizeIssue(n)) } catch {}
+        seenIssues += 1
+        try { all.push(normalizeIssue(n)) } catch { droppedIssues += 1 }
       }
       const pageInfo = issues.pageInfo
       if (pageInfo && pageInfo.hasNextPage) after = pageInfo.endCursor
@@ -177,16 +195,17 @@ export async function listIssues(repo, filter, ctx) {
         if (prAfter) args.push('-F', `after=${prAfter}`)
         else args.push('-F', 'after=')
         const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
-        if (!r.ok) { needRest = true; break }
+        if (!r.ok) { needRest = true; if (!firstRestCause) firstRestCause = (r && r.error) || r; break }
         let j
-        try { j = JSON.parse(r.data.stdout || '') } catch (e) { needRest = true; break }
-        if (j.errors) { needRest = true; break }
+        try { j = JSON.parse(r.data.stdout || '') } catch (e) { needRest = true; if (!firstRestCause) firstRestCause = e; break }
+        if (j.errors) { needRest = true; if (!firstRestCause) firstRestCause = { message: JSON.stringify(j.errors).slice(0, 800) }; break }
         const repoData = j.data && j.data.repository
-        if (!repoData) { needRest = true; break }
+        if (!repoData) { needRest = true; if (!firstRestCause) firstRestCause = { message: 'graphql: missing repository' }; break }
         const prs = repoData.pullRequests
-        if (!prs || !Array.isArray(prs.nodes)) { needRest = true; break }
+        if (!prs || !Array.isArray(prs.nodes)) { needRest = true; if (!firstRestCause) firstRestCause = { message: 'graphql: missing pullRequests.nodes' }; break }
         for (const n of prs.nodes) {
-          try { all.push(normalizeIssue(n)) } catch {}
+          seenPulls += 1
+          try { all.push(normalizeIssue(n)) } catch { droppedPulls += 1 }
         }
         const pageInfo = prs.pageInfo
         if (pageInfo && pageInfo.hasNextPage) prAfter = pageInfo.endCursor
@@ -194,19 +213,25 @@ export async function listIssues(repo, filter, ctx) {
         if (all.length >= 1000) break
       }
     }
+    if (!needRest) {
+      if (droppedIssues) emitBadNodes(ctx, 'issues', droppedIssues, seenIssues)
+      if (droppedPulls) emitBadNodes(ctx, 'pulls', droppedPulls, seenPulls)
+    }
     if (needRest) {
       // 双路兜底：GraphQL 不可用（unexpected EOF / 配额 / 形状差异）→ REST 分页 + pulls 富化 + sub_issues 树边修复。
       // 企业版（GHE）走同一 gh 命令（GH_HOST 由环境变量给 gh），失败按错误归一诚实返回，不另分支。
-      emitRestFallback(ctx, '地图', Date.now() - t0)
+      emitRestFallback(ctx, '地图', Date.now() - t0, pickFallbackReason(firstRestCause, ctx))
       const rest = await fetchAllIssuesREST(parsed, ctx)
       if (!rest.ok) return { ok: false, error: rest.error }
       const pulls = await fetchAllPullsREST(parsed, ctx)
       const raws = enrichRestPRs(rest.data, pulls.ok ? pulls.data : [])
       const rawFixed = await repairParentLinksREST(raws, parsed, ctx)
       const restNorm = []
+      let droppedRest = 0
       for (const n of rawFixed) {
-        try { restNorm.push(normalizeIssue(n)) } catch {}
+        try { restNorm.push(normalizeIssue(n)) } catch { droppedRest += 1 }
       }
+      if (droppedRest) emitBadNodes(ctx, 'rest', droppedRest, rawFixed.length)
       return { ok: true, data: applyIssueFilter(restNorm, filter) }
     }
     return { ok: true, data: applyIssueFilter(all, filter) }
@@ -233,6 +258,7 @@ export async function getIssue(repo, key, opts, ctx) {
     const args = ['api', 'graphql', '-f', `query=${query}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `number=${num}`]
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     let issueFromGraphQL = null
+    let getCause = (!r.ok ? ((r && r.error) || r) : null)
     if (r.ok) {
       const text = r.data.stdout || ''
       let j
@@ -242,6 +268,7 @@ export async function getIssue(repo, key, opts, ctx) {
         const kind = classifyGhError({ message: msg, stderr: msg }, ctx)
         if (!/rate limit|forbidden|unexpected|network|eof/i.test(msg)) return fail(kind, msg)
         // 配额/网络类 GraphQL 错误 → 走 REST 降级（下方单条 REST 通道）
+        getCause = { message: msg, stderr: msg }
       } else {
         issueFromGraphQL = j.data && j.data.repository && j.data.repository.issue
       }
@@ -266,8 +293,8 @@ export async function getIssue(repo, key, opts, ctx) {
       return { ok: true, data: prNorm }
     }
     if (!issueFromGraphQL) {
-      // REST 降级（与 list 同一背景：GraphQL POST 偶发 unexpected EOF，REST 稳定）
-      emitRestFallback(ctx, '单票', Date.now() - t0)
+      // REST 降级（与 list 同一背景：GraphQL POST 偶发 unexpected EOF，REST 稳定；原因分类与列表同口径，不恒写 graphql-error）
+      emitRestFallback(ctx, '单票', Date.now() - t0, pickFallbackReason(getCause || ((r && r.error) || r), ctx))
       const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${num}`], { cwd: ctx && ctx.cwd })
       if (rr.ok) {
         let jr = null

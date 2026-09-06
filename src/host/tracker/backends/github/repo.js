@@ -62,7 +62,12 @@ export const links = {
   searchUrlTemplate: 'https://github.com/search?q={q}',
   linkPatternSource: 'github\\.com\\/[^\\/\\s]+\\/[^\\/\\s]+\\/issues\\/(\\d+)',
 }
-/** 界面能力位（D8 末段）：仅驱动 UI 引导入口（标签补全步骤）与页签门控（拉取请求页签），永不被数据路径读取。 */
+/** 界面能力位（D8 末段）：仅驱动界面显示，永不被数据路径读取。
+ * 前两键 labelsGuide 与 repoCreateChain 仍与 contract.js 里后端模块类型声明的两键一致，
+ * 第三键 pullRequests 是本房在 #504 加的界面扩展：只告诉界面可以显示拉取请求页签，
+ * 数据有没有拉取请求能力不看这一键，看每张票归一后有没有 isPullRequest 等三个字段（见 capability.js 的事后推导）。
+ * 第三键的唯一消费者是 #506 前端房（页签门控），一次一房纪律下本房只注释不改界面，契约类型声明不动。
+ * R3 要求的前端门控五字段空态属于 #506 工作，已明确拒绝并留给 #506，本房不碰。 */
 export const capabilities = { labelsGuide: true, repoCreateChain: true, pullRequests: true }
 /** #231：开仓契约动作——url 型由 UI 以浏览器新窗打开 describe().url。 */
 export const openRepository = 'url'
