@@ -86,6 +86,66 @@
       const id = backendId != null ? backendId : sel
       return promptText('setupRun', setupRunParamsFrom(st && st.backendModules, id))
     }
+    // Q2 #496：绑定成功后的注入决策（数据驱动，UI 零品牌分支）。
+    //   前置答案（仓库是谁）缺失时不发完整初始化全文，改发该后端声明的缺仓指引；
+    //   判据只读两样：仓库引用（会话/快照）与后端模块能力位（capabilities.repoCreateChain，有创仓链能力的后端才需先有仓库；无此能力位原样直注）。
+    //   返回 { kind: 'setup' | 'repo', text }；失败一律回落旧行为。日志只记分支不记隐私。
+    export const setupOrRepoPrompt = function (st, backendId) {
+      const setupText = function () { try { return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st, backendId) : '' } catch (e) { return '' } }
+      try {
+        let sel = backendId
+        try {
+          if (sel == null) {
+            if (st && st.selection && st.selection.backendId != null) sel = st.selection.backendId
+            else if (st && st.snapshot && st.snapshot.selection && st.snapshot.selection.backendId != null) sel = st.snapshot.selection.backendId
+          }
+        } catch (e) {}
+        let needsRepo = false
+        try {
+          const meta = (typeof moduleMetaOf === 'function' && sel != null) ? moduleMetaOf(st, sel) : null
+          needsRepo = !!(meta && meta.capabilities && meta.capabilities.repoCreateChain)
+        } catch (e) { needsRepo = false }
+        let repo = null
+        try { repo = (st && st.repository) || (st && st.snapshot && st.snapshot.repository) || null } catch (e) { repo = null }
+        const hasRepo = !!(repo && (repo.owner || repo.name))
+        try { console.log('[MattSkillsDeck] setup-inject decision needsRepo=' + needsRepo + ' hasRepo=' + hasRepo) } catch (e) {}
+        if (needsRepo && !hasRepo) {
+          let fix = ''
+          try {
+            const meta2 = (typeof moduleMetaOf === 'function' && sel != null) ? moduleMetaOf(st, sel) : null
+            const pr = meta2 && meta2.prompts && meta2.prompts.repoRemoteFix
+            if (pr) { const lg = (typeof promptLang === 'function') ? promptLang() : 'zh'; fix = String((lg === 'en' && pr.en) ? pr.en : (pr.zh || '')) }
+          } catch (e) { fix = '' }
+          if (fix) return { kind: 'repo', text: fix }
+        }
+      } catch (e) {
+        try { console.warn('[MattSkillsDeck] setup-inject decision fallback: ' + String((e && e.message) || e).slice(0, 120)) } catch (_) {}
+      }
+      return { kind: 'setup', text: setupText() }
+    }
+    // Q2 #496：注入执行 + 待补标记（按工作区键隔离，建成后凭标记补发一次，仅一次）。
+    export const injectSetupDecision = function (st, backendId) {
+      let dec = null
+      try { dec = (typeof setupOrRepoPrompt === 'function') ? setupOrRepoPrompt(st, backendId) : null } catch (e) { dec = null }
+      if (!dec) { try { dec = { kind: 'setup', text: ((typeof setupRunPrompt === 'function') ? setupRunPrompt(st, backendId) : '') } } catch (e) { dec = { kind: 'setup', text: '' } } }
+      try { st.pendingSetupAfterPublish = !!(dec && dec.kind === 'repo'); st.pendingSetupCwd = ((dec && dec.kind === 'repo' && st && st.cwd) ? st.cwd : '') } catch (e) {}
+      try { console.log('[MattSkillsDeck] setup-inject applied kind=' + ((dec && dec.kind) || 'setup')) } catch (e) {}
+      if (dec && dec.text) { try { inject(st, dec.text) } catch (e) {} }
+      return (dec && dec.kind) || 'setup'
+    }
+    // Q2 #496：建仓成功处消费标记，补发一次初始化全文（标记按工作区键核对，不跨区）。
+    export const consumePendingSetup = function (st) {
+      try {
+        if (st && st.pendingSetupAfterPublish && (!st.pendingSetupCwd || st.pendingSetupCwd === st.cwd)) {
+          st.pendingSetupAfterPublish = false; st.pendingSetupCwd = ''
+          const txt = (typeof setupRunPrompt === 'function') ? setupRunPrompt(st) : ''
+          if (txt) { try { inject(st, txt) } catch (e) {} }
+          try { console.log('[MattSkillsDeck] setup-inject reissued after repo ready (once)') } catch (e) {}
+          return true
+        }
+      } catch (e) {}
+      return false
+    }
     // v13 新增：newWayfinder 后端无关片段注入（与 setupRun 同构，UI 零分支）
     export const NEW_WAYFINDER_DEFAULT_WIRING = {
       zh: '通过 Tracker 原生的父子关系关联（create 时带 parentKey 或创后 setParent）',

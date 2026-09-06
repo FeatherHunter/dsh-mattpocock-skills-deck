@@ -137,6 +137,7 @@
           m.pending = false
           // #419/#425：成功后丢弃队列残留（向导单例），再关闭向导
           try { if (st && Array.isArray(st._formModalQueue)) st._formModalQueue = [] } catch(_){}
+          try{ if (typeof consumePendingSetup==='function') consumePendingSetup(st) }catch(_){} // #496 Q2
           try { closeFormModal(st) } catch(_){ m.open = false; try { if (typeof emit === 'function') emit(st) } catch(__){} }
           // #419/#425 成功弹窗：真值链接 + 在 GitHub 打开/完成；无 repo 数据时诚实回落为提示
           const repoData = (out && out.data && out.data.ok) ? out.data : null

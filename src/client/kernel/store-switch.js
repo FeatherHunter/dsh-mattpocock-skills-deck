@@ -155,12 +155,7 @@
         try { flash(st, tr('switch.bindOk', { label: (typeof labelOf === 'function' ? labelOf(targetId) : String(targetId)) }), 'ok') } catch {}
         // #191（用户反馈修正）：切换后端的本质 = 按新后端初始化，注入 setupRun prompt（与横幅 setup 按钮同源）
         //   让 AI 加载 /setup-matt-pocock-skills 技能；#230（D10）：占位符改由后端描述数据（setupPrompt 键入 locale）填充，UI 不拼装
-        try {
-          if (typeof setupRunPrompt === 'function') {
-            const p = setupRunPrompt(st, targetId)
-            if (p && typeof inject === 'function') inject(st, p)
-          }
-        } catch {}
+        try { if (typeof injectSetupDecision === 'function') injectSetupDecision(st, targetId) } catch {} // #496 Q2
         closeSwitchConfirm(st)
         try {
           if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true)

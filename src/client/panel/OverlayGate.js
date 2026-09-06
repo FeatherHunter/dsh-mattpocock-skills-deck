@@ -55,8 +55,7 @@ export const confirmOverlayGate = function(s, gateModules){
               try{ flash(s, tr('switch.bindOk', { label: (typeof labelOf==='function'?labelOf(id):String(id)) }), 'ok') }catch(e){}
               try{
                 // #230（D10）：占位符由后端描述数据填充，UI 不再拼装
-                const txt = (typeof setupRunPrompt==='function'? setupRunPrompt(s, id) : '')
-                if (txt) { try{ inject(s, txt) }catch(e){} }
+                try{ injectSetupDecision(s, id) }catch(e){} // #496 Q2
               }catch(e){}
               loadSnapshot(s,true,true)
             } else {

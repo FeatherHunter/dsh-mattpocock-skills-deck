@@ -125,6 +125,7 @@ export     const NoRepoCard = function (props) {
         host.call('wf.initPublish', { cwd: st.cwd, name: card.name, visibility: card.visibility }).then(function (res) {
           card.loading = false
           if (res && res.ok) {
+            try{ if (typeof consumePendingSetup==='function') consumePendingSetup(st) }catch(_){} // #496 Q2
             const repoStr2 = res.repo && res.repo.owner ? res.repo.owner + '/' + res.repo.name : (res.repo && res.repo.name ? res.repo.name : card.name)
             // #231（能力位）：未声明 capabilities.labelsGuide 的后端一律跳过标签步骤（Markdown 即此形状；未来后端声明后自动获得引导，D8 末段）
             const sel2 = st.selection || (st.snapshot && st.snapshot.selection) || null
