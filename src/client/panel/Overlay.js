@@ -13,6 +13,11 @@ export     const OverlayPanel = (props) => {
       const tabsRef = React.useRef(null)
       const headRef = React.useRef(null)
       const tabs = useTabsRow(s, tabsRef)
+      // #506 无能力回列表（同 Dock，只读能力位；钩子须在 early-return 之前）。
+      const showPrTab2 = (typeof prTabVisible === 'function') ? prTabVisible(s) : false
+      React.useEffect(function () {
+        if (s.tab === 'pr' && !showPrTab2) { s.tab = 'list'; emit(s) }
+      }, [s.tab, showPrTab2])
       React.useEffect(function () {
         const applyFold = function () {
           const t = tabsRef.current
@@ -252,6 +257,7 @@ export     const OverlayPanel = (props) => {
           ]) : null,
         ]) : h('div', { className: 'dsws-body', onMouseDown: onBodyDown }, [
           s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : h(ListTab, { st: s, narrow: narrow })) : null,
+          s.tab === 'pr' ? (showPrTab2 ? h(PrTab, { st: s, narrow: narrow }) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,
           s.tab === 'checks' ? h(ChecksTab, { st: s }) : null,
         ]),

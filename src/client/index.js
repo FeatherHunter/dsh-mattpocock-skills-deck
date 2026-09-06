@@ -205,6 +205,8 @@ export default {
     // ==== leaf:noRepoCard (spliced by build) ====
     // ==== leaf:ListTabRow (spliced by build) ==== // ==== leaf:listTab (spliced by build) ====
 
+    // ==== leaf:prTab (spliced by build) ====
+
     // ==== leaf:ringSkills (spliced by build) ====
 
     // ==== leaf:skillsTab (spliced by build) ====

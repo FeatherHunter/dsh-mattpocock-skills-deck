@@ -25,10 +25,13 @@ export const useTabsRow = function (s, tabsRef) {
     Ic({ n: icon, size: 12 }),
     h('span', null, label),
   ])
+  // #506 拉取请求独立页签：能力门控显隐，只读能力位，不写后端名字；优先级按原型结论列表4/拉取请求5/技能6/环境检查7。
+  const showPr = (typeof prTabVisible === 'function') ? prTabVisible(s) : false
   const items = [
     tabBtn('list', 'list', tr('panel.tabList'), 4),
-    tabBtn('skills', 'compass', tr('panel.tabSkills'), 5),
-    tabBtn('checks', 'gear', tr('panel.tabChecks'), 6),
+    showPr ? tabBtn('pr', 'swap', tr('panel.tabPr'), 5) : null,
+    tabBtn('skills', 'compass', tr('panel.tabSkills'), 6),
+    tabBtn('checks', 'gear', tr('panel.tabChecks'), 7),
     h('span', { style: { flex: 1 } }),
     // v1.5 T6 修订（V2 描边紫 · 刷新左侧）：新增 wayfinder —— 注入 /wayfinder + 仓库信息 + 需求引导
     // issue #4：新增 BUG 单 —— 同构按钮（新会话预填 /wayfinder 新增 BUG 单 prompt）

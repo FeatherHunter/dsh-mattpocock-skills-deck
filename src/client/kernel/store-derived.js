@@ -140,6 +140,45 @@
       if (has('wayfinder:prototype')) return mk('prototype', tr('act.prototype'), rowActionText(st, x), btnColor('wayfinder:prototype', '#f59e0b'))
       return mk('play', tr('act.execute'), rowActionText(st, x), '#c084fc')
     }
+    // #506 拉取请求页签门控与列表派生（前端房纯函数，无日志点：无跨边界调用、无新缓存、无定时器，复用既有快照链路）
+    // 门控只读后端模块的能力位，不写后端名字；快照组装全留，过滤归前端。
+    // ListFilter 登记（前端房登记，后端按此实现过滤；示例见 #504 正文）：
+    //   const res = await listIssues({ refId: 'owner/name' }, { state: 'open', isPullRequest: true }, ctx)
+    // 成功时只返回拉取请求，同池逐票仍必带三个扩展字段。
+    export const prTabVisible = function (st) {
+      try {
+        var sel = (st && (st.selection || (st.snapshot && st.snapshot.selection))) || null
+        var bid = sel ? sel.backendId : null
+        if (bid == null) return false
+        var meta = null
+        try { meta = (typeof moduleMetaOf === 'function') ? moduleMetaOf(st, bid) : null } catch (eM) { meta = null }
+        if (meta && meta.capabilities && meta.capabilities.pullRequests === true) return true
+        var ms = (st && Array.isArray(st.backendModules)) ? st.backendModules : null
+        if (ms) for (var i = 0; i < ms.length; i++) { var m = ms[i]; if (m && m.id === bid && m.capabilities && m.capabilities.pullRequests === true) return true }
+        return false
+      } catch (e) { return false }
+    }
+    export const prIssuesOf = function (st) {
+      try {
+        var snap = (st && st.snapshot) || null
+        if (!snap) return []
+        var out = []
+        var seen = {}
+        var push = function (x) {
+          if (!x || x.isPullRequest !== true) return
+          var k = (x.key != null ? String(x.key) : (x.number != null ? String(x.number) : ''))
+          if (!k) return
+          var pid = k + '\0pr'
+          if (seen[pid]) return
+          seen[pid] = true
+          out.push(x)
+        }
+        if (Array.isArray(snap.issues)) snap.issues.forEach(push)
+        if (Array.isArray(snap.maps)) snap.maps.forEach(function (m) { if (m && Array.isArray(m.tickets)) m.tickets.forEach(push) })
+        return out
+      } catch (e2) { return [] }
+    }
+    export const prFilterForList = function () { return { isPullRequest: true } }
     // v19：交接文档时间戳文件名（YYYYMMDD-HHMMSS）
     export const timeStampStr = () => {
       try {

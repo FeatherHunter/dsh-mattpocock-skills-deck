@@ -254,6 +254,7 @@ const LEAF_MODULES = [
   { id: 'noRepoCard', file: 'src/client/views/NoRepoCard.js' },
   { id: 'ListTabRow', file: 'src/client/views/ListTabRow.js' },
   { id: 'listTab', file: 'src/client/views/ListTab.js' },
+  { id: 'prTab', file: 'src/client/views/PrTab.js' },
   { id: 'ringSkills', file: 'src/client/views/RingSkills.js' },
   { id: 'skillsTab', file: 'src/client/views/SkillsTab.js' },
   { id: 'checksTab', file: 'src/client/views/ChecksTab.js' },

@@ -40,6 +40,11 @@ export     const DetailsDock = (props) => {
       const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
       const hasIssueDetail = s.activeIssue !== null && s.activeIssue !== undefined
       const narrow = dw < 380
+      // #506 无能力回列表：正停在拉取请求页时切到无能力后端，自动回到列表页（只读能力位）。
+      const showPrTab = (typeof prTabVisible === 'function') ? prTabVisible(s) : false
+      React.useEffect(function () {
+        if (s.tab === 'pr' && !showPrTab) { s.tab = 'list'; emit(s) }
+      }, [s.tab, showPrTab])
       // #187 Banner→Modal 门控（承接 #184 定版：Banner 点→Modal 动态三选，不含 Other，取消/确认 + 整条隐藏+容器不挂载 + pending/isOther 两态 + 动态多态）
       const _sel = s.selection || (s.snapshot && s.snapshot.selection) || null
       const _isPending = !!(_sel && _sel.pending && !!s.cwd && s.snapMode==='real' && !!s.snapshot)
@@ -256,6 +261,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
           ]) : null,
         ]) : h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
           s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null,
+          s.tab === 'pr' ? (showPrTab ? (hasIssueDetail ? h(IssueDetail, { st: s }) : h(PrTab, { st: s, narrow: narrow })) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,
           s.tab === 'checks' ? h(ChecksTab, { st: s }) : null,
         ]),
