@@ -46,6 +46,44 @@ export const GET_QUERY = `query($owner:String!,$name:String!,$number:Int!){
   }
 }`
 
+// 拉取请求片段（#504 落 #294 形状 A：只取契约三字段所需来源 + 复用工单核心字段）。
+// 实测结论（2026-09-07，真仓 FeatherHunter/dsh-mattpocock-skills-deck）：
+// GraphQL pullRequests 直出 mergedAt 与 reviews.nodes{state author{login} submittedAt}，
+// body/url/createdAt 等核心字段与 issue 同名可用；REST 侧 /pulls 给 merged_at、/reviews 给评审。
+export const PULL_REQUEST_FRAGMENT = [
+  'number',
+  'title',
+  'state',
+  'body',
+  'url',
+  'createdAt',
+  'updatedAt',
+  'closedAt',
+  'mergedAt',
+  'author{login avatarUrl __typename ... on User{name} ... on Organization{name}}',
+  'assignees(first:50){nodes{login name avatarUrl __typename}}',
+  'labels(first:50){nodes{name color description}}',
+  'comments(first:20){nodes{id author{login avatarUrl __typename ... on User{name} ... on Organization{name}} authorAssociation body createdAt updatedAt lastEditedAt}}',
+  'reviews(first:20){nodes{state author{login} submittedAt}}',
+].join(' ')
+
+// 拉取请求列表查询（与 LIST_QUERY 同构：分页取，按更新时间倒序）
+export const LIST_PR_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String){
+  repository(owner:$owner,name:$name){
+    pullRequests(first:$first, after:$after, states:[OPEN,CLOSED], orderBy:{field:UPDATED_AT, direction:DESC}){
+      nodes{ ${PULL_REQUEST_FRAGMENT} }
+      pageInfo{ hasNextPage endCursor }
+    }
+  }
+}`
+
+// 拉取请求单票查询（get 按号先查 issue、再查此查询，见 issues.js）
+export const GET_PR_QUERY = `query($owner:String!,$name:String!,$number:Int!){
+  repository(owner:$owner,name:$name){
+    pullRequest(number:$number){ ${PULL_REQUEST_FRAGMENT} }
+  }
+}`
+
 // 兼容旧命名（#132 登记旧片段迁移）：保留但指向新 fragment
 export const GITHUB_ISSUE_FIELDS = ISSUE_FRAGMENT
-export default { ISSUE_FRAGMENT, GITHUB_ISSUE_FIELDS, LIST_QUERY, GET_QUERY }
+export default { ISSUE_FRAGMENT, GITHUB_ISSUE_FIELDS, LIST_QUERY, GET_QUERY, PULL_REQUEST_FRAGMENT, LIST_PR_QUERY, GET_PR_QUERY }

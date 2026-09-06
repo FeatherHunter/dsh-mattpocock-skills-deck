@@ -62,8 +62,8 @@ export const links = {
   searchUrlTemplate: 'https://github.com/search?q={q}',
   linkPatternSource: 'github\\.com\\/[^\\/\\s]+\\/[^\\/\\s]+\\/issues\\/(\\d+)',
 }
-/** 界面能力位（D8 末段）：仅驱动 UI 引导入口（标签补全步骤），永不被数据路径读取。 */
-export const capabilities = { labelsGuide: true, repoCreateChain: true }
+/** 界面能力位（D8 末段）：仅驱动 UI 引导入口（标签补全步骤）与页签门控（拉取请求页签），永不被数据路径读取。 */
+export const capabilities = { labelsGuide: true, repoCreateChain: true, pullRequests: true }
 /** #231：开仓契约动作——url 型由 UI 以浏览器新窗打开 describe().url。 */
 export const openRepository = 'url'
 
@@ -75,7 +75,17 @@ export const openRepository = 'url'
  * @param {import('../../contract.js').OpContext} ctx （含 platform/fs/exec/platform.resolveExecutable）
  * @returns {Promise<{owner:string,name:string}|null>}
  */
+// 房内埋点：repo.resolve.tier（#4 常驻，1/1）：三层兜底每层只记成功一行，全挂记 tier3 失败一行；只记层号与耗时，不记地址原文。
+function emitRepoTier(ctx, tier, ok, t0) {
+  try {
+    const f = ctx && typeof ctx.logEvent === 'function' ? ctx.logEvent : null
+    if (!f) return
+    f('info', 'repo.resolve.tier', { tier, ok: ok === true, latencyMs: Date.now() - t0 })
+  } catch {}
+}
+
 export async function getRepoKey(cwd, ctx) {
+  const t0 = Date.now()
   const execCwd = cwd || ''
   const platform = ctx && ctx.platform ? ctx.platform : null
   const fs = platform && platform.fs ? platform.fs : (ctx && ctx.fs ? ctx.fs : null)
@@ -89,7 +99,7 @@ export async function getRepoKey(cwd, ctx) {
           const r = await ctx.exec('git', ['-C', execCwd, 'remote', 'get-url', 'origin'], { cwd: execCwd, timeout: 3000 })
           const out = (r && (r.stdout || r.text || r.stdout === '' ? (r.stdout || r.text) : '')) || ''
           const k = parseGithubRepo(String(out))
-          if (k) return k
+          if (k) { emitRepoTier(ctx, 1, true, t0); return k }
         } catch (e) {}
       } else if (git) {
         // 回退：若 ctx.exec 不可用，尝试 platform.exec
@@ -99,7 +109,7 @@ export async function getRepoKey(cwd, ctx) {
             const r2 = await execFn('git', ['-C', execCwd, 'remote', 'get-url', 'origin'], { cwd: execCwd, timeout: 3000 })
             const out2 = (r2 && (r2.stdout || r2.text)) || ''
             const k2 = parseGithubRepo(String(out2))
-            if (k2) return k2
+            if (k2) { emitRepoTier(ctx, 1, true, t0); return k2 }
           }
         } catch (e2) {}
       }
@@ -114,13 +124,13 @@ export async function getRepoKey(cwd, ctx) {
       const um = String(txt || '').match(/\[remote\s+"origin"\][^[]*url\s*=\s*([^\r\n]+)/)
       if (um) {
         const k = parseGithubRepo(um[1])
-        if (k) return k
+        if (k) { emitRepoTier(ctx, 2, true, t0); return k }
       }
       // 兼容行级 url=
       const um2 = String(txt || '').match(/url\s*=\s*(.+)/)
       if (um2 && !um) {
         const k2 = parseGithubRepo(um2[1])
-        if (k2) return k2
+        if (k2) { emitRepoTier(ctx, 2, true, t0); return k2 }
       }
     } catch (e) {}
   }
@@ -132,8 +142,9 @@ export async function getRepoKey(cwd, ctx) {
     if (rr && rr.ok) {
       const s = (rr.data.stdout || '').trim()
       const idx = s.indexOf('/')
-      if (idx > 0) return { owner: s.slice(0, idx), name: s.slice(idx+1) }
+      if (idx > 0) { emitRepoTier(ctx, 3, true, t0); return { owner: s.slice(0, idx), name: s.slice(idx+1) } }
     }
   } catch (e) {}
+  emitRepoTier(ctx, 3, false, t0)
   return null
 }

@@ -170,6 +170,57 @@ function normalizeBlockedBy(raw) {
   return out
 }
 
+// 拉取请求三字段归一（#504 落 #294 形状 A：复用工单形状加三个可选字段，不新增实体）。
+// 双路输入：GraphQL pullRequest 节点（mergedAt/reviews.nodes）与 REST pull 对象
+// （merged_at/pull_request 标记/reviews 数组）都认；来源没有内容给空值（null/[]），
+// GitHub 有该能力所以逐票必带 isPullRequest（true/false），坏值按空值收敛，不断言缺失。
+function normalizeReview(n) {
+  if (!n || typeof n !== 'object') return null
+  if (typeof n.state !== 'string' || n.state === '') return null
+  const out = { state: n.state }
+  let login = ''
+  const cand = [n.reviewer, n.author, n.user]
+  for (const c of cand) {
+    if (c && typeof c === 'object' && typeof c.login === 'string' && c.login.trim() !== '') { login = c.login; break }
+  }
+  if (login) out.reviewer = { login }
+  const when = typeof n.submittedAt === 'string' ? n.submittedAt : (typeof n.submitted_at === 'string' ? n.submitted_at : '')
+  if (when) out.submittedAt = when
+  return out
+}
+
+function normalizeReviews(raw) {
+  let nodes = null
+  if (raw && raw.reviews && Array.isArray(raw.reviews.nodes)) nodes = raw.reviews.nodes
+  else if (raw && Array.isArray(raw.reviews)) nodes = raw.reviews
+  else return [] // 无来源 → EMPTY（GitHub 恒可实现；REST 列表页无评审明细也给 []，单票页才有真值）
+  const out = []
+  for (const n of nodes) {
+    const r = normalizeReview(n)
+    if (r) out.push(r)
+  }
+  return out
+}
+
+function deriveIsPullRequest(raw) {
+  if (!raw || typeof raw !== 'object') return false
+  if (typeof raw.isPullRequest === 'boolean') return raw.isPullRequest // 已归一重入
+  if (raw.pull_request != null) return true // REST issue 列表里的拉取请求标记
+  if (typeof raw.__typename === 'string' && raw.__typename.toLowerCase() === 'pullrequest') return true
+  if ('mergedAt' in raw || 'merged_at' in raw) return true // 拉取请求形状才有合并时间键
+  if (raw.reviews != null) return true // 评审键只出现在拉取请求形状
+  return false
+}
+
+function deriveMergedAt(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  if (typeof raw.mergedAt === 'string') return raw.mergedAt
+  if (typeof raw.merged_at === 'string') return raw.merged_at
+  const pr = raw.pull_request
+  if (pr && typeof pr === 'object' && typeof pr.merged_at === 'string') return pr.merged_at
+  return null // 没合并或不是拉取请求 → null（EMPTY）；无能力后端才省略，本房恒给
+}
+
 /**
  * @param {Object} raw GitHub issue 原始对象（GraphQL issue 或 REST issue，或测试桩）
  * @returns {import('../../../../shared/tracker/shape.js').Issue}
@@ -216,6 +267,11 @@ export function normalizeIssue(raw) {
 
   // customFields：GitHub 无结构化字段 → 始终 MISSING（省略）
   // 不产出 customFields
+
+  // 拉取请求三字段：本房恒有能力，逐票必带（#505 交接）；缺内容给空值，不省略
+  issue.isPullRequest = deriveIsPullRequest(raw)
+  issue.mergedAt = deriveMergedAt(raw)
+  issue.reviews = normalizeReviews(raw)
 
   return issue
 }
