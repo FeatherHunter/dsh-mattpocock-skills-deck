@@ -1,6 +1,14 @@
 /**
  * views/SettingsPage.js — 配置页（TPL 表 + 设置，5.9）真源 ESM，build 拼回 src/client/index.js leaf
  */
+// 增-2（#520）：底部作者其他插件清单（5 个，2026-09-06 已验真；写死网址，不拉取不新增网络请求）
+const MORE_PLUGINS = [
+  { slug: 'dsh-mattpocock-skills-deck', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', descKey: 'more.desc.deck' },
+  { slug: 'dsh-opencode-palette', url: 'https://github.com/FeatherHunter/dsh-opencode-palette', descKey: 'more.desc.palette' },
+  { slug: 'dsh-prompt', url: 'https://github.com/FeatherHunter/dsh-prompt', descKey: 'more.desc.prompt' },
+  { slug: 'dsh-im', url: 'https://github.com/FeatherHunter/dsh-im', descKey: 'more.desc.im' },
+  { slug: 'dsh-plugin-ui-debug', url: 'https://github.com/FeatherHunter/dsh-plugin-ui-debug', descKey: 'more.desc.uidebug' },
+]
 export     const SettingsPage = (props) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -130,12 +138,19 @@ export     const SettingsPage = (props) => {
           Ic({ n: noticeIcon(cfgNotice.kind), size: 13, color: NOTICE_COLOR[cfgNotice.kind] || '#4ade80' }),
           h('span', null, cfgNotice.text),
         ]) : null,
-        h('div', { className: 'dsws-cfg-head' }, [
+        // 增-1（#520）：标题同一行右侧两个纯图标按钮（平时只显示图形，悬停或键盘聚焦才显示文字介绍；窄窗口换行到标题下方）
+        h('div', { className: 'dsws-cfg-head', style: { flexWrap: 'wrap' } }, [
           Icon({ scheme: 'compass', size: 20 }),
           h('span', { className: 't' }, tr('panel.title')),
           h('span', { className: 's', style: { color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, [
             Ic({ n: 'dot', size: 12 }),
             h('span', null, tr('cfg.status')),
+          ]),
+          h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+            h(HoverTip, { key: 'star', content: tr('cfg.starTip'), mode: 'mouse', maxWidth: 220 },
+              h('a', { href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: 4, borderRadius: 6, color: 'inherit' } }, [Ic({ n: 'star', size: 15 })])),
+            h(HoverTip, { key: 'feedback', content: tr('cfg.feedbackTip'), mode: 'mouse', maxWidth: 220 },
+              h('a', { href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/new', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: 4, borderRadius: 6, color: 'inherit' } }, [Ic({ n: 'chat', size: 15 })])),
           ]),
         ]),
         h('div', { className: 'dsws-cfg-sub' }, tr('cfg.sub')),
@@ -184,6 +199,16 @@ export     const SettingsPage = (props) => {
             ]),
           ]) : null,
         ]),
+        // 增-2（#520）：底部作者其他插件独立区域（默认展开，每行点开跳对应仓库首页；不新增本地存档键）
+        h('div', { className: 'dsws-cfg-group' }, [
+          h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'skills', size: 13 }), h('span', null, tr('more.title'))]),
+        ].concat(MORE_PLUGINS.map(function (p) {
+          return h('a', { key: p.slug, href: p.url, target: '_blank', rel: 'noreferrer', style: { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 4px', textDecoration: 'none', color: 'inherit' } }, [
+            h('span', { style: { fontFamily: 'Consolas,Menlo,monospace', fontSize: 12, fontWeight: 650, flex: 'none' } }, p.slug),
+            h('span', { style: { flex: 1, minWidth: 0, fontSize: 11.5, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, tr(p.descKey)),
+            Ic({ n: 'external-link', size: 12 }),
+          ])
+        }))),
         // T2 HoverTip 迁移：移除 sharedSt.cfgTip 全局 portal，改由 HoverTip 统一（行为零变化，翻转/样式走契约）
         null,
       ])

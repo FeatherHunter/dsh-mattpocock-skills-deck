@@ -137,8 +137,8 @@
 </style>
 </head>
 <body>
-<h2>waystation 配置面板 · 落地 A 删存量后 · 双场景对照</h2>
-<p class="note">落地 A 后：技能集卡、面板宽度、开始模板、动作模板编辑器、底部保存栏整组删除，只留标题、打开位置（点选即保存）、工作区后端总览、沉底调试分组。红框 = 内层滚动容器（预期 0）。</p>
+<h2>waystation 配置面板 · 落地 B 新增区后 · 双场景对照</h2>
+<p class="note">落地 B 后：标题行右侧加星星与反馈两纯图标（悬停才介绍），底部加作者其他插件 5 行新区。红框 = 内层滚动容器（预期 0）。</p>
 <div class="scene">
   <h3>场景 A · DSH settings 弹窗（真实宿主布局 · 最外层可滑动）</h3>
   <div class="dsh-settings">
@@ -160,15 +160,25 @@
   <div id="cfgB" style="max-width:760px;padding:0 24px 24px"></div>
 </div>
 <script>
-  // 落地 A 后样板：标题 + 打开位置 + 总览占位 + 调试占位（模板编辑器与底部保存栏已删）。
+  // 落地 B 后样板：标题（含两图标） + 打开位置 + 总览占位 + 调试占位 + 底部 5 行新区。
+  const MORE_ROWS = [
+    ['dsh-mattpocock-skills-deck', '本面板自己：装好就有 25 个工程技能在右侧直接用'],
+    ['dsh-opencode-palette', '34 款长时间编程护眼配色，一键换上'],
+    ['dsh-prompt', '24 条常用提示模板随手点，不用来回复制粘贴'],
+    ['dsh-im', '扫码或填凭据就把飞书、微信等 9 路聊天机器人接进来'],
+    ['dsh-plugin-ui-debug', '让 AI 在真实浏览器里帮你看界面、点按钮、拖组件'],
+  ];
   function renderPanel(host) {
     host.innerHTML = '';
     const root = document.createElement('div');
     root.className = 'dsws-cfg';
-    const head = document.createElement('div'); head.className = 'dsws-cfg-head';
+    const head = document.createElement('div'); head.className = 'dsws-cfg-head'; head.style.flexWrap = 'wrap';
     const t = document.createElement('span'); t.className = 't'; t.textContent = 'MattSkills';
     const s = document.createElement('span'); s.className = 's'; s.textContent = '配置';
-    head.append(t, s);
+    const icons = document.createElement('span');
+    icons.style.cssText = 'display:inline-flex;align-items:center;gap:4px';
+    icons.innerHTML = '<span title="去 GitHub 点 Star">★</span><span title="反馈问题">✉</span>';
+    head.append(t, s, icons);
     const sub = document.createElement('div'); sub.className = 'dsws-cfg-sub'; sub.textContent = '配置面板说明文字';
     root.append(head, sub);
     const g1 = document.createElement('div'); g1.className = 'dsws-cfg-group';
@@ -184,6 +194,17 @@
     const g3 = document.createElement('div'); g3.className = 'dsws-cfg-group';
     g3.innerHTML = '<div class="dsws-cfg-gtitle">调试 / 诊断日志</div><div class="dsws-cfg-gdesc">默认关闭，沉底</div>';
     root.appendChild(g3);
+    const g4 = document.createElement('div'); g4.className = 'dsws-cfg-group';
+    g4.innerHTML = '<div class="dsws-cfg-gtitle">作者其他插件</div>';
+    MORE_ROWS.forEach(r => {
+      const a = document.createElement('div');
+      a.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 4px';
+      const nm = document.createElement('span'); nm.style.cssText = 'font-size:12px;font-weight:650;flex:none'; nm.textContent = r[0];
+      const ds = document.createElement('span'); ds.style.cssText = 'flex:1;min-width:0;font-size:11.5px;color:#a1a1aa'; ds.textContent = r[1];
+      const ar = document.createElement('span'); ar.textContent = '↗';
+      a.append(nm, ds, ar); g4.appendChild(a);
+    });
+    root.appendChild(g4);
     host.appendChild(root);
   }
   renderPanel(document.getElementById('cfgA'));
