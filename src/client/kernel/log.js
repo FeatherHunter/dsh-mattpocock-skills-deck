@@ -210,6 +210,26 @@
         return Promise.resolve({ ok: false, enabled: logSwitch.enabled, sampleRate: logSwitch.sampleRate })
       }
     }
+    // 开关写失败分类行（#526）：写开关是低频用户动作，三条失败路各落一条告警行。
+    // 复用现成常驻事件 host.call.fail（不新增事件名、不碰 54 总数），字段只用白名单三键；
+    // 告警级始终落盘、不依赖调试开关，下次导出日志即可看出是哪一类失败。
+    const logSwitchSetFail = function (kind, hint) {
+      try {
+        log('warn', 'host.call.fail', {
+          method: 'wf.logSetSwitch',
+          kind: 'set-switch-' + kind,
+          errorHash: hash8(String(hint === undefined || hint === null ? kind : hint).slice(0, 120)),
+        })
+      } catch (e) {}
+    }
+    // 调用抛错再按文案分一小类：未知端点与连接不可用各单列，其余归通用抛错。
+    // 只做归类、不记原文（原文只进散列），低频路径、关闭时零代价。
+    const switchThrowKind = function (e) {
+      const msg = String((e && (e.code || e.message)) || e || '')
+      if (/unknown endpoint/i.test(msg)) return 'throw-unknown-endpoint'
+      if (/connection|host\.call 不可用|unavailable/i.test(msg)) return 'throw-connection'
+      return 'throw'
+    }
     // 设置页保存开关：先写宿主，宿主生效才更新本地与内存并广播；写失败保持本地旧值并返回失败，
     // 由调用处提示用户，不回退为开启（设计 1.3）。失败原因只给机器码（host-unavailable、host-rejected），
     // 面向用户的文案由界面批次经多语言系统转换，本底座不写中文字符串（文案完整性门禁要求新文件零中文串）。
@@ -219,19 +239,24 @@
         sampleRate: (typeof sampleRate === 'number' && isFinite(sampleRate)) ? sampleRate : logSwitch.sampleRate,
       }
       if (typeof host === 'undefined' || !host || typeof host.call !== 'function') {
+        logSwitchSetFail('host-unavailable', 'host-unavailable')
         return Promise.resolve({ ok: false, enabled: logSwitch.enabled, error: 'host-unavailable' })
       }
       try {
         const pendingSet = host.call('wf.logSetSwitch', next)
         watchSwitchOp('set', pendingSet)
         return pendingSet.then(function (res) {
-          if (!res || res.ok !== true) return { ok: false, enabled: logSwitch.enabled, error: 'host-rejected' }
+          if (!res || res.ok !== true) {
+            logSwitchSetFail('host-rejected', 'host-rejected')
+            return { ok: false, enabled: logSwitch.enabled, error: 'host-rejected' }
+          }
           logSwitch.enabled = res.enabled === true
           logSwitch.sampleRate = next.sampleRate
           persistLocalDebugSwitch(logSwitch)
           try { if (typeof broadcastLogSwitch === 'function') broadcastLogSwitch() } catch (e) {}
           return { ok: true, enabled: logSwitch.enabled, sampleRate: logSwitch.sampleRate }
         }).catch(function (e) {
+          logSwitchSetFail(switchThrowKind(e), (e && (e.code || e.message)) || e)
           return { ok: false, enabled: logSwitch.enabled, error: (e && e.message) || String(e) }
         })
       } catch (e) {
