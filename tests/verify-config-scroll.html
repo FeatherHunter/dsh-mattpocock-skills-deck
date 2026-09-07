@@ -190,7 +190,7 @@
     const saved = document.createElement('div'); saved.style.cssText = 'font-size:11px;color:#8b8b95'; saved.textContent = '点选即已保存，无需再点保存';
     g1r.append(lbl, seg, saved); g1.appendChild(g1r); root.appendChild(g1);
     const g2 = document.createElement('div'); g2.className = 'dsws-cfg-group';
-    g2.innerHTML = '<div class="dsws-cfg-gtitle">工作区后端总览（只读，保持现状）</div><div class="dsws-cfg-gdesc">只读聚合，不占展开高度</div>';
+    g2.innerHTML = '<div class="dsws-cfg-gtitle">工作区后端总览</div><div class="dsws-cfg-gdesc">各工作区的 Tracker 后端绑定总览（只读，显式覆盖在右侧面板完成）</div><!-- 总览行只读：后端名加来源徽标，行内无收起按钮 -->';
     root.appendChild(g2);
     const g3 = document.createElement('div'); g3.className = 'dsws-cfg-group';
     g3.innerHTML = '<div class="dsws-cfg-gtitle">调试 / 诊断日志</div><div class="dsws-cfg-gdesc">默认关闭，沉底</div>';

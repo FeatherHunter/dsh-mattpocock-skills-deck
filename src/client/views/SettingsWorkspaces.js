@@ -46,33 +46,33 @@ export const useWsOverview = function (cx, sharedSt) {
         let wsSvc = null
         try{ if (typeof ctx !== 'undefined' && ctx && typeof ctx.get === 'function') wsSvc = ctx.get('workspaces') }catch{}
         if (!wsSvc && cx && cx.ctx && typeof cx.ctx.get === 'function') try{ wsSvc = cx.ctx.get('workspaces') }catch{}
-        if (!wsSvc){ flash(sharedSt, 'workspaces 服务不可用', 'warn'); return }
+        if (!wsSvc){ flash(sharedSt, tr('cfg.wsNoService'), 'warn'); return }
         try{
           if (typeof wsSvc.open === 'function'){
             const r = wsSvc.open(cwd)
-            if (r && typeof r.then === 'function') r.then(function(){ flash(sharedSt, '已跳转到 ' + cwd, 'ok') }).catch(function(e){ flash(sharedSt, '跳转失败: ' + String(e).slice(0,120), 'warn') })
-            else flash(sharedSt, '已跳转到 ' + cwd, 'ok')
+            if (r && typeof r.then === 'function') r.then(function(){ flash(sharedSt, tr('cfg.wsJumpedTo', { cwd: cwd }), 'ok') }).catch(function(e){ flash(sharedSt, tr('cfg.wsJumpFail', { msg: String(e).slice(0,120) }), 'warn') })
+            else flash(sharedSt, tr('cfg.wsJumpedTo', { cwd: cwd }), 'ok')
             return
           }
-          if (typeof wsSvc.openWorkspace === 'function'){ wsSvc.openWorkspace({ path: cwd }); flash(sharedSt, '已跳转到 ' + cwd, 'ok'); return }
-          if (typeof wsSvc.reveal === 'function'){ wsSvc.reveal(cwd); flash(sharedSt, '已跳转到 ' + cwd, 'ok'); return }
-          if (typeof wsSvc.focus === 'function'){ wsSvc.focus(cwd); flash(sharedSt, '已跳转到 ' + cwd, 'ok'); return }
-          copyText(sharedSt, cwd, '工作区路径已复制：' + cwd)
-          flash(sharedSt, '请手动切换到 ' + cwd, 'info')
-        } catch(e){ flash(sharedSt, '跳转失败: ' + String(e).slice(0,120), 'warn') }
+          if (typeof wsSvc.openWorkspace === 'function'){ wsSvc.openWorkspace({ path: cwd }); flash(sharedSt, tr('cfg.wsJumpedTo', { cwd: cwd }), 'ok'); return }
+          if (typeof wsSvc.reveal === 'function'){ wsSvc.reveal(cwd); flash(sharedSt, tr('cfg.wsJumpedTo', { cwd: cwd }), 'ok'); return }
+          if (typeof wsSvc.focus === 'function'){ wsSvc.focus(cwd); flash(sharedSt, tr('cfg.wsJumpedTo', { cwd: cwd }), 'ok'); return }
+          copyText(sharedSt, cwd, tr('cfg.wsPathCopied', { cwd: cwd }))
+          flash(sharedSt, tr('cfg.wsSwitchManually', { cwd: cwd }), 'info')
+        } catch(e){ flash(sharedSt, tr('cfg.wsJumpFail', { msg: String(e).slice(0,120) }), 'warn') }
       }
       return { wsOverview: wsOverview, loadRef: loadRef, gotoWorkspace: gotoWorkspace }
 }
 export const renderWsOverview = function (h, sharedSt, wsOverview, loadRef, foldVer, setFoldVer) {
       return h('div', { className: 'dsws-cfg-group', id: 'dsws-cfg-backend' }, [
-        h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'compass', size: 13 }), h('span', null, '工作区后端总览')]),
-        h('div', { className: 'dsws-cfg-gdesc' }, '各工作区的 Tracker 后端绑定总览（只读，显式覆盖在右侧面板完成）'),
+        h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'compass', size: 13 }), h('span', null, tr('cfg.wsTitle'))]),
+        h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.wsDesc')),
         (function(){
           const selMap=wsOverview.selections||{}
           const bindingsByCwd={}; wsOverview.bindings.forEach(function(b){ const k=(b.cwd||(b.handle&&b.handle.cwd)||''); if(k) bindingsByCwd[String(k)]=b })
           const wsPaths=wsOverview.workspaces.map(function(w){ return w.path||w.cwd||w.dir||w.workspacePath||'' }).filter(Boolean)
           const allSet={}, all=[]; const add=function(c){ const k=String(c); if(!allSet[k]){ allSet[k]=1; all.push(k)}}; wsPaths.forEach(add); Object.keys(bindingsByCwd).forEach(add); Object.keys(selMap).forEach(add); if(!all.length&&sharedSt.cwd) add(sharedSt.cwd)
-          if(!all.length) return h('div',{style:{fontSize:11,color:'#8b8b95',padding:'6px 0'}},'暂无工作区')
+          if(!all.length) return h('div',{style:{fontSize:11,color:'#8b8b95',padding:'6px 0'}},tr('cfg.wsEmpty'))
           // #197 已绑定工作区置顶：已绑定 (backendId) 排前（按 backend 注册序 + basename 字母序），未绑定 (fallback/未指定) 排后（basename 字母序）
                       // 排前分组取 sel (select 三级联产物，source∈{explicit,matches}) + bindingsByCwd 双源兜底，与下方 row 渲染同口径
                       const modsOrder=(wsOverview.modules||[]).map(function(m){return m.id})
@@ -86,25 +86,24 @@ export const renderWsOverview = function (h, sharedSt, wsOverview, loadRef, fold
                       const ordered=bound.concat(unbound)
                       const boundCnt=bound.length
           return h('details',{ open:false, style:{ marginTop:6, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:8, background:'rgba(255,255,255,.02)'}},[
-            h('summary',{ style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', cursor:'pointer', listStyle:'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontSize:11, fontWeight:600 }},[ h('span',{style:{whiteSpace:'nowrap'}},'共 '+all.length+' 个工作区'), h('span',{style:{ color:boundCnt?'#4ade80':'#8b8b95', whiteSpace:'nowrap'}},'已绑定 '+boundCnt), h(Tip, { content: tr('tip.refreshWs') }, h('button',{ style:{ marginLeft:'auto', padding:'2px 8px', fontSize:10, color:'#58a6ff', border:'1px solid #58a6ff', borderRadius:4, background:'transparent', cursor:'pointer', whiteSpace:'nowrap', flex:'none' }, onClick:function(e){ e.preventDefault(); e.stopPropagation(); if(loadRef.current){ loadRef.current().then(function(){ try{ flash(sharedSt,'已刷新','ok') }catch{} }).catch(function(){ try{ flash(sharedSt,'刷新失败','warn') }catch{} }) } } }, '刷新')), h('span',{style:{ fontSize:10, color:'#58a6ff', whiteSpace:'nowrap'}},'点击展开/收起')]),
+            h('summary',{ style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', cursor:'pointer', listStyle:'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontSize:11, fontWeight:600 }},[ h('span',{style:{whiteSpace:'nowrap'}},tr('cfg.wsTotal', { n: all.length })), h('span',{style:{ color:boundCnt?'#4ade80':'#8b8b95', whiteSpace:'nowrap'}},tr('cfg.wsBound', { n: boundCnt })), h(Tip, { content: tr('tip.refreshWs') }, h('button',{ style:{ marginLeft:'auto', padding:'2px 8px', fontSize:10, color:'#58a6ff', border:'1px solid #58a6ff', borderRadius:4, background:'transparent', cursor:'pointer', whiteSpace:'nowrap', flex:'none' }, onClick:function(e){ e.preventDefault(); e.stopPropagation(); if(loadRef.current){ loadRef.current().then(function(){ try{ flash(sharedSt,tr('cfg.wsRefreshed'),'ok') }catch{} }).catch(function(){ try{ flash(sharedSt,tr('cfg.wsRefreshFail'),'warn') }catch{} }) } } }, tr('cfg.wsRefresh'))), h('span',{style:{ fontSize:10, color:'#58a6ff', whiteSpace:'nowrap'}},tr('cfg.wsToggleHint'))]),
             h('div',{ style:{ padding:'0 6px 6px' }},[
-              wsOverview.loading ? h('div',{style:{fontSize:11,color:'#8b8b95',padding:'6px 0',whiteSpace:'nowrap'}},'加载中…') :
+              wsOverview.loading ? h('div',{style:{fontSize:11,color:'#8b8b95',padding:'6px 0',whiteSpace:'nowrap'}},tr('cfg.wsLoading')) :
               wsOverview.err ? h('div',{style:{fontSize:11,color:'#f87171',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},wsOverview.err) :
               h('div',{ style:{ display:'flex', flexDirection:'column', gap:0 }}, ordered.map(function(cwd){
                 const sel=selMap[cwd]||bindingsByCwd[cwd]||null
                 const backendId=sel&&sel.backendId!==undefined?sel.backendId:null
-                const label=backendId?(typeof labelOf==='function'?labelOf(backendId):String(backendId)):'未绑定'
+                const label=backendId?(typeof labelOf==='function'?labelOf(backendId):String(backendId)):tr('cfg.wsUnbound')
                 const color=(typeof backendColorOf==='function'?backendColorOf(backendId):'')
                 const source=sel&&sel.source?sel.source:'fallback'
-                const srcLabel=source==='explicit'?'显式':source==='matches'?'自动':'未指定'
+                const srcLabel=source==='explicit'?tr('cfg.wsSrcExplicit'):source==='matches'?tr('cfg.wsSrcAuto'):tr('cfg.wsSrcUnset')
                 const srcColor=source==='explicit'?'#4ade80':source==='matches'?'#58a6ff':'#8b8b95'
-                const srcTitle=source==='explicit'?'显式：你在右侧面板选过，已写入 byHandle':source==='matches'?'自动：按仓库内容自动命中':'未指定：未显式且未自动命中，回退 Other'
+                const srcTitle=source==='explicit'?tr('cfg.wsSrcExplicitTip'):source==='matches'?tr('cfg.wsSrcAutoTip'):tr('cfg.wsSrcUnsetTip')
                 const base=cwd.split(/[\\/]/).pop()||cwd
                 return h('div',{ key:cwd + '#' + foldVer, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden', minHeight:28 }},[
                   h(HoverTip, { content: cwd, mode: 'mouse', maxWidth: 220 }, h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 } }, base)),
                   h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11, minWidth:72, justifyContent:'flex-end' }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap', minWidth:36, textAlign:'center'}},label) ]),
                   h(HoverTip, { content: srcTitle, mode: 'mouse', maxWidth: 220 }, h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel)),
-                  h(Tip, { content: tr(typeof isBannerFolded === 'function' && isBannerFolded(cwd) ? 'banner.expandDeck' : 'banner.foldDeck') }, h('button',{ className:'dsws-cfg-btn', style:{ marginLeft:'auto', flex:'none', whiteSpace:'nowrap' }, onClick:function(){ try{ if(typeof setBannerFolded==='function') setBannerFolded(cwd, !(typeof isBannerFolded==='function' && isBannerFolded(cwd))) }catch(e){} setFoldVer(function(v){ return v+1 }) } }, tr(typeof isBannerFolded === 'function' && isBannerFolded(cwd) ? 'banner.expandShort' : 'banner.foldShort'))),
                 ])
               }))
             ])
