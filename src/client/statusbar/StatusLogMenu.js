@@ -95,7 +95,7 @@ export const StatusLogDot = function (props) {
   }
   const openMenu = function () { clearHoverOpen() // 开本菜单时收起技能菜单：只写技能浮层已有字段并走已有广播，不碰其内部实现。
     try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {}
-    try { if (store && (store.skillsOpen || store.skillPopPos || store.skillHover || store.skillTip)) { store.skillsOpen = false; store.skillHover = null; store.skillTip = null; store.skillPopPos = null; if (typeof emit === 'function') emit(store) } } catch (e) {}
+    try { if (store && (store.skillsOpen || store.skillPopPos || store.skillHover)) { store.skillsOpen = false; store.skillHover = null; store.skillPopPos = null; if (typeof emit === 'function') emit(store) } } catch (e) {} // 技能提示字段已移除，不读写。
     dswsLogPlaceMenu(anchorRef, setMenuPos)
     setMenuOpen(true)
   }
