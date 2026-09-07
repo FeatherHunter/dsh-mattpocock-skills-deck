@@ -84,11 +84,11 @@ export     const SettingsPage = (props) => {
         resolveLogDir().then(function (dir) {
           if (!dir) { setDbgBusy(null); try { if (typeof logExportFail === 'function') logExportFail('openDir', 'path-missing', 'path-missing') } catch (eDbg2) {} flash(sharedSt, tr('cfg.dbgExportFail'), 'warn'); return }
           try {
-            host.call('wf.openPath', { path: dir }).then(function (res) {
+            host.call('wf.openFolder', { cwd: dir }).then(function (res) {
               setDbgBusy(null)
               const okOpen = !!(res && res.ok === true)
-              if (!okOpen) { try { log('warn', 'host.call.fail', { method: 'wf.openPath', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc('open-not-ok', 120, 'error')) }) } catch (eL) {}; try { if (typeof logExportFail === 'function') logExportFail('openDir', 'open-fail', (res && res.error) || 'not-ok') } catch (eDbg2) {} }; flash(sharedSt, tr(okOpen ? 'cfg.dbgOpenedDir' : 'cfg.dbgOpenDirFail'), okOpen ? 'ok' : 'warn')
-            }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.openPath', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; setDbgBusy(null); try { if (typeof logExportFail === 'function') logExportFail('openDir', 'open-fail', e) } catch (eDbg2) {} flash(sharedSt, tr('cfg.dbgOpenDirFail'), 'warn') })
+              if (!okOpen) { try { log('warn', 'host.call.fail', { method: 'wf.openFolder', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc('open-not-ok', 120, 'error')) }) } catch (eL) {}; try { if (typeof logExportFail === 'function') logExportFail('openDir', 'open-fail', (res && res.error) || 'not-ok') } catch (eDbg2) {} }; flash(sharedSt, tr(okOpen ? 'cfg.dbgOpenedDir' : 'cfg.dbgOpenDirFail'), okOpen ? 'ok' : 'warn')
+            }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.openFolder', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; setDbgBusy(null); try { if (typeof logExportFail === 'function') logExportFail('openDir', 'open-fail', e) } catch (eDbg2) {} flash(sharedSt, tr('cfg.dbgOpenDirFail'), 'warn') })
           } catch (eDbg) { setDbgBusy(null); try { if (typeof logExportFail === 'function') logExportFail('openDir', 'open-fail', eDbg) } catch (eDbg2) {} flash(sharedSt, tr('cfg.dbgOpenDirFail'), 'warn') }
         })
       }

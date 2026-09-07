@@ -3,6 +3,11 @@
 // 接线：由 index.js 动态 import 加载；本文件不引用其他新文件。
 export function createPickerShell(deps) {
   const { DEFAULT_CWD, getPlatform, subprocess, timer, logCtx } = deps
+  const spawnOpts = function (argv, cwd) { return { argv: argv, cwd: cwd || DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 } }
+  const fireExplorer = function (argv, cwd) {
+    const handle = subprocess.spawn(spawnOpts(argv, cwd))
+    if (handle && handle.done) handle.done.catch(function(){})
+  }
   // ============ #190：wf.openFolder — 打开本地文件夹（Markdown 后端仓库名点击）============
   // 输入：{ cwd }；平台分发：win32 explorer / darwin open / linux xdg-open（经 platform.resolveExecutable），subprocess.spawn 打开
   async function handleOpenFolder(args) {
@@ -19,16 +24,11 @@ export function createPickerShell(deps) {
       try { if (platform.path && typeof platform.path.normalize === 'function') target = platform.path.normalize(target) } catch {}
       // #497：win32 资源管理器认不出正斜杠（含拼接路径与透传的可显示路径），传给 explorer 前统一为反斜杠；darwin/linux 不动
       if (os === 'win32') target = target.replace(/\//g, '\\')
-      // #497 引号：宿主调起层按空格拼参数，含空格路径会被切碎，win32 在 spawn 前加双引号包裹；darwin/linux 不动
-      if (os === 'win32') target = '"' + target + '"'
+      // #497 引号纠偏：数组直传由宿主调起层按需自动加引号，手写双引号会变成文件名的一部分（含空格路径反而打不开），此处不手写引号；darwin/linux 不动
       const argv = [opener, target]
       try {
-        const handle = subprocess.spawn({ argv: argv, cwd: DEFAULT_CWD || target, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
         // 不等待完成，fire-and-forget；若 spawn 同步抛错则视为失败
-        if (handle && handle.done) {
-          // 异步错误吞掉，避免未处理 rejection 影响面板；成功即返回
-          handle.done.catch(function(){})
-        }
+        fireExplorer(argv, DEFAULT_CWD || target)
       } catch (e) {
         return { ok: false, error: String((e && e.message) || e) }
       }
@@ -114,15 +114,22 @@ export function createPickerShell(deps) {
       const isMac = plat && plat.os === 'darwin'
       let argv = null
       if (isWin) {
-        // win32 用 explorer 选中文件，无 shell 拼接，argv 直传防注入；文件不存在时 explorer 仍会打开目录
-        // 优先用 explorer /select, 失败回退 cmd start
-        // #497：explorer 认不出正斜杠，spawn 前统一为反斜杠；darwin/linux 分支不动
+        // win32 用 explorer 选中文件，无 shell 拼接，数组直传防注入；文件不存在时 explorer 仍会打开目录
+        // 优先用 explorer 选中（最符合“在本地打开”）
+        // #497：explorer 认不出正斜杠，数组直传前统一为反斜杠；数组直传由宿主调起层按需自动加引号，不手写引号；darwin/linux 分支不动
         p = p.replace(/\//g, '\\')
-        // #497 引号：宿主调起层按空格拼参数，/select 后路径加双引号包裹防切碎；darwin/linux 不动
-        p = '"' + p + '"'
+        // #497 目录纠偏：目录该直接打开看里面，选中只会打开上级并选中该目录。末段无点号即按目录直接打开（带点号的目录名会误判为文件，此时客户端改调打开文件夹电话兜底；目录调用方见 StatusLogMenu 与 SettingsPage 的打开目录入口）。
+        const base = p.replace(/\\+$/, '').split('\\').pop() || ''
+        const looksDir = !base || base.indexOf('.') < 0
+        if (looksDir) {
+          try {
+            fireExplorer(['explorer', p])
+            return { ok: true }
+          } catch {}
+        }
         try {
-          // 先尝试 explorer 选中（最符合“在本地打开”），形如 /select,"D:\..."
-          const handle = subprocess.spawn({ argv: ['explorer', '/select,' + p], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
+          // 先尝试 explorer 选中文件，形如 /select,D:\...（数组直传，含空格路径由宿主调起层自动加引号）
+          const handle = subprocess.spawn(spawnOpts(['explorer', '/select,' + p]))
           const to = timer.timeout(3000)
           await Promise.race([handle.done, to.then(function(){ try{ handle.terminate() }catch{}; return {exitCode:-1}})])
           return { ok: true }
@@ -134,7 +141,7 @@ export function createPickerShell(deps) {
         argv = ['xdg-open', p]
       }
       if (argv) {
-        const h = subprocess.spawn({ argv: argv, cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 64*1024 }, stderr: { maxBytes: 64*1024 } }, graceMs: 2000 })
+        const h = subprocess.spawn(spawnOpts(argv))
         const to2 = timer.timeout(5000)
         const out = await Promise.race([h.done, to2.then(function(){ try{ h.terminate() }catch{}; return {exitCode:-1, signal:'timeout'}})])
         if (out && out.exitCode === 0) return { ok: true }

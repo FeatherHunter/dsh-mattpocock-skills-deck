@@ -3,7 +3,7 @@
 // 断言：
 //   一、常驻小灰点：关灰（#6b6b75）开绿（#4ade80）两色字面都在，直径 10，不过显；
 //   二、四键接线点名（字面一字不差）：导出调 wf.logExport、清空调 wf.logClear、
-//      跳转目录复用 wf.openPath、复制路径走本地剪贴板（copyText）；
+//      跳转目录调 wf.openFolder（目录用文件夹电话，文件才用 wf.openPath）、复制路径走本地剪贴板（copyText）；
 //   三、回退形态：宿主导出恒 fallback:true 且带原文件字段（text、summary），
 //      客户端分支处理 fallback:true 并给出原文件形态提示；
 //   四、反馈闭环：清空确认框（标题＋说明＋取消＋确认清空）与导出成功 toast 含路径展示、
@@ -38,7 +38,7 @@ check(menu.includes('stopPropagation'), '一、点灰点不冒泡（不误开面
 // 二、四键接线点名
 check(menu.includes("host.call('wf.logExport'"), '二、导出键调 wf.logExport')
 check(menu.includes("host.call('wf.logClear'"), '二、清空键调 wf.logClear')
-check(menu.includes("host.call('wf.openPath'"), '二、跳转键复用 wf.openPath（未新增电话）')
+check(menu.includes("host.call('wf.openFolder'"), '二、跳转键调 wf.openFolder（目录用文件夹电话，未新增电话）')
 check(menu.includes('copyText(') || menu.includes('navigator.clipboard'), '二、复制键走本地剪贴板能力')
 check(!/wf\.logOpenDir|wf\.logDir|wf\.logPath/.test(menu + bar), '二、未新增目录电话（复用纪律）')
 

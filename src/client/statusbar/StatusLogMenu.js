@@ -5,7 +5,7 @@
  * 范围：小绿点（开时常驻绿、关时不挂载，#522 推翻 #333 常驻决议）＋四键菜单（导出今日日志／打开日志目录／
  * 复制日志路径／清空今日日志）＋清空确认框＋成功与失败反馈（#523：悬停 200 毫秒自开、单击照旧、离区 300 毫秒关；
  * 与技能菜单互斥；在绿点正上方水平居中、自顶向下展开、视口不够时自动内收；无底部说明行、宽度贴合最长行（#525 居中，替代 #523 左侧对齐）。
- * 接线：导出调 wf.logExport，清空调 wf.logClear，跳转目录复用 wf.openPath，
+ * 接线：导出调 wf.logExport，清空调 wf.logClear，跳转目录调 wf.openFolder（目录用文件夹电话，文件才用 wf.openPath），
  * 复制路径走本地剪贴板（copyText），开关态读日志底座 logSwitch（启动已向宿主对账）。
  * 以后改状态栏日志入口的人改它；StatusBar.js 只留一行挂载。
  */
@@ -191,17 +191,17 @@ export const StatusLogDot = function (props) {
         return
       }
       try {
-        host.call('wf.openPath', { path: got.dir }).then(function () {
+        host.call('wf.openFolder', { cwd: got.dir }).then(function () {
           setBusy(null)
           setMenuOpen(false)
         }).catch(function (e) {
           setBusy(null)
-          dswsLogWarnCall('wf.openPath', 'open-path', e); dswsLogMenuFail('openDir', 'open-fail', e)
+          dswsLogWarnCall('wf.openFolder', 'open-path', e); dswsLogMenuFail('openDir', 'open-fail', e)
           say(tr('logtoast.openFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
         })
       } catch (e) {
         setBusy(null)
-        dswsLogWarnCall('wf.openPath', 'open-path', e); dswsLogMenuFail('openDir', 'open-fail', e)
+        dswsLogWarnCall('wf.openFolder', 'open-path', e); dswsLogMenuFail('openDir', 'open-fail', e)
         say(tr('logtoast.openFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
       }
     })
