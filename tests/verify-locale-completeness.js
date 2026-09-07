@@ -82,7 +82,7 @@ const BASELINE = {
   'views/IssueDetailComments.js': 13, // #463 V3 由 IssueDetail.js 拆出：评论区分得 13 串
   'views/NoRepoCard.js': 15,
   'views/SettingsPage.js': 12, // #463 V3 由 SettingsPage.js 拆出后端总览：主文件留 12 串
-  'views/SettingsWorkspaces.js': 28, // #463 V3 由 SettingsPage.js 拆出：总览分得 28 串（合计 40，原 41 封顶有 1 串松弛，见票）
+  'views/SettingsWorkspaces.js': 0, // #528 总览文案全部改走中英文词条：文件中不再留中文字符串，基线收紧到 0 防回退
   'views/shared/BackendSelector.js': 10,
   'views/shared/ChainRenderer.js': 17,
   'views/shared/SwitchConfirmModal.js': 5,
