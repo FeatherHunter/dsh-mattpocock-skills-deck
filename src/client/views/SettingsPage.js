@@ -137,20 +137,20 @@ export     const SettingsPage = (props) => {
           Ic({ n: noticeIcon(cfgNotice.kind), size: 13, color: NOTICE_COLOR[cfgNotice.kind] || '#4ade80' }),
           h('span', null, cfgNotice.text),
         ]) : null,
-        // 增-1（#520）改-1（#521）：标题同一行右侧两个纯图标按钮（星星旁常显 🌟、反馈旁常显 💬，平时可见不依赖悬停；悬停介绍与跳转网址不动；窄窗口换行到标题下方；状态小字旁显示构建注入的版本号，点跳仓库首页）
+        // 增-1（#520）改-2（#521）：标题同一行右侧两个表情按钮（星星只留 🌟、反馈只留 💬，一家一颗常显；悬停介绍、跳转网址、键盘聚焦不动；窄窗口换行到标题下方；状态小字旁显示构建注入的版本号去 v 前缀数字，点跳仓库首页）
         h('div', { className: 'dsws-cfg-head', style: { flexWrap: 'wrap' } }, [
           Icon({ scheme: 'compass', size: 20 }),
           h('span', { className: 't' }, tr('panel.title')),
           h('span', { className: 's', style: { color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, [
             Ic({ n: 'dot', size: 12 }),
             h('span', null, tr('cfg.status')),
-            h('a', { href: DSW_REPO_URL, target: '_blank', rel: 'noreferrer', style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', textDecoration: 'none' } }, DSW_VERSION),
+            h('a', { href: DSW_REPO_URL, target: '_blank', rel: 'noreferrer', style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', textDecoration: 'none' } }, (typeof DSW_VERSION === 'string' ? DSW_VERSION.replace(/^v/, '') : '')),
           ]),
           h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
             h(HoverTip, { key: 'star', content: tr('cfg.starTip'), mode: 'mouse', maxWidth: 220 },
-              h('a', { href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', gap: 2, padding: 4, borderRadius: 6, color: 'inherit', textDecoration: 'none' } }, [Ic({ n: 'star', size: 15 }), h('span', { 'aria-hidden': 'true', style: { fontSize: 12, lineHeight: 1 } }, '🌟')])),
+              h('a', { href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: 4, borderRadius: 6, color: 'inherit', textDecoration: 'none' } }, [h('span', { 'aria-hidden': 'true', style: { fontSize: 14, lineHeight: 1 } }, '🌟')])),
             h(HoverTip, { key: 'feedback', content: tr('cfg.feedbackTip'), mode: 'mouse', maxWidth: 220 },
-              h('a', { href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/new', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', gap: 2, padding: 4, borderRadius: 6, color: 'inherit', textDecoration: 'none' } }, [Ic({ n: 'chat', size: 15 }), h('span', { 'aria-hidden': 'true', style: { fontSize: 12, lineHeight: 1 } }, '💬')])),
+              h('a', { href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/new', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: 4, borderRadius: 6, color: 'inherit', textDecoration: 'none' } }, [h('span', { 'aria-hidden': 'true', style: { fontSize: 14, lineHeight: 1 } }, '💬')])),
           ]),
         ]),
         h('div', { className: 'dsws-cfg-sub' }, tr('cfg.sub')),
