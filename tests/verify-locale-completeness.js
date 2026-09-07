@@ -54,6 +54,7 @@ const REQUIRED = [
   'setup.gitlab.trackerLine', 'setup.gitlab.labelReqs',
   'setup.default.trackerLine', 'setup.default.labelReqs',
   'panel.labelsStepTitle', 'panel.labelsStepDesc',
+  'check.selection.pass', 'check.tracker.initialized.pass', 'env.diagTitle', 'env.actRun', 'env.chainDone',
 ]
 for (const k of REQUIRED) {
   if (k in allKeys) ok('B. 键在 ' + k)
@@ -77,14 +78,14 @@ const BASELINE = {
   'panel/OverlayGate.js': 1, // V4 #464 由 Overlay.js 拆出：门控分得 1 串（绑定失败透传文案）
   'statusbar/StatusBar.js': 16, // B1 #460 由 StatusBar.js 拆出选后端：主文件留 16 串（合计 17，与原持平）
   'statusbar/StatusBackend.js': 1, // B1 #460 由 StatusBar.js 拆出：选后端确认分得 1 串（已选择透传文案）
-  'views/ChecksTab.js': 16, // 2026-08-28 顺序队列与目录选择器：ChecksTab 仅保留 openFormModal 注释，残留 14→16，按封顶章程重登记
+  'views/ChecksTab.js': 0, // #529 环境检查标题诊断卡动作全部改走中英文词条：文件中不再留中文字符串，基线收紧到 0 防回退
   'views/IssueDetail.js': 16, // #463 V3 由 IssueDetail.js 拆出评论区：主文件留 16 串（合计 29，与原持平）
   'views/IssueDetailComments.js': 13, // #463 V3 由 IssueDetail.js 拆出：评论区分得 13 串
   'views/NoRepoCard.js': 15,
   'views/SettingsPage.js': 12, // #463 V3 由 SettingsPage.js 拆出后端总览：主文件留 12 串
   'views/SettingsWorkspaces.js': 0, // #528 总览文案全部改走中英文词条：文件中不再留中文字符串，基线收紧到 0 防回退
   'views/shared/BackendSelector.js': 10,
-  'views/shared/ChainRenderer.js': 17,
+  'views/shared/ChainRenderer.js': 0, // #529 链标题按钮表单全部改走中英文词条：文件中不再留中文字符串，基线收紧到 0 防回退
   'views/shared/SwitchConfirmModal.js': 5,
 }
 function stripComments(buf) { return buf.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '') }

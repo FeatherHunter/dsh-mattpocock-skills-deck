@@ -21,6 +21,23 @@
     // deps 均在 apply 闭包内解析（React/DswsCtx/createActionDispatcher/host/inject/openUrl 均为闭包自由变量）；此处仅挂形状
     export const CHAIN_RENDERER_VERSION = 1
 
+    // #529 检查项标题解析（中英文单源）：有 i18nKey 先走 tr 取当前语言，取不到或无键才回落中文兜底；
+    //   中文界面 tr 命中中文值，与原 fallback 一字不差；缺键/异常一律回落，不抛。
+    export const checkShowTitle = function (show, fallbackId) {
+      try {
+        const key = show && show.i18nKey
+        if (key && typeof tr === 'function') {
+          const v = tr(key)
+          if (typeof v === 'string' && v && v !== key) return v
+        }
+      } catch (e) {}
+      try {
+        if (show && typeof show.fallback === 'string' && show.fallback) return show.fallback
+        if (show && typeof show.title === 'string' && show.title) return show.title
+      } catch (e2) {}
+      return fallbackId || ''
+    }
+
     // 展示等级 → banner 样式（D9 意图先行 + 既有 UI 约束保留：互斥、42px、Tab 可达）
     function levelToClass(level) {
       const s = String(level || '').trim().toLowerCase()
@@ -45,23 +62,23 @@
       // 已知类型的按钮文案（i18n 单源，失败也透传 fallback）
       // 按钮文案：label 优先（host 组装时由后端 fixes 解析成双语短词）；无 label 用 UI 通用词（动作类型是契约词汇表，UI 按类型给通用文案合法）
       const labelMap = {
-        'inject-prompt': (action.label) || '注入修复指引',
-        'open-url': '打开链接',
-        'rpc': (action.method || action.endpoint || '执行'),
-        'form': (action.label) || '填写表单',
-        'refresh': '重查',
+        'inject-prompt': (action.label) || tr('env.actInjectGuide'),
+        'open-url': tr('env.actOpenUrl'),
+        'rpc': (action.method || action.endpoint || tr('env.actRun')),
+        'form': (action.label) || tr('env.actFillForm'),
+        'refresh': tr('env.actRefresh'),
       }
       const label = labelMap[t] || ('unsupported: ' + String(t||'unknown'))
       const isUnsupported = !labelMap[t]
       // 可达性：Tab 可达 + Enter/Space
       const onClick = async function() {
-        if (isUnsupported) { try{ flash(st, '未知动作类型：' + String(t), 'warn') }catch(e){} return }
+        if (isUnsupported) { try{ flash(st, tr('env.actUnknown', { t: String(t) }), 'warn') }catch(e){} return }
         try{
           const res = await dispatcher.dispatch(action)
           if (!res.ok) {
             const kind = res.error && res.error.kind
-            if (kind === 'unsupported') { try{ flash(st, '不支持的动作：' + String(t), 'warn') }catch(e){} }
-            else { try{ flash(st, String(res.error && res.error.message || '动作失败'), 'warn') }catch(e){} }
+            if (kind === 'unsupported') { try{ flash(st, tr('env.actUnsupported', { t: String(t) }), 'warn') }catch(e){} }
+            else { try{ flash(st, String((res.error && res.error.message) || tr('env.actFailed')), 'warn') }catch(e){} }
           } else {
             // 推进只来自重求值：动作成功后触发 refresh 侧的轮询/快照刷新（由 dispatcher 的 ctx.refresh 接入）
             // 注入类动作不自动 refresh，由用户或轮询驱动；rpc/form/refresh 由 dispatcher 内部已触发 refresh
@@ -91,10 +108,10 @@
         // 校验 required
         for (let i=0;i<schema.length;i++){
           const f=schema[i]
-          if (f.required && !String(vals[f.name]||'').trim()) { try{ flash(st, String(f.label||f.name)+' 必填', 'warn') }catch(e){}; return }
-          if (f.pattern) { try{ const re=new RegExp(f.pattern); if(!re.test(String(vals[f.name]||''))){ try{ flash(st, String(f.label||f.name)+' 格式不正确', 'warn') }catch(e){}; return } }catch(e){} }
+          if (f.required && !String(vals[f.name]||'').trim()) { try{ flash(st, tr('env.formRequired', { label: String(f.label||f.name) }), 'warn') }catch(e){}; return }
+          if (f.pattern) { try{ const re=new RegExp(f.pattern); if(!re.test(String(vals[f.name]||''))){ try{ flash(st, tr('env.formPattern', { label: String(f.label||f.name) }), 'warn') }catch(e){}; return } }catch(e){} }
         }
-        if (!submitAction) { try{ flash(st, '表单缺少 submitAction', 'warn') }catch(e){}; return }
+        if (!submitAction) { try{ flash(st, tr('env.formNoSubmit'), 'warn') }catch(e){}; return }
         // 合并表单值到 submitAction 的 params/args
         const merged = Object.assign({}, submitAction)
         const base = merged.params !== undefined ? merged.params : merged.args
@@ -106,10 +123,10 @@
         }
         try{
           const res = await dispatcher.dispatch(merged)
-          if (!res.ok) { try{ flash(st, String(res.error.message||'提交失败'), 'warn') }catch(e){} }
+          if (!res.ok) { try{ flash(st, String((res.error && res.error.message) || tr('env.formSubmitFail')), 'warn') }catch(e){} }
           else {
             // 成功后由宿主重求值推进（dispatcher 的 rpc 已触发或 refresh 将触发轮询）
-            try{ flash(st, '已提交，链条重查中…', 'ok') }catch(e){}
+            try{ flash(st, tr('env.formSubmitted'), 'ok') }catch(e){}
             // 主动触发一次重求值（接入现有探测/轮询/快照刷新机制：st.refresh 或 host.call('wf.detect', {force:true})）
             try{
               if (dispatcher && dispatcher._refresh) await dispatcher._refresh()
@@ -127,7 +144,7 @@
         return h('div', { key:f.name||idx, style:{ display:'flex', flexDirection:'column', gap:4, marginBottom:6 } }, [
           h('label', { htmlFor:id, style:{ fontSize:11, color:'#a1a1aa', display:'flex', alignItems:'center', gap:4 } }, [ h('span', null, label), f.required ? h('span', { style:{ color:'#f87171' } }, '*'):null ]),
           isSingle ? h('select', { id:id, value: String(vals[f.name]||''), onChange:function(e){ const nxt = Object.assign({}, vals); nxt[f.name]=e.target.value; setVals(nxt) }, style:{ fontSize:12, padding:'4px 8px', borderRadius:6, border:'1px solid #2a2d35', background:'#10131a', color:'#e6edf3' } }, [
-            h('option', { value:'' }, placeholder || '请选择'),
+            h('option', { value:'' }, placeholder || tr('env.formPick')),
             ...(f.options||[]).map(function(opt){ return h('option', { key:opt, value:opt }, opt) })
           ]) : isMulti ? h('div', { style:{ display:'flex', flexWrap:'wrap', gap:4 } }, (f.options||[]).map(function(opt){
             const checked = Array.isArray(vals[f.name]) ? vals[f.name].indexOf(opt)>=0 : false
@@ -141,8 +158,8 @@
       return h('div', { className:'dsws-chain-form', style:{ border:'1px solid rgba(255,255,255,.08)', borderRadius:8, padding:'10px 12px', background:'rgba(255,255,255,.02)', marginTop:8 } }, [
         ...fields,
         h('div', { style:{ display:'flex', gap:6, justifyContent:'flex-end', marginTop:6 } }, [
-          h('button', { className:'dsws-btn', onClick:function(){ const init={}; for(let i=0;i<schema.length;i++){ const f=schema[i]; if(f.defaultValue!=null) init[f.name]=String(f.defaultValue); else init[f.name]=''} setVals(init) }, style:{ fontSize:11, padding:'2px 8px' } }, '重置'),
-          h('button', { className:'dsws-btn primary', onClick:onSubmit, style:{ fontSize:11, padding:'2px 10px', background:'#58a6ff', borderColor:'#58a6ff', color:'#0b1220', fontWeight:600 } }, '提交'),
+          h('button', { className:'dsws-btn', onClick:function(){ const init={}; for(let i=0;i<schema.length;i++){ const f=schema[i]; if(f.defaultValue!=null) init[f.name]=String(f.defaultValue); else init[f.name]=''} setVals(init) }, style:{ fontSize:11, padding:'2px 8px' } }, tr('env.formReset')),
+          h('button', { className:'dsws-btn primary', onClick:onSubmit, style:{ fontSize:11, padding:'2px 10px', background:'#58a6ff', borderColor:'#58a6ff', color:'#0b1220', fontWeight:600 } }, tr('env.formSubmit')),
         ]),
       ])
     }
@@ -161,7 +178,7 @@
         const isPending = status==='pending'
         const bg = isDone ? '#16a34a' : isCurrent ? '#f59e0b' : isFail ? '#ef4444' : '#6b7280'
         const border = isCurrent ? '2px solid #f59e0b' : '1px solid transparent'
-        const title = (s.show && (s.show.fallback || s.show.title || s.show.i18nKey)) || s.id
+        const title = checkShowTitle(s.show, s.id)
         const detail = (s.show && (s.show.desc || '')) || ''
         return h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.milestone', { idx: idx + 1 })), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, title + (detail ? ' — ' + detail : '')), h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px', marginTop: 2 } }, tr('tip.milestoneLocate'))]) }, h('div', { key:s.id||idx, tabIndex:0, style:{ display:'flex', alignItems:'center', gap:6, flex:'none', border:border, borderRadius:20, padding:'2px 8px 2px 4px', background: isCurrent?'rgba(245,158,11,.12)':'rgba(255,255,255,.04)', minHeight:24 } }, [
           h('span', { style:{ width:18, height:18, borderRadius:'50%', background:bg, color:'#fff', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flex:'none' } }, isDone ? '✓' : String(idx+1)),
@@ -186,7 +203,7 @@
         if (!step) return null
       }
       const show = step.show || {}
-      const title = show.fallback || show.title || show.i18nKey || step.id || ''
+      const title = checkShowTitle(show, step.id || '')
       const desc = show.desc || ''
       const level = show.level || (step.status==='fail' ? 'bad' : step.status==='pending' ? 'warn' : 'info')
       const styleBase = levelToStyle(level)
@@ -218,7 +235,7 @@
         showSteps ? h(ChainSteps, { snapshot:snapshot }) : null,
         h(ChainBanner, { snapshot:snapshot, dispatcher:dispatcher, st:st }),
         // chainState 调试用（仅开发时可见，生产可隐藏；暂展示 small）
-        snapshot.chainState==='allDone' ? h('div', { style:{ fontSize:10, color:'#4ade80', padding:'2px 6px' } }, '✓ 链条已全部通过') : null,
+        snapshot.chainState==='allDone' ? h('div', { style:{ fontSize:10, color:'#4ade80', padding:'2px 6px' } }, tr('env.chainDone')) : null,
       ])
     }
 

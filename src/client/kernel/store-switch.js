@@ -107,8 +107,11 @@
         sc.criLoading = false; sc.criChecks = { allOk: false, c1: null, c4: null, c5: null }; emit(st); return
       }
       // #284：CRI 迁移到链快照（wf.chain 全链步骤一步取齐）
+      // #529：附带当前语言与绑定后端（与 loadChain 同口径；否则英文界面下明细恒为中文）
       const criT0 = Date.now()
-      host.call('wf.chain', { cwd: st.cwd || '' }).then(function (res) {
+      const criLang = (typeof promptLang === 'function' ? promptLang() : 'zh')
+      const criArgs = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {}, { lang: criLang })
+      host.call('wf.chain', criArgs).then(function (res) {
         try { if (res && res.ok) log('info', 'host.call', { method: 'wf.chain', latencyMs: Date.now() - criT0, ok: true, kind: 'chain-cri' }); else log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-cri', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-not-ok'), 120, 'error')) }) } catch (eL) {}
         if (!st.switchConfirm) return
         const snap = (res && (res.fullSnapshot || res.snapshot)) || null

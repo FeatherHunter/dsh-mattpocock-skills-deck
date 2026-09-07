@@ -10,6 +10,12 @@ export const ChecksTab = ({ st }) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   React.useEffect(function () { loadChain(st, false) }, [])
+  // #529：语言切换即时重取——快照内说明行按取回时语言 baked（标题走词条自动翻）；
+  //   快照语言与当前不一致时 force 重取，说明行也翻；重取前标题已先翻，无闪烁回退。
+  const curLang = (typeof promptLang === 'function' ? promptLang() : 'zh')
+  React.useEffect(function () {
+    try { if (st.chainSnapshot && st.chainLangLoaded && st.chainLangLoaded !== curLang) loadChain(st, true) } catch (e) {}
+  }, [curLang])
   // B 方案（2026-08-28 用户定版）：链未全绿时每 20s 静默重查一次——修复（在对话/终端完成）后面板自动变绿，
   //   无需手动点「重新检查」；host 侧对未全绿快照不写 30s 缓存，poll 每次真探测；链全部通过后定时器停止（零开销）。
   React.useEffect(function () {
@@ -47,7 +53,7 @@ export const ChecksTab = ({ st }) => {
                   // 单步 wizard 当单页表单：复用 modal-seat，向导感知渲染会在弹窗内分页（1 步即单页）；label 空时由 slotRenderer 回落“向导”，避免 ChecksTab 硬编码中文越 baseline
                   openFormModal(st, { type: 'wizard', steps: schema.steps, label: schema.label || '', submitAction: schema.submitAction || null }, onSubmit)
                 } else {
-                  openFormModal(st, { type: 'form', schema: schema, label: '填写表单' }, onSubmit)
+                  openFormModal(st, { type: 'form', schema: schema, label: tr('env.actFillForm') }, onSubmit)
                 }
               } else if (typeof ensureFormModal === 'function') {
                 // 兜底：旧 API（理论不可达，仅防产物不同步）
@@ -64,7 +70,7 @@ export const ChecksTab = ({ st }) => {
                   m.open = true
                   m.schema = Array.isArray(schema) ? schema : []
                   m.onSubmit = typeof onSubmit === 'function' ? onSubmit : null
-                  m.label = '填写表单'
+                  m.label = tr('env.actFillForm')
                   m.pending = false
                 }
                 try { if (typeof emit === 'function') emit(st) } catch (e2) { try { st.tick = (st.tick||0)+1 } catch(_) {} }
@@ -98,21 +104,22 @@ export const ChecksTab = ({ st }) => {
   }
   // 修复契约（2026-08-28）：hint = 修复指引文案（host 由后端 fixes 解析；'prompt:' 前缀经 resolvePrompt 解出，UI 零派生）；
   //   动作按钮 = 检查失败时的可执行修复入口（inject-prompt / open-url / rpc / form / refresh），执行后走既有重求值闭环。
+  // #529 动作按钮文案走词条（英文界面显示英文；中文与原写死一字不差；host 下发的 label 优先保留）
   const miniActionLabel = function (a) {
     const t = a && a.type
-    if (t === 'inject-prompt') return (a && a.label) || '执行'
-    if (t === 'open-url') return '打开链接'
-    if (t === 'rpc') return (a && (a.method || a.endpoint)) || '执行'
-    if (t === 'form') return (a && a.label) || '填写表单'
+    if (t === 'inject-prompt') return (a && a.label) || tr('env.actRun')
+    if (t === 'open-url') return tr('env.actOpenUrl')
+    if (t === 'rpc') return (a && (a.method || a.endpoint)) || tr('env.actRun')
+    if (t === 'form') return (a && a.label) || tr('env.actFillForm')
     if (t === 'wizard') return (a && a.label) || 'Wizard'
-    if (t === 'refresh') return '重查'
+    if (t === 'refresh') return tr('env.actRefresh')
     return 'unsupported: ' + String(t || 'unknown')
   }
   const runAction = async function (a) {
     if (!chainDispatcher) return
     try {
       const res = await chainDispatcher.dispatch(a)
-      if (!res || !res.ok) { try { flash(st, String((res && res.error && res.error.message) || '动作失败'), 'warn') } catch (e) {} }
+      if (!res || !res.ok) { try { flash(st, String((res && res.error && res.error.message) || tr('env.actFailed')), 'warn') } catch (e) {} }
     } catch (e) { try { flash(st, String((e && e.message) || e).slice(0, 200), 'warn') } catch (e2) {} }
   }
   const hintTextOf = function (s) {
@@ -128,14 +135,15 @@ export const ChecksTab = ({ st }) => {
   }
   const stepRows = steps.length ? steps.map(function (s, i) {
     const meta = statusMeta(s)
-    const label = (s.show && (s.show.fallback || s.show.title || s.show.i18nKey)) || s.id
+    // #529 标题经 checkShowTitle 取当前语言（英文界面显示英文词条，中文与原 fallback 一字不差）
+    const label = checkShowTitle(s.show, s.id)
     const desc = (s.show && (s.show.desc || '')) || ''
     // #284 修订（对抗式审查 2026-08-28）：pending 分两种——被前置阻塞（blockedBy 指明前置步）与诚实探测中；
     //   阻塞必须在 UI 明示，避免把「尚未轮到」误读为「探测中/未接入」（正是 #276 反对的不诚实状态）。
     let blockedNote = ''
     if (s.status === 'pending' && s.blockedBy) {
       const blocker = steps.find(function (x) { return String(x.id) === String(s.blockedBy) }) || null
-      const blockerName = (blocker && blocker.show && (blocker.show.fallback || blocker.show.title)) || s.blockedBy
+      const blockerName = checkShowTitle(blocker && blocker.show, s.blockedBy)
       blockedNote = tr('env.waitingBlocked', { by: String(blockerName) })
     }
     const finalDesc = blockedNote ? (desc ? desc + ' \u00b7 ' + blockedNote : blockedNote) : desc
@@ -220,16 +228,16 @@ export const ChecksTab = ({ st }) => {
       return h('details', { style: { marginTop: 8, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 6, padding: '6px 8px', background: 'rgba(255,255,255,.02)' } }, [
         h('summary', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } }, [
           Ic({ n: 'note', size: 11 }),
-          h('span', null, '能力诊断（折叠，默认收起）'),
+          h('span', null, tr('env.diagTitle')),
           h('span', { style: { fontSize: 10, color: '#8b8b95', marginLeft: 6 } }, 'present ' + counts.present + ' / empty ' + counts.empty + ' / missing ' + counts.missing),
         ]),
         h('div', { style: { fontSize: 11, color: '#8b8b95', marginTop: 6, lineHeight: 1.6 } }, [
-          h('div', null, '当前后端: ' + (sel && sel.backendId ? sel.backendId : '\u2014') + (sel && sel.source ? ' (' + sel.source + ')' : '') + (sel && sel.pending ? ' \u23F3 pending' : '') + (sel && sel.multiHit ? ' \u26A0 multiHit:' + sel.multiHit.join(',') : '')),
-          repoRef ? h('div', null, '仓库: ' + repoRef.name + (repoRef.url ? ' \u2014 ' + repoRef.url : ' (本地)')) : null,
-          h('div', null, '字段 presence: present=' + counts.present + ' \u00b7 empty=' + counts.empty + ' \u00b7 missing=' + counts.missing),
-          h('div', { style: { fontSize: 10, color: '#6b7280', marginTop: 4 } }, '诊断双轨：host 记每字段填/空，client 记渲染/隐藏；G5 能力视图不进任何 if(capability) 隐藏分支。'),
+          h('div', null, tr('env.diagBackend') + ': ' + (sel && sel.backendId ? sel.backendId : '\u2014') + (sel && sel.source ? ' (' + sel.source + ')' : '') + (sel && sel.pending ? ' \u23F3 pending' : '') + (sel && sel.multiHit ? ' \u26A0 multiHit:' + sel.multiHit.join(',') : '')),
+          repoRef ? h('div', null, tr('env.diagRepo') + ': ' + repoRef.name + (repoRef.url ? ' \u2014 ' + repoRef.url : ' ' + tr('env.diagLocal'))) : null,
+          h('div', null, tr('env.diagFields') + ': present=' + counts.present + ' \u00b7 empty=' + counts.empty + ' \u00b7 missing=' + counts.missing),
+          h('div', { style: { fontSize: 10, color: '#6b7280', marginTop: 4 } }, tr('env.diagNote')),
           h('div', { style: { marginTop: 6 } }, [
-            h('button', { className: 'dsws-btn ghost', onClick: function () { try { console.log('[dsws] capabilities', counts, 'selection', sel, 'repo', repoRef) } catch {}; flash(st, '能力诊断已输出到控制台', 'info') }, style: { fontSize: 10, padding: '2px 6px' } }, '查看日志'),
+            h('button', { className: 'dsws-btn ghost', onClick: function () { try { console.log('[dsws] capabilities', counts, 'selection', sel, 'repo', repoRef) } catch {}; flash(st, tr('env.diagLogged'), 'info') }, style: { fontSize: 10, padding: '2px 6px' } }, tr('env.diagViewLog')),
           ]),
         ]),
       ])

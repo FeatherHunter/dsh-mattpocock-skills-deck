@@ -145,10 +145,10 @@ export const SwitchConfirmModal = (props) => {
           h('span', null, criLoading ? tr('switch.criLoading') : migrateBlocked ? tr('switch.criBlocked') : tr('switch.criOk')),
         ]),
         !criLoading ? h('div', { style: { marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 } }, criDetails.map(function (c) {
-          // #284：CRI 项现为链步骤（status/show 派生 ok 与文案）
+          // #284：CRI 项现为链步骤（status/show 派生 ok 与文案）；#529 标题与检查页同口径走 checkShowTitle 取当前语言
           const ok = !!(c && c.status === 'done')
           const col = ok ? '#4ade80' : '#f87171'
-          const cName = (c && c.show && (c.show.fallback || c.show.title || c.show.i18nKey)) || (c && c.id) || ''
+          const cName = checkShowTitle(c && c.show, (c && c.id) || '')
           const cDetail = (c && c.show && c.show.desc) || ''
           return h('div', { key: c && c.id, style: { display: 'flex', alignItems: 'center', gap: 6, color: col, fontSize: 11 } }, [
             h('span', { style: { fontSize: 10 } }, ok ? '✓' : '✕'),

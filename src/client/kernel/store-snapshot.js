@@ -111,12 +111,12 @@
         }).catch(function () { return null })
       } catch (e) { return Promise.resolve(null) }
     }
-    // 链快照共享缓存（#324 · 键 = 工作区键 + 后端 id，随后端不同，新会话首见即秒显）
+    // 链快照共享缓存（#324 · 键 = 工作区键 + 后端 id + 语言，随后端与语言不同，新会话首见即秒显；#529 加语言维：中英快照分开存）
     export const CHAIN_CWD_LRU_MAX = 20
-    export const chainByCwd = new Map() // Map<keyOf(cwd)+'|'+backendId, {snapshot, ts}>
-    export const getChainCacheKey = function(cwd, backendId){ try{ return keyOf(cwd) + '|' + String(backendId||''); }catch(e){ return String(cwd||'')+'|'+String(backendId||''); } }
-    export const getCachedChain = function(cwd, backendId){ try{ const k=getChainCacheKey(cwd, backendId); const e=chainByCwd.get(k); return e?e.snapshot:null; }catch(e){ return null; } }
-    export const setCachedChain = function(cwd, backendId, snap){ if(!cwd||!snap) return; try{ const k=getChainCacheKey(cwd, backendId); const ent={snapshot:snap, ts:Date.now()}; if(chainByCwd.has(k)) chainByCwd.delete(k); chainByCwd.set(k, ent); if(chainByCwd.size>CHAIN_CWD_LRU_MAX){ const first=chainByCwd.keys().next().value; chainByCwd.delete(first);} }catch(e){} }
+    export const chainByCwd = new Map() // Map<keyOf(cwd)+'|'+backendId+'|'+lang, {snapshot, ts}>
+    export const getChainCacheKey = function(cwd, backendId, lang){ try{ return keyOf(cwd) + '|' + String(backendId||'') + '|' + String(lang||''); }catch(e){ return String(cwd||'')+'|'+String(backendId||'')+'|'+String(lang||''); } }
+    export const getCachedChain = function(cwd, backendId, lang){ try{ const k=getChainCacheKey(cwd, backendId, lang); const e=chainByCwd.get(k); return e?e.snapshot:null; }catch(e){ return null; } }
+    export const setCachedChain = function(cwd, backendId, lang, snap){ if(!cwd||!snap) return; try{ const k=getChainCacheKey(cwd, backendId, lang); const ent={snapshot:snap, ts:Date.now()}; if(chainByCwd.has(k)) chainByCwd.delete(k); chainByCwd.set(k, ent); if(chainByCwd.size>CHAIN_CWD_LRU_MAX){ const first=chainByCwd.keys().next().value; chainByCwd.delete(first);} }catch(e){} }
     export const hydrateFromCache = function (st) {
       if (!st || !st.cwd) return false
       const c = getCachedSnapshot(st.cwd); try{ if(c){ const _k=keyOf(st.cwd); const _e=snapshotByCwd.get(_k); if(_e) touchLRUClient(snapshotByCwd,_k,_e);} }catch(e){}
@@ -163,16 +163,18 @@
         const rep = getCachedRepository(st.cwd)
         if (rep) { st.repository = rep; changed=true }
       }
-      // 链快照共享水合（#324 · 键 = 工作区键 + 后端 id）
+      // 链快照共享水合（#324 · 键 = 工作区键 + 后端 id + 语言；#529 加语言维，与 loadChain 同口径）
       try {
         const backendId = (st.selection && st.selection.backendId) || (c && c.selection && c.selection.backendId) || ''
-        const cachedChain = getCachedChain(st.cwd, backendId)
+        const chainLang = (typeof promptLang === 'function' ? promptLang() : 'zh')
+        const cachedChain = getCachedChain(st.cwd, backendId, chainLang)
         if (cachedChain && !st.chainSnapshot) {
           st.chainSnapshot = cachedChain
           st.chain = cachedChain.chain || cachedChain
           st.fullChain = cachedChain.fullChain || null
           st.backendChain = cachedChain.backendChain || null
           st.chainLoadedAt = (typeof nowStr === 'function' ? nowStr() : '')
+          st.chainLangLoaded = chainLang // #529：水合即该语言快照，记下供语言切换判定
           changed = true
         } else if (cachedChain && st.chainSnapshot) {
           // 已有链但缓存更新：以生成时间或加载时间新者为准

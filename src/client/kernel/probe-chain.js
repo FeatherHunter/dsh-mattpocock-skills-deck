@@ -22,7 +22,8 @@
     export const scheduleChainAutoRefresh = function(st, ms){
       try{
         const bid = (st.selection && st.selection.backendId) || ''
-        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, bid) : String(st.cwd||'')+'|'+String(bid))
+        const lg = (typeof promptLang === 'function' ? promptLang() : 'zh')
+        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, bid, lg) : String(st.cwd||'')+'|'+String(bid)+'|'+String(lg || ''))
         if(!key || _chainAutoPollTimers.has(key)) return
         const delay = (typeof ms === 'number' && ms>0) ? ms : CHAIN_AUTO_POLL_MS
         const tid = (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function')
@@ -34,28 +35,31 @@
     export const cancelChainAutoRefresh = function(st){
       try{
         const bid = (st.selection && st.selection.backendId) || ''
-        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, bid) : String(st.cwd||'')+'|'+String(bid))
+        const lg = (typeof promptLang === 'function' ? promptLang() : 'zh')
+        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, bid, lg) : String(st.cwd||'')+'|'+String(bid)+'|'+String(lg || ''))
         const tid = _chainAutoPollTimers.get(key)
         if(tid){ try{ clearTimeout(tid) }catch(e){} _chainAutoPollTimers.delete(key) }
       }catch(e){}
     }
     export const loadChain = function(st, force){
       if (typeof host === 'undefined' || typeof host.call !== 'function') return Promise.resolve(null)
-      // 链共享键 = 工作区键 + 后端 id（#324），确保按工作区单次求值且按后端隔离
+      // 链共享键 = 工作区键 + 后端 id + 语言（#324 按工作区单次求值按后端隔离；#529 加语言：host 明细按语言产出，中英快照分开缓存，切换语言即时重取）
       const _backendIdForChain = (st.selection && st.selection.backendId) || ''
-      const norm = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, _backendIdForChain) : ((typeof keyOf === 'function' ? keyOf(st.cwd) : String(st.cwd||'')) + '|' + String(_backendIdForChain)))
+      const _langForChain = (typeof promptLang === 'function' ? promptLang() : 'zh')
+      const norm = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, _backendIdForChain, _langForChain) : ((typeof keyOf === 'function' ? keyOf(st.cwd) : String(st.cwd||'')) + '|' + String(_backendIdForChain) + '|' + String(_langForChain || '')))
       if (!force) {
         const inflight = _chainInflightByCwd.get(norm)
         if (inflight) { try { dswsChainDedupN.n += 1; if (isEnabled('debug') && dswsChainDedupN.n % 10 === 0) log('debug', 'dedup.hit', { scope: 'chain', keyHash: dswsLogHash(norm) }) } catch (eL) {}; return inflight }
         // 链共享缓存命中即秒显（#324 新会话首见即秒显）
         try {
-          const cached = (typeof getCachedChain === 'function' ? getCachedChain(st.cwd, _backendIdForChain) : null)
+          const cached = (typeof getCachedChain === 'function' ? getCachedChain(st.cwd, _backendIdForChain, _langForChain) : null)
           if (cached) {
             st.chainSnapshot = cached
             st.chain = cached.chain || cached
             st.fullChain = cached.fullChain || null
             st.backendChain = cached.backendChain || null
             st.chainLoadedAt = (typeof nowStr === 'function' ? nowStr() : '')
+            st.chainLangLoaded = _langForChain // #529：缓存命中即该语言快照，记下供语言切换判定
             // 已秒显则不发请求，直接返回
             // 但仍需让调用方感知已就绪，返回已解析的 promise
             return Promise.resolve(cached)
@@ -64,7 +68,8 @@
       }
       // 2026-08-28 修复（后端物理隔离）：链的后端段必须与 UI 当前绑定的后端一致——
       //   此前只传 cwd，host 回退到 detect 自产的 selection（默认 github），导致 markdown 工作区出现 GitHub 检查行。
-      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {}, force ? { force:true } : {})
+      // #529：附带当前语言（host 明细按语言双语产出，不传则恒为中文）
+      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {}, force ? { force:true } : {}, { lang: _langForChain })
       const chainT0 = Date.now()
       const p = host.call('wf.chain', args).then(function(res){
         try { if (res && res.ok) log('info', 'host.call', { method: 'wf.chain', latencyMs: Date.now() - chainT0, ok: true, kind: 'chain' }); else log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-not-ok'), 120, 'error')) }) } catch (eL) {}
@@ -76,8 +81,9 @@
           st.chainResolved = res.resolved
           st.backendChain = res.backendChain || null
           st.chainLoadedAt = nowStr()
+          st.chainLangLoaded = _langForChain // #529：记下本次快照语言，语言切换时凭它判定重取
           // 落共享缓存，供同工作区其他会话秒显
-          try { if (typeof setCachedChain === 'function') setCachedChain(st.cwd, _backendIdForChain, snap) } catch(eSet){}
+          try { if (typeof setCachedChain === 'function') setCachedChain(st.cwd, _backendIdForChain, _langForChain, snap) } catch(eSet){}
           emit(st)
           // #344 自动重求值调度：非全绿时安排下一次 force 重算，全绿时取消
           try{
