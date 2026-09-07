@@ -4,7 +4,7 @@
  * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
  * 范围：小绿点（开时常驻绿、关时不挂载，#522 推翻 #333 常驻决议）＋四键菜单（导出今日日志／打开日志目录／
  * 复制日志路径／清空今日日志）＋清空确认框＋成功与失败反馈（#523：悬停 200 毫秒自开、单击照旧、离区 300 毫秒关；
- * 与技能菜单互斥；在绿点右上方左侧对齐、自顶向下展开；无底部说明行、宽度贴合最长行）。
+ * 与技能菜单互斥；在绿点正上方水平居中、自顶向下展开、视口不够时自动内收；无底部说明行、宽度贴合最长行（#525 居中，替代 #523 左侧对齐）。
  * 接线：导出调 wf.logExport，清空调 wf.logClear，跳转目录复用 wf.openPath，
  * 复制路径走本地剪贴板（copyText），开关态读日志底座 logSwitch（启动已向宿主对账）。
  * 以后改状态栏日志入口的人改它；StatusBar.js 只留一行挂载。
@@ -58,10 +58,10 @@ const dswsLogEnsurePath = function () {
     return Promise.resolve({ ok: false, error: (e && e.message) || String(e) })
   }
 }
-// 悬浮菜单跟随锚点定位（#514 提纯：打开菜单与滚动复位两处同形定位收一处，行为不变）。
+// 悬浮菜单跟随锚点定位（#525：菜单水平居中于绿点，保留自底向上展开与右边缘兜底，视口不够时自动内收）。
 const dswsLogPlaceMenu = function (anchorRef, setMenuPos) {
   try {
-    if (typeof placeStatusOverlay === 'function' && anchorRef.current) { const p = placeStatusOverlay(anchorRef.current, 'left'); if (p) setMenuPos(p) } // #523 取左侧横坐标：在绿点右上方、左侧与绿点对齐。
+    const el = anchorRef.current; if (!el || typeof window === 'undefined') return; const r = el.getBoundingClientRect(); if (!r || (!r.width && !r.height)) return; const bottom = Math.max(0, Math.round(window.innerHeight - r.top)); const centerX = r.left + r.width / 2; let w = 0; try { const m = document.querySelector('[data-dsws-logmenu]'); if (m) w = m.offsetWidth || m.getBoundingClientRect().width || 0 } catch (eM) {} if (!w) w = 210; const half = w / 2; const margin = 12; const vw = window.innerWidth || (document.documentElement && document.documentElement.clientWidth) || 0; let left = Math.round(centerX - half); if (left < margin) left = margin; if (vw && left + w > vw - margin) left = Math.max(margin, Math.round(vw - margin - w)); setMenuPos({ bottom: bottom, left: left }) // 先按实测宽居中，首开测不到宽时按最小宽估算，挂载后补测一次校准。
   } catch (e) {}
 }
 export const StatusLogDot = function (props) {
@@ -141,6 +141,7 @@ export const StatusLogDot = function (props) {
     const reposition = function () { if (disposed) return; dswsLogPlaceMenu(anchorRef, setMenuPos) }
     document.addEventListener('scroll', reposition, { capture: true, passive: true })
     window.addEventListener('resize', reposition)
+    try { if (typeof requestAnimationFrame === 'function') requestAnimationFrame(reposition); else setTimeout(reposition, 0) } catch (eR) {} // 挂载后按实测宽补测一次，把首开的估算位置校准到真正居中。
     return function () {
       disposed = true
       document.removeEventListener('scroll', reposition, true)
@@ -302,7 +303,7 @@ export const StatusLogDot = function (props) {
     onClick: function (e) { try { e.stopPropagation() } catch (e2) {} },
     onMouseEnter: function () { clearHoverOpen(); try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {} },
     onMouseLeave: function () { scheduleMenuClose() },
-    style: Object.assign({ position: 'fixed', bottom: menuPos ? menuPos.bottom : 40, width: 'max-content', maxWidth: 'calc(100vw - 24px)', padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.45)' }, (menuPos && typeof menuPos.left === 'number') ? { left: menuPos.left } : { right: 12 }), // 左侧与绿点对齐（测不到锚点时沿用右边缘兜底），宽度贴合最长行加内边距。
+    style: Object.assign({ position: 'fixed', bottom: menuPos ? menuPos.bottom : 40, width: 'max-content', maxWidth: 'calc(100vw - 24px)', padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.45)' }, (menuPos && typeof menuPos.left === 'number') ? { left: menuPos.left } : { right: 12 }), // 水平居中于绿点（测不到锚点时沿用右边缘兜底），视口不够时定位函数已自动内收，宽度贴合最长行加内边距。
   }, [
     hh('div', { role: 'menu', 'aria-label': dotTitle }, [
       menuItem('export', 'note', tr('logmenu.export'), doExport, false),
