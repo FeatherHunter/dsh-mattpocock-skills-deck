@@ -46,6 +46,8 @@ const REGISTRY = Object.freeze({ darwin, win32, linux })
  * @property {(name: string) => Promise<string|null>} resolveExecutable  包装 DSH subprocess（throw→null）。
  * @property {Object} fs  DSH 沙箱 fs 透传（lstat/readText/writeText/resolve/listDir/stat；无 mkdir）。
  * @property {{get(k: string): string|undefined, has(k: string): boolean}} env  只读视图。
+ * @property {(dir: string, cwd?: string) => Promise<{ok: boolean, opener?: string, error?: string}>} openFolder  本机可见打开目录（#497 调起单点，配方归底座）。
+ * @property {(file: string, cwd?: string) => Promise<{ok: boolean, opener?: string, error?: string}>} openFile  本机可见打开文件（#497 调起单点，配方归底座）。
  */
 
 /** 测缓存：getHome 结果缓存（进程内主目录不变 → 默认终身缓存）。 */
@@ -125,6 +127,49 @@ export async function composePlatform(ctx, osName, adapter, opts) {
     }
     return null
   }
+  // 本机可见打开（#497，通用层单点拥有调起，配方归各 OS 底座）。
+  // 调用方只说意图（开目录/开文件），不分支 os：win32 经 cmd start 显式可视，darwin/open 与 linux/xdg-open 直调。
+  // 调起一律 fire-and-forget（不等退出，同步抛错才算失败）；数组直传，引号由调起层按需加，不手写。
+  const spawnOpen = function (argv, cwd) {
+    let subprocess = null
+    try { subprocess = ctx.get('subprocess') } catch { subprocess = null }
+    if (!subprocess || typeof subprocess.spawn !== 'function') return { ok: false, error: '当前环境不支持调起' }
+    try {
+      const handle = subprocess.spawn({ argv: argv, cwd: cwd, stdio: { stdin: 'ignore', stdout: { maxBytes: 64 * 1024 }, stderr: { maxBytes: 64 * 1024 } }, graceMs: 2000 })
+      if (handle && handle.done) handle.done.catch(function () {})
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) }
+    }
+  }
+  const openTarget = async function (kind, raw, cwd) {
+    try {
+      const recipe = spec.shellOpen || null
+      if (!recipe || typeof recipe.normalize !== 'function') return { ok: false, error: '当前平台不支持打开' }
+      const target = recipe.normalize(String(raw || ''))
+      if (!target) return { ok: false, error: '路径为空' }
+      if (typeof recipe.allowOpen === 'function' && !recipe.allowOpen(target)) return { ok: false, error: '路径含不可调起字符' }
+      const exe = await resolveExecutable(recipe.opener)
+      if (!exe) return { ok: false, error: '找不到打开器：' + recipe.opener }
+      const home = cwd || target
+      if (kind === 'file' && typeof recipe.fileArgs === 'function') {
+        const fileArgv = recipe.fileArgs(target)
+        // 文件配方回 null（如 win32 名内有空格拼不出选中串）→ 改开上级目录，看得见位置，不选中。
+        if (!fileArgv) return openTarget('folder', path.dirname(target), cwd)
+        const started = spawnOpen([exe].concat(fileArgv), home)
+        if (!started.ok) return started
+        return { ok: true, opener: exe }
+      }
+      const folderArgv = typeof recipe.folderArgs === 'function' ? recipe.folderArgs(target) : [target]
+      const started = spawnOpen([exe].concat(folderArgv), home)
+      if (!started.ok) return started
+      return { ok: true, opener: exe }
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) }
+    }
+  }
+  const openFolder = function (dir, cwd) { return openTarget('folder', dir, cwd) }
+  const openFile = function (file, cwd) { return openTarget('file', file, cwd) }
   return Object.freeze({
     os: osName,
     getHome,
@@ -132,6 +177,8 @@ export async function composePlatform(ctx, osName, adapter, opts) {
     resolveExecutable,
     fs,
     env: buildEnv(envSource),
+    openFolder,
+    openFile,
   })
 }
 

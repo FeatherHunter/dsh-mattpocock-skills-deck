@@ -48,5 +48,15 @@ export default function linuxAdapter(ctx, opts) {
       const subprocess = ctx.get('subprocess')
       return subprocess.resolveExecutable(name)
     },
+    /**
+     * 本机可见打开配方（#497，OS 底座拥有；Linux 沿用 xdg-open，目录与文件同一路，与旧行为一致）。
+     */
+    shellOpen: {
+      opener: 'xdg-open',
+      normalize: (t) => t,
+      allowOpen: () => true,
+      folderArgs: (t) => [t],
+      fileArgs: (t) => [t],
+    },
   }
 }

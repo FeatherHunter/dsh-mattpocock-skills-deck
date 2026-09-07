@@ -1,10 +1,10 @@
-// tests/verify-497-slash.js —— #497 win32 打开路径门禁：斜杠统一为反斜杠、不手写引号、目录直接打开。
+// tests/verify-497-slash.js —— #497 本机可见打开门禁：意图归调用方，系统分支归平台抽象层。
 // 用法：node tests/verify-497-slash.js（在插件根目录）。
-// 背景：宿主打开文件夹与打开文件在 win32 下把含正斜杠的路径原样交给 explorer，
-// 资源管理器认不出，回落到默认位置，用户看到“点了没反应”（电话仍回 ok:true）。
-// 纠偏：数组透传由调起层按需自动加引号，手写双引号会变成文件名的一部分，含空格路径反而打不开，
-// 因此只做斜杠统一，不手写引号；目录走直接打开（选中只会打开上级），文件才走选中。
-// 本门禁逐平台核对传给 spawn 的实际参数。
+// 背景：宿主调起层常驻隐藏，直接拉资源管理器不可见；win32 须经 cmd start 显式可视（真机验证 /max 可见），
+// darwin 沿用 open、linux 沿用 xdg-open。五方职责：pickerShell 只表达意图（开目录/开文件），
+// “用哪个程序、拼什么参数”由各 OS 底座的可见打开配方拥有，通用层单点调起；调用方不出现按系统分发的分支。
+// 本门禁在平台层核对三端实际参数，在调用方核对零系统分支。
+const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
 
@@ -13,101 +13,115 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('#497 门禁：win32 打开路径无正斜杠不手写引号，目录直接打开（darwin/linux 保持正斜杠）')
+console.log('#497 门禁：本机可见打开三端配方（调用方零系统分支）')
 
-// 按指定系统组装宿主依赖：spawn 只记录参数不真打开，计时器立即超时不等待。
-function makeDeps(os, captured) {
+// 按指定系统组装平台上下文：spawn 只记录参数不真打开。
+function makeCtx(captured, resolveImpl) {
+  const subprocess = {
+    spawn: (opts) => {
+      captured.push((opts && opts.argv) ? opts.argv.slice() : [])
+      return { done: Promise.resolve({ exitCode: 0 }), terminate() {} }
+    },
+    resolveExecutable: resolveImpl || (async (n) => 'C:\\Windows\\System32\\' + n),
+  }
   return {
-    DEFAULT_CWD: 'D:/base',
-    getPlatform: async () => ({
-      os,
-      path: { normalize: (s) => String(s) },
-      resolveExecutable: async (name) => String(name)
-    }),
-    subprocess: {
-      spawn: (opts) => {
-        captured.push((opts && opts.argv) ? opts.argv.slice() : [])
-        return { done: Promise.resolve({ exitCode: 0 }), terminate() {} }
-      }
+    get(name) {
+      if (name === 'subprocess') return subprocess
+      if (name === 'fs') return { lstat: async () => null, readText: async () => '', writeText: async () => {}, resolve: (p) => p, listDir: async () => [], stat: async () => null }
+      return undefined
     },
-    timer: {
-      timeout: (a) => {
-        if (typeof a === 'number') return Promise.resolve({ exitCode: -1, signal: 'timeout' })
-        return { then(resolve) { resolve({ exitCode: -1 }) } }
-      }
-    },
-    logCtx: null
   }
 }
 
 async function main() {
-  const modUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'pickerShell.js')).href
-  let mod
+  const platUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'platform', 'index.js')).href
+  const win32Url = pathToFileURL(path.join(ROOT, 'src', 'host', 'platform', 'win32', 'index.js')).href
+  const darwinUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'platform', 'darwin', 'index.js')).href
+  const linuxUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'platform', 'linux', 'index.js')).href
+  let platMod, win32Adapter, darwinAdapter, linuxAdapter
   try {
-    mod = await import(modUrl)
+    platMod = await import(platUrl)
+    win32Adapter = (await import(win32Url)).default
+    darwinAdapter = (await import(darwinUrl)).default
+    linuxAdapter = (await import(linuxUrl)).default
   } catch (e) {
-    check(false, '打开器可被动态加载（src/host/pickerShell.js）：' + e.message)
-    console.log(failed ? '\n存在失败' : '\n全部通过')
+    check(false, '平台层可被动态加载：' + e.message)
+    console.log('\n存在失败')
     process.exit(1)
   }
-  check(typeof mod.createPickerShell === 'function', '打开器导出工厂函数 createPickerShell')
+  check(typeof platMod.composePlatform === 'function', '平台层导出组装函数 composePlatform')
 
-  // win32 打开文件夹：传给 explorer 的目标路径无正斜杠、不手写引号。
+  // win32 开目录：经 cmd start 显式可视，正斜杠已归一，不手写引号。
   {
     const captured = []
-    const shell = mod.createPickerShell(makeDeps('win32', captured))
-    const res = await shell.handleOpenFolder({ cwd: 'D:/cache/logs' })
-    const target = (captured[0] && captured[0][1]) || ''
-    check(res && res.ok === true, 'win32 打开文件夹仍成功（斜杠转换不翻失败）')
-    check(!String(target).includes('/'), 'win32 打开文件夹的目标路径无正斜杠（实得 ' + target + '）')
-    check(target === 'D:\\cache\\logs', 'win32 正斜杠统一为反斜杠且不手写引号（实得 ' + target + '）')
-    check(!(String(target).startsWith('"') && String(target).endsWith('"')), 'win32 数组直传不手写双引号（含空格路径由宿主调起层自动加引号，实得 ' + target + '）')
+    const plat = await platMod.composePlatform(makeCtx(captured), 'win32', win32Adapter, {})
+    const res = await plat.openFolder('D:/0Tools/DSH Desktop/.dsh-mattskillsdeck-cache/logs', 'D:/base')
+    check(res && res.ok === true, 'win32 开目录成功（含空格真机路径）')
+    check(JSON.stringify(captured[0]) === JSON.stringify(['C:\\Windows\\System32\\cmd.exe', '/c', 'start', '', '/max', 'D:\\0Tools\\DSH Desktop\\.dsh-mattskillsdeck-cache\\logs']), 'win32 开目录走 cmd start 显式可视且斜杠已归一（实得 ' + JSON.stringify(captured[0]) + '）')
   }
 
-  // win32 含空格文件夹：同样不手写引号（用户真机路径 D:/0Tools/DSH Desktop/...）。
+  // win32 开文件（名内无空格）：先切目录再按名选中。
   {
     const captured = []
-    const shell = mod.createPickerShell(makeDeps('win32', captured))
-    await shell.handleOpenFolder({ cwd: 'D:/0Tools/DSH Desktop/.dsh-mattskillsdeck-cache/logs' })
-    const target = (captured[0] && captured[0][1]) || ''
-    check(target === 'D:\\0Tools\\DSH Desktop\\.dsh-mattskillsdeck-cache\\logs', 'win32 含空格目录同样只转斜杠不包引号（实得 ' + target + '）')
+    const plat = await platMod.composePlatform(makeCtx(captured), 'win32', win32Adapter, {})
+    const res = await plat.openFile('D:/cache/logs/2026-09-06.log', 'D:/base')
+    check(res && res.ok === true, 'win32 开文件成功（无空格名）')
+    check(JSON.stringify(captured[0]) === JSON.stringify(['C:\\Windows\\System32\\cmd.exe', '/c', 'start', '', '/max', '/d', 'D:\\cache\\logs', 'explorer', '/select,2026-09-06.log']), 'win32 开文件先切目录再选中（实得 ' + JSON.stringify(captured[0]) + '）')
   }
 
-  // win32 打开文件：explorer 选中参数里的文件路径无正斜杠、不手写引号（/select, 开关头不算）。
+  // win32 开文件（名内有空格）：拼不出选中串，改开上级目录（看得见位置，不选中）。
   {
     const captured = []
-    const shell = mod.createPickerShell(makeDeps('win32', captured))
-    const res = await shell.handleOpenPath({ path: 'D:/cache/logs/2026-09-06.log' })
-    const arg = (captured[0] && captured[0][1]) || ''
-    const filePart = String(arg).replace(/^\/select,/, '')
-    check(res && res.ok === true, 'win32 打开文件仍成功（斜杠转换不翻失败）')
-    check(!filePart.includes('/'), 'win32 打开文件的目标路径无正斜杠（实得 ' + filePart + '）')
-    check(!(filePart.startsWith('"') && filePart.endsWith('"')), 'win32 打开文件的选中路径不手写引号（实得 ' + filePart + '）')
-    check(String(arg) === '/select,D:\\cache\\logs\\2026-09-06.log', 'win32 打开文件的选中参数形如 /select,盘符:\\...（实得 ' + arg + '）')
+    const plat = await platMod.composePlatform(makeCtx(captured), 'win32', win32Adapter, {})
+    const res = await plat.openFile('D:/cache/my notes.md', 'D:/base')
+    check(res && res.ok === true, 'win32 空格文件名仍成功（改开上级）')
+    check(JSON.stringify(captured[0]) === JSON.stringify(['C:\\Windows\\System32\\cmd.exe', '/c', 'start', '', '/max', 'D:\\cache']), 'win32 空格文件名改开上级目录（实得 ' + JSON.stringify(captured[0]) + '）')
   }
 
-  // win32 打开目录走打开文件电话：按目录直接打开，不走选中（选中只会打开上级）。
+  // win32 含壳元字符：诚实失败，不让 cmd 多执行半句。
   {
     const captured = []
-    const shell = mod.createPickerShell(makeDeps('win32', captured))
-    const res = await shell.handleOpenPath({ path: 'D:/0Tools/DSH Desktop/.dsh-mattskillsdeck-cache/logs' })
-    const arg = (captured[0] && captured[0][1]) || ''
-    check(res && res.ok === true, 'win32 目录走打开文件电话仍成功（按目录直接打开）')
-    check(String(arg) === 'D:\\0Tools\\DSH Desktop\\.dsh-mattskillsdeck-cache\\logs', 'win32 目录直接打开不带选中头（实得 ' + arg + '）')
+    const plat = await platMod.composePlatform(makeCtx(captured), 'win32', win32Adapter, {})
+    const res = await plat.openFolder('D:/cache/a&b', 'D:/base')
+    check(res && res.ok !== true, 'win32 壳元字符诚实失败（实得 ' + JSON.stringify(res) + '）')
+    check(captured.length === 0, 'win32 壳元字符未调起（零调起）')
   }
 
-  // darwin 与 linux：正斜杠保持不动（修法只动 win32）。
+  // win32 找不到打开器：诚实失败。
   {
-    const capturedMac = []
-    const mac = mod.createPickerShell(makeDeps('darwin', capturedMac))
-    await mac.handleOpenPath({ path: '/tmp/a/b.log' })
-    const macArg = (capturedMac[0] && capturedMac[0][1]) || ''
-    check(macArg === '/tmp/a/b.log', 'darwin 打开路径保持正斜杠不动（实得 ' + macArg + '）')
-    const capturedLinux = []
-    const linux = mod.createPickerShell(makeDeps('linux', capturedLinux))
-    await linux.handleOpenFolder({ cwd: 'D:/cache/logs' })
-    const linuxTarget = (capturedLinux[0] && capturedLinux[0][1]) || ''
-    check(linuxTarget === 'D:/cache/logs', 'linux 打开路径保持正斜杠不动（实得 ' + linuxTarget + '）')
+    const captured = []
+    const plat = await platMod.composePlatform(makeCtx(captured, async () => { throw new Error('not found') }), 'win32', win32Adapter, {})
+    const res = await plat.openFolder('D:/cache/logs', 'D:/base')
+    check(res && res.ok !== true, 'win32 无打开器诚实失败')
+  }
+
+  // darwin：open 直调，空格与斜杠原样。
+  {
+    const captured = []
+    const ctx = { get: (n) => (n === 'subprocess' ? { spawn: (o) => { captured.push(o.argv.slice()); return { done: Promise.resolve({}), terminate() {} } }, resolveExecutable: async (x) => '/usr/bin/' + x } : { lstat: async () => null }) }
+    const plat = await platMod.composePlatform(ctx, 'darwin', darwinAdapter, {})
+    await plat.openFolder('/Users/a/My Logs', '/tmp')
+    check(JSON.stringify(captured[0]) === JSON.stringify(['/usr/bin/open', '/Users/a/My Logs']), 'darwin 开目录直调 open（实得 ' + JSON.stringify(captured[0]) + '）')
+    await plat.openFile('/tmp/a/b.log', '/tmp')
+    check(JSON.stringify(captured[1]) === JSON.stringify(['/usr/bin/open', '/tmp/a/b.log']), 'darwin 开文件直调 open（实得 ' + JSON.stringify(captured[1]) + '）')
+  }
+
+  // linux：xdg-open 直调。
+  {
+    const captured = []
+    const ctx = { get: (n) => (n === 'subprocess' ? { spawn: (o) => { captured.push(o.argv.slice()); return { done: Promise.resolve({}), terminate() {} } }, resolveExecutable: async (x) => '/usr/bin/' + x } : { lstat: async () => null }) }
+    const plat = await platMod.composePlatform(ctx, 'linux', linuxAdapter, {})
+    await plat.openFolder('/home/u/logs', '/tmp')
+    check(JSON.stringify(captured[0]) === JSON.stringify(['/usr/bin/xdg-open', '/home/u/logs']), 'linux 开目录直调 xdg-open（实得 ' + JSON.stringify(captured[0]) + '）')
+  }
+
+  // 调用方零系统分支：pickerShell 不出现按系统分发的字面。
+  {
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'host', 'pickerShell.js'), 'utf8')
+    const strip = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+    check(!/===\s*['"]win32['"]/.test(strip) && !/===\s*['"]darwin['"]/.test(strip), 'pickerShell 无按系统分发的分支')
+    check(!strip.includes('explorer') && !strip.includes('xdg-open'), 'pickerShell 不拼系统命令（配方归底座）')
+    check(src.includes('openFolder') && src.includes('openFile'), 'pickerShell 只表达意图（开目录/开文件）')
   }
 
   console.log(failed ? '\n存在失败 ' + total + ' 项' : '\n全部通过 ' + total + ' 项')

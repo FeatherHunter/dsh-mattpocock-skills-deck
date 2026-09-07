@@ -64,5 +64,27 @@ export default function win32Adapter(ctx, opts) {
       const subprocess = ctx.get('subprocess')
       return subprocess.resolveExecutable(mapped)
     },
+    /**
+     * 本机可见打开配方（#497，OS 底座拥有）。
+     * 宿主调起层常驻隐藏，直接拉资源管理器不可见；经 cmd start 显式可视（真机验证：/max 可见）。
+     * 路径数学仍委托 node:path.win32，本配方只定“用哪个程序、拼什么参数”，不手写分隔符。
+     */
+    shellOpen: {
+      opener: 'cmd',
+      normalize: (t) => nodePath.win32.normalize(t),
+      /** 含壳元字符（& | ^ % ! < >）一律拒绝，宁可诚实失败也不让 cmd 多执行半句。 */
+      allowOpen: (t) => !/[&|^%!<>]/.test(t),
+      /** 目录：start 显式可视直接打开看里面（数组直传，引号由调起层按需加，不手写）。 */
+      folderArgs: (t) => ['/c', 'start', '', '/max', t],
+      /**
+       * 文件：先切到所在目录再按名选中（名内无空格与特殊字符才拼选中串，避开引号嵌套）。
+       * 名内有空格或特殊字符时回 null，由通用层改开上级目录（看得见位置，不选中；注释写明不猜）。
+       */
+      fileArgs: (t) => {
+        const base = nodePath.win32.basename(t)
+        if (!/^[A-Za-z0-9._-]+$/.test(base)) return null
+        return ['/c', 'start', '', '/max', '/d', nodePath.win32.dirname(t), 'explorer', '/select,' + base]
+      },
+    },
   }
 }
