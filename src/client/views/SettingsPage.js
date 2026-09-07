@@ -165,6 +165,8 @@ export     const SettingsPage = (props) => {
                 ? h('button', { key: 'sidebar', className: openIn === 'sidebar' ? 'on' : '', onClick: function () { pickOpenIn('sidebar') } }, tr('cfg.openInSidebar'))
                 : null,
             ]),
+            // 收-1（#521）：常驻小字，长期可见的确定性答案（原 2.6 秒闪现保留，不依赖它传达）
+            h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('cfg.openInSavedHint')),
             openInNote ? h('div', { style: { fontSize: 11, color: '#4ade80', marginTop: 6 } }, tr('cfg.openInHint')) : null,
           ]),
         ]),

@@ -137,8 +137,8 @@
 </style>
 </head>
 <body>
-<h2>waystation 配置面板 · 落地 B 新增区后 · 双场景对照</h2>
-<p class="note">落地 B 后：标题行右侧加星星与反馈两纯图标（悬停才介绍），底部加作者其他插件 4 行新区。红框 = 内层滚动容器（预期 0）。</p>
+<h2>waystation 配置面板 · 落地 C 文案收尾后 · 双场景对照</h2>
+<p class="note">落地 C 后：只改两处文字（打开位置旁常驻小字“点选即已保存，无需再点保存”，标题说明改人话），其余不动。红框 = 内层滚动容器（预期 0）。</p>
 <div class="scene">
   <h3>场景 A · DSH settings 弹窗（真实宿主布局 · 最外层可滑动）</h3>
   <div class="dsh-settings">
@@ -178,7 +178,7 @@
     icons.style.cssText = 'display:inline-flex;align-items:center;gap:4px';
     icons.innerHTML = '<span title="去 GitHub 点 Star">★</span><span title="反馈问题">✉</span>';
     head.append(t, s, icons);
-    const sub = document.createElement('div'); sub.className = 'dsws-cfg-sub'; sub.textContent = '配置面板说明文字';
+    const sub = document.createElement('div'); sub.className = 'dsws-cfg-sub'; sub.textContent = '这是本插件的配置页：打开位置点选即保存，工作区绑定是只读总览，底部是作者的其他插件。';
     root.append(head, sub);
     const g1 = document.createElement('div'); g1.className = 'dsws-cfg-group';
     g1.innerHTML = '<div class="dsws-cfg-gtitle">打开位置</div><div class="dsws-cfg-gdesc">面板在哪个区域打开</div>';
@@ -186,7 +186,8 @@
     const lbl = document.createElement('span'); lbl.className = 'dsws-cfg-label'; lbl.textContent = '打开位置';
     const seg = document.createElement('div'); seg.className = 'dsws-cfg-seg';
     ['停靠列', '侧边栏'].forEach(k => { const b = document.createElement('button'); if (k === '停靠列') b.className = 'on'; b.textContent = k; seg.appendChild(b); });
-    g1r.append(lbl, seg); g1.appendChild(g1r); root.appendChild(g1);
+    const saved = document.createElement('div'); saved.style.cssText = 'font-size:11px;color:#8b8b95'; saved.textContent = '点选即已保存，无需再点保存';
+    g1r.append(lbl, seg, saved); g1.appendChild(g1r); root.appendChild(g1);
     const g2 = document.createElement('div'); g2.className = 'dsws-cfg-group';
     g2.innerHTML = '<div class="dsws-cfg-gtitle">工作区后端总览（只读，保持现状）</div><div class="dsws-cfg-gdesc">只读聚合，不占展开高度</div>';
     root.appendChild(g2);
