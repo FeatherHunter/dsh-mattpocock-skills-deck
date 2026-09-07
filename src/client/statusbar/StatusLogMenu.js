@@ -2,8 +2,9 @@
  * statusbar/StatusLogMenu.js — 状态栏常驻诊断日志入口（#492 状态栏线）。
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
- * 范围：小灰点（开时常驻绿、关时不挂载，#522 推翻 #333 常驻决议）＋点击四键菜单（导出今日日志／打开日志目录／
- * 复制日志路径／清空今日日志）＋清空确认框＋成功与失败反馈。
+ * 范围：小绿点（开时常驻绿、关时不挂载，#522 推翻 #333 常驻决议）＋四键菜单（导出今日日志／打开日志目录／
+ * 复制日志路径／清空今日日志）＋清空确认框＋成功与失败反馈（#523：悬停 200 毫秒自开、单击照旧、离区 300 毫秒关；
+ * 与技能菜单互斥；在绿点右上方左侧对齐、自顶向下展开；无底部说明行、宽度贴合最长行）。
  * 接线：导出调 wf.logExport，清空调 wf.logClear，跳转目录复用 wf.openPath，
  * 复制路径走本地剪贴板（copyText），开关态读日志底座 logSwitch（启动已向宿主对账）。
  * 以后改状态栏日志入口的人改它；StatusBar.js 只留一行挂载。
@@ -60,7 +61,7 @@ const dswsLogEnsurePath = function () {
 // 悬浮菜单跟随锚点定位（#514 提纯：打开菜单与滚动复位两处同形定位收一处，行为不变）。
 const dswsLogPlaceMenu = function (anchorRef, setMenuPos) {
   try {
-    if (typeof placeStatusOverlay === 'function' && anchorRef.current) { const p = placeStatusOverlay(anchorRef.current, 'right'); if (p) setMenuPos(p) }
+    if (typeof placeStatusOverlay === 'function' && anchorRef.current) { const p = placeStatusOverlay(anchorRef.current, 'left'); if (p) setMenuPos(p) } // #523 取左侧横坐标：在绿点右上方、左侧与绿点对齐。
   } catch (e) {}
 }
 export const StatusLogDot = function (props) {
@@ -76,26 +77,34 @@ export const StatusLogDot = function (props) {
   const [hoverKey, setHoverKey] = React.useState(null)
   const anchorRef = React.useRef(null)
   const closeRef = React.useRef(null)
+  const hoverOpenRef = React.useRef(null) // 绿点悬停待开计时器（200 毫秒到即开菜单）。
   const menuRef = React.useRef(null)
   // switch state: single memory copy reconciled to host at startup; broadcast re-renders us.
   let debugOn = false
   try { debugOn = !!(typeof logSwitch !== 'undefined' && logSwitch && logSwitch.enabled === true) } catch (e) {}
+  const clearHoverOpen = function () { try { if (hoverOpenRef.current) { clearTimeout(hoverOpenRef.current); hoverOpenRef.current = null } } catch (e) {} } // 取消悬停待开计时。
   const closeMenu = function () {
+    clearHoverOpen()
     try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {}
     if (menuOpen) setMenuOpen(false)
   }
-  const scheduleMenuClose = function () {
-    try {
-      if (typeof scheduleStatusClose === 'function' && typeof closeStatusBugMenu === 'function') { scheduleStatusClose(closeRef, function () { setMenuOpen(false) }); return }
-    } catch (e) {}
-    try { if (closeRef.current) clearTimeout(closeRef.current) } catch (e2) {}
-    closeRef.current = setTimeout(function () { closeRef.current = null; setMenuOpen(false) }, 160)
-  }
-  const openMenu = function () {
+  const scheduleMenuClose = function () { clearHoverOpen() // 离区 300 毫秒后关，鼠标路过不误触。
     try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {}
+    try { if (closeRef.current) clearTimeout(closeRef.current) } catch (e2) {}
+    closeRef.current = setTimeout(function () { closeRef.current = null; setMenuOpen(false) }, 300)
+  }
+  const openMenu = function () { clearHoverOpen() // 开本菜单时收起技能菜单：只写技能浮层已有字段并走已有广播，不碰其内部实现。
+    try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {}
+    try { if (store && (store.skillsOpen || store.skillPopPos || store.skillHover || store.skillTip)) { store.skillsOpen = false; store.skillHover = null; store.skillTip = null; store.skillPopPos = null; if (typeof emit === 'function') emit(store) } } catch (e) {}
     dswsLogPlaceMenu(anchorRef, setMenuPos)
     setMenuOpen(true)
   }
+  const scheduleMenuOpen = function () { if (menuOpen || clearConfirm) return // 绿点悬停 200 毫秒自开（单击开关保留，走 openMenu 统一互斥）。
+    try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {}
+    if (!hoverOpenRef.current) hoverOpenRef.current = setTimeout(function () { hoverOpenRef.current = null; openMenu() }, 200)
+  }
+  // 反向互斥：技能菜单打开时收起本菜单（只读技能浮层已有字段，不碰其内部实现）。
+  React.useEffect(function () { if (menuOpen && store && store.skillsOpen) setMenuOpen(false) }, [menuOpen, store && store.skillsOpen])
   const toggleMenu = function () {
     if (menuOpen) closeMenu()
     else openMenu()
@@ -263,7 +272,8 @@ export const StatusLogDot = function (props) {
       if (e.key === 'Enter' || e.key === ' ') { try { e.preventDefault(); e.stopPropagation() } catch (e2) {}; toggleMenu() }
       if (e.key === 'Escape' || e.key === 'Esc') closeMenu()
     },
-    onMouseEnter: function () { try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {} },
+    onMouseEnter: function () { scheduleMenuOpen() },
+    onMouseLeave: function () { scheduleMenuClose() },
     style: {
       width: 10, height: 10, borderRadius: 99, background: dotColor, flex: 'none', cursor: 'pointer',
       boxShadow: debugOn ? '0 0 6px rgba(74,222,128,.6)' : 'none', outline: 'none', display: 'inline-block', verticalAlign: 'middle',
@@ -275,7 +285,7 @@ export const StatusLogDot = function (props) {
       display: 'flex', width: '100%', textAlign: 'left', border: 'none',
       background: hovered ? (danger ? 'rgba(248,113,113,.15)' : 'var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))') : 'none',
       color: danger ? '#fca5a5' : 'var(--dsw-alias-label-primary,#e6edf3)',
-      fontSize: 13, padding: '8px 10px', borderRadius: 7, cursor: busy ? 'default' : 'pointer', alignItems: 'center', gap: 8, opacity: busy ? 0.55 : 1,
+      fontSize: 13, padding: '8px 10px', borderRadius: 7, cursor: busy ? 'default' : 'pointer', alignItems: 'center', gap: 8, opacity: busy ? 0.55 : 1, whiteSpace: 'nowrap', // 行内不换行，菜单宽度贴合最长行。
     }
   }
   const menuItem = function (key, icon, label, fn, danger) {
@@ -290,13 +300,9 @@ export const StatusLogDot = function (props) {
     'data-dsws-logmenu': '1',
     key: 'dsws-logmenu',
     onClick: function (e) { try { e.stopPropagation() } catch (e2) {} },
-    onMouseEnter: function () { try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {} },
+    onMouseEnter: function () { clearHoverOpen(); try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {} },
     onMouseLeave: function () { scheduleMenuClose() },
-    style: {
-      position: 'fixed', right: menuPos ? menuPos.right : 12, bottom: menuPos ? menuPos.bottom : 40, minWidth: 210, padding: 4, zIndex: 2147483000,
-      background: 'var(--dsw-alias-bg-layer-2,#16181d)',
-      border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.45)',
-    },
+    style: Object.assign({ position: 'fixed', bottom: menuPos ? menuPos.bottom : 40, width: 'max-content', maxWidth: 'calc(100vw - 24px)', padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.45)' }, (menuPos && typeof menuPos.left === 'number') ? { left: menuPos.left } : { right: 12 }), // 左侧与绿点对齐（测不到锚点时沿用右边缘兜底），宽度贴合最长行加内边距。
   }, [
     hh('div', { role: 'menu', 'aria-label': dotTitle }, [
       menuItem('export', 'note', tr('logmenu.export'), doExport, false),
@@ -304,7 +310,6 @@ export const StatusLogDot = function (props) {
       menuItem('copy', 'clipboard', tr('logmenu.copyPath'), doCopyPath, false),
       hh('div', { style: { height: 1, background: 'var(--dsw-alias-border-l1,#2a2d35)', margin: '4px 6px' } }),
       menuItem('clear', 'alert', tr('logmenu.clear'), doClear, true),
-      hh('div', { style: { fontSize: 11, color: '#8b8b95', padding: '6px 10px 4px', lineHeight: 1.5 } }, tr('logmenu.note')),
     ]),
   ]) : null
   const confirmModal = clearConfirm ? PortalOverlay({
