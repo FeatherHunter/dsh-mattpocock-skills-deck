@@ -27,6 +27,9 @@
     export const saveCfg = function () { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)) } catch (e) { try { log('warn', 'storage.fail', { key: CFG_KEY, op: 'write' }) } catch (eL) {} } }
     // 模板存储（T2b 扩展全部动作；T2a 先承载 execute = 旧 custom）
     export const TPL_KEY = 'dsws.templates'
+    // #519 落地 A：配置页模板编辑入口已删，只删人改入口。已存模板值按“忽略旧模板”处理：
+    // 读取仍合并旧键（旧自定义值继续对行级快捷按钮生效），设置页不再调用 saveTemplates 覆盖，
+    // 动手前备份即本地存档原文不动，回滚写回即恢复本提交前的设置页写入口。
     export const templates = (function () {
       const d = { diagnose: '', fix: '', discuss: '', research: '', prototype: '', execute: '', handoff1: '', handoff2: '', fixate: '' }
       try {
