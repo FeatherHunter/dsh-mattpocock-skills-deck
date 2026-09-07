@@ -2,7 +2,7 @@
  * statusbar/StatusLogMenu.js — 状态栏常驻诊断日志入口（#492 状态栏线）。
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
- * 范围：常驻小灰点（关灰开绿）＋点击四键菜单（导出今日日志／打开日志目录／
+ * 范围：小灰点（开时常驻绿、关时不挂载，#522 推翻 #333 常驻决议）＋点击四键菜单（导出今日日志／打开日志目录／
  * 复制日志路径／清空今日日志）＋清空确认框＋成功与失败反馈。
  * 接线：导出调 wf.logExport，清空调 wf.logClear，跳转目录复用 wf.openPath，
  * 复制路径走本地剪贴板（copyText），开关态读日志底座 logSwitch（启动已向宿主对账）。
@@ -72,6 +72,8 @@ export const StatusLogDot = function (props) {
   const [menuPos, setMenuPos] = React.useState(null)
   const [busy, setBusy] = React.useState(null)
   const [clearConfirm, setClearConfirm] = React.useState(false)
+  // #522 菜单行悬停高亮：鼠标放上去的行给背景（普通行沿用技能浮层菜单的悬停底，危险行沿用缺陷菜单的红底，不自创色板）。
+  const [hoverKey, setHoverKey] = React.useState(null)
   const anchorRef = React.useRef(null)
   const closeRef = React.useRef(null)
   const menuRef = React.useRef(null)
@@ -267,9 +269,11 @@ export const StatusLogDot = function (props) {
       boxShadow: debugOn ? '0 0 6px rgba(74,222,128,.6)' : 'none', outline: 'none', display: 'inline-block', verticalAlign: 'middle',
     },
   })
-  const itemStyle = function (danger) {
+  const itemStyle = function (key, danger) {
+    const hovered = hoverKey === key && !busy
     return {
-      display: 'flex', width: '100%', textAlign: 'left', background: 'none', border: 'none',
+      display: 'flex', width: '100%', textAlign: 'left', border: 'none',
+      background: hovered ? (danger ? 'rgba(248,113,113,.15)' : 'var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))') : 'none',
       color: danger ? '#fca5a5' : 'var(--dsw-alias-label-primary,#e6edf3)',
       fontSize: 13, padding: '8px 10px', borderRadius: 7, cursor: busy ? 'default' : 'pointer', alignItems: 'center', gap: 8, opacity: busy ? 0.55 : 1,
     }
@@ -277,7 +281,7 @@ export const StatusLogDot = function (props) {
   const menuItem = function (key, icon, label, fn, danger) {
     const busyLabel = busy === 'export' ? tr('logmenu.exporting') : (busy === 'clear' ? tr('logmenu.clearing') : null)
     const showBusy = !!busy && ((key === 'export' && busy === 'export') || (key === 'clear' && busy === 'clear'))
-    return hh('button', { key: key, role: 'menuitem', disabled: !!busy, onClick: function (e) { try { e.stopPropagation() } catch (e2) {}; fn() }, style: itemStyle(danger) }, [
+    return hh('button', { key: key, role: 'menuitem', disabled: !!busy, onClick: function (e) { try { e.stopPropagation() } catch (e2) {}; fn() }, onMouseEnter: function () { setHoverKey(key) }, onMouseLeave: function () { setHoverKey(null) }, style: itemStyle(key, danger) }, [
       (typeof Ic === 'function') ? Ic({ n: icon, size: 13, color: danger ? '#fca5a5' : undefined }) : null,
       hh('span', null, showBusy ? (busyLabel + '…') : label),
     ])
