@@ -111,7 +111,9 @@ export function createCommentThreads(deps) {
           blocking: { nodes: [] },
         } }
       }
-      const r = await fetchIssueDetail(Number(n), cwd)
+      // 快照已标是拉取请求时把提示直通给详情房，让详情房先查拉取请求（不经快照房与列表房，前端房也不动）
+      const hintPR = args && args.isPullRequest === true ? { isPullRequest: true } : undefined
+      const r = await fetchIssueDetail(Number(n), cwd, hintPR)
       return r
     } catch (e) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
   }
