@@ -43,6 +43,12 @@ function loadLog(options) {
 const failLines = (mod) => mod.logQueue.filter((e) => e.level === 'warn' && e.event === 'host.call.fail' &&
   e.fields && e.fields.method === 'wf.logSetSwitch')
 const isHash8 = (s) => typeof s === 'string' && /^[0-9a-f]{8}$/.test(s)
+// ---- 手动计时器：只记录不执行，由测试手动触发超时 ----
+function makeManualTimer() {
+  const fns = []
+  return { fns, timeout(fn, ms) { fns.push({ fn, ms }); return fns.length } }
+}
+const tick = () => new Promise((r) => setTimeout(r, 0))
 
 async function main() {
   // ---- 宿主不可用：无 host.call，留宿主不可用分类行，旧值保持关闭 ----
@@ -116,6 +122,44 @@ async function main() {
     check(res.ok === false && mod.logSwitch.enabled === false, '无理由抛错返回失败且保持旧值（关）')
     const lines = failLines(mod)
     check(lines.length === 1 && lines[0].fields.kind === 'set-switch-throw', '无理由抛错仍留通用行且不断言崩')
+  }
+
+  // ---- 调用 hang 住：超时放行，界面不再灰掉，留超时分类行 ----
+  {
+    const timer = makeManualTimer()
+    const mod = loadLog({
+      localStorage: makeLocalStorage(), timer,
+      host: { call() { return new Promise(() => {}) } },
+    })
+    const p = mod.setLogSwitch(true, 1)
+    check(timer.fns.length === 2, '写开关设超时（看门狗之外另有一计时，实得 ' + timer.fns.length + ' 个）')
+    timer.fns.forEach((t) => t.fn())
+    const res = await p
+    check(res.ok === false && res.error === 'switch-timeout' && mod.logSwitch.enabled === false, '超时放行并保持旧值（关）')
+    const lines = failLines(mod)
+    check(lines.length === 1 && lines[0].fields.kind === 'set-switch-timeout', '超时留一条超时分类行')
+    check(lines.length === 1 && isHash8(lines[0].fields.errorHash), '超时行错误散列为 8 位十六进制')
+  }
+
+  // ---- 迟到回包：超时后才到的成功按代际丢弃，不覆盖状态、不记新行 ----
+  {
+    const timer = makeManualTimer()
+    let resolveCall = null
+    const host = { call() { return new Promise((res) => { resolveCall = res }) } }
+    const mod = loadLog({ localStorage: makeLocalStorage(), timer, host, broadcastLogSwitch() {} })
+    const pA = mod.setLogSwitch(true, 1)
+    timer.fns.forEach((t) => t.fn())
+    const resA = await pA
+    check(resA.ok === false && resA.error === 'switch-timeout', '先超时放行')
+    resolveCall({ ok: true, enabled: true })
+    await tick()
+    await tick()
+    check(mod.logSwitch.enabled === false, '迟到成功不覆盖状态（仍关）')
+    check(failLines(mod).length === 1, '迟到成功不记新行（仍只有超时行）')
+    const pB = mod.setLogSwitch(true, 1)
+    resolveCall({ ok: true, enabled: true })
+    const resB = await pB
+    check(resB.ok === true && mod.logSwitch.enabled === true, '新调用成功仍可打开')
   }
 
   // ---- 成功路：不记失败行，行为零变化 ----

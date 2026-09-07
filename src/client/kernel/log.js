@@ -230,6 +230,8 @@
       if (/connection|host\.call 不可用|unavailable/i.test(msg)) return 'throw-connection'
       return 'throw'
     }
+    // 写开关代际（#526 灰掉案）：调用 hang 住时超时放行，迟到回包按代际丢弃，不碰状态、不记新行。
+    const setLogSwitchGen = { n: 0 }
     // 设置页保存开关：先写宿主，宿主生效才更新本地与内存并广播；写失败保持本地旧值并返回失败，
     // 由调用处提示用户，不回退为开启（设计 1.3）。失败原因只给机器码（host-unavailable、host-rejected），
     // 面向用户的文案由界面批次经多语言系统转换，本底座不写中文字符串（文案完整性门禁要求新文件零中文串）。
@@ -245,7 +247,22 @@
       try {
         const pendingSet = host.call('wf.logSetSwitch', next)
         watchSwitchOp('set', pendingSet)
-        return pendingSet.then(function (res) {
+        // 超时放行（#526 灰掉案）：调用 hang 住不再卡死界面，与看门狗同超时；
+        // 无计时器时永不超时，原样等待（行为退化到修前）。
+        const myGen = (setLogSwitchGen.n += 1)
+        const timeoutAt = new Promise(function (resolve) {
+          const fire = function () { resolve({ switchTimedOut: true }) }
+          try {
+            if (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function') { timer.timeout(fire, LOG_WATCHDOG_MS); return }
+          } catch (e) {}
+          try { setTimeout(fire, LOG_WATCHDOG_MS) } catch (e2) {}
+        })
+        return Promise.race([pendingSet, timeoutAt]).then(function (res) {
+          if (res && res.switchTimedOut === true) {
+            logSwitchSetFail('timeout', 'timeout-' + LOG_WATCHDOG_MS)
+            return { ok: false, enabled: logSwitch.enabled, error: 'switch-timeout' }
+          }
+          if (myGen !== setLogSwitchGen.n) return { ok: false, enabled: logSwitch.enabled, error: 'stale' }
           if (!res || res.ok !== true) {
             logSwitchSetFail('host-rejected', 'host-rejected')
             return { ok: false, enabled: logSwitch.enabled, error: 'host-rejected' }
@@ -256,10 +273,12 @@
           try { if (typeof broadcastLogSwitch === 'function') broadcastLogSwitch() } catch (e) {}
           return { ok: true, enabled: logSwitch.enabled, sampleRate: logSwitch.sampleRate }
         }).catch(function (e) {
+          if (myGen !== setLogSwitchGen.n) return { ok: false, enabled: logSwitch.enabled, error: 'stale' }
           logSwitchSetFail(switchThrowKind(e), (e && (e.code || e.message)) || e)
           return { ok: false, enabled: logSwitch.enabled, error: (e && e.message) || String(e) }
         })
       } catch (e) {
+        logSwitchSetFail(switchThrowKind(e), (e && (e.code || e.message)) || e)
         return Promise.resolve({ ok: false, enabled: logSwitch.enabled, error: (e && e.message) || String(e) })
       }
     }
