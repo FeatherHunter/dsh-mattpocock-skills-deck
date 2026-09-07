@@ -138,7 +138,7 @@
 </head>
 <body>
 <h2>waystation 配置面板 · 落地 B 新增区后 · 双场景对照</h2>
-<p class="note">落地 B 后：标题行右侧加星星与反馈两纯图标（悬停才介绍），底部加作者其他插件 5 行新区。红框 = 内层滚动容器（预期 0）。</p>
+<p class="note">落地 B 后：标题行右侧加星星与反馈两纯图标（悬停才介绍），底部加作者其他插件 4 行新区。红框 = 内层滚动容器（预期 0）。</p>
 <div class="scene">
   <h3>场景 A · DSH settings 弹窗（真实宿主布局 · 最外层可滑动）</h3>
   <div class="dsh-settings">
@@ -160,13 +160,12 @@
   <div id="cfgB" style="max-width:760px;padding:0 24px 24px"></div>
 </div>
 <script>
-  // 落地 B 后样板：标题（含两图标） + 打开位置 + 总览占位 + 调试占位 + 底部 5 行新区。
+  // 落地 B 后样板：标题（含两图标） + 打开位置 + 总览占位 + 调试占位 + 底部 4 行新区。
   const MORE_ROWS = [
     ['dsh-mattpocock-skills-deck', '本面板自己：装好就有 25 个工程技能在右侧直接用'],
     ['dsh-opencode-palette', '34 款长时间编程护眼配色，一键换上'],
     ['dsh-prompt', '24 条常用提示模板随手点，不用来回复制粘贴'],
-    ['dsh-im', '扫码或填凭据就把飞书、微信等 9 路聊天机器人接进来'],
-    ['dsh-plugin-ui-debug', '让 AI 在真实浏览器里帮你看界面、点按钮、拖组件'],
+    ['dsh-im-companion', '聊天机器人的伴侣插件：扫码或填凭据就把飞书、微信等 9 路聊天接进来'],
   ];
   function renderPanel(host) {
     host.innerHTML = '';

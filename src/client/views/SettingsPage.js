@@ -1,13 +1,12 @@
 /**
  * views/SettingsPage.js — 配置页（TPL 表 + 设置，5.9）真源 ESM，build 拼回 src/client/index.js leaf
  */
-// 增-2（#520）：底部作者其他插件清单（5 个，2026-09-06 已验真；写死网址，不拉取不新增网络请求）
+// 增-2（#520）：底部作者其他插件清单（4 个，2026-09-06 已验真；写死网址，不拉取不新增网络请求）
 const MORE_PLUGINS = [
   { slug: 'dsh-mattpocock-skills-deck', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', descKey: 'more.desc.deck' },
   { slug: 'dsh-opencode-palette', url: 'https://github.com/FeatherHunter/dsh-opencode-palette', descKey: 'more.desc.palette' },
   { slug: 'dsh-prompt', url: 'https://github.com/FeatherHunter/dsh-prompt', descKey: 'more.desc.prompt' },
-  { slug: 'dsh-im', url: 'https://github.com/FeatherHunter/dsh-im', descKey: 'more.desc.im' },
-  { slug: 'dsh-plugin-ui-debug', url: 'https://github.com/FeatherHunter/dsh-plugin-ui-debug', descKey: 'more.desc.uidebug' },
+  { slug: 'dsh-im-companion', url: 'https://github.com/FeatherHunter/dsh-im-companion', descKey: 'more.desc.companion' },
 ]
 export     const SettingsPage = (props) => {
       const cx = React.useContext(DswsCtx)
