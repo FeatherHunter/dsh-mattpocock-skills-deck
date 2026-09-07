@@ -1,6 +1,8 @@
 // verify-524-pr-detail.js — #524 回归探针：拉取请求详情走拉取请求查询兜底（只改详情房）
 // 背景：旧详情房只查普通工单，拉取请求页签点 #106 必红 notFound；新后端单票查询已是先工单后拉取请求。
 // 只读内存桩：不调真实 gh，不读令牌，不记仓库地址原文；只覆盖详情房，不碰列表与快照与前端页签。
+// 调用预算：坏号全链最多4次（GraphQL2：普通工单1＋拉取请求1；REST2：/issues1＋/pulls1；每路各一次）。
+// 快照提示错配多一次往返可接受（先按提示查，不中再走另一路）；限流走既有降级通道，不在本探针单测。
 // 运行：node tests/verify-524-pr-detail.js
 const fs = require('fs')
 const path = require('path')
@@ -51,12 +53,16 @@ async function main() {
   { const { h } = stub('pr'); const r = await h.fetchIssueDetail(106, 'cwd')
     check(r && r.ok === true && r.issue && r.issue.number === 106 && r.issue.isPullRequest === true, '拉取请求号变绿（GraphQL 兜底命中，号对且标为拉取请求）') }
   { const { h } = stub('issue'); const r = await h.fetchIssueDetail(7, 'cwd')
-    check(r && r.ok === true && r.issue && r.issue.number === 7 && r.issue.isPullRequest === false, '普通工单号仍绿（先查工单命中，不误标拉取请求）') }
-  { const { h } = stub('bad'); const r = await h.fetchIssueDetail(999999, 'cwd')
-    check(r && r.ok === false && /notFound|404/.test(String((r.error && (r.error.kind || r.error.message)) || '')), '坏号仍诚实未找到（两路都不中，不误报成功）') }
+    check(r && r.ok === true && r.issue && r.issue.number === 7 && r.issue.isPullRequest === false, '普通工单号仍绿（先查工单命中，不误标拉取请求）')
+    check(r && r.issue && r.issue.mergedAt === null && Array.isArray(r.issue.reviews) && r.issue.reviews.length === 0, '工单命中补空值（mergedAt空＋reviews空数组，与REST一致）') }
+  { const { h, calls } = stub('bad'); const r = await h.fetchIssueDetail(999999, 'cwd')
+    check(r && r.ok === false && /notFound|404/.test(String((r.error && (r.error.kind || r.error.message)) || '')), '坏号仍诚实未找到（两路都不中，不误报成功）')
+    const gql = calls.filter((c) => c.includes('graphql')).length
+    const rest = calls.filter((c) => !c.includes('graphql')).length
+    check(gql <= 2 && rest <= 2, '坏号调用预算每路各一次（实测 GraphQL' + gql + ' REST' + rest + '，每路≤2次）') }
   { const { h, calls } = stub('rest-pr'); const r = await h.fetchIssueDetailREST(106, 'cwd')
     check(r && r.ok === true && r.issue && r.issue.number === 106 && r.issue.isPullRequest === true && r.fallback === 'rest-pr', 'REST 兜底直取拉取请求一次并补标记（/issues 不中转 /pulls）')
-    check(calls.some((c) => c.includes('/pulls/106')), 'REST 兜底确实调了 /pulls（只一次，不多查）') }
+    check(calls.some((c) => c.includes('/pulls/106')), 'REST 兜底确实调了 /pulls（每路各一次，不多查）') }
   { const { h, calls } = stub('hint'); const r = await h.fetchIssueDetail(106, 'cwd', { isPullRequest: true })
     const firstGql = calls.find((c) => c.includes('graphql'))
     check(r && r.ok === true && r.issue && r.issue.isPullRequest === true, '快照提示直通：标为拉取请求时详情变绿')

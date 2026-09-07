@@ -161,7 +161,7 @@ export function createIssueDetail(deps) {
           }
           const issue = j.data && j.data.repository && j.data.repository.issue
           if (!issue) { issueMiss = true; break }
-          issue.isPullRequest = false
+          issue.isPullRequest = false; issue.mergedAt = null; issue.reviews = [] // 工单空值与REST对齐，消快照抖
           return { ok: true, issue: issue }
         } catch (e) { return { ok: false, error: { kind: 'parse', message: String(e) } } }
       }
