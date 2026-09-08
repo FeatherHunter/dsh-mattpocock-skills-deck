@@ -131,8 +131,10 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // shared-0（#443）接线：S1 拆 chain（682 行拆成 3 个文件，总数 +2）、S2 拆 naming-guardian（498 行拆成 3 个文件，总数 +2）、
   // S3 拆 check-catalog（356 行拆成 2 个文件，总数 +1）；每张拆分票合入时同票把下面两行的计数改成新总数并重跑 verify。
   // S2（#452）：S1 后 15、S3 后 16，本票 1 个文件拆成 3 个、总数 +2 到 18。
-  check(srcSharedFiles.length === 18, `src/shared 18 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 18, `package/shared 18 文件（实得 ${pkgSharedFiles.length}）`)
+  // #540：update-core 落地新增 src/shared/update/ports.js 与 service.js（纯逻辑，
+  // 文件之间零引用；客户端拼接标记本票不加，随面板票再定），总数 +2 到 20。
+  check(srcSharedFiles.length === 20, `src/shared 20 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 20, `package/shared 20 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {
