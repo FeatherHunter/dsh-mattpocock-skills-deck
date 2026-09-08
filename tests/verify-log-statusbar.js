@@ -26,7 +26,7 @@ let store = ''
 let locale = ''
 try { menu = read('src/client/statusbar/StatusLogMenu.js'); check(true, '菜单组件存在') } catch (e) { check(false, '菜单组件存在') }
 try { bar = read('src/client/statusbar/StatusBar.js'); check(true, '状态栏主文件可读') } catch (e) { check(false, '状态栏主文件可读') }
-try { store = read('src/host/logStore.js'); check(true, '宿主日志库可读') } catch (e) { check(false, '宿主日志库可读') }
+try { store = read('src/host/logStore.js') + read('src/host/logPhones.js'); check(true, '宿主日志库可读（含 #500 电话组）') } catch (e) { check(false, '宿主日志库可读') }
 try { locale = read('src/client/kernel/locale-word.js'); check(true, '文案文件可读') } catch (e) { check(false, '文案文件可读') }
 
 // 一、常驻小灰点：两色＋10px＋常驻挂载

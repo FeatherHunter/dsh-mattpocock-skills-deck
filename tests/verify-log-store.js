@@ -73,10 +73,13 @@ async function main() {
   check(typeof createLogStore === 'function', '日志库导出工厂函数 createLogStore')
   check(typeof formatLogFileName === 'function', '日志库导出按天文件名函数 formatLogFileName')
 
-  // ---- 底座自检：行数、防抖值、级别判断位置 ----
+  // ---- 底座自检：行数、防抖值、级别判断位置（#500 拆分：两文件各不超 300 行，留余量）----
   const src = fs.readFileSync(path.join(ROOT, 'src', 'host', 'logStore.js'), 'utf8')
+  const phonesSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'logPhones.js'), 'utf8')
   const lineCount = src.split(/\r?\n/).length
-  check(lineCount <= 350, '日志库不超 350 行（实得 ' + lineCount + ' 行）')
+  const phonesLines = phonesSrc.split(/\r?\n/).length
+  check(lineCount <= 300, '日志库不超 300 行（留余量，实得 ' + lineCount + ' 行）')
+  check(phonesLines <= 300, '日志电话组不超 300 行（#500 拆出，实得 ' + phonesLines + ' 行）')
   check(LOG_DEBOUNCE_MS === 1000 && src.includes('LOG_DEBOUNCE_MS = 1000'), '防抖窗口为 1000 毫秒（设计 2.2 字面）')
   check(mod.LOG_SWITCH_FILE === 'log-switch.json', '开关文件名常量导出为 log-switch.json（持久化）')
   check(src.includes('log-switch.json'), '开关持久化落点为缓存目录下 log-switch.json')
@@ -223,7 +226,7 @@ async function main() {
     check(res && res.ok === true, '497 导出回包仍成功（取目录空不翻失败，保持旧形状）')
     check(res && (res.dir || res.path), '497 双空不再无声（成功必带可用目录或路径之一）')
     check(JSON.stringify([(res && res.dir), (res && res.path)]).indexOf('/work') >= 0, '497 兜底用启动已知目录（回包目录含启动目录）')
-    check(src.includes("hash8('no-dir')") && src.includes("method: 'wf.logExport'"), '497 取目录空记告警行（复用宿主调用失败事件，不新增事件）')
+    check((src + phonesSrc).includes("hash8('no-dir')") && (src + phonesSrc).includes("method: 'wf.logExport'"), '497 取目录空记告警行（复用宿主调用失败事件，不新增事件）')
     check(!!(res && res.fileName && /^\d{4}-\d{2}-\d{2}\.log$/.test(res.fileName)), '497 旧回参形状兼容（文件名仍按天命名，只加不减字段）')
   }
 
@@ -245,9 +248,11 @@ async function main() {
     const devPath = path.join(ROOT, 'host.js')
     const pkgPath = path.join(ROOT, 'package', 'lib', 'index.js')
     const storeCopy = path.join(ROOT, 'package', 'lib', 'logStore.js')
+    const phonesCopy = path.join(ROOT, 'package', 'lib', 'logPhones.js')
     check(fs.existsSync(devPath), '开发产物存在（host.js，由构建生成）')
     check(fs.existsSync(pkgPath), '打包产物存在（package/lib/index.js，由构建生成）')
     check(fs.existsSync(storeCopy), '打包产物含日志库副本（package/lib/logStore.js，原样复制）')
+    check(fs.existsSync(phonesCopy), '打包产物含电话组副本（package/lib/logPhones.js，原样复制，#500）')
     if (fs.existsSync(devPath) && fs.existsSync(pkgPath)) {
       const dev = fs.readFileSync(devPath, 'utf8')
       const pkg = fs.readFileSync(pkgPath, 'utf8')

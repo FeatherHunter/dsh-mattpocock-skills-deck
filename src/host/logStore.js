@@ -1,7 +1,7 @@
-// src/host/logStore.js —— 宿主日志库（#490 host 底座，落实设计 #335 第 1、2、4 章的 host 部分）。
-// 以后谁改它：改宿主落盘位置、按天分文件、防抖刷盘或开关持久化的人。
-// 接线：由 src/host/index.js 动态 import 加载；文件服务、计时器、取缓存目录函数全部显式传入；本文件不引用其他新文件。
-// 它只做五件事：内存队列、级别判断、按天文件名、单写者刷盘、失败计数。宿主是唯一的落盘者。
+// src/host/logStore.js —— 宿主日志库（#490 host 底座，落实设计 #335 第 1、2、4 章的 host 部分；#500 拆出电话组）。
+// 以后谁改它：改宿主落盘位置、按天分文件、防抖刷盘或开关持久化的人。导出/清空/开关三个电话体在 ./logPhones.js。
+// 接线：由 src/host/index.js 动态 import 加载；文件服务、计时器、取缓存目录函数全部显式传入；电话组经本文件动态 import 加载（单向引用）。
+// 它只做五件事：内存队列、级别判断、按天文件名、单写者刷盘、失败计数。宿主是唯一的落盘者。两文件各不超 300 行（#500 留余量）。
 // 防抖窗口 1000 毫秒（设计 2.2 字面：窗口内多次调用合并为一次读改写）。
 export const LOG_DEBOUNCE_MS = 1000
 // 缓存目录下的独立日志子目录名（设计 2.1：.dsh-mattskillsdeck-cache/logs/）。
@@ -75,7 +75,6 @@ export function createLogStore(deps) {
     } catch (e2) {}
     return pathStr
   }
-  function targetToPath(t, fb) { if (typeof t === 'string') return t; if (t && typeof t === 'object') { const c = t.displayPath || t.path || t.__target || t.target; if (typeof c === 'string' && c) return c } return (typeof fb === 'string' && fb) ? fb : '' } // 目标对象拆盒：优先可显示路径，无则回退值，回包只发字符串。
   async function readTarget(target) {
     if (fs !== undefined && fs !== null && typeof fs.readText === 'function') return await fs.readText(target)
     const platform = typeof getPlatform === 'function' ? await getPlatform() : null
@@ -232,7 +231,6 @@ export function createLogStore(deps) {
     return headerInfo
   }
   // 记录电话的宿主实现：入参 entries 加客户端累计丢弃数；回参接收条数加宿主侧累计丢弃数。失败降级为丢弃并计数，不背压等待。
-  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   async function handleLogBatch(args) {
     try {
       const entries = args && Array.isArray(args.entries) ? args.entries : []
@@ -243,92 +241,23 @@ export function createLogStore(deps) {
       return { ok: true, accepted: entries.length, dropped: getDroppedCount() }
     } catch (e) { return { ok: true, accepted: 0, dropped: getDroppedCount() } }
   }
-  // 导出电话的宿主实现：内容为当天日志加系统信息摘要；先走回退（直接返回当天日志原文件加摘要文本文件）。
-  async function handleLogExport(args) {
-    const want = args && args.date ? String(args.date) : formatLogFileName(new Date()).replace(/\.log$/, '')
-    const fileName = /^\d{4}-\d{2}-\d{2}$/.test(want) ? want + '.log' : formatLogFileName(new Date())
-    try {
-      const dir = typeof getCacheDir === 'function' ? await getCacheDir() : null
-      if (!dir) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: hash8('no-dir') }) } catch (eL) {} }
-      const baseDir = dir || (headerInfo && headerInfo.dir) || defaultCwd || ''; const logDir = baseDir ? await joinLogPath(baseDir, LOG_DIR_NAME) : ''
-      let text = ''
-      try {
-        const target = await resolveTarget(await joinLogPath(logDir, fileName))
-        text = await readTarget(target)
-      } catch (e) { text = '' }
-      let osName = ''
-      try {
-        const platform = typeof getPlatform === 'function' ? await getPlatform() : null
-        osName = (platform && platform.os) || (typeof process !== 'undefined' ? process.platform : '') || ''
-      } catch (e2) {}
-      let cwdNow = defaultCwd
-      try { cwdNow = (typeof process !== 'undefined' && process.cwd) ? process.cwd() : defaultCwd } catch (e3) {}
-      const summary = { pluginVersion: 'unknown', os: osName, cwd: cwdNow, logSwitch: getSwitchState(), header: headerInfo }
-      let dirOut = logDir, pathOut = ''
-      try {
-        dirOut = targetToPath(await resolveTarget(logDir), logDir)
-        pathOut = targetToPath(await resolveTarget(await joinLogPath(logDir, fileName)), joinPath(logDir, fileName))
-      } catch (e4) {
-        try { pathOut = joinPath(logDir, fileName) } catch (e5) { pathOut = '' }
-      }
-      if (!dirOut && !pathOut && baseDir) { try { dirOut = joinPath(baseDir, LOG_DIR_NAME); pathOut = joinPath(dirOut, fileName) } catch (e6) {} }
-      return { ok: true, fileName: fileName, bytes: String(text || '').length, fallback: true, text: String(text || ''), summary: summary, dir: dirOut, path: pathOut } // 上两处拆盒与回退链只产字符串，类型另由门禁断言。
-    } catch (e) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: hash8(String((e && e.message) || e)) }) } catch (eL) {}; return { ok: false, fileName: fileName, bytes: 0, fallback: true } }
+  // 电话组（#500 拆出）：导出/清空/开关三组电话体已搬到 ./logPhones.js，此处只留动态加载器（D7 禁止静态 import）。
+  // 依赖全显式传入（helpers 与开关/头存取器均为闭包引用，读到永远是当前值）；新文件不引用本文件，单向引用。
+  let _phonesP = null
+  function _phones() {
+    if (!_phonesP) _phonesP = import('./logPhones.js').then(function (m) {
+      return m.createLogPhones({ fs: fs, getCacheDir: getCacheDir, getPlatform: getPlatform, DEFAULT_CWD: defaultCwd, LOG_DIR_NAME: LOG_DIR_NAME, formatLogFileName: formatLogFileName, joinPath: joinPath, joinLogPath: joinLogPath, resolveTarget: resolveTarget, readTarget: readTarget, writeTarget: writeTarget, log: log, getSwitchState: getSwitchState, getHeaderInfo: getHeaderInfo, loadSwitch: loadSwitch, setSwitch: setSwitch })
+    })
+    return _phonesP
   }
-  // 清空电话的宿主实现：手动清空，客户端先弹窗确认，成功与失败都给反馈。
-  async function handleLogClear(args) {
-    const want = args && args.date ? String(args.date) : ''
-    try {
-      const dir = typeof getCacheDir === 'function' ? await getCacheDir() : null
-      if (!dir) return { ok: true, removed: 0 }
-      const logDir = await joinLogPath(dir, LOG_DIR_NAME)
-      if (want === 'all') {
-        let removedAll = 0
-        try {
-          const platform = typeof getPlatform === 'function' ? await getPlatform() : null
-          const listFn = (platform && platform.fs && typeof platform.fs.listDir === 'function') ? platform.fs.listDir : (fs && typeof fs.listDir === 'function' ? fs.listDir.bind(fs) : null)
-          if (listFn) {
-            const dirTarget = await resolveTarget(logDir)
-            const entries = await listFn(dirTarget)
-            const names = Array.isArray(entries) ? entries.map(function (x) { return typeof x === 'string' ? x : (x && x.name) || '' }) : []
-            for (let i = 0; i < names.length; i++) {
-              if (!/^\d{4}-\d{2}-\d{2}\.log$/.test(names[i])) continue
-              if (await deleteOneFile(logDir, names[i])) removedAll += 1
-            }
-          }
-        } catch (e) {}
-        return { ok: true, removed: removedAll }
-      }
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(want)) { try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: hash8('bad-date') }) } catch (eL) {}; return { ok: false, removed: 0 } }
-      const done = await deleteOneFile(logDir, want + '.log')
-      return { ok: true, removed: done ? 1 : 0 }
-    } catch (e) { try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: hash8(String((e && e.message) || e)) }) } catch (eL) {}; return { ok: false, removed: 0 } }
-  }
-  async function deleteOneFile(logDir, name) {
-    try {
-      const target = await resolveTarget(await joinLogPath(logDir, name))
-      try {
-        if (fs && typeof fs.unlink === 'function') { await fs.unlink(target); return true }
-      } catch (e) {}
-      try {
-        const platform = typeof getPlatform === 'function' ? await getPlatform() : null
-        if (platform && platform.fs && typeof platform.fs.unlink === 'function') { await platform.fs.unlink(target); return true }
-      } catch (e2) {}
-      try { await writeTarget(target, ''); return true } catch (e3) { return false }
-    } catch (e) { return false }
-  }
-  // 开关读电话：入参无；回参开关值与采样率。
-  async function handleLogGetSwitch() {
-    const state = await loadSwitch()
-    return { ok: true, enabled: state.enabled, sampleRate: state.sampleRate }
-  }
-  // 开关写电话：入参开关值与采样率；回参实际生效值。
-  async function handleLogSetSwitch(args) {
-    const enabled = !!(args && args.enabled)
-    const sampleRate = args && typeof args.sampleRate === 'number' ? args.sampleRate : switchSampleRate
-    const state = await setSwitch(enabled, sampleRate)
-    return { ok: true, enabled: state.enabled }
-  }
+  // 导出电话（实现见 logPhones.js；电话字面与回参与拆前同形）。
+  async function handleLogExport(args) { const p = await _phones(); return p.handleLogExport(args) }
+  // 清空电话（实现见 logPhones.js；电话字面与回参与拆前同形）。
+  async function handleLogClear(args) { const p = await _phones(); return p.handleLogClear(args) }
+  // 开关读电话（实现见 logPhones.js；电话字面与回参与拆前同形）。
+  async function handleLogGetSwitch() { const p = await _phones(); return p.handleLogGetSwitch() }
+  // 开关写电话（实现见 logPhones.js；电话字面与回参与拆前同形）。
+  async function handleLogSetSwitch(args) { const p = await _phones(); return p.handleLogSetSwitch(args) }
   return {
     isEnabled: isEnabled,
     log: log,

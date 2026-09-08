@@ -515,6 +515,15 @@
       "count": 1,
       "owner": "收敛·host-7/7 #515",
       "note": "H7 接线：index 动态加载分发异常纯函数模块（装配扇入，入参散列与错误归类逐行原样搬出）"
+    },
+    {
+      "file": "src/host/logStore.js",
+      "spec": "./logPhones.js",
+      "resolved": "src/host/logPhones.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "日志拆分 #500",
+      "note": "#500 接线：logStore 动态加载电话组模块（导出/清空/开关三组电话体逐行原样搬出，依赖全显式传入，单向引用）"
     }
   ]
 }
