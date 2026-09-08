@@ -25,24 +25,108 @@
     // v18-30：状态栏可接/占用改用「列表 open issue」口径（与面板列表一致）：
     //   可接 = open issue 中未认领且未被 open 阻塞；占用 = 已认领 + 被阻塞；两者之和 = 全部 open issue
     export const openIssuesOf = (st) => ((st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []).filter(function (x) { return x.state !== 'CLOSED' })
+    // #544 独立票阻塞边共用小函数（isOccupied 回落与 applyStandaloneBlocks 共用）：
+    //   standaloneKeyOfRef 把数字/字符串/{key}/{number} 等形状归一成 key 字符串；
+    //   standaloneStateMapOf 把快照里全部票（issues + 各地图子票）的状态按数字与 key 双键收成大写表。
+    const standaloneKeyOfRef = function (b) {
+      if (b === undefined || b === null) return ''
+      if (typeof b === 'number' || typeof b === 'string') return String(b)
+      if (typeof b === 'object') {
+        if (b.key !== undefined && b.key !== null && b.key !== '') return String(b.key)
+        if (b.number !== undefined && b.number !== null) return String(b.number)
+      }
+      return ''
+    }
+    const standaloneStateMapOf = function (st) {
+      const stateOf = {}
+      const put = function (k, s) { if (k === undefined || k === null || k === '') return; stateOf[String(k)] = String(s || '').toUpperCase() }
+      const snap = (st && st.snapshot) || {}
+      const issues = Array.isArray(snap.issues) ? snap.issues : []
+      const maps = Array.isArray(snap.maps) ? snap.maps : []
+      issues.forEach(function (it) { if (!it) return; put(it.number, it.state); if (it.key !== undefined && it.key !== null) put(it.key, it.state) })
+      maps.forEach(function (m) { (m.tickets || []).forEach(function (t) { if (!t) return; put(t.number, t.state); if (t.key !== undefined && t.key !== null) put(t.key, t.state) }) })
+      return stateOf
+    }
+    // #544 独立票阻塞边判定：一条阻塞边算数，当且仅当按 live 状态表查到阻塞者为 open；
+    // 查不到 live 状态时，用边自带 state 回落（open 才算数），都没有则不算。
+    const standaloneHasOpenBlocker = function (stateOf, arr) {
+      if (!Array.isArray(arr)) return false
+      for (let i = 0; i < arr.length; i++) {
+        const k = standaloneKeyOfRef(arr[i])
+        if (!k) continue
+        const live = stateOf[k]
+        if (live === 'OPEN') return true
+        if ((live === undefined || live === '') && arr[i] && typeof arr[i] === 'object' && String(arr[i].state || '').toUpperCase() === 'OPEN') return true
+      }
+      return false
+    }
     export const isOccupied = function (st, x) {
+      if (!x || x.state === 'CLOSED') return false
       if (x.assignees && x.assignees.length) return true
       const maps = (st.snapshot && st.snapshot.maps) || []
+      let inMap = false
       for (let mi = 0; mi < maps.length; mi++) {
         const m = maps[mi]
         if (!m.tickets || !m.tickets.length) continue
         const byNum = {}
         m.tickets.forEach(function (t) { byNum[t.number] = t })
         const t = byNum[x.number]
-        if (t && t.blockedBy && t.blockedBy.length) {
-          const openBlockers = t.blockedBy.filter(function (b) { const bt = byNum[b]; return bt && bt.state === 'OPEN' })
-          if (openBlockers.length) return true
+        if (t) {
+          inMap = true
+          if (t.blockedBy && t.blockedBy.length) {
+            const openBlockers = t.blockedBy.filter(function (b) { const bt = byNum[b]; return bt && bt.state === 'OPEN' })
+            if (openBlockers.length) return true
+          }
         }
       }
-      return false
+      if (inMap) return false
+      // #544 独立票合并：不属于任何地图子票的行，看自己身上的阻塞边；
+      // 地图票的判定以上循环为准，这里不碰，保证地图分层与计数一字不差。
+      try {
+        return standaloneHasOpenBlocker(standaloneStateMapOf(st), x.blockedBy)
+      } catch (e) { return false }
     }
     export const occCount = (st) => openIssuesOf(st).filter(function (x) { return isOccupied(st, x) }).length
     export const frontierCount = (st) => openIssuesOf(st).length - occCount(st)
+    // #544 独立票阻塞边合并：把快照 issues 里独立票自身的 blockedBy 合并进表级 blockOf；
+    // 只挂自己身上（已是地图子票的行、地图节点行、已关闭行、已有关联的行一律跳过，不碰地图层级与计数）。
+    // 数据来自列表查询已有的阻塞边片段（零请求）；单票边解析失败只跳过当票，不抛，不影响整表。
+    export const applyStandaloneBlocks = function (st, blockOf) {
+      const snap = (st && st.snapshot) || {}
+      const issues = Array.isArray(snap.issues) ? snap.issues : []
+      if (!issues.length || !blockOf) return blockOf
+      const maps = Array.isArray(snap.maps) ? snap.maps : []
+      const inMap = {}
+      maps.forEach(function (m) {
+        (m.tickets || []).forEach(function (t) {
+          if (!t) return
+          if (t.number !== undefined && t.number !== null) inMap[String(t.number)] = true
+          if (t.key !== undefined && t.key !== null) inMap[String(t.key)] = true
+        })
+      })
+      const stateOf = standaloneStateMapOf(st)
+      const isMapRow = function (x) { return x.type === 'map' || ((x.labels || []).some(function (l) { return l && l.name === 'wayfinder:map' })) }
+      issues.forEach(function (x) {
+        try {
+          if (!x || x.state === 'CLOSED' || isMapRow(x)) return
+          const id = (x.number !== undefined && x.number !== null) ? x.number : ((x.key !== undefined && x.key !== null) ? x.key : null)
+          if (id === null || id === undefined || blockOf[id] !== undefined) return
+          if (inMap[String(id)] || (x.key !== undefined && x.key !== null && inMap[String(x.key)])) return
+          const arr = Array.isArray(x.blockedBy) ? x.blockedBy : []
+          if (!arr.length) return
+          const openBlockers = []
+          arr.forEach(function (b) {
+            const k = standaloneKeyOfRef(b)
+            if (!k) return
+            const live = stateOf[k]
+            if (live === 'OPEN') { openBlockers.push(k); return }
+            if ((live === undefined || live === '') && b && typeof b === 'object' && String(b.state || '').toUpperCase() === 'OPEN') openBlockers.push(k)
+          })
+          if (openBlockers.length) blockOf[id] = { map: null, mapTitle: '', by: openBlockers }
+        } catch (e) { /* 单票边解析失败只跳过当票，不崩整表 */ }
+      })
+      return blockOf
+    }
     // v1.5 T1：BUG / 诊断计数（open 且带对应标签，与「可接」同口径）
     export const hasLabelOf = function (x, nm) { return (x.labels || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
     export const isTriageLike = function (x) { const labs = (x && x.labels) || []; if (!Array.isArray(labs) || labs.length === 0) return true; return labs.some(function (l) { return (typeof l === 'string' ? l : l.name) === 'needs-triage' }) }

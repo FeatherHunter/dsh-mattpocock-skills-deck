@@ -123,6 +123,10 @@ export     const ListTab = ({ st, narrow }) => {
           if (openBlockers.length) blockOf[t.number] = { map: m.number, mapTitle: m.title, by: openBlockers }
         })
       })
+      // #544 独立票阻塞边：快照 issues 自带 blockedBy（列表查询片段已复用，零请求），
+      // 只挂自己身上（已是地图子票的行跳过，不碰地图层级与计数），逻辑见 store-derived.applyStandaloneBlocks。
+      // 此处不包 try：函数缺失说明构建拼接坏了，必须 loud；单票坏数据由函数内逐票兜底，不崩整表。
+      applyStandaloneBlocks(st, blockOf)
       // #374：状态过滤（全部/Open/阻塞/已关闭）与 label 过滤叠加
       // v1.3.3 T3：blocked 过滤真正实现 —— open 且存在 open 阻塞者（blockOf 命中）
       const showOpen = st.stateFilter !== 'closed'
