@@ -45,7 +45,7 @@ async function main() {
   const preExisting = new Set(['settings.save'])
   const freshNew = freshEvents.filter((e) => !preExisting.has(e))
   check(freshNew.length === 0, '电话与按钮只复用常驻事件（' + [...new Set(phoneEvents.concat(settingsEvents))].join('、') + '）')
-  check(updateSrc.includes("loggedPhone('wf.updateStatus'") && updateSrc.includes("loggedPhone('wf.updateCheck'"), '宿主日志按电话名记行（两电话各一行方法可识行）')
+  check(updateSrc.includes("loggedPhone('wf.updateStatus'") && updateSrc.includes("loggedPhone('wf.updateCheck'"), '宿主日志按电话名记行（查状态与查新版各一行方法可识行，装更新行由安装门禁覆盖）')
   check(clientSettings.includes("method: 'wf.updateStatus'") && clientSettings.includes("method: 'wf.updateCheck'"), '客户端调用点相邻有行（两处调用各有日志行覆盖）')
 
   // ---- 4) 面板三态与先读后查 ----
@@ -57,7 +57,7 @@ async function main() {
   const statusAt = clientSettings.indexOf("host.call('wf.updateStatus'")
   const checkAt = clientSettings.indexOf("host.call('wf.updateCheck'")
   check(statusAt >= 0 && checkAt >= 0 && statusAt < checkAt, '状态调用在检查调用之前（先状态后检查）')
-  check(clientSettings.includes('if (updChecking) return') && clientSettings.includes('disabled: updChecking'), '检查中禁用按钮（重复点击不重发）')
+  check(clientSettings.includes('updChecking || updBusy') && clientSettings.includes('disabled: !!(updChecking'), '检查中与安装中禁用按钮（重复点击不重发，#542 加忙碌态）')
   check(clientSettings.includes("tr('cfg.updateCheckFail')"), '检查失败给可读提示（走词条）')
 
   // ---- 5) 文案中英成对 ----

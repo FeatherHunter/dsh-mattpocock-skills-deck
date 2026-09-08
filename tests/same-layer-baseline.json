@@ -533,6 +533,15 @@
       "count": 1,
       "owner": "落地 #541",
       "note": "#541 接线：index 动态加载更新胶水模块（查状态/查新版两只读电话，装配扇入）"
+    },
+    {
+      "file": "src/host/update.js",
+      "spec": "./updateStore.js",
+      "resolved": "src/host/updateStore.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "落地 #542",
+      "note": "#542 接线：更新胶水引用落盘与执行跑腿模块（状态目录三件套加子进程执行，单向引用）"
     }
   ]
 }

@@ -6,6 +6,9 @@ const CONFIRMATION_TTL_MS = 10 * 6e4;
 const RECHECK_WINDOW_MS = 2e3;
 const MAX_METADATA_BYTES = 256 * 1024;
 const INTEGRITY_PATTERN = "^sha512-[A-Za-z0-9+/]{86}==$";
+function validRequestId(v) {
+  return typeof v === "string" && v.trim().length >= 1 && v.trim().length <= 128;
+}
 function updateError(code) {
   return Object.assign(new Error(code), { code });
 }
@@ -146,12 +149,67 @@ function createUpdateCore(ports) {
   let checked = null;
   let checking = null;
   let lastCheckAt = -Infinity;
-  function buildSnapshot(env) {
-    const blockedReason = env.blockedReason ?? checked?.blockedReason ?? null;
+  let activeJobId = null;
+  let memJob = null;
+  let memLock = null;
+  async function loadJob() {
+    try {
+      return ports.readJob ? await ports.readJob() ?? null : memJob;
+    } catch {
+      throw updateError("install-failed");
+    }
+  }
+  async function saveJob(job) {
+    try {
+      if (ports.writeJob) await ports.writeJob(job);
+      else memJob = job;
+    } catch {
+      throw updateError("install-failed");
+    }
+  }
+  async function acquire(lockId) {
+    try {
+      if (ports.tryAcquireLock) return await ports.tryAcquireLock(lockId);
+    } catch {
+      return false;
+    }
+    if (memLock !== null) return false;
+    memLock = lockId;
+    return true;
+  }
+  async function release(lockId) {
+    try {
+      if (ports.releaseLock) await ports.releaseLock(lockId);
+      else if (memLock === lockId) memLock = null;
+    } catch {
+    }
+  }
+  function healJob(job, env) {
+    if (!job) return null;
+    if (job.state === "installing" || job.state === "verifying") {
+      return job.id === activeJobId ? job : { ...job, state: "interrupted", message: "recovery-required", requestId: job.requestId ?? null };
+    }
+    if (job.state === "restart-required" || job.state === "completed") {
+      if (!job.targetVersion || env.installedVersion !== job.targetVersion) {
+        return { ...job, state: "interrupted", message: "installation-changed", requestId: job.requestId ?? null };
+      }
+      const runningVersion = ports.readRunningVersion();
+      return { ...job, state: runningVersion === job.targetVersion ? "completed" : "restart-required", requestId: job.requestId ?? null };
+    }
+    return job;
+  }
+  function buildSnapshot(env, job) {
+    let blockedReason = env.blockedReason ?? checked?.blockedReason ?? null;
+    if (job?.state === "interrupted" || job?.state === "failed") {
+      if (env.installedVersion !== ports.readRunningVersion()) blockedReason = "recovery-required";
+    } else if (job?.state === "restart-required" || env.installedVersion && env.installedVersion !== ports.readRunningVersion()) {
+      blockedReason = "pending-restart";
+    }
+    const busy = job?.state === "installing" || job?.state === "verifying";
     const fresh = checked !== null && checked.checkId !== null && ports.now() < checked.expiresAt;
     const runningVersion = ports.readRunningVersion();
     const canInstall = Boolean(
-      env.eligible && !blockedReason && fresh && checked?.installationKey === env.installationKey && validVersion(runningVersion) && checked?.release && compareVersions(checked.release.version, runningVersion) === 1
+      env.eligible && !blockedReason && !busy && fresh && checked?.installationKey === env.installationKey && validVersion(runningVersion) && checked?.release && compareVersions(checked.release.version, runningVersion) === 1
     );
     return {
       runningVersion,
@@ -159,34 +217,35 @@ function createUpdateCore(ports) {
       latestVersion: checked?.release.version ?? null,
       canInstall,
       blockedReason,
-      job: null
+      job
     };
   }
   async function status() {
     const env = await ports.readInstalled();
-    return buildSnapshot(env);
+    const job = healJob(await loadJob(), env);
+    return buildSnapshot(env, job);
   }
   async function check() {
     if (checking) return checking;
     if (checked?.checkId && ports.now() - lastCheckAt < RECHECK_WINDOW_MS) {
       const env = await ports.readInstalled();
-      const snapshot = buildSnapshot(env);
+      const snapshot = buildSnapshot(env, healJob(await loadJob(), env));
       return { snapshot, receipt: snapshot.canInstall ? toReceipt() : null };
     }
     lastCheckAt = ports.now();
     checking = (async () => {
       try {
         const env = await ports.readInstalled();
-        const release = await fetchNpmRelease(ports.fetchImpl, checkTimeoutMs);
+        const release2 = await fetchNpmRelease(ports.fetchImpl, checkTimeoutMs);
         checked = {
-          release,
+          release: release2,
           checkId: ports.randomId(),
           checkedAt: ports.now(),
           expiresAt: ports.now() + confirmationTtlMs,
           installationKey: env.installationKey,
-          blockedReason: satisfiesNodeRange(ports.nodeVersion, release.nodeRange) ? null : "incompatible-node"
+          blockedReason: satisfiesNodeRange(ports.nodeVersion, release2.nodeRange) ? null : "incompatible-node"
         };
-        const snapshot = buildSnapshot(env);
+        const snapshot = buildSnapshot(env, healJob(await loadJob(), env));
         return { snapshot, receipt: snapshot.canInstall ? toReceipt() : null };
       } catch (error) {
         if (checked) checked = { ...checked, checkId: null, expiresAt: 0 };
@@ -201,8 +260,73 @@ function createUpdateCore(ports) {
     if (!checked?.checkId) return null;
     return { checkId: checked.checkId, checkedAt: checked.checkedAt, expiresAt: checked.expiresAt };
   }
-  async function install() {
-    throw updateError("unsupported");
+  async function runBackground(job, envAtStart) {
+    try {
+      if (ports.runInstall) await ports.runInstall({ version: job.targetVersion, profileName: envAtStart.profileName });
+      else throw updateError("unsupported");
+      const doing = { ...job, state: "verifying", message: null };
+      activeJobId = doing.id;
+      await saveJob(doing);
+      const env = await ports.readInstalled();
+      if (env.installedVersion !== job.targetVersion) throw updateError("install-failed");
+      if (env.blockedReason && env.blockedReason !== "pending-restart") throw updateError("install-failed");
+      const done = { ...doing, state: "restart-required", message: null };
+      await saveJob(done);
+    } catch (error) {
+      const code = error?.code;
+      const message = code === "installation-changed" || code === "registry-conflict" || code === "install-failed" ? String(code) : "install-failed";
+      const failedJob = { ...job, state: "failed", message, requestId: job.requestId ?? null };
+      try {
+        await saveJob(failedJob);
+      } catch {
+        memJob = failedJob;
+      }
+    } finally {
+      await release(job.id);
+      if (activeJobId === job.id) activeJobId = null;
+    }
+  }
+  async function install(args) {
+    const checkId = typeof args?.checkId === "string" ? args.checkId : "";
+    const requestId = typeof args?.requestId === "string" ? args.requestId : "";
+    if (!checkId || !validRequestId(requestId)) throw updateError("check-expired");
+    let env = await ports.readInstalled();
+    let previous = healJob(await loadJob(), env);
+    if (previous?.requestId === requestId) return buildSnapshot(env, previous);
+    if (previous?.state === "installing" || previous?.state === "verifying" || previous?.state === "restart-required") {
+      throw updateError("update-busy");
+    }
+    if (!checked || !checked.checkId || checked.checkId !== checkId || ports.now() >= checked.expiresAt) {
+      throw updateError("check-expired");
+    }
+    if (env.installationKey !== checked.installationKey) throw updateError("installation-changed");
+    if (!buildSnapshot(env, previous).canInstall) {
+      throw updateError(env.blockedReason ?? checked.blockedReason ?? "update-busy");
+    }
+    const job = {
+      id: ports.randomId(),
+      state: "installing",
+      targetVersion: checked.release.version,
+      message: null,
+      requestId
+    };
+    if (!await acquire(job.id)) throw updateError("update-busy");
+    try {
+      const current = await fetchNpmRelease(ports.fetchImpl, checkTimeoutMs);
+      if (JSON.stringify(current) !== JSON.stringify(checked.release)) throw updateError("check-expired");
+      env = await ports.readInstalled();
+      if (env.installationKey !== checked.installationKey) throw updateError("installation-changed");
+      if (!env.eligible || env.blockedReason) throw updateError(env.blockedReason ?? "update-busy");
+      if (ports.backupJob) await ports.backupJob(job);
+      await saveJob(job);
+      activeJobId = job.id;
+    } catch (error) {
+      await release(job.id);
+      throw error;
+    }
+    void runBackground(job, env).catch(() => {
+    });
+    return buildSnapshot(env, job);
   }
   return { status, check, install };
 }
@@ -219,5 +343,6 @@ export {
   fetchNpmRelease,
   satisfiesNodeRange,
   updateError,
+  validRequestId,
   validVersion
 };

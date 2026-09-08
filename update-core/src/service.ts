@@ -1,12 +1,9 @@
 /**
- * update-core/src/service.ts — 更新模块的业务流程（只读半程）
+ * update-core/src/service.ts — 更新模块的业务流程（安装闭环）
  *
  * 只记得规矩，不动手装：查状态读本地、查新版联网问一次、装前复核用的
- * 凭证与指纹在这里生成与比对。真正的跑腿（读盘、联网、拼命令、执行）
- * 全在适配器，本文件零导入，依赖全当参数传。
- *
- * 范围：查状态与查新版；装更新留诚实失败的桩（unsupported），安装票再实现。
- * 重启确认与残留自愈（通用方案第 6 步与复用清单）随安装票一起落地。
+ * 凭证与指纹在这里生成与比对，安装的排队、去重、复核、备份顺序也在此。
+ * 真正的跑腿（读盘、联网、拼命令、执行）全在适配器，本文件零导入，依赖全当参数传。
  */
 
 import type {
@@ -18,6 +15,7 @@ import type {
   ReleaseInfo,
   UpdateCore,
   UpdateErrorCode,
+  UpdateJob,
   UpdatePorts,
   UpdateSnapshot,
 } from './ports.js'
@@ -30,6 +28,11 @@ export const CONFIRMATION_TTL_MS = 10 * 60_000
 export const RECHECK_WINDOW_MS = 2_000
 export const MAX_METADATA_BYTES = 256 * 1024
 export const INTEGRITY_PATTERN = '^sha512-[A-Za-z0-9+/]{86}==$'
+
+/** 请求编号是否合法（非空、去空格后 1 到 128 个字符）。 */
+export function validRequestId(v: unknown): v is string {
+  return typeof v === 'string' && v.trim().length >= 1 && v.trim().length <= 128
+}
 
 export function updateError(code: UpdateErrorCode): Error & { code: UpdateErrorCode } {
   return Object.assign(new Error(code), { code })
@@ -225,14 +228,69 @@ export function createUpdateCore(ports: UpdatePorts): UpdateCore {
   let checked: CheckedState | null = null
   let checking: Promise<CheckResult> | null = null
   let lastCheckAt = -Infinity
+  let activeJobId: string | null = null
+  let memJob: UpdateJob | null = null
+  let memLock: string | null = null
+  async function loadJob(): Promise<UpdateJob | null> {
+    try {
+      return ports.readJob ? ((await ports.readJob()) ?? null) : memJob
+    } catch {
+      throw updateError('install-failed')
+    }
+  }
+  async function saveJob(job: UpdateJob | null): Promise<void> {
+    try {
+      if (ports.writeJob) await ports.writeJob(job)
+      else memJob = job
+    } catch {
+      throw updateError('install-failed')
+    }
+  }
+  async function acquire(lockId: string): Promise<boolean> {
+    try {
+      if (ports.tryAcquireLock) return await ports.tryAcquireLock(lockId)
+    } catch {
+      return false
+    }
+    if (memLock !== null) return false
+    memLock = lockId
+    return true
+  }
+  async function release(lockId: string): Promise<void> {
+    try {
+      if (ports.releaseLock) await ports.releaseLock(lockId)
+      else if (memLock === lockId) memLock = null
+    } catch {}
+  }
+  function healJob(job: UpdateJob | null, env: EnvironmentView): UpdateJob | null {
+    if (!job) return null
+    if (job.state === 'installing' || job.state === 'verifying') {
+      return job.id === activeJobId ? job : { ...job, state: 'interrupted', message: 'recovery-required', requestId: job.requestId ?? null }
+    }
+    if (job.state === 'restart-required' || job.state === 'completed') {
+      if (!job.targetVersion || env.installedVersion !== job.targetVersion) {
+        return { ...job, state: 'interrupted', message: 'installation-changed', requestId: job.requestId ?? null }
+      }
+      const runningVersion = ports.readRunningVersion()
+      return { ...job, state: runningVersion === job.targetVersion ? 'completed' : 'restart-required', requestId: job.requestId ?? null }
+    }
+    return job
+  }
 
-  function buildSnapshot(env: EnvironmentView): UpdateSnapshot {
-    const blockedReason: BlockedReason | null = env.blockedReason ?? checked?.blockedReason ?? null
+  function buildSnapshot(env: EnvironmentView, job: UpdateJob | null): UpdateSnapshot {
+    let blockedReason: BlockedReason | null = env.blockedReason ?? checked?.blockedReason ?? null
+    if (job?.state === 'interrupted' || job?.state === 'failed') {
+      if (env.installedVersion !== ports.readRunningVersion()) blockedReason = 'recovery-required'
+    } else if (job?.state === 'restart-required' || (env.installedVersion && env.installedVersion !== ports.readRunningVersion())) {
+      blockedReason = 'pending-restart'
+    }
+    const busy = job?.state === 'installing' || job?.state === 'verifying'
     const fresh = checked !== null && checked.checkId !== null && ports.now() < checked.expiresAt
     const runningVersion = ports.readRunningVersion()
     const canInstall = Boolean(
       env.eligible &&
         !blockedReason &&
+        !busy &&
         fresh &&
         checked?.installationKey === env.installationKey &&
         validVersion(runningVersion) &&
@@ -245,13 +303,14 @@ export function createUpdateCore(ports: UpdatePorts): UpdateCore {
       latestVersion: checked?.release.version ?? null,
       canInstall,
       blockedReason,
-      job: null,
+      job,
     }
   }
 
   async function status(): Promise<UpdateSnapshot> {
     const env = await ports.readInstalled()
-    return buildSnapshot(env)
+    const job = healJob(await loadJob(), env)
+    return buildSnapshot(env, job)
   }
 
   async function check(): Promise<CheckResult> {
@@ -259,7 +318,7 @@ export function createUpdateCore(ports: UpdatePorts): UpdateCore {
     // 2 秒内重复点击复用上次结果，不重新联网（失败不缓存为成功）。
     if (checked?.checkId && ports.now() - lastCheckAt < RECHECK_WINDOW_MS) {
       const env = await ports.readInstalled()
-      const snapshot = buildSnapshot(env)
+      const snapshot = buildSnapshot(env, healJob(await loadJob(), env))
       return { snapshot, receipt: snapshot.canInstall ? toReceipt() : null }
     }
     lastCheckAt = ports.now()
@@ -276,7 +335,7 @@ export function createUpdateCore(ports: UpdatePorts): UpdateCore {
           blockedReason: satisfiesNodeRange(ports.nodeVersion, release.nodeRange) ? null : 'incompatible-node',
         }
         // 凭证只在能装时交：没新版或有阻拦时交了也没用，不交。
-        const snapshot = buildSnapshot(env)
+        const snapshot = buildSnapshot(env, healJob(await loadJob(), env))
         return { snapshot, receipt: snapshot.canInstall ? toReceipt() : null }
       } catch (error) {
         if (checked) checked = { ...checked, checkId: null, expiresAt: 0 }
@@ -294,8 +353,76 @@ export function createUpdateCore(ports: UpdatePorts): UpdateCore {
     return { checkId: checked.checkId, checkedAt: checked.checkedAt, expiresAt: checked.expiresAt }
   }
 
-  async function install(): Promise<UpdateSnapshot> {
-    throw updateError('unsupported')
+  async function runBackground(job: UpdateJob, envAtStart: EnvironmentView): Promise<void> {
+    try {
+      if (ports.runInstall) await ports.runInstall({ version: job.targetVersion as string, profileName: envAtStart.profileName })
+      else throw updateError('unsupported')
+      const doing: UpdateJob = { ...job, state: 'verifying', message: null }
+      activeJobId = doing.id
+      await saveJob(doing)
+      const env = await ports.readInstalled()
+      if (env.installedVersion !== job.targetVersion) throw updateError('install-failed')
+      if (env.blockedReason && env.blockedReason !== 'pending-restart') throw updateError('install-failed')
+      const done: UpdateJob = { ...doing, state: 'restart-required', message: null }
+      await saveJob(done)
+    } catch (error) {
+      const code = (error as { code?: unknown })?.code
+      const message =
+        code === 'installation-changed' || code === 'registry-conflict' || code === 'install-failed' ? String(code) : 'install-failed'
+      const failedJob: UpdateJob = { ...job, state: 'failed', message, requestId: job.requestId ?? null }
+      try {
+        await saveJob(failedJob)
+      } catch {
+        memJob = failedJob
+      }
+    } finally {
+      await release(job.id)
+      if (activeJobId === job.id) activeJobId = null
+    }
+  }
+
+  async function install(args: { checkId: string; requestId: string }): Promise<UpdateSnapshot> {
+    const checkId = typeof args?.checkId === 'string' ? args.checkId : ''
+    const requestId = typeof args?.requestId === 'string' ? args.requestId : ''
+    if (!checkId || !validRequestId(requestId)) throw updateError('check-expired')
+    let env = await ports.readInstalled()
+    let previous = healJob(await loadJob(), env)
+    // 同一个请求编号重复提交直接返回旧结果，不重装。
+    if (previous?.requestId === requestId) return buildSnapshot(env, previous)
+    if (previous?.state === 'installing' || previous?.state === 'verifying' || previous?.state === 'restart-required') {
+      throw updateError('update-busy')
+    }
+    if (!checked || !checked.checkId || checked.checkId !== checkId || ports.now() >= checked.expiresAt) {
+      throw updateError('check-expired')
+    }
+    if (env.installationKey !== checked.installationKey) throw updateError('installation-changed')
+    if (!buildSnapshot(env, previous).canInstall) {
+      throw updateError(env.blockedReason ?? checked.blockedReason ?? 'update-busy')
+    }
+    const job: UpdateJob = {
+      id: ports.randomId(),
+      state: 'installing',
+      targetVersion: checked.release.version,
+      message: null,
+      requestId,
+    }
+    if (!(await acquire(job.id))) throw updateError('update-busy')
+    try {
+      const current = await fetchNpmRelease(ports.fetchImpl, checkTimeoutMs)
+      if (JSON.stringify(current) !== JSON.stringify(checked.release)) throw updateError('check-expired')
+      env = await ports.readInstalled()
+      if (env.installationKey !== checked.installationKey) throw updateError('installation-changed')
+      if (!env.eligible || env.blockedReason) throw updateError(env.blockedReason ?? 'update-busy')
+      if (ports.backupJob) await ports.backupJob(job)
+      await saveJob(job)
+      activeJobId = job.id
+    } catch (error) {
+      await release(job.id)
+      throw error
+    }
+    // 落盘后后台跑，调用方不干等：每秒轮询查状态即可看到进度，关页面不取消。
+    void runBackground(job, env).catch(() => {})
+    return buildSnapshot(env, job)
   }
 
   return { status, check, install }

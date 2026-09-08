@@ -319,6 +319,7 @@ export default {
     function _update() { if (!_updateP) _updateP = import('./update.js').then(function(m){ return m.createUpdatePhoneHandlers({ logCtx: logCtx }) }); return _updateP }
     harness.handle('wf.updateStatus', async function (args) { const h = await _update(); return h.handleUpdateStatus(args) })
     harness.handle('wf.updateCheck', async function (args) { const h = await _update(); return h.handleUpdateCheck(args) })
+    harness.handle('wf.updateInstall', async function (args) { const h = await _update(); return h.handleUpdateInstall(args) })
 
     // ============ 轮询：已按 #348 拍板 Q3 关闭（60s 全量 × 8 map ≈ 2400-4800 GraphQL points/h 贴 5000 限额）============
     // 刷新策略 = 纯手动（状态条/面板按钮 wf.refresh）+ 打开面板即刷（client 侧 loadSnapshot）。

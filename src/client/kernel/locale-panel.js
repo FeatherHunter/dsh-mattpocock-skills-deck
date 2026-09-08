@@ -173,6 +173,8 @@
         'panel.labelsStepMissing': '缺失：{list}',
         'panel.labelsStepInjected': '已注入标签补全指引，回车让 AI 执行',
         'panel.labelsStepAllOk': '标签已全 {total}/{total}，无需补全',
+        'cfg.updateDialogTitle': '发现新版本 {v}', 'cfg.updateDialogBody': '只更新本插件，不碰其它东西。装完需要你手动重启，不会自动重启，也不会刷新页面。',
+        'cfg.updateBlocked': '装不了：{reason}',
       },
       en: {
         'nav.word': 'Consolidate',
@@ -339,5 +341,7 @@
         'panel.labelsStepMissing': 'Missing: {list}',
         'panel.labelsStepInjected': 'Label completion guide injected — press Enter to run',
         'panel.labelsStepAllOk': 'Labels complete {total}/{total}, no action needed',
+        'cfg.updateDialogTitle': 'Found new version {v}', 'cfg.updateDialogBody': 'Only updates this plugin and nothing else. After install you restart manually; it never auto-restarts or refreshes the page.',
+        'cfg.updateBlocked': 'Cannot install: {reason}',
       },
     }

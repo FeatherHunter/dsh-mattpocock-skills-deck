@@ -38,6 +38,7 @@ export type UpdateErrorCode =
   | 'invalid-installation'
   | 'incompatible-node'
   | 'registry-conflict'
+  | 'recovery-required'
 
 /** 快照：恰好六个字段，永远不带钥匙（检查编号与环境指纹另交）。 */
 export interface UpdateSnapshot {
@@ -61,6 +62,8 @@ export interface UpdateJob {
   state: 'installing' | 'verifying' | 'restart-required' | 'completed' | 'failed' | 'interrupted'
   targetVersion: string | null
   message: string | null
+  /** 提交时的请求编号：同一个编号重复提交直接返回旧结果，不重装。 */
+  requestId: string | null
 }
 
 /**
@@ -124,6 +127,8 @@ export type FetchImpl = (
 /**
  * 插口：时钟和编号从外面灌进来（默认真的、测试用假的）。
  * 核心不直接读硬盘、不直接联网，联网经外面递进来的 fetchImpl 发生一次。
+ * 安装用的存取与执行也全是外面给的小零件：任务记哪里、锁怎么加、
+ * 备份怎么做、安装命令怎么跑，核心只指挥顺序，不碰硬盘与子进程。
  */
 export interface UpdatePorts {
   readRunningVersion(): string
@@ -134,6 +139,18 @@ export interface UpdatePorts {
   nodeVersion: string
   checkTimeoutMs?: number
   confirmationTtlMs?: number
+  /** 读已落盘的任务（没有为 null；读坏由外面抛错，核心收敛为状态不可用）。 */
+  readJob?: () => UpdateJob | null | Promise<UpdateJob | null>
+  /** 写任务（传 null 为清空；写坏由外面抛错）。 */
+  writeJob?: (job: UpdateJob | null) => void | Promise<void>
+  /** 抢锁：抢到为 true，被别人占着为 false（同一个使用范围同时只装一个）。 */
+  tryAcquireLock?: (lockId: string) => boolean | Promise<boolean>
+  /** 放锁（只放自己抢到的那把）。 */
+  releaseLock?: (lockId: string) => void | Promise<void>
+  /** 装前备份使用范围的清单（小清单，不含凭据与整个家目录）。 */
+  backupJob?: (job: UpdateJob) => void | Promise<void>
+  /** 真正跑安装命令（按钮强制官方源加精确版本；测试一律给假的，不真跑）。 */
+  runInstall?: (args: { version: string; profileName: string | null }) => void | Promise<void>
 }
 
 /** 对外三个方法（进度不单独给方法，调用方轮询查状态）。 */

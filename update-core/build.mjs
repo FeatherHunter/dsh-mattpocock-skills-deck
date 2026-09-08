@@ -21,6 +21,7 @@ const OUT_DIR = resolve(ROOT, 'src/shared/update')
 const UNITS = [
   { ts: 'ports.ts', js: 'ports.js' },
   { ts: 'service.ts', js: 'service.js' },
+  { ts: 'commands.ts', js: 'commands.js' },
 ]
 
 function headerFor(tsName) {

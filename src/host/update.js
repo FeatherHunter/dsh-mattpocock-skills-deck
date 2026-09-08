@@ -1,13 +1,8 @@
 /**
  * src/host/update.js — 更新核心的 deck 宿主胶水（薄薄一层，538 落点决议）
  *
- * 只做一件事：把本机真实情况翻译成核心要的小零件（读版本、看环境、
- * 上报是桌面还是命令行），再把核心的决定原样交出去。
- * 跨层引用共享层是允许的；本文件与共享层文件之间不许再横向引用。
- *
- * 只读半程：只读盘，不写盘；不加锁文件、不备份、不拼安装命令、
- * 不新增宿主电话、不加定时器。验证用直接调用看返回，不走面板。
- * 日志点随装电话与轮询的安装票一起按日志总纲补，本票不新增日志事件。
+ * 把本机真实情况翻译成核心要的小零件，再把核心的决定原样交出去。
+ * 跨层引用共享层允许；安装的状态目录、锁、备份、执行跑腿在 updateStore（同层边记基线）。
  */
 
 import { createHash, randomUUID } from 'node:crypto'
@@ -20,6 +15,8 @@ import {
   PACKAGE_NAME,
   validVersion,
 } from '../shared/update/service.js'
+import { manualCommand } from '../shared/update/commands.js'
+import { createUpdateDiskPorts, createUpdateExecutor } from './updateStore.js'
 
 const LOCK_FILES = ['pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package-lock.json']
 
@@ -106,11 +103,7 @@ function defaultHomeDir(env, osHome) {
   return resolve(selected)
 }
 
-/**
- * 建一个只读的更新读取器。调用方至少给运行版本与使用范围目录；
- * 其余（桌面还是命令行、时钟、编号、抓取实现）不给就用本机默认。
- * 同一个读取器记住第一次见到的使用范围指纹，目录换了就报安装位置变了。
- */
+/** 建更新读取器：至少给运行版本与使用范围目录，其余不给用本机默认。 */
 export function createDeckUpdateReader(options = {}) {
   const runningVersion = options.runningVersion
   if (typeof runningVersion !== 'string' || !runningVersion) {
@@ -130,8 +123,7 @@ export function createDeckUpdateReader(options = {}) {
   const environmentKind = options.environmentKind ?? 'cli'
   const loadedPackage = containingPackage(fileURLToPath(import.meta.url), PACKAGE_NAME).catch(() => null)
   let boundIdentity
-
-  async function readInstalled() {
+  async function readInstalledReal() {
     const result = {
       profileName: null,
       environmentKind,
@@ -196,7 +188,7 @@ export function createDeckUpdateReader(options = {}) {
     result.blockedReason = result.blockedReason ?? null
     return result
   }
-
+  const readInstalled = options.readInstalled ?? readInstalledReal
   const core = createUpdateCore({
     readRunningVersion: () => runningVersion,
     readInstalled,
@@ -204,15 +196,17 @@ export function createDeckUpdateReader(options = {}) {
     now,
     randomId,
     nodeVersion,
+    readJob: options.readJob,
+    writeJob: options.writeJob,
+    tryAcquireLock: options.tryAcquireLock,
+    releaseLock: options.releaseLock,
+    backupJob: options.backupJob,
+    runInstall: options.runInstall,
   })
-  return core
+  return Object.assign(core, { readEnv: readInstalled })
 }
 
-// ---------- 只读电话（落地票 #541：设置页标题行接线与显示） ----------
-// 复用上面的只读核心，不另写查询逻辑；凭证（检查编号）本票不交出去，
-// 面板只拿快照做三态显示，装更新的凭证交接随安装票再补。
-// 单例：核心把最近一次检查记在内存里，查状态要看到查新版的结果，
-// 所以同一宿主进程只建一个读取器，重复调用不重建。
+// ---------- 更新电话（#541 两只读 + #542 装更新；单例让查状态看到查新版的结果） ----------
 let sharedReader = null
 let sharedReaderKey = ''
 
@@ -241,12 +235,9 @@ async function inferProfileDir(loaded, homeDirDefault) {
         return candidate
       }
     }
-  } catch {
-    // 落到默认范围
-  }
+  } catch {}
   return join(homeDirDefault, 'profiles', 'web')
 }
-
 async function getSharedReader(overrides = {}) {
   const env = overrides.env ?? process.env
   const osHome = overrides.osHome ?? homedir()
@@ -256,8 +247,10 @@ async function getSharedReader(overrides = {}) {
     ?? (loaded && validVersion(loaded.manifest.version) ? loaded.manifest.version : null)
   if (!runningVersion) throw Object.assign(new Error('unknown-profile'), { code: 'unknown-profile' })
   const profileDirInput = overrides.profileDir ?? await inferProfileDir(loaded, homeDirDefault)
-  const key = `${runningVersion}\0${profileDirInput}\0${overrides.profileName ?? ''}\0${overrides.homeDir ?? ''}`
+  const homeDirInput = overrides.homeDir ?? homeDirDefault
+  const key = `${runningVersion}\0${profileDirInput}\0${overrides.profileName ?? ''}\0${homeDirInput}\0${overrides.runInstall ? 'exec' : ''}`
   if (sharedReader && sharedReaderKey === key) return sharedReader
+  const disk = overrides.readJob && overrides.writeJob ? null : createUpdateDiskPorts(homeDirInput, profileDirInput), defaultRun = createUpdateExecutor({ profileName: overrides.profileName ?? null })
   sharedReader = createDeckUpdateReader({
     runningVersion,
     profileDir: profileDirInput,
@@ -270,33 +263,51 @@ async function getSharedReader(overrides = {}) {
     randomId: overrides.randomId,
     nodeVersion: overrides.nodeVersion,
     environmentKind: overrides.environmentKind ?? 'cli',
+    readInstalled: overrides.readInstalled,
+    readJob: overrides.readJob ?? disk?.readJob,
+    writeJob: overrides.writeJob ?? disk?.writeJob,
+    tryAcquireLock: overrides.tryAcquireLock ?? disk?.tryAcquireLock,
+    releaseLock: overrides.releaseLock ?? disk?.releaseLock,
+    backupJob: overrides.backupJob ?? disk?.backupJob,
+    runInstall: overrides.runInstall ?? defaultRun,
   })
   sharedReaderKey = key
   return sharedReader
 }
-
 /** 核心错误码原样返回，外面世界的脏错误收敛为检查失败（537 决议：码表由核心定）。 */
 function toUpdateErrorPayload(error) {
   const code = error && typeof error.code === 'string' ? error.code : ''
-  const known = ['check-failed', 'invalid-release', 'unknown-profile', 'source-install', 'invalid-installation', 'installation-changed', 'pending-restart', 'incompatible-node', 'registry-conflict']
+  const known = ['check-failed', 'invalid-release', 'check-expired', 'update-busy', 'install-failed', 'unknown-profile', 'source-install', 'invalid-installation', 'installation-changed', 'pending-restart', 'incompatible-node', 'registry-conflict', 'recovery-required']
   if (known.includes(code)) return { error: code, errorKind: code }
   return { error: 'check-failed', errorKind: 'internal' }
 }
-
+function manualOfEnv(env, snapshot) {
+  try {
+    return manualCommand({ profileName: env?.profileName ?? null, latestVersion: snapshot?.latestVersion ?? null, installedVersion: snapshot?.installedVersion ?? null, runningVersion: String(snapshot?.runningVersion ?? ''), jobTargetVersion: snapshot?.job?.targetVersion ?? null, blockedReason: snapshot?.blockedReason ?? null, sourceInstall: env?.sourceInstall === true })
+  } catch {
+    return null
+  }
+}
+async function snapWithManual(reader, snapshot) {
+  try {
+    return { snapshot, manual: manualOfEnv(await reader.readEnv(), snapshot) }
+  } catch {
+    return { snapshot, manual: null }
+  }
+}
 function loggedPhone(method, kind, fn) {
   return async function (args) {
     const t0 = Date.now()
     const emit = (level, event, fields) => {
       try {
         if (phoneLogCtx && typeof phoneLogCtx.fire === 'function') phoneLogCtx.fire(level, event, fields)
-      } catch {
-        // 日志发不出不影响主流程
-      }
+      } catch {}
     }
     try {
-      const snapshot = await fn(args)
+      const out = await fn(args)
+      const snapshot = out && out.snapshot ? out.snapshot : out
       emit('info', 'host.call', { method, latencyMs: Date.now() - t0, ok: true, kind })
-      return { ok: true, snapshot }
+      return { ok: true, snapshot, manual: out && out.snapshot ? (out.manual ?? null) : null, receipt: out && out.receipt ? out.receipt : null }
     } catch (error) {
       const payload = toUpdateErrorPayload(error)
       emit('warn', 'host.call.fail', { method, kind, errorHash: hash8(String((error && error.message) || payload.error)) })
@@ -304,28 +315,30 @@ function loggedPhone(method, kind, fn) {
     }
   }
 }
-
 let phoneLogCtx = null
-
-/** 建两个只读电话的处理函数：查状态只读本地不联网，查新版用户点了才联网。 */
-export function createUpdatePhoneHandlers(deps = {}) {
+/** 三个电话：查状态只读本地，查新版用户点了才联网，装更新拿凭证加请求编号提交。 */export function createUpdatePhoneHandlers(deps = {}) {
   phoneLogCtx = deps.logCtx ?? phoneLogCtx
   const readerOverrides = deps.readerOverrides ?? {}
-
   async function readStatus(args) {
     const reader = await getSharedReader({ ...readerOverrides, profileDir: args && args.profileDir ? String(args.profileDir) : readerOverrides.profileDir })
-    return reader.status()
+    return snapWithManual(reader, await reader.status())
   }
-
   async function readCheck(args) {
     const reader = await getSharedReader({ ...readerOverrides, profileDir: args && args.profileDir ? String(args.profileDir) : readerOverrides.profileDir })
     const result = await reader.check()
-    return result.snapshot
+    const withManual = await snapWithManual(reader, result.snapshot)
+    return { snapshot: withManual.snapshot, manual: withManual.manual, receipt: result.receipt ?? null }
   }
-
+  async function runInstall(args) {
+    const checkId = args && typeof args.checkId === 'string' ? args.checkId : ''
+    const requestId = args && typeof args.requestId === 'string' ? args.requestId : ''
+    const reader = await getSharedReader({ ...readerOverrides, profileDir: args && args.profileDir ? String(args.profileDir) : readerOverrides.profileDir })
+    return snapWithManual(reader, await reader.install({ checkId, requestId }))
+  }
   return {
     handleUpdateStatus: loggedPhone('wf.updateStatus', 'update-status', readStatus),
     handleUpdateCheck: loggedPhone('wf.updateCheck', 'update-check', readCheck),
+    handleUpdateInstall: loggedPhone('wf.updateInstall', 'update-install', runInstall),
   }
 }
 

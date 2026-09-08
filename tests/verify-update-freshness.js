@@ -1,10 +1,12 @@
-// verify-update-freshness.js — 更新核心新鲜度门禁（落地票 #540）
+// verify-update-freshness.js — 更新核心新鲜度门禁（落地票 #540 只读半程，#542 补安装闭环与命令拼接）
 // 规则：
 //   1) update-core/src/ 每个 TS 转译后必须与 src/shared/update/ 下同名 JS 逐字一致；
 //      改了 TS 没跑 node update-core/build.mjs 就变红（转译口径直接复用 build.mjs，永不漂移）。
 //   2) tsc --noEmit 必须通过（538 决议：转译之外另做类型检查）。
 //   3) 只读行为契约（离线假适配器，直接调生成的 JS）：查状态不联网、快照恰好六字段
-//      且不带钥匙、查新版有新版与无新版两种情形、凭证另交、安装桩诚实失败。
+//      且不带钥匙、查新版有新版与无新版两种情形、凭证另交；安装闭环行为由 verify-update-install.js 覆盖，
+//      本门禁只断言无凭证调安装报检查凭证过期（假执行器永不真跑）。
+//   4) 命令拼接自包含：commands 生成物零相对引用（同层互引门禁天然能过），按钮强制官方源，手工沿用本机源。
 // 用法：node tests/verify-update-freshness.js（在仓库根目录）
 const fs = require('fs')
 const path = require('path')
@@ -18,6 +20,7 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 const UNITS = [
   { ts: 'update-core/src/ports.ts', js: 'src/shared/update/ports.js' },
   { ts: 'update-core/src/service.ts', js: 'src/shared/update/service.js' },
+  { ts: 'update-core/src/commands.ts', js: 'src/shared/update/commands.js' },
 ]
 
 async function main() {
@@ -55,7 +58,10 @@ async function main() {
   check(portsJs.includes('PORTS_SOURCE'), '插口生成物带模块标识 PORTS_SOURCE（空壳可追溯）')
   const serviceJs = fs.readFileSync(path.join(ROOT, 'src/shared/update/service.js'), 'utf8')
   check(!/from\s+['"]\.\.?[^'"]*['"]/.test(serviceJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')),
-    '生成物零相对引用（同层互引门禁天然能过）')
+    '核心生成物零相对引用（同层互引门禁天然能过）')
+  const commandsJs = fs.readFileSync(path.join(ROOT, 'src/shared/update/commands.js'), 'utf8')
+  check(!/from\s+['"]\.\.?[^'"]*['"]/.test(commandsJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')),
+    '命令生成物零相对引用（自包含，不引用同层其它文件）')
 
   // ---- 2) 类型检查 ----
   const tscBin = path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc')
@@ -180,18 +186,28 @@ async function main() {
     const { snapshot } = await c.check()
     check(snapshot.blockedReason === 'incompatible-node' && snapshot.canInstall === false, '运行环境不满足：原因 incompatible-node 且不能装')
   }
-  // 3g) 装更新桩诚实失败
+  // 3g) 无凭证调安装报检查凭证过期（安装闭环详见 verify-update-install.js；本门禁用假执行器，永不真跑）
   {
     const { c } = makeCore()
     let code = ''
     try {
-      await c.install({ checkId: 'check-1', requestId: 'req-1' })
+      await c.install({ checkId: 'no-such-check', requestId: 'req-1' })
     } catch (e) {
       code = (e && e.code) || ''
     }
-    check(code === 'unsupported', '只读半程装更新报 unsupported（实际 ' + code + '）')
+    check(code === 'check-expired', '无凭证调安装报 check-expired（实际 ' + code + '）')
   }
-  // 3h) 版本号小工具抽查
+  // 3h) 命令拼接抽查（按钮强制官方源，手工沿用本机源，源码安装不给手工）
+  {
+    const commands = await import(pathToFileURL(path.join(ROOT, 'src/shared/update/commands.js')).href)
+    check(typeof commands.buttonCommand === 'function' && typeof commands.manualCommand === 'function', '命令模块导出按钮与手工拼接函数')
+    check(commands.buttonCommand('web', '9.9.9') === 'dsh plugin --profile web add dsh-mattpocock-skills-deck@9.9.9 --registry=https://registry.npmjs.org/', '按钮命令强制官方源加精确版本')
+    const manual = commands.manualCommand({ profileName: 'web', latestVersion: '9.9.9', installedVersion: '1.7.14', runningVersion: '1.7.14', jobTargetVersion: null, blockedReason: null, sourceInstall: false })
+    check(manual === 'dsh plugin --profile web add dsh-mattpocock-skills-deck@9.9.9', '手工命令沿用本机源（实际 ' + manual + '）')
+    const noManual = commands.manualCommand({ profileName: 'web', latestVersion: '9.9.9', installedVersion: '1.7.14', runningVersion: '1.7.14', jobTargetVersion: null, blockedReason: 'source-install', sourceInstall: true })
+    check(noManual === null, '源码安装不给手工命令')
+  }
+  // 3i) 版本号小工具抽查
   check(validVersion('1.7.14') === true && validVersion('1.7.14-beta') === false, '纯数字三段才算合法版本（预发布拒绝）')
   check(compareVersions('1.7.15', '1.7.14') === 1 && compareVersions('1.7.14', '1.7.14') === 0, '版本比对正确')
   check(satisfiesNodeRange('20.0.0', '>=18.0.0') === true && satisfiesNodeRange('16.0.0', '>=18.0.0') === false, '运行环境范围判定正确')

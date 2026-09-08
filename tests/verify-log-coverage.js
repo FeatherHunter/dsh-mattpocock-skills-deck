@@ -27,7 +27,7 @@ function listJsFiles(dir) {
 const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const Q = String.fromCharCode(39)
 
-// 电话清单：35 注册减退役 2 个，现役 33 个，加 #541 只读更新电话 2 个，现役 35 个。增删电话必须同步改本表、附录 1.7 与计数门禁。
+// 电话清单：35 注册减退役 2 个，现役 33 个，加 #541 只读更新电话 2 个，现役 35 个，加 #542 装更新电话 1 个，现役 36 个。增删电话必须同步改本表、附录 1.7 与计数门禁。
 const PHONES = [
   'wf.detect', 'wf.chain', 'wf.cwd', 'wf.snapshot', 'wf.refresh',
   'wf.bind', 'wf.bindings', 'wf.registry', 'wf.selection',
@@ -37,7 +37,7 @@ const PHONES = [
   'wf.namingResult', 'wf.cancelNewSessionWatcher', 'wf.awaitCreatedIssue',
   'wf.openFolder', 'wf.initPublish', 'wf.retryPush', 'wf.pickDirectory', 'wf.pickFile', 'wf.openPath',
   'wf.logBatch', 'wf.logExport', 'wf.logClear', 'wf.logGetSwitch', 'wf.logSetSwitch',
-  'wf.updateStatus', 'wf.updateCheck',
+  'wf.updateStatus', 'wf.updateCheck', 'wf.updateInstall',
 ]
 const RETIRED = ['wf.ping', 'wf.claim']
 const PHONE_EXEMPT = ['wf.logBatch', 'wf.logGetSwitch', 'wf.logSetSwitch']
@@ -52,7 +52,7 @@ const CALLEE_COVERS = [
   'wf.namingResult', 'wf.cancelNewSessionWatcher', 'wf.awaitCreatedIssue',
   'wf.openFolder', 'wf.pickDirectory', 'wf.pickFile', 'wf.openPath',
   'wf.initPublish', 'wf.retryPush', 'wf.cwd', 'wf.detect', 'wf.logExport', 'wf.logClear',
-  'wf.updateStatus', 'wf.updateCheck',
+  'wf.updateStatus', 'wf.updateCheck', 'wf.updateInstall',
 ]
 
 // 一、注册：现役全注册，退役零注册，实现留守不断链。

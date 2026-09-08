@@ -175,6 +175,7 @@
         'cfg.wsPathCopied': '工作区路径已复制：{cwd}',
         'cfg.wsSwitchManually': '请手动切换到 {cwd}',
         'cfg.wsRefreshed': '已刷新', 'cfg.wsRefreshFail': '刷新失败',
+        'cfg.updateManualTitle': '按钮装不了，用这条命令自己装', 'cfg.updateCopy': '一键复制',
       },
       en: {
         'act.diagnose': 'Diagnose',
@@ -343,5 +344,6 @@
         'cfg.wsPathCopied': 'Workspace path copied: {cwd}',
         'cfg.wsSwitchManually': 'Please switch to {cwd} manually',
         'cfg.wsRefreshed': 'Refreshed', 'cfg.wsRefreshFail': 'Refresh failed',
+        'cfg.updateManualTitle': 'Button install unavailable — run this command instead', 'cfg.updateCopy': 'Copy command',
       },
     }
