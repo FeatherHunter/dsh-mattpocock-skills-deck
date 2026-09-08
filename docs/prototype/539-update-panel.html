@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<!-- PROTOTYPE — 539 面板更新交互，用完即扔，不进正式代码。双击即开，?v=a|b|c 切换三种入口。 -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>PROTOTYPE 539 · 更新交互三个入口</title>
+<style>
+  body { margin: 0; background: #0c0e12; color: #e6edf3; font-family: system-ui, sans-serif; }
+  .proto-banner { background: #f59e0b; color: #1a1005; font-weight: 700; padding: 8px 16px; font-size: 13px; }
+  .wrap { max-width: 720px; margin: 24px auto; padding: 0 16px 120px; }
+  .panel { background: #16181d; border: 1px solid #2a2d35; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .title-row { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+  .title-row .sp { flex: 1; }
+  .btn { padding: 3px 10px; border-radius: 6px; border: 1px solid #2a2d35; background: #10131a; color: #e6edf3; font-size: 12px; cursor: pointer; }
+  .btn.primary { background: #c084fc; border-color: transparent; color: #140a1e; font-weight: 600; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .capsule { display: flex; align-items: center; gap: 6px; background: #10131a; border: 1px solid #2a2d35; border-radius: 14px; padding: 6px 12px; font-size: 12px; }
+  .card { border: 1.5px dashed #c084fc; border-radius: 12px; padding: 14px 16px; }
+  .dialog { border: 1px solid #3a3f4a; border-radius: 10px; padding: 12px 14px; margin-top: 10px; background: #10131a; font-size: 13px; }
+  .state { font-family: Consolas, monospace; font-size: 11.5px; background: #0c0e12; border: 1px solid #2a2d35; border-radius: 8px; padding: 8px 10px; margin-top: 10px; white-space: pre-wrap; color: #a1a1aa; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: #16181d; border-top: 1px solid #2a2d35; padding: 10px; display: flex; gap: 8px; justify-content: center; }
+  .bar a { color: #c084fc; font-size: 13px; text-decoration: none; border: 1px solid #2a2d35; border-radius: 8px; padding: 4px 14px; }
+  .bar a.on { background: #c084fc; color: #140a1e; font-weight: 700; }
+  .hint { font-size: 12px; color: #8b8b95; margin: 4px 0 12px; }
+  .warn { color: #fbbf24; } .ok { color: #4ade80; }
+</style>
+</head>
+<body>
+<div class="proto-banner">PROTOTYPE 539 · 用完即扔 · 当前入口：<span id="vname"></span></div>
+<div class="wrap">
+  <p class="hint">点按钮走一遍：检查更新 → 更新至 v1.7.15 → 正在更新（每秒轮询）→ 待手动重启。下方实时打印快照，钥匙（凭证）永远不出现在快照里。</p>
+
+  <!-- 变体 A：设置页标题行 -->
+  <div class="panel" data-v="a">
+    <div class="title-row">MattSkillsDeck <span class="sp"></span>
+      <button class="btn" id="btnA" onclick="check()">检查更新</button>
+    </div>
+  </div>
+
+  <!-- 变体 B：状态栏胶囊 -->
+  <div class="capsule" data-v="b">MattSkillsDeck <span id="verB">v1.7.14</span>
+    <button class="btn" id="btnB" onclick="check()">检查更新</button>
+  </div>
+  <p class="hint" data-v="b">胶囊入口：版本号常驻右下角，有新版时按钮变色。</p>
+
+  <!-- 变体 C：独立更新卡片 -->
+  <div class="card" data-v="c">
+    <div class="title-row">可更新</div>
+    <p class="hint">有新版本 v1.7.15，只更新本插件，不碰其它东西。</p>
+    <button class="btn primary" id="btnC" onclick="check()">检查更新</button>
+  </div>
+
+  <div class="dialog" id="dlg" style="display:none">
+    <div id="dlgTitle" style="font-weight:700;margin-bottom:6px"></div>
+    <div id="dlgBody" style="color:#a1a1aa;font-size:12.5px"></div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn primary" id="dlgGo" onclick="install()">开始更新</button>
+      <button class="btn" onclick="recheck()">重新检查</button>
+      <button class="btn" onclick="closeDlg()">稍后</button>
+    </div>
+  </div>
+
+  <div class="dialog" id="manual" style="display:none">
+    <div style="font-weight:700;margin-bottom:6px">按钮装不了，用这条命令自己装</div>
+    <div class="state" id="manualCmd"></div>
+    <button class="btn" style="margin-top:8px" onclick="copyCmd()">一键复制</button>
+  </div>
+
+  <div class="state" id="snap"></div>
+</div>
+<div class="bar">
+  <a href="?v=a" id="lA">A · 标题行</a>
+  <a href="?v=b" id="lB">B · 胶囊</a>
+  <a href="?v=c" id="lC">C · 卡片</a>
+</div>
+<script>
+  // 假快照：字段照 537 决议（六项），凭证另放 snap.credential 且永不渲染
+  var snap = { running: 'v1.7.14', disk: 'v1.7.14', latest: null, canInstall: false, reason: '', job: '空闲' };
+  var credential = null, timer = null;
+  var v = (location.search.match(/v=([abc])/) || [0, 'a'])[1];
+  document.getElementById('vname').textContent = { a: 'A 标题行', b: 'B 胶囊', c: 'C 卡片' }[v];
+  document.querySelectorAll('[data-v]').forEach(function (el) { el.style.display = el.getAttribute('data-v') === v ? '' : 'none'; });
+  document.getElementById('l' + v.toUpperCase()).className = 'on';
+  function btn() { return document.querySelector('[data-v="' + v + '"] .btn'); }
+  function paint() {
+    document.getElementById('snap').textContent = '快照 ' + JSON.stringify(snap, null, 1);
+    var b = btn();
+    if (snap.job === '正在安装' || snap.job === '正在校验') { b.textContent = '正在更新…'; b.disabled = true; }
+    else if (snap.job === '待重启') { b.textContent = '待手动重启'; b.disabled = true; b.className = 'btn warn'; }
+    else if (snap.canInstall) { b.textContent = '更新至 ' + snap.latest; b.disabled = false; b.className = 'btn primary'; }
+    else { b.textContent = '检查更新'; b.disabled = false; b.className = 'btn'; }
+  }
+  function check() {
+    var b = btn(); b.textContent = '检查中…'; b.disabled = true;
+    setTimeout(function () {
+      snap.latest = 'v1.7.15'; snap.canInstall = true; snap.job = '空闲';
+      credential = '钥匙 churchill（演示用，真实钥匙永不进快照不打印）';
+      document.getElementById('dlg').style.display = '';
+      document.getElementById('dlgTitle').textContent = '发现新版本 v1.7.15';
+      document.getElementById('dlgBody').textContent = '只更新本插件，不碰其它东西。装完需要你手动重启，不会自动重启，也不会刷新页面。';
+      paint();
+    }, 600);
+  }
+  function recheck() { closeDlg(); check(); }
+  function closeDlg() { document.getElementById('dlg').style.display = 'none'; }
+  function install() {
+    closeDlg(); snap.job = '正在安装'; paint();
+    timer = setInterval(function () {
+      if (snap.job === '正在安装') { snap.job = '正在校验'; }
+      else { clearInterval(timer); snap.job = '待重启'; snap.disk = 'v1.7.15'; }
+      paint();
+    }, 1000);
+  }
+  function copyCmd() { alert('已复制（演示）：dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.15 --registry https://registry.npmjs.org'); }
+  // 演示手工兜底：地址栏加 &manual=1 即显示
+  if (/manual=1/.test(location.search)) {
+    document.getElementById('manual').style.display = '';
+    document.getElementById('manualCmd').textContent = 'dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.15 --registry https://registry.npmjs.org';
+  }
+  paint();
+</script>
+</body>
+</html>
