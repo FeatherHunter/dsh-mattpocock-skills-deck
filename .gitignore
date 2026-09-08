@@ -30,7 +30,7 @@ _research/
 /host.js
 /package/lib/
 
-# ===== teach skill �� teaching workspace (ignored, durable across resets) =====
+# ===== teach skill — teaching workspace (ignored, durable across resets) =====
 /MISSION.md
 /RESOURCES.md
 /NOTES.md
@@ -42,3 +42,8 @@ _research/
 /assets/quiz.js
 .env
 .wizard-release.env
+
+# 本地工作目录：明确不入库（多人协作的工作树、本地运行日志、视觉路由产物）
+/.worktrees/
+/logs/
+/.dsh-vision-router/
