@@ -141,7 +141,7 @@ export     const SettingsPage = (props) => {
           const snap = res && res.snapshot ? res.snapshot : null
           if (res && Object.prototype.hasOwnProperty.call(res, 'manual')) setUpdManual(res.manual)
           if (res && res.receipt && res.receipt.checkId) setUpdCheckId(res.receipt.checkId)
-          if (snap && snap.job) setUpdJob(snap.job)
+          if (snap && snap.job) { setUpdJob(snap.job); if (snap.job.state === 'failed' && (updJobState === 'installing' || updJobState === 'verifying')) setUpdDialog(true) }
           else if (snap) setUpdJob(null)
           if (snap && snap.blockedReason) setUpdBlocked(snap.blockedReason)
           else setUpdBlocked(null)
@@ -232,7 +232,7 @@ export     const SettingsPage = (props) => {
         if (!updManual) return
         try { copyText(sharedSt, updManual, tr('toast.copied')) } catch (eC) { flash(sharedSt, tr('toast.copyFailed'), 'warn') }
       }
-      const updBtnText = (updChecking || updBusy) ? tr('cfg.updateChecking') : ((updJobState === 'installing' || updJobState === 'verifying') ? tr('cfg.updateInstalling') : ((updJobState === 'restart-required') ? tr('cfg.updateRestart') : ((updHasNew && updLatest) ? tr('cfg.updateToVersion', { v: updLatest }) : tr('cfg.updateCheck'))))
+      const updBtnText = (updChecking || updBusy) ? tr('cfg.updateChecking') : ((updJobState === 'installing' || updJobState === 'verifying') ? tr('cfg.updateInstalling') : ((updJobState === 'restart-required') ? tr('cfg.updateRestart') : ((updHasNew && updLatest) ? tr('cfg.updateToVersion', { v: updLatest }) : tr('cfg.updateCheck')))); const updFailText = function () { const c = String((updJob && updJob.message) || ''); return tr(c === 'installation-changed' ? 'cfg.updateFailChanged' : (c === 'recovery-required' ? 'cfg.updateFailRecovery' : 'cfg.updateFailInstall')) }
       // v1.4.1：打开位置即时生效 —— seg 点击即写入 cfg + localStorage + 广播（无需滚到底部点保存全部）
       const pickOpenIn = function (v) {
         setOpenIn(v)
@@ -273,7 +273,7 @@ export     const SettingsPage = (props) => {
         h('div', { className: 'dsws-cfg-sub' }, tr('cfg.sub')),
         updDialog ? h('div', { className: 'dsws-cfg-group' }, [
           h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'refresh', size: 13 }), h('span', null, tr('cfg.updateDialogTitle', { v: updLatest || '' }))]),
-          h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.updateDialogBody')),
+          h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.updateDialogBody')), updJobState === 'failed' ? h('div', { className: 'dsws-cfg-gdesc', style: { color: '#f87171' } }, tr('cfg.updateFailed', { reason: updFailText() })) : null,
           (updBlocked && !updHasNew) ? h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.updateBlocked', { reason: updBlocked })) : null,
           updManual ? h('div', { style: { marginTop: 8 } }, [
             h('div', { className: 'dsws-cfg-row', style: { alignItems: 'center', justifyContent: 'space-between' } }, [

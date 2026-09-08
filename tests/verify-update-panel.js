@@ -145,6 +145,9 @@ async function main() {
   }
   check(clientSettings.includes("Ic({ n: 'refresh'") && clientSettings.includes("tr('cfg.updateDialogTitle'"), '对话框标题带刷新图标')
   check(clientSettings.includes("tr('cfg.updateCopy')") && clientSettings.includes("tr('cfg.updateStart')"), '对话框保留复制键与安装键（走词条，无写死中文）')
+  // 安装失败必须看得见（2026-09-08 实测：失败后对话框已关、按钮弹回「更新至」，用户以为点了没反应）
+  check(clientSettings.includes("tr('cfg.updateFailed', { reason: updFailText() })") && clientSettings.includes('const updFailText = function ()'), '安装失败在对话框里显性提示原因（不是点完没反应）')
+  check(clientSettings.includes("snap.job.state === 'failed' && (updJobState === 'installing' || updJobState === 'verifying')"), '失败发生在本次安装中时把对话框重新打开给用户看')
   // ---- 9) 无新版给成功提示（#547：只有亲手点的检查才提示，自动读状态与轮询不打扰） ----
   check(clientSettings.includes("tr('cfg.updateLatest', { v:"), '无新版弹已是最新提示（带版本号）')
   {
