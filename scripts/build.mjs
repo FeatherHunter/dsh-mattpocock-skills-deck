@@ -560,20 +560,38 @@ if (!args.includes('--no-sync')) {
     try {
       const profileBase = resolve(_home, '.dsh/profiles/web/node_modules/dsh-mattpocock-skills-deck')
       if (existsSync(profileBase)) {
-        for (const [srcRel, dstRel] of [['package/lib/client.js','lib/client.js'],['package/lib/index.js','lib/index.js']]) {
-          const src = resolve(ROOT, srcRel)
-          const dst = resolve(profileBase, dstRel)
-          if (existsSync(src)) {
-            mkdirSync(resolve(profileBase, 'lib'), { recursive: true })
-            writeFileSync(dst, readFileSync(src, 'utf8'), 'utf8')
+        // 整树同步 package/lib 与 package/shared（#545：只同步两个文件会漏掉宿主新增模块，
+        // 注册了电话但缺模块文件，调用时动态导入失败；与“原样复制”哲学一致，只增不删）。
+        for (const tree of ['lib', 'shared']) {
+          const srcDir = resolve(ROOT, 'package', tree)
+          const dstDir = resolve(profileBase, tree)
+          if (!existsSync(srcDir)) continue
+          mkdirSync(dstDir, { recursive: true })
+          const syncRecur = (s, d) => {
+            for (const ent of readdirSync(s, { withFileTypes: true })) {
+              const ps = join(s, ent.name)
+              const pd = join(d, ent.name)
+              if (ent.isDirectory()) {
+                mkdirSync(pd, { recursive: true })
+                syncRecur(ps, pd)
+              } else if (ent.isFile()) {
+                writeFileSync(pd, readFileSync(ps))
+              }
+            }
           }
+          syncRecur(srcDir, dstDir)
         }
         console.log(`[build] 已同步 profile → ${profileBase}`)
-        // hash 校验
+        // hash 校验（入口加动态导入的更新模块，缺一个就红）
         try {
-          const a = readFileSync(resolve(ROOT,'package/lib/client.js'),'utf8')
-          const b = readFileSync(resolve(profileBase,'lib/client.js'),'utf8')
-          if (a !== b) console.warn('[build] profile 同步 hash 不一致')
+          const pairs = [['package/lib/client.js', 'lib/client.js'], ['package/lib/index.js', 'lib/index.js'], ['package/lib/update.js', 'lib/update.js']]
+          let mismatch = ''
+          for (const [srcRel, dstRel] of pairs) {
+            const a = readFileSync(resolve(ROOT, srcRel), 'utf8')
+            const b = readFileSync(resolve(profileBase, dstRel), 'utf8')
+            if (a !== b) mismatch += dstRel + ' '
+          }
+          if (mismatch) console.warn('[build] profile 同步 hash 不一致：' + mismatch)
           else console.log('[build] profile 同步 hash 校验通过')
         } catch {}
       }

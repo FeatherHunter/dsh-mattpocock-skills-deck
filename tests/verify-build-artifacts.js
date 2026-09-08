@@ -177,6 +177,36 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   }
   check(smokeOk, `入口导出冒烟（package/lib/index.js）: ${detail}`)
 }
+// 4f) 动态导入可解析（#545：电话注册了但模块文件缺了，调用才失败；
+// 打包产物里每个相对导入在 package/ 内必须有对应文件，缺一个就红）
+{
+  const roots = [path.resolve('package/lib'), path.resolve('package/shared')]
+  const files = []
+  const walk = (d) => {
+    if (!fs.existsSync(d)) return
+    for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, ent.name)
+      if (ent.isDirectory()) walk(p)
+      else if (ent.isFile() && p.endsWith('.js')) files.push(p)
+    }
+  }
+  roots.forEach(walk)
+  const specRe = /(?:import\s*\(\s*['"](\.[^'"]+)['"]\s*\)|(?:from|import)\s+['"](\.[^'"]+)['"])/g
+  let missing = []
+  for (const file of files) {
+    const txt = fs.readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+    let m
+    specRe.lastIndex = 0
+    while ((m = specRe.exec(txt)) !== null) {
+      const spec = m[1] || m[2]
+      const target = path.resolve(path.dirname(file), spec)
+      const candidates = [target, target + '.js', path.join(target, 'index.js')]
+      if (!candidates.some((c) => fs.existsSync(c))) missing.push(`${path.relative(process.cwd(), file)} -> "${spec}"`)
+    }
+  }
+  if (missing.length) console.log('    未解析的导入:\n    ' + missing.join('\n    '))
+  check(missing.length === 0, `打包产物相对导入全部可解析（${files.length} 文件，缺 ${missing.length} 处）`)
+}
 // 4e) files 白名单：package/package.json files 含 shared
 {
   try {
