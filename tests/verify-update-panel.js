@@ -127,6 +127,25 @@ async function main() {
   }
   mod.__resetSharedUpdateReaderForTests()
 
+  // ---- 8) 对话框只在真有新版时才开（#546：版本号相等时误弹“发现新版本”） ----
+  const settingsRaw = read('src/client/views/SettingsPage.js')
+  check(settingsRaw.includes('function updIsNewer(latest, running)'), '面板有纯版本号比对 updIsNewer')
+  check(!clientSettings.includes('else if (res.manual) setUpdDialog(true)'), '检查回调不再凭手工命令开对话框')
+  check(clientSettings.includes('updIsNewer(res.snapshot.latestVersion, res.snapshot.runningVersion)') && clientSettings.includes('setUpdDialog(true)'), '检查回调以远端比运行版新为开对话框条件')
+  {
+    const at = settingsRaw.indexOf('function updIsNewer(latest, running)')
+    const fnText = settingsRaw.slice(at, settingsRaw.indexOf('\n}', at) + 3)
+    const updIsNewer = new Function(`${fnText}; return updIsNewer`)()
+    check(updIsNewer('9.9.9', '1.7.14') === true, '比对：远端新算有新版')
+    check(updIsNewer('1.7.14', '1.7.14') === false, '比对：版本号相等不算新版（#546 反例）')
+    check(updIsNewer('1.7.13', '1.7.14') === false, '比对：远端更旧不算新版')
+    check(updIsNewer('1.7.14', '9.9.9') === false, '比对：运行版更高不算新版')
+    check(updIsNewer('10.0.0', '9.9.9') === true, '比对：跨大版本按数值比（非字典序）')
+    check(updIsNewer('nope', '1.7.14') === false, '比对：远端坏版本号不开对话框')
+  }
+  check(clientSettings.includes("Ic({ n: 'refresh'") && clientSettings.includes("tr('cfg.updateDialogTitle'"), '对话框标题带刷新图标')
+  check(clientSettings.includes("tr('cfg.updateCopy')") && clientSettings.includes("tr('cfg.updateStart')"), '对话框保留复制键与安装键（走词条，无写死中文）')
+
   console.log(failed ? '\n存在失败' : '\n全部通过 — 标题行更新入口门禁生效')
   process.exit(failed ? 1 : 0)
 }

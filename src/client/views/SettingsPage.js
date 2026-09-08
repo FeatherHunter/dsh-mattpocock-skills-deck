@@ -8,6 +8,14 @@ const MORE_PLUGINS = [
   { slug: 'dsh-prompt', url: 'https://github.com/FeatherHunter/dsh-prompt', descKey: 'more.desc.prompt' },
   { slug: 'dsh-im-companion', url: 'https://github.com/FeatherHunter/dsh-im-companion', descKey: 'more.desc.companion' },
 ]
+function updIsNewer(latest, running) {
+  const triple = (v) => (typeof v === 'string' && /^\d+\.\d+\.\d+$/.test(v) ? v.split('.').map(Number) : null)
+  const a = triple(latest)
+  if (!a) return false
+  const b = triple(running)
+  if (!b) return true
+  return a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2]
+}
 export     const SettingsPage = (props) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -175,8 +183,7 @@ export     const SettingsPage = (props) => {
             if (res && res.ok === true && res.snapshot) {
               try { log('info', 'host.call', { method: 'wf.updateCheck', latencyMs: Date.now() - t0, ok: true, kind: 'update-check' }) } catch (eL) {}
               updApplyRes(res)
-              if (res.snapshot.canInstall === true) setUpdDialog(true)
-              else if (res.manual) setUpdDialog(true)
+              if (updIsNewer(res.snapshot.latestVersion, res.snapshot.runningVersion)) setUpdDialog(true)
             } else {
               try { log('warn', 'host.call.fail', { method: 'wf.updateCheck', kind: 'update-check', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
               flash(sharedSt, tr('cfg.updateCheckFail'), 'warn')
@@ -264,13 +271,15 @@ export     const SettingsPage = (props) => {
         ]),
         h('div', { className: 'dsws-cfg-sub' }, tr('cfg.sub')),
         updDialog ? h('div', { className: 'dsws-cfg-group' }, [
-          h('div', { className: 'dsws-cfg-gtitle' }, [h('span', null, tr('cfg.updateDialogTitle', { v: updLatest || '' }))]),
+          h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'refresh', size: 13 }), h('span', null, tr('cfg.updateDialogTitle', { v: updLatest || '' }))]),
           h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.updateDialogBody')),
           (updBlocked && !updHasNew) ? h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.updateBlocked', { reason: updBlocked })) : null,
           updManual ? h('div', { style: { marginTop: 8 } }, [
-            h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.updateManualTitle')),
-            h('pre', { style: { whiteSpace: 'pre-wrap', fontSize: 11.5, background: '#10131a', padding: 8, borderRadius: 6 } }, updManual),
-            h('button', { className: 'dsws-cfg-btn', onClick: updCopyManual }, tr('cfg.updateCopy')),
+            h('div', { className: 'dsws-cfg-row', style: { alignItems: 'center', justifyContent: 'space-between' } }, [
+              h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.updateManualTitle')),
+              h('button', { className: 'dsws-cfg-btn', onClick: updCopyManual }, tr('cfg.updateCopy')),
+            ]),
+            h('pre', { style: { whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'ui-monospace,monospace', fontSize: 11.5, background: '#10131a', padding: 8, borderRadius: 6, marginTop: 6 } }, updManual),
           ]) : null,
           h('div', { className: 'dsws-cfg-row', style: { gap: 8, marginTop: 8 } }, [
             (updHasNew && updCheckId) ? h('button', { className: 'dsws-cfg-btn', disabled: !!updBusy, onClick: updStartInstall }, tr('cfg.updateStart')) : null,
