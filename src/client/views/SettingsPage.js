@@ -117,6 +117,63 @@ export     const SettingsPage = (props) => {
           }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') })
         } catch (eDbg) { setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') }
       }
+      // #541 更新入口（入口 A）：标题行检查更新按钮，复用只读核心
+      // 点开设置页先读本地状态（不联网），用户点了才联网检查；三态：检查更新 / 检查中 / 更新至某版本
+      const [updChecking, setUpdChecking] = React.useState(false)
+      const [updLatest, setUpdLatest] = React.useState(null)
+      const [updHasNew, setUpdHasNew] = React.useState(false)
+      const updApplySnap = function (snap) {
+        try {
+          if (snap && snap.canInstall === true && typeof snap.latestVersion === 'string' && snap.latestVersion) {
+            setUpdHasNew(true); setUpdLatest(snap.latestVersion)
+          } else {
+            setUpdHasNew(false); setUpdLatest(snap && snap.latestVersion ? snap.latestVersion : null)
+          }
+        } catch (eUpd) {}
+      }
+      const updReadStatus = function () {
+        if (!hostReady()) return
+        setUpdChecking(true)
+        const t0 = Date.now()
+        try {
+          host.call('wf.updateStatus', {}).then(function (res) {
+            setUpdChecking(false)
+            if (res && res.ok === true && res.snapshot) {
+              try { log('info', 'host.call', { method: 'wf.updateStatus', latencyMs: Date.now() - t0, ok: true, kind: 'update-status' }) } catch (eL) {}
+              updApplySnap(res.snapshot)
+            } else {
+              try { log('warn', 'host.call.fail', { method: 'wf.updateStatus', kind: 'update-status', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
+            }
+          }).catch(function (e) {
+            setUpdChecking(false)
+            try { log('warn', 'host.call.fail', { method: 'wf.updateStatus', kind: 'update-status', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
+          })
+        } catch (eUpd) { setUpdChecking(false) }
+      }
+      const updClickCheck = function () {
+        if (updChecking) return
+        if (!hostReady()) { flash(sharedSt, tr('err.hostUnavailable'), 'warn'); return }
+        setUpdChecking(true)
+        const t0 = Date.now()
+        try {
+          host.call('wf.updateCheck', {}).then(function (res) {
+            setUpdChecking(false)
+            if (res && res.ok === true && res.snapshot) {
+              try { log('info', 'host.call', { method: 'wf.updateCheck', latencyMs: Date.now() - t0, ok: true, kind: 'update-check' }) } catch (eL) {}
+              updApplySnap(res.snapshot)
+            } else {
+              try { log('warn', 'host.call.fail', { method: 'wf.updateCheck', kind: 'update-check', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
+              flash(sharedSt, tr('cfg.updateCheckFail'), 'warn')
+            }
+          }).catch(function (e) {
+            setUpdChecking(false)
+            try { log('warn', 'host.call.fail', { method: 'wf.updateCheck', kind: 'update-check', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
+            flash(sharedSt, tr('cfg.updateCheckFail'), 'warn')
+          })
+        } catch (eUpd) { setUpdChecking(false); flash(sharedSt, tr('cfg.updateCheckFail'), 'warn') }
+      }
+      React.useEffect(function () { updReadStatus() }, [])
+      const updBtnText = updChecking ? tr('cfg.updateChecking') : ((updHasNew && updLatest) ? tr('cfg.updateToVersion', { v: updLatest }) : tr('cfg.updateCheck'))
       // v1.4.1：打开位置即时生效 —— seg 点击即写入 cfg + localStorage + 广播（无需滚到底部点保存全部）
       const pickOpenIn = function (v) {
         setOpenIn(v)
@@ -147,6 +204,7 @@ export     const SettingsPage = (props) => {
             h('a', { href: DSW_REPO_URL, target: '_blank', rel: 'noreferrer', style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', textDecoration: 'none' } }, (typeof DSW_VERSION === 'string' ? DSW_VERSION.replace(/^v/, '') : '')),
           ]),
           h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+            h('button', { key: 'update', className: 'dsws-cfg-btn', disabled: updChecking, onClick: updClickCheck, style: updChecking ? { opacity: 0.55 } : ((updHasNew && updLatest) ? { borderColor: '#c084fc', fontWeight: 700 } : null) }, updBtnText),
             h(HoverTip, { key: 'star', content: tr('cfg.starTip'), mode: 'mouse', maxWidth: 220 },
               h('a', { href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: 4, borderRadius: 6, color: 'inherit', textDecoration: 'none' } }, [h('span', { 'aria-hidden': 'true', style: { fontSize: 14, lineHeight: 1 } }, '🌟')])),
             h(HoverTip, { key: 'feedback', content: tr('cfg.feedbackTip'), mode: 'mouse', maxWidth: 220 },

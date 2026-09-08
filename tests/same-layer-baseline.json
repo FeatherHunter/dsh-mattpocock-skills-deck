@@ -524,6 +524,15 @@
       "count": 1,
       "owner": "日志拆分 #500",
       "note": "#500 接线：logStore 动态加载电话组模块（导出/清空/开关三组电话体逐行原样搬出，依赖全显式传入，单向引用）"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./update.js",
+      "resolved": "src/host/update.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "落地 #541",
+      "note": "#541 接线：index 动态加载更新胶水模块（查状态/查新版两只读电话，装配扇入）"
     }
   ]
 }

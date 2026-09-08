@@ -207,3 +207,130 @@ export function createDeckUpdateReader(options = {}) {
   })
   return core
 }
+
+// ---------- 只读电话（落地票 #541：设置页标题行接线与显示） ----------
+// 复用上面的只读核心，不另写查询逻辑；凭证（检查编号）本票不交出去，
+// 面板只拿快照做三态显示，装更新的凭证交接随安装票再补。
+// 单例：核心把最近一次检查记在内存里，查状态要看到查新版的结果，
+// 所以同一宿主进程只建一个读取器，重复调用不重建。
+let sharedReader = null
+let sharedReaderKey = ''
+
+function hash8(s) {
+  try {
+    const t = String(s || '')
+    let h = 5381
+    for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0)
+    return (`0000000${h.toString(16)}`).slice(-8)
+  } catch {
+    return '00000000'
+  }
+}
+
+/** 从已装位置反推使用范围目录：装好的包住在 <范围>/node_modules 下，开发目录走默认范围。 */
+async function inferProfileDir(loaded, homeDirDefault) {
+  try {
+    const dir = loaded && loaded.directory ? String(loaded.directory) : ''
+    const marker = `${sep}node_modules${sep}${PACKAGE_NAME}`
+    const at = dir.lastIndexOf(marker)
+    if (at > 0) {
+      const candidate = dir.slice(0, at)
+      try {
+        return await realpath(candidate)
+      } catch {
+        return candidate
+      }
+    }
+  } catch {
+    // 落到默认范围
+  }
+  return join(homeDirDefault, 'profiles', 'web')
+}
+
+async function getSharedReader(overrides = {}) {
+  const env = overrides.env ?? process.env
+  const osHome = overrides.osHome ?? homedir()
+  const homeDirDefault = defaultHomeDir(env, osHome)
+  const loaded = await containingPackage(fileURLToPath(import.meta.url), PACKAGE_NAME).catch(() => null)
+  const runningVersion = overrides.runningVersion
+    ?? (loaded && validVersion(loaded.manifest.version) ? loaded.manifest.version : null)
+  if (!runningVersion) throw Object.assign(new Error('unknown-profile'), { code: 'unknown-profile' })
+  const profileDirInput = overrides.profileDir ?? await inferProfileDir(loaded, homeDirDefault)
+  const key = `${runningVersion}\0${profileDirInput}\0${overrides.profileName ?? ''}\0${overrides.homeDir ?? ''}`
+  if (sharedReader && sharedReaderKey === key) return sharedReader
+  sharedReader = createDeckUpdateReader({
+    runningVersion,
+    profileDir: profileDirInput,
+    profileName: overrides.profileName,
+    homeDir: overrides.homeDir,
+    env,
+    osHome,
+    fetchImpl: overrides.fetchImpl,
+    now: overrides.now,
+    randomId: overrides.randomId,
+    nodeVersion: overrides.nodeVersion,
+    environmentKind: overrides.environmentKind ?? 'cli',
+  })
+  sharedReaderKey = key
+  return sharedReader
+}
+
+/** 核心错误码原样返回，外面世界的脏错误收敛为检查失败（537 决议：码表由核心定）。 */
+function toUpdateErrorPayload(error) {
+  const code = error && typeof error.code === 'string' ? error.code : ''
+  const known = ['check-failed', 'invalid-release', 'unknown-profile', 'source-install', 'invalid-installation', 'installation-changed', 'pending-restart', 'incompatible-node', 'registry-conflict']
+  if (known.includes(code)) return { error: code, errorKind: code }
+  return { error: 'check-failed', errorKind: 'internal' }
+}
+
+function loggedPhone(method, kind, fn) {
+  return async function (args) {
+    const t0 = Date.now()
+    const emit = (level, event, fields) => {
+      try {
+        if (phoneLogCtx && typeof phoneLogCtx.fire === 'function') phoneLogCtx.fire(level, event, fields)
+      } catch {
+        // 日志发不出不影响主流程
+      }
+    }
+    try {
+      const snapshot = await fn(args)
+      emit('info', 'host.call', { method, latencyMs: Date.now() - t0, ok: true, kind })
+      return { ok: true, snapshot }
+    } catch (error) {
+      const payload = toUpdateErrorPayload(error)
+      emit('warn', 'host.call.fail', { method, kind, errorHash: hash8(String((error && error.message) || payload.error)) })
+      return { ok: false, ...payload }
+    }
+  }
+}
+
+let phoneLogCtx = null
+
+/** 建两个只读电话的处理函数：查状态只读本地不联网，查新版用户点了才联网。 */
+export function createUpdatePhoneHandlers(deps = {}) {
+  phoneLogCtx = deps.logCtx ?? phoneLogCtx
+  const readerOverrides = deps.readerOverrides ?? {}
+
+  async function readStatus(args) {
+    const reader = await getSharedReader({ ...readerOverrides, profileDir: args && args.profileDir ? String(args.profileDir) : readerOverrides.profileDir })
+    return reader.status()
+  }
+
+  async function readCheck(args) {
+    const reader = await getSharedReader({ ...readerOverrides, profileDir: args && args.profileDir ? String(args.profileDir) : readerOverrides.profileDir })
+    const result = await reader.check()
+    return result.snapshot
+  }
+
+  return {
+    handleUpdateStatus: loggedPhone('wf.updateStatus', 'update-status', readStatus),
+    handleUpdateCheck: loggedPhone('wf.updateCheck', 'update-check', readCheck),
+  }
+}
+
+/** 测试与门禁复位单例（正常运行不调用）。 */
+export function __resetSharedUpdateReaderForTests() {
+  sharedReader = null
+  sharedReaderKey = ''
+}
