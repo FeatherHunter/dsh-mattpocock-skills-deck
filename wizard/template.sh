@@ -56,6 +56,8 @@ note() { printf '  %s%s%s\n' "$DIM" "$1" "$RESET"; }
 warn() { printf '  %s⚠ %s%s\n' "$YELLOW" "$1" "$RESET"; }
 
 # open_url URL — 跨平台尝试在用户桌面弹出可见浏览器窗口并打开链接
+# 调起器一律当「发射后不管」：explorer.exe 打开成功也常返回非零退出码，
+# 拿退出码判成败会误报「浏览器未自动弹出」（2026-09-08 实测），所以只看有没有可用的调起器。
 open_url() {
   local url="$1"
   printf '  %s↗ opening%s %s\n' "$GREEN" "$RESET" "$url"
@@ -64,7 +66,7 @@ open_url() {
     elif command -v xdg-open     >/dev/null 2>&1; then xdg-open "$url"
     elif command -v open         >/dev/null 2>&1; then open "$url"
     else warn "未找到浏览器打开命令，请手动访问：$url"; fi
-  } >/dev/null 2>&1 || warn "浏览器未自动弹出，请手动访问：$url"
+  } >/dev/null 2>&1
 }
 
 # pause "提示" — 等待用户确认已完成手工操作

@@ -18,6 +18,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# 本向导的落盘文件：必须在加载向导库之前设好。向导库里有自己的默认值 .env，
+# 先 source 再赋值的话，库里的默认值会先占位，本向导的落盘就会写进 .env（2026-09-08 实测踩到）。
+ENV_FILE="${ENV_FILE:-.wizard-release.env}"
+export ENV_FILE
+
 # 加载统一向导库（分段清屏、进度、显式打开链接、确认、落盘与收尾）
 WIZARD_LIB="$ROOT/wizard/template.sh"
 if [[ ! -f "$WIZARD_LIB" ]]; then
@@ -26,10 +31,6 @@ if [[ ! -f "$WIZARD_LIB" ]]; then
 fi
 # shellcheck source=../wizard/template.sh
 source "$WIZARD_LIB"
-
-# 本向导的落盘文件（覆盖模板默认的 .env，避免污染）
-ENV_FILE="${ENV_FILE:-.wizard-release.env}"
-export ENV_FILE
 
 TOTAL_STAGES=6
 PKG="dsh-mattpocock-skills-deck"
@@ -298,8 +299,8 @@ echo ""
 if confirm "是否在本终端直接执行发布？选否将等待你在另一窗口手动完成"; then
   say "正在执行：(cd package && npm publish --registry $REGISTRY --auth-type=web)"
   echo ""
-  note "若弹出浏览器授权页，请扫码一次完成 2FA；其余由 npm 在后台处理。"
-  if (cd package && npm publish --registry "$REGISTRY" --auth-type=web 2>&1 | sed 's/^/  /') ; then
+  note "若弹出浏览器授权页，请完成 2FA；其余由 npm 在后台处理。输出不接管道，npm 才会走浏览器授权流程。"
+  if (cd package && npm publish --registry "$REGISTRY" --auth-type=web) ; then
     say "✓ 发布命令已返回成功"
     write_env WIZARD_RELEASE_PUBLISHED "$VERSION"
   else

@@ -282,23 +282,17 @@ say "备选：若你偏好一次性码，可在认证器 App 复制 6 位码后�
 open_url "https://www.npmjs.com/package/dsh-mattpocock-skills-deck"
 echo ""
 if confirm "现在执行发布？（需在有 TTY 的终端，不要在后台 job）"; then
-  (cd package && npm publish --registry=https://registry.npmjs.org --auth-type=web 2>&1 | tee /tmp/npm-publish.log; echo "EXIT_CODE:$?" >> /tmp/npm-publish.log)
-  PUB_EXIT=$(grep -o "EXIT_CODE:[0-9]*" /tmp/npm-publish.log | tail -n1 | cut -d: -f2)
-  cat /tmp/npm-publish.log | sed 's/^/  /'
-  if grep -q "dsh-mattpocock-skills-deck@1.7.3" /tmp/npm-publish.log; then
-    echo "发布成功：+ dsh-mattpocock-skills-deck@1.7.3"
-  elif grep -q "already.*published" /tmp/npm-publish.log || grep -q "E409" /tmp/npm-publish.log; then
-    warn "版本重复（E403/E409）：1.7.3 已在官方源存在，需升 version 再发"
-  elif grep -q "E401" /tmp/npm-publish.log || grep -q "ENEEDAUTH" /tmp/npm-publish.log; then
-    warn "未登录（E401/ENEEDAUTH）：回第 3 阶段重新登录"
-  elif grep -q "EOTP" /tmp/npm-publish.log; then
-    warn "EOTP：非交互环境或输出被重定向。请在有 TTY 的 PowerShell/终端手跑：cd package && npm publish --registry=https://registry.npmjs.org --auth-type=web"
+  # 输出直连终端、不接管道：npm 只有在 stdout 是 TTY 时才会打印授权链接并等浏览器审批，
+  # 一旦接管道或重定向就退化成 EOTP（2026-09-08 实测）。
+  (cd package && npm publish --registry=https://registry.npmjs.org --auth-type=web)
+  PUB_EXIT=$?
+  if [ "$PUB_EXIT" = "0" ]; then
+    echo "发布命令退出 0：成功时上方会出现 + dsh-mattpocock-skills-deck@<版本>"
   else
-    if [ "$PUB_EXIT" = "0" ]; then
-      echo "发布命令退出 0，请结合上方是否出现 + 包@版本 判断"
-    else
-      warn "发布未成功（exit $PUB_EXIT），请按上表对照报错码处理"
-    fi
+    warn "发布未成功（exit $PUB_EXIT）。常见原因："
+    warn "  EOTP：终端不是交互终端，或输出被接了管道/重定向 —— 请在可见窗口直接跑，不要接管道"
+    warn "  E401/ENEEDAUTH：未登录 —— 回第 3 阶段重新登录"
+    warn "  E403/E409：该版本已在官方源存在 —— 升 version 后再发"
   fi
 else
   warn "已跳过发布 — 可稍后在交互终端手跑：cd package && npm publish --registry=https://registry.npmjs.org --auth-type=web"
