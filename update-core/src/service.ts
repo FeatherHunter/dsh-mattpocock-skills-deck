@@ -355,7 +355,7 @@ export function createUpdateCore(ports: UpdatePorts): UpdateCore {
 
   async function runBackground(job: UpdateJob, envAtStart: EnvironmentView): Promise<void> {
     try {
-      if (ports.runInstall) await ports.runInstall({ version: job.targetVersion as string, profileName: envAtStart.profileName })
+      if (ports.runInstall) await ports.runInstall({ version: job.targetVersion as string, profileName: envAtStart.profileName, environmentKind: envAtStart.environmentKind })
       else throw updateError('unsupported')
       const doing: UpdateJob = { ...job, state: 'verifying', message: null }
       activeJobId = doing.id

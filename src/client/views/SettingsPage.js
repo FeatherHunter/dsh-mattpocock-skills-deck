@@ -280,7 +280,7 @@ export     const SettingsPage = (props) => {
               h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.updateManualTitle')),
               h('button', { className: 'dsws-cfg-btn', onClick: updCopyManual }, tr('cfg.updateCopy')),
             ]),
-            h('pre', { style: { whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'ui-monospace,monospace', fontSize: 11.5, background: '#10131a', padding: 8, borderRadius: 6, marginTop: 6 } }, updManual),
+            h('pre', { style: { whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'ui-monospace,monospace', fontSize: 11.5, background: '#10131a', padding: 8, borderRadius: 6, marginTop: 6 } }, updManual), h('div', { className: 'dsws-cfg-gdesc', style: { marginTop: 6 } }, tr('cfg.updateManualNote')),
           ]) : null,
           h('div', { className: 'dsws-cfg-row', style: { gap: 8, marginTop: 8 } }, [
             (updHasNew && updCheckId) ? h('button', { className: 'dsws-cfg-btn', disabled: !!updBusy, onClick: updStartInstall }, tr('cfg.updateStart')) : null,

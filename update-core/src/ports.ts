@@ -92,8 +92,33 @@ export interface ReleaseInfo {
 }
 
 /**
+ * 安装执行路由：桌面宿主走桌面服务，普通 DSH 宿主自己起进程。
+ * 路由由核心按政策选（见 installRecipe），适配器只负责把它跑起来。
+ */
+export type InstallRoute = 'desktop-service' | 'cli-process'
+
+/**
+ * 安装执行配方：核心给适配器的完整政策产物。
+ * 一律「程序 + 参数数组」——pluginArgs 原样交给命令行工具，
+ * 使用范围名不做引号包裹也不按空格拆分（引号只出现在给用户看的手工命令里）。
+ */
+export interface InstallRecipe {
+  route: InstallRoute
+  /** 安装目标使用范围名，原样保留（含空格与非 ASCII 字符）。 */
+  profileName: string
+  /** 精确版本（不带 ^ ~ 等前缀）。 */
+  version: string
+  /** 追加在 `plugin --profile <使用范围名>` 之后的参数数组。 */
+  pluginArgs: string[]
+  /** 执行时限（毫秒）：超时终止整棵进程树并按安装失败处理。 */
+  timeoutMs: number
+}
+
+/**
  * 适配器看到的环境（小零件：读版本、看环境、上报是桌面还是命令行）。
  * 拼安装命令和选执行器路由收归核心（精确版本、强制官方源是政策，不是跑腿）。
+ * environmentKind 由适配器探测：桌面宿主存在 desktopProfiles 服务即 desktop，
+ * 其余为 cli；探测不出就按 cli 走，跑不通按诚实失败转手工命令。
  */
 export interface EnvironmentView {
   profileName: string | null
@@ -149,8 +174,13 @@ export interface UpdatePorts {
   releaseLock?: (lockId: string) => void | Promise<void>
   /** 装前备份使用范围的清单（小清单，不含凭据与整个家目录）。 */
   backupJob?: (job: UpdateJob) => void | Promise<void>
-  /** 真正跑安装命令（按钮强制官方源加精确版本；测试一律给假的，不真跑）。 */
-  runInstall?: (args: { version: string; profileName: string | null }) => void | Promise<void>
+  /**
+   * 真正跑安装（按钮强制官方源、精确版本与 --save-exact）。
+   * 核心只把政策要的三件事交给适配器：版本、使用范围名、宿主种类；
+   * 适配器必须调 installRecipe 拿配方再执行，不得自己按系统或宿主分支选路由。
+   * 测试一律给假的，不真跑。
+   */
+  runInstall?: (args: { version: string; profileName: string | null; environmentKind: EnvironmentKind }) => void | Promise<void>
 }
 
 /** 对外三个方法（进度不单独给方法，调用方轮询查状态）。 */

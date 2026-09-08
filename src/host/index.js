@@ -316,7 +316,7 @@ export default {
     // 启动链 import 失败静默（#499 红队 C2）：日志库没加载出来时管道尚未就绪、无处可记；首次命中由分发异常行 #46 在调用方记。
     _log().then(function(h){ try { h.loadSwitch().catch(function(){}) } catch (eSw) {} try { h.writeStartupHeader().catch(function(){}) } catch (eHd) {} }).catch(function(){})
     let _updateP = null
-    function _update() { if (!_updateP) _updateP = import('./update.js').then(function(m){ return m.createUpdatePhoneHandlers({ logCtx: logCtx }) }); return _updateP }
+    function _update() { if (!_updateP) _updateP = import('./update.js').then(function(m){ return m.createUpdatePhoneHandlers({ logCtx: logCtx, ctx: ctx }) }); return _updateP }
     harness.handle('wf.updateStatus', async function (args) { const h = await _update(); return h.handleUpdateStatus(args) })
     harness.handle('wf.updateCheck', async function (args) { const h = await _update(); return h.handleUpdateCheck(args) })
     harness.handle('wf.updateInstall', async function (args) { const h = await _update(); return h.handleUpdateInstall(args) })

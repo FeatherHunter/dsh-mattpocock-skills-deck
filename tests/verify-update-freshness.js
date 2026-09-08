@@ -6,7 +6,8 @@
 //   3) 只读行为契约（离线假适配器，直接调生成的 JS）：查状态不联网、快照恰好六字段
 //      且不带钥匙、查新版有新版与无新版两种情形、凭证另交；安装闭环行为由 verify-update-install.js 覆盖，
 //      本门禁只断言无凭证调安装报检查凭证过期（假执行器永不真跑）。
-//   4) 命令拼接自包含：commands 生成物零相对引用（同层互引门禁天然能过），按钮强制官方源，手工沿用本机源。
+//   4) 命令拼接自包含：commands 生成物零相对引用（同层互引门禁天然能过），
+//      安装配方按宿主种类选路由且一律带精确版本、官方源与 --save-exact，手工命令沿用同一套政策。
 // 用法：node tests/verify-update-freshness.js（在仓库根目录）
 const fs = require('fs')
 const path = require('path')
@@ -197,13 +198,18 @@ async function main() {
     }
     check(code === 'check-expired', '无凭证调安装报 check-expired（实际 ' + code + '）')
   }
-  // 3h) 命令拼接抽查（按钮强制官方源，手工沿用本机源，源码安装不给手工）
+  // 3h) 命令拼接抽查（配方强制官方源、精确版本与 --save-exact；手工沿用同一套政策；源码安装不给手工）
   {
     const commands = await import(pathToFileURL(path.join(ROOT, 'src/shared/update/commands.js')).href)
-    check(typeof commands.buttonCommand === 'function' && typeof commands.manualCommand === 'function', '命令模块导出按钮与手工拼接函数')
-    check(commands.buttonCommand('web', '9.9.9') === 'dsh plugin --profile web add dsh-mattpocock-skills-deck@9.9.9 --registry=https://registry.npmjs.org/', '按钮命令强制官方源加精确版本')
+    check(typeof commands.installRecipe === 'function' && typeof commands.manualCommand === 'function', '命令模块导出安装配方与手工拼接函数')
+    const recipe = commands.installRecipe({ profileName: 'web', version: '9.9.9', environmentKind: 'cli' })
+    check(!!recipe && recipe.route === 'cli-process', '普通 DSH 宿主出命令行路由配方（实际 ' + ((recipe && recipe.route) || '无配方') + '）')
+    check(!!recipe && recipe.pluginArgs.join(' ') === 'add --save-exact dsh-mattpocock-skills-deck@9.9.9 --registry=https://registry.npmjs.org/', '配方参数数组带精确版本、--save-exact 与官方源（实际 ' + ((recipe && recipe.pluginArgs.join(' ')) || '无配方') + '）')
+    const desktopRecipe = commands.installRecipe({ profileName: 'web', version: '9.9.9', environmentKind: 'desktop' })
+    check(!!desktopRecipe && desktopRecipe.route === 'desktop-service' && desktopRecipe.pluginArgs.join(' ') === recipe.pluginArgs.join(' '), '桌面宿主出桌面服务路由配方，参数数组与命令行路由一致')
+    check(commands.installRecipe({ profileName: 'web', version: '9.9.9', environmentKind: 'unknown' }) === null, '宿主种类不认识时不给配方（诚实失败转手工命令）')
     const manual = commands.manualCommand({ profileName: 'web', latestVersion: '9.9.9', installedVersion: '1.7.14', runningVersion: '1.7.14', jobTargetVersion: null, blockedReason: null, sourceInstall: false })
-    check(manual === 'dsh plugin --profile web add dsh-mattpocock-skills-deck@9.9.9', '手工命令沿用本机源（实际 ' + manual + '）')
+    check(manual === 'dsh plugin --profile web add --save-exact dsh-mattpocock-skills-deck@9.9.9 --registry=https://registry.npmjs.org/', '手工命令沿用同一套政策（实际 ' + manual + '）')
     const noManual = commands.manualCommand({ profileName: 'web', latestVersion: '9.9.9', installedVersion: '1.7.14', runningVersion: '1.7.14', jobTargetVersion: null, blockedReason: 'source-install', sourceInstall: true })
     check(noManual === null, '源码安装不给手工命令')
   }

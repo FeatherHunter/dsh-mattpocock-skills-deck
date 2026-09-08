@@ -542,6 +542,15 @@
       "count": 1,
       "owner": "落地 #542",
       "note": "#542 接线：更新胶水引用落盘与执行跑腿模块（状态目录三件套加子进程执行，单向引用）"
+    },
+    {
+      "file": "src/host/update.js",
+      "spec": "./updateReader.js",
+      "resolved": "src/host/updateReader.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "落地 #548",
+      "note": "#548 落地时按文件行数纪律（每个 src 文件不超过 350 行）把读取器拆到 updateReader，电话层单向引用它；拆分不新增业务方向，只把原同文件内的调用改成跨文件调用"
     }
   ]
 }

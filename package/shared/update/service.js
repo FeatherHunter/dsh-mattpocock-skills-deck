@@ -262,7 +262,7 @@ function createUpdateCore(ports) {
   }
   async function runBackground(job, envAtStart) {
     try {
-      if (ports.runInstall) await ports.runInstall({ version: job.targetVersion, profileName: envAtStart.profileName });
+      if (ports.runInstall) await ports.runInstall({ version: job.targetVersion, profileName: envAtStart.profileName, environmentKind: envAtStart.environmentKind });
       else throw updateError("unsupported");
       const doing = { ...job, state: "verifying", message: null };
       activeJobId = doing.id;

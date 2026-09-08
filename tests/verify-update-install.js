@@ -3,7 +3,8 @@
 //   1) 开始更新后轮询到待手动重启，重启前运行版本不变（假执行器只改磁盘版本，不碰运行版本）。
 //   2) 同一个请求编号重复提交不重装（执行器只跑一次）；凭证过期或环境变化报错（check-expired / installation-changed）。
 //   3) 正在安装时不同编号再提交报正在更新（update-busy）；装不了的情形有原因说明加手工命令（源码安装不给命令）。
-//   4) 相关日志只复用常驻事件（调用与调用失败），无新增事件名；宿主注册装更新电话，客户端有安装调用与轮询。
+//   4) 相关日志只复用常驻事件（调用、调用失败，加 #548 安装执行的跨边界事件 update.install.exec），无新增事件名；
+//      宿主注册装更新电话，客户端有安装调用与轮询。
 //   5) 测试全程假执行器：全仓搜真安装调用点零命中（无子进程真跑、无 registry 直连），构建通过。
 // 用法：node tests/verify-update-install.js（在仓库根目录）
 const fs = require('fs')
@@ -61,8 +62,9 @@ async function main() {
   const phoneEvents = [...updateSrc.matchAll(/(?:fire|log)\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
   const settingsEvents = [...clientSettings.matchAll(/(?:fire|log)\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
   const fresh = phoneEvents.concat(settingsEvents).filter((e) => e !== 'host.call' && e !== 'host.call.fail' && e !== 'host.dispatch.error')
-  const preExisting = new Set(['settings.save'])
+  const preExisting = new Set(['settings.save', 'update.install.exec'])
   check(fresh.filter((e) => !preExisting.has(e)).length === 0, '安装链路只复用常驻事件（' + [...new Set(phoneEvents.concat(settingsEvents))].join('、') + '）')
+  check(strip(read('src/host/updateStore.js')).includes("'info', 'update.install.exec'"), '安装执行器记跨边界调用与结果（常驻事件 update.install.exec）')
 
   // ---- 3) 核心闭环（假执行器，永不真跑） ----
   const core = await import(pathToFileURL(path.join(ROOT, 'src/shared/update/service.js')).href)
@@ -150,9 +152,10 @@ async function main() {
   }
   // 3f) 装不了的情形：原因说明加手工命令（源码安装不给命令）
   {
-    check(commands.manualCommand({ profileName: 'web', latestVersion: '9.9.9', installedVersion: '1.7.14', runningVersion: '1.7.14', jobTargetVersion: null, blockedReason: null, sourceInstall: false }) === 'dsh plugin --profile web add dsh-mattpocock-skills-deck@9.9.9', '能装时手工命令可用')
+    check(commands.manualCommand({ profileName: 'web', latestVersion: '9.9.9', installedVersion: '1.7.14', runningVersion: '1.7.14', jobTargetVersion: null, blockedReason: null, sourceInstall: false }) === 'dsh plugin --profile web add --save-exact dsh-mattpocock-skills-deck@9.9.9 --registry=https://registry.npmjs.org/', '能装时手工命令可用（带官方源与精确版本）')
     check(commands.manualCommand({ profileName: 'web', latestVersion: '9.9.9', installedVersion: '1.7.14', runningVersion: '1.7.14', jobTargetVersion: null, blockedReason: 'source-install', sourceInstall: true }) === null, '源码安装不给手工命令')
-    check(commands.buttonCommand('web', '9.9.9') === 'dsh plugin --profile web add dsh-mattpocock-skills-deck@9.9.9 --registry=https://registry.npmjs.org/', '按钮命令强制官方源')
+    const recipe = commands.installRecipe({ profileName: 'web', version: '9.9.9', environmentKind: 'cli' })
+    check(!!recipe && recipe.pluginArgs.join(' ') === 'add --save-exact dsh-mattpocock-skills-deck@9.9.9 --registry=https://registry.npmjs.org/', '安装配方强制官方源加精确版本')
   }
 
   // ---- 4) 宿主电话走通（假环境：注入读盘与假执行器，不碰真实盘） ----
