@@ -184,6 +184,7 @@ export     const SettingsPage = (props) => {
               try { log('info', 'host.call', { method: 'wf.updateCheck', latencyMs: Date.now() - t0, ok: true, kind: 'update-check' }) } catch (eL) {}
               updApplyRes(res)
               if (updIsNewer(res.snapshot.latestVersion, res.snapshot.runningVersion)) setUpdDialog(true)
+              else flash(sharedSt, tr('cfg.updateLatest', { v: res.snapshot.runningVersion }), 'ok')
             } else {
               try { log('warn', 'host.call.fail', { method: 'wf.updateCheck', kind: 'update-check', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
               flash(sharedSt, tr('cfg.updateCheckFail'), 'warn')

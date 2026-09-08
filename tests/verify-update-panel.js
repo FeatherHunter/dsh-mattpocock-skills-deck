@@ -62,7 +62,7 @@ async function main() {
 
   // ---- 5) 文案中英成对 ----
   const localeSrc = read('src/client/kernel/locale-word.js')
-  for (const k of ['cfg.updateCheck', 'cfg.updateChecking', 'cfg.updateToVersion', 'cfg.updateCheckFail']) {
+  for (const k of ['cfg.updateCheck', 'cfg.updateChecking', 'cfg.updateToVersion', 'cfg.updateCheckFail', 'cfg.updateLatest']) {
     const times = localeSrc.split(`'${k}':`).length - 1
     check(times === 2, `词条中英成对 ${k}（实际 ${times} 处）`)
   }
@@ -145,6 +145,14 @@ async function main() {
   }
   check(clientSettings.includes("Ic({ n: 'refresh'") && clientSettings.includes("tr('cfg.updateDialogTitle'"), '对话框标题带刷新图标')
   check(clientSettings.includes("tr('cfg.updateCopy')") && clientSettings.includes("tr('cfg.updateStart')"), '对话框保留复制键与安装键（走词条，无写死中文）')
+  // ---- 9) 无新版给成功提示（#547：只有亲手点的检查才提示，自动读状态与轮询不打扰） ----
+  check(clientSettings.includes("tr('cfg.updateLatest', { v:"), '无新版弹已是最新提示（带版本号）')
+  {
+    const readFnAt = clientSettings.indexOf('const updReadStatus = function () {')
+    const clickFnAt = clientSettings.indexOf('const updClickCheck = function () {')
+    const readFn = clientSettings.slice(readFnAt, clickFnAt)
+    check(readFnAt >= 0 && clickFnAt > readFnAt && !readFn.includes('flash('), '自动读状态不弹提示（提示只在点的检查回调里）')
+  }
 
   console.log(failed ? '\n存在失败' : '\n全部通过 — 标题行更新入口门禁生效')
   process.exit(failed ? 1 : 0)
