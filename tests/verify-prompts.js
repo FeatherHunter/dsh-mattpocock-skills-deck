@@ -48,20 +48,43 @@ const EXPECT_BACKEND_LITERALS = { github: 42, gitlab: 8, markdown: 4 }
 const EXPECT_HOST_PROMPT_CONSTS = 1 // src/host 全树 *_PROMPT 常量数（今天只有 GH_INSTALL_PROMPT）
 const EXPECT_EXEMPT = 12 // 豁免登记条数硬编码（防偷偷加豁免）
 
-// 受保护清单：本票（#573）收敛过的条目，绝不许出现在豁免表里
+// 受保护清单：全量覆盖 —— 所有扫描面的 id 减去「kind=rule 豁免」，一个不漏。
+// 下面 auditExemptTable 会断言这张硬编码清单与运行时算出来的集合逐条相等，所以清空它 / 删几行都会红。
 const PROTECTED = [
-  'registry#mapExecute', 'registry#complete', 'registry#fixate', 'registry#bodyFormat',
+  'registry#mapExecute', 'registry#complete', 'registry#fixate', 'registry#progress', 'registry#bodyFormat',
   'registry#tpl.diagnose', 'registry#tpl.fix', 'registry#tpl.discuss', 'registry#tpl.research',
-  'registry#tpl.prototype', 'registry#tpl.execute', 'registry#mapInspect', 'registry#newWayfinder',
-  'backend:github#subIssue', 'S4#GH_INSTALL_PROMPT',
+  'registry#tpl.prototype', 'registry#tpl.execute', 'registry#tpl.handoff1', 'registry#tpl.handoff2',
+  'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#newWayfinder',
+  'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect',
+  'backend:github#ghAuthLogin', 'backend:github#noGhPrompt', 'backend:github#subIssue', 'backend:github#errorKinds',
+  'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix', 'backend:gitlab#subIssue',
+  'backend:markdown#wayfinderMapBuild', 'backend:markdown#subIssue',
+  'S4#GH_INSTALL_PROMPT',
 ]
+// 必须受判定（kind 只许是 scope）的 8 条：它们登记「不属首批」，但门禁仍然判它们
+const MUST_JUDGE = [
+  'registry#ghAuthLogin', 'registry#installSkills',
+  'backend:github#ghAuthLogin', 'backend:github#noGhPrompt',
+  'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix',
+  'backend:gitlab#subIssue', 'backend:markdown#subIssue',
+]
+// 每个面允许的 rule 豁免集合（硬编码：改一个 id 或把 scope 改成 rule 都会与这张表对不上）
+const RULE_EXEMPT_EXPECTED = {
+  registry: [],
+  'backend:github': ['ensureLabels', 'repoAccessFix', 'repoRemoteFix'],
+  'backend:gitlab': ['glabRepoFix'],
+  'backend:markdown': [],
+  S4: [],
+}
 
 // ==================== 1. 归一化 + 判定式（.scratch/573-gate-design-v2.md §1.3 / §1.4） ====================
 const ZW = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u00AD]/g
 const QUOTES = /["'`´’‘“”]/g
+// 同形字母：NFKC 不处理 IPA 小写 ɡ（U+0261）这类，单独映射成 g
+const HOMOGLYPH = /[\u0261\u0262\u1D26\u1D33\u1D4D]/g
 // 零宽字符两种还原（删除 / 变空格）都要判：删掉会把 gh 与 issue 粘成 ghissue 反而放行，所以要两种都跑
 const normVariants = function (s) {
-  const base = String(s == null ? '' : s).normalize('NFKC')
+  const base = String(s == null ? '' : s).normalize('NFKC').replace(HOMOGLYPH, 'g')
   const out = []
   for (const zw of ['', ' ']) {
     let t = base.replace(ZW, zw).replace(QUOTES, '')
@@ -76,7 +99,12 @@ const normVariants = function (s) {
 // 白名单：唯一允许出现的「命令」形态 = 两个脚本名加参数（占位符写法不锁死；接受 ./ 与反斜杠路径）
 // 值 token 不得以 - 或 = 开头，也不得是另一个命令词，避免白名单吞掉后面的命令
 const RE_ALLOWED_CALL = /(?:node|npx)\s+(?:\.\/|\.\\)?scripts[\/\\](?:fix-issue-body|wire-subissues)\.mjs(?:\s+--(?:issue|map|children|body-file|repo|dry-run)(?:\s*(?:=\s*)?(?![-=])(?!(?:gh|glab|npm|npx|node|curl|wget|cat|sh|bash)\b)\S+)?)*/g
+// R1 的判定窗口有两档：
+//   紧写法（≤4 个任意非字母数字字符）抓 gh、issue / 用gh api / gh　issue / gh<零宽>issue 这类；
+//   宽写法（同行 ≤40 个可打印 ASCII 字符）抓 gh -R owner/repo issue edit / gh.exe issue / glab -R o/r issue update / gh -C … 这类带选项或值的写法。
+//   宽写法只吃可打印 ASCII（空格到 ~），所以「gh）—— 面板所有数据依赖它（issue」这种中文说明文字不会被误判。
 const RE_TRACKER = /(?<![a-z0-9_\-])(?:gh|glab)(?![a-z0-9_])(?:[^a-z0-9_]{0,4})(?:issue|api|label|repo|pr|mr|milestone|project|sub_issues)(?![a-z0-9_])/
+const RE_TRACKER_WIDE = /(?<![a-z0-9_\-])(?:gh|glab)(?:\.exe)?(?![a-z0-9_])[ -~]{0,40}?(?:issue|api|label|repo|pr|mr|milestone|project|sub_issues)(?![a-z0-9_])/
 const RE_PKG = /(?:npm|npx|pnpm|yarn|corepack)\s+(?:exec|x|run|dlx)?[^\n]{0,24}?(?<![a-z0-9_\-])(?:gh|glab)(?![a-z0-9_])/
 const RE_BARE_API = /(?:^|[^a-z0-9_])(?:https?:\/\/)?api\.(?:github|gitlab)\.com\b/
 const RE_HEREDOC = /(?<![a-z0-9_])(?:cat|sh|bash|zsh|pwsh|powershell|node|python3?|ruby|perl)(?![a-z0-9_])[^\n]{0,60}<<[-~]?[a-z_][a-z0-9_]*/
@@ -84,12 +112,12 @@ const RE_SCRIPT = /(?<![a-z0-9_])(?:node|npx|npm\s+exec)\s+([a-z0-9_./\\-]+\.(?:
 const SCRIPT_WHITELIST = ['fix-issue-body.mjs', 'wire-subissues.mjs']
 const RE_BODY_FLAG = /(?<![-\w])--body(?!-file)(?![a-z0-9_-])|(?<![-\w])-b(?![a-z0-9_-])/
 const RE_CMD_CTX = /(?<![a-z0-9_])(?:gh|glab|curl|wget|node|npm|npx|pnpm|yarn|sh|bash|zsh|pwsh|powershell|cmd|python3?|ruby|perl|php)(?![a-z0-9_])/
-// R7 混淆执行：红队报告 §3.2 E13 要求必抓（base64 -d 管道 / \xNN 转义 / eval 引号）。
+// R7 混淆执行：红队报告 §3.2 E13 要求必抓（base64 -d / -D 管道、xxd -r -p、String.fromCharCode、\xNN 转义、eval 引号）。
 // v2 §1.4 只写了 R1–R6，漏了这条；这里照红队建议正则补齐，实测 24 条误报仍全绿。
-const RE_OBFUSCATED = /(?:base64\s+(?:-d|--decode))|(?:\\x[0-9a-f]{2})|(?:\beval\s+["'`$])/i
-// 「拆占位符拼装」探测器：命令词由占位符值提供、子命令与动作词由模板字面量提供时才算命中。
-// 只用来判「把命令词塞进占位符后能否拼出一条真的命令调用」，不参与常规判定（避免「个 issue 已关闭」这类同形词误红）。
-const RE_ASSEMBLED = /(?<![a-z0-9_])(?:gh|glab)(?![a-z0-9_])(?:[^a-z0-9_]{0,4})(?:issue|api|label|repo|pr|mr|milestone|project|sub_issues)(?![a-z0-9_])(?:[^a-z0-9_]{0,4})(?:edit|create|view|list|close|comment|update|delete|add|set|reopen)\b/
+const RE_OBFUSCATED = /(?:base64\s+(?:-d|-D|--decode))|(?:xxd\s+(?:-r\s+-p|-p\s+-r))|(?:String\.fromCharCode)|(?:\\x[0-9a-f]{2})|(?:\beval\s+["'`$])/i
+// 「拆占位符拼装」探测器：命令词由占位符值提供、子命令由模板字面量提供时命中。
+// 与 R1 宽写法同形，但只用来判探针（把命令词塞进单个占位符后的渲染结果），不参与常规判定。
+const RE_ASSEMBLED = RE_TRACKER_WIDE
 
 const RULE_FIX = {
   R1: '模板里只许出现脚本名加参数：把具体跟踪器命令改写成「调 node scripts/fix-issue-body.mjs / wire-subissues.mjs」',
@@ -98,7 +126,7 @@ const RULE_FIX = {
   R4: '正文一律走 --body-file 先写成文件，不把正文内联进命令行',
   R5: '不要用 heredoc 传正文，正文先写成文件再调脚本',
   R6: '只许调 fix-issue-body.mjs / wire-subissues.mjs 这两个脚本，别的脚本名不认',
-  R7: '不要写混淆执行（base64 -d / \\x 转义 / eval 加引号）',
+  R7: '不要写混淆执行（base64 -d / xxd -r -p / String.fromCharCode / \\x 转义 / eval 加引号）',
 }
 
 // 判定一个字符串：返回 [{rule, snippet}]，空数组 = 通过
@@ -111,8 +139,9 @@ const judge = function (text) {
   }
   normVariants(raw).forEach(function (t) {
     const stripped = t.replace(RE_ALLOWED_CALL, '')
-    let m
-    if ((m = RE_TRACKER.exec(stripped)) !== null) push('R1', stripped, m.index)
+    let m = RE_TRACKER.exec(stripped)
+    if (!m) m = RE_TRACKER_WIDE.exec(stripped)
+    if (m !== null) push('R1', stripped, m.index)
     if ((m = RE_PKG.exec(stripped)) !== null) push('R2', stripped, m.index)
     if ((m = RE_BARE_API.exec(stripped)) !== null) push('R3', stripped, m.index)
     if ((m = RE_HEREDOC.exec(stripped)) !== null) push('R5', stripped, m.index)
@@ -168,10 +197,18 @@ const placeholderNames = function (text) {
 }
 
 // ==================== 2. 豁免登记表（外部文件 + 受保护清单 + 六条自检） ====================
+// 说明：夹具自锁（sha256）那一节刻意放在本标记之后 —— 判定层切片工具（.scratch/576-lab-lib.js）
+// 取的是「const ZW =」到本标记之间的源码并直接求值，切片里不能出现 require 之类的外部引用。
 const loadExempt = function () {
-  const raw = JSON.parse(fs.readFileSync(EXEMPT_FILE, 'utf8'))
-  const list = Array.isArray(raw) ? raw : (raw.entries || [])
-  return list.map(function (e) { return Object.freeze(Object.assign({}, e)) })
+  try {
+    const raw = JSON.parse(fs.readFileSync(EXEMPT_FILE, 'utf8'))
+    const list = Array.isArray(raw) ? raw : (raw.entries || [])
+    return list.map(function (e) { return Object.freeze(Object.assign({}, e)) })
+  } catch (e) {
+    failed = true
+    problems.push('读不到豁免登记表 tests/prompt-gate-exempt.json：' + e.message + '\n     修法：这个文件是唯一的放行登记处，缺了门禁不能瞎跑')
+    return []
+  }
 }
 const EXEMPT = loadExempt()
 const exemptKey = function (surface, id) { return surface + '#' + id }
@@ -192,9 +229,10 @@ const auditExemptTable = function (list, surfaceIds, opts) {
     })
     if (e && ['rule', 'scope'].indexOf(e.kind) < 0) out.push('EXEMPT[' + i + '] kind 只能是 rule 或 scope（实得 ' + String(e && e.kind) + '）')
   })
-  // ② 存在性：豁免项必须真实存在
+  // ② 存在性：豁免项必须真实存在（单文件模式只扫了注册表面，其它面整体跳过）
   list.forEach(function (e) {
     if (!e || !e.surface) return
+    if (o.skipSurfaces && o.skipSurfaces.indexOf(e.surface) >= 0) return
     if (!surfaceIds[e.surface]) { out.push('EXEMPT 引用了不存在的扫描面：' + e.surface + '（' + e.id + '）'); return }
     if (surfaceIds[e.surface].indexOf(e.id) < 0) out.push('EXEMPT 引用了不存在的条目：' + e.surface + ' / ' + e.id)
   })
@@ -211,14 +249,53 @@ const auditExemptTable = function (list, surfaceIds, opts) {
         (missing.length ? '、漏 ' + missing.join(',') : '') + (extra.length ? '、多 ' + extra.join(',') : ''))
     }
   })
-  // ④ 受保护清单：本票收敛过的条目不许进豁免表（防「换一条豁免整体放行」）
-  list.forEach(function (e) {
-    if (!e || !e.surface) return
-    if (PROTECTED.indexOf(exemptKey(e.surface, e.id)) >= 0) {
-      out.push('EXEMPT 放行了本票收敛过的条目：' + e.surface + ' / ' + e.id + '（受保护清单里的条目绝不许豁免）')
+  // ④ 每个面的 rule 豁免集合必须与硬编码清单逐条相等
+  //    （这是「把一条 scope 改成 rule 并指向别的 id」的封堵点：改一个词，集合就对不上）
+  Object.keys(RULE_EXEMPT_EXPECTED).forEach(function (surface) {
+    if (o.skipSurfaces && o.skipSurfaces.indexOf(surface) >= 0) return
+    if (!surfaceIds[surface]) return
+    const got = ruleExemptIds(list, surface).slice().sort()
+    const want = RULE_EXEMPT_EXPECTED[surface].slice().sort()
+    if (JSON.stringify(got) !== JSON.stringify(want)) {
+      out.push('EXEMPT 的 rule 豁免集合与硬编码清单不一致：' + surface + ' 实得 [' + got.join(',') + ']，期望 [' + want.join(',') + ']')
     }
   })
-  // ⑤ 与登记文件逐条相等（防止门禁里另留一份、或加载后被改写）
+  // ⑤ 必须受判定的 8 条：必须存在、且 kind 只许是 scope（把 scope 改成 rule 即红）
+  MUST_JUDGE.forEach(function (k) {
+    const parts = k.split('#')
+    if (o.skipSurfaces && o.skipSurfaces.indexOf(parts[0]) >= 0) return
+    const hit = list.filter(function (e) { return e && e.surface === parts[0] && e.id === parts[1] })
+    if (hit.length !== 1) { out.push('EXEMPT 缺一条必须登记的 scope 条目：' + k); return }
+    if (hit[0].kind !== 'scope') out.push('EXEMPT 里 ' + k + ' 的 kind 被改成 ' + hit[0].kind + '（这 8 条必须受判定，只许 scope）')
+  })
+  // ⑥ 受保护清单：全量覆盖 + 与运行时算出来的集合逐条相等 + 非空
+  const computedProtected = []
+  Object.keys(surfaceIds).forEach(function (surface) {
+    if (o.skipSurfaces && o.skipSurfaces.indexOf(surface) >= 0) return
+    const exempt = ruleExemptIds(list, surface)
+    surfaceIds[surface].forEach(function (id) { if (exempt.indexOf(id) < 0) computedProtected.push(surface + '#' + id) })
+  })
+  if (!PROTECTED.length) out.push('PROTECTED 被清空了（受保护清单必须全量覆盖，不许为空）')
+  if (o.skipSurfaces) {
+    // 单文件模式只扫了注册表面：只比较注册表那部分
+    const sub = PROTECTED.filter(function (k) { return k.indexOf('registry#') === 0 })
+    const got = computedProtected.filter(function (k) { return k.indexOf('registry#') === 0 })
+    if (JSON.stringify(sub.slice().sort()) !== JSON.stringify(got.slice().sort())) {
+      out.push('PROTECTED 与注册表实际受保护集合不一致：实得 [' + got.join(',') + ']')
+    }
+  } else if (JSON.stringify(PROTECTED.slice().sort()) !== JSON.stringify(computedProtected.slice().sort())) {
+    const missing = computedProtected.filter(function (k) { return PROTECTED.indexOf(k) < 0 })
+    const extra = PROTECTED.filter(function (k) { return computedProtected.indexOf(k) < 0 })
+    out.push('PROTECTED 未全量覆盖：漏 ' + (missing.join(',') || '无') + '；多 ' + (extra.join(',') || '无'))
+  }
+  // ⑦ 只有 kind=rule 的豁免才等于「放行」，scope 条目仍然受判定，所以不在此列
+  list.forEach(function (e) {
+    if (!e || !e.surface || e.kind !== 'rule') return
+    if (PROTECTED.indexOf(exemptKey(e.surface, e.id)) >= 0) {
+      out.push('EXEMPT 用 rule 放行了受保护条目：' + e.surface + ' / ' + e.id + '（受保护清单里的条目绝不许豁免判定）')
+    }
+  })
+  // ⑧ 与登记文件逐条相等（防止门禁里另留一份、或加载后被改写）
   if (o.fileEntries) {
     const a = JSON.stringify(list)
     const b = JSON.stringify(o.fileEntries)
@@ -235,19 +312,33 @@ const evalRegistrySource = function (src) {
   if (!got || !got.PROMPTS || typeof got.PROMPTS !== 'object') throw new Error('未取到 PROMPTS 对象')
   return got.PROMPTS
 }
-// 反隐藏：条目不许用不可枚举属性藏起来（Object.defineProperty / getter 都能绕过 Object.keys）
+// 反隐藏：条目不许用不可枚举属性 / Symbol / 原型链 / getter 藏起来（这些都能绕过 Object.keys）
 const auditRegistryShape = function (src, reg) {
   const out = []
-  if (/\bdefinePropert(?:y|ies)\s*\(/.test(src)) out.push('S1 求值体含 defineProperty（可以用不可枚举属性藏条目，禁止）')
-  if (/^\s*(?:get|set)\s+[A-Za-z_$]/m.test(src)) out.push('S1 求值体含对象 getter/setter（可以绕过求值，禁止）')
+  // 源码层：能藏东西的写法一律禁止
+  if (/\bdefinePropert(?:y|ies)\b/.test(src)) out.push('S1 求值体含 defineProperty（可以用不可枚举属性藏条目，禁止；方括号写法 Object["defineProperty"] 也算）')
+  if (/\bsetPrototypeOf\b/.test(src)) out.push('S1 求值体含 setPrototypeOf（可以把条目挂到原型链上，禁止）')
+  if (/\b__proto__\b/.test(src)) out.push('S1 求值体含 __proto__（可以改写原型链，禁止）')
+  if (/\bObject\.prototype\s*\[/.test(src) || /\bObject\.prototype\s*\.\s*[A-Za-z_$][A-Za-z0-9_$]*\s*=/.test(src)) {
+    out.push('S1 求值体给 Object.prototype 加东西（原型污染，禁止）')
+  }
+  if (/\b(?:get|set)\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\(\s*\)\s*\{/.test(src)) out.push('S1 求值体含对象 getter/setter（可以按读取次数返回不同文本，禁止）')
+  // 运行时层：注册表自身必须是普通对象，且只认自有属性
+  const regProto = Object.getPrototypeOf(reg)
+  if (regProto !== Object.prototype && regProto !== null) out.push('S1 注册表自身的原型不是 Object.prototype（条目可能挂在原型链上）')
   const allKeys = Reflect.ownKeys(reg)
-  if (allKeys.length !== Object.keys(reg).length) out.push('S1 注册表有不可枚举属性：Reflect.ownKeys ' + allKeys.length + ' ≠ Object.keys ' + Object.keys(reg).length)
+  if (allKeys.length !== Object.keys(reg).length) out.push('S1 注册表有不可枚举属性或 Symbol 键：Reflect.ownKeys ' + allKeys.length + ' ≠ Object.keys ' + Object.keys(reg).length)
   allKeys.forEach(function (k) {
+    if (!Object.prototype.hasOwnProperty.call(reg, k)) { out.push('S1 条目 ' + String(k) + ' 不是自有属性（来自原型链）'); return }
     const e = reg[k]
     if (!e || typeof e !== 'object' || Array.isArray(e)) { out.push('S1 条目 ' + String(k) + ' 不是普通对象'); return }
     const proto = Object.getPrototypeOf(e)
     if (proto !== Object.prototype && proto !== null) out.push('S1 条目 ' + String(k) + ' 的原型不是 Object.prototype（可能被藏了东西）')
-    if (Reflect.ownKeys(e).length !== Object.keys(e).length) out.push('S1 条目 ' + String(k) + ' 有不可枚举属性')
+    if (Reflect.ownKeys(e).length !== Object.keys(e).length) out.push('S1 条目 ' + String(k) + ' 有不可枚举属性或 Symbol 键')
+    ;['zh', 'en', 'use', 'placeholders', 'version'].forEach(function (f) {
+      const d = Object.getOwnPropertyDescriptor(e, f)
+      if (d && (typeof d.get === 'function' || typeof d.set === 'function')) out.push('S1 条目 ' + String(k) + '.' + f + ' 是 getter/setter（按读取次数返回不同文本，禁止）')
+    })
   })
   return out
 }
@@ -344,7 +435,7 @@ const scanAllLiterals = function (block) {
   const out = []
   let i = 0
   const ownerOf = function (idx) {
-    let name = ''
+    let name = '<块首>'
     keys.forEach(function (k) { if (k.at < idx) name = k.name })
     return name
   }
@@ -471,29 +562,68 @@ const walkJs = function (dir, acc) {
   })
   return acc
 }
+// 与引号无关的 S4 扫描：先按标识符找出所有 *_PROMPT 名字（const/let/var 声明、对象属性、赋值三种都认），
+// 再在「声明点之后的一小段」里取出全部字符串字面量（单引号 / 双引号 / 反引号 / 拼接都收），逐个判定。
+// 断言口径：src/host 里出现的每个 *_PROMPT 标识符都必须有声明点，声明点数必须等于硬编码常量数，
+// 每条声明至少要有一个字符串字面量（一个都没有说明文本藏在变量或计算里，扫不到，判红）。
+const HOST_PROMPT_ID_RE = /[A-Za-z0-9_$]*PROMPT[A-Za-z0-9_$]*/g
+const HOST_PROMPT_DECL_RE = /(?:^|[^A-Za-z0-9_$])([A-Za-z0-9_$]*PROMPT[A-Za-z0-9_$]*)\s*(?:=|:)\s*/g
+const isPromptName = function (n) { return n && n !== 'PROMPTS' && /PROMPT/.test(n) }
 const collectHost = function (exemptList) {
   const out = []
-  const found = []
+  const consts = []
+  const decls = []
+  const names = {}
   walkJs(path.join(ROOT, 'src/host'), []).forEach(function (file) {
+    const rel = path.relative(ROOT, file)
     const src = fs.readFileSync(file, 'utf8')
-    const re = /const\s+([A-Za-z0-9_$]*PROMPT[A-Za-z0-9_$]*)\s*=\s*'((?:[^'\\]|\\.)*)'/g
     let m
-    while ((m = re.exec(src)) !== null) found.push({ file: path.relative(ROOT, file), name: m[1], text: unescapeLiteral(m[2]) })
+    HOST_PROMPT_ID_RE.lastIndex = 0
+    while ((m = HOST_PROMPT_ID_RE.exec(src)) !== null) {
+      if (isPromptName(m[0])) names[m[0]] = (names[m[0]] || 0) + 1
+    }
+    HOST_PROMPT_DECL_RE.lastIndex = 0
+    while ((m = HOST_PROMPT_DECL_RE.exec(src)) !== null) {
+      const name = m[1]
+      if (!isPromptName(name)) continue
+      const raw = src.slice(m.index + m[0].length, m.index + m[0].length + 4000)
+      // 截到本语句结束：第一个「下一行行首是 const/let/var/export/function/class/} 或注释」的位置
+      const cut = raw.search(/\n(?=(?:const|let|var|export|function|class|\}|\/[*\/]))/)
+      const span = cut < 0 ? raw : raw.slice(0, cut)
+      const lits = scanAllLiterals(span)
+      decls.push({ file: rel, name: name, literals: lits.length })
+      if (lits.length === 0) {
+        out.push('FAIL S4 ' + rel + ' ' + name + ' 的声明点后面没有字符串字面量（文本可能藏在变量或计算里，扫描不到）\n     修法：把 *_PROMPT 的文本写成字面量')
+      }
+      lits.forEach(function (lit) {
+        consts.push({ file: rel, name: name, text: lit.text })
+        if (isRuleExempt(exemptList, 'S4', name)) return
+        judge(lit.text).forEach(function (h) { out.push(failLine('S4 ' + rel + ' ' + name, h.rule, h.snippet, lit.text)) })
+      })
+    }
   })
-  found.forEach(function (c) {
-    if (isRuleExempt(exemptList, 'S4', c.name)) return
-    judge(c.text).forEach(function (h) { out.push(failLine('S4 ' + c.file + ' ' + c.name, h.rule, h.snippet, c.text)) })
-  })
-  return { problems: out, consts: found }
+  return { problems: out, consts: consts, names: Object.keys(names), decls: decls }
 }
 
 // ==================== 6. 结构契约断言（沿用既有，陈旧两组已修正） ====================
+// 形状被改坏时（例如某条目不是普通对象）不许抛栈，一律转成 FAIL 行
 const contractChecks = function (reg, src) {
   const before = problems.length
+  try {
+    contractChecksInner(reg, src)
+  } catch (e) {
+    fail('契约断言执行时抛错（注册表条目形状被改坏）：' + String((e && e.message) || e) +
+      '\n     修法：每条条目必须是普通对象，字段类型要对（placeholders 是数组、zh/en/use 是字符串）')
+  }
+  return problems.length - before
+}
+const contractChecksInner = function (reg, src) {
   const P = function (cond, msg) { if (!cond) fail(msg) }
 
   Object.keys(reg).forEach(function (id) {
     const p = reg[id]
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return
+    const phs = Array.isArray(p.placeholders) ? p.placeholders : []
     P(p.version >= 1, id + ' 缺 version')
     P(!!p.zh && !!p.en, id + ' 缺 zh/en')
     P(!!p.use, id + ' 缺 use')
@@ -501,8 +631,8 @@ const contractChecks = function (reg, src) {
     const re = /\{(\w+)\}/g
     let mm
     while ((mm = re.exec(String(p.zh))) !== null) if (found.indexOf(mm[1]) < 0) found.push(mm[1])
-    found.forEach(function (x) { if (p.placeholders.indexOf(x) < 0) fail(id + ' 文本含未声明占位符 {' + x + '}') })
-    p.placeholders.forEach(function (x) { if (found.indexOf(x) < 0) fail(id + ' 声明占位符 {' + x + '} 但文本未使用') })
+    found.forEach(function (x) { if (phs.indexOf(x) < 0) fail(id + ' 文本含未声明占位符 {' + x + '}') })
+    phs.forEach(function (x) { if (found.indexOf(x) < 0) fail(id + ' 声明占位符 {' + x + '} 但文本未使用') })
   })
   const useRe = /promptText\('([a-zA-Z0-9.]+)'/g
   let mu
@@ -701,7 +831,6 @@ const contractChecks = function (reg, src) {
   if (wireCount !== 2) fail('wire-subissues 脚本名出现 ' + wireCount + ' 次（期望 2 = mapInspect zh/en）')
   const segCount = (src.match(/## 正文格式/g) || []).length
   if (segCount !== 10) fail('「## 正文格式」段数 ' + segCount + '（期望 10：10 条模板各 1 处内嵌）')
-  return problems.length - before
 }
 
 // ==================== 7. L1 内存夹具（34 条绕过 + 24 条误报；逐条断言） ====================
@@ -741,6 +870,14 @@ const FIXTURE_BYPASS = [
   ['T32 合法脚本调用后接跟踪器命令', 'node scripts/wire-subissues.mjs --map 1 --children 2 --body-file x.md && gh issue edit 1 --body-file y.md'],
   ['T33 后端命令藏在字符串拼接续段里', "const a = '先检查（' + x + 'gh api repos/o/r/labels）'"],
   ['T34 占位符值本身含命令', 'gh issue edit 573 --body-file x.md（这是某个占位符的值）'],
+  ['T35 短选项写在命令词与子命令之间', '写回用 gh -R owner/repo issue edit 573 --body-file x.md'],
+  ['T36 gh.exe 形态', '写回用 gh.exe issue edit 573 --body-file x.md'],
+  ['T37 glab 短选项', '写回用 glab -R o/r issue update 573 --description-file x.md'],
+  ['T38 gh -C 目录选项', '写回用 gh -C /repo issue edit 573 --body-file x.md'],
+  ['T39 base64 大写 D', 'echo Z2ggaXNzdWUgZWRpdCA1NzM= | base64 -D | sh'],
+  ['T40 xxd 反向拼字节', "echo 6768 | xxd -r -p | sh"],
+  ['T41 String.fromCharCode 拼命令', 'eval(String.fromCharCode(103,104,32,105,115,115,117,101))'],
+  ['T42 同形字母 ɡh（U+0261）', '写回用 ɡh issue edit 573 --body-file x.md'],
 ]
 const FIXTURE_FALSE_POS = [
   ['F01 GitHub issue URL', '参考 https://github.com/owner/repo/issues/573 的讨论'],
@@ -770,7 +907,7 @@ const FIXTURE_FALSE_POS = [
 ]
 const runFixtureSelfCheck = function (reg, backendSrc) {
   const before = problems.length
-  check(FIXTURE_BYPASS.length >= 34, 'L1 夹具条数不足：绕过样例 ' + FIXTURE_BYPASS.length + ' 条（期望 ≥ 34，不许删夹具）')
+  check(FIXTURE_BYPASS.length >= 42, 'L1 夹具条数不足：绕过样例 ' + FIXTURE_BYPASS.length + ' 条（期望 ≥ 42，不许删夹具）')
   check(FIXTURE_FALSE_POS.length >= 24, 'L1 夹具条数不足：误报样例 ' + FIXTURE_FALSE_POS.length + ' 条（期望 ≥ 24，不许删夹具）')
   let leak = 0
   FIXTURE_BYPASS.forEach(function (c) {
@@ -875,10 +1012,14 @@ const runL2Injection = function () {
         out = String((e && e.stdout) || '') + String((e && e.stderr) || '')
       }
       if (code !== 1) fail('L2 payload「' + p.n + '」注入后退出码 ' + code + '（期望 1）：' + out.split('\n').filter(function (l) { return l.indexOf('FAIL') === 0 }).slice(0, 2).join(' | '))
-      else if (out.indexOf('FAIL') < 0) fail('L2 payload「' + p.n + '」退出 1 但输出无 FAIL 行')
       else {
-        const missing = (p.expect || []).filter(function (tok) { return out.indexOf(tok) < 0 })
-        if (missing.length) fail('L2 payload「' + p.n + '」失败信息未点名 ' + missing.join(' / ') + '（红得不对）')
+        // expect 只在 FAIL 行里找（横幅里就有 R1/R7 这些字样，全输出里找等于没判）
+        const failText = out.split(/\r?\n/).filter(function (l) { return /^\s*FAIL\b/.test(l) }).join('\n')
+        if (failText === '') fail('L2 payload「' + p.n + '」退出 1 但输出无 FAIL 行')
+        else {
+          const missing = (p.expect || []).filter(function (tok) { return failText.indexOf(tok) < 0 })
+          if (missing.length) fail('L2 payload「' + p.n + '」FAIL 行里未点名 ' + missing.join(' / ') + '（红得不对；只在 FAIL 行里找，不看横幅）')
+        }
       }
       if (process.env.DSH_VERIFY_PROMPTS_VERBOSE === '1') {
         const first = (out.split('\n').filter(function (l) { return l.indexOf('FAIL') >= 0 })[0] || '').trim()
@@ -891,6 +1032,32 @@ const runL2Injection = function () {
   return problems.length - before
 }
 
+// ==================== 8b. 夹具自锁（sha256） ====================
+// 只给三个文件上锁：豁免登记表、L2 payload 夹具、门禁自身。改任意一个都必须同步改这里的摘要，
+// 否则门禁红 —— 这是「把 14 条 payload 全换成同一条 trivial 载荷仍然全绿」那条路的封堵点。
+// 摘要按「行尾统一成 LF」计算，避免 Windows 检出成 CRLF 后误红。
+const crypto = require('crypto')
+const LOCK_BEGIN = '// ---- LOCK-BEGIN ----'
+const LOCK_END = '// ---- LOCK-END ----'
+const sha256Of = function (buf) { return crypto.createHash('sha256').update(buf).digest('hex') }
+const readNormalized = function (p) { return fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n') }
+const selfDigest = function () {
+  // 自哈希：把 LOCK 区段整段挖空后再算，所以改 LOCK 里的摘要不会改变自己的摘要
+  const src = readNormalized(SELF)
+  const a = src.indexOf('\n' + LOCK_BEGIN + '\n')
+  const b = src.indexOf('\n' + LOCK_END)
+  if (a < 0 || b < 0) return 'LOCK-MARKER-MISSING'
+  const blanked = src.slice(0, a) + '\n' + LOCK_BEGIN + '\n' + '\n' + LOCK_END + src.slice(b + 1 + LOCK_END.length)
+  return sha256Of(Buffer.from(blanked, 'utf8'))
+}
+// ---- LOCK-BEGIN ----
+const LOCK = {
+  'tests/prompt-gate-exempt.json': '1ded52d4fc14432ee1c66a3a78b2769272729248f9083d0fed96e22639022648',
+  'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
+  'tests/verify-prompts.js': '6c436b102977f399a139d4c5fa8d7436c89f6febf0dd8de7fc45945414a211f3',
+}
+// ---- LOCK-END ----
+
 // ==================== 9. 跑 ====================
 const argv = process.argv.slice(2)
 const backendProbe = (argv.filter(function (a) { return a.indexOf('--backend-probe=') === 0 })[0] || '').slice('--backend-probe='.length)
@@ -899,6 +1066,27 @@ const singleFileMode = fileArgs.length > 0
 const stepOk = function (before) { return problems.length === before }
 
 console.log('P1: prompt 注册表契约（#573 五面扫描 + 外部豁免登记 + 归一化 + R1–R7）')
+// 子进程模式（L2 注入用）：必须带单文件参数或 --backend-probe，否则等于用环境变量静默关掉整层自检
+if (IS_CHILD) {
+  console.log('  · 子进程模式（DSH_VERIFY_PROMPTS_CHILD=1）：L1/L2/L3 与自注册自检不跑，只跑被注入的那一面')
+  if (!singleFileMode && !backendProbe) {
+    fail('子进程模式必须带单文件参数（或 --backend-probe），否则等于用 DSH_VERIFY_PROMPTS_CHILD=1 静默关掉整层自检')
+  }
+}
+// 夹具自锁：三个文件的 sha256 必须与登记摘要一致（改夹具 / 改门禁都要同步改摘要）
+if (!IS_CHILD) {
+  const pLock = problems.length
+  Object.keys(LOCK).forEach(function (rel) {
+    const p = path.join(ROOT, rel)
+    if (!fs.existsSync(p)) { fail('自锁文件缺失：' + rel); return }
+    const got = rel === 'tests/verify-prompts.js' ? selfDigest() : sha256Of(Buffer.from(readNormalized(p), 'utf8'))
+    if (got !== LOCK[rel]) {
+      fail('自锁摘要不匹配 ' + rel + '：实得 ' + got + '，登记 ' + LOCK[rel] +
+        '\n     修法：夹具或门禁改了就要同步更新 tests/verify-prompts.js 里的 LOCK 摘要（这是防「把夹具掏空」的锁）')
+    }
+  })
+  if (stepOk(pLock)) console.log('  PASS 夹具自锁（豁免登记表 / payload 夹具 / 门禁自身，sha256 三个都对上）')
+}
 
 // —— S1 + S5 ——
 const s1Path = singleFileMode ? fileArgs[0] : path.join(ROOT, 'src/client/kernel/prompts.js')
@@ -989,23 +1177,26 @@ if (!singleFileMode) {
   const host = collectHost(EXEMPT)
   host.problems.forEach(function (m) { fail(m) })
   surfaceReport.S4 = host.consts.length
-  check(host.consts.length === EXPECT_HOST_PROMPT_CONSTS, 'S4 host *_PROMPT 常量数 ' + host.consts.length + '（期望 ' + EXPECT_HOST_PROMPT_CONSTS + '）')
-  if (stepOk(pS4)) host.consts.forEach(function (c) { console.log('  PASS 面 S4 ' + c.file + ' ' + c.name) })
+  check(host.consts.length >= EXPECT_HOST_PROMPT_CONSTS, 'S4 扫到的 *_PROMPT 字面量 ' + host.consts.length + ' 个（期望 ≥ ' + EXPECT_HOST_PROMPT_CONSTS + '）')
+  check(host.decls.length === EXPECT_HOST_PROMPT_CONSTS, 'S4 *_PROMPT 声明点 ' + host.decls.length + ' 个（期望 ' + EXPECT_HOST_PROMPT_CONSTS + '）')
+  check(host.names.length === host.decls.length, 'S4 *_PROMPT 标识符 ' + host.names.length + ' 个、有声明点的 ' + host.decls.length + ' 个（对不上说明有常量没被扫到）')
+  if (stepOk(pS4)) host.decls.forEach(function (c) { console.log('  PASS 面 S4 ' + c.file + ' ' + c.name + '（' + c.literals + ' 个字面量）') })
 }
 
-// —— 豁免登记表六条自检 + 变异自检 ——
+// —— 豁免登记表自检 + 变异自检 ——
 if (reg) {
   const pEX = problems.length
   const surfaceIds = { registry: s1Ids }
+  const skipSurfaces = singleFileMode ? Object.keys(RULE_EXEMPT_EXPECTED).filter(function (s) { return s !== 'registry' }) : []
   if (!singleFileMode) {
     BACKENDS.forEach(function (b) {
       const p = backendPath(b, backendProbe)
       if (!fs.existsSync(p)) return
       surfaceIds['backend:' + b] = countTopLevelKeys(extractObjectLiteral(fs.readFileSync(p, 'utf8'), 'export const prompts') || '')
     })
-    surfaceIds.S4 = collectHost(EXEMPT).consts.map(function (c) { return c.name })
+    surfaceIds.S4 = collectHost(EXEMPT).decls.map(function (c) { return c.name })
   }
-  auditExemptTable(EXEMPT, surfaceIds, { fileEntries: loadExempt() }).forEach(function (m) { fail(m) })
+  auditExemptTable(EXEMPT, surfaceIds, { fileEntries: loadExempt(), skipSurfaces: skipSurfaces }).forEach(function (m) { fail(m) })
   // 变异自检：把任意一条豁免换成「受保护条目」，审计必须红。
   // 逐条受保护 id 都试一遍（不是只试一个），证明「换一条豁免整体放行」这条路被堵住。
   let mutationMissed = 0
@@ -1019,7 +1210,7 @@ if (reg) {
   if (mutationMissed > 0) {
     fail('变异自检失效：把豁免换成受保护条目后审计仍然全绿（' + mutationMissed + '/' + PROTECTED.length + ' 条没被拦住）——豁免表可以被用来整体放行')
   }
-  if (stepOk(pEX)) console.log('  PASS 豁免登记表（存在性 / 完备性 / 数量 / 受保护清单 ' + PROTECTED.length + ' 条 / 与登记文件相等 / 变异自检逐条）')
+  if (stepOk(pEX)) console.log('  PASS 豁免登记表（形状 / 存在性 / 完备性 / 数量 / 逐面 rule 集合硬编码比对 / 8 条必须受判 / 受保护清单全量 ' + PROTECTED.length + ' 条 / 与登记文件相等 / 变异自检逐条）')
 }
 
 // —— L1 / L2 / L3 / 自注册 ——
@@ -1035,7 +1226,7 @@ if (!IS_CHILD) {
     check(surfaceReport.S1 === EXPECT_REGISTRY_ENTRIES, 'L3 S1=' + surfaceReport.S1 + '（期望 ' + EXPECT_REGISTRY_ENTRIES + '）')
     check(surfaceReport.S2[0] === EXPECT_REGISTRY_ENTRIES && surfaceReport.S2[1] === EXPECT_REGISTRY_ENTRIES, 'L3 S2=' + surfaceReport.S2.join('/') + '（期望 ' + EXPECT_REGISTRY_ENTRIES + '/' + EXPECT_REGISTRY_ENTRIES + '）')
     BACKENDS.forEach(function (b, i) { check(surfaceReport.S3[i] === EXPECT_BACKEND_KEYS[b], 'L3 S3.' + b + '=' + surfaceReport.S3[i] + '（期望 ' + EXPECT_BACKEND_KEYS[b] + '）') })
-    check(surfaceReport.S4 === EXPECT_HOST_PROMPT_CONSTS, 'L3 S4=' + surfaceReport.S4 + '（期望 ' + EXPECT_HOST_PROMPT_CONSTS + '）')
+    check(surfaceReport.S4 >= EXPECT_HOST_PROMPT_CONSTS, 'L3 S4=' + surfaceReport.S4 + '（期望 ≥ ' + EXPECT_HOST_PROMPT_CONSTS + '）')
   }
   check(EXEMPT.length === EXPECT_EXEMPT, 'L3 EXEMPT=' + EXEMPT.length + '（期望 ' + EXPECT_EXEMPT + '）')
   if (problems.length === l3Before) console.log('  PASS L3 扫描面完整性')
