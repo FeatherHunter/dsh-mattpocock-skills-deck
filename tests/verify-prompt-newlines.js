@@ -2,28 +2,26 @@
  * verify-prompt-newlines.js — 提示词模板换行契约校验（#430 根因门禁）
  * 用法: node tests/verify-prompt-newlines.js
  *
- * 契约：任何提示词模板文本（client PROMPTS 注册表 / host *_PROMPT 常量 /
- *   host 后端模块 prompts 字典的 zh/en 字面量）除「正文格式契约」刻意引用字面 \\n 的固定短语外，
- *   不得含字面 \\n 序列（两个字符：反斜杠 + n）。
+ * 契约（#573 收紧为零豁免）：任何提示词模板文本（client PROMPTS 注册表 / host *_PROMPT 常量 /
+ *   host 后端模块 prompts 字典的 zh/en 字面量）都不得含字面 \n 序列（两个字符：反斜杠 + n），
+ *   一条豁免都不留 —— 收敛后源码级 \\n 全部消失，正文格式契约改为「换行不要写成反斜杠加 n 两个字符」这种描述，
+ *   不再需要为了引述正例/反例而留白名单。
  * 理由：#430 —— 模板里把换行写成双层转义（源码 \\n），运行时注入的是字面
  *   反斜杠+n，提示词没有真实换行；模板必须写单层转义 \n（源码一个反斜杠+n）。
- * 防回退：若未来模板再次出现双层转义，本文件按条目报 FAIL。
+ * 防回退：若未来模板再次出现双层转义，本文件按条目报 FAIL；
+ *   且本文件断言「白名单必须为空」（见 ALLOWED_LITERAL_BSN），防止豁免被悄悄加回来。
+ * 扫描范围就是「提示词模板面」本身：三处注册表 + host *_PROMPT + 后端 zh/en 字面量；
+ *   src/host 全树另有若干源码级 \\n 在正则字面量与代码注释里（mapBody.js / parseIssueTracker.js /
+ *   gitlab/graph-blocking.js），它们不是模板文本，不属本门禁扫描面（按全树断言会误红）。
  */
 const fs = require('fs')
 const path = require('path')
 const ROOT = path.join(__dirname, '..')
 let failed = false
 
-// 正文格式契约的刻意引用（这些短语里的字面 \\n 是「描述反斜杠+n」本身，允许）
-// 变体全录：不同模板引述措辞略异（禁止字面… / 反例：… / 而不是… × zh/en 两式例证）
-const ALLOWED_LITERAL_BSN = [
-  '禁止字面 \\n 转义（不要把换行写成 \\n 两个字符）',
-  '反例：`## 进度：90%\\n下一步：xxx`',
-  '而不是 `## 进度：90%\\n下一步：xxx`',
-  'No literal \\n escapes (do not write newlines as the two characters backslash-n)',
-  'No literal \\n escapes, no BOM',
-  '## Progress: 90%\\nNext step: ...'
-]
+// #573：白名单清空为零豁免（门禁变严）。收敛后模板里不再引述字面 \n 的正例/反例，
+//   所以一条都不需要放行；下方断言「长度必须为 0」，防止以后又悄悄加回来。
+const ALLOWED_LITERAL_BSN = []
 const stripAllowed = function (s) {
   let t = String(s)
   ALLOWED_LITERAL_BSN.forEach(function (p) { t = t.split(p).join('') })
@@ -57,6 +55,14 @@ const checkText = function (where, name, v) {
   const n = countLiteral(stripAllowed(v))
   if (n > 0) { failed = true; console.log('FAIL ' + where + ' ' + name + ' 含字面 \\n ' + n + ' 处（剥离契约引用后应为 0）') }
   return n === 0
+}
+
+// #573：白名单必须为空 —— 豁免为零是契约的一部分，不是实现细节
+if (ALLOWED_LITERAL_BSN.length !== 0) {
+  failed = true
+  console.log('FAIL ALLOWED_LITERAL_BSN 必须为空（实际 ' + ALLOWED_LITERAL_BSN.length + ' 条）——#573 起零豁免，不许悄悄加回来')
+} else {
+  console.log('OK   ALLOWED_LITERAL_BSN 零豁免（长度 0）')
 }
 
 // 1) client PROMPTS 注册表（src 单源 + 双产物：改 src 必须重建，产物同步校验）

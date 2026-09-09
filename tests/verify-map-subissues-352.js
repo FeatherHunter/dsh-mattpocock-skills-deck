@@ -2,7 +2,8 @@
  * verify-map-subissues-352.js — 回归 #352：新增需求创建的地图其 sub_issues 边与面板统计
  *
  * 验收：
- *  - prompts.js newWayfinder 版本 13 且为后端无关占位 {subIssue}（placeholders 含 subIssue）
+ *  - prompts.js newWayfinder 版本 14 且为后端无关占位 {subIssue}（placeholders 含 subIssue）
+ *    （#573 收敛时从 v13 升到 v14：模板改为「先取 map 正文存成文件 + 调脚本建原生边」，占位式解耦不变）
  *  - prompts.js 含 NEW_WAYFINDER_DEFAULT_WIRING / newWayfinderParamsFrom / newWayfinderPrompt（UI 零分支）
  *  - 后端 github/markdown/gitlab 各声明 prompts.subIssue
  *  - GitHub 上 #345 的 sub_issues 计数为 6
@@ -14,20 +15,20 @@ import { execSync } from 'node:child_process';
 
 async function checkPrompts() {
   const text = await fs.readFile('src/client/kernel/prompts.js', 'utf8');
-  const hasV13 = text.includes('"newWayfinder": { version: 13');
+  const hasV14 = text.includes('"newWayfinder": { version: 14');
   const hasPlaceholders = text.includes("placeholders: ['repo','subIssue']");
   const hasSubIssuePlaceholder = text.includes('{subIssue}');
   const hasDefaultWiring = text.includes('NEW_WAYFINDER_DEFAULT_WIRING');
   const hasParamsFrom = text.includes('newWayfinderParamsFrom');
   const hasPrompt = text.includes('newWayfinderPrompt');
   const hasNoHardcode = !text.includes("github` 分支先 `gh api") || text.includes("{subIssue}");
-  console.log('PROMPTS version 13:', hasV13 ? 'PASS' : 'FAIL');
+  console.log('PROMPTS version 14:', hasV14 ? 'PASS' : 'FAIL');
   console.log('PROMPTS placeholders subIssue:', hasPlaceholders ? 'PASS' : 'FAIL');
   console.log('PROMPTS {subIssue} 占位:', hasSubIssuePlaceholder ? 'PASS' : 'FAIL');
   console.log('PROMPTS NEW_WAYFINDER_DEFAULT_WIRING:', hasDefaultWiring ? 'PASS' : 'FAIL');
   console.log('PROMPTS newWayfinderParamsFrom:', hasParamsFrom ? 'PASS' : 'FAIL');
   console.log('PROMPTS newWayfinderPrompt:', hasPrompt ? 'PASS' : 'FAIL');
-  if (!hasV13 || !hasPlaceholders || !hasSubIssuePlaceholder || !hasDefaultWiring || !hasParamsFrom || !hasPrompt) throw new Error('prompts.js 未满足 352 v13 解耦要求');
+  if (!hasV14 || !hasPlaceholders || !hasSubIssuePlaceholder || !hasDefaultWiring || !hasParamsFrom || !hasPrompt) throw new Error('prompts.js 未满足 352 v14 解耦要求');
   // 确保旧硬编码 3 分支已移除（UI 零分支）
   const hasOldHardcode = text.includes("github` 分支先 `gh api") && text.includes("markdown`/`gitlab` 分支改用");
   console.log('PROMPTS 无旧 3 分支硬编码:', !hasOldHardcode ? 'PASS' : 'FAIL');

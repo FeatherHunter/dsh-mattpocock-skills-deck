@@ -138,8 +138,9 @@ export const prompts = (function () {
       en: 'The repository is not reachable via the GitHub API (gh api repos/{owner}/{name} failed). Ordering rule: if the repo does not exist yet, run "Create & publish" to finish creating and pushing it, then re-check; investigate in order:\n1. Existence: gh repo view <owner>/<name> --json nameWithOwner; if missing → confirm with the user, then gh repo create (confirm name/visibility first);\n2. Permissions: gh auth status to confirm the account; private repos need access for this account (403/404 can both be permission issues);\n3. Network/proxy: gh config get http_proxy and connectivity.\nAfter fixing, ask the user to re-check.',
     },
     subIssue: {
-      zh: '先 gh api repos/{owner}/{repo}/issues/{child} --jq .id 取子议题数据库 id，再 gh api repos/{owner}/{repo}/issues/{map}/sub_issues -X POST -F sub_issue_id={id} 建边；以 gh api repos/{owner}/{repo}/issues/{map}/sub_issues --jq length 校验计数与预期一致',
-      en: 'first gh api repos/{owner}/{repo}/issues/{child} --jq .id for child id, then gh api repos/{owner}/{repo}/issues/{map}/sub_issues -X POST -F sub_issue_id={id}; verify with gh api repos/{owner}/{repo}/issues/{map}/sub_issues --jq length equals expected'
+      // #573 收敛：提示词里只留脚本名加参数，具体命令（取数据库编号、建原生边、校验计数）由脚本负责
+      zh: 'node scripts/wire-subissues.mjs --map <地图号> --children <子票号列表> --body-file <地图正文文件>（脚本自己取数据库编号、建原生边、校验计数；正文文件里要有 `## Destination` 一节）',
+      en: 'node scripts/wire-subissues.mjs --map <map> --children <child list> --body-file <map body file> (the script resolves the database ids, creates the native edges, and verifies the count; the body file must keep the `## Destination` section)'
     },
     errorKinds: {
       'bad-name': { zh: '仓库名仅支持字母、数字、._- 且不超过 100 个字符', en: 'Repo name supports only letters, digits, ._- and at most 100 characters' },

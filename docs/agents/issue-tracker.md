@@ -10,6 +10,8 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close**: `gh issue close <number> --comment "..."`
+- **写正文（新建或改写 issue 正文）**：正文先写成文件（真实换行），再调 `node scripts/fix-issue-body.mjs --issue <号> --body-file <文件>` 写回，不要把正文拼进命令行。
+- **建子议题边**：调 `node scripts/wire-subissues.mjs --map <地图号> --children <子票号列表> --body-file <地图正文文件>`；正文文件里必须有 `## Destination` 一节，否则脚本会拒绝执行。
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 
