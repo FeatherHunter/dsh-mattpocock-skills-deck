@@ -1,0 +1,32 @@
+{
+  "name": "dsh-log",
+  "version": "0.1.0",
+  "description": "可复用的日志系统：宿主落盘引擎（当前插件的日志能力抽成的独立包，地图 #556）",
+  "license": "MIT",
+  "author": "王辰浩",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    "./host": "./dist/host.js",
+    "./client": "./dist/client.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "node build.mjs",
+    "test": "node --test tests/host.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
+}

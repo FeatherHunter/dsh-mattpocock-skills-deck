@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    // 输出目标定死保守版本：Node 宿主与浏览器闭包两边都跑得动（沿用 update-core 与 #557 工具链决议）。
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    // 只做类型检查不产出：真正的 JS 由 build.mjs 经 esbuild 转译生成（与 update-core 同口径）。
+    "noEmit": true,
+    "strict": true,
+    // 核心里不碰任何 Node 或浏览器专属能力，跑腿全在调用方传入的适配器。
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}
