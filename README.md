@@ -32,10 +32,10 @@ npm install -g @deepseek-ai/dsh
 dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
 #     或者
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用
-# 锁定最新版更稳（当前 1.7.15）：
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.15 --registry https://registry.npmjs.org
+# 锁定最新版更稳（当前 1.7.16）：
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.16 --registry https://registry.npmjs.org
 #     或者
-dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.15 --registry https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.16 --registry https://registry.npmjs.org
 ```
 
 <div align="center">
