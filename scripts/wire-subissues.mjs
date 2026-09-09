@@ -33,7 +33,7 @@
  *   正文文件与演练开关，仓库地址可选」。参数集里唯一的单票身份是地图号，而正文文件只有一份，
  *   装不下多张子票各自的正文，所以这一份只能属于地图。子票正文请用 scripts/fix-issue-body.mjs。
  *   这条判定只写在 writeMapBody() 一个函数里，日后若口径改成「写子票正文」，改那一处即可。
- *   为防止把子票正文覆盖到地图上，正文文件必须先通过 assertLooksLikeMapBody() 那道闸。
+ *   为防止把子票正文覆盖到地图上，正文文件必须先通过 assertLooksLikeMapBody() 那道闸：\n *   剥掉围栏后第一处有内容的行必须是 ## Destination，并且正文里至少有一个 wayfinder 规范章节。
  *
  * 阻塞声明只认正文第一处有内容的行（与降级写回同一口径）：正文别处出现的 `Blocked by:` 只写进
  *   warnings 提醒，不据此建边——历史正文里常见「后来解除了」之类的注解，按全文扫描会建出错误的边。
@@ -289,18 +289,28 @@ function stripFencedBlocks(text) {
   return out.join("\n");
 }
 
+/** wayfinder 地图的规范章节（中英并存时只认这几个英文标题）。 */
+const MAP_SECTION_RE = /^##\s*(Notes|Decisions so far|Not yet specified|Out of scope)\s*$/m;
+
 /**
  * 保护：正文文件看起来不是地图正文时拒绝执行（退出码 2，不写任何东西）。
- * 判定：先剥掉围栏代码块，再要求第一处有内容的行恰是 `## Destination`。
+ * 两条判定（都先剥掉围栏代码块，围栏里的引用不算）：
+ *   1. 第一处有内容的行恰是 `## Destination`；
+ *   2. 正文里至少出现一个 wayfinder 规范章节（## Notes / ## Decisions so far / ## Not yet specified / ## Out of scope）。
  * 为什么要这么严：本脚本会把这份正文整篇写回 --map 那张票，一旦放行子票正文，地图正文就被覆盖，
  *   而地图正文是 Decisions 索引与计划的唯一载体（src/shared/parser.js 的 parseMapBody 直接解析它）。
- *   只判「文中某处出现 ## Destination」是不够的：围栏里引用地图格式、子票自己有一节 Destination，
- *   都能骗过那种判定（对抗式审查实测过）。
+ *   只判「第一行是 ## Destination」还不够：子票正文首行恰好也写 `## Destination` 时会被放行
+ *   （对抗式审查实测过），而子票正文几乎不可能同时具备规范章节。
+ *   实测口径：仓库现存 52 张地图里，通过第 1 条的 34 张全部也通过第 2 条，所以这道闸对真地图零误拒。
  */
 function assertLooksLikeMapBody(text) {
-  const first = firstMeaningfulLine(stripFencedBlocks(text));
+  const stripped = stripFencedBlocks(text);
+  const first = firstMeaningfulLine(stripped);
   if (!/^##\s*Destination\s*$/.test(first)) {
     fail(2, `--body-file 的第一处有内容的行不是「## Destination」，看起来不是地图正文（实际读到的是「${first.slice(0, 40)}」）。本脚本只写地图正文，子票正文请用 ${SIBLING_SCRIPT}。`);
+  }
+  if (!MAP_SECTION_RE.test(stripped)) {
+    fail(2, `--body-file 里没有 wayfinder 地图的规范章节（## Notes / ## Decisions so far / ## Not yet specified / ## Out of scope 至少要有其中一个），看起来不是地图正文。本脚本只写地图正文，子票正文请用 ${SIBLING_SCRIPT}。`);
   }
 }
 

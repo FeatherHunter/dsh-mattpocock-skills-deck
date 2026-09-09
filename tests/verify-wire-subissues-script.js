@@ -60,8 +60,8 @@ writeTrackerDoc(wsGitlab, '# Issue tracker: GitLab')
 fs.mkdirSync(wsNoDoc, { recursive: true })
 
 // ——— 正文夹具 ———
-const MAP_BODY = '## Destination\n\n把子票挂到地图下，并补齐原生阻塞边。\n\n## 计划\n\n1. 做 #571。\n'
-const MAP_BODY_STALE = '## Destination\n\n这是地图上的旧正文，和文件不一样。\n'
+const MAP_BODY = '## Destination\n\n把子票挂到地图下，并补齐原生阻塞边。\n\n## Notes\n\n- 首批只做 GitHub。\n\n## 计划\n\n1. 做 #571。\n'
+const MAP_BODY_STALE = '## Destination\n\n这是地图上的旧正文，和文件不一样。\n\n## Notes\n\n- 旧的。\n'
 const CHILD_PLAIN = '## Question\n\n这张票没有阻塞声明。\n'
 const CHILD_BLOCKED = 'Blocked by: #570\n\n## Question\n\n这张票被 #570 挡着。\n'
 // 声明行不在正文首部（用来验证降级时会把文字行补写到首部）
@@ -595,23 +595,32 @@ console.log('子议题关联脚本门禁（#572 · 命令行黑盒）')
   check(argvLog().length === 0, '13.2 参数错误时一个 gh 请求都不发（命令根本没执行）')
 }
 
-// ——— 14) 正文文件不像地图正文：四种绕过都要退出 2 ———
+// ——— 14) 正文文件不像地图正文：各条绕过都要退出 2；正例要放行 ———
 {
   fs.writeFileSync(fakeLog, '', 'utf8')
   const bypass = [
-    { name: '围栏里引用地图格式', text: '## Question\n\n```\n## Destination\n\n示例\n```\n' },
-    { name: '子票自己有一节 Destination', text: '## Question\n\n正文一段。\n\n## Destination\n\n抄来的\n' },
-    { name: '字面 \\n 转义被归一化造出该行', text: '## Question\\n\\n## Destination\\n' },
-    { name: '普通子票正文', text: '## Question\n\n这张票被 #570 挡着。\n' },
+    { name: '围栏里引用地图格式', text: '## Question\n\n```\n## Destination\n\n示例\n```\n', needle: '## Destination' },
+    { name: '子票自己有一节 Destination（首行不是）', text: '## Question\n\n正文一段。\n\n## Destination\n\n抄来的\n', needle: '## Destination' },
+    { name: '字面 \\n 转义被归一化造出该行', text: '## Question\\n\\n## Destination\\n', needle: '## Destination' },
+    { name: '普通子票正文', text: '## Question\n\n这张票被 #570 挡着。\n', needle: '## Destination' },
+    { name: '首行就是 ## Destination，但没有规范章节（红队 G 用例）', text: '## Destination\n\n子票自己也有一节叫 Destination（子票正文写进地图就会被覆盖）。\n\n## 计划\n\n1. 子票的计划。\n', needle: '规范章节' },
+    { name: '首行 Destination + 规范章节只出现在围栏里', text: '## Destination\n\n```\n## Notes\n```\n\n正文。\n', needle: '规范章节' },
   ]
   let ok = 0
   for (const b of bypass) {
     const r = runScript(['--map', '567', '--children', '571', '--body-file', writeFixture(b.text)])
-    if (r.status === 2 && r.stderr.indexOf('## Destination') >= 0) ok++
-    else check(false, '14.x ' + b.name + '：期望退出 2 且话里含「## Destination」，实际 exit=' + r.status + ' stderr=' + JSON.stringify(r.stderr.slice(0, 120)))
+    if (r.status === 2 && r.stderr.indexOf(b.needle) >= 0) ok++
+    else check(false, '14.x ' + b.name + '：期望退出 2 且话里含「' + b.needle + '」，实际 exit=' + r.status + ' stderr=' + JSON.stringify(r.stderr.slice(0, 120)))
   }
-  check(ok === bypass.length, '14.1 四种「看起来像地图正文」的子票正文都被拒绝（实际 ' + ok + '/' + bypass.length + '）')
+  check(ok === bypass.length, '14.1 ' + bypass.length + ' 种「看起来像地图正文」的子票正文都被拒绝（实际 ' + ok + '/' + bypass.length + '）')
   check(argvLog().length === 0, '14.2 拒绝时一个 gh 请求都不发')
+
+  // 正例：首行 Destination + 一个规范章节 → 放行（防过度收紧）
+  resetFake(stateFor({ map: 567, subIssues: { '567': [571] }, bodies: { '567': MAP_BODY, '571': CHILD_PLAIN } }))
+  const positive = writeFixture('## Destination\n\n地图正文。\n\n## Not yet specified\n\n- 暂无。\n')
+  const rp = runScript(['--map', '567', '--children', '571', '--body-file', positive])
+  check(rp.status === 0 && rp.json && rp.json.ok === true, '14.3 首行 Destination + 一个规范章节 → 正常放行（防过度收紧）')
+  check(readFake().bodies['567'].indexOf('## Not yet specified') >= 0, '14.4 正例的正文确实写回了地图')
 }
 
 // ——— 15) 子票不存在 / 改挂：假 gh 像真 gh 一样报错 ———
