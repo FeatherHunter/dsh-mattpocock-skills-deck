@@ -3,7 +3,7 @@
  *
  * 只转译不打包：用仓库现成的 esbuild 把 packages/dsh-log/src/ 下每个 TS 文件
  * 一对一转成 packages/dsh-log/dist/ 下的同名 JS；另跑 tsc --noEmit 只做类型检查。
- * 生成的 JS 提交到 git；改了 TS 没重新生成，测试直接引用 dist 会过期，由单测兜住。
+ * 生成的 JS 不提交到 git（发布前跑 build:dsh-log 本地生成）；改了 TS 没重新生成，测试直接引用 dist 会过期，由单测兜住。
  *
  * 用法：node packages/dsh-log/build.mjs（在仓库根目录或包目录均可）
  * 或：npm run build --workspace=dsh-log（需先接好 workspace，见 pnpm-workspace.yaml）

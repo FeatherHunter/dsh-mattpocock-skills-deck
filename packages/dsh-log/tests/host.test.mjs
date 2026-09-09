@@ -133,6 +133,14 @@ describe('宿主引擎单测（#559）', () => {
     assert.equal(createHostLog(deps, { pluginId: 'wf' }).store.config.switchFileName, 'log-switch.json')
     assert.equal(createHostLog(deps, { pluginId: 'demo' }).store.config.logDirName, 'logs-demo')
     assert.equal(createHostLog(deps, { pluginId: 'demo' }).store.config.switchFileName, 'log-switch-demo.json')
+    // 不传前缀时前缀回退到插件标识：演示标识默认拼出演示电话名且目录一致（日志系统的默认一致口径）。
+    const demoDefault = createHostLog(deps, { pluginId: 'demo' })
+    assert.equal(demoDefault.store.config.prefix, 'demo')
+    assert.equal(demoDefault.phoneNames.logBatch, 'demo.logBatch')
+    assert.equal(demoDefault.phoneNames.logExport, 'demo.logExport')
+    // 主路径不变：不传插件标识默认与标识为 wf 时仍为 wf 电话名。
+    assert.equal(createHostLog(deps, { pluginId: 'wf' }).phoneNames.logBatch, 'wf.logBatch')
+    assert.equal(createHostLog(deps, { pluginId: 'wf', prefix: 'wf' }).phoneNames.logBatch, 'wf.logBatch')
     // 缺插件标识、大写、含点都直接报错，不做静默转小写。
     assert.throws(() => createHostLog(deps, {}), /pluginId/)
     assert.throws(() => createHostLog(deps, { pluginId: 'WF' }), /非法/)
@@ -248,5 +256,38 @@ describe('宿主引擎单测（#559）', () => {
     assert.equal(keyOld[0].replace('/cache', ''), keyNew[0].replace('/cache', ''))
     assert.deepEqual(strip(memNew.texts.get(keyNew[0])), strip(memOld.texts.get(keyOld[0])))
     assert.equal(LOG_DEBOUNCE_MS, legacy.LOG_DEBOUNCE_MS)
+  })
+
+  it('自定义前缀失败方法名：失败行的方法名跟随配置前缀而非写死旧前缀', async () => {
+    // 日志系统的失败行要带触发它的那组电话名的前缀，自定前缀下不得回落到旧字面。
+    const phonesMod = await import(pathToFileURL(path.join(PKG_DIR, 'dist', 'phones.js')).href + '?x=' + Date.now())
+    const seen = []
+    const baseCtx = {
+      config: { pluginId: 'demo', prefix: 'demo', logDirName: 'logs-demo', switchFileName: 'log-switch-demo.json', fileNamePolicy: 'daily', maxQueue: 1000, eventList: null },
+      joinPath: (a, b) => String(a) + '/' + String(b),
+      joinLogPath: async (d, n) => String(d) + '/' + String(n),
+      resolveTarget: async (p) => ({ __target: String(p) }),
+      readTarget: async () => { throw new Error('文件不存在') },
+      writeTarget: async () => ({}),
+      log: (level, event, fields) => { seen.push({ level, event, fields }) },
+      getSwitchState: () => ({ enabled: true, sampleRate: 1 }),
+      getHeaderInfo: () => null,
+      loadSwitch: async () => ({ enabled: true, sampleRate: 1 }),
+      setSwitch: async (enabled, sampleRate) => ({ enabled, sampleRate }),
+      getCacheDir: async () => '/cache',
+      getPlatform: async () => null,
+      DEFAULT_CWD: '/work'
+    }
+    const phones = phonesMod.createLogPhones(baseCtx)
+    await phones.handleLogClear({ date: 'bad-date' })
+    const clearRow = seen.find((r) => r.event === 'host.call.fail' && r.fields && r.fields.kind === 'clear')
+    assert.ok(clearRow, '清空失败应记一行失败行')
+    assert.equal(clearRow.fields.method, 'demo.logClear')
+    seen.length = 0
+    const noDirPhones = phonesMod.createLogPhones({ ...baseCtx, getCacheDir: async () => null })
+    await noDirPhones.handleLogExport({})
+    const exportRow = seen.find((r) => r.event === 'host.call.fail' && r.fields && r.fields.kind === 'export')
+    assert.ok(exportRow, '导出无目录应记一行失败行')
+    assert.equal(exportRow.fields.method, 'demo.logExport')
   })
 })

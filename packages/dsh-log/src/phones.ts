@@ -118,7 +118,7 @@ export function createLogPhones(ctx: LogPhonesContext) {
       const dir = typeof ctx.getCacheDir === 'function' ? await ctx.getCacheDir() : null
       if (!dir) {
         try {
-          ctx.log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: hash8('no-dir') })
+          ctx.log('warn', 'host.call.fail', { method: config.prefix + '.logExport', kind: 'export', errorHash: hash8('no-dir') })
         } catch (eL) {
           void eL
         }
@@ -198,7 +198,7 @@ export function createLogPhones(ctx: LogPhonesContext) {
     } catch (e) {
       try {
         ctx.log('warn', 'host.call.fail', {
-          method: 'wf.logExport',
+          method: config.prefix + '.logExport',
           kind: 'export',
           errorHash: hash8(String((e as Error && (e as Error).message) || e))
         })
@@ -226,7 +226,7 @@ export function createLogPhones(ctx: LogPhonesContext) {
       }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(want)) {
         try {
-          ctx.log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: hash8('bad-date') })
+          ctx.log('warn', 'host.call.fail', { method: config.prefix + '.logClear', kind: 'clear', errorHash: hash8('bad-date') })
         } catch (eL) {
           void eL
         }
@@ -248,7 +248,7 @@ export function createLogPhones(ctx: LogPhonesContext) {
     } catch (e) {
       try {
         ctx.log('warn', 'host.call.fail', {
-          method: 'wf.logClear',
+          method: config.prefix + '.logClear',
           kind: 'clear',
           errorHash: hash8(String((e as Error && (e as Error).message) || e))
         })

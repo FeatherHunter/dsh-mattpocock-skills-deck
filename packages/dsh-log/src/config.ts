@@ -34,7 +34,8 @@ export type FileNamePolicy = 'daily' | 'four-segment'
 export interface HostLogConfigInput {
   // 插件标识：必填，无默认。只能用小写英文字母、数字、中横线，长度 1 到 32。
   pluginId: string
-  // 电话名前缀：默认 wf。约束与插件标识相同。默认与插件标识相同，当前插件两者都是 wf。
+  // 电话名前缀：不传时回退到插件标识（即前缀默认等于插件标识，当前插件两者都是 wf，主路径仍为 wf.*）。
+  // 约束与插件标识相同。
   prefix?: string
   // 日志子目录名：默认派生，标识为 wf 时为 logs，其他标识时为 logs 加中横线加标识。允许显式覆盖。
   logDirName?: string
@@ -80,7 +81,7 @@ export function assertPluginId(value: unknown, role: string): string {
 export function resolveHostLogConfig(input: HostLogConfigInput): ResolvedHostLogConfig {
   if (!input || typeof input !== 'object') throw new Error('[dsh-log] 建日志库缺少配置：插件标识 pluginId 必填')
   const pluginId = assertPluginId(input.pluginId, '插件标识 pluginId')
-  const prefix = input.prefix === undefined ? 'wf' : assertPluginId(input.prefix, '电话名前缀 prefix')
+  const prefix = input.prefix === undefined ? pluginId : assertPluginId(input.prefix, '电话名前缀 prefix')
   const logDirName =
     input.logDirName !== undefined
       ? input.logDirName
