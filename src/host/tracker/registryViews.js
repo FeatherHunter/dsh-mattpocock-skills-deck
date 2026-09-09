@@ -8,18 +8,24 @@
 /** 出 RepositoryRef：转发 BackendModule.describe（可选），回退骨架（#220 · registry 只转发）。 */
 export function describe(byId, handle, backendId) {
   const entry = byId.get(backendId)
+  // effort 维度：effortId 是 ref 的寻址范围，白名单里必须如实转发（丢掉就再也拿不回来）
+  const withEffort = (o) => {
+    if (handle && handle.effortId !== undefined && handle.effortId !== null) o.effortId = String(handle.effortId)
+    return o
+  }
   if (entry && entry.mod && typeof entry.mod.describe === 'function') {
     try {
       const r = entry.mod.describe(handle, backendId)
       if (r && typeof r === 'object' && typeof r.refId === 'string') {
-        return {
+        return withEffort({
           backend: r.backend || backendId,
           refId: r.refId || '',
           name: r.name || r.refId || (handle.cwd || backendId),
           url: typeof r.url === 'string' ? r.url : '',
-        }
+          ...(r.effortId !== undefined && r.effortId !== null ? { effortId: String(r.effortId) } : {}),
+        })
       }
-      if (r && typeof r === 'object') return r
+      if (r && typeof r === 'object') return withEffort(r)
     } catch (e) { /* 回退骨架 */ }
   }
   // 也尝试 tracker 实例上的 describe（若模块经 create 暴露）
@@ -28,19 +34,20 @@ export function describe(byId, handle, backendId) {
     if (tr && typeof tr.describe === 'function') {
       const r2 = tr.describe(handle, backendId)
       if (r2 && typeof r2 === 'object' && typeof r2.refId === 'string') {
-        return {
+        return withEffort({
           backend: r2.backend || backendId,
           refId: r2.refId || '',
           name: r2.name || r2.refId || (handle.cwd || backendId),
           url: typeof r2.url === 'string' ? r2.url : '',
-        }
+          ...(r2.effortId !== undefined && r2.effortId !== null ? { effortId: String(r2.effortId) } : {}),
+        })
       }
     }
   } catch (e) {}
   // 骨架回退：markdown 用 cwd，其余空（等价旧行为）
   const refId = handle.refId || (backendId === 'markdown' ? handle.cwd : '')
   const name = refId || (handle.cwd || backendId)
-  return { backend: backendId, refId, name, url: '' }
+  return withEffort({ backend: backendId, refId, name, url: '' })
 }
 
 /** issueUrl 只读 view：转发 BackendModule.issueUrl / tracker.issueUrl，回退按 backendId 拼装（#220）。 */

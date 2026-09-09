@@ -247,6 +247,8 @@ export function normalizeIssue(raw) {
 
   const issue = {
     key,
+    // effortId：GitLab 一个仓库只有一个隐含 effort，核心字段填 ''（EMPTY，不是 MISSING）
+    effortId: '',
     type,
     title,
     state,

@@ -12,6 +12,7 @@
 function norm(raw) {
   const issue = {
     key: String(raw.key ?? 1),
+    effortId: String(raw.effortId ?? ''),
     type: 'issue',
     title: '', // 违规：刻意不填 title
     state: raw.state ?? 'open',

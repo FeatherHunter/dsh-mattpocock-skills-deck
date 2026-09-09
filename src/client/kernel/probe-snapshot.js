@@ -103,36 +103,37 @@
       if (!oldS || !oldS.ok || !Array.isArray(oldS.maps)) return out
       if (!newS || !newS.ok || !Array.isArray(newS.maps)) return out
       const lbl = function (x) { return (x.labels || []).map(function (l) { return typeof l === 'string' ? l : l.name }).sort().join(',') }
-      const idx = function (snap) { const m = {}; snap.maps.forEach(function (x) { m[x.number] = x }); return m }
+      // effort 维度：差异索引按票身份 (effort, 编号) 键入，否则不同 effort 的同号地图互相顶掉、变更探测不到
+      const idx = function (snap) { const m = {}; snap.maps.forEach(function (x) { m[idOf(x)] = x }); return m }
       const a = idx(oldS), b = idx(newS)
       // 子票级变化：逐票对比（新增/变更标 issueFlash；任一变化 → 该 map 计入 changed，map 详情视图增量）
       //   字段实证（#458 核验）：map 子票在快照里是 tickets（非 issues）；票级变化 = state/progress/claimedBy/labels
       Object.keys(b).forEach(function (n) {
-        if (!a[n]) { out.added.push(Number(n)); return }
+        if (!a[n]) { out.added.push(n); return }
         var x = a[n], y = b[n]
         var sub = false
-        var ix = {}; (x.tickets || []).forEach(function (i) { ix[i.number] = i })
-        var iy = {}; (y.tickets || []).forEach(function (i) { iy[i.number] = i })
+        var ix = {}; (x.tickets || []).forEach(function (i) { ix[idOf(i)] = i })
+        var iy = {}; (y.tickets || []).forEach(function (i) { iy[idOf(i)] = i })
         Object.keys(iy).forEach(function (k) {
-          if (!ix[k]) { sub = true; out.issueFlash[Number(k)] = 'added'; return }
+          if (!ix[k]) { sub = true; out.issueFlash[k] = 'added'; return }
           var a2 = ix[k], b2 = iy[k]
-          if (a2.state !== b2.state || a2.progress !== b2.progress || a2.claimedBy !== b2.claimedBy || lbl(a2) !== lbl(b2) || String(a2.updatedAt || '') !== String(b2.updatedAt || '')) { sub = true; out.issueFlash[Number(k)] = 'changed' }
+          if (a2.state !== b2.state || a2.progress !== b2.progress || a2.claimedBy !== b2.claimedBy || lbl(a2) !== lbl(b2) || String(a2.updatedAt || '') !== String(b2.updatedAt || '')) { sub = true; out.issueFlash[k] = 'changed' }
         })
         if (Object.keys(ix).length !== Object.keys(iy).length) sub = true
-        if (x.state !== y.state || x.title !== y.title || lbl(x) !== lbl(y) || sub) out.changed.push(Number(n))
+        if (x.state !== y.state || x.title !== y.title || lbl(x) !== lbl(y) || sub) out.changed.push(n)
       })
       // #255 · 孤儿票（根票）对比 —— 右侧主列表行闪烁的数据源补口：原实现只遍历 maps 子票，
       // 根票（parentKey=null）任何变化都不产 rowFlash；且把核心字段 updatedAt 纳入比较元组——
       // GitHub 加评论会 bump updated_at，probe 索引（STATE|updated_at）判 changed 触发静默重建后，
       // 闪烁由本差异真实产出（重求值推进，无乐观假设）。
-      const ia = {}; if (oldS && Array.isArray(oldS.issues)) oldS.issues.forEach(function (i) { if (i && i.number != null) ia[i.number] = i })
-      const iy0 = {}; if (newS && Array.isArray(newS.issues)) newS.issues.forEach(function (i) { if (i && i.number != null) iy0[i.number] = i })
+      const ia = {}; if (oldS && Array.isArray(oldS.issues)) oldS.issues.forEach(function (i) { if (i) ia[idOf(i)] = i })
+      const iy0 = {}; if (newS && Array.isArray(newS.issues)) newS.issues.forEach(function (i) { if (i) iy0[idOf(i)] = i })
       Object.keys(iy0).forEach(function (k) {
-        if (!ia[k]) { out.added.push(Number(k)); return }
+        if (!ia[k]) { out.added.push(k); return }
         var xa = ia[k], ya = iy0[k]
-        if (xa.state !== ya.state || xa.title !== ya.title || lbl(xa) !== lbl(ya) || String(xa.updatedAt || '') !== String(ya.updatedAt || '')) out.changed.push(Number(k))
+        if (xa.state !== ya.state || xa.title !== ya.title || lbl(xa) !== lbl(ya) || String(xa.updatedAt || '') !== String(ya.updatedAt || '')) out.changed.push(k)
       })
-      Object.keys(ia).forEach(function (k) { if (!iy0[k]) out.removed.push(Number(k)) })
+      Object.keys(ia).forEach(function (k) { if (!iy0[k]) out.removed.push(k) })
       return out
     }
     // R5：高亮定时清除（防堆积；一次只排一个 timer）
@@ -245,7 +246,7 @@
             var _df = st.lastDiff
             _df.added.forEach(function (n) { st.rowFlash[n] = 'added' })
             _df.changed.forEach(function (n) { st.rowFlash[n] = 'changed' })
-            if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (k) { st.issueFlash[Number(k)] = _df.issueFlash[k] })
+            if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (k) { st.issueFlash[k] = _df.issueFlash[k] })
             // R5 视觉：有变化才提示 + 定时清除高亮（防堆积）
             if (_df.removed.length) flash(st, tr('panel.diffRemoved', { n: _df.removed.length }), 'info')
             scheduleFlashClear(st)

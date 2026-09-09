@@ -1,32 +1,34 @@
-// issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 195 行）。
+// issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 190 行）。
+//
+// effort 维度（2026-09-09）：所有写路径按 (effort 范围, 编号) 定位文件，多命中即 conflict。
 import { parseMd } from './parse.js'
-import { readTextFile, readDir, exists } from './read.js'
+import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
-import { mdPath } from './path.js'
 import { classifyError } from '../../preflight.js'
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
-import { getPlat, listEffortDirs, findIssueFileGlobal, findIssueFileInEffort } from './issues-locate.js'
+import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
 import { loadPaletteMap, recolorLabels } from './issues-labels.js'
 import { replaceOrInsertField } from './issues-status.js'
 
+async function resolveTarget(ctx,repo,norm,mode){
+  if(norm==='00') return resolveMapFile(ctx,repo,{mode})
+  return resolveIssueFile(ctx,repo,norm,{mode})
+}
+async function readParseWrite(ctx,r,norm,fn){
+  try{
+    let txt=await readTextFile(ctx,r.path)
+    const out=fn(txt)
+    const next=typeof out==='string'?out:txt
+    if(next!==txt)await writeTextFile(ctx,r.path,next)
+    return{ok:true,txt:next}
+  }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+}
 export async function updateIssue(ctx,repo,key,patch){
   const norm=String(key).padStart(2,'0')
   const paletteMap=await loadPaletteMap(ctx)
-  let full=await findIssueFileGlobal(ctx,norm)
-  if(!full) full=await findIssueFileInEffort(ctx,repo,norm)
-  if(!full && repo&&repo.path){
-    try{
-      const plat=getPlat(ctx)
-      const files=await readDir(ctx, plat.join(repo.path,'issues'))
-      for(const f of files){
-        const m=/^(\d+)-/.exec(f)
-        if(m && m[1].padStart(2,'0')===norm && f.endsWith('.md')){ full=plat.join(repo.path,'issues',f); break }
-      }
-    }catch{}
-  }
-  if(!full)return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'issue '+norm+' not-found'}}
-  try{
-    let txt=await readTextFile(ctx,full)
+  const r=await resolveTarget(ctx,repo,norm,'write')
+  if(!r.ok)return{ok:false,error:r.error}
+  const res=await readParseWrite(ctx,r,norm,function(txt){
     let changed=false
     if(patch&&typeof patch.title==='string'){
       const newTitle=patch.title.trim()
@@ -65,8 +67,11 @@ export async function updateIssue(ctx,repo,key,patch){
       const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
       txt=replaceOrInsertField(txt,'Labels',line);changed=true
     }
-    if(changed)await writeTextFile(ctx,full,txt)
-    const iss=parseMd(txt,{key:norm,parentKey:'00',isMap:false})
+    return changed?txt:undefined
+  })
+  if(!res.ok)return{ok:false,error:res.error}
+  try{
+    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId})
     recolorLabels(iss, paletteMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
@@ -75,26 +80,14 @@ export async function setBlockedByIssue(ctx,repo,key,blockers){
   const norm=String(key).padStart(2,'0')
   const paletteMap=await loadPaletteMap(ctx)
   if(Array.isArray(blockers)&&blockers.map(k=>String(k).padStart(2,'0')).includes(norm)){return{ok:false,error:{kind:ERROR_KIND.CONFLICT,message:'self-block '+norm}}}
-  let full=await findIssueFileGlobal(ctx,norm)
-  if(!full) full=await findIssueFileInEffort(ctx,repo,norm)
-  if(!full && repo&&repo.path){
-    try{
-      const plat=getPlat(ctx)
-      const files=await readDir(ctx, plat.join(repo.path,'issues'))
-      for(const f of files){
-        const m=/^(\d+)-/.exec(f)
-        if(m && m[1].padStart(2,'0')===norm && f.endsWith('.md')){ full=plat.join(repo.path,'issues',f); break }
-      }
-    }catch{}
-  }
-  if(!full)return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'issue '+norm+' not-found'}}
+  const r=await resolveTarget(ctx,repo,norm,'write')
+  if(!r.ok)return{ok:false,error:r.error}
+  const arr=Array.isArray(blockers)?blockers:[]
+  const line=arr.length?'Blocked by: '+arr.map(k=>'#'+String(k).padStart(2,'0')).join(', '):'Blocked by:'
+  const res=await readParseWrite(ctx,r,norm,function(txt){return replaceOrInsertField(txt,'Blocked\\s+by',line)})
+  if(!res.ok)return{ok:false,error:res.error}
   try{
-    let txt=await readTextFile(ctx,full)
-    const arr=Array.isArray(blockers)?blockers:[]
-    const line=arr.length?'Blocked by: '+arr.map(k=>'#'+String(k).padStart(2,'0')).join(', '):'Blocked by:'
-    txt=replaceOrInsertField(txt,'Blocked\\s+by',line)
-    await writeTextFile(ctx,full,txt)
-    const iss=parseMd(txt,{key:norm,parentKey:'00',isMap:false})
+    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})
     recolorLabels(iss, paletteMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
@@ -102,26 +95,14 @@ export async function setBlockedByIssue(ctx,repo,key,blockers){
 export async function setAssigneesIssue(ctx,repo,key,assignees){
   const norm=String(key).padStart(2,'0')
   const paletteMap=await loadPaletteMap(ctx)
-  let full=await findIssueFileGlobal(ctx,norm)
-  if(!full) full=await findIssueFileInEffort(ctx,repo,norm)
-  if(!full && repo&&repo.path){
-    try{
-      const plat=getPlat(ctx)
-      const files=await readDir(ctx, plat.join(repo.path,'issues'))
-      for(const f of files){
-        const m=/^(\d+)-/.exec(f)
-        if(m && m[1].padStart(2,'0')===norm && f.endsWith('.md')){ full=plat.join(repo.path,'issues',f); break }
-      }
-    }catch{}
-  }
-  if(!full)return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'issue '+norm+' not-found'}}
+  const r=await resolveTarget(ctx,repo,norm,'write')
+  if(!r.ok)return{ok:false,error:r.error}
+  const hasAssignee=Array.isArray(assignees)&&assignees.length>0
+  const statusLine=hasAssignee?'Status: claimed':'Status: ready-for-agent'
+  const res=await readParseWrite(ctx,r,norm,function(txt){return replaceOrInsertField(txt,'Status',statusLine)})
+  if(!res.ok)return{ok:false,error:res.error}
   try{
-    let txt=await readTextFile(ctx,full)
-    const hasAssignee=Array.isArray(assignees)&&assignees.length>0
-    const statusLine=hasAssignee?'Status: claimed':'Status: ready-for-agent'
-    txt=replaceOrInsertField(txt,'Status',statusLine)
-    await writeTextFile(ctx,full,txt)
-    const iss=parseMd(txt,{key:norm,parentKey:'00',isMap:false})
+    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})
     recolorLabels(iss, paletteMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
@@ -133,52 +114,13 @@ export async function setLabelsIssue(ctx,repo,key,labels){
   const norm=String(key).padStart(2,'0')
   const paletteMap=await loadPaletteMap(ctx)
   const names=Array.isArray(labels)? labels.map(l=> typeof l==='string'? l.trim() : (l&&typeof l.name==='string'? l.name.trim():String(l).trim())).filter(Boolean) : []
-  let full=null
-  // try map first if key 00
-  if(norm==='00'){
-    const dirs=await listEffortDirs(ctx)
-    for(const d of dirs){
-      const plat=getPlat(ctx)
-      const mapP=plat.join(d,'map.md')
-      try{
-        if(await exists(ctx,mapP)){
-          full=mapP
-          break
-        }
-      }catch{}
-    }
-    if(!full){
-      try{
-        const mapP=mdPath(repo,'map',undefined,ctx)
-        if(await exists(ctx,mapP)) full=mapP
-      }catch{}
-    }
-    if(!full && repo&&repo.path){
-      const plat=getPlat(ctx)
-      const cand=plat.join(repo.path,'map.md')
-      try{ if(await exists(ctx,cand)) full=cand }catch{}
-    }
-  } else {
-    full=await findIssueFileGlobal(ctx,norm)
-    if(!full) full=await findIssueFileInEffort(ctx,repo,norm)
-    if(!full && repo&&repo.path){
-      try{
-        const plat=getPlat(ctx)
-        const files=await readDir(ctx, plat.join(repo.path,'issues'))
-        for(const f of files){
-          const m=/^(\d+)-/.exec(f)
-          if(m && m[1].padStart(2,'0')===norm && f.endsWith('.md')){ full=plat.join(repo.path,'issues',f); break }
-        }
-      }catch{}
-    }
-  }
-  if(!full)return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'issue '+norm+' not-found'}}
+  const r=await resolveTarget(ctx,repo,norm,'write')
+  if(!r.ok)return{ok:false,error:r.error}
+  const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
+  const res=await readParseWrite(ctx,r,norm,function(txt){return replaceOrInsertField(txt,'Labels',line)})
+  if(!res.ok)return{ok:false,error:res.error}
   try{
-    let txt=await readTextFile(ctx,full)
-    const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
-    txt=replaceOrInsertField(txt,'Labels',line)
-    await writeTextFile(ctx,full,txt)
-    const iss=parseMd(txt,{key:norm,parentKey: norm==='00'? null : '00', isMap: norm==='00'})
+    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId})
     recolorLabels(iss, paletteMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}

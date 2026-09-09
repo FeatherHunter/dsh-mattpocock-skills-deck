@@ -105,7 +105,8 @@ export     const OverlayPanel = (props) => {
       // #376：加载由 openPanel 统一分派（未就绪/过期 force，新鲜直接展示）；此处不再重复加载
       if (!s.open) return null
       const groups = compute(s)
-      const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
+      // effort 维度：当前地图按 (effort, 编号) 找（悬浮面板读镜像，镜像里有 effort）
+      const active = s.activeMap !== null ? findGroupByIdentity(groups, s.activeMap, s.activeEffortId || '') : null
       // v14-19：窄屏阈值（面板宽 <380px 时动作按钮折叠为纯图标）
       const narrow = s.size.w < 380
       // #187 Banner→Modal 门控（同 Dock：Banner 点→Modal 动态三选，不含 Other，取消/确认 + 两态等待）

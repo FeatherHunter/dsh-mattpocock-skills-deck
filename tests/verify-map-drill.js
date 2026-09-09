@@ -8,6 +8,34 @@
 // 配真实压栈弹栈函数与记录桩；不是照着源码另写一份仿品，所以源码改错名字或改错分支会直接变红。
 // 用法: node tests/verify-map-drill.js（在插件根目录）
 const fs = require('fs')
+
+// effort 维度（2026-09-09）：面板里身份函数来自拼接进闭包的 shared/tracker/constants.js。
+// 本门禁把同一份原文取出来，拼进每个求值沙箱，保证「跑的是真函数」这条纪律不破。
+const constantsSrc = fs.readFileSync('src/shared/tracker/constants.js', 'utf8')
+const identitySrc = ['effortOf', 'idOfParts', 'idOf'].map((n) => {
+  const m = new RegExp('export function ' + n + '\\([\\s\\S]*?\\n\\}').exec(constantsSrc)
+  if (!m) throw new Error('constants.js 缺 ' + n)
+  return m[0].replace(/^export /, '')
+}).join('\n')
+// 面板里的「按身份找地图」已收进 store-derived.js 的共享函数，沙箱同样带真源码
+const derivedSrc = fs.readFileSync('src/client/kernel/store-derived.js', 'utf8')
+const findMapByIdentitySrc = (function () {
+  const i = derivedSrc.indexOf('const findMapByIdentity =')
+  if (i < 0) throw new Error('store-derived.js 缺 findMapByIdentity')
+  const brace = derivedSrc.indexOf('{', i)
+  let depth = 0, inStr = null
+  for (let k = brace; k < derivedSrc.length; k++) {
+    const c = derivedSrc[k]
+    if (inStr) { if (c === '\\') { k++; continue } if (c === inStr) inStr = null; continue }
+    if (c === '"' || c === "'" || c === '`') { inStr = c; continue }
+    if (c === '{') depth++
+    else if (c === '}') { depth--; if (depth === 0) return derivedSrc.slice(i, k + 1) }
+  }
+  throw new Error('findMapByIdentity 截取失败')
+})()
+const withIdentity = (src) => identitySrc + '\n' + findMapByIdentitySrc + '\n' + src
+// IssueDetail 的 issueEffort 是组件级常量（门禁只截函数体），沙箱里补一个同语义兜底
+const withIssueEffort = (src) => 'const issueEffort = \'\'\n' + withIdentity(src)
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
@@ -61,46 +89,51 @@ const eqStack = (st, arr) => JSON.stringify(st.navStack) === JSON.stringify(arr)
 // ============ 一、四层混合链逐级返回（含两种两层链） ============
 let st = { activeMap: null, activeIssue: null, navStack: [], tick: 0 }
 nav.pushNav(st, 'map', 10); nav.pushNav(st, 'issue', 20); nav.pushNav(st, 'map', 30); nav.pushNav(st, 'issue', 40)
-check(eqStack(st, [{ kind: 'map', n: 10 }, { kind: 'issue', n: 20 }, { kind: 'map', n: 30 }, { kind: 'issue', n: 40 }]), '矩阵：四层混合链压栈保留完整返回路（地图10/工单20/地图30/工单40）')
+check(eqStack(st, [{ kind: 'map', n: 10, effortId: '' }, { kind: 'issue', n: 20, effortId: '' }, { kind: 'map', n: 30, effortId: '' }, { kind: 'issue', n: 40, effortId: '' }]), '矩阵：四层混合链压栈保留完整返回路（地图10/工单20/地图30/工单40）')
 nav.popNav(st)
-check(eqStack(st, [{ kind: 'map', n: 10 }, { kind: 'issue', n: 20 }, { kind: 'map', n: 30 }]) && st.activeMap === 30 && st.activeIssue === null, '矩阵：四层链返回先回到地图30')
+check(eqStack(st, [{ kind: 'map', n: 10, effortId: '' }, { kind: 'issue', n: 20, effortId: '' }, { kind: 'map', n: 30, effortId: '' }]) && st.activeMap === 30 && st.activeIssue === null, '矩阵：四层链返回先回到地图30')
 nav.popNav(st)
-check(eqStack(st, [{ kind: 'map', n: 10 }, { kind: 'issue', n: 20 }]) && st.activeIssue === 20 && st.activeMap === null, '矩阵：四层链再返回回到工单20')
+check(eqStack(st, [{ kind: 'map', n: 10, effortId: '' }, { kind: 'issue', n: 20, effortId: '' }]) && st.activeIssue === 20 && st.activeMap === null, '矩阵：四层链再返回回到工单20')
 nav.popNav(st)
-check(eqStack(st, [{ kind: 'map', n: 10 }]) && st.activeMap === 10 && st.activeIssue === null, '矩阵：四层链再返回回到地图10')
+check(eqStack(st, [{ kind: 'map', n: 10, effortId: '' }]) && st.activeMap === 10 && st.activeIssue === null, '矩阵：四层链再返回回到地图10')
 nav.popNav(st)
 check(eqStack(st, []) && st.activeMap === null && st.activeIssue === null, '矩阵：四层链退空栈回列表')
 
 st = { activeMap: null, activeIssue: null, navStack: [], tick: 0 }
 nav.pushNav(st, 'map', 550); nav.pushNav(st, 'issue', 7); nav.popNav(st)
-check(eqStack(st, [{ kind: 'map', n: 550 }]) && st.activeMap === 550 && st.activeIssue === null, '矩阵：地图进普通工单再返回，回到地图550')
+check(eqStack(st, [{ kind: 'map', n: 550, effortId: '' }]) && st.activeMap === 550 && st.activeIssue === null, '矩阵：地图进普通工单再返回，回到地图550')
 st = { activeMap: null, activeIssue: null, navStack: [], tick: 0 }
 nav.pushNav(st, 'map', 550); nav.pushNav(st, 'map', 551); nav.popNav(st)
-check(eqStack(st, [{ kind: 'map', n: 550 }]) && st.activeMap === 550, '矩阵：地图进下一级地图再返回，回到上一级550')
+check(eqStack(st, [{ kind: 'map', n: 550, effortId: '' }]) && st.activeMap === 550, '矩阵：地图进下一级地图再返回，回到上一级550')
 
 // ============ 一补、行进详情再返回端到端（真分流函数进，真返回函数出） ============
-const e2eMapSrc = ['hasMapTag', 'findMapInSnapshot', 'enterDetail', 'goBack'].map((n) => extractConst(mapSrc, n)).join('\n')
-const e2eSubSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'findMapLocal', 'enterSubDetail'].map((n) => extractConst(issueSrc, n)).join('\n') + '\n' + extractConst(issueSrc, 'goBack').replace('const goBack =', 'const goBackIssue =')
+const e2eMapSrc = ['hasMapTag', 'enterDetail', 'goBack'].map((n) => extractConst(mapSrc, n)).join('\n')
+const e2eSubSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'enterSubDetail'].map((n) => extractConst(issueSrc, n)).join('\n') + '\n' + extractConst(issueSrc, 'goBack').replace('const goBack =', 'const goBackIssue =')
 const runE2E2 = (bundle, names, t, seedStack, maps) => {
-  const s = { activeMap: null, activeIssue: null, navStack: seedStack.map((e) => ({ kind: e[0], n: e[1] })), tick: 0, snapshot: { maps: maps } }
-  const fn = new Function('st', 'pushNav', 'popNav', bundle + '\nreturn { ' + names + ' }')
-  return { s: s, api: fn(s, function (a, k, n) { return nav.pushNav(a, k, n) }, function (a) { return nav.popNav(a) }) }
+  const s = { activeMap: null, activeIssue: null, navStack: seedStack.map((e) => ({ kind: e[0], n: e[1], effortId: '' })), tick: 0, snapshot: { maps: maps } }
+  const fn = new Function('st', 'pushNav', 'popNav', (names.indexOf('enterSubDetail') >= 0 ? withIssueEffort(bundle) : withIdentity(bundle)) + '\nreturn { ' + names + ' }')
+  return { s: s, api: fn(s, function (a, k, n, e) { return nav.pushNav(a, k, n, e) }, function (a) { return nav.popNav(a) }) }
 }
 let e = runE2E2(e2eMapSrc, 'enterDetail, goBack', null, [['map', 550]], [{ number: 550 }])
 e.api.enterDetail({ number: 7, labels: [{ name: 'bug' }], state: 'OPEN' })
-check(eqStack(e.s, [{ kind: 'map', n: 550 }, { kind: 'issue', n: 7 }]), '端到端：地图行进普通工单压栈')
+check(eqStack(e.s, [{ kind: 'map', n: 550, effortId: '' }, { kind: 'issue', n: 7, effortId: '' }]), '端到端：地图行进普通工单压栈')
 e.api.goBack()
-check(eqStack(e.s, [{ kind: 'map', n: 550 }]) && e.s.activeMap === 550, '端到端：工单返回弹栈回到地图550')
+check(eqStack(e.s, [{ kind: 'map', n: 550, effortId: '' }]) && e.s.activeMap === 550, '端到端：工单返回弹栈回到地图550')
 e = runE2E2(e2eMapSrc, 'enterDetail, goBack', null, [['map', 550]], [{ number: 550 }, { number: 551 }])
 e.api.enterDetail({ number: 551, labels: [{ name: 'wayfinder:map' }], state: 'OPEN' })
-check(eqStack(e.s, [{ kind: 'map', n: 550 }, { kind: 'map', n: 551 }]), '端到端：地图行进下一级地图压栈')
+check(eqStack(e.s, [{ kind: 'map', n: 550, effortId: '' }, { kind: 'map', n: 551, effortId: '' }]), '端到端：地图行进下一级地图压栈')
 e.api.goBack()
-check(eqStack(e.s, [{ kind: 'map', n: 550 }]) && e.s.activeMap === 550, '端到端：地图返回弹栈回到上一级550')
+check(eqStack(e.s, [{ kind: 'map', n: 550, effortId: '' }]) && e.s.activeMap === 550, '端到端：地图返回弹栈回到上一级550')
 e = runE2E2(e2eSubSrc, 'enterSubDetail, goBackIssue', null, [['issue', 20]], [{ number: 551 }])
 e.api.enterSubDetail({ number: 551, labels: [{ name: 'wayfinder:map' }] })
-check(eqStack(e.s, [{ kind: 'issue', n: 20 }, { kind: 'map', n: 551 }]), '端到端：子票按标签进地图压栈')
+check(eqStack(e.s, [{ kind: 'issue', n: 20, effortId: '' }, { kind: 'map', n: 551, effortId: '' }]), '端到端：子票按标签进地图压栈')
 e.api.goBackIssue()
-check(eqStack(e.s, [{ kind: 'issue', n: 20 }]) && e.s.activeIssue === 20, '端到端：子票层返回弹栈回到工单20')
+check(eqStack(e.s, [{ kind: 'issue', n: 20, effortId: '' }]) && e.s.activeIssue === 20, '端到端：子票层返回弹栈回到工单20')
+
+// effort 维度：子票自带 effortId 时，压栈坐标必须带上它（同号票在不同 effort 里是两张票）
+e = runE2E2(e2eSubSrc, 'enterSubDetail, goBackIssue', null, [['issue', 20]], [{ number: 551 }])
+e.api.enterSubDetail({ number: 551, effortId: 'beta', labels: [{ name: 'wayfinder:map' }] })
+check(eqStack(e.s, [{ kind: 'issue', n: 20, effortId: '' }, { kind: 'map', n: 551, effortId: 'beta' }]), '端到端 B：子票带 effortId 时压栈坐标带该 effort')
 
 // ============ 二、两处返回直调弹栈（判别式：要求直接调用，不用或条件） ============
 const mapGoBack = extractConst(mapSrc, 'goBack')
@@ -110,12 +143,12 @@ check(issueGoBack.replace(/\s+/g, ' ').includes('function () { popNav(st) }'), '
 check(!mapGoBack.includes('clearActive') && !issueGoBack.includes('clearActive'), '矩阵：两处返回都不绕旧按种类守卫入口（混合栈也只退一级）')
 
 // ============ 三、地图行分流行为（跑地图源文件里截出来的真函数） ============
-const mapBundleSrc = ['hasMapTag', 'findMapInSnapshot', 'enterDetail'].map((n) => extractConst(mapSrc, n)).join('\n')
+const mapBundleSrc = ['hasMapTag', 'enterDetail'].map((n) => extractConst(mapSrc, n)).join('\n')
 const runEnter = (t, maps) => {
-  const s = { activeMap: 550, activeIssue: null, navStack: [{ kind: 'map', n: 550 }], tick: 0, snapshot: maps === null ? undefined : { maps: maps || [{ number: 550 }, { number: 551 }] } }
+  const s = { activeMap: 550, activeIssue: null, navStack: [{ kind: 'map', n: 550, effortId: '' }], tick: 0, snapshot: maps === null ? undefined : { maps: maps || [{ number: 550 }, { number: 551 }] } }
   const log = []
-  const pushStub = (a, k, n) => { log.push([k, n]); return nav.pushNav(a, k, n) }
-  const fn = new Function('st', 'pushNav', mapBundleSrc + '\nreturn { enterDetail }')
+  const pushStub = (a, k, n, e) => { log.push([k, n]); return nav.pushNav(a, k, n, e) }
+  const fn = new Function('st', 'pushNav', withIdentity(mapBundleSrc) + '\nreturn { enterDetail }')
   fn(s, pushStub).enterDetail(t)
   return { s: s, last: log[log.length - 1] }
 }
@@ -138,18 +171,18 @@ const ccBlock = issueSrc.slice(ccStart, ccEnd)
 check(ccBlock.includes('isPullRequest') && !/state|CLOSED/.test(ccBlock), '实证：评论输入显隐不看已关闭（只看评论通路与是否拉取请求）')
 
 // ============ 四、雾态去雾与下钻共存（跑地图源文件里截出来的真函数） ============
-const fogBundleSrc = ['hasMapTag', 'findMapInSnapshot', 'enterDetail', 'isFog', 'isFogTitle', 'isRevealed', 'toggleReveal', 'onNodeClick'].map((n) => extractConst(mapSrc, n)).join('\n')
-const fogM = { number: 550, tickets: [
-  { number: 1, title: '先做', labels: [], state: 'OPEN', blockedBy: [] },
-  { number: 2, title: '被挡住', labels: [], state: 'OPEN', blockedBy: [1] },
-  { number: 3, title: '能做', labels: [], state: 'OPEN', blockedBy: [] },
+const fogBundleSrc = ['hasMapTag', 'enterDetail', 'isFog', 'isFogTitle', 'isRevealed', 'toggleReveal', 'onNodeClick'].map((n) => extractConst(mapSrc, n)).join('\n')
+const fogM = { number: 550, key: '550', tickets: [
+  { number: 1, key: '1', title: '先做', labels: [], state: 'OPEN', blockedBy: [] },
+  { number: 2, key: '2', title: '被挡住', labels: [], state: 'OPEN', blockedBy: [1] },
+  { number: 3, key: '3', title: '能做', labels: [], state: 'OPEN', blockedBy: [] },
 ] }
 const runClick = (t, drill) => {
-  const s = { activeMap: 550, activeIssue: null, navStack: [{ kind: 'map', n: 550 }], tick: 0, snapshot: { maps: [{ number: 550 }] }, reveal: {} }
+  const s = { activeMap: 550, activeIssue: null, navStack: [{ kind: 'map', n: 550, effortId: '' }], tick: 0, snapshot: { maps: [{ number: 550, key: '550' }] }, reveal: {} }
   const log = []
-  const pushStub = (a, k, n) => { log.push([k, n]); return nav.pushNav(a, k, n) }
+  const pushStub = (a, k, n, e) => { log.push([k, n]); return nav.pushNav(a, k, n, e) }
   const emits = []
-  const fn = new Function('st', 'm', 'tickets', 'fogTitles', 'drill', 'emit', 'pushNav', 'const canDrill = drill !== false\n' + fogBundleSrc + '\nreturn { onNodeClick, isFog }')
+  const fn = new Function('st', 'm', 'tickets', 'fogTitles', 'drill', 'emit', 'pushNav', 'const canDrill = drill !== false\nconst mId = idOf(m)\n' + withIdentity(fogBundleSrc) + '\nreturn { onNodeClick, isFog }')
   const api = fn(s, fogM, fogM.tickets, [], drill !== false ? true : false, function (x) { emits.push(1); x.tick = (x.tick || 0) + 1 }, pushStub)
   api.onNodeClick(t)
   return { s: s, log: log, api: api }
@@ -157,7 +190,7 @@ const runClick = (t, drill) => {
 const fogT = fogM.tickets[1]
 const plainT = fogM.tickets[2]
 let r = runClick(fogT, true)
-check(r.log.length === 0 && r.s.reveal[550] && r.s.reveal[550][2] === true, '矩阵：被雾盖住的行第一次点击只去雾，不进详情')
+check(r.log.length === 0 && r.s.reveal['550'] && r.s.reveal['550']['2'] === true, '矩阵：被雾盖住的行第一次点击只去雾，不进详情')
 r.api.onNodeClick(fogT)
 check(JSON.stringify(r.log[r.log.length - 1]) === JSON.stringify(['issue', 2]), '矩阵：去雾后第二次点击同一行才进详情')
 r = runClick(plainT, true)
@@ -165,7 +198,7 @@ check(JSON.stringify(r.log[r.log.length - 1]) === JSON.stringify(['issue', 3]), 
 r = runClick(plainT, false)
 check(r.log.length === 0, '矩阵：悬浮面板内点行不压栈（只展示与去雾）')
 r = runClick(fogT, false)
-check(r.log.length === 0 && r.s.reveal[550] && r.s.reveal[550][2] === true, '矩阵：悬浮面板内雾行第一次点击照常去雾')
+check(r.log.length === 0 && r.s.reveal['550'] && r.s.reveal['550']['2'] === true, '矩阵：悬浮面板内雾行第一次点击照常去雾')
 const closedT = { number: 4, title: '已关', labels: [], state: 'CLOSED', blockedBy: [1] }
 r = runClick(closedT, true)
 check(JSON.stringify(r.log[r.log.length - 1]) === JSON.stringify(['issue', 4]), '矩阵：已关闭的行不算雾，直接按标签分流')
@@ -183,32 +216,32 @@ const issueCrumbSrc = extractIife(issueSrc, 'navCrumb')
 const mapCrumb = (stack, num) => new Function('st', 'm', 'tr', mapCrumbSrc + '\nreturn navCrumb')({ navStack: stack }, { number: num }, zhTr)
 const issueCrumb = (stack, num) => new Function('st', 'issueNumber', 'tr', issueCrumbSrc + '\nreturn navCrumb')({ navStack: stack }, num, zhTr)
 check(mapCrumb([], 550) === '列表 / #550', '矩阵：地图面包屑空栈为单层列表形态')
-check(mapCrumb([{ kind: 'map', n: 550 }], 550) === '列表 / #550', '矩阵：地图面包屑单层仍为列表形态')
-check(mapCrumb([{ kind: 'map', n: 550 }, { kind: 'map', n: 551 }], 551) === '#550 / #551', '矩阵：地图进地图显示上一级与当前级')
-check(mapCrumb([{ kind: 'map', n: 1 }, { kind: 'issue', n: 2 }, { kind: 'map', n: 3 }], 3) === '… / #2 / #3', '矩阵：超两级省略只留直接上一级与当前级')
-check(mapCrumb([{ kind: 'map', n: 1 }, { kind: 'map', n: 2 }, { kind: 'map', n: 1 }], 1) === '… / #2 / #1', '矩阵：先后经过同一编号不合并，超两级仍省略并显示直接上一级')
-check(issueCrumb([{ kind: 'issue', n: 20 }], 20) === '列表 / #20', '矩阵：工单面包屑单层为列表形态')
-check(issueCrumb([{ kind: 'map', n: 10 }, { kind: 'issue', n: 20 }], 20) === '#10 / #20', '矩阵：地图进工单显示地图与工单编号')
-check(issueCrumb([{ kind: 'map', n: 1 }, { kind: 'issue', n: 2 }, { kind: 'map', n: 3 }, { kind: 'issue', n: 4 }], 4) === '… / #3 / #4', '矩阵：四层混合链顶层面包屑为省略形态')
+check(mapCrumb([{ kind: 'map', n: 550, effortId: '' }], 550) === '列表 / #550', '矩阵：地图面包屑单层仍为列表形态')
+check(mapCrumb([{ kind: 'map', n: 550, effortId: '' }, { kind: 'map', n: 551, effortId: '' }], 551) === '#550 / #551', '矩阵：地图进地图显示上一级与当前级')
+check(mapCrumb([{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n: 2, effortId: '' }, { kind: 'map', n: 3, effortId: '' }], 3) === '… / #2 / #3', '矩阵：超两级省略只留直接上一级与当前级')
+check(mapCrumb([{ kind: 'map', n: 1, effortId: '' }, { kind: 'map', n: 2, effortId: '' }, { kind: 'map', n: 1, effortId: '' }], 1) === '… / #2 / #1', '矩阵：先后经过同一编号不合并，超两级仍省略并显示直接上一级')
+check(issueCrumb([{ kind: 'issue', n: 20, effortId: '' }], 20) === '列表 / #20', '矩阵：工单面包屑单层为列表形态')
+check(issueCrumb([{ kind: 'map', n: 10, effortId: '' }, { kind: 'issue', n: 20, effortId: '' }], 20) === '#10 / #20', '矩阵：地图进工单显示地图与工单编号')
+check(issueCrumb([{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n: 2, effortId: '' }, { kind: 'map', n: 3, effortId: '' }, { kind: 'issue', n: 4, effortId: '' }], 4) === '… / #3 / #4', '矩阵：四层混合链顶层面包屑为省略形态')
 
 // ============ 六、技能页签最近地图祖先（跑源文件里截出来的真算式） ============
 const recSrc = extractIife(skillSrc, 'recMapNum')
 const recOf = (s) => new Function('st', recSrc + '\nreturn recMapNum')(s)
-check(recOf({ navStack: [{ kind: 'map', n: 10 }, { kind: 'map', n: 20 }] }) === 20, '矩阵：栈顶是地图时推荐源就是它自己')
-check(recOf({ navStack: [{ kind: 'map', n: 10 }, { kind: 'issue', n: 20 }] }) === 10, '矩阵：栈顶是工单时推荐源是把它带进来的地图')
-check(recOf({ navStack: [{ kind: 'map', n: 1 }, { kind: 'issue', n: 2 }, { kind: 'map', n: 3 }, { kind: 'issue', n: 4 }] }) === 3, '矩阵：深栈取最近的地图祖先')
-check(recOf({ navStack: [{ kind: 'issue', n: 5 }] }) === null, '矩阵：纯工单栈无地图祖先，回通用推荐')
+check(recOf({ navStack: [{ kind: 'map', n: 10, effortId: '' }, { kind: 'map', n: 20, effortId: '' }] }) === 20, '矩阵：栈顶是地图时推荐源就是它自己')
+check(recOf({ navStack: [{ kind: 'map', n: 10, effortId: '' }, { kind: 'issue', n: 20, effortId: '' }] }) === 10, '矩阵：栈顶是工单时推荐源是把它带进来的地图')
+check(recOf({ navStack: [{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n: 2, effortId: '' }, { kind: 'map', n: 3, effortId: '' }, { kind: 'issue', n: 4, effortId: '' }] }) === 3, '矩阵：深栈取最近的地图祖先')
+check(recOf({ navStack: [{ kind: 'issue', n: 5, effortId: '' }] }) === null, '矩阵：纯工单栈无地图祖先，回通用推荐')
 check(recOf({ navStack: [] }) === null, '矩阵：空栈回通用推荐')
 check(recOf({ activeMap: 7 }) === 7, '矩阵：旧对象无栈时按镜像兜底')
 check(skillSrc.includes("e.kind === 'map'") && skillSrc.includes('recMapNum'), '矩阵：推荐源从栈顶往下找第一个地图层')
 
 // ============ 七、子票与阻塞票种类分流（跑工单源文件里截出来的真函数） ============
-const subBundleSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'findMapLocal', 'enterSubDetail'].map((n) => extractConst(issueSrc, n)).join('\n')
+const subBundleSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'enterSubDetail'].map((n) => extractConst(issueSrc, n)).join('\n')
 const runSub = (x, maps) => {
-  const s = { activeMap: null, activeIssue: 20, navStack: [{ kind: 'issue', n: 20 }], tick: 0, snapshot: maps === null ? undefined : { maps: maps || [{ number: 551 }] } }
+  const s = { activeMap: null, activeIssue: 20, navStack: [{ kind: 'issue', n: 20, effortId: '' }], tick: 0, snapshot: maps === null ? undefined : { maps: maps || [{ number: 551 }] } }
   const log = []
-  const pushStub = (a, k, n) => { log.push([k, n]); return nav.pushNav(a, k, n) }
-  const fn = new Function('st', 'pushNav', subBundleSrc + '\nreturn { enterSubDetail }')
+  const pushStub = (a, k, n, e) => { log.push([k, n]); return nav.pushNav(a, k, n, e) }
+  const fn = new Function('st', 'pushNav', withIssueEffort(subBundleSrc) + '\nreturn { enterSubDetail }')
   fn(s, pushStub).enterSubDetail(x)
   return log[log.length - 1]
 }

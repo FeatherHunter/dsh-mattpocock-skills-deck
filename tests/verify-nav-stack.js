@@ -41,16 +41,16 @@ check(nav.popNav(st) === null && eqStack(st, []), '行为：空栈弹栈为 null
 // 单层等价旧互斥：置工单只亮工单镜像，置地图只亮地图镜像
 st = mk()
 nav.setActiveIssue(st, 42)
-check(eqStack(st, [{ kind: 'issue', n: 42 }]) && st.activeIssue === 42 && st.activeMap === null, '行为：setActiveIssue(42) 压单层且镜像互斥')
+check(eqStack(st, [{ kind: 'issue', n: 42, effortId: '' }]) && st.activeIssue === 42 && st.activeMap === null, '行为：setActiveIssue(42) 压单层且镜像互斥')
 st = mk()
 nav.setActiveMap(st, 5)
-check(eqStack(st, [{ kind: 'map', n: 5 }]) && st.activeMap === 5 && st.activeIssue === null, '行为：setActiveMap(5) 压单层且镜像互斥')
+check(eqStack(st, [{ kind: 'map', n: 5, effortId: '' }]) && st.activeMap === 5 && st.activeIssue === null, '行为：setActiveMap(5) 压单层且镜像互斥')
 
 // 多层压栈：从工单再进地图，保留返回路径（旧互斥会丢掉 42）
 st = mk()
 nav.setActiveIssue(st, 42); nav.setActiveMap(st, 5)
-check(eqStack(st, [{ kind: 'issue', n: 42 }, { kind: 'map', n: 5 }]), '行为：详情里再进下一级压栈不断返回路')
-check(JSON.stringify(nav.peekNav(st)) === JSON.stringify({ kind: 'map', n: 5 }), '行为：栈顶为后进的地图 5')
+check(eqStack(st, [{ kind: 'issue', n: 42, effortId: '' }, { kind: 'map', n: 5, effortId: '' }]), '行为：详情里再进下一级压栈不断返回路')
+check(JSON.stringify(nav.peekNav(st)) === JSON.stringify({ kind: 'map', n: 5, effortId: '' }), '行为：栈顶为后进的地图 5')
 
 // 连续同层去重：重复进入同一详情不重复压栈
 nav.setActiveMap(st, 5)
@@ -58,7 +58,7 @@ check(st.navStack.length === 2, '行为：重复进入同一详情不重复压�
 
 // 逐级弹出：返回一次回到工单 42 且镜像同步回来
 nav.clearActiveMap(st)
-check(eqStack(st, [{ kind: 'issue', n: 42 }]) && st.activeIssue === 42 && st.activeMap === null, '行为：clearActiveMap 弹回上一级工单 42')
+check(eqStack(st, [{ kind: 'issue', n: 42, effortId: '' }]) && st.activeIssue === 42 && st.activeMap === null, '行为：clearActiveMap 弹回上一级工单 42')
 
 // 空栈回列表：再返回一次栈空且双镜像为 null
 nav.clearActiveIssue(st)
@@ -81,13 +81,25 @@ check(eqStack(st, []) && st.activeMap === null, '行为：setActiveMap(null) 清
 
 // 旧对象无栈兼容：没有 navStack 数组也能从镜像回推、压栈前补层、清除能清掉
 const legacy = { activeMap: 7, activeIssue: null, tick: 0 }
-check(JSON.stringify(nav.peekNav(legacy)) === JSON.stringify({ kind: 'map', n: 7 }), '行为：旧对象从镜像回推栈顶')
+check(JSON.stringify(nav.peekNav(legacy)) === JSON.stringify({ kind: 'map', n: 7, effortId: '' }), '行为：旧对象从镜像回推栈顶')
 nav.setActiveIssue(legacy, 9)
-check(JSON.stringify(legacy.navStack) === JSON.stringify([{ kind: 'map', n: 7 }, { kind: 'issue', n: 9 }]), '行为：旧对象压栈前先从镜像补层')
+check(JSON.stringify(legacy.navStack) === JSON.stringify([{ kind: 'map', n: 7, effortId: '' }, { kind: 'issue', n: 9, effortId: '' }]), '行为：旧对象压栈前先从镜像补层')
 nav.clearActiveIssue(legacy)
-check(JSON.stringify(legacy.navStack) === JSON.stringify([{ kind: 'map', n: 7 }]) && legacy.activeMap === 7, '行为：旧对象弹栈回到镜像层')
+check(JSON.stringify(legacy.navStack) === JSON.stringify([{ kind: 'map', n: 7, effortId: '' }]) && legacy.activeMap === 7, '行为：旧对象弹栈回到镜像层')
 nav.clearActiveMap(legacy)
 check(eqStack(legacy, []) && legacy.activeMap === null, '行为：旧对象清除能清掉')
+
+// effort 维度（2026-09-09）：同号不同 effort 是两条坐标，去重只在 (kind, n, effortId) 完全相同时生效
+st = mk()
+nav.pushNav(st, 'map', 0, 'alpha'); nav.pushNav(st, 'map', 0, 'beta')
+check(eqStack(st, [{ kind: 'map', n: 0, effortId: 'alpha' }, { kind: 'map', n: 0, effortId: 'beta' }]), '行为 B：同号不同 effort 压两层')
+nav.pushNav(st, 'map', 0, 'beta')
+check(st.navStack.length === 2, '行为 B：同号同 effort 重复进入不重复压栈')
+nav.popNav(st)
+check(JSON.stringify(nav.peekNav(st)) === JSON.stringify({ kind: 'map', n: 0, effortId: 'alpha' }), '行为 B：返回回到上一个 effort 的同号地图')
+check(st.activeEffortId === 'alpha', '行为 B：镜像同步 effort 标识')
+nav.popNav(st)
+check(st.activeEffortId === '', '行为 B：弹空栈后 effort 镜像清空')
 
 // 弹栈不碰展开与缓存：上一级的滚动展开位与详情缓存原样保留
 st = mk()
@@ -104,17 +116,17 @@ check(st.activeIssue === null && st.activeMap === null, '行为：弹空栈后�
 // T4 #554：深栈下只弹一层回到上一级（含上一级为工单的混合栈）；A→B→A 不折叠、逐级经过
 st = mk()
 nav.pushNav(st, 'map', 10); nav.pushNav(st, 'issue', 20); nav.popNav(st)
-check(eqStack(st, [{ kind: 'map', n: 10 }]) && st.activeMap === 10 && st.activeIssue === null, '行为 T4：工单返回只弹一层回到上一级地图 10')
+check(eqStack(st, [{ kind: 'map', n: 10, effortId: '' }]) && st.activeMap === 10 && st.activeIssue === null, '行为 T4：工单返回只弹一层回到上一级地图 10')
 st = mk()
 nav.pushNav(st, 'issue', 20); nav.pushNav(st, 'map', 10); nav.popNav(st)
-check(eqStack(st, [{ kind: 'issue', n: 20 }]) && st.activeIssue === 20 && st.activeMap === null, '行为 T4：地图返回只弹一层回到上一级工单 20（混合栈）')
+check(eqStack(st, [{ kind: 'issue', n: 20, effortId: '' }]) && st.activeIssue === 20 && st.activeMap === null, '行为 T4：地图返回只弹一层回到上一级工单 20（混合栈）')
 st = mk()
 nav.pushNav(st, 'map', 1); nav.pushNav(st, 'map', 2); nav.pushNav(st, 'map', 1)
 check(st.navStack.length === 3, '行为 T4：A→B→A 不折叠（逐级经过，栈留三层）')
 nav.popNav(st)
-check(eqStack(st, [{ kind: 'map', n: 1 }, { kind: 'map', n: 2 }]), '行为 T4：A→B→A 返回先回到 B')
+check(eqStack(st, [{ kind: 'map', n: 1, effortId: '' }, { kind: 'map', n: 2, effortId: '' }]), '行为 T4：A→B→A 返回先回到 B')
 nav.popNav(st)
-check(eqStack(st, [{ kind: 'map', n: 1 }]), '行为 T4：A→B→A 再返回回到 A')
+check(eqStack(st, [{ kind: 'map', n: 1, effortId: '' }]), '行为 T4：A→B→A 再返回回到 A')
 
 // —— 4) 接线与双产物
 const dockSrc = fs.readFileSync('src/client/panel/Dock.js', 'utf8')
@@ -127,7 +139,7 @@ const overlaySrc = fs.readFileSync('src/client/panel/Overlay.js', 'utf8')
 const issueViewSrc = fs.readFileSync('src/client/views/IssueDetail.js', 'utf8')
 check(overlaySrc.includes('drill: false'), 'T4整改：悬浮面板内地图详情禁压栈（传 drill:false，只去雾与展示）')
 check(mapViewSrc.includes('drill !== false') && mapViewSrc.includes('if (canDrill) enterDetail(t)'), 'T4整改：地图行点进详情只在停靠栏生效')
-check(issueViewSrc.includes('enterSubDetail') && issueViewSrc.includes('findMapLocal'), 'T4整改：子票阻塞票按标签/快照分流（无标签按快照找图，找不到回落工单）')
+check(issueViewSrc.includes('enterSubDetail') && issueViewSrc.includes('findMapByIdentity'), 'T4整改：子票阻塞票按标签/快照分流（无标签按快照找图，找不到回落工单）')
 check(!issueViewSrc.includes("pushNav(st, 'issue', s.number)") && !issueViewSrc.includes("pushNav(st, 'issue', b.number)"), 'T4整改：子票阻塞票不再一律记工单')
 const cli = fs.readFileSync('client.js', 'utf8')
 const pcli = fs.readFileSync('package/lib/client.js', 'utf8')

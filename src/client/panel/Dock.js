@@ -41,7 +41,9 @@ export     const DetailsDock = (props) => {
       const navTop = (typeof peekNav === 'function') ? peekNav(s) : null
       const topMap = navTop && navTop.kind === 'map' ? navTop.n : s.activeMap
       const topIssue = navTop && navTop.kind === 'issue' ? navTop.n : s.activeIssue
-      const active = topMap !== null && topMap !== undefined ? groups.find(function (x) { return x.m.number === topMap }) : null
+      // effort 维度：当前地图按 (effort, 编号) 找，同号的不同 effort 地图不再互相顶替
+      const topEffort = navTop ? ((navTop.effortId !== undefined && navTop.effortId !== null) ? String(navTop.effortId) : '') : (s.activeEffortId ? String(s.activeEffortId) : '')
+      const active = topMap !== null && topMap !== undefined ? findGroupByIdentity(groups, topMap, topEffort) : null
       const hasIssueDetail = topIssue !== null && topIssue !== undefined
       const narrow = dw < 380
       // #506 无能力回列表：正停在拉取请求页时切到无能力后端，自动回到列表页（只读能力位）。

@@ -5,11 +5,10 @@
 // 接线：行组装三处（open/closed/折叠）调 listIssueRow；表级派生（blockOf/colorOf）由调用方当参数传，
 //   本文件不引用 ListTab.js（同闭包拼回，调用方向见 ListTab.js 行组装三处）。
 // 参数：h = 行内创建函数；st = 列表 store；x = 本行票据；blockOf/colorOf = 表级派生。
-export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf) {
+export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf, multiEffort) {
       const has = function (x, nm) { return (x.labels || []).some(function (l) { return l.name === nm }) }
-      const findMap = function (num) { const maps=st.snapshot&&st.snapshot.maps||[];const k=num!=null?String(num).padStart(2,'0'):'';return maps.find(function(m){return m.number===num||String(m.number)===String(num)||(m.key!=null&&String(m.key).padStart(2,'0')===k)}) }
-      const openBlocked = function (blk) { setActiveMap(st, blk.map) }
-      const copyUrl = function (x) { copyText(st, issueUrlFor(st, x.number), tr('toast.copiedLink', { n: x.number })) }
+      const openBlocked = function (blk) { setActiveMap(st, blk.map, blk.mapEffort) }
+      const copyUrl = function (x) { copyText(st, issueUrlFor(st, x.number, effortOf(x)), tr('toast.copiedLink', { n: x.number })) }
       // v14-4：行级动作按 label 四选一（诊断/修复/讨论/执行），全部预填输入框；
       // v19：共享 mkRowAction（列表与 map 详情同逻辑，按钮色动态取 label 配置色）；v14-3 按钮 80%；v14-19 窄屏折叠为纯图标
       // v1.3.3 UI 定稿（用户逐版确认）：两行结构 · 卡片风（C）· 编号/map 竖排（idcol）·
@@ -31,9 +30,9 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
         ])
       }
       const isMap = (x.type === 'map') || has(x, 'wayfinder:map')
-      const mapObj = isMap ? findMap(x.number) : null
+      const mapObj = isMap ? findMapByIdentity(st.snapshot && st.snapshot.maps, x.number, effortOf(x)) : null
       // v15-26：被阻塞判定（open 阻塞者）→ 隐藏动作按钮 + 红色「被阻塞」标签（地图子票点击跳所属 map 详情；#544 独立票无所属地图，只展示不跳转）
-      const blk = blockOf[x.number]
+      const blk = blockOf[idOf(x)]
       const blocked = !!(blk && blk.by && blk.by.length)
       const blockedTip = blocked ? blk.by.map(function (b) { return '#' + b }).join('、') : ''
       const mapDone=!!(isMap&&mapObj&&mapObj.stats&&mapObj.stats.total>0&&mapObj.stats.closed===mapObj.stats.total);const mapEmpty=!!(isMap&&mapObj&&mapObj.stats&&mapObj.stats.total===0)
@@ -48,13 +47,13 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
         showPop(trig, host, labels, x.title)
       }
       // R5：变化行视觉（变更琥珀渐隐 / 新增绿闪）
-      const _flashCls = (st.rowFlash && st.rowFlash[x.number]) ? (st.rowFlash[x.number] === 'added' ? ' dsws-row-added' : ' dsws-row-changed') : ''
+      const _flashCls = (st.rowFlash && st.rowFlash[idOf(x)]) ? (st.rowFlash[idOf(x)] === 'added' ? ' dsws-row-added' : ' dsws-row-changed') : ''
       return h(Tip, { content: (isMap && mapObj) ? tr('list.mapTitle') : tr('list.issueDetailTitle') }, h('div', {
-        key: x.number,
+        key: idOf(x),
         className: 'dsws-aggrow' + _flashCls,
         onClick: function () {
-          if (isMap && mapObj) { setActiveMap(st, x.number) }
-          else { setActiveIssue(st, x.number) }
+          if (isMap && mapObj) { setActiveMap(st, x.number, effortOf(x)) }
+          else { setActiveIssue(st, x.number, effortOf(x)) }
         },
         style: isMap ? { cursor: 'pointer', borderLeft: '3px solid #c084fc', background: 'rgba(188,140,255,.07)' } : { cursor: 'pointer' },
       }, [
@@ -62,6 +61,8 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
         h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' } }, [
           h('span', { className: 'dsws-idcol' }, [
             isMap ? h('span', { className: 'dsws-chip dsws-chip-m', style: { fontSize: 11, fontWeight: 600, lineHeight: 1.7, padding: '0 8px' } }, [Ic({ n: 'map', size: 11 }), h('span', null, tr('list.mapChip'))]) : null,
+            // effort 维度：一个仓库多个 effort 时，每行标出它属于哪个 effort（同号票靠这一眼区分）
+            (multiEffort && effortOf(x)) ? h('span', { className: 'dsws-chip dsws-eff', title: effortOf(x), style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, effortOf(x)) : null,
             h('span', { className: 'dsws-idnum', style: { color: numColor, borderColor: numColor } }, '#' + (x.key != null ? x.key : x.number)),
           ]),
           h('span', { style: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 } }, [h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, x.title)]) }, h('span', { className: 'dsws-tt-wrap', style: { flex: 1, minWidth: 0, fontWeight: isMap ? 600 : undefined, color: isOpen ? undefined : 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, x.title)), (x.author && x.author.login && x.author.login !== ((st.snapshot && (st.snapshot.viewer && st.snapshot.viewer.login || st.snapshot.viewerLogin)) || '')) ? (x.author.avatarUrl ? h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('img', { src: x.author.avatarUrl, style: { width: 16, height: 16, borderRadius: '50%', border: '2px solid ' + authorColor(x.author.login), flex: 'none' }, alt: x.author.login })) : h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: hexA(authorColor(x.author.login), 0.18), border: '2px solid ' + authorColor(x.author.login), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' } }, [Ic({ n: 'person', size: 10 })]))) : null]),
@@ -80,14 +81,14 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
               : h(Tip, { content: tr('list.blockedTitle', { by: blockedTip }) }, h('span', { key: 'blk', className: 'dsws-chip dsws-blocked', onClick: function (e) { e.stopPropagation(); openBlocked(blk) }, style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)', cursor: 'pointer' } }, [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]))) : null,
           ]),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', marginLeft: 'auto' } }, [
-            isOpen && !blocked ? h('div', { style: { display: 'flex', gap: 3, alignItems: 'center', flex: 'none' } }, [mapEmpty?h(Tip, { content: tr('map.inspectTitle') }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();let t='';try{t=inspectPrompt(st,x.number,x.title)}catch{const u=typeof issueUrlFor==='function'?(function(){try{return issueUrlFor(st,x.number)}catch(_){return''}})():'',uu=u||(x.number!=null?'#'+String(x.number):'');t=uu?'/wayfinder '+uu:'/wayfinder';try{t=promptText('mapInspect',{n:String(x.number||''),['title']:String(x.title||''),url:u});if(u)t='/wayfinder '+u+'\n\n'+t}catch(_){}}inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#f59e0b',borderColor:'transparent',color:'#140a1e',fontWeight:600}},[Ic({n:'search',size:10}),narrow?null:h('span',null,tr('act.inspect'))])):mapDone?h(Tip, { content: tr('map.doneTitle') }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();const t=completePrompt(st,x.number,mapObj.stats.total,mapObj.stats.closed);inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#3fb950',borderColor:'transparent',color:'#0c1a10',fontWeight:600}},[Ic({n:'check',size:10}),narrow?null:h('span',null,tr('act.done'))])):mkRowAction(st,x,narrow,colorOf),h(Tip, { content: tr('tip.newSession', { n: x.number }) }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();openInNewSession(st,x)},style:{textDecoration:'none',display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',marginLeft:4,background:mapEmpty?'#f59e0b':mapDone?'#3fb950':actionColorOf(x,colorOf),borderColor:'transparent',color:mapEmpty?'#140a1e':mapDone?'#0c1a10':(isLightHex(actionColorOf(x,colorOf))?'#140a1e':'#ffffff')}},[Ic({n:'external-link',size:10}),narrow?null:h('span',null,tr('list.newSessionLabel'))])),]) : null,
+            isOpen && !blocked ? h('div', { style: { display: 'flex', gap: 3, alignItems: 'center', flex: 'none' } }, [mapEmpty?h(Tip, { content: tr('map.inspectTitle') }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();let t='';try{t=inspectPrompt(st,x.number,x.title)}catch{const u=typeof issueUrlFor==='function'?(function(){try{return issueUrlFor(st,x.number,effortOf(x))}catch(_){return''}})():'',uu=u||(x.number!=null?'#'+String(x.number):'');t=uu?'/wayfinder '+uu:'/wayfinder';try{t=promptText('mapInspect',{n:String(x.number||''),['title']:String(x.title||''),url:u});if(u)t='/wayfinder '+u+'\n\n'+t}catch(_){}}inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#f59e0b',borderColor:'transparent',color:'#140a1e',fontWeight:600}},[Ic({n:'search',size:10}),narrow?null:h('span',null,tr('act.inspect'))])):mapDone?h(Tip, { content: tr('map.doneTitle') }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();const t=completePrompt(st,x.number,mapObj.stats.total,mapObj.stats.closed);inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#3fb950',borderColor:'transparent',color:'#0c1a10',fontWeight:600}},[Ic({n:'check',size:10}),narrow?null:h('span',null,tr('act.done'))])):mkRowAction(st,x,narrow,colorOf),h(Tip, { content: tr('tip.newSession', { n: x.number }) }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();openInNewSession(st,x)},style:{textDecoration:'none',display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',marginLeft:4,background:mapEmpty?'#f59e0b':mapDone?'#3fb950':actionColorOf(x,colorOf),borderColor:'transparent',color:mapEmpty?'#140a1e':mapDone?'#0c1a10':(isLightHex(actionColorOf(x,colorOf))?'#140a1e':'#ffffff')}},[Ic({n:'external-link',size:10}),narrow?null:h('span',null,tr('list.newSessionLabel'))])),]) : null,
             isOpen ? h('div', { className: 'dsws-aux', style: { display: 'flex', gap: 2, alignItems: 'center', flex: 'none' } }, [
               // v1.3.3：复制/外链图标增大 11 → 13；Q6 解耦：复制=绝对路径/链接，跳转=按 url 前缀分流（https 开网页，file 盘符调 wf.openPath）
               h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); copyUrl(x) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'clipboard', size: 13 }))),
               (function(){
-                const _u = issueUrlFor(st, x.number);
+                const _u = issueUrlFor(st, x.number, effortOf(x));
                 const _isHttp = /^https?:\/\//i.test(String(_u||''));
-                const _openLocal = function(e){ e.stopPropagation(); const u=issueUrlFor(st, x.number); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } };
+                const _openLocal = function(e){ e.stopPropagation(); const u=issueUrlFor(st, x.number, effortOf(x)); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } };
                 return _isHttp ? h(Tip, { content: tr('tip.openInTracker', { n: x.number }) }, h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 }))) : h(Tip, { content: tr('tip.openInTracker', { n: x.number }) }, h('button', { className: 'dsws-btn ghost', onClick: _openLocal, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 })));
               })(),
             ]) : null,

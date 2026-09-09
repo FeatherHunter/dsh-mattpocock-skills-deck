@@ -1,5 +1,5 @@
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
-import { mdPath } from './path.js'
+import { mdPath, effortMapPath, effortIssuePath } from './path.js'
 import { parseMd } from './parse.js'
 import { normalizeIssue } from './normalize.js'
 import { readTextFile, exists } from './read.js'
@@ -56,16 +56,25 @@ export function describe(handle, backendId){
   const refId=handle&&handle.refId?String(handle.refId):(cwd?cwd:'')
   const finalRef=refId||cwd||''
   const name=finalRef?finalRef.split(/[\\/]/).pop()||finalRef:backendId
-  return{backend:backendId,refId:finalRef,name:name||backendId,url:''}
+  // effort 维度：handle 带 effortId 时如实透传（describe 是 ref 的唯一产地，这里丢掉就再也拿不回来）
+  const out={backend:backendId,refId:finalRef,name:name||backendId,url:''}
+  if(handle&&handle.effortId!==undefined&&handle.effortId!==null) out.effortId=String(handle.effortId)
+  return out
 }
 export function issueUrl(ref, key) {
   try {
     if (ref == null || key == null) return ''
     const k = String(key).trim()
     if (!k) return ''
+    const cwdArg = { cwd: (ref && ref.refId) || '' }
+    // effort 维度：带 effort 范围的引用 → 路径落在 <cwd>/.scratch/<effortId>/ 下（'00' 是地图文件）
+    if (ref.effortId !== undefined && ref.effortId !== null) {
+      if (String(k).padStart(2, '0') === '00') return effortMapPath(ref, cwdArg)
+      return effortIssuePath(ref, k, cwdArg)
+    }
     // 文件约束内现算：mdPath 已处理 refId 绝对/相对、repo.path、getRoot 三分支
     // UI 拿到的是裸盘符路径（D:\…\issues\01-xxx.md），由 wf.openPath 按 OS 打开，不经 file:// 编码
-    return mdPath(ref, 'issue', k, { cwd: (ref && ref.refId) || '' })
+    return mdPath(ref, 'issue', k, cwdArg)
   } catch { return '' }
 }
 export function searchUrl(name) { return '' }
@@ -108,7 +117,7 @@ export function createMarkdownBackend(ctx){
       }catch(e){const kind=e&&e.kind?e.kind:ERROR_KIND.ENV;return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
     },
     list:(repo,filter,opCtx)=>listIssues(opCtx||ctx,repo,filter),
-    get:(repo,key,opts,opCtx)=>getIssue(opCtx||ctx,repo,key),
+    get:(repo,key,opts,opCtx)=>getIssue(opCtx||ctx,repo,key,opts),
     getDependencies:(repo,key,opts,opCtx)=>getDependenciesForKey(opCtx||ctx,repo,key),
     create:(repo,input,opCtx)=>createIssue(opCtx||ctx,repo,input),
     close:(repo,key,opts,opCtx)=>closeIssue(opCtx||ctx,repo,key),

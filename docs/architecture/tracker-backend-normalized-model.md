@@ -19,7 +19,7 @@
 
 1. **完整形状**：`interface` 声明全部字段（UI 据此假设字段必填）；后端负责把来源数据归一化到这个形状。
 2. **核心 vs 能力字段**（EMPTY vs MISSING 的关键，二者不可混用）：
-   - **核心字段**（`key / type / title / state / body / url / createdAt / updatedAt / closedAt / parentKey`）**永远存在**，来源给不了的用确定空值（`''` / `null`）补齐。
+   - **核心字段**（`key / effortId / type / title / state / body / url / createdAt / updatedAt / closedAt / parentKey`）**永远存在**，来源给不了的用确定空值（`''` / `null`）补齐。
    - **能力字段**（`author / assignees / labels / milestone / customFields / reason / blockedBy / blocking / comments`）**可 MISSING**：能实现 → 填值或 `EMPTY`（`[]` / `''` / `null`）；**真不能实现** → 从对象中**省略**该字段（或对应操作返回 `{ok:false, error:{kind:'unsupported'}}`）。
    - `EMPTY` = 字段**存在**但值为空（`[]` / `''` / `null`）→ 该能力**存在**，但此条无内容。`MISSING` = 字段**不存在** → 该能力**缺失**。
    - 空值约定：数组 `[]` = EMPTY、省略 = MISSING；标量 `''`/`null`；**数组不填 `null`/`undefined`**（`null` 只给 `closedAt`/`parentKey`）。
@@ -37,11 +37,22 @@ type BackendId = string   // 开放 string；一等内置 'github' | 'markdown' 
 
 interface RepositoryRef {
   backend: BackendId;     // 开放 string（**非空**）。'other' 弃用——「无后端」只在 Selection.backendId: null，此时不产出 RepositoryRef
-  refId: string;          // 稳定标识（github/gitlab='owner/name'；markdown='<path>'（.scratch/<feature-slug>））；后端自解析，UI 可直接展示
+  refId: string;          // 稳定标识（github/gitlab='owner/name'；markdown='<path>'）；后端自解析，UI 可直接展示
   name: string;           // 显示名
   url: string;            // 远端 URL；本地=''
+  effortId?: string;      // 可选寻址范围（2026-09-09 定版）：省略=该仓库全部 effort（列表）；给出=只针对这一个 effort 读/写
 }
 ```
+
+### 2.1.1 effort 维度（2026-09-09 定版）
+
+本地 Markdown 的布局是 `.scratch/<effort>/map.md` + `.scratch/<effort>/issues/NN-<slug>.md`，**每个 effort 的票各自从 01 编号**（见 `package/bundled-skills/setup-matt-pocock-skills/issue-tracker-local.md`）。因此：
+
+- `Issue.key` 只在**本 effort 内**唯一，仓库内唯一的是 `(effortId, key)` 这一对；`Issue.effortId` 是核心字段，永远存在，单 effort 后端（GitHub/GitLab）填 `''`。
+- 父子关系与阻塞引用都只在**同一 effort 内**成立：子票的 `parentKey='00'` 指本 effort 的地图；`blockedBy` 里的编号只在本票所属 effort 内解析。
+- 寻址范围放在 `RepositoryRef.effortId`（不是每个 op 的参数）：`comment / reopen / update` 三个 op 没有 `opts` 形参，硬加参数会把 `OpContext` 挤位、破坏既有后端实现；放在 ref 上则所有 op 签名零改动。
+- 写路径的安全规则：没给 `effortId` 且同号票在多个 effort 里都存在时，**读**按目录顺序回落（保住聊天里的 `#01` 链接），**写**返回 `conflict` 诚实失败，绝不猜文件。
+- 面板与宿主一律用 `shared/tracker/constants.js` 的 `idOf(issue)` / `idOfParts(effortId, key)` 做身份（React key、查找、导航栈、差异索引），不要各自拼字符串。
 
 - 来源给不了的默认 `''`（如本地 `url`）。**无 `owner`/`number`/`extension`/`snapMode`**。
 
@@ -58,7 +69,8 @@ interface IssueRef { key: string; title: string; state: State; type?: IssueType 
 
 interface Issue {
   // ── 核心字段（永远存在，缺→''/null）──
-  key: string               // 规范 id（github=String(number)；markdown='<NN>'；gitlab=String(iid)）；仓库内唯一；全局身份=(RepositoryRef, key)
+  key: string               // 规范 id（github=String(number)；markdown='<NN>'；gitlab=String(iid)）；**本 effort 内**唯一；全局身份=(RepositoryRef, effortId, key)
+  effortId: string          // 属于哪个 effort（核心字段，永远存在）：本地 Markdown = `.scratch/<effort>/` 目录名；单 effort 后端（GitHub/GitLab）= ''
   type: IssueType           // 显式标记：后端按约定定（GH: wayfinder:map/有子票根；md: map.md）
   title: string             // ''
   state: State              // 两态；frontier/claimed/blocked 由 deck 推导，不进形状
@@ -226,5 +238,6 @@ interface DeckProjection {
 | 双 id（key+number） | **删 `number`，只留单 `key`**（string） |
 | EMPTY vs MISSING 取舍 | **省略字段 = MISSING（无能力）**；UI 按现有容错读取自然不渲染 |
 | `parentKey`/`tickets` 归属 | `parentKey`(Issue，核心字段) + `MapNode.tickets`(向下)；base Issue 无 `subIssues` |
-| `RepositoryRef` | `{backend(非空), refId, name, url}`；`'other'` 弃用（无后端→`Selection.backendId:null`） |
+| `RepositoryRef` | `{backend(非空), refId, name, url, effortId?}`；`'other'` 弃用（无后端→`Selection.backendId:null`）；`effortId` 省略=该仓库全部 effort（列表），给出=只寻址这一个 effort（读/写） |
+| `Issue` 身份 | `(RepositoryRef, effortId, key)`；`effortId` 是核心字段（单 effort 后端 `''`），`blockedBy` 的 key 只在**引用方所属 effort**内解析 |
 | `MapStats` | 增 `indeterminate`；`frontier` 排除 indeterminate；删「open=sum」伪不变量 |

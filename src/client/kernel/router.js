@@ -170,14 +170,14 @@
       return '/wayfinder\n' + body
     }
     export const startText = (st, t) => {
-      const url = issueUrlFor(st, t.number) // #231 清尾：链接一律后端声明模板；无元数据即空（诚实）
+      const url = issueUrlFor(st, t.number, effortOf(t)) // #231 清尾：链接一律后端声明模板；无元数据即空（诚实）
       // v1.4（T2 #443）：map 用推进式 prompt（加载技能→分析map→挑下一个issue→执行）；普通 issue 用 execute 模板
       const isMap = (t.labels || []).some(function (l) { return (typeof l === 'string') ? l === 'wayfinder:map' : l.name === 'wayfinder:map' })
       // v1.5 B2 修订（用户拍板）：新会话/执行 prompt 跟随行状态 —— map 完成态 → 完成确认 prompt（与左「完成」按钮同语义）；
       //   未完成 → 推进式；统一带 map 标识（编号/标题/链接），新会话不再「找不到对应 ISSUE」
       if (isMap) {
         const stats = t.stats || (function () {
-          const mo = ((st.snapshot && st.snapshot.maps) || []).find(function (m) { return m.number === t.number })
+          const mo = ((st.snapshot && st.snapshot.maps) || []).find(function (m) { return idOf(m) === idOf(t) }) || ((st.snapshot && st.snapshot.maps) || []).find(function (m) { return m.number === t.number })
           return mo ? mo.stats : null
         })()
         const empty = !!(stats && stats.total === 0)

@@ -21,6 +21,7 @@ function norm(raw) {
     : [] // 来源无 → EMPTY（不是 MISSING）
   return {
     key: String(raw.key ?? 1),
+    effortId: String(raw.effortId ?? ''),
     type: raw.type ?? 'issue',
     title: raw.title ?? '',
     state: raw.state ?? 'open',

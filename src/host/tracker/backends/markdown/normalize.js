@@ -7,6 +7,8 @@ export function normalizeIssue(text, meta){
   if('subIssues' in issue)delete issue.subIssues
   if('blocking' in issue)delete issue.blocking
   if(typeof issue.key!=='string')issue.key=String((meta&&meta.key)||'00')
+  // effort 维度：effortId 是核心字段（永远存在）；扁平布局与单 effort 后端为 ''（EMPTY）
+  if(typeof issue.effortId!=='string')issue.effortId=String((meta&&meta.effortId)||'')
   if(typeof issue.type!=='string')issue.type=meta&&meta.isMap?'map':'issue'
   if(typeof issue.title!=='string')issue.title=''
   if(typeof issue.state!=='string')issue.state='open'

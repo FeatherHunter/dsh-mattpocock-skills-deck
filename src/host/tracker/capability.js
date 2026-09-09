@@ -31,7 +31,7 @@ export function isEmpty(v) {
 // 【已删除】不再遍历 'number' / 'subIssues'（定版：单 key、无 number；树边 = parentKey + tickets）。
 const DIAG_FIELDS = [
   // ---- 核心字段（永远存在）----
-  'key', 'type', 'title', 'state', 'body', 'url',
+  'key', 'effortId', 'type', 'title', 'state', 'body', 'url',
   'createdAt', 'updatedAt', 'closedAt', 'parentKey',
   // ---- 能力字段（可 MISSING；EMPTY=有能力无内容，MISSING=无能力）----
   'author', 'assignees', 'labels', 'milestone', 'customFields',

@@ -66,6 +66,8 @@ export function runContractTests(t) {
 
   // 2) 定版形状骨架：单 key、无 number/subIssues、核心字段齐
   assert('key string', typeof w.key === 'string', 'key=' + JSON.stringify(w.key))
+  // effort 维度：effortId 是核心字段（永远存在；单 effort 后端 ''）——身份 = (RepositoryRef, effortId, key)
+  assert('effortId core (string)', typeof w.effortId === 'string', 'effortId=' + JSON.stringify(w.effortId))
   assert('no number field', !hasOwn(w, 'number'), 'number present=' + JSON.stringify(w.number))
   assert('no subIssues field', !hasOwn(w, 'subIssues'), 'subIssues present=' + JSON.stringify(w.subIssues))
   assert('no blocking field (Issue 无 blocking；blocking 仅 projection/派生)', !hasOwn(w, 'blocking'), 'blocking present=' + JSON.stringify(w.blocking))
