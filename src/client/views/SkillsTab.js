@@ -9,11 +9,30 @@ export     const SkillsTab = ({ st }) => {
       const groups = compute(st)
       let rec = []
       let recTitle = tr('skill.generic')
-      if (st.activeMap !== null) {
-        const g = groups.find(function (x) { return x.m.number === st.activeMap })
+      // T4 #554：推荐源取最近的地图祖先（从栈顶往下找第一个地图层）。栈顶是地图时就是它自己，
+      // 与原来读当前地图一致；栈顶是工单（从地图下钻进来）时取把它带进来的那张地图；
+      // 栈里没有地图（纯工单栈或空栈）则置空，回通用推荐。先后经过同一编号不合并，找最近的即可。
+      const recMapNum = (function () {
+        try {
+          if (st && Array.isArray(st.navStack)) {
+            for (let i = st.navStack.length - 1; i >= 0; i--) {
+              const e = st.navStack[i]
+              if (e && e.kind === 'map' && typeof e.n === 'number' && !isNaN(e.n)) return e.n
+            }
+            return null
+          }
+        } catch (e) {}
+        if (st && st.activeMap !== null && st.activeMap !== undefined) {
+          const v = Number(st.activeMap)
+          if (!isNaN(v)) return v
+        }
+        return null
+      })()
+      if (recMapNum !== null) {
+        const g = groups.find(function (x) { return x.m.number === recMapNum })
         if (g && /research/.test(g.m.notes)) rec = ['research']
         if (g && /grill/.test(g.m.notes)) rec = ['grilling', 'domain-modeling']
-        recTitle = tr('skill.notes', { m: g.m.title })
+        if (g) recTitle = tr('skill.notes', { m: g.m.title })
       }
       if (!rec.length) rec = ['ask-matt']
       const list = SKILLS.map(function (sk) {

@@ -256,7 +256,8 @@ export     const OverlayPanel = (props) => {
             ])
           ]) : null,
         ]) : h('div', { className: 'dsws-body', onMouseDown: onBodyDown }, [
-          s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : h(ListTab, { st: s, narrow: narrow })) : null,
+          // T4 整改 #554：悬浮面板内地图详情只展示与去雾，禁点行压栈（T2 只支持停靠栏下钻定案；栈是两边共用的，悬浮面板点行会污染停靠栏的返回路径）。
+          s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active, drill: false }) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'pr' ? (showPrTab2 ? h(PrTab, { st: s, narrow: narrow }) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,
           s.tab === 'checks' ? h(ChecksTab, { st: s }) : null,

@@ -10,7 +10,10 @@ export const IssueDetail = function (props) {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
       const st = props.st
-      const issueNumber = st.activeIssue
+      // T4 #554：当前工单编号读栈顶（栈顶是工单才取，旧镜像兜底保证旧状态不崩）。
+      // 平时镜像与栈顶一致，取值与原来一样；取数与评论通路不动。
+      const navTop0 = (typeof peekNav === 'function') ? peekNav(st) : null
+      const issueNumber = (navTop0 && navTop0.kind === 'issue') ? navTop0.n : st.activeIssue
       const repoStrLocal = repoStr(st)
       const colorOf = (typeof buildColorOf === 'function') ? buildColorOf(st) : {}
       if (!issueNumber) return null
@@ -31,7 +34,9 @@ export const IssueDetail = function (props) {
       const src = detail || snapIssue
       const mode = st.issueMode || 'idle'
       const err = st.issueError
-      const goBack = function () { clearActiveIssue(st) }
+      // T4 #554：返回只弹一层（上一级是地图就回到该地图，是工单就回到该工单，
+      // 栈空才回列表）。直接调弹栈，不经过按种类守卫的旧入口，混合栈也只退一级。
+      const goBack = function () { popNav(st) }
       const doRetry = function () { if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { force: true }) }
       const copyUrl = function (n) {
         const url = issueUrlFor(st, n)
@@ -47,12 +52,61 @@ export const IssueDetail = function (props) {
         }
         return null
       })()
+      // T4 #554 面包屑：只看直接上一级与当前级。栈里有上一级时显示“上一级编号 / 当前编号”
+      // （从地图进来就是“地图编号 / 工单编号”）；栈深超过两级时更早的层折成一行省略号，
+      // 只留直接上一级与当前级；只有一级（从列表进来）时沿用原来的“列表 / 编号”；
+      // 先后经过同一编号（例如 A→B→A）不合并，返回时逐级经过，面包屑照常显示直接上一级。
+      const navCrumb = (function () {
+        let arr = null
+        try { arr = (st && Array.isArray(st.navStack)) ? st.navStack : null } catch (e) { arr = null }
+        if (arr && arr.length >= 2) {
+          const parent = arr[arr.length - 2]
+          const head = arr.length > 2 ? '… / ' : ''
+          return head + '#' + parent.n + ' / #' + issueNumber
+        }
+        return '列表 / #' + issueNumber
+      })()
+      // T4 整改 #554：子票与阻塞票点击按地图行同口径分流（T3 的做法）。
+      // 节点自带标签时按标签判：有地图标签且快照里找得到这张地图才进地图详情，否则回落工单详情；
+      // 节点没有标签（阻塞票节点只有编号标题状态）时按快照本地找图：找得到进地图详情，
+      // 找不到回落普通工单详情（有字可看，不静默回列表）。只定种类与编号，取数与评论不动。
+      const subLabelsOf = function (x) {
+        if (!x || x.labels == null) return []
+        if (Array.isArray(x.labels)) return x.labels
+        if (typeof x.labels === 'object' && Array.isArray(x.labels.nodes)) return x.labels.nodes
+        return []
+      }
+      const subHasRoutingInfo = function (x) {
+        if (!x) return false
+        if (subLabelsOf(x).length > 0) return true
+        return typeof x.type === 'string' && x.type !== ''
+      }
+      const subHasMapTag = function (x) {
+        const ls = subLabelsOf(x)
+        for (let i = 0; i < ls.length; i++) { const n = (typeof ls[i] === 'string') ? ls[i] : ls[i].name; if (n === 'wayfinder:map') return true }
+        return x && x.type === 'map'
+      }
+      const findMapLocal = function (num) {
+        const maps = (st.snapshot && st.snapshot.maps) || []
+        const k = num != null ? String(num).padStart(2, '0') : ''
+        return maps.find(function (m2) { return m2.number === num || String(m2.number) === String(num) || (m2.key != null && String(m2.key).padStart(2, '0') === k) })
+      }
+      const enterSubDetail = function (x) {
+        if (!x || x.number == null) return
+        if (subHasRoutingInfo(x)) {
+          if (subHasMapTag(x) && findMapLocal(x.number)) pushNav(st, 'map', x.number)
+          else pushNav(st, 'issue', x.number)
+        } else {
+          if (findMapLocal(x.number)) pushNav(st, 'map', x.number)
+          else pushNav(st, 'issue', x.number)
+        }
+      }
       // loading（首拉无缓存且无 snap 降级）
       if (mode === 'loading' && !src) {
         return h('div', null, [
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } }, [
             h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'back', size: 12 }), h('span', null, tr('list.back'))]),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11 } }, ' / #' + issueNumber),
+            h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11 } }, navCrumb),
             h('span', { style: { flex: 1 } }),
           ]),
           h('div', { style: { padding: '24px 0', textAlign: 'center', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 } }, [h('div', { className: 'dsws-spinner', style: { width: 14, height: 14, border: '2px solid rgba(255,255,255,.15)', borderTopColor: '#c084fc', borderRadius: '50%', animation: 'dsws-spin 1s linear infinite' } }), h('span', null, tr('list.loading'))]),
@@ -65,7 +119,7 @@ export const IssueDetail = function (props) {
         return h('div', null, [
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } }, [
             h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'back', size: 12 }), h('span', null, tr('list.back'))]),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11 } }, ' / #' + issueNumber),
+            h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11 } }, navCrumb),
             h('span', { style: { flex: 1 } }),
           ]),
           h('div', { style: { padding: '12px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 8, fontSize: 12, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
@@ -82,7 +136,7 @@ export const IssueDetail = function (props) {
         return h('div', null, [
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } }, [
             h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'back', size: 12 }), h('span', null, tr('list.back'))]),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11 } }, ' / #' + issueNumber),
+            h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11 } }, navCrumb),
           ]),
           h('div', { style: { padding: '24px 0', textAlign: 'center', color: 'var(--dsw-alias-label-caption,#8b8b95)', fontSize: 12 } }, '无描述（快照未命中，细节加载中）'),
         ])
@@ -126,7 +180,7 @@ export const IssueDetail = function (props) {
         // 顶部固定行
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }, [
           h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none' } }, [Ic({ n: 'back', size: 12 }), h('span', null, tr('list.back'))]),
-          h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap' } }, '列表 / #' + issueNumber),
+          h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap' } }, navCrumb),
           h('span', { style: { flex: 1, minWidth: 8 } }),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none' } }, [
             detail ? h('span', { style: { fontSize: 10, color: isStale ? '#f59e0b' : '#8b8b95' } }, isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')) : null,
@@ -171,7 +225,8 @@ export const IssueDetail = function (props) {
         parentMap ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'rgba(188,140,255,.06)', border: '1px solid rgba(188,140,255,.2)', borderRadius: 6, fontSize: 11 } }, [
           Ic({ n: 'map', size: 11, color: '#c084fc' }),
           h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, '属于'),
-          h('a', { href: '#', onClick: function (e) { e.preventDefault(); setActiveMap(st, parentMap.number) }, style: { color: '#c084fc', textDecoration: 'underline', fontWeight: 600 } }, '#' + parentMap.number + ' ' + parentMap.title),
+          // T4 #554：所属地图链接压栈进下一层（保留返回路径，不断掉上一级）。
+          h('a', { href: '#', onClick: function (e) { e.preventDefault(); pushNav(st, 'map', parentMap.number) }, style: { color: '#c084fc', textDecoration: 'underline', fontWeight: 600 } }, '#' + parentMap.number + ' ' + parentMap.title),
         ]) : null,
         // body
         h('div', { style: { padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [
@@ -185,7 +240,8 @@ export const IssueDetail = function (props) {
           h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, '子票 ' + subTotal + (subNodes.length ? '' : '（无加载）')),
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, subNodes.map(function (s) {
             const sc = s.state === 'CLOSED' ? '#3fb950' : '#8b8b95'
-            return h('div', { key: s.number, className: 'dsws-aggrow', onClick: function () { setActiveIssue(st, s.number) }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
+            // T4 整改 #554：子票按上面 enterSubDetail 分流（有标签按标签，无标签按快照找图）。
+            return h('div', { key: s.number, className: 'dsws-aggrow', onClick: function () { enterSubDetail(s) }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
                 h('span', { className: 'dsws-idnum', style: { color: sc, borderColor: sc, fontSize: 11 } }, '#' + s.number),
                 h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, s.title)]) }, h('span', { className: 'dsws-tt-wrap', style: { flex: 1, fontSize: 12 } }, s.title)),
@@ -198,7 +254,8 @@ export const IssueDetail = function (props) {
         blockedNodes.length ? h('div', { style: { padding: '6px 0' } }, [
           h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, '被阻塞 · ' + blockedNodes.length),
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, blockedNodes.map(function (b) {
-            return h('div', { key: b.number, className: 'dsws-aggrow', onClick: function () { setActiveIssue(st, b.number) }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
+            // T4 整改 #554：阻塞票同样按 enterSubDetail 分流（无标签时按快照找图）。
+            return h('div', { key: b.number, className: 'dsws-aggrow', onClick: function () { enterSubDetail(b) }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
                 Ic({ n: 'lock', size: 10, color: '#f0883e' }),
                 h('span', { className: 'dsws-idnum', style: { color: '#f0883e', borderColor: '#f0883e', fontSize: 11 } }, '#' + b.number),

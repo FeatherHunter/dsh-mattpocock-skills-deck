@@ -5,10 +5,14 @@
  */
     // ---- 5.4 地图详情（v1.4 · T2 #443：漏斗分层 + 战争迷雾 + 72px 仪式环 + 四态动作，D1-D8 规格）----
     //   层 = blockedBy DAG 最长路径深度（T1 #442 已算 stats.levels + 每票 t.level）
-export     const MapDetail = ({ st, g }) => {
+export     const MapDetail = ({ st, g, drill }) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
       const m = g.m
+      // T4 整改 #554：只有停靠栏允许点行下钻（T2 定案：只支持停靠栏下钻）。
+      // 悬浮面板里同一个组件只做去雾与展示，不写导航栈（悬浮面板调用方传 drill:false，
+      // 否则点行会污染停靠栏共用的栈）。调用方不传时默认允许（停靠栏），旧状态不崩。
+      const canDrill = drill !== false
       const colorOf = buildColorOf(st)
       const wayfinderTypeOf = function(t){ const ls=(t.labels||[]); for(let i=0;i<ls.length;i++){ const n=typeof ls[i]==='string'?ls[i]:ls[i].name; if(n==='wayfinder:map') return 'map'; if(n==='wayfinder:research') return 'research'; if(n==='wayfinder:prototype') return 'prototype'; if(n==='wayfinder:grilling') return 'grilling'; if(n==='wayfinder:task') return 'task'; } const tt=t.type||''; if(['research','prototype','grilling','task','map'].indexOf(tt)>=0) return tt; return 'issue'; };
       const tickets = m.tickets || []
@@ -73,8 +77,10 @@ export     const MapDetail = ({ st, g }) => {
       // T3 #553：行点击分流与去雾共存 —— 被雾盖住的行第一次点击只做去雾（展开看清标题），
       // 已经去雾的行第二次点击才进详情（去雾后点行即下钻，不再盖回去，见本票报告）；没有雾的
       // 行按标签分流：有地图标签的进下一级地图详情，其余进普通工单详情，已关闭的行同样按标签
-      // 分流（与主列表一致，真正的只读统一由后续票两边一起做）。分流直接调 T2 的压栈函数，
+      // 分流（与主列表一致，真正的只读统一由 T4/T5 两边一起做）。分流直接调 T2 的压栈函数，
       // 种类由本文件判好再传（压栈函数只拦非法种类与编号，不纠正种类，传错种类会原样压栈）。
+      // 顶部的返回按钮直接调弹栈（只弹一层，上一级是工单的混合栈也回到该工单），见 goBack。
+      // 行点进详情只在停靠栏生效，悬浮面板内禁压栈（见 canDrill，只去雾与展示）。
       // 雾态样式与层排序见 nodeCls 与 byLevel，均不动。
       // 标签口径实话：本文件认字符串与对象两种标签写法，外加类型字段为 map 的也算；主列表
       // 只认对象写法的标签加类型字段，比本票窄。两边统一留给后续票，本票不改主列表。
@@ -99,7 +105,8 @@ export     const MapDetail = ({ st, g }) => {
       }
       const onNodeClick = function (t) {
         if ((isFog(t) || isFogTitle(t)) && !isRevealed(t)) { toggleReveal(t); return }
-        enterDetail(t)
+        // 悬浮面板内到此为止（只去雾与展示）；停靠栏内才进详情压栈。
+        if (canDrill) enterDetail(t)
       }
       const node = function (t) {
         const blocked = isFog(t)
@@ -166,13 +173,31 @@ export     const MapDetail = ({ st, g }) => {
       const ringPct = allClosed ? 1 : (totalLayers ? Math.min(1, (passedLayers + 1) / totalLayers) : 0)
       const C = 2 * Math.PI * 31
       const ringOff = C * (1 - ringPct)
+      // T4 #554 面包屑：只看直接上一级与当前地图。栈里有上一级时显示“上一级编号 / 当前地图编号”，
+      // 上一级是工单（混合栈）就显示该工单编号；栈深超过两级时更早的层折成一行省略号；
+      // 只有一级（从列表进来）时显示“列表 / 当前地图编号”，返回弹空栈后回列表与原来一致；
+      // 先后经过同一编号（例如 A→B→A）不合并，返回时逐级经过，面包屑照常显示直接上一级。
+      const navCrumb = (function () {
+        let arr = null
+        try { arr = (st && Array.isArray(st.navStack)) ? st.navStack : null } catch (e) { arr = null }
+        if (arr && arr.length >= 2) {
+          const parent = arr[arr.length - 2]
+          const head = arr.length > 2 ? '… / ' : ''
+          return head + '#' + parent.n + ' / #' + m.number
+        }
+        return '列表 / #' + m.number
+      })()
+      // T4 #554：顶部返回只弹一层（上一级是地图就回到上一级地图，是工单就回到该工单，
+      // 栈空才回列表）。直接调弹栈，不经过按种类守卫的旧入口，混合栈也只退一级。
+      const goBack = function () { popNav(st) }
       return h('div', null, [
         // 顶部操作行：返回 + map chip + 执行/完成
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 } }, [
-          h('button', { className: 'dsws-btn', onClick: function () { clearActiveMap(st) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
+          h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
             Ic({ n: 'back', size: 12 }),
             h('span', null, tr('list.back')),
           ]),
+          h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap' } }, navCrumb),
           h('span', { className: 'dsws-chip dsws-chip-m' }, [Ic({ n: 'map', size: 11 }), h('span', null, 'wayfinder:map')]),
           h('span', { style: { flex: 1 } }),
           (m.stats && m.stats.total === 0)
