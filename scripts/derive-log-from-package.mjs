@@ -67,12 +67,17 @@ export function deriveClient() {
     format: 'esm',
     platform: 'neutral',
     target: 'es2020',
+    // #564 T2：固定工作目录，esbuild 模块注释（// packages/... 行）不再随调用方 cwd 漂移。
+    absWorkingDir: ROOT,
     write: false,
   })
   if (!built.outputFiles || built.outputFiles.length !== 1) {
     throw new Error('[derive-log] 客户端打包产物数量不对（期望恰好 1 个文件）')
   }
   let body = Buffer.from(built.outputFiles[0].contents).toString('utf8').replace(/\r\n/g, '\n')
+  // #564 T2：注释路径归一（只动注释行，不改行为）。不同目录重跑时 esbuild 会写出
+  // // ../packages/... 之类的相对形态，这里统一归一成 packages/ 开头，保证任意目录重跑零 diff。
+  body = body.replace(/^\/\/ (\.\.\/)+packages\//gm, '// packages/')
   if (/^\s*import[\s{*]/m.test(body) || /from\s+['"]\.\.?\//.test(body)) {
     throw new Error('[derive-log] 客户端打包后仍有外部引用（应全部内联），请检查日志包客户端入口的引用')
   }

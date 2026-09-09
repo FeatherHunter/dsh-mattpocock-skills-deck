@@ -1,7 +1,7 @@
 // 派生文件（#564）：由 packages/dsh-log/src/client.ts（含配置面）打包生成，内容与日志包 0.1.0 一致，人手不改。
 // 旧模块（src/client/kernel/log.js）原地只读留存；构建时本文件拼入原来日志模块的位置（kernel:log 标记处）。
 // 共存关系：旧文件只读、新文件派生，真搬迁或真删除旧文件另开票。重新生成：node scripts/derive-log-from-package.mjs。
-// ../packages/dsh-log/src/config.ts
+// packages/dsh-log/src/config.ts
 var CLIENT_BATCH_MAX = 50;
 var CLIENT_BATCH_INTERVAL_MS = 1e3;
 var CLIENT_PACKET_BYTES = 128 * 1024;
@@ -108,7 +108,7 @@ function parseEventEntry(name, value) {
   return entry;
 }
 
-// ../packages/dsh-log/src/client.ts
+// packages/dsh-log/src/client.ts
 var CLIENT_BATCH = {
   maxPerBatch: CLIENT_BATCH_MAX,
   intervalMs: CLIENT_BATCH_INTERVAL_MS,
