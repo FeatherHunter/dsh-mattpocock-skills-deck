@@ -191,8 +191,8 @@ export     const MapDetail = ({ st, g, drill }) => {
       // 栈空才回列表）。直接调弹栈，不经过按种类守卫的旧入口，混合栈也只退一级。
       const goBack = function () { popNav(st) }
       return h('div', null, [
-        // 顶部操作行：返回 + map chip + 执行/完成
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 } }, [
+        // 顶部操作行：返回 + map chip + 执行/完成（#565 粘性固定，随滚动保持可见）
+        h('div', { className: 'dsws-stickybar', style: { display: 'flex', alignItems: 'center', gap: 8 } }, [
           h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
             Ic({ n: 'back', size: 12 }),
             h('span', null, tr('list.back')),

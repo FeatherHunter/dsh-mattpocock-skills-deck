@@ -177,8 +177,8 @@ export const IssueDetail = function (props) {
       // #506 首版只读：拉取请求详情只看评论列表，不给输入框（快照与详情任一来源标为拉取请求即只读；评审合并展示留后续，#507 再验）。
       if ((src && src.isPullRequest === true) || (snapIssue && snapIssue.isPullRequest === true)) canComment = false
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } }, [
-        // 顶部固定行
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }, [
+        // 顶部固定行（#565 粘性固定，随滚动保持可见）
+        h('div', { className: 'dsws-stickybar', style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }, [
           h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none' } }, [Ic({ n: 'back', size: 12 }), h('span', null, tr('list.back'))]),
           h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap' } }, navCrumb),
           h('span', { style: { flex: 1, minWidth: 8 } }),
