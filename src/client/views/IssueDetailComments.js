@@ -64,7 +64,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, src, deta
               h('span', { style: { flex: 1 } }),
               h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, t),
             ]),
-            h('div', { style: { fontSize: 12, lineHeight: 1.5 } }, (typeof mdToHtml === 'function' ? mdToHtml(c.body || '') : (c.body || ''))),
+            h('div', { style: { fontSize: 12, lineHeight: 1.5 } }, (typeof mdToHtml === 'function' ? mdToHtml(c.body || '', { st: st }) : (c.body || ''))),
           ])
         })) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '8px', background: 'rgba(255,255,255,.03)', borderRadius: 6, border: '1px dashed rgba(255,255,255,.1)' } }, mode === 'loading' && !detail ? '加载中…' : '无评论'),
         // 加载下 50 按钮（T5 反向分页 cursor，节流 600ms，失败重试与 3 次兜底）

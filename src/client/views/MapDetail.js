@@ -251,14 +251,14 @@ export     const MapDetail = ({ st, g, drill }) => {
           ]),
         ]) : null,
         // T17 修订：Destination 走 markdown 渲染（**加粗** 等不再裸露；去 ellip 允许换行）
-        h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 4, fontSize: 12, color: '#4ade80', margin: '4px 0 2px' } }, [Ic({ n: 'target', size: 12, style: { marginTop: 2, flex: 'none' } }), h('div', { style: { flex: 1, minWidth: 0 } }, m.destination ? mdToHtml(m.destination) : tr('list.noDest'))]),
+        h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 4, fontSize: 12, color: '#4ade80', margin: '4px 0 2px' } }, [Ic({ n: 'target', size: 12, style: { marginTop: 2, flex: 'none' } }), h('div', { style: { flex: 1, minWidth: 0 } }, m.destination ? mdToHtml(m.destination, { st: st }) : tr('list.noDest'))]),
         // T17 修订：正文详情（Notes）默认折叠 —— <details> 收起，点击展开
         h('details', { style: { margin: '2px 0 4px' } }, [
           h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 } }, [
             Ic({ n: 'note', size: 11 }),
             h('span', null, tr('map.notesCap')),
           ]),
-          m.notes ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginTop: 4, paddingLeft: 8, borderLeft: '2px solid var(--dsw-alias-border-l1,#2a2d35)' } }, mdToHtml(m.notes)) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginTop: 4, paddingLeft: 8 } }, tr('list.noNotes')),
+          m.notes ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginTop: 4, paddingLeft: 8, borderLeft: '2px solid var(--dsw-alias-border-l1,#2a2d35)' } }, mdToHtml(m.notes, { st: st })) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', marginTop: 4, paddingLeft: 8 } }, tr('list.noNotes')),
         ]),
         // 漏斗分层主体
         h('div', { style: { marginTop: 2 } }, [
@@ -320,14 +320,16 @@ export     const MapDetail = ({ st, g, drill }) => {
         h('details', { style: { marginBottom: 4 } }, [
           h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.fog', { n: fogList.length })),
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, fogList.map(function (f, i) {
-            return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + f))
+            return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + f, { st: st }))
           })),
         ]),
         h('details', { style: { marginBottom: 4 } }, [
           h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, tr('map.outOfScope', { n: outOfScope.length })),
           h('div', { style: { fontSize: 12, paddingLeft: 8 } }, outOfScope.map(function (o, i) {
-            return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + o))
+            return h('div', { key: i, style: { margin: '2px 0' } }, mdToHtml('· ' + o, { st: st }))
           })),
         ]),
+        // 图片放大浮层（与议题详情共用同一渲染函数与同一共享状态）
+        (typeof mdImgOverlay === 'function' ? mdImgOverlay(st) : null),
       ])
     }

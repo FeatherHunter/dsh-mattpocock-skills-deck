@@ -232,7 +232,7 @@ export const IssueDetail = function (props) {
         h('div', { style: { padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [
           h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 4 } }, '描述'),
           (body && String(body).trim())
-            ? h('div', { style: { fontSize: 12, lineHeight: 1.6, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, (typeof mdToHtml === 'function' ? mdToHtml(body) : String(body)))
+            ? h('div', { style: { fontSize: 12, lineHeight: 1.6, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, (typeof mdToHtml === 'function' ? mdToHtml(body, { st: st }) : String(body)))
             : h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, '无描述'),
         ]),
         // sub-issues
@@ -272,5 +272,7 @@ export const IssueDetail = function (props) {
           h('span', { style: { flex: 1 } }),
           !canComment ? h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.readOnlyHint')) : null,
         ]),
+        // 图片放大浮层（渲染函数共用，状态放共享 store，点缩略图打开，点空白与关闭与退出键关闭）
+        (typeof mdImgOverlay === 'function' ? mdImgOverlay(st) : null),
       ])
     }

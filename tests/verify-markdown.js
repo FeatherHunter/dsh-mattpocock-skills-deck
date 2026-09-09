@@ -22,16 +22,16 @@ check(mdPkg.length > 0, 'package client 含渲染器')
 check(cli.includes('const mdToHtml = function'), 'client 含 mdToHtml 定义')
 check(pcli.includes('const mdToHtml = function'), 'package 含 mdToHtml 定义')
 
-// 渲染点接入
-check(cli.includes('mdToHtml(m.notes)'), 'client Notes 渲染接入')
-check(cli.includes("mdToHtml('· ' + f)"), 'client Fog 渲染接入')
-check(cli.includes("mdToHtml('· ' + o)"), 'client OutOfScope 渲染接入')
-check(pcli.includes('mdToHtml(m.notes)'), 'package Notes 渲染接入')
-check(pcli.includes("mdToHtml('· ' + f)"), 'package Fog 渲染接入')
-check(pcli.includes("mdToHtml('· ' + o)"), 'package OutOfScope 渲染接入')
+// 渲染点接入（图片版传共享状态用于点开放大，查前缀不查完整括号）
+check(cli.includes('mdToHtml(m.notes'), 'client Notes 渲染接入')
+check(cli.includes("mdToHtml('· ' + f"), 'client Fog 渲染接入')
+check(cli.includes("mdToHtml('· ' + o"), 'client OutOfScope 渲染接入')
+check(pcli.includes('mdToHtml(m.notes'), 'package Notes 渲染接入')
+check(pcli.includes("mdToHtml('· ' + f"), 'package Fog 渲染接入')
+check(pcli.includes("mdToHtml('· ' + o"), 'package OutOfScope 渲染接入')
 
-// 白名单标签
-const tags = ['strong', 'em', 'code', 'ul', 'li', 'blockquote', 'input', 'a', 'hr', 'div']
+// 白名单标签（图片已放行，但只认安全协议，见下方行为级断言）
+const tags = ['strong', 'em', 'code', 'ul', 'li', 'blockquote', 'input', 'a', 'hr', 'div', 'img']
 tags.forEach(function (t) {
   check(mdCli.includes("h('" + t + "',") || mdCli.includes("h('" + t + "')"), '渲染器构造 ' + t)
 })
@@ -39,6 +39,9 @@ tags.forEach(function (t) {
 // 语法正则
 check(mdCli.includes('MD_LINK_RE'), '链接正则定义')
 check(mdCli.includes('MD_TASK_RE'), '任务项正则定义')
+check(mdCli.includes('MD_IMG_RE'), '图片 Markdown 正则定义')
+check(mdCli.includes('MD_HTML_IMG_RE'), '图片标签正则定义')
+check(mdCli.includes('mdSafeImgUrl'), '图片地址白名单定义')
 
 // 防注入（源码级）
 check(!mdCli.includes('dangerouslySetInnerHTML'), '渲染器不使用 dangerouslySetInnerHTML')
@@ -49,7 +52,7 @@ check(!mdPkg.includes('dangerouslySetInnerHTML'), 'package 渲染器不使用 da
 
 // ── 行为级：用 stub h() 执行真实渲染器，断言输出结构 ──
 const stubH = (tag, props, children) => {
-  const attr = props ? Object.keys(props).filter(k => !['key', 'style', 'className', 'title'].includes(k) && props[k] !== null && props[k] !== undefined && props[k] !== false)
+  const attr = props ? Object.keys(props).filter(k => !['key', 'style', 'className', 'title', 'onClick'].includes(k) && props[k] !== null && props[k] !== undefined && props[k] !== false && typeof props[k] !== 'function')
     .map(k => ' ' + k + '="' + String(props[k]).replace(/"/g, '&quot;') + '"').join('') : ''
   const ch = Array.isArray(children) ? children.map(c => c == null ? '' : c).join('') : (children == null ? '' : children)
   if (tag === 'input') return '<input' + attr + '>'
@@ -63,7 +66,7 @@ const run = (src, md) => {
 const rCli = (md) => run(mdCli, md)
 const rPkg = (md) => run(mdPkg, md)
 
-// 链接：中段链接（回归：占位符 L0 泄漏）与行首链接
+// 链接：中段链接（回归：占位符 \u0001L0\u0001 泄漏）与行首链接
 check(rCli('见 [GitHub](https://github.com) 与 *斜体*').includes('<a href="https://github.com" target="_blank" rel="noreferrer">GitHub</a>'), 'client 中段链接渲染为 <a>')
 check(!rCli('见 [GitHub](https://github.com) 与 *斜体*').includes('\u0001'), 'client 中段链接无占位符泄漏')
 check(rPkg('见 [GitHub](https://github.com) 与 *斜体*').includes('<a href="https://github.com" target="_blank" rel="noreferrer">GitHub</a>'), 'package 中段链接渲染为 <a>')
@@ -86,10 +89,18 @@ check(rCli('- [x] 完成\n- [ ] 未完成').includes('<input type="checkbox" che
 check(rCli('> 引用').includes('<blockquote>引用</blockquote>'), '引用块')
 check(rCli('---').includes('<hr>'), '分隔线')
 
-// 防注入（行为级）：恶意 HTML 正文 → React 文本节点，不构造 script/img 元素
+// 防注入（行为级）：脚本标签永不构造；图片只认安全协议，危险地址降级为文字
 check(!/h\('script'/.test(mdCli), '恶意 <script> 不构造 script 元素')
-check(!/h\('img'/.test(mdCli), '恶意 <img> 不构造 img 元素')
+check(/h\('img'/.test(mdCli), '安全图片构造 img 元素')
 check(rCli('<b>不是加粗</b>').includes('<b>不是加粗</b>'), '原始 HTML 标签原样当文本（不解析）')
+// 图片三写法：Markdown 写法、图片标签写法、包在链接里的写法保持跳转
+check(rCli('看图 ![说明](https://github.com/user-attachments/assets/abc.png) 尾').includes('<img src="https://github.com/user-attachments/assets/abc.png"'), 'Markdown 图片写法渲染为 img')
+check(rCli('<img width="90" height="70" alt="Image" src="https://github.com/user-attachments/assets/abc.png" />').includes('<img src="https://github.com/user-attachments/assets/abc.png"'), '图片标签写法渲染为 img')
+check(!rCli('看图 ![说明](javascript:alert(1)) 尾').includes('<img'), '图片危险协议不产 img')
+check(!rCli('<img src="javascript:alert(1)" alt="x" />').includes('<img'), '图片标签危险地址不产 img')
+check(!rCli('<img src="data:text/html;base64,PHNjcmlwdD4=" alt="x" />').includes('<img'), '图片标签 data 地址不产 img')
+check(rCli('[![说明](https://github.com/user-attachments/assets/a.png)](https://github.com/a)').includes('<a href="https://github.com/a"'), '包在链接里的图片保持外层跳转')
+check(!rCli('看图 ![说明](https://a.png) 尾').includes('\u0001'), '图片占位符无泄漏')
 
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过')
