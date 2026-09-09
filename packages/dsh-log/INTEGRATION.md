@@ -18,6 +18,8 @@ node --version
 npm install dsh-log
 ```
 
+包还没公开发布时，这条命令装不上：先用本地路径或工作区引用代替（例如 `npm install ../dsh-log`），等包发布后才用上面的命令。发布前用 `npm view dsh-log` 查一次重名：返回 404 表示名字还没被占（本次查重 404，证据贴在 #562 票评论）。
+
 ## 步骤 2. 宿主侧接线（三步接入）
 
 在宿主启动处写：
@@ -55,7 +57,7 @@ const clientLog = createClientLog(
 )
 ```
 
-四个依赖传你手头现成的：宿主调用器 `host`、计时器 `timer`、存储 `storage`（只传 `storage`，旧名 `localStorage` 是迁移期兼容，两个都传以 `storage` 为准）、开关广播 `broadcastLogSwitch`（没有就不传，不报错）。前后缀保持与宿主侧同一个 `pluginId`，两端拼出的电话名自然对上。
+四个依赖全可选，有现成的就传，缺了走退化路、不抛错：宿主调用器 `host`、计时器 `timer`、存储 `storage`（只传 `storage`，旧名 `localStorage` 是迁移期兼容，两个都传以 `storage` 为准）、开关广播 `broadcastLogSwitch`（没有就不传，不报错）。前后缀保持与宿主侧同一个 `pluginId`，两端拼出的电话名自然对上。
 
 只有把客户端拼进插件主文件闭包一起运行的插件，才用文本拼接：构建时取客户端入口编译后的声明体，去行首 `export` 后拼进闭包，调用时把闭包里现成的四个名字原样传给工厂。文本拼接消费方式只走客户端入口的声明体文本。
 
@@ -68,6 +70,8 @@ await clientLog.setLogSwitch(true, 1)
 clientLog.log('info', 'my-plugin.hello', { step: 'started' })
 clientLog.flush()
 ```
+
+第二个参数是采样率，取 0 到 1 之间的小数，1 表示全量（默认就是 1）；传非数字时保持旧值不变。
 
 随后在缓存目录下的 `logs-my-plugin` 目录里看到当天的 `年月日.log` 文件，里面有这一条。宿主是唯一的落盘者：客户端只进队列就返回，转发走电话，落盘走宿主刷盘链路。
 
@@ -109,7 +113,7 @@ checkEventCounts(manifest)
 
 - 导出：在状态栏菜单与设置页各放一个导出入口，都调 `logExport`（入参可选日期，不传导出当天）。成功把回参的 `text` 存成文件给用户；失败分支记一行 `log.export.fail`（走 `logExportFail`，成功路径不调用）；失败原因只给机器码，面向用户的文案由界面经多语言系统转换，日志包内不写面向用户的中文字符串。
 - 清空：在设置页放清空入口，调 `logClear`（`date` 传某天或 `all`），回参的 `removed` 告诉用户删掉几个文件。
-- 开关：在设置页放调试开关（是否开启加采样率），调 `setLogSwitch` / 启动时调 `reconcileLogSwitch` 向宿主对账（以宿主为准）。开关写失败保持旧值，由调用处提示用户，不回退为开启。
+- 开关：在设置页放调试开关（是否开启加采样率），调 `setLogSwitch` / 启动时调 `reconcileLogSwitch` 向宿主对账（以宿主为准）。开关写失败保持旧值（失败原因只给机器码：`host-unavailable`、`host-rejected`、`switch-timeout`、`stale` 等），由调用处提示用户，不回退为开启。
 
 ## 常见坑
 
