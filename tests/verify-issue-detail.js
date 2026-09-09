@@ -60,7 +60,7 @@ const detailCli = ['src/client/views/IssueDetail.js', 'src/client/views/IssueDet
 check(detailCli.includes('fetchIssueDetail'), 'IssueDetail 调 fetchIssueDetail')
 check(detailCli.includes('issueMode'), 'IssueDetail 读 issueMode')
 check(detailCli.includes('issueError'), 'IssueDetail 读 issueError')
-check(detailCli.includes('clearActiveIssue') || detailCli.includes('popNav(st)'), 'IssueDetail 返回清详情或直调弹栈（过渡期两种写法都接受）')
+check(detailCli.includes('const goBack = function () { popNav(st) }'), 'IssueDetail 返回直调弹栈（只退一层，不绕旧入口）')
 check(detailCli.includes('mdToHtml'), 'IssueDetail 用 mdToHtml 渲染 body/comments')
 check(detailCli.includes('subIssues'), 'IssueDetail 渲染 subIssues')
 check(detailCli.includes('blockedBy'), 'IssueDetail 渲染 blockedBy')

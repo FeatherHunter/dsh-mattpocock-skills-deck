@@ -37,7 +37,7 @@ check(dockSrc.includes('ListTab'), 'Dock 保留 ListTab')
 check(dockSrc.includes('h(MapDetail') && dockSrc.includes('h(IssueDetail') && dockSrc.includes('h(ListTab'), 'Dock 优先级 activeMap > IssueDetail > ListTab (三者共存)')
 
 // —— IssueDetail 渲染分支
-check(detailSrc.includes('clearActiveIssue') || detailSrc.includes('popNav(st)'), 'IssueDetail 返回清详情或直调弹栈（过渡期两种写法都接受）')
+check(detailSrc.includes('const goBack = function () { popNav(st) }'), 'IssueDetail 返回直调弹栈（只退一层，不绕旧入口）')
 check(detailSrc.includes('mdToHtml'), 'IssueDetail body 用 mdToHtml')
 check(detailSrc.includes('subIssues'), 'IssueDetail 分支 subIssues')
 check(detailSrc.includes('blockedBy'), 'IssueDetail 分支 blockedBy')

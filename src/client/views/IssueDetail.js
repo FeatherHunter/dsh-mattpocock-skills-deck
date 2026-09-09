@@ -64,7 +64,7 @@ export const IssueDetail = function (props) {
           const head = arr.length > 2 ? '… / ' : ''
           return head + '#' + parent.n + ' / #' + issueNumber
         }
-        return '列表 / #' + issueNumber
+        return tr('panel.tabList') + ' / #' + issueNumber
       })()
       // T4 整改 #554：子票与阻塞票点击按地图行同口径分流（T3 的做法）。
       // 节点自带标签时按标签判：有地图标签且快照里找得到这张地图才进地图详情，否则回落工单详情；

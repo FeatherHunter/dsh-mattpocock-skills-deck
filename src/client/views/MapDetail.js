@@ -185,7 +185,7 @@ export     const MapDetail = ({ st, g, drill }) => {
           const head = arr.length > 2 ? '… / ' : ''
           return head + '#' + parent.n + ' / #' + m.number
         }
-        return '列表 / #' + m.number
+        return tr('panel.tabList') + ' / #' + m.number
       })()
       // T4 #554：顶部返回只弹一层（上一级是地图就回到上一级地图，是工单就回到该工单，
       // 栈空才回列表）。直接调弹栈，不经过按种类守卫的旧入口，混合栈也只退一级。
