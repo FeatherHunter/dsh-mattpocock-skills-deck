@@ -49,21 +49,94 @@
       return st.noRepoCard
     }
     // T1 #6 · IssueDetail 状态机（与 activeMap 互斥，in-panel 详情页 · v1.7.0）
+    // #552 导航栈：navStack 是真源，只存坐标 { kind: 'map' | 'issue', n: 数字编号 }，不存详情正文
+    // （地图正文走面板快照派生，工单正文走 60 秒详情缓存加 TEFNGY 降级，栈只做坐标）。
+    // activeMap 与 activeIssue 过渡期保留为栈顶镜像（读方逐个改到读栈顶之前，停靠栏/悬浮面板/技能页签照旧可用）。
+    // 只读栈本身（同步镜像用，不带镜像兜底，否则弹空栈时会把旧镜像写回去）
+    export const peekStackNav = function (st) {
+      try {
+        const s = st && st.navStack
+        if (Array.isArray(s) && s.length) {
+          const t = s[s.length - 1]
+          if (t && (t.kind === 'map' || t.kind === 'issue') && typeof t.n === 'number' && !isNaN(t.n)) return t
+        }
+      } catch (e) {}
+      return null
+    }
+    export const peekNav = function (st) {
+      const t = peekStackNav(st)
+      if (t) return t
+      // 没有栈的旧状态：从镜像回推栈顶，保证读方不崩
+      try {
+        if (st && st.activeMap !== null && st.activeMap !== undefined) { const v = Number(st.activeMap); if (!isNaN(v)) return { kind: 'map', n: v } }
+        if (st && st.activeIssue !== null && st.activeIssue !== undefined) { const v2 = Number(st.activeIssue); if (!isNaN(v2)) return { kind: 'issue', n: v2 } }
+      } catch (e2) {}
+      return null
+    }
+    export const syncNavMirror = function (st) {
+      const t = peekStackNav(st)
+      if (t && t.kind === 'map') { st.activeMap = t.n; st.activeIssue = null }
+      else if (t && t.kind === 'issue') { st.activeIssue = t.n; st.activeMap = null }
+      else { st.activeMap = null; st.activeIssue = null }
+      return t
+    }
+    export const pushNav = function (st, kind, n) {
+      if (!st) return null
+      if (!Array.isArray(st.navStack)) st.navStack = []
+      seedNavFromMirror(st)
+      const v = (n == null) ? null : Number(n)
+      if ((kind !== 'map' && kind !== 'issue') || v == null || isNaN(v)) return peekNav(st)
+      const top = peekNav(st)
+      // 同一详情重复进入不重复压栈（防双击把两个一样的压进栈）
+      if (!top || top.kind !== kind || top.n !== v) st.navStack.push({ kind: kind, n: v })
+      syncNavMirror(st)
+      emit(st)
+      return peekNav(st)
+    }
+    // 没有栈的旧状态：先从镜像补一层再动栈，保证旧对象调清除也能清掉
+    export const seedNavFromMirror = function (st) {
+      if (!st || !Array.isArray(st.navStack) || st.navStack.length) return
+      const t = peekNav(st)
+      if (t) st.navStack.push({ kind: t.kind, n: t.n })
+    }
+    // 返回弹栈：只改栈与镜像，不碰滚动、展开、缓存与快照，所以上一级原样保留、不强制重刷
+    export const popNav = function (st) {
+      if (!st) return null
+      if (!Array.isArray(st.navStack)) st.navStack = []
+      seedNavFromMirror(st)
+      const out = st.navStack.length ? st.navStack.pop() : null
+      syncNavMirror(st)
+      emit(st)
+      return out
+    }
+    export const clearNavStack = function (st) {
+      if (!st) return
+      st.navStack = []
+      st.activeMap = null; st.activeIssue = null
+      emit(st)
+    }
+    // 旧入口收敛为调新函数（T3/T4 再把调用方逐个改成直接压栈/弹栈）：
+    // 进入详情一律压栈——从列表进时栈是空的，压栈与旧的直接赋值效果一样；
+    // 从详情里再进下一级则保留返回路径，不再丢掉上一级。
     export const setActiveMap = function (st, n) {
-      const v = (n == null) ? null : Number(n)
-      st.activeMap = (v != null && !isNaN(v)) ? v : null
-      if (st.activeMap !== null) st.activeIssue = null
-      emit(st)
+      if (n == null) { clearActiveMap(st); return }
+      pushNav(st, 'map', n)
     }
-    export const clearActiveMap = function (st) { st.activeMap = null; emit(st) }
+    export const clearActiveMap = function (st) {
+      const t = peekNav(st)
+      if (t && t.kind === 'map') popNav(st)
+      else { syncNavMirror(st); emit(st) }
+    }
     export const setActiveIssue = function (st, n) {
-      const v = (n == null) ? null : Number(n)
-      st.activeIssue = (v != null && !isNaN(v)) ? v : null
-      if (st.activeIssue !== null) st.activeMap = null
-      emit(st)
+      if (n == null) { clearActiveIssue(st); return }
+      pushNav(st, 'issue', n)
     }
-    export const clearActiveIssue = function (st) { st.activeIssue = null; emit(st) }
-    export const clearActiveDetail = function (st) { st.activeMap = null; st.activeIssue = null; emit(st) }
+    export const clearActiveIssue = function (st) {
+      const t = peekNav(st)
+      if (t && t.kind === 'issue') popNav(st)
+      else { syncNavMirror(st); emit(st) }
+    }
+    export const clearActiveDetail = function (st) { clearNavStack(st) }
     // T2 #7 · fetchIssueDetail 缓存与状态（独立于 snapshot，按 issue 号 60s TTL）
     export const ISSUE_CACHE_TTL = ((typeof SYNC === 'object' && SYNC && SYNC.ISSUE_CACHE_TTL) || 60000)
     // #155：后端选择 per-cwd 状态（权威来自 host snapshot.selection/repository；client 仅镜像乐观）

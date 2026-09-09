@@ -37,8 +37,12 @@ export     const DetailsDock = (props) => {
         else if (layoutSvc && typeof layoutSvc.closeDetails === 'function') layoutSvc.closeDetails()
       }
       const groups = compute(s)
-      const active = s.activeMap !== null ? groups.find(function (x) { return x.m.number === s.activeMap }) : null
-      const hasIssueDetail = s.activeIssue !== null && s.activeIssue !== undefined
+      // #552 导航栈：渲染优先级读栈顶（镜像兜底，保证旧状态不崩）；空栈回列表
+      const navTop = (typeof peekNav === 'function') ? peekNav(s) : null
+      const topMap = navTop && navTop.kind === 'map' ? navTop.n : s.activeMap
+      const topIssue = navTop && navTop.kind === 'issue' ? navTop.n : s.activeIssue
+      const active = topMap !== null && topMap !== undefined ? groups.find(function (x) { return x.m.number === topMap }) : null
+      const hasIssueDetail = topIssue !== null && topIssue !== undefined
       const narrow = dw < 380
       // #506 无能力回列表：正停在拉取请求页时切到无能力后端，自动回到列表页（只读能力位）。
       const showPrTab = (typeof prTabVisible === 'function') ? prTabVisible(s) : false

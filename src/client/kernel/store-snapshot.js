@@ -8,6 +8,9 @@
  */
     export const makeStore = () => ({
       open: false, tab: 'list', activeMap: null, activeIssue: null,
+      // #552 导航栈（会话私有状态）：只存坐标不存正文，元素形状 { kind: 'map' | 'issue', n: 数字编号 }；
+      // 进入压栈、返回弹栈、空栈回列表；activeMap 与 activeIssue 过渡期保留为栈顶镜像。
+      navStack: [],
       issueCache: {}, issueMode: 'idle', issueError: null, issueDetail: null, issueCommentsMoreLoading: false, issueCommentsFailCount: 0, issueCommentsHasMore: true,
       // #255 评论输入区（受控）：草稿/提交态/分流错误/服务端确认闪烁
       cmtDraft: '', cmtSending: false, cmtError: null, cmtConfirm: null,
