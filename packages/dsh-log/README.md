@@ -46,7 +46,19 @@ registerHostLogPhones(new Map(), hostLog)
 | `switchFileName` | 派生 | 标识为 `wf` 时为 `log-switch.json`，其他标识时为 `log-switch-标识.json` |
 | `fileNamePolicy` | `daily` | 按天（年月日点 log）；四段式只作可选项 |
 | `maxQueue` | `1000` | 宿主内存队列上限，满时按级别丢弃、只计数不抛错 |
-| `eventList` | 空 | 事件清单注入点位（文件路径或对象；内部形状由 #561 定，本版只存不解析） |
+| `eventList` | 空 | 事件清单注入点位（对象形式，见下节；不传为 `null`，主路径零变化） |
+
+## 事件清单（#561，对象形式）
+
+每条事件四样东西：事件名、级别（`error`、`warn`、`info`、`debug`）、允许字段（之外不记）、脱敏引用（`codes` 截断或散列代号、`rules` 具名正则名，只记规则名不记原文）。`kind` 只为计数检查服务：`resident` 常驻、`ondemand` 按需、`selfmon` 自监控，三类实际条数须与清单自报的 `counts` 逐项一致。空模板见包内的 `event-list.template.json`，调用方把清单拼成对象传给 `eventList`（路径形式请调用方自己读成对象再传，日志包不读盘）。检查器经宿主入口导出：
+
+```js
+import { parseEventListManifest, checkEventFields, checkEventCounts } from 'dsh-log/host'
+
+const manifest = parseEventListManifest(myEventList)
+checkEventFields(manifest, 'gh.exec', ['argv0', 'cwdHash'])
+checkEventCounts(manifest)
+```
 
 ## 失败语义（#558 冻结）
 

@@ -19,6 +19,17 @@ import { createLogStore, type LogStore, type LogStoreDeps } from './store.js'
 
 export { buildPhoneName, buildPhoneNames, resolveHostLogConfig } from './config.js'
 export type { HostLogConfigInput, PhoneAction, PhoneNameMap, ResolvedHostLogConfig } from './config.js'
+// 事件清单格式与通用检查器（#561，对象形式，日志包不读盘；经宿主入口转出口，dsh-log/host 可达）。
+export { parseEventListManifest, checkEventFields, checkEventCounts } from './config.js'
+export type {
+  LogEventLevel,
+  LogEventKind,
+  LogEventEntry,
+  LogEventCounts,
+  LogEventList,
+  EventFieldCheck,
+  EventCountCheck
+} from './config.js'
 export {
   LOG_DEBOUNCE_MS,
   LOG_DIR_NAME,

@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "pluginId": "your-plugin-id",
+  "counts": { "resident": 0, "ondemand": 0, "selfmon": 0 },
+  "events": {}
+}

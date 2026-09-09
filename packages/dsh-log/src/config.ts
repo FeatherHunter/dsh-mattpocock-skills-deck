@@ -46,8 +46,10 @@ export interface HostLogConfigInput {
   fileNamePolicy?: FileNamePolicy
   // 宿主内存队列上限：默认 1000 条。
   maxQueue?: number
-  // 事件清单注入点位（#558 冻结的是点位本身：文件路径或对象两种方式二选一；
-  // 清单内部一条事件有哪些字段由门禁票 #561 定，本票按不透明处理，只存不解析）。
+  // 事件清单注入点位（#558 冻结的是点位本身：文件路径或对象两种方式二选一，本票 #561 定为对象形式；
+  // 清单内部一条事件有哪些字段见本文件下方的事件清单一节）。
+  // 传对象当场验形状，错了直接报错；传字符串（路径）只存不解析，由调用方自己读成对象再传入，
+  // 日志包不读盘；不传为 null（当前插件主路径），行为零变化。
   eventList?: string | Record<string, unknown>
 }
 
@@ -102,6 +104,13 @@ export function resolveHostLogConfig(input: HostLogConfigInput): ResolvedHostLog
   if (typeof maxQueue !== 'number' || !isFinite(maxQueue) || maxQueue < 1) {
     throw new Error('[dsh-log] 内存队列上限 maxQueue 非法：必须是不小于 1 的数字')
   }
+  const eventList = input.eventList === undefined ? null : input.eventList
+  if (eventList !== null && typeof eventList === 'object' && !Array.isArray(eventList)) {
+    // 对象形式的清单当场验形状，错了直接报错（与插件标识非法的处理一致）；
+    // 字符串（路径）形式仍只存不解析，由调用方自己读成对象再传入，日志包不读盘；
+    // 默认 null（当前插件主路径）原样透过，行为零变化。
+    parseEventListManifest(eventList)
+  }
   return {
     pluginId: pluginId,
     prefix: prefix,
@@ -109,7 +118,7 @@ export function resolveHostLogConfig(input: HostLogConfigInput): ResolvedHostLog
     switchFileName: switchFileName,
     fileNamePolicy: fileNamePolicy,
     maxQueue: Math.floor(maxQueue),
-    eventList: input.eventList === undefined ? null : input.eventList
+    eventList: eventList
   }
 }
 
@@ -192,4 +201,214 @@ export function matchExportFileName(
     .filter((name) => typeof name === 'string' && pattern.test(name) && name.indexOf(wantDate + '.') === 0)
     .sort()
   return hits.length > 0 ? hits[0] : fallbackFileName
+}
+
+// ---- 事件清单（#561）：各插件自己的事件清单格式与通用检查器 ----
+//
+// 一句话背景：#558 只冻了清单的注入点位（配置键 eventList），清单内部一条事件有哪些字段由本票定。
+// 本票选对象形式：调用方把清单拼成对象传进来，日志包不读盘，包内永不出现仓库路径的字面量。
+// 全程用“日志系统”指日志功能本身，用“日志包”指装着日志系统的这个 npm 包。
+//
+// 清单长这样（空模板见包内的 event-list.template.json）：
+//
+//   {
+//     "version": 1,
+//     "pluginId": "wf",
+//     "counts": { "resident": 30, "ondemand": 20, "selfmon": 5 },
+//     "events": {
+//       "gh.exec": {
+//         "level": "info",
+//         "kind": "resident",
+//         "fields": ["argv0", "cwdHash", "latencyMs", "kind", "exitCode"],
+//         "codes": ["H_CWD", "B_TOKEN"],
+//         "rules": ["R_TOKEN_BEARER", "R_GH_TOKEN"]
+//       }
+//     }
+//   }
+//
+// 每条事件四样东西：事件名（events 的键）、级别（level）、允许字段（fields，之外不记）、
+// 脱敏引用（codes 是截断或散列代号、rules 是具名正则名，都是引用名，命中只记规则名不记原文）。
+// kind 说明这条归哪类计数：resident 常驻（始终落盘的轻量轨迹）、ondemand 按需（只在调试开关
+// 打开时记）、selfmon 自监控（日志管道自己的故障行，错误与告警级、始终落盘）。
+// guard 可选，一句话写清守卫（如百分之一采样、节流），无特殊守卫不写。
+//
+// 通用检查器只收对象，不读文件：checkEventFields 做字段白名单检查，checkEventCounts 做计数检查。
+// 检查器是纯函数（不跨进程、不碰磁盘、无定时器、无新电话），不触发日志埋点纪律里的五种变动，
+// 所以不新增日志点；也未新增日志事件，附录第 1 章对照表不用动。
+// 本仓现有 55 事件对照仍以 research/489-appendix.md 与 tests/verify-log-*.js 为准，
+// 本包只给格式与检查器，不复刻那张表，免得两处对照要双写同步。
+
+// 事件级别（沿用附录定版：错误与告警始终落盘，信息中常驻落盘，其余只在调试开关打开时落盘）。
+export const EVENT_LEVELS = ['error', 'warn', 'info', 'debug'] as const
+export type LogEventLevel = (typeof EVENT_LEVELS)[number]
+
+// 事件归类（只为计数检查服务，与级别是两回事：级别管落不落盘，归类管数对不对）。
+export const EVENT_KINDS = ['resident', 'ondemand', 'selfmon'] as const
+export type LogEventKind = (typeof EVENT_KINDS)[number]
+
+export interface LogEventEntry {
+  // 级别：error、warn、info、debug 四选一。
+  level: LogEventLevel
+  // 归类：resident、ondemand、selfmon 三选一。
+  kind: LogEventKind
+  // 允许字段：该事件能记的全部字段键，之外的键一律不记。
+  fields: string[]
+  // 脱敏引用：截断或散列代号（如 H_CWD、T120），无则不写或空数组。
+  codes?: string[]
+  // 脱敏引用：具名正则名（如 R_WIN_ABS），该事件无自由文本则不写或空数组。
+  rules?: string[]
+  // 守卫说明：一句话写清采样或节流，无特殊守卫不写。
+  guard?: string
+}
+
+export interface LogEventCounts {
+  resident: number
+  ondemand: number
+  selfmon: number
+}
+
+export interface LogEventList {
+  // 清单格式版本：现在只有 1，收到别的数字直接报错。
+  version: 1
+  // 清单属于哪个插件：与建日志库的插件标识同一约束。
+  pluginId: string
+  // 自报计数：三类各自条数，检查器会拿实际条数逐项核对。
+  counts: LogEventCounts
+  // 事件表：键是事件名，值是该事件的级别、归类、允许字段与脱敏引用。
+  events: Record<string, LogEventEntry>
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
+}
+
+function assertStringArray(value: unknown, what: string): string[] {
+  if (!Array.isArray(value)) throw new Error('[dsh-log] 事件清单 eventList 非法：' + what + ' 必须是字符串数组')
+  const seen: string[] = []
+  for (const item of value) {
+    if (!isNonEmptyString(item)) throw new Error('[dsh-log] 事件清单 eventList 非法：' + what + ' 里有空字段名')
+    if (seen.indexOf(item) >= 0) throw new Error('[dsh-log] 事件清单 eventList 非法：' + what + ' 里字段名重复：' + item)
+    seen.push(item)
+  }
+  return seen
+}
+
+// 把调用方传进来的值验成可用的事件清单：错了直接报错，不静默修补。
+// 字符串（路径）形式在这里就被拦下：调用方先把清单文件读成对象再传入，日志包不读盘。
+export function parseEventListManifest(value: unknown): LogEventList {
+  if (typeof value === 'string') {
+    throw new Error('[dsh-log] 事件清单 eventList 非法：路径形式请调用方自己读成对象再传入，日志包不读盘')
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('[dsh-log] 事件清单 eventList 非法：只收对象形式（空模板见包内的 event-list.template.json）')
+  }
+  const input = value as Record<string, unknown>
+  if (input['version'] !== 1) {
+    throw new Error('[dsh-log] 事件清单 eventList 非法：version 现在只认 1（收到 ' + JSON.stringify(input['version']) + '）')
+  }
+  const pluginId = assertPluginId(input['pluginId'], '事件清单 pluginId')
+  const countsRaw = input['counts']
+  if (!countsRaw || typeof countsRaw !== 'object' || Array.isArray(countsRaw)) {
+    throw new Error('[dsh-log] 事件清单 eventList 非法：counts 必须是含三类计数的对象')
+  }
+  const countsRecord = countsRaw as Record<string, unknown>
+  const counts: LogEventCounts = { resident: 0, ondemand: 0, selfmon: 0 }
+  for (const kind of EVENT_KINDS) {
+    const n = countsRecord[kind]
+    if (typeof n !== 'number' || !isFinite(n) || Math.floor(n) !== n || n < 0) {
+      throw new Error('[dsh-log] 事件清单 eventList 非法：counts.' + kind + ' 必须是非负整数')
+    }
+    counts[kind] = n
+  }
+  const eventsRaw = input['events']
+  if (!eventsRaw || typeof eventsRaw !== 'object' || Array.isArray(eventsRaw)) {
+    throw new Error('[dsh-log] 事件清单 eventList 非法：events 必须是事件名到条目的对象')
+  }
+  const events: Record<string, LogEventEntry> = {}
+  for (const name of Object.keys(eventsRaw as Record<string, unknown>)) {
+    events[name] = parseEventEntry(name, (eventsRaw as Record<string, unknown>)[name])
+  }
+  return { version: 1, pluginId: pluginId, counts: counts, events: events }
+}
+
+// 验清单里的一条事件：级别与归类必须是枚举值，条目里不认多余的键（多半是拼写错误）。
+function parseEventEntry(name: string, value: unknown): LogEventEntry {
+  if (!isNonEmptyString(name)) throw new Error('[dsh-log] 事件清单 eventList 非法：事件名不能为空')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('[dsh-log] 事件清单 eventList 非法：事件 ' + name + ' 必须是对象')
+  }
+  const input = value as Record<string, unknown>
+  if (EVENT_LEVELS.indexOf(input['level'] as LogEventLevel) < 0) {
+    throw new Error('[dsh-log] 事件清单 eventList 非法：事件 ' + name + ' 的 level 只许 error、warn、info、debug')
+  }
+  if (EVENT_KINDS.indexOf(input['kind'] as LogEventKind) < 0) {
+    throw new Error('[dsh-log] 事件清单 eventList 非法：事件 ' + name + ' 的 kind 只许 resident、ondemand、selfmon')
+  }
+  for (const key of Object.keys(input)) {
+    if (['level', 'kind', 'fields', 'codes', 'rules', 'guard'].indexOf(key) < 0) {
+      throw new Error('[dsh-log] 事件清单 eventList 非法：事件 ' + name + ' 有不认识的键 ' + key)
+    }
+  }
+  const entry: LogEventEntry = {
+    level: input['level'] as LogEventLevel,
+    kind: input['kind'] as LogEventKind,
+    fields: assertStringArray(input['fields'], '事件 ' + name + ' 的 fields')
+  }
+  if (input['codes'] !== undefined) entry.codes = assertStringArray(input['codes'], '事件 ' + name + ' 的 codes')
+  if (input['rules'] !== undefined) entry.rules = assertStringArray(input['rules'], '事件 ' + name + ' 的 rules')
+  if (input['guard'] !== undefined) {
+    if (typeof input['guard'] !== 'string') {
+      throw new Error('[dsh-log] 事件清单 eventList 非法：事件 ' + name + ' 的 guard 必须是字符串')
+    }
+    entry.guard = input['guard'] as string
+  }
+  return entry
+}
+
+export interface EventFieldCheck {
+  ok: boolean
+  // 事件名根本不在清单里（调用方拼错名或清单漏登记）。
+  unknownEvent: boolean
+  // 在清单里但不在该事件允许字段里的键。
+  unknownFields: string[]
+}
+
+// 字段白名单检查：拿插件自己的清单当尺子，量一批实际字段键。
+// 未知事件名、未知字段键都算不通过，并把名单带回给调用方。
+export function checkEventFields(
+  manifest: LogEventList,
+  eventName: string,
+  fieldNames: string[]
+): EventFieldCheck {
+  const entry = manifest.events[eventName]
+  if (!entry) return { ok: false, unknownEvent: true, unknownFields: [] }
+  const allowed = new Set(entry.fields)
+  const unknownFields = (Array.isArray(fieldNames) ? fieldNames : []).filter(
+    (field) => !allowed.has(field)
+  )
+  return { ok: unknownFields.length === 0, unknownEvent: false, unknownFields: unknownFields }
+}
+
+export interface EventCountCheck {
+  ok: boolean
+  // 每条问题都是完整的一句话，调用方直接打印即可。
+  problems: string[]
+}
+
+// 计数检查：按归类数实际条数，与清单自报的 counts 逐项核对；总数是三项之和，自然带住。
+// 增删事件必须同步改清单的 counts，否则这里变红。
+export function checkEventCounts(manifest: LogEventList): EventCountCheck {
+  const actual: LogEventCounts = { resident: 0, ondemand: 0, selfmon: 0 }
+  for (const name of Object.keys(manifest.events)) {
+    actual[manifest.events[name].kind] += 1
+  }
+  const problems: string[] = []
+  for (const kind of EVENT_KINDS) {
+    if (actual[kind] !== manifest.counts[kind]) {
+      problems.push(
+        '[dsh-log] 事件清单计数对不上：' + kind + ' 类实际 ' + actual[kind] + ' 条，清单自报 ' + manifest.counts[kind] + ' 条'
+      )
+    }
+  }
+  return { ok: problems.length === 0, problems: problems }
 }
