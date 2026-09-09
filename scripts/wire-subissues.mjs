@@ -22,24 +22,37 @@
  *   --dry-run            可选。只演练：打印将要执行的命令与将要写入的正文，不联网、不写。
  *   --help               打印这段说明。
  *
- * 脚本做四件事：
- *   1. 把 --body-file 的内容按正规化写法写回地图（剥开头不可见字符、按阈值还原字面 \n 转义）。
+ * 脚本做五件事：
+ *   1. 把 --body-file 的内容按正规化写法写回地图（剥开头不可见字符、按阈值还原字面 \n 转义），写完读回比对。
  *   2. 把 --children 里还没挂在地图下的子票，用 gh 原生旗 --parent 挂成原生子议题。
- *   3. 读每张子票正文首部的 `Blocked by: #n, #n` 声明，把它升格成原生阻塞边（原生旗优先）。
+ *   3. 读每张子票正文第一处有内容的行里的 `Blocked by: #n, #n` 声明，升格成原生阻塞边（原生旗优先）。
  *   4. 建完读回校验：本次要求的子票里实际挂上了几张，与 --children 去重后的张数比对，对不上就非零退出。
+ *   5. 建边前先校验输入：地图不能是它自己的子票；每张子票必须存在；已经挂在别的地图下的子票直接拒绝。
  *
  * 为什么正文文件写的是地图：契约 #576 Implementation Decisions 把参数集写死为「地图号、子票号列表、
  *   正文文件与演练开关，仓库地址可选」。参数集里唯一的单票身份是地图号，而正文文件只有一份，
  *   装不下多张子票各自的正文，所以这一份只能属于地图。子票正文请用 scripts/fix-issue-body.mjs。
  *   这条判定只写在 writeMapBody() 一个函数里，日后若口径改成「写子票正文」，改那一处即可。
+ *   为防止把子票正文覆盖到地图上，正文文件必须先通过 assertLooksLikeMapBody() 那道闸。
  *
- * 幂等：先读当前状态（地图正文、现有子议题、每张子票的现有阻塞边），全部已是目标状态就直接返回
- *   changed: []、ok: true，一个写请求都不发（读请求用于判等是允许的）。
+ * 阻塞声明只认正文第一处有内容的行（与降级写回同一口径）：正文别处出现的 `Blocked by:` 只写进
+ *   warnings 提醒，不据此建边——历史正文里常见「后来解除了」之类的注解，按全文扫描会建出错误的边。
+ *
+ * 幂等：先读当前状态（地图正文、现有子议题、每张子票的现有阻塞边与当前父），全部已是目标状态就直接返回
+ *   changed: []、ok: true，一个请求都不发（读请求用于判等是允许的）。正文比对两侧都先做同一套归一化
+ *   （CRLF 与 LF 视为相同、去尾部空白），避免服务端把 CRLF 归一成 LF 以后每遍都重写。
  * 失败处理：写操作失败自动重试一次；第二次成功会在人话里说明「重试一次后成功」；
  *   还失败就在对应的票下留一条固定格式评论（含脚本名、参数、失败原因），方便以后按脚本名搜失败现场。
+ *   失败评论、stderr 与回包 error 里都不写本地绝对路径：--body-file 只写文件名。
  * 降级：只有原生阻塞边被明确判为不支持时，才在子票正文首部补写 `Blocked by: #n, #n` 文字行，
  *   这时 ok 仍为 true（这次调用按契约完成了），但 edge 为 false（原生边没建上）。
  * 不删已有的文字行：本脚本只读 `Blocked by:` 文字行、只补原生边，不清洗历史正文。
+ *
+ * 已知遗留（写在这里备查，不是本脚本承诺的能力）：
+ *   - 跑到一半被 Ctrl+C 打断：会留下半成品（正文已写、边只挂了一部分），且不留失败评论；重跑会把差的补上。
+ *   - 两个进程同时对同一张地图跑且传了不同正文：后写的覆盖先写的，先写那次的成功回包是假的；本脚本不做加锁。
+ *   - 平台不支持原生阻塞边时，降级路径每次跑都会再试一次原生边（注定失败），所以那条路径上「零请求」不成立。
+ *   - 裸接口返回 404/410 时按「接口不存在」处理并降级写文字行；若 404 其实是权限或票号写错，会多写一行正文。
  *
  * 回包：stdout 一行 JSON（stderr 是给人看的叙述）。字段：
  *   changed   这次实际改了什么（数组；已经是目标状态就是空数组）
@@ -54,7 +67,7 @@
  *   command   只有演练模式才有：将要执行的命令，每条一个数组（数组的数组）
  *   error     只有失败才有：失败原因
  *
- * 退出码：0 通过；1 操作失败（已重试一次，或数量对不上）；2 参数或工作区后端不对，命令根本没执行。
+ * 退出码：0 通过；1 操作失败（已重试一次，或数量/内容对不上）；2 参数、后端或输入状态不对，命令根本没执行。
  *
  * 回包形状与 scripts/fix-issue-body.mjs 对齐（同样的六个字段名加 warnings/dryRun/body/command/error）。
  * 区别只有一处：那个脚本不建边也不数数，所以 edge/expected/actual 恒为 null；本脚本里它们是实义值。
@@ -71,14 +84,21 @@ const TRACKER_DOC = "docs/agents/issue-tracker.md";
 const BOM = "\uFEFF";
 const PAGE_SIZE = 100;
 
-/** 判定「平台明确不支持原生边」用的错误文本特征，口径与宿主 src/host/tracker/backends/github/graph.js:98-99、:259 一致。 */
-const UNSUPPORTED_RE = /unsupported|not supported|sub_issues.*not|dependencies.*not|ghes/i;
+/**
+ * 判定「平台明确不支持原生边」用的错误文本特征，口径与宿主 src/host/tracker/backends/github/graph.js:98-99、:259 一致。
+ * 刻意不含 ghes：错误文本里出现 GHES 字样（例如「GHES 实例限流」）不代表这条接口不存在，
+ * 把它当「不支持」会误降级、往子票正文里写文字行。
+ */
+const UNSUPPORTED_RE = /unsupported|not supported|sub_issues.*not|dependencies.*not/i;
 /** 裸接口回退时，HTTP 404/410 也按「这条接口不存在」处理。 */
 const GONE_RE = /(^|\D)(404|410)(\D|$)/;
+/** 票不存在的错误文本特征（用来把「票号写错」与「网络/权限故障」分开）。 */
+const NOT_FOUND_RE = /could not resolve|not found|404/i;
 
 /** 读文件失败、参数缺失、后端不对时统一走这里：先给人话，再给一行机器可读的回包。 */
 function fail(code, message, extra) {
-  console.error(message);
+  const clean = redactLocalPaths(message);
+  console.error(clean);
   const out = Object.assign({
     changed: [],
     edge: null,
@@ -88,10 +108,47 @@ function fail(code, message, extra) {
     ok: false,
     warnings: [],
     dryRun: false,
-    error: message,
+    error: clean,
   }, extra || {});
   console.log(JSON.stringify(out));
   process.exit(code);
+}
+
+/** 取路径最后一段（不把本地绝对路径写进评论、stderr 或回包）。 */
+function baseName(p) {
+  const s = String(p == null ? "" : p);
+  const parts = s.split(/[\\/]+/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : s;
+}
+
+/** 把文本里的本地绝对路径换成文件名。评论与日志只留文件名，不记工作区原始路径。 */
+function redactLocalPaths(text) {
+  let s = String(text == null ? "" : text);
+  s = s.replace(/[A-Za-z]:\\[^\s"'`|<>]*/g, (m) => baseName(m));
+  s = s.replace(/\\\\[^\s"'`|<>]+/g, (m) => baseName(m));
+  s = s.replace(/(^|[\s(`"'])\/(?:[^\s"'`|<>/]+\/)+[^\s"'`|<>]*/g, (m, p1) => p1 + baseName(m));
+  return s;
+}
+
+/** Markdown 行内代码：内容里出现反引号时改用更长的定界符，免得把行内代码截断。 */
+function codeSpan(text) {
+  const s = String(text == null ? "" : text);
+  const longest = (s.match(/`+/g) || []).reduce((a, b) => Math.max(a, b.length), 0);
+  const ticks = "`".repeat(longest + 1);
+  const pad = /^\s|\s$/.test(s) ? " " : "";
+  return ticks + pad + s + pad + ticks;
+}
+
+/** 正文比对前的归一化：剥 BOM、CRLF 与 CR 都当 LF、去掉尾部空白。两侧用同一把尺子。 */
+function normalizeForCompare(text) {
+  let s = String(text == null ? "" : text);
+  if (s.startsWith(BOM)) s = s.slice(1);
+  s = s.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  return s.replace(/\s+$/, "");
+}
+
+function sameBody(a, b) {
+  return normalizeForCompare(a) === normalizeForCompare(b);
 }
 
 function usage() {
@@ -109,8 +166,8 @@ function usage() {
   node ${SCRIPT_NAME} --map 567 --children 568,569,572 --body-file ./.tmp-567-map-body.md
   node ${SCRIPT_NAME} --map 567 --children 568,569,572 --body-file ./map.md --dry-run
 
-脚本会：把正文文件写回地图；把还没挂上的子票用 --parent 挂成原生子议题；
-读每张子票正文首部的 Blocked by: 声明并升格成原生阻塞边；最后读回校验张数，对不上非零退出。
+脚本会：把正文文件写回地图并读回比对；把还没挂上的子票用 --parent 挂成原生子议题；
+读每张子票正文第一处有内容的行里的 Blocked by: 声明并升格成原生阻塞边；最后读回校验张数，对不上非零退出。
 已经全部到位时一个写请求都不发，可以重复跑。`);
 }
 
@@ -135,12 +192,17 @@ function parseArgs(argv) {
   }
   if (!out.map) fail(2, "没给 --map。子议题要挂到哪张地图下面？用 --map <号> 传进来。");
   if (!/^\d+$/.test(out.map)) fail(2, `--map 只接受数字编号，收到的是「${out.map}」。`);
+  if (Number(out.map) <= 0) fail(2, `--map 必须是大于 0 的票号，收到的是「${out.map}」。`);
   if (out.childrenRaw === null) fail(2, "没给 --children。要挂哪几张子票？用 --children 571,572 这样传（逗号分隔）。");
   if (out.childrenRaw === "") fail(2, "--children 里一个票号都没有。请把要挂的子票号列出来。");
   const parts = out.childrenRaw.split(",").map((s) => s.trim());
   if (parts.some((s) => !/^\d+$/.test(s))) fail(2, `--children 只接受逗号分隔的数字编号，收到的是「${out.childrenRaw}」。`);
+  if (parts.some((s) => Number(s) <= 0)) fail(2, `--children 里的票号必须大于 0，收到的是「${out.childrenRaw}」。`);
   out.children = Array.from(new Set(parts.map(Number))).sort((a, b) => a - b);
   if (!out.children.length) fail(2, "--children 里一个票号都没有。请把要挂的子票号列出来。");
+  if (out.children.indexOf(Number(out.map)) >= 0) {
+    fail(2, `--children 里有 --map 自己（#${out.map}）。一张票不能当自己的子票，请把它从 --children 里去掉。`);
+  }
   if (!out.bodyFile) fail(2, "没给 --body-file。正文必须放在文件里传进来（命令行内联正文会被外壳吃掉引号）。");
   if (out.repo && !/^[^/\s]+\/[^/\s]+$/.test(out.repo)) fail(2, `--repo 要写成 owner/name，收到的是「${out.repo}」。`);
   return out;
@@ -169,7 +231,8 @@ function detectBackend(cwd) {
 function requireGithub(cwd) {
   const det = detectBackend(cwd);
   if (det.backendId === "github") return det;
-  const head = `这个工作区用的不是首批支持的 GitHub（主锚文件：${det.docPath}）。`;
+  // 只报相对路径（TRACKER_DOC），不把工作区绝对路径写进回包与终端
+  const head = `这个工作区用的不是首批支持的 GitHub（主锚文件：${TRACKER_DOC}）。`;
   if (det.backendId === "gitlab") {
     fail(2, `${head}它声明的是 GitLab；首批脚本只服务 GitHub，GitLab 待第二批。请按 GitLab 的方式改票，不要调本脚本。`);
   }
@@ -200,14 +263,44 @@ function normalizeForWrite(raw) {
   return { text: s, changes: changes };
 }
 
+/** 取正文里第一处有内容的行（跳过开头的空行）。 */
+function firstMeaningfulLine(body) {
+  const lines = String(body == null ? "" : body).split(/\r?\n/);
+  for (const l of lines) {
+    if (l.trim() !== "") return l;
+  }
+  return "";
+}
+
+/** 剥掉围栏代码块（``` 或 ~~~ 包起来的部分）里的内容，围栏行本身也去掉。 */
+function stripFencedBlocks(text) {
+  const out = [];
+  let fence = null;
+  for (const line of String(text == null ? "" : text).split(/\r?\n/)) {
+    const fm = line.match(/^\s*(`{3,}|~{3,})/);
+    if (fm) {
+      const marker = fm[1][0];
+      if (fence === null) fence = marker;
+      else if (marker === fence) fence = null;
+      continue;
+    }
+    if (fence === null) out.push(line);
+  }
+  return out.join("\n");
+}
+
 /**
  * 保护：正文文件看起来不是地图正文时拒绝执行（退出码 2，不写任何东西）。
- * 理由：本脚本会把这份正文写回 --map 那张票；万一是子票正文，就会把地图正文覆盖掉，
+ * 判定：先剥掉围栏代码块，再要求第一处有内容的行恰是 `## Destination`。
+ * 为什么要这么严：本脚本会把这份正文整篇写回 --map 那张票，一旦放行子票正文，地图正文就被覆盖，
  *   而地图正文是 Decisions 索引与计划的唯一载体（src/shared/parser.js 的 parseMapBody 直接解析它）。
+ *   只判「文中某处出现 ## Destination」是不够的：围栏里引用地图格式、子票自己有一节 Destination，
+ *   都能骗过那种判定（对抗式审查实测过）。
  */
 function assertLooksLikeMapBody(text) {
-  if (!/^##\s*Destination\s*$/m.test(String(text == null ? "" : text))) {
-    fail(2, `--body-file 的内容里没有「## Destination」一节，看起来不是地图正文。本脚本只写地图正文，子票正文请用 ${SIBLING_SCRIPT}。`);
+  const first = firstMeaningfulLine(stripFencedBlocks(text));
+  if (!/^##\s*Destination\s*$/.test(first)) {
+    fail(2, `--body-file 的第一处有内容的行不是「## Destination」，看起来不是地图正文（实际读到的是「${first.slice(0, 40)}」）。本脚本只写地图正文，子票正文请用 ${SIBLING_SCRIPT}。`);
   }
 }
 
@@ -243,16 +336,17 @@ function runGh(argv) {
 function runGhRetry(argv) {
   let res = runGh(argv);
   if (res.ok) return { ok: true, retried: false, reason: "", stderr: "" };
-  console.error(`命令失败，按契约自动重试一次：gh ${argv.join(" ")} —— ${shortReason(res.stderr)}`);
+  console.error(`命令失败，按契约自动重试一次：gh ${argv.map((a) => redactLocalPaths(a)).join(" ")} —— ${shortReason(res.stderr)}`);
   res = runGh(argv);
   if (res.ok) return { ok: true, retried: true, reason: "", stderr: "" };
   return { ok: false, retried: true, reason: shortReason(res.stderr), stderr: res.stderr };
 }
 
-/** 失败原因取一行：太长只留前一段并标注已截断。 */
+/** 失败原因取一行：太长只留前一段并标注已截断；顺手把本地绝对路径收敛成文件名。 */
 function shortReason(text) {
   const first = String(text || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean)[0] || "";
-  return first.length > 200 ? first.slice(0, 200) + "…（已截断）" : first;
+  const cut = first.length > 200 ? first.slice(0, 200) + "…（已截断）" : first;
+  return redactLocalPaths(cut);
 }
 
 function repoArgs(repo) {
@@ -264,34 +358,54 @@ function repoSlug(repo) {
   return repo ? repo : "{owner}/{repo}";
 }
 
-function readCurrentBody(issue, repo) {
+/** 读一张票的正文（地图正文、降级时读子票正文都用它）。 */
+function readIssueBody(issue, repo) {
   const res = runGh(["issue", "view", String(issue)].concat(repoArgs(repo)).concat(["--json", "body"]));
-  if (!res.ok) return { ok: false, reason: shortReason(res.stderr) };
+  if (!res.ok) return { ok: false, reason: shortReason(res.stderr), stderr: res.stderr };
   try {
     const parsed = JSON.parse(res.stdout.replace(/^\uFEFF/, ""));
     return { ok: true, body: typeof parsed.body === "string" ? parsed.body : "" };
   } catch (e) {
-    return { ok: false, reason: "读回的正文不是 JSON：" + e.message };
+    return { ok: false, reason: "读回的正文不是 JSON：" + e.message, stderr: "" };
   }
 }
 
-/** 读地图现有原生子议题号（REST 列表端点，与宿主 src/host/issueList.js:260、issueDetail.js:91 同一路数据）。 */
-function readSubIssueNumbers(map, repo) {
-  const warnings = [];
-  const res = runGh(["api", `repos/${repoSlug(repo)}/issues/${map}/sub_issues?per_page=${PAGE_SIZE}`]);
-  if (!res.ok) return { ok: false, reason: shortReason(res.stderr), warnings: warnings };
-  let list;
+/**
+ * 读一张子票的正文与当前父（一次请求拿两样）。
+ * parentNumber 为 null 表示还没有父；不等于 --map 时说明它已经挂在别的地图下，本脚本拒绝改挂。
+ */
+function readChildSnapshot(child, repo) {
+  const res = runGh(["issue", "view", String(child)].concat(repoArgs(repo)).concat(["--json", "body,parent"]));
+  if (!res.ok) return { ok: false, reason: shortReason(res.stderr), stderr: res.stderr };
+  let parsed;
   try {
-    list = JSON.parse(res.stdout.replace(/^\uFEFF/, ""));
+    parsed = JSON.parse(res.stdout.replace(/^\uFEFF/, ""));
   } catch (e) {
-    return { ok: false, reason: "子议题列表不是 JSON：" + e.message, warnings: warnings };
+    return { ok: false, reason: "读回的票信息不是 JSON：" + e.message, stderr: "" };
   }
-  if (!Array.isArray(list)) return { ok: false, reason: "子议题列表不是数组。", warnings: warnings };
-  const numbers = list.map((x) => Number(x && x.number)).filter((n) => Number.isFinite(n));
-  if (list.length >= PAGE_SIZE) {
-    warnings.push(`地图 #${map} 的子议题列表返回了 ${list.length} 条（达到单页上限 ${PAGE_SIZE}），可能有下一页，本次只看到这一页。`);
-  }
-  return { ok: true, numbers: numbers, total: list.length, warnings: warnings };
+  const pRaw = parsed && parsed.parent && parsed.parent.number;
+  const pn = pRaw === undefined || pRaw === null ? null : Number(pRaw);
+  return {
+    ok: true,
+    body: typeof parsed.body === "string" ? parsed.body : "",
+    parentNumber: pn !== null && Number.isFinite(pn) ? pn : null,
+  };
+}
+
+/**
+ * 读地图现有的全部原生子议题号（REST 列表端点，与宿主 src/host/issueList.js:260、issueDetail.js:91 同一路数据）。
+ * 一律带 --paginate 翻页：子议题超过一页（默认 30、本脚本显式 100）时，不翻页会把「已经挂满」误判成数量对不上。
+ */
+function readSubIssueNumbers(map, repo) {
+  const res = runGh(["api", `repos/${repoSlug(repo)}/issues/${map}/sub_issues?per_page=${PAGE_SIZE}`, "--paginate", "--jq", ".[].number"]);
+  if (!res.ok) return { ok: false, reason: shortReason(res.stderr), warnings: [] };
+  const numbers = String(res.stdout)
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map(Number)
+    .filter((n) => Number.isFinite(n));
+  return { ok: true, numbers: numbers, total: numbers.length, warnings: [] };
 }
 
 /** 读某张票现有的原生阻塞边（gh issue view --json blockedBy；gh 2.97.0 返回 {nodes:[...],totalCount}）。 */
@@ -319,15 +433,30 @@ function readIssueDbId(issue, repo) {
   return { ok: true, id: id };
 }
 
+/** 从一行声明里取票号。 */
+function numbersIn(decl) {
+  return Array.from(new Set(String(decl).split(",").map((s) => Number(s.trim().replace(/^#/, ""))).filter((n) => Number.isFinite(n) && n > 0)));
+}
+
 /**
- * 读子票正文首部的阻塞声明行：`Blocked by: #n, #n`（允许前面有空白；取第一处命中）。
+ * 正文第一处有内容的行里的阻塞声明：`Blocked by: #n, #n`。
  * 这是仓库唯一的文字声明位置约定：docs/agents/issue-tracker.md:50「fall back to a
- * `Blocked by: #<n>, #<n>` line at the top of the child body」。返回声明里的票号数组。
+ * `Blocked by: #<n>, #<n>` line at the top of the child body」。
  */
-function parseDeclaredBlockers(body) {
-  const m = String(body == null ? "" : body).match(/^\s*Blocked by:\s*(#\d+(?:\s*,\s*#\d+)*)/m);
-  if (!m) return [];
-  return Array.from(new Set(m[1].split(",").map((s) => Number(s.trim().replace(/^#/, ""))).filter((n) => Number.isFinite(n))));
+function headBlockers(body) {
+  const m = firstMeaningfulLine(body).match(/^\s*Blocked by:\s*(#\d+(?:\s*,\s*#\d+)*)\s*$/);
+  return m ? numbersIn(m[1]) : [];
+}
+
+/** 全文扫描阻塞声明（含正文别处的），只用来告警：正文别处的声明不建边。 */
+function allBlockers(body) {
+  const out = [];
+  const re = /^\s*Blocked by:\s*(#\d+(?:\s*,\s*#\d+)*)/gm;
+  let m;
+  while ((m = re.exec(String(body == null ? "" : body))) !== null) {
+    for (const n of numbersIn(m[1])) if (out.indexOf(n) < 0) out.push(n);
+  }
+  return out;
 }
 
 /**
@@ -376,15 +505,6 @@ function addBlockedBy(child, blocker, repo) {
   return { ok: false, retried: api.retried, reason: `--add-blocked-by 旗：${flag.reason}；裸接口：${api.reason}`, unsupported: unsupported };
 }
 
-/** 取正文里第一处有内容的行（跳过开头的空行）。 */
-function firstMeaningfulLine(body) {
-  const lines = String(body == null ? "" : body).split(/\r?\n/);
-  for (const l of lines) {
-    if (l.trim() !== "") return l;
-  }
-  return "";
-}
-
 /**
  * 降级：原生阻塞边明确不支持时，把声明补写到子票正文首部（走 --body-file 文件参数）。
  * 「首部」按 docs/agents/issue-tracker.md:50 的约定判定：正文第一处有内容的行就是这条声明。
@@ -392,9 +512,9 @@ function firstMeaningfulLine(body) {
  */
 function writeFallbackTextLine(child, blockers, repo, workDir) {
   const line = `Blocked by: ${blockers.map((b) => "#" + b).join(", ")}`;
-  const cur = readCurrentBody(child, repo);
+  const cur = readIssueBody(child, repo);
   if (!cur.ok) return { ok: false, reason: "读不到 #" + child + " 的正文：" + cur.reason };
-  const headDeclared = parseDeclaredBlockers(firstMeaningfulLine(cur.body));
+  const headDeclared = headBlockers(cur.body);
   if (blockers.every((b) => headDeclared.indexOf(b) >= 0)) return { ok: true, wrote: false, line: line };
   const bodyPath = join(workDir, `child-${child}-body.md`);
   writeFileSync(bodyPath, line + "\n" + cur.body, "utf8");
@@ -404,16 +524,20 @@ function writeFallbackTextLine(child, blockers, repo, workDir) {
   return { ok: true, wrote: true, line: line, retried: res.retried };
 }
 
-/** 失败留痕：在对应票下留一条固定格式评论，含脚本名、参数、失败原因与影响，方便按脚本名搜出所有失败现场。 */
+/**
+ * 失败留痕：在对应票下留一条固定格式评论，含脚本名、参数、失败原因与影响，方便按脚本名搜出所有失败现场。
+ * 评论是公开可搜的，所以参数里只写 --body-file 的文件名，不写本地绝对路径。
+ */
 function commentFailure(issue, repo, opts, reason, impact, workDir) {
+  const params = `--map ${opts.map} --children ${opts.children.join(",")} --body-file ${baseName(opts.bodyFile)}`;
   const lines = [
     `<!-- 失败留痕：${SCRIPT_NAME} -->`,
     `**${SCRIPT_NAME} 子议题关联失败**`,
     "",
-    `- 脚本：\`${SCRIPT_NAME}\``,
-    `- 参数：\`--map ${opts.map} --children ${opts.children.join(",")} --body-file ${opts.bodyFile}\`${opts.repo ? "（--repo " + opts.repo + "）" : ""}`,
-    `- 失败原因：${reason || "没有拿到报错文本"}`,
-    `- 影响：${impact}`,
+    `- 脚本：${codeSpan(SCRIPT_NAME)}`,
+    `- 参数：${codeSpan(params)}${opts.repo ? "（--repo " + codeSpan(opts.repo) + "）" : ""}`,
+    `- 失败原因：${redactLocalPaths(reason || "没有拿到报错文本")}`,
+    `- 影响：${redactLocalPaths(impact)}`,
     "",
     "这条评论由脚本自动留下，用来以后按脚本名搜出失败现场。已经建好的边不会被撤销。",
   ];
@@ -441,6 +565,8 @@ function buildPlan(opts) {
  * 这里刻意不在中途 process.exit——中途退出会跳过清理临时目录的 finally，
  * 临时目录会在系统临时目录里越积越多。
  */
+function uniqWarnings(list) { return Array.from(new Set(list)); }
+
 function done(code, payload) {
   return { code: code, payload: payload };
 }
@@ -453,7 +579,7 @@ function main() {
   try {
     raw = readFileSync(opts.bodyFile, "utf8");
   } catch (e) {
-    fail(2, `读不到正文文件：${opts.bodyFile} —— ${e.message}`);
+    fail(2, `读不到正文文件：${baseName(opts.bodyFile)}（${e.code || "读文件失败"}）。请检查这个文件是否存在、路径是否写对。`);
   }
 
   const normalized = normalizeForWrite(raw);
@@ -464,7 +590,10 @@ function main() {
   // 演练：不联网、不改任何东西，把「将要写什么、将要执行什么」摆出来给人看。
   if (opts.dryRun) {
     const plan = buildPlan(opts);
-    const warnings = ["演练模式：不联网，没读线上状态，所以 edge 与 actual 是 null，数量校验留到真跑。"];
+    const warnings = [
+      "演练模式：不联网，没读线上状态，所以 edge 与 actual 是 null，数量校验留到真跑。",
+      "演练模式读不到子票正文，所以列不出「将要建哪几条原生阻塞边」；阻塞边来自子票正文，读它就要联网。",
+    ];
     console.error("演练：不会联网、不会写任何东西。将执行的命令：");
     plan.command.forEach((c) => console.error("  " + c.join(" ")));
     console.error("将要写回地图的正文：");
@@ -476,7 +605,7 @@ function main() {
       actual: null,
       commented: false,
       ok: true,
-      warnings: warnings,
+      warnings: uniqWarnings(warnings),
       dryRun: true,
       body: normalized.text,
       command: plan.command,
@@ -488,40 +617,58 @@ function main() {
     const warnings = [];
     const changed = [];
 
-    // ——— 1. 先读当前状态（读请求用来判等，是允许的；写之前必须知道差集在哪） ———
-    const mapBodyNow = readCurrentBody(opts.map, opts.repo);
+    // ——— 1. 先读当前状态（读请求用来判等是允许的；写之前必须知道差集在哪） ———
+    const mapBodyNow = readIssueBody(opts.map, opts.repo);
     if (!mapBodyNow.ok) {
       const commented = commentFailure(opts.map, opts.repo, opts, mapBodyNow.reason, `读不到地图 #${opts.map} 的当前正文，本次什么都没改。`, workDir);
-      console.error(`读不到地图 #${opts.map} 的当前正文：${mapBodyNow.reason}`);
-      return done(1, { changed: [], edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: warnings, dryRun: false, error: `读不到地图 #${opts.map} 的当前正文：${mapBodyNow.reason}` });
+      const msg = `读不到地图 #${opts.map} 的当前正文：${mapBodyNow.reason}`;
+      console.error(msg);
+      return done(1, { changed: [], edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: msg });
     }
     const subsNow = readSubIssueNumbers(opts.map, opts.repo);
     if (!subsNow.ok) {
       const commented = commentFailure(opts.map, opts.repo, opts, subsNow.reason, `读不到地图 #${opts.map} 的子议题列表，本次什么都没改。`, workDir);
-      console.error(`读不到地图 #${opts.map} 的子议题列表：${subsNow.reason}`);
-      return done(1, { changed: [], edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: warnings, dryRun: false, error: `读不到地图 #${opts.map} 的子议题列表：${subsNow.reason}` });
+      const msg = `读不到地图 #${opts.map} 的子议题列表：${subsNow.reason}`;
+      console.error(msg);
+      return done(1, { changed: [], edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: msg });
     }
     warnings.push.apply(warnings, subsNow.warnings);
 
+    // ——— 2. 读每张子票的正文与当前父（顺带校验它存在、没挂在别处） ———
     const perChild = {};
     for (const c of opts.children) {
-      const bodyRes = readCurrentBody(c, opts.repo);
-      if (!bodyRes.ok) {
-        const commented = commentFailure(c, opts.repo, opts, bodyRes.reason, `读不到子票 #${c} 的正文，本次什么都没改。`, workDir);
-        console.error(`读不到子票 #${c} 的正文：${bodyRes.reason}`);
-        return done(1, { changed: [], edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: warnings, dryRun: false, error: `读不到子票 #${c} 的正文：${bodyRes.reason}` });
+      const snap = readChildSnapshot(c, opts.repo);
+      if (!snap.ok) {
+        const msg = `读不到子票 #${c}：${snap.reason}`;
+        if (NOT_FOUND_RE.test(snap.stderr || "")) {
+          // 票号写错/票不存在：属于输入不对，命令根本没执行，也不留评论（评论也发不到那张票上）
+          fail(2, `${msg}。请确认票号写对了、而且这个票在当前仓库里存在。`);
+        }
+        const commented = commentFailure(opts.map, opts.repo, opts, snap.reason, `读不到子票 #${c}，本次什么都没改。`, workDir);
+        console.error(msg);
+        return done(1, { changed: [], edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: msg });
+      }
+      if (snap.parentNumber !== null && snap.parentNumber !== Number(opts.map)) {
+        // 已挂在别的地图下：拒绝改挂（改挂要显式做，本脚本不做）
+        fail(2, `子票 #${c} 已经挂在 #${snap.parentNumber} 下面了，本脚本不会替它改挂。要改挂请先显式解除它现在的父关系，再把它加进 --children。`);
       }
       const edgeRes = readBlockedByNumbers(c, opts.repo);
       if (!edgeRes.ok) {
         const commented = commentFailure(c, opts.repo, opts, edgeRes.reason, `读不到子票 #${c} 的现有阻塞边，本次什么都没改。`, workDir);
-        console.error(`读不到子票 #${c} 的现有阻塞边：${edgeRes.reason}`);
-        return done(1, { changed: [], edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: warnings, dryRun: false, error: `读不到子票 #${c} 的现有阻塞边：${edgeRes.reason}` });
+        const msg = `读不到子票 #${c} 的现有阻塞边：${edgeRes.reason}`;
+        console.error(msg);
+        return done(1, { changed: [], edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: msg });
       }
-      perChild[c] = { body: bodyRes.body, blockedBy: edgeRes.numbers, declared: parseDeclaredBlockers(bodyRes.body) };
+      const declared = headBlockers(snap.body);
+      const elsewhere = allBlockers(snap.body).filter((b) => declared.indexOf(b) < 0);
+      if (elsewhere.length) {
+        warnings.push(`子票 #${c} 的正文里，除了第一处有内容的行以外还有 Blocked by: 声明（${elsewhere.map((b) => "#" + b).join("、")}）；本脚本只认第一处，没有据此建边。`);
+      }
+      perChild[c] = { body: snap.body, parentNumber: snap.parentNumber, blockedBy: edgeRes.numbers, declared: declared };
     }
 
-    // ——— 2. 算差集 ———
-    const needBodyWrite = mapBodyNow.body !== normalized.text;
+    // ——— 3. 算差集 ———
+    const needBodyWrite = !sameBody(mapBodyNow.body, normalized.text);
     const missingSubs = opts.children.filter((c) => subsNow.numbers.indexOf(c) < 0);
     const missingEdges = [];
     for (const c of opts.children) {
@@ -535,9 +682,9 @@ function main() {
       warnings.push(`地图 #${opts.map} 上的原生子议题总数为 ${totalNow} 张，本次只校验 --children 列出的 ${expected} 张。`);
     }
 
-    // ——— 3. 已经是目标状态：一个写请求都不发 ———
+    // ——— 4. 已经是目标状态：一个写请求都不发（连校验用的重复读也不发） ———
     if (!needBodyWrite && missingSubs.length === 0 && missingEdges.length === 0) {
-      console.error(`#${opts.map} 正文已一致、${expected} 张子票都已挂上、声明的阻塞边都在位，不再发任何写请求。`);
+      console.error(`#${opts.map} 正文已一致、${expected} 张子票都已挂上、声明的阻塞边都在位，不再发任何请求。`);
       return done(0, {
         changed: [],
         edge: true,
@@ -545,36 +692,52 @@ function main() {
         actual: expected,
         commented: false,
         ok: true,
-        warnings: warnings,
+        warnings: uniqWarnings(warnings),
         dryRun: false,
       });
     }
 
-    // ——— 4. 写地图正文（只在内容确实不同时写） ———
+    // ——— 5. 写地图正文（只在内容确实不同时写），写完读回比对 ———
     if (needBodyWrite) {
       const w = writeMapBody(opts.map, opts.repo, normalized.text, workDir);
       if (!w.ok) {
         const commented = commentFailure(opts.map, opts.repo, opts, w.reason, `地图 #${opts.map} 的正文没写回（已重试一次）。`, workDir);
-        console.error(`写回 #${opts.map} 正文失败：${w.reason}`);
-        return done(1, { changed: changed, edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: warnings, dryRun: false, error: `写回 #${opts.map} 正文失败：${w.reason}` });
+        const msg = `写回 #${opts.map} 正文失败：${w.reason}`;
+        console.error(msg);
+        return done(1, { changed: changed, edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: msg });
       }
       if (w.retried) console.error(`#${opts.map} 正文写回重试一次后成功。`);
+      // 读回校验：写请求返回成功不等于内容真的落盘（对抗式审查实测过服务端静默不落盘的情况）
+      const readBack = readIssueBody(opts.map, opts.repo);
+      if (!readBack.ok) {
+        const commented = commentFailure(opts.map, opts.repo, opts, readBack.reason, `地图 #${opts.map} 的正文写完后读不回来，没法确认是否写对。`, workDir);
+        const msg = `地图 #${opts.map} 的正文写完后读不回来：${readBack.reason}`;
+        console.error(msg);
+        return done(1, { changed: changed, edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: msg });
+      }
+      if (!sameBody(readBack.body, normalized.text)) {
+        const msg = `地图 #${opts.map} 的正文写回后读回来不一样：写请求返回成功，但服务端内容不是文件里的内容（可能被拒或没落盘）。`;
+        const commented = commentFailure(opts.map, opts.repo, opts, msg, `地图 #${opts.map} 的正文没写对（已重试一次），票上现在的正文与文件不一致。`, workDir);
+        console.error(msg);
+        return done(1, { changed: changed, edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: msg });
+      }
       changed.push(`#${opts.map} 正文：按文件内容写回`);
     }
 
-    // ——— 5. 补子议题边（只补缺的） ———
+    // ——— 6. 补子议题边（只补缺的） ———
     for (const c of missingSubs) {
       const r = wireSubIssue(c, opts.map, opts.repo);
       if (!r.ok) {
         const commented = commentFailure(c, opts.repo, opts, r.reason, `子票 #${c} 没挂到地图 #${opts.map} 下（已重试一次）。`, workDir);
-        console.error(`把 #${c} 挂到 #${opts.map} 下失败：${r.reason}`);
-        return done(1, { changed: changed, edge: false, expected: expected, actual: null, commented: commented, ok: false, warnings: warnings, dryRun: false, error: `把 #${c} 挂到 #${opts.map} 下失败：${r.reason}` });
+        const msg = `把 #${c} 挂到 #${opts.map} 下失败：${r.reason}`;
+        console.error(msg);
+        return done(1, { changed: changed, edge: false, expected: expected, actual: null, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: msg });
       }
       if (r.retried) console.error(`#${c} 挂到 #${opts.map} 下：重试一次后成功。`);
       changed.push(`#${c} 已挂到 #${opts.map} 下`);
     }
 
-    // ——— 6. 补原生阻塞边（只补缺的；明确不支持才降级成文字行） ———
+    // ——— 7. 补原生阻塞边（只补缺的；明确不支持才降级成文字行） ———
     const degraded = [];
     for (const item of missingEdges) {
       const r = addBlockedBy(item.child, item.blocker, opts.repo);
@@ -585,8 +748,9 @@ function main() {
       }
       if (!r.unsupported) {
         const commented = commentFailure(item.child, opts.repo, opts, r.reason, `子票 #${item.child} 的阻塞边 #${item.blocker} 没建上（已重试一次）。`, workDir);
-        console.error(`给 #${item.child} 建阻塞边 #${item.blocker} 失败：${r.reason}`);
-        return done(1, { changed: changed, edge: false, expected: expected, actual: null, commented: commented, ok: false, warnings: warnings, dryRun: false, error: `给 #${item.child} 建阻塞边 #${item.blocker} 失败：${r.reason}` });
+        const msg = `给 #${item.child} 建阻塞边 #${item.blocker} 失败：${r.reason}`;
+        console.error(msg);
+        return done(1, { changed: changed, edge: false, expected: expected, actual: null, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: msg });
       }
       // 明确不支持：降级成子票正文首部的文字行
       console.error(`#${item.child} 的原生阻塞边被判定为不支持，按契约降级成正文文字行。`);
@@ -599,20 +763,22 @@ function main() {
         const w = writeFallbackTextLine(c, blockers.length ? blockers : perChild[c].declared, opts.repo, workDir);
         if (!w.ok) {
           const commented = commentFailure(c, opts.repo, opts, w.reason, `子票 #${c} 的降级文字行没写进去（已重试一次）。`, workDir);
-          console.error(`给 #${c} 写降级文字行失败：${w.reason}`);
-          return done(1, { changed: changed, edge: false, expected: expected, actual: null, commented: commented, ok: false, warnings: warnings, dryRun: false, error: `给 #${c} 写降级文字行失败：${w.reason}` });
+          const msg = `给 #${c} 写降级文字行失败：${w.reason}`;
+          console.error(msg);
+          return done(1, { changed: changed, edge: false, expected: expected, actual: null, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: msg });
         }
         changed.push(w.wrote ? `#${c} 已降级为文字行：${w.line}` : `#${c} 已降级为文字行（文字行本就在正文首部，未再写）：${w.line}`);
       }
       warnings.push(`本仓库不支持原生阻塞边，已按契约把声明的阻塞关系写成子票正文首部的文字行（${degraded.map((c) => "#" + c).join("、")}）。`);
     }
 
-    // ——— 7. 读回校验 ———
+    // ——— 8. 读回校验 ———
     const subsAfter = readSubIssueNumbers(opts.map, opts.repo);
     if (!subsAfter.ok) {
       const commented = commentFailure(opts.map, opts.repo, opts, subsAfter.reason, `写完了但读不回子议题列表，数量没校验成。`, workDir);
-      console.error(`读回子议题列表失败：${subsAfter.reason}`);
-      return done(1, { changed: changed, edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: warnings, dryRun: false, error: `读回子议题列表失败：${subsAfter.reason}` });
+      const msg = `读回子议题列表失败：${subsAfter.reason}`;
+      console.error(msg);
+      return done(1, { changed: changed, edge: null, expected: expected, actual: null, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: msg });
     }
     const actual = opts.children.filter((c) => subsAfter.numbers.indexOf(c) >= 0).length;
     const totalAfter = subsAfter.numbers.length;
@@ -620,7 +786,7 @@ function main() {
       warnings.push(`地图 #${opts.map} 上的原生子议题总数为 ${totalAfter} 张，本次只校验 --children 列出的 ${expected} 张。`);
     }
 
-    let edgesAllIn = degraded.length === 0;
+    let edgesAllIn = true;
     for (const c of opts.children) {
       if (!perChild[c].declared.length) continue;
       const e = readBlockedByNumbers(c, opts.repo);
@@ -629,6 +795,7 @@ function main() {
         if (e.numbers.indexOf(b) < 0) edgesAllIn = false;
       }
     }
+    if (degraded.length) edgesAllIn = false;
 
     if (actual !== expected) {
       const missing = opts.children.filter((c) => subsAfter.numbers.indexOf(c) < 0);
@@ -636,7 +803,7 @@ function main() {
       const reason = `数量对不上：预期 ${expected} 张子票挂在地图 #${opts.map} 下，实际只挂上 ${actual} 张（缺 ${missing.map((c) => "#" + c).join("、") || "未定位到具体子票"}）。`;
       const commented = commentFailure(target, opts.repo, opts, reason, `数量校验没过，缺的子票是 ${missing.map((c) => "#" + c).join("、") || "未定位到"}。`, workDir);
       console.error(reason);
-      return done(1, { changed: changed, edge: false, expected: expected, actual: actual, commented: commented, ok: false, warnings: warnings, dryRun: false, error: reason });
+      return done(1, { changed: changed, edge: false, expected: expected, actual: actual, commented: commented, ok: false, warnings: uniqWarnings(warnings), dryRun: false, error: reason });
     }
 
     console.error(`#${opts.map}：预期 ${expected} 张，实际挂上 ${actual} 张，原生边${edgesAllIn ? "全部到位" : "没全到位"}。`);
@@ -647,7 +814,7 @@ function main() {
       actual: actual,
       commented: false,
       ok: true,
-      warnings: warnings,
+      warnings: uniqWarnings(warnings),
       dryRun: false,
     });
   } finally {
