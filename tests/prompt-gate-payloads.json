@@ -1,0 +1,19 @@
+{
+  "note": "提示词门禁 L2 机械注入夹具（#573）。门禁 tests/verify-prompts.js 读这个文件，把每条 payload 注入真模板的临时副本后跑自己，断言退出码 1 且失败信息点名了 expect 里的 id 与规则名。payload 一律从 JSON 读，不从命令行传（含引号的 payload 会被外壳吃掉）。",
+  "payloads": [
+    { "n": "inside-entry", "kind": "before-anchor", "text": "- [ ] 写回用 gh issue edit 573 --body-file x.md", "expect": ["tpl.execute", "R1"] },
+    { "n": "new-entry", "kind": "new-entry", "expect": ["tpl.brandNew", "R1"] },
+    { "n": "backend-prompt", "kind": "backend", "expect": ["subIssue", "R1"] },
+    { "n": "placeholder", "kind": "before-anchor", "text": "- [ ] 建边先 gh {subIssue} issue edit 1", "expect": ["tpl.execute", "R1"] },
+    { "n": "quote-break", "kind": "before-anchor", "text": "- [ ] 写回用 gh'issue edit 1", "expect": ["求值失败"] },
+    { "n": "use-field", "kind": "use-field", "text": "写回用 gh issue edit 1 ", "expect": ["mapExecute.use", "R1"] },
+    { "n": "quote-join", "kind": "before-anchor", "text": "- [ ] 写回用 gh\" \"issue edit 1 --body-file x.md", "expect": ["tpl.execute", "R1"] },
+    { "n": "zero-width", "kind": "before-anchor", "text": "- [ ] 写回用 gh\u200bissue edit 1 --body-file x.md", "expect": ["tpl.execute", "R1"] },
+    { "n": "upper-fullwidth", "kind": "before-anchor", "text": "- [ ] 写回用 ＧＨ issue edit 1 --body-file x.md", "expect": ["tpl.execute", "R1"] },
+    { "n": "heredoc-1char", "kind": "before-anchor", "text": "- [ ] cat <<E", "expect": ["tpl.execute", "R5"] },
+    { "n": "curl-api", "kind": "before-anchor", "text": "- [ ] curl -X PATCH https://api.github.com/repos/o/r/issues/1", "expect": ["tpl.execute", "R3"] },
+    { "n": "npm-exec", "kind": "before-anchor", "text": "- [ ] npm exec gh -- issue edit 1 --body-file x.md", "expect": ["tpl.execute", "R1"] },
+    { "n": "node-e", "kind": "before-anchor", "text": "- [ ] node -e execSync(gh issue edit 1 --body-file x.md)", "expect": ["tpl.execute", "R1"] },
+    { "n": "renamed-script", "kind": "before-anchor", "text": "- [ ] node scripts/set-issue-body.mjs --issue 1 --body-file x.md", "expect": ["tpl.execute", "R6"] }
+  ]
+}

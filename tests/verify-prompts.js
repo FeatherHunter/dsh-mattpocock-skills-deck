@@ -1,4 +1,4 @@
-// verify-prompts.js — prompt 注册表契约校验（#573 收敛：五面扫描 + 显式豁免表 + 归一化 + R1–R7）
+// verify-prompts.js — prompt 注册表契约校验（#573 收敛：五面扫描 + 外部豁免登记 + 归一化 + R1–R7）
 // 用法:
 //   node tests/verify-prompts.js                          默认：五面全扫（S1 真源 + S2 双产物 + S3 三后端 + S4 host 常量 + S5 渲染面）
 //   node tests/verify-prompts.js <注册表文件>              单文件模式：只扫该文件的 S1（L2 机械注入用；S2/S3/S4 跳过）
@@ -11,11 +11,16 @@
 // 五面（缺一处即漏，见 .scratch/573-gate-design-v2.md §1.1）：
 //   S1 src/client/kernel/prompts.js（求值解析，语法错误直接判红，不静默少扫）
 //   S2 client.js / package/lib/client.js（正则解析 + id 集合与逐字段等于 S1）
-//   S3 src/host/tracker/backends/{github,gitlab,markdown}/index.js 的 prompts 块（词法扫描）
+//   S3 src/host/tracker/backends/{github,gitlab,markdown}/index.js 的 prompts 块（逐字符词法扫描，含拼接续段）
 //   S4 src/host/**/*.js 的 *_PROMPT 常量
-//   S5 S1 里含 {占位符} 的条目：占位符先求值（真实值 / 空串 / 哨兵三种展开）再判
+//   S5 S1 里含 {占位符} 的条目：占位符先求值（真实值 / 空串 / 哨兵三种展开）再判，另加「值形态」与「拆占位符拼装」两道
 //
 // 不扫（有意为之，见 §1.1）：docs/**（本来就该写具体命令）、tests/**、scripts/*.mjs、src/host 的代码注释与正则字面量。
+//
+// 豁免只有一张表，登记在 tests/prompt-gate-exempt.json（门禁只读它，代码里不留第二份）：
+//   kind=rule  该条确实还写着具体跟踪器命令、属第二批范围 → 跳过判定（登记在案的债）
+//   kind=scope 该条不属首批范围 → 门禁仍然判它，只是登记「不属首批」，所以 scope 不是放行口子
+// 受保护清单 PROTECTED 里的条目（本票收敛过的）绝不许进豁免表 —— 这是防「换一条豁免整体放行」的变异自检。
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -23,6 +28,8 @@ const childProcess = require('child_process')
 
 const ROOT = path.join(__dirname, '..')
 const SELF = path.join(__dirname, 'verify-prompts.js')
+const EXEMPT_FILE = path.join(__dirname, 'prompt-gate-exempt.json')
+const PAYLOAD_FILE = path.join(__dirname, 'prompt-gate-payloads.json')
 const IS_CHILD = process.env.DSH_VERIFY_PROMPTS_CHILD === '1'
 
 let failed = false
@@ -35,10 +42,19 @@ const EXPECT_REGISTRY_ENTRIES = 20 // 注册表条目数（2026-09 现状；拆�
 // S3 各后端 prompts 块顶层键数。v2 §1.1 写的是 7/9/6，实测不成立（gitlab 只有 4 键、markdown 只有 2 键），
 // 这里按实测值硬编码并在失败信息里报出真实值，避免「按错值写断言导致永久红」。
 const EXPECT_BACKEND_KEYS = { github: 7, gitlab: 4, markdown: 2 }
-// S3 各后端 prompts 块内 zh/en 字符串字面量数（含 errorKinds 这类嵌套）——防「词法扫描静默少扫」
-const EXPECT_BACKEND_LITERALS = { github: 28, gitlab: 8, markdown: 4 }
+// S3 各后端 prompts 块内的字符串字面量总数（含字符串拼接的续段，如 ensureLabels 的命令就藏在续段里）。
+// 这个数字是「词法扫描不许静默少扫」的硬保证：少扫一段就会对不上。
+const EXPECT_BACKEND_LITERALS = { github: 42, gitlab: 8, markdown: 4 }
 const EXPECT_HOST_PROMPT_CONSTS = 1 // src/host 全树 *_PROMPT 常量数（今天只有 GH_INSTALL_PROMPT）
-const EXPECT_EXEMPT = 8 // 豁免条数硬编码（防偷偷加豁免）
+const EXPECT_EXEMPT = 12 // 豁免登记条数硬编码（防偷偷加豁免）
+
+// 受保护清单：本票（#573）收敛过的条目，绝不许出现在豁免表里
+const PROTECTED = [
+  'registry#mapExecute', 'registry#complete', 'registry#fixate', 'registry#bodyFormat',
+  'registry#tpl.diagnose', 'registry#tpl.fix', 'registry#tpl.discuss', 'registry#tpl.research',
+  'registry#tpl.prototype', 'registry#tpl.execute', 'registry#mapInspect', 'registry#newWayfinder',
+  'backend:github#subIssue', 'S4#GH_INSTALL_PROMPT',
+]
 
 // ==================== 1. 归一化 + 判定式（.scratch/573-gate-design-v2.md §1.3 / §1.4） ====================
 const ZW = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u00AD]/g
@@ -71,6 +87,9 @@ const RE_CMD_CTX = /(?<![a-z0-9_])(?:gh|glab|curl|wget|node|npm|npx|pnpm|yarn|sh
 // R7 混淆执行：红队报告 §3.2 E13 要求必抓（base64 -d 管道 / \xNN 转义 / eval 引号）。
 // v2 §1.4 只写了 R1–R6，漏了这条；这里照红队建议正则补齐，实测 24 条误报仍全绿。
 const RE_OBFUSCATED = /(?:base64\s+(?:-d|--decode))|(?:\\x[0-9a-f]{2})|(?:\beval\s+["'`$])/i
+// 「拆占位符拼装」探测器：命令词由占位符值提供、子命令与动作词由模板字面量提供时才算命中。
+// 只用来判「把命令词塞进占位符后能否拼出一条真的命令调用」，不参与常规判定（避免「个 issue 已关闭」这类同形词误红）。
+const RE_ASSEMBLED = /(?<![a-z0-9_])(?:gh|glab)(?![a-z0-9_])(?:[^a-z0-9_]{0,4})(?:issue|api|label|repo|pr|mr|milestone|project|sub_issues)(?![a-z0-9_])(?:[^a-z0-9_]{0,4})(?:edit|create|view|list|close|comment|update|delete|add|set|reopen)\b/
 
 const RULE_FIX = {
   R1: '模板里只许出现脚本名加参数：把具体跟踪器命令改写成「调 node scripts/fix-issue-body.mjs / wire-subissues.mjs」',
@@ -82,7 +101,7 @@ const RULE_FIX = {
   R7: '不要写混淆执行（base64 -d / \\x 转义 / eval 加引号）',
 }
 
-// 判定一个字符串：返回 [{rule, snippet, index}]，空数组 = 通过
+// 判定一个字符串：返回 [{rule, snippet}]，空数组 = 通过
 const judge = function (text) {
   const raw = String(text == null ? '' : text)
   const hits = []
@@ -96,17 +115,21 @@ const judge = function (text) {
     if ((m = RE_TRACKER.exec(stripped)) !== null) push('R1', stripped, m.index)
     if ((m = RE_PKG.exec(stripped)) !== null) push('R2', stripped, m.index)
     if ((m = RE_BARE_API.exec(stripped)) !== null) push('R3', stripped, m.index)
-    stripped.split('\n').forEach(function (line) {
-      if (RE_BODY_FLAG.test(line) && /\s=?\s*\S/.test(line) && RE_CMD_CTX.test(line)) {
-        const mm = RE_BODY_FLAG.exec(line)
-        push('R4', line, mm ? mm.index : 0)
-      }
-    })
     if ((m = RE_HEREDOC.exec(stripped)) !== null) push('R5', stripped, m.index)
     RE_SCRIPT.lastIndex = 0
     while ((m = RE_SCRIPT.exec(stripped)) !== null) {
       if (SCRIPT_WHITELIST.indexOf(m[1].split(/[\\/]/).pop()) < 0) push('R6', stripped, m.index)
     }
+  })
+  // R4 逐行判：归一化会把换行压成空格，所以按「原行」分别归一化后再判，保住行边界
+  //   （否则一段说明文字里的 --body 会和下一行的 npx 被压成同一行，误判成内联正文）
+  raw.split(/\r?\n/).forEach(function (line) {
+    normVariants(line).forEach(function (nl) {
+      if (RE_BODY_FLAG.test(nl) && /\s=?\s*\S/.test(nl) && RE_CMD_CTX.test(nl)) {
+        const mm = RE_BODY_FLAG.exec(nl)
+        push('R4', nl, mm ? mm.index : 0)
+      }
+    })
   })
   // R7 在原文上也判一次：归一化会剥引号，eval " 只在原文里看得见
   const seen = {}
@@ -121,7 +144,7 @@ const judge = function (text) {
   return uniq
 }
 
-// 渲染：把文本里所有 {名字} 换成给定值（未给的名字按空串/哨兵处理，见 renderExpansions）
+// 渲染：把文本里所有 {名字} 换成给定值（未给的名字按 fallback 处理）
 const renderWith = function (text, values, fallback) {
   return String(text).replace(/\{(\w+)\}/g, function (m, name) {
     return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : String(fallback)
@@ -135,20 +158,73 @@ const judgeRendered = function (text, values) {
   out.push.apply(out, judge(renderWith(text, {}, '\u0000')))
   return out
 }
+// S5 附加：「拆占位符拼装」探测用的探针值 —— 把命令词塞进单个占位符，看渲染后会不会拼出命令
+const PLACEHOLDER_PROBES = ['gh', 'glab', 'node', 'curl', 'cat', 'npm', '--body']
+// 取出文本里所有占位符名字（去重，保持出现顺序）
+const placeholderNames = function (text) {
+  const names = []
+  String(text).replace(/\{(\w+)\}/g, function (m, n) { if (names.indexOf(n) < 0) names.push(n); return m })
+  return names
+}
 
-// ==================== 2. 豁免表（唯一放行机制；每条必须写理由） ====================
-const EXEMPT = [
-  { surface: 'backend:github', id: 'ensureLabels', rule: 'R1', reason: '标签补全链路不属首批（#576 Out of scope：一次收完十五条提示词），第二批再收' },
-  { surface: 'backend:github', id: 'repoRemoteFix', rule: 'R1', reason: '建仓链路口径，不属首批' },
-  { surface: 'backend:github', id: 'repoAccessFix', rule: 'R1', reason: '仓库可达性排查口径，不属首批' },
-  { surface: 'backend:gitlab', id: 'glabRepoFix', rule: 'R1', reason: 'GitLab 建仓口径，第二批再收' },
-  { surface: 'registry', id: 'ghAuthLogin', rule: 'scope', reason: 'CLI 登录指引，非跟踪器写/查命令，不属首批（总指挥 Q4 裁定：文本不动）' },
-  { surface: 'registry', id: 'installSkills', rule: 'scope', reason: '技能安装器命令，不属首批（总指挥 Q4 裁定：文本不动）' },
-  { surface: 'backend:gitlab', id: 'subIssue', rule: 'scope', reason: '#576：另两个后端只对齐占位语义，不写新脚本' },
-  { surface: 'backend:markdown', id: 'subIssue', rule: 'scope', reason: '本地 Markdown 直接改文件存盘，不调脚本' },
-]
-const isExempt = function (surface, id) {
-  return EXEMPT.some(function (e) { return e.surface === surface && e.id === id })
+// ==================== 2. 豁免登记表（外部文件 + 受保护清单 + 六条自检） ====================
+const loadExempt = function () {
+  const raw = JSON.parse(fs.readFileSync(EXEMPT_FILE, 'utf8'))
+  const list = Array.isArray(raw) ? raw : (raw.entries || [])
+  return list.map(function (e) { return Object.freeze(Object.assign({}, e)) })
+}
+const EXEMPT = loadExempt()
+const exemptKey = function (surface, id) { return surface + '#' + id }
+const ruleExemptIds = function (list, surface) {
+  return list.filter(function (e) { return e.surface === surface && e.kind === 'rule' }).map(function (e) { return e.id })
+}
+const isRuleExempt = function (list, surface, id) { return ruleExemptIds(list, surface).indexOf(id) >= 0 }
+
+// 纯函数：给定豁免表与各面 id 集，返回问题列表（主跑与变异自检都走它）
+const auditExemptTable = function (list, surfaceIds, opts) {
+  const out = []
+  const o = opts || {}
+  if (list.length !== EXPECT_EXEMPT) out.push('EXEMPT 条数 ' + list.length + '（期望硬编码 ' + EXPECT_EXEMPT + '；改豁免必须走评审）')
+  // ① 形状：每条必须有 surface / id / kind / rule / reason
+  list.forEach(function (e, i) {
+    ;['surface', 'id', 'kind', 'rule', 'reason'].forEach(function (f) {
+      if (!e || typeof e[f] !== 'string' || !e[f]) out.push('EXEMPT[' + i + '] 缺字段 ' + f + '（每条必须写清面、条目、类型、规则与理由）')
+    })
+    if (e && ['rule', 'scope'].indexOf(e.kind) < 0) out.push('EXEMPT[' + i + '] kind 只能是 rule 或 scope（实得 ' + String(e && e.kind) + '）')
+  })
+  // ② 存在性：豁免项必须真实存在
+  list.forEach(function (e) {
+    if (!e || !e.surface) return
+    if (!surfaceIds[e.surface]) { out.push('EXEMPT 引用了不存在的扫描面：' + e.surface + '（' + e.id + '）'); return }
+    if (surfaceIds[e.surface].indexOf(e.id) < 0) out.push('EXEMPT 引用了不存在的条目：' + e.surface + ' / ' + e.id)
+  })
+  // ③ 完备性：每个面「被扫 ∪ rule 豁免 == 全部」
+  Object.keys(surfaceIds).forEach(function (surface) {
+    const all = surfaceIds[surface]
+    const exempt = ruleExemptIds(list, surface)
+    const scanned = all.filter(function (id) { return exempt.indexOf(id) < 0 })
+    const union = scanned.concat(exempt).filter(function (v, i, a) { return a.indexOf(v) === i })
+    const missing = all.filter(function (id) { return union.indexOf(id) < 0 })
+    const extra = union.filter(function (id) { return all.indexOf(id) < 0 })
+    if (missing.length || extra.length || union.length !== all.length) {
+      out.push('EXEMPT 完备性失败 ' + surface + '：全部 ' + all.length + '、被扫 ' + scanned.length + '、豁免 ' + exempt.length +
+        (missing.length ? '、漏 ' + missing.join(',') : '') + (extra.length ? '、多 ' + extra.join(',') : ''))
+    }
+  })
+  // ④ 受保护清单：本票收敛过的条目不许进豁免表（防「换一条豁免整体放行」）
+  list.forEach(function (e) {
+    if (!e || !e.surface) return
+    if (PROTECTED.indexOf(exemptKey(e.surface, e.id)) >= 0) {
+      out.push('EXEMPT 放行了本票收敛过的条目：' + e.surface + ' / ' + e.id + '（受保护清单里的条目绝不许豁免）')
+    }
+  })
+  // ⑤ 与登记文件逐条相等（防止门禁里另留一份、或加载后被改写）
+  if (o.fileEntries) {
+    const a = JSON.stringify(list)
+    const b = JSON.stringify(o.fileEntries)
+    if (a !== b) out.push('EXEMPT 与 tests/prompt-gate-exempt.json 逐条不相等（门禁只许读登记文件，不许在代码里改）')
+  }
+  return out
 }
 
 // ==================== 3. 解析层 ====================
@@ -158,6 +234,22 @@ const evalRegistrySource = function (src) {
   const got = new Function(body + '\n;return { PROMPTS: PROMPTS };')()
   if (!got || !got.PROMPTS || typeof got.PROMPTS !== 'object') throw new Error('未取到 PROMPTS 对象')
   return got.PROMPTS
+}
+// 反隐藏：条目不许用不可枚举属性藏起来（Object.defineProperty / getter 都能绕过 Object.keys）
+const auditRegistryShape = function (src, reg) {
+  const out = []
+  if (/\bdefinePropert(?:y|ies)\s*\(/.test(src)) out.push('S1 求值体含 defineProperty（可以用不可枚举属性藏条目，禁止）')
+  if (/^\s*(?:get|set)\s+[A-Za-z_$]/m.test(src)) out.push('S1 求值体含对象 getter/setter（可以绕过求值，禁止）')
+  const allKeys = Reflect.ownKeys(reg)
+  if (allKeys.length !== Object.keys(reg).length) out.push('S1 注册表有不可枚举属性：Reflect.ownKeys ' + allKeys.length + ' ≠ Object.keys ' + Object.keys(reg).length)
+  allKeys.forEach(function (k) {
+    const e = reg[k]
+    if (!e || typeof e !== 'object' || Array.isArray(e)) { out.push('S1 条目 ' + String(k) + ' 不是普通对象'); return }
+    const proto = Object.getPrototypeOf(e)
+    if (proto !== Object.prototype && proto !== null) out.push('S1 条目 ' + String(k) + ' 的原型不是 Object.prototype（可能被藏了东西）')
+    if (Reflect.ownKeys(e).length !== Object.keys(e).length) out.push('S1 条目 ' + String(k) + ' 有不可枚举属性')
+  })
+  return out
 }
 // S2 正则解析（产物是整包，求值不现实）：忠实还原源码字符串字面量（与 tests/verify-prompt-newlines.js 同口径）
 const unescapeLiteral = function (s) {
@@ -179,6 +271,7 @@ const unescapeLiteral = function (s) {
   }
   return out
 }
+// tests/verify-prompt-newlines.js:65 用的同一条单行正则（跨门禁一致性断言用）
 const ENTRY_RE = /^\s*"([a-zA-Z0-9.]+)": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '([^']*)', zh: '([^']*)', en: '([^']*)' \},?$/gm
 const parseRegistryByRegex = function (src) {
   const reg = {}
@@ -218,7 +311,7 @@ const extractObjectLiteral = function (src, marker) {
   }
   return null
 }
-// 顶层键位置（2 或 4 空格缩进 + 名字 + : {）；用于把每个 zh/en 字面量归到它所属的键
+// 顶层键位置（2 或 4 空格缩进 + 名字 + : {）；用于把每个字面量归到它所属的键
 const topLevelKeyPositions = function (block) {
   const out = []
   const re = /(?:^|\n) {2,4}([A-Za-z0-9_'\-]+):\s*\{/g
@@ -226,13 +319,30 @@ const topLevelKeyPositions = function (block) {
   while ((m = re.exec(block)) !== null) out.push({ name: m[1].replace(/['"]/g, ''), at: m.index })
   return out
 }
-// 逐个字符走：遇 ' " ` 进字符串态，处理 \ 转义；出串后按 zh: / en: 前缀归类；注释跳过
-const scanZhEnLiterals = function (block) {
+const countTopLevelKeys = function (block) {
+  return topLevelKeyPositions(block).map(function (k) { return k.name })
+}
+// 取某后端 prompts.subIssue 的 zh/en 声明值（S5 渲染面与注入链断言用）
+const backendSubIssueValues = function (src) {
+  const block = extractObjectLiteral(src, 'export const prompts')
+  if (!block) return {}
+  const sub = extractObjectLiteral(block, 'subIssue')
+  if (!sub) return {}
+  const out = {}
+  const zh = /(?:^|[\s{,])zh:\s*'((?:[^'\\]|\\.)*)'/.exec(sub)
+  const en = /(?:^|[\s{,])en:\s*'((?:[^'\\]|\\.)*)'/.exec(sub)
+  if (zh) out.zh = unescapeLiteral(zh[1])
+  if (en) out.en = unescapeLiteral(en[1])
+  return out
+}
+// 扫描块内**全部**字符串字面量（含拼接续段）：注释跳过，字符串转义按 JS 语义还原。
+// 注意：不能只认 `zh: '...'` 前缀 —— ensureLabels 的命令写在 `'a' + x + 'b'` 的第二段里，
+// 按前缀归类会把续段整段漏掉（这正是「词法扫描静默少扫」）。
+const scanAllLiterals = function (block) {
   const s = String(block)
   const keys = topLevelKeyPositions(s)
   const out = []
   let i = 0
-  let tail = ''
   const ownerOf = function (idx) {
     let name = ''
     keys.forEach(function (k) { if (k.at < idx) name = k.name })
@@ -240,8 +350,8 @@ const scanZhEnLiterals = function (block) {
   }
   while (i < s.length) {
     const c = s[i]
-    if (c === '/' && s[i + 1] === '/') { const nl = s.indexOf('\n', i); i = nl < 0 ? s.length : nl; tail = ''; continue }
-    if (c === '/' && s[i + 1] === '*') { const e = s.indexOf('*/', i); i = e < 0 ? s.length : e + 2; tail = ''; continue }
+    if (c === '/' && s[i + 1] === '/') { const nl = s.indexOf('\n', i); i = nl < 0 ? s.length : nl; continue }
+    if (c === '/' && s[i + 1] === '*') { const e = s.indexOf('*/', i); i = e < 0 ? s.length : e + 2; continue }
     if (c === "'" || c === '"' || c === '`') {
       const quote = c
       let val = ''
@@ -253,24 +363,17 @@ const scanZhEnLiterals = function (block) {
         val += d
         j++
       }
-      const m = /(?:^|[\s{,])(zh|en)\s*:\s*$/.exec(tail)
-      if (m) out.push({ key: ownerOf(i), lang: m[1], raw: val, text: unescapeLiteral(val), index: i })
-      tail = ''
+      out.push({ key: ownerOf(i), text: unescapeLiteral(val) })
       i = j + 1
       continue
     }
-    if (/[A-Za-z0-9_$:\-{},]/.test(c)) { tail = (tail + c).slice(-24); i++; continue }
-    if (/\s/.test(c)) { i++; continue }
-    tail = ''
     i++
   }
   return out
 }
-const countTopLevelKeys = function (block) {
-  return topLevelKeyPositions(block).map(function (k) { return k.name })
-}
 
-// ==================== 5. 五面扫描 ====================
+// ==================== 5. 五面扫描（返回问题数组，主跑与变异自检共用） ====================
+const surfaceReport = { S1: 0, S2: [0, 0], S3: [], S4: 0, S5: 0, exempt: EXEMPT.length }
 const BACKENDS = ['github', 'gitlab', 'markdown']
 const backendPath = function (id, probe) {
   if (id === 'github' && probe) return probe
@@ -279,81 +382,84 @@ const backendPath = function (id, probe) {
 const backendLabel = function (id, probe) {
   return (id === 'github' && probe) ? probe : 'src/host/tracker/backends/' + id + '/index.js'
 }
-
-// 面扫描结果（供 L3 完整性断言与输出行使用）
-const surfaceReport = { S1: 0, S2: [0, 0], S3: [], S4: 0, S5: 0, exempt: EXEMPT.length }
+const failLine = function (where, rule, snippet, raw) {
+  return 'FAIL ' + where + ' [' + rule + '] 命中「' + snippet + '」' +
+    (raw ? '\n     原文本（运行时）：' + String(raw).slice(0, 120) : '') +
+    '\n     修法：' + RULE_FIX[rule] + '；如需放行，只能进 tests/prompt-gate-exempt.json 并写明理由'
+}
 
 // —— S1 + S5 ——
-const scanRegistrySurface = function (reg, label, ctx) {
+const collectRegistry = function (reg, label, ctx, exemptList) {
+  const out = []
   const ids = Object.keys(reg)
-  let scanned = 0
-  let rendered = 0
   const idsScanned = []
+  let rendered = 0
   ids.forEach(function (id) {
-    const e = reg[id]
-    if (isExempt('registry', id)) return
+    if (isRuleExempt(exemptList, 'registry', id)) return
     idsScanned.push(id)
-    scanned++
+    const e = reg[id] || {}
     ;['zh', 'en', 'use'].forEach(function (field) {
-      const hits = judge(e[field])
-      hits.forEach(function (h) {
-        fail('FAIL ' + label + ' ' + id + '.' + field + ' [' + h.rule + '] 命中「' + h.snippet + '」\n' +
-          '     修法：' + RULE_FIX[h.rule] + '；如需放行，只能进 EXEMPT 表并写明理由')
-      })
+      judge(e[field]).forEach(function (h) { out.push(failLine(label + ' ' + id + '.' + field, h.rule, h.snippet, e[field])) })
     })
     ;(Array.isArray(e.placeholders) ? e.placeholders : []).forEach(function (ph) {
-      const hits = judge(ph)
-      hits.forEach(function (h) {
-        fail('FAIL ' + label + ' ' + id + '.placeholders[' + ph + '] [' + h.rule + '] 命中「' + h.snippet + '」\n' +
-          '     修法：' + RULE_FIX[h.rule] + '；如需放行，只能进 EXEMPT 表并写明理由')
-      })
+      judge(ph).forEach(function (h) { out.push(failLine(label + ' ' + id + '.placeholders[' + ph + ']', h.rule, h.snippet, ph)) })
     })
-    // S5 渲染面：含占位符的条目先把占位符求值再判
-    const hasPh = /\{(\w+)\}/.test(String(e.zh || '') + String(e.en || ''))
-    if (hasPh) {
+    const names = placeholderNames(String(e.zh || '') + String(e.en || ''))
+    if (names.length) {
       rendered++
-      // 逐个后端声明值展开（github/gitlab/markdown × zh/en + 兜底），每种展开都判
+      // ① 占位符名字本身
+      names.forEach(function (n) {
+        judge(n).forEach(function (h) { out.push(failLine(label + ' ' + id + '.placeholders 名字 ' + n, h.rule, h.snippet, n)) })
+      })
+      // ② 每个声明值单独判 + 值不许含换行（含换行就能把一条命令拆成两行注入）
+      Object.keys(ctx.subIssueValues).forEach(function (k) {
+        const v = String(ctx.subIssueValues[k])
+        judge(v).forEach(function (h) { out.push(failLine(label + ' ' + id + ' 的占位符值(' + k + ')', h.rule, h.snippet, v)) })
+        if (/[\r\n]/.test(v)) out.push('FAIL ' + label + ' ' + id + ' 的占位符值(' + k + ')含换行：值不许把模板拆行\n     修法：声明值必须是单行')
+      })
+      judge('owner/name').forEach(function (h) { out.push(failLine(label + ' ' + id + ' 的占位符值(repo)', h.rule, h.snippet, 'owner/name')) })
+      // ③ 拆占位符拼装探测：把命令词塞进单个占位符，若渲染后拼出一条真的命令调用即红
+      names.forEach(function (n) {
+        PLACEHOLDER_PROBES.forEach(function (probe) {
+          const one = {}
+          one[n] = probe
+          ;['zh', 'en'].forEach(function (lang) {
+            const rendered = renderWith(e[lang], one, '')
+            const m = RE_ASSEMBLED.exec(rendered)
+            if (m) {
+              out.push('FAIL ' + label + ' ' + id + '.' + lang + ' 占位符 {' + n + '} 代入「' + probe + '」后 [ASSEMBLE] 拼出命令「' +
+                rendered.slice(Math.max(0, m.index - 20), m.index + 40).replace(/\s+/g, ' ') + '」\n' +
+                '     修法：模板不许把命令词交给占位符，也不许让占位符紧邻子命令词；改成调 node scripts/fix-issue-body.mjs / wire-subissues.mjs')
+            }
+          })
+        })
+      })
+      // ④ 三种展开：真实值 / 空串 / 哨兵
       Object.keys(ctx.subIssueValues).forEach(function (k) {
         const vals = { repo: 'owner/name', subIssue: ctx.subIssueValues[k] }
         ;['zh', 'en'].forEach(function (lang) {
           judgeRendered(e[lang], vals).forEach(function (h) {
-            fail('FAIL ' + label + ' ' + id + '.' + lang + '(渲染 ' + k + ') [' + h.rule + '] 命中「' + h.snippet + '」\n' +
-              '     修法：' + RULE_FIX[h.rule] + '；如需放行，只能进 EXEMPT 表并写明理由')
+            out.push(failLine(label + ' ' + id + '.' + lang + '(渲染 ' + k + ')', h.rule, h.snippet, ''))
           })
         })
       })
     }
   })
-  return { scanned: scanned, idsScanned: idsScanned, rendered: rendered }
+  return { problems: out, scanned: idsScanned.length, idsScanned: idsScanned, rendered: rendered }
 }
 
 // —— S3 ——
-const readPromptsBlock = function (file) {
-  return extractObjectLiteral(fs.readFileSync(file, 'utf8'), 'export const prompts')
-}
-// 取某后端 prompts.subIssue 的 zh/en 声明值（S5 渲染面与注入链断言用）
-const backendSubIssueValues = function (src) {
+const collectBackend = function (backendId, src, label, exemptList) {
   const block = extractObjectLiteral(src, 'export const prompts')
-  if (!block) return {}
-  const out = {}
-  scanZhEnLiterals(block).forEach(function (lit) { if (lit.key === 'subIssue') out[lit.lang] = lit.text })
-  return out
-}
-const scanBackendSurface = function (backendId, src, label) {
-  const block = extractObjectLiteral(src, 'export const prompts')
-  if (!block) { fail('FAIL S3 ' + label + ' 找不到 export const prompts 块（扫描面缺失）'); return null }
-  const literals = scanZhEnLiterals(block)
+  if (!block) return { problems: ['FAIL S3 ' + label + ' 找不到 export const prompts 块（扫描面缺失）'], keys: [], literals: 0, found: false }
+  const literals = scanAllLiterals(block)
   const keys = countTopLevelKeys(block)
-  const scannedKeys = keys.filter(function (k) { return !isExempt('backend:' + backendId, k) })
+  const out = []
   literals.forEach(function (lit) {
-    if (!lit.key || isExempt('backend:' + backendId, lit.key)) return
-    judge(lit.text).forEach(function (h) {
-      fail('FAIL S3 ' + label + ' ' + lit.key + '.' + lit.lang + ' [' + h.rule + '] 命中「' + h.snippet + '」\n' +
-        '     原文本（运行时）：' + String(lit.text).slice(0, 120) + '\n' +
-        '     修法：' + RULE_FIX[h.rule] + '；如需放行，只能进 EXEMPT 表并写明理由')
-    })
+    if (!lit.key || isRuleExempt(exemptList, 'backend:' + backendId, lit.key)) return
+    judge(lit.text).forEach(function (h) { out.push(failLine('S3 ' + label + ' ' + lit.key, h.rule, h.snippet, lit.text)) })
   })
-  return { keys: keys, scannedKeys: scannedKeys, literals: literals.length }
+  return { problems: out, keys: keys, literals: literals.length, found: true }
 }
 
 // —— S4 ——
@@ -365,23 +471,20 @@ const walkJs = function (dir, acc) {
   })
   return acc
 }
-const scanHostPromptConstants = function () {
+const collectHost = function (exemptList) {
+  const out = []
   const found = []
   walkJs(path.join(ROOT, 'src/host'), []).forEach(function (file) {
     const src = fs.readFileSync(file, 'utf8')
     const re = /const\s+([A-Za-z0-9_$]*PROMPT[A-Za-z0-9_$]*)\s*=\s*'((?:[^'\\]|\\.)*)'/g
     let m
-    while ((m = re.exec(src)) !== null) {
-      found.push({ file: path.relative(ROOT, file), name: m[1], text: unescapeLiteral(m[2]) })
-    }
+    while ((m = re.exec(src)) !== null) found.push({ file: path.relative(ROOT, file), name: m[1], text: unescapeLiteral(m[2]) })
   })
   found.forEach(function (c) {
-    judge(c.text).forEach(function (h) {
-      fail('FAIL S4 ' + c.file + ' ' + c.name + ' [' + h.rule + '] 命中「' + h.snippet + '」\n' +
-        '     修法：' + RULE_FIX[h.rule] + '；如需放行，只能进 EXEMPT 表并写明理由')
-    })
+    if (isRuleExempt(exemptList, 'S4', c.name)) return
+    judge(c.text).forEach(function (h) { out.push(failLine('S4 ' + c.file + ' ' + c.name, h.rule, h.snippet, c.text)) })
   })
-  return found
+  return { problems: out, consts: found }
 }
 
 // ==================== 6. 结构契约断言（沿用既有，陈旧两组已修正） ====================
@@ -471,7 +574,6 @@ const contractChecks = function (reg, src) {
     if (nw.zh.indexOf('写出 map：Destination + Notes + plan') < 0) fail('newWayfinder zh 缺新增子清单（写出 map：Destination + Notes + plan）')
     // #573 修正（原断言「以 sub-issue 关联到」已随文本收敛失效）：
     //   --children 只活在后端 prompts.subIssue 里、运行期经 {subIssue} 注入，模板里断言不到（事实核对报告 E6）。
-    //   这里断言模板含 {subIssue}，另由 backendSubIssueHasScript() 断言注入链的另一半。
     if (nw.zh.indexOf('{subIssue}') < 0) fail('newWayfinder zh 缺占位符 {subIssue}（子议题关联脚本由后端声明注入）')
     if (nw.en.indexOf('{subIssue}') < 0) fail('newWayfinder en 缺占位符 {subIssue}')
     if (nw.zh.indexOf('Blocked by: #<n>') < 0) fail('newWayfinder zh 缺新增子清单（Blocked by: #<n> 降级兜底写法）')
@@ -602,7 +704,7 @@ const contractChecks = function (reg, src) {
   return problems.length - before
 }
 
-// ==================== 7. L1 内存夹具（32 条绕过 + 24 条误报；逐条断言） ====================
+// ==================== 7. L1 内存夹具（34 条绕过 + 24 条误报；逐条断言） ====================
 // 三类必须覆盖：范围绕过（新增条目）、解析绕过（单引号/拆行/引号拼接）、渲染绕过（占位符）
 const FIXTURE_BYPASS = [
   ['T01 TAB 分隔', '写回用 gh\tissue edit 573 --body-file x.md'],
@@ -637,6 +739,8 @@ const FIXTURE_BYPASS = [
   ['T30 heredoc 多字母 <<EOF', 'cat <<EOF\n正文\nEOF'],
   ['T31 curl 直打 GitLab API', 'curl -s https://api.gitlab.com/projects/1/issues'],
   ['T32 合法脚本调用后接跟踪器命令', 'node scripts/wire-subissues.mjs --map 1 --children 2 --body-file x.md && gh issue edit 1 --body-file y.md'],
+  ['T33 后端命令藏在字符串拼接续段里', "const a = '先检查（' + x + 'gh api repos/o/r/labels）'"],
+  ['T34 占位符值本身含命令', 'gh issue edit 573 --body-file x.md（这是某个占位符的值）'],
 ]
 const FIXTURE_FALSE_POS = [
   ['F01 GitHub issue URL', '参考 https://github.com/owner/repo/issues/573 的讨论'],
@@ -666,7 +770,7 @@ const FIXTURE_FALSE_POS = [
 ]
 const runFixtureSelfCheck = function (reg, backendSrc) {
   const before = problems.length
-  check(FIXTURE_BYPASS.length >= 32, 'L1 夹具条数不足：绕过样例 ' + FIXTURE_BYPASS.length + ' 条（期望 ≥ 32，不许删夹具）')
+  check(FIXTURE_BYPASS.length >= 34, 'L1 夹具条数不足：绕过样例 ' + FIXTURE_BYPASS.length + ' 条（期望 ≥ 34，不许删夹具）')
   check(FIXTURE_FALSE_POS.length >= 24, 'L1 夹具条数不足：误报样例 ' + FIXTURE_FALSE_POS.length + ' 条（期望 ≥ 24，不许删夹具）')
   let leak = 0
   FIXTURE_BYPASS.forEach(function (c) {
@@ -686,8 +790,7 @@ const runFixtureSelfCheck = function (reg, backendSrc) {
   if (fakeCaught === 0) fail('L1 范围绕过未被判红：新增注册表条目 ' + fakeId + ' 内含具体命令（整改①：新条目不许天然豁免）')
   // 后端面绕过：保留 gh api 原文 + 注释里补脚本名（整改②）
   const injected = String(backendSrc).replace('subIssue: {', 'subIssue: {\n      // 用 node scripts/wire-subissues.mjs\n     ')
-  const subBlock = extractObjectLiteral(injected, 'export const prompts') || ''
-  const subLits = scanZhEnLiterals(subBlock)
+  const subLits = scanAllLiterals(extractObjectLiteral(injected, 'export const prompts') || '')
   let subCaught = 0
   subLits.forEach(function (lit) { if (lit.text.indexOf('gh api') >= 0) subCaught += judge(lit.text).length })
   if (subCaught === 0) fail('L1 后端面绕过未被判红：prompts.subIssue 保留具体命令 + 注释补脚本名（整改②）')
@@ -695,35 +798,30 @@ const runFixtureSelfCheck = function (reg, backendSrc) {
   if (judgeRendered('先 {subIssue} 建边', { subIssue: '先 gh api repos/o/r/issues/1 --jq .id 取 id，再 gh api repos/o/r/issues/1/sub_issues -X POST' }).length === 0) {
     fail('L1 渲染绕过未被判红：命令藏在占位符里（整改③）')
   }
+  // 渲染绕过之二：命令被拆成「占位符 + 字面量」（红队新口子）
+  const asm = judge(renderWith('{x} {y} issue edit 1', { x: 'gh' }, ''))
+  if (asm.length === 0) fail('L1 渲染绕过未被判红：占位符值 + 字面量拼出命令（{x} {y} issue edit 1）')
+  // 渲染绕过之三：占位符值本身含命令或换行
+  if (judge('gh issue edit 1 --body-file x.md').length === 0) fail('L1 渲染绕过未被判红：占位符值本身含命令')
+  if (!/[\r\n]/.test('a\ngh issue edit 1')) fail('L1 夹具自检异常：换行样例本身有问题')
   // 解析绕过：单引号截断必须让求值抛错（判红，不静默少扫）
   let parseCaught = false
   try {
     evalRegistrySource('export const PROMPTS = { "x": { version: 1, placeholders: [], use: \'u\', zh: \'写回用 gh issue edit 573 --body \'x\' 正文\', en: \'e\' } }')
   } catch (e) { parseCaught = true }
   if (!parseCaught) fail('L1 解析绕过未被判红：单引号截断没有让求值抛错（解析层会静默漏条目）')
+  // 反隐藏：不可枚举属性藏条目必须被审计抓出来
+  const hiddenSrc = 'export const PROMPTS = {}; Object.defineProperty(PROMPTS, "tpl.hidden", { value: { version: 1, placeholders: [], use: "u", zh: "gh issue edit 1", en: "e" }, enumerable: false })'
+  const hiddenReg = evalRegistrySource(hiddenSrc)
+  if (auditRegistryShape(hiddenSrc, hiddenReg).length === 0) fail('L1 反隐藏审计失效：Object.defineProperty 藏起来的条目没被查出来')
   if (problems.length > before) return { leak: leak, fp: fp, ok: false }
   return { leak: leak, fp: fp, ok: true }
 }
 
-// ==================== 8. L2 机械注入（14 条 payload → 临时副本 → 断言 exit 1） ====================
+// ==================== 8. L2 机械注入（payload 从 JSON 夹具读；逐条断言 exit 1 且点名 id 与规则） ====================
 // 锚点用「执行这个 issue」（全文唯一，落在 tpl.execute；用「## 收尾」会落到 mapExecute）
 const L2_ANCHOR = '执行这个 issue'
-const L2_PAYLOADS = [
-  { n: 'inside-entry', kind: 'before-anchor', text: '- [ ] 写回用 gh issue edit 573 --body-file x.md', expect: ['tpl.execute', 'R1'] },
-  { n: 'new-entry', kind: 'new-entry', expect: ['tpl.brandNew', 'R1'] },
-  { n: 'backend-prompt', kind: 'backend', expect: ['subIssue', 'R1'] },
-  { n: 'placeholder', kind: 'before-anchor', text: '- [ ] 建边先 gh {subIssue} issue edit 1', expect: ['tpl.execute', 'R1'] },
-  { n: 'quote-break', kind: 'before-anchor', text: "- [ ] 写回用 gh'issue edit 1", expect: ['求值失败'] },
-  { n: 'use-field', kind: 'use-field', text: '写回用 gh issue edit 1 ', expect: ['mapExecute.use', 'R1'] },
-  { n: 'quote-join', kind: 'before-anchor', text: '- [ ] 写回用 gh" "issue edit 1 --body-file x.md', expect: ['tpl.execute', 'R1'] },
-  { n: 'zero-width', kind: 'before-anchor', text: '- [ ] 写回用 gh\u200bissue edit 1 --body-file x.md', expect: ['tpl.execute', 'R1'] },
-  { n: 'upper-fullwidth', kind: 'before-anchor', text: '- [ ] 写回用 \uFF27\uFF28 issue edit 1 --body-file x.md', expect: ['tpl.execute', 'R1'] },
-  { n: 'heredoc-1char', kind: 'before-anchor', text: '- [ ] cat <<E', expect: ['tpl.execute', 'R5'] },
-  { n: 'curl-api', kind: 'before-anchor', text: '- [ ] curl -X PATCH https://api.github.com/repos/o/r/issues/1', expect: ['tpl.execute', 'R3'] },
-  { n: 'npm-exec', kind: 'before-anchor', text: '- [ ] npm exec gh -- issue edit 1 --body-file x.md', expect: ['tpl.execute', 'R1'] },
-  { n: 'node-e', kind: 'before-anchor', text: '- [ ] node -e execSync(gh issue edit 1 --body-file x.md)', expect: ['tpl.execute', 'R1'] },
-  { n: 'renamed-script', kind: 'before-anchor', text: '- [ ] node scripts/set-issue-body.mjs --issue 1 --body-file x.md', expect: ['tpl.execute', 'R6'] },
-]
+const L2_PAYLOADS = JSON.parse(fs.readFileSync(PAYLOAD_FILE, 'utf8')).payloads || []
 const injectNewEntry = function (src) {
   const anchor = /\r?\n {4}\}\r?\n/
   const from = src.indexOf('const PROMPTS = {')
@@ -739,6 +837,7 @@ const injectUseField = function (src, text) {
 }
 const runL2Injection = function () {
   const before = problems.length
+  check(L2_PAYLOADS.length >= 14, 'L2 夹具条数不足：' + L2_PAYLOADS.length + ' 条（期望 ≥ 14，不许删夹具）')
   let tmp = null
   try {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-verify-prompts-'))
@@ -752,7 +851,7 @@ const runL2Injection = function () {
         if (at < 0) { fail('L2 锚点「' + L2_ANCHOR + '」在 prompts.js 中找不到（注入点失效）'); return }
         // 锚点落在模板字符串内部，注入文本必须把真实换行写成源码转义 \n，否则字符串被截断成语法错误，
         // 就分不清「被规则抓住」和「被解析错误抓住」了
-        mutated = regSrc.slice(0, at) + p.text.split('\n').join('\\n') + '\\n' + regSrc.slice(at)
+        mutated = regSrc.slice(0, at) + String(p.text).split('\n').join('\\n') + '\\n' + regSrc.slice(at)
       } else if (p.kind === 'new-entry') {
         mutated = injectNewEntry(regSrc)
       } else if (p.kind === 'use-field') {
@@ -762,14 +861,8 @@ const runL2Injection = function () {
         fs.writeFileSync(bpath, backendSrc.replace("zh: 'node scripts/wire-subissues.mjs", "zh: 'gh api repos/{owner}/{repo}/issues/{child} --jq .id 取 id；node scripts/wire-subissues.mjs"))
         extraArgs = ['--backend-probe=' + bpath]
       }
-      let args
-      if (mutated != null) {
-        const f = path.join(tmp, 'prompts-probe-' + p.n + '.js')
-        fs.writeFileSync(f, mutated)
-        args = [f]
-      } else {
-        args = extraArgs
-      }
+      const args = (mutated != null) ? [path.join(tmp, 'prompts-probe-' + p.n + '.js')] : extraArgs
+      if (mutated != null) fs.writeFileSync(args[0], mutated)
       let out = ''
       let code = 0
       try {
@@ -784,7 +877,6 @@ const runL2Injection = function () {
       if (code !== 1) fail('L2 payload「' + p.n + '」注入后退出码 ' + code + '（期望 1）：' + out.split('\n').filter(function (l) { return l.indexOf('FAIL') === 0 }).slice(0, 2).join(' | '))
       else if (out.indexOf('FAIL') < 0) fail('L2 payload「' + p.n + '」退出 1 但输出无 FAIL 行')
       else {
-        // 断言失败信息里点名了预期 id 与规则名（不是「碰巧因为别的理由红了」）
         const missing = (p.expect || []).filter(function (tok) { return out.indexOf(tok) < 0 })
         if (missing.length) fail('L2 payload「' + p.n + '」失败信息未点名 ' + missing.join(' / ') + '（红得不对）')
       }
@@ -804,37 +896,46 @@ const argv = process.argv.slice(2)
 const backendProbe = (argv.filter(function (a) { return a.indexOf('--backend-probe=') === 0 })[0] || '').slice('--backend-probe='.length)
 const fileArgs = argv.filter(function (a) { return a.indexOf('--') !== 0 })
 const singleFileMode = fileArgs.length > 0
-// PASS 行只在「本步没新增失败」时打印（避免失败时仍打出 PASS 造成误读）
 const stepOk = function (before) { return problems.length === before }
 
-console.log('P1: prompt 注册表契约（#573 五面扫描 + 显式豁免表 + 归一化 + R1–R7）')
+console.log('P1: prompt 注册表契约（#573 五面扫描 + 外部豁免登记 + 归一化 + R1–R7）')
 
-// —— S1 ——
+// —— S1 + S5 ——
 const s1Path = singleFileMode ? fileArgs[0] : path.join(ROOT, 'src/client/kernel/prompts.js')
 const s1Label = singleFileMode ? fileArgs[0] : 'src/client/kernel/prompts.js'
 let reg = null
+let s1Ids = []
 try {
-  reg = evalRegistrySource(fs.readFileSync(s1Path, 'utf8'))
+  const s1Src = fs.readFileSync(s1Path, 'utf8')
+  reg = evalRegistrySource(s1Src)
+  s1Ids = Object.keys(reg)
+  auditRegistryShape(s1Src, reg).forEach(function (m) { fail(m) })
 } catch (e) {
   fail('FAIL S1 ' + s1Label + ' 求值失败（模板语法错误或写法被改坏）：' + e.message + '\n' +
     '     修法：模板条目必须是一行一条、单引号包裹的合法 JS；求值失败即判红，不许静默少扫')
 }
 if (reg) {
   const pS1 = problems.length
-  const ids = Object.keys(reg)
-  surfaceReport.S1 = ids.length
-  check(ids.length === EXPECT_REGISTRY_ENTRIES, 'S1 注册表条目数 ' + ids.length + '（期望 ' + EXPECT_REGISTRY_ENTRIES + '）——解析层不许静默少扫')
+  check(s1Ids.length === EXPECT_REGISTRY_ENTRIES, 'S1 注册表条目数 ' + s1Ids.length + '（期望 ' + EXPECT_REGISTRY_ENTRIES + '）——解析层不许静默少扫')
+  // 跨门禁一致性：tests/verify-prompt-newlines.js 的单行正则必须解析到同样多的条目（拆行/换引号会让它静默少 1 条）
+  const byRegex = parseRegistryByRegex(fs.readFileSync(s1Path, 'utf8'))
+  const regexIds = Object.keys(byRegex)
+  check(regexIds.length === s1Ids.length, '跨门禁不一致：单行正则解析到 ' + regexIds.length + ' 条，S1 求值解析到 ' + s1Ids.length +
+    ' 条（条目被拆行或换了引号；tests/verify-prompt-newlines.js 会静默少扫）')
+  const idDiff = s1Ids.filter(function (x) { return !byRegex[x] })
+  if (idDiff.length) fail('跨门禁不一致：单行正则漏了 ' + idDiff.join(', '))
   // 后端 subIssue 声明值（S5 渲染面用）
   const subIssueValues = {}
   BACKENDS.forEach(function (b) {
-    const p = backendPath(b, backendProbe)
-    const v = backendSubIssueValues(fs.readFileSync(p, 'utf8'))
+    const v = backendSubIssueValues(fs.readFileSync(backendPath(b, backendProbe), 'utf8'))
     if (v.zh != null) subIssueValues[b + '.zh'] = v.zh
     if (v.en != null) subIssueValues[b + '.en'] = v.en
   })
   subIssueValues['default.zh'] = '通过 Tracker 原生的父子关系关联（create 时带 parentKey 或创后 setParent）'
   subIssueValues['default.en'] = 'via Tracker native parent relation (create with parentKey or setParent after creation)'
-  const s1 = scanRegistrySurface(reg, 'S1 ' + s1Label, { subIssueValues: subIssueValues })
+  const s1 = collectRegistry(reg, 'S1 ' + s1Label, { subIssueValues: subIssueValues }, EXEMPT)
+  s1.problems.forEach(function (m) { fail(m) })
+  surfaceReport.S1 = s1Ids.length
   surfaceReport.S5 = s1.rendered
   // 结构契约（沿用既有断言，陈旧两组已按现状修正）
   contractChecks(reg, fs.readFileSync(s1Path, 'utf8'))
@@ -843,7 +944,7 @@ if (reg) {
   check(ghSub.indexOf('scripts/wire-subissues.mjs') >= 0, 'github 后端 prompts.subIssue 未含脚本名 scripts/wire-subissues.mjs（注入链的另一半）')
   check(ghSub.indexOf('--map') >= 0 && ghSub.indexOf('--children') >= 0 && ghSub.indexOf('--body-file') >= 0, 'github 后端 prompts.subIssue 未含 --map/--children/--body-file 三个参数名')
   check(ghSub.indexOf('## Destination') >= 0, 'github 后端 prompts.subIssue 未写明正文文件要保留 ## Destination（wire-subissues 脚本 exit 2 前置条件）')
-  if (stepOk(pS1)) console.log('  PASS 面 S1 ' + s1Label + '（' + surfaceReport.S1 + ' 条注册表，扫描 ' + s1.scanned + ' 条；含占位符 ' + s1.rendered + ' 条走渲染面）+ 契约断言 + 注入链另一半')
+  if (stepOk(pS1)) console.log('  PASS 面 S1 ' + s1Label + '（' + s1Ids.length + ' 条注册表，扫描 ' + s1.scanned + ' 条；含占位符 ' + s1.rendered + ' 条走渲染面）+ 契约断言 + 跨门禁一致性 + 注入链另一半')
 }
 
 // —— S2 / S3 / S4（单文件模式跳过：L2 注入只针对 S1） ——
@@ -852,17 +953,15 @@ if (!singleFileMode) {
     const pS2 = problems.length
     const p = path.join(ROOT, rel)
     if (!fs.existsSync(p)) { fail('S2 ' + rel + ' 不存在（改 src 后必须重建产物）'); return }
-    const src = fs.readFileSync(p, 'utf8')
-    const got = parseRegistryByRegex(src)
+    const got = parseRegistryByRegex(fs.readFileSync(p, 'utf8'))
     const ids = Object.keys(got)
     surfaceReport.S2[idx] = ids.length
     if (reg) {
-      const want = Object.keys(reg)
-      const missing = want.filter(function (x) { return !got[x] })
+      const missing = s1Ids.filter(function (x) { return !got[x] })
       const extra = ids.filter(function (x) { return !reg[x] })
       if (missing.length) fail('S2 ' + rel + ' 缺条目：' + missing.join(', '))
       if (extra.length) fail('S2 ' + rel + ' 多出条目：' + extra.join(', '))
-      want.forEach(function (id) {
+      s1Ids.forEach(function (id) {
         if (!got[id]) return
         ;['version', 'use', 'zh', 'en'].forEach(function (f) {
           if (String(got[id][f]) !== String(reg[id][f])) fail('S2 ' + rel + ' ' + id + '.' + f + ' 与 S1 不一致（改 src 后必须重建产物）')
@@ -877,61 +976,59 @@ if (!singleFileMode) {
     const pS3 = problems.length
     const p = backendPath(b, backendProbe)
     if (!fs.existsSync(p)) { fail('S3 缺后端文件 ' + p); return }
-    const got = scanBackendSurface(b, fs.readFileSync(p, 'utf8'), 'S3 ' + backendLabel(b, backendProbe))
-    if (!got) return
+    const got = collectBackend(b, fs.readFileSync(p, 'utf8'), backendLabel(b, backendProbe), EXEMPT)
+    got.problems.forEach(function (m) { fail(m) })
+    if (!got.found) return
     surfaceReport.S3.push(got.keys.length)
     check(got.keys.length === EXPECT_BACKEND_KEYS[b], 'S3 ' + b + ' prompts 键数 ' + got.keys.length + '（期望 ' + EXPECT_BACKEND_KEYS[b] + '，实测值；v2 写的 7/9/6 不成立）')
-    check(got.literals === EXPECT_BACKEND_LITERALS[b], 'S3 ' + b + ' prompts 内 zh/en 字面量数 ' + got.literals + '（期望 ' + EXPECT_BACKEND_LITERALS[b] + '）——词法扫描不许静默少扫')
-    if (stepOk(pS3)) console.log('  PASS 面 S3 ' + backendLabel(b, backendProbe) + '（' + got.keys.length + ' 键 / 扫描 ' + got.scannedKeys.length + ' 键 / ' + got.literals + ' 个 zh-en 字面量）')
+    check(got.literals === EXPECT_BACKEND_LITERALS[b], 'S3 ' + b + ' prompts 内字符串字面量数 ' + got.literals + '（期望 ' + EXPECT_BACKEND_LITERALS[b] + '）——词法扫描不许静默少扫')
+    if (stepOk(pS3)) console.log('  PASS 面 S3 ' + backendLabel(b, backendProbe) + '（' + got.keys.length + ' 键 / ' + got.literals + ' 个字面量，含拼接续段）')
   })
 
   const pS4 = problems.length
-  const consts = scanHostPromptConstants()
-  surfaceReport.S4 = consts.length
-  check(consts.length === EXPECT_HOST_PROMPT_CONSTS, 'S4 host *_PROMPT 常量数 ' + consts.length + '（期望 ' + EXPECT_HOST_PROMPT_CONSTS + '）')
-  if (stepOk(pS4)) consts.forEach(function (c) { console.log('  PASS 面 S4 ' + c.file + ' ' + c.name) })
+  const host = collectHost(EXEMPT)
+  host.problems.forEach(function (m) { fail(m) })
+  surfaceReport.S4 = host.consts.length
+  check(host.consts.length === EXPECT_HOST_PROMPT_CONSTS, 'S4 host *_PROMPT 常量数 ' + host.consts.length + '（期望 ' + EXPECT_HOST_PROMPT_CONSTS + '）')
+  if (stepOk(pS4)) host.consts.forEach(function (c) { console.log('  PASS 面 S4 ' + c.file + ' ' + c.name) })
 }
 
-// —— 豁免表三条自检 ——
+// —— 豁免登记表六条自检 + 变异自检 ——
 if (reg) {
   const pEX = problems.length
-  check(EXEMPT.length === EXPECT_EXEMPT, 'EXEMPT 条数 ' + EXEMPT.length + '（期望硬编码 ' + EXPECT_EXEMPT + '；改豁免必须走评审）')
-  const surfaceIds = { registry: Object.keys(reg) }
-  BACKENDS.forEach(function (b) {
-    if (singleFileMode) return
-    const p = backendPath(b, backendProbe)
-    if (!fs.existsSync(p)) return
-    const sc = extractObjectLiteral(fs.readFileSync(p, 'utf8'), 'export const prompts')
-    surfaceIds['backend:' + b] = countTopLevelKeys(sc || '')
+  const surfaceIds = { registry: s1Ids }
+  if (!singleFileMode) {
+    BACKENDS.forEach(function (b) {
+      const p = backendPath(b, backendProbe)
+      if (!fs.existsSync(p)) return
+      surfaceIds['backend:' + b] = countTopLevelKeys(extractObjectLiteral(fs.readFileSync(p, 'utf8'), 'export const prompts') || '')
+    })
+    surfaceIds.S4 = collectHost(EXEMPT).consts.map(function (c) { return c.name })
+  }
+  auditExemptTable(EXEMPT, surfaceIds, { fileEntries: loadExempt() }).forEach(function (m) { fail(m) })
+  // 变异自检：把任意一条豁免换成「受保护条目」，审计必须红。
+  // 逐条受保护 id 都试一遍（不是只试一个），证明「换一条豁免整体放行」这条路被堵住。
+  let mutationMissed = 0
+  PROTECTED.forEach(function (pk) {
+    const parts = pk.split('#')
+    const mutated = EXEMPT.map(function (e, i) {
+      return i === 0 ? Object.freeze(Object.assign({}, e, { surface: parts[0], id: parts[1] })) : e
+    })
+    if (auditExemptTable(mutated, surfaceIds, {}).length === 0) mutationMissed++
   })
-  // ① 存在性：豁免项必须真实存在（防「豁免一条不存在的条目」蒙混）
-  EXEMPT.forEach(function (e) {
-    if (!surfaceIds[e.surface]) { fail('EXEMPT 引用了不存在的扫描面：' + e.surface + '（' + e.id + '）'); return }
-    if (surfaceIds[e.surface].indexOf(e.id) < 0) fail('EXEMPT 引用了不存在的条目：' + e.surface + ' / ' + e.id)
-  })
-  // ② 完备性：每个扫描面「被扫 ∪ 豁免 == 全部」（这就是「新条目天然豁免」的封堵）
-  Object.keys(surfaceIds).forEach(function (surface) {
-    const all = surfaceIds[surface]
-    const exempt = EXEMPT.filter(function (e) { return e.surface === surface }).map(function (e) { return e.id })
-    const scanned = all.filter(function (id) { return exempt.indexOf(id) < 0 })
-    const union = scanned.concat(exempt).filter(function (v, i, a) { return a.indexOf(v) === i })
-    const missing = all.filter(function (id) { return union.indexOf(id) < 0 })
-    const extra = union.filter(function (id) { return all.indexOf(id) < 0 })
-    if (missing.length || extra.length || union.length !== all.length) {
-      fail('EXEMPT 完备性失败 ' + surface + '：全部 ' + all.length + '、被扫 ' + scanned.length + '、豁免 ' + exempt.length +
-        (missing.length ? '、漏 ' + missing.join(',') : '') + (extra.length ? '、多 ' + extra.join(',') : ''))
-    }
-  })
-  if (stepOk(pEX)) console.log('  PASS 豁免表自检（存在性 / 完备性 / 数量 ' + EXEMPT.length + '）')
+  if (mutationMissed > 0) {
+    fail('变异自检失效：把豁免换成受保护条目后审计仍然全绿（' + mutationMissed + '/' + PROTECTED.length + ' 条没被拦住）——豁免表可以被用来整体放行')
+  }
+  if (stepOk(pEX)) console.log('  PASS 豁免登记表（存在性 / 完备性 / 数量 / 受保护清单 ' + PROTECTED.length + ' 条 / 与登记文件相等 / 变异自检逐条）')
 }
 
 // —— L1 / L2 / L3 / 自注册 ——
 if (!IS_CHILD) {
   const backendSrc = fs.readFileSync(path.join(ROOT, 'src/host/tracker/backends/github/index.js'), 'utf8')
   const l1 = reg ? runFixtureSelfCheck(reg, backendSrc) : { ok: false }
-  if (l1.ok) console.log('  PASS L1 夹具自证（绕过 ' + FIXTURE_BYPASS.length + ' 条全红 / 误报 ' + FIXTURE_FALSE_POS.length + ' 条全绿 / 范围·解析·渲染三类各 1 条）')
+  if (l1.ok) console.log('  PASS L1 夹具自证（绕过 ' + FIXTURE_BYPASS.length + ' 条全红 / 误报 ' + FIXTURE_FALSE_POS.length + ' 条全绿 / 范围·解析·渲染·反隐藏四类各 1 条）')
   const l2 = runL2Injection()
-  if (l2 === 0) console.log('  PASS L2 机械注入（' + L2_PAYLOADS.length + ' 条 payload 逐条注入临时副本 → 退出码 1）')
+  if (l2 === 0) console.log('  PASS L2 机械注入（' + L2_PAYLOADS.length + ' 条 payload 从 tests/prompt-gate-payloads.json 读，逐条注入临时副本 → 退出码 1 且点名 id 与规则）')
   // L3 扫描面完整性
   const l3Before = problems.length
   if (!singleFileMode) {

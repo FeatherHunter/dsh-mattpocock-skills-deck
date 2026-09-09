@@ -1,0 +1,89 @@
+{
+  "note": "提示词门禁的豁免登记表（#573）。门禁 tests/verify-prompts.js 只读这个文件，不在代码里留第二份。kind=rule 表示这条确实还写着具体跟踪器命令、属第二批范围，门禁跳过对它的判定（这是登记在案的债）；kind=scope 表示这条不属首批范围，但门禁仍然判它，只是登记「不属首批」——所以 scope 不是放行口子。每条必须写 reason；改动这张表要走评审。",
+  "entries": [
+    {
+      "surface": "backend:github",
+      "id": "ensureLabels",
+      "kind": "rule",
+      "rule": "R1",
+      "reason": "标签补全链路（gh api 读标签、gh label create 建标签）不属首批（#576 Out of scope：一次收完十五条提示词），第二批再收"
+    },
+    {
+      "surface": "backend:github",
+      "id": "repoRemoteFix",
+      "kind": "rule",
+      "rule": "R1",
+      "reason": "建仓链路口径（gh repo create 等）不属首批，第二批再收"
+    },
+    {
+      "surface": "backend:github",
+      "id": "repoAccessFix",
+      "kind": "rule",
+      "rule": "R1",
+      "reason": "仓库可达性排查口径（gh api / gh repo view 等）不属首批，第二批再收"
+    },
+    {
+      "surface": "backend:gitlab",
+      "id": "glabRepoFix",
+      "kind": "rule",
+      "rule": "R1",
+      "reason": "GitLab 建仓口径（glab repo create）不属首批，第二批再收"
+    },
+    {
+      "surface": "registry",
+      "id": "ghAuthLogin",
+      "kind": "scope",
+      "rule": "scope",
+      "reason": "CLI 登录指引，不是跟踪器写/查命令，不属首批（总指挥 Q4 裁定：文本不动）"
+    },
+    {
+      "surface": "registry",
+      "id": "installSkills",
+      "kind": "scope",
+      "rule": "scope",
+      "reason": "技能安装器命令，不是跟踪器写/查命令，不属首批（总指挥 Q4 裁定：文本不动）"
+    },
+    {
+      "surface": "backend:github",
+      "id": "ghAuthLogin",
+      "kind": "scope",
+      "rule": "scope",
+      "reason": "后端侧的 gh 登录指引，不是跟踪器写/查命令，不属首批（红队要求登记）"
+    },
+    {
+      "surface": "backend:github",
+      "id": "noGhPrompt",
+      "kind": "scope",
+      "rule": "scope",
+      "reason": "gh 未安装时的安装指引，不是跟踪器写/查命令，不属首批（红队要求登记）"
+    },
+    {
+      "surface": "backend:gitlab",
+      "id": "glabInstallFix",
+      "kind": "scope",
+      "rule": "scope",
+      "reason": "glab 未安装时的安装指引，不是跟踪器写/查命令，不属首批（红队要求登记）"
+    },
+    {
+      "surface": "backend:gitlab",
+      "id": "glabLoginFix",
+      "kind": "scope",
+      "rule": "scope",
+      "reason": "glab 登录指引，不是跟踪器写/查命令，不属首批（红队要求登记）"
+    },
+    {
+      "surface": "backend:gitlab",
+      "id": "subIssue",
+      "kind": "scope",
+      "rule": "scope",
+      "reason": "#576：另两个后端只对齐占位语义，不写新脚本"
+    },
+    {
+      "surface": "backend:markdown",
+      "id": "subIssue",
+      "kind": "scope",
+      "rule": "scope",
+      "reason": "本地 Markdown 直接改文件存盘，不调脚本"
+    }
+  ]
+}
