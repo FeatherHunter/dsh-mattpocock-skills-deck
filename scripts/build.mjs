@@ -23,6 +23,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import vm from 'node:vm'
 import { spawnSync } from 'node:child_process'
 import * as esbuild from 'esbuild'
+import { deriveHost, deriveClient } from './derive-log-from-package.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -194,7 +195,8 @@ const KERNEL_MODULES = [
   { name: 'icons', file: 'src/client/kernel/icons.js' },
   { name: 'prompts', file: 'src/client/kernel/prompts.js' },
   { name: 'config', file: 'src/client/kernel/config.js' },
-  { name: 'log', file: 'src/client/kernel/log.js' },
+  { name: 'log', file: 'scripts/generated/logKernel.derived.js' },
+  // 构建内核清单含日志模块（旧真源 src/client/kernel/log.js 原地只读留存，运行时拼入上面的派生文件，#564 留而不搬）
   { name: 'storePrefs', file: 'src/client/kernel/store-prefs.js' },
   { name: 'storeSwitch', file: 'src/client/kernel/store-switch.js' },
   { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.js' },
@@ -536,6 +538,15 @@ console.log(`[build] DSW_REPO_URL=${repoUrl} (package/package.json repository)`)
 // A 自检（build 前）：若产物存在但无横幅，给 warn（不阻断，防旧产物）
 gateBuildArtifacts()
 ensureBundledSkills()
+
+// #564 日志系统派生：先把日志包产物派生为运行时文件（旧文件不动），再拼装。
+// 日志包 dist 缺失时会报错并提示先跑 node packages/dsh-log/build.mjs。
+try {
+  deriveHost()
+  deriveClient()
+} catch (e) {
+  throw new Error('[build] 日志派生失败（先跑 node packages/dsh-log/build.mjs 再重跑本构建）：' + ((e && e.message) || e))
+}
 
 const out = {}
 if (!pkgOnly) out.clientDev = (await buildClient({ version, repoUrl })).devCode

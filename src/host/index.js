@@ -305,9 +305,9 @@ export default {
     harness.handle('wf.pickFile', async function () { const h = await _picker(); return h.handlePickFile.apply(h, arguments) })
     harness.handle('wf.openPath', async function () { const h = await _picker(); return h.handleOpenPath.apply(h, arguments) })
 
-    // ---- #490 host 日志底座：日志库动态加载（D7 禁止静态 import），5 个电话字面以设计 2.5 为准 ----
+    // ---- #490 host 日志底座 + #564 切日志包：优先走包派生（./logFromPackage.js），失败回退旧实现（旧文件留而不搬） ----
     let _logP = null
-    function _log() { if (!_logP) _logP = (async function(){ const mod = await import('./logStore.js'); return mod.createLogStore({ fs: fs, timer: timer, getCacheDir: function(){ return getCacheDir.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, DEFAULT_CWD: DEFAULT_CWD }) })(); return _logP }
+    function _log() { if (!_logP) _logP = (async function(){ try { const adapter = await import('./logFromPackage.js'); return await adapter.createLogFromPackage({ fs: fs, timer: timer, getCacheDir: function(){ return getCacheDir.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, DEFAULT_CWD: DEFAULT_CWD }) } catch (ePkg) { const mod = await import('./logStore.js'); return mod.createLogStore({ fs: fs, timer: timer, getCacheDir: function(){ return getCacheDir.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, DEFAULT_CWD: DEFAULT_CWD }) } })(); return _logP }
     harness.handle('wf.logBatch', async function (args) { const h = await _log(); return h.handleLogBatch(args) })
     harness.handle('wf.logExport', async function (args) { const h = await _log(); return h.handleLogExport(args) })
     harness.handle('wf.logClear', async function (args) { const h = await _log(); return h.handleLogClear(args) })
