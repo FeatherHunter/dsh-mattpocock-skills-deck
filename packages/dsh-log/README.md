@@ -30,6 +30,7 @@ import { createHostLog, registerHostLogPhones } from 'dsh-log/host'
 // 五个运行依赖全部由调用方传入，包内不自己抓：
 // fs 文件服务、timer 计时器、getCacheDir 取缓存目录函数、
 // getPlatform 取平台函数、DEFAULT_CWD 默认工作目录。
+// 每个依赖的最小形状与可省略项见 INTEGRATION.md 步骤 2 的形状表。
 const hostLog = createHostLog(
   { fs, timer, getCacheDir, getPlatform, DEFAULT_CWD },
   { pluginId: 'wf' }
@@ -94,13 +95,13 @@ const clientLog = createClientLog(
 clientLog.log('info', 'my.event', { step: 'started' })
 ```
 
-四个依赖全部由调用方传入（全可选，缺了走退化路，不抛错）：宿主调用器 `host`（只用 `call` 一个方法）、计时器 `timer`（只用 `timeout` 一个方法，没有就回退全局函数）、存储 `storage`（只用读写两个方法，没有就每次用默认）、开关广播 `broadcastLogSwitch`（一个无参函数，没有就不广播，不报错）。
+四个依赖全部由调用方传入（全可选，缺了走退化路，不抛错）：宿主调用器 `host`（只用 `call` 一个方法，桥接写法见 INTEGRATION.md 步骤 3 的三行示例）、计时器 `timer`（只用 `timeout` 一个方法，没有就回退全局函数）、存储 `storage`（只用读写两个方法，没有就每次用默认）、开关广播 `broadcastLogSwitch`（一个无参函数，没有就不广播，不报错）。
 
 方式二，文本拼接（只给把客户端拼进插件主文件闭包一起运行的插件用）：构建时取客户端入口编译后的声明体，去行首 `export` 后拼进插件主文件闭包，调用时把闭包里现成的四个名字原样传给工厂。文本拼接消费方式只走客户端入口的声明体文本。本仓当前插件本次不切拼接源（默认 `wf` 下行为零变化），拼接形态留给第二个插件验证。
 
 客户端批量转发口径（#558 冻结，复用 `CLIENT_BATCH` 常量，不另写一遍）：每批最多 50 条、每 1000 毫秒发一次、单包约 128KB 或队列 100 条先到先截，裁掉的记入丢弃数。开关看门狗超时 5000 毫秒，只记一行告警，不改返回值。本地开关存在本地存储里，键名是 `dsws.debug`，形状是是否开启加采样率加版本号，默认关闭。建日志器时同步读本地做界面秒显，随后启动对账再向宿主看齐（以宿主为准）。
 
-日志器动作与宿主同名同参同语义：是否允许记（`isEnabled`）、记一行（`log`）、立刻转发或刷盘（`flush`，客户端侧只管转发，不管落盘）、读累计丢弃数（`getDroppedCount`）。
+日志器动作与宿主同名同参同语义：是否允许记（`isEnabled`）、记一行（`log`）、立刻转发或刷盘（`flush`，客户端侧只管转发，不管落盘；调转发后约 1 秒可见、不调约 2 秒、错误与告警直通，见 INTEGRATION.md 步骤 4）、读累计丢弃数（`getDroppedCount`）。
 
 ## 6. 失败语义（#558 冻结）
 
@@ -115,7 +116,7 @@ clientLog.log('info', 'my.event', { step: 'started' })
 
 每条事件四样东西：事件名、级别（`error`、`warn`、`info`、`debug`）、允许字段（之外的键一律不记）、脱敏引用（`codes` 是截断或散列代号，`rules` 是具名正则名，都是引用名，命中只记规则名不记原文）。`kind` 只为计数检查服务：`resident` 常驻（始终落盘的轻量轨迹）、`ondemand` 按需（只在调试开关打开时记）、`selfmon` 自监控（日志管道自己的故障行），三类实际条数须与清单自报的 `counts` 逐项核对。`guard` 可选，一句话写清采样或节流，无特殊守卫不写。
 
-空模板见包内的 `event-list.template.json`（模板里的 `pluginId` 换成自己插件的标识）。调用方把清单拼成对象传给 `eventList`：
+空模板见包内的 `event-list.template.json`（模板里的 `pluginId` 换成自己插件的标识；只含一条事件的最小填好例子见 INTEGRATION.md 步骤 5）。调用方把清单拼成对象传给 `eventList`：
 
 ```js
 import { readFileSync } from 'node:fs'
