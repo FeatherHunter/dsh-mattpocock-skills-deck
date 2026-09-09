@@ -70,6 +70,37 @@ export     const MapDetail = ({ st, g }) => {
         const prevAllClosed = levels.slice(0, layerIndex).every(function (p) { return p.closed === p.total })
         return prevAllClosed ? 'open' : 'lock'
       }
+      // T3 #553：行点击分流与去雾共存 —— 被雾盖住的行第一次点击只做去雾（展开看清标题），
+      // 已经去雾的行第二次点击才进详情（去雾后点行即下钻，不再盖回去，见本票报告）；没有雾的
+      // 行按标签分流：有地图标签的进下一级地图详情，其余进普通工单详情，已关闭的行同样按标签
+      // 分流（与主列表一致，真正的只读统一由后续票两边一起做）。分流直接调 T2 的压栈函数，
+      // 种类由本文件判好再传（压栈函数只拦非法种类与编号，不纠正种类，传错种类会原样压栈）。
+      // 雾态样式与层排序见 nodeCls 与 byLevel，均不动。
+      // 标签口径实话：本文件认字符串与对象两种标签写法，外加类型字段为 map 的也算；主列表
+      // 只认对象写法的标签加类型字段，比本票窄。两边统一留给后续票，本票不改主列表。
+      const hasMapTag = function (t) {
+        const ls = t.labels || []
+        for (let i = 0; i < ls.length; i++) { const n = (typeof ls[i] === 'string') ? ls[i] : ls[i].name; if (n === 'wayfinder:map') return true }
+        return t.type === 'map'
+      }
+      // 快照里找下一级地图（与主列表的找法一致，按编号或键匹配）：找得到才进地图详情，
+      // 快照缺这张地图数据时回落到普通工单详情（有字可看，不静默回列表）。
+      const findMapInSnapshot = function (num) {
+        const maps = (st.snapshot && st.snapshot.maps) || []
+        const k = num != null ? String(num).padStart(2, '0') : ''
+        return maps.find(function (x) { return x.number === num || String(x.number) === String(num) || (x.key != null && String(x.key).padStart(2, '0') === k) })
+      }
+      const isRevealed = function (t) {
+        try { return !!(st.reveal && st.reveal[m.number] && st.reveal[m.number][t.number]) } catch (e) { return false }
+      }
+      const enterDetail = function (t) {
+        if (hasMapTag(t) && findMapInSnapshot(t.number)) pushNav(st, 'map', t.number)
+        else pushNav(st, 'issue', t.number)
+      }
+      const onNodeClick = function (t) {
+        if ((isFog(t) || isFogTitle(t)) && !isRevealed(t)) { toggleReveal(t); return }
+        enterDetail(t)
+      }
       const node = function (t) {
         const blocked = isFog(t)
         // T15：acts 恒渲染容器（CLOSED/fog 空占位）→ 卡片高度恒定
@@ -77,14 +108,15 @@ export     const MapDetail = ({ st, g }) => {
         const acts = h('div', { className: 'acts' }, (t.state === 'OPEN' && !blocked) ? [
           mkRowAction(st, t, false, colorOf),
           h(Tip, { content: tr('tip.newSession', { n: t.number }) }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, t) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: actionColorOf(t, colorOf), borderColor: 'transparent', color: isLightHex(actionColorOf(t, colorOf)) ? '#140a1e' : '#ffffff' } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))])),
-          (function(){ const _u=issueUrlFor(st, t.number); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e){ e.stopPropagation(); const u=issueUrlFor(st, t.number); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))) : h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('button', { className: 'dsws-btn ghost', onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))); })(),
+          (function(){ const _u=issueUrlFor(st, t.number); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e){ e.stopPropagation(); const u=issueUrlFor(st, t.number); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', onClick: function (e) { e.stopPropagation() }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))) : h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('button', { className: 'dsws-btn ghost', onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))); })(),
         ] : [])
         // v1.4 修复：图标名必须用 Ic 支持的（search/hammer/chat/gear），原 mag/bolt/wrench 不存在 → 节点图标空白
         const _wt = wayfinderTypeOf(t); const ic = _wt === 'research' ? 'search' : _wt === 'prototype' ? 'hammer' : _wt === 'grilling' ? 'chat' : _wt === 'map' ? 'map' : _wt === 'task' ? 'gear' : 'gear'
         return h('div', {
           key: t.number,
           className: nodeCls(t),
-          onClick: (isFog(t) || isFogTitle(t)) ? function (e) { e.stopPropagation(); toggleReveal(t) } : undefined,
+          style: { cursor: 'pointer' },
+          onClick: function (e) { e.stopPropagation(); onNodeClick(t) },
         }, [
           h('div', { className: 'row1' }, [
             h('span', { className: 'icbox' }, Ic({ n: ic, size: 12 })),
