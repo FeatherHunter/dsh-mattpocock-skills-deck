@@ -131,6 +131,10 @@ describe('事件清单格式与通用检查器（#561）', () => {
     assert.throws(() => resolveHostLogConfig({ pluginId: 'wf', eventList: bad }), /kind 只许/)
   })
 
+  it('数组形式进建库配置同样被拦下：只收对象，与坏对象同口径', () => {
+    assert.throws(() => resolveHostLogConfig({ pluginId: 'wf', eventList: [] }), /只收对象形式/)
+  })
+
   it('宿主入口同样导出检查器：dsh-log/host 可达', () => {
     assert.equal(typeof host.parseEventListManifest, 'function')
     assert.equal(typeof host.checkEventFields, 'function')

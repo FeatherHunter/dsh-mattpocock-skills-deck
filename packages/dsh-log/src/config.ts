@@ -105,8 +105,9 @@ export function resolveHostLogConfig(input: HostLogConfigInput): ResolvedHostLog
     throw new Error('[dsh-log] 内存队列上限 maxQueue 非法：必须是不小于 1 的数字')
   }
   const eventList = input.eventList === undefined ? null : input.eventList
-  if (eventList !== null && typeof eventList === 'object' && !Array.isArray(eventList)) {
+  if (eventList !== null && typeof eventList === 'object') {
     // 对象形式的清单当场验形状，错了直接报错（与插件标识非法的处理一致）；
+    // 数组形式同样走验形口径被拦下（只收对象，数组多半是把事件表直接当成了清单）；
     // 字符串（路径）形式仍只存不解析，由调用方自己读成对象再传入，日志包不读盘；
     // 默认 null（当前插件主路径）原样透过，行为零变化。
     parseEventListManifest(eventList)

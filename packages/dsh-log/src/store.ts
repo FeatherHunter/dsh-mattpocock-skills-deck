@@ -107,7 +107,7 @@ export function createLogStore(deps: LogStoreDeps, configInput?: HostLogConfigIn
   const getPlatform = input.getPlatform
   const defaultCwd = input.DEFAULT_CWD || ''
   // 配置：调用方只传插件标识即跑，其余全走 #558 默认派生；默认配置下与旧实现同形。
-  // 清单注入参数（eventList）先按不透明处理，只存不解析，等门禁票 #561 收口。
+  // 清单注入参数（eventList）经 resolveHostLogConfig 验形（对象当场验、字符串存、默认 null 透过）。
   const config: ResolvedHostLogConfig = resolveHostLogConfig(
     configInput === undefined ? { pluginId: 'wf' } : configInput
   )
