@@ -15,6 +15,7 @@
   "files": [
     "dist",
     "event-list.template.json",
+    "INTEGRATION.md",
     "README.md",
     "LICENSE"
   ],
