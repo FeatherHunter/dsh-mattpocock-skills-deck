@@ -68,6 +68,11 @@ const MUST_JUDGE = [
   'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix',
   'backend:gitlab#subIssue', 'backend:markdown#subIssue',
 ]
+const EXPECT_MUST_JUDGE = 8 // 硬编码：清空这张表等于让这 8 条脱离判定，所以条数要卡死
+// Object.prototype 的标准自有属性（原型污染检测的基线；多出任何一条就是被加了东西）
+const OBJECT_PROTO_KEYS = ['constructor', '__defineGetter__', '__defineSetter__', 'hasOwnProperty',
+  '__lookupGetter__', '__lookupSetter__', 'isPrototypeOf', 'propertyIsEnumerable', 'toString', 'valueOf',
+  '__proto__', 'toLocaleString']
 // 每个面允许的 rule 豁免集合（硬编码：改一个 id 或把 scope 改成 rule 都会与这张表对不上）
 const RULE_EXEMPT_EXPECTED = {
   registry: [],
@@ -101,10 +106,13 @@ const normVariants = function (s) {
 const RE_ALLOWED_CALL = /(?:node|npx)\s+(?:\.\/|\.\\)?scripts[\/\\](?:fix-issue-body|wire-subissues)\.mjs(?:\s+--(?:issue|map|children|body-file|repo|dry-run)(?:\s*(?:=\s*)?(?![-=])(?!(?:gh|glab|npm|npx|node|curl|wget|cat|sh|bash)\b)\S+)?)*/g
 // R1 的判定窗口有两档：
 //   紧写法（≤4 个任意非字母数字字符）抓 gh、issue / 用gh api / gh　issue / gh<零宽>issue 这类；
-//   宽写法（同行 ≤40 个可打印 ASCII 字符）抓 gh -R owner/repo issue edit / gh.exe issue / glab -R o/r issue update / gh -C … 这类带选项或值的写法。
-//   宽写法只吃可打印 ASCII（空格到 ~），所以「gh）—— 面板所有数据依赖它（issue」这种中文说明文字不会被误判。
+//   宽写法（同行任意长度的可打印 ASCII 字符）抓 gh -R owner/repo issue edit / gh.exe issue /
+//   glab -R o/r issue update / gh -C <很长的绝对路径> issue edit 这类带选项或值的写法。
+//   上限不设长度：本仓库真名 FeatherHunter/dsh-mattpocock-skills-deck 与真实绝对路径都会把间隔撑到 40 以上，
+//   设 40 会让真回潮写法从窗口里溜过去。
+//   宽写法只吃可打印 ASCII，所以「gh）—— 面板所有数据依赖它（issue」这种中文说明文字不会被误判。
 const RE_TRACKER = /(?<![a-z0-9_\-])(?:gh|glab)(?![a-z0-9_])(?:[^a-z0-9_]{0,4})(?:issue|api|label|repo|pr|mr|milestone|project|sub_issues)(?![a-z0-9_])/
-const RE_TRACKER_WIDE = /(?<![a-z0-9_\-])(?:gh|glab)(?:\.exe)?(?![a-z0-9_])[ -~]{0,40}?(?:issue|api|label|repo|pr|mr|milestone|project|sub_issues)(?![a-z0-9_])/
+const RE_TRACKER_WIDE = /(?<![a-z0-9_\-])(?:gh|glab)(?:\.exe)?(?![a-z0-9_])[ -~]*?(?:issue|api|label|repo|pr|mr|milestone|project|sub_issues)(?![a-z0-9_])/
 const RE_PKG = /(?:npm|npx|pnpm|yarn|corepack)\s+(?:exec|x|run|dlx)?[^\n]{0,24}?(?<![a-z0-9_\-])(?:gh|glab)(?![a-z0-9_])/
 const RE_BARE_API = /(?:^|[^a-z0-9_])(?:https?:\/\/)?api\.(?:github|gitlab)\.com\b/
 const RE_HEREDOC = /(?<![a-z0-9_])(?:cat|sh|bash|zsh|pwsh|powershell|node|python3?|ruby|perl)(?![a-z0-9_])[^\n]{0,60}<<[-~]?[a-z_][a-z0-9_]*/
@@ -322,6 +330,10 @@ const auditRegistryShape = function (src, reg) {
   if (/\bObject\.prototype\s*\[/.test(src) || /\bObject\.prototype\s*\.\s*[A-Za-z_$][A-Za-z0-9_$]*\s*=/.test(src)) {
     out.push('S1 求值体给 Object.prototype 加东西（原型污染，禁止）')
   }
+  // 运行时再查一遍 Object.prototype：方括号 + 计算属性名（Object['proto' + 'type']）能绕过上面的源码正则
+  const protoExtra = Reflect.ownKeys(Object.prototype).map(function (k) { return typeof k === 'symbol' ? String(k) : String(k) })
+    .filter(function (k) { return OBJECT_PROTO_KEYS.indexOf(k) < 0 })
+  if (protoExtra.length) out.push('Object.prototype 被加了属性：' + protoExtra.join(', ') + '（原型污染，条目可以挂在这里绕过扫描）')
   if (/\b(?:get|set)\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\(\s*\)\s*\{/.test(src)) out.push('S1 求值体含对象 getter/setter（可以按读取次数返回不同文本，禁止）')
   // 运行时层：注册表自身必须是普通对象，且只认自有属性
   const regProto = Object.getPrototypeOf(reg)
@@ -600,6 +612,24 @@ const collectHost = function (exemptList) {
         if (isRuleExempt(exemptList, 'S4', name)) return
         judge(lit.text).forEach(function (h) { out.push(failLine('S4 ' + rel + ' ' + name, h.rule, h.snippet, lit.text)) })
       })
+      // 按出现顺序把字面量拼起来再判一次：命令被拆成 'gh' + ' issue edit 573' 两段时，逐条判看不见
+      const joined = lits.map(function (l) { return l.text }).join('')
+      if (!isRuleExempt(exemptList, 'S4', name) && lits.length > 1) {
+        judge(joined).forEach(function (h) {
+          out.push('FAIL S4 ' + rel + ' ' + name + ' [拼接后 ' + h.rule + '] 命中「' + h.snippet + '」\n' +
+            '     修法：命令被拆成多个字符串字面量了；' + RULE_FIX[h.rule] + '；如需放行，只能进 tests/prompt-gate-exempt.json 并写明理由')
+        })
+      }
+      // 模板串插值：`写回用 ${X} issue edit 1` 这种把命令词交给变量的写法，用探针代入后再判
+      if (!isRuleExempt(exemptList, 'S4', name) && /\$\{/.test(joined)) {
+        ;['gh', 'glab'].forEach(function (probe) {
+          const rendered = joined.replace(/\$\{[^}]*\}/g, probe)
+          judge(rendered).forEach(function (h) {
+            out.push('FAIL S4 ' + rel + ' ' + name + ' [插值代入「' + probe + '」后 ' + h.rule + '] 命中「' + h.snippet + '」\n' +
+              '     修法：模板串插值不许把命令词交给变量；' + RULE_FIX[h.rule] + '；如需放行，只能进 tests/prompt-gate-exempt.json 并写明理由')
+          })
+        })
+      }
     }
   })
   return { problems: out, consts: consts, names: Object.keys(names), decls: decls }
@@ -870,7 +900,7 @@ const FIXTURE_BYPASS = [
   ['T32 合法脚本调用后接跟踪器命令', 'node scripts/wire-subissues.mjs --map 1 --children 2 --body-file x.md && gh issue edit 1 --body-file y.md'],
   ['T33 后端命令藏在字符串拼接续段里', "const a = '先检查（' + x + 'gh api repos/o/r/labels）'"],
   ['T34 占位符值本身含命令', 'gh issue edit 573 --body-file x.md（这是某个占位符的值）'],
-  ['T35 短选项写在命令词与子命令之间', '写回用 gh -R owner/repo issue edit 573 --body-file x.md'],
+  ['T35 短选项写在命令词与子命令之间（短仓库名）', '写回用 gh -R owner/repo issue edit 573 --body-file x.md'],
   ['T36 gh.exe 形态', '写回用 gh.exe issue edit 573 --body-file x.md'],
   ['T37 glab 短选项', '写回用 glab -R o/r issue update 573 --description-file x.md'],
   ['T38 gh -C 目录选项', '写回用 gh -C /repo issue edit 573 --body-file x.md'],
@@ -878,6 +908,10 @@ const FIXTURE_BYPASS = [
   ['T40 xxd 反向拼字节', "echo 6768 | xxd -r -p | sh"],
   ['T41 String.fromCharCode 拼命令', 'eval(String.fromCharCode(103,104,32,105,115,115,117,101))'],
   ['T42 同形字母 ɡh（U+0261）', '写回用 ɡh issue edit 573 --body-file x.md'],
+  ['T43 真仓库名把间隔撑到 48（宽写法窗口不许有上限）', '写回用 gh -R FeatherHunter/dsh-mattpocock-skills-deck issue edit 573 --body-file x.md'],
+  ['T44 真实绝对路径把间隔撑到 46', '写回用 gh -C D:\\dsh-plugin\\dsh-mattpocock-skills-deck issue edit 573 --body-file x.md'],
+  ['T45 glab + 真仓库名 + --hostname', '写回用 glab -R FeatherHunter/dsh-mattpocock-skills-deck --hostname gitlab.com issue update 573'],
+  ['T46 gh --json body issue edit', '写回用 gh --json body issue edit 573 --body-file x.md'],
 ]
 const FIXTURE_FALSE_POS = [
   ['F01 GitHub issue URL', '参考 https://github.com/owner/repo/issues/573 的讨论'],
@@ -907,7 +941,7 @@ const FIXTURE_FALSE_POS = [
 ]
 const runFixtureSelfCheck = function (reg, backendSrc) {
   const before = problems.length
-  check(FIXTURE_BYPASS.length >= 42, 'L1 夹具条数不足：绕过样例 ' + FIXTURE_BYPASS.length + ' 条（期望 ≥ 42，不许删夹具）')
+  check(FIXTURE_BYPASS.length >= 46, 'L1 夹具条数不足：绕过样例 ' + FIXTURE_BYPASS.length + ' 条（期望 ≥ 46，不许删夹具）')
   check(FIXTURE_FALSE_POS.length >= 24, 'L1 夹具条数不足：误报样例 ' + FIXTURE_FALSE_POS.length + ' 条（期望 ≥ 24，不许删夹具）')
   let leak = 0
   FIXTURE_BYPASS.forEach(function (c) {
@@ -1054,7 +1088,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '1ded52d4fc14432ee1c66a3a78b2769272729248f9083d0fed96e22639022648',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '6c436b102977f399a139d4c5fa8d7436c89f6febf0dd8de7fc45945414a211f3',
+  'tests/verify-prompts.js': '2f9d38da3bf2ef49c047dffc896d03b852b0512c78f31e6e91b00927fa9a58fc',
 }
 // ---- LOCK-END ----
 
@@ -1178,14 +1212,16 @@ if (!singleFileMode) {
   host.problems.forEach(function (m) { fail(m) })
   surfaceReport.S4 = host.consts.length
   check(host.consts.length >= EXPECT_HOST_PROMPT_CONSTS, 'S4 扫到的 *_PROMPT 字面量 ' + host.consts.length + ' 个（期望 ≥ ' + EXPECT_HOST_PROMPT_CONSTS + '）')
-  check(host.decls.length === EXPECT_HOST_PROMPT_CONSTS, 'S4 *_PROMPT 声明点 ' + host.decls.length + ' 个（期望 ' + EXPECT_HOST_PROMPT_CONSTS + '）')
-  check(host.names.length === host.decls.length, 'S4 *_PROMPT 标识符 ' + host.names.length + ' 个、有声明点的 ' + host.decls.length + ' 个（对不上说明有常量没被扫到）')
+  // 口径放宽：合法新增 *_PROMPT 常量不该判红（≥ 而不是 ==）；
+  //   也不再把「注释里提到一个还没声明的 *_PROMPT 名字」当失败（合法注释，红队 576b-fair.js 的 F9 就是这条误报）
+  check(host.decls.length >= EXPECT_HOST_PROMPT_CONSTS, 'S4 *_PROMPT 声明点 ' + host.decls.length + ' 个（期望 ≥ ' + EXPECT_HOST_PROMPT_CONSTS + '）')
   if (stepOk(pS4)) host.decls.forEach(function (c) { console.log('  PASS 面 S4 ' + c.file + ' ' + c.name + '（' + c.literals + ' 个字面量）') })
 }
 
 // —— 豁免登记表自检 + 变异自检 ——
 if (reg) {
   const pEX = problems.length
+  check(MUST_JUDGE.length === EXPECT_MUST_JUDGE, 'MUST_JUDGE 条数 ' + MUST_JUDGE.length + '（期望硬编码 ' + EXPECT_MUST_JUDGE + '；清空或删项等于让这几条脱离判定）')
   const surfaceIds = { registry: s1Ids }
   const skipSurfaces = singleFileMode ? Object.keys(RULE_EXEMPT_EXPECTED).filter(function (s) { return s !== 'registry' }) : []
   if (!singleFileMode) {
