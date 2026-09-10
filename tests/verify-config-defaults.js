@@ -25,8 +25,11 @@ const NINE = ['diagnose', 'fix', 'discuss', 'research', 'prototype', 'execute', 
 // 1) TPL_DEFAULT 九条
 try {
   const configSrc = read('src/client/kernel/config.js')
+  // #594：默认文本改走 promptTextFor(st, '…')（正文格式按当前后端解析），所以两种写法都认：
+  //   不带后端上下文的（handoff1/handoff2）仍是 promptText('…')，其余是 promptTextFor(st, '…')。
   const missing = NINE.filter(function (id) {
-    return configSrc.indexOf(id + ': function () { return promptText(') < 0
+    return configSrc.indexOf(id + ': function () { return promptText(') < 0 &&
+      configSrc.indexOf(id + ': function (st) { return promptTextFor(st, ' + "'") < 0
   })
   if (!missing.length) ok('config.js TPL_DEFAULT 九条默认文本全在')
   else bad('config.js TPL_DEFAULT 缺 ' + missing.join('、'))
@@ -56,7 +59,8 @@ try {
   walk(path.join(root, 'src', 'client'), all)
   const tree = all.join('\n')
   const missing = NINE.filter(function (id) {
-    const promptRef = (id === 'fixate') ? "promptText('fixate')" : "promptText('tpl." + id + "')"
+    // #594：fixate 的默认文本现在经 promptTextFor(st, 'fixate') 取（正文格式按后端解析）
+    const promptRef = (id === 'fixate') ? "promptTextFor(st, 'fixate')" : "promptText('tpl." + id + "')"
     const renderRef = "renderTemplate('" + id + "'"
     return tree.indexOf(promptRef) < 0 && tree.indexOf(renderRef) < 0
   })

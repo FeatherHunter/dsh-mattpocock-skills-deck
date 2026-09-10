@@ -199,7 +199,7 @@ export     const MapDetail = ({ st, g, drill }) => {
           (m.stats && m.stats.total === 0)
             ? h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
                 let t2 = ''
-                try { t2 = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2 = promptText('mapInspect', { n: String(m.number||''), ['title']: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2) t2 = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2 } catch(_){ t2 = startText(st, m) } }
+                try { t2 = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2 = promptTextFor(st, 'mapInspect', { n: String(m.number||''), ['title']: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2) t2 = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2 } catch(_){ t2 = startText(st, m) } }
                 inject(st, t2)
               }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 600 } }, [
                 Ic({ n: 'search', size: 10 }),
@@ -281,7 +281,7 @@ export     const MapDetail = ({ st, g, drill }) => {
               (m.stats && m.stats.total === 0)
                 ? h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
                     let t2b = ''
-                    try { t2b = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2b = promptText('mapInspect', { n: String(m.number||''), ['title']: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2b) t2b = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2b } catch(_){ t2b = startText(st, m)} }
+                    try { t2b = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2b = promptTextFor(st, 'mapInspect', { n: String(m.number||''), ['title']: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2b) t2b = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2b } catch(_){ t2b = startText(st, m)} }
                     inject(st, t2b)
                   }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 700 } }, [
                     Ic({ n: 'search', size: 11 }),

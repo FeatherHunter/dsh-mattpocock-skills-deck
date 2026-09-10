@@ -87,7 +87,7 @@ export const ChecksTab = ({ st }) => {
             try { loadSnapshot(st, true, true) } catch (e) {}
           },
           tr: tr,
-          resolvePrompt: function (id, params) { try { if (id === 'setupRun' && typeof setupRunPrompt === 'function') return setupRunPrompt(st); return promptText(id, params) } catch (e) { return '' } }
+          resolvePrompt: function (id, params) { try { if (id === 'setupRun' && typeof setupRunPrompt === 'function') return setupRunPrompt(st); return promptTextFor(st, id, params) } catch (e) { return '' } }
         })
       }
     } catch (e) {}

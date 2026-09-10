@@ -143,6 +143,12 @@ export const prompts = {
     zh: '通过 GitLab API 的子议题关联建边；以 list({parentKey}) 校验计数与预期一致',
     en: 'via GitLab API sub-issue association; verify with list({parentKey}) equals expected'
   },
+  // #594：正文格式契约归后端单源 —— GitLab 写回用后端自己的命令行，正文从文件读入；
+  //   具体命令不写死（各版本命令行语法未逐一查证，宁可泛指，避免写进用不上的命令）。
+  bodyFormat: {
+    zh: '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 正文先写成文件（文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行），不要把正文拼进命令行\n- [ ] 写回用当前后端的命令行把整个文件读进去（正文不从命令行参数里传），写完读回来核对一遍\n- [ ] 换行不要写成反斜杠加 n 两个字符',
+    en: '## Body format (mandatory when writing/editing an issue body)\n- [ ] Write the body to a file first (real newlines in the file: each `## section` on its own line, a blank line between paragraphs); never inline the body into the command line\n- [ ] Write it back with the current backend\'s own command line, reading the whole body from the file (do not pass the body as a command argument); read the result back to confirm\n- [ ] Never write a newline as the two characters backslash-n.',
+  },
 }
 
 /** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。 */

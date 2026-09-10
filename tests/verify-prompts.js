@@ -41,10 +41,10 @@ const check = function (cond, msg) { if (!cond) { failed = true; problems.push(m
 const EXPECT_REGISTRY_ENTRIES = 20 // 注册表条目数（2026-09 现状；拆行/换引号不会让它少，因为 S1 用求值解析）
 // S3 各后端 prompts 块顶层键数。v2 §1.1 写的是 7/9/6，实测不成立（gitlab 只有 4 键、markdown 只有 2 键），
 // 这里按实测值硬编码并在失败信息里报出真实值，避免「按错值写断言导致永久红」。
-const EXPECT_BACKEND_KEYS = { github: 7, gitlab: 4, markdown: 2 }
+const EXPECT_BACKEND_KEYS = { github: 8, gitlab: 5, markdown: 3 }
 // S3 各后端 prompts 块内的字符串字面量总数（含字符串拼接的续段，如 ensureLabels 的命令就藏在续段里）。
 // 这个数字是「词法扫描不许静默少扫」的硬保证：少扫一段就会对不上。
-const EXPECT_BACKEND_LITERALS = { github: 42, gitlab: 8, markdown: 4 }
+const EXPECT_BACKEND_LITERALS = { github: 44, gitlab: 10, markdown: 6 }
 const EXPECT_HOST_PROMPT_CONSTS = 1 // src/host 全树 *_PROMPT 常量数（今天只有 GH_INSTALL_PROMPT）
 const EXPECT_EXEMPT = 12 // 豁免登记条数硬编码（防偷偷加豁免）
 
@@ -56,9 +56,9 @@ const PROTECTED = [
   'registry#tpl.prototype', 'registry#tpl.execute', 'registry#tpl.handoff1', 'registry#tpl.handoff2',
   'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#newWayfinder',
   'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect',
-  'backend:github#ghAuthLogin', 'backend:github#noGhPrompt', 'backend:github#subIssue', 'backend:github#errorKinds',
-  'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix', 'backend:gitlab#subIssue',
-  'backend:markdown#wayfinderMapBuild', 'backend:markdown#subIssue',
+  'backend:github#ghAuthLogin', 'backend:github#noGhPrompt', 'backend:github#subIssue', 'backend:github#bodyFormat', 'backend:github#errorKinds',
+  'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix', 'backend:gitlab#subIssue', 'backend:gitlab#bodyFormat',
+  'backend:markdown#wayfinderMapBuild', 'backend:markdown#subIssue', 'backend:markdown#bodyFormat',
   'S4#GH_INSTALL_PROMPT',
 ]
 // 必须受判定（kind 只许是 scope）的 8 条：它们登记「不属首批」，但门禁仍然判它们
@@ -328,6 +328,28 @@ const evalRegistrySource = function (src) {
   if (!got || !got.PROMPTS || typeof got.PROMPTS !== 'object') throw new Error('未取到 PROMPTS 对象')
   return got.PROMPTS
 }
+// #594 渲染层求值：同一段源码再求值一次，额外拿到「按后端填空」的渲染入口（promptTextFor / BODY_FORMAT）。
+//   localeSvc 由本门禁注入（locale 决定取 zh 还是 en），因此可以对同一后端渲染出两种语言的文本。
+const evalPromptHelpers = (function () {
+  let src0 = null
+  const byLang = {}
+  const instanceOf = function (lang) {
+    if (!src0) throw new Error('evalPromptHelpers 未初始化（先调用 prime(src)）')
+    if (byLang[lang]) return byLang[lang]
+    const body = String(src0).replace(/^[ \t]*export[ \t]+/gm, '')
+    const factory = new Function('localeSvc', body +
+      '\n;return { PROMPTS: PROMPTS, promptText: promptText, promptTextFor: promptTextFor, bodyFormatText: bodyFormatText, BODY_FORMAT: BODY_FORMAT };')
+    byLang[lang] = factory({ getSnapshot: function () { return { active: lang } } })
+    return byLang[lang]
+  }
+  return {
+    prime: function (src) {
+      if (src0 !== src) { src0 = src; Object.keys(byLang).forEach(function (k) { delete byLang[k] }) }
+    },
+    promptTextForForTest: function (st, id, params, lang) { return instanceOf(lang).promptTextFor(st, id, params) },
+    BODY_FORMAT: function (st, lang) { return instanceOf(lang || 'zh').BODY_FORMAT(st) },
+  }
+})()
 // 反隐藏：条目不许用不可枚举属性 / Symbol / 原型链 / getter 藏起来（这些都能绕过 Object.keys）
 const auditRegistryShape = function (src, reg) {
   const out = []
@@ -434,11 +456,11 @@ const topLevelKeyPositions = function (block) {
 const countTopLevelKeys = function (block) {
   return topLevelKeyPositions(block).map(function (k) { return k.name })
 }
-// 取某后端 prompts.subIssue 的 zh/en 声明值（S5 渲染面与注入链断言用）
-const backendSubIssueValues = function (src) {
+// 取某后端 prompts.<key> 的 zh/en 声明值（#594 起 bodyFormat 也走这里；渲染面断言与注入链断言共用）
+const backendPromptValues = function (src, key) {
   const block = extractObjectLiteral(src, 'export const prompts')
   if (!block) return {}
-  const sub = extractObjectLiteral(block, 'subIssue')
+  const sub = extractObjectLiteral(block, key)
   if (!sub) return {}
   const out = {}
   const zh = /(?:^|[\s{,])zh:\s*'((?:[^'\\]|\\.)*)'/.exec(sub)
@@ -447,6 +469,8 @@ const backendSubIssueValues = function (src) {
   if (en) out.en = unescapeLiteral(en[1])
   return out
 }
+// 取某后端 prompts.subIssue 的 zh/en 声明值（S5 渲染面与注入链断言用）
+const backendSubIssueValues = function (src) { return backendPromptValues(src, 'subIssue') }
 // 扫描块内**全部**字符串字面量（含拼接续段）：注释跳过，字符串转义按 JS 语义还原。
 // 注意：不能只认 `zh: '...'` 前缀 —— ensureLabels 的命令写在 `'a' + x + 'b'` 的第二段里，
 // 按前缀归类会把续段整段漏掉（这正是「词法扫描静默少扫」）。
@@ -680,9 +704,9 @@ const contractChecksInner = function (reg, src) {
 
   // 版本号 bump（#573 §2.7 逐条清单；只许升不许降）
   const V_MIN = {
-    mapExecute: 8, complete: 8, fixate: 5, 'tpl.diagnose': 9, 'tpl.fix': 6, 'tpl.discuss': 6,
-    'tpl.research': 4, 'tpl.prototype': 4, 'tpl.execute': 8, mapInspect: 5, newWayfinder: 14,
-    bodyFormat: 6, setupRun: 9, progress: 3,
+    mapExecute: 9, complete: 9, fixate: 6, 'tpl.diagnose': 10, 'tpl.fix': 7, 'tpl.discuss': 7,
+    'tpl.research': 5, 'tpl.prototype': 5, 'tpl.execute': 9, mapInspect: 6, newWayfinder: 14,
+    bodyFormat: 7, setupRun: 9, progress: 3,
   }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
@@ -703,7 +727,7 @@ const contractChecksInner = function (reg, src) {
     if (me.zh.indexOf('阶段闸门') < 0 || me.en.indexOf('stage-gate') < 0) fail('T13 mapExecute 未含阶段闸门引用（needs-triage 先诊断）')
     if (me.zh.indexOf('needs-triage') < 0) fail('mapExecute zh 缺 needs-triage 标记')
     if (me.zh.indexOf('- [ ]') < 0) fail('mapExecute zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (me.zh.indexOf('## 目标 map') < 0 || me.zh.indexOf('## 分析') < 0 || me.zh.indexOf('## 选票') < 0 || me.zh.indexOf('## 执行') < 0 || me.zh.indexOf('## 收尾') < 0 || me.zh.indexOf('## 正文格式') < 0) fail('mapExecute zh 缺清单段标题（目标 map/分析/选票/执行/收尾/正文格式）')
+    if (me.zh.indexOf('## 目标 map') < 0 || me.zh.indexOf('## 分析') < 0 || me.zh.indexOf('## 选票') < 0 || me.zh.indexOf('## 执行') < 0 || me.zh.indexOf('## 收尾') < 0 || me.zh.indexOf('{bodyFormat}') < 0) fail('mapExecute zh 缺清单段标题（目标 map/分析/选票/执行/收尾/正文格式标记 {bodyFormat}）')
     if (me.zh.indexOf('|') >= 0) fail('mapExecute zh 含表格 |（已约定无表格，全勾选框）')
     if (me.zh.indexOf('编号：') < 0 || me.zh.indexOf('标题：') < 0 || me.zh.indexOf('链接：') < 0) fail('mapExecute zh 缺 map 标识头三字段（编号/标题/链接）')
     if (me.placeholders.indexOf('n') < 0 || me.placeholders.indexOf('title') < 0 || me.placeholders.indexOf('url') < 0) fail('mapExecute 占位符缺 n/title/url（自包含 map 标识）')
@@ -714,7 +738,7 @@ const contractChecksInner = function (reg, src) {
   const ex = reg['tpl.execute']
   if (ex) {
     if (ex.zh.indexOf('- [ ]') < 0) fail('tpl.execute zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (ex.zh.indexOf('## 读现状') < 0 || ex.zh.indexOf('## 阶段闸门') < 0 || ex.zh.indexOf('## 收尾') < 0 || ex.zh.indexOf('## 正文格式') < 0) fail('tpl.execute zh 缺清单四段标题（读现状/阶段闸门/收尾/正文格式）')
+    if (ex.zh.indexOf('## 读现状') < 0 || ex.zh.indexOf('## 阶段闸门') < 0 || ex.zh.indexOf('## 收尾') < 0 || ex.zh.indexOf('{bodyFormat}') < 0) fail('tpl.execute zh 缺清单四段标题（读现状/阶段闸门/收尾/正文格式标记 {bodyFormat}）')
     if (ex.zh.indexOf('|') >= 0) fail('tpl.execute zh 含表格 |（已约定无表格，全勾选框）')
     if (ex.en.indexOf('- [ ]') < 0) fail('tpl.execute en 缺清单标记 - [ ]')
   }
@@ -722,7 +746,7 @@ const contractChecksInner = function (reg, src) {
   const di = reg['tpl.diagnose']
   if (di) {
     if (di.zh.indexOf('- [ ]') < 0) fail('tpl.diagnose zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (di.zh.indexOf('## 弄清现象') < 0 || di.zh.indexOf('## 根因候选') < 0 || di.zh.indexOf('## 分流建议') < 0 || di.zh.indexOf('## 阶段闸门') < 0 || di.zh.indexOf('## 正文格式') < 0) fail('tpl.diagnose zh 缺清单段标题（弄清现象/根因候选/分流建议/阶段闸门/正文格式）')
+    if (di.zh.indexOf('## 弄清现象') < 0 || di.zh.indexOf('## 根因候选') < 0 || di.zh.indexOf('## 分流建议') < 0 || di.zh.indexOf('## 阶段闸门') < 0 || di.zh.indexOf('{bodyFormat}') < 0) fail('tpl.diagnose zh 缺清单段标题（弄清现象/根因候选/分流建议/阶段闸门/正文格式标记 {bodyFormat}）')
     if (di.zh.indexOf('|') >= 0) fail('tpl.diagnose zh 含表格 |（已约定无表格，全勾选框）')
     if (di.zh.indexOf('诊断≠修复') < 0) fail('tpl.diagnose zh 缺诊断≠修复显式（第一性原理）')
     if (di.zh.indexOf('grilling') < 0) fail('tpl.diagnose zh 缺 grill 澄清句')
@@ -759,7 +783,7 @@ const contractChecksInner = function (reg, src) {
   if (co) {
     if (co.version < 5) fail('complete 版本号未 bump（期望 ≥ v5）')
     if (co.zh.indexOf('- [ ]') < 0) fail('complete zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (co.zh.indexOf('## MAP完成确认') < 0 || co.zh.indexOf('## 调查') < 0 || co.zh.indexOf('## 报告你来定夺') < 0 || co.zh.indexOf('## 收尾') < 0 || co.zh.indexOf('## 正文格式') < 0) fail('complete zh 缺清单段标题（MAP完成确认/调查/报告你来定夺/收尾/正文格式）')
+    if (co.zh.indexOf('## MAP完成确认') < 0 || co.zh.indexOf('## 调查') < 0 || co.zh.indexOf('## 报告你来定夺') < 0 || co.zh.indexOf('## 收尾') < 0 || co.zh.indexOf('{bodyFormat}') < 0) fail('complete zh 缺清单段标题（MAP完成确认/调查/报告你来定夺/收尾/正文格式标记 {bodyFormat}）')
     if (co.zh.indexOf('|') >= 0) fail('complete zh 含表格 |（已约定无表格，全勾选框）')
     if (co.zh.indexOf('子票') >= 0 || co.zh.indexOf('票') >= 0) fail('complete zh 专业术语未用英文（子票/票 → sub-issue/ticket）')
     if (co.zh.indexOf('## 目标 map') < 0 || co.zh.indexOf('编号：') < 0 || co.zh.indexOf('标题：') < 0 || co.zh.indexOf('链接：') < 0) fail('complete zh 缺 map 标识头三字段')
@@ -794,7 +818,7 @@ const contractChecksInner = function (reg, src) {
   if (fx) {
     if (fx.version < 2) fail('fixate 版本号未 bump（期望 ≥ v2）')
     if (fx.zh.indexOf('- [ ]') < 0) fail('fixate zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (fx.zh.indexOf('## 沉淀') < 0 || fx.zh.indexOf('## 可疑遗漏') < 0 || fx.zh.indexOf('## 核对') < 0 || fx.zh.indexOf('## 落盘') < 0 || fx.zh.indexOf('## 正文格式') < 0) fail('fixate zh 缺清单段标题（沉淀/可疑遗漏/核对/落盘/正文格式）')
+    if (fx.zh.indexOf('## 沉淀') < 0 || fx.zh.indexOf('## 可疑遗漏') < 0 || fx.zh.indexOf('## 核对') < 0 || fx.zh.indexOf('## 落盘') < 0 || fx.zh.indexOf('{bodyFormat}') < 0) fail('fixate zh 缺清单段标题（沉淀/可疑遗漏/核对/落盘/正文格式标记 {bodyFormat}）')
     if (fx.zh.indexOf('|') >= 0) fail('fixate zh 含表格 |（已约定无表格，全勾选框）')
     if (fx.zh.indexOf('思维对齐 · 成果沉淀') < 0) fail('fixate zh 缺新命名（思维对齐 · 成果沉淀，旧名「零丢失快照」已退役）')
     if (fx.zh.indexOf('零丢失') >= 0) fail('fixate zh 残留旧命名「零丢失」')
@@ -836,45 +860,58 @@ const contractChecksInner = function (reg, src) {
     if (pr.en.indexOf('stays as history after close') < 0) fail('progress en 缺 stays as history after close')
     if (pr.en.indexOf('first contact') < 0 || pr.en.indexOf('implementation record') < 0) fail('progress en 缺首触补写兜底')
   } else fail('缺条目 progress')
-  // bodyFormat v4（#76 契约 + #573 收敛：不再卡「正例/反例/字面 \n」，改卡「脚本名 + 三个参数名 + 不点名具体命令」）
+  // bodyFormat（#76 契约 + #594 收敛）：注册表这一条已从「GitHub 专用两步写回」降级为「通用兜底」——
+  //   三后端各自的正文格式文案声明在 src/host/tracker/backends/<id>/index.js 的 prompts.bodyFormat（后端单源）；
+  //   这里只卡兜底版自己该有的东西：公共格式要求必须齐 + 不得点名任何具体跟踪器命令/写回脚本。
   const bf = reg['bodyFormat']
   if (bf) {
-    if (bf.version < 4) fail('bodyFormat 版本号未 bump（期望 ≥ v4）')
+    if (bf.version < 7) fail('bodyFormat 版本号未 bump（期望 ≥ v7：#594 起为通用兜底版）')
     if (bf.placeholders.length !== 0) fail('bodyFormat 不应有占位符')
     if (bf.zh.indexOf('每个 `## 章节` 独占一行') < 0) fail('bodyFormat zh 缺「每个 ## 章节 独占一行」（结构规则）')
     if (bf.zh.indexOf('段落间留空行') < 0) fail('bodyFormat zh 缺段落间留空行')
     if (bf.zh.indexOf('先写成文件') < 0) fail('bodyFormat zh 缺「正文先写成文件」')
-    if (bf.zh.indexOf('dsh-mattpocock-skills-deck/scripts/fix-issue-body.mjs') < 0 && bf.zh.indexOf('>/scripts/fix-issue-body.mjs') < 0) fail('bodyFormat zh 缺写回脚本锚定路径（<目录>/scripts/fix-issue-body.mjs）')
-    if (bf.zh.indexOf('dsh plugin exec node -e') < 0) fail('bodyFormat zh 缺精确的第 ① 步调用（dsh plugin exec node -e …拿安装目录）')
-    if (bf.zh.indexOf('--body-file') < 0 || bf.zh.indexOf('绝对路径') < 0) fail('bodyFormat zh 缺 --body-file 绝对路径要求')
     if (bf.zh.indexOf('不要把正文拼进命令行') < 0) fail('bodyFormat zh 缺「不要把正文拼进命令行」')
-    if (bf.zh.indexOf('格式只告警不改写') < 0) fail('bodyFormat zh 缺「格式只告警不改写」（脚本职责边界）')
     if (bf.zh.indexOf('反斜杠加 n 两个字符') < 0) fail('bodyFormat zh 缺「换行不要写成反斜杠加 n 两个字符」')
     if (bf.en.indexOf('each `## section` on its own line') < 0) fail('bodyFormat en 缺 each ## section on its own line')
     if (bf.en.indexOf('blank line between paragraphs') < 0) fail('bodyFormat en 缺 blank line between paragraphs')
-    if (bf.en.indexOf('/scripts/fix-issue-body.mjs') < 0) fail('bodyFormat en 缺写回脚本锚定路径（<dir>/scripts/fix-issue-body.mjs）')
-    if (bf.en.indexOf('dsh plugin exec node -e') < 0) fail('bodyFormat en 缺精确的第 ① 步调用（dsh plugin exec node -e …）')
-    if (bf.en.indexOf('--issue') < 0 || bf.en.indexOf('--body-file') < 0 || bf.en.indexOf('absolute path') < 0) fail('bodyFormat en 缺脚本参数名（--issue / --body-file）与 absolute path 要求')
     if (bf.en.indexOf('never inline the body into the command line') < 0) fail('bodyFormat en 缺 never inline the body into the command line')
-    if (bf.en.indexOf('only warns about formatting') < 0) fail('bodyFormat en 缺 only warns about formatting')
     if (bf.en.indexOf('two characters backslash-n') < 0) fail('bodyFormat en 缺 two characters backslash-n')
-    // 工具无关：不得点名任何具体跟踪器命令（含「为说明不许写」而引用命令的说明文字）
-    if (/gh\s+issue|gh\s+api|glab\s+issue/.test(bf.zh + bf.en)) fail('bodyFormat 点名了具体跟踪器命令（工具无关契约：改写成「具体跟踪器命令」这种泛指）')
+    // 兜底版必须工具无关：点名任何具体跟踪器命令 / 写回脚本 / 插件目录解析都属于「把 GitHub 专用步骤塞给所有后端」
+    if (/gh\s+issue|gh\s+api|gh\s+auth|glab\s+issue|glab\s+auth/.test(bf.zh + bf.en)) fail('bodyFormat 兜底版点名了具体跟踪器命令（应泛指「当前跟踪器自己的方式」）')
+    if (bf.zh.indexOf('fix-issue-body') >= 0 || bf.en.indexOf('fix-issue-body') >= 0 || bf.zh.indexOf('dsh plugin exec') >= 0 || bf.en.indexOf('dsh plugin exec') >= 0) {
+      fail('bodyFormat 兜底版点名了插件安装目录下的写回脚本（写回脚本只属声明了它的后端，兜底版不许提）')
+    }
   } else fail('缺条目 bodyFormat')
 
+  // 模板里不许再留正文格式的字面副本（#594）：10 条模板的 zh/en 都只剩 {bodyFormat} 标记
+  const BODY_IDS = ['mapExecute', 'complete', 'fixate', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
+  BODY_IDS.forEach(function (id) {
+    const e = reg[id] || {}
+    ;['zh', 'en'].forEach(function (lang) {
+      const t = String(e[lang] || '')
+      if (t.indexOf('{bodyFormat}') < 0) fail('模板 ' + id + '.' + lang + ' 缺 {bodyFormat} 标记（正文格式不许硬抄在模板里）')
+      ;['fix-issue-body', 'wire-subissues', 'dsh plugin exec', 'gh auth'].forEach(function (bad) {
+        if (t.indexOf(bad) >= 0) fail('模板 ' + id + '.' + lang + ' 残留 GitHub 专用串「' + bad + '」（应改由后端声明、渲染时填空）')
+      })
+    })
+    if ((reg[id] || {}).placeholders.indexOf('bodyFormat') < 0) fail('模板 ' + id + ' 未声明占位符 {bodyFormat}')
+  })
   // 统一模板不得点名具体跟踪器命令（S1 判定已覆盖，这里补一条「说明文字里也不许引用」的正面检查）
   const zhBlockCount = (reg['mapExecute'] && reg['mapExecute'].zh.split('## 正文格式').length) || 0
-  if (zhBlockCount !== 2) fail('mapExecute zh 应恰含 1 处「## 正文格式」段')
-  // 写回脚本调用次数（#588 起锚定形态：<目录>/scripts/<名>.mjs；22 = 11 条目 × zh/en，2 = mapInspect zh/en）
-  const fixCount = (src.match(/scripts\/fix-issue-body\.mjs/g) || []).length
-  if (fixCount !== 22) fail('fix-issue-body 脚本名出现 ' + fixCount + ' 次（期望 22 = 11 条目 × zh/en 的第 ② 步锚定路径）')
-  const wireCount = (src.match(/scripts\/wire-subissues\.mjs/g) || []).length
-  if (wireCount !== 2) fail('wire-subissues 脚本名出现 ' + wireCount + ' 次（期望 2 = mapInspect zh/en 的第 ② 步锚定路径）')
+  if (zhBlockCount !== 1) fail('mapExecute zh 不应再内嵌「## 正文格式」段（#594 起改由 {bodyFormat} 标记，缺后端声明才落兜底版）')
+  // #594：注册表里不再有写回脚本/插件目录的字面副本（GitHub 专用文本已整体搬进 github 后端声明）。
+  //   唯一允许提到 gh 的条目是注册表自带的 ghAuthLogin 登录引导（那个后端专用提示本身），故单列白名单。
+  const regNoGh = Object.keys(reg).filter(function (id) { return id !== 'ghAuthLogin' })
+  const leaked = regNoGh.filter(function (id) {
+    const t = String(reg[id].zh || '') + String(reg[id].en || '')
+    return /gh\s+auth|dsh plugin exec|fix-issue-body|wire-subissues/.test(t)
+  })
+  if (leaked.length) fail('注册表条目里残留写回脚本/插件目录指令：' + leaked.join(', ') + '（应搬进对应后端的 prompts 声明）')
+  const segCount = (src.match(/## 正文格式/g) || []).length
+  if (segCount !== 1) fail('「## 正文格式」段数 ' + segCount + '（期望 1：只剩兜底版那一条）')
   // workspace-relative 旧形态零残留（#588：提示词里不许再出现 node scripts/ 单步写法；文件头开发注释不属模板，不在此数）
   const oldForm = (src.match(/`node scripts\/(fix-issue-body|wire-subissues)\.mjs/g) || []).length
   if (oldForm !== 0) fail('workspace-relative 旧形态残留 ' + oldForm + ' 处（`node scripts/<脚本>.mjs；期望 0，全部改为两步走）')
-  const segCount = (src.match(/## 正文格式/g) || []).length
-  if (segCount !== 10) fail('「## 正文格式」段数 ' + segCount + '（期望 10：10 条模板各 1 处内嵌）')
 }
 
 // ==================== 7. L1 内存夹具（34 条绕过 + 24 条误报；逐条断言） ====================
@@ -1108,7 +1145,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '1ded52d4fc14432ee1c66a3a78b2769272729248f9083d0fed96e22639022648',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '4cf1f9fa370564619de03d2fb1b0127b610352ca51cd4fd810867041b736a982',
+  'tests/verify-prompts.js': 'a6615ba87b73fc923948dfd68fd2313c6aaf37067fd86489e27eed897e5a2854',
 }
 // ---- LOCK-END ----
 
@@ -1198,29 +1235,88 @@ if (reg) {
       while ((m = re.exec(String(text))) !== null) names.push(m[1])
       return names
     }
+    // 模板条目：只断言「留了占位符、没留字面副本」（正文格式的 GitHub 文案已搬进后端声明）
     const FIX_IDS = ['mapExecute', 'complete', 'fixate', 'bodyFormat', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
-    const referenced = []
-    FIX_IDS.forEach(function (id) {
-      const e = reg[id] || {}
+    // #594 核心验收：把 11 个条目按「真渲染函数 + 后端声明文本」渲染出来再断言（不再断言源码字面量）
+    evalPromptHelpers.prime(fs.readFileSync(s1Path, 'utf8'))
+    const backendDecls = {}
+    BACKENDS.forEach(function (b) {
+      const bsrc = fs.readFileSync(backendPath(b, backendProbe), 'utf8')
+      backendDecls[b] = { bodyFormat: backendPromptValues(bsrc, 'bodyFormat'), subIssue: backendPromptValues(bsrc, 'subIssue') }
       ;['zh', 'en'].forEach(function (lang) {
-        const t = String(e[lang] || '')
-        if (t.indexOf(STEP1_EXACT) < 0) fail('#588 ' + id + '.' + lang + ' 缺精确的第 ① 步调用（dsh plugin exec node -e …拿安装目录）')
-        const names = step2NameOf(t, 0)
-        if (names.indexOf('fix-issue-body.mjs') < 0) fail('#588 ' + id + '.' + lang + ' 缺锚定的第 ② 步（node "<目录>/scripts/fix-issue-body.mjs" …）')
-        names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
+        const t = String((backendDecls[b].bodyFormat || {})[lang] || '')
+        if (!t) fail('#594 ' + b + ' 后端未声明 prompts.bodyFormat.' + lang + '（三后端都要声明自己那套正文格式）')
       })
     })
-    ;['zh', 'en'].forEach(function (lang) {
-      const t = String((reg.mapInspect || {})[lang] || '')
-      const names = step2NameOf(t, 0)
-      if (names.indexOf('wire-subissues.mjs') < 0) fail('#588 mapInspect.' + lang + ' 缺锚定的 wire 第 ② 步（node "<目录>/scripts/wire-subissues.mjs" …）')
+    const referenced = []
+    const renderOf = function (b, id, lang) {
+      const st = { selection: { backendId: b }, backendModules: [{ id: b, prompts: backendDecls[b] }] }
+      // bodyFormat 走的不是模板占位符，而是 BODY_FORMAT(st)（追加点用它）—— 按真路径渲染，别用替身
+      if (id === 'bodyFormat') return String(evalPromptHelpers.BODY_FORMAT(st, lang) || '')
+      const params = { n: '7', title: 'T', url: 'U', repo: 'owner/name' }
+      const text = evalPromptHelpers.promptTextForForTest(st, id, params, lang)
+      return String(text || '')
+    }
+    BACKENDS.forEach(function (b) {
+      FIX_IDS.forEach(function (id) {
+        ;['zh', 'en'].forEach(function (lang) {
+          const t = renderOf(b, id, lang)
+          const where = '#594 ' + b + '/' + id + '.' + lang
+          if (!t) { fail(where + ' 渲染为空（渲染入口取不到文本）'); return }
+          if (t.indexOf('{bodyFormat}') >= 0) fail(where + ' 渲染后仍是 {bodyFormat} 标记（后端上下文没接通）')
+          // 渲染结果不许再命中「具体跟踪器命令 / 非白名单脚本 / 内联正文」这几条规则
+          judge(t).forEach(function (h) { fail(where + ' 渲染后 [' + h.rule + '] 命中「' + h.snippet + '」') })
+        })
+      })
+      // GitHub：渲染结果必须带着两步写回（第 ① 步精确串 + 锚定的第 ② 步）
+      // 其余后端：渲染结果不许出现 GitHub 专用的登录检查 / 插件目录解析 / 写回脚本
+      const isGh = (b === 'github')
+      FIX_IDS.forEach(function (id) {
+        ;['zh', 'en'].forEach(function (lang) {
+          const t = renderOf(b, id, lang)
+          const names = step2NameOf(t, 0)
+          if (isGh) {
+            if (t.indexOf(STEP1_EXACT) < 0) fail('#594 github/' + id + '.' + lang + ' 渲染结果缺精确的第 ① 步调用（拿插件安装目录）')
+            if (names.indexOf('fix-issue-body.mjs') < 0) fail('#594 github/' + id + '.' + lang + ' 渲染结果缺锚定的第 ② 步（node "<目录>/scripts/fix-issue-body.mjs" …）')
+            names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
+          } else {
+            ;['gh auth', 'fix-issue-body', 'dsh plugin exec'].forEach(function (bad) {
+              if (t.indexOf(bad) >= 0) fail('#594 ' + b + '/' + id + '.' + lang + ' 渲染结果出现 GitHub 专用串「' + bad + '」（后端无关的正文格式不许带上它）')
+            })
+            if (names.length) fail('#594 ' + b + '/' + id + '.' + lang + ' 渲染结果仍引用写回脚本 ' + names.join(',') + '（该后端没声明这些脚本）')
+          }
+        })
+      })
     })
+    // 明显变短：Markdown 版正文格式必须比 GitHub 版短（去掉两步写回后的直接证据）
+    const ghLen = renderOf('github', 'tpl.execute', 'zh').length
+    const mdLen = renderOf('markdown', 'tpl.execute', 'zh').length
+    if (!(mdLen < ghLen)) fail('#594 Markdown 渲染结果不比 GitHub 短（md ' + mdLen + ' ≥ gh ' + ghLen + '，说明 GitHub 专用文本没被摘干净）')
+    // 追加点（BODY_FORMAT(st)）也按后端解析：GitHub 拿到两步写回，Markdown 拿到本地文件版
+    const bfGh = evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: backendDecls.github }] }, 'zh')
+    const bfMd = evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'markdown' }, backendModules: [{ id: 'markdown', prompts: backendDecls.markdown }] }, 'zh')
+    if (String(bfGh).indexOf(STEP1_EXACT) < 0) fail('#594 BODY_FORMAT(github) 缺精确的第 ① 步调用')
+    if (String(bfMd).indexOf('gh auth') >= 0 || String(bfMd).indexOf('fix-issue-body') >= 0 || String(bfMd).indexOf('dsh plugin exec') >= 0) fail('#594 BODY_FORMAT(markdown) 出现 GitHub 专用串')
+    if (!(String(bfMd).length < String(bfGh).length)) fail('#594 BODY_FORMAT(markdown) 不比 GitHub 短')
     const ghVals = [subIssueValues['github.zh'], subIssueValues['github.en']]
     ghVals.forEach(function (t, i) {
       const lang = i === 0 ? 'zh' : 'en'
       if (String(t || '').indexOf(STEP1_EXACT) < 0) fail('#588 github 后端 prompts.subIssue.' + lang + ' 缺精确的第 ① 步调用')
       const names = step2NameOf(t, 0)
       if (names.indexOf('wire-subissues.mjs') < 0) fail('#588 github 后端 prompts.subIssue.' + lang + ' 缺锚定的 wire 第 ② 步')
+      names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
+    })
+    // mapInspect 的关联步骤改走后端声明的 {subIssue}：GitHub 渲染结果里必须有 wire 第 ② 步
+    const miGh = renderOf('github', 'mapInspect', 'zh')
+    const miNames = step2NameOf(miGh, 0)
+    if (miNames.indexOf('wire-subissues.mjs') < 0) fail('#594 github/mapInspect.zh 渲染结果缺 wire 第 ② 步（{subIssue} 没接上后端声明）')
+    miNames.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
+    // github bodyFormat 自带的写回脚本也要进 referenced
+    ;['zh', 'en'].forEach(function (lang) {
+      const t = String((backendDecls.github.bodyFormat || {})[lang] || '')
+      if (t.indexOf(STEP1_EXACT) < 0) fail('#594 github 后端 prompts.bodyFormat.' + lang + ' 缺精确的第 ① 步调用')
+      const names = step2NameOf(t, 0)
+      if (names.indexOf('fix-issue-body.mjs') < 0) fail('#594 github 后端 prompts.bodyFormat.' + lang + ' 缺锚定的第 ② 步')
       names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
     })
     // 发布包脚本集合：从 scripts/build.mjs 的 SHIPPED_SCRIPTS 清单机械求值（唯一手写清单，不许第二份）
@@ -1264,7 +1360,7 @@ if (reg) {
   } catch (e) {
     fail('#588 断言执行时抛错：' + String((e && e.message) || e))
   }
-  if (stepOk(p588)) console.log('  PASS #588 两步走形态（11 条目 + 后端 subIssue 含精确第 ① 步与锚定第 ② 步）+ 名实一致 + 生成物 sha256 一致')
+  if (stepOk(p588)) console.log('  PASS #594 渲染面（11 条目 × zh/en × 三后端：GitHub 渲染出两步写回，Markdown/GitLab 渲染出无 gh 的后端版）+ 名实一致 + 生成物 sha256 一致')
   if (stepOk(pS1)) console.log('  PASS 面 S1 ' + s1Label + '（' + s1Ids.length + ' 条注册表，扫描 ' + s1.scanned + ' 条；含占位符 ' + s1.rendered + ' 条走渲染面）+ 契约断言 + 跨门禁一致性 + 注入链另一半')
 }
 

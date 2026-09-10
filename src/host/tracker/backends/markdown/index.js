@@ -162,6 +162,11 @@ export const prompts = {
     zh: '创后 setParent(map.key) 建边；以 list({parentKey}) 校验计数与预期一致',
     en: 'setParent(map.key) after creation; verify with list({parentKey}) equals expected'
   },
+  // #594：正文格式契约归后端单源 —— 本地 Markdown 后端改的就是本机文件本身，没有远端登录、没有插件目录、没有写回脚本
+  bodyFormat: {
+    zh: '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 这张单据就是本机的一个 Markdown 文件；本提示开头的路径就是它，直接用编辑工具改这个文件即可——不需要登录远端账号、不需要找插件目录、不需要跑写回脚本，也没有 ok 回包可等\n- [ ] 正文就写进这个文件，文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行；不要把正文拼进命令行或脚本参数里\n- [ ] 改完把文件读回来核对一遍（章节是否独占一行、进度区是否在位）；换行不要写成反斜杠加 n 两个字符',
+    en: '## Body format (mandatory when writing/editing an issue body)\n- [ ] This ticket is a Markdown file on this machine; the path at the top of this prompt is that file — edit the file directly: no remote account login, no plugin directory to resolve, no write-back script, and no ok response to wait for\n- [ ] Write the body into that file with real newlines: each `## section` on its own line, a blank line between paragraphs; never inline the body into a command line or a script argument\n- [ ] Read the file back to confirm (sections on their own lines, the progress section still in place); never write a newline as the two characters backslash-n.',
+  },
 }
 
 /** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。

@@ -79,25 +79,69 @@ const buildEnv = function (src, lang) {
     return tpl.split('{refId}').join(refId).split('{key}').join(n)
   }
   // 2026-08-18（需求修复）：常量已函数化（语言切换实时重算）—— 沙箱同样以函数注入
-  const COMPLETE_PROMPT = function () { return promptText('complete') }
-  const BODY_FORMAT = function () { return promptText('bodyFormat') }
-  const MAP_EXECUTE_PROMPT = function () { return promptText('mapExecute') }
-  const renderTemplate = function (id, values) {
+  const COMPLETE_PROMPT = function (st) { return promptTextFor(st, 'complete') }
+  const BODY_FORMAT = function (st) { return bodyFormatOf(st) }
+  const MAP_EXECUTE_PROMPT = function (st) { return promptTextFor(st, 'mapExecute') }
+  // #594：正文格式 / 子议题关联方式都按当前后端解析（沙箱忠实替身：查 st.backendModules 声明，缺声明落注册表兜底）
+  const backendDecl = function (st, key) {
+    const sel = st && (st.selection || (st.snapshot && st.snapshot.selection))
+    const bid = sel ? sel.backendId : null
+    const ms = st && Array.isArray(st.backendModules) ? st.backendModules : []
+    for (let i = 0; i < ms.length; i++) {
+      const m = ms[i]
+      if (m && String(m.id) === String(bid) && m.prompts && m.prompts[key]) return m.prompts[key]
+    }
+    return null
+  }
+  const bodyFormatOf = function (st) {
+    const d = backendDecl(st, 'bodyFormat')
+    if (!d) return promptText('bodyFormat')
+    return String((lang0 === 'en' && d.en) ? d.en : (d.zh || ''))
+  }
+  const subIssueOf = function (st) {
+    const d = backendDecl(st, 'subIssue')
+    if (!d) return '通过 Tracker 原生的父子关系关联（create 时带 parentKey 或创后 setParent）'
+    return String((lang0 === 'en' && d.en) ? d.en : (d.zh || ''))
+  }
+  const promptTextFor = function (st, id, params) {
+    const p = Object.assign({}, params || {})
+    if (!Object.prototype.hasOwnProperty.call(p, 'bodyFormat')) p.bodyFormat = bodyFormatOf(st)
+    if (!Object.prototype.hasOwnProperty.call(p, 'subIssue')) p.subIssue = subIssueOf(st)
+    return promptText(id, p)
+  }
+  const renderTemplate = function (id, values, st) {
     const tpl = reg['tpl.' + id]
     if (!tpl) return ''
     let text = (lang0 === 'en' && tpl.en) ? tpl.en : (tpl.zh || '')
-    if (values) text = text.replace(/\{(\w+)\}/g, function (m, name) { return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : m })
+    const vals = Object.assign({}, values || {})
+    if (!Object.prototype.hasOwnProperty.call(vals, 'bodyFormat')) vals.bodyFormat = bodyFormatOf(st)
+    if (!Object.prototype.hasOwnProperty.call(vals, 'subIssue')) vals.subIssue = subIssueOf(st)
+    text = text.replace(/\{(\w+)\}/g, function (m, name) { return Object.prototype.hasOwnProperty.call(vals, name) ? String(vals[name]) : m })
     return text
   }
   const withWayfinderPrefix = function (body) {
     if (/^\/wayfinder\b/.test(String(body || '').trim())) return body
     return '/wayfinder\n' + body
   }
-  const completePromptSrc = extractBetween(src, 'const completePrompt = function (st, num, title, total, closed) {', "const FIXATE_PROMPT = function () { return promptText('fixate') }")
+  // 沙箱补登记：startText 现在会调 effortOf / idOf（multi-effort 维度引入的票身份键；实现在 src/shared/tracker/constants.js，
+  //   构建时拼进界面闭包）、空态分支会调 inspectPrompt（prompts.js 的渲染入口）。
+  //   先前本沙箱的参数表漏了它们 → 提取出来的 startText 一执行就 ReferenceError，整个用例假红（与本次改动无关）。
+  const effortOf = function (issue) { return (issue && issue.effortId !== undefined && issue.effortId !== null) ? String(issue.effortId) : '' }
+  const idOfParts = function (effortId, key) {
+    const effort = (effortId === undefined || effortId === null) ? '' : String(effortId)
+    const k = (key === undefined || key === null) ? '' : String(key)
+    return effort ? effort + '\u0000' + k : k
+  }
+  const idOf = function (issue) { return issue ? idOfParts(effortOf(issue), issue.key) : '' }
+  const inspectPrompt = function (st, num, title) {
+    const u = issueUrlFor(st, String(num == null ? '' : num))
+    return '/wayfinder ' + u + '\n\n' + promptTextFor(st, 'mapInspect', { n: String(num == null ? '' : num), title: String(title || ''), url: u })
+  }
+  const completePromptSrc = extractBetween(src, 'const completePrompt = function (st, num, title, total, closed) {', "const FIXATE_PROMPT = function (st) { return promptTextFor(st, 'fixate') }")
   const completePrompt = new Function('COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', 'issueUrlFor', completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText, issueUrlFor)
   // #265 起 router 的命名契约段迁至命名守护共享核心（S2 #452 起为 shared/naming-titles.js 等 3 个文件）；终止锚点随迁（#265 后稳定存在于源与产物）
   const startTextSrc = extractBetween(src, 'const startText = (st, t) => {', '// 契约 #205 会话标题')
-  const startText = new Function('repoStr', 'promptText', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', 'issueUrlFor', startTextSrc + '; return startText')(repoStr, promptText, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix, issueUrlFor)
+  const startText = new Function('repoStr', 'promptText', 'promptTextFor', 'inspectPrompt', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', 'issueUrlFor', 'effortOf', 'idOf', startTextSrc + '; return startText')(repoStr, promptText, promptTextFor, inspectPrompt, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix, issueUrlFor, effortOf, idOf)
   return { startText: startText }
 }
 
@@ -144,9 +188,12 @@ const checkFile = function (file) {
   const out3 = env.startText(st2, mapIssue(200, '完成 map'))
   assert.ok(out3.includes('## MAP完成确认'), file + ' zh 完成态 snapshot 兜底（v4 标题）')
 
-  // d) 零子票 map（total=0）→ 推进式（不算完成）
+  // d) 零子票 map（total=0）→ 走「0/0 检查」prompt（mapInspect），不是推进式
+  //    陈旧断言修正（与 #594 无关）：本条原写「零子票 map 仍推进式」，但现产品里 total=0 属异常态，
+  //    startText 有意改走 map 空态 0/0 检查（列表与详情页的「检查」按钮同一入口），照原语义断言只会永久红。
   const out4 = env.startText(ST, mapIssue(300, '空 map', { total: 0, closed: 0 }))
-  assert.ok(out4.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 零子票 map 仍推进式')
+  assert.ok(out4.includes('该 map 在面板中显示为 0/0') && out4.includes('## 排查'), file + ' zh 零子票 map 走 0/0 检查 prompt（不再推进）')
+  assert.ok(!out4.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 零子票 map 不是推进式')
   assert.ok(out4.includes('编号：#300'), file + ' zh 零子票 map 带标识')
 
   // e) 普通票 execute 模板回归（非 map 分支未被 B2 改坏）

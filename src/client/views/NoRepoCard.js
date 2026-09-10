@@ -90,7 +90,7 @@ export     const NoRepoCard = function (props) {
             },
             refresh: async function(){ try{ if(typeof host!=='undefined'&& host.call) await host.call('wf.detect',{cwd:st.cwd||'', force:true, backendId:(st.selection&&st.selection.backendId)||undefined}) }catch(e){}; try{ loadChain(st,true) }catch(e){}; try{ loadSnapshot(st,true,true) }catch(e){} },
             tr: tr,
-            resolvePrompt: function(id,pa){ try{ if(id==='setupRun'&&typeof setupRunPrompt==='function') return setupRunPrompt(st); return promptText(id,pa)}catch(e){ return '' } }
+            resolvePrompt: function(id,pa){ try{ if(id==='setupRun'&&typeof setupRunPrompt==='function') return setupRunPrompt(st); return promptTextFor(st,id,pa)}catch(e){ return '' } }
           }) : null
           if (disp) {
             // 交由 ChainRenderer 渲染（覆盖旧红卡；旧逻辑不再直接调用 wf.initPublish，而是经 form→rpc→refresh）

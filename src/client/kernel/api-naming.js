@@ -6,7 +6,7 @@
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
-    export const injectFixate = (st) => { inject(st, fixateText()) }
+    export const injectFixate = (st) => { inject(st, fixateText(st)) }
 
     // v24-48：交接 —— 第一击自动注入 /handoff 模板（带时间戳文件名 + 引导句）并记忆该时间戳；
     // 第二击优先读「第一击模板里的同一个文件」（模板写什么名就读什么名，不再查目录导致旧文件名）；

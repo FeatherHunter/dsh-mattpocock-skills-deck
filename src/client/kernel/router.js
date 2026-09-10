@@ -182,7 +182,7 @@
         })()
         const empty = !!(stats && stats.total === 0)
         if (empty) {
-          try { return inspectPrompt(st, t.number, t.title) } catch(e) { return '/wayfinder ' + url + '\n\n' + promptText('mapInspect', { n: String(t.number || ''), title: (t.title || ''), url: url }) }
+          try { return inspectPrompt(st, t.number, t.title) } catch(e) { return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapInspect', { n: String(t.number || ''), title: (t.title || ''), url: url }) }
         }
         const done = !!(stats && stats.total > 0 && stats.closed === stats.total)
         if (done) {
@@ -191,9 +191,9 @@
         }
         // v1.5：技能 + 链接前置（用户规则：具体操作 prompt 开头 = /wayfinder + ISSUE 链接，单行空格分隔）
         // v5（#68 grilling 定版）：mapExecute 自包含（map 标识头 + 闸门引用 + 正文格式已内嵌）→ gateText/BODY_FORMAT/head 外挂全删
-        return '/wayfinder ' + url + '\n\n' + promptText('mapExecute', { n: String(t.number || ''), title: (t.title || ''), url: url })
+        return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapExecute', { n: String(t.number || ''), title: (t.title || ''), url: url })
       }
-      const body = renderTemplate('execute', { number: String(t.number), url: url, title: t.title })
+      const body = renderTemplate('execute', { number: String(t.number), url: url, title: t.title }, st)
       return withWayfinderPrefix(body)
     }
     // 契约 #205 会话标题（[#n] + 清洗/截断 120 bytes 预算）与占位四式判定已迁至命名守护共享核心
@@ -203,9 +203,9 @@
     // v1.5 T6：新增 wayfinder prompt —— /wayfinder + 仓库信息 + 需求引导（用户拍板：prompt 带仓库信息）
     // T16 补强（#463 复核 F2）：建图入口同样挂正文格式契约（新建 map 正文从源头防字面 \\n / BOM）
     // v7（#62 grill）：输入位绝对末尾 —— BODY_FORMAT 在中段，末尾追加 需求描述：/ Requirement:（满足 Q4）
-    export const newWayfinderText = (st) => newWayfinderPrompt(st) + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '') + (promptLang() === 'en' ? '\n\nRequirement: ' : '\n\n需求描述：')
+    export const newWayfinderText = (st) => newWayfinderPrompt(st) + (BODY_FORMAT(st) ? '\n\n' + BODY_FORMAT(st) : '') + (promptLang() === 'en' ? '\n\nRequirement: ' : '\n\n需求描述：')
     // issue #4：新增 BUG 单 —— 与「+ 新建需求」同构（新会话 + 预填 /wayfinder prompt + 正文格式契约）
     // v2（#1 BUG3 补强）：输入位挪到 BODY_FORMAT 之后，模板末尾（避免中途输入位）
     // v3（#14 决议 #13 [T7]）：字段集精简为 4 项 + 例行指引（v3.4：每字段「字段名：」行 + 下方「例：示例」行紧贴，zh/en 分离跟随语言）；EN locale 切换（NEW_BUG_FIELDS_BODY_EN）
     // v4（#63 grilling 定版 2026-08-20）：去内部规则复述 + 字段括号单行 + 顺序实际→期望（hit #63 决议）
-    export const newBugWayfinderText = (st) => promptText('newBugWayfinder', { repo: repoUrlFor(st) }) + (BODY_FORMAT() ? '\n\n' + BODY_FORMAT() : '') + (promptLang() === 'en' ? NEW_BUG_FIELDS_BODY_EN() : NEW_BUG_FIELDS_BODY())
+    export const newBugWayfinderText = (st) => promptText('newBugWayfinder', { repo: repoUrlFor(st) }) + (BODY_FORMAT(st) ? '\n\n' + BODY_FORMAT(st) : '') + (promptLang() === 'en' ? NEW_BUG_FIELDS_BODY_EN() : NEW_BUG_FIELDS_BODY())
