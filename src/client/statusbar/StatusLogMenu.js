@@ -259,13 +259,11 @@ export const StatusLogDot = function (props) {
   }
   const dotColor = debugOn ? '#4ade80' : '#6b6b75'
   const dotTitle = debugOn ? tr('logmenu.titleOn') : tr('logmenu.title')
-  const dot = hh('span', {
+  const dot = hh(Tip, { content: dotTitle, key: 'dsws-logdot' }, hh('span', {
     'data-dsws-logdot': '1',
-    key: 'dsws-logdot',
     ref: anchorRef,
     tabIndex: 0,
     role: 'button',
-    title: dotTitle,
     'aria-label': dotTitle,
     onClick: function (e) { try { e.stopPropagation() } catch (e2) {}; toggleMenu() },
     onKeyDown: function (e) {
@@ -279,7 +277,7 @@ export const StatusLogDot = function (props) {
       width: 10, height: 10, borderRadius: 99, background: dotColor, flex: 'none', cursor: 'pointer',
       boxShadow: debugOn ? '0 0 6px rgba(74,222,128,.6)' : 'none', outline: 'none', display: 'inline-block', verticalAlign: 'middle',
     },
-  })
+  }))
   const itemStyle = function (key, danger) {
     const hovered = hoverKey === key && !busy
     return {

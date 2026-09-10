@@ -558,7 +558,10 @@ export {
 
 // ---- 实例化（#564）：用闭包里现成的四个名字建日志器，插件标识 wf，默认配置与旧行为一致 ----
 // 旧模块（src/client/kernel/log.js）原地只读留存；运行时走本派生文件。共存关系见本文件头，真删除旧文件另开票。
-const __pkgLog = createClientLog({ host: host, timer: timer, storage: localStorage, broadcastLogSwitch: broadcastLogSwitch }, { pluginId: 'wf' })
+// 注意：broadcastLogSwitch 的声明在 probeSnapshot 分块里，拼入位置在本分块之后；这里若直接写名字，
+// 加载时就会因先用后声明而抛错（渲染冒烟实测）。所以包一层转发函数，调用时（模块早已加载完）再解析，行为与直传一致。
+const __broadcastLogSwitchLate = function () { try { if (typeof broadcastLogSwitch === 'function') return broadcastLogSwitch.apply(null, arguments) } catch (e) {} }
+const __pkgLog = createClientLog({ host: host, timer: timer, storage: localStorage, broadcastLogSwitch: __broadcastLogSwitchLate }, { pluginId: 'wf' })
 export const readLocalDebugSwitch = __pkgLog.readLocalDebugSwitch
 export const persistLocalDebugSwitch = __pkgLog.persistLocalDebugSwitch
 export const logSwitch = __pkgLog.logSwitch

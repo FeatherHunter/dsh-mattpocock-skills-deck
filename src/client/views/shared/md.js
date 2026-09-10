@@ -26,7 +26,7 @@ export     const mdSafeImgUrl = function (u) {
     }
 // 从图片标签原文里读出五个属性，宽高只认正整数并钳制上限，其余属性忽略
 export     const mdParseImgAttrs = function (tag) {
-      const out = { src: null, alt: '', width: null, height: null, title: '' }
+      const out = { src: null, alt: '', width: null, height: null, imgTitle: '' }
       const body = String(tag || '').replace(/^<\s*img\b/i, '').replace(/\/?\s*>$/, '')
       const re = /(\w+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'`>]+))/g
       let m = null
@@ -46,7 +46,7 @@ export     const mdParseImgAttrs = function (tag) {
       }
       out.src = mdSafeImgUrl(srcRaw)
       out.alt = String(altRaw == null ? '' : altRaw).slice(0, 200)
-      out.title = String(titleRaw == null ? '' : titleRaw).slice(0, 200)
+      out.imgTitle = String(titleRaw == null ? '' : titleRaw).slice(0, 200)
       const toClamped = function (v) {
         const n = parseInt(String(v == null ? '' : v).trim(), 10)
         if (isNaN(n) || n <= 0) return null
@@ -119,14 +119,14 @@ export     const mdInline = function (text, keyBase, opts) {
         const a = mdParseImgAttrs(tag)
         if (!a.src) return a.alt || ''
         const idx = imgParts.length
-        imgParts.push({ kind: 'html', alt: a.alt, src: a.src, width: a.width, height: a.height, title: a.title })
+        imgParts.push({ kind: 'html', alt: a.alt, src: a.src, width: a.width, height: a.height, imgTitle: a.imgTitle })
         return '\u0001I' + idx + '\u0001'
       })
       rest = rest.replace(MD_IMG_RE, function (m, alt, src, title) {
         const u = mdSafeImgUrl(src)
         if (!u) return String(alt == null ? '' : alt)
         const idx = imgParts.length
-        imgParts.push({ kind: 'md', alt: String(alt == null ? '' : alt).slice(0, 200), src: u, width: null, height: null, title: String(title == null ? '' : title).slice(0, 200) })
+        imgParts.push({ kind: 'md', alt: String(alt == null ? '' : alt).slice(0, 200), src: u, width: null, height: null, imgTitle: String(title == null ? '' : title).slice(0, 200) })
         return '\u0001I' + idx + '\u0001'
       })
       // 再提取链接（链接文字里可能包含上面的图片占位符，递归时把图片解出来；包在链接里的图片不放大）
@@ -147,11 +147,15 @@ export     const mdInline = function (text, keyBase, opts) {
       })
       const makeImg = function (part, key) {
         const clickable = !inLink && !!st
-        const props = { key: key, src: part.src, alt: part.alt || 'Image', title: (part.title || part.alt || undefined), loading: 'lazy', decoding: 'async', style: mdImgStyle(part.width, part.height, !clickable) }
+        const props = { key: key, src: part.src, alt: part.alt || 'Image', loading: 'lazy', decoding: 'async', style: mdImgStyle(part.width, part.height, !clickable) }
         if (clickable) {
           props.onClick = function () { mdOpenImg(st, part.src, part.alt) }
         }
-        return h('img', props)
+        const img = h('img', props)
+        // 图片标题走跟随式悬浮（与原生 title 同内容：标题优先、说明兜底；无字不包，保持无提示）。
+        const tipText = part.imgTitle || part.alt || null
+        if (!tipText) return img
+        return h(Tip, { content: tipText, key: key + '-tip' }, img)
       }
       // 再处理加粗 / 斜体 / 行内代码 / 删除线（先解析段内链接与图片占位符——两者可嵌在文本任意位置）
       rest.split(/(\*\*[^*]+\*\*|\*[^*]+\*|\x60[^\x60]+\x60|~~[^~]+~~)/g).forEach(function (seg, si) {
