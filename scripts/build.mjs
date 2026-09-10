@@ -427,44 +427,17 @@ async function buildHost({ version }) {
   } catch (e) {
     throw new Error(`[build] 原样复制校验失败：${e.message}`)
   }
-  // 分发 scripts/：消费者工作区调用的两条脚本随包发布。
-  // 整树原样复制 scripts/ → package/scripts（与 shared 同口径；先幂等清理再复制，不改其它行为）。
+  // 分发 scripts/：消费者工作区调用的两条脚本随包发布（#588 总指挥裁定：只收两条消费者脚本，
+  // 构建/调试脚本（build.mjs、ui-*、wizard-*、generate-*、matrix-*、sync-* 等）不许进发布包；
+  // 清单写死在这里并注释原因，不另维护第二份——门禁从这份清单机械求值发布包脚本集合）。
+  const SHIPPED_SCRIPTS = ['fix-issue-body.mjs', 'wire-subissues.mjs']
   const pkgScripts = resolve(ROOT, 'package/scripts')
   try { rmSync(pkgScripts, { recursive: true, force: true }) } catch {}
   mkdirSync(pkgScripts, { recursive: true })
-  try {
-    if (typeof cpSync === 'function') {
-      cpSync(resolve(ROOT, 'scripts'), pkgScripts, copyOpts)
-    } else {
-      throw new Error('cpSync unavailable')
-    }
-  } catch (e) {
-    if (!e || e.message !== 'cpSync unavailable') throw e
-    // fallback 手写递归（与上同口径）
-    const cpRecurScripts = (src, dst) => {
-      const st = statSync(src)
-      if (st.isDirectory()) {
-        mkdirSync(dst, { recursive: true })
-        for (const ent of readdirSync(src)) cpRecurScripts(join(src, ent), join(dst, ent))
-      } else {
-        mkdirSync(dirname(dst), { recursive: true })
-        writeFileSync(dst, readFileSync(src))
-      }
-    }
-    cpRecurScripts(resolve(ROOT, 'scripts'), pkgScripts)
+  for (const name of SHIPPED_SCRIPTS) {
+    writeFileSync(join(pkgScripts, name), readFileSync(join(resolve(ROOT, 'scripts'), name)))
   }
-  try {
-    let scriptCount = 0
-    const countScripts = (d) => {
-      for (const ent of readdirSync(d, { withFileTypes: true })) {
-        const p = join(d, ent.name)
-        if (ent.isDirectory()) countScripts(p)
-        else scriptCount++
-      }
-    }
-    countScripts(pkgScripts)
-    console.log(`[build] scripts 已随包分发 → package/scripts（${scriptCount} 个文件）`)
-  } catch {}
+  console.log(`[build] scripts 已随包分发 → package/scripts（${SHIPPED_SCRIPTS.length} 个文件：${SHIPPED_SCRIPTS.join('、')}）`)
   // 触新 mtime：确保产物新鲜度门禁（verify-parse-leaf 检查产物 mtime > 源 mtime），原样复制需显式 touch
   try {
     const now = new Date()

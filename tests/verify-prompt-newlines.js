@@ -67,8 +67,9 @@ if (ALLOWED_LITERAL_BSN.length !== 0) {
 
 // 1) client PROMPTS 注册表（src 单源 + 双产物：改 src 必须重建，产物同步校验）
 const parseEntries = function (src) {
+  // #588 起转义感知（与 verify-prompts.js ENTRY_RE 同口径）：第 ① 步命令的内层单引号在源码是 \'，[^']* 会提前截断少扫
   const out = []
-  const re = /^\s*"([a-zA-Z0-9.]+)": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '([^']*)', zh: '([^']*)', en: '([^']*)' \},?$/gm
+  const re = /^\s*"([a-zA-Z0-9.]+)": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '((?:[^'\\]|\\.)*)', zh: '((?:[^'\\]|\\.)*)', en: '((?:[^'\\]|\\.)*)' \},?$/gm
   let m
   while ((m = re.exec(src)) !== null) {
     out.push({ id: m[1], version: Number(m[2]), zh: unescapeLiteral(m[5]), en: unescapeLiteral(m[6]) })

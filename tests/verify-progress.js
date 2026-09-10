@@ -102,11 +102,11 @@ check(cli.includes('newWayfinderText') && cli.includes('BODY_FORMAT() ?') && cli
 check(pcli.includes('newWayfinderText') && pcli.includes('BODY_FORMAT() ?') && pcli.includes("promptText('newWayfinder'"), 'package client newWayfinder 建图入口挂 BODY_FORMAT（F2 补强）')
 check(cli.includes('newBugWayfinderText') && cli.includes('BODY_FORMAT() ?') && cli.includes("promptText('newBugWayfinder'"), 'client newBugWayfinder 新增 BUG 入口挂 BODY_FORMAT（#4）')
 check(pcli.includes('newBugWayfinderText') && pcli.includes('BODY_FORMAT() ?') && pcli.includes("promptText('newBugWayfinder'"), 'package client newBugWayfinder 新增 BUG 入口挂 BODY_FORMAT（#4）')
-// #573：正文写回脚本名必须出现在两个产物里，且出现 22 次
-//   （10 条模板 × zh/en 各 1 + bodyFormat zh/en 2；打出 11 就是只改了 zh 或漏了 bodyFormat）
-const fixNameCount = (s) => (s.match(/node scripts\/fix-issue-body\.mjs/g) || []).length
-check(fixNameCount(cli) === 22, 'client 含写回脚本名 ×22（10 条模板 × zh/en + bodyFormat zh/en）')
-check(fixNameCount(pcli) === 22, 'package client 含写回脚本名 ×22（10 条模板 × zh/en + bodyFormat zh/en）')
+// #588：正文写回脚本锚定路径必须出现在两个产物里，且出现 22 次
+//   （11 条目 × zh/en 各 1 处第 ② 步 <目录>/scripts/fix-issue-body.mjs；打出 11 就是只改了 zh 或漏了 bodyFormat）
+const fixNameCount = (s) => (s.match(/scripts\/fix-issue-body\.mjs/g) || []).length
+check(fixNameCount(cli) === 22, 'client 含写回脚本锚定路径 ×22（11 条目 × zh/en 的第 ② 步）')
+check(fixNameCount(pcli) === 22, 'package client 含写回脚本锚定路径 ×22（11 条目 × zh/en 的第 ② 步）')
 
 // T10 R7（#458 用户拍板）：手动刷新去「刷新中」遮罩 —— 无全屏遮罩渲染；st.refreshing 仅驱动按钮 spinner
 check(!cli.includes("className: 'dsws-shade'") && !cli.includes('dsws-shade{'), 'client 无刷新遮罩渲染（R7）')

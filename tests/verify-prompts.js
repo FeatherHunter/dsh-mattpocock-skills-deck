@@ -101,8 +101,15 @@ const normVariants = function (s) {
   return out
 }
 
-// 白名单：唯一允许出现的「命令」形态 = 两个脚本名加参数（占位符写法不锁死；接受 ./ 与反斜杠路径）
+// 白名单：允许出现的命令形态有三种（#588 起 workspace-relative 单步写法作废，两步走是唯一合法形态）：
+//   ① 精确的第 ① 步调用（归一化后引号已剥掉）：dsh plugin exec node -e console.log(require.resolve(...))；
+//   ② 锚定的第 ② 步：node "<目录变量>/scripts/<两脚本之一>.mjs" + 参数名白名单（路径不断言用户名，只认形态）；
+//   ③ 前置检查 bare 句 gh auth status（剥掉它，R1 宽写法才不会把「gh … --issue」连读误判）；
+//   ④ 旧 bare 形态 node scripts/<两脚本>.mjs（历史夹具 F09–F17 引用的形态，保留只为夹具自证，不再是模板允许写法——模板侧另有计数断言卡死零残留）。
 // 值 token 不得以 - 或 = 开头，也不得是另一个命令词，避免白名单吞掉后面的命令
+const RE_STEP1_CALL = /dsh\s+plugin\s+exec\s+node\s+-e\s+console\.log\(require\.resolve\(dsh-mattpocock-skills-deck\/package\.json\)\)/g
+const RE_STEP2_CALL = /node\s+\S*scripts[\/\\](?:fix-issue-body|wire-subissues)\.mjs(?:\s+--(?:issue|map|children|body-file|repo|dry-run)(?:\s*(?:=\s*)?(?![-=])(?!(?:gh|glab|npm|npx|node|curl|wget|cat|sh|bash)\b)\S+)?)*/g
+const RE_GH_AUTH_STATUS = /gh\s+auth\s+status/g
 const RE_ALLOWED_CALL = /(?:node|npx)\s+(?:\.\/|\.\\)?scripts[\/\\](?:fix-issue-body|wire-subissues)\.mjs(?:\s+--(?:issue|map|children|body-file|repo|dry-run)(?:\s*(?:=\s*)?(?![-=])(?!(?:gh|glab|npm|npx|node|curl|wget|cat|sh|bash)\b)\S+)?)*/g
 // R1 的判定窗口有两档：
 //   紧写法（≤4 个任意非字母数字字符）抓 gh、issue / 用gh api / gh　issue / gh<零宽>issue 这类；
@@ -128,7 +135,7 @@ const RE_OBFUSCATED = /(?:base64\s+(?:-d|-D|--decode))|(?:xxd\s+(?:-r\s+-p|-p\s+
 const RE_ASSEMBLED = RE_TRACKER_WIDE
 
 const RULE_FIX = {
-  R1: '模板里只许出现脚本名加参数：把具体跟踪器命令改写成「调 node scripts/fix-issue-body.mjs / wire-subissues.mjs」',
+  R1: '模板里只许出现两步脚本调用：把具体跟踪器命令改写成「第 ① 步 dsh plugin exec node -e …拿安装目录 + 第 ② 步 node "<安装目录>/scripts/fix-issue-body.mjs / wire-subissues.mjs" …」（--body-file 必须用绝对路径）',
   R2: '不要经包管理器转发跟踪器命令（npm exec gh / npx gh）',
   R3: '不要直接打跟踪器 API 地址（api.github.com / api.gitlab.com）',
   R4: '正文一律走 --body-file 先写成文件，不把正文内联进命令行',
@@ -146,7 +153,8 @@ const judge = function (text) {
     hits.push({ rule: rule, snippet: String(hay).slice(from, from + 60).replace(/\s+/g, ' ') })
   }
   normVariants(raw).forEach(function (t) {
-    const stripped = t.replace(RE_ALLOWED_CALL, '')
+    // #588：四种合法形态先剥掉再判（第 ① 步精确调用 / 第 ② 步锚定调用 / 前置 gh auth status / 旧 bare 形态仅夹具用）
+    const stripped = t.replace(RE_STEP1_CALL, '').replace(RE_STEP2_CALL, '').replace(RE_GH_AUTH_STATUS, '').replace(RE_ALLOWED_CALL, '')
     let m = RE_TRACKER.exec(stripped)
     if (!m) m = RE_TRACKER_WIDE.exec(stripped)
     if (m !== null) push('R1', stripped, m.index)
@@ -374,8 +382,9 @@ const unescapeLiteral = function (s) {
   }
   return out
 }
-// tests/verify-prompt-newlines.js:65 用的同一条单行正则（跨门禁一致性断言用）
-const ENTRY_RE = /^\s*"([a-zA-Z0-9.]+)": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '([^']*)', zh: '([^']*)', en: '([^']*)' \},?$/gm
+// tests/verify-prompt-newlines.js:71 用的同一条单行正则（跨门禁一致性断言用；#588 起转义感知：
+// 第 ① 步命令含 require.resolve('...') 内层单引号，源码写成 \'，[^']* 会提前截断少扫）
+const ENTRY_RE = /^\s*"([a-zA-Z0-9.]+)": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '((?:[^'\\]|\\.)*)', zh: '((?:[^'\\]|\\.)*)', en: '((?:[^'\\]|\\.)*)' \},?$/gm
 const parseRegistryByRegex = function (src) {
   const reg = {}
   const re = new RegExp(ENTRY_RE.source, 'gm')
@@ -532,7 +541,7 @@ const collectRegistry = function (reg, label, ctx, exemptList) {
             if (m) {
               out.push('FAIL ' + label + ' ' + id + '.' + lang + ' 占位符 {' + n + '} 代入「' + probe + '」后 [ASSEMBLE] 拼出命令「' +
                 rendered.slice(Math.max(0, m.index - 20), m.index + 40).replace(/\s+/g, ' ') + '」\n' +
-                '     修法：模板不许把命令词交给占位符，也不许让占位符紧邻子命令词；改成调 node scripts/fix-issue-body.mjs / wire-subissues.mjs')
+                '     修法：模板不许把命令词交给占位符，也不许让占位符紧邻子命令词；改成两步调安装目录下的脚本（第 ① 步 dsh plugin exec …拿安装目录，第 ② 步 node "<安装目录>/scripts/<脚本>.mjs" …）')
             }
           })
         })
@@ -671,9 +680,9 @@ const contractChecksInner = function (reg, src) {
 
   // 版本号 bump（#573 §2.7 逐条清单；只许升不许降）
   const V_MIN = {
-    mapExecute: 6, complete: 6, fixate: 3, 'tpl.diagnose': 7, 'tpl.fix': 4, 'tpl.discuss': 4,
-    'tpl.research': 2, 'tpl.prototype': 2, 'tpl.execute': 6, mapInspect: 3, newWayfinder: 14,
-    bodyFormat: 4, setupRun: 9, progress: 3,
+    mapExecute: 8, complete: 8, fixate: 5, 'tpl.diagnose': 9, 'tpl.fix': 6, 'tpl.discuss': 6,
+    'tpl.research': 4, 'tpl.prototype': 4, 'tpl.execute': 8, mapInspect: 5, newWayfinder: 14,
+    bodyFormat: 6, setupRun: 9, progress: 3,
   }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
@@ -835,15 +844,17 @@ const contractChecksInner = function (reg, src) {
     if (bf.zh.indexOf('每个 `## 章节` 独占一行') < 0) fail('bodyFormat zh 缺「每个 ## 章节 独占一行」（结构规则）')
     if (bf.zh.indexOf('段落间留空行') < 0) fail('bodyFormat zh 缺段落间留空行')
     if (bf.zh.indexOf('先写成文件') < 0) fail('bodyFormat zh 缺「正文先写成文件」')
-    if (bf.zh.indexOf('node scripts/fix-issue-body.mjs') < 0) fail('bodyFormat zh 缺写回脚本名（node scripts/fix-issue-body.mjs）')
-    if (bf.zh.indexOf('--issue') < 0 || bf.zh.indexOf('--body-file') < 0) fail('bodyFormat zh 缺脚本参数名（--issue / --body-file）')
+    if (bf.zh.indexOf('dsh-mattpocock-skills-deck/scripts/fix-issue-body.mjs') < 0 && bf.zh.indexOf('>/scripts/fix-issue-body.mjs') < 0) fail('bodyFormat zh 缺写回脚本锚定路径（<目录>/scripts/fix-issue-body.mjs）')
+    if (bf.zh.indexOf('dsh plugin exec node -e') < 0) fail('bodyFormat zh 缺精确的第 ① 步调用（dsh plugin exec node -e …拿安装目录）')
+    if (bf.zh.indexOf('--body-file') < 0 || bf.zh.indexOf('绝对路径') < 0) fail('bodyFormat zh 缺 --body-file 绝对路径要求')
     if (bf.zh.indexOf('不要把正文拼进命令行') < 0) fail('bodyFormat zh 缺「不要把正文拼进命令行」')
     if (bf.zh.indexOf('格式只告警不改写') < 0) fail('bodyFormat zh 缺「格式只告警不改写」（脚本职责边界）')
     if (bf.zh.indexOf('反斜杠加 n 两个字符') < 0) fail('bodyFormat zh 缺「换行不要写成反斜杠加 n 两个字符」')
     if (bf.en.indexOf('each `## section` on its own line') < 0) fail('bodyFormat en 缺 each ## section on its own line')
     if (bf.en.indexOf('blank line between paragraphs') < 0) fail('bodyFormat en 缺 blank line between paragraphs')
-    if (bf.en.indexOf('node scripts/fix-issue-body.mjs') < 0) fail('bodyFormat en 缺写回脚本名')
-    if (bf.en.indexOf('--issue') < 0 || bf.en.indexOf('--body-file') < 0) fail('bodyFormat en 缺脚本参数名（--issue / --body-file）')
+    if (bf.en.indexOf('/scripts/fix-issue-body.mjs') < 0) fail('bodyFormat en 缺写回脚本锚定路径（<dir>/scripts/fix-issue-body.mjs）')
+    if (bf.en.indexOf('dsh plugin exec node -e') < 0) fail('bodyFormat en 缺精确的第 ① 步调用（dsh plugin exec node -e …）')
+    if (bf.en.indexOf('--issue') < 0 || bf.en.indexOf('--body-file') < 0 || bf.en.indexOf('absolute path') < 0) fail('bodyFormat en 缺脚本参数名（--issue / --body-file）与 absolute path 要求')
     if (bf.en.indexOf('never inline the body into the command line') < 0) fail('bodyFormat en 缺 never inline the body into the command line')
     if (bf.en.indexOf('only warns about formatting') < 0) fail('bodyFormat en 缺 only warns about formatting')
     if (bf.en.indexOf('two characters backslash-n') < 0) fail('bodyFormat en 缺 two characters backslash-n')
@@ -854,11 +865,14 @@ const contractChecksInner = function (reg, src) {
   // 统一模板不得点名具体跟踪器命令（S1 判定已覆盖，这里补一条「说明文字里也不许引用」的正面检查）
   const zhBlockCount = (reg['mapExecute'] && reg['mapExecute'].zh.split('## 正文格式').length) || 0
   if (zhBlockCount !== 2) fail('mapExecute zh 应恰含 1 处「## 正文格式」段')
-  // 写回脚本调用次数（E1 纠正值：10 条模板 × zh/en + bodyFormat zh/en = 22）
-  const fixCount = (src.match(/node scripts\/fix-issue-body\.mjs/g) || []).length
-  if (fixCount !== 22) fail('fix-issue-body 脚本名出现 ' + fixCount + ' 次（期望 22 = 10 条模板 × zh/en + bodyFormat zh/en）')
-  const wireCount = (src.match(/node scripts\/wire-subissues\.mjs/g) || []).length
-  if (wireCount !== 2) fail('wire-subissues 脚本名出现 ' + wireCount + ' 次（期望 2 = mapInspect zh/en）')
+  // 写回脚本调用次数（#588 起锚定形态：<目录>/scripts/<名>.mjs；22 = 11 条目 × zh/en，2 = mapInspect zh/en）
+  const fixCount = (src.match(/scripts\/fix-issue-body\.mjs/g) || []).length
+  if (fixCount !== 22) fail('fix-issue-body 脚本名出现 ' + fixCount + ' 次（期望 22 = 11 条目 × zh/en 的第 ② 步锚定路径）')
+  const wireCount = (src.match(/scripts\/wire-subissues\.mjs/g) || []).length
+  if (wireCount !== 2) fail('wire-subissues 脚本名出现 ' + wireCount + ' 次（期望 2 = mapInspect zh/en 的第 ② 步锚定路径）')
+  // workspace-relative 旧形态零残留（#588：提示词里不许再出现 node scripts/ 单步写法；文件头开发注释不属模板，不在此数）
+  const oldForm = (src.match(/`node scripts\/(fix-issue-body|wire-subissues)\.mjs/g) || []).length
+  if (oldForm !== 0) fail('workspace-relative 旧形态残留 ' + oldForm + ' 处（`node scripts/<脚本>.mjs；期望 0，全部改为两步走）')
   const segCount = (src.match(/## 正文格式/g) || []).length
   if (segCount !== 10) fail('「## 正文格式」段数 ' + segCount + '（期望 10：10 条模板各 1 处内嵌）')
 }
@@ -912,6 +926,9 @@ const FIXTURE_BYPASS = [
   ['T44 真实绝对路径把间隔撑到 46', '写回用 gh -C D:\\dsh-plugin\\dsh-mattpocock-skills-deck issue edit 573 --body-file x.md'],
   ['T45 glab + 真仓库名 + --hostname', '写回用 glab -R FeatherHunter/dsh-mattpocock-skills-deck --hostname gitlab.com issue update 573'],
   ['T46 gh --json body issue edit', '写回用 gh --json body issue edit 573 --body-file x.md'],
+  ['T47 前置检查后接跟踪器命令', '先跑 gh auth status，再 gh issue edit 573 --body-file x.md'],
+  ['T48 第 ① 步后接跟踪器命令', 'dsh plugin exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))" && gh issue edit 1 --body-file y.md'],
+  ['T49 第 ② 步后接跟踪器命令', 'node "<插件目录>/scripts/fix-issue-body.mjs" --issue 1 --body-file x.md && gh issue edit 1 --body-file y.md'],
 ]
 const FIXTURE_FALSE_POS = [
   ['F01 GitHub issue URL', '参考 https://github.com/owner/repo/issues/573 的讨论'],
@@ -938,6 +955,9 @@ const FIXTURE_FALSE_POS = [
   ['F22 进度格式示例', '## 进度：90% 独占一行，空行后接 下一步：xxx'],
   ['F23 目标 zh 正文格式块', '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 正文先写成文件（文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行），再调 `node scripts/fix-issue-body.mjs --issue <号> --body-file <文件>` 写回；脚本回包 ok 为真才算写完（剥开头不可见字符、按阈值还原字面转义、格式只告警不改写，都由脚本负责）'],
   ['F24 目标 en 正文格式块', '## Body format (mandatory when writing/editing an issue body)\n- [ ] Write the body to a file first (real newlines in the file: each `## section` on its own line, a blank line between paragraphs), then write it back with `node scripts/fix-issue-body.mjs --issue <issue> --body-file <file>`; only when the script returns ok true is the write done (the script strips the leading invisible character, restores literal escapes within the threshold, and only warns about formatting)'],
+  ['F25 新两步 zh 块', '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 先跑 `gh auth status`，没登录先按 ghAuthLogin 指引登完再继续\n- [ ] 第 ① 步拿插件安装目录：跑 `dsh plugin exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"`，记下输出的目录（下面叫 <插件目录>）；第 ② 步写回：跑 `node "<插件目录>/scripts/fix-issue-body.mjs" --issue <号> --body-file <绝对路径文件>`；第 ② 步的当前目录可能是插件目录而不是你的工作区，所以 `--body-file` 必须用绝对路径'],
+  ['F26 精确第 ① 步调用', '跑 `dsh plugin exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"` 拿插件安装目录'],
+  ['F27 前置 gh auth status 单句', '先跑 `gh auth status`，没登录先按 ghAuthLogin 指引登完再继续'],
 ]
 const runFixtureSelfCheck = function (reg, backendSrc) {
   const before = problems.length
@@ -1029,7 +1049,7 @@ const runL2Injection = function () {
         mutated = injectUseField(regSrc, p.text)
       } else if (p.kind === 'backend') {
         const bpath = path.join(tmp, 'github-index-probe.js')
-        fs.writeFileSync(bpath, backendSrc.replace("zh: 'node scripts/wire-subissues.mjs", "zh: 'gh api repos/{owner}/{repo}/issues/{child} --jq .id 取 id；node scripts/wire-subissues.mjs"))
+        fs.writeFileSync(bpath, backendSrc.replace('输出有多行时，取以 package.json 结尾的那一行）', '输出有多行时，取以 package.json 结尾的那一行）；先 gh api repos/{owner}/{repo}/issues/{child} --jq .id 取 id'))
         extraArgs = ['--backend-probe=' + bpath]
       }
       const args = (mutated != null) ? [path.join(tmp, 'prompts-probe-' + p.n + '.js')] : extraArgs
@@ -1088,7 +1108,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '1ded52d4fc14432ee1c66a3a78b2769272729248f9083d0fed96e22639022648',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '2f9d38da3bf2ef49c047dffc896d03b852b0512c78f31e6e91b00927fa9a58fc',
+  'tests/verify-prompts.js': '4cf1f9fa370564619de03d2fb1b0127b610352ca51cd4fd810867041b736a982',
 }
 // ---- LOCK-END ----
 
@@ -1166,6 +1186,85 @@ if (reg) {
   check(ghSub.indexOf('scripts/wire-subissues.mjs') >= 0, 'github 后端 prompts.subIssue 未含脚本名 scripts/wire-subissues.mjs（注入链的另一半）')
   check(ghSub.indexOf('--map') >= 0 && ghSub.indexOf('--children') >= 0 && ghSub.indexOf('--body-file') >= 0, 'github 后端 prompts.subIssue 未含 --map/--children/--body-file 三个参数名')
   check(ghSub.indexOf('## Destination') >= 0, 'github 后端 prompts.subIssue 未写明正文文件要保留 ## Destination（wire-subissues 脚本 exit 2 前置条件）')
+  // #588 两步走形态 + 名实一致（提示词引用的脚本集合 == 发布包脚本集合，两边都从源码机械求值，不手写第二份清单）
+  const p588 = problems.length
+  try {
+    // 求值态第 ① 步精确串（源码里是 \' 转义，求值后是单引号）
+    const STEP1_EXACT = 'dsh plugin exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"'
+    const step2NameOf = function (text, want) {
+      const re = /node\s+"<[^"]+>\/scripts\/([A-Za-z0-9_.-]+\.mjs)"/g
+      const names = []
+      let m
+      while ((m = re.exec(String(text))) !== null) names.push(m[1])
+      return names
+    }
+    const FIX_IDS = ['mapExecute', 'complete', 'fixate', 'bodyFormat', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
+    const referenced = []
+    FIX_IDS.forEach(function (id) {
+      const e = reg[id] || {}
+      ;['zh', 'en'].forEach(function (lang) {
+        const t = String(e[lang] || '')
+        if (t.indexOf(STEP1_EXACT) < 0) fail('#588 ' + id + '.' + lang + ' 缺精确的第 ① 步调用（dsh plugin exec node -e …拿安装目录）')
+        const names = step2NameOf(t, 0)
+        if (names.indexOf('fix-issue-body.mjs') < 0) fail('#588 ' + id + '.' + lang + ' 缺锚定的第 ② 步（node "<目录>/scripts/fix-issue-body.mjs" …）')
+        names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
+      })
+    })
+    ;['zh', 'en'].forEach(function (lang) {
+      const t = String((reg.mapInspect || {})[lang] || '')
+      const names = step2NameOf(t, 0)
+      if (names.indexOf('wire-subissues.mjs') < 0) fail('#588 mapInspect.' + lang + ' 缺锚定的 wire 第 ② 步（node "<目录>/scripts/wire-subissues.mjs" …）')
+    })
+    const ghVals = [subIssueValues['github.zh'], subIssueValues['github.en']]
+    ghVals.forEach(function (t, i) {
+      const lang = i === 0 ? 'zh' : 'en'
+      if (String(t || '').indexOf(STEP1_EXACT) < 0) fail('#588 github 后端 prompts.subIssue.' + lang + ' 缺精确的第 ① 步调用')
+      const names = step2NameOf(t, 0)
+      if (names.indexOf('wire-subissues.mjs') < 0) fail('#588 github 后端 prompts.subIssue.' + lang + ' 缺锚定的 wire 第 ② 步')
+      names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
+    })
+    // 发布包脚本集合：从 scripts/build.mjs 的 SHIPPED_SCRIPTS 清单机械求值（唯一手写清单，不许第二份）
+    const buildSrc = fs.readFileSync(path.join(ROOT, 'scripts/build.mjs'), 'utf8')
+    const mm = /const SHIPPED_SCRIPTS = \[([^\]]*)\]/.exec(buildSrc)
+    if (!mm) fail('#588 scripts/build.mjs 里找不到 SHIPPED_SCRIPTS 清单（发布包脚本集合无源可求值）')
+    const shipped = []
+    if (mm) {
+      const q = /'([^']+)'/g
+      let qm
+      while ((qm = q.exec(mm[1])) !== null) shipped.push(qm[1])
+    }
+    if (mm && shipped.length === 0) fail('#588 SHIPPED_SCRIPTS 清单为空（至少要有提示词引用的脚本）')
+    if (mm) {
+      const a = referenced.slice().sort()
+      const b = shipped.slice().sort()
+      if (JSON.stringify(a) !== JSON.stringify(b)) {
+        fail('#588 名实不一致：提示词引用的脚本集合 [' + a.join(',') + '] ≠ 发布包脚本集合 [' + b.join(',') + ']（两边都从源码机械求值；提示词加了新脚本必须同步进 scripts/build.mjs 的 SHIPPED_SCRIPTS，反之亦然）')
+      }
+      // 生成物与源逐文件 sha256 一致（package/scripts 是 gitignore 生成态，过期即红；缺文件先跑构建）
+      const crypto588 = require('crypto')
+      const sha = function (p) { return crypto588.createHash('sha256').update(fs.readFileSync(p)).digest('hex') }
+      const pkgDir = path.join(ROOT, 'package/scripts')
+      let onDisk = []
+      try {
+        onDisk = fs.readdirSync(pkgDir).filter(function (f) { return fs.statSync(path.join(pkgDir, f)).isFile() }).sort()
+      } catch (e) {
+        fail('#588 package/scripts/ 不存在（生成物缺失；修法：跑 node scripts/build.mjs 重新生成）：' + e.message)
+      }
+      if (onDisk.length && JSON.stringify(onDisk) !== JSON.stringify(b)) {
+        fail('#588 package/scripts/ 落点集合 [' + onDisk.join(',') + '] ≠ 清单 [' + b.join(',') + ']（有多余文件或缺文件；修法：跑 node scripts/build.mjs 重新生成）')
+      }
+      shipped.forEach(function (n) {
+        const gen = path.join(pkgDir, n)
+        const srcP = path.join(ROOT, 'scripts', n)
+        if (!fs.existsSync(gen)) { fail('#588 生成物缺失 package/scripts/' + n + '（修法：跑 node scripts/build.mjs 重新生成）'); return }
+        if (!fs.existsSync(srcP)) { fail('#588 源缺失 scripts/' + n); return }
+        if (sha(gen) !== sha(srcP)) fail('#588 生成物与源不一致 package/scripts/' + n + '（sha256 对不上；修法：跑 node scripts/build.mjs 重新生成）')
+      })
+    }
+  } catch (e) {
+    fail('#588 断言执行时抛错：' + String((e && e.message) || e))
+  }
+  if (stepOk(p588)) console.log('  PASS #588 两步走形态（11 条目 + 后端 subIssue 含精确第 ① 步与锚定第 ② 步）+ 名实一致 + 生成物 sha256 一致')
   if (stepOk(pS1)) console.log('  PASS 面 S1 ' + s1Label + '（' + s1Ids.length + ' 条注册表，扫描 ' + s1.scanned + ' 条；含占位符 ' + s1.rendered + ' 条走渲染面）+ 契约断言 + 跨门禁一致性 + 注入链另一半')
 }
 
