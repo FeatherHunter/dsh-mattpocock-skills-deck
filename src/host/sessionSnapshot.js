@@ -255,14 +255,10 @@ export function createSessionSnapshot(deps) {
             tickets.forEach(function(t){
               if(t && t.key != null && t.number == null){ const nn=parseInt(t.key,10); if(!isNaN(nn)) t.number=nn; if(t.key!=null) t.key=String(t.key) }
               if (t && Array.isArray(t.blockedBy)) {
+                // 与主路径同口径：阻塞引用保留原键字符串，面板按“工作单元 + 键”查找。
                 t.blockedBy = t.blockedBy.map(function(ref){
-                  if (typeof ref === 'number') return ref
-                  if (ref && typeof ref === 'object' && ref.key != null) {
-                    const nk = String(ref.key)
-                    const nn = parseInt(nk, 10)
-                    if (!isNaN(nn)) return nn
-                    return nk
-                  }
+                  if (typeof ref === 'number' || typeof ref === 'string') return ref
+                  if (ref && typeof ref === 'object' && ref.key != null) return String(ref.key)
                   return ref
                 })
               }
