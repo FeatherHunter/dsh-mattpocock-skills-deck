@@ -3,6 +3,7 @@
 > 状态：✅ 已冻结（G3 · issue #91 拍板 · 2026-08-21；T3 · issue #96 落盘；#444 于 2026-09-05 按实测对齐为 15 模块基准）
 > 用途：阶段 2 内核迁移（T3）的接口基准 —— kernel/* 各模块对外导出表；「同层禁互 import」边界裁定。
 > 对齐说明（#444）：冻结表 10 行、门禁表 11 行、构建清单 15 项曾脱节，现以实测为准统一为 15 拼接模块；另有 2 个非拼接文件见下节，不计入 15。
+> 接口增量（#595 · 2026-09-10）：`kernel/prompts.js` 增 6 个导出（`bodyFormatDefault`、`currentBackendId`、`backendPromptFrom`、`bodyFormatText`、`backendParamsFor`、`promptTextFor`），`kernel/config.js` 增 `TPL_BACKEND_MARKERS`；目的是让「正文格式」这段文案由跟踪器后端各自声明、模板只留标记。口径与来龙去脉见下面「正文格式契约」一节。
 > 机制：与 ctx.js 同模式 —— src/client/index.js 中模块原位置留标记 `// ==== kernel:<name> (spliced by build) ====`，
 > 构建时由 scripts/build.mjs 把模块文件（剥每行行首 `export `）文本拼回标记处，一源两物（_dev / _pkg 双产物同构）。
 
@@ -37,11 +38,11 @@
 | `kernel/locale-flow.js`（标记名 `localeFlow`） | `L_FLOW`（动作、类型、列表、配置、详情、地图、提示七组，zh/en 双语） | 无 | 字典片段之一（#458 由 `locale.js` 拆出，302 行） |
 | `kernel/locale-word.js`（标记名 `localeWord`） | `L_WORD`（技能、检查、浮层、命名、切换、进度、错误、模板、运行、技能描述十二组，zh/en 双语） | 无 | 字典片段之一（#458 由 `locale.js` 拆出，245 行） |
 | `kernel/locale.js`（标记名 `locale`，合并器） | `L`（`Object.assign` 合并三片段 zh/en，key 一个不改只搬家） | `L_PANEL`/`L_FLOW`/`L_WORD`（定义时引用，标记位顺序保证先片段后合并） | tr 绑定（`localeSvc.bind('dsws')`）由 index.js 装配；字典为唯一真源，verify-t3-locale 契约；合并器 13 行 |
-| `kernel/prompts.js` | `PROMPTS`、`promptLang`、`promptText`、`SETUP_DEFAULT_PROMPT_KEYS`、`setupRunParamsFrom`、`setupRunPrompt`、`NEW_WAYFINDER_DEFAULT_WIRING`、`newWayfinderParamsFrom`、`newWayfinderPrompt`、`MATT_REPO`、`MAP_EXECUTE_PROMPT`、`COMPLETE_PROMPT`、`BODY_FORMAT`、`NEW_BUG_FIELDS_BODY`、`NEW_BUG_FIELDS_BODY_EN`、`completePrompt`、`inspectPrompt`、`FIXATE_PROMPT` | localeSvc（promptLang）、L/locale 字典与 L 兜底（setupRunParamsFrom）、repoStr（router，调用时） | PROMPTS 注册表契约见 tests/verify-prompts.js；setupRun 占位符由后端声明键（BackendModule.setupPrompt → wf.registry）经 setupRunParamsFrom 填充（#230 · D10 键入 locale，2026-08-28 生效；#230 已删 setupTrackerLine/Choice/BackendNote 三函数） |
+| `kernel/prompts.js` | `PROMPTS`、`promptLang`、`promptText`、`SETUP_DEFAULT_PROMPT_KEYS`、`setupRunParamsFrom`、`setupRunPrompt`、`NEW_WAYFINDER_DEFAULT_WIRING`、`newWayfinderParamsFrom`、`newWayfinderPrompt`、`bodyFormatDefault`、`currentBackendId`、`backendPromptFrom`、`bodyFormatText`、`backendParamsFor`、`promptTextFor`、`MATT_REPO`、`MAP_EXECUTE_PROMPT`、`COMPLETE_PROMPT`、`BODY_FORMAT`、`NEW_BUG_FIELDS_BODY`、`NEW_BUG_FIELDS_BODY_EN`、`completePrompt`、`inspectPrompt`、`FIXATE_PROMPT` | localeSvc（promptLang）、L/locale 字典与 L 兜底（setupRunParamsFrom）、repoStr（router，调用时） | PROMPTS 注册表契约见 tests/verify-prompts.js；setupRun 占位符由后端声明键（BackendModule.setupPrompt → wf.registry）经 setupRunParamsFrom 填充（#230 · D10 键入 locale，2026-08-28 生效；#230 已删 setupTrackerLine/Choice/BackendNote 三函数）；后 6 个导出是正文格式契约的填空入口，见下面「正文格式契约」一节（#595 · 2026-09-10） |
 | `kernel/icons.js` | `ICON_SCHEMES`、`WORD_SCHEMES`、`Icon`、`Ic` | h（React.createElement 自由变量） | 通用图标集（统一 SVG stroke 风格） |
 | `kernel/styles.js` | `STYLE_TEXT` | 无 | 样式唯一真源；index 标记处保留 `styles.insert(STYLE_TEXT)` 调用 |
 | `kernel/portal.js` | `RDOM`、`portalTop`、`PortalOverlay` | h（自由变量）、`ReactDOM`/`window.ReactDOM`/`require('react-dom')`/`document.body` | 挂顶底座（#380 抽离，平台抽象层，与 styles 同级）；RDOM 三路探测取不到为 null，portalTop 挂 document.body 取不到退化原地不抛，PortalOverlay 统一经 portalTop 挂顶（issue #3 / #22 同理） |
-| `kernel/config.js` | `CFG_KEY`、`cfg`、`saveCfg`、`TPL_KEY`、`templates`、`saveTemplates`、`migrateStartCfg`、`PH`、`TPL_PH`、`TPL_REQUIRED`、`TPL_DEFAULT`、`tplText`、`renderTemplate`、`validateTemplate`、`fixateText` | promptText（prompts） | 配置/模板持久化 + 动作模板引擎（T1 规格 §2-§4）；migrateStartCfg() 调用随模块 |
+| `kernel/config.js` | `CFG_KEY`、`cfg`、`saveCfg`、`TPL_KEY`、`templates`、`saveTemplates`、`migrateStartCfg`、`PH`、`TPL_PH`、`TPL_REQUIRED`、`TPL_DEFAULT`、`tplText`、`renderTemplate`、`TPL_BACKEND_MARKERS`、`validateTemplate`、`fixateText` | promptText（prompts） | 配置/模板持久化 + 动作模板引擎（T1 规格 §2-§4）；migrateStartCfg() 调用随模块；`TPL_BACKEND_MARKERS` 登记「内容由后端声明提供」的模板标记（#595 · 2026-09-10，当前值 `['bodyFormat']`，见下面「正文格式契约」一节） |
 | `kernel/store-prefs.js`（标记名 `storePrefs`） | 偏好（`DEFAULT_PANEL_H`、`LIST_PREFS_KEY`、`listPrefs`、`saveListPrefs`、`LABEL_CLICKS_KEY`、`labelClicks`、`saveLabelClicks`）、noRepo 状态机（`NOREPO_DISMISS_PREFIX`、`cwdHash`、`noRepoDismissKey`、`isNoRepoDismissed`、`setNoRepoDismissed`、`cwdBasename`、`isNoRepoNameValid`、`ensureNoRepoCard`）、选中与仓库（`setActiveMap`、`clearActiveMap`、`setActiveIssue`、`clearActiveIssue`、`clearActiveDetail`、`ISSUE_CACHE_TTL`、`selectionByCwd`、`repositoryByCwd`、`SELECTION_BY_CWD_KEY`、`BANNER_FOLD_KEY`、`bannerFoldByCwd`、`isBannerFolded`、`setBannerFolded`、`getCachedSelection`、`setCachedSelection`、`getCachedRepository`、`setCachedRepository`） | keyOf（shared:workspaceKey，调用时）、shared/stores/emit（store-snapshot，调用时） | 会话级状态之偏好与选中（#455 由 `store.js` 第 9–119 行拆出，119 行） |
 | `kernel/store-switch.js`（标记名 `storeSwitch`） | 标签与颜色（`labelOf`、`presentationById`、`setPresentationMap`、`backendColorOf`、`backendBgOf`、`backendBorderOf`、`repoShortName`）、切换确认（`DEFAULT_SWITCH_PROMPT_ZH`、`openSwitchConfirm`、`closeSwitchConfirm`、`loadSwitchCri`、`confirmSwitchConfirm`、`clearBackendBinding`） | tr（index）、flash（store-snapshot，调用时）、setupRunPrompt/inject/loadSnapshot/loadChain（调用时） | 会话级状态之切换确认（#455 由 `store.js` 第 120–312 行拆出，201 行） |
 | `kernel/store-snapshot.js`（标记名 `storeSnapshot`） | 存储核（`makeStore`、`shared`、`stores`、`storeOf`、`emit`、`sub`、`useStore`）、快照与链缓存（`SNAP_CWD_LRU_MAX`、`snapshotByCwd`、`touchLRUClient`、`getCachedSnapshot`、`getCachedEntry`、`setCachedSnapshot`、`getSnapshotVersion`、`lastProbeAtByCwd`、`getProbeAt`、`touchProbeAt`、`SNAP_DISK_CAP`、`diskPutSnapshot`、`diskGetSnapshot`、`CHAIN_CWD_LRU_MAX`、`chainByCwd`、`getChainCacheKey`、`getCachedChain`、`setCachedChain`、`hydrateFromCache`、`mergeSelection`、`applySnapshotSelection`、`getCwdSync`）、提醒（`NOTICE_COLOR`、`noticeIcon`、`flash`） | keyOf（shared:workspaceKey，调用时）、SYNC（shared:trackerSync，调用时） | 会话级状态之存储核与快照（#455 由 `store.js` 第 313–599 行拆出，295 行） |
@@ -61,6 +62,24 @@
 | `kernel/slotRenderer-queue.js`（标记名 `slotRendererQueue`） | `SLOT_RENDERER_VERSION`、`ensureFormModal`、`openFormModal`、`closeFormModal`、`createModalRenderForm`、`canOpenModalForStep`、`canOpenWizardForStep` | flash（store，调用时） | 槽位渲染器之队列与开关 + 打开入口与守门（#454 由 `slotRenderer.js` 拆出；`createModalRenderForm` 为 `openFormModal` 别名，守门寄放本文件以保 modal-view 单文件达标） |
 | `kernel/slotRenderer-repo-sync.js`（标记名 `slotRendererRepoSync`） | `startRepoSync`、`finishRepoSync`、`retryRepoSync` | flash（store，调用时）、`repoUrlFor`（link，调用时） | 槽位渲染器之仓库同步流程与失败文案（#454 由 `slotRenderer.js` 拆出；`retryPushFlow` 等内部 helpers 同文件） |
 | `kernel/slotRenderer-modal-view.js`（标记名 `slotRendererModalView`） | `FormModalSeat` | flash（store，调用时）、`repoUrlFor`（link，调用时） | 槽位渲染器之弹窗本体（#454 由 `slotRenderer.js` 拆出；348 行组件独占一文件，头注释仅一行以保 350 行门槛，后续增行须再拆） |
+
+## 正文格式契约（#595 · 2026-09-10）
+
+> 背景：插件会把动作提示词注入到「使用本插件的人」自己的工作区里，所以提示词里出现的每一条命令，
+> 使用者都会看到、也可能照着执行。此前 GitHub 专用的正文写回步骤（先确认 `gh` 已登录、再找插件安装目录、
+> 最后调安装目录下的写回脚本）被字面抄进了 11 个提示词条目（中英各一份，共 22 份），用本地 Markdown
+> 后端的人（单据就是他自己工作区里的一个 Markdown 文件）也会看到这些完全用不上的命令；
+> 当时的门禁还反过来要求这些字面副本必须存在，改一处要改 22 处。
+
+现在这条口径由下面五条构成：
+
+1. **正文格式文案由跟踪器后端各自声明。** 每个后端在自己的 `prompts.bodyFormat` 里写清「它这套单据的正文怎么写、怎么写回」：GitHub 声明原来的两步写回（先确认登录，再调安装目录下的写回脚本）；本地 Markdown 声明「这张单据就是本机的一个 Markdown 文件，直接用编辑工具改，不需要登录远端账号、不需要找插件目录、不需要跑写回脚本、也没有 ok 回包可等」；GitLab 写泛指版（用后端自己的命令行把整个文件读进去，不写未经查证的具体命令）。
+2. **模板里只留标记 `{bodyFormat}`。** 10 个模板条目（`mapExecute`、`complete`、`fixate`、六个 `tpl.*`、`mapInspect`）都不再出现任何字面文案，只保留 `{bodyFormat}` 占位符，并把这个占位符登记进各自的 `placeholders`。
+3. **渲染时按当前工作区选中的后端填空。** `kernel/prompts.js` 新增的 6 个导出就是这条链路的全部入口：`currentBackendId(st)` 取当前工作区选中的后端；`backendPromptFrom(modules, backendId, key)` 从后端声明里取一段文案；`bodyFormatDefault()` 是查不到后端声明时用的通用兜底版；`bodyFormatText(st)` 按当前后端与当前语言选出这段正文格式文案；`backendParamsFor(st, params)` 把 `bodyFormat`（以及走同一套后端声明通道的 `subIssue`）填进参数表；`promptTextFor(st, id, params)` 是「按当前后端渲染某个条目」的统一入口。全部调用点（行级动作按钮、建图与新增 BUG、map 新会话、模板引擎 `renderTemplate`）统一把当前工作区状态 `st` 带下去。
+4. **标记机制由 `TPL_BACKEND_MARKERS` 登记。** `kernel/config.js` 的 `TPL_BACKEND_MARKERS`（当前值 `['bodyFormat']`）说明「哪些标记的内容来自后端声明，而不是模板作者手写在模板里」；模板校验据此放行这类标记。
+5. **门禁按渲染结果断言，不按源码字面量断言。** `tests/verify-prompts.js` 用同一段源码求值出真正的渲染函数，再配上从三个后端源码里机械求值出的声明文本，逐条渲染 10 个模板条目 × 中文/英文：GitHub 版必须仍含完整的两步写回；Markdown 与 GitLab 版不得出现 `gh auth`、`fix-issue-body`、`dsh plugin exec`，也不得引用写回脚本；另有一条卡「模板里不得残留这些 GitHub 专用字面副本」。
+
+引入票：本仓库把这次改动登记为 **#595**（改动落在提交 `ff88b5b`）。该提交的代码注释与门禁断言里写作 `#594`——那是提交时预期、最终并没有用到的编号（#594 后来被另一张与本问题无关的票占用了），实际建出的票是 #595。
 
 ## 边界裁定（G3 Q3 · #91 拍板）
 
