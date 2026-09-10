@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#570 第二轮 Grill · 调用契约拍板</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#1f2328; --muted:#59636e;
+    --blue:#0969da; --blue-bg:#ddf4ff; --orange:#9a6700; --orange-bg:#fff8c5;
+    --red:#cf222e; --red-bg:#ffebe9; --green:#1a7f37; --green-bg:#dafbe1;
+    --purple:#8250df; --border:#d0d7de; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.75}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 80px}
+  header.hero{background:linear-gradient(135deg,#1f2328,#38414d);color:#fff;border-radius:16px;padding:28px;box-shadow:0 8px 28px rgba(0,0,0,.18)}
+  header.hero h1{margin:0 0 8px;font-size:24px}
+  header.hero p{margin:6px 0;color:#d0d7de}
+  .badges{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}
+  .badge{display:inline-block;font-size:13px;padding:3px 12px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25)}
+  .badge.solid{background:#fff;color:#1f2328;border-color:#fff;font-weight:700}
+  nav.toc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin:18px 0;position:sticky;top:12px;z-index:5;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+  nav.toc a{color:var(--blue);text-decoration:none;margin-right:16px;font-size:14px}
+  nav.toc a:hover{text-decoration:underline}
+  .context,.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin:18px 0}
+  .card{box-shadow:0 2px 12px rgba(0,0,0,.05);overflow:hidden;padding:0}
+  .card-head{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start}
+  .qnum{flex:0 0 auto;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;color:#fff}
+  .q4{background:var(--blue)} .q5{background:#8250df} .q6{background:#9a6700} .q7{background:var(--red)}
+  .card-head h2{font-size:18px;margin:2px 0 4px}
+  .card-head .sub{color:var(--muted);font-size:13.5px;margin:0}
+  .card-body{padding:18px 22px 22px}
+  .kicker{font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+  .kicker.blue{color:var(--blue)} .kicker.green{color:var(--green)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:700px){.grid2{grid-template-columns:1fr}}
+  .box{border-radius:10px;padding:12px 14px;font-size:14.5px;border:1px solid var(--border)}
+  .box.cause{background:#f6f8fa}
+  .box.effect{background:#fff8c5;border-color:#d4a72c}
+  .box h3{margin:0 0 6px;font-size:14px;letter-spacing:1px}
+  .facts{background:#f6f8fa;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:12px;font-size:14px}
+  .facts code{background:#eaeef2;padding:1px 6px;border-radius:6px;font-size:13px}
+  .opts{margin:14px 0 0;padding:0;list-style:none;display:grid;gap:8px}
+  .opts li{border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14.5px}
+  table.procon{width:100%;border-collapse:collapse;margin-top:12px;font-size:14.5px}
+  table.procon th,table.procon td{border:1px solid var(--border);padding:8px 10px;vertical-align:top;text-align:left}
+  table.procon th{background:#f6f8fa;width:50%}
+  .rec{margin-top:14px;border-radius:10px;padding:14px 16px;font-size:15px;border:2px solid}
+  .rec.blue{background:var(--blue-bg);border-color:var(--blue)}
+  .rec.purple{background:#fbefff;border-color:var(--purple)}
+  .rec.orange{background:var(--orange-bg);border-color:#d4a72c}
+  .rec.red{background:var(--red-bg);border-color:var(--red)}
+  .tag{display:inline-block;font-size:12px;font-weight:800;padding:2px 10px;border-radius:999px;color:#fff;margin-bottom:8px}
+  .tag.b{background:var(--blue)} .tag.p{background:var(--purple)} .tag.o{background:#9a6700} .tag.r{background:var(--red)}
+  .warn{background:#ffebe9;border:1px solid #ff8182;border-radius:10px;padding:10px 14px;font-size:14px;margin-top:12px}
+  .ok{background:var(--green-bg);border:1px solid #4ac26b;border-radius:10px;padding:10px 14px;font-size:14px;margin-top:12px}
+  pre.cmd{background:#1f2328;color:#e6edf3;border-radius:10px;padding:12px 14px;font-size:13.5px;overflow-x:auto;margin-top:12px}
+  footer{color:var(--muted);font-size:13.5px;margin-top:26px;text-align:center}
+  details{margin-top:10px;font-size:14px}
+  summary{cursor:pointer;color:var(--blue);font-weight:600}
+  @media print{nav.toc{display:none} body{background:#fff} .card{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>#570 第二轮 Grill · 调用契约拍板</h1>
+  <p>第一轮已落盘（目标 / 边界 / 风险，进度 60%）。本轮只拍契约本身：脚本叫什么、传什么、回什么、失败怎么办。答完即可定版推到 95%。</p>
+  <div class="badges">
+    <span class="badge solid">第 2 轮 · 契约决策</span>
+    <span class="badge">Q1–Q3 ✅ 已确认已落盘</span>
+    <span class="badge">核心目的已对齐</span>
+    <span class="badge">本轮 Q4–Q7 待拍</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#bg">📌 前因</a>
+  <a href="#q4">❓ Q4 落点与名字</a>
+  <a href="#q5">❓ Q5 参数</a>
+  <a href="#q6">❓ Q6 返回</a>
+  <a href="#q7">❓ Q7 失败与降级</a>
+  <a href="#next">➡️ 下一步</a>
+</nav>
+
+<section class="context" id="bg">
+  <div class="kicker green">📌 前因 · 第一轮定了什么</div>
+  <h2 style="margin:0 0 10px;font-size:19px">核心目的：大段执行文字变成几句脚本调用</h2>
+  <p>你已确认：<b>把注入的提示词模板中可确定的执行步骤，收敛为 agent 可直接调用的脚本</b>。MAP #567 完成后，模板里大段的可确定执行文字会变成几句“直接执行某某脚本”，决策性内容保留在模板里。首批只收正文格式与子议题关联（含阻塞写法与数量校验），不是一次收完 15 条。结论已写进 #570 正文 <code>## 第一轮结论</code>，<code>## 进度：60%</code>。</p>
+  <div class="ok">✅ Q1 目标按 <b>3+1</b> 收（正文、子议题、阻塞正式管辖，评论为附带行为，同样走文件）&nbsp;·&nbsp;✅ Q2 边界三条不做成立、模板这批不动 &nbsp;·&nbsp;✅ Q3 风险排序 <b>文件输入 &gt; 数量校验 &gt; 正规化检查</b></div>
+  <p style="color:var(--muted);font-size:14px;margin-bottom:0">本轮四个问题互相独立，可以一次全答。答完我就把契约全文写回 #570 正文推到 95%，再提醒你跑 <code>/to-spec</code>。</p>
+</section>
+
+<!-- Q4 -->
+<section class="card" id="q4">
+  <div class="card-head">
+    <div class="qnum q4">Q4</div>
+    <div>
+      <h2>落点与语言：一个脚本还是两个，叫什么</h2>
+      <p class="sub">名字定了，#571 #572 才能开工；合错了以后拆不动。</p>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="grid2">
+      <div class="box cause"><h3>📖 前因</h3>MAP #567 计划里是两张落地票：#571 正文写回脚本、#572 子议题关联脚本（含阻塞与校验）。前置输入③说脚本放仓库 <code>scripts/</code> 下可执行，agent 在终端直接调。但到底是一个脚本全包，还是两个脚本一对一，还没拍。</div>
+      <div class="box effect"><h3>⚠️ 后果</h3>合一个脚本，调用简单但以后 GitLab / Markdown 第二批不好挂，改一处动全部。拆两个脚本，与 #571 #572 一对一，但提示词要记两个名字。名字起得不好，提示词和门禁全跟着错。</div>
+    </div>
+    <div class="facts"><b>🔑 帮你决策的关键信息</b><br>
+      · 现有 <code>scripts/</code> 全是 <code>.mjs</code> 加 <code>node</code> 调用（如 <code>create-release-issue.mjs</code>），Windows 下 <code>.sh</code> 不好使——语言没悬念，用 <code>.mjs</code>。<br>
+      · 正文写回与子议题建边是两条链路（#568 管正文、#569 管边），失败模式不同（正文错是格式错，边错是计数错），天然可拆。
+    </div>
+    <ul class="opts">
+      <li><b>A · 两个 .mjs，与 #571 #572 一对一（推荐）</b><code>scripts/fix-issue-body.mjs</code> 管正文写回；<code>scripts/wire-subissues.mjs</code> 管子议题与阻塞建边加校验。</li>
+      <li><b>B · 合成一个脚本</b>一个 <code>scripts/wf-fix.mjs</code> 加子命令区分（如 <code>body</code> / <code>wire</code>），一次只记一个名字。</li>
+    </ul>
+    <div class="rec blue"><span class="tag b">➡️ 推荐答案：A</span><br>理由：与落地票一对一，谁红了找谁；第二批挂 GitLab / Markdown 时只加新脚本，不动旧脚本。B 省一个名字，但以后加后端就要在同一个文件里分支，越长越不敢改。</div>
+    <table class="procon">
+      <tr><th>✅ 选 A 的利</th><th>❌ 选 A 的弊 / 选 B 会怎样</th></tr>
+      <tr><td>职责清、回归面小；门禁可以按脚本分别卡；第二批扩展不碰旧文件。</td><td>提示词要记两个名字（小成本，用门禁顶住）。选 B：文件迅速变大，正文与建边的失败语义混在一起，回包字段也不好统一。</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- Q5 -->
+<section class="card" id="q5">
+  <div class="card-head">
+    <div class="qnum q5">Q5</div>
+    <div>
+      <h2>参数：传哪几个，多了记不住少了跑不起来</h2>
+      <p class="sub">参数就是契约的入口，定死了提示词只写它。</p>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="grid2">
+      <div class="box cause"><h3>📖 前因</h3>第一轮定的硬规矩：正文必须走文件输入（Windows PowerShell 吞引号），子议题建边要先取数据库编号再建边再查计数。参数必须把这两件事装下，还要让你能先演练再真写。</div>
+      <div class="box effect"><h3>⚠️ 后果</h3>参数少了脚本跑不起来（比如没给地图号就不知道挂到谁下面）；多了 agent 每次都传错，提示词也变回大段文字，违背收敛初衷。</div>
+    </div>
+    <div class="facts"><b>🔑 帮你决策的关键信息</b><br>
+      · 建边三步缺一不可：地图号（挂到谁）、子票号（挂谁）、正文文件（写什么）。仓库地址可从当前工作区推导，设为可选。<br>
+      · 演练开关是后悔药：先只打印不写，确认无误再真写，避免 #345 那种挂错了才发现。
+    </div>
+<pre class="cmd">node scripts/fix-issue-body.mjs --issue 571 --body-file ./body.md [--repo owner/name] [--dry-run]
+node scripts/wire-subissues.mjs --map 567 --children 571,572 --body-file ./body.md [--repo owner/name] [--dry-run]</pre>
+    <ul class="opts">
+      <li><b>A · 五个：地图或票号 + 子票列表 + 正文文件 + 仓库可选 + 演练开关（推荐）</b>正文文件必传，不传直接报错；演练开关只打印不写。</li>
+      <li><b>B · 极简三个：只留编号与文件</b>不要仓库可选与演练开关，默认当前仓库、直接真写。</li>
+    </ul>
+    <div class="rec purple"><span class="tag p">➡️ 推荐答案：A</span><br>理由：仓库可选是给跨仓库调用留的后门，平时不传；演练开关是给人看的定心丸，第一次跑先演练。B 省两个参数，但跨仓库和误写时没有退路。</div>
+    <table class="procon">
+      <tr><th>✅ 选 A 的利</th><th>❌ 选 A 的弊 / 选 B 会怎样</th></tr>
+      <tr><td>最小可用且有退路；正文文件必传把 PowerShell 引号坑堵死；演练开关避免误写线上票。</td><td>多记两个可选参数（平时可不写）。选 B：跨仓库调不动；误写后只能手动回滚，没有演练可看。</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- Q6 -->
+<section class="card" id="q6">
+  <div class="card-head">
+    <div class="qnum q6">Q6</div>
+    <div>
+      <h2>返回：回包里写什么，机器和人都能判真</h2>
+      <p class="sub">回包是唯一的验收证据，#345 与 #369 就靠它区分。</p>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="grid2">
+      <div class="box cause"><h3>📖 前因</h3>#570 Question 要求回包说清“改了哪几处、边在不在、数对不对”。前置输入⑤要求“纠了哪几处要在回包里说清”。#345 是事故空、#369 是故意空，光看 0/0 分不清，必须靠回包。</div>
+      <div class="box effect"><h3>⚠️ 后果</h3>字段少了以后查问题断链（不知道改没改、边建没建）；多了每次都要填，脚本输出变成噪音，人不看了。</div>
+    </div>
+    <div class="facts"><b>🔑 帮你决策的关键信息</b><br>
+      · 面板快照只认原生边，不认任务清单文字——所以“边在不在”必须单独一字段。<br>
+      · 数量校验要与面板计数一致——所以“预期几个、实际几个”必须成对出现，对不上就非 0 退出。
+    </div>
+<pre class="cmd">{"changed":["#571 正文"],"edge":true,"expected":2,"actual":2,"commented":false,"ok":true}</pre>
+    <ul class="opts">
+      <li><b>A · 五个字段：改了哪、边在不在、预期数、实际数、评论留没留、总通过没（推荐）</b>上面示例即全文，机器判 <code>ok</code>，人看前五个。</li>
+      <li><b>B · 只回通过没通过</b>一个 <code>ok</code> 了事，细节去票里翻。</li>
+    </ul>
+    <div class="rec orange"><span class="tag o">➡️ 推荐答案：A</span><br>理由：五个字段不多不少，正好回答 Question 的三问。B 省事但回到 #345 时代：显示 0/0，却不知道是没挂对还是故意空。</div>
+    <table class="procon">
+      <tr><th>✅ 选 A 的利</th><th>❌ 选 A 的弊 / 选 B 会怎样</th></tr>
+      <tr><td>一次看清改没改、边建没建、数对不对；面板计数以此为准，验收可自动化。</td><td>输出多几行（JSON 一行，可接受）。选 B：出问题只能逐票手动查计数，#345 补链那种活又要重做一遍。</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- Q7 -->
+<section class="card" id="q7">
+  <div class="card-head">
+    <div class="qnum q7">Q7</div>
+    <div>
+      <h2>失败语义与判定口径：重试、报错、降级怎么写死</h2>
+      <p class="sub">写不死，脚本就是“有时灵有时不灵”，门禁也无从卡起。</p>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="grid2">
+      <div class="box cause"><h3>📖 前因</h3>前置⑤定了四条全要：幂等可重跑、数不对报错不吞、失败自动重试一次并留评论、回包说清。#569 修正加一条：原生旗优先、裸接口只做老版本回退。但“重试几次、在哪留评论、什么算老版本”还没写死。</div>
+      <div class="box effect"><h3>⚠️ 后果</h3>不写死，失败就静默过去，面板继续显示错的 0/0；降级口径不写死，新版本永远走老路，原生边永远建不上。</div>
+    </div>
+    <div class="facts"><b>🔑 帮你决策的关键信息</b><br>
+      · 幂等 = 重复跑结果一致（想要的父已是当前父，直接返回不发请求，<code>graph.js</code> 已有此语义）。<br>
+      · 留评论落点 = 对应子票下，固定格式一句（含脚本名、参数、失败原因），方便以后按脚本名搜出所有失败。<br>
+      · 原生旗优先 = 有原生能力就用原生（子议题接口、依赖边接口），只有明确不支持（老版本、未启用）才回退到文字行。
+    </div>
+    <ul class="opts">
+      <li><b>A · 全写死（推荐）</b>重复跑一致；数不对非 0 退出；失败自动重试一次，还失败就在对应子票下留固定格式评论；有原生走原生，无原生才回退文字行；提示词搜到具体 <code>gh</code> 命令就门禁变红，只允许脚本名加参数。</li>
+      <li><b>B · 放宽：不强制重试与评论</b>失败只报错，由人手动处理，不自动留痕。</li>
+    </ul>
+    <div class="rec red"><span class="tag r">➡️ 推荐答案：A</span><br>理由：#345 的教训就是错了还显示正常，必须靠非 0 退出和评论留痕现形。B 省一次重试，但失败现场（当时传的什么参、挂到哪）过后就丢了，查问题只能重跑。</div>
+    <table class="procon">
+      <tr><th>✅ 选 A 的利</th><th>❌ 选 A 的弊 / 选 B 会怎样</th></tr>
+      <tr><td>失败现场永远在票下可查；重跑安全；原生优先保证面板统计正确；门禁一句话就能写（搜 <code>gh issue create/edit/comment</code> 即红）。</td><td>多一次重试的时间（秒级）与一条失败评论（只在失败时出现）。选 B：失败无痕，下次还是同一个人踩同一个坑。</td></tr>
+    </table>
+    <div class="warn">⚠️ 门禁写法预览：提示词模板里只允许出现 <code>node scripts/fix-issue-body.mjs …</code> / <code>node scripts/wire-subissues.mjs …</code>，出现 <code>gh issue create/edit/comment/api</code> 即红。这就是“以后只写脚本名加参数”的落地。</div>
+  </div>
+</section>
+
+<section class="context" id="next">
+  <div class="kicker blue">➡️ 下一步 · 等你回四句话</div>
+  <h2 style="margin:0 0 10px;font-size:19px">Q4 一还是二、名字认不认？Q5 参数增减？Q6 字段增减？Q7 口径认不认？</h2>
+  <p>你回完，我把契约全文写回 #570 正文推到 <b>95%</b>（写明待确认什么，不 close），再提醒你跑 <code>/to-spec</code> 固化成规格。<b>本轮不写盘</b>：issue 正文、<code>CONTEXT.md</code>、新票都不动。</p>
+  <details><summary>📎 本页依据的一手来源（点开展开）</summary>
+    <p>#570 正文 Question 与 5 条前置输入（2026-09-09 真人确认）与 <code>## 第一轮结论</code>（进度 60%）。#568 结论文件分支 <code>research/568-body-write</code>（终端走 shell、宿主走参数数组、统一走文件输入、正规化阈值）。#569 结论文件分支 <code>research/569-subissue-wiring</code>（<code>prompts.js newWayfinder v13</code>、三后端声明、<code>graph.js</code> 幂等与换父先解旧绑、#345 从 0 补到 6、原生优先裸接口回退）。MAP #567 正文计划（#571 正文脚本、#572 子议题脚本、#573 提示词收敛与门禁）。现有 <code>scripts/</code> 以 <code>.mjs + node</code> 为主。</p>
+  </details>
+</section>
+
+<footer>本页只呈现第二轮问题与推荐，不代表结论落盘 · 等你拍板后再写回 #570 正文</footer>
+
+</div>
+</body>
+</html>

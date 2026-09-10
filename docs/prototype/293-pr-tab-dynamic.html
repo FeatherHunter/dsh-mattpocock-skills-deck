@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #293 · 顶部动态 PR 页签（能力门控显隐 / 折叠 / 空态 / 后端切换）</title>
+<style>
+:root{--bg:#0c0e12;--panel:#16181d;--card:#1c1f27;--border:#2a2d35;--border2:#3a3f4a;--text:#e6edf3;--muted:#a1a1aa;--caption:#8b8b95;--primary:#c084fc;--blue:#58a6ff;--green:#4ade80;--amber:#f59e0b;--red:#f87171}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.55}
+.badge{position:fixed;top:8px;left:8px;background:#ff3b30;color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;z-index:9999}
+.wrap{max-width:1060px;margin:0 auto;padding:30px 18px 90px}
+h1{font-size:18px;margin:14px 0 6px}
+.sub{font-size:13px;color:var(--muted);margin-bottom:12px}
+.sub b{color:var(--text)}
+.mono{font-family:Consolas,Menlo,monospace;font-size:12px}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;margin:14px 0;overflow:hidden}
+.ph{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.ph .n{background:var(--primary);color:#140a1e;width:24px;height:24px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none}
+.ph h2{font-size:14px;margin:0}
+.ph .q{color:var(--muted);font-size:12px;flex-basis:100%;margin:2px 0 0 34px}
+.pb{padding:14px}
+.ctlrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0}
+.ctlrow label{font-size:12px;color:var(--muted);flex:none}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;background:var(--card);padding:2px;gap:2px}
+.seg button{border:none;background:transparent;color:var(--muted);font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer}
+.seg button.on{background:var(--primary);color:#140a1e;font-weight:700}
+.btn{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer}
+.hint{font-size:12px;color:var(--caption)}
+.log{background:#0a0c10;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:Consolas,Menlo,monospace;font-size:11px;color:var(--muted);max-height:130px;overflow:auto;white-space:pre-wrap}
+/* 面板仿真 */
+.mock{border:1px dashed var(--border2);border-radius:10px;padding:14px;background:#090a0d}
+.dock{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:0 auto;transition:width .15s}
+.dock-head{display:flex;align-items:center;gap:6px;padding:10px 12px 6px;font-size:13px;font-weight:600}
+.repo-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border:1px solid;border-radius:6px;padding:1px 8px;font-family:Consolas,Menlo,monospace}
+.dsws-tabs{display:flex;align-items:center;gap:4px;padding:0 12px 7px;border-bottom:1px solid var(--border);overflow:hidden;white-space:nowrap}
+.dsws-tab{display:inline-flex;align-items:center;gap:4px;border:1px solid transparent;background:transparent;color:var(--text);font-size:12px;padding:3px 10px;border-radius:6px;cursor:pointer;flex:none;max-width:220px}
+.dsws-tab.on{background:rgba(192,132,252,.14);border-color:rgba(192,132,252,.45)}
+.dsws-tab .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsws-tab.collapsed .lbl,.dsws-btn.collapsed .lbl{display:none}
+.dsws-tab.collapsed{padding:3px 7px}
+.dsws-btn{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;font-size:11px;flex:none;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer}
+.dsws-btn.collapsed{padding:2px 6px}
+.dsws-btn.collapsed .lbl{display:none}
+.dsws-ver{font-size:9px;flex:none;color:var(--caption)}
+.dsws-ver.collapsed{display:none}
+.dsws-body{padding:12px;min-height:220px}
+.pr-row{border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:8px 0;background:var(--card)}
+.pr-row .t{font-size:13px;font-weight:600}
+.pr-row .m{font-size:11px;color:var(--muted);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap}
+.tag{display:inline-flex;align-items:center;font-size:11px;border:1px solid var(--border2);border-radius:99px;padding:0 8px}
+.st-open{color:var(--green);border-color:rgba(74,222,128,.4)}
+.st-merged{color:var(--primary);border-color:rgba(192,132,252,.4)}
+.st-draft{color:var(--amber);border-color:rgba(245,158,11,.4)}
+.empty{border:1px dashed var(--border2);border-radius:10px;padding:26px 16px;text-align:center;color:var(--muted);font-size:13px}
+.empty .big{font-size:14px;color:var(--text);font-weight:700;margin-bottom:4px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--primary);border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.check li{font-size:12.5px;margin:5px 0}
+.check b{color:var(--green)}
+table.spec{width:100%;border-collapse:collapse;font-size:12px}
+table.spec th,table.spec td{border:1px solid var(--border);padding:6px 8px;text-align:left;vertical-align:top}
+table.spec th{background:var(--card);color:var(--muted);font-weight:600}
+input[type=range]{accent-color:var(--primary);flex:1;min-width:160px}
+</style>
+</head>
+<body>
+<div class="badge">PROTOTYPE · 不进生产分支</div>
+<div class="wrap">
+<h1>原型 #293 · 顶部动态 PR 页签</h1>
+<div class="sub">归属地图 <b>#288 GitHub 后端 PR 入口可行性</b> · 本票验证 <b>动态显隐、折叠、空态、后端切换</b> 四点。依据 <b>#292 交互定版</b>（独立 PR 页签、能力门控、空结果走空态、回退为列表内混入）与 <b>#290 前端可行性</b>（放弃硬编码、改为能力门控动态列表）。本文件为一次性验证品，只供讨论拍板，不合入生产代码。</div>
+<div class="sub mono">文件：docs/prototype/293-pr-tab-dynamic.html · 打开方式：直接用浏览器打开本文件 · 无需构建</div>
+
+<div class="panel">
+<div class="ph"><span class="n">1</span><h2>控制区：后端切换 / PR 数据状态 / 宽度</h2><div class="q">先切后端看页签显隐，再切数据状态看空态与加载态，最后拖宽度看折叠。三组控制互相独立。</div></div>
+<div class="pb">
+<div class="ctlrow"><label>后端（模拟工作区选择）</label><div class="seg" id="segBackend">
+<button data-b="github" class="on">GitHub（有 PR 能力）</button><button data-b="gitlab">GitLab（本图不做 MR）</button><button data-b="markdown">Markdown 本地（无远端）</button>
+</div></div>
+<div class="ctlrow"><label>PR 数据状态</label><div class="seg" id="segData">
+<button data-d="loading">加载中</button><button data-d="empty" class="on">空结果</button><button data-d="list">有 3 条占位行</button><button data-d="fail">加载失败</button>
+</div></div>
+<div class="ctlrow"><label>面板宽度 <span class="mono" id="wVal">460px</span>（380 以下为窄屏）</label><input type="range" id="wRange" min="280" max="640" value="460"><button class="btn" id="btnNarrow">跳到窄屏 330</button><button class="btn" id="btnWide">回到宽屏 560</button></div>
+<div class="hint">能力门控规则（按 #292 与 Notes 立场）：只有后端返回了 PR 列表能力才显示 PR 页签，不是写死后端名字；空结果与加载失败都显示空态，不隐藏入口；切到无能力后端时若正停在 PR 页，自动回到列表页。</div>
+<div class="ctlrow"><label>门控信号（只读展示）</label><span class="mono" id="sigLine"></span></div>
+<div class="log" id="log"></div>
+</div>
+</div>
+
+<div class="panel">
+<div class="ph"><span class="n">2</span><h2>面板仿真：页签行与内容区</h2><div class="q">页签行复刻 Tabs.js 的组装与 Dock 内联贪心折叠；优先级：列表 4、PR 页签 5、技能 6、环境检查 7，动作按钮 1/2/3 不变。</div></div>
+<div class="pb">
+<div class="mock"><div class="dock" id="dock" style="width:460px">
+<div class="dock-head"><span>&#x1F9ED;</span><span>面板</span><span class="repo-chip" id="repoChip">owner / deck</span></div>
+<div class="dsws-tabs" id="tabsRow"></div>
+<div class="dsws-body" id="tabBody"></div>
+</div></div>
+<div class="hint" id="foldHint"></div>
+</div>
+</div>
+
+<div class="panel">
+<div class="ph"><span class="n">3</span><h2>四点验收：怎么算通过</h2><div class="q">按 #293 票面逐条对照，在本文件里亲手点一遍即算验收。</div></div>
+<div class="pb"><ul class="check">
+<li><b>动态显隐通过：</b> GitHub 下有 PR 页签；切到 GitLab 或 Markdown 时页签消失且自动回到列表页；切回 GitHub 时恢复。日志会记录每次显隐。</li>
+<li><b>折叠通过：</b> 把宽度从 640 拖到 280，页签按优先级从大到小逐个收起为纯图标（先收环境检查，再收技能，再收 PR），动作按钮最后才收；拖回宽屏时逐个恢复，全程无换行、无横向滚动条。</li>
+<li><b>空态通过：</b> 空结果显示“还没有拉取请求”空态；加载失败显示“PR 列表加载失败”空态并带重试按钮，两者都不隐藏入口。</li>
+<li><b>后端切换通过：</b> 在 PR 页停留时切后端不白屏；门控信号行实时显示当前后端与能力值。</li>
+</ul></div>
+</div>
+
+<div class="panel">
+<div class="ph"><span class="n">4</span><h2>给 #294 总体裁决的输入</h2><div class="q">原型只回答体验是否成立，不回答数据形状与契约增量。</div></div>
+<div class="pb">
+<table class="spec">
+<tr><th>问题</th><th>原型给出的答案</th></tr>
+<tr><td>独立页签是否放得下</td><td>放得下。新增一页后贪心折叠仍稳定，优先级 5 插在列表与技能之间，窄屏回退为纯图标。</td></tr>
+<tr><td>能力门控是否可用</td><td>可用。以后端是否返回 PR 资源为准，不写死后端名字；切换工作区跟随选择变化自动显隐。</td></tr>
+<tr><td>空态是否误导</td><td>不误导。空结果与失败都保留入口，只换内容区，分得清“无能力（无页签）”与“有能力但无数据（有页签加空态）”。</td></tr>
+<tr><td>回退方案</td><td>若独立页签被否，列表内混入仍可作为回退，但本原型不展开混入形态。</td></tr>
+</table>
+<div class="hint">未回答、留给 #294 的事：PR 数据最终形状（复用工单加扩展字段还是新增实体）、契约与快照最小增量清单、多后端演进是否复用同一门控。</div>
+</div>
+</div>
+</div>
+<script>
+(function(){
+var backend = 'github';
+var prData = 'empty';
+var tab = 'list';
+var collapseLog = [];
+function hasPrCapability(){ return backend === 'github'; }
+var TABS = [
+{id:'list', icon:'\u2630', label:'\u5217\u8868', labelEn:'List', p:4},
+{id:'prs', icon:'\u2447', label:'\u62C9\u53D6\u8BF7\u6C42', labelEn:'PRs', p:5, gated:true},
+{id:'skills', icon:'\u2727', label:'\u6280\u80FD', labelEn:'Skills', p:6},
+{id:'checks', icon:'\u2699', label:'\u73AF\u5883\u68C0\u67E5', labelEn:'Checks', p:7}
+];
+var ACTS = [
+{id:'__bug', icon:'\u2022', label:'\u65B0\u5EFA Bug \u5355', p:1},
+{id:'__wf', icon:'\u25C7', label:'\u65B0\u5EFA\u9700\u6C42', p:2},
+{id:'__rf', icon:'\u21BB', label:'\u5237\u65B0', p:3}
+];
+function log(msg){
+var el = document.getElementById('log');
+var t = new Date().toLocaleTimeString('zh-CN',{hour12:false});
+el.textContent += '[' + t + '] ' + msg + '\n';
+el.scrollTop = el.scrollHeight;
+}
+function visibleTabs(){
+return TABS.filter(function(t){ if(t.gated && !hasPrCapability()) return false; return true; });
+}
+function renderTabs(){
+var row = document.getElementById('tabsRow');
+row.innerHTML = '';
+visibleTabs().forEach(function(t){
+var b = document.createElement('button');
+b.className = 'dsws-tab' + (tab === t.id ? ' on' : '');
+b.setAttribute('data-priority', t.p);
+b.title = t.label;
+b.innerHTML = '<span>' + t.icon + '</span><span class="lbl">' + t.label + '</span>';
+b.onclick = function(){ tab = t.id; renderTabs(); renderBody(); applyFold(); };
+row.appendChild(b);
+});
+var sp = document.createElement('span'); sp.style.flex = '1'; row.appendChild(sp);
+ACTS.forEach(function(a){
+var b = document.createElement('button');
+b.className = 'dsws-btn'; b.setAttribute('data-priority', a.p); b.title = a.label;
+b.innerHTML = '<span>' + a.icon + '</span><span class="lbl">' + a.label + '</span>';
+row.appendChild(b);
+});
+var ver = document.createElement('span'); ver.className = 'dsws-ver'; ver.textContent = 'v0.0.0-proto'; row.appendChild(ver);
+document.getElementById('sigLine').textContent = 'backend=' + backend + ' · prCapability=' + (hasPrCapability()?'true':'false') + ' · tab=' + tab;
+document.getElementById('repoChip').textContent = backend === 'github' ? 'owner / deck' : (backend === 'gitlab' ? 'owner / deck-mr' : 'notes / local');
+}
+function prRows(){
+return [{n:'287',t:'\u4FEE\u590D\uFF1A\u6697\u8272\u4E3B\u9898\u4E0B toast \u5F39\u7A97\u4E0D\u53EF\u89C1',a:'ling',s:'OPEN',sCls:'st-open',tags:['bug','\u524D\u7AEF'],u:'2 \u5C0F\u65F6\u524D\u66F4\u65B0'},
+{n:'275',t:'\u4FEE\u590D\u63A5\u5165\u5411\u5BFC\u7684\u540D\u79F0\u62FC\u5199',a:'feather',s:'DRAFT',sCls:'st-draft',tags:['docs'],u:'3 \u5929\u524D\u66F4\u65B0'},
+{n:'240',t:'\u5408\u5E76\u540E\u7684\u56DE\u5F52\u786E\u8BA4',a:'octo',s:'MERGED',sCls:'st-merged',tags:['\u53D1\u5E03'],u:'1 \u5468\u524D\u5408\u5E76'}];
+}
+function renderBody(){
+var el = document.getElementById('tabBody');
+if(tab === 'prs'){
+if(!hasPrCapability()){ tab = 'list'; renderTabs(); renderBody(); applyFold(); return; }
+if(prData === 'loading'){ el.innerHTML = '<div class="empty"><div class="big"><span class="spin"></span> \u6B63\u5728\u52A0\u8F7D\u62C9\u53D6\u8BF7\u6C42\u2026</div><div>\u9996\u7248\u53EA\u8BFB\u52A0\u8BC4\u8BBA\uFF0C\u4E0D\u542B\u8BC4\u5BA1\u65F6\u95F4\u7EBF\u4E0E\u68C0\u67E5\u72B6\u6001</div></div>'; return; }
+if(prData === 'empty'){ el.innerHTML = '<div class="empty"><div class="big">\u8FD8\u6CA1\u6709\u62C9\u53D6\u8BF7\u6C42</div><div>\u5F53\u524D\u540E\u7AEF\u5177\u5907 PR \u80FD\u529B\uFF0C\u53EA\u662F\u5217\u8868\u4E3A\u7A7A\u2014\u2014\u5165\u53E3\u4FDD\u7559\uFF0C\u4E0D\u9690\u85CF</div></div>'; return; }
+if(prData === 'fail'){ el.innerHTML = '<div class="empty"><div class="big">PR \u5217\u8868\u52A0\u8F7D\u5931\u8D25</div><div>\u7F51\u7EDC\u6216\u6388\u6743\u5F02\u5E38\uFF0C\u5165\u53E3\u4FDD\u7559\uFF0C\u53EF\u91CD\u8BD5</div><div style="margin-top:8px"><button class="btn" onclick="document.querySelector(\'#segData [data-d=\\\'loading\\\']\').click()">\u91CD\u8BD5</button></div></div>'; return; }
+el.innerHTML = prRows().map(function(r){
+return '<div class="pr-row"><div class="t">#' + r.n + ' ' + r.t + '</div><div class="m"><span class="tag ' + r.sCls + '">' + r.s + '</span><span>\u4F5C\u8005 ' + r.a + '</span><span>' + r.tags.join(' · ') + '</span><span>' + r.u + '</span></div></div>';
+}).join('') + '<div class="hint">\u5217\u8868\u5FC5\u663E\uFF1A\u6807\u9898\u3001\u4F5C\u8005\u3001\u72B6\u6001\u3001\u6807\u7B7E\u3001\u66F4\u65B0\u65F6\u95F4\uFF1B\u8BE6\u60C5\u5230\u57FA\u7840\u4FE1\u606F\u52A0\u8BC4\u8BBA\u67E5\u770B\uFF08#292 \u5B9A\u7248\uFF09</div>';
+return;
+}
+if(tab === 'list'){ el.innerHTML = '<div class="pr-row"><div class="t">#288 GitHub \u540E\u7AEF PR \u5165\u53E3\u53EF\u884C\u6027</div><div class="m"><span class="tag st-open">OPEN</span><span>\u5217\u8868\u9875\u5360\u4F4D</span></div></div><div class="hint">\u5217\u8868\u9875\u4E0D\u6DF7\u5165 PR\uFF08\u72EC\u7ACB\u9875\u7B7E\u65B9\u6848\uFF09\uFF0C\u56DE\u9000\u65B9\u6848\u624D\u8003\u8651\u6DF7\u5165</div>'; return; }
+el.innerHTML = '<div class="empty"><div class="big">' + (tab==='skills'?'\u6280\u80FD\u9875\u5360\u4F4D':'\u73AF\u5883\u68C0\u67E5\u9875\u5360\u4F4D') + '</div><div>\u4E0E PR \u65E0\u5173\uFF0C\u9A8C\u8BC1\u6298\u53E0\u65F6\u88AB\u6536\u8D77\u7684\u987A\u5E8F</div></div>';
+}
+function applyFold(){
+var row = document.getElementById('tabsRow');
+var btns = row.querySelectorAll('[data-priority]');
+btns.forEach(function(b){ b.classList.remove('collapsed'); });
+var ver = row.querySelector('.dsws-ver'); if(ver) ver.classList.remove('collapsed');
+void row.offsetWidth;
+var items = Array.prototype.slice.call(btns).map(function(b){ return {el:b, p:Number(b.getAttribute('data-priority'))}; }).sort(function(a,b){ return b.p - a.p; });
+for(var i=0;i<items.length;i++){ if(row.scrollWidth <= row.clientWidth + 1) break; items[i].el.classList.add('collapsed'); void row.offsetWidth; }
+if(row.querySelector('.dsws-btn.collapsed') && ver) ver.classList.add('collapsed');
+var n = row.querySelectorAll('.collapsed').length;
+var w = document.getElementById('dock').clientWidth;
+document.getElementById('foldHint').textContent = '\u5F53\u524D\u5BBD\u5EA6 ' + w + 'px · \u6298\u53E0 ' + n + ' \u4E2A（\u6570\u5B57\u8D8A\u5927\u8D8A\u5148\u6298\u53E0\uFF1A\u73AF\u5883\u68C0\u67E5 7 \u2192 \u6280\u80FD 6 \u2192 PR 5 \u2192 \u5217\u8868 4 \u2192 \u52A8\u4F5C\u6309\u94AE 3/2/1）' + (w < 380 ? ' · \u7A84\u5C4F\u6A21\u5F0F' : '');
+}
+document.getElementById('segBackend').addEventListener('click', function(e){
+var b = e.target.getAttribute && e.target.getAttribute('data-b'); if(!b) return;
+Array.prototype.forEach.call(this.querySelectorAll('button'), function(x){ x.classList.toggle('on', x.getAttribute('data-b')===b); });
+var had = hasPrCapability();
+backend = b;
+var now = hasPrCapability();
+if(had && !now && tab === 'prs'){ tab = 'list'; log('\u540E\u7AEF\u5207\u5230 ' + b + '\uFF1A\u65E0 PR \u80FD\u529B\uFF0CPR \u9875\u7B7E\u9690\u85CF\uFF0C\u81EA\u52A8\u56DE\u5230\u5217\u8868\u9875'); }
+else if(!had && now){ log('\u540E\u7AEF\u5207\u5230 ' + b + '\uFF1APR \u9875\u7B7E\u6062\u590D\u663E\u793A'); }
+else { log('\u540E\u7AEF\u5207\u5230 ' + b + '\uFF0CPR \u9875\u7B7E' + (now?'\u663E\u793A':'\u9690\u85CF')); }
+renderTabs(); renderBody(); applyFold();
+});
+document.getElementById('segData').addEventListener('click', function(e){
+var d = e.target.getAttribute && e.target.getAttribute('data-d'); if(!d) return;
+Array.prototype.forEach.call(this.querySelectorAll('button'), function(x){ x.classList.toggle('on', x.getAttribute('data-d')===d); });
+prData = d; if(tab !== 'prs'){ tab = 'prs'; }
+if(!hasPrCapability()){ log('\u5DF2\u9009 PR \u6570\u636E\u6001 ' + d + '\uFF0C\u4F46\u5F53\u524D\u540E\u7AEF\u65E0\u80FD\u529B\uFF0C\u5148\u5207\u56DE GitHub \u518D\u770B'); backend='github';
+Array.prototype.forEach.call(document.getElementById('segBackend').querySelectorAll('button'), function(x){ x.classList.toggle('on', x.getAttribute('data-b')==='github'); }); }
+else { log('PR \u6570\u636E\u6001\u5207\u5230 ' + d); }
+renderTabs(); renderBody(); applyFold();
+});
+var range = document.getElementById('wRange');
+range.addEventListener('input', function(){
+document.getElementById('dock').style.width = this.value + 'px';
+document.getElementById('wVal').textContent = this.value + 'px';
+applyFold();
+});
+document.getElementById('btnNarrow').onclick = function(){ range.value = 330; range.dispatchEvent(new Event('input')); };
+document.getElementById('btnWide').onclick = function(){ range.value = 560; range.dispatchEvent(new Event('input')); };
+window.addEventListener('resize', applyFold);
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(applyFold);
+renderTabs(); renderBody(); applyFold();
+log('\u539F\u578B\u5DF2\u52A0\u8F7D\uFF1A\u9ED8\u8BA4 GitHub + \u7A7A\u7ED3\u679C\uFF0CPR \u9875\u7B7E\u53EF\u89C1\u3002\u8BF7\u6309\u7167\u7B2C 3 \u8282\u9010\u6761\u70B9\u51FB\u9A8C\u6536\u3002');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#570 第一轮 Grill · 脚本形态与调用契约</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#1f2328; --muted:#59636e;
+    --blue:#0969da; --blue-bg:#ddf4ff; --orange:#9a6700; --orange-bg:#fff8c5;
+    --red:#cf222e; --red-bg:#ffebe9; --green:#1a7f37; --green-bg:#dafbe1;
+    --purple:#8250df; --border:#d0d7de; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.75}
+  .wrap{max-width:960px;margin:0 auto;padding:28px 20px 80px}
+  header.hero{background:linear-gradient(135deg,#1f2328,#38414d);color:#fff;border-radius:16px;padding:28px 28px 24px;box-shadow:0 8px 28px rgba(0,0,0,.18)}
+  header.hero h1{margin:0 0 8px;font-size:24px;letter-spacing:.5px}
+  header.hero p{margin:6px 0;color:#d0d7de}
+  .badges{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}
+  .badge{display:inline-block;font-size:13px;padding:3px 12px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25)}
+  .badge.solid{background:#fff;color:#1f2328;border-color:#fff;font-weight:700}
+  nav.toc{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin:18px 0;position:sticky;top:12px;z-index:5;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+  nav.toc a{color:var(--blue);text-decoration:none;margin-right:16px;font-size:14px}
+  nav.toc a:hover{text-decoration:underline}
+  .context{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin:18px 0}
+  .context h2,.card h2{margin:0 0 10px;font-size:19px}
+  .kicker{font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+  .kicker.blue{color:var(--blue)} .kicker.orange{color:var(--orange)} .kicker.red{color:var(--red)}
+  .pre5{display:grid;grid-template-columns:1fr;gap:10px;margin:12px 0 0;padding:0;list-style:none}
+  .pre5 li{background:#f6f8fa;border:1px solid var(--border);border-left:6px solid var(--purple);border-radius:8px;padding:10px 14px;font-size:14.5px}
+  .pre5 b{color:var(--purple)}
+  .tree{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .node{flex:1 1 200px;background:#f6f8fa;border:1px dashed var(--border);border-radius:10px;padding:10px 12px;font-size:13.5px;text-align:center}
+  .node.done{border-style:solid;border-color:var(--green);background:var(--green-bg)}
+  .node.now{border-style:solid;border-color:var(--blue);background:var(--blue-bg);font-weight:700}
+  .node.later{opacity:.75}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;margin:22px 0;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.05)}
+  .card-head{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start}
+  .qnum{flex:0 0 auto;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;color:#fff}
+  .q1{background:var(--blue)} .q2{background:#9a6700} .q3{background:var(--red)}
+  .card-head h2{font-size:18px;margin:2px 0 4px}
+  .card-head .sub{color:var(--muted);font-size:13.5px;margin:0}
+  .card-body{padding:18px 22px 22px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:700px){.grid2{grid-template-columns:1fr}}
+  .box{border-radius:10px;padding:12px 14px;font-size:14.5px;border:1px solid var(--border)}
+  .box.cause{background:#f6f8fa}
+  .box.effect{background:#fff8c5;border-color:#d4a72c}
+  .box h3{margin:0 0 6px;font-size:14px;letter-spacing:1px}
+  .facts{background:#f6f8fa;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:12px;font-size:14px}
+  .facts code{background:#eaeef2;padding:1px 6px;border-radius:6px;font-size:13px}
+  .opts{margin:14px 0 0;padding:0;list-style:none;display:grid;gap:8px}
+  .opts li{border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14.5px}
+  .opts li b{display:block;margin-bottom:2px}
+  table.procon{width:100%;border-collapse:collapse;margin-top:12px;font-size:14.5px}
+  table.procon th,table.procon td{border:1px solid var(--border);padding:8px 10px;vertical-align:top;text-align:left}
+  table.procon th{background:#f6f8fa;width:50%}
+  .rec{margin-top:14px;border-radius:10px;padding:14px 16px;font-size:15px;border:2px solid}
+  .rec.blue{background:var(--blue-bg);border-color:var(--blue)}
+  .rec.orange{background:var(--orange-bg);border-color:#d4a72c}
+  .rec.red{background:var(--red-bg);border-color:var(--red)}
+  .rec .tag{display:inline-block;font-size:12px;font-weight:800;padding:2px 10px;border-radius:999px;color:#fff;margin-bottom:8px}
+  .tag.b{background:var(--blue)} .tag.o{background:#9a6700} .tag.r{background:var(--red)}
+  .warn{background:#ffebe9;border:1px solid #ff8182;border-radius:10px;padding:10px 14px;font-size:14px;margin-top:12px}
+  footer{color:var(--muted);font-size:13.5px;margin-top:26px;text-align:center}
+  details{margin-top:10px;font-size:14px}
+  summary{cursor:pointer;color:var(--blue);font-weight:600}
+  @media print{nav.toc{display:none} body{background:#fff} .card{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>#570 第一轮 Grill · 脚本形态与调用契约定版</h1>
+  <p>目标 / 边界 / 风险先对齐，再谈脚本名、参数、返回、失败语义。本轮只提问、不落盘，等你拍板。</p>
+  <div class="badges">
+    <span class="badge solid">第 1 轮 · 根决策</span>
+    <span class="badge">前置 #568 ✅ 已关闭</span>
+    <span class="badge">前置 #569 ✅ 已关闭</span>
+    <span class="badge">5 条前置输入不可推翻</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#bg">📌 前因</a>
+  <a href="#q1">❓ Q1 目标</a>
+  <a href="#q2">❓ Q2 边界</a>
+  <a href="#q3">❓ Q3 风险</a>
+  <a href="#next">➡️ 下一步</a>
+</nav>
+
+<section class="context" id="bg">
+  <div class="kicker blue">📌 前因 · 为什么现在讨论这个</div>
+  <h2>两张研究票关了，轮到这张票拍板契约</h2>
+  <p><b>#568</b> 查清了“正文怎么写回去”：终端手敲走 shell 解析、宿主调 <code>gh</code> 走参数数组直传；正规化只剥开头第一个不可见字符、字面转义满足阈值才还原；Windows 编辑器带头有历史加固；平台层管路径、主目录、找程序、读写文件三系统配方不同；终端传正文有引号坑实证。<b>补记一条</b>：宿主零文件用法、终端有文件可用，写回脚本必须统一走文件输入。</p>
+  <p><b>#569</b> 查清了“子议题和阻塞怎么挂”：新建需求模板用 <code>{subIssue}</code> 按后端填话，但阻塞句写死文字行；宿主 GitHub 的 <code>setParent</code> 语义齐全（幂等、换父先解旧绑、不支持诚实返回），GitLab 缺换父先解旧绑；#345 从 0 补到 6 是线上实例；7 个打架点中第 7 点降级为备注。契约加一条：<b>原生优先、裸接口只做老版本回退</b>。</p>
+  <p>你已确认的 5 条前置输入（讨论时不许推翻）：</p>
+  <ol class="pre5">
+    <li><b>① 目的地按 A 收</b>：第一批只含正文格式与子议题关联，外加阻塞写法与数量校验。规格先行与 15 条一次收完都不选。</li>
+    <li><b>② 第一批带上阻塞与校验</b>：阻塞走原生边优先、文本行只做降级；数量校验与面板计数一致纳入验收。重试留痕只定行为，不单独成脚本。</li>
+    <li><b>③ 脚本形态</b>：仓库 <code>scripts/</code> 下的可执行脚本，agent 在终端直接调，提示词只写脚本名加参数。宿主实现不动，脚本内部复用同一套命令语义。</li>
+    <li><b>④ 首批只做 GitHub</b>：Markdown 与 GitLab 只对齐占位语义，不写新脚本。</li>
+    <li><b>⑤ 脚本四条全要</b>：幂等可重跑、数量对不上报错不吞、失败自动重试一次并在对应 issue 下留评论、纠了哪几处要在回包里说清。提示词立规矩：以后只写脚本名加参数，违了门禁变红。</li>
+  </ol>
+  <div class="tree">
+    <div class="node done">✅ 已定<br>范围 A · 原生优先<br>GitHub 先行 · 四保证</div>
+    <div class="node now">🎯 本轮问<br>Q1 目标 · Q2 边界 · Q3 风险</div>
+    <div class="node later">⏳ 下轮再问<br>脚本名 · 参数 · 返回<br>失败语义 · 门禁</div>
+  </div>
+</section>
+
+<!-- Q1 -->
+<section class="card" id="q1">
+  <div class="card-head">
+    <div class="qnum q1">Q1</div>
+    <div>
+      <h2>目标：第一批脚本到底管哪几条写回？</h2>
+      <p class="sub">范围不清，后面参数和返回都没法定。这是根决策。</p>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="grid2">
+      <div class="box cause"><h3>📖 前因</h3>#570 Question 写的是“三件事”：正文格式、子议题关联，外加阻塞写法与数量校验。#568 补记又加了一句“写回脚本必须统一走文件输入”。但“重试留痕”的评论算不算正式管辖没说死——前置输入②说它“只定行为，不单独成脚本”。</div>
+      <div class="box effect"><h3>⚠️ 后果</h3>如果评论不算管辖，脚本的返回格式就只管三件事，评论失败可以只记日志；如果算管辖，评论也要走文件输入、进回包、进门禁。两种做法的验收清单差一整条，现在不定，下轮参数对不上。</div>
+    </div>
+    <div class="facts"><b>🔑 帮你决策的关键信息</b><br>
+      · 正文写回统一走文件输入（#568 补记），终端已有 <code>--body-file</code> 可用，宿主 <code>issues-write.js / comments.js</code> 当前全是行内 <code>--body</code>（搜不到 <code>--body-file</code>）。<br>
+      · 子议题建边 = 先取数据库编号（<code>--jq .id</code>，不是 <code>#</code> 号）→ 建边 → 查计数（<code>sub_issues --jq length</code>）。<br>
+      · 阻塞加边 = GitHub 原生依赖边优先，文字行只做降级（#569 修正输入）。
+    </div>
+    <ul class="opts">
+      <li><b>A · “3+1”：三件正式管辖 + 评论为附带行为（推荐）</b>正文、子议题、阻塞进契约和门禁；评论只定行为（失败重试一次并留痕），同样走文件，但不单独成脚本。</li>
+      <li><b>B · “3+0”：评论完全不管</b>脚本只管三件事，评论留痕以后再说。</li>
+      <li><b>C · “4”：评论也算正式管辖</b>评论写回同样进回包和门禁，与正文同等验收。</li>
+    </ul>
+    <div class="rec blue"><span class="tag b">➡️ 推荐答案：A</span><br>理由：前置输入②原话就是“重试留痕只定行为”，B 把它丢了违背前置，C 把它升格会扩大第一批范围。A 既守住前置，又顺手落实了 #568“统一走文件输入”（评论也是正文，一起走文件最省事）。</div>
+    <table class="procon">
+      <tr><th>✅ 选 A 的利</th><th>❌ 选 A 的弊 / 选 B、C 会怎样</th></tr>
+      <tr><td>不违背你已定的前置；验收清单最小可用；评论同样走文件，避开 PowerShell 引号坑。</td><td>回包要多一个“评论是否留痕”字段（小成本）。选 B：失败无痕，以后查问题断链。选 C：第一批变大，门禁多一整条评论验收，拖慢落地。</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- Q2 -->
+<section class="card" id="q2">
+  <div class="card-head">
+    <div class="qnum q2">Q2</div>
+    <div>
+      <h2>边界：这三条“不做”是否成立？模板改不改？</h2>
+      <p class="sub">边界不定，脚本会越写越大，第一批收不住。</p>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="grid2">
+      <div class="box cause"><h3>📖 前因</h3>前置输入③④说宿主不动、Markdown/GitLab 不写新脚本。但新建需求模板里阻塞那句是无条件文字行（<code>用 Blocked by: #&lt;n&gt; 行表示阻塞关系</code>，不分后端），和跟踪文档的“原生优先”打架（#569 打架点第一、二、六条）。这批要不要连模板一起改，必须现在定。</div>
+      <div class="box effect"><h3>⚠️ 后果</h3>模板一动，牵到提示词门禁（<code>verify-prompt-newlines / verify-prompts</code>）和两处技能措辞（<code>to-tickets</code> 是条件写法、新建需求模板是无条件写法），第一批立刻变大。不动模板，脚本行为和模板文字会暂时不一致，需要一句备注顶住。</div>
+    </div>
+    <div class="facts"><b>🔑 帮你决策的关键信息</b><br>
+      · 宿主 <code>setParent</code> 在 GitHub 语义齐全，GitLab 缺换父先解旧绑，Markdown 直接报不支持——三后端行为本就不一致，第一批只做 GitHub 是为了避开这个坑。<br>
+      · 模板打架是事实（#569 第六条），但修模板 = 改 <code>prompts.js newWayfinder v13</code> + 重跑 <code>node scripts/build.mjs</code> + 过两道门禁，工作量另算一票。
+    </div>
+    <ul class="opts">
+      <li><b>A · 三条“不做”成立，模板这批不动（推荐）</b>宿主不动、另两后端不写新脚本、规格先行不选；脚本内先按“原生优先、文字行降级”做，模板措辞留到规格票再收。</li>
+      <li><b>B · 模板这批一起改</b>脚本判定口径和模板措辞一次对齐，无条件文字行改成按后端条件写法。</li>
+    </ul>
+    <div class="rec orange"><span class="tag o">➡️ 推荐答案：A</span><br>理由：第一批目标是“让脚本行为正确”，模板是“让提示词文字正确”，两件事可以分两票。一次全改，门禁和回归面翻倍；先让脚本跑通，模板不一致处用一句备注顶住（“已知不一致，以脚本判定口径为准”），规格票再收模板。</div>
+    <table class="procon">
+      <tr><th>✅ 选 A 的利</th><th>❌ 选 A 的弊 / 选 B 会怎样</th></tr>
+      <tr><td>第一批最小可落地；不碰提示词门禁；三后端差异 confined 在 GitHub 一房。</td><td>短期内脚本行为与模板文字有一句不一致（需备注）。选 B：要过 <code>verify-prompts / verify-progress / verify-map-subissues-352</code> 三道门禁，第一批延期。</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- Q3 -->
+<section class="card" id="q3">
+  <div class="card-head">
+    <div class="qnum q3">Q3</div>
+    <div>
+      <h2>风险：三道门禁先死守哪一道？</h2>
+      <p class="sub">资源有限，门禁必须有先后。排第一的写进脚本的强制失败语义。</p>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="grid2">
+      <div class="box cause"><h3>📖 前因</h3>两份研究报告摆出三个真坑：A 是 PowerShell 吞引号和 <code>@me</code>（#568 第 4/5 节实证）；B 是开头不可见字符和字面转义污染（<code>normalizeBody</code> 阈值兜底）；C 是只写清单不建原生边导致面板 0/0（#345 从 0 补到 6）。</div>
+      <div class="box effect"><h3>⚠️ 后果</h3>排第一的风险进脚本的“硬失败”（报错不吞、门禁变红）；排后面的进“软提醒”。排错了，脚本在你机器上（Windows PowerShell）第一次跑就栽，或者面板统计继续错而不自知。</div>
+    </div>
+    <div class="facts"><b>🔑 帮你决策的关键信息</b><br>
+      · A 是<b>必现</b>：Windows PowerShell 5.1 调原生命令吞内嵌双引号，<code>@me</code> 不加引号直接报缺参数。宿主走参数数组无此坑，但脚本走终端，有此坑。<br>
+      · C 是<b>最贵</b>：#345 的 0/0 是线上事故，补链要逐子票取编号再建边。面板快照只认原生边，清单写得再全也不进统计。<br>
+      · B 有<b>兜底</b>：<code>normalizeBody</code>（真实换行 &lt; 2 且字面转义 ≥ 1 才还原）+ 门禁 <code>verify-progress T16 / verify-parse-leaf</code> 钉住，最多难看不断链。
+    </div>
+    <ul class="opts">
+      <li><b>A · 文件输入强制（推荐第一）</b>长正文一律走文件，不走行内参数。违了直接报错。</li>
+      <li><b>C · 数量校验强制（推荐第二）</b>建边后查计数，与预期不一致就报错不吞，纳入面板计数验收。</li>
+      <li><b>B · 正文正规化检查（推荐第三）</b>写回前检查开头不可见字符与字面转义，命中则告警并按阈值还原。</li>
+    </ul>
+    <div class="rec red"><span class="tag r">➡️ 推荐答案：A &gt; C &gt; B</span><br>理由：A 不守则脚本在 Windows 下必错；C 不守则错了还显示正常（0/0 两种含义分不清）；B 有现成兜底，可以只告警不断链。三道都做，但硬失败的先后是这个序。</div>
+    <table class="procon">
+      <tr><th>✅ 这样排的利</th><th>❌ 排错了会怎样</th></tr>
+      <tr><td>脚本第一次跑就成（文件输入绕开 shell）；统计错了立刻现形（数量对不上就报错）；B 只告警，不误伤正常正文。</td><td>把 B 排第一：正常正文可能被误还原，门禁噪音大。把 C 放最后：#345 重演，面板 0/0 还以为是空地图（#369 是故意空，#345 是意外空，数字一样）。</td></tr>
+    </table>
+    <div class="warn">⚠️ 场景对照：<b>#369</b> 是故意为空的验证地图（0/0 正确），<b>#345</b> 是意外没挂对的事故地图（0/0 错误）。只看数字分不清，必须靠“边在不在 + 数对不对”的回包区分——这就是 Q1 回包字段的由来。</div>
+  </div>
+</section>
+
+<section class="context" id="next">
+  <div class="kicker blue">➡️ 下一步 · 等你回三句话</div>
+  <h2>你只需要回：Q1 选 A/B/C？Q2 选 A/B？Q3 排序认不认？</h2>
+  <p>你回完，我按 grilling 规则推下一轮（脚本放 <code>scripts/</code> 下叫什么、用什么语言、传哪几个参数、回包字段、失败重试与评论落点、原生优先的判定口径、提示词门禁怎么写）。<b>本轮不写盘</b>：issue 正文、<code>CONTEXT.md</code>、新票都不动。全部对齐后，我会把结论写回 issue 正文（<code>## 进度</code> 独占一行、真实换行），并提醒你跑 <code>/to-spec</code> 固化成规格。</p>
+  <details><summary>📎 本页依据的一手来源（点开展开）</summary>
+    <p>#568 结论文件：分支 <code>research/568-body-write</code> 的 <code>research/568-body-write.md</code>（两条写回链路、<code>normalizeBody</code> 真源 <code>src/shared/parser.js</code>、宿主副本 <code>src/host/mapBody.js</code>、换行兼容正则、<code>skillProbe.js</code> 带头加固、平台层 <code>src/host/platform/index.js</code> + 三系统配方、终端转义实证 <code>docs/research/RESEARCH-NOTES.md</code>）。#569 结论文件：分支 <code>research/569-subissue-wiring</code> 的 <code>research/569-subissue-wiring.md</code>（模板 <code>src/client/kernel/prompts.js newWayfinder v13</code>、三后端 <code>prompts.subIssue</code> 声明、契约 <code>src/host/tracker/contract.js setParent</code>、GitHub <code>graph.js</code> / GitLab <code>graph-membership.js</code> / Markdown <code>issues-patch.js</code>、跟踪文档原生写法、#345 补链实例）。#570 前置 5 决策见 issue 评论（2026-09-09 真人确认）。现有 <code>scripts/</code> 以 <code>.mjs + node</code> 为主，Windows 下 <code>.sh</code> 不好使——这是下轮脚本语言的关键输入。</p>
+  </details>
+</section>
+
+<footer>本页只呈现第一轮问题与推荐，不代表结论落盘 · 等你拍板后再写回 #570 正文</footer>
+
+</div>
+</body>
+</html>

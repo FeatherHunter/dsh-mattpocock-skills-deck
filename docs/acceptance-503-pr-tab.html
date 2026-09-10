@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>验收手册：地图 503 GitHub后端拉取请求入口实现（主线 f9b489a）</title>
+<style>
+:root{--bg:#f7f5f0;--card:#ffffff;--ink:#1f2937;--muted:#6b7280;--line:#e5e0d5;--green:#15803d;--amber:#92400e;--blue:#1d4ed8;--code:#111827;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;line-height:1.75}
+.wrap{max-width:980px;margin:0 auto;padding:28px 18px 80px}
+.hero{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 22px 18px}
+.hero h1{font-size:22px;margin:0 0 8px}
+.hero p{margin:6px 0;color:var(--muted)}
+.badge{display:inline-block;background:#111827;color:#fff;font-size:12px;border-radius:99px;padding:2px 12px;margin-right:8px}
+.meta{background:#fbfaf7;border:1px dashed var(--line);border-radius:10px;padding:12px 14px;margin-top:12px;font-size:14px}
+.meta code{font-family:Consolas,Menlo,monospace;background:#eee;border-radius:6px;padding:1px 6px}
+h2{font-size:19px;margin:34px 0 10px}
+h3{font-size:16px;margin:22px 0 8px}
+.lead{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 16px;margin:12px 0}
+.step{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 14px;margin:10px 0}
+.step input[type=checkbox]{width:20px;height:20px;margin-top:4px;flex:none}
+.step .body{flex:1}
+.step .title{font-weight:700;font-size:15px}
+.step .desc{font-size:14px;color:var(--ink)}
+.step .small{font-size:13px;color:var(--muted)}
+pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:12px 14px;overflow:auto;font-size:13px;line-height:1.6}
+pre code{font-family:Consolas,Menlo,"Courier New",monospace}
+.pass{color:var(--green);font-weight:700}
+.fail{color:#b91c1c;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:14px;background:#fff}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#faf7f0;color:#57534e}
+.hint{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 12px;font-size:13px;margin:8px 0}
+.ok{background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px 12px;font-size:13px;margin:8px 0}
+.footer{margin-top:30px;font-size:13px;color:var(--muted)}
+.toc a{color:var(--blue)}
+kbd{font-family:Consolas,monospace;background:#eee;border:1px solid #ddd;border-bottom-width:2px;border-radius:6px;padding:0 6px;font-size:12px}
+@media print{.step input[type=checkbox]{-webkit-appearance:auto;appearance:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="hero">
+<span class="badge">验收手册</span><span class="badge" style="background:#15803d">第一次读也能懂</span>
+<h1>地图 503：GitHub 后端拉取请求入口实现</h1>
+<p>这份手册只讲一件事：在主线版本上，如何一步一步确认拉取请求页签真的做好了。拉取请求就是别人在 GitHub 上请求把代码合并进来的那张单子。</p>
+<p>整份手册分三层。第一层是机器自动检查，第二层是不联网的内存桩检查，第三层是连真实仓库的人工目视检查。三层都通过，才算验收通过。</p>
+<div class="meta">
+<div>主线版本：<code>f9b489a</code>（标题：合入 507，把拉取请求离线桩验收门禁合入主线）</div>
+<div>地图编号：<code>503</code>，状态：百分之百关闭。五组工作合入记录见文末。</div>
+<div>阅读方法：从上往下做，每做完一步就勾选一个方框。命令都在代码块里，直接复制到仓库根目录运行。</div>
+<div>仓库位置：<code>D:\dsh-plugin\dsh-mattpocock-skills-deck</code>，所有命令都在这个目录下运行。</div>
+</div>
+</div>
+
+<div class="card toc">
+<strong>目录</strong>
+<ol>
+<li><a href="#layer1">第一层：全链自动门禁（机器替你跑完所有检查）</a></li>
+<li><a href="#layer2">第二层：离线桩检查（不联网，用内存假数据跑 27 个用例）</a></li>
+<li><a href="#layer3">第三层：真实仓库目视检查（对照原型点四遍）</a></li>
+<li><a href="#tickets">附录：主线与五组工作合入号</a></li>
+</ol>
+</div>
+
+<h2 id="layer1">第一层：全链自动门禁（机器替你跑完所有检查）</h2>
+<p class="lead">这一层的目标是：只记一条命令，机器把所有检查跑完，退出码是 0 就算通过。如果中间某一步变红，不要急着改功能，先按每一步下面的“不绿先补什么”去补。</p>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 1 步：跑全链检查，退出码必须是 0</div>
+<div class="desc">全链检查就是把仓库里所有的自动检查按顺序跑一遍。退出码 0 表示全部通过，非 0 表示至少有一处失败。</div>
+<pre><code>npm run verify</code></pre>
+<div class="small"><span class="pass">通过标准：</span>命令从头跑到尾不停下，最后退出码是 0，屏幕上没有出现 FAIL 或者“存在失败”字样。<br>
+<span class="fail">日志追溯：</span>屏幕输出本身就是证据。失败时会打印是哪个检查文件失败，例如 tests 开头的某个检查文件名。<br>
+<span class="fail">不绿先补什么：</span>先看是第几步失败，就去看下面对应的那一步说明，不要直接改业务代码。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 2 步：契约检查，525 项通过加 4 项预期失败</div>
+<div class="desc">契约检查是确认工单形状没有被写坏的检查。工单就是跟踪系统里的一张票，拉取请求复用了工单的形状，只是多了三个可选字段。</div>
+<pre><code>node tests/verify-tracker-contract.js</code></pre>
+<div class="small"><span class="pass">通过标准：</span>最后一行显示 525 项通过，4 项失败，并且最后一行写“骨架自洽”。这 4 项失败是故意放进去的坏例子，用来证明检查真的能抓住坏数据，不是摆设。<br>
+<span class="fail">日志追溯：</span>坏例子都以 violating 开头。好例子以 compliant、demo、github、gitlab 开头。拉取请求相关的好例子包含是否拉取请求、合并时间、评审细分三个字段。<br>
+<span class="fail">不绿先补什么：</span>如果通过数少于 525，先看是不是改了工单形状文件而没有同步改检查；如果 4 项预期失败变成了通过，说明检查被绕过了，先把检查恢复原样。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 3 步：GitHub 房间拉取请求专项，40 项全绿</div>
+<div class="desc">房间是指负责和某一种后端打交道的代码分组。这里是 GitHub 房间，负责把 GitHub 的拉取请求数据拿回来并整理成统一形状。</div>
+<pre><code>node tests/verify-504-github-pr.js</code></pre>
+<div class="small"><span class="pass">通过标准：</span>屏幕显示 40 行通过，最后一行显示拉取请求专用探针就绪。内容覆盖双路数据一致、坏数据收空、能力标记、失败分类四种原因、坏节点计数。<br>
+<span class="fail">日志追溯：</span>降级相关的日志事件名是 graphql.fallback、issues.fallback、fallback.chain。坏节点计数复用已有的调试事件 error.normalize，不新增事件。<br>
+<span class="fail">不绿先补什么：</span>先补注释和分类函数。常见原因是查询片段里多写了父子边或者阻塞边，或者失败原因没有分成通用、超时、限流、企业版主机四类。先把注释写诚实，再谈数据对不对。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 4 步：离线桩总验收，27 项全绿</div>
+<div class="desc">这一项也是第二层的入口，这里先当自动门禁的一员跑一遍，详细做法见第二层。</div>
+<pre><code>node tests/verify-507-pr-offline.js</code></pre>
+<div class="small"><span class="pass">通过标准：</span>从 A1 到 G4 共 27 行通过，最后一行显示 27 项全部通过。<br>
+<span class="fail">日志追溯：</span>只用已有的事件名和白名单字段，见第二层表格。不新增事件，附录文件不动。<br>
+<span class="fail">不绿先补什么：</span>先看编号属于哪一组（A 契约、B 降级、C 快照、D 界面、E 同号、F 只读、G 空态），去第二层找到那一组的表格，按表格里的离线做法复查。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 5 步：日志十三门禁，数字必须对上</div>
+<div class="desc">日志门禁是确认诊断日志没有记错、没有记多、没有泄露隐私的检查。一共十三项，数字全部是定死的。</div>
+<pre><code>node tests/verify-log-count.js
+node tests/verify-log-fields.js
+node tests/verify-log-guards.js
+node tests/verify-log-coverage.js
+node tests/verify-log-store.js
+node tests/verify-log-client.js
+node tests/verify-log-truncate.js
+node tests/verify-log-flush.js
+node tests/verify-log-scrub.js
+node tests/verify-log-channel.js
+node tests/verify-log-selfmon.js
+node tests/verify-log-artifacts.js
+node tests/verify-log-statusbar.js</code></pre>
+<div class="small"><span class="pass">通过标准：</span>计数门禁显示常驻 29 条、按需 20 条、自监控 5 条、总数 54 条。字段门禁显示 114 项断言通过。开关门禁显示 22 项通过。覆盖率门禁显示 88 项通过。其余九项各自显示全部通过。<br>
+<span class="fail">日志追溯：</span>对照文件是 research 目录下的 489-appendix.md 第 1 章。计数对不上就去对那一章的编号清单；字段对不上就去看白名单；开关对不上就去看高频路径有没有先判断调试开关再组装字符串。<br>
+<span class="fail">不绿先补什么：</span>先补日志点，再谈功能。新增了跨进程调用、宿主接口、面板刷新链路、缓存、定时任务中的任何一种，就必须同步加一行诊断日志。删了事件就要同步改附录对照表。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 6 步：三路工作区隔离检查，全部变绿</div>
+<div class="desc">隔离检查是确认多个工作区的数据不会互相串门的检查。工作区就是用户打开的不同文件夹。</div>
+<pre><code>node tests/verify-3-workspace-switch.js
+node tests/verify-panel-workspace-shared.js
+node tests/verify-panel-workspace-isolation.js</code></pre>
+<div class="small"><span class="pass">通过标准：</span>三条命令各自显示全部通过，没有串数据、没有互相覆盖。<br>
+<span class="fail">日志追溯：</span>走快照与面板同步链路，不新增事件。<br>
+<span class="fail">不绿先补什么：</span>先查是不是把某个工作区的键写成了全局键，或者切换时没有清空旧数据。先修键的归属，再看界面。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 7 步：文件粒度检查，184 个文件都不超过 350 行</div>
+<div class="desc">文件粒度就是每个源代码文件最多 350 行，太长的文件必须拆小，方便人阅读。</div>
+<pre><code>node tests/verify-file-granularity.js</code></pre>
+<div class="small"><span class="pass">通过标准：</span>显示其余 184 个文件全部在 350 行以内，共扫描 184 个源文件，退出码 0。<br>
+<span class="fail">日志追溯：</span>超标会直接报文件名和行数。基线文件是 tests 目录下的 file-granularity-baseline.json。<br>
+<span class="fail">不绿先补什么：</span>先把超标文件里能独立出去的纯函数搬走，行为保持不变，行数压回 350 以内，再重录基线。不要为了压行数而删注释。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 8 步：界面叶子、仓库芯片、初始化描述、语言、构建产物，全部变绿</div>
+<div class="desc">这一组是界面与构建的基础门禁。叶子是指界面上一个个小组件文件；芯片是指仓库名字旁边的小标签；初始化描述是指新建仓库时的引导文字。</div>
+<pre><code>node tests/verify-leaves.js
+node tests/verify-repo-switch-chip.js
+node tests/verify-setup-describe.js
+node tests/verify-t3-locale.js
+node tests/verify-locale-completeness.js
+node tests/verify-build-artifacts.js</code></pre>
+<div class="small"><span class="pass">通过标准：</span>叶子检查全部通过；芯片检查显示 47 对 47；初始化描述显示 85 对 85；两项语言检查各自通过；构建产物检查显示产物存在且新鲜。<br>
+<span class="fail">日志追溯：</span>构建产物检查会报产物路径；语言检查会报缺哪一种语言的哪一句。<br>
+<span class="fail">不绿先补什么：</span>叶子不绿先补组件的上下文兜底；芯片不绿先补后端声明数据引用；初始化描述不绿先把中英文期望值同步成先建仓的说法；语言不绿先补缺的那一句翻译；产物不绿先跑一次构建命令再重验。</div>
+</div></div>
+
+<div class="ok">第一层小结：如果上面八步全部勾选，说明机器能证明的东西都证明完了。可以进入第二层。</div>
+
+<h2 id="layer2">第二层：离线桩检查（不联网，用内存假数据跑 27 个用例）</h2>
+<p class="lead">这一层的目标是：不调用真实网络、不读真实令牌，全部用内存里的假数据，把四个工作的产出再验一遍。命令只有一条，用例清单在 docs 目录下的 pr-507-offline-cases.md 文件里，一共七组 27 项。</p>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 9 步：跑离线桩总命令，确认 27 对 27</div>
+<pre><code>node tests/verify-507-pr-offline.js</code></pre>
+<div class="desc"><span class="pass">通过标准：</span>从 A1 到 G4 每一条都显示通过，最后一行写离线桩验收就绪（27 项）。<br>
+<span class="fail">用例清单位置：</span>docs 目录下的 pr-507-offline-cases.md，七组分别是 A 契约三字段 6 项、B 双路降级 4 项、C 快照三态 5 项、D 界面四验收 4 项、E 同号留痕 1 项、F 评论只读 3 项、G 失败空态 4 项，加起来 27 项。<br>
+<span class="fail">不绿先补什么：</span>按编号前缀找到下表那一行，先看离线做法那一列，确认是不是动了实现文件而不是只改了检查文件。</div>
+</div></div>
+
+<h3>七组 27 项速查表（照着编号找）</h3>
+<div class="card">
+<table>
+<tr><th>编号</th><th>在验什么（大白话）</th><th>离线桩是怎么造假数据的</th><th>怎么算通过</th></tr>
+<tr><td>A1 到 A6</td><td>工单形状里是不是真的有三个拉取请求字段</td><td>直接读形状文件文本，或者拿空对象和坏数据调归一函数</td><td>三个字段名都在；空数据给空值；坏数据收空不报错</td></tr>
+<tr><td>B1 到 B4</td><td>网络失败时能不能按原因降级到另一条路</td><td>让查询函数假装失败四次：通用失败、超时、限流、企业版主机</td><td>四种原因各走各的，且降级后仍有数据；耗时有记录</td></tr>
+<tr><td>C1 到 C5</td><td>快照里普通工单和拉取请求会不会互相吞掉</td><td>内存后端给同一张图两张票，再给同号票、省略票、坏票</td><td>同号的两张票都在；坏票单独隔离；版号变化正确</td></tr>
+<tr><td>D1 到 D4</td><td>界面代码有没有接对（只读源码，不比样式）</td><td>直接读页签和详情的源码文本</td><td>两处容器都读能力标记；评论隐藏两路都兼容；接线可抄；注记写得懂</td></tr>
+<tr><td>E1</td><td>同号的两张票进同一个详情有没有留字说明</td><td>读页签和详情源码文本</td><td>源码里明说评审合并展示留给以后，不静默缺失</td></tr>
+<tr><td>F1 到 F3</td><td>拉取请求详情是不是只读</td><td>按源码里的判断函数求值，不开浏览器</td><td>拉取请求有评论也不给输入框；普通工单保持原样；提示只在替代输入区时出现</td></tr>
+<tr><td>G1 到 G4</td><td>加载中、失败、空数据、详情失败四种状态会不会白屏</td><td>读页签和详情源码文本</td><td>加载有转圈；失败有重试按钮；空数据有空文案；详情失败有外部链接</td></tr>
+</table>
+</div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 10 步：指纹反查（看到日志能找回是哪一步）</div>
+<div class="desc">指纹就是日志里用来证明走过哪条路的固定事件名和字段。反查就是拿着日志去附录里找到对应的编号。</div>
+<div class="small">反查路径：先打开 research 目录下的 489-appendix.md 第 1 章对照表，再去本地诊断日志里搜事件名。<br>
+本层用到的指纹：双路降级用 graphql.fallback、issues.fallback、fallback.chain；快照三态用 snapshot.cache.miss；界面、只读、空态三组复用快照链路，不新增事件；契约组是纯形状，没有日志。<br>
+<span class="pass">通过标准：</span>每个失败现场都能在日志里找到对应的原因枚举和通道名，数字和附录对得上。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 11 步：脱敏要求（日志里不许出现隐私原文）</div>
+<div class="desc">脱敏就是只记能定位问题的最少量信息，不记隐私原文。</div>
+<div class="hint">只允许记：失败原因枚举、通道名字、计数、算出来的短指纹。一律不记：令牌原文、登录状态原文、工作区原始路径、仓库地址原文、标题原文。标题太长只留前一段并注明已截断。检查方法是把日志字段转成文本后搜令牌形状和路径形状，搜不到才算通过。</div>
+<div class="small"><span class="pass">通过标准：</span>离线桩里的 B3 用例通过，即转成文本后没有令牌形状和路径形状。<br>
+<span class="fail">不绿先补什么：</span>先找到是哪个日志点把原文带进去了，把那个字段换成枚举或者短指纹，再重跑 B3。</div>
+</div></div>
+
+<h2 id="layer3">第三层：真实仓库目视检查（对照原型点四遍）</h2>
+<p class="lead">这一层的目标是：连一个真实的 GitHub 仓库，用眼睛确认界面行为和原型一致。原型文件在 docs 目录下的 prototype 文件夹里，名字是 293-pr-tab-dynamic.html，直接用浏览器打开，不用构建。</p>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 12 步：打开原型，知道四处验收点在哪里</div>
+<div class="desc">在浏览器里打开下面这个文件，按页面里的控制区亲手点一遍。</div>
+<pre><code>docs/prototype/293-pr-tab-dynamic.html</code></pre>
+<div class="small">原型里有三组控制：后端切换、数据状态、面板宽度。后面四步就是照着这三组控制点。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 13 步：显隐验收（有能力才显示页签）</div>
+<div class="desc">只有后端返回了拉取请求能力，才显示拉取请求页签，不是写死后端名字。</div>
+<div class="small"><span class="pass">通过标准：</span>选 GitHub 时有拉取请求页签；切到 GitLab 或者本地 Markdown 时页签消失；如果当时正停在拉取请求页，要自动回到列表页；切回 GitHub 时恢复。<br>
+<span class="fail">不绿先补什么：</span>先查页签显隐是不是只读能力标记，有没有误写后端名字。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 14 步：折叠验收（窄屏时按优先级收起）</div>
+<div class="desc">折叠是指面板变窄时，页签从文字收成纯图标，不换行，不出现横向滚动条。</div>
+<div class="small"><span class="pass">通过标准：</span>把宽度从 640 拖到 280，页签按优先级从大到小逐个收起。优先级是列表 4、拉取请求页签 5、技能 6、环境检查 7。动作按钮最后才收。拖回宽屏时逐个恢复。<br>
+<span class="fail">不绿先补什么：</span>先查页签组装是不是复用了统一的折叠机器，有没有单独写一套。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 15 步：空态与失败态验收（入口永远保留）</div>
+<div class="desc">空态是指没有数据时的占位界面。要求是不管哪种坏情况，入口都不许消失，更不许白屏。</div>
+<div class="small"><span class="pass">通过标准：</span>空结果显示还没有拉取请求；加载失败显示加载失败并带重试按钮，重试可以重新拉数据；加载中显示转圈加文案。三种状态都不隐藏入口。<br>
+<span class="fail">不绿先补什么：</span>先查失败分支有没有保留重试按钮，空分支有没有保留占位文案。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 16 步：后端切换验收（切换时自动回列表，不白屏）</div>
+<div class="desc">后端切换就是换一个工作区或者换一种后端类型。</div>
+<div class="small"><span class="pass">通过标准：</span>在拉取请求页切到无能力后端时，自动回到列表页，全程无白屏，日志里有一次显隐记录。<br>
+<span class="fail">不绿先补什么：</span>先查容器侧的回退逻辑有没有写，有没有只藏了页签却忘了切页面。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 17 步：列表五个字段验收</div>
+<div class="desc">拉取请求列表每一行必须显示五个字段，缺一个都不行。</div>
+<div class="small"><span class="pass">通过标准：</span>每一行都能看到标题、作者、状态、标签、更新时间五个信息。排序是按更新时间从新到旧，同时间按编号排。<br>
+<span class="fail">不绿先补什么：</span>先查列表组件是不是只取了过滤后的拉取请求，有没有误把普通工单混进来。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 18 步：详情基础加评论只读验收（拉取请求隐藏输入框）</div>
+<div class="desc">详情是指点开一行后看到的右侧详情。基础是指标题、正文、状态等基本信息；评论只读是指只能看评论，不能写评论。</div>
+<div class="small"><span class="pass">通过标准：</span>点开拉取请求能看到基本信息和评论列表，但是没有评论输入框；点开普通工单时输入框行为保持原样；输入框被替代时才出现只读提示。<br>
+<span class="fail">不绿先补什么：</span>先查详情里的是否可评论判断，有没有兼容数组和图两种评论形状，有没有任一来源标拉取请求就隐藏。</div>
+</div></div>
+
+<div class="step"><input type="checkbox"><div class="body">
+<div class="title">第 19 步：确认已知留尾（这次故意不做，以后做）</div>
+<div class="desc">留尾是指已知但本次不做的缺口，已经在源码里留了字说明，不是漏掉的缺陷。</div>
+<div class="hint">同号码的普通工单和拉取请求会进同一个详情，评审合并展示留给以后做。悬浮面板本来就没有详情分支，点行后详情走右侧停靠的同一机制。前端判断函数已经具名，分类和身份函数按名字可以查到。</div>
+<div class="small"><span class="pass">通过标准：</span>能在源码注释里找到上面这段话，界面上不会静默吞掉任何一张票。</div>
+</div></div>
+
+<div class="ok">三层小结：十九个方框全部勾选，地图 503 才算验收通过。</div>
+
+<h2 id="tickets">附录：主线与五组工作合入号</h2>
+<div class="card">
+<table>
+<tr><th>分组</th><th>做了什么（大白话）</th><th>合入记录（提交号）</th></tr>
+<tr><td>主线</td><td>最终合入主线的版本，全链与专项门禁全部变绿</td><td><code>f9b489a</code> 合入 507</td></tr>
+<tr><td>第一组：契约三字段</td><td>工单形状加三个可选字段：是否为拉取请求、合并时间、评审细分</td><td><code>c6bb5cc</code> 落地形状，<code>edda852</code> 收紧断言，<code>5bb3db7</code> 合入主线</td></tr>
+<tr><td>第二组：快照组装</td><td>快照层容纳同池数据，同号的两张票各记一票，坏票单独隔离</td><td><code>4026983</code> 容纳同池，<code>e38bca6</code> 收尾去重，<code>9a583fb</code> 合入主线</td></tr>
+<tr><td>第三组：GitHub 房查询归一</td><td>新增拉取请求查询片段，双路数据归一，失败分四类，坏节点计数</td><td><code>d208f90</code> 落地查询归一，<code>c14b36a</code> 补齐分类，<code>0df7a7b</code> 合入主线</td></tr>
+<tr><td>第四组：界面四态</td><td>独立页签与内容区，能力门控显隐，过滤接线，详情只读评论</td><td><code>169904b</code> 落地页签内容区，<code>57f5e2f</code> 补齐接线只读（随主线直接落地）</td></tr>
+<tr><td>第五组：离线桩收尾</td><td>补齐用例清单与 27 项门禁，把门禁接进全链检查</td><td><code>2bb2e3a</code> 补清单门禁，<code>956fdb2</code> 接入全链，<code>f9b489a</code> 合入主线</td></tr>
+</table>
+<p class="small" style="font-size:13px;color:var(--muted)">说明：前三组各有明确的合入提交；第四组是界面工作，直接落在主线上，没有单独的合入提交，所以列出两笔落子提交；第五组就是主线本身。五组合起来正好是地图 503 的全部工作。</p>
+</div>
+
+<div class="footer">验收人签字：____________　日期：________　结论：通过 / 不通过（圈一个）。不通过时请写下第一个变红的步骤编号：______。</div>
+</div>
+</body>
+</html>

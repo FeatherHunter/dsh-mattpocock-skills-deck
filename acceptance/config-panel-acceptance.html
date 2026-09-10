@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>配置面板验收单 · Map#407 落地 #519 / #520 / #521</title>
+<style>
+  :root { color-scheme: light dark; --fg:#1f2328; --muted:#57606a; --line:#d0d7de; --bg:#ffffff; --soft:#f6f8fa; --green:#1a7f37; --red:#cf222e; --blue:#0969da; --card:#ffffff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6edf3; --muted:#8b949e; --line:#30363d; --bg:#0d1117; --soft:#161b22; --green:#3fb950; --red:#f85149; --blue:#58a6ff; --card:#0d1117; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.75 -apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; }
+  .wrap { max-width:960px; margin:0 auto; padding:28px 20px 80px; }
+  h1 { font-size:24px; line-height:1.4; margin:0 0 6px; }
+  h2 { font-size:19px; margin:34px 0 12px; padding-top:18px; border-top:2px solid var(--line); }
+  h3 { font-size:16px; margin:22px 0 8px; }
+  p, li { overflow-wrap:anywhere; }
+  .sub { color:var(--muted); margin:0 0 14px; }
+  .meta { background:var(--soft); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .meta table { width:100%; border-collapse:collapse; font-size:14px; }
+  .meta th { text-align:left; white-space:nowrap; vertical-align:top; padding:4px 10px 4px 0; color:var(--muted); font-weight:600; width:7em; }
+  .meta td { padding:4px 0; }
+  .final4 { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0 4px; padding:0; list-style:none; }
+  .final4 li { border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:var(--card); font-size:14px; }
+  .final4 b { display:block; margin-bottom:2px; }
+  @media (max-width:640px){ .final4{ grid-template-columns:1fr; } }
+  .step { border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin:12px 0; background:var(--card); }
+  .step h3 { margin:0 0 6px; font-size:15.5px; }
+  .step .tag { display:inline-block; font-size:12px; border:1px solid var(--line); border-radius:999px; padding:0 9px; margin-right:6px; color:var(--muted); vertical-align:middle; }
+  .step dl { margin:8px 0 0; font-size:14px; }
+  .step dt { font-weight:700; margin-top:6px; }
+  .step dd { margin:2px 0 0 0; color:var(--fg); }
+  .step .expect { background:var(--soft); border-radius:8px; padding:8px 10px; margin-top:8px; font-size:14px; }
+  .gone { border-style:dashed; }
+  .check { list-style:none; margin:10px 0; padding:0; }
+  .check li { display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line); border-radius:10px; padding:9px 12px; margin:8px 0; background:var(--card); font-size:14px; }
+  .check input { width:18px; height:18px; margin-top:4px; flex:none; }
+  .check small { display:block; color:var(--muted); }
+  .progress { position:sticky; top:0; z-index:5; background:var(--bg); padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; color:var(--muted); }
+  .progress b { color:var(--fg); }
+  table.map { width:100%; border-collapse:collapse; font-size:14px; margin-top:10px; }
+  table.map th, table.map td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  table.map th { background:var(--soft); }
+  .warn { border:1px solid var(--line); border-left:5px solid var(--red); border-radius:8px; padding:10px 12px; background:var(--card); font-size:14px; }
+  .ok { color:var(--green); font-weight:700; }
+  .mono { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:13px; }
+  .btnrow { margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; }
+  button { font:inherit; font-size:14px; padding:7px 14px; border-radius:8px; border:1px solid var(--line); background:var(--soft); color:var(--fg); cursor:pointer; }
+  button:hover { border-color:var(--blue); color:var(--blue); }
+  footer { margin-top:30px; color:var(--muted); font-size:13px; }
+  @media print { .progress, .btnrow { display:none; } .wrap{ padding:0; } .step,.check li{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="progress" id="progress">已勾选 <b id="done">0</b> / <span id="total">0</span> 项 · 全部打勾才算通过</div>
+
+<h1>配置面板验收单</h1>
+<p class="sub">给使用插件的人看的一次性验收指南：照着点一遍，看是不是和下面写的一样。不改代码、不碰工单，只看界面。</p>
+
+<div class="meta">
+<table>
+<tr><th>验收对象</th><td>插件里的“配置面板”（设置页）。Map#407 方案定版之后，落地票 <span class="mono">#519（A 删存量）</span>、<span class="mono">#520（B 新增区）</span>、<span class="mono">#521（C 常驻小字与文案门禁）</span>全部合并后的样子。</td></tr>
+<tr><th>适用版本</th><td>包含 <span class="mono">#519</span>、<span class="mono">#520</span>、<span class="mono">#521</span> 三个落地票改动后的版本。三票缺一不可，少合一票就不要验。</td></tr>
+<tr><th>方案依据</th><td>Map#407 定版决议（G1 / G2 / G3 / P1）：删掉技能集卡、面板宽度、模板编辑整组、底部保存栏，统一改成点选即保存；标题行、打开位置、总览三块保留不动；新增顶部两个纯图标按钮和底部“作者其他插件”区。</td></tr>
+<tr><th>要准备什么</th><td>一台能打开插件设置页的电脑就行。不需要懂代码，不需要跑命令。有一段话要人眼看高度，有两处要断网也能显示（下面会讲）。</td></tr>
+</table>
+</div>
+
+<h2>一、终态四块（一句话版）</h2>
+<p>以前设置页有 8 块，又长又难找。现在只剩下面 4 块，大约一屏半能看完：</p>
+<ul class="final4">
+<li><b>块 1 · 标题行（含两个纯图标按钮）</b>标题还在，右边多了两个只有图形、没有文字的按钮：星星管点 Star，对话框管反馈问题。</li>
+<li><b>块 2 · 打开位置（含一句常驻小字）</b>选面板放在 dock 还是 sidebar，点一下就自动保存，旁边一直有一句小字提醒“点选即已保存，无需再点保存”。</li>
+<li><b>块 3 · 总览（只读、默认收起）</b>只用来看，不能改。默认是收起来的，点一下才能展开看。</li>
+<li><b>块 4 · 作者其他插件（底部 5 行）</b>页面最底部的新分区，一共 5 行，每行一个插件，点哪行就去哪个仓库首页。</li>
+</ul>
+<p class="sub">删掉的东西：技能集卡、面板宽度整组、模板编辑整组、底部保存栏，这四组在页面上应该一个字都找不到。</p>
+
+<h2>二、验收步骤（按块编号，共 9 项）</h2>
+<p>每个步骤都写成三行：<b>打开位置</b>（从哪里进）→ <b>点哪里</b>（鼠标点什么）→ <b>看哪里</b>（眼睛看什么、算不算过）。建议按顺序走 1 到 9。双入口说明：设置页有两个入口（插件标签页入口、设置分组入口），先用一个入口走完全部步骤，再换另一个入口抽查步骤 1、2、4，看到的是同一页才算过。</p>
+
+<div class="step">
+<h3><span class="tag">步骤 1 · 块 1</span>标题行两个图标，悬停才出文字 <span class="tag">对应 B #520</span></h3>
+<dl>
+<dt>打开位置</dt><dd>从任一入口打开配置面板，停在页面最顶部标题行。</dd>
+<dt>点哪里</dt><dd>① 把鼠标放到星星图形上停 1 秒（不用点）；② 把鼠标放到问题/对话框图形上停 1 秒；③ 把窗口收窄到手机宽度，再看标题行。</dd>
+<dt>看哪里</dt><dd>平时只看到两个图形、看不到文字。悬停星星才出现中文“去 GitHub 点 Star”（英文界面显示 “Star on GitHub”）；悬停另一个才出现中文“反馈问题”（英文界面显示 “Report an issue”）。点星星跳本仓库首页，点反馈跳新建问题页。窄窗口下图标允许换到标题下方，但不能出现横向滚动条。</dd>
+</dl>
+<div class="expect">算过：平时无文字、悬停才有文字；中英文各一对，一个不多一个不少；两个链接跳得对；图标颜色跟随深浅主题走。</div>
+</div>
+
+<div class="step">
+<h3><span class="tag">步骤 2 · 块 2</span>打开位置点选即保存，旁边有常驻小字 <span class="tag">对应 C #521（保存逻辑来自 A #519）</span></h3>
+<dl>
+<dt>打开位置</dt><dd>滚动到“打开位置”那一块（标题行下面第一块）。</dd>
+<dt>点哪里</dt><dd>① 点 dock；② 再点 sidebar；③ 刷新整个页面（按浏览器刷新）。</dd>
+<dt>看哪里</dt><dd>看两处：第一，每点一次就是保存了，旁边一直有一句小字“点选即已保存，无需再点保存”，刷新前后这句话都在；第二，刷新后刚才选的位置还在（选了 sidebar，刷新后还是 sidebar）。页面上没有任何“保存”按钮可以点。</dd>
+</dl>
+<div class="expect">算过：不用点保存，点选项即保存；常驻小字一直在，不是闪一下就没；刷新后选项保持。</div>
+</div>
+
+<div class="step">
+<h3><span class="tag">步骤 3 · 块 3</span>总览只读、默认收起 <span class="tag">保留项（三票共用回归）</span></h3>
+<dl>
+<dt>打开位置</dt><dd>找到“总览”那一块（打开位置下面）。</dd>
+<dt>点哪里</dt><dd>① 刚进页面先别点，看默认样子；② 点一下总览标题展开；③ 再点一下收起。</dd>
+<dt>看哪里</dt><dd>默认是收起来的，只能看到标题。点开能看内容，里面没有输入框、没有编辑按钮、没有保存按钮，纯展示。</dd>
+</dl>
+<div class="expect">算过：默认收起、可点开可收起、里面改不了。</div>
+</div>
+
+<div class="step">
+<h3><span class="tag">步骤 4 · 块 4</span>底部“作者其他插件”5 行，每行能跳转 <span class="tag">对应 B #520</span></h3>
+<dl>
+<dt>打开位置</dt><dd>拉到页面最底部，找到独立分区“作者其他插件”。</dd>
+<dt>点哪里</dt><dd>从上到下逐行点 5 行：本面板自己（deck）、配色盘（opencode-palette）、提示模板（prompt）、聊天接入（im）、界面调试（plugin-ui-debug）。每行都点一次。</dd>
+<dt>看哪里</dt><dd>每行都是“插件名 + 一句话说明 + 行尾向右箭头”，默认全部展开。点哪行就跳到哪个插件的仓库首页，5 个地址各不相同。断网时这 5 行照样显示（地址是写死的，不是从网上查的）。</dd>
+</dl>
+<div class="expect">算过：不多不少正好 5 行；每行点开都跳对地方；以后加新插件就是加一行，不破坏现有行。</div>
+</div>
+
+<div class="step gone">
+<h3><span class="tag">步骤 5 · 已删确认</span>技能集卡找不到了 <span class="tag">对应 A #519</span></h3>
+<dl>
+<dt>打开位置</dt><dd>整个配置面板，从上到下慢慢滚一遍，再用页面查找搜“技能集”。</dd>
+<dt>点哪里</dt><dd>不用点，纯看。重点看顶部标题行下面有没有卡片。</dd>
+<dt>看哪里</dt><dd>标题行还在，但下面的卡片渲染没了；原来跟着卡片走的“打开仓库”“复制安装提示词”两个入口也一起没了。搜关键词搜不到残留标题。</dd>
+</dl>
+<div class="expect">算过：卡片和它的两个入口一起消失，标题行本身还在。</div>
+</div>
+
+<div class="step gone">
+<h3><span class="tag">步骤 6 · 已删确认</span>面板宽度整组找不到了 <span class="tag">对应 A #519</span></h3>
+<dl>
+<dt>打开位置</dt><dd>整个配置面板，搜“宽度”。</dd>
+<dt>点哪里</dt><dd>不用点，纯看。以前有标题、说明文字、“一键恢复/重置”按钮的那一组，现在整组都没了。</dd>
+<dt>看哪里</dt><dd>宽度标题、说明、“一键恢复”按钮一个都不剩。想调宽只能用鼠标拖面板，拖拽记忆的清理入口也一起没了。</dd>
+</dl>
+<div class="expect">算过：宽度整组全删，页面上不留标题、不留按钮、不留说明。</div>
+</div>
+
+<div class="step gone">
+<h3><span class="tag">步骤 7 · 已删确认</span>模板编辑整组找不到了 <span class="tag">对应 A #519</span></h3>
+<dl>
+<dt>打开位置</dt><dd>整个配置面板，搜“模板”。</dd>
+<dt>点哪里</dt><dd>不用点，纯看。以前的开始模板大文本框和 6 张卡片编辑入口，现在都没了。</dd>
+<dt>看哪里</dt><dd>人能改的入口全删了。但后台默认提示词和行级快捷按钮还在（删的是人改入口，不是删功能本身）。</dd>
+</dl>
+<div class="expect">算过：大文本框和 6 个编辑入口消失；后台默认提示词不受影响。</div>
+</div>
+
+<div class="step gone">
+<h3><span class="tag">步骤 8 · 已删确认</span>底部保存栏找不到了 <span class="tag">对应 A #519</span></h3>
+<dl>
+<dt>打开位置</dt><dd>拉到页面最底部（现在是“作者其他插件”区）。</dd>
+<dt>点哪里</dt><dd>不用点，纯看。以前底部有一整条保存栏，现在没了。</dd>
+<dt>看哪里</dt><dd>底部没有任何保存/写入按钮。各开关还是点一下就自动写（见步骤 2），只是统一没了底部入口。</dd>
+</dl>
+<div class="expect">算过：底部栏整组消失，但每个开关的即时保存还在。</div>
+</div>
+
+<div class="step">
+<h3><span class="tag">步骤 9 · 提示形态</span>成功提示只留按钮旁行内一句 <span class="tag">对应 A #519 收-2</span></h3>
+<dl>
+<dt>打开位置</dt><dd>回到“打开位置”那一块。</dd>
+<dt>点哪里</dt><dd>点一下 dock / sidebar 来回切换一次，眼睛盯着按钮旁边和页面顶部。</dd>
+<dt>看哪里</dt><dd>按钮旁边闪现一句绿色行内小字，约两三秒后自己消失。页面顶部不弹全局提示（只有跨页面广播那种才会走顶部，平时切换看不到顶部弹窗）。</dd>
+</dl>
+<div class="expect">算过：有行内提示、无顶部弹窗。常驻小字（步骤 2）一直在，闪现绿字在不在都不影响通过（C 票允许删掉闪现）。</div>
+</div>
+
+<h2>三、通过标准（逐项打勾，缺一不可）</h2>
+<p>下面每一项都能打勾。建议边验边勾，<b>所有勾都打上才算通过</b>，有一项勾不上就去第四节找回退票号。</p>
+
+<h3>3.1 看得见的断言（对照上面 9 个步骤）</h3>
+<ul class="check" id="group-visible">
+<li><input type="checkbox"><span>标题行两图标：平时只有图形，悬停才出中文“去 GitHub 点 Star / 反馈问题”，英文界面是 “Star on GitHub / Report an issue”。<small>挂了 → B #520</small></span></li>
+<li><input type="checkbox"><span>打开位置：点 dock / sidebar 即保存，旁边一直有常驻小字“点选即已保存，无需再点保存”。<small>小字没了 → C #521；点了不保存 → A #519</small></span></li>
+<li><input type="checkbox"><span>总览：默认收起，点开只读，里面没有输入框和保存按钮。<small>挂了 → 先查 A #519 是否误删，再查 B #520 是否挤占</small></span></li>
+<li><input type="checkbox"><span>底部 5 行：deck / opencode-palette / prompt / im / plugin-ui-debug，一行不少一行不多，每行点开都跳对仓库首页。<small>挂了 → B #520</small></span></li>
+<li><input type="checkbox"><span>技能集卡已删：卡片、“打开仓库”“复制安装提示词”入口一起消失。<small>还在 → A #519</small></span></li>
+<li><input type="checkbox"><span>宽度已删：宽度标题、说明、“一键恢复”按钮整组消失。<small>还在 → A #519</small></span></li>
+<li><input type="checkbox"><span>模板编辑已删：开始模板大文本框 + 6 个编辑入口消失，后台默认提示词还在。<small>还在 → A #519</small></span></li>
+<li><input type="checkbox"><span>底部栏已删：底部没有保存栏、没有写入按钮。<small>还在 → A #519</small></span></li>
+<li><input type="checkbox"><span>提示只留行内：切换时只在按钮旁闪绿字，顶部不弹全局提示。<small>顶部乱弹 → A #519</small></span></li>
+</ul>
+
+<h3>3.2 三条门禁（有两条要跑命令，不会就找开发帮忙）</h3>
+<ul class="check" id="group-gates">
+<li><input type="checkbox"><span>门禁 1 · 滚动样板人眼：用 tests 目录下的滚动样板看，首屏一眼见到标题和打开位置；以前 8 块现在 4 块，大约一屏半；窄窗口没有横向滚动条；两个入口看到的是同一页。<small>高度不对 → A #519；新区把页面拉长 → B #520</small></span></li>
+<li><input type="checkbox"><span>门禁 2 · 文案中英成对：删的键中英文一起删、加的键中英文一起加、改的键中英文一起改，跑文案配对检查是绿的。<small>删的没删干净 → A #519；加的缺一半 → B #520；改的只改一边 → C #521</small></span></li>
+<li><input type="checkbox"><span>门禁 3 · 提示词占位符门禁是绿的（只删了人改入口，后台默认提示词没被破坏）。<small>挂了 → A #519</small></span></li>
+</ul>
+
+<h3>3.3 开关即时存回归（必测）</h3>
+<ul class="check" id="group-regress">
+<li><input type="checkbox"><span>点 dock / sidebar 切换，本地存档 <span class="mono">dsws.cfg</span> 立刻被写入，并广播给所有会话。<small>没写入 → A #519</small></span></li>
+<li><input type="checkbox"><span>刷新页面后，刚才选的位置还在；按钮旁出现行内提示，顶部不弹全局提示。<small>位置丢了 → A #519；小字丢了 → C #521</small></span></li>
+</ul>
+
+<h3>3.4 约束（实现层面的硬规矩，问开发要结论即可）</h3>
+<ul class="check" id="group-const">
+<li><input type="checkbox"><span>纯手工 JS，没有引入新依赖。<small>挂了 → 按引入它的那票回退（删存量 A / 新增区 B）</small></span></li>
+<li><input type="checkbox"><span>没有新增本地存档键名，两把钥匙 <span class="mono">dsws.cfg</span> / <span class="mono">dsws.templates</span> 名字不动。<small>挂了 → A #519</small></span></li>
+<li><input type="checkbox"><span>不拉实时 Star 数：两个图标和底部 5 行都是写死网址，没有新增网络请求，断网也能渲染出图形和文字。<small>挂了 → B #520</small></span></li>
+</ul>
+
+<div class="btnrow">
+<button type="button" id="btn-all">全选（仅演示）</button>
+<button type="button" id="btn-clear">清空重验</button>
+</div>
+
+<h2>四、不通过回退（哪项挂了，回哪个票）</h2>
+<div class="warn">规矩：只回退挂了的那一票，不动没挂的票。每票都能独立回滚。A 是删存量，B 是新增区，C 是文案抛光，不要回错。</div>
+<table class="map">
+<tr><th>挂了哪项</th><th>回哪个落地票</th><th>回退动作（一句话）</th></tr>
+<tr><td>技能集卡还在 / 宽度还在 / 模板编辑还在 / 底部栏还在 / 顶部乱弹全局提示</td><td><b>A · #519 删存量</b></td><td>把删掉的四组符号和文案键恢复回来就行，不影响新增区。</td></tr>
+<tr><td>标题两图标悬停文字不对、链接跳错、窄窗口出横向滚动条</td><td><b>B · #520 新增区之增-1</b></td><td>修标题行两图标那一小块，或整块隐藏即回滚。</td></tr>
+<tr><td>底部 5 行缺行、多行、跳错地址、断网就不显示</td><td><b>B · #520 新增区之增-2</b></td><td>修底部新区那一小块，或整区隐藏即回滚。</td></tr>
+<tr><td>常驻小字没了、人话文案只改了一边（中文改了英文没改）</td><td><b>C · #521 文案门禁之收-1</b></td><td>把那句话改回上一版文字即回滚。</td></tr>
+<tr><td>门禁 1 滚动样板：页面还是很长（8 块没变 4 块）</td><td><b>A · #519</b> 为主</td><td>先查四组删干净没有；若是新区把页面拉长，再查 B #520。</td></tr>
+<tr><td>门禁 2 文案配对爆红</td><td><b>看爆红的是哪组键</b></td><td>删的键 → A #519；加的键 → B #520；改的键 → C #521。中英文必须成对删/加/改。</td></tr>
+<tr><td>门禁 3 提示词占位符爆红</td><td><b>A · #519</b></td><td>删模板入口时伤到后台默认提示词了，恢复那部分即可。</td></tr>
+<tr><td>点了 dock / sidebar 不写入 <span class="mono">dsws.cfg</span>、刷新后位置丢了</td><td><b>A · #519</b>（小字同时丢了再加查 <b>C · #521</b>）</td><td>查即时写逻辑；小字只是提醒，不依赖它也能保存。</td></tr>
+<tr><td>引入了新依赖 / 新增了网络请求去拉 Star 数</td><td><b>谁引入的回谁</b>（一般是 B #520）</td><td>去掉新依赖、改回写死网址，断网能渲染才算好。</td></tr>
+</table>
+
+<footer>
+<p>自检：本文件是独立单文件，只用内联样式和一小段内联脚本记勾选进度，没有引用外部文件、没有图片外链、没有发网络请求，双击即可在浏览器打开。验收时按第二、三节逐项打勾，挂了按第四节的票号打回。</p>
+<p><span class="mono">acceptance/config-panel-acceptance.html</span> · 适用：implementation tickets #519–#521 合并后 · 依据：Map#407 定版（G1/G2/G3/P1）</p>
+</footer>
+
+</div>
+<script>
+(function(){
+  var boxes = document.querySelectorAll('.check input[type="checkbox"]');
+  var doneEl = document.getElementById('done');
+  var totalEl = document.getElementById('total');
+  totalEl.textContent = boxes.length;
+  function update(){
+    var n = 0;
+    boxes.forEach(function(b){ if(b.checked) n++; });
+    doneEl.textContent = n;
+  }
+  boxes.forEach(function(b){ b.addEventListener('change', update); });
+  document.getElementById('btn-all').addEventListener('click', function(){
+    boxes.forEach(function(b){ b.checked = true; }); update();
+  });
+  document.getElementById('btn-clear').addEventListener('click', function(){
+    boxes.forEach(function(b){ b.checked = false; }); update();
+  });
+  update();
+})();
+</script>
+</body>
+</html>
