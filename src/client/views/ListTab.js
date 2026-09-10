@@ -213,12 +213,12 @@ export     const ListTab = ({ st, narrow }) => {
           h('span', { key: 'eff-all', className: 'dsws-chip', onClick: function (e) { e.stopPropagation(); st.effFilters = []; emit(st) }, style: { cursor: 'pointer', fontSize: 10, background: !(st.effFilters || []).length ? 'rgba(88,166,255,.18)' : 'rgba(255,255,255,.06)', color: !(st.effFilters || []).length ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (!(st.effFilters || []).length ? 'rgba(88,166,255,.6)' : 'rgba(255,255,255,.15)') } }, tr('list.all')),
           effortNames.map(function (nm) {
             const on = (st.effFilters || []).indexOf(nm) >= 0
-            return h('span', { key: 'eff-' + nm, className: 'dsws-chip', title: nm, onClick: function (e) {
+            return h(Tip, { content: nm }, h('span', { key: 'eff-' + nm, className: 'dsws-chip', 'aria-label': nm, onClick: function (e) {
               e.stopPropagation()
               const cur = st.effFilters || []
               st.effFilters = on ? cur.filter(function (x) { return x !== nm }) : cur.concat([nm])
               emit(st)
-            }, style: { cursor: 'pointer', fontSize: 10, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: on ? 'rgba(88,166,255,.18)' : 'rgba(255,255,255,.06)', color: on ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? 'rgba(88,166,255,.6)' : 'rgba(255,255,255,.15)') } }, nm)
+            }, style: { cursor: 'pointer', fontSize: 10, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: on ? 'rgba(88,166,255,.18)' : 'rgba(255,255,255,.06)', color: on ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? 'rgba(88,166,255,.6)' : 'rgba(255,255,255,.15)') } }, nm))
           }),
         ]) : null,
         // #374/#375：状态过滤 + 排序 + label 过滤 chips（全部小号紧凑同排，窄屏换行不增高；展开态点选 label 不收起）
