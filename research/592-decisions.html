@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>等你拍板的三件事 · #592（外部拉取请求 #575 审查与合入）</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#1f2328; --muted:#59636e;
+    --line:#e3e7ee; --green:#0e8a16; --green-bg:#e9f7ec;
+    --red:#b60205; --red-bg:#fdecec; --amber:#9a6700; --amber-bg:#fff8e5;
+    --blue:#0969da; --blue-bg:#eef4ff; --violet:#8b5cf6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.7}
+  .wrap{max-width:960px;margin:0 auto;padding:28px 20px 60px}
+  header.card{overflow:hidden}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px;margin:0 0 18px;
+    box-shadow:0 1px 2px rgba(31,35,40,.05)}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--muted);margin:0 0 14px}
+  .badges{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:#fff}
+  .badge.ok{background:var(--green-bg);border-color:#bfe6c5;color:#0b6b12}
+  .badge.warn{background:var(--amber-bg);border-color:#f0d48a;color:#7a5200}
+  .badge.stop{background:var(--red-bg);border-color:#f3b8ba;color:#8f0408}
+  .badge.info{background:var(--blue-bg);border-color:#c4d9fb;color:#0a4fc4}
+  nav.toc{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  nav.toc a{text-decoration:none;font-size:14px;color:var(--blue);background:var(--blue-bg);
+    border:1px solid #c4d9fb;padding:6px 14px;border-radius:999px}
+  h2{font-size:19px;margin:0 0 10px;padding-top:4px}
+  h3{font-size:16px;margin:18px 0 8px}
+  p{margin:8px 0}
+  ul{margin:8px 0 8px 20px;padding:0}
+  li{margin:4px 0}
+  .q{border-left:6px solid var(--violet)}
+  .q h2 .no{display:inline-block;min-width:38px;text-align:center;background:var(--violet);color:#fff;
+    border-radius:9px;padding:1px 10px;margin-right:10px;font-size:16px}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:10px 12px;vertical-align:top;text-align:left}
+  th{background:#f1f3f7}
+  .rec{background:var(--green-bg);border:1px solid #bfe6c5;border-radius:10px;padding:14px 16px;margin:14px 0}
+  .rec strong{color:#0b6b12}
+  .risk{background:var(--red-bg);border:1px solid #f3b8ba;border-radius:10px;padding:12px 16px;margin:12px 0;font-size:14px}
+  .key{background:#f8fafc;border:1px dashed #b9c2cf;border-radius:10px;padding:12px 16px;margin:12px 0;font-size:14px}
+  .key b{color:#0a4fc4}
+  code{background:#eef1f6;padding:1px 7px;border-radius:6px;font-family:Consolas,Menlo,monospace;font-size:13px}
+  .steps{counter-reset:step;list-style:none;margin:10px 0;padding:0}
+  .steps li{counter-increment:step;position:relative;padding:10px 12px 10px 52px;border:1px solid var(--line);
+    border-radius:10px;margin:8px 0;background:#fff}
+  .steps li::before{content:counter(step);position:absolute;left:12px;top:10px;width:28px;height:28px;border-radius:50%;
+    background:#1f2328;color:#fff;text-align:center;line-height:28px;font-weight:700}
+  .expect{color:var(--muted);font-size:13px}
+  footer{color:var(--muted);font-size:13px;text-align:center;margin-top:26px}
+  .reply{background:#1f2328;color:#fff;border-radius:12px;padding:16px 18px;margin-top:6px}
+  .reply code{background:rgba(255,255,255,.14);color:#fff}
+  @media print{.wrap{max-width:100%} nav.toc,.reply{display:none} body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="card">
+    <h1>等你拍板的三件事</h1>
+    <p class="sub">单张票 <b>#592</b>：外部拉取请求 #575 审查与合入（多个工作单元编号撞车、评论写错文件）· 当前 <b>95%</b>，你确认前不合入、不关票，全程不在人家的 PR 下留言。</p>
+    <div class="badges">
+      <span class="badge stop">PR #575：开着，未合入</span>
+      <span class="badge warn">底座落后主分支 25 个提交</span>
+      <span class="badge ok">规范轴：无硬伤</span>
+      <span class="badge warn">规格轴：3 缺口 ＋ 2 疑似错</span>
+      <span class="badge info">对应报告：#574（写错文件）</span>
+    </div>
+    <p><b>四条验收线（你已认可，少一条就不合）：</b>GitHub 与 GitLab 行为不变；单工作单元与扁平老仓库行为不变；全量检查通过；“不新增接口、不新增日志”属实。</p>
+    <nav class="toc">
+      <a href="#bg">前因后果</a>
+      <a href="#q1">第一件 · 疑似错</a>
+      <a href="#q2">第二件 · 写路径门禁</a>
+      <a href="#q3">第三件 · 更新分支</a>
+      <a href="#verify">合入后无脑验证</a>
+    </nav>
+  </header>
+
+  <section class="card" id="bg">
+    <h2>前因后果（为什么有这三件事）</h2>
+    <ul>
+      <li><b>病：</b>#574 报告四个现象，最重的是“给第二个工作单元的票写评论，落到第一个工作单元的同号文件里”。这是<strong>写错文件</strong>，不是显示问题。</li>
+      <li><b>药：</b>#575（54 文件，新增 2164 行、删除 1395 行）把票身份升级成“仓库＋工作单元＋编号”三元组，寻址范围放仓库引用上，没给范围的写操作报冲突。方向是对的。</li>
+      <li><b>查：</b>规范轴（写法与规矩）无硬伤，“不新增接口、不新增日志”属实，剩下是小毛病，可按你的口径“先合入再改”。规格轴留下 3 个缺口、2 个疑似错，见下面三件事。</li>
+      <li><b>路：</b>#575 底座比主分支老 25 个提交，中间主分支做过同一块“票身份去重”（v1.7.16～v1.7.18），面板两份文件又是整文件重写，直接合必撞车。</li>
+    </ul>
+  </section>
+
+  <section class="card q" id="q1">
+    <h2><span class="no">1</span>两处疑似错：合入前改，还是先合再改？</h2>
+    <div class="key">
+      <b>关键信息：</b>① 按身份找地图没命中时，代码回落“按编号取第一个”——等于把“永远只打开第一个工作单元”请回来，正好打在地图入口。
+      ② 同一个阻塞引用，派生层按“阻塞”算、面板层按“不算阻塞”，同一张票在不同页面两种说法。54 文件的大改里，这两处是唯二“疑似做错”，其余（标识恒存、按单元取号、单单元不变、徽标筛选）都与报告一致。
+    </div>
+    <table>
+      <tr><th style="width:130px">选项</th><th>利</th><th>弊</th></tr>
+      <tr><td><b>A. 合入前改</b></td><td>写错文件这类损伤不出厂；阻塞显示一致，不留歧义</td><td>多等一轮改动，小毛病修复一起带上</td></tr>
+      <tr><td><b>B. 先合再改</b></td><td>合入最快</td><td>地图入口可能复发找错文件，合入即带伤，违背“不能损伤”</td></tr>
+    </table>
+    <div class="rec"><strong>➡️ 推荐：A（至少改第①条）。</strong>第①条碰的是找错文件，和本次要修的写错文件同类损伤，不能放行；第②条是显示不一致，真抢时间可随后改，但建议同批改掉。</div>
+  </section>
+
+  <section class="card q" id="q2">
+    <h2><span class="no">2</span>更新与重开两条写路径：补门禁再合吗？</h2>
+    <div class="key">
+      <b>关键信息：</b>门禁 <code>verify-multi-effort.js</code> 只断言了“写评论＋关票”两条写路径；<b>重开与更新没测</b>，面板链路也只有详情、评论两处透传工作单元标识。等于写路径的“报冲突、不猜文件”只验了一半，而要防的正是写错文件。
+    </div>
+    <table>
+      <tr><th style="width:130px">选项</th><th>利</th><th>弊</th></tr>
+      <tr><td><b>A. 补两个断言再合</b></td><td>花费小，把写错文件挡在门外，对上四条验收线</td><td>多一小轮等待</td></tr>
+      <tr><td><b>B. 先合以后补</b></td><td>合入最快</td><td>更新、重开两条路裸奔，回归面有洞</td></tr>
+    </table>
+    <div class="rec"><strong>➡️ 推荐：A。</strong>两个断言成本低，收益是核心风险（写错文件）被门禁钉住，符合你“不能损伤”的底线。</div>
+  </section>
+
+  <section class="card q" id="q3">
+    <h2><span class="no">3</span>先更新分支解冲突、四条线全绿再合吗？</h2>
+    <div class="key">
+      <b>关键信息：</b>底座落后 <b>25 个提交</b>；主分支同期改过同一块身份去重；面板快照（311 行）与偏好存档整文件重写，冲突集中在这两份文件。<code>mergeable</code> 当前不可判定，只能走“更新分支＋人工逐块合”这条路。
+    </div>
+    <table>
+      <tr><th style="width:130px">选项</th><th>利</th><th>弊</th></tr>
+      <tr><td><b>A. 更新＋解冲突＋全绿再合</b></td><td>标准动作，不带伤合入；冲突一次解决</td><td>花时间做合并活</td></tr>
+      <tr><td><b>B. 直接合</b></td><td>省事</td><td>大概率撞车或带伤，违背四条线</td></tr>
+    </table>
+    <div class="rec"><strong>➡️ 推荐：A。</strong>这是底线动作：记下合入前提交号以便回退，解完冲突跑全量检查，绿了再交给你按下面步骤验。</div>
+    <div class="risk"><b>若强行直接合的风险：</b>整文件重写处冲突难看清，容易误合；更新、重开缺口与回落取第一个叠加，写错文件可能换入口复发。</div>
+  </section>
+
+  <section class="card" id="verify">
+    <h2>合入后无脑验证（你照着点就行）</h2>
+    <ol class="steps">
+      <li>造两个工作单元：<code>.scratch/alpha/map.md</code> 与 <code>.scratch/beta/map.md</code>，各放一张 01 号票。<br><span class="expect">预期：两个目录都在，编号都是 01 但文件名不同。</span></li>
+      <li>用本地 Markdown 后端打开面板看列表。<br><span class="expect">预期：两张地图都在，每行能看出属于 alpha 还是 beta。</span></li>
+      <li>点 beta 的地图，再点 beta 的 01 号票。<br><span class="expect">预期：打开的是 beta 内容，不是 alpha 同号票。</span></li>
+      <li>在 beta 的 01 号票下写评论，保存后看两个文件。<br><span class="expect">预期：评论只在 beta 文件里，alpha 文件没多内容。界面只看到徽标加筛选即可。</span></li>
+    </ol>
+    <h3>之后的事（不用你操心顺序）</h3>
+    <ul>
+      <li>小毛病（整文件重缩进、重复判空、函数名、注释）按你的口径先合后改。</li>
+      <li>你验完，我再去告诉原作者：已合入、顺手改了小问题、感谢贡献。在此之前不在人家 PR 下留言。</li>
+    </ul>
+  </section>
+
+  <div class="reply">如何回复：直接回 <code>三个都同意推荐</code>，或逐条改，例如 <code>第1件改B，其余同意</code>。收到我就执行：改完→更新分支解冲突→四条线全绿→交你验证。</div>
+
+  <footer>票 #592 当前 95%，上面三件确认前不合入、不关票。结论与风险清单已回填票内，本页只为帮你拍板。</footer>
+
+</div>
+</body>
+</html>
