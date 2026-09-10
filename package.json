@@ -10,6 +10,8 @@
     "build": "node scripts/build.mjs",
     "build:dsh-log": "node packages/dsh-log/build.mjs",
     "test:dsh-log": "node --test packages/dsh-log/tests/host.test.mjs",
+    "build:dsh-plugin-update": "node packages/dsh-plugin-update/build.mjs",
+    "test:dsh-plugin-update": "node --test packages/dsh-plugin-update/tests/*.test.mjs",
     "prepare": "node scripts/build.mjs",
     "test": "npm run verify && npm run test:smoke",
     "test:smoke": "node tests/smoke-client.test.js && node tests/smoke-host.test.js && node tests/smoke-host-dispatch.test.js && node tests/smoke-render.test.js && node tests/smoke-naming-persistence.test.js",

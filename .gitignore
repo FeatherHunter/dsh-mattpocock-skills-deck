@@ -33,6 +33,9 @@ _research/
 # 日志系统的编译产物不入库（发布前跑 build:dsh-log 本地生成，本地保留文件可跑测试）
 /packages/dsh-log/dist/
 
+# 更新包的编译产物不入库（发布前跑 build:dsh-plugin-update 本地生成，本地保留文件可跑测试）
+/packages/dsh-plugin-update/dist/
+
 # ===== teach skill — teaching workspace (ignored, durable across resets) =====
 /MISSION.md
 /RESOURCES.md

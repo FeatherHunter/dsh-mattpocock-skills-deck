@@ -1,0 +1,32 @@
+{
+  "name": "dsh-plugin-update",
+  "version": "0.1.0",
+  "description": "可复用的更新系统装成的 npm 包：任何 DSH 插件照文档能集成检查更新等功能（地图 #579）",
+  "license": "MIT",
+  "author": "王辰浩",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./dist/host.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "node build.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
+}

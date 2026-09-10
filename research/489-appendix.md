@@ -11,6 +11,7 @@
 > 修订 2026-09-07（#499 自监控，分支 feat/499-selfmon）：日志管道自己盯自己，新增自监控 5 条（编号 46～50，见 1.6 新节，错误与告警级、始终落盘），计数改为常驻 27 条、按需 16 条、自监控 5 条、总数 48 条；对照表与门禁同步更新。
 > 合流（#498 与 #499，rebase 到 main@84ebd40）：现常驻 29 条、按需 20 条、自监控 5 条、总数 54 条；自监控节为 1.6，#498 退役电话节为 1.7。
 > 修订 2026-09-08（#548 安装执行端口落地）：新增常驻 1 条（#57 update.install.exec，安装执行器跨进程边界调用与结果），计数改为常驻 30 条、按需 20 条、自监控 5 条、总数 55 条；对照表与门禁同步更新。
+> 修订 2026-09-10（#583 抽离票执行规格 #591 第 8 条）：三旧事件各加必填 pluginId（成功事件 5 键、失败事件 4 键、执行事件 5 键，加完标识后的键集合为新基线）；无新增事件名，计数不变（常驻仍 30 条）；旧实现暂不带标识（门禁只许少记，仍绿），迁移票 #586 切引用后补齐。
 
 ## 0 结论先行（三件套各一句话）
 
@@ -93,8 +94,8 @@
 | 20 | skill.probe | 信息 | name 技能名、level 结果等级、via 判装通道（枚举） | 路径只记通道枚举 | R_WIN_ABS、R_HOME_PATH | index.js:50 技能名单、1330-1649 判装 |
 | 21 | skill.pending.cap | 告警 | name 技能名、attempts 已试次数、max 上限 3 | — | — | index.js:1338 待定封顶 |
 | 22 | issuePath.push（已退役，见 1.3 落定说明） | 信息（已退役，不再埋点） | 原白名单 ref 票号引用、source 来源、queueLen 队列长度（已失效，只作追溯） | H_TITLE（已失效） | R_TOKEN_BEARER（已失效） | index.js:348 白名单、425 入队（已随 #345 移除） |
-| 26 | host.call | 信息 | method 调用的电话名、latencyMs、ok 是否成功、kind 归一类别 | H_CWD | — | client/kernel/probe.js:40 调链、client/index.js 50 起 |
-| 27 | host.call.fail | 告警 | method 电话名、kind 类别、errorHash 错误散列 | H_ERR、T120 | R_TOKEN_BEARER、R_GH_TOKEN | 同上 |
+| 26 | host.call | 信息 | method 调用的电话名、latencyMs、ok 是否成功、kind 归一类别、pluginId 插件标识（#583 起更新电话必填，其余电话暂不带，门禁只许少记） | H_CWD | — | client/kernel/probe.js:40 调链、client/index.js 50 起；更新包宿主入口 packages/dsh-plugin-update/src/host.ts |
+| 27 | host.call.fail | 告警 | method 电话名、kind 类别、errorHash 错误散列、pluginId 插件标识（#583 起更新电话必填，其余电话暂不带，门禁只许少记） | H_ERR、T120 | R_TOKEN_BEARER、R_GH_TOKEN | 同上；更新包宿主入口 packages/dsh-plugin-update/src/host.ts |
 | 28 | snapshot.hydrate | 信息 | cwdHash、source 来源枚举、fresh 是否新鲜、latencyMs、winnerVersion 胜出方版本号、loserVersion 落败方版本号、outcome 合并结果（incoming 缓存胜出、current 原数据保留） | H_CWD | — | kernel/router.js:9 缓存水合 |
 | 31 | backend.switch | 信息 | from 从哪个后端、to 到哪个后端、cwdHash | H_CWD | — | views/shared/BackendSelector.js、router.js:39 |
 | 32 | naming.guard | 信息 | sidHash 会话散列、outcome 改名结果、hintHash 线索散列 | H_TITLE、T80 | R_TOKEN_BEARER | kernel/api.js:46 改名轮询、shared/naming-guardian.js |
@@ -109,7 +110,7 @@
 | 42 | fallback.chain | 信息 | in 从哪种、out 到哪种、latencyMs | — | — | index.js:903、988、791 |
 | 55 | client.snapshot.miss | 信息（#498 新增） | keyHash 工作区键散列、reason 未命中原因（枚举 empty） | H_CWD | — | kernel/probe-snapshot.js 内存加磁盘都未命中才记 |
 | 51 | host.start | 信息（#498 新增收录） | pid 进程标识、startedAt 启动时间、dir 实际目录（3.3 启动头所需，记原文） | —（启动头诊断所需，字段固定三键） | — | host/logStore.js 启动头 |
-| 57 | update.install.exec | 信息（#548 新增） | route 路由枚举（desktop-service 桌面服务、cli-process 自己起进程、none 没拿到配方）、ok 是否成功、exitCode 退出码（拿不到为 null）、durationMs 执行多久 | —（只记枚举与数字，不记命令、路径、使用范围名） | — | host/updateStore.js 安装执行器（跨进程边界调用与结果，用户点按钮才发生，低频） |
+| 57 | update.install.exec | 信息（#548 新增） | route 路由枚举（desktop-service 桌面服务、cli-process 自己起进程、none 没拿到配方）、ok 是否成功、exitCode 退出码（拿不到为 null）、durationMs 执行多久、pluginId 插件标识（#583 起必填，旧实现暂不带，门禁只许少记） | —（只记枚举与数字加标识，不记命令、路径、使用范围名） | — | host/updateStore.js 安装执行器（跨进程边界调用与结果，用户点按钮才发生，低频）；更新包执行器 packages/dsh-plugin-update/src/store.ts |
 
 ### 1.5 按需 20 条（P1，只在调试开关打开时记，高频要守卫；#52、#53、#54、#56 为 #498 新增）
 
