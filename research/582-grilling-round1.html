@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#582 第1轮讨论：更新包公共接口与配置面</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#1f2328; --muted:#59636e;
+    --line:#e2e6eb; --blue:#0969da; --blue-bg:#ddf4ff;
+    --green:#1a7f37; --green-bg:#dafbe1; --amber:#9a6700; --amber-bg:#fff8c5;
+    --red:#cf222e; --red-bg:#ffebe9; --purple:#8250df; --purple-bg:#fbefff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1020px;margin:0 auto;padding:28px 20px 80px}
+  header.hero{background:linear-gradient(135deg,#0a3069,#0969da);color:#fff;border-radius:16px;padding:28px 28px 24px;margin-bottom:20px}
+  header.hero h1{margin:0 0 8px;font-size:26px;line-height:1.35}
+  header.hero p{margin:6px 0 0;opacity:.92}
+  .badges{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
+  .badge{display:inline-block;padding:3px 12px;border-radius:999px;font-size:13px;font-weight:700;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35)}
+  nav.toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:20px;position:sticky;top:12px;z-index:5}
+  nav.toc a{color:var(--blue);text-decoration:none;margin-right:16px;font-weight:600;font-size:14px}
+  nav.toc a:hover{text-decoration:underline}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin:16px 0}
+  .card h2{margin:0 0 12px;font-size:20px;border-left:6px solid var(--blue);padding-left:12px}
+  .card h3{margin:20px 0 8px;font-size:17px}
+  .kicker{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.06em;padding:2px 10px;border-radius:999px;margin-bottom:10px}
+  .k-why{background:var(--blue-bg);color:#083fa1}
+  .k-fact{background:var(--green-bg);color:var(--green)}
+  .k-term{background:var(--purple-bg);color:var(--purple)}
+  .k-q{background:var(--amber-bg);color:var(--amber)}
+  .fact-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  @media(max-width:760px){.fact-grid{grid-template-columns:1fr}}
+  .fact{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fbfcfd}
+  .fact b{display:block;margin-bottom:4px}
+  code{background:#eff1f3;border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-family:Consolas,Menlo,monospace;font-size:13.5px}
+  .file{font-family:Consolas,Menlo,monospace;font-size:13px;color:#0a3069;background:var(--blue-bg);border-radius:6px;padding:1px 8px;display:inline-block;margin:2px 4px 2px 0}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:10px 12px;vertical-align:top;text-align:left}
+  th{background:#f0f3f6}
+  .rec{border:2px solid var(--green);background:var(--green-bg);border-radius:10px;padding:12px 16px;margin:12px 0}
+  .rec b{color:var(--green)}
+  .warn{border:2px solid #d4a72c;background:var(--amber-bg);border-radius:10px;padding:12px 16px;margin:12px 0}
+  .qnum{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:var(--amber);color:#fff;font-weight:900;font-size:18px;margin-right:10px}
+  .qhead{display:flex;align-items:center;margin:6px 0 10px}
+  .qhead h3{margin:0;font-size:18px}
+  .await{border:1px dashed var(--blue);background:#f0f6ff;border-radius:10px;padding:12px 16px;margin-top:12px}
+  footer{color:var(--muted);font-size:13px;margin-top:24px}
+  .pill{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:2px 10px;margin-left:8px}
+  .pill.ok{background:var(--green-bg);color:var(--green)}
+  .pill.no{background:var(--red-bg);color:var(--red)}
+  ul.tight li{margin:4px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>#582 第 1 轮讨论：更新包公共接口与配置面</h1>
+  <p>只拍板接口与配置面的形状，不写引擎代码。地基层先对齐（目标 / 边界 / 风险），参数层第 2 轮再展开。</p>
+  <div class="badges">
+    <span class="badge">状态：等你回 Q1–Q3＋术语确认</span>
+    <span class="badge">本轮不写 issue 正文</span>
+    <span class="badge">前置 #580 ✅ 已关 / #581 ✅ 已关</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#why">1 前因后果</a>
+  <a href="#facts">2 关键事实</a>
+  <a href="#terms">3 术语对齐</a>
+  <a href="#q1">4 Q1 目标</a>
+  <a href="#q2">5 Q2 边界</a>
+  <a href="#q3">6 Q3 风险</a>
+  <a href="#next">7 你怎么回</a>
+</nav>
+
+<section class="card" id="why">
+  <span class="kicker k-why">前因后果 · 为什么有这票</span>
+  <h2>1. 这票从哪来、要干什么</h2>
+  <p><b>来龙：</b>#580 已把现有更新链路复核完（面板 → 三个电话 → 更新核心 → 读取器与落盘执行器，共四段），并给出抽包清单；#581 已把落点与工程底座拍板（本仓新建 <code>packages/dsh-plugin-update</code>、公开发布、包名 <code>dsh-plugin-update</code>、Node 基线 22、零运行时依赖、双产物口径）。两票都已关闭，所以本票<b>不再重议</b>落点、包名、Node、构建。</p>
+  <p><b>去脉：</b>本票只回答一句话——<b>新包对外暴露什么名字、接受什么配置、冻结什么、怎么隔离多插件、旧数据怎么读</b>。定完形状，后继抽离票与迁移票照着执行。</p>
+  <h3>正文 Question 列的 9 项（第 2 轮逐项过，本轮只确认是不是全集）</h3>
+  <ol class="tight">
+    <li>电话名前缀参数化（默认 <code>wf</code>，保证当前插件零变化）</li>
+    <li>插件标识必填、其余可选</li>
+    <li>落盘目录按标识派生，且默认旧路径冻结</li>
+    <li>三处写死参数化：包名、官方源、目录根</li>
+    <li>超时、凭证有效期、轮询可调</li>
+    <li>冻结清单：电话名、入参回参、配置写法、配方形状、事件字段、旧路径</li>
+    <li>单例禁令：实例按标识加范围隔离</li>
+    <li>旧目录双读规则</li>
+    <li>日志字段带插件标识</li>
+  </ol>
+  <div class="warn">⚠️ <b>本轮不定参数取值。</b>第 2 轮会给每个参数摆选项＋利弊＋推荐，等你拍板。先把地基（Q1–Q3）定死，避免后返工。</div>
+</section>
+
+<section class="card" id="facts">
+  <span class="kicker k-fact">关键事实 · 帮你做决策的一手证据（只读调查，带出处）</span>
+  <h2>2. 当前代码长什么样（第 2 轮选项的依据）</h2>
+  <div class="fact-grid">
+    <div class="fact"><b>🧩 三个电话名（写死）</b><code>wf.updateStatus</code> / <code>wf.updateCheck</code> / <code>wf.updateInstall</code><br><span class="file">src/host/update.js:212-214</span><span class="file">登记 src/host/index.js:318-322</span></div>
+    <div class="fact"><b>📦 写死的包名与官方源</b><code>dsh-mattpocock-skills-deck</code>，<code>https://registry.npmjs.org/</code><br><span class="file">update-core/src/commands.ts:15-16</span><span class="file">service.ts:23-24</span></div>
+    <div class="fact"><b>⏱️ 三个时间量的当前值</b>联网超时 10 秒 / 凭证有效期 10 分钟 / 安装时限 15 分钟；面板轮询 1 秒；2 秒内重复点击复用结果<br><span class="file">service.ts:25-28</span><span class="file">commands.ts:18</span><span class="file">SettingsPage.js:228</span></div>
+    <div class="fact"><b>💾 旧路径默认值（一字不差）</b><code>join(homeDir,'updates','dsh-mattpocock-skills-deck',shortHash(profileDir))</code>＋三固定名<br><span class="file">src/host/updateStore.js:28-32</span><span class="file">state.json / install.lock / before.json</span></div>
+    <div class="fact"><b>🔒 单例与锁位置</b>宿主接线单例按一串 key 复用；核心内存单例随创建一份；磁盘锁＋内存锁回退两层<br><span class="file">update.js:25-26,95-107</span><span class="file">service.ts:228-233,249-264</span><span class="file">updateStore.js:81-110</span></div>
+    <div class="fact"><b>📝 日志现状：均未带插件标识</b><code>host.call{method,latencyMs,ok,kind}</code> / <code>host.call.fail{method,kind,errorHash}</code> / <code>update.install.exec{route,ok,exitCode,durationMs}</code><br><span class="file">update.js:178,182</span><span class="file">updateStore.js:245-250</span></div>
+  </div>
+  <h3>配方形状（第 2 轮要拍板的输入形状）</h3>
+  <p><code>{ route: 'desktop-service' | 'cli-process', profileName, version, pluginArgs, timeoutMs }</code> ——定义在 <span class="file">ports.ts:105-115</span>，实际组装在 <span class="file">src/shared/update/commands.js:49</span>。含义：一次安装走哪条路、装哪个名、装哪个版本、附带什么安装参数、最多等多久。</p>
+  <h3>没找到的两项（也是决策信息）</h3>
+  <p>独立更新配置文件写法 <span class="pill no">未找到</span>（配置全经函数入参注入）；日志内插件标识字段 <span class="pill no">未找到</span>（现状三事件均无）。所以“配置写在哪”“标识字段叫什么”必须本票新定，不是沿用。</p>
+</section>
+
+<section class="card" id="terms">
+  <span class="kicker k-term">术语对齐 · 有猜测的地方先澄清（domain-modeling）</span>
+  <h2>3. 四个词：我的理解对不对？不对请直接纠正</h2>
+  <table>
+    <tr><th style="width:130px">词</th><th>我的平实理解（无简称、无比喻）</th><th style="width:170px">错了会怎样</th></tr>
+    <tr><td><b>电话</b></td><td>宿主向更新包暴露的三个可调用入口，面板按名字调它们（即上面三个 <code>wf.update*</code>）。</td><td>名字拍错，全链调不通</td></tr>
+    <tr><td><b>插件标识</b></td><td>区分“当前这个插件”和“以后别的插件”的字符串，落盘目录和锁范围都按它派生。</td><td>隔离与目录派生全错</td></tr>
+    <tr><td><b>配方</b></td><td>描述一次安装所需的完整输入（走哪条路、装哪个版本、带什么参数、等多久）。</td><td>入参与执行对不上</td></tr>
+    <tr><td><b>事件字段</b></td><td>更新过程中对外通知的事件对象里的字段（如路由、是否成功、退出码、耗时）。</td><td>日志与监控对不上</td></tr>
+  </table>
+  <div class="await">🙋 <b>等你确认：</b>四个理解各回“对”或给出纠正。任一条偏了，后面整棵树都要重推，所以放第 1 轮。</div>
+</section>
+
+<section class="card" id="q1">
+  <span class="kicker k-q">决策 Q1 · 目标</span>
+  <div class="qhead"><span class="qnum">Q1</span><h3>本票是否“只拍板、不写引擎”？中途发现引擎卡点怎么办？</h3></div>
+  <p><b>背景：</b>正文第一句就是“不写引擎代码”。但拍板时很可能发现“不改引擎就定不下来”（例如超时透传链路根本没打通，见事实：接线层搜不到超时覆盖）。本问是立规矩：允许扩散还是记账走人。</p>
+  <table>
+    <tr><th style="width:90px">选项</th><th>做法</th><th>利</th><th>弊</th></tr>
+    <tr><td><b>A（推荐）</b></td><td>严格限定：只拍板，引擎卡点记为后继票前置条件，不在本票扩散</td><td>票不膨胀，进度可控；后继票输入干净</td><td>要多开/多记一笔前置，稍微麻烦</td></tr>
+    <tr><td><b>B</b></td><td>允许顺手定引擎小改</td><td>当场闭环，少跑一趟</td><td>边界失守，本票变实现票，与 9 项全集冲突</td></tr>
+  </table>
+  <div class="rec">➡️ <b>推荐 A：</b>严格只拍板，卡点记账给后继票。理由：#580/#581 已证明“研究与拍板分离”走得通；本票一旦写引擎，冻结清单就失去中立性。</div>
+  <div class="await">🙋 <b>请定：</b>选 A 还是 B？若选 B，请同时指定允许扩散到哪几个文件为止。</div>
+</section>
+
+<section class="card" id="q2">
+  <span class="kicker k-q">决策 Q2 · 边界</span>
+  <div class="qhead"><span class="qnum">Q2</span><h3>9 项是否为全集？#581 已定项是否冻结不重议？</h3></div>
+  <p><b>背景：</b>正文 Question 列了 9 项；#581 已定 7＋1（落点、公开发布、包名、Node 22、底座、版本号、防抢注预案＋隔离沿用）。若边界不清，第 2 轮会陷入“包名要不要重翻”的循环。</p>
+  <table>
+    <tr><th style="width:90px">选项</th><th>做法</th><th>利</th><th>弊</th></tr>
+    <tr><td><b>A（推荐）</b></td><td>9 项为全集，不多不少；#581 已定项冻结</td><td>讨论收敛，第 2 轮只剩参数取值</td><td>中途想加项要走增项确认，慢半步</td></tr>
+    <tr><td><b>B</b></td><td>本轮增删项（请明确列出增删）</td><td>一次把遗漏补齐</td><td>树要重画，第 2 轮推迟</td></tr>
+  </table>
+  <div class="rec">➡️ <b>推荐 A：</b>9 项全集＋#581 冻结。理由：#581 刚 close 且含“迁移前复查包名”的活口，重议只会制造并行竞态。</div>
+  <div class="await">🙋 <b>请定：</b>选 A 直接回“A”；选 B 请列出增删项（一句话一条）。</div>
+</section>
+
+<section class="card" id="q3">
+  <span class="kicker k-q">决策 Q3 · 风险排序（决定后继默认值往哪边倒）</span>
+  <div class="qhead"><span class="qnum">Q3</span><h3>三个风险，你最不能接受哪个？</h3></div>
+  <table>
+    <tr><th>风险</th><th>通俗含义</th><th>若排第一，后继默认值倒向</th></tr>
+    <tr><td><b>A. 旧数据断档</b></td><td>老用户旧目录数据读不到，升级后从零开始</td><td>旧路径一字不差＋双读默认开＋迁移保守</td></tr>
+    <tr><td><b>B. 隔离失效</b></td><td>以后多插件互相串目录、串锁、串单例</td><td>标识必填＋目录强派生＋单例禁令从严</td></tr>
+    <tr><td><b>C. 冻过头</b></td><td>接口冻太死，小优化也要走破冰流程</td><td>冻结清单收窄＋预留扩展字段＋放宽破冰门槛</td></tr>
+  </table>
+  <div class="rec">➡️ <b>推荐排序 A &gt; B &gt; C：</b>先保旧数据不断档（用户资产不可丢），再保隔离（多插件是地图终点），最后接受冻得偏紧（破冰成本可接受）。若你的排序不同，第 2 轮每个推荐都会反转，所以必须你定。</div>
+  <div class="await">🙋 <b>请定：</b>给出你的排序，例如“A&gt;B&gt;C”或“B&gt;A&gt;C”，一句话说明最不能接受什么。</div>
+</section>
+
+<section class="card" id="next">
+  <span class="kicker k-why">收尾 · 进度与下一步</span>
+  <h2>7. 你回完这轮，会发生什么</h2>
+  <ol class="tight">
+    <li>我结合你的 Q1–Q3 答案＋上面事实清单，给出<b>第 2 轮参数选项权衡</b>（电话名前缀、标识必填范围、目录派生、三处参数化、超时三件套、单例隔离、双读规则、日志标识字段，每项给选项＋利弊＋推荐）。</li>
+    <li>你逐项拍板后，我按你的落盘格式（先写文件、再调 <code>node scripts/fix-issue-body.mjs --issue 582 --body-file &lt;文件&gt;</code>，回包 ok 才算写完）写回 issue 正文，并更新 <code>## 进度</code>。</li>
+    <li>全部对齐后，我会提醒你执行一次 <code>/to-spec</code>，把结论固化为规格文档。</li>
+  </ol>
+  <p style="color:var(--muted)">本文件仅为讨论辅助，不代替 issue 正文；结论以你拍板后写回的 issue 正文为准。</p>
+</section>
+
+<footer>文件位置：research/582-grilling-round1.html · 基于 #580 证据链、#581 拍板结论（已 close）与只读事实调查（含文件行号）整理 · 第 1 轮等待回复中</footer>
+
+</div>
+</body>
+</html>

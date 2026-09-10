@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAP #579 决策简报：更新包落点与工程底座待拍板 7 问</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{overflow-x:hidden}
+body{font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif;background:#f1f5f9;color:#1e293b;line-height:1.75;font-size:16px}
+.wrap{max-width:980px;margin:0 auto;padding:16px 14px 60px;width:100%;overflow-x:hidden}
+header.hero{background:linear-gradient(135deg,#0f172a,#1d4ed8);color:#fff;border-radius:16px;padding:28px 24px;margin-bottom:18px;max-width:100%}
+header.hero h1{font-size:24px;line-height:1.4;margin-bottom:8px;word-break:break-word}
+header.hero p.sub{opacity:.9;font-size:14px;margin-bottom:14px;word-break:break-word}
+.badges{display:flex;flex-wrap:wrap;gap:8px;max-height:120px;overflow:hidden}
+.badge{display:inline-block;font-size:13px;font-weight:700;border-radius:999px;padding:4px 12px;white-space:normal;word-break:break-word;max-width:100%;line-height:1.5}
+.b-warn{background:#fef9c3;color:#854d0e;border:1px solid #fde047}
+.b-info{background:#dbeafe;color:#1e40af;border:1px solid #93c5fd}
+.b-danger{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+.b-neutral{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.4)}
+section{background:#fff;border-radius:14px;padding:22px 20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(15,23,42,.08);border-top:5px solid #cbd5e1;max-width:100%;overflow-x:hidden}
+section.s0{border-top-color:#f59e0b}
+section.s1{border-top-color:#0ea5e9}
+section.s2{border-top-color:#f59e0b}
+section.s3{border-top-color:#8b5cf6}
+section.s4{border-top-color:#1d4ed8}
+h2{font-size:20px;margin-bottom:4px;word-break:break-word}
+p.secdesc{font-size:13px;color:#64748b;margin-bottom:14px}
+.card{border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin:12px 0;background:#f8fafc;max-width:100%;overflow-x:hidden}
+.card.q{background:#fff;border-left:5px solid #8b5cf6}
+.card.verdict-big{background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;padding:18px;margin:12px 0}
+.card.verdict-big .conclusion{font-size:20px;font-weight:800;color:#92400e;line-height:1.5;word-break:break-word}
+.card.ruling-warn{background:#fffbeb;border:1px solid #fcd34d}
+h3{font-size:17px;margin-bottom:6px;word-break:break-word}
+h3 .qn{display:inline-block;background:#8b5cf6;color:#fff;font-size:13px;border-radius:8px;padding:1px 9px;margin-right:8px;vertical-align:middle}
+.meta{font-size:13px;color:#475569;margin:6px 0;word-break:break-word}
+.small{font-size:12px;color:#64748b;line-height:1.7;word-break:break-word}
+.kv{display:grid;grid-template-columns:86px 1fr;gap:6px 10px;font-size:14px;margin:8px 0}
+.kv dt{font-weight:700;color:#334155;white-space:nowrap}
+.kv dd{margin:0;word-break:break-word}
+.rec{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 12px;font-size:14px;margin:10px 0;word-break:break-word}
+.rec b{color:#92400e}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:10px -4px;padding:0 4px;max-width:100%}
+table{width:100%;border-collapse:collapse;font-size:14px;margin:10px 0;background:#fff;min-width:520px}
+th,td{border:1px solid #e2e8f0;padding:8px 10px;text-align:left;vertical-align:top;word-break:break-word}
+th{background:#f1f5f9;font-size:13px}
+td ul{margin:0;padding-left:18px}
+.bar{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin:6px 0;max-width:100%}
+.bar>div{height:100%;border-radius:999px;background:linear-gradient(90deg,#38bdf8,#2563eb)}
+.bar.amber>div{background:linear-gradient(90deg,#fbbf24,#d97706)}
+.score{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
+.score .cell{flex:1 1 200px;min-width:0;border:1px solid #e2e8f0;border-radius:12px;padding:12px;text-align:center;background:#f8fafc;word-break:break-word}
+.score .num{font-size:30px;font-weight:800;word-break:break-word}
+.timeline{list-style:none;margin:8px 0}
+.timeline li{position:relative;padding:0 0 14px 28px;font-size:14px;word-break:break-word}
+.timeline li::before{content:attr(data-n);position:absolute;left:0;top:2px;width:20px;height:20px;border-radius:50%;background:#1d4ed8;color:#fff;font-size:12px;font-weight:800;text-align:center;line-height:20px}
+.timeline li::after{content:"";position:absolute;left:9px;top:24px;bottom:0;width:2px;background:#bfdbfe}
+.timeline li:last-child::after{display:none}
+.zone{border-radius:12px;padding:14px;margin:14px 0;max-width:100%}
+.zone-ready{border:2px solid #93c5fd;background:#eff6ff}
+.zone-ready>h3{color:#1e40af}
+.zone-later{border:2px dashed #f59e0b;background:#fffbeb}
+.zone-later>h3{color:#92400e}
+.zone-label{display:inline-block;font-size:12px;font-weight:800;border-radius:999px;padding:2px 10px;margin-bottom:8px}
+.zone-ready .zone-label{background:#dbeafe;color:#1e40af;border:1px solid #93c5fd}
+.zone-later .zone-label{background:#fef9c3;color:#854d0e;border:1px solid #fde047}
+.legend{border:1px dashed #94a3b8;border-radius:10px;padding:10px 12px;font-size:13px;color:#475569;margin:10px 0;background:#f8fafc;word-break:break-word}
+code{word-break:break-all;white-space:normal;background:#f1f5f9;border-radius:4px;padding:0 4px;font-size:.92em}
+details{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:14px;margin:10px 0}
+details summary{cursor:pointer;font-weight:700;color:#334155}
+footer{font-size:12px;color:#64748b;text-align:center;margin-top:10px;line-height:2;word-break:break-word}
+footer a{color:#1d4ed8;word-break:break-all}
+a{color:#1d4ed8}
+ul.bullets{margin:8px 0 8px 20px;font-size:14px}
+ul.bullets li{margin:4px 0;word-break:break-word}
+ol.todo{margin:8px 0 8px 20px;font-size:14px}
+ol.todo li{margin:4px 0;word-break:break-word}
+@media(max-width:600px){header.hero h1{font-size:19px}body{font-size:15px}.kv{grid-template-columns:1fr}.kv dt{white-space:normal}table{font-size:13px}.card.verdict-big .conclusion{font-size:17px}section{padding:18px 14px}}
+@media(max-width:400px){.wrap{padding:12px 10px 48px}header.hero{padding:20px 16px}.badges{max-height:160px}table{min-width:480px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+<h1>MAP #579 决策简报：更新包落点与工程底座<br>待拍板 7 问（给项目负责人）</h1>
+<p class="sub">2026-09-10 · 只呈现结论、证据、风险与推荐 · 输入只读，未改 issue、未改代码</p>
+<div class="badges">
+<span class="badge b-neutral">MAP 进度 1/8 · 12%</span>
+<span class="badge b-warn">暂不直接放行 · 整改回填后拍</span>
+</div>
+</header>
+
+<section class="s0">
+<h2>⓪ 30 秒拍板栏：先看这一节就能拍</h2>
+<p class="secdesc">综合裁决置顶放大 · 红蓝分只在小字备注 · 大方向判断用黄牌提示、不单独用绿色</p>
+<div class="card verdict-big">
+<div class="conclusion">结论：暂不直接放行，整改回填后拍。</div>
+<p class="meta">大方向判断：<span class="badge b-warn">8 项方向全对、无方向性错误</span> 3 处清单级缺口回填中，回填复验后请你拍板。</p>
+<p style="font-size:14px;margin:8px 0"><b>7 问推荐一句话：</b></p>
+<ul class="bullets">
+<li>问 1 落点：本仓新建包目录，仓根相对路径 <code>packages/dsh-plugin-update</code>。</li>
+<li>问 2 发布：公开发布（私有与地图终点互斥）。</li>
+<li>问 3 包名：接受 <code>dsh-plugin-update</code> 按备用名推进，迁移前再复查一次。</li>
+<li>问 4 基线：接受 Node 22（沿用旧包口径，无需决策）。</li>
+<li>问 5 双产物：推荐三件套定死（整改回填后拍，见 B 区）。</li>
+<li>问 6 版本：初始版本 0.1.0。</li>
+<li>问 7 备用名：默认不用带 @ 前缀备用包名（带 @ 前缀备用包名），被占时才启用（整改回填后拍，见 B 区）。</li>
+</ul>
+<p style="font-size:14px;margin:8px 0"><b>需负责人拍什么：</b></p>
+<ol class="todo">
+<li>A 区问 1～问 4 现在可拍：无异议即按推荐通过，有异议逐项指出。</li>
+<li>B 区问 5、问 7 等回填复验后再拍：重点看导出表与备用名触发条件是否可执行。</li>
+<li>关票门禁：#581 由负责人关闭；#586 开工前包名复查记入开工检查项。</li>
+</ol>
+<p class="small">备注小字：蓝方 87/100 附条件放行 · 红方 64/100 不放行 · 分数仅供定位风险，拍板以本栏结论与 A/B 分区为准。状态：待你拍板 7 问；3 项回填中。</p>
+</div>
+</section>
+
+<section class="s1">
+<h2>① 前因后果：这张图要什么、为何先打 #581</h2>
+<p class="secdesc">MAP 终点拆四条 · 地基不定后继无法开工</p>
+<div class="card">
+<h3>MAP #579 终点是什么（四条同时满足才算到）</h3>
+<ul class="bullets">
+<li><b>包可用：</b>独立 TS 包发布成功，他人能安装到。</li>
+<li><b>能照文档接：</b>任何 DSH 插件照着文档能接上检查更新等功能。</li>
+<li><b>本插件已迁：</b>当前插件第一个迁过去，行为零变化。</li>
+<li><b>面板已强化：</b>配置面板右上角检查更新弹窗与重启提示落地。</li>
+</ul>
+</div>
+<div class="card">
+<h3>为何先打 #581</h3>
+<p><b>不定地基，后继无法开工：</b>代码落在哪里、叫什么名字、用什么底座发布，一天不定，后面接口与抽离工作全部无法开工。</p>
+<details><summary>技术背景（沿用旧结论、无需决策，可展开）</summary><p class="small">研究票已给出抽包清单：面板与宿主调用链、更新核心原样搬运、读取器与落盘执行器改写骨架、面板界面不进包、三处写死必须参数化。构建与类型口径沿用旧包（无需决策）。落点版本、导出表、文件清单、备用名触发条件见下文 A/B 区。</p></details>
+</div>
+<div class="card">
+<h3>三道坎与链式阻塞（一句话）</h3>
+<p><b>落点不定 → 接口无处挂；包名不定 → 发布与依赖无从写；底座不定 → 抽离票不敢动旧路径</b>——#581 拍板是放行后继工作的闸门。</p>
+<div class="legend"><b>图例：</b>MAP 进度＝整张地图 8 张票关了几张；执行进度＝#581 材料写完多少；整改目标＝回填完成后要达到的可拍状态。三条进度含义不同，不互相替代。</div>
+<div class="meta">MAP 进度 1/8 已关（仅研究票）</div>
+<div class="bar"><div style="width:12%"></div></div>
+<div class="meta">执行进度约 60%（8 项推荐已写完、待拍板）</div>
+<div class="bar amber"><div style="width:60%"></div></div>
+<div class="meta">整改目标 70%（回填问 5 导出表、问 7 触发判据、复查证据链后可拍）</div>
+<div class="bar amber"><div style="width:70%"></div></div>
+</div>
+</section>
+
+<section class="s2">
+<h2>② 当前质量门禁：状态一句话</h2>
+<p class="secdesc">分数下沉为备注，不作过程展示</p>
+<div class="card ruling-warn">
+<h3>状态：待你拍板 7 问；3 项回填中 <span class="badge b-warn">需整改</span></h3>
+<p>8 项推荐的方向结论全部成立，没有方向性错误。但 3 处清单级缺口不补，后继工作会踩坑，因此<b>不直接放行，整改单回填后复验再请你拍板</b>。</p>
+<p class="small">双审查备注小字：蓝方附条件放行（大方向成立，补齐问答与缺口即可）· 红方不放行（导出表歧义、隔离触发含糊、包名时点证据需复查）。Node 实测与许可证文件核对已同步列入回填。</p>
+</div>
+<div class="card">
+<h3>3 处回填缺口（对应 B 区）</h3>
+<div class="table-wrap"><table>
+<tr><th style="width:90px">缺口</th><th>问题</th><th>整改去向</th></tr>
+<tr><td><b>缺口 1：双产物歧义</b> <span class="badge b-danger">回填中</span></td><td>“双产物”只写了方向，没写死导出表、落点版本、文件清单。发布演练（只演练不真发布）无从断言对错。</td><td>问 5：定死导出表 + 文件清单 + 初始版本配套。</td></tr>
+<tr><td><b>缺口 2：隔离触发含糊</b> <span class="badge b-danger">回填中</span></td><td>“接口名前缀参数化、目录按标识派生、锁按插件隔离”只有原则，缺触发判据：什么情况下启用带 @ 前缀备用包名（带 @ 前缀备用包名）、默认前缀是什么、何时切。</td><td>问 7：定死触发判据，写进接口契约。</td></tr>
+<tr><td><b>缺口 3：包名时点证据</b> <span class="badge b-danger">回填中</span></td><td><code>dsh-plugin-update</code> 今日复查可用，但“可用”是时点证据，迁移前可能被他人占用。</td><td>问 3 + 问 7：接受备用名但把“迁移前复查”卡进开工门禁，被占即启用预案。</td></tr>
+</table></div>
+<p class="meta">另两项已同步回填：桌面宿主实测记录（问 4）、许可证文件存在性核对（维持 MIT、作者王辰浩个人，与主仓及旧包一致）。构建与类型口径沿用旧包，无需决策。</p>
+</div>
+</section>
+
+<section class="s3">
+<h2>③ 待拍板 7 问：A 区可拍、B 区整改后拍</h2>
+<p class="secdesc">前 4 问来自拍板清单，后 3 问由双审查扩出</p>
+
+<div class="zone zone-ready">
+<h3><span class="zone-label">A 区：现在可拍</span> 问 1～问 4（无异议即按推荐通过）</h3>
+
+<div class="card q">
+<h3><span class="qn">问 1</span>落点：本仓新建包目录，还是新仓独立仓？ <span class="badge b-info">可拍</span></h3>
+<dl class="kv"><dt>前因后果一句话</dt><dd>代码落在哪里决定后继工作怎么做，落点不定则接口无处挂。</dd><dt>关键信息</dt><dd>证据：本仓已有走通先例（本仓包目录、MIT、王辰浩、公开发布、转译加类型检查口径沿用旧包、无需决策），单仓一次提交可完成原子迁移。风险：本仓体积变大；新仓则多一套跨仓同步与门禁复制成本，首轮双宿主验证更绕。</dd></dl>
+<div class="rec"><b>推荐：本仓新建包目录，仓根相对路径为 <code>packages/dsh-plugin-update</code>。</b>沿着已走通的路再走一遍，风险最小。</div>
+<div class="table-wrap"><table><tr><th>选项</th><th>利</th><th>弊</th></tr><tr><td>A 本仓（推荐）</td><td>复用构建脚本与门禁链；单仓原子迁移；与旧包同构易审计</td><td>主仓体积变大</td></tr><tr><td>B 新仓</td><td>仓库边界干净</td><td>跨仓同步与门禁复制成本；双宿主验证更绕</td></tr></table></div>
+</div>
+
+<div class="card q">
+<h3><span class="qn">问 2</span>发布：公开，还是私有？ <span class="badge b-info">可拍</span></h3>
+<dl class="kv"><dt>前因后果一句话</dt><dd>地图终点要求“任何插件照文档能集成”，发布方式决定终点能否达成。</dd><dt>关键信息</dt><dd>证据：地图终点明写任何插件可集成，私有包他人无法安装。风险：公开后包名一旦占用不可改，需配迁移前复查（见问 3、问 7）。</dd></dl>
+<div class="rec"><b>推荐：公开发布。</b>私有与地图目标互斥，没有中间路线。</div>
+<div class="table-wrap"><table><tr><th>选项</th><th>利</th><th>弊</th></tr><tr><td>A 公开（推荐）</td><td>满足地图终点；他人可安装集成</td><td>包名不可改，需前置复查</td></tr><tr><td>B 私有</td><td>发布动作轻</td><td>直接违背地图终点，他人无法安装</td></tr></table></div>
+</div>
+
+<div class="card q">
+<h3><span class="qn">问 3</span>包名：是否接受 <code>dsh-plugin-update</code>（备用名）？ <span class="badge b-info">可拍</span></h3>
+<dl class="kv"><dt>前因后果一句话</dt><dd>主选今日仍被占，后继全部工作要挂在一个确定的名字上，不能悬空。</dd><dt>关键信息</dt><dd>证据：2026-09-10 本机源复查，主选仍被占（不可用）；<code>dsh-plugin-update</code> 可查到无占用（可用）。风险：时点证据存在被抢占可能，迁移前必须再复查一次。</dd></dl>
+<div class="rec"><b>推荐：接受 <code>dsh-plugin-update</code>，按备用名推进全部后继工作；带 @ 前缀备用包名（带 @ 前缀备用包名）暂不启用；在 #586 开工前再复查一次，被占即启用预案并另行拍板。</b></div>
+<div class="table-wrap"><table><tr><th>选项</th><th>利</th><th>弊</th></tr><tr><td>A 接受备用名（推荐）</td><td>名字确定，后继可写死依赖与文档；有预案兜底</td><td>名字比主选长；需一次复查动作</td></tr><tr><td>B 死等主选</td><td>名字短</td><td>已被占，全部后继停摆</td></tr><tr><td>C 现在就切带 @ 前缀名</td><td>抢注风险最低</td><td>与地图延后项冲突，集成文档更绕</td></tr></table></div>
+</div>
+
+<div class="card q">
+<h3><span class="qn">问 4</span>Node 基线：22 是否接受？ <span class="badge b-info">可拍</span></h3>
+<dl class="kv"><dt>前因后果一句话</dt><dd>基线决定验证矩阵，定低了要补验证，定高了怕宿主跟不上。</dd><dt>关键信息</dt><dd>证据：与旧包声明及现有管线一致（沿用旧包口径，无需决策）。风险：若桌面内嵌版本更高，声明需回填；审查要求补一次桌面宿主实测，不接受只看声明。</dd></dl>
+<div class="rec"><b>推荐：接受 Node 22；若桌面内嵌版本更高，以后继回填为准；双宿主验证必须包含一次版本实测记录。</b></div>
+<div class="table-wrap"><table><tr><th>选项</th><th>利</th><th>弊</th></tr><tr><td>A Node 22（推荐）</td><td>与本仓现状一致，无额外验证负担</td><td>覆盖面不如更低基线</td></tr><tr><td>B 更低基线</td><td>兼容更广</td><td>与本仓脱节，需全量额外验证</td></tr></table></div>
+</div>
+</div>
+
+<div class="zone zone-later">
+<h3><span class="zone-label">B 区：整改回填后拍</span> 问 5～问 7（回填复验前不拍）</h3>
+
+<div class="card q">
+<h3><span class="qn">问 5</span>双产物与发布清单定死？ <span class="badge b-danger">回填后拍</span></h3>
+<dl class="kv"><dt>前因后果一句话</dt><dd>最大歧义：“双产物”没写死清单，发布演练（只演练不真发布）就无从断言对错。</dd><dt>关键信息</dt><dd>证据：旧包先例为单文件一对一转译最易审计；构建与类型口径沿用旧包（无需决策）。风险：导出缺 <code>./package.json</code> 会导致旧版本解析失败；文件多带源码会泄漏体积、少带类型会让集成方无提示。</dd></dl>
+<div class="rec"><b>推荐：A 三件套定死——主入口示例 <code>dist/index.js</code> + 类型 <code>dist/index.d.ts</code>；文件示例清单只含 <code>dist</code> + README + LICENSE；导出主入口 <code>.</code> + <code>./package.json</code>（另按需 <code>./dist/*</code>）。</b>回填后由复验断言文件清单。</div>
+<div class="table-wrap"><table><tr><th>选项</th><th>利</th><th>弊</th></tr><tr><td>A 三件套定死（推荐）</td><td>清单可断言；发布演练（只演练不真发布）可直接对照文件存在性；集成方有类型提示</td><td>回填前需把导出表与文件清单写死，多一次核对动作</td></tr><tr><td>B 暂不定、后继再议</td><td>当下省事</td><td>打包与演练无从断言；后继发布与迁移都要返工</td></tr></table></div>
+</div>
+
+<div class="card q">
+<h3><span class="qn">问 6</span>初始版本：0.1.0 / 0.0.1 / 1.0.0 选哪个？ <span class="badge b-warn">随 B 区一并确认</span></h3>
+<dl class="kv"><dt>前因后果一句话</dt><dd>落点版本不定，发布演练（只演练不真发布）与迁移依赖都写不出版本号。</dd><dt>关键信息</dt><dd>证据：新包惯例以 0.x 表示未稳定；主选名下的 0.0.1 已被占，用 0.0.1 易混淆。风险：直接 1.0.0 会向集成方承诺稳定接口，而接口契约尚未定稿。</dd></dl>
+<div class="rec"><b>推荐：初始版本 0.1.0。</b>避开被占的 0.0.1 混淆，又不提前承诺 1.0 稳定接口；迁移时按语义化版本递增。</div>
+<div class="table-wrap"><table><tr><th>选项</th><th>利</th><th>弊</th></tr><tr><td>A 0.1.0（推荐）</td><td>新包惯例；避开混淆；不透支稳定承诺</td><td>0.x 期集成方需跟随小版本</td></tr><tr><td>B 0.0.1</td><td>最小号</td><td>与被占版本同号，易混淆</td></tr><tr><td>C 1.0.0</td><td>信号强</td><td>接口未定稿，稳定承诺过早</td></tr></table></div>
+</div>
+
+<div class="card q">
+<h3><span class="qn">问 7</span>备用名触发判据：什么情况下才启用带 @ 前缀名？ <span class="badge b-danger">回填后拍</span></h3>
+<dl class="kv"><dt>前因后果一句话</dt><dd>隔离原则已定但缺触发条件，不写死则包名被占与多插件隔离都没法执行。</dd><dt>关键信息</dt><dd>证据：地图已定隔离三条（电话＝宿主提供给插件的接口方法，名称前加前缀参数化、默认前缀保零变化，落盘目录按插件标识派生，锁按插件加范围隔离，默认旧路径冻结一字不差）；地图把备用包名发布列为延后项。风险：平时启用带 @ 前缀备用包名（带 @ 前缀备用包名）会让集成文档分叉；从不启用则被占时无路可退。</dd></dl>
+<div class="rec"><b>推荐：默认不启用带 @ 前缀备用包名；仅当 #586 开工前复查发现 <code>dsh-plugin-update</code> 被占时，启用备用包名预案并另行拍板；复查动作写进 #586 开工门禁，电话（宿主提供给插件的接口方法）名称默认前缀保证当前插件零变化。</b></div>
+<div class="table-wrap"><table><tr><th>选项</th><th>利</th><th>弊</th></tr><tr><td>A 条件触发（推荐）</td><td>文档单轨；被占时有路可退；与地图延后项一致</td><td>多一次复查动作</td></tr><tr><td>B 现在启用</td><td>抢注最稳</td><td>文档分叉，违背延后项</td></tr><tr><td>C 永不启用</td><td>最简单</td><td>被占即无预案</td></tr></table></div>
+</div>
+</div>
+</section>
+
+<section class="s4">
+<h2>④ 下一步：整改回 → 复验 → 你拍板 → 关票 → 开后继</h2>
+<p class="secdesc">顺序不可并行，每步都是下一步的门禁（含责任人与门禁）</p>
+<ol class="timeline">
+<li data-n="1"><b>整改回填（责任人：执行人；输出：问 5 导出表、问 7 触发判据、包名复查证据链、桌面实测计划、许可证核对）：</b>把 B 区两问的清单写死，仓根相对路径统一为 <code>packages/dsh-plugin-update</code>，主入口示例与文件示例清单一次配齐。</li>
+<li data-n="2"><b>复验（责任人：复验人；门禁：3 处缺口可执行才放行）：</b>逐项复验发布演练（只演练不真发布）断言与隔离判据是否可执行；任一缺口未清零不得进入拍板。</li>
+<li data-n="3"><b>你拍板（责任人：项目负责人；门禁：A 区先拍、B 区后拍）：</b>对 7 问逐项确认，无异议即按推荐通过，有异议逐项指出；其中问 1～问 4 为原清单，问 5～问 7 为审查扩出。</li>
+<li data-n="4"><b>关票（责任人：项目负责人；门禁：真人关闭）：</b>本票为讨论拍板类型，无真人拍板不得关闭，由负责人亲手关闭。</li>
+<li data-n="5"><b>开后继（门禁：#586 开工前复查进开工检查项）：</b>先开接口契约工作，把问 5 导出表与问 7 触发判据写进契约；#586 开工前必须再复查一次包名，被占即启用带 @ 前缀备用包名（带 @ 前缀备用包名）预案并另行拍板，该复查记入 #586 开工检查项。</li>
+</ol>
+<div class="card">
+<h3>配套口径（本次一并确认，无异议即默认通过）</h3>
+<p>许可证沿用 MIT、作者王辰浩个人（与主仓及旧包一致）；零运行时依赖（更新核心只用 Node 标准模块）；构建与类型口径沿用旧包（无需决策）；隔离与冻结沿用地图已定约束；电话（宿主提供给插件的接口方法）调用日志按日志契约执行（安装执行记常驻，高频命中记按需加采样节流，留给后继执行）。</p>
+</div>
+</section>
+
+<footer>证据索引（小字备查）：<br>MAP <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/579">#579</a> · 讨论拍板 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/581">#581</a> · 接口契约 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/582">#582</a><br>本简报只读未改 issue 与代码，仅供拍板。状态：待你拍板 7 问；3 项回填中。</footer>
+
+</div>
+</body>
+</html>

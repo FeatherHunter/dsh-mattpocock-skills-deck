@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>面板两图问题 · 三问三答与待拍板（#592 后续）</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--ink:#1f2328;--muted:#59636e;--line:#e3e7ee;
+    --green:#0b6b12;--green-bg:#e9f7ec;--red:#8f0408;--red-bg:#fdecec;
+    --amber:#7a5200;--amber-bg:#fff8e5;--blue:#0a4fc4;--blue-bg:#eef4ff;--violet:#8b5cf6}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;line-height:1.7}
+  .wrap{max-width:960px;margin:0 auto;padding:28px 20px 60px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px;margin:0 0 18px;box-shadow:0 1px 2px rgba(31,35,40,.05)}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--muted);margin:0 0 14px}
+  .badges{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:#fff}
+  .ok{background:var(--green-bg);border-color:#bfe6c5;color:var(--green)}
+  .warn{background:var(--amber-bg);border-color:#f0d48a;color:var(--amber)}
+  .stop{background:var(--red-bg);border-color:#f3b8ba;color:var(--red)}
+  .info{background:var(--blue-bg);border-color:#c4d9fb;color:var(--blue)}
+  nav.toc{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  nav.toc a{text-decoration:none;font-size:14px;color:var(--blue);background:var(--blue-bg);border:1px solid #c4d9fb;padding:6px 14px;border-radius:999px}
+  h2{font-size:19px;margin:0 0 10px}
+  h3{font-size:15px;margin:16px 0 6px}
+  p{margin:8px 0}ul{margin:8px 0 8px 20px;padding:0}li{margin:4px 0}
+  .q{border-left:6px solid var(--violet)}
+  .q h2 .no{display:inline-block;min-width:38px;text-align:center;background:var(--violet);color:#fff;border-radius:9px;padding:1px 10px;margin-right:10px;font-size:16px}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:10px 12px;vertical-align:top;text-align:left}
+  th{background:#f1f3f7}
+  .rec{background:var(--green-bg);border:1px solid #bfe6c5;border-radius:10px;padding:14px 16px;margin:14px 0}
+  .rec strong{color:var(--green)}
+  .key{background:#f8fafc;border:1px dashed #b9c2cf;border-radius:10px;padding:12px 16px;margin:12px 0;font-size:14px}
+  .key b{color:var(--blue)}
+  code{background:#eef1f6;padding:1px 7px;border-radius:6px;font-family:Consolas,Menlo,monospace;font-size:13px}
+  .file{font-family:Consolas,Menlo,monospace;font-size:13px}
+  .reply{background:#1f2328;color:#fff;border-radius:12px;padding:16px 18px;margin-top:6px}
+  .reply code{background:rgba(255,255,255,.14);color:#fff}
+  footer{color:var(--muted);font-size:13px;text-align:center;margin-top:26px}
+  @media print{.wrap{max-width:100%}nav.toc,.reply{display:none}body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="card">
+    <h1>面板两图问题 · 三问三答与待拍板</h1>
+    <p class="sub">演示工作区 <code>matt-demo-markdown</code>（两套测试地图）面板混乱的排查结论。数据层实测无误，三个毛病分别落在去重、引用形状、缓存三处，均已修或有明确去向。</p>
+    <div class="badges">
+      <span class="badge ok">去重吞图：已修已推</span>
+      <span class="badge ok">阻塞不显示：已修已推</span>
+      <span class="badge warn">0/3 晚到：机制如此，待拍板</span>
+      <span class="badge info">markdown 操作面：与 GitHub 对齐</span>
+    </div>
+    <nav class="toc">
+      <a href="#bugs">BUG 台账</a>
+      <a href="#q1">第一问 · 0/3 晚到</a>
+      <a href="#q2">第二问 · markdown 完善范围</a>
+      <a href="#q3">第三问 · 去重改在哪</a>
+    </nav>
+  </header>
+
+  <section class="card" id="bugs">
+    <h2>BUG 台账（本次合入后冒出来的，一个不落）</h2>
+    <table>
+      <tr><th style="width:26%">现象</th><th>根因（一句话）</th><th>状态</th></tr>
+      <tr><td>列表只有 MAP1，MAP2 整组消失；beta 票也不见</td><td>去重按裸编号认身份，两张 <code>#00</code> 被当成同一张，第二张吞掉</td><td><span class="badge ok">已修（6ab2983）</span></td></tr>
+      <tr><td>T1-03 明明被 01 阻塞，行上无标记，KPI 阻塞为 0</td><td>后端给对象 <code>{key,…}</code>，面板拿对象当键去查，查出“某某对象”，永远对不上</td><td><span class="badge ok">已修（同上）</span></td></tr>
+      <tr><td>两道新门禁在 Windows 跑不起来（双盘符）</td><td>取路径用了在 Windows 下会错的写法</td><td><span class="badge ok">已修（c17d84b）</span></td></tr>
+      <tr><td>四处徽标原生提示违反提示统一门禁</td><td>PR 自带的 <code>title=</code> 没走统一 Tip</td><td><span class="badge ok">已修（b02cedd）</span></td></tr>
+      <tr><td>地图找不到回落取第一张；阻塞两处结论打架；重开更新无门禁</td><td>审查出的三处缺口</td><td><span class="badge ok">已修（c17d84b）</span></td></tr>
+      <tr><td>刚进入不显示 0/3，刷新才有</td><td>见第一问：缓存短路的存量没带统计</td><td><span class="badge warn">待拍板</span></td></tr>
+    </table>
+  </section>
+
+  <section class="card q" id="q1">
+    <h2><span class="no">1</span>刚进入不显示 0/3，刷新才有——要修吗？</h2>
+    <p><b>前因：</b>圆环那行代码只认统计数据，有就画、没有就空着。刚进入走的是内存缓存短路（同工作区、后端一致、时间窗内直接返回存量），这份存量没带统计；点刷新强制重建，统计挂上去，0/3 就出来了。所以“刷新才正常”符合当前机制，不是随机 bug，数据也没丢。</p>
+    <div class="key"><b>关键信息：</b>渲染条件在 <code>ListTabRow.js:69</code>（有统计才画）；短路在 <code>sessionSnapshot.js:21–29</code>；统计挂载在重建路径 <code>:281</code>。修法是命中缓存那条路也把统计补上，每次命中多算一次，有一点性能代价。</div>
+    <table>
+      <tr><th style="width:130px">选项</th><th>利</th><th>弊</th></tr>
+      <tr><td><b>A. 修（缓存命中补统计）</b></td><td>进门就有数，不用点刷新；体验与刷新后一致</td><td>每次缓存命中多一次计算；改的是高频路径</td></tr>
+      <tr><td><b>B. 不修（保持手动刷新）</b></td><td>零风险，热点路径不动</td><td>每次进门都要点一次刷新，否则圆环缺席</td></tr>
+    </table>
+    <div class="rec"><strong>➡️ 推荐：A（小改，收益明确）。</strong>补统计是纯派生计算，不碰数据源；性能代价可用抽样验证，高频路径有开关守卫的写法可抄。这是体验问题不是正确性问题，排期上可插队但不 blocker。</div>
+  </section>
+
+  <section class="card q" id="q2">
+    <h2><span class="no">2</span>markdown 要系统完善，是不是只改后端房就够？</h2>
+    <p><b>前因：</b>GitHub 后端体验好，说明 tracker 层和 UI 层过关；两房操作面并排对比过，<code>list/get/create/close/reopen/comment/update/set*</code> 一个不少，markdown 还多几个。缺的不是能力入口，是深度打磨。</p>
+    <div class="key"><b>关键信息：</b>以后凡是“markdown 独有行为”（文件格式、编号、effort 目录）→ 房内一票一房；<b>只有契约本身要改</b>（如这次票身份三元组）→ 必然跨层，先立 ADR 再分层排票。本次跨层跨的是契约，不是能力。</div>
+    <table>
+      <tr><th style="width:130px">选项</th><th>利</th><th>弊</th></tr>
+      <tr><td><b>A. 默认房内，契约变更才跨层</b></td><td>符合房间纪律，回归面小，审查快</td><td>遇到真跨层问题要先识别出来，多一步判断</td></tr>
+      <tr><td><b>B. 以后 markdown 相关全走大地图跨层</b></td><td>不怕漏层</td><td>小题大做，回归面和人力都浪费</td></tr>
+    </table>
+    <div class="rec"><strong>➡️ 推荐：A。</strong>拿契约断言逐条过 markdown 房，缺的打磨项全列成房内票；跨层只留给契约变更。要我列这份清单并起一张 wayfinder 图来排，就回“起图”。</div>
+  </section>
+
+  <section class="card q" id="q3">
+    <h2><span class="no">3</span>去重 BUG 的代码改在哪里？（纯事实，无需决策）</h2>
+    <ul>
+      <li><b>主改</b> <span class="file">src/shared/tracker/list-dedupe.js</span> <code>poolIdOf</code>（22–36 行）：身份里加了工作单元，同号不同单元各留各的；无工作单元的老条目退化成老口径。</li>
+      <li><b>同步副本</b> <span class="file">package/shared/tracker/list-dedupe.js</span>：构建自动复制，不用手改。</li>
+      <li><b>门禁</b> <span class="file">tests/verify-589-list-dedupe.js</span> 场景 6：两张同号地图各留各的（真机复现过吞图才补的）。</li>
+      <li><b>提交</b> <code>6ab2983</code>（主分支已推）；同批还有阻塞引用保留原键（<span class="file">sessionSnapshot.js</span> 两条路径，后补 <code>5e50d49</code>）与取键函数（<span class="file">constants.js refKeyOf</span>）。</li>
+    </ul>
+    <p>验证：更新插件到含上述提交的版本、刷新面板，列表应出现两张地图；T1-03 应有阻塞态；KPI 阻塞应为 2（T1-03 与 T2-02）。</p>
+  </section>
+
+  <div class="reply">如何回复：第一问回“修”或“不修”；第二问回“起图”或“先不”；第三问不用回。收到就执行。</div>
+
+  <footer>配套票 #592 停在 95% 等你 1-2-3-4 验证；本页只回答面板两图三问，不扩范围。</footer>
+
+</div>
+</body>
+</html>
