@@ -52,7 +52,7 @@
           tickets.forEach(function (t) { byId[idOf(t)] = t })
           tickets.forEach(function (t) {
             if (!t || !Array.isArray(t.blockedBy) || !t.blockedBy.length) return
-            const openBlockers = t.blockedBy.filter(function (b) { const bt = byId[idOfParts(effortOf(t), b)]; return bt && bt.state === 'OPEN' })
+            const openBlockers = t.blockedBy.filter(function (b) { const bt = byId[idOfParts(effortOf(t), refKeyOf(b))]; return bt && bt.state === 'OPEN' })
             if (openBlockers.length) blockOf[idOf(t)] = { map: m.number, mapEffort: effortOf(m), mapTitle: m.title, by: openBlockers }
           })
         })
@@ -66,7 +66,7 @@
       return maps.map(function (m) {
         // effort 维度：地图内的票按身份 (effort, 编号) 索引；阻塞引用只在同一 effort 内解析
         const byId = {}; m.tickets.forEach(function (t) { byId[idOf(t)] = t })
-        const openBlocker = (b) => { const t = byId[idOfParts(effortOf(m), b)]; return t !== undefined && t.state === 'OPEN' }
+        const openBlocker = (b) => { const t = byId[idOfParts(effortOf(m), refKeyOf(b))]; return t !== undefined && t.state === 'OPEN' }
         const open = m.tickets.filter(function (t) { return t.state === 'OPEN' })
         const closed = m.tickets.filter(function (t) { return t.state === 'CLOSED' })
         const frontier = open.filter(function (t) { return !t.claimedBy && !t.blockedBy.some(openBlocker) })
@@ -130,7 +130,7 @@
         if (t) {
           inMap = true
           if (t.blockedBy && t.blockedBy.length) {
-            const openBlockers = t.blockedBy.filter(function (b) { const bt = byId[idOfParts(effortOf(t), b)]; return bt && bt.state === 'OPEN' })
+            const openBlockers = t.blockedBy.filter(function (b) { const bt = byId[idOfParts(effortOf(t), refKeyOf(b))]; return bt && bt.state === 'OPEN' })
             if (openBlockers.length) return true
           }
         }

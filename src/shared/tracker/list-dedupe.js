@@ -18,14 +18,18 @@
  * 不互相吞。无该字段的后端省略该字段（保持裸 key）；字段在但不是布尔值单独隔离。
  * key 缺失时回落 number；两者都没有的条目指认不出身份，返回空，由调用方原样保留。
  * 后缀只是对象键里的区分标记，不外流。
+ * effort 维度：身份含工作单元——不同工作单元的同号票是两张票，不许互相吞
+ * （单工作单元后端 effortId 为空或缺失，退化成老口径，行为不变）。
  */
 export function poolIdOf(entry) {
   if (!entry || (entry.key == null && entry.number == null)) return null
+  const e = entry.effortId === undefined || entry.effortId === null ? '' : String(entry.effortId)
   const k = String(entry.key != null ? entry.key : entry.number)
-  if (!Object.prototype.hasOwnProperty.call(entry, 'isPullRequest')) return k
-  if (entry.isPullRequest === true) return k + '|pr'
-  if (entry.isPullRequest === false) return k + '|issue'
-  return k + '|bad'
+  const base = e ? e + '|' + k : k
+  if (!Object.prototype.hasOwnProperty.call(entry, 'isPullRequest')) return base
+  if (entry.isPullRequest === true) return base + '|pr'
+  if (entry.isPullRequest === false) return base + '|issue'
+  return base + '|bad'
 }
 
 /**

@@ -76,7 +76,7 @@ function extractConst(src, name) {
   }
   throw new Error('截取失败 ' + name)
 }
-const identitySrc = ['effortOf', 'idOfParts', 'idOf'].map((n) => {
+const identitySrc = ['effortOf', 'idOfParts', 'idOf', 'refKeyOf'].map((n) => {
   const m = new RegExp('export function ' + n + '\\([\\s\\S]*?\\n\\}').exec(constantsSrc)
   if (!m) throw new Error('constants.js 缺 ' + n)
   return m[0].replace(/^export /, '')
@@ -159,7 +159,7 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
   // alpha#01 的阻塞者写的是 #02，但 alpha 里没有 02；beta 里的 02 是 open —— 不许跨 effort 认领
   const cross = { maps: [
     { key: '00', number: 0, effortId: 'alpha', title: 'Alpha Map', tickets: [
-      { key: '01', number: 1, effortId: 'alpha', state: 'OPEN', blockedBy: ['02'] },
+      { key: '01', number: 1, effortId: 'alpha', state: 'OPEN', blockedBy: [{ key: '02', title: '', state: 'OPEN' }] },
     ] },
     { key: '00', number: 0, effortId: 'beta', title: 'Beta Map', tickets: [
       { key: '02', number: 2, effortId: 'beta', state: 'OPEN', blockedBy: [] },
@@ -169,7 +169,7 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
   check(Object.keys(crossBlock).length === 0, '跨 effort 同号票不算阻塞者（阻断表为空）')
   const same = { maps: [
     { key: '00', number: 0, effortId: 'alpha', title: 'Alpha Map', tickets: [
-      { key: '01', number: 1, effortId: 'alpha', state: 'OPEN', blockedBy: ['02'] },
+      { key: '01', number: 1, effortId: 'alpha', state: 'OPEN', blockedBy: [{ key: '02', title: '', state: 'OPEN' }] },
       { key: '02', number: 2, effortId: 'alpha', state: 'OPEN', blockedBy: [] },
     ] },
   ] }

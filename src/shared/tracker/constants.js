@@ -126,3 +126,18 @@ export function idOf(issue) {
   }
 }
 
+/** 阻塞引用取键：后端给的是对象 `{key,title,state}`，老快照与手写数据可能是裸字符串或数字；两种都认，拿不到返回空串。 */
+export function refKeyOf(b) {
+  try {
+    if (b === undefined || b === null) return ''
+    if (typeof b === 'string' || typeof b === 'number') return String(b)
+    if (typeof b === 'object') {
+      if (b.key !== undefined && b.key !== null && b.key !== '') return String(b.key)
+      if (b.number !== undefined && b.number !== null) return String(b.number)
+    }
+    return ''
+  } catch (e) {
+    return ''
+  }
+}
+

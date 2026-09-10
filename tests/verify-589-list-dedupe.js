@@ -64,6 +64,18 @@ async function main() {
   assert.strictEqual(mod.poolIdOf(null), null, '空条目身份为空')
   ok('异常输入不崩')
 
+  // —— 场景 6：多 effort 同号不互吞（#575 合入后补记） ——
+  const mA = { key: '00', number: 0, type: 'map', title: 'MAP1', effortId: 'alpha' }
+  const mB = { key: '00', number: 0, type: 'map', title: 'MAP2', effortId: 'beta' }
+  const tA = { key: '01', number: 1, type: 'issue', title: 'T1', effortId: 'alpha' }
+  const tB = { key: '01', number: 1, type: 'issue', title: 'T2', effortId: 'beta' }
+  const out6 = mod.dedupeListByPool([mA, mB, tA, tB])
+  assert.strictEqual(out6.length, 4, '两张同号地图与两张同号票各留各的')
+  assert.deepStrictEqual(out6.map(function (x) { return x.title }), ['MAP1', 'MAP2', 'T1', 'T2'], '顺序不变')
+  // 无 effortId 的老条目退化成老口径（与原来行为一字不差）
+  assert.strictEqual(mod.poolIdOf({ key: '131' }), '131', '无 effortId 退化成裸 key')
+  ok('多 effort 同号不互吞，老条目退化不变')
+
   console.log('\n全部通过（' + passed + ' 项）')
 }
 

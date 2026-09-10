@@ -12,7 +12,7 @@ async function loadDerived() {
   // effort 维度：store-derived 在面板闭包里用共享的身份函数（idOf / idOfParts / effortOf），
   // 单独取出求值时要把同一份原文显式导入，否则 ReferenceError（跑的是真函数，不改行为）。
   const constantsHref = require('url').pathToFileURL(path.join(__dirname, '..', 'src', 'shared', 'tracker', 'constants.js')).href
-  const identityImport = "import { idOf, idOfParts, effortOf } from " + JSON.stringify(constantsHref) + "\n"
+  const identityImport = "import { idOf, idOfParts, effortOf, refKeyOf } from " + JSON.stringify(constantsHref) + "\n"
   fs.writeFileSync(tmp, identityImport + src, 'utf8')
   try {
     return await import('file:///' + tmp.replace(/\\/g, '/'))

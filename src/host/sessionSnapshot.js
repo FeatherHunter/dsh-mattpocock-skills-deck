@@ -67,14 +67,12 @@ export function createSessionSnapshot(deps) {
             }
             if (t.key != null) t.key = String(t.key)
             if (Array.isArray(t.blockedBy)) {
+              // effort 维度：阻塞引用保留原键字符串（'01' 不许转成数字 1），
+              // 面板按“工作单元 + 键”查找，数字与字符键对不上会永远查不到；
+              // GitHub 数字键本来就是字符串形态，直传同样命中。
               t.blockedBy = t.blockedBy.map(function(ref){
-                if (typeof ref === 'number') return ref
-                if (ref && typeof ref === 'object' && ref.key != null) {
-                  const nk = String(ref.key)
-                  const nn = parseInt(nk, 10)
-                  if (!isNaN(nn)) return nn
-                  return nk
-                }
+                if (typeof ref === 'number' || typeof ref === 'string') return ref
+                if (ref && typeof ref === 'object' && ref.key != null) return String(ref.key)
                 return ref
               })
             }
