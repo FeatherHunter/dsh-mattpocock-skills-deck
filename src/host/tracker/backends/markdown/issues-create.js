@@ -1,11 +1,17 @@
-// issues-create.js —— 以后改新建单据落盘格式时改它（预估约 90 行）。
+// issues-create.js —— 以后改新建单据落盘格式时改它（预估约 100 行）。
+//
+// effort 维度（2026-09-09）：建票必须落在**一个明确的 effort** 里，编号按契约「每个 effort 从 01 起」在该 effort 内取 max+1。
+//   - repo.effortId 给出 → 就落在那一个 effort；
+//   - 仓库只有一个 effort → 自动落它（单 effort 仓库用起来无感）；
+//   - 仓库有多个 effort 又没指定 → 返回 conflict 诚实失败，绝不猜（旧实现在所有 effort 之间取全局 max+1，
+//     与契约冲突，而且因为少了 getScratchRoot 的 import 从未生效）。
 import { parseMd, slugify } from './parse.js'
 import { readDir, statFile, exists } from './read.js'
 import { writeTextFile, ensureDir } from './write.js'
 import { issuesDir } from './path.js'
 import { classifyError } from '../../preflight.js'
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
-import { getPlat, findIssueFileInEffort } from './issues-locate.js'
+import { getPlat, listEfforts, findIssueFileInEffort } from './issues-locate.js'
 import { loadPaletteMap, recolorLabels } from './issues-labels.js'
 
 export async function createIssue(ctx,repo,input){
@@ -13,28 +19,28 @@ export async function createIssue(ctx,repo,input){
   const paletteMap=await loadPaletteMap(ctx)
   if(!input||typeof input.title!=='string'||!input.title.trim()){return{ok:false,error:{kind:ERROR_KIND.PARSE,message:'title required'}}}
   try{
-    const idir=issuesDir(repo,ctx)
-    await ensureDir(ctx,idir)
-    // 全局 max+1（跨所有努力目录）避免多努力撞号 —— 符合 byKey 去重与全局看板预期
-    let max=0
-    try{
-      const platG=getPlat(ctx)
-      const rootG=await getScratchRoot(ctx)
-      let effortDirsG=[]
-      try{ const entries=await readDir(ctx, rootG); for(const name of entries){ if(!name||name.startsWith('.')) continue; const dir=platG.join(rootG,name); const mapP=platG.join(dir,'map.md'); try{ if(await exists(ctx,mapP)) effortDirsG.push(dir)}catch{} } }catch{}
-      try{ if(await exists(ctx, platG.join(rootG,'map.md'))) effortDirsG.push(rootG)}catch{}
-      for(const dir of effortDirsG){
-        const idirG=platG.join(dir,'issues')
-        const filesG=await readDir(ctx,idirG)
-        for(const f of filesG){ const m=/^(\d+)-/.exec(f); if(m){ const n=parseInt(m[1],10); if(!isNaN(n)&&n>max) max=n } }
+    const efforts=await listEfforts(ctx)
+    const scope=(repo&&repo.effortId!==undefined&&repo.effortId!==null)?String(repo.effortId):undefined
+    let target=null
+    if(scope!==undefined){
+      target=efforts.find(function(e){ return e.effortId===scope })||null
+      // 指了 effort 但这个 effort 不存在 → 诚实失败，绝不落到根目录（否则票写进 .scratch/issues/ 面板永远看不见）
+      if(!target){
+        const have=efforts.map(function(e){ return e.effortId||'(根)' }).join('、')||'（本仓库还没有 effort）'
+        return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'找不到 effort「'+scope+'」；本仓库现有：'+have}}
       }
-      // also include self idir in case not in list
-      const filesSelf=await readDir(ctx,idir)
-      for(const f of filesSelf){ const m=/^(\d+)-/.exec(f); if(m){ const n=parseInt(m[1],10); if(!isNaN(n)&&n>max) max=n } }
-    }catch{
-      const files=await readDir(ctx,idir)
-      for(const f of files){const m=/^(\d+)-/.exec(f);if(m){const n=parseInt(m[1],10);if(!isNaN(n)&&n>max)max=n}}
+    }else if(efforts.length===1){
+      target=efforts[0]
+    }else if(efforts.length>1){
+      return{ok:false,error:{kind:ERROR_KIND.CONFLICT,message:'本仓库有 '+efforts.length+' 个 effort（'+efforts.map(function(e){return e.effortId||'(根)'}).join('、')+'），新建票据必须指定 effortId'}}
     }
+    const effortId=target?target.effortId:''
+    const idir=target?plat.join(target.dir,'issues'):issuesDir(repo,ctx)
+    await ensureDir(ctx,idir)
+    // 编号：只在目标 effort 内取 max+1（契约：每个 effort 从 01 起）
+    let max=0
+    const filesSelf=await readDir(ctx,idir)
+    for(const f of filesSelf){ const m=/^(\d+)-/.exec(f); if(m){ const n=parseInt(m[1],10); if(!isNaN(n)&&n>max) max=n } }
     let next=max+1
     let attempt=0
     let finalPath=''
@@ -44,7 +50,7 @@ export async function createIssue(ctx,repo,input){
       const slug=slugify(input.title)
       const filename=keyStr+'-'+slug+'.md'
       const full=plat.join(idir,filename)
-      const ex=await findIssueFileInEffort(ctx,repo,keyStr)
+      const ex=await findIssueFileInEffort(ctx,{effortId},keyStr)
       if(ex){next++;attempt++;continue}
       finalPath=full;finalKey=keyStr;break
     }
@@ -79,7 +85,7 @@ export async function createIssue(ctx,repo,input){
     const st=await statFile(ctx,finalPath)
     let mtime=new Date().toISOString()
     if(st&&st.mtime){try{mtime=new Date(st.mtime).toISOString()}catch{}}
-    const iss=parseMd(content,{key:finalKey,parentKey:input.parentKey||'00',isMap:false,createdAt:mtime,updatedAt:mtime})
+    const iss=parseMd(content,{key:finalKey,parentKey:input.parentKey||'00',isMap:false,effortId,createdAt:mtime,updatedAt:mtime})
     recolorLabels(iss, paletteMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}

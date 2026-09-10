@@ -225,6 +225,9 @@ const KERNEL_MODULES = [
  *  S2（#452）已拆成标题、跟踪、归属 3 个文件，此处记 3 个拼接项与 3 个标记位（做法见 #443 票内接线图）。
  *  跟踪与归属文件内复刻的标题小函数改了名前缀，拼回同一个界面闭包时不与标题文件重名。 */
 const SHARED_SPLICE = [
+  // effort 维度（2026-09-09）：票身份算法（effortOf / idOf / idOfParts）与常量同住 constants.js，
+  // 面板侧要按 (effort, 编号) 定位，故把这份零依赖叶子一并拼进界面闭包（host 半走 import，同源同文本）。
+  { marker: '// ==== shared:trackerConstants (spliced by build) ====', file: 'src/shared/tracker/constants.js' },
   { marker: '// ==== shared:namingTitles (spliced by build) ====', file: 'src/shared/naming-titles.js' },
   { marker: '// ==== shared:namingTracking (spliced by build) ====', file: 'src/shared/naming-tracking.js' },
   { marker: '// ==== shared:namingAttribution (spliced by build) ====', file: 'src/shared/naming-attribution.js' },

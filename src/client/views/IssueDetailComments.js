@@ -5,7 +5,8 @@
 // 接线：IssueDetail.js 的评论分组处调 renderIssueDetailComments，返回数组直接做分组子节点（此前是字面数组，原样）；
 //   确认下标、错误文案、提交动作内聚在本函数里，主文件只留显隐谓词（底部动作也要读它）。
 // 参数：h = 创建函数；st = 详情 store；src = 快照或详情源；detail/mode/commentsNodes/canComment = 派生（调用方传入）。
-export const renderIssueDetailComments = function (h, st, issueNumber, src, detail, mode, commentsNodes, canComment) {
+export const renderIssueDetailComments = function (h, st, issueNumber, src, detail, mode, commentsNodes, canComment, issueEffort) {
+      const _eff = (issueEffort === undefined || issueEffort === null) ? '' : String(issueEffort)
       // #255 提交确认闪烁下标：仅当 force 重取后的评论里真实存在 body 全等匹配项才点亮
       // （新评论必须来自服务端重取的证据；定时清空归位，无乐观假设）
       let confirmedIdx = -1
@@ -29,7 +30,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, src, deta
         if (typeof submitIssueComment !== 'function') { st.cmtError = { kind: 'env' }; emit(st); return }
         st.cmtSending = true; st.cmtError = null; emit(st)
         const startedAt = Date.now()
-        submitIssueComment(st, issueNumber, text).then(function (res) {
+        submitIssueComment(st, issueNumber, text, { effortId: _eff }).then(function (res) {
           st.cmtSending = false
           if (!res || res.ok !== true) {
             st.cmtError = (res && res.error) || { kind: 'network' }
@@ -42,7 +43,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, src, deta
           st.cmtError = null
           st.cmtConfirm = { body: text, at: startedAt }
           emit(st)
-          if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { force: true })
+          if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { force: true, effortId: _eff })
           try { if (typeof probeNow === 'function') probeNow(false) } catch (ePn) {}
         }).catch(function (eSub) {
           st.cmtSending = false
@@ -88,7 +89,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, src, deta
                 if (st.issueCommentsMoreLoading) return
                 // 节流：600ms 内禁用由 st.issueCommentsMoreLoading 保障，api 侧同样节流
                 const after = (src.comments && src.comments.pageInfo && src.comments.pageInfo.endCursor) ? src.comments.pageInfo.endCursor : String(commentsNodes.length)
-                if (typeof fetchIssueComments === 'function') fetchIssueComments(st, issueNumber, after)
+                if (typeof fetchIssueComments === 'function') fetchIssueComments(st, issueNumber, after, { effortId: _eff })
                 else { st.issueCommentsMoreLoading = true; emit(st); setTimeout(function(){ st.issueCommentsMoreLoading=false; emit(st); },600) }
               },
               style: { padding: '2px 10px', fontSize: 11, opacity: st.issueCommentsMoreLoading ? 0.5 : 1 }

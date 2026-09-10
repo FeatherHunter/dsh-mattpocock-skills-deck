@@ -24,7 +24,7 @@
       backendModules: null,
       backendMenuOpen: false,
       backendMenuPos: null,
-      cwd: '', lblFilters: [], skillView: 'list', expLabels: false,
+      cwd: '', lblFilters: [], effFilters: [], skillView: 'list', expLabels: false,
       // #374：状态过滤 + 排序（默认 更新时间↓，与现状一致）
       stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
       chainSnapshot: null, chainLoadedAt: '', backendChain: null, fullChain: null,
@@ -308,4 +308,4 @@
       st.notice = { text: msg, kind: kind || 'info' }; emit(st)
       if (timer !== undefined) timer.timeout(function () { if (st.notice && st.notice.text === msg) { st.notice = null; emit(st) } }, 2800)
     }
-
+

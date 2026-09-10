@@ -131,6 +131,8 @@ export function normalizeIssue(raw) {
 
   const issue = {
     key,
+    // effort 维度：effortId 是核心字段（永远存在）；单 effort 后端填 ''
+    effortId: typeof raw.effortId === 'string' ? raw.effortId : '',
     type,
     title: typeof raw.title === 'string' ? raw.title : '',
     state,

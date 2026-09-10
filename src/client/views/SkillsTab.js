@@ -29,7 +29,7 @@ export     const SkillsTab = ({ st }) => {
         return null
       })()
       if (recMapNum !== null) {
-        const g = groups.find(function (x) { return x.m.number === recMapNum })
+        const g = findGroupByIdentity(groups, recMapNum, st.activeEffortId || '')
         if (g && /research/.test(g.m.notes)) rec = ['research']
         if (g && /grill/.test(g.m.notes)) rec = ['grilling', 'domain-modeling']
         if (g) recTitle = tr('skill.notes', { m: g.m.title })

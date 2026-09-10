@@ -52,8 +52,11 @@
       const num = Number(n)
       if (!num || isNaN(num)) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number' } })
       const force = !!(opts && opts.force)
+      // effort 维度：详情缓存按票身份 (effort, 编号) 键入，否则两个 effort 的同号票会互相顶掉
+      const effortId = (opts && opts.effortId !== undefined && opts.effortId !== null) ? String(opts.effortId) : ''
+      const cacheKey = idOfParts(effortId, num)
       const now = Date.now()
-      const entry = st.issueCache && st.issueCache[num]
+      const entry = st.issueCache && st.issueCache[cacheKey]
       if (!force && entry && (now - entry.ts) < ISSUE_CACHE_TTL) {
         st.issueDetail = entry.data
         st.issueMode = 'real'
@@ -70,7 +73,7 @@
       st.issueMode = 'loading'; st.issueError = null; emit(st)
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
       const dtT0 = Date.now()
-      return host.call('wf.issueDetail', Object.assign({ number: num }, cwdArg)).then(function (res) {
+      return host.call('wf.issueDetail', Object.assign({ number: num }, effortId ? { effortId } : {}, cwdArg)).then(function (res) {
         try { if (res && res.ok) log('info', 'host.call', { method: 'wf.issueDetail', latencyMs: Date.now() - dtT0, ok: true, kind: 'detail' }); else log('warn', 'host.call.fail', { method: 'wf.issueDetail', kind: 'detail', errorHash: dswsLogHash(dswsLogTrunc(String(((res && res.error && (res.error.message || res.error.kind)) || 'detail-not-ok')), 120, 'error')) }) } catch (eL) {}
         if (!res) {
           const err = { kind: 'network', message: tr('err.snapshotEmpty') }
@@ -86,7 +89,7 @@
           }
           // 缓存
           if (!st.issueCache) st.issueCache = {}
-          st.issueCache[num] = { ts: Date.now(), data: issue }
+          st.issueCache[cacheKey] = { ts: Date.now(), data: issue }
           st.issueDetail = issue
           st.issueMode = 'real'
           st.issueError = null
@@ -108,14 +111,25 @@
         return { ok: false, error: err }
       })
     }
-    export const clearIssueDetailCache = function (st, n) {
-      if (n != null) { const num = Number(n); if (st.issueCache) delete st.issueCache[num] }
-      else if (st.issueCache) st.issueCache = {}
+    export const clearIssueDetailCache = function (st, n, effortId) {
+      if (n != null) {
+        const num = Number(n)
+        if (st.issueCache) {
+          // 带 effort 就精确删；不带就把该编号在所有 effort 下的缓存都删（旧调用方零改动）
+          if (effortId !== undefined && effortId !== null) delete st.issueCache[idOfParts(String(effortId), num)]
+          // 没给 effort：按缓存里那份详情自己的编号删（读数据，不反解身份串）
+          else Object.keys(st.issueCache).forEach(function (k) {
+            const ent = st.issueCache[k]
+            const dn = ent && ent.data && ent.data.number != null ? Number(ent.data.number) : null
+            if (k === String(num) || dn === num) delete st.issueCache[k]
+          })
+        }
+      } else if (st.issueCache) st.issueCache = {}
       emit(st)
     }
     // T5 #10 · 评论分页加载与节流错误态（首 50 同 fetchIssueDetail，加载更多 → fetchIssueComments(n, after) 反向分页 cursor，节流 600ms，失败重试与 3 次兜底）
     // 契约：st.issueDetail.comments.nodes 首 50，st.issueCommentsMoreLoading 布尔，st.issueCommentsFailCount 计数，st.issueCommentsHasMore 布尔（pageInfo.hasNextPage）
-    export const fetchIssueComments = function (st, n, after) {
+    export const fetchIssueComments = function (st, n, after, opts) {
       const num = Number(n)
       if (!num || isNaN(num)) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number' } })
       if (st.issueCommentsMoreLoading) return Promise.resolve({ ok: false, error: { kind: 'throttle', message: 'loading' } })
@@ -129,7 +143,8 @@
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
       const afterArg = (after != null) ? String(after) : (st.issueDetail && st.issueDetail.comments && st.issueDetail.comments.pageInfo && st.issueDetail.comments.pageInfo.endCursor) ? String(st.issueDetail.comments.pageInfo.endCursor) : String((st.issueDetail && st.issueDetail.comments && st.issueDetail.comments.nodes && st.issueDetail.comments.nodes.length) || 0)
       const cmT0 = Date.now()
-      return host.call('wf.issueComments', Object.assign({ number: num, after: afterArg }, cwdArg)).then(function (res) {
+      const cmEffort = (opts && opts.effortId !== undefined && opts.effortId !== null) ? String(opts.effortId) : ''
+      return host.call('wf.issueComments', Object.assign({ number: num, after: afterArg }, cmEffort ? { effortId: cmEffort } : {}, cwdArg)).then(function (res) {
         try { if (res && res.ok) log('info', 'host.call', { method: 'wf.issueComments', latencyMs: Date.now() - cmT0, ok: true, kind: 'comments' }); else log('warn', 'host.call.fail', { method: 'wf.issueComments', kind: 'comments', errorHash: dswsLogHash(dswsLogTrunc(String(((res && res.error && (res.error.message || res.error.kind)) || 'comments-not-ok')), 120, 'error')) }) } catch (eL) {}
         st.issueCommentsMoreLoading = false
         if (!res) {
@@ -150,7 +165,8 @@
           st.issueCommentsHasMore = !!pageInfo.hasNextPage
           st.issueCommentsFailCount = 0
           // 同步缓存（更新 ts 不重置 TTL，仅追加评论）
-          if (st.issueCache && st.issueCache[num]) { st.issueCache[num].data = st.issueDetail; st.issueCache[num].ts = Date.now() }
+          const cmCacheKey = idOfParts(cmEffort, num)
+          if (st.issueCache && st.issueCache[cmCacheKey]) { st.issueCache[cmCacheKey].data = st.issueDetail; st.issueCache[cmCacheKey].ts = Date.now() }
           emit(st)
           // 探测后续变化（v1.5 R9）
           if (typeof scheduleActionProbe === 'function') try { scheduleActionProbe() } catch (e) {}
@@ -176,7 +192,7 @@
     // 本函数只做：调透传端点 + 规范化 OpResult 错误（auth / rate-limit|rateLimit / 其他），不动 UI 状态；
     // 推进序列由视图编排 —— 成功后清空输入、fetchIssueDetail(force) 击穿详情缓存重取、probeNow 静默快照刷新，
     // 全程无乐观插入（新评论必须来自服务端重取的证据）。
-    export const submitIssueComment = function (st, n, body) {
+    export const submitIssueComment = function (st, n, body, opts) {
       const num = Number(n)
       if (!num || isNaN(num)) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number' } })
       const text = String(body == null ? '' : body)
@@ -186,7 +202,8 @@
       }
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
       const ciT0 = Date.now()
-      return host.call('wf.commentIssue', Object.assign({ number: num, body: text }, cwdArg)).then(function (res) {
+      const ciEffort = (opts && opts.effortId !== undefined && opts.effortId !== null) ? String(opts.effortId) : ''
+      return host.call('wf.commentIssue', Object.assign({ number: num, body: text }, ciEffort ? { effortId: ciEffort } : {}, cwdArg)).then(function (res) {
         try { if (res && res.ok === true) log('info', 'host.call', { method: 'wf.commentIssue', latencyMs: Date.now() - ciT0, ok: true, kind: 'comment' }); else log('warn', 'host.call.fail', { method: 'wf.commentIssue', kind: 'comment', errorHash: dswsLogHash(dswsLogTrunc(String(((res && res.error && (res.error.message || res.error.kind)) || 'comment-not-ok')), 120, 'error')) }) } catch (eL) {}
         if (!res) return { ok: false, error: { kind: 'network', message: tr('err.snapshotEmpty') } }
         if (res.ok === true) return { ok: true, comment: res.data != null ? res.data : (res.comment || null) }

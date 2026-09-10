@@ -107,7 +107,8 @@ import { STATE, ISSUE_TYPE } from './constants.js'
 /**
  * 票/图的轻量引用（不递归展开，用于 blockedBy / blocking / tickets）。
  * @typedef {Object} IssueRef
- * @property {string} key 规范 id（github=String(number)；markdown='<NN>'；gitlab=String(iid)）
+ * @property {string} key 规范 id（github=String(number)；markdown='<NN>'；gitlab=String(iid)）；
+ *    解析范围是**引用方所在 effort**（本地 Markdown 的 `Blocked by:` 只在同一 effort 里找同号票）
  * @property {string} title
  * @property {State} state 归一化两态（open/closed）
  * @property {IssueType} [type] 边上带 type（指向 map 还是票）
@@ -117,7 +118,7 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  * 票 / 图统一实体（完整形状）。
  *
  * 字段分组：
- *  - 【核心字段】永远存在，缺→`''`/`null`：key / type / title / state / body / url /
+ *  - 【核心字段】永远存在，缺→`''`/`null`：key / effortId / type / title / state / body / url /
  *    createdAt / updatedAt / closedAt / parentKey。
  *  - 【能力字段】可 MISSING：author / assignees / labels / milestone / customFields /
  *    reason / blockedBy / comments / isPullRequest / mergedAt / reviews。
@@ -130,7 +131,10 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  * ⚠️ blocking 不得作为 Issue 字段——它是 blockedBy 的反向派生（blocking 仅存在于 getDependencies 返回值与 deck 派生），违反=第二真相。
  *
  * @typedef {Object} Issue
- * @property {string} key 规范 id（仓库内唯一；全局身份 = (RepositoryRef, key)）
+ * @property {string} key 规范 id（**本 effort 内**唯一；全局身份 = (RepositoryRef, effortId, key)）
+ * @property {string} effortId 这张票属于哪个 effort（核心字段，永远存在）。本地 Markdown = `.scratch/<effort>/` 的目录名；
+ *    一个仓库只有一个隐含 effort 的后端（GitHub/GitLab）填 `''`（EMPTY，不是 MISSING）。
+ *    同一 effort 内的父子关系、阻塞引用都按本字段圈定范围，不跨 effort 解析。
  * @property {import('./constants.js').ISSUE_TYPE} type issue | map（显式标记；map 可空）
  * @property {string} title
  * @property {State} state open | closed
@@ -163,6 +167,10 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  * @property {string} refId 稳定标识（github/gitlab='owner/name'；markdown='<path>'）；后端自解析
  * @property {string} name 显示名
  * @property {string} url 远端 URL；本地=''
+ * @property {string} [effortId] 可选寻址范围：省略 = 该仓库全部 effort（列表用）；
+ *    给出 = 只针对这一个 effort 读/写（本地 Markdown 的 `.scratch/<effort>/` 目录名）。
+ *    单 effort 后端忽略本字段。放在 RepositoryRef 而不是每个 op 的参数里，是因为 op 签名已经定版、
+ *    给 comment/reopen/update 加形参会把 ctx 挤位、破坏既有后端实现。
  */
 
 /**
@@ -211,8 +219,9 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  * @property {DeckProjection} deck host 计算的 deck 投影
  */
 
-/** 契约形状版本（只给日志和审计看，不触发数据迁移；2 表示加上了拉取请求三个可选扩展字段）。 */
-export const SHAPE_VERSION = 2
+/** 契约形状版本（只给日志和审计看，不触发数据迁移；2 表示加上了拉取请求三个可选扩展字段；
+ *  3 表示加上了 effort 维度：Issue.effortId 核心字段 + RepositoryRef.effortId 可选寻址范围，身份 = (ref, effortId, key)）。 */
+export const SHAPE_VERSION = 3
 
 /** 让本文件成为真实模块（类型定义是 JSDoc，此处仅作模块存在标识）。 */
 export const TRACKER_SHAPE = Object.freeze({ version: SHAPE_VERSION, STATE, ISSUE_TYPE })

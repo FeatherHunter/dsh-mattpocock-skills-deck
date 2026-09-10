@@ -19,18 +19,18 @@
  *    界面按类型过滤是前端页签的事（#506），组装层不过滤、不隐藏任何一类。
  */
 
-import { ERROR_KIND } from '../../shared/tracker/constants.js'
+import { ERROR_KIND, effortOf, idOfParts } from '../../shared/tracker/constants.js'
 import { deriveDeck } from '../../shared/tracker/deck-derive.js'
 import { parseMapBody } from '../../shared/parser.js'
 
 /**
- * 池内身份：key 相同但是否为拉取请求不同，是两个东西（同号异类不混键）。
+ * 池内身份：先按 effort 圈定范围（effort 维度：同号票在不同 effort 里是两张票），再看是否为拉取请求。
  * 三态：true=拉取请求（后缀 \0pr）；false=确认为普通工单（后缀 \0issue）；MISSING=无该能力的后端省略该字段（保持裸 key，老快照兼容）。
  * false 与 MISSING 不再混同，各算各的；字段在但不是布尔值记 BAD（后缀 \0bad）单独隔离。混合返回不断言一致，不抛错，不吞票。
  * #504 交接约束：有拉取请求能力的后端逐票必带 isPullRequest（true/false），引用也应带该字段；老引用缺字段时按裸 key 回落找同号票。
  */
 function poolIdOf(it) {
-  const k = String((it && it.key) || '')
+  const k = idOfParts(effortOf(it), (it && it.key) || '')
   if (!it || !Object.prototype.hasOwnProperty.call(it, 'isPullRequest')) return k // MISSING
   if (it.isPullRequest === true) return k + '\0pr'
   if (it.isPullRequest === false) return k + '\0issue'
@@ -41,13 +41,15 @@ function poolIdOf(it) {
  * 同池：拉取请求与普通工单都进 tickets/issues，不分片；拷贝原样带字段（EMPTY 保持空值，MISSING 保持省略）。 */
 function assembleSnapshot(repo, all) {
   // 口径断言：组装层不判定后端能力是否一致（混合返回不断言一致），只做 pass-through；身份区分靠 poolIdOf（三态），BAD 单独隔离。
+  // effort 维度：父子分组按 (effortId, parentKey) —— 不同 effort 的地图各自只收本 effort 的票。
   const byParent = new Map()
   for (const it of all) {
     if (!it) continue
     if (it.parentKey != null) {
-      const arr = byParent.get(it.parentKey) || []
+      const pk = idOfParts(effortOf(it), it.parentKey)
+      const arr = byParent.get(pk) || []
       arr.push(it)
-      byParent.set(it.parentKey, arr)
+      byParent.set(pk, arr)
     }
   }
   const maps = all
@@ -59,7 +61,7 @@ function assembleSnapshot(repo, all) {
       // 在组装层统一解析补齐（与旧 gh 直连路径一致），无区块也给 EMPTY（'' / []），不 MISSING。
       const bp = parseMapBody(m.body)
       return Object.assign({}, m, {
-        tickets: (byParent.get(m.key) || []).map((t) => Object.assign({}, t)),
+        tickets: (byParent.get(idOfParts(effortOf(m), m.key)) || []).map((t) => Object.assign({}, t)),
         destination: bp.destination,
         notes: bp.notes,
         decisions: bp.decisions,
@@ -98,11 +100,11 @@ export function createSnapshotComposer(registry, opts = {}) {
   function issueIndexVersion(idx){ try{ const keys=Object.keys(idx||{}).sort(); const str=keys.map(function(k){return k+':'+idx[k]}).join('|'); try{ const cr=require('crypto'); if(cr&&cr.createHash) return cr.createHash('sha1').update(str).digest('hex').slice(0,12); }catch(e){} let h=0; for(let i=0;i<str.length;i++) h=((h<<5)-h+str.charCodeAt(i))|0; return (h>>>0).toString(16).padStart(8,'0'); }catch(e){ return '0'; }}
   // 拉取请求三字段进版号（与 #508 口径一致：字段省略=MISSING 记一类，有值/空值按值记；只改拉取请求字段也换版号，不 served 陈旧 304）。
   function prSigOf(x){ try{ const has=Object.prototype.hasOwnProperty; const pr=!has.call(x,'isPullRequest')?'MISSING':(x.isPullRequest===true?'pr':(x.isPullRequest===false?'issue':'BAD')); const mg=!has.call(x,'mergedAt')?'MISSING':(x.mergedAt==null?'null':String(x.mergedAt)); let rv='MISSING'; if(has.call(x,'reviews')){ rv=!Array.isArray(x.reviews)?'BAD':('n'+x.reviews.length+':'+x.reviews.map(function(r){ try{ return String((r&&r.state)||'')+'@'+String((r&&r.reviewer&&r.reviewer.login)||'')+'@'+String((r&&r.submittedAt)||''); }catch(e){ return '?'; } }).sort().join(',').slice(0,200)); } return pr+'|'+mg+'|'+rv; }catch(e){ return 'ERR'; } }
-  function snapshotVersionOf(snap){ try{ const all=[]; const lblOf=function(x){ try{ return (x.labels||[]).map(function(l){ return typeof l==='string'?l:(l.name||''); }).slice().sort().join(','); }catch(e){ return ''; } }; (snap.maps||[]).forEach(function(m){ const mapTitle=String(m.title||''); const mapLbl=lblOf(m); const mapUpd=String(m.updatedAt||''); (m.tickets||[]).forEach(function(t){ all.push(String(t.key||t.number)+':'+String(t.state||'')+':'+String(t.title||'')+':'+lblOf(t)+':'+String(t.updatedAt||'')+':'+String(t.progress||'')+':'+String(t.claimedBy||'')+':'+prSigOf(t)); }); // map 自身变化也计入版号（标题/标签/时间）
-      all.push('map:'+String(m.key||m.number)+':'+String(m.state||'')+':'+mapTitle+':'+mapLbl+':'+mapUpd); }); (snap.issues||[]).forEach(function(it){ all.push(String(it.key||it.number)+':'+String(it.state||'')+':'+String(it.title||'')+':'+lblOf(it)+':'+String(it.updatedAt||'')+':'+prSigOf(it)); }); all.sort(); const str=all.join('|'); try{ const cr=require('crypto'); if(cr&&cr.createHash) return cr.createHash('sha1').update(str).digest('hex').slice(0,12);}catch(e){} let h=0; for(let i=0;i<str.length;i++) h=((h<<5)-h+str.charCodeAt(i))|0; return (h>>>0).toString(16).padStart(8,'0'); }catch(e){ return '0'; }}
+  function snapshotVersionOf(snap){ try{ const all=[]; const lblOf=function(x){ try{ return (x.labels||[]).map(function(l){ return typeof l==='string'?l:(l.name||''); }).slice().sort().join(','); }catch(e){ return ''; } }; (snap.maps||[]).forEach(function(m){ const mapTitle=String(m.title||''); const mapLbl=lblOf(m); const mapUpd=String(m.updatedAt||''); (m.tickets||[]).forEach(function(t){ all.push(effortOf(t)+'#'+String(t.key||t.number)+':'+String(t.state||'')+':'+String(t.title||'')+':'+lblOf(t)+':'+String(t.updatedAt||'')+':'+String(t.progress||'')+':'+String(t.claimedBy||'')+':'+prSigOf(t)); }); // map 自身变化也计入版号（标题/标签/时间）
+      all.push('map:'+effortOf(m)+'#'+String(m.key||m.number)+':'+String(m.state||'')+':'+mapTitle+':'+mapLbl+':'+mapUpd); }); (snap.issues||[]).forEach(function(it){ all.push(effortOf(it)+'#'+String(it.key||it.number)+':'+String(it.state||'')+':'+String(it.title||'')+':'+lblOf(it)+':'+String(it.updatedAt||'')+':'+prSigOf(it)); }); all.sort(); const str=all.join('|'); try{ const cr=require('crypto'); if(cr&&cr.createHash) return cr.createHash('sha1').update(str).digest('hex').slice(0,12);}catch(e){} let h=0; for(let i=0;i<str.length;i++) h=((h<<5)-h+str.charCodeAt(i))|0; return (h>>>0).toString(16).padStart(8,'0'); }catch(e){ return '0'; }}
   const depsCache = new Map() // `${backendId}:${refId}#${key}` -> {data, at}
 
-  const snapKeyOf = (backendId, ref) => `${backendId}:${(ref && ref.refId) || ''}`
+  const snapKeyOf = (backendId, ref) => `${backendId}:${(ref && ref.refId) || ''}${(ref && ref.effortId !== undefined && ref.effortId !== null) ? '#' + String(ref.effortId) : ''}`
   const depKeyOf = (backendId, ref, key) => `${snapKeyOf(backendId, ref)}#${key}`
 
   const fresh = (e, ttl) => e && (Date.now() - e.at) < ttl

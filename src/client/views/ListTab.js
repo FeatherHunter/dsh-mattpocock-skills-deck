@@ -64,6 +64,14 @@ export     const ListTab = ({ st, narrow }) => {
           if (typeof window !== 'undefined') window.removeEventListener('resize', onWin)
         }
       }, [])
+      // effort 维度：仓库里有几个 effort（去重排序，来自共享小件；单 effort 后端恒 []，界面不变）
+      const effortNames = effortNamesOf(st)
+      const multiEffort = effortNames.length > 1
+      // effort 筛选（会话私有，不持久化）：没选=全部；选了=只看这些 effort 的行
+      const effPass = function (x) {
+        const sel = st.effFilters || []
+        return !sel.length || sel.indexOf(effortOf(x)) >= 0
+      }
       const issues = (st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []
       const openIssues = issues.filter(function (x) { return x.state !== 'CLOSED' })
       const closedIssues = issues.filter(function (x) { return x.state === 'CLOSED' })
@@ -80,7 +88,7 @@ export     const ListTab = ({ st, narrow }) => {
             c = String(a[st.sortKey] || '').localeCompare(String(b[st.sortKey] || ''))
             if (c !== 0) return dir * c
           }
-          return a.number - b.number  // 同键兜底：编号升序（稳定）
+          return String(a.effortId||'').localeCompare(String(b.effortId||'')) || (a.number - b.number)  // 同键兜底：先 effort 再编号升序（稳定）
         })
       }
       const isMapIssue = function (x) { return x.type === 'map' || ((x.labels || []).some(function (l) { return l.name === 'wayfinder:map' })) }
@@ -113,16 +121,8 @@ export     const ListTab = ({ st, narrow }) => {
         return String(a).localeCompare(String(b))
       })
       // v15-26：主列表关联 map 子票阻塞信息（open 阻塞者才算阻塞；数据来自快照 maps.tickets.blockedBy，无需额外请求）
-      const blockOf = {}
-      ;(st.snapshot && st.snapshot.maps || []).forEach(function (m) {
-        const byNum = {}
-        m.tickets.forEach(function (t) { byNum[t.number] = t })
-        m.tickets.forEach(function (t) {
-          if (!t.blockedBy || !t.blockedBy.length) return
-          const openBlockers = t.blockedBy.filter(function (b) { const bt = byNum[b]; return bt && bt.state === 'OPEN' })
-          if (openBlockers.length) blockOf[t.number] = { map: m.number, mapTitle: m.title, by: openBlockers }
-        })
-      })
+      // effort 维度：阻断表由共享函数产出（按票身份 (effort, 编号) 键入、阻塞引用只在同 effort 内解析）
+      const blockOf = mapBlockOf(st.snapshot)
       // #544 独立票阻塞边：快照 issues 自带 blockedBy（列表查询片段已复用，零请求），
       // 只挂自己身上（已是地图子票的行跳过，不碰地图层级与计数），逻辑见 store-derived.applyStandaloneBlocks。
       // 此处不包 try：函数缺失说明构建拼接坏了，必须 loud；单票坏数据由函数内逐票兜底，不崩整表。
@@ -139,13 +139,14 @@ export     const ListTab = ({ st, narrow }) => {
         if (!labs.length) return ls.indexOf('needs-triage') >= 0
         return labs.some(function (l) { return ls.indexOf(l.name) >= 0 })
       }
-      const openRows = sortedMaps.concat(sortedOpen)
+      const openRows = sortedMaps.concat(sortedOpen).filter(effPass)
+      const closedRows = closedSorted.filter(effPass)
       const openFiltered = (st.lblFilters && st.lblFilters.length) ? openRows.filter(byLabel) : openRows
       // v1.3.3 #6：阻塞 = 被占用口径（isOccupied：有 assignee 或存在 open 阻塞者）——与 KPI「占用 N」一致，
       //   用户点「阻塞」应筛出全部被占用项（此前 blockOf 只覆盖 map 子票的 blockedBy，漏掉 assignee 占用的）
       const filteredOpen = showOpen ? (st.stateFilter === 'blocked' ? openFiltered.filter(function (x) { return isOccupied(st, x) })
         : (st.stateFilter === 'frontier' ? openFiltered.filter(function (x) { return !isOccupied(st, x) }) : openFiltered)) : []
-      const filteredClosed = showClosedList ? ((st.lblFilters && st.lblFilters.length) ? closedSorted.filter(byLabel) : closedSorted) : []
+      const filteredClosed = showClosedList ? ((st.lblFilters && st.lblFilters.length) ? closedRows.filter(byLabel) : closedRows) : []
       // v14-18：chips 常显深一档边框（边框色 = label 色 HSL 亮度 -16%）
       const chip = (nm, withCount, on, isAll) => {
         const c = colorOf[nm]
@@ -176,6 +177,11 @@ export     const ListTab = ({ st, narrow }) => {
           },
         }, nm)
       }
+      // KPI 口径：与全局一致，但跟随 effort 筛选（未选 effort 时就是全局）
+      const kpiOpenScoped = openIssuesOf(st).filter(effPass)
+      const kpiOcc = kpiOpenScoped.filter(function (x) { return isOccupied(st, x) }).length
+      const kpiFrontier = kpiOpenScoped.length - kpiOcc
+      const kpiClosed = closedIssues.filter(effPass).length
       const kpi = (num, lab, icon, color) => h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, [Ic({ n: icon, size: 11, color: color }), h('span', null, String(num) + ' ' + lab)])
       return h('div', null, [
         // v1.5：已选标签过滤条（仅标签 · 颜色 = 该标签配置色 · 点 ✕ 关闭）
@@ -195,13 +201,26 @@ export     const ListTab = ({ st, narrow }) => {
         //   远端未关联/环境未就绪由检查页行内红卡表达，列表页保持 KPI + 列表（无顶部错误信息）
         // KPI 行 + 环境提示（v18-30：可接/占用 = 列表 open issue 口径）
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
-          kpi(frontierCount(st), tr('list.kpi.takeable'), 'target', '#4ade80'),
-          kpi(occCount(st), tr('list.kpi.occupied'), 'lock', '#f0883e'),
-          kpi(closedIssues.length, tr('list.kpi.closed'), 'check', '#52525b'),
+          kpi(kpiFrontier, tr('list.kpi.takeable'), 'target', '#4ade80'),
+          kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f0883e'),
+          kpi(kpiClosed, tr('list.kpi.closed'), 'check', '#52525b'),
           h('span', { style: { flex: 1 } }),
           // T2 #2：刷新按钮已上移至 OverlayPanel tabs 行（L1932）
         ]),
         // B Timeline 定版（2026-08-28）：「N 项环境未就绪」红条已移除（顶部无错误信息；状态由检查页行级表达）
+        // effort 筛选行（仅多 effort 仓库出现）：点一下只看某个 effort，再点取消；与状态/label 过滤叠加
+        multiEffort ? h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 6 } }, [
+          h('span', { key: 'eff-all', className: 'dsws-chip', onClick: function (e) { e.stopPropagation(); st.effFilters = []; emit(st) }, style: { cursor: 'pointer', fontSize: 10, background: !(st.effFilters || []).length ? 'rgba(88,166,255,.18)' : 'rgba(255,255,255,.06)', color: !(st.effFilters || []).length ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (!(st.effFilters || []).length ? 'rgba(88,166,255,.6)' : 'rgba(255,255,255,.15)') } }, tr('list.all')),
+          effortNames.map(function (nm) {
+            const on = (st.effFilters || []).indexOf(nm) >= 0
+            return h('span', { key: 'eff-' + nm, className: 'dsws-chip', title: nm, onClick: function (e) {
+              e.stopPropagation()
+              const cur = st.effFilters || []
+              st.effFilters = on ? cur.filter(function (x) { return x !== nm }) : cur.concat([nm])
+              emit(st)
+            }, style: { cursor: 'pointer', fontSize: 10, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: on ? 'rgba(88,166,255,.18)' : 'rgba(255,255,255,.06)', color: on ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? 'rgba(88,166,255,.6)' : 'rgba(255,255,255,.15)') } }, nm)
+          }),
+        ]) : null,
         // #374/#375：状态过滤 + 排序 + label 过滤 chips（全部小号紧凑同排，窄屏换行不增高；展开态点选 label 不收起）
         h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0, marginBottom: 6 } }, [
           ['all', 'open', 'closed', 'blocked', 'frontier'].map(function (k) {
@@ -238,15 +257,15 @@ export     const ListTab = ({ st, narrow }) => {
         (st.snapMode === 'err' && !st.snapshot && !getCachedSnapshot(st.cwd)) ? h('div', { style: { color: '#f87171', fontSize: 12, padding: '14px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 12 }), h('span', null, tr('list.errFull', { err: st.snapError }))]) : null,
         st.snapMode === 'real' && st.snapshot && st.snapshot.fallback === 'rest' ? h('div', { style: { color: '#f59e0b', fontSize: 11, padding: '6px 12px', border: '1px solid rgba(245,158,11,.4)', borderRadius: 6, background: 'rgba(245,158,11,.08)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 11 }), h('span', null, tr('list.restFallback'))]) : null,
         // #374：状态过滤渲染 —— open 主体 / closed 列表 / 「全部」态保留已关闭折叠行
-        showOpen ? (filteredOpen.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredOpen.map(function (x) { return listIssueRow(h, st, x, true, narrow, blockOf, colorOf) })) : null,
-        showClosedList ? (filteredClosed.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredClosed.map(function (x) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf) })) : null,
+        showOpen ? (filteredOpen.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredOpen.map(function (x) { return listIssueRow(h, st, x, true, narrow, blockOf, colorOf, multiEffort) })) : null,
+        showClosedList ? (filteredClosed.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredClosed.map(function (x) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf, multiEffort) })) : null,
         // v14-4⑤：列表底部「已关闭 (N)」折叠行（仅「全部」状态显示；默认收起，只占一行，展开可见）
-        (st.stateFilter === 'all' && closedIssues.length) ? h('details', { style: { marginTop: 8 } }, [
+        (st.stateFilter === 'all' && closedRows.length) ? h('details', { style: { marginTop: 8 } }, [
           h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 2px', userSelect: 'none' } }, [
             Ic({ n: 'check', size: 11 }),
-            h('span', null, tr('list.closedN', { n: closedIssues.length })),
+            h('span', null, tr('list.closedN', { n: closedRows.length })),
           ]),
-          h('div', null, closedSorted.map(function (x) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf) })),
+          h('div', null, closedRows.map(function (x) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf, multiEffort) })),
         ]) : null,
       ])
     }

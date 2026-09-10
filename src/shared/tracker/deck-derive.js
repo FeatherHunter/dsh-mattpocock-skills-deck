@@ -10,10 +10,10 @@
  *  - 环（自环/成环）用 visited 守卫：返回 0 / 跳过该边（保证终止）。
  *  - display 直接用 `key`（`#${key}`），无 getDisplayNumber / 无 number。
  *
- * 输入：整个 Snapshot 的 {maps, issues}；deck 以整个 Snapshot 为单位（全局 key 空间；labels 全量并集）。
+ * 输入：整个 Snapshot 的 {maps, issues}；deck 以整个 Snapshot 为单位（**按 (effortId, key) 唯一化**；labels 全量并集）。
  */
 
-import { STATE } from './constants.js'
+import { STATE, effortOf, idOfParts } from './constants.js'
 
 const OPEN = STATE.OPEN
 const CLOSED = STATE.CLOSED
@@ -56,29 +56,36 @@ function claimedOf(ticket) {
  * @param {Map<string, Object[]>} byBase 裸 key → 同号全部票（老引用回落）
  * @returns {boolean}
  */
+/**
+ * 池内身份：**先按 effort 圈定范围**（effort 维度：同号票在不同 effort 里是两张票），再按是否拉取请求区分。
+ * 单 effort 后端 effortId 为 ''，退化成老口径（裸 key + 拉取请求后缀）。
+ */
 function poolIdOfTicket(it) {
-  const k = String((it && it.key) || '')
+  const k = idOfParts(effortOf(it), (it && it.key) || '')
   if (!hasOwn(it || {}, 'isPullRequest')) return k // MISSING=无能力后端省略，保持裸键（老快照兼容）
   if (it.isPullRequest === true) return k + '\0pr'
   if (it.isPullRequest === false) return k + '\0issue' // false 与 MISSING 不再混同，各算各的
   return k + '\0bad' // BAD=字段在但不是布尔值，单独隔离，不吞不混（混合返回不断言一致）
 }
 
-/** 同号候选：引用自带身份则精确找；老引用无该字段则按裸键找全部同号票（#504 交接：逐票必带 isPullRequest，新引用应带该字段）。 */
-function candidatesOf(ref, byPool, byBase) {
+/** 同号候选：引用只在**引用方所属 effort**内解析；引用自带拉取请求身份则精确找，老引用按裸键找同号票。 */
+function candidatesOf(ref, byPool, byBase, effort) {
+  const base = idOfParts(effort, (ref && ref.key) || '')
   if (ref && hasOwn(ref, 'isPullRequest')) {
-    const exact = byPool.get(poolIdOfTicket(ref))
+    const pid = ref.isPullRequest === true ? base + '\0pr' : (ref.isPullRequest === false ? base + '\0issue' : base + '\0bad')
+    const exact = byPool.get(pid)
     return exact ? [exact] : []
   }
-  const arr = ref && byBase.get(String((ref && ref.key) || ''))
+  const arr = byBase.get(base)
   return arr || []
 }
 
 function hasOpenBlocker(ticket, byPool, byBase) {
   const refs = ticket.blockedBy
   if (!Array.isArray(refs) || refs.length === 0) return false
+  const effort = effortOf(ticket)
   return refs.some((ref) => {
-    const cands = candidatesOf(ref, byPool, byBase)
+    const cands = candidatesOf(ref, byPool, byBase, effort)
     if (!cands.length) return true // NOT-FOUND → blocked（安全）
     return cands.some((c) => c.state === OPEN)
   })
@@ -100,10 +107,11 @@ function levelOf(ticket, byPool, byBase, memo, stack) {
   if (stack.has(k)) return 0 // 环：返回 0 / 跳过该边
   stack.add(k)
   let maxL = -1
+  const effort = effortOf(ticket)
   const refs = ticket.blockedBy
   if (Array.isArray(refs)) {
     for (const ref of refs) {
-      const cands = candidatesOf(ref, byPool, byBase)
+      const cands = candidatesOf(ref, byPool, byBase, effort)
       let l = 0 // NOT-FOUND → 0（占层级）
       for (const target of cands) {
         const cl = levelOf(target, byPool, byBase, memo, stack)
@@ -137,15 +145,16 @@ export function deriveDeck(input = {}) {
   // 但其池内身份参与 lookup（跨 map 依赖可解析）。progressOf/labels/blockedByKeys/levelOf 覆盖全部（含 map 节点）。
   // 口径（#505 小修）：false（确认为普通工单）与 MISSING（无能力后端省略）不再混同；BAD（非布尔）单独隔离；混合返回不断言一致。
   const byPool = new Map()
-  const byBase = new Map() // 裸 key → 同号全部票（老引用无身份字段时的回落查找）
+  const byBase = new Map() // (effort, 裸 key) → 同号全部票（老引用无身份字段时的回落查找，只在同一 effort 内）
   const add = (t) => {
     if (!t || typeof t.key !== 'string') return
     const pid = poolIdOfTicket(t)
     if (!byPool.has(pid)) {
       byPool.set(pid, t)
-      const arr = byBase.get(t.key) || []
+      const baseKey = idOfParts(effortOf(t), t.key)
+      const arr = byBase.get(baseKey) || []
       arr.push(t)
-      byBase.set(t.key, arr)
+      byBase.set(baseKey, arr)
     }
   }
   for (const m of maps) { add(m); for (const t of (m.tickets || [])) add(t) }

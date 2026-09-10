@@ -1,6 +1,7 @@
 // src/host/commentThreads.js —— 单票详情与评论读写及增量探针（H5 #449 从 host/index.js 389–670 搬出电话体，纯结构、行为零变化）。
 // 以后谁改它：改单票详情字段、评论分页读写或增量探针的人。预估约300行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；normCwd 与单票分发前奏经 index 转供给复用（H4 同例），不各留一份拷贝；本文件不引用其他新文件。
+import { idOfParts } from '../shared/tracker/constants.js'
 export function createCommentThreads(deps) {
   const { normCwd, canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, logCtx } = deps
   // T5 #10 · 评论分页（反向分页 cursor，节流由 client 侧 600ms 控制；单页 50，失败重试与 3 次兜底）
@@ -79,6 +80,8 @@ export function createCommentThreads(deps) {
         let repoRef = null
         try { repoRef = reg.describe({ cwd }, backendId) } catch {}
         if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+        // effort 维度：effort 是寻址范围，客户端带上来就放进 ref（不带 = 全仓库，单 effort 后端行为不变）
+        if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
         const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
         const key = String(n).padStart(2, '0')
         const r = await tracker.get(repoRef, key, {}, opCtx)
@@ -95,6 +98,7 @@ export function createCommentThreads(deps) {
         // 详情需要包含 comments / blockedBy 等，markdown 的 get 已包含
         return { ok: true, issue: {
           number: iss.number != null ? iss.number : (iss.key ? parseInt(iss.key,10) : n),
+          effortId: iss.effortId !== undefined && iss.effortId !== null ? String(iss.effortId) : '',
           title: iss.title || '',
           state: iss.state === 'closed' ? 'CLOSED' : 'OPEN',
           body: iss.body || '',
@@ -134,6 +138,8 @@ export function createCommentThreads(deps) {
         let repoRef = null
         try { repoRef = reg.describe({ cwd }, backendId) } catch {}
         if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
+        // effort 维度：评论也按 effort 寻址（不带 = 全仓库；多 effort 同号时后端会诚实报 conflict）
+        if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
         const opCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
         const key = String(n).padStart(2, '0')
         const r = await tracker.get(repoRef, key, {}, opCtx)
@@ -179,6 +185,8 @@ export function createCommentThreads(deps) {
         } catch (eRk) {}
       }
       if (!repoRef || !repoRef.refId) return { ok: false, error: { kind: 'not-found', message: '无法解析目标仓库（refId missing）' } }
+      // effort 维度：effort 是寻址范围；客户端从行数据带上来，放进 ref（不带 = 全仓库）
+      if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
       const tracker = reg.get(sel.backendId)
       if (!tracker || typeof tracker.comment !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + sel.backendId + "' 未实现 comment" } }
       const r = await tracker.comment(repoRef, String(Number(n)), String(body), opCtx)
@@ -214,7 +222,8 @@ export function createCommentThreads(deps) {
           const all = Array.isArray(r.data) ? r.data : []
           // 轻量索引：key -> state
           const idx = {}
-          all.forEach(function(it){ const k = it && (it.key != null ? String(it.key).padStart(2,'0') : (it.number != null ? String(it.number).padStart(2,'0') : '')); if(k) idx[k] = String(it.state||'OPEN').toUpperCase() })
+          // effort 维度：探针索引按 (effort, 编号) 键入，否则两个 effort 的同号票会互相覆盖、第二个 effort 的变更探测不到
+          all.forEach(function(it){ const k = it && (it.key != null ? idOfParts(it.effortId, String(it.key).padStart(2,'0')) : (it.number != null ? idOfParts(it.effortId, String(it.number).padStart(2,'0')) : '')); if(k) idx[k] = String(it.state||'OPEN').toUpperCase() })
           const rk1 = _selProbe.backendId + ':' + cwd
           const known = lastIssueIndexByRepo[rk1] || {}
           const changed = issueIndexChanged(known, idx)

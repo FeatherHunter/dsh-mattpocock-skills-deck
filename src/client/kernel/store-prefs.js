@@ -49,10 +49,13 @@
       return st.noRepoCard
     }
     // T1 #6 · IssueDetail 状态机（与 activeMap 互斥，in-panel 详情页 · v1.7.0）
-    // #552 导航栈：navStack 是真源，只存坐标 { kind: 'map' | 'issue', n: 数字编号 }，不存详情正文
+    // #552 导航栈：navStack 是真源，只存坐标 { kind: 'map' | 'issue', n: 数字编号, effortId: effort 标识 }，不存详情正文
     // （地图正文走面板快照派生，工单正文走 60 秒详情缓存加 TEFNGY 降级，栈只做坐标）。
-    // activeMap 与 activeIssue 过渡期保留为栈顶镜像（读方逐个改到读栈顶之前，停靠栏/悬浮面板/技能页签照旧可用）。
+    // effort 维度：本地 Markdown 一个仓库多个 effort，编号会重复，所以坐标必须带上 effortId（单 effort 后端恒为 ''）。
+    // activeMap 与 activeIssue 过渡期保留为栈顶镜像（读方逐个改到读栈顶之前，停靠栏/悬浮面板/技能页签照旧可用），
+    // activeEffortId 是同一个栈顶的 effort 镜像。
     // 只读栈本身（同步镜像用，不带镜像兜底，否则弹空栈时会把旧镜像写回去）
+    export const navEffortOf = function (t) { return (t && t.effortId !== undefined && t.effortId !== null) ? String(t.effortId) : '' }
     export const peekStackNav = function (st) {
       try {
         const s = st && st.navStack
@@ -68,27 +71,29 @@
       if (t) return t
       // 没有栈的旧状态：从镜像回推栈顶，保证读方不崩
       try {
-        if (st && st.activeMap !== null && st.activeMap !== undefined) { const v = Number(st.activeMap); if (!isNaN(v)) return { kind: 'map', n: v } }
-        if (st && st.activeIssue !== null && st.activeIssue !== undefined) { const v2 = Number(st.activeIssue); if (!isNaN(v2)) return { kind: 'issue', n: v2 } }
+        const eff = (st && st.activeEffortId !== undefined && st.activeEffortId !== null) ? String(st.activeEffortId) : ''
+        if (st && st.activeMap !== null && st.activeMap !== undefined) { const v = Number(st.activeMap); if (!isNaN(v)) return { kind: 'map', n: v, effortId: eff } }
+        if (st && st.activeIssue !== null && st.activeIssue !== undefined) { const v2 = Number(st.activeIssue); if (!isNaN(v2)) return { kind: 'issue', n: v2, effortId: eff } }
       } catch (e2) {}
       return null
     }
     export const syncNavMirror = function (st) {
       const t = peekStackNav(st)
-      if (t && t.kind === 'map') { st.activeMap = t.n; st.activeIssue = null }
-      else if (t && t.kind === 'issue') { st.activeIssue = t.n; st.activeMap = null }
-      else { st.activeMap = null; st.activeIssue = null }
+      if (t && t.kind === 'map') { st.activeMap = t.n; st.activeIssue = null; st.activeEffortId = navEffortOf(t) }
+      else if (t && t.kind === 'issue') { st.activeIssue = t.n; st.activeMap = null; st.activeEffortId = navEffortOf(t) }
+      else { st.activeMap = null; st.activeIssue = null; st.activeEffortId = '' }
       return t
     }
-    export const pushNav = function (st, kind, n) {
+    export const pushNav = function (st, kind, n, effortId) {
       if (!st) return null
       if (!Array.isArray(st.navStack)) st.navStack = []
       seedNavFromMirror(st)
       const v = (n == null) ? null : Number(n)
       if ((kind !== 'map' && kind !== 'issue') || v == null || isNaN(v)) return peekNav(st)
+      const eff = (effortId === undefined || effortId === null) ? '' : String(effortId)
       const top = peekNav(st)
-      // 同一详情重复进入不重复压栈（防双击把两个一样的压进栈）
-      if (!top || top.kind !== kind || top.n !== v) st.navStack.push({ kind: kind, n: v })
+      // 同一详情重复进入不重复压栈（防双击把两个一样的压进栈）；同号不同 effort 是两条坐标，照压
+      if (!top || top.kind !== kind || top.n !== v || navEffortOf(top) !== eff) st.navStack.push({ kind: kind, n: v, effortId: eff })
       syncNavMirror(st)
       emit(st)
       return peekNav(st)
@@ -97,7 +102,7 @@
     export const seedNavFromMirror = function (st) {
       if (!st || !Array.isArray(st.navStack) || st.navStack.length) return
       const t = peekNav(st)
-      if (t) st.navStack.push({ kind: t.kind, n: t.n })
+      if (t) st.navStack.push({ kind: t.kind, n: t.n, effortId: navEffortOf(t) })
     }
     // 返回弹栈：只改栈与镜像，不碰滚动、展开、缓存与快照，所以上一级原样保留、不强制重刷
     export const popNav = function (st) {
@@ -112,24 +117,24 @@
     export const clearNavStack = function (st) {
       if (!st) return
       st.navStack = []
-      st.activeMap = null; st.activeIssue = null
+      st.activeMap = null; st.activeIssue = null; st.activeEffortId = ''
       emit(st)
     }
     // 旧入口收敛为调新函数（T3/T4 再把调用方逐个改成直接压栈/弹栈）：
     // 进入详情一律压栈——从列表进时栈是空的，压栈与旧的直接赋值效果一样；
     // 从详情里再进下一级则保留返回路径，不再丢掉上一级。
-    export const setActiveMap = function (st, n) {
+    export const setActiveMap = function (st, n, effortId) {
       if (n == null) { clearActiveMap(st); return }
-      pushNav(st, 'map', n)
+      pushNav(st, 'map', n, effortId)
     }
     export const clearActiveMap = function (st) {
       const t = peekNav(st)
       if (t && t.kind === 'map') popNav(st)
       else { syncNavMirror(st); emit(st) }
     }
-    export const setActiveIssue = function (st, n) {
+    export const setActiveIssue = function (st, n, effortId) {
       if (n == null) { clearActiveIssue(st); return }
-      pushNav(st, 'issue', n)
+      pushNav(st, 'issue', n, effortId)
     }
     export const clearActiveIssue = function (st) {
       const t = peekNav(st)
@@ -189,4 +194,4 @@
     export const getCachedSelection = function (cwd) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); return cwd ? (selectionByCwd[k] || null) : null } catch(e){ return cwd ? (selectionByCwd[cwd] || null) : null } }
     export const setCachedSelection = function (cwd, sel) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); if (cwd && k) { selectionByCwd[k] = sel; persistSelectionByCwd() } } catch(e){ if (cwd) { selectionByCwd[cwd] = sel; persistSelectionByCwd() } } }
     export const getCachedRepository = function (cwd) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); return cwd ? repositoryByCwd[k] : null } catch(e){ return cwd ? repositoryByCwd[cwd] : null } }
-    export const setCachedRepository = function (cwd, repo) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); if (cwd && k) repositoryByCwd[k] = repo } catch(e){ if (cwd) repositoryByCwd[cwd] = repo } }
+    export const setCachedRepository = function (cwd, repo) { try { const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'')); if (cwd && k) repositoryByCwd[k] = repo } catch(e){ if (cwd) repositoryByCwd[cwd] = repo } }

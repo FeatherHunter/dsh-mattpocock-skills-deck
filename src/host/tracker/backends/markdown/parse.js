@@ -111,11 +111,14 @@ export function parseMd(text, meta) {
   const key = String((meta && meta.key) || '00')
   const type = meta && meta.isMap ? ISSUE_TYPE.MAP : ISSUE_TYPE.ISSUE
   const parentKey = meta && meta.parentKey !== undefined ? meta.parentKey : null
+  // effort 维度：effort 是核心字段（永远存在）；扁平布局 / 单 effort 后端填 ''（EMPTY）
+  const effortId = String((meta && meta.effortId) || '')
   const createdAt = (meta && typeof meta.createdAt === 'string' ? meta.createdAt : '') || ''
   const updatedAt = (meta && typeof meta.updatedAt === 'string' ? meta.updatedAt : '') || ''
   const closedAt = state === STATE.CLOSED ? (updatedAt || createdAt || '') : null
   const issue = {
     key,
+    effortId,
     type,
     title,
     state,

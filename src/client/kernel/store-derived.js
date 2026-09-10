@@ -6,12 +6,64 @@
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
+    // ---- effort 维度共用小件（面板多处要按身份找地图/分组/取 effort 名单，只此一份实现）----
+    /** 按票身份 (effort, 编号) 在 maps 数组里找地图；老快照没有 effortId 时回落按编号/键匹配。 */
+    export const findMapByIdentity = function (maps, num, effortId) {
+      try {
+        const list = Array.isArray(maps) ? maps : []
+        const k = num != null ? String(num).padStart(2, '0') : ''
+        const wantId = idOfParts(effortId === undefined || effortId === null ? '' : String(effortId), k)
+        const exact = list.find(function (m) { return m && idOf(m) === wantId })
+        if (exact) return exact
+        return list.find(function (m) { return m && (m.number === num || String(m.number) === String(num) || (m.key != null && String(m.key).padStart(2, '0') === k)) }) || null
+      } catch (e) { return null }
+    }
+    /** 同上，但输入是 compute() 的分组数组（分组元素形如 { m: 地图 }）。 */
+    export const findGroupByIdentity = function (groups, num, effortId) {
+      try {
+        const list = Array.isArray(groups) ? groups : []
+        const hit = findMapByIdentity(list.map(function (g) { return g && g.m }), num, effortId)
+        if (!hit) return null
+        return list.find(function (g) { return g && g.m === hit }) || null
+      } catch (e) { return null }
+    }
+    /** 当前快照里有几个 effort（去重排序）；单 effort 后端恒为 []，界面据此决定要不要标 effort。 */
+    export const effortNamesOf = function (st) {
+      try {
+        const set = {}
+        const put = function (x) { const e = effortOf(x); if (e) set[e] = true }
+        const snap = (st && st.snapshot) || {}
+        ;(Array.isArray(snap.maps) ? snap.maps : []).forEach(function (m) { put(m); (m && m.tickets || []).forEach(put) })
+        ;(Array.isArray(snap.issues) ? snap.issues : []).forEach(put)
+        return Object.keys(set).sort()
+      } catch (e) { return [] }
+    }
+    /** 地图子票的阻断表（open 阻塞者才算阻塞）：按票身份 (effort, 编号) 键入，并记下所属地图的 effort 供跳转用。 */
+    export const mapBlockOf = function (snapshot) {
+      const blockOf = {}
+      try {
+        const maps = (snapshot && Array.isArray(snapshot.maps)) ? snapshot.maps : []
+        maps.forEach(function (m) {
+          const tickets = (m && Array.isArray(m.tickets)) ? m.tickets : []
+          const byId = {}
+          tickets.forEach(function (t) { byId[idOf(t)] = t })
+          tickets.forEach(function (t) {
+            if (!t || !Array.isArray(t.blockedBy) || !t.blockedBy.length) return
+            const openBlockers = t.blockedBy.filter(function (b) { const bt = byId[idOfParts(effortOf(t), b)]; return bt && bt.state === 'OPEN' })
+            if (openBlockers.length) blockOf[idOf(t)] = { map: m.number, mapEffort: effortOf(m), mapTitle: m.title, by: openBlockers }
+          })
+        })
+      } catch (e) { /* 坏数据不崩整表 */ }
+      return blockOf
+    }
+
     // 派生：票务分组（frontier/claimed/blocked/closed）
     export const compute = (st) => {
       const maps = (st.snapshot && Array.isArray(st.snapshot.maps)) ? st.snapshot.maps : []
       return maps.map(function (m) {
-        const byNum = {}; m.tickets.forEach(function (t) { byNum[t.number] = t })
-        const openBlocker = (b) => { const t = byNum[b]; return t !== undefined && t.state === 'OPEN' }
+        // effort 维度：地图内的票按身份 (effort, 编号) 索引；阻塞引用只在同一 effort 内解析
+        const byId = {}; m.tickets.forEach(function (t) { byId[idOf(t)] = t })
+        const openBlocker = (b) => { const t = byId[idOfParts(effortOf(m), b)]; return t !== undefined && t.state === 'OPEN' }
         const open = m.tickets.filter(function (t) { return t.state === 'OPEN' })
         const closed = m.tickets.filter(function (t) { return t.state === 'CLOSED' })
         const frontier = open.filter(function (t) { return !t.claimedBy && !t.blockedBy.some(openBlocker) })
@@ -43,8 +95,9 @@
       const snap = (st && st.snapshot) || {}
       const issues = Array.isArray(snap.issues) ? snap.issues : []
       const maps = Array.isArray(snap.maps) ? snap.maps : []
-      issues.forEach(function (it) { if (!it) return; put(it.number, it.state); if (it.key !== undefined && it.key !== null) put(it.key, it.state) })
-      maps.forEach(function (m) { (m.tickets || []).forEach(function (t) { if (!t) return; put(t.number, t.state); if (t.key !== undefined && t.key !== null) put(t.key, t.state) }) })
+      // effort 维度：状态表按身份 (effort, 编号) 键入；同一 effort 内才允许互相解析
+      issues.forEach(function (it) { if (!it) return; put(idOf(it), it.state); if (it.key !== undefined && it.key !== null) put(idOfParts(effortOf(it), it.key), it.state) })
+      maps.forEach(function (m) { (m.tickets || []).forEach(function (t) { if (!t) return; put(idOf(t), t.state); if (t.key !== undefined && t.key !== null) put(idOfParts(effortOf(t), t.key), t.state) }) })
       return stateOf
     }
     // #544 独立票阻塞边判定：一条阻塞边算数，当且仅当按 live 状态表查到阻塞者为 open；
@@ -68,13 +121,13 @@
       for (let mi = 0; mi < maps.length; mi++) {
         const m = maps[mi]
         if (!m.tickets || !m.tickets.length) continue
-        const byNum = {}
-        m.tickets.forEach(function (t) { byNum[t.number] = t })
-        const t = byNum[x.number]
+        const byId = {}
+        m.tickets.forEach(function (t) { byId[idOf(t)] = t })
+        const t = byId[idOf(x)]
         if (t) {
           inMap = true
           if (t.blockedBy && t.blockedBy.length) {
-            const openBlockers = t.blockedBy.filter(function (b) { const bt = byNum[b]; return bt && bt.state === 'OPEN' })
+            const openBlockers = t.blockedBy.filter(function (b) { const bt = byId[idOfParts(effortOf(t), b)]; return bt && bt.state === 'OPEN' })
             if (openBlockers.length) return true
           }
         }
@@ -100,8 +153,8 @@
       maps.forEach(function (m) {
         (m.tickets || []).forEach(function (t) {
           if (!t) return
-          if (t.number !== undefined && t.number !== null) inMap[String(t.number)] = true
-          if (t.key !== undefined && t.key !== null) inMap[String(t.key)] = true
+          inMap[idOf(t)] = true
+          if (t.key !== undefined && t.key !== null) inMap[idOfParts(effortOf(t), t.key)] = true
         })
       })
       const stateOf = standaloneStateMapOf(st)
@@ -109,16 +162,17 @@
       issues.forEach(function (x) {
         try {
           if (!x || x.state === 'CLOSED' || isMapRow(x)) return
-          const id = (x.number !== undefined && x.number !== null) ? x.number : ((x.key !== undefined && x.key !== null) ? x.key : null)
-          if (id === null || id === undefined || blockOf[id] !== undefined) return
-          if (inMap[String(id)] || (x.key !== undefined && x.key !== null && inMap[String(x.key)])) return
+          const id = idOf(x)
+          if (!id || blockOf[id] !== undefined) return
+          if (inMap[id]) return
           const arr = Array.isArray(x.blockedBy) ? x.blockedBy : []
           if (!arr.length) return
           const openBlockers = []
           arr.forEach(function (b) {
             const k = standaloneKeyOfRef(b)
             if (!k) return
-            const live = stateOf[k]
+            // effort 维度：阻塞引用只在同一 effort 内解析（同号票在别的 effort 里不算数）
+            const live = stateOf[idOfParts(effortOf(x), k)]
             if (live === 'OPEN') { openBlockers.push(k); return }
             if ((live === undefined || live === '') && b && typeof b === 'object' && String(b.state || '').toUpperCase() === 'OPEN') openBlockers.push(k)
           })
@@ -252,7 +306,7 @@
           if (!x || x.isPullRequest !== true) return
           var k = (x.key != null ? String(x.key) : (x.number != null ? String(x.number) : ''))
           if (!k) return
-          var pid = k + '\0pr'
+          var pid = idOfParts(x.effortId, k) + '\0pr'
           if (seen[pid]) return
           seen[pid] = true
           out.push(x)

@@ -9,27 +9,16 @@ const path = require('path')
 async function loadDerived() {
   const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'kernel', 'store-derived.js'), 'utf8')
   const tmp = path.join(__dirname, 'tmp-544-verify-derived.mjs')
-  fs.writeFileSync(tmp, src, 'utf8')
+  // effort 维度：store-derived 在面板闭包里用共享的身份函数（idOf / idOfParts / effortOf），
+  // 单独取出求值时要把同一份原文显式导入，否则 ReferenceError（跑的是真函数，不改行为）。
+  const constantsHref = require('url').pathToFileURL(path.join(__dirname, '..', 'src', 'shared', 'tracker', 'constants.js')).href
+  const identityImport = "import { idOf, idOfParts, effortOf } from " + JSON.stringify(constantsHref) + "\n"
+  fs.writeFileSync(tmp, identityImport + src, 'utf8')
   try {
     return await import('file:///' + tmp.replace(/\\/g, '/'))
   } finally {
     try { fs.unlinkSync(tmp) } catch {}
   }
-}
-
-function buildMapBlockOf(snapshot) {
-  // 与 ListTab 修前 map 部分同构：只看同地图内子票
-  const blockOf = {}
-  ;(snapshot && snapshot.maps || []).forEach(function (m) {
-    const byNum = {}
-    m.tickets.forEach(function (t) { byNum[t.number] = t })
-    m.tickets.forEach(function (t) {
-      if (!t.blockedBy || !t.blockedBy.length) return
-      const openBlockers = t.blockedBy.filter(function (b) { const bt = byNum[b]; return bt && bt.state === 'OPEN' })
-      if (openBlockers.length) blockOf[t.number] = { map: m.number, mapTitle: m.title, by: openBlockers }
-    })
-  })
-  return blockOf
 }
 
 async function main() {
@@ -51,7 +40,7 @@ async function main() {
       ],
     },
   }
-  const blockOf = derived.applyStandaloneBlocks(st, buildMapBlockOf(st.snapshot))
+  const blockOf = derived.applyStandaloneBlocks(st, derived.mapBlockOf(st.snapshot))
   assert.deepStrictEqual(Object.keys(blockOf).map(Number).sort((a, b) => a - b), [541, 542, 543], '541/542/543 进入 blockOf')
   ok('独立票阻塞徽章数据齐备（541/542/543）')
   assert.strictEqual(blockOf[541].map, null, '独立票徽章不挂地图（map 为空）')
@@ -78,27 +67,27 @@ async function main() {
     maps: [{
       number: 100, title: '测试地图',
       tickets: [
-        { number: 1, state: 'OPEN', claimedBy: '', blockedBy: [] },
-        { number: 2, state: 'OPEN', claimedBy: '', blockedBy: [3] },
-        { number: 3, state: 'OPEN', claimedBy: '', blockedBy: [] },
-        { number: 4, state: 'OPEN', claimedBy: '', blockedBy: [5] },
-        { number: 5, state: 'CLOSED', claimedBy: '', blockedBy: [] },
+        { key: '1', number: 1, state: 'OPEN', claimedBy: '', blockedBy: [] },
+        { key: '2', number: 2, state: 'OPEN', claimedBy: '', blockedBy: [3] },
+        { key: '3', number: 3, state: 'OPEN', claimedBy: '', blockedBy: [] },
+        { key: '4', number: 4, state: 'OPEN', claimedBy: '', blockedBy: [5] },
+        { key: '5', number: 5, state: 'CLOSED', claimedBy: '', blockedBy: [] },
       ],
     }],
     issues: [],
   }
   const mst = { snapshot: mapSnap }
-  const mBlockOf = derived.applyStandaloneBlocks(mst, buildMapBlockOf(mapSnap))
+  const mBlockOf = derived.applyStandaloneBlocks(mst, derived.mapBlockOf(mapSnap))
   assert.deepStrictEqual(Object.keys(mBlockOf).map(Number), [2], '地图场景 blockOf 仍仅含 #2（#4 的阻塞者已关闭不算）')
-  assert.strictEqual(derived.isOccupied(mst, { number: 2, assignees: [] }), true, '地图内被阻塞票仍被占用')
-  assert.strictEqual(derived.isOccupied(mst, { number: 1, assignees: [] }), false, '地图内可接票仍可接')
+  assert.strictEqual(derived.isOccupied(mst, { key: '2', number: 2, assignees: [] }), true, '地图内被阻塞票仍被占用')
+  assert.strictEqual(derived.isOccupied(mst, { key: '1', number: 1, assignees: [] }), false, '地图内可接票仍可接')
   ok('地图分层与计数一字不差')
 
   // —— 场景 3：地图票跨地图阻塞者不计入（独立票边不流进地图层级） ——
   const crossSnap = {
     maps: [{
       number: 100, title: '测试地图',
-      tickets: [{ number: 11, state: 'OPEN', claimedBy: '', blockedBy: [99] }],
+      tickets: [{ key: '11', number: 11, state: 'OPEN', claimedBy: '', blockedBy: [99] }],
     }],
     issues: [
       { key: '11', number: 11, title: '地图票', state: 'OPEN', assignees: [], labels: [], blockedBy: [99] },
@@ -106,7 +95,7 @@ async function main() {
     ],
   }
   const cst = { snapshot: crossSnap }
-  const cBlockOf = derived.applyStandaloneBlocks(cst, buildMapBlockOf(crossSnap))
+  const cBlockOf = derived.applyStandaloneBlocks(cst, derived.mapBlockOf(crossSnap))
   assert.strictEqual(cBlockOf[11], undefined, '地图票的图外阻塞者不挂徽章（地图口径不变）')
   assert.strictEqual(derived.isOccupied(cst, crossSnap.issues[0]), false, '地图票的图外阻塞者不计占用（地图口径不变）')
   assert.strictEqual(derived.isOccupied(cst, crossSnap.issues[1]), false, '无阻塞独立票仍可接')
@@ -129,7 +118,7 @@ async function main() {
       ],
     },
   }
-  const eBlockOf = derived.applyStandaloneBlocks(edgeSt, buildMapBlockOf(edgeSt.snapshot))
+  const eBlockOf = derived.applyStandaloneBlocks(edgeSt, derived.mapBlockOf(edgeSt.snapshot))
   assert.strictEqual(eBlockOf[60], undefined, '已关闭票不挂徽章')
   assert.strictEqual(eBlockOf[65], undefined, '地图节点本身不挂徽章')
   assert.strictEqual(eBlockOf[62], undefined, '无边字段不挂徽章')

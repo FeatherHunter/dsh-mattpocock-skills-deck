@@ -9,6 +9,9 @@ export     const MapDetail = ({ st, g, drill }) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
       const m = g.m
+      // effort 维度：地图的身份是 (effortId, key)，不是裸编号；本 effort 内的子票编号才唯一。
+      const mId = idOf(m)
+      const multiEffort = effortNamesOf(st).length > 1
       // T4 整改 #554：只有停靠栏允许点行下钻（T2 定案：只支持停靠栏下钻）。
       // 悬浮面板里同一个组件只做去雾与展示，不写导航栈（悬浮面板调用方传 drill:false，
       // 否则点行会污染停靠栏共用的栈）。调用方不传时默认允许（停靠栏），旧状态不崩。
@@ -56,14 +59,14 @@ export     const MapDetail = ({ st, g, drill }) => {
         if (t.state === 'CLOSED') cls += ' done'
         else if (t.level === curLevel) cls += ' now'
         const fog = isFog(t) || isFogTitle(t)
-        if (fog) { cls += ' fog'; if (st.reveal[m.number] && st.reveal[m.number][t.number]) cls += ' revealed' }
+        if (fog) { cls += ' fog'; if (st.reveal[mId] && st.reveal[mId][idOf(t)]) cls += ' revealed' }
         // R5：子票级变化高亮（issueFlash）
-        if (st.issueFlash && st.issueFlash[t.number]) cls += st.issueFlash[t.number] === 'added' ? ' dsws-row-added' : ' dsws-row-changed'
+        if (st.issueFlash && st.issueFlash[idOf(t)]) cls += st.issueFlash[idOf(t)] === 'added' ? ' dsws-row-added' : ' dsws-row-changed'
         return cls
       }
       const toggleReveal = function (t) {
-        st.reveal[m.number] = st.reveal[m.number] || {}
-        st.reveal[m.number][t.number] = !(st.reveal[m.number][t.number])
+        st.reveal[mId] = st.reveal[mId] || {}
+        st.reveal[mId][idOf(t)] = !(st.reveal[mId][idOf(t)])
         emit(st)
       }
       const gateState = function (layerIndex) {
@@ -89,19 +92,12 @@ export     const MapDetail = ({ st, g, drill }) => {
         for (let i = 0; i < ls.length; i++) { const n = (typeof ls[i] === 'string') ? ls[i] : ls[i].name; if (n === 'wayfinder:map') return true }
         return t.type === 'map'
       }
-      // 快照里找下一级地图（与主列表的找法一致，按编号或键匹配）：找得到才进地图详情，
-      // 快照缺这张地图数据时回落到普通工单详情（有字可看，不静默回列表）。
-      const findMapInSnapshot = function (num) {
-        const maps = (st.snapshot && st.snapshot.maps) || []
-        const k = num != null ? String(num).padStart(2, '0') : ''
-        return maps.find(function (x) { return x.number === num || String(x.number) === String(num) || (x.key != null && String(x.key).padStart(2, '0') === k) })
-      }
       const isRevealed = function (t) {
-        try { return !!(st.reveal && st.reveal[m.number] && st.reveal[m.number][t.number]) } catch (e) { return false }
+        try { return !!(st.reveal && st.reveal[mId] && st.reveal[mId][idOf(t)]) } catch (e) { return false }
       }
       const enterDetail = function (t) {
-        if (hasMapTag(t) && findMapInSnapshot(t.number)) pushNav(st, 'map', t.number)
-        else pushNav(st, 'issue', t.number)
+        if (hasMapTag(t) && findMapByIdentity(st.snapshot && st.snapshot.maps, t.number, effortOf(t))) pushNav(st, 'map', t.number, effortOf(t))
+        else pushNav(st, 'issue', t.number, effortOf(t))
       }
       const onNodeClick = function (t) {
         if ((isFog(t) || isFogTitle(t)) && !isRevealed(t)) { toggleReveal(t); return }
@@ -115,12 +111,12 @@ export     const MapDetail = ({ st, g, drill }) => {
         const acts = h('div', { className: 'acts' }, (t.state === 'OPEN' && !blocked) ? [
           mkRowAction(st, t, false, colorOf),
           h(Tip, { content: tr('tip.newSession', { n: t.number }) }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, t) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: actionColorOf(t, colorOf), borderColor: 'transparent', color: isLightHex(actionColorOf(t, colorOf)) ? '#140a1e' : '#ffffff' } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))])),
-          (function(){ const _u=issueUrlFor(st, t.number); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e){ e.stopPropagation(); const u=issueUrlFor(st, t.number); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', onClick: function (e) { e.stopPropagation() }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))) : h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('button', { className: 'dsws-btn ghost', onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))); })(),
+          (function(){ const _u=issueUrlFor(st, t.number, effortOf(t)); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e){ e.stopPropagation(); const u=issueUrlFor(st, t.number, effortOf(t)); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', onClick: function (e) { e.stopPropagation() }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))) : h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('button', { className: 'dsws-btn ghost', onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))); })(),
         ] : [])
         // v1.4 修复：图标名必须用 Ic 支持的（search/hammer/chat/gear），原 mag/bolt/wrench 不存在 → 节点图标空白
         const _wt = wayfinderTypeOf(t); const ic = _wt === 'research' ? 'search' : _wt === 'prototype' ? 'hammer' : _wt === 'grilling' ? 'chat' : _wt === 'map' ? 'map' : _wt === 'task' ? 'gear' : 'gear'
         return h('div', {
-          key: t.number,
+          key: idOf(t),
           className: nodeCls(t),
           style: { cursor: 'pointer' },
           onClick: function (e) { e.stopPropagation(); onNodeClick(t) },
@@ -233,7 +229,11 @@ export     const MapDetail = ({ st, g, drill }) => {
         // T14：map 编号徽章 —— 标题前方、紫色、与列表 map 行同款（dsws-idnum）
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, marginBottom: 2 } }, [
           h('span', { className: 'dsws-idnum', style: { color: '#c084fc', borderColor: '#c084fc', flex: 'none' } }, '#' + m.number),
-          h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, m.title)]) }, h('div', { className: 'dsws-mtitle dsws-tt-wrap', style: { flex: 1, minWidth: 0 } }, m.title)),
+          h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, m.title)]) }, h('div', { className: 'dsws-mtitle dsws-tt-wrap', style: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 } }, [
+            // effort 维度：地图属于哪个 effort 一眼可见（多个 effort 时同号地图不再分不清）
+            (multiEffort && effortOf(m)) ? h('span', { className: 'dsws-chip dsws-eff', title: effortOf(m), style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, effortOf(m)) : null,
+            h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis' } }, m.title),
+          ])),
         ]),
         m.error ? h('div', { style: { color: '#f87171', fontSize: 11, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 11 }), h('span', null, String((m.error && m.error.error) || tr('list.loadFail')).slice(0, 160))]) : null,
         // D2：分段静态进度条 = 地图层缩略图（无动画，唯一真相源）
