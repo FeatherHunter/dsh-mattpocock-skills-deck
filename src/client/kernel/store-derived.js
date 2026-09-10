@@ -7,7 +7,8 @@
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
     // ---- effort 维度共用小件（面板多处要按身份找地图/分组/取 effort 名单，只此一份实现）----
-    /** 按票身份 (effort, 编号) 在 maps 数组里找地图；老快照没有 effortId 时回落按编号/键匹配。 */
+    /** 按票身份 (effort, 编号) 在 maps 数组里找地图；找不到就老实返回空，不猜第一张。
+      * 只有整份快照都没有工作单元标识（老快照）时，才回落按编号找——新快照里按编号取第一张会开错地图。 */
     export const findMapByIdentity = function (maps, num, effortId) {
       try {
         const list = Array.isArray(maps) ? maps : []
@@ -15,6 +16,8 @@
         const wantId = idOfParts(effortId === undefined || effortId === null ? '' : String(effortId), k)
         const exact = list.find(function (m) { return m && idOf(m) === wantId })
         if (exact) return exact
+        const anyEffort = list.some(function (m) { return m && effortOf(m) !== '' })
+        if (anyEffort) return null
         return list.find(function (m) { return m && (m.number === num || String(m.number) === String(num) || (m.key != null && String(m.key).padStart(2, '0') === k)) }) || null
       } catch (e) { return null }
     }

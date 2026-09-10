@@ -96,6 +96,16 @@ export async function run() {
     })(), 'NFD semantic must be distinguishable from naive (satisfied)')
   }
 
+  // ── 跨 effort 引用留白（同号票只在别的 effort 存在 → 不算阻塞；哪里都没有 → 仍按破链 blocked）──
+  {
+    const a1 = t('01', { effortId: 'alpha', parentKey: '00' })
+    const a2 = t('02', { effortId: 'alpha', parentKey: '00' })
+    const b1 = t('01', { effortId: 'beta', parentKey: '00', blockedBy: [{ key: '02', title: '02', state: 'open' }] })
+    const deck = deriveDeck({ maps: [m('m1', [a1, a2], { effortId: 'alpha' }), m('m2', [b1], { effortId: 'beta' })], issues: [] })
+    await assert('跨 effort 同号引用留白 → 不算 blocked（frontier=3）',
+      deck.stats.blocked === 0 && deck.stats.frontier === 3, JSON.stringify(deck.stats))
+  }
+
   // ── Q4 必测：环 visited 守卫（终止 + 不误崩） ──
   {
     const c1 = t('c1', { assignees: [], blockedBy: [{ key: 'c2', title: 'c2', state: 'open' }] })

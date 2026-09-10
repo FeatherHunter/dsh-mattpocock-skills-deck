@@ -7,6 +7,7 @@
  *  - 独立计数（claimed/blocked/indeterminate 各算各，可重叠）；「open=sum」为伪不变量（删除）。
  *  - `frontier` 须「assignees **已知且空** + !claimed + !blocked」= 天然排除 indeterminate（assignees:MISSING）。
  *  - **NOT-FOUND（破链依赖）→ 安全 blocked**（绝不误判 frontier），levelOf 按 0 计（占层级，不影响 blocked 判定）。
+ *  - 例外：同号票在别的 effort 里存在时（跨 effort 引用），按留白处理，不算阻塞——引用只在同一 effort 内成立（与面板阻断表一致）。
  *  - 环（自环/成环）用 visited 守卫：返回 0 / 跳过该边（保证终止）。
  *  - display 直接用 `key`（`#${key}`），无 getDisplayNumber / 无 number。
  *
@@ -50,10 +51,12 @@ function claimedOf(ticket) {
 /**
  * 是否有未满足的 open 阻塞者。
  * 规则（#124 §5.2）：在 deck 内 lookup(ref.key) 且 state==='open' → true；
- * **NOT-FOUND（破链依赖）→ true（安全 blocked，绝不误判 frontier）**。
+ * **NOT-FOUND（破链依赖）→ true（安全 blocked，绝不误判 frontier）**；
+ * 跨 effort 引用（同号票在别的 effort 里存在）→ false（留白，引用只在同一 effort 内成立）。
  * @param {Object} ticket
  * @param {Map<string, Object>} byPool deck 内全部票（池内身份 → Issue）
  * @param {Map<string, Object[]>} byBase 裸 key → 同号全部票（老引用回落）
+ * @param {Set<string>} keysAny 裸 key 在任一 effort 出现过即有（区分跨 effort 留白与真破链）
  * @returns {boolean}
  */
 /**
@@ -80,13 +83,19 @@ function candidatesOf(ref, byPool, byBase, effort) {
   return arr || []
 }
 
-function hasOpenBlocker(ticket, byPool, byBase) {
+function hasOpenBlocker(ticket, byPool, byBase, keysAny) {
   const refs = ticket.blockedBy
   if (!Array.isArray(refs) || refs.length === 0) return false
   const effort = effortOf(ticket)
   return refs.some((ref) => {
     const cands = candidatesOf(ref, byPool, byBase, effort)
-    if (!cands.length) return true // NOT-FOUND → blocked（安全）
+    if (!cands.length) {
+      // 同号票在别的 effort 里存在 → 跨 effort 引用，按留白处理，不算阻塞；
+      // 带拉取请求身份的精确引用缺失，仍按破链处理（身份不同，不留白）；
+      // 哪里都没有 → 破链依赖 → blocked（安全，绝不误判 frontier）。
+      if (ref && !hasOwn(ref, 'isPullRequest') && keysAny && keysAny.has((ref && ref.key) || '')) return false
+      return true
+    }
     return cands.some((c) => c.state === OPEN)
   })
 }
@@ -160,6 +169,9 @@ export function deriveDeck(input = {}) {
   for (const m of maps) { add(m); for (const t of (m.tickets || [])) add(t) }
   for (const t of issues) add(t)
   const all = Array.from(byPool.values())
+  // 裸 key 在任一 effort 里出现过即记一笔，用来区分“跨 effort 引用”（留白）与“哪里都没有”（破链，安全 blocked）
+  const keysAny = new Set()
+  for (const t of all) { if (t && typeof t.key === 'string') keysAny.add(t.key) }
 
   // 票池 = 各 map.tickets 并集 + issues（不含单独出现在 maps[] 的根 map 节点；按池内身份计，同号异类计两票）
   const poolKeys = new Set()
@@ -200,7 +212,7 @@ export function deriveDeck(input = {}) {
     if (t.state === CLOSED) stats.closed++
     else if (isOpen) stats.open++
     const claimed = claimedOf(t)
-    const isBlocked = isOpen && hasOpenBlocker(t, byPool, byBase)
+    const isBlocked = isOpen && hasOpenBlocker(t, byPool, byBase, keysAny)
     if (claimed === true) stats.claimed++
     else if (claimed === null) stats.indeterminate++
     if (isBlocked) stats.blocked++
