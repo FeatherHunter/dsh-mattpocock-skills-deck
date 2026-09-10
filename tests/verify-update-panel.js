@@ -46,16 +46,20 @@ async function main() {
   const freshNew = freshEvents.filter((e) => !preExisting.has(e))
   check(freshNew.length === 0, '电话与按钮只复用常驻事件（' + [...new Set(phoneEvents.concat(settingsEvents))].join('、') + '）')
   check(updateSrc.includes("loggedPhone('wf.updateStatus'") && updateSrc.includes("loggedPhone('wf.updateCheck'"), '宿主日志按电话名记行（查状态与查新版各一行方法可识行，装更新行由安装门禁覆盖）')
-  check(clientSettings.includes("method: 'wf.updateStatus'") && clientSettings.includes("method: 'wf.updateCheck'"), '客户端调用点相邻有行（两处调用各有日志行覆盖）')
+  // #586：客户端不再写电话名字面量，两个调用点各走更新包派生的常量；字面量真源在派生文件里。
+  const derivedClientSrc = read('scripts/generated/updateClient.derived.js')
+  check(derivedClientSrc.includes("UPD_PHONE_NAMES.updateStatus === 'wf.updateStatus'") && derivedClientSrc.includes("UPD_PHONE_NAMES.updateCheck === 'wf.updateCheck'"),
+    '派生文件带零变化断言（默认前缀下查状态与查新版电话名与旧字面一致）')
+  check(clientSettings.includes('method: UPD_STATUS') && clientSettings.includes('method: UPD_CHECK'), '客户端调用点相邻有行（两处调用各有日志行覆盖，方法名走派生常量）')
 
   // ---- 4) 面板三态与先读后查 ----
   check(clientSettings.includes("tr('cfg.updateCheck')"), '按钮平时显示检查更新（走词条）')
   check(clientSettings.includes("tr('cfg.updateChecking')"), '按钮检查中显示检查中（走词条）')
   check(clientSettings.includes("tr('cfg.updateToVersion'"), '按钮有新版显示更新至某版本（走词条带版本号）')
   check(clientSettings.includes('React.useEffect(function () { updReadStatus() }, [])'), '点开设置页先读本地状态（挂载即读）')
-  check(clientSettings.includes("host.call('wf.updateStatus'") && clientSettings.includes("host.call('wf.updateCheck'"), '先读状态电话、点了才调检查电话')
-  const statusAt = clientSettings.indexOf("host.call('wf.updateStatus'")
-  const checkAt = clientSettings.indexOf("host.call('wf.updateCheck'")
+  check(clientSettings.includes('host.call(UPD_STATUS') && clientSettings.includes('host.call(UPD_CHECK'), '先读状态电话、点了才调检查电话（电话名走派生常量）')
+  const statusAt = clientSettings.indexOf('host.call(UPD_STATUS')
+  const checkAt = clientSettings.indexOf('host.call(UPD_CHECK')
   check(statusAt >= 0 && checkAt >= 0 && statusAt < checkAt, '状态调用在检查调用之前（先状态后检查）')
   check(clientSettings.includes('updChecking || updBusy') && clientSettings.includes('disabled: !!(updChecking'), '检查中与安装中禁用按钮（重复点击不重发，#542 加忙碌态）')
   check(clientSettings.includes("tr('cfg.updateCheckFail')"), '检查失败给可读提示（走词条）')

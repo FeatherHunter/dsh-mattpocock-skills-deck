@@ -315,12 +315,12 @@ export default {
     harness.handle('wf.logSetSwitch', async function (args) { const h = await _log(); return h.handleLogSetSwitch(args) })
     // 启动链 import 失败静默（#499 红队 C2）：日志库没加载出来时管道尚未就绪、无处可记；首次命中由分发异常行 #46 在调用方记。
     _log().then(function(h){ try { h.loadSwitch().catch(function(){}) } catch (eSw) {} try { h.writeStartupHeader().catch(function(){}) } catch (eHd) {} }).catch(function(){})
+    // ---- #586 切更新包：优先包派生（updateFromPackage.js），失败回退旧实现（update.js 留而不搬）；原委见适配器头部。
     let _updateP = null
-    function _update() { if (!_updateP) _updateP = import('./update.js').then(function(m){ return m.createUpdatePhoneHandlers({ logCtx: logCtx, ctx: ctx }) }); return _updateP }
+    function _update() { if (!_updateP) _updateP = (async function(){ const args = { logCtx: logCtx, ctx: ctx }; try { const migrated = await import('./updateFromPackage.js'); return migrated.createUpdatePhoneHandlers(args) } catch (ePkg) { const mod = await import('./update.js'); return mod.createUpdatePhoneHandlers(args) } })(); return _updateP }
     harness.handle('wf.updateStatus', async function (args) { const h = await _update(); return h.handleUpdateStatus(args) })
     harness.handle('wf.updateCheck', async function (args) { const h = await _update(); return h.handleUpdateCheck(args) })
     harness.handle('wf.updateInstall', async function (args) { const h = await _update(); return h.handleUpdateInstall(args) })
-
     // ============ 轮询：已按 #348 拍板 Q3 关闭（60s 全量 × 8 map ≈ 2400-4800 GraphQL points/h 贴 5000 限额）============
     // 刷新策略 = 纯手动（状态条/面板按钮 wf.refresh）+ 打开面板即刷（client 侧 loadSnapshot）。
     // P1 若做状态变化 toast 提醒，再考虑低频自动（届时恢复本块并观察配额）。

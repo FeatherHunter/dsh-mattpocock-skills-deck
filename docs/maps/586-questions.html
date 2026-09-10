@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>#586 落地：当前插件迁移与双宿主验收 —— 两个待你定夺的问题</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1d2129;
+    --line: #2a2f3a;
+    --text: #e6e8ec;
+    --muted: #9aa4b2;
+    --dim: #6b7480;
+    --accent: #7aa2f7;
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --rec: #a78bfa;
+    --code-bg: #11141a;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    line-height: 1.75;
+    font-size: 15.5px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 22px 96px; }
+
+  /* ---------- 顶部 ---------- */
+  header.hero {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: linear-gradient(160deg, #1b2030 0%, #14171e 70%);
+    padding: 26px 26px 22px;
+    margin-bottom: 26px;
+  }
+  .kicker { color: var(--accent); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+  h1 { font-size: 25px; margin: 0 0 10px; line-height: 1.4; }
+  h1 .num { color: var(--rec); }
+  .sub { color: var(--muted); font-size: 14.5px; margin: 0; }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .badge {
+    font-size: 12.5px; padding: 3px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+  }
+  .badge.ok { color: var(--good); border-color: #1f4630; background: #12241a; }
+  .badge.no { color: var(--bad); border-color: #4a2326; background: #241416; }
+  .badge.wait { color: var(--warn); border-color: #4a3d1a; background: #241f10; }
+
+  /* ---------- 结构 ---------- */
+  section { margin-bottom: 30px; }
+  h2 {
+    font-size: 19px; margin: 0 0 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  h2 .n {
+    font-size: 13px; color: var(--bg); background: var(--accent);
+    width: 22px; height: 22px; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; flex: none;
+  }
+  h3 { font-size: 16px; margin: 22px 0 10px; }
+  p { margin: 10px 0; }
+  ul, ol { margin: 10px 0; padding-left: 22px; }
+  li { margin: 6px 0; }
+  code {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 5px;
+    padding: 1.5px 6px; font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Cascadia Mono", monospace;
+    color: #cbd5e1; white-space: nowrap;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; overflow-x: auto; font-size: 13px; margin: 10px 0;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Cascadia Mono", monospace;
+    color: #cbd5e1; line-height: 1.6;
+  }
+  a { color: var(--accent); }
+
+  /* ---------- 卡片 ---------- */
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 20px; margin: 14px 0;
+  }
+  .card.tight { padding: 14px 16px; }
+  .card h4 { margin: 0 0 8px; font-size: 15px; }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: #151a24; border-radius: 0 10px 10px 0;
+    padding: 12px 16px; margin: 14px 0;
+  }
+  .callout.warn { border-left-color: var(--warn); background: #1f1a10; }
+  .callout.bad { border-left-color: var(--bad); background: #1f1416; }
+  .callout.good { border-left-color: var(--good); background: #101f16; }
+  .callout .lbl { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+
+  /* ---------- 表格 ---------- */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 11px; text-align: left; vertical-align: top; }
+  th { background: var(--panel-2); color: var(--muted); font-weight: 600; font-size: 13px; }
+  tbody tr:nth-child(even) { background: #151820; }
+  td.k { color: var(--muted); white-space: nowrap; }
+
+  /* ---------- 问题块 ---------- */
+  .q {
+    border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+    margin: 20px 0; background: var(--panel);
+  }
+  .q-head {
+    background: linear-gradient(90deg, #202634 0%, #1a1e26 100%);
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .q-head .tag {
+    background: var(--rec); color: #12101c; font-weight: 700;
+    border-radius: 6px; padding: 2px 9px; font-size: 13px; flex: none;
+  }
+  .q-head .t { font-size: 17px; font-weight: 600; }
+  .q-body { padding: 4px 20px 20px; }
+
+  /* ---------- 选项 ---------- */
+  .opt {
+    border: 1px solid var(--line); border-radius: 11px;
+    margin: 12px 0; background: var(--panel-2); overflow: hidden;
+  }
+  .opt.recommended { border-color: #4c3f7a; box-shadow: 0 0 0 1px #4c3f7a22; }
+  .opt-head {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 11px 16px; border-bottom: 1px solid var(--line);
+    background: #20242e;
+  }
+  .opt.recommended .opt-head { background: #241f38; }
+  .opt-head .letter {
+    width: 25px; height: 25px; border-radius: 7px; flex: none;
+    background: #2f3646; color: var(--text);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px;
+  }
+  .opt.recommended .opt-head .letter { background: var(--rec); color: #12101c; }
+  .opt-head .title { font-weight: 600; font-size: 15px; }
+  .pill {
+    font-size: 12px; border-radius: 999px; padding: 2px 9px;
+    border: 1px solid var(--line); color: var(--muted); background: #191d26;
+  }
+  .pill.rec { color: #14121f; background: var(--rec); border-color: var(--rec); font-weight: 700; }
+  .opt-body { padding: 12px 16px 14px; }
+  .opt-body p:first-child { margin-top: 0; }
+
+  .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+  @media (max-width: 760px) { .pros-cons { grid-template-columns: 1fr; } }
+  .pc { border: 1px solid var(--line); border-radius: 9px; padding: 10px 13px; background: #151820; }
+  .pc h5 { margin: 0 0 6px; font-size: 13px; letter-spacing: .04em; }
+  .pc.pro h5 { color: var(--good); }
+  .pc.con h5 { color: var(--warn); }
+  .pc ul { margin: 0; padding-left: 18px; }
+  .pc li { margin: 4px 0; font-size: 14px; color: #cfd6df; }
+
+  /* ---------- 目录导航 ---------- */
+  nav.toc {
+    position: sticky; top: 0; z-index: 5;
+    background: rgba(15,17,21,.9); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    margin: -32px -22px 26px; padding: 11px 22px;
+    display: flex; gap: 16px; flex-wrap: wrap; font-size: 13.5px;
+  }
+  nav.toc a { color: var(--muted); text-decoration: none; }
+  nav.toc a:hover { color: var(--accent); }
+
+  /* ---------- 其他 ---------- */
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px; margin: 12px 0; }
+  .fact { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--panel-2); }
+  .fact .lab { font-size: 12.5px; color: var(--dim); margin-bottom: 4px; }
+  .fact .val { font-size: 14.5px; font-weight: 600; }
+  .fact .val.ok { color: var(--good); }
+  .fact .val.no { color: var(--bad); }
+  .fact .val.warn { color: var(--warn); }
+
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li { padding-left: 26px; position: relative; }
+  .checklist li::before {
+    content: "✓"; position: absolute; left: 4px; top: 0;
+    color: var(--good); font-weight: 700;
+  }
+  .checklist li.no::before { content: "✗"; color: var(--bad); }
+  .checklist li.wait::before { content: "◌"; color: var(--warn); }
+
+  details { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; background: #151820; margin: 12px 0; }
+  details summary { cursor: pointer; color: var(--accent); font-size: 14px; }
+  details[open] summary { margin-bottom: 8px; }
+
+  .muted { color: var(--muted); }
+  .dim { color: var(--dim); font-size: 13px; }
+  footer { border-top: 1px solid var(--line); margin-top: 40px; padding-top: 18px; color: var(--dim); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="toc">
+    <a href="#bg">背景</a>
+    <a href="#facts">现状事实</a>
+    <a href="#scope">这一票的范围</a>
+    <a href="#q1">问题一：包怎么送进插件</a>
+    <a href="#q2">问题二：面板算不算零变化</a>
+    <a href="#next">你答复后我会做什么</a>
+  </nav>
+
+  <header class="hero">
+    <div class="kicker">Wayfinder 决策请求 · 地图 #579</div>
+    <h1><span class="num">#586</span> 落地：当前插件迁移与双宿主验收</h1>
+    <p class="sub">
+      我先读完了票、地图、前置票（#583 / #584 / #585）和现有代码。绝大多数事情我能自己定，
+      但有两件事会改变交付物形态，需要你拍板。下面把前因后果、能帮你决策的事实、以及利弊一次说清。
+    </p>
+    <div class="badges">
+      <span class="badge">wayfinder:task（没有 needs-triage，直接实施）</span>
+      <span class="badge ok">阻塞已解除：#584、#585 已关</span>
+      <span class="badge no">#587 阻塞于我这一票（面板强化留到迁后做）</span>
+      <span class="badge wait">等真人做的只有一件事：桌面端真机点按</span>
+    </div>
+  </header>
+
+  <!-- ================= 背景 ================= -->
+  <section id="bg">
+    <h2><span class="n">1</span>前因后果</h2>
+
+    <p>
+      地图 <strong>#579「可复用更新系统：抽成独立 npm 包，当前插件做第一个用户」</strong>要做的事，
+      是把当前插件里那套「检查更新 / 安装更新」的能力抽成一个独立 npm 包
+      <code>dsh-plugin-update</code>，让别的 DSH 插件照着文档也能接上同一套更新能力。
+    </p>
+
+    <p>这条路上前面几票已经做完：</p>
+    <ul>
+      <li><strong>#580 研究</strong>：复核现有更新链路，定下抽包清单。</li>
+      <li><strong>#581 落点</strong>：拍板新包放在本仓 <code>packages/dsh-plugin-update</code>、公开发布、包名 <code>dsh-plugin-update</code>。</li>
+      <li><strong>#582 接口</strong>：定下公共接口与配置面 14 条，规格固化在 #591。</li>
+      <li><strong>#583 抽离</strong>：新包骨架落成，39 项假件测试全绿，旧默认路径一字不差。</li>
+      <li><strong>#584 门禁模板</strong>：门禁模板随包发布，本仓更新五道 + 日志两道门禁全绿。</li>
+      <li><strong>#585 集成文档</strong>：三步接入文档，新人照文档跑通默认路径。</li>
+    </ul>
+
+    <p>
+      也就是说：<strong>新包已经造好了、文档也有了，但它还躺在仓库里没人用</strong>。
+      本票 <strong>#586</strong> 就是「第一天上岗」——让当前插件真的改用这个新包，并且证明改了之后
+      <strong>行为一个字节都没变</strong>，最后在网页端和桌面端两种宿主里各验一遍。
+    </p>
+
+    <div class="callout">
+      <div class="lbl">这一票的验收标准（票面原文要点）</div>
+      切引用到新包、旧状态双读加自愈、面板快照逐字段一致、手工命令逐字一致、错误码白名单一致、
+      现有更新门禁全绿；发布前复查包名占用；回滚即 git 回退。<br />
+      <strong>验收 = 网页端 npm 加桌面宿主双验全绿</strong>，并且桌面宿主里要真人走一遍查状态、查新版、装更新。
+    </div>
+  </section>
+
+  <!-- ================= 现状事实 ================= -->
+  <section id="facts">
+    <h2><span class="n">2</span>我已经查到的现状事实（这些能帮你就着事实决策）</h2>
+
+    <h3>包名占用：复查完毕</h3>
+    <div class="facts">
+      <div class="fact">
+        <div class="lab">主选包名 dsh-update</div>
+        <div class="val no">已被占（0.0.1）</div>
+      </div>
+      <div class="fact">
+        <div class="lab">备选包名 dsh-plugin-update</div>
+        <div class="val ok">仍可用（查得 404）</div>
+      </div>
+    </div>
+    <p class="dim">这项是票面「发布前复查包名占用」要求的动作，已经做完，结论是按备选包名走，与 #581 的拍板一致。</p>
+
+    <h3>仓库里躺着 #584 没提交完的改动</h3>
+    <p>
+      <code>packages/dsh-plugin-update/</code> 下有 3 个改过的文件和 3 个新文件（门禁模板、检查器、自查测试），
+      是 #584 的交付物。#584 关票时写明：因为当时根目录 <code>package.json</code> 有一处与它无关的合并冲突，
+      提交被挡住，文件留在磁盘上等后继票处理。
+      <strong>那处冲突现在已经是解决状态</strong>（已合入 main），所以这些改动会随我这一票的提交一起落地。
+    </p>
+
+    <h3>本机现在的真实样子（桌面端验完之前不会动它）</h3>
+    <table>
+      <thead><tr><th>项目</th><th>当前值</th></tr></thead>
+      <tbody>
+        <tr><td class="k">网页端使用范围里装的插件版本</td><td><code>dsh-mattpocock-skills-deck@1.7.18</code>（确切版本号，不带 ^）</td></tr>
+        <tr><td class="k">插件的更新状态落盘目录</td><td><code>~/.dsh/updates/dsh-mattpocock-skills-deck/&lt;目录指纹&gt;/</code>，里面是 <code>state.json</code> 与 <code>before.json</code></td></tr>
+        <tr><td class="k">同机另一家插件</td><td><code>~/.dsh/updates/dsh-im/…</code>（说明这套目录约定本机已经有两家在用）</td></tr>
+        <tr><td class="k">npm 登录态</td><td class="warn">没有可用登录（<code>npm whoami</code> 失败）</td></tr>
+      </tbody>
+    </table>
+
+
+    <h3>新包现在「默认跑起来和旧代码一模一样」是有依据的</h3>
+    <p>
+      新包里只有一处「默认旧标识」的永久冻结特例：插件标识传旧值
+      <code>dsh-mattpocock-skills-deck</code> 时，落盘路径、三个文件名（<code>state.json</code> /
+      <code>install.lock</code> / <code>before.json</code>）、三个电话名（<code>wf.updateStatus</code> /
+      <code>wf.updateCheck</code> / <code>wf.updateInstall</code>）、错误码白名单、手工命令形状，
+      全部与现状一字不差。所以本票的「零变化」不是靠嘴说，是能逐项断言的。
+    </p>
+  </section>
+
+  <!-- ================= 范围 ================= -->
+  <section id="scope">
+    <h2><span class="n">3</span>这一票要交付什么（以及我判断不需要做什么）</h2>
+
+    <div class="card">
+      <h4>要做</h4>
+      <ul class="checklist">
+        <li>让当前插件的更新链路改用新包 <code>dsh-plugin-update</code>（宿主侧接线）</li>
+        <li>旧落盘状态双读 + 自愈，读得到、写只写新路径，旧路径只读保留</li>
+        <li>逐项对照：面板快照字段、手工兜底命令、错误码白名单 —— 与迁移前一致</li>
+        <li>现有更新五道门禁 + 日志门禁保持全绿，并新增「确实已切到新包」的断言</li>
+        <li>网页端（npm 侧）干净安装冒烟 + 桌面端真机点按</li>
+        <li>包名占用复查（已完成）</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h4>我判断不需要做（如果你不同意，现在说）</h4>
+      <ul>
+        <li>
+          <strong>面板界面的强化</strong>（右上角弹窗、待重启常驻横幅等）——这是下一票
+          <strong>#587</strong> 的事，它明确写着阻塞于本票、要「迁后做，不污染零变化证明」。
+        </li>
+        <li>
+          <strong>把老代码删掉</strong>——票面铁律是「现有更新门禁全绿」，那些门禁正好在断言旧实现，
+          所以旧文件这一票先原地保留（标记为只读兼容），清理另开一票。这样回滚也只是一次 git 回退。
+        </li>
+        <li>
+          <strong>防抢注范围名发布</strong>——地图里列在「尚未明确」区，不在本票。
+        </li>
+      </ul>
+    </div>
+
+    <div class="callout warn">
+      <div class="lbl">一句话说清我做不到的那部分</div>
+      桌面宿主里的真机点按（查状态 → 查新版 → 装更新）<strong>必须由你来做</strong>——
+      我在你机器上跑不了桌面界面。这也是 #583 当时把这条验收到期转进本票的原因。
+      我会做到「你点一下就能验」的程度，并把要看的现象逐条写给你。
+    </div>
+  </section>
+
+  <!-- ================= Q1 ================= -->
+  <section id="q1">
+    <h2><span class="n">4</span>需要你拍板的问题</h2>
+
+    <div class="q">
+      <div class="q-head">
+        <span class="tag">问题一</span>
+        <span class="t">新包怎么送进插件？（这就是「切引用」的具体做法）</span>
+      </div>
+      <div class="q-body">
+
+        <h3>为什么必须定这件事</h3>
+        <p>
+          「切引用」这句话落到代码上就一行：插件从「自己源码里的旧更新代码」改成「引用新包」。
+          但 <strong>新包从哪来、以什么形式被插件拿到</strong>，有三条完全不同的路，三条路各自的
+          「今天能验到什么」和「会不会做不可逆的事」差很多。
+        </p>
+
+        <p>牵扯到的两个硬约束：</p>
+        <ul>
+          <li>
+            <strong>打包白名单</strong>：插件发布时只带 <code>lib</code> / <code>shared</code> /
+            <code>cordis.patch.yml</code> / <code>bundled-skills</code> / <code>scripts/</code>。
+            别人装了插件以后，插件要能 <code>import</code> 到新包——所以新包必须真的存在于
+            「插件所在的使用范围」里，不能只存在于我的开发目录。
+          </li>
+          <li>
+            <strong>运行版本是反查出来的</strong>：新包靠「反查目标包名所在的包目录」来确定
+            「当前跑的是哪个版本」。如果新包是从开发目录链进去的，它可能在你的仓库里找到那份清单，
+            而不是使用范围里那份——这会直接影响「有没有新版 / 能不能装」的判断。
+          </li>
+        </ul>
+
+        <div class="callout">
+          <div class="lbl">关键信息：发布这条路今天卡在哪</div>
+          发布需要 npm 登录态。我刚查过：<code>npm whoami</code> 失败，本机 <code>~/.npmrc</code> 里
+          npmjs.org 的令牌是打码状态、用不上。<strong>也就是说选 A 的话，你得先 <code>npm login</code> 一次</strong>，
+          我才能真的发出去。
+        </div>
+
+        <!-- 选项 A -->
+        <div class="opt">
+          <div class="opt-head">
+            <span class="letter">A</span>
+            <span class="title">真的发布到 npm，然后插件按版本号依赖它</span>
+            <span class="pill">最接近票面原意</span>
+          </div>
+          <div class="opt-body">
+            <p>
+              把 <code>dsh-plugin-update@0.1.0</code> 发到官方源，插件根目录 <code>package.json</code>
+              里加一条 <code>"dsh-plugin-update": "0.1.0"</code>，重新装进使用范围。之后任何人装这个插件，
+              更新能力都来自 npm 上那个包。
+            </p>
+            <div class="pros-cons">
+              <div class="pc pro">
+                <h5>利</h5>
+                <ul>
+                  <li>票面原话（切引用、发布前复查包名、回滚即 git 回退）得到完全满足</li>
+                  <li>「别人装这个插件能得到完整更新能力」当场成立，不是将来才成立</li>
+                  <li>网页端的 npm 侧验证是<strong>真实安装</strong>，不是本地假装</li>
+                  <li>包名当场占住，不用再担心被抢注</li>
+                </ul>
+              </div>
+              <div class="pc con">
+                <h5>弊 / 代价</h5>
+                <ul>
+                  <li>发布是<strong>不可逆</strong>的公开动作：0.1.0 一旦发出去就在 npm 上留下永久的版本记录</li>
+                  <li>今天需要你先 <code>npm login</code>，多一道人工前置</li>
+                  <li>0.1.0 是「还没被任何真实宿主用过」的初版，先发后用，风险顺序不理想</li>
+                  <li>发出去后如果包内有缺陷，只能发 0.1.1 修，不能撤版本</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 选项 B -->
+        <div class="opt recommended">
+          <div class="opt-head">
+            <span class="letter">B</span>
+            <span class="title">先用工作区链接（workspace / link）接上，发布留作明确的发布步骤</span>
+            <span class="pill rec">推荐</span>
+          </div>
+          <div class="opt-body">
+            <p>
+              插件 <code>package.json</code> 里把它指到本仓的
+              <code>packages/dsh-plugin-update</code>，让它在使用范围里以真实包的形式存在、能被
+              <code>import</code> 到、能被反查到。今天不发任何东西；等你决定发布时，把这条链接改成
+              确切版本号再发一次插件版本即可。
+            </p>
+            <div class="pros-cons">
+              <div class="pc pro">
+                <h5>利</h5>
+                <ul>
+                  <li>今天<strong>零不可逆动作</strong>，你不用先登录，我可以一口气做完并验证</li>
+                  <li>双宿主都能真跑：新包真的在使用范围里被 <code>import</code> 到，不是假件</li>
+                  <li>零变化证明更干净——代码换了，但行为和发布物形态都没有额外变量</li>
+                  <li>先验后用：等真机验过再发布，风险顺序正确</li>
+                  <li>回滚依然只是 git 回退一条</li>
+                </ul>
+              </div>
+              <div class="pc con">
+                <h5>弊 / 代价</h5>
+                <ul>
+                  <li>「别人装插件就有更新能力」这件事<strong>要等发布才成立</strong>，本票只能验到「本机可用」</li>
+                  <li>多一条待办（发布 + 改回版本号），需要一个明确的发布动作收口，否则容易忘</li>
+                  <li>链接形态下，运行版本反查指向开发目录的行为需要我专门断言，我会补一条门禁覆盖它</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 选项 C -->
+        <div class="opt">
+          <div class="opt-head">
+            <span class="letter">C</span>
+            <span class="title">把新包编译产物拷进插件源码树，完全不依赖 npm</span>
+            <span class="pill">我判断不该选</span>
+          </div>
+          <div class="opt-body">
+            <p>
+              把新包 <code>dist</code> 下的文件复制进插件仓库当成自己的源码，插件不带任何依赖。
+            </p>
+            <div class="pros-cons">
+              <div class="pc pro">
+                <h5>利</h5>
+                <ul>
+                  <li>没有任何外部依赖，安装最不容易出岔子</li>
+                </ul>
+              </div>
+              <div class="pc con">
+                <h5>弊 / 代价</h5>
+                <ul>
+                  <li><strong>直接否掉整张地图的目的</strong>：地图要的就是「抽成独立包、别人能复用」，拷一份就等于回到原点</li>
+                  <li>两份副本长期漂移，以后修 bug 要改两处</li>
+                  <li>第二家插件没有可依赖的对象，集成文档也随之作废</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <details>
+          <summary>为什么我推荐 B 而不是 A（想看我的推理就展开）</summary>
+          <p>
+            两条路最终都会走到同一个终点（插件按版本号依赖 npm 上的新包），区别只在<strong>顺序</strong>。
+            A 是「先公开、再验证」，B 是「先验证、再公开」。而这一票的全部意义就是验证——
+            把包先发出去，反而让「零变化」这件事多背了一个不可逆的变量：万一真机点按暴露了问题，
+            代码能 git 回退，npm 上那个版本却回不来了。
+          </p>
+          <p>
+            反过来，B 的代价只是「一条待办」：发布。而这条待办本来就属于地图里明确的发布环节，
+            不会丢。所以顺序风险低、代价小的是 B。
+          </p>
+          <p class="dim">
+            如果你更看重「本票结束即对外可用」，那就选 A，我照做，只是需要你先登录一次 npm。
+          </p>
+        </details>
+
+      </div>
+    </div>
+
+    <!-- ================= Q2 ================= -->
+    <div class="q">
+      <div class="q-head">
+        <span class="tag">问题二</span>
+        <span class="t">「零变化」要不要连面板（客户端那一半）一起改？</span>
+      </div>
+      <div class="q-body">
+
+        <h3>为什么会有这个问题</h3>
+        <p>
+          新包有<strong>两个入口</strong>：宿主侧入口（插件后端调用）和客户端入口
+          （面板界面那一半调用）。客户端入口里装着「电话名怎么拼」「轮询间隔是多少」
+          「手工兜底命令长什么样」这几样东西，供面板照着用。
+        </p>
+        <p>
+          现在面板 <code>SettingsPage.js</code> 里是<strong>硬编码</strong>的：三个电话名
+          <code>wf.updateStatus</code> / <code>wf.updateCheck</code> / <code>wf.updateInstall</code>，
+          以及每秒一次（1000 毫秒）的轮询间隔。
+        </p>
+        <p>
+          而新包自己的客户端入口注释里<strong>明确写着</strong>：本仓当前插件这一次<strong>不切</strong>拼接源，
+          默认前缀 <code>wf</code> 下行为零变化，拼接形态留给第二个插件验证。
+        </p>
+
+        <div class="callout">
+          <div class="lbl">所以问题其实是</div>
+          「零变化」的证明范围，是只包到宿主侧（后端），还是连面板（前端）也一起换成新包推导出来的值？
+          两边取值完全一样（<code>wf.*</code> 与 1000 毫秒都不变），区别在<strong>改不改代码</strong>。
+        </div>
+
+        <!-- 选项 A -->
+        <div class="opt recommended">
+          <div class="opt-head">
+            <span class="letter">A</span>
+            <span class="title">面板这一票不动：电话名与轮询间隔保持原样</span>
+            <span class="pill rec">推荐</span>
+          </div>
+          <div class="opt-body">
+            <p>
+              面板代码一行不改，仍写 <code>wf.*</code> 与 1000 毫秒。理由不只是省事：
+              这一票的证明题是「换了包，行为零变化」，面板不动，<strong>客户端这一半就真的是字节级零变化</strong>，
+              没有「改了但值一样」这种需要解释的地方。
+            </p>
+            <p>
+              强化面板的活本来就排在下一票 <strong>#587</strong>（它阻塞于本票，票面写着「迁后做，不污染零变化证明」）。
+              到那一票再把面板接到新包客户端入口上，顺手把弹窗和待重启横幅一起做掉，是同一处代码只动一次。
+            </p>
+            <div class="pros-cons">
+              <div class="pc pro">
+                <h5>利</h5>
+                <ul>
+                  <li>零变化证明最干净：客户端零改动，无可争议</li>
+                  <li>与新包自己的注释、与 #587 的排期都一致</li>
+                  <li>本票改动面小，红了的门禁更容易判断是谁引起的</li>
+                </ul>
+              </div>
+              <div class="pc con">
+                <h5>弊 / 代价</h5>
+                <ul>
+                  <li>严格说「客户端入口」在这一票没被真实使用过，只能说被文档和测试覆盖</li>
+                  <li>新包的客户端入口要到 #587 才第一次真正上岗</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 选项 B -->
+        <div class="opt">
+          <div class="opt-head">
+            <span class="letter">B</span>
+            <span class="title">面板也一起改：电话名与轮询间隔改从新包推导</span>
+            <span class="pill">更彻底，但改动面更大</span>
+          </div>
+          <div class="opt-body">
+            <p>
+              把面板里的硬编码电话名和 1000 毫秒改成「从新包客户端入口取」，取值保持不变，
+              于是「切换引用」这件事在前端后端都真的发生了一遍。
+            </p>
+            <div class="pros-cons">
+              <div class="pc pro">
+                <h5>利</h5>
+                <ul>
+                  <li>「切引用」覆盖完整，两个入口都被真实使用</li>
+                  <li>以后改前缀或轮询间隔只改一处</li>
+                </ul>
+              </div>
+              <div class="pc con">
+                <h5>弊 / 代价</h5>
+                <ul>
+                  <li>改动落进 <code>SettingsPage.js</code>，会牵动断言「每秒轮询」「电话名写在客户端」的现成面板门禁，
+                      需要同步改门禁，而改门禁本身就是「零变化证明」里最容易被质疑的一步</li>
+                  <li>与 #587 要做的事重叠：同一段面板代码两票各动一次</li>
+                  <li>与新包客户端入口自己写的「本次不切」注释相矛盾</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <details>
+          <summary>如果你选 B，我会怎么把风险压住（展开看）</summary>
+          <ul>
+            <li>只替换<strong>取值来源</strong>，不改任何取值：电话名仍是 <code>wf.*</code>，轮询仍是 1000 毫秒，逐项断言相等</li>
+            <li>门禁的修改单独成一个提交，并写清「改的是取值来源的断言，不是行为断言」</li>
+            <li>面板行为相关的断言（每秒轮询、只在安装中轮询、清理只停定时器）保持原样不动</li>
+          </ul>
+        </details>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 下一步 ================= -->
+  <section id="next">
+    <h2><span class="n">5</span>你答复之后我会做什么</h2>
+    <ol>
+      <li>按你选的方案把插件宿主侧接到新包，落盘双读 + 自愈照规格实现。</li>
+      <li>逐项对照迁移前后：面板拿到的快照六个字段、手工兜底命令原文、错误码白名单、三个电话名。</li>
+      <li>跑现有更新五道门禁 + 日志门禁，全绿；再新增一条断言「打的确实是新包这条路」。</li>
+      <li>网页端做一次干净安装冒烟（npm 侧）。</li>
+      <li>把桌面端要做的三步写成清单交给你（查状态 → 查新版 → 装更新），你我一起看现象。</li>
+      <li>按进度契约写回票里：自动化的部分做完就写清楚做到哪；<strong>真机没验过之前不关票</strong>，进度如实标注待确认什么。</li>
+    </ol>
+
+    <div class="callout good">
+      <div class="lbl">我的默认建议（你不回话我就按这个走）</div>
+      <strong>问题一选 B</strong>（工作区链接先接上，验证完再发布）+
+      <strong>问题二选 A</strong>（面板本票不动，留给 #587）。
+      这样今天能拿到一份完整、可复现、无不可逆动作的验证结果。
+    </div>
+  </section>
+
+  <footer>
+    这份文件用于 #586 决策请求，读取方是你。票面：<code>#586 落地：当前插件迁移与双宿主验收</code>，
+    属于地图 <code>#579 可复用更新系统：抽成独立 npm 包，当前插件做第一个用户</code>。<br />
+    文件路径：<code>docs/maps/586-questions.html</code>
+  </footer>
+
+</div>
+</body>
+</html>

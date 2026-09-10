@@ -32,6 +32,17 @@ import type { EnvironmentKind } from './ports.js'
 
 export { buildPhoneName, buildPhoneNames, resolveUpdateConfig } from './config.js'
 export type { PhoneAction, UpdateConfigInput } from './config.js'
+// 门禁模板检查器（#584，对象形式，更新包不读盘；经包根转出口，第二家可达）。
+export { parseEventListManifest, checkEventFields, checkEventCounts } from './gate.js'
+export type {
+  GateEventLevel,
+  GateEventKind,
+  GateEventEntry,
+  GateEventCounts,
+  GateEventList,
+  GateFieldCheck,
+  GateCountCheck
+} from './gate.js'
 export { containingPackage, defaultHomeDir, profileNameValid, registrySpec } from './reader.js'
 export { createUpdateDiskPorts, createUpdateExecutor, pathsForUpdate, resolveCliEntry } from './store.js'
 

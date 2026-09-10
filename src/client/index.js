@@ -243,6 +243,8 @@ export default {
 
     // ==== leaf:OverlayGate (spliced by build) ==== // ==== leaf:overlay (spliced by build) ====
 
+    // ==== kernel:updateClient (spliced by build) ====
+
     // ==== leaf:SettingsWorkspaces (spliced by build) ==== // ==== leaf:settingsPage (spliced by build) ====
 
     // ==== leaf:runPanel (spliced by build) ====

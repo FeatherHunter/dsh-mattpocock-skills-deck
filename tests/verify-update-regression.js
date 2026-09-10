@@ -137,13 +137,17 @@ async function main() {
   // ---- 4) 轮询：只在安装中每秒查只读状态，清理不取消后台 ----
   {
     const settings = strip(read('src/client/views/SettingsPage.js'))
+    // #586：轮询间隔与电话名改由更新包派生（面板不再写字面量），取值真源在派生文件里。
+    const derived = read('scripts/generated/updateClient.derived.js')
+    check(derived.includes("UPD_PHONE_NAMES.updateStatus === 'wf.updateStatus'") && derived.includes('UPD_POLL_MS === 1000'),
+      '派生文件带零变化断言（默认前缀下电话名与旧字面一致、轮询仍 1000 毫秒）')
     check(settings.includes("if (updJobState !== 'installing' && updJobState !== 'verifying') return"), '面板只在正在安装或正在校验时才轮询')
-    check(settings.includes('setInterval(function () { updReadStatus() }, 1000)'), '轮询每秒查一次状态')
+    check(settings.includes('setInterval(function () { updReadStatus() }, UPD_POLL)'), '轮询按更新包派生的间隔查（不再写死 1000）')
     check(settings.includes('clearInterval(timerId)'), '清理停掉定时器')
     const effectAt = settings.indexOf("if (updJobState !== 'installing'")
     const cleanup = settings.slice(effectAt, effectAt + 400)
     check(!/wf\.update(Cancel|Abort|Stop)|writeJob\s*\(\s*null|abort\s*\(/i.test(cleanup), '清理不取消后台任务（只停定时器，关页面不取消已提交的安装）')
-    check(settings.includes("host.call('wf.updateStatus'"), '轮询走只读查状态电话（不联网，见第 1 节）')
+    check(settings.includes('host.call(UPD_STATUS'), '轮询走派生的只读查状态电话名（不联网，见第 1 节）')
     const serviceSrc = strip(read('src/shared/update/service.js'))
     check(serviceSrc.includes('void runBackground(job, env)'), '安装后台 fire-and-forget（调用返回后任务自己往下走）')
   }

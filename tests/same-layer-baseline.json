@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "recordedAt": "2026-09-09",
+  "recordedAt": "2026-09-10",
   "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。backends 三房间不在此清单（仍由老门禁管同房间放行）。",
   "entries": [
     {
@@ -614,6 +614,132 @@
       "count": 1,
       "owner": "#564",
       "note": "当前插件迁移到日志包：宿主运行时走日志包派生（旧文件留而不搬），接线与派生副本的引用边"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./updateFromPackage.js",
+      "resolved": "src/host/updateFromPackage.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updateFromPackage.js",
+      "spec": "./updatePkg/host.js",
+      "resolved": "src/host/updatePkg/host.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updateFromPackage.js",
+      "spec": "./updatePkg/config.js",
+      "resolved": "src/host/updatePkg/config.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updatePkg/gate.js",
+      "spec": "./config.js",
+      "resolved": "src/host/updatePkg/config.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updatePkg/host.js",
+      "spec": "./config.js",
+      "resolved": "src/host/updatePkg/config.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updatePkg/host.js",
+      "spec": "./commands.js",
+      "resolved": "src/host/updatePkg/commands.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updatePkg/host.js",
+      "spec": "./service.js",
+      "resolved": "src/host/updatePkg/service.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updatePkg/host.js",
+      "spec": "./store.js",
+      "resolved": "src/host/updatePkg/store.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updatePkg/host.js",
+      "spec": "./reader.js",
+      "resolved": "src/host/updatePkg/reader.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updatePkg/host.js",
+      "spec": "./gate.js",
+      "resolved": "src/host/updatePkg/gate.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updatePkg/reader.js",
+      "spec": "./config.js",
+      "resolved": "src/host/updatePkg/config.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updatePkg/reader.js",
+      "spec": "./service.js",
+      "resolved": "src/host/updatePkg/service.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updatePkg/store.js",
+      "spec": "./commands.js",
+      "resolved": "src/host/updatePkg/commands.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
+    },
+    {
+      "file": "src/host/updatePkg/store.js",
+      "spec": "./config.js",
+      "resolved": "src/host/updatePkg/config.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#586 当前插件迁移到更新包",
+      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
     }
   ]
 }

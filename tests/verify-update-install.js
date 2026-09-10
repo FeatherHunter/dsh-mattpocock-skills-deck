@@ -53,8 +53,11 @@ async function main() {
   check(updateSrc.includes('reader.install('), '装更新走核心 reader.install')
   check(!updateSrc.includes('registry.npmjs.org'), '胶水不另写查询（无官方源地址字面量，命令拼接在共享层）')
   const clientSettings = strip(read('src/client/views/SettingsPage.js'))
-  check(clientSettings.includes("host.call('wf.updateInstall'"), '面板有点更新调用（开始更新）')
-  check(clientSettings.includes('setInterval(function () { updReadStatus() }, 1000)'), '安装中每秒轮询查状态')
+  // #586：客户端不再写电话名字面量，电话名与轮询间隔都从更新包派生的取值来。
+  const derivedClient = read('scripts/generated/updateClient.derived.js')
+  check(derivedClient.includes("UPD_PHONE_NAMES.updateStatus === 'wf.updateStatus'"), '派生文件带零变化断言（默认前缀下三个电话名与旧字面一致）')
+  check(clientSettings.includes('host.call(UPD_INSTALL'), '面板有点更新调用（开始更新，走派生电话名）')
+  check(clientSettings.includes('setInterval(function () { updReadStatus() }, UPD_POLL)'), '安装中按派生间隔轮询查状态（不再写死 1000）')
   check(!clientSettings.includes('registry.npmjs.org') && !clientSettings.includes('fetch('), '面板不直连源（手工命令由宿主回包提供）')
   check(clientSettings.includes("tr('cfg.updateDialogBody')") && clientSettings.includes("tr('cfg.updateStart')"), '对话框两行字与开始更新走词条')
 

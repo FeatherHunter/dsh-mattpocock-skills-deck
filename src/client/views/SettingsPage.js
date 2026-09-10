@@ -157,17 +157,17 @@ export     const SettingsPage = (props) => {
         setUpdChecking(true)
         const t0 = Date.now()
         try {
-          host.call('wf.updateStatus', {}).then(function (res) {
+          host.call(UPD_STATUS, {}).then(function (res) {
             setUpdChecking(false)
             if (res && res.ok === true && res.snapshot) {
-              try { log('info', 'host.call', { method: 'wf.updateStatus', latencyMs: Date.now() - t0, ok: true, kind: 'update-status' }) } catch (eL) {}
+              try { log('info', 'host.call', { method: UPD_STATUS, latencyMs: Date.now() - t0, ok: true, kind: 'update-status' }) } catch (eL) {}
               updApplyRes(res)
             } else {
-              try { log('warn', 'host.call.fail', { method: 'wf.updateStatus', kind: 'update-status', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
+              try { log('warn', 'host.call.fail', { method: UPD_STATUS, kind: 'update-status', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
             }
           }).catch(function (e) {
             setUpdChecking(false)
-            try { log('warn', 'host.call.fail', { method: 'wf.updateStatus', kind: 'update-status', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
+            try { log('warn', 'host.call.fail', { method: UPD_STATUS, kind: 'update-status', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
           })
         } catch (eUpd) { setUpdChecking(false) }
       }
@@ -178,20 +178,20 @@ export     const SettingsPage = (props) => {
         setUpdChecking(true)
         const t0 = Date.now()
         try {
-          host.call('wf.updateCheck', {}).then(function (res) {
+          host.call(UPD_CHECK, {}).then(function (res) {
             setUpdChecking(false)
             if (res && res.ok === true && res.snapshot) {
-              try { log('info', 'host.call', { method: 'wf.updateCheck', latencyMs: Date.now() - t0, ok: true, kind: 'update-check' }) } catch (eL) {}
+              try { log('info', 'host.call', { method: UPD_CHECK, latencyMs: Date.now() - t0, ok: true, kind: 'update-check' }) } catch (eL) {}
               updApplyRes(res)
               if (updIsNewer(res.snapshot.latestVersion, res.snapshot.runningVersion)) setUpdDialog(true)
               else flash(sharedSt, tr('cfg.updateLatest', { v: res.snapshot.runningVersion }), 'ok')
             } else {
-              try { log('warn', 'host.call.fail', { method: 'wf.updateCheck', kind: 'update-check', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
+              try { log('warn', 'host.call.fail', { method: UPD_CHECK, kind: 'update-check', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
               flash(sharedSt, tr('cfg.updateCheckFail'), 'warn')
             }
           }).catch(function (e) {
             setUpdChecking(false)
-            try { log('warn', 'host.call.fail', { method: 'wf.updateCheck', kind: 'update-check', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
+            try { log('warn', 'host.call.fail', { method: UPD_CHECK, kind: 'update-check', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
             flash(sharedSt, tr('cfg.updateCheckFail'), 'warn')
           })
         } catch (eUpd) { setUpdChecking(false); flash(sharedSt, tr('cfg.updateCheckFail'), 'warn') }
@@ -203,21 +203,21 @@ export     const SettingsPage = (props) => {
         const t0 = Date.now()
         const requestId = 'req-' + String(Date.now()) + '-' + String(Math.floor(Math.random() * 100000))
         try {
-          host.call('wf.updateInstall', { checkId: updCheckId, requestId: requestId }).then(function (res) {
+          host.call(UPD_INSTALL, { checkId: updCheckId, requestId: requestId }).then(function (res) {
             setUpdBusy(false)
             if (res && res.ok === true && res.snapshot) {
-              try { log('info', 'host.call', { method: 'wf.updateInstall', latencyMs: Date.now() - t0, ok: true, kind: 'update-install' }) } catch (eL) {}
+              try { log('info', 'host.call', { method: UPD_INSTALL, latencyMs: Date.now() - t0, ok: true, kind: 'update-install' }) } catch (eL) {}
               updApplyRes(res)
               setUpdDialog(false)
             } else {
-              try { log('warn', 'host.call.fail', { method: 'wf.updateInstall', kind: 'update-install', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
+              try { log('warn', 'host.call.fail', { method: UPD_INSTALL, kind: 'update-install', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
               if (res && res.error) setUpdBlocked(res.error)
               flash(sharedSt, tr('cfg.updateInstallFail'), 'warn')
               updReadStatus()
             }
           }).catch(function (e) {
             setUpdBusy(false)
-            try { log('warn', 'host.call.fail', { method: 'wf.updateInstall', kind: 'update-install', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
+            try { log('warn', 'host.call.fail', { method: UPD_INSTALL, kind: 'update-install', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
             flash(sharedSt, tr('cfg.updateInstallFail'), 'warn')
           })
         } catch (eUpd) { setUpdBusy(false); flash(sharedSt, tr('cfg.updateInstallFail'), 'warn') }
@@ -225,7 +225,7 @@ export     const SettingsPage = (props) => {
       React.useEffect(function () { updReadStatus() }, [])
       React.useEffect(function () {
         if (updJobState !== 'installing' && updJobState !== 'verifying') return
-        const timerId = setInterval(function () { updReadStatus() }, 1000)
+        const timerId = setInterval(function () { updReadStatus() }, UPD_POLL)
         return function () { try { clearInterval(timerId) } catch (eT) {} }
       }, [updJobState])
       const updCopyManual = function () {

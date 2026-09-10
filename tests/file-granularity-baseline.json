@@ -1,8 +1,6 @@
 {
   "version": 1,
-  "recordedAt": "2026-09-09",
+  "recordedAt": "2026-09-10",
   "note": "零增长基线：只许减不许增；达标文件由各自拆分票移出。",
-  "files": {
-    "src/host/logPkg/store.js": 425
-  }
+  "files": {}
 }

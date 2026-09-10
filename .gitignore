@@ -37,6 +37,9 @@ _research/
 # 更新包的编译产物不入库（发布前跑 build:dsh-plugin-update 本地生成，本地保留文件可跑测试）
 /packages/dsh-plugin-update/dist/
 
+# 更新包集成工具自查用的临时落点（跑包内测试时生成，不入库）
+/packages/dsh-plugin-update/tests/.tmp/
+
 # ===== teach skill — teaching workspace (ignored, durable across resets) =====
 /MISSION.md
 /RESOURCES.md

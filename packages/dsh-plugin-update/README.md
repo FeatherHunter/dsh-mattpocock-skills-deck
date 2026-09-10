@@ -22,7 +22,7 @@ npm install dsh-plugin-update
 包根即宿主侧入口（`package.json` 的 `exports` 只暴露包根与 `./package.json`）：
 
 - 包根（宿主侧用）：建更新能力、拼电话名、给调用方回电话名与处理器。宿主侧用标准模块写法，直接 `import`。
-- `dist/client.js`（客户端侧用）：电话名拼法、轮询时间口径、手工兜底命令形状。客户端侧用文本拼接消费（取编译后函数的声明体拼进插件主文件闭包），面板界面不进包。
+- `dist/client.js`（客户端侧用）：电话名拼法、轮询时间口径、手工兜底命令形状。客户端侧**在构建期派生取值**（把本文件打包一次，把你自己的前缀代进去，得到三个电话名与轮询间隔的常量），面板界面不进包。
 
 ## 3. 三步接入（双入口）
 
@@ -59,16 +59,53 @@ for (const [name, handler] of Object.entries(update.handlers)) {
 这一步得到该插件的一组电话名与处理器：`notes.updateStatus`、`notes.updateCheck`、`notes.updateInstall`。
 单例复用键强制含插件标识，多插件不串内存状态与锁。其余配置（官方源、目录根、超时、轮询）全可选并带默认值，默认值等于现状，不传即走现状。
 
-第 3 步：客户端侧接线（`dist/client.js` 按文本拼接消费）。
+第 3 步：客户端侧接线（构建期派生取值）。
+
+这一步的目标只有一句：**面板里不要写死电话名与轮询间隔，全部从本包派生出来**。做法是构建时把本包的客户端入口打包一次，把你的前缀代进去，在你的仓库里生成一个小文件，里面是三个电话名与轮询间隔的常量；面板直接引用这些常量。
+
+在第 2 步已有的配置上再补两处接线：
 
 ```js
-// 电话名拼法与宿主侧同一套，传入同一个前缀。
-// 下面三行是形状说明，实际消费时取 dist/client.js 里对应函数的声明体、
-// 去行首 export 后拼进插件主文件闭包，打包工具不解析 import（面板界面不进包）。
-buildClientPhoneNames('notes') // 得到 notes.updateStatus / notes.updateCheck / notes.updateInstall
-assertPollInterval(1000) // 面板轮询间隔，不得小于 250 毫秒
-manualCommand({ profileName, latestVersion, installedVersion, runningVersion, jobTargetVersion, blockedReason, sourceInstall: false, targetPackageName: 'my-notes-plugin', registryUrl: 'https://registry.npmjs.org/' })
+// 生成出来的文件里长这样（名字随你，这里是本仓用的形状）：
+//   export const UPD_STATUS  = 'notes.updateStatus'
+//   export const UPD_CHECK   = 'notes.updateCheck'
+//   export const UPD_INSTALL = 'notes.updateInstall'
+//   export const UPD_POLL    = 1000
+//
+// 面板里这样用（宿主侧用同一套 phoneNames，两边必须同前缀）：
+host.call(UPD_STATUS, {})            // 查状态
+host.call(UPD_CHECK, {})             // 查新版
+host.call(UPD_INSTALL, { checkId, requestId })  // 装更新
+setInterval(readStatus, UPD_POLL)    // 轮询间隔
 ```
+
+面板不再出现 `'notes.updateStatus'` 这样的字面量，也不再出现写死的 `1000`。以后要换前缀或换轮询间隔，只改本包的配置再重新派生一次，面板一行都不用动。
+
+派生要用的三样取值都在本包的客户端入口里，按名字取即可：
+
+```js
+buildClientPhoneNames('notes')  // 电话名拼法，与宿主侧同一套（前缀 + 点 + 动作名）
+CLIENT_POLL.defaultMs           // 面板轮询间隔默认值（1 秒）
+CLIENT_POLL.minMs               // 轮询间隔下限（250 毫秒，低于它要报错而不是静默取整）
+manualCommand({ ... })          // 手工兜底命令的形状，与宿主侧同一套政策
+```
+
+注意 `manualCommand` 一般不用你在面板里算：宿主每次回包都会带一条现成的手工命令（见第 9 节），面板拿到就展示，不要自己拼。
+
+**参考实现**：本包自带集成工具 `derive-client-values.mjs`，在你自己的插件仓库里跑一条命令即可（它的输入是包里的 `dist/client.js`，纯 JS，不需要你自己有 TypeScript）：
+
+```sh
+node node_modules/dsh-plugin-update/derive-client-values.mjs --prefix notes --out scripts/generated/updateClient.derived.js
+```
+
+生成的 `UPD_STATUS` / `UPD_CHECK` / `UPD_INSTALL` / `UPD_POLL` 就是上面那段面板示例要用的常量。以后换前缀或升级本包，重新跑一次这条命令即可。
+
+自定义项与注意点：
+
+- `--prefix` 必填，必须与宿主侧 `createHostUpdate` 传的 `prefix` 一致，否则面板调的电话名和宿主注册的电话名对不上。
+- `--out` 必填，且故意不给默认值：默认值会覆盖别人的文件，写错比报错更糟。
+- 工具用 `esbuild` 只做「打包一次」这件事（构建期使用，不引入运行期依赖）。esbuild 优先从本包自己的 `node_modules` 找，找不到再从你的仓库找；两处都没有时它会打印一句明确的安装提示，不静默失败。
+- `--dry-run` 只打印生成内容、不写文件，用来先看一眼再决定。
 
 客户端只做三件事：照前缀拼电话名、按间隔轮询查状态、装不上时展示手工兜底命令与待重启提示（见第 9、10 节）。
 `pluginId` 必填（非空字符串且不含路径分隔符），`prefix` 不传即 `wf`，新插件务必传自己的前缀。

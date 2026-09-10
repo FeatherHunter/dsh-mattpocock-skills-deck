@@ -24,6 +24,7 @@ import vm from 'node:vm'
 import { spawnSync } from 'node:child_process'
 import * as esbuild from 'esbuild'
 import { deriveHost, deriveClient } from './derive-log-from-package.mjs'
+import { deriveHost as deriveUpdateHost, deriveClient as deriveUpdateClient } from './derive-update-from-package.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -195,6 +196,8 @@ const KERNEL_MODULES = [
   { name: 'icons', file: 'src/client/kernel/icons.js' },
   { name: 'prompts', file: 'src/client/kernel/prompts.js' },
   { name: 'config', file: 'src/client/kernel/config.js' },
+  // #586 切更新包：面板要用的电话名与轮询间隔由更新包派生（改名或改间隔只改包，不在这里写死）
+  { name: 'updateClient', file: 'scripts/generated/updateClient.derived.js' },
   { name: 'log', file: 'scripts/generated/logKernel.derived.js' },
   // 构建内核清单含日志模块（旧真源 src/client/kernel/log.js 原地只读留存，运行时拼入上面的派生文件，#564 留而不搬）
   { name: 'storePrefs', file: 'src/client/kernel/store-prefs.js' },
@@ -430,6 +433,23 @@ async function buildHost({ version }) {
   } catch (e) {
     throw new Error(`[build] 原样复制校验失败：${e.message}`)
   }
+  // #586 更新包派生副本：src/host/updatePkg/* → package/lib/updatePkg/*（逐文件原样，包内相对引用保持有效）
+  {
+    const srcUpdatePkg = resolve(ROOT, 'src/host/updatePkg')
+    const dstUpdatePkg = join(pkgLib, 'updatePkg')
+    try { rmSync(dstUpdatePkg, { recursive: true, force: true }) } catch {}
+    mkdirSync(dstUpdatePkg, { recursive: true })
+    const names = readdirSync(srcUpdatePkg)
+    for (const name of names) {
+      const from = join(srcUpdatePkg, name)
+      const to = join(dstUpdatePkg, name)
+      writeFileSync(to, readFileSync(from))
+      const a = readFileSync(from, 'utf8')
+      const b = readFileSync(to, 'utf8')
+      if (a !== b) throw new Error(`[build] updatePkg/${name} 原样复制不一致`)
+    }
+    console.log(`[build] 更新包派生副本已随包 → package/lib/updatePkg（${names.length} 个文件）`)
+  }
   // 分发 scripts/：消费者工作区调用的两条脚本随包发布（#588 总指挥裁定：只收两条消费者脚本，
   // 构建/调试脚本（build.mjs、ui-*、wizard-*、generate-*、matrix-*、sync-* 等）不许进发布包；
   // 清单写死在这里并注释原因，不另维护第二份——门禁从这份清单机械求值发布包脚本集合）。
@@ -555,12 +575,19 @@ gateBuildArtifacts()
 ensureBundledSkills()
 
 // #564 日志系统派生：先把日志包产物派生为运行时文件（旧文件不动），再拼装。
-// 日志包 dist 缺失时会报错并提示先跑 node packages/dsh-log/build.mjs。
+// #586 更新系统派生：同样先把更新包产物派生为运行时文件（旧文件不动）。
+// 两个包 dist 缺失时会报错并提示先跑各自的 build。
 try {
   deriveHost()
   deriveClient()
 } catch (e) {
   throw new Error('[build] 日志派生失败（先跑 node packages/dsh-log/build.mjs 再重跑本构建）：' + ((e && e.message) || e))
+}
+try {
+  deriveUpdateHost()
+  deriveUpdateClient()
+} catch (e) {
+  throw new Error('[build] 更新派生失败（先跑 node packages/dsh-plugin-update/build.mjs 再重跑本构建）：' + ((e && e.message) || e))
 }
 
 const out = {}

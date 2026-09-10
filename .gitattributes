@@ -1,3 +1,13 @@
-# Auto detect text files and perform LF normalization
+# 自动识别文本文件并做换行规范化
 * text=auto
+
+# 随包分发的脚本必须是 LF（消费者机器上直接执行）
 scripts/*.sh text eol=lf
+
+# 说明文档按 LF 提交：tests/verify-readme-sync.js 是逐字符比对发布目录说明与根说明的，
+# 一旦被 core.autocrlf 转成 CRLF 就会红（本机系统级 gitconfig 里 core.autocrlf=true）。
+# 钉死这几个文件的检出形态为 LF，门禁在任何机器上都成立。
+README.md text eol=lf
+package/README.md text eol=lf
+docs/README.en.md text eol=lf
+CHANGELOG.md text eol=lf

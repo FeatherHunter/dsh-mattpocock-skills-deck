@@ -21,13 +21,24 @@ const SEVERE = 500
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
+// 派生目录不进本门禁：这些文件是别的包编译产物原样复制过来的，人手不能拆、
+// 拆了也会被下一次派生覆盖回去，所以「拆到 350 行以内」这条要求对它无解。
+// 它们的正确性由逐字节门禁钉住（与发布包一致），不受这里放宽的影响：
+//   src/host/logPkg/            ← packages/dsh-log（#564）
+//   src/host/updatePkg/         ← packages/dsh-plugin-update（#586）
+const DERIVED_DIRS = ['src/host/logPkg/', 'src/host/updatePkg/']
+
 function listJsFiles() {
   const out = []
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name)
       if (entry.isDirectory()) walk(full)
-      else if (entry.name.endsWith('.js')) out.push(path.relative(ROOT, full).split(path.sep).join('/'))
+      else if (entry.name.endsWith('.js')) {
+        const rel = path.relative(ROOT, full).split(path.sep).join('/')
+        if (DERIVED_DIRS.some((prefix) => rel.startsWith(prefix))) continue
+        out.push(rel)
+      }
     }
   }
   walk(SRC)

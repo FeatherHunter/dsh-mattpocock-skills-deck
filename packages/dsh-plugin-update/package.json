@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-update",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "可复用的更新系统装成的 npm 包：任何 DSH 插件照文档能集成检查更新等功能（地图 #579）",
   "license": "MIT",
   "author": "王辰浩",
@@ -14,6 +14,8 @@
   },
   "files": [
     "dist",
+    "derive-client-values.mjs",
+    "event-list.template.json",
     "README.md",
     "LICENSE"
   ],
