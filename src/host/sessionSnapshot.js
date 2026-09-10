@@ -6,6 +6,19 @@ export function createSessionSnapshot(deps) {
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
   let _dedupeP = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
+  // #595：快照必须把后端的 prompts 声明一起带给客户端 —— 正文格式契约按当前后端解析。
+  //   磁盘缓存里存的是「上次写盘那一刻」的 backendModules：旧版本写的缓存没有 prompts 这一栏，
+  //   直接回放会让远端后端（GitHub）静默丢掉两步写回步骤（无任何提示）。所以磁盘缓存命中时
+  //   一律用当前注册表重挂一遍 backendModules，保证声明总随快照走；注册表取不到时保留缓存原值，不凭空造声明。
+  async function freshBackendModules() {
+    try {
+      const regM = await getTrackerRegistry()
+      if (regM && typeof regM.modules === 'function') {
+        return regM.modules().map(function (m) { return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.labelPalette ? { labelPalette: m.labelPalette } : {}, m.openRepository ? { openRepository: m.openRepository } : {}) })
+      }
+    } catch (e) {}
+    return null
+  }
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   let snapSampleN = 0
@@ -238,7 +251,7 @@ export function createSessionSnapshot(deps) {
         const diskb = await readDiskCache(repo0b)
         if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
           const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
-          if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()) } }) } catch (eL) {}; return adoptSnapLog(Object.assign({}, diskb, { fromCache: true }), cwd) }
+          if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()) } }) } catch (eL) {}; const freshModules = await freshBackendModules(); return adoptSnapLog(Object.assign({}, diskb, freshModules ? { backendModules: freshModules } : null, { fromCache: true }), cwd) }
         }
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')

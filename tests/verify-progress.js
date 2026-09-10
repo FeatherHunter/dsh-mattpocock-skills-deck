@@ -91,25 +91,25 @@ check(cli.includes('const BODY_FORMAT'), 'client 含 BODY_FORMAT 常量')
 check(pcli.includes('const BODY_FORMAT'), 'package client 含 BODY_FORMAT 常量')
 // 追加点跨行容错（completePrompt 的 + 在上一行末尾，CRLF 源码）：\+ 与 ( 之间允许空白/换行
 // 2026-08-18（需求修复）：BODY_FORMAT 已函数化 —— 追加点形态为 BODY_FORMAT()
-// #594：追加点带上当前工作区状态 st —— 正文格式文案按当前后端解析
+// #595：追加点带上当前工作区状态 st —— 正文格式文案按当前后端解析
 const appendCount = (s) => (s.match(/\+[\s]*\(BODY_FORMAT\(st\) \? '\\n\\n' \+ BODY_FORMAT\(st\) : ''\)/g) || []).length
 // issue #4：新增 newBugWayfinderText（+ 新增BUG单 入口）→ 追加点 ×4；#68：mapExecute v5 自包含（正文格式内嵌）→ 追加点降为 ×3；
 // #69：complete v4 自包含（正文格式内嵌模板，不再外挂追加）→ 追加点降为 ×2（仅 newWayfinder + newBugWayfinder）
 check(appendCount(cli) === 2, 'client BODY_FORMAT(st) 追加点 ×2（newWayfinder + newBugWayfinder；mapExecute/complete 均已自包含内嵌正文格式标记）')
 check(appendCount(pcli) === 2, 'package client BODY_FORMAT(st) 追加点 ×2（newWayfinder + newBugWayfinder；mapExecute/complete 均已自包含内嵌正文格式标记）')
-// #594：模板里不再硬抄正文格式（GitHub 专用两步写回搬进各后端 prompts.bodyFormat）；模板只剩 {bodyFormat} 标记
+// #595：模板里不再硬抄正文格式（GitHub 专用两步写回搬进各后端 prompts.bodyFormat）；模板只剩 {bodyFormat} 标记
 check(cli.includes('## MAP完成确认') && cli.includes('{bodyFormat}'), 'client complete v4 内嵌正文格式标记 {bodyFormat}（文案按后端解析，不再硬抄）')
 check(pcli.includes('## MAP完成确认') && pcli.includes('{bodyFormat}'), 'package client complete v4 内嵌正文格式标记 {bodyFormat}（文案按后端解析，不再硬抄）')
 check(cli.includes('bodyFormatText') && cli.includes('backendPromptFrom') && cli.includes('promptTextFor'), 'client 含按后端解析正文格式的渲染入口（bodyFormatText/backendPromptFrom/promptTextFor）')
 check(pcli.includes('bodyFormatText') && pcli.includes('backendPromptFrom') && pcli.includes('promptTextFor'), 'package client 含按后端解析正文格式的渲染入口（bodyFormatText/backendPromptFrom/promptTextFor）')
-check(cli.includes('newWayfinderText') && cli.includes('BODY_FORMAT(st) ?') && cli.includes("promptText('newWayfinder'"), 'client newWayfinder 建图入口挂 BODY_FORMAT(st)（F2 补强 + #594 按后端）')
-check(pcli.includes('newWayfinderText') && pcli.includes('BODY_FORMAT(st) ?') && pcli.includes("promptText('newWayfinder'"), 'package client newWayfinder 建图入口挂 BODY_FORMAT(st)（F2 补强 + #594 按后端）')
-check(cli.includes('newBugWayfinderText') && cli.includes('BODY_FORMAT(st) ?') && cli.includes("promptText('newBugWayfinder'"), 'client newBugWayfinder 新增 BUG 入口挂 BODY_FORMAT(st)（#4 + #594 按后端）')
-check(pcli.includes('newBugWayfinderText') && pcli.includes('BODY_FORMAT(st) ?') && pcli.includes("promptText('newBugWayfinder'"), 'package client newBugWayfinder 新增 BUG 入口挂 BODY_FORMAT(st)（#4 + #594 按后端）')
-// #594：client 侧不许再硬抄 GitHub 专用的写回脚本 / 插件目录解析（那三处文案搬进 github 后端的 prompts.bodyFormat）
+check(cli.includes('newWayfinderText') && cli.includes('BODY_FORMAT(st) ?') && cli.includes("promptText('newWayfinder'"), 'client newWayfinder 建图入口挂 BODY_FORMAT(st)（F2 补强 + #595 按后端）')
+check(pcli.includes('newWayfinderText') && pcli.includes('BODY_FORMAT(st) ?') && pcli.includes("promptText('newWayfinder'"), 'package client newWayfinder 建图入口挂 BODY_FORMAT(st)（F2 补强 + #595 按后端）')
+check(cli.includes('newBugWayfinderText') && cli.includes('BODY_FORMAT(st) ?') && cli.includes("promptText('newBugWayfinder'"), 'client newBugWayfinder 新增 BUG 入口挂 BODY_FORMAT(st)（#4 + #595 按后端）')
+check(pcli.includes('newBugWayfinderText') && pcli.includes('BODY_FORMAT(st) ?') && pcli.includes("promptText('newBugWayfinder'"), 'package client newBugWayfinder 新增 BUG 入口挂 BODY_FORMAT(st)（#4 + #595 按后端）')
+// #595：client 侧不许再硬抄 GitHub 专用的写回脚本 / 插件目录解析（那三处文案搬进 github 后端的 prompts.bodyFormat）
 const fixNameCount = (s) => (s.match(/scripts\/fix-issue-body\.mjs/g) || []).length
-check(fixNameCount(cli) === 0, 'client 不再硬抄写回脚本路径 ×0（#594：搬进 github 后端 prompts.bodyFormat）')
-check(fixNameCount(pcli) === 0, 'package client 不再硬抄写回脚本路径 ×0（#594：搬进 github 后端 prompts.bodyFormat）')
+check(fixNameCount(cli) === 0, 'client 不再硬抄写回脚本路径 ×0（#595：搬进 github 后端 prompts.bodyFormat）')
+check(fixNameCount(pcli) === 0, 'package client 不再硬抄写回脚本路径 ×0（#595：搬进 github 后端 prompts.bodyFormat）')
 check(cli.indexOf('dsh plugin exec') < 0, 'client 正文格式文案不再含插件目录解析（dsh plugin exec）')
 check(pcli.indexOf('dsh plugin exec') < 0, 'package client 正文格式文案不再含插件目录解析（dsh plugin exec）')
 

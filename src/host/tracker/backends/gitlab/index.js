@@ -140,10 +140,13 @@ export const prompts = {
     en: 'No GitLab repository resolved for the current workspace. Confirm intent: A. local project → switch to "Local Markdown"; B. GitLab really wanted → verify the remote (git remote get-url origin / glab config), or create/associate via glab repo create; then ask the user to re-check.',
   },
   subIssue: {
-    zh: '通过 GitLab API 的子议题关联建边；以 list({parentKey}) 校验计数与预期一致',
-    en: 'via GitLab API sub-issue association; verify with list({parentKey}) equals expected'
+    // 2026-09 修正：旧文案让 agent 执行 setParent(map.key) / list({parentKey})，但宿主侧没有这些 agent tool —— 照做不到。
+    //   改成这个后端真的能做的动作：用后端自己的命令行建原生父子边，建完自校验数量。
+    //   具体子命令不写死（各版本命令行语法未逐一查证，宁可泛指，避免写进用不上的命令）。
+    zh: '用后端自己的命令行把每个子票建成这个 map 的原生子议题（先按本机安装的版本核对命令语法），建完用同一条命令行核对子议题数量与预期一致',
+    en: 'use the backend command line to make each sub-ticket a native child of this map; check the exact syntax of the version installed on this machine first, then re-query with the same command line to confirm the child count matches the plan',
   },
-  // #594：正文格式契约归后端单源 —— GitLab 写回用后端自己的命令行，正文从文件读入；
+  // #595：正文格式契约归后端单源 —— GitLab 写回用后端自己的命令行，正文从文件读入；
   //   具体命令不写死（各版本命令行语法未逐一查证，宁可泛指，避免写进用不上的命令）。
   bodyFormat: {
     zh: '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 正文先写成文件（文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行），不要把正文拼进命令行\n- [ ] 写回用当前后端的命令行把整个文件读进去（正文不从命令行参数里传），写完读回来核对一遍\n- [ ] 换行不要写成反斜杠加 n 两个字符',

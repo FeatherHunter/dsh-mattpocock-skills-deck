@@ -15,6 +15,13 @@
 //   S4 src/host/**/*.js 的 *_PROMPT 常量
 //   S5 S1 里含 {占位符} 的条目：占位符先求值（真实值 / 空串 / 哨兵三种展开）再判，另加「值形态」与「拆占位符拼装」两道
 //
+// #595 补的三面（以前完全不扫，塞进去就全绿）：
+//   S6 注册表之外的客户端文本来源：src/client/kernel/prompts.js 去掉 PROMPTS 块之后剩下的字符串字面量
+//      （NEW_BUG_FIELDS_BODY / NEW_BUG_FIELDS_BODY_EN / NEW_WAYFINDER_DEFAULT_WIRING 等）
+//   S7 src/client/kernel/config.js 的字符串字面量（TPL_DEFAULT 默认模板等）
+//   S8 客户端产物里消费者看得见的提示词文本（从产物解析出的注册表条目）过 judge()：不许出现 gh / glab 命令形状
+//      （以前只卡 'dsh plugin exec' 与 'scripts/fix-issue-body.mjs' 两个字面串，换别的命令就全绿）
+//
 // 不扫（有意为之，见 §1.1）：docs/**（本来就该写具体命令）、tests/**、scripts/*.mjs、src/host 的代码注释与正则字面量。
 //
 // 豁免只有一张表，登记在 tests/prompt-gate-exempt.json（门禁只读它，代码里不留第二份）：
@@ -328,7 +335,7 @@ const evalRegistrySource = function (src) {
   if (!got || !got.PROMPTS || typeof got.PROMPTS !== 'object') throw new Error('未取到 PROMPTS 对象')
   return got.PROMPTS
 }
-// #594 渲染层求值：同一段源码再求值一次，额外拿到「按后端填空」的渲染入口（promptTextFor / BODY_FORMAT）。
+// #595 渲染层求值：同一段源码再求值一次，额外拿到「按后端填空」的渲染入口（promptTextFor / BODY_FORMAT）。
 //   localeSvc 由本门禁注入（locale 决定取 zh 还是 en），因此可以对同一后端渲染出两种语言的文本。
 const evalPromptHelpers = (function () {
   let src0 = null
@@ -337,9 +344,11 @@ const evalPromptHelpers = (function () {
     if (!src0) throw new Error('evalPromptHelpers 未初始化（先调用 prime(src)）')
     if (byLang[lang]) return byLang[lang]
     const body = String(src0).replace(/^[ \t]*export[ \t]+/gm, '')
-    const factory = new Function('localeSvc', body +
-      '\n;return { PROMPTS: PROMPTS, promptText: promptText, promptTextFor: promptTextFor, bodyFormatText: bodyFormatText, BODY_FORMAT: BODY_FORMAT };')
-    byLang[lang] = factory({ getSnapshot: function () { return { active: lang } } })
+    const factory = new Function('localeSvc', 'issueUrlFor', body +
+      '\n;return { PROMPTS: PROMPTS, promptText: promptText, promptTextFor: promptTextFor, bodyFormatText: bodyFormatText, BODY_FORMAT: BODY_FORMAT, completePrompt: completePrompt };')
+    // issueUrlFor 由本门禁注入替身（真实那个住 router.js，不在这一段源码里）：只用于验「按真实调用形态渲染」。
+    //   替身忠实反映签名 —— 只吃 (st, num)，多传的参数会被忽略，正是为了让「参数错位」这类 bug 现形。
+    byLang[lang] = factory({ getSnapshot: function () { return { active: lang } } }, function (st, num) { return 'https://example.invalid/' + String(num) })
     return byLang[lang]
   }
   return {
@@ -348,6 +357,8 @@ const evalPromptHelpers = (function () {
     },
     promptTextForForTest: function (st, id, params, lang) { return instanceOf(lang).promptTextFor(st, id, params) },
     BODY_FORMAT: function (st, lang) { return instanceOf(lang || 'zh').BODY_FORMAT(st) },
+    // #595 必修①：completePrompt 的真实调用形态 = (st, num, title, total, closed)，用它渲染来断言调用错位
+    completePromptForTest: function (st, num, title, total, closed, lang) { return instanceOf(lang || 'zh').completePrompt(st, num, title, total, closed) },
   }
 })()
 // 反隐藏：条目不许用不可枚举属性 / Symbol / 原型链 / getter 藏起来（这些都能绕过 Object.keys）
@@ -456,7 +467,7 @@ const topLevelKeyPositions = function (block) {
 const countTopLevelKeys = function (block) {
   return topLevelKeyPositions(block).map(function (k) { return k.name })
 }
-// 取某后端 prompts.<key> 的 zh/en 声明值（#594 起 bodyFormat 也走这里；渲染面断言与注入链断言共用）
+// 取某后端 prompts.<key> 的 zh/en 声明值（#595 起 bodyFormat 也走这里；渲染面断言与注入链断言共用）
 const backendPromptValues = function (src, key) {
   const block = extractObjectLiteral(src, 'export const prompts')
   if (!block) return {}
@@ -508,8 +519,103 @@ const scanAllLiterals = function (block) {
   return out
 }
 
+// ==================== 4b. #595 新增扫描面：注册表之外的客户端文本来源 + 客户端产物 ====================
+// 为什么要有这一面：会进客户端产物的文本不止 PROMPTS 注册表这一处 —— 同一段内核源码里还有
+//   NEW_BUG_FIELDS_BODY / NEW_BUG_FIELDS_BODY_EN / NEW_WAYFINDER_DEFAULT_WIRING 这类常量，
+//   kernel/config.js 里还有 TPL_DEFAULT 默认模板；它们以前门禁完全不扫（把 GitHub 专用散文塞进任何一处都全绿）。
+// 判定口径与 S1 一致：一律交给 judge()。
+// 只扫「字符串字面量」，不扫整份源码 —— 产物是打包后的代码，代码里本来就有 \x 转义、eval( 这些形状，扫整份会误红；
+//   而消费者看得见的文本一定落在字符串字面量里。
+const nonRegistryLiterals = function (src) {
+  let body = String(src)
+  const block = extractObjectLiteral(body, 'const PROMPTS')
+  if (!block) return null
+  const cut = body.indexOf(block)
+  if (cut >= 0) body = body.slice(0, cut) + body.slice(cut + block.length)
+  return scanAllLiterals(body).map(function (l) { return l.text }).filter(function (t) { return String(t).trim() !== '' })
+}
+const collectNonRegistrySource = function (rel, src) {
+  const lits = nonRegistryLiterals(src)
+  if (!lits) return { problems: ['FAIL ' + rel + ' 找不到 const PROMPTS 块（去注册表后没剩下可扫的文本，扫描面报错而不是静默少扫）'], literals: 0 }
+  const out = []
+  lits.forEach(function (t) {
+    judge(t).forEach(function (h) {
+      out.push('FAIL ' + rel + ' 注册表之外的客户端文本 [' + h.rule + '] 命中「' + h.snippet + '」\n     修法：' + RULE_FIX[h.rule] + '；这类常量同样会进客户端产物、同样会注入会话，别把具体跟踪器命令写进去')
+    })
+  })
+  return { problems: out, literals: lits.length }
+}
+const collectConfigSource = function (rel, src) {
+  const out = []
+  const tplBlock = extractObjectLiteral(String(src), 'export const TPL_DEFAULT')
+  if (!tplBlock) out.push('FAIL ' + rel + ' 找不到 export const TPL_DEFAULT 块（默认模板是客户端文本来源之一，扫描面不许缺）')
+  const lits = scanAllLiterals(String(src)).map(function (l) { return l.text }).filter(function (t) { return String(t).trim() !== '' })
+  lits.forEach(function (t) {
+    judge(t).forEach(function (h) {
+      out.push('FAIL ' + rel + ' 字符串字面量 [' + h.rule + '] 命中「' + h.snippet + '」\n     修法：' + RULE_FIX[h.rule] + '；默认模板与配置里的文本同样进客户端产物、同样会注入会话')
+    })
+  })
+  return { problems: out, literals: lits.length }
+}
+// 客户端产物：整份产物里不许出现 gh / glab 命令形状 —— 判定落在「产物里消费者看得见的那部分文本」上，不再只卡
+//   'dsh plugin exec' 与 'scripts/fix-issue-body.mjs' 两个字面串（换成别的跟踪器命令、甚至换回裸 gh issue edit 就全绿）。
+// 为什么只判注册表文本、不判产物里所有字符串字面量：产物是打包后的代码，代码里本来就有 String.fromCharCode(92)、
+//   \x 转义、eval( 这些形状（R7 就是冲它们去的），逐字面量判会把「代码」当成「文本」误红；而词法扫描在打包产物上会
+//   把正则字面量里的引号当成字符串起点，吐出跨越整段代码的假字面量。消费者看得见的提示词文本 = 注册表条目（产物里可完整解析）
+//   + 源码侧的 NEW_* 常量与 TPL_DEFAULT（由 S6 / S7 在原文件上判定，构建后原样进产物）。
+const collectArtifactShapes = function (rel) {
+  const p = path.join(ROOT, rel)
+  if (!fs.existsSync(p)) return null
+  const reg = parseRegistryByRegex(fs.readFileSync(p, 'utf8'))
+  const ids = Object.keys(reg)
+  const out = []
+  ids.forEach(function (id) {
+    const e = reg[id] || {}
+    ;['zh', 'en', 'use'].forEach(function (field) {
+      judge(e[field]).forEach(function (h) {
+        out.push('FAIL ' + rel + ' 产物注册表 ' + id + '.' + field + ' [' + h.rule + '] 命中「' + h.snippet + '」\n     修法：' + RULE_FIX[h.rule] + '；客户端产物里不许出现 gh / glab 命令形状')
+      })
+    })
+  })
+  return { problems: out, literals: ids.length * 3, ids: ids.length }
+}
+// 数一个函数名的每个调用点各传了几个实参（跳过字符串 / 模板串 / 注释；括号与方括号配对计数）。
+// 用途：#595 必修① —— completePrompt 的真实签名是 (st, num, title, total, closed)，视图侧曾经按 4 参调。
+const callArgCounts = function (src, name) {
+  const s = String(src)
+  const out = []
+  const re = new RegExp('(?:^|[^A-Za-z0-9_$.])' + name + '\\s*\\(', 'g')
+  let m
+  while ((m = re.exec(s)) !== null) {
+    let i = s.indexOf('(', m.index)
+    let depth = 0
+    let args = 0
+    let hasTok = false
+    let inS = null
+    for (; i < s.length; i++) {
+      const c = s[i]
+      if (inS) { if (c === '\\') { i++; continue } if (c === inS) inS = null; continue }
+      if (c === '/' && s[i + 1] === '/') { const nl = s.indexOf('\n', i); i = nl < 0 ? s.length : nl; continue }
+      if (c === '/' && s[i + 1] === '*') { const e = s.indexOf('*/', i); i = e < 0 ? s.length : e + 1; continue }
+      if (c === "'" || c === '"' || c === '`') { inS = c; if (depth === 1) hasTok = true; continue }
+      if (c === '(' || c === '[' || c === '{') { depth++; if (depth === 1) continue; hasTok = true; continue }
+      if (c === ')' || c === ']' || c === '}') { depth--; if (depth === 0) { out.push(hasTok || args > 0 ? args + 1 : 0); break } hasTok = true; continue }
+      if (depth !== 1) continue
+      if (c === ',') { args++; hasTok = false; continue }
+      if (!/\s/.test(c)) hasTok = true
+    }
+  }
+  return out
+}
+// #595 必修①：按真实调用形态渲染后，既不许出现 undefined，也不许残留 {xxx} 占位符
+const RE_LEFT_PLACEHOLDER = /\{[a-zA-Z][a-zA-Z0-9_.]*\}/g
+const leftoverPlaceholder = function (text) {
+  const m = String(text).match(RE_LEFT_PLACEHOLDER)
+  return m ? m[0] : ''
+}
+
 // ==================== 5. 五面扫描（返回问题数组，主跑与变异自检共用） ====================
-const surfaceReport = { S1: 0, S2: [0, 0], S3: [], S4: 0, S5: 0, exempt: EXEMPT.length }
+const surfaceReport = { S1: 0, S2: [0, 0], S3: [], S4: 0, S5: 0, S6: 0, S7: 0, S8: [0, 0], exempt: EXEMPT.length }
 const BACKENDS = ['github', 'gitlab', 'markdown']
 const backendPath = function (id, probe) {
   if (id === 'github' && probe) return probe
@@ -860,12 +966,12 @@ const contractChecksInner = function (reg, src) {
     if (pr.en.indexOf('stays as history after close') < 0) fail('progress en 缺 stays as history after close')
     if (pr.en.indexOf('first contact') < 0 || pr.en.indexOf('implementation record') < 0) fail('progress en 缺首触补写兜底')
   } else fail('缺条目 progress')
-  // bodyFormat（#76 契约 + #594 收敛）：注册表这一条已从「GitHub 专用两步写回」降级为「通用兜底」——
+  // bodyFormat（#76 契约 + #595 收敛）：注册表这一条已从「GitHub 专用两步写回」降级为「通用兜底」——
   //   三后端各自的正文格式文案声明在 src/host/tracker/backends/<id>/index.js 的 prompts.bodyFormat（后端单源）；
   //   这里只卡兜底版自己该有的东西：公共格式要求必须齐 + 不得点名任何具体跟踪器命令/写回脚本。
   const bf = reg['bodyFormat']
   if (bf) {
-    if (bf.version < 7) fail('bodyFormat 版本号未 bump（期望 ≥ v7：#594 起为通用兜底版）')
+    if (bf.version < 7) fail('bodyFormat 版本号未 bump（期望 ≥ v7：#595 起为通用兜底版）')
     if (bf.placeholders.length !== 0) fail('bodyFormat 不应有占位符')
     if (bf.zh.indexOf('每个 `## 章节` 独占一行') < 0) fail('bodyFormat zh 缺「每个 ## 章节 独占一行」（结构规则）')
     if (bf.zh.indexOf('段落间留空行') < 0) fail('bodyFormat zh 缺段落间留空行')
@@ -883,7 +989,7 @@ const contractChecksInner = function (reg, src) {
     }
   } else fail('缺条目 bodyFormat')
 
-  // 模板里不许再留正文格式的字面副本（#594）：10 条模板的 zh/en 都只剩 {bodyFormat} 标记
+  // 模板里不许再留正文格式的字面副本（#595）：10 条模板的 zh/en 都只剩 {bodyFormat} 标记
   const BODY_IDS = ['mapExecute', 'complete', 'fixate', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
   BODY_IDS.forEach(function (id) {
     const e = reg[id] || {}
@@ -898,8 +1004,8 @@ const contractChecksInner = function (reg, src) {
   })
   // 统一模板不得点名具体跟踪器命令（S1 判定已覆盖，这里补一条「说明文字里也不许引用」的正面检查）
   const zhBlockCount = (reg['mapExecute'] && reg['mapExecute'].zh.split('## 正文格式').length) || 0
-  if (zhBlockCount !== 1) fail('mapExecute zh 不应再内嵌「## 正文格式」段（#594 起改由 {bodyFormat} 标记，缺后端声明才落兜底版）')
-  // #594：注册表里不再有写回脚本/插件目录的字面副本（GitHub 专用文本已整体搬进 github 后端声明）。
+  if (zhBlockCount !== 1) fail('mapExecute zh 不应再内嵌「## 正文格式」段（#595 起改由 {bodyFormat} 标记，缺后端声明才落兜底版）')
+  // #595：注册表里不再有写回脚本/插件目录的字面副本（GitHub 专用文本已整体搬进 github 后端声明）。
   //   唯一允许提到 gh 的条目是注册表自带的 ghAuthLogin 登录引导（那个后端专用提示本身），故单列白名单。
   const regNoGh = Object.keys(reg).filter(function (id) { return id !== 'ghAuthLogin' })
   const leaked = regNoGh.filter(function (id) {
@@ -1145,7 +1251,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '1ded52d4fc14432ee1c66a3a78b2769272729248f9083d0fed96e22639022648',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'a6615ba87b73fc923948dfd68fd2313c6aaf37067fd86489e27eed897e5a2854',
+  'tests/verify-prompts.js': 'abf237d5715775ccf33f71e6031fc706dbc9439f52b7282ff89f04b12ee094e5',
 }
 // ---- LOCK-END ----
 
@@ -1210,8 +1316,30 @@ if (reg) {
     if (v.zh != null) subIssueValues[b + '.zh'] = v.zh
     if (v.en != null) subIssueValues[b + '.en'] = v.en
   })
-  subIssueValues['default.zh'] = '通过 Tracker 原生的父子关系关联（create 时带 parentKey 或创后 setParent）'
-  subIssueValues['default.en'] = 'via Tracker native parent relation (create with parentKey or setParent after creation)'
+  // #595：注册表之外还有几处会进客户端产物的文本来源，一并扫（以前完全没扫：塞进去就全绿）
+  const nonReg = collectNonRegistrySource(s1Label, fs.readFileSync(s1Path, 'utf8'))
+  nonReg.problems.forEach(function (m) { fail(m) })
+  surfaceReport.S6 = nonReg.literals
+  if (nonReg.literals < 4) fail('S6 ' + s1Label + ' 去掉注册表后只扫到 ' + nonReg.literals + ' 个字面量（NEW_BUG_FIELDS_BODY / NEW_WAYFINDER_DEFAULT_WIRING 这些常量没被扫到，扫描面会静默少扫）')
+  const cfgRel = 'src/client/kernel/config.js'
+  const cfgScan = collectConfigSource(cfgRel, fs.readFileSync(path.join(ROOT, cfgRel), 'utf8'))
+  cfgScan.problems.forEach(function (m) { fail(m) })
+  surfaceReport.S7 = cfgScan.literals
+  if (cfgScan.literals < 1) fail('S7 ' + cfgRel + ' 扫到 0 个字面量（TPL_DEFAULT 默认模板没被扫到，扫描面会静默少扫）')
+  // 兜底 wiring 不再硬抄常量：从注册表源码的 NEW_WAYFINDER_DEFAULT_WIRING 机械求值（少一处会漂移的第二份字面量）
+  const wiring = (function () {
+    try {
+      const body = String(fs.readFileSync(s1Path, 'utf8')).replace(/^[ \t]*export[ \t]+/gm, '')
+      const got = new Function(body + '\n;return (typeof NEW_WAYFINDER_DEFAULT_WIRING === "undefined" ? null : NEW_WAYFINDER_DEFAULT_WIRING);')()
+      return (got && typeof got === 'object') ? got : null
+    } catch (e) { return null }
+  })()
+  if (!wiring) fail('取不到 NEW_WAYFINDER_DEFAULT_WIRING（兜底子议题关联文案无源可求值；S5 渲染面的兜底值不许在门禁里硬抄）')
+  else {
+    if (wiring.zh == null || wiring.en == null) fail('NEW_WAYFINDER_DEFAULT_WIRING 缺 zh 或 en（兜底文案必须双语齐）')
+    if (wiring.zh != null) subIssueValues['default.zh'] = String(wiring.zh)
+    if (wiring.en != null) subIssueValues['default.en'] = String(wiring.en)
+  }
   const s1 = collectRegistry(reg, 'S1 ' + s1Label, { subIssueValues: subIssueValues }, EXEMPT)
   s1.problems.forEach(function (m) { fail(m) })
   surfaceReport.S1 = s1Ids.length
@@ -1237,7 +1365,7 @@ if (reg) {
     }
     // 模板条目：只断言「留了占位符、没留字面副本」（正文格式的 GitHub 文案已搬进后端声明）
     const FIX_IDS = ['mapExecute', 'complete', 'fixate', 'bodyFormat', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
-    // #594 核心验收：把 11 个条目按「真渲染函数 + 后端声明文本」渲染出来再断言（不再断言源码字面量）
+    // #595 核心验收：把 11 个条目按「真渲染函数 + 后端声明文本」渲染出来再断言（不再断言源码字面量）
     evalPromptHelpers.prime(fs.readFileSync(s1Path, 'utf8'))
     const backendDecls = {}
     BACKENDS.forEach(function (b) {
@@ -1245,7 +1373,7 @@ if (reg) {
       backendDecls[b] = { bodyFormat: backendPromptValues(bsrc, 'bodyFormat'), subIssue: backendPromptValues(bsrc, 'subIssue') }
       ;['zh', 'en'].forEach(function (lang) {
         const t = String((backendDecls[b].bodyFormat || {})[lang] || '')
-        if (!t) fail('#594 ' + b + ' 后端未声明 prompts.bodyFormat.' + lang + '（三后端都要声明自己那套正文格式）')
+        if (!t) fail('#595 ' + b + ' 后端未声明 prompts.bodyFormat.' + lang + '（三后端都要声明自己那套正文格式）')
       })
     })
     const referenced = []
@@ -1253,7 +1381,9 @@ if (reg) {
       const st = { selection: { backendId: b }, backendModules: [{ id: b, prompts: backendDecls[b] }] }
       // bodyFormat 走的不是模板占位符，而是 BODY_FORMAT(st)（追加点用它）—— 按真路径渲染，别用替身
       if (id === 'bodyFormat') return String(evalPromptHelpers.BODY_FORMAT(st, lang) || '')
-      const params = { n: '7', title: 'T', url: 'U', repo: 'owner/name' }
+      // 占位符给全（含 complete 的 closed/total）：这样「渲染后不许残留 {xxx}」才是有效断言 ——
+      //   占位符给不全就必然残留，断言会变成永远红；给全了还残留，才是真的渲染入口漏填。
+      const params = { n: '7', title: 'T', url: 'U', repo: 'owner/name', closed: '3', total: '3' }
       const text = evalPromptHelpers.promptTextForForTest(st, id, params, lang)
       return String(text || '')
     }
@@ -1261,9 +1391,13 @@ if (reg) {
       FIX_IDS.forEach(function (id) {
         ;['zh', 'en'].forEach(function (lang) {
           const t = renderOf(b, id, lang)
-          const where = '#594 ' + b + '/' + id + '.' + lang
+          const where = '#595 ' + b + '/' + id + '.' + lang
           if (!t) { fail(where + ' 渲染为空（渲染入口取不到文本）'); return }
           if (t.indexOf('{bodyFormat}') >= 0) fail(where + ' 渲染后仍是 {bodyFormat} 标记（后端上下文没接通）')
+          // #595 必修①：按真实形态渲染后不许残留 {xxx} 占位符、也不许出现 undefined
+          const left = leftoverPlaceholder(t)
+          if (left) fail(where + ' 渲染后残留占位符 ' + left + '（渲染入口没把这个值填上）')
+          if (t.indexOf('undefined') >= 0) fail(where + ' 渲染后出现 undefined（某个占位符的值没取到）')
           // 渲染结果不许再命中「具体跟踪器命令 / 非白名单脚本 / 内联正文」这几条规则
           judge(t).forEach(function (h) { fail(where + ' 渲染后 [' + h.rule + '] 命中「' + h.snippet + '」') })
         })
@@ -1276,14 +1410,14 @@ if (reg) {
           const t = renderOf(b, id, lang)
           const names = step2NameOf(t, 0)
           if (isGh) {
-            if (t.indexOf(STEP1_EXACT) < 0) fail('#594 github/' + id + '.' + lang + ' 渲染结果缺精确的第 ① 步调用（拿插件安装目录）')
-            if (names.indexOf('fix-issue-body.mjs') < 0) fail('#594 github/' + id + '.' + lang + ' 渲染结果缺锚定的第 ② 步（node "<目录>/scripts/fix-issue-body.mjs" …）')
+            if (t.indexOf(STEP1_EXACT) < 0) fail('#595 github/' + id + '.' + lang + ' 渲染结果缺精确的第 ① 步调用（拿插件安装目录）')
+            if (names.indexOf('fix-issue-body.mjs') < 0) fail('#595 github/' + id + '.' + lang + ' 渲染结果缺锚定的第 ② 步（node "<目录>/scripts/fix-issue-body.mjs" …）')
             names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
           } else {
             ;['gh auth', 'fix-issue-body', 'dsh plugin exec'].forEach(function (bad) {
-              if (t.indexOf(bad) >= 0) fail('#594 ' + b + '/' + id + '.' + lang + ' 渲染结果出现 GitHub 专用串「' + bad + '」（后端无关的正文格式不许带上它）')
+              if (t.indexOf(bad) >= 0) fail('#595 ' + b + '/' + id + '.' + lang + ' 渲染结果出现 GitHub 专用串「' + bad + '」（后端无关的正文格式不许带上它）')
             })
-            if (names.length) fail('#594 ' + b + '/' + id + '.' + lang + ' 渲染结果仍引用写回脚本 ' + names.join(',') + '（该后端没声明这些脚本）')
+            if (names.length) fail('#595 ' + b + '/' + id + '.' + lang + ' 渲染结果仍引用写回脚本 ' + names.join(',') + '（该后端没声明这些脚本）')
           }
         })
       })
@@ -1291,13 +1425,13 @@ if (reg) {
     // 明显变短：Markdown 版正文格式必须比 GitHub 版短（去掉两步写回后的直接证据）
     const ghLen = renderOf('github', 'tpl.execute', 'zh').length
     const mdLen = renderOf('markdown', 'tpl.execute', 'zh').length
-    if (!(mdLen < ghLen)) fail('#594 Markdown 渲染结果不比 GitHub 短（md ' + mdLen + ' ≥ gh ' + ghLen + '，说明 GitHub 专用文本没被摘干净）')
+    if (!(mdLen < ghLen)) fail('#595 Markdown 渲染结果不比 GitHub 短（md ' + mdLen + ' ≥ gh ' + ghLen + '，说明 GitHub 专用文本没被摘干净）')
     // 追加点（BODY_FORMAT(st)）也按后端解析：GitHub 拿到两步写回，Markdown 拿到本地文件版
     const bfGh = evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: backendDecls.github }] }, 'zh')
     const bfMd = evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'markdown' }, backendModules: [{ id: 'markdown', prompts: backendDecls.markdown }] }, 'zh')
-    if (String(bfGh).indexOf(STEP1_EXACT) < 0) fail('#594 BODY_FORMAT(github) 缺精确的第 ① 步调用')
-    if (String(bfMd).indexOf('gh auth') >= 0 || String(bfMd).indexOf('fix-issue-body') >= 0 || String(bfMd).indexOf('dsh plugin exec') >= 0) fail('#594 BODY_FORMAT(markdown) 出现 GitHub 专用串')
-    if (!(String(bfMd).length < String(bfGh).length)) fail('#594 BODY_FORMAT(markdown) 不比 GitHub 短')
+    if (String(bfGh).indexOf(STEP1_EXACT) < 0) fail('#595 BODY_FORMAT(github) 缺精确的第 ① 步调用')
+    if (String(bfMd).indexOf('gh auth') >= 0 || String(bfMd).indexOf('fix-issue-body') >= 0 || String(bfMd).indexOf('dsh plugin exec') >= 0) fail('#595 BODY_FORMAT(markdown) 出现 GitHub 专用串')
+    if (!(String(bfMd).length < String(bfGh).length)) fail('#595 BODY_FORMAT(markdown) 不比 GitHub 短')
     const ghVals = [subIssueValues['github.zh'], subIssueValues['github.en']]
     ghVals.forEach(function (t, i) {
       const lang = i === 0 ? 'zh' : 'en'
@@ -1309,15 +1443,51 @@ if (reg) {
     // mapInspect 的关联步骤改走后端声明的 {subIssue}：GitHub 渲染结果里必须有 wire 第 ② 步
     const miGh = renderOf('github', 'mapInspect', 'zh')
     const miNames = step2NameOf(miGh, 0)
-    if (miNames.indexOf('wire-subissues.mjs') < 0) fail('#594 github/mapInspect.zh 渲染结果缺 wire 第 ② 步（{subIssue} 没接上后端声明）')
+    if (miNames.indexOf('wire-subissues.mjs') < 0) fail('#595 github/mapInspect.zh 渲染结果缺 wire 第 ② 步（{subIssue} 没接上后端声明）')
     miNames.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
     // github bodyFormat 自带的写回脚本也要进 referenced
     ;['zh', 'en'].forEach(function (lang) {
       const t = String((backendDecls.github.bodyFormat || {})[lang] || '')
-      if (t.indexOf(STEP1_EXACT) < 0) fail('#594 github 后端 prompts.bodyFormat.' + lang + ' 缺精确的第 ① 步调用')
+      if (t.indexOf(STEP1_EXACT) < 0) fail('#595 github 后端 prompts.bodyFormat.' + lang + ' 缺精确的第 ① 步调用')
       const names = step2NameOf(t, 0)
-      if (names.indexOf('fix-issue-body.mjs') < 0) fail('#594 github 后端 prompts.bodyFormat.' + lang + ' 缺锚定的第 ② 步')
+      if (names.indexOf('fix-issue-body.mjs') < 0) fail('#595 github 后端 prompts.bodyFormat.' + lang + ' 缺锚定的第 ② 步')
       names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
+    })
+    // #595 恢复被削掉的两组断言（它们当时卡在注册表 bodyFormat 上，正文格式搬进后端声明后整组消失）：
+    //   ① 主锚文件要求：第 ② 步的当前目录可能不是工作区，靠工作区里的 docs/agents/issue-tracker.md 认工作区；
+    //   ② 脚本职责边界：--body-file 必须绝对路径，「格式只告警不改写」这类脚本职责必须写明。
+    const ghBfZh = String((backendDecls.github.bodyFormat || {}).zh || '')
+    const ghBfEn = String((backendDecls.github.bodyFormat || {}).en || '')
+    ;['zh', 'en'].forEach(function (lang) {
+      const t = String((backendDecls.github.bodyFormat || {})[lang] || '')
+      if (t.indexOf('docs/agents/issue-tracker.md') < 0) {
+        fail('#595 github 后端 prompts.bodyFormat.' + lang + ' 缺主锚文件 docs/agents/issue-tracker.md（第 ② 步要以工作区为基准，靠它认工作区）')
+      }
+    })
+    if (ghBfZh.indexOf('--body-file') < 0 || ghBfZh.indexOf('绝对路径') < 0) fail('#595 github 后端 prompts.bodyFormat.zh 缺 --body-file 绝对路径要求')
+    if (ghBfEn.indexOf('--body-file') < 0 || ghBfEn.indexOf('absolute path') < 0) fail('#595 github 后端 prompts.bodyFormat.en 缺 --body-file absolute path 要求')
+    if (ghBfZh.indexOf('格式只告警不改写') < 0) fail('#595 github 后端 prompts.bodyFormat.zh 缺「格式只告警不改写」（脚本职责边界）')
+    if (ghBfEn.indexOf('only warns about formatting') < 0) fail('#595 github 后端 prompts.bodyFormat.en 缺 only warns about formatting（脚本职责边界）')
+    // #595 必修①：completePrompt 的真实调用形态 —— 签名 (st, num, title, total, closed)。
+    //   视图侧曾经按 4 参调（st, num, total, closed），渲染出「标题：5」与「undefined/3 个 issue 已关闭」。
+    const cpSt = { selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: backendDecls.github }] }
+    const cpText = String(evalPromptHelpers.completePromptForTest(cpSt, 5, 'T', 3, 3) || '')
+    if (!cpText) fail('#595 completePrompt 按真实调用形态渲染为空')
+    if (cpText.indexOf('标题：T') < 0) fail('#595 completePrompt 渲染结果没把标题填进去（按真实形态应出现「标题：T」）')
+    if (cpText.indexOf('undefined') >= 0) fail('#595 completePrompt 渲染结果出现 undefined（调用参数错位：标题位拿到数字、或标题没传）')
+    const cpLeft = leftoverPlaceholder(cpText)
+    if (cpLeft) fail('#595 completePrompt 渲染结果残留占位符 ' + cpLeft + '（占位符没被填上）')
+    // 先验自证：旧的四参形态必须能被上面两条抓红（证明断言有变红能力，不是永远绿）
+    const cpBad = String(evalPromptHelpers.completePromptForTest(cpSt, 5, 3, 3) || '')
+    if (cpBad.indexOf('undefined') < 0) fail('#595 先验失败：按旧四参形态调用 completePrompt 竟渲染不出 undefined（渲染面断言抓不住调用错位）')
+    // 调用点也必须按五参形态调（防回退）：三个视图/router 里每处 completePrompt 调用都要传 5 个实参
+    ;['src/client/views/ListTabRow.js', 'src/client/views/MapDetail.js', 'src/client/kernel/router.js'].forEach(function (rel) {
+      const srcV = fs.readFileSync(path.join(ROOT, rel), 'utf8')
+      const counts = callArgCounts(srcV, 'completePrompt')
+      if (counts.length === 0) { fail('#595 ' + rel + ' 里找不到 completePrompt 调用点（调用形态断言无源，扫描面不许静默少扫）'); return }
+      counts.forEach(function (n, i) {
+        if (n !== 5) fail('#595 ' + rel + ' 第 ' + (i + 1) + ' 处 completePrompt 调用传了 ' + n + ' 个实参（签名是 (st, num, title, total, closed)，必须 5 个）')
+      })
     })
     // 发布包脚本集合：从 scripts/build.mjs 的 SHIPPED_SCRIPTS 清单机械求值（唯一手写清单，不许第二份）
     const buildSrc = fs.readFileSync(path.join(ROOT, 'scripts/build.mjs'), 'utf8')
@@ -1360,7 +1530,7 @@ if (reg) {
   } catch (e) {
     fail('#588 断言执行时抛错：' + String((e && e.message) || e))
   }
-  if (stepOk(p588)) console.log('  PASS #594 渲染面（11 条目 × zh/en × 三后端：GitHub 渲染出两步写回，Markdown/GitLab 渲染出无 gh 的后端版）+ 名实一致 + 生成物 sha256 一致')
+  if (stepOk(p588)) console.log('  PASS #595 渲染面（11 条目 × zh/en × 三后端：GitHub 渲染出两步写回，Markdown/GitLab 渲染出无 gh 的后端版；渲染结果无 undefined、无残留占位符）+ completePrompt 真实调用形态 + 主锚文件与脚本职责边界 + 名实一致 + 生成物 sha256 一致')
   if (stepOk(pS1)) console.log('  PASS 面 S1 ' + s1Label + '（' + s1Ids.length + ' 条注册表，扫描 ' + s1.scanned + ' 条；含占位符 ' + s1.rendered + ' 条走渲染面）+ 契约断言 + 跨门禁一致性 + 注入链另一半')
 }
 
@@ -1400,6 +1570,17 @@ if (!singleFileMode) {
     check(got.keys.length === EXPECT_BACKEND_KEYS[b], 'S3 ' + b + ' prompts 键数 ' + got.keys.length + '（期望 ' + EXPECT_BACKEND_KEYS[b] + '，实测值；v2 写的 7/9/6 不成立）')
     check(got.literals === EXPECT_BACKEND_LITERALS[b], 'S3 ' + b + ' prompts 内字符串字面量数 ' + got.literals + '（期望 ' + EXPECT_BACKEND_LITERALS[b] + '）——词法扫描不许静默少扫')
     if (stepOk(pS3)) console.log('  PASS 面 S3 ' + backendLabel(b, backendProbe) + '（' + got.keys.length + ' 键 / ' + got.literals + ' 个字面量，含拼接续段）')
+  })
+
+  // —— S8：客户端产物不许出现 gh / glab 命令形状（不是只卡两个字面串） ——
+  ;['client.js', path.join('package', 'lib', 'client.js')].forEach(function (rel, idx) {
+    const pS8 = problems.length
+    const got = collectArtifactShapes(rel)
+    if (!got) { fail('S8 ' + rel + ' 不存在（改 src 后必须重建产物）'); return }
+    got.problems.forEach(function (m) { fail(m) })
+    surfaceReport.S8[idx] = got.literals
+    if (got.literals < 20) fail('S8 ' + rel + ' 只判到 ' + got.literals + ' 段产物提示词文本（解析面太窄，等于没扫）')
+    if (stepOk(pS8)) console.log('  PASS 面 S8 ' + rel + '（产物注册表 ' + got.ids + ' 条 × zh/en/use 过 judge()：零 gh/glab 命令形状）')
   })
 
   const pS4 = problems.length
@@ -1458,6 +1639,9 @@ if (!IS_CHILD) {
     check(surfaceReport.S2[0] === EXPECT_REGISTRY_ENTRIES && surfaceReport.S2[1] === EXPECT_REGISTRY_ENTRIES, 'L3 S2=' + surfaceReport.S2.join('/') + '（期望 ' + EXPECT_REGISTRY_ENTRIES + '/' + EXPECT_REGISTRY_ENTRIES + '）')
     BACKENDS.forEach(function (b, i) { check(surfaceReport.S3[i] === EXPECT_BACKEND_KEYS[b], 'L3 S3.' + b + '=' + surfaceReport.S3[i] + '（期望 ' + EXPECT_BACKEND_KEYS[b] + '）') })
     check(surfaceReport.S4 >= EXPECT_HOST_PROMPT_CONSTS, 'L3 S4=' + surfaceReport.S4 + '（期望 ≥ ' + EXPECT_HOST_PROMPT_CONSTS + '）')
+    check(surfaceReport.S6 >= 4, 'L3 S6=' + surfaceReport.S6 + '（注册表之外的客户端文本来源，期望 ≥ 4）')
+    check(surfaceReport.S7 >= 1, 'L3 S7=' + surfaceReport.S7 + '（kernel/config.js 文本来源，期望 ≥ 1）')
+    check(surfaceReport.S8[0] >= 20 && surfaceReport.S8[1] >= 20, 'L3 S8=' + surfaceReport.S8.join('/') + '（双产物字符串字面量数，期望都 ≥ 20）')
   }
   check(EXEMPT.length === EXPECT_EXEMPT, 'L3 EXEMPT=' + EXEMPT.length + '（期望 ' + EXPECT_EXEMPT + '）')
   if (problems.length === l3Before) console.log('  PASS L3 扫描面完整性')
@@ -1471,7 +1655,8 @@ if (!IS_CHILD) {
   } catch (e) { fail('读 package.json 失败：' + e.message) }
 }
 
-console.log('S1=' + surfaceReport.S1 + ' S2=' + surfaceReport.S2.join('/') + ' S3=' + surfaceReport.S3.join('/') + ' S4=' + surfaceReport.S4 + ' EXEMPT=' + surfaceReport.exempt + (singleFileMode ? '（单文件模式：' + s1Label + '）' : ''))
+console.log('S1=' + surfaceReport.S1 + ' S2=' + surfaceReport.S2.join('/') + ' S3=' + surfaceReport.S3.join('/') + ' S4=' + surfaceReport.S4 +
+  ' S6=' + surfaceReport.S6 + ' S7=' + surfaceReport.S7 + ' S8=' + surfaceReport.S8.join('/') + ' EXEMPT=' + surfaceReport.exempt + (singleFileMode ? '（单文件模式：' + s1Label + '）' : ''))
 
 if (problems.length) {
   console.log('\n存在失败（' + problems.length + ' 条）')

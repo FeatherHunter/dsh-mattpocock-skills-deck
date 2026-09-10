@@ -207,7 +207,7 @@ export     const MapDetail = ({ st, g, drill }) => {
               ]))
             : (m.stats && m.stats.total > 0 && m.stats.closed === m.stats.total)
             ? h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-                const text = completePrompt(st, m.number, m.stats.total, m.stats.closed)
+                const text = completePrompt(st, m.number, m.title, m.stats.total, m.stats.closed)
                 inject(st, text)
               }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 600 } }, [
                 Ic({ n: 'check', size: 10 }),
@@ -289,7 +289,7 @@ export     const MapDetail = ({ st, g, drill }) => {
                   ]))
                 : (m.stats && m.stats.total > 0 && m.stats.closed === m.stats.total)
                 ? h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-                    const text = completePrompt(st, m.number, m.stats.total, m.stats.closed)
+                    const text = completePrompt(st, m.number, m.title, m.stats.total, m.stats.closed)
                     inject(st, text)
                   }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 700 } }, [
                     Ic({ n: 'check', size: 11 }),

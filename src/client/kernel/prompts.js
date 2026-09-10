@@ -40,7 +40,7 @@
     }
     // 取 prompt：promptText(id) 或 promptText(id, { 占位符: 值 })
     // v9（#230 · D10）：setupRun 的 client 内置缺省分支已删 —— 占位符一律由后端描述数据（BackendModule.setupPrompt 键入 locale）经 setupRunParamsFrom 填充
-    // #594：{bodyFormat} 是「按当前后端填空」的占位符，正常情况下由 promptTextFor / backendParamsFor 填好；
+    // #595：{bodyFormat} 是「按当前后端填空」的占位符，正常情况下由 promptTextFor / backendParamsFor 填好；
     //   这里再兜一次底（后端上下文缺失时填通用版），保证任何路径都不会把标记原文注入会话。
     export const promptText = function (id, params) {
       const p = PROMPTS[id]
@@ -165,10 +165,11 @@
       let dict = dictOverride || null
       if (!dict) { try { dict = wiringObj } catch (e) {} } else dict = wiringObj
       const lang = promptLang()
-      const subIssue = (dict && dict[lang] != null) ? String(dict[lang]) : String((wiringObj && wiringObj[lang]) || NEW_WAYFINDER_DEFAULT_WIRING[lang] || '')
+      // #595：先按当前语言取；只声明了另一种语言时就回落另一种语言，最后才落通用默认（整节不许静默消失）
+      const subIssue = declaredLangPick(dict, lang) || declaredLangPick(NEW_WAYFINDER_DEFAULT_WIRING, lang)
       return { subIssue }
     }
-    // #594：正文格式契约后端单源 —— 后端在 src/host/tracker/backends/<id>/index.js 的 prompts.bodyFormat 里
+    // #595：正文格式契约后端单源 —— 后端在 src/host/tracker/backends/<id>/index.js 的 prompts.bodyFormat 里
     //   声明自己那套「正文怎么写、怎么写回」（{zh,en} 双语全文）；client 只按当前后端查表填空，零 backendId 字面量分支。
     //   查不到声明（未知/自定义后端）落注册表 bodyFormat 那一条（通用兜底版：只讲正文文件的写法，不点名任何跟踪器命令）。
     // 兜底：与注册表 bodyFormat 条目同一份文本，client 里不另留第二份字面量
@@ -197,13 +198,42 @@
       } catch (e) {}
       return null
     }
+    // 按语言取一条后端声明文本：先取当前语言；当前语言没写就回落到另一种语言
+    //   （后端只声明一种语言时，整节不许静默消失成空串）
+    export const declaredLangPick = function (dict, lang) {
+      try {
+        if (!dict || typeof dict !== 'object') return ''
+        const want = (lang === 'en') ? dict.en : dict.zh
+        const other = (lang === 'en') ? dict.zh : dict.en
+        const t = (want != null && want !== '') ? want : other
+        return (t == null) ? '' : String(t)
+      } catch (e) { return '' }
+    }
+    // #595 不静默：当前后端拿不到「正文格式」声明时，落通用兜底版之外还要给一条用户看得见的提示。
+    //   只提示真正「拿不到」的两种情况：① 快照没把后端模块带过来（含 backendModules 为 null / 空数组 / 旧会话快照）；
+    //   ② 该后端模块在快照里，却没有声明 prompts.bodyFormat。用户自选的其他后端（快照里没有这个 id）按设计走兜底，不提示。
+    //   按后端 id 只提示一次，避免每次拼提示词都刷屏。
+    const bodyFormatWarned = {}
+    const notifyBodyFormatFallback = function (st, backendId) {
+      const key = String(backendId)
+      if (bodyFormatWarned[key]) return
+      bodyFormatWarned[key] = true
+      const msg = '当前后端「' + key + '」没带来「正文格式」声明，本次注入落到通用兜底版，可能缺少这个后端的写回步骤——请刷新面板重试；若仍然如此，说明该后端模块没有声明 prompts.bodyFormat'
+      try { console.warn('[MattSkillsDeck] bodyFormat 降级：' + msg) } catch (e) {}
+      try { if (st && typeof flash === 'function') flash(st, msg, 'warn') } catch (e) {}
+    }
     // 正文格式契约全文（按当前后端 + 当前语言解析）
     export const bodyFormatText = function (st) {
-      const dict = backendPromptFrom(st && st.backendModules, currentBackendId(st), 'bodyFormat')
-      if (!dict) return bodyFormatDefault()
-      const lang = promptLang()
-      const t = (lang === 'en' && dict.en) ? dict.en : (dict.zh || '')
-      return String(t || '')
+      const backendId = currentBackendId(st)
+      const dict = backendPromptFrom(st && st.backendModules, backendId, 'bodyFormat')
+      const text = declaredLangPick(dict, promptLang())
+      if (text) return text
+      if (backendId != null && String(backendId) !== '') {
+        const list = (st && Array.isArray(st.backendModules)) ? st.backendModules : null
+        const known = list ? list.some(function (m) { return m && String(m.id) === String(backendId) }) : false
+        if (!list || list.length === 0 || known) notifyBodyFormatFallback(st, backendId)
+      }
+      return bodyFormatDefault()
     }
     // 渲染参数：模板里声明的 {bodyFormat} / {subIssue} 都按当前后端解析（模板只留占位符名，不留字面副本）
     export const backendParamsFor = function (st, params) {
@@ -223,7 +253,7 @@
     export const MATT_REPO = 'https://github.com/mattpocock/skills'
     export const MAP_EXECUTE_PROMPT = function (st) { return promptTextFor(st, 'mapExecute') }
     export const COMPLETE_PROMPT = function (st) { return promptTextFor(st, 'complete') }
-    // T16：正文格式契约（写/改 issue 正文的动作统一追加；#594 起按当前后端取正文，不再全局一份 GitHub 文本）
+    // T16：正文格式契约（写/改 issue 正文的动作统一追加；#595 起按当前后端取正文，不再全局一份 GitHub 文本）
     export const BODY_FORMAT = function (st) { return bodyFormatText(st) }
     // v4（#63 grilling 定版 2026-08-20）：去 wayfinder 内部规则复述（#63 想法1：prompt 不含已知规则，gh 硬编码解耦由 bodyFormat #62 承担）+ 字段集 4 项顺序实际→期望→复现→环境 + 形态括号单行（想法2：字段名（说明）：冒号即填，无悬行例行）
     //   字段集（第一性原理：Bug = 实际 vs 期望偏差，实际先于期望）：实际（吸收现象+影响范围）/ 期望 / 复现步骤（吸收背景+场景 preamble）/ 环境信息；zh 只中文、en 只英文，跟随 DSH 语言一次只出一种

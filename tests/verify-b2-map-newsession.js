@@ -82,7 +82,7 @@ const buildEnv = function (src, lang) {
   const COMPLETE_PROMPT = function (st) { return promptTextFor(st, 'complete') }
   const BODY_FORMAT = function (st) { return bodyFormatOf(st) }
   const MAP_EXECUTE_PROMPT = function (st) { return promptTextFor(st, 'mapExecute') }
-  // #594：正文格式 / 子议题关联方式都按当前后端解析（沙箱忠实替身：查 st.backendModules 声明，缺声明落注册表兜底）
+  // #595：正文格式 / 子议题关联方式都按当前后端解析（沙箱忠实替身：查 st.backendModules 声明，缺声明落注册表兜底）
   const backendDecl = function (st, key) {
     const sel = st && (st.selection || (st.snapshot && st.snapshot.selection))
     const bid = sel ? sel.backendId : null
@@ -189,7 +189,7 @@ const checkFile = function (file) {
   assert.ok(out3.includes('## MAP完成确认'), file + ' zh 完成态 snapshot 兜底（v4 标题）')
 
   // d) 零子票 map（total=0）→ 走「0/0 检查」prompt（mapInspect），不是推进式
-  //    陈旧断言修正（与 #594 无关）：本条原写「零子票 map 仍推进式」，但现产品里 total=0 属异常态，
+  //    陈旧断言修正（与 #595 无关）：本条原写「零子票 map 仍推进式」，但现产品里 total=0 属异常态，
   //    startText 有意改走 map 空态 0/0 检查（列表与详情页的「检查」按钮同一入口），照原语义断言只会永久红。
   const out4 = env.startText(ST, mapIssue(300, '空 map', { total: 0, closed: 0 }))
   assert.ok(out4.includes('该 map 在面板中显示为 0/0') && out4.includes('## 排查'), file + ' zh 零子票 map 走 0/0 检查 prompt（不再推进）')

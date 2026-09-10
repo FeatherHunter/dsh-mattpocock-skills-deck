@@ -40,7 +40,12 @@ check(cli.includes("code === 'bad-name' || code === 'already-exists'"), 'slotRen
 check(!cli.includes('isNameErr'), 'slotRenderer 已删除九条件文本启发式（isNameErr 不存在）');
 check(!pcli.includes('isNameErr'), 'package 镜像已删除 isNameErr');
 check(cli.includes("role: 'alert'") && cli.includes('m.fail.text'), 'slotRenderer 内联错误条（role=alert + 常驻文案）');
-check(cli.includes("code === 'no-gh' || code === 'not-logged-in'") && cli.includes("promptText(code === 'no-gh'"), 'slotRenderer no-gh/not-logged-in 自动注入指引');
+// 2026-09 修订（空注入修复）：旧断言卡的是 promptText('noGhPrompt') —— 那个 id 在注册表里根本不存在，
+//   恒返回空串，等于「提示已注入、会话里却是空的」。改成断言「走后端声明通道 + 取不到就明确报失败」。
+check(cli.includes("code === 'no-gh' || code === 'not-logged-in'") && cli.includes("'noGhPrompt' : 'ghAuthLogin'"), 'slotRenderer no-gh/not-logged-in 自动注入走后端声明通道（prompts.noGhPrompt / prompts.ghAuthLogin）');
+check(cli.includes("tr('err.guideMissing')"), 'slotRenderer 取不到指引文案时不注入、并给出明确失败提示（tr(err.guideMissing)）');
+check(!cli.includes("promptText(code === 'no-gh'"), 'slotRenderer 已删除空注入旧写法（注册表没有 noGhPrompt 这个 id）');
+check(pcli.includes("'noGhPrompt' : 'ghAuthLogin'") && pcli.includes("err.guideMissing"), 'package client 空注入修复镜像');
 check(cli.includes("m.lastVis = String"), 'slotRenderer 记录可见性（成功弹窗按提交选择显示公开/私有）');
 
 // 5) 同步过渡态 UI（ChecksTab：#419 定版 同步中/超时/禁用创建按钮）

@@ -69,7 +69,7 @@
       handoff1: ['ts'], handoff2: ['path'], fixate: [],
     }
     // 默认模板文本（空 = 用默认；T1 规格 §3 默认文本 = 现状代码文本）
-    // #594：正文格式块不再硬抄在模板里（模板只留 {bodyFormat} 标记），默认文本按当前后端 st 取用
+    // #595：正文格式块不再硬抄在模板里（模板只留 {bodyFormat} 标记），默认文本按当前后端 st 取用
     export const TPL_DEFAULT = {
       // T4 #9-12：4 个动作按钮 prompt 明确化
       diagnose: function (st) { return promptTextFor(st, 'tpl.diagnose') },
@@ -84,7 +84,7 @@
     }
     export const tplText = (id, st) => templates[id] || (TPL_DEFAULT[id] ? TPL_DEFAULT[id](st) : '')
     // 渲染：转义 {{x}} → 字面 {x}（先替换哨兵防误替换），再替换已知占位符；未知占位符保留原样（保存层已拦截）
-    // #594：values 里额外带上「按当前后端解析的 {bodyFormat}」（模板只声明占位符名，正文格式由后端单源）
+    // #595：values 里额外带上「按当前后端解析的 {bodyFormat}」（模板只声明占位符名，正文格式由后端单源）
     // #77 定版：stageGate 入口与 STAGE_GATED_IDS 兜底删除 —— tpl.* 内联闸门清单为唯一形态（用户自定义模板不再自动挂闸门）
     export const renderTemplate = function (id, values, st) {
       let text = String(tplText(id, st))
@@ -97,7 +97,7 @@
       esc.forEach(function (s, i) { text = text.replace('\u0001' + i + '\u0001', s) })
       return text
     }
-    // #594：模板里可写的「按后端填空」标记（存储层不许当未知占位符拒收）
+    // #595：模板里可写的「按后端填空」标记（存储层不许当未知占位符拒收）
     export const TPL_BACKEND_MARKERS = ['bodyFormat']
     // 校验：转义预处理 → 未知占位符检测 → 强制占位符缺失检测（T1 规格 §4 顺序）
     export const validateTemplate = function (id, text) {
