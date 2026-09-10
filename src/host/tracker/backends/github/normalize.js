@@ -243,10 +243,8 @@ export function normalizeIssue(raw) {
   const parentKey = deriveParentKey(raw)
 
   // 基础核心字段（永远存在）
-  // effortId：GitHub 一个仓库只有一个隐含 effort，核心字段填 ''（EMPTY，不是 MISSING）
   const issue = {
     key,
-    effortId: '',
     type,
     title: raw && typeof raw.title === 'string' ? raw.title : '',
     state,
