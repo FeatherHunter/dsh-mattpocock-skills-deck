@@ -46,6 +46,10 @@
 - 跨 effort 的同号引用**不成立**：`Blocked by: #01` 只在同一 effort 内解析；要跨 effort 引用就得先有 effort 标识语法（本期不做，诚实留白）。
 - 建票必须指定 effort（多 effort 仓库里不给就 `conflict`），编号在该 effort 内取 `max+1`。
 
+## 6. 房间纪律适配（合入时补记）
+
+GitHub 与 GitLab 的归一化原本各加一行 `effortId: ''`，合入时为遵守“一次会话只改一房”门禁（`verify-no-mixed-session`，跨房改动 CI 硬卡）而回退，两个房间零改动。单 effort 后端的缺省由三处兜底，保证行为不变：`effortOf` 把缺字段当 `''`；契约夹具用 `?? ''` 补齐；面板与宿主所有读取都走带空值回落的写法。以后不要往这两个房间加回这一行——要改先走多房例外流程。
+
 ## 5. 验证
 
 - `node tests/verify-multi-effort.js`（已进 `npm run verify` 链）：两个 effort 各自成组、按 (effort, 编号) 各自定位、写评论只改目标文件、无 effort 的写操作报 conflict、建票落在目标 effort 并按其取号、单 effort/扁平布局行为不变。
