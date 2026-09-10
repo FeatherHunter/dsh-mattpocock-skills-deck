@@ -36,7 +36,8 @@
           const rename = open.filter(function (t) { return t && t.id === 'waystation:map' })
           for (let i = 0; i < rename.length; i++) {
             try { if (typeof bs0.closeTab === 'function') bs0.closeTab('waystation:map') } catch {}
-            try { if (typeof bs0.openTab === 'function') bs0.openTab({ type: 'deck:map', path: 'deck:map' }, rename[i].scope) } catch {}
+            // #594：只给类型，不带 path——带 path 会被 better-sidebar 当成真实文件去解析并报错
+            try { if (typeof bs0.openTab === 'function') bs0.openTab({ type: 'deck:map' }, rename[i].scope) } catch {}
           }
         } catch (e) { try { console.warn('[MattSkillsDeck] legacy migrate fallback failed:', e && e.message) } catch {} }
       }
