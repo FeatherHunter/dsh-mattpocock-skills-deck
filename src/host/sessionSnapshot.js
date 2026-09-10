@@ -3,6 +3,9 @@
 // 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 export function createSessionSnapshot(deps) {
   const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx } = deps
+  // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
+  let _dedupeP = null
+  function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   let snapSampleN = 0
@@ -48,7 +51,7 @@ export function createSessionSnapshot(deps) {
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
                     const inner = upcaseSnapStates(res.snapshot)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
-          const allForList = []
+          let allForList = []
           ;(inner.maps || []).forEach(function(m){
             if (m.key != null && m.number == null) {
               const n = parseInt(m.key, 10)
@@ -85,6 +88,8 @@ export function createSessionSnapshot(deps) {
             if (it.key != null) it.key = String(it.key)
             allForList.push(it)
           })
+          // #589：三段拼接会让身兼两职的票出现两次，这里按身份收成一行（地图容器优先）
+          allForList = (await _dedupe()).dedupeListByPool(allForList)
           const labels = inner.labels || (function(){
             const mm = {}
             ;[].concat(inner.maps || []).concat(flatTickets).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
@@ -280,6 +285,8 @@ export function createSessionSnapshot(deps) {
         })
         ;(inner2.issues || []).forEach(function(it){ if (it.number == null && it.key != null) { const nn = parseInt(it.key,10); if(!isNaN(nn)) it.number = nn; } })
         let allForList2 = [].concat(inner2.maps || []).concat((inner2.maps||[]).flatMap(function(m){ return m.tickets||[]; })).concat(inner2.issues||[])
+        // #589：三段拼接会让身兼两职的票出现两次，这里按身份收成一行（地图容器优先）
+        allForList2 = (await _dedupe()).dedupeListByPool(allForList2)
         const labels2 = inner2.labels || (function(){
           const mm = {}
           ;[].concat(inner2.maps||[]).concat(inner2.issues||[]).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
