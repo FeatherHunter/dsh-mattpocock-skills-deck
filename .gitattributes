@@ -1,8 +1,11 @@
 # 自动识别文本文件并做换行规范化
 * text=auto
 
-# 随包分发的脚本必须是 LF（消费者机器上直接执行）
-scripts/*.sh text eol=lf
+# 所有 shell 脚本一律 LF：它们在消费者机器上直接执行，而且 tests/verify-release-contract.js 会用
+# bash -n 做语法检查——CRLF 检出下 wizard/template.sh 第 30 行 `_clear() {` 会被读成 $'{\r' 直接报错。
+# 以前只钉了 scripts/*.sh，wizard/ 与随包分发的 bundled-skills 模板漏在外面：Windows 上
+# core.autocrlf=true 的全新检出必红（本地旧工作树是 LF，所以一直没暴露）。
+*.sh text eol=lf
 
 # 说明文档按 LF 提交：tests/verify-readme-sync.js 是逐字符比对发布目录说明与根说明的，
 # 一旦被 core.autocrlf 转成 CRLF 就会红（本机系统级 gitconfig 里 core.autocrlf=true）。
