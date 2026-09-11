@@ -58,9 +58,9 @@ export const PrTab = function (props) {
     return Number(a.number || a.key || 0) - Number(b.number || b.key || 0)
   })
   const colorOf = (typeof buildColorOf === 'function') ? buildColorOf(st) : {}
-  // #599：状态显示三种（打开 / 已关闭 / 已合并）。GitHub 上已合并的拉取请求是单独一种状态，
-  //   而契约与后端归一都只认两态（已合并归到已关闭、合并时间留在 mergedAt），
-  //   所以「是不是已合并」按合并时间判断 —— 判据收在 views/shared/stateKind.js，与详情页共用一份。
+  // #599：状态显示三种（打开 / 已关闭 / 已合并）。契约与后端归一都只认两态（已合并归到已关闭、
+  //   合并时间留在 mergedAt），所以「是不是已合并」按合并时间判断 —— 判据收在 views/shared/stateKind.js，
+  //   与单票详情页共用一份，这里只管把三种状态画成三种样子。
   const STATE_STYLE = {
     open: { color: '#3fb950', bg: 'rgba(63,185,80,.15)', key: 'list.state.open' },
     closed: { color: '#8b949e', bg: 'rgba(139,148,158,.15)', key: 'list.state.closed' },
@@ -68,8 +68,7 @@ export const PrTab = function (props) {
   }
   return h('div', null, sorted.map(function (x) {
     var key = (x.key != null ? x.key : x.number)
-    var kind = (typeof prStateKind === 'function') ? prStateKind(x) : (String(x.state || '').toUpperCase() === 'CLOSED' ? 'closed' : 'open')
-    var stl = STATE_STYLE[kind] || STATE_STYLE.open
+    var stl = STATE_STYLE[prStateKind(x)]
     var login = (x.author && x.author.login) ? String(x.author.login) : ''
     var labels = Array.isArray(x.labels) ? x.labels : []
     var upd = x.updatedAt ? String(x.updatedAt).slice(0, 10) : ''

@@ -228,22 +228,19 @@ function deriveMergedAt(raw) {
 }
 
 /**
- * 一张票原始数据里的状态 + 合并时间 → 契约状态（只有打开 / 已关闭两种，见 shared/tracker/shape.js）。
+ * GitHub 原始数据里的状态 → 契约状态（只有打开 / 已关闭两种，见 shared/tracker/shape.js）。
  *
- * 为什么单独成为一个函数（#599）：GitHub 的拉取请求有三种状态（OPEN / CLOSED / MERGED），
- * 而「已合并」有两条来源，两条都得认，否则同一批票会两处显示不一样：
- *   一、GraphQL 的拉取请求自己写 state=MERGED（合并时间也有值）；
- *   二、REST 兜底路上，/issues 里的拉取请求条目 state 写的是 open，合并时间要靠 /pulls 富化才补上
- *       （见 pulls.js 的 enrichRestPRs）。
- * 列表归一在本文件里调它；契约仍只有两态 —— 界面另按 mergedAt 有值把这类条目显示成「已合并」
- * （判据在 client 的 views/shared/stateKind.js，那份判据同时吃「已关闭 + 合并时间」与「state 直接写 MERGED」两种形状，
- * 所以宿主单票详情那条返回 GitHub 原生节点的旧路也不用改）。
+ * 为什么要它（#599）：GitHub 的拉取请求有三种状态（OPEN / CLOSED / MERGED），契约只有两种，
+ * 所以要有一处把「已合并」收成「已关闭」，且只有这一处：
+ *   一、GraphQL 的拉取请求自己写 state=MERGED；
+ *   二、REST 兜底路上，/issues 与 /pulls 对已合并的拉取请求都给 state=closed（2026-09-11 真仓核过），
+ *       所以两条路本来就同口径。
+ * 契约保持两态，界面另按合并时间把这类条目显示成「已合并」（判据在 client 的 views/shared/stateKind.js）。
+ * 宿主单票详情那条路（src/host/issueDetail.js）也调它，保证两处状态口径一致。
  */
 export function pullStateOf(raw) {
   const s = raw && raw.state != null ? String(raw.state).toLowerCase() : ''
-  const mergedAt = deriveMergedAt(raw)
-  const mergedPR = !!mergedAt && !(raw && raw.isPullRequest === false)
-  return (s === 'closed' || s === 'merged' || mergedPR) ? STATE.CLOSED : STATE.OPEN
+  return (s === 'closed' || s === 'merged') ? STATE.CLOSED : STATE.OPEN
 }
 
 /**

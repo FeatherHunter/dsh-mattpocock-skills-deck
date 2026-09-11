@@ -74,18 +74,20 @@ function restPR(n) {
     user: { login: 'a' }, labels: [], assignees: [], reviews: [],
   }
 }
+/** /issues 列表里的拉取请求条目（2026-09-11 真仓核过的形状）：已合并的也是 state=closed，
+ *  合并时间就填在 pull_request.merged_at 里；这一条不是「已打开的拉取请求」。 */
 function restIssue(n) {
-  // 注意：这一份必须和真 GitHub 的 /issues 一致 —— 里面有 reviews 键的话，
-  //   归一会把整批普通工单都误认成拉取请求（实测过一次：505 条全变成 PR）。
   const out = {
     number: n, title: 'issue ' + n, state: 'open', body: '', html_url: 'https://github.com/o/r/issues/' + n,
     created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z', closed_at: null,
     user: { login: 'a' }, labels: [], assignees: [],
   }
-  // 真 REST 的 /issues 列表把拉取请求也夹带回来，并挂一个 pull_request 标记（归一靠它认出是拉取请求）。
-  // 要点：这一条里 state 写的是 open、merge 标记里也没有合并时间 —— 真 GitHub 就是这样，
-  // 合并时间要靠 /pulls 富化才补上（见 pulls.js 的 enrichRestPRs），所以归一时不能只看 state。
-  if (ALL_PR_NUMBERS.indexOf(n) >= 0) out.pull_request = { merged_at: null }
+  if (ALL_PR_NUMBERS.indexOf(n) >= 0) {
+    const merged = Object.prototype.hasOwnProperty.call(MERGED_AT, n)
+    out.state = 'closed'
+    out.closed_at = '2026-01-03T00:00:00Z'
+    out.pull_request = { merged_at: merged ? MERGED_AT[n] : null }
+  }
   return out
 }
 
@@ -196,9 +198,9 @@ function prsOf(res) { return (res && res.ok ? res.data : []).filter((x) => x.isP
   check(o.state === 'open', '归一：打开的仍是打开')
   const restM = normalizeIssue(restPR(575))
   check(restM.state === 'closed' && restM.mergedAt === MERGED_AT[575], '归一：REST 形状的已合并在同一口径上')
-  // 真 REST 的 /issues 条目：state 写 open，合并时间靠 /pulls 富化补上（这是兜底路上最容易被漏掉的一种形状）
-  const restIssuesEntry = normalizeIssue({ number: 575, title: 'PR #575', state: 'open', html_url: 'https://github.com/o/r/issues/575', pull_request: { merged_at: null }, merged_at: MERGED_AT[575], user: { login: 'a' }, labels: [] })
-  check(restIssuesEntry.state === 'closed' && restIssuesEntry.isPullRequest === true, '归一：兜底路 /issues 里 state=open 的已合并条目也收成已关闭（只看 state 会漏掉）')
+  // 真 REST 的 /issues 条目（2026-09-11 真仓核过的形状）：已合并的也是 state=closed、合并时间填在标记里
+  const restIssuesEntry = normalizeIssue(restIssue(575))
+  check(restIssuesEntry.state === 'closed' && restIssuesEntry.isPullRequest === true && restIssuesEntry.mergedAt === MERGED_AT[575], '归一：兜底路 /issues 里的已合并条目收成已关闭且合并时间保留')
   const plainIssue = normalizeIssue({ number: 506, title: '普通工单', state: 'open', html_url: 'https://github.com/o/r/issues/506', user: { login: 'a' }, labels: [] })
   check(plainIssue.state === 'open' && plainIssue.mergedAt === null, '归一：普通工单不受影响（仍是打开，合并时间为空）')
   const noState = normalizeIssue({ number: 2, title: 't' })
@@ -210,19 +212,27 @@ function prsOf(res) { return (res && res.ok ? res.data : []).filter((x) => x.isP
 }
 
 // ------------------------------------------------------------------
-// 四、判据单源（先跑，界面一节要用这个判据喂数据）
+// 四、判据单源与界面边界
 // ------------------------------------------------------------------
 {
   check(typeof prStateKind === 'function', '判据单源：views/shared/stateKind.js 导出 prStateKind')
-  check(prStateKind({ state: 'closed', mergedAt: MERGED_AT[575], isPullRequest: true }) === 'merged', '判据：已关闭 + 合并时间有值 + 是拉取请求 = 已合并')
-  check(prStateKind({ state: 'closed', mergedAt: null, isPullRequest: true }) === 'closed', '判据：已关闭 + 无合并时间 = 已关闭')
-  check(prStateKind({ state: 'open', mergedAt: null, isPullRequest: true }) === 'open', '判据：打开 = 打开')
-  check(prStateKind({ state: 'closed', mergedAt: MERGED_AT[575], isPullRequest: false }) === 'closed', '判据：普通工单带合并时间也不画成已合并（只认拉取请求）')
-  check(prStateKind({ state: 'merged', mergedAt: null }) === 'merged', '判据：来源直接写 MERGED 时也认（不依赖某一路归一）')
+  check(prStateKind({ state: 'closed', mergedAt: MERGED_AT[575] }) === 'merged', '判据：已关闭 + 合并时间有值 = 已合并')
+  check(prStateKind({ state: 'closed', mergedAt: null }) === 'closed', '判据：已关闭 + 无合并时间 = 已关闭')
+  check(prStateKind({ state: 'open', mergedAt: null }) === 'open', '判据：打开 = 打开')
+  check(prStateKind({ state: 'merged', mergedAt: null }) === 'merged', '判据：来源直接写 MERGED 时也认（不必强求它改写形状）')
   check(prStateKind({}) === 'open', '判据：来源为空时不抛错（按打开收敛）')
+
+  // 界面不认后端的私有字段（契约 docs/architecture/tracker-backend-design-contract.md 第 1、2 节：
+  //   UI 不知道后端是谁；谁给界面递原生节点，谁先收成契约形状）
+  const kindSrc = readFileSync(resolve(ROOT, 'src/client/views/shared/stateKind.js'), 'utf8')
+  check(!kindSrc.includes('pull_request'), '判据不读后端私有字段（pull_request）：src/client/views/shared/stateKind.js')
+  check(!kindSrc.includes('isPullRequest'), '判据不需要「是不是拉取请求」这个后端字段')
+
   for (const rel of ['src/client/views/PrTab.js', 'src/client/views/IssueDetail.js']) {
     const src = readFileSync(resolve(ROOT, rel), 'utf8')
-    check(!/String\([^)]*state[^)]*\)\s*\.toUpperCase\(\)\s*!==\s*'CLOSED'/.test(src), '不再用「不是 CLOSED 就当打开」：' + rel)
+    // 连兜底分支里那份「不是 CLOSED 就当打开」也要查出来（上一版只查 !== 一种写法，漏过了兜底分支）
+    const offenders = src.split(/\r?\n/).filter((l) => /toUpperCase\(\)[\s\S]*'CLOSED'/.test(l) || /'CLOSED'[\s\S]*toUpperCase\(\)/.test(l))
+    check(offenders.length === 0, '不再自己判「不是 CLOSED 就当打开」（含兜底分支）：' + rel + (offenders.length ? ' → ' + offenders[0].trim().slice(0, 80) : ''))
     check(src.includes('prStateKind'), '用同一份判据：' + rel + ' 调 prStateKind')
   }
 }
@@ -234,7 +244,8 @@ function prsOf(res) { return (res && res.ok ? res.data : []).filter((x) => x.isP
 // ------------------------------------------------------------------
 const PRODUCT = resolve(ROOT, 'package/lib/client.js')
 if (!existsSync(PRODUCT)) {
-  console.log('  SKIP 界面一节：产物 package/lib/client.js 不在（先跑 node scripts/build.mjs）')
+  // 不静默跳过：这一段验的是「界面显示成什么」，少了它就只剩源码正则，撑不住验收标准。
+  check(false, '产物 package/lib/client.js 不在 —— 界面那一段没跑（先跑 node scripts/build.mjs；npm run verify 链里产物已备）')
 } else {
   const { JSDOM } = await import('jsdom')
   const React = (await import('react')).default
