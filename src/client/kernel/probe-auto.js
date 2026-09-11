@@ -226,6 +226,13 @@
         } catch(eFan2){}
         st.refreshing = false
         spinAll(false)
+        // #596 留痕：手动刷新没拿到新快照时记一行（按需级——判断与调用同一行，性能守卫口径）。
+        // 当时那条通道没注册，这里静默走过，界面上「点了没反应、日志里也查不到」，故障才拖了这么久。
+        // 只记散列与归一类别，不记路径原文与错误全文（#489 白名单）。
+        try {
+          const okSnap = !!(st.snapshot && st.snapshot.ok === true && Array.isArray(st.snapshot.maps))
+          if (!okSnap && isEnabled('debug')) log('debug', 'host.call.fail', { method: 'wf.refresh', kind: 'manual-refresh', errorHash: dswsLogHash(dswsLogTrunc(String(st.snapError || st.snapMode || 'no-snapshot'), 120, 'error')) })
+        } catch (eL2) {}
         emit(st)
       }).catch(function () { st.refreshing = false; spinAll(false); emit(st) })
     }

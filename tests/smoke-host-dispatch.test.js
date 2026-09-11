@@ -1,12 +1,13 @@
 // smoke-host-dispatch.test.js — host seam dispatch 端到端验证
-// 验证 harness.handle 注册的 handler 能经 connection.rpc.handle('/dsws') 通道被调用：
+// 验证 harness.handle 注册的 handler 能经 connection.fetch.register('/api/dsws') 那条精确路由被调用：
+//   注册路径是精确路径 /api/dsws（不带端点尾巴），端点名与入参装在请求体 payload 里（#596）；
 //   wf.logGetSwitch → logGetSwitch 端点 → { ok: true, enabled, sampleRate }（#498 退役 wf.ping，探活改走免参开关读电话）
 import { readFileSync } from 'node:fs'
 
 const modRaw = await import('../package/lib/index.js')
 const mod = modRaw.default ?? modRaw
 
-let registered = null
+let route = null
 // #266 建号感知冒烟：gh api 索引快照由 stub 返回（测试可控 JSON Lines；按调用序切换新旧快照）
 const GH_BASE = '{"number":1,"title":"既有一","state":"OPEN","updatedAt":"u1"}\n{"number":2,"title":"既有二","state":"CLOSED","updatedAt":"u2"}\n'
 let ghIndexText = GH_BASE
@@ -29,30 +30,53 @@ const sleep = (ms) => new Promise(function (res) { setTimeout(res, ms) })
 const platformSvc = { getHome: async () => '', path: { join: (...a) => a.join('/') }, fs: { mkdir: async () => {}, resolve: async (k) => String(k) }, resolveExecutable: async () => 'gh', env: { get: () => undefined } }
 const services = {
   subprocess, timer, fs: fsSvc, platform: platformSvc,
-  connection: { rpc: { handle: (path, fn, opts) => { registered = { path, fn, opts } } } },
+  connection: { fetch: { register: (r) => { route = r; return () => {} } } },
 }
 const ctx = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
 
 ;(mod.apply ?? mod.default?.apply)(ctx)
 
+// 注册经 ./rpcChannel.js 动态加载完成（宿主禁止静态 import 的既有约定），等它落地再断言。
+await new Promise(function (resolve) {
+  const t0 = Date.now()
+  const tick = function () {
+    if (route || Date.now() - t0 > 3000) return resolve()
+    setTimeout(tick, 20)
+  }
+  tick()
+})
+
 let failures = 0
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
-check(!!registered && typeof registered.fn === 'function', 'connection.rpc.handle 收到 dispatch fn')
+check(!!route && typeof route.fetch === 'function', 'connection.fetch.register 收到 /api/dsws 路由')
+check(!!route && route.path === '/api/dsws', `路由路径 = ${route && route.path}`)
+
+// 按 DSH 信封调用一次：client-request 进，server-response 出（返回信封里的 result）。
+// #596：路径是精确路径 /api/dsws，端点名与入参一并装进 body 的 payload（{method, payload}）。
+const dispatchOnce = async function (endpoint, args) {
+  const res = await route.fetch({
+    method: 'POST',
+    url: 'http://127.0.0.1:1/api/dsws',
+    json: async () => ({ type: 'client-request', rpcId: 'dispatch-' + endpoint, method: endpoint, payload: { method: endpoint, payload: args } }),
+  })
+  const env = await res.json()
+  return env && env.result
+}
 
 // 调 dispatch：endpoint 'logGetSwitch'（免参开关读电话，#498 前为 wf.ping → seam 去掉 wf. 前缀）
-if (registered && typeof registered.fn === 'function') {
-  const res = await registered.fn('logGetSwitch', {})
+{
+  const res = await dispatchOnce('logGetSwitch', {})
   console.log('  logGetSwitch 结果:', JSON.stringify(res))
   check(!!res && res.ok === true, 'logGetSwitch dispatch ok=true')
-  const bad = await registered.fn('nonexistent', {})
+  const bad = await dispatchOnce('nonexistent', {})
   check(!!bad && bad.ok === false, '未知端点 ok=false（RpcResult 错误信封）')
 }
 
 // ---- #265 命名守护新增操作路径（注册/信号/计划单/回报）----
-if (registered && typeof registered.fn === 'function') {
+if (route && typeof route.fetch === 'function') {
   // loopback dispatch 返回 RpcResult 信封 { ok, value }：处理器原始返回在 .value（ping 断言即信封层）
   const callHandler = async function (endpoint, args) {
-    const env = await registered.fn(endpoint, args)
+    const env = await dispatchOnce(endpoint, args)
     return (env && typeof env.value === 'object' && env.value !== null && ('ok' in env.value)) ? env.value : env
   }
   try {
@@ -87,9 +111,9 @@ if (registered && typeof registered.fn === 'function') {
 }
 
 // ---- #266 建号感知：三操作复原（注册/取消/等待）＋ 索引差值结算 → numbered 订单 ----
-if (registered && typeof registered.fn === 'function') {
+if (route && typeof route.fetch === 'function') {
   const callHandler = async function (endpoint, args) {
-    const env = await registered.fn(endpoint, args)
+    const env = await dispatchOnce(endpoint, args)
     return (env && typeof env.value === 'object' && env.value !== null && ('ok' in env.value)) ? env.value : env
   }
   try {
