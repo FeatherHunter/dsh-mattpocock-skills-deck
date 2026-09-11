@@ -38,10 +38,11 @@ export function createSessionSnapshot(deps) {
           const cachedBackend = getCache().snapshot.selection && getCache().snapshot.selection.backendId
           if (cachedBackend === _selEarly.backendId && now - getCache().ts < CACHE_MS) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - getCache().ts } }) } catch (eL) {}; return getCache().snapshot }
         } else {
-          // 手上有缓存且它还很新 → 立即交付，不在交付前先联网核对：核对要把全仓库扫一遍
-          // （实测 505 条 6 页、约 4~5 秒）而结论多是「没变」，那几秒纯属白等。正确性由既有的
-          // 60 秒自动探测兜底（发现变化即把缓存标脏，标脏后走不到这里）；缓存超过 CACHE_MS 就照旧核对。
-          if (now - getCache().ts < CACHE_MS) return getCache().snapshot
+          // 手上有缓存 → 立即交付，不在交付前先联网核对。核对要把全仓库扫一遍（实测 505 条
+          // 6 页、约 4~5 秒），结论绝大多数是「没变」，那几秒纯属白等。正确性交给既有的 60 秒
+          // 自动探测：它发现变化就把缓存标脏，标脏后走不到这条短路。不加「缓存太旧就不交付」
+          // 的门槛：客户端那份几乎总是超过 60 秒，加了等于每次都回到「先核对」的老路。
+          return getCache().snapshot
         }
         const current = await cacheSnapshotIsCurrent(getCache().snapshot, cwd)
         if (current === true || (current === null && now - getCache().ts < CACHE_MS)) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - getCache().ts } }) } catch (eL) {}; return getCache().snapshot }
