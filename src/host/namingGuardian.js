@@ -66,11 +66,16 @@ export function createNamingGuardian(deps) {
     if (_namingPersistTimer) return
     _namingPersistTimer = timer.timeout(function () { _namingPersistTimer = null; if (_namingStateDirty) persistNamingState() }, 1200); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-persist', intervalMs: 1200 }) } catch (eL) {}
   }
-  function namingLoopTick() {
+  let _namingAssignedRun = 0
+  async function namingLoopTick() {
     try { if (_namingStateDirty) persistNamingState() } catch (eTick) {}
     // #266：常驻 tick 承担索引差值结算（建号感知底座；防重入由 _namingSweepBusy 保证）
-    try { namingSweepNow() } catch (eSweepT) {}
-    _namingLoopTimer = timer.timeout(namingLoopTick, NAMING_TICK_MS)
+    try { await namingSweepNow() } catch (eSweepT) {}
+    // 退避（本轮新增）：这一跳每轮把「还有会话在等编号」的仓库整个扫一遍（7~12 秒），却多数
+    // 毫无收获。故连续几跳无收获即退到 60 秒 —— 真实建号另有事件驱动通道（repoKeys.js 拦到
+    // `gh issue create` 即触发即时推进），这一跳只是兜底，一旦真有归属立刻回到 15 秒。
+    if (sweepAnyChanged) _namingAssignedRun = 0; else _namingAssignedRun++
+    _namingLoopTimer = timer.timeout(namingLoopTick, _namingAssignedRun >= 3 ? NAMING_SWEEP_MS * 4 : NAMING_TICK_MS)
   }
   function startNamingGuardianLoop() {
     // 热重载守卫：上一代 apply 遗留的循环先清（globalThis 单例句柄）
@@ -82,11 +87,9 @@ export function createNamingGuardian(deps) {
   }
 
   // ============ 建号感知复原（#266 · F1/F2 修复义务）============
-  // 历史：#211 的 registerNewSessionWatcher / cancelNewSessionWatcher / awaitCreatedIssue 三
-  // handler 于 e98f636 重构中被整块静默删除且无替身（#258 F1 回归），导致「AI 在会话内
-  // 自行建号」的主流程零事件。本段按 #264 决议以 issue 索引差值为底座复原，职责并入持久化
-  // 命名守护：注册收编跟踪态 + 触发即时快照；结算由常驻 tick 与即时路径（runGh 白名单 /
-  // 认领推送 nudge）共用同一入口（三操作存在的守卫断言见 verify-naming-guardian）。
+  // 历史：#211 的三个 handler（registerNewSessionWatcher / cancelNewSessionWatcher /
+  // awaitCreatedIssue）于 e98f636 被整块静默删除且无替身（#258 F1 回归），「AI 在会话内自行
+  // 建号」主流程零事件。按 #264 决议以 issue 索引差值为底座复原，职责并入命名守护。
 
   /** repoKey 归一：接受 'owner/name' 字符串或 { owner, name }；无效返回 null。 */
   function namingRepoKeyOf(args) {
