@@ -31,13 +31,17 @@ const fakeRegistry = {
 }
 
 let registered = null
+let route = null
 const subprocess = { async resolveExecutable() { return 'gh' }, spawn() { return { stdout: { on: () => {} }, stderr: { on: () => {} }, on: () => {}, terminate: () => {} } } }
 const timer = { timeout: (fn, ms) => setTimeout(fn, ms) }
 const fsSvc = { readFileSync: () => '', writeFileSync: () => {}, existsSync: () => false, mkdirSync: () => {}, readdirSync: () => [], statSync: () => ({ isDirectory: () => false }) }
 const services = {
   subprocess, timer, fs: fsSvc,
   trackerRegistry: fakeRegistry,
-  connection: { rpc: { handle: (path, fn, opts) => { registered = { path, fn, opts } } } },
+  // #596：宿主改经 connection.fetch.register 注册一条精确路由 /api/dsws，端点名与入参装在请求体里。
+  //   旧写法 connection.rpc.handle 已不成立 —— 那时 registered 永远是 null，
+  //   本冒烟会静止在「未注册」分支里空过，所以必须跟着换。
+  connection: { fetch: { register: (r) => { route = r; return () => {} } } },
 }
 const ctx = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
 
@@ -45,18 +49,42 @@ const modRaw = await import('../package/lib/index.js')
 const mod = modRaw.default ?? modRaw
 ;(mod.apply ?? mod.default?.apply)(ctx)
 
+// 通道注册经 ./rpcChannel.js 动态加载完成（宿主禁止静态 import 的既有约定），等它落地再发调用。
+async function waitRoute() {
+  const t0 = Date.now()
+  while (Date.now() - t0 < 3000) {
+    if (route && typeof route.fetch === 'function') return true
+    await new Promise((r) => setTimeout(r, 20))
+  }
+  return false
+}
+// 按客户端真实形状发一次调用：POST 到 /api/dsws，体是 DSH 的 client-request 信封，
+// 内层 payload 装 { method: 端点名, payload: 入参 }；从回包里取出端点原始返回值。
+async function callHandler(endpoint, args) {
+  if (!(await waitRoute())) throw new Error('通道未注册：connection.fetch.register 没被调用')
+  const res = await route.fetch({
+    method: 'POST',
+    url: 'http://127.0.0.1/api/dsws',
+    json: async () => ({ type: 'client-request', rpcId: 'comment-' + endpoint, method: 'dsws', payload: { method: endpoint, payload: args } }),
+  })
+  const env = await res.json()
+  if (!env || env.type !== 'server-response') throw new Error('回包不是 server-response 信封：' + JSON.stringify(env))
+  return env.result && env.result.value
+}
+
 const unwrap = (r) => (r && r.ok === true && 'value' in r ? r.value : r) // dispatch 传输信封：{ok:true,value:handler结果}
-if (registered && typeof registered.fn === 'function') {
+if (await waitRoute()) {
+  check(!!route && route.path === '/api/dsws', '通道注册在 /api/dsws（客户端请求路径与宿主注册路径同源）')
   // 1) 校验：缺 body → parse
-  const bad = unwrap(await registered.fn('commentIssue', { number: 255 }))
+  const bad = unwrap(await callHandler('commentIssue', { number: 255 }))
   check(!!bad && bad.ok === false && bad.error && bad.error.kind === 'parse', '缺 body → {ok:false,kind:parse}')
 
   // 2) 校验：缺 number → parse
-  const badN = unwrap(await registered.fn('commentIssue', { body: 'hi' }))
+  const badN = unwrap(await callHandler('commentIssue', { body: 'hi' }))
   check(!!badN && badN.ok === false && badN.error && badN.error.kind === 'parse', '缺 number → {ok:false,kind:parse}')
 
   // 3) happy path：select→describe→tracker.comment 参数无损
-  const good = unwrap(await registered.fn('commentIssue', { number: 255, body: 'hello #255', cwd: 'D:/work/repo' }))
+  const good = unwrap(await callHandler('commentIssue', { number: 255, body: 'hello #255', cwd: 'D:/work/repo' }))
   check(!!good && good.ok === true, '透传成功 ok=true')
   check(calls.length >= 1 && String(calls[0].key) === '255', 'tracker.comment 收到 key=255')
   check(calls.length >= 1 && calls[0].body === 'hello #255', 'body 原文透传')
@@ -64,17 +92,17 @@ if (registered && typeof registered.fn === 'function') {
 
   // 4) 错误直透：comment 返回 auth → 端点原样返回（UI 分流数据源）
   ghTracker.comment = async () => ({ ok: false, error: { kind: 'auth', message: 'not logged in' } })
-  const authed = unwrap(await registered.fn('commentIssue', { number: 255, body: 'x' }))
+  const authed = unwrap(await callHandler('commentIssue', { number: 255, body: 'x' }))
   check(!!authed && authed.ok === false && authed.error && authed.error.kind === 'auth', 'TrackerError{kind:auth} 直透')
 
   // 5) 未实现 comment 的后端 → unsupported（诚实失败，非假装成功）
   fakeRegistry.select = async () => ({ backendId: 'gitlab-x', source: 'explicit' })
-  const unsup = unwrap(await registered.fn('commentIssue', { number: 255, body: 'y' }))
+  const unsup = unwrap(await callHandler('commentIssue', { number: 255, body: 'y' }))
   check(!!unsup && unsup.ok === false && unsup.error && unsup.error.kind === 'unsupported', '后端无 comment 方法 → kind:unsupported')
 
   // 6) select 失败 / 无后端 → unsupported
   fakeRegistry.select = async () => null
-  const nosel = unwrap(await registered.fn('commentIssue', { number: 255, body: 'z' }))
+  const nosel = unwrap(await callHandler('commentIssue', { number: 255, body: 'z' }))
   check(!!nosel && nosel.ok === false && nosel.error && nosel.error.kind === 'unsupported', 'selection 为空 → kind:unsupported')
 } else {
   check(false, 'dispatch fn 未注册')

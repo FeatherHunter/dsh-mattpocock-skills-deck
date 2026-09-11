@@ -38,9 +38,13 @@ export function createSessionSnapshot(deps) {
           const cachedBackend = getCache().snapshot.selection && getCache().snapshot.selection.backendId
           if (cachedBackend === _selEarly.backendId && now - getCache().ts < CACHE_MS) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - getCache().ts } }) } catch (eL) {}; return getCache().snapshot }
         } else {
-          const current = await cacheSnapshotIsCurrent(getCache().snapshot, cwd)
-          if (current === true || (current === null && now - getCache().ts < CACHE_MS)) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - getCache().ts } }) } catch (eL) {}; return getCache().snapshot }
+          // 手上有缓存且它还很新 → 立即交付，不在交付前先联网核对：核对要把全仓库扫一遍
+          // （实测 505 条 6 页、约 4~5 秒）而结论多是「没变」，那几秒纯属白等。正确性由既有的
+          // 60 秒自动探测兜底（发现变化即把缓存标脏，标脏后走不到这里）；缓存超过 CACHE_MS 就照旧核对。
+          if (now - getCache().ts < CACHE_MS) return getCache().snapshot
         }
+        const current = await cacheSnapshotIsCurrent(getCache().snapshot, cwd)
+        if (current === true || (current === null && now - getCache().ts < CACHE_MS)) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - getCache().ts } }) } catch (eL) {}; return getCache().snapshot }
       }
       const missReason = (function () { try { if (isForce) return 'force'; const c = getCache(); if (!c.snapshot) return 'empty'; if (c.cwd !== cwd) return 'cwd-changed'; const cb = c.snapshot.selection && c.snapshot.selection.backendId; const nb = _selEarly && _selEarly.backendId; if (cb !== nb) return 'backend-changed'; return 'expired' } catch (e) { return 'expired' } })()
       try { if (logCtx) logCtx.fire('info', 'snapshot.cache.miss', { reason: missReason }) } catch (eL) {}
