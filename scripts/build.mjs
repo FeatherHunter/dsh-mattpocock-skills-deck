@@ -648,11 +648,23 @@ if (!args.includes('--no-sync')) {
   const _home = process.env.HOME || process.env.USERPROFILE || ''
   if (_home) {
     try {
-      const profileBase = resolve(_home, '.dsh/profiles/web/node_modules/dsh-mattpocock-skills-deck')
-      if (existsSync(profileBase)) {
+      // 2026-09-11 现场修复：以前只同步 web 这一个 profile，而界面完全可能跑在别的 profile 上
+      //   （桌面应用用的是 desktop），于是「源码改了、构建也过了」，用户复制出来的提示词却还是旧的。
+      //   现在把「装了本插件的 profile」全部同步，一个不漏。
+      const profilesDir = resolve(_home, '.dsh/profiles')
+      const targets = []
+      try {
+        for (const ent of readdirSync(profilesDir, { withFileTypes: true })) {
+          if (!ent.isDirectory()) continue
+          const base = resolve(profilesDir, ent.name, 'node_modules/dsh-mattpocock-skills-deck')
+          if (existsSync(base)) targets.push(base)
+        }
+      } catch (eEnum) { /* 目录不存在或读不了，走下面的空表提示 */ }
+      if (!targets.length) console.warn('[build] 没找到任何装过本插件的 profile，跳过同步（装过的才会被同步）')
+      for (const profileBase of targets) {
         // 整树同步 package/lib、package/shared 与 package/scripts（#545：只同步两个文件会漏掉宿主新增模块，
         // 注册了电话但缺模块文件，调用时动态导入失败；与“原样复制”哲学一致，只增不删）。
-        // scripts 随包分发，消费者工作区按两步调用直连安装目录下的脚本。
+        // scripts 随包分发；#603 起提示词改走 gh 直连写法，脚本作为可选工具仍在包里。
         for (const tree of ['lib', 'shared', 'scripts']) {
           const srcDir = resolve(ROOT, 'package', tree)
           const dstDir = resolve(profileBase, tree)
