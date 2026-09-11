@@ -3,7 +3,7 @@
 // 接线：由 index.js 动态 import 加载；normCwd 与单票分发前奏经 index 转供给复用（H4 同例），不各留一份拷贝；本文件不引用其他新文件。
 import { idOfParts } from '../shared/tracker/constants.js'
 export function createCommentThreads(deps) {
-  const { normCwd, canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, logCtx } = deps
+  const { normCwd, canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, fetchIssueIndexWindowed, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, logCtx } = deps
   // T5 #10 · 评论分页（反向分页 cursor，节流由 client 侧 600ms 控制；单页 50，失败重试与 3 次兜底）
   async function fetchIssueCommentsREST(n, after, cwd) {
     const repo = await getRepoKey(cwd)
@@ -237,13 +237,14 @@ export function createCommentThreads(deps) {
       } catch (e) { return { ok: false, error: errText(e) } }
     }
     try {
-      const remote = await fetchIssueIndex(cwd)
+      // 增量索引（本轮新增）：改走 fetchIssueIndexWindowed —— 它只回答「自上次以来有没有变」，
+      //   并把增量并进完整基线后给出 changed。这里不再自己维护一份基线、也不再自行比对：
+      //   两份状态会各自漂移，而漂移的后果是面板长期显示旧数据且不报错（静默漏报，最难查）。
+      const remote = await fetchIssueIndexWindowed(cwd)
       if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe 失败') }
       const repo = remote.repo
       const rk1 = repo.owner + '/' + repo.name
-      const known = lastIssueIndexByRepo[rk1] || issueIndexFromSnapshot(getCache().snapshot)
-      const changed = issueIndexChanged(known, remote.index)
-      rememberIssueIndex(repo, remote.index)
+      const changed = remote.changed === true
       lastProbeAtByRepo[rk1] = new Date().toISOString()
       if (changed) setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
       return { ok: true, changed: changed, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }

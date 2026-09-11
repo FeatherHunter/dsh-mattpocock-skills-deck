@@ -158,11 +158,14 @@ export function createIssueList(deps) {
     }
 
     // #2 deletion fix：轻量全量索引用于发现删除、关闭和重开。
-    async function fetchIssueIndex(cwd) {
+    // 增量扫描（本轮新增）：传入 sinceIso 即只问「该时刻之后有变动的票」，实测同一仓库
+    //   全量 585 条约 7 秒，最近 1 天只有 24 条约 1.2 秒；state=all 与 since 合用后已关闭的票
+    //   照样返回，所以「关闭/删除检测」不会因此瞎掉。窗口起点与水印的判断在 shared/tracker/indexWindow.js。
+    async function fetchIssueIndex(cwd, sinceIso) {
       const idxT0 = Date.now()
       const repo = await getRepoKey(cwd)
       if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
-      const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100'
+      const url = 'repos/' + repo.owner + '/' + repo.name + '/issues?state=all&per_page=100' + (sinceIso ? '&since=' + encodeURIComponent(sinceIso) : '')
       const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, state: .state, updatedAt: .updated_at}'], cwd)
       // 优先解析 gh api 的输出，即使 r.ok===false 但 text 中已有部分数据（如 414/415 在前两页已返回，仅第3页 unexpected EOF 导致 exit 1），也尝试解析，避免因单页网络抖动就判 unknown 回旧
       const tryParseIndex = function(text) {
@@ -220,10 +223,35 @@ export function createIssueList(deps) {
         return { ok: true, repo: repo, index: index, count: Object.keys(index).length }
       } catch (e) { return { ok: false, error: { kind: 'parse', error: String(e) } } }
     }
+    // 增量索引（本轮新增）：把「只问变化」的时间窗与水印合并进完整基线，再判有没有真的变。
+    //   为什么必须合并：拿全量基线去比一个只含增量的结果，两边大小天然不同，会每次都判成「变了」，
+    //   后果是每分钟触发一次全量重建，比不改还糟；窗口起点与合并/比对的规则统一在 shared/tracker/indexWindow.js。
+    //   为什么水印取「扫描发起之前」：取结束时会让两次扫描之间留缝，缝里的改动永远看不到（静默漏报）。
+    // 宿主侧禁止静态引入新文件（D7），这里按既有范式走动态 import。
+    let _idxWinP = null
+    function _idxWin() { if (!_idxWinP) _idxWinP = import('../shared/tracker/indexWindow.js'); return _idxWinP }
+    const lastIndexBaselineByRepo = {}   // 仓库键 → 上一次的完整索引（增量已并入）
+    const lastIndexWatermarkByRepo = {}  // 仓库键 → 上一次扫描的起点时刻
+    async function fetchIssueIndexWindowed(cwd) {
+      const repo = await getRepoKey(cwd)
+      if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
+      const rk = repo.owner + '/' + repo.name
+      const win = await _idxWin()
+      const startedMs = Date.now()
+      const w = win.scanWindow(lastIndexWatermarkByRepo[rk], startedMs)
+      const remote = await fetchIssueIndex(cwd, w.sinceIso)
+      if (!remote.ok) return remote
+      const before = lastIndexBaselineByRepo[rk] || null
+      const merged = win.mergeDelta(before, remote.index)
+      const changed = win.indexDiffers(before, merged)
+      lastIndexBaselineByRepo[rk] = merged
+      lastIndexWatermarkByRepo[rk] = win.nextWatermark(startedMs)
+      return { ok: true, repo: remote.repo, index: merged, count: Object.keys(merged).length, changed: changed, windowed: !w.full, windowCount: remote.count }
+    }
     // ---- 原 index.js 475–488：缓存有效性判断与快照落盘收纳 ----
     const cacheSnapshotIsCurrent = async function (snap, cwd) {
       try {
-        const remote = await fetchIssueIndex(cwd)
+        const remote = await fetchIssueIndexWindowed(cwd)
         if (!remote.ok) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'panelSync.eval', function () { return { repoKeyHash: hash8(String(cwd || '')), baseline: String((snap && (snap.version || snap.generatedMs)) || ''), dirty: true, failures: 1 } }) } catch (eL) {}; return null }
         const before = issueIndexFromSnapshot(snap)
         const changed = issueIndexChanged(before, remote.index)
@@ -287,5 +315,5 @@ export function createIssueList(deps) {
       }
       return { ok: true, issues: issues, fallback: 'rest' }
     }
-  return { fetchMaps, fetchAllIssuesManual, fetchAllIndexManual, fetchIssues, fetchIssueIndex, cacheSnapshotIsCurrent, adoptSnapshot, fetchMapsDetailREST }
+  return { fetchMaps, fetchAllIssuesManual, fetchAllIndexManual, fetchIssues, fetchIssueIndex, fetchIssueIndexWindowed, cacheSnapshotIsCurrent, adoptSnapshot, fetchMapsDetailREST }
 }
