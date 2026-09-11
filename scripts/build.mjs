@@ -57,11 +57,17 @@ function extractPluginBody(srcPath) {
 const PKG_CLIENT_SHIMS = `    // ===================== seam shims（pkg 方言绑定 · B3 rpc / B2 style / B4 timer） =====================
     const React = require('react')
     let __DSW_CTX__ = null
+    // #596：DSH 的 connection.rpc.call 按 channel/endpoint 拼请求路径。走公开的 /api 载体时，
+    // 拼出的是 /api/dsws——与宿主 connection.fetch.register 注册的精确路径同源；
+    // 真正的端点名与入参装进请求体（{method, payload}，与 dsh-im-companion 同构）。
+    // 旧写法 channel='/dsws' 拼出 /dsws/<端点>，要落到那条需要 webServer 注入的前缀路由上，注册期必抛。
+    const CARRIER_CHANNEL = '/api'
+    const CARRIER_ENDPOINT = 'dsws'
     const __rpcCall = async function (endpoint, args) {
       const ctx = __DSW_CTX__
       const conn = ctx && ctx.get ? ctx.get('connection') : undefined
       if (conn === undefined || conn.rpc === undefined) throw new Error('connection 服务不可用')
-      const res = await conn.rpc.call('/dsws', endpoint, args)
+      const res = await conn.rpc.call(CARRIER_CHANNEL, CARRIER_ENDPOINT, { method: endpoint, payload: args })
       if (res && res.ok) return res.value
       throw new Error((res && res.error && res.error.message) || ('RPC 失败：' + endpoint))
     }
@@ -93,8 +99,10 @@ const PKG_CLIENT_SHIMS = `    // ===================== seam shims（pkg 方言�
         return setTimeout(fn, ms)
       }
     }`
-/** 宿主侧 pkg shim：harness.handle('wf.x', fn) → dispatch 表 + connection.rpc.handle('/dsws')
- *  #172 方案 C 原样复制已不再使用此拼接，保留常量仅作历史参照（零打包不变量）。 */
+/** 宿主侧 pkg shim：harness.handle('wf.x', fn) → dispatch 表（对外分发见 src/host/rpcChannel.js）。
+ *  #172 方案 C 原样复制已不再使用此拼接，保留常量仅作历史参照（零打包不变量）。
+ *  #596：分发通道由 connection.rpc.handle 换成 DSH 公开的精确路由 connection.fetch.register，
+ *  注册路径 /api/dsws（单条精确路由，端点名走请求体）。 */
 const PKG_HOST_PREAMBLE = `// ===================== seam shims（pkg 方言绑定 · B3 rpc host 侧） =====================
 const __DSW_HANDLERS__ = new Map()
 const harness = {
@@ -293,6 +301,7 @@ const LEAF_MODULES = [
   { id: 'skillsTab', file: 'src/client/views/SkillsTab.js' },
   { id: 'checksTab', file: 'src/client/views/ChecksTab.js' },
   { id: 'SettingsWorkspaces', file: 'src/client/views/SettingsWorkspaces.js' },
+  { id: 'debugSwitchFailHint', file: 'src/client/views/shared/DebugSwitchFailHint.js' }, // #597 由 SettingsPage.js 拆出：写开关失败的机器码挑提示词条（无组件，纯函数）
   { id: 'settingsPage', file: 'src/client/views/SettingsPage.js' },
   { id: 'runPanel', file: 'src/client/views/RunPanel.js' },
   { id: 'DockSync', file: 'src/client/panel/DockSync.js' },

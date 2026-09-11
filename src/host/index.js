@@ -20,7 +20,10 @@
  */
 
 // ===== 规范方言（dynamic dialect）：harness 为自由变量；pkg entry 提供 shim =====
+
 export default {
+  name: 'dsh-mattpocock-skills-deck',
+  // 只声明 connection，不能再加 webServer：原因（#596 实测的 inject 报错）与注册改走的 fetch.register 见 ./rpcChannel.js。
   inject: ['connection'],
   apply(ctx) {
     const subprocess = ctx.get('subprocess')
@@ -29,7 +32,8 @@ export default {
     if (subprocess === undefined || timer === undefined) return
 
     // H1 #445：原 31–215 行（bundled provider）已搬到 ./bootstrap.js，下见动态接线。
-    // B3 rpc host 侧 shim：harness.handle('wf.x') → Map + connection.rpc.handle('/dsws') dispatch
+    // B3 rpc host 侧 shim：harness.handle('wf.x') → 本 Map；对外分发见文件末尾的
+    // connection.fetch.register('/api/dsws') 注册段（#596 由 connection.rpc.handle 换过来）。
     // 方案 C 原样复制后 pkg 入口不再经 build.mjs 注入 shim，改为源文件自带，避免 ReferenceError: harness is not defined
     const __DSW_HANDLERS__ = new Map()
     const harness = {
@@ -328,23 +332,16 @@ export default {
     // #265：命名守护常驻轻量任务启动（脏账落盘心跳；守护块见上）
     // #265 常驻轻量任务启动（H6 #450 后由命名模块持有，入口防火即发，脏账落盘心跳语义不变）。
     _naming().then(function(h){ try { h.startNamingGuardianLoop() } catch (eLoop) {} }).catch(function(){})
-
-    // B3 rpc 通道注册：/dsws → dispatch 表（loopback 权威）
-    try {
-      const connection = ctx.get('connection')
-      if (connection !== undefined && connection.rpc !== undefined && typeof connection.rpc.handle === 'function') {
-        connection.rpc.handle('/dsws', async (endpoint, payload) => {
-          const fn = __DSW_HANDLERS__.get(endpoint)
-          if (!fn) return { ok: false, error: { code: 'internal', message: 'unknown endpoint: ' + endpoint, details: {} } }
-          try {
-            const value = await fn(payload)
-            return { ok: true, value }
-          } catch (e) {
-            try { _dispatchMeta().then(function(dm){ try { fireLog('error', 'host.dispatch.error', { method: 'wf.' + endpoint, argsHash: dm.shortArgHash(payload), errorKind: dm.dispatchErrorKind(e) }) } catch (eInner) {} }).catch(function(){}) } catch (eLog) {}
-            return { ok: false, error: { code: 'internal', message: String((e && e.message) || e), details: {} } }
-          }
-        }, { authority: 'loopback' })
-      }
-    } catch {}
+    // ---- RPC 通道注册（#596 换到 DSH 公开的 /api 载体）----
+    // 客户端每次 host.call 都落在这条通道上；注册不上，面板就只画缓存旧数据：点刷新没反应。
+    // 注册方式、信封校验与失败记账都在 ./rpcChannel.js（#596 从本文件搬出），这里只递端点表与日志发射函数。
+    // 这里那个 catch 只兜「本文件加载 rpcChannel.js 失败」；通道注册失败由 rpcChannel.js 自己记账（errorKind 区分）。
+    let _rpcChannelP = null
+    function _rpcChannel() { if (!_rpcChannelP) _rpcChannelP = import('./rpcChannel.js'); return _rpcChannelP }
+    _rpcChannel().then(function (ch) {
+      ch.createRpcChannel({ ctx: ctx, handlers: __DSW_HANDLERS__, fireLog: fireLog, dispatchMeta: function () { return _dispatchMeta() } })
+    }).catch(function (eLoad) {
+      try { fireLog('error', 'host.dispatch.error', { method: '/api/dsws 通道注册', argsHash: '', errorKind: 'rpcChannel-load-failed' }) } catch (eR2) {}
+    })
   },
 }

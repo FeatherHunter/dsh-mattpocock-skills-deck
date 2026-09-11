@@ -17,6 +17,9 @@ const sleep = (ms) => new Promise(function (res) { setTimeout(res, ms) })
 // #266：gh api 索引快照由 stub 返回（测试可控；新号出现模拟「面板关闭期间会话内建号」）
 const GH_BASE = '{"number":1,"title":"既有一","state":"OPEN","updatedAt":"u1"}\n{"number":2,"title":"既有二","state":"CLOSED","updatedAt":"u2"}\n'
 let ghIndexText = GH_BASE
+// #596：宿主经 connection.fetch.register 注册一条精确路由 /api/dsws，端点名与入参装在请求体里。
+// 调用一律走这条路由，与真机同路（不再直接抓 handler 函数，那样会绕过整个协议层）。
+let route = null
 
 // fs 服务适配器：resolve 直通路径 + readText/writeText 走真实文件系统
 const fsSvc = {
@@ -34,27 +37,47 @@ const platformSvc = {
   env: { get: () => undefined },
 }
 
-function makeCtx(capture) {
+function makeCtx() {
   const subprocess = { async resolveExecutable() { return 'gh' }, spawn() { return { stdout: { on: () => {} }, stderr: { on: () => {} }, on: () => {}, terminate: () => {}, done: Promise.resolve({ exitCode: 0 }), collected: { stdout: { readFrom: () => ({ text: ghIndexText }) }, stderr: { readFrom: () => ({ text: '' }) } } } } }
   // host 的真实 timer 服务双签名：timeout(fn, ms) 节流 / timeout(ms) → Promise（runGh 超时竞速用）
   const timer = { timeout: (a, b) => (typeof a === 'function' ? setTimeout(a, b) : new Promise(function (res) { setTimeout(res, a) })) }
-  const services = { subprocess, timer, fs: fsSvc, platform: platformSvc, connection: { rpc: { handle: (p, fn) => { capture.fn = fn } } } }
+  const services = { subprocess, timer, fs: fsSvc, platform: platformSvc, connection: { fetch: { register: (r) => { route = r; return () => {} } } } }
   return { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
 }
 
-async function callHandler(fn, endpoint, args) {
-  const env = await fn(endpoint, args)
-  return (env && typeof env.value === 'object' && env.value !== null && ('ok' in env.value)) ? env.value : env
+// 通道注册经 ./rpcChannel.js 动态加载完成（宿主禁止静态 import 的既有约定），等它落地再发调用。
+async function waitRoute() {
+  const t0 = Date.now()
+  while (Date.now() - t0 < 3000) {
+    if (route && typeof route.fetch === 'function') return true
+    await sleep(20)
+  }
+  return false
+}
+
+// 按客户端真实形状发一次调用：POST 到 /api/dsws，体是 DSH 的 client-request 信封，
+// 内层 payload 装 { method: 端点名, payload: 入参 }；从回包里取出端点原始返回值。
+async function callHandler(endpoint, args) {
+  if (!(await waitRoute())) throw new Error('通道未注册：connection.fetch.register 没被调用')
+  const res = await route.fetch({
+    method: 'POST',
+    url: 'http://127.0.0.1/api/dsws',
+    json: async () => ({ type: 'client-request', rpcId: 'naming-io-' + endpoint, method: 'dsws', payload: { method: endpoint, payload: args } }),
+  })
+  const env = await res.json()
+  if (!env || env.type !== 'server-response') throw new Error('回包不是 server-response 信封：' + JSON.stringify(env))
+  // 回包是 {type, rpcId, result:{ok, value}}；调用方要看的是端点的原始返回值，即 result.value。
+  return env.result && env.result.value
 }
 
 try {
   // ---- 实例一：注册 + 即时落盘 ----
   const m1 = (await import('../package/lib/index.js')).default ?? (await import('../package/lib/index.js'))
-  let d1 = {}
-  ;((m1.apply ?? m1.default?.apply))(makeCtx(d1))
-  check(typeof d1.fn === 'function', '实例一 dispatch 就绪')
+  ;((m1.apply ?? m1.default?.apply))(makeCtx())
+  check(await waitRoute(), '实例一 dispatch 就绪')
+  check(!!route && route.path === '/api/dsws', '通道注册在 /api/dsws（客户端请求路径与宿主注册路径同源）')
 
-  const reg = await callHandler(d1.fn, 'namingRegister', { sessionId: 'io-s1', baselineTitle: '[New] 新建需求', cwd: '', hint: '续跑线索样例' })
+  const reg = await callHandler('namingRegister', { sessionId: 'io-s1', baselineTitle: '[New] 新建需求', cwd: '', hint: '续跑线索样例' })
   check(reg.ok === true, 'namingRegister 受理')
 
   const stateFile = pathMod.join(process.cwd(), '.dsh-mattskillsdeck-cache', 'naming-guardian.json')
@@ -70,40 +93,38 @@ try {
   const url2 = '../package/lib/index.js?restart=1'
   const mod2Raw = await import(url2)
   const m2 = mod2Raw.default ?? mod2Raw
-  let d2 = {}
-  ;((m2.apply ?? m2.default?.apply))(makeCtx(d2))
-  check(typeof d2.fn === 'function' && d2.fn !== d1.fn, '实例二 dispatch 就绪（新模块实例，模拟重启）')
+  ;((m2.apply ?? m2.default?.apply))(makeCtx())
+  check(await waitRoute(), '实例二 dispatch 就绪（新模块实例，模拟重启）')
 
-  const plan = await callHandler(d2.fn, 'namingPlan', {})
+  const plan = await callHandler('namingPlan', {})
   check(plan.ok === true && Array.isArray(plan.orders) && plan.orders.length === 1 && plan.orders[0].sessionId === 'io-s1' && plan.orders[0].kind === 'draft' && plan.orders[0].hint === '续跑线索样例', '重启后计划单从盘恢复且携线索（续跑语义）')
   check(plan.orders[0] && plan.orders[0].lock && plan.orders[0].lock.baselineTitle === '[New] 新建需求', '重启后值比对锁基准随单恢复')
 
   // ---- 实例二内完成草稿升级 → 盘上账目即时更新 ----
-  const resRen = await callHandler(d2.fn, 'namingResult', { sessionId: 'io-s1', outcome: 'renamed', title: '[草稿] 续跑线索样例' })
+  const resRen = await callHandler('namingResult', { sessionId: 'io-s1', outcome: 'renamed', title: '[草稿] 续跑线索样例' })
   check(resRen.ok === true, 'renamed 回报受理')
   const j2 = JSON.parse(readFileSync(stateFile, 'utf8'))
   check(j2.sessions['io-s1'].stage === 'draft' && j2.sessions['io-s1'].lastMachineTitle === '[草稿] 续跑线索样例', '盘上账目记录档位跃迁与机器最后写入值')
-  const planDone = await callHandler(d2.fn, 'namingPlan', {})
+  const planDone = await callHandler('namingPlan', {})
   check(planDone.ok === true && planDone.orders.every(function (o) { return o.sessionId !== 'io-s1' }), '草稿档完成后不再出 P1 单（P1 至多一次跨重启成立）')
 
   // ---- 锁定跨重启：手改保护不依赖内存 ----
-  await callHandler(d2.fn, 'namingRegister', { sessionId: 'io-s3', baselineTitle: '[New] New Bug', cwd: '' })
-  await callHandler(d2.fn, 'namingResult', { sessionId: 'io-s3', outcome: 'locked' })
+  await callHandler('namingRegister', { sessionId: 'io-s3', baselineTitle: '[New] New Bug', cwd: '' })
+  await callHandler('namingResult', { sessionId: 'io-s3', outcome: 'locked' })
   const j3 = JSON.parse(readFileSync(stateFile, 'utf8'))
   check(j3.sessions['io-s3'] && j3.sessions['io-s3'].locked === true, '锁定即时落盘')
 
   const url3 = '../package/lib/index.js?restart=2'
   const mod3Raw = await import(url3)
   const m3 = mod3Raw.default ?? mod3Raw
-  let d3 = {}
-  ;((m3.apply ?? m3.default?.apply))(makeCtx(d3))
-  const planLock = await callHandler(d3.fn, 'namingPlan', {})
+  ;((m3.apply ?? m3.default?.apply))(makeCtx())
+  const planLock = await callHandler('namingPlan', {})
   check(planLock.ok === true && Array.isArray(planLock.orders) && planLock.orders.every(function (o) { return o.sessionId !== 'io-s3' }), '再次重启后 locked 会话仍永不出单（值比对锁持久化成立）')
   // ---- #266：索引差值底座跨重启（面板关闭期间建号 → 重启后 attributed）----
   // 实例一内：注册 io-s4（repoKey acme/demo）+ 基线建档（GH_BASE，无归属，索引落盘）
-  const reg4 = await callHandler(d1.fn, 'registerNewSessionWatcher', { sessionId: 'io-s4', baselineTitle: '[New] New Bug', cwd: '', repoKey: 'acme/demo', hint: '关闭期间建的需求' })
+  const reg4 = await callHandler('registerNewSessionWatcher', { sessionId: 'io-s4', baselineTitle: '[New] New Bug', cwd: '', repoKey: 'acme/demo', hint: '关闭期间建的需求' })
   check(reg4.ok === true, 'registerNewSessionWatcher 受理（#266 实例一）')
-  await callHandler(d1.fn, 'awaitCreatedIssue', { sessionId: 'io-s4' })
+  await callHandler('awaitCreatedIssue', { sessionId: 'io-s4' })
   await sleep(2600)  // 注册 nudge 结算（基线，800ms 窗）+ 1.2s 防抖落盘窗口
   {
     const jIdx = JSON.parse(readFileSync(stateFile, 'utf8'))
@@ -113,43 +134,41 @@ try {
   ghIndexText = GH_BASE + '{"number":77,"title":"关闭期间建的需求","state":"OPEN","updatedAt":"u77"}\n'
   const mod4Raw = await import('../package/lib/index.js?restart=266')
   const m4 = mod4Raw.default ?? mod4Raw
-  let d4 = {}
-  ;((m4.apply ?? m4.default?.apply))(makeCtx(d4))
-  const await4 = await callHandler(d4.fn, 'awaitCreatedIssue', { sessionId: 'io-s4' })
+  ;((m4.apply ?? m4.default?.apply))(makeCtx())
+  const await4 = await callHandler('awaitCreatedIssue', { sessionId: 'io-s4' })
   check(!!await4 && await4.ok === true && await4.watching === true, '重启后 io-s4 仍在等待建号')
   await sleep(600)
-  const plan4 = await callHandler(d4.fn, 'namingPlan', {})
+  const plan4 = await callHandler('namingPlan', {})
   const order4 = (plan4 && Array.isArray(plan4.orders)) ? plan4.orders.find(function (o) { return o.sessionId === 'io-s4' }) : null
   check(!!order4 && order4.kind === 'numbered' && order4.number === 77 && order4.title === '关闭期间建的需求', '重启后差值结算 → numbered 订单（#266 跨重启归属）')
-  const res4 = await callHandler(d4.fn, 'namingResult', { sessionId: 'io-s4', outcome: 'renamed', title: '[#77] 关闭期间建的需求' })
+  const res4 = await callHandler('namingResult', { sessionId: 'io-s4', outcome: 'renamed', title: '[#77] 关闭期间建的需求' })
   check(!!res4 && res4.ok === true, '重启后 numbered renamed 回报受理')
-  const plan4Done = await callHandler(d4.fn, 'namingPlan', {})
+  const plan4Done = await callHandler('namingPlan', {})
   check(!!plan4Done && Array.isArray(plan4Done.orders) && plan4Done.orders.every(function (o) { return o.sessionId !== 'io-s4' }), '重启后落定收敛不再出单')
-  await callHandler(d4.fn, 'cancelNewSessionWatcher', { sessionId: 'io-s4' })
-  const plan4Prune = await callHandler(d4.fn, 'namingPlan', {})
+  await callHandler('cancelNewSessionWatcher', { sessionId: 'io-s4' })
+  const plan4Prune = await callHandler('namingPlan', {})
   check(!!plan4Prune && Array.isArray(plan4Prune.orders) && plan4Prune.orders.every(function (o) { return o.sessionId !== 'io-s4' }), '取消监视后清账（终局清理通道可用）')
   // ---- #267：有限重试 + 面板级定败可见性（真实磁盘跨重启的预算持久化 · 值比对化解收尾）----
   // 剧本：连败三次达上限 → 定败出面板级清单（不再出单）→ 跨重启清单仍在 → 用户手改 → 值比对
   // 锁终局化解，提醒撤下。全程零 sleep 依赖（冷却窗以「不出单」断言，不等待墙上时钟）。
-  const regS = await callHandler(d4.fn, 'namingRegister', { sessionId: 'io-s5', baselineTitle: '[New] 新建需求', cwd: '', hint: '定败样例' })
+  const regS = await callHandler('namingRegister', { sessionId: 'io-s5', baselineTitle: '[New] 新建需求', cwd: '', hint: '定败样例' })
   check(regS.ok === true, '#267 注册受踪（io-s5）')
-  const fA = await callHandler(d4.fn, 'namingResult', { sessionId: 'io-s5', outcome: 'failed', error: 'face 拒绝 #1' })
+  const fA = await callHandler('namingResult', { sessionId: 'io-s5', outcome: 'failed', error: 'face 拒绝 #1' })
   check(!!fA && fA.ok === true && fA.exhausted === false, '#267 fail#1 受理且回执未达上限')
   const jF1 = JSON.parse(readFileSync(stateFile, 'utf8'))
   check(jF1.sessions['io-s5'] && jF1.sessions['io-s5'].failCount === 1 && typeof jF1.sessions['io-s5'].lastFailAt === 'number' && jF1.sessions['io-s5'].lastError === 'face 拒绝 #1', '#267 失败入账即时落盘（计数/时刻/摘要 · 预算跨重启底座）')
-  const planC = await callHandler(d4.fn, 'namingPlan', {})
+  const planC = await callHandler('namingPlan', {})
   check(!!planC && Array.isArray(planC.orders) && planC.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 冷却窗内不重复出单（瞬时故障自愈窗口生效）')
   // 重启一（实例 267a）：预算与冷却随盘恢复 —— 不因 DSH 重启归零、不重复出单
   const mod6Raw = await import('../package/lib/index.js?restart=267a')
   const m6 = mod6Raw.default ?? mod6Raw
-  let d6 = {}
-  ;((m6.apply ?? m6.default?.apply))(makeCtx(d6))
-  const planCR = await callHandler(d6.fn, 'namingPlan', {})
+  ;((m6.apply ?? m6.default?.apply))(makeCtx())
+  const planCR = await callHandler('namingPlan', {})
   check(!!planCR && Array.isArray(planCR.orders) && planCR.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 重启后冷却窗依旧生效（预算从盘恢复，未归零）')
-  await callHandler(d6.fn, 'namingResult', { sessionId: 'io-s5', outcome: 'failed', error: 'face 拒绝 #2' })
-  const fB = await callHandler(d6.fn, 'namingResult', { sessionId: 'io-s5', outcome: 'failed', error: 'face 拒绝 #3' })
+  await callHandler('namingResult', { sessionId: 'io-s5', outcome: 'failed', error: 'face 拒绝 #2' })
+  const fB = await callHandler('namingResult', { sessionId: 'io-s5', outcome: 'failed', error: 'face 拒绝 #3' })
   check(!!fB && fB.ok === true && fB.exhausted === true, '#267 连败第三次回执标注定败')
-  const planX = await callHandler(d6.fn, 'namingPlan', {})
+  const planX = await callHandler('namingPlan', {})
   check(!!planX && Array.isArray(planX.orders) && planX.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 定败后永不再出单（有限重试耗尽即收敛）')
   const fx5 = (planX && Array.isArray(planX.failures)) ? planX.failures.find(function (f) { return f.sessionId === 'io-s5' }) : null
   check(!!fx5 && fx5.count === 3 && fx5.error === 'face 拒绝 #3' && fx5.kind === 'draft' && fx5.hint === '定败样例', '#267 面板级定败清单携完整画像（次数/末次错误/档位形态/线索）')
@@ -157,16 +176,15 @@ try {
   // 重启二（实例 267b）：定败清单仍在 —— 面板提醒跨重启不丢；依旧零出单
   const mod7Raw = await import('../package/lib/index.js?restart=267b')
   const m7 = mod7Raw.default ?? mod7Raw
-  let d7 = {}
-  ;((m7.apply ?? m7.default?.apply))(makeCtx(d7))
-  const planXR = await callHandler(d7.fn, 'namingPlan', {})
+  ;((m7.apply ?? m7.default?.apply))(makeCtx())
+  const planXR = await callHandler('namingPlan', {})
   const fx5r = (planXR && Array.isArray(planXR.failures)) ? planXR.failures.find(function (f) { return f.sessionId === 'io-s5' }) : null
   check(!!fx5r && fx5r.count === 3, '#267 重启后定败清单仍在（面板级提醒跨重启不丢账）')
   check(!!planXR && Array.isArray(planXR.orders) && planXR.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 重启后定败目标仍永不出单')
   // 化解路 A（主路）：用户手改 → 界面半值比对判锁回报 locked → 终局并撤下提醒
-  const man = await callHandler(d7.fn, 'namingResult', { sessionId: 'io-s5', outcome: 'locked' })
+  const man = await callHandler('namingResult', { sessionId: 'io-s5', outcome: 'locked' })
   check(!!man && man.ok === true, '#267 手改锁定回报受理（值比对锁真检测由界面半执行）')
-  const planM = await callHandler(d7.fn, 'namingPlan', {})
+  const planM = await callHandler('namingPlan', {})
   check(!!planM && Array.isArray(planM.failures) && !planM.failures.some(function (f) { return f.sessionId === 'io-s5' }), '#267 化解后定败清单撤下（横幅自动消失语义）')
   check(!!planM && Array.isArray(planM.orders) && planM.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 锁定终局后永不出单（手改永不被覆盖闭环）')
   const jFM = JSON.parse(readFileSync(stateFile, 'utf8'))

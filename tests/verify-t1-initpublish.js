@@ -101,27 +101,37 @@ const fsSvc = {
 }
 function makeSkills() { return { async get() { return undefined }, async list() { return [] } } }
 // host 通道说明：apply 在内部声明同名 harness，把注册收进内部 Map，再经
-// connection.rpc.handle('/dsws') 对外分发。老写法用 new Function 捕获外层
-// harness.handle 永远收不到注册（#472），且分包形态下动态 import('./publishFlow.js')
-// 在 new Function 里没有模块基址（Cannot find module ... from [eval]），所以走标准分发通道。
+// connection.fetch.register('/api/dsws') 这条精确路由对外分发（#596：旧写法 rpc.handle 会因
+// connection 自己的上下文缺 webServer 注入而装配期抛错，整条通道静默消失）。
+// 老写法用 new Function 捕获外层 harness.handle 永远收不到注册（#472），且分包形态下
+// 动态 import('./publishFlow.js') 在 new Function 里没有模块基址（Cannot find module ... from [eval]），
+// 所以走标准分发通道。
 async function loadPlugin(services) {
   const modRaw = await import('../package/lib/index.js')
   const mod = modRaw.default ?? modRaw
-  let dispatch = null
+  let route = null
   const connection = {
-    rpc: {
-      handle: (p, fn) => { if (p === '/dsws') dispatch = fn },
-    },
+    fetch: { register: (r) => { if (r && r.path === '/api/dsws') route = r; return () => {} } },
   }
   const ctx = {
     get: n => (n === 'connection' ? connection : services[n]),
     effect: fn => { const d = fn(); return typeof d === 'function' ? d : () => {} },
   }
   ;(mod.apply ?? mod.default?.apply)(ctx)
-  if (typeof dispatch !== 'function') throw new Error('host 未注册 /dsws 分发通道（请先运行 node scripts/build.mjs）')
+  // 注册经 ./rpcChannel.js 动态加载完成（宿主禁止静态 import 的既有约定），等它落地。
+  const t0 = Date.now()
+  while (!route && Date.now() - t0 < 3000) await new Promise(function (r) { setTimeout(r, 20) })
+  if (!route || typeof route.fetch !== 'function') throw new Error('host 未注册 /api/dsws 路由（请先运行 node scripts/build.mjs）')
   // 分发回的是 { ok:true, value } 信封：处理器原本的返回值装在 value 里，这里拆开再返回。
   return async (endpoint, args) => {
-    const env = await dispatch(endpoint, args)
+    const res = await route.fetch({
+      method: 'POST',
+      // 路径是精确路径 /api/dsws，端点名不再挂在 URL 尾巴上（#596）。
+      url: 'http://127.0.0.1:1/api/dsws',
+      // 外层信封与 DSH 自己的 api-gateway 同形（method 是通道名），内层 payload 才装端点名与入参。
+      json: async () => ({ type: 'client-request', rpcId: 't1-' + endpoint, method: 'dsws', payload: { method: endpoint, payload: args } }),
+    })
+    const env = (await res.json()).result
     if (env && typeof env.value === 'object' && env.value !== null && 'ok' in env.value) return env.value
     return env
   }
