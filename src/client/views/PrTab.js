@@ -13,6 +13,8 @@
  * 评论只读：拉取请求详情只看评论列表，不给输入框（IssueDetail.js 内把 canComment 对拉取请求置假）；首版如此。
  * 日志：复用既有快照链路，无新增跨边界调用与缓存与定时器，故无新增日志点，附录不动。
  * 首版范围：列表显标题与作者与状态与标签与更新五个字段；点行进详情基础加评论查看（复用 IssueDetail）。
+ * #599：状态显示三种（打开 / 已关闭 / 已合并）；「是不是已合并」的判据收在 views/shared/stateKind.js
+ * （与单票详情页共用一份，避免两处各判各的）。
  */
 export const PrTab = function (props) {
   const cx = React.useContext(DswsCtx)
@@ -56,17 +58,26 @@ export const PrTab = function (props) {
     return Number(a.number || a.key || 0) - Number(b.number || b.key || 0)
   })
   const colorOf = (typeof buildColorOf === 'function') ? buildColorOf(st) : {}
+  // #599：状态显示三种（打开 / 已关闭 / 已合并）。GitHub 上已合并的拉取请求是单独一种状态，
+  //   而契约与后端归一都只认两态（已合并归到已关闭、合并时间留在 mergedAt），
+  //   所以「是不是已合并」按合并时间判断 —— 判据收在 views/shared/stateKind.js，与详情页共用一份。
+  const STATE_STYLE = {
+    open: { color: '#3fb950', bg: 'rgba(63,185,80,.15)', key: 'list.state.open' },
+    closed: { color: '#8b949e', bg: 'rgba(139,148,158,.15)', key: 'list.state.closed' },
+    merged: { color: '#c084fc', bg: 'rgba(192,132,252,.16)', key: 'list.state.merged' },
+  }
   return h('div', null, sorted.map(function (x) {
     var key = (x.key != null ? x.key : x.number)
-    var isOpen = String(x.state || '').toUpperCase() !== 'CLOSED'
+    var kind = (typeof prStateKind === 'function') ? prStateKind(x) : (String(x.state || '').toUpperCase() === 'CLOSED' ? 'closed' : 'open')
+    var stl = STATE_STYLE[kind] || STATE_STYLE.open
     var login = (x.author && x.author.login) ? String(x.author.login) : ''
     var labels = Array.isArray(x.labels) ? x.labels : []
     var upd = x.updatedAt ? String(x.updatedAt).slice(0, 10) : ''
     return h('div', { key: String(key), className: 'dsws-aggrow', onClick: function () { openPr(x) }, style: { cursor: 'pointer' } }, [
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, width: '100%' } }, [
-        h('span', { className: 'dsws-idnum', style: { color: isOpen ? '#3fb950' : '#8b949e', borderColor: isOpen ? '#3fb950' : '#8b949e' } }, '#' + String(key)),
+        h('span', { className: 'dsws-idnum', style: { color: stl.color, borderColor: stl.color } }, '#' + String(key)),
         h('span', { className: 'dsws-tt-wrap', style: { flex: 1, minWidth: 0, fontWeight: 600 } }, String(x.title || ('#' + String(key)))),
-        h('span', { className: 'dsws-chip', style: { fontSize: 10, flex: 'none', background: isOpen ? 'rgba(63,185,80,.15)' : 'rgba(139,148,158,.15)', color: isOpen ? '#3fb950' : '#8b949e', border: '1px solid ' + (isOpen ? '#3fb950' : '#8b949e') } }, isOpen ? tr('list.state.open') : tr('list.state.closed')),
+        h('span', { className: 'dsws-chip', style: { fontSize: 10, flex: 'none', background: stl.bg, color: stl.color, border: '1px solid ' + stl.color } }, tr(stl.key)),
       ]),
       h('div', { style: { marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, [
         login ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3 } }, [Ic({ n: 'person', size: 10 }), h('span', null, '@' + login)]) : null,

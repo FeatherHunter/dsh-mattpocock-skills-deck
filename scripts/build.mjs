@@ -287,6 +287,7 @@ const LEAF_MODULES = [
   { id: 'switchConfirmModal', file: 'src/client/views/shared/SwitchConfirmModal.js' },
   { id: 'md', file: 'src/client/views/shared/md.js' },
   { id: 'ticket', file: 'src/client/views/shared/ticket.js' },
+  { id: 'stateKind', file: 'src/client/views/shared/stateKind.js' }, // #599 新增：票的状态判据（打开/已关闭/已合并）单源，拉取请求页与单票详情页共用一个函数
   { id: 'tagsFit', file: 'src/client/views/shared/tagsFit.js' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.js' },
   { id: 'ticketRow', file: 'src/client/views/TicketRow.js' },

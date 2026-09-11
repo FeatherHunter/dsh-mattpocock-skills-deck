@@ -17,6 +17,7 @@ const LEAVES = [
   { file: 'src/client/views/shared/chips.js', exports: ['Dot', 'TypeChip'], components: ['Dot', 'TypeChip'] },
   { file: 'src/client/views/shared/md.js', exports: ['MD_LINK_RE', 'MD_TASK_RE', 'mdEsc', 'mdInline', 'mdToHtml'], components: [] },
   { file: 'src/client/views/shared/ticket.js', exports: ['tStatus', 'tStatusLabel', 'tProgressBar', 'tStatusBadge'], components: [] },
+  { file: 'src/client/views/shared/stateKind.js', exports: ['prStateKind'], components: [] }, // #599 新增：票的状态判据（打开/已关闭/已合并）单源，拉取请求页与单票详情页共用
   { file: 'src/client/views/shared/tagsFit.js', exports: ['_tagsFpOf', 'fitAllTags'], components: [] },
   { file: 'src/client/views/shared/Tabs.js', exports: ['useTabsRow'], components: [] },
   { file: 'src/client/views/TicketRow.js', exports: ['TicketRow'], components: ['TicketRow'] },

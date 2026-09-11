@@ -58,7 +58,7 @@
         'list.openInGithubTitle': '在 GitHub 上查看 #{n}', // 过渡遗留：清尾批删除
         'list.mapTitle': '查看地图详情',
         'list.issueDetailTitle': '查看 issue 详情',
-        'list.state.all': '全部', 'list.state.open': 'Open', 'list.state.closed': '已关闭', 'list.state.blocked': '阻塞', 'list.state.frontier': '可接',
+        'list.state.all': '全部', 'list.state.open': 'Open', 'list.state.closed': '已关闭', 'list.state.merged': '已合并', 'list.state.blocked': '阻塞', 'list.state.frontier': '可接',
         'list.filterActive': '当前过滤：', 'list.filterClear': '清除全部',
         'list.sort.updatedAt': '更新', 'list.sort.createdAt': '创建', 'list.sort.number': '编号', 'list.sort.title': '标题',
         'map.decisions': 'Decisions so far（{n}）',
@@ -227,7 +227,7 @@
         'list.openInGithubTitle': 'Open #{n} on GitHub', // transitional; removed by sweep commit
         'list.mapTitle': 'View map details',
         'list.issueDetailTitle': 'View issue details',
-        'list.state.all': 'All', 'list.state.open': 'Open', 'list.state.closed': 'Closed', 'list.state.blocked': 'Blocked', 'list.state.frontier': 'Ready',
+        'list.state.all': 'All', 'list.state.open': 'Open', 'list.state.closed': 'Closed', 'list.state.merged': 'Merged', 'list.state.blocked': 'Blocked', 'list.state.frontier': 'Ready',
         'list.filterActive': 'Active filters: ', 'list.filterClear': 'Clear all',
         'list.sort.updatedAt': 'Updated', 'list.sort.createdAt': 'Created', 'list.sort.number': 'Number', 'list.sort.title': 'Title',
         'map.decisions': 'Decisions so far ({n})',

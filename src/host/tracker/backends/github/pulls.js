@@ -37,8 +37,10 @@ export async function fetchAllPullsREST(parsed, ctx) {
   return { ok: true, data: out }
 }
 
-// REST 同口径（与 queries.js 缺边说明一致）：列表只补合并时间，不补树边与评审明细。
+// REST 同口径（与 queries.js 缺边说明一致）：列表只补合并时间与状态，不补树边与评审明细。
 // /issues 条目里的拉取请求只有标记没有合并时间，按号补上（找不到就保持 null）；
+// 状态（打开 / 已关闭）也以 /pulls 为准补一次：两条接口对同一张拉取请求的说法以拉取请求这条为准，
+// 免得兜底路上出现「已关闭的拉取请求被当成打开」（#599 对齐两条路时实测到的差异）。
 // 树边不补是因为 sub_issues 树接口只有工单条目可用，拉取请求条目没有 parent 来源；
 // 评审明细不补是因为列表逐票拉 /reviews 太费配额，列表评审恒给空数组，单票 enrichSinglePR 才拉真值。
 export function enrichRestPRs(issueRaws, pullRaws) {
@@ -49,7 +51,12 @@ export function enrichRestPRs(issueRaws, pullRaws) {
   for (const x of (issueRaws || [])) {
     if (x && x.pull_request != null) {
       const p = byNum.get(String(x.number))
-      if (p && typeof p.merged_at === 'string' && typeof x.merged_at !== 'string') x.merged_at = p.merged_at
+      if (!p) continue
+      if (typeof p.merged_at === 'string' && typeof x.merged_at !== 'string') x.merged_at = p.merged_at
+      if (typeof p.state === 'string' && p.state !== '') {
+        const want = p.state.toLowerCase() === 'closed' ? 'closed' : 'open'
+        x.state = want
+      }
     }
   }
   return issueRaws
