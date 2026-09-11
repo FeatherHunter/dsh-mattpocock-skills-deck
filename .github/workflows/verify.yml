@@ -23,7 +23,10 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 11
+          # 版本只留一处定版：package.json 的 packageManager（当前 pnpm@11.22.0+sha512…，
+          # action 会自己把 +sha512 那段校验串剥掉）。这里再写 version 会与它撞车——
+          # action-setup@v4 只要发现两处版本字符串不同，就直接报
+          # "Multiple versions of pnpm specified" 并让整个 job 在装包阶段失败（门禁一条都跑不到）。
           run_install: false
 
       - name: Setup Node
