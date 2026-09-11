@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>唤醒词的成品：现在注入什么、有多长、长度是谁造成的（地图 #567）</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --ink-soft: #5b6472; --line: #e2e6ec;
+    --accent: #1f6feb; --good: #1a7f37; --good-bg: #e8f5ec; --warn: #9a6700; --warn-bg: #fff8e5;
+    --bad: #b42318; --bad-bg: #fdecea; --code-bg: #f2f4f7;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 6px 18px rgba(16,24,40,.05);
+    --fA: #fdecea; --fB: #fff4e5; --fC: #eef4ff; --fD: #e8f5ec; --fE: #f2f4f7; --fF: #ffffff; --fG: #f7f0ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --panel: #161b22; --ink: #e6edf3; --ink-soft: #9aa5b1; --line: #2a3038;
+      --accent: #58a6ff; --good: #3fb950; --good-bg: #10251a; --warn: #d29922; --warn-bg: #251f10;
+      --bad: #f85149; --bad-bg: #2a1513; --code-bg: #1b2027;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.35);
+      --fA: #2a1513; --fB: #251f10; --fC: #101c33; --fD: #10251a; --fE: #1b2027; --fF: #161b22; --fG: #1e1630;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.75 "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 72px; }
+  header.hero { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; box-shadow: var(--shadow); }
+  header.hero h1 { margin: 0 0 6px; font-size: 25px; line-height: 1.4; }
+  header.hero .sub { margin: 0; color: var(--ink-soft); font-size: 14px; }
+  .chips { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink-soft); }
+  .chip b { color: var(--ink); font-weight: 600; }
+  .chip.bad { background: var(--bad-bg); border-color: transparent; color: var(--bad); }
+  .chip.bad b { color: var(--bad); }
+  .chip.ok { background: var(--good-bg); border-color: transparent; color: var(--good); }
+  .chip.ok b { color: var(--good); }
+  .keybox { margin: 18px 0 0; background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--accent);
+    border-radius: 12px; padding: 16px 20px; box-shadow: var(--shadow); }
+  .keybox h2 { margin: 0 0 8px; font-size: 16px; letter-spacing: .5px; color: var(--accent); }
+  .keybox ol { margin: 0; padding-left: 22px; }
+  .keybox li { margin: 6px 0; }
+  nav.toc { margin: 18px 0 26px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 18px; box-shadow: var(--shadow); position: sticky; top: 8px; z-index: 5; }
+  nav.toc ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  nav.toc a { color: var(--ink-soft); text-decoration: none; font-size: 14px; border-bottom: 1px dashed transparent; }
+  nav.toc a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  section { margin: 34px 0 0; }
+  section > h2 { font-size: 20px; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--line); }
+  h3 { font-size: 16px; margin: 22px 0 8px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin: 14px 0; box-shadow: var(--shadow); }
+  .card h3 { margin-top: 0; }
+  .callout { border-radius: 10px; padding: 12px 16px; margin: 14px 0; border: 1px solid transparent; }
+  .callout.good { background: var(--good-bg); color: var(--good); }
+  .callout.warn { background: var(--warn-bg); color: var(--warn); }
+  .callout.bad { background: var(--bad-bg); color: var(--bad); }
+  .callout p { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14.5px; }
+  caption { text-align: left; color: var(--ink-soft); font-size: 13px; padding-bottom: 6px; }
+  th, td { border: 1px solid var(--line); padding: 9px 11px; vertical-align: top; text-align: left; }
+  th { background: var(--bg); font-weight: 600; }
+  tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.no { color: var(--bad); font-weight: 600; }
+  td.yes { color: var(--good); font-weight: 600; }
+  code, pre { font-family: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 5px; font-size: 13.5px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+    overflow-x: auto; font-size: 13.5px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; }
+  pre code { background: none; padding: 0; }
+  .sample span { border-radius: 4px; padding: 0 1px; }
+  .fA { background: var(--fA); } .fB { background: var(--fB); } .fC { background: var(--fC); }
+  .fD { background: var(--fD); } .fE { background: var(--fE); } .fF { background: var(--fF); }
+  .fG { background: var(--fG); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0 0; font-size: 13.5px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); margin-right: 6px; vertical-align: -1px; }
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 10px 0; }
+  details > summary { cursor: pointer; font-weight: 600; }
+  details[open] > summary { margin-bottom: 8px; }
+  .muted { color: var(--ink-soft); font-size: 14px; }
+  a { color: var(--accent); }
+  footer { margin-top: 36px; color: var(--ink-soft); font-size: 13.5px; border-top: 1px solid var(--line); padding-top: 14px; }
+  @media print { body { background: #fff; } nav.toc { display: none; } .card, header.hero, .keybox { box-shadow: none; break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>唤醒词的成品：现在注入什么、有多长、长度是谁造成的</h1>
+  <p class="sub">地图「提示词可执行内容收敛为底层脚本（正文格式与子议题关联先行）」<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/567">#567</a> · 依据 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/570">#570</a> 拍板的五条决策与定版契约 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/576">#576</a>，落地票 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/571">#571</a> / <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/572">#572</a> / <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/573">#573</a>，后端声明 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/595">#595</a>，补 --profile <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/600">#600</a></p>
+  <div class="chips">
+    <span class="chip">当前注入全文 <b>1,282 字符</b></span>
+    <span class="chip bad">比收敛前（848 字符）<b>多 434 字符</b></span>
+    <span class="chip">正文格式块 <b>663 字符</b></span>
+    <span class="chip">其中两条命令 <b>216 字符</b></span>
+    <span class="chip ok">子议题 <b>9 / 9 已挂上，阻塞边在位</b></span>
+    <span class="chip ok">写回脚本真跑 <b>内容一致时零请求</b></span>
+  </div>
+</header>
+
+<div class="keybox">
+  <h2>一句话结论（倒推出来的三条）</h2>
+  <ol>
+    <li><strong>「又臭又长」成立，而且能落到数字上</strong>：同一条唤醒词，收敛前 848 字符，现在 <strong>1,282 字符</strong>，多 434 字符（+51%）。变长不是收敛造成的——收敛那一步（#573）反而短了 36 字符；拐点是 <strong>#588「脚本随发布包分发、提示词改两步走」</strong>，那一步一步加了 356 字符。</li>
+    <li><strong>这 663 字符里，三分之二不是「决策」，是前提条件的交代</strong>：两条命令 216 字符、第 ① 步的填值说明 116 字符、工作目录纪律 113 字符，三样合计 <strong>445 字符（占 67%）</strong>；真正该由提示词交代的写法规矩只有 122 字符。</li>
+    <li><strong>三条决策站得住，两条要复核</strong>：站得住的是「把可执行内容收进脚本」（#573 确实更短，agent 不必再自己会 gh 命令）与「契约归后端声明」（GitLab 用户现在只看到 157 字符，不再看到 GitHub 命令）；要复核的是「#601 出范围」（不做宿主到客户端的通路，代价是只能散文解释 profile 名）与「脚本靠当前目录认后端」（代价是 113 字符的工作目录纪律）。</li>
+  </ol>
+</div>
+
+<nav class="toc">
+  <ul>
+    <li><a href="#s1">一、成品样例（逐段标注来源）</a></li>
+    <li><a href="#s2">二、长度账：五次改动各长了多少</a></li>
+    <li><a href="#s3">三、逐句账：那 663 字符拆成八块</a></li>
+    <li><a href="#s4">四、同一句话在四个后端下</a></li>
+    <li><a href="#s5">五、实跑捕获（真机输出）</a></li>
+    <li><a href="#s6">六、倒推：决策 ↔ 提示词代价</a></li>
+    <li><a href="#s7">七、另一条链路的成品：子议题与阻塞边</a></li>
+    <li><a href="#s8">八、三个可选短版（含全文与字数）</a></li>
+    <li><a href="#s9">九、待你拍板</a></li>
+    <li><a href="#s10">十、附录：文件与复跑命令</a></li>
+  </ul>
+</nav>
+
+<section id="s1">
+  <h2>一、成品样例：现在注入的全文（GitHub · 中文）</h2>
+  <p>这就是在界面上点「推进地图」之后交给 AI 的完整文本。<strong>底色标出每段是哪条决策换来的</strong>，鼠标停在色块上能看到它属于哪一类。</p>
+  <div class="legend">
+    <span><i class="fA"></i>「脚本随发布包分发」的必然产物</span>
+    <span><i class="fB"></i>「不做真实 profile 名通路」的代价</span>
+    <span><i class="fC"></i>「脚本靠当前目录认后端」的代价</span>
+    <span><i class="fD"></i>契约里的判据（保留）</span>
+    <span><i class="fE"></i>脚本内部实现（提示词不必交代）</span>
+    <span><i class="fF"></i>写正文本身的规矩（保留）</span>
+    <span><i class="fG"></i>脚本会自己兜底（可删）</span>
+  </div>
+  <div class="card">
+    <pre class="sample"><code><span class="fF" title="写正文本身的规矩（保留）">## 正文格式（写/改 issue 正文时必须遵守）</span><span class="fF" title="写正文本身的规矩（保留）">
+- [ ] </span><span class="fG" title="脚本会自己兜底（可删）">先跑 `gh auth status`，没登录先按 ghAuthLogin 指引登完再继续</span><span class="fF" title="写正文本身的规矩（保留）">
+- [ ] </span><span class="fF" title="写正文本身的规矩（保留）">正文先写成文件（文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行），不要把正文拼进命令行</span><span class="fF" title="写正文本身的规矩（保留）">
+- [ ] </span><span class="fA" title="「脚本随发布包分发」的必然产物">第 ① 步跑 `dsh plugin --profile &lt;配置名&gt; exec node -e "console.log(require.resolve('dsh-mattpocock-skills-deck/package.json'))"` 拿插件安装目录</span><span class="fA" title="「脚本随发布包分发」的必然产物">（下面叫 &lt;插件目录&gt;；</span><span class="fB" title="「不做真实 profile 名通路」的代价">&lt;配置名&gt; 填你启动这个界面时用的那个 profile 名，Web 界面通常就是 web；`--profile` 不能省，省了 dsh 会直接报错</span><span class="fA" title="「脚本随发布包分发」的必然产物">；输出有多行时，取以 package.json 结尾的那一行）</span><span class="fA" title="「脚本随发布包分发」的必然产物">；第 ② 步写回：跑 `node "&lt;插件目录&gt;/scripts/fix-issue-body.mjs" --issue &lt;号&gt; --body-file &lt;绝对路径文件&gt;`</span><span class="fC" title="「脚本靠当前目录认后端」的代价">；先确认当前目录是你的工作区（有主锚文件 docs/agents/issue-tracker.md），不要 cd 进插件目录；第 ② 步的当前目录可能是插件目录而不是你的工作区，所以 `--body-file` 必须用绝对路径</span><span class="fD" title="契约里的判据（保留）">；脚本回包 ok 为真才算写完</span><span class="fE" title="脚本内部实现（提示词不必交代）">（剥开头不可见字符、按阈值还原字面转义、格式只告警不改写，都由脚本负责）</span><span class="fF" title="写正文本身的规矩（保留）">
+- [ ] </span><span class="fF" title="写正文本身的规矩（保留）">换行不要写成反斜杠加 n 两个字符</span></code></pre>
+    <p class="muted">全文 1,282 字符 ＝ 触发词与链接 83 字符 ＋ 清单正文 536 字符 ＋ 正文格式块 663 字符。清单正文指「目标 map / 分析 / 选票 / 执行 / 收尾」那五节，五次改动里一直是 536 字符，与本次决策无关。</p>
+  </div>
+  <details>
+    <summary>展开：同一位置在收敛前的样子（848 字符）</summary>
+    <pre><code>/wayfinder https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/567
+
+## 目标 map
+- 编号：#{n}
+- 标题：{title}
+- 链接：{url}
+
+请使用 wayfinder 技能推进该 map（遵循其规则）：
+
+## 分析
+- [ ] 加载 wayfinder 技能（如未加载）
+- [ ] 分析这个 map：Destination / Notes / 阻塞关系 / 当前 frontier
+
+## 选票
+- [ ] 按第一性原理，选 frontier 中最值得推进的下一个 issue（价值最高 / 风险最低 / 最解阻）
+
+## 执行
+- [ ] 认领该票 → 读 Description / Notes / 阻塞关系 → 制定方案 → 实施 → 验收
+- [ ] 若该票带 needs-triage：先按阶段闸门完成诊断（读现状 / 判断进展：真实 / 虚假 / 未动工）再进入实施，不许跳过
+
+## 收尾
+- [ ] 结束前按进度契约更新该票正文（## 进度：N% + 下一步；95% 须写明待确认什么，未确认不得 close）；验收通过 → 100% + close
+- [ ] 若本次推进关闭了票：同步 map 记录（Decisions so far 追加 gist / 迷雾毕业 / Out of scope）
+
+## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 用真实换行书写：每个 `## 章节` 独占一行，段落间留空行
+- [ ] 禁止字面 \n 转义（不要把换行写成 \n 两个字符）、禁止正文以 BOM（\ufeff）开头
+- [ ] 写回 issue 正文时以文件方式提交（文件内为真实换行），不要内联转义字符串
+- [ ] 正例：`## 进度：90%` 独占一行，空行后接 `下一步：xxx`（反例：`## 进度：90%\n下一步：xxx`）</code></pre>
+  </details>
+</section>
+
+<section id="s2">
+  <h2>二、长度账：五次改动各长了多少</h2>
+  <table>
+    <caption>同一条唤醒词（点地图的「推进」按钮）在五次改动后的注入长度，单位是字符数。</caption>
+    <thead><tr><th>版本</th><th>正文格式块</th><th>清单正文</th><th>注入合计</th><th>较上一次</th><th>那一次改了什么</th></tr></thead>
+    <tbody>
+      <tr><td>收敛前（#573 之前）</td><td class="num">229</td><td class="num">536</td><td class="num"><b>848</b></td><td class="num ">—</td><td>正文格式块只有四条短句（含一条正例一条反例），没有任何命令；「写回 issue 正文」这件事怎么写，提示词里根本没说，靠 agent 自己知道。</td></tr>
+      <tr><td>#573 收敛为脚本调用</td><td class="num">193</td><td class="num">536</td><td class="num"><b>812</b></td><td class="num yes">−36</td><td>四条短句压成一条，脚本写成仓库相对路径 scripts/fix-issue-body.mjs。这是五次改动里唯一一次真的变短。</td></tr>
+      <tr><td>#588 发布包改两步走</td><td class="num">549</td><td class="num">536</td><td class="num"><b>1,168</b></td><td class="num no">+356</td><td>脚本改成随发布包装进插件目录，agent 不知道它在哪 → 多出第 ① 步解析插件目录，以及「脚本替你做了什么」的说明。变长的主因。</td></tr>
+      <tr><td>#595 契约改后端声明</td><td class="num">573</td><td class="num">536</td><td class="num"><b>1,192</b></td><td class="num no">+24</td><td>正文格式块从模板搬进后端声明；GitHub 这份把两步命令写全，非 GitHub 用户第一次拿到与自己后端相符的短文本。</td></tr>
+      <tr><td>#600 补 --profile（=当前）</td><td class="num">663</td><td class="num">536</td><td class="num"><b>1,282</b></td><td class="num no">+90</td><td>第 ① 步命令补上必填的 --profile，并解释这个值怎么填、输出取哪一行。</td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn">
+    <p><strong>先说清楚一件事：收敛本身没有让提示词变长。</strong>#573 把四条短规则压成一条并指向脚本，那一步短了 36 字符。让提示词长回去的是随后两件事：脚本改成随发布包装进插件目录（#588），于是 agent 必须先找到脚本在哪；以及配置名与插件目录这两个值在注入时拿不到，只能用散文解释怎么填、去哪找。</p>
+  </div>
+</section>
+
+<section id="s3">
+  <h2>三、逐句账：那 663 字符拆成八块</h2>
+  <table>
+    <caption>按当前 GitHub 那份正文格式块逐段量出来的字符数，八块相加正好等于 663。</caption>
+    <thead><tr><th>这段是什么</th><th>字符数</th><th>它为什么在这儿</th></tr></thead>
+    <tbody>
+      <tr><td>写正文本身的规矩（标题行、三条短句、换行规则、bullet 符号）</td><td class="num">122</td><td>与脚本无关的写法规矩：标题独占一行、段落间留空行、换行不许写成两个字符。必须留着。</td></tr>
+      <tr><td>「先跑 gh auth status，没登录先按指引登完再继续」</td><td class="num">45</td><td>没登录时脚本自己会报错、还会在票下留一条失败评论，这一条是重复交代。</td></tr>
+      <tr><td>第 ① 步命令（解析插件安装目录）</td><td class="num">130</td><td>脚本随发布包装在插件目录里，agent 不知道路径，必须先跑一条命令问出来。</td></tr>
+      <tr><td>第 ① 步的填值说明（配置名填什么 / 不能省 --profile / 输出取哪一行）</td><td class="num">116</td><td>配置名与插件目录两个值在注入时拿不到：profile 名要新增宿主到客户端的通路才算得出（#601 判为出范围），插件目录只能靠第 ① 步现场解析，解析输出还夹着包管理器的两行噪音。</td></tr>
+      <tr><td>第 ② 步命令（调脚本写回正文）</td><td class="num">86</td><td>真正干活的调用：交给脚本，它自己读文件、校正写法、走文件参数写回。</td></tr>
+      <tr><td>工作目录纪律（不要 cd 进插件目录、正文文件用绝对路径）</td><td class="num">113</td><td>脚本读当前目录下的主锚文件 docs/agents/issue-tracker.md 判断这个工作区用哪个跟踪器；提示词必须替它交代站在哪里、路径怎么写。</td></tr>
+      <tr><td>回包判据「ok 为真才算写完」</td><td class="num">15</td><td>契约里唯一需要 agent 知道的判据：机器只看 ok 这一个字段。</td></tr>
+      <tr><td>三条保证（剥不可见字符 / 还原字面转义 / 格式只告警）</td><td class="num">36</td><td>剥不可见字符、按阈值还原字面转义、格式只告警不改写，都是脚本自己的活；agent 不需要知道实现细节。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="s4">
+  <h2>四、同一句话在四个后端下</h2>
+  <p>同一个位置（正文格式块）由后端自己声明，换后端就换文本。这是 #595 的收益，也是「首批只做 GitHub」这条决策的可见代价。</p>
+  <table>
+    <thead><tr><th>后端</th><th>块长度</th><th>里面写了什么</th><th>判断</th></tr></thead>
+    <tbody>
+      <tr><td>GitHub</td><td class="num">663</td><td>两步走：解析插件目录 + 调脚本写回</td><td class="no">最长，且三分之二是前提交代</td></tr>
+      <tr><td>GitLab</td><td class="num">157</td><td>只说「用当前后端自己的命令行把整个文件读进去」，不点名任何命令</td><td class="yes">短，换了 GitLab 版本也不会说错</td></tr>
+      <tr><td>本地 Markdown</td><td class="num">292</td><td>明确说「不需要登录远端、不需要找插件目录、不需要跑写回脚本、也没有 ok 回包可等」</td><td class="yes">把「不用做什么」说清楚，抵消 GitHub 那套的干扰</td></tr>
+      <tr><td>认不出的后端（兜底）</td><td class="num">148</td><td>只讲正文文件该怎么写</td><td class="yes">兜底短文本，不会误导</td></tr>
+    </tbody>
+  </table>
+  <details><summary>展开：四份全文</summary>
+    <h3>GitHub（663 字符）</h3><pre><code>## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 先跑 `gh auth status`，没登录先按 ghAuthLogin 指引登完再继续
+- [ ] 正文先写成文件（文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行），不要把正文拼进命令行
+- [ ] 第 ① 步跑 `dsh plugin --profile &lt;配置名&gt; exec node -e "console.log(require.resolve('dsh-mattpocock-skills-deck/package.json'))"` 拿插件安装目录（下面叫 &lt;插件目录&gt;；&lt;配置名&gt; 填你启动这个界面时用的那个 profile 名，Web 界面通常就是 web；`--profile` 不能省，省了 dsh 会直接报错；输出有多行时，取以 package.json 结尾的那一行）；第 ② 步写回：跑 `node "&lt;插件目录&gt;/scripts/fix-issue-body.mjs" --issue &lt;号&gt; --body-file &lt;绝对路径文件&gt;`；先确认当前目录是你的工作区（有主锚文件 docs/agents/issue-tracker.md），不要 cd 进插件目录；第 ② 步的当前目录可能是插件目录而不是你的工作区，所以 `--body-file` 必须用绝对路径；脚本回包 ok 为真才算写完（剥开头不可见字符、按阈值还原字面转义、格式只告警不改写，都由脚本负责）
+- [ ] 换行不要写成反斜杠加 n 两个字符</code></pre>
+    <h3>GitLab（157 字符）</h3><pre><code>## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 正文先写成文件（文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行），不要把正文拼进命令行
+- [ ] 写回用当前后端的命令行把整个文件读进去（正文不从命令行参数里传），写完读回来核对一遍
+- [ ] 换行不要写成反斜杠加 n 两个字符</code></pre>
+    <h3>本地 Markdown（292 字符）</h3><pre><code>## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 这张单据就是本机的一个 Markdown 文件；若本提示开头给了这张单据的路径，就是它——没给就按当前后端定位该单据（本地 Markdown 后端的单据都在本工作区里），用编辑工具直接改那个文件即可：不需要登录远端账号、不需要找插件目录、不需要跑写回脚本，也没有 ok 回包可等
+- [ ] 正文就写进这个文件，文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行；不要把正文拼进命令行或脚本参数里
+- [ ] 改完把文件读回来核对一遍（章节是否独占一行、进度区是否在位）；换行不要写成反斜杠加 n 两个字符</code></pre>
+    <h3>认不出的后端兜底（148 字符）</h3><pre><code>## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 正文先写成文件（文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行），不要把正文拼进命令行
+- [ ] 按当前跟踪器自己的方式把文件内容写回该单据正文；写完读回来核对一遍
+- [ ] 换行不要写成反斜杠加 n 两个字符</code></pre>
+  </details>
+</section>
+
+<section id="s5">
+  <h2>五、实跑捕获（真机输出，不是举例）</h2>
+
+  <h3>1. 第 ① 步真跑：确实要多说一句「取以 package.json 结尾的那一行」</h3>
+  <pre><code>$ dsh plugin --profile web exec node -e "console.log(require.resolve('dsh-mattpocock-skills-deck/package.json'))"
+Already up to date
+Done in 207ms using pnpm v11.8.0
+C:\Users\辰辰洋洋\.dsh\profiles\web\node_modules\dsh-mattpocock-skills-deck\package.json</code></pre>
+  <p class="muted">三行输出里两行是包管理器的噪音，真正的答案在最后一行——这就是「输出取哪一行」那 27 个字符存在的原因。</p>
+
+  <h3>2. 写回脚本：把写坏的正文交进去，它自己校正（演练模式，不联网、不改票）</h3>
+  <p class="muted">输入文件是故意写坏的：开头带不可见字符（BOM），换行全部写成了字面的 <code>\n</code> 两个字符，两处标题后面没留空行。</p>
+  <pre><code>{"changed":["#567 正文：剥掉开头的不可见字符（BOM）","#567 正文：把 5 处字面 \\n 转义还原成真实换行","#567 正文：将按文件内容写回（演练未联网核对当前正文）"],
+ "edge":null,"expected":null,"actual":null,"commented":false,"ok":true,
+ "warnings":["第 1 行：标题后没留空行（下一行还有内容）","第 4 行：标题后没留空行（下一行还有内容）"],
+ "dryRun":true,"command":["gh","issue","edit","567","--body-file","&lt;临时文件，演练时未创建&gt;"]}</code></pre>
+  <p class="muted">三个决策在这里同时可见：剥不可见字符、按阈值还原字面转义、格式<strong>只告警不改写</strong>（两条告警进 <code>warnings</code>，正文照写）。</p>
+
+  <h3>3. 反例：不按工作目录纪律来，脚本直接拒绝（这就是那 113 字符的由来）</h3>
+  <pre><code>$ cd C:\Users\辰辰洋洋\.dsh\profiles\web
+$ node "…\dsh-mattpocock-skills-deck\scripts\fix-issue-body.mjs" --issue 567 --body-file D:\…\messy-body.md --dry-run
+{"changed":[],"edge":null,"expected":null,"actual":null,"commented":false,"ok":false,"warnings":[],"dryRun":false,
+ "error":"这个工作区用的不是首批支持的 GitHub（主锚文件：C:\Users\辰辰洋洋\.dsh\profiles\web\docs\agents\issue-tracker.md）。认不出后端（文件不存在）。…"}
+[exit code: 2]</code></pre>
+  <p class="muted">脚本靠<strong>当前目录</strong>下的主锚文件判断这个工作区用哪个跟踪器；站在插件目录里跑，它认不出后端。提示词里那段工作目录纪律是这条实现选择的直接代价，不是废话。</p>
+
+  <h3>4. 子议题脚本真跑：已经是目标状态时，一个写请求都不发</h3>
+  <pre><code>$ node scripts/wire-subissues.mjs --map 567 --children 568,569,570,571,572,573,576,595,600 --body-file D:\…\map-567-body.md
+#567 正文已一致、9 张子票都已挂上、声明的阻塞边都在位，不再发任何请求。
+{"changed":[],"edge":true,"expected":9,"actual":9,"commented":false,"ok":true,"warnings":[],"dryRun":false}</code></pre>
+  <p class="muted"><code>expected 9 / actual 9</code> 就是契约里说的「建完读回校验张数」；<code>changed</code> 为空说明它可以重复跑。</p>
+</section>
+
+<section id="s6">
+  <h2>六、倒推：决策 ↔ 提示词代价</h2>
+  <table>
+    <caption>把成品里的文字按来源归到决策上。「判断」一列是我的看法，供逐条驳。</caption>
+    <thead><tr><th>决策（来源）</th><th>换来了什么</th><th>提示词代价</th><th>判断</th></tr></thead>
+    <tbody>
+      <tr><td>把写回与关联两件事收进脚本（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/570">#570</a> 决策 A）</td><td>agent 不必再知道 gh 怎么写回正文、怎么建原生子议题、怎么数张数；写法错误由脚本兜底</td><td class="num">0（这一步反而短了 36 字符）</td><td class="yes">站得住</td></tr>
+      <tr><td>脚本随发布包装进插件目录、提示词改两步走（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/588">#588</a>）</td><td>用户装上插件就有脚本，不必自己在工作区放一份</td><td class="num">+130＋27＝157 字符起，还得再加第 ① 步的解释</td><td class="no">收益真实，代价被低估</td></tr>
+      <tr><td>让提示词直接印真实 profile 名要新增通路，判为出范围（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/601">#601</a>）</td><td>本批范围小，不动宿主到客户端的通路</td><td class="num">73 字符的散文解释，且锁死「必须两步」</td><td class="no">最贵的一刀，建议复核</td></tr>
+      <tr><td>脚本靠当前目录的主锚文件认后端（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/571">#571</a> 落地实现）</td><td>GitLab 与本地 Markdown 用户不会被 GitHub 脚本误伤</td><td class="num">113 字符的工作目录纪律</td><td class="no">保护是对的，代价可以挪进脚本参数</td></tr>
+      <tr><td>四条保证进契约（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/570">#570</a>）</td><td>写回行为有了固定口径，门禁能钉住</td><td class="num">判据那一句 15 字符（该留）；三条保证细节 36 字符（不该写进提示词）</td><td class="no">拆开看：判据留，细节删</td></tr>
+      <tr><td>契约归后端声明（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/595">#595</a>）</td><td>Markdown 用户不再看到 GitHub 的写回步骤；四份文本各说各的后端</td><td class="num">0（GitHub 那份本来就要写命令）</td><td class="yes">站得住，且已见效</td></tr>
+      <tr><td>首批只做 GitHub（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/570">#570</a>）</td><td>范围可控；GitLab 与本地 Markdown 拿到的是「对齐语义」的短文本</td><td class="num">GitLab 用户没有可调脚本，只有一句「用你后端的命令行」</td><td class="yes">可以接受，第二批再说</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="s7">
+  <h2>七、另一条链路的成品：子议题与阻塞边</h2>
+  <p>地图 #567 的子票是脚本建的<strong>原生子议题</strong>（不是正文里写一行清单），阻塞关系是原生依赖边。下表是刚从 GitHub 读回来的现状：</p>
+  <table>
+    <thead><tr><th>子票</th><th>标题</th><th>状态</th><th>被阻塞于</th></tr></thead>
+    <tbody>
+      <tr><td>#568</td><td>研究：正文写回链路与系统差异实证</td><td>已关闭</td><td>无</td></tr>
+      <tr><td>#569</td><td>研究：子议题与阻塞关联现状与打架点</td><td>已关闭</td><td>无</td></tr>
+      <tr><td>#570</td><td>讨论：脚本形态与调用契约定版</td><td>已关闭</td><td>#568，#569</td></tr>
+      <tr><td>#571</td><td>任务：正文写回脚本落地</td><td>已关闭</td><td>无</td></tr>
+      <tr><td>#572</td><td>任务：子议题关联脚本落地（含阻塞与校验）</td><td>已关闭</td><td>#570</td></tr>
+      <tr><td>#573</td><td>任务：提示词收敛与门禁</td><td>已关闭</td><td>#571，#572</td></tr>
+      <tr><td>#576</td><td>脚本形态与调用契约：定版</td><td>仍开放</td><td>无</td></tr>
+      <tr><td>#595</td><td>任务：正文格式契约改为后端声明，Markdown 用户不再看到 GitHub 写回步骤</td><td>仍开放</td><td>无</td></tr>
+      <tr><td>#600</td><td>任务：提示词第 ① 步的 dsh 命令补上 --profile（当前写法直接报错）</td><td>已关闭</td><td>无</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">面板上的 <code>closed/total</code> 就是从这些原生边数出来的；建边漏了会显示成 0/0（线上事故 #345 就是这么来的），所以脚本最后一步要读回校验张数，对不上就非零退出。</p>
+</section>
+
+<section id="s8">
+  <h2>八、三个可选短版（含全文与字数）</h2>
+  <p>三个都能直接替换掉现在那 663 字符的正文格式块，区别在于要动什么。</p>
+
+  <div class="card">
+    <h3>方案一：只改文案，命令仍是两条 <span class="chip">442 字符，省 221</span></h3>
+    <p class="muted">动的地方：GitHub 后端的中英两份提示词文本。不动任何代码，省下的主要是解释性文字。</p>
+    <pre><code>## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 没登录先按 ghAuthLogin 指引登录；全程在当前工作区里跑，正文文件用绝对路径
+- [ ] 正文先写成文件（真实换行：每个 `## 章节` 独占一行、段落间留空行），不要把正文拼进命令行
+- [ ] 第 ① 步跑 `dsh plugin --profile &lt;配置名&gt; exec node -e "console.log(require.resolve('dsh-mattpocock-skills-deck/package.json'))"` 拿插件目录（配置名 = 你启动界面用的那个 profile 名，通常 web；输出取以 package.json 结尾那行）；第 ② 步跑 `node "&lt;插件目录&gt;/scripts/fix-issue-body.mjs" --issue &lt;号&gt; --body-file &lt;绝对路径文件&gt;`；回包 ok 为真才算写完
+- [ ] 换行不要写成反斜杠加 n 两个字符</code></pre>
+  </div>
+
+  <div class="card">
+    <h3>方案二：注入时把插件目录填成真实路径 <span class="chip">226 字符，省 437</span></h3>
+    <p class="muted">这就是地图目的地原话「不再出现具体命令」的样子：第 ① 步整段消失，agent 直接看到脚本的真实绝对路径。代价是先做 #601 那条宿主到客户端的通路（把真实 profile 名与插件目录一起印进提示词），路径还要按操作系统正确转义。</p>
+    <pre><code>## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 正文先写成文件（真实换行：每个 `## 章节` 独占一行、段落间留空行），不要把正文拼进命令行
+- [ ] 跑 `node "&lt;插件目录&gt;/scripts/fix-issue-body.mjs" --issue &lt;号&gt; --body-file &lt;绝对路径文件&gt;`；回包 ok 为真才算写完（没登录时先按 ghAuthLogin 指引登录）
+- [ ] 换行不要写成反斜杠加 n 两个字符</code></pre>
+  </div>
+
+  <div class="card">
+    <h3>方案三：两步并一步 <span class="chip">320 字符，省 343</span></h3>
+    <p class="muted">让 <code>dsh plugin --profile … exec</code> 直接把脚本跑起来：它本来就以插件所在的 profile 目录为当前目录，脚本就在 <code>node_modules/dsh-mattpocock-skills-deck/scripts/</code> 里，一条命令够用。代价是要给脚本加一个「工作区在哪」的参数（现在它靠当前目录认后端，站在插件目录里会像上面第 3 段那样直接拒绝），并同步门禁。</p>
+    <pre><code>## 正文格式（写/改 issue 正文时必须遵守）
+- [ ] 正文先写成文件（真实换行：每个 `## 章节` 独占一行、段落间留空行），不要把正文拼进命令行
+- [ ] 跑 `dsh plugin --profile &lt;配置名&gt; exec node node_modules/dsh-mattpocock-skills-deck/scripts/fix-issue-body.mjs --issue &lt;号&gt; --body-file &lt;绝对路径文件&gt; --workspace &lt;工作区绝对路径&gt;`；回包 ok 为真才算写完（配置名 = 你启动界面用的那个 profile 名，通常 web）
+- [ ] 换行不要写成反斜杠加 n 两个字符</code></pre>
+  </div>
+
+  <table>
+    <caption>三选一之外还有第四种：什么都不改，把提示词的长度当成已知代价接受。</caption>
+    <thead><tr><th>方案</th><th>块长度</th><th>注入合计</th><th>要动什么</th><th>相对收敛前（848）</th></tr></thead>
+    <tbody>
+      <tr><td>现状</td><td class="num">663</td><td class="num">1,282</td><td>—</td><td class="no">长 434</td></tr>
+      <tr><td>方案一</td><td class="num">442</td><td class="num">978</td><td>只改提示词文案</td><td class="no">长 130</td></tr>
+      <tr><td>方案二</td><td class="num">226</td><td class="num">762</td><td>提示词文案 ＋ 宿主到客户端的通路（#601）</td><td class="yes">短 86</td></tr>
+      <tr><td>方案三</td><td class="num">320</td><td class="num">856</td><td>提示词文案 ＋ 脚本加工作区参数与门禁</td><td class="no">长 8</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="s9">
+  <h2>九、待你拍板</h2>
+  <ol>
+    <li><strong>要不要把提示词的长度写成验收数字？</strong>现在门禁钉的是「命令串必须精确一致」，没有钉长度，所以两次改动都能合进来、长度悄悄涨上去。若同意，建议加一条上限，例如「GitHub 正文格式块 ≤ 400 字符」。</li>
+    <li><strong>三个短版选哪个？</strong>我的建议是<strong>方案一先做</strong>（不改代码、不动契约，直接省 221 字符），把<strong>方案二</strong>并进 #601（那条通路本来就欠着，做完提示词才可能真正短过收敛前）。方案三要动脚本参数，建议并进第二批。</li>
+    <li><strong>这件事记在哪张票上？</strong>它正好戳在地图 #567 目的地的原话上（「提示词只保留决策性内容，不再出现具体命令」）。建议在地图下新挂一张子票「任务：把 GitHub 正文格式块压回 400 字符以内」，把上面的数字写进验收标准。</li>
+  </ol>
+</section>
+
+<section id="s10">
+  <h2>十、附录：文件与复跑命令</h2>
+  <p>本次一切只读：没有改仓库里的产品代码，也没有改任何一张票的正文或标签。原始件都在工作区 <code>.scratch/wakeword/</code> 下。</p>
+  <table>
+    <thead><tr><th>文件</th><th>是什么</th></tr></thead>
+    <tbody>
+      <tr><td><code>.scratch/wakeword/sample-injected-now.txt</code></td><td>当前注入全文（GitHub · 中文）</td></tr>
+      <tr><td><code>.scratch/wakeword/sample-injected-pre573.txt</code></td><td>收敛前的注入全文，用来对照</td></tr>
+      <tr><td><code>.scratch/wakeword/block-GitHub.txt</code> 等四份</td><td>四个后端各自的正文格式块全文</td></tr>
+      <tr><td><code>.scratch/wakeword/option-1.txt</code> ~ <code>option-3.txt</code></td><td>三个短版的完整文本，可直接替换</td></tr>
+      <tr><td><code>.scratch/wakeword/messy-body.md</code></td><td>故意写坏的正文（带不可见字符、字面 \n），用来看脚本怎么校正</td></tr>
+      <tr><td><code>.scratch/wakeword/analyze.mjs</code>、<code>frag-check.mjs</code></td><td>长度账与逐句账的量法，随时可复跑</td></tr>
+      <tr><td><code>.scratch/wakeword/prompts-*.js</code>、<code>gh-*.js</code></td><td>各版本的提示词与后端文件（从 git 历史导出），对照用</td></tr>
+    </tbody>
+  </table>
+  <pre><code># 复跑长度账（不改任何东西）
+node .scratch/wakeword/analyze.mjs
+node .scratch/wakeword/frag-check.mjs
+
+# 复跑「写坏的正文交给脚本」（演练模式，不联网、不改票）
+node scripts/fix-issue-body.mjs --issue 567 --body-file .scratch/wakeword/messy-body.md --dry-run
+
+# 复跑子议题核对（已经是目标状态时零写请求）
+node scripts/wire-subissues.mjs --map 567 --children 568,569,570,571,572,573,576,595,600 --body-file .scratch/wakeword/map-567-body.md</code></pre>
+</section>
+
+<footer>
+  生成于本次会话 · 地图 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/567">#567</a> · 数字由 <code>.scratch/wakeword/analyze.mjs</code> 与 <code>frag-check.mjs</code> 从 git 历史与当前源码量出，正文从不手抄。
+</footer>
+
+</div>
+</body>
+</html>

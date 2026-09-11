@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三个待你拍板的问题：唤醒词提示词该不该瘦身、怎么瘦、记在哪张票（地图 #567）</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --ink-soft: #5b6472; --line: #e2e6ec;
+    --accent: #1f6feb; --good: #1a7f37; --good-bg: #e8f5ec; --warn: #9a6700; --warn-bg: #fff8e5;
+    --bad: #b42318; --bad-bg: #fdecea; --code-bg: #f2f4f7; --pick: #6f42c1; --pick-bg: #f3eefc;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 6px 18px rgba(16,24,40,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --panel: #161b22; --ink: #e6edf3; --ink-soft: #9aa5b1; --line: #2a3038;
+      --accent: #58a6ff; --good: #3fb950; --good-bg: #10251a; --warn: #d29922; --warn-bg: #251f10;
+      --bad: #f85149; --bad-bg: #2a1513; --code-bg: #1b2027; --pick: #a371f7; --pick-bg: #1d1630;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.75 "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  header.hero { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; box-shadow: var(--shadow); }
+  header.hero h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.4; }
+  header.hero .sub { margin: 0; color: var(--ink-soft); font-size: 14px; }
+  .chips { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink-soft); }
+  .chip b { color: var(--ink); font-weight: 600; }
+  .chip.bad { background: var(--bad-bg); border-color: transparent; color: var(--bad); } .chip.bad b { color: var(--bad); }
+  .chip.ok { background: var(--good-bg); border-color: transparent; color: var(--good); } .chip.ok b { color: var(--good); }
+  .chip.pick { background: var(--pick-bg); border-color: transparent; color: var(--pick); } .chip.pick b { color: var(--pick); }
+
+  nav.toc { margin: 18px 0 26px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 18px; box-shadow: var(--shadow); position: sticky; top: 8px; z-index: 9; }
+  nav.toc ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  nav.toc a { color: var(--ink-soft); text-decoration: none; font-size: 14px; border-bottom: 1px dashed transparent; }
+  nav.toc a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+  section { margin: 34px 0 0; }
+  section > h2 { font-size: 20px; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--line); }
+  h3 { font-size: 16.5px; margin: 20px 0 8px; }
+  h4 { font-size: 15px; margin: 16px 0 6px; color: var(--ink-soft); }
+  p { margin: 10px 0; }
+  ul, ol { padding-left: 24px; } li { margin: 5px 0; }
+
+  /* 三十秒读完 */
+  .quick { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 14px 0 0; }
+  .quick a.q { display: block; text-decoration: none; color: inherit; background: var(--panel); border: 1px solid var(--line);
+    border-left: 6px solid var(--accent); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); transition: transform .12s ease; }
+  .quick a.q:hover { transform: translateX(2px); border-left-color: var(--pick); }
+  .quick .qq { font-weight: 600; margin: 0 0 4px; }
+  .quick .qa { margin: 0; color: var(--ink-soft); font-size: 14.5px; }
+  .quick .qa b { color: var(--pick); }
+
+  .keybox { margin: 18px 0 0; background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--pick);
+    border-radius: 12px; padding: 16px 20px; box-shadow: var(--shadow); }
+  .keybox h2 { margin: 0 0 8px; font-size: 16px; letter-spacing: .5px; color: var(--pick); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin: 16px 0; box-shadow: var(--shadow); }
+  .card > h3.q { margin: 0 0 4px; font-size: 19px; }
+  .card .qmeta { color: var(--ink-soft); font-size: 13.5px; margin: 0 0 14px; }
+  .card.pick { border-left: 6px solid var(--pick); }
+
+  .callout { border-radius: 10px; padding: 12px 16px; margin: 14px 0; border: 1px solid transparent; }
+  .callout.good { background: var(--good-bg); color: var(--good); }
+  .callout.warn { background: var(--warn-bg); color: var(--warn); }
+  .callout.bad { background: var(--bad-bg); color: var(--bad); }
+  .callout.plain { background: var(--code-bg); color: var(--ink); border-color: var(--line); }
+  .callout p { margin: 4px 0; }
+  .callout .t { font-weight: 700; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14.5px; }
+  caption { text-align: left; color: var(--ink-soft); font-size: 13px; padding-bottom: 6px; }
+  th, td { border: 1px solid var(--line); padding: 9px 11px; vertical-align: top; text-align: left; }
+  th { background: var(--bg); font-weight: 600; }
+  tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.no { color: var(--bad); font-weight: 600; } td.yes { color: var(--good); font-weight: 600; }
+  tr.recommend td { background: var(--pick-bg) !important; }
+  .badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; margin-right: 6px; vertical-align: middle; white-space: nowrap; }
+  .badge.pick { background: var(--pick-bg); color: var(--pick); }
+  .badge.good { background: var(--good-bg); color: var(--good); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn); }
+  .badge.bad { background: var(--bad-bg); color: var(--bad); }
+  .badge.flat { background: var(--code-bg); color: var(--ink-soft); }
+
+  code, pre { font-family: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 5px; font-size: 13.5px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+    overflow-x: auto; font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+  pre code { background: none; padding: 0; }
+
+  /* 条形图 */
+  .bars { margin: 14px 0 4px; }
+  .bar { display: grid; grid-template-columns: 132px 1fr 78px; align-items: center; gap: 10px; margin: 6px 0; font-size: 14px; }
+  .bar .lbl { color: var(--ink-soft); text-align: right; white-space: nowrap; }
+  .bar .track { background: var(--code-bg); border: 1px solid var(--line); border-radius: 999px; height: 20px; overflow: hidden; }
+  .bar .fill { height: 100%; border-radius: 999px 0 0 999px; background: linear-gradient(90deg, #93b4f7, var(--accent)); }
+  .bar.now .fill { background: linear-gradient(90deg, #f3a3a0, var(--bad)); }
+  .bar.best .fill { background: linear-gradient(90deg, #8fd6a5, var(--good)); }
+  .bar .val { font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+  .bar .val b { color: var(--ink); }
+
+  .reply { margin-top: 14px; background: var(--bg); border: 1px dashed var(--line); border-radius: 10px; padding: 12px 14px; }
+  .reply .label { font-size: 13px; color: var(--ink-soft); }
+  .reply .line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .reply code { background: var(--panel); }
+  button.copy { font: inherit; font-size: 13px; padding: 3px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink-soft); cursor: pointer; }
+  button.copy:hover { color: var(--accent); border-color: var(--accent); }
+
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 10px 0; }
+  details > summary { cursor: pointer; font-weight: 600; }
+  details[open] > summary { margin-bottom: 8px; }
+  .muted { color: var(--ink-soft); font-size: 14px; }
+  a { color: var(--accent); }
+  footer { margin-top: 36px; color: var(--ink-soft); font-size: 13.5px; border-top: 1px solid var(--line); padding-top: 14px; }
+  @media (max-width: 720px) { .bar { grid-template-columns: 96px 1fr 66px; font-size: 13px; } }
+  @media print { body { background: #fff; } nav.toc, button.copy { display: none; } .card, header.hero, .keybox { box-shadow: none; break-inside: avoid; } section { break-inside: avoid-page; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>三个待你拍板的问题：提示词该不该瘦身、怎么瘦、记在哪张票</h1>
+  <p class="sub">地图「提示词可执行内容收敛为底层脚本（正文格式与子议题关联先行）」<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/567">#567</a> · 触发这次提问的是你在界面上看到的那段注入提示词（<a href="https://github.com/FeatherHunter/ilife/issues/152">ilife #152</a> 的「推进地图」）· 数字与全文的证据在同目录的 <a href="./567-wakeword-sample-and-length.html">567-wakeword-sample-and-length.html</a></p>
+  <div class="chips">
+    <span class="chip">当前注入全文 <b>1,282 字符</b></span>
+    <span class="chip bad">比收敛前（848）<b>多 434 字符</b></span>
+    <span class="chip">正文格式块 <b>663 字符</b>，其中前提交代 <b>445（67%）</b></span>
+    <span class="chip pick">三个问题 <b>都有我的推荐答案</b></span>
+    <span class="chip ok">本次全只读 <b>没改代码、没动票</b></span>
+  </div>
+</header>
+
+<div class="keybox">
+  <h2>三十秒读完：三个问题的推荐答案</h2>
+  <div class="quick">
+    <a class="q" href="#d1">
+      <p class="qq">问题一：要不要把「提示词的长度」写进自动检查（门禁）？</p>
+      <p class="qa">推荐 <b>要，但用「只许降不许升」的棘轮上限</b>，不是一上来钉死 400 字符。理由：现在直接钉绝对值会立刻变红（要等 #601 那条通路做完才可能达标），而棘轮能马上止住「悄悄涨」，又不逼着为凑字数删掉必要信息。</p>
+    </a>
+    <a class="q" href="#d2">
+      <p class="qq">问题二：三个瘦身方案选哪个？</p>
+      <p class="qa">推荐 <b>方案一先做</b>（只改文案，省 221 字符，行为零变化）；<b>方案二并进 #601</b>（做完才真正短过收敛前，1,282 → 762）；<b>方案三并进第二批</b>（要改脚本参数，收益最小）。</p>
+    </a>
+    <a class="q" href="#d3">
+      <p class="qq">问题三：这件事记在哪张票上？</p>
+      <p class="qa">推荐 <b>在地图 #567 下新挂一张子票</b>（「把 GitHub 正文格式块压回 400 字符以内」），并把上限条款同步进契约票 #576。理由：地图收尾时是靠子票计数验收的，只写在评论里收尾时看不见。</p>
+    </a>
+  </div>
+  <p class="muted" style="margin:10px 0 0">另外两件与地图收尾有关、也等你一句话的事在 <a href="#closing">第五节</a>：#595 的人工验收、#576 是否关闭。想直接回话，跳到最后 <a href="#reply">「你回一句话就行」</a>。</p>
+</div>
+
+<nav class="toc">
+  <ul>
+    <li><a href="#bg">零、前因后果（为什么会问这三个问题）</a></li>
+    <li><a href="#d1">一、要不要钉长度</a></li>
+    <li><a href="#d2">二、三个瘦身方案选哪个</a></li>
+    <li><a href="#d3">三、记在哪张票</a></li>
+    <li><a href="#closing">四、地图收尾的两件事</a></li>
+    <li><a href="#reply">五、你回一句话就行</a></li>
+    <li><a href="#appendix">六、证据与复跑</a></li>
+  </ul>
+</nav>
+
+<!-- ==================== 零、前因后果 ==================== -->
+<section id="bg">
+  <h2>零、前因后果：这三个问题是怎么冒出来的</h2>
+
+  <h3>1. 你看到了什么</h3>
+  <p>你在界面上点「推进地图」，插件往新会话开头注入了一段固定文本（我们内部叫<b>唤醒词</b>：地图行的「推进 / 检查 / 完成」，单据的「执行 / 修复 / 诊断 / 讨论 / 研究 / 原型」都是唤醒词）。你看的那段是 ilife 仓库 #152 的「推进地图」，末尾挂着一段<b>正文格式块</b>（写回 issue 正文时必须遵守的规矩）。你的判断是：这段又臭又长，甚至比收敛之前的规则文字还长。</p>
+
+  <h3>2. 量出来的事实（这段判断是对的）</h3>
+  <p>同一条唤醒词，把五次改动后的注入全文长度排在一起（单位：字符）：</p>
+  <div class="bars">
+    <div class="bar"><span class="lbl">收敛前</span><span class="track"><span class="fill" style="width:66%"></span></span><span class="val"><b>848</b></span></div>
+    <div class="bar"><span class="lbl">#573 收敛为脚本</span><span class="track"><span class="fill" style="width:63%"></span></span><span class="val"><b>812</b> <span title="比上一步短 36">↓36</span></span></div>
+    <div class="bar"><span class="lbl">#588 改两步走</span><span class="track"><span class="fill" style="width:91%"></span></span><span class="val"><b>1168</b> <span title="比上一步长 356">↑356</span></span></div>
+    <div class="bar"><span class="lbl">#595 后端声明</span><span class="track"><span class="fill" style="width:93%"></span></span><span class="val"><b>1192</b> <span title="比上一步长 24">↑24</span></span></div>
+    <div class="bar now"><span class="lbl">#600 补 --profile（当前）</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="val"><b>1282</b> <span title="比上一步长 90">↑90</span></span></div>
+  </div>
+  <p class="muted">读法：<b>收敛本身没有让提示词变长</b>（#573 反而短了 36 字符）。让文字长回去的是后面两件事——脚本改成随发布包装进插件目录（#588，+356），以及补上必填参数并解释它怎么填（#600，+90）。</p>
+
+  <h3>3. 现在那 663 字符里，三分之二是「前提条件的交代」</h3>
+  <table>
+    <caption>当前 GitHub 那份正文格式块按内容拆开，八块相加正好 663 字符。</caption>
+    <thead><tr><th>这段是什么</th><th>字符数</th><th>它算「决策」还是「前提交代」</th></tr></thead>
+    <tbody>
+      <tr><td>写正文本身的规矩（标题独占一行、段落间留空行、换行别写成两个字符…）</td><td class="num">122</td><td class="yes">决策：必须留</td></tr>
+      <tr><td>① 命令（解析插件安装目录）＋ ② 命令（调脚本写回）</td><td class="num">216</td><td class="no">前提交代</td></tr>
+      <tr><td>① 的填值说明（配置名填什么／不能省 <code>--profile</code>／输出取哪一行）</td><td class="num">116</td><td class="no">前提交代</td></tr>
+      <tr><td>工作目录纪律（不要 cd 进插件目录、正文文件用绝对路径）</td><td class="num">113</td><td class="no">前提交代</td></tr>
+      <tr><td>「先跑 gh auth status，没登录先按指引登完再继续」</td><td class="num">45</td><td class="no">可删（脚本自己会兜底）</td></tr>
+      <tr><td>三条保证（剥不可见字符／还原字面转义／格式只告警）</td><td class="num">36</td><td class="no">可删（属脚本内部实现）</td></tr>
+      <tr><td>回包判据「ok 为真才算写完」</td><td class="num">15</td><td class="yes">决策：必须留</td></tr>
+      <tr><td>bullet 符号与换行</td><td class="num">28</td><td class="flat">格式开销</td></tr>
+    </tbody>
+  </table>
+
+  <h3>4. 每一段前提交代都能追到一条决策上</h3>
+  <table>
+    <thead><tr><th>决策</th><th>它换来了什么</th><th>代价（写进提示词的字符）</th></tr></thead>
+    <tbody>
+      <tr><td>脚本随发布包装进插件目录、提示词改两步走（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/588">#588</a>）</td><td>用户装上插件就有脚本，不必自己在工作区放一份</td><td class="no">第 ① 步命令 130 ＋「输出取哪一行」27 ＝ 157 起</td></tr>
+      <tr><td>让提示词直接印真实配置名要新增通路，判为出范围（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/601">#601</a>）</td><td>本批范围小，不动宿主到客户端的通路</td><td class="no">73 字符的散文解释，且锁死「必须两步」</td></tr>
+      <tr><td>脚本靠当前目录的主锚文件认后端（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/571">#571</a> 的实现选择）</td><td>GitLab 与本地 Markdown 用户不会被 GitHub 脚本误伤</td><td class="no">113 字符的工作目录纪律</td></tr>
+      <tr><td>把写回与关联收进脚本（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/570">#570</a> 决策 A）</td><td>AI 不必再自己会 gh 命令、会建原生子议题、会数张数</td><td class="yes">0（这一步反而短了 36 字符）</td></tr>
+      <tr><td>契约归后端各自声明（<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/595">#595</a>）</td><td>GitLab 用户只看到 157 字符、本地 Markdown 292 字符，都不再看到 GitHub 命令</td><td class="yes">0</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout plain">
+    <p class="t">所以问题不是「收敛错了」，而是「收敛换来的前提交代没人管」。</p>
+    <p>收敛本身是有效的（AI 不再需要知道怎么写回、怎么建边、怎么数数），但它把「脚本在哪、站在哪个目录、参数怎么填」这三件事留在了提示词里，而这三件事本来是可以用机械手段（注入时填真实值、脚本自己认工作区）解决掉的。下面三个问题就是围绕「谁来管这三件事」展开的。</p>
+  </div>
+</section>
+
+<!-- ==================== 一 ==================== -->
+<section id="d1">
+  <div class="card pick">
+    <h3 class="q">问题一：要不要把「提示词的长度」写进自动检查（门禁）？</h3>
+    <p class="qmeta">属于：流程与验收标准的决定 · 影响面：以后每一次改提示词 · 现在不做也不会立刻出错</p>
+
+    <h4>前因后果</h4>
+    <ul>
+      <li>这套仓库有一套自动检查（门禁）在每次提交时跑。它在 #573 建了「五个面扫描 ＋ 外部豁免登记」，在 #600 又加了「不带 <code>--profile</code> 的旧写法不许回来」的<b>精确串断言</b>。</li>
+      <li>这些断言钉的是<b>写法必须一致</b>，没有一条钉<b>长度</b>。后果是：#588（+356）与 #600（+90）两次都是合法改动，都能合进来，长度悄悄涨了 434 字符，直到你自己在界面上看到才发现。</li>
+      <li>也就是说：现在这门禁能防「写错」，防不住「越写越多」。</li>
+    </ul>
+
+    <h4>要做这个决定，需要先定两件事</h4>
+    <table>
+      <thead><tr><th>要先定的</th><th>可选的定法</th><th>关键信息</th></tr></thead>
+      <tbody>
+        <tr><td>口径：按哪种单位钉？</td><td>按字符数（含标点与代码）</td><td>最直观，和这次的量法一致；不容易作弊</td></tr>
+        <tr><td>分不分语言？</td><td>中文一份、英文一份，各钉各的</td><td><b>必须分</b>：现在中文块 663 字符，英文块 1,408 字符（英文约是中文的两倍多）。这次我只写了中文的三个短版，英文那份要同步改，改完才能定英文上限</td></tr>
+        <tr><td>钉成绝对值还是棘轮？</td><td>绝对值（如 ≤400）／棘轮（只许降不许升）</td><td>绝对值现在<b>必然变红</b>：要等 #601 那条通路做完才可能到 400 以下</td></tr>
+      </tbody>
+    </table>
+
+    <h4>三个选项与利弊</h4>
+    <table>
+      <thead><tr><th>选项</th><th>做法</th><th>好处</th><th>坏处 / 风险</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="badge flat">A</span>不设上限</td>
+          <td>维持现状，只钉精确串</td>
+          <td>最灵活，任何必要的加长都不受阻</td>
+          <td class="no">继续「悄悄涨」；下一次还是靠你肉眼发现。这次就是活例</td>
+        </tr>
+        <tr class="recommend">
+          <td><span class="badge pick">B 推荐</span>棘轮上限</td>
+          <td>把当前值钉成上限（中文 663、英文 1,408）；以后要加长，必须同时削减等量文字，或在提交里显式改这个数字并写明理由</td>
+          <td>立刻止住悄悄涨；不逼着为凑字数删必要信息；数字可以随着瘦身一次次往下调，天然朝目的地走</td>
+          <td class="warn">需要人判「这次加长算不算合理」，所以它防的是「无意识变长」，不是「有人故意放宽」</td>
+        </tr>
+        <tr>
+          <td><span class="badge flat">C</span>直接钉绝对值</td>
+          <td>例如中文 ≤400、英文 ≤700</td>
+          <td>一次性对齐地图目的地的原话（「提示词只保留决策性内容」）</td>
+          <td class="no">现在加进去门禁必红（要等 #601 通路）；若为了让它绿而删掉必要信息，等于把风险从「太长」换成「说不清」</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4>我的回答</h4>
+    <div class="callout good">
+      <p><b>选 B（棘轮），并且分语言各钉一份。</b></p>
+      <p>理由：棘轮今天就能落地（把两个当前值写进断言，改动量小、不会红），立刻解决「没人拦着变长」这个真问题；等方案二（#601 通路）落地、中文压到 226 字符之后再把它调成 400 这样的绝对数，那时它才有意义。</p>
+      <p>落地代价：约半天，动门禁脚本 ＋ 一份说明（在门禁失败信息里写清「要加长就先削减，或改这个数字并说明理由」）。</p>
+    </div>
+
+    <div class="reply">
+      <span class="label">你可以直接回：</span>
+      <div class="line"><code>门禁加棘轮上限（中文 663 / 英文 1408），分语言各一份</code><button class="copy" data-copy="门禁加棘轮上限（中文 663 / 英文 1408），分语言各一份">复制</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 二 ==================== -->
+<section id="d2">
+  <div class="card pick">
+    <h3 class="q">问题二：三个瘦身方案选哪个？</h3>
+    <p class="qmeta">属于：做法与排期的决定 · 影响面：提示词文本、（方案二）宿主到客户端的通路、（方案三）脚本参数 · 三个方案的完整文本都已写好，可直接替换</p>
+
+    <h4>前因后果</h4>
+    <ul>
+      <li>那 663 字符里，445 字符（67%）是前提交代：两条命令 216、① 的填值说明 116、工作目录纪律 113。</li>
+      <li>地图目的地的原话是「<b>提示词只保留决策性内容，不再出现具体命令</b>」。现在的成品没做到——它把两条命令原样印在上面，还得解释这两条命令的前提。</li>
+      <li>要让提示词真的变短，只有三条路：把细节删掉（方案一）、把值在注入时填好（方案二）、把两步并成一步（方案三）。</li>
+    </ul>
+
+    <h4>关键信息：三个方案摊开比</h4>
+    <div class="bars">
+      <div class="bar now"><span class="lbl">现状</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="val"><b>1282</b> 字符</span></div>
+      <div class="bar"><span class="lbl">方案一 只改文案</span><span class="track"><span class="fill" style="width:76%"></span></span><span class="val"><b>978</b> 字符</span></div>
+      <div class="bar"><span class="lbl">方案三 两步并一步</span><span class="track"><span class="fill" style="width:67%"></span></span><span class="val"><b>856</b> 字符</span></div>
+      <div class="bar best"><span class="lbl">方案二 注入填真值</span><span class="track"><span class="fill" style="width:59%"></span></span><span class="val"><b>762</b> 字符</span></div>
+      <div class="bar"><span class="lbl">收敛前（参照线）</span><span class="track"><span class="fill" style="width:66%; opacity:.45"></span></span><span class="val"><b>848</b> 字符</span></div>
+    </div>
+    <p class="muted">条形是「唤醒词注入全文」的长度。<b>只有方案二能真正短过收敛前那条参照线。</b></p>
+
+    <table>
+      <caption>三个方案的正文格式块长度、要动什么、风险与排期。三个方案的完整文本见同目录报告第八节。</caption>
+      <thead><tr><th>方案</th><th>正文格式块</th><th>要动什么</th><th>风险</th><th>工作量</th></tr></thead>
+      <tbody>
+        <tr class="recommend">
+          <td><span class="badge pick">推荐先做</span>一：只改文案<br><span class="muted">命令仍是两条</span></td>
+          <td class="num">442<br><span class="muted">省 221</span></td>
+          <td>GitHub 后端那份中英文本（中文 442、英文要同步改）＋ <b>门禁里被钉住的精确串与夹具</b>（#600 钉过，文案一改就要同步，否则变红）</td>
+          <td class="yes">低：不碰命令、不碰判据、不动任何代码路径，功能行为零变化</td>
+          <td>半天</td>
+        </tr>
+        <tr>
+          <td><span class="badge good">并进 #601</span>二：注入时填真实值<br><span class="muted">命令剩一条</span></td>
+          <td class="num">226<br><span class="muted">省 437</span></td>
+          <td>文案 ＋ <b>新增一条宿主到客户端的通路</b>（把真实配置名与插件目录印进提示词；#601 本来就是这条）＋ 路径按系统正确转义 ＋ 门禁</td>
+          <td class="warn">中：跨进程新通路，要新接口与测试；Windows 路径里的反斜杠与引号要实测，否则会把「省字」换成「跑不通」</td>
+          <td>1～2 天</td>
+        </tr>
+        <tr>
+          <td><span class="badge flat">并进第二批</span>三：两步并一步</td>
+          <td class="num">320<br><span class="muted">省 343</span></td>
+          <td>文案 ＋ <b>脚本加一个「工作区在哪」的参数</b>（现在它靠当前目录认后端，站在插件目录里会直接拒绝，这一点已实测）＋ 门禁</td>
+          <td class="warn">中：改的是脚本对外契约，参数一多，第二批（GitLab / 本地 Markdown）再改就要再来一遍</td>
+          <td>1 天</td>
+        </tr>
+        <tr>
+          <td><span class="badge bad">不推荐</span>四：什么都不改</td>
+          <td class="num">663</td>
+          <td>—</td>
+          <td class="no">你这次看到的问题原样留着：1,282 字符、三分之二是前提交代，且门禁不会提醒</td>
+          <td>0</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4>我的回答</h4>
+    <div class="callout good">
+      <p><b>一先做，二并进 #601，三并进第二批。</b></p>
+      <p>理由：方案一是唯一「今天就能拿到收益、且几乎不可能出事」的一步——它只删解释性文字，把「脚本替你做了什么」这类对 AI 没有决策价值的话拿掉，命令与判据原样保留；它不解决根本问题（前提交代还在），但能立刻把你看到的那段从 663 压到 442。</p>
+      <p>方案二才是真正对齐目的地的一步（提示词里不再出现「先解析插件目录」这条命令），而它要的通路正好是 #601 已经登记要做的事——与其为瘦身另开一条通路，不如让 #601 一次做完。方案三收益最小、动的是脚本对外契约，留到第二批和 GitLab / 本地 Markdown 一起考虑更划算。</p>
+      <p>如果你只想要「先别动」，也可以只批准方案一；我会把方案二、三的文本原样留在报告里，随时能捡起来。</p>
+    </div>
+
+    <div class="reply">
+      <span class="label">你可以直接回：</span>
+      <div class="line"><code>方案一先做，方案二并进 #601，方案三并进第二批</code><button class="copy" data-copy="方案一先做，方案二并进 #601，方案三并进第二批">复制</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 三 ==================== -->
+<section id="d3">
+  <div class="card pick">
+    <h3 class="q">问题三：这件事记在哪张票上？</h3>
+    <p class="qmeta">属于：留痕与验收面的决定 · 影响面：地图 #567 的子票计数与收尾方式 · 不做的话这条验收缺口会丢</p>
+
+    <h4>前因后果</h4>
+    <ul>
+      <li>地图 #567 是这次收敛的总账。它的目的地原话里就有「提示词只保留决策性内容，不再出现具体命令」这一条验收标准。</li>
+      <li>现在地图挂在 <b>95%</b>：9 张子票里 7 张已关闭，还开着 #576（定版契约）与 #595（后端声明，待人工验收）。收尾时会按子票计数验收。</li>
+      <li>也就是说：如果「提示词超标」这件事只留在报告里或评论里，地图收尾时<b>看不见它</b>，95% 就会被当成「只差两件确认」而收掉，这条缺口等于没记。</li>
+    </ul>
+
+    <h4>三个选项与利弊</h4>
+    <table>
+      <thead><tr><th>选项</th><th>做法</th><th>好处</th><th>坏处 / 风险</th></tr></thead>
+      <tbody>
+        <tr class="recommend">
+          <td><span class="badge pick">A 推荐</span>地图下新挂子票</td>
+          <td>新建「任务：把 GitHub 正文格式块压回 400 字符以内」，用脚本挂成 #567 的原生子议题，把 663 / 442 / 226 / 320 这些数字写进验收标准</td>
+          <td>地图收尾时自动出现在计数里，跑不掉；上限条款与验收数字同处一票；正好用现成脚本建原生边（也顺带验证脚本本身）</td>
+          <td class="warn">地图从 9 张变 10 张，进度分母变化（这是正常推进，不是问题）</td>
+        </tr>
+        <tr>
+          <td><span class="badge flat">B</span>并进 #595 的验收清单</td>
+          <td>当作「后端声明」这张票的追加验收项</td>
+          <td>不动地图结构，#595 本来就要人眼验收四份后端文本，顺手一起看</td>
+          <td class="no">#595 一关，这条缺口就跟着消失；它其实是新的执行工作，不是 #595 的验收项</td>
+        </tr>
+        <tr>
+          <td><span class="badge flat">C</span>只写进 #576 契约</td>
+          <td>把长度上限写成契约条款，不新建执行票</td>
+          <td>契约是长期索引，第二批（GitLab / 本地 Markdown）也会引用它</td>
+          <td class="no">契约是「写成什么样」的规格，不是「谁去做」的任务；没有执行票就没有人推进，也没有验收动作</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4>我的回答</h4>
+    <div class="callout good">
+      <p><b>选 A：在地图 #567 下新挂一张子票</b>，同时把「长度上限」这一条写进契约票 #576（如果你在问题一里同意加棘轮）。</p>
+      <p>理由：地图的验收面就是子票计数与关闭状态，缺口的正确记法是一张能挂在地图下的票；而契约票负责「写下规矩」，两者分工不冲突——票管执行与验收，契约管长期口径。</p>
+      <p>落地代价：约 10 分钟（建票、按契约写正文、用 <code>scripts/wire-subissues.mjs</code> 挂成原生子议题并校验张数）。</p>
+    </div>
+
+    <div class="reply">
+      <span class="label">你可以直接回：</span>
+      <div class="line"><code>在地图 #567 下新挂子票，上限条款同步进 #576</code><button class="copy" data-copy="在地图 #567 下新挂子票，上限条款同步进 #576">复制</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 四、收尾 ==================== -->
+<section id="closing">
+  <h2>四、地图收尾的两件事（不是本次新产生的，也等你一句话）</h2>
+
+  <div class="card">
+    <h3>1. #595 的人工验收</h3>
+    <p><b>它是什么：</b>把「正文格式这一段由各后端自己声明」的改动（提交 <code>ff88b5b</code>）。它一次改了三座后端（GitHub / GitLab / 本地 Markdown），属于跨房的契约字段同步落地，所以票里写明「待人工验收」。</p>
+    <p><b>要你验什么（约 2 分钟）：</b>看同目录报告第四节那张表与四份全文，确认三件事——① GitHub 那份说清了「先解析插件目录、再调脚本」；② GitLab 那份<b>没有</b>出现任何 gh 命令；③ 本地 Markdown 那份明确说「不需要登录、不需要找插件目录、不需要跑脚本、也没有 ok 回包」。</p>
+    <p><b>推荐：</b><span class="badge pick">通过后关闭 #595</span> 理由是这三件事在代码与实跑里都已核对过（报告第五节的四段真机输出可复跑），你要做的是确认「这就是你想要的说法」。<b>若你想留着开放：</b>好处是第二批改 GitLab / 本地 Markdown 时有现成入口，坏处是它会一直挂在 95% 的「还开着」里，模糊收尾信号。</p>
+    <div class="reply">
+      <span class="label">你可以直接回：</span>
+      <div class="line"><code>#595 验收通过，可以关</code><button class="copy" data-copy="#595 验收通过，可以关">复制</button></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>2. #576（脚本形态与调用契约：定版）是否关闭</h3>
+    <p><b>它是什么：</b>讨论票 #570 的产物，把两个脚本的名字、参数、回包字段与失败语义写死的定版规格。它的内容已随 #571、#572、#573 全部落地，本身不是待推进的决策票。</p>
+    <table>
+      <thead><tr><th>选项</th><th>好处</th><th>坏处 / 风险</th></tr></thead>
+      <tbody>
+        <tr class="recommend"><td><span class="badge pick">推荐</span>关闭</td><td>地图计数干净（9 张里 8 张关闭），95% → 100% 的信号清晰；关闭的票仍可随时打开查阅，契约文本不会消失</td><td class="warn">关闭前要确保契约里的关键段落在地图「Decisions so far」留了一行指针，否则以后翻地图找不到入口</td></tr>
+        <tr><td><span class="badge flat">保留开放</span>当作长期契约索引</td><td>第二批（GitLab / 本地 Markdown 脚本）可以直接引用它，不必新建</td><td class="no">地图永远带着一张「已完工但开着」的票，以后分不清「还开着」是待办还是索引</td></tr>
+      </tbody>
+    </table>
+    <p><b>推荐：关闭</b>，并在关闭时往地图的「Decisions so far」补一行指针（票名 ＋ 链接 ＋ 一句话结论）。若你更想要一个长期入口，我建议另开一张「契约总入口」的票专门做索引，而不是让定版票一直开着。</p>
+    <div class="reply">
+      <span class="label">你可以直接回：</span>
+      <div class="line"><code>#576 关闭，并在 map 的 Decisions so far 补一行指针</code><button class="copy" data-copy="#576 关闭，并在 map 的 Decisions so far 补一行指针">复制</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 五、回复 ==================== -->
+<section id="reply">
+  <h2>五、你回一句话就行（四套现成组合）</h2>
+  <p>下面是四种常见取舍，回任意一句我就照做；也可以自己拼。</p>
+
+  <div class="card">
+    <h3>组合 1：全都按推荐走（最省事）</h3>
+    <p class="muted">方案一今天做完；门禁加棘轮；地图下新挂子票并把上限写进 #576；#595 与 #576 一起关。</p>
+    <div class="reply"><div class="line"><code>三个都按推荐走：方案一先做＋门禁加棘轮＋新挂子票；#595 验收通过，与 #576 一起关</code><button class="copy" data-copy="三个都按推荐走：方案一先做＋门禁加棘轮＋新挂子票；#595 验收通过，与 #576 一起关">复制</button></div></div>
+  </div>
+
+  <div class="card">
+    <h3>组合 2：先瘦身，别的先不动</h3>
+    <p class="muted">只把那段文字压短，门禁、新票、关闭都暂缓。</p>
+    <div class="reply"><div class="line"><code>只做方案一，门禁和新票先不动</code><button class="copy" data-copy="只做方案一，门禁和新票先不动">复制</button></div></div>
+  </div>
+
+  <div class="card">
+    <h3>组合 3：一步到位（连 #601 一起做）</h3>
+    <p class="muted">方案一与方案二一起推进，做完提示词 762 字符，真正短过收敛前。工作量 1～2 天。</p>
+    <div class="reply"><div class="line"><code>方案一和方案二一起做（#601 那条通路本批就做），门禁等方案二落地后再定绝对值</code><button class="copy" data-copy="方案一和方案二一起做（#601 那条通路本批就做），门禁等方案二落地后再定绝对值">复制</button></div></div>
+  </div>
+
+  <div class="card">
+    <h3>组合 4：这次只要一份记录</h3>
+    <p class="muted">不动任何东西，把这份决策书与证据留着，以后再说。</p>
+    <div class="reply"><div class="line"><code>这次都先不动，只留报告</code><button class="copy" data-copy="这次都先不动，只留报告">复制</button></div></div>
+  </div>
+</section>
+
+<!-- ==================== 六、附录 ==================== -->
+<section id="appendix">
+  <h2>六、证据与复跑（都是只读的，随时可验）</h2>
+  <table>
+    <thead><tr><th>要看什么</th><th>在哪</th></tr></thead>
+    <tbody>
+      <tr><td>成品全文、长度账、逐句账、四份后端文本、四段真机输出</td><td><a href="./567-wakeword-sample-and-length.html">docs/reviews/567-wakeword-sample-and-length.html</a></td></tr>
+      <tr><td>三个瘦身方案的完整可替换文本</td><td>同目录报告第八节，原始件 <code>.scratch/wakeword/option-1.txt</code> ~ <code>option-3.txt</code></td></tr>
+      <tr><td>长度账的量法（从 git 历史导出五个版本再量）</td><td><code>.scratch/wakeword/analyze.mjs</code>、<code>frag-check.mjs</code></td></tr>
+      <tr><td>四个后端的正文格式块原文</td><td><code>src/host/tracker/backends/{github,gitlab,markdown}/index.js</code> 的 <code>prompts.bodyFormat</code>，兜底在 <code>src/client/kernel/prompts.js</code></td></tr>
+      <tr><td>门禁现状（钉住了什么、没钉什么）</td><td><code>tests/verify-*</code> 与 <code>scripts/verify-all.mjs</code></td></tr>
+    </tbody>
+  </table>
+  <details>
+    <summary>展开：四条复跑命令</summary>
+    <pre><code># 1) 重算长度账与逐句账（不改任何东西）
+node .scratch/wakeword/analyze.mjs
+node .scratch/wakeword/frag-check.mjs
+
+# 2) 把写坏的正文交给脚本校正（演练模式：不联网、不改票）
+node scripts/fix-issue-body.mjs --issue 567 --body-file .scratch/wakeword/messy-body.md --dry-run
+
+# 3) 核对地图子议题与阻塞边（已是目标状态时零写请求）
+node scripts/wire-subissues.mjs --map 567 --children 568,569,570,571,572,573,576,595,600 --body-file .scratch/wakeword/map-567-body.md
+
+# 4) 第 ① 步真跑（会打印路径，前两行是包管理器噪音）
+dsh plugin --profile web exec node -e "console.log(require.resolve('dsh-mattpocock-skills-deck/package.json'))"</code></pre>
+  </details>
+  <div class="callout plain">
+    <p><b>本次会话的写入痕迹：零。</b>没有改产品代码，没有改任何一张票的正文、标签、评论；新增文件只有两份报告（<code>docs/reviews/567-wakeword-sample-and-length.html</code> 与本文件）和 <code>.scratch/wakeword/</code> 下的取证件。（工作区里另有别的会话未提交的面板相关改动，我没有碰。）</p>
+  </div>
+</section>
+
+<footer>
+  决策说明书 · 地图 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/567">#567</a> · 所有数字都从 git 历史与当前源码量出，正文从不手抄 · 文件位置：<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\reviews\567-wakeword-decisions.html</code>
+</footer>
+
+</div>
+
+<script>
+  // 复制按钮：优先用剪贴板接口；被沙箱拦住时退化成「自动选中，请你按 Ctrl+C」。
+  document.querySelectorAll('button.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var text = btn.getAttribute('data-copy') || '';
+      var done = function (ok) {
+        var old = btn.textContent;
+        btn.textContent = ok ? '已复制' : '请按 Ctrl+C';
+        setTimeout(function () { btn.textContent = old; }, 1600);
+      };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () { done(true); }, function () { selectAndTell(); });
+        } else { selectAndTell(); }
+      } catch (e) { selectAndTell(); }
+
+      function selectAndTell() {
+        try {
+          var code = btn.parentElement.querySelector('code');
+          var range = document.createRange();
+          range.selectNodeContents(code);
+          var sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          done(false);
+        } catch (e2) { done(false); }
+      }
+    });
+  });
+</script>
+</body>
+</html>
