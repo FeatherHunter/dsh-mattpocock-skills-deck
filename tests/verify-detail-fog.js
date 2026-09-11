@@ -11,8 +11,13 @@ const HOST_JS = path.join(__dirname, '..', 'host.js')
 
 const subprocess = {
   async resolveExecutable(name) {
-    const dirs = (process.env.PATH || '').split(';').filter(Boolean)
-    const exts = (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean)
+    // PATH 分隔符与可执行后缀都按平台取：原来写死 ";" 与 PATHEXT，只有 Windows 找得到；
+    // Linux/macOS 的 PATH 是冒号分隔，这些门禁在 CI 上会全场景报「找不到 git」。
+    // （#600 附带的 CI 修复：verify-t1-initpublish.js 就是这么在 ubuntu/macos 上必红的。）
+    const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean)
+    const exts = process.platform === 'win32'
+      ? (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean).map(function (x) { return x.toLowerCase() })
+      : ['']
     const cands = []
     for (const d of dirs) { for (const ext of exts) cands.push(path.join(d, name + ext.toLowerCase())); cands.push(path.join(d, name)) }
     for (const c of cands) { try { fsx.accessSync(c); return c } catch (e) { /* 继续 */ } }

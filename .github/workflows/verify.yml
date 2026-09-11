@@ -42,6 +42,19 @@ jobs:
           pnpm install --no-frozen-lockfile
         shell: bash
 
+      # 浏览器门禁（verify-423-title-clamp-browser）要 Playwright 的 Chromium；
+      # runner 上默认没有下载过浏览器，缺了就会报 Executable doesn't exist。
+      # Linux 还要系统依赖，走 --with-deps；Windows / macOS 只装浏览器本体。
+      - name: Install Playwright Chromium (Linux, with system deps)
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+        shell: bash
+
+      - name: Install Playwright Chromium (Windows / macOS)
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+        shell: bash
+
       - name: Build artifacts (Gate I3)
         run: node scripts/build.mjs
         shell: bash
