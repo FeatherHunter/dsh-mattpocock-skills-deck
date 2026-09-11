@@ -77,7 +77,7 @@
 2. **模板里只留标记 `{bodyFormat}`。** 10 个模板条目（`mapExecute`、`complete`、`fixate`、六个 `tpl.*`、`mapInspect`）都不再出现任何字面文案，只保留 `{bodyFormat}` 占位符，并把这个占位符登记进各自的 `placeholders`。
 3. **渲染时按当前工作区选中的后端填空。** `kernel/prompts.js` 新增的 6 个导出就是这条链路的全部入口：`currentBackendId(st)` 取当前工作区选中的后端；`backendPromptFrom(modules, backendId, key)` 从后端声明里取一段文案；`bodyFormatDefault()` 是查不到后端声明时用的通用兜底版；`bodyFormatText(st)` 按当前后端与当前语言选出这段正文格式文案；`backendParamsFor(st, params)` 把 `bodyFormat`（以及走同一套后端声明通道的 `subIssue`）填进参数表；`promptTextFor(st, id, params)` 是「按当前后端渲染某个条目」的统一入口。全部调用点（行级动作按钮、建图与新增 BUG、map 新会话、模板引擎 `renderTemplate`）统一把当前工作区状态 `st` 带下去。两个边角口径：后端只声明了一种语言时，按另一种语言渲染，不落空串（整节不许静默消失）；当前后端拿不到 `bodyFormat` 声明（快照没带后端模块、或模块没声明这一栏）时，除落通用兜底版外还给用户一次可见提示（每个后端只提示一次），不让远端后端静默丢掉写回步骤——宿主侧另有兜底：磁盘缓存命中时用当前注册表重挂 `backendModules`，旧版本写的缓存不会再漏掉 `prompts`。
 4. **标记机制由 `TPL_BACKEND_MARKERS` 登记。** `kernel/config.js` 的 `TPL_BACKEND_MARKERS`（当前值 `['bodyFormat']`）说明「哪些标记的内容来自后端声明，而不是模板作者手写在模板里」；模板校验据此放行这类标记。
-5. **门禁按渲染结果断言，不按源码字面量断言。** `tests/verify-prompts.js` 用同一段源码求值出真正的渲染函数，再配上从三个后端源码里机械求值出的声明文本，逐条渲染 10 个模板条目 × 中文/英文：GitHub 版必须仍含完整的两步写回；Markdown 与 GitLab 版不得出现 `gh auth`、`fix-issue-body`、`dsh plugin exec`，也不得引用写回脚本；另有一条卡「模板里不得残留这些 GitHub 专用字面副本」。
+5. **门禁按渲染结果断言，不按源码字面量断言。** `tests/verify-prompts.js` 用同一段源码求值出真正的渲染函数，再配上从三个后端源码里机械求值出的声明文本，逐条渲染 10 个模板条目 × 中文/英文：GitHub 版必须仍含完整的两步写回（第 ① 步的 `dsh plugin` 带 `--profile` —— 那是 `dsh` 的必填选项，省了照抄就报错；中文占位符写 `<配置名>`、英文写 `<profile>`）；Markdown 与 GitLab 版不得出现 `gh auth`、`fix-issue-body`、`dsh plugin`，也不得引用写回脚本；另有一条卡「模板里不得残留这些 GitHub 专用字面副本」。
 
 引入票：本仓库把这次改动登记为 **#595**（改动落在提交 `ff88b5b`）。该提交当时把票号写作 `#594`——那是提交时预期、最终并没有用到的编号（#594 后来被另一张与本问题无关的票占用了）；后续提交已把源码注释、门禁断言与测试注释里的引用全部纠正为 **#595**，`#594` 只保留在它自己那张票的验收文件 `tests/verify-594-deckmap-tab.js` 里。
 

@@ -110,8 +110,11 @@ check(pcli.includes('newBugWayfinderText') && pcli.includes('BODY_FORMAT(st) ?')
 const fixNameCount = (s) => (s.match(/scripts\/fix-issue-body\.mjs/g) || []).length
 check(fixNameCount(cli) === 0, 'client 不再硬抄写回脚本路径 ×0（#595：搬进 github 后端 prompts.bodyFormat）')
 check(fixNameCount(pcli) === 0, 'package client 不再硬抄写回脚本路径 ×0（#595：搬进 github 后端 prompts.bodyFormat）')
-check(cli.indexOf('dsh plugin exec') < 0, 'client 正文格式文案不再含插件目录解析（dsh plugin exec）')
-check(pcli.indexOf('dsh plugin exec') < 0, 'package client 正文格式文案不再含插件目录解析（dsh plugin exec）')
+// #600：客户端不许出现「解析插件安装目录」的那条命令（旧写法 dsh plugin exec …，新写法 dsh plugin --profile <名> exec …）。
+//   这里不能拿 'dsh plugin' 当标记：客户端本来就带着更新用的手工命令 dsh plugin --profile <名> add …
+const RE_PLUGIN_EXEC = /dsh\s+plugin\s+(?:--profile\s+\S+\s+)?exec\b/
+check(!RE_PLUGIN_EXEC.test(cli), 'client 正文格式文案不再含插件目录解析（dsh plugin … exec）')
+check(!RE_PLUGIN_EXEC.test(pcli), 'package client 正文格式文案不再含插件目录解析（dsh plugin … exec）')
 
 // T10 R7（#458 用户拍板）：手动刷新去「刷新中」遮罩 —— 无全屏遮罩渲染；st.refreshing 仅驱动按钮 spinner
 check(!cli.includes("className: 'dsws-shade'") && !cli.includes('dsws-shade{'), 'client 无刷新遮罩渲染（R7）')

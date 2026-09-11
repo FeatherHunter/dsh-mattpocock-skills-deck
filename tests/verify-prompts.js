@@ -20,7 +20,7 @@
 //      （NEW_BUG_FIELDS_BODY / NEW_BUG_FIELDS_BODY_EN / NEW_WAYFINDER_DEFAULT_WIRING 等）
 //   S7 src/client/kernel/config.js 的字符串字面量（TPL_DEFAULT 默认模板等）
 //   S8 客户端产物里消费者看得见的提示词文本（从产物解析出的注册表条目）过 judge()：不许出现 gh / glab 命令形状
-//      （以前只卡 'dsh plugin exec' 与 'scripts/fix-issue-body.mjs' 两个字面串，换别的命令就全绿）
+//      （以前只卡 'dsh plugin --profile <配置名> exec' 与 'scripts/fix-issue-body.mjs' 两个字面串，换别的命令就全绿）
 //
 // 不扫（有意为之，见 §1.1）：docs/**（本来就该写具体命令）、tests/**、scripts/*.mjs、src/host 的代码注释与正则字面量。
 //
@@ -109,12 +109,14 @@ const normVariants = function (s) {
 }
 
 // 白名单：允许出现的命令形态有三种（#588 起 workspace-relative 单步写法作废，两步走是唯一合法形态）：
-//   ① 精确的第 ① 步调用（归一化后引号已剥掉）：dsh plugin exec node -e console.log(require.resolve(...))；
+//   ① 精确的第 ① 步调用（归一化后引号已剥掉）：dsh plugin --profile <配置名> exec node -e console.log(require.resolve(...))；
 //   ② 锚定的第 ② 步：node "<目录变量>/scripts/<两脚本之一>.mjs" + 参数名白名单（路径不断言用户名，只认形态）；
 //   ③ 前置检查 bare 句 gh auth status（剥掉它，R1 宽写法才不会把「gh … --issue」连读误判）；
 //   ④ 旧 bare 形态 node scripts/<两脚本>.mjs（历史夹具 F09–F17 引用的形态，保留只为夹具自证，不再是模板允许写法——模板侧另有计数断言卡死零残留）。
 // 值 token 不得以 - 或 = 开头，也不得是另一个命令词，避免白名单吞掉后面的命令
-const RE_STEP1_CALL = /dsh\s+plugin\s+exec\s+node\s+-e\s+console\.log\(require\.resolve\(dsh-mattpocock-skills-deck\/package\.json\)\)/g
+// #600：profile 名既可能是具体值（web），也可能是提示词里的占位符 <配置名>；两种都认，但值 token 不许含空格或尖括号，
+//   免得白名单把紧跟其后的跟踪器命令一起吞掉。
+const RE_STEP1_CALL = /dsh\s+plugin\s+--profile\s+(?:<[^<>]+>|[^\s<>]+)\s+exec\s+node\s+-e\s+console\.log\(require\.resolve\(dsh-mattpocock-skills-deck\/package\.json\)\)/g
 const RE_STEP2_CALL = /node\s+\S*scripts[\/\\](?:fix-issue-body|wire-subissues)\.mjs(?:\s+--(?:issue|map|children|body-file|repo|dry-run)(?:\s*(?:=\s*)?(?![-=])(?!(?:gh|glab|npm|npx|node|curl|wget|cat|sh|bash)\b)\S+)?)*/g
 const RE_GH_AUTH_STATUS = /gh\s+auth\s+status/g
 const RE_ALLOWED_CALL = /(?:node|npx)\s+(?:\.\/|\.\\)?scripts[\/\\](?:fix-issue-body|wire-subissues)\.mjs(?:\s+--(?:issue|map|children|body-file|repo|dry-run)(?:\s*(?:=\s*)?(?![-=])(?!(?:gh|glab|npm|npx|node|curl|wget|cat|sh|bash)\b)\S+)?)*/g
@@ -142,7 +144,7 @@ const RE_OBFUSCATED = /(?:base64\s+(?:-d|-D|--decode))|(?:xxd\s+(?:-r\s+-p|-p\s+
 const RE_ASSEMBLED = RE_TRACKER_WIDE
 
 const RULE_FIX = {
-  R1: '模板里只许出现两步脚本调用：把具体跟踪器命令改写成「第 ① 步 dsh plugin exec node -e …拿安装目录 + 第 ② 步 node "<安装目录>/scripts/fix-issue-body.mjs / wire-subissues.mjs" …」（--body-file 必须用绝对路径）',
+  R1: '模板里只许出现两步脚本调用：把具体跟踪器命令改写成「第 ① 步 dsh plugin --profile <配置名> exec node -e …拿安装目录 + 第 ② 步 node "<安装目录>/scripts/fix-issue-body.mjs / wire-subissues.mjs" …」（--profile 是必填项，不能省；--body-file 必须用绝对路径）',
   R2: '不要经包管理器转发跟踪器命令（npm exec gh / npx gh）',
   R3: '不要直接打跟踪器 API 地址（api.github.com / api.gitlab.com）',
   R4: '正文一律走 --body-file 先写成文件，不把正文内联进命令行',
@@ -558,7 +560,7 @@ const collectConfigSource = function (rel, src) {
   return { problems: out, literals: lits.length }
 }
 // 客户端产物：整份产物里不许出现 gh / glab 命令形状 —— 判定落在「产物里消费者看得见的那部分文本」上，不再只卡
-//   'dsh plugin exec' 与 'scripts/fix-issue-body.mjs' 两个字面串（换成别的跟踪器命令、甚至换回裸 gh issue edit 就全绿）。
+//   'dsh plugin --profile <配置名> exec' 与 'scripts/fix-issue-body.mjs' 两个字面串（换成别的跟踪器命令、甚至换回裸 gh issue edit 就全绿）。
 // 为什么只判注册表文本、不判产物里所有字符串字面量：产物是打包后的代码，代码里本来就有 String.fromCharCode(92)、
 //   \x 转义、eval( 这些形状（R7 就是冲它们去的），逐字面量判会把「代码」当成「文本」误红；而词法扫描在打包产物上会
 //   把正则字面量里的引号当成字符串起点，吐出跨越整段代码的假字面量。消费者看得见的提示词文本 = 注册表条目（产物里可完整解析）
@@ -671,7 +673,7 @@ const collectRegistry = function (reg, label, ctx, exemptList) {
             if (m) {
               out.push('FAIL ' + label + ' ' + id + '.' + lang + ' 占位符 {' + n + '} 代入「' + probe + '」后 [ASSEMBLE] 拼出命令「' +
                 rendered.slice(Math.max(0, m.index - 20), m.index + 40).replace(/\s+/g, ' ') + '」\n' +
-                '     修法：模板不许把命令词交给占位符，也不许让占位符紧邻子命令词；改成两步调安装目录下的脚本（第 ① 步 dsh plugin exec …拿安装目录，第 ② 步 node "<安装目录>/scripts/<脚本>.mjs" …）')
+                '     修法：模板不许把命令词交给占位符，也不许让占位符紧邻子命令词；改成两步调安装目录下的脚本（第 ① 步 dsh plugin --profile <配置名> exec …拿安装目录，第 ② 步 node "<安装目录>/scripts/<脚本>.mjs" …）')
             }
           })
         })
@@ -984,7 +986,7 @@ const contractChecksInner = function (reg, src) {
     if (bf.en.indexOf('two characters backslash-n') < 0) fail('bodyFormat en 缺 two characters backslash-n')
     // 兜底版必须工具无关：点名任何具体跟踪器命令 / 写回脚本 / 插件目录解析都属于「把 GitHub 专用步骤塞给所有后端」
     if (/gh\s+issue|gh\s+api|gh\s+auth|glab\s+issue|glab\s+auth/.test(bf.zh + bf.en)) fail('bodyFormat 兜底版点名了具体跟踪器命令（应泛指「当前跟踪器自己的方式」）')
-    if (bf.zh.indexOf('fix-issue-body') >= 0 || bf.en.indexOf('fix-issue-body') >= 0 || bf.zh.indexOf('dsh plugin exec') >= 0 || bf.en.indexOf('dsh plugin exec') >= 0) {
+    if (bf.zh.indexOf('fix-issue-body') >= 0 || bf.en.indexOf('fix-issue-body') >= 0 || bf.zh.indexOf('dsh plugin') >= 0 || bf.en.indexOf('dsh plugin') >= 0) {
       fail('bodyFormat 兜底版点名了插件安装目录下的写回脚本（写回脚本只属声明了它的后端，兜底版不许提）')
     }
   } else fail('缺条目 bodyFormat')
@@ -996,7 +998,7 @@ const contractChecksInner = function (reg, src) {
     ;['zh', 'en'].forEach(function (lang) {
       const t = String(e[lang] || '')
       if (t.indexOf('{bodyFormat}') < 0) fail('模板 ' + id + '.' + lang + ' 缺 {bodyFormat} 标记（正文格式不许硬抄在模板里）')
-      ;['fix-issue-body', 'wire-subissues', 'dsh plugin exec', 'gh auth'].forEach(function (bad) {
+      ;['fix-issue-body', 'wire-subissues', 'dsh plugin', 'gh auth'].forEach(function (bad) {
         if (t.indexOf(bad) >= 0) fail('模板 ' + id + '.' + lang + ' 残留 GitHub 专用串「' + bad + '」（应改由后端声明、渲染时填空）')
       })
     })
@@ -1010,7 +1012,7 @@ const contractChecksInner = function (reg, src) {
   const regNoGh = Object.keys(reg).filter(function (id) { return id !== 'ghAuthLogin' })
   const leaked = regNoGh.filter(function (id) {
     const t = String(reg[id].zh || '') + String(reg[id].en || '')
-    return /gh\s+auth|dsh plugin exec|fix-issue-body|wire-subissues/.test(t)
+    return /gh\s+auth|dsh plugin|fix-issue-body|wire-subissues/.test(t)
   })
   if (leaked.length) fail('注册表条目里残留写回脚本/插件目录指令：' + leaked.join(', ') + '（应搬进对应后端的 prompts 声明）')
   const segCount = (src.match(/## 正文格式/g) || []).length
@@ -1070,7 +1072,7 @@ const FIXTURE_BYPASS = [
   ['T45 glab + 真仓库名 + --hostname', '写回用 glab -R FeatherHunter/dsh-mattpocock-skills-deck --hostname gitlab.com issue update 573'],
   ['T46 gh --json body issue edit', '写回用 gh --json body issue edit 573 --body-file x.md'],
   ['T47 前置检查后接跟踪器命令', '先跑 gh auth status，再 gh issue edit 573 --body-file x.md'],
-  ['T48 第 ① 步后接跟踪器命令', 'dsh plugin exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))" && gh issue edit 1 --body-file y.md'],
+  ['T48 第 ① 步后接跟踪器命令', 'dsh plugin --profile <配置名> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))" && gh issue edit 1 --body-file y.md'],
   ['T49 第 ② 步后接跟踪器命令', 'node "<插件目录>/scripts/fix-issue-body.mjs" --issue 1 --body-file x.md && gh issue edit 1 --body-file y.md'],
 ]
 const FIXTURE_FALSE_POS = [
@@ -1098,8 +1100,8 @@ const FIXTURE_FALSE_POS = [
   ['F22 进度格式示例', '## 进度：90% 独占一行，空行后接 下一步：xxx'],
   ['F23 目标 zh 正文格式块', '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 正文先写成文件（文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行），再调 `node scripts/fix-issue-body.mjs --issue <号> --body-file <文件>` 写回；脚本回包 ok 为真才算写完（剥开头不可见字符、按阈值还原字面转义、格式只告警不改写，都由脚本负责）'],
   ['F24 目标 en 正文格式块', '## Body format (mandatory when writing/editing an issue body)\n- [ ] Write the body to a file first (real newlines in the file: each `## section` on its own line, a blank line between paragraphs), then write it back with `node scripts/fix-issue-body.mjs --issue <issue> --body-file <file>`; only when the script returns ok true is the write done (the script strips the leading invisible character, restores literal escapes within the threshold, and only warns about formatting)'],
-  ['F25 新两步 zh 块', '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 先跑 `gh auth status`，没登录先按 ghAuthLogin 指引登完再继续\n- [ ] 第 ① 步拿插件安装目录：跑 `dsh plugin exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"`，记下输出的目录（下面叫 <插件目录>）；第 ② 步写回：跑 `node "<插件目录>/scripts/fix-issue-body.mjs" --issue <号> --body-file <绝对路径文件>`；第 ② 步的当前目录可能是插件目录而不是你的工作区，所以 `--body-file` 必须用绝对路径'],
-  ['F26 精确第 ① 步调用', '跑 `dsh plugin exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"` 拿插件安装目录'],
+  ['F25 新两步 zh 块', '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 先跑 `gh auth status`，没登录先按 ghAuthLogin 指引登完再继续\n- [ ] 第 ① 步拿插件安装目录：跑 `dsh plugin --profile <配置名> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"`，记下输出的目录（下面叫 <插件目录>）；第 ② 步写回：跑 `node "<插件目录>/scripts/fix-issue-body.mjs" --issue <号> --body-file <绝对路径文件>`；第 ② 步的当前目录可能是插件目录而不是你的工作区，所以 `--body-file` 必须用绝对路径'],
+  ['F26 精确第 ① 步调用', '跑 `dsh plugin --profile <配置名> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"` 拿插件安装目录'],
   ['F27 前置 gh auth status 单句', '先跑 `gh auth status`，没登录先按 ghAuthLogin 指引登完再继续'],
 ]
 const runFixtureSelfCheck = function (reg, backendSrc) {
@@ -1251,7 +1253,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '1ded52d4fc14432ee1c66a3a78b2769272729248f9083d0fed96e22639022648',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'abf237d5715775ccf33f71e6031fc706dbc9439f52b7282ff89f04b12ee094e5',
+  'tests/verify-prompts.js': '122a0b885a3fe895fa0c5e0af9b742d82ca56ae4bdb2a8ad5d3ec29a2984f37b',
 }
 // ---- LOCK-END ----
 
@@ -1355,7 +1357,10 @@ if (reg) {
   const p588 = problems.length
   try {
     // 求值态第 ① 步精确串（源码里是 \' 转义，求值后是单引号）
-    const STEP1_EXACT = 'dsh plugin exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"'
+    const STEP1_EXACT = 'dsh plugin --profile <配置名> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"'
+    // #600：中文用占位符 <配置名>、英文用 <profile>，所以精确串按语言分两份；step1Of(lang) 取当前语言那一份。
+    const STEP1_EXACT_EN = 'dsh plugin --profile <profile> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"'
+    const step1Of = function (lang) { return lang === 'en' ? STEP1_EXACT_EN : STEP1_EXACT }
     const step2NameOf = function (text, want) {
       const re = /node\s+"<[^"]+>\/scripts\/([A-Za-z0-9_.-]+\.mjs)"/g
       const names = []
@@ -1410,11 +1415,11 @@ if (reg) {
           const t = renderOf(b, id, lang)
           const names = step2NameOf(t, 0)
           if (isGh) {
-            if (t.indexOf(STEP1_EXACT) < 0) fail('#595 github/' + id + '.' + lang + ' 渲染结果缺精确的第 ① 步调用（拿插件安装目录）')
+            if (t.indexOf(step1Of(lang)) < 0) fail('#595 github/' + id + '.' + lang + ' 渲染结果缺精确的第 ① 步调用（拿插件安装目录）')
             if (names.indexOf('fix-issue-body.mjs') < 0) fail('#595 github/' + id + '.' + lang + ' 渲染结果缺锚定的第 ② 步（node "<目录>/scripts/fix-issue-body.mjs" …）')
             names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
           } else {
-            ;['gh auth', 'fix-issue-body', 'dsh plugin exec'].forEach(function (bad) {
+            ;['gh auth', 'fix-issue-body', 'dsh plugin'].forEach(function (bad) {
               if (t.indexOf(bad) >= 0) fail('#595 ' + b + '/' + id + '.' + lang + ' 渲染结果出现 GitHub 专用串「' + bad + '」（后端无关的正文格式不许带上它）')
             })
             if (names.length) fail('#595 ' + b + '/' + id + '.' + lang + ' 渲染结果仍引用写回脚本 ' + names.join(',') + '（该后端没声明这些脚本）')
@@ -1430,12 +1435,12 @@ if (reg) {
     const bfGh = evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: backendDecls.github }] }, 'zh')
     const bfMd = evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'markdown' }, backendModules: [{ id: 'markdown', prompts: backendDecls.markdown }] }, 'zh')
     if (String(bfGh).indexOf(STEP1_EXACT) < 0) fail('#595 BODY_FORMAT(github) 缺精确的第 ① 步调用')
-    if (String(bfMd).indexOf('gh auth') >= 0 || String(bfMd).indexOf('fix-issue-body') >= 0 || String(bfMd).indexOf('dsh plugin exec') >= 0) fail('#595 BODY_FORMAT(markdown) 出现 GitHub 专用串')
+    if (String(bfMd).indexOf('gh auth') >= 0 || String(bfMd).indexOf('fix-issue-body') >= 0 || String(bfMd).indexOf('dsh plugin') >= 0) fail('#595 BODY_FORMAT(markdown) 出现 GitHub 专用串')
     if (!(String(bfMd).length < String(bfGh).length)) fail('#595 BODY_FORMAT(markdown) 不比 GitHub 短')
     const ghVals = [subIssueValues['github.zh'], subIssueValues['github.en']]
     ghVals.forEach(function (t, i) {
       const lang = i === 0 ? 'zh' : 'en'
-      if (String(t || '').indexOf(STEP1_EXACT) < 0) fail('#588 github 后端 prompts.subIssue.' + lang + ' 缺精确的第 ① 步调用')
+      if (String(t || '').indexOf(step1Of(lang)) < 0) fail('#588 github 后端 prompts.subIssue.' + lang + ' 缺精确的第 ① 步调用')
       const names = step2NameOf(t, 0)
       if (names.indexOf('wire-subissues.mjs') < 0) fail('#588 github 后端 prompts.subIssue.' + lang + ' 缺锚定的 wire 第 ② 步')
       names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
@@ -1448,10 +1453,26 @@ if (reg) {
     // github bodyFormat 自带的写回脚本也要进 referenced
     ;['zh', 'en'].forEach(function (lang) {
       const t = String((backendDecls.github.bodyFormat || {})[lang] || '')
-      if (t.indexOf(STEP1_EXACT) < 0) fail('#595 github 后端 prompts.bodyFormat.' + lang + ' 缺精确的第 ① 步调用')
+      if (t.indexOf(step1Of(lang)) < 0) fail('#595 github 后端 prompts.bodyFormat.' + lang + ' 缺精确的第 ① 步调用')
       const names = step2NameOf(t, 0)
       if (names.indexOf('fix-issue-body.mjs') < 0) fail('#595 github 后端 prompts.bodyFormat.' + lang + ' 缺锚定的第 ② 步')
       names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
+    })
+    // #600：第 ① 步必须带 --profile —— dsh 的 plugin 子命令把 --profile 声明成必填选项，
+    //   旧写法「dsh plugin exec …」照抄下来直接报 required option '--profile <name>' not specified。
+    //   三处都钉住：精确串本身、GitHub 后端的两个声明、以及「不许再留不带参数的旧写法」。
+    ;['zh', 'en'].forEach(function (lang) {
+      if (step1Of(lang).indexOf('--profile') < 0) fail('#600 ' + lang + ' 的第 ① 步精确串没带 --profile（dsh plugin 的必填选项，省了照抄就报错）')
+    })
+    ;['zh', 'en'].forEach(function (lang) {
+      const bfT = String((backendDecls.github.bodyFormat || {})[lang] || '')
+      const subT = String(subIssueValues['github.' + lang] || '')
+      const where = '#600 github.' + lang
+      if (bfT.indexOf(step1Of(lang)) < 0) fail(where + ' prompts.bodyFormat 的第 ① 步不是带 --profile 的精确串（省了 dsh 直接报错）')
+      if (subT.indexOf(step1Of(lang)) < 0) fail(where + ' prompts.subIssue 的第 ① 步不是带 --profile 的精确串（省了 dsh 直接报错）')
+      if (/dsh\s+plugin\s+exec/.test(bfT) || /dsh\s+plugin\s+exec/.test(subT)) {
+        fail(where + ' 仍留着不带 --profile 的旧第 ① 步写法（dsh plugin exec …）：那条命令照抄跑不通，别让它回来')
+      }
     })
     // #595 恢复被削掉的两组断言（它们当时卡在注册表 bodyFormat 上，正文格式搬进后端声明后整组消失）：
     //   ① 主锚文件要求：第 ② 步的当前目录可能不是工作区，靠工作区里的 docs/agents/issue-tracker.md 认工作区；
