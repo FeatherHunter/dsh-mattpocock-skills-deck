@@ -335,13 +335,13 @@ export default {
     // ---- RPC 通道注册（#596 换到 DSH 公开的 /api 载体）----
     // 客户端每次 host.call 都落在这条通道上；注册不上，面板就只画缓存旧数据：点刷新没反应。
     // 注册方式、信封校验与失败记账都在 ./rpcChannel.js（#596 从本文件搬出），这里只递端点表与日志发射函数。
-    // 这里那个 catch 只兜「本文件加载 rpcChannel.js 失败」；通道注册失败由 rpcChannel.js 自己记账（errorKind 区分）。
+    // 这里那个 catch 只兜「本文件加载 rpcChannel.js 失败」；通道注册失败由 rpcChannel.js 自己记账。
     let _rpcChannelP = null
     function _rpcChannel() { if (!_rpcChannelP) _rpcChannelP = import('./rpcChannel.js'); return _rpcChannelP }
     _rpcChannel().then(function (ch) {
       ch.createRpcChannel({ ctx: ctx, handlers: __DSW_HANDLERS__, fireLog: fireLog, dispatchMeta: function () { return _dispatchMeta() } })
     }).catch(function (eLoad) {
-      try { fireLog('error', 'host.dispatch.error', { method: '/api/dsws 通道注册', argsHash: '', errorKind: 'rpcChannel-load-failed' }) } catch (eR2) {}
+      try { fireLog('error', 'host.dispatch.error', { method: '/api/dsws 通道注册', argsHash: '', errorKind: 'internal' }) } catch (eR2) {}
     })
   },
 }

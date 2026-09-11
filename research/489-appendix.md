@@ -143,13 +143,13 @@
 
 | # | 事件名 | 级别 | 允许字段（白名单，之外不记） | 截断或散列 | 命中正则名 | 守卫 | 落点 |
 |---|---|---|---|---|---|---|---|
-| 46 | host.dispatch.error | 错误 | method 电话名、argsHash 入参散列、errorKind 归一类别 | H_ERR（入参只记散列） | — | 无外层判断（错误直通）；业务性失败回参不触发，只记未捕获抛错 | src/host/index.js 分发 catch |
+| 46 | host.dispatch.error | 错误 | method 电话名、argsHash 入参散列、errorKind 归一类别 | H_ERR（入参只记散列） | — | 无外层判断（错误直通）；业务性失败回参不触发，只记未捕获抛错 | src/host/rpcChannel.js 分发 catch（#596 由 src/host/index.js 搬来；通道路径注册失败也记在此，method 写通道路径、errorKind 见 1.6 末尾枚举注） |
 | 47 | log.persist.fail | 告警 | op 操作枚举、reason 原因枚举、dirHash 目录散列 | H_CWD（目录只记散列） | — | 无外层判断（告警直通）；同轮合并、同一行在途未落定不再追加，避免失败自我繁殖 | src/host/logStore.js 写盘与开关持久化失败分支 |
 | 48 | log.forward.summary | 告警 | droppedDelta 新增丢弃数、totalDropped 累计丢弃数、reason 原因枚举、windowMs 统计窗口毫秒 | —（只记数字与枚举） | — | 无外层判断；只在批量发送完成后、有新增丢弃时记一行，不逐条 | src/client/kernel/log.js 转发完成后 |
 | 49 | log.switch.watchdog | 告警 | op 操作枚举、timeoutMs 超时毫秒、stage 所处阶段枚举 | —（只记枚举与数字） | — | 无外层判断；单次操作只记一行，超时后迟到的回包不补记 | src/client/kernel/log.js 开关写与对账的竞跑计时 |
 | 50 | log.export.fail | 告警 | op 操作枚举、reason 原因枚举、errorHash 错误散列 | H_ERR、T120（先 120 字截断再散列） | — | 无外层判断；用户手势触发才可能记，无轮询无后台自发 | 状态栏菜单与设置页导出链路失败分支 |
 
-枚举取值（写死在这张表里，实现与门禁逐字锁死）：op 在 47 取 writeBatch、persistSwitch、readBack，在 49 取 set、reconcile，在 50 取 export、openDir、copyPath、resolve；reason 在 47 取 no-dir、read-fail、write-fail（建目录失败无法与目录已存在区分，仍走静默吞，由随后的写结果说话），在 48 取 queue-full、packet-trim、send-fail、host-reject，在 50 取 host-unavailable、export-not-ok、path-missing、open-fail、copy-fail；stage 在 49 取 waiting-host；errorKind 在 46 取 auth、network、notfound、exit，归不上记 internal。
+枚举取值（写死在这张表里，实现与门禁逐字锁死）：op 在 47 取 writeBatch、persistSwitch、readBack，在 49 取 set、reconcile，在 50 取 export、openDir、copyPath、resolve；reason 在 47 取 no-dir、read-fail、write-fail（建目录失败无法与目录已存在区分，仍走静默吞，由随后的写结果说话），在 48 取 queue-full、packet-trim、send-fail、host-reject，在 50 取 host-unavailable、export-not-ok、path-missing、open-fail、copy-fail；stage 在 49 取 waiting-host；errorKind 在 46 取 auth、network、notfound、exit，归不上记 internal（#596 起：客户端与宿主之间那条通话通道注册失败也记在 46，原因归不上上面四类，一律记 internal，是哪种失败写在 method 尾巴里）。
 
 ### 1.7 退役电话（#498，走 #22/#34 先例，只记追溯不埋点）
 

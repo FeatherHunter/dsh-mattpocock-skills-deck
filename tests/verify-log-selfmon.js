@@ -21,11 +21,14 @@ const storeSrc = readSrc(path.join('src', 'host', 'logStore.js'))
 const logSrc = readSrc(path.join('src', 'client', 'kernel', 'log.js'))
 const menuSrc = readSrc(path.join('src', 'client', 'statusbar', 'StatusLogMenu.js'))
 const settingsSrc = readSrc(path.join('src', 'client', 'views', 'SettingsPage.js'))
+// #596：46 的发射点（分发 catch 与通道注册失败记账）随协议代码搬进 rpcChannel.js，门禁跟着它走，
+// 否则这段代码搬到哪、门禁就瞎到哪（附录 1.6 的落点列已同步改成这个文件）。
+const dispatchSrc = readSrc(path.join('src', 'host', 'rpcChannel.js'))
 
 // 一、五事件逐个有点名（注释不算，只算代码里的加引号事件名）。
 {
   const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
-  check(code(indexSrc).includes("'host.dispatch.error'"), '46 分发异常行在宿主分发处有点名')
+  check(code(dispatchSrc).includes("'host.dispatch.error'"), '46 分发异常行在宿主分发处有点名')
   check(code(storeSrc).includes("'log.persist.fail'"), '47 落盘失败行在日志库有点名')
   check(code(logSrc).includes("'log.forward.summary'"), '48 转发汇总行在客户端底座有点名')
   check(code(logSrc).includes("'log.switch.watchdog'"), '49 看门狗行在客户端底座有点名')
@@ -35,7 +38,7 @@ const settingsSrc = readSrc(path.join('src', 'client', 'views', 'SettingsPage.js
 
 // 二、级别全为错误与告警（自监控行始终落盘，不用信息与调试）。
 {
-  check(indexSrc.includes("fireLog('error', 'host.dispatch.error'"), '46 取错误级（直通落盘）')
+  check(dispatchSrc.includes("fireLog('error', 'host.dispatch.error'"), '46 取错误级（直通落盘）')
   check(storeSrc.includes("log('warn', 'log.persist.fail'"), '47 取告警级（直通落盘）')
   check(logSrc.includes("log('warn', 'log.forward.summary'"), '48 取告警级（开关关闭时仍可见）')
   check(logSrc.includes("log('warn', 'log.switch.watchdog'"), '49 取告警级（开关关闭时仍可见）')
@@ -65,7 +68,7 @@ const settingsSrc = readSrc(path.join('src', 'client', 'views', 'SettingsPage.js
     'log.export.fail': ['op', 'reason', 'errorHash'],
   }
   const hold = {
-    'host.dispatch.error': indexSrc, 'log.persist.fail': storeSrc, 'log.forward.summary': logSrc,
+    'host.dispatch.error': dispatchSrc, 'log.persist.fail': storeSrc, 'log.forward.summary': logSrc,
     'log.switch.watchdog': logSrc, 'log.export.fail': logSrc,
   }
   for (const name of Object.keys(want)) {

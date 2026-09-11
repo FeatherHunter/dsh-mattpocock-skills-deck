@@ -41,9 +41,12 @@ export function createRpcChannel(deps) {
 
   // 注册失败的可见性（原来这里是个空 catch，故障才拖了这么久）：
   // 走 #46 自监控事件 host.dispatch.error（错误级直通落盘，字段就是白名单那三键）。
-  // method 写通道名而不是 wf.* 端点，errorKind 给出失败类别——一眼能分清是「通道没注册」还是「某次调用炸了」。
-  const reportRegisterFail = function (kind) {
-    try { fireLog('error', 'host.dispatch.error', { method: DSW_RPC_ROUTE + ' 通道注册', argsHash: '', errorKind: kind }) } catch (eLog) {}
+  // 按附录 1.6 的枚举纪律，errorKind 只取 auth/network/notfound/exit，通道注册失败归不上，一律记 internal；
+  // 那这次是什么失败写进 method 尾巴（注册是 wf.* 之外的调用，没有电话名可写），这样日志里仍能一眼认出来。
+  const reportRegisterFail = function (kind, failMsg) {
+    const say = kind + (typeof failMsg === 'string' && failMsg !== '' ? ('：' + failMsg.slice(0, 120)) : '')
+    try { fireLog('error', 'host.dispatch.error', { method: DSW_RPC_ROUTE + ' 通道注册', argsHash: '', errorKind: 'internal' }) } catch (eLog) {}
+    return say
   }
 
   // 一次分发：命中端点表，异常归一到 RpcResult 失败信封并留一行错误级日志（#46）。
@@ -113,7 +116,7 @@ export function createRpcChannel(deps) {
     // 算让位：那个实例继续服务即可。其余错误一律记账。
     const msg = String((eReg && eReg.message) || eReg)
     const kind = (msg.indexOf('already registered') >= 0 || msg.indexOf('duplicate') >= 0) ? 'fetch-route-duplicate' : 'fetch-route-throw'
-    reportRegisterFail(kind)
+    reportRegisterFail(kind, msg)
     return { ok: false, path: DSW_RPC_ROUTE, reason: kind }
   }
 }
