@@ -15,7 +15,7 @@ function assertPrefix(value, role) {
   }
   return value;
 }
-function buildPhoneNames(prefix) {
+function updBuildPhoneNames(prefix) {
   const checked = assertPrefix(prefix, "\u7535\u8BDD\u540D\u524D\u7F00 prefix");
   return {
     updateStatus: checked + ".updateStatus",
@@ -23,8 +23,8 @@ function buildPhoneNames(prefix) {
     updateInstall: checked + ".updateInstall"
   };
 }
-function buildPhoneName(prefix, action) {
-  return buildPhoneNames(prefix)[action];
+function updBuildPhoneName(prefix, action) {
+  return updBuildPhoneNames(prefix)[action];
 }
 
 // packages/dsh-plugin-update/src/commands.ts
@@ -89,8 +89,8 @@ var CLIENT_POLL = {
   defaultMs: DEFAULT_PANEL_POLL_MS,
   minMs: MIN_PANEL_POLL_MS
 };
-function buildClientPhoneNames(prefix) {
-  return buildPhoneNames(prefix);
+function updBuildClientPhoneNames(prefix) {
+  return updBuildPhoneNames(prefix);
 }
 function assertPollInterval(ms) {
   if (typeof ms !== "number" || !Number.isFinite(ms) || ms < MIN_PANEL_POLL_MS) {
@@ -103,7 +103,7 @@ function assertPollInterval(ms) {
 
 // ---- 取值（#586）：从更新包的客户端入口算出本插件要用的电话名与轮询间隔 ----
 // 改前缀或改轮询间隔只改更新包，本文件重新派生即可；手写源码里不再出现电话名字面量。
-const UPD_PHONE_NAMES = buildClientPhoneNames("wf")
+const UPD_PHONE_NAMES = updBuildClientPhoneNames("wf")
 const UPD_POLL_MS = CLIENT_POLL.defaultMs
 const UPD_POLL_MIN_MS = CLIENT_POLL.minMs
 // 零变化断言（默认前缀 wf 下与旧字面一字不差；双产物门禁直接看到这些字面，运行时走上面的拼名）

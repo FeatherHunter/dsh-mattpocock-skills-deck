@@ -553,8 +553,22 @@ export function createClientLog(deps: ClientLogDeps, configInput?: ClientLogConf
     if (/connection|host\.call 不可用|unavailable/i.test(msg)) return 'throw-connection'
     return 'throw'
   }
+  // 调用抛错这条路：先落一条分类告警行，再把同一个分类码当返回值交给界面。
+  // 界面拿分类码翻成「是哪一类失败」的提示（#597 期望 2：别再只给一句笼统的保存失败）；
+  // 错误原文只进散列、不落盘也不上屏。
+  const failByThrow = function (e: unknown): string {
+    const kind = switchThrowKind(e)
+    logSwitchSetFail(
+      kind,
+      (e && typeof e === 'object' && 'message' in (e as Record<string, unknown>)
+        ? (e as { message?: unknown }).message
+        : undefined) || e
+    )
+    return kind
+  }
   // 设置页保存开关：先写宿主，宿主生效才更新本地与内存并广播；写失败保持本地旧值并返回失败，
-  // 由调用处提示用户，不回退为开启。失败原因只给机器码（host-unavailable、host-rejected），
+  // 由调用处提示用户，不回退为开启。失败原因只给机器码——host-unavailable、host-rejected、
+  // switch-timeout、stale、throw / throw-connection / throw-unknown-endpoint；
   // 面向用户的文案由界面批次经多语言系统转换，本包不写面向用户的中文字符串。
   function setLogSwitch(enabled: boolean, sampleRate?: number): Promise<ClientSetSwitchResult> {
     const next = {
@@ -611,19 +625,10 @@ export function createClientLog(deps: ClientLogDeps, configInput?: ClientLogConf
         return { ok: true, enabled: logSwitch.enabled, sampleRate: logSwitch.sampleRate }
       }).catch(function (e: unknown) {
         if (myGen !== setLogSwitchGen.n) return { ok: false, enabled: logSwitch.enabled, error: 'stale' }
-        logSwitchSetFail(switchThrowKind(e), (e && typeof e === 'object' && 'message' in (e as Record<string, unknown>) ? (e as { message?: unknown }).message : undefined) || String(e))
-        const message = e && typeof e === 'object' && 'message' in (e as Record<string, unknown>)
-          ? String((e as { message?: unknown }).message)
-          : String(e)
-        return { ok: false, enabled: logSwitch.enabled, error: message }
+        return { ok: false, enabled: logSwitch.enabled, error: failByThrow(e) }
       })
     } catch (e) {
-      void e
-      logSwitchSetFail(switchThrowKind(e), (e && typeof e === 'object' && 'message' in (e as Record<string, unknown>) ? (e as { message?: unknown }).message : undefined) || e)
-      const message = e && typeof e === 'object' && 'message' in (e as Record<string, unknown>)
-        ? String((e as { message?: unknown }).message)
-        : String(e)
-      return Promise.resolve({ ok: false, enabled: logSwitch.enabled, error: message })
+      return Promise.resolve({ ok: false, enabled: logSwitch.enabled, error: failByThrow(e) })
     }
   }
 

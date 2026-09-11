@@ -30,6 +30,7 @@ const LEAVES = [
   { file: 'src/client/views/SkillsTab.js', exports: ['SkillsTab'], components: ['SkillsTab'] },
   { file: 'src/client/views/ChecksTab.js', exports: ['ChecksTab'], components: ['ChecksTab'] },
   { file: 'src/client/views/SettingsWorkspaces.js', exports: ['useWsOverview', 'renderWsOverview'], components: [] }, // V3 #463 由 SettingsPage.js 拆出：后端总览（数据钩子 + 分组渲染）
+  { file: 'src/client/views/shared/DebugSwitchFailHint.js', exports: ['DBG_SWITCH_FAIL_KEY', 'dbgSwitchFailKey'], components: [] }, // #597 由 SettingsPage.js 拆出：写开关失败的机器码挑提示词条（无组件，纯函数）
   { file: 'src/client/views/SettingsPage.js', exports: ['SettingsPage'], components: ['SettingsPage'] }, // #519 落地 A：模板编辑入口整组删除，TPL_NAMES/TPL_DESC/TPL_EDIT_IDS/PREVIEW_VALUES 四个导出随之移除
   { file: 'src/client/views/RunPanel.js', exports: ['RunPanel'], components: ['RunPanel'] },
   { file: 'src/client/panel/DockSync.js', exports: ['useDockSync'], components: [] }, // V4 #464 由 Dock.js 拆出：工作区跟随（会话信号加同步加自愈钩子，无组件，纯函数）

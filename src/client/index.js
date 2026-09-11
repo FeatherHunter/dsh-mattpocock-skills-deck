@@ -245,7 +245,7 @@ export default {
 
     // ==== kernel:updateClient (spliced by build) ====
 
-    // ==== leaf:SettingsWorkspaces (spliced by build) ==== // ==== leaf:settingsPage (spliced by build) ====
+    // ==== leaf:debugSwitchFailHint (spliced by build) ==== // ==== leaf:SettingsWorkspaces (spliced by build) ==== // ==== leaf:settingsPage (spliced by build) ====
 
     // ==== leaf:runPanel (spliced by build) ====
 

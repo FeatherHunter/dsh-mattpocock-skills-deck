@@ -23,7 +23,7 @@
  * 用法：node scripts/derive-update-from-package.mjs（插件根目录；先跑 node packages/dsh-plugin-update/build.mjs）。
  * 构建脚本 scripts/build.mjs 会在需要时自动调本脚本，平时不用手工跑。
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -53,6 +53,34 @@ function requireEsbuild() {
     return require('esbuild')
   } catch {
     throw new Error('[derive-update] 找不到 esbuild：请先运行 pnpm install（根 devDependencies 含 esbuild）')
+  }
+}
+
+/** 顶层声明名（只看无缩进的 function / var / let / const，export 前缀剥掉）——与 tests/verify-generated-no-shadow.js 同一口径。 */
+function topLevelNames(text) {
+  const out = new Set()
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)|^(?:export\s+)?(?:var|let|const)\s+([A-Za-z_$][\w$]*)/.exec(line)
+    if (m) out.add(m[1] || m[2])
+  }
+  return out
+}
+
+/**
+ * 顶撞守卫（#597）：本文件与日志包那份派生文件最终拼进同一个客户端闭包。
+ * 顶层声明重名在这里就失败，不留给运行时去顶掉——顶掉的后果是静默坏功能（见 deriveClient 里的改名说明）。
+ */
+function assertNoShadowing(text) {
+  const logKernel = resolve(ROOT, 'scripts', 'generated', 'logKernel.derived.js')
+  if (!existsSync(logKernel)) return
+  const mine = topLevelNames(text)
+  const theirs = topLevelNames(readFileSync(logKernel, 'utf8'))
+  const shared = [...mine].filter((n) => theirs.has(n)).sort()
+  if (shared.length > 0) {
+    throw new Error(
+      '[derive-update] 与日志包派生文件顶层声明重名：' + shared.join('、') +
+        '。两份文件会拼进同一个客户端闭包，后拼的把先拼的函数顶掉（#597）。请在本脚本的 RENAMES 里给这份加前缀。'
+    )
   }
 }
 
@@ -112,6 +140,26 @@ export function deriveClient() {
     body = body.slice(0, exportBlock.index).replace(/\s+$/, '') + '\n'
   }
   body = body.replace(/\s+$/, '') + '\n'
+  // 改名（#597）：客户端闭包是把各派生分块按顺序拼进同一个作用域，函数声明会被提升，
+  // 后拼的分块会顶掉先拼的同名函数。更新包与日志包各自都声明了
+  // buildPhoneNames / buildPhoneName / buildClientPhoneNames，更新包拼在后面，
+  // 于是日志内核算出来的电话名表成了空壳（phoneNames.logSetSwitch 为 undefined）：
+  // 点调试开关时电话名传成 undefined，宿主 shim 在 method.replace 上抛错，
+  // 面板永远弹「开关保存失败，已保持原状态，请重试」；连日志上报的电话名也是 undefined，
+  // 所以客户端一条日志行都发不出去。这三个名字在更新包里是公开导出（改包本体等于改公开面），
+  // 所以在这里按「派生即改名」处理：只改这一份派生副本，包本体一个字节不动。
+  const RENAMES = [
+    ['buildClientPhoneNames', 'updBuildClientPhoneNames'],
+    ['buildPhoneNames', 'updBuildPhoneNames'],
+    ['buildPhoneName', 'updBuildPhoneName']
+  ]
+  for (const [from, to] of RENAMES) {
+    const before = body
+    body = body.replace(new RegExp('\\b' + from + '\\b', 'g'), to)
+    if (before === body) {
+      throw new Error('[derive-update] 改名没命中：' + from + '（更新包源码可能已改名或删掉，请同步本脚本的 RENAMES）')
+    }
+  }
   // 同名符号本来就已经是这个闭包里的声明（`var CLIENT_POLL = ...` 等），再写一遍 export const 会重复声明报错，
   // 所以只补「本地名与导出名不同」的那些（esbuild 会写成 `local as exported`），其余的保持原样。
   const reExports =
@@ -128,7 +176,7 @@ export function deriveClient() {
     '\n' +
     '// ---- 取值（#586）：从更新包的客户端入口算出本插件要用的电话名与轮询间隔 ----\n' +
     '// 改前缀或改轮询间隔只改更新包，本文件重新派生即可；手写源码里不再出现电话名字面量。\n' +
-    'const UPD_PHONE_NAMES = buildClientPhoneNames(' + JSON.stringify(PHONE_PREFIX) + ')\n' +
+    'const UPD_PHONE_NAMES = updBuildClientPhoneNames(' + JSON.stringify(PHONE_PREFIX) + ')\n' +
     'const UPD_POLL_MS = CLIENT_POLL.defaultMs\n' +
     'const UPD_POLL_MIN_MS = CLIENT_POLL.minMs\n' +
     '// 零变化断言（默认前缀 wf 下与旧字面一字不差；双产物门禁直接看到这些字面，运行时走上面的拼名）\n' +
@@ -144,7 +192,9 @@ export function deriveClient() {
     '// 构建时本文件拼入客户端闭包（kernel:updateClient 标记处），给面板提供电话名与轮询间隔。\n' +
     '// 面板原来写死的 ' + "'wf.updateStatus'" + ' 这类字面量与 1000 毫秒已改为从这里取值。重新生成：node scripts/derive-update-from-package.mjs。\n'
   mkdirSync(dirname(CLIENT_OUT), { recursive: true })
-  writeFileSync(CLIENT_OUT, header + body + reExports + tail, 'utf8')
+  const output = header + body + reExports + tail
+  assertNoShadowing(output)
+  writeFileSync(CLIENT_OUT, output, 'utf8')
   console.log('[derive-update] client.ts -> scripts/generated/updateClient.derived.js')
 }
 

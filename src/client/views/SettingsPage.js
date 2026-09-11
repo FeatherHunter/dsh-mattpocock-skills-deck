@@ -52,7 +52,7 @@ export     const SettingsPage = (props) => {
           setLogSwitch(next, 1).then(function (res) {
             setDbgPending(false)
             const okSw = !!(res && res.ok)
-            flash(sharedSt, tr(!okSw ? 'cfg.dbgSwitchFail' : ((res.enabled === true) ? 'cfg.dbgSwitchOnToast' : 'cfg.dbgSwitchOffToast')), okSw ? 'ok' : 'warn')
+            flash(sharedSt, tr(!okSw ? dbgSwitchFailKey(res) : ((res.enabled === true) ? 'cfg.dbgSwitchOnToast' : 'cfg.dbgSwitchOffToast')), okSw ? 'ok' : 'warn')
           }).catch(function () { setDbgPending(false); flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') })
         } catch (errDbg) { setDbgPending(false); flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') }
       }

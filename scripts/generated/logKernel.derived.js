@@ -450,6 +450,14 @@ function createClientLog(deps, configInput) {
     if (/connection|host\.call 不可用|unavailable/i.test(msg)) return "throw-connection";
     return "throw";
   };
+  const failByThrow = function(e) {
+    const kind = switchThrowKind(e);
+    logSwitchSetFail(
+      kind,
+      (e && typeof e === "object" && "message" in e ? e.message : void 0) || e
+    );
+    return kind;
+  };
   function setLogSwitch(enabled, sampleRate) {
     const next = {
       enabled: enabled === true,
@@ -503,15 +511,10 @@ function createClientLog(deps, configInput) {
         return { ok: true, enabled: logSwitch.enabled, sampleRate: logSwitch.sampleRate };
       }).catch(function(e) {
         if (myGen !== setLogSwitchGen.n) return { ok: false, enabled: logSwitch.enabled, error: "stale" };
-        logSwitchSetFail(switchThrowKind(e), (e && typeof e === "object" && "message" in e ? e.message : void 0) || String(e));
-        const message = e && typeof e === "object" && "message" in e ? String(e.message) : String(e);
-        return { ok: false, enabled: logSwitch.enabled, error: message };
+        return { ok: false, enabled: logSwitch.enabled, error: failByThrow(e) };
       });
     } catch (e) {
-      void e;
-      logSwitchSetFail(switchThrowKind(e), (e && typeof e === "object" && "message" in e ? e.message : void 0) || e);
-      const message = e && typeof e === "object" && "message" in e ? String(e.message) : String(e);
-      return Promise.resolve({ ok: false, enabled: logSwitch.enabled, error: message });
+      return Promise.resolve({ ok: false, enabled: logSwitch.enabled, error: failByThrow(e) });
     }
   }
   return {

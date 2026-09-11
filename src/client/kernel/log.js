@@ -230,10 +230,19 @@
       if (/connection|host\.call 不可用|unavailable/i.test(msg)) return 'throw-connection'
       return 'throw'
     }
+    // 调用抛错这条路：先落一条分类告警行，再把同一个分类码当返回值交给界面。
+    // 界面拿分类码翻成「这一类失败是哪一类」的提示（#597 期望 2：别再只给一句笼统的保存失败）；
+    // 错误原文只进散列、不落盘也不上屏。
+    const failByThrow = function (e) {
+      const kind = switchThrowKind(e)
+      logSwitchSetFail(kind, (e && (e.code || e.message)) || e)
+      return kind
+    }
     // 写开关代际（#526 灰掉案）：调用 hang 住时超时放行，迟到回包按代际丢弃，不碰状态、不记新行。
     const setLogSwitchGen = { n: 0 }
     // 设置页保存开关：先写宿主，宿主生效才更新本地与内存并广播；写失败保持本地旧值并返回失败，
-    // 由调用处提示用户，不回退为开启（设计 1.3）。失败原因只给机器码（host-unavailable、host-rejected），
+    // 由调用处提示用户，不回退为开启（设计 1.3）。失败原因只给机器码——host-unavailable、
+    // host-rejected、switch-timeout、stale、throw / throw-connection / throw-unknown-endpoint；
     // 面向用户的文案由界面批次经多语言系统转换，本底座不写中文字符串（文案完整性门禁要求新文件零中文串）。
     export const setLogSwitch = function (enabled, sampleRate) {
       const next = {
@@ -274,11 +283,9 @@
           return { ok: true, enabled: logSwitch.enabled, sampleRate: logSwitch.sampleRate }
         }).catch(function (e) {
           if (myGen !== setLogSwitchGen.n) return { ok: false, enabled: logSwitch.enabled, error: 'stale' }
-          logSwitchSetFail(switchThrowKind(e), (e && (e.code || e.message)) || e)
-          return { ok: false, enabled: logSwitch.enabled, error: (e && e.message) || String(e) }
+          return { ok: false, enabled: logSwitch.enabled, error: failByThrow(e) }
         })
       } catch (e) {
-        logSwitchSetFail(switchThrowKind(e), (e && (e.code || e.message)) || e)
-        return Promise.resolve({ ok: false, enabled: logSwitch.enabled, error: (e && e.message) || String(e) })
+        return Promise.resolve({ ok: false, enabled: logSwitch.enabled, error: failByThrow(e) })
       }
     }
