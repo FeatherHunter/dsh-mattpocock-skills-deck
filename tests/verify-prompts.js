@@ -1,4 +1,4 @@
-// verify-prompts.js — prompt 注册表契约校验（#573 收敛：五面扫描 + 外部豁免登记 + 归一化 + R1–R7）
+// verify-prompts.js — prompt 注册表契约校验（#573 收敛五面扫描 + 外部豁免登记 + 归一化；判定口径按 #603 重写为 R1–R8）
 // 用法:
 //   node tests/verify-prompts.js                          默认：五面全扫（S1 真源 + S2 双产物 + S3 三后端 + S4 host 常量 + S5 渲染面）
 //   node tests/verify-prompts.js <注册表文件>              单文件模式：只扫该文件的 S1（L2 机械注入用；S2/S3/S4 跳过）
@@ -6,7 +6,21 @@
 //
 // 判定分两层：
 //   ① 结构契约（沿用 #461/#68/#69/#71/#72/#74/#75/#76/#77 的既有断言，陈旧的两组已按现状修正）
-//   ② 提示词只许写脚本名加参数（#573 新增）：扫描五面 → 归一化 → 剥白名单脚本调用 → 跑 R1–R7
+//   ② 提示词判定：扫描各面 → 归一化 → 跑 R1–R8
+//
+// #603 的判定口径（领导 2026-09-11 拍板：撤掉「先用 dsh plugin 解析插件安装目录、再调包内脚本写回」那套间接写法，改回 gh 直连）：
+//   · 模板层照旧禁止一切具体命令（S1 注册表、S2 双产物、S6/S7/S8、以及渲染结果的**非 GitHub** 后端）：不许出现
+//     gh / glab 命令、经包管理器转发、裸 API 地址、heredoc；模板里只许留 {bodyFormat} / {subIssue} 这类占位符，
+//     由后端声明在渲染时填空。这条是 #573/#595 的原意，不因 #603 放松。
+//   · GitHub 后端声明面（S3 的 github）允许 gh 命令：gh 直连三步（取子票数据库 id → 建原生子议题边 → 校验张数）
+//     与原生阻塞边就写在 prompts.subIssue 里，经 {subIssue} 注入会话。judge() 的 allowTracker 选项就是按面开这一道
+//     口子（只在 github 面跳过 R1），R2–R8 在 github 面上照样判。gitlab / markdown 后端声明面判据不变（不许 gh 命令）。
+//   · 新增 R8（所有面都判，含允许 gh 的 github 面）：不许出现「先解析插件安装目录，再调包内脚本」那套间接写法 ——
+//     归一化后命中 dsh plugin / require.resolve / <插件目录> / <pluginDir> / fix-issue-body.mjs / wire-subissues.mjs
+//     任一即判红。这几样正是本票要消灭的，模板面与后端声明面都判。
+//   · 发布包里的两条脚本（fix-issue-body.mjs / wire-subissues.mjs）仍留在包里当可选工具，但提示词一个都不许引用：
+//     「提示词引用的脚本集合必须为空」与「发布包仍带这两条脚本」是两条各自独立的事实，不再要求两边相等 ——
+//     那个等式的前提是「提示词必须调脚本」，前提本身已随 #603 撤掉。
 //
 // 五面（缺一处即漏，见 .scratch/573-gate-design-v2.md §1.1）：
 //   S1 src/client/kernel/prompts.js（求值解析，语法错误直接判红，不静默少扫）
@@ -108,18 +122,21 @@ const normVariants = function (s) {
   return out
 }
 
-// 白名单：允许出现的命令形态有三种（#588 起 workspace-relative 单步写法作废，两步走是唯一合法形态）：
-//   ① 精确的第 ① 步调用（归一化后引号已剥掉）：dsh plugin --profile <配置名> exec node -e console.log(require.resolve(...))；
-//   ② 锚定的第 ② 步：node "<目录变量>/scripts/<两脚本之一>.mjs" + 参数名白名单（路径不断言用户名，只认形态）；
-//   ③ 前置检查 bare 句 gh auth status（剥掉它，R1 宽写法才不会把「gh … --issue」连读误判）；
-//   ④ 旧 bare 形态 node scripts/<两脚本>.mjs（历史夹具 F09–F17 引用的形态，保留只为夹具自证，不再是模板允许写法——模板侧另有计数断言卡死零残留）。
-// 值 token 不得以 - 或 = 开头，也不得是另一个命令词，避免白名单吞掉后面的命令
-// #600：profile 名既可能是具体值（web），也可能是提示词里的占位符 <配置名>；两种都认，但值 token 不许含空格或尖括号，
-//   免得白名单把紧跟其后的跟踪器命令一起吞掉。
-const RE_STEP1_CALL = /dsh\s+plugin\s+--profile\s+(?:<[^<>]+>|[^\s<>]+)\s+exec\s+node\s+-e\s+console\.log\(require\.resolve\(dsh-mattpocock-skills-deck\/package\.json\)\)/g
-const RE_STEP2_CALL = /node\s+\S*scripts[\/\\](?:fix-issue-body|wire-subissues)\.mjs(?:\s+--(?:issue|map|children|body-file|repo|dry-run)(?:\s*(?:=\s*)?(?![-=])(?!(?:gh|glab|npm|npx|node|curl|wget|cat|sh|bash)\b)\S+)?)*/g
-const RE_GH_AUTH_STATUS = /gh\s+auth\s+status/g
-const RE_ALLOWED_CALL = /(?:node|npx)\s+(?:\.\/|\.\\)?scripts[\/\\](?:fix-issue-body|wire-subissues)\.mjs(?:\s+--(?:issue|map|children|body-file|repo|dry-run)(?:\s*(?:=\s*)?(?![-=])(?!(?:gh|glab|npm|npx|node|curl|wget|cat|sh|bash)\b)\S+)?)*/g
+// #603 起不再有「合法命令形态白名单」：领导拍板撤掉「先解析插件安装目录、再调包内脚本写回」那套两步写法，
+//   模板层一个具体命令都不许写，所以旧白名单（第 ① 步 dsh plugin --profile … exec / 第 ② 步 node "<插件目录>/scripts/….mjs" /
+//   前置 gh auth status / 旧 bare 形态 node scripts/….mjs）整套删除 —— 留着它等于留一个「命中白名单就跳过判定」的口子。
+//   那些旧写法现在由 R8 一律判红（见下）。
+//
+// R8（#603 新增，所有面都判，含允许 gh 命令的 github 后端声明面）：
+//   不许出现「先解析插件安装目录，再调包内脚本」这套间接写法。归一化后命中下面任一样即判红：
+//     dsh plugin                 拿插件安装目录的那条命令（含它的旧写法 dsh plugin exec）
+//     require.resolve            同一件事的另一种写法
+//     <插件目录> / <pluginDir>    提示词里指代插件安装目录的占位符
+//     fix-issue-body.mjs / wire-subissues.mjs   包内脚本名（提示词现在改回 gh 直连，一个脚本都不许调）
+//   注意：模板里说「不需要找插件目录」「不需要跑写回脚本」这类**说明性散文**不算命中（没有尖括号、没有脚本名），
+//   那些句子正是在告诉 agent 别去做这件事；只有真写出可照抄的东西才算。
+// 反规避：判之前把反斜杠去掉再跑一遍，挡住 fix-issue\-body.mjs / dsh\ plugin 这种拆字写法。
+const RE_INDIRECT = /dsh\s*plugin|require\s*\.\s*resolve|<\s*(?:插件目录|plugin[ _-]?dir)\s*>|fix-issue-body\s*\.\s*mjs|wire-subissues\s*\.\s*mjs/i
 // R1 的判定窗口有两档：
 //   紧写法（≤4 个任意非字母数字字符）抓 gh、issue / 用gh api / gh　issue / gh<零宽>issue 这类；
 //   宽写法（同行任意长度的可打印 ASCII 字符）抓 gh -R owner/repo issue edit / gh.exe issue /
@@ -133,7 +150,6 @@ const RE_PKG = /(?:npm|npx|pnpm|yarn|corepack)\s+(?:exec|x|run|dlx)?[^\n]{0,24}?
 const RE_BARE_API = /(?:^|[^a-z0-9_])(?:https?:\/\/)?api\.(?:github|gitlab)\.com\b/
 const RE_HEREDOC = /(?<![a-z0-9_])(?:cat|sh|bash|zsh|pwsh|powershell|node|python3?|ruby|perl)(?![a-z0-9_])[^\n]{0,60}<<[-~]?[a-z_][a-z0-9_]*/
 const RE_SCRIPT = /(?<![a-z0-9_])(?:node|npx|npm\s+exec)\s+([a-z0-9_./\\-]+\.(?:mjs|js))(?![a-z0-9_])/g
-const SCRIPT_WHITELIST = ['fix-issue-body.mjs', 'wire-subissues.mjs']
 const RE_BODY_FLAG = /(?<![-\w])--body(?!-file)(?![a-z0-9_-])|(?<![-\w])-b(?![a-z0-9_-])/
 const RE_CMD_CTX = /(?<![a-z0-9_])(?:gh|glab|curl|wget|node|npm|npx|pnpm|yarn|sh|bash|zsh|pwsh|powershell|cmd|python3?|ruby|perl|php)(?![a-z0-9_])/
 // R7 混淆执行：红队报告 §3.2 E13 要求必抓（base64 -d / -D 管道、xxd -r -p、String.fromCharCode、\xNN 转义、eval 引号）。
@@ -142,38 +158,55 @@ const RE_OBFUSCATED = /(?:base64\s+(?:-d|-D|--decode))|(?:xxd\s+(?:-r\s+-p|-p\s+
 // 「拆占位符拼装」探测器：命令词由占位符值提供、子命令由模板字面量提供时命中。
 // 与 R1 宽写法同形，但只用来判探针（把命令词塞进单个占位符后的渲染结果），不参与常规判定。
 const RE_ASSEMBLED = RE_TRACKER_WIDE
+// 「命令词」探测器（#603）：正文格式块只讲正文该怎么写，跟后端命令无关，所以正文格式块的断言要直断「一个命令词都没有」。
+//   口径比 R1 宽：gh / glab 之外的 dsh、node、npm 这些也算，脚本名、命令行参数、插件目录占位符同样算。
+const RE_COMMAND_WORD = /(?:^|[^a-z0-9_])(?:gh|glab|dsh|node|npx|npm|pnpm|yarn|curl|wget|bash|pwsh|powershell|cmd)(?![a-z0-9_])|\.mjs\b|--[a-z][a-z-]*|<\s*(?:插件目录|plugin[ _-]?dir)\s*>/i
+const commandWordIn = function (text) {
+  const m = RE_COMMAND_WORD.exec(String(text == null ? '' : text))
+  return m ? m[0].trim() : ''
+}
 
 const RULE_FIX = {
-  R1: '模板里只许出现两步脚本调用：把具体跟踪器命令改写成「第 ① 步 dsh plugin --profile <配置名> exec node -e …拿安装目录 + 第 ② 步 node "<安装目录>/scripts/fix-issue-body.mjs / wire-subissues.mjs" …」（--profile 是必填项，不能省；--body-file 必须用绝对路径）',
+  R1: '模板里一个具体命令都不许写：跟踪器操作改由后端声明、渲染时经占位符注入（GitHub 用 gh 直连、其它后端用自己那套），模板里只留 {bodyFormat} / {subIssue} 这类占位符',
   R2: '不要经包管理器转发跟踪器命令（npm exec gh / npx gh）',
   R3: '不要直接打跟踪器 API 地址（api.github.com / api.gitlab.com）',
-  R4: '正文一律走 --body-file 先写成文件，不把正文内联进命令行',
-  R5: '不要用 heredoc 传正文，正文先写成文件再调脚本',
-  R6: '只许调 fix-issue-body.mjs / wire-subissues.mjs 这两个脚本，别的脚本名不认',
+  R4: '正文不许内联进命令行（--body <正文>）：先写成文件，再按当前后端自己的方式整份读进去',
+  R5: '不要用 heredoc 传正文，正文先写成文件',
+  R6: '提示词里不许调用任何脚本（发布包里的 fix-issue-body.mjs / wire-subissues.mjs 只作可选工具，不由提示词调用）；跟踪器操作直接写当前后端自己的命令行',
   R7: '不要写混淆执行（base64 -d / xxd -r -p / String.fromCharCode / \\x 转义 / eval 加引号）',
+  R8: '不要写「先解析插件安装目录，再调包内脚本」这套间接写法（dsh plugin / require.resolve / <插件目录> / <pluginDir> / fix-issue-body.mjs / wire-subissues.mjs 都算）：跟踪器操作直接用当前后端自己的命令行（GitHub 就是 gh）',
 }
 
 // 判定一个字符串：返回 [{rule, snippet}]，空数组 = 通过
-const judge = function (text) {
+// opts.allowTracker（#603 新增）：按面开关「禁止跟踪器命令」这一条（R1）—— 只有 github 后端声明面传 true，
+//   因为领导拍板 gh 直连、gh 命令就写在那里；R2–R8 在任何面都判，allowTracker 不影响它们。
+const judge = function (text, opts) {
   const raw = String(text == null ? '' : text)
+  const allowTracker = !!(opts && opts.allowTracker)
   const hits = []
   const push = function (rule, hay, idx) {
     const from = Math.max(0, (idx || 0) - 30)
     hits.push({ rule: rule, snippet: String(hay).slice(from, from + 60).replace(/\s+/g, ' ') })
   }
   normVariants(raw).forEach(function (t) {
-    // #588：四种合法形态先剥掉再判（第 ① 步精确调用 / 第 ② 步锚定调用 / 前置 gh auth status / 旧 bare 形态仅夹具用）
-    const stripped = t.replace(RE_STEP1_CALL, '').replace(RE_STEP2_CALL, '').replace(RE_GH_AUTH_STATUS, '').replace(RE_ALLOWED_CALL, '')
-    let m = RE_TRACKER.exec(stripped)
-    if (!m) m = RE_TRACKER_WIDE.exec(stripped)
-    if (m !== null) push('R1', stripped, m.index)
-    if ((m = RE_PKG.exec(stripped)) !== null) push('R2', stripped, m.index)
-    if ((m = RE_BARE_API.exec(stripped)) !== null) push('R3', stripped, m.index)
-    if ((m = RE_HEREDOC.exec(stripped)) !== null) push('R5', stripped, m.index)
-    RE_SCRIPT.lastIndex = 0
-    while ((m = RE_SCRIPT.exec(stripped)) !== null) {
-      if (SCRIPT_WHITELIST.indexOf(m[1].split(/[\\/]/).pop()) < 0) push('R6', stripped, m.index)
+    let m
+    // R1：模板层与非 GitHub 后端不许出现具体跟踪器命令；github 后端声明面按面放行（#603）
+    if (!allowTracker) {
+      m = RE_TRACKER.exec(t)
+      if (!m) m = RE_TRACKER_WIDE.exec(t)
+      if (m !== null) push('R1', t, m.index)
     }
+    if ((m = RE_PKG.exec(t)) !== null) push('R2', t, m.index)
+    if ((m = RE_BARE_API.exec(t)) !== null) push('R3', t, m.index)
+    if ((m = RE_HEREDOC.exec(t)) !== null) push('R5', t, m.index)
+    RE_SCRIPT.lastIndex = 0
+    while ((m = RE_SCRIPT.exec(t)) !== null) push('R6', t, m.index)
+    // R8：不许出现「先解析插件安装目录，再调包内脚本」的间接写法。
+    //   同一条文本再判一遍「去掉反斜杠」的写法，挡住 fix-issue\-body.mjs / dsh\ plugin 这种拆字规避。
+    ;[t, t.replace(/\\/g, '')].forEach(function (v) {
+      const mi = RE_INDIRECT.exec(v)
+      if (mi) push('R8', v, mi.index)
+    })
   })
   // R4 逐行判：归一化会把换行压成空格，所以按「原行」分别归一化后再判，保住行边界
   //   （否则一段说明文字里的 --body 会和下一行的 npx 被压成同一行，误判成内联正文）
@@ -204,12 +237,12 @@ const renderWith = function (text, values, fallback) {
     return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : String(fallback)
   })
 }
-// S5：三种展开都判（真实值 / 空串 / 哨兵），任一份红即红
-const judgeRendered = function (text, values) {
+// S5：三种展开都判（真实值 / 空串 / 哨兵），任一份红即红。opts 原样透传给 judge（github 面传 allowTracker）
+const judgeRendered = function (text, values, opts) {
   const out = []
-  out.push.apply(out, judge(renderWith(text, values, '')))
-  out.push.apply(out, judge(renderWith(text, {}, '')))
-  out.push.apply(out, judge(renderWith(text, {}, '\u0000')))
+  out.push.apply(out, judge(renderWith(text, values, ''), opts))
+  out.push.apply(out, judge(renderWith(text, {}, ''), opts))
+  out.push.apply(out, judge(renderWith(text, {}, '\u0000'), opts))
   return out
 }
 // S5 附加：「拆占位符拼装」探测用的探针值 —— 把命令词塞进单个占位符，看渲染后会不会拼出命令
@@ -609,11 +642,18 @@ const callArgCounts = function (src, name) {
   }
   return out
 }
-// #595 必修①：按真实调用形态渲染后，既不许出现 undefined，也不许残留 {xxx} 占位符
+// #595 必修①：按真实调用形态渲染后，既不许出现 undefined，也不许残留 {xxx} 占位符。
+// #603 补一句范围说明：后端声明文本自带 {owner} / {repo} / {child} 这类「由 agent 按当前仓库自行代入」的占位符
+//   （github 后端的 ensureLabels 一直是这个约定），渲染入口本来就不负责填它们，这类残留不算漏填。
+//   传 scopeNames（该条目在注册表里声明的占位符）时只判这些名字有没有残留；不传则判全部（completePrompt 那几处用）。
 const RE_LEFT_PLACEHOLDER = /\{[a-zA-Z][a-zA-Z0-9_.]*\}/g
-const leftoverPlaceholder = function (text) {
-  const m = String(text).match(RE_LEFT_PLACEHOLDER)
-  return m ? m[0] : ''
+const leftoverPlaceholder = function (text, scopeNames) {
+  const re = new RegExp(RE_LEFT_PLACEHOLDER.source, 'g')
+  let m
+  while ((m = re.exec(String(text))) !== null) {
+    if (!scopeNames || scopeNames.indexOf(m[0].slice(1, -1)) >= 0) return m[0]
+  }
+  return ''
 }
 
 // ==================== 5. 五面扫描（返回问题数组，主跑与变异自检共用） ====================
@@ -633,6 +673,9 @@ const failLine = function (where, rule, snippet, raw) {
 }
 
 // —— S1 + S5 ——
+// #603：模板占位符的值来自各后端的声明。github 后端声明面允许 gh 命令，所以来自 github 的值（键名 github.*）
+//   按「允许跟踪器命令」判；gitlab / markdown 的值与桶底默认值照旧按最严口径判（R1–R8 全判）。
+const allowTrackerForKey = function (k) { return String(k).indexOf('github.') === 0 }
 const collectRegistry = function (reg, label, ctx, exemptList) {
   const out = []
   const ids = Object.keys(reg)
@@ -658,7 +701,7 @@ const collectRegistry = function (reg, label, ctx, exemptList) {
       // ② 每个声明值单独判 + 值不许含换行（含换行就能把一条命令拆成两行注入）
       Object.keys(ctx.subIssueValues).forEach(function (k) {
         const v = String(ctx.subIssueValues[k])
-        judge(v).forEach(function (h) { out.push(failLine(label + ' ' + id + ' 的占位符值(' + k + ')', h.rule, h.snippet, v)) })
+        judge(v, { allowTracker: allowTrackerForKey(k) }).forEach(function (h) { out.push(failLine(label + ' ' + id + ' 的占位符值(' + k + ')', h.rule, h.snippet, v)) })
         if (/[\r\n]/.test(v)) out.push('FAIL ' + label + ' ' + id + ' 的占位符值(' + k + ')含换行：值不许把模板拆行\n     修法：声明值必须是单行')
       })
       judge('owner/name').forEach(function (h) { out.push(failLine(label + ' ' + id + ' 的占位符值(repo)', h.rule, h.snippet, 'owner/name')) })
@@ -682,7 +725,7 @@ const collectRegistry = function (reg, label, ctx, exemptList) {
       Object.keys(ctx.subIssueValues).forEach(function (k) {
         const vals = { repo: 'owner/name', subIssue: ctx.subIssueValues[k] }
         ;['zh', 'en'].forEach(function (lang) {
-          judgeRendered(e[lang], vals).forEach(function (h) {
+          judgeRendered(e[lang], vals, { allowTracker: allowTrackerForKey(k) }).forEach(function (h) {
             out.push(failLine(label + ' ' + id + '.' + lang + '(渲染 ' + k + ')', h.rule, h.snippet, ''))
           })
         })
@@ -693,15 +736,36 @@ const collectRegistry = function (reg, label, ctx, exemptList) {
 }
 
 // —— S3 ——
+// #603：github 后端声明面允许 gh 命令（领导拍板 gh 直连），所以只有这一个面传 allowTracker；
+//   gitlab / markdown 后端声明面判据与原来一样（不许 gh 命令），R8 三个面都判。
+const allowTrackerOnBackend = function (backendId) { return backendId === 'github' }
 const collectBackend = function (backendId, src, label, exemptList) {
   const block = extractObjectLiteral(src, 'export const prompts')
   if (!block) return { problems: ['FAIL S3 ' + label + ' 找不到 export const prompts 块（扫描面缺失）'], keys: [], literals: 0, found: false }
   const literals = scanAllLiterals(block)
   const keys = countTopLevelKeys(block)
+  const allowTracker = allowTrackerOnBackend(backendId)
   const out = []
   literals.forEach(function (lit) {
     if (!lit.key || isRuleExempt(exemptList, 'backend:' + backendId, lit.key)) return
-    judge(lit.text).forEach(function (h) { out.push(failLine('S3 ' + label + ' ' + lit.key, h.rule, h.snippet, lit.text)) })
+    judge(lit.text, { allowTracker: allowTracker }).forEach(function (h) { out.push(failLine('S3 ' + label + ' ' + lit.key, h.rule, h.snippet, lit.text)) })
+  })
+  // 同一键里的字符串拼接合起来再判一次：'dsh plu' + 'gin' / '…scripts/fix-issue' + '-body.mjs' 这种拆字写法，
+  //   单看每一段都看不出来（R8 是防回潮条款，回潮的人多半会顺手拆字）。S4 早就是这么判的，这里对齐口径。
+  const byKey = {}
+  literals.forEach(function (lit) {
+    if (!lit.key) return
+    if (isRuleExempt(exemptList, 'backend:' + backendId, lit.key)) return
+    if (!byKey[lit.key]) byKey[lit.key] = []
+    byKey[lit.key].push(lit.text)
+  })
+  Object.keys(byKey).forEach(function (k) {
+    if (byKey[k].length < 2) return
+    const joined = byKey[k].join('')
+    judge(joined, { allowTracker: allowTracker }).forEach(function (h) {
+      out.push('FAIL S3 ' + label + ' ' + k + ' [拼接后 ' + h.rule + '] 命中「' + h.snippet + '」\n' +
+        '     修法：' + RULE_FIX[h.rule] + '；同一键内的字符串拼接不许把命令或间接写法拆开藏起来')
+    })
   })
   return { problems: out, keys: keys, literals: literals.length, found: true }
 }
@@ -968,7 +1032,7 @@ const contractChecksInner = function (reg, src) {
     if (pr.en.indexOf('stays as history after close') < 0) fail('progress en 缺 stays as history after close')
     if (pr.en.indexOf('first contact') < 0 || pr.en.indexOf('implementation record') < 0) fail('progress en 缺首触补写兜底')
   } else fail('缺条目 progress')
-  // bodyFormat（#76 契约 + #595 收敛）：注册表这一条已从「GitHub 专用两步写回」降级为「通用兜底」——
+  // bodyFormat（#76 契约 + #595 收敛 + #603 还原）：注册表这一条已从「GitHub 专用两步写回」降级为「通用兜底」——
   //   三后端各自的正文格式文案声明在 src/host/tracker/backends/<id>/index.js 的 prompts.bodyFormat（后端单源）；
   //   这里只卡兜底版自己该有的东西：公共格式要求必须齐 + 不得点名任何具体跟踪器命令/写回脚本。
   const bf = reg['bodyFormat']
@@ -1017,13 +1081,17 @@ const contractChecksInner = function (reg, src) {
   if (leaked.length) fail('注册表条目里残留写回脚本/插件目录指令：' + leaked.join(', ') + '（应搬进对应后端的 prompts 声明）')
   const segCount = (src.match(/## 正文格式/g) || []).length
   if (segCount !== 1) fail('「## 正文格式」段数 ' + segCount + '（期望 1：只剩兜底版那一条）')
-  // workspace-relative 旧形态零残留（#588：提示词里不许再出现 node scripts/ 单步写法；文件头开发注释不属模板，不在此数）
+  // workspace-relative 旧形态零残留（#588 立的断言；#603 起口径更严：提示词里一个脚本都不许调）
   const oldForm = (src.match(/`node scripts\/(fix-issue-body|wire-subissues)\.mjs/g) || []).length
-  if (oldForm !== 0) fail('workspace-relative 旧形态残留 ' + oldForm + ' 处（`node scripts/<脚本>.mjs；期望 0，全部改为两步走）')
+  if (oldForm !== 0) fail('workspace-relative 旧形态残留 ' + oldForm + ' 处（`node scripts/<脚本>.mjs；期望 0：#603 起提示词改回 gh 直连，脚本只留在包里当可选工具）')
 }
 
-// ==================== 7. L1 内存夹具（34 条绕过 + 24 条误报；逐条断言） ====================
+// ==================== 7. L1 内存夹具（绕过样例 + 误报样例；逐条断言） ====================
 // 三类必须覆盖：范围绕过（新增条目）、解析绕过（单引号/拆行/引号拼接）、渲染绕过（占位符）
+// 条目形状：[名字, 文本, 期望（可选）]
+//   期望 = { rules: ['R8'], allowTracker: true }：rules 是「这条必须命中的规则名」，allowTracker 原样交给 judge（按面开关）。
+//   为什么加这一栏（#603）：以前只判「有没有红」，于是「红得不对」（本该 R8 却被别的规则抓住）也照样算过。
+//   改判红 / 改口径的那批样例现在都把期望规则钉死，见下面 r8Pinned 条数断言。
 const FIXTURE_BYPASS = [
   ['T01 TAB 分隔', '写回用 gh\tissue edit 573 --body-file x.md'],
   ['T02 多空格', '写回用 gh   issue edit 573 --body-file x.md'],
@@ -1049,14 +1117,14 @@ const FIXTURE_BYPASS = [
   ['T22 内联 --body=', '写回用 gh issue edit 573 --body=正文'],
   ['T23 短选项 -b', '写回用 gh issue edit 573 -b 正文'],
   ['T24 脚本改名伪装', 'node scripts/set-issue-body.mjs --issue 1 --body-file x.md'],
-  ['T25 白名单值 token 防吞', 'node scripts/fix-issue-body.mjs --issue 1 --body-file x.md gh issue edit 573'],
+  ['T25 脚本调用后接跟踪器命令（#603：红在 R8 脚本名，R1 也一并命中）', 'node scripts/fix-issue-body.mjs --issue 1 --body-file x.md gh issue edit 573', { rules: ['R8'] }],
   ['T26 base64 解码执行', 'echo Z2ggaXNzdWUgZWRpdCA1NzM= | base64 -d | sh'],
   ['T27 use 字段里写命令', '把正文写回：gh issue edit <号> --body-file <文件>'],
   ['T28 条目内联命令', '- [ ] 写回用 gh issue edit 573 --body-file x.md'],
   ['T29 每个词各自加引号', '写回用 "gh" "issue" edit 573 --body-file x.md'],
   ['T30 heredoc 多字母 <<EOF', 'cat <<EOF\n正文\nEOF'],
   ['T31 curl 直打 GitLab API', 'curl -s https://api.gitlab.com/projects/1/issues'],
-  ['T32 合法脚本调用后接跟踪器命令', 'node scripts/wire-subissues.mjs --map 1 --children 2 --body-file x.md && gh issue edit 1 --body-file y.md'],
+  ['T32 脚本调用后接跟踪器命令（#603：红在 R8 脚本名，R1 也一并命中）', 'node scripts/wire-subissues.mjs --map 1 --children 2 --body-file x.md && gh issue edit 1 --body-file y.md', { rules: ['R8'] }],
   ['T33 后端命令藏在字符串拼接续段里', "const a = '先检查（' + x + 'gh api repos/o/r/labels）'"],
   ['T34 占位符值本身含命令', 'gh issue edit 573 --body-file x.md（这是某个占位符的值）'],
   ['T35 短选项写在命令词与子命令之间（短仓库名）', '写回用 gh -R owner/repo issue edit 573 --body-file x.md'],
@@ -1072,8 +1140,32 @@ const FIXTURE_BYPASS = [
   ['T45 glab + 真仓库名 + --hostname', '写回用 glab -R FeatherHunter/dsh-mattpocock-skills-deck --hostname gitlab.com issue update 573'],
   ['T46 gh --json body issue edit', '写回用 gh --json body issue edit 573 --body-file x.md'],
   ['T47 前置检查后接跟踪器命令', '先跑 gh auth status，再 gh issue edit 573 --body-file x.md'],
-  ['T48 第 ① 步后接跟踪器命令', 'dsh plugin --profile <配置名> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))" && gh issue edit 1 --body-file y.md'],
-  ['T49 第 ② 步后接跟踪器命令', 'node "<插件目录>/scripts/fix-issue-body.mjs" --issue 1 --body-file x.md && gh issue edit 1 --body-file y.md'],
+  // #603：这两条是旧两步写法（第 ① 步解析插件目录 / 第 ② 步调脚本）后面接跟踪器命令。
+  //   新口径下它们仍然红，但红的原因主要落在 R8（含 dsh plugin / require.resolve / 脚本名），R1 也一并命中（后面那句 gh issue edit）。
+  ['T48 第 ① 步后接跟踪器命令（#603：红在 R8，R1 也命中）', 'dsh plugin --profile <配置名> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))" && gh issue edit 1 --body-file y.md', { rules: ['R8'] }],
+  ['T49 第 ② 步后接跟踪器命令（#603：红在 R8，R1 也命中）', 'node "<插件目录>/scripts/fix-issue-body.mjs" --issue 1 --body-file x.md && gh issue edit 1 --body-file y.md', { rules: ['R8'] }],
+  // —— #603：以下 13 条原来算合法（登记在绿色误报组 F09–F17 / F23–F26），现在一律判红 ——
+  //   它们都是「提示词自己调包内脚本」的写法，正是本票要消灭的那套间接写法，判定落在 R8
+  //   （脚本名 / dsh plugin / require.resolve / <插件目录> 任一命中即红）。用例名里保留原编号，方便和旧表对照。
+  ['T50 原 F09：合法脚本调用', '- [ ] 调 node scripts/fix-issue-body.mjs --issue <号> --body-file <文件> 写回', { rules: ['R8'] }],
+  ['T51 原 F10：全角括号里的脚本调用', '（调 node scripts/fix-issue-body.mjs --issue <号> --body-file <文件>）', { rules: ['R8'] }],
+  ['T52 原 F11：node ./scripts 路径写法', '调 node ./scripts/fix-issue-body.mjs --issue 1 --body-file x.md', { rules: ['R8'] }],
+  ['T53 原 F12：node scripts\\ 反斜杠写法', '调 node scripts\\fix-issue-body.mjs --issue 1 --body-file x.md', { rules: ['R8'] }],
+  ['T54 原 F13：引号包住脚本路径', '"node scripts/fix-issue-body.mjs" --issue 1 --body-file x.md', { rules: ['R8'] }],
+  ['T55 原 F14：脚本调用带 --dry-run', '先跑 node scripts/wire-subissues.mjs --map 573 --children 1,2 --dry-run 看回包', { rules: ['R8'] }],
+  ['T56 原 F15：脚本调用带 --repo', 'node scripts/wire-subissues.mjs --map 573 --children 1 --body-file x.md --repo owner/repo', { rules: ['R8'] }],
+  ['T57 原 F16：脚本名后跟中文标点', '调 node scripts/fix-issue-body.mjs，参数 --issue 与 --body-file', { rules: ['R8'] }],
+  ['T58 原 F17：两个脚本调用同段', '先 node scripts/fix-issue-body.mjs --issue 1 --body-file x.md，再 node scripts/wire-subissues.mjs --map 1 --children 2 --body-file x.md', { rules: ['R8'] }],
+  ['T59 原 F23：脚本调用版正文格式块（zh）', '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 正文先写成文件（文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行），再调 `node scripts/fix-issue-body.mjs --issue <号> --body-file <文件>` 写回；脚本回包 ok 为真才算写完（剥开头不可见字符、按阈值还原字面转义、格式只告警不改写，都由脚本负责）', { rules: ['R8'] }],
+  ['T60 原 F24：脚本调用版正文格式块（en）', '## Body format (mandatory when writing/editing an issue body)\n- [ ] Write the body to a file first (real newlines in the file: each `## section` on its own line, a blank line between paragraphs), then write it back with `node scripts/fix-issue-body.mjs --issue <issue> --body-file <file>`; only when the script returns ok true is the write done (the script strips the leading invisible character, restores literal escapes within the threshold, and only warns about formatting)', { rules: ['R8'] }],
+  ['T61 原 F25：两步走版正文格式块（zh）', '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 先跑 `gh auth status`，没登录先按 ghAuthLogin 指引登完再继续\n- [ ] 第 ① 步拿插件安装目录：跑 `dsh plugin --profile <配置名> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"`，记下输出的目录（下面叫 <插件目录>）；第 ② 步写回：跑 `node "<插件目录>/scripts/fix-issue-body.mjs" --issue <号> --body-file <绝对路径文件>`；第 ② 步的当前目录可能是插件目录而不是你的工作区，所以 `--body-file` 必须用绝对路径', { rules: ['R8'] }],
+  ['T62 原 F26：精确第 ① 步调用', '跑 `dsh plugin --profile <配置名> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"` 拿插件安装目录', { rules: ['R8'] }],
+  // —— #603 新增：R8 自己的绕过样例（模板面与后端声明面都不许出现这套间接写法）——
+  ['T63 旧写法 dsh plugin exec（不带 --profile）', '先跑 dsh plugin exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))" 拿目录', { rules: ['R8'] }],
+  ['T64 <pluginDir> 英文占位符 + 脚本名', 'node "<pluginDir>/scripts/wire-subissues.mjs" --map 1 --children 2', { rules: ['R8'] }],
+  ['T65 只写插件目录占位符（不含脚本名）', '第 ① 步拿 <插件目录>，第 ② 步再调写回脚本', { rules: ['R8'] }],
+  ['T66 require.resolve 单独出现（拆开写也认）', 'const dir = require.resolve("dsh-mattpocock-skills-deck/package.json")', { rules: ['R8'] }],
+  ['T67 R8 拆字规避：反斜杠插进脚本名', 'node "<插件目录>/scripts/fix-issue\\-body.mjs" --issue 1 --body-file x.md', { rules: ['R8'] }],
 ]
 const FIXTURE_FALSE_POS = [
   ['F01 GitHub issue URL', '参考 https://github.com/owner/repo/issues/573 的讨论'],
@@ -1084,25 +1176,28 @@ const FIXTURE_FALSE_POS = [
   ['F06 --body 说明句（无值）', '参数 --body 会把正文内联进命令行，禁止'],
   ['F07 --body 说明句（ASCII 空格）', '禁止把正文放进 --body ，必须 --body-file'],
   ['F08 --body-file=x.md', '参数写法 --body-file=x.md 也可以'],
-  ['F09 合法脚本调用', '- [ ] 调 node scripts/fix-issue-body.mjs --issue <号> --body-file <文件> 写回'],
-  ['F10 全角括号里的脚本调用', '（调 node scripts/fix-issue-body.mjs --issue <号> --body-file <文件>）'],
-  ['F11 node ./scripts 路径写法', '调 node ./scripts/fix-issue-body.mjs --issue 1 --body-file x.md'],
-  ['F12 node scripts\\ 反斜杠写法', '调 node scripts\\fix-issue-body.mjs --issue 1 --body-file x.md'],
-  ['F13 引号包住脚本路径', '"node scripts/fix-issue-body.mjs" --issue 1 --body-file x.md'],
-  ['F14 脚本调用带 --dry-run', '先跑 node scripts/wire-subissues.mjs --map 573 --children 1,2 --dry-run 看回包'],
-  ['F15 脚本调用带 --repo', 'node scripts/wire-subissues.mjs --map 573 --children 1 --body-file x.md --repo owner/repo'],
-  ['F16 脚本名后跟中文标点', '调 node scripts/fix-issue-body.mjs，参数 --issue 与 --body-file'],
-  ['F17 两个脚本调用同段', '先 node scripts/fix-issue-body.mjs --issue 1 --body-file x.md，再 node scripts/wire-subissues.mjs --map 1 --children 2 --body-file x.md'],
+  // #603：原来这里的 F09–F17（脚本调用形态，判绿）整体移到绕过组 T50–T58 —— 现在它们必须判红。
   ['F18 a <<b>> c', '条件 a <<b>> c 表示位移'],
   ['F19 <<< 箭头', '输入 <<< 表示从这里开始'],
   ['F20 heredoc 这个词', 'Do not use heredoc; write the body to a file'],
   ['F21 glab 当后端名', 'GitLab 后端用 glab 命令，GitHub 后端用 gh 命令'],
   ['F22 进度格式示例', '## 进度：90% 独占一行，空行后接 下一步：xxx'],
-  ['F23 目标 zh 正文格式块', '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 正文先写成文件（文件里是真实换行：每个 `## 章节` 独占一行、段落间留空行），再调 `node scripts/fix-issue-body.mjs --issue <号> --body-file <文件>` 写回；脚本回包 ok 为真才算写完（剥开头不可见字符、按阈值还原字面转义、格式只告警不改写，都由脚本负责）'],
-  ['F24 目标 en 正文格式块', '## Body format (mandatory when writing/editing an issue body)\n- [ ] Write the body to a file first (real newlines in the file: each `## section` on its own line, a blank line between paragraphs), then write it back with `node scripts/fix-issue-body.mjs --issue <issue> --body-file <file>`; only when the script returns ok true is the write done (the script strips the leading invisible character, restores literal escapes within the threshold, and only warns about formatting)'],
-  ['F25 新两步 zh 块', '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 先跑 `gh auth status`，没登录先按 ghAuthLogin 指引登完再继续\n- [ ] 第 ① 步拿插件安装目录：跑 `dsh plugin --profile <配置名> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"`，记下输出的目录（下面叫 <插件目录>）；第 ② 步写回：跑 `node "<插件目录>/scripts/fix-issue-body.mjs" --issue <号> --body-file <绝对路径文件>`；第 ② 步的当前目录可能是插件目录而不是你的工作区，所以 `--body-file` 必须用绝对路径'],
-  ['F26 精确第 ① 步调用', '跑 `dsh plugin --profile <配置名> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"` 拿插件安装目录'],
+  // #603：原来这里的 F23–F26（脚本调用版 / 两步走版正文格式块，判绿）整体移到绕过组 T59–T62 —— 现在它们必须判红。
   ['F27 前置 gh auth status 单句', '先跑 `gh auth status`，没登录先按 ghAuthLogin 指引登完再继续'],
+  // —— #603 新增绿样例：领导拍板改回 gh 直连后，github 后端声明面允许 gh 命令（判绿时带 allowTracker）；
+  //    正文格式块回到「只讲写法规矩」的版本，一个命令词都没有。带第三项的，第三项就是交给 judge 的按面开关。 ——
+  ['F28 github 后端 subIssue.zh（gh 直连三步 + 原生阻塞边；github 面允许 gh）', '先 gh api repos/{owner}/{repo}/issues/{child} --jq .id 取子议题数据库 id，再 gh api repos/{owner}/{repo}/issues/{map}/sub_issues -X POST -F sub_issue_id={id} 建边；以 gh api repos/{owner}/{repo}/issues/{map}/sub_issues --jq length 校验计数与预期一致。', { allowTracker: true }],
+  ['F29 github 后端 subIssue.en（同上，英文）', 'first gh api repos/{owner}/{repo}/issues/{child} --jq .id for the child database id, then gh api repos/{owner}/{repo}/issues/{map}/sub_issues -X POST -F sub_issue_id={id} to create the edge.', { allowTracker: true }],
+  ['F30 github 原生阻塞边（dependencies/blocked_by；B 方案明确保留）', 'gh api repos/{owner}/{repo}/issues/{child}/dependencies/blocked_by -X POST -F issue_id=123', { allowTracker: true }],
+  ['F31 github 校验张数那一句', 'verify with gh api repos/{owner}/{repo}/issues/{map}/sub_issues --jq length equals expected', { allowTracker: true }],
+  ['F32 还原后的正文格式块 zh（写法规矩，无命令）', '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 用真实换行书写：每个 `## 章节` 独占一行，段落间留空行\n- [ ] 写回 issue 正文时以文件方式提交（文件内为真实换行），不要内联转义字符串'],
+  ['F33 还原后的正文格式块 en（写法规矩，无命令）', '## Body format (mandatory when writing/editing an issue body)\n- [ ] Use real newlines: each `## section` on its own line, with a blank line between paragraphs\n- [ ] Write the body back via a file (real newlines in the file), never an inline escaped string'],
+  ['F34 模板里的 {subIssue} 占位符说明句', '先把该 map 的现有正文取下来存成文件，再按本后端声明的关联方式把子议题建成该 map 的子议题：{subIssue}'],
+  ['F35 非 github 后端的 subIssue（泛指自己的命令行，不含 gh）', '用当前后端自己的命令行建原生父子边，建完自校验数量'],
+  ['F36 markdown 后端正文格式（明说不需要插件目录与写回脚本）', '这张单据就是本机的一个 Markdown 文件，用编辑工具直接改：不需要登录远端账号、不需要找插件目录、不需要跑写回脚本，也没有 ok 回包可等'],
+  ['F37 Blocked by 降级兜底说明句', '子票正文首行的 `Blocked by: #n` 只作降级兜底，阻塞关系以原生依赖边为准'],
+  ['F38 gh auth status 前置检查（github 面，允许 gh）', '先跑 gh auth status 确认登录态，再继续', { allowTracker: true }],
+  ['F39 gh issue edit 直连写回（github 面，允许 gh）', 'gh issue edit 573 --body-file /abs/path/body.md', { allowTracker: true }],
 ]
 const runFixtureSelfCheck = function (reg, backendSrc) {
   const before = problems.length
@@ -1110,11 +1205,25 @@ const runFixtureSelfCheck = function (reg, backendSrc) {
   check(FIXTURE_FALSE_POS.length >= 24, 'L1 夹具条数不足：误报样例 ' + FIXTURE_FALSE_POS.length + ' 条（期望 ≥ 24，不许删夹具）')
   let leak = 0
   FIXTURE_BYPASS.forEach(function (c) {
-    if (judge(c[1]).length === 0) { leak++; fail('L1 绕过样例未被判红：' + c[0]) }
+    const hits = judge(c[1], c[2])
+    const got = hits.map(function (h) { return h.rule }).filter(function (v, i, a) { return a.indexOf(v) === i })
+    if (hits.length === 0) { leak++; fail('L1 绕过样例未被判红：' + c[0]); return }
+    // 期望规则（可选）：判红的原因必须和用例表写的一致，不许「红得不对」
+    const want = (c[2] && c[2].rules) || null
+    if (want) {
+      const missing = want.filter(function (r) { return got.indexOf(r) < 0 })
+      if (missing.length) fail('L1 绕过样例红得不对：' + c[0] + '（期望命中 ' + want.join('+') + '，实得 ' + got.join('+') + '）')
+    }
   })
+  // #603 防回潮：从误报组改判红的那 13 条（T50–T62）必须都钉着期望规则 R8。
+  //   把它们身上的期望删掉，就等于退回「红得对不对没人管」，所以条数卡死在 13。
+  const r8Pinned = FIXTURE_BYPASS.filter(function (c) {
+    return /^T5[0-9] |^T6[0-2] /.test(c[0]) && c[2] && (c[2].rules || []).indexOf('R8') >= 0
+  }).length
+  check(r8Pinned === 13, 'L1 从误报组改判红的 13 条（T50–T62）里只有 ' + r8Pinned + ' 条钉着期望规则 R8（改判红的样例必须写清红在哪条规则）')
   let fp = 0
   FIXTURE_FALSE_POS.forEach(function (c) {
-    const hits = judge(c[1])
+    const hits = judge(c[1], c[2])
     if (hits.length) { fp++; fail('L1 正常内容被误判红：' + c[0] + ' [' + hits.map(function (h) { return h.rule }).join('+') + ']') }
   })
   // 范围绕过：把一条假条目塞进内存注册表，走「范围过滤 → 判定」同一条链路（整改①）
@@ -1124,12 +1233,19 @@ const runFixtureSelfCheck = function (reg, backendSrc) {
   let fakeCaught = 0
   ;['zh', 'en', 'use'].forEach(function (f) { fakeCaught += judge(fakeReg[fakeId][f]).length })
   if (fakeCaught === 0) fail('L1 范围绕过未被判红：新增注册表条目 ' + fakeId + ' 内含具体命令（整改①：新条目不许天然豁免）')
-  // 后端面绕过：保留 gh api 原文 + 注释里补脚本名（整改②）
-  const injected = String(backendSrc).replace('subIssue: {', 'subIssue: {\n      // 用 node scripts/wire-subissues.mjs\n     ')
+  // 后端面绕过（整改②）。#603 起 github 面允许 gh 命令，所以这里钉的是 R8：
+  //   往 prompts.subIssue 里塞回「先解析插件目录，再调包内脚本」那套间接写法，必须判红。
+  //   注入锚点先自证存在：锚点没了就是空操作，等于这条自检失效（旧锚点「输出有多行时…」随两步写回一起撤掉了）。
+  const anchor603 = '--jq .id 取子议题数据库 id'
+  const injected = String(backendSrc).replace(anchor603, anchor603 + '；先跑 dsh plugin --profile <配置名> exec node -e "console.log(require.resolve("dsh-mattpocock-skills-deck/package.json"))" 拿插件安装目录')
+  if (injected === String(backendSrc)) fail('L1 后端面绕过自检失效：注入锚点在新文本里找不到（注入成了空操作）')
   const subLits = scanAllLiterals(extractObjectLiteral(injected, 'export const prompts') || '')
   let subCaught = 0
-  subLits.forEach(function (lit) { if (lit.text.indexOf('gh api') >= 0) subCaught += judge(lit.text).length })
-  if (subCaught === 0) fail('L1 后端面绕过未被判红：prompts.subIssue 保留具体命令 + 注释补脚本名（整改②）')
+  subLits.forEach(function (lit) {
+    if (lit.key !== 'subIssue') return
+    judge(lit.text, { allowTracker: true }).forEach(function (h) { if (h.rule === 'R8') subCaught++ })
+  })
+  if (subCaught === 0) fail('L1 后端面绕过未被判红：prompts.subIssue 塞回「先解析插件目录再调脚本」的间接写法（R8）')
   // 渲染绕过：模板只写占位符，命令在后端声明值里（整改③）
   if (judgeRendered('先 {subIssue} 建边', { subIssue: '先 gh api repos/o/r/issues/1 --jq .id 取 id，再 gh api repos/o/r/issues/1/sub_issues -X POST' }).length === 0) {
     fail('L1 渲染绕过未被判红：命令藏在占位符里（整改③）')
@@ -1158,6 +1274,13 @@ const runFixtureSelfCheck = function (reg, backendSrc) {
 // 锚点用「执行这个 issue」（全文唯一，落在 tpl.execute；用「## 收尾」会落到 mapExecute）
 const L2_ANCHOR = '执行这个 issue'
 const L2_PAYLOADS = JSON.parse(fs.readFileSync(PAYLOAD_FILE, 'utf8')).payloads || []
+// #603：夹具文件 tests/prompt-gate-payloads.json 里 'backend-prompt' 一条钉的期望是「subIssue + R1」
+//   （它的原意：把具体跟踪器命令注入后端声明面必须判红）。领导拍板之后 github 后端声明面允许 gh 命令，
+//   R1 在这个面上不再判 —— 沿用旧期望这条 payload 会退出码 0，整个 L2 自检失效。
+//   夹具文件按冻结纪律不许改，所以在门禁里把这一条的期望按新口径改写：注入的间接写法必须被 R8 抓住。
+//   只有这一条需要改写，条数硬编码卡死（多改一条就算偷偷放宽判定）。
+const EXPECT_L2_EXPECT_OVERRIDE = 1
+const L2_EXPECT_OVERRIDE = { 'backend-prompt': ['subIssue', 'R8'] }
 const injectNewEntry = function (src) {
   const anchor = /\r?\n {4}\}\r?\n/
   const from = src.indexOf('const PROMPTS = {')
@@ -1174,6 +1297,12 @@ const injectUseField = function (src, text) {
 const runL2Injection = function () {
   const before = problems.length
   check(L2_PAYLOADS.length >= 14, 'L2 夹具条数不足：' + L2_PAYLOADS.length + ' 条（期望 ≥ 14，不许删夹具）')
+  // 期望改写表审计：条数卡死 + 每个键都必须在夹具里真实存在（防「偷偷多改几条期望」或写了不存在的 payload）
+  check(Object.keys(L2_EXPECT_OVERRIDE).length === EXPECT_L2_EXPECT_OVERRIDE,
+    'L2 期望改写表条数 ' + Object.keys(L2_EXPECT_OVERRIDE).length + '（期望硬编码 ' + EXPECT_L2_EXPECT_OVERRIDE + '：#603 只许改写 github 后端那一条）')
+  Object.keys(L2_EXPECT_OVERRIDE).forEach(function (k) {
+    if (!L2_PAYLOADS.some(function (p) { return p && p.n === k })) fail('L2 期望改写表引用了夹具里不存在的 payload：' + k)
+  })
   let tmp = null
   try {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-verify-prompts-'))
@@ -1194,7 +1323,15 @@ const runL2Injection = function () {
         mutated = injectUseField(regSrc, p.text)
       } else if (p.kind === 'backend') {
         const bpath = path.join(tmp, 'github-index-probe.js')
-        fs.writeFileSync(bpath, backendSrc.replace('输出有多行时，取以 package.json 结尾的那一行）', '输出有多行时，取以 package.json 结尾的那一行）；先 gh api repos/{owner}/{repo}/issues/{child} --jq .id 取 id'))
+        // #603：注入点从旧锚点（「输出有多行时，取以 package.json 结尾的那一行）」）挪到 subIssue 的第一句 gh api 调用处 ——
+        //   旧锚点随两步写回一起撤掉了，不换锚点这条 payload 就是「注入空操作」。
+        //   注入的内容是本票要消灭的间接写法（先解析插件目录，再调包内脚本）：github 面允许 gh 命令，但 R8 在 github 面照样判。
+        const srcBefore = String(backendSrc)
+        const injectAt = '先 gh api repos/{owner}/{repo}/issues/{child} --jq .id'
+        const injectedText = '先跑 dsh plugin --profile <配置名> exec node -e "console.log(require.resolve("dsh-mattpocock-skills-deck/package.json"))" 拿插件安装目录，再 ' + injectAt
+        const mutatedBackend = srcBefore.replace(injectAt, injectedText)
+        if (mutatedBackend === srcBefore) fail('L2 payload「' + p.n + '」注入锚点在新文本里找不到（注入成了空操作；锚点要跟着提示词一起改）')
+        fs.writeFileSync(bpath, mutatedBackend)
         extraArgs = ['--backend-probe=' + bpath]
       }
       const args = (mutated != null) ? [path.join(tmp, 'prompts-probe-' + p.n + '.js')] : extraArgs
@@ -1214,15 +1351,16 @@ const runL2Injection = function () {
       else {
         // expect 只在 FAIL 行里找（横幅里就有 R1/R7 这些字样，全输出里找等于没判）
         const failText = out.split(/\r?\n/).filter(function (l) { return /^\s*FAIL\b/.test(l) }).join('\n')
+        const expectTokens = L2_EXPECT_OVERRIDE[p.n] || p.expect || []
         if (failText === '') fail('L2 payload「' + p.n + '」退出 1 但输出无 FAIL 行')
         else {
-          const missing = (p.expect || []).filter(function (tok) { return failText.indexOf(tok) < 0 })
+          const missing = expectTokens.filter(function (tok) { return failText.indexOf(tok) < 0 })
           if (missing.length) fail('L2 payload「' + p.n + '」FAIL 行里未点名 ' + missing.join(' / ') + '（红得不对；只在 FAIL 行里找，不看横幅）')
         }
       }
       if (process.env.DSH_VERIFY_PROMPTS_VERBOSE === '1') {
         const first = (out.split('\n').filter(function (l) { return l.indexOf('FAIL') >= 0 })[0] || '').trim()
-        console.log('    L2 ' + (code === 1 ? 'RED ' : 'LEAK') + ' ' + p.n + '（期望点名 ' + (p.expect || []).join('+') + '）' + (first ? '  ' + first.replace(/^FAIL \S+ /, 'FAIL ').slice(0, 130) : ''))
+        console.log('    L2 ' + (code === 1 ? 'RED ' : 'LEAK') + ' ' + p.n + '（期望点名 ' + (L2_EXPECT_OVERRIDE[p.n] || p.expect || []).join('+') + '）' + (first ? '  ' + first.replace(/^FAIL \S+ /, 'FAIL ').slice(0, 130) : ''))
       }
     })
   } finally {
@@ -1253,7 +1391,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '1ded52d4fc14432ee1c66a3a78b2769272729248f9083d0fed96e22639022648',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '122a0b885a3fe895fa0c5e0af9b742d82ca56ae4bdb2a8ad5d3ec29a2984f37b',
+  'tests/verify-prompts.js': '43ec7f40ef0deb34f6a33beceb30c887c4e6079a538ebbbec1c33a717d1c4359',
 }
 // ---- LOCK-END ----
 
@@ -1264,7 +1402,7 @@ const fileArgs = argv.filter(function (a) { return a.indexOf('--') !== 0 })
 const singleFileMode = fileArgs.length > 0
 const stepOk = function (before) { return problems.length === before }
 
-console.log('P1: prompt 注册表契约（#573 五面扫描 + 外部豁免登记 + 归一化 + R1–R7）')
+console.log('P1: prompt 注册表契约（#573 五面扫描 + 外部豁免登记 + 归一化 + #603 判据 R1–R8）')
 // 子进程模式（L2 注入用）：必须带单文件参数或 --backend-probe，否则等于用环境变量静默关掉整层自检
 if (IS_CHILD) {
   console.log('  · 子进程模式（DSH_VERIFY_PROMPTS_CHILD=1）：L1/L2/L3 与自注册自检不跑，只跑被注入的那一面')
@@ -1348,27 +1486,29 @@ if (reg) {
   surfaceReport.S5 = s1.rendered
   // 结构契约（沿用既有断言，陈旧两组已按现状修正）
   contractChecks(reg, fs.readFileSync(s1Path, 'utf8'))
-  // 后端注入链的另一半（E6：模板里断言不到 --children，它只活在后端声明里）
-  const ghSub = subIssueValues['github.zh'] || ''
-  check(ghSub.indexOf('scripts/wire-subissues.mjs') >= 0, 'github 后端 prompts.subIssue 未含脚本名 scripts/wire-subissues.mjs（注入链的另一半）')
-  check(ghSub.indexOf('--map') >= 0 && ghSub.indexOf('--children') >= 0 && ghSub.indexOf('--body-file') >= 0, 'github 后端 prompts.subIssue 未含 --map/--children/--body-file 三个参数名')
-  check(ghSub.indexOf('## Destination') >= 0, 'github 后端 prompts.subIssue 未写明正文文件要保留 ## Destination（wire-subissues 脚本 exit 2 前置条件）')
-  // #588 两步走形态 + 名实一致（提示词引用的脚本集合 == 发布包脚本集合，两边都从源码机械求值，不手写第二份清单）
-  const p588 = problems.length
+  // 后端注入链的另一半（#603：模板里只有 {subIssue} 占位符，真正的关联步骤写在 github 后端的 prompts.subIssue 里，
+  //   经 {subIssue} 渲染时填空）。这里先按语言逐条钉住「必须是 gh 直连写法」：
+  //   ① 必须是 gh api 直连（不许退回「先解析插件目录再调脚本」）；
+  //   ② 建原生子议题边（sub_issues + sub_issue_id）；
+  //   ③ 校验张数（--jq length）；
+  //   ④ 原生阻塞边（dependencies/blocked_by + issue_id）—— B 方案明确要求保留这个能力。
+  ;['zh', 'en'].forEach(function (lang) {
+    const t = String(subIssueValues['github.' + lang] || '')
+    const where = '#603 github 后端 prompts.subIssue.' + lang
+    if (!t) { fail(where + ' 取不到声明值（后端没声明这一条）'); return }
+    if (t.indexOf('gh api') < 0) fail(where + ' 缺 gh api 直连（#603 改回 gh 直连，不再解析插件目录调脚本）')
+    if (t.indexOf('sub_issues') < 0) fail(where + ' 缺 sub_issues（建原生子议题边的那条路径）')
+    if (t.indexOf('sub_issue_id') < 0) fail(where + ' 缺 sub_issue_id（POST 建边要传的参数名）')
+    if (t.indexOf('dependencies/blocked_by') < 0) fail(where + ' 缺 dependencies/blocked_by（原生阻塞边；B 方案要求保留，文字行 Blocked by 只作降级兜底）')
+    if (t.indexOf('issue_id') < 0) fail(where + ' 缺 issue_id（原生阻塞边要传的参数名）')
+    if (t.indexOf('--jq length') < 0) fail(where + ' 缺 --jq length（建完要校验子议题张数）')
+    // R8：这一条本身不许再出现「先解析插件目录再调脚本」的间接写法（判定层也判，这里直断一次，失败信息更直白）
+    const indirect = RE_INDIRECT.exec(t)
+    if (indirect) fail(where + ' 残留间接写法「' + indirect[0] + '」（#603 起提示词改回 gh 直连，不再调包内脚本）')
+  })
+  // #603：渲染面 + 名实一致（提示词一个脚本都不许引用；发布包里仍带那两条脚本当可选工具）
+  const p603 = problems.length
   try {
-    // 求值态第 ① 步精确串（源码里是 \' 转义，求值后是单引号）
-    const STEP1_EXACT = 'dsh plugin --profile <配置名> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"'
-    // #600：中文用占位符 <配置名>、英文用 <profile>，所以精确串按语言分两份；step1Of(lang) 取当前语言那一份。
-    const STEP1_EXACT_EN = 'dsh plugin --profile <profile> exec node -e "console.log(require.resolve(\'dsh-mattpocock-skills-deck/package.json\'))"'
-    const step1Of = function (lang) { return lang === 'en' ? STEP1_EXACT_EN : STEP1_EXACT }
-    const step2NameOf = function (text, want) {
-      const re = /node\s+"<[^"]+>\/scripts\/([A-Za-z0-9_.-]+\.mjs)"/g
-      const names = []
-      let m
-      while ((m = re.exec(String(text))) !== null) names.push(m[1])
-      return names
-    }
-    // 模板条目：只断言「留了占位符、没留字面副本」（正文格式的 GitHub 文案已搬进后端声明）
     const FIX_IDS = ['mapExecute', 'complete', 'fixate', 'bodyFormat', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
     // #595 核心验收：把 11 个条目按「真渲染函数 + 后端声明文本」渲染出来再断言（不再断言源码字面量）
     evalPromptHelpers.prime(fs.readFileSync(s1Path, 'utf8'))
@@ -1381,7 +1521,6 @@ if (reg) {
         if (!t) fail('#595 ' + b + ' 后端未声明 prompts.bodyFormat.' + lang + '（三后端都要声明自己那套正文格式）')
       })
     })
-    const referenced = []
     const renderOf = function (b, id, lang) {
       const st = { selection: { backendId: b }, backendModules: [{ id: b, prompts: backendDecls[b] }] }
       // bodyFormat 走的不是模板占位符，而是 BODY_FORMAT(st)（追加点用它）—— 按真路径渲染，别用替身
@@ -1393,103 +1532,75 @@ if (reg) {
       return String(text || '')
     }
     BACKENDS.forEach(function (b) {
-      FIX_IDS.forEach(function (id) {
-        ;['zh', 'en'].forEach(function (lang) {
-          const t = renderOf(b, id, lang)
-          const where = '#595 ' + b + '/' + id + '.' + lang
-          if (!t) { fail(where + ' 渲染为空（渲染入口取不到文本）'); return }
-          if (t.indexOf('{bodyFormat}') >= 0) fail(where + ' 渲染后仍是 {bodyFormat} 标记（后端上下文没接通）')
-          // #595 必修①：按真实形态渲染后不许残留 {xxx} 占位符、也不许出现 undefined
-          const left = leftoverPlaceholder(t)
-          if (left) fail(where + ' 渲染后残留占位符 ' + left + '（渲染入口没把这个值填上）')
-          if (t.indexOf('undefined') >= 0) fail(where + ' 渲染后出现 undefined（某个占位符的值没取到）')
-          // 渲染结果不许再命中「具体跟踪器命令 / 非白名单脚本 / 内联正文」这几条规则
-          judge(t).forEach(function (h) { fail(where + ' 渲染后 [' + h.rule + '] 命中「' + h.snippet + '」') })
-        })
-      })
-      // GitHub：渲染结果必须带着两步写回（第 ① 步精确串 + 锚定的第 ② 步）
-      // 其余后端：渲染结果不许出现 GitHub 专用的登录检查 / 插件目录解析 / 写回脚本
+      // #603：github 后端声明面带 gh 直连命令，是领导拍板的方向 —— 渲染到 github 面上时按「允许跟踪器命令」判；
+      //   其余后端照旧按最严口径判（渲染结果里出现 gh/glab 命令即红）。
       const isGh = (b === 'github')
       FIX_IDS.forEach(function (id) {
         ;['zh', 'en'].forEach(function (lang) {
           const t = renderOf(b, id, lang)
-          const names = step2NameOf(t, 0)
-          if (isGh) {
-            if (t.indexOf(step1Of(lang)) < 0) fail('#595 github/' + id + '.' + lang + ' 渲染结果缺精确的第 ① 步调用（拿插件安装目录）')
-            if (names.indexOf('fix-issue-body.mjs') < 0) fail('#595 github/' + id + '.' + lang + ' 渲染结果缺锚定的第 ② 步（node "<目录>/scripts/fix-issue-body.mjs" …）')
-            names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
-          } else {
-            ;['gh auth', 'fix-issue-body', 'dsh plugin'].forEach(function (bad) {
-              if (t.indexOf(bad) >= 0) fail('#595 ' + b + '/' + id + '.' + lang + ' 渲染结果出现 GitHub 专用串「' + bad + '」（后端无关的正文格式不许带上它）')
+          const where = '#603 ' + b + '/' + id + '.' + lang
+          if (!t) { fail(where + ' 渲染为空（渲染入口取不到文本）'); return }
+          if (t.indexOf('{bodyFormat}') >= 0) fail(where + ' 渲染后仍是 {bodyFormat} 标记（后端上下文没接通）')
+          // 渲染入口负责填的占位符 = 该条目在注册表里声明的那些（{bodyFormat} / {subIssue} 由后端上下文填）。
+          //   后端声明文本自带 {owner} / {repo} 这类「由 agent 按当前仓库自行代入」的占位符（ensureLabels 一直是这个约定），
+          //   渲染入口本来就不负责填，所以只判「声明的那些」有没有残留 —— 给全了还残留才是真的漏填。
+          const declared = ((reg[id] || {}).placeholders || []).slice()
+          const left = leftoverPlaceholder(t, declared)
+          if (left) fail(where + ' 渲染后残留占位符 ' + left + '（渲染入口没把这个值填上）')
+          if (t.indexOf('undefined') >= 0) fail(where + ' 渲染后出现 undefined（某个占位符的值没取到）')
+          // 渲染结果不许再命中「具体跟踪器命令（非 github 面）/ 脚本调用 / 内联正文」这几条规则；
+          //   R8（先解析插件目录再调脚本）在所有面都判，github 面也不例外。
+          judge(t, { allowTracker: isGh }).forEach(function (h) { fail(where + ' 渲染后 [' + h.rule + '] 命中「' + h.snippet + '」') })
+          // #603 防回潮：模板层渲染结果里出现 dsh plugin 或两个脚本名即判红（直断一次，失败信息比 R8 那行更直白）
+          ;['dsh plugin', 'fix-issue-body.mjs', 'wire-subissues.mjs', '<插件目录>', '<pluginDir>'].forEach(function (bad) {
+            if (t.toLowerCase().indexOf(bad.toLowerCase()) >= 0) {
+              fail(where + ' 渲染结果出现已被撤掉的间接写法「' + bad + '」（#603 起提示词改回 gh 直连，不再解析插件目录调脚本）')
+            }
+          })
+          // 非 GitHub 后端：渲染结果不许带上 GitHub 专用命令（判定层已覆盖 gh/glab，这里直断一次，失败信息更直白）
+          if (!isGh) {
+            ;['gh api', 'gh issue', 'gh auth', 'glab issue', 'glab auth'].forEach(function (bad) {
+              if (t.indexOf(bad) >= 0) fail(where + ' 渲染结果出现 GitHub 专用命令「' + bad + '」（后端无关的正文格式不许带上它）')
             })
-            if (names.length) fail('#595 ' + b + '/' + id + '.' + lang + ' 渲染结果仍引用写回脚本 ' + names.join(',') + '（该后端没声明这些脚本）')
           }
         })
       })
     })
-    // 明显变短：Markdown 版正文格式必须比 GitHub 版短（去掉两步写回后的直接证据）
-    const ghLen = renderOf('github', 'tpl.execute', 'zh').length
-    const mdLen = renderOf('markdown', 'tpl.execute', 'zh').length
-    if (!(mdLen < ghLen)) fail('#595 Markdown 渲染结果不比 GitHub 短（md ' + mdLen + ' ≥ gh ' + ghLen + '，说明 GitHub 专用文本没被摘干净）')
-    // 追加点（BODY_FORMAT(st)）也按后端解析：GitHub 拿到两步写回，Markdown 拿到本地文件版
-    const bfGh = evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: backendDecls.github }] }, 'zh')
-    const bfMd = evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'markdown' }, backendModules: [{ id: 'markdown', prompts: backendDecls.markdown }] }, 'zh')
-    if (String(bfGh).indexOf(STEP1_EXACT) < 0) fail('#595 BODY_FORMAT(github) 缺精确的第 ① 步调用')
-    if (String(bfMd).indexOf('gh auth') >= 0 || String(bfMd).indexOf('fix-issue-body') >= 0 || String(bfMd).indexOf('dsh plugin') >= 0) fail('#595 BODY_FORMAT(markdown) 出现 GitHub 专用串')
-    if (!(String(bfMd).length < String(bfGh).length)) fail('#595 BODY_FORMAT(markdown) 不比 GitHub 短')
-    const ghVals = [subIssueValues['github.zh'], subIssueValues['github.en']]
-    ghVals.forEach(function (t, i) {
-      const lang = i === 0 ? 'zh' : 'en'
-      if (String(t || '').indexOf(step1Of(lang)) < 0) fail('#588 github 后端 prompts.subIssue.' + lang + ' 缺精确的第 ① 步调用')
-      const names = step2NameOf(t, 0)
-      if (names.indexOf('wire-subissues.mjs') < 0) fail('#588 github 后端 prompts.subIssue.' + lang + ' 缺锚定的 wire 第 ② 步')
-      names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
+    // GitHub 声明面必须真的给出 gh 直连（用真实数据断言，不许空转）：{subIssue} 接上后端声明后，渲染结果里要看得见 gh api 与 sub_issues。
+    ;[['zh', renderOf('github', 'mapInspect', 'zh')], ['en', renderOf('github', 'mapInspect', 'en')]].forEach(function (pair) {
+      const where = '#603 github/mapInspect.' + pair[0]
+      if (pair[1].indexOf('gh api') < 0) fail(where + ' 渲染结果缺 gh api（{subIssue} 没接上后端声明）')
+      if (pair[1].indexOf('sub_issues') < 0) fail(where + ' 渲染结果缺 sub_issues（{subIssue} 没接上后端声明的建边方式）')
+      if (pair[1].indexOf('dependencies/blocked_by') < 0) fail(where + ' 渲染结果缺 dependencies/blocked_by（原生阻塞边要保住）')
     })
-    // mapInspect 的关联步骤改走后端声明的 {subIssue}：GitHub 渲染结果里必须有 wire 第 ② 步
-    const miGh = renderOf('github', 'mapInspect', 'zh')
-    const miNames = step2NameOf(miGh, 0)
-    if (miNames.indexOf('wire-subissues.mjs') < 0) fail('#595 github/mapInspect.zh 渲染结果缺 wire 第 ② 步（{subIssue} 没接上后端声明）')
-    miNames.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
-    // github bodyFormat 自带的写回脚本也要进 referenced
-    ;['zh', 'en'].forEach(function (lang) {
-      const t = String((backendDecls.github.bodyFormat || {})[lang] || '')
-      if (t.indexOf(step1Of(lang)) < 0) fail('#595 github 后端 prompts.bodyFormat.' + lang + ' 缺精确的第 ① 步调用')
-      const names = step2NameOf(t, 0)
-      if (names.indexOf('fix-issue-body.mjs') < 0) fail('#595 github 后端 prompts.bodyFormat.' + lang + ' 缺锚定的第 ② 步')
-      names.forEach(function (n) { if (referenced.indexOf(n) < 0) referenced.push(n) })
+    // 追加点（BODY_FORMAT(st)）也按后端解析：GitHub 拿到还原后的正文格式块（只讲写法规矩，无命令），
+    //   Markdown 拿到本地文件版。原来这里有两条「Markdown 渲染结果/正文格式必须比 GitHub 短」的长度比较，
+    //   钉的是「GitHub 那版更长」这个已被撤掉的事实（GitHub 版原来长在两步写回上），改按内容断言。
+    const bfGh = String(evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: backendDecls.github }] }, 'zh') || '')
+    const bfMd = String(evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'markdown' }, backendModules: [{ id: 'markdown', prompts: backendDecls.markdown }] }, 'zh') || '')
+    if (bfGh.indexOf('## 正文格式') < 0) fail('#603 BODY_FORMAT(github) 缺「## 正文格式」段标题（追加点没取到后端声明）')
+    if (bfGh.indexOf('以文件方式提交') < 0) fail('#603 BODY_FORMAT(github) 缺「以文件方式提交」（正文写回要以文件提交）')
+    const bfGhBad = commandWordIn(bfGh)
+    if (bfGhBad) fail('#603 BODY_FORMAT(github) 出现命令词「' + bfGhBad + '」（正文格式只讲写法规矩，与后端命令无关）')
+    if (bfMd.indexOf('## 正文格式') < 0) fail('#603 BODY_FORMAT(markdown) 缺「## 正文格式」段标题（追加点没取到后端声明）')
+    const bfMdBad = commandWordIn(bfMd)
+    if (bfMdBad) fail('#603 BODY_FORMAT(markdown) 出现命令词「' + bfMdBad + '」（本地 Markdown 后端不需要命令行写回）')
+    // GitHub 后端声明面的正文格式块（backendDecls.github.bodyFormat）：还原后的写法块，必须只讲写法规矩。
+    ;[['zh', String((backendDecls.github.bodyFormat || {}).zh || '')], ['en', String((backendDecls.github.bodyFormat || {}).en || '')]].forEach(function (pair) {
+      const lang = pair[0]
+      const t = pair[1]
+      const where = '#603 github 后端 prompts.bodyFormat.' + lang
+      if (!t) { fail(where + ' 取不到声明值（后端没声明这一条）'); return }
+      const bad = commandWordIn(t)
+      if (bad) fail(where + ' 出现命令词「' + bad + '」（正文格式讲的是写法规矩，与后端命令无关）')
     })
-    // #600：第 ① 步必须带 --profile —— dsh 的 plugin 子命令把 --profile 声明成必填选项，
-    //   旧写法「dsh plugin exec …」照抄下来直接报 required option '--profile <name>' not specified。
-    //   三处都钉住：精确串本身、GitHub 后端的两个声明、以及「不许再留不带参数的旧写法」。
-    ;['zh', 'en'].forEach(function (lang) {
-      if (step1Of(lang).indexOf('--profile') < 0) fail('#600 ' + lang + ' 的第 ① 步精确串没带 --profile（dsh plugin 的必填选项，省了照抄就报错）')
-    })
-    ;['zh', 'en'].forEach(function (lang) {
-      const bfT = String((backendDecls.github.bodyFormat || {})[lang] || '')
-      const subT = String(subIssueValues['github.' + lang] || '')
-      const where = '#600 github.' + lang
-      if (bfT.indexOf(step1Of(lang)) < 0) fail(where + ' prompts.bodyFormat 的第 ① 步不是带 --profile 的精确串（省了 dsh 直接报错）')
-      if (subT.indexOf(step1Of(lang)) < 0) fail(where + ' prompts.subIssue 的第 ① 步不是带 --profile 的精确串（省了 dsh 直接报错）')
-      if (/dsh\s+plugin\s+exec/.test(bfT) || /dsh\s+plugin\s+exec/.test(subT)) {
-        fail(where + ' 仍留着不带 --profile 的旧第 ① 步写法（dsh plugin exec …）：那条命令照抄跑不通，别让它回来')
-      }
-    })
-    // #595 恢复被削掉的两组断言（它们当时卡在注册表 bodyFormat 上，正文格式搬进后端声明后整组消失）：
-    //   ① 主锚文件要求：第 ② 步的当前目录可能不是工作区，靠工作区里的 docs/agents/issue-tracker.md 认工作区；
-    //   ② 脚本职责边界：--body-file 必须绝对路径，「格式只告警不改写」这类脚本职责必须写明。
-    const ghBfZh = String((backendDecls.github.bodyFormat || {}).zh || '')
-    const ghBfEn = String((backendDecls.github.bodyFormat || {}).en || '')
-    ;['zh', 'en'].forEach(function (lang) {
-      const t = String((backendDecls.github.bodyFormat || {})[lang] || '')
-      if (t.indexOf('docs/agents/issue-tracker.md') < 0) {
-        fail('#595 github 后端 prompts.bodyFormat.' + lang + ' 缺主锚文件 docs/agents/issue-tracker.md（第 ② 步要以工作区为基准，靠它认工作区）')
-      }
-    })
-    if (ghBfZh.indexOf('--body-file') < 0 || ghBfZh.indexOf('绝对路径') < 0) fail('#595 github 后端 prompts.bodyFormat.zh 缺 --body-file 绝对路径要求')
-    if (ghBfEn.indexOf('--body-file') < 0 || ghBfEn.indexOf('absolute path') < 0) fail('#595 github 后端 prompts.bodyFormat.en 缺 --body-file absolute path 要求')
-    if (ghBfZh.indexOf('格式只告警不改写') < 0) fail('#595 github 后端 prompts.bodyFormat.zh 缺「格式只告警不改写」（脚本职责边界）')
-    if (ghBfEn.indexOf('only warns about formatting') < 0) fail('#595 github 后端 prompts.bodyFormat.en 缺 only warns about formatting（脚本职责边界）')
-    // #595 必修①：completePrompt 的真实调用形态 —— 签名 (st, num, title, total, closed)。
+    if (String((backendDecls.github.bodyFormat || {}).zh || '').indexOf('以文件方式提交') < 0) {
+      fail('#603 github 后端 prompts.bodyFormat.zh 缺「以文件方式提交」（正文写回要以文件提交，不要内联转义字符串）')
+    }
+    if (String((backendDecls.github.bodyFormat || {}).en || '').indexOf('via a file') < 0) {
+      fail('#603 github 后端 prompts.bodyFormat.en 缺 via a file（正文写回要以文件提交）')
+    }
+    // #603 必修①：completePrompt 的真实调用形态 —— 签名 (st, num, title, total, closed)。
     //   视图侧曾经按 4 参调（st, num, total, closed），渲染出「标题：5」与「undefined/3 个 issue 已关闭」。
     const cpSt = { selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: backendDecls.github }] }
     const cpText = String(evalPromptHelpers.completePromptForTest(cpSt, 5, 'T', 3, 3) || '')
@@ -1510,49 +1621,78 @@ if (reg) {
         if (n !== 5) fail('#595 ' + rel + ' 第 ' + (i + 1) + ' 处 completePrompt 调用传了 ' + n + ' 个实参（签名是 (st, num, title, total, closed)，必须 5 个）')
       })
     })
-    // 发布包脚本集合：从 scripts/build.mjs 的 SHIPPED_SCRIPTS 清单机械求值（唯一手写清单，不许第二份）
+    // 脚本引用面（#603）：两边都从源码机械求值，但不再要求「提示词引用的脚本集合 == 发布包脚本集合」相等。
+    //   为什么不再要求相等：那个等式的前提是「提示词必须调脚本，所以包里带的脚本就是给提示词用的」。
+    //   #603 领导拍板改回 gh 直连后，提示词一个脚本都不调，两条脚本仍留在包里当可选工具（用户想手动跑还能跑），
+    //   等式因此必然不成立 —— 判据本身失效，改成两条各自独立的事实：
+    //     ① 提示词（注册表 20 条的 zh/en/use + 三后端 prompts 声明里的字面量）里一个脚本名都不许出现；
+    //     ② 发布包仍带这两条脚本，且生成物与源逐文件 sha256 一致（顺手删掉可选工具也要红）。
+    const scriptRefs = []
+    const scanScriptRefs = function (text) {
+      const re = /[a-z0-9_][a-z0-9_./\\-]*\.mjs/gi
+      let m
+      while ((m = re.exec(String(text))) !== null) { if (scriptRefs.indexOf(m[0]) < 0) scriptRefs.push(m[0]) }
+    }
+    let scannedTexts = 0
+    Object.keys(reg).forEach(function (id) {
+      const e = reg[id] || {}
+      ;['zh', 'en', 'use'].forEach(function (f) {
+        if (e[f] == null) return
+        scannedTexts++
+        scanScriptRefs(String(e[f]))
+      })
+    })
+    BACKENDS.forEach(function (b) {
+      const bsrc = fs.readFileSync(backendPath(b, backendProbe), 'utf8')
+      scanAllLiterals(extractObjectLiteral(bsrc, 'export const prompts') || '').forEach(function (lit) {
+        scannedTexts++
+        scanScriptRefs(lit.text)
+      })
+    })
+    if (scannedTexts < 60) fail('#603 脚本引用面只扫到 ' + scannedTexts + ' 段提示词文本（期望 ≥ 60：注册表 20 条 × zh/en/use + 三后端声明里的字面量；扫描面太窄等于没扫）')
+    if (scriptRefs.length) fail('#603 提示词里引用了发布包脚本 ' + scriptRefs.join(',') + '（#603 起提示词改回 gh 直连，一个脚本都不许引用；两条脚本只留在包里当可选工具）')
+    // 发布包仍带这两条脚本：从 scripts/build.mjs 的 SHIPPED_SCRIPTS 清单机械求值（唯一手写清单，不许第二份）
+    const SHIPPED_EXPECT = ['fix-issue-body.mjs', 'wire-subissues.mjs']
     const buildSrc = fs.readFileSync(path.join(ROOT, 'scripts/build.mjs'), 'utf8')
     const mm = /const SHIPPED_SCRIPTS = \[([^\]]*)\]/.exec(buildSrc)
-    if (!mm) fail('#588 scripts/build.mjs 里找不到 SHIPPED_SCRIPTS 清单（发布包脚本集合无源可求值）')
+    if (!mm) fail('#603 scripts/build.mjs 里找不到 SHIPPED_SCRIPTS 清单（发布包脚本集合无源可求值）')
     const shipped = []
     if (mm) {
       const q = /'([^']+)'/g
       let qm
       while ((qm = q.exec(mm[1])) !== null) shipped.push(qm[1])
     }
-    if (mm && shipped.length === 0) fail('#588 SHIPPED_SCRIPTS 清单为空（至少要有提示词引用的脚本）')
     if (mm) {
-      const a = referenced.slice().sort()
       const b = shipped.slice().sort()
-      if (JSON.stringify(a) !== JSON.stringify(b)) {
-        fail('#588 名实不一致：提示词引用的脚本集合 [' + a.join(',') + '] ≠ 发布包脚本集合 [' + b.join(',') + ']（两边都从源码机械求值；提示词加了新脚本必须同步进 scripts/build.mjs 的 SHIPPED_SCRIPTS，反之亦然）')
+      if (JSON.stringify(b) !== JSON.stringify(SHIPPED_EXPECT.slice().sort())) {
+        fail('#603 发布包脚本集合 [' + b.join(',') + '] ≠ [' + SHIPPED_EXPECT.join(',') + ']（提示词不再引用脚本，但这两条脚本要留在包里当可选工具，不许顺手删）')
       }
       // 生成物与源逐文件 sha256 一致（package/scripts 是 gitignore 生成态，过期即红；缺文件先跑构建）
-      const crypto588 = require('crypto')
-      const sha = function (p) { return crypto588.createHash('sha256').update(fs.readFileSync(p)).digest('hex') }
+      const cryptoPkg = require('crypto')
+      const sha = function (p) { return cryptoPkg.createHash('sha256').update(fs.readFileSync(p)).digest('hex') }
       const pkgDir = path.join(ROOT, 'package/scripts')
       let onDisk = []
       try {
         onDisk = fs.readdirSync(pkgDir).filter(function (f) { return fs.statSync(path.join(pkgDir, f)).isFile() }).sort()
       } catch (e) {
-        fail('#588 package/scripts/ 不存在（生成物缺失；修法：跑 node scripts/build.mjs 重新生成）：' + e.message)
+        fail('#603 package/scripts/ 不存在（生成物缺失；修法：跑 node scripts/build.mjs 重新生成）：' + e.message)
       }
       if (onDisk.length && JSON.stringify(onDisk) !== JSON.stringify(b)) {
-        fail('#588 package/scripts/ 落点集合 [' + onDisk.join(',') + '] ≠ 清单 [' + b.join(',') + ']（有多余文件或缺文件；修法：跑 node scripts/build.mjs 重新生成）')
+        fail('#603 package/scripts/ 落点集合 [' + onDisk.join(',') + '] ≠ 清单 [' + b.join(',') + ']（有多余文件或缺文件；修法：跑 node scripts/build.mjs 重新生成）')
       }
       shipped.forEach(function (n) {
         const gen = path.join(pkgDir, n)
         const srcP = path.join(ROOT, 'scripts', n)
-        if (!fs.existsSync(gen)) { fail('#588 生成物缺失 package/scripts/' + n + '（修法：跑 node scripts/build.mjs 重新生成）'); return }
-        if (!fs.existsSync(srcP)) { fail('#588 源缺失 scripts/' + n); return }
-        if (sha(gen) !== sha(srcP)) fail('#588 生成物与源不一致 package/scripts/' + n + '（sha256 对不上；修法：跑 node scripts/build.mjs 重新生成）')
+        if (!fs.existsSync(gen)) { fail('#603 生成物缺失 package/scripts/' + n + '（修法：跑 node scripts/build.mjs 重新生成）'); return }
+        if (!fs.existsSync(srcP)) { fail('#603 源缺失 scripts/' + n); return }
+        if (sha(gen) !== sha(srcP)) fail('#603 生成物与源不一致 package/scripts/' + n + '（sha256 对不上；修法：跑 node scripts/build.mjs 重新生成）')
       })
     }
   } catch (e) {
-    fail('#588 断言执行时抛错：' + String((e && e.message) || e))
+    fail('#603 断言执行时抛错：' + String((e && e.message) || e))
   }
-  if (stepOk(p588)) console.log('  PASS #595 渲染面（11 条目 × zh/en × 三后端：GitHub 渲染出两步写回，Markdown/GitLab 渲染出无 gh 的后端版；渲染结果无 undefined、无残留占位符）+ completePrompt 真实调用形态 + 主锚文件与脚本职责边界 + 名实一致 + 生成物 sha256 一致')
-  if (stepOk(pS1)) console.log('  PASS 面 S1 ' + s1Label + '（' + s1Ids.length + ' 条注册表，扫描 ' + s1.scanned + ' 条；含占位符 ' + s1.rendered + ' 条走渲染面）+ 契约断言 + 跨门禁一致性 + 注入链另一半')
+  if (stepOk(p603)) console.log('  PASS #603 渲染面（11 条目 × zh/en × 三后端：github 渲染出 gh 直连的 {subIssue} 与无命令的正文格式块，Markdown/GitLab 渲染出各自的后端版；渲染结果无 undefined、无残留占位符、无「先解析插件目录再调脚本」的间接写法）+ completePrompt 真实调用形态 + 提示词零脚本引用 + 发布包仍带两条脚本 + 生成物 sha256 一致')
+  if (stepOk(pS1)) console.log('  PASS 面 S1 ' + s1Label + '（' + s1Ids.length + ' 条注册表，扫描 ' + s1.scanned + ' 条；含占位符 ' + s1.rendered + ' 条走渲染面）+ 契约断言 + 跨门禁一致性 + github 后端注入链（gh 直连三步 + 原生阻塞边）')
 }
 
 // —— S2 / S3 / S4（单文件模式跳过：L2 注入只针对 S1） ——
