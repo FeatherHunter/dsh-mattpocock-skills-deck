@@ -46,8 +46,8 @@ jobs:
         run: node scripts/build.mjs
         shell: bash
 
-      - name: Verify chain (platform 145+32 + tracker 366/4 + build-artifacts dual gate)
-        run: npm run verify
+      - name: Verify chain（逐道跑并汇总：一条失败不再掩盖后面的门禁）
+        run: node scripts/verify-all.mjs
         shell: bash
 
       - name: Stage 1 minimal smoke (3 OS × GitHub, injected I1/I2/I4)

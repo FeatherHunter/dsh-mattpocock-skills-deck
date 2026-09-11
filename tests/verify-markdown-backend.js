@@ -3,7 +3,7 @@
  *
  * 验收：
  *  ① harness 以真实适配器运行 + 合规断言全 PASS（G4）
- *  ② 回环：deck 创建票 → 技能集可读（同一文件集）；技能集写的文件 → 后端可归一（用 .scratch/__fixtures__ 夹具）
+ *  ② 回环：deck 创建票 → 技能集可读（同一文件集）；技能集写的文件 → 后端可归一（用 tests/fixtures/markdown-sample 里随仓库走的样例）
  *  ④ 无旧字段（number/subIssues/blocking/布尔 capabilities/detect）
  *
  * 运行：node tests/verify-markdown-backend.js
@@ -123,8 +123,10 @@ console.log('\n== ② 回环测试（同一文件集镜像） ==')
     }
   }
 
-  // 技能集写的文件 → 后端可归一（用 .scratch/__fixtures__ 真实样例）
-  const fixtureTxt = fs.readFileSync('.scratch/__fixtures__/markdown-sample/demo-full/issues/01-hello-world.md', 'utf8')
+  // 技能集写的文件 → 后端可归一（用仓库自带的真实样例：tests/fixtures/markdown-sample/01-hello-world.md）
+  // #600 附带的 CI 修复：样例原来放在 .scratch/__fixtures__ 下，而 .scratch/ 是 gitignore 的、
+  //   全新克隆里没有——门禁在 CI 上必然读不到文件（本地因为早就生成过，一直没暴露）。
+  const fixtureTxt = fs.readFileSync('tests/fixtures/markdown-sample/01-hello-world.md', 'utf8')
   const parsed = parseMd(fixtureTxt, { key: '01', parentKey: '00', isMap: false })
   check(parsed.title === 'Hello World', '回环② fixture 归一 title')
   check(parsed.state === 'open', '回环② fixture state open (claimed→open)')

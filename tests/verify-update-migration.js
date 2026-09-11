@@ -48,16 +48,21 @@ const fakeFetch = (version) => async () => ({
 /** 一台最少假的机器：目录都是假的，读盘与执行全注入，不碰真实文件系统。
  *  每台机器用自己的使用范围目录与走开的时间基准：查新版有 2 秒复用窗口，
  *  三台机器共用一个时间值的话，换机器也照样命中缓存（门禁写到这里连栽两次）。 */
+/** 假机器的根目录必须是「当前平台认得的绝对路径」——Linux/macOS 上 path.isAbsolute('C:/fake/…')
+ *  是 false，读取器会把它当成参数错直接拒绝，门禁在 CI（ubuntu/macos）上就报不出 snapshot；
+ *  本地 Windows 因为 C:/ 本来就是绝对路径，一直看不出来。
+ *  #600 附带的 CI 修复：改成按平台生成，两个平台都成立。 */
+const FAKE_ROOT = process.platform === 'win32' ? 'C:/fake/.dsh' : '/fake/.dsh'
 let machineSeq = 0
 function fakeMachine(over = {}) {
   machineSeq += 1
   const seq = machineSeq
   const mem = { job: null }
-  const profileDir = `C:/fake/.dsh/profiles/web-${seq}`
+  const profileDir = `${FAKE_ROOT}/profiles/web-${seq}`
   const env = {
     profileName: 'web',
     environmentKind: 'cli',
-    homeDir: 'C:/fake/.dsh',
+    homeDir: FAKE_ROOT,
     profileDir,
     installedVersion: '1.7.18',
     packageValid: true,
@@ -73,7 +78,7 @@ function fakeMachine(over = {}) {
       runningVersion: '1.7.18',
       profileDir,
       profileName: 'web',
-      homeDir: 'C:/fake/.dsh',
+      homeDir: FAKE_ROOT,
       fetchImpl: fakeFetch('9.9.9'),
       // 第 n 台机器的时间往后走 n×10 秒，保证彼此都在对方的 2 秒复用窗口之外
       now: () => 1000000 + seq * 10000,
@@ -207,8 +212,8 @@ async function main() {
     // 改用一台全新机器 + 全新使用范围目录，让复用键必然不同。
     let oldThrew = 0
     let newThrew = 0
-    const oldFailMachine = fakeMachine({ profileDir: 'C:/fake/.dsh/profiles/old-fail', fetchImpl: async () => { oldThrew += 1; throw new Error('断网') } })
-    const newFailMachine = fakeMachine({ profileDir: 'C:/fake/.dsh/profiles/new-fail', fetchImpl: async () => { newThrew += 1; throw new Error('断网') } })
+    const oldFailMachine = fakeMachine({ profileDir: `${FAKE_ROOT}/profiles/old-fail`, fetchImpl: async () => { oldThrew += 1; throw new Error('断网') } })
+    const newFailMachine = fakeMachine({ profileDir: `${FAKE_ROOT}/profiles/new-fail`, fetchImpl: async () => { newThrew += 1; throw new Error('断网') } })
     const oldFail = await (await buildPhones(oldMod, oldFailMachine.overrides)).handleUpdateCheck({})
     const newFail = await (await buildPhones(newMod, newFailMachine.overrides)).handleUpdateCheck({})
     check(oldThrew === 1 && newThrew === 1, `两边都真的走到网络那条路（旧抛 ${oldThrew} 次、新抛 ${newThrew} 次）`)
