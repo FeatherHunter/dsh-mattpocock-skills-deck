@@ -9,7 +9,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:dsh-log": "node packages/dsh-log/build.mjs",
-    "test:dsh-log": "node --test packages/dsh-log/tests/host.test.mjs",
+    "test:dsh-log": "node --test packages/dsh-log/tests/host.test.mjs packages/dsh-log/tests/eventList.test.mjs packages/dsh-log/tests/client.test.mjs packages/dsh-log/tests/node.test.mjs",
     "build:dsh-plugin-update": "node packages/dsh-plugin-update/build.mjs",
     "test:dsh-plugin-update": "node --test packages/dsh-plugin-update/tests/*.test.mjs",
     "prepare": "node packages/dsh-log/build.mjs && node packages/dsh-plugin-update/build.mjs && node scripts/build.mjs",
