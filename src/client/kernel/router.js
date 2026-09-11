@@ -86,10 +86,15 @@
           const sessionId = scope ? scope.sessionId : undefined
           return h('div', { style: { height: '100%', overflow: 'hidden' } }, h(DetailsDock, { sessionId: sessionId }))
         }
-        // 第一性原理：对外品牌为 MattSkillsDeck，单一 tab id = deck:map。
+        // 第一性原理：对外品牌为 MattSkillsDeck，单一 tab id = deck:map —— 只注册这一个面板类型，不注册任何旧名别名。
         // #fix-two-sliders：旧版同时注册 deck:map + waystation:map 两份同 component、同 order、同 single 的注册器，
         //   better-sidebar 按 id 区分 tab 条目，结果 better-sidebar 显示两条 slider（用户报告「MattSkills slider 两个」）。
-        //   修复：只注册 deck:map；旧会话中存的 waystation:map 打开记录由下方 normalizeLegacyTabId() 改写到 deck:map 后再 open。
+        // #598：旧名别名那行注册已整段删除，不再注册。要害在于 hidden: true 只管「+」菜单，管不到 better-sidebar
+        //   设置页的「侧边卡」清单 —— 那份清单按「已注册的面板类型」逐张画卡片，隐藏的也画（只排到最后，见
+        //   SideCardSection.tsx 的 tabOrder），所以别名会让同一个面板在设置里多出一张卡片、多一个开关。
+        //   代价（#598 拍板选改法 A 时已接受）：旧布局里若还开着这个旧名标签，会渲染成 better-sidebar 的占位页
+        //   （OrphanedTab，显示「插件未加载」加类型 id），点关即消失，不影响 deck:map。
+        //   教训：以后想让某个注册「在界面上看不见」，先确认目标界面的过滤规则，别默认 hidden 在哪儿都管用。
         sidebarTabDisposer = bs.registerTab({
           id: 'deck:map',
           title: function () { return tr('panel.title') },
@@ -98,9 +103,6 @@
           single: true,
           component: DeckSidebarTab,
         })
-        // LEGACY 别名：兼容已存的 waystation:map 打开记录（不额外 disposer，单注册器以新 id 为主）
-        // #298 补充：该别名仅为旧会话/旧布局的兼容打开，不应在 better-sidebar 的「+」添加菜单中单独出现；设 hidden:true 隐藏
-        try { bs.registerTab({ id: 'waystation:map', title: function () { return tr('panel.title') }, icon: function () { return Ic({ n: 'map', size: 14 }) }, order: 60, single: true, hidden: true, component: DeckSidebarTab }) } catch (e) {}
   return true
       } catch (e) { return false }
     }

@@ -23,22 +23,7 @@
       },
     }
     export const h = React.createElement
-    // #fix-two-sliders：一次性迁移旧会话中存的 waystation:map 打开记录 → deck:map
-    //   仅在 better-sidebar 提供持久化 API 时执行；best-effort，失败不抛（仅 console.warn）
-    try {
-      const bs0 = ctx.get && ctx.get('betterSidebar')
-      if (bs0 && typeof bs0.migrateLegacyTabIds === 'function') {
-        try { bs0.migrateLegacyTabIds({ 'waystation:map': 'deck:map' }) } catch (e) { try { console.warn('[MattSkillsDeck] migrateLegacyTabIds failed:', e && e.message) } catch {} }
-      } else if (bs0 && typeof bs0.listOpenTabs === 'function') {
-        // 退化路径：扫描打开列表 → 替换 → 持久化
-        try {
-          const open = bs0.listOpenTabs() || []
-          const rename = open.filter(function (t) { return t && t.id === 'waystation:map' })
-          for (let i = 0; i < rename.length; i++) {
-            try { if (typeof bs0.closeTab === 'function') bs0.closeTab('waystation:map') } catch {}
-            // #594：只给类型，不带 path——带 path 会被 better-sidebar 当成真实文件去解析并报错
-            try { if (typeof bs0.openTab === 'function') bs0.openTab({ type: 'deck:map' }, rename[i].scope) } catch {}
-          }
-        } catch (e) { try { console.warn('[MattSkillsDeck] legacy migrate fallback failed:', e && e.message) } catch {} }
-      }
-    } catch {}
+    // #598：这里原有一段「把旧会话里存的 waystation:map 打开记录迁回 deck:map」的兜底代码，已整段删除，原因两条：
+    //   1) 它调的两个方法（migrateLegacyTabIds 与 listOpenTabs）在 dsh-better-sidebar 0.19.0 里根本不存在，
+    //      两处 typeof 判断恒为假，整段从落地起就没执行过 —— 是看着在兜底、实际不动的死代码；
+    //   2) #598 拍板不再保留旧名兼容（选改法 A），配套把 router.js 里那个别名注册也删了。
