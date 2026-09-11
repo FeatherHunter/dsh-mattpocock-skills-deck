@@ -2,7 +2,7 @@
 // 以后谁改它：改列表拉取分页策略、全量索引或缓存有效性的人。预估约 300 行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；getRepoKey/runGh/setCache 与三个索引小函数显式注入；本文件不引用其他新文件。
 export function createIssueList(deps) {
-  const { getRepoKey, runGh, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, logCtx } = deps
+  const { getRepoKey, runGh, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, readDiskCache, logCtx } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   let probeSampleN = 0
@@ -232,11 +232,40 @@ export function createIssueList(deps) {
     function _idxWin() { if (!_idxWinP) _idxWinP = import('../shared/tracker/indexWindow.js'); return _idxWinP }
     const lastIndexBaselineByRepo = {}   // 仓库键 → 上一次的完整索引（增量已并入）
     const lastIndexWatermarkByRepo = {}  // 仓库键 → 上一次扫描的起点时刻
+    // 重启后第一次扫描的起点：内存里的水印与基线一重启就没了。若只能整扫一遍来重立基线，
+    //   用户重启后第一次点开面板就要白等一次全量扫描（实测本仓库 585 条 6 页、约 7 秒）。
+    //   磁盘上存着上一次的快照，里面带着完整的票与状态，口径与索引扫描一致，可直接当基线。
+    //   取不到（没缓存或太旧）就返回 null，调用方退回整扫，行为与改动前一致。
+    let _idxSeedP = null
+    function _idxSeed(cwd) {
+      if (!_idxSeedP) {
+        _idxSeedP = (async function () {
+          try {
+            if (typeof readDiskCache !== 'function' || typeof getRepoKey !== 'function') return null
+            const rk = await getRepoKey(cwd)
+            if (!rk) return null
+            const snap = await readDiskCache(rk)
+            if (!snap) return null
+            const win = await _idxWin()
+            return win.seedFromSnapshot(snap, Date.now())
+          } catch (e) { return null }
+        })()
+      }
+      return _idxSeedP
+    }
     async function fetchIssueIndexWindowed(cwd) {
       const repo = await getRepoKey(cwd)
       if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
       const rk = repo.owner + '/' + repo.name
       const win = await _idxWin()
+      // 还没有在用的水印（刚重启）：先用磁盘快照给本次扫描立起点
+      if (!lastIndexWatermarkByRepo[rk]) {
+        const seed = await _idxSeed(cwd)
+        if (seed && seed.baseline) {
+          lastIndexBaselineByRepo[rk] = seed.baseline
+          lastIndexWatermarkByRepo[rk] = seed.watermarkMs
+        }
+      }
       const startedMs = Date.now()
       const w = win.scanWindow(lastIndexWatermarkByRepo[rk], startedMs)
       const remote = await fetchIssueIndex(cwd, w.sinceIso)

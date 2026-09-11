@@ -10,7 +10,7 @@
 //      后果是面板长期显示旧数据且没有任何报错。
 //   这两类都不会自己冒出来，必须由本门禁钉死。
 
-import { scanWindow, mergeDelta, indexDiffers, nextWatermark, MAX_WINDOW_MS, SKEW_MS } from '../src/shared/tracker/indexWindow.js'
+import { scanWindow, mergeDelta, indexDiffers, nextWatermark, indexFromSnapshot, seedFromSnapshot, MAX_WINDOW_MS, SKEW_MS } from '../src/shared/tracker/indexWindow.js'
 
 let failed = 0
 let total = 0
@@ -97,6 +97,45 @@ console.log('增量索引时间窗门禁（#indexWindow：只问变化，但不�
   const next = scanWindow(wm, started + 9000)   // 假设本轮扫了 9 秒
   check(next.sinceMs < started + 9000, '下一轮窗口起点早于本轮结束时刻 —— 两轮之间不留缝（防漏报）')
   check(next.sinceMs <= started, '下一轮窗口起点不晚于本轮起始 —— 改动必然落在某一轮窗口内')
+}
+
+// ---------- 九、从快照取基线（解决「重启后第一次必整扫」）----------
+{
+  // 关键：快照里的 issues 数组并不保证包含全部票，地图容器与子票可能只挂在地图下面。
+  // 少算哪一条，那条票的关闭/删除就永远不会被检出——静默漏报，比慢一点严重得多。
+  const snap = {
+    generatedMs: 1_700_000_000_000,
+    issues: [{ number: 1, state: 'open', updatedAt: '2026-09-11T04:54:05Z' }],
+    maps: [
+      { number: 2, state: 'OPEN', updatedAt: '2026-09-11T04:54:06Z', tickets: [{ number: 3, state: 'CLOSED', updatedAt: '2026-09-11T04:54:07Z' }] },
+    ],
+  }
+  const idx = indexFromSnapshot(snap)
+  check(!!idx && Object.keys(idx).length === 3, '取基线：issues + 地图容器 + 地图子票三类都算进来（实得 ' + (idx ? Object.keys(idx).length : 0) + ' 条）')
+  check(idx['1'] === 'OPEN|2026-09-11T04:54:05Z', '取基线：口径与索引扫描逐字一致（状态大写 + 竖线 + 更新时间）')
+  check(idx['3'] === 'CLOSED|2026-09-11T04:54:07Z', '取基线：地图子票也在内（漏掉它就等于那条票的关闭永远查不出来）')
+  check(indexFromSnapshot(null) === null, '取基线：空快照返回 null（调用方据此退回整扫）')
+  check(indexFromSnapshot({}) === null, '取基线：没有票的快照返回 null')
+}
+
+// ---------- 十、用快照给重启后的第一次扫描立起点 ----------
+{
+  const gen = 1_700_000_000_000
+  const snap = { generatedMs: gen, issues: [{ number: 1, state: 'OPEN', updatedAt: 't1' }] }
+  const seeded = seedFromSnapshot(snap, gen + 5 * 60 * 1000)
+  check(!!seeded && seeded.watermarkMs === gen, '立起点：水印 = 快照生成时刻（快照就是那一刻的真实状态）')
+  check(!!seeded && seeded.baseline['1'] === 'OPEN|t1', '立起点：基线来自快照本身')
+
+  // 有起点之后，本次扫描应当是缩窗的 —— 这正是「重启后第一次不再整扫」的关键
+  const w = scanWindow(seeded.watermarkMs, gen + 5 * 60 * 1000)
+  check(w.full === false, '立起点后本次扫描缩窗（重启后第一次不再整扫，这是收益所在）')
+
+  check(seedFromSnapshot({ generatedMs: gen, issues: [{ number: 1, state: 'OPEN', updatedAt: 't1' }] }, gen + MAX_WINDOW_MS + 1) === null,
+    '立起点：快照太旧（超过窗口上限）→ 不给起点，退回整扫')
+  check(seedFromSnapshot(null, gen) === null, '立起点：没有快照 → 不给起点')
+  check(seedFromSnapshot({ generatedMs: 0, issues: [{ number: 1 }] }, gen) === null, '立起点：快照没有生成时刻 → 不给起点')
+  check(seedFromSnapshot({ generatedMs: gen, issues: [] }, gen) === null, '立起点：快照里一条票都没有 → 不给起点')
+  check(seedFromSnapshot({ generatedMs: gen + 999999, issues: [{ number: 1 }] }, gen) === null, '立起点：生成时刻在将来（时钟异常）→ 不给起点')
 }
 
 console.log(failed ? '\n增量索引时间窗门禁未通过 ' + failed + '/' + total : '\n增量索引时间窗门禁全部通过（' + total + ' 项）')

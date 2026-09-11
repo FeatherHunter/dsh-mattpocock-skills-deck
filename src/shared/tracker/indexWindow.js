@@ -91,6 +91,37 @@ function indexDiffers(before, after) {
 }
 
 /**
+ * 从一份快照里取出「完整索引」，用作增量扫描的基线。
+ *
+ * 用途：DSH 每次重启后内存里的水印与基线都会清空，若只能整扫一遍来重新立基线，
+ *   用户重启后第一次点开面板就要白等一次全量扫描（实测本仓库约 7 秒）。
+ *   磁盘上其实存着上一次的快照，里面就带着完整的票与状态，可以直接当基线用。
+ *
+ * 为什么必须把地图与地图子票也算进来：快照里的 issues 数组并不保证包含全部票，
+ *   地图容器与它的子票可能只挂在地图下面。少算了哪一条，那条票的「关闭/删除」
+ *   就永远不会被检出——属于静默漏报，比慢一点严重得多，所以宁可多算不可少算。
+ *
+ * @param {object} snap 快照对象（磁盘缓存里的形状）
+ * @returns {object|null} 完整索引：编号 → '状态|更新时间'；取不出任何票时返回 null
+ */
+function indexFromSnapshot(snap) {
+  if (!snap || typeof snap !== 'object') return null
+  const index = {}
+  const put = function (item) {
+    if (!item || item.number === undefined || item.number === null) return
+    index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '')
+  }
+  if (Array.isArray(snap.issues)) snap.issues.forEach(put)
+  if (Array.isArray(snap.maps)) {
+    snap.maps.forEach(function (m) {
+      put(m)
+      if (m && Array.isArray(m.tickets)) m.tickets.forEach(put)
+    })
+  }
+  return Object.keys(index).length ? index : null
+}
+
+/**
  * 本次扫描结束后应当记下的新水印。
  * 取「扫描发起之前」的那个时刻（而不是此刻），让下一轮的窗口与这一轮重叠，
  * 保证两轮之间发生的改动不会掉进缝里。
@@ -102,4 +133,23 @@ function nextWatermark(scanStartedMs) {
   return Number(scanStartedMs) || Date.now()
 }
 
-export { scanWindow, mergeDelta, indexDiffers, nextWatermark, MAX_WINDOW_MS, SKEW_MS }
+/**
+ * 用磁盘快照给「重启后的第一次扫描」立一个可用的起点。
+ *
+ * @param {object} snap 磁盘上取到的快照
+ * @param {number} nowMs 当前时刻
+ * @returns {{baseline: object, watermarkMs: number}|null}
+ *   可取用时返回基线与水印；快照陈旧到超出窗口上限（此时缩窗无意义，不如整扫）则返回 null
+ */
+function seedFromSnapshot(snap, nowMs) {
+  const now = Number(nowMs) || Date.now()
+  const baseline = indexFromSnapshot(snap)
+  if (!baseline) return null
+  const gen = Number(snap && snap.generatedMs) || 0
+  if (!gen || gen <= 0 || gen > now) return null
+  if (now - gen > MAX_WINDOW_MS) return null
+  // 水印取快照生成时刻：快照就是那个时刻的真实状态，从它往后问增量即可
+  return { baseline: baseline, watermarkMs: gen }
+}
+
+export { scanWindow, mergeDelta, indexDiffers, nextWatermark, indexFromSnapshot, seedFromSnapshot, MAX_WINDOW_MS, SKEW_MS }
