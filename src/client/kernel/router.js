@@ -155,6 +155,11 @@
         } catch (e) { return false }
       })()
       try { const m = (cfg.openIn === 'sidebar' || (bsReady && cfg.openIn === 'dock' && !explicitDock)) ? 'sidebar' : 'dock'; const _keyHash = dswsLogHash((typeof keyOf === 'function' ? keyOf(st.cwd || '') : String(st.cwd || ''))); const _snapVer = (typeof getSnapshotVersion === 'function' ? getSnapshotVersion(st.cwd) : '') || (st.snapshot && st.snapshot.version) || ''; const _bid = String((st.selection && st.selection.backendId) || ''); log('info', 'panel.open', { mode: m, hasCache: !!(st.snapshot || (typeof getCachedSnapshot === 'function' && getCachedSnapshot(st.cwd))), snapFresh: (typeof snapFresh === 'function' ? snapFresh(st) : false), keyHash: _keyHash, snapVersion: _snapVer, backendId: _bid }) } catch (eL) {} // 串门自证（#495）：单行 #36 即可定罪——工作区键散列对上哪家、快照是哪个版本、后端是哪一个
+      // 临时测点（起点）：记下「点开面板」这一刻，供面板渲染后算出「点击 → 内容可见」总耗时。
+      //   复用 panel.open 这个已有事件与它已有的 mode 字段，把耗时编码进 mode 取值 —— 不新增事件名、
+      //   不新增字段，因此不触碰日志白名单与附录（字段门禁只查字段名、不查取值）。终点在 panel/DockSync.js。
+      //   定位完这处故障后撤除；留着会让 mode 承载它不该承载的东西。
+      try { st.__openMs = Date.now(); log('info', 'panel.open', { mode: 'sidebar-t0' }) } catch (eM) {}
       if (cfg.openIn === 'sidebar' || (bsReady && cfg.openIn === 'dock' && !explicitDock)) openInSidebar(st)
       else openDockPanel(st)
     }

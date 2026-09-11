@@ -6,6 +6,20 @@
 //   本文件不引用 OverlayGate.js（同闭包拼回，调用方向见 Dock.js 装配一处）。
 // 参数：s = 停靠 store；sid = 会话标识；summaryCwd = 会话列表权威工作区；props = 槽位属性（取 session 兜底用）。
 export const useDockSync = function(s, sid, summaryCwd, props){
+      // 临时测点（终点）：把「点击胶囊那一刻 → 面板渲染提交」的总耗时记一行，定死那几秒花在哪。
+      //   落在这里而不是 Dock.js：渲染目录里只有点名文件允许打日志，本文件在名单内，
+      //   放这里就不必为一个临时测点去改那条架构规则的名单。
+      //   为什么以 s.tick 为依赖：面板侧边栏通常一直挂着、不重新挂载，挂在「首次挂载」上量不到点击
+      //   那一刻；而每次 emit 都会让 s.tick 自增，于是点击触发的每一种渲染之后都会跑一次。
+      //   量与不量的分支同在一个副作用里，不会多出渲染；只记第一次（记完收走起点值）。定位完撤除。
+      React.useEffect(function () {
+        try {
+          if (s.__openMs === undefined || s.__openMs === null) return
+          const _ms = Date.now() - s.__openMs
+          s.__openMs = null
+          log('info', 'panel.open', { mode: 'sidebar-painted+' + _ms + 'ms' })
+        } catch (eP) {}
+      })
       // #179 加固：响应式工作区同步（对齐 StatusBar）+ 回切自愈（同 sid 切工作区亦触发）
       React.useEffect(function () {
         const apply = function (cwd) {
