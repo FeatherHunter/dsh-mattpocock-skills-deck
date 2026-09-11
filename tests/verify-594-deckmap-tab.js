@@ -31,12 +31,12 @@ let passed = 0
 const ok = function (name) { passed++; console.log('  PASS', name) }
 const bad = function (name) { failed = true; console.log('  FAIL', name) }
 
-/** 带 path 的 deck:map 打开：openTab({ type: 'deck:map', … path … })。 */
-const RE_WITH_PATH = /openTab\(\{[^}]*type:\s*'deck:map'[^}]*path/
-/** 只给类型的 deck:map 打开：openTab({ type: 'deck:map' })。 */
-const RE_TYPE_ONLY = /openTab\(\{\s*type:\s*'deck:map'\s*\}/
-/** 任意一次打开面板的调用（不带 type 条件）：用来确认 hostShim.js 里已经一次都不打开了。 */
-const RE_ANY_OPEN = /openTab\s*\(/
+/** 只给类型的 deck 标签页打开（可以带 scope）：openTab({ type: 'deck:map' }, scope)。 */
+const RE_DECK_TAB_TYPE_ONLY = /openTab\(\{\s*type:\s*'deck:map'\s*\}/
+/** 带 path 的 deck 标签页打开：openTab({ type: 'deck:map', … path … })。 */
+const RE_DECK_TAB_WITH_PATH = /openTab\(\{[^}]*type:\s*'deck:map'[^}]*path/
+/** 任意一次打开面板的调用（不限是哪个标签页）：用来确认 hostShim.js 里已经不再打开面板。 */
+const RE_ANY_OPEN_TAB = /openTab\s*\(/
 
 function stripComments(buf) {
   return buf.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
@@ -65,13 +65,13 @@ FILES.forEach(function (rel) {
     return
   }
   const text = stripComments(buf)
-  if (RE_WITH_PATH.test(text)) bad(rel + ' R1 打开 deck 标签页时传了 path（会被当成真实文件去解析）')
+  if (RE_DECK_TAB_WITH_PATH.test(text)) bad(rel + ' R1 打开 deck 标签页时传了 path（会被当成真实文件去解析）')
   else ok(rel + ' R1 打开 deck 标签页时没有传 path')
 })
 
 OPENER_FILES.forEach(function (rel) {
   const text = stripComments(fs.readFileSync(path.join(root, rel), 'utf8'))
-  if (RE_TYPE_ONLY.test(text)) ok(rel + ' R2 留着那条只给类型的打开调用')
+  if (RE_DECK_TAB_TYPE_ONLY.test(text)) ok(rel + ' R2 留着那条只给类型的打开调用')
   else bad(rel + ' R2 找不到只给类型的打开调用')
 })
 
@@ -79,18 +79,18 @@ OPENER_FILES.forEach(function (rel) {
 {
   const rel = path.join('src', 'client', 'hostShim.js')
   const text = stripComments(fs.readFileSync(path.join(root, rel), 'utf8'))
-  if (RE_ANY_OPEN.test(text)) bad(rel + ' 又出现了打开面板的调用 —— 对不上 #598 删掉旧标签迁移后的形状')
+  if (RE_ANY_OPEN_TAB.test(text)) bad(rel + ' 又出现了打开面板的调用 —— 对不上 #598 删掉旧标签迁移后的形状')
   else ok(rel + ' 已不再打开面板（#598 删掉旧标签迁移后就是这个形状）')
 }
 
 // ---- 先验自证：样例坏写法必须能被规则抓红 ----
 {
   const probe = "bs.openTab({ type: 'deck:map', path: 'deck:map' }, scope)"
-  if (RE_WITH_PATH.test(probe)) ok('先验：插入带 path 的打开可被识别（变红能力成立）')
+  if (RE_DECK_TAB_WITH_PATH.test(probe)) ok('先验：插入带 path 的打开可被识别（变红能力成立）')
   else bad('先验失败：R1 抓不住样例坏写法')
-  if (RE_TYPE_ONLY.test("bs.openTab({ type: 'deck:map' }, scope)")) ok('先验：只给类型的写法可被识别（绿灯能力成立）')
+  if (RE_DECK_TAB_TYPE_ONLY.test("bs.openTab({ type: 'deck:map' }, scope)")) ok('先验：只给类型的写法可被识别（绿灯能力成立）')
   else bad('先验失败：R2 认不出只给类型的写法')
-  if (RE_ANY_OPEN.test('bs.openTab({ type: \'deck:map\' }, scope)')) ok('先验：打开面板的调用可被识别（hostShim 那条提醒抓得住）')
+  if (RE_ANY_OPEN_TAB.test('bs.openTab({ type: \'deck:map\' }, scope)')) ok('先验：打开面板的调用可被识别（hostShim 那条提醒抓得住）')
   else bad('先验失败：抓不住打开面板的调用')
 }
 

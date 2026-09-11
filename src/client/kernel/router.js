@@ -89,11 +89,12 @@
         // 第一性原理：对外品牌为 MattSkillsDeck，单一 tab id = deck:map —— 只注册这一个面板类型，不注册任何旧名别名。
         // #fix-two-sliders：旧版同时注册 deck:map + waystation:map 两份同 component、同 order、同 single 的注册器，
         //   better-sidebar 按 id 区分 tab 条目，结果 better-sidebar 显示两条 slider（用户报告「MattSkills slider 两个」）。
-        // #598：旧名别名那行注册已整段删除，不再注册。要害在于 hidden: true 只管「+」菜单，管不到 better-sidebar
-        //   设置页的「侧边卡」清单 —— 那份清单按「已注册的面板类型」逐张画卡片，隐藏的也画（只排到最后，见
-        //   SideCardSection.tsx 的 tabOrder），所以别名会让同一个面板在设置里多出一张卡片、多一个开关。
-        //   代价（#598 拍板选改法 A 时已接受）：旧布局里若还开着这个旧名标签，会渲染成 better-sidebar 的占位页
-        //   （OrphanedTab，显示「插件未加载」加类型 id），点关即消失，不影响 deck:map。
+        // #598：旧名别名那行注册已整段删除，不再注册。要害在于 hidden: true 只管「+」菜单，管不到
+        //   better-sidebar 自己的设置页 —— 那一页在本机 node_modules/dsh-better-sidebar 的
+        //   src/client/SideCardSection.tsx，它按「已注册的面板类型」逐张画卡片，标了 hidden 的也照画
+        //   （只按同文件的 tabOrder 排到最后），所以别名会让同一个面板在设置里多出一张卡片、多一个开关。
+        //   代价（#598 已接受的处置方式：直接删别名、不做迁移）：旧布局里若还开着这个旧名标签，会渲染成
+        //   better-sidebar 的占位页（它内部叫 OrphanedTab，显示「插件未加载」加类型 id），点关即消失，不影响 deck:map。
         //   教训：以后想让某个注册「在界面上看不见」，先确认目标界面的过滤规则，别默认 hidden 在哪儿都管用。
         sidebarTabDisposer = bs.registerTab({
           id: 'deck:map',
