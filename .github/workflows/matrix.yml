@@ -27,7 +27,8 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 同 verify.yml：Node 22（仓库底座口径，也是 pnpm 11.22 的下限 Node ≥ 22.13）
+          node-version: 22
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile
         shell: bash

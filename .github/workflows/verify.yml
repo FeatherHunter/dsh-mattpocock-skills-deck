@@ -32,7 +32,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Node 22：仓库既有口径（票 #581 拍板 Node 22 为工程底座），也是 pnpm 11.22 的下限
+          # ——它要求 Node ≥ 22.13，装在 Node 20 上跑 pnpm 会直接崩在 node:sqlite 这个内置模块上。
+          node-version: 22
           cache: pnpm
 
       - name: Install (pnpm)

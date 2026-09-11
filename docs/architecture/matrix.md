@@ -159,8 +159,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4  # packageManager pnpm@11
-      - uses: actions/setup-node@v4 with { node-version: 20, cache: pnpm }
+      - uses: pnpm/action-setup@v4  # 版本读 package.json 的 packageManager（pnpm@11.22），这里不重复写 version
+      - uses: actions/setup-node@v4 with { node-version: 22, cache: pnpm }  # pnpm 11.22 要求 Node ≥ 22.13
       - run: pnpm install --frozen-lockfile
       - run: node scripts/build.mjs
       - run: npm run verify   # 含 verify-platform-contract 145/145 + verify-platform-linux 32/32 + verify-tracker-contract 366/4/OK
