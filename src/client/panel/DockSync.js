@@ -5,6 +5,32 @@
 // 接线：Dock.js 单调 useDockSync(s, sid, summaryCwd, props) 供装配（此前是两个副作用原位）；
 //   本文件不引用 OverlayGate.js（同闭包拼回，调用方向见 Dock.js 装配一处）。
 // 参数：s = 停靠 store；sid = 会话标识；summaryCwd = 会话列表权威工作区；props = 槽位属性（取 session 兜底用）。
+    // 临时测点辅助（把「浏览器账本」压成一行文字）：取这一段里最长的那个长动画帧 ——
+    //   它是谁（函数名）、在哪个文件、被强制布局吃掉多少毫秒、谁触发的（invoker），全在这一行里。
+    //   为什么要靠它：插件自己的渲染体三段计时都是 0 毫秒，说明时间花在组件函数之外，只有浏览器
+    //   自己的账本能指出那一帧到底在建什么。定位完连同其它测点一起删。
+    const _dswsLoafText = function (rs) {
+      try {
+        if (typeof globalThis === 'undefined') return ' loaf=na'
+        if (!globalThis.__dswsLoafSupported) return ' loaf=unsupported'
+        const arr = globalThis.__dswsLoaf || []
+        let best = null
+        for (let i = 0; i < arr.length; i++) {
+          const e = arr[i]
+          if (rs && e.startTime + e.duration < rs) continue
+          if (!best || e.duration > best.duration) best = e
+        }
+        if (!best) return ' loaf=none'
+        let sc = null
+        const ss = best.scripts || []
+        for (let i = 0; i < ss.length; i++) if (!sc || (ss[i].duration || 0) > (sc.duration || 0)) sc = ss[i]
+        return ' loaf=' + Math.round(best.duration) + '/' + Math.round(best.blockingDuration || 0) +
+          '/' + (sc ? String(sc.sourceFunctionName || '?') : '?') +
+          '@' + (sc ? String(sc.sourceURL || '').split('/').pop().slice(0, 26) : '') +
+          '/forced' + Math.round(sc ? (sc.forcedStyleAndLayoutDuration || 0) : 0) +
+          '/by' + (sc ? String(sc.invoker || '?') : '?')
+      } catch (e) { return ' loaf=readfail' }
+    }
 export const useDockSync = function(s, sid, summaryCwd, props){
       // 临时测点（终点）：把「点击胶囊那一刻 → 面板渲染提交」的总耗时记一行，定死那几秒花在哪。
       //   落在这里而不是 Dock.js：渲染目录里只有点名文件允许打日志，本文件在名单内，
@@ -14,9 +40,49 @@ export const useDockSync = function(s, sid, summaryCwd, props){
       //   量与不量的分支同在一个副作用里，不会多出渲染；只记第一次（记完收走起点值）。定位完撤除。
       React.useEffect(function () {
         try {
+          const _now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()
+          // 细粒度（只记一次）：把「进入渲染 → 本副作用跑完」切成两段。
+          //   renderMs = 进入渲染到本次 effect 开始（React 建完并提交整棵树）；
+          //   差出来的部分 = 再算上提交后到本副作用跑完（含同组件里排在前面那些副作用干的活）。
+          //   若 renderMs 很大 → 贵在画那几百行；若差值很大 → 贵在挂载副作用里。
+          try {
+            if (typeof globalThis !== 'undefined' && globalThis.__dswsDockRenderStart && !globalThis.__dswsDockRenderLogged) {
+              globalThis.__dswsDockRenderLogged = true
+              const _segs = (typeof globalThis !== 'undefined' && globalThis.__dswsDockSeg) ? globalThis.__dswsDockSeg.join(',') : 'none'
+              globalThis.__dswsDockSeg = null
+              // 顺带量首帧要建多少节点、多深：这决定修法是「减少首屏渲染量」还是「把成本挪到空闲时」。
+              const _rsSnap = globalThis.__dswsDockRenderStart
+              let _dom = ''
+              try {
+                const _host = document && document.querySelector('[data-dsws-host]')
+                if (_host) {
+                  let _depth = 0, _p = _host
+                  while (_p && _p.parentElement && _depth < 40) { _depth++; _p = _p.parentElement }
+                  _dom = ' nodes=' + _host.querySelectorAll('*').length + ' depth=' + _depth
+                }
+              } catch (eDom) {}
+              // 提交边界：渲染起点 → 子树 DOM 建完并提交（子组件的布局副作用也跑完）。-1 表示没记到。
+              try { _dom += ' commit=' + (globalThis.__dswsDockCommitMs === undefined ? -1 : globalThis.__dswsDockCommitMs) + 'ms' } catch (eCm) {}
+              // 折叠耗时：提交阶段里 fitAllTags / fitMapRows 累加了多少毫秒
+              try { _dom += ' fit=' + (globalThis.__dswsFitMs || 0) + 'ms' } catch (eFt) {}
+              // 整页节点数：用来判断「是不是只有插件这一块大」
+              try { _dom += ' page=' + document.getElementsByTagName('*').length } catch (ePg) {}
+              _dom += _dswsLoafText(_rsSnap)
+              log('info', 'panel.open', { mode: 'dock-render+' + Math.round(_now - _rsSnap) + 'ms/' + _segs + _dom })
+              // 长动画帧的账本可能比被动副作用晚一步才到（它要在这一帧结束时才入队），
+              // 所以半秒后补记一行：有就报是谁，没有就写明没有 —— 免得因为抢跑而误判「查不到」。
+              if (typeof setTimeout === 'function') {
+                setTimeout(function () { try { log('info', 'panel.open', { mode: 'loaf-late' + _dswsLoafText(_rsSnap) }) } catch (eLate) {} }, 500)
+              }
+            }
+          } catch (eR) {}
           if (s.__openMs === undefined || s.__openMs === null) return
           const _ms = Date.now() - s.__openMs
           s.__openMs = null
+          globalThis.__dswsDockRenderStart = null
+          globalThis.__dswsDockRenderLogged = false
+          globalThis.__dswsDockCommitMs = undefined
+          globalThis.__dswsFitMs = 0
           log('info', 'panel.open', { mode: 'sidebar-painted+' + _ms + 'ms' })
         } catch (eP) {}
       })

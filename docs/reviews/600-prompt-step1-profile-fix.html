@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>提示词第 ① 步修复报告与四个待决事项（票 #600）</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #1b1f24;
+    --ink-soft: #5b6472;
+    --line: #e2e6ec;
+    --accent: #1f6feb;
+    --good: #1a7f37;
+    --good-bg: #e8f5ec;
+    --warn: #9a6700;
+    --warn-bg: #fff8e5;
+    --bad: #b42318;
+    --bad-bg: #fdecea;
+    --rec: #1a7f37;
+    --code-bg: #f2f4f7;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 6px 18px rgba(16,24,40,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216;
+      --panel: #161b22;
+      --ink: #e6edf3;
+      --ink-soft: #9aa5b1;
+      --line: #2a3038;
+      --accent: #58a6ff;
+      --good: #3fb950;
+      --good-bg: #10251a;
+      --warn: #d29922;
+      --warn-bg: #251f10;
+      --bad: #f85149;
+      --bad-bg: #2a1513;
+      --rec: #3fb950;
+      --code-bg: #1b2027;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.75 "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 28px 20px 72px; }
+
+  header.hero {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px 24px;
+    box-shadow: var(--shadow);
+  }
+  header.hero h1 { margin: 0 0 6px; font-size: 25px; line-height: 1.4; }
+  header.hero .sub { margin: 0; color: var(--ink-soft); font-size: 14px; }
+  .chips { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink-soft);
+  }
+  .chip b { color: var(--ink); font-weight: 600; }
+  .chip.ok { background: var(--good-bg); border-color: transparent; color: var(--good); }
+  .chip.ok b { color: var(--good); }
+  .chip.bad { background: var(--bad-bg); border-color: transparent; color: var(--bad); }
+  .chip.bad b { color: var(--bad); }
+
+  .keybox {
+    margin: 18px 0 0;
+    background: linear-gradient(180deg, var(--panel), var(--panel));
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--accent);
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: var(--shadow);
+  }
+  .keybox h2 { margin: 0 0 8px; font-size: 16px; letter-spacing: .5px; color: var(--accent); }
+  .keybox ol { margin: 0; padding-left: 22px; }
+  .keybox li { margin: 4px 0; }
+
+  nav.toc {
+    margin: 18px 0 26px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 18px;
+    box-shadow: var(--shadow);
+    position: sticky; top: 8px; z-index: 5;
+  }
+  nav.toc ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  nav.toc a { color: var(--ink-soft); text-decoration: none; font-size: 14px; border-bottom: 1px dashed transparent; }
+  nav.toc a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+  section { margin: 34px 0 0; }
+  section > h2 {
+    font-size: 20px; margin: 0 0 12px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--line);
+  }
+  h3 { font-size: 16px; margin: 22px 0 8px; }
+  p { margin: 10px 0; }
+  ul, ol { padding-left: 24px; }
+  li { margin: 5px 0; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 20px; margin: 14px 0;
+    box-shadow: var(--shadow);
+  }
+  .card.decision { border-left: 6px solid var(--accent); }
+  .card h3 { margin-top: 0; }
+  .card .lead { color: var(--ink-soft); }
+
+  .callout { border-radius: 10px; padding: 12px 16px; margin: 14px 0; border: 1px solid transparent; }
+  .callout.good { background: var(--good-bg); color: var(--good); }
+  .callout.warn { background: var(--warn-bg); color: var(--warn); }
+  .callout.bad  { background: var(--bad-bg);  color: var(--bad); }
+  .callout p { margin: 4px 0; }
+  .callout strong { font-weight: 700; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14.5px; }
+  caption { text-align: left; color: var(--ink-soft); font-size: 13px; padding-bottom: 6px; }
+  th, td { border: 1px solid var(--line); padding: 9px 11px; vertical-align: top; text-align: left; }
+  th { background: var(--bg); font-weight: 600; }
+  tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+  td.rec { color: var(--rec); font-weight: 600; white-space: nowrap; }
+  td.no { color: var(--bad); }
+  .tag {
+    display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px;
+    background: var(--good-bg); color: var(--good); border: 1px solid transparent; margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  code, pre { font-family: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 5px; font-size: 13.5px; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; overflow-x: auto; font-size: 13.5px; line-height: 1.6; position: relative;
+  }
+  pre code { background: none; padding: 0; }
+  .cmd-bad { border-left: 5px solid var(--bad); }
+  .cmd-good { border-left: 5px solid var(--good); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 10px 0; }
+  details > summary { cursor: pointer; font-weight: 600; }
+  details[open] > summary { margin-bottom: 8px; }
+
+  .reply {
+    margin-top: 12px; background: var(--bg); border: 1px dashed var(--line);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  .reply .label { font-size: 13px; color: var(--ink-soft); }
+  .reply .line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .reply code { background: var(--panel); }
+  button.copy {
+    font: inherit; font-size: 13px; padding: 3px 12px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink-soft); cursor: pointer;
+  }
+  button.copy:hover { color: var(--accent); border-color: var(--accent); }
+
+  .timeline { list-style: none; padding: 0; margin: 12px 0; }
+  .timeline li { position: relative; padding: 0 0 14px 26px; border-left: 2px solid var(--line); margin: 0; }
+  .timeline li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  .timeline li::before {
+    content: ""; position: absolute; left: -7px; top: 8px; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--accent); border: 2px solid var(--panel);
+  }
+  .timeline .t { color: var(--ink-soft); font-size: 13px; }
+
+  .muted { color: var(--ink-soft); font-size: 14px; }
+  a { color: var(--accent); }
+  footer { margin-top: 36px; color: var(--ink-soft); font-size: 13.5px; border-top: 1px solid var(--line); padding-top: 14px; }
+
+  @media print {
+    body { background: #fff; }
+    nav.toc, button.copy { display: none; }
+    .card, header.hero, .keybox { box-shadow: none; break-inside: avoid; }
+    section { break-inside: avoid-page; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>提示词第 ① 步修复报告与四个待决事项</h1>
+  <p class="sub">对应票「任务：提示词第 ① 步的 dsh 命令补上 --profile」#600 · 提交 <code>ad6c71e</code> · 地图「提示词可执行内容收敛为底层脚本」#567</p>
+  <div class="chips">
+    <span class="chip ok">修复 <b>已落地并推送 main</b></span>
+    <span class="chip ok">门禁 <b>92 / 92 全绿</b></span>
+    <span class="chip">冒烟 <b>全绿</b></span>
+    <span class="chip ok">票 #600 <b>已关闭</b></span>
+    <span class="chip">地图 #567 <b>9 张子票 · 进度 95%</b></span>
+    <span class="chip ok">CI verify <b>三平台全绿（ubuntu / windows / macos）</b></span>
+  </div>
+</header>
+
+<div class="keybox">
+  <h2>一句话结论</h2>
+  <ol>
+    <li><strong>你报的第 ① 步确实跑不通</strong>：<code>dsh plugin</code> 把 <code>--profile</code> 声明成必填选项，旧提示词漏了它，照抄就报 <code>required option '--profile &lt;name&gt;' not specified</code>。</li>
+    <li><strong>已经修好并推上 main</strong>（提交 <code>ad6c71e</code>）：四处提示词（正文格式块、子议题关联块，中英各一份）全部补上 <code>--profile</code>，并写明这个值该填什么；门禁同步改好，谁把旧写法放回来就变红。</li>
+    <li><strong>你报的第 ② 步本来就是对的</strong>：脚本先比对、内容一致时不发请求，这正是它设计里的幂等行为，不用改。</li>
+    <li><strong>现在有 4 件事等你拍板</strong>：怎么让修复对你生效 · CI 的红灯修不修 · 地图上 #595 与 #576 怎么收 · 要不要为「提示词直接印真 profile 名」另立一票。</li>
+  </ol>
+</div>
+
+<div class="keybox" style="border-left-color: var(--good)">
+  <h2 style="color: var(--good)">决策已定后的执行进展（本页写完后追加，四个决策都按推荐走：1A · 2A · 3A · 4A）</h2>
+  <ol>
+    <li><b>决策 1（并进 1.7.19 发布）</b>：已把这条修复补进 <code>CHANGELOG.md</code> 的 v1.7.19 一节（提交 <code>e79117a</code>，节标题未动，发布票引用的原标题仍对得上），并在发布票 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/593">#593</a> 留了「发布后怎么复验」的提醒。</li>
+    <li><b>决策 2（修 CI）</b>：连修七处，每处都是真问题，不是同一处反复改：① 工作流里重复的 <code>version: 11</code> 与 <code>package.json</code> 的 <code>packageManager</code> 撞车，pnpm 动作直接拒启动（<code>476b805</code>）；② 工作流把 Node 钉在 20，低于 pnpm 11.22 要求的 22.13，装包崩在 <code>node:sqlite</code>（<code>ebb4eed</code>）；③ <strong>全新克隆下 <code>pnpm install</code> 根本装不起来</strong>——根 <code>prepare</code> 没先构建两个工作区包就跑去跑主编译（<code>f2a9b82</code>）；④ 两道门禁「本地永远绿、CI 必红」：迁移门禁写死了 Windows 假路径（Linux/macOS 上被 <code>path.isAbsolute</code> 拒掉）、Markdown 门禁读的是 gitignore 掉的 <code>.scratch</code> 夹具；另有 shell 脚本在 CRLF 检出下 <code>bash -n</code> 必报语法错（<code>83e8df9</code>、<code>fedbf2e</code>）。同时新增 <code>scripts/verify-all.mjs</code>，CI 改成逐道跑并汇总，一次运行就能报出三个平台上的全部失败，不再一条一条挤牙膏。它一次就报全了剩下的问题，于是又补两轮：浏览器门禁缺 Playwright Chromium、以及 <code>PATH.split(';')</code> 在 Linux/macOS 上必然找不到 git（<code>74afabc</code>）；423 标题截断门禁的阈值贴在平台边界上，把 macOS 行盒取整的 0.1 行差异误判成缺陷（<code>dc30815</code>）。<b>结果：提交 <code>dc30815</code> 的这次运行 ubuntu / windows / macos 三个平台全绿</b>，含此前从未执行过的 Stage 1 minimal smoke 与 Stage 2 full matrix。</li>
+    <li><b>决策 3（你验 #595）</b>：核对单已作为评论留在 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/595">#595</a>（机器验约 30 秒 + 人眼验约 2 分钟）。你说一句「可以关了」，我就关 #595 与 #576，并回写地图 #567 的收尾。</li>
+    <li><b>决策 4（另立一票）</b>：已建 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/601">#601</a>「待定：提示词第 ① 步直接印上真实的 profile 名（要新增宿主到客户端的通路）」，并在地图 #567 的 Out of scope 里留了一行（不挂成子议题）。</li>
+  </ol>
+  <p style="margin:8px 0 0">本地在<strong>全新克隆 + 清空 DSH_HOME</strong> 的环境里逐道跑：<b>93 通过 / 0 失败</b>（用时 79 秒）；CI 用同一套逐道跑法，<b>三个平台全绿</b>。修 CI 过程中发现的既有问题已登记到 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/578">#578</a>，发布前的提醒留在 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/593">#593</a>。</p>
+</div>
+
+<nav class="toc">
+  <ul>
+    <li><a href="#s1">一、前因后果（你的报告 → 根因）</a></li>
+    <li><a href="#s2">二、修了什么</a></li>
+    <li><a href="#s3">三、证据（可核查）</a></li>
+    <li><a href="#s4">四、四个待决事项（含推荐与利弊）</a></li>
+    <li><a href="#s5">五、附录：票号、时间线、复跑命令</a></li>
+  </ul>
+</nav>
+
+<!-- ==================== 1 ==================== -->
+<section id="s1">
+  <h2>一、前因后果：这条提示词为什么跑不通</h2>
+
+  <div class="card">
+    <h3>1. 事情是怎么被发现的</h3>
+    <p>你在 web 界面触发唤醒词，让 AI 按注入的提示词写回一张 issue 的正文。AI 的回报里有三段：</p>
+    <ul>
+      <li><b>前置检查通过</b>：<code>gh auth status</code> 显示已登录 github.com 的 FeatherHunter，令牌有效。</li>
+      <li><b>第 ① 步卡住</b>：提示词原话是 <code>dsh plugin exec node -e "…"</code>，缺 <code>--profile</code> 直接报错；AI 自己补上 <code>--profile web</code> 才拿到插件安装目录。</li>
+      <li><b>第 ② 步正常</b>：在工作区里跑写回脚本、<code>--body-file</code> 用绝对路径，回包 <code>{"ok":true,…,"warnings":[]}</code>，脚本自述「已经和要写的内容一样，不再发请求」；随后复核 #599 正文与文件逐字符一致（2201 = 2201）。</li>
+    </ul>
+    <p>也就是说：<b>问题只出在第 ① 步那一句命令上</b>——它是给「读提示词的人／agent」照抄用的，照抄却跑不通。</p>
+  </div>
+
+  <div class="card">
+    <h3>2. 根因：<code>--profile</code> 是必填，旧提示词漏了它</h3>
+    <p><code>dsh</code> 的 <code>plugin</code> 子命令是「往某个 profile 目录里转发 pnpm」的入口，它把 <code>--profile &lt;name&gt;</code> 声明成必填选项。我把四种写法都实跑了一遍：</p>
+    <table>
+      <caption>实测（Windows，<code>dsh</code> 在 PATH 上，插件装在 <code>web</code> 这个 profile 里）</caption>
+      <thead><tr><th style="width:52%">命令形状</th><th>结果</th></tr></thead>
+      <tbody>
+        <tr><td><code>dsh plugin exec node -e "…"</code>（旧提示词原话）</td><td class="no">报 <code>required option '--profile &lt;name&gt;' not specified</code>，退出码 1</td></tr>
+        <tr><td><code>dsh plugin exec --help</code></td><td class="no">同样报这个错，连帮助都看不到</td></tr>
+        <tr><td><code>dsh --profile web plugin exec …</code></td><td class="no">同样报这个错（顶层那个 <code>--profile</code> 喂不到 <code>plugin</code> 子命令）</td></tr>
+        <tr><td><code>dsh plugin --profile web exec …</code></td><td class="rec">打印插件安装目录，退出码 0 ✅</td></tr>
+      </tbody>
+    </table>
+    <p>顺带说明：本仓库既有的文档一直就是带 profile 的写法——<code>README.md</code> 里是 <code>dsh plugin --profile web add dsh-mattpocock-skills-deck</code>，更新模块的手工兜底命令是 <code>dsh plugin --profile &lt;名&gt; add &lt;包&gt;@&lt;版本&gt;</code>。所以这不是新口径，而是提示词这一处漏抄了参数。</p>
+  </div>
+
+  <div class="card">
+    <h3>3. 为什么不能干脆写死 <code>web</code></h3>
+    <p>试出来的事实：profile 名填一个不存在的名字，<code>dsh plugin</code> 会<strong>先照模板初始化出同名 profile 目录</strong>，再往下跑。实测输出：</p>
+    <pre><code>dsh: initialized profile probe-delete-me at C:\Users\辰辰洋洋\.dsh\profiles\probe-delete-me
+Already up to date
+Done in 315ms using pnpm v11.25.0</code></pre>
+    <p>这等于在用户机器上留一个空 profile（探针目录我已删掉）。所以提示词给的是「填<strong>你自己</strong>启动界面时用的那个 profile 名，Web 界面通常就是 <code>web</code>」，而不是写死一个 <code>web</code>。</p>
+  </div>
+</section>
+
+<!-- ==================== 2 ==================== -->
+<section id="s2">
+  <h2>二、修了什么</h2>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>改前（照抄跑不通）</h3>
+      <pre class="cmd-bad"><code>dsh plugin exec node -e "console.log(require.resolve('dsh-mattpocock-skills-deck/package.json'))"</code></pre>
+      <p class="muted">→ <code>error: required option '--profile &lt;name&gt;' not specified</code>（退出码 1）</p>
+    </div>
+    <div class="card">
+      <h3>改后（照抄跑得通）</h3>
+      <pre class="cmd-good"><code>dsh plugin --profile &lt;配置名&gt; exec node -e "console.log(require.resolve('dsh-mattpocock-skills-deck/package.json'))"</code></pre>
+      <p class="muted">→ 打印 <code>C:\Users\辰辰洋洋\.dsh\profiles\web\node_modules\dsh-mattpocock-skills-deck\package.json</code>（退出码 0）</p>
+    </div>
+  </div>
+
+  <table>
+    <caption>本次改动共 5 个文件（+53 / −29 行），提交 <code>ad6c71e</code></caption>
+    <thead><tr><th style="width:34%">文件</th><th>改了什么</th><th style="width:26%">为什么</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>src/host/tracker/backends/github/index.js</code></td>
+        <td>四处提示词（<code>prompts.bodyFormat</code> 与 <code>prompts.subIssue</code>，中英各一份）第 ① 步都补上 <code>--profile &lt;配置名&gt;</code>（英文份写 <code>&lt;profile&gt;</code>），并写明这个值填什么、<code>--profile</code> 不能省。</td>
+        <td>这是缺陷本体：提示词就是给人和 agent 照抄的</td>
+      </tr>
+      <tr>
+        <td><code>tests/verify-prompts.js</code></td>
+        <td>第 ① 步的精确串按语言分成两份；白名单正则改认新形态（profile 值 token 不许含空格与尖括号，免得吞掉紧跟其后的跟踪器命令）；夹具 F25 / F26 / T48 与三处残留检查同步；新增一组 #600 断言；夹具自锁摘要更新。</td>
+        <td>旧门禁把这条错命令当「精确的第 ① 步」钉住，等于锁死错写法——不改门禁，改了代码也会红</td>
+      </tr>
+      <tr>
+        <td><code>tests/verify-progress.js</code></td>
+        <td>客户端残留检查换标记：改成「<code>dsh plugin … exec</code> 这个形状不许出现」。</td>
+        <td>不能拿 <code>dsh plugin</code> 当标记——客户端本来就带着更新用的手工命令 <code>dsh plugin --profile &lt;名&gt; add …</code>，那样会误红</td>
+      </tr>
+      <tr>
+        <td><code>docs/agents/issue-tracker.md</code></td>
+        <td>两步走说明补上「第 ① 步的 <code>dsh plugin</code> 必须带 <code>--profile</code>」。</td>
+        <td>这是消费方工作区里的主锚文件，读者会照着找命令</td>
+      </tr>
+      <tr>
+        <td><code>docs/architecture/kernel-contract.md</code></td>
+        <td>第 5 条门禁描述改成带 <code>--profile</code> 的新形态。</td>
+        <td>让文档与实际门禁对得上</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <p><strong>门禁新钉住的三条：</strong>① 第 ① 步的精确串本身必须带 <code>--profile</code>（中英各一份，带各自的占位符）；② GitHub 后端的两处声明都得匹配对应语言的那份精确串；③ 后端声明里再出现不带参数的旧写法（<code>dsh plugin exec …</code>）就直接判红。</p>
+  </div>
+</section>
+
+<!-- ==================== 3 ==================== -->
+<section id="s3">
+  <h2>三、证据（可核查）</h2>
+
+  <table>
+    <caption>我实际跑过的东西</caption>
+    <thead><tr><th style="width:34%">项目</th><th>结果</th></tr></thead>
+    <tbody>
+      <tr><td>门禁全链 <code>verify</code></td><td class="rec">92 道全部通过（逐道分开跑，0 失败）</td></tr>
+      <tr><td>冒烟 <code>npm run test:smoke</code></td><td class="rec">退出码 0，全部通过</td></tr>
+      <tr><td>端到端实跑（第 ① 步）</td><td class="rec">把后端声明里的命令原样抓出来、<code>&lt;配置名&gt;</code> 填成 <code>web</code>，拿到真实存在的安装目录</td></tr>
+      <tr><td>端到端实跑（第 ② 步）</td><td class="rec">用该目录下的写回脚本对票 600 做 <code>--dry-run</code> 演练：认出票号与正文文件，不联网、不改任何东西</td></tr>
+      <tr><td>反面实证</td><td class="rec">旧写法报错、顶层 <code>--profile</code> 也不行、只有 <code>dsh plugin --profile &lt;名&gt; exec …</code> 好使（见第一节表）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <p><strong>为什么门禁要「逐道分开跑」：</strong><code>npm run verify</code> 用 <code>&amp;&amp;</code> 把 92 条命令串成一条，前一道失败就会掩盖后面最多 91 道（这条已知问题记在 #578 里）。所以验收时我改成逐道执行并汇总，避免「看着红一条、其实后面全没跑」。</p>
+  </div>
+
+  <details>
+    <summary>可复跑命令（点开复制）</summary>
+    <p>第 ① 步（把 <code>&lt;配置名&gt;</code> 换成你自己的 profile 名，Web 界面通常是 <code>web</code>）：</p>
+    <pre><code>dsh plugin --profile web exec node -e "console.log(require.resolve('dsh-mattpocock-skills-deck/package.json'))"</code></pre>
+    <p>第 ② 步演练（不改任何东西）：</p>
+    <pre><code>node "&lt;插件目录&gt;/scripts/fix-issue-body.mjs" --issue 600 --body-file .tmp-600-body.md --dry-run</code></pre>
+    <p>两道关键门禁：</p>
+    <pre><code>node tests/verify-prompts.js
+node tests/verify-progress.js</code></pre>
+    <p>端到端复跑脚本（我留在工作区、不进版本库）：</p>
+    <pre><code>node .tmp-600-e2e.mjs</code></pre>
+  </details>
+</section>
+
+<!-- ==================== 4 ==================== -->
+<section id="s4">
+  <h2>四、要你拍板的四件事</h2>
+
+  <!-- D1 -->
+  <div class="card decision">
+    <h3>决策 1 · 怎么让这次修复对你生效 <span class="tag">推荐 A</span></h3>
+    <p class="lead">前因后果：提示词是随插件包发布的文本，改在源码里不等于你机器上生效。</p>
+    <h4>关键信息</h4>
+    <ul>
+      <li>你本机 <code>web</code> profile 里实装的版本是 <strong>1.7.18</strong>；仓库（含本次修复）已经是 <strong>1.7.19</strong>。</li>
+      <li>修复已在 main 上（提交 <code>ad6c71e</code>，已推送），但还没有任何一版发布包含它。</li>
+      <li>发布票「发布 v1.7.19」#593 是开着的，标签 <code>ready-for-human</code>。</li>
+      <li>结论：在装上带修复的版本之前，唤醒词仍会复现你这次看到的报错（AI 需要自己补 <code>--profile</code> 才能继续）。</li>
+    </ul>
+    <h4>选项与利弊</h4>
+    <table>
+      <thead><tr><th style="width:8%">选</th><th style="width:30%">做法</th><th>利</th><th>弊</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="rec">A</td>
+          <td>把这次修复并进 1.7.19 一起发布（即按 #593 正常走）</td>
+          <td>一次到位，用户拿到的正式版本就带修复；版本号已经就位，不需要额外改动；发布过程走仓库既有向导，可追溯。</td>
+          <td>要等 #593 走完（人工步骤）；这期间唤醒词仍会让你看到旧报错。</td>
+        </tr>
+        <tr>
+          <td>B</td>
+          <td>我立刻协助你把发布跑起来（今天出 1.7.19）</td>
+          <td>最快拿到正式版本，正式渠道生效。</td>
+          <td>发布需要你的 npm 登录／凭据与人工确认环节（人类才能做的那部分我替代不了）；发布前后还有版本对齐与 Release 步骤要走。</td>
+        </tr>
+        <tr>
+          <td>C</td>
+          <td>先往本机 <code>web</code> profile 装一次主干构建做临时热修</td>
+          <td>今天就能用，不用等发布。</td>
+          <td>改的是 <code>node_modules</code> 里的已装包，下次安装／更新会被覆盖；本机实装与版本号更不一致，会加深 #427 / #428 / #435 那一类「实装与仓库不一致」的排查坑。</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>我的推荐：A。</strong>理由：你这次发现的问题属于「发布版才有感知」的那类，正式版本一次到位最省事；如果你今天就要用，再叠加 C 作为临时手段，并记住它会被覆盖。</p>
+    <div class="reply">
+      <span class="label">可以这样回我（点复制）：</span>
+      <div class="line">
+        <code>1 选 A：并进 1.7.19 发布</code>
+        <button class="copy" data-copy="1 选 A：并进 1.7.19 发布">复制</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- D2 -->
+  <div class="card decision">
+    <h3>决策 2 · CI 的红灯修不修 <span class="tag">推荐 A</span></h3>
+    <p class="lead">前因后果：我推送这次修复后顺手看了 CI，发现 <code>verify</code> 工作流失败；再对比上一次推送，也是同样的失败——所以这不是这次改出来的，而是已经持续存在。</p>
+    <h4>关键信息</h4>
+    <ul>
+      <li>失败位置是 <strong>Setup pnpm</strong> 这一步，不是门禁断言层：工作流里写了 <code>version: 11</code>，而 <code>package.json</code> 里有 <code>packageManager: pnpm@11.22.0+sha512…</code>，<code>pnpm/action-setup@v4</code> 同时读到两个版本，直接拒绝启动：<em>Multiple versions of pnpm specified</em>。</li>
+      <li>三个平台（ubuntu / windows / macos）全部挂，整个 job 约 18 秒结束。</li>
+      <li>也就是说：<strong>92 道门禁在 CI 里一条都没跑过</strong>；本地全绿不代表 CI 绿，CI 红也不代表代码有问题——目前这个信号是失效的。</li>
+      <li>修法很小：去掉工作流里的 <code>version: 11</code>，让 action 读 <code>packageManager</code>（一行）。</li>
+    </ul>
+    <h4>选项与利弊</h4>
+    <table>
+      <thead><tr><th style="width:8%">选</th><th style="width:30%">做法</th><th>利</th><th>弊</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="rec">A</td>
+          <td>我现在就修这一行并推送验证</td>
+          <td>CI 才开始真正跑门禁；以后能区分「真回归」与「环境红」；改动面极小、根因明确。</td>
+          <td>修完可能暴露别的平台上真正的红灯（mac / linux 上未知），需要有人接着处理；只有推送才能验证结果。</td>
+        </tr>
+        <tr>
+          <td>B</td>
+          <td>单独立一张 bug 票，不在这轮修</td>
+          <td>不扩大本次改动面，符合「一事一票」的仓库习惯；票里能写清根因与修法。</td>
+          <td>在修之前，CI 继续形同虚设，任何推送都是红的。</td>
+        </tr>
+        <tr>
+          <td>C</td>
+          <td>先不管</td>
+          <td>零成本。</td>
+          <td>每次推送都红，红灯变成噪音；真出回归时没人能从 CI 看出来。</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>我的推荐：A。</strong>理由：一行改动、根因确凿，收益是让整套门禁真正上线；「可能暴露后续红灯」正是要被看见的东西。若你更看重严格一事一票，就选 B——我可以顺手把票和修法一起写好。</p>
+    <div class="reply">
+      <span class="label">可以这样回我（点复制）：</span>
+      <div class="line">
+        <code>2 选 A：现在修 CI 并推送验证</code>
+        <button class="copy" data-copy="2 选 A：现在修 CI 并推送验证">复制</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- D3 -->
+  <div class="card decision">
+    <h3>决策 3 · 地图 #567 上两张开放票怎么收 <span class="tag">推荐 A</span></h3>
+    <p class="lead">前因后果：这次新立的票 #600 已按「验收标准已达成」关闭并挂成地图的第 9 张子议题；地图上还剩两张开放票，按流程它们是否关闭由你拍板。</p>
+    <h4>关键信息</h4>
+    <table>
+      <thead><tr><th style="width:16%">票</th><th>状态与关键事实</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>#595<br><span class="muted">正文格式契约改为后端声明</span></td>
+          <td>已落地（提交 <code>ff88b5b</code>，后续 12 个提交之后仍在 <code>80fe7e6</code> 上做过独立复核）：四条验收标准逐条对上——Markdown / GitLab 渲染结果里没有 <code>gh auth</code>、<code>fix-issue-body</code>、<code>dsh plugin exec</code>；GitHub 仍含完整两步写回；正文格式只有一个来源；把硬抄文案塞回模板时门禁确实变红。票里明确写着「人工确认之前不 close、不写 100%」，所以它停在 95% 等你。</td>
+        </tr>
+        <tr>
+          <td>#576<br><span class="muted">脚本形态与调用契约：定版</span></td>
+          <td>定版规格票，契约内容已随 #571 / #572 / #573 全部落地（两个脚本的名字、参数、回包字段、失败语义都已实现并接进门禁）。它不是待推进的决策票，留着会让地图的「前沿」看起来还没走完。</td>
+        </tr>
+      </tbody>
+    </table>
+    <h4>选项与利弊</h4>
+    <table>
+      <thead><tr><th style="width:8%">选</th><th style="width:30%">做法</th><th>利</th><th>弊</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="rec">A</td>
+          <td>你花几分钟按 #595 的四条验收标准人工过一遍，然后两张一起关</td>
+          <td>「人工验收」这层真实发生；地图收口干净，只剩已决事项。</td>
+          <td>占你几分钟；需要你打开票对照四条标准。</td>
+        </tr>
+        <tr>
+          <td>B</td>
+          <td>授权我按已有复核证据直接关掉这两张</td>
+          <td>省你时间，立刻收口；证据（门禁 + 独立复核记录）都在票里可查。</td>
+          <td>跳过了「人工点头」这一步；若你对 #595 的跨房改动还有疑问，就先别走这条。</td>
+        </tr>
+        <tr>
+          <td>C</td>
+          <td>都先开着</td>
+          <td>零风险，随时可以再看。</td>
+          <td>地图长期停在 95%，下次开会话时「还有两张开放票」会被反复读到，噪音变大。</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>我的推荐：A。</strong>理由：#595 的四条标准都是可机械核对的，人工过一遍成本很低；#576 属于「内容已全部落地」的规格票，建议关闭并在评论里注明「契约内容已随 #571/#572/#573 落地」，避免它一直挂在地图上。</p>
+    <div class="reply">
+      <span class="label">可以这样回我（点复制）：</span>
+      <div class="line">
+        <code>3 选 A：我自己验 #595，验完两张一起关</code>
+        <button class="copy" data-copy="3 选 A：我自己验 #595，验完两张一起关">复制</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- D4 -->
+  <div class="card decision">
+    <h3>决策 4 · 要不要让提示词直接印上真实的 profile 名（可选改进） <span class="tag">推荐 A</span></h3>
+    <p class="lead">前因后果：现在提示词写的是占位符 <code>&lt;配置名&gt;</code>，要读的人自己判断该填什么。插件里其实已经有能力算出这个名字，只是还没接到提示词上。</p>
+    <h4>关键信息</h4>
+    <ul>
+      <li>插件的更新模块已经在用这个名字：<code>src/host/updateReader.js</code> 里 <code>profileName = basename(profileDir)</code>，并据此生成手工命令 <code>dsh plugin --profile &lt;名&gt; add …</code>。</li>
+      <li>提示词是客户端渲染的（<code>{bodyFormat}</code> / <code>{subIssue}</code> 标记），所以要把真名印上去，需要新增一条「宿主把 profile 名送到客户端」的数据通道，并让后端声明支持这个新占位符。</li>
+      <li>这属于「改面板渲染 + 改宿主内部行为」，而地图 #567 的 <em>Out of scope</em> 明确把它排除了——本地图只加 agent 可调入口、不改已有行为。</li>
+    </ul>
+    <h4>选项与利弊</h4>
+    <table>
+      <thead><tr><th style="width:8%">选</th><th style="width:30%">做法</th><th>利</th><th>弊</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="rec">A</td>
+          <td>另立一张独立票，先记录、不在这轮做</td>
+          <td>想法不丢；不污染已收口的地图；下一轮可以按正常流程评估。</td>
+          <td>短时间内提示词仍是占位符，读的人要自己判断。</td>
+        </tr>
+        <tr>
+          <td>B</td>
+          <td>现在就做（本轮一起改）</td>
+          <td>一步到位：提示词里直接是真名，不再需要读者判断。</td>
+          <td>超出本地图范围：要新增宿主→客户端通路与占位符机制；按仓库纪律还得补日志点、门禁与跨房契约说明，改动面远大于本次缺陷。</td>
+        </tr>
+        <tr>
+          <td>C</td>
+          <td>不做：占位符 + 说明已经够用</td>
+          <td>零成本；实测读者（你的 AI）已经能自己补上正确参数。</td>
+          <td>每个新读者仍要判断一次 profile 名，判断错会有「空 profile 目录」的副作用。</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>我的推荐：A。</strong>理由：收益明确但成本是「一条新通路 + 配套门禁」，适合另起一票；本地图已经收口，不宜再塞新机制。</p>
+    <div class="reply">
+      <span class="label">可以这样回我（点复制）：</span>
+      <div class="line">
+        <code>4 选 A：另立一票先记录</code>
+        <button class="copy" data-copy="4 选 A：另立一票先记录">复制</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>最省事的回法</h3>
+    <p>四个都按推荐走，回我这一行就够：</p>
+    <div class="reply">
+      <div class="line">
+        <code>1A 2A 3A 4A</code>
+        <button class="copy" data-copy="1A 2A 3A 4A">复制</button>
+      </div>
+    </div>
+    <p class="muted">想改哪条只写那一条也行，例如「2 选 B，其余按推荐」。</p>
+  </div>
+</section>
+
+<!-- ==================== 5 ==================== -->
+<section id="s5">
+  <h2>五、附录</h2>
+
+  <h3>涉及票号</h3>
+  <table>
+    <thead><tr><th style="width:12%">票</th><th>名称</th><th style="width:22%">与本次的关系</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/600">#600</a></td><td>任务：提示词第 ① 步的 dsh 命令补上 --profile（当前写法直接报错）</td><td>本次新建并关闭的票，结论评论在里面</td></tr>
+      <tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/567">#567</a></td><td>提示词可执行内容收敛为底层脚本（正文格式与子议题关联先行）</td><td>本次工作的地图；#600 已挂成它的第 9 张子议题</td></tr>
+      <tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/595">#595</a></td><td>任务：正文格式契约改为后端声明，Markdown 用户不再看到 GitHub 写回步骤</td><td>决策 3 的对象之一（等你人工验收）</td></tr>
+      <tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/576">#576</a></td><td>脚本形态与调用契约：定版</td><td>决策 3 的对象之一（内容已全部落地）</td></tr>
+      <tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/593">#593</a></td><td>发布 v1.7.19</td><td>决策 1 的载体：修复要随它才生效</td></tr>
+      <tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/588">#588</a></td><td>脚本随插件分发：消费者工作区可调用 shipped scripts</td><td>两步走写法的引入票（参数就是那时漏的）</td></tr>
+      <tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/578">#578</a></td><td>加固：子议题关联脚本与提示词门禁的残余边界</td><td>记录着「verify 用 &amp;&amp; 串联会掩盖后续门禁」这条已知问题</td></tr>
+      <tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/599">#599</a></td><td>BUG：拉取请求页只列出已关闭的 PR，已合并的 5 条看不到</td><td>你那次唤醒词建出来的票；我复核时它仍是 OPEN、正文与文件逐字符一致</td></tr>
+    </tbody>
+  </table>
+
+  <h3>这次会话做过的事（时间顺序）</h3>
+  <ul class="timeline">
+    <li><span class="t">起点</span><br>收到你的报告：唤醒词执行时第 ① 步缺 <code>--profile</code> 报错，第 ② 步正常，#599 复核通过。</li>
+    <li><span class="t">复核</span><br>实跑四种命令形状，确认 <code>--profile</code> 是必填、顶层参数喂不到子命令；并实测「填错 profile 名会建出空 profile 目录」。</li>
+    <li><span class="t">建票</span><br>新建 #600（<code>bug</code> + <code>wayfinder:task</code>），立刻认领；正文经写回脚本核对（回包 <code>ok:true</code>）。</li>
+    <li><span class="t">改代码与门禁</span><br>四处提示词补参数；门禁的精确串按语言分两份、白名单正则与夹具同步、新增 #600 断言；两份文档同步。</li>
+    <li><span class="t">验收</span><br>重建产物；92 道门禁逐道跑全绿；冒烟全绿；端到端实跑第 ① 步 + 第 ② 步演练通过。</li>
+    <li><span class="t">提交</span><br><code>ad6c71e</code> 推上 main（<code>80fe7e6..ad6c71e</code>）。</li>
+    <li><span class="t">收尾地图</span><br>#600 写结论评论并关闭 → 挂成 #567 的第 9 张原生子议题（9/9 已校验）→ 地图加一行结论、计划加第 9 条、进度从 100% 调到 95%。</li>
+    <li><span class="t">顺带发现</span><br>CI 的 <code>verify</code> 工作流在 Setup pnpm 一步就失败（本次与上次推送都一样）→ 成为决策 2。</li>
+  </ul>
+
+  <h3>工作区里的临时文件（<code>.tmp-*</code>，不进版本库）</h3>
+  <table>
+    <thead><tr><th style="width:30%">文件</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>.tmp-600-e2e.mjs</code></td><td>端到端复跑脚本：抓第 ① 步命令实跑 + 第 ② 步演练</td></tr>
+      <tr><td><code>.tmp-600-body.md</code></td><td>票 #600 的正文文件（与线上逐字符一致）</td></tr>
+      <tr><td><code>.tmp-600-resolution.md</code></td><td>票 #600 的结论评论原文</td></tr>
+      <tr><td><code>.tmp-567-map-new.md</code></td><td>回写到地图 #567 的正文文件</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <p><strong>免责与边界：</strong>本次只改了提示词文本、门禁与两份文档，没有改宿主内部行为、没有新增通路、没有动发布流程；因此不需要新增日志点。修改前我没动任何面板渲染或平台层代码。</p>
+  </div>
+</section>
+
+<footer>
+  <p>报告文件：<code>docs/reviews/600-prompt-step1-profile-fix.html</code>（尚未提交到版本库，位置与是否入库由你决定）。对应提交 <code>ad6c71e</code>，票 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/600">#600</a>。</p>
+</footer>
+
+</div>
+
+<script>
+  document.querySelectorAll('button.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var text = btn.getAttribute('data-copy') || '';
+      var done = function () {
+        var old = btn.textContent;
+        btn.textContent = '已复制';
+        setTimeout(function () { btn.textContent = old; }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallback(text, done); });
+      } else {
+        fallback(text, done);
+      }
+    });
+  });
+  function fallback(text, done) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { /* 浏览器不允许时静默失败，用户可手动选中 */ }
+    document.body.removeChild(ta);
+  }
+</script>
+</body>
+</html>

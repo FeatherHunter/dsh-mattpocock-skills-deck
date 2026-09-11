@@ -7,7 +7,55 @@
     // 契约：details 槽 = 壳右侧第三列（AppFrame grid），scope session；关闭 = ctx.layout.closeDetails()
     //   （占位者 props 亦注入 closeDetails）；宽度 300-520px 可拖拽；关闭时子树不卸载（状态保留）。
     // issue #15：tabs 行内容放不下时折叠为纯图标（内容自适应 + 滞回防抖）
+    // ---- 临时测点（浏览器账本）：借「长动画帧」把卡住这一帧的脚本点名 ----
+    // 为什么放这里：它必须在用户点击之前就注册好，而本文件是被拼进 apply(ctx) 的叶子模块，
+    //   文件顶层语句在插件加载时执行一次，正好满足「点击之前」。
+    // 记什么：长动画帧自带总时长、阻塞时长，以及每个脚本的来源文件、函数名、
+    //   被强制布局吃掉的时长与触发者（invoker）——合起来能直接指出是谁在卡主线程。
+    // 不支持该类型的浏览器留一个标记，日志里写清「不支持」，不假装有数。
+    try {
+      if (typeof PerformanceObserver === 'function') {
+        const _ltypes = PerformanceObserver.supportedEntryTypes || []
+        globalThis.__dswsLoaf = []
+        globalThis.__dswsLoafSupported = _ltypes.indexOf('long-animation-frame') >= 0
+        if (globalThis.__dswsLoafSupported) {
+          const _lobs = new PerformanceObserver(function (list) {
+            const es = list.getEntries()
+            for (let i = 0; i < es.length; i++) globalThis.__dswsLoaf.push(es[i])
+            if (globalThis.__dswsLoaf.length > 40) globalThis.__dswsLoaf.splice(0, globalThis.__dswsLoaf.length - 40)
+          })
+          _lobs.observe({ type: 'long-animation-frame', buffered: true })
+        }
+      }
+    } catch (eLoaf) {}
 export     const DetailsDock = (props) => {
+      // 临时测点（细粒度，定位完撤除）：只在这里记一个时刻，日志由 panel/DockSync.js 打
+      //   （渲染目录里只有点名文件允许打日志，本文件不在名单内，所以不在本文件里写日志）。
+      //   用途：外层测点已量出「点击 → 可见」首次要 5.6 秒，而同期宿主一次数据调用都没有，
+      //   说明时间花在前端自己身上。这里记下「进入渲染」的时刻，好把它切成
+      //   「渲染期（建整棵树）」与「提交后到副作用跑完」两段，看清是哪一段贵。
+      const _pv = (typeof performance !== 'undefined' && performance.now) ? function () { return performance.now() } : function () { return Date.now() }
+      const _tRenderStart = _pv()
+      try { if (typeof globalThis !== 'undefined') globalThis.__dswsDockRenderStart = _tRenderStart } catch (eRS) {}
+      const _mark = function (name) {
+        try {
+          if (typeof globalThis === 'undefined') return
+          if (!globalThis.__dswsDockSeg) globalThis.__dswsDockSeg = []
+          if (globalThis.__dswsDockSeg.length < 12) globalThis.__dswsDockSeg.push(name + '+' + Math.round(_pv() - _tRenderStart) + 'ms')
+        } catch (eMk) {}
+      }
+      // 临时测点（提交边界）：渲染期的三段计时刻只覆盖本函数体开头几十行。这一处在
+      //   「整棵子树的 DOM 都建好、子组件的布局副作用也跑完」之后、浏览器开始绘制之前，
+      //   于是：它与渲染起点的差 = React 建树＋提交全部；它与下面日志行的差 = 提交之后
+      //   到被动副作用跑完（含绘制与别的主线程活）。两段一分，就知道该往哪边查。
+      try { if (typeof globalThis !== 'undefined') globalThis.__dswsMarkFn = _mark } catch (eMk2) {}
+      React.useLayoutEffect(function () {
+        try {
+          const _cms = Math.round(_pv() - _tRenderStart)
+          _mark('commit')
+          if (typeof globalThis !== 'undefined' && globalThis.__dswsDockCommitMs === undefined) globalThis.__dswsDockCommitMs = _cms
+        } catch (eCM) {}
+      })
       // #45 回归：切绘画/工作区后右面板串台——原实现挂载仅跑一次副作用（deps []）且直接取 props.sessionId（宿主 details 槽常空 → 退回 shared 单例），
       //   切会话不重跑水合、非 current 快照经 shared 广播串台；修复 = 跟随 useSessions 权威信号（hookCurrent）+ 精确 cwd（summaryCwd），副作用 deps 随 [sid]/[sid,summaryCwd] 重跑。
       const hookCurrent = (props && typeof props.useSessions === 'function') ? props.useSessions(function (x) { return x.current }) : undefined
@@ -32,11 +80,13 @@ export     const DetailsDock = (props) => {
       }, [])
       // #179 加固与污染自愈已搬 DockSync.js（useDockSync），此处单调供装配（同闭包拼回）
       useDockSync(s, sid, summaryCwd, props)
+      _mark('dockSync')
       const closeDock = function () {
         if (props && typeof props.closeDetails === 'function') props.closeDetails()
         else if (layoutSvc && typeof layoutSvc.closeDetails === 'function') layoutSvc.closeDetails()
       }
       const groups = compute(s)
+      _mark('compute')
       // #552 导航栈：渲染优先级读栈顶（镜像兜底，保证旧状态不崩）；空栈回列表
       const navTop = (typeof peekNav === 'function') ? peekNav(s) : null
       const topMap = navTop && navTop.kind === 'map' ? navTop.n : s.activeMap
@@ -61,6 +111,7 @@ export     const DetailsDock = (props) => {
 loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(s.cwd,prev)}catch(e){};emit(s);try{flash(s,tr('switch.bindFail',{err:String((res&&(res.error||res.message))||'unknown').slice(0,120)}),'warn')}catch(e){}}}).catch(function(e){s.selection=prev;try{if(s.cwd)setCachedSelection(s.cwd,prev)}catch(e2){};emit(s);try{flash(s,tr('switch.bindFail',{err:String(e&&e.message||e).slice(0,120)}),'warn')}catch(e3){}})}};const pickBackend=function(id){s.gateSelected=id;emit(s);_confirmGate()}
       const tabsRef = React.useRef(null)
       const tabs = useTabsRow(s, tabsRef)
+      _mark('tabsRow')
       const headRef = React.useRef(null)
       React.useEffect(function () {
         const applyFold = function () {
@@ -152,6 +203,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
         if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(applyHead)
         return function () { if (ro2) try { ro2.disconnect() } catch (e) {} ; if (typeof window !== 'undefined') window.removeEventListener('resize', onWin) }
       }, [s.snapshot && s.snapshot.repo && (s.snapshot.repo.owner + '/' + s.snapshot.repo.name), dw])
+      _mark('bodyEnd') // 临时测点：本函数体（含尾部那段建元素树的代码）到此为止；之后是子组件渲染
       return h('div', { ref: dockRef, 'data-dsws-host': '1', className: narrow ? 'dsws-narrow' : undefined, style: { position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'var(--dsw-font-family)', fontSize: 12, color: 'var(--dsw-alias-label-primary,#e6edf3)', background: 'var(--dsw-alias-bg-layer-1,#10131a)' } }, [
         // 头部（标题 + 关闭）：横线不放在这行，下移到标签行下方与对话/轨迹对齐
         // #28 自适应：flex 容器 minWidth 0 + 芯片 flex 自适应，标题优先隐藏，极窄仅留 repo

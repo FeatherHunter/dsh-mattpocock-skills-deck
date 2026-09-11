@@ -6,25 +6,44 @@
 export     const MAP_ROW_GUARD_NARROW = 320
 export     const MAP_ROW_GUARD_WIDE = 440
 export     const authorColor = function(l){let h=0;for(let i=0;i<l.length;i++)h=(h*31+l.charCodeAt(i))%360;h=(h*137.508)%360;let s=0.72,ll=0.5,c=(1-Math.abs(2*ll-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=ll-c/2,r=0,g=0,b=0;if(h<60){r=c;g=x}else if(h<120){r=x;g=c}else if(h<180){g=c;b=x}else if(h<240){g=x;b=c}else if(h<300){r=x;b=c}else{r=c;b=x}r=Math.round((r+m)*255);g=Math.round((g+m)*255);b=Math.round((b+m)*255);return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');}
+// 2026-09-11 同类毛病一并修（与 views/shared/tagsFit.js 同一回事；纪律「布局零抖动」见
+//   docs/adr/20260911-zero-layout-jitter.md，证据见 #602）：原写法每个地图行都
+//   「写一次类名（把编号改横排、并把标题切进测量态）→ 立即读一次 scrollWidth」，量改交替，
+//   48 个地图行就是 48 次强制重排。现分相改四趟：先一次读完所有行宽（测量相）
+//   → 单独一段只写类名并把要量的行切进测量态 → 只读（测量相，整趟只重排一次）
+//   → 只写（变更相：收掉测量态、放不下的退回竖排）。
 export     const fitMapRows = function () {
       if (typeof document === 'undefined') return
       const rows = document.querySelectorAll('.dsws-aggrow')
-      rows.forEach(function (rowEl) {
+      // 第一趟（只读）：行宽由外层容器决定，与行内编号是横排还是竖排无关，所以先读再写读到的是同一个值。
+      const items = []
+      for (let i = 0; i < rows.length; i++) {
+        const rowEl = rows[i]
         const idcol = rowEl.querySelector('.dsws-idcol')
         const title = rowEl.querySelector('.dsws-tt-wrap')
-        if (!idcol || !title) return
-        const isMap = !!idcol.querySelector('.dsws-chip-m')
-        if (!isMap) { idcol.classList.remove('h'); return }
-        const avail = rowEl.clientWidth
-        if (avail < MAP_ROW_GUARD_NARROW) { idcol.classList.remove('h'); return }
-        if (avail >= MAP_ROW_GUARD_WIDE) { idcol.classList.add('h'); return }
-        idcol.classList.add('h')
-        title.classList.add('dsws-measure')
-        const fits = title.scrollWidth <= title.clientWidth + 1
-        title.classList.remove('dsws-measure')
-        title.classList.remove('measure')
-        if (!fits) idcol.classList.remove('h')
-      })
+        if (!idcol || !title) continue
+        items.push({ idcol: idcol, title: title, isMap: !!idcol.querySelector('.dsws-chip-m'), avail: rowEl.clientWidth })
+      }
+      // 第二趟（只写）：非地图行与极窄行去掉横排；宽行直接横排；中间行先横排并切进测量态。
+      const measure = []
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i]
+        if (!it.isMap || it.avail < MAP_ROW_GUARD_NARROW) { it.idcol.classList.remove('h'); continue }
+        it.idcol.classList.add('h')
+        if (it.avail < MAP_ROW_GUARD_WIDE) { it.title.classList.add('dsws-measure'); measure.push(it) }
+      }
+      // 第三趟（只读）：标题在测量态下放不放得下。这一趟不写任何样式，所以只触发一次重排。
+      for (let i = 0; i < measure.length; i++) {
+        const it = measure[i]
+        it.fits = it.title.scrollWidth <= it.title.clientWidth + 1
+      }
+      // 第四趟（只写）：收掉测量态；放不下的退回竖排。
+      for (let i = 0; i < measure.length; i++) {
+        const it = measure[i]
+        it.title.classList.remove('dsws-measure')
+        it.title.classList.remove('measure')
+        if (!it.fits) it.idcol.classList.remove('h')
+      }
     }
 export     const ListTab = ({ st, narrow }) => {
       const cx = React.useContext(DswsCtx)
@@ -32,11 +51,18 @@ export     const ListTab = ({ st, narrow }) => {
       // v1.3.3 UI：每次渲染后执行贪心折叠（含窗口/列宽变化后的重渲染）
       // v1.5 T10 提速：按内容指纹跳过 —— 仅快照内容/tab/过滤变化才重排（refreshing 态等无关渲染不触发布局测量）
       React.useLayoutEffect(function () {
+        // 临时测点（折叠耗时）：本副作用跑在提交阶段，落在渲染期测点的盲区里，
+        //   是「那一帧在建什么」的主要嫌疑之一，所以把这段耗时累加下来交给 DockSync 打日志。
+        //   本文件在渲染目录里，不允许打日志（只有点名文件可以），所以这里只记数。
+        const _pT = (typeof performance !== 'undefined' && performance.now) ? function () { return performance.now() } : function () { return Date.now() }
+        const _tFit0 = _pT()
+        const _addFit = function () { try { if (typeof globalThis !== 'undefined') globalThis.__dswsFitMs = Math.round((globalThis.__dswsFitMs || 0) + (_pT() - _tFit0)) } catch (eF) {} }
         const fp = String((st.snapshot && st.snapshot.generatedMs) || '') + '|' + st.tab + '|' + st.stateFilter + '|' + (st.lblFilters || []).join(',')
-        if (_tagsFpOf.get(st) === fp) return
+        if (_tagsFpOf.get(st) === fp) { _addFit(); return }
         _tagsFpOf.set(st, fp)
         fitAllTags()
         try { fitMapRows() } catch (e) {}
+        _addFit()
       })
       // Map #120 T1：标题适配 + 宽度护栏 的容器尺寸监听（面板拖拽 / 字体加载 / window resize）
       React.useLayoutEffect(function () {

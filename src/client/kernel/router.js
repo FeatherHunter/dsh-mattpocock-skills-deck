@@ -81,9 +81,26 @@
       try {
         const bs = ctx.get('betterSidebar')
         if (!(bs && typeof bs.registerTab === 'function')) return false
+        // 先出空壳、内容随后（本轮修复）：面板侧边栏的「打开」是在点击处理器里同步跑完的，
+        //   若把整个面板内容放在同一次同步渲染里，浏览器在处理器返回前没机会画第一帧 ——
+        //   用户看到的就是「点了半天面板不出来」。实测首次挂载要 5.6 秒（节点多、一次建完），
+        //   而收起再打开只要一瞬间（那时 DOM 已存在，只是显示/隐藏）。
+        //   所以这里先只画一个空壳，等浏览器把这一帧画出来（内层 requestAnimationFrame）
+        //   再把真正的内容挂上去：点击立刻返回、外壳立即可见，那 5.6 秒退到随后的帧里跑。
+        //   代价如实说明：总工作量没减少，只是把「点击后白等」换成「外壳先出来、内容随后填」。
         const DeckSidebarTab = function (props) {
           const scope = props && props.scope
           const sessionId = scope ? scope.sessionId : undefined
+          const [ready, setReady] = React.useState(false)
+          React.useEffect(function () {
+            if (ready) return
+            // 两跳：第一跳让本次渲染提交、浏览器有机会画外壳；第二跳才挂内容。
+            const raf = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame : function (fn) { return setTimeout(fn, 0) }
+            let id2 = null
+            const id1 = raf(function () { id2 = raf(function () { setReady(true) }) })
+            return function () { try { if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id1) } catch (eC1) {} try { if (id2 !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id2) } catch (eC2) {} }
+          }, [ready])
+          if (!ready) return h('div', { style: { height: '100%', overflow: 'hidden' } })
           return h('div', { style: { height: '100%', overflow: 'hidden' } }, h(DetailsDock, { sessionId: sessionId }))
         }
         // 第一性原理：对外品牌为 MattSkillsDeck，单一 tab id = deck:map —— 只注册这一个面板类型，不注册任何旧名别名。
@@ -110,7 +127,13 @@
     export const openInSidebar = function (st) {
       const bs = ctx.get('betterSidebar')
       if (bs && typeof bs.openTab === 'function') {
+        // 临时测点（夹住 better-sidebar，定位完撤除）：起点已在 openPanel 里记过（st.__openMs）。
+        //   把「插件交给它」「它交还控制」分别记一行，用来判断那 4.5 秒是不是花在它内部的注册/开签。
+        //   为什么这样量：外层渲染期的分段已证明 4.5 秒不在插件的渲染体里（三段全是 0 毫秒），
+        //   所以它要么在 better-sidebar 里面，要么在下一次 React 渲染的提交阶段。
+        try { log('info', 'panel.open', { mode: 'sidebar-beforeTab' }) } catch (eB) {}
         if (!ensureSidebarTab()) { openDockPanel(st); return }  // 注册失败 → 回退 details 列
+        try { log('info', 'panel.open', { mode: 'sidebar-ensureDone' }) } catch (eE) {}
         // #2-fix（2026-08-19 用户反馈「新会话点状态栏面板不开」）：必须传 scope={sessionId}。
         //   better-sidebar 的 openTab(seed, scope) 内部 `targetSessionId = scope?.sessionId ?? store.getSnapshot().sessionId`；
         //   新会话时宿主尚未 setSession(该 id) → store sessionId 为 undefined → openTab 静默 return，面板不开。
@@ -119,6 +142,7 @@
         // #594：只给类型。带上 path 会被 better-sidebar 当成真实文件路径转发给原生右侧栏，
         // 宿主 realpath 失败即报 cannot resolve target；展开由 better-sidebar 按描述符自己做。
         bs.openTab({ type: 'deck:map' }, st.sessionId ? { sessionId: st.sessionId } : undefined)
+        try { log('info', 'panel.open', { mode: 'sidebar-tabReturned' }) } catch (eT) {}
         // 打开 tab 即视为面板已开（数据新鲜直接展示）
         // #58 缓存优先：与 openPagePanel 同逻辑，含 per-cwd 水合
         if (!st.cwd) {

@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>交接：MattSkillsDeck 右侧面板首次打开慢 5~6 秒</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1d2129; --ink:#e6edf3; --dim:#9aa4b2; --line:#2a2f3a;
+    --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --bad:#f85149; --purple:#bc8cff;
+    --mono:"Cascadia Code","JetBrains Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 24px 96px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:28px}
+  header.top h1{font-size:25px;line-height:1.4;margin:0 0 10px}
+  header.top .sub{color:var(--dim);font-size:14px}
+  .tags{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+  .tag{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
+  .tag.ok{border-color:rgba(63,185,80,.45);color:var(--good)}
+  .tag.bad{border-color:rgba(248,81,73,.5);color:var(--bad)}
+  .tag.warn{border-color:rgba(210,153,34,.5);color:var(--warn)}
+  .tag.ask{border-color:rgba(188,140,255,.5);color:var(--purple)}
+  h2{font-size:19px;margin:40px 0 12px;padding-left:12px;border-left:3px solid var(--accent)}
+  h3{font-size:15.5px;margin:24px 0 8px;color:#cfd8e3}
+  p{margin:10px 0}
+  code{font-family:var(--mono);font-size:12.5px;background:#232833;padding:1px 6px;border-radius:5px;color:#e8d9b0}
+  b,strong{color:#fff}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin:14px 0}
+  .card.bad{border-left:3px solid var(--bad)}
+  .card.good{border-left:3px solid var(--good)}
+  .card.warn{border-left:3px solid var(--warn)}
+  .card.info{border-left:3px solid var(--accent)}
+  .verdict{font-size:16.5px;line-height:1.7}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:12.5px;background:#1b1f27}
+  tr:last-child td{border-bottom:none}
+  td.num{font-family:var(--mono);white-space:nowrap}
+  td.bad{color:var(--bad);font-weight:600}
+  td.good{color:var(--good);font-weight:600}
+  td.warn{color:var(--warn);font-weight:600}
+  pre{background:#12151b;border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow:auto;
+    font-family:var(--mono);font-size:12.5px;line-height:1.65;margin:14px 0}
+  pre .c{color:#6b7684}
+  pre .bad{color:var(--bad)}
+  pre .good{color:var(--good)}
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin:22px 0}
+  .toc h4{margin:0 0 10px;font-size:13px;color:var(--dim);font-weight:600;letter-spacing:.5px}
+  .toc ol{margin:0;padding-left:22px;font-size:14px}
+  .toc li{margin:4px 0}
+  .toc a{color:var(--ink);text-decoration:none;border-bottom:1px dotted var(--line)}
+  .toc a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+  .anchor{scroll-margin-top:20px}
+  .foot{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);color:var(--dim);font-size:13px}
+  .pending{background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.4);border-radius:8px;padding:14px 18px;margin:14px 0}
+  .pending h4{margin:0 0 8px;font-size:14px;color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>交接：MattSkillsDeck 右侧面板「首次打开慢 5~6 秒」</h1>
+  <div class="sub">
+    调查时间：2026-09-11 全天 · 本文只记录<b>已经实测确认</b>的东西，以及<b>还没查清</b>的部分，两者分开写。<br>
+    接手的会话请从第 6 节「还没查清的」继续，不要从头重查——那些已被实测排除的方向写在第 5 节。
+  </div>
+  <div class="tags">
+    <span class="tag bad">首次挂载 5.6 秒</span>
+    <span class="tag ok">已排除：等数据 / better-sidebar 注册 / 渲染函数体</span>
+    <span class="tag warn">待查：那一帧在建什么</span>
+    <span class="tag ask">临时测点未撤</span>
+  </div>
+</header>
+
+<div class="toc">
+  <h4>本页结构</h4>
+  <ol>
+    <li><a href="#s1">现象与用户原话</a></li>
+    <li><a href="#s2">已确证的事实（附实测数字）</a></li>
+    <li><a href="#s3">已经做过的修复</a></li>
+    <li><a href="#s4">当前状态：哪些改动未提交</a></li>
+    <li><a href="#s5">已被实测排除的方向（别重查）</a></li>
+    <li><a href="#s6">还没查清的：那一帧在建什么</a></li>
+    <li><a href="#s7">下一步的候选做法与代价</a></li>
+    <li><a href="#s8">怎么用现有测点复现与取证</a></li>
+    <li><a href="#s9">我在本次调查中犯过并已纠正的错误</a></li>
+  </ol>
+</div>
+
+<!-- ===== 1 ===== -->
+<h2 id="s1" class="anchor">1 · 现象与用户原话</h2>
+
+<p>点状态栏的 MattSkills 胶囊按钮打开右侧面板，<strong>页面刷新后的首次打开要等 5~6 秒</strong>，面板才出现。用户的原话依次是：</p>
+
+<div class="card info">
+  <p style="margin:0">「每个会话窗口第一次打开右侧面板时要 7~8 秒才能看到完整的右侧面板，但是后续打开就不卡了」</p>
+  <p style="margin:8px 0 0">「为什么 better sidebar 打开其他的组件页面很快，就是一瞬间」</p>
+  <p style="margin:8px 0 0">「从视觉效果来看，这个所谓的『关掉』，其实是把整个侧边栏给收进去了。我再点开之后，感觉这个侧边栏其实都没有关掉过。所以这时候我把它『关掉』再点开，一瞬间就能看见了」</p>
+</div>
+
+<p><strong>其中第三条是最有价值的观察</strong>：它直接说明「关掉」并不卸载组件，只是收起。由此推断出「首次挂载才有成本、之后就没有」，与后面的实测数字完全吻合。</p>
+
+<!-- ===== 2 ===== -->
+<h2 id="s2" class="anchor">2 · 已确证的事实（附实测数字）</h2>
+
+<p>全部数字来自插件自己的日志（<code>~/.dsh-mattskillsdeck-cache/logs/&lt;日期&gt;.log</code>），由本次临时加入的测点写出。测点位置见第 8 节。</p>
+
+<h3>2.1 三种情况的耗时对照</h3>
+
+<table>
+  <thead><tr><th>场景</th><th>点击 → 面板可见</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><b>页面刷新后的首次打开</b></td><td class="num bad">5668 ms / 5640 ms</td><td>出现了两次，稳定</td></tr>
+    <tr><td>页面已加载很久后再打开</td><td class="num good">404 ms / 520 ms</td><td>DOM 已在，只是显示</td></tr>
+    <tr><td>收起再打开（同一页面内）</td><td class="num good">一瞬间（用户体感）</td><td>组件未卸载</td></tr>
+    <tr><td>同一次打开里的第二次渲染</td><td class="num good">14 ms / 26 ms</td><td>比首次快约 200~400 倍</td></tr>
+  </tbody>
+</table>
+
+<div class="card good">
+  <p style="margin:0"><b>结论一：成本是「首次挂载」的一次性成本，不是每次打开都有。</b></p>
+</div>
+
+<h3>2.2 那 5.6 秒花在哪里（分段实测）</h3>
+
+<p>日志里那一行是这样的：</p>
+
+<pre>{"event":"panel.open","fields":{"mode":"dock-render+4548ms/dockSync+0ms,compute+0ms,tabsRow+0ms"}}</pre>
+
+<p>含义：从进入面板组件的渲染函数算起，到整棵组件树建完并提交为止＝<b>4548 ms</b>；而该函数体内部三处记时刻的位置，相对渲染起点全是 <b>0 ms</b>。</p>
+
+<table>
+  <thead><tr><th>测的是什么</th><th>结果</th><th>排除掉什么</th></tr></thead>
+  <tbody>
+    <tr><td>面板组件的渲染函数体（含 <code>compute</code> 分组计算、选项卡行、工作区同步）</td><td class="num good">0 ms</td><td class="good">不是插件的渲染代码慢</td></tr>
+    <tr><td>内层 <code>requestAnimationFrame</code> 回滚看到的时差</td><td class="num bad">5636 ms</td><td>时间确实花在组件函数之外</td></tr>
+    <tr><td>这段时间里的宿主调用</td><td class="num good">只有 <code>wf.cwd</code>＝0 ms</td><td class="good">不是在等数据</td></tr>
+    <tr><td>夹住 better-sidebar 的三个点（交给它之前 / 注册完成 / 开签返回）</td><td class="num good">全部 0 ms</td><td class="good">不是它的注册或开签慢</td></tr>
+    <tr><td>快照水合</td><td class="num good">source=memory，0 ms</td><td class="good">不是水合慢</td></tr>
+  </tbody>
+</table>
+
+<div class="card warn">
+  <p style="margin:0"><b>结论二：那 5.6 秒落在「组件的渲染函数跑完之后、第一帧画出来之前」这一段。</b>已排除的三块是：插件的渲染代码、宿主取数、better-sidebar 的开签。</p>
+</div>
+
+<h3>2.3 为什么其他面板不慢</h3>
+
+<p>用户观察到「better-sidebar 打开别的面板一瞬间」。机制上说得通：<strong>开签是在点击处理器内部同步跑完的</strong>，谁的重内容塞在那一次同步渲染里，谁的浏览器就没机会先画第一帧。我们的面板客户端产物 1 MB、首次要建几千个 DOM 节点，正是这种情况。</p>
+
+<!-- ===== 3 ===== -->
+<h2 id="s3" class="anchor">3 · 已经做过的修复</h2>
+
+<h3>3.1 宿主侧的三笔（已提交、已验证）</h3>
+
+<table>
+  <thead><tr><th>提交</th><th>做了什么</th><th>实测效果</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>f2ced09</code></td>
+      <td>「远端有没有变」不再每次把全仓库扫一遍，改成只问增量（用 GitHub 的 <code>since</code>）</td>
+      <td class="good">探测 9.5–13.5 秒 → <b>0.9–1.2 秒</b>（已实测）</td>
+    </tr>
+    <tr>
+      <td><code>5c6bd62</code></td>
+      <td>重启后第一次扫描用磁盘快照立起点，不再整扫</td>
+      <td>门禁 38 项通过；用两个真实工作区的磁盘快照核对过</td>
+    </tr>
+    <tr>
+      <td><code>6ce0c17</code></td>
+      <td>面板数据只要手上有缓存就立刻交付，不再因为「缓存旧了」回头联网核对</td>
+      <td>门禁 8 项通过，做过反证</td>
+    </tr>
+    <tr>
+      <td><code>d39a8ca</code></td>
+      <td>命名守护的兜底扫描加退避（连续几跳无收获即 15 秒 → 60 秒）</td>
+      <td class="warn">无门禁覆盖，判据是日志里扫描间隔应从 15 秒变 60 秒（<b>尚未核对</b>）</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>3.2 前端这一笔（<b>未提交</b>，本次新做）</h3>
+
+<div class="card good">
+  <p style="margin:0"><b>改动：面板侧边栏先只渲染一个空壳，等浏览器把这一帧画出来之后再挂载真正的内容。</b></p>
+  <p style="margin:10px 0 0">落点：<code>src/client/kernel/router.js</code> 里注册给 better-sidebar 的那个组件（<code>DeckSidebarTab</code>）。</p>
+  <p style="margin:10px 0 0"><b>用户实测反馈：</b>「体验到了，是立即出了一个壳子是黑色的，大概 6 秒后出了内容。」——外壳立即出现，改法按预期生效。</p>
+</div>
+
+<div class="pending">
+  <h4>这笔改动的代价必须写清</h4>
+  <p style="margin:0"><b>总工作量没有减少，还是那 5.6 秒。</b>改的只是顺序：把「点击后干等 6 秒」换成「外壳先出来、内容随后填」。用户的体感因此改善，但底层成本一分没省。若要真正把 5.6 秒降下来，必须继续第 6 节的调查。</p>
+</div>
+
+<!-- ===== 4 ===== -->
+<h2 id="s4" class="anchor">4 · 当前状态：哪些改动未提交</h2>
+
+<p>工作区有 <b>3 个文件未提交</b>，里面同时装着<b>临时测点</b>和<b>上面那笔空壳修复</b>：</p>
+
+<table>
+  <thead><tr><th>文件</th><th>行数</th><th>里面有什么</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>src/client/kernel/router.js</code></td>
+      <td class="num">251 / 350</td>
+      <td>① 空壳修复（要保留）<br>② 三个临时夹子测点：<code>sidebar-t0</code>、<code>sidebar-beforeTab</code>、<code>sidebar-ensureDone</code>、<code>sidebar-tabReturned</code></td>
+    </tr>
+    <tr>
+      <td><code>src/client/panel/Dock.js</code></td>
+      <td class="num">301 / 350</td>
+      <td>只记时刻、不打日志（渲染目录里本文件不许打日志）：<code>_tRenderStart</code> 与三处 <code>_mark</code></td>
+    </tr>
+    <tr>
+      <td><code>src/client/panel/DockSync.js</code></td>
+      <td class="num">132 / 350</td>
+      <td>把上面的时刻与分段打成 <code>panel.open</code> 日志行（本文件在渲染目录的允许名单内）</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="card warn">
+  <p style="margin:0"><b>撤测点时要一起处理的事：</b>测点把耗时编码进了 <code>panel.open</code> 事件的 <code>mode</code> 字段（取值形如 <code>sidebar-painted+NNNms</code>、<code>dock-render+NNNms/...</code>）。这样做是为了不新增事件名、不新增字段，从而不触碰日志白名单与附录。<b>撤除时把这几个 <code>log('info','panel.open',...)</code> 调用整段删掉即可，不要动正式那条 <code>panel.open</code>（它没有 <code>mode</code> 前缀那套编码）。</b></p>
+</div>
+
+<!-- ===== 5 ===== -->
+<h2 id="s5" class="anchor">5 · 已被实测排除的方向（别重查）</h2>
+
+<table>
+  <thead><tr><th>曾怀疑的方向</th><th>实测结果</th><th>怎么排除的</th></tr></thead>
+  <tbody>
+    <tr><td>宿主取数慢（等网络）</td><td class="good">排除</td><td>同一时刻宿主只有 <code>wf.cwd</code>＝0 ms；快照水合 source=memory</td></tr>
+    <tr><td>better-sidebar 的注册或开签</td><td class="good">排除</td><td>夹住它的三个点全部 0 ms（<code>beforeTab</code>/<code>ensureDone</code>/<code>tabReturned</code>）</td></tr>
+    <tr><td>面板组件的渲染代码（含 <code>compute</code> 分组计算）</td><td class="good">排除</td><td>渲染函数体内部三处记时刻全是 0 ms</td></tr>
+    <tr><td>懒加载的客户端分块</td><td class="good">排除</td><td>插件客户端是单个 bundle，代码在各面板接入前就已加载</td></tr>
+    <tr><td>浏览器缓存导致的旧版本</td><td class="good">排除</td><td>真页面捕获到的页面级错误是语法错误，不是缓存问题</td></tr>
+    <tr><td>标签折叠（<code>fitAllTags</code>）等强制重排</td><td class="warn">量过但不是主因</td><td>早前独立测过：636 行标签折叠约 158 ms，量级差 30 倍</td></tr>
+    <tr><td>挂载副作用（同组件里排在前面那些 effect）</td><td class="good">排除</td><td>分段里 <code>dockSync</code>／<code>compute</code>／<code>tabsRow</code> 全 0 ms</td></tr>
+  </tbody>
+</table>
+
+<!-- ===== 6 ===== -->
+<h2 id="s6" class="anchor">6 · 还没查清的：那一帧在建什么</h2>
+
+<div class="card bad">
+  <p style="margin:0"><b>这是接手后该继续的地方。</b>已知那 5.6 秒发生在「组件函数跑完 → 第一帧」之间，但<b>还不知道它具体在建什么</b>：是建 DOM 节点、是算布局、还是样式重算。</p>
+</div>
+
+<p><b>已经放好的下一步测点：</b>在 <code>DockSync.js</code> 的日志行里，会额外带上首帧的节点数与嵌套深度：</p>
+
+<pre>{"mode":"dock-render+5636ms/dockSync+0ms,compute+0ms,tabsRow+0ms <span class="c">nodes=NNNN depth=NN</span>"}</pre>
+
+<p><b>判读与下一步：</b></p>
+
+<table>
+  <thead><tr><th>节点数的量级</th><th>说明</th><th>该往哪走</th></tr></thead>
+  <tbody>
+    <tr>
+      <td class="num bad">几千个以上</td>
+      <td>首屏一次把所有分组都画了，没有虚拟滚动或分页</td>
+      <td>减少首屏渲染量（见 7.1）。这是治本，但改得多、风险高</td>
+    </tr>
+    <tr>
+      <td class="num good">很少（几百以内）</td>
+      <td>时间不在建节点上，而在布局或样式重算</td>
+      <td>方向要换：去查面板容器的样式（宽度动画、<code>filter</code>、大面积重排）与页面整体布局</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><b>已知规模参考：</b>该工作区快照里有 <strong>505 条 issue、48 张地图</strong>。带 tags 的表格一次建出来的节点数容易到几千。</p>
+
+<!-- ===== 7 ===== -->
+<h2 id="s7" class="anchor">7 · 下一步的候选做法与代价</h2>
+
+<h3>7.1 路线 A：减少首屏渲染量（治本）</h3>
+<p>把面板首屏从「一次画完所有分组」改成「先画可见部分、其余随后补」。<br>
+<b>收益：</b>真正把这 5.6 秒降下来。<b>代价：</b>动渲染逻辑、要处理滚动/展开的加载与状态，<b>改得多、回归风险高</b>。</p>
+
+<h3>7.2 路线 B：把成本挪到空闲时间（已部分落地）</h3>
+<p>本次已经做了「先出空壳、内容随后」。可以再往前一步：<strong>页面加载完、用户还没点的时候，在空闲时预热渲染一次</strong>，让用户第一次点击时 DOM 已经在了。<br>
+<b>收益：</b>点击即出内容。<b>代价：</b>把「点击时等」换成「页面加载后默默占几秒 CPU」，可能让刚加载完的页面卡顿。需要配 <code>requestIdleCallback</code> 之类的空闲检测，否则等于把问题搬了个地方。</p>
+
+<h3>7.3 路线 C：先查清那一帧在干什么，再决定</h3>
+<p><b>推荐先做这个。</b>拿第 6 节的节点数，再花一轮确认成本构成，然后才在 A 与 B 之间选。理由：前面已经因为「没量准就下结论」走过两次弯路（见第 9 节），先量清楚比先动手便宜。</p>
+
+<!-- ===== 8 ===== -->
+<h2 id="s8" class="anchor">8 · 怎么用现有测点复现与取证</h2>
+
+<h3>8.1 测点在哪</h3>
+<table>
+  <thead><tr><th>测点</th><th>位置</th><th>记的是什么</th></tr></thead>
+  <tbody>
+    <tr><td><code>sidebar-t0</code></td><td><code>router.js</code> 的 <code>openPanel</code></td><td>用户点击那一刻</td></tr>
+    <tr><td><code>sidebar-beforeTab</code> / <code>sidebar-ensureDone</code> / <code>sidebar-tabReturned</code></td><td><code>router.js</code> 的 <code>openInSidebar</code></td><td>夹住 better-sidebar 的三点</td></tr>
+    <tr><td><code>dock-render+NNNms/...</code></td><td><code>DockSync.js</code> 的副作用</td><td>渲染期总耗时＋内部分段＋节点数</td></tr>
+    <tr><td><code>sidebar-painted+NNNms</code></td><td><code>DockSync.js</code> 的副作用</td><td>点击 → 可见的总耗时</td></tr>
+  </tbody>
+</table>
+
+<h3>8.2 复现步骤（顺序不能变）</h3>
+<ol>
+  <li>构建并同步到 profile：<code>npm run build</code></li>
+  <li><b>强制刷新页面</b>（<code>Ctrl + Shift + R</code>）。<b>不能只用 F5</b>——客户端产物是按内容哈希缓存的，不刷新拿不到新测点</li>
+  <li>点一次状态栏胶囊按钮</li>
+  <li>读日志</li>
+</ol>
+
+<h3>8.3 读日志的现成脚本</h3>
+<pre>node .scratch/read-all-modes.js     <span class="c"># 列出所有 panel.open 记录（含测点行）</span>
+node .scratch/read-bracket.js       <span class="c"># 把四个夹子的相对间隔算出来</span>
+node .scratch/read-panel-timing.js  <span class="c"># 配对点击与可见，并列出同期宿主调用</span></pre>
+
+<div class="card info">
+  <p style="margin:0"><b>日志位置：</b><code>%USERPROFILE%\.dsh-mattskillsdeck-cache\logs\&lt;日期&gt;.log</code>（本次是 <code>2026-09-11.log</code>）。这是插件自己的日志系统落盘的文件，没有另加埋点。</p>
+</div>
+
+<!-- ===== 9 ===== -->
+<h2 id="s9" class="anchor">9 · 我在本次调查中犯过并已纠正的错误</h2>
+
+<p>写下来是为了让接手的人知道哪些弯路已经走过，不必重跑。</p>
+
+<table>
+  <thead><tr><th>我曾下的结论</th><th>实际</th><th>怎么发现</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>「慢在 <code>compute(s)</code> 分组计算」</td>
+      <td><b>错</b>：函数体内三处计时刻全是 0 ms</td>
+      <td>加了分段测点，把渲染体内部逐段量了一遍</td>
+    </tr>
+    <tr>
+      <td>「慢在画那几百行」</td>
+      <td><b>错</b>：同一次打开里第二次渲染只要 14 ms</td>
+      <td>对比首次与后续渲染的耗时，差 200~400 倍</td>
+    </tr>
+    <tr>
+      <td>「是 better-sidebar 的问题」</td>
+      <td><b>错</b>：夹住它三点全 0 ms</td>
+      <td>在插件侧插夹子，把它包在中间量</td>
+    </tr>
+    <tr>
+      <td>「是浏览器缓存过期」</td>
+      <td><b>错</b></td>
+      <td>用真实令牌打开真页面，捕获到的页面级错误是语法错误</td>
+    </tr>
+    <tr>
+      <td>报出一个 <code>r.create is not a function</code></td>
+      <td><b>是我测量脚本造的假象</b>：探针把 <code>window.__ModuleLoader__</code> 换成了缺 <code>create</code> 的桩</td>
+      <td>改成「引导脚本跑完后再包一层记录」，不替换那个对象</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="card warn">
+  <p style="margin:0"><b>方法上的教训：</b>本次凡是有价值的结论，都来自「把时间夹在明确两点之间量出来」；凡是我出的错，都来自「量到一半就下结论」。接手时请沿用前者。</p>
+</div>
+
+<div class="foot">
+  <p><b>相关文档</b><br>
+  <code>docs/reviews/601-panel-first-open-latency.html</code> —— 同一问题的早期调查（宿主侧取数成本、增量扫描、命名守护三套扫描）<br>
+  <code>docs/reviews/602-bill-client-bundle-format-handoff.html</code> —— 另一个独立问题的交接（插件客户端产物格式导致整条 bundle 断链）</p>
+  <p><b>相关提交</b><br>
+  <code>f2ced09</code> / <code>5c6bd62</code> / <code>6ce0c17</code> / <code>d39a8ca</code> —— 宿主侧三笔修复＋命名守护退避<br>
+  <code>a76b191</code> —— 临时测点（两处；后又加了夹子与分段，未提交）</p>
+  <p style="color:#6b7684">本文写于 2026-09-11。测点尚未撤除；撤除时请连同第 4 节列出的调用一起清理，并跑 <code>npm run verify</code> 确认干净。</p>
+</div>
+
+</div>
+</body>
+</html>

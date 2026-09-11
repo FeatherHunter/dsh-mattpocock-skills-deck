@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>右侧面板第一次打开要等 7~8 秒 —— 定位、证据与待定决策</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1d2129; --ink:#e6edf3; --dim:#9aa4b2; --line:#2a2f3a;
+    --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --bad:#f85149; --purple:#bc8cff;
+    --mono:"Cascadia Code","JetBrains Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.75 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 24px 96px}
+
+  header.top{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:32px}
+  header.top h1{font-size:26px;line-height:1.4;margin:0 0 10px}
+  header.top .sub{color:var(--dim);font-size:14px}
+  .tags{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+  .tag{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
+  .tag.ok{border-color:rgba(63,185,80,.45);color:var(--good)}
+  .tag.bad{border-color:rgba(248,81,73,.45);color:var(--bad)}
+  .tag.ask{border-color:rgba(210,153,34,.5);color:var(--warn)}
+
+  h2{font-size:20px;margin:44px 0 14px;padding-left:12px;border-left:3px solid var(--accent)}
+  h3{font-size:16px;margin:26px 0 10px;color:#cfd8e3}
+  p{margin:10px 0}
+  code{font-family:var(--mono);font-size:13px;background:#232833;padding:1px 6px;border-radius:5px;color:#e8d9b0}
+  b,strong{color:#fff}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .card.tight{padding:14px 16px}
+  .card.good{border-left:3px solid var(--good)}
+  .card.bad{border-left:3px solid var(--bad)}
+  .card.warn{border-left:3px solid var(--warn)}
+  .card.info{border-left:3px solid var(--accent)}
+
+  .verdict{font-size:17px;line-height:1.7}
+  .verdict .k{color:var(--accent);font-weight:700}
+
+  .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin:16px 0}
+  .metric{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .metric .label{font-size:12.5px;color:var(--dim);margin-bottom:6px}
+  .metric .val{font-size:23px;font-weight:700;font-family:var(--mono);letter-spacing:-.5px}
+  .metric .note{font-size:12px;color:var(--dim);margin-top:6px}
+  .val.bad{color:var(--bad)} .val.warn{color:var(--warn)} .val.good{color:var(--good)}
+
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:12.5px;background:#1b1f27}
+  tr:last-child td{border-bottom:none}
+  td.num{font-family:var(--mono);white-space:nowrap}
+  td.bad{color:var(--bad);font-weight:600}
+  td.good{color:var(--good);font-weight:600}
+
+  pre{background:#12151b;border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow:auto;
+    font-family:var(--mono);font-size:12.5px;line-height:1.6;margin:14px 0}
+  pre .c{color:#6b7684}
+  pre .bad{color:var(--bad)}
+  pre .good{color:var(--good)}
+  pre .hl{color:var(--warn)}
+
+  details{background:var(--card2);border:1px solid var(--line);border-radius:8px;margin:12px 0;padding:0}
+  details>summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;display:flex;align-items:center;gap:8px}
+  details>summary::-webkit-details-marker{display:none}
+  details>summary::before{content:"▸";color:var(--accent);font-size:13px;transition:transform .15s}
+  details[open]>summary::before{transform:rotate(90deg)}
+  details .body{padding:0 16px 16px;border-top:1px solid var(--line);margin-top:0}
+
+  .qa{border:1px solid var(--line);border-radius:10px;margin:18px 0;overflow:hidden;background:var(--card)}
+  .qa .q{background:#20242d;padding:13px 18px;font-weight:700;color:#fff;display:flex;gap:10px;align-items:flex-start}
+  .qa .q .mark{color:var(--purple);font-family:var(--mono);flex:none}
+  .qa .a{padding:16px 18px}
+  .qa .a .ans{font-size:15.5px}
+  .qa .a .ans em{color:var(--warn);font-style:normal;font-weight:700}
+
+  .proscons{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin:12px 0}
+  .pc{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:var(--card2)}
+  .pc h5{margin:0 0 8px;font-size:13px;color:var(--dim);font-weight:600}
+  .pc ul{margin:0;padding-left:18px;font-size:13.5px}
+  .pc li{margin:5px 0}
+  .pc.pro li::marker{color:var(--good)}
+  .pc.con li::marker{color:var(--bad)}
+
+  .rec{background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.4);border-radius:8px;
+    padding:12px 16px;margin:12px 0;font-size:14px}
+  .rec::before{content:"推荐";display:inline-block;background:var(--good);color:#04170a;font-size:11px;
+    font-weight:700;padding:2px 8px;border-radius:4px;margin-right:10px;vertical-align:1px}
+
+  .num-badge{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+    border-radius:6px;background:var(--accent);color:#04182e;font-weight:700;font-size:13px;margin-right:10px}
+
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin:24px 0}
+  .toc h4{margin:0 0 10px;font-size:13px;color:var(--dim);font-weight:600;letter-spacing:.5px}
+  .toc ol{margin:0;padding-left:22px;font-size:14px}
+  .toc li{margin:4px 0}
+  .toc a{color:var(--ink);text-decoration:none;border-bottom:1px dotted var(--line)}
+  .toc a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+
+  .flow{font-family:var(--mono);font-size:12.5px;line-height:1.85;background:#12151b;border:1px solid var(--line);
+    border-radius:8px;padding:16px;overflow:auto;white-space:pre;margin:14px 0}
+  .flow .wait{color:var(--bad);font-weight:700}
+  .flow .fast{color:var(--good);font-weight:700}
+  .flow .cmt{color:#6b7684}
+
+  .foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--dim);font-size:13px}
+  .anchor{scroll-margin-top:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>右侧面板第一次打开要等 7~8 秒：定位、证据与待定决策</h1>
+  <div class="sub">
+    dsh-mattpocock-skills-deck · 面板首开延迟调查记录 · 2026-09-11<br>
+    本页同时回答你提的三个澄清问题，并列出还需要你拍板的三个决定。
+  </div>
+  <div class="tags">
+    <span class="tag ok">根因已定位</span>
+    <span class="tag ok">已实证修复 1（探测 9.5s → 1s）</span>
+    <span class="tag bad">待处理：面板那条路的校验仍在挡返回</span>
+    <span class="tag ask">3 个决定待你拍板</span>
+  </div>
+</header>
+
+<div class="toc">
+  <h4>本页结构</h4>
+  <ol>
+    <li><a href="#s1">一句话结论</a></li>
+    <li><a href="#s2">实测数据（这是判断的依据）</a></li>
+    <li><a href="#s3">根因：到底卡在哪一步</a></li>
+    <li><a href="#s4">我已经改掉了什么、验证到什么程度</a></li>
+    <li><a href="#s5">你的三个问题（含我原来表述有误的一处）</a></li>
+    <li><a href="#s6">三个待定决策：信息 + 利弊 + 推荐</a></li>
+    <li><a href="#s7">我打算怎么做</a></li>
+    <li><a href="#s8">你可以怎么回我</a></li>
+  </ol>
+</div>
+
+<!-- ============ 1 ============ -->
+<h2 id="s1" class="anchor">1 · 一句话结论</h2>
+
+<div class="card good">
+  <p class="verdict">
+    面板之所以慢，<strong>不是因为要等数据下载完才能画界面</strong>——界面画得很快。<br>
+    慢在<strong>宿主在把手上那份旧快照交给界面之前，非要先联网核对一遍「有没有变」</strong>。
+    核对的结果绝大多数是「没变」，于是那几秒<span class="k">纯属白等</span>。
+  </p>
+</div>
+
+<div class="grid">
+  <div class="metric">
+    <div class="label">界面从点击到出内容</div>
+    <div class="val good">164 ms</div>
+    <div class="note">前端已经做到「缓存优先、不等网络」，这部分是好的</div>
+  </div>
+  <div class="metric">
+    <div class="label">面板数据那条通话（冷）</div>
+    <div class="val bad">4.4–4.8 s</div>
+    <div class="note">等的就是它；返回的却是同一份旧快照</div>
+  </div>
+  <div class="metric">
+    <div class="label">同一条通话（热）</div>
+    <div class="val warn">1.1–1.3 s</div>
+    <div class="note">依然什么新东西都没拿到</div>
+  </div>
+  <div class="metric">
+    <div class="label">自动探测（修复前 → 后）</div>
+    <div class="val good">9.5–13.5 s → 0.9–1.2 s</div>
+    <div class="note">第一笔修复已生效，实证有效</div>
+  </div>
+</div>
+
+<!-- ============ 2 ============ -->
+<h2 id="s2" class="anchor">2 · 实测数据（这是判断的依据）</h2>
+
+<p>所有数字都是从你这台机器上量出来的，不是推算。量法：借用浏览器里已登录的会话，直接向插件自己的通话入口发请求并计时；宿主侧的真身从插件日志里读。</p>
+
+<h3>2.1 规模差异：为什么只有这一个项目卡</h3>
+<table>
+  <thead><tr><th>工作区</th><th>issue 数</th><th>地图数</th><th>磁盘快照体积</th><th>打开体感</th></tr></thead>
+  <tbody>
+    <tr><td><b>dsh-mattpocock-skills-deck</b></td><td class="num bad">505</td><td class="num bad">48</td><td class="num bad">10.5 MB</td><td class="bad">卡 7~8 秒</td></tr>
+    <tr><td>dsh-im-companion</td><td class="num">81</td><td class="num">6</td><td class="num">1.5 MB</td><td class="good">快</td></tr>
+    <tr><td>dsh-prompt</td><td class="num">—</td><td class="num">—</td><td class="num">0.8 MB</td><td class="good">快</td></tr>
+  </tbody>
+</table>
+<p><strong>你的怀疑成立：</strong>唯一慢的是最大的那个，票量差 6 倍、地图差 8 倍、体积差 7 倍。</p>
+
+<h3>2.2 慢在工作区上时的逐次耗时（面板数据那条通话）</h3>
+<table>
+  <thead><tr><th>第几次</th><th>耗时</th><th>返回的快照生成时刻</th><th>规模</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td>第 1 次（冷）</td><td class="num bad">4768 ms</td><td class="num">06:05:50</td><td class="num">48 地图 / 505 issue</td><td>第一次要核一遍</td></tr>
+    <tr><td>第 2 次</td><td class="num warn">1348 ms</td><td class="num">06:05:50</td><td class="num">同上</td><td rowspan="3"><b>四次生成时刻完全相同</b><br>说明没有重建，返回的就是同一份东西</td></tr>
+    <tr><td>第 3 次</td><td class="num warn">1287 ms</td><td class="num">06:05:50</td><td class="num">同上</td></tr>
+    <tr><td>第 4 次</td><td class="num warn">1274 ms</td><td class="num">06:05:50</td><td class="num">同上</td></tr>
+  </tbody>
+</table>
+<div class="card info tight">
+  <p style="margin:0"><b>读法：</b>既然四次拿回来的是<strong>同一份东西</strong>，说明宿主<strong>手上一直有货</strong>。那 4.8 秒和 1.3 秒花掉的不是「取数据」，而是<strong>「取数据之前先核对一遍」</strong>。</p>
+</div>
+
+<h3>2.3 修复前后的对照（同一台机器、同一条链）</h3>
+<table>
+  <thead><tr><th>调用</th><th>修复前</th><th>修复后实测</th><th>结论</th></tr></thead>
+  <tbody>
+    <tr><td>自动探测 <code>wf.probe</code></td><td class="num bad">9.5–13.5 s</td><td class="num good">0.9–1.2 s</td><td class="good">第一笔修复生效 ✓</td></tr>
+    <tr><td>面板数据 <code>wf.snapshot</code></td><td class="num bad">7–33 s</td><td class="num warn">4.4 s / 1.1 s</td><td class="bad">仍未走增量，还在整扫</td></tr>
+  </tbody>
+</table>
+
+<h3>2.4 一个你可能还不知道的现象</h3>
+<div class="card warn">
+  <p style="margin:0">日志显示，后台存在<strong>每约 15 秒跑一趟、每趟 7~12 秒的全量扫描</strong>，而且都落在同一个仓库上。原因是多个会话窗口各自在探测，节奏叠起来就是这个样子。</p>
+  <p style="margin:10px 0 0"><b>这些是后台的，不挡界面</b>，但一直在消耗时间与 GitHub 配额。它不是本次卡顿的原因，但值得知道（见第 6 节决定三）。</p>
+</div>
+
+<!-- ============ 3 ============ -->
+<h2 id="s3" class="anchor">3 · 根因：到底卡在哪一步</h2>
+
+<div class="flow"><span class="cmt">面板打开 → 前端先用水合好的本地缓存立刻画出来（164 ms，这部分没问题）</span>
+                ↓
+<span class="cmt">前端随后向宿主问一句：给我最新的（wf.snapshot）</span>
+                ↓
+<span class="hl">宿主：我手上有缓存 → 那我先联网核对一下「有没有变」</span>
+                ↓
+        <span class="wait">★ 就是这里在等：冷的时候 4.4 秒，热的时候 1.1 秒 ★</span>
+                ↓
+        <span class="wait">核对结果绝大多数是「没变」→ 于是把那份旧缓存原样返回</span>
+                ↓
+<span class="fast">前端拿到 → 和手上那份一样 → 界面根本不用变</span></div>
+
+<div class="card bad">
+  <p style="margin:0"><b>要害：</b>宿主在交出手上那份数据之前，非要先把联网核对做完。<strong>「取数据」和「把数据交出去」被绑成了一件事。</strong></p>
+</div>
+
+<h3>3.1 你设想的流程，我们做到哪一步了</h3>
+<p>你提的是：<em>先读磁盘缓存 → 放到内存缓存 → 请求网络 → 网络回来更新内存 → 再更新磁盘</em>。逐条对照：</p>
+<table>
+  <thead><tr><th>你设想的步骤</th><th>现状</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>先读磁盘缓存</td><td class="good">有</td><td>磁盘上存着整份快照（工作区那份 10.5 MB）</td></tr>
+    <tr><td>放到内存缓存</td><td class="good">有</td><td>宿主与前端各有内存表</td></tr>
+    <tr><td><b>只读缓存就返回给前端</b></td><td class="bad">缺</td><td><b>必须先 await 联网核对，才肯返回</b></td></tr>
+    <tr><td>请求网络</td><td class="good">有</td><td>自动探测每 60 秒一次，发现变化即触发重建</td></tr>
+    <tr><td>网络回来更新内存</td><td class="good">有</td><td>静默重建链已存在</td></tr>
+    <tr><td>再更新磁盘</td><td class="good">有</td><td>重建后写盘</td></tr>
+  </tbody>
+</table>
+<p class="verdict" style="margin-top:18px">
+  <strong>你设想的那套流程，我们只缺其中一步：</strong>「先把手上的缓存交出去，核对放后台」。其余六步全都有，而且都在正常工作。
+</p>
+
+<!-- ============ 4 ============ -->
+<h2 id="s4" class="anchor">4 · 我已经改掉了什么、验证到什么程度</h2>
+
+<p>两笔改动都已提交并同步到你的安装。第一笔<strong>已被实测确认生效</strong>；第二笔需要你下一次重启才会读到。</p>
+
+<table>
+  <thead><tr><th>改动</th><th>做了什么</th><th>验证程度</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>第一笔</b><br><span style="color:var(--dim);font-size:12px">已生效</span></td>
+      <td>核对「有没有变」不再每次把全仓库扫一遍，改成只问「自上次以来变了什么」。</td>
+      <td class="good">已实测：探测 9.5–13.5 s → <b>0.9–1.2 s</b> ✓</td>
+    </tr>
+    <tr>
+      <td><b>第二笔</b><br><span style="color:var(--dim);font-size:12px">待重启</span></td>
+      <td>软件重启后内存里的记号会清空，于是第一次只能整扫。改成先用磁盘上那份快照当起点。</td>
+      <td class="warn">门禁 38 项全绿、真实数据核对通过；<b>但还没在重启后实测</b>（进程比同步时间早，没读到）</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="card warn tight">
+  <p style="margin:0"><b>诚实说明：</b>你 13:36 那次重启，读到的只有第一笔；第二笔是 14:06 才写进磁盘的。所以你现在测到的行为里，第二笔完全没参与。</p>
+</div>
+
+<!-- ============ 5 ============ -->
+<h2 id="s5" class="anchor">5 · 你的三个问题</h2>
+
+<div class="qa">
+  <div class="q"><span class="mark">Q1</span><span>为什么要把缓存标记为「脏」？这样发现新数据和老数据没区别，岂不是有问题？</span></div>
+  <div class="a">
+    <p class="ans"><strong>先纠正一个误解：标脏不是「把新数据当成旧数据」，恰恰相反——它是为了<em>区分</em>新老。</strong></p>
+
+    <p>这里有个绕不开的硬约束：<b>宿主没法自己去重画界面</b>，那是前端的事。所以探测器发现「远端变了」之后，它唯一能做的就是留下一个记号，说：<code>我这份缓存可能过期了</code>。等界面下次来取时，看到这个记号就会去重新拿一份。</p>
+
+    <p>标脏是<strong>「作废通知」</strong>，不是「数据内容」。</p>
+
+    <div class="card tight" style="margin-top:14px">
+      <p style="margin:0"><b>用生活里的例子说：</b></p>
+      <p style="margin:8px 0 0">这就像冰箱上贴的一张便签，写着「牛奶可能过期了」。<strong>便签本身不是牛奶，它也不会把新鲜牛奶变成过期的。</strong>它的作用是：你下次打开冰箱时，会想起来看一眼日期。</p>
+      <p style="margin:8px 0 0">如果没有这张便签，你会以为冰箱里那盒是刚买的，直接喝了。</p>
+    </div>
+
+    <p style="margin-top:14px"><b>「发现新数据和老数据没区别」这个担心其实点到了真问题</b>，但方向反了：真正的情况是——<strong>标脏让两者有了区别</strong>。有记号 = 这份可能旧了，去重拿；没记号 = 这是新鲜的，直接用。</p>
+
+    <p>你说的「岂不是有问题」，暴露的是<strong>另一件真事</strong>：如果<strong>只</strong>依赖标脏，而标脏这一步本身失败了（网络断了、限流了），那记号就永远不会被贴上，界面就会一直以为手上那份是新鲜的。这正是我下面决定一担心的事。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q"><span class="mark">Q2</span><span>决定一里的「校验／核对」是在做什么？</span></div>
+  <div class="a">
+    <p class="ans"><strong>核对 = 问 GitHub 一句「自上次以来，这个仓库的票有没有变化」，然后拿答案和手上那份比。</strong></p>
+
+    <p><b>它拿不到任何新数据，只回答一个问题：变没变。</b></p>
+
+    <p>为什么要有它：面板上显示的是快照。这份快照可能是几分钟前生成的。直接给用户看，用户可能在看过期的东西。所以宿主想先确认一句「还是最新的吗」，是的话就直接用，不是的话就去重建。</p>
+
+    <div class="card bad" style="margin-top:14px">
+      <p style="margin:0"><b>问题在于：核对这件事，本身就贵得离谱。</b></p>
+      <p style="margin:8px 0 0">你这个仓库有 505 条票。核对要把它们<strong>整个扫一遍</strong>才能回答「变没变」。所以出现了荒谬的局面——</p>
+      <p style="margin:8px 0 0"><strong>花 4.4 秒去核对，核对完的答案是「没变」，然后把手上那份原样还给界面。</strong>这 4.4 秒什么都没换来。</p>
+    </div>
+
+    <p style="margin-top:14px"><b>这正是本次卡顿的全部来源。</b>而第一笔修复做的事就是：把「整个扫一遍」换成「只问变了什么」，于是同样的核对从 4.4 秒降到 1 秒上下。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q"><span class="mark">Q3</span><span>「探测一直失败会无限期显示旧数据」——我认为没问题：都拿不到新数据了，不显示旧的还能怎么办？</span></div>
+  <div class="a">
+    <p class="ans"><strong>你说得对，是我那句表述有问题。</strong></p>
+
+    <p>拿不到新数据的时候，<strong>显示旧的确实是对的</strong>。空白或者报错都比旧数据更糟——你连历史都看不到了。这一点你的判断没有错，我接受。</p>
+
+    <p>我真正担心的不是「显示旧的」，而是<strong>「显示旧的、同时让用户以为它是最新的」</strong>。</p>
+
+    <table style="margin-top:14px">
+      <thead><tr><th></th><th>能看到内容</th><th>用户会不会被误导</th><th>评价</th></tr></thead>
+      <tbody>
+        <tr><td>空白／报错</td><td class="bad">看不到</td><td>不会</td><td>体验最差</td></tr>
+        <tr><td><b>旧数据 + 不说明</b></td><td class="good">看得到</td><td class="bad">会。他会以为看到的是最新的</td><td class="bad">最危险</td></tr>
+        <tr><td><b>旧数据 + 标明「未核对」</b></td><td class="good">看得到</td><td class="good">不会</td><td class="good">最佳</td></tr>
+      </tbody>
+    </table>
+
+    <p><b>所以差别不是「能不能看」，而是「用户会不会基于过期信息做决定」。</b>比如你看到某张票还是「可接」，于是点了开始，结果它其实已经被别人认领了——这类误判才是我想避免的。</p>
+
+    <div class="card info tight">
+      <p style="margin:0"><b>结论：</b>你的核心判断（宁可显示旧的）我完全接受，<strong>只需要加一件事——把「这份没核对上」说出来</strong>，而不是安静地当成最新的。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 6 ============ -->
+<h2 id="s6" class="anchor">6 · 三个待定决策</h2>
+
+<div class="card info">
+  <p style="margin:0"><b>先说这三件事的共同点：</b>决定一和二是这次改动的<strong>安全前提</strong>——没有它们，「先返回」会引入一个<em>安静出错</em>的故障。决定三是后台成本，不挡你，可以晚点再说。</p>
+</div>
+
+<!-- 决策一 -->
+<h3><span class="num-badge">1</span>校验长期失败时，要不要设个上限？</h3>
+<p><b>要解决的问题：</b>如果改成「先返回、核对放后台」，而核对一直失败（断网、限流），那份缓存就永远不会被判过期，界面会一直显示旧数据。</p>
+
+<div class="proscons">
+  <div class="pc">
+    <h5>选项 A：设上限（例如 5 分钟）</h5>
+    <ul>
+      <li class="pro">超过上限就明确标出「这份没能核对」，不会安静地骗人</li>
+      <li class="pro">行为可预测、好排查</li>
+      <li class="con">要多一个计时状态，代码多一点点</li>
+    </ul>
+  </div>
+  <div class="pc">
+    <h5>选项 B：不设上限，一直用旧的</h5>
+    <ul>
+      <li class="pro">实现最省事</li>
+      <li class="pro">永远不会因为「太旧」而打扰用户</li>
+      <li class="con">故障时是<strong>安静地</strong>给旧数据，最难查</li>
+      <li class="con">用户无从知道手上的数据是三分钟前还是三小时前</li>
+    </ul>
+  </div>
+</div>
+
+<div class="rec">
+  选 <b>A</b>，上限用 <b>5 分钟</b>。代价极小（一个计时状态），换来的是「故障时不会安静骗人」。<br>
+  <span style="color:var(--dim)">5 分钟这个量级怎么来的：手动刷新随时可用，你随时能自己触发一次真拿数据；而 5 分钟远小于「会让人误判」的尺度，又足够长到不会因为一次网络抖动就跳出提示。</span>
+</div>
+
+<!-- 决策二 -->
+<h3><span class="num-badge">2</span>要不要让用户看见「这份数据没核对上」？</h3>
+
+<div class="proscons">
+  <div class="pc">
+    <h5>选项 A：可见（在面板上标出来）</h5>
+    <ul>
+      <li class="pro">用户能区分「看到的就是最新的」和「这是旧的」</li>
+      <li class="pro">面板里本来就有新鲜度状态位，不用新造</li>
+      <li class="con">多一个视觉元素</li>
+    </ul>
+  </div>
+  <div class="pc">
+    <h5>选项 B：完全透明，什么都不显示</h5>
+    <ul>
+      <li class="pro">界面干净</li>
+      <li class="con">你无法判断手上的数据是不是最新的</li>
+      <li class="con">配合决策一，等于白设了上限</li>
+    </ul>
+  </div>
+</div>
+
+<div class="rec">
+  选 <b>A，但要克制</b>：只在「确实没核对上」时显示，正常情况一个字都不加。<br>
+  <span style="color:var(--dim)">理由：平时不打扰，出问题时你看得见。这样它才不会变成常驻噪音。</span>
+</div>
+
+<!-- 决策三 -->
+<h3><span class="num-badge">3</span>后台每 15 秒一趟的全量扫描，要不要一起收？</h3>
+
+<div class="proscons">
+  <div class="pc">
+    <h5>选项 A：一起收（短时间内的重复核对复用同一份结果）</h5>
+    <ul>
+      <li class="pro">省时间、省 GitHub 配额</li>
+      <li class="con">动的是探测那条路，与本次卡顿无关，属于扩大改动范围</li>
+      <li class="con">一旦写错，影响的是「发现变化」这条正确性链路</li>
+    </ul>
+  </div>
+  <div class="pc">
+    <h5>选项 B：先不动，单独观察</h5>
+    <ul>
+      <li class="pro">本次改动的风险面保持最小</li>
+      <li class="pro">它不挡界面，不影响你的体感</li>
+      <li class="con">配额与后台开销继续存在</li>
+    </ul>
+  </div>
+</div>
+
+<div class="rec">
+  选 <b>B，先不动</b>。先把面板这条路的收益拿稳，再单独谈后台优化。<br>
+  <span style="color:var(--dim)">一次只改一件、单独验证，是这次能把根因找准的原因。上一次我同时怀疑三个方向（渲染、状态栏、数据），结果两处猜错了。</span>
+</div>
+
+<!-- ============ 7 ============ -->
+<h2 id="s7" class="anchor">7 · 如果按推荐走，我会怎么做</h2>
+
+<div class="card">
+  <p><b>核心改动（一处）：</b>面板数据这条通话，在「手上有缓存」那条分支上，<strong>立刻返回，把核对挪到后台</strong>。</p>
+  <ul>
+    <li>前端拿到就画 → 秒开</li>
+    <li>后台核对若发现真的变了 → 走既有的静默重建链（这条链已经存在，而且我给它补过留痕）</li>
+    <li>核对长期失败 → 按决定一的上限标记出来（决定二决定它可不可见）</li>
+  </ul>
+
+  <p style="margin-top:16px"><b>为什么这是安全的（我自己先挑过刺）：</b></p>
+  <ul>
+    <li>你机器上本来就有一条<strong>每 60 秒的自动探测</strong>负责发现变化。改成「先返回」之后，最坏是显示<strong>最多 60 秒前</strong>的数据——<strong>而这正是这套设计原本就已接受的容忍度</strong>。没有降低任何保证，只是把「用户要等」换成「用户先看旧的」。</li>
+    <li>唯一的风险就是决定一那个洞：核对一直失败会安静地用旧数据。堵上它需要决定一与决定二。</li>
+  </ul>
+
+  <p style="margin-top:16px"><b>配套：</b>给这条改动配门禁（断言「有缓存时必须先返回，不许 await 核对」），避免以后有人改回去。这次的两笔改动都配了门禁，共 38 项断言。</p>
+</div>
+
+<div class="card warn">
+  <p style="margin:0"><b>预期收益，以及它可能达不到的地方：</b></p>
+  <p style="margin:8px 0 0">第二次重启后实测，你有货的那条路应该从 <b>4.4 秒</b> 降到 <b>接近 0</b>。</p>
+  <p style="margin:8px 0 0">但如果你的体感里，那 7~8 秒<strong>大部分是「手上真的什么都没有、必须去拿」</strong>（比如刚重启、内存和磁盘都空），那部分属于硬成本，<strong>这次改动帮不上</strong>——那种情况要靠第二笔修复（重启后立起点）去把「整扫」变成「只问增量」。两笔是一套，缺一不可。</p>
+</div>
+
+<!-- ============ 8 ============ -->
+<h2 id="s8" class="anchor">8 · 你可以怎么回我</h2>
+
+<div class="card">
+  <p style="margin-top:0">最简单的回法：</p>
+  <pre style="margin:10px 0 0">决定一：A / B（推荐 A）
+决定二：A / B（推荐 A）
+决定三：A / B（推荐 B）</pre>
+  <p style="margin:14px 0 0">或者直接说「按你推荐的做」，我就照第 7 节动手。</p>
+  <p style="margin:14px 0 0"><b>另外还需要你配合一件事：</b>第二笔修复（重启后立起点）你的当前进程还没读到，需要<strong>再重启一次 DSH</strong> 才会生效，并告诉我重启后第一次点开面板的实际耗时。</p>
+</div>
+
+<div class="foot">
+  <p><b>本次相关的提交</b><br>
+  <code>f2ced09</code> 让「远端有没有变」只问变化，不再每次把全仓库扫一遍<br>
+  <code>5c6bd62</code> 重启后第一次点开面板不再白等一次全量扫描</p>
+  <p><b>相关文件</b><br>
+  <code>src/shared/tracker/indexWindow.js</code>（增量窗口与起点判断，纯逻辑）<br>
+  <code>tests/verify-index-window.js</code>（38 项门禁）</p>
+  <p style="color:#6b7684">本页只记录调查结论与待定决策，不含思考过程。</p>
+</div>
+
+</div>
+</body>
+</html>

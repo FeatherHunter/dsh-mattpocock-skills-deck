@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>交接：Web profile 打不开的根因（dsh-bill-ilife 客户端产物格式）</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1d2129; --ink:#e6edf3; --dim:#9aa4b2; --line:#2a2f3a;
+    --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --bad:#f85149; --purple:#bc8cff;
+    --mono:"Cascadia Code","JetBrains Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1060px;margin:0 auto;padding:32px 24px 96px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:28px}
+  header.top h1{font-size:25px;line-height:1.4;margin:0 0 10px}
+  header.top .sub{color:var(--dim);font-size:14px}
+  .tags{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+  .tag{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
+  .tag.bad{border-color:rgba(248,81,73,.5);color:var(--bad)}
+  .tag.warn{border-color:rgba(210,153,34,.5);color:var(--warn)}
+  .tag.ok{border-color:rgba(63,185,80,.45);color:var(--good)}
+  h2{font-size:19px;margin:40px 0 12px;padding-left:12px;border-left:3px solid var(--accent)}
+  h3{font-size:15.5px;margin:24px 0 8px;color:#cfd8e3}
+  p{margin:10px 0}
+  code{font-family:var(--mono);font-size:12.5px;background:#232833;padding:1px 6px;border-radius:5px;color:#e8d9b0}
+  b,strong{color:#fff}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin:14px 0}
+  .card.bad{border-left:3px solid var(--bad)}
+  .card.good{border-left:3px solid var(--good)}
+  .card.warn{border-left:3px solid var(--warn)}
+  .card.info{border-left:3px solid var(--accent)}
+  .verdict{font-size:16.5px;line-height:1.7}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:12.5px;background:#1b1f27}
+  tr:last-child td{border-bottom:none}
+  td.num{font-family:var(--mono);white-space:nowrap}
+  td.bad{color:var(--bad);font-weight:600}
+  td.good{color:var(--good);font-weight:600}
+  pre{background:#12151b;border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow:auto;
+    font-family:var(--mono);font-size:12.5px;line-height:1.65;margin:14px 0}
+  pre .c{color:#6b7684}
+  pre .bad{color:var(--bad)}
+  pre .good{color:var(--good)}
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin:22px 0}
+  .toc h4{margin:0 0 10px;font-size:13px;color:var(--dim);font-weight:600;letter-spacing:.5px}
+  .toc ol{margin:0;padding-left:22px;font-size:14px}
+  .toc li{margin:4px 0}
+  .toc a{color:var(--ink);text-decoration:none;border-bottom:1px dotted var(--line)}
+  .toc a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+  .anchor{scroll-margin-top:20px}
+  .foot{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);color:var(--dim);font-size:13px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13.5px}
+  .kv dt{color:var(--dim)}
+  .kv dd{margin:0;font-family:var(--mono);font-size:12.5px;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>交接：Web profile 打不开的根因 —— 插件客户端产物的格式</h1>
+  <div class="sub">
+    调查时间：2026-09-11 傍晚 · 结论一句话：<b>一个插件的客户端产物格式不对，导致全部插件的客户端都注册不上。</b><br>
+    本文所有结论都附了原始证据与可复现命令，请独立核实，不必采信结论本身。
+  </div>
+  <div class="tags">
+    <span class="tag bad">Web profile 无法启动</span>
+    <span class="tag bad">断链源：dsh-bill-ilife</span>
+    <span class="tag warn">同类问题共 8 个插件</span>
+    <span class="tag ok">dsh-mattpocock-skills-deck 已排除</span>
+  </div>
+</header>
+
+<div class="toc">
+  <h4>本页结构</h4>
+  <ol>
+    <li><a href="#s1">症状</a></li>
+    <li><a href="#s2">根因</a></li>
+    <li><a href="#s3">证据（含可复现命令）</a></li>
+    <li><a href="#s4">为什么一个坏文件能让全部插件失灵</a></li>
+    <li><a href="#s5">完整受影响名单与对照</a></li>
+    <li><a href="#s6">正确格式的模板（来自你已经做对的插件）</a></li>
+    <li><a href="#s7">建议的修法</a></li>
+    <li><a href="#s8">本文中我犯过并已纠正的错误</a></li>
+    <li><a href="#s9">如何独立验证我的结论</a></li>
+  </ol>
+</div>
+
+<!-- ===== 1 ===== -->
+<h2 id="s1" class="anchor">1 · 症状</h2>
+
+<p>用 web profile 启动 DSH，浏览器打开 <code>http://127.0.0.1:3080</code> 后页面显示：</p>
+
+<pre>HARNESS
+Failed to load plugins
+failed to import loader entry 7c619910 (@deepseek-ai/dsh-client-hmr): client-modules:
+bundle /plugins/??@deepseek-ai/dsh-api-gateway/client.js,...,dsh-bill-ilife/client.js,...&amp;rev=1a8b3c7c528a
+loaded without registering "@deepseek-ai/dsh-client-hmr" via __ModuleLoader__.load</pre>
+
+<div class="card warn">
+  <p style="margin:0"><b>注意这个报错会误导人：</b>它点名的 <code>@deepseek-ai/dsh-client-hmr</code> <b>不是</b>肇事者，只是加载器放弃时第一个没注册上的模块。真正的原因是组合里另一处语法错误让整条脚本在解析阶段就死了。</p>
+</div>
+
+<!-- ===== 2 ===== -->
+<h2 id="s2" class="anchor">2 · 根因</h2>
+
+<div class="card bad">
+  <p class="verdict" style="margin:0">
+    <code>D:\ilife\packages\plugin-bill-ilife\dist\client.js</code> 里是<b>未转译的 ESM 源码</b>
+    （裸 <code>import</code> / <code>export</code>），而 DSH 要求客户端产物是<b>加载器包装形态</b>。
+    这个文件被拼进了所有插件共用的一条 bundle，于是整条脚本在解析阶段失败，<b>一个插件都注册不上</b>。
+  </p>
+</div>
+
+<p><b>错在哪：构建脚本只做了类型编译，没有打包。</b></p>
+
+<pre><span class="c">// D:\ilife\packages\plugin-bill-ilife\package.json</span>
+"scripts": {
+  "build": "tsc -b"        <span class="bad">← tsc 只产出「给打包器读的 ESM 源码」，不产出 DSH 要的包装</span>
+}</pre>
+
+<p>实际产物（<code>D:\ilife\packages\plugin-bill-ilife\dist\client.js</code>，磁盘 837 字节、19 行正文，体量小是因为它只导出转发、没有把自己的依赖打进来）：</p>
+
+<pre><span class="c">/** dsh-bill-ilife 客户端存根（P10 脚手架）。</span>
+<span class="c"> * …（注释）</span>
+<span class="c"> */</span>
+<span class="bad">import { TAB_COMPONENT, registerSingle, openSingle } from './slot.js';</span>
+<span class="bad">import { HOST_CALL_METHOD } from './bridge.js';</span>
+<span class="bad">export const CLIENT_COMPONENT = TAB_COMPONENT;</span>
+<span class="bad">export const CLIENT_METHOD = HOST_CALL_METHOD;</span>
+<span class="bad">export function mountSingleClient(port) {</span>
+<span class="bad">    return registerSingle(port);</span>
+<span class="bad">}</span>
+<span class="c">…</span></pre>
+
+<p>浏览器拿它当普通脚本执行时抛的错是：</p>
+
+<pre>Uncaught SyntaxError: Cannot use import statement outside a module</pre>
+
+<!-- ===== 3 ===== -->
+<h2 id="s3" class="anchor">3 · 证据（含可复现命令）</h2>
+
+<h3>证据 1：服务端实际返回的那条 bundle 里有裸 ESM</h3>
+
+<p>这条命令会打印出所有<strong>行首</strong>就是 <code>import</code>/<code>export</code> 的位置（原始响应已存盘，见页脚路径）：</p>
+
+<pre>node .scratch/probe-find-esm.js</pre>
+
+<p>实际输出（节选）：</p>
+
+<pre>组合里共有 61 个模块
+  行首 ESM 语句 @ 第 139393 行: import { TAB_COMPONENT, registerSingle, openSingle } from './slot.js';
+  行首 ESM 语句 @ 第 139394 行: import { HOST_CALL_METHOD } from './bridge.js';
+  行首 ESM 语句 @ 第 139395 行: export const CLIENT_COMPONENT = TAB_COMPONENT;
+  行首 ESM 语句 @ 第 139396 行: export const CLIENT_METHOD = HOST_CALL_METHOD;
+  行首 ESM 语句 @ 第 139397 行: export function mountSingleClient(port) {
+  行首 ESM 语句 @ 第 139400 行: export function openSingleClient(port, sessionId) {
+  行首 ESM 语句 @ 第 139403 行: export function requestReadViaHost(host, key, params = {}) {</pre>
+
+<h3>证据 2：这 7 处归属于哪个模块</h3>
+
+<pre>node .scratch/probe-segment.js</pre>
+
+<pre>该模块区间: 12212537 → 12260748  （48211 字节）
+下一个模块是: dshmarket
+
+=== 第一处 ESM 语句前 500 字 ===
+    <span class="good">exports.apply = apply;
+    exports.inject = inject;
+    return module.exports;
+  }
+});</span>                                    <span class="c">← 上一个模块正常结束</span>
+;
+<span class="bad">/** dsh-bill-ilife 客户端存根（P10 脚手架）。</span>
+<span class="bad"> * 写死槽位原生组件，不做动态按需加载，不做外嵌页。</span>
+<span class="bad"> * …</span>
+<span class="bad"> */</span>
+
+=== 第一处 ESM 语句后 300 字 ===
+<span class="bad">import { TAB_COMPONENT, registerSingle, openSingle } from './slot.js';</span></pre>
+
+<p>这段注释与 <code>plugin-bill-ilife\dist\client.js</code> 第 1–6 行<strong>逐字相同</strong>，可以据此确认归属。</p>
+
+<h3>证据 3：A/B 对照 —— 去掉那几行后，错误立刻换了一种</h3>
+
+<pre>node .scratch/probe-combo-ab.js</pre>
+
+<pre>=== 组合（原样，服务端实际返回） ===
+  注入成功: true
+  注册到的模块数: <span class="bad">0 / 61</span>
+  错误: Failed to execute 'appendChild' on 'Node': <span class="bad">Cannot use import statement outside a module</span>
+
+=== 组合（去掉未转译的 ESM 行） ===
+  注入成功: true
+  注册到的模块数: <span class="bad">0 / 61</span>
+  错误: Failed to execute 'appendChild' on 'Node': <span class="bad">Illegal return statement</span></pre>
+
+<p><b>判读：</b>错误从「import 不合法」变成「return 不合法」，说明<strong>确实推进过了一道关卡</strong>——第一道断点就是那几行 ESM。第二条「Illegal return」是同一段存根后面的 <code>export function</code> 去掉 <code>export</code> 关键字后暴露的另一个症状，属于同一个根因（整个文件都没被包装）。</p>
+
+<h3>证据 4：真页面里页面级错误就是这一条</h3>
+
+<pre>node .scratch/probe-live-page.js        <span class="c">（需要 DSH_TOKEN 环境变量）</span></pre>
+
+<pre>  引导脚本给出的 __ModuleLoader__: {"mode":"live","hasLoad":true,"hasCreate":true}
+  页面正文长度: 3012
+  正文片段: HARNESS Failed to load plugins failed to import loader entry dbd8c3b1 (@deepseek-ai/dsh-client-hmr):
+            client-modules: bundle /plugins/??@deepseek-ai/dsh-api-gateway/client.js,@deepseek-ai/dsh-…
+  观察到的注册数: 0
+  注册了我们这个插件: false
+  插件资源响应（前 6）:
+    200  http://127.0.0.1:3080/plugins/??@deepseek-ai/dsh-client-ui-directory-p…
+    200  http://127.0.0.1:3080/plugins/??@deepseek-ai/dsh-client-modules/client…
+    200  http://127.0.0.1:3080/plugins/??@deepseek-ai/dsh-api-gateway/client.js…
+  页面错误: <span class="bad">Cannot use import statement outside a module</span>
+  控制台错误: Error: failed to import loader entry dbd8c3b1 (@deepseek-ai/dsh-client-hmr)…</pre>
+
+<p><b>注意所有插件资源都是 200</b> —— 文件都正常取到了，是内容有问题。</p>
+
+<!-- ===== 4 ===== -->
+<h2 id="s4" class="anchor">4 · 为什么一个坏文件能让全部插件失灵</h2>
+
+<p>DSH 把<strong>所有</strong>插件的客户端拼成<strong>一条</strong> bundle，交给一个普通 <code>&lt;script&gt;</code> 标签加载。本次那条是 <b>16,386,664 字节（约 16.4 MB）</b>，包含 <b>61 个模块</b>。</p>
+
+<p>普通脚本在执行前要先整体解析。只要有<strong>一处</strong>语法不合法，<strong>整份脚本一句都不会执行</strong>——于是每个模块开头的 <code>window.__ModuleLoader__.load({...})</code> 都没跑到，加载器就逐个报告「没注册上」。</p>
+
+<div class="card info">
+  <p style="margin:0"><b>这也解释了为什么报错点名的是无关的包：</b>加载器按顺序检查哪个模块没注册，第一个没注册上的就被写进错误里。它不代表那个包有问题。</p>
+</div>
+
+<!-- ===== 5 ===== -->
+<h2 id="s5" class="anchor">5 · 完整受影响名单与对照</h2>
+
+<p>扫描 <code>D:\ilife\packages\plugin-*\dist\client.js</code>，按「有没有 <code>__ModuleLoader__</code> 包装」判定：</p>
+
+<table>
+  <thead><tr><th>插件</th><th>客户端产物大小</th><th>形态</th><th>结论</th></tr></thead>
+  <tbody>
+    <tr><td>plugin-bill-ilife</td><td class="num">837 字节</td><td>裸 ESM</td><td class="bad">断链源，必须修</td></tr>
+    <tr><td>plugin-bill</td><td class="num">831 字节</td><td>裸 ESM</td><td class="bad">同样问题</td></tr>
+    <tr><td>plugin-chef</td><td class="num">831 字节</td><td>裸 ESM</td><td class="bad">同样问题</td></tr>
+    <tr><td>plugin-home</td><td class="num">831 字节</td><td>裸 ESM</td><td class="bad">同样问题</td></tr>
+    <tr><td>plugin-home-ilife</td><td class="num">837 字节</td><td>裸 ESM</td><td class="bad">同样问题</td></tr>
+    <tr><td>plugin-memo</td><td class="num">831 字节</td><td>裸 ESM</td><td class="bad">同样问题</td></tr>
+    <tr><td>plugin-schedule</td><td class="num">835 字节</td><td>裸 ESM</td><td class="bad">同样问题</td></tr>
+    <tr><td>plugin-schedule-ilife</td><td class="num">841 字节</td><td>裸 ESM</td><td class="bad">同样问题</td></tr>
+    <tr><td>plugin-calorie</td><td class="num">13,937 字节</td><td><b>有包装</b></td><td class="good">正确，可作模板</td></tr>
+    <tr><td>plugin-memo-ilife</td><td class="num">12,883 字节</td><td><b>有包装</b></td><td class="good">正确</td></tr>
+    <tr><td>plugin-manager</td><td class="num">10,269 字节</td><td><b>有包装</b></td><td class="good">正确</td></tr>
+  </tbody>
+</table>
+
+<p><b>对照构建脚本，规律一目了然：</b></p>
+
+<table>
+  <thead><tr><th>插件</th><th>build 脚本</th><th>结果</th></tr></thead>
+  <tbody>
+    <tr><td>plugin-bill-ilife 等 8 个</td><td><code>"build": "tsc -b"</code></td><td class="bad">裸 ESM</td></tr>
+    <tr><td>plugin-calorie / plugin-memo-ilife</td><td><code>"build": "npm run build:host &amp;&amp; npm run build:client"</code><br>其中 <code>build:client</code> 是 <code>tsdown</code></td><td class="good">有包装</td></tr>
+  </tbody>
+</table>
+
+<div class="card warn">
+  <p style="margin:0"><b>一句话：</b>只有 <code>tsc</code> 的插件产出裸 ESM；加了 <code>tsdown</code> 打客户端那一步的插件产出的才是 DSH 要的形态。是否「由 tsc 编译」不是问题，<b>缺了客户端打包那一步才是问题</b>。</p>
+</div>
+
+<!-- ===== 6 ===== -->
+<h2 id="s6" class="anchor">6 · 正确格式的模板</h2>
+
+<p>来自你已经做对的 <code>D:\ilife\packages\plugin-calorie</code>。</p>
+
+<h3>产物长这样（<code>plugin-calorie\dist\client.js</code> 开头）</h3>
+
+<pre>window.__ModuleLoader__.load({
+	id: "dsh-calorie",
+	factory: (require) =&gt; {
+		var module = { exports: {} };
+		var exports = module.exports;
+		…</pre>
+
+<h3>配置文件（<code>plugin-calorie\tsdown.config.ts</code>，要点照抄）</h3>
+
+<pre>const PLUGIN_ID = 'dsh-calorie';                 <span class="c">// ← 换成本插件包名</span>
+
+const CLIENT_EXTERNALS = [
+  'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client',
+  'cordis', '@deepseek-ai/dsh-client-ui-slots',
+];
+
+const clientBundle = {
+  entry: { client: 'src/client.ts' },             <span class="c">// ← 指向本插件的客户端入口</span>
+  outDir: 'dist',
+  format: 'cjs',
+  platform: 'browser',
+  dts: false, sourcemap: true, clean: false,
+  define: { 'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'production') },
+  deps: {
+    neverBundle: [...CLIENT_EXTERNALS],
+    alwaysBundle: (id) =&gt; !CLIENT_EXTERNALS.includes(id),
+  },
+  outputOptions: {
+    entryFileNames: 'client.js',
+    banner: 'window.__ModuleLoader__.load({ id: ' + JSON.stringify(PLUGIN_ID) + ', factory: (require) =&gt; {',
+    footer: 'return module.exports; } });',
+    intro: 'var module = { exports: {} }; var exports = module.exports;',
+    codeSplitting: false,
+  },
+};</pre>
+
+<h3>脚本与依赖</h3>
+
+<pre>{
+  "scripts": {
+    "build": "npm run build:host &amp;&amp; npm run build:client",
+    "build:host": "tsc -b",
+    "build:client": "tsdown"
+  },
+  "devDependencies": { "tsdown": "0.22.14" }
+}</pre>
+
+<p><code>plugin-calorie</code> 还带一个 <code>tsconfig.client.json</code>（<code>composite:false</code>、<code>noEmit:true</code>，<code>include</code> 列客户端相关文件），用于 <code>typecheck</code>，不是产出必需，但建议一起抄。</p>
+
+<!-- ===== 7 ===== -->
+<h2 id="s7" class="anchor">7 · 建议的修法</h2>
+
+<ol>
+  <li><b>先只修 <code>plugin-bill-ilife</code> 一个</b>，别的先别动。</li>
+  <li>按第 6 节加 <code>tsdown.config.ts</code>（改 <code>PLUGIN_ID</code> 与 <code>entry</code>）、按需加 <code>tsconfig.client.json</code>、改 <code>package.json</code> 的脚本与 devDependency。</li>
+  <li>跑 <code>npm run build</code>。</li>
+  <li><b>验收（必做）</b>：打开 <code>dist\client.js</code>，开头必须是
+    <pre>window.__ModuleLoader__.load({
+	id: "dsh-bill-ilife",
+	factory: (require) =&gt; {</pre>
+    而不是 <code>import</code> / <code>export</code>。体积也应从约 840 字节涨到明显更大（因为把依赖一起打进产物）。</li>
+  <li>把重建后的包放进 web profile 的 <code>node_modules</code>，重启 DSH，再打开页面。</li>
+</ol>
+
+<div class="card good">
+  <p style="margin:0"><b>期望结果：</b>页面能正常打开；用第 3 节的 <code>probe-live-page.js</code> 复测时，注册数应从 <b>0</b> 变成 <b>61</b>（全部注册），页面错误从 <code>Cannot use import statement outside a module</code> 变成无。</p>
+</div>
+
+<!-- ===== 8 ===== -->
+<h2 id="s8" class="anchor">8 · 本文中我犯过并已纠正的错误</h2>
+
+<p>为避免误导，把我自己走过的弯路也记下来。</p>
+
+<table>
+  <thead><tr><th>我曾说</th><th>实际</th><th>怎么发现</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>「是 <code>@deepseek-ai/dsh-client-ui-deliverables</code> 的包坏了」</td>
+      <td>那个包本身是正确的 CJS 包装；坏的是它<b>后面</b>紧跟着的一段存根</td>
+      <td>读组合里该模块区间的边界，看到工厂已经正常 <code>return module.exports</code> 关闭</td>
+    </tr>
+    <tr>
+      <td>「<code>r.create is not a function</code>」</td>
+      <td><b>是我测量脚本造的假象</b>：我的探针把 <code>window.__ModuleLoader__</code> 整个换成了只有 <code>load</code> 的桩，覆盖掉了引导脚本提供的带 <code>create</code> 的版本</td>
+      <td>改成「引导脚本跑完后再包一层记录」，不再替换那个对象，错误就消失了</td>
+    </tr>
+    <tr>
+      <td>「是浏览器缓存过期导致的」</td>
+      <td>不是。用真页面复测，页面级错误明确是语法错误</td>
+      <td>用真实令牌打开真页面并捕获 <code>pageerror</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>另外需要说明的边界：<b>本次没有对 <code>D:\ilife</code> 做任何修改</b>，只做了只读检查与在 <code>.scratch/</code> 下生成证据文件。</p>
+
+<!-- ===== 9 ===== -->
+<h2 id="s9" class="anchor">9 · 如何独立验证我的结论</h2>
+
+<p>全部证据都落盘了，不依赖我的中转描述：</p>
+
+<table>
+  <thead><tr><th>文件</th><th>是什么</th></tr></thead>
+  <tbody>
+    <tr><td><code>.scratch\combo-actual.js</code></td><td><b>DSH 服务端实际返回的那条 16.4 MB 组合 bundle</b>（原始字节）。这是最硬的证据——可以直接在第 139393 行看到那几行裸 ESM</td></tr>
+    <tr><td><code>.scratch\combo-patched.js</code></td><td>把裸 ESM 行注释掉后的版本，用于 A/B 对照</td></tr>
+    <tr><td><code>.scratch\probe-find-esm.js</code></td><td>扫描组合里的行首 ESM 语句</td></tr>
+    <tr><td><code>.scratch\probe-segment.js</code></td><td>定位这些语句归属哪个模块</td></tr>
+    <tr><td><code>.scratch\probe-combo-ab.js</code></td><td>A/B 对照，在真浏览器里注入两份组合并统计注册数</td></tr>
+    <tr><td><code>.scratch\probe-combo-classic.js</code></td><td>单份组合的普通脚本加载测试</td></tr>
+    <tr><td><code>.scratch\probe-live-page.js</code></td><td>用真实令牌打开真页面，捕获页面错误与注册数</td></tr>
+  </tbody>
+</table>
+
+<p><b>最快的一次核实</b>（不需要浏览器）：</p>
+
+<pre><span class="c"># 直接在服务端返回的原始字节里看那 4 行</span>
+node -e "const s=require('fs').readFileSync('.scratch/combo-actual.js','utf8');console.log(s.split(/\r?\n/).slice(139392,139397).join('\n'))"
+
+<span class="c"># 以及对照源码文件本身（20 行，全文可读）</span>
+type D:\ilife\packages\plugin-bill-ilife\dist\client.js</pre>
+
+<p>再把那个 837 字节的文件与 <code>plugin-calorie\dist\client.js</code> 的开头摆在一起看，格式差异一眼可辨。</p>
+
+<div class="foot">
+  <p><b>证据所在目录</b><br>
+  <code>D:\dsh-plugin\dsh-mattpocock-skills-deck\.scratch\</code></p>
+  <p><b>相关但独立的结论</b>：<code>dsh-mattpocock-skills-deck</code> 的客户端产物经同类检查（语法、模块注册形状、在真浏览器里单独加载）均正常，<b>与本次故障无关</b>。该插件的性能修复记录见同目录 <code>docs/reviews/601-panel-first-open-latency.html</code>。</p>
+  <p style="color:#6b7684">本文写于 2026-09-11。若 DSH 或插件随后有更新，请以当时的实际产物为准重新核对。</p>
+</div>
+
+</div>
+</body>
+</html>
