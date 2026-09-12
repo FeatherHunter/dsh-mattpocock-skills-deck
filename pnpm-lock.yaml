@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      dsh-log:
+        specifier: ^0.2.0
+        version: 0.2.1
+      dsh-plugin-update:
+        specifier: 0.1.1
+        version: 0.1.1
       ws:
         specifier: ^8.21.3
         version: 8.21.3
@@ -27,6 +33,18 @@ importers:
       react-dom:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+
+  packages/dsh-log:
+    devDependencies:
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+
+  packages/dsh-plugin-update:
+    devDependencies:
       typescript:
         specifier: 5.6.3
         version: 5.6.3
@@ -259,6 +277,14 @@ packages:
 
   decimal.js@10.6.0:
     resolution: {integrity: sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg==}
+
+  dsh-log@0.2.1:
+    resolution: {integrity: sha512-DnHix0UDQ+TbVo1XL9nSXJEeaokpbC8ZQUHHKAT0NbjuhTWJUOKbRkhwVaCw0D+2F75zCtovY+08OE6OMh/jiQ==}
+    engines: {node: '>=22'}
+
+  dsh-plugin-update@0.1.1:
+    resolution: {integrity: sha512-6YBziR1ziPVBNBPjPK4U77z5QCbWkb2BZ+GV9muykDW1gpnBSVwJ0bXc/hpZd+pg4nNVpOeIbYDldBepi/3stg==}
+    engines: {node: '>=22'}
 
   entities@8.0.0:
     resolution: {integrity: sha512-zwfzJecQ/Uej6tusMqwAqU/6KL2XaB2VZ2Jg54Je6ahNBGNH6Ek6g3jjNCF0fG9EWQKGZNddNjU5F1ZQn/sBnA==}
@@ -546,6 +572,10 @@ snapshots:
       - '@noble/hashes'
 
   decimal.js@10.6.0: {}
+
+  dsh-log@0.2.1: {}
+
+  dsh-plugin-update@0.1.1: {}
 
   entities@8.0.0: {}
 

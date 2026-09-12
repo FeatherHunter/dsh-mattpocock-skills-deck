@@ -1,5 +1,9 @@
 allowBuilds:
   esbuild: true
 
+minimumReleaseAgeExclude:
+  # 本仓库自己发布的包刚上线不久，会被 pnpm 的「新包先观察一段时间」这条闸拦下，这里按版本号放行。
+  - dsh-log@0.2.1
+
 packages:
   - 'packages/*'
