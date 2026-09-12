@@ -4,6 +4,11 @@
   "description": "可复用的日志系统：宿主落盘引擎（当前插件的日志能力抽成的独立包，地图 #556）",
   "license": "MIT",
   "author": "王辰浩",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FeatherHunter/dsh-mattpocock-skills-deck.git",
+    "directory": "packages/dsh-log"
+  },
   "engines": {
     "node": ">=22"
   },
