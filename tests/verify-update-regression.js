@@ -136,7 +136,8 @@ async function main() {
 
   // ---- 4) 轮询：只在安装中每秒查只读状态，清理不取消后台 ----
   {
-    const settings = strip(read('src/client/views/SettingsPage.js'))
+    // #587：面板的更新状态与电话调用拆进 views/useUpdatePanel.js（SettingsPage.js 已顶到 350 行上限）；拼起来看
+    const settings = strip(['src/client/views/SettingsPage.js', 'src/client/views/useUpdatePanel.js'].map(read).join('\n'))
     // #586：轮询间隔与电话名改由更新包派生（面板不再写字面量），取值真源在派生文件里。
     const derived = read('scripts/generated/updateClient.derived.js')
     check(derived.includes("UPD_PHONE_NAMES.updateStatus === 'wf.updateStatus'") && derived.includes('UPD_POLL_MS === 1000'),

@@ -125,114 +125,10 @@ export     const SettingsPage = (props) => {
           }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') })
         } catch (eDbg) { setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') }
       }
-      // #541 更新入口（入口 A）+ #542 安装闭环：标题行按钮，对话框两行字，开始更新后每秒轮询到待重启
-      const [updChecking, setUpdChecking] = React.useState(false)
-      const [updLatest, setUpdLatest] = React.useState(null)
-      const [updHasNew, setUpdHasNew] = React.useState(false)
-      const [updDialog, setUpdDialog] = React.useState(false)
-      const [updJob, setUpdJob] = React.useState(null)
-      const [updManual, setUpdManual] = React.useState(null)
-      const [updCheckId, setUpdCheckId] = React.useState(null)
-      const [updBlocked, setUpdBlocked] = React.useState(null)
-      const [updBusy, setUpdBusy] = React.useState(false)
-      const updJobState = updJob && updJob.state ? updJob.state : null
-      const updApplyRes = function (res) {
-        try {
-          const snap = res && res.snapshot ? res.snapshot : null
-          if (res && Object.prototype.hasOwnProperty.call(res, 'manual')) setUpdManual(res.manual)
-          if (res && res.receipt && res.receipt.checkId) setUpdCheckId(res.receipt.checkId)
-          if (snap && snap.job) { setUpdJob(snap.job); if (snap.job.state === 'failed' && (updJobState === 'installing' || updJobState === 'verifying')) setUpdDialog(true) }
-          else if (snap) setUpdJob(null)
-          if (snap && snap.blockedReason) setUpdBlocked(snap.blockedReason)
-          else setUpdBlocked(null)
-          if (snap && snap.canInstall === true && typeof snap.latestVersion === 'string' && snap.latestVersion) {
-            setUpdHasNew(true); setUpdLatest(snap.latestVersion)
-          } else {
-            setUpdHasNew(false); setUpdLatest(snap && snap.latestVersion ? snap.latestVersion : null)
-          }
-        } catch (eUpd) {}
-      }
-      const updReadStatus = function () {
-        if (!hostReady()) return
-        setUpdChecking(true)
-        const t0 = Date.now()
-        try {
-          host.call(UPD_STATUS, {}).then(function (res) {
-            setUpdChecking(false)
-            if (res && res.ok === true && res.snapshot) {
-              try { log('info', 'host.call', { method: UPD_STATUS, latencyMs: Date.now() - t0, ok: true, kind: 'update-status' }) } catch (eL) {}
-              updApplyRes(res)
-            } else {
-              try { log('warn', 'host.call.fail', { method: UPD_STATUS, kind: 'update-status', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
-            }
-          }).catch(function (e) {
-            setUpdChecking(false)
-            try { log('warn', 'host.call.fail', { method: UPD_STATUS, kind: 'update-status', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
-          })
-        } catch (eUpd) { setUpdChecking(false) }
-      }
-      const updClickCheck = function () {
-        if (updChecking || updBusy) return
-        if (!hostReady()) { flash(sharedSt, tr('err.hostUnavailable'), 'warn'); return }
-        if (updHasNew && updLatest && updCheckId) { setUpdDialog(true); return }
-        setUpdChecking(true)
-        const t0 = Date.now()
-        try {
-          host.call(UPD_CHECK, {}).then(function (res) {
-            setUpdChecking(false)
-            if (res && res.ok === true && res.snapshot) {
-              try { log('info', 'host.call', { method: UPD_CHECK, latencyMs: Date.now() - t0, ok: true, kind: 'update-check' }) } catch (eL) {}
-              updApplyRes(res)
-              if (updIsNewer(res.snapshot.latestVersion, res.snapshot.runningVersion)) setUpdDialog(true)
-              else flash(sharedSt, tr('cfg.updateLatest', { v: res.snapshot.runningVersion }), 'ok')
-            } else {
-              try { log('warn', 'host.call.fail', { method: UPD_CHECK, kind: 'update-check', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
-              flash(sharedSt, tr('cfg.updateCheckFail'), 'warn')
-            }
-          }).catch(function (e) {
-            setUpdChecking(false)
-            try { log('warn', 'host.call.fail', { method: UPD_CHECK, kind: 'update-check', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
-            flash(sharedSt, tr('cfg.updateCheckFail'), 'warn')
-          })
-        } catch (eUpd) { setUpdChecking(false); flash(sharedSt, tr('cfg.updateCheckFail'), 'warn') }
-      }
-      const updStartInstall = function () {
-        if (updBusy || !updCheckId) return
-        if (!hostReady()) { flash(sharedSt, tr('err.hostUnavailable'), 'warn'); return }
-        setUpdBusy(true)
-        const t0 = Date.now()
-        const requestId = 'req-' + String(Date.now()) + '-' + String(Math.floor(Math.random() * 100000))
-        try {
-          host.call(UPD_INSTALL, { checkId: updCheckId, requestId: requestId }).then(function (res) {
-            setUpdBusy(false)
-            if (res && res.ok === true && res.snapshot) {
-              try { log('info', 'host.call', { method: UPD_INSTALL, latencyMs: Date.now() - t0, ok: true, kind: 'update-install' }) } catch (eL) {}
-              updApplyRes(res)
-              setUpdDialog(false)
-            } else {
-              try { log('warn', 'host.call.fail', { method: UPD_INSTALL, kind: 'update-install', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'not-ok'), 120, 'error')) }) } catch (eL) {}
-              if (res && res.error) setUpdBlocked(res.error)
-              flash(sharedSt, tr('cfg.updateInstallFail'), 'warn')
-              updReadStatus()
-            }
-          }).catch(function (e) {
-            setUpdBusy(false)
-            try { log('warn', 'host.call.fail', { method: UPD_INSTALL, kind: 'update-install', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
-            flash(sharedSt, tr('cfg.updateInstallFail'), 'warn')
-          })
-        } catch (eUpd) { setUpdBusy(false); flash(sharedSt, tr('cfg.updateInstallFail'), 'warn') }
-      }
-      React.useEffect(function () { updReadStatus() }, [])
-      React.useEffect(function () {
-        if (updJobState !== 'installing' && updJobState !== 'verifying') return
-        const timerId = setInterval(function () { updReadStatus() }, UPD_POLL)
-        return function () { try { clearInterval(timerId) } catch (eT) {} }
-      }, [updJobState])
-      const updCopyManual = function () {
-        if (!updManual) return
-        try { copyText(sharedSt, updManual, tr('toast.copied')) } catch (eC) { flash(sharedSt, tr('toast.copyFailed'), 'warn') }
-      }
-      const updBtnText = (updChecking || updBusy) ? tr('cfg.updateChecking') : ((updJobState === 'installing' || updJobState === 'verifying') ? tr('cfg.updateInstalling') : ((updJobState === 'restart-required') ? tr('cfg.updateRestart') : ((updHasNew && updLatest) ? tr('cfg.updateToVersion', { v: updLatest }) : tr('cfg.updateCheck')))); const updFailText = function () { const c = String((updJob && updJob.message) || ''); return tr(c === 'installation-changed' ? 'cfg.updateFailChanged' : (c === 'recovery-required' ? 'cfg.updateFailRecovery' : 'cfg.updateFailInstall')) }
+      // #541 更新入口（入口 A）+ #542 安装闭环 + #587 待重启常驻与浮层弹窗：
+      // 状态与电话调用收进 views/useUpdatePanel.js（本文件已顶到 350 行上限），
+      // 这里只拿它的结果渲染：按钮四态、待重启常驻提示行、浮层弹窗（views/UpdateDialog.js）。
+      const upd = useUpdatePanel({ st: sharedSt, sid: props && props.sessionId })
       // v1.4.1：打开位置即时生效 —— seg 点击即写入 cfg + localStorage + 广播（无需滚到底部点保存全部）
       const pickOpenIn = function (v) {
         setOpenIn(v)
@@ -263,7 +159,7 @@ export     const SettingsPage = (props) => {
             h('a', { href: DSW_REPO_URL, target: '_blank', rel: 'noreferrer', style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', textDecoration: 'none' } }, (typeof DSW_VERSION === 'string' ? DSW_VERSION.replace(/^v/, '') : '')),
           ]),
           h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
-            h('button', { key: 'update', className: 'dsws-cfg-btn', disabled: !!(updChecking || updBusy || updJobState === 'installing' || updJobState === 'verifying' || updJobState === 'restart-required'), onClick: updClickCheck, style: (updChecking || updBusy) ? { opacity: 0.55 } : ((updHasNew && updLatest) ? { borderColor: '#c084fc', fontWeight: 700 } : null) }, updBtnText),
+            h('button', { key: 'update', className: 'dsws-cfg-btn', disabled: upd.disabled, onClick: upd.onClick, style: upd.busy ? { opacity: 0.55 } : (upd.highlight ? { borderColor: '#c084fc', fontWeight: 700 } : null) }, upd.label),
             h(HoverTip, { key: 'star', content: tr('cfg.starTip'), mode: 'mouse', maxWidth: 220 },
               h('a', { href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: 4, borderRadius: 6, color: 'inherit', textDecoration: 'none' } }, [h('span', { 'aria-hidden': 'true', style: { fontSize: 14, lineHeight: 1 } }, '🌟')])),
             h(HoverTip, { key: 'feedback', content: tr('cfg.feedbackTip'), mode: 'mouse', maxWidth: 220 },
@@ -271,22 +167,10 @@ export     const SettingsPage = (props) => {
           ]),
         ]),
         h('div', { className: 'dsws-cfg-sub' }, tr('cfg.sub')),
-        updDialog ? h('div', { className: 'dsws-cfg-group' }, [
-          h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'refresh', size: 13 }), h('span', null, tr('cfg.updateDialogTitle', { v: updLatest || '' }))]),
-          h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.updateDialogBody')), updJobState === 'failed' ? h('div', { className: 'dsws-cfg-gdesc', style: { color: '#f87171' } }, tr('cfg.updateFailed', { reason: updFailText() })) : null,
-          (updBlocked && !updHasNew) ? h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.updateBlocked', { reason: updBlocked })) : null,
-          updManual ? h('div', { style: { marginTop: 8 } }, [
-            h('div', { className: 'dsws-cfg-row', style: { alignItems: 'center', justifyContent: 'space-between' } }, [
-              h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.updateManualTitle')),
-              h('button', { className: 'dsws-cfg-btn', onClick: updCopyManual }, tr('cfg.updateCopy')),
-            ]),
-            h('pre', { style: { whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'ui-monospace,monospace', fontSize: 11.5, background: '#10131a', padding: 8, borderRadius: 6, marginTop: 6 } }, updManual), h('div', { className: 'dsws-cfg-gdesc', style: { marginTop: 6 } }, tr('cfg.updateManualNote')),
-          ]) : null,
-          h('div', { className: 'dsws-cfg-row', style: { gap: 8, marginTop: 8 } }, [
-            (updHasNew && updCheckId) ? h('button', { className: 'dsws-cfg-btn', disabled: !!updBusy, onClick: updStartInstall }, tr('cfg.updateStart')) : null,
-            h('button', { className: 'dsws-cfg-btn', onClick: function () { setUpdDialog(false) } }, tr('cfg.updateLater')),
-          ]),
-        ]) : null,
+        // #587：装完待重启的常驻提示行（有就一直在，重启后自动消失）；判据来自 useUpdatePanel
+        upd.banner,
+        // #587：检查更新的浮层弹窗（#541/#542 原有的内容与行为不变，形态从页内分组改为居中浮层）
+        upd.dialog,
         // v1.4：打开位置（details 列 / better-sidebar）—— better-sidebar 未装时仅显示 dock 选项
         h('div', { className: 'dsws-cfg-group' }, [
           h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'map', size: 13 }), h('span', null, tr('cfg.openIn'))]),

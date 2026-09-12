@@ -52,7 +52,8 @@ async function main() {
   check(updateSrc.includes('handleUpdateInstall') && updateSrc.includes("loggedPhone('wf.updateInstall'"), '胶水有装更新电话的日志行')
   check(updateSrc.includes('reader.install('), '装更新走核心 reader.install')
   check(!updateSrc.includes('registry.npmjs.org'), '胶水不另写查询（无官方源地址字面量，命令拼接在共享层）')
-  const clientSettings = strip(read('src/client/views/SettingsPage.js'))
+  // #587：面板的更新状态与电话调用拆进 views/useUpdatePanel.js、弹窗拆进 views/UpdateDialog.js；三份拼起来看
+  const clientSettings = strip(['src/client/views/SettingsPage.js', 'src/client/views/useUpdatePanel.js', 'src/client/views/UpdateDialog.js'].map(read).join('\n'))
   // #586：客户端不再写电话名字面量，电话名与轮询间隔都从更新包派生的取值来。
   const derivedClient = read('scripts/generated/updateClient.derived.js')
   check(derivedClient.includes("UPD_PHONE_NAMES.updateStatus === 'wf.updateStatus'"), '派生文件带零变化断言（默认前缀下三个电话名与旧字面一致）')
@@ -60,12 +61,11 @@ async function main() {
   check(clientSettings.includes('setInterval(function () { updReadStatus() }, UPD_POLL)'), '安装中按派生间隔轮询查状态（不再写死 1000）')
   check(!clientSettings.includes('registry.npmjs.org') && !clientSettings.includes('fetch('), '面板不直连源（手工命令由宿主回包提供）')
   check(clientSettings.includes("tr('cfg.updateDialogBody')") && clientSettings.includes("tr('cfg.updateStart')"), '对话框两行字与开始更新走词条')
-
   // ---- 2) 日志只复用常驻事件 ----
   const phoneEvents = [...updateSrc.matchAll(/(?:fire|log)\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
   const settingsEvents = [...clientSettings.matchAll(/(?:fire|log)\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
   const fresh = phoneEvents.concat(settingsEvents).filter((e) => e !== 'host.call' && e !== 'host.call.fail' && e !== 'host.dispatch.error')
-  const preExisting = new Set(['settings.save', 'update.install.exec'])
+  const preExisting = new Set(['settings.save', 'update.install.exec', 'panel.render'])
   check(fresh.filter((e) => !preExisting.has(e)).length === 0, '安装链路只复用常驻事件（' + [...new Set(phoneEvents.concat(settingsEvents))].join('、') + '）')
   check(strip(read('src/host/updateStore.js')).includes("'info', 'update.install.exec'"), '安装执行器记跨边界调用与结果（常驻事件 update.install.exec）')
 

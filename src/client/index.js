@@ -246,7 +246,10 @@ export default {
 
     // ==== kernel:updateClient (spliced by build) ====
 
-    // ==== leaf:debugSwitchFailHint (spliced by build) ==== // ==== leaf:SettingsWorkspaces (spliced by build) ==== // ==== leaf:settingsPage (spliced by build) ====
+    // ==== leaf:debugSwitchFailHint (spliced by build) ==== // ==== leaf:SettingsWorkspaces (spliced by build) ====
+    // #587：检查更新的浮层弹窗、待重启常驻提示、以及状态与电话调用（后两者按名字使用，拼接次序即依赖次序）
+    // ==== leaf:updateDialog (spliced by build) ==== // ==== leaf:updateRestartBanner (spliced by build) ==== // ==== leaf:useUpdatePanel (spliced by build) ====
+    // ==== leaf:settingsPage (spliced by build) ====
 
     // ==== leaf:runPanel (spliced by build) ====
 

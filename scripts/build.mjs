@@ -303,6 +303,9 @@ const LEAF_MODULES = [
   { id: 'checksTab', file: 'src/client/views/ChecksTab.js' },
   { id: 'SettingsWorkspaces', file: 'src/client/views/SettingsWorkspaces.js' },
   { id: 'debugSwitchFailHint', file: 'src/client/views/shared/DebugSwitchFailHint.js' }, // #597 由 SettingsPage.js 拆出：写开关失败的机器码挑提示词条（无组件，纯函数）
+  { id: 'updateDialog', file: 'src/client/views/UpdateDialog.js' }, // #587 由 SettingsPage.js 拆出：检查更新的浮层弹窗（组件）
+  { id: 'updateRestartBanner', file: 'src/client/views/UpdateRestartBanner.js' }, // #587 新增：装完待重启的常驻提示行（组件）
+  { id: 'useUpdatePanel', file: 'src/client/views/useUpdatePanel.js' }, // #587 由 SettingsPage.js 拆出：检查更新的状态与电话调用（钩子，无组件）
   { id: 'settingsPage', file: 'src/client/views/SettingsPage.js' },
   { id: 'runPanel', file: 'src/client/views/RunPanel.js' },
   { id: 'DockSync', file: 'src/client/panel/DockSync.js' },

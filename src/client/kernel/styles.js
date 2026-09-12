@@ -309,4 +309,16 @@
       '.dsws-no-repo-form .err{font-size:11px;color:#f87171;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.35);border-radius:6px;padding:5px 8px;margin-top:6px}',
       '.dsws-no-repo-form .hint{font-size:10px;color:var(--dsw-alias-label-caption,#8b8b95);margin-top:2px}',
       '.dsws-no-repo-form .radio{display:inline-flex;align-items:center;gap:4px;font-size:11px;cursor:pointer}',
+      // #587 更新弹窗与待重启提示（弹窗本体复用上面的 dsws-modal 浮层样式，这里只补内层排版，全部走主题变量）
+      '.dsws-upd-dlg-head{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:650;margin-bottom:6px}',
+      '.dsws-upd-dlg-note{font-size:11.5px;color:var(--dsw-alias-label-caption,#8b8b95);line-height:1.7;margin-bottom:6px}',
+      '.dsws-upd-dlg-fail{font-size:12px;color:#f87171;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.4);border-radius:8px;padding:6px 9px;margin-bottom:6px;line-height:1.6}',
+      '.dsws-upd-dlg-cmd{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;background:var(--dsw-alias-bg-layer-1,#10131a);padding:8px 10px;margin-bottom:6px}',
+      '.dsws-upd-dlg-cmd-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--dsw-alias-label-secondary,#a1a1aa)}',
+      '.dsws-upd-dlg-cmd pre{white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Consolas,Menlo,monospace;font-size:11.5px;background:var(--dsw-alias-bg-layer-3,#0c0e12);padding:7px 9px;border-radius:6px;margin:6px 0 0}',
+      '.dsws-upd-dlg-acts{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}',
+      // 常驻提示：装完还没重启时一直在，重启后随判据消失
+      '.dsws-restart-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;border:1px solid rgba(245,158,11,.45);background:rgba(245,158,11,.08);border-radius:10px;padding:7px 11px;font-size:12px}',
+      '.dsws-restart-row .ttl{font-weight:650;color:#f59e0b;flex:none}',
+      '.dsws-restart-row .note{color:var(--dsw-alias-label-secondary,#a1a1aa);min-width:0}',
     ].join('')

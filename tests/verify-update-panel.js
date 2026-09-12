@@ -35,14 +35,17 @@ async function main() {
   check(updateSrc.includes('reader.status()'), '查状态走核心 reader.status')
   check(updateSrc.includes('reader.check()'), '查新版走核心 reader.check')
   check(!updateSrc.includes('registry.npmjs.org'), '胶水电话不另写查询（无官方源地址字面量）')
-  const clientSettings = strip(read('src/client/views/SettingsPage.js'))
+  // #587：面板的更新状态与电话调用拆进 views/useUpdatePanel.js、弹窗拆进 views/UpdateDialog.js
+  //（SettingsPage.js 已顶到 350 行上限）；这里把三份源码拼起来看，与拆出前同一口径。
+  const clientSettings = strip(['src/client/views/SettingsPage.js', 'src/client/views/useUpdatePanel.js', 'src/client/views/UpdateDialog.js'].map(read).join('\n'))
   check(!clientSettings.includes('registry.npmjs.org') && !clientSettings.includes('fetch('), '面板不另写查询（无源地址与直连请求）')
 
   // ---- 3) 日志只复用常驻事件 ----
   const phoneEvents = [...updateSrc.matchAll(/(?:fire|log)\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
   const settingsEvents = [...clientSettings.matchAll(/(?:fire|log)\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
   const freshEvents = phoneEvents.concat(settingsEvents).filter((e) => e !== 'host.call' && e !== 'host.call.fail' && e !== 'host.dispatch.error')
-  const preExisting = new Set(['settings.save'])
+  // #587：面板状态推进复用按需事件 panel.render（与 kernel/router.js 同一形态，只在调试开关打开时落盘）
+  const preExisting = new Set(['settings.save', 'panel.render'])
   const freshNew = freshEvents.filter((e) => !preExisting.has(e))
   check(freshNew.length === 0, '电话与按钮只复用常驻事件（' + [...new Set(phoneEvents.concat(settingsEvents))].join('、') + '）')
   check(updateSrc.includes("loggedPhone('wf.updateStatus'") && updateSrc.includes("loggedPhone('wf.updateCheck'"), '宿主日志按电话名记行（查状态与查新版各一行方法可识行，装更新行由安装门禁覆盖）')
@@ -51,6 +54,10 @@ async function main() {
   check(derivedClientSrc.includes("UPD_PHONE_NAMES.updateStatus === 'wf.updateStatus'") && derivedClientSrc.includes("UPD_PHONE_NAMES.updateCheck === 'wf.updateCheck'"),
     '派生文件带零变化断言（默认前缀下查状态与查新版电话名与旧字面一致）')
   check(clientSettings.includes('method: UPD_STATUS') && clientSettings.includes('method: UPD_CHECK'), '客户端调用点相邻有行（两处调用各有日志行覆盖，方法名走派生常量）')
+  // #587：更新状态与电话调用拆进 views/useUpdatePanel.js，与调用点同住一文件；面板状态推进复用按需事件 panel.render（与 kernel/router.js 同一形态）
+  const hookSrc = strip(read('src/client/views/useUpdatePanel.js'))
+  check(hookSrc.includes('method: UPD_INSTALL') && hookSrc.includes('method: UPD_STATUS') && hookSrc.includes('method: UPD_CHECK'), '装更新那一路也有方法可识的日志行（三处调用各一行）')
+  check(hookSrc.includes("isEnabled('debug')") && hookSrc.includes("'panel.render'"), '面板状态推进按需记行并同行判开关（关着不组装字符串）')
 
   // ---- 4) 面板三态与先读后查 ----
   check(clientSettings.includes("tr('cfg.updateCheck')"), '按钮平时显示检查更新（走词条）')
@@ -61,7 +68,7 @@ async function main() {
   const statusAt = clientSettings.indexOf('host.call(UPD_STATUS')
   const checkAt = clientSettings.indexOf('host.call(UPD_CHECK')
   check(statusAt >= 0 && checkAt >= 0 && statusAt < checkAt, '状态调用在检查调用之前（先状态后检查）')
-  check(clientSettings.includes('updChecking || updBusy') && clientSettings.includes('disabled: !!(updChecking'), '检查中与安装中禁用按钮（重复点击不重发，#542 加忙碌态）')
+  check(clientSettings.includes('updChecking || updBusy') && clientSettings.includes('disabled: !!'), '检查中与安装中禁用按钮（重复点击不重发，#542 加忙碌态）')
   check(clientSettings.includes("tr('cfg.updateCheckFail')"), '检查失败给可读提示（走词条）')
 
   // ---- 5) 文案中英成对 ----
@@ -72,7 +79,8 @@ async function main() {
   }
 
   // ---- 6) 文件粒度 ----
-  for (const rel of ['src/host/update.js', 'src/host/index.js', 'src/client/views/SettingsPage.js', 'src/client/kernel/locale-word.js']) {
+  // #587：拆出的三份一并纳入行数上限（拆分的意义就是让每份都留得住余量）。
+  for (const rel of ['src/host/update.js', 'src/host/index.js', 'src/client/views/SettingsPage.js', 'src/client/views/useUpdatePanel.js', 'src/client/views/UpdateDialog.js', 'src/client/views/UpdateRestartBanner.js', 'src/client/kernel/locale-word.js']) {
     const n = read(rel).split(/\r?\n/).length
     check(n <= 350, `${rel} ${n} 行（上限 350）`)
   }
@@ -151,7 +159,9 @@ async function main() {
   check(clientSettings.includes("tr('cfg.updateCopy')") && clientSettings.includes("tr('cfg.updateStart')"), '对话框保留复制键与安装键（走词条，无写死中文）')
   // 安装失败必须看得见（2026-09-08 实测：失败后对话框已关、按钮弹回「更新至」，用户以为点了没反应）
   check(clientSettings.includes("tr('cfg.updateFailed', { reason: updFailText() })") && clientSettings.includes('const updFailText = function ()'), '安装失败在对话框里显性提示原因（不是点完没反应）')
-  check(clientSettings.includes("snap.job.state === 'failed' && (updJobState === 'installing' || updJobState === 'verifying')"), '失败发生在本次安装中时把对话框重新打开给用户看')
+  // #587：读快照与「弹窗该不该开」都收成纯函数（views/useUpdatePanel.js），失败重开的判据在里面
+  check(clientSettings.includes("info.jobState === 'failed' && (updJobState === 'installing' || updJobState === 'verifying')"), '失败发生在本次安装中时把对话框重新打开给用户看')
+  check(clientSettings.includes('export const updReadSnapshot') && clientSettings.includes('export const updDialogShouldOpen'), '读快照与弹窗判据是纯函数（可离线核对）')
   // ---- 9) 无新版给成功提示（#547：只有亲手点的检查才提示，自动读状态与轮询不打扰） ----
   check(clientSettings.includes("tr('cfg.updateLatest', { v:"), '无新版弹已是最新提示（带版本号）')
   {

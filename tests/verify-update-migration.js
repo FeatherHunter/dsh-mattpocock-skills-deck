@@ -123,7 +123,8 @@ async function main() {
       derivedClient.includes(`UPD_PHONE_NAMES.${action} === '${name}'`))
     check(namesOk, `派生客户端带零变化断言：默认前缀 wf 下三个电话名与旧字面一致（${Object.values(PHONE_NAMES).join('、')}）`)
     check(derivedClient.includes('UPD_POLL_MS === 1000'), '派生客户端带零变化断言：轮询间隔仍是 1000 毫秒')
-    const settings = read('src/client/views/SettingsPage.js')
+    // #587：面板的更新状态与电话调用拆进 views/useUpdatePanel.js（SettingsPage.js 已顶到 350 行上限）；拼起来看
+    const settings = ['src/client/views/SettingsPage.js', 'src/client/views/useUpdatePanel.js'].map(read).join('\n')
     const literalNames = Object.values(PHONE_NAMES).filter((n) => settings.includes(`'${n}'`))
     check(literalNames.length === 0, '面板源码里不再写死电话名字面量' + (literalNames.length ? `（还留着 ${literalNames.join('、')}）` : ''))
     check(!/setInterval\(function \(\) \{ updReadStatus\(\) \}, 1000\)/.test(settings) && settings.includes('}, UPD_POLL)'),
