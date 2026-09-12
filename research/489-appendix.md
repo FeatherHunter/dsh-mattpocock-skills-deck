@@ -116,6 +116,8 @@
 
 ### 1.5 按需 22 条（P1，只在调试开关打开时记，高频要守卫；#52、#53、#54、#56 为 #498 新增，#58、#59 为 #606 新增）
 
+exec.run 的 via 取值表（枚举写死在这里）：snapshot 面板快照组装（wf.snapshot，两处分支）、refresh 面板刷新组装（wf.refresh，两处分支）、detect-select 探测级联的三选一、detect-preflight 探测级联的后端预检、snapshot-select 快照里补做的一次三选一、viewer-lookup 快照里预取当前登录用户、comment-write 评论写回、publish 初始化仓库与推送（本文件里全部 git 命令）、repo-root 解析仓库根、repo-key 解析仓库键、unspecified 兜底（调用方没把链名传下来时用它；现在源码里没有任何一条命令会走到这个取值）。
+
 | # | 事件名 | 级别 | 允许字段（白名单，之外不记） | 截断或散列 | 命中正则名 | 守卫 | 原证据（#331 基线追溯） |
 |---|---|---|---|---|---|---|
 | 2 | snapshot.cache.hit | 调试 | kind 取值 snapshot-lru（快照最近最少使用缓存）、ageMs 缓存多久 | — | — | 采样（如百分之一） | index.js:576 读盘、589 写盘、47 超时 |
@@ -138,7 +140,7 @@
 | 53 | workspaceStore.miss | 调试（#498 新增） | keyHash 键散列、reason 未命中原因（枚举 empty、expired） | H_CWD | — | 按事件 | tracker/detection/workspaceStore.js 内存选择缓存 |
 | 54 | client.snapshot.hit | 调试（#498 新增） | keyHash 工作区键散列、ageMs 缓存多久、kind 内存或磁盘 | 散列键 | — | 采样（百分之一，渲染路径高频） | kernel/store-snapshot.js 客户端快照表、kernel/probe-snapshot.js 磁盘命中 |
 | 56 | detail.cache.hit | 调试（#498 新增） | numHash 票号散列、ageMs 缓存多久 | 散列票号 | — | 采样（百分之一） | kernel/api-io.js 详情 60 秒缓存 |
-| 58 | exec.run | 调试（#606 新增） | argv0 命令名（只记程序名，连目录部分都去掉；参数一个不记）、cwdHash 工作区短指纹、latencyMs 耗时、exitCode 退出码（拿不到为 -1） | H_CWD | —（命令名已去掉目录，只留程序名） | 外层判断（调试开关关闭时只读一次开关就返回，不读时钟也不组装字段对象） | host/platformChannel.js 的 detectionExec（操作上下文交给后端的 exec 就是它）与 host/repoKeys.js 的 execProc（少数自建上下文直连它）；两处互斥，每条外部命令只落一行 |
+| 58 | exec.run | 调试（#606 新增） | argv0 命令名（只记程序名，连目录部分都去掉；参数一个不记）、cwdHash 工作区短指纹、latencyMs 耗时、exitCode 退出码（拿不到为 -1）、via 发起链名（枚举，取值见下） | H_CWD | —（命令名已去掉目录，只留程序名） | 外层判断（调试开关关闭时只读一次开关就返回，不读时钟也不组装字段对象） | host/platformChannel.js 的 detectionExec（操作上下文交给后端的 exec 就是它）与 host/repoKeys.js 的 execProc（少数自建上下文与初始化推送直连它）；两处互斥，每条外部命令只落一行 |
 | 59 | panel.render | 调试（#606 新增） | stage 阶段名枚举（sidebar-registered 注册完成、sidebar-opened better-sidebar 开签返回、render-commit 进入渲染到提交完成、render-paint 进入渲染到被动副作用跑完、fit-measure 提交阶段里折叠测量耗时、click-to-painted 点击到被动副作用跑完）、ms 该阶段的毫秒数、mode 打开形态（sidebar 或 dock，取值与 panel.open 同义） | —（只记枚举与数字） | — | 外层判断（调试开关关闭时直接返回，不组装字段对象） | kernel/router.js 记起点与 better-sidebar 两段、panel/Dock.js 记渲染起点与提交、views/ListTab.js 累加折叠耗时、panel/DockSync.js 收口成行 |
 
 ### 1.6 自监控 5 条（#499，错误与告警级、始终落盘，不采样不节流之外的节流见各行守卫）

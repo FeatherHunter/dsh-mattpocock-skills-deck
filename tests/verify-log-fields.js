@@ -66,7 +66,7 @@ const ALLOWED = {
   'client.snapshot.miss': ['keyHash', 'reason'],
   'detail.cache.hit': ['numHash', 'ageMs'],
   // #606 新增两条按需事件（附录 1.5 节）：exec.run 记经 ctx.exec 起的外部命令，panel.render 记面板打开各阶段耗时。
-  'exec.run': ['argv0', 'cwdHash', 'latencyMs', 'exitCode'],
+  'exec.run': ['argv0', 'cwdHash', 'latencyMs', 'exitCode', 'via'],
   'panel.render': ['stage', 'ms', 'mode'],
   'host.start': ['pid', 'startedAt', 'dir'],
   'update.install.exec': ['route', 'ok', 'exitCode', 'durationMs', 'pluginId'],

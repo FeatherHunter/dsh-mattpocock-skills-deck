@@ -15,7 +15,7 @@
 import { detectExplicit } from './explicitDetector.js'
 import { canonicalWorkspaceKey } from '../../workspaceKey.js'
 
-function buildOpContextBase(cwd, platform, fs, timers, exec) {
+function buildOpContextBase(cwd, platform, fs, timers, exec, via) {
   return {
     cwd,
     platform,
@@ -23,7 +23,8 @@ function buildOpContextBase(cwd, platform, fs, timers, exec) {
     // OpContext 契约 = BackendContext & {cwd, signal}；BackendContext 必含 exec（contract.js）。
     // #幽灵修复：preflight 的 ghClient/glab 依赖 ctx.exec 执行 gh/glab——缺失时假报 env 失败
     // （"ctx.exec unavailable"→被 wf.chain 谓词呈为「gh 未找到」链步）。
-    exec: (typeof exec === 'function') ? exec : null,
+    // #606:exec 外面包一层，把「这条链叫什么」传给起进程的接缝，日志才答得出「由谁触发」。
+    exec: (typeof exec === 'function') ? function (cmd, args, opts) { return exec(cmd, args, opts, String(via || 'unspecified')) } : null,
     timers: timers || { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id) },
     signal: undefined,
   }
@@ -150,7 +151,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
 
     // ③ matches > fallback（经 registry.select，含 pending/multiHit + 超时 3000ms + AbortSignal）
     if (!selection) {
-      const opCtx = buildOpContextBase(cwd, platform, fs, timers, exec)
+      const opCtx = buildOpContextBase(cwd, platform, fs, timers, exec, 'detect-select')
       // 若调用方传 signal，可在此注入 opCtx.signal = opts.signal（registry withTimeout 内部会合并）
       if (opts.signal) opCtx.signal = opts.signal
       opCtx.caller = 'detection-service'; selection = await registry.select(handle, opCtx)
@@ -170,7 +171,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       try {
         const tracker = registry.get(selection.backendId)
         if (tracker && typeof tracker.preflight === 'function') {
-          const opCtx2 = buildOpContextBase(cwd, platform, fs, timers, exec)
+          const opCtx2 = buildOpContextBase(cwd, platform, fs, timers, exec, 'detect-preflight')
           if (opts.signal) opCtx2.signal = opts.signal
           // preflight 可能经 ghClient 走 subprocess，需传 platform
           opCtx2.platform = platform

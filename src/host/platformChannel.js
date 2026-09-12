@@ -178,8 +178,9 @@ export function createPlatformChannel(deps) {
     // #606 补测点：这条路此前一条日志都不留（唯一的记录点在 github 房的 client.js，它要调用上下文自带记录器，
     //   而各操作上下文都没带），于是面板列表的主取数路、每次探测的预检、取当前登录用户与所有写操作
     //   起了多少次外部命令全都看不见。这里补 exec.run（按需）：一次调用落一行，只记命令名、工作区短指纹、
-    //   耗时、退出码四项；不记完整参数、不记令牌、不记原始路径。调试开关关着时外层判断直接返回。
-    async function detectionExec(cmd, args, opts) {
+    //   耗时、退出码与发起链名；不记完整参数、不记令牌、不记原始路径。调试开关关着时只读一次开关就返回。
+    // 第四个参数 via 是「这条命令由哪条链起的」：造操作上下文的调用方把链名传进来，日志只记这个固定名字。
+    async function detectionExec(cmd, args, opts, via) {
       const argv = [String(cmd)].concat(args || [])
       const c = (opts && opts.cwd) || ''
       // 起始时刻只在开关打开时才取：关着时这一行读一个布尔就结束，连时钟都不读，后面那行自然也不落。
@@ -207,7 +208,7 @@ export function createPlatformChannel(deps) {
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
-      try { if (execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv[0]), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1 }) } catch (eL) {}
+      try { if (execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv[0]), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
       return { stdout: out.text || '', stderr: err.text || '', code: outcome.exitCode }
     }
     async function getDetectionService() {

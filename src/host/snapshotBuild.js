@@ -107,7 +107,7 @@ export function createSnapshotBuilder(deps) {
         try {
           const tmpReg = reg
           const tmpHandle = { cwd: cwd }
-          const tmpCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-viewer', timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:r.code } } }
+          const tmpCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-viewer', timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'viewer-lookup'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:r.code } } }
           const selForViewer = await tmpReg.select(tmpHandle, tmpCtx)
           const vid = selForViewer && selForViewer.backendId
           if (vid) {
@@ -120,7 +120,7 @@ export function createSnapshotBuilder(deps) {
         } catch (e) {}
         if (reg && typeof reg.select === 'function') {
           const handle = { cwd: cwd }
-          const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-select', timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:r.code } } }
+          const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-select', timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'snapshot-select'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:r.code } } }
           // 能力诊断计数（G5 仅诊断，不驱动隐藏）——按 host 视角 fill 统计
           const capCount = (function(iss){
             let present=0, emptyCnt=0, missing=0

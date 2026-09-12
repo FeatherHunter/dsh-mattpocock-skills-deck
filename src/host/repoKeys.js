@@ -93,10 +93,11 @@ export function createRepoKeys(deps) {
     }
 
     // 通用进程执行（#344 前置检查用：git / cmd 等，不经 shell，错误不归一化）
-    // #606 补测点：少数自建操作上下文（评论读取、单票详情、详情页选择）的 ctx.exec 直连这里，
-    //   不走 platformChannel 的 detectionExec。同一个事件 exec.run、同一套四项字段，两条路互斥，
-    //   所以每条外部命令只落一行，两次相加就是「经 ctx.exec 起过多少次」。调试开关关着时直接返回。
-    async function execProc(argv, cwd) {
+    // #606 补测点：少数自建操作上下文（评论读取、单票详情、初始化与推送）的 ctx.exec 直连这里，
+    //   不走 platformChannel 的 detectionExec。同一个事件 exec.run、同一套字段，两条路互斥，
+    //   所以每条外部命令只落一行，两次相加就是「经 ctx.exec 起过多少次」。调试开关关着时只读一次开关就返回。
+    // 第三个参数 via 是「这条命令由哪条链起的」：调用方把链名传进来，日志只记这个固定名字。
+    async function execProc(argv, cwd, via) {
       // 起始时刻只在开关打开时才取：关着时这一行读一个布尔就结束，连时钟都不读，后面两行自然也不落。
       const _execT0 = (logCtx && logCtx.isEnabled('debug')) ? Date.now() : 0
       let handle
@@ -118,12 +119,12 @@ export function createRepoKeys(deps) {
           to.then(function () { handle.terminate(); return { exitCode: -1, signal: 'timeout' } }),
         ])
       } catch (e) {
-        try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1 }) } catch (eL) {}
+        try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(via || 'unspecified') }) } catch (eL) {}
         return { ok: false, error: String((e && e.message) || e) }
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
-      try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1 }) } catch (eL) {}
+      try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
       if (outcome.exitCode !== 0) return { ok: false, code: outcome.exitCode, error: ((err.text || '') + (out.text || '')).slice(0, 400) }
       return { ok: true, text: out.text || '' }
     }
@@ -167,7 +168,7 @@ export function createRepoKeys(deps) {
       repoRoots[key] = null
       const git = await resolveGit()
       if (git) {
-        const r = await execProc([git, '-C', key, 'rev-parse', '--show-toplevel'], key)
+        const r = await execProc([git, '-C', key, 'rev-parse', '--show-toplevel'], key, 'repo-root')
         const txt = r.ok ? r.text.trim() : ''
         if (txt && !/fatal/i.test(txt)) repoRoots[key] = txt
       }
@@ -228,7 +229,7 @@ export function createRepoKeys(deps) {
       // Tier 1：git remote get-url origin + parseGithubRepo（SSH/HTTPS 都由 parseRegex 覆盖）
       const git = await resolveGit()
       if (git) {
-        const r = await execProc([git, '-C', execCwd, 'remote', 'get-url', 'origin'], execCwd)
+        const r = await execProc([git, '-C', execCwd, 'remote', 'get-url', 'origin'], execCwd, 'repo-key')
         if (r.ok) {
           const k = parseGithubRepo(r.text)
           if (k) { repoKeys[key] = k; try { if (logCtx) logCtx.fire('info', 'repo.resolve.tier', { tier: 1, ok: true, latencyMs: Date.now() - rkT0 }) } catch (eL) {}; return k }

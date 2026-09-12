@@ -62,7 +62,7 @@ export function createSessionSnapshot(deps) {
           let repoRef = null
           try { repoRef = reg.describe({ cwd }, backendId) } catch {}
           if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
-          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
+          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c, a, o) { return detectionExec(c, a, o, 'snapshot') } }
           const { createSnapshotComposer } = await import('./tracker/snapshot.js')
           const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force) })
@@ -258,7 +258,7 @@ export function createSessionSnapshot(deps) {
           const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
           if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()) } }) } catch (eL) {}; const freshModules = await freshBackendModules(); return adoptSnapLog(Object.assign({}, diskb, freshModules ? { backendModules: freshModules } : null, { fromCache: true }), cwd) }
         }
-        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: detectionExec }
+        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c, a, o) { return detectionExec(c, a, o, 'snapshot') } }
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
         const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force) })

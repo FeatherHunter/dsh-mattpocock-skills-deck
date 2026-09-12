@@ -3,6 +3,9 @@
 // 接线：由 index.js 动态 import 加载；repoKeys/repoRoots 与 H1 同形（对象引用，删除才删得中）；本文件不引用其他新文件。
 export function createPublishFlow(deps) {
   const { DEFAULT_CWD, resolveGit, resolveGh, getGhLastError, runGh, execProc, canonicalKey, getRepoKey, repoKeys, repoRoots, setCache, logCtx } = deps
+  // #606：本文件里的外部命令全是 git，都属于「初始化仓库 / 推送」这条链，统一打上链名再往下传，
+  //   这样日志里的 exec.run 行就能答出「这条命令是发布链起的」。
+  const gitExec = function (argv, cwd) { return execProc(argv, cwd, 'publish') }
   const classifyCreateError = function (errText, kind) {
     const low = String(errText || '').toLowerCase()
     if (/already exists|name already exists|already exists on github|repository.*already exists/i.test(low)) return 'already-exists'
@@ -47,9 +50,9 @@ export function createPublishFlow(deps) {
     } catch (e) { /* 忽略 */ }
     // 1. git init（若已是 git 仓库则跳过；含 getRepoRoot 探测 + 清缓存）
     try {
-      const probe = await execProc([git, '-C', cwd, 'rev-parse', '--is-inside-work-tree'], cwd)
+      const probe = await gitExec([git, '-C', cwd, 'rev-parse', '--is-inside-work-tree'], cwd)
       if (!probe.ok) {
-        const initR = await execProc([git, 'init'], cwd)
+        const initR = await gitExec([git, 'init'], cwd)
         if (!initR.ok) {
           const k = classifyCreateError(initR.error, null)
           return { ok: false, errorKind: k === 'already-exists' ? 'permission' : k, error: initR.error }
@@ -59,7 +62,7 @@ export function createPublishFlow(deps) {
         if (rk1 && repoRoots[rk1] !== undefined) delete repoRoots[rk1]
       }
     } catch (e) {
-      const initR = await execProc([git, 'init'], cwd)
+      const initR = await gitExec([git, 'init'], cwd)
       if (!initR.ok) {
         const k = classifyCreateError(initR.error, null)
         return { ok: false, errorKind: k === 'already-exists' ? 'permission' : k, error: initR.error }
@@ -68,19 +71,19 @@ export function createPublishFlow(deps) {
       if (rk2 && repoRoots[rk2] !== undefined) delete repoRoots[rk2]
     }
     // 2. git add .
-    const addR = await execProc([git, 'add', '.'], cwd)
+    const addR = await gitExec([git, 'add', '.'], cwd)
     if (!addR.ok) {
       const k = classifyCreateError(addR.error, null)
       return { ok: false, errorKind: k, error: addR.error }
     }
     // 3. git commit --allow-empty（含 identity 缺失兜底）
-    let commitR = await execProc([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
+    let commitR = await gitExec([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
     if (!commitR.ok) {
       const low = String(commitR.error || '').toLowerCase()
       if (/please tell me who you are|user\.name|user\.email|author identity unknown|unable to auto-detect email/.test(low)) {
-        await execProc([git, 'config', 'user.email', 'dsh@local'], cwd)
-        await execProc([git, 'config', 'user.name', 'DSH User'], cwd)
-        commitR = await execProc([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
+        await gitExec([git, 'config', 'user.email', 'dsh@local'], cwd)
+        await gitExec([git, 'config', 'user.name', 'DSH User'], cwd)
+        commitR = await gitExec([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
       }
       if (!commitR.ok) {
         const k = classifyCreateError(commitR.error, null)
@@ -90,7 +93,7 @@ export function createPublishFlow(deps) {
     // 4. 探测 remote origin 是否已存在（决定 gh 调用分支）
     let hasOrigin = false
     try {
-      const ro = await execProc([git, 'remote', 'get-url', 'origin'], cwd)
+      const ro = await gitExec([git, 'remote', 'get-url', 'origin'], cwd)
       hasOrigin = !!ro.ok
     } catch (e) { hasOrigin = false }
     // 5. gh repo create
@@ -122,9 +125,9 @@ export function createPublishFlow(deps) {
         if (m) remoteUrl = m[0] + '.git'
       }
       if (remoteUrl) {
-        await execProc([git, 'remote', 'set-url', 'origin', remoteUrl], cwd)
+        await gitExec([git, 'remote', 'set-url', 'origin', remoteUrl], cwd)
       }
-      const pushR = await execProc([git, 'push', '-u', 'origin', 'HEAD'], cwd)
+      const pushR = await gitExec([git, 'push', '-u', 'origin', 'HEAD'], cwd)
       if (!pushR.ok) {
         const kind = classifyCreateError(pushR.error, null)
         // #420/#426 半成功：远端仓库已创建、仅本地推送失败 → 回带 repoUrl/repo/halfCreated，前端展示链接与重试入口
@@ -166,10 +169,10 @@ export function createPublishFlow(deps) {
     const git = await resolveGit()
     if (!git) return { ok: false, errorKind: 'no-git', error: '未找到 git（请安装 https://git-scm.com/）' }
     try {
-      const ro = await execProc([git, 'remote', 'get-url', 'origin'], cwd)
-      if (!ro.ok && repoUrl) { await execProc([git, 'remote', 'add', 'origin', repoUrl + '.git'], cwd) }
+      const ro = await gitExec([git, 'remote', 'get-url', 'origin'], cwd)
+      if (!ro.ok && repoUrl) { await gitExec([git, 'remote', 'add', 'origin', repoUrl + '.git'], cwd) }
     } catch (e) { /* remote 缺失时兜底 */ }
-    const pushR = await execProc([git, 'push', '-u', 'origin', 'HEAD'], cwd)
+    const pushR = await gitExec([git, 'push', '-u', 'origin', 'HEAD'], cwd)
     if (pushR.ok) {
       try { setCache({ ts: 0, snapshot: null, error: null, cwd: null }) } catch (eCache) { /* 缓存失效兜底 */ }
       return { ok: true, repo: { owner: owner, name: name }, repoUrl: owner ? ('https://github.com/' + owner + '/' + name) : '' }

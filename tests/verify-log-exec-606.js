@@ -73,7 +73,7 @@ async function main() {
   const platMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'platformChannel.js')).href)
   const repoMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'repoKeys.js')).href)
 
-  // ---- 一、开关打开：两处接缝各落一行，四个字段齐，路径只落短指纹 ----
+  // ---- 一、开关打开：每条命令一行、五个字段齐、链名对得上、路径只落短指纹 ----
   {
     const logCtx = makeLogCtx(true)
     const subprocess = makeSubprocess('ok')
@@ -88,20 +88,34 @@ async function main() {
       namingSweepSoon: () => {}, parseGithubRepo: () => null, logCtx,
     })
 
-    await plat.detectionExec('gh', ['api', 'user'], { cwd: CWD, timeout: 30000 })
-    await repo.execProc(['git', '-C', CWD, 'remote', 'get-url', 'origin'], CWD)
+    // 四条命令：前两条是不同程序（gh、git），后两条是同一条命令挂在不同链上 ——
+    // 「命令名一样、via 不一样」这一对就是「这个字段真的能区分是哪条链起的」的证据。
+    await plat.detectionExec('gh', ['api', 'user'], { cwd: CWD, timeout: 30000 }, 'snapshot')
+    await repo.execProc(['git', '-C', CWD, 'remote', 'get-url', 'origin'], CWD, 'repo-key')
+    await plat.detectionExec('gh', ['auth', 'status'], { cwd: CWD, timeout: 30000 }, 'detect-preflight')
+    await plat.detectionExec('gh', ['auth', 'status'], { cwd: CWD, timeout: 30000 }, 'comment-write')
 
-    check(logCtx.lines.length === 2, '开关打开时每条外部命令落一行（实得 ' + logCtx.lines.length + ' 行）' + (logCtx.lines.length ? '' : ' —— 一行都没有，说明接缝上的测点没接上'))
+    check(logCtx.lines.length === 4, '开关打开时每条外部命令落一行（实得 ' + logCtx.lines.length + ' 行）' + (logCtx.lines.length ? '' : ' —— 一行都没有，说明接缝上的测点没接上'))
     const events = logCtx.lines.map((l) => l.event)
-    check(events.every((e) => e === 'exec.run'), '两行都是 exec.run（实得 ' + events.join('、') + '）')
-    check(logCtx.lines.every((l) => l.level === 'debug'), '按需级：两行都是调试级别（实得 ' + logCtx.lines.map((l) => l.level).join('、') + '）')
+    check(events.every((e) => e === 'exec.run'), '四行都是 exec.run（实得 ' + events.join('、') + '）')
+    check(logCtx.lines.every((l) => l.level === 'debug'), '按需级：四行都是调试级别（实得 ' + logCtx.lines.map((l) => l.level).join('、') + '）')
     const names = logCtx.lines.map((l) => l.fields && l.fields.argv0)
     check(names[0] === 'gh' && names[1] === 'git', '命令名如实：detectionExec 记 gh、execProc 记 git（实得 ' + names.join('、') + '）')
     const keysOk = logCtx.lines.every((l) => {
       const k = Object.keys(l.fields || {}).sort().join(',')
-      return k === 'argv0,cwdHash,exitCode,latencyMs'
+      return k === 'argv0,cwdHash,exitCode,latencyMs,via'
     })
-    check(keysOk, '字段恰为白名单四项（argv0、cwdHash、latencyMs、exitCode），不记完整参数')
+    check(keysOk, '字段恰为白名单五项（argv0、cwdHash、latencyMs、exitCode、via）')
+    // 证据一：同一条命令出现三种 via。
+    const sameCmd = logCtx.lines.filter((l) => l.fields && l.fields.argv0 === 'gh')
+    const viaSet = Array.from(new Set(sameCmd.map((l) => l.fields.via)))
+    check(sameCmd.length === 3 && viaSet.length === 3, '同一条命令出现三种 via（三条都是 gh，实得 ' + viaSet.join('、') + '），证明这个字段真的能区分是哪条链起的')
+    check(logCtx.lines.map((l) => l.fields.via).join(',') === 'snapshot,repo-key,detect-preflight,comment-write', '每行的 via 与调用方传下来的链名对得上（实得 ' + logCtx.lines.map((l) => l.fields.via).join('、') + '）')
+    // 证据二：每条命令只落一行，没有双计。
+    check(logCtx.lines.length === 4 && subprocess.calls.length === 4, '起了 4 次命令、落了 4 行（起了 ' + subprocess.calls.length + ' 次），同一条命令的两次调用各自只落一行，没有双计')
+    check(sameCmd.filter((l) => l.fields.via === 'detect-preflight').length === 1 && sameCmd.filter((l) => l.fields.via === 'comment-write').length === 1, 'via 不同的两次调用各归各行')
+    const viaOk = logCtx.lines.every((l) => /^[a-z][a-z-]*$/.test(String(l.fields.via)))
+    check(viaOk, 'via 全是小写短枚举（固定名字，不含用户数据、不含路径、不含仓库名）')
     const noParamLeak = logCtx.lines.every((l) => JSON.stringify(l.fields).indexOf('remote') < 0 && JSON.stringify(l.fields).indexOf('api') < 0)
     check(noParamLeak, '参数一个都没进日志（记的是命令名，不是 argv 全串）')
     const hashesOk = logCtx.lines.every((l) => /^[0-9a-f]{8}$/.test(String(l.fields.cwdHash)))
@@ -113,9 +127,12 @@ async function main() {
     const codeOk = logCtx.lines.every((l) => l.fields.exitCode === 0)
     check(codeOk, '成功命令退出码记为 0（实得 ' + logCtx.lines.map((l) => l.fields.exitCode).join('、') + '）')
     // 调用方若给了带目录的完整路径，也只留程序名 —— 否则一条文件系统路径就漏进日志了。
+    // 这一行同时是兜底取值的样例：调用方没传链名时 via 记 unspecified。
     await plat.detectionExec(process.execPath, ['--version'], { cwd: CWD, timeout: 30000 })
-    const lastArgv0 = logCtx.lines[logCtx.lines.length - 1].fields.argv0
+    const lastRow = logCtx.lines[logCtx.lines.length - 1]
+    const lastArgv0 = lastRow.fields.argv0
     check(lastArgv0 === path.basename(process.execPath), '给了带目录的完整路径也只记程序名（实得 ' + lastArgv0 + '，没有目录部分）')
+    check(lastRow.fields.via === 'unspecified', '没传链名时 via 落兜底取值 unspecified（实得 ' + lastRow.fields.via + '）')
     check(logCtx.lines.length === subprocess.calls.length, '起了多少条命令就落多少行（起了 ' + subprocess.calls.length + ' 次、落了 ' + logCtx.lines.length + ' 行），不会一次命令记两行')
   }
 
@@ -202,7 +219,9 @@ async function main() {
       getMattSkillProbeNames: async () => [], probeSkill: async () => ({ level: 'ok' }), logCtx,
     })
     const rounds = 3
-    for (let i = 0; i < rounds; i++) await plat.detectionExec('gh', ['api', 'user'], { cwd: CWD, timeout: 30000 })
+    // 三次都起同一条命令，但挂三条不同的链 —— 落盘之后从文件里就能读出「命令名一样、归属不一样」。
+    const chains = ['snapshot', 'detect-preflight', 'comment-write']
+    for (let i = 0; i < rounds; i++) await plat.detectionExec('gh', ['api', 'user'], { cwd: CWD, timeout: 30000 }, chains[i])
     store.flush()
     await new Promise((r) => setTimeout(r, 50))
 
@@ -220,6 +239,8 @@ async function main() {
     check(execRows.every((r) => r.fields && /^[0-9a-f]{8}$/.test(String(r.fields.cwdHash))), '每行的工作区都是八位短指纹，落盘无原始路径：' + (execRows[0] ? String(execRows[0].fields.cwdHash) : '无'))
     const latencies = execRows.map((r) => r.fields && r.fields.latencyMs)
     check(latencies.length === rounds && latencies.every((m) => typeof m === 'number' && m >= 15), '每次耗时逐个读得出来（假子进程慢 20 毫秒，实得 ' + latencies.join('、') + ' 毫秒）')
+    const onDiskVia = execRows.map((r) => r.fields && r.fields.via)
+    check(onDiskVia.join(',') === chains.join(','), '落盘文件里三条同一命令的 via 各不一样（实得 ' + onDiskVia.join('、') + '），从日志就能读出「这条命令是哪条链起的」')
     const rawLeak = nodeFs.existsSync(logFile) && nodeFs.readFileSync(logFile, 'utf8').indexOf('private-workspace') >= 0
     check(!rawLeak, '整份日志文件里没有出现工作区原始路径')
     console.log('  样例（同一次运行里连续三行，逐行自己的毫秒数）：')
