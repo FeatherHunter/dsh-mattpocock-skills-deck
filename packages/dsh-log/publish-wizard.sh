@@ -257,9 +257,22 @@ pause "账号没问题就按回车"
 
 # ── 第三段：把版本号升到要发布的版本 ─────────────────────────────────────
 stage "升版本号"
-say "这次发布带新的 Node 程序入口，是新增能力不是破坏性变更；没发布过更早版本，所以从 0.2.0 起。"
-ask PUBLISH_VERSION "要发布的版本号：" 
-PUBLISH_VERSION=${PUBLISH_VERSION:-0.2.0}
+say "新版本号按 README 第 10 节的版本策略定：只改文档或修缺陷动补丁位，加能力动次版本位，破坏性变更才动更早的位。"
+NEXT_PATCH=$(printf '%s' "$CUR_VERSION" | awk -F. '{ if (NF == 3) printf "%d.%d.%d", $1, $2, $3 + 1; else print $0 }')
+ask PUBLISH_VERSION "要发布的版本号（直接回车用 $NEXT_PATCH）：" 
+PUBLISH_VERSION=${PUBLISH_VERSION:-$NEXT_PATCH}
+if [[ ! "$PUBLISH_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  warn "版本号要写成 X.Y.Z 三段数字（收到：$PUBLISH_VERSION）"
+  exit 1
+fi
+if [[ "$PUBLISH_VERSION" == "$CUR_VERSION" ]]; then
+  warn "版本号跟当前一样（还是 $CUR_VERSION）：换一个新号再跑"
+  exit 1
+fi
+if npm view "$PKG_NAME@$PUBLISH_VERSION" version --registry="$REGISTRY" >/dev/null 2>&1; then
+  warn "官方源上已经有 $PKG_NAME@$PUBLISH_VERSION：发过的号不能再发，换一个新号"
+  exit 1
+fi
 say "将把 $CUR_VERSION 改成 $PUBLISH_VERSION（包清单与 README 各一处）。"
 if ! confirm "确认升版本？"; then
   warn "已取消，什么都没改"
