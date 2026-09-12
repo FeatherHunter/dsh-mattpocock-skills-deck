@@ -66,20 +66,48 @@ open_url() {
     elif command -v xdg-open     >/dev/null 2>&1; then xdg-open "$url"
     elif command -v open         >/dev/null 2>&1; then open "$url"
     else warn "未找到浏览器打开命令，请手动访问：$url"; fi
-  } >/dev/null 2>&1
+  } >/dev/null 2>&1 || true
+  # 末行的 `|| true` 才是「发射后不管」真正生效的那一半。
+  # 只把输出重定向掉不退掉退出码：花括号这个命令组的退出码就是组内最后一条命令的退出码，
+  # 于是调起器的退出码会变成 open_url 的返回值；调用处多在 `set -e` 下，这一个返回值就能当场结束整个向导
+  # （2026-09-12 实测：explorer.exe 打开包主页返回 1，发布向导因此在第 287 行无声结束）。
+  # 有没有弹出浏览器，人自己看得见；这里绝不能替调用处下结论，更不该决定脚本生死。
+}
+
+# _require_human — 向导马上要等人应答，先确认真的有人在。
+# 判据：读不到任何输入（read 的返回值就说明输入流已经结束、并没有人在按键）即为「没有人应答」。
+# 为什么用这一条当判据：它是唯一一条既能在本机测出来、又不受「终端是不是 TTY」影响的证据——
+#   `read` 拿到的输入流已经结束，就不会再有下一个按键；
+#   反过来，本机 Git Bash 里 [[ -t 0 ]] 与 /dev/tty 的可读性在「stdin 被重定向」时也照旧报「可用」
+#   （2026-09-12 实测：/dev/tty 可读性检查返回真，真去读却报 No such device or address），
+#   所以不用它们当判据。空行算「有人按了回车」（read 成功返回空串），
+#   于是「人自己按回车走默认那条路」与「根本没人应答」区分得开：后者不再静默冒充前者——
+#   向导从前把「没人应答」当成「人按了否」，然后把「已发布」写进落盘文件，账目与事实相反。
+# 停下的方式：打一行人能读懂的话并退出，退出码 3 表示「向导没有继续，后面的步骤一步都没走」。
+#   退出码不用 0（那是成功）、也不用 1 与 2（这两个在本仓库里已经分别表示运行中失败与参数/形态错误）。
+# 供 pause 与 confirm 共用：全脚本的每一处等待应答都走同一条判据，换一处位置也不会漏。
+_last_await_prompt=""
+
+_require_human() {
+  printf '\n  %s✗ 向导已退出：没有人应答（读不到任何输入）。%s\n' "$RED" "$RESET" >&2
+  printf '  %s止步于「%s」这一步；这一步之后的步骤一步都没走，本次没有发布任何东西。%s\n' "$DIM" "$_last_await_prompt" "$RESET" >&2
+  exit 3
 }
 
 # pause "提示" — 等待用户确认已完成手工操作
 pause() {
-  printf '  %s%s%s ' "$DIM" "${1:-按回车继续}" "$RESET"
-  read -r _ || true
+  _last_await_prompt="${1:-按回车继续}"
+  printf '  %s%s%s ' "$DIM" "$_last_await_prompt" "$RESET"
+  # 读成功（含空行）就放行；读失败只可能是输入流已经结束，也就是没有人应答，明确失败而不是静默继续。
+  read -r _ || _require_human
 }
 
 # confirm "问题" — y/N 二选一，返回 0 表示确认
 confirm() {
   local reply=""
+  _last_await_prompt="$1"
   printf '  %s? %s [y/N] ' "$YELLOW" "$1"
-  read -r reply || true
+  read -r reply || _require_human
   [[ "$reply" =~ ^[Yy] ]]
 }
 
