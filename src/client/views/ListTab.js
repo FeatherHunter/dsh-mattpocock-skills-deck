@@ -51,12 +51,12 @@ export     const ListTab = ({ st, narrow }) => {
       // v1.3.3 UI：每次渲染后执行贪心折叠（含窗口/列宽变化后的重渲染）
       // v1.5 T10 提速：按内容指纹跳过 —— 仅快照内容/tab/过滤变化才重排（refreshing 态等无关渲染不触发布局测量）
       React.useLayoutEffect(function () {
-        // 临时测点（折叠耗时）：本副作用跑在提交阶段，落在渲染期测点的盲区里，
-        //   是「那一帧在建什么」的主要嫌疑之一，所以把这段耗时累加下来交给 DockSync 打日志。
-        //   本文件在渲染目录里，不允许打日志（只有点名文件可以），所以这里只记数。
-        const _pT = (typeof performance !== 'undefined' && performance.now) ? function () { return performance.now() } : function () { return Date.now() }
-        const _tFit0 = _pT()
-        const _addFit = function () { try { if (typeof globalThis !== 'undefined') globalThis.__dswsFitMs = Math.round((globalThis.__dswsFitMs || 0) + (_pT() - _tFit0)) } catch (eF) {} }
+        // #606 常规测点（折叠测量耗时）：本副作用跑在提交阶段，落在渲染期计时的盲区里，
+        //   是「那一帧在建什么」的主要嫌疑之一，所以把这段耗时累加进 panelClock 交给 DockSync 打日志；
+        //   本文件在渲染目录里但不在可写日志的点名名单里（见 tests/verify-log-truncate.js 第 4 组），
+        //   所以这里只累加数字，不写日志。
+        const _tFit0 = isEnabled('debug') ? panelNow() : 0
+        const _addFit = function () { try { if (_tFit0) panelClock.fitMs = Math.round((panelClock.fitMs || 0) + (panelNow() - _tFit0)) } catch (eF) {} }
         const fp = String((st.snapshot && st.snapshot.generatedMs) || '') + '|' + st.tab + '|' + st.stateFilter + '|' + (st.lblFilters || []).join(',')
         if (_tagsFpOf.get(st) === fp) { _addFit(); return }
         _tagsFpOf.set(st, fp)

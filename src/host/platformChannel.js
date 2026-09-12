@@ -8,6 +8,11 @@ export function createPlatformChannel(deps) {
   function backendLogEvent(level, event, fields) { try { if (backendLogCtx) backendLogCtx.fire(level, event, fields) } catch (e) {} }
   function backendLogEnabled(level) { try { return backendLogCtx ? backendLogCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } }
   const backendCtxForRooms = { logEvent: backendLogEvent, isEnabled: backendLogEnabled }
+  // #606 房外埋点 helper：工作区只记短指纹，不记原始路径。
+  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch { return '00000000' } }
+  // #606 命令名只留程序名：调用方通常给的是 'gh' / 'git' 这种裸名字，但若给了带目录的完整路径，
+  //   这里也把目录部分去掉，保证日志里永远不会出现一条文件系统路径。
+  function progName(cmd) { try { return String(cmd || '').split(/[\\/]/).pop() || '' } catch { return '' } }
   const STATUS_CACHE_MS = 30000  // workspaceStore 探测级联 TTL（#344 沿革 · #284 保留；原 index.js 234 行）
     // ============ Tracker Registry（#155 · 后端选择 UI）============
     let _trackerRegistry = null
@@ -170,9 +175,15 @@ export function createPlatformChannel(deps) {
     }
     // #幽灵修复：BackendContext.exec（contract.js §BackendContext）——preflight 经 ghClient/glab 执行 gh/glab。
     // 契约形状 {stdout,stderr,code}；exit code≠0 不抛（调用方判）；超时 terminate；opts.timeout/signal 透传。
+    // #606 补测点：这条路此前一条日志都不留（唯一的记录点在 github 房的 client.js，它要调用上下文自带记录器，
+    //   而各操作上下文都没带），于是面板列表的主取数路、每次探测的预检、取当前登录用户与所有写操作
+    //   起了多少次外部命令全都看不见。这里补 exec.run（按需）：一次调用落一行，只记命令名、工作区短指纹、
+    //   耗时、退出码四项；不记完整参数、不记令牌、不记原始路径。调试开关关着时外层判断直接返回。
     async function detectionExec(cmd, args, opts) {
       const argv = [String(cmd)].concat(args || [])
       const c = (opts && opts.cwd) || ''
+      // 起始时刻只在开关打开时才取：关着时这一行读一个布尔就结束，连时钟都不读，后面那行自然也不落。
+      const execT0 = (logCtx && logCtx.isEnabled('debug')) ? Date.now() : 0
       let handle
       try {
         handle = subprocess.spawn({
@@ -196,6 +207,7 @@ export function createPlatformChannel(deps) {
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
+      try { if (execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv[0]), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1 }) } catch (eL) {}
       return { stdout: out.text || '', stderr: err.text || '', code: outcome.exitCode }
     }
     async function getDetectionService() {

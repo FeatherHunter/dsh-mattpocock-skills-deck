@@ -7,6 +7,9 @@ export function createRepoKeys(deps) {
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
   // #491 房外埋点 helpers：hash8 只记散列不记原文；P1 事件外层先判开关再组装字段（字段函数只在守卫通过后求值）。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  // #606 命令名只留程序名：调用方通常给的是 'git' 这种裸名字，但若给了带目录的完整路径，
+  //   这里也把目录部分去掉，保证日志里永远不会出现一条文件系统路径。
+  function progName(cmd) { try { return String(cmd || '').split(/[\\/]/).pop() || '' } catch (e) { return '' } }
   let lastNormKind = ''
   let lastCanonOut = ''
     // ============ gh 封装 ============
@@ -90,7 +93,12 @@ export function createRepoKeys(deps) {
     }
 
     // 通用进程执行（#344 前置检查用：git / cmd 等，不经 shell，错误不归一化）
+    // #606 补测点：少数自建操作上下文（评论读取、单票详情、详情页选择）的 ctx.exec 直连这里，
+    //   不走 platformChannel 的 detectionExec。同一个事件 exec.run、同一套四项字段，两条路互斥，
+    //   所以每条外部命令只落一行，两次相加就是「经 ctx.exec 起过多少次」。调试开关关着时直接返回。
     async function execProc(argv, cwd) {
+      // 起始时刻只在开关打开时才取：关着时这一行读一个布尔就结束，连时钟都不读，后面两行自然也不落。
+      const _execT0 = (logCtx && logCtx.isEnabled('debug')) ? Date.now() : 0
       let handle
       try {
         handle = subprocess.spawn({
@@ -110,10 +118,12 @@ export function createRepoKeys(deps) {
           to.then(function () { handle.terminate(); return { exitCode: -1, signal: 'timeout' } }),
         ])
       } catch (e) {
+        try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1 }) } catch (eL) {}
         return { ok: false, error: String((e && e.message) || e) }
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
+      try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1 }) } catch (eL) {}
       if (outcome.exitCode !== 0) return { ok: false, code: outcome.exitCode, error: ((err.text || '') + (out.text || '')).slice(0, 400) }
       return { ok: true, text: out.text || '' }
     }

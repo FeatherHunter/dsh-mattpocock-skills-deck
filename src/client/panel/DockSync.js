@@ -5,85 +5,28 @@
 // 接线：Dock.js 单调 useDockSync(s, sid, summaryCwd, props) 供装配（此前是两个副作用原位）；
 //   本文件不引用 OverlayGate.js（同闭包拼回，调用方向见 Dock.js 装配一处）。
 // 参数：s = 停靠 store；sid = 会话标识；summaryCwd = 会话列表权威工作区；props = 槽位属性（取 session 兜底用）。
-    // 临时测点辅助（把「浏览器账本」压成一行文字）：取这一段里最长的那个长动画帧 ——
-    //   它是谁（函数名）、在哪个文件、被强制布局吃掉多少毫秒、谁触发的（invoker），全在这一行里。
-    //   为什么要靠它：插件自己的渲染体三段计时都是 0 毫秒，说明时间花在组件函数之外，只有浏览器
-    //   自己的账本能指出那一帧到底在建什么。定位完连同其它测点一起删。
-    const _dswsLoafText = function (rs) {
-      try {
-        if (typeof globalThis === 'undefined') return ' loaf=na'
-        if (!globalThis.__dswsLoafSupported) return ' loaf=unsupported'
-        const arr = globalThis.__dswsLoaf || []
-        let best = null
-        for (let i = 0; i < arr.length; i++) {
-          const e = arr[i]
-          if (rs && e.startTime + e.duration < rs) continue
-          if (!best || e.duration > best.duration) best = e
-        }
-        if (!best) return ' loaf=none'
-        let sc = null
-        const ss = best.scripts || []
-        for (let i = 0; i < ss.length; i++) if (!sc || (ss[i].duration || 0) > (sc.duration || 0)) sc = ss[i]
-        return ' loaf=' + Math.round(best.duration) + '/' + Math.round(best.blockingDuration || 0) +
-          '/' + (sc ? String(sc.sourceFunctionName || '?') : '?') +
-          '@' + (sc ? String(sc.sourceURL || '').split('/').pop().slice(0, 26) : '') +
-          '/forced' + Math.round(sc ? (sc.forcedStyleAndLayoutDuration || 0) : 0) +
-          '/by' + (sc ? String(sc.invoker || '?') : '?')
-      } catch (e) { return ' loaf=readfail' }
-    }
 export const useDockSync = function(s, sid, summaryCwd, props){
-      // 临时测点（终点）：把「点击胶囊那一刻 → 面板渲染提交」的总耗时记一行，定死那几秒花在哪。
-      //   落在这里而不是 Dock.js：渲染目录里只有点名文件允许打日志，本文件在名单内，
-      //   放这里就不必为一个临时测点去改那条架构规则的名单。
-      //   为什么以 s.tick 为依赖：面板侧边栏通常一直挂着、不重新挂载，挂在「首次挂载」上量不到点击
-      //   那一刻；而每次 emit 都会让 s.tick 自增，于是点击触发的每一种渲染之后都会跑一次。
-      //   量与不量的分支同在一个副作用里，不会多出渲染；只记第一次（记完收走起点值）。定位完撤除。
+      // #606 常规测点（面板打开各阶段耗时，按需级）：一次「点开面板」在这条副作用里收口成四行日志。
+      //   为什么落在这里：渲染目录（views/panel/statusbar/floating）里只有点名文件允许写日志，
+      //   本文件在名单内（判定依据见 tests/verify-log-truncate.js 第 4 组的 allowFiles）。
+      //   为什么以「每次渲染都跑」的方式收口：面板侧边栏通常一直挂着、不重新挂载，挂在「首次挂载」上
+      //   量不到点击那一刻；而每次 emit 都会让 s.tick 自增，于是点击触发的每一种渲染之后都会跑一次。
+      //   四行各带自己的毫秒数（stage 枚举 + ms），不靠批内先后顺序判断 —— 宿主给同一批盖同一个 ts。
+      //   收完就把起点清零，后面与本次打开无关的渲染不会再记。
       React.useEffect(function () {
         try {
-          const _now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()
-          // 细粒度（只记一次）：把「进入渲染 → 本副作用跑完」切成两段。
-          //   renderMs = 进入渲染到本次 effect 开始（React 建完并提交整棵树）；
-          //   差出来的部分 = 再算上提交后到本副作用跑完（含同组件里排在前面那些副作用干的活）。
-          //   若 renderMs 很大 → 贵在画那几百行；若差值很大 → 贵在挂载副作用里。
-          try {
-            if (typeof globalThis !== 'undefined' && globalThis.__dswsDockRenderStart && !globalThis.__dswsDockRenderLogged) {
-              globalThis.__dswsDockRenderLogged = true
-              const _segs = (typeof globalThis !== 'undefined' && globalThis.__dswsDockSeg) ? globalThis.__dswsDockSeg.join(',') : 'none'
-              globalThis.__dswsDockSeg = null
-              // 顺带量首帧要建多少节点、多深：这决定修法是「减少首屏渲染量」还是「把成本挪到空闲时」。
-              const _rsSnap = globalThis.__dswsDockRenderStart
-              let _dom = ''
-              try {
-                const _host = document && document.querySelector('[data-dsws-host]')
-                if (_host) {
-                  let _depth = 0, _p = _host
-                  while (_p && _p.parentElement && _depth < 40) { _depth++; _p = _p.parentElement }
-                  _dom = ' nodes=' + _host.querySelectorAll('*').length + ' depth=' + _depth
-                }
-              } catch (eDom) {}
-              // 提交边界：渲染起点 → 子树 DOM 建完并提交（子组件的布局副作用也跑完）。-1 表示没记到。
-              try { _dom += ' commit=' + (globalThis.__dswsDockCommitMs === undefined ? -1 : globalThis.__dswsDockCommitMs) + 'ms' } catch (eCm) {}
-              // 折叠耗时：提交阶段里 fitAllTags / fitMapRows 累加了多少毫秒
-              try { _dom += ' fit=' + (globalThis.__dswsFitMs || 0) + 'ms' } catch (eFt) {}
-              // 整页节点数：用来判断「是不是只有插件这一块大」
-              try { _dom += ' page=' + document.getElementsByTagName('*').length } catch (ePg) {}
-              _dom += _dswsLoafText(_rsSnap)
-              log('info', 'panel.open', { mode: 'dock-render+' + Math.round(_now - _rsSnap) + 'ms/' + _segs + _dom })
-              // 长动画帧的账本可能比被动副作用晚一步才到（它要在这一帧结束时才入队），
-              // 所以半秒后补记一行：有就报是谁，没有就写明没有 —— 免得因为抢跑而误判「查不到」。
-              if (typeof setTimeout === 'function') {
-                setTimeout(function () { try { log('info', 'panel.open', { mode: 'loaf-late' + _dswsLoafText(_rsSnap) }) } catch (eLate) {} }, 500)
-              }
-            }
-          } catch (eR) {}
-          if (s.__openMs === undefined || s.__openMs === null) return
-          const _ms = Date.now() - s.__openMs
-          s.__openMs = null
-          globalThis.__dswsDockRenderStart = null
-          globalThis.__dswsDockRenderLogged = false
-          globalThis.__dswsDockCommitMs = undefined
-          globalThis.__dswsFitMs = 0
-          log('info', 'panel.open', { mode: 'sidebar-painted+' + _ms + 'ms' })
+          if (!panelClock.t0) return
+          const _now = panelNow()
+          if (panelClock.renderT0) {
+            logPanelStage('render-commit', panelClock.commitMs >= 0 ? panelClock.commitMs : (_now - panelClock.renderT0))
+            logPanelStage('render-paint', _now - panelClock.renderT0)
+          }
+          if (panelClock.fitMs) logPanelStage('fit-measure', panelClock.fitMs)
+          logPanelStage('click-to-painted', _now - panelClock.t0)
+          panelClock.t0 = 0
+          panelClock.renderT0 = 0
+          panelClock.commitMs = -1
+          panelClock.fitMs = 0
         } catch (eP) {}
       })
       // #179 加固：响应式工作区同步（对齐 StatusBar）+ 回切自愈（同 sid 切工作区亦触发）

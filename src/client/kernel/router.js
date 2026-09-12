@@ -6,6 +6,23 @@
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
+    // #606 面板打开各阶段计时的唯一状态。一次「点开面板」的调用链上只写读这几个数：
+    //   kernel/router.js 的 openPanel 记下点击那一刻与走哪条路；panel/Dock.js 记下进入渲染那一刻与提交完成；
+    //   views/ListTab.js 把提交阶段里做折叠测量花掉的毫秒累加进来；panel/DockSync.js 在副作用里把各段落成日志。
+    // 刻意不挂在会话状态对象上（那会被当成业务状态、参与相等比较与持久化），也不挂到 globalThis 上
+    //   （那会污染全局并在会话之间残留）。构建时这四个文件拼进同一个 apply 闭包，共享这个对象不需要任何导入。
+    export const panelClock = { t0: 0, mode: '', renderT0: 0, commitMs: -1, fitMs: 0 }
+    // 计时用的时钟：优先高精度性能计时，没有就用墙上时间。四处共用同一个函数，免得两段相减跨了两种时钟。
+    export const panelNow = function () {
+      try { if (typeof performance !== 'undefined' && performance && typeof performance.now === 'function') return performance.now() } catch (e) {}
+      return Date.now()
+    }
+    // 打开面板各阶段写一行日志（按需级）：只在调试开关打开时才组装字段，关着时连字段对象都不建。
+    //   为什么毫秒放在 ms 字段、而不是编进 mode 取值：日志的 ts 是宿主收到批次那一刻盖的章，
+    //   同一批内所有行共享同一毫秒、批内先后顺序不可信；可信的是每行自带的毫秒数，所以耗时必须有正规字段装。
+    export const logPanelStage = function (stage, ms) {
+      try { if (isEnabled('debug')) log('debug', 'panel.render', { stage: String(stage || ''), ms: Math.round(Number(ms) || 0), mode: String(panelClock.mode || '') }) } catch (e) {}
+    }
     export const openPagePanel = function (st) {
       // #58 缓存优先：先同步补 cwd + 水合 per-cwd 缓存，实现切换面板秒开（无 loading 遮罩）
       if (!st.cwd) {
@@ -127,22 +144,21 @@
     export const openInSidebar = function (st) {
       const bs = ctx.get('betterSidebar')
       if (bs && typeof bs.openTab === 'function') {
-        // 临时测点（夹住 better-sidebar，定位完撤除）：起点已在 openPanel 里记过（st.__openMs）。
-        //   把「插件交给它」「它交还控制」分别记一行，用来判断那 4.5 秒是不是花在它内部的注册/开签。
-        //   为什么这样量：外层渲染期的分段已证明 4.5 秒不在插件的渲染体里（三段全是 0 毫秒），
-        //   所以它要么在 better-sidebar 里面，要么在下一次 React 渲染的提交阶段。
-        try { log('info', 'panel.open', { mode: 'sidebar-beforeTab' }) } catch (eB) {}
+        // 常规测点（按需）：把「插件把面板交给 better-sidebar」与「它交还控制」两段分别记一行。
+        //   为什么量这两段：外层渲染期的分段已证明「点开到画面出来」那几秒不在插件的渲染体里，
+        //   所以它要么在 better-sidebar 内部的开签流程里，要么在下一次 React 渲染的提交阶段。
+        //   两行都从点击那一刻算起，各自带毫秒，不靠批内先后顺序判断。
         if (!ensureSidebarTab()) { openDockPanel(st); return }  // 注册失败 → 回退 details 列
-        try { log('info', 'panel.open', { mode: 'sidebar-ensureDone' }) } catch (eE) {}
+        if (isEnabled('debug')) logPanelStage('sidebar-registered', panelNow() - panelClock.t0)
         // #2-fix（2026-08-19 用户反馈「新会话点状态栏面板不开」）：必须传 scope={sessionId}。
         //   better-sidebar 的 openTab(seed, scope) 内部 `targetSessionId = scope?.sessionId ?? store.getSnapshot().sessionId`；
-        //   新会话时宿主尚未 setSession(该 id) → store sessionId 为 undefined → openTab 静默 return，面板不开。
+        //   新会话时宿主尚未 setSession(setId) → store sessionId 为 undefined → openTab 静默 return，面板不开。
         //   显式传当前 store 的 sessionId 后走 reduceFor(scope.sessionId) 路径（按给定 id 初始化布局），面板正常展开。
         //   仅当 st.sessionId 有值时传 scope（无值时传 {sessionId:undefined} 会令 targetsInactiveSession=true 走错分支）。
         // #594：只给类型。带上 path 会被 better-sidebar 当成真实文件路径转发给原生右侧栏，
         // 宿主 realpath 失败即报 cannot resolve target；展开由 better-sidebar 按描述符自己做。
         bs.openTab({ type: 'deck:map' }, st.sessionId ? { sessionId: st.sessionId } : undefined)
-        try { log('info', 'panel.open', { mode: 'sidebar-tabReturned' }) } catch (eT) {}
+        if (isEnabled('debug')) logPanelStage('sidebar-opened', panelNow() - panelClock.t0)
         // 打开 tab 即视为面板已开（数据新鲜直接展示）
         // #58 缓存优先：与 openPagePanel 同逻辑，含 per-cwd 水合
         if (!st.cwd) {
@@ -179,11 +195,16 @@
         } catch (e) { return false }
       })()
       try { const m = (cfg.openIn === 'sidebar' || (bsReady && cfg.openIn === 'dock' && !explicitDock)) ? 'sidebar' : 'dock'; const _keyHash = dswsLogHash((typeof keyOf === 'function' ? keyOf(st.cwd || '') : String(st.cwd || ''))); const _snapVer = (typeof getSnapshotVersion === 'function' ? getSnapshotVersion(st.cwd) : '') || (st.snapshot && st.snapshot.version) || ''; const _bid = String((st.selection && st.selection.backendId) || ''); log('info', 'panel.open', { mode: m, hasCache: !!(st.snapshot || (typeof getCachedSnapshot === 'function' && getCachedSnapshot(st.cwd))), snapFresh: (typeof snapFresh === 'function' ? snapFresh(st) : false), keyHash: _keyHash, snapVersion: _snapVer, backendId: _bid }) } catch (eL) {} // 串门自证（#495）：单行 #36 即可定罪——工作区键散列对上哪家、快照是哪个版本、后端是哪一个
-      // 临时测点（起点）：记下「点开面板」这一刻，供面板渲染后算出「点击 → 内容可见」总耗时。
-      //   复用 panel.open 这个已有事件与它已有的 mode 字段，把耗时编码进 mode 取值 —— 不新增事件名、
-      //   不新增字段，因此不触碰日志白名单与附录（字段门禁只查字段名、不查取值）。终点在 panel/DockSync.js。
-      //   定位完这处故障后撤除；留着会让 mode 承载它不该承载的东西。
-      try { st.__openMs = Date.now(); log('info', 'panel.open', { mode: 'sidebar-t0' }) } catch (eM) {}
+      // #606 常规测点起点：记下「点开面板」这一刻与走哪条路，供后面各段算出各自耗时（按需级，日志在 DockSync 收口）。
+      //   起点与各段都归 panelClock 一个对象管，用完即清；不挂在会话状态对象上，也不挂到 globalThis 上。
+      //   调试开关关着时这一整段跳过：连时钟都不读，后面各段也就没有起点可算，唯一代价是读一次开关。
+      if (isEnabled('debug')) {
+        panelClock.t0 = panelNow()
+        panelClock.mode = (cfg.openIn === 'sidebar' || (bsReady && cfg.openIn === 'dock' && !explicitDock)) ? 'sidebar' : 'dock'
+        panelClock.renderT0 = 0
+        panelClock.commitMs = -1
+        panelClock.fitMs = 0
+      }
       if (cfg.openIn === 'sidebar' || (bsReady && cfg.openIn === 'dock' && !explicitDock)) openInSidebar(st)
       else openDockPanel(st)
     }
