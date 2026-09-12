@@ -53,7 +53,8 @@
 6. **真机测量的「改前」基线，要从不含其它票未提交改动的树上取**（另开独立工作区，或先把改动收起来），因为主工作树经常同时有另一张票在改同一批文件。
 7. **不许起交互式命令**（`npm login`、`npm publish`、无 `--yes` 的 `npx` 等）：它们会永久挂住，而且会锁住整条 npm 链路，把同机其它作业一起拖停（2026-09-12 上午真发生过，一个 `npm login --auth-type=web` 把工作区拖停了二十多分钟）。
 8. **`tests/smoke-render.test.js` 里那行 `FAIL <组件>(src) 渲染异常: DswsCtx is not defined` 是已知限制、不阻塞**：源码文件被直接渲染时缺少构建期注入的上下文，脚本把它归到非阻塞段，进程仍以 0 退出。看到它不要当成新缺陷去查，也不要据此改门禁。
-9. **核验 issue 正文格式时，不要用 `gh api --jq '.body'` 或 `(gh ...)` 取文本后直接数换行**：这条路返回的输出会被 PowerShell 合并、看起来像「整篇挤成了一行」，但那只是读数的假象，正文本身可能完全正常（2026-09-12 就因此虚惊一次）。正确做法是走 JSON 解析再取字段：
+9. **往客户端渲染目录里加日志记录点，只有被点名的文件才允许写**：白名单与扫描范围在 `tests/verify-log-truncate.js` 第 4 组——允许写日志的是 `SettingsPage.js`、`BackendSelector.js`、`DockSync.js`、`StatusBar.js`、`StatusLogMenu.js`、`ChecksTab.js` 六个文件，扫描范围是 `src/client/` 下的 `views`、`panel`、`statusbar`、`floating` 四个目录。所以像 `panel/Dock.js`、`views/ListTab.js` 这类不在名单里的文件**不能直接记日志**，只能把时刻写进共享的计时对象，真正的 `log` 调用落在名单内的文件或 `kernel/router.js` 里。不知道这条就会把测点写在永远记不出日志的文件里。
+10. **核验 issue 正文格式时，不要用 `gh api --jq '.body'` 或 `(gh ...)` 取文本后直接数换行**：这条路返回的输出会被 PowerShell 合并、看起来像「整篇挤成了一行」，但那只是读数的假象，正文本身可能完全正常（2026-09-12 就因此虚惊一次）。正确做法是走 JSON 解析再取字段：
    `gh issue view <号> --json body | Out-File -Encoding utf8 <临时文件>.json`，然后 `(Get-Content <临时文件>.json -Raw | ConvertFrom-Json).body`，再在这个字符串上数 `\n` 与 `\r`。**判断格式是否合格，以这条路的结果为准。**
 
 ## 对抗式审查的尺子
