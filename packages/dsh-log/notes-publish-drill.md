@@ -17,7 +17,7 @@
 - 官方源记下的哈希（可用 `npm view dsh-log@0.2.1 dist` 复核）：shasum `f45a5d960e5adcbe8f8212b3e15f269590785185`、integrity `sha512-DnHix0UDQ+TbVo1XL9nSXJEeaokpbC8ZQUHHKAT0NbjuhTWJUOKbRkhwVaCw0D+2F75zCtovY+08OE6OMh/jiQ==`
 - 发布后的四项核对（照第三节的清单做，全过）：
   1. 官方源：`version = 0.2.1`、`dist-tags = { latest: '0.2.1' }`。发布那一刻 `npm view` 查到的还是 0.2.0，约 1 分钟后才转过来，属正常同步延迟（CLI 当时提示"正在处理，可能几分钟后才可查"）。
-  2. 发布修订：官方源 `gitHead = dad8db41de77d8da9d17ebc416c0f64fc16e90c0`，与本仓 HEAD 相同——这次能对上了。
+  2. 发布修订：官方源 `gitHead = dad8db41de77d8da9d17ebc416c0f64fc16e90c0`，就是发布那一刻仓库的 HEAD（提交 `dad8db4`）。之后仓库还会继续往前提交，所以复核时查它是否还在历史里（`git merge-base --is-ancestor dad8db4 HEAD` 退出码 0 即通过），不要拿它跟当天的 HEAD 直接比。
   3. 包内文档与仓库逐字一致：把发出去的 tarball 下载解开比对，包内 `README.md` 与 `INTEGRATION.md` 的 SHA256 分别与仓库同名文件相同（`0B09EB4F…`、`7698CE63…`）。0.2.0 就是漏了这一步，把旧稿发了出去。
   4. 陌生机器上装一次：空目录里 `npm install dsh-log@0.2.1`，装到的 README 是修正后的那版，`import { createNodeHostLog } from 'dsh-log/node'` 能建库并写出日志。
 
