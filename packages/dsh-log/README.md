@@ -1,9 +1,17 @@
 # dsh-log（日志包）
 
-可复用的日志系统装成的 npm 包：DSH 插件与独立跑的 Node 程序都能照着这份文档集成使用。
-地图 #556 的一部分，本包包含宿主引擎（#559）、客户端引擎（#560）、事件清单格式与通用检查器（#561），集成步骤另见包内的 `INTEGRATION.md`（从安装到首条落盘的按序教程）。
+把本仓日志系统装成的 npm 包：DSH 插件与独立跑的 Node 程序都能照着它集成使用。本包由三块合成——宿主落盘引擎（#559）、客户端转发引擎（#560）、事件清单格式与通用检查器（#561），是地图 #556 的产物。
 
 全程用词：日志系统指日志功能本身（引擎、对外接口、检查器、文档）；日志包指装着日志系统的这个 npm 包。电话指宿主对外提供的方法；落盘指宿主统一写本地文件的动作。
+
+## 0. 我该读哪儿
+
+| 你的情况 | 从哪儿开始 |
+|---|---|
+| 写 DSH 插件，要给插件接日志 | 包内 `INTEGRATION.md` 路线 A：步骤 0 到 4 一路到底 |
+| 写独立 Node 程序（不是插件），要往本地写日志 | 包内 `INTEGRATION.md` 路线 B：步骤 0、1、2B，再看步骤 4 的落点说明 |
+| 已经装好，要查接口形状（电话、配置、回参） | 本文第 4 到 7 节 |
+| 改了本包要发版 | 本文第 9 节；发布记录与向导在仓库的 `packages/dsh-log/notes-publish-drill.md`（不随包发布） |
 
 ## 1. 安装
 
@@ -11,7 +19,7 @@
 npm install dsh-log
 ```
 
-要求 Node 22 或更高。当前版本 `0.2.0`，已发布到 npm 官方源（标签 `latest`）。
+要求 Node 22 或更高。当前版本 `0.2.1`，已发布到 npm 官方源（标签 `latest`；可用 `npm view dsh-log version` 自查）。
 
 ## 2. 三个入口，按运行位置选用
 
@@ -22,6 +30,8 @@ npm install dsh-log
 三个入口在同一个包里，装一次全都有。
 
 `dsh-log/node` 与前两个的区别：它不碰电话层、也没有客户端转发，只有「把日志落到本地文件」以及它背后的级别规则、目录派生与失败计数。它**不决定日志写到哪**——目录由调用方传入，入口自己不读任何环境变量、也不带默认路径。
+
+**本包不做什么**（需要这三样得在调用方自己那层做）：不自动上报日志，只做本地落盘加手动导出；不自动轮转，也不自动清理旧文件。
 
 ## 2.1 独立 Node 程序怎么接（`dsh-log/node`）
 
@@ -39,9 +49,9 @@ await log.ready   // 等这一下：程序退出前日志才真的落盘
 
 落点由 `cacheDir` 与标识一起决定：日志写在 `<cacheDir>/logs-your-program/2026-09-11.log`，调试开关写在 `<cacheDir>/log-switch-your-program.json`。目录不存在时入口自己建。
 
-三件要知道的事：
+三条要知道的事：
 
-1. **`await log.ready` 不能省**。落盘是防抖加异步写的，短命程序不等它，日志会随进程一起消失。这一下会等到「前面写的每一行都已经在文件里」才返回。
+1. **`await log.ready` 不能省**。落盘是先入内存队列、再由约 1000 毫秒的防抖窗口异步写下去的：程序顺着事件循环自然跑完，Node 会等这个定时器，日志自己会落；但结尾调了 `process.exit()`、抛错退出或被强杀的程序，队列里还没写下去的那批就随进程消失（`warn` 与 `info` 一样会丢）。命令行工具通常在结尾显式退出，所以这条按必须处理。`log.ready` 返回时表示「前面写的每一行都已经在文件里」。
 2. **开关每次新建时会被读回来**。独立程序每次调用都是新进程，所以入口建库时会把上次留下的开关读回来，打开的详细日志在下次调用仍然生效；写入用 `log.store.handleLogSetSwitch({ enabled: true, sampleRate: 1 })`。
 3. **级别规则与插件侧完全一致**：错误与告警恒落盘，常驻信息落盘，其余信息与调试只在开关打开时落盘。
 
@@ -124,7 +134,10 @@ clientLog.log('info', 'my.event', { step: 'started' })
 
 客户端批量转发口径（#558 冻结，复用 `CLIENT_BATCH` 常量，不另写一遍）：每批最多 50 条、每 1000 毫秒发一次、单包约 128KB 或队列 100 条先到先截，裁掉的记入丢弃数。开关看门狗超时 5000 毫秒，只记一行告警，不改返回值。本地开关存在本地存储里，键名是 `dsws.debug`，形状是是否开启加采样率加版本号，默认关闭。建日志器时同步读本地做界面秒显，随后启动对账再向宿主看齐（以宿主为准）。
 
-日志器动作与宿主同名同参同语义：是否允许记（`isEnabled`）、记一行（`log`）、立刻转发或刷盘（`flush`，客户端侧只管转发，不管落盘；调转发后约 1 秒可见、不调约 2 秒、错误与告警直通，见 INTEGRATION.md 步骤 4）、读累计丢弃数（`getDroppedCount`）。
+日志器的调用面（`createClientLog` 的返回对象）里，接入要用的是下面两类；对象上还有队列、开关状态等内部字段，调用处可以直接读，改开关请走第二类里的两个方法：
+
+- 与宿主同名同参同语义的四个：是否允许记（`isEnabled`）、记一行（`log`）、立刻转发或刷盘（`flush`，客户端侧只管转发，不管落盘；调转发后约 1 秒可见、不调约 2 秒、错误与告警直通，见 INTEGRATION.md 步骤 4）、读累计丢弃数（`getDroppedCount`）。
+- 客户端独有的两个开关动作（写开关界面时要用，最容易漏）：`setLogSwitch(是否开启, 采样率)` 写开关（写成功后用请求时的采样率更新本地，不等宿主回；失败原因只给机器码），`reconcileLogSwitch()` 启动时向宿主对账（以宿主为准）。用法见 INTEGRATION.md 步骤 4 与步骤 6。
 
 ## 6. 失败语义（#558 冻结）
 
@@ -164,7 +177,7 @@ checkEventFields(manifest, 'gh.exec', ['argv0', 'cwdHash'])
 checkEventCounts(manifest)
 ```
 
-`parseEventListManifest` 验形状，`checkEventFields` 做字段白名单检查（未知事件名、未知字段键都算不通过，并把名单带回给调用方），`checkEventCounts` 做计数检查（增删事件必须同步改清单的 `counts`，否则这里变红）。本仓现有 55 事件对照仍以 `research/489-appendix.md` 与 `tests/verify-log-*.js` 为准，本包只给格式与检查器，不复刻那张表，免得两处对照要双写同步。
+`parseEventListManifest` 验形状，`checkEventFields` 做字段白名单检查（未知事件名、未知字段键都算不通过，并把名单带回给调用方），`checkEventCounts` 做计数检查（增删事件必须同步改清单的 `counts`，否则这里变红）。本仓现行的事件对照表以 `research/489-appendix.md` 第 1 章与 `tests/verify-log-*.js` 为准，本包只给格式与检查器，不复刻那张表，免得两处对照要双写同步；条数会随票增删，查之前先看该附录，别在文档里抄一个数字。
 
 ## 8. 已知事项（#560 带走的两条 P1，本包首版行为）
 
@@ -185,7 +198,7 @@ cd packages/dsh-log && npm publish --dry-run
 门禁跑法（改包后全跑，退出码全 0 才算过）：
 
 ```sh
-node --test packages/dsh-log/tests/host.test.mjs packages/dsh-log/tests/eventList.test.mjs packages/dsh-log/tests/client.test.mjs packages/dsh-log/tests/node.test.mjs
+npm --prefix packages/dsh-log test
 node tests/verify-log-artifacts.js
 node tests/verify-log-channel.js
 node tests/verify-log-client.js
@@ -202,9 +215,9 @@ node tests/verify-log-count.js
 node tests/verify-log-fields.js
 ```
 
-包内四套单测共 45 项（宿主引擎、客户端引擎、事件清单、Node 程序入口），14 个日志门禁全绿，且 55 事件（常驻 30、按需 20、自监控 5）不变。有 TypeScript 环境时另跑包内类型检查（`tsc -p packages/dsh-log/tsconfig.json`）。未新增日志事件时，附录第 1 章对照表不用动。
+第一条由 `package.json` 的 `test` 脚本给出用例清单（宿主引擎、客户端引擎、事件清单、Node 程序入口四套），后 14 条是日志门禁；事件条数由 `tests/verify-log-count.js` 与 `research/489-appendix.md` 第 1 章对账，改了事件就得两处同步。有 TypeScript 环境时另跑 `npm --prefix packages/dsh-log run typecheck`。
 
-包已发布到官方源：最新版本 `0.2.0`（`npm view dsh-log version` 可查）。再发新版本时，除了上面两步，还要按第 10 节的版本策略定版本号、把实际发布输出记进发布记录（包内 `notes-publish-drill.md`），或用包内的发布向导脚本 `publish-wizard.sh` 走一遍完整流程（体检、登录、升版本、干跑、发布、发布后验证六段）。
+包已发布到官方源（最新版本与标签用 `npm view dsh-log version` 与 `npm view dsh-log dist-tags` 自查）。再发新版本时，除了上面两步，还要按第 10 节的版本策略定版本号、把实际发布输出记进发布记录（仓库的 `packages/dsh-log/notes-publish-drill.md`），或用包目录下的发布向导脚本 `publish-wizard.sh` 走一遍完整流程（体检、登录、升版本、干跑、发布、发布后验证六段）。发布后有一件事向导不代做、但必须自己做：核对包内 `README.md` 与 `INTEGRATION.md` 跟仓库一致——发出去的是发布那一刻的文档，仓库里改的不会自动跟上。
 
 ## 10. 版本策略
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-log",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "可复用的日志系统：宿主落盘引擎（当前插件的日志能力抽成的独立包，地图 #556）",
   "license": "MIT",
   "author": "王辰浩",
