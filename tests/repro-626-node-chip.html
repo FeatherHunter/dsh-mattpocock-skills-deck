@@ -1,0 +1,176 @@
+<!doctype html>
+<!--
+  repro-626-node-chip.html — #626 的肉眼对照小样（不是门禁，是给人看的预览）
+
+  用途：地图详情页里，「普通票」（没有 wayfinder 类型标签的子票）这一格修前修后长什么样。
+
+  数据来源（都是 src 里的真值，不是另抄一份）：
+    · 样式：src/client/kernel/styles.js 的 .dsws-node* / .dsws-chip* / .dsws-btn* 规则，整行照抄
+    · 图标：src/client/kernel/icons.js 里 dot / gear / search / hammer / chat / map 的 svg 形状
+    · 文字：src/client/kernel/locale-flow.js 的 type.* 词条（研究 / 原型 / 对齐 / 任务 / 地图 / 普通票）
+    · 行结构与状态徽章：src/client/views/MapDetail.js 的 node() 与 views/shared/ticket.js
+
+  打开方式：浏览器直接打开本文件即可，无需插件在跑。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>#626 地图详情页「普通票」这一格：修前 / 修后</title>
+<style>
+  :root{
+    --dsw-alias-label-primary:#e6edf3;
+    --dsw-alias-label-secondary:#a1a1aa;
+    --dsw-alias-label-caption:#8b8b95;
+    --dsw-alias-border-l1:#2a2d35;
+    --dsw-alias-border-l2:#3a3f4a;
+    --dsw-alias-bg-layer-1:#10131a;
+    --dsw-alias-bg-layer-3:#0c0e12;
+  }
+  body{background:#0b0d11;color:#e6edf3;font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;margin:0;padding:22px 26px}
+  h1{font-size:15px;margin:0 0 4px}
+  .lead{font-size:12px;color:#8b8b95;margin:0 0 18px;line-height:1.7}
+  .lead code{color:#a1a1aa;background:rgba(255,255,255,.06);padding:0 4px;border-radius:3px}
+  .pair{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+  .cell{width:452px}
+  .cell h2{font-size:12px;margin:0 0 8px;color:#8b8b95;font-weight:600}
+  .cell .verdict{font-size:11px;margin:8px 0 0;line-height:1.6}
+  .bad{color:#f87171}
+  .good{color:#4ade80}
+  .family{margin-top:22px}
+  .family h2{font-size:12px;color:#8b8b95;margin:0 0 8px;font-weight:600}
+  .family .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-radius:10px;border:1px solid var(--dsw-alias-border-l1);background:rgba(255,255,255,.02)}
+  .family .item{display:flex;align-items:center;gap:6px;font-size:10px;color:#8b8b95}
+
+  /* ===== 以下规则逐字取自 src/client/kernel/styles.js ===== */
+  .dsws-btn{padding:3px 10px;border-radius:6px;border:1px solid var(--dsw-alias-border-l1,#2a2d35);background:var(--dsw-alias-bg-layer-1,#10131a);color:var(--dsw-alias-label-primary,#e6edf3);font-size:12px;cursor:pointer}
+  .dsws-btn.primary{background:#c084fc;border-color:transparent;color:#140a1e;font-weight:600}
+  .dsws-btn.ghost{background:transparent;border-color:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)}
+  .dsws-chip{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;border-radius:99px;font-size:11px;line-height:1.7;margin-right:4px;white-space:nowrap}
+  .dsws-chip-r{background:rgba(88,166,255,.18);color:#58a6ff}
+  .dsws-chip-p{background:rgba(247,120,186,.16);color:#f778ba}
+  .dsws-chip-g{background:rgba(63,185,80,.16);color:#3fb950}
+  .dsws-chip-t{background:rgba(240,136,62,.16);color:#f0883e}
+  .dsws-chip-m{background:rgba(188,140,255,.16);color:#bc8cff}
+  .dsws-chip-i{background:rgba(139,139,149,.14);color:#a1a1aa}
+  .dsws-node{display:flex;flex-direction:column;gap:4px;border-radius:10px;padding:7px 8px;min-width:0;width:auto;position:relative;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));border:1.5px solid var(--dsw-alias-border-l1,#2a2d35);color:var(--dsw-alias-label-primary,#e6edf3)}
+  .dsws-node .row1{display:flex;align-items:center;gap:6px}
+  .dsws-node .icbox{width:22px;height:22px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;border:1.5px solid;background:rgba(0,0,0,.5);color:var(--dsw-alias-label-secondary,#a1a1aa)}
+  .dsws-node .meta{display:flex;align-items:center;gap:5px;margin-bottom:1px}
+  .dsws-node .no{font-size:9px;color:var(--dsw-alias-label-caption,#8b8b95);font-family:Consolas,Menlo,monospace}
+  .dsws-node .tt{font-size:11px;font-weight:600;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all;min-height:30.8px}
+  .dsws-node .acts{display:flex;gap:4px;flex-wrap:wrap;align-items:center;min-height:24px}
+  .dsws-node.now{border-color:rgba(74,222,128,.9);box-shadow:0 0 14px rgba(74,222,128,.3)}
+</style>
+</head>
+<body>
+  <h1>#626 · 地图详情页「普通票」这一格：修前 / 修后</h1>
+  <p class="lead">
+    同一张子票（FeatherHunter/ilife 的地图 #152 下的 #239，只挂了 <code>enhancement</code> 标签）。<br>
+    徽章文字取自 <code>type.issue</code> 词条，左框图标取自 <code>TYPE_ICON</code>，两者都按 <code>src/</code> 里的真值画。<br>
+    普通票没有自己的图标，徽章只出文字（其余五种各自带图标）。
+  </p>
+
+  <div class="pair">
+    <div class="cell">
+      <h2>修前（v1.7.21）</h2>
+      <div class="dsws-node now">
+        <div class="row1">
+          <span class="icbox">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"></path></svg>
+          </span>
+          <div style="flex:1;min-width:0">
+            <div class="meta">
+              <span class="no">#239</span>
+              <span class="dsws-chip">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none"></circle></svg>
+                <span>type.issue</span>
+              </span>
+            </div>
+            <div class="tt">卡路里：复制数据／复制日志／弹提示 通用组件（页面必备功能）</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
+              <div style="flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:0%;height:100%;background:#52525b;border-radius:2px"></div></div>
+              <span style="font-size:9px;color:#8b8b95;flex:none;font-variant-numeric:tabular-nums;min-width:26px;text-align:right">—</span>
+            </div>
+            <div style="margin-top:2px;min-height:14px;display:flex;align-items:center;gap:2px">
+              <span style="display:inline-flex;align-items:center;gap:2px;color:#8b8b95;font-size:9px;flex:none">
+                <svg viewBox="0 0 24 24" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none"></circle></svg>
+                <span>未动工</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="acts">
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;background:#c084fc;border-color:transparent;color:#140a1e">
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><path d="M8 5.5l11 6.5-11 6.5z" fill="currentColor" stroke="none"></path></svg>
+            <span>执行</span>
+          </button>
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;margin-left:4px;background:#c084fc;border-color:transparent;color:#140a1e">
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            <span>新会话</span>
+          </button>
+          <button class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:2px 4px">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><path d="M10 14a5 5 0 007.1 0l2.8-2.8a5 5 0 00-7.1-7.1L11 5.9"></path><path d="M14 10a5 5 0 00-7.1 0l-2.8 2.8a5 5 0 007.1 7.1L13 18.1"></path></svg>
+          </button>
+        </div>
+      </div>
+      <p class="verdict bad">✗ 徽章印出代码里的键名 type.issue（词条表里没有它，取词条失败就把键名原样返回），左框图标落进齿轮兜底，与任务票撞脸。</p>
+    </div>
+
+    <div class="cell">
+      <h2>修后（本次改动）</h2>
+      <div class="dsws-node now">
+        <div class="row1">
+          <span class="icbox">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none"></circle></svg>
+          </span>
+          <div style="flex:1;min-width:0">
+            <div class="meta">
+              <span class="no">#239</span>
+              <span class="dsws-chip dsws-chip-i">
+                <span>普通票</span>
+              </span>
+            </div>
+            <div class="tt">卡路里：复制数据／复制日志／弹提示 通用组件（页面必备功能）</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
+              <div style="flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:0%;height:100%;background:#52525b;border-radius:2px"></div></div>
+              <span style="font-size:9px;color:#8b8b95;flex:none;font-variant-numeric:tabular-nums;min-width:26px;text-align:right">—</span>
+            </div>
+            <div style="margin-top:2px;min-height:14px;display:flex;align-items:center;gap:2px">
+              <span style="display:inline-flex;align-items:center;gap:2px;color:#8b8b95;font-size:9px;flex:none">
+                <svg viewBox="0 0 24 24" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none"></circle></svg>
+                <span>未动工</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="acts">
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;background:#c084fc;border-color:transparent;color:#140a1e">
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><path d="M8 5.5l11 6.5-11 6.5z" fill="currentColor" stroke="none"></path></svg>
+            <span>执行</span>
+          </button>
+          <button class="dsws-btn primary" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;font-size:11px;flex:none;margin-left:4px;background:#c084fc;border-color:transparent;color:#140a1e">
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            <span>新会话</span>
+          </button>
+          <button class="dsws-btn ghost" style="display:inline-flex;align-items:center;padding:2px 4px">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><path d="M10 14a5 5 0 007.1 0l2.8-2.8a5 5 0 00-7.1-7.1L11 5.9"></path><path d="M14 10a5 5 0 00-7.1 0l-2.8 2.8a5 5 0 007.1 7.1L13 18.1"></path></svg>
+          </button>
+        </div>
+      </div>
+      <p class="verdict good">✓ 徽章显示「普通票」，中性灰底，前面不留圆点（文字左右留白对称）；左侧方框换成中性灰点，任务票的齿轮留给任务票自己。</p>
+    </div>
+  </div>
+
+  <div class="family">
+    <h2>六种类型徽章并排（普通票是本次新增的那一种）</h2>
+    <div class="row">
+      <span class="item"><span class="dsws-chip dsws-chip-r"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg><span>研究</span></span><span>research</span></span>
+      <span class="item"><span class="dsws-chip dsws-chip-p"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><rect x="3" y="8.5" width="13" height="9" rx="2" opacity="0.52"></rect><rect x="7.8" y="3.8" width="13" height="9" rx="2"></rect></svg><span>原型</span></span><span>prototype</span></span>
+      <span class="item"><span class="dsws-chip dsws-chip-g"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><path d="M21 15a2 2 0 01-2 2H8l-5 4V5a2 2 0 012-2h14a2 2 0 012 2z"></path></svg><span>对齐</span></span><span>grilling</span></span>
+      <span class="item"><span class="dsws-chip dsws-chip-t"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"></path></svg><span>任务</span></span><span>task</span></span>
+      <span class="item"><span class="dsws-chip dsws-chip-m"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex:none"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"></path><path d="M9 3v15M15 6v15"></path></svg><span>地图</span></span><span>map</span></span>
+      <span class="item"><span class="dsws-chip dsws-chip-i"><span>普通票</span></span><span>issue（本次新增，无图标）</span></span>
+    </div>
+  </div>
+</body>
+</html>

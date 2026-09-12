@@ -22,7 +22,7 @@
         'type.prototype': '原型',
         'type.grilling': '对齐',
         'type.task': '任务',
-        'type.map': '地图',
+        'type.map': '地图', 'type.issue': '普通票', // 普通票 = 没有 wayfinder 类型标签的票（后端归一值就是 issue）；缺了这条，界面上会印出键名本身（#626）
         'list.back': '返回列表',
         'list.mapChip': '地图',
         'list.loadFail': '加载失败',
@@ -191,7 +191,7 @@
         'type.prototype': 'Prototype',
         'type.grilling': 'Align',
         'type.task': 'Task',
-        'type.map': 'Map',
+        'type.map': 'Map', 'type.issue': 'Issue',
         'list.back': 'Back to list',
         'list.mapChip': 'Map',
         'list.loadFail': 'Failed to load',

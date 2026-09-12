@@ -55,10 +55,36 @@ const REQUIRED = [
   'setup.default.trackerLine', 'setup.default.labelReqs',
   'panel.labelsStepTitle', 'panel.labelsStepDesc',
   'check.selection.pass', 'check.tracker.initialized.pass', 'env.diagTitle', 'env.actRun', 'env.chainDone',
+  // #626：普通票的显示名。TypeChip 渲染的是 tr('type.' + 类型值)，缺了这条，
+  // 界面上会直接印出 'type.issue' 这串字（#626 实测）。
+  'type.issue',
 ]
 for (const k of REQUIRED) {
   if (k in allKeys) ok('B. 键在 ' + k)
   else bad('B. 缺键 ' + k)
+}
+
+// ---------- E. 类型徽章能收到的每个类型值都必须有词条（#626 防复发）----------
+// TypeChip（views/shared/chips.js）渲染的是 tr('type.' + 类型值)。类型值有两个来源：
+//   ① 后端归一的票类型：src/shared/tracker/constants.js 的 ISSUE_TYPE（issue / map）
+//   ② 五个 wayfinder 类型标签：src/shared/labels.js 的 wayfinder:xxx
+// 任何一路冒出新值而词条没跟上，界面上就会印出键名本身 —— 那正是 #626 的毛病。
+const constantsSrc = fs.readFileSync(path.join(root, 'src/shared/tracker/constants.js'), 'utf8')
+const issueTypeBlock = (constantsSrc.match(/ISSUE_TYPE\s*=\s*Object\.freeze\(\{([\s\S]*?)\}\)/) || [])[1] || ''
+const fromBackend = (issueTypeBlock.match(/:\s*'([a-z]+)'/g) || []).map(function (s) { return s.replace(/[^a-z]/g, '') })
+const labelsSrc = fs.readFileSync(path.join(root, 'src/shared/labels.js'), 'utf8')
+const fromLabels = []
+;(labelsSrc.match(/wayfinder:[a-z]+/g) || []).forEach(function (n) {
+  const v = n.slice('wayfinder:'.length)
+  if (fromLabels.indexOf(v) < 0) fromLabels.push(v)
+})
+const typeValues = []
+fromBackend.concat(fromLabels).forEach(function (v) { if (v && typeValues.indexOf(v) < 0) typeValues.push(v) })
+if (typeValues.length >= 6) ok('E. 收集到类型值 ' + typeValues.join(' / '))
+else bad('E. 类型值收集失败（只拿到 ' + typeValues.join(' / ') + '）')
+for (const v of typeValues) {
+  if (('type.' + v) in allKeys) ok('E. 有词条 type.' + v)
+  else bad('E. 缺词条 type.' + v + ' —— 类型徽章会把这串字直接印到界面上')
 }
 
 // ---------- C. 硬编码中文基线封顶 ----------

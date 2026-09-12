@@ -118,6 +118,8 @@ export default {
       task: ['task', 't', '任务'],
       map: ['map', 'm', '地图'],
     }
+    // 图标按类型分发。issue（普通票：没有 wayfinder 类型标签的票）故意没有图标 —— 徽章只出文字、灰底，
+    // 前面挂一个圆点像多出来的项目符号，去掉后文字才左右对称；齿轮必须留给任务票，不让普通票兜底落进去（#626）
     const TYPE_ICON = { research: 'search', prototype: 'hammer', grilling: 'chat', task: 'gear', map: 'map' }
 
     // ============================================================

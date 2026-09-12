@@ -7,10 +7,14 @@ export     const Dot = ({ level }) => { const cx = React.useContext(DswsCtx); co
 export     const TypeChip = ({ type }) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
-      const t = TYPE_LABEL[type] || [type, '', type]
-      const cls = { research: 'dsws-chip-r', prototype: 'dsws-chip-p', grilling: 'dsws-chip-g', task: 'dsws-chip-t', map: 'dsws-chip-m' }[type] || ''
+      // 样式类按类型分发；issue（普通票）走中性灰，其余五种是 wayfinder 自己的类型色。
+      // 文字一律来自词条 type.<类型>，没有词条时 tr 会退回键名（那正是 #626 修的那个毛病）。
+      const cls = { research: 'dsws-chip-r', prototype: 'dsws-chip-p', grilling: 'dsws-chip-g', task: 'dsws-chip-t', map: 'dsws-chip-m', issue: 'dsws-chip-i' }[type] || ''
+      // 有图标才画图标：普通票（issue）没有自己的图标，只出文字 —— 前面挂一个灰点像多出来的
+      // 项目符号，去掉之后文字左右留白对称（#626）
+      const icon = TYPE_ICON[type]
       return h('span', { className: 'dsws-chip ' + cls }, [
-        Ic({ n: TYPE_ICON[type] || 'dot', size: 11 }),
+        icon ? Ic({ n: icon, size: 11 }) : null,
         h('span', null, tr('type.' + type)),
       ])
     }

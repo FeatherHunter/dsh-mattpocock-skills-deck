@@ -44,6 +44,8 @@
       '.dsws-chip-g{background:rgba(63,185,80,.16);color:#3fb950}',
       '.dsws-chip-t{background:rgba(240,136,62,.16);color:#f0883e}',
       '.dsws-chip-m{background:rgba(188,140,255,.16);color:#bc8cff}',
+      // #626：普通票（没有 wayfinder 类型标签的票）用中性灰，与「已关闭」那类灰同一支
+      '.dsws-chip-i{background:rgba(139,139,149,.14);color:#a1a1aa}',
       '.dsws-trow{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:6px;border:1px solid transparent}',
       '.dsws-trow:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06));border-color:var(--dsw-alias-border-l1,#2a2d35)}',
       '.dsws-trow .dsws-tt{flex:1;min-width:0}',
