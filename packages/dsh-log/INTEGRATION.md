@@ -24,7 +24,7 @@ node --version
 npm install dsh-log
 ```
 
-包还没公开发布时，这条命令装不上：先用本地路径或工作区引用代替（例如 `npm install ../dsh-log`），等包发布后才用上面的命令。发布前用 `npm view dsh-log` 查一次重名：返回 404 表示名字还没被占（本次查重 404，证据贴在 #562 票评论）。
+上面这条命令直接可用：包已发布到 npm 官方源，最新版本 `0.2.0`。若你要接的是本仓库里改过、还没发出去的那份，才改用本地路径或工作区引用代替（例如 `npm install ../dsh-log`）。
 
 上面这条本地路径命令要在你自己插件的目录里执行，不是在日志包目录里。装完确认法：宿主侧能引用到已构建产物（`dist/host.js` 与 `dist/client.js`），并且读到 `hostLog.phoneNames` 里的 5 个电话名（`logBatch`、`logExport`、`logClear`、`logGetSwitch`、`logSetSwitch` 各一个），即算装好。独立 Node 程序只需要 `dist/node.js` 能引用到，见步骤 2B，读不到电话名是正常的。
 

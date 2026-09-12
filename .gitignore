@@ -34,6 +34,10 @@ _research/
 # 日志系统的编译产物不入库（发布前跑 build:dsh-log 本地生成，本地保留文件可跑测试）
 /packages/dsh-log/dist/
 
+# 日志系统的发布向导与发布记录只留本地（都是证据类文件，不进发布包也不入库）
+/packages/dsh-log/publish-wizard.sh
+/packages/dsh-log/notes-publish-drill.md
+
 # 更新包的编译产物不入库（发布前跑 build:dsh-plugin-update 本地生成，本地保留文件可跑测试）
 /packages/dsh-plugin-update/dist/
 
