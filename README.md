@@ -21,6 +21,8 @@
 
 前置要求：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness）。在 DSH 里，你下指令、AI 干活；MattSkillsDeck 把这些活变成面板上的任务。
 
+**匹配的 DSH 内核版本：`0.1.5-rc.1`**（也就是 DSH 官方源上的当前 `latest`）。本版就是在这一版内核上开发、构建与验收的，两条安装命令都按它给。
+
 </div>
 
 ```bash
@@ -32,15 +34,17 @@ npm install -g @deepseek-ai/dsh
 dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
 #     或者
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用
-# 锁定最新版更稳（当前 1.7.19）：
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.19 --registry https://registry.npmjs.org
+# 锁定最新版更稳（当前 1.7.20）：
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.20 --registry https://registry.npmjs.org
 #     或者
-dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.19 --registry https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.20 --registry https://registry.npmjs.org
 ```
 
 <div align="center">
 
 装完**重启一次对应的 DSH 入口**即生效：桌面应用完全退出并重开 DSH Desktop；web 服务重启 `dsh web` 后刷新页面。零配置。
+
+**点开面板不用再等：从点击到内容可见，真机实测从 5075 毫秒降到 193 毫秒。** 这是 2026-09-11 的真机复测；同一份记录里，提交阶段从 4948 毫秒降到 117 毫秒。做法是把标签折叠与地图行适配从「量一次、改一次」交替的循环改成先量后改，布局不再被反复重算。纪律与证据链见 [`docs/adr/20260911-zero-layout-jitter.md`](docs/adr/20260911-zero-layout-jitter.md)。
 
 窄屏用户可顺手把 dsh-better-sidebar 装进同一个 profile，列表与详情并排看。
 

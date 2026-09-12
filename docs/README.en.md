@@ -25,6 +25,8 @@ A playable task board for [mattpocock/skills](https://github.com/mattpocock/skil
 
 One prerequisite: [DSH](https://www.npmjs.com/package/@deepseek-ai/dsh) (DeepSeek Harness, an AI coding desktop). You give instructions, the AI does the work — and MattSkillsDeck turns that work into missions on a panel.
 
+**Matching DSH kernel version: `0.1.5-rc.1`** (the current `latest` on the official npm registry). This release was developed, built and verified against that kernel, and both install commands below target it.
+
 </div>
 
 ```bash
@@ -35,8 +37,8 @@ npm install -g @deepseek-ai/dsh
 #    entry you actually use (a wrong profile = the plugin never loads, restarts won't help)
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # DSH Desktop app (most users)
 # dsh plugin --profile web add dsh-mattpocock-skills-deck     # self-started web server (dsh web)
-# Pin to latest for extra stability (currently 1.7.19):
-# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.19 --registry https://registry.npmjs.org
+# Pin to latest for extra stability (currently 1.7.20):
+# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.20 --registry https://registry.npmjs.org
 
 # ③ Better on narrow screens (optional): install better-sidebar into the SAME profile
 dsh plugin --profile desktop add dsh-better-sidebar
@@ -45,6 +47,8 @@ dsh plugin --profile desktop add dsh-better-sidebar
 <div align="center">
 
 One restart of the matching DSH entry and it works — zero config. Desktop app: fully quit and reopen DSH Desktop. Web server: restart dsh web, then refresh the page.
+
+**Opening the panel no longer makes you wait: click-to-visible content measured 5075 ms before, 193 ms after.** That is a 2026-09-11 real-machine re-measurement; in the same record the commit phase went from 4948 ms to 117 ms. The fix turns the tag-packing and map-row fitting loops from a measure-then-write alternation into measure-first-then-write, so layout is no longer recomputed over and over. The rule and its evidence chain live in [`docs/adr/20260911-zero-layout-jitter.md`](adr/20260911-zero-layout-jitter.md).
 
 </div>
 
@@ -80,7 +84,7 @@ The examples below use the web profile — DSH Desktop app users: replace every 
 
 ```bash
 # Install a pinned version
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.19 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.20 --registry https://registry.npmjs.org
 
 # No global install (pin a version like above for extra safety)
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
