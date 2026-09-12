@@ -14,6 +14,7 @@
  *   - 同房间内相对路径（解析后仍在 src/host/tracker/backends/<self>/ 内）
  *   - src/shared/tracker/**
  *   - src/shared/labels.js
+ *   - src/shared/label-color/**
  *   - src/host/tracker/preflight.js
  *   - src/host/platform/**
  *
@@ -37,6 +38,8 @@ function bad(msg) { failed = true; console.log('  FAIL ' + msg) }
 const WHITELIST_RE = [
   /^src\/shared\/tracker\//,
   /^src\/shared\/labels\.js$/,
+// #629：配色核心（label-color-core 的产物）。两个后端房间要与宿主、客户端按同一套色值口径比较颜色，故允许引用。
+  /^src\/shared\/label-color\//,
   /^src\/host\/tracker\/preflight\.js$/,
   /^src\/host\/platform\//,
 ]
@@ -233,7 +236,7 @@ function selfCheck(ok, msg, detail) {
 
 {
   const compliant = [
-    { filePath: 'src/host/tracker/backends/github/a.js', content: "import x from './b.js'\nimport { y } from './sub/c.js'\nimport { ERROR_KIND } from '../../../../shared/tracker/constants.js'\nimport { CANONICAL_LABELS } from '../../../../shared/labels.js'\nimport { fail } from '../../preflight.js'\nimport plat from '../../../platform/index.js'\nimport hostPlat from '../../../platform/index.js'\nimport path from 'node:path'\nimport fs from 'node:fs'\nimport os from 'os'\nimport p from 'path'\n" },
+    { filePath: 'src/host/tracker/backends/github/a.js', content: "import x from './b.js'\nimport { y } from './sub/c.js'\nimport { ERROR_KIND } from '../../../../shared/tracker/constants.js'\nimport { CANONICAL_LABELS } from '../../../../shared/labels.js'\nimport { normalizeColor } from '../../../../shared/label-color/colors.js'\nimport { fail } from '../../preflight.js'\nimport plat from '../../../platform/index.js'\nimport hostPlat from '../../../platform/index.js'\nimport path from 'node:path'\nimport fs from 'node:fs'\nimport os from 'os'\nimport p from 'path'\n" },
     { filePath: 'src/host/tracker/backends/gitlab/b.js', content: "import { glabClient } from './client.js'\nimport { normalizeIssue } from './normalize.js'\nimport { ERROR_KIND } from '../../../../shared/tracker/constants.js'\n" },
     { filePath: 'src/host/tracker/backends/markdown/c.js', content: "import { parseMd } from './parse.js'\nimport { readTextFile } from './read.js'\nimport { ERROR_KIND } from '../../../../shared/tracker/constants.js'\nimport nodePath from 'node:path'\n" },
     { filePath: 'src/host/tracker/backends/github/d.js', content: "const m = await import('./client.js')\nawait import('../../../../shared/tracker/constants.js')\n" },

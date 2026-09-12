@@ -136,8 +136,10 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // #542：命令拼接独立成 src/shared/update/commands.js（自包含零引用，政策收归核心），总数 +1 到 21。
   // #589：面板列表按身份去重新增 src/shared/tracker/list-dedupe.js（纯函数，宿主动线引用），总数 +1 到 22。
   // #600：增量索引的时间窗与水印新增 src/shared/tracker/indexWindow.js（纯函数，宿主动线引用），总数 +1 到 23。
-  check(srcSharedFiles.length === 23, `src/shared 23 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 23, `package/shared 23 文件（实得 ${pkgSharedFiles.length}）`)
+  // #629：配色核心落地新增 src/shared/label-color/ports.js、colors.js、prompt.js（纯逻辑，文件之间零引用；
+  // 其中 colors.js 与 prompt.js 由 scripts/build.mjs 拼进客户端闭包），总数 +3 到 26。
+  check(srcSharedFiles.length === 26, `src/shared 26 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 26, `package/shared 26 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {
