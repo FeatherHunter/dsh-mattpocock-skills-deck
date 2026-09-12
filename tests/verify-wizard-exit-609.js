@@ -50,8 +50,19 @@ function toBashPath(p) {
 // 本机同时装着 WSL 的 bash 与 Git Bash 的 bash：本门禁要的是仓库文档指定的那个 Git Bash
 // （explorer.exe 这一支只有它才走得到），所以先把 Git Bash 的绝对路径找出来，找不到再回落 PATH 上的 bash。
 function resolveBash() {
+  if (process.env.WIZARD_TEST_BASH) return process.env.WIZARD_TEST_BASH
   if (fs.existsSync(GIT_BASH)) return GIT_BASH
   return 'bash'
+}
+// 这台机器上连 bash 都起不来时跳过并打印说明，而不是报红：跑不了 bash 的机器本来就不该被这条门禁判失败
+// （离线门禁不该因为环境缺失而阻断别人；仓库里其它需要外部程序的检查也是这个口径）。
+function bashAvailable() {
+  try {
+    const r = spawnSync(resolveBash(), ['-c', 'exit 0'], { encoding: 'utf8', timeout: 20000 })
+    return !r.error && r.status === 0
+  } catch (e) {
+    return false
+  }
 }
 
 function runBash(relPath, args, opts) {
@@ -121,6 +132,12 @@ function launcherStubLines(indent) {
 function main() {
   console.log('向导退出语义门禁（#609：调起器返回值不决定脚本生死、没人应答要明确失败、没发布不许记「已发布」）')
   console.log('「没有人应答」= 读不到任何输入（read 返回非零）；空行仍算有人按了回车。')
+  if (!bashAvailable()) {
+    console.log('  跳过：这台机器上起不了 bash（找过 Git Bash 的常规位置，也试过 PATH 上的 bash）。')
+    console.log('  本门禁驱动的是 bash 脚本的真实行为，没有 bash 就无从判定；按仓库惯例跳过而不是报红。')
+    console.log('  要指定 bash 可设环境变量 WIZARD_TEST_BASH=<bash 可执行文件路径> 后重跑。')
+    process.exit(0)
+  }
   check(isInVerifyChain(), '本门禁已挂进 npm run verify 链（package.json 的 scripts.verify 里有 verify-wizard-exit-609.js）')
   try {
     fs.rmSync(WORK, { recursive: true, force: true })
