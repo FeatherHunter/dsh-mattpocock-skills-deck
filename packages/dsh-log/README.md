@@ -180,12 +180,12 @@ node packages/dsh-log/build.mjs
 cd packages/dsh-log && npm publish --dry-run
 ```
 
-编译产物在 `dist` 下（5 个 JS：`client.js`、`config.js`、`host.js`、`phones.js`、`store.js`），本地生成、不入库。发布白名单（`files`）共 10 个文件：`dist` 下 5 个 JS、`event-list.template.json`、`INTEGRATION.md`、`README.md`、`LICENSE`、`package.json`。加新文件进包时同步改 `files` 并重跑 dry-run 确认文件数。
+编译产物在 `dist` 下（6 个 JS：`client.js`、`config.js`、`host.js`、`node.js`、`phones.js`、`store.js`），本地生成、不入库。发布白名单（`files`）共 11 个文件：`dist` 下 6 个 JS、`event-list.template.json`、`INTEGRATION.md`、`README.md`、`LICENSE`、`package.json`。加新文件进包时同步改 `files` 并重跑 dry-run 确认文件数。
 
 门禁跑法（改包后全跑，退出码全 0 才算过）：
 
 ```sh
-node --test packages/dsh-log/tests/host.test.mjs packages/dsh-log/tests/eventList.test.mjs packages/dsh-log/tests/client.test.mjs
+node --test packages/dsh-log/tests/host.test.mjs packages/dsh-log/tests/eventList.test.mjs packages/dsh-log/tests/client.test.mjs packages/dsh-log/tests/node.test.mjs
 node tests/verify-log-artifacts.js
 node tests/verify-log-channel.js
 node tests/verify-log-client.js
@@ -202,7 +202,9 @@ node tests/verify-log-count.js
 node tests/verify-log-fields.js
 ```
 
-包内三套单测共 36 项，14 个日志门禁全绿，且 55 事件（常驻 30、按需 20、自监控 5）不变。有 TypeScript 环境时另跑包内类型检查（`tsc -p packages/dsh-log/tsconfig.json`）。未新增日志事件时，附录第 1 章对照表不用动。
+包内四套单测共 45 项（宿主引擎、客户端引擎、事件清单、Node 程序入口），14 个日志门禁全绿，且 55 事件（常驻 30、按需 20、自监控 5）不变。有 TypeScript 环境时另跑包内类型检查（`tsc -p packages/dsh-log/tsconfig.json`）。未新增日志事件时，附录第 1 章对照表不用动。
+
+包还没发到官方源（`npm view dsh-log` 返回 404，名字未被占用）。发布前除了上面两步，还要按第 10 节的版本策略定版本号，并把发布演练记录（包内 `notes-publish-drill.md`）重跑到与本次发布物一致的文件数。
 
 ## 10. 版本策略
 
