@@ -4,13 +4,20 @@
 //   走的都是宿主给后端的 `ctx.exec`。这条路原先一条日志都不留，于是「一整天起了多少次外部命令、每次多久」
 //   没人知道。补上 exec.run 之后，光看代码看不出「关着开关时到底付了多少代价」，所以这里用假零件
 //   （假子进程、假计时器、假记录器）把两件事量出来：
-//     一、开关打开：每条命令恰好落一行，四个字段齐，工作区只落短指纹不落原始路径；
+//     一、开关打开：每条命令恰好落一行，五个字段齐，工作区只落短指纹不落原始路径，发起链名对得上；
 //     二、开关关闭：一条都不落，而且日志点连时钟都不读 —— 唯一代价是读一次开关的布尔值。
+// 另外还有两段：把整条回路走一遍真的落盘并从文件里读回数字；以及核一遍客户端的临时测点确实撤干净了。
+//
+// 顺带把关一件事：**提交信息不得以不可见字符开头**。这张票自己的两个提交就踩过这个坑（提交标题首三字节
+//   是 UTF-8 BOM `EF BB BF`，来历是本机 PowerShell 的 `Out-File -Encoding utf8` 与 `>` 重定向默认会写 BOM）。
+//   所以最后一组断言读当前 HEAD 的提交信息，标题首字节不许是不可见字符；取不到就跳过并打印说明，不报红
+//   —— 离线门禁没法逐个复核历史提交，也不该在浅克隆里失效。
 //
 // 用法：node tests/verify-log-exec-606.js（在插件根目录，不需要构建产物）。
 const path = require('path')
 const os = require('os')
 const nodeFs = require('fs')
+const { execFileSync } = require('child_process')
 const { pathToFileURL } = require('url')
 
 let failed = false
@@ -307,6 +314,38 @@ async function main() {
     check(lines.every((l) => l.fields.mode === 'sidebar'), '每行都带打开形态（sidebar）')
     console.log('  样例（同一轮打开的五条阶段行，逐行自己的毫秒数）：')
     for (const l of lines) console.log('    ' + JSON.stringify({ level: l.level, event: l.event, fields: l.fields }))
+  }
+
+  // ---- 六、顺带把关：提交信息不得以不可见字符开头 ----
+  // 读当前 HEAD 那条提交的说明，看标题（正文里第一个非空行）的首字节是不是不可见字符。
+  // 取不到就跳过（不在 git 仓库里、没装 git、浅克隆读不到对象），跳过只打印说明，不报红。
+  {
+    let raw = null
+    try {
+      raw = execFileSync('git', ['cat-file', 'commit', 'HEAD'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'], timeout: 10000 })
+    } catch (e) { raw = null }
+    if (!raw) {
+      console.log('  跳过 提交信息把关：取不到 HEAD 的提交信息（不在 git 仓库里、没装 git，或这个克隆读不到它）')
+    } else {
+      const text = raw.toString('utf8')
+      const cut = text.indexOf('\n\n')
+      const body = cut >= 0 ? text.slice(cut + 2) : text
+      const title = body.split('\n').filter((l) => l.trim().length > 0)[0] || ''
+      const bytes = Buffer.from(title, 'utf8')
+      const isBom = bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF
+      const zeroWidth = ['\u200b', '\u200c', '\u200d', '\u2060', '\ufeff'].some((c) => title.charAt(0) === c)
+      const ok = title.length > 0 && !isBom && !zeroWidth
+      check(ok, '提交信息的标题不以不可见字符开头（HEAD 标题 = ' + JSON.stringify(title.slice(0, 20)) + '，首三字节 ' + bytes.slice(0, 3).toString('hex').toUpperCase() + '）')
+      if (!ok) {
+        console.log('  怎么改：提交信息先写进文件，再 git commit -F <文件>；文件必须是不带 BOM 的 UTF-8。')
+        console.log('  本机坑：PowerShell 的 Out-File -Encoding utf8 与 > 重定向默认会写 BOM，改用')
+        console.log('  [System.IO.File]::WriteAllText($路径, $内容, [System.Text.UTF8Encoding]::new($false))。')
+        console.log('  只查得到 HEAD 这一条：离线门禁没法逐个复核历史提交，历史里的同类问题要另外治。')
+      }
+      // 自检：把同一段判定喂一个真的带 BOM 的标题进去，必须认出来 —— 否则这条断言只是摆设。
+      const selfBytes = Buffer.from('\ufeff补上测点', 'utf8')
+      check(selfBytes.length >= 3 && selfBytes[0] === 0xEF && selfBytes[1] === 0xBB && selfBytes[2] === 0xBF, '自检：带 BOM 的标题能被这条判定认出来（认出 ' + selfBytes.slice(0, 3).toString('hex').toUpperCase() + '）')
+    }
   }
 
   console.log(failed ? '\n存在失败 — verify-log-exec-606 未通过' : '\n全部通过 — 外部命令测点门禁生效（' + total + ' 项断言）')
