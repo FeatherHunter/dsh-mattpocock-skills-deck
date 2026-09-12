@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#615 标签配色 tracker 契约 · 第一轮 13 问</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1d222b; --line:#2a303c;
+    --txt:#e6e9ef; --dim:#9aa4b2; --dim2:#6e7889;
+    --acc:#9d7cd8; --acc2:#8b5cf6; --ok:#10b981; --warn:#f59e0b; --bad:#f87171;
+    --rec:rgba(157,124,216,.14);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:0 0 150px; background:var(--bg); color:var(--txt);
+    font:14px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 22px}
+  h1{font-size:22px;margin:0 0 6px;letter-spacing:.2px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:22px}
+  .sub code{background:#20242d;padding:1px 6px;border-radius:5px;font-size:12px;color:#c8b6f0}
+
+  /* ── 前置澄清 ── */
+  .flag{border:1px solid #5b4a1f;background:linear-gradient(180deg,rgba(245,158,11,.10),rgba(245,158,11,.03));
+        border-radius:12px;padding:14px 16px;margin:0 0 22px}
+  .flag h3{margin:0 0 8px;font-size:14px;color:#fbbf24}
+  .flag p{margin:0 0 6px}
+  .flag .q{color:#fcd34d;font-weight:600}
+  .flag .opts{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .flag .opt{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:12.5px}
+  .flag .opt b{color:#fbbf24}
+
+  /* ── 速览表 ── */
+  .tbl{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:30px;background:var(--card)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#1b1f28;color:var(--dim);font-weight:600;font-size:11.5px;letter-spacing:.4px;text-transform:uppercase}
+  tr:last-child td{border-bottom:0}
+  td.n{color:var(--acc);font-weight:700;width:42px}
+  td.t{width:220px}
+  td.r{width:250px;color:#c4b5fd}
+  .tbl tbody tr:hover{background:#1b202a}
+  tbody tr.done td.n::after{content:" ✓";color:var(--ok)}
+
+  /* ── 卡片 ── */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:18px;overflow:hidden}
+  .card.done{border-color:#2f5d45}
+  .hd{padding:14px 18px 12px;background:linear-gradient(180deg,#1c212b,#171a21);border-bottom:1px solid var(--line)}
+  .hd .qid{display:inline-block;background:var(--acc);color:#12101a;font-weight:800;font-size:11px;
+           padding:2px 8px;border-radius:6px;margin-right:9px;vertical-align:2px}
+  .hd h2{display:inline;font-size:15.5px;margin:0;font-weight:650}
+  .body{padding:16px 18px 18px}
+  .why{display:grid;grid-template-columns:52px 1fr;gap:6px 10px;margin-bottom:15px;font-size:13px}
+  .why .lbl{color:var(--dim2);font-size:11.5px;padding-top:3px;letter-spacing:.5px}
+  .why p{margin:0}
+  .why .after{color:#fbbf24}
+  .why .after span{opacity:.85}
+
+  .opts{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  label.opt{
+    display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;
+    border:1px solid var(--line);border-radius:10px;padding:11px 13px;cursor:pointer;
+    background:var(--card2);transition:border-color .12s,background .12s
+  }
+  label.opt:hover{border-color:#3a4356}
+  label.opt input{margin:4px 0 0;accent-color:var(--acc);width:15px;height:15px;flex:none}
+  label.opt .tag{font-weight:650;color:#dfe4ec}
+  label.opt .tag em{font-style:normal;color:var(--dim);font-weight:400}
+  label.opt .exp{display:block;color:var(--dim);font-size:12.5px;margin-top:3px}
+  label.opt .exp b.pos{color:#6ee7b7;font-weight:600}
+  label.opt .exp b.neg{color:#fca5a5;font-weight:600}
+  label.opt.rec{background:var(--rec);border-color:#5b4a8a}
+  label.opt.rec .tag:first-child::after{content:"推荐";margin-left:8px;font-size:10.5px;font-weight:700;
+    color:#12101a;background:#c4b5fd;border-radius:5px;padding:1px 6px;vertical-align:1px}
+
+  .verdict{border-left:3px solid var(--acc2);background:rgba(139,92,246,.09);
+           padding:11px 14px;border-radius:0 9px 9px 0;font-size:13px}
+  .verdict b{color:#c4b5fd}
+  .facts{font-size:12px;color:var(--dim);border-top:1px dashed var(--line);padding-top:10px;margin-top:13px}
+  .facts b{color:#a5b4fc;font-weight:600}
+  .facts code{background:#20242d;padding:1px 5px;border-radius:4px;color:#c8b6f0}
+
+  /* ── 底部答复栏 ── */
+  .bar{position:fixed;left:0;right:0;bottom:0;background:rgba(15,17,21,.96);backdrop-filter:blur(10px);
+       border-top:1px solid var(--line);padding:14px 22px;z-index:50}
+  .bar .inner{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .meter{flex:1;min-width:220px}
+  .meter .track{height:6px;background:#252a35;border-radius:99px;overflow:hidden}
+  .meter .fill{height:100%;width:0;background:linear-gradient(90deg,var(--acc2),var(--acc));transition:width .25s}
+  .meter .txt{font-size:11.5px;color:var(--dim);margin-top:5px}
+  .ans{background:#12151b;border:1px solid var(--line);border-radius:8px;padding:7px 11px;
+       font-size:11.5px;color:var(--dim);max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  button.copy{background:var(--acc);border:0;color:#12101a;font-weight:700;font-size:13px;
+              padding:9px 20px;border-radius:9px;cursor:pointer;white-space:nowrap}
+  button.copy:hover{background:#b39ae8}
+  button.copy.done{background:var(--ok);color:#07130d}
+  .hint{font-size:11.5px;color:var(--dim2);margin-top:22px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>#615 · 标签配色的 tracker 契约 · 第一轮 13 问</h1>
+  <div class="sub">
+    父图 <code>#610 标签配色可编辑</code>　·　要定的是两个操作：<b>列出标签＋颜色</b> 与 <b>批量改色</b>，让弹窗不知道底下是 GitHub 还是本地 Markdown。<br>
+    每题都已勾好推荐答案 —— 想省事，直接拉到最底点「复制我的回答」。
+  </div>
+
+  <!-- 前置澄清 -->
+  <div class="flag">
+    <h3>⚠ 作答前先纠一处口径（我按下面这条往下走的，若不是请先改我）</h3>
+    <p>地图 Notes 写的是弹窗「展示全部标签及其颜色、<b>不分组</b>」，而第一轮 Q8 你选的选项文案里带「分成『已用到／未用到』两组」——<b>两处不一致</b>。</p>
+    <p class="q">我按地图 Notes 的「不分组」走（它是后写的）。这也意味着我不把「用没用到」放进契约字段。</p>
+    <div class="opts">
+      <label class="opt rec"><input type="radio" name="flag" value="a" checked>
+        <span><span class="tag">a</span> <span class="tag">对，走不分组</span><span class="exp">保持我现在往下走的口径，契约里不带「用没用到」的计数。</span></span></label>
+      <label class="opt"><input type="radio" name="flag" value="b">
+        <span><span class="tag">b</span> <span class="tag">不对，要分组</span><span class="exp"><b class="neg">代价：</b>计数得加回契约字段，而这个数是算出来的，会拖慢弹窗首屏。</span></span></label>
+    </div>
+  </div>
+
+  <!-- 速览 -->
+  <div class="tbl">
+    <table>
+      <thead><tr><th></th><th>要点</th><th>推荐</th></tr></thead>
+      <tbody id="sum"></tbody>
+    </table>
+  </div>
+
+  <!-- 卡片 -->
+  <div id="cards"></div>
+
+  <div class="hint">作答后建议顺手刷新一下浏览器 —— 勾选会存在本机，进度条与底部答复会跟着更新。</div>
+</div>
+
+<!-- 底部答复栏 -->
+<div class="bar"><div class="inner">
+  <div class="meter">
+    <div class="track"><div class="fill" id="fill"></div></div>
+    <div class="txt" id="mtxt">已作答 0 / 14</div>
+  </div>
+  <div class="ans" id="preview">—</div>
+  <button class="copy" id="copy">复制我的回答</button>
+</div></div>
+
+<script>
+/* ───────── 数据：14 题（13 问 + 1 确认） ───────── */
+var QS = [
+{
+  id:'q1', title:'这张票的契约范围划到哪',
+  why:'本票只定接口，不落地代码。范围划小了，原型票（#617）会没有色值来源可画；划大了会去抢 #625 的地盘（那票管「写不进工作区时走哪条通道」）。',
+  after:'关键补丁：#614 明确要求「不要在保存失败文案上打补丁了事」—— 所以「<b>本地文件写不进去时这个操作返回什么</b>」必须由本票写死，否则 #618 落地时各写各的，界面又会含糊其辞。',
+  facts:'<b>现状：</b>颜色的最终值现在由后端算好后塞进每张票（GitHub 走 GraphQL、Markdown 走 <code>recolorLabels</code>），界面只是显示。',
+  opts:[
+    {k:'a', t:'只定这两个操作 ＋ 失败语义', e:'存储位置归 #625；接线的实现细节归 #618/#620。<b class="pos">省：</b>边界最清楚，改造面最小。<b class="neg">但：</b>契约要写明「颜色最终值由后端提供，界面永不自己查表算色」。', rec:true},
+    {k:'b', t:'连「配色文件存哪、什么时候放」一起定', e:'范围外扩到 #625 与第一轮 Q2/Q3 已定的内容，会与那条票打架。'},
+    {k:'c', t:'只定接口形状，失败语义留给落地票各写各的', e:'<b class="neg">贵：</b>正是 #614 点名要避免的做法 —— 保存失败会变成含糊其辞。'}
+  ],
+  verdict:'<b>选 a。</b>但要按刚才那条补丁理解「失败语义」——<b>本地配色文件写不进去的那一档属于本票</b>，不属于 #625。'
+},
+{
+  id:'q2', title:'两个操作起什么名',
+  why:'名字会落在契约常量、三个后端房间、宿主电话、门禁与文档上，改名代价大，所以先定。',
+  after:'现有动词是 <code>setLabels</code> / <code>setAssignees</code> / <code>setParent</code>；而 <code>listLabels</code> 这个名字在 GitHub 与 GitLab 房间里<b>已经在用</b>（只是没接进契约）。',
+  facts:'现有 <code>setLabels</code> 的语义是「换掉某张票的标签名」，跟改颜色是两件事 —— 名字里必须有区分度。',
+  opts:[
+    {k:'a', t:'<code>listLabels</code> ＋ <code>setLabelColors</code>', e:'中文：列出标签配色 / 批量改标签颜色。<b class="pos">省：</b>沿用房间里已有的同名函数，不造第二套叫法；<code>Colors</code> 一词把「改色」和「改票的标签名」分开。', rec:true},
+    {k:'b', t:'<code>listLabelColors</code> ＋ <code>setLabelColors</code>', e:'<b class="pos">齐：</b>两个名字成对。<b class="neg">贵：</b>手上前两个后端里的同名函数得改，白多一次改动。'},
+    {k:'c', t:'<code>describeLabels</code> ＋ <code>applyLabelColors</code>', e:'仓库里没有这个动词风格，读起来更像新概念而不是既有约定。'}
+  ],
+  verdict:'<b>选 a。</b>'
+},
+{
+  id:'q3', title:'颜色值穿过契约时的统一写法',
+  why:'现在仓库里是两套写法，混着用已经踩过坑。',
+  after:'<code>gh</code> 读回来是<b>不带 # 的小写六位</b>（唯一的例外是 <code>wayfinder:grilling</code> 存成了大写 <code>9D7CD8</code>）；而原生取色控件（#611 查过）给出的是<b>带 # 的小写六位</b>。',
+  facts:'<b>实测代价：</b>不统一大小写的话，<code>9D7CD8</code> 与用户选的 <code>9d7cd8</code> 会被判成「颜色变了」，白发一次请求（#612）。',
+  opts:[
+    {k:'a', t:'不带 <code>#</code> 的小写六位', e:'<b class="pos">省：</b>仓库内部现在全是不带 # 的（渲染、调色盘、后端回落值），不用动一片现有代码。界面要显示时自己加 #。', rec:true},
+    {k:'b', t:'带 <code>#</code> 的小写六位', e:'<b class="neg">贵：</b>现有渲染与后端回落值全部要跟着改一轮。'},
+    {k:'c', t:'后端原样透传，谁用谁归一', e:'<b class="neg">贵：</b>每个后端各归一一次，正是刚才那个大小写 bug 的温床。'}
+  ],
+  verdict:'<b>选 a。</b>并附一条硬要求：<b>比较颜色前两边都转小写</b>。'
+},
+{
+  id:'q4', title:'列表要返回哪些字段',
+  why:'弹窗只要「名字＋颜色」就能画出来；但用户要在列表里认出自己那个自定义标签，描述往往比名字更有辨识度。',
+  after:'「有多少张票在用这个标签」这个信息地图已经挂起来等原型票之后再定（<code>Not yet specified</code>），本次不进契约。',
+  facts:'<b>白拿的部分：</b>GitHub 的 <code>gh label list --json name,color,description</code> 本来就返回描述。<b>要另做：</b>GitLab 的那个私有列标签函数只映射了 name/color，加描述要另写一小段（它的读路径其实有描述数据）。',
+  opts:[
+    {k:'a', t:'只有 <code>{name, color}</code>', e:'<b class="pos">最省。</b><b class="neg">但：</b>用户只看名字认标签，自定义标签容易认错。'},
+    {k:'b', t:'<code>{name, color, description?}</code>：描述可选，给不了就不给', e:'<b class="pos">省：</b>GitHub 白拿。<b class="neg">贵：</b>GitLab 要补一小段映射（也是这次唯一多做的活）。缺省即「这个后端给不了」，与现有形状规则一致。', rec:true},
+    {k:'c', t:'再加 <code>usedBy</code> 计数', e:'<b class="neg">贵：</b>属于算出来的信息，会拖慢首屏；地图已把它推到原型票之后。'}
+  ],
+  verdict:'<b>选 b。</b>契约只带上「后端自己有、白拿得到的」信息。'
+},
+{
+  id:'q5', title:'「全部标签」在契约里的统一语义（本题是靶心）',
+  why:'两个后端对「有哪些标签」的理解根本不同：GitHub 有「仓库标签」这个实体，本地 Markdown 没有。',
+  after:'界面的诉求是「不知道底下是谁」。要把这件事做干净，只能由契约层把语义统一成一句话，让各后端自己聚合。',
+  facts:'<b>GitHub：</b>仓库里 19 个标签全能列出来，<b>哪怕它还没被任何票用过</b>（#612 实测）。<b>本地 Markdown：</b>标签只存在于三处 —— 票面的 <code>Labels:</code> 行、配色文件里的条目、内置默认表。',
+  opts:[
+    {k:'a', t:'统一成「该后端能改色的全部标签」，各后端自己聚合', e:'GitHub 给仓库全量；Markdown 给「票面出现过 ∪ 配色文件里的 ∪ 内置默认那些」。<b class="pos">省：</b>界面看到的永远是同一件事。并集里带上内置默认很实用 —— 全新的本地工作区打开弹窗也能看到该有的标签，而不是空表。', rec:true},
+    {k:'b', t:'只列「票面上已经出现过的标签」', e:'两个后端都做得到，也简单；<b class="neg">但：</b>GitHub 上就没法给未使用的标签预先调色。'},
+    {k:'c', t:'返回「全量」与「已用」两份，界面自己决定怎么显示', e:'<b class="neg">贵：</b>把「怎么显示」推回界面层，正是「界面不感知后端」要避免的。'}
+  ],
+  verdict:'<b>选 a。</b>这条定了，弹窗就永远只问一句话：把你能改色的标签和颜色给我。'
+},
+{
+  id:'q6', title:'内置默认色表归谁，契约还留不留 <code>labelPalette</code>',
+  why:'契约里有个 <code>labelPalette</code> 字段（后端声明自己的默认调色盘），面板目前按「模块默认 ＋ 工作区表覆盖」查色。新的 <code>listLabels</code> 会和它职责重叠，必须说清谁算什么。',
+  after:'<b>更正一处：内置色表现在是三份，不是我先前说的两份</b> —— 后端模块里的 <code>defaultLabelPalette</code>（11 条）、<code>issues-labels.js</code> 里一份同族色表、以及 <code>parse.js</code> 里第三份，三份的条数与取值并不完全一致。',
+  facts:'<b>关键实测：</b><code>labelPalette</code> 虽然被复制进快照发给客户端，但 <b>客户端一个文件都没读它</b>（只有一句注释）。所以「保留它但不让弹窗用它」几乎没有代价。',
+  opts:[
+    {k:'a', t:'色表归各后端自己；<code>labelPalette</code> 字段保留不动，但弹窗颜色一律走 <code>listLabels</code>', e:'两者职责不同：一个是「后端自报的默认调色盘」（描述数据），一个是「算出来的结果」。<b class="pos">省：</b>客户端本来就没接 <code>labelPalette</code>，改动只是约定。', rec:true},
+    {k:'b', t:'色表上提到契约层，三个后端共用一份', e:'契约层要多一份带业务含义的色表，而这个色表只有 Markdown 用得上。'},
+    {k:'c', t:'删掉 <code>labelPalette</code> 字段，只靠 <code>listLabels</code>', e:'<b class="neg">贵：</b>它还有别的用法（后端自报默认调色盘），删了要另找地方安放。'}
+  ],
+  verdict:'<b>选 a。</b>并请顺手定一件事：<b>房间内那三份重复的默认色表要不要并成一份</b> —— 我认为要（契约只写明「内置默认表每后端只有一份」，具体整理是 #618 的活）。'
+},
+{
+  id:'q7', title:'批量改色的入参：增量还是整份',
+  why:'弹窗底部是一个「批量保存」按钮，一次可能改好几个标签。入参是只传真正变了的，还是把整份表都传下去？',
+  after:'GitHub 改一次色约 0.9 秒（#612 实测 12 条约 14 秒），而且<b>绝大部分是进程启动开销</b> —— 少发一条就少等一秒。',
+  facts:'#612 的推荐原文：「先做一次 diff（面板本来就拿到过当前色），<b>只对颜色真的变了的标签发请求</b>」。',
+  opts:[
+    {k:'a', t:'增量：只传真正变了的 <code>[{name, color}]</code>', e:'发请求前先比颜色（都转小写），没变的不发。<b class="pos">省：</b>十几个标签通常真正要发的远少于十几条，用户等的时间直接缩短。', rec:true},
+    {k:'b', t:'整份：把弹窗里那份完整表全部传下去，后端自己 diff', e:'<b class="pos">稳：</b>后端说了算。<b class="neg">贵：</b>本地 Markdown 那份要整份重写文件，而且每次都要后端再算一遍。'}
+  ],
+  verdict:'<b>选 a。</b>'
+},
+{
+  id:'q8', title:'批量改色的返回粒度：整体成败还是逐条记账',
+  why:'最容易想当然的一题。若契约只给「成功 / 失败」，界面在部分成功时只能撒谎。',
+  after:'<b>这不是设计偏好，是实测逼出来的：#612 证明批量中途失败没有回滚</b>，一定会留下「前几个改了、后几个没改」的半成品状态。',
+  facts:'GitHub 没有「一次改 N 个标签颜色」的批量端点，逐条请求之间不构成事务。现有 <code>setLabels</code> 就是「遇到失败立刻返回」的写法，照搬到改色会得到同样的半成品。',
+  opts:[
+    {k:'a', t:'整体：要么全成功，要么给一个失败', e:'<b class="pos">省：</b>实现最简单。<b class="neg">贵：</b>部分成功时界面无法如实交代，只能说「保存失败」。'},
+    {k:'b', t:'逐条：返回 <code>{applied, failed:[{name, reason}]}</code>', e:'成功哪几个、失败哪几个、各自为什么，界面都能如实说。<b class="neg">贵：</b>契约与实现都要按条收集，界面要会渲染一份部分成功的结果。', rec:true}
+  ],
+  verdict:'<b>选 b。</b>并附一条硬要求：<b>保存之后界面必须重新拉一次真实列表刷新</b>，不能乐观地把界面刷成用户填的那份 —— 否则部分成功时界面会撒谎。'
+},
+{
+  id:'q9', title:'「你填错了」和「这个后端做不到」在契约里怎么分开说',
+  why:'错误分类现在有 8 档，但缺一档「输入非法」。而现实里有两处矛盾：颜色格式错现在会被归成「网络错误」；「标签不存在 / 仓库不存在 / 没有写权限」GitHub 返回的是<b>同一句 404</b>。',
+  after:'还有一整类我第一轮漏了、必须补上：<b>本地配色文件写不进去</b>（路径不对、被占用、只读、磁盘满、被沙箱拦），这只是 Markdown 才有的失败。',
+  facts:'<b>实测：#612 把真实错误喂给仓库自己的分类函数</b> —— 「颜色填错了」（422）落进 <code>network</code>，界面会说「网络错误」，这是错的。<br><b>#614 原文：</b>沙箱拒绝绝不能说成「目录不可写」，那是插件自己的限制，不是用户的文件权限问题。',
+  opts:[
+    {k:'a', t:'复用现有 8 档 ＋ 本地写文件失败归 <code>env</code>；404 那一档由后端自己问准后写进 message；<b>沙箱类再单独分出来</b>', e:'格式错归 <code>parse</code>、没登录/没权限归 <code>auth</code>、标签或仓库不存在归 <code>not-found</code>、后端不做这个操作归 <code>unsupported</code>。<b class="pos">省：</b>不动共用形状；沙箱那一档必须能单独说，因为说法完全不同。', rec:true},
+    {k:'b', t:'给错误对象加一个子原因码字段', e:'<b class="pos">稳：</b>界面靠代码判断而不是读字符串。<b class="neg">贵：</b>这个错误形状是所有操作共用的，为标签改色单独加字段会把契约层的面撑大。'},
+    {k:'c', t:'单加一档「输入非法」的枚举值', e:'<b class="neg">贵：</b>枚举是所有后端共用的；「用户填错了」这件事用现有 <code>parse</code> 就能表达。'}
+  ],
+  verdict:'<b>选 a。</b>契约里要写死五句话：<code>parse</code>=你填错了、<code>auth</code>=没登录或没权限、<code>not-found</code>=标签或仓库不存在、<code>unsupported</code>=这个后端不做、<code>env</code>=本地文件写不进去（其中沙箱那一类要能单独辨认）。'
+},
+{
+  id:'q10', title:'404（没权限）的判定归谁',
+  why:'GitHub 对「没有写权限」不返回 403，而是用 404 把资源藏起来 —— 光看改色的报错，分不出「标签名写错了」和「你没有权限」。',
+  after:'要分开这两件事，得额外问一句仓库权限（<code>gh repo view --json viewerPermission</code>）。问题是：这多出来的一次询问，该放在哪一层？',
+  facts:'这是 <b>GitHub 专有</b>的坑 —— 本地 Markdown 与 GitLab 没有同一件事。（GitLab 颜色是项目级的，走的是另一套 API。）',
+  opts:[
+    {k:'a', t:'归 GitHub 后端自己：撞到 404 就多问一次权限，把结论写进 message', e:'<b class="pos">省：</b>契约层不用长出一个只有一家用得上的分支，权限是 GitHub 的概念，不该漏到界面层。', rec:true},
+    {k:'b', t:'归契约层/宿主统一补问', e:'<b class="neg">贵：</b>通用代码里会长出一段只有 GitHub 用得上的逻辑。'},
+    {k:'c', t:'归界面：界面自己调一个查权限的接口', e:'<b class="neg">贵：</b>正好违反「界面不感知后端」。'}
+  ],
+  verdict:'<b>选 a。</b>'
+},
+{
+  id:'q11', title:'改动会不会打破现有后端、要不要兼容层',
+  why:'这是票面交付物点名要回答的。我的答案是「不会破」，但它是<b>机制保证的</b>，不是运气。',
+  after:'机制：往操作清单里<b>新增</b>两个名字之后，注册表会给没有实现它们的后端<b>自动补一个「做不到」的桩</b>。也就是说 GitLab 这一轮一行代码不改，也会诚实地回答「我不做这个」。',
+  facts:'<b>三条实测支撑：</b>① 桩的文案没有任何测试断言，只有日志事件名被门禁钉住，所以自动补桩不会撞门禁。② 现有 <code>setLabels</code> 虽然三个后端都实现了，但<b>宿主与界面没有任何一处调用它</b>，所以「保持它不动」是零风险。③ 另有一处既有偏差：本地 Markdown 的「更新票」操作偷偷支持改标签，而契约声明里没写、另外两个后端也不支持 —— <b>这次不动它，但建议顺手记进「已知偏差」清单</b>，免得后面的人照着它写。',
+  opts:[
+    {k:'a', t:'保持现状（推荐）', e:'不改后端代码、不做兼容层；只同步四处门禁与文档：契约测试清单、客户端到宿主要新增的两个方法、日志对照表、术语表。', rec:true},
+    {k:'b', t:'顺手连 GitLab 也一起实现', e:'见下一题的取舍。'}
+  ],
+  verdict:'<b>这一条我按事实写，只等你一句「认可」或改口。</b>'
+},
+{
+  id:'q12', title:'首期覆盖哪些后端',
+  why:'地图已经定了「首期 GitHub ＋ 本地 Markdown，GitLab 另开票」，但契约层要不要现在就写明 GitLab 的那一档行为？',
+  after:'还有一个房间纪律：<b>一次会话只改一个后端房间</b>。现在动 GitLab 房间，会连带违反这条纪律。',
+  opts:[
+    {k:'a', t:'契约里写明「没实现的后端返回做不到就行」，GitLab 这一轮一行不改', e:'<b class="pos">省：</b>与地图的范围声明一致，也不碰房间纪律。', rec:true},
+    {k:'b', t:'顺手把 GitLab 那个已存在的列标签函数也接进契约，只有改色返回做不到', e:'<b class="pos">齐：</b>三个后端列标签行为一致。<b class="neg">贵：</b>要动 GitLab 房间，和地图的范围声明打架。'}
+  ],
+  verdict:'<b>选 a。</b>'
+},
+{
+  id:'q13', title:'契约定版落在哪',
+  why:'这决定了后面所有落地票去哪读接口。',
+  after:'地图已经定了「收尾时同步改那份旧 ADR 与术语表」，但<b>两个操作的正本在哪</b>没定。',
+  facts:'仓库现在的做法就是「每个操作的接口形状写在它所在文件的文件头」（<code>setLabels</code> 就是这么写的），契约不跟代码分家。',
+  opts:[
+    {k:'a', t:'正本进 <code>contract.js</code> 的接口声明 ＋ 另写一份 ADR 只记「为什么这么做」', e:'<b class="pos">省：</b>跟现有 15 个操作同一处；ADR 不重复接口形状，只回答为什么。', rec:true},
+    {k:'b', t:'正本写进本票正文，代码照抄', e:'<b class="neg">贵：</b>第二天代码和票正文必然漂移。'},
+    {k:'c', t:'新建一份独立的契约文档', e:'<b class="neg">贵：</b>仓库里没有这种存放方式的先例，多一套要维护的地方。'}
+  ],
+  verdict:'<b>选 a。</b>'
+}
+];
+
+/* ───────── 渲染 ───────── */
+var rec = {};
+QS.forEach(function(q){ rec[q.id] = (q.opts.filter(function(o){return o.rec})[0]||q.opts[0]).k });
+
+var sum = document.getElementById('sum');
+QS.forEach(function(q,i){
+  var r = (q.opts.filter(function(o){return o.rec})[0]||q.opts[0]);
+  sum.insertAdjacentHTML('beforeend',
+    '<tr data-row="'+q.id+'"><td class="n">Q'+(i+1)+'</td><td class="t">'+q.title+'</td><td class="r">'+r.t+'</td></tr>')
+});
+
+var host = document.getElementById('cards');
+QS.forEach(function(q,i){
+  var h = '<div class="card" data-card="'+q.id+'">'
+    + '<div class="hd"><span class="qid">Q'+(i+1)+'</span><h2>'+q.title+'</h2></div><div class="body">'
+    + '<div class="why">'
+    +   '<div class="lbl">前因</div><p>'+q.why+'</p>'
+    +   '<div class="lbl">后果</div><p class="after">'+q.after+'</p>'
+    + '</div>'
+    + '<div class="opts">';
+  q.opts.forEach(function(o){
+    h += '<label class="opt'+(o.rec?' rec':'')+'">'
+      + '<input type="radio" name="'+q.id+'" value="'+o.k+'"'+(o.rec?' checked':'')+'>'
+      + '<span><span class="tag">'+o.k+'</span> <span class="tag">'+o.t+'</span>'
+      + '<span class="exp">'+o.e+'</span></span></label>';
+  });
+  h += '</div><div class="verdict">'+q.verdict+'</div>'
+    + '<div class="facts">'+q.facts+'</div>'
+    + '</div></div>';
+  host.insertAdjacentHTML('beforeend', h);
+});
+
+/* ───────── 交互 ───────── */
+function state(){
+  var parts = [], diff = [], n = 0;
+  var fEl = document.querySelector('input[name="flag"]:checked');
+  var fv = fEl ? fEl.value : 'a';
+  if (fEl) n++;
+  if (fv !== 'a') diff.push('前置');
+  parts.push('前置 ' + fv);
+  QS.forEach(function(q,i){
+    var el = document.querySelector('input[name="'+q.id+'"]:checked');
+    var v = el ? el.value : rec[q.id];
+    if (el) n++;
+    if (v !== rec[q.id]) diff.push('Q'+(i+1));
+    parts.push('Q'+(i+1)+' '+v);
+  });
+  return {parts:parts, diff:diff, n:n, total:QS.length+1};
+}
+function render(){
+  var s = state();
+  var decided = s.total - s.diff.length;
+  document.getElementById('fill').style.width = (s.diff.length ? (decided/s.total*100) : 100)+'%';
+  document.getElementById('mtxt').textContent = s.diff.length
+    ? '已按推荐默认作答 ' + decided + ' / ' + s.total + ' · 改了 ' + s.diff.join('、') + '（要改哪题就点那题的别的选项）'
+    : '全部 ' + s.total + ' 题都按推荐 · 可以复制了';
+  document.getElementById('preview').textContent = s.parts.join(' · ');
+  document.getElementById('copy').textContent = s.diff.length ? '复制我的回答（'+s.diff.join('、')+' 已改）' : '复制我的回答';
+  QS.forEach(function(q){
+    var card = document.querySelector('[data-card="'+q.id+'"]');
+    var row  = document.querySelector('[data-row="'+q.id+'"]');
+    var el = document.querySelector('input[name="'+q.id+'"]:checked');
+    var touched = el && el.value !== rec[q.id];
+    if (card) card.classList.toggle('done', touched);
+    if (row)  row.classList.toggle('done', touched);
+  });
+}
+document.addEventListener('change', function(e){ if(e.target && e.target.name) render() });
+document.getElementById('copy').addEventListener('click', function(){
+  var s = state(), btn = this;
+  var head = s.diff.length === 0 ? '全部按推荐。'
+    : '按推荐，但 ' + s.diff.join('、') + ' 我选了不同的一项。';
+  var text = head + '\n' + s.parts.join(' · ');
+  function done(ok){
+    btn.textContent = ok ? '已复制 ✓' : '复制失败，请手动选中底部预览文本';
+    btn.classList.toggle('done', ok);
+    setTimeout(function(){ render(); btn.classList.remove('done') }, 2500);
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){done(true)}, function(){done(false)});
+  } else {
+    try{
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      done(document.execCommand('copy')); document.body.removeChild(ta);
+    }catch(e){ done(false) }
+  }
+});
+render();
+</script>
+</body>
+</html>

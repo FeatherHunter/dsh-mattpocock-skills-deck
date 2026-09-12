@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#615 标签配色 tracker 契约 · 第二轮 6 问</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1d222b; --line:#2a303c;
+    --txt:#e6e9ef; --dim:#9aa4b2; --dim2:#6e7889;
+    --acc:#9d7cd8; --acc2:#8b5cf6; --ok:#10b981; --warn:#f59e0b; --bad:#f87171;
+    --rec:rgba(157,124,216,.14);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:0 0 150px;background:var(--bg);color:var(--txt);
+    font:14px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 22px}
+  h1{font-size:22px;margin:0 0 6px;letter-spacing:.2px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:22px}
+  .sub code,.neg code,.verdict code,.facts code,.locked code{background:#20242d;padding:1px 6px;border-radius:5px;font-size:12px;color:#c8b6f0}
+
+  /* 顶部两条提醒 */
+  .heads{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+  @media(max-width:760px){.heads{grid-template-columns:1fr}}
+  .head{border-radius:12px;padding:13px 15px;font-size:12.5px;line-height:1.65}
+  .head.fix{border:1px solid #6b3a3a;background:linear-gradient(180deg,rgba(248,113,113,.11),rgba(248,113,113,.03))}
+  .head.lock{border:1px solid #2f5d45;background:linear-gradient(180deg,rgba(16,185,129,.10),rgba(16,185,129,.03))}
+  .head h3{margin:0 0 7px;font-size:13px;letter-spacing:.2px}
+  .head.fix h3{color:#fca5a5}
+  .head.lock h3{color:#6ee7b7}
+  .head p{margin:0 0 5px;color:#cfd6e0}
+  .head b{color:#fff}
+
+  /* 速览 */
+  .tbl{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:28px;background:var(--card)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#1b1f28;color:var(--dim);font-weight:600;font-size:11.5px;letter-spacing:.4px;text-transform:uppercase}
+  tr:last-child td{border-bottom:0}
+  td.n{color:var(--acc);font-weight:700;width:46px}
+  td.t{width:215px}
+  td.r{width:255px;color:#c4b5fd}
+  tbody tr:hover{background:#1b202a}
+  tbody tr.done td.n::after{content:" ✓";color:var(--ok)}
+
+  /* 卡片 */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:18px;overflow:hidden}
+  .card.done{border-color:#2f5d45}
+  .hd{padding:14px 18px 12px;background:linear-gradient(180deg,#1c212b,#171a21);border-bottom:1px solid var(--line)}
+  .hd .qid{display:inline-block;background:var(--acc);color:#12101a;font-weight:800;font-size:11px;
+           padding:2px 8px;border-radius:6px;margin-right:9px;vertical-align:2px}
+  .hd h2{display:inline;font-size:15.5px;margin:0;font-weight:650}
+  .body{padding:16px 18px 18px}
+  .why{display:grid;grid-template-columns:52px 1fr;gap:6px 10px;margin-bottom:15px;font-size:13px}
+  .why .lbl{color:var(--dim2);font-size:11.5px;padding-top:3px;letter-spacing:.5px}
+  .why p{margin:0}
+  .why p.after{color:#fbbf24}
+  .opts{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  label.opt{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;
+    border:1px solid var(--line);border-radius:10px;padding:11px 13px;cursor:pointer;background:var(--card2);
+    transition:border-color .12s,background .12s}
+  label.opt:hover{border-color:#3a4356}
+  label.opt input{margin:4px 0 0;accent-color:var(--acc);width:15px;height:15px;flex:none}
+  label.opt .tag{font-weight:650;color:#dfe4ec}
+  label.opt .exp{display:block;color:var(--dim);font-size:12.5px;margin-top:3px}
+  label.opt .exp b.pos{color:#6ee7b7;font-weight:600}
+  label.opt .exp b.neg{color:#fca5a5;font-weight:600}
+  label.opt.rec{background:var(--rec);border-color:#5b4a8a}
+  label.opt.rec .tag:first-child::after{content:"推荐";margin-left:8px;font-size:10.5px;font-weight:700;
+    color:#12101a;background:#c4b5fd;border-radius:5px;padding:1px 6px;vertical-align:1px}
+  .verdict{border-left:3px solid var(--acc2);background:rgba(139,92,246,.09);padding:11px 14px;
+           border-radius:0 9px 9px 0;font-size:13px}
+  .verdict b{color:#c4b5fd}
+  .facts{font-size:12px;color:var(--dim);border-top:1px dashed var(--line);padding-top:10px;margin-top:13px}
+  .facts b{color:#a5b4fc;font-weight:600}
+
+  /* 底部栏 */
+  .bar{position:fixed;left:0;right:0;bottom:0;background:rgba(15,17,21,.96);backdrop-filter:blur(10px);
+       border-top:1px solid var(--line);padding:14px 22px;z-index:50}
+  .bar .inner{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .meter{flex:1;min-width:220px}
+  .meter .track{height:6px;background:#252a35;border-radius:99px;overflow:hidden}
+  .meter .fill{height:100%;width:100%;background:linear-gradient(90deg,var(--acc2),var(--acc));transition:width .25s}
+  .meter .txt{font-size:11.5px;color:var(--dim);margin-top:5px}
+  .ans{background:#12151b;border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:11.5px;
+       color:var(--dim);max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  button.copy{background:var(--acc);border:0;color:#12101a;font-weight:700;font-size:13px;
+              padding:9px 20px;border-radius:9px;cursor:pointer;white-space:nowrap}
+  button.copy:hover{background:#b39ae8}
+  button.copy.done{background:var(--ok);color:#07130d}
+  .hint{font-size:11.5px;color:var(--dim2);margin-top:22px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>#615 · 标签配色的 tracker 契约 · 第二轮 6 问</h1>
+  <div class="sub">
+    第一轮 13 问 ＋ 前置口径，你已「全部按推荐」定案。<br>
+    这一轮只剩 6 问 —— 答完前沿就空了，我会把全部结论写进 #615 正文。
+  </div>
+
+  <div class="heads">
+    <div class="head fix">
+      <h3>⚠ 我先前说错的两处（这一轮更正）</h3>
+      <p><b>① 快照那份标签表不是「白拿的」。</b>我说它走 <code>gh label list</code> —— 那个调用点已经死了。真正在用的是宿主自己拼的一条线，而且<b>本来就不保证拿全</b>。这是 Q15 的前提。</p>
+      <p><b>② 写文件不是原子写。</b>我说「原子写已是这个形态」是错的：本地 Markdown 的写函数<b>直接覆盖目标文件</b>，那个「临时文件＋改名」的函数<b>全仓零个调用点</b>。这是 Q18 的前提。</p>
+    </div>
+    <div class="head lock">
+      <h3>✓ 第 1 轮已定（不用再答，读一遍确认即可）</h3>
+      <p>只定这两个操作＋失败语义（含本地写文件失败那一档）</p>
+      <p>名字 <code>listLabels</code> ＋ <code>setLabelColors</code>；颜色不带 <code>#</code>、小写六位</p>
+      <p>列表字段 <code>{name,color,description?}</code>，不带计数、不分组</p>
+      <p>「全部标签」＝该后端能改色的全部标签，各后端自己聚合</p>
+      <p>增量入参、逐条记账、保存后重拉真值刷新</p>
+      <p>失败复用现有 8 档＋<code>env</code>（沙箱类可单独辨认）；404 权限归 GitHub 后端</p>
+      <p>不破现有后端、无需兼容层；GitLab 这一轮一行不改；正本进契约文件＋一份 ADR 记「为什么」</p>
+    </div>
+  </div>
+
+  <div class="tbl">
+    <table>
+      <thead><tr><th></th><th>要点</th><th>推荐</th></tr></thead>
+      <tbody id="sum"></tbody>
+    </table>
+  </div>
+
+  <div id="cards"></div>
+
+  <div class="hint">勾选会存在本机 —— 刷新不会丢。底部一直显示你已改动的题号。</div>
+</div>
+
+<div class="bar"><div class="inner">
+  <div class="meter">
+    <div class="track"><div class="fill" id="fill"></div></div>
+    <div class="txt" id="mtxt">全部按推荐 · 可直接复制</div>
+  </div>
+  <div class="ans" id="preview">—</div>
+  <button class="copy" id="copy">复制我的回答</button>
+</div></div>
+
+<script>
+var QS = [
+{
+  id:'q14', title:'列表要不要强制「一次拿全」',
+  why:'两个后端的默认取值都有限，而且都没传分页参数 —— GitHub 的列标签命令默认只取 <b>30 条</b>，GitLab 那个接口默认只取 <b>20 条</b>。',
+  after:'标签多的仓库会静默少一截：用户在弹窗里找不到自己那个标签，却完全不知道是插件没拿全。',
+  facts:'<b>仓库别处都传了：</b>issue 列表、拉取请求、评论都写了 <code>per_page=100</code> 或自带翻页，只有这两个列标签的调用点没传。<b>本仓现状：</b>19 个标签，还没撞上限。',
+  opts:[
+    {k:'a', t:'契约写明「这个列表必须完整」', e:'GitHub 走接口分页，GitLab 补上每页 100。<b class="pos">省：</b>与仓库既有做法一致，标签再多也不会少。<b class="neg">贵：</b>后端要多做一步翻页（但仓库里已有现成写法可抄）。', rec:true},
+    {k:'b', t:'只补一个足够大的固定上限', e:'<b class="pos">省：</b>改动最小。<b class="neg">贵：</b>「足够大」是拖延 —— 迟早还会撞上，而且撞上时同样无声无息。'},
+    {k:'c', t:'不管，标签多的仓库自己少一截', e:'<b class="neg">贵：</b>这正是实测已经抓到的缺陷，留着就是留着说不清的 bug。'}
+  ],
+  verdict:'<b>选 a。</b>契约里把「必须完整」写成硬要求，各后端自己决定怎么做到。'
+},
+{
+  id:'q15', title:'快照里那份标签表留不留',
+  why:'面板快照里现在已经带一份标签表（名＋色）。第一轮 Q4 定了新操作会返回描述，于是要回答：这两份是什么关系。',
+  after:'我先前把这份快照数据说成「白拿、可以当现成来源」——查完代码发现不是（见顶部更正①）。所以这不是「反复做同一件事」，而是两份数据各有各的用途。',
+  facts:'<b>两份的性质不同：</b>快照那份是<b>已有数据的派生结果</b>（从各票的标签收集而来，按需刷新、本来就不保证拿全），给面板快速显示与标签筛选用；新操作是<b>现拿的权威列表</b>，给弹窗改色用。',
+  opts:[
+    {k:'a', t:'两份都留，各管一段：快照那份给面板显示，弹窗每次现拿一份准的', e:'<b class="pos">省：</b>面板首屏不受影响；弹窗拿到的一定是全量、带描述的最新值。<b class="neg">贵：</b>契约与代码里要写清「谁是权威」，否则以后有人会拿快照那份去改色。', rec:true},
+    {k:'b', t:'删掉快照那份，全都改成现拿', e:'<b class="neg">贵：</b>面板每次打开都要多等一次请求，首屏变慢，而面板本来只需要颜色。'},
+    {k:'c', t:'弹窗复用快照那份缓存，不另发请求', e:'<b class="neg">贵：</b>等于把「一次拿全」这条要求作废，改完色的刷新逻辑也会变得暧昧。'}
+  ],
+  verdict:'<b>选 a。</b>并在契约里点明：<b>权威列表只来自新操作，快照那份是派生显示数据</b>。'
+},
+{
+  id:'q16', title:'改一个「不存在的标签」的颜色，算失败还是算新建',
+  why:'GitHub 改不存在的标签会返回 404；而本地 Markdown <b>没有「标签必须已存在」这个概念</b> —— 它的标签来源就是那个配色文件，往文件里加一行本来就是正常动作。',
+  after:'这里有一个关键事实能帮判断：<b>用户在弹窗里选中了某个标签，选的这个动作本身就说明它存在</b>。所以 404 只会出现在极窄的竞态里 —— 弹窗打开之后，那儿有人把这个标签删了。',
+  facts:'<b>本地 Markdown 的真实场景：</b>某张票的标签没进配色文件时，它显示灰色；用户想给它上色，保存时就是往文件里新增一行 —— 若强行报「标签不存在」，这条最正常的用法反而走不通。',
+  opts:[
+    {k:'a', t:'语义分开：GitHub 撞到 404 就如实报「标签不存在」；本地 Markdown 允许新增一行、返回成功', e:'<b class="pos">省：</b>界面按统一方式处理两种结果 —— 成功就是成功，失败就进「失败清单」并说明原因。<b class="neg">贵：</b>契约要写明「两边对不存在的标签行为不同」，不能想当然。', rec:true},
+    {k:'b', t:'契约层强行拉平：两边都不许新增，一律报「标签不存在」', e:'<b class="neg">贵：</b>会让本地 Markdown 最正常的用法走不通（给票上出现过、但文件里还没有的标签上色）。'},
+    {k:'c', t:'契约层强行拉平：两边都允许新增', e:'<b class="neg">贵：</b>GitHub 做不到，会变成「先建一个标签再改色」，超出本票范围。'}
+  ],
+  verdict:'<b>选 a。</b>这是「诚实」而不是「不一致」：GitHub 上「标签不存在」必须如实报，本地 Markdown 上「加一行」不改变任何既有行为。'
+},
+{
+  id:'q17', title:'同工作区两个会话同时点保存，谁来串行化',
+  why:'本地 Markdown 的写文件是典型的「读—改—写」，而且<b>没有任何锁</b>：A 读、B 读、A 写、B 写 → <b>A 的改动无声消失</b>，不会有任何报错。',
+  after:'配色文件是「整份一次性覆盖」的性质。两个会话同时保存，就是后保存的那份完整生效、先保存的那份<b>整整一轮改色蒸发</b>。这类投诉最难查 —— 用户说保存成功了，颜色却没变。',
+  facts:'<b>可照抄的现成写法：</b>仓库里日志落盘那套「单写者队列 ＋ 防抖」正是为「同一进程内两个会话同时写」准备的。<b>另一半风险：</b>文件是你自己也会手改的 —— 如果文件正好被编辑器占着或写坏了，读回来的内容会解析失败，此时若照常覆盖写，你的内容就被推平了。',
+  opts:[
+    {k:'a', t:'契约写一条硬要求：读—改—写必须串行化；并且「文件读不出来或解析不了时，一律不许写」', e:'<b class="pos">省：</b>照抄现成写法即可；「读不出来就不许写」是保护你手改内容的最后一道闸。<b class="neg">贵：</b>契约与实现都要显式对待这两种失败，不能假装不会发生。', rec:true},
+    {k:'b', t:'不写进契约，留给落地票自己看情况', e:'<b class="neg">贵：</b>跨会话丢改动依旧会发生，而且换个人接手时不会知道这里有坑。'},
+    {k:'c', t:'只在界面上做：同一会话内按钮变灰，跨会话不管', e:'<b class="neg">贵：</b>只管住了自己那个会话；两个会话各自保存的丢失照旧。'}
+  ],
+  verdict:'<b>选 a。</b>尤其是「读不出来就不许写」这一条 —— 少了它，一次读失败就等于把你写进文件的内容推平。'
+},
+{
+  id:'q18', title:'写文件要不要原子（这条基于我的更正②）',
+  why:'本地 Markdown 现在的写函数<b>直接覆盖目标文件</b>；那个「同目录临时文件＋改名」的函数全仓零个调用点，是死代码。做原子写的是更新模块。',
+  after:'配色文件是<b>你自己会手改、也会提交进版本库</b>的文件。直接覆盖的写法在写入过程中崩溃或断电时，会把你写进去的内容一起带走，留下半截文件。',
+  facts:'<b>该不该统一改的取舍点：</b>本地 Markdown 房间一共有四个写文件的地方（票正文、新建票、改状态、加评论）＋ 这个新的配色文件。<b>只有配色文件有你手改、入库、整份覆盖这三个特点</b>，票文件没有。',
+  opts:[
+    {k:'a', t:'契约写明「改色写入必须是原子写」，只有这一个文件走这条路', e:'<b class="pos">省：</b>风险最大的那个文件被保护住；不碰票文件那三处，改动面可控。<b class="neg">贵：</b>同一个房间会出现两种写入方式，要在注释里写清为什么。', rec:true},
+    {k:'b', t:'沿用现有的直接覆盖', e:'<b class="pos">省：</b>零改动、写法统一。<b class="neg">贵：</b>崩溃时可能留下半截文件，而这是你会手改的文件。'},
+    {k:'c', t:'把本地 Markdown 房间所有写文件的地方一起改成原子写', e:'<b class="pos">齐：</b>全房间写入方式统一。<b class="neg">贵：</b>把 #618 撑大，且动了三处不在本票范围内的既有行为。'}
+  ],
+  verdict:'<b>选 a。</b>理由是这个文件的身份特殊（你手改、入库、整份覆盖），票文件那三处不在本票范围。'
+},
+{
+  id:'q19', title:'宿主对界面暴露的两个方法叫什么',
+  why:'现在界面能调到的宿主方法里<b>没有任何标签相关的</b>。要让弹窗用上这两个操作，得新开两条宿主到客户端的通路。',
+  after:'命名不统一的话，日志与排查时要在「契约名 ↔ 宿主名」之间做二次翻译 —— 而这个仓库恰恰很依赖日志来定位问题。',
+  facts:'宿主那一层的命名今天并不统一：有的方法与操作名一致，有的不一致。',
+  opts:[
+    {k:'a', t:'与操作名同名：<code>listLabels</code>、<code>setLabelColors</code>', e:'<b class="pos">省：</b>同一个动作在契约层与宿主层用同一个词，日志里一眼能对上，不用翻译。', rec:true},
+    {k:'b', t:'起一组更短的名字（例如 labels、labelColors）', e:'<b class="neg">贵：</b>同一个动作两个名字，排查时要多记一层对应关系。'}
+  ],
+  verdict:'<b>选 a。</b>'
+}
+];
+
+/* 渲染 */
+var sum = document.getElementById('sum');
+QS.forEach(function(q,i){
+  var r = q.opts.filter(function(o){return o.rec})[0];
+  sum.insertAdjacentHTML('beforeend',
+    '<tr data-row="'+q.id+'"><td class="n">Q'+(i+14)+'</td><td class="t">'+q.title+'</td><td class="r">'+r.t+'</td></tr>');
+});
+var host = document.getElementById('cards');
+QS.forEach(function(q,i){
+  var h = '<div class="card" data-card="'+q.id+'">'
+    + '<div class="hd"><span class="qid">Q'+(i+14)+'</span><h2>'+q.title+'</h2></div><div class="body">'
+    + '<div class="why"><div class="lbl">前因</div><p>'+q.why+'</p>'
+    + '<div class="lbl">后果</div><p class="after">'+q.after+'</p></div>'
+    + '<div class="opts">';
+  q.opts.forEach(function(o){
+    h += '<label class="opt'+(o.rec?' rec':'')+'">'
+      + '<input type="radio" name="'+q.id+'" value="'+o.k+'"'+(o.rec?' checked':'')+'>'
+      + '<span><span class="tag">'+o.k+'</span> <span class="tag">'+o.t+'</span>'
+      + '<span class="exp">'+o.e+'</span></span></label>';
+  });
+  h += '</div><div class="verdict">'+q.verdict+'</div><div class="facts">'+q.facts+'</div></div></div>';
+  host.insertAdjacentHTML('beforeend', h);
+});
+
+/* 交互：记忆到本机 */
+var KEY = 'd615-round2';
+var saved = {};
+try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {} } catch(e){ saved = {} }
+Object.keys(saved).forEach(function(id){
+  var el = document.querySelector('input[name="'+id+'"][value="'+saved[id]+'"]');
+  if (el) el.checked = true;
+});
+function recOf(id){ var q = QS.filter(function(x){return x.id===id})[0]; return q.opts.filter(function(o){return o.rec})[0].k }
+function state(){
+  var parts = [], diff = [];
+  QS.forEach(function(q,i){
+    var el = document.querySelector('input[name="'+q.id+'"]:checked');
+    var v = el ? el.value : recOf(q.id);
+    if (v !== recOf(q.id)) diff.push('Q'+(i+14));
+    parts.push('Q'+(i+14)+' '+v);
+  });
+  return {parts:parts, diff:diff, total:QS.length};
+}
+function render(){
+  var s = state();
+  var decided = s.total - s.diff.length;
+  document.getElementById('fill').style.width = (s.diff.length ? decided/s.total*100 : 100)+'%';
+  document.getElementById('mtxt').textContent = s.diff.length
+    ? '已按推荐默认作答 '+decided+' / '+s.total+' · 改了 '+s.diff.join('、')
+    : '全部 '+s.total+' 题都按推荐 · 可以复制了';
+  document.getElementById('preview').textContent = s.parts.join(' · ');
+  document.getElementById('copy').textContent = s.diff.length ? '复制我的回答（'+s.diff.join('、')+' 已改）' : '复制我的回答';
+  QS.forEach(function(q){
+    var el = document.querySelector('input[name="'+q.id+'"]:checked');
+    var touched = el && el.value !== recOf(q.id);
+    var c = document.querySelector('[data-card="'+q.id+'"]'), r = document.querySelector('[data-row="'+q.id+'"]');
+    if (c) c.classList.toggle('done', touched);
+    if (r) r.classList.toggle('done', touched);
+  });
+}
+document.addEventListener('change', function(e){
+  if (!e.target || !e.target.name) return;
+  saved[e.target.name] = e.target.value;
+  try { localStorage.setItem(KEY, JSON.stringify(saved)) } catch(err){}
+  render();
+});
+document.getElementById('copy').addEventListener('click', function(){
+  var s = state(), btn = this;
+  var head = s.diff.length === 0 ? '全部按推荐。' : '按推荐，但 '+s.diff.join('、')+' 我选了不同的一项。';
+  var text = head + '\n' + s.parts.join(' · ');
+  function done(ok){
+    btn.textContent = ok ? '已复制 ✓' : '复制失败，请手动选中底部预览文本';
+    btn.classList.toggle('done', ok);
+    setTimeout(function(){ render(); btn.classList.remove('done') }, 2500);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){done(true)}, function(){done(false)});
+  } else {
+    try { var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta);
+          ta.select(); done(document.execCommand('copy')); document.body.removeChild(ta); }
+    catch(e){ done(false) }
+  }
+});
+render();
+</script>
+</body>
+</html>

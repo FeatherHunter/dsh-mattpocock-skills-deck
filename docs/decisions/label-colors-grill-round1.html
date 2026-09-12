@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>标签配色可编辑 · 第一轮问题与推荐答案（13 问）</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --ink:#1f2328; --muted:#5b6472; --line:#e3e7ec;
+    --rec:#1a7f37; --rec-bg:#dafbe1; --alt:#6b7280; --warn:#9a6700; --warn-bg:#fff8c5;
+    --blue:#0969da; --blue-bg:#ddf4ff; --purple:#8250df; --purple-bg:#fbefff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.65 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  a{color:var(--blue)}
+  .wrap{max-width:1080px;margin:0 auto;padding:22px 18px 80px}
+  header.hero{background:linear-gradient(160deg,#1f2937,#111827);color:#f9fafb;border-radius:14px;padding:22px 24px}
+  header.hero h1{margin:0 0 8px;font-size:23px;letter-spacing:.3px}
+  header.hero p.sub{margin:0;color:#cbd5e1;font-size:14px}
+  .chips{margin:14px 0 0;display:flex;flex-wrap:wrap;gap:8px}
+  .chips span{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);
+       border-radius:999px;padding:3px 11px;font-size:12.5px}
+  .howto{margin:14px 0 0;background:rgba(255,255,255,.08);border-left:3px solid #60a5fa;
+       border-radius:0 8px 8px 0;padding:9px 12px;font-size:13.5px;color:#e5e7eb}
+  h2{font-size:17px;margin:26px 0 10px}
+  section.box,article.q{background:var(--card);border:1px solid var(--line);border-radius:12px}
+  section.box{padding:16px 18px}
+  .facts li{margin:7px 0}
+  .facts code,.why code,.proscons code,.opts code{background:#f1f3f6;border:1px solid #e5e8ee;
+       border-radius:5px;padding:1px 5px;font-size:12.5px;
+       font-family:ui-monospace,Consolas,"Courier New",monospace}
+  table.sum{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  table.sum th,table.sum td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:13.5px;vertical-align:top}
+  table.sum th{background:#f0f2f5;font-weight:600;color:#374151}
+  table.sum tr:last-child td{border-bottom:none}
+  table.sum td.q{white-space:nowrap;font-weight:600;color:var(--blue);width:52px}
+  table.sum td.pick{white-space:nowrap;color:var(--rec);font-weight:600;width:72px}
+  article.q{margin:14px 0;padding:0;overflow:hidden}
+  .qhead{display:flex;align-items:center;gap:10px;padding:13px 16px;background:#fafbfc;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .qno{background:#111827;color:#fff;border-radius:7px;font-size:12.5px;font-weight:700;padding:2px 8px}
+  .qhead h3{margin:0;font-size:15.5px;flex:1;min-width:220px}
+  .rec{background:var(--rec-bg);color:var(--rec);border:1px solid #a7f0ba;border-radius:999px;
+       padding:2px 10px;font-size:12.5px;font-weight:600;white-space:nowrap}
+  .qbody{padding:13px 16px}
+  .why{margin:0 0 9px;color:#374151}
+  .why b{color:#111827}
+  .facts{background:var(--blue-bg);border:1px solid #b6e3ff;border-radius:9px;padding:8px 12px 8px 26px;margin:0 0 11px;font-size:13.5px}
+  .facts li{margin:4px 0}
+  .opts{display:grid;gap:6px;margin:0 0 11px}
+  label.opt{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--line);border-radius:9px;
+       padding:8px 11px;cursor:pointer;background:#fff;font-size:13.8px}
+  label.opt:hover{border-color:#c9d3df;background:#fcfdff}
+  label.opt.is-rec{border-color:#a7f0ba;background:#f6fff9}
+  label.opt input{margin:3px 0 0;accent-color:#1a7f37}
+  label.opt .tag{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;
+       border-radius:5px;background:#eef1f5;color:#374151;font-size:12px;font-weight:700;flex:none;margin-top:1px}
+  label.opt.is-rec .tag{background:var(--rec-bg);color:var(--rec)}
+  label.opt em{font-style:normal;color:var(--rec);font-weight:700;font-size:12.5px;margin-left:4px;white-space:nowrap}
+  .proscons{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .proscons div{border-radius:9px;padding:8px 11px;font-size:13.4px}
+  .pro{background:var(--rec-bg);border:1px solid #a7f0ba}
+  .con{background:var(--warn-bg);border:1px solid #f2e08a}
+  .proscons strong{display:block;margin-bottom:3px;font-size:12.8px}
+  .answerbox{background:#111827;color:#f3f4f6;border-radius:12px;padding:16px 18px;margin-top:26px}
+  .answerbox h2{margin:0 0 8px;color:#fff}
+  #answerText{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:9px;
+       padding:11px 13px;font-size:14px;line-height:1.9;word-break:break-word}
+  #answerText .diff{color:#fbbf24;font-weight:600}
+  .abtn{margin-top:11px;background:#2563eb;color:#fff;border:none;border-radius:8px;
+       padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer}
+  .abtn:hover{background:#1d4ed8}
+  .hint{color:#9ca3af;font-size:13px;margin:9px 0 0}
+  .top{position:fixed;right:16px;bottom:16px;background:#111827;color:#fff;text-decoration:none;
+       border-radius:999px;padding:9px 15px;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+  @media (max-width:760px){.proscons{grid-template-columns:1fr}}
+  @media print{.top{display:none}body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>标签配色可编辑 —— 第一轮问题（13 问）</h1>
+  <p class="sub">需求：现在本地 Markdown 后端的标签颜色，是靠初始化时把一段「标签调色盘」文字注入提示词、让 AI 写进 <code>docs/agents/triage-labels.md</code>。你希望改成「插件在初始化命令建的文件夹里自己放一个可手改的配色文件」，并在右侧面板加一个很小的入口，点开弹窗就能改色（GitHub 改仓库标签、本地 Markdown 改那个文件），再配一个「推荐配色方案」的提示词按钮。</p>
+  <div class="chips">
+    <span>13 个问题 · 每题带推荐答案</span>
+    <span>5 条已查清的事实</span>
+    <span>不猜：没定的都摆在这里</span>
+  </div>
+  <p class="howto"><b>怎么用</b>：每张卡片里勾一个你认可的选项（推荐项已默认勾好），页面底部会自动拼出你的回复，点「复制我的回答」贴回对话即可。想省事，直接回一句「全按推荐」也行。</p>
+</header>
+
+<section class="box" style="margin-top:20px">
+  <h2>动手前已经查清的 5 条事实（不用你答）</h2>
+  <ul class="facts">
+    <li><b>颜色现在住在哪</b>：<code>docs/agents/triage-labels.md</code> 里那张 <code>## Label palette</code> 表格，插件<b>只读不写</b>；表格是初始化时由 AI 照注入文本建的。</li>
+    <li><b>插件能不能自己往工作区放文件</b>：能写，但现在<b>只写 <code>.scratch/</code> 目录</b>；<code>docs/agents/</code> 对插件是只读的。所以「插件放一个用户手改的文件」是<b>头一次</b>，属新增能力，写入被系统拒绝时仓库里已有诚实处理。</li>
+    <li><b>GitHub 这边</b>：读颜色已经在用（<code>gh label list --json name,color</code>），但<b>改颜色的代码一处都没有</b>；本机实测 <code>gh label edit &lt;名字&gt; --color &lt;6位十六进制&gt;</code> 可用。</li>
+    <li><b>用 TS 写行不行</b>：行。仓库里已有两个 TS 先例（日志包、更新包）。JS 点击入口调用 TS 代码，靠的是<b>构建时生成副本</b>，不是运行时直接引用；代价是构建脚本与约六道门禁要同步改。</li>
+    <li><b>面板与控件</b>：面板头部那排只有 2 个图标，是全面板最不挤的位置；仓库里<b>没有任何取色控件</b>（零命中），这次要新做。</li>
+  </ul>
+</section>
+
+<h2>一屏速览：13 条建议</h2>
+<table class="sum">
+  <tr><th>问</th><th>要点</th><th>推荐</th></tr>
+  <tr><td class="q"><a href="#q1">Q1</a></td><td>这张图只出方案，还是一路做到能用</td><td class="pick">b 携带执行</td></tr>
+  <tr><td class="q"><a href="#q2">Q2</a></td><td>配色文件放哪、什么格式</td><td class="pick">a 新建 JSON</td></tr>
+  <tr><td class="q"><a href="#q3">Q3</a></td><td>谁在什么时机把文件放进去</td><td class="pick">c 两条路幂等</td></tr>
+  <tr><td class="q"><a href="#q4">Q4</a></td><td>仓库里多一个未跟踪文件能接受吗</td><td class="pick">a 可接受</td></tr>
+  <tr><td class="q"><a href="#q5">Q5</a></td><td>存量工作区里的旧 md 表格怎么办</td><td class="pick">a 只读兼容</td></tr>
+  <tr><td class="q"><a href="#q6">Q6</a></td><td>注入文本清理到哪一步</td><td class="pick">a 只删那一节</td></tr>
+  <tr><td class="q"><a href="#q7">Q7</a></td><td>入口放在面板哪里、多大</td><td class="pick">a 头部小图标</td></tr>
+  <tr><td class="q"><a href="#q8">Q8</a></td><td>弹窗列哪些标签、怎么保存</td><td class="pick">a 全量+批量</td></tr>
+  <tr><td class="q"><a href="#q9">Q9</a></td><td>取色控件长什么样</td><td class="pick">a 取色盘+色块</td></tr>
+  <tr><td class="q"><a href="#q10">Q10</a></td><td>「推荐配色方案」按钮点了做什么</td><td class="pick">a 注入会话</td></tr>
+  <tr><td class="q"><a href="#q11">Q11</a></td><td>首期支持哪些后端</td><td class="pick">a GitHub+Markdown</td></tr>
+  <tr><td class="q"><a href="#q12">Q12</a></td><td>新功能用什么语言、什么结构</td><td class="pick">a TS 子工程</td></tr>
+  <tr><td class="q"><a href="#q13">Q13</a></td><td>学 vscode 到底学哪几条</td><td class="pick">a 三条纪律</td></tr>
+</table>
+
+<main>
+
+<article class="q" id="q1">
+  <div class="qhead"><span class="qno">Q1</span><h3>这张图的终点是什么：只出方案，还是一路做到能用？</h3><span class="rec">推荐 b</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：你的需求 1、3 是「调查能不能做」，需求 2 是「要加入口、要能改色」——两者混在一张图里。如果只出方案，方案定完还要另起一轮才能看到东西；如果携带执行，调查结论直接长成代码。</p>
+    <ul class="facts">
+      <li>本仓最近一张还开着的地图（性能图 #604）就在正文里写明「本图携带执行」，是有先例的做法。</li>
+      <li>wayfinder 默认是「只做决策不做交付」，但允许在 Notes 里改成携带执行。</li>
+    </ul>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="q1" value="a"><span class="tag">a</span>只出定版方案（数据结构、双后端契约、TS 结构、界面交互），代码另立一轮。</label>
+      <label class="opt is-rec"><input type="radio" name="q1" value="b" checked><span class="tag">b</span>携带执行：图上票一路做到「面板里真能改色、真能生效」，最后真机验收。<em>推荐</em></label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>b 的好处</strong>不用来回返工：「机制能不能做」的结论直接变成能点的按钮。</div>
+      <div class="con"><strong>b 的代价</strong>图更长；落地期需要你真手上机点一次验收。选 a 的话，好处是快，代价是今天问的问题还要再答第二遍。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q2">
+  <div class="qhead"><span class="qno">Q2</span><h3>本地配色文件放在哪、用什么格式？</h3><span class="rec">推荐 a</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：这是你需求 1 的核心——「能不能插件自己放一个文件、用户能手改」。颜色总得有个地方住，先定这个地方。</p>
+    <ul class="facts">
+      <li>现在的颜色真源是 markdown 表格（<code>docs/agents/triage-labels.md</code>），插件只读；用程序改写 markdown 表格容易碰坏用户自己写的排版和别的段落。</li>
+      <li>插件缓存目录（<code>.dsh-mattskillsdeck-cache/</code>）算出来是 <b>DSH 进程所在目录</b>，不是工作区，换机器/换目录就丢。</li>
+    </ul>
+    <div class="opts">
+      <label class="opt is-rec"><input type="radio" name="q2" value="a" checked><span class="tag">a</span>新建 <code>docs/agents/label-colors.json</code>（就是初始化命令生成的那个文件夹），扁平存 <code>{"wayfinder:map": "#8b5cf6", ...}</code>，JSON 做唯一真源。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q2" value="b"><span class="tag">b</span>继续用 <code>triage-labels.md</code> 的表格，插件改写表格里的色值。</label>
+      <label class="opt"><input type="radio" name="q2" value="c"><span class="tag">c</span>两个都留：JSON 做真源、md 表格由插件同步生成给人看。</label>
+      <label class="opt"><input type="radio" name="q2" value="d"><span class="tag">d</span>放插件自己的缓存目录，不进用户仓库。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>a 的好处</strong>读写都安全（只碰自己那一个文件）、人类也能直接看懂、位置正好是你说的「命令建的文件夹」。</div>
+      <div class="con"><strong>a 的代价</strong>仓库里多一个文件要提交。b 的隐患是改坏用户文档；c 要维护两份、还多了「谁覆盖谁」的规则；d 换个目录就丢配色。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q3">
+  <div class="qhead"><span class="qno">Q3</span><h3>谁在什么时机把这个文件放进去？</h3><span class="rec">推荐 c</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：你希望「自动放一个文件」，但插件抢先往用户仓库塞文件是有代价的，所以时机要挑明白。</p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="q3" value="a"><span class="tag">a</span>只在用户点「初始化」时顺手放一份。</label>
+      <label class="opt"><input type="radio" name="q3" value="b"><span class="tag">b</span>只在首次打开配色弹窗时，若缺文件就懒创建。</label>
+      <label class="opt is-rec"><input type="radio" name="q3" value="c" checked><span class="tag">c</span>两条路都做，且都幂等——已存在就绝不覆盖用户改过的内容。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q3" value="d"><span class="tag">d</span>都不自动放，弹窗里给一个「创建配色文件」按钮，用户点了才建。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>c 的好处</strong>既满足「自动放」，又不会在用户根本没打算用这个功能时抢塞文件（他先点弹窗才生成）。</div>
+      <div class="con"><strong>c 的代价</strong>两条写入路径都要写测试。a 的隐患是「初始化在 setup 之前点」这类时序问题；d 最保守但你得手动点一次。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q4">
+  <div class="qhead"><span class="qno">Q4</span><h3>仓库里多一个未跟踪文件，可以接受吗？</h3><span class="rec">推荐 a</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：Q2 选 a 就意味着工作区里会多一个文件，它会出现在 <code>git status</code> 里，对你是「多了一个要提交的东西」。这条得你点头。</p>
+    <div class="opts">
+      <label class="opt is-rec"><input type="radio" name="q4" value="a" checked><span class="tag">a</span>可以接受，而且<b>不替用户改 <code>.gitignore</code></b>；只在弹窗和文档里说清「这个文件建议提交，提交了团队才共享同一套配色」。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q4" value="b"><span class="tag">b</span>不能接受在仓库里多文件 → 改成放插件缓存目录（即 Q2 选 d）。</label>
+      <label class="opt"><input type="radio" name="q4" value="c"><span class="tag">c</span>可以接受，但插件顺手把该文件加进 <code>.gitignore</code>。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>a 的好处</strong>不碰仓库配置（那是 setup 技能的地盘），也不替用户做「要不要入库」的决定。</div>
+      <div class="con"><strong>a 的代价</strong>文件不入库的话，换台机器配色就没了——需要靠弹窗里一句说明来提醒。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q5">
+  <div class="qhead"><span class="qno">Q5</span><h3>存量工作区里那张已经有颜色的旧表格，怎么办？</h3><span class="rec">推荐 a</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：不少工作区（包括本仓库）已经按老办法在 md 里建好了配色表。新机制上线后，这些颜色是丢、是迁、还是照读，必须选一个。</p>
+    <ul class="facts"><li>旧表格解析规则很清楚：3 列（名字/色值/含义），也兼容 4 列老格式；读不出来就回落灰色。</li></ul>
+    <div class="opts">
+      <label class="opt is-rec"><input type="radio" name="q5" value="a" checked><span class="tag">a</span>读的时候兼容旧表格，<b>JSON 优先</b>；存量不迁移、不删表。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q5" value="b"><span class="tag">b</span>首次打开弹窗时把旧表颜色一次性导入 JSON，并把 md 里那一节删掉。</label>
+      <label class="opt"><input type="radio" name="q5" value="c"><span class="tag">c</span>完全不管旧表，用户自己重设。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>a 的好处</strong>老工作区的颜色一点不丢，也不用插件去删用户文档里的段落。</div>
+      <div class="con"><strong>a 的代价</strong>过渡期里「两个来源」并存，得把「JSON 优先」这条规则写进代码与文档；选 c 最干净但会让人发现颜色突然没了。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q6">
+  <div class="qhead"><span class="qno">Q6</span><h3>初始化注入的那段颜色文本，清理到哪一步？</h3><span class="rec">推荐 a</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：你问「是否可以直接清理掉初始化时注入的那些 md 颜色文本」。落点已经查清：那段文字是一处独立文案，删起来干净。</p>
+    <ul class="facts">
+      <li>注入文案在 <code>src/client/kernel/locale-panel.js</code>（中英各一份），由 <code>src/client/kernel/prompts.js</code> 的 <code>setupRun</code> 拼进提示词。</li>
+      <li>删它要动提示词版本号，并同步改几道门禁（提示词、文案完整性、后端契约键表）。</li>
+    </ul>
+    <div class="opts">
+      <label class="opt is-rec"><input type="radio" name="q6" value="a" checked><span class="tag">a</span>只删「标签调色盘」这一节（<code>paletteNote</code>），初始化其余文案不动。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q6" value="b"><span class="tag">b</span>连初始化里其它跟颜色有关的句子一起清理。</label>
+      <label class="opt"><input type="radio" name="q6" value="c"><span class="tag">c</span>连「读旧表格」的兼容代码也一起删干净（只有 Q5 选 c 时才成立）。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>a 的好处</strong>新仓库再也不会被要求建表，老仓库仍读得到颜色；改动小、可回退。</div>
+      <div class="con"><strong>a 的代价</strong>旧工作区里那段文字会留着（无害但是死文本）；想彻底干净就选 b/c，代价是风险变大。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q7">
+  <div class="qhead"><span class="qno">Q7</span><h3>入口放在右侧面板哪里、多大？</h3><span class="rec">推荐 a</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：你要求「入口要小」。面板里能放小图标的地方有两处，拥挤程度差很多。</p>
+    <ul class="facts">
+      <li>面板<b>头部</b>那一排：1 个仓库胶囊 + 2 个图标（切换仓库、关闭）——很空。</li>
+      <li>下面<b>标签行</b>：4~5 个标签 + 3 个按钮 + 版本号，共 8~9 个东西，已经要靠「按宽度把文字收成图标」来续命。</li>
+    </ul>
+    <div class="opts">
+      <label class="opt is-rec"><input type="radio" name="q7" value="a" checked><span class="tag">a</span>面板头部右侧加一个小图标（16×16，与现有那个仓库切换图标同规格，悬停提示「标签配色」）。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q7" value="b"><span class="tag">b</span>放设置页里一栏。</label>
+      <label class="opt"><input type="radio" name="q7" value="c"><span class="tag">c</span>放状态栏菜单里。</label>
+      <label class="opt"><input type="radio" name="q7" value="d"><span class="tag">d</span>两处都放（头部小图标 + 设置页）。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>a 的好处</strong>抓住了最不挤的位置，且那个位置已经有同规格小图标的现成写法可抄。</div>
+      <div class="con"><strong>a 的代价</strong>头部顶部那一条会被加宽一点点；如果将来图标继续加，还是得考虑收进「更多」菜单。d 更全面但要多维护一处入口。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q8">
+  <div class="qhead"><span class="qno">Q8</span><h3>弹窗里列哪些标签？改完怎么保存？</h3><span class="rec">推荐 a</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：两个后端能拿到的标签范围不同，保存方式又要兼顾「一次改好几个」和「别误触」。</p>
+    <ul class="facts"><li>GitHub 的标签颜色是<b>仓库级</b>的（不是每张票一份），所以没被用到的标签也值得能提前调。</li></ul>
+    <div class="opts">
+      <label class="opt is-rec"><input type="radio" name="q8" value="a" checked><span class="tag">a</span>GitHub 列仓库全部标签，分成「已用到 / 未用到」两组；改动先存草稿，底部一个「保存」批量提交。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q8" value="b"><span class="tag">b</span>只列票面上已经出现过的标签。</label>
+      <label class="opt"><input type="radio" name="q8" value="c"><span class="tag">c</span>每改一个颜色就立刻保存。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>a 的好处</strong>一次调用成批改完、界面上一眼看出「哪些还没保存」；也符合你说的「点保存再写上去」。</div>
+      <div class="con"><strong>a 的代价</strong>要多做草稿态和「未保存」提示；选 c 更简单，但会在 GitHub 上打出一串零散调用，也容易误触就改了。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q9">
+  <div class="qhead"><span class="qno">Q9</span><h3>取色控件长什么样？</h3><span class="rec">推荐 a</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：你要求「点某个标签的颜色后出现调色盘，允许手动选」。仓库里目前<b>没有任何取色控件</b>，这次是全新做。</p>
+    <div class="opts">
+      <label class="opt is-rec"><input type="radio" name="q9" value="a" checked><span class="tag">a</span>原生取色盘（点色块弹浏览器/系统调色盘）+ 十六进制输入框 + 一排预置色块快选。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q9" value="b"><span class="tag">b</span>只用原生取色盘，不加输入框和色块。</label>
+      <label class="opt"><input type="radio" name="q9" value="c"><span class="tag">c</span>只用一排预置色块，不弹调色盘。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>a 的好处</strong>原生调色盘零依赖、就是你要的「调色盘」；预置色块是给「不知道填什么十六进制」的人准备的快路。</div>
+      <div class="con"><strong>a 的代价</strong>三段控件要摆紧凑，面板变窄时要处理换行；选 b/c 更省事但少一条路。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q10">
+  <div class="qhead"><span class="qno">Q10</span><h3>「推荐配色方案」按钮点下去，之后发生什么？</h3><span class="rec">推荐 a</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：你给了这个按钮的内容设想（列出当前标签 → 让 AI 用 gh 或改文件）。剩下要定的是「提示词往哪儿送」。</p>
+    <ul class="facts"><li>面板里现有的一批 prompt 按钮统一走「注入当前会话」这条路，另加可复制。</li></ul>
+    <div class="opts">
+      <label class="opt is-rec"><input type="radio" name="q10" value="a" checked><span class="tag">a</span>注入当前会话（与现有按钮同机制），GitHub 版提示词让 AI 用 gh 改色、本地 Markdown 版让它改那个 JSON 文件。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q10" value="b"><span class="tag">b</span>只复制到剪贴板，用户自己找地方贴。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>a 的好处</strong>和现有按钮一套机制、用户点一下就有人干活；提示词文案本身要在图里定版。</div>
+      <div class="con"><strong>a 的代价</strong>提示词要写得足够扎实（列标签、给命令、说明文件路径），否则 AI 会跑偏；可以再留一个次级「复制」入口兜底。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q11">
+  <div class="qhead"><span class="qno">Q11</span><h3>首期支持哪些后端？</h3><span class="rec">推荐 a</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：仓库里有三个内置后端（GitHub、GitLab、本地 Markdown）。你的描述里「GitHub 等后端」留了口子，需要明确第一版覆盖到哪。</p>
+    <ul class="facts"><li>GitLab 的标签颜色是<b>项目级</b>的，写路径要另走 <code>glab api</code>；现有代码同样<b>没有</b>任何写入口，等于从头做一套。</li></ul>
+    <div class="opts">
+      <label class="opt is-rec"><input type="radio" name="q11" value="a" checked><span class="tag">a</span>首期只做 GitHub + 本地 Markdown，GitLab 后置另立一票。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q11" value="b"><span class="tag">b</span>三个后端一起做。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>a 的好处</strong>第一版更快能用、验收面小；本仓上一个同类需求也是「首批只做 GitHub」。</div>
+      <div class="con"><strong>a 的代价</strong>用 GitLab 的工作区这一轮用不上这个功能，得等下一次。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q12">
+  <div class="qhead"><span class="qno">Q12</span><h3>新功能用什么语言、什么结构写？（你问的「能不能用 TS」）</h3><span class="rec">推荐 a</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：你是 TS/JS 新手，问「能不能用 TS 开发、JS 里点入口能不能用上 TS 的代码」。结论是<b>能</b>，仓库里已经这么做两次了；剩下的只是选哪种做法。</p>
+    <ul class="facts">
+      <li>现成做法：TS 源码 → 逐文件转译成 JS → 构建脚本生成副本给插件用；<b>JS 点击入口调用 TS，靠的是构建期生成副本</b>，不是运行时直接引用。</li>
+      <li>代价清单（真实存在）：构建脚本要改、约六道门禁要同步改、以后改一行 TS 也要走一次构建。</li>
+    </ul>
+    <div class="opts">
+      <label class="opt is-rec"><input type="radio" name="q12" value="a" checked><span class="tag">a</span>新建 TS 子工程（<code>packages/dsh-label-colors</code>，走现成管线，<b>但不发 npm 包</b>）：色值校验/合并/提示词拼装等纯逻辑与「读写颜色的端口 + 各后端适配器」用 TS，<code>src/</code> 里只留接线。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q12" value="b"><span class="tag">b</span>建 TS 子工程，并且像日志包/更新包那样发到 npm。</label>
+      <label class="opt"><input type="radio" name="q12" value="c"><span class="tag">c</span>全部写普通 JS，不引入 TS。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>a 的好处</strong>同时满足你「想用 TS」和「结构要学优秀 TS 项目」两个诉求，又有两个现成包可抄写法。</div>
+      <div class="con"><strong>a 的代价</strong>构建链变复杂（比 c 多一层），要接受「改 TS 必须构建」；b 还要背发布与版本维护。</div>
+    </div>
+  </div>
+</article>
+
+<article class="q" id="q13">
+  <div class="qhead"><span class="qno">Q13</span><h3>「学 vscode 的代码结构」，具体学哪几条？</h3><span class="rec">推荐 a</span></div>
+  <div class="qbody">
+    <p class="why"><b>前因</b>：你的要求 4 是「新功能代码结构设计学习 vscode 这种优秀 TS 项目」。vscode 的做法很多，但只有一部分搬得动到本仓，得挑。</p>
+    <ul class="facts"><li>vscode 那套分层（base / platform / workbench）是为「一套代码产出多个应用」设计的；本仓只有一个插件产物，照搬目录名只会多绕一层。</li></ul>
+    <div class="opts">
+      <label class="opt is-rec"><input type="radio" name="q13" value="a" checked><span class="tag">a</span>只学三条能落地的纪律：① 先写接口类型再写实现；② 纯逻辑不许直接碰磁盘/网络，IO 一律走注入进来的适配器；③ 按能力分目录，而不是按「层」分目录。<em>推荐</em></label>
+      <label class="opt"><input type="radio" name="q13" value="b"><span class="tag">b</span>照搬 vscode 的目录命名与三段式分层。</label>
+      <label class="opt"><input type="radio" name="q13" value="c"><span class="tag">c</span>不额外学，沿用本仓现有分层。</label>
+    </div>
+    <div class="proscons">
+      <div class="pro"><strong>a 的好处</strong>这三条正是仓库里两个 TS 包已在用的写法，你能照着实物抄；学完就能用，不是纸上概念。</div>
+      <div class="con"><strong>a 的代价</strong>学不到「原汁原味的 vscode 目录」，以后读 vscode 源码时仍需另做功课。</div>
+    </div>
+  </div>
+</article>
+
+</main>
+
+<section class="answerbox">
+  <h2>你的回答</h2>
+  <p id="answerText">正在生成…</p>
+  <button class="abtn" id="copyBtn">复制我的回答</button>
+  <p class="hint">说明：默认已勾选我的推荐答案，所以原地复制就是「全按推荐」。改过的那几条会用黄色标出来，方便我一眼看到差异；也可以直接回「Q5 选 b、Q9 选 c」这种简写。</p>
+</section>
+
+</div>
+<a class="top" href="#q1">↑ 回到第一问</a>
+
+<script>
+(function(){
+  var rec = {q1:'b',q2:'a',q3:'c',q4:'a',q5:'a',q6:'a',q7:'a',q8:'a',q9:'a',q10:'a',q11:'a',q12:'a',q13:'a'};
+  var out = document.getElementById('answerText');
+  var btn = document.getElementById('copyBtn');
+  function current(){
+    var diff = [];
+    var parts = Object.keys(rec).map(function(k){
+      var el = document.querySelector('input[name="'+k+'"]:checked');
+      var v = el ? el.value : rec[k];
+      if(v !== rec[k]) diff.push(k.toUpperCase());
+      return k.toUpperCase() + ' ' + v;
+    });
+    return {parts:parts, diff:diff};
+  }
+  function render(){
+    var c = current();
+    var head = c.diff.length === 0
+      ? '全部按推荐。'
+      : '按推荐，但 <span class="diff">' + c.diff.join('、') + '</span> 我选了不同的一项。';
+    out.innerHTML = head + '<br>' + c.parts.join(' · ');
+  }
+  document.addEventListener('change', function(e){ if(e.target && e.target.name) render(); });
+  render();
+  btn.addEventListener('click', function(){
+    var text = out.textContent;
+    function done(ok){ btn.textContent = ok ? '已复制 ✓' : '复制失败，请手动选中上面的文本'; setTimeout(function(){ btn.textContent = '复制我的回答'; }, 2500); }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ done(true); }, function(){ done(false); });
+    } else {
+      try{
+        var r = document.createRange(); r.selectNodeContents(out);
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+        done(document.execCommand('copy'));
+      }catch(e){ done(false); }
+    }
+  });
+})();
+</script>
+</body>
+</html>

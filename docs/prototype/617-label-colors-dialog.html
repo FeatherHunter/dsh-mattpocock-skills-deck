@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>标签配色弹窗 原型（#617）</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel-bg: #ffffff;
+    --border: #d9dce1;
+    --text: #22262c;
+    --text-soft: #6a7078;
+    --accent: #2f6fed;
+    --ok: #1f8b4c;
+    --warn: #b26a00;
+    --err: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; overflow-x: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  /* 注意：这里不能再加 overflow-x: hidden。加了之后 .page 会变成弹窗遮罩的定位参照，
+     遮罩就会跟着被撑宽的 .page 一起变宽，弹窗跟着变宽并被窗口右边裁掉。 */
+  .page { display: flex; gap: 24px; align-items: flex-start; padding: 20px;
+    flex-wrap: wrap; max-width: 100%; }
+  .left-col { flex: 1 1 auto; min-width: 0; max-width: 720px; }
+  .right-col { flex: 1 1 320px; min-width: 0; }
+
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--text-soft); font-size: 13px; margin: 0 0 16px; }
+
+  /* ---------- 演示控制台 ---------- */
+  /* 演示控制台默认收起来，只留一行标题。
+     原因是控制台里的按钮较多：展开时整页最小宽度会超过 400 像素，
+     浏览器在窄窗口下会把排版宽度撑大，弹窗就跟着按大宽度算，右边会被窗口裁掉。
+     收起来以后页面在 360 像素宽的窗口里也不会溢出，弹窗才能按窗口实际宽度缩小。 */
+  .demo-console { background: #fff; border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 14px; margin-bottom: 16px; }
+  .demo-console > summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+  .demo-console[open] > summary { margin-bottom: 10px; }
+  .demo-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .demo-row:last-child { margin-bottom: 0; }
+  .demo-row .lbl { font-size: 12px; color: var(--text-soft); flex: 1 1 100%; }
+  button {
+    font-family: inherit; font-size: 13px; padding: 5px 11px;
+    border: 1px solid var(--border); border-radius: 6px; background: #fff;
+    color: var(--text); cursor: pointer;
+  }
+  button:hover { background: #f0f2f5; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: not-allowed; background: #eee; color: var(--text-soft); }
+
+  /* ---------- 宿主面板模拟 ---------- */
+  .host-panel {
+    width: 360px; background: var(--panel-bg); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.05);
+  }
+  .host-panel.narrow { width: 340px; }
+  .panel-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 12px; border-bottom: 1px solid var(--border); background: #fbfbfc;
+  }
+  .panel-title { font-size: 13px; font-weight: 600; flex: 1 1 auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .icon-btn {
+    flex: 0 0 auto; width: 26px; height: 26px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text-soft);
+  }
+  .icon-btn:hover { background: #eceff3; color: var(--text); }
+  .icon-btn svg { display: block; }
+  .panel-body { padding: 10px 12px 14px; }
+  .panel-body p { margin: 0 0 8px; font-size: 12.5px; color: var(--text-soft); }
+  .fake-issue {
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12.5px;
+    margin-bottom: 8px;
+  }
+  .fake-issue .no { color: var(--text-soft); font-size: 11.5px; }
+
+  /* ---------- 弹窗 ---------- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(20,24,30,.42);
+    display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+  }
+  .overlay.show { display: flex; }
+  .dialog {
+    background: #fff; border-radius: 10px; width: 400px; max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px); display: flex; flex-direction: column;
+    box-shadow: 0 12px 32px rgba(0,0,0,.24); overflow: hidden;
+  }
+  .dialog.wide { width: 460px; max-width: calc(100vw - 32px); }
+  .dlg-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 14px; border-bottom: 1px solid var(--border);
+  }
+  .dlg-head h3 { margin: 0; font-size: 15px; flex: 1 1 auto; }
+  .dlg-body { padding: 12px 14px; overflow-y: auto; flex: 1 1 auto; }
+
+  .banner {
+    font-size: 12.5px; padding: 7px 10px; border-radius: 6px; margin-bottom: 10px;
+    display: none;
+  }
+  .banner.show { display: block; }
+  .banner.draft { background: #fff6e5; color: #8a5a00; border: 1px solid #f0d9a8; }
+  .banner.ok { background: #eaf7ee; color: var(--ok); border: 1px solid #bfe3cb; }
+  .banner.err { background: #fdecea; color: var(--err); border: 1px solid #f2c2bd; }
+  .banner.note { background: #eef2fb; color: #33518f; border: 1px solid #cbd8f2; }
+
+  .label-list { list-style: none; margin: 0; padding: 0; }
+  .label-row {
+    display: flex; align-items: center; gap: 9px; padding: 6px 4px;
+    border-bottom: 1px solid #f0f1f3;
+  }
+  .label-row:last-child { border-bottom: none; }
+  .swatch {
+    flex: 0 0 auto; width: 22px; height: 22px; border-radius: 5px; cursor: pointer;
+    border: 1px solid rgba(0,0,0,.18); padding: 0; overflow: hidden; position: relative;
+    background: #ccc;
+  }
+  /* 原生取色盘挂在整个色块上；input 本身用 visibility 隐藏而不是 display:none，
+     这样点色块任意位置都能弹出系统取色盘，键盘也能聚焦到它。 */
+  .swatch input[type=color] {
+    position: absolute; inset: -2px; width: calc(100% + 4px); height: calc(100% + 4px);
+    border: none; padding: 0; background: transparent; cursor: pointer;
+    visibility: hidden;
+  }
+  .swatch.uncolored { background: #cfd3d8; }
+  .label-name {
+    flex: 1 1 auto; min-width: 0; font-size: 13px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .label-value { flex: 0 0 auto; font-size: 12px; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+  .label-value.uncolored { color: #9aa0a6; font-style: italic; }
+  .row-result { flex: 0 0 auto; font-size: 11.5px; }
+  .row-result.ok { color: var(--ok); }
+  .row-result.err { color: var(--err); }
+  .narrow .label-value { display: none; }
+
+  .empty-state { text-align: center; padding: 26px 10px; color: var(--text-soft); font-size: 13px; }
+
+  .dlg-foot {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 10px 14px; border-top: 1px solid var(--border); background: #fbfbfc;
+  }
+  .foot-left { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
+  .readonly-note { font-size: 12px; color: var(--warn); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #255ecb; }
+  .btn-primary:disabled { background: #e3e5e8; border-color: #e3e5e8; color: #9aa0a6; opacity: 1; }
+  .toast {
+    font-size: 12px; color: var(--ok); display: none;
+  }
+  .toast.show { display: inline; }
+
+  details.decisions {
+    background: #fff; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; max-width: 720px;
+  }
+  details.decisions summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+  details.decisions ol { padding-left: 20px; margin: 10px 0 0; }
+  details.decisions li { margin-bottom: 8px; font-size: 13px; }
+  details.decisions .cost { color: var(--text-soft); }
+  code { background: #f1f3f5; padding: 1px 4px; border-radius: 4px; font-size: 12.5px; }
+
+  /* ---------- 窄屏（浏览器窗口本身变窄）与窄面板（弹窗宽度不足）----------
+     原型里的「窄面板」开关只是把 .narrow 加到面板和弹窗上，方便在宽屏幕上看窄面板的样子；
+     下面这些 @media 规则保证真正的窄窗口也能正常看，不会被裁掉。 */
+  @media (max-width: 1100px) {
+    .page { flex-wrap: wrap; }
+    .left-col, .right-col { flex: 1 1 100%; max-width: 100%; }
+    .host-panel, .host-panel.narrow { width: 100%; }
+  }
+  @media (max-width: 500px) {
+    .page { padding: 10px; gap: 12px; }
+    .overlay { padding: 8px; }
+    /* 按钮文字收成图标，靠 title 悬浮提示说明是什么按钮 */
+    .btn-text { display: none; }
+    .dlg-foot .btn-primary::after { content: '✔'; }
+    #btnCopyPrompt::after { content: '⧉'; }
+    .dlg-foot { gap: 6px; padding: 8px 10px; }
+    .dlg-head, .dlg-body { padding-left: 10px; padding-right: 10px; }
+    .dialog { max-width: calc(100vw - 16px); }
+    /* 控制台里的按钮在窄窗口下收小一点，别把页面撑宽 */
+    button { font-size: 12px; padding: 4px 8px; }
+  }
+  .narrow .btn-text { display: none; }
+  .narrow .dlg-foot .btn-primary::after { content: '✔'; }
+  .narrow #btnCopyPrompt::after { content: '⧉'; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="left-col">
+    <h1>标签配色弹窗 · 原型</h1>
+    <p class="sub">这是票 #617 的界面原型：先在右侧面板点小图标打开弹窗，再用下面的按钮演示各种状态。所有数据都是假的，不会连真实仓库。</p>
+
+    <details class="demo-console">
+      <summary>演示开关（这些按钮只在原型里存在，做进产品时不会出现）</summary>
+      <div class="demo-row">
+        <span class="lbl">面板宽度</span>
+        <button id="btnWide" class="on">宽面板 360 像素</button>
+        <button id="btnNarrow">窄面板 340 像素</button>
+      </div>
+      <div class="demo-row">
+        <span class="lbl">标签数据</span>
+        <button id="btnNormal" class="on">11 个标签</button>
+        <button id="btnEmpty">空态（没有标签）</button>
+      </div>
+      <div class="demo-row">
+        <span class="lbl">只读会话</span>
+        <button id="btnRoOff" class="on">普通会话</button>
+        <button id="btnRoA">只读 · 做法 A 提前灰掉</button>
+        <button id="btnRoB">只读 · 做法 B 点了再报错</button>
+      </div>
+      <div class="demo-row">
+        <span class="lbl">保存结果</span>
+        <button id="btnResOk">保存全部成功</button>
+        <button id="btnResPartial">保存部分失败</button>
+        <button id="btnResFail">保存全部失败</button>
+      </div>
+      <div class="demo-row">
+        <span class="lbl">快捷操作</span>
+        <button id="btnOpen">打开弹窗</button>
+        <button id="btnDraft">造一个草稿改动</button>
+      </div>
+    </details>
+
+    <details class="decisions">
+      <summary>决策与理由（点开看每条定了什么、为什么、代价是什么）</summary>
+      <ol>
+        <li>
+          <strong>弹窗从面板头部的小图标进入。</strong>面板头部右侧放一个调色盘图标按钮，点它打开弹窗。把入口放在头部，是因为头部常驻可见，用户不用先滚到列表某处才能找到改颜色的地方。
+          <span class="cost">代价：头部多一个图标，窄面板下头部更挤。</span>
+        </li>
+        <li>
+          <strong>列表不分组，11 个标签平铺一行一个。</strong>仓库里的标签分为五个人工分诊标签和五个 wayfinder 流程标签，但配色这件事是逐条独立的，分组只会多出层级。
+          <span class="cost">代价：标签变多时列表会很长，需要滚动。</span>
+        </li>
+        <li>
+          <strong>只有草稿改动，不点保存就不生效。</strong>点色块改的是本地草稿，列表顶部出现「有未保存改动」提示；关弹窗前不落盘。
+          <span class="cost">代价：用户可能改完就关窗口，改动丢掉且没有二次确认。</span>
+        </li>
+        <li>
+          <strong>保存后按真实返回结果刷新列表，不做乐观更新。</strong>保存按钮点了以后等后端逐条返回，成功的行按后端新值刷新，失败的保留草稿并标红。
+          <span class="cost">代价：保存显得慢一点，网络不好时要有「保存中」的等待态。</span>
+        </li>
+        <li>
+          <strong>失败逐条展示，并区分两种成因。</strong>没有写权限时说「没有这个仓库的写权限」；文件被别的程序占用时说「配色文件被占用，关掉那个程序再试」。两种情况的处理办法完全不同，混成一句「保存失败」用户没法自救。
+          <span class="cost">代价：后端要把每种失败的原因分开传上来，不能只回一个布尔值。</span>
+        </li>
+        <li>
+          <strong>复制推荐配色 prompt 只写剪贴板，不注入会话。</strong>这个按钮点下去只调 <code>navigator.clipboard.writeText(...)</code> 复制一段现成文本，然后按钮旁显示「已复制」。原型阶段刻意不碰会话注入，避免一个复制动作意外改动用户的会话内容。
+          <span class="cost">代价：用户还得自己切到会话里粘贴一下。</span>
+        </li>
+        <li>
+          <strong>颜色值一律用带井号的小写六位，例如 <code>#8b5cf6</code>。</strong>因为浏览器原生取色盘给出来的就是这个格式，界面直接用它就不用再转换。仓库内部（<code>gh label list</code> 返回的颜色、列表上色的判断）用的是不带井号的六位，转换只发生在界面与后端交接的那一处。
+          <span class="cost">代价：两套写法并存，写代码时必须盯住转换点这一处，别漏。</span>
+        </li>
+        <li>
+          <strong>空态只说一句话，不给操作按钮。</strong>一个标签都没有时显示「这个后端还没有标签」，并说明要去标签管理里先建标签。空态下没有可配色的对象，放按钮只会让人误点。
+          <span class="cost">代价：用户得自己找到建标签的地方。</span>
+        </li>
+        <li>
+          <strong>窄面板下省掉颜色值文字，按钮文字收成图标。</strong>面板宽度小于 380 像素时，每行只留色块和标签名，底部按钮改用图标加悬浮提示。
+          <span class="cost">代价：不看提示就不知道图标是什么；颜色值看不见了，只能靠色块辨认。</span>
+        </li>
+        <li>
+          <strong>只读会话推荐做法 A：保存按钮提前灰掉并写明原因。</strong>按钮下方直接写「当前会话是只读模式，不能保存配色」。理由是用户在动手改之前就知道白改，比改完再被弹回来省事。
+          <span class="cost">代价：只读这件事必须提前问出来，界面要在打开弹窗时就知道；做法 B 则不用提前查，但会浪费用户的操作。</span>
+        </li>
+      </ol>
+    </details>
+  </div>
+
+  <div class="right-col">
+    <div class="host-panel" id="hostPanel">
+      <div class="panel-head">
+        <span class="panel-title">会话面板 · dsh-mattpocock-skills-deck</span>
+        <button class="icon-btn" id="openDialog" title="标签配色" aria-label="标签配色">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="9"></circle>
+            <circle cx="9" cy="9" r="1.2" fill="currentColor" stroke="none"></circle>
+            <circle cx="15" cy="9" r="1.2" fill="currentColor" stroke="none"></circle>
+            <circle cx="9.5" cy="15" r="1.2" fill="currentColor" stroke="none"></circle>
+          </svg>
+        </button>
+      </div>
+      <div class="panel-body">
+        <p>这里是面板正文的模拟内容，用来占位。</p>
+        <div class="fake-issue"><span class="no">#617</span> 标签配色弹窗</div>
+        <div class="fake-issue"><span class="no">#616</span> 面板列表上色</div>
+        <div class="fake-issue"><span class="no">#615</span> 会话只读模式判定</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay show" id="overlay">
+  <div class="dialog" id="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="dlg-head">
+      <h3 id="dlgTitle">标签配色</h3>
+      <button class="icon-btn" id="closeDialog" title="关闭" aria-label="关闭">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <div class="dlg-body">
+      <div class="banner draft" id="bannerDraft">有未保存改动</div>
+      <div class="banner note" id="bannerReadonlyA">当前会话是只读模式，不能保存配色。想改配色请在一个能写这个仓库的会话里打开这个面板。</div>
+      <div class="banner note" id="bannerReadonlyB"></div>
+      <div class="banner ok" id="bannerOk"></div>
+      <div class="banner err" id="bannerErr"></div>
+
+      <ul class="label-list" id="labelList"></ul>
+      <div class="empty-state" id="emptyState" style="display:none">
+        这个后端还没有标签。<br>请先到标签管理里建好标签，再回来配色。
+      </div>
+    </div>
+
+    <div class="dlg-foot">
+      <div class="foot-left">
+        <button id="btnCopyPrompt" title="复制推荐配色 prompt">
+          <span class="btn-text">复制推荐配色 prompt</span>
+        </button>
+        <span class="toast" id="copyToast">已复制</span>
+      </div>
+      <span class="readonly-note" id="readonlyNote" style="display:none">只读模式，不能保存</span>
+      <button class="btn-primary" id="btnSave"><span class="btn-text">保存</span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ------- 假数据：11 个标签，其中 3 个故意留成未配色 ------- */
+  var ALL_LABELS = [
+    { name: 'bug',                  color: 'e11d48', colored: true  },
+    { name: 'needs-triage',         color: 'f59e0b', colored: true  },
+    { name: 'needs-info',           color: null,     colored: false },
+    { name: 'ready-for-agent',      color: '3b82f6', colored: true  },
+    { name: 'ready-for-human',      color: '8b5cf6', colored: true  },
+    { name: 'wontfix',              color: null,     colored: false },
+    { name: 'wayfinder:map',        color: '0ea5e9', colored: true  },
+    { name: 'wayfinder:research',   color: '14b8a6', colored: true  },
+    { name: 'wayfinder:prototype',  color: '84cc16', colored: true  },
+    { name: 'wayfinder:grilling',   color: null,     colored: false },
+    { name: 'wayfinder:task',       color: 'ec4899', colored: true  }
+  ];
+
+  var state = {
+    /* 界面上看到的颜色一律是「带井号的小写六位」；存进 state 时先去掉井号，最后渲染再补回来。 */
+    server: ALL_LABELS.map(function (l) { return { name: l.name, color: l.color, colored: l.colored }; }),
+    draft: {},          // name -> '#rrggbb'
+    empty: false,
+    narrow: true,       // 默认按窄面板摆放，方便直接看到窄面板下的样子
+    readonlyMode: 'off', // 'off' | 'A' | 'B'
+    saveResult: 'ok',   // 'ok' | 'partial' | 'fail'
+    saving: false,
+    results: {},        // name -> { ok: boolean, reason: string }
+    note: null          // { type:'ok'|'err', text:string }
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* 内部存的是不带井号的六位，界面显示要带井号 —— 转换只在这一对函数里做。 */
+  function toDisplay(hexNoHash) {
+    if (!hexNoHash) return null;
+    return '#' + String(hexNoHash).toLowerCase();
+  }
+  function toInternal(hexWithHash) {
+    return String(hexWithHash).replace('#', '').toLowerCase();
+  }
+
+  /* ---------- 渲染 ---------- */
+  function render() {
+    var panel = $('hostPanel');
+    panel.classList.toggle('narrow', state.narrow);
+    var dlg = $('dialog');
+    dlg.classList.toggle('narrow', state.narrow);
+
+    renderBanners();
+    renderList();
+    renderFoot();
+  }
+
+  function renderBanners() {
+    $('bannerDraft').classList.toggle('show', hasDraft());
+    $('bannerReadonlyA').classList.toggle('show', state.readonlyMode === 'A');
+
+    var roB = $('bannerReadonlyB');
+    if (state.readonlyMode === 'B' && state.note && state.note.type === 'err') {
+      roB.textContent = state.note.text;
+      roB.classList.add('show');
+    } else {
+      roB.classList.remove('show');
+    }
+
+    var ok = $('bannerOk');
+    if (state.note && state.note.type === 'ok') {
+      ok.textContent = state.note.text;
+      ok.classList.add('show');
+    } else {
+      ok.classList.remove('show');
+    }
+
+    var err = $('bannerErr');
+    if (state.note && state.note.type === 'err' && state.readonlyMode !== 'B') {
+      err.textContent = state.note.text;
+      err.classList.add('show');
+    } else {
+      err.classList.remove('show');
+    }
+  }
+
+  function renderList() {
+    var list = $('labelList');
+    list.innerHTML = '';
+    $('emptyState').style.display = state.empty ? 'block' : 'none';
+    if (state.empty) return;
+
+    state.server.forEach(function (item) {
+      var valueWithHash = state.draft[item.name] || toDisplay(item.color);
+      var isColored = !!valueWithHash;
+
+      var li = document.createElement('li');
+      li.className = 'label-row';
+
+      var sw = document.createElement('label');
+      sw.className = 'swatch' + (isColored ? '' : ' uncolored');
+      sw.style.background = isColored ? valueWithHash : '';
+
+      var input = document.createElement('input');
+      input.type = 'color';
+      input.value = isColored ? valueWithHash : '#9aa0a6';
+      input.title = '给「' + item.name + '」选颜色';
+      input.addEventListener('input', function (e) {
+        state.draft[item.name] = String(e.target.value).toLowerCase();
+        state.note = null;
+        render();
+      });
+      sw.appendChild(input);
+
+      var name = document.createElement('span');
+      name.className = 'label-name';
+      name.textContent = item.name;
+
+      var val = document.createElement('span');
+      val.className = 'label-value' + (isColored ? '' : ' uncolored');
+      val.textContent = isColored ? valueWithHash : '未配色';
+
+      li.appendChild(sw);
+      li.appendChild(name);
+      li.appendChild(val);
+
+      var r = state.results[item.name];
+      if (r) {
+        var tag = document.createElement('span');
+        tag.className = 'row-result ' + (r.ok ? 'ok' : 'err');
+        tag.textContent = r.ok ? '已保存' : r.reason;
+        li.appendChild(tag);
+      }
+
+      list.appendChild(li);
+    });
+  }
+
+  function renderFoot() {
+    var save = $('btnSave');
+    var txt = save.querySelector('.btn-text');
+    var note = $('readonlyNote');
+
+    var locked = state.readonlyMode === 'A';
+    note.style.display = locked ? 'inline' : 'none';
+
+    if (state.saving) {
+      save.disabled = true;
+      txt.textContent = '保存中…';
+      return;
+    }
+    if (locked) {
+      save.disabled = true;
+      txt.textContent = '保存';
+      return;
+    }
+    if (state.empty) {
+      save.disabled = true;
+      txt.textContent = '保存';
+      return;
+    }
+    save.disabled = !hasDraft();
+    txt.textContent = '保存';
+
+    if (state.narrow) {
+      var copy = $('btnCopyPrompt');
+      copy.querySelector('.btn-text').textContent = '⧉';
+      save.querySelector('.btn-text').textContent = save.disabled ? '⛔' : '✔';
+      copy.title = '复制推荐配色 prompt';
+      save.title = '保存';
+    } else {
+      $('btnCopyPrompt').querySelector('.btn-text').textContent = '复制推荐配色 prompt';
+      save.querySelector('.btn-text').textContent = '保存';
+    }
+  }
+
+  function hasDraft() {
+    return Object.keys(state.draft).length > 0;
+  }
+
+  /* ---------- 保存 ---------- */
+  function save() {
+    if (state.readonlyMode === 'B') {
+      state.note = { type: 'err', text: '当前会话是只读模式，不能保存配色。请在一个能写这个仓库的会话里再试。' };
+      render();
+      return;
+    }
+    if (!hasDraft()) return;
+
+    state.saving = true;
+    state.note = null;
+    state.results = {};
+    render();
+
+    var names = Object.keys(state.draft);
+
+    window.setTimeout(function () {
+      var okMap = {};
+      if (state.saveResult === 'ok') {
+        names.forEach(function (n) { okMap[n] = { ok: true }; });
+      } else if (state.saveResult === 'partial') {
+        /* 部分失败：前两条成功，剩下的按「没有写权限」和「文件被占用」两种成因分别标注。 */
+        names.forEach(function (n, i) {
+          if (i < 2) {
+            okMap[n] = { ok: true };
+          } else if (i === 2) {
+            okMap[n] = { ok: false, reason: '没有这个仓库的写权限' };
+          } else {
+            okMap[n] = { ok: false, reason: '配色文件被占用，关掉那个程序再试' };
+          }
+        });
+      } else {
+        names.forEach(function (n, i) {
+          okMap[n] = { ok: false, reason: i % 2 === 0 ? '没有这个仓库的写权限' : '配色文件被占用，关掉那个程序再试' };
+        });
+      }
+
+      /* 只有成功的那些行才按后端返回值刷新；失败的行保留草稿，让用户能重试。 */
+      var okCount = 0, failCount = 0;
+      names.forEach(function (n) {
+        var r = okMap[n];
+        if (r.ok) {
+          var v = state.draft[n];
+          state.server.forEach(function (it) {
+            if (it.name === n) { it.color = toInternal(v); it.colored = true; }
+          });
+          delete state.draft[n];
+          okCount++;
+        } else {
+          failCount++;
+        }
+      });
+      state.results = okMap;
+
+      state.saving = false;
+      if (failCount === 0) {
+        state.note = { type: 'ok', text: '已保存 ' + okCount + ' 个标签的颜色，列表已按保存结果刷新。' };
+      } else if (okCount === 0) {
+        state.note = { type: 'err', text: '全部 ' + failCount + ' 条都没保存成功。逐条原因写在下面每一行上。' };
+      } else {
+        state.note = { type: 'err', text: '成功 ' + okCount + ' 条，失败 ' + failCount + ' 条。失败的每条原因写在下面那一行上。' };
+      }
+      render();
+    }, 900);
+  }
+
+  /* ---------- 事件绑定 ---------- */
+  function open() { $('overlay').classList.add('show'); render(); }
+  function close() { $('overlay').classList.remove('show'); }
+
+  $('openDialog').addEventListener('click', open);
+  $('btnOpen').addEventListener('click', open);
+  $('closeDialog').addEventListener('click', close);
+  $('overlay').addEventListener('click', function (e) { if (e.target === $('overlay')) close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+
+  $('btnSave').addEventListener('click', save);
+
+  $('btnCopyPrompt').addEventListener('click', function () {
+    var text = '请为这个仓库的标签推荐一套配色。标签列表：bug、needs-triage、needs-info、ready-for-agent、ready-for-human、wontfix、wayfinder:map、wayfinder:research、wayfinder:prototype、wayfinder:grilling、wayfinder:task。请给出每个标签的颜色（带井号的小写六位，例如 #8b5cf6），同类标签用相近色系，未配色的标签请你补上。';
+    var toast = $('copyToast');
+    function flash() {
+      toast.classList.add('show');
+      window.setTimeout(function () { toast.classList.remove('show'); }, 1600);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(flash, flash);
+    } else {
+      flash();
+    }
+  });
+
+  function setNarrow(on) {
+    state.narrow = on;
+    $('btnNarrow').classList.toggle('on', on);
+    $('btnWide').classList.toggle('on', !on);
+    render();
+  }
+  $('btnWide').addEventListener('click', function () { setNarrow(false); });
+  $('btnNarrow').addEventListener('click', function () { setNarrow(true); });
+
+  /* 面板真的被拖窄（不到 380 像素）时，自动切到窄面板排布。
+     这段特意用 JS 读面板自身的实际宽度，而不是靠 CSS 的窗口宽度判断：
+     窗口宽度和面板宽度是两回事，面板可能在一个很宽的窗口里只占一条窄缝。 */
+  function autoNarrow() {
+    var panel = $('hostPanel');
+    if (!panel || !panel.getBoundingClientRect) return;
+    var w = panel.getBoundingClientRect().width;
+    if (!w) return;
+    if (w < 380) setNarrow(true);
+  }
+  window.addEventListener('resize', autoNarrow);
+
+  function setEmpty(on) {
+    state.empty = on;
+    $('btnEmpty').classList.toggle('on', on);
+    $('btnNormal').classList.toggle('on', !on);
+    state.note = null;
+    state.results = {};
+    render();
+  }
+  $('btnEmpty').addEventListener('click', function () { setEmpty(true); });
+  $('btnNormal').addEventListener('click', function () { setEmpty(false); });
+
+  function setReadonly(mode) {
+    state.readonlyMode = mode;
+    state.note = null;
+    ['off', 'A', 'B'].forEach(function (m) {
+      var b = $('btnRo' + (m === 'off' ? 'Off' : m));
+      if (b) b.classList.toggle('on', m === mode);
+    });
+    render();
+  }
+  $('btnRoOff').addEventListener('click', function () { setReadonly('off'); });
+  $('btnRoA').addEventListener('click', function () { setReadonly('A'); });
+  $('btnRoB').addEventListener('click', function () { setReadonly('B'); });
+
+  $('btnResOk').addEventListener('click', function () { state.saveResult = 'ok'; mark(this); });
+  $('btnResPartial').addEventListener('click', function () { state.saveResult = 'partial'; mark(this); if (!hasDraft()) seedDraft(); });
+  $('btnResFail').addEventListener('click', function () { state.saveResult = 'fail'; mark(this); if (!hasDraft()) seedDraft(); });
+  function mark(btn) {
+    ['btnResOk', 'btnResPartial', 'btnResFail'].forEach(function (id) { $(id).classList.remove('on'); });
+    btn.classList.add('on');
+  }
+  function seedDraft() {
+    state.draft['needs-triage'] = '#d946ef';
+    state.draft['needs-info'] = '#22c55e';
+    state.draft['wontfix'] = '#64748b';
+    state.draft['wayfinder:grilling'] = '#f97316';
+    render();
+  }
+
+  $('btnDraft').addEventListener('click', function () { seedDraft(); open(); });
+
+  /* 打开页面时可以用网址后面的参数直接摆好状态，方便截图与演示，例如：
+     617-label-colors-dialog.html?open=1&narrow=1&draft=1&result=partial&readonly=A */
+  (function applyQuery() {
+    var q = new URLSearchParams(window.location.search);
+    /* 默认就按窄面板摆好，并且先造一个草稿改动，这样打开页面立刻能看到「有未保存改动」和可点的保存按钮。 */
+    setNarrow(q.get('narrow') === '0' ? false : true);
+    if (q.get('empty') === '1') setEmpty(true);
+    seedDraft();
+    var r = q.get('result');
+    if (r === 'partial' || r === 'fail') {
+      state.saveResult = r;
+      mark($(r === 'partial' ? 'btnResPartial' : 'btnResFail'));
+    }
+    var ro = q.get('readonly');
+    if (ro === 'A' || ro === 'B') setReadonly(ro);
+    /* 页面默认就打开弹窗（.overlay 上已经写了 show），只有明确写 open=0 时才关着；
+       这样直接双击这个 html 文件就能看到弹窗，不用先找按钮。 */
+    if (q.get('open') === '0') close(); else open();
+    autoNarrow();
+  })();
+
+  render();
+})();
+</script>
+</body>
+</html>

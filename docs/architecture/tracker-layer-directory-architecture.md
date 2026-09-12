@@ -131,5 +131,5 @@ src/
 
 - 范式样板：`examples/demo-mini/`（`demo-mini` 4 ops + `matches` + `normalize`，余下 9 ops 由 `registry.js` Proxy 补 `unsupported`，`describe` 复用骨架，不默认装配，零发包）。
 - 指导文档（主入口）：`docs/architecture/third-party-tracker.md`（注册/探测/能力/测试/打包/更新六章 + Checklist/FAQ，接真实工具步骤）。
-- 检验：`tests/verify-tracker-contract.js` 织入 `runContractTests(demoFixture)` + `runPlayback({fixturesDir:'examples/demo-mini/fixtures/demo-real'})`（`359/4/OK`）。
+- 检验：`tests/verify-tracker-contract.js` 织入 `runContractTests(demoFixture)` + `runPlayback({fixturesDir:'examples/demo-mini/fixtures/demo-real'})`（现值 `620/4/OK`；总数随票增长，不作为门槛，判据是 `CONTRACT SKELETON OK` 与按名字点名的那 4 条违规桩失败）。
 - 后端实现索引：`src/host/tracker/backends/README.md` 增“第三方章”。

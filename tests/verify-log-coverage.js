@@ -27,10 +27,11 @@ function listJsFiles(dir) {
 const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const Q = String.fromCharCode(39)
 
-// 电话清单：35 注册减退役 2 个，现役 33 个，加 #541 只读更新电话 2 个，现役 35 个，加 #542 装更新电话 1 个，现役 36 个。增删电话必须同步改本表、附录 1.7 与计数门禁。
+// 电话清单：35 注册减退役 2 个，现役 33 个，加 #541 只读更新电话 2 个，现役 35 个，加 #542 装更新电话 1 个，现役 36 个，加 #627 标签配色电话 2 个（wf.listLabels / wf.setLabelColors），现役 38 个。增删电话必须同步改本表、附录 1.7 与计数门禁。
 const PHONES = [
   'wf.detect', 'wf.chain', 'wf.cwd', 'wf.snapshot', 'wf.refresh',
   'wf.bind', 'wf.bindings', 'wf.registry', 'wf.selection',
+  'wf.listLabels', 'wf.setLabelColors',
   'wf.issueDetail', 'wf.issueComments', 'wf.commentIssue', 'wf.probe',
   'wf.handoffLatest', 'wf.handoffResolve',
   'wf.namingRegister', 'wf.registerNewSessionWatcher', 'wf.namingSignal', 'wf.namingPlan',
@@ -60,12 +61,18 @@ const CALLEE_COVERS = [
   const raw = readSrc(['src', 'host', 'index.js'].join(path.sep))
   const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
   const reg = new Set()
-  const re = new RegExp('harness' + String.fromCharCode(46) + 'handle\\s*\\(\\s*' + Q + '(wf' + String.fromCharCode(46) + '[A-Za-z]+)' + Q, 'g')
+  // 电话名里的字母与数字都算名字的一部分（旧写法只认字母：带数字的电话名会被截成前缀，
+  // 既不会被要求「在清单里」，也不会按真名计入总数）。第二个字符位起允许数字。
+  const re = new RegExp('harness' + String.fromCharCode(46) + 'handle\\s*\\(\\s*' + Q + '(wf' + String.fromCharCode(46) + '[A-Za-z][A-Za-z0-9]*)' + Q, 'g')
   let m
   while ((m = re.exec(src))) reg.add(m[1])
   for (const p of PHONES) check(reg.has(p), '电话已注册 ' + p)
   for (const p of RETIRED) check(!reg.has(p), '退役电话零注册 ' + p)
   check(reg.size === PHONES.length, '注册总数恰为现役数（实得 ' + reg.size + '）')
+  // 反向断言：注册了的电话必须都在清单里 —— 只查「清单里的都注册了」的话，
+  // 新加一条电话可以只写进 index.js 而不进清单，日志覆盖门禁就漏掉了它。
+  const notListed = Array.from(reg).filter((p) => PHONES.indexOf(p) < 0 && RETIRED.indexOf(p) < 0)
+  check(notListed.length === 0, '注册的电话都在清单里（反向：' + (notListed.length ? '清单里没有 ' + notListed.join('、') : '无遗漏') + '）')
   const life = readSrc(['src', 'host', 'sessionLifecycle.js'].join(path.sep))
   const claim = readSrc(['src', 'host', 'handoffClaim.js'].join(path.sep))
   check(life.indexOf('handlePing') >= 0 && claim.indexOf('handleClaim') >= 0, '退役实现留守不断链')

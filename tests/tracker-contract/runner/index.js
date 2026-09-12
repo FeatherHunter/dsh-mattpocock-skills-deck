@@ -3,7 +3,7 @@
  *
  * 第一性原理回溯：
  * - 契约已定稿 #124/#125/#126/#127/#128（不再改内容，只改“被测对象”：桩→真适配器）
- * - #132 门禁 293/4/OK 仅证骨架自洽（harness 测的是 compliant/violating 两个合成桩 + github/gitlab 适配器的 normalize 单元）
+ * - #132 门禁 293/4/OK 仅证骨架自洽（#132 落地时的数字；现值与判据见 tests/tracker-contract/README.md；harness 测的是 compliant/violating 两个合成桩 + github/gitlab 适配器的 normalize 单元）
  * - #131 平台三端 145+32 方法论：单机可判真 = 注入（homedir/env/platform）+ 零手拼（委托 node:path）+ 双闸（契约主文件 + 容器烟雾）
  * 推导不变量：
  *   I1: Runner 必须从“测试固件”升级为“真实适配器 + 真实采样固件”——否则后端票 #114/#115/#116 的验收“本后端真实适配器过 harness”无锚点。

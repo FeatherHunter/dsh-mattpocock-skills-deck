@@ -11,10 +11,17 @@
  *   5. deck 段：progressOf / levelOf（环 visited 守卫 + NFD 按 0 计）/ stats / blockedByKeys / labels 并集
  *   6. snapshot 段：composeSnapshot（非 op）/ 双缓存 / invalidate·clear / 快路径（完整才用）/ unsupported 不缓存
  *   7. chain 段：检查项形状校验 + 纯函数求值（done/current/fail/pending/na + na 不阻塞 + 进度口径）+ 动作词汇表五种 + form 完整（非 op）/ 双缓存 / invalidate·clear / 快路径（完整才用）/ unsupported 不缓存
+ *   8. labels 段（#627）：标签配色两条操作（listLabels / setLabelColors）—— 同一段断言跑三个假身
+ *      （做不到的、GitHub、本地 Markdown）＋ 真实 gitlab 后端（自动落「做不到」）：
+ *      列表项字段形状、颜色六位小写、描述缺省合法、「全部标签」的语义（含取不全必须整体失败）、
+ *      批量改色逐条记账、每类失败落在哪一档、沙箱拒绝能单独辨认；
+ *      另有对着真实 GitHub 与本地 Markdown 后端模块的探针（诚实说做不到 或 检查器全过）与
+ *      宿主两条电话的信封与分档断言；每段自带反例。
  *
  * 每段含「✗ probe」违规样例自证测试会逮。
  * 运行：node tests/verify-tracker-contract.js
- * 期望：合规桩全 PASS；违规桩被逮住（FAIL）；真实 github 适配器合规 PASS；各段全 PASS。退出码 0 = 契约骨架自洽。
+ * 期望：合规桩全 PASS；违规桩被逮住那 4 条预期失败（见文件末尾 VIOLATING_EXPECTED_FAILURES，按名字点名）；
+ *      真实 github 适配器合规 PASS；各段全 PASS。退出码 0 = 契约骨架自洽。
  */
 import runContractTests from './tracker-contract/harness.js'
 import compliant from './tracker-contract/fixtures/compliant.js'
@@ -28,6 +35,7 @@ import preflightSection from './tracker-contract/sections/preflight.js'
 import deckSection from './tracker-contract/sections/deck.js'
 import snapshotSection from './tracker-contract/sections/snapshot.js'
 import chainSection from './tracker-contract/sections/chain.js'
+import labelsSection from './tracker-contract/sections/labels.js'
 
 const results = [
   ...runContractTests(compliant), // 合规 → 应全 PASS
@@ -213,7 +221,7 @@ try {
   results.push({ name: 'pr-shape · probe-crash', ok: false, detail: String(e && e.stack || e) })
 }
 
-for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection]) {
+for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection]) {
   try {
     const r = await s.run()
     results.push(...r)
@@ -232,9 +240,19 @@ for (const r of results) {
 
 console.log(`\ncontract-test: ${passed} passed, ${failed} failed`)
 
-// 校验契约骨架自洽：合规桩全过、违规桩至少逮住一个、github/gitlab/demo 适配器合规全过、行为段全 PASS（含 probe 自证）
+// 校验契约骨架自洽：合规桩全过、违规桩把**预期的 4 条**都逮住、github/gitlab/demo 适配器合规全过、行为段全 PASS（含 probe 自证）
 const compliantOk = results.filter((r) => r.name.startsWith(compliant.name) && !r.ok).length === 0
-const caughtViolation = results.filter((r) => r.name.startsWith(violating.name) && !r.ok).length > 0
+// #627 二次整改 P8：判据不许只要求「至少逮住一条」——那样子段里删掉 EMPTY/MISSING 那几条检查，门禁照样绿，
+//   而文档里写的「4 条」会静默过期。这里按名字点名要求这 4 条预期失败都在（名字与 harness 的输出一致）。
+const VIOLATING_EXPECTED_FAILURES = [
+  'violating-stub · map title->title',
+  'violating-stub · empty.labels present(EMPTY)',
+  'violating-stub · log.labels EMPTY',
+  'violating-stub · EMPTY≠MISSING labels',
+]
+const violationFails = new Set(results.filter((r) => r.name.startsWith(violating.name) && !r.ok).map((r) => r.name))
+const missingExpectedFailures = VIOLATING_EXPECTED_FAILURES.filter((n) => !violationFails.has(n))
+const caughtViolation = missingExpectedFailures.length === 0
 const githubOk = results.filter((r) => r.name.startsWith('github-adapter') && !r.ok).length === 0
 const gitlabOk = results.filter((r) => r.name.startsWith('gitlab-') && !r.ok).length === 0
 const demoOk = results.filter((r) => r.name.startsWith('demo-mini') && !r.ok).length === 0
@@ -244,6 +262,7 @@ const prShapeOk = results.filter((r) => (r.name.startsWith('pr-shape-capable') |
   && results.filter((r) => r.name.startsWith('pr-shape · ') && !r.ok).length === 0
 if (!(compliantOk && caughtViolation && githubOk && gitlabOk && demoOk && demoPlaybackOk && sectionsOk && prShapeOk)) {
   console.error('CONTRACT SKELETON NOT SELF-CONSISTENT')
+  if (!caughtViolation) console.error('VIOLATING STUB DID NOT FAIL THE 4 EXPECTED CHECKS: ' + missingExpectedFailures.join('、'))
   if (!githubOk) console.error('GITHUB ADAPTER FAILED G4')
   if (!gitlabOk) console.error('GITLAB ADAPTER FAILED G4')
   if (!demoOk) console.error('DEMO-MINI ADAPTER FAILED G4')

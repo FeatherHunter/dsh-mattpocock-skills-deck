@@ -96,8 +96,8 @@
 
 - 回归红线（验收④）：
 
-  - 既有 `293 passed / 4 failed / CONTRACT SKELETON OK` 仍成立（`4 failed` 全为 `violating` 桩，刻意 FAIL）。
-  - `compliant` 全 PASS、`violating` 至少一 FAIL、`github`/`gitlab` normalize 全 PASS、`sections/*` 全 PASS（含 ✗ probe 自证）。
+  - 门禁红线的形状仍成立：`620 passed / 4 failed / CONTRACT SKELETON OK` 且退出码 0（那 4 条失败全为 `violating` 桩里刻意埋的错，门禁按名字点名要求它们必须出现；总数会随票据增长，别把数字当门槛）。
+  - `compliant` 全 PASS、`violating` 那 4 条预期失败都在、`github`/`gitlab` normalize 全 PASS、`sections/*` 全 PASS（含 ✗ probe 自证）。
   - 新增后端的 `runContractTests` 与 `runPlayback` 全 PASS，`CONTRACT SKELETON OK` 仍 `exit 0`。
 
 ## 最小可跑示例（GitHub）
@@ -108,7 +108,7 @@ node scripts/generate-github-fixtures.js --repo FeatherHunter/dsh-mattpocock-ski
 
 # 纯形状门禁（无网络亦可）
 node tests/verify-tracker-contract.js
-# 期望：293 passed, 4 failed, CONTRACT SKELETON OK
+# 期望：620 passed, 4 failed, CONTRACT SKELETON OK
 # 新增段：github-playback · metadata exists 等全 PASS
 ```
 

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#616 插件内置 TS 的形态定版 · 第一轮 6 问</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1d222b; --line:#2a303c;
+    --txt:#e6e9ef; --dim:#9aa4b2; --dim2:#6e7889;
+    --acc:#9d7cd8; --acc2:#8b5cf6; --ok:#10b981; --warn:#f59e0b; --bad:#f87171;
+    --rec:rgba(157,124,216,.14);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:0 0 150px;background:var(--bg);color:var(--txt);
+    font:14px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 22px}
+  h1{font-size:22px;margin:0 0 6px;letter-spacing:.2px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:22px}
+  code{background:#20242d;padding:1px 6px;border-radius:5px;font-size:12px;color:#c8b6f0}
+
+  .heads{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+  @media(max-width:760px){.heads{grid-template-columns:1fr}}
+  .head{border-radius:12px;padding:13px 15px;font-size:12.5px;line-height:1.65}
+  .head.fix{border:1px solid #6b3a3a;background:linear-gradient(180deg,rgba(248,113,113,.11),rgba(248,113,113,.03))}
+  .head.lock{border:1px solid #2f5d45;background:linear-gradient(180deg,rgba(16,185,129,.10),rgba(16,185,129,.03))}
+  .head h3{margin:0 0 7px;font-size:13px;letter-spacing:.2px}
+  .head.fix h3{color:#fca5a5}
+  .head.lock h3{color:#6ee7b7}
+  .head p{margin:0 0 5px;color:#cfd6e0}
+  .head p:last-child{margin-bottom:0}
+  .head b{color:#fff}
+
+  .tbl{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:28px;background:var(--card)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#1b1f28;color:var(--dim);font-weight:600;font-size:11.5px;letter-spacing:.4px;text-transform:uppercase}
+  tr:last-child td{border-bottom:0}
+  td.n{color:var(--acc);font-weight:700;width:46px}
+  td.t{width:230px}
+  td.r{width:290px;color:#c4b5fd}
+  tbody tr:hover{background:#1b202a}
+  tbody tr.done td.n::after{content:" ✓";color:var(--ok)}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:18px;overflow:hidden}
+  .card.done{border-color:#2f5d45}
+  .hd{padding:14px 18px 12px;background:linear-gradient(180deg,#1c212b,#171a21);border-bottom:1px solid var(--line)}
+  .hd .qid{display:inline-block;background:var(--acc);color:#12101a;font-weight:800;font-size:11px;
+           padding:2px 8px;border-radius:6px;margin-right:9px;vertical-align:2px}
+  .hd h2{display:inline;font-size:15.5px;margin:0;font-weight:650}
+  .body{padding:16px 18px 18px}
+  .why{display:grid;grid-template-columns:52px 1fr;gap:6px 10px;margin-bottom:15px;font-size:13px}
+  .why .lbl{color:var(--dim2);font-size:11.5px;padding-top:3px;letter-spacing:.5px}
+  .why p{margin:0}
+  .why p.after{color:#fbbf24}
+  .opts{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  label.opt{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;
+    border:1px solid var(--line);border-radius:10px;padding:11px 13px;cursor:pointer;background:var(--card2);
+    transition:border-color .12s,background .12s}
+  label.opt:hover{border-color:#3a4356}
+  label.opt input{margin:4px 0 0;accent-color:var(--acc);width:15px;height:15px;flex:none}
+  label.opt .tag{font-weight:650;color:#dfe4ec}
+  label.opt .exp{display:block;color:var(--dim);font-size:12.5px;margin-top:3px}
+  label.opt .exp b.pos{color:#6ee7b7;font-weight:600}
+  label.opt .exp b.neg{color:#fca5a5;font-weight:600}
+  label.opt.dead{opacity:.72}
+  label.opt.dead .tag{color:#c9ced8}
+  label.opt.dead .tag::after{content:"已排除";margin-left:8px;font-size:10.5px;font-weight:700;
+    color:#ffffff;background:#7a2f2f;border-radius:5px;padding:1px 6px;vertical-align:1px}
+  label.opt.rec{background:var(--rec);border-color:#5b4a8a}
+  label.opt.rec .tag::after{content:"推荐";margin-left:8px;font-size:10.5px;font-weight:700;
+    color:#12101a;background:#c4b5fd;border-radius:5px;padding:1px 6px;vertical-align:1px}
+  .verdict{border-left:3px solid var(--acc2);background:rgba(139,92,246,.09);padding:11px 14px;
+           border-radius:0 9px 9px 0;font-size:13px}
+  .verdict b{color:#c4b5fd}
+  .facts{font-size:12px;color:var(--dim);border-top:1px dashed var(--line);padding-top:10px;margin-top:13px}
+  .facts b{color:#a5b4fc;font-weight:600}
+
+  .bar{position:fixed;left:0;right:0;bottom:0;background:rgba(15,17,21,.96);backdrop-filter:blur(10px);
+       border-top:1px solid var(--line);padding:14px 22px;z-index:50}
+  .bar .inner{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .meter{flex:1;min-width:220px}
+  .meter .track{height:6px;background:#252a35;border-radius:99px;overflow:hidden}
+  .meter .fill{height:100%;width:0;background:linear-gradient(90deg,var(--acc2),var(--acc));transition:width .25s}
+  .meter .txt{font-size:11.5px;color:var(--dim);margin-top:5px}
+  .ans{background:#12151b;border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:11.5px;
+       color:var(--dim);max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  button.copy{background:var(--acc);border:0;color:#12101a;font-weight:700;font-size:13px;
+              padding:9px 20px;border-radius:9px;cursor:pointer;white-space:nowrap}
+  button.copy:hover{background:#b39ae8}
+  button.copy.done{background:var(--ok);color:#07130d}
+  .hint{font-size:11.5px;color:var(--dim2);margin-top:22px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>#616 · 插件内置 TS 的形态定版 · 第一轮 6 问</h1>
+  <div class="sub">
+    已定的地基照抄 <code>update-core/</code>：不进 pnpm workspace、不建 <code>packages/&lt;名字&gt;/</code>、产物落 <code>src/shared/&lt;名字&gt;/*.js</code> 并提交进 git。<br>
+    这一轮只问「放哪、怎么构建、写什么、边界到哪」。答完这 6 问，剩下的（目录名、导出名、日志埋点位置、切票清单）才排得出顺序。
+  </div>
+
+  <div class="head lock" style="margin-bottom:24px">
+    <h3>✓ 本页已定版（2026-09-13；六道题没有由人作答）</h3>
+    <p>六道题都没有由人作答：总工把过程决策交给架构师代理，于是逐条按下面的推荐落定。最终答案与施工清单以 <code>docs/adr/20260913-builtin-ts-shape.md</code> 与 #616 的正文为准，本页只留作提问记录。</p>
+    <p>与下面的推荐不同的只有一处：第 4 问「客户端那半边怎么进闭包」最终选了仓库既有的「共享拼接」这条路，不新建客户端派生分块。理由是宿主要用同一份代码，产物本来就必须落在 <code>src/shared/</code>，而落在这里的文件本来就能被拼进客户端闭包；再打一份客户端分块等于让同一份源码走两种编译方式，还多一套改名避撞的步骤。代价与细节写在 ADR 第 2.6 节。</p>
+  </div>
+
+  <div class="heads">
+    <div class="head fix">
+      <h3>⚠ 本票正文里的两处过期信息（先更正）</h3>
+      <p><b>① 阻塞已经消失。</b>正文写「Blocked by: #613」，那张研究票已关闭，报告在 <code>research/613-builtin-ts.md</code>。本票现在没有阻塞，可以开工。</p>
+      <p><b>② 票号写错一处。</b>正文里「研究：不发 npm 包的插件内置 TS」标的号写成了 #613，与地图一致，但正文那句「等那张票关闭后开工」已经满足，别照着旧话再等。</p>
+    </div>
+    <div class="head lock">
+      <h3>✓ 已定、本票不再重开（读一遍确认即可）</h3>
+      <p>形态照 <code>update-core/</code> 抄；TS 源码不进 pnpm workspace</p>
+      <p>不新建 <code>packages/&lt;名字&gt;/</code>，不制造「又一个要发布的包」的假象</p>
+      <p>不照搬 vscode 的 base / platform / workbench 三段式——那套是为「一套代码产出多个应用」，本插件只有一个产物</p>
+      <p>只取三条纪律：先写接口类型再写实现 · 纯逻辑不碰磁盘与网络 · 按能力分目录</p>
+      <p>只定形态，<b>不动</b>现有两个已发布包，也不迁移老的普通 JS</p>
+    </div>
+  </div>
+
+  <div class="tbl">
+    <table>
+      <thead><tr><th></th><th>要点</th><th>推荐</th></tr></thead>
+      <tbody id="sum"></tbody>
+    </table>
+  </div>
+
+  <div id="cards"></div>
+
+  <div class="hint">勾选会存在本机 —— 刷新不会丢。底部一直显示你改动了哪几题。</div>
+</div>
+
+<div class="bar"><div class="inner">
+  <div class="meter">
+    <div class="track"><div class="fill" id="fill"></div></div>
+    <div class="txt" id="mtxt">全部按推荐 · 可直接复制</div>
+  </div>
+  <div class="ans" id="preview">—</div>
+  <button class="copy" id="copy">复制我的回答</button>
+</div></div>
+
+<script>
+var QS = [
+{
+  id:'q1', title:'源码落点与命名：TS 源码住在哪',
+  why:'这是整棵树的主干。三个选项里有一个是<b>必须排除</b>的：<code>src/shared/color-core/</code>。因为主构建脚本是<b>整树递归复制</b> <code>src/host/**</code> 与 <code>src/shared/**</code> 进发布包，<code>.ts</code> 源文件会跟着进 npm 包、再同步到用户机器上的 <code>node_modules</code>。它不会报错（语法检查只看 <code>.js</code>），但等于把源码当死文件一路发出去。',
+  after:'落点还决定「人第一眼怎么认仓库里的树」：仓库根已经有 <code>packages/</code>（要发布的包）与 <code>update-core/</code>（内置能力），再添一棵同级目录，是把它归类成第二类，还是归到 <code>src/</code> 里去。',
+  facts:'<b>两个存活的选项都不碰门禁：</b>严格 ESM 检查与单文件行数检查都只看 <code>.js</code>；同层互引检查对不属于 host / platform / shared / seam 五层的文件直接跳过。<b>现状：</b><code>src/</code> 下只有 client、host、seam、shared 四个目录，没有第五类。',
+  opts:[
+    {k:'a', t:'仓库根新目录 label-color-core/', e:'照 update-core 的形状：src/*.ts + tsconfig.json + README.md。<b class="pos">省：</b>同层级看下去一眼分得清「要发布的包」与「插件内置能力」；后来人照 update-core 先例就能读懂。<b class="neg">贵：</b>仓库根多一棵同级源码树。', rec:true},
+    {k:'b', t:'src/ 内避开 host 与 shared，例如 src/builtin-ts/label-color/', e:'<b class="pos">省：</b>代码仍在 src 里，读代码的人不必跳到仓库根；不会进发布包的复制路径。<b class="neg">贵：</b>在 src 下开出第一棵不属于现有四层的目录，门禁的「层」概念要多解释一句。'},
+    {k:'c', t:'src/shared/color-core/', e:'<b class="neg">必须排除：</b>整树复制会把 .ts 源文件一路发进用户机器上的 node_modules，不报错但发错东西。', dead:true}
+  ],
+  verdict:'<b>选 A，目录名 <code>label-color-core/</code>。</b>同一类东西落在同一层级最好认；命名用功能名而不是比喻，人类第一眼就能懂。',
+  note:''
+},
+{
+  id:'q2', title:'构建节奏：转译与类型检查住在哪',
+  why:'研究票查出一处缺口：今天改 <code>update-core</code> 里的 TS，要跑<b>两条命令</b>——先 <code>node update-core/build.mjs</code>（转译 + 类型检查），再 <code>node scripts/build.mjs</code>（拼客户端、复制宿主、同步到本机 profile）。因为根 <code>package.json</code> 的 <code>prepare</code> 里<b>没有</b> update-core，主构建脚本也<b>不编译任何 TS</b>；漏跑第一条时，要等新鲜度门禁变红才发现。',
+  after:'所以这一问决定：新 core 是把这个缺口补上（一条命令），还是照现状把缺口复制一份（两条命令）。第三选项是顺手把 update-core 也并进去。',
+  facts:'<b>成本实测：</b>一条 <code>tsc --noEmit</code> 包起来 0.4~0.9 秒，并进主构建后「改一行代码到看见效果」仍是 1 条命令、只多不到 1 秒。<b>不可动的约束：</b>两个已发布包的构建步骤与发布向导不属本票，本票只新增，不改它们。',
+  opts:[
+    {k:'a', t:'并进 scripts/build.mjs，新 core 不写自己的 build.mjs', e:'把转译与类型检查抽成函数放进主构建脚本并导出，一条 <code>node scripts/build.mjs</code> 搞定。<b class="pos">省：</b>开发节奏与今天写 JS 完全一样长；口径只有一处。<b class="neg">贵：</b>全仓会长期并存两种节奏（新 core 一条命令、update-core 两条）。', rec:true},
+    {k:'b', t:'照 update-core 现状，新 core 自带 build.mjs', e:'<b class="pos">省：</b>与先例逐字同形，认知负担最低。<b class="neg">贵：</b>把「改一行要跑两条命令、漏跑第二条才报错」这个缺口再复制一份。'},
+    {k:'c', t:'选 A 的同时顺手把 update-core 也并进主构建脚本', e:'<b class="pos">省：</b>全仓只剩一种节奏。<b class="neg">贵：</b>改动落在两个已发布包共用的构建链上，与本票「不动现有两个已发布包」的边界相撞，风险与收益不对等。'}
+  ],
+  verdict:'<b>选 A。</b>「要不要统一 update-core 的节奏」写成一张后续票，不塞进本票。',
+  note:''
+},
+{
+  id:'q3', title:'这一批 TS 写什么：范围切到哪一刀',
+  why:'这是你点名要讨论的第 5 项。选项差别不在「能不能写 TS」，而在<b>切多深</b>：只写客户端那几件纯逻辑、连宿主的命令拼装与输出解析一起收进来、还是连本地 Markdown 房间的配色文件读写规则也一并收进来。',
+  after:'切深了会与 #618（本地配色文件机制）、#620（GitHub 批量改色）两张已经开好的落地票重叠——同一个活儿做两遍，还要改它们的接口与排期。切浅了，本票就只是「先建机制、放薄的一层代码」，要在 ADR 里说清楚，免得后来人以为是偷工。',
+  facts:'<b>色值规范化现在散在三处：</b>核心标签清单里那 10 条色值大小写混合（有一条是大写 <code>9D7CD8</code>，而契约要求统一小写）；Markdown 房间的标签读写文件里自带一个小解析函数；面板派生的聚合注释写明「不直读后端调色盘」。<b>纪律参照：</b>update-core 的写法是「核心只拼命令、起进程归适配器」——宿主的 <code>gh</code> 命令确实适合这个形状。',
+  opts:[
+    {k:'a', t:'只写客户端侧纯逻辑：色值规范化 + 校验 + 列表比对 + 推荐配色提示词拼装', e:'<b class="pos">省：</b>不与 #618/#620 重叠；改动面最小，风险可控。<b class="neg">贵：</b>core 很薄，短期内看不出「端口与适配器分开」的长期价值；大小写混合的色值清单要单独收口到小写。', rec:true},
+    {k:'b', t:'在 A 之上，把宿主的 gh 命令拼装与 gh label list 输出解析也收进 TS', e:'<b class="pos">省：</b>真正跑起 update-core 那套「拼命令归核心、起进程归适配器」，TS 的价值立刻看得见。<b class="neg">贵：</b>要同时改动 #620 的接口与它的施工内容。'},
+    {k:'c', t:'连本地 Markdown 房间的配色文件读写规则一起进 TS', e:'<b class="neg">贵：</b>与 #618 的落地面直接重叠，等于把同一件活做成两遍；读写规则里还牵扯原子写与单写者队列，属于落地票的核心内容。'}
+  ],
+  verdict:'<b>选 A</b>，但只在「色值规范化」这一件事上收口。写进 ADR 的是「先建机制、放薄的一层代码」，让后来人看懂这是有意为之。',
+  note:''
+},
+{
+  id:'q4', title:'客户端那半边进 TS 之后怎么进闭包',
+  why:'插件在客户端侧<b>只有一个入口</b>——产物里只允许出现一处模块加载调用，没有加载第二份客户端包片的机制。所以 TS 转译出来的客户端代码，要么当<b>派生分块</b>（打成一个文件放 <code>scripts/generated/</code>，构建时拼进闭包），要么当<b>普通叶子</b>（放在 <code>src/client/</code> 下被登记拼接）。',
+  after:'这条路选错，代价落在门禁上：派生分块要求把「同名冲突」检查从两份派生文件扩成三份；普通叶子则受两条硬约束——文件里不能出现任何中文字符串、单文件不超过 350 行。改色弹窗要带中文文案、表格加取色控件加草稿与批量保存，几乎必然超 350 行。',
+  facts:'<b>一条容易漏掉的空白：</b>派生分块里的日志调用，现有的日志计数与字段门禁<b>扫不到</b>（现成记录在研究报告里）。弹窗要点的日志埋在哪里，得在规格里写死，否则会静默漏记。<b>反查保护：</b>普通叶子有「没登记就构建失败」的反向检查，派生分块没有。',
+  opts:[
+    {k:'a', t:'派生分块：落 scripts/generated/，按客户端内核清单登记', e:'<b class="pos">省：</b>不限 350 行、不受「零中文字符串」约束，带文案的弹窗能直接写。<b class="neg">贵：</b>要把同名冲撞门禁扩成三份（漏掉的后果是函数声明被顶掉、界面永远弹失败且一条日志都发不出），且日志埋点要自己盯。', rec:true},
+    {k:'b', t:'普通叶子：落 src/client/ 下并登记', e:'<b class="pos">省：</b>有「未登记即构建失败」的反查保护，不用扩同名冲撞门禁。<b class="neg">贵：</b>弹窗的中文文案必须全部走词条、文件必须压在 350 行以内——对一张全量标签表格加批量保存的弹窗不现实。'}
+  ],
+  verdict:'<b>选 A，派生分块。</b>同时在规格里写明：弹窗的日志埋点位置与内容。',
+  note:''
+},
+{
+  id:'q5', title:'端口与适配器：谁长什么样，客户端要不要也留一个',
+  why:'这是你点名要讨论的第 5 项。仓库有一条现成纪律：host、platform、shared、seam <b>四层各自内部不许互相引用</b>，已有 84 条存量边记在只许减不许增的白名单里。update-core 之所以「同层互引门禁天然能过」，靠的就是三个文件彼此零引用。',
+  after:'所以新 core 要拆几个文件、要不要端口，直接决定要不要往白名单里加条目。另一个岔路：客户端那半边要不要也给一个可注入的端口。',
+  facts:'<b>客户端没有第二实现：</b>弹窗只需要一份共享类型，调宿主已有的那条通信通路就能拿到标签与颜色，没有「换一个实现」的场景。<b>一处必须先统一：</b>核心标签清单里那条大写色值要先改成小写，否则比较颜色时会被误判成「颜色变了」而白发一次请求。',
+  opts:[
+    {k:'a', t:'一个 ports.ts 放全部类型；端口只给宿主侧，客户端只用共享类型', e:'核心定插口、跑腿在外面；宿主侧真实现在现有 tracker 目录下接三个后端房间，客户端侧照现有通路调两个操作。<b class="pos">省：</b>文件之间零引用，同层白名单一条都不用加；不发明空壳机制。<b class="neg">贵：</b>客户端侧没有端口的可替换性（本来也不需要）。', rec:true},
+    {k:'b', t:'宿主侧与客户端侧各留一个端口，都要注入', e:'<b class="pos">省：</b>两侧形状对称，看着整齐。<b class="neg">贵：</b>客户端那个端口全仓只有一个实现，是空壳；每多一条文件间引用就多一条白名单条目。'},
+    {k:'c', t:'不留端口，core 只导出纯函数', e:'<b class="pos">省：</b>文件最少。<b class="neg">贵：</b>丢掉「核心定插口」这条已定纪律；以后核心要长大时没有落点可依。'}
+  ],
+  verdict:'<b>选 A。</b>端口定义跟着核心走，客户端不设空壳端口。',
+  note:''
+},
+{
+  id:'q6', title:'三条结构纪律要不要现在就立成机器门禁',
+  why:'这是本票正文点名要问你的那一处。三条纪律里：「先写接口类型再写实现」难机器判定；「按能力分目录」不可判定；只有「纯逻辑不碰磁盘与网络」可判定（扫新 core 产物里有没有出现读文件、网络、起进程这些能力）。',
+  after:'关键区分：<b>还差一条必须加的门禁</b>——研究票点明，新开一个 core 目录就要照 update-core 那条抄一条「TS 改了、产物 JS 没跟上就红」，否则这件事没有任何机器在看。那条与本问无关，肯定要做。本问只问三条<b>纪律</b>要不要变成机器门禁。',
+  facts:'<b>付费方式：</b>仓库的检查链已经是一条 99 段的长链，每加一段都在每次提交里永久付费。<b>现状：</b>全仓唯一检查「纪律」的地方就是那条新鲜度门禁，它顺带跑一次类型检查。',
+  opts:[
+    {k:'a', t:'只写进 ADR 与 core 的 README，由人守；门禁只加必须的新鲜度一致性', e:'<b class="pos">省：</b>不加长检查链；产物只有三四个文件，人读一遍十秒。<b class="neg">贵：</b>纪律靠自觉，没有人拦。', rec:true},
+    {k:'b', t:'现在就立机器门禁：扫新 core 产物不得出现读文件、网络、起进程', e:'<b class="pos">省：</b>「纯逻辑不碰外设」有机器拦。<b class="neg">贵：</b>新 core 只有三四个文件时价值上限很低，却要永久多一段检查。'}
+  ],
+  verdict:'<b>选 A。</b>等 core 真长大了再补门禁，现在只加必须的那条。',
+  note:''
+}
+];
+
+var KEY='grill-616';
+var saved={};
+try{saved=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){saved={}}
+
+var sum=document.getElementById('sum'), cards=document.getElementById('cards');
+QS.forEach(function(q,i){
+  var rec=(q.opts.filter(function(o){return o.rec})[0]||{}).t||'';
+  var tr=document.createElement('tr'); tr.id='s_'+q.id;
+  tr.innerHTML='<td class="n">'+(i+1)+'</td><td class="t">'+q.title+'</td><td class="r">'+rec+'</td>';
+  sum.appendChild(tr);
+});
+
+QS.forEach(function(q){
+  var recOpt=q.opts.filter(function(o){return o.rec})[0];
+  var c=document.createElement('div'); c.className='card'; c.id='c_'+q.id;
+  var h='<div class="hd"><span class="qid">'+q.id.toUpperCase()+'</span><h2>'+q.title+'</h2></div><div class="body">';
+  h+='<div class="why"><span class="lbl">前因</span><p>'+q.why+'</p>';
+  if(q.after) h+='<span class="lbl">后果</span><p class="after">'+q.after+'</p>';
+  h+='</div><div class="opts">';
+  q.opts.forEach(function(o){
+    var cls='opt'+(o.rec?' rec':'')+(o.dead?' dead':'');
+    h+='<label class="'+cls+'"><input type="radio" name="'+q.id+'" value="'+o.k+'"'+(o.dead?' disabled':'')+'>'
+      +'<span><span class="tag">'+o.t+'</span><span class="exp">'+o.e+'</span></span></label>';
+  });
+  h+='</div><div class="verdict">'+q.verdict+'</div>';
+  if(q.facts) h+='<div class="facts">'+q.facts+'</div>';
+  h+='</div>';
+  c.innerHTML=h; cards.appendChild(c);
+  c.querySelectorAll('input').forEach(function(inp){
+    inp.addEventListener('change',function(){ saved[q.id]=inp.value; persist(); paint(); });
+  });
+});
+
+function persist(){ try{ localStorage.setItem(KEY,JSON.stringify(saved)) }catch(e){} }
+
+function pick(q){
+  var v=saved[q.id];
+  var rec=(q.opts.filter(function(o){return o.rec})[0]||{}).k;
+  if(!v) return rec;
+  if(q.opts.filter(function(o){return o.dead&&o.k===v}).length) return rec;
+  return v;
+}
+function label(q,k){ var i=q.opts.map(function(x){return x.k}).indexOf(k); return i<0?'?':'ABC'[i] }
+
+function paint(){
+  var changed=[];
+  QS.forEach(function(q){
+    var v=pick(q), rec=(q.opts.filter(function(o){return o.rec})[0]||{}).k;
+    q.opts.forEach(function(o){
+      var inp=document.querySelector('input[name="'+q.id+'"][value="'+o.k+'"]');
+      if(inp){ inp.checked=(o.k===v); }
+    });
+    document.getElementById('c_'+q.id).classList.toggle('done',!!saved[q.id]);
+    document.getElementById('s_'+q.id).classList.toggle('done',!!saved[q.id]);
+    if(v!==rec) changed.push(q.id.toUpperCase()+'→'+v.toUpperCase()+': '+label(q,v));
+  });
+  var n=QS.filter(function(q){return !!saved[q.id]}).length;
+  document.getElementById('fill').style.width=(n/QS.length*100)+'%';
+  document.getElementById('mtxt').textContent=n+'/'+QS.length+' 已明确'
+    +(changed.length?' · 改了 '+changed.length+' 题（其余按推荐）':' · 全部按推荐');
+  document.getElementById('preview').textContent=changed.length?changed.join('  |  '):'全部按推荐';
+  return changed;
+}
+
+document.getElementById('copy').addEventListener('click',function(){
+  var lines=QS.map(function(q){ return q.id.toUpperCase()+'：'+pick(q).toUpperCase()+' — '+label(q,pick(q)) });
+  var txt='#616 第一轮回答（未标「改」的按推荐）\n'+lines.join('\n');
+  var btn=this;
+  function ok(){ btn.textContent='已复制'; btn.classList.add('done'); setTimeout(function(){btn.textContent='复制我的回答';btn.classList.remove('done')},1600) }
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(ok,function(){fb()}) } else fb();
+  function fb(){ var t=document.createElement('textarea'); t.value=txt; document.body.appendChild(t); t.select(); try{document.execCommand('copy');ok()}catch(e){} document.body.removeChild(t) }
+});
+
+paint();
+setInterval(paint,900);
+</script>
+</body>
+</html>

@@ -72,6 +72,41 @@ const dispatchOnce = async function (endpoint, args) {
   check(!!bad && bad.ok === false, '未知端点 ok=false（RpcResult 错误信封）')
 }
 
+// ---- #627 标签配色两条电话：端点名与契约操作名一致，经同一条路由调到宿主处理器 ----
+// 这一跑证明的是「路通」：分派信封成功（说明端点表里有这个处理器，不是「未知端点」），
+// 处理器按契约的工具信封回话（成功给数据、失败给一档错误）。
+// 真实的列标签与改色由后端房间实现（#618/#620），不在这条冒烟里演 ——
+// 所以下面只断言信封的形状，不断言「后端还没实现」：后端做出来之后，这条冒烟不该跟着变红。
+if (route && typeof route.fetch === 'function') {
+  const callHandler = async function (endpoint, args) {
+    const env = await dispatchOnce(endpoint, args)
+    return (env && typeof env.value === 'object' && env.value !== null && ('ok' in env.value)) ? env.value : env
+  }
+  try {
+    const bind = await callHandler('bind', { cwd: process.cwd(), backendId: 'markdown' })
+    check(!!bind && bind.ok === true, '前置：把这一跑的工作区显式绑到 markdown 后端（让后面两条电话有确定的后端可选）')
+
+    const listEnv = await dispatchOnce('listLabels', { cwd: process.cwd() })
+    check(!!listEnv && listEnv.ok === true, 'wf.listLabels 经路由命中处理器（信封成功，不是「未知端点: listLabels」）')
+    const rl = await callHandler('listLabels', { cwd: process.cwd() })
+    console.log('  listLabels 结果:', JSON.stringify(rl))
+    check(!!rl && typeof rl.ok === 'boolean', 'wf.listLabels 回了一个信封（ok 是布尔值）—— 后端实现没实现都不影响这条')
+    check(!!rl && (rl.ok === true ? Array.isArray(rl.labels) : (!!rl.error && typeof rl.error.kind === 'string')), 'wf.listLabels 的信封与 ok 自洽：成功带 labels 数组，失败带 error.kind')
+
+    const writeEnv = await dispatchOnce('setLabelColors', { cwd: process.cwd(), changes: [{ name: 'bug', color: '9d7cd8' }] })
+    check(!!writeEnv && writeEnv.ok === true, 'wf.setLabelColors 经路由命中处理器（信封成功）')
+    const rs = await callHandler('setLabelColors', { cwd: process.cwd(), changes: [{ name: 'bug', color: '9d7cd8' }] })
+    console.log('  setLabelColors 结果:', JSON.stringify(rs))
+    check(!!rs && typeof rs.ok === 'boolean', 'wf.setLabelColors 回了一个信封（ok 是布尔值）—— 后端实现没实现都不影响这条')
+    check(!!rs && (rs.ok === true ? (Array.isArray(rs.applied) && Array.isArray(rs.failed)) : (!!rs.error && typeof rs.error.kind === 'string')), 'wf.setLabelColors 的信封与 ok 自洽：成功带 applied/failed 两个名单，失败带 error.kind')
+
+    const rsBad = await callHandler('setLabelColors', { cwd: process.cwd(), changes: '不是一批改动' })
+    check(!!rsBad && rsBad.ok === false && rsBad.error.kind === 'parse', 'setLabelColors 收到不是一批改动 → 解析档（不必先问后端）')
+  } catch (eLabels) {
+    check(false, '#627 标签配色分发路径异常: ' + String((eLabels && eLabels.message) || eLabels))
+  }
+}
+
 // ---- #265 命名守护新增操作路径（注册/信号/计划单/回报）----
 if (route && typeof route.fetch === 'function') {
   // loopback dispatch 返回 RpcResult 信封 { ok, value }：处理器原始返回在 .value（ping 断言即信封层）

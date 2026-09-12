@@ -67,7 +67,7 @@
 
 - 四件套 `BackendModule{id/label/create/matches}` + Proxy 自动桩（缺 op → `unsupported`）+ `matches:boolean` + `Disposable/on/describe/MIGRATE_KEY`，见 `src/host/tracker/registryCore.js`（装配与仲裁；形状包桩在 `registryShape.js`、只读视图在 `registryViews.js`，V1 #461 拆分）与 `docs/architecture/third-party-tracker.md` §3-4。
 - 探测 `cwd/.demo/config.json` 或 `.scratch/map.md`（`platform.fs`，超时 3000ms 由 registry 托管，`pending:true` 不静默 Other），能力字段 `EMPTY vs MISSING`（`src/shared/tracker/shape.js` + `host/tracker/capability.js`）。
-- 契约测试即公开验收面：`tests/tracker-contract/harness.js` + `runner/runPlayback` + `examples/demo-mini/fixtures/demo-real/`，织入 `tests/verify-tracker-contract.js`（`359/4/OK`）。
+- 契约测试即公开验收面：`tests/tracker-contract/harness.js` + `runner/runPlayback` + `examples/demo-mini/fixtures/demo-real/`，织入 `tests/verify-tracker-contract.js`。现值是 `620 passed / 4 failed / CONTRACT SKELETON OK`（退出码 0）——**不要把这个数字当门槛**，断言总数每张票都会增长；是否过关的判据是 `CONTRACT SKELETON OK`，加上违规桩里按名字点名的那 4 条失败必须出现（名字见 `tests/verify-tracker-contract.js` 末尾的 `VIOLATING_EXPECTED_FAILURES`）。
 - 打包：`examples/` 不进 `files` 白名单，`dsh.contributes.trackers` 预留，`Disposable` 按代隔离 HMR。
 
 详见 **第三方指南**：`docs/architecture/third-party-tracker.md`（主入口，含注册/探测/能力/测试/打包/更新六章 + 接真实工具 Checklist）。

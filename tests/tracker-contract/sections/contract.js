@@ -16,6 +16,7 @@ const EXPECTED_OPNAMES = [
   'update', 'setLabels', 'setAssignees', 'setParent', 'setBlockedBy',
   'getCurrentUser',
   'initProject',
+  'listLabels', 'setLabelColors',   // #627 标签配色两条（精确清单：多一个名字或漏一个名字都判红）
 ]
 const LEGACY_OPS = ['detect', 'label', 'subIssue', 'blockedBy', 'syncSnapshot']
 
@@ -63,6 +64,8 @@ export async function run() {
   await assert('✗ probe: planted snapshot-as-op 被逮', opListCheck(['snapshot', 'list']).length > 0, 'checker missed snapshot')
   await assert('✗ probe: planted 意外 op 被逮', opListCheck(['list', 'dance']).length > 0, 'checker missed unknown op')
   await assert('✗ probe: 缺 getDependencies 被逮', opListCheck(['list', 'get']).length > 0, 'checker missed missing getDependencies')
+  // #627：标签配色两条做了手写的假身也不算数——清单以 OPERATIONS 为准，多一个少一个都在上面那条比对里判红。
+  await assert('✗ probe: 标签配色之外的自造操作名被逮', opListCheck(['list', 'getDependencies', 'setLabelColor']).length > 0, 'checker missed a near-miss op name')
 
   return out
 }

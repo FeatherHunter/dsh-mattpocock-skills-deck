@@ -162,7 +162,6 @@ export default {
     async function lightProbeReason() { const h = await _skillProbe(); return h.lightProbeReason.apply(h, arguments) }
     async function probeSkill() { const h = await _skillProbe(); return h.probeSkill.apply(h, arguments) }
 
-
     // H2 #446 留守：upcaseState/upcaseSnapStates 留入口（H4 四处同步升格快照状态；动态加载给不出同步函数）。
     // 客户端契约：state 按旧链路大写 OPEN/CLOSED（mapTicket 曾如此）；composer 归一为小写 open/closed，
     //   在此适配层统一升格，避免客户端把全部 closed 误判为 open（#327 面板“0 已关闭/大量错误状态”根因）。
@@ -208,10 +207,8 @@ export default {
       return /rate\s*limit|ratelimit|403/.test(t)
     }
 
-
     // v1.3.3 提速：GraphQL aliases 一次查询全部 map 详情（8 次 → 1 次，Windows 下串行 8×2.4s → 单次 ~3.6s）
     //   每个 map 一个 alias（m0/m1/...），响应按 alias 取；网络类失败整批重试 1 次
-
 
     // ============ git 远程解析（getRepoKey 与后端谓词复用，#284）============
     // 解析 git 远程 URL → GitHub owner/repo；非 GitHub 返回 null
@@ -266,7 +263,7 @@ export default {
     // H5 #449：见下接线区（原工作区归一与绑定选择）。
     // H5 #449：见下接线区（原单票详情与评论读写及探针）。
     let _workspaceP = null
-    function _workspace() { if (!_workspaceP) _workspaceP = (async function(){ const mod = await import('./workspaceCwd.js'); return mod.createWorkspaceCwd({ ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getWorkspaceStore: function(){ return getWorkspaceStore.apply(null, arguments) }, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, setCache: function(v){ cache = v }, logCtx: logCtx }) })(); return _workspaceP }
+    function _workspace() { if (!_workspaceP) _workspaceP = (async function(){ const mod = await import('./workspaceCwd.js'); return mod.createWorkspaceCwd({ ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getWorkspaceStore: function(){ return getWorkspaceStore.apply(null, arguments) }, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, setCache: function(v){ cache = v }, timer: timer, detectionExec: function(){ return detectionExec.apply(null, arguments) }, logCtx: logCtx }) })(); return _workspaceP }
     let _commentsP = null
     function _comments() { if (!_commentsP) _commentsP = (async function(){ const ws = await _workspace(); const life = await _sessLife(); const mod = await import('./commentThreads.js'); return mod.createCommentThreads({ normCwd: ws.normCwd, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, selectEarly: life.selectEarly, isComposerSelection: life.isComposerSelection, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, timer: timer, DEFAULT_CWD: DEFAULT_CWD, errText: errText, isRateLimitError: isRateLimitError, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, execProc: function(){ return execProc.apply(null, arguments) }, fetchIssueDetail: function(){ return fetchIssueDetail.apply(null, arguments) }, fetchIssueIndex: function(){ return fetchIssueIndex.apply(null, arguments) }, fetchIssueIndexWindowed: function(){ return fetchIssueIndexWindowed.apply(null, arguments) }, issueIndexFromSnapshot: issueIndexFromSnapshot, issueIndexChanged: issueIndexChanged, rememberIssueIndex: rememberIssueIndex, getCache: function(){ return cache }, setCache: function(v){ cache = v }, lastIssueIndexByRepo: lastIssueIndexByRepo, lastProbeAtByRepo: lastProbeAtByRepo, logCtx: logCtx }) })(); return _commentsP }
     // ---- H5 #449 委托：原函数名与签名不变，外部调用方（含 H6 认领/交接）零改动 ----
@@ -275,11 +272,14 @@ export default {
     harness.handle('wf.bindings', async function () { const h = await _workspace(); return h.handleBindings.apply(h, arguments) })
     harness.handle('wf.registry', async function () { const h = await _workspace(); return h.handleRegistry.apply(h, arguments) })
     harness.handle('wf.selection', async function () { const h = await _workspace(); return h.handleSelection.apply(h, arguments) })
+    // #627 标签配色两条电话：端点名与契约操作名一致（listLabels / setLabelColors），
+    //   界面经客户端到宿主那条既有接口（/api/dsws 通道按端点名分发）就能调到它们。
+    harness.handle('wf.listLabels', async function (args) { const h = await _workspace(); return h.handleListLabels(args) })
+    harness.handle('wf.setLabelColors', async function (args) { const h = await _workspace(); return h.handleSetLabelColors(args) })
     harness.handle('wf.issueDetail', async function () { const h = await _comments(); return h.handleIssueDetail.apply(h, arguments) })
     harness.handle('wf.issueComments', async function () { const h = await _comments(); return h.handleIssueComments.apply(h, arguments) })
     harness.handle('wf.commentIssue', async function () { const h = await _comments(); return h.handleCommentIssue.apply(h, arguments) })
     harness.handle('wf.probe', async function () { const h = await _comments(); return h.handleProbe.apply(h, arguments) })
-
 
     // ---- H6 #450 接线：5 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
     // 第 5 件 ticketGrouping 为压线追加（用户定夺）：computeLevels/groupTickets 纯函数搬出，H2/H4 loader 取值后转供给。

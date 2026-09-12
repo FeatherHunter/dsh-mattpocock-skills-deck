@@ -129,8 +129,8 @@ interface OpContext extends BackendContext { cwd: string; signal: AbortSignal; r
     normalized-*.json  归一化后 Issue 期望
   ```
   demo 位于 `examples/demo-mini/fixtures/demo-real/`（不在 `files` 白名单，零发包，脚本 `scripts/generate-demo-fixtures.js` 可重采）。
-- **门禁**：`node tests/verify-tracker-contract.js` → `359 passed · 4 failed（全为 violating 桩）· CONTRACT SKELETON OK`（demo 织入后从 `293/4` 增至 `359/4`，回归红线：`compliant` 全 PASS、`violating` 至少一 FAIL、`sections/*` 全 PASS），见 `tests/verify-tracker-contract.js` 与 `ONBOARDING.md:98-101`。
-- **接入四件清单（ONBOARDING）**：①`src/host/tracker/backends/<id>/` ②`fixtures/<id>-real/`（`metadata.json+raw+normalized`）③`scripts/generate-<id>-fixtures.js` ④`verify-tracker-contract.js` 集成（保 `4 failed` 全为 `violating`），见 `tests/tracker-contract/README.md:98-105`。
+- **门禁**：`node tests/verify-tracker-contract.js` → `620 passed · 4 failed（全为 violating 桩）· CONTRACT SKELETON OK`（历史数字依次是 `293/4`、`359/4`、`590/4`，每张票都会长；**别把数字当门槛**，回归红线的形状是：`compliant` 全 PASS、`violating` 那 4 条预期失败都在（按名字点名）、`sections/*` 全 PASS 含 `sections/labels.js` 里对真实后端模块的探针），见 `tests/verify-tracker-contract.js` 与 `tests/tracker-contract/README.md`。
+- **接入四件清单（ONBOARDING）**：①`src/host/tracker/backends/<id>/` ②`fixtures/<id>-real/`（`metadata.json+raw+normalized`）③`scripts/generate-<id>-fixtures.js` ④`verify-tracker-contract.js` 集成（保那 4 条 `violating` 预期失败都在），见 `tests/tracker-contract/README.md`。
 
 ---
 
@@ -161,11 +161,11 @@ interface OpContext extends BackendContext { cwd: string; signal: AbortSignal; r
 - [ ] `src/host/tracker/backends/<id>/`（或 `examples/<id>/` 作外部示例，**不默认装配**）
 - [ ] `fixtures/<id>-real/{metadata.json,raw-*.json,normalized-*.json}`（`metadata.desensitization` 四规则：`ghp_/github_pat_`→`[REDACTED]`、邮箱→`redacted@example.com`、不记 `Authorization` 头，见 `runner/index.js:315-318`）
 - [ ] `scripts/generate-<id>-fixtures.js`（打真实 API → 脱敏 → 落盘 JSON + metadata）
-- [ ] `tests/verify-tracker-contract.js` 集成：`runContractTests(demoFixture)` + `runPlayback({fixturesDir})`，保 `4 failed` 全为 `violating`（`npm run verify` 全绿）
+- [ ] `tests/verify-tracker-contract.js` 集成：`runContractTests(demoFixture)` + `runPlayback({fixturesDir})`，过关判据是 `CONTRACT SKELETON OK` 加上违规桩里按名字点名的那 4 条失败必须出现（`npm run verify` 全绿）。断言总数每张票都会增长，**不要把这个数字当门槛**
 
 验证（双闸可复现）：
 ```bash
-node tests/verify-tracker-contract.js   # 骨架门禁（359/4/OK）
+node tests/verify-tracker-contract.js   # 骨架门禁（现值 620/4/OK；数字会随票增长，不是门槛）
 node scripts/generate-demo-fixtures.js # 重采（可选）
 ```
 

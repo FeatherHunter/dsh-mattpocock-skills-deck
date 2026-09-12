@@ -5,7 +5,8 @@
 ## 第一性原理
 
 - 契约说真话：完整数据形状（`src/shared/tracker/shape.js`）+ 13 操作集（`src/host/tracker/contract.js`）+ capability-by-fill + registry 三级联，已由 #124-#128 定稿。
-- 骨架已自洽：#132 门禁 `293 passed / 4 failed / CONTRACT SKELETON OK` 仅证明“桩能过、违规能逮”，测的是 `fixtures/compliant.js` 与 `violating.js`，不是真实适配器。
+- 骨架已自洽：门禁 `620 passed / 4 failed / CONTRACT SKELETON OK`（退出码 0）证明“桩能过、违规能逮”，测的是 `fixtures/compliant.js` 与 `violating.js`，不是真实适配器。那 4 条失败是 `violating` 桩里刻意埋的错，门禁要求它们**必须出现**（按名字点名，见 `verify-tracker-contract.js` 末尾的 `VIOLATING_EXPECTED_FAILURES`）；数字会随票据增长，判据不是数字本身。其中 `sections/labels.js`（#627 标签配色契约）是 85 条。
+- 真实适配器这一层另有门禁：`sections/labels.js` 里有对着**真实 GitHub 与本地 Markdown 后端模块**的探针（把真实模块注册进注册表真调用），判据是「要么诚实地说做不到（unsupported），要么把这两条操作做到契约要求」；今天两个后端都还没实现，走前一条，下游一实现这一段自动变成真验收。
 - 平台可测：#131 的 145+32 方法论（注入可判真 + 零手拼 + 双闸）已让次缝（平台层）单机判三端；主缝需复用同一方法论，但对象改为“后端适配器”。
 
 推导：harness 必须从“**测试固件**”升级为“**真实适配器 + 真实采样固件**”，否则 #114/#115/#116 的“本后端真实适配器过 harness”无锚点。
@@ -28,7 +29,7 @@ tests/tracker-contract/
 │     ├─ raw-list.json      近期列表 5 条（已脱敏）
 │     ├─ normalized-173.json 归一化期望（由 normalizeIssue 生成，供比对）
 │     └─ normalized-list.json
-├─ sections/                行为段（contract/registry/preflight/deck/snapshot，每段含 ✗ probe 自证）
+├─ sections/                行为段（contract/registry/preflight/deck/snapshot/chain/labels，每段含 ✗ probe 自证）
 └─ ONBOARDING.md            每后端接入门槛（#173 验收③）
 ```
 
@@ -101,7 +102,7 @@ node scripts/generate-github-fixtures.js --repo FeatherHunter/dsh-mattpocock-ski
 1. `src/host/tracker/backends/<id>/` 适配器（`index.js` 导出 BackendModule，13 ops 按需实现，缺的由 registry Proxy 补 `unsupported`）
 2. `tests/tracker-contract/fixtures/<id>-real/` 采样固件 + `metadata.json`（来源/脱敏/时间/字段）
 3. `scripts/generate-<id>-fixtures.js` 生成脚本（可复现，记录来源/脱敏）
-4. `verify-tracker-contract` 集成（`tests/verify-tracker-contract.js` 中 `runContractTests(<id>Fixture)` + `runPlayback`）并保持 `293/4/OK` 不回归（验收④）
+4. `verify-tracker-contract` 集成（`tests/verify-tracker-contract.js` 中 `runContractTests(<id>Fixture)` + `runPlayback`），并保持门禁**红线的形状**不回归：合规桩全 PASS、违规桩那 4 条预期失败都在、各行为段全 PASS（含 `sections/labels.js` 里对着真实后端模块的探针）、`CONTRACT SKELETON OK` 且退出码 0（验收④）。断言总数每张票都会长，**不要照抄某个数字当门槛**：现值是 620 passed / 4 failed（`sections/labels.js` 85 条），判断标准是上面这几条形状，不是数字。
 
 ## 门禁（验收④）
 
@@ -109,8 +110,10 @@ node scripts/generate-github-fixtures.js --repo FeatherHunter/dsh-mattpocock-ski
 
 ```bash
 node tests/verify-tracker-contract.js
-# 期望：293 passed, 4 failed（4 条为 violating 桩，刻意 FAIL）, CONTRACT SKELETON OK, exit 0
-# 回归红线：compliant 全 PASS、violating 至少一 FAIL、github/gitlab normalize 全 PASS、sections 全 PASS（含 ✗ probe）
+# 期望：620 passed, 4 failed，CONTRACT SKELETON OK, exit 0
+# （4 条失败是 violating 桩里刻意埋的错，按名字点名要求必须出现；总数会随票据增长，别把数字当门槛）
+# 回归红线：compliant 全 PASS、violating 那 4 条预期失败都在、github/gitlab normalize 全 PASS、
+#           sections 全 PASS（含 ✗ probe 与 labels 段里对真实后端模块的探针）
 ```
 
 新增 Runner 的门禁（同文件末尾，新增段）：
