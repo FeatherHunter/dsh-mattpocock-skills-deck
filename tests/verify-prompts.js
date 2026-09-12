@@ -876,7 +876,7 @@ const contractChecksInner = function (reg, src) {
 
   // 版本号 bump（#573 §2.7 逐条清单；只许升不许降）
   const V_MIN = {
-    mapExecute: 9, complete: 9, fixate: 6, 'tpl.diagnose': 10, 'tpl.fix': 7, 'tpl.discuss': 7,
+    mapExecute: 9, complete: 9, fixate: 6, 'tpl.diagnose': 10, 'tpl.fix': 7, 'tpl.discuss': 8,
     'tpl.research': 5, 'tpl.prototype': 5, 'tpl.execute': 9, mapInspect: 6, newWayfinder: 14,
     bodyFormat: 7, setupRun: 9, progress: 3,
   }
@@ -927,6 +927,16 @@ const contractChecksInner = function (reg, src) {
     if (di.en.indexOf('diagnosis') < 0 || di.en.indexOf('Stage gate') < 0) fail('tpl.diagnose en 缺关键段（diagnosis/Stage gate）')
     if (di.en.indexOf('What are the symptoms') < 0 || di.en.indexOf('What is the impact') < 0) fail('tpl.diagnose en 缺 Symptoms 三行拆分')
     if (di.en.indexOf('grill snippet') >= 0) fail('tpl.diagnose en 残留 grill snippet 引用（#77 grill 入口已删）')
+  }
+  // tpl.discuss（#628：收尾补一条 —— /to-spec 产出的规格单要挂回同一张 map）
+  //   补块理由：本模板此前无任何结构块，整段被删门禁也不会红（#382 就是那样丢的）
+  const dc = reg['tpl.discuss']
+  if (dc) {
+    if (dc.zh.indexOf('- [ ]') < 0) fail('tpl.discuss zh 缺清单标记 - [ ]（A★ 清单式）')
+    if (dc.zh.indexOf('挂到同一张 map 上成为 subissue') < 0) fail('tpl.discuss zh 缺 #628 挂载规定（/to-spec 产出的规格单挂回同一张 map）')
+    if (dc.zh.indexOf('无 map 时不写') < 0) fail('tpl.discuss zh 缺 #628 的生效条件（无 map 时不写）')
+    if (dc.en.indexOf('to the same map, as a sub-issue') < 0) fail('tpl.discuss en 缺 #628 挂载规定（同中文那条的对应句）')
+    if (dc.en.indexOf('skip this if the issue has no map') < 0) fail('tpl.discuss en 缺 #628 的生效条件（skip if no map）')
   }
   // newWayfinder（#77 v8 + #573 v14 子议题关联收敛）
   const nw = reg['newWayfinder']
@@ -1391,7 +1401,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '1ded52d4fc14432ee1c66a3a78b2769272729248f9083d0fed96e22639022648',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '43ec7f40ef0deb34f6a33beceb30c887c4e6079a538ebbbec1c33a717d1c4359',
+  'tests/verify-prompts.js': '84617a4c02bb923e7a080ab9eb03a5d9181885a68dbe2f958c619f1b94b766f9',
 }
 // ---- LOCK-END ----
 
