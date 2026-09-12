@@ -19,6 +19,7 @@
     "sync:matt": "node scripts/sync-matt-skills.mjs --pin v1.2.3 --verify"
   },
   "dependencies": {
+    "dsh-log": "^0.2.0",
     "dsh-plugin-update": "0.1.1",
     "ws": "^8.21.3"
   },
