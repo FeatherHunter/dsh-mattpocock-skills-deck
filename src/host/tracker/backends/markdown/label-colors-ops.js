@@ -24,13 +24,13 @@ function fail(kind, message) { return { ok: false, error: { kind: kind, message:
 /** 改色入参的形状把关（契约：不是一批改动就整条失败，落解析档）。
  *  颜色写错不算入参坏掉：那一条落解析档，其余照改。 */
 function shapeProblem(changes) {
-  if (!Array.isArray(changes)) return '批量改色要一批「标签 → 新颜色」（changes 数组），这次收到的不像一批改动'
+  if (!Array.isArray(changes)) return '修改标签颜色需要一批「标签 → 新颜色」的改动，本次收到的内容不是这种格式'
   const seen = new Set()
   for (const c of changes) {
-    if (!c || typeof c !== 'object' || Array.isArray(c)) return '这一批里有一条改动不是「标签 → 新颜色」的形状'
-    if (typeof c.name !== 'string' || !c.name.trim()) return '这一批里有一条改动没写标签名'
-    if (typeof c.color !== 'string' || !c.color.trim()) return '这一批里有一条改动没写新颜色'
-    if (seen.has(c.name)) return '同一批里「' + c.name + '」出现了两次（一个标签一批里只许出现一次）'
+    if (!c || typeof c !== 'object' || Array.isArray(c)) return '这一批改动中有一条不是「标签 → 新颜色」的格式'
+    if (typeof c.name !== 'string' || !c.name.trim()) return '这一批改动中有一条未填写标签名'
+    if (typeof c.color !== 'string' || !c.color.trim()) return '这一批改动中有一条未填写新颜色'
+    if (seen.has(c.name)) return '同一批改动里「' + c.name + '」出现了两次，一个标签在一批中只允许出现一次。请只保留其中一条，然后重试。'
     seen.add(c.name)
   }
   return ''
@@ -52,7 +52,7 @@ async function collectTicketLabelNames(ctx, repo) {
     const idir = plat.join(dir, 'issues')
     let entries = []
     try { entries = await readDirOrThrow(ctx, idir) } catch (e) {
-      return fail(ERROR_KIND.ENV, '没能拿全标签：工作区里有一个目录读不出来（' + String((e && e.message) || e).slice(0, 120) + '）。这是插件这边的问题，不是你操作错了。')
+      return fail(ERROR_KIND.ENV, '未能获取全部标签：工作区中有文件无法读取。这是插件运行环境的问题，不是你的操作有误。请关闭可能占用这些文件的程序后重试。')
     }
     for (const f of entries) {
       if (f && f.endsWith('.md') && /^(\d+)-/.test(f)) files.push(plat.join(idir, f))
@@ -66,7 +66,7 @@ async function collectTicketLabelNames(ctx, repo) {
       try { text = await readTextFile(ctx, file) } catch (e) {
         if (isMissingFile(e)) continue
         // 有一张票读不出来 = 拿不全标签：整条操作失败，不许把残缺清单当全量发出去。
-        return fail(ERROR_KIND.ENV, '没能拿全标签：工作区里有一张票的文件读不出来（' + String((e && e.message) || e).slice(0, 120) + '）。这是插件这边的问题，不是你操作错了。')
+        return fail(ERROR_KIND.ENV, '未能获取全部标签：工作区中有一张票的文件无法读取。这是插件运行环境的问题，不是你的操作有误。请关闭可能占用这个文件的程序后重试。')
       }
       let labels = []
       try { labels = parseMd(text, { key: '00', parentKey: null, isMap: true }).labels || [] } catch (e) { labels = [] }
@@ -117,8 +117,8 @@ function descriptionOf(value) {
 async function collectAllLabels(ctx, repo) {
   const read = await readLabelColors(ctx, repo)
   if (!read.ok) {
-    // 「读不出来」按契约落解析档，同时说清没能拿全标签（界面上这两件事都要能看懂）。
-    return fail(read.error.kind, '没能拿全标签：' + read.error.message)
+    // 「读不出来」按契约落解析档，同时说清未能获取全部标签（界面上这两件事都要能看懂）。
+    return fail(read.error.kind, '未能获取全部标签：' + read.error.message)
   }
   const tickets = await collectTicketLabelNames(ctx, repo)
   if (!tickets.ok) return tickets
@@ -181,15 +181,15 @@ export async function setLabelColors(ctx, repo, changes) {
     for (const c of changes) {
       const want = normalizeColor(c.color)
       if (!want) {
-        failed.push({ name: c.name, reason: { kind: ERROR_KIND.PARSE, message: '「' + c.name + '」的新颜色填错了：要写成不带井号的六位十六进制，例如 9d7cd8' } })
+        failed.push({ name: c.name, reason: { kind: ERROR_KIND.PARSE, message: '「' + c.name + '」的新颜色不正确：请改为不带井号的六位十六进制，例如 9d7cd8。' } })
         continue
       }
       if (!fileExists) {
-        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND, message: '工作区里还没有配色文件（' + LABEL_COLORS_REL_PATH + '），所以哪个标签都还没配过色。先在面板里打开一次标签配色弹窗把默认文件建出来，再把 "名字": "颜色" 这一行加进去，然后回来保存。' } })
+        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND, message: '工作区中还没有标签配色文件（' + LABEL_COLORS_REL_PATH + '），因此所有标签都没有配置过颜色。请先在面板头部点那颗「标签配色」图标，插件会在打开这个弹窗时生成一份默认的标签配色文件；然后在文件里加入一行 "标签名": "9d7cd8"，把这两处换成实际的标签名与颜色，再回到这个弹窗点「保存」。' } })
         continue
       }
       if (!Object.prototype.hasOwnProperty.call(read.colors, c.name)) {
-        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND, message: '配色文件里没有「' + c.name + '」这一行，插件不会替你新增。想让这个标签能改色，先把 "名字": "颜色" 这一行加进 ' + LABEL_COLORS_REL_PATH + ' 再保存。' } })
+        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND, message: '标签配色文件里没有「' + c.name + '」这个标签，插件不会自动新增。如需修改这个标签的颜色，请先把 "标签名": "9d7cd8" 这一行加入 ' + LABEL_COLORS_REL_PATH + '（把这两处换成这个标签的名字与要用的颜色），然后点「保存」。' } })
         continue
       }
       pending[c.name] = want
@@ -211,7 +211,7 @@ export async function setLabelColors(ctx, repo, changes) {
     } catch (e) {
       // 写失败：整条操作失败、不留半截账（原本说会改的那几条一起报失败），理由按失败语义分档。
       const reason = describeWriteFailure(e)
-      return { ok: false, error: { kind: reason.kind, message: reason.message + '（这次要改的 ' + applied.length + ' 个标签一个都没改）' } }
+      return { ok: false, error: { kind: reason.kind, message: reason.message + ' 本次 ' + applied.length + ' 个标签的颜色均未改动。' } }
     }
     return { ok: true, data: { applied: applied, failed: failed } }
   })

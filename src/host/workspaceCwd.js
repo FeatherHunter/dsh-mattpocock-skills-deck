@@ -43,7 +43,7 @@ export function createWorkspaceCwd(deps) {
     if (!backendId || backendId === 'github' || backendId === 'gitlab') return { ok: true, skipped: 'not-markdown' }
     try {
       const reg = await getTrackerRegistry()
-      if (!reg) return { ok: false, error: { kind: 'env', message: '后端注册表还没就绪' } }
+      if (!reg) return { ok: false, error: { kind: 'env', message: '插件尚未就绪：还没有可用的后端清单，这次没能看清要不要放配色文件。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
       const tracker = reg.get(backendId)
       if (!tracker || typeof tracker.ensureLabelColorsFile !== 'function') return { ok: true, skipped: 'backend-wants-no-file' }
       const platform = await getPlatform()
@@ -52,9 +52,9 @@ export function createWorkspaceCwd(deps) {
       const sb = resolveSandboxPolicy(null, cwd)
       const placed = await tracker.ensureLabelColorsFile(ref, opCtxFor(cwd, platform, ref, 'wf.bind', new AbortController().signal, sb.policy, sb.sessionId))
       if (placed && placed.ok === true) return { ok: true, placed: placed.placed === true, reason: placed.reason || '' }
-      return { ok: false, error: (placed && placed.error) || { kind: 'env', message: '后端没说自己放成功、也没说为什么' } }
+      return { ok: false, error: (placed && placed.error) || { kind: 'env', message: '后端既没有说这次要不要放配色文件，也没有说明原因。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
     } catch (e) {
-      return { ok: false, error: { kind: 'env', message: msgOf(e) } }
+      return { ok: false, error: { kind: 'env', message: '插件没能把标签配色文件放进这个工作区（放入这一步出错），所以这个工作区里现在可能还没有这份文件。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
     }
   }
   async function handleBind(args) {
@@ -214,7 +214,7 @@ export function createWorkspaceCwd(deps) {
   //   失败一律返回 {ok:false, error:{kind, message}}（失败返回而非抛，与契约同款）。
   //   选择结果里除了 backendId，还有三样必须看的东西（注册表算好的，出处见 registryCore.js 的 select）：
   //     ref      注册表算好的仓库引用（后端 describe 的产物）—— 能拿到就用它，不自己重算；
-  //     multiHit 多个后端同时认领这个工作区（仲裁还没定下来）；
+  //     multiHit 多个后端同时对应这个工作区（仲裁还没定下来）；
   //     pending  有后端的身份识别超时未决。
   //   「用哪个后端」这件事由客户端说了算，宿主只核验（#631 起）：客户端可以带着「它面板上现在用的是哪个
   //   后端」来问（args.backendId，见下面 declared 那一段）。带了时，这个名字在本次算出来的候选名单里、
@@ -223,10 +223,10 @@ export function createWorkspaceCwd(deps) {
   //   核验通过为什么就算数：客户端说的不是它随手挑的一个，而是宿主上一次算出来、正显示在面板正文里的那一个。
   //   客户端没带这个名字时，仍按注册表这次算出来的那一个走；「没选定 / 多命中 / 待定」这三种仍然明确失败
   //   （conflict 档），让用户先选定后端再试——绝不许静默挑一个「匹配的赢家」，那可能把颜色改到另一个仓库上去。
-  const UNDECIDED = '还没定下要给哪个后端改标签配色：先在面板里选定这个工作区用哪个后端，再试一次'
+  const UNDECIDED = '这个工作区使用哪个后端尚未确定：请在面板中选定这个工作区使用的后端，然后重试'
   /** 「选中的后端在注册表里找不到」这一档（env）：声明的与注册表算出来的是同一句，措辞只此一处。 */
   const unknownBackend = function (id) {
-    return { ok: false, error: { kind: 'env', message: '列标签与改色时插件这边出了问题：选中的后端「' + id + '」在注册表里找不到。这是插件这边的问题，不是你操作错了。' } }
+    return { ok: false, error: { kind: 'env', message: '列出标签与修改标签颜色时插件运行出错：已选定的后端「' + id + '」不在当前可用的后端清单里。这是插件运行环境的问题，不是你的操作有误。' } }
   }
   /**
    * 这次注册表算出来的「认得这个工作区的后端」名单（注册表算好的，出处见 registryCore.js 的 select）：
@@ -240,7 +240,7 @@ export function createWorkspaceCwd(deps) {
   }
   async function pickBackend(cwd, caller, signal, declared) {
     const reg = await getTrackerRegistry()
-    if (!reg) return { ok: false, error: { kind: 'env', message: '插件这边还没准备好：后端注册表还没就绪，稍后再试（这是插件这边的问题，不是你操作错了）' } }
+    if (!reg) return { ok: false, error: { kind: 'env', message: '插件尚未就绪：还没有可用的后端清单，请稍后重试。这是插件运行环境的问题，不是你的操作有误。' } }
     const platform = await getPlatform()
     const sel = await reg.select({ cwd: cwd }, { cwd: cwd, platform: platform, fs: ctx.get('fs'), caller: caller, signal: signal })
     // 客户端显式声明了它面板上正在用的那个后端 → **核验**它确实在这次算出来的名单里，是就直接交给它。
@@ -259,13 +259,21 @@ export function createWorkspaceCwd(deps) {
       return { ok: true, backendId: want, repoRef: refWant, tracker: trackerWant, platform: platform }
     }
     if (sel && Array.isArray(sel.multiHit) && sel.multiHit.length > 1) {
-      return { ok: false, error: { kind: 'conflict', message: UNDECIDED + '（现在有 ' + sel.multiHit.length + ' 个后端同时认领这个工作区：' + sel.multiHit.join('、') + '）' } }
+      // 只对用户说两件确定的事：同时对应的个数（用户能对上自己装了几个后端）、以及去面板中选定。
+      //   **不列后端 id**：用户看不到 `github` / `gitlab` 这类内部名字，列出来只会让人去猜哪颗按钮对应哪一行。
+      return { ok: false, error: { kind: 'conflict', message: UNDECIDED + '（当前有 ' + sel.multiHit.length + ' 个后端同时对应这个工作区，插件无法自己定下来用哪一个。请在面板中选定这个工作区使用的后端，然后重试）' } }
     }
     const backendId = sel && sel.backendId
     if (!backendId) {
-      return { ok: false, error: { kind: 'conflict', message: UNDECIDED + (sel && sel.pending ? '（有后端的身份识别还没出结果，稍等片刻再试）' : '（这个工作区现在没有后端）') } }
+      // 走到这里 = 这一轮没有后端被定下来：select ① 用户自己选了「无后端」（backendId 为 null），或 ③ 一轮
+      //   识别下来没有后端认这个工作区；两档分别是「已决」与「还有待定（pending）」。
+      //   都不是「这台机器上没有后端」，用户要做的动作也一样（在面板里为这个工作区选定后端），
+      //   所以两句都只说：现在是什么状态、你接下来做什么。「识别」用的是客户端同一档词条
+      //   （locale-labels.js 的 lc.errWaitBackend）的说法，两边读到的是同一件事；待定时不带后端名字：
+      //   那时名单里的名字只是注册序的暂时赢家，还没定下来。（下面那条 :280 是 ② 命中但同轮仍有待定。）
+      return { ok: false, error: { kind: 'conflict', message: UNDECIDED + (sel && sel.pending ? '（后端尚未识别完成，请等识别完成后再重试）' : '（这个工作区尚未选定后端，请在面板中选定这个工作区使用的后端，然后重试）') } }
     }
-    if (sel && sel.pending) return { ok: false, error: { kind: 'conflict', message: UNDECIDED + '（有后端的身份识别还没出结果，稍等片刻再试）' } }
+    if (sel && sel.pending) return { ok: false, error: { kind: 'conflict', message: UNDECIDED + '（后端尚未识别完成，请等识别完成后再重试）' } }
     const tracker = reg.get(backendId)
     if (!tracker) return unknownBackend(backendId)
     let repoRef = (sel && sel.ref) || null
@@ -275,14 +283,19 @@ export function createWorkspaceCwd(deps) {
   // 「插件这边的错」只有一种口径：后端回的形状不符合契约、后端抛异常、宿主自己出错，一律归 env（插件自身/环境问题），
   //   文案必须说清「这是插件这边的问题，不是你操作错了」，否则用户会去翻自己的操作找原因。
   //   network 只留给真正的连不通与超时：那是后端如实给出的，这里原样透传；宿主不自己造 network。
+  // 「这一档发生在什么时刻」为什么必须说准（#633）：写标签那一档的 catch 兜的是 `await picked.tracker.setLabelColors(...)`
+  //   这一句，异常抛出时请求**已经交给后端**——不能说「本次操作未生效」（替后端保证一个字没改），也不能说
+  //   「后端在改色时抛出异常」（替它保证确实动过手）；只能说「没拿回结果、改动有没有发生没法确认」，并让用户先去看一眼。
+  //   列标签那一档是读操作（没拿回结果 = 读没读成、颜色一个字节没动），`pickBackend` 那一档在交出去**之前**
+  //   （那里才能说「没有动仓库里的任何东西」）。三处的话各有各的依据，不能互换。
   function pluginTrouble(opCn, why, detail) {
-    return { ok: false, error: { kind: 'env', message: opCn + '时插件这边出了问题：' + why + '。这是插件这边的问题，不是你操作错了' + (detail ? '（' + detail + '）' : '') + '。' } }
+    return { ok: false, error: { kind: 'env', message: opCn + '时插件运行出错：' + why + (detail ? '（' + detail + '）' : '') + '。这是插件运行环境的问题，不是你的操作有误。' } }
   }
   function msgOf(e) { return String((e && e.message) || e) }
   // 后端说的失败原样交给客户端（是哪一档后端自己最清楚）；只有「连失败都没说清」才算插件这边的错。
   function backendFailure(res, opCn) {
     if (res && res.error && typeof res.error === 'object') return { ok: false, error: res.error }
-    return pluginTrouble(opCn, '后端既没说自己成功、也没说为什么没成')
+    return pluginTrouble(opCn, '后端既未表示成功，也未说明失败原因')
   }
   // 列出这个后端能改色的全部标签及其颜色（契约操作 listLabels）。拿不到就说做不到，
   //   不在这里替后端兜底造数据（能力 = 运行时调用结果）。
@@ -292,13 +305,13 @@ export function createWorkspaceCwd(deps) {
     const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
     const signal = new AbortController().signal
     let picked = null
-    try { picked = await pickBackend(cwd, 'wf.listLabels', signal, args && args.backendId) } catch (e) { return pluginTrouble('列出标签', '问「这个工作区当前用哪个后端」这一步出错', msgOf(e)) }
+    try { picked = await pickBackend(cwd, 'wf.listLabels', signal, args && args.backendId) } catch (e) { return pluginTrouble('修改标签颜色', '插件没能确定这个工作区使用哪个后端这一步出错（内部叫 pickBackend），所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
     if (!picked.ok) return picked
     const sb = resolveSandboxPolicy(args, cwd)
     let res = null
-    try { res = await picked.tracker.listLabels(picked.repoRef, opCtxFor(cwd, picked.platform, picked.repoRef, 'wf.listLabels', signal, sb.policy, sb.sessionId)) } catch (e) { return pluginTrouble('列出标签', '后端在列标签时抛了异常', msgOf(e)) }
+    try { res = await picked.tracker.listLabels(picked.repoRef, opCtxFor(cwd, picked.platform, picked.repoRef, 'wf.listLabels', signal, sb.policy, sb.sessionId)) } catch (e) { return pluginTrouble('修改标签颜色', '插件没有拿回结果，因此无法确认这次读取有没有成功（也就不知道仓库里的标签现在是什么样）：请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
     if (!res || res.ok !== true) return backendFailure(res, '列出标签')
-    if (!Array.isArray(res.data)) return pluginTrouble('列出标签', '后端回的标签清单不是一份清单（应当是一个数组）', typeof res.data)
+    if (!Array.isArray(res.data)) return pluginTrouble('列出标签', '后端返回的标签清单不符合约定格式（应为数组）', typeof res.data)
     return { ok: true, backendId: picked.backendId, labels: res.data }
   }
   // 批量改色（契约操作 setLabelColors）。逐条记账由后端给：这里原样透传 applied 与 failed，
@@ -308,17 +321,17 @@ export function createWorkspaceCwd(deps) {
   async function handleSetLabelColors(args) {
     const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
     const changes = args && args.changes
-    if (!Array.isArray(changes)) return { ok: false, error: { kind: 'parse', message: '批量改色要一批「标签 → 新颜色」（changes 数组），这次收到的不像一批改动' } }
+    if (!Array.isArray(changes)) return { ok: false, error: { kind: 'parse', message: '修改标签颜色需要一份「标签 → 新颜色」的改动清单（内部把这个清单叫 changes），本次保存带上来的内容不是这种格式。请回到改色弹窗重新保存一次。' } }
     const signal = new AbortController().signal
     let picked = null
-    try { picked = await pickBackend(cwd, 'wf.setLabelColors', signal, args && args.backendId) } catch (e) { return pluginTrouble('批量改色', '问「这个工作区当前用哪个后端」这一步出错', msgOf(e)) }
+    try { picked = await pickBackend(cwd, 'wf.setLabelColors', signal, args && args.backendId) } catch (e) { return pluginTrouble('修改标签颜色', '插件没能确定这个工作区使用哪个后端这一步出错（内部叫 pickBackend），所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
     if (!picked.ok) return picked
     const sb = resolveSandboxPolicy(args, cwd)
     let res = null
-    try { res = await picked.tracker.setLabelColors(picked.repoRef, changes, opCtxFor(cwd, picked.platform, picked.repoRef, 'wf.setLabelColors', signal, sb.policy, sb.sessionId)) } catch (e) { return pluginTrouble('批量改色', '后端在改色时抛了异常', msgOf(e)) }
-    if (!res || res.ok !== true) return backendFailure(res, '批量改色')
+    try { res = await picked.tracker.setLabelColors(picked.repoRef, changes, opCtxFor(cwd, picked.platform, picked.repoRef, 'wf.setLabelColors', signal, sb.policy, sb.sessionId)) } catch (e) { return pluginTrouble('修改标签颜色', '插件没有拿回改动结果，所以仓库里的颜色有没有被改动、哪些被改动，现在都无从确认。请先看一眼标签现在的颜色（去仓库或面板里看一眼都行），再重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
+    if (!res || res.ok !== true) return backendFailure(res, '修改标签颜色')
     const data = res.data
-    if (!data || typeof data !== 'object' || !Array.isArray(data.applied) || !Array.isArray(data.failed)) return pluginTrouble('批量改色', '后端回的记账里少了「改成功的清单」（applied）或「没改成功的清单」（failed）')
+    if (!data || typeof data !== 'object' || !Array.isArray(data.applied) || !Array.isArray(data.failed)) return pluginTrouble('修改标签颜色', '后端没有说清哪些标签的颜色改成功了、哪些没改成功（内部把这两份清单叫 applied 与 failed）。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者')
     return { ok: true, backendId: picked.backendId, applied: data.applied, failed: data.failed }
   }
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }

@@ -157,7 +157,7 @@ export function labelCompletenessCheck(list, expectedNames) {
   return bad
 }
 
-/** 「取不全就整体失败」那一档的检查器：整条操作失败，且说清是没能拿全标签，档位只能是 env 或 network。 */
+/** 「取不全就整体失败」那一档的检查器：整条操作失败，且说清是未能获取全部标签，档位只能是 env 或 network。 */
 export function incompleteAnswerCheck(res, expectedNames) {
   const bad = []
   if (!res || typeof res !== 'object') return ['取不全时要以 {ok:false, error:{kind, message}} 整体失败，实得 ' + JSON.stringify(res)]
@@ -170,7 +170,7 @@ export function incompleteAnswerCheck(res, expectedNames) {
   if (!err || typeof err !== 'object') return ['取不全时要给出 error 对象说清为什么', JSON.stringify(res)]
   if (err.kind !== 'env' && err.kind !== 'network') bad.push('取不全属于环境类（env）或连不通（network），实得 ' + JSON.stringify(err.kind))
   const m = String(err.message || '')
-  if (!m.includes('没能拿全标签')) bad.push('取不全的消息必须说清「没能拿全标签」，实得：' + m)
+  if (!m.includes('未能获取全部标签')) bad.push('取不全的消息必须说清「未能获取全部标签」，实得：' + m)
   return bad
 }
 
@@ -310,7 +310,7 @@ export function createTruncatingFake(seed) {
   }
 }
 
-/** 诚实说「取不全」的假身：整条操作失败，并说清是没能拿全标签。
+/** 诚实说「取不全」的假身：整条操作失败，并说清是未能获取全部标签。
  *  kind = 'env'（本机这边取不全，插件自身/环境问题）或 'network'（连不通、超时）。 */
 export function createIncompleteFake(id, kind) {
   const k = kind === 'network' ? 'network' : 'env'
@@ -321,8 +321,8 @@ export function createIncompleteFake(id, kind) {
       listLabels: async () => ({
         ok: false,
         error: k === 'network'
-          ? { kind: 'network', message: '没能拿全标签：连 GitHub 的时候超时了，等一会儿或换个网络再试；你的仓库没有被改动' }
-          : { kind: 'env', message: '没能拿全标签：本机的 gh 版本不支持翻页，第 31 个之后的标签取不到。这是插件这边的问题，不是你操作错了。' },
+          ? { kind: 'network', message: '未能获取全部标签：连 GitHub 的时候超时了，等一会儿或换个网络再试；你的仓库没有被改动' }
+          : { kind: 'env', message: '未能获取全部标签：本机的 gh 版本不支持翻页，第 31 个之后的标签取不到。这是插件运行环境的问题，不是你的操作有误。' },
       }),
     }),
     matches: async () => false,
@@ -500,18 +500,18 @@ export async function run() {
     const incomplete = createIncompleteFake('incomplete-env', 'env')
     const dInc = reg.register(incomplete)
     const rsInc = await reg.get('incomplete-env').listLabels(ref('github'), ctx)
-    await assert('取不全 → 整体失败落在环境档，并说清「没能拿全标签」', incompleteAnswerCheck(rsInc, all).length === 0, incompleteAnswerCheck(rsInc, all).join('；') || JSON.stringify(rsInc))
+    await assert('取不全 → 整体失败落在环境档，并说清「未能获取全部标签」', incompleteAnswerCheck(rsInc, all).length === 0, incompleteAnswerCheck(rsInc, all).join('；') || JSON.stringify(rsInc))
     const partial = { ok: true, data: all.slice(0, 30).map((n) => ({ name: n, color: '' })) }
     await assert('✗ probe: 取不全却退回残缺列表被逮（静默少一截正是这条契约要消灭的）', incompleteAnswerCheck(partial, all).length > 0, '检查器放过了「退回残缺列表」')
-    await assert('✗ probe: 取不全被归到解析档被逮（档位只能是 env 或 network）', incompleteAnswerCheck({ ok: false, error: { kind: 'parse', message: '没能拿全标签：文件读了一半' } }, all).length > 0, '检查器放过了错误的档位')
-    await assert('✗ probe: 取不全却没说清「没能拿全标签」被逮', incompleteAnswerCheck({ ok: false, error: { kind: 'env', message: '读取失败' } }, all).length > 0, '检查器放过了说不清的文案')
+    await assert('✗ probe: 取不全被归到解析档被逮（档位只能是 env 或 network）', incompleteAnswerCheck({ ok: false, error: { kind: 'parse', message: '未能获取全部标签：文件读了一半' } }, all).length > 0, '检查器放过了错误的档位')
+    await assert('✗ probe: 取不全却没说清「未能获取全部标签」被逮', incompleteAnswerCheck({ ok: false, error: { kind: 'env', message: '读取失败' } }, all).length > 0, '检查器放过了说不清的文案')
     dInc.dispose()
 
     // network 档的正面样本：真连不通/超时导致取不全 —— 归 network 是对的
     const incompleteNet = createIncompleteFake('incomplete-network', 'network')
     const dIncNet = reg.register(incompleteNet)
     const rsIncNet = await reg.get('incomplete-network').listLabels(ref('github'), ctx)
-    await assert('network 档正面样本：连不通导致取不全 → 整体失败归 network，且说清没能拿全', rsIncNet.ok === false && rsIncNet.error.kind === 'network' && incompleteAnswerCheck(rsIncNet, all).length === 0, incompleteAnswerCheck(rsIncNet, all).join('；') || JSON.stringify(rsIncNet))
+    await assert('network 档正面样本：连不通导致取不全 → 整体失败归 network，且说清未能获取全部标签', rsIncNet.ok === false && rsIncNet.error.kind === 'network' && incompleteAnswerCheck(rsIncNet, all).length === 0, incompleteAnswerCheck(rsIncNet, all).join('；') || JSON.stringify(rsIncNet))
     dIncNet.dispose()
   }
 
@@ -590,13 +590,14 @@ export async function run() {
   // ── 六、宿主那两条电话（信封形状与失败分档；#627 二次整改 P4、P5、P9）──
   // 前面几段都对着后端房间说话；这一段往上一层，验宿主把后端的回答转成给客户端的回包时的样子：
   //   成功的回包只有契约约定的那几个键（后端多给的字段不许漏出去），失败按四档分清楚 ——
-  //   真连不通才归 network；形状不对、抛异常、宿主自己出错一律归 env（说清是插件这边的问题）；
+  //   真连不通才归 network；形状不对、抛异常、宿主自己出错一律归 env（说清是插件运行环境的问题，不是用户操作有误）；
   //   没选定后端 / 多个后端同时命中 / 身份识别没定下来一律归 conflict（先选定后端再试）。
   {
     const HOST_CWD = '/ws/fake'
     const keysOf = (o) => Object.keys(o).sort().join(',')
-    // 文案判据：说清责任在插件这边（这是插件这边的问题），别让用户去翻自己的操作
-    const blameOk = (m) => { const s = String(m == null ? '' : m); return s.includes('插件这边的问题') && s.includes('不是你操作错了') }
+    // 文案判据：说清责任在插件运行环境这一侧（宿主模板原话「这是插件运行环境的问题，不是你的操作有误。」，
+    //   两句话必须都在），别让用户去翻自己的操作找原因
+    const blameOk = (m) => { const s = String(m == null ? '' : m); return s.includes('插件运行环境的问题') && s.includes('不是你的操作有误') }
     const mkReg = () => createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
     // 造一个宿主实例：deps 全部现场给，不碰真实平台与真实注册表
     const mkHost = (reg) => {
@@ -665,7 +666,7 @@ export async function run() {
       regBad.bind({ cwd: HOST_CWD }, 'labels-shape-fake')
       const hBad = mkHost(regBad)
       const rlShape = await hBad.host.handleListLabels({ cwd: HOST_CWD })
-      await assert('后端回的标签清单不是数组 → 环境档，且说清是插件这边的问题、不是用户操作错', rlShape.ok === false && rlShape.error.kind === 'env' && blameOk(rlShape.error.message), JSON.stringify(rlShape))
+      await assert('后端回的标签清单不是数组 → 环境档，且说清是插件运行环境的问题、不是用户操作有误', rlShape.ok === false && rlShape.error.kind === 'env' && blameOk(rlShape.error.message), JSON.stringify(rlShape))
       await assert('✗ probe: 形状不对被报成 network 会被逮（宿主兜底不许一律报网络不通）', !(rlShape.ok === false && rlShape.error.kind === 'network'), '形状不对被报成了 network')
       const rsShape = await hBad.host.handleSetLabelColors({ cwd: HOST_CWD, changes: changes })
       await assert('后端回的记账缺「没改成功的清单」→ 环境档，且点名缺了 failed', rsShape.ok === false && rsShape.error.kind === 'env' && blameOk(rsShape.error.message) && String(rsShape.error.message).includes('failed'), JSON.stringify(rsShape))
@@ -676,7 +677,7 @@ export async function run() {
       regThrow.bind({ cwd: HOST_CWD }, 'labels-throw-fake')
       const hThrow = mkHost(regThrow)
       const rlThrow = await hThrow.host.handleListLabels({ cwd: HOST_CWD })
-      await assert('后端抛异常 → 环境档（不是网络不通），并说清是插件这边的问题', rlThrow.ok === false && rlThrow.error.kind === 'env' && blameOk(rlThrow.error.message), JSON.stringify(rlThrow))
+      await assert('后端抛异常 → 环境档（不是网络不通），并说清是插件运行环境的问题、不是用户操作有误', rlThrow.ok === false && rlThrow.error.kind === 'env' && blameOk(rlThrow.error.message), JSON.stringify(rlThrow))
       d2.dispose()
 
       const regSilent = mkReg()
@@ -708,7 +709,7 @@ export async function run() {
       regMulti.register({ id: 'labels-multi-d', label: 'd', create: () => implMulti('labels-multi-d'), matches: async () => true })
       const hMulti = mkHost(regMulti)
       const rlMulti = await hMulti.host.handleListLabels({ cwd: '/ws/multi' })
-      await assert('conflict 档正面样本：两个后端同时命中 → conflict，并说清是哪个没定下来', rlMulti.ok === false && rlMulti.error.kind === 'conflict' && String(rlMulti.error.message).includes('同时认领'), JSON.stringify(rlMulti))
+      await assert('conflict 档正面样本：两个后端同时命中 → conflict，并说清是哪个没定下来', rlMulti.ok === false && rlMulti.error.kind === 'conflict' && String(rlMulti.error.message).includes('同时对应'), JSON.stringify(rlMulti))
 
       // ⑤ #631 追加：客户端**显式声明**了它面板上正在用的那个后端。宿主只做核验——声明的那个确实出现在
       //    这次算出来的候选名单里（multiHit 那份名单）就交给它；核验不通过的一律保持上面那条诚实的失败。
@@ -724,13 +725,13 @@ export async function run() {
         rlOther.ok === true && rlOther.backendId === 'labels-multi-c' && rlOther.labels[0].name === 'labels-multi-c', JSON.stringify(rlOther))
       const rlOutsider = await hMulti.host.handleListLabels({ cwd: '/ws/multi', backendId: 'labels-multi-a' })
       await assert('#631 声明的后端这次没说自己认得这个工作区（不在候选名单里）→ 仍然 conflict，不将就',
-        rlOutsider.ok === false && rlOutsider.error.kind === 'conflict' && String(rlOutsider.error.message).includes('同时认领'), JSON.stringify(rlOutsider))
+        rlOutsider.ok === false && rlOutsider.error.kind === 'conflict' && String(rlOutsider.error.message).includes('同时对应'), JSON.stringify(rlOutsider))
       const rlGhost = await hMulti.host.handleListLabels({ cwd: '/ws/multi', backendId: 'labels-never-heard-of' })
       await assert('#631 声明了一个从没听说过的后端 → 仍然 conflict，不将就',
         rlGhost.ok === false && rlGhost.error.kind === 'conflict', JSON.stringify(rlGhost))
       const rlSilent2 = await hMulti.host.handleListLabels({ cwd: '/ws/multi' })
       await assert('#631 什么都没声明 → 仍然 conflict（老行为一个字没松）',
-        rlSilent2.ok === false && rlSilent2.error.kind === 'conflict' && String(rlSilent2.error.message).includes('同时认领'), JSON.stringify(rlSilent2))
+        rlSilent2.ok === false && rlSilent2.error.kind === 'conflict' && String(rlSilent2.error.message).includes('同时对应'), JSON.stringify(rlSilent2))
       dm1.dispose(); dm2.dispose()
 
       // 显式选了「无后端」（逃生舱）时，客户端声明别的后端也不认：那是用户自己选的
@@ -742,11 +743,11 @@ export async function run() {
       const regPending = mkReg()
       const dp = regPending.register({ id: 'labels-pending-fake', label: 'p', create: () => ({}), matches: () => new Promise(() => {}) })
       const rlPending = await mkHost(regPending).host.handleListLabels({ cwd: '/ws/pending' })
-      await assert('conflict 档正面样本：身份识别还没出结果（待定）→ conflict，不许静默挑一个后端', rlPending.ok === false && rlPending.error.kind === 'conflict' && String(rlPending.error.message).includes('还没出结果'), JSON.stringify(rlPending))
+      await assert('conflict 档正面样本：身份识别尚未完成（待定）→ conflict，不许静默挑一个后端', rlPending.ok === false && rlPending.error.kind === 'conflict' && String(rlPending.error.message).includes('等识别完成后再重试'), JSON.stringify(rlPending))
       // #631 追加：待定时声明也不许开工 —— 那时名单里的名字只是注册序的暂时赢家，仲裁根本还没完。
       const rlPendingDeclared = await mkHost(regPending).host.handleListLabels({ cwd: '/ws/pending', backendId: 'labels-pending-fake' })
-      await assert('#631 身份识别还没出结果时，客户端声明了也不许开工（先等它定下来）',
-        rlPendingDeclared.ok === false && rlPendingDeclared.error.kind === 'conflict' && String(rlPendingDeclared.error.message).includes('还没出结果'), JSON.stringify(rlPendingDeclared))
+      await assert('#631 身份识别尚未完成时，客户端声明了也不许开工（先等它定下来）',
+        rlPendingDeclared.ok === false && rlPendingDeclared.error.kind === 'conflict' && String(rlPendingDeclared.error.message).includes('等识别完成后再重试'), JSON.stringify(rlPendingDeclared))
       dp.dispose()
     }
   }

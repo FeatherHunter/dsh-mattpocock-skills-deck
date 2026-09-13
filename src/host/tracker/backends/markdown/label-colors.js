@@ -84,16 +84,29 @@ function logRead(ctx, build) {
 // ── 读 ────────────────────────────────────────────────────────────────────────
 
 /** 「读不出来」这一档：工作区里配色文件存在但读不出来。
- *  按契约归解析档（parse），文案要说清是读不出来、以及插件不会覆盖用户自己写的内容。 */
-function readFailure(why, detail) {
+ *  按契约归解析档（parse），文案要说清是读不出来、以及插件不会覆盖用户自己写的内容。
+ *  句子骨架（四档共用）：先说读不出来（+原因），再说这个文件不会被覆盖，最后说用户要做什么；
+ *  detail 是「这次到底读到了什么」的一句大白话，并进正文末尾的括号里，不单独成句。 */
+function readFailure(why, action, detail) {
   return {
     ok: false,
     error: {
       kind: ERROR_KIND.PARSE,
-      message: '工作区里的配色文件（' + LABEL_COLORS_REL_PATH + '）读不出来：' + why +
-        '。请先手工把它改成合法内容再试；插件不会覆盖你自己写的内容' + (detail ? '（' + detail + '）' : ''),
+      message: '工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）没有读出标签颜色。原因：' + why +
+        '。这个文件不会被覆盖，你写的内容还在。' + action + (detail ? '（' + detail + '）' : ''),
     },
   }
+}
+
+// 顶层不是「标签与颜色的对应表」时，如实说清「这次读到的到底是什么」。
+// 为什么不用 typeof 直接吐类型名：用户看到「string」不知道说的是文件里哪一截，所以换成大白话。
+function describeContent(parsed) {
+  if (Array.isArray(parsed)) return '一个清单'
+  if (parsed === null) return '空白（文件里什么都没有）'
+  if (typeof parsed === 'number') return '一个数字'
+  if (typeof parsed === 'boolean') return '真假值（true 或 false）'
+  if (typeof parsed === 'string') return '直接是一段文字，不是标签与颜色的对应表'
+  return '一个分组'
 }
 
 /** 「文件确实不在」的判据：只有它才允许按「还没有这份文件」处理。
@@ -133,16 +146,25 @@ export async function readLabelColors(ctx, repo) {
       return { ok: true, colors: {}, raw: {}, present: false }
     }
     logRead(ctx, () => ({ cwdHash: where(), present: true, count: 0, ok: false, reason: 'read-fail' }))
-    return readFailure('读它的时候出错了', String((e && e.message) || e).slice(0, 120))
+    // 这一档只接「读这个动作本身出错」（明确的「文件不在」在上一支就返回了），所以不列举「可能是文件不在」
+    // 这类不成立的猜测；也不把责任写成用户的动作——只如实说插件没读到，再给出两条能查的方向。
+    return readFailure(
+      '插件按这个位置去读，读这个文件这一步出错了（不是文件里的内容不合法）。可能是当前账号读不到它，也可能是它正被别的程序占用；插件分不出是哪一种',
+      '请检查这个文件当前账号能不能读取、有没有别的程序正打开着它，然后重新保存。',
+      '错误原文 ' + String((e && e.message) || e).slice(0, 120))
   }
   let parsed = null
   try { parsed = JSON.parse(String(text || '')) } catch (e) {
     logRead(ctx, () => ({ cwdHash: where(), present: true, count: 0, ok: false, reason: 'not-json' }))
-    return readFailure('内容不是合法的 JSON')
+    return readFailure(
+      '这个文件里的内容不是合法的文字格式。这一档只可能是内容本身写坏了，与权限、被别的程序占用都无关',
+      '请手工把内容改成「标签名 → 颜色」的写法、每个标签一行，例如 "bug": "d73a4a"，然后重新保存。')
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     logRead(ctx, () => ({ cwdHash: where(), present: true, count: 0, ok: false, reason: 'not-object' }))
-    return readFailure('内容要是一个「标签名 → 颜色」的对象', '这次读到的是 ' + (Array.isArray(parsed) ? '一份清单' : typeof parsed))
+    return readFailure(
+      '这个文件里现在放的不是「标签名 → 颜色」的对应表（本次读到的是' + describeContent(parsed) + '）',
+      '请把这个文件改成一个标签与颜色的对应表：每个标签写一行，例如 "bug": "d73a4a"，然后重新保存。')
   }
   const colors = {}
   for (const name of Object.keys(parsed)) {
@@ -152,7 +174,9 @@ export async function readLabelColors(ctx, repo) {
     else if (value && typeof value === 'object' && !Array.isArray(value) && typeof value.color === 'string') colorText = value.color
     else {
       logRead(ctx, () => ({ cwdHash: where(), present: true, count: Object.keys(parsed).length, ok: false, reason: 'bad-entry' }))
-      return readFailure('「' + name + '」这一行的写法不对', '颜色要么写成 "8b5cf6" 这样的字符串，要么写成 {"color": "8b5cf6", "description": "..."}')
+      return readFailure(
+        '标签「' + name + '」的颜色写法不对，这个位置只能写两种样子：直接写颜色，例如 "8b5cf6"；或者写成 {"color": "8b5cf6", "description": "地图票"}',
+        '请照着上面两种样子中的一种改好这个标签的颜色，然后重新保存。')
     }
     // 颜色写错了不算文件坏掉：按「还没配颜色」处理（界面显示为灰），用户改回来就能恢复。
     colors[name] = normalizeColor(colorText) || ''
@@ -216,13 +240,15 @@ export function describeWriteFailure(err) {
   const message = String((err && err.message) || err || '')
   const code = String((err && (err.code || err.kind)) || '')
   if (err && err.readBackMismatch === true) {
-    return { kind: ERROR_KIND.ENV, message: '保存失败：写完之后回读，文件里的内容和刚写进去的不一致（可能有别的程序同时在改这份文件，或者这次写没有真正落盘）。请打开这个文件看一眼再重试；插件不会在你不知情的时候把内容推平。' }
+    // 这一档能确定的只有「这次没写成功或没写全」，所以动作要带用户把最后一条退路走完：
+    // 核对下来内容不对就手动补改，否则再重试一次只会拿到同一句话。
+    return { kind: ERROR_KIND.ENV, message: '保存失败：写完之后重新读这个文件，读到的内容与刚写进去的不一致，因此不能确认标签颜色已经保存。请打开工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）核对内容：如果里面写的不是你想保存的那份颜色，请手动改成你想保存的颜色，然后重新保存。' }
   }
   if (code === 'FS_SANDBOX_DENIED' || /file access denied|workspace-write|read-only mode/i.test(message)) {
-    return { kind: ERROR_KIND.ENV, message: '保存失败：插件没有被允许往这个工作区写文件。这是插件自己的限制，不是你的文件权限问题——去改文件或文件夹的权限不会有帮助。' }
+    return { kind: ERROR_KIND.ENV, message: '保存失败：插件没有被允许往当前工作区里写标签配色文件（' + LABEL_COLORS_REL_PATH + '），这个限制来自插件自己这一侧，不是你的文件权限问题，修改文件或文件夹的权限不会有帮助。请换一个允许写入的工作区，然后重试。' }
   }
   if (/ENOSPC/.test(message) || code === 'ENOSPC') {
-    return { kind: ERROR_KIND.ENV, message: '保存失败：磁盘空间不足，配色没有写进去。腾出空间后再试；你的文件没有被改动。' }
+    return { kind: ERROR_KIND.ENV, message: '保存失败：磁盘空间不足，标签颜色没有写进标签配色文件（' + LABEL_COLORS_REL_PATH + '）。请腾出磁盘空间，然后重试；这个标签配色文件没有被改动。' }
   }
   // EPERM / EACCES 在「临时文件 + 改名」这种发布方式下原因不止一种（研究 #614 实测：只读、被别的程序
   // 占用、目标位置被换成目录，三种都会走到改名这一步并抛同一个 EPERM），所以这里不断言单一原因，
@@ -230,19 +256,29 @@ export function describeWriteFailure(err) {
   if (/EACCES|EPERM/.test(message) || code === 'EACCES' || code === 'EPERM' || code === 'FS_NOT_REGULAR_FILE') {
     return {
       kind: ERROR_KIND.ENV,
-      message: '保存失败：写不进 ' + LABEL_COLORS_REL_PATH + '。常见三种原因，按你的情况处理：' +
-        '① 这个文件或它所在的文件夹是只读的（去掉只读属性再试）；' +
-        '② 文件正被别的程序占着（编辑器、同步盘、杀毒都常见，关掉那个程序再试）；' +
-        '③ 这个位置不是一份普通文件（例如被换成了目录或同名文件夹，换回文件再试）。' +
-        '你的文件没有被改动，可以重试。',
+      message: '保存失败：写不进工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）。下面三种情形插件分不出是哪一种，请按实际看到的情况处理：' +
+        '① 工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）正被其它程序占用（编辑器、同步盘、杀毒软件都常见），请关掉那个程序后重试；' +
+        '② 工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）或它所在的目录是只读的，请去掉只读属性后重试；' +
+        '③ 工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）这个位置现在是一份目录、不是文件，请删掉这份目录、把这个文件恢复成一份文件，然后重试。' +
+        '这个标签配色文件没有被改动，可以重试。',
     }
   }
+  // 位置不存在与位置是目录这两种情形，要办的事正好相反（一个要建、一个要删），
+  // 所以拆成两条各自能照做的说法，并且都写明是在哪一份文件上做；插件认不出是哪一种，照实说。
   if (/ENOENT/.test(message) || code === 'ENOENT' || code === 'EISDIR' || code === 'FS_NOT_FOUND') {
-    return { kind: ERROR_KIND.ENV, message: '保存失败：写不进 ' + LABEL_COLORS_REL_PATH + '，它所在的文件夹不见了。文件没有改动，可以重试。' }
+    return {
+      kind: ERROR_KIND.ENV,
+      message: '保存失败：写不进工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）。写不进的情形有两种，插件分不出是哪一种，请按实际看到的情况处理：' +
+        '① 这个位置上的文件不存在：请在工作区里新建这份标签配色文件（' + LABEL_COLORS_REL_PATH + '），它上一层的 docs/agents/ 目录还没有的话，先把这层目录一并建出来，然后重试；' +
+        '② 这个位置现在是一份目录、不是文件：请先删掉这份目录，再在工作区里新建这份标签配色文件（' + LABEL_COLORS_REL_PATH + '），然后重试。' +
+        '这两种情形下这个标签配色文件都没有被改动。',
+    }
   }
   // 认不出来的一律归环境档，并说清责任在插件这边（错误原文不进给用户的文案：
   // 原子写失败时错误里的路径是临时文件名，用户会去找一个不存在的文件）。
-  return { kind: ERROR_KIND.ENV, message: '保存失败：写配色文件的时候出错了，你的文件没有被改动（写坏的临时文件已经清掉）。这是插件这边的问题，不是你操作错了。' }
+  // 「写坏的临时文件已经清掉」这句原来对所有情形都成立、其实只对「改名失败」那一支成立，所以改成
+  // 「可能留了一份写到一半的中间文件、可以直接删掉」——直写那条路上没有中间文件，两种情形都说得通。
+  return { kind: ERROR_KIND.ENV, message: '保存失败：标签颜色没有写进工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '），插件认不出是哪一种失败原因。这个标签配色文件没有被改动。它的同一个目录里可能留了一份写到一半的中间文件，可以直接删掉，不影响这个文件。这是插件运行环境的问题，不是你的操作有误。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' }
 }
 
 /** 放置配色文件（幂等）。两条路都走它：① 用户为工作区选定后端时；② 首次打开改色弹窗时。

@@ -178,7 +178,7 @@ const tracker = markdownModule.create({})
   const ctx = mkCtx(fake)
   const r = await tracker.setLabelColors(REF, [{ name: 'bug', color: '0b7285' }], ctx)
   check(r.ok === false && r.error && r.error.kind === 'parse', '文件解析不了 → 整条改色失败，落解析档（实得 ' + JSON.stringify(r) + '）')
-  check(String((r.error || {}).message || '').includes('没能拿全标签') === false, '改色失败文案不说「没能拿全标签」（那是列标签那一档的说法）')
+  check(String((r.error || {}).message || '').includes('未能获取全部标签') === false, '改色失败文案不说「未能获取全部标签」（那是列标签那一档的说法）')
   check(fake.calls.writeText.length === 0, '硬要求①：解析不了时零写入（实得 ' + fake.calls.writeText.length + ' 次）')
   check(fake.show(COLOR_PATH) === mine, '硬要求①：文件内容一个字节没变')
 
@@ -240,17 +240,45 @@ const tracker = markdownModule.create({})
   const ctx = mkCtx(fake)
   const r = await tracker.setLabelColors(REF, [{ name: 'bug', color: '0b7285' }], ctx)
   check(r.ok === false && r.error && r.error.kind === 'env', 'D4：回读不一致 → 如实报失败（实得 ' + JSON.stringify(r) + '）')
-  check(String((r.error || {}).message || '').includes('回读'), 'D4：文案说清是回读对不上，而不是含糊的写失败（实得 ' + String((r.error || {}).message || '') + '）')
+  check(String((r.error || {}).message || '').includes('重新读这个文件'), 'D4：文案说清是写完之后重新读这个文件时对不上，而不是含糊的写失败（实得 ' + String((r.error || {}).message || '') + '）')
 }
 
 // ── 五之四、D3：EPERM/EACCES 不许断言单一原因 ──
 {
   const d = describeWriteFailure(Object.assign(new Error('EPERM: operation not permitted, rename \'x.tmp\' -> \'label-colors.json\''), { code: 'EPERM' }))
   const m = String(d.message || '')
-  check(['只读', '占着', '不是一份普通文件'].every((k) => m.includes(k)), 'D3：EPERM/EACCES 这类失败把三种可能一并说清（实得 ' + m + '）')
-  check(m.includes('你的文件没有被改动'), 'D3：仍然说清文件没有被改动')
+  // 文风口径（#633 终审第 14—16 条）：三种情形都写成「工作区里的标签配色文件（...）」完整定位短语，
+  // 不再用「这个文件 / 这个位置」这类没有落点的说法，也不再出现「普通文件」这个自造词。
+  check(m.includes('工作区里的标签配色文件（docs/agents/label-colors.json）'), 'D3：三种情形都用完整定位短语指这份文件')
+  check(m.includes('普通文件') === false, 'D3：不再用「普通文件」这个自造词')
+  check(['只读', '占用', '不是文件'].every((k) => m.includes(k)), 'D3：EPERM/EACCES 这类失败把三种可能一并说清（实得 ' + m + '）')
+  // 第 13 条点名要做的改动：原来「你的文件没有被改动」的「你的文件」没有落点，改成点明是哪一份文件。
+  // 所以这里不再固定写旧句子，而是要求「没有被改动」这句确实挂在「标签配色文件」上。
+  check(m.includes('这个标签配色文件没有被改动'), 'D3：仍然说清文件没有被改动，并且点明是哪一份文件')
   const d2 = describeWriteFailure(Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }))
   check(d2.message === m, 'D3：EACCES 与 EPERM 用同一段文案（发布方式决定了这两种错误的原因本来就分不开）')
+
+  // 第 17 条点名要做的改动：「位置不存在」与「位置是一份目录」原来共用一个动作，用户不知道
+  // 该删哪份目录、该建哪个文件。现在拆成两条各自能照做的说法，这里守住拆开这件事与两条动作的方向。
+  const d3 = describeWriteFailure(Object.assign(new Error('ENOENT: no such file or directory, rename'), { code: 'ENOENT' }))
+  const m3 = String(d3.message || '')
+  check(m3.includes('有两种') && m3.includes('①') && m3.includes('②'), 'E1：位置不存在／位置是目录拆成两条分别说（实得 ' + m3 + '）')
+  check(m3.includes('新建这份标签配色文件（docs/agents/label-colors.json）'), 'E1：①「不存在」给的是新建这份文件这一步')
+  check(m3.includes('先删掉这份目录'), 'E1：②「是一份目录」给的是先删掉这份目录这一步')
+  check(m3.includes('它上一层的 docs/agents/ 目录'), 'E1：①还说了上层目录没建出来时怎么办')
+
+  // 第 18 条点名要做的改动：原来那一档写「写坏的临时文件已经清掉」，可发布还有一条不落临时文件的
+  // 直写路径（label-colors.js 的 publishAtomically 里 rename 原语不存在时走 writeTextFile 直写），
+  // 那条路上根本没有临时文件，这句话有时与事实不符。现在改成「可能留了一份写到一半的中间文件」。
+  const d4 = describeWriteFailure(Object.assign(new Error('认不出来的怪错'), { code: 'SOMETHING_ELSE' }))
+  const m4 = String(d4.message || '')
+  check(m4.includes('写坏的临时文件已经清掉') === false, 'E2：不再声称临时文件已经清掉（直写那条路上没有临时文件）')
+  check(m4.includes('可能留了一份写到一半的中间文件'), 'E2：改成「可能留了一份写到一半的中间文件，可以直接删掉」——两条路都说得通')
+  check(m4.includes('这是插件运行环境的问题，不是你的操作有误。'), 'E2：定档句原样保留')
+  // 认不出原因这一档不许把内部实现摆给用户看：发布走的是哪一条路（rename / write-text）、
+  // 中间文件叫什么名字，这些都不该出现在这句提示里。
+  check(!/rename|write-text|\.tmp|writeText/i.test(m4), 'E2：不把发布路径与中间文件名这类内部细节写进用户可见文案')
+  check(m4.includes('这个标签配色文件没有被改动'), 'E2：仍然说清文件没有被改动，并且点明是哪一份文件')
 }
 
 // ── 六、并集语义与「不许新增一行」──
@@ -304,7 +332,7 @@ const tracker = markdownModule.create({})
   const ctx = mkCtx(fake)
   const rl = await tracker.listLabels(REF, ctx)
   check(rl.ok === false && rl.error && (rl.error.kind === 'env' || rl.error.kind === 'network'), '有票读不出来 → 整条列标签失败，落环境档（实得 ' + JSON.stringify(rl) + '）')
-  check(String((rl.error || {}).message || '').includes('没能拿全标签'), '取不全的文案说清「没能拿全标签」')
+  check(String((rl.error || {}).message || '').includes('未能获取全部标签'), '取不全的文案说清「未能获取全部标签」')
 }
 
 // ── 八之二、A1：地图还没有 issues/ 子目录时，列标签照常成功（= 这个地图还没有票）──
@@ -330,7 +358,7 @@ const tracker = markdownModule.create({})
   fake2.failProbeOn('/ws/.scratch/demo/issues')
   const rl2 = await tracker.listLabels(REF, mkCtx(fake2))
   check(rl2.ok === false && (rl2.error.kind === 'env' || rl2.error.kind === 'network'), 'A1 反例：目录读不出来（不是不存在）→ 仍然整体失败（实得 ' + JSON.stringify(rl2).slice(0, 140) + '）')
-  check(String((rl2.error || {}).message || '').includes('没能拿全标签'), 'A1 反例：文案仍是「没能拿全标签」')
+  check(String((rl2.error || {}).message || '').includes('未能获取全部标签'), 'A1 反例：文案仍是「未能获取全部标签」')
 }
 
 // ── 八之三、D1 的另一半：票文件的「在不在」探测失败，不许被当成「这张票不存在」跳过 ──
@@ -348,7 +376,7 @@ const tracker = markdownModule.create({})
   fake.failProbeOn('/ws/.scratch/demo/issues/01-probe-denied.md')
   const rl = await tracker.listLabels(REF, mkCtx(fake))
   check(rl.ok === false && (rl.error.kind === 'env' || rl.error.kind === 'network'), 'D1 调用点：票的存在性探测失败（不是明确的「不在」）→ 整条列标签失败，不许静默跳过（实得 ' + JSON.stringify(rl).slice(0, 140) + '）')
-  check(String((rl.error || {}).message || '').includes('没能拿全标签'), 'D1 调用点：文案仍是「没能拿全标签」')
+  check(String((rl.error || {}).message || '').includes('未能获取全部标签'), 'D1 调用点：文案仍是「未能获取全部标签」')
 }
 
 // ── 九、日志点：写入记常驻、读取记按需，字段只取白名单里那几个 ──

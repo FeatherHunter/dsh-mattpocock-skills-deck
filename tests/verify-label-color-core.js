@@ -250,8 +250,8 @@ async function main() {
   }
 
   // ---- 9) #631：引导句不许替后端猜原因，也不许把用户推向无效动作 ----
-  // 这一节钉的是「没选定后端」这一情形（#623 真机验收时发现的那一处）：后端原话说「先在面板里选定这个
-  // 工作区用哪个后端，再试一次」，而界面那一句当时写的是「和后端上另一处改动撞上了：稍等片刻再重试」——
+  // 这一节钉的是「没选定后端」这一情形（#623 真机验收时发现的那一处）：后端返回的说明是「这个工作区使用哪个
+  // 后端尚未确定：请在面板中选定这个工作区使用的后端，然后重试」，而界面那一句当时写的是「和后端上另一处改动撞上了：稍等片刻再重试」——
   // 用户照做会一直失败。断言打在**真词条**上（真词条在 src/client/kernel/locale-labels.js，界面取哪一条
   // 由下面第一行 lcKindKey 决定），所以改回旧文案这一节就红。
   {
@@ -266,33 +266,42 @@ async function main() {
       .replace(/^(\s*)export\s+/gm, '$1') + '\nreturn { L_LABELS: L_LABELS }\n'
     const L = new Function(locSrc)().L_LABELS
 
-    // 「没选定后端」这一情形：档位是 conflict，后端原话就是宿主 src/host/workspaceCwd.js 里 UNDECIDED 那一句
+    // 「没选定后端」这一情形：档位是 conflict，后端返回的说明就是宿主 src/host/workspaceCwd.js 里 UNDECIDED 那一句
     // （这里照它的格式写下来，只为说明这一情形长什么样；断言不看这句话，只看界面取到的那条词条）。
-    const backendSaid = '还没定下要给哪个后端改标签配色：先在面板里选定这个工作区用哪个后端，再试一次（现在有 2 个后端同时认领这个工作区：github、markdown）'
+    const backendSaid = '这个工作区使用哪个后端尚未确定：请在面板中选定这个工作区使用的后端，然后重试（当前有 2 个后端同时对应这个工作区：github、markdown）'
     const key = leaf2.lcKindKey('conflict')
-    check(key === 'lc.err.conflict', '没选定后端这一情形归 conflict 档，界面取的就是 ' + key + '（后端原话：' + backendSaid.slice(0, 12) + '…）')
+    check(key === 'lc.err.conflict', '没选定后端这一情形归 conflict 档，界面取的就是 ' + key + '（后端返回的说明：' + backendSaid.slice(0, 12) + '…）')
     // 无效指引的写法：叫用户「等一会儿再试」。后端这次说的是「先去选定后端」，等下去永远不会好。
     const WAIT_ZH = /稍等片刻再(重)?试|稍后再(重)?试|等一会儿再(重)?试|过一会儿再(重)?试/
     const WAIT_EN = /(try|trying) again (in a moment|later|shortly)|wait a moment|try (it )?later/i
     check(!WAIT_ZH.test(L.zh[key]), '没选定后端时界面引导里不出现「稍等片刻再重试」这类无效指引（实得：' + L.zh[key] + '）')
     check(!WAIT_EN.test(L.en[key]), '英文那一句同样不出现无效指引（实得：' + L.en[key] + '）')
     check(!/另一处改动|撞上/.test(L.zh[key]) && !/collided with another change/i.test(L.en[key]),
-      '界面引导不替后端断言成因（后端说「还没定下用哪个后端」，界面不许说成「和另一处改动撞上了」）')
-    check(L.zh[key].indexOf('后端原话') >= 0 && /The backend said/i.test(L.en[key]),
-      '界面引导把「怎么做」交给框里的后端原话（中英两份都点名了那个框）')
+      '界面引导不替后端断言成因（后端说「这个工作区使用哪个后端尚未确定」，界面不许说成「和另一处改动撞上了」）')
+    check(L.zh['lc.backendSaid'].indexOf('后端返回的说明') >= 0 && /Message from the backend/i.test(L.en['lc.backendSaid']),
+      '框里的那段后端说明中英两份都点名了它自己（中文「后端返回的说明」，英文 Message from the backend）')
+    // #633：这一条原来要「中文引导句点名那个框 **且** 英文引导句点名那个框」两句一起要；上次改文案时
+    // 英文那一半被挪去查第 281 行的框名（另一个词条），于是英文引导句写什么都行——实测把它的英文换成
+    // 「See the log for details.」门禁照样全绿。这里把英文那一半补回到引导句自己身上，中英两份都要点名
+    // 那个框：中文叫「后端返回的说明」，英文那一份现在是「the message the backend returned」（框自己在
+    // 英文里叫 Message from the backend，见上面第 281 行）。指向写成「详情见日志」这类说法就红。
+    const BOX_EN = /(message from the backend|message the backend returned)/i
+    check(L.zh[key].indexOf('后端返回的说明') >= 0 && BOX_EN.test(L.en[key]),
+      '界面引导把「怎么做」交给框里的后端返回的说明（中英两份都点名了那个框；实得英文：' + L.en[key] + '）')
     // 第三件（#631）：这一档还要写明去哪儿选后端，并且给一个可点入口。
     check(/面板头部/.test(L.zh['lc.errWherePick'] || '') && /切换后端/.test(L.zh['lc.errWherePick'] || ''),
       '「去哪儿选定后端」写明了是面板头部那颗「切换后端」按钮（实得：' + (L.zh['lc.errWherePick'] || '') + '）')
     check(/panel header/i.test(L.en['lc.errWherePick'] || '') && /switch backend/i.test(L.en['lc.errWherePick'] || ''),
       '英文那一句同样写明位置（实得：' + (L.en['lc.errWherePick'] || '') + '）')
     check(!!L.zh['lc.actGoPick'] && !!L.en['lc.actGoPick'], '可点入口中英两份文字都在')
-    // 另外七档逐档核对（#631 第二件）：同样的毛病（界面替后端猜一个具体成因、或引导与后端原话打脸）
+    // 另外七档逐档核对（#631 第二件）：同样的毛病（界面替后端猜一个具体成因、或引导与后端返回的说明打脸）
     // 在 env / not-found / parse 三档也各有一处，已按下一条规矩修；这里各钉一条防回退。
-    check(!/这一步没能写成/.test(L.zh['lc.err.env']) && /后端原话/.test(L.zh['lc.err.env']),
-      'env 档不再说「这一步没能写成」（读清单那一步并没有在写），改把「卡在哪一步、为什么」交给后端原话')
-    check(/如果是/.test(L.zh['lc.err.notFound']) && !/^这个标签没在这个后端的配色清单里/.test(L.zh['lc.err.notFound']),
-      'not-found 档不再一口咬定「这个标签没在配色清单里」（后端也可能说的是认不出仓库）')
-    check(/如果是/.test(L.zh['lc.err.parse']), 'parse 档把两种情形分开写（颜色写法不合法 / 后端读不出它自己的配色文件）')
+    check(!/这一步没能写成/.test(L.zh['lc.err.env']) && /后端返回的说明/.test(L.zh['lc.err.env']),
+      'env 档不再说「这一步没能写成」（读清单那一步并没有在写），改把「卡在哪一步、为什么」交给后端返回的说明')
+    check(!/如果是/.test(L.zh['lc.err.notFound']) && /后端返回的说明/.test(L.zh['lc.err.notFound']),
+      '#633：not-found 档不再替后端列举成因（列举等于替后端猜，且「去配色文件里补一行」在文件还没生成时会让人去找一份不存在的文件），把「怎么做」交给「后端返回的说明」')
+    check(!/如果是/.test(L.zh['lc.err.parse']) && /后端返回的说明/.test(L.zh['lc.err.parse']),
+      '#633：parse 档同样不再替后端列举成因（颜色写法不合法 / 后端读不出它自己的配色文件），把「怎么改」交给「后端返回的说明」')
 
     // #631 追加的 P0：面板当前用的是哪个后端就读出哪个；没有选中项时**不编一个**（空串 = 如实不带）。
     const storeSel = (id) => ({ selection: { backendId: id, source: 'matches' } })
@@ -595,11 +604,11 @@ async function main() {
 
     console.log('  #631 的 D1：面板还在识别后端（待定）时，不摆那颗「去选定后端」的入口按钮')
     {
-      // 这一段的形态：列表这一步以 conflict 档失败（后端原话就是宿主 src/host/workspaceCwd.js 里那句
-      // 「先在面板里选定这个工作区用哪个后端，再试一次」），而面板那条会话状态正停在「还在识别」上。
+      // 这一段的形态：列表这一步以 conflict 档失败（后端返回的说明就是宿主 src/host/workspaceCwd.js 里那句
+      // 「这个工作区使用哪个后端尚未确定：请在面板中选定这个工作区使用的后端，然后重试」），而面板那条会话状态正停在「还在识别」上。
       // 待定时面板头部那颗「切换后端」按钮是禁用的（panel/Dock.js 的 _pend 分支），所以弹窗这时不能摆
       // 那颗「关掉弹窗，去面板头部选定后端」的入口按钮——点了没反应，正是 #631 要消灭的无效动作。
-      const CONFLICT = { kind: 'conflict', message: '还没定下要给哪个后端改标签配色：先在面板里选定这个工作区用哪个后端，再试一次（有后端的身份识别还没出结果，稍等片刻再试）' }
+      const CONFLICT = { kind: 'conflict', message: '这个工作区使用哪个后端尚未确定：请在面板中选定这个工作区使用的后端，然后重试（后端识别尚未完成，请稍后重试）' }
       const whereNote = function (h) { return h.querySelector('[data-lc-where]') }
       const waitNote = function (h) { return h.querySelector('[data-lc-wait]') }
       const goPickBtn = function (h) { return h.querySelector('[data-lc-gopick]') }
