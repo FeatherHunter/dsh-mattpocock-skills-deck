@@ -49,7 +49,12 @@ console.log('\n== ④ 无旧字段检查 ==')
     'src/host/tracker/backends/markdown/write.js',
     'src/host/tracker/backends/markdown/issues.js',
     'src/host/tracker/backends/markdown/issues-locate.js',
-    'src/host/tracker/backends/markdown/issues-labels.js',
+    // #618：旧的 issues-labels.js（读 docs/agents/triage-labels.md 调色盘表的加载与染色函数）已删除，
+    // 换成本地配色文件这条路的几个文件（按「一个文件一件事」拆开，各自都在 350 行以内）。
+    'src/host/tracker/backends/markdown/label-colors.js',
+    'src/host/tracker/backends/markdown/label-colors-palette.js',
+    'src/host/tracker/backends/markdown/label-colors-paint.js',
+    'src/host/tracker/backends/markdown/label-colors-ops.js',
     'src/host/tracker/backends/markdown/issues-read.js',
     'src/host/tracker/backends/markdown/issues-create.js',
     'src/host/tracker/backends/markdown/issues-status.js',
@@ -148,6 +153,21 @@ console.log('\n== ③ 既有 verify 回归（抽样） ==')
   check(platIdx.includes("import win32 from './win32/index.js'"), '回归抽样 platform 静态 import 仍存在')
   const deckDerive = fs.readFileSync('src/shared/tracker/deck-derive.js', 'utf8')
   check(deckDerive.includes('parseProgress'), '回归抽样 deck-derive 仍存在')
+}
+
+console.log('\n== ⑤ 干净切断：不再读旧的调色盘表（#618） ==')
+{
+  // 旧的读法（读 docs/agents/triage-labels.md 的调色盘表）连同文件一起删掉了：
+  // 这个房间里不该再出现那些函数名与那个文件路径，颜色只从 docs/agents/label-colors.json 来。
+  const roomDir = path.join(process.cwd(), 'src/host/tracker/backends/markdown')
+  const roomFiles = fs.readdirSync(roomDir).filter((n) => n.endsWith('.js'))
+  check(roomFiles.indexOf('issues-labels.js') < 0, '旧的 issues-labels.js 已删除')
+  const joined = roomFiles.map((n) => fs.readFileSync(path.join(roomDir, n), 'utf8')).join('\n')
+  const code = joined.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+  check(!/loadPaletteMap|recolorLabels/.test(code), '房间里不再有 loadPaletteMap / recolorLabels 这两个旧函数')
+  check(!/triage-labels\.md/.test(code), '房间里不再引用 docs/agents/triage-labels.md（那个表不读了）')
+  check(/label-colors\.json/.test(joined), '房间里读的是新的配色文件 docs/agents/label-colors.json')
+  check(roomFiles.indexOf('label-colors.js') >= 0 && roomFiles.indexOf('label-colors-ops.js') >= 0, '本地配色文件这条路的两个文件在位')
 }
 
 if (failed || hFailed > 0) {

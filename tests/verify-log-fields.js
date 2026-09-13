@@ -71,6 +71,9 @@ const ALLOWED = {
   'host.start': ['pid', 'startedAt', 'dir'],
   'update.install.exec': ['route', 'ok', 'exitCode', 'durationMs', 'pluginId'],
   'privacy.scrub': ['field', 'rule', 'hit'],
+  // #618 新增两条（附录 1.4 / 1.5 节）：本地配色文件的写入记常驻、读取记按需。
+  'labelColors.write': ['cwdHash', 'count', 'ok', 'reason', 'via'],
+  'labelColors.read': ['cwdHash', 'present', 'count', 'ok', 'reason'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],

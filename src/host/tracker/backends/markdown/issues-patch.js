@@ -1,4 +1,4 @@
-// issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 190 行）。
+﻿// issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 190 行）。
 //
 // effort 维度（2026-09-09）：所有写路径按 (effort 范围, 编号) 定位文件，多命中即 conflict。
 import { parseMd } from './parse.js'
@@ -7,7 +7,7 @@ import { writeTextFile } from './write.js'
 import { classifyError } from '../../preflight.js'
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
-import { loadPaletteMap, recolorLabels } from './issues-labels.js'
+import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import { replaceOrInsertField } from './issues-status.js'
 
 async function resolveTarget(ctx,repo,norm,mode){
@@ -25,7 +25,7 @@ async function readParseWrite(ctx,r,norm,fn){
 }
 export async function updateIssue(ctx,repo,key,patch){
   const norm=String(key).padStart(2,'0')
-  const paletteMap=await loadPaletteMap(ctx)
+  const colorMap=await loadPaintColorMap(ctx)
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   const res=await readParseWrite(ctx,r,norm,function(txt){
@@ -72,13 +72,13 @@ export async function updateIssue(ctx,repo,key,patch){
   if(!res.ok)return{ok:false,error:res.error}
   try{
     const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId})
-    recolorLabels(iss, paletteMap)
+    applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
 }
 export async function setBlockedByIssue(ctx,repo,key,blockers){
   const norm=String(key).padStart(2,'0')
-  const paletteMap=await loadPaletteMap(ctx)
+  const colorMap=await loadPaintColorMap(ctx)
   if(Array.isArray(blockers)&&blockers.map(k=>String(k).padStart(2,'0')).includes(norm)){return{ok:false,error:{kind:ERROR_KIND.CONFLICT,message:'self-block '+norm}}}
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
@@ -88,13 +88,13 @@ export async function setBlockedByIssue(ctx,repo,key,blockers){
   if(!res.ok)return{ok:false,error:res.error}
   try{
     const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})
-    recolorLabels(iss, paletteMap)
+    applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
 }
 export async function setAssigneesIssue(ctx,repo,key,assignees){
   const norm=String(key).padStart(2,'0')
-  const paletteMap=await loadPaletteMap(ctx)
+  const colorMap=await loadPaintColorMap(ctx)
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   const hasAssignee=Array.isArray(assignees)&&assignees.length>0
@@ -103,7 +103,7 @@ export async function setAssigneesIssue(ctx,repo,key,assignees){
   if(!res.ok)return{ok:false,error:res.error}
   try{
     const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})
-    recolorLabels(iss, paletteMap)
+    applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
 }
@@ -112,7 +112,7 @@ export async function setParentIssue(ctx,repo,key,parentKey){
 }
 export async function setLabelsIssue(ctx,repo,key,labels){
   const norm=String(key).padStart(2,'0')
-  const paletteMap=await loadPaletteMap(ctx)
+  const colorMap=await loadPaintColorMap(ctx)
   const names=Array.isArray(labels)? labels.map(l=> typeof l==='string'? l.trim() : (l&&typeof l.name==='string'? l.name.trim():String(l).trim())).filter(Boolean) : []
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
@@ -121,7 +121,7 @@ export async function setLabelsIssue(ctx,repo,key,labels){
   if(!res.ok)return{ok:false,error:res.error}
   try{
     const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId})
-    recolorLabels(iss, paletteMap)
+    applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
 }

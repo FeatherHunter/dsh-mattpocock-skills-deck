@@ -32,6 +32,31 @@ export function createWorkspaceCwd(deps) {
     return raw
   }
   // #155 + #152：后端绑定（per-workspace 覆盖，唯一写路径不回写 issue-tracker.md）+ 注册表查询 + detection 缓存失效
+  // #618：用户为工作区选定后端这一步，顺手在工作区里放一份默认配色文件（幂等：文件在就一个字都不改）。
+  // 只有 Markdown 系后端放：GitHub 的颜色是仓库标签的实体数据，没有这份文件；GitLab 这一轮不动。
+  // 怎么认出「Markdown 系」：后端自己实现 ensureLabelColorsFile 这个方法，host 只问它愿不愿意放，
+  //   不在这里写死文件路径与后端 id（路径与内容是这个后端自己的事）。GitHub / GitLab 按 id 明确跳过。
+  // 放失败不影响绑定本身（用户这次是来选后端的），但**不能无声**：失败要记一条日志，并且把结果如实
+  //   放进 bind 的回包里（labelColorsFile 一项），让界面与排查的人都能看见「这次没放上、为什么」。
+  //   真正要用这份文件的时候（打开改色弹窗）会再试一次，那时按写失败分档如实报「写不进去」。
+  async function placeLabelColorsFile(cwd, backendId) {
+    if (!backendId || backendId === 'github' || backendId === 'gitlab') return { ok: true, skipped: 'not-markdown' }
+    try {
+      const reg = await getTrackerRegistry()
+      if (!reg) return { ok: false, error: { kind: 'env', message: '后端注册表还没就绪' } }
+      const tracker = reg.get(backendId)
+      if (!tracker || typeof tracker.ensureLabelColorsFile !== 'function') return { ok: true, skipped: 'backend-wants-no-file' }
+      const platform = await getPlatform()
+      let ref = null
+      try { ref = reg.describe({ cwd: cwd }, backendId) } catch (e) { ref = { backend: backendId, refId: '', name: '', url: '' } }
+      const sb = resolveSandboxPolicy(null, cwd)
+      const placed = await tracker.ensureLabelColorsFile(ref, opCtxFor(cwd, platform, ref, 'wf.bind', new AbortController().signal, sb.policy, sb.sessionId))
+      if (placed && placed.ok === true) return { ok: true, placed: placed.placed === true, reason: placed.reason || '' }
+      return { ok: false, error: (placed && placed.error) || { kind: 'env', message: '后端没说自己放成功、也没说为什么' } }
+    } catch (e) {
+      return { ok: false, error: { kind: 'env', message: msgOf(e) } }
+    }
+  }
   async function handleBind(args) {
     const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
     const backendId = args && ('backendId' in args ? args.backendId : args.backend)
@@ -44,8 +69,19 @@ export function createWorkspaceCwd(deps) {
       // 失效快照 + 状态 + 探测三缓存（per-workspace 切换不串台，Q3；workspaceStore 内存单例失效）
       setCache({ ts: 0, snapshot: null, error: null, cwd: null })
       try { const ws = await getWorkspaceStore(); ws.invalidate(handle) } catch {}
+      // #618：选好之后顺手放一份默认配色文件（幂等）。失败不回滚绑定，但如实放进回包并在日志里留痕。
+      let labelColorsFile = null
+      try { labelColorsFile = await placeLabelColorsFile(cwd, backendId === undefined ? null : backendId) } catch (e) { labelColorsFile = { ok: false, error: { kind: 'env', message: msgOf(e) } } }
+      if (labelColorsFile && labelColorsFile.ok !== true && labelColorsFile.skipped === undefined) {
+        try {
+          if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'labelColors.write', { cwdHash: hash8(String(cwd)), count: 0, ok: false, reason: 'place-fail' })
+        } catch (eL) {}
+      }
       // H1 #445 恒空留守省略：原 _detectionService 空检查为无动作分支，有无值行为一致，搬出时省略。
-      return { ok: true, cwd: cwd, backendId: backendId === undefined ? null : backendId }
+      const out = { ok: true, cwd: cwd, backendId: backendId === undefined ? null : backendId }
+      // 「放没放、为什么没放」如实回给调用方；因为别的后端不放，用 null 表示「这一次不需要放」。
+      out.labelColorsFile = labelColorsFile
+      return out
     } catch (e) {
       const msg = String((e && e.message) || e)
       if (/unknown-backend/.test(msg)) return { ok: false, error: msg, kind: 'unknown-backend' }
@@ -108,7 +144,7 @@ export function createWorkspaceCwd(deps) {
   //     不是你操作错了」；
   //   没选定后端 / 多个后端同时命中 / 身份识别还没定下来 → conflict，让用户先选定后端再试。
   // 两条电话的日志 kind 与交给后端执行器用的 via 统一写成 'label-colors'（同一件事只有一个叫法）。
-  function opCtxFor(cwd, platform, repoRef, caller, signal) {
+  function opCtxFor(cwd, platform, repoRef, caller, signal, sandboxPolicy, sessionId) {
     return {
       cwd: cwd,
       refId: (repoRef && repoRef.refId) || '',
@@ -116,11 +152,63 @@ export function createWorkspaceCwd(deps) {
       platform: platform,
       fs: ctx.get('fs'),
       caller: caller,
+      // 写文件要用的「本次调用的政策」（会话政策）：由沙箱政策服务按会话算，这里只传不算。
+      // 后端把它当写方法的第 5 个参数交给 DSH 的文件服务 —— 不传就等于用部署默认政策，
+      // 而部署默认可写根是 DSH 进程所在目录，不是用户工作区，所以往工作区写必然被拒（研究 #614/#624）。
+      sandboxPolicy: sandboxPolicy,
+      // 这份政策是按哪个会话算的（给日志与排查用；拿不到会话时是空串）。
+      sessionId: sessionId || '',
       timers: { setTimeout: function (fn, ms) { return timer.timeout(fn, ms) }, clearTimeout: function (id) { try { clearTimeout(id) } catch (e) {} } },
       exec: function (cmd, args, opts) { return detectionExec(cmd, args, opts, 'label-colors') },
       logEvent: function (level, event, fields) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e) {} },
       isEnabled: function (level) { try { return (logCtx && typeof logCtx.isEnabled === 'function') ? logCtx.isEnabled(level) === true : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } },
     }
+  }
+  // ── 会话政策：写用户工作区时那条正规口子的两半（研究 #624）────────────────────
+  // 一半是「政策」：调沙箱政策服务按某个会话算，它把会话头里的工作目录当可写根。
+  // 另一半是「会话号」：客户端那条 wf.cwd 路径已经在带会话号，这两条电话照样收 args.sessionId。
+  // 没带会话号时怎么办：找这个工作区名下活着的会话，正好一个就用它；找不到（或不止一个，无法确定
+  // 是哪一次操作）就不猜、也不自己拼政策——退回让 DSH 按部署默认政策判，写不进用户工作区就如实报失败。
+  // 为什么不猜：会话模式可以不一样（有的是只读），猜错等于替用户绕开他自己选的那档限制。
+  function pathKeyOf(p) { return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() }
+  function sessionById(sid) {
+    if (!sid) return null
+    try {
+      const svc = ctx.get('sessions')
+      if (!svc || typeof svc.get !== 'function') return null
+      return svc.get(String(sid)) || null
+    } catch (e) { return null }
+  }
+  function sessionsOfWorkspace(cwd) {
+    try {
+      const svc = ctx.get('sessions')
+      if (!svc || typeof svc.list !== 'function') return []
+      const want = pathKeyOf(cwd)
+      const all = svc.list() || []
+      const hits = []
+      for (const s of all) {
+        const header = s && (s.header || s.meta)
+        const c = header && (header.cwd || header.path)
+        if (c && pathKeyOf(c) === want) hits.push(s)
+      }
+      return hits
+    } catch (e) { return [] }
+  }
+  // 政策服务算政策：有会话就按会话算（含会话自己的模式），没有会话就交给它兜底。
+  // 取不到政策服务时返回 undefined —— 后端拿到 undefined 就不传第 5 个参数，维持现状并如实报失败，
+  // 绝不在插件这边自己拼一个宽松政策。
+  function resolveSandboxPolicy(args, cwd) {
+    try {
+      const svc = ctx.get('sandboxPolicy')
+      if (!svc || typeof svc.resolve !== 'function') return { policy: undefined, sessionId: '' }
+      let session = sessionById(args && args.sessionId)
+      if (!session) {
+        const hits = sessionsOfWorkspace(cwd)
+        if (hits.length === 1) session = hits[0]
+      }
+      const policy = svc.resolve(session ? { session: session } : {})
+      return { policy: policy, sessionId: (session && session.id) ? String(session.id) : '' }
+    } catch (e) { return { policy: undefined, sessionId: '' } }
   }
   // 两条电话共用的第一步：把工作区解析成「当前后端 + 它的仓库引用 + 它的适配器」。
   //   失败一律返回 {ok:false, error:{kind, message}}（失败返回而非抛，与契约同款）。
@@ -171,8 +259,9 @@ export function createWorkspaceCwd(deps) {
     let picked = null
     try { picked = await pickBackend(cwd, 'wf.listLabels', signal) } catch (e) { return pluginTrouble('列出标签', '问「这个工作区当前用哪个后端」这一步出错', msgOf(e)) }
     if (!picked.ok) return picked
+    const sb = resolveSandboxPolicy(args, cwd)
     let res = null
-    try { res = await picked.tracker.listLabels(picked.repoRef, opCtxFor(cwd, picked.platform, picked.repoRef, 'wf.listLabels', signal)) } catch (e) { return pluginTrouble('列出标签', '后端在列标签时抛了异常', msgOf(e)) }
+    try { res = await picked.tracker.listLabels(picked.repoRef, opCtxFor(cwd, picked.platform, picked.repoRef, 'wf.listLabels', signal, sb.policy, sb.sessionId)) } catch (e) { return pluginTrouble('列出标签', '后端在列标签时抛了异常', msgOf(e)) }
     if (!res || res.ok !== true) return backendFailure(res, '列出标签')
     if (!Array.isArray(res.data)) return pluginTrouble('列出标签', '后端回的标签清单不是一份清单（应当是一个数组）', typeof res.data)
     return { ok: true, backendId: picked.backendId, labels: res.data }
@@ -189,8 +278,9 @@ export function createWorkspaceCwd(deps) {
     let picked = null
     try { picked = await pickBackend(cwd, 'wf.setLabelColors', signal) } catch (e) { return pluginTrouble('批量改色', '问「这个工作区当前用哪个后端」这一步出错', msgOf(e)) }
     if (!picked.ok) return picked
+    const sb = resolveSandboxPolicy(args, cwd)
     let res = null
-    try { res = await picked.tracker.setLabelColors(picked.repoRef, changes, opCtxFor(cwd, picked.platform, picked.repoRef, 'wf.setLabelColors', signal)) } catch (e) { return pluginTrouble('批量改色', '后端在改色时抛了异常', msgOf(e)) }
+    try { res = await picked.tracker.setLabelColors(picked.repoRef, changes, opCtxFor(cwd, picked.platform, picked.repoRef, 'wf.setLabelColors', signal, sb.policy, sb.sessionId)) } catch (e) { return pluginTrouble('批量改色', '后端在改色时抛了异常', msgOf(e)) }
     if (!res || res.ok !== true) return backendFailure(res, '批量改色')
     const data = res.data
     if (!data || typeof data !== 'object' || !Array.isArray(data.applied) || !Array.isArray(data.failed)) return pluginTrouble('批量改色', '后端回的记账里少了「改成功的清单」（applied）或「没改成功的清单」（failed）')

@@ -1,4 +1,4 @@
-// issues-status.js —— 以后改关闭与重开状态流转时改它；字段行改写小工具也住这，补丁文件共用（预估约 150 行）。
+﻿// issues-status.js —— 以后改关闭与重开状态流转时改它；字段行改写小工具也住这，补丁文件共用（预估约 150 行）。
 //
 // effort 维度（2026-09-09）：关票/重开都按 (effort 范围, 编号) 定位，写模式多命中即 conflict，不猜文件。
 import { parseMd } from './parse.js'
@@ -6,7 +6,7 @@ import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
 import { classifyError } from '../../preflight.js'
 import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
-import { loadPaletteMap, recolorLabels } from './issues-labels.js'
+import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 
 export function replaceOrInsertField(txt,fieldName,newLine){
   const re=new RegExp('^\\s*'+fieldName+'\\s*[:\uFF1A]\\s*.*$','im')
@@ -19,7 +19,7 @@ export function replaceOrInsertField(txt,fieldName,newLine){
 }
 async function setStatus(ctx,repo,key,statusLine){
   const norm=String(key).padStart(2,'0')
-  const paletteMap=await loadPaletteMap(ctx)
+  const colorMap=await loadPaintColorMap(ctx)
   const isMap=norm==='00'
   const r=isMap
     ? await resolveMapFile(ctx,repo,{mode:'write'})
@@ -30,7 +30,7 @@ async function setStatus(ctx,repo,key,statusLine){
     txt=replaceOrInsertField(txt,'Status',statusLine)
     await writeTextFile(ctx,r.path,txt)
     const iss=parseMd(txt,{key:norm,parentKey:isMap?null:'00',isMap,effortId:r.effortId})
-    recolorLabels(iss, paletteMap)
+    applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
 }

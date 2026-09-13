@@ -1,4 +1,4 @@
-import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
+﻿import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { mdPath, effortMapPath, effortIssuePath } from './path.js'
 import { parseMd } from './parse.js'
 import { normalizeIssue } from './normalize.js'
@@ -6,6 +6,9 @@ import { readTextFile, exists } from './read.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue, setLabelsIssue } from './issues.js'
 import { getDependenciesForKey } from './graph.js'
 import { addComment } from './comments.js'
+import { listLabels, setLabelColors } from './label-colors-ops.js'
+import { ensureLabelColors } from './label-colors.js'
+import { useBuiltinLabelColors } from './label-colors-palette.js'
 import nodePath from 'node:path'
 function getPlat(ctx){if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;if(typeof process!=='undefined'&&process.platform==='win32')return nodePath.win32;return nodePath.posix}
 function isAbsolute(p,plat){try{return plat.isAbsolute(p)}catch{return nodePath.isAbsolute(p)}}
@@ -128,6 +131,13 @@ export function createMarkdownBackend(ctx){
     setAssignees:(repo,key,assignees,opts,opCtx)=>setAssigneesIssue(opCtx||ctx,repo,key,assignees),
     setParent:(repo,key,parentKey,opts,opCtx)=>setParentIssue(opCtx||ctx,repo,key,parentKey),
     setBlockedBy:(repo,key,blockers,opts,opCtx)=>setBlockedByIssue(opCtx||ctx,repo,key,blockers),
+    // #618：标签配色契约的两条操作（形状见 src/host/tracker/contract.js 的「标签配色契约」一节）。
+    // listLabels 会在文件缺失时顺手补一份默认配色文件（首次打开改色弹窗那条放置路）。
+    listLabels:(repo,opCtx)=>listLabels(opCtx||ctx,repo),
+    setLabelColors:(repo,changes,opCtx)=>setLabelColors(opCtx||ctx,repo,changes),
+    // 放置配色文件的入口，给「用户为工作区选定后端」那一步用（host 不问后端 id，只问它愿不愿意放）。
+    // 只有本后端实现它，所以只有 Markdown 系后端会往工作区放这个文件。
+    ensureLabelColorsFile:(repo,opCtx)=>ensureLabelColors(opCtx||ctx,repo),
     getCurrentUser: async ()=>({ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown getCurrentUser unsupported'}}),
     initProject: async ()=>({ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown initProject unsupported'}}),
     normalize:normalizeIssue,
@@ -135,9 +145,10 @@ export function createMarkdownBackend(ctx){
   }
 }
 /** #323（2026-08-29 定版复核）：本地 Markdown 后端自己的默认调色盘（不依赖 GitHub）——
- *  这里是本地标签结构与默认色值的真源；模块经契约层（BackendModule.labelPalette）提供给面板，
- *  工作区 docs/agents/triage-labels.md 的调色盘表为用户可见的覆盖/改色层（默认按此真源预填）。
- *  颜色渲染由面板底层按 labelPalette + 工作区覆盖查色，AI 不参与。 */
+ *  这里是本地标签结构与**内置默认色值**的真源；模块经契约层（BackendModule.labelPalette）提供给面板。
+ *  #618 起颜色的可改层换成工作区里的 docs/agents/label-colors.json（用户可手改的那份配色文件），
+ *  旧的那张 docs/agents/triage-labels.md 调色盘表不再读（干净切断，不迁移、不回填）。
+ *  颜色渲染由宿主侧按配色文件查色、文件里没收录的回落这份内置默认色，AI 不参与。 */
 export const defaultLabelPalette = [
   { name: 'bug', color: 'd73a4a' },
   { name: 'needs-triage', color: 'fbca04' },
@@ -151,6 +162,11 @@ export const defaultLabelPalette = [
   { name: 'wayfinder:grilling', color: '9d7cd8' },
   { name: 'wayfinder:task', color: '10b981' },
 ]
+// 这一份就是全仓唯一的内置默认色表：标签配色机制（label-colors.js）用它做三件事——
+// 并集里补上内置默认的那些标签、首建配色文件时按它预填、票面标签既不在文件里也不在内置表里才回灰。
+// 为什么用「装载时交给它」而不是让它自己 import 这份表：本文件会 import label-colors.js，
+// 反过来的 import 会形成循环引用（Node 能跑，但读代码的人很难判断谁先初始化）。
+useBuiltinLabelColors(defaultLabelPalette)
 /** 修复契约注入文案（Markdown 后端本地语义，双语单源；供 fixes 引用，host 组装时解析）。 */
 export const prompts = {
   // 2026-08-29 定版（用户）：注入只放 /wayfinder 命令与需求占位，规则由技能自身负责，不加解释。

@@ -1,4 +1,4 @@
-// issues-create.js —— 以后改新建单据落盘格式时改它（预估约 100 行）。
+﻿// issues-create.js —— 以后改新建单据落盘格式时改它（预估约 100 行）。
 //
 // effort 维度（2026-09-09）：建票必须落在**一个明确的 effort** 里，编号按契约「每个 effort 从 01 起」在该 effort 内取 max+1。
 //   - repo.effortId 给出 → 就落在那一个 effort；
@@ -12,11 +12,11 @@ import { issuesDir } from './path.js'
 import { classifyError } from '../../preflight.js'
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { getPlat, listEfforts, findIssueFileInEffort } from './issues-locate.js'
-import { loadPaletteMap, recolorLabels } from './issues-labels.js'
+import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 
 export async function createIssue(ctx,repo,input){
   const plat=getPlat(ctx)
-  const paletteMap=await loadPaletteMap(ctx)
+  const colorMap=await loadPaintColorMap(ctx)
   if(!input||typeof input.title!=='string'||!input.title.trim()){return{ok:false,error:{kind:ERROR_KIND.PARSE,message:'title required'}}}
   try{
     const efforts=await listEfforts(ctx)
@@ -86,7 +86,7 @@ export async function createIssue(ctx,repo,input){
     let mtime=new Date().toISOString()
     if(st&&st.mtime){try{mtime=new Date(st.mtime).toISOString()}catch{}}
     const iss=parseMd(content,{key:finalKey,parentKey:input.parentKey||'00',isMap:false,effortId,createdAt:mtime,updatedAt:mtime})
-    recolorLabels(iss, paletteMap)
+    applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
 }
