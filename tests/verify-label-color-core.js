@@ -249,6 +249,389 @@ async function main() {
     }
   }
 
+  // ---- 9) #631：引导句不许替后端猜原因，也不许把用户推向无效动作 ----
+  // 这一节钉的是「没选定后端」这一情形（#623 真机验收时发现的那一处）：后端原话说「先在面板里选定这个
+  // 工作区用哪个后端，再试一次」，而界面那一句当时写的是「和后端上另一处改动撞上了：稍等片刻再重试」——
+  // 用户照做会一直失败。断言打在**真词条**上（真词条在 src/client/kernel/locale-labels.js，界面取哪一条
+  // 由下面第一行 lcKindKey 决定），所以改回旧文案这一节就红。
+  {
+    const leafSrc2 = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/labelColorErrors.js'), 'utf8')
+      .replace(/^(\s*)export\s+/gm, '$1') +
+      '\nreturn { lcKindKey: lcKindKey, lcPanelBackendOf: lcPanelBackendOf }\n'
+    const leaf2 = new Function(
+      'moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows',
+      leafSrc2,
+    )(null, null, null, colors.isColor, colors.normalizeColor, colors.pickChangedRows)
+    const locSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/locale-labels.js'), 'utf8')
+      .replace(/^(\s*)export\s+/gm, '$1') + '\nreturn { L_LABELS: L_LABELS }\n'
+    const L = new Function(locSrc)().L_LABELS
+
+    // 「没选定后端」这一情形：档位是 conflict，后端原话就是宿主 src/host/workspaceCwd.js 里 UNDECIDED 那一句
+    // （这里照它的格式写下来，只为说明这一情形长什么样；断言不看这句话，只看界面取到的那条词条）。
+    const backendSaid = '还没定下要给哪个后端改标签配色：先在面板里选定这个工作区用哪个后端，再试一次（现在有 2 个后端同时认领这个工作区：github、markdown）'
+    const key = leaf2.lcKindKey('conflict')
+    check(key === 'lc.err.conflict', '没选定后端这一情形归 conflict 档，界面取的就是 ' + key + '（后端原话：' + backendSaid.slice(0, 12) + '…）')
+    // 无效指引的写法：叫用户「等一会儿再试」。后端这次说的是「先去选定后端」，等下去永远不会好。
+    const WAIT_ZH = /稍等片刻再(重)?试|稍后再(重)?试|等一会儿再(重)?试|过一会儿再(重)?试/
+    const WAIT_EN = /(try|trying) again (in a moment|later|shortly)|wait a moment|try (it )?later/i
+    check(!WAIT_ZH.test(L.zh[key]), '没选定后端时界面引导里不出现「稍等片刻再重试」这类无效指引（实得：' + L.zh[key] + '）')
+    check(!WAIT_EN.test(L.en[key]), '英文那一句同样不出现无效指引（实得：' + L.en[key] + '）')
+    check(!/另一处改动|撞上/.test(L.zh[key]) && !/collided with another change/i.test(L.en[key]),
+      '界面引导不替后端断言成因（后端说「还没定下用哪个后端」，界面不许说成「和另一处改动撞上了」）')
+    check(L.zh[key].indexOf('后端原话') >= 0 && /The backend said/i.test(L.en[key]),
+      '界面引导把「怎么做」交给框里的后端原话（中英两份都点名了那个框）')
+    // 第三件（#631）：这一档还要写明去哪儿选后端，并且给一个可点入口。
+    check(/面板头部/.test(L.zh['lc.errWherePick'] || '') && /切换后端/.test(L.zh['lc.errWherePick'] || ''),
+      '「去哪儿选定后端」写明了是面板头部那颗「切换后端」按钮（实得：' + (L.zh['lc.errWherePick'] || '') + '）')
+    check(/panel header/i.test(L.en['lc.errWherePick'] || '') && /switch backend/i.test(L.en['lc.errWherePick'] || ''),
+      '英文那一句同样写明位置（实得：' + (L.en['lc.errWherePick'] || '') + '）')
+    check(!!L.zh['lc.actGoPick'] && !!L.en['lc.actGoPick'], '可点入口中英两份文字都在')
+    // 另外七档逐档核对（#631 第二件）：同样的毛病（界面替后端猜一个具体成因、或引导与后端原话打脸）
+    // 在 env / not-found / parse 三档也各有一处，已按下一条规矩修；这里各钉一条防回退。
+    check(!/这一步没能写成/.test(L.zh['lc.err.env']) && /后端原话/.test(L.zh['lc.err.env']),
+      'env 档不再说「这一步没能写成」（读清单那一步并没有在写），改把「卡在哪一步、为什么」交给后端原话')
+    check(/如果是/.test(L.zh['lc.err.notFound']) && !/^这个标签没在这个后端的配色清单里/.test(L.zh['lc.err.notFound']),
+      'not-found 档不再一口咬定「这个标签没在配色清单里」（后端也可能说的是认不出仓库）')
+    check(/如果是/.test(L.zh['lc.err.parse']), 'parse 档把两种情形分开写（颜色写法不合法 / 后端读不出它自己的配色文件）')
+
+    // #631 追加的 P0：面板当前用的是哪个后端就读出哪个；没有选中项时**不编一个**（空串 = 如实不带）。
+    const storeSel = (id) => ({ selection: { backendId: id, source: 'matches' } })
+    check(leaf2.lcPanelBackendOf(storeSel('github')) === 'github', '读得出面板当前选定的后端')
+    check(leaf2.lcPanelBackendOf({ snapshot: { selection: { backendId: 'markdown' } } }) === 'markdown', 'selection 不在顶层时退回快照里那一份')
+    check(leaf2.lcPanelBackendOf(storeSel('')) === '' && leaf2.lcPanelBackendOf(storeSel(null)) === '' && leaf2.lcPanelBackendOf(null) === '' && leaf2.lcPanelBackendOf({}) === '',
+      '面板没选定后端时给空串——不编一个后端 id 出来')
+  }
+
+  // ---- 10) #631 追加的 P0：客户端那两条电话真的把「面板现在用的是哪个后端」带出去了 ----
+  // 这一节跑的是**真钩子**（src/client/views/labels/useLabelColors.js），只把 React 与宿主换成最小替身：
+  // 跑完看「宿主收到了什么参数」，所以它验的是接线（客户端到底有没有把那个字段发出去），不是实现细节。
+  // 为什么值得单列一节：宿主那侧由 verify-tracker-contract 与 verify-github-label-colors 两处真断言守着，
+  // 但「客户端发了没有」那半边只有真机点一遍才能看见——这一节把那一半也钉住。
+  {
+    const hookSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/useLabelColors.js'), 'utf8')
+      .replace(/^(\s*)export\s+/gm, '$1') +
+      '\nreturn { useLabelColors: useLabelColors }\n'
+    const leafSrc3 = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/labelColorErrors.js'), 'utf8')
+      .replace(/^(\s*)export\s+/gm, '$1') +
+      '\nreturn { lcPanelBackendOf: lcPanelBackendOf, lcLabelsOf: lcLabelsOf, lcErrorOf: lcErrorOf, lcSaveOutcome: lcSaveOutcome }\n'
+    const leaf3 = new Function(
+      'moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows',
+      leafSrc3,
+    )(null, null, null, colors.isColor, colors.normalizeColor, colors.pickChangedRows)
+
+    /** 最小 React：状态存进一排格子里，不自动重渲染——每次要看新状态就再调一次 run()。 */
+    const makeReact = function () {
+      const cells = []
+      let n = 0
+      return {
+        React: {
+          useState: function (init) {
+            const i = n++
+            if (!(i in cells)) cells[i] = (typeof init === 'function') ? init() : init
+            return [cells[i], function (v) { cells[i] = (typeof v === 'function') ? v(cells[i]) : v }]
+          },
+          useRef: function (v) { const i = n++; if (!(i in cells)) cells[i] = { current: v }; return cells[i] },
+          useEffect: function () {},
+        },
+        run: function (fn) { n = 0; return fn() },
+        cells: cells,
+      }
+    }
+    /** 跑一次真钩子，返回 { 钩子实例, 宿主收到的那一串调用 }。 */
+    const driveHook = async function (panelSelection) {
+      const sent = []
+      const mini = makeReact()
+      const hookFn = new Function(
+        'React', 'host', 'log', 'dswsLogHash', 'dswsLogTrunc', 'storeOf',
+        'pickChangedRows', 'lcLabelsOf', 'lcErrorOf', 'lcSaveOutcome', 'lcPanelBackendOf',
+        hookSrc,
+      )(
+        mini.React,
+        { call: function (method, args) { sent.push({ method: method, args: args }); return Promise.resolve({ ok: true, backendId: 'github', labels: [{ name: 'bug', color: 'd73a4a' }] }) } },
+        function () {}, function () { return 'h' }, function (s) { return String(s) },
+        function () { return { selection: panelSelection, snapshot: null } },
+        colors.pickChangedRows, leaf3.lcLabelsOf, leaf3.lcErrorOf, leaf3.lcSaveOutcome, leaf3.lcPanelBackendOf,
+      ).useLabelColors
+      const render = function () { return mini.run(function () { return hookFn('/ws/x', null, 'sid-1') }) }
+      const first = render()
+      await first.reload({})
+      return { sent: sent, render: render }
+    }
+    const argOf = function (sent, method) { const hit = sent.filter((s) => s.method === method); return hit.length ? hit[hit.length - 1].args : null }
+
+    {
+      const d = await driveHook({ backendId: 'github', source: 'matches' })
+      const a = argOf(d.sent, 'wf.listLabels')
+      check(!!a && a.backendId === 'github', '面板选定了 github → 列标签那条电话带上了 backendId: github（实得 ' + JSON.stringify(a) + '）')
+      const h = d.render()
+      h.setRowText('bug', '#112233')
+      await d.render().save()
+      const a2 = argOf(d.sent, 'wf.setLabelColors')
+      check(!!a2 && a2.backendId === 'github' && Array.isArray(a2.changes) && a2.changes.length === 1,
+        '面板选定了 github → 改色那条电话同样带上（实得 ' + JSON.stringify(a2) + '）')
+    }
+    {
+      // 面板没选定后端：不许编一个出来 —— 参数里**连这个键都不该有**
+      const d = await driveHook(null)
+      const a = argOf(d.sent, 'wf.listLabels')
+      check(!!a && !Object.prototype.hasOwnProperty.call(a, 'backendId'),
+        '面板没选定后端 → 这个字段干脆不带（不编一个 id 出来）（实得 ' + JSON.stringify(a) + '）')
+    }
+    {
+      // 面板当前是「无后端」（用户自己选的逃生舱）：同样不带
+      const d = await driveHook({ backendId: null, source: 'explicit' })
+      const a = argOf(d.sent, 'wf.listLabels')
+      check(!!a && !Object.prototype.hasOwnProperty.call(a, 'backendId'),
+        '面板当前是「无后端」→ 同样不带这个字段（实得 ' + JSON.stringify(a) + '）')
+    }
+  }
+
+  // ---- 11) 真 DOM 里点真组件：（a）#632 三条关闭路径的确认纪律；（b）#631 的 D1 那颗入口按钮 ----
+  // 为什么要有这一节：#632 修的毛病是「有未保存的改动时，右上角的 × 与点弹窗外的空白处会把改动直接丢掉」。
+  // 这件事只有真点才验得出来——静态检查看不出「点第一次到底关没关」；#631 的 D1 同理：待定态下摆没摆那颗
+  // 「去选定后端」的入口按钮，只有把真弹窗渲染出来才看得见。做法沿用 #630 那份 jsdom 自查脚本
+  // （.scratch/map610/selfcheck/exit-guard.test.mjs；那份脚本已随 #632 删掉，它的覆盖就落在这一节里）：
+  // jsdom 起一个真 DOM，挂**真源组件**，对一个会记账的 onClose 桩点按钮、点遮罩，看它到底调没调。
+  // 状态机（草稿/改动）在这一节是替身：本节只问弹窗组件对「有草稿 / 没草稿」的反应，不问草稿怎么算出来的
+  // （那由上面第 10 节与 verify-label-color-freshness 管）。
+  {
+    const { JSDOM } = await import('jsdom')
+
+    const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true })
+    // Node 自带的 navigator 只有 getter，直接赋值会报「只有 getter」，所以用 defineProperty 覆盖。
+    const put = function (k, v) { Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true }) }
+    put('window', dom.window)
+    put('document', dom.window.document)
+    put('navigator', dom.window.navigator)
+    put('HTMLElement', dom.window.HTMLElement)
+    put('Event', dom.window.Event)
+    put('MouseEvent', dom.window.MouseEvent)
+    put('IS_REACT_ACT_ENVIRONMENT', true)
+
+    // react 与 react-dom 一定要在这个真 DOM 就位**之后**才加载：react-dom 在模块加载那一刻就会判定
+    // 「本环境的输入框支不支持 input 事件」，当时没有 document 的话它退回老写法（只认 change 事件），
+    // 于是「在输入框里打字」不会触发 onChange——而这一节赌的正是打字这条路（见情形五）。
+    const ReactMod = (await import('react')).default
+    const { createRoot } = await import('react-dom/client')
+    const act = ReactMod.act
+
+    // 叶子文件用的是「构建期拼接进来的自由变量」，不是 import，所以这里按仓库既有的办法加载：
+    // 去掉行首 export，再用 new Function 把这些自由变量当参数传进去，跑的是**文件里的真代码**。
+    const strip = function (rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/^(\s*)export\s+/gm, '$1') }
+    const errLeaf = new Function(
+      'moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows', 'navigator', 'console',
+      strip('src/client/views/labels/labelColorErrors.js') +
+      '\nreturn { lcToDisplay: lcToDisplay, lcRowIncomplete: lcRowIncomplete, lcKindKey: lcKindKey, lcOutcomeRowOf: lcOutcomeRowOf, lcCopyAttemptOf: lcCopyAttemptOf, lcCopyFeedbackOf: lcCopyFeedbackOf, LC_PLACEHOLDER_COLOR: LC_PLACEHOLDER_COLOR }\n',
+    )(null, prompt.buildPalettePrompt, prompt.buildPaletteTable, colors.isColor, colors.normalizeColor, colors.pickChangedRows, undefined, { warn: function () {} })
+
+    // 词条用真源那一份（src/client/kernel/locale-labels.js）：断言盯的是用户真正读到的那句话。
+    const L = new Function(strip('src/client/kernel/locale-labels.js') + '\nreturn { L_LABELS: L_LABELS }\n')().L_LABELS
+    const tr = function (key, vars) {
+      const raw = L.zh[key]
+      const s = raw === undefined ? key : raw
+      if (!vars) return s
+      return s.replace(/\{(\w+)\}/g, function (m, name) { return vars[name] === undefined ? m : String(vars[name]) })
+    }
+
+    const DswsCtx = ReactMod.createContext(null)
+    const Tip = function (props) { return (props && props.children) || null }
+    const Ic = function () { return ReactMod.createElement('svg', { width: 14, height: 14 }) }
+    const timer = { timeout: function (fn, ms) { return setTimeout(fn, ms) } }
+    // 面板 store 的替身：一节里要能随时换，所以经这个可变变量转一道（#631 的 D1 那几条靠换它来造待定态；
+    // 其余情形一律是 null）。
+    let storeNow = null
+    const storeOf = function () { return storeNow }
+
+    const RowComp = new Function(
+      'React', 'DswsCtx', 'tr', 'Tip', 'isColor', 'lcToDisplay', 'lcRowIncomplete', 'lcKindKey', 'LC_PLACEHOLDER_COLOR',
+      strip('src/client/views/labels/LabelColorRow.js') + '\nreturn { LabelColorRow: LabelColorRow }\n',
+    )(ReactMod, DswsCtx, tr, Tip, colors.isColor, errLeaf.lcToDisplay, errLeaf.lcRowIncomplete, errLeaf.lcKindKey, errLeaf.LC_PLACEHOLDER_COLOR).LabelColorRow
+
+    // 状态机替身每次挂载换一份，所以经这一层转一下（组件拿到的 useLabelColors 始终是同一个函数）。
+    let hookNow = null
+    const DialogComp = new Function(
+      'React', 'DswsCtx', 'useLabelColors', 'tr', 'Tip', 'Ic', 'timer', 'storeOf', 'lcToDisplay', 'lcRowIncomplete',
+      'lcKindKey', 'lcOutcomeRowOf', 'lcCopyAttemptOf', 'lcCopyFeedbackOf', 'lcWriteClipboard', 'LabelColorRow',
+      strip('src/client/views/labels/LabelColorDialog.js') + '\nreturn { LabelColorDialog: LabelColorDialog }\n',
+    )(
+      ReactMod, DswsCtx, function () { return hookNow() }, tr, Tip, Ic, timer, storeOf, errLeaf.lcToDisplay,
+      errLeaf.lcRowIncomplete, errLeaf.lcKindKey, errLeaf.lcOutcomeRowOf, errLeaf.lcCopyAttemptOf,
+      errLeaf.lcCopyFeedbackOf, function () { return Promise.resolve(false) }, RowComp,
+    ).LabelColorDialog
+
+    const ROWS = [
+      { name: 'accessibility', color: '5c0783', description: '' },
+      { name: 'bug', color: 'd73a4a', description: '' },
+    ]
+    const mount = function (initialDraft, failure) {
+      hookNow = function () {
+        const [draft, setDraft] = ReactMod.useState(initialDraft)
+        const changes = Object.keys(draft).map(function (n) { return { name: n, color: draft[n] } })
+        const st = {
+          phase: 'ready', rows: ROWS, backendId: 'markdown', loadError: null, draft: draft, changes: changes,
+          saving: false, outcome: null, reload: function () {}, save: function () {},
+          setRowText: function (name, text) {
+            setDraft(function (prev) { const next = Object.assign({}, prev); next[name] = text; return next })
+          },
+        }
+        // 第二个参数给一段失败（{kind, message}）时改挂失败形态：正文换成失败那一段（#631 的 D1 那几条要的
+        // 就是这一形态），这时没有标签行、也没有底部按钮区。
+        if (failure) { st.phase = 'failed'; st.rows = []; st.loadError = failure }
+        return st
+      }
+      const calls = { onClose: 0 }
+      const holder = dom.window.document.createElement('div')
+      dom.window.document.body.appendChild(holder)
+      const root = createRoot(holder)
+      act(function () {
+        root.render(ReactMod.createElement(DswsCtx.Provider, { value: { h: ReactMod.createElement } },
+          ReactMod.createElement(DialogComp, { cwd: '/ws', sessionId: 'selfcheck', narrow: false, onClose: function () { calls.onClose++ }, onSaved: function () {} })))
+      })
+      return { holder: holder, root: root, calls: calls }
+    }
+    const unmount = function (m) { act(function () { m.root.unmount() }); m.holder.remove() }
+    const click = function (el) { act(function () { el.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })) }) }
+    const xBtn = function (h) { return h.querySelector('[data-lc-close-x]') }
+    const exitBtn = function (h) { return h.querySelector('[data-lc-exit]') }
+    const backdrop = function (h) { return h.querySelector('[data-role="label-colors-dialog"]') }
+    const warnNote = function (h) { return h.querySelector('[data-lc-close-warn]') }
+    const amberOf = function (el) { return !!el && (el.style.borderColor.indexOf('245') >= 0 || el.style.borderColor.indexOf('f59e0b') >= 0) }
+    const warnText = function (m) { const n = warnNote(m.holder); return n ? n.textContent : '（没有提示）' }
+    const DRAFT = { accessibility: '#5c0783' }
+    const HINT = L.zh['lc.closeUnsaved']
+
+    check(!!HINT, '三条关闭路径共用的那句提示词条在（lc.closeUnsaved）')
+    check(!('lc.exitUnsaved' in L.zh) && !('lc.exitUnsaved' in L.en),
+      '提示只有一套说法：只点名「退出」的旧词条 lc.exitUnsaved 已随这次统一去掉（中英都没有）')
+
+    console.log('  #632 情形一：有草稿时点右上角的 ×')
+    {
+      const m = mount(DRAFT)
+      const x = xBtn(m.holder)
+      check(!!x, '右上角那颗 × 找得到（data-lc-close-x）')
+      click(x)
+      check(m.calls.onClose === 0, '第一次点 ×：没有关掉弹窗（onClose 0 次）')
+      check(!!warnNote(m.holder) && warnNote(m.holder).textContent === HINT, '第一次点 ×：摆出的提示就是共用的那一句（实得：' + warnText(m) + '）')
+      check(amberOf(xBtn(m.holder)), '第一次点 × 之后：× 自己变成琥珀色（' + xBtn(m.holder).style.borderColor + '）')
+      check(amberOf(exitBtn(m.holder)), '同一份确认状态让底部「退出」一起变琥珀色（两处同一套颜色）')
+      click(xBtn(m.holder))
+      check(m.calls.onClose === 1, '第二次点 ×：真的关了（onClose 1 次）')
+      unmount(m)
+    }
+
+    console.log('  #632 情形二：有草稿时点弹窗外的空白处')
+    {
+      const m = mount(DRAFT)
+      const bd = backdrop(m.holder)
+      const box = m.holder.querySelector('[data-role="label-colors-box"]')
+      check(!!bd && !!box, '遮罩那一层与卡片都找得到')
+      click(bd)
+      check(m.calls.onClose === 0, '第一次点遮罩空白处：没有关掉弹窗（onClose 0 次）')
+      check(!!warnNote(m.holder) && warnNote(m.holder).textContent === HINT, '第一次点遮罩空白处：摆出的提示与点 × 时逐字相同（实得：' + warnText(m) + '）')
+      click(box)
+      check(m.calls.onClose === 0 && !!warnNote(m.holder), '点卡片里面不算关：既不关也不把已经摆出来的提示收回去')
+      click(bd)
+      check(m.calls.onClose === 1, '第二次点遮罩空白处：真的关了（onClose 1 次）')
+      unmount(m)
+    }
+
+    console.log('  #632 情形三：有草稿时点底部「退出」（#630 的现状保持）')
+    {
+      const m = mount(DRAFT)
+      click(exitBtn(m.holder))
+      check(m.calls.onClose === 0 && !!warnNote(m.holder), '第一次点「退出」：不关、摆提示')
+      click(exitBtn(m.holder))
+      check(m.calls.onClose === 1, '第二次点「退出」：关')
+      unmount(m)
+    }
+
+    console.log('  #632 情形四：三条路共用同一份确认状态')
+    {
+      const m = mount(DRAFT)
+      click(xBtn(m.holder))
+      check(m.calls.onClose === 0 && !!warnNote(m.holder), '先用 × 摆出确认：还没关')
+      click(exitBtn(m.holder))
+      check(m.calls.onClose === 1, '确认摆着的时候，第二下点另一处（「退出」）也照关——共用一份状态，与提示里写的「这三处点哪一处都算」一致')
+      unmount(m)
+    }
+
+    console.log('  #632 情形五：确认摆出来以后又动了草稿，上次的确认作废')
+    {
+      const m = mount(DRAFT)
+      click(xBtn(m.holder))
+      check(!!warnNote(m.holder) && m.calls.onClose === 0, '先点一次 ×：已摆提示、还没关')
+      const input = m.holder.querySelector('input[type="text"][aria-label^="' + L.zh['lc.colorValue'] + '"]')
+      check(!!input, '找得到那一行的颜色值输入框（真行控件渲染出来的）')
+      act(function () {
+        const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set
+        setter.call(input, '#5c0784')
+        input.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+      })
+      check(!warnNote(m.holder), '动过草稿之后：上次的确认作废，提示自己收起来了')
+      click(xBtn(m.holder))
+      check(m.calls.onClose === 0, '这时再点一次 ×：仍然不关（要重新点两次）')
+      click(xBtn(m.holder))
+      check(m.calls.onClose === 1, '再点一次 ×：才关')
+      unmount(m)
+    }
+
+    console.log('  #632 情形六：没有未保存的改动时，三条路都一点就关')
+    {
+      const viaX = mount({})
+      click(xBtn(viaX.holder))
+      check(viaX.calls.onClose === 1 && !warnNote(viaX.holder), '没有草稿时点 ×：一次就关，不摆提示')
+      unmount(viaX)
+
+      const viaBackdrop = mount({})
+      click(backdrop(viaBackdrop.holder))
+      check(viaBackdrop.calls.onClose === 1 && !warnNote(viaBackdrop.holder), '没有草稿时点遮罩空白处：一次就关，不摆提示')
+      unmount(viaBackdrop)
+
+      const viaExit = mount({})
+      click(exitBtn(viaExit.holder))
+      check(viaExit.calls.onClose === 1 && !warnNote(viaExit.holder), '没有草稿时点「退出」：一次就关，不摆提示')
+      unmount(viaExit)
+    }
+
+    console.log('  #631 的 D1：面板还在识别后端（待定）时，不摆那颗「去选定后端」的入口按钮')
+    {
+      // 这一段的形态：列表这一步以 conflict 档失败（后端原话就是宿主 src/host/workspaceCwd.js 里那句
+      // 「先在面板里选定这个工作区用哪个后端，再试一次」），而面板那条会话状态正停在「还在识别」上。
+      // 待定时面板头部那颗「切换后端」按钮是禁用的（panel/Dock.js 的 _pend 分支），所以弹窗这时不能摆
+      // 那颗「关掉弹窗，去面板头部选定后端」的入口按钮——点了没反应，正是 #631 要消灭的无效动作。
+      const CONFLICT = { kind: 'conflict', message: '还没定下要给哪个后端改标签配色：先在面板里选定这个工作区用哪个后端，再试一次（有后端的身份识别还没出结果，稍等片刻再试）' }
+      const whereNote = function (h) { return h.querySelector('[data-lc-where]') }
+      const waitNote = function (h) { return h.querySelector('[data-lc-wait]') }
+      const goPickBtn = function (h) { return h.querySelector('[data-lc-gopick]') }
+      const textOf = function (n) { return n ? n.textContent : '（没有这一句）' }
+
+      storeNow = { selection: { backendId: 'github', pending: true, source: 'matches' } }
+      const mPending = mount({}, CONFLICT)
+      check(!goPickBtn(mPending.holder),
+        '待定时不摆那颗入口按钮（面板头部那颗「切换后端」按钮此刻是禁用的，点了没反应）')
+      check(!!waitNote(mPending.holder) && waitNote(mPending.holder).textContent === L.zh['lc.errWaitBackend'],
+        '待定时改摆那句诚实的话（正在识别，等它出结果再点「重试」）（实得：' + textOf(waitNote(mPending.holder)) + '）')
+      check(!whereNote(mPending.holder),
+        '待定时连「去哪儿选定后端」那一句也收起——它指的正是那颗点不动的按钮')
+      unmount(mPending)
+
+      // 不是待定的 conflict（真机上两个后端同时认领那种）：照旧摆那颗入口按钮与那句「去哪儿选」
+      storeNow = { selection: { backendId: 'github', pending: false, source: 'matches' } }
+      const mReady = mount({}, CONFLICT)
+      check(!!goPickBtn(mReady.holder), '不是待定的 conflict 仍然摆那颗入口按钮（这次补修没有把它一起拿掉）')
+      check(!!whereNote(mReady.holder) && whereNote(mReady.holder).textContent === L.zh['lc.errWherePick'],
+        '不是待定时摆的仍然是「去哪儿选定后端」那一句（实得：' + textOf(whereNote(mReady.holder)) + '）')
+      check(!waitNote(mReady.holder), '不是待定时不摆「正在识别」那句话')
+      unmount(mReady)
+
+      // 读不到面板状态（这里 storeOf 给 null）：当作「不是待定」，与这次补修之前的行为一样，不编一个待定出来
+      storeNow = null
+      const mUnknown = mount({}, CONFLICT)
+      check(!!goPickBtn(mUnknown.holder), '读不到面板状态时当作「不是待定」，照旧摆那颗入口按钮（不编一个待定出来）')
+      unmount(mUnknown)
+    }
+  }
+
   console.log(failed ? `\n存在失败（共 ${total} 项）` : `\n全部通过 — 配色核心纯函数门禁生效（${total} 项）`)
   process.exit(failed ? 1 : 0)
 }

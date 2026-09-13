@@ -150,6 +150,19 @@ export const lcRowIncomplete = function (row, text) {
   return !!(row && isColor(row.color))
 }
 
+/** 面板此刻给这个工作区显示的后端 id（取法与面板头部那颗「切换后端」按钮同一句话：
+ *  `store.selection || (store.snapshot && store.snapshot.selection)` 的 backendId，同一个 store 对象）。
+ *  读不到、或面板当前是「无后端」（backendId 为 null）→ 空串：**不编一个**，调用方如实不把这个字段发出去
+ *  （宿主会核验它，见 src/host/workspaceCwd.js 的 pickBackend）。 */
+export const lcPanelBackendOf = function (store) {
+  try {
+    const st = store || null
+    const sel = (st && st.selection) || (st && st.snapshot && st.snapshot.selection) || null
+    const id = sel ? sel.backendId : null
+    return (id === null || id === undefined) ? '' : String(id)
+  } catch (e) { return '' }
+}
+
 // ==================== #622 复制推荐配色 prompt：拼哪一套、拼出什么、怎么送进剪贴板 ====================
 
 /**

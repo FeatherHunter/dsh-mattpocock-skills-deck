@@ -51,10 +51,10 @@ const LEAVES = [
   // #621 标签配色的五个叶子：错误档位到词条键与电话回包取形状（纯函数）、加载与保存状态机（钩子）、
   // 单行取色控件、弹窗本体、面板头部入口按钮。登在这里是为了让「单文件 ≤350 行」与「产物已拼接」
   // 两条检查也覆盖到它们。
-  { file: 'src/client/views/labels/labelColorErrors.js', exports: ['LC_KIND_KEYS', 'LC_PLACEHOLDER_COLOR', 'lcKindKey', 'lcErrorOf', 'lcLabelsOf', 'lcSaveOutcome', 'lcOutcomeRowOf', 'lcToDisplay', 'lcRowIncomplete'], components: [] },
+  { file: 'src/client/views/labels/labelColorErrors.js', exports: ['LC_KIND_KEYS', 'LC_PLACEHOLDER_COLOR', 'lcKindKey', 'lcErrorOf', 'lcLabelsOf', 'lcSaveOutcome', 'lcOutcomeRowOf', 'lcToDisplay', 'lcRowIncomplete', 'lcPanelBackendOf'], components: [] }, // #631 追加：lcPanelBackendOf 读出「面板现在用的是哪个后端」，供两条电话带上去
   { file: 'src/client/views/labels/useLabelColors.js', exports: ['useLabelColors'], components: [] },
   { file: 'src/client/views/labels/LabelColorRow.js', exports: ['LabelColorRow'], components: ['LabelColorRow'] },
-  { file: 'src/client/views/labels/LabelColorDialog.js', exports: ['LabelColorDialog'], components: ['LabelColorDialog'] },
+  { file: 'src/client/views/labels/LabelColorDialog.js', exports: ['LabelColorDialog', 'lcPanelPendingOf'], components: ['LabelColorDialog'] }, // #631 的 D1 补修追加：lcPanelPendingOf 读出「这个工作区用哪个后端还在识别」
   { file: 'src/client/views/labels/LabelColorEntry.js', exports: ['LabelColorEntry'], components: ['LabelColorEntry'] },
 ]
 const SOURCES = [

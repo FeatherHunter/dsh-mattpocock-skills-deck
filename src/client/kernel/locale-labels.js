@@ -16,6 +16,9 @@
  *   lc.copy* (#622) 「复制推荐配色 prompt」这一按钮的全部文字：按钮与悬停提示、两套文案的开头与结尾、
  *            表格的两个表头、复制成没成两种反馈。两套文案的真实仓库名与工作区文件夹名由界面用
  *            {repo} / {ws} 填进去（读了才填、填不到就不用那一句，见 labelColorErrors.js 的 lcCopyPlanOf）。
+ *   lc.exit (#630) 底部「退出」按钮的文字；lc.closeUnsaved (#630 起、#632 起三条路共用) 有未保存改动时
+ *             第一次触发关闭要摆的那句提示——它的措辞不点名某一颗按钮，因为底部「退出」、右上角的 ×、
+ *             点弹窗外的空白处这三条路共用它，第二次点哪一处都真关。
  *
  * 谁负责这些文案：#617 交接口径明确「错误档位到人话的文案归 #621 负责，中英两份」。
  * 写这些句子时守两条硬要求：
@@ -41,21 +44,30 @@
         'lc.hexFormat': '要填 6 位十六进制颜色，例如 #8b5cf6',
         'lc.save': '保存',
         'lc.saving': '保存中…',
+        'lc.exit': '退出',
+        'lc.closeUnsaved': '还有没保存的改动：再点一次就关掉这个弹窗——「退出」、右上角的 ×、点弹窗外的空白处，这三处点哪一处都算；这些改动不会保存。',
         'lc.saveNone': '没有要保存的改动',
         'lc.savedSome': '保存完成：{a} 个改好了，{f} 个没改成功。改好的按后端刚返回的颜色显示，没改成功的保留下面的说明和你的输入，方便重试。',
         'lc.savedAll': '保存完成：{a} 个标签的颜色都改好了，列表已按后端刚返回的颜色刷新。',
         'lc.savedNone': '保存完成：这 {f} 个标签一个也没改成功，原因写在各自那一行；你的输入都留着，方便重试。',
         'lc.rowFailed': '这一条没保存成功。',
         'lc.backendSaid': '后端原话：{msg}',
-        'lc.err.env': '插件这边的环境问题：这一步没能写成。可能是工作区里缺了要用的工具，也可能是这次会话不允许插件写文件——那是插件自己的沙箱限制，不是你文件夹的权限问题。',
+        'lc.err.env': '这是插件这边的环境问题，不是你操作错了。「后端原话」里写着这一次卡在哪一步、为什么：可能是工作区里缺了要用的工具（例如本机没装好 GitHub 助手 gh），也可能是这个会话不允许插件写文件——后面那种是插件自己的沙箱限制，不是你文件夹的权限问题。',
         'lc.err.auth': '这个后端没有通过身份验证：先登录，或者换一个对这个仓库有写权限的账号，再来保存。',
         'lc.err.rateLimit': '被这个后端限速了：等一会儿再点保存，不要连着点。',
-        'lc.err.conflict': '这次写入和后端上正在发生的另一处改动撞上了：稍等片刻再重试。',
+        'lc.err.conflict': '这一次没做成。为什么没做成、接下来该做什么，都写在下面的「后端原话」里，按它说的做就行。',
         'lc.err.unsupported': '这个后端暂时还不支持查看与修改标签颜色，等后端接上以后这个弹窗就能用了。',
-        'lc.err.notFound': '这个标签没在这个后端的配色清单里，所以改不了它的颜色。本地 Markdown 后端请先在 docs/agents/label-colors.json 里给它加一行（键写标签名原样，值写不带井号的六位十六进制颜色），再回来改色；GitHub 后端请先在这个仓库里建一个同名标签。',
+        'lc.err.notFound': '这个后端说找不到你要改的东西，所以这一步没做成。「后端原话」里写着是哪一种：如果是这个标签不在它的配色清单里——本地 Markdown 后端要先去 docs/agents/label-colors.json 里给这个标签补一行（键写标签名原样，值写不带井号的六位十六进制颜色），GitHub 后端要先在这个仓库里建一个同名标签；如果是它认不出这个工作区属于哪个仓库——先给这个目录配好远端，或者在面板里选定仓库。',
         'lc.err.network': '网络不通或者超时了：检查网络连接，再重试。',
-        'lc.err.parse': '颜色写法不合法：要填 6 位十六进制，例如 #8b5cf6。',
+        'lc.err.parse': '颜色这一步没通过检查。「后端原话」里写着是哪一种：如果是你填的颜色写法不合法，就改成 6 位十六进制（例如 #8b5cf6）再试；如果是后端读不出它自己的配色文件，先按它说的把这个文件改回合法内容再试。',
         'lc.err.unknown': '后端没有说清这一步为什么失败。请把下面那行原文发给插件维护者。',
+        // #631 三、：光说「先去面板里选定后端」，用户在这个弹窗里没有任何能去的地方——这两条写明去哪儿选。
+        'lc.errWherePick': '这个工作区用哪个后端，在面板头部、仓库名右边那颗「切换后端」按钮里选定——选好之后回到这个弹窗点「重试」。面板上没有那颗按钮时（这个工作区还没绑后端），点面板正文里「该工作区还没有设置」那块卡片就能选后端。',
+        'lc.actGoPick': '关掉弹窗，去面板头部选定后端',
+        // #631 的 D1 补修：面板还在识别这个工作区用哪个后端（selection.pending）时，上面那句「去哪儿选」与
+        // 那颗入口按钮都不摆——那时面板头部那颗「切换后端」按钮是禁用的，把用户支使过去点它只会白点一下。
+        // 这一句与后端这次的原话（「有后端的身份识别还没出结果，稍等片刻再试」）是一个意思。
+        'lc.errWaitBackend': '这个工作区用哪个后端还没定下来：插件正在识别它，这会儿面板头部那颗「切换后端」按钮还不能点。等识别出结果，再点「重试」。',
         'lc.copy': '复制推荐配色 prompt',
         'lc.copyTip': '把当前这些标签和颜色拼成一段话复制走，粘到 AI 会话里请它出一套配色。只写剪贴板，不会往会话里发任何东西。',
         'lc.copyRepoLine': '这个仓库是 {repo}。',
@@ -89,21 +101,30 @@
         'lc.hexFormat': 'Enter a 6-digit hex color such as #8b5cf6',
         'lc.save': 'Save',
         'lc.saving': 'Saving…',
+        'lc.exit': 'Exit',
+        'lc.closeUnsaved': 'You still have unsaved changes: click once more to close this dialog — the "Exit" button, the × at the top right, and the blank area outside the dialog all count; those changes will not be saved.',
         'lc.saveNone': 'No changes to save',
         'lc.savedSome': 'Save finished: {a} labels were changed and {f} were not. Changed rows show the color the backend just returned; failed rows keep the reason and what you typed, so you can retry.',
         'lc.savedAll': 'Save finished: all {a} labels were changed. The list now shows the colors the backend just returned.',
         'lc.savedNone': 'Save finished: none of the {f} labels were changed. The reason is written on each row, and what you typed is kept so you can retry.',
         'lc.rowFailed': 'This row was not saved.',
         'lc.backendSaid': 'The backend said: {msg}',
-        'lc.err.env': 'This is the plugin side of the environment: the write did not go through. The workspace may be missing a tool, or this session may not allow the plugin to write files — that is the plugin\'s own sandbox limit, not a problem with your folder permissions.',
+        'lc.err.env': 'This is the plugin side of the environment, not a mistake in what you did. "The backend said" below tells you which step stopped and why: the workspace may be missing a tool the plugin needs (for example the GitHub helper gh is not installed properly), or this session may not allow the plugin to write files — that last one is the plugin\'s own sandbox limit, not a problem with your folder permissions.',
         'lc.err.auth': 'This backend did not accept the sign-in: sign in first, or use an account that can write to this repository, then save again.',
         'lc.err.rateLimit': 'This backend is rate-limiting requests: wait a moment before saving again, and do not click repeatedly.',
-        'lc.err.conflict': 'This write collided with another change that is happening on the backend right now: try again in a moment.',
+        'lc.err.conflict': 'This step did not go through. Why it did not, and what to do next, are both in "The backend said" below — just follow that.',
         'lc.err.unsupported': 'This backend does not support viewing or changing label colors yet; this dialog will work once it does.',
-        'lc.err.notFound': 'This label is not in this backend\'s color list, so its color cannot change. For the local Markdown backend, add a row for it in docs/agents/label-colors.json first (the key is the label name as-is, the value is a 6-digit hex color without the # sign), then come back; for the GitHub backend, create a label with the same name in this repository first.',
+        'lc.err.notFound': 'This backend says it cannot find what you asked it to change, so this step did not go through. "The backend said" below tells you which case this is: if the label is not in its color list — for the local Markdown backend, add a row for that label in docs/agents/label-colors.json first (the key is the label name as-is, the value is a 6-digit hex color without the # sign); for the GitHub backend, create a label with the same name in this repository first; if it cannot tell which repository this workspace belongs to — set up a remote for this folder first, or pick the repository in the panel.',
         'lc.err.network': 'The network is unreachable or timed out: check the connection and try again.',
-        'lc.err.parse': 'The color is not valid: enter a 6-digit hex value such as #8b5cf6.',
+        'lc.err.parse': 'The color step did not pass its check. "The backend said" below tells you which case this is: if the color you typed is not valid, write it as 6-digit hex (for example #8b5cf6) and try again; if the backend cannot read its own color file, put that file back into valid content first, then try again.',
         'lc.err.unknown': 'The backend did not say why this step failed. Please send the raw line below to the plugin maintainers.',
+        // #631 item 3: "pick the backend in the panel first" left the user with nowhere to go — these two say where.
+        'lc.errWherePick': 'Which backend this workspace uses is chosen with the "switch backend" button in the panel header, to the right of the repository name — pick it there, then come back to this dialog and click Retry. If that button is not in the header (this workspace has no backend bound yet), click the "this workspace is not set up yet" card in the panel body to choose one.',
+        'lc.actGoPick': 'Close this dialog and pick the backend in the panel header',
+        // #631 item D1: while the plugin is still identifying this workspace's backend (selection.pending),
+        // neither that sentence nor the entry button is shown — the "switch backend" button in the panel header
+        // cannot be clicked yet, so pointing the user at it would be another wasted click.
+        'lc.errWaitBackend': 'Which backend this workspace uses has not been decided yet: the plugin is still identifying it, so the "switch backend" button in the panel header cannot be clicked right now. Wait until that finishes, then click Retry.',
         'lc.copy': 'Copy a color-scheme prompt',
         'lc.copyTip': 'Copy the current labels and colors as one prompt you can paste into an AI session to ask for a matching color scheme. This only writes the clipboard; nothing is sent into any session.',
         'lc.copyRepoLine': 'This repository is {repo}.',

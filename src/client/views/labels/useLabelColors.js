@@ -27,6 +27,11 @@
  * 清单是从哪个后端读来的也要一起留着（#622）：列表回包里带着宿主选中的那个后端 id，这里原样存下来
  * 交给界面，界面靠它决定「复制推荐配色 prompt」拼哪一套文案（挑法见 labelColorErrors.js 的 lcCopyPlanOf）。
  * 界面不自己猜后端是谁：这份清单与那个 id 出自同一次选择，一起存才不会张冠李戴。
+ *
+ * 两条电话带上去的「面板现在用的是哪个后端」（#631 追加，见 phoneArgs）：它读的是**面板自己那份会话状态**，
+ * 与上面那个回包里的 backendId 不是一回事——回包那个是宿主算完的结果（失败时根本没有），而这一条必须在
+ * 打电话之前就带上，否则宿主只能自己按注册表规则算，多命中时就只能诚实地失败。
+ * 带上它也不是让宿主去猜：宿主只核验这个后端是否真的认得这个工作区，认不得就照旧如实失败。
  */
 export const useLabelColors = function (cwd, onSaved, sessionId) {
   const [phase, setPhase] = React.useState('loading')
@@ -49,6 +54,18 @@ export const useLabelColors = function (cwd, onSaved, sessionId) {
   // 面板没拿到会话号时传空串，不编一个假的：宿主收到空串会退回「按工作区找唯一活会话」，
   // 找不到就如实失败（宁可如实报失败，也不假装能写）。
   const sidArg = String(sessionId || '')
+
+  // 两条电话要带上去的「面板现在用的是哪个后端」（#631 追加）：读的是面板自己那份会话状态，
+  //   与面板头部那颗「切换后端」按钮同一个 store 对象、同一句话（取法见 labelColorErrors.js 的 lcPanelBackendOf）。
+  //   面板当前没有后端（或者读不到）时是空串，**这时不带这个字段**——不编一个，宿主收到空的就是原来那条诚实失败。
+  //   每次打电话现读一次：所以用户在面板里把后端换好、再回来点「重试」，带上去的就是他刚选的那个。
+  const phoneArgs = function (extra) {
+    const a = { cwd: String(cwd || ''), sessionId: sidArg }
+    let panelBackend = ''
+    try { panelBackend = lcPanelBackendOf((typeof storeOf === 'function') ? storeOf(sidArg) : null) } catch (e) { panelBackend = '' }
+    if (panelBackend) a.backendId = panelBackend
+    return Object.assign(a, extra || {})
+  }
 
   const callHost = function (method, args) {
     try {
@@ -79,7 +96,7 @@ export const useLabelColors = function (cwd, onSaved, sessionId) {
     setLoadError(null)
     if (!keepOutcome) setOutcome(null)
     const t0 = Date.now()
-    return Promise.resolve(callHost('wf.listLabels', { cwd: String(cwd || ''), sessionId: sidArg })).then(function (res) {
+    return Promise.resolve(callHost('wf.listLabels', phoneArgs(null))).then(function (res) {
       logCall('wf.listLabels', t0, res)
       if (!liveRef.current) return null
       const list = lcLabelsOf(res)
@@ -130,7 +147,7 @@ export const useLabelColors = function (cwd, onSaved, sessionId) {
     setSaving(true)
     setOutcome(null)
     const t0 = Date.now()
-    return Promise.resolve(callHost('wf.setLabelColors', { cwd: String(cwd || ''), changes: list, sessionId: sidArg })).then(function (res) {
+    return Promise.resolve(callHost('wf.setLabelColors', phoneArgs({ changes: list }))).then(function (res) {
       logCall('wf.setLabelColors', t0, res)
       if (!liveRef.current) return null
       const result = lcSaveOutcome(res, list)
