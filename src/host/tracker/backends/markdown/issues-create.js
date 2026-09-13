@@ -1,4 +1,4 @@
-﻿// issues-create.js —— 以后改新建单据落盘格式时改它（预估约 100 行）。
+// issues-create.js —— 以后改新建单据落盘格式时改它（预估约 100 行）。
 //
 // effort 维度（2026-09-09）：建票必须落在**一个明确的 effort** 里，编号按契约「每个 effort 从 01 起」在该 effort 内取 max+1。
 //   - repo.effortId 给出 → 就落在那一个 effort；

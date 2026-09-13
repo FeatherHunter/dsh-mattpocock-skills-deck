@@ -1,4 +1,4 @@
-﻿// issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 190 行）。
+// issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 190 行）。
 //
 // effort 维度（2026-09-09）：所有写路径按 (effort 范围, 编号) 定位文件，多命中即 conflict。
 import { parseMd } from './parse.js'

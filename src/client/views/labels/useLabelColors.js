@@ -23,10 +23,15 @@
  * 宿主得知道是哪一个会话在点保存，才能按那个会话算沙箱政策。宿主读的就是 args.sessionId
  * （见 src/host/workspaceCwd.js 的 resolveSandboxPolicy），与既有的 wf.cwd 那条路一致。
  * 面板没拿到会话号就传空串，不编一个假的——宿主那时会退回按工作区找唯一活会话，找不到就如实失败。
+ *
+ * 清单是从哪个后端读来的也要一起留着（#622）：列表回包里带着宿主选中的那个后端 id，这里原样存下来
+ * 交给界面，界面靠它决定「复制推荐配色 prompt」拼哪一套文案（挑法见 labelColorErrors.js 的 lcCopyPlanOf）。
+ * 界面不自己猜后端是谁：这份清单与那个 id 出自同一次选择，一起存才不会张冠李戴。
  */
 export const useLabelColors = function (cwd, onSaved, sessionId) {
   const [phase, setPhase] = React.useState('loading')
   const [rows, setRows] = React.useState([])
+  const [backendId, setBackendId] = React.useState('')
   const [loadError, setLoadError] = React.useState(null)
   const [draft, setDraft] = React.useState({})
   const [saving, setSaving] = React.useState(false)
@@ -80,6 +85,8 @@ export const useLabelColors = function (cwd, onSaved, sessionId) {
       const list = lcLabelsOf(res)
       if (list) {
         setRows(list)
+        // 清单与「它是哪个后端给的」是同一次选择的产物，一起存：界面挑复制那两套文案时靠的就是它。
+        setBackendId(String((res && res.backendId) || ''))
         setPhase('ready')
         if (!keepPhase) setDraft({})
         return list
@@ -156,6 +163,7 @@ export const useLabelColors = function (cwd, onSaved, sessionId) {
   return {
     phase: phase,
     rows: rows,
+    backendId: backendId,
     loadError: loadError,
     draft: draft,
     saving: saving,

@@ -21,6 +21,14 @@
  * 窄面板（面板宽度小于 380 像素）：保存按钮的文字收成图标，鼠标停上去有文字提示（走仓库的 Tip，
  * 不用原生 title 属性）。这一条与原型一致；行内不再隐藏颜色值——原型隐藏的是只读的文字，
  * 而这里的颜色值是可以直接改的输入框，藏掉就没法在窄面板里配色了。
+ *
+ * 底部按钮区（#622）：左边「复制推荐配色 prompt」、右边「保存」，与 #617 原型定的位置关系一致；
+ * 窄面板下两颗按钮都收成图标（各带一条悬停提示，复制那条始终挂着，顺带说明「只写剪贴板、不往会话里发东西」）。
+ * 复制按钮点下去**只写剪贴板**：该拼哪一套文案、这一次到底能不能拼、写没写成，全由纯函数层判断
+ * （见 labelColorErrors.js 的 lcCopyAttemptOf / lcCopyFeedbackOf），界面只渲染，不自己猜。
+ * 三种结果各有各的话：写成了显示「已复制」并自己消失；**没写成如实说「复制失败，请手动选中复制」，
+ * 并把这段文字摊在一个只读框里**（「手动选中」得有东西可选，否则那句话就是空话——#617 的已知缺陷是
+ * 写不进去也显示「已复制」，这里按真实结果说话）；后端那一档没读到开仓方式时不拼也不写剪贴板，如实说明。
  */
 export const LabelColorDialog = (props) => {
   const cx = React.useContext(DswsCtx)
@@ -31,6 +39,9 @@ export const LabelColorDialog = (props) => {
   const onClose = props && props.onClose
   const onSaved = props && props.onSaved
   const lc = useLabelColors(cwd, onSaved, sessionId)
+  // 复制这一侧的三种结果（都由纯函数层决定，界面只负责渲染，见 labelColorErrors.js 的 lcCopyAttemptOf / lcCopyFeedbackOf）：
+  //   kind ''（还没点过 / 成功那句已自己消失）、'ok'、'fail'、'blocked'；key 是要显示的那句词条，text 只在失败时用（摊给用户手动选）。
+  const [copyState, setCopyState] = React.useState({ kind: '', key: '', text: '' })
 
   const closeOnBackdrop = function (e) { if (e && e.target === e.currentTarget && typeof onClose === 'function') onClose() }
   const unsupported = lc.phase === 'failed' && lc.loadError && lc.loadError.kind === 'unsupported'
@@ -42,6 +53,33 @@ export const LabelColorDialog = (props) => {
   // 与其让用户点了再一条条看失败，不如当场说清楚。清空不算「清除颜色」这个动作（本图不做，要清得去配色文件里删那一行）。
   const anyIncomplete = lc.phase === 'ready' && lc.rows.some(function (r) { return lcRowIncomplete(r, textOfRow(r)) })
   const canSave = lc.phase === 'ready' && lc.rows.length > 0 && lc.changes.length > 0 && !anyIncomplete && !busy
+
+  // 点「复制推荐配色 prompt」：先问纯函数层这一次到底能不能拼（后端声明了开仓方式才拼），
+  // 拼出来再写剪贴板，最后按**真实结果**说话（写不进去就是写不进去，绝不显示「已复制」）。
+  // 这一段只走剪贴板：不注入会话、不调任何宿主接口、也不碰标签数据与保存。
+  const onCopy = function () {
+    const attempt = lcCopyAttemptOf({
+      store: (typeof storeOf === 'function') ? storeOf(sessionId) : null,
+      cwd: cwd,
+      backendId: lc.backendId,
+      rows: lc.rows,
+      textOf: textOfRow,
+      t: tr,
+    })
+    if (!attempt.write) { setCopyState({ kind: attempt.kind, key: attempt.key, text: '' }); return }
+    return lcWriteClipboard(attempt.text).then(function (written) {
+      const fb = lcCopyFeedbackOf(written, attempt.text)
+      setCopyState({ kind: fb.kind, key: fb.key, text: fb.text })
+      if (fb.kind !== 'ok') return
+      try {
+        if (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function') {
+          timer.timeout(function () {
+            setCopyState(function (prev) { return prev.kind === 'ok' ? { kind: '', key: '', text: '' } : prev })
+          }, 2600)
+        }
+      } catch (e) { /* 自动收起这一步失败不影响已经显示出来的「已复制」 */ }
+    })
+  }
 
   const head = h('div', { key: 'head', style: { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, flex: 'none' } }, [
     typeof Ic === 'function' ? Ic({ n: 'palette', size: 14 }) : null,
@@ -101,9 +139,50 @@ export const LabelColorDialog = (props) => {
     style: { fontSize: 12, padding: '5px 14px', display: 'inline-flex', alignItems: 'center', gap: 6, cursor: canSave ? 'pointer' : 'not-allowed' },
   }, narrow ? (busy ? h('span', { className: 'dsws-spinner', style: { width: 12, height: 12, borderWidth: 2, display: 'inline-block' } }) : (typeof Ic === 'function' ? Ic({ n: 'check', size: 12 }) : saveText)) : saveText)
 
+  // 「复制推荐配色 prompt」按钮：与保存按钮同一套尺寸，位置在保存左边（#617 原型定的关系）。
+  // 悬停提示与宽窄无关，始终挂着 lc.copyTip（它顺带说明「只写剪贴板、不往会话里发东西」这条口径）；
+  // 窄面板下按钮只剩图标，这条提示更要点得出来。
+  const copyLabel = tr('lc.copy')
+  const copyBtn = h('button', {
+    className: 'dsws-btn',
+    type: 'button',
+    'data-lc-copy': 1,
+    'aria-label': copyLabel,
+    onClick: onCopy,
+    style: { fontSize: 12, padding: '5px 14px', display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', cursor: 'pointer' },
+  }, narrow ? (typeof Ic === 'function' ? Ic({ n: 'clipboard', size: 12 }) : copyLabel) : copyLabel)
+  const copyBtnWrapped = h(Tip, { key: 'tipcopy', content: tr('lc.copyTip') }, copyBtn)
+
+  // 复制结果的提示带（在按钮区正上方，窄面板下也放得下）：
+  //   成功 —— 一句绿的「已复制」，几秒后自己消失；
+  //   失败 —— 如实说「复制失败，请手动选中复制」，并把那段文字摊在一个只读框里（点一下全选），
+  //           「手动选中」这句话才有东西可选；这一条不自动消失，用户什么时候选完什么时候算；
+  //   这次不拼 —— 后端那一档没读到（快照里没有这个后端模块，或它没声明开仓动作），如实说清是哪一种。
+  let copyNote = null
+  if (copyState.kind === 'ok') {
+    copyNote = h('div', { key: 'copyok', style: { flex: 'none', fontSize: 11, color: '#4ade80', marginTop: 8 } }, tr(copyState.key || 'lc.copied'))
+  } else if (copyState.kind === 'fail') {
+    copyNote = h('div', { key: 'copyfail', style: { flex: 'none', marginTop: 8 } }, [
+      h('div', { key: 'msg', style: { fontSize: 11, lineHeight: 1.6, color: '#f87171' } }, tr(copyState.key || 'lc.copyFailed')),
+      h('textarea', {
+        key: 'text',
+        readOnly: true,
+        value: copyState.text,
+        spellCheck: false,
+        rows: 6,
+        'aria-label': tr(copyState.key || 'lc.copyFailed'),
+        onFocus: function (e) { try { if (e && e.target && e.target.select) e.target.select() } catch (e1) { /* 选不中也不影响用户自己拖选 */ } },
+        style: { width: '100%', boxSizing: 'border-box', marginTop: 5, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: 'var(--dsw-alias-bg-layer-1,#10131a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, fontFamily: 'Consolas,Menlo,monospace', resize: 'vertical', colorScheme: 'light dark' },
+      }),
+    ])
+  } else if (copyState.kind === 'blocked') {
+    copyNote = h('div', { key: 'copyblocked', style: { flex: 'none', fontSize: 11, lineHeight: 1.6, color: '#f59e0b', marginTop: 8 } }, tr(copyState.key || 'lc.copyNoBackend'))
+  }
+
   const foot = lc.phase === 'ready' && lc.rows.length > 0 ? h('div', { key: 'foot', style: { flex: 'none', display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 9, borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [
     h('span', { key: 'hint', style: { flex: 1, minWidth: 0, fontSize: 11, color: anyIncomplete ? '#f87171' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, anyIncomplete ? tr('lc.hexFormat') : (lc.changes.length ? tr('lc.draftHint') : tr('lc.saveNone'))),
-    narrow ? h(Tip, { key: 'tip', content: saveText }, saveBtn) : saveBtn,
+    copyBtnWrapped,
+    narrow ? h(Tip, { key: 'tipsave', content: saveText }, saveBtn) : saveBtn,
   ]) : null
 
   return h('div', { className: 'dsws-modal', 'data-role': 'label-colors-dialog', onClick: closeOnBackdrop }, [
@@ -111,6 +190,7 @@ export const LabelColorDialog = (props) => {
       head,
       bannerNode,
       h('div', { key: 'body', style: { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' } }, body),
+      copyNote,
       foot,
     ]),
   ])
