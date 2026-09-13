@@ -441,5 +441,69 @@ const SEED = [
   d2.dispose()
 }
 
+// ── #631 P0：这个工作区有两个后端都认领，面板上明明选定了 GitHub ─────────────────────────
+// 真机上就是这一台：这个仓库有 GitHub 远端（GitHub 那侧认得它），仓库里又有 docs/agents/
+// （本地 Markdown 那侧也认得它）。弹窗把「面板现在用的是哪个后端」带上去，宿主核验它确实认得这个工作区
+// 之后直接把电话交给它——不再把用户卡在「先在面板里选定后端」上（而宿主自己也绝不替用户挑一个）。
+{
+  const { createWorkspaceCwd } = await import('../src/host/workspaceCwd.js')
+  const { createRegistry } = await import('../src/host/tracker/registryCore.js')
+  const HOST_CWD = '/ws/gh-and-markdown'
+  const gh = makeGh({ labels: SEED })
+  const vias = []
+  const ctxHost = {
+    ctx: { get: () => undefined },
+    DEFAULT_CWD: HOST_CWD,
+    // 假平台：除了原来的两件，还挂一个假文件系统——GitHub 那侧的「这个目录是不是我的」
+    // 就是读 .git/config 看里面有没有 github.com（见 backends/github/backend.js 的 githubMatches）。
+    getPlatform: async () => ({
+      path: nodePath.posix,
+      resolveExecutable: async (n) => (n === 'gh' || n === 'git' ? n : null),
+      env: { get: () => '' },
+      getHome: async () => '/home/u',
+      fs: {
+        resolve: async (rel, opts) => String((opts && opts.cwd) || '') + '/' + String(rel),
+        readText: async (p) => (String(p).indexOf('.git/config') >= 0 ? '[remote "origin"]\n\turl = https://github.com/acme/demo.git\n' : ''),
+      },
+    }),
+    getTrackerRegistry: async () => regBoth,
+    getWorkspaceStore: async () => ({ invalidate: () => {} }),
+    canonicalKey: async (c) => c,
+    setCache: () => {},
+    logCtx: { fire: () => {}, isEnabled: () => false },
+    timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
+    detectionExec: async (cmd, args, opts, via) => { vias.push({ cmd: cmd, args: args, via: via }); return gh.ctx.exec(cmd, args) },
+  }
+  const regBoth = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
+  // 先注册另一个也认领这个工作区的后端：这样注册序排前面的赢家是它，不是 GitHub——
+  // 于是下面「交给 github」这条断言就真的在证明「按面板说的走」，而不是碰巧撞上了注册序。
+  const dOther = regBoth.register({ id: 'other-local', label: 'other', create: () => ({}), matches: async () => true })
+  const dGh = regBoth.register(githubModule)
+  const host = createWorkspaceCwd(ctxHost)
+
+  const rlAlone = await host.handleListLabels({ cwd: HOST_CWD })
+  check(rlAlone.ok === false && rlAlone.error.kind === 'conflict' && String(rlAlone.error.message).includes('同时认领'),
+    '#631 两边都认领、面板又没说用哪个 → 仍然 conflict，宿主自己不挑（实得 ' + JSON.stringify(rlAlone).slice(0, 160) + '）')
+
+  const listsBefore = lists(gh).length
+  const rlDeclared = await host.handleListLabels({ cwd: HOST_CWD, backendId: 'github' })
+  check(rlDeclared.ok === true && rlDeclared.backendId === 'github' && labelListCheck(rlDeclared.labels).length === 0,
+    '#631 面板说是 github → 核验通过，直接交给 GitHub（实得 ' + JSON.stringify(rlDeclared).slice(0, 160) + '）')
+  check(lists(gh).length === listsBefore + 1, '#631 这一趟真的接到了 GitHub 上（真的发出了 gh label list）')
+
+  const rsDeclared = await host.handleSetLabelColors({ cwd: HOST_CWD, backendId: 'github', changes: [{ name: 'bug', color: '0b7285' }] })
+  check(rsDeclared.ok === true && rsDeclared.backendId === 'github' && labelBatchCheck([{ name: 'bug', color: '0b7285' }], { applied: rsDeclared.applied, failed: rsDeclared.failed }).length === 0,
+    '#631 改色这条电话同样直接交给 GitHub（实得 ' + JSON.stringify(rsDeclared).slice(0, 160) + '）')
+  check(gh.labels.find((x) => x.name === 'bug').color === '0b7285', '#631 假仓库里的颜色真的改了（这一趟确实落到 GitHub 那侧）')
+  check(vias.length >= 1 && vias.every((v) => v.via === 'label-colors'), '#631 这些外部命令仍然由标签配色这条链发起（via 是 label-colors）')
+
+  const rlGhost = await host.handleListLabels({ cwd: HOST_CWD, backendId: 'never-heard-of' })
+  check(rlGhost.ok === false && rlGhost.error.kind === 'conflict',
+    '#631 面板说的后端根本不在这份候选名单里 → 仍然 conflict，不将就（实得 ' + JSON.stringify(rlGhost).slice(0, 160) + '）')
+
+  dOther.dispose()
+  dGh.dispose()
+}
+
 console.log('\n' + (fail ? '存在失败 —— GitHub 标签配色两条操作的门禁未通过' : '全部通过 —— GitHub 标签配色两条操作守卫生效（' + pass + ' 项断言）'))
 if (fail) process.exit(1)

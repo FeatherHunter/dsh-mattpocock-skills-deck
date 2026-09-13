@@ -699,18 +699,54 @@ export async function run() {
       const dm1 = regMulti.register(mod('labels-multi-a', {}))
       const dm2 = regMulti.register(mod('labels-multi-b', {}))
       // 多命中：两个后端的 matches 都说「这是我的工作区」→ 不许静默挑一个（可能改错仓库）
-      regMulti.register({ id: 'labels-multi-c', label: 'c', create: () => ({}), matches: async () => true })
-      regMulti.register({ id: 'labels-multi-d', label: 'd', create: () => ({}), matches: async () => true })
+      // #631 追加：c / d 给出可分辨的清单与记账，好让下面「客户端声明的就是哪一个」看得见。
+      const implMulti = (id) => ({
+        listLabels: async () => ({ ok: true, data: [{ name: id, color: '', description: '' }] }),
+        setLabelColors: async (repo, cs) => ({ ok: true, data: { applied: cs.map((x) => ({ name: x.name, color: x.color })), failed: [] } }),
+      })
+      regMulti.register({ id: 'labels-multi-c', label: 'c', create: () => implMulti('labels-multi-c'), matches: async () => true })
+      regMulti.register({ id: 'labels-multi-d', label: 'd', create: () => implMulti('labels-multi-d'), matches: async () => true })
       const hMulti = mkHost(regMulti)
       const rlMulti = await hMulti.host.handleListLabels({ cwd: '/ws/multi' })
       await assert('conflict 档正面样本：两个后端同时命中 → conflict，并说清是哪个没定下来', rlMulti.ok === false && rlMulti.error.kind === 'conflict' && String(rlMulti.error.message).includes('同时认领'), JSON.stringify(rlMulti))
+
+      // ⑤ #631 追加：客户端**显式声明**了它面板上正在用的那个后端。宿主只做核验——声明的那个确实出现在
+      //    这次算出来的候选名单里（multiHit 那份名单）就交给它；核验不通过的一律保持上面那条诚实的失败。
+      //    这不是把「不许猜」放松了：猜是「宿主自己挑一个」，这里挑的动作在客户端，宿主只是核对这一句真不真。
+      const rlDeclared = await hMulti.host.handleListLabels({ cwd: '/ws/multi', backendId: 'labels-multi-d' })
+      await assert('#631 声明的后端在候选名单里 → 直接交给它（回包写的就是它，清单也出自它）',
+        rlDeclared.ok === true && rlDeclared.backendId === 'labels-multi-d' && rlDeclared.labels.length === 1 && rlDeclared.labels[0].name === 'labels-multi-d', JSON.stringify(rlDeclared))
+      const rsDeclared = await hMulti.host.handleSetLabelColors({ cwd: '/ws/multi', backendId: 'labels-multi-d', changes: changes })
+      await assert('#631 改色这条电话同样认这个声明（不是只在列标签那一条上生效）',
+        rsDeclared.ok === true && rsDeclared.backendId === 'labels-multi-d', JSON.stringify(rsDeclared))
+      const rlOther = await hMulti.host.handleListLabels({ cwd: '/ws/multi', backendId: 'labels-multi-c' })
+      await assert('#631 声明另一个也在名单里的后端 → 交给声明的那个（不是交给注册序排前面的那个）',
+        rlOther.ok === true && rlOther.backendId === 'labels-multi-c' && rlOther.labels[0].name === 'labels-multi-c', JSON.stringify(rlOther))
+      const rlOutsider = await hMulti.host.handleListLabels({ cwd: '/ws/multi', backendId: 'labels-multi-a' })
+      await assert('#631 声明的后端这次没说自己认得这个工作区（不在候选名单里）→ 仍然 conflict，不将就',
+        rlOutsider.ok === false && rlOutsider.error.kind === 'conflict' && String(rlOutsider.error.message).includes('同时认领'), JSON.stringify(rlOutsider))
+      const rlGhost = await hMulti.host.handleListLabels({ cwd: '/ws/multi', backendId: 'labels-never-heard-of' })
+      await assert('#631 声明了一个从没听说过的后端 → 仍然 conflict，不将就',
+        rlGhost.ok === false && rlGhost.error.kind === 'conflict', JSON.stringify(rlGhost))
+      const rlSilent2 = await hMulti.host.handleListLabels({ cwd: '/ws/multi' })
+      await assert('#631 什么都没声明 → 仍然 conflict（老行为一个字没松）',
+        rlSilent2.ok === false && rlSilent2.error.kind === 'conflict' && String(rlSilent2.error.message).includes('同时认领'), JSON.stringify(rlSilent2))
       dm1.dispose(); dm2.dispose()
+
+      // 显式选了「无后端」（逃生舱）时，客户端声明别的后端也不认：那是用户自己选的
+      const rlNoneDeclared = await mkHost(regNone).host.handleListLabels({ cwd: HOST_CWD, backendId: 'labels-none-fake' })
+      await assert('#631 用户显式选了「无后端」时，客户端声明一个后端也不认（不许绕开他自己选的那一档）',
+        rlNoneDeclared.ok === false && rlNoneDeclared.error.kind === 'conflict', JSON.stringify(rlNoneDeclared))
 
       // 待定：身份识别超时未决（注册表的 pending），也不许当作「干净的没选定」悄悄开工
       const regPending = mkReg()
       const dp = regPending.register({ id: 'labels-pending-fake', label: 'p', create: () => ({}), matches: () => new Promise(() => {}) })
       const rlPending = await mkHost(regPending).host.handleListLabels({ cwd: '/ws/pending' })
       await assert('conflict 档正面样本：身份识别还没出结果（待定）→ conflict，不许静默挑一个后端', rlPending.ok === false && rlPending.error.kind === 'conflict' && String(rlPending.error.message).includes('还没出结果'), JSON.stringify(rlPending))
+      // #631 追加：待定时声明也不许开工 —— 那时名单里的名字只是注册序的暂时赢家，仲裁根本还没完。
+      const rlPendingDeclared = await mkHost(regPending).host.handleListLabels({ cwd: '/ws/pending', backendId: 'labels-pending-fake' })
+      await assert('#631 身份识别还没出结果时，客户端声明了也不许开工（先等它定下来）',
+        rlPendingDeclared.ok === false && rlPendingDeclared.error.kind === 'conflict' && String(rlPendingDeclared.error.message).includes('还没出结果'), JSON.stringify(rlPendingDeclared))
       dp.dispose()
     }
   }
