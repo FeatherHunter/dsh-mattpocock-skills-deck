@@ -2,25 +2,25 @@
 
 The skills speak in terms of five canonical triage roles. This file maps those roles to the actual label strings used in this repo's tracker.
 
-For the **local Markdown backend** this file is also the **label palette**: a ticket's `Labels:` line writes only label *names* (for example `Labels: wayfinder:grilling, bug`); the panel colors each name from this table. Default colors are pre-filled here from the local backend's own palette; to change a label's color, edit the matching row's `Color` value here; a name missing from the table renders grey.
+Label colours are **not** kept in this file. On the **local Markdown backend** the colours live in the workspace file `docs/agents/label-colors.json`, which the plugin places there and you can edit by hand or through the deck's re-colour dialog in the panel; on GitHub the colours are the repository's own label colours. This file only answers "which label string does a role map to".
 
-## Label palette
+## Label set
 
-| Label | Color | Meaning |
-| --- | --- | --- |
-| wayfinder:map | #8b5cf6 | The map issue of a wayfinder effort |
-| wayfinder:research | #0ea5e9 | Research ticket (AFK) |
-| wayfinder:prototype | #f59e0b | Prototype ticket (HITL) |
-| wayfinder:grilling | #9d7cd8 | Grilling / discussion ticket (HITL) |
-| wayfinder:task | #10b981 | Task ticket (HITL or AFK) |
-| bug | #d73a4a | Something is broken (fix action / BUG filter) |
-| needs-triage | #fbca04 | Unexamined issue awaiting diagnosis |
-| needs-info | #5319e7 | Waiting on reporter for more information |
-| ready-for-agent | #0e8a16 | Fully specified, ready for an AFK agent |
-| ready-for-human | #b60205 | Requires human implementation |
-| wontfix | #ffffff | Will not be actioned |
+| Label | Meaning |
+| --- | --- |
+| wayfinder:map | The map issue of a wayfinder effort |
+| wayfinder:research | Research ticket (AFK) |
+| wayfinder:prototype | Prototype ticket (HITL) |
+| wayfinder:grilling | Grilling / discussion ticket (HITL) |
+| wayfinder:task | Task ticket (HITL or AFK) |
+| bug | Something is broken (fix action / BUG filter) |
+| needs-triage | Unexamined issue awaiting diagnosis |
+| needs-info | Waiting on reporter for more information |
+| ready-for-agent | Fully specified, ready for an AFK agent |
+| ready-for-human | Requires human implementation |
+| wontfix | Will not be actioned |
 
-Add any custom label as a new row here; this table is the local Markdown backend's own label palette (defaults pre-filled; edits here override).
+Add any custom label you use as a new row here. A row added here only records the label's name and meaning — it does not give the label a colour; colours come from `docs/agents/label-colors.json` (local Markdown backend) or from the repository's own labels (GitHub).
 
 When a skill mentions a role (for example "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
@@ -42,4 +42,4 @@ The `/wayfinder` skill requires all five wayfinder labels to exist. Every wayfin
 - `wayfinder:grilling` — grilling/discussion ticket
 - `wayfinder:task` — implementation task ticket
 
-Edit the right-hand column to match whatever vocabulary you actually use.
+Edit the `Label` column to match whatever label strings you actually use.

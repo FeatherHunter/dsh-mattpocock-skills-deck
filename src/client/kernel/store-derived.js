@@ -190,7 +190,10 @@
     export const bugCount = (st) => openIssuesOf(st).filter(function (x) { return hasLabelOf(x, 'bug') }).length
     export const triageCount = (st) => openIssuesOf(st).filter(function (x) { return isTriageLike(x) }).length
 
-    // v19：共享 —— 标签配置色映射（聚合：快照全量 labels + 票面最终色；票面色已是“查 triage-labels.md 再兜底默认 11 色”后的最终色，不直读 labelPalette）
+    // v19：共享 —— 标签配置色映射（聚合：快照全量 labels + 票面最终色）。
+    // 票面色是宿主算好的最终色：本地 Markdown 后端按工作区配色文件 docs/agents/label-colors.json 查色，
+    // 文件里没收的回落内置默认 11 色，都没有才回灰（#618；旧的那张 docs/agents/triage-labels.md 调色盘表已不再被读）。
+    // 这里只聚合这份结果，不自己查表算色，也不直读后端自报的 labelPalette。
     export const buildColorOf = function (st) {
       const colorOf = {}
       const snapLabels = (st.snapshot && Array.isArray(st.snapshot.labels)) ? st.snapshot.labels : []

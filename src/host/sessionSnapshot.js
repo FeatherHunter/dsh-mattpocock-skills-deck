@@ -118,7 +118,7 @@ export function createSessionSnapshot(deps) {
               backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
             }
           } catch {}
-          // B: 补全调色盘全量（文件约束内满足契约：triage 表即全量表，未用标签也常驻，色取默认表；已用标签的色已在 labels 中为票面最终色）
+          // B: 补全标签全量（只有本地 Markdown 后端这一段）：没用过的标签也常驻，色取后端自报的内置默认色表 labelPalette（即 backends/markdown/index.js 的 defaultLabelPalette 那 11 枚）；已用标签的颜色已是宿主按工作区配色文件 docs/agents/label-colors.json 算好的票面最终色，这里只补缺、不覆盖（#618：旧的 docs/agents/triage-labels.md 调色盘表不再参与）
           try {
             if(backendId==='markdown' && Array.isArray(labels) && backendModules){
               const mdMod = backendModules.find(function(m){ return m && m.id==='markdown' && Array.isArray(m.labelPalette) })
