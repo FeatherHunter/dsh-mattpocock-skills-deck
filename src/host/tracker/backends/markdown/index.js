@@ -1,4 +1,4 @@
-﻿import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
+import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { mdPath, effortMapPath, effortIssuePath } from './path.js'
 import { parseMd } from './parse.js'
 import { normalizeIssue } from './normalize.js'
@@ -224,8 +224,6 @@ export const markdownModule = {
     trackerChoice: 'setup.markdown.trackerChoice',
     backendNote: 'setup.markdown.backendNote',
     labelReqs: 'setup.markdown.labelReqs',
-    // #323（2026-08-29 定版复核）：注入只讲规则（票带 Labels 行只写名 + 改色入口），颜色机制/色值由 labelPalette 真源与面板底层负责
-    paletteNote: 'setup.markdown.paletteNote',
   },
   // #323（2026-08-29 定版复核）：本地后端自己的默认调色盘（结构/label/颜色）经契约层供给面板；工作区表为用户覆盖层
   labelPalette: defaultLabelPalette,

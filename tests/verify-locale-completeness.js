@@ -50,7 +50,7 @@ const REQUIRED = [
   'switch.gateOtherErr', 'switch.pleaseSelectTracker', 'switch.gateIntro',
   'panel.loadingShort',
   'setup.github.trackerLine', 'setup.github.labelReqs',
-  'setup.markdown.trackerLine', 'setup.markdown.labelReqs', 'setup.markdown.paletteNote',
+  'setup.markdown.trackerLine', 'setup.markdown.labelReqs',
   'setup.gitlab.trackerLine', 'setup.gitlab.labelReqs',
   'setup.default.trackerLine', 'setup.default.labelReqs',
   'panel.labelsStepTitle', 'panel.labelsStepDesc',
@@ -63,6 +63,10 @@ for (const k of REQUIRED) {
   if (k in allKeys) ok('B. 键在 ' + k)
   else bad('B. 缺键 ' + k)
 }
+// #619：旧的「标签调色盘」注入文案整段删除，那条词条键也随之删掉。
+//   判据由「必须存在」换成「必须不存在」——同一条键，方向相反，强度不变。
+if (!('setup.markdown.paletteNote' in allKeys)) ok('B. 已删的 setup.markdown.paletteNote 键没有复活（#619）')
+else bad('B. setup.markdown.paletteNote 又回来了：#619 已删掉这条注入文案，词条不该再存在')
 
 // ---------- E. 类型徽章能收到的每个类型值都必须有词条（#626 防复发）----------
 // TypeChip（views/shared/chips.js）渲染的是 tr('type.' + 类型值)。类型值有两个来源：
