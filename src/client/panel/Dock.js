@@ -201,6 +201,10 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
           })(),
           // #191 · 仓库名右侧切换按钮（已选态常驻 · pending 灰置 · _isOther 隐藏）
           (function(){ if(_isOther) return null; var _sel=s.selection||(s.snapshot&&s.snapshot.selection)||null, _bid=_sel?_sel.backendId:null; if(_bid==null) return null; var _pend=!!(_sel&&_sel.pending), _col=(typeof backendColorOf==='function'?backendColorOf(_bid):'#6e7681'); return h(Tip, { content: _pend ? '切换后端 · 探测中不可用' : '切换后端' }, h('button',{'data-repo-switch':1,type:'button','aria-label':'切换后端','aria-disabled':_pend?'true':'false',disabled:_pend,onClick:function(e){try{if(e&&e.preventDefault)e.preventDefault();if(e&&e.stopPropagation)e.stopPropagation()}catch(_){};if(_pend)return;try{openSwitchConfirm(s,null)}catch(_){}},style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:16,height:16,borderRadius:4,flex:'none',border:'1px solid '+_col,color:_col,background:'transparent',cursor:_pend?'not-allowed':'pointer',opacity:_pend?0.45:1,fontSize:10,lineHeight:1,padding:0,colorScheme:'light dark'}},Ic({n:'swap',size:10}))) })(),
+          // #621 标签配色入口：16 像素见方的小图标（与左边那颗切换后端按钮同规格），点开改色弹窗；
+          //   头部自适应折叠只动标题与仓库名，这颗按钮定宽、不参与裁切，窄面板下也在。
+          //   会话号一起传进去：宿主靠它算「写这个工作区」要用的沙箱政策（#624 的研究结论）。
+          h(LabelColorEntry, { key: 'labelcolors', cwd: s.cwd, sessionId: sid, narrow: narrow, onSaved: function () { try { loadSnapshot(s, true, true) } catch (e) {} } }),
           h('span', { style: { flex: 1 } }),
           h(Tip, { content: tr('panel.closeTitle') }, h('button', { className: 'dsws-btn ghost', 'aria-label': tr('panel.closeTitle'), onClick: closeDock, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 6px', fontSize: 11 } }, Ic({ n: 'x', size: 12 }))),
         ]),

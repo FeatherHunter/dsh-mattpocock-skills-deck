@@ -71,6 +71,8 @@
         // issue #100：定位图钉 pin —— 状态栏 issuePath 胶囊（替代 emoji 📌），复用 Icon pin 的图钉形态
         case 'pin': return h('svg', common, [h('path', { d: 'M12 21s-6-5.1-6-10a6 6 0 1112 0c0 4.9-6 10-6 10z' }), h('circle', { cx: 12, cy: 11, r: 2.2, fill: 'currentColor', stroke: 'none' })])
         case 'prototype': return h('svg', common, [h('rect', { x: 3, y: 8.5, width: 13, height: 9, rx: 2, opacity: 0.52 }), h('rect', { x: 7.8, y: 3.8, width: 13, height: 9, rx: 2 })])
+        // #621 标签配色入口：调色盘图标（盘身 + 四个颜料点），与上面通用集同一套描边风格
+        case 'palette': return h('svg', common, [h('path', { d: 'M12 21a9 9 0 010-18c4.97 0 9 3.58 9 8 0 1.06-.47 2.08-1.32 2.83-.84.75-1.99 1.17-3.18 1.17h-2.5a2 2 0 00-1 3.75A1.3 1.3 0 0112 21z' }), h('circle', { cx: 6.5, cy: 11.5, r: 1.1, fill: 'currentColor', stroke: 'none' }), h('circle', { cx: 9.5, cy: 7.5, r: 1.1, fill: 'currentColor', stroke: 'none' }), h('circle', { cx: 14.5, cy: 7.5, r: 1.1, fill: 'currentColor', stroke: 'none' }), h('circle', { cx: 17.5, cy: 11.5, r: 1.1, fill: 'currentColor', stroke: 'none' })])
         default: return null
       }
     }

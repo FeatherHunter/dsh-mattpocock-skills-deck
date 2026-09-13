@@ -1,6 +1,6 @@
-// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 27 模块契约验证（#444 对齐后基准 + #454 K1 拆分 + #455 K2 拆分 + #456 K3 拆分 + #457 K4 拆分 + #458 K5 拆分）
+// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 29 模块契约验证（#444 对齐后基准 + #454 K1 拆分 + #455 K2 拆分 + #456 K3 拆分 + #457 K4 拆分 + #458 K5 拆分 + #621 localeLabels 增补）
 // 验证：
-//   1) kernel 27 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表 + #444 对齐新增 backendList/link/slots/slotRenderer，其中 slotRenderer 经 #454 拆为 queue/repo-sync/modal-view 三文件，store 经 #455 拆为 prefs/switch/snapshot/derived 四文件，probe 经 #456 拆为 chain/snapshot/auto 三文件，api 经 #457 拆为 naming/new-session/io 三文件，locale 经 #458 拆为 panel/flow/word 三片段加合并器）
+//   1) kernel 29 模块文件存在且含预期导出（docs/architecture/kernel-contract.md · G3 冻结接口表 + #444 对齐新增 backendList/link/slots/slotRenderer，其中 slotRenderer 经 #454 拆为 queue/repo-sync/modal-view 三文件，store 经 #455 拆为 prefs/switch/snapshot/derived 四文件，probe 经 #456 拆为 chain/snapshot/auto 三文件，api 经 #457 拆为 naming/new-session/io 三文件，locale 经 #458 拆为 panel/flow/word 三片段加合并器、#621 再增第四片段 locale-labels；`SOURCES` 共 34 条 = 3 条固定项（`src/client/index.js`、`scripts/build.mjs`、`package/package.json`）+ #629 新增的 2 个配色核心产物（`src/shared/label-color/colors.js`、`prompt.js`）+ 这 29 个 kernel 文件）
 //   2) 构建产物（_dev client.js / _pkg package/lib/client.js）已拼接全部模块（一源两物 · 无标记残留）
 //   3) 双产物模块段关键特征一致（行为零变化证明）
 //   4) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-ctx 同口径）
@@ -17,6 +17,7 @@ const MODULES = [
   { name: 'localePanel', file: 'locale-panel', exports: ['L_PANEL'] },
   { name: 'localeFlow', file: 'locale-flow', exports: ['L_FLOW'] },
   { name: 'localeWord', file: 'locale-word', exports: ['L_WORD'] },
+  { name: 'localeLabels', file: 'locale-labels', exports: ['L_LABELS'] },
   { name: 'locale', exports: ['L'] },
   { name: 'icons', exports: ['ICON_SCHEMES', 'WORD_SCHEMES', 'Icon', 'Ic'] },
   { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'BODY_FORMAT', 'completePrompt', 'FIXATE_PROMPT'] },
@@ -44,6 +45,10 @@ const MODULES = [
 const kernelFileOf = (m) => 'src/client/kernel/' + (m.file || m.name) + '.js'
 const SOURCES = [
   'src/client/index.js', 'scripts/build.mjs', 'package/package.json',
+  // #629：配色核心的两个产物是客户端闭包的输入（scripts/build.mjs 的 SHARED_SPLICE 直接读它们），
+  // 加进这份「比产物新就判过期」的清单以后，「只重跑核心转译、没重跑主构建」会更早变红。
+  // 这是 SOURCES 里第一次出现 src/shared/ 下的文件；另外八个既有共享拼接文件仍然不在清单里（存量空白，另票处理）。
+  'src/shared/label-color/colors.js', 'src/shared/label-color/prompt.js',
   ...MODULES.map(kernelFileOf),
 ]
 

@@ -1,5 +1,9 @@
 /**
- * scripts/build.mjs — T0 阶段 0 构建管线（esbuild 双 entry）
+ * scripts/build.mjs — T0 阶段 0 构建管线（先把内置 TypeScript 核逐个转译，再 esbuild 双 entry）
+ *
+ * 第 0 步（#629）：把仓库根 label-color-core/ 里的内置 TypeScript 逐文件转译进
+ *   src/shared/label-color/，并跑一次类型检查。这一步由本文件在派生步骤之前调用，
+ *   为的是让「改一行代码到看见效果」仍然只有一条命令 node scripts/build.mjs。
  *
  * 规范方言 = 动态版方言（src/client/index.js / src/host/index.js，host/styles/React/timer 为自由变量）。
  * 一源出两物：
@@ -25,6 +29,18 @@ import { spawnSync } from 'node:child_process'
 import * as esbuild from 'esbuild'
 import { deriveHost, deriveClient } from './derive-log-from-package.mjs'
 import { deriveHost as deriveUpdateHost, deriveClient as deriveUpdateClient } from './derive-update-from-package.mjs'
+
+// #629 配色核心（label-color-core/）：转译与类型检查都写在它自己的 build.mjs 里，
+// 这里只负责在一条命令里把它带上。为什么要写成「先试着加载、加载不到只打印一行提示」，
+// 而不是文件头的静态 import：那棵源码树不进 npm 包（package/package.json 的 files
+// 白名单里没有它），在只有 scripts/ 与 shared/ 的子树里跑构建时，静态 import 会在加载
+// 阶段直接抛错，把整个构建打断，连一行提示都打不出来。这里要的是「这一步跳过、其余照跑」。
+let buildLabelColorCore = null
+try {
+  buildLabelColorCore = (await import('../label-color-core/build.mjs')).buildAll
+} catch (e) {
+  console.log('[build] 没能加载 label-color-core/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过内置 TypeScript 核的转译与类型检查。')
+}
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -226,6 +242,8 @@ const KERNEL_MODULES = [
   { name: 'localePanel', file: 'src/client/kernel/locale-panel.js' },
   { name: 'localeFlow', file: 'src/client/kernel/locale-flow.js' },
   { name: 'localeWord', file: 'src/client/kernel/locale-word.js' },
+  // #621 标签配色弹窗的中英词条：单独一份片段，由 locale.js 的合并器一起并进 L
+  { name: 'localeLabels', file: 'src/client/kernel/locale-labels.js' },
   { name: 'locale', file: 'src/client/kernel/locale.js' },
   { name: 'icons', file: 'src/client/kernel/icons.js' },
   { name: 'prompts', file: 'src/client/kernel/prompts.js' },
@@ -272,6 +290,12 @@ const SHARED_SPLICE = [
   { marker: '// ==== shared:slots (spliced by build) ====', file: 'src/shared/ui/slots.js' },
   { marker: '// ==== shared:mattSkills (spliced by build) ====', file: 'src/shared/matt-skills.js' },
   { marker: '// ==== shared:workspaceKey (spliced by build) ====', file: 'src/shared/workspaceKey.js' },
+  // #629 配色核心的两个产物：宿主半走普通相对 import，客户端半要按同一份口径判断
+  // 用户填的颜色能不能用、颜色有没有变，所以把这两份零依赖产物一并拼进界面闭包。
+  // 它们的顶层名字由 tests/verify-generated-no-shadow.js 与既有的派生文件一起比对，
+  // 产物里不许出现 __DSW_VERSION__ 与 __DSW_REPO_URL__（拼接发生在版本注入之后）。
+  { marker: '// ==== shared:labelColors (spliced by build) ====', file: 'src/shared/label-color/colors.js' },
+  { marker: '// ==== shared:labelColorPrompt (spliced by build) ====', file: 'src/shared/label-color/prompt.js' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
@@ -285,6 +309,12 @@ const LEAF_MODULES = [
   { id: 'tip', file: 'src/client/views/primitives/Tip.js' },
   { id: 'backendSelector', file: 'src/client/views/shared/BackendSelector.js' },
   { id: 'switchConfirmModal', file: 'src/client/views/shared/SwitchConfirmModal.js' },
+  // #621 标签配色的五个叶子（纯函数两份 + 状态机一份 + 界面三份；按拼接次序登记，次序即依赖次序）
+  { id: 'labelColorErrors', file: 'src/client/views/labels/labelColorErrors.js' },
+  { id: 'useLabelColors', file: 'src/client/views/labels/useLabelColors.js' },
+  { id: 'labelColorRow', file: 'src/client/views/labels/LabelColorRow.js' },
+  { id: 'labelColorDialog', file: 'src/client/views/labels/LabelColorDialog.js' },
+  { id: 'labelColorEntry', file: 'src/client/views/labels/LabelColorEntry.js' },
   { id: 'md', file: 'src/client/views/shared/md.js' },
   { id: 'ticket', file: 'src/client/views/shared/ticket.js' },
   { id: 'stateKind', file: 'src/client/views/shared/stateKind.js' }, // #599 新增：票的状态判据（打开/已关闭/已合并）单源，拉取请求页与单票详情页共用一个函数
@@ -613,6 +643,11 @@ console.log(`[build] DSW_REPO_URL=${repoUrl} (package/package.json repository)`)
 gateBuildArtifacts()
 ensureBundledSkills()
 syncReadme(version, repoUrl)
+
+// #629 内置 TypeScript 核（配色核心）：先转译再跑类型检查，产物落进 src/shared/label-color/。
+// 它自己会判源码目录在不在（发布包与 package/ 子树里没有这棵源码树），不在就跳过并打印提示。
+// 放在两段派生之前：产物是客户端闭包的输入，必须比闭包先就位。
+if (buildLabelColorCore) buildLabelColorCore()
 
 // #564 日志系统派生：先把日志包产物派生为运行时文件（旧文件不动），再拼装。
 // #586 更新系统派生：同样先把更新包产物派生为运行时文件（旧文件不动）。

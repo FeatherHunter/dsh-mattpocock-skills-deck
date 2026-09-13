@@ -48,6 +48,14 @@ const LEAVES = [
   { file: 'src/client/floating/Pop.js', exports: ['showPop'], components: [] },
   { file: 'src/client/hostShim.js', exports: ['timer', 'h'], components: [] }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底，无组件，纯函数；曾含旧标签迁移，该段已由 #598 删除）
   { file: 'src/client/panelAssembly.js', exports: ['apiCall', 'cx', 'withCx'], components: [] }, // #459 由 index.js 拆出：面板装配（Ctx 装配加插槽注册加启动收尾，无组件，纯函数）
+  // #621 标签配色的五个叶子：错误档位到词条键与电话回包取形状（纯函数）、加载与保存状态机（钩子）、
+  // 单行取色控件、弹窗本体、面板头部入口按钮。登在这里是为了让「单文件 ≤350 行」与「产物已拼接」
+  // 两条检查也覆盖到它们。
+  { file: 'src/client/views/labels/labelColorErrors.js', exports: ['LC_KIND_KEYS', 'LC_PLACEHOLDER_COLOR', 'lcKindKey', 'lcErrorOf', 'lcLabelsOf', 'lcSaveOutcome', 'lcOutcomeRowOf', 'lcToDisplay', 'lcRowIncomplete'], components: [] },
+  { file: 'src/client/views/labels/useLabelColors.js', exports: ['useLabelColors'], components: [] },
+  { file: 'src/client/views/labels/LabelColorRow.js', exports: ['LabelColorRow'], components: ['LabelColorRow'] },
+  { file: 'src/client/views/labels/LabelColorDialog.js', exports: ['LabelColorDialog'], components: ['LabelColorDialog'] },
+  { file: 'src/client/views/labels/LabelColorEntry.js', exports: ['LabelColorEntry'], components: ['LabelColorEntry'] },
 ]
 const SOURCES = [
   'src/client/index.js', 'scripts/build.mjs', 'package/package.json',

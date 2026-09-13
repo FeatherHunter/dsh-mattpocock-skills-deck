@@ -96,7 +96,7 @@ const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 // 四、渲染目录日志调用点名白名单；调用行上不许对象转文本。
 {
   const renderDirs = ['views', 'panel', 'statusbar', 'floating'].map((d) => path.join(ROOT, 'src', 'client', d))
-  const allowFiles = ['SettingsPage.js', 'BackendSelector.js', 'DockSync.js', 'StatusBar.js', 'StatusLogMenu.js', 'ChecksTab.js', 'useUpdatePanel.js'] // #498：状态栏四键菜单的目录解析失败行（无对象转文本，见无转文本断言）；#499：StatusLogMenu 失败记账行；#587：useUpdatePanel.js 就是 SettingsPage.js 里那块更新逻辑（原文件已在名单内，拆出后是同一批行，不是新增记点）
+  const allowFiles = ['SettingsPage.js', 'BackendSelector.js', 'DockSync.js', 'StatusBar.js', 'StatusLogMenu.js', 'ChecksTab.js', 'useUpdatePanel.js', 'useLabelColors.js'] // #498：状态栏四键菜单的目录解析失败行（无对象转文本，见无转文本断言）；#499：StatusLogMenu 失败记账行；#587：useUpdatePanel.js 就是 SettingsPage.js 里那块更新逻辑（原文件已在名单内，拆出后是同一批行，不是新增记点）；#621：useLabelColors.js 是标签配色弹窗的状态机，两条宿主电话（wf.listLabels / wf.setLabelColors）就在这个文件里，调用点相邻的那行必须记（verify-log-coverage 的调用点可追踪断言要求），行上没有对象转文本
   const seen = {}
   for (const d of renderDirs) {
     if (!fs.existsSync(d)) continue

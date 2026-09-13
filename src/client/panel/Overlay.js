@@ -207,6 +207,9 @@ export     const OverlayPanel = (props) => {
           })(),
           // #191 · 仓库名右侧切换按钮（与 Dock 镜像 · pending 灰置 · _isOther 隐藏）
           (function(){ if(_isOther2) return null; var _sel=s.selection||(s.snapshot&&s.snapshot.selection)||null, _bid=_sel?_sel.backendId:null; if(_bid==null) return null; var _pend=!!(_sel&&_sel.pending), _col=(typeof backendColorOf==='function'?backendColorOf(_bid):'#6e7681'); return h(Tip, { content: _pend ? '切换后端 · 探测中不可用' : '切换后端' }, h('button',{'data-repo-switch':1,type:'button','aria-label':'切换后端','aria-disabled':_pend?'true':'false',disabled:_pend,onClick:function(e){try{if(e&&e.preventDefault)e.preventDefault();if(e&&e.stopPropagation)e.stopPropagation()}catch(_){};if(_pend)return;try{openSwitchConfirm(s,null)}catch(_){}},style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:16,height:16,borderRadius:4,flex:'none',border:'1px solid '+_col,color:_col,background:'transparent',cursor:_pend?'not-allowed':'pointer',opacity:_pend?0.45:1,fontSize:10,lineHeight:1,padding:0,colorScheme:'light dark'}},Ic({n:'swap',size:10}))) })(),
+          // #621 标签配色入口（与 Dock 镜像）：16 像素见方的小图标，点开改标签颜色的弹窗。
+          //   会话号一起传进去（宿主靠它算写工作区要用的沙箱政策）；悬浮面板的当前会话就是 cur。
+          h(LabelColorEntry, { key: 'labelcolors', cwd: s.cwd, sessionId: cur, narrow: narrow, onSaved: function () { try { loadSnapshot(s, true, true) } catch (e) {} } }),
           h('span', { style: { flex: 1 } }),
           h(Tip, { content: tr('panel.closeTitle') }, h('button', { className: 'dsws-btn ghost', 'aria-label': tr('panel.closeTitle'), onClick: function () { s.open = false; emit(s) }, style: { display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 12 }))),
         ]),

@@ -79,6 +79,8 @@ export default {
     // ==== kernel:localePanel (spliced by build) ====
     // ==== kernel:localeFlow (spliced by build) ====
     // ==== kernel:localeWord (spliced by build) ====
+    // #621：标签配色弹窗的中英词条单独一份片段（老的三份片段都在 350 行上限附近，塞不下）
+    // ==== kernel:localeLabels (spliced by build) ====
     // ==== kernel:locale (spliced by build) ====
     const localeSvc = ctx.get('locale')
     if (localeSvc && typeof localeSvc.register === 'function') {
@@ -152,6 +154,11 @@ export default {
     // v24-48：面板默认高度 = 屏幕约 1/2
     // v1.5 T3：面板默认高度固定 1/2（用户拍板彻底移除 panelHeight 配置 —— details 列高度与它无关，配置不生效）
     // ==== shared:workspaceKey (spliced by build) ====
+    // #629 配色核心：色值归一、合法性判断、比较颜色有没有变，以及调色盘表格与提示词的拼装。
+    // 这两份是内置 TypeScript 核（label-color-core/）的产物，界面只当普通函数调用；
+    // 界面文案一律从词条传进去，核心不含任何用户能看到的字（详见 label-color-core/README.md）。
+    // ==== shared:labelColors (spliced by build) ====
+    // ==== shared:labelColorPrompt (spliced by build) ====
     // ==== kernel:storePrefs (spliced by build) ====
     // ==== kernel:storeSwitch (spliced by build) ====
     // ==== kernel:storeSnapshot (spliced by build) ====
@@ -185,6 +192,12 @@ export default {
     // ==== leaf:tip (spliced by build) ====
     // ==== leaf:backendSelector (spliced by build) ====
     // ==== leaf:switchConfirmModal (spliced by build) ====
+
+    // #621 标签配色：面板头部小图标打开一个弹窗改标签颜色。
+    // 五份按依赖次序拼：先纯函数（错误档位到人话、电话回包取形状、显示与契约的色值换算），
+    // 再状态机钩子，最后三份界面（一行取色控件、弹窗本体、头部入口按钮）。
+    // ==== leaf:labelColorErrors (spliced by build) ==== // ==== leaf:useLabelColors (spliced by build) ====
+    // ==== leaf:labelColorRow (spliced by build) ==== // ==== leaf:labelColorDialog (spliced by build) ==== // ==== leaf:labelColorEntry (spliced by build) ====
 
     // ==== leaf:seg (spliced by build) ====
     // ==== leaf:checksums (spliced by build) ====
