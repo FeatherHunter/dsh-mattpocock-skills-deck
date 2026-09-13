@@ -36,6 +36,16 @@ function pickRawKind(err, msg, httpCode) {
   return 'unknown'
 }
 
+/** 限速文案（主限速与次限速都回 403 或 429，文案里带 rate limit）。 */
+function isRateLimitText(s) { return /rate limit|429|api rate limit exceeded/i.test(String(s || '')) }
+
+/** 网络特征：#620 整改新增，判据照本房间既有的 init-project.js 里那组特征（同一件事只有一套叫法）。
+ *  为什么要有它：这些原文里常常根本没有 HTTP 状态码，落到通用分类就会被别的词条抢走
+ *  （实测 `getaddrinfo ENOTFOUND …` 被通用分类的 `not ?found` 判成了 not-found）。 */
+function isNetworkText(s) {
+  return /network|econn|econnrefused|econnreset|etimedout|timed out|timeout|enotfound|getaddrinfo|eai_again|no such host|could not resolve host|dial tcp|unable to access|failed to connect|connection (refused|reset|closed)|socket hang up|fetch failed|proxy|tls handshake|\beof\b/i.test(String(s || ''))
+}
+
 function emitNormalize(err, mapped, ctx) {
   try {
     const f = ctx && typeof ctx.logEvent === 'function' ? ctx.logEvent : null
@@ -68,16 +78,23 @@ export function classifyGhError(err, ctx) {
   const s = msg.toLowerCase()
 
   // env：gh 可执行缺失（resolveExecutable null 时 msg 含 gh not found / Cannot find / ENOENT）
+  //   #620 整改收紧的那一条：`resolveexecutable` 原来是裸词，凡含这个词的文本都被判「本机没工具」；
+  //   现在要求它跟 `platform.` 连写，并把我们自己用的原句 `gh not found` 显式写上。
   let mapped
-  if (/cannot find.*gh|not found.*gh|which:.*gh|resolveexecutable|ENOENT|is not recognized|command not found|no such file/i.test(msg)) {
+  if (/cannot find.*gh|gh not found|not found.*gh|which:.*gh|platform\.resolveexecutable|ENOENT|is not recognized|command not found|no such file/i.test(msg)) {
     mapped = ERROR_KIND.ENV
   } else if (/not logged in|authentication|bad credentials|unauthorized|permission denied|credential/i.test(s) || /\b401\b|\b403\b/.test(s)) {
     // auth 必须在 rate-limit 之前（401/403 优先于 429 文案可能共存时的优先级由 contract 固定）
     // 403 且含 rate limit 文案 → 归 rate-limit（API rate limit exceeded 含 403）
-    if (/rate limit|429|api rate limit exceeded/i.test(s)) mapped = ERROR_KIND.RATELIMIT
+    if (isRateLimitText(s)) mapped = ERROR_KIND.RATELIMIT
     else mapped = ERROR_KIND.AUTH
-  } else if (/rate limit|429|api rate limit exceeded/i.test(s)) mapped = ERROR_KIND.RATELIMIT
-  else if (/\b404\b|not found.*repo|not found.*issue|no such issue|issue not found/i.test(s)) mapped = ERROR_KIND.NOTFOUND
+  } else if (isRateLimitText(s)) mapped = ERROR_KIND.RATELIMIT
+  // 网络特征必须**排在 not-found 与兜底分类之前**：#620 整改实测复现过一起误判 ——
+  //   DNS 失败的原文 `… getaddrinfo ENOTFOUND api.github.com` 落到通用分类时被判成 not-found
+  //   （通用分类那条 `not ?found` 的空格是可省的，ENOTFOUND 里的 NOTFOUND 正好命中），
+  //   于是界面把「网络不通」说成「标签不存在」，让用户去核对标签名。
+  else if (isNetworkText(s)) mapped = ERROR_KIND.NETWORK
+  else if (/\b404\b|not found.*repo|not found.*issue|no such issue|issue not found|could not resolve to a repositor/i.test(s)) mapped = ERROR_KIND.NOTFOUND
   else if (/invalid json|parse|syntax/i.test(s) && /json/i.test(s)) mapped = ERROR_KIND.PARSE
   // 兜底委托通用分类（network 兜底，不在此造 conflict）
   else mapped = classifyError(err)

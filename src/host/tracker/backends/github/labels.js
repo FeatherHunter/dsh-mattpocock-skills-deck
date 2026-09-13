@@ -1,11 +1,15 @@
 /**
- * backends/github/labels.js — labels 对齐实现（#133 定版 + #138 落地）。
+ * backends/github/labels.js — 「票身上带哪些标签」的实现（#133 定版 + #138 落地）。
  *
  * 契约：`setLabels(repo, key, labels: LabelInput[], opts?: SetOpts, ctx: OpContext): Promise<OpResult<Issue>>`
  *  - `LabelInput = string | {name: string, color?: string, description?: string}`
  *  - `SetOpts = { expectedUpdatedAt?: string }` → 不匹配 → `kind:'conflict'`（显式产生，非 regex）
  *  - Last-write-wins 且整集替换（尽力单次/近原子；GitHub 用 diff → gh issue edit --add-label/--remove-label）
  *  - GitHub 原生支持 labels → `Issue.labels` 恒存在，空→ `[]` EMPTY（#126），颜色无则 ''（string 非 number）
+ *
+ * 2026-09-13（#620）：仓库级的「列全部标签 / 批量改标签颜色」两条契约操作搬进同目录的
+ * label-colors-ops.js（它们跟这里的 setLabels 不是一件事：这里是给一张票贴标签，那两条是改仓库的标签本身）。
+ * 本文件只保留了它们要用的仓库名拆解（parseRepo / repoId），不再自己列标签。
  */
 
 import { fail } from '../../preflight.js'
@@ -44,7 +48,7 @@ function normalizeLabelInputs(labels) {
   return out
 }
 
-function parseRepo(repo) {
+export function parseRepo(repo) {
   if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
   const s = repo.refId.trim()
   const idx = s.indexOf('/')
@@ -52,7 +56,7 @@ function parseRepo(repo) {
   return { owner: s.slice(0, idx), name: s.slice(idx + 1) }
 }
 
-function repoId(repo) {
+export function repoId(repo) {
   if (!repo) return ''
   if (typeof repo.refId === 'string' && repo.refId) return repo.refId
   if (typeof repo.name === 'string' && repo.name) return repo.name
@@ -120,23 +124,4 @@ export async function setLabels(repo, key, labels, opts, ctx) {
 // 旧名兼容：addLabel → setLabels（#124：label→setLabels）—— 保留别名但标记弃用
 export const addLabel = (...args) => setLabels(...args)
 
-// 非 op：列仓库标签色板（供 DeckProjection.labels 聚合，非契约 op；snapshot 侧并集 labels）
-export async function listLabels(repo, ctx) {
-  try {
-    const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `listLabels: repo.refId missing: ${repoId(repo)}`)
-    const c = ghClient(ctx)
-    const r = await c.execGh(['label', 'list', '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'name,color,description'], { cwd: ctx && ctx.cwd })
-    if (!r.ok) return { ok: false, error: r.error }
-    const text = r.data.stdout || ''
-    let arr = []
-    try { arr = JSON.parse(text) } catch { arr = [] }
-    const labels = Array.isArray(arr) ? arr.map((l) => ({ name: l.name, color: l.color || '', description: l.description || undefined })).filter((l) => l.name) : []
-    return { ok: true, data: labels }
-  } catch (err) {
-    const kind = classifyGhError(err)
-    return fail(kind, err && err.message ? String(err.message) : String(err))
-  }
-}
-
-export default { setLabels, addLabel, listLabels }
+export default { setLabels, addLabel }

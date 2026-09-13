@@ -112,7 +112,7 @@ export const OPERATIONS = Object.freeze([
  * @property {(handle: RepoHandle, backendId: string) => import('../../shared/tracker/shape.js').RepositoryRef} [describe] 可选：出 RepositoryRef（refId/name/url）；未提供时 registry 回退骨架（markdown cwd，其余 ''）
  * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} [issueUrl] 可选：票链接（github https://github.com/{refId}/issues/{key}，gitlab https://gitlab.com/{refId}/-/issues/{key}，markdown ''）
  * @property {(name: string) => string} [searchUrl] 可选：仓库名搜索链接（github https://github.com/search?q=...）
- * @property {{trackerLine: string, trackerChoice: string, backendNote: string, labelReqs: string, paletteNote?: string}} [setupPrompt]
+ * @property {{trackerLine: string, trackerChoice: string, backendNote: string, labelReqs: string}} [setupPrompt]
  * @property {{name: string, color: string}[]} [labelPalette] 可选：后端自己的默认标签调色盘（#323 定版复核——本地 Markdown 提供，结构/label/颜色真源；GitHub/GitLab 不声明；面板按 模块默认 + 工作区表覆盖 查色）
  * @property {{issueUrlTemplate?: string, repoUrlTemplate?: string, searchUrlTemplate?: string, linkPatternSource?: string}} [links] 可选只读描述数据（#231）：client URL 构造/链接识别的单源模板；空对象=诚实「无链接」形状
  * @property {{labelsGuide?: boolean, repoCreateChain?: boolean}} [capabilities]
@@ -257,11 +257,17 @@ export const OPERATIONS = Object.freeze([
  */
 
 /** 批量改色的逐条记账结果。
- *  - applied：改成功的标签与**最终颜色**（后端从真源里读出来的那个值，界面据此显示）。
+ *  - applied：**改色命令被接受**的标签，与这次写下去的目标颜色（见下一段的口径说明）。
  *  - failed：没改成功的标签与原因。reason 就是本文件既有的 TrackerError 形状（kind + message），
  *    **不新增字段、不新增枚举值**；message 由后端组装成可以直接展示给用户的一句话（不许把原始
  *    错误对象的字段直接塞进去——原子写失败时错误里的路径是临时文件名，用户会去找一个不存在的文件）。
- *  - 入参里**每一条改动必须恰好出现在 applied 或 failed 之一**：不许漏记账，也不许两边都算。 */
+ *  - 入参里**每一条改动必须恰好出现在 applied 或 failed 之一**：不许漏记账，也不许两边都算。
+ *
+ *  applied 里的颜色是**这次要写下去的目标颜色**（后端自己写进真源的那一个值），不是「写完之后再回读
+ *  真源拿到的值」。两个后端的口径因此一致：本地 Markdown 写的就是文件里那一行，GitHub 发出去的就是
+ *  我们归一好的六位小写（实测 GitHub 原样存你发的大小写）。**保存完之后界面要重新调一次「列出标签」
+ *  拿真值刷新**（见下面 setLabelColors 的正文），所以这里不需要为了「回读」多发一轮请求。
+ */
 /**
  * @typedef {Object} LabelColorBatchResult
  * @property {{name: string, color: string}[]} applied

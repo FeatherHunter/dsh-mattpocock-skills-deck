@@ -117,6 +117,7 @@ export function ghClient(ctx) {
   /**
    * 执行 gh 命令，返回 OpResult<{ stdout: string, stderr: string, code: number }>
    * 不做 JSON 解析；调用方自行 runJson / 解析 .out
+   * 失败时 error 的形状是 {kind, message, code}：code 是 gh 的退出码（拿不到时为 -1，例如命令根本没起来）。
    */
   async function execGh(args, opts = {}) {
     const cwd = getCwd(ctx, opts.cwd)
@@ -124,12 +125,13 @@ export function ghClient(ctx) {
     const resolved = await resolveGh(cwd)
     if (!resolved.ok) {
       emitGhExec(resolved.error && resolved.error.kind ? resolved.error.kind : 'env', -1, t0, cwd)
-      return { ok: false, error: resolved.error }
+      // 补上 code: -1，让「失败时 error 里一定有 code」这条形状对所有失败成立（命令根本没跑起来）
+      return { ok: false, error: Object.assign({ code: -1 }, resolved.error) }
     }
 
     if (!exec) {
       emitGhExec('env', -1, t0, cwd)
-      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'ctx.exec unavailable' } }
+      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'ctx.exec unavailable', code: -1 } }
     }
 
     const signal = opts.signal || (ctx && ctx.signal) || undefined
@@ -138,15 +140,25 @@ export function ghClient(ctx) {
     try {
       const result = await exec('gh', args, { cwd, timeout, signal })
       // DSH ctx.exec 契约：{stdout, stderr, code}
-      const code = result && typeof result.code === 'number' ? result.code : 0
+      // #620 整改（D2）：拿不到**整数**退出码时按失败处理（-1），不再当成 0。
+      //   为什么：执行器原样回传底层进程的退出码，而被信号杀掉、或还没跑完就没有退出码时它是
+      //   undefined/null —— 当成 0 会把「命令根本没成功」记成改色成功（仓库其实没变）。同一条路上
+      //   的日志侧本来就按 -1 处理（见上面 emitGhExec 的兜底），这里与它对齐。
+      const rawCode = result && result.code
+      const code = Number.isInteger(rawCode) ? rawCode : -1
       const stdout = result && typeof result.stdout === 'string' ? result.stdout : (result && result.text ? result.text : '')
       const stderr = result && typeof result.stderr === 'string' ? result.stderr : ''
       if (code !== 0) {
-        const err = { message: stderr || stdout || `gh exit ${code}`, stderr: stderr || stdout, code, stdout }
-        const kind = classifyGhError(err, ctx)
+        const note = code === -1 ? 'gh 这一次没拿到退出码（命令可能被中断，或者根本没起来）' : `gh exit ${code}`
+        const err = { message: stderr || stdout || note, stderr: stderr || stdout, code, stdout }
+        // 没有退出码、也没有任何输出 = 拿不到任何可判断的东西 → 环境档并说清责任在插件这边；
+        // 有输出文本时照旧按文本分类（超时、限速、404 这些都要认出来）。
+        const kind = (code === -1 && !stderr && !stdout) ? ERROR_KIND.ENV : classifyGhError(err, ctx)
         emitGhExec(kind, code, t0, cwd)
         if (isTimeoutText(stderr) || isTimeoutText(stdout)) emitGhTimeout(timeout)
-        return { ok: false, error: { kind, message: String(stderr || stdout || err.message).slice(0, 800) } }
+        // #620：退出码要一起交回调用方。gh 自己的约定是「需要登录 = 退出码 4」（gh help exit-codes），
+        // 只靠错误文案里的词去猜「是不是没登录」是巧合匹配；这里把 code 带上，分类才站得住。
+        return { ok: false, error: { kind, message: String(stderr || stdout || err.message).slice(0, 800), code } }
       }
       emitGhExec('ok', 0, t0, cwd)
       return { ok: true, data: { stdout, stderr, code } }
@@ -156,7 +168,8 @@ export function ghClient(ctx) {
       emitGhExec(kind, -1, t0, cwd)
       if (isTimeoutText((e && (e.message || e.stderr)) || e)) emitGhTimeout(timeout)
       const message = String((e && (e.message || e.stderr)) || e || 'gh exec failed').slice(0, 800)
-      return { ok: false, error: { kind, message } }
+      // code: -1 = 这次调用连退出码都没有（超时、spawn 失败之类），调用方据此知道「不是命令自己报的错」
+      return { ok: false, error: { kind, message, code: -1 } }
     }
   }
 

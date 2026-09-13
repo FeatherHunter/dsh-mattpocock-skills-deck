@@ -515,26 +515,67 @@ export async function run() {
     dIncNet.dispose()
   }
 
-  // ── 五、真实后端模块探针（#627 二次整改 P1）──
-  // 这一段的判据是「要么诚实地说做不到（unsupported），要么把这一条操作做到契约要求」：
-  //   今天 GitHub 与本地 Markdown 两个真实后端都还没实现这两条操作，注册表按 OPERATIONS 自动补桩，
-  //   它们只能诚实地回「做不到」；下游一实现，同样这一段自动变成真验收（列表形状与逐条记账检查器全过）。
+  // ── 五、真实后端模块探针（#627 二次整改 P1；#620 给 GitHub 一路配了外部命令）──
+  // 这一段的判据始终是「要么诚实地说做不到（unsupported），要么把这一条操作做到契约要求」：
+  //   GitHub 与本地 Markdown 两个真实后端都还没实现这两条操作时，注册表按 OPERATIONS 自动补桩，
+  //   它们只能诚实地回「做不到」；一实现，同样这一段自动变成真验收（列表形状与逐条记账检查器全过）。
   // 为什么要有这一段：前面三段测的都是测试自带的假身，真实后端模块一次都没被调用；
   //   没有这一段，下游把颜色返回成大写、列表项多带键、failed 省略、只回整体成败，契约测试照样绿。
+  //
+  // #620 在这里补的一件事：**给 GitHub 一路配一个脚本化的 gh**。
+  //   理由是这一段自己要求的两种答案里有一种是「把操作做到契约要求」，而 GitHub 的两个操作要跑外部命令
+  //   （gh）：上下文里没有执行器时它只能如实回「本机缺工具」（env）——那不是「做不到」，拿 env 去比
+  //   unsupported 会当场冤枉一个诚实的实现（#620 实测踩到：620 passed / 4 failed 变成 619 passed / 5 failed）。
+  //   配上之后，这一段仍然是真验收：检查器检查的是**真实模块的输出**，不是假身的输出。
+  //   判据一个字没放宽，只是让「真去做」这条路走得通。
+  //
+  // #620 整改补的一句（免得只跑契约测试的人以为这里管得多）：这一段只验「列表形状 + 逐条记账」，
+  //   **404 那一档（标签不存在 / 仓库不存在 / 没有写权限 三选一）走不到这里来** —— 它要撞的是一次
+  //   真的 404 响应，而这里的 gh 是脚本化的、只回成功。404 的分档与「撞到 404 多问一次仓库权限」
+  //   由 `tests/verify-github-label-colors.js` 守（那一份用假数据把八档各演一遍）。
   {
+    // 脚本化的仓库：三条标签，其中两条的颜色在 GitHub 上存的是大写（真实仓库里就有这种，见 #612 第 5.2 节）。
+    const GH_LABELS = [
+      { name: 'bug', color: 'D73A4A', description: "Something isn't working" },
+      { name: 'wayfinder:grilling', color: '9D7CD8', description: 'Open decision/discussion ticket' },
+      { name: 'unused-label', color: '0E8A16' }, // 还没被任何票用到：仓库全量语义的证据
+    ]
+    const scriptedGh = async (cmd, args) => {
+      const a = (args || []).join(' ')
+      if (a.startsWith('label list ')) return { code: 0, stdout: JSON.stringify(GH_LABELS), stderr: '' }
+      if (a.startsWith('label edit ')) return { code: 0, stdout: '', stderr: '' }
+      return { code: 1, stdout: '', stderr: 'probe 没脚本化这条命令: ' + a }
+    }
+    const probeCtx = {
+      // 本地 Markdown：没有文件服务时照内置调色盘回答（#618 的实现），不需要外部命令
+      markdown: ctx,
+      // GitHub：给它一个能跑的外部命令（gh），否则它只能报「本机缺工具」
+      github: Object.assign({}, ctx, {
+        platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null) },
+        exec: scriptedGh,
+      }),
+    }
     const realBackends = [
       { id: 'github', mod: githubModule },
       { id: 'markdown', mod: markdownModule },
     ]
     const probeChanges = [{ name: 'bug', color: '9d7cd8' }]
     for (const rb of realBackends) {
+      const rbCtx = probeCtx[rb.id] || ctx
       const regReal = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
       const d = regReal.register(rb.mod)
       const realTracker = regReal.get(rb.id)
-      const rl = await realTracker.listLabels(ref(rb.id), ctx)
+      const rl = await realTracker.listLabels(ref(rb.id), rbCtx)
       const badge = labelListProbeCheck(rl)
       await assert('真实 ' + rb.id + ' 后端：列出标签「诚实说做不到 或 形状检查器全过」', badge.length === 0, badge.join('；') || JSON.stringify(rl))
-      const rs = await realTracker.setLabelColors(ref(rb.id), probeChanges, ctx)
+      // 真的给出了清单时，再加一条：这份清单必须是全量（取不全就必须整体失败，不许静默少一截）。
+      //   只在测试自己知道「全量是什么」的那一路核对（GitHub 的标签是脚本给的；Markdown 的并集语义由它自己的门禁守）。
+      if (rb.id === 'github' && rl && rl.ok === true) {
+        const full = GH_LABELS.map((l) => l.name)
+        const miss = labelCompletenessCheck(rl.data, full)
+        await assert('真实 github 后端：清单是全量（含没被任何票用到的那个标签，也不许少一条）', miss.length === 0, miss.join('；') || JSON.stringify(rl))
+      }
+      const rs = await realTracker.setLabelColors(ref(rb.id), probeChanges, rbCtx)
       const badge2 = labelBatchProbeCheck(probeChanges, rs)
       await assert('真实 ' + rb.id + ' 后端：批量改色「诚实说做不到 或 记账检查器全过」', badge2.length === 0, badge2.join('；') || JSON.stringify(rs))
       d.dispose()

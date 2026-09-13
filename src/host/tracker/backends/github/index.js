@@ -14,7 +14,7 @@
  */
 
 import { CANONICAL_LABELS } from '../../../../shared/labels.js'
-import { describe, issueUrl, searchUrl, linkPattern, links, capabilities } from './repo.js'
+import { describe, issueUrl, searchUrl, linkPattern, links, capabilities, openRepository } from './repo.js'
 import { checks } from './checks.js'
 import { githubMatches, createGithubBackend } from './backend.js'
 export { describe, issueUrl, searchUrl, linkPattern, links, capabilities, checks, githubMatches, createGithubBackend }
@@ -190,6 +190,12 @@ export const githubModule = {
   linkPattern,
   links,
   capabilities,
+  // 开仓方式（#231 的开仓契约动作）：'url' = 界面用浏览器新窗打开 describe().url。
+  // 2026-09-13 补（#620 整改）：这个字段原来只以文件级导出的形式存在（export { openRepository }），
+  //   **没有进注册表真正读的那个模块对象** —— 注册表只在字段存在时才转发，于是「后端自己声明开仓方式」
+  //   这条规矩在 GitHub 上落到「没读到开仓方式」那一态（GitHub 版的推荐配色方案文案拼不出来）。
+  //   本地 Markdown 一直是好的（markdownModule 里带 openRepository: 'folder'），这里补上同一个值。
+  openRepository,
   prompts,
   checks,
   fixes,

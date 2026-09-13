@@ -12,6 +12,7 @@ import { listIssues, getIssue } from './issues.js'
 import { createIssue, closeIssue, reopenIssue, updateIssue, setAssignees } from './issues-write.js'
 import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
+import { listLabels, setLabelColors } from './label-colors-ops.js'
 import { setParent, getDependencies, setBlockedBy } from './graph.js'
 import { initProject } from './init-project.js'
 import { describe, issueUrl } from './repo.js'
@@ -73,6 +74,9 @@ export function createGithubBackend(ctx) {
     comment: (repo, key, body, opCtx) => addComment(repo, key, body, opCtx || ctx),
     update: (repo, key, patch, opCtx) => updateIssue(repo, key, patch, opCtx || ctx),
     setLabels: (repo, key, labels, opts, opCtx) => setLabels(repo, key, labels, opts, opCtx || ctx),
+    // #620：仓库级的两条标签配色操作（列全部标签 / 批量改颜色），实现见 label-colors-ops.js
+    listLabels: (repo, opCtx) => listLabels(repo, opCtx || ctx),
+    setLabelColors: (repo, changes, opCtx) => setLabelColors(repo, changes, opCtx || ctx),
     setAssignees: (repo, key, assignees, opts, opCtx) => setAssignees(repo, key, assignees, opts, opCtx || ctx),
     setParent: (repo, key, parentKey, opts, opCtx) => setParent(repo, key, parentKey, opts, opCtx || ctx),
     setBlockedBy: (repo, key, blockers, opts, opCtx) => setBlockedBy(repo, key, blockers, opts, opCtx || ctx),
