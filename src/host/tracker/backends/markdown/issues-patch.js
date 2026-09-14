@@ -1,7 +1,7 @@
 // issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 190 行）。
 //
 // effort 维度（2026-09-09）：所有写路径按 (effort 范围, 编号) 定位文件，多命中即 conflict。
-import { parseMd } from './parse.js'
+import { parseMd, stripLabelDecoration } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
 import { classifyError } from '../../preflight.js'
@@ -63,7 +63,9 @@ export async function updateIssue(ctx,repo,key,patch){
       }
     }
     if(patch&&patch.labels!==undefined){
-      const names=Array.isArray(patch.labels)? patch.labels.map(l=> typeof l==='string'? l.trim() : (l&&l.name? String(l.name).trim():'' )).filter(Boolean) : []
+      // #634：写进去的标签名同样先剥掉外层成对引号/反引号——别人递进来的名字可能带着
+      // 照着文档代码写法抄下来的那层引号，落盘时必须是干净的标签名，否则这层脏写法会被写进票面。
+      const names=Array.isArray(patch.labels)? patch.labels.map(l=> typeof l==='string'? stripLabelDecoration(l) : (l&&l.name? stripLabelDecoration(l.name):'' )).filter(Boolean) : []
       const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
       txt=replaceOrInsertField(txt,'Labels',line);changed=true
     }
@@ -113,7 +115,8 @@ export async function setParentIssue(ctx,repo,key,parentKey){
 export async function setLabelsIssue(ctx,repo,key,labels){
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
-  const names=Array.isArray(labels)? labels.map(l=> typeof l==='string'? l.trim() : (l&&typeof l.name==='string'? l.name.trim():String(l).trim())).filter(Boolean) : []
+  // #634：与 patch.labels 同口径——落盘的标签名先剥掉外层成对引号/反引号
+  const names=Array.isArray(labels)? labels.map(l=> stripLabelDecoration(typeof l==='string'? l : (l&&typeof l.name==='string'? l.name:String(l)))).filter(Boolean) : []
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'

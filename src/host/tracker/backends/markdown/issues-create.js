@@ -5,7 +5,7 @@
 //   - 仓库只有一个 effort → 自动落它（单 effort 仓库用起来无感）；
 //   - 仓库有多个 effort 又没指定 → 返回 conflict 诚实失败，绝不猜（旧实现在所有 effort 之间取全局 max+1，
 //     与契约冲突，而且因为少了 getScratchRoot 的 import 从未生效）。
-import { parseMd, slugify } from './parse.js'
+import { parseMd, slugify, stripLabelDecoration } from './parse.js'
 import { readDir, statFile, exists } from './read.js'
 import { writeTextFile, ensureDir } from './write.js'
 import { issuesDir } from './path.js'
@@ -60,14 +60,16 @@ export async function createIssue(ctx,repo,input){
     const labelsInput = Array.isArray(input.labels) ? input.labels : (Array.isArray(input.Labels)? input.Labels : null)
     let labelsStr=''
     if(labelsInput && labelsInput.length){
+      // #634：落盘的标签名先剥掉外层成对引号/反引号（调用方递进来的名字可能带着照抄文档代码写法的那层）
       const names=labelsInput.map(l=>{
-        if(typeof l==='string') return l.trim()
-        if(l&&typeof l.name==='string') return l.name.trim()
+        if(typeof l==='string') return stripLabelDecoration(l)
+        if(l&&typeof l.name==='string') return stripLabelDecoration(l.name)
         return ''
       }).filter(Boolean)
       if(names.length) labelsStr=names.join(', ')
     } else if(typeof input.labels==='string' && input.labels.trim()){
-      labelsStr=String(input.labels).trim()
+      // 整行直接给字符串时，同样逐个剥净：这是「一次贴一整行」的用法，最容易把引号一起带进来
+      labelsStr=String(input.labels).split(/[,\uFF0C]+/).map(function(s){return stripLabelDecoration(s)}).filter(Boolean).join(', ')
     }
     const bodyPart=input.body?String(input.body).trim():''
     const title=String(input.title).trim()

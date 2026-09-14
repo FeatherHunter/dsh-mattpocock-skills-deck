@@ -170,6 +170,53 @@ console.log('\n== ⑤ 干净切断：不再读旧的调色盘表（#618） ==')
   check(roomFiles.indexOf('label-colors.js') >= 0 && roomFiles.indexOf('label-colors-ops.js') >= 0, '本地配色文件这条路的两个文件在位')
 }
 
+console.log('\n== ⑥ 标签名外层写法要剥净（#634：读这一层与写这一层） ==')
+{
+  // 现象（用户在本地 Markdown 工作区实测到的）：票面写成 Labels: `wayfinder:map`（照抄文档里的代码写法），
+  //   面板上那些标签就原样带着一对反引号，颜色也回落到灰——查色与身份判定都按名字精确匹配，带着反引号查不到。
+  // 这一节把「读这一层要剥」与「写这一层也要剥」两件事都钉住：只剥外层成对的引号/反引号，不动名字本身。
+  const cases = [
+    ['Labels: `wayfinder:map`', ['wayfinder:map'], '反引号包着一个标签'],
+    ['Labels: `wayfinder:task`, `wontfix`', ['wayfinder:task', 'wontfix'], '反引号包着两个标签'],
+    ['Labels: "bug"', ['bug'], '双引号包着'],
+    ["Labels: 'bug'", ['bug'], '单引号包着'],
+    ['Labels: `"bug"`', ['bug'], '两层包着'],
+    ['Labels: bug, needs-triage', ['bug', 'needs-triage'], '本来就没包（不许改动）'],
+    ["Labels: don't", ["don't"], '名字自带单引号但不包（不许切坏）'],
+    ['Labels: `bug`,', ['bug'], '包着、末尾还留一个空段（空段照旧丢弃）'],
+  ]
+  for (const [text, want, why] of cases) {
+    const got = parseMd(text + '\n\nStatus: ready-for-agent\n', { key: '01', parentKey: '00', isMap: false }).labels.map((l) => l.name)
+    check(JSON.stringify(got) === JSON.stringify(want), `${why} → ${JSON.stringify(want)}（实得 ${JSON.stringify(got)}）`)
+  }
+
+  // 写这一层：把带着引号的标签名交给 setLabelsIssue，落盘必须是干净的标签名。
+  const tmp6 = fs.mkdtempSync(path.join(os.tmpdir(), 'md-label-decoration-'))
+  const plat6 = {
+    path: path.posix,
+    fs: {
+      async resolve(p) { return p },
+      async readText(t) { return fs.readFileSync(t, 'utf8') },
+      async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
+      async lstat(t) { try { return fs.statSync(t) } catch { return null } },
+      async listDir(t) { try { return fs.readdirSync(t) } catch { return [] } },
+      async stat(t) { try { return fs.statSync(t) } catch { return null } },
+    },
+  }
+  const ctx6 = { platform: plat6, fs: plat6.fs, cwd: tmp6, get(name) { if (name === 'fs') return plat6.fs; return undefined } }
+  const repo6 = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' }
+  fs.mkdirSync(path.join(tmp6, '.scratch', 'demo'), { recursive: true })
+  fs.writeFileSync(path.join(tmp6, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\nLabels: `wayfinder:map`\n\n## Destination\n\nDemo\n', 'utf8')
+  const { setLabelsIssue } = await import('../src/host/tracker/backends/markdown/issues-patch.js')
+  const written = await setLabelsIssue(ctx6, repo6, '00', ['`wayfinder:map`', { name: '"needs-triage"' }])
+  const mapTxt = fs.readFileSync(path.join(tmp6, '.scratch', 'demo', 'map.md'), 'utf8')
+  check(/^Labels: wayfinder:map, needs-triage$/m.test(mapTxt), '写这一层：落盘的是干净标签名（实得 ' + (mapTxt.match(/^Labels:.*$/m) || ['(没找到 Labels 行)'])[0] + '）')
+  check(written.ok && JSON.stringify(written.data.labels.map((l) => l.name)) === JSON.stringify(['wayfinder:map', 'needs-triage']), '写这一层：回包的标签名也干净')
+  // 起了颜色就说明查色表又按名字命中了：内置默认色里 wayfinder:map 是 8b5cf6（带反引号时只会回落到灰 cccccc）
+  check(written.ok && written.data.labels[0].color === '8b5cf6', '修好之后按名字查到内置色（wayfinder:map → 8b5cf6，实得 ' + (written.ok ? written.data.labels[0].color : '(没写成)') + '）')
+  fs.rmSync(tmp6, { recursive: true, force: true })
+}
+
 if (failed || hFailed > 0) {
   console.log('\n存在失败 — verify-markdown-backend 未通过')
   process.exit(1)
