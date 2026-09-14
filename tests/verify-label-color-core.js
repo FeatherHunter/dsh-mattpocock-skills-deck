@@ -430,7 +430,7 @@ async function main() {
     const errLeaf = new Function(
       'moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows', 'navigator', 'console',
       strip('src/client/views/labels/labelColorErrors.js') +
-      '\nreturn { lcToDisplay: lcToDisplay, lcRowIncomplete: lcRowIncomplete, lcKindKey: lcKindKey, lcOutcomeRowOf: lcOutcomeRowOf, lcCopyAttemptOf: lcCopyAttemptOf, lcCopyFeedbackOf: lcCopyFeedbackOf, LC_PLACEHOLDER_COLOR: LC_PLACEHOLDER_COLOR }\n',
+      '\nreturn { lcToDisplay: lcToDisplay, lcRowIncomplete: lcRowIncomplete, lcKindKey: lcKindKey, lcOutcomeRowOf: lcOutcomeRowOf, lcCopyAttemptOf: lcCopyAttemptOf, lcCopyFeedbackOf: lcCopyFeedbackOf, lcLabelsOf: lcLabelsOf, lcSaveOutcome: lcSaveOutcome, lcPanelBackendOf: lcPanelBackendOf, LC_PLACEHOLDER_COLOR: LC_PLACEHOLDER_COLOR }\n',
     )(null, prompt.buildPalettePrompt, prompt.buildPaletteTable, colors.isColor, colors.normalizeColor, colors.pickChangedRows, undefined, { warn: function () {} })
 
     // 词条用真源那一份（src/client/kernel/locale-labels.js）：断言盯的是用户真正读到的那句话。
@@ -472,13 +472,16 @@ async function main() {
       { name: 'accessibility', color: '5c0783', description: '' },
       { name: 'bug', color: 'd73a4a', description: '' },
     ]
-    const mount = function (initialDraft, failure) {
+    const mount = function (initialDraft, failure, outcomeAfterSave) {
       hookNow = function () {
         const [draft, setDraft] = ReactMod.useState(initialDraft)
+        // 保存结果是**点保存之后才出现**的（#635 的自动关窗就是靠它出现的那一刻触发的），
+        // 所以这里把它做成一份状态：第三个参数给的那一段在点保存时被摆上去，一开始是空。
+        const [outcome, setOutcome] = ReactMod.useState(null)
         const changes = Object.keys(draft).map(function (n) { return { name: n, color: draft[n] } })
         const st = {
           phase: 'ready', rows: ROWS, backendId: 'markdown', loadError: null, draft: draft, changes: changes,
-          saving: false, outcome: null, reload: function () {}, save: function () {},
+          saving: false, outcome: outcome, reload: function () {}, save: function () { setOutcome(outcomeAfterSave || null) },
           setRowText: function (name, text) {
             setDraft(function (prev) { const next = Object.assign({}, prev); next[name] = text; return next })
           },
@@ -602,6 +605,126 @@ async function main() {
       unmount(viaExit)
     }
 
+    console.log('  #635 情形七：全部改成功时弹窗自己关掉；只要有一条没成功就留着')
+    {
+      const saveButton = function (h) { return h.querySelector('button[aria-label="' + L.zh['lc.save'] + '"]') }
+      const rowOf = function (name, ok, color) {
+        return ok
+          ? { name: name, ok: true, kind: '', message: '', color: color || '5c0783', missing: false }
+          : { name: name, ok: false, kind: 'parse', message: '这一行的色值不是六位十六进制', missing: false }
+      }
+      const FULL = { appliedCount: 1, failedCount: 0, rows: [rowOf('accessibility', true)] }
+      const SOME = { appliedCount: 1, failedCount: 1, rows: [rowOf('accessibility', true), rowOf('bug', false)] }
+      const NONE = { appliedCount: 0, failedCount: 1, rows: [rowOf('accessibility', false)] }
+
+      const mFull = mount(DRAFT, null, FULL)
+      const btn = saveButton(mFull.holder)
+      check(!!btn, '找得到底部那颗「保存」按钮')
+      check(mFull.calls.onClose === 0, '刚打开还没点保存：不关（这一段赌的是保存成功那一刻才关）')
+      click(btn)
+      check(mFull.calls.onClose === 1, '点了保存、一条一条全部成功：弹窗自己关（onClose 一次）')
+      unmount(mFull)
+
+      const mSome = mount(DRAFT, null, SOME)
+      click(saveButton(mSome.holder))
+      check(mSome.calls.onClose === 0, '部分成功：不关（弹窗里「哪几条没成、为什么」那几行得留给用户看）')
+      unmount(mSome)
+
+      const mNone = mount(DRAFT, null, NONE)
+      click(saveButton(mNone.holder))
+      check(mNone.calls.onClose === 0, '一条都没成：不关（同样的理由，这时最不能把弹窗收掉）')
+      unmount(mNone)
+
+      // 保存这一步整体失败（连逐条结果都没有）：outcome 的 appliedCount 是 0，按上面同一条判据不关。
+      const mWholeFail = mount(DRAFT, null, { appliedCount: 0, failedCount: 1, rows: [rowOf('accessibility', false)], wholeError: { kind: 'env', message: '宿主回话说这一步没能做完' } })
+      click(saveButton(mWholeFail.holder))
+      check(mWholeFail.calls.onClose === 0, '整体失败：不关')
+      unmount(mWholeFail)
+    }
+
+    console.log('  #635 情形八：真的状态机报给面板的是什么（这一节其余地方都是替身，这一段挂真钩子）')
+    {
+      // 为什么要有这一段：报给面板的东西决定面板当场显示什么颜色，而这一层只有真跑一遍才看得出
+      // 「用的是后端回包里的色值，还是用户填进格子的原文」。做法：把真 useLabelColors 挂进一个什么都不
+      // 渲染的探针组件（钩子要有 React 才跑得起来），宿主那两条电话用替身回话。
+      const HOOK_ROWS = [
+        { name: 'accessibility', color: '5c0783', description: '' },
+        { name: 'bug', color: 'd73a4a', description: '' },
+      ]
+      let hostReplies = {}
+      const hostNow = {
+        call: function (method) {
+          return Promise.resolve(hostReplies[method] || { ok: false, error: { kind: '', message: '替身没准备这个电话：' + method } })
+        },
+      }
+      const hookLeaf = new Function(
+        'React', 'host', 'log', 'dswsLogHash', 'dswsLogTrunc', 'storeOf', 'lcPanelBackendOf', 'lcLabelsOf', 'lcSaveOutcome', 'pickChangedRows',
+        strip('src/client/views/labels/useLabelColors.js') + '\nreturn { useLabelColors: useLabelColors }\n',
+      )(ReactMod, hostNow, function () {}, function () { return 'hash8' }, function (s) { return s }, storeOf,
+        errLeaf.lcPanelBackendOf, errLeaf.lcLabelsOf, errLeaf.lcSaveOutcome, colors.pickChangedRows).useLabelColors
+
+      let hookApi = null
+      let reports = []
+      const Probe = function (props) {
+        hookApi = hookLeaf(props.cwd, props.onSaved, props.sessionId)
+        return null
+      }
+      const mountProbe = async function () {
+        reports = []
+        const holderH = dom.window.document.createElement('div')
+        dom.window.document.body.appendChild(holderH)
+        const rootH = createRoot(holderH)
+        await act(async function () {
+          rootH.render(ReactMod.createElement(Probe, { cwd: '/ws', sessionId: 'selfcheck', onSaved: function (rows) { reports.push(rows) } }))
+        })
+        return { holder: holderH, root: rootH }
+      }
+      const unmountProbe = function (m) { act(function () { m.root.unmount() }); m.holder.remove() }
+
+      // 甲：一条改动、后端说改成功，回包里的色值是它自己的写法（大写、不带井号）
+      hostReplies = {
+        'wf.listLabels': { ok: true, backendId: 'markdown', labels: HOOK_ROWS },
+        'wf.setLabelColors': { ok: true, data: { applied: [{ name: 'bug', color: '0B7285' }], failed: [] } },
+      }
+      const mProbe = await mountProbe()
+      check(!!hookApi && hookApi.phase === 'ready' && hookApi.rows.length === 2, '真钩子把替身回的清单读成 ready（两行）')
+      await act(async function () { hookApi.setRowText('bug', '#0b7285') })
+      check(hookApi.changes.length === 1 && hookApi.changes[0].name === 'bug', '在那一行填了新色：待提交的改动正好一条')
+      await act(async function () { await hookApi.save() })
+      check(reports.length === 1, '保存成功后报给面板一次（实得 ' + reports.length + ' 次）')
+      check(reports.length === 1 && reports[0].length === 1 && reports[0][0].name === 'bug' && reports[0][0].color === '0B7285',
+        '报上去的是后端回包里的那条（用它自己的写法 0B7285，而不是用户填的 #0b7285）：' + JSON.stringify(reports[0]))
+
+      // 乙：两行都改、一行成功一行失败 → 只报成功的那一条
+      hostReplies = {
+        'wf.listLabels': { ok: true, backendId: 'markdown', labels: HOOK_ROWS },
+        'wf.setLabelColors': { ok: true, data: { applied: [{ name: 'bug', color: '0b7285' }], failed: [{ name: 'accessibility', reason: { kind: 'not-found', message: '配色文件里没有这一行' } }] } },
+      }
+      await act(async function () { hookApi.reload({}) })
+      // 两行各写一次、各等一次渲染：setRowText 是按「这一轮渲染时的那份草稿」改的，
+      // 同一个 tick 里连写两行只有最后一次算数（真实界面里两行是两次独立的输入事件，不会撞在一起）。
+      await act(async function () { hookApi.setRowText('bug', '#0b7285') })
+      await act(async function () { hookApi.setRowText('accessibility', '#5c0784') })
+      check(hookApi.changes.length === 2, '两行都填了新色：待提交的改动两条（实得 ' + hookApi.changes.length + '）')
+      const beforePartial = reports.length
+      await act(async function () { await hookApi.save() })
+      check(reports.length === beforePartial + 1, '部分成功也报一次（成功的那几条照样要当场显示）')
+      check(reports[reports.length - 1].length === 1 && reports[reports.length - 1][0].name === 'bug',
+        '报上去的只有真改成功的那一条（实得 ' + JSON.stringify(reports[reports.length - 1]) + '）')
+
+      // 丙：整体失败（连逐条结果都没有）→ 一条都不报
+      hostReplies = {
+        'wf.listLabels': { ok: true, backendId: 'markdown', labels: HOOK_ROWS },
+        'wf.setLabelColors': { ok: false, error: { kind: 'env', message: '这一步没能做完' } },
+      }
+      await act(async function () { hookApi.reload({}) })
+      await act(async function () { hookApi.setRowText('bug', '#0b7285') })
+      const beforeFail = reports.length
+      await act(async function () { await hookApi.save() })
+      check(reports.length === beforeFail, '一条都没成功：一条都不报（一条都没改，面板没有可改的颜色）')
+      unmountProbe(mProbe)
+    }
+
     console.log('  #631 的 D1：面板还在识别后端（待定）时，不摆那颗「去选定后端」的入口按钮')
     {
       // 这一段的形态：列表这一步以 conflict 档失败（后端返回的说明就是宿主 src/host/workspaceCwd.js 里那句
@@ -639,6 +762,65 @@ async function main() {
       check(!!goPickBtn(mUnknown.holder), '读不到面板状态时当作「不是待定」，照旧摆那颗入口按钮（不编一个待定出来）')
       unmount(mUnknown)
     }
+  }
+
+  // ---- 12) #635：保存成功后写进面板那份快照的颜色（纯函数；面板当场按新色显示靠的就是它）----
+  {
+    console.log('  #635 A：保存成功后写进面板快照的颜色，以及那一笔记录')
+    const stripLeaf = function (rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/^(\s*)export\s+/gm, '$1') }
+    const patch = new Function(
+      'normalizeColor',
+      stripLeaf('src/client/views/labels/labelColorPatch.js') +
+      '\nreturn { lcSavedColorMapOf: lcSavedColorMapOf, lcPatchSnapshotColors: lcPatchSnapshotColors, lcRememberSavedColors: lcRememberSavedColors, lcPanelSavedColors: lcPanelSavedColors, lcApplySavedColorsOnInstall: lcApplySavedColorsOnInstall }\n',
+    )(colors.normalizeColor)
+
+    // 拿来的一律归一成不带井号的小写六位；认不出的丢掉
+    const map = patch.lcSavedColorMapOf([
+      { name: 'bug', color: '#0B7285' },
+      { name: 'accessibility', color: '  #5C0783  ' },
+      { name: 'oops', color: '12345' },
+      { name: '', color: 'ffffff' },
+      null,
+    ])
+    check(map.bug === '0b7285' && map.accessibility === '5c0783', '带井号、大写、前后空格都归一成不带井号的小写六位（实得 ' + JSON.stringify(map) + '）')
+    check(!('oops' in map) && !('' in map), '六位以外的色值与没有名字的条目一律不认（写进面板的必须是后端确认过的好色值）')
+
+    // 同一个标签在快照里的每个落脚点都要写到，否则面板上一半新色一半旧色
+    const makeSnap = function () {
+      return {
+        generatedMs: 1000,
+        labels: [{ name: 'bug', color: 'd73a4a' }, { name: 'accessibility', color: '5c0783' }],
+        deck: { labels: [{ name: 'bug', color: 'd73a4a' }] },
+        maps: [{ key: '610', labels: [{ name: 'bug', color: 'd73a4a' }], tickets: [{ key: '1', labels: [{ name: 'bug', color: 'd73a4a' }, { name: 'needs-triage', color: 'fbca04' }] }] }],
+        issues: [{ key: '9', labels: [{ name: 'bug', color: 'd73a4a' }] }],
+      }
+    }
+    const snap = makeSnap()
+    const places = patch.lcPatchSnapshotColors(snap, { bug: '0b7285' })
+    check(places === 5, '同一个标签在快照里的五个落脚点全写到了（标签表 / 派生色板 / 地图容器 / 地图下的票 / 没挂图的票）：实得 ' + places)
+    check(snap.labels[0].color === '0b7285' && snap.deck.labels[0].color === '0b7285' &&
+      snap.maps[0].labels[0].color === '0b7285' && snap.maps[0].tickets[0].labels[0].color === '0b7285' && snap.issues[0].labels[0].color === '0b7285',
+      '五个落脚点拿到的都是新色')
+    check(snap.labels[1].color === '5c0783' && snap.maps[0].tickets[0].labels[1].color === 'fbca04',
+      '没在这次改动里的标签，颜色一处都没动')
+    check(patch.lcPatchSnapshotColors(snap, { bug: '0b7285' }) === 0, '同样的颜色再写一遍：一处都不算改动（幂等，不会让面板白重画）')
+
+    // 那一笔记录：比它旧的快照要补，比它新的快照让它作废
+    const st = { snapshot: makeSnap() }
+    check(patch.lcPanelSavedColors(st, [{ name: 'bug', color: '#0B7285' }], 2000) === true,
+      '面板收到「保存成功」：记一笔并当场改当前那份快照（返回真 = 要重画）')
+    check(st.lcSavedColors && st.lcSavedColors.colors.bug === '0b7285' && st.lcSavedColors.at === 2000,
+      '记录里存的是后端确认的色值与那一刻（实得 ' + JSON.stringify(st.lcSavedColors) + '）')
+    check(st.snapshot.labels[0].color === '0b7285', '当前那份快照当场就是新色（面板不必等那次二十多秒的全量重拉）')
+
+    const stale = { generatedMs: 1000, labels: [{ name: 'bug', color: 'd73a4a' }], maps: [], issues: [] }
+    check(patch.lcApplySavedColorsOnInstall(st, stale) === true, '保存前发出去、保存后才回来的那份旧快照：装进面板时按记录补色')
+    check(stale.labels[0].color === '0b7285', '补的就是后端确认的那个色（不让面板倒回旧色）')
+    check(!!st.lcSavedColors, '补完记录还留着（后面可能还有更旧的快照回来）')
+
+    const fresh = { generatedMs: 3000, labels: [{ name: 'bug', color: '0b7285' }], maps: [], issues: [] }
+    check(patch.lcApplySavedColorsOnInstall(st, fresh) === false, '保存之后生成的那份快照：不补色（它自己就知道真相）')
+    check(!st.lcSavedColors, '记录当场作废，不再往后盖（免得盖掉后来别人又改过的颜色）')
   }
 
   console.log(failed ? `\n存在失败（共 ${total} 项）` : `\n全部通过 — 配色核心纯函数门禁生效（${total} 项）`)

@@ -74,6 +74,8 @@ const ALLOWED = {
   // #618 新增两条（附录 1.4 / 1.5 节）：本地配色文件的写入记常驻、读取记按需。
   'labelColors.write': ['cwdHash', 'count', 'ok', 'reason', 'via'],
   'labelColors.read': ['cwdHash', 'present', 'count', 'ok', 'reason'],
+  // #635 新增一条按需事件（附录 1.5 节）：保存成功后写进面板那份快照的颜色记录，只记工作区键散列、枚举与条数。
+  'labelColors.panelPatch': ['cwdHash', 'kind', 'count'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],

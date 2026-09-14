@@ -311,6 +311,7 @@ const LEAF_MODULES = [
   { id: 'switchConfirmModal', file: 'src/client/views/shared/SwitchConfirmModal.js' },
   // #621 标签配色的五个叶子（纯函数两份 + 状态机一份 + 界面三份；按拼接次序登记，次序即依赖次序）
   { id: 'labelColorErrors', file: 'src/client/views/labels/labelColorErrors.js' },
+  { id: 'labelColorPatch', file: 'src/client/views/labels/labelColorPatch.js' }, // #635 新增：保存成功后把后端确认的颜色写进面板那份快照（面板当场按新色显示，不等那次全量重拉）
   { id: 'useLabelColors', file: 'src/client/views/labels/useLabelColors.js' },
   { id: 'labelColorRow', file: 'src/client/views/labels/LabelColorRow.js' },
   { id: 'labelColorDialog', file: 'src/client/views/labels/LabelColorDialog.js' },

@@ -204,7 +204,15 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
           // #621 标签配色入口：16 像素见方的小图标（与左边那颗切换后端按钮同规格），点开改色弹窗；
           //   头部自适应折叠只动标题与仓库名，这颗按钮定宽、不参与裁切，窄面板下也在。
           //   会话号一起传进去：宿主靠它算「写这个工作区」要用的沙箱政策（#624 的研究结论）。
-          h(LabelColorEntry, { key: 'labelcolors', cwd: s.cwd, sessionId: sid, narrow: narrow, onSaved: function () { try { loadSnapshot(s, true, true) } catch (e) {} } }),
+          h(LabelColorEntry, {
+            key: 'labelcolors', cwd: s.cwd, sessionId: sid, narrow: narrow,
+            // #635：保存成功这一刻就把后端确认过的颜色写进面板这份快照并重画，不再等下面那次全量重拉——
+            // 那次在 GitHub 工作区上要二十多秒，等它等于让用户看着旧颜色以为没刷新。
+            onSaved: function (applied) {
+              try { if (lcPanelSavedColors(s, applied, Date.now())) emit(s) } catch (e) { /* 当场改色失败不影响这次保存的结果 */ }
+              try { loadSnapshot(s, true, true) } catch (e2) { /* 后台那次全量重拉失败也不影响已经改好的颜色 */ }
+            },
+          }),
           h('span', { style: { flex: 1 } }),
           h(Tip, { content: tr('panel.closeTitle') }, h('button', { className: 'dsws-btn ghost', 'aria-label': tr('panel.closeTitle'), onClick: closeDock, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 6px', fontSize: 11 } }, Ic({ n: 'x', size: 12 }))),
         ]),

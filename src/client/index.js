@@ -194,9 +194,9 @@ export default {
     // ==== leaf:switchConfirmModal (spliced by build) ====
 
     // #621 标签配色：面板头部小图标打开一个弹窗改标签颜色。
-    // 五份按依赖次序拼：先纯函数（错误档位到人话、电话回包取形状、显示与契约的色值换算），
-    // 再状态机钩子，最后三份界面（一行取色控件、弹窗本体、头部入口按钮）。
-    // ==== leaf:labelColorErrors (spliced by build) ==== // ==== leaf:useLabelColors (spliced by build) ====
+    // 六份按依赖次序拼：先纯函数（错误档位到人话、电话回包取形状、显示与契约的色值换算、保存成功后
+    // 把确认过的颜色写进面板快照），再状态机钩子，最后三份界面（一行取色控件、弹窗本体、头部入口按钮）。
+    // ==== leaf:labelColorErrors (spliced by build) ==== // ==== leaf:labelColorPatch (spliced by build) ==== // ==== leaf:useLabelColors (spliced by build) ====
     // ==== leaf:labelColorRow (spliced by build) ==== // ==== leaf:labelColorDialog (spliced by build) ==== // ==== leaf:labelColorEntry (spliced by build) ====
 
     // ==== leaf:seg (spliced by build) ====

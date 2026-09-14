@@ -92,6 +92,15 @@ export const LabelColorDialog = (props) => {
   React.useEffect(function () { setCloseArmed(false) }, [lc.draft, lc.changes.length])
   const closeArmedNow = closeArmed && lc.changes.length > 0
 
+  // 全部改成功就自己关掉这个弹窗（#635）：这时已经没有要用户看的东西了。
+  // 只要有一条没成功就不关——那时候弹窗里「哪几条没成、为什么」那几行是用户唯一能看到的东西。
+  // 这一步不走下面 askClose 的二次确认：改成功的行已经从草稿里删掉了，没成功的行才留在草稿里，
+  // 而那种情形按上面的判据根本到不了这里。
+  React.useEffect(function () {
+    if (!lc.outcome || lc.outcome.appliedCount <= 0 || lc.outcome.failedCount > 0) return
+    if (typeof onClose === 'function') onClose()
+  }, [lc.outcome])
+
   // 三条关闭路径都走这一个函数：底部「退出」、右上角的 ×、点弹窗外的空白处。
   // 三处各写一份判据迟早漏掉一处，那正是 #632 要修的毛病——另外两条路原样把没保存的改动丢掉了。
   // 这里的判据只有「有没有未保存的改动」这一条，不看是不是正在保存，与 #630 那颗按钮原来的行为逐字一致：

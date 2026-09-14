@@ -10,9 +10,11 @@
  *       界面只是当场提示写法不对（见 labelColorErrors 的 lcToDisplay 与 LabelColorRow 的 incomplete）。
  *   三、保存：一次批量提交，入参只含**真正变了的行**——用配色核心的 pickChangedRows 挑
  *       （它内部用 colorsDiffer 按「两边都空不算变」的口径比），界面不自己写比较。
- *   四、保存后必须重新取一次真实清单刷新（`load({ keepPhase: true, keepOutcome: true })`），
- *       把界面上显示的颜色换成后端刚返回的值，
- *       不做乐观刷新：乐观刷新会在部分失败时显示一个并不存在的颜色。
+ *   四、保存成功后做两件事：一是把「后端刚确认的那几条」（`[{name, color}]`）报给面板那个回调，
+ *       面板当场按新色显示（#635：不让面板等那次二十多秒的全量重拉）；二是重新取一次真实清单刷新
+ *       （`load({ keepPhase: true, keepOutcome: true })`），把界面上显示的颜色换成后端刚返回的值。
+ *       两处用的都是**后端确认过**的色值，不是用户填进格子的原文，所以这不算乐观刷新
+ *       （乐观刷新指还没拿到后端答复就先按用户输入改界面）。
  *       失败的行保留草稿，用户不用重打一遍。
  *
  * 会话是不是只读、后端做不做这个操作，界面都不提前猜：只读会话采用做法 B（允许点保存，
@@ -162,11 +164,16 @@ export const useLabelColors = function (cwd, onSaved, sessionId) {
       })
       setOutcome(result)
       setSaving(false)
+      // 面板那一侧当场按新颜色显示（#635）：把后端刚确认的这几行报上去，不让它等下面那次全量重拉。
+      // 报的是「标签名 + 后端确认的最终色」，不是用户填进格子的原文（谁对由后端裁决）。
+      // 面板拿到之后会把它写进面板那份快照（见 views/labels/labelColorPatch.js），并照旧在后台重拉一次。
+      const appliedRows = []
+      for (let i = 0; i < result.rows.length; i++) if (result.rows[i].ok) appliedRows.push({ name: result.rows[i].name, color: result.rows[i].color })
+      if (appliedRows.length && typeof onSaved === 'function') { try { onSaved(appliedRows) } catch (e) { /* 面板当场改色失败不影响这次保存的结果 */ } }
       // 保存成功后重新取一次真实清单：界面显示的颜色一律以后端刚返回的这份为准。
-      return load({ keepPhase: true, keepOutcome: true }).then(function () {
-        if (result.appliedCount > 0 && typeof onSaved === 'function') { try { onSaved() } catch (e) { /* 刷新失败不影响这次保存的结果 */ } }
-        return result
-      })
+      // 全部成功时弹窗紧接着会自己关掉（判据与关法见 LabelColorDialog.js），这一次重拉的结果没有人再看；
+      // 仍然照拉，是因为这一层不该去猜上面关不关窗。
+      return load({ keepPhase: true, keepOutcome: true }).then(function () { return result })
     }).catch(function (e) {
       logCall('wf.setLabelColors', t0, null, e)
       if (!liveRef.current) return null

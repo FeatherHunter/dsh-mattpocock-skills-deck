@@ -251,6 +251,10 @@
             if (_df.removed.length) flash(st, tr('panel.diffRemoved', { n: _df.removed.length }), 'info')
             scheduleFlashClear(st)
             st.snapshot = snap
+            // #635：这份快照如果是「保存前就发出去、保存后才回来」的那一次刷新拿回来的，它不知道刚改过的
+            // 标签颜色，装进来就会把面板倒回旧色。装进来之后先按那次保存确认过的色值补一遍，
+            // 补的规则与记录都住在 views/labels/labelColorPatch.js（比那份记录旧才补，新的就作废记录）。
+            try { if (typeof lcApplySavedColorsOnInstall === 'function') lcApplySavedColorsOnInstall(st, st.snapshot) } catch (eLC) {}
             st.snapMode = 'real'
             st.snapError = null
             // #155：同步 selection/repository 镜像
