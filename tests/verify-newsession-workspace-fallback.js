@@ -176,7 +176,38 @@ async function testFile(file) {
       const wid3 = await ensure2(null)
       check(wid3===null, file + ' ensureWorkspaceId null cwd → null')
     }
-    // 测试 6：snapshot 多形态兼容（items 数组、workspaces 数组、snap.byId 空）
+    // 测试 7：按编号存的对象形状与更多路径字段（真机曾因只取 snap.items 导致新会话不选中工作区，见 2026-09-14 回归）
+    {
+      const workspacesStub = {
+        list: { getSnapshot: () => ({ byId: { ws1: { workspaceId: 'ws1', path: 'D:/my-app' } } }) },
+        create: async () => ({ workspaceId: 'ws-created-wrong' })
+      }
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const ensure = fn(workspacesStub, keyOf)
+      const wid = await ensure('D:/my-app')
+      check(wid === 'ws1', file + ' ensureWorkspaceId 兼容按编号存的对象形状（取对象里每一项）')
+    }
+    {
+      const workspacesStub = {
+        list: { getSnapshot: () => ({ byId: {}, workspaces: [{ path: 'D:/my-app', workspaceId: 'ws-multi' }] }) },
+        create: async () => ({ workspaceId: 'ws-created-wrong' })
+      }
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const ensure = fn(workspacesStub, keyOf)
+      const wid = await ensure('D:/my-app')
+      check(wid === 'ws-multi', file + ' ensureWorkspaceId 对象与数组共存时两边都收（不互斥丢弃）')
+    }
+    {
+      const workspacesStub = {
+        list: { getSnapshot: () => ({ items: [{ dir: 'D:/my-app', workspaceId: 'ws-dir' }] }) },
+        create: async () => ({ workspaceId: 'ws-created-wrong' })
+      }
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const ensure = fn(workspacesStub, keyOf)
+      const wid = await ensure('D:/my-app')
+      check(wid === 'ws-dir', file + ' ensureWorkspaceId 认 dir 等更多路径字段（与设置页总览同口径）')
+    }
+    // 测试 6：快照多种形状兼容（items 数组、workspaces 数组）
     {
       const workspacesStub = {
         list: { getSnapshot: () => ({ workspaces: [{ path: 'D:/my-app', workspaceId: 'ws-multi' }] }) },

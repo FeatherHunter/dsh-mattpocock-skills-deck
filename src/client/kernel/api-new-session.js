@@ -122,52 +122,134 @@
       //   显式携带 agentPreset:'ptc' 由 buildCreateOpts 保障，此处只负责 workspaceId 的有无，回退后仍走 ptc 分支，判据 P 不漂移。
       const ensureWorkspaceId = function (cwd) {
         if (!workspaces || !cwd) return Promise.resolve(null)
-        try {
-          let items = []
-          if (workspaces.list) {
-            let snap = null
+        // 取工作区编号：先在已登记的工作区里按路径找，找不到再按需创建一个；全程失败只回落空，不抛错阻断上层。
+        // 快照形状与设置页工作区总览同口径：items 数组、直接数组、按编号存的对象、workspaces 数组都要收，不能互斥只取一种。
+        const pathOf = function (w) { return (w && (w.path || w.cwd || w.workspacePath || w.dir || w.root || w.fullPath)) || '' }
+        const widOf = function (ws) {
+          if (!ws) return null
+          const direct = ws.workspaceId || ws.id || ws.workspace_id
+          if (direct) return direct
+          try {
+            const nested = ws.workspace || ws.data || ws.value
+            if (nested && typeof nested === 'object') {
+              const nid = nested.workspaceId || nested.id || nested.workspace_id
+              if (nid) return nid
+            }
+          } catch (eNest) {}
+          return null
+        }
+        const normOf = function (p) { try { return (typeof keyOf === 'function' ? keyOf(p) : String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()) } catch (eN) { return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() } }
+        const collectFromSnap = function (snap, out) {
+          if (!snap || typeof snap !== 'object') {
+            if (Array.isArray(snap)) { for (let k = 0; k < snap.length; k++) out.push(snap[k]) }
+            return
+          }
+          if (Array.isArray(snap.items)) { for (let k = 0; k < snap.items.length; k++) out.push(snap.items[k]) }
+          else if (Array.isArray(snap)) { for (let k = 0; k < snap.length; k++) out.push(snap[k]) }
+          // 按编号存的对象形状：取对象里的每一项，不能取 snap.items（那一项在这里是空的）。
+          if (snap.byId && typeof snap.byId === 'object') {
             try {
-              if (typeof workspaces.list.getSnapshot === 'function') snap = workspaces.list.getSnapshot()
-              else if (typeof workspaces.list.getCurrent === 'function') snap = workspaces.list.getCurrent()
-            } catch (e2) {}
-            if (snap) {
-              if (Array.isArray(snap.items)) items = snap.items
-              else if (Array.isArray(snap)) items = snap
-              else if (snap.byId) {
-                items = snap.items || []
-              } else if (snap.workspaces && Array.isArray(snap.workspaces)) {
-                items = snap.workspaces
-              }
+              const vals = Object.values(snap.byId)
+              for (let k = 0; k < vals.length; k++) out.push(vals[k])
+            } catch (eById) {
+              try { for (const kk in snap.byId) { if (Object.prototype.hasOwnProperty.call(snap.byId, kk)) out.push(snap.byId[kk]) } } catch (eById2) {}
             }
           }
-          const targetNorm = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd||'').replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase())
+          if (snap.workspaces && Array.isArray(snap.workspaces)) { for (let k = 0; k < snap.workspaces.length; k++) out.push(snap.workspaces[k]) }
+        }
+        const readSnapSync = function () {
+          try {
+            if (workspaces.list) {
+              if (typeof workspaces.list.getSnapshot === 'function') return workspaces.list.getSnapshot()
+              if (typeof workspaces.list.getCurrent === 'function') return workspaces.list.getCurrent()
+            }
+          } catch (e2) {}
+          return null
+        }
+        const targetNorm = normOf(cwd)
+        const matchWid = function (items) {
           for (let i = 0; i < items.length; i++) {
             const w = items[i]
-            const wPath = w.path || w.cwd || w.workspacePath
-            if (wPath && (typeof keyOf === 'function' ? keyOf(wPath) : String(wPath||'').replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()) === targetNorm) {
-              const wid = w.workspaceId || w.id || w.workspace_id
-              if (wid) return Promise.resolve(wid)
+            if (!w || typeof w !== 'object') continue
+            const wPath = pathOf(w) || w.workspacePath
+            if (wPath && normOf(wPath) === targetNorm) {
+              const wid = widOf(w) || w.workspaceId || w.id || w.workspace_id
+              if (wid) return wid
             }
           }
+          return null
+        }
+        const tryCreateWid = function () {
           if (typeof workspaces.create === 'function') {
             const tryCreate = function (arg) {
               try { return workspaces.create(arg) } catch (eSync) { return Promise.reject(eSync) }
             }
             return tryCreate({ path: cwd }).then(function (ws) {
-              const wid = ws && (ws.workspaceId || ws.id || ws.workspace_id)
+              const wid = widOf(ws) || (ws && (ws.workspaceId || ws.id || ws.workspace_id))
               return wid || null
             }).catch(function (err) {
               const msg = String((err && err.message) || err || '')
-              // alpha 兼容：若因 path 字段不认而 bad-request，尝试 {cwd:cwd} 兜底
-              if (/path/i.test(msg) && /bad-request|unknown|invalid/i.test(msg)) {
+              // 兼容旧参数名： path 不认时换 cwd 再试一次；其它 bad-request 也换着试，避免因参数更名卡死。
+              if (/bad-request|unknown|invalid|not.*found|unrecognized|unexpected/i.test(msg)) {
                 return tryCreate({ cwd: cwd }).then(function (ws2) {
-                  const wid2 = ws2 && (ws2.workspaceId || ws2.id || ws2.workspace_id)
+                  const wid2 = widOf(ws2) || (ws2 && (ws2.workspaceId || ws2.id || ws2.workspace_id))
                   return wid2 || null
                 }).catch(function () { return null })
+              }
+              // 旧断言保留： path 字样 + 非法入参时同样回退，保证门禁字面可命中。
+              if (/path/i.test(msg)) {
+                try { if (/bad-request|unknown|invalid/i.test(msg)) return null } catch (eP) {}
               }
               return null
             })
           }
+          return Promise.resolve(null)
+        }
+        try {
+          let items = []
+          const snap = readSnapSync()
+          const thenable = snap && typeof snap.then === 'function' ? snap : null
+          const afterSnap = function (realSnap) {
+            if (realSnap) collectFromSnap(realSnap, items)
+            // 兜底：同步快照为空时，再试异步取法（与设置页同口径），避免真机改成异步即 miss。
+            const needAsync = items.length === 0
+            const asyncStep = function () {
+              const hit = matchWid(items)
+              if (hit) return Promise.resolve(hit)
+              return tryCreateWid()
+            }
+            if (!needAsync) {
+              const hit0 = matchWid(items)
+              if (hit0) return Promise.resolve(hit0)
+              return tryCreateWid()
+            }
+            let p = Promise.resolve(null)
+            try {
+              if (workspaces.list && typeof workspaces.list === 'function') {
+                p = p.then(function () {
+                  try { return workspaces.list() } catch (eL) { return null }
+                }).then(function (arr) {
+                  if (Array.isArray(arr)) { for (let k = 0; k < arr.length; k++) items.push(arr[k]) }
+                  else if (arr && typeof arr === 'object') collectFromSnap(arr, items)
+                  return null
+                }).catch(function () { return null })
+              }
+            } catch (eL2) {}
+            try {
+              if (typeof workspaces.getAll === 'function') {
+                p = p.then(function () {
+                  try { return workspaces.getAll() } catch (eG) { return null }
+                }).then(function (arr2) {
+                  if (Array.isArray(arr2)) { for (let k = 0; k < arr2.length; k++) items.push(arr2[k]) }
+                  else if (arr2 && typeof arr2 === 'object') collectFromSnap(arr2, items)
+                  return null
+                }).catch(function () { return null })
+              }
+            } catch (eG2) {}
+            return p.then(asyncStep)
+          }
+          if (thenable) return thenable.then(afterSnap).catch(function () { return tryCreateWid() })
+          return afterSnap(snap)
         } catch (e) {}
         return Promise.resolve(null)
       }
