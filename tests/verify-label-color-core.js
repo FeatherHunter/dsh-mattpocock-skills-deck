@@ -456,16 +456,25 @@ async function main() {
       strip('src/client/views/labels/LabelColorRow.js') + '\nreturn { LabelColorRow: LabelColorRow }\n',
     )(ReactMod, DswsCtx, tr, Tip, colors.isColor, errLeaf.lcToDisplay, errLeaf.lcRowIncomplete, errLeaf.lcKindKey, errLeaf.LC_PLACEHOLDER_COLOR).LabelColorRow
 
+    // #637：弹窗标题那只图标的颜色走新叶子 labelColorPalette.js（真函数，与第 13 节同一份）。
+    const palLeaf = new Function(
+      'normalizeColor',
+      strip('src/client/views/labels/labelColorPalette.js') +
+      '\nreturn { lcEntryPaletteOf: lcEntryPaletteOf, LC_ENTRY_PALETTE_BODY: LC_ENTRY_PALETTE_BODY }\n',
+    )(colors.normalizeColor)
+
     // 状态机替身每次挂载换一份，所以经这一层转一下（组件拿到的 useLabelColors 始终是同一个函数）。
     let hookNow = null
     const DialogComp = new Function(
       'React', 'DswsCtx', 'useLabelColors', 'tr', 'Tip', 'Ic', 'timer', 'storeOf', 'lcToDisplay', 'lcRowIncomplete',
       'lcKindKey', 'lcOutcomeRowOf', 'lcCopyAttemptOf', 'lcCopyFeedbackOf', 'lcWriteClipboard', 'LabelColorRow',
+      'lcEntryPaletteOf', 'LC_ENTRY_PALETTE_BODY',
       strip('src/client/views/labels/LabelColorDialog.js') + '\nreturn { LabelColorDialog: LabelColorDialog }\n',
     )(
       ReactMod, DswsCtx, function () { return hookNow() }, tr, Tip, Ic, timer, storeOf, errLeaf.lcToDisplay,
       errLeaf.lcRowIncomplete, errLeaf.lcKindKey, errLeaf.lcOutcomeRowOf, errLeaf.lcCopyAttemptOf,
       errLeaf.lcCopyFeedbackOf, function () { return Promise.resolve(false) }, RowComp,
+      palLeaf.lcEntryPaletteOf, palLeaf.LC_ENTRY_PALETTE_BODY,
     ).LabelColorDialog
 
     const ROWS = [
@@ -821,6 +830,94 @@ async function main() {
     const fresh = { generatedMs: 3000, labels: [{ name: 'bug', color: '0b7285' }], maps: [], issues: [] }
     check(patch.lcApplySavedColorsOnInstall(st, fresh) === false, '保存之后生成的那份快照：不补色（它自己就知道真相）')
     check(!st.lcSavedColors, '记录当场作废，不再往后盖（免得盖掉后来别人又改过的颜色）')
+  }
+
+  // ---- 13) #637：入口图标的颜色（四个 wayfinder 标签的真实颜色，缺哪个哪个回默认色）----
+  // 负责人定的三件事：① 盘身也要上色（暖木色）；② 按钮尺寸形状一个字不动，只上色；
+  // ③ 四颗颜料点取 wayfinder:map / research / prototype / task 四个标签的真实颜色，
+  // 异常、不存在等任何特殊情况用默认色兜底。钉三处：纯函数给的颜色对不对、图标用不用传进来的颜色、
+  // 两处调用点（入口按钮与弹窗标题）传没传同一套颜色。
+  {
+    console.log('  #637：入口图标的颜色（真实颜色加默认兜底）')
+    const palSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/labelColorPalette.js'), 'utf8')
+      .replace(/^(\s*)export\s+/gm, '$1') +
+      '\nreturn { LC_ENTRY_PALETTE_SLOTS: LC_ENTRY_PALETTE_SLOTS, LC_ENTRY_PALETTE_DEFAULTS: LC_ENTRY_PALETTE_DEFAULTS, LC_ENTRY_PALETTE_BODY: LC_ENTRY_PALETTE_BODY, lcEntryPaletteOf: lcEntryPaletteOf }\n'
+    const pal = new Function('normalizeColor', palSrc)(colors.normalizeColor)
+
+    // 槽位与默认值逐字钉死：顺序即图标上四个圆点的次序（左下、左上、右上、右下），改一个字图标就变样
+    check(JSON.stringify(pal.LC_ENTRY_PALETTE_SLOTS) === JSON.stringify(['wayfinder:map', 'wayfinder:research', 'wayfinder:prototype', 'wayfinder:task']),
+      '四个槽位就是负责人点的四个标签，顺序即圆点次序（实得 ' + JSON.stringify(pal.LC_ENTRY_PALETTE_SLOTS) + '）')
+    check(JSON.stringify(pal.LC_ENTRY_PALETTE_DEFAULTS) === JSON.stringify(['light-dark(#d73a4a,#f87171)', 'light-dark(#bf8700,#e3b341)', 'light-dark(#1a7f37,#3fb950)', 'light-dark(#0969da,#58a6ff)']),
+      '四个默认色是深浅两档（实得 ' + JSON.stringify(pal.LC_ENTRY_PALETTE_DEFAULTS) + '）')
+    check(pal.LC_ENTRY_PALETTE_BODY.fill === 'light-dark(#e8c98f,#c9a063)' && pal.LC_ENTRY_PALETTE_BODY.stroke === 'light-dark(#a8763c,#e0bd86)',
+      '盘身是暖木色填充加深一档描边（实得 ' + JSON.stringify(pal.LC_ENTRY_PALETTE_BODY) + '）')
+
+    // 四个标签都在：原样显示，归一成带井号的小写六位；清单里多余的标签不理
+    const full = pal.lcEntryPaletteOf([
+      { name: 'wayfinder:map', color: '8b5cf6' },
+      { name: 'wayfinder:research', color: '#0EA5E9' },
+      { name: 'wayfinder:prototype', color: '  f59e0b  ' },
+      { name: 'wayfinder:task', color: '10b981' },
+      { name: 'bug', color: 'd73a4a' },
+    ])
+    check(JSON.stringify(full) === JSON.stringify(['#8b5cf6', '#0ea5e9', '#f59e0b', '#10b981']),
+      '四个标签都在时取真实颜色（带井号大写、前后空格都归一；多余的标签不理；实得 ' + JSON.stringify(full) + '）')
+
+    // 缺席、空色、错色：只那个槽位回默认，其余不动
+    const partial = pal.lcEntryPaletteOf([
+      { name: 'wayfinder:map', color: '' },
+      { name: 'wayfinder:research', color: 'zzzzzz' },
+      { name: 'wayfinder:task', color: '10b981' },
+    ])
+    check(partial[0] === pal.LC_ENTRY_PALETTE_DEFAULTS[0] && partial[1] === pal.LC_ENTRY_PALETTE_DEFAULTS[1] &&
+      partial[2] === pal.LC_ENTRY_PALETTE_DEFAULTS[2] && partial[3] === '#10b981',
+      '空色、错色与整个标签缺席都只让那个槽位回默认（实得 ' + JSON.stringify(partial) + '）')
+
+    // 清单本身拿不到：四个全是默认色（入口按钮挂载时、取失败时就是这个样子）
+    for (const bad of [null, undefined, 'nope', {}, 42]) {
+      const got = pal.lcEntryPaletteOf(bad)
+      check(JSON.stringify(got) === JSON.stringify(pal.LC_ENTRY_PALETTE_DEFAULTS),
+        '清单是 ' + JSON.stringify(bad) + ' 时四个全是默认色（实得 ' + JSON.stringify(got) + '）')
+    }
+    // 同名出现两次：以第一次为准（标签名在后端是唯一的，真给了重复的不值得再定一条规则）
+    const dup = pal.lcEntryPaletteOf([
+      { name: 'wayfinder:map', color: '8b5cf6' },
+      { name: 'wayfinder:map', color: 'ff0000' },
+    ])
+    check(dup[0] === '#8b5cf6', '同名标签出现两次以第一次为准（实得 ' + JSON.stringify(dup) + '）')
+    // 形状不对的颜色一律回默认：三位、八位、非字符串
+    const odd = pal.lcEntryPaletteOf([
+      { name: 'wayfinder:map', color: 'f00' },
+      { name: 'wayfinder:research', color: '8b5cf6ff' },
+      { name: 'wayfinder:prototype', color: 123456 },
+      { name: 'wayfinder:task', color: null },
+    ])
+    check(odd[0] === pal.LC_ENTRY_PALETTE_DEFAULTS[0] && odd[1] === pal.LC_ENTRY_PALETTE_DEFAULTS[1] &&
+      odd[2] === pal.LC_ENTRY_PALETTE_DEFAULTS[2] && odd[3] === pal.LC_ENTRY_PALETTE_DEFAULTS[3],
+      '三位、八位、非字符串颜色一律回默认（实得 ' + JSON.stringify(odd) + '）')
+
+    // 图标用传进来的颜色，不自己定：盘身取 bodyFill / bodyStroke，四点取 colors[0..3]；
+    // 没传时退回以前的样子（盘身不填、四点取当前文字色），图标在任何调用下都画得出来。
+    const iconsSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/icons.js'), 'utf8')
+    const palBranch = iconsSrc.slice(iconsSrc.indexOf("case 'palette'"), iconsSrc.indexOf('default:'))
+    check(/fill:\s*pDot\(0\)/.test(palBranch) && /fill:\s*pDot\(1\)/.test(palBranch) &&
+      /fill:\s*pDot\(2\)/.test(palBranch) && /fill:\s*pDot\(3\)/.test(palBranch),
+      '调色盘四个圆点的填充色取传进来的 colors[0..3]')
+    check(!/fill:\s*'currentColor'/.test(palBranch), '调色盘分支里不再有写死的灰色圆点（整只上色，不留灰）')
+    check(/fill:\s*pFill/.test(palBranch) && /stroke:\s*pStroke/.test(palBranch), '盘身取传进来的 bodyFill / bodyStroke')
+    check(/r:\s*1\.1/.test(palBranch), '圆点半径没动（按钮什么都不改，只是上色）')
+
+    // 两处调用点都把颜色传进去：入口按钮传取回来的清单，弹窗标题传它这次取回来的行
+    const entrySrc = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/LabelColorEntry.js'), 'utf8')
+    check(/Ic\(\{\s*n:\s*'palette',\s*size:\s*10,\s*colors:\s*dots,\s*bodyFill:\s*LC_ENTRY_PALETTE_BODY\.fill,\s*bodyStroke:\s*LC_ENTRY_PALETTE_BODY\.stroke\s*\}\)/.test(entrySrc),
+      '入口按钮把取到的四色与盘身两色传进图标（尺寸仍是 10）')
+    check(entrySrc.includes("host.call('wf.listLabels'") && entrySrc.includes('lcEntryPaletteOf(null)') && entrySrc.includes('lcEntryPaletteOf(list)'),
+      '入口按钮挂载就取一次清单：先摆默认色，取回来换真实颜色，取失败保持默认色不报错')
+    check(/border:\s*'1px solid '\s*\+\s*edgeTint/.test(entrySrc) && /edgeTint\s*=\s*LC_ENTRY_PALETTE_BODY\.stroke/.test(entrySrc),
+      '按钮那圈描边与调色盘盘身边框是同一个木色（尺寸圆角不动，只换描边色，不再是灰的）')
+    const dialogSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/LabelColorDialog.js'), 'utf8')
+    check(/Ic\(\{\s*n:\s*'palette',\s*size:\s*14,\s*colors:\s*lcEntryPaletteOf\(lc\.rows\)/.test(dialogSrc),
+      '弹窗标题用同一只图标、同一套颜色（取它这次取回来的行）')
   }
 
   console.log(failed ? `\n存在失败（共 ${total} 项）` : `\n全部通过 — 配色核心纯函数门禁生效（${total} 项）`)

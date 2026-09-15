@@ -174,8 +174,10 @@ export const LabelColorDialog = (props) => {
   const closeXStyle = { padding: '2px 6px', fontSize: 11 }
   if (closeArmedNow) { closeXStyle.borderColor = '#f59e0b'; closeXStyle.color = '#f59e0b' }
 
+  // #637：标题左边这只调色盘与头部入口按钮是同一只图标、同一套颜色（算法见 labelColorPalette.js）。
+  // 颜色取弹窗这次取回来的清单：还没取回来时 lc.rows 是空数组，正好落到四个默认色。
   const head = h('div', { key: 'head', style: { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, flex: 'none' } }, [
-    typeof Ic === 'function' ? Ic({ n: 'palette', size: 14 }) : null,
+    typeof Ic === 'function' ? Ic({ n: 'palette', size: 14, colors: lcEntryPaletteOf(lc.rows), bodyFill: LC_ENTRY_PALETTE_BODY.fill, bodyStroke: LC_ENTRY_PALETTE_BODY.stroke }) : null,
     h('span', { style: { fontSize: 13, fontWeight: 700 } }, tr('lc.title')),
     lc.changes.length ? h('span', { key: 'draft', style: { fontSize: 10.5, color: '#f59e0b', border: '1px solid rgba(245,158,11,.45)', borderRadius: 4, padding: '0 5px', lineHeight: 1.6 } }, tr('lc.draftHint')) : null,
     h('span', { key: 'sp', style: { flex: 1 } }),

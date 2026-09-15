@@ -41,18 +41,20 @@ const LEAVES = [
   { file: 'src/client/panel/Overlay.js', exports: ['OverlayPanel'], components: ['OverlayPanel'] },
   { file: 'src/client/statusbar/Seg.js', exports: ['num', 'seg'], components: [] },
   { file: 'src/client/statusbar/checksums.js', exports: ['checksumsOf'], components: [] },
-  { file: 'src/client/statusbar/StatusMenus.js', exports: ['placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'placeStatusBugMenu', 'closeStatusBugMenu', 'showStatusBugMenu', 'placeStatusBackendMenu', 'closeStatusBackendMenu', 'showStatusBackendMenu', 'useStatusMenus'], components: [] }, // B1 #460 由 StatusBar.js 拆出：悬浮菜单定位与开关（锚点测算加开关加重的定位钩子，无组件，纯函数）
+  { file: 'src/client/statusbar/StatusMenus.js', exports: ['placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'placeStatusBugMenu', 'closeStatusBugMenu', 'showStatusBugMenu', 'placeStatusTakeMenu', 'closeStatusTakeMenu', 'showStatusTakeMenu', 'placeStatusBackendMenu', 'closeStatusBackendMenu', 'showStatusBackendMenu', 'useStatusMenus'], components: [] }, // B1 #460 由 StatusBar.js 拆出：悬浮菜单定位与开关（锚点测算加开关加重的定位钩子，无组件，纯函数）；#638 追加可接菜单三件（与 BUG 菜单同形，紫色需求入口）
   { file: 'src/client/statusbar/StatusBackend.js', exports: ['normStatusMods', 'ensureStatusSetupPick', 'openStatusSetupPick', 'closeStatusSetupPick', 'cancelStatusSetupPick', 'confirmStatusSetupPick', 'onStatusSetupInit', 'openStatusGate', 'closeStatusGate', 'confirmStatusGate'], components: [] }, // B1 #460 由 StatusBar.js 拆出：后端选择与门控动作（选后端拉清单确认绑定，无组件，纯函数）
   { file: 'src/client/statusbar/StatusBar.js', exports: ['StatusBar'], components: ['StatusBar'] },
   { file: 'src/client/floating/SkillFloatList.js', exports: ['SkillFloatList'], components: ['SkillFloatList'] },
   { file: 'src/client/floating/Pop.js', exports: ['showPop'], components: [] },
   { file: 'src/client/hostShim.js', exports: ['timer', 'h'], components: [] }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底，无组件，纯函数；曾含旧标签迁移，该段已由 #598 删除）
   { file: 'src/client/panelAssembly.js', exports: ['apiCall', 'cx', 'withCx'], components: [] }, // #459 由 index.js 拆出：面板装配（Ctx 装配加插槽注册加启动收尾，无组件，纯函数）
-  // #621 标签配色的六个叶子：错误档位到词条键与电话回包取形状（纯函数）、加载与保存状态机（钩子）、
-  // 单行取色控件、弹窗本体、面板头部入口按钮、保存成功后写进面板快照的颜色记录（纯函数，#635 追加）。
+  // #621 标签配色的七个叶子：错误档位到词条键与电话回包取形状（纯函数）、加载与保存状态机（钩子）、
+  // 单行取色控件、弹窗本体、面板头部入口按钮、保存成功后写进面板快照的颜色记录（纯函数，#635 追加）、
+  // 入口图标的颜色（纯函数，#637 追加）。
   // 登在这里是为了让「单文件 ≤350 行」与「产物已拼接」两条检查也覆盖到它们。
   { file: 'src/client/views/labels/labelColorErrors.js', exports: ['LC_KIND_KEYS', 'LC_PLACEHOLDER_COLOR', 'lcKindKey', 'lcErrorOf', 'lcLabelsOf', 'lcSaveOutcome', 'lcOutcomeRowOf', 'lcToDisplay', 'lcRowIncomplete', 'lcPanelBackendOf'], components: [] }, // #631 追加：lcPanelBackendOf 读出「面板现在用的是哪个后端」，供两条电话带上去
   { file: 'src/client/views/labels/labelColorPatch.js', exports: ['lcSavedColorMapOf', 'lcPatchSnapshotColors', 'lcRememberSavedColors', 'lcPanelSavedColors', 'lcApplySavedColorsOnInstall'], components: [] }, // #635 追加：保存成功后把后端确认的颜色写进面板那份快照（面板当场按新色显示）
+  { file: 'src/client/views/labels/labelColorPalette.js', exports: ['LC_ENTRY_PALETTE_SLOTS', 'LC_ENTRY_PALETTE_DEFAULTS', 'LC_ENTRY_PALETTE_BODY', 'lcEntryPaletteOf'], components: [] }, // #637 追加：入口图标的颜色（四个 wayfinder 标签的真实颜色加默认兜底，纯函数）
   { file: 'src/client/views/labels/useLabelColors.js', exports: ['useLabelColors'], components: [] },
   { file: 'src/client/views/labels/LabelColorRow.js', exports: ['LabelColorRow'], components: ['LabelColorRow'] },
   { file: 'src/client/views/labels/LabelColorDialog.js', exports: ['LabelColorDialog', 'lcPanelPendingOf'], components: ['LabelColorDialog'] }, // #631 的 D1 补修追加：lcPanelPendingOf 读出「这个工作区用哪个后端还在识别」

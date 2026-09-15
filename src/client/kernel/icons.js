@@ -24,7 +24,7 @@
     }
 
     // ---- 通用图标集（统一 SVG stroke 风格）----
-    export const Ic = ({ n, size, color }) => {
+    export const Ic = ({ n, size, color, colors, bodyFill, bodyStroke }) => {
       const s = size || 13
       const common = { viewBox: '0 0 24 24', width: s, height: s, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', style: { display: 'inline-block', verticalAlign: '-2px', flex: 'none' }, color: color || undefined }
       switch (n) {
@@ -71,8 +71,19 @@
         // issue #100：定位图钉 pin —— 状态栏 issuePath 胶囊（替代 emoji 📌），复用 Icon pin 的图钉形态
         case 'pin': return h('svg', common, [h('path', { d: 'M12 21s-6-5.1-6-10a6 6 0 1112 0c0 4.9-6 10-6 10z' }), h('circle', { cx: 12, cy: 11, r: 2.2, fill: 'currentColor', stroke: 'none' })])
         case 'prototype': return h('svg', common, [h('rect', { x: 3, y: 8.5, width: 13, height: 9, rx: 2, opacity: 0.52 }), h('rect', { x: 7.8, y: 3.8, width: 13, height: 9, rx: 2 })])
-        // #621 标签配色入口：调色盘图标（盘身 + 四个颜料点），与上面通用集同一套描边风格
-        case 'palette': return h('svg', common, [h('path', { d: 'M12 21a9 9 0 010-18c4.97 0 9 3.58 9 8 0 1.06-.47 2.08-1.32 2.83-.84.75-1.99 1.17-3.18 1.17h-2.5a2 2 0 00-1 3.75A1.3 1.3 0 0112 21z' }), h('circle', { cx: 6.5, cy: 11.5, r: 1.1, fill: 'currentColor', stroke: 'none' }), h('circle', { cx: 9.5, cy: 7.5, r: 1.1, fill: 'currentColor', stroke: 'none' }), h('circle', { cx: 14.5, cy: 7.5, r: 1.1, fill: 'currentColor', stroke: 'none' }), h('circle', { cx: 17.5, cy: 11.5, r: 1.1, fill: 'currentColor', stroke: 'none' })])
+        // #621 标签配色入口：调色盘图标（盘身 + 四个颜料点），描边粗细与通用集一致（线宽 1.8）。
+        // #637 整只上色：盘身与四颗颜料点都不再是灰的。颜色全部由调用点从纯函数层
+        // （views/labels/labelColorPalette.js 的 lcEntryPaletteOf 与 LC_ENTRY_PALETTE_BODY）算好，
+        // 经 colors / bodyFill / bodyStroke 传进来，图标自己不决定颜色。按钮尺寸（16×16 里画 10 像素）、
+        // 颜料点位置与半径（1.1）一个字不动——负责人原话：「按钮什么都不改，只是上色」。
+        // 没传颜色的老写法退回以前的样子（盘身不填色、四点取当前文字色），图标在任何调用下都画得出来。
+        case 'palette': {
+          const pColors = Array.isArray(colors) ? colors : []
+          const pDot = function (i) { return (typeof pColors[i] === 'string' && pColors[i] !== '') ? pColors[i] : 'currentColor' }
+          const pFill = (typeof bodyFill === 'string' && bodyFill !== '') ? bodyFill : 'none'
+          const pStroke = (typeof bodyStroke === 'string' && bodyStroke !== '') ? bodyStroke : 'currentColor'
+          return h('svg', common, [h('path', { d: 'M12 21a9 9 0 010-18c4.97 0 9 3.58 9 8 0 1.06-.47 2.08-1.32 2.83-.84.75-1.99 1.17-3.18 1.17h-2.5a2 2 0 00-1 3.75A1.3 1.3 0 0112 21z', fill: pFill, stroke: pStroke }), h('circle', { cx: 6.5, cy: 11.5, r: 1.1, fill: pDot(0), stroke: 'none' }), h('circle', { cx: 9.5, cy: 7.5, r: 1.1, fill: pDot(1), stroke: 'none' }), h('circle', { cx: 14.5, cy: 7.5, r: 1.1, fill: pDot(2), stroke: 'none' }), h('circle', { cx: 17.5, cy: 11.5, r: 1.1, fill: pDot(3), stroke: 'none' })])
+        }
         default: return null
       }
     }
