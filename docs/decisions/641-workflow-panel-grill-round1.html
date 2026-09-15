@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>悬浮工作流面板 · 意图对齐第1轮（Q1-Q5）</title>
+<style>
+:root{--bg:#0d0f12;--card:#171b21;--line:#2a313b;--txt:#e8ecf1;--mut:#9aa6b5;--acc:#8b5cf6;--ok:#10b981;--warn:#f59e0b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.7 "PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:28px 20px 60px}
+.hero{border:1px solid var(--line);border-radius:14px;padding:20px 22px;background:linear-gradient(180deg,#181d26,#12151c)}
+.hero h1{margin:0 0 6px;font-size:22px}.hero p{margin:6px 0;color:var(--mut)}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:2px 10px;color:var(--mut)}
+.tag.hot{border-color:var(--acc);color:#cdb8ff}
+.toc{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+.toc a{color:#cdb8ff;text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--card);font-size:13px}
+.card{border:1px solid var(--line);border-radius:14px;background:var(--card);margin:16px 0;overflow:hidden}
+.card header{padding:16px 18px 0}.num{display:inline-block;font-size:12px;background:#242c38;border-radius:6px;padding:2px 8px;color:var(--mut);margin-right:8px}
+.card h2{display:inline;font-size:17px;margin:0}
+.ctx{padding:10px 18px;color:var(--mut);font-size:14px;border-left:3px solid var(--acc);margin:12px 18px 0;background:#141922;border-radius:0 8px 8px 0}
+.opt{margin:12px 18px;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.opt b{display:block;margin-bottom:4px}.opt span{color:var(--mut);font-size:13.5px}
+.rec{margin:12px 18px;border:1px solid #1f8a6b;background:#0e1f1a;border-radius:10px;padding:10px 12px}
+.rec b{color:#5eead4}
+.procon{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 18px 18px}
+.procon div{border-radius:10px;padding:10px 12px;font-size:13.5px}
+.pro{background:#0f231a;border:1px solid #1c4d3c}.con{background:#251a10;border:1px solid #5b3a15}
+.pro b{color:var(--ok)}.con b{color:var(--warn)}
+.pro ul,.con ul{margin:6px 0 0;padding-left:18px;color:#cfd8e3}
+.footer{color:var(--mut);font-size:13px;margin-top:22px;border-top:1px dashed var(--line);padding-top:14px}
+@media(max-width:640px){.procon{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="hero">
+<h1>悬浮工作流面板 · 第 1 轮对齐（5 个决策）</h1>
+<p>现状：底部紫色按钮弹出<strong style="color:#fff">单列小列表</strong>，无分组、无说明，点即注入。目标：同一个按钮弹出<strong style="color:#fff">大面板</strong>，按工作流分组，每块按顺序列技能 + 一句场景说明。</p>
+<div class="meta"><span class="tag">仓库 FeatherHunter/dsh-mattpocock-skills-deck</span><span class="tag">新增 · 无复用</span><span class="tag hot">等你回 Q1–Q5</span></div>
+</div>
+<div class="toc"><a href="#q1">Q1 终点</a><a href="#q2">Q2 首版强度</a><a href="#q3">Q3 清单来源</a><a href="#q4">Q4 可配置含义</a><a href="#q5">Q5 触发与大小</a></div>
+
+<div class="card" id="q1"><header><span class="num">Q1</span><h2>终点：只定方案，还是直接做出来？</h2></header>
+<div class="ctx">前因：要通读 20+ 个技能详情页才能列全工作流，界面也没定。wayfinder 默认只规划不写代码。后果：选 A 最快收敛；选 B 则本轮就要排期写代码。</div>
+<div class="opt"><b>A · 只到方案定版（推荐）</b><span>产出：工作流清单 + 界面说明，落地另起票。</span></div>
+<div class="opt"><b>B · 定版与落地一起</b><span>本轮直接做到可用大面板。</span></div>
+<div class="rec"><b>➡️ 推荐 A。</b>研究量大，先把分歧关进方案里，代码不会返工。</div>
+<div class="procon"><div class="pro"><b>选 A 利</b><ul><li>一周内可拍板，不阻塞研究</li><li>落地票可并行估时</li></ul></div><div class="con"><b>选 A 弊</b><ul><li>看不到真机效果，要再等一轮</li></ul></div></div>
+</div>
+
+<div class="card" id="q2"><header><span class="num">Q2</span><h2>首版多强：简单分组，还是带下一步指引？</h2></header>
+<div class="ctx">前因：你说“做不了复杂先做简单”，但又希望上下文快爆时能提示用 handoff 分出去。后果：简单版 1 周可上；带指引要读会话状态，复杂度翻倍。</div>
+<div class="opt"><b>A · 简单版（推荐）</b><span>分组 + 每组一句话 + 点击注入，和现在行为一致。</span></div>
+<div class="opt"><b>B · 带当前环节 / 下一步高亮</b><span>记住做到第几步，提示下一步点哪个。</span></div>
+<div class="rec"><b>➡️ 推荐 A。</b>handoff 分出去又回来的跨会话用法记入二期，不堵首版。</div>
+<div class="procon"><div class="pro"><b>选 A 利</b><ul><li>改动最小，用户立刻从“找不到”变“找得到”</li></ul></div><div class="con"><b>选 A 弊</b><ul><li>卡住时仍不知道下一步，需看二期</li></ul></div></div>
+</div>
+
+<div class="card" id="q3"><header><span class="num">Q3</span><h2>工作流放几个：复用官网 6 组，还是全量提炼 9–20 个？</h2></header>
+<div class="ctx">前因：你假设 9 块，官网只有 6 组（01 Getting Started … 06 Reference）。全量需通读所有详情页。后果：6 组可直接开工；全量更准但慢 3–5 天。</div>
+<div class="opt"><b>A · 直接用官网 6 组</b><span>最快，但缺 handoff 分合这类真实串法。</span></div>
+<div class="opt"><b>B · 全量提炼 9–20 个</b><span>最全，但首版要等研究。</span></div>
+<div class="opt"><b>C · 6 组先上 + 研究并行（推荐）</b><span>界面按可扩展做，研究结论随时加块。</span></div>
+<div class="rec"><b>➡️ 推荐 C。</b>既不让界面等研究，也不丢“全部列出来”的要求。</div>
+<div class="procon"><div class="pro"><b>选 C 利</b><ul><li>首版有底，研究加块不用改结构</li></ul></div><div class="con"><b>选 C 弊</b><ul><li>首版 6 组里部分顺序是官方示例，非实测最优</li></ul></div></div>
+</div>
+
+<div class="card" id="q4"><header><span class="num">Q4</span><h2>“可配置”是谁来配？</h2></header>
+<div class="ctx">前因：你举例“2、4、7、8 新顺序写完就能加”，像写代码的人配；但“模块可配置”也可能指用户自己拖拽。后果：前者加一段定义即可；后者要加设置页 + 存储，工作量差一个数量级。</div>
+<div class="opt"><b>A · 写代码好加（推荐）</b><span>加一段工作流定义就多一块。</span></div>
+<div class="opt"><b>B · 用户自己配</b><span>开关、排序、自建工作流。</span></div>
+<div class="rec"><b>➡️ 推荐 A。</b>和你的例子一致，B 记二期。</div>
+<div class="procon"><div class="pro"><b>选 A 利</b><ul><li>开发量小，结构定好就能无限加</li></ul></div><div class="con"><b>选 A 弊</b><ul><li>用户不能自己藏/排，用久会嫌多</li></ul></div></div>
+</div>
+
+<div class="card" id="q5"><header><span class="num">Q5</span><h2>大面板怎么开、放多大？</h2></header>
+<div class="ctx">前因：9 块一屏放不下；现在是点紫色网格按钮开小列表、点外面关。后果：换触发方式要重做交互；保持触发只换内容最稳。</div>
+<div class="opt"><b>A · 触发不变，只换内容（推荐）</b><span>仍点原按钮开，面板分组可折叠滚动，默认展开 01+02，点外面关，点技能即注入。</span></div>
+<div class="opt"><b>B · 悬停即开大页</b><span>鼠标放上就开全页，无需点击。</span></div>
+<div class="rec"><b>➡️ 推荐 A。</b>用户零学习成本，窄屏也不会误触。</div>
+<div class="procon"><div class="pro"><b>选 A 利</b><ul><li>行为不变，只变组织方式</li></ul></div><div class="con"><b>选 A 弊</b><ul><li>多点一次，比悬停慢半秒</li></ul></div></div>
+</div>
+
+<div class="footer">回法：直接回如 Q1=A，Q2=A…即可；若 Q1 选 B，Q2–Q5 需重议。完整复述与图片证据见对话正文，本页只留决策。</div>
+</div>
+</body>
+</html>
