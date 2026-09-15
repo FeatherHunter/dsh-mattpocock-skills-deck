@@ -258,6 +258,7 @@ const KERNEL_MODULES = [
   { name: 'storeDerived', file: 'src/client/kernel/store-derived.js' },
   { name: 'apiNaming', file: 'src/client/kernel/api-naming.js' },
   { name: 'apiPresetGuard', file: 'src/client/kernel/api-preset-guard.js' },
+  { name: 'apiWorkspace', file: 'src/client/kernel/api-workspace.js' },
   { name: 'apiNewSession', file: 'src/client/kernel/api-new-session.js' },
   { name: 'apiIo', file: 'src/client/kernel/api-io.js' },
   { name: 'actions', file: 'src/client/kernel/actions.js' },

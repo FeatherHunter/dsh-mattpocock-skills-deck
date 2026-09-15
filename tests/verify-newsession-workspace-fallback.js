@@ -15,10 +15,10 @@
 
 const fs = require('fs')
 
-const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'] // #457 K4：api.js 已拆为三文件，src 侧读三文件拼合
-const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-new-session.js+api-io.js（拼合）', 'package/lib/client.js']
-const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退全量（跨 naming 与 new-session，单文件含不全）
-const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：三文件全存在才算存在
+const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-workspace.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'] // #457 K4 + #636：api 拆分文件 + 工作区查找模块，src 侧读四文件拼合（查找块经独立锚点提取）
+const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-workspace.js+api-new-session.js+api-io.js（拼合）', 'package/lib/client.js']
+const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退/查找全量（跨 naming、workspace 与 new-session，单文件含不全）
+const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：四文件全存在才算存在
 
 function extractOpenFn(src) {
   const marker = 'const openTextInNewSession = function (st, text, title) {'
@@ -45,6 +45,17 @@ function extractEnsureWorkspaceId(src) {
   const endMarker = '      ensureCwd().then'
   const j = src.indexOf(endMarker, i)
   if (j < 0) throw new Error('ensureWorkspaceId 终止缺失')
+  return src.slice(i, j)
+}
+
+function extractWorkspaceBlock(src) {
+  // #636 拆分：工作区查找住在 api-workspace.js（src 拼合里带 export 前缀，构建产物里已剥掉），起止锚点两边都有。
+  const startMarker = 'const workspacePathOf = function'
+  const endMarker = 'const probeHandoffReady = function'
+  const i = src.indexOf(startMarker)
+  if (i < 0) throw new Error('工作区查找起始缺失: workspacePathOf')
+  const j = src.indexOf(endMarker, i)
+  if (j < 0) throw new Error('工作区查找终止缺失: probeHandoffReady')
   return src.slice(i, j)
 }
 
@@ -81,16 +92,21 @@ async function testFile(file) {
   let ensureSrc
   try { ensureSrc = extractEnsureWorkspaceId(src) } catch(e) { check(false, file + ' ensureWorkspaceId 可提取 — ' + e.message); return }
   check(true, file + ' ensureWorkspaceId 可提取')
+  // #636 拆分：ensureWorkspaceId 只是薄转发，真实逻辑在 api-workspace.js；下面沙箱把两段拼在一起跑。
+  let wsLib = ''
+  try { wsLib = extractWorkspaceBlock(src).replace(/^\s*export\s+/gm, '') } catch (eWs) { wsLib = '' }
+  check(wsLib.indexOf('resolveWorkspaceEntry') >= 0, file + ' 工作区查找块可提取（含 resolveWorkspaceEntry）')
 
-  // a) 静態：ensureWorkspaceId 含 #364 矩阵与双参试探（注释在函数前，扫全文件）
-  check(src.indexOf('#364')>=0 && src.indexOf('工作区回退')>=0, file + ' ensureWorkspaceId 含 #364 矩阵注释')
-  check(ensureSrc.indexOf('workspaces.create')>=0, file + ' ensureWorkspaceId 含 workspaces.create')
-  check(ensureSrc.indexOf('{ path: cwd }')>=0, file + ' ensureWorkspaceId 以 {path:cwd} 为主')
-  check(ensureSrc.indexOf('{ cwd: cwd }')>=0 || ensureSrc.indexOf('{cwd: cwd}')>=0, file + ' ensureWorkspaceId 含 {cwd} 兼容回退')
-  check(ensureSrc.indexOf('return null')>=0 && ensureSrc.indexOf('.catch')>=0, file + ' ensureWorkspaceId 失败回落 null（不阻断）')
-  check(ensureSrc.indexOf('workspaces || !cwd')>=0, file + ' ensureWorkspaceId 空 cwd/无服务回落 null')
-  check(ensureSrc.indexOf('workspacePath')>=0 || ensureSrc.indexOf('workspace_id')>=0, file + ' ensureWorkspaceId 兼容多形态 w.path/ workspacePath')
-  check(ensureSrc.indexOf('snap.workspaces')>=0, file + ' ensureWorkspaceId 兼容 snap.workspaces 形态')
+  // a) 静態：工作区查找含 #364 矩阵与多参试探（#636 起住在 api-workspace.js，拼合与产物双源都含它）
+  check(src.indexOf('#364')>=0 && src.indexOf('工作区回退')>=0, file + ' 工作区查找含 #364 矩阵注释')
+  check(src.indexOf('workspaces.create')>=0, file + ' 工作区查找含 workspaces.create')
+  check(src.indexOf('{ path: cwd }')>=0, file + ' 工作区查找以 {path:cwd} 为主')
+  check(src.indexOf('{ cwd: cwd }')>=0 || src.indexOf('{cwd: cwd}')>=0, file + ' 工作区查找含 {cwd} 兼容回退')
+  check(src.indexOf('return null')>=0 && src.indexOf('.catch')>=0, file + ' 工作区查找失败回落 null（不阻断）')
+  check(src.indexOf('workspaces || !cwd')>=0, file + ' 工作区查找空 cwd/无服务回落 null')
+  check(src.indexOf('workspacePath')>=0 || src.indexOf('workspace_id')>=0, file + ' 工作区查找兼容多形态 w.path/ workspacePath')
+  check(src.indexOf('snap.workspaces')>=0, file + ' 工作区查找兼容 snap.workspaces 形态')
+  check(ensureSrc.indexOf('resolveWorkspaceEntry')>=0, file + ' ensureWorkspaceId 薄转发调 resolveWorkspaceEntry（#636 拆分）')
 
   // b) 静態：buildCreateOpts
   check(factoryBlock.indexOf('buildCreateOpts')>=0, file + ' 工厂块含 buildCreateOpts')
@@ -109,16 +125,16 @@ async function testFile(file) {
 
   // d) 沙箱：ensureWorkspaceId
   try {
-    // 构造一个可独立执行的 ensureWorkspaceId 沙箱
+    // 构造一个可独立执行的 ensureWorkspaceId 沙箱（薄转发 + 工作区查找块拼合执行）
     // 需要 keyOf, workspaces, etc. 我们用 Function 注入
-    const ensureFnSrc = ensureSrc.replace(/^\s*const ensureWorkspaceId/, 'const ensureWorkspaceId')
+    const ensureFnSrc = wsLib + '\n' + ensureSrc.replace(/^\s*const ensureWorkspaceId/, 'const ensureWorkspaceId')
     // 测试 1：命中已有工作区
     {
       const workspacesStub = {
         list: { getSnapshot: () => ({ items: [{ path: 'D:/my-app', workspaceId: 'ws-hit' }] }) },
         create: async () => { throw new Error('should not call create when hit') }
       }
-      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return (...a) => ensureWorkspaceId(...a).then(r => (r && typeof r === "object" ? r.wid : r))')
       const ensure = fn(workspacesStub, keyOf)
       const wid = await ensure('D:/my-app')
       check(wid === 'ws-hit', file + ' ensureWorkspaceId 命中已登记 → 复用 wid')
@@ -130,7 +146,7 @@ async function testFile(file) {
         list: { getSnapshot: () => ({ items: [{ path: 'D:/other', workspaceId: 'ws-other' }] }) },
         create: async (arg) => { createdArg = arg; return { workspaceId: 'ws-new' } }
       }
-      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return (...a) => ensureWorkspaceId(...a).then(r => (r && typeof r === "object" ? r.wid : r))')
       const ensure = fn(workspacesStub, keyOf)
       const wid = await ensure('D:/my-app')
       check(wid === 'ws-new' && createdArg && createdArg.path === 'D:/my-app', file + ' ensureWorkspaceId 未命中 → 创建 {path:cwd}')
@@ -141,7 +157,7 @@ async function testFile(file) {
         list: { getSnapshot: () => ({ items: [] }) },
         create: async () => { throw new Error('create failed') }
       }
-      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return (...a) => ensureWorkspaceId(...a).then(r => (r && typeof r === "object" ? r.wid : r))')
       const ensure = fn(workspacesStub, keyOf)
       const wid = await ensure('D:/my-app')
       check(wid === null, file + ' ensureWorkspaceId 创建失败 → 回落 null')
@@ -158,14 +174,14 @@ async function testFile(file) {
           throw new Error('unexpected')
         }
       }
-      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return (...a) => ensureWorkspaceId(...a).then(r => (r && typeof r === "object" ? r.wid : r))')
       const ensure = fn(workspacesStub, keyOf)
       const wid = await ensure('D:/my-app')
       check(wid === 'ws-cwd' && call===2, file + ' ensureWorkspaceId alpha path bad-request → 回退 {cwd}')
     }
     // 测试 5：无 workspaces 服务或空 cwd → null
     {
-      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return (...a) => ensureWorkspaceId(...a).then(r => (r && typeof r === "object" ? r.wid : r))')
       const ensureNull1 = fn(null, keyOf)
       const wid1 = await ensureNull1('D:/my-app')
       check(wid1===null, file + ' ensureWorkspaceId 无 workspaces → null')
@@ -182,7 +198,7 @@ async function testFile(file) {
         list: { getSnapshot: () => ({ byId: { ws1: { workspaceId: 'ws1', path: 'D:/my-app' } } }) },
         create: async () => ({ workspaceId: 'ws-created-wrong' })
       }
-      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return (...a) => ensureWorkspaceId(...a).then(r => (r && typeof r === "object" ? r.wid : r))')
       const ensure = fn(workspacesStub, keyOf)
       const wid = await ensure('D:/my-app')
       check(wid === 'ws1', file + ' ensureWorkspaceId 兼容按编号存的对象形状（取对象里每一项）')
@@ -192,7 +208,7 @@ async function testFile(file) {
         list: { getSnapshot: () => ({ byId: {}, workspaces: [{ path: 'D:/my-app', workspaceId: 'ws-multi' }] }) },
         create: async () => ({ workspaceId: 'ws-created-wrong' })
       }
-      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return (...a) => ensureWorkspaceId(...a).then(r => (r && typeof r === "object" ? r.wid : r))')
       const ensure = fn(workspacesStub, keyOf)
       const wid = await ensure('D:/my-app')
       check(wid === 'ws-multi', file + ' ensureWorkspaceId 对象与数组共存时两边都收（不互斥丢弃）')
@@ -202,7 +218,7 @@ async function testFile(file) {
         list: { getSnapshot: () => ({ items: [{ dir: 'D:/my-app', workspaceId: 'ws-dir' }] }) },
         create: async () => ({ workspaceId: 'ws-created-wrong' })
       }
-      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return (...a) => ensureWorkspaceId(...a).then(r => (r && typeof r === "object" ? r.wid : r))')
       const ensure = fn(workspacesStub, keyOf)
       const wid = await ensure('D:/my-app')
       check(wid === 'ws-dir', file + ' ensureWorkspaceId 认 dir 等更多路径字段（与设置页总览同口径）')
@@ -213,7 +229,7 @@ async function testFile(file) {
         list: { getSnapshot: () => ({ workspaces: [{ path: 'D:/my-app', workspaceId: 'ws-multi' }] }) },
         create: async()=>({workspaceId:'ws-new'})
       }
-      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return (...a) => ensureWorkspaceId(...a).then(r => (r && typeof r === "object" ? r.wid : r))')
       const ensure = fn(workspacesStub, keyOf)
       const wid = await ensure('D:/my-app')
       check(wid==='ws-multi', file + ' ensureWorkspaceId 兼容 snap.workspaces 形态')
@@ -228,11 +244,25 @@ async function testFile(file) {
         list: { getSnapshot: () => ([{ path: 'D:/my-app', workspaceId: 'ws-arr2' }]) },
         create: async()=>({workspaceId:'ws-new2'})
       }
-      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return ensureWorkspaceId')
+      const fn = new Function('workspaces','keyOf', ensureFnSrc + '; return (...a) => ensureWorkspaceId(...a).then(r => (r && typeof r === "object" ? r.wid : r))')
       const ensure = fn(workspacesStub2, keyOf)
       const wid = await ensure('D:/my-app')
       // 对于数组形态，items = snap（直接），命中 ws-arr2
       check(wid==='ws-arr2', file + ' ensureWorkspaceId 兼容数组 snapshot 形态')
+    }
+    // 测试 8：命中时同路返回登记项（含名单，供复用验归属防僵尸复活，见 #638 回归）
+    {
+      const entry = { path: 'D:/my-app', workspaceId: 'ws-entry', sessionIds: ['sid-attached'] }
+      const workspacesStub = {
+        list: { getSnapshot: () => ({ items: [entry] }) },
+        create: async () => { throw new Error('should not call create when hit') }
+      }
+      const rawSrc = ensureFnSrc + '; return ensureWorkspaceId'
+      const fnRaw = new Function('workspaces','keyOf', rawSrc)
+      const ensureRaw = fnRaw(workspacesStub, keyOf)
+      const found = await ensureRaw('D:/my-app')
+      check(found && found.wid === 'ws-entry', file + ' ensureWorkspaceId 命中同路返回 wid')
+      check(found && found.entry && Array.isArray(found.entry.sessionIds) && found.entry.sessionIds[0] === 'sid-attached', file + ' ensureWorkspaceId 命中同路返回登记项名单')
     }
   } catch(e) { check(false, file + ' ensureWorkspaceId 沙箱 — ' + e.stack) }
 
@@ -330,6 +360,8 @@ async function testFile(file) {
   try {
     let factory = factoryBlock.replace(/^\s*export\s+/gm, '')
     const helpersSrc = factory.slice(factory.indexOf('const getRowPreset'), factory.indexOf('const buildCreateOpts'))
+    // #636：薄转发要找到 resolveWorkspaceEntry，沙箱里把它前面拼上（与真实闭包里的拼接次序一致）。
+    const wsPrelude = wsLib ? wsLib + ';\n' : ''
     let open = openSrc
     open = open.replace(/\bpendingDraft\b/g, '__dbg.pendingDraft')
     open = open.replace(/\bpendingDraftTargetSid\b/g, '__dbg.pendingDraftTargetSid')
@@ -350,7 +382,7 @@ async function testFile(file) {
       // host 实现 wf.cwd 兜底
       const hostStub = { call: async (m, args)=>{ if(m==='wf.cwd') return {ok:true, cwd:'D:/my-app'}; if(m==='wf.registerNewSessionWatcher') return {}; return {ok:true} } }
       const fn = new Function('st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick',
-        helpersSrc + ';\n' + fullOpenHelpers + ';\n' + open + '; return openTextInNewSession'
+        wsPrelude + helpersSrc + ';\n' + fullOpenHelpers + ';\n' + open + '; return openTextInNewSession'
       )
       const openFn = fn(st,'/wayfinder https://github.com/x/issues/1','[#1] test',
         { get:(k)=> k==='sessions'?defaultSessionsStub:k==='workspaces'?defaultWorkspacesStub:null },
@@ -381,7 +413,7 @@ async function testFile(file) {
       const rec = { created:null, injected:null }
       const dbg = { pendingDraft:null, pendingDraftTargetSid:null }
       const fn = new Function('st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick',
-        helpers + ';\n' + factoryAll + ';\n' + openA + '; return openTextInNewSession')
+        wsPrelude + helpers + ';\n' + factoryAll + ';\n' + openA + '; return openTextInNewSession')
       const st = { sessionId: 's1', cwd: '', snapshot: null }
       const openFn = fn(st, '/wayfinder https://github.com/x/issues/1','[#1] test',
         { get:(k)=> k==='sessions'?sessionsStub:k==='workspaces'?workspacesStub:null },
@@ -416,7 +448,7 @@ async function testFile(file) {
       const dbg = { pendingDraft:null, pendingDraftTargetSid:null }
       const st = { sessionId:'s1', cwd:'D:/my-app', snapshot:null }
       const fn = new Function('st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick',
-        helpers + ';\n' + factoryAll + ';\n' + openB + '; return openTextInNewSession')
+        wsPrelude + helpers + ';\n' + factoryAll + ';\n' + openB + '; return openTextInNewSession')
       let createdSid=null
       const sessionsStub2 = {
         create: async (opts)=>{ rec.created = opts; createdSid = 'sid-cwd'; return createdSid },
@@ -447,7 +479,7 @@ async function testFile(file) {
       const st = { sessionId:'s1', cwd:'D:/my-app', snapshot:null }
       let openC = openSrc.replace(/\bpendingDraft\b/g, '__dbg.pendingDraft').replace(/\bpendingDraftTargetSid\b/g, '__dbg.pendingDraftTargetSid')
       const fn = new Function('st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick',
-        helpersSrc + ';\n' + factory.slice(factory.indexOf('const buildCreateOpts'), factory.indexOf('// ============ 命名守护')) + ';\n' + openC + '; return openTextInNewSession')
+        wsPrelude + helpersSrc + ';\n' + factory.slice(factory.indexOf('const buildCreateOpts'), factory.indexOf('// ============ 命名守护')) + ';\n' + openC + '; return openTextInNewSession')
       const sessionsStub = {
         create: async (opts)=>{ rec.created=opts; return 'sid-wid' },
         scope:(sid)=>({sessionId:sid}), sessionOf:()=>({rename: async(t)=>({ok:true,value:{title:t}})}),

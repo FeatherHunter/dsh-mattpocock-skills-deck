@@ -48,7 +48,7 @@ else {
 
 // 全库仅一份归一实现：除 workspaceKey.js 外，不应再出现 toLowerCase + replace(\)
 console.log('\n2) 归一函数全库仅一份（重复定义清零）')
-const kernelFiles = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js','src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js','src/client/kernel/api-naming.js','src/client/kernel/api-new-session.js','src/client/kernel/api-io.js','src/client/panel/Dock.js'] // #457 K4：api.js 已拆为三文件，逐文件扫描
+const kernelFiles = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js','src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js','src/client/kernel/api-naming.js','src/client/kernel/api-workspace.js','src/client/kernel/api-new-session.js','src/client/kernel/api-io.js','src/client/panel/Dock.js'] // #457 K4 + #636：api.js 拆出的文件 + 工作区查找模块，逐文件扫描
 const dupPattern = /\.toLowerCase\(\)\.replace\(.*\\\\/
 let dupCount = 0
 for (const rel of kernelFiles) {

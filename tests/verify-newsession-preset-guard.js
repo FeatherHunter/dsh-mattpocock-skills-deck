@@ -16,10 +16,10 @@
 // 能抓住“逻辑改坏 / 双源漂移”两类回归。
 const fs = require('fs')
 
-const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js', 'src/client/kernel/api-preset-guard.js'] // #457 K4 + #478：api 拆分文件 + 预设守卫模块，src 侧读四文件拼合（守卫块经独立锚点提取）
-const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-new-session.js+api-io.js+api-preset-guard.js（拼合）', 'package/lib/client.js']
-const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退全量（跨 naming 与 new-session，单文件含不全）
-const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：三文件全存在才算存在
+const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-workspace.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js', 'src/client/kernel/api-preset-guard.js'] // #457 K4 + #478 + #636：api 拆分文件 + 预设守卫模块 + 工作区查找模块，src 侧读五文件拼合（守卫块经独立锚点提取）
+const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-workspace.js+api-new-session.js+api-io.js+api-preset-guard.js（拼合）', 'package/lib/client.js']
+const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退/工作区查找全量（跨 naming、workspace 与 new-session，单文件含不全）
+const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：五文件全存在才算存在
 
 function extractOpenFn(src) {
   const marker = 'const openTextInNewSession = function (st, text, title) {'
@@ -36,6 +36,17 @@ function extractFactoryBlock(src) {
   const end = src.indexOf('// ============ 命名守护', start)
   if (start < 0 || end < 0) throw new Error('工厂块锚点缺失')
   return src.slice(start, end)
+}
+
+// #636 拆分：工作区查找住在 api-workspace.js；沙箱跑薄转发时要把它拼在前面（与真实闭包拼接次序一致）。
+function extractWorkspaceBlock(src) {
+  const startMarker = 'const workspacePathOf = function'
+  const endMarker = 'const probeHandoffReady = function'
+  const i = src.indexOf(startMarker)
+  if (i < 0) throw new Error('工作区查找起始缺失: workspacePathOf')
+  const j = src.indexOf(endMarker, i)
+  if (j < 0) throw new Error('工作区查找终止缺失: probeHandoffReady')
+  return src.slice(i, j).replace(/^\s*export\s+/gm, '')
 }
 
 let failed = false
@@ -74,6 +85,9 @@ async function testFile(file) {
   let factoryBlock
   try { factoryBlock = extractFactoryBlock(src) } catch(e) { check(false, file + ' 工厂块可提取 — ' + e.message); return }
   check(true, file + ' 单点工厂块可提取')
+  let wsLib = ''
+  try { wsLib = extractWorkspaceBlock(src) } catch(eWs) { check(false, file + ' 工作区查找块可提取 — ' + eWs.message); return }
+  check(wsLib.indexOf('resolveWorkspaceEntry') >= 0, file + ' 工作区查找块含 resolveWorkspaceEntry（#636 拆分）')
   // #478 预设守卫块经独立锚点提取（拼合源含守卫模块；双产物经构建拼接同样含该块）
   const presetGuardMarker = '// ============ 预设守卫'
   let presetGuardSrc = ''
@@ -81,8 +95,9 @@ async function testFile(file) {
   if (pgStart >= 0) {
     // 构建产物中守卫块后还有后续模块（拼接标记构建时被消费，无残留），必须截到后一模块开头为止，
     // 否则会把后半个闭包全吞进来导致沙箱重声明；拼合源里守卫是最后一块，自然截到末尾。
+    // #636 起守卫后面紧邻的是工作区查找模块，故把它的首行也列为终止锚点。
     const pgAfter = pgStart + presetGuardMarker.length
-    const pgEnds = ['probeHandoffReady = function', '// ==== kernel:', '// ==== leaf:', '// ==== shared:']
+    const pgEnds = ['probeHandoffReady = function', 'workspacePathOf = function', '// ==== kernel:', '// ==== leaf:', '// ==== shared:']
       .map((k) => src.indexOf(k, pgAfter)).filter((i) => i >= 0)
     let pgStop = pgEnds.length ? Math.min.apply(null, pgEnds) : src.length
     // 命中点可能在行中部（如 const probeHandoffReady 的 const 前缀），必须回退到行首，否则切出半截行
@@ -147,7 +162,9 @@ async function testFile(file) {
     const healthySrc = block.slice(block.indexOf('const isHealthyPreset'), block.indexOf('const isReusableBlank'))
     const reusableSrc = block.slice(block.indexOf('const isReusableBlank'), block.indexOf('const buildCreateOpts'))
     const guardHelpersSrc = presetGuardSrc.replace(/^\s*export\s+/gm, '')
-    const helpers = new Function('keyOf', getPresetSrc + healthySrc + reusableSrc + guardHelpersSrc + '; return { getRowPreset, isHealthyPreset, isReusableBlank, describeReuseDecision, verifyFreshPreset, tryQuarantineSession, createVerifiedPTCSession }')(keyOf)
+    // 换行再接 return：截断点可能落在一条行注释上（如 api-workspace 首行注释），
+    // 若直接拼 '; return ...' 会被并进那条注释，函数就没有返回值。
+    const helpers = new Function('keyOf', getPresetSrc + healthySrc + reusableSrc + guardHelpersSrc + '\n; return { getRowPreset, isHealthyPreset, isReusableBlank, describeReuseDecision, verifyFreshPreset, tryQuarantineSession, createVerifiedPTCSession }')(keyOf)
     const normTarget = keyOf('D:/my-app')
     // 准备 row 变体
     const healthySame = { blank: true, cwd: 'D:/my-app', projectionValues: { agentPreset: 'ptc' }, updatedAt: 1 }
@@ -232,8 +249,8 @@ async function testFile(file) {
     // 替换裸 pendingDraft 为可观测
     open = open.replace(/\bpendingDraft\b/g, '__dbg.pendingDraft')
     open = open.replace(/\bpendingDraftTargetSid\b/g, '__dbg.pendingDraftTargetSid')
-    // 注入 helpers 到沙箱作用域：把 helpersSrc 拼到 open 前
-    const combined = helpersSrc + ';\n' + open + '; return openTextInNewSession'
+    // 注入 helpers 到沙箱作用域：把工作区查找块与 helpersSrc 拼到 open 前（次序与真实闭包一致）
+    const combined = wsLib + ';\n' + helpersSrc + ';\n' + open + '; return openTextInNewSession'
     // 构造一个可复用的沙箱运行器
     async function runWithSnap(snapById, curSid, cwd) {
       const rec = { created: null, opened: null }
@@ -248,7 +265,7 @@ async function testFile(file) {
       const workspacesStub = { list: { getSnapshot: ()=>({ items: [{ workspaceId: 'ws1', path: cwd }] }) }, create: async ()=>({workspaceId: 'ws1'}) }
       const st = { sessionId: curSid, cwd: cwd, snapshot: null }
       const fn = new Function('st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick',
-        helpersSrc + ';\n' + open + '; return openTextInNewSession'
+        wsLib + ';\n' + helpersSrc + ';\n' + open + '; return openTextInNewSession'
       )
       const openFn = fn(st,'/wayfinder https://github.com/x/issues/1','[#1] test',
         { get:(k)=> k==='sessions'?sessionsStub:k==='workspaces'?workspacesStub:null },
@@ -313,7 +330,7 @@ async function testFile(file) {
       const workspacesStub = { list: { getSnapshot: ()=>({ items: [{ workspaceId: 'ws1', path: cwd }] }) }, create: async ()=>({workspaceId: 'ws1'}) }
       const st = { sessionId: curSid, cwd: cwd, snapshot: null }
       const fn = new Function('st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick',
-        helpersSrc + ';\n' + open + '; return openTextInNewSession'
+        wsLib + ';\n' + helpersSrc + ';\n' + open + '; return openTextInNewSession'
       )
       const openFn = fn(st,'/wayfinder https://github.com/x/issues/1','[#1] test',
         { get:(k)=> k==='sessions'?sessionsStub:k==='workspaces'?workspacesStub:null },

@@ -16,10 +16,10 @@
 // （与 verify-b2-map-newsession.js 同范式），能抓住“逻辑改坏 / 双源漂移”两类回归。
 const fs = require('fs')
 
-const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'] // #457 K4：api.js 已拆为三文件，src 侧读三文件拼合
-const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-new-session.js+api-io.js（拼合）', 'package/lib/client.js']
-const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退全量（跨 naming 与 new-session，单文件含不全）
-const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：三文件全存在才算存在
+const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-workspace.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'] // #457 K4 + #636：api 拆分文件 + 工作区查找模块，src 侧读四文件拼合
+const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-workspace.js+api-new-session.js+api-io.js（拼合）', 'package/lib/client.js']
+const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退/工作区查找全量（跨 naming、workspace 与 new-session，单文件含不全）
+const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：四文件全存在才算存在
 
 // ---- 提取真实函数源码 ----
 function extractOpenFn(src) {
@@ -32,10 +32,21 @@ function extractOpenFn(src) {
   return src2.slice(i, j)
 }
 
+// #636 拆分：工作区查找住在 api-workspace.js；沙箱跑薄转发时要把它拼在前面（与真实闭包拼接次序一致）。
+function extractWorkspaceBlock(src) {
+  const startMarker = 'const workspacePathOf = function'
+  const endMarker = 'const probeHandoffReady = function'
+  const i = src.indexOf(startMarker)
+  if (i < 0) throw new Error('工作区查找起始缺失: workspacePathOf')
+  const j = src.indexOf(endMarker, i)
+  if (j < 0) throw new Error('工作区查找终止缺失: probeHandoffReady')
+  return src.slice(i, j).replace(/^\s*export\s+/gm, '')
+}
+
 // ---- 沙箱执行（b 分支用 faceNoPrompt 变体）----
 // pendingDraft / pendingDraftTargetSid 是模块级 let：观察侧把源码中的裸标识符重写为
 // __dbg.*（可变对象字段），赋值可观测且行为与原型一致。
-function runSandbox(fnSrc, faceVariant) {
+function runSandbox(fnSrc, faceVariant, wsLib) {
   let replaced = fnSrc
   replaced = replaced.replace(/\bpendingDraft\b/g, '__dbg.pendingDraft')
   replaced = replaced.replace(/\bpendingDraftTargetSid\b/g, '__dbg.pendingDraftTargetSid')
@@ -57,7 +68,7 @@ function runSandbox(fnSrc, faceVariant) {
     'inject', 'flash', 'tr', 'getCwdSync', 'keyOf', 'storeOf', 'hydrateFromCache',
     'getCachedSnapshot', 'issueRefNumbersFrom', 'recordIssuePath', 'namingHintOf',
     'isNewPlaceholderTitle', 'namingGuardianKick',
-    replaced + '; return openTextInNewSession'
+    (wsLib ? wsLib + ';\n' : '') + replaced + '; return openTextInNewSession'
   )
   const openFn = fn(
     st, '', '', { get: (k) => (k === 'sessions' ? sessionsStub : k === 'workspaces' ? workspacesStub : null) },
@@ -93,6 +104,9 @@ for (const file of files) {
   let fnSrc
   try { fnSrc = extractOpenFn(src) } catch (e) { check(false, file + ' 源码锚点可提取 — ' + e.message); continue }
   check(true, file + ' openTextInNewSession 源码可提取（锚点保留）')
+  let wsLib = ''
+  try { wsLib = extractWorkspaceBlock(src) } catch (eWs) { check(false, file + ' 工作区查找块可提取 — ' + eWs.message); continue }
+  check(wsLib.indexOf('resolveWorkspaceEntry') >= 0, file + ' 工作区查找块含 resolveWorkspaceEntry（#636 拆分）')
   // 文本级守护：不含自动发送逻辑
   check(fnSrc.indexOf('seedNewSession') < 0, file + ' 源码不含 seedNewSession（已回滚）')
   check(fnSrc.indexOf('face.prompt(') < 0 && fnSrc.indexOf('seedNewSession') < 0, file + ' 源码不含 face.prompt 自动发送（草稿-only）')
@@ -101,7 +115,7 @@ for (const file of files) {
   check(fnSrc.indexOf('#315 回滚') >= 0 || fnSrc.indexOf('先填草稿') >= 0, file + ' 源码含回滚注释（可追溯）')
 
   // a) 有 prompt 能力的面对象：也不应调用 prompt（草稿-only）
-  const env = runSandbox(fnSrc, 'with-prompt')
+  const env = runSandbox(fnSrc, 'with-prompt', wsLib)
   await sleep(40)
   check(env.rec.created && env.rec.created.workspaceId === 'ws9', file + ' 创建调用携带 workspaceId（同工作区）')
   check(env.rec.opened === 'sid-1', file + ' 创建后 open 切换到新会话')
@@ -109,7 +123,7 @@ for (const file of files) {
   check(env.dbg.pendingDraft === '/wayfinder 调查 #315 的提示词' && env.dbg.pendingDraftTargetSid === 'sid-1', file + ' 有 prompt 能力时仍挂草稿（pendingDraft + target sid）')
 
   // b) 无 prompt 能力 → 同样挂草稿
-  const env2 = runSandbox(fnSrc, 'no-prompt')
+  const env2 = runSandbox(fnSrc, 'no-prompt', wsLib)
   await sleep(40)
   check(env2.rec.promptCalls.length === 0, file + ' 无 prompt 能力时不调用 prompt')
   check(env2.dbg.pendingDraft === '/wayfinder 调查 #315 的提示词' && env2.dbg.pendingDraftTargetSid === 'sid-1', file + ' 回退原预填草稿路径（pendingDraft + target sid）')

@@ -12,8 +12,10 @@ files.forEach(f => {
 console.log("P2: host wf.cwd")
 hostFiles.forEach(f => {
   const src = fs.readFileSync(f, "utf8")
-  check(src.includes("header.cwd"), f + " wf.cwd header")
+  check(src.includes("sessionLifecycle") && src.includes("wf.cwd"), f + " wf.cwd 委托不断链 (H4 动态加载)")
 })
+console.log("P2b: host 真源 sessionLifecycle")
+check(fs.readFileSync("src/host/sessionLifecycle.js", "utf8").includes("header.cwd"), "src/host/sessionLifecycle.js wf.cwd header")
 console.log("P3: openTextInNewSession")
 files.forEach(f => {
   const src = fs.readFileSync(f, "utf8")

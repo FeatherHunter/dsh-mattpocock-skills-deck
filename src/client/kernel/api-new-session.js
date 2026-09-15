@@ -120,142 +120,21 @@
       //   创建失败（异常/bad-request/返回无效）→ 回落 null，使上层走 {cwd,ptc} 而非阻断；全程捕获永不抛；
       //   workspaces.create 入参以 {path:cwd} 为主，alpha 若已更名为 {cwd} 则自动回退试探，避免因参数更名导致创建链中断；
       //   显式携带 agentPreset:'ptc' 由 buildCreateOpts 保障，此处只负责 workspaceId 的有无，回退后仍走 ptc 分支，判据 P 不漂移。
+      // #364 工作区回退矩阵：实际查找由 kernel/api-workspace.js 的 resolveWorkspaceEntry 承担
+      // （#636 拆分：快照形状兼容、创建别名试探、编号与登记项同路返回都在那边），
+      // 此处只做薄转发，保持调用点与门禁提取锚点不变；失败一律回落空，不抛错阻断上层。
       const ensureWorkspaceId = function (cwd) {
-        if (!workspaces || !cwd) return Promise.resolve(null)
-        // 取工作区编号：先在已登记的工作区里按路径找，找不到再按需创建一个；全程失败只回落空，不抛错阻断上层。
-        // 快照形状与设置页工作区总览同口径：items 数组、直接数组、按编号存的对象、workspaces 数组都要收，不能互斥只取一种。
-        const pathOf = function (w) { return (w && (w.path || w.cwd || w.workspacePath || w.dir || w.root || w.fullPath)) || '' }
-        const widOf = function (ws) {
-          if (!ws) return null
-          const direct = ws.workspaceId || ws.id || ws.workspace_id
-          if (direct) return direct
-          try {
-            const nested = ws.workspace || ws.data || ws.value
-            if (nested && typeof nested === 'object') {
-              const nid = nested.workspaceId || nested.id || nested.workspace_id
-              if (nid) return nid
-            }
-          } catch (eNest) {}
-          return null
-        }
-        const normOf = function (p) { try { return (typeof keyOf === 'function' ? keyOf(p) : String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()) } catch (eN) { return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() } }
-        const collectFromSnap = function (snap, out) {
-          if (!snap || typeof snap !== 'object') {
-            if (Array.isArray(snap)) { for (let k = 0; k < snap.length; k++) out.push(snap[k]) }
-            return
-          }
-          if (Array.isArray(snap.items)) { for (let k = 0; k < snap.items.length; k++) out.push(snap.items[k]) }
-          else if (Array.isArray(snap)) { for (let k = 0; k < snap.length; k++) out.push(snap[k]) }
-          // 按编号存的对象形状：取对象里的每一项，不能取 snap.items（那一项在这里是空的）。
-          if (snap.byId && typeof snap.byId === 'object') {
-            try {
-              const vals = Object.values(snap.byId)
-              for (let k = 0; k < vals.length; k++) out.push(vals[k])
-            } catch (eById) {
-              try { for (const kk in snap.byId) { if (Object.prototype.hasOwnProperty.call(snap.byId, kk)) out.push(snap.byId[kk]) } } catch (eById2) {}
-            }
-          }
-          if (snap.workspaces && Array.isArray(snap.workspaces)) { for (let k = 0; k < snap.workspaces.length; k++) out.push(snap.workspaces[k]) }
-        }
-        const readSnapSync = function () {
-          try {
-            if (workspaces.list) {
-              if (typeof workspaces.list.getSnapshot === 'function') return workspaces.list.getSnapshot()
-              if (typeof workspaces.list.getCurrent === 'function') return workspaces.list.getCurrent()
-            }
-          } catch (e2) {}
-          return null
-        }
-        const targetNorm = normOf(cwd)
-        const matchWid = function (items) {
-          for (let i = 0; i < items.length; i++) {
-            const w = items[i]
-            if (!w || typeof w !== 'object') continue
-            const wPath = pathOf(w) || w.workspacePath
-            if (wPath && normOf(wPath) === targetNorm) {
-              const wid = widOf(w) || w.workspaceId || w.id || w.workspace_id
-              if (wid) return wid
-            }
-          }
-          return null
-        }
-        const tryCreateWid = function () {
-          if (typeof workspaces.create === 'function') {
-            const tryCreate = function (arg) {
-              try { return workspaces.create(arg) } catch (eSync) { return Promise.reject(eSync) }
-            }
-            return tryCreate({ path: cwd }).then(function (ws) {
-              const wid = widOf(ws) || (ws && (ws.workspaceId || ws.id || ws.workspace_id))
-              return wid || null
-            }).catch(function (err) {
-              const msg = String((err && err.message) || err || '')
-              // 兼容旧参数名： path 不认时换 cwd 再试一次；其它 bad-request 也换着试，避免因参数更名卡死。
-              if (/bad-request|unknown|invalid|not.*found|unrecognized|unexpected/i.test(msg)) {
-                return tryCreate({ cwd: cwd }).then(function (ws2) {
-                  const wid2 = widOf(ws2) || (ws2 && (ws2.workspaceId || ws2.id || ws2.workspace_id))
-                  return wid2 || null
-                }).catch(function () { return null })
-              }
-              // 旧断言保留： path 字样 + 非法入参时同样回退，保证门禁字面可命中。
-              if (/path/i.test(msg)) {
-                try { if (/bad-request|unknown|invalid/i.test(msg)) return null } catch (eP) {}
-              }
-              return null
-            })
-          }
-          return Promise.resolve(null)
-        }
-        try {
-          let items = []
-          const snap = readSnapSync()
-          const thenable = snap && typeof snap.then === 'function' ? snap : null
-          const afterSnap = function (realSnap) {
-            if (realSnap) collectFromSnap(realSnap, items)
-            // 兜底：同步快照为空时，再试异步取法（与设置页同口径），避免真机改成异步即 miss。
-            const needAsync = items.length === 0
-            const asyncStep = function () {
-              const hit = matchWid(items)
-              if (hit) return Promise.resolve(hit)
-              return tryCreateWid()
-            }
-            if (!needAsync) {
-              const hit0 = matchWid(items)
-              if (hit0) return Promise.resolve(hit0)
-              return tryCreateWid()
-            }
-            let p = Promise.resolve(null)
-            try {
-              if (workspaces.list && typeof workspaces.list === 'function') {
-                p = p.then(function () {
-                  try { return workspaces.list() } catch (eL) { return null }
-                }).then(function (arr) {
-                  if (Array.isArray(arr)) { for (let k = 0; k < arr.length; k++) items.push(arr[k]) }
-                  else if (arr && typeof arr === 'object') collectFromSnap(arr, items)
-                  return null
-                }).catch(function () { return null })
-              }
-            } catch (eL2) {}
-            try {
-              if (typeof workspaces.getAll === 'function') {
-                p = p.then(function () {
-                  try { return workspaces.getAll() } catch (eG) { return null }
-                }).then(function (arr2) {
-                  if (Array.isArray(arr2)) { for (let k = 0; k < arr2.length; k++) items.push(arr2[k]) }
-                  else if (arr2 && typeof arr2 === 'object') collectFromSnap(arr2, items)
-                  return null
-                }).catch(function () { return null })
-              }
-            } catch (eG2) {}
-            return p.then(asyncStep)
-          }
-          if (thenable) return thenable.then(afterSnap).catch(function () { return tryCreateWid() })
-          return afterSnap(snap)
-        } catch (e) {}
-        return Promise.resolve(null)
+        if (typeof resolveWorkspaceEntry === 'function') return resolveWorkspaceEntry(workspaces, cwd)
+        return Promise.resolve({ wid: null, entry: null })
       }
       ensureCwd().then(function (cwd) {
         if (!cwd) { doFallback(); return }
-        ensureWorkspaceId(cwd).then(function (workspaceId) {
+        ensureWorkspaceId(cwd).then(function (found) {
+          const workspaceId = found && found.wid ? found.wid : null
+          const wsEntry = found && found.entry ? found.entry : null
+          // 复用门：候选须已归属目标工作区（凭登记项名单验），防僵尸空白复活后顶栏空工作区；
+          // 名单不可验时沿旧行为放行，未拿到编号时沿旧行为放行（反正都是按目录建）。
+          const allowReuse = function (sid) { try { if (!workspaceId || !wsEntry || !Array.isArray(wsEntry.sessionIds)) return true; return wsEntry.sessionIds.indexOf(sid) >= 0 } catch (eG) { return true } }
           let reuseSid = null
           try {
             if (sessions.list && typeof sessions.list.getSnapshot === 'function') {
@@ -266,11 +145,11 @@
                 const curRow = snap.byId[curSid]
                 // #361 闸门：当前会话空白仅当满足复用闸门才可复用，空永不复用、code 幽灵永不复用（两级同形、被拒必新建）
                 if (typeof isReusableBlank === 'function') {
-                  if (isReusableBlank(curRow, normCwd2)) reuseSid = curSid
+                  if (isReusableBlank(curRow, normCwd2) && allowReuse(curSid)) reuseSid = curSid
                 } else if (curRow && curRow.blank) {
                   const rowCwd = curRow.cwd || ''
                   const normRow = typeof keyOf === 'function' ? keyOf(rowCwd) : String(rowCwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
-                  if (normRow === normCwd2 || !normRow) reuseSid = curSid
+                  if ((normRow === normCwd2 || !normRow) && allowReuse(curSid)) reuseSid = curSid
                 }
               }
               if (!reuseSid) {
@@ -287,6 +166,7 @@
                     const normRow = typeof keyOf === 'function' ? keyOf(rowCwd) : String(rowCwd).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase()
                     if (normRow !== normCwd2 && normRow) continue
                   }
+                  if (!allowReuse(sid)) continue
                   const t = row.updatedAt || 0
                   if (t > bestTime) { bestTime = t; best = sid }
                 }
