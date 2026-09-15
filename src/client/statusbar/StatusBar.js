@@ -73,6 +73,8 @@ export const StatusBar = (props) => {
   const foldRef = React.useRef(null)
   const bugAnchorRef = React.useRef(null)
   const bugCloseRef = React.useRef(null)
+  const takeAnchorRef = React.useRef(null)
+  const takeCloseRef = React.useRef(null)
   const backendAnchorRef = React.useRef(null)
   const backendCloseRef = React.useRef(null)
   // 状态栏悬浮菜单定位与开关已搬 StatusMenus.js（B1 #460，纯结构；同闭包拼回直调）。
@@ -81,8 +83,10 @@ export const StatusBar = (props) => {
   const scheduleClose = function(ref, fn){ scheduleStatusClose(ref, fn) }
   const closeBugMenu = function(){ closeStatusBugMenu(s, bugCloseRef) }
   const showBugMenu = function(){ showStatusBugMenu(s, bugAnchorRef, bugCloseRef) }
+  const closeTakeMenu = function(){ closeStatusTakeMenu(s, takeCloseRef) }
+  const showTakeMenu = function(){ showStatusTakeMenu(s, takeAnchorRef, takeCloseRef) }
   // 菜单重定位副作用已搬 StatusMenus.js 的 useStatusMenus（B1 #460，同闭包拼回），此处单调供装配。
-  useStatusMenus(s, { bugAnchorRef: bugAnchorRef, backendAnchorRef: backendAnchorRef, bugCloseRef: bugCloseRef, backendCloseRef: backendCloseRef })
+  useStatusMenus(s, { bugAnchorRef: bugAnchorRef, backendAnchorRef: backendAnchorRef, bugCloseRef: bugCloseRef, backendCloseRef: backendCloseRef, takeAnchorRef: takeAnchorRef, takeCloseRef: takeCloseRef })
   const applyFold = function () {
     const cap = foldRef.current
     if (!cap) return
@@ -162,7 +166,15 @@ export const StatusBar = (props) => {
       Icon({ scheme: s.ui.icon, size: 14 }),
       h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
     ]),
-    h(Tip, { content: tr('nav.takeableTitle') }, seg('target', [h('span', { 'data-fold-priority': 5 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; s.lblFilters = []; go('list') })),
+    h('span', { ref: takeAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showTakeMenu, onMouseLeave: function () { scheduleClose(takeCloseRef, closeTakeMenu) } }, [
+      h(Tip, { content: tr('nav.takeableTitle') }, seg('target', [h('span', { 'data-fold-priority': 5 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; s.lblFilters = []; go('list') })),
+      s.takeMenuOpen ? PortalOverlay({ className: 'dsws-takemenu', onMouseEnter: function () { clearClose(takeCloseRef) }, onMouseLeave: function () { scheduleClose(takeCloseRef, closeTakeMenu) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'fixed', left: s.takeMenuPos ? s.takeMenuPos.left : 0, bottom: s.takeMenuPos ? s.takeMenuPos.bottom : 0, padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)' } }, [
+        h('div', { onClick: function (e) { e.stopPropagation(); closeTakeMenu(); openTextInNewSession(s, newWayfinderText(s), newSessionTitleNew('requirement')) }, onMouseEnter: function () { if (!s.takeMenuHover) { s.takeMenuHover = true; emit(s) } }, onMouseLeave: function () { if (s.takeMenuHover) { s.takeMenuHover = false; emit(s) } }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: s.takeMenuHover ? '#c084fc' : 'var(--dsw-alias-label-primary,#e6edf3)', background: s.takeMenuHover ? 'rgba(192,132,252,.15)' : 'transparent', whiteSpace: 'nowrap' } }, [
+          Ic({ n: 'map', size: 12, color: s.takeMenuHover ? '#d8b4fe' : '#c084fc' }),
+          h('span', null, tr('nav.takeableNew')),
+        ]),
+      ]) : null,
+    ]),
     h('span', { ref: bugAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showBugMenu, onMouseLeave: function () { scheduleClose(bugCloseRef, closeBugMenu) } }, [
       h(Tip, { content: tr('nav.bugTitle') }, seg('alert', [h('span', { 'data-fold-priority': 6 }, tr('nav.bug')), num(String(bugN), '2ch')], '#f87171', function () { s.stateFilter = 'open'; s.lblFilters = ['bug']; go('list') })),
       s.bugMenuOpen ? PortalOverlay({ className: 'dsws-bugmenu', onMouseEnter: function () { clearClose(bugCloseRef) }, onMouseLeave: function () { scheduleClose(bugCloseRef, closeBugMenu) }, onClick: function (e) { e.stopPropagation() }, style: { position: 'fixed', left: s.bugMenuPos ? s.bugMenuPos.left : 0, bottom: s.bugMenuPos ? s.bugMenuPos.bottom : 0, padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)' } }, [

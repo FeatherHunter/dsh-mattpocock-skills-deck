@@ -47,6 +47,7 @@ export const SkillFloatList = function (props) {
     clearClose(skillCloseRef)
     let changed = false
     if (s.bugMenuOpen || s.bugMenuPos || s.bugMenuHover) { s.bugMenuOpen = false; s.bugMenuHover = false; s.bugMenuPos = null; changed = true }
+    if (s.takeMenuOpen || s.takeMenuPos || s.takeMenuHover) { s.takeMenuOpen = false; s.takeMenuHover = false; s.takeMenuPos = null; changed = true }
     if (!s.skillsOpen) { s.skillsOpen = true; changed = true }
     if (placeSkillPop()) changed = true
     if (changed) emit(s)
