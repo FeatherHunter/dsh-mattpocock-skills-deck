@@ -1,0 +1,383 @@
+workflow "642-verify-workflow-list" completed (39 agents).
+Return value:
+{
+  "summary": {
+    "workflows_checked": 15,
+    "workflows_fully_supported": 1,
+    "flagged_problems": 41,
+    "proposed_workflows": 28,
+    "refuted_checks_run": 16,
+    "standing_after_refutation": 10
+  },
+  "workflow_verdicts": [
+    {
+      "id": "A",
+      "name": "主建造链（多会话分支）",
+      "supported": false,
+      "problems": [
+        "报告 A 的第 4 块（走到哪算结束／或回到哪）写：『评审发现问题之后要不要回到 `implement`，两边原文都没写』（报告第 28 行；同一说法在第 4.3 节第 249 行写得更宽——『主干那条回头路：`code-review` 审出问题之后怎么办』）。本地一侧确实没写：`research/642-parts/02-main-flow.md` 第 117、123 行明记『本地原文没写「评审发现问题就回到 /implement 改」这类回头路』，`research/642-parts/matrix-local.md` 第 58 行同。但官网一侧写了，而且给出的答案不是「回到 implement」：官网 implement 页问答说 implement 跑到提交就结束、没有完成步骤，原文『It also does not act on the findings `code-review` produced, and does not tick the `- [ ]` boxes on the originating issue. Close the ticket and reconcile the criteria yourself.』（`research/642-parts/web-02.md` 第 106 行）；官网 code-review 页说评审完的下一步动作是『Commit first, then review, then amend or add a fixup.』（同文件第 187、244 行），拿到发现后『act on the ones with a cited rule behind them, and stop』（同文件第 233 行）。差在范围：『有没有哪一句原话说重新跑一次 /implement』确实没有，但『评审出问题之后怎么办』官网有明确交代（改法是 amend／fixup，implement 不会替人处理 code-review 的发现，工单与验收标准由人自己收），把它整体说成『两边都没写』比原始稿大。建议改成：『本地原文没写回头路；官网给的是 amend／fixup，并明说 implement 不处理 code-review 的发现——没有「回到 implement 重跑」这回事。』A 条其余部分（适合场景、技能顺序与内含 tdd、进入条件与链头原话、`code-review` 是链尾、纪律那两条 clear／compact 禁令）我都逐句对回了原始整理稿，都有出处，不需要改动。"
+      ]
+    },
+    {
+      "id": "B",
+      "name": "短路径：同一个会话直接做完",
+      "supported": true,
+      "problems": [
+        "报告说（技能顺序）：「`grill-with-docs` → `implement`〔内含 `tdd`〕→ `code-review`」，这一条的落款是「（同一个会话直接做完）」，但同样是在同一个会话里跑，作者对最后那一棒 code-review 的交代相反：原始整理稿 `research/642-parts/web-02.md` 第 191 行原文「Should I run it in the same session that wrote the code? — Prefer a fresh one. As one reader put it: \"Same context reviewing itself isn't review, it's confirmation bias with a slash command.\" … Invoking `/code-review` yourself from a clean session is the honest version.」，同一份第 108–110 行还有一条：`code-review` 只看 `git diff <fixed-point>...HEAD`（不含暂存区与工作区改动），而 `implement` 是在提交之前调用它，所以必须先提交再评审。也就是说：这条路上唯一被作者明确讨论过「该不该留在同一个会话」的一棒，作者的答案是「换干净会话」，而报告把整条路标成「同一个会话直接做完」、对这一棒一个字不提，面板照此实现会把作者的明确建议漏掉。",
+        "报告说（说明）：「`to-spec` 那一棒只在「跨多个会话」的分支上才存在，不是每次都要走。」——这一句本身在原始稿里有依据（`research/642-parts/web-01.md` 第 328/336 行 `a step in the main build chain, and only on the multi-session branch of it`；第 354 行 `the spec earns its step only on multi-session work`；`matrix-web.md` 第 55 行「一个 spec-and-tickets 拆分（后者只在跨多个会话时才值得）」），但报告只说了 spec 这一棒，漏掉同一份整理稿里连着写的下一棒：`web-01.md` 第 347 行与第 480 行的对照表原文分别是 `Decided, and the work fits one context window | implement: skip the spec` 与 `The whole change fits in one context window | implement, skip the tickets`，`web-02.md` 第 37 行 implement 页的对照表原文是 `Only in the conversation you just had, and it's still small | /implement right there, in the same window`。差在：短路径实际是「spec 与 tickets 两步一起跳过」，报告写成只跳过一步，容易让人以为 `to-tickets` 在短路径上仍要跑一遍。",
+        "报告说（技能顺序）：「`grill-with-docs` → `implement` → `code-review`」，把链头写死成 `grill-with-docs`；原始整理稿里这一棒是按场景分叉的两个技能：`research/642-parts/web-01.md` 第 245 行 `It is the single-session tool. Which grilling skill you want depends on what is in front of you:`，第 249–250 行的对照表原文「You aren't working in a working directory at all → `grill-me`」/「A repo, and a change you can settle in one session → `grill-with-docs`」，同一份第 54 行把这条边界写成作者自己列出的「两个容易混的技能」之一（`turns on whether you are in a working directory`）；`web-02.md` 第 38 行 implement 页的上游对照表也写成 `grill-with-docs, or grill-me if there's no codebase`。差在：报告这一条没有写「没有仓库／不在工作目录时链头换成 `grill-me`」，而且在报告里 `grill-me` 只出现在第 J 节（脱离仓库先把想法锤一遍）。照报告做面板，没有代码库的人在这条路上会被指向一个要求工作目录的链头。",
+        "报告说（什么时候进入）：「聊完发现没那么大，就不用拆规格与工单。」原始整理稿里对应的那两句不是「聊完之后回头发现」，而是进入 implement 时就已经清楚的一类情形：`research/642-parts/web-02.md` 第 37 行 `Only in the conversation you just had, and it's still small | /implement right there, in the same window`（一句「still small」是当场判定），`web-01.md` 第 347/480 行的判定口径也是「装得进一个 context window 就跳过 spec／跳过 tickets」；同一页第 342 行把 to-spec 的整条触发条件写成 `Reach for it when the build is too big for one agent session and has to survive being split across several. That is the whole trigger:`。差在：判定点被报告挪到了「聊完以后发现」，原始稿是「要看这条改动装不装得进一个上下文窗口／一次会话」，两种说法在实际使用时导向不同的时机（后者更早、且可以在还没开聊时就判断）。"
+      ]
+    },
+    {
+      "id": "C",
+      "name": "大工程先划路（wayfinder 情境入口）",
+      "supported": true,
+      "problems": [
+        "【说过头：限定词被去掉、对象被改窄】报告说（`research/642-aihero-workflows.md` 第 44 行「注意」那行，不在上面四块之内）：作者专门说过，把主干写成 `wayfinder → to-spec → to-tickets → implement → code-review` 是错的。原始稿里是：`ask-matt` 页原话 `A static table would say wayfinder → to-spec → to-tickets → implement → code-review and be wrong for most situations...`（`research/642-parts/web-01.md` 第 120 行；`research/642-parts/matrix-web.md` 第 52–54 行把它记为「作者说这样写**对多数情况**是错的」静态表写法）。差在两点：原文带「对多数情况」这个限定，报告写成无条件「是错的」；原文针对的是「用一张静态表表达流程」这种做法，报告改写成「把主干写成这样」。",
+        "【作者理由无出处：报告自己补的因果被写成作者的话】报告说（同上第 44 行）：这样写之所以错，「那是把情境入口当成了必经的第一棒」。原始稿里是：作者在同一处给的理由是 `because the interesting parts are the branches: is there a codebase, does the build span sessions, can this question be settled by talking`（`research/642-parts/web-01.md` 第 120 行）——三条都在讲分支，没有任何一条是「把情境入口当第一棒」。`wayfinder` 是 `a situational on-ramp, not the default front door` 这句作者原话确有出处，但出处是 wayfinder 详情页（`research/642-parts/web-02.md` 第 289 行），原始整理稿从未把它接到「静态表写错」这句上。差在：报告把两份不同出处的说法合成一条因果，并以「作者专门说过」的语气写出来，读的人会以为这是作者原话。",
+        "【说过头：收尾漏掉原文明确写的例外】报告说（第 41 行技能顺序与第 43 行走走到哪算结束）：地图清明后收尾「交接给 `to-spec`」，两处都不带例外。原始稿里是：常规确实并到 `to-spec`（`research/642-parts/web-02.md` 第 278 行对照表 `A cleared wayfinder map | to-spec, then to-tickets and implement`；第 289 行 `it merges back onto that chain at to-spec`），但同一页第 336 行明确留了例外 `Go straight to implementation only when the effort turned out genuinely small.`，本地整理稿同义记为「只有在事情其实很小的时候才直接去 `/implement`」（`research/642-parts/01b-ask-matt.md` 第 71 行）。差在：报告把一条带例外的收尾写成无条件，而且报告全文没有别处补这条例外（主干那条「小改动可跳过 `to-spec`」的捷径在报告第 14、36 行写了，wayfinder 这一条例外一处都没写）。"
+      ]
+    },
+    {
+      "id": "D",
+      "name": "接收外来活（triage 并行车道）",
+      "supported": true,
+      "problems": [
+        "报告（`research/642-aihero-workflows.md` 第 51 行）说「交出 agent brief（一份给无人值守 agent 照着做的说明书）就算这一棒结束」。原始整理稿里 triage 的产出按状态分四种（`research/642-parts/04-upkeep.md` 第 102 行：移到 `ready-for-agent` 时贴 agent brief；移到 `ready-for-human` 时贴同结构评论并写明为什么不能委托出去；`needs-info` 时贴分诊记录；`wontfix` 时关闭），只有 `ready-for-agent` 这一种才产出 agent brief。`needs-info` 那一种还写明有回流：`Waiting on the reporter. Returns to needs-triage when they reply.`（`research/642-parts/web-03.md` 第 361 行）。差在：报告把这条车道的收尾写成了四种里的一种，另外三种出口、尤其是这份报告自己格式里要求的「回到哪一步」，D 条四块里一处都没提；照这条建面板，会看不出外来活里有不少根本走不到 agent brief（复现不出来就挂 `needs-info` 等报告人、查重或被拒过就 `wontfix` 关掉）。",
+        "报告（第 51 行）说「核验成真的 bug 交给谁修，原文没写」。原始整理稿 `research/642-parts/matrix-local.md` 第 69 行写的是「没写（只有 `/ask-matt` 写『之后由 `/implement` 接手』）」；`research/642-parts/01b-ask-matt.md` 第 68 行也记着 `/ask-matt` 的原话——triage「产出『agent 可直接接手』的 issue，之后由 `/implement` 接手」。差在：能成立的只是「triage 自己那份原文没写」，报告把它写成了整个语料都没写，把 `/ask-matt` 这个例外丢了。而报告 0 节第 6 点（第 17 行）恰恰说 `/ask-matt` 是唯一把全图编码进去的那一份；下一个人若按 D 条做面板，会把「核验成真的 bug」显示成死路。"
+      ]
+    },
+    {
+      "id": "E",
+      "name": "定期保养（improve-codebase-architecture）",
+      "supported": true,
+      "problems": [
+        "报告「适合什么场景 / 什么时候进入」把官网的四个入口压成了一个。报告写「每隔几天扫一次代码库，攒活，不干活」、`run it every few days, outside any chain, to queue up work rather than to do it`；官网同页 `When to reach for it` 表列了四种用法：Routine upkeep（每几天一次或空当出现时）、Before a big build（拿 spec 去问 `how can we make this change easy?`，官网原话说这是 `the most effective prompt for it`，报告完全没提）、Brownfield audit（老的大而无当或 vibe-coded 仓库体检）、Legacy test work（先找缺失的接缝再补测试），出处 research/642-parts/web-03.md 第 53-60 行。差在：报告的「进入时机」只覆盖了四种里的第一种，还把原文的「每几天或任何空当」写死成「每隔几天」，并把官网点名的「最有效提示」丢了。",
+        "报告「什么时候进入」只给了一句英文引用，没写这个技能只能由人手动唤起。本地 SKILL.md 的 YAML 标了 `disable-model-invocation: true`（research/642-parts/04-upkeep.md 第 19 行：只能由人手动唤起，不能凭一句话自动触发）；官网同页第 49 行也有 `You invoke this by typing /improve-codebase-architecture; the agent will not reach for it on its own.`。差在：报告在 E 条里没有交代触发方式，读者可能以为模型能自己起这次扫描。",
+        "报告第 4.3 节写「谁在什么时机唤起它这次扫描，原文没写」（第 251 行），这个断言与原始整理稿对不上。本地原文（research/642-parts/04-upkeep.md 第 19 行）写清了谁唤起（人，手动，带 `disable-model-invocation: true`），也写了进入时的两个用例：用户点名方向（某个模块／子系统／痛点）就按用户说的扫；没点名就翻一段提交历史（`git log --oneline`）找出改动最密集的地方；改动分散看不出热点就把网撒大。此外官网同页第 58 行还把「大改动之前把 spec 丢给它」列为最有效用法，本身就是一种写明的进入时机。差在：并非「原文没写谁在什么时机唤起」，而是写了一半（谁唤起、往哪儿扫），没写的只是「定期这个节奏由谁定」。",
+        "报告「走到哪算结束」写「那份重构清单交给谁领走，原文没写」，与官网明文冲突。官网同页的「跨会话用法（重要）」一节（research/642-parts/web-03.md 第 91 行）写：`One candidate per session. ... The report only lives in a temp file, so carry the candidate itself rather than the file: pick one, grill it, take the decision into /to-spec, and turn the rest into tickets you can pick up independently later. Put the chosen improvement into a spec rather than going straight to implementation.` 同页第 88 行还写 `The refactor itself happens later, in a separate session, through the normal build flow.` 差在：清零单的去向在官网上有交代（当次那条带进 to-spec，其余转成可独立领取的工单；报告只是临时文件、不跨会话搬），报告既把它说成「原文没写」，又整条漏掉了这个跨会话纪律。本地侧（matrix-local.md 第 116 行）说本地只做到「给报告、挑一条、当场 grilling」，那个判断只在本地范围内成立。",
+        "E 条漏掉了被两处点名的 `codebase-design`。官网 `Where it fits`（research/642-parts/web-03.md 第 41 行）把 `codebase-design` 列为第一个邻居：`which owns the depth-and-seam vocabulary every candidate is written in`；本地原文（research/642-parts/04-upkeep.md 第 25 行）另有实际调用——要给加深后的模块试几种不同接口时，跑 `codebase-design` 里的 design-it-twice 并行子代理。差在：E 条只列了 `grilling` 与 `domain-modeling`，把这个提供架构词汇、且会被本技能实际调起的邻居整条漏掉。"
+      ]
+    },
+    {
+      "id": "642-aihero-workflows",
+      "name": "F. 难 bug 诊断（diagnosing-bugs）",
+      "supported": true,
+      "problems": [
+        "报告说「修完并补回归测试」（把补回归测试放在修之后）；原始稿里是相反的先后——`web-03.md` 第 170 行原文 `The regression test is written before the fix`，`04-upkeep.md` 第 50 行也写「先写回归测试再修」。差在把这条路上最要紧的一条纪律说反了。",
+        "报告说「若顺带发现代码没有缝、不好测，则 hand off 给 `improve-codebase-architecture`」，写成一发现就交出去；原始稿里是两处限定：交接必须在修完之后才做（`web-03.md` 第 126 行 `the recommendation is made after the fix is in, when there is more information`；`04-upkeep.md` 第 150 行「要在修完并上完回归测试之后再用这个技能，不要在修之前提」），且触发条件是复盘发现「架构层面的」原因（`04-upkeep.md` 第 50 行：没有好的测试接缝、调用方纠缠、隐藏耦合）。报告的说法比原稿宽松，会把「顺手发现不好测」都算成交接理由。"
+      ]
+    },
+    {
+      "id": "G",
+      "name": "冲突收尾（resolving-merge-conflicts）",
+      "supported": false,
+      "problems": [
+        "结束条件写窄了。报告 G 条说「走到哪算结束：冲突清完」；原始稿里不是停在冲突清完：research/642-parts/web-03.md 第 210 行原文 `it starts when git stalls and ends when the tree is clean and committed`，第 233 行 `the merge is always carried to a finished commit`，第 267 行还要求把多提交变基里「每个剩余提交都做完」（`including every remaining commit in a multi-commit rebase`）；本地那份整理稿（research/642-parts/04-upkeep.md 第 78 行）同样写「冲突全部解决、项目的自动化检查跑过、改动暂存并提交；如果是变基，就要继续推进到所有提交都变基完成」。差在：报告只落到「冲突清完」，把「已提交、工作区干净」和「变基要把剩余提交全做完」这两个已写明的完成条件漏掉了，照这个写进面板会出现「冲突标记消失就算结束」的错误终点。",
+        "唯一写明的衔接被漏掉，且报告在别处写成了与原文相反的话。报告 G 条以「完全独立」为题、四块里只列它自己，报告同文件第 3.5 节（第 219 行）更直接写「`resolving-merge-conflicts` 完全在主干之外，不接任何人也不回到哪里」；原始稿里它虽然「不依赖任何技能、不在主干上」，却明确写了一个邻居和交接点：research/642-parts/web-03.md 第 210 行 `Its only real neighbour is diagnosing-bugs, which takes over at the point where a merge resolved cleanly but the merged code misbehaves: a diagnosis problem, not a conflict one.`，第 247 行整理者把它标为「本技能 → 诊断技能的交接点」，同段还有 `so ask-matt is the map for what runs before and after it`；research/642-parts/matrix-web.md 第 27 行也把 `diagnosing-bugs`、`ask-matt` 记成该页点名的技能。差在：原始稿说的是「不依赖任何技能」（入向无依赖），报告把它读成了「谁也不接」；原始稿唯一给出的出去方向（合并本身干净解决、合完代码行为不对 → `diagnosing-bugs`）在 G 条里一个字都没有，第 3.5 节的说法与原文冲突。"
+      ]
+    },
+    {
+      "id": "H",
+      "name": "跨会话走两个来回（handoff 与 prototype）",
+      "supported": true,
+      "problems": [
+        "报告 H 的「要留意的坑」末句原话：「接手方怎么找到它、路径怎么传，技能原文没写全。」；原始整理稿里，网站 `/handoff` 详情页明确写了这一步——`Open the fresh session and point it at the path: read this file, then continue.`，并说明要点名文件路径、不要把摘要粘进 shell（research/642-parts/web-04.md 第 216 行），同页还给了补救办法：下一个会话一小时内不开始或换 harness，就自己把文件拷到持久位置（同文件第 218 行）。「没写临时目录路径、接手方怎么找到」只在本地 SKILL.md 上成立（research/642-parts/matrix-local.md 第 23、63 行；research/642-parts/05-productivity.md 第 67、80 行）。差在哪里：H 这句没限定来源，读起来把网站技能页也算进去，而网站页恰恰写了；报告第 4.1 节第 2 条把同一件事限定成「`/handoff` 的本地原文」才立得住（报告第 232 行），两处口径不一致。若作者原意确实只是本地 SKILL.md，这条本来就对，问题只是限定词丢了。",
+        "报告 H 原话：「**什么时候进入（作者给的四种情形，就是全部触发条件）**：」后接四行表（换工具 Claude → Codex／换目录或换仓库／交给同事／中途发现的支线任务）。原始整理稿里这四行是 **`/handoff` 自己的**触发条件，不是这条「出去做原型再回来」路线的触发条件：research/642-parts/web-04.md 第 158 行写「作者说触发情形一共四种……原文 \"Four situations are the whole trigger:\"」，四行表在第 163-168 行，属于该文件的 `## 2. handoff` 一页；research/642-parts/matrix-web.md 第 65 行同样把「新 harness、新目录、同事、阶段中途分叉支线」记成 `/handoff` 的触发条件。差在哪里：四行的译文本身与原文逐行对得上，但按原文只有「换目录或换仓库（常见情形即开原型目录）」（第 166 行）与「中途分叉支线」（第 168 行；`Branching is the use people skip` 那一节讲的正是原型绕道的分叉情形，第 172-176 行）会走成这条两个来回的路；「换工具（Claude → Codex）」和「交给同事」不会。写成「这条路的全部触发条件」，下游做面板时会把后两种情形挂到 handoff↔prototype 这条 workflow 下面。"
+      ]
+    },
+    {
+      "id": "I",
+      "name": "阶段边界五选一（continue / clear / handoff / delegate / compact）",
+      "supported": true,
+      "problems": [
+        "报告原话：表格标题写「**五个选项各保全什么（作者原话）**」。原始稿里对应的是 `research/642-parts/matrix-web.md` 第 57–69 行那一节，而那一节自己说明它「各保全什么（作者原话）」的正文只覆盖三项（`/compact preserves your intent`、`/clear preserves nothing`、`/handoff preserves the work's ability to move`，出自 `web-04.md` 第 178 行与第 229 行的 handoff 页原话）；余下两行是整理者从别处原话折算出来的——`continue` 一行对应 `web-01.md` 第 103 行 `It is the only move that keeps the session as a primary source`，`delegate` 一行对应 `web-01.md` 第 106 行 `The task is scoped tightly enough to run with you away from the keyboard`（那是「什么条件下选」的原话，不是「保全什么」），原话里并没有一句说 delegate「保全的是你不在键盘边也能跑」。差在：把六格拼装的表标成整表「作者原话」，读者会以为六句话都是照抄，实际上至少两格是转述。",
+        "报告原话：表头「**什么条件下选**」，四行给了条件（Continue 两个理由、`/clear` 身后皆可丢、`/handoff` 四种要搬的东西、子代理范围够紧），但漏掉了另两组作者明确写下的东西。第一，`/compact` 那一行的条件不是「以上都不是」而已——`web-04.md` 第 210 行作者原话是「同 harness、同目录、任务不变是 compact 而不是 handoff」，`01b-ask-matt.md` 第 203 行的本地原文还给到 `/compact` 可以带一句指令（原话例子 `/compact we're going to QA this area`），报告第一节里没有这两点，读者会以为 `compact` 是个不带指令的纯兜底动作。第二，报告第 4.3 节（报告第 256 行）专门列了「原文压根没写的地方：阶段边界那棵**有序树的分支判断顺序**」，可第一节 I 条自己把表头写成「什么条件下选」、又不加一句「本表不是那棵树、树的顺序在 `ask-matt` 页/本地 `PHASE-BOUNDARIES.md`、五个问题从上往下问第一个 yes 就赢、而那份文件自称问题不客观」，于是这一条在「走到哪算结束/怎么判」这块读起来像一张可直接照跑的判定表，与报告自己下一节的声明打对台。差在：同一份报告里对「这棵树有没有可用的判定顺序」给了两种口径，面板实现者只看第一节会照表写死顺序。",
+        "报告原话：「`/compact` 是树底兜底，**不是第一手**」。出处是 `web-01.md` 第 109/114 行的 `the bottom of the tree rather than the first reach`，以及 `01b-ask-matt.md` 第 204 行的 `PHASE-BOUNDARIES.md` 原话「是**默认项，不是第一个伸手去拿的**」。中文「第一手」在本报告别处的固定含义是「一手资料 / primary source」（见报告第 208–214 行那一节：「除了 Continue 以外的每一个动作，都在把一份**一手资料**变成**二手资料**」）。所以「不是第一手」在报告自己的词汇里会读成「不是一手资料」，而原文说的是「不是第一个该伸手去拿的选项」，两件事。差在：一句翻译与报告内部已确立的词义撞车，容易被面板实现者当成「`/compact` 产出的是二手资料」的又一种说法。",
+        "报告原话：表格第三行写「`/handoff` ｜「这份活能移动」｜ 有东西要**搬**：换工具、换目录、交给同事、分叉支线」。原始稿里四种情形是 `web-04.md` 第 161–168 行整表照抄的 `Swapping harness (Claude → Codex)`／`Moving to a different directory or repo`／`Sending the work to a colleague`／`Forking a side task found mid-phase`，以及 `web-01.md` 第 105 行 `Something has to travel: a new harness, a new directory, a colleague, a side task forked mid-phase`。对得上；「换工具」＝换 harness 也在 `01b-ask-matt.md` 第 161 行有译文佐证。这一格站得住，列在此处只为说明上一条「六格全标作者原话」的问题确实只在措辞，不在事实。"
+      ]
+    },
+    {
+      "id": "J",
+      "name": "脱离仓库先把想法锤一遍（grill-me → grilling）",
+      "supported": true,
+      "problems": []
+    },
+    {
+      "id": "K",
+      "name": "K. 在仓库里对齐并留下记录（grill-with-docs → grilling + domain-modeling）",
+      "supported": false,
+      "problems": [
+        "缺栏：报告 K 条没有四块里的「什么时候进入」这一整栏（报告 research/642-aihero-workflows.md 第 116–121 行只写了 适合什么场景 / 技能顺序 / 走到哪算结束 / 要留意的坑）。原始稿里这一块有现成依据：research/642-parts/web-01.md 第 243–255 行的官网「When to reach for it」——`Reach for it at the start of a change, in a repo, when the plan is still fuzzy and the words for the thing are not settled yet.`、`You invoke this by typing /grill-with-docs; the agent will not reach for it on its own.`、`It is the single-session tool.`，判据表里 `A repo, and a change you can settle in one session → grill-with-docs`；research/642-parts/matrix-web.md 第 17 行给的是 `the head of the main build chain`；research/642-parts/matrix-local.md 第 77 行把它列进带 `disable-model-invocation: true`、只能人手动唤起的那一批。差在哪里：票面要求的四块少了一块，而报告自己第 3 行写明每条路都会给「什么时候进入」，A–J 十条也都有这一栏，K 条是漏了。补写时注意一点：本地那份 SKILL.md 确实没写进入条件（research/642-parts/02-main-flow.md 第 14 行原话「什么时候用它（进入条件）：原文没写」），所以这一栏只能照官网，或直接沿用报告 A 条第 27 行已经写好的那句（链头、只能人手动敲）。",
+        "归栏与原始稿对不上（事实无误，属栏目内容放错）：报告第 119 行把 K 条「技能顺序」写成 `grill-with-docs`〔内部跑 `grilling` 与 `domain-modeling`〕→ 产出 ADR 与 `CONTEXT.md` 术语表，末位装的是产物；原始稿里这一棒链条上的下一环是 `to-spec`——research/642-parts/web-01.md 第 228–234 行（主链原话 `grill-with-docs → to-spec → to-tickets → implement → code-review`、`It comes before anything is written down as a spec`）、research/642-parts/web-05.md 第 276 行（`to-spec` 排在 `grill-with-docs` 之后）、research/642-parts/matrix-web.md 第 17–18 行。差在哪里：同一份报告其他各条的「技能顺序」栏装的都是技能名（A 条第 26 行就是 `grill-with-docs → to-spec → …`），只有 K 把 ADR／术语表放进顺序里，而 `to-spec` 只出现在 K 条第 120 行的「走到哪算结束」中；下游面板若照这一栏直接排节点，会把产出物画成链条上的一站。"
+      ]
+    },
+    {
+      "id": "L",
+      "name": "有个问题得问别人（to-questionnaire）",
+      "supported": false,
+      "problems": [
+        "报告第 1 节 L 条只写到「回答回来」，第四块「走到哪算结束（或回到哪）」没有写出答案回来之后的去向；报告第 4.3 节则把这一块写成「原文压根没写」，原话是「- `to-questionnaire` 收到答复之后接什么。」（列在标题为「原文压根没写的地方」的 4.3 节下）。原始整理稿里是写了的：`research/642-parts/web-04.md` 第 276 行与第 278 行整节照抄官网 `Where it fits` 原文，其中一句是 \"What comes back is raw material: feed it into another grilling round, or into grill-with-docs or to-spec if the work is heading for a build.\"；同一份文件第 325-326 行把这条标题写成「答案回来之后的去向：再一轮 grilling，或 grill-with-docs／to-spec」，第 605-611 行的「本批出现的跨技能衔接关系清单（只列页面上明确写出的）」第 3 条又是这一条。本地一侧也有出处：`research/642-parts/01b-ask-matt.md` 第 101 行（本地 `/ask-matt` 正文整理）写「拿回来的东西是 `/grill-with-docs` 或 `/to-spec` 的材料」，第 121 行注 `/to-spec` 是「`/to-questionnaire` 产出材料的去处」。真正没写的只有本地 `/to-questionnaire/SKILL.md` 自己——`05-productivity.md` 第 103 行、`matrix-local.md` 第 75 行那两处「没写」都明确限定在本地原文。差在哪里：报告把「本地技能文件没写」泛化成了「原文压根没写」，于是 L 条这一块停在「回答回来」，而按报告第 0 节第 6 条自己定的规矩（面板内容照网站和 `/ask-matt`），这条去向是有出处、可以直接写进面板的。除第四块以外，L 条写的场景、顺序与「必须同一个会话」这三处逐句都能在原始整理稿里找到依据（`web-04.md` 第 276 行、第 339 行；`05-productivity.md` 第 103 行；`matrix-web.md` 第 32 行），问题只出在第四块。"
+      ]
+    },
+    {
+      "id": "M",
+      "name": "跨多次会话学一件事（teach）",
+      "supported": false,
+      "problems": [
+        "报告 M 条缺「走到哪算结束（或回到哪）」这一块，而报告第 3 行自报的交付范围就是「每条路上技能按什么顺序、什么时候进入、走到哪一步算结束或者回到哪一步」，A 到 L 各条都照四块写了（例如第 28、43、120 行），M 条却只写到「关键点」和「一条组合用法」就停了。原始稿里这块是有依据的：`web-04.md` 第 471-474 行写「每节课自己的调用、会话结束时留下 learning record、在文件夹里开新会话说 'next lesson' 就接着上而不是重来」（「Opening a fresh session in the folder and saying 'next lesson' continues the course instead of restarting it.」），第 468 行写「每节课是一次调用，共用同一个文件夹」。",
+        "报告 M 条缺「什么时候进入」这一块。原始稿两处都写明了进入条件：`web-04.md` 第 398 行「You invoke this by typing `/teach`; the agent won't reach for it on its own.」（必须由人主动打 `/teach`，模型不会自己去拿它），本地侧对应 `matrix-local.md` 第 77 行把 `/teach` 列入带 `disable-model-invocation: true` 的 12 个只能人手动唤起的技能。M 条唯一沾到进入的话是「适合什么场景：学一门新东西，要跨很多次会话、一节课接一节课」，那是使用定位，不是进入条件。",
+        "报告第 134 行「（原话意思：别为了学东西把 grill 停下来）」把引号外的一句整理者转述摆在了「原话」的括注里。`web-04.md` 第 443 行那句原文是小写「don't stop the grilling to learn: ...」，第 390 行同一层意思也用第三人称写出：「the composition Matt named as the answer to ...」（这套组合是 Matt 给出的）。内容对得上，但把一句非原话的概括标成「原话意思」，会让下游误以为「别为了学东西把 grill 停下来」是作者原句。",
+        "报告第 132 行把「技能顺序」写成 `teach`（工作区里有 mission、资源清单、课程、学习记录）。四份原始稿里都没有这样的表述，它是照 `web-04.md` 第 413-423 行那份工作区文件表（表内共 7 项：`MISSION.md`、`RESOURCES.md`、`lessons/*.html`、`reference/*.html`、`learning-records/*.md`、`assets/*`、`NOTES.md`）改写的。两个后果：一是「课程/学习记录」是对表内容的转写，不是「技能顺序」；二是转写时漏了同一张表里的 `reference/*.html`（你自己返回的快速查阅文档）与 `NOTES.md`（你交代过的教学偏好）。",
+        "报告第 134 行把 grilling → handoff → teach → 回来 这条组合写成作者给的使用说明，但没有在 M 条标明它只写在网站上、本地随包技能文件里完全没有。依据：`web-04.md` 第 429 行说这是本页最值得注意的一处；`05-productivity.md` 第 167、169 行明写 `teach` 的正文「一个技能都没点名」、并从 `matrix-local.md` 第 25 行得到「全文没出现 handoff 或派子 agent」。报告第 15、17 行的「它只写在网站上，本地技能文件里一个字都没有」针对的是原型那条路，没有覆盖 teach 这一处。"
+      ]
+    },
+    {
+      "id": "N",
+      "name": "听不懂就让重讲（wait-what）",
+      "supported": false,
+      "problems": [
+        "【作用范围说反了】报告写：「它只管当前对话的上一条消息。」原始稿里是：`research/642-parts/web-04.md` 第 555 行照抄了官网页原文 —— “The skill says re-pitch **that**, not 'that last message'. What lost you is usually bigger than one paragraph, so the agent decides how far back to go.”（要重讲的不是「上一条消息」，而是那个让你跟不上的东西；回溯多远由 agent 决定，通常会往上多回溯一些）。报告这句话能在整理稿里找到的字面依据只有整理者自己的粗归纳（`web-04.md` 第 559 行「它的整个作用域是『当前这段对话里的上一条消息』」、`matrix-web.md` 第 34 行同义），而那两处是在讲「不跨会话」，不是讲重讲范围。报告取了粗归纳、丢了同一份文件里照抄的原文，得出的说法与原文相反。可能的来源是本地 SKILL.md 的 description “Stop. That last message did not land — re-pitch it.”（`05-productivity.md` 第 194 行）——但那是触发症状，不是重讲范围。后果：面板若照报告写「只管上一条消息」，教的是错的。",
+        "【把转述/推断当成了事实】报告写：「技能顺序：`wait-what`，原地重讲一遍。」里的「原地」二字，在原始稿里是整理者自己标明的推断：`research/642-parts/05-productivity.md` 第 302 行写「从写法上看它是『回到上一条消息重来』，是一个原地重启的入口 —— 原文没有用『回到』这样的词，这句是我根据它要求重讲推出来的」。报告把这句整理者推断搬成了确定性描述，而且方向与官网页原文（`web-04.md` 第 555 行「回溯多远由 agent 决定」）不一致。若想表达「不换会话、就地重讲」，有更站得住的依据可用：`web-04.md` 第 536 行原文 “It fixes the conversation you're already in.”",
+        "【四块缺两块，且缺的两块原始稿里其实有材料】报告第 1 节 N 条只有三块（适合什么场景 / 技能顺序 / 作用范围），没有「什么时候进入」，也没有「走到哪算结束（或回到哪）」；但报告自己在第 3 行承诺每条都要写清这两件事，A~F 等条也都有。原始稿里：进入条件在 `research/642-parts/web-04.md` 第 534 行原文 “You invoke it by typing `/wait-what`. The agent will not reach for it on its own, and it shouldn't. Only you know when you stopped following.”（只能人主动敲，作者明说 agent 不该自己触发）、第 535 行 “Use it the second you notice you're skimming.”；收尾一侧 `research/642-parts/05-productivity.md` 第 201 行记了重讲的三个硬要求（补一点上下文、用 ASD-STE100 简化技术英语、用 `CONTEXT.md` 里的通用语言），第 302 行与第 199 行都明确记着「原文没写它之后接什么」。这些报告一句都没落地，也没像 A/D/E 条那样写明「原文没写」，读的人无法判断是漏写还是原文本就没有。另外报告 4.3 节「原文压根没写的地方」也没把这一条收进去，整份报告没有一处交代 wait-what 走完之后是什么。"
+      ]
+    },
+    {
+      "id": "O",
+      "name": "参考层（五个不算路的技能）",
+      "supported": false,
+      "problems": [
+        "分组集合与出处对不上。报告说（第 142–144 行）：这一条叫「参考层」，装的是 `codebase-design`、`domain-modeling`、`grilling`、`tdd`、`writing-for-agents` 五个，作者对它们的定位是「别的技能调用的那一层」。原始稿里：「The reusable layer other skills invoke or cite.（别的技能会调用或引用的那一层）」是官网首页第 06 组的组说明，该组是四个技能（`codebase-design`、`domain-modeling`、`grilling`、`tdd`）；`writing-for-agents` 属官网第 05 Productivity 组（`research/642-parts/06-reference.md` 第 5、7–12 行；`research/642-parts/05-productivity.md` 第 3、215、277 行）。五个一组是原始整理稿的抓取批次，不是作者的任何一组（`research/642-parts/web-05.md` 第 1 行「第 5 组，5 页」；`research/642-parts/matrix-web.md` 第 9 行）。报告自己第 288 行也写「`06-reference.md`＝参考层四个技能」，第 235 行写「`tdd` 官网归 06 参考层」。差在哪：多出来的第五件在官网不属参考层；而且对 `writing-for-agents`，原文说的是「垫在整套技能下面、每份技能都是照它写的、它管的是别的技能留下的文档」（`web-05.md` 第 29 行），并不是「别的技能调用它」——所以「这五个被作者定位为别人调用的那一层」这句对第五件没有出处。",
+        "把原文明确「没有唯一答案」的判断写成了定论。报告说（第 144 行）：这五件「不是让人按顺序点的路」，是「别人用的规矩」。原始稿里：`research/642-parts/06-reference.md` 第 228–238 行按「使用者会自己去点的一条路 vs 别的技能内部的规矩」逐件判过，`domain-modeling`、`codebase-design` 的结论都是「两者兼有」；第 251 行更明写「在面板上到底算『一条路』还是『一份规矩』：原文没有给出唯一答案」。`web-05.md` 第 89 行对 `codebase-design` 的原话是 `a reach-for-it-anytime standalone`（随时可取）在前、`rather than a step in any chain` 在后。差在哪：报告把整理稿声明「原文没有唯一定论」的一项写成了定论，并且只保留了「规矩」那一半，「随时可以自己伸手取用」那一半被省掉了。",
+        "`grilling` 那条丢了限定词，且与原始稿的判定方向相反。报告说（第 148 行）：「一个基元，不是你去排的一步；两个正门是 `grill-me` 与 `grill-with-docs`」。原始稿里：正门的原话是「两个**由用户触发的**正门」（`research/642-parts/web-05.md` 第 246、248 行：`two user-invoked front doors`）；`research/642-parts/matrix-web.md` 第 38 行专门记了一句「人也可以直接敲 `/grilling`（两种说法不矛盾，但摘录时不该简化成一种）」；`research/642-parts/06-reference.md` 第 215–220 行把 `grilling` 判成「使用者会自己去点的一条路」，理由是有进入条件、有产出（编号问题＋推荐答案，以用户确认达成共识收尾）。差在哪：报告丢了「由用户触发」这个限定词，只留了「别的技能跑它」这一半，而原始稿明确提醒不该简化成一种。",
+        "`tdd` 那条丢了「也可以单独用」这一半。报告说（第 149 行）：「主链建造环节里的发动机，不是独立的一步。」原始稿里：同一页紧接着写 `You can also reach for it on its own, whenever there is a concrete behaviour to build and no full spec in play`（`research/642-parts/web-05.md` 第 341 行），该文件第 420 行的横向小结写「也可单独取用」，`research/642-parts/06-reference.md` 第 222–226 行判它「更像是『使用者自己会开的一条路』」。差在哪：报告在 O 条与第 2 节表格（第 182 行）都只写「不是独立的一步」，没有保留「也可以单独用」这一半；把它放在标题写着「不是路」的一节里，读者会得到「`tdd` 只能被 `implement` 驱动」的印象。",
+        "（小问题）英文引号里的字不是原话。报告说（第 146 行）：`codebase-design`「不在任何链上（`not a step in any chain`）」。原始稿里：原话是 `the vocabulary layer underneath the engineering skills rather than a step in any chain`（`research/642-parts/web-05.md` 第 89 行；`research/642-parts/matrix-web.md` 第 36 行）。差在哪：报告把 `rather than a step in any chain` 截成了 `not a step in any chain`，这串带反引号的英文在原始稿里查不到；语义没变，但按报告「英文照抄」的约定回查会对不上。"
+      ]
+    }
+  ],
+  "proposed_workflows": [
+    {
+      "angle": "官网 01 Getting Started（setup-matt-pocock-skills、ask-matt）",
+      "name": "开工前把仓库配置好（一次性前置配置）",
+      "scenario": "第一次在一个仓库里用这套工程技能之前，或者半途接手一个仓库、下游技能开始瞎猜 issue 记在哪、贴出你 tracker 里根本没有的标签时。要先把 issue tracker、分类标签词汇、领域文档布局这三件事问清楚写下来，后面所有工程技能才有据可依。",
+      "sequence": "人手动敲 `/setup-matt-pocock-skills`（`disable-model-invocation: true`，模型拉不起来）→ 技能先探查仓库现状（`git remote -v`、根上的 `AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`、`docs/adr/`、`docs/agents/`、`.scratch/`、`triage` 装没装）→ 把发现摆给用户确认（三段决策：issue tracker 走 GitHub/GitLab/本地 markdown/其它；标签词汇是否沿用默认五个角色；领域文档单上下文还是多上下文）→ 写文件：`AGENTS.md` 或 `CLAUDE.md` 里的 `## Agent skills` 段，加 `docs/agents/issue-tracker.md`、`docs/agents/domain.md`，装了 `triage` 才写 `docs/agents/triage-labels.md` → 告诉用户配置完成、哪些技能从此会读这些文件 → 之后由依赖 tracker 的路线在运行时读这些文件接上：`triage`、`to-spec`、`to-tickets`、`wayfinder`（`implement` 也在依赖 tracker 的名单里）→ 配置完之后才轮到 `/ask-matt` 这张地图给你指路。",
+      "confidence": "high"
+    },
+    {
+      "angle": "官网 01 Getting Started（setup-matt-pocock-skills、ask-matt）",
+      "name": "把读资料的腿脚活交出去，拿到带出处的文件再喂回主干",
+      "scenario": "下一步的关键动作是「去搞清楚一个外部事实」（某个第三方 API 到底怎么表现、某份规范原文怎么说、某个版本说法是否成立），而你不想为了读资料把手上这条线索停下来。范围必须窄到能回答（一个 API、一个行为、一个版本说法），问题太大就别用。",
+      "sequence": "你敲 `/research`，或 agent 发现活变成了读资料就自己拉起来（model-invoked）→ 阅读跑在一个**后台 agent** 上：你去干别的，它顺着每条主张追到一手资料（官方文档、源码、规范、第一方 API）→ 产出一份留在仓库里的 Markdown 文件，每条主张带出处链接 → 这份文件**故意交进下一步**：贴进一份 spec、引到一次 grilling 会话里，或者让一张 ticket 指向它 → 落到具体技能上就是喂给 `grill-with-docs`（事实摆上桌，问题更利）或 `to-spec`（对着它综合）；在 wayfinder 地图上则是 `/wayfinder` 为每张研究票起一个 `/research` 子代理，把结论记在一次性分支上、票上留一个上下文指针。",
+      "confidence": "high"
+    },
+    {
+      "angle": "官网 02 The Main Flow（grill-with-docs、to-spec、to-tickets、implement、code-review）",
+      "name": "每票一个干净会话的实现循环（票发完之后到底怎么开工）",
+      "scenario": "spec 已经切成多张票，要一张张做出来。作者对这条循环写得很具体：一次只碰一张票；每张票开一个全新的会话；票与票之间把上下文清干净；没有自动派发，开几个会话、按什么顺序做，都得人自己数、自己派。",
+      "sequence": "to-tickets 发完票 → 人手动数出阻塞已清空的票（frontier）→ 开一个干净会话做 `/implement <票号>` → 提交、清掉上下文 → 再开下一个会话做下一张票（循环到票做完）。",
+      "confidence": "high"
+    },
+    {
+      "angle": "官网 02 The Main Flow（grill-with-docs、to-spec、to-tickets、implement、code-review）",
+      "name": "评审的两条节奏：一票一审，加分支点上的最后一次总审（以及把评审挪到一个干净会话里跑）",
+      "scenario": "票做完了，评审该什么时候跑、跑几遍。作者的答案不是二选一：逐票评审让每次 diff 足够小、Spec 轴只对一个清晰的 spec 负责（implement 内部走的就是这种）；攒到最后对分支点做一次总审，能捞出票与票之间的相互作用；拿不准就两个都做。另有一条被作者称作「诚实版本」的做法——不要在刚写完代码的那个会话里审，另开一个干净会话、对着一个固定点手动敲 `/code-review`。",
+      "sequence": "实现并提交 1 号票 → `code-review`（对 1 号票的 diff）→ 实现并提交 2 号票 → `code-review` → … → 整条分支做完 → `code-review` 对着你分叉出来的那个固定点做最后一遍；想避开「自己审自己」时，把每一次都换成干净会话里的 `/code-review <固定点>`。",
+      "confidence": "medium"
+    },
+    {
+      "angle": "官网 02 The Main Flow（grill-with-docs、to-spec、to-tickets、implement、code-review）",
+      "name": "讲不通就建原型：访谈中途做一次一次性原型，拿一句话答案接着访谈",
+      "scenario": "你在一场 grill 里撞上一个「光靠说定不下来」的问题（一段状态模型的边界情形、一个看不出该长什么样的界面）。作者的做法是停下访谈，用一个做完就丢掉的原型把它做出来看一眼，再用一句话把答案带回访谈继续，而不是硬聊——他说硬聊正是会话失控膨胀的地方。",
+      "sequence": "grilling（grill-me 或 grill-with-docs 里的那场访谈）→ 撞到不可 grill 的问题 → `/prototype` 做一次性版本、看一眼 → 一句话答案带回原来的访谈，接着 grill 下去；此后这份原型可以被 to-spec 当作已经定下来的输入直接贴进 spec。跨会话的版本（出去开新会话、再 handoff 回来）在报告 H 条，两者不要混为一谈。",
+      "confidence": "high"
+    },
+    {
+      "angle": "官网 02 The Main Flow（grill-with-docs、to-spec、to-tickets、implement、code-review）",
+      "name": "评审报告回流主链：挑一条 → 当场 grill → 变成票发出去",
+      "scenario": "代码库扫出一份「值得加深的模块」报告之后该干什么。报告 E 条写到「人挑一条、当场 grill 完」就停了，但作者网站上把下游也写全了：一次只挑一条；挑定的那条把决定带进 to-spec 变成规格；其余的候选不是丢掉，而是变成票，以后可以各自独立地领走；作者还专门叮嘱了一句——选中的改进要写进 spec，不要直接冲进实现。",
+      "sequence": "`improve-codebase-architecture`（扫出候选、出报告）→ 一次只挑一条 → `grilling`（含 `domain-modeling`，当场写 CONTEXT.md、必要时提 ADR）→ 把这条决定带进 `to-spec` → 其余候选转成 `to-tickets` 发出来，以后独立领走。",
+      "confidence": "high"
+    },
+    {
+      "angle": "官网 02 The Main Flow（grill-with-docs、to-spec、to-tickets、implement、code-review）",
+      "name": "把决策票的答案并回主链的另一种接法：wayfinder 把地图的一段交回 grill-with-docs",
+      "scenario": "一张 wayfinder 地图里，某一段的答案其实已经定了、只是还没写成文档。作者在 grill-with-docs 那一页另写了一条接法：wayfinder 会把地图的**一部分**交给 grill-with-docs 接着做（不是把整张地图收拢成 spec）。报告里只把并回点写成「地图清明 → to-spec」，这一条是漏掉的另一种接法。",
+      "sequence": "`wayfinder` 画地图、逐张解票 → 地图里有一部分可以就地交给 `grill-with-docs`（在仓库里把它 grill 清楚、顺手把决定记进 CONTEXT.md 与 ADR）→ 再从 A 条主链往下走（或经 `to-spec`）。",
+      "confidence": "medium"
+    },
+    {
+      "angle": "官网 03 Shaping（wayfinder、prototype、research）——找报告第 1 节 15 条（A 到 O）里没覆盖的工作流",
+      "name": "先让后台代理把外部事实查回来，再人工把这份文件带进追问或写规格的环节",
+      "scenario": "一个决定卡在「工作目录以外的事实」上（第三方 API 怎么表现、规范到底怎么写的、某个版本说法站不站得住），而你自己这条对话不想停下来读资料。适合在方案还没聊定、要写规格之前先垫一层事实。注意与 /grill-with-docs 的分界是产出物保质期：产出的是事实用 research，产出的是决定就是 grilling。",
+      "sequence": "/research（后台代理去读一手来源）→ 产出一份放在仓库约定位置的 Markdown 文件，每条结论带出处 → 由人把这份文件带进下一步：附加到规格上（attach it to a spec）／引用进一次 grilling 会话（quote it into a grilling session）／让某张票指向它（point a ticket at it）→ 接着 /grill-with-docs 或 /to-spec 在事实已经摆在桌面上的情况下把问题问得更准、或据此写规格。",
+      "confidence": "medium"
+    },
+    {
+      "angle": "官网 03 Shaping（wayfinder、prototype、research）——找报告第 1 节 15 条（A 到 O）里没覆盖的工作流",
+      "name": "聊到只有跑起来才能回答的问题时，中途绕道做一次丢弃型原型，再把答案带回原来的对话接着走",
+      "scenario": "一条访谈（grill-me 或 grill-with-docs）或一条正在聊的方案，撞上一个「不跑代码就定不下来」的问题：状态模型/状态机的边界拿不住，或者界面不看到几个版本就说不清。作者把它写成主流程内部的两个分支之一（原型绕道），并明确说这类问题会让 grilling 本身膨胀：`Grilling sessions balloon on exactly these questions: the agent rephrases, you guess, and the scope grows to fill the uncertainty.`",
+      "sequence": "停下手上的 grilling → 做一次 /prototype（逻辑问题走 LOGIC.md：一个自带按钮、可双击打开的独立 HTML；界面问题走 UI.md：同一路由上几个结构上差别很大的变体）→ 看一眼、得到答案 → 把答案作为一句话带回原来的访谈/线索，接着往下走（往上回到 grill-me / grill-with-docs，或者往下作为已定输入交给 to-spec）。跨会话时这一条就是报告 H 条那个「两个来回」：/handoff 出去 → 新会话里跑 /prototype → /handoff 把学到的带回来，原对话引用它。",
+      "confidence": "medium"
+    },
+    {
+      "angle": "官网 04 Upkeep（improve-codebase-architecture、diagnosing-bugs、resolving-merge-conflicts、triage、wizard）",
+      "name": "功能落地后补人手那一半：wizard 与 implement 配对",
+      "scenario": "一个功能已经由 agent 建出来、代码已经合并，但这个功能要真正跑起来还差只有人能做的步骤——申请凭据、把 key 填进 CI secret、在第三方控制台里点开关、做一次性的切换。",
+      "sequence": "implement（把一个功能建出来、落地，需要凭据或人工切换）→ wizard（为这些「只有人能做的步骤」生成一个交互式 bash 脚本，逐个打开页面、逐项收值）→ 由人自己在自己机器上跑这个脚本 → 值落到 .env 与 GitHub secret。",
+      "confidence": "high"
+    },
+    {
+      "angle": "官网 04 Upkeep（improve-codebase-architecture、diagnosing-bugs、resolving-merge-conflicts、triage、wizard）",
+      "name": "动手前先用 wizard 做一次「摸底」，把没想到的前置条件挖出来",
+      "scenario": "还没决定做什么、也没开始建，但这件事很可能藏着只有人能办的前置条件（作者举的例子是「你没想到的那三个 API key」）；先把它们扫出来再决定投不投。",
+      "sequence": "wizard（先划范围、扫出要人做的步骤与要采集的值，产出有序的阶段清单）→ 想清楚要不要做这件事 → 再做 grill-with-docs / to-spec 那条决定「做什么」的主干（wizard 页明确说决定做什么不是它的活，是 grill-with-docs 与 to-spec 的活）。",
+      "confidence": "medium"
+    },
+    {
+      "angle": "官网 04 Upkeep（improve-codebase-architecture、diagnosing-bugs、resolving-merge-conflicts、triage、wizard）",
+      "name": "合并合干净了但行为不对：转去诊断，而不是继续解冲突",
+      "scenario": "merge/rebase 的冲突已经解完、树是干净的，但合完之后代码行为不对，而你看不出为什么。作者明确说这是诊断问题，不是冲突问题。",
+      "sequence": "resolving-merge-conflicts（把冲突一块块解掉、走到提交）→ 发现行为不对 → diagnosing-bugs（当 bug 诊断：造反馈循环、复现、最小化、假设、插桩、修加回归测试）→ 若复盘发现代码没有能锁住 bug 的缝 → improve-codebase-architecture（诊断的第 6 阶段交接）。",
+      "confidence": "high"
+    },
+    {
+      "angle": "官网 04 Upkeep（improve-codebase-architecture、diagnosing-bugs、resolving-merge-conflicts、triage、wizard）",
+      "name": "扫完架构报告后：挑一条 → 当场谈定 → 写成规格交给主干（剩下的一条条变成工单）",
+      "scenario": "定期保养扫出了一批「值得加深的模块」的候选，你要把其中一条真正做成，而且不想让这一条把整段会话的上下文吃光。",
+      "sequence": "improve-codebase-architecture（扫出候选、出可视化报告）→ 人挑**一条**（作者纪律：一次会话只做一条候选）→ grilling〔含 domain-modeling 当场更新 CONTEXT.md／ADR〕→ 把决定写进 to-spec（作者原话是「把选好的改进放进一份规格，而不是直接开工」）→ to-tickets → implement；其余候选就地变成可以以后单独领走的工单。",
+      "confidence": "high"
+    },
+    {
+      "angle": "官网 04 Upkeep（improve-codebase-architecture、diagnosing-bugs、resolving-merge-conflicts、triage、wizard）",
+      "name": "性能退化 / 时序回退：先量基线再二分（diagnosing-bugs 的性能分支）",
+      "scenario": "一个端点变慢、或某次提交之后出现时序回退，而且你有已知的「之前好／之后坏」两个状态可比。",
+      "sequence": "diagnosing-bugs（走它的性能分支：先保持一个反馈循环 → 量一条基线 → 在两个已知良好的状态之间二分缩小范围 → 定位后先写回归测试再修 → 收尾）。",
+      "confidence": "medium"
+    },
+    {
+      "angle": "官网 05 Productivity Skills（grill-me、handoff、to-questionnaire、teach、wait-what、writing-for-agents）",
+      "name": "问卷带出去、再带回来（把不属于自己的问题离线问回来，接回原来的规划）",
+      "scenario": "你正在一场 grilling / 规划会话里，聊到一个决定卡住了，而答案只存在于别人脑子里——这时不是把整场会话扔掉，而是把这一小段问题离线带出去问人，人答完再把答案接回同一条线索上继续往前走。",
+      "sequence": "一场卡住的 grilling / 规划会话 → 在同一个会话里跑 `/to-questionnaire` 把问题带出去 → 一个人填（异步或开会一起填）→ 答案带回来 → 接回原来的线索：再跑一轮 grilling；如果这件事要进建流程，则喂给 `grill-with-docs` 或 `to-spec`。",
+      "confidence": "high"
+    },
+    {
+      "angle": "官网 05 Productivity Skills（grill-me、handoff、to-questionnaire、teach、wait-what、writing-for-agents）",
+      "name": "访谈卡在「说不清、得看一眼」的问题上时，去打个丢弃版原型再回来",
+      "scenario": "在 `grill-me` / `grill-with-docs` 的访谈里撞上一个靠说话定不下来的问题（布局该长什么样、这个交互感觉对不对、这个状态模型顺不顺），继续聊只会让范围越滚越大——这时停下访谈，做一个用完就丢的小原型看一眼，拿一句话答案回到访谈里继续。全程不需要另开会话，也不需要写交接文档。",
+      "sequence": "`grill-me`（或 `grill-with-docs`）访谈中撞到一个不可 grill 的问题 → 停下 grilling → 用 `prototype` 做丢弃版 → 看一眼 → 把一句话答案带回访谈里继续问下去。",
+      "confidence": "medium"
+    },
+    {
+      "angle": "官网 05 Productivity Skills（grill-me、handoff、to-questionnaire、teach、wait-what、writing-for-agents）",
+      "name": "黑话听不懂的两条路：提前 `grill-with-docs` 防，事后 `wait-what` 补",
+      "scenario": "agent 冒出了你没见过的行话、一串缩写，或者讲了一个你从没看过前提的决定——要么现在就让它重讲一遍（事后补），要么从根上不出现（提前建共用语言）。作者在 wait-what 页里把这两件事当成一对反复出现的用法来讲。",
+      "sequence": "想从根上避免：开工时先做 `grill-with-docs`（它一边访谈一边跑 `domain-modeling`，把双方用的词落进 `CONTEXT.md`）→ 后面就不会出现听不懂的黑话；已经跟不上了：在当前这段对话里直接 `/wait-what`，让它带上你缺的前提重讲一遍。两者是替代关系，不是先后步骤。",
+      "confidence": "low"
+    },
+    {
+      "angle": "官网 06 Reference Skills（codebase-design、domain-modeling、grilling、tdd）",
+      "name": "不写完整 spec，直接按测试先行建一个具体行为（单独取用 tdd）",
+      "scenario": "有一个具体行为要建、输入输出说得清（业务逻辑、请求/响应契约、一次转换、校验），但手里没有完整 spec、也不想为此走 to-spec 那一棒的时候。",
+      "sequence": "① 手上先有「具体行为 + 可观察的输出」（网站 tdd 页的该用条件与对照表第一行）→ ② 敲 `/tdd` 开一场会话（这一步由人/agent 触发）→ ③ 听 tdd 的硬前置：写任何测试之前先把要测的接缝写下来、并问用户「What's the public interface, and which seams should we test?」，没确认的接缝上不写测试 → ④ 按垂直切片跑红→绿（一个测试接一份最小实现）→ ⑤ 循环里若发现接口形状本身有疑问，转去查 `codebase-design` 的词汇（见下一条）→ ⑥ 重构不在这条循环里，归 `code-review` 那一关。",
+      "confidence": "high"
+    },
+    {
+      "angle": "官网 06 Reference Skills（codebase-design、domain-modeling、grilling、tdd）",
+      "name": "设计一个已选定的模块，并给它垫一个「驱动型技能」（点名一个驱动器 + codebase-design 当词汇）",
+      "scenario": "你已经知道要动哪一块代码、要决定它的形状（接缝放哪、接口能压多小、某次抽取划不划算），或者接口形状本身的疑问卡住了正在跑的活儿的时候。",
+      "sequence": "① 先确认「已经选定模块」（还不知道改哪个 → 走 improve-codebase-architecture 普查，见 E 条）→ ② 点名一个驱动型技能来跑会话：`grill-with-docs` 或 `improve-codebase-architecture` 或 `tdd` 其中一个 → ③ 把 `codebase-design` 垫在下面当词汇层（而不是单独对着它说「go」）→ ④ 接口形状本身有疑问时，从正在跑的那个技能里回头查 codebase-design（它是 a reference to consult, not a session to run，不开新会话）→ ⑤ 需要比对多种接口时用它目录里的 `DESIGN-IT-TWICE.md` 并行出 3 个以上差别很大的设计。",
+      "confidence": "high"
+    },
+    {
+      "angle": "官网 06 Reference Skills（codebase-design、domain-modeling、grilling、tdd）",
+      "name": "让 domain-modeling 真的跑起来（与 grill 类技能并列点名，而不是指望自动加载）",
+      "scenario": "正在跑 `grill-with-docs` 或 `wayfinder` 这类会「在下面驱动」domain-modeling 的会话，想让术语和 ADR 真的被写下来的时候；以及一次 grilling 跑完才回头发现词一个都没定的时候。",
+      "sequence": "① 在会话入口就**按名字点名** `domain-modeling`，与那个驱动技能并列调用（`invoke it by name alongside the other skill`），不要只靠自动调用 → ② 会话进行中：词一被敲定就当场写进 `CONTEXT.md`，不做成结尾一次性交出的词汇表 → ③ 遇到「同一个词几个人理解不同」「一个词在几个文件里干几份活」就按它的对照表选规范词、把旧写法列进 `_Avoid_`，或把 Account 拆成 Customer / User → ④ 只有同时满足「难以回退 + 没有背景会让人奇怪 + 是真实取舍的结果」三个条件时，才出一份 ADR 到 `docs/adr/` → ⑤ 事后自检：如果一次 grilling 跑完 `CONTEXT.md` 完全没被动过，就说明模型把 `grilling` 装进来而跳过了它，这时回去补点名调用。",
+      "confidence": "medium"
+    },
+    {
+      "angle": "官网 06 Reference Skills（codebase-design、domain-modeling、grilling、tdd）",
+      "name": "自己写技能时，访谈部分不要另写一个，直接调 /grilling",
+      "scenario": "你在写/改一个自己的技能，它里面需要「把用户的决定一个个问清楚」这一段的时候（这套技能的作者在 writing-for-agents 里也讲怎么写技能，这条正是它的下游用法）。",
+      "sequence": "① 认出「这个技能需要一个访谈」→ ② 不要另写一套访谈问题 → ③ 从你的技能里调用 `/grilling` → ④ 拿到的是同一套基元行为：按轮问整个前沿、每轮给推荐答案、前沿问空且用户确认达成共识才算完。",
+      "confidence": "medium"
+    },
+    {
+      "angle": "跨会话与换上下文（handoff / compact / clear / 子代理 / 新会话 / 交接）",
+      "name": "会话已经长大到装不下时，用交接把它变成一张多会话的地图（handoff 桥进 wayfinder）",
+      "scenario": "你正在一个会话里聊一个大工程，聊到会话本身已经撑不住了（上下文太满），但这件事还没有走到定稿；继续往下做只会一路退化。这时不是开新会话重讲一遍，而是把这次会话交接进 wayfinder：让 wayfinder 用一次新会话把这件事画成决策地图，之后逐张解票，地图清明再交接给 to-spec 并回主干。",
+      "sequence": "原会话（已经装不下）→ `/handoff`（把这次会话交接出去，原文的说法是 hand off to `/wayfinder`）→ `/wayfinder` 在新会话里画地图（一次会话只画图，自己一张票都不解）→ 逐张解票（`research` / `prototype` / `grilling` + `domain-modeling` / `task` 四种票型；其中 `research` 票由 `/research` 子代理在画图时并行解掉、结论放在一条一次性分支 `research/<name>` 上，票上留一个指回去的指针）→ 地图清明 → 交接给 `/to-spec` → 并回主建造链。",
+      "confidence": "high"
+    },
+    {
+      "angle": "跨会话与换上下文（handoff / compact / clear / 子代理 / 新会话 / 交接）",
+      "name": "上下文快满但还没到该分票的那一步时，在最近的一个阶段边界上压缩，而不是在退化状态下硬推",
+      "scenario": "你正走在主链上（比如磨完想法、准备拆票），这次会话明显已经很长了，但还没走到 to-tickets 那一步。这时既不该继续在「变笨」的状态下硬推，也不该随手乱清——做法是在最近的一个阶段边界上 `/compact`，让摘要带着下一阶段要用的东西开一个新会话。",
+      "sequence": "先判断「现在是不是阶段边界」→ 是边界 → `/compact`（可以带一句指令，原作者举的例子是 `/compact we're going to QA this area`），让这次压缩的摘要把下一阶段需要的东西保住 → 在新会话里继续；如果人还在阶段中途、根本没到边界，就选「继续」或者把剩下的活拆给子代理，不要在阶段中途压缩。",
+      "confidence": "high"
+    },
+    {
+      "angle": "跨会话与换上下文（handoff / compact / clear / 子代理 / 新会话 / 交接）",
+      "name": "评审不在实现那个会话里跑：把 code-review 放到一个干净会话里对着一个固定点跑",
+      "scenario": "实现做完、要审一遍时，不希望「写代码的那个 agent 审自己刚写的代码」（作者说这种评审会偏向自己那套解法），或者实现那个会话已经太重、不想再往里塞评审。这时另开一个干净会话，把评审固定在一个明确的固定点（某次提交、某个分支、某个 tag 或合并基点）上跑，并且让 Standards 与 Spec 两条线各跑一个子代理。",
+      "sequence": "实现完成、固定点定下来（提交 / 分支 / tag / merge-base）→ 开一个干净会话 → 对着这个固定点跑 `/code-review`（两条线各起一个并行子代理，互不看对方的推理，各自拿到自己需要的材料全文，最后本技能汇总并排呈现）。",
+      "confidence": "high"
+    },
+    {
+      "angle": "跨会话与换上下文（handoff / compact / clear / 子代理 / 新会话 / 交接）",
+      "name": "让探索的结果活过这次会话：原型与研究产物停在一次性分支上，并在相关 issue 上留一个指回去的指针",
+      "scenario": "你在一次会话里做了原型或者查了研究，答案拿到了，但东西本身（那段可以跑的原型、那份带出处的研究笔记）不想丢，也不想留在主分支上发霉。这时它不是靠交接文档传下去的，而是停在一条一次性分支上、在一个 issue 上留指针，让下一个接手的人（下一段会话）能找到、能重新跑起来。",
+      "sequence": "探索（`prototype` 做出能跑的东西，或者 `research` 查出一份带出处的 markdown 文件）→ 答案定下来 → 原型提交到主分支之外的一次性分支 `prototype/<name>`（不合并；研究结论放 `research/<name>` 分支）→ 在实现 issue（或地图上的那张票）上留一个指回这条分支的指针 → 下一个接手的人 / 下一段会话顺着指针找到它。",
+      "confidence": "high"
+    },
+    {
+      "angle": "作者路由器 ask-matt 的分类（本地 01b-ask-matt.md 把 24 个技能排成主干 / 入口 / 词汇层 / 独立 / 前置五类）",
+      "name": "读一手资料，再带着事实进访谈（research 文件主动带进思考类技能）",
+      "scenario": "下一步是「去工作目录外面弄明白一件事」——第三方 API 到底怎么表现、某份规范原文写了什么、某个版本说法站不站得住——你又不想让读资料的活把自己这条线拖住。读完不是为了拿到答案就完，而是把那份带出处的 Markdown 当作材料带进访谈，让 grilling / grill-with-docs 问得更准。",
+      "sequence": "`/research`（起一个后台代理对着第一手来源读，产出一份带引用、按仓库既有约定位置的 Markdown）→ 人工把这份文件主动带进去：`/grill-with-docs`（本报告主干链头，作者说的事实已上桌时它问得更锋利）或 `/grilling`（quote it into a grilling session）→ 若要进建造，`/to-spec`（作者说 to-spec can synthesise against it，可以贴着这份文件写规格；也可 attach it to a spec、point a ticket at it）。注意它不在建造链上，也不是自动衔接：作者明确说后面的会话不会自动复用以前的研究文件，必须人主动指过去。",
+      "confidence": "high"
+    },
+    {
+      "angle": "作者路由器 ask-matt 的分类（本地 01b-ask-matt.md 把 24 个技能排成主干 / 入口 / 词汇层 / 独立 / 前置五类）",
+      "name": "实现撞到「只有人能做的步骤」时，用 wizard 生成脚本给人跑",
+      "scenario": "一段建造落地时带出了机器过不去的一步：要申请一个密钥、要配 CI secret、要在不熟悉的第三方后台里点、要做一次性的迁移或切换。这时不是往对话里贴一段说明（会被刷走），而是让 agent 生成一个交互式 bash 脚本，由人自己在本机跑，值直接写进 `.env` 或 GitHub secret，再回到建造上继续。",
+      "sequence": "`/implement`（或任何建造环节落地）=手动程序冒出来的那一点 → `/wizard`（先生成有序阶段清单给人确认，再产出脚本；脚本会逐个开 URL、逐个捕获取值）→ **人**在本机跑脚本、用隐藏输入写进 `.env`／`gh secret`（密钥不进模型上下文）→ 回到 `/implement` 把功能走完。可选收尾：如果这条流程以后还要重复（例如一条可重复的初始化路径），脚本提交进仓库并从 README 链接过去，让下一个人直接跑而不用再问 AI；否则默认为一次性、放在临时目录或 `scripts/` 下，做完即删。",
+      "confidence": "medium"
+    },
+    {
+      "angle": "作者路由器 ask-matt 的分类（本地 01b-ask-matt.md 把 24 个技能排成主干 / 入口 / 词汇层 / 独立 / 前置五类）",
+      "name": "访谈卡住 → 派问卷出去 → 答案回来接着走（补上答案的去向）",
+      "scenario": "一场 grilling 走到某一步停住了：冒出来的问题里有些不是你能拍的——客户、领域专家、握有业务规则的高管、不跟你坐一起的同事才知道答案。这时不要停掉这场访谈，也不要替对方猜，而是把这些问题原样派出去，等答复回来再继续。",
+      "sequence": "`/grilling` 或 `/grill-with-docs` 的会话（卡住）→ **在同一个会话里**跑 `/to-questionnaire`（只问两轮：这份问卷给谁、你需要拿回什么；产出当前目录下的 `to-questionnaire-<slug>.md`，技能自己不负责投递）→ 由**一个人**填（异步填或开会一起填）→ 答案回来后接三种去处之一：**(a) 再来一轮 `grilling`**（作者列的三种里排在第一个）、**(b) 交给 `/grill-with-docs`**、**(c) 交给 `/to-spec`**（如果这件事正要进建造流程）。同一个问题换人问要另跑一次——技能明确说一次只出一份文档给一个人，不分发、不做分支设计。",
+      "confidence": "high"
+    }
+  ],
+  "standing_findings": [
+    {
+      "kind": "问题",
+      "where": "B 短路径：同一个会话直接做完",
+      "claim": "报告说（技能顺序）：「`grill-with-docs` → `implement`〔内含 `tdd`〕→ `code-review`」，这一条的落款是「（同一个会话直接做完）」，但同样是在同一个会话里跑，作者对最后那一棒 code-review 的交代相反：原始整理稿 `research/642-parts/web-02.md` 第 191 行原文「Should I run it in the same session that wrote the code? — Prefer a fresh one. As one reader put it: \"Same context reviewing itself isn't review, it's confirmation bias with a slash command.\" … Invoking `/code-review` yourself from a clean session is the honest version.」，同一份第 108–110 行还有一条：`code-review` 只看 `git diff <fixed-point>...HEAD`（不含暂存区与工作区改动），而 `implement` 是在提交之前调用它，所以必须先提交再评审。也就是说：这条路上唯一被作者明确讨论过「该不该留在同一个会话」的一棒，作者的答案是「换干净会话」，而报告把整条路标成「同一个会话直接做完」、对这一棒一个字不提，面板照此实现会把作者的明确建议漏掉。",
+      "reason": "我按「先核引用、再核报告、再找反例」三步做了只读核验，结论是这条问题站得住。\n\n一、引用无一处错。\n- `research/642-parts/web-02.md:191` 逐字存在：「Should I run it in the same session that wrote the code? — Prefer a fresh one. … This is also why people ask for implement without its built-in review step: it runs the review inside the session that just wrote the diff. Invoking `/code-review` yourself from a clean session is the honest version.」这正是网站对「该不该在写代码的同一会话里跑 review」的正面回答，而且它点名的对象就是 implement 内建的那次 review —— 也就是 B 条最后那一棒。\n- `research/642-parts/web-02.md:108` 逐字存在：`code-review` 看的是 `git diff <fixed-point>...HEAD`，不含暂存区与工作区改动；`implement` 在提交前调用它，所以「Commit first, then review against the point you branched from.」（同页 187 行还有「Commit first, then review, then amend or add a fixup.」）。第 109–110 行那条正是「把 review 移出新会话」的建议原文。\n- 另外还有一份整理稿记了同一件事，主张里没引用但能佐证：`research/642-parts/web-05.md:399-400`，tdd 页解释重构为何被移出循环，「because review and implementation work better as separate sessions」，整理者明确解读为「作者主张实现与评审分开在不同的会话里做」。\n\n二、报告确实如主张所述。\n`research/642-aihero-workflows.md:31-36` 的 B 条标题就是「短路径：同一个会话直接做完」，第 34 行技能顺序末位是 `code-review`，全条唯一的说明（第 36 行）只解释 `to-spec` 为什么不在，对 code-review 那一棒的会话交代一个字都没有。我通读了报告全部 303 行，并按「会话／评审／review／fresh／干净」逐词检索：报告从头到尾没有出现「换干净会话跑 review」这层意思。尤其两处本该落笔的地方都空着——第 211-215 行那节标题恰是「反过来，哪些地方要「开干净上下文」」，里面只写了 sub-agent 隔离（第 214 行）、to-tickets 逐票清空、teach 靠文件夹；第 238-245 行「网站自身的矛盾」列了 6 条，也没有这一条。而第 227 行明说「面板上要显示的内容，凡是这里标了不确定的，都别写成确定的话」——B 条偏偏把最该带保留的地方写成了确定的话，且两处上游整理稿都已把这份材料单列出来（web-02.md:189 的小标题写着「跨会话／换会话相关原文……明确提到 session 与 fresh session」；web-05.md:399-400 记着作者的理由），属于「手里有、没用上」。\n\n三、我认真找了能推翻它的依据，只能推翻一半。\nB 条的标签并非凭空捏造：本地 `research/642-parts/01b-ask-matt.md:57-58` 写着「否 → 就地 `/implement`，同一个上下文窗口里做完」，并写明 implement「收尾时跑 `/code-review`……然后才提交」；`research/642-parts/web-01.md:281-285`（grill-with-docs 页）也写着 keep the session、in the same conversation，改动小就直接去 implement。所以「grill-with-docs → implement 同一会话」这半段有出处。但这半段出处只覆盖到 implement 这一棒（含它内建的 review 默认在同一窗口里跑），并没有回应网站 FAQ 正面回答的那个问题；而主张指出的正是这一棒：网站对同一会话问题给了相反答案，报告却把它整条漏掉。另需指出，主张里「先提交再评审」这半条事实并非报告全篇没写——第 243 行（§4.2 第 4 条）已记「implement 在提交前跑 code-review，而 code-review 看的是 git diff <某锚点>...HEAD，此时没有提交可看」。所以面板不是对顺序缺陷完全失明，真正整条缺失的是「换干净会话」这条建议，以及 B 条本身缺保留。\n\n四、结论。报告的 B 条把「整条路在同一个会话里做完」写成了确定事实，而它所依据的网站材料在最后那一棒上给出的是相反建议（web-02.md:191），作者另有「实现与评审分开在不同会话里更好」的明确理由（web-05.md:399-400）；报告在专讲跨会话用法的第 3 节与专讲网站分歧的第 4 节都没有收录这条，且与它自己「标了不确定的别写成确定的话」的要求相冲突。因此这条问题成立，唯一需要修正的是细节：说「这条路上唯一被作者明确讨论过『该不该留在同一个会话』的一棒」不准确——前半跳也有明确交代（要留在同一会话），准确说法是这条短路径两跳各有一处明确的会话交代、方向相反，而报告只留下了前一处。",
+      "corrected": "主张方向正确，但两处细节要改。\n\n1）去掉「唯一」这个限定。作者在这条短路径上谈过两次会话怎么处理、答案相反：前半跳是「留在同一会话」（网站 grill-with-docs 页 `research/642-parts/web-01.md:281-285`：keep the session、in the same conversation，改动小就直接去 implement；本地 `research/642-parts/01b-ask-matt.md:57-58`：就地 `/implement`，同一个上下文窗口里做完，收尾跑 `/code-review` 然后才提交）；最后那一棒是「换干净会话」（`research/642-parts/web-02.md:191`；作者给出的理由见 `research/642-parts/web-05.md:399-400`）。报告只留下了前一处。\n\n2）B 条应补写成（供报告直接改）：技能顺序 `grill-with-docs` → `implement`〔内含 `tdd`〕→ `code-review`；这条短路径默认在同一个会话里跑，但最后那一棒作者交代相反——网站 `code-review` 页明确回答「该不该在写代码的同一会话里跑 review？」→「Prefer a fresh one」，并说从干净会话自己敲 `/code-review` 才是诚实的版本（`because review and implementation work better as separate sessions`）；同时 `implement` 是在提交之前调用它，而它只看 `git diff <fixed-point>...HEAD`（不含暂存区与工作区改动），所以网站上给的规矩是「先提交，再对着分叉点评审」。因此这一条不能对整条路只落一句「同一个会话直接做完」，至少要在 `code-review` 那一棒注明「换成干净会话、并且先提交再评审」。"
+    },
+    {
+      "kind": "问题",
+      "where": "C 大工程先划路（wayfinder 情境入口）",
+      "claim": "【作者理由无出处：报告自己补的因果被写成作者的话】报告说（同上第 44 行）：这样写之所以错，「那是把情境入口当成了必经的第一棒」。原始稿里是：作者在同一处给的理由是 `because the interesting parts are the branches: is there a codebase, does the build span sessions, can this question be settled by talking`（`research/642-parts/web-01.md` 第 120 行）——三条都在讲分支，没有任何一条是「把情境入口当第一棒」。`wayfinder` 是 `a situational on-ramp, not the default front door` 这句作者原话确有出处，但出处是 wayfinder 详情页（`research/642-parts/web-02.md` 第 289 行），原始整理稿从未把它接到「静态表写错」这句上。差在：报告把两份不同出处的说法合成一条因果，并以「作者专门说过」的语气写出来，读的人会以为这是作者原话。",
+      "reason": "核验过程：(1) 报告第 44 行写「作者专门说过，把主干写成 wayfinder → to-spec → to-tickets → implement → code-review 是错的——那是把情境入口当成了必经的第一棒」。(2) 静态表这条的唯一出处是 research/642-parts/web-01.md 第 118–122 行，该节标题就是「关于『为什么不做成一张按顺序的静态表』」，作者原文为 `A static table would say wayfinder → to-spec → to-tickets → implement → code-review and be wrong for most situations, because the interesting parts are the branches: is there a codebase, does the build span sessions, can this question be settled by talking`——`because` 后面给的三条理由全部是「岔路如何决定走法」，没有一条是「不该把情境入口排在第一位」，也没有「必经」或「第一棒」的意思。(3) `a situational on-ramp, not the default front door` 确有出处，但在 research/642-parts/web-02.md 第 289 行 wayfinder 详情页的「Where it fits」小节，原文接着说「主链仍从 grill 起步、wayfinder 是活大到一个会话装不下才爬上去的入口、在 to-spec 处并回主链」；原始整理稿从未把这一句接到「静态表写错」这句话上。(4) 在 research/642-parts/ 全目录搜 `第一棒`、`必经`、`first step`、`on-ramp`、`front door`、`静态`、`situational`：没有任何一处把「静态表写错」与「wayfinder 被当成第一棒／必经入口」连成因果；`situational on-ramp` 只在 wayfinder 详情页出现，「静态表」只在 ask-matt 页那一处出现。因此报告把两份不同页面的说法合成了一条因果，并以「作者专门说过」的确定语气写出，会让读者以为是作者原话——属于「作者理由无出处：报告自己补的因果被写成作者的话」，这条问题成立。附带说明偏差程度：报告这条的事实方向并不错（wayfinder 确实不是默认第一棒，静态表把它排第一确实与之相悖），只是「作者专门说过这个理由」这一点没有依据，所以应按转述改口径，不必推翻其事实陈述。",
+      "corrected": "建议改成两句、把出处分清楚：「作者在 ask-matt 页给出一条会写错的静态表写法 `wayfinder → to-spec → to-tickets → implement → code-review`，并说它 `for most situations` 是错的，理由是真正有意思的是那些岔路：有没有代码库、这次建造是否跨会话、这个问题能不能靠谈话定下来（`the interesting parts are the branches`）。另外，作者在 wayfinder 详情页把 wayfinder 定位成 `a situational on-ramp, not the default front door`（情境入口，不是默认前门）——把这条静态链的前端写成 wayfinder，与这一定位相悖；但『把情境入口当成必经的第一棒』是整理者据这两处推出的说法，不是作者就静态表给出的原话。」"
+    },
+    {
+      "kind": "问题",
+      "where": "C 大工程先划路（wayfinder 情境入口）",
+      "claim": "【说过头：收尾漏掉原文明确写的例外】报告说（第 41 行技能顺序与第 43 行走走到哪算结束）：地图清明后收尾「交接给 `to-spec`」，两处都不带例外。原始稿里是：常规确实并到 `to-spec`（`research/642-parts/web-02.md` 第 278 行对照表 `A cleared wayfinder map | to-spec, then to-tickets and implement`；第 289 行 `it merges back onto that chain at to-spec`），但同一页第 336 行明确留了例外 `Go straight to implementation only when the effort turned out genuinely small.`，本地整理稿同义记为「只有在事情其实很小的时候才直接去 `/implement`」（`research/642-parts/01b-ask-matt.md` 第 71 行）。差在：报告把一条带例外的收尾写成无条件，而且报告全文没有别处补这条例外（主干那条「小改动可跳过 `to-spec`」的捷径在报告第 14、36 行写了，wayfinder 这一条例外一处都没写）。",
+      "reason": "我按「先定位再读」的方式核了三处，结论是这条问题站得住。\n\n一、报告那句话确实是「不带例外」的。`research/642-aihero-workflows.md` 第 41 行写：`wayfinder`（把这件事画成一张决策地图）→ 逐张解票 → 地图清明 → 交接给 `to-spec` → 并回上面 A 那条主干；第 43 行写：走到「前方再没有要拍板的事」就结束，`wayfinder` 自己不写代码，收尾交接给 `to-spec`。两处都是直陈句，没有任何条件从句或例外标记。\n\n二、原始整理稿里例外写得明明白白，而且不止一处。`research/642-parts/web-02.md` 第 336 行（wayfinder 页「页面里写明的顺序与衔接」小节）：`Looping the map straight into implement skips the collapse and throws the linked detail away. Go straight to implementation only when the effort turned out genuinely small.`；同一文件第 299 行把同一句重抄进「这一页里出现的其它技能」的 implement 条目（语序略改，实质同义）；第 56 行 implement 页的 Where it fits 里还有第三处、而且是「从地图出发」这个角度明说的：`That trust is why wayfinder merges onto the chain at to-spec rather than looping its map straight into implement. Go straight to implement from a map only when the effort turned out genuinely small.`。本地整理稿 `research/642-parts/01b-ask-matt.md` 第 71 行同义记为：把地图直接接进 `/implement` 会跳过这次收拢——只有在事情其实很小的时候才直接去 `/implement`。即网站与本地两份材料一致留了这条例外。\n\n三、报告全文没有别处补这条例外。我用 `grep` 在报告全 303 行里搜 `implementation`、`genuinely`、`很小`、`直接去`、`直接实现`、`例外`、`跳过`：`genuinely`／`implementation`／`很小` 零命中；「直接去」只命中第 15 行（讲两个来回那条路）与第 162 行（讲 to-tickets 切小票）；「跳过」零命中。报告里唯一一条「小改动可跳过 `to-spec`」写在第 14 行与第 36 行，但那是 B 段「同一个会话直接做完」的入口判断——`to-spec` 只在跨多会话分支上才存在——说的是「不进多会话分支就别用 `to-spec`」，与「wayfinder 已经把地图清完了、作者仍允许按体量直接进 implement」是两回事，不能互相顶账。第 4 节（第 247 行起「原文压根没写的地方」）列的是原文缺口，也没有提到这条例外被省略。\n\n四、这处遗漏有实际后果，不是措辞洁癖。C 段第 43 行是报告给 wayfinder 指定的收尾，第 41 行是给面板用的技能排序；面板如果照此写明「地图清明后交接给 to-spec」，就把一条作者明确带条件的收尾写成了无条件，而报告自己在第 227 行要求「面板上要显示的内容，凡是这里标了不确定的，都别写成确定的话」——这条例外连标注都没有，直接消失了。\n\n顺带核实（不影响结论）：报告第 44 行「把主干写成 wayfinder → to-spec → …… 是错的」在 `matrix-web.md` 第 52-54 行有依据（`A static table would say wayfinder → to-spec → to-tickets → implement → code-review and be wrong for most situations`），所以 C 段并不是整体没出处，问题只在收尾那一句无条件化。",
+      "corrected": "第 41 行的技能顺序与第 43 行的收尾，应补上这条例外，例如第 43 行改为：走到「前方再没有要拍板的事」就结束，`wayfinder` 自己不写代码；常规收尾是交接给 `to-spec`（由 `to-spec` 把地图上互相链接的决策收拢成一份可读的规格，再照常 `to-tickets` → `implement`），但作者留了例外——只有当这活其实很小的时候，才允许从地图直接进 `implement`（原文 `Go straight to implementation only when the effort turned out genuinely small`，`research/642-parts/web-02.md` 第 336、299、56 行；本地 `research/642-parts/01b-ask-matt.md` 第 71 行同义）；直接接进 `implement` 会跳过这次收拢并把链式细节丢掉，所以那是例外而非常规。"
+    },
+    {
+      "kind": "问题",
+      "where": "D 接收外来活（triage 并行车道）",
+      "claim": "报告（`research/642-aihero-workflows.md` 第 51 行
+… [truncated: 21181 more characters]
