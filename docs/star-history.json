@@ -11,117 +11,122 @@
   },
   {
     "date": "2026-08-20",
-    "total": 5,
-    "daily": 2
+    "total": 4,
+    "daily": 1
   },
   {
     "date": "2026-08-22",
-    "total": 7,
+    "total": 6,
     "daily": 2
   },
   {
     "date": "2026-08-23",
-    "total": 9,
+    "total": 8,
     "daily": 2
   },
   {
     "date": "2026-08-24",
-    "total": 12,
+    "total": 11,
     "daily": 3
   },
   {
     "date": "2026-08-25",
-    "total": 14,
+    "total": 13,
     "daily": 2
   },
   {
     "date": "2026-08-26",
-    "total": 17,
+    "total": 16,
     "daily": 3
   },
   {
     "date": "2026-08-27",
-    "total": 19,
+    "total": 18,
     "daily": 2
   },
   {
     "date": "2026-08-28",
-    "total": 27,
+    "total": 26,
     "daily": 8
   },
   {
     "date": "2026-08-29",
-    "total": 30,
+    "total": 29,
     "daily": 3
   },
   {
     "date": "2026-08-30",
-    "total": 33,
+    "total": 32,
     "daily": 3
   },
   {
     "date": "2026-08-31",
-    "total": 34,
+    "total": 33,
     "daily": 1
   },
   {
     "date": "2026-09-01",
-    "total": 36,
+    "total": 35,
     "daily": 2
   },
   {
     "date": "2026-09-02",
-    "total": 39,
+    "total": 38,
     "daily": 3
   },
   {
     "date": "2026-09-03",
-    "total": 43,
+    "total": 42,
     "daily": 4
   },
   {
     "date": "2026-09-04",
-    "total": 47,
+    "total": 46,
     "daily": 4
   },
   {
     "date": "2026-09-06",
-    "total": 49,
+    "total": 48,
     "daily": 2
   },
   {
     "date": "2026-09-07",
-    "total": 52,
+    "total": 51,
     "daily": 3
   },
   {
     "date": "2026-09-09",
-    "total": 54,
+    "total": 53,
     "daily": 2
   },
   {
     "date": "2026-09-10",
-    "total": 59,
+    "total": 58,
     "daily": 5
   },
   {
     "date": "2026-09-12",
-    "total": 60,
+    "total": 59,
     "daily": 1
   },
   {
     "date": "2026-09-13",
-    "total": 63,
+    "total": 62,
     "daily": 3
   },
   {
     "date": "2026-09-14",
-    "total": 64,
+    "total": 63,
     "daily": 1
   },
   {
     "date": "2026-09-15",
-    "total": 66,
+    "total": 65,
     "daily": 2
+  },
+  {
+    "date": "2026-09-16",
+    "total": 68,
+    "daily": 3
   }
 ]
