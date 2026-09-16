@@ -86,11 +86,11 @@ HoverTip(props) // h 工厂，局部 useState/useRef/useEffect 闭环，经 Dsws
 
 ## 4. 上游依据与引用
 
-- R1 盘点：research/reuse-inventory#0a506be（38 文件扫描 + 29 画像 + 5 处重复）
-- R2 阈值与模式：research/reuse-criteria#813a0e5（§1 三判定线 + §2 八项清单 + §3 阈值 2/3/5 + §4 h 工厂主路径 + §5 门禁两问）
+- R1 盘点：research/374-reuse-inventory.md（归档前在分支 research/reuse-inventory，提交 0a506be）（38 文件扫描 + 29 画像 + 5 处重复）
+- R2 阈值与模式：research/375-reuse-criteria.md（归档前在分支 research/reuse-criteria，提交 813a0e5）（§1 三判定线 + §2 八项清单 + §3 阈值 2/3/5 + §4 h 工厂主路径 + §5 门禁两问）
 - G1 落位：#376 / #391 方案一（91 分）— portal 归 kernel、primitives 新目录、单文件单控件、样式单真源
 - G2 契约：#377 grilling 推荐打包 91 分（本 ADR 正文为首，P1 原型与 T1/T2 直接落地）
-- 原型：#379 prototype/hovertip-379#9ec8ab9 — mode 一键切换、翻转/maxWidth/offset 参数化、portalTop 挂顶一致性以 3 态呈现，5 处需求均可由同一接口覆盖
+- 原型：#379 docs/prototype/hovertip-379.html（归档前在分支 prototype/hovertip-379，提交 9ec8ab9）— mode 一键切换、翻转/maxWidth/offset 参数化、portalTop 挂顶一致性以 3 态呈现，5 处需求均可由同一接口覆盖
 - 落地：T1 #380 底座抽离 + T2 #381 HoverTip 首批落地与两处迁移（verify-kernel / verify-skill-tooltip / verify-hovertip / verify-reuse / npm run verify 全绿，node scripts/build.mjs 一源两物）
 
 ---

@@ -73,8 +73,8 @@
 
 ## 4. 上游依据与引用
 
-- R1 盘点：`_research/reuse-inventory.md`（38 文件扫描 + 29 画像 + 5 处重复）
-- R2 阈值与模式：`_research/reuse-criteria.md` §1 三判定线 + §2 八项清单 + §3 阈值 2/3/5 + §4 h 工厂主路径 + §5 门禁两问
+- R1 盘点：`research/374-reuse-inventory.md`（归档前在 `_research/reuse-inventory.md`）（38 文件扫描 + 29 画像 + 5 处重复）
+- R2 阈值与模式：`research/375-reuse-criteria.md`（归档前在 `_research/reuse-criteria.md`）§1 三判定线 + §2 八项清单 + §3 阈值 2/3/5 + §4 h 工厂主路径 + §5 门禁两问
 - G1 拍板：#376 方案一（kernel 底座 92 分 + primitives 新目录 88 分 + C1 单控件 90 分 + D1 单真源 85 分，综合 91 分）
 - G2 契约：#377 / #393 HoverTip 接口定版（供 T2 直接落地）
 - 落地：T1 #380 底座抽离 + T2 #381 HoverTip 首批落地与两处迁移（已验证 `verify-kernel` / `verify-skill-tooltip` / `npm run verify` 全绿）
