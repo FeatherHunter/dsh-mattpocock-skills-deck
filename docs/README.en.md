@@ -25,7 +25,7 @@ A playable task board for [mattpocock/skills](https://github.com/mattpocock/skil
 
 One prerequisite: [DSH](https://www.npmjs.com/package/@deepseek-ai/dsh) (DeepSeek Harness, an AI coding desktop). You give instructions, the AI does the work — and MattSkillsDeck turns that work into missions on a panel.
 
-**Matching DSH kernel version: `0.1.5-rc.1`** (the current `latest` on the official npm registry). This release was developed, built and verified against that kernel, and both install commands below target it.
+**Matching DSH kernel version: `0.1.5-rc.1`** (the current `latest` on the official npm registry — what `npm install -g @deepseek-ai/dsh` gives you). This release was developed, built and verified against that kernel, and both install commands below target it. The kernel bundled with DSH Desktop 2.0.10 is **the same code with the version string `0.1.5-rc.2`** (the registry's `next` tag) — a line-by-line comparison found the only difference to be the `version` field, see [`research/624-file-channel.md`](../research/624-file-channel.md) section 6.3 — so desktop app users do not need to install a kernel separately.
 
 </div>
 
@@ -37,8 +37,8 @@ npm install -g @deepseek-ai/dsh
 #    entry you actually use (a wrong profile = the plugin never loads, restarts won't help)
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # DSH Desktop app (most users)
 # dsh plugin --profile web add dsh-mattpocock-skills-deck     # self-started web server (dsh web)
-# Pin to latest for extra stability (currently 1.7.21):
-# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.21 --registry https://registry.npmjs.org
+# Pin to latest for extra stability (currently 1.7.22):
+# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.22 --registry https://registry.npmjs.org
 
 # ③ Better on narrow screens (optional): install better-sidebar into the SAME profile
 dsh plugin --profile desktop add dsh-better-sidebar
@@ -84,7 +84,7 @@ The examples below use the web profile — DSH Desktop app users: replace every 
 
 ```bash
 # Install a pinned version
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.21 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.22 --registry https://registry.npmjs.org
 
 # No global install (pin a version like above for extra safety)
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
