@@ -38,6 +38,13 @@
 - 话题始终包含 `dsh-plugin`，以便被插件市场与搜索正确发现。
 - 安装节锁定版本与包清单版本自动同源：用户按文档复制的安装命令即为最新发布。
 - 致谢名单随发布更新：新版本合入外部贡献（Issue、PR、讨论）时，在 `README.md` 致谢区按现有体例增补一行（只写已发生事实，不做全新功能宣传）；每次发布核对致谢无遗漏。
+- 致谢区每个人名字那一行末尾的花数，就是这个人的票数：一朵 🌹 对应本人提交的一次 Issue 或 PR。按「提交」算，不按「合入」算——作者自己关掉的 PR、维护者按请求关闭的 PR 都算一次提交；只在评论区或讨论区留过言、没提过票的人不带花，人仍然留在名单里。
+- 核对时照下面两条命令数花：一条打印每人在本仓库提过多少张 Issue，另一条打印提过多少个 PR（含已关闭的），同一个账号两行数字相加就是该有的花数；仓库所有者本人与机器人账号不计入。
+  ```bash
+  gh issue list --repo FeatherHunter/dsh-mattpocock-skills-deck --state all --limit 2000 --json author --jq 'group_by(.author.login)[] | [.[0].author.login, length] | @tsv'
+  gh pr list    --repo FeatherHunter/dsh-mattpocock-skills-deck --state all --limit 2000 --json author --jq 'group_by(.author.login)[] | [.[0].author.login, length] | @tsv'
+  ```
+- 花数在中英两版与包内说明三处逐行一致：改完 `README.md` 跑 `node scripts/build.mjs` 重新生成 `package/README.md`（它是生成物，禁止手改），再跑 `node tests/verify-readme-sync.js` 与 `node tests/verify-release-contract.js` 确认没有变红。
 - 安装命令版本同源：中文、英文 README 与包内说明的锁定版本号与本次发布同源，无旧版本残留（与第 1 节第 2–4 项同源，由发布契约门禁覆盖）。
 
 ---
@@ -173,3 +180,4 @@
   ② `pause` / `confirm` 原来用 `read … || true`，读不到任何输入（后台运行、没人坐在终端前）时回复变量保持空串，向导据此静默走「否」分支，还把 `WIZARD_RELEASE_PUBLISHED` 写进落盘文件、退出码仍是 0——读这份台账的人会得到与事实相反的结论。现在判据写明为「读不到任何输入＝没有人应答」（空行仍算「有人按了回车」，人自己按回车走默认那条路不受影响）：没人应答时向导打印一行「向导已退出：没有人应答……本次没有发布任何东西」并以退出码 3 结束，全脚本每一处 `pause` / `confirm` 都走同一条判据，因此发布那一段在没人应答时也写不出 `WIZARD_RELEASE_PUBLISHED`。
   ③ 新增门禁 `tests/verify-wizard-exit-609.js` 并挂进 `npm run verify`：它驱动真实脚本代码（把 `scripts/wizard-release.sh` 里每一处 `open_url` 调用与第 285–320 行的发布段原样抽出来跑，npm 与调起器都是桩），上面两条缺陷任一条回来都会当场变红；原先的 `tests/verify-release-contract.js` F 段只做关键字与语法检查，这两条它都拦不住。
   本次为缺陷修正，不改 8+4+2 清单，生效日期保持 2026-08-31。
+- 2026-09-17 增补：第 2 节写明致谢区的花数规则与核对口径——一朵花对应本人提交的一次 Issue 或 PR（按「提交」算、不按「合入」算；只在评论区或讨论区留过言、没提过票的人不带花），并给出两条 `gh` 数花命令与「中英 README、包内说明三处逐行一致」的落地步骤。本次为备注级增补，不改 8+4+2 清单编号，生效日期保持 2026-08-31。
