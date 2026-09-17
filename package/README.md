@@ -172,6 +172,19 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 </details>
 
+<details>
+<summary>更新报错找不到新版本（No matching version），地址是镜像源？</summary>
+
+这是镜像源还没有同步到新版本：报错地址写着镜像源（例如 `registry.npmmirror.com`），而新版本已经在官方源上发布，包本身没有漏发。等镜像源同步完成就能正常更新；着急用的话，显式指定官方源装一次（下面这条命令不要去掉末尾的源参数，去掉就会走回镜像源）：
+
+```bash
+dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
+```
+
+桌面应用用户把 `--profile web` 换成 `--profile desktop`。
+
+</details>
+
 <h2 align="center"><sub>ARCHITECTURE</sub><br>架构</h2>
 
 <div align="center">

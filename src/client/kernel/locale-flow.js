@@ -174,7 +174,7 @@
         'cfg.wsPathCopied': '工作区路径已复制：{cwd}',
         'cfg.wsSwitchManually': '请手动切换到 {cwd}',
         'cfg.wsRefreshed': '已刷新', 'cfg.wsRefreshFail': '刷新失败',
-        'cfg.updateManualTitle': '按钮装不了，用这条命令自己装', 'cfg.updateCopy': '一键复制', 'cfg.updateManualNote': '网络受限（只放行内网镜像）时，可以把命令末尾的 --registry=https://registry.npmjs.org/ 去掉，改用本机源。',
+        'cfg.updateManualTitle': '按钮装不了，用这条命令自己装', 'cfg.updateCopy': '一键复制', 'cfg.updateManualNote': '网络只放行内网镜像时，可以把命令末尾的 --registry=https://registry.npmjs.org/ 去掉，改用本机源。但如果报错说找不到新版本且地址是镜像源，那就是镜像源还没同步到新版本：这时不要去掉源参数，直接用这条命令装。',
       },
       en: {
         'act.diagnose': 'Diagnose',
@@ -342,6 +342,6 @@
         'cfg.wsPathCopied': 'Workspace path copied: {cwd}',
         'cfg.wsSwitchManually': 'Please switch to {cwd} manually',
         'cfg.wsRefreshed': 'Refreshed', 'cfg.wsRefreshFail': 'Refresh failed',
-        'cfg.updateManualTitle': 'Button install unavailable — run this command instead', 'cfg.updateCopy': 'Copy command', 'cfg.updateManualNote': 'On a network that only allows an internal mirror, drop the trailing --registry=https://registry.npmjs.org/ and your local registry is used instead.',
+        'cfg.updateManualTitle': 'Button install unavailable — run this command instead', 'cfg.updateCopy': 'Copy command', 'cfg.updateManualNote': 'On a network that only allows an internal mirror, drop the trailing --registry=https://registry.npmjs.org/ and your local registry is used instead. But if the error says the new version was not found on a mirror registry, the mirror has not synced the new release yet: keep the registry parameter and install with this command.',
       },
     }

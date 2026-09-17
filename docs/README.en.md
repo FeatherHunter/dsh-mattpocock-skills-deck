@@ -156,6 +156,19 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 </details>
 
 <details>
+<summary>Update fails with "No matching version" pointing at a mirror registry?</summary>
+
+The mirror registry has not synced the new release yet: the error URL names a mirror (for example `registry.npmmirror.com`), while the new version is already published on the official registry — nothing failed to publish. Updating works again once the mirror finishes syncing. If you need the new version right away, install explicitly from the official registry (keep the trailing registry parameter in the command below — dropping it sends you back to the mirror):
+
+```bash
+dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https://registry.npmjs.org
+```
+
+Desktop app users: replace `--profile web` with `--profile desktop`.
+
+</details>
+
+<details>
 <summary>Can I use it on a narrow window without better-sidebar?</summary>
 
 Yes. The mission list lives in the main panel and details open in the right column; install better-sidebar later if you want them side by side.
