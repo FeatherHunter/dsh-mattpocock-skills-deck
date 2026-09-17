@@ -217,27 +217,27 @@ MIT © FeatherHunter
 
 感谢每一位提交 Issue、PR 与参与讨论的朋友，是你们让这个插件一点点变好。
 
-[@pioneerAlone](https://github.com/pioneerAlone) — 反馈了 #298（details/better-sidebar 重复，附完整复现与截图）、#274、#234 等状态栏与健康检查误报，并提交了修复 PR #273、#316，感谢你让「重装后到处异常」的体感得以一次清爽修复 🌹
+[@pioneerAlone](https://github.com/pioneerAlone) — 反馈了 #298（details/better-sidebar 重复，附完整复现与截图）、#274、#234 等状态栏与健康检查误报，并提交了修复 PR #273、#316，感谢你让「重装后到处异常」的体感得以一次清爽修复 🌹🌹🌹🌹🌹
 
-[@Shimmernight](https://github.com/Shimmernight) — 提交了 #277 等 Issue，以及 PR #287、#275、#106（toast 主题、命名修正、macOS 适配） 🌹
+[@Shimmernight](https://github.com/Shimmernight) — 提交了 #277 等 Issue，以及 PR #287、#275、#106（toast 主题、命名修正、macOS 适配） 🌹🌹🌹🌹
 
 [@21967201](https://github.com/21967201) — 提交了 PR #321（完善 triage + wayfinder 标签文档） 🌹
 
-[@angenet](https://github.com/angenet) — 反馈了 #295、#262 等 macOS 环境检测问题 🌹
+[@angenet](https://github.com/angenet) — 反馈了 #295、#262 等 macOS 环境检测问题 🌹🌹
 
 [@hyperion2144](https://github.com/hyperion2144) — 反馈了 #110 等环境检查问题 🌹
 
 [@tafcear](https://github.com/tafcear) — 反馈了 #422（非编码工作区状态栏降噪诉求），感谢你让非编码工作区不再被初始化横幅打扰 🌹
 
-[@271912980](https://github.com/271912980) — 在 #257 下提出把会话做成稳定可寻址端点（会话 ID + 语义名）的想法 🌹
+[@271912980](https://github.com/271912980) — 在 #257 下提出把会话做成稳定可寻址端点（会话 ID + 语义名）的想法
 
 [@xiSage](https://github.com/xiSage) — 反馈了 #435（自托管 GitLab 仓库无法识别），并在讨论区发起 #436（按工作区关闭插件功能） 🌹
 
 [@dis0neplay](https://github.com/dis0neplay) — 提交了 PR #493（修 CI 与 Pages 根目录跳转，按请求关闭） 🌹
 
-[@snmtg1008](https://github.com/snmtg1008) — 在 #476 下留下了自己排查并修好「本地数据目录误报不可写」的完整方案 🌹
+[@snmtg1008](https://github.com/snmtg1008) — 在 #476 下留下了自己排查并修好「本地数据目录误报不可写」的完整方案
 
-[@arnold117](https://github.com/arnold117) — 反馈了 #574（本地 Markdown 后端里多个工作单元撞号，只能看到第一个，评论还会写进别的文件），并提交了 PR #575 修好它（已合入），感谢你让一个仓库里并存多个工作单元时不再读错写错 🌹
+[@arnold117](https://github.com/arnold117) — 反馈了 #574（本地 Markdown 后端里多个工作单元撞号，只能看到第一个，评论还会写进别的文件），并提交了 PR #575 修好它（已合入），感谢你让一个仓库里并存多个工作单元时不再读错写错 🌹🌹
 
 [@SbDonger](https://github.com/SbDonger) — 反馈了 #640（状态栏与输入框错位，输入框上方出现一条横向背景带） 🌹
 
