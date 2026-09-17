@@ -225,7 +225,7 @@ MIT © FeatherHunter
 
 Thanks to everyone who opened an issue, sent a PR, or joined a discussion — you made this plugin better bit by bit.
 
-[@pioneerAlone](https://github.com/pioneerAlone) — reported #298 (duplicate details/better-sidebar with clear repro), #274, #234 and opened PRs #273 (its root-cause analysis was absorbed into v1.7.3) and #316 (merged) — thanks for making the reinstall experience smooth again 🌹🌹🌹🌹🌹
+[@pioneerAlone](https://github.com/pioneerAlone) — reported #298 (duplicate details/better-sidebar with clear repro), #274, #234, #645 (update failure caused by mirror lag) and opened PRs #273 (its root-cause analysis was absorbed into v1.7.3) and #316 (merged) — thanks for making the reinstall experience smooth again 🌹🌹🌹🌹🌹🌹
 
 [@Shimmernight](https://github.com/Shimmernight) — filed #277 and PRs #287, #275, #106 🌹🌹🌹🌹
 
