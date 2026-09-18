@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>悬浮工作流面板 · 第2轮对齐</title>
+<style>
+:root{--bg:#0d0f12;--card:#171b21;--line:#2a313b;--txt:#e8ecf1;--mut:#9aa6b5;--acc:#8b5cf6;--ok:#10b981;--warn:#f59e0b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.7 "PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:28px 20px 60px}
+.hero{border:1px solid var(--line);border-radius:14px;padding:20px 22px;background:linear-gradient(180deg,#181d26,#12151c)}
+.hero h1{margin:0 0 6px;font-size:22px}.hero p{margin:6px 0;color:var(--mut)}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:2px 10px;color:var(--mut)}
+.tag.hot{border-color:var(--acc);color:#cdb8ff}
+.flow{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+.step{flex:1 1 200px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:12px 14px}
+.step b{display:block;font-size:14px}.step span{color:var(--mut);font-size:13px}
+.step.done{border-color:#1f8a6b}.step.now{border-color:var(--acc)}
+.card{border:1px solid var(--line);border-radius:14px;background:var(--card);margin:16px 0;overflow:hidden}
+.card header{padding:16px 18px 0}.num{display:inline-block;font-size:12px;background:#242c38;border-radius:6px;padding:2px 8px;color:var(--mut);margin-right:8px}
+.card h2{display:inline;font-size:17px;margin:0}
+.ctx{padding:10px 18px;color:var(--mut);font-size:14px;border-left:3px solid var(--acc);margin:12px 18px 0;background:#141922;border-radius:0 8px 8px 0}
+.opt{margin:12px 18px;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.opt b{display:block;margin-bottom:4px}.opt span{color:var(--mut);font-size:13.5px}
+.rec{margin:12px 18px;border:1px solid #1f8a6b;background:#0e1f1a;border-radius:10px;padding:10px 12px}
+.rec b{color:#5eead4}
+.procon{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 18px 18px}
+.procon div{border-radius:10px;padding:10px 12px;font-size:13.5px}
+.pro{background:#0f231a;border:1px solid #1c4d3c}.con{background:#251a10;border:1px solid #5b3a15}
+.pro b{color:var(--ok)}.con b{color:var(--warn)}
+.pro ul,.con ul{margin:6px 0 0;padding-left:18px;color:#cfd8e3}
+table{width:100%;border-collapse:collapse;margin:10px 18px 18px;font-size:13.5px;width:calc(100% - 36px)}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#1d232b;color:var(--mut);font-weight:600}
+.footer{color:var(--mut);font-size:13px;margin-top:22px;border-top:1px dashed var(--line);padding-top:14px}
+@media(max-width:640px){.procon{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="hero">
+<h1>悬浮工作流面板 · 第 2 轮对齐</h1>
+<p>研究票已关闭：原作者那套技能里的 <strong style="color:#fff">32 条工作流</strong>已列全并过了独立核验。现在只剩这张图上的最后两步。</p>
+<div class="meta"><span class="tag">地图 #641</span><span class="tag">进度 40%</span><span class="tag hot">要你回 1 个问题</span></div>
+</div>
+
+<div class="flow">
+<div class="step done"><b>① 研究 · 已关 ✅</b><span>工作流清单 + 核验</span></div>
+<div class="step now"><b>② 原型 · 待开工</b><span>能点开的假面板</span></div>
+<div class="step"><b>③ 定版 · 等②</b><span>拍板成方案</span></div>
+</div>
+
+<div class="card">
+<header><span class="num">Q</span><h2>原型现在就做，还是另开一个会话做？</h2></header>
+<div class="ctx">
+<b style="color:#cfd8e3">前因</b>：本轮会话已经解掉并关闭了研究票，原型票现在没有阻塞。<br>
+<b style="color:#cfd8e3">关键信息</b>：wayfinder 的规矩是「一次会话只解一张票」（研究票是可并行的例外），而本轮会话已经被 39 个子代理的回包塞得很重。
+</div>
+<div class="opt"><b>A · 我现在接着做</b><span>少一次往返，这一轮结束就能看到图。</span></div>
+<div class="opt"><b>B · 另开一个会话做（推荐）</b><span>你说一句「做 #643」即可，原型在干净上下文里做。</span></div>
+<div class="rec"><b>➡️ 推荐 B。</b>原型是拿给你眼睛看的产物，不需要研究那一堆上下文；把它塞进一个已经很重的会话里做，质量和速度都会打折。</div>
+<div class="procon">
+<div class="pro"><b>选 B 利</b><ul><li>干净上下文，原型质量更稳</li><li>符合一次会话只解一张票的规矩，出错好回滚</li></ul></div>
+<div class="con"><b>选 B 弊</b><ul><li>你要多开一次会话</li></ul></div>
+</div>
+</div>
+
+<div class="card">
+<header><span class="num">已代判</span><h2>两件我替你定了的事（不同意随时推翻）</h2></header>
+<div class="ctx">你说不方便通读清单，所以这两件我按「不占你时间」的原则直接定了，都写进了 #642 的关票评论，重开一句话就行。</div>
+<table>
+<tr><th>事</th><th>我怎么定</th><th>代价</th></tr>
+<tr><td><b>关票依据</b></td><td>由独立核验替代人工通读：清单已经过 8 个角度扫描 + 对抗复核</td><td>补进来的 17 条里，把握中等/低的那几条没人过目</td></tr>
+<tr><td><b>哪些「说不准」上面板</b></td><td>只在<b>用户据此做选择的地方</b>标一句轻提示（如 handoff 那处必须写清「满了用 /compact、要搬走才用 /handoff」）</td><td>其余细节冲突不显示，写代码的人要回报告第 4 节查</td></tr>
+</table>
+</div>
+
+<div class="card">
+<header><span class="num">下个岔路</span><h2>面板分组照哪一套？（定版票要拍的，先垫个底）</h2></header>
+<div class="ctx">研究已经查出：这件事有<b style="color:#cfd8e3">三套都「有出处」但互不相同的分组依据</b>，它们对同一个技能的归类不一样。</div>
+<table>
+<tr><th>依据</th><th>长什么样</th><th>哪里不贴</th></tr>
+<tr><td>官网首页 6 组</td><td>入门 / 主干 / 塑形 / 维护 / 生产力 / 参考</td><td><code>tdd</code> 被归"参考层"，实际是主链的发动机</td></tr>
+<tr><td>作者自己的路由器 <code>/ask-matt</code></td><td>主干 / 入口 / 词汇层 / 独立 / 前置</td><td>分类词偏工程，新用户未必看得懂</td></tr>
+<tr><td>每页 Where it fits</td><td>主链第 n 环 / 情境入口 / 并行车道 / 独立件 / 参考层</td><td>最准，但不是给用户看的话术</td></tr>
+</table>
+<div class="rec"><b>➡️ 我的建议</b>：<b>用官网 6 组当面板骨架</b>（用户已经眼熟、第一轮也定了它保底），<b>但把 <code>/ask-matt</code> 那四类当作组内的排序与补充</b>（例如主链那组按真实顺序排，<code>wayfinder</code> 标明是"情境入口"而不是必经第一棒）。官网那套的好处是眼熟，坏处是它把 <code>wayfinder</code>、<code>prototype</code>、<code>research</code> 摆成并列，而作者网站自己写明后两者是 <code>wayfinder</code> 的下级票型——照官网排会让用户以为它们是三条平行的路。</div>
+</div>
+
+<div class="footer">
+这一页只留决策，不堆资料。要细节时：报告在 <code>research/642-aihero-workflows.md</code>，工作流清单在第 1 与 1.1 节，核验怎么做的在第 7 节。<br>
+你只需要回一件事：原型<b>现在做</b>，还是<b>另开会话做</b>。
+</div>
+</div>
+</body>
+</html>
