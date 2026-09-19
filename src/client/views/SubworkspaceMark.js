@@ -19,14 +19,40 @@
 // #666 修正（2026-09-19）：这枚标志原先读会话状态上的 st.workspaceRoot，而客户端里没有任何地方给那个字段
 //   赋过值，于是它自 #653 落地以来一次都没亮过（证据在票 #666）。现在**唯一来源**是面板正在显示的那份快照：
 //   宿主从 #652 起在每份快照里带回工作区根（snapshot.workspaceRoot），面板分桶读的也是同一份快照。
-//   这里不再另读「所选目录 → 工作区根」那张表：那张表存的是折算过的工作区键（大小写与分隔符都规整过），
-//   拿它当显示路径会与「面板数据来自工作区 D:\ilife」这句话对不上；而且那张表是整个工作区共用的，
-//   别的会话学到的根会窜到本会话的浮层里。快照里没有工作区根时返回空串：认不出根就不出现，不猜、不谎报。
+//   这里不再另读「所选目录 → 工作区根」那张表：那张表是整个工作区共用的，别的会话学到的根会窜到本会话的
+//   浮层里；快照里的根是本会话自己的。快照里没有工作区根时返回空串：认不出根就不出现，不猜、不谎报。
+//   注意快照里那个值是**折算过的键**（小写、正斜杠），不能直接显示给用户看 —— 显示用的写法由下面的
+//   subwsMarkRootShown 按会话原始目录还原。
 //
-// 渲染之外的决定（取根、该不该出现、相对尾巴怎么拼、显示哪几行）全在这几个纯函数里，组件只负责画与点击 ——
-// 门禁因此能直接断言「该不该出现、出现时是哪几行」，不必去渲染一棵 React 树（tests/verify-666-subws-mark-root.js）。
+// 渲染之外的决定（取根、该不该出现、相对尾巴怎么拼、显示哪几行、显示成哪种写法）全在这几个纯函数里，
+//   组件只负责画与点击。门禁既直接跑这几个纯函数，也把组件真的渲染一次（tests/verify-666-subws-mark-root.js
+//   的 A～D 组跑纯函数，E 组渲染组件）—— 因为本票的缺陷是「纯函数全对、组件却每次都返回 null」，
+//   只断纯函数拦不住它。
 export const subwsMarkRootOf = function (st) {
   try { return (st && st.snapshot && st.snapshot.workspaceRoot) ? String(st.snapshot.workspaceRoot).trim() : '' } catch (e) { return '' }
+}
+// 显示用的工作区根：把宿主那份快照里的根，按本会话所选目录的写法还原出来。
+//   为什么需要这一步：宿主放进快照的那个值是**折算过的键**（`canonicalWorkspaceKey`：Windows 上小写折叠、
+//   反斜杠转正斜杠），于是直接拿它显示会说出「面板数据来自工作区 d:\ilife」—— 而 #650 定稿的文案是
+//   `D:\ilife`，维护者看到的就是后者。客户端的 `st.cwd` 是会话原始目录（走 wf.cwd 拿的 header.cwd），
+//   写法是用户自己的那一种，所以按它逐段还原；**比对该用键、显示该用原样**（与设置页工作区总览同一条规矩）。
+//   比对仍然只用折算后的键，绝不按字符切目录名（`D:\ilife-other` 那种会切出残留片段）。
+//   还原不出来（两侧根本不是同一条目录，或写法对不齐）就原样回退回那个键 —— 宁可与规格差一点，也不猜。
+export const subwsMarkRootShown = function (root, cwd) {
+  try {
+    const key = subwsMarkCmpKey(root)
+    if (!key) return ''
+    const segsOf = function (v) { return String(v || '').split(/[\\/]+/).filter(function (x) { return !!x }) }
+    const cs = segsOf(cwd)
+    const rs = segsOf(root)
+    if (cs.length <= rs.length) return String(root)
+    // 从根那一段往外逐段试着取（取几段就是几段，不去按字符切），谁折算出来的键等于根，谁就是它
+    for (let take = rs.length; take < cs.length; take++) {
+      const cand = cs.slice(0, take).join('\\')
+      if (subwsMarkCmpKey(cand) === key) return cand
+    }
+    return String(root)
+  } catch (e) { return String(root == null ? '' : root) }
 }
 // 折算到同一把键再比较（大小写、分隔符写法不同也算同一条目录）。keyOf 是内核里那把规整函数的单源；
 //   真闭包里拿不到它时退回原样比较 —— 两串本就同源同写法，结论仍然对，不会把子目录误判成根。
@@ -39,13 +65,23 @@ export const subwsMarkShows = function (root, cwd) {
   return !!(root && cwd && subwsMarkCmpKey(root) !== subwsMarkCmpKey(cwd))
 }
 // 相对尾巴：所选目录去掉工作区根前缀的那一段，用 › 连接。绝不把反斜杠原样吐给用户。
+//   必须按「一段目录」比，不能按「一串字符」比：`D:\ilife-other` 与 `D:\ilife2` 的前几个字符
+//   恰好是根的写法，按字符串前缀切会把它们切成 `-other` / `2` 这种看不出所以然的东西。
+//   所以逐段走出去，只有整段对得上才算「在根下面」；对不上（不是子目录、或大小写与斜杠写法不同
+//   导致切成两段不好对齐）就整段列出，别切。
 export const subwsMarkRelOf = function (root, cwd) {
   try {
-    const r = String(root || '').replace(/[\\/]+$/, '')
-    let rest = String(cwd || '')
-    if (rest.length > r.length && subwsMarkCmpKey(rest.slice(0, r.length)) === subwsMarkCmpKey(r)) rest = rest.slice(r.length)
-    const segs = rest.split(/[\\/]+/).filter(function (x) { return !!x })
-    return segs.join(' › ')
+    const segsOf = function (v) {
+      return String(v || '').split(/[\\/]+/).map(function (x) { return x.trim() }).filter(function (x) { return !!x })
+    }
+    const rs = segsOf(root)
+    const cs = segsOf(cwd)
+    // 先按原样逐段比；对不上再用同一把规整钥匙逐段比（大小写、斜杠写法不同也算同一条目录）
+    const sameSeg = function (a, b) { return a === b || subwsMarkCmpKey(a) === subwsMarkCmpKey(b) }
+    let under = rs.length > 0 && cs.length > rs.length
+    for (let i = 0; under && i < rs.length; i++) under = sameSeg(rs[i], cs[i])
+    if (!under) return cs.join(' › ')
+    return cs.slice(rs.length).join(' › ')
   } catch (e) { return '' }
 }
 // 该显示哪几行（空数组＝这枚标志不出现）。四行文案存在 locale 的一个键里、用 \n 分行；
@@ -54,8 +90,9 @@ export const subwsMarkLinesOf = function (root, cwd, rootInitialized) {
   try {
     if (!subwsMarkShows(root, cwd)) return []
     const rel = subwsMarkRelOf(root, cwd)
+    const shownRoot = subwsMarkRootShown(root, cwd)
     const parts = String(tr('panel.wsMarkTip')).split('\n').map(function (s) {
-      return s.replace(/\{root\}/g, String(root)).replace(/\{rel\}/g, String(rel))
+      return s.replace(/\{root\}/g, String(shownRoot)).replace(/\{rel\}/g, String(rel))
     })
     return (rootInitialized === false) ? parts : parts.slice(0, 3)
   } catch (e) { return [] }
@@ -72,7 +109,9 @@ export const SubworkspaceMark = function (props) {
   //   两条都不知道（链还没跑、快照还没到）→ 视为「已初始化」，**不出**第四行。
   //   为什么这样收：链还没加载就直接当成「没初始化」，会在已经初始化好的仓库里多报一句吓人的话，
   //   而 #650 明确要的是「只有工作区根还没初始化时才出现」。拿不准时宁可少说一句，不多报一句。
-  //   下面 chainStepOk 这个写法与 probe-chain.js 里那个同名谓词同口径（链那一步的状态是不是 done）。
+  //   下面 chainStepOk 这个写法与 probe-chain.js 里那个同名谓词同口径（链那一步的状态是不是 done）；
+  //   区别只在「那一步根本不存在」时两者怎么办：内核那边算没通过，这里返回「不知道」而不当没通过 ——
+  //   链还没加载就在已经初始化好的仓库里多报一句「还未初始化」太吓人，宁可少说一句。
   const chainStepOk = function (id) {
     try {
       if (typeof chainStep !== 'function') return null
@@ -110,16 +149,21 @@ export const SubworkspaceMark = function (props) {
   }
   if (!isSub) return null
   const aria = shown.join('；')
+  // 显示与点击都用还原过写法的那一条：浮层里写着「点一下打开 D:\ilife」，点下去就不该打开另一条写法
+  const shownRoot = subwsMarkRootShown(root, cwd)
   const dim = { fontSize: 11, lineHeight: '16px', whiteSpace: 'normal', wordBreak: 'break-word' }
   // 渲染时，最后一行是那条「还没初始化」的提醒，用琥珀色；其余灰色。
   const tipContent = h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, shown.map(function (s, i) {
     const isWarn = (!inited && i === shown.length - 1)
     return h('div', { key: 'l' + i, style: Object.assign({}, dim, { color: (i === 0 ? '#e6edf3' : (isWarn ? '#f59e0b' : '#8b8b95')) }) }, s)
   }))
-  const iconSvg = h('svg', { viewBox: '0 0 16 16', width: 13, height: 13, fill: 'none', stroke: 'currentColor', strokeWidth: 1.3, strokeLinejoin: 'round', strokeLinecap: 'round' }, [
-    h('path', { d: 'M1.9 5.2A1.3 1.3 0 0 1 3.2 3.9h2.3l1.1 1.3h4.3a1.3 1.3 0 0 1 1.3 1.3v4.3a1.3 1.3 0 0 1-1.3 1.3H3.2a1.3 1.3 0 0 1-1.3-1.3z' }),
-    h('rect', { x: 8.1, y: 7.4, width: 3.9, height: 3.9, rx: 1.1, fill: 'currentColor', stroke: 'none' }),
+  const iconSvg = h('svg', { key: 'icon', viewBox: '0 0 16 16', width: 13, height: 13, fill: 'none', stroke: 'currentColor', strokeWidth: 1.3, strokeLinejoin: 'round', strokeLinecap: 'round' }, [
+    h('path', { key: 'folder', d: 'M1.9 5.2A1.3 1.3 0 0 1 3.2 3.9h2.3l1.1 1.3h4.3a1.3 1.3 0 0 1 1.3 1.3v4.3a1.3 1.3 0 0 1-1.3 1.3H3.2a1.3 1.3 0 0 1-1.3-1.3z' }),
+    h('rect', { key: 'block', x: 8.1, y: 7.4, width: 3.9, height: 3.9, rx: 1.1, fill: 'currentColor', stroke: 'none' }),
   ])
+  // 下面几处把子元素写成数组（iconSvg 里面的 [path, rect]、[iconSvg]、[span]），数组里每个元素都要带 key：
+  //   React 19 对「当子元素传进来的数组」逐个要 key，**哪怕数组里只有一个元素**，缺了就在控制台留一行警告。
+  //   这里原先都没带，是这枚标志自带的开发期噪音（不影响画出来的样子，但会多一行查问题时要跳过的东西）。
   const body = h('a', {
     href: 'javascript:void(0)',
     'data-subws-mark-link': 1,
@@ -127,10 +171,11 @@ export const SubworkspaceMark = function (props) {
     style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', flex: 'none' },
     onClick: function (e) {
       try { if (e && e.preventDefault) e.preventDefault() } catch (_) {}
-      try { if (typeof host !== 'undefined' && host.call) host.call('wf.openFolder', { cwd: root }) } catch (__) {}
+      try { if (typeof host !== 'undefined' && host.call) host.call('wf.openFolder', { cwd: shownRoot }) } catch (__) {}
     },
   }, [
     h('span', {
+      key: 'icon',
       'data-subws-mark': 1,
       role: 'img',
       style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: 5, border: '1px solid rgba(192,132,252,.38)', background: 'rgba(192,132,252,.07)', cursor: 'pointer', flex: 'none' },
