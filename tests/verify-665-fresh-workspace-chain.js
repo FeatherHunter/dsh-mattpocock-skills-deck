@@ -298,6 +298,28 @@ async function main() {
   ok(ghClick.logs.length === 1 && ghClick.logs[0].level === 'info' && ghClick.logs[0].fields.step === 'gh:installed' && ghClick.logs[0].fields.outcome === 'text', '这一回记成常驻日志：哪一步 + 给出去的是哪一类（text）')
   ok(Object.keys(ghClick.logs[0].fields).length === 2, '日志字段就这两个（不记注入正文、不记路径）')
 
+  console.log('== 第 7 组：链快照里「没有」仓库那一行时，横幅不许跳到黄条（真机现场 2026-09-21）==')
+  // 现场：全新空目录里选完 GitHub，宿主探测把「空目录」当成过期工作区、把客户端这一下选的后端也一并作废，
+  //   于是后端链没组装，链快照里只剩这六行（.scratch/665-diag-bar.out 的读数）。
+  const CHAIN_NO_REPO_ROW = { 'selection:backendSelected': 'current', 'tracker:initialized': 'current', 'skill:wayfinder': 'pending', 'skill:setup-matt-pocock-skills': 'pending', 'skill:ask-matt': 'pending', 'env:home': 'done' }
+  const stNoRepoRow = stateOf(chainOf(CHAIN_NO_REPO_ROW), { backend: 'github', backends: backends })
+  const noRowBanner = bannerOf(mod, stNoRepoRow, false)
+  ok(noRowBanner === null, '仓库那一行不在快照里 → 横幅不许落到「该工作区尚未初始化」上（实得 ' + (noRowBanner && noRowBanner.id) + '）')
+  ok(mod.setupBlockedByGuide(stNoRepoRow, 'github') === true, '同一份快照：那道「不注入」的阀门仍然是关着的（挡住初始化）')
+  const beforeNoRow = seen.injected.length
+  const noRowDecision = mod.injectSetupDecision(stNoRepoRow, 'github', { allowCard: true })
+  ok(noRowDecision === 'blocked', '同一份快照：硬走一次决策也返回 blocked（实得 ' + noRowDecision + '）')
+  ok(stNoRepoRow.setupLayoutCardOpen !== true, '同一份快照：连那张布局小卡都不开')
+  ok(seen.injected.length === beforeNoRow, '同一份快照：一个字都不注入')
+  // 不许误伤：本地 Markdown 的清单里本来就没有仓库那一步，黄条照旧出得来。
+  const stMdNoRow = stateOf(chainOf({ 'tracker:initialized': 'current', 'skill:wayfinder': 'done', 'skill:setup-matt-pocock-skills': 'done', 'skill:ask-matt': 'done', 'env:home': 'done' }), { backend: 'markdown', backends: backends })
+  const mdNoRowBanner = bannerOf(mod, stMdNoRow, false)
+  ok(!!mdNoRowBanner && mdNoRowBanner.id === 'tracker:initialized', '本地 Markdown 不受这条守卫影响：黄条照出（实得 ' + (mdNoRowBanner && mdNoRowBanner.id) + '）')
+  // 仓库那一行在、但红着时，出的仍然是仓库那一段（守卫不许把正常路径也挡掉）。
+  const stRepoRow = stateOf(chainOf(STEP_CHAIN.noRepo, { 'gh:remote': [wizard] }), { backend: 'github', backends: backends })
+  const repoRowBanner = bannerOf(mod, stRepoRow, false)
+  ok(!!repoRowBanner && repoRowBanner.id === 'gh:remote', '仓库那一行在且没过 → 出的就是它（实得 ' + (repoRowBanner && repoRowBanner.id) + '）')
+
   console.log('== 第 5 组：走到黄条、选完布局，注入的是初始化全文（含用户选的布局结论、不含那段退役的告诫）==')
   const stFull = stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'github', backends: backends, layout: 'single' })
   const setupClick = clickAndCount(stFull)

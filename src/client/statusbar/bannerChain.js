@@ -63,6 +63,13 @@ export const guideBannerStep = function (st, gateOpen) {
     const steps = chainStepsOf(st)
     for (let i = 0; i < list.length; i++) {
       const step = list[i]
+      // 挡着初始化的那一步（清单里标着 blocksSetup 的「已关联 GitHub 仓库」）还没在链快照里露出行来：
+      //   到此为止，不许再往前走到黄条。理由是「行不在快照里」与「这一步这个后端用不上」（本地 Markdown
+      //   没有仓库那一步）是两件事，分不清时必须停下来等读数 —— 往前跳一步会把「该工作区尚未初始化」黄条
+      //   提前给出去（#661 第④条要的就是它不早出）。真机现场 2026-09-21：全新空目录里，探测把「空目录」
+      //   当成过期工作区、把用户刚选的后端也一并作废，后端链整段没组装，快照里连仓库那一行都没有，
+      //   黄条就是这样提前出来的。这一步的行在快照里时，下面那套通用逻辑照常判它过没过。
+      if (step && step.blocksSetup === true && !stepPresent(st, step)) return null
       if (!step || !step.banner) continue
       if (step.ready === 'gate') { if (gateOpen) return step; continue }
       if (!stepPresent(st, step)) continue
