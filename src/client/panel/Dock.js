@@ -199,6 +199,9 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             //   之前的 onClick openUrl 导致点一次开两个浏览器。Markdown 路径见上方分支（保留 onClick wf.openFolder）
             return h(Tip, { content: tr('panel.repoTitle') }, h('a', { href: href, target: '_blank', rel: 'noreferrer', 'aria-label': tr('panel.repoTitle'), 'data-repo-chip': 1, style: chipStyle }, inner))
           })(),
+          // #653：这枚归属标志只在「会话所选目录 ≠ 工作区根」时出现（根会话、嵌套仓库、无仓库目录都不出现），
+          //   放在仓库芯片右侧、与「未识别仓库」琥珀芯片和「该工作区尚未初始化」提示并存，不替代任何一条既有提示。
+          h(SubworkspaceMark, { key: 'subws', st: s }),
           // #191 · 仓库名右侧切换按钮（已选态常驻 · pending 灰置 · _isOther 隐藏）
           (function(){ if(_isOther) return null; var _sel=s.selection||(s.snapshot&&s.snapshot.selection)||null, _bid=_sel?_sel.backendId:null; if(_bid==null) return null; var _pend=!!(_sel&&_sel.pending), _col=(typeof backendColorOf==='function'?backendColorOf(_bid):'#6e7681'); return h(Tip, { content: _pend ? '切换后端 · 探测中不可用' : '切换后端' }, h('button',{'data-repo-switch':1,type:'button','aria-label':'切换后端','aria-disabled':_pend?'true':'false',disabled:_pend,onClick:function(e){try{if(e&&e.preventDefault)e.preventDefault();if(e&&e.stopPropagation)e.stopPropagation()}catch(_){};if(_pend)return;try{openSwitchConfirm(s,null)}catch(_){}},style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:16,height:16,borderRadius:4,flex:'none',border:'1px solid '+_col,color:_col,background:'transparent',cursor:_pend?'not-allowed':'pointer',opacity:_pend?0.45:1,fontSize:10,lineHeight:1,padding:0,colorScheme:'light dark'}},Ic({n:'swap',size:10}))) })(),
           // #621 标签配色入口：16 像素见方的小图标（与左边那颗切换后端按钮同规格），点开改色弹窗；

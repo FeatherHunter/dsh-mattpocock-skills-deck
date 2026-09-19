@@ -80,18 +80,21 @@ for (const rel of ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-
   else ok(rel+' 无 normCwdClientProbe 重复定义')
 }
 
-// 4) 抽屉全部按归一键
-console.log('\n4) 全部工作区抽屉按归一键')
+// 4) 抽屉全部按工作区键
+//    #653 口径变更（本门禁同步改）：抽屉的钥匙从「所选目录的归一键（keyOf）」升级为「工作区根键（wsKeyOf）」。
+//    wsKeyOf 是 keyOf 的实现之上的又一步（先归一再往上锚到工作区根），所以这几条断言改成要求 wsKeyOf；
+//    子目录会话与它的工作区根因此算同一把键、同桶共享，这正是本门禁要守的「同工作区共享」。
+console.log('\n4) 全部工作区抽屉按工作区键（#653 起锚到工作区根）')
 const checks = [
-  ['src/client/kernel/store-snapshot.js', /getCachedSnapshot/, 'getCachedSnapshot 按 keyOf'],
-  ['src/client/kernel/store-snapshot.js', /setCachedSnapshot/, 'setCachedSnapshot 按 keyOf'],
-  ['src/client/kernel/store-prefs.js', /getCachedSelection.*keyOf/, 'getCachedSelection 按 keyOf'],
-  ['src/client/kernel/store-prefs.js', /setCachedSelection.*keyOf/, 'setCachedSelection 按 keyOf'],
-  ['src/client/kernel/store-prefs.js', /getCachedRepository.*keyOf/, 'getCachedRepository 按 keyOf'],
-  ['src/client/kernel/store-snapshot.js', /getCachedChain.*keyOf|getChainCacheKey/, 'getCachedChain 存在且按 keyOf'],
+  ['src/client/kernel/store-snapshot.js', /getCachedSnapshot/, 'getCachedSnapshot 按工作区键'],
+  ['src/client/kernel/store-snapshot.js', /setCachedSnapshot/, 'setCachedSnapshot 按工作区键'],
+  ['src/client/kernel/store-prefs.js', /getCachedSelection.*wsKeyOf/, 'getCachedSelection 按 wsKeyOf'],
+  ['src/client/kernel/store-prefs.js', /setCachedSelection.*wsKeyOf/, 'setCachedSelection 按 wsKeyOf'],
+  ['src/client/kernel/store-prefs.js', /getCachedRepository.*wsKeyOf/, 'getCachedRepository 按 wsKeyOf'],
+  ['src/client/kernel/store-snapshot.js', /getCachedChain.*wsKeyOf|getChainCacheKey/, 'getCachedChain 存在且按工作区键'],
   ['src/client/kernel/store-snapshot.js', /chainByCwd/, 'chainByCwd 共享缓存存在'],
-  ['src/client/kernel/probe-snapshot.js', /pendingSnapshotByCwd.*keyOf|keyOf.*pendingSnapshotByCwd/, 'pendingSnapshotByCwd 按 keyOf'],
-  ['src/client/kernel/probe-chain.js', /_chainInflightByCwd.*keyOf|getChainCacheKey/, '_chainInflightByCwd 按 keyOf+backendId'],
+  ['src/client/kernel/probe-snapshot.js', /pendingSnapshotByCwd.*wsKeyOf|wsKeyOf.*pendingSnapshotByCwd/, 'pendingSnapshotByCwd 按 wsKeyOf'],
+  ['src/client/kernel/probe-chain.js', /_chainInflightByCwd.*wsKeyOf|getChainCacheKey/, '_chainInflightByCwd 按工作区键+backendId'],
   ['src/client/kernel/probe-chain.js', /keyOf.*cwd.*\|.*backendId|getChainCacheKey/, '链键含 backendId'],
   ['src/client/kernel/store-snapshot.js', /snapshotByCwd/, 'snapshotByCwd 存在'],
 ]
@@ -100,16 +103,16 @@ for (const [rel, re, msg] of checks) {
   else bad(msg+' 缺失 @'+rel)
 }
 
-// 5) 扇出分组按归一键
-console.log('\n5) 探针扇出按归一键分组')
-if (has('src/client/kernel/probe-auto.js', /keyOf\(shared\.cwd/) && has('src/client/kernel/probe-auto.js', /keyOf\(st\.cwd/) && has('src/client/kernel/probe-auto.js', /keyOf\(cwd\)/)) {
-  ok('refreshGroup 与 cwds 去重均使用 keyOf')
-} else bad('refreshGroup 未完全按 keyOf 分组')
-if (has('src/client/kernel/probe-auto.js', /cwdsByNorm/)) ok('cwds 按归一键去重（cwdsByNorm）')
-else bad('cwds 去重未按归一键')
-if (read('src/client/kernel/probe-auto.js').includes('shared.cwd === cwd') && !read('src/client/kernel/probe-auto.js').includes('keyOf(shared.cwd)')) {
-  // 若仍存在直接 === 且无 keyOf，则为旧缺陷
-  bad('仍存在 shared.cwd === cwd 直接比较（应为 keyOf 相等）')
+// 5) 扇出分组按工作区键（#653：同一个仓库里，子目录会话与根会话算同一组）
+console.log('\n5) 探针扇出按工作区键分组')
+if (has('src/client/kernel/probe-auto.js', /wsKeyOf\(shared\.cwd/) && has('src/client/kernel/probe-auto.js', /wsKeyOf\(st\.cwd/) && has('src/client/kernel/probe-auto.js', /wsKeyOf\(cwd\)/)) {
+  ok('refreshGroup 与 cwds 去重均使用 wsKeyOf')
+} else bad('refreshGroup 未完全按 wsKeyOf 分组')
+if (has('src/client/kernel/probe-auto.js', /cwdsByNorm/)) ok('cwds 按工作区键去重（cwdsByNorm）')
+else bad('cwds 去重未按工作区键')
+if (read('src/client/kernel/probe-auto.js').includes('shared.cwd === cwd') && !read('src/client/kernel/probe-auto.js').includes('wsKeyOf(shared.cwd)')) {
+  // 若仍存在直接 === 且无 wsKeyOf，则为旧缺陷
+  bad('仍存在 shared.cwd === cwd 直接比较（应为工作区键相等）')
 } else ok('无直接 shared.cwd === cwd 严格相等分组缺陷')
 
 // 6) 新会话秒显

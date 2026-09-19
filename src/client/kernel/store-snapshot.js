@@ -35,30 +35,62 @@
       switchConfirm: null,
       gateModalOpen: false, gateSelected: null, gateLoading: false, gateError: '',
     })
+    // ── 工作区键：分桶一律按「工作区根」，不按会话所选目录（#653，规则见 #649 定版记录 3.2 节）──
+    // 为什么客户端要认这条路：宿主从 #652 起把「哪个目录算这个会话的工作区」锚到了工作区根，
+    //   而客户端这五样抽屉（面板快照、检查链快照、在途去重、后端选择镜像、仓库引用）此前都按
+    //   「会话所选目录」分桶。同一个仓库里，根会话与子目录会话因此各占一桶、互不相认——
+    //   子目录会话打开面板时看不到根会话已经取好的数据，只会空着。
+    // 客户端自己算不出工作区根（要读文件系统：逐层向上找 `.git` 或主锚文件），所以这个值由宿主给：
+    //   快照回包里的 workspaceRoot 一项。没拿到时一律退回所选目录，行为与改动前一致（诚实失败，不猜）。
+    // 存法：所选目录的规整键 → 工作区根（在装快照时记下）。同一张表里也把「工作区根 → 工作区根」
+    //   记一份，于是在途去重那种手上只有请求键的场景传进来也能命中自己。
+    export const workspaceRootByCwd = {}
+    export const rememberWorkspaceRoot = function (selected, root) {
+      try {
+        const sk = (typeof keyOf === 'function') ? keyOf(selected) : String(selected || '')
+        const rk = (typeof keyOf === 'function') ? keyOf(root) : String(root || '')
+        if (sk && rk) workspaceRootByCwd[sk] = rk
+        if (rk) workspaceRootByCwd[rk] = rk
+      } catch (e) {}
+    }
+    // 分桶用的钥匙：给所选目录，回工作区根；认不出（宿主还没回过话）就回所选目录本身。
+    export const wsKeyOf = function (selected) {
+      try {
+        const k = (typeof keyOf === 'function') ? keyOf(selected) : String(selected || '')
+        if (!k) return ''
+        const hit = workspaceRootByCwd[k]
+        if (hit) return hit
+        // 兜底两条：手上这份快照自己带着工作区根（磁盘缓存刚回放、或别的会话已经装过一次），
+        // 以及 LRU 里那条记录。都能认出就顺手记进表，下一次直接命中。
+        try { const e = snapshotByCwd.get(k); const r = e && e.snapshot && e.snapshot.workspaceRoot; if (r) { const rk = (typeof keyOf === 'function') ? keyOf(r) : String(r); if (rk) { workspaceRootByCwd[k] = rk; workspaceRootByCwd[rk] = rk; return rk } } } catch (e1) {}
+        return k
+      } catch (e) { return '' }
+    }
     export const shared = makeStore()
     export const stores = {}
-    // #58 缓存优先：按 cwd 的内存快照表（新 store 秒开 + 跨会话同 cwd 共享，避免空 cwd 探路 miss）
-    // 单源工作区键（#301 / #324）：全库仅一份 keyOf，经 shared:workspaceKey 拼入
+    // #58 缓存优先：按工作区键的内存快照表（新 store 秒开 + 跨会话同工作区共享，避免空 cwd 探路 miss）
+    // 单源工作区键（#301 / #324）：全库仅一份 keyOf，经 shared:workspaceKey 拼入；#653 起分桶再走 wsKeyOf 锚到工作区根
     export const SNAP_CWD_LRU_MAX = 20
     export const snapshotByCwd = new Map() // Map<normCwd,{snapshot,version,ts}> LRU20
     export const touchLRUClient = function(map,key,val){ if(map.has(key)) map.delete(key); map.set(key,val); if(map.size>SNAP_CWD_LRU_MAX){ const first=map.keys().next().value; map.delete(first);} return val; }
     const dswsClientSnapHitN = { n: 0 } // #498 客户端快照命中采样计数（百一采样，只增不显）
-    export const getCachedSnapshot = function (cwd) { try{ const k=keyOf(cwd); const e=snapshotByCwd.get(k); const s=e?e.snapshot||e:null; try { if (s) { dswsClientSnapHitN.n += 1; if (isEnabled('debug') && dswsClientSnapHitN.n % 100 === 0) log('debug', 'client.snapshot.hit', { keyHash: dswsLogHash(String(k)), ageMs: Date.now()-(((e&&e.ts)||Date.now())), kind: 'memory' }) } } catch(eL){} return s; }catch(e){ return null; } }
-    export const getCachedEntry = function(cwd){ try{ const k=keyOf(cwd); return snapshotByCwd.get(k)||null; }catch(e){ return null; } }
+    export const getCachedSnapshot = function (cwd) { try{ const k=wsKeyOf(cwd); const e=snapshotByCwd.get(k); const s=e?e.snapshot||e:null; try { if (s) { dswsClientSnapHitN.n += 1; if (isEnabled('debug') && dswsClientSnapHitN.n % 100 === 0) log('debug', 'client.snapshot.hit', { keyHash: dswsLogHash(String(k)), ageMs: Date.now()-(((e&&e.ts)||Date.now())), kind: 'memory' }) } } catch(eL){} return s; }catch(e){ return null; } }
+    export const getCachedEntry = function(cwd){ try{ const k=wsKeyOf(cwd); return snapshotByCwd.get(k)||null; }catch(e){ return null; } }
+    // 落缓存：键 = 工作区键（#653 起锚到工作区根，子目录会话与根会话同桶）
     export const setCachedSnapshot = function (cwd, snap) { if(!cwd||!snap||snap.ok!==true||!Array.isArray(snap.maps)) return; let s2=snap; if(snap.notModified===true||snap.status===304||snap.cached===true){ // #232 · 落库前剥除响应传输态标记（仅属当次请求，不属缓存实体）
       try{ s2=Object.assign({},snap); delete s2.notModified; delete s2.status; delete s2.cached; }catch(eS){ return } }
-      try{ const k=keyOf(cwd); const ver=s2.version||s2.etag||''; const ent={snapshot:s2, version:ver, ts:Date.now(), key:k, lastProbeAt:getProbeAt(k)}; touchLRUClient(snapshotByCwd,k,ent); try{ diskPutSnapshot(k, ent) }catch(eD1){} }catch(e){} }
+      try{ const k=wsKeyOf(cwd); const ver=s2.version||s2.etag||''; const ent={snapshot:s2, version:ver, ts:Date.now(), key:k, lastProbeAt:getProbeAt(k)}; touchLRUClient(snapshotByCwd,k,ent); try{ diskPutSnapshot(k, ent) }catch(eD1){} }catch(e){} }
     export const getSnapshotVersion = function(cwd){ try{ const e=getCachedEntry(cwd); return e?e.version||'':''; }catch(e){ return ''; } }
     // ============ #327 特性 A/B：上次探测时间 + 快照多级缓存（内存→磁盘→网络）============
-    export const lastProbeAtByCwd = new Map() // Map<normCwd, ms> —— 对该工作区完成任一次检查（探针/刷新/快照校验）即推进，数据不变也走针
-    export const getProbeAt = function (cwd) { try { const v = lastProbeAtByCwd.get(keyOf(cwd)); return v || 0 } catch (e) { return 0 } }
+    export const lastProbeAtByCwd = new Map() // Map<工作区键, ms> —— 对该工作区完成任一次检查（探针/刷新/快照校验）即推进，数据不变也走针
+    export const getProbeAt = function (cwd) { try { const v = lastProbeAtByCwd.get(wsKeyOf(cwd)); return v || 0 } catch (e) { return 0 } }
     export const touchProbeAt = function (cwd, ms) {
       try {
-        const k = keyOf(cwd); if (!k) return
+        const k = wsKeyOf(cwd); if (!k) return
         lastProbeAtByCwd.set(k, ms || Date.now())
-        // 组内全量会话走针：同 cwd 的 shared/stores 全部 emit，状态栏随重渲染取新时间
-        try { if (shared.cwd && keyOf(shared.cwd) === k) emit(shared) } catch (e1) {}
-        try { Object.keys(stores).forEach(function (kk) { const st2 = stores[kk]; if (st2 && st2.cwd && keyOf(st2.cwd) === k) emit(st2) }) } catch (e2) {}
+        // 组内全量会话走针：同工作区的 shared/stores 全部 emit，状态栏随重渲染取新时间
+        try { if (shared.cwd && wsKeyOf(shared.cwd) === k) emit(shared) } catch (e1) {}
+        try { Object.keys(stores).forEach(function (kk) { const st2 = stores[kk]; if (st2 && st2.cwd && wsKeyOf(st2.cwd) === k) emit(st2) }) } catch (e2) {}
       } catch (e) {}
     }
     export const SNAP_DISK_CAP = 24
@@ -114,15 +146,19 @@
         }).catch(function () { return null })
       } catch (e) { return Promise.resolve(null) }
     }
-    // 链快照共享缓存（#324 · 键 = 工作区键 + 后端 id + 语言，随后端与语言不同，新会话首见即秒显；#529 加语言维：中英快照分开存）
+    // 链快照共享缓存（#324 · 键 = 工作区键 + 后端 id + 语言，随后端与语言不同，新会话首见即秒显；#529 加语言维：中英快照分开存；
+    // #653：这里的「工作区键」走 wsKeyOf，传会话所选目录时锚到工作区根——子目录会话与根会话同一条链快照）
     export const CHAIN_CWD_LRU_MAX = 20
-    export const chainByCwd = new Map() // Map<keyOf(cwd)+'|'+backendId+'|'+lang, {snapshot, ts}>
-    export const getChainCacheKey = function(cwd, backendId, lang){ try{ return keyOf(cwd) + '|' + String(backendId||'') + '|' + String(lang||''); }catch(e){ return String(cwd||'')+'|'+String(backendId||'')+'|'+String(lang||''); } }
+    export const chainByCwd = new Map() // Map<工作区键+'|'+backendId+'|'+lang, {snapshot, ts}>
+    export const getChainCacheKey = function(cwd, backendId, lang){ try{ return wsKeyOf(cwd) + '|' + String(backendId||'') + '|' + String(lang||''); }catch(e){ return String(cwd||'')+'|'+String(backendId||'')+'|'+String(lang||''); } }
     export const getCachedChain = function(cwd, backendId, lang){ try{ const k=getChainCacheKey(cwd, backendId, lang); const e=chainByCwd.get(k); return e?e.snapshot:null; }catch(e){ return null; } }
     export const setCachedChain = function(cwd, backendId, lang, snap){ if(!cwd||!snap) return; try{ const k=getChainCacheKey(cwd, backendId, lang); const ent={snapshot:snap, ts:Date.now()}; if(chainByCwd.has(k)) chainByCwd.delete(k); chainByCwd.set(k, ent); if(chainByCwd.size>CHAIN_CWD_LRU_MAX){ const first=chainByCwd.keys().next().value; chainByCwd.delete(first);} }catch(e){} }
     export const hydrateFromCache = function (st) {
       if (!st || !st.cwd) return false
-      const c = getCachedSnapshot(st.cwd); try{ if(c){ const _k=keyOf(st.cwd); const _e=snapshotByCwd.get(_k); if(_e) touchLRUClient(snapshotByCwd,_k,_e);} }catch(e){}
+      const c = getCachedSnapshot(st.cwd)
+      // #653：这份缓存自己带着工作区根时先记住它，随后所有抽屉都按工作区根找（子目录会话秒显根会话的数据）
+      try{ if(c && c.workspaceRoot) rememberWorkspaceRoot(st.cwd, c.workspaceRoot) }catch(eWr){}
+      try{ if(c){ const _k=wsKeyOf(st.cwd); const _e=snapshotByCwd.get(_k); if(_e) touchLRUClient(snapshotByCwd,_k,_e);} }catch(e){}
       let changed=false
       // 胜负自证（#495）：记合并前双方版本号与谁胜出，串门时单行 #28 即可判定，不用跨行推理
       let _winnerVer = '', _loserVer = '', _outcome = 'current'

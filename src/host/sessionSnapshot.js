@@ -6,10 +6,9 @@ export function createSessionSnapshot(deps) {
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
   let _dedupeP = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
-  // #595：快照必须把后端的 prompts 声明一起带给客户端 —— 正文格式契约按当前后端解析。
-  //   磁盘缓存里存的是「上次写盘那一刻」的 backendModules：旧版本写的缓存没有 prompts 这一栏，
-  //   直接回放会让远端后端（GitHub）静默丢掉两步写回步骤（无任何提示）。所以磁盘缓存命中时
-  //   一律用当前注册表重挂一遍 backendModules，保证声明总随快照走；注册表取不到时保留缓存原值，不凭空造声明。
+  // #595：快照必须把后端的 prompts 声明一起带给客户端 —— 正文格式契约按当前后端解析。磁盘缓存存的是
+  //   「上次写盘那一刻」的 backendModules，旧版本写的缓存没有 prompts 这一栏，直接回放会让远端后端
+  //   （GitHub）静默丢掉两步写回步骤。所以磁盘缓存命中时一律用当前注册表重挂一遍；注册表取不到时保留缓存原值。
   async function freshBackendModules() {
     try {
       const regM = await getTrackerRegistry()
@@ -20,7 +19,35 @@ export function createSessionSnapshot(deps) {
     return null
   }
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
+  // #653 快照回包里多带一项 workspaceRoot，值就是本函数开头算出来的 cwd。#652 起 canonicalKey 已经把
+  //   「哪个目录算这个会话的工作区」锚到工作区根；客户端要拿这个值把五样抽屉（面板快照、检查链快照、
+  //   在途去重、后端选择镜像、仓库引用）都按工作区根分桶，并在面板头部渲染那条归属提示。客户端自己算
+  //   不出来（要读文件系统逐层向上找 .git 或主锚文件），所以由宿主随快照如实带过去。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  // 五条分支回给客户端的快照是同一个形状，只差内容；收在一处组装（#653）。
+  // 为什么现在收：五处各写一份结构字面量时，加一个字段要改五处，漏一处那一档就少了这个字段——
+  //   本票要加的 workspaceRoot 正是这种字段（客户端靠它分桶，缺了那一档就退回按所选目录分桶）。
+  // repo 与 repoRoot 的取值五档不同，所以由调用方传入；其余整份照旧。
+  function buildSnap(o) {
+    const snap = {
+      ok: true,
+      repo: (o.repo !== undefined ? o.repo : null),
+      repoRoot: o.repoRoot,
+      workspaceRoot: o.workspaceRoot,
+      updatedAt: new Date().toISOString(),
+      generatedMs: Date.now(),
+      env: { ghPath: getGhPath(), ghError: getGhLastError() },
+      maps: o.maps, issues: o.issues, labels: o.labels,
+      repository: (o.repository !== undefined ? o.repository : null),
+      backendModules: o.backendModules,
+      selection: o.selection,
+      capabilities: null,
+      viewer: (o.viewer !== undefined ? o.viewer : null),
+      viewerLogin: (o.viewerLogin !== undefined ? o.viewerLogin : null),
+      deck: o.deck,
+    }
+    return snap
+  }
   let snapSampleN = 0
   async function adoptSnapLog(snap, c) { try { if (logCtx && snap && snap.fromCache !== true) logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } catch (e) {} return adoptSnapshot(snap, c) }
   async function handleSnapshot(args) {
@@ -160,24 +187,11 @@ export function createSessionSnapshot(deps) {
             }
           } catch {}
           const repoRoot = await getRepoRoot(cwd)
-          const snap = {
-            ok: true,
-            repo: null,
-            repoRoot: repoRoot,
-            updatedAt: new Date().toISOString(),
-            generatedMs: Date.now(),
-            env: { ghPath: getGhPath(), ghError: getGhLastError() },
-            maps: inner.maps,
-            issues: allForList,
-            labels: labels,
-            repository: repoRef,
-            backendModules: backendModules,
-            selection: _sel,
-            capabilities: null,
-            viewer: null,
-            viewerLogin: null,
-            deck: inner.deck,
-          }
+          const snap = buildSnap({
+            repoRoot, workspaceRoot: cwd,
+            maps: inner.maps, issues: allForList, labels: labels,
+            repository: repoRef, backendModules: backendModules, selection: _sel, deck: inner.deck,
+          })
           return adoptSnapLog(snap, cwd)
         }
         // 统一契约：所有后端均走 composeSnapshot，不再硬走 buildSnapshot 直调 gh
@@ -190,24 +204,12 @@ export function createSessionSnapshot(deps) {
               backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
             }
           } catch {}
-          const snap = {
-            ok: true,
-            repo: null,
-            repoRoot,
-            updatedAt: new Date().toISOString(),
-            generatedMs: Date.now(),
-            env: { ghPath: getGhPath(), ghError: getGhLastError() },
-            maps: [],
-            issues: [],
-            labels: [],
-            repository: null,
-            backendModules,
-            selection: _sel,
-            capabilities: null,
-            viewer: null,
-            viewerLogin: null,
+          const snap = buildSnap({
+            repoRoot, workspaceRoot: cwd,
+            maps: [], issues: [], labels: [],
+            backendModules, selection: _sel,
             deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
-          }
+          })
           return adoptSnapLog(snap, cwd)
         }
         // GitHub 同样走编排器（经 registry.get('github').list），不再直调 buildSnapshot 硬走 gh
@@ -231,24 +233,12 @@ export function createSessionSnapshot(deps) {
               }
             } catch {}
             const _selNoRepo = (typeof _sel !== 'undefined' ? _sel : (typeof _selEarly !== 'undefined' ? _selEarly : null))
-            const snapNoRepo = {
-              ok: true,
-              repo: null,
-              repoRoot: repoRootNoRepo,
-              updatedAt: new Date().toISOString(),
-              generatedMs: Date.now(),
-              env: { ghPath: getGhPath(), ghError: getGhLastError() },
-              maps: [],
-              issues: [],
-              labels: [],
-              repository: null,
-              backendModules: backendModulesNoRepo,
-              selection: _selNoRepo,
-              capabilities: null,
-              viewer: null,
-              viewerLogin: null,
+            const snapNoRepo = buildSnap({
+              repoRoot: repoRootNoRepo, workspaceRoot: cwd,
+              maps: [], issues: [], labels: [],
+              backendModules: backendModulesNoRepo, selection: _selNoRepo,
               deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
-            }
+            })
             return adoptSnapLog(snapNoRepo, cwd)
           }
         }
@@ -320,24 +310,12 @@ export function createSessionSnapshot(deps) {
             if (vr && vr.ok && vr.data) { viewer2 = vr.data; viewerLogin2 = vr.data.login || null }
           }
         } catch {}
-        const snap2 = {
-          ok: true,
-          repo: repo0b,
-          repoRoot: repoRoot2,
-          updatedAt: new Date().toISOString(),
-          generatedMs: Date.now(),
-          env: { ghPath: getGhPath(), ghError: getGhLastError() },
-          maps: inner2.maps,
-          issues: allForList2,
-          labels: labels2,
-          repository: repoRef2,
-          backendModules: backendModules2,
-          selection: _sel,
-          capabilities: null,
-          viewer: viewer2,
-          viewerLogin: viewerLogin2,
-          deck: inner2.deck,
-        }
+        const snap2 = buildSnap({
+          repo: repo0b, repoRoot: repoRoot2, workspaceRoot: cwd,
+          maps: inner2.maps, issues: allForList2, labels: labels2,
+          repository: repoRef2, backendModules: backendModules2, selection: _sel,
+          viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck,
+        })
         await writeDiskCache(snap2.repo, snap2)
         return adoptSnapLog(snap2, cwd)
       } catch (e) {

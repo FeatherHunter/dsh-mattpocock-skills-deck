@@ -64,6 +64,26 @@ export const useWsOverview = function (cx, sharedSt) {
       return { wsOverview: wsOverview, loadRef: loadRef, gotoWorkspace: gotoWorkspace }
 }
 export const renderWsOverview = function (h, sharedSt, wsOverview, loadRef, foldVer, setFoldVer) {
+      // #653 归属标注：按 #649 定版记录 3.5 节，规则生效后被并进工作区根的那几行要标出归属，
+      //   但**不删、不迁移**用户已有的分桶状态（插件不擅自清理用户的持久状态），所以这里只是加一句说明。
+      // 怎么知道某一行被并进了谁：host 从 #652 起把工作区身份锚到了工作区根，客户端在装快照时
+      //   把「所选目录 → 工作区根」记进了 store-snapshot.js 的 workspaceRootByCwd 表（快照里也带回来一份）。
+      //   把这几个来源并起来看成一张表：某一行能查到根、且根不是它自己、而根本身又在这张清单里 →
+      //   这一行就是被并进根的子目录行。查不到就不标（宁可不标，也不猜一个路径给用户看）。
+      const rootOf = function (p) {
+        try {
+          const k = (typeof keyOf === 'function') ? keyOf(p) : String(p || '')
+          if (!k) return ''
+          const hit = (typeof workspaceRootByCwd === 'object' && workspaceRootByCwd) ? workspaceRootByCwd[k] : ''
+          if (hit) return hit
+          if (typeof getCachedSnapshot === 'function') {
+            const s = getCachedSnapshot(k)
+            const r = s && s.workspaceRoot
+            if (r) return (typeof keyOf === 'function') ? keyOf(r) : String(r)
+          }
+        } catch (e) {}
+        return ''
+      }
       return h('div', { className: 'dsws-cfg-group', id: 'dsws-cfg-backend' }, [
         h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'compass', size: 13 }), h('span', null, tr('cfg.wsTitle'))]),
         h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.wsDesc')),
@@ -85,6 +105,11 @@ export const renderWsOverview = function (h, sharedSt, wsOverview, loadRef, fold
                       unbound.sort(function(a,b){ const ba=baseName(a).toLowerCase(),bb=baseName(b).toLowerCase(); if(ba<bb) return -1; if(ba>bb) return 1; return 0 })
                       const ordered=bound.concat(unbound)
                       const boundCnt=bound.length
+          // #653 归属标注所需的两个表：哪些行本身是工作区根、哪些行的根是谁（根用规整键比对，显示用原样路径）
+          const normOf = function (p) { try { return (typeof keyOf === 'function') ? keyOf(p) : String(p || '').toLowerCase() } catch (e) { return String(p || '') } }
+          const byNorm = {}
+          all.forEach(function (c) { const n = normOf(c); if (n && !byNorm[n]) byNorm[n] = c })
+          const rootRawOf = function (c) { const r = rootOf(c); return (r && byNorm[r]) || r || '' }
           return h('details',{ open:false, style:{ marginTop:6, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:8, background:'rgba(255,255,255,.02)'}},[
             h('summary',{ style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', cursor:'pointer', listStyle:'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontSize:11, fontWeight:600 }},[ h('span',{style:{whiteSpace:'nowrap'}},tr('cfg.wsTotal', { n: all.length })), h('span',{style:{ color:boundCnt?'#4ade80':'#8b8b95', whiteSpace:'nowrap'}},tr('cfg.wsBound', { n: boundCnt })), h(Tip, { content: tr('tip.refreshWs') }, h('button',{ style:{ marginLeft:'auto', padding:'2px 8px', fontSize:10, color:'#58a6ff', border:'1px solid #58a6ff', borderRadius:4, background:'transparent', cursor:'pointer', whiteSpace:'nowrap', flex:'none' }, onClick:function(e){ e.preventDefault(); e.stopPropagation(); if(loadRef.current){ loadRef.current().then(function(){ try{ flash(sharedSt,tr('cfg.wsRefreshed'),'ok') }catch{} }).catch(function(){ try{ flash(sharedSt,tr('cfg.wsRefreshFail'),'warn') }catch{} }) } } }, tr('cfg.wsRefresh'))), h('span',{style:{ fontSize:10, color:'#58a6ff', whiteSpace:'nowrap'}},tr('cfg.wsToggleHint'))]),
             h('div',{ style:{ padding:'0 6px 6px' }},[
@@ -100,8 +125,11 @@ export const renderWsOverview = function (h, sharedSt, wsOverview, loadRef, fold
                 const srcColor=source==='explicit'?'#4ade80':source==='matches'?'#58a6ff':'#8b8b95'
                 const srcTitle=source==='explicit'?tr('cfg.wsSrcExplicitTip'):source==='matches'?tr('cfg.wsSrcAutoTip'):tr('cfg.wsSrcUnsetTip')
                 const base=cwd.split(/[\\/]/).pop()||cwd
+                // #653：这一行被并进了哪个工作区根？两份证据都找不到就不标（不猜）
+                const _mr = rootOf(cwd)
+                const mergedInto = (_mr && _mr !== normOf(cwd) && byNorm[_mr]) ? rootRawOf(cwd) : ''
                 return h('div',{ key:cwd + '#' + foldVer, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden', minHeight:28 }},[
-                  h(HoverTip, { content: cwd, mode: 'mouse', maxWidth: 220 }, h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 } }, base)),
+                  h(HoverTip, { content: mergedInto ? (cwd + ' → ' + mergedInto) : cwd, mode: 'mouse', maxWidth: 220 }, h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 } }, mergedInto ? (base + ' ' + tr('cfg.wsMergedInto', { root: mergedInto })) : base)),
                   h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11, minWidth:72, justifyContent:'flex-end' }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap', minWidth:36, textAlign:'center'}},label) ]),
                   h(HoverTip, { content: srcTitle, mode: 'mouse', maxWidth: 220 }, h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel)),
                 ])

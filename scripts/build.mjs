@@ -318,6 +318,7 @@ const LEAF_MODULES = [
   { id: 'labelColorRow', file: 'src/client/views/labels/LabelColorRow.js' },
   { id: 'labelColorDialog', file: 'src/client/views/labels/LabelColorDialog.js' },
   { id: 'labelColorEntry', file: 'src/client/views/labels/LabelColorEntry.js' },
+  { id: 'subworkspaceMark', file: 'src/client/views/SubworkspaceMark.js' }, // #653 新增：面板头部「当前目录属于工作区 X」那一枚标志（形态由 #650 定稿）
   { id: 'md', file: 'src/client/views/shared/md.js' },
   { id: 'ticket', file: 'src/client/views/shared/ticket.js' },
   { id: 'stateKind', file: 'src/client/views/shared/stateKind.js' }, // #599 新增：票的状态判据（打开/已关闭/已合并）单源，拉取请求页与单票详情页共用一个函数

@@ -199,6 +199,8 @@ export default {
     // 把确认过的颜色写进面板快照、入口图标的颜色），再状态机钩子，最后三份界面（一行取色控件、弹窗本体、头部入口按钮）。
     // ==== leaf:labelColorErrors (spliced by build) ==== // ==== leaf:labelColorPatch (spliced by build) ==== // ==== leaf:labelColorPalette (spliced by build) ==== // ==== leaf:useLabelColors (spliced by build) ====
     // ==== leaf:labelColorRow (spliced by build) ==== // ==== leaf:labelColorDialog (spliced by build) ==== // ==== leaf:labelColorEntry (spliced by build) ====
+    // ==== leaf:subworkspaceMark (spliced by build) ====
+    // #653：面板头部那一枚归属标志（排在 Tip 之后，它用 Tip 渲染浮层）
 
     // ==== leaf:seg (spliced by build) ====
     // ==== leaf:checksums (spliced by build) ====

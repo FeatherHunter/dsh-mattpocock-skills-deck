@@ -38,11 +38,13 @@
           try { if (res && res.ok) touchProbeAt(cwd) } catch (ePA) {}
           if (!(res && res.ok && res.changed)) return
           const group = []
-          const normWanted = keyOf(cwd)
-          if (shared.cwd && keyOf(shared.cwd) === normWanted) group.push(shared)
+          // #653：分组按工作区键（wsKeyOf）——同一个仓库里，根会话与子目录会话算同一组，
+          //   一次全量重建的结果扇出给组内所有会话，不再各拉各的。
+          const normWanted = wsKeyOf(cwd)
+          if (shared.cwd && wsKeyOf(shared.cwd) === normWanted) group.push(shared)
           Object.keys(stores).forEach(function (k) {
             const st = stores[k]
-            if (st.cwd && keyOf(st.cwd) === normWanted) group.push(st)
+            if (st.cwd && wsKeyOf(st.cwd) === normWanted) group.push(st)
           })
           if (!group.length) {
             // #232 R3 · 应用时刻该 cwd 已无任何 store 持有（用户已切走）：不再为无人观看的工作区
@@ -73,9 +75,9 @@
           }).catch(function () { /* 忽略 */ })
         }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.probe', kind: 'probe', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
       }
-      // 按工作区归一键去重（#324 · 同工作区只探一次）
+      // 按工作区键去重（#324 · 同工作区只探一次；#653：键走 wsKeyOf，同一工作区根下的多个子目录会话收成一次）
       const cwdsByNorm = new Map()
-      const addCwd = function(cwd){ try{ const nk=keyOf(cwd); if(!nk) return; if(!cwdsByNorm.has(nk)) cwdsByNorm.set(nk, cwd); }catch(e){ if(cwd && !Array.from(cwdsByNorm.values()).includes(cwd)) cwdsByNorm.set(String(cwd), cwd); } }
+      const addCwd = function(cwd){ try{ const nk=wsKeyOf(cwd); if(!nk) return; if(!cwdsByNorm.has(nk)) cwdsByNorm.set(nk, cwd); }catch(e){ if(cwd && !Array.from(cwdsByNorm.values()).includes(cwd)) cwdsByNorm.set(String(cwd), cwd); } }
       if (shared.cwd) addCwd(shared.cwd)
       Object.keys(stores).forEach(function (k) {
         const c = stores[k] && stores[k].cwd
@@ -181,11 +183,12 @@
         try {
           const newSnap = st.snapshot
           if (newSnap && newSnap.ok === true && Array.isArray(newSnap.maps)) {
-            const normWanted = (typeof keyOf === 'function' ? keyOf(st.cwd||'') : String(st.cwd||''))
+            // #653：扇出分组按工作区键（同一个仓库里的子目录会话与根会话算同一组）
+            const normWanted = (typeof wsKeyOf === 'function' ? wsKeyOf(st.cwd||'') : String(st.cwd||''))
             if (normWanted) {
               const group = []
-              try { if (shared && shared.cwd && keyOf(shared.cwd) === normWanted && shared !== st) group.push(shared) } catch(e0){}
-              try { Object.keys(stores).forEach(function(k){ const st2=stores[k]; if(st2 && st2.cwd && keyOf(st2.cwd)===normWanted && st2!==st) group.push(st2) }) } catch(e1){}
+              try { if (shared && shared.cwd && wsKeyOf(shared.cwd) === normWanted && shared !== st) group.push(shared) } catch(e0){}
+              try { Object.keys(stores).forEach(function(k){ const st2=stores[k]; if(st2 && st2.cwd && wsKeyOf(st2.cwd)===normWanted && st2!==st) group.push(st2) }) } catch(e1){}
               group.forEach(function(st2){
                 try { st2.lastDiff = diffSnapshots(st2.snapshot, newSnap) } catch(eDiff){}
                 st2.rowFlash = {}
@@ -213,11 +216,11 @@
         try {
           const newChainSnap = st.chainSnapshot
           if (newChainSnap && typeof newChainSnap === 'object') {
-            const normWanted2 = (typeof keyOf === 'function' ? keyOf(st.cwd||'') : String(st.cwd||''))
+            const normWanted2 = (typeof wsKeyOf === 'function' ? wsKeyOf(st.cwd||'') : String(st.cwd||''))
             if (normWanted2) {
               const group2 = []
-              try { if (shared && shared.cwd && keyOf(shared.cwd) === normWanted2 && shared !== st && shared.chainSnapshot !== newChainSnap) group2.push(shared) } catch(e0c){}
-              try { Object.keys(stores).forEach(function(k){ const st2=stores[k]; if(st2 && st2.cwd && keyOf(st2.cwd)===normWanted2 && st2!==st && st2.chainSnapshot !== newChainSnap) group2.push(st2) }) } catch(e1c){}
+              try { if (shared && shared.cwd && wsKeyOf(shared.cwd) === normWanted2 && shared !== st && shared.chainSnapshot !== newChainSnap) group2.push(shared) } catch(e0c){}
+              try { Object.keys(stores).forEach(function(k){ const st2=stores[k]; if(st2 && st2.cwd && wsKeyOf(st2.cwd)===normWanted2 && st2!==st && st2.chainSnapshot !== newChainSnap) group2.push(st2) }) } catch(e1c){}
               group2.forEach(function(st2){
                 try { st2.chainSnapshot = newChainSnap; if(newChainSnap.chain) st2.chain = newChainSnap.chain; if(newChainSnap.fullChain) st2.fullChain = newChainSnap.fullChain; if(newChainSnap.backendChain!==undefined) st2.backendChain = newChainSnap.backendChain; st2.chainLoadedAt = st.chainLoadedAt; emit(st2) } catch(eChain){}
               })

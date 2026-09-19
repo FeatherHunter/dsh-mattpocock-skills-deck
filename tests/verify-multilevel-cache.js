@@ -33,7 +33,9 @@ for (const [name, src] of targets) {
   has(src, 'touchProbeAt', name, 'touchProbeAt 在场')
   has(src, 'snap.status === 304)) touchProbeAt', name, '快照校验(成功/304)走针')
   has(src, 'res.ok) touchProbeAt(cwd)', name, 'wf.probe 完成即走针')
-  has(src, 'keyOf(shared.cwd) === k) emit(shared)', name, 'shared 走针广播')
+  // #653 口径变更（本门禁同步改）：走针广播与探测时间的键从「所选目录的归一键」升级为「工作区根键」，
+  // 于是同一个仓库里的子目录会话与根会话共用一条上次探测时间、一起随广播重渲染。
+  has(src, 'wsKeyOf(shared.cwd) === k) emit(shared)', name, 'shared 走针广播（按工作区键）')
   has(src, 'getProbeAt(s.cwd)', name, '状态栏读探测时间')
   has(src, 'timeOfMs(_probeMs)', name, '状态栏格式化探测时间')
   has(src, 'const timeOfMs', name, 'timeOfMs 在场')
@@ -51,7 +53,8 @@ for (const [name, src] of targets) {
 console.log('\n3) 特性 B：loadSnapshot 读路径（内存未命中先查磁盘，命中不出现可见加载）')
 for (const [name, src] of targets) {
   has(src, 'let hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))', name, 'hasCache 可变（磁盘命中后更新）')
-  has(src, "await diskGetSnapshot(keyOf(st.cwd || ''))", name, '内存未命中先查磁盘')
+  // #653 口径变更（本门禁同步改）：磁盘层读写都按工作区根键，子目录会话因此能秒显根会话已经写下的那份快照
+  has(src, "await diskGetSnapshot(wsKeyOf(st.cwd || ''))", name, '内存未命中先查磁盘（按工作区键）')
   has(src, 'setCachedSnapshot(st.cwd, ent.snapshot)', name, '磁盘命中回填内存缓存')
   has(src, "if (force && !silent && !hasCache) st.snapMode = 'loading'", name, '可见加载态仅限三层全未命中')
   has(src, 'lastProbeAt > getProbeAt(st.cwd)) lastProbeAtByCwd.set', name, '磁盘条目恢复上次探测时间')

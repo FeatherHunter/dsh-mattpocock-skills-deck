@@ -6,7 +6,7 @@
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
-    export const pendingSnapshotByCwd = new Map() // Map<normCwd,{promise,controller}> dedup 30s
+    export const pendingSnapshotByCwd = new Map() // Map<工作区键,{promise,controller}> dedup 30s（#653：按工作区根去重，根会话与子目录会话共用一次在途请求）
     // #491 房外埋点 helpers（同一闭包拼回后全内核文件可见；只记散列与计数，渲染路径不用）：
     const dswsLogHash = function (s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
     const dswsScrubHits = {}
@@ -154,7 +154,7 @@
     export const loadSnapshot = function (st, force, silent) {
       const doLoad = async function () {
         // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
-        try{ const _nk=keyOf(st.cwd||''); const _pend=pendingSnapshotByCwd.get(_nk); if(_pend&&_pend.promise) {
+        try{ const _nk=wsKeyOf(st.cwd||''); const _pend=pendingSnapshotByCwd.get(_nk); if(_pend&&_pend.promise) {
           // #366 修复：force 不复用非 force 的在途请求——手动刷新必须走到 wf.refresh
           const _shouldReuse = !force || _pend.force === true;
           if (_shouldReuse) {
@@ -182,20 +182,20 @@
         //（不出现可见加载态；磁盘读约几十毫秒，先读后发请求的次序天然避免遮罩闪现）
         if (!hasCache) {
           try {
-            const ent = await diskGetSnapshot(keyOf(st.cwd || ''))
+            const ent = await diskGetSnapshot(wsKeyOf(st.cwd || ''))
             if (ent && ent.snapshot && !st.snapshot && !getCachedSnapshot(st.cwd)) {
               try {
                 setCachedSnapshot(st.cwd, ent.snapshot)
-                try { if (ent.lastProbeAt && ent.lastProbeAt > getProbeAt(st.cwd)) lastProbeAtByCwd.set(keyOf(st.cwd), ent.lastProbeAt) } catch (ePA2) {}
+                try { if (ent.lastProbeAt && ent.lastProbeAt > getProbeAt(st.cwd)) lastProbeAtByCwd.set(wsKeyOf(st.cwd), ent.lastProbeAt) } catch (ePA2) {}
                 hydrateFromCache(st)
                 emit(st)
               } catch (eHyd2) {}
-              try { dswsDiskSnapHitN.n += 1; if (isEnabled('debug') && dswsDiskSnapHitN.n % 100 === 0) log('debug', 'client.snapshot.hit', { keyHash: dswsLogHash(keyOf(st.cwd || '')), ageMs: Date.now() - ((ent && (ent.ts || (ent.snapshot && ent.snapshot.generatedMs))) || Date.now()), kind: 'disk' }) } catch (eL) {}
+              try { dswsDiskSnapHitN.n += 1; if (isEnabled('debug') && dswsDiskSnapHitN.n % 100 === 0) log('debug', 'client.snapshot.hit', { keyHash: dswsLogHash(wsKeyOf(st.cwd || '')), ageMs: Date.now() - ((ent && (ent.ts || (ent.snapshot && ent.snapshot.generatedMs))) || Date.now()), kind: 'disk' }) } catch (eL) {}
               hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))
             }
           } catch (eDisk) {}
         }
-        try { if (!hasCache && !(st.snapshot || getCachedSnapshot(st.cwd))) log('info', 'client.snapshot.miss', { keyHash: dswsLogHash(keyOf(st.cwd || '')), reason: 'empty' }) } catch (eL) {}
+        try { if (!hasCache && !(st.snapshot || getCachedSnapshot(st.cwd))) log('info', 'client.snapshot.miss', { keyHash: dswsLogHash(wsKeyOf(st.cwd || '')), reason: 'empty' }) } catch (eL) {}
         st.snapLoading = true
         // v1.5 T9：silent（后台静默刷新）不显示加载遮罩、不弹错误 toast
         // #58 缓存优先：已有缓存（含磁盘命中）时不显示全屏 loading，静默刷新
@@ -204,30 +204,35 @@
         const ver = (typeof getSnapshotVersion==='function'? getSnapshotVersion(st.cwd):'') || (st.snapshot&&st.snapshot.version)||'';
         // 2026-08-28 方案B：客户端持久化选择随快照上报——detect 在主锚无结论时优先采纳（用户选择 > 自动识别）
         const args = Object.assign({}, st.cwd ? { cwd: st.cwd, ifNoneMatch: ver, version: ver } : (ver?{ifNoneMatch:ver,version:ver}:{}), (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {})
-        const _normKeyP = keyOf(st.cwd||'');
+        const _normKeyP = wsKeyOf(st.cwd||'');
         let _ctrl=null; try{ _ctrl=typeof AbortController!=='undefined'?new AbortController():{signal:{aborted:false},abort(){}}; }catch(e){ _ctrl={signal:{aborted:false},abort(){}}; }
         let _timer=null;
         const callT0 = Date.now()
         const callMethod = force ? 'wf.refresh' : 'wf.snapshot'
-        try { if (isEnabled('debug')) log('debug', 'snapshot.fanout', { sessionIdHash: dswsLogHash(String((st && (st.sessionId || st.cwd)) || '')), stale: false, force: !!force }) } catch (eL) {}
+        // #653 日志纪律：发起这条跨边界调用前先记一行，与收到回包时那一行配成一对（按需级，先判开关）
+        try { if (isEnabled('debug')) log('debug', 'host.call', { method: callMethod, kind: force ? 'refresh' : 'snapshot', ok: true, latencyMs: 0 }) } catch (eL) {}
         const _rawP = force ? host.call('wf.refresh', args) : host.call('wf.snapshot', args);
         const _timeoutP = new Promise((_,rej)=>{ _timer=setTimeout(()=>{ try{_ctrl.abort();}catch{}; rej(new Error('client loadSnapshot timeout 30s')); },30000); });
         const p = Promise.race([_rawP, _timeoutP]).finally(function(){ try{clearTimeout(_timer);}catch{}; });
         try{ pendingSnapshotByCwd.set(_normKeyP,{promise:p, controller:_ctrl, force: !!force}); p.finally(function(){ try{ const cur=pendingSnapshotByCwd.get(_normKeyP); if(cur && cur.promise===p) pendingSnapshotByCwd.delete(_normKeyP);}catch{} }); }catch(e){}
         const _reqNorm = _normKeyP // capture request cwd for H2 stale discard
+        // #653：宿主这次回话里带的工作区根，先记进工作区键表——本会话与同工作区的其它会话随后都按它分桶。
+        //   不管 ok 与否都记：它是宿主算出来的事实，与这份快照能不能装没有关系。
         return p.then(function (snap) {
+          try { if (snap && snap.workspaceRoot) rememberWorkspaceRoot(st.cwd, snap.workspaceRoot) } catch (eWr) {}
           try { const okSnap = !!(snap && (snap.ok === true || snap.notModified === true || snap.status === 304)); const callKind = force ? 'refresh' : 'snapshot'; if (okSnap) log('info', 'host.call', { method: callMethod, latencyMs: Date.now() - callT0, ok: true, kind: callKind }); else log('warn', 'host.call.fail', { method: callMethod, kind: callKind, errorHash: dswsLogHash(dswsLogTrunc(String((snap && snap.error) || 'snapshot-failed'), 120, 'error')) }) } catch (eL) {}
           // #327 特性 A：对该工作区完成了一次检查（成功/304/串台落地均算——请求已真实发出并返回）→ 时间走针
           try { if (snap && (snap.ok === true || snap.notModified === true || snap.status === 304)) touchProbeAt(_normKeyP) } catch (ePA) {}
-          // fix H2 stale discard — if cwd switched during flight, drop stale fallback (gate flake guard)
-          const _curNorm = keyOf(st.cwd||'');
+          // fix H2 stale discard — if 工作区根 switched during flight, drop stale fallback (gate flake guard)
+          const _curNorm = wsKeyOf(st.cwd||'');
           if (_reqNorm !== _curNorm) {
-            // #232 R4 · 在途结果必须落地：请求发出时该 cwd 正被观看，响应到达即写 per-cwd LRU 缓存，
+            // #232 R4 · 在途结果必须落地：请求发出时该工作区正被观看，响应到达即写内存 LRU 缓存，
             // 切回时 hydrateFromCache 秒显最新数据（零新请求）。仍不给换视图后的 store 直接 emit
             // （#45 串台回归防线不动）；setCachedSnapshot 自带 ok/maps 守卫，坏形自然丢弃。
+            // #653：这里的键是请求发出时的那把工作区键，不是会话所选目录——跨会话复用的正是它。
             try { setCachedSnapshot(_reqNorm, snap) } catch (e232r4) {}
             st.snapLoading = false
-            try{ const cur2=pendingSnapshotByCwd.get(_normKeyP); if(cur2 && cur2.promise===p) pendingSnapshotByCwd.delete(_normKeyP);}catch(e){}
+            try{ const cur2=pendingSnapshotByCwd.get(_curNorm); if(cur2 && cur2.promise===p) pendingSnapshotByCwd.delete(_curNorm);}catch(e){}
             return
           }
           st.snapLoading = false
@@ -259,14 +264,16 @@
             st.snapError = null
             // #155：同步 selection/repository 镜像
             try { if (typeof applySnapshotSelection === 'function') applySnapshotSelection(st, snap) } catch {}
-            // #58 缓存优先：落 per-cwd 内存表，供新 store 秒开 — suspicious fallback 不污染缓存
+            // #58 缓存优先：落内存表，供新会话秒开 — suspicious fallback 不污染缓存
+            // #653：这里从前会先把同一份快照按 snap.repoRoot 存一把、再按所选目录存一把（两把键，两个桶），
+            //   子目录会话与根会话因此各看各的。现在 setCachedSnapshot 自己按工作区键（wsKeyOf）落，
+            //   只需要一次调用，同一工作区天然同桶。
             try {
               const nxt = snap.selection
               const cur = st.selection
               const isSuspicious = !!(nxt && nxt.backendId===null && !nxt.pending && nxt.source==='fallback' && cur && cur.backendId)
               if (!isSuspicious) {
-                const c = snap.repoRoot || st.cwd; if (c) setCachedSnapshot(c, snap)
-                if (st.cwd) setCachedSnapshot(st.cwd, snap)
+                setCachedSnapshot(st.cwd, snap)
               }
             } catch (e) { /* 忽略 */ }
             // 拉取 backendModules（若 snapshot 未带，则另调 registry）

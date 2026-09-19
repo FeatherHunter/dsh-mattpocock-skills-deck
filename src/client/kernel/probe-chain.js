@@ -11,6 +11,8 @@
     // #284 修订（对抗式审查 2026-08-28）：并发门——同 cwd 同轮次的 in-flight 请求复用；
     //   面板多组件（ChecksTab/StatusBar/Dock）挂载并发调用不再重复触发 25 名技能探测与 gh 网络调用。
     const _chainInflightByCwd = new Map()
+    // #653：链的在途去重与链快照缓存一律按工作区键（wsKeyOf）——同一个仓库里，根会话与子目录会话
+    //   是同一条链、同一次求值；此前按会话所选目录分键，两边各求一次、互相看不到对方的链快照。
     // #491 房外埋点：在途复用计数（窗口到记一次；dswsLogHash 同闭包见 probe-snapshot.js）。
     const dswsChainDedupN = { n: 0 }
     // #344 修复（2026-08-31）：链自动重求值 — 当链非全绿时周期 force 重算，直至全绿后停止
@@ -23,7 +25,7 @@
       try{
         const bid = (st.selection && st.selection.backendId) || ''
         const lg = (typeof promptLang === 'function' ? promptLang() : 'zh')
-        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, bid, lg) : String(st.cwd||'')+'|'+String(bid)+'|'+String(lg || ''))
+        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(wsKeyOf(st.cwd), bid, lg) : String(wsKeyOf(st.cwd)||'')+'|'+String(bid)+'|'+String(lg || ''))
         if(!key || _chainAutoPollTimers.has(key)) return
         const delay = (typeof ms === 'number' && ms>0) ? ms : CHAIN_AUTO_POLL_MS
         const tid = (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function')
@@ -36,7 +38,7 @@
       try{
         const bid = (st.selection && st.selection.backendId) || ''
         const lg = (typeof promptLang === 'function' ? promptLang() : 'zh')
-        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, bid, lg) : String(st.cwd||'')+'|'+String(bid)+'|'+String(lg || ''))
+        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(wsKeyOf(st.cwd), bid, lg) : String(wsKeyOf(st.cwd)||'')+'|'+String(bid)+'|'+String(lg || ''))
         const tid = _chainAutoPollTimers.get(key)
         if(tid){ try{ clearTimeout(tid) }catch(e){} _chainAutoPollTimers.delete(key) }
       }catch(e){}
@@ -46,13 +48,13 @@
       // 链共享键 = 工作区键 + 后端 id + 语言（#324 按工作区单次求值按后端隔离；#529 加语言：host 明细按语言产出，中英快照分开缓存，切换语言即时重取）
       const _backendIdForChain = (st.selection && st.selection.backendId) || ''
       const _langForChain = (typeof promptLang === 'function' ? promptLang() : 'zh')
-      const norm = (typeof getChainCacheKey === 'function' ? getChainCacheKey(st.cwd, _backendIdForChain, _langForChain) : ((typeof keyOf === 'function' ? keyOf(st.cwd) : String(st.cwd||'')) + '|' + String(_backendIdForChain) + '|' + String(_langForChain || '')))
+      const norm = (typeof getChainCacheKey === 'function' ? getChainCacheKey(wsKeyOf(st.cwd), _backendIdForChain, _langForChain) : ((typeof wsKeyOf === 'function' ? wsKeyOf(st.cwd) : String(st.cwd||'')) + '|' + String(_backendIdForChain) + '|' + String(_langForChain || '')))
       if (!force) {
         const inflight = _chainInflightByCwd.get(norm)
         if (inflight) { try { dswsChainDedupN.n += 1; if (isEnabled('debug') && dswsChainDedupN.n % 10 === 0) log('debug', 'dedup.hit', { scope: 'chain', keyHash: dswsLogHash(norm) }) } catch (eL) {}; return inflight }
-        // 链共享缓存命中即秒显（#324 新会话首见即秒显）
+        // 链共享缓存命中即秒显（#324 新会话首见即秒显；#653 起按工作区键，子目录会话秒显根会话的链）
         try {
-          const cached = (typeof getCachedChain === 'function' ? getCachedChain(st.cwd, _backendIdForChain, _langForChain) : null)
+          const cached = (typeof getCachedChain === 'function' ? getCachedChain(wsKeyOf(st.cwd), _backendIdForChain, _langForChain) : null)
           if (cached) {
             st.chainSnapshot = cached
             st.chain = cached.chain || cached
@@ -83,7 +85,7 @@
           st.chainLoadedAt = nowStr()
           st.chainLangLoaded = _langForChain // #529：记下本次快照语言，语言切换时凭它判定重取
           // 落共享缓存，供同工作区其他会话秒显
-          try { if (typeof setCachedChain === 'function') setCachedChain(st.cwd, _backendIdForChain, _langForChain, snap) } catch(eSet){}
+          try { if (typeof setCachedChain === 'function') setCachedChain(wsKeyOf(st.cwd), _backendIdForChain, _langForChain, snap) } catch(eSet){}
           emit(st)
           // #344 自动重求值调度：非全绿时安排下一次 force 重算，全绿时取消
           try{
