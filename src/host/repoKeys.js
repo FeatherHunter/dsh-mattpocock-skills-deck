@@ -152,7 +152,7 @@ export function createRepoKeys(deps) {
         const m = _workspaceKeyMod
         const fn = m.canonicalWorkspaceKey || (m.default && m.default.canonicalWorkspaceKey)
         if (typeof fn !== 'function') { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'workspaceKey.canonical', function () { return { rawHash: hash8(raw), normalizedHash: hash8(raw), fallback: true } }) } catch (eL) {}; return raw }
-        const canonOut = await fn(raw, { getPlatform, getFs: () => fs, getDefaultCwd: () => DEFAULT_CWD })
+        const canonOut = await fn(raw, { getPlatform, getFs: () => fs, getDefaultCwd: () => DEFAULT_CWD, logCtx: logCtx })
         try { const fb = String(canonOut) === String(raw); if (logCtx && logCtx.isEnabled('debug') && (fb || canonOut !== lastCanonOut)) { lastCanonOut = canonOut; logCtx.fire('debug', 'workspaceKey.canonical', function () { return { rawHash: hash8(raw), normalizedHash: hash8(canonOut), fallback: fb } }) } } catch (eL) {}
         return canonOut
       } catch (e) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'workspaceKey.canonical', function () { return { rawHash: hash8(raw), normalizedHash: hash8(raw), fallback: true } }) } catch (eL) {}; return raw }
@@ -160,19 +160,24 @@ export function createRepoKeys(deps) {
 
     // ============ v1.5 T9：git 根检测 + 磁盘缓存（跨重启秒开）============
     // git rev-parse --show-toplevel 层层上溯找根；嵌套仓库（子目录含独立 .git）git 原生停在最近根 —— 符合用户要求
+    // #652 补一句：工作区根（哪条目录算这个会话的工作区）不在这里算，在 workspaceKey.js 的 resolveWorkspaceRoot
+    //   里按「自带 .git 或自带主锚文件」两个标记判定；这里只答「这个 git 仓库的根在哪」，仅供展示与取远端用。
     // repoRoots 由 index.js 按引用共享（建仓失效删裸变量）；cacheDirResolved 本文件自有。
     let cacheDirResolved = null  // 缓存目录（惰性解析）
     async function getRepoRoot(cwd) {
       const key = await canonicalKey(cwd || DEFAULT_CWD)
       if (repoRoots[key] !== undefined) return repoRoots[key]
-      repoRoots[key] = null
+      // #652 顺手修掉的老毛病：旧写法先把 null 写进缓存再读它，等于把「一次临时失败」（git 没起来、
+      //   命令超时、这一刻还不是仓库）永久记成空，之后环境修好也再问不出来。现在只有真拿到根才写缓存，
+      //   拿不到就当这一次的结论返回（与相邻的 getRepoKey 同纪律：失败不进缓存）。
+      let root = null
       const git = await resolveGit()
       if (git) {
         const r = await execProc([git, '-C', key, 'rev-parse', '--show-toplevel'], key, 'repo-root')
         const txt = r.ok ? r.text.trim() : ''
-        if (txt && !/fatal/i.test(txt)) repoRoots[key] = txt
+        if (txt && !/fatal/i.test(txt)) { root = txt; repoRoots[key] = txt }
       }
-      return repoRoots[key]
+      return root
     }
     // 缓存目录：<DSH 进程 cwd>/.dsh-mattskillsdeck-cache/（T9 修复：fs 沙箱 workspace-write 只允许 cwd 下，
     //   ~/.dsh 在沙箱外被拒 → 缓存永不写入；改用 process.cwd() 落点，跨重启秒开；v1.6.17 更名 waystation → MattSkillsDeck）

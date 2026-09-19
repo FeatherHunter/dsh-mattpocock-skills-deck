@@ -60,8 +60,10 @@ export function createHandoffClaim(deps) {
   }
 
   // v19：查询 .scratch/handoff/ 下最新的交接文档（按 mtime 倒序 + name desc 兜底 · 加固后），供「交接给新会话」预填 + 复制
+  // #652：交接文档住在工作区的 .scratch/ 里（票仓那一级），所以先按工作区根归一再去读——
+  //   会话开在子目录里时，旧写法会去子目录下找一份并不存在的 .scratch/handoff，永远答「还没有交接文档」。
   async function handleHandoffLatest(args) {
-    const cwd = (args && args.cwd) || DEFAULT_CWD
+    const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
     const r = await scanHandoffDir(cwd)
     if (r.error) return { ok: false, error: r.error }
     return { ok: true, file: pickLatestHandoff(r.mds) }
@@ -73,7 +75,7 @@ export function createHandoffClaim(deps) {
   // 区别于初版：初版「name 不在目录也 fallback 到 mtime 最新」在实际场景下被验证为反模式 —— 当 AI 还没写完
   // 文档时（handoffFile 设了但文件未落盘），fallback 会让右半亮蓝且点开后错误引用上次的老文档，与修复目标相悖。
   async function handleHandoffResolve(args) {
-    const cwd = (args && args.cwd) || DEFAULT_CWD
+    const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
     const r = await scanHandoffDir(cwd)
     if (r.error) return { ok: false, error: r.error }
     const want = args && args.name

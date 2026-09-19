@@ -8,28 +8,12 @@ export function createWorkspaceCwd(deps) {
   // 传给 wf.selection 后 select() 三级联中 markdown.matches 收到相对 cwd，plat.join(cwd,...) 仍是相对，
   // fs.resolve 默认基于进程 cwd 解析失败 → matches false → fallback → UI "未绑定"。
   // 归一后所有 handler 收到绝对 cwd，markdown.matches 命中 docs/agents/issue-tracker.md → Markdown 自动。
+  // #652 起：上面三步回退连同「往上锚到工作区根」一起收进 canonicalWorkspaceKey 这一个出口
+  //   （源码在 src/host/workspaceKey.js，本文件只转交）。理由两条：① 钥匙只能有一个出口，读写删三侧
+  //   同形才删得中（#301 踩过的坑）；② 锚根正是本文件每条电话都要的——后端选择、后端绑定、配色文件
+  //   落点、标签读写全该按工作区根算。与旧行为的差别只有一条：会话选在子目录里时算出的是工作区根。
   async function normCwd(raw){
-    if(!raw) return DEFAULT_CWD
-    try{
-      const plat=await getPlatform()
-      if(plat&&plat.path&&typeof plat.path.isAbsolute==='function'&&plat.path.isAbsolute(raw)) return plat.path.normalize(raw)
-    }catch{}
-    // 相对：DSH fs.resolve 试探（DSH 平台 fs 可能感知 workspaces 根）
-    try{
-      const fss=ctx.get('fs')
-      if(fss&&typeof fss.resolve==='function'){
-        const t=await fss.resolve(raw)
-        const target=(t&&typeof t==='object')?(t.path||t.target):t
-        if(typeof target==='string'&&target&&(/^[A-Za-z]:[\\/]/.test(target)||/^\//.test(target))) return target
-      }
-    }catch{}
-    // home 试探（windows + posix）
-    try{
-      const plat=await getPlatform()
-      const home=plat&&typeof plat.getHome==='function'?await plat.getHome():null
-      if(home&&plat.path) return plat.path.join(home,raw)
-    }catch{}
-    return raw
+    try { return await canonicalKey(raw || DEFAULT_CWD) } catch (e) { return raw || DEFAULT_CWD }
   }
   // #155 + #152：后端绑定（per-workspace 覆盖，唯一写路径不回写 issue-tracker.md）+ 注册表查询 + detection 缓存失效
   // #618：用户为工作区选定后端这一步，顺手在工作区里放一份默认配色文件（幂等：文件在就一个字都不改）。
@@ -108,7 +92,10 @@ export function createWorkspaceCwd(deps) {
       const reg = await getTrackerRegistry()
       if (!reg) return { ok: false, error: 'registry unavailable' }
       const mods = reg.modules().map(function(m){ return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.labelPalette ? { labelPalette: m.labelPalette } : {}, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}, m.openRepository ? { openRepository: m.openRepository } : {}) })
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      // #652：这一条问的是「这个工作区绑了哪个后端」，所以入参要先洗成与绑定同一把钥匙。
+      //   旧写法把 args.cwd 原样交给 reg.bound()，而 wf.bind 用的是规整后的钥匙——同一条目录两把钥匙，
+      //   绑定写进一个桶、这里读另一个桶，回包一直看不到那份绑定（研究 #648 第四节的实测在案）。
+      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
       let bound = undefined
       try { bound = reg.bound({ cwd: cwd }) } catch {}
       return { ok: true, modules: mods, bound: bound }
@@ -179,17 +166,26 @@ export function createWorkspaceCwd(deps) {
       return svc.get(String(sid)) || null
     } catch (e) { return null }
   }
-  function sessionsOfWorkspace(cwd) {
+  // 找「这个工作区名下活着的会话」。两种匹配，先精确、后包含（#652 补了后一种）：
+  //   精确＝会话自己的目录就是这一条（根会话）；包含＝会话开在这个工作区根下面的某条子目录里。
+  //   包含只在精确一个都没有时才用——顺序反了会让根会话被下面的子目录会话挤掉。
+  function sessionsOfWorkspace(cwd, inside) {
     try {
       const svc = ctx.get('sessions')
       if (!svc || typeof svc.list !== 'function') return []
       const want = pathKeyOf(cwd)
+      if (!want) return []
+      const prefix = want + '/'
       const all = svc.list() || []
       const hits = []
       for (const s of all) {
         const header = s && (s.header || s.meta)
         const c = header && (header.cwd || header.path)
-        if (c && pathKeyOf(c) === want) hits.push(s)
+        if (!c) continue
+        const k = pathKeyOf(c)
+        if (!k) continue
+        if (inside) { if (k !== want && k.indexOf(prefix) === 0) hits.push(s) }
+        else if (k === want) hits.push(s)
       }
       return hits
     } catch (e) { return [] }
@@ -197,14 +193,20 @@ export function createWorkspaceCwd(deps) {
   // 政策服务算政策：有会话就按会话算（含会话自己的模式），没有会话就交给它兜底。
   // 取不到政策服务时返回 undefined —— 后端拿到 undefined 就不传第 5 个参数，维持现状并如实报失败，
   // 绝不在插件这边自己拼一个宽松政策。
+  // #652：传进来的 cwd 现在是工作区根，而子目录会话自己仍挂在子目录上，所以「按同一条目录找」之外
+  //   还要能「按这个根找它下面的会话」（sessionsOfWorkspace 的第二个参数），否则子目录会话写文件拿不到政策。
   function resolveSandboxPolicy(args, cwd) {
     try {
       const svc = ctx.get('sandboxPolicy')
       if (!svc || typeof svc.resolve !== 'function') return { policy: undefined, sessionId: '' }
       let session = sessionById(args && args.sessionId)
       if (!session) {
-        const hits = sessionsOfWorkspace(cwd)
+        const hits = sessionsOfWorkspace(cwd, false)
         if (hits.length === 1) session = hits[0]
+        else if (hits.length === 0) {
+          const inside = sessionsOfWorkspace(cwd, true)
+          if (inside.length === 1) session = inside[0]
+        }
       }
       const policy = svc.resolve(session ? { session: session } : {})
       return { policy: policy, sessionId: (session && session.id) ? String(session.id) : '' }

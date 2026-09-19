@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548：55 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652：56 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -76,6 +76,8 @@ const ALLOWED = {
   'labelColors.read': ['cwdHash', 'present', 'count', 'ok', 'reason'],
   // #635 新增一条按需事件（附录 1.5 节）：保存成功后写进面板那份快照的颜色记录，只记工作区键散列、枚举与条数。
   'labelColors.panelPatch': ['cwdHash', 'kind', 'count'],
+  // #652 新增一条按需事件（附录 1.5 节）：工作区根判定与它那层 30 秒缓存，只记两个散列与两个枚举。
+  'workspaceRoot.resolve': ['cwdHash', 'rootHash', 'source', 'cache'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],

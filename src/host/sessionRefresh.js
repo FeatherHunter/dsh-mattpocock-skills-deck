@@ -1,6 +1,7 @@
 // src/host/sessionRefresh.js —— 会话刷新电话（H4 #448 从 host/index.js 660–982 搬出电话体，早选前奏改调共享判据，纯结构、行为零变化）。
 // 以后谁改它：改强制刷新或磁盘缓存的人。预估约330行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
+// #652 改动：入口 cwd 由「原样入参」改成与 wf.snapshot 同一把规整钥匙（含工作区根），两条路的宿主单槽快照才同桶。
 export function createSessionRefresh(deps) {
   const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx } = deps
   // #491 房外埋点 helpers：hash8 只记散列；脏回执与组装返回均为低频常驻，直接落盘（库体内兜底）。
@@ -10,7 +11,10 @@ export function createSessionRefresh(deps) {
   let _dedupeP = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
   async function handleRefresh(args) {
-      const cwd = (args && args.cwd) || DEFAULT_CWD
+      // #652：与 wf.snapshot 用同一把钥匙（规整键 + 工作区根）。旧写法这里收的是原样入参，
+      //   而快照那条路收的是规整钥匙——同一个工作区的宿主单槽快照因此会「刷新写进一个桶、快照读另一个桶」，
+      //   于是刷新完的快照永远命不中内存短路。两条路现在同形（面板快照按工作区根分桶）。
+      const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const refT0 = Date.now()
       try { if (logCtx) logCtx.fire('info', 'panelSync.dirty', { cwdHash: hash8(cwd), ageMs: (function () { try { const c = getCache(); return (c && c.ts) ? Math.max(0, refT0 - c.ts) : 0 } catch (e) { return 0 } })() }) } catch (eL) {}
       // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
