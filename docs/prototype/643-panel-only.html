@@ -3,18 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>原型 #643 — 按工作流分组的悬浮面板（低保真 · 点得开）</title>
+<title>原型 #643 · 大区域面板（只摆面板本身）</title>
 <!--
   PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
-  issue：FeatherHunter/dsh-mattpocock-skills-deck#643（地图 #641 第二张票）
-  分支选择：这是「界面应该长什么样」那一条，所以做成同一个位置上的多变体 + 底部悬浮切换条。
-  plan: 三种找法（按我现在要干什么 / 按原作者编号分组 / 场景在前分组在后）会长在同一处悬浮面板上，
-        用底部悬浮条切换；面板宽度、块数规模、技能行说明位置、点完关不关、技能排版（一行一个 / 横向一条流水线）、
-        当前该点的那一个要不要突出，作为并列开关，都能现场翻。
-        另外还有一档「形状」：贴着按钮的小面板（折叠 + 滚动），或者屏幕居中、尽量一眼看全的大区域
-        （大区域里三种铺法：一条路一行 / 一颗技能一格 / 分组块并排几栏），面板底部会直说还差多少像素才不用滚。
+  这是「只看面板本身」的那一份：和 docs/prototype/643-workflow-panel-variants.html 用同一套内容与渲染代码
+  （由脚本从那份文件里抽出来），但去掉了原型自己的切换条、状态卡、引导场景与假宿主页，
+  只留下面板本体，方便直接盯着成品看。
+
+  已经定下来的那一套（2026-09-19）：大区域 + 分组块 + 处境 6 块·路成块 + 说明只在悬停（自己画的 100 毫秒气泡）
+  + 点完关面板 + 不突出「该点哪个」+ 不要一行总览；技能排版用的是「一行一个＋引导线」。
+
+  地址栏上还能换的（想比就改这一段）：
+    ?steps=rows | rowsline | rowsline2 | pipe     技能排版（一行一个 / ＋引导线 / ＋向下箭头 / 横向流水线）
+    ?layout=web | scenesec | sceneblk | flat      摆法（官网 6 组 / 处境 6 块·路小节 / 处境 6 块·路成块 / 20 条路平铺）
+    ?tag=1                                        每条路的名字后面跟一枚官网组编号
+    ?desc=inline                                  说明写在行里（会放不下，面板底部那行会说还差多少）
+    ?after=stay                                   点完不关面板、底部留一条回执
   运行：双击本文件即可，无后端、无依赖、刷新即重置。
-  内容来源：research/642-aihero-workflows.md（32 条工作流清单）与官网首页六组。
 -->
 <style>
 :root{
@@ -206,91 +211,21 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 .skills .skp.cell .pd{max-width:none}
 .skills .skp.cell .pd:last-child{color:#6f7078}
 </style>
+<style>
+  /* 这一页自己没有别的装饰，就把面板摆在正中间 */
+  body{background:#0c0e12}
+  .only-note{position:fixed;left:10px;bottom:10px;z-index:94000;max-width:640px;font-size:11px;line-height:1.7;color:var(--caption);background:#0b0d11e6;border:1px solid var(--border);border-radius:8px;padding:7px 10px}
+  .only-note b{color:#cdb8ff}
+</style>
 </head>
 <body>
-<div class="badge">PROTOTYPE · 一次性原型</div>
-<div class="wrap">
-
-<div class="hero">
-  <h1>原型 #643 · 把底部那颗紫色按钮打开后的东西，改成「一块一块工作流」</h1>
-  <p class="sub">这是给眼睛看的假面板：没有后端、没有真实数据、刷新就回到初始状态。底下那条黑色小条是原型自己的切换器，不是设计的一部分。</p>
-  <div class="q">
-    <b>这个原型要回答的设计问题</b><br>
-    <b>形状已经定了（2026-09-19 拍板）：走「大区域」这一档</b>——屏幕居中一大块、尽量不用上下滑就能看全。
-    下面这些开关是在这一档里继续挑细节；小面板那一档留着做对照，切「形状」就能看到。<br>
-    一、<strong>大区域里内容怎么摆</strong>：一条路一行（20 条路排成 20 行）、一颗技能一格（25 颗铺成网格）、还是分成块并排几栏。<br>
-    二、<strong>找法</strong>：按「我现在要干什么」找、按「原作者官网的编号分组」找，还是把两者叠起来。<br>
-    三、<strong>说明放哪、点完关不关、该点哪个要不要突出</strong>这些细节。
-  </div>
-  <div class="q">
-    <b>已经定下来的（2026-09-19 拍的板）</b><br>
-    形状 = <b>大区域</b>（屏幕居中一大块，尽量不用滚）· 铺法 = <b>分组块</b> ·
-    技能行说明 = <b>只在悬停里，用自己画的悬停气泡，100 毫秒出内容</b>（不是浏览器自带的那层）·
-    点完 = <b>注入后关面板</b>（和现在一样）· 「当前该点的那一个」= <b>不突出</b>——除非有机制能确定用户此刻走到哪一棒，
-    现在做不到，标了就是瞎标 · 一行总览 = <b>不要</b>（视觉上直接看清楚就行）。<br>
-    <b>还在选的：三种找法、块数三档、技能排版（一行一个 / 一行一个＋引导线 / 横向流水线）。</b>
-    这几档的开关照旧留在底部条上，切过去就能比；已经定下来的那几档也留着，方便回头对照。
-  </div>
-  <div class="tags">
-    <span class="tag hot">换三种找法：底部条左右方向键 ← →</span>
-    <span class="tag">形状 / 铺法 / 面板宽度 / 块数规模 / 技能行说明 / 技能排版 / 点完 / 该点哪个：并列开关</span>
-    <span class="tag">内容取自 research/642-aihero-workflows.md</span>
-  </div>
-</div>
-
-<div class="cols">
-  <div>
-    <div class="card">
-      <h2>假的宿主界面：输入框 + 状态栏胶囊 <span class="hint">点最右边那颗紫色小图标开面板，点面板外面关（和现在完全一样）</span></h2>
-      <div class="host">
-        <div class="input" id="hostInput">在你现在这个会话里输入…… <span class="typed" id="typedHint"></span></div>
-        <div class="capsule" id="capsule"></div>
-      </div>
-      <div class="btnrow">
-        <button class="btn primary small" id="openBtn">打开面板</button>
-        <button class="btn small" id="closeBtn">关掉面板</button>
-        <span class="sub" style="font-size:11.5px;align-self:center">按 Esc 也能关（等于点面板外）</span>
-      </div>
-    </div>
-
-    <div class="card walk">
-      <h2>引导场景 <span class="hint">每个场景从干净状态开始，按顺序点，走完一遍就懂了</span></h2>
-      <div class="tabs" id="walkTabs"></div>
-      <div id="walkBody"></div>
-    </div>
-  </div>
-
-  <div>
-    <div class="card">
-      <h2>当前状态 <span class="hint">每点一下都重新算一遍</span></h2>
-      <div id="state"></div>
-      <div class="legend">
-        <div>「可见」= 面板一屏能露出来的那一截里，有多少块工作流能被看见；被折起来或滚到下面的不算。</div>
-        <div>「一屏能完整露出几块」在面板开着的时候是量出来的（面板里此刻真露出来的那一截）；面板关着的时候是估的，按每块展开后的高度累加，不含半个。</div>
-        <div>「一眼看全」只在大区域那一档出现：量的是面板里有没有藏起来、要滚才看得到的内容，直说还差多少像素。</div>
-        <div>「该点这个」那一行是绿的：原型里每一块都从第 1 棒开始标，点过一棒就往下走一格；真机上这一格该跟着会话走到哪儿。</div>
-      </div>
-    </div>
-    <div class="card">
-      <h2>怎么用这个原型 <span class="hint">给拿主意的人</span></h2>
-      <div class="sub" style="font-size:12.5px">
-        <p>1. 先按 <kbd>←</kbd> <kbd>→</kbd> 把三种找法翻一遍，看在同一个面板位置上，哪一种让你更快认出「我该点哪条」。</p>
-        <p>2. 把<i>形状</i>切到「大区域」：一大块地方居中摊开，看能不能把内容一次看全、不用上下滑；铺法有「一条路一行」与「一颗技能一格」两种，面板底部那行「一眼看全」会直说还差多少像素。看完再切回「小面板」对着比。</p>
-        <p>3. 在小面板那一档里把<i>块数</i>切到「20 条路一块一条」和「22 处归并成 20 块」，看折叠与滚动够不够用、要不要那个「一行一个工作流」的总览态。</p>
-        <p>4. 把<i>技能排版</i>切到「横向流水线」，看五棒折成一条链之后还认不认得出顺序；把<i>该点哪个</i>打开成「突出」，看那块绿是帮你还是吵你。</p>
-        <p>5. 把<i>技能行说明</i>切到「写在行里」，看行变高之后还认不认得、大区域里还放不放得下；把<i>点完</i>切成「不关，留回执」看注入之后想不想继续点第二个。</p>
-        <p>6. 窄面板那一档（260 与 200 像素）是照现在「文字收成图标」的行为摆的，看折到哪一档还能用。</p>
-      </div>
-    </div>
-  </div>
-</div>
-</div>
-
-<div class="bar" id="bar"></div>
+<div class="badge">PROTOTYPE · 只摆面板本身</div>
 <div id="panelHost"></div>
-<div class="proto-note">原型 #643 · 双击本文件即可 · 无后端 · 刷新重置</div>
+<div class="only-note" id="receipt">还没点过技能。点面板里的任意一颗技能名——真机上那一下会把「/技能名」写进当前会话的输入框。<br>
+  想换排版或摆法，改地址栏：<b>?steps=rows|rowsline|rowsline2|pipe</b> · <b>?layout=web|scenesec|sceneblk|flat</b> · <b>?tag=1</b> · <b>?desc=inline</b> · <b>?after=stay</b></div>
 
 <script>
+
 /* =========================================================================
    第一部分：内容（真实工作流，取自 research/642-aihero-workflows.md）
    ========================================================================= */
@@ -376,9 +311,11 @@ var SCENE_GROUPS = [
   { id:'S5', title:'答案不在我这个会话里', blurb:'要靠跑一段代码看、要靠翻一手资料、要靠别人回答，或者得换个会话接着做。', flows:['R','H','Q','L','M','N'] },
   { id:'S6', title:'这套技能该怎么用', blurb:'配好仓库、不知道点哪一个、或者要把结论沉淀成文档。', flows:['P','O','I','K'] }
 ]
+
 </script>
 
 <script>
+
 /* =========================================================================
    第二部分：状态与外显（这台原型要回答的两个问题，都从这里能看出来）
    ========================================================================= */
@@ -677,9 +614,11 @@ function resetState(){
   S.hoverFlow = null; S.hoverSkill = null; S.lastHit = null
   S.injectCount = 0; S.typedIn = ''
 }
+
 </script>
 
 <script>
+
 /* =========================================================================
    第三部分：把状态画出来 —— 假的宿主界面、悬浮面板本体、状态面板、切换条
    ========================================================================= */
@@ -1250,220 +1189,39 @@ function expandDefault(v){
   return { 'S1':true, 'S2':true, 'S3':true, 'S4':true, 'S5':true, 'S6':true }
 }
 function render(){ hideTip(); renderHost(); renderPanel(); renderState(); renderBar(); if (window.renderWalk) window.renderWalk(); syncURL() }
+
 </script>
 
 <script>
-/* =========================================================================
-   第四部分：引导场景（七个场景走完，两个问题就都有答案了）
-   ========================================================================= */
+/* 这一页只留面板：原型页里那几件边角料（假宿主页、状态卡、底部切换条、引导场景）全部换成空函数。
+   下面这一段是唯一与那一份不同的地方。 */
+renderHost = function(){}
+renderState = function(){}
+renderBar = function(){}
+if (typeof hideTip !== 'function'){ var hideTip = function(){} }
 
-// 引导场景从干净状态起步：摆法按场景给定的那一档，其余开关回到默认。
-function setVariant(layoutKey){
-  S.layout = layoutKey
-  S.tag = false
-  applyLayout()
-  S.open = false; S.lastHit = null; S.injectCount = 0; S.typedIn = ''
-  S.descInline = false; S.closeAfter = true; S.overview = false
-  S.stepsLayout = 'rows'; S.markNext = false; S.reached = {}
-  S.shape = 'pop'; S.bigLayout = 'blocks'
-  S.expanded = expandDefault(S.variant)
-}
+// 已经定下来的那一套（地址栏里给了参数就按参数来）
+var q = new URLSearchParams(location.search)
+S.shape = 'big'
+S.bigLayout = 'blocks'
+S.layout = q.get('layout') || 'sceneblk'
+S.tag = q.get('tag') === '1'
+S.stepsLayout = q.get('steps') || 'rowsline'
+S.descInline = q.get('desc') === 'inline'
+S.closeAfter = q.get('after') !== 'stay'
+S.markNext = false
+S.overview = false
+S.open = true
+applyLayout()
+S.expanded = expandDefault(S.variant)
 
-var WALK = [
-  {
-    k:'W1', name:'一、按处境找 vs 按编号找',
-    what:'同一个面板位置，换三种找法，看哪一种让你更快认出「我该点哪条」、以及有没有一条路你根本找不到。',
-    setup:function(){ setVariant('web') },
-    steps:[
-      { say:'先看官网编号分组这一版：01 入门与 02 主干默认展开（这是第一轮讨论定的默认）。', watch:'注意组里只有技能名、没有先后顺序；「我该先点哪个」看不出来。', do:function(){ S.open = true } },
-      { say:'按 ← 切到「按我现在要干什么」那一版。', watch:'处境块上写的是你自己的处境（我要把一件事从想法做到能合并），不是官网的编码。', hint:'←' },
-      { say:'再把摆法切到「20 条路平铺」。', watch:'处境块没了，一屏塞满的是一条条路，每条路带一句场景说明；你原来找不到的那条跨会话用法就在其中。', opt:['layout','flat'] },
-      { say:'再按 ← 切到「场景在前，编号分组在后」。', watch:'两种信息同时在场：照处境点得到，也认得出官网的编号。代价是多一层要读。', hint:'←' },
-      { say:'最后扫一眼右边「当前状态」里「找到路要几跳」，和上面三种摆法对一下。', watch:'哪一版你在两跳之内就点到了技能。' }
-    ]
-  },
-  {
-    k:'W2', name:'二、面板里放得下几条路',
-    what:'面板里从 6 块长到 20 块，看默认展开几块、其余怎么折、一屏能装几块、要不要那个「一行一个工作流」的总览。',
-    setup:function(){ setVariant('web') },
-    steps:[
-      { say:'先看这一版：官网 6 组，默认只展开 01 与 02。', watch:'一屏装得下，但组里没写「先点哪个」。', do:function(){ S.open = true } },
-      { say:'把摆法切到「20 条路平铺」。', watch:'处境块没了，一屏塞满的是一条条路；每条路上那句场景、按顺序的技能、什么时候进、走到哪算结束都摊开，右侧「当前状态」里的一屏估算会掉下来。', opt:['layout','flat'] },
-      { say:'把「一行总览」打开。', watch:'面板顶部多出一条：一行一个工作流，点名字跳到那一块。20 条路时它能不能替代折叠。', opt:['overview','1'] },
-      { say:'再把摆法切到「处境 6 块·路成块」。', watch:'同一条路挂在两个处境下时不再画两遍（诊断既在「外面报进来的活」也在「东西坏了」），那一块的说明里写明它还归在哪几处。', opt:['layout','sceneblk'] },
-      { say:'随便折起两块（点块的标题行）。', watch:'折叠把高度省回来了，但省的是行数，不是块数；右边那一行的估算会跟着变。' },
-      { say:'把摆法切回「官网 6 组」，看折叠在最原始那一版上是什么感觉。', watch:'第一轮定的「默认展开 01 与 02」是不是还成立。', opt:['layout','web'] }
-    ]
-  },
-  {
-    k:'W3', name:'三、窄面板（宽 260 与 200）',
-    what:'现在整块面板窄的时候会把文字收成图标。分组之后多了一层结构，看折到哪一档还能用、折掉什么最不亏。',
-    setup:function(){ setVariant('web') },
-    steps:[
-      { say:'正常宽度 360 像素，先看一眼满配的样子。', do:function(){ S.open = true } },
-      { say:'切到 260 像素。', watch:'组说明那行先没地方站；技能行的说明文字开始被挤。', opt:['width','w260'] },
-      { say:'再切到 200 像素。', watch:'只剩编号加名字（这就是现在「文字收成图标」那一档的等效行为）；说明与技能行都收起来了。', opt:['width','w200'] },
-      { say:'切回 360，换成「按处境找」那一版再看窄的样子。', watch:'处境块的标题更长，窄的时候先折哪一层。', hint:'←；再按宽度切回 260' }
-    ]
-  },
-  {
-    k:'W4', name:'四、鼠标停在技能行上 / 点下去之后',
-    what:'现在每一行的说明靠鼠标悬停的浮层承载。分组之后说明放哪、还悬不悬停、点下去面板关不关。',
-    setup:function(){ setVariant('web') },
-    steps:[
-      { say:'打开面板：默认这一档（和真机现状一样）说明只在悬停浮层里，每一行是矮的。', watch:'一屏能多装两块，但每颗技能要停一下才知道是干什么的。', do:function(){ S.open = true } },
-      { say:'把「技能行说明」切到「写在行里」。', watch:'技能名字后面直接跟着那句大白话，行变高了、一屏能放的块变少；好处是不用悬停就能读懂。', opt:['desc','1'] },
-      { say:'把鼠标停在任意一颗技能上（比如 /implement）。', watch:'不管哪一档，悬停都还有一层浮层：该行亮起左边那道紫线、说明从浮层里出来。' },
-      { say:'点它一下。', watch:'默认是注入后关面板（和现在一样）：假输入框里出现 /implement，面板消失。' },
-      { say:'把「点完」切到「不关，留回执」，把说明切回「只在悬停里」，再打开面板点一颗别的技能。', watch:'面板留着，底部出现一条「刚注入了什么」，右边「已注入」计数加一。想想这样更顺手，还是更吵。', opt:[['after','0'],['desc','0']] }
-    ]
-  },
-  {
-    k:'W5', name:'五、跨会话那条用法',
-    what:'像 handoff 分出去做原型、做完再交回来这种，怎么在一屏里说清它要换会话——这一票摆出来供定版票决定首版留不留这句提示。',
-    setup:function(){ setVariant('scenesec') },
-    steps:[
-      { say:'先看处境块里有没有「答案不在我这个会话里」这块，它装的是跑一段代码看、翻一手资料、换会话接着做这类路。', do:function(){ S.open = true } },
-      { say:'在块里找「跨会话走两个来回」那条路，读它那句场景说明。', watch:'方向对不对：是不是在说「分出去、做完、交回来」。' },
-      { say:'再看那条路上那颗 /handoff 的技能行，把鼠标停上去。', watch:'说明里有没有那句最容易教错人的话——上下文满了该用的是 /compact，不是 /handoff。' },
-      { say:'把「块数」切到「20 条路一块一条」，看它在处境里露不露得出来；再切到「只在悬停里」，看说明藏起来之后还认不认得。', opt:['layout','flat'] }
-    ]
-  },
-  {
-    k:'W6', name:'六、主干五棒（拿真实内容对一遍）',
-    what:'用内容最实的一条路检查排列对不对：官网反复给出的那条主干，五棒顺序、方括号里内嵌的技能、以及那句「评审之后怎么办」。',
-    setup:function(){ setVariant('web') },
-    steps:[
-      { say:'打开面板，看 02 主干那一组。', do:function(){ S.open = true } },
-      { say:'把摆法切到「20 条路平铺」，找「主建造链」那条。', watch:'五棒顺序是不是 grill-with-docs → to-spec → to-tickets → implement → code-review；implement 行里有没有带出 tdd。', opt:['layout','flat'] },
-      { say:'读那条路的收尾说明。', watch:'研究里点名的一句话在不在：评审之后不是回头重跑实现，而是先提交、对着分叉点评审、用 amend 或补一个 fixup 提交，工单和验收标准由人自己收。' },
-      { say:'再看「短路径」那条，注意那句提醒。', watch:'前三棒留在同一个会话，最后一棒必须换一个干净会话——这条容易漏。' }
-    ]
-  },
-  {
-    k:'W7', name:'七、一块里怎么排 / 该点哪个要不要突出',
-    what:'第一轮讨论定了「一块一块工作流」，但一块里面还有两件事没定：技能是一行一个，还是横着排成一条流水线；以及「当前该点的那一个」要不要在面板上被标出来。',
-    setup:function(){ setVariant('web') },
-    steps:[
-      { say:'打开面板，看 02 主干那一组：五棒是一行一个、按顺序排下来的。', watch:'一行一个像清单，顺序清楚；代价是一屏占的高度最多。', do:function(){ S.open = true } },
-      { say:'把「技能排版」切到「横向流水线」。', watch:'同样五棒折成一条链（一根棒一个方片，中间用 → 连着）。方向感最强，代价是名字变短、并排读起来更费神。', opt:['steps','pipe'] },
-      { say:'再切到「一行一个＋引导线」。', watch:'还是一行一个的清爽，但左边那道线把顺序串起来了——两边的好处各拿一半，看它够不够。', opt:['steps','rowsline'] },
-      { say:'切回「一行一个」，再把「该点哪个」打开成「突出」。', watch:'每一块里都有一棒被标成绿的、写着「该点这个」。注意：这一格只有我们能确定「用户此刻走到哪一棒」时才成立，做不到就是瞎标。', opt:[['steps','rows'],['next','1']] },
-      { say:'把「点完」切成「不关，留回执」，然后点一下被标出来的那一棒。', watch:'标记往下走一格（点过的那一棒不再是「该点这个」）。想一下：这块绿是帮你看清下一步，还是变成了噪声。', opt:['after','0'] },
-      { say:'把「技能排版」「该点哪个」「点完」都切回默认，和刚才那几版对一下。', watch:'开关叠起来之后，面板还认不认得出来这是在说哪一块。', opt:[['steps','rows'],['next','0'],['after','1']] }
-    ]
-  },
-  {
-    k:'W8', name:'八、小面板折叠 vs 大区域一眼看全',
-    what:'想把面板做成一大块、不用上下滑就能看全所有内容，点一下就输入。这一场把「贴着按钮的小面板」和「屏幕居中的大区域」摆在一起比：大区域里又分一条路一行、一颗技能一格两种铺法。',
-    setup:function(){ setVariant('web') },
-    steps:[
-      { say:'先看小面板：贴着那颗按钮，360 像素宽，一屏只露得出一两块，其余要靠折叠和滚动。', watch:'这是现在这条路——看全内容要滚。', do:function(){ S.open = true } },
-      { say:'把「形状」切到「大区域」，铺法留「一条路一行」。', watch:'屏幕中间一大块，20 条路一条占一行：编号 + 路名 + 顺着排下来的技能。看面板底部那行「一眼看全」判语：全看得到，还是还要滚。', opt:[['shape','0'],['biglayout','oneper']] },
-      { say:'把「技能行说明」切到「写在行里」，看那一行行变高之后还看不看得全。', watch:'底部那行判语会告诉你还差多少像素——「说明每颗都写在行里」和「一眼看全」这两个要求在打架，看你想让哪个让一步。', opt:['desc','1'] },
-      { say:'切回「只在悬停里」，再把铺法换成「一颗技能一格」。', watch:'25 颗技能铺成网格，一颗一格直接点。这一档丢掉了「顺序」，换来的是「找一颗技能」最快。', opt:[['desc','0'],['biglayout','grid']] },
-      { say:'点一颗技能试试（点完那一档自己挑：关面板还是不关）。', watch:'指哪打哪，面板里点什么就注入什么；大区域里连着点第二个比小面板顺不顺手。' },
-      { say:'把形状切回「小面板」，和刚才大区域那一版对一下。', watch:'大区域盖住了整个对话区——这一步要注意你在不在意这件事。', opt:['shape','1'] }
-    ]
-  }
-]
-
-// 两个下标分开：W.walk 是「第几场」，W.step 是「这一场的第几步」。
-// 合成一个下标就会在「走完最后一步之后还点」时错位——上一版就是栽在这儿。
-var W = { walk:0, step:0, done:{} }
-
-function walkSet(walkIndex){
-  W.walk = walkIndex
-  W.step = 0
-  W.done = {}
-  WALK[walkIndex].setup()
-  render()
+// 点完关面板之后没有假输入框了，就把「刚注入了什么」写在页面左下角那一行上
+var __inject = injectSkill
+injectSkill = function(name, fid, idx){
+  __inject(name, fid, idx)
+  var r = document.getElementById('receipt')
+  if (r) r.innerHTML = '刚注入：<b>/' + name + '</b>（累计 ' + S.injectCount + ' 次）——真机上这一下会把「/' + name + '」写进当前会话的输入框，面板按设定关掉。'
 }
-// 做一步 = 把这一步记成做过，指针往下走一格（走完最后一步就停在那儿，不再往下）。
-function walkEnter(){
-  W.done[W.step] = true
-  if (W.step + 1 < WALK[W.walk].steps.length) W.step = W.step + 1
-  render()
-}
-function walkIsDone(){ return W.step >= WALK[W.walk].steps.length - 1 && !!W.done[W.step] }
-// 一步可以翻一个开关（['kind','k']），也可以连着翻几个（[['kind','k'],['kind','k']]）。
-function stepApply(st){
-  if (st.do) st.do()
-  if (!st.opt) return
-  var pairs = (st.opt[0] instanceof Array) ? st.opt : [st.opt]
-  pairs.forEach(function(p){ setOption(p[0], p[1]) })
-}
-function walkReset(){
-  resetState()
-  S.open = false
-  S.expanded = expandDefault(S.variant)
-  S.blocks = 'g6'; S.overview = false; S.descInline = false; S.closeAfter = true
-  S.stepsLayout = 'rows'; S.markNext = false; S.reached = {}
-  W.step = 0
-  W.done = {}
-  render()
-}
-
-function renderWalk(){
-  var tabs = document.getElementById('walkTabs')
-  var body = document.getElementById('walkBody')
-  var cur = WALK[W.walk]
-  var steps = cur.steps
-  var allDone = walkIsDone()
-  tabs.innerHTML = WALK.map(function(w, i){
-    return '<button class="' + (i===W.walk ? 'active' : '') + '" data-wi="' + i + '">' + esc(w.name) + '</button>'
-  }).join('')
-  var h = '<div class="what"><b>' + esc(cur.name) + '</b><br>' + esc(cur.what) + '</div><div class="steps">'
-  steps.forEach(function(st, i){
-    var state = W.done[i] ? 'done' : (i===W.step ? 'now' : '')
-    h += '<div class="step ' + state + '">'
-    h += '<span class="idx">' + (i+1) + '</span>'
-    h += '<div class="body"><div class="say">' + esc(st.say) + '</div>'
-    if (st.watch) h += '<div class="watch">看什么：' + esc(st.watch) + '</div>'
-    h += '<div class="acts">'
-    if (i===W.step && !W.done[i]) h += '<button class="btn small primary" id="walkGo">做这一步</button>'
-    if (st.hint) h += '<span class="watch" style="align-self:center">（提示：' + esc(st.hint) + '）</span>'
-    h += '</div></div></div>'
-  })
-  h += '</div><div class="reset">' +
-       '<button class="btn small" id="walkReset">把状态清回初始（重新走一遍用）</button>' +
-       '<span style="margin-left:8px">' + (allDone ? '这一场走完了，切下一个标签继续。' : '走完这一场再切下一个标签，') + '观看时状态在右下角「当前状态」里一直显示。</span></div>'
-  body.innerHTML = h
-  var go = document.getElementById('walkGo')
-  if (go) go.onclick = function(){ stepApply(WALK[W.walk].steps[W.step]); walkEnter() }
-  document.getElementById('walkReset').onclick = function(){ walkReset() }
-  Array.prototype.forEach.call(tabs.querySelectorAll('button'), function(b){
-    b.onclick = function(){ walkSet(Number(b.getAttribute('data-wi'))) }
-  })
-}
-
-/* ---- 收尾：读地址栏里的开关、挂全局交互、画第一帧 ---- */
-document.addEventListener('keydown', function(e){
-  var t = (e.target && e.target.tagName) || ''
-  if (t==='INPUT' || t==='TEXTAREA' || (e.target && e.target.isContentEditable)) return
-  if (e.key === 'Escape'){ closePanel(); render(); return }
-  if (e.key === 'ArrowLeft'){ cycleVariant(-1); return }
-  if (e.key === 'ArrowRight'){ cycleVariant(1); return }
-})
-document.addEventListener('click', function(e){
-  // 「点面板外就关」照旧，但原型自己那几件东西不算面板外：底部切换条、引导场景的按钮与标签、
-  // 打开/关掉面板这两颗按钮。不然翻开关的那一下顺手就把面板关了，没法一边开着一边比。
-  // 这里必须用事件派发时就算好的那条路径（composedPath）：点完一重启重画，原来那个按钮就从文档里摘掉了，
-  // 顺着 parentNode 往上走会走到空，认不出来它是谁。
-  var CHROME = { spop:1, skillBtn:1, bar:1, walkBody:1, walkTabs:1, openBtn:1, closeBtn:1 }
-  var path = (e.composedPath && e.composedPath()) || []
-  for (var i=0;i<path.length;i++){
-    var nd = path[i]
-    if (nd && nd.id && CHROME[nd.id]) return
-  }
-  if (S.open){ closePanel(); render() }
-})
-// 假宿主界面上那两颗按钮：打开面板 / 关掉面板。
-document.getElementById('openBtn').onclick = function(e){ e.stopPropagation(); openPanel(); render() }
-document.getElementById('closeBtn').onclick = function(e){ e.stopPropagation(); closePanel(); render() }
-var raf = window.requestAnimationFrame || function(f){ return setTimeout(f, 16) }
-window.addEventListener('resize', function(){ raf(render) })
-readURL()
 render()
 </script>
 </body>
