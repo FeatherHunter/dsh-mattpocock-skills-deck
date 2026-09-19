@@ -197,7 +197,10 @@ export function createDetectChain(deps) {
         }catch(e){}
         // #284 修订（对抗式审查 2026-08-28）：后端链【独立求值】——不再与通用链串行拼接，
         //   消除「env:home 未通过 → gh CLI/登录/仓库可达全被阻塞」的假依赖；fullSnapshot 为两段步骤的
-        //   「拼接视图」（各步状态保留自身判定），引导语义仍为 通用段 → 后端段，但不再互相锁步。
+        //   「拼接视图」（各步状态保留自身判定），但不再互相锁步。
+        // #668：拼接后的行序按首开引导链的步骤清单排（清单上的步骤按清单顺序在前，清单没覆盖的检查项
+        //   按各段原有先后接在后面）。顺序只有清单那一份真源，界面照快照渲染、自己不排序。
+        //   旧语义「通用段 → 后端段」到此结束：新语义下「未初始化」排在「已关联仓库」之后。
         let fullSnapshot = null
         let fullChain = null
         try {
@@ -207,7 +210,14 @@ export function createDetectChain(deps) {
           const genSteps = (genSnap && Array.isArray(genSnap.steps)) ? genSnap.steps : []
           const backSteps = (backSnap && Array.isArray(backSnap.steps)) ? backSnap.steps : []
           fullChain = chainAndSnap.chain.concat((backendChain && backendChain.chain) ? backendChain.chain : [])
-          const allSteps = genSteps.concat(backSteps)
+          const allStepsRaw = genSteps.concat(backSteps)
+          let allSteps = allStepsRaw
+          try {
+            const guideMod = await import('../shared/tracker/guide-steps.js')
+            if (guideMod && typeof guideMod.orderStepsByGuide === 'function') {
+              allSteps = guideMod.orderStepsByGuide(guideMod.guideStepsFor(backendId || null), allStepsRaw)
+            }
+          } catch (eG) {}
           const firstNotDone = allSteps.findIndex(function (s) { return s.status !== 'done' })
           const allDone = firstNotDone < 0
           fullSnapshot = {

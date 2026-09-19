@@ -128,6 +128,8 @@ export default {
     // 2. 外观方案（图标 + 动作词，可切换）
     // ============================================================
     // ==== shared:trackerConstants (spliced by build) ====
+    // #668 首开引导链的步骤清单（顺序唯一真源）：宿主管排序，界面（#663 横幅 / #664 注入决策）也要读它。
+    // ==== shared:guideSteps (spliced by build) ====
     // ==== shared:namingTitles (spliced by build) ==== // ==== shared:namingTracking (spliced by build) ==== // ==== shared:namingAttribution (spliced by build) ====
     // ==== shared:trackerSync (spliced by build) ====
     // ==== shared:slots (spliced by build) ====
