@@ -22,12 +22,14 @@
  *   --dry-run            可选。只演练：打印将要执行的命令与将要写入的正文，不联网、不写。
  *   --help               打印这段说明。
  *
- * 脚本做五件事：
- *   1. 把 --body-file 的内容按正规化写法写回地图（剥开头不可见字符、按阈值还原字面 \n 转义），写完读回比对。
- *   2. 把 --children 里还没挂在地图下的子票，用 gh 原生旗 --parent 挂成原生子议题。
- *   3. 读每张子票正文第一处有内容的行里的 `Blocked by: #n, #n` 声明，升格成原生阻塞边（原生旗优先）。
- *   4. 建完读回校验：本次要求的子票里实际挂上了几张，与 --children 去重后的张数比对，对不上就非零退出。
- *   5. 建边前先校验输入：地图不能是它自己的子票；每张子票必须存在；已经挂在别的地图下的子票直接拒绝。
+ * 脚本做六件事：
+ *   1. 认工作区：从当前目录逐层向上找到工作区根（自带 .git 或自带主锚文件的最近一层），读根上的主锚文件认后端。
+ *      在子目录里跑也认得出；一路到顶都没有标记时，提示说清「请到工作区根目录去跑」并给出那条目录的名字。
+ *   2. 把 --body-file 的内容按正规化写法写回地图（剥开头不可见字符、按阈值还原字面 \n 转义），写完读回比对。
+ *   3. 把 --children 里还没挂在地图下的子票，用 gh 原生旗 --parent 挂成原生子议题。
+ *   4. 读每张子票正文第一处有内容的行里的 `Blocked by: #n, #n` 声明，升格成原生阻塞边（原生旗优先）。
+ *   5. 建完读回校验：本次要求的子票里实际挂上了几张，与 --children 去重后的张数比对，对不上就非零退出。
+ *   6. 建边前先校验输入：地图不能是它自己的子票；每张子票必须存在；已经挂在别的地图下的子票直接拒绝。
  *
  * 为什么正文文件写的是地图：契约 #576 Implementation Decisions 把参数集写死为「地图号、子票号列表、
  *   正文文件与演练开关，仓库地址可选」。参数集里唯一的单票身份是地图号，而正文文件只有一份，
@@ -74,7 +76,7 @@
  */
 
 import { readFileSync, writeFileSync, rmSync, mkdtempSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 
@@ -83,6 +85,34 @@ const SIBLING_SCRIPT = "scripts/fix-issue-body.mjs";
 const TRACKER_DOC = "docs/agents/issue-tracker.md";
 const BOM = "\uFEFF";
 const PAGE_SIZE = 100;
+/** 以上逐层找根时，在哪一层停下：自带 .git（文件或目录都算）或自带主锚文件的那一层，两者同等优先、谁近听谁。 */
+const ROOT_MARKER_DIR = ".git";
+/** 本次调用认出来的工作区根（main 一开始就填好）。后面每条 gh 命令都在这一层跑：
+ *  脚本可能是在工作区的子目录里被调起来的，而 gh 的「当前仓库」与 `{owner}/{repo}` 占位符都按进程当前目录算。 */
+let WORKSPACE_ROOT = "";
+
+/**
+ * 找工作区根：从 startDir 逐层向上，第一个「自带 .git（文件或目录都算）」或「自带 docs/agents/issue-tracker.md」
+ * 的目录就是工作区根；两种标记同等优先、谁近听谁；一路到磁盘根都没有，就用 startDir 本身。
+ * 这条规则与宿主同一条（出处：票 #649 定版、架构决定记录 docs/adr/20260918-subworkspace-identity-root.md，
+ * 宿主侧实现在 src/host/workspaceKey.js 的 resolveWorkspaceRoot）。脚本要能单跑、不依赖仓库源码，
+ * 所以这里是一份自包含的副本——两份是否给出同一结论由 tests/verify-wire-subissues-script.js 与
+ * tests/verify-issue-body-script.js 的子目录用例钉住。
+ * @returns {{ root: string, found: boolean }} found=false 表示一路上一个标记都没有（root 就是 startDir 本身）。
+ */
+function findWorkspaceRoot(startDir) {
+  let cursor = resolve(startDir);
+  for (let i = 0; i < 64; i++) {
+    try {
+      if (existsSync(join(cursor, ROOT_MARKER_DIR))) return { root: cursor, found: true };
+      if (existsSync(join(cursor, TRACKER_DOC))) return { root: cursor, found: true };
+    } catch (e) { /* 这一层探测不了就继续往上，与宿主同款：探测失败不算「找到了根」 */ }
+    const up = dirname(cursor);
+    if (!up || up === cursor) break;
+    cursor = up;
+  }
+  return { root: resolve(startDir), found: false };
+}
 
 /**
  * 判定「平台明确不支持原生边」用的错误文本特征，口径与宿主 src/host/tracker/backends/github/graph.js:98-99、:259 一致。
@@ -209,27 +239,35 @@ function parseArgs(argv) {
 }
 
 /**
- * 认后端：读工作区的主锚文件 docs/agents/issue-tracker.md，只认首批支持的 GitHub。
- * 判定口径与姊妹脚本 scripts/fix-issue-body.mjs:124-138 完全一致（也一致于宿主 src/host/tracker/detection/parseIssueTracker.js）。
+ * 认后端：先找到工作区根（从当前目录逐层向上），再读根上的主锚文件 docs/agents/issue-tracker.md，
+ * 只认首批支持的 GitHub。判定口径与姊妹脚本 scripts/fix-issue-body.mjs 的同名函数完全一致
+ * （也一致于宿主 src/host/tracker/detection/parseIssueTracker.js）。在子目录里跑得出的结论与在根上跑一样。
  */
-function detectBackend(cwd) {
-  const docPath = resolve(cwd, TRACKER_DOC);
+function detectBackend(startDir) {
+  const found = findWorkspaceRoot(startDir);
+  const docPath = resolve(found.root, TRACKER_DOC);
+  const base = { docPath: docPath, root: found.root, rootFound: found.found };
   let raw = "";
   try {
     raw = readFileSync(docPath, "utf8");
   } catch (e) {
-    return { backendId: null, reason: "missing", docPath: docPath };
+    return Object.assign(base, { backendId: null, reason: "missing" });
   }
   const text = raw.replace(/^\uFEFF/, "");
-  if (/^#\s*issue\s*tracker\s*:\s*gitlab/im.test(text)) return { backendId: "gitlab", reason: "title", docPath: docPath };
-  if (/^#\s*issue\s*tracker\s*:\s*(markdown|local)/im.test(text)) return { backendId: "markdown", reason: "title", docPath: docPath };
-  if (/^#\s*issue\s*tracker\s*:\s*github/im.test(text)) return { backendId: "github", reason: "title", docPath: docPath };
-  if (/github/i.test(text)) return { backendId: "github", reason: "keyword", docPath: docPath };
-  return { backendId: null, reason: "unknown", docPath: docPath };
+  if (/^#\s*issue\s*tracker\s*:\s*gitlab/im.test(text)) return Object.assign(base, { backendId: "gitlab", reason: "title" });
+  if (/^#\s*issue\s*tracker\s*:\s*(markdown|local)/im.test(text)) return Object.assign(base, { backendId: "markdown", reason: "title" });
+  if (/^#\s*issue\s*tracker\s*:\s*github/im.test(text)) return Object.assign(base, { backendId: "github", reason: "title" });
+  if (/github/i.test(text)) return Object.assign(base, { backendId: "github", reason: "keyword" });
+  return Object.assign(base, { backendId: null, reason: "unknown" });
 }
 
-function requireGithub(cwd) {
-  const det = detectBackend(cwd);
+/** 认不出后端时往哪儿去：话要说成一条能照做的出路，不只是「认不出后端」。三种情形分开说：
+ *    · 找到了根、根上那层的主锚文件里没有认得出后端的标记 → 把首行写成「# Issue tracker: GitHub」；
+ *    · 找到了根、根上却没有主锚文件 → 这个仓库还没初始化过，出路是先在根上做一次初始化；
+ *    · 一路上一个标记都没有 → 脚本站的地方根本不是一个工作区，请到工作区根目录去跑。
+ *  三种都给出那条目录的名字（只给最后一段，不带本地绝对路径——回包、报错与失败评论会继续往外走）。 */
+function requireGithub(startDir) {
+  const det = detectBackend(startDir);
   if (det.backendId === "github") return det;
   // 只报相对路径（TRACKER_DOC），不把工作区绝对路径写进回包与终端
   const head = `这个工作区用的不是首批支持的 GitHub（主锚文件：${TRACKER_DOC}）。`;
@@ -239,7 +277,14 @@ function requireGithub(cwd) {
   if (det.backendId === "markdown") {
     fail(2, `${head}它声明的是本地 Markdown；本地 Markdown 的票就是仓库里的文件，请直接改文件存盘，不要调本脚本。`);
   }
-  fail(2, `${head}认不出后端（文件${det.reason === "missing" ? "不存在" : "里没有后端标记"}）。GitHub 工作区请确认该文件首行写着「# Issue tracker: GitHub」；本地 Markdown 工作区请直接改票文件存盘；GitLab 待第二批。`);
+  const rootName = baseName(det.root);
+  if (det.rootFound) {
+    if (det.reason === "unknown") {
+      fail(2, `${head}已找到工作区根目录「${rootName}」，但那一层的主锚文件里没有认得出后端的标记（首行既不是「# Issue tracker: GitHub」，也不含 GitHub 字样）。请把主锚文件首行写成「# Issue tracker: GitHub」，或者从别的目录调用本脚本。`);
+    }
+    fail(2, `${head}已找到工作区根目录「${rootName}」，但这一层没有主锚文件 docs/agents/issue-tracker.md，认不出后端。请在那一层做一次工作区初始化（生成主锚文件），或者从别的目录调用本脚本。`);
+  }
+  fail(2, `${head}认不出后端（从「${baseName(startDir)}」逐层向上都没找到 .git，也没有 docs/agents/issue-tracker.md）。请到工作区根目录去跑这条命令（当前找不到那条目录，请改用你的工作区根目录）；GitHub 工作区请确认该目录的主锚文件首行写着「# Issue tracker: GitHub」，本地 Markdown 工作区请直接改票文件存盘，GitLab 待第二批。`);
 }
 
 /**
@@ -328,7 +373,7 @@ function resolveGh() {
 function runGh(argv) {
   const gh = resolveGh();
   const res = spawnSync(gh.cmd, gh.prefix.concat(argv), {
-    cwd: process.cwd(),
+    cwd: WORKSPACE_ROOT || process.cwd(),
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
     windowsHide: true,
@@ -583,7 +628,12 @@ function done(code, payload) {
 
 function main() {
   const opts = parseArgs(process.argv);
-  requireGithub(process.cwd());
+  // 认后端的同时拿到工作区根：后面的 gh 命令都在那一层跑。
+  // 为什么不能继续用 process.cwd()：脚本可能是在工作区的子目录里被调起来的，而 gh 的「当前仓库」
+  // 与 `{owner}/{repo}` 占位符都按进程当前目录算，在子目录里跑会把请求打到别处去。
+  // 在根上跑时两者相同，行为与旧版一致。
+  const det = requireGithub(process.cwd());
+  WORKSPACE_ROOT = det.root;
 
   let raw;
   try {

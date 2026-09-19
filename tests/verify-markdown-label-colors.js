@@ -139,6 +139,32 @@ const tracker = markdownModule.create({})
   check(fake.calls.rename.some((x) => x.to === COLOR_PATH), '放置配色文件：再改名发布成目标文件')
 }
 
+// ── 一之二、配色文件只认「工作区根」这一份：同一个仓库的子目录里不许长出第二份（#654）──
+// 什么算工作区根（从会话所选目录逐层向上，第一个自带 .git 或自带主锚文件的目录）由宿主判定，
+// 出处见票 #649 的定版记录与 src/host/workspaceKey.js 的 resolveWorkspaceRoot；后端收到的工作区
+// 就是工作区根（宿主侧已在 #652 落地）。这一条守的是后端这一半的约定：它只认传进来的那一个工作区，
+// 绝不自己另找一层，也不去读子目录里的第二份文件。把实现改回「按会话所选目录算」，这里会立刻亮红。
+{
+  const rootMine = '{"root-only":"aaaaaa"}'
+  const subMine = '{"sub-only":"bbbbbb"}'
+  const fake = makeFakeFs({
+    [COLOR_PATH]: rootMine,
+    '/ws/sub/docs/agents/label-colors.json': subMine,
+    '/ws/sub/deep/docs/agents/label-colors.json': '{"deep-only":"cccccc"}',
+  })
+  // 子目录会话：宿主算出来的工作区根仍然是 /ws，所以后端收到的 ctx.cwd 就是 /ws。
+  const ctxAtRoot = mkCtx(fake)
+  const r1 = await tracker.listLabels(REF, ctxAtRoot)
+  const names1 = ((r1 && r1.data) || []).map((l) => l.name)
+  const colorOf = (name) => { const hit = ((r1 && r1.data) || []).filter((l) => l.name === name)[0]; return hit ? String(hit.color || '') : '' }
+  check(r1.ok === true && names1.indexOf('root-only') >= 0, '子目录会话：读到的是工作区根那一份配色文件（实得 ' + JSON.stringify(names1) + '）')
+  check(names1.indexOf('sub-only') < 0 && names1.indexOf('deep-only') < 0, '子目录会话：子目录里那两份文件里的标签一个都没混进来')
+  check(colorOf('root-only') === 'aaaaaa', '子目录会话：根上那份里的颜色原样读出来（实得 ' + colorOf('root-only') + '）')
+  check(fake.calls.readText.every((p) => p.indexOf('/docs/agents/label-colors.json') < 0 || p === COLOR_PATH), '子目录会话：一次都没去读子目录里的那份（读过的路径：' + JSON.stringify(fake.calls.readText) + '）')
+  check(fake.show('/ws/sub/docs/agents/label-colors.json') === subMine && fake.show('/ws/sub/deep/docs/agents/label-colors.json') === '{"deep-only":"cccccc"}', '子目录里那份文件原样不动')
+  check(fake.calls.rename.length === 0 && fake.calls.writeText.every((w) => String(w.path).indexOf('/ws/sub') < 0), '子目录会话：没有一次写或改名落到子目录里（写过的路径：' + JSON.stringify(fake.calls.writeText.map((w) => w.path)) + '）')
+}
+
 // ── 二、幂等：文件已存在时一个字都不改（用户手改过的内容原样留着）──
 {
   const mine = '{\n  "我的标签": "abcdef"\n}\n'

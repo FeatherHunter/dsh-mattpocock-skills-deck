@@ -23,6 +23,8 @@
  *      建阻塞边/校验读回/降级写文字行 各失败一次，退出码、评论落点、commented 都对；
  *  18) 泄密：失败评论、stderr、回包 error 里不出现本地绝对路径，反引号不会把行内代码截断；
  *  19) --repo 的 happy path：issue 命令带 --repo，api 路径带 owner/name。
+ *  20) 子目录里跑（#654）：一路向上找到工作区根并跑通、每条 gh 命令都在根那一层起、自带 .git 的子目录
+ *      自成一套、一个标记都没有时话里给出「请到工作区根目录去跑」这条出路（且不泄本地绝对路径）。
  *
  * 假 gh：一个 .mjs，用 DSH_GH_PATH 指过去；它记录每次调用的 argv，并用一份 JSON 状态文件模拟 GitHub。
  * 假 gh 刻意贴真 gh：未知票报错（不是返回空正文）、拒绝自挂与改挂、拒绝重复边、按 per_page 截断、
@@ -91,6 +93,8 @@ const FAKE_GH_SRC = [
   "function out(t) { process.stdout.write(t) }",
   "function die(msg, code) { process.stderr.write(msg + '\\n'); process.exit(typeof code === 'number' ? code : 1) }",
   "appendFileSync(LOG, JSON.stringify(args) + '\\n')",
+  // #654：把「这条命令是在哪条目录下起的」一并记下来——子目录里跑时，gh 必须仍从工作区根起。
+  "appendFileSync(LOG + '.cwd', process.cwd() + '\\n')",
   "function logCount() {",
   "  try { const key = JSON.stringify(args); const lines = readFileSync(LOG, 'utf8').split('\\n').filter(Boolean); return lines.filter(function (l) { return l === key }).length } catch (e) { return 1 }",
   "}",
@@ -252,10 +256,15 @@ function stateFor(spec) {
 function resetFake(state) {
   fs.writeFileSync(fakeState, JSON.stringify(state), 'utf8')
   fs.writeFileSync(fakeLog, '', 'utf8')
+  fs.writeFileSync(fakeLog + '.cwd', '', 'utf8')
 }
 function readFake() { return JSON.parse(fs.readFileSync(fakeState, 'utf8')) }
 function argvLog() {
   return String(fs.readFileSync(fakeLog, 'utf8')).trim().split(/\r?\n/).filter(Boolean).map(function (l) { return JSON.parse(l) })
+}
+/** 本轮 gh 命令各自是在哪条目录下起的（fake gh 在调用日志旁逐行记的）。 */
+function argvCwds() {
+  try { return String(fs.readFileSync(fakeLog + '.cwd', 'utf8')).trim().split(/\r?\n/).filter(Boolean) } catch (e) { return [] }
 }
 function countCmd(tokens) {
   return argvLog().filter(function (a) { return tokens.every(function (t, i) { return a[i] === t }) }).length
@@ -770,6 +779,53 @@ console.log('子议题关联脚本门禁（#572 · 命令行黑盒）')
   const sisterStep = 'node tests/verify-issue-body-script.js'
   check(steps.indexOf(mine) >= 0, '21.1 npm run verify 链已纳入本门禁')
   check(steps.indexOf(sisterStep) >= 0 && steps[steps.indexOf(sisterStep) + 1] === mine, '21.2 本门禁紧跟姊妹门禁 tests/verify-issue-body-script.js 之后')
+}
+
+// ——— 22) 子目录里跑：一路向上找到工作区根，命令也在根上跑（#654） ———
+// 为什么要有这一段：脚本原来只读「当前这一层」的主锚文件，在工作区的子目录里跑会回「认不出后端」，
+// 而工作区级的东西（主锚文件、票仓）物理上只有一份、只可能落在工作区根。判据与宿主同一条：从当前目录
+// 逐层向上，第一个自带 .git 或自带主锚文件的目录就是工作区根（票 #649 定版）。
+{
+  const deep = path.join(wsGithub, 'sub', 'deep')
+  fs.mkdirSync(deep, { recursive: true })
+
+  resetFake(stateFor({ map: 567, bodies: { '567': MAP_BODY, '571': CHILD_PLAIN } }))
+  const r = runScript(['--map', '567', '--children', '571', '--body-file', mapFixture], deep)
+  check(r.status === 0 && r.json && r.json.ok === true, '22.1 子目录里跑能认得出后端并跑通（实得 exit=' + r.status + ' / ' + (r.json ? JSON.stringify(r.json.error || '') : '回包读不出') + '）')
+  const ghCwds = argvCwds()
+  check(ghCwds.length > 0 && ghCwds.every(function (c) { return c === wsGithub }), '22.2 每条 gh 命令都在工作区根那一层跑（不是在子目录里；实得 ' + JSON.stringify(ghCwds) + '）')
+
+  // 反向：更近的 .git 截住上溯，自带 .git 的子目录自成一套，不被外层吞掉。
+  const nested = path.join(wsGithub, 'nested')
+  fs.mkdirSync(path.join(nested, '.git'), { recursive: true })
+  writeTrackerDoc(nested, '# Issue tracker: GitLab')
+  const r2 = runScript(['--map', '567', '--children', '571', '--body-file', mapFixture], nested)
+  check(r2.status === 2 && r2.stderr.indexOf('GitLab') >= 0, '22.3 子目录自带 .git 时停在自己那一层（认到自己的 GitLab，不被外层 GitHub 吞掉）')
+
+  // 一路到顶都没有标记：说清「请到工作区根目录去跑」，而不是只说一句「认不出后端」。
+  const noDocDeep = path.join(wsNoDoc, 'sub', 'deep')
+  fs.mkdirSync(noDocDeep, { recursive: true })
+  fs.writeFileSync(fakeLog, '', 'utf8')
+  const r3 = runScript(['--map', '567', '--children', '571', '--body-file', mapFixture], noDocDeep)
+  check(r3.status === 2 && r3.json && r3.json.ok === false, '22.4 一个标记都没有：退出码 2 且 ok=false')
+  check(r3.stderr.indexOf('请到工作区根目录去跑这条命令') >= 0, '22.5 话里给出退路「请到工作区根目录去跑这条命令」')
+  check(r3.stderr.indexOf('issue-tracker.md') >= 0 && r3.stderr.indexOf(TMP) < 0, '22.6 话里点出主锚文件、但不写本地绝对路径')
+  check(argvLog().length === 0, '22.7 认不出后端时一个 gh 请求都不发')
+
+  // 找到了根、根上却没有主锚文件：这是「还没初始化」，出路与上一种不同。
+  const bare = path.join(TMP, 'ws-bare')
+  fs.mkdirSync(path.join(bare, '.git'), { recursive: true })
+  const bareDeep = path.join(bare, 'sub')
+  fs.mkdirSync(bareDeep, { recursive: true })
+  const r4 = runScript(['--map', '567', '--children', '571', '--body-file', mapFixture], bareDeep)
+  check(r4.status === 2 && r4.stderr.indexOf('已找到工作区根目录') >= 0 && r4.stderr.indexOf('初始化') >= 0, '22.8 找到了根但根上没有主锚文件：说清是「还没初始化」并给出出路')
+  check(r4.stderr.indexOf(TMP) < 0 && String(r4.json.error || '').indexOf(TMP) < 0, '22.9 两种情况的话里都不出现本地绝对路径')
+
+  // 找到了根、主锚文件在、但首行不是认得出的后端标记：这也是一种「还没配好」，同样要给退路。
+  const odd = path.join(TMP, 'ws-odd')
+  writeTrackerDoc(odd, '# 我们的票仓')
+  const r5 = runScript(['--map', '567', '--children', '571', '--body-file', mapFixture], odd)
+  check(r5.status === 2 && r5.stderr.indexOf('已找到工作区根目录') >= 0 && r5.stderr.indexOf('# Issue tracker: GitHub') >= 0, '22.10 主锚文件在但没有认得出的后端标记：说清该把首行写成什么')
 }
 
 try { fs.rmSync(TMP, { recursive: true, force: true }) } catch (e) { /* 临时目录清不掉不影响判定 */ }

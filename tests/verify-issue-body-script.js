@@ -11,6 +11,8 @@
  *   6) CRLF 正文照常处理且不改写换行；
  *   7) 参数缺失、正文文件不存在：退出码 2 且回包 ok:false；
  *   8) 工作区后端不是 GitHub（Markdown / GitLab / 没有主锚）：直接拒绝并指明正确做法；
+ *   8b) 子目录里跑（#654）：一路向上找到工作区根并跑通、每条 gh 命令都在根那一层起、自带 .git 的子目录
+ *      自成一套、一个标记都没有时话里给出「请到工作区根目录去跑」这条出路（且不泄本地绝对路径）；
  *   9) 差分钉住：脚本的校正结果逐字等于 src/shared/parser.js 的 normalizeBody（真源）；
  *  10) 本门禁已接进 npm run verify 链。
  */
@@ -64,6 +66,19 @@ function runScript(args, cwd, extraEnv) {
   const line = String(res.stdout || '').trim().split(/\r?\n/).filter(Boolean).pop() || ''
   try { json = JSON.parse(line) } catch (e) { json = null }
   return { status: res.status, stdout: res.stdout || '', stderr: res.stderr || '', json: json }
+}
+
+/** 真跑一次（不演练），但把 gh 换成一段只会记下「自己在哪条目录下被起」的假程序：
+ *  #654 的判据之一是「子目录里跑时 gh 仍从工作区根起」，这里就是量这一条的尺子。 */
+function runRealWithCwdLogging(args, cwd, cwdLog) {
+  const fakeGh = path.join(TMP, 'fake-gh-cwd.mjs')
+  fs.writeFileSync(fakeGh, [
+    "import { appendFileSync } from 'node:fs'",
+    "appendFileSync(process.env.FAKE_GH_CWD_LOG, process.cwd() + '\\n')",
+    'process.exit(0)',
+  ].join('\n'), 'utf8')
+  fs.writeFileSync(cwdLog, '', 'utf8')
+  return runScript(args, cwd, { DSH_GH_PATH: fakeGh, FAKE_GH_CWD_LOG: cwdLog })
 }
 
 function dryRun(text, issue) {
@@ -178,6 +193,57 @@ console.log('正文写回脚本门禁（#571 · 命令行黑盒）')
 
   const no = runScript(['--issue', '1', '--body-file', body, '--dry-run'], wsNoDoc)
   check(no.status === 2 && no.stderr.indexOf('issue-tracker.md') >= 0, '8.3 没有主锚文件：拒绝并指明怎么认后端')
+}
+
+// ——— 8b) 子目录里跑：一路向上找到工作区根，命令也在根上跑（#654） ———
+// 为什么要有这一段：脚本原来只读「当前这一层」的主锚文件，在工作区的子目录里跑会回「认不出后端」，
+// 而工作区级的东西（主锚文件、票仓）物理上只有一份、只可能落在工作区根。判据与宿主同一条：从当前目录
+// 逐层向上，第一个自带 .git 或自带主锚文件的目录就是工作区根（票 #649 定版）。
+{
+  const body = writeFixture('## 进度：90%\n\n下一步：等确认。\n')
+  const deep = path.join(wsGithub, 'sub', 'deep')
+  fs.mkdirSync(deep, { recursive: true })
+
+  const fromDeep = runScript(['--issue', '571', '--body-file', body, '--dry-run'], deep)
+  check(fromDeep.status === 0 && fromDeep.json && fromDeep.json.ok === true, '8b.1 子目录里跑能认得出后端并跑通（实得 exit=' + fromDeep.status + ' / ' + (fromDeep.json ? JSON.stringify(fromDeep.json.error || '') : '回包读不出') + '）')
+  check(fromDeep.json && fromDeep.json.body === '## 进度：90%\n\n下一步：等确认。\n', '8b.2 子目录里跑出来的正文与在根上跑逐字一致')
+
+  // gh 也必须从工作区根起：脚本可能是在子目录里被调起来的，而 gh 的「当前仓库」按进程当前目录算。
+  const cwdLog = path.join(TMP, 'gh-cwd.log')
+  const ran = runRealWithCwdLogging(['--issue', '571', '--body-file', body], deep, cwdLog)
+  const ghCwds = String(fs.readFileSync(cwdLog, 'utf8')).trim().split(/\r?\n/).filter(Boolean)
+  check(ran.status === 0 && ghCwds.length > 0 && ghCwds.every(function (c) { return c === wsGithub }), '8b.2b 每条 gh 命令都在工作区根那一层跑（不是在子目录里；实得 ' + JSON.stringify(ghCwds) + '）')
+
+  // 反向：更近的 .git 截住上溯，自带 .git 的子目录自成一套，不被外层吞掉。
+  const nested = path.join(wsGithub, 'nested')
+  fs.mkdirSync(path.join(nested, '.git'), { recursive: true })
+  writeTrackerDoc(nested, '# Issue tracker: GitLab')
+  const r2 = runScript(['--issue', '571', '--body-file', body, '--dry-run'], nested)
+  check(r2.status === 2 && r2.stderr.indexOf('GitLab') >= 0, '8b.3 子目录自带 .git 时停在自己那一层（认到自己的 GitLab，不被外层 GitHub 吞掉）')
+
+  // 一路到顶都没有标记：说清「请到工作区根目录去跑」，而不是只说一句「认不出后端」。
+  const noDocDeep = path.join(wsNoDoc, 'sub', 'deep')
+  fs.mkdirSync(noDocDeep, { recursive: true })
+  const r3 = runScript(['--issue', '571', '--body-file', body, '--dry-run'], noDocDeep)
+  check(r3.status === 2 && r3.json && r3.json.ok === false, '8b.4 一个标记都没有：退出码 2 且 ok=false')
+  check(r3.stderr.indexOf('请到工作区根目录去跑这条命令') >= 0, '8b.5 话里给出退路「请到工作区根目录去跑这条命令」')
+  check(r3.stderr.indexOf('issue-tracker.md') >= 0, '8b.6 话里仍点出主锚文件是哪一份（认出后端靠它）')
+  check(r3.stderr.indexOf(TMP) < 0 && String(r3.json.error || '').indexOf(TMP) < 0, '8b.7 话里与回包 error 里都不出现本地绝对路径')
+
+  // 找到了根、根上却没有主锚文件：这是「还没初始化」，出路与上一种不同。
+  const bare = path.join(TMP, 'ws-bare')
+  fs.mkdirSync(path.join(bare, '.git'), { recursive: true })
+  const bareDeep = path.join(bare, 'sub')
+  fs.mkdirSync(bareDeep, { recursive: true })
+  const r4 = runScript(['--issue', '571', '--body-file', body, '--dry-run'], bareDeep)
+  check(r4.status === 2 && r4.stderr.indexOf('已找到工作区根目录') >= 0 && r4.stderr.indexOf('初始化') >= 0, '8b.8 找到了根但根上没有主锚文件：说清是「还没初始化」并给出出路')
+  check(r4.stderr.indexOf(TMP) < 0, '8b.9 这条出路里也不出现本地绝对路径')
+
+  // 找到了根、主锚文件在、但首行不是认得出的后端标记：这也是一种「还没配好」，同样要给退路。
+  const odd = path.join(TMP, 'ws-odd')
+  writeTrackerDoc(odd, '# 我们的票仓')
+  const r5 = runScript(['--issue', '571', '--body-file', body, '--dry-run'], odd)
+  check(r5.status === 2 && r5.stderr.indexOf('已找到工作区根目录') >= 0 && r5.stderr.indexOf('# Issue tracker: GitHub') >= 0, '8b.10 主锚文件在但没有认得出的后端标记：说清该把首行写成什么')
 }
 
 // ——— 9) 失败重试、失败留痕、已是目标状态不再发请求（用假 gh 离线演练，不碰真票） ———
