@@ -37,13 +37,13 @@ export const ChecksTab = ({ st }) => {
   const remoteStep = chainStep(st, 'gh:remote')
   const remoteBad = !!(remoteStep && remoteStep.status === 'fail')
   // #655：检查页那张红牌上的「执行初始化」按钮就是走这条 resolvePrompt 注入初始化文案的，
-  //   它以前绕开共用注入入口直接取全文，现在一律过同一个注入决策函数：布局没选过时那个函数只开卡、不注入，
-  //   这里返回空串（分发器随后回落为裸 prompt 名，那串字等于没有信息，实际效果就是「点了没注入、卡弹出来了」）；
+  //   它以前绕开共用注入入口直接取全文，现在一律过同一个注入决策函数：布局没选过时那个函数只开卡、不注入
+  //   （allowCard:true 是因为卡就渲染在这个界面顶部的状态栏里，弹得出来），这里返回空串；
   //   选过之后返回全文，注入这个动作仍归动作分发器做（injectNow:false，本函数不自己注入）。
   const resolveSetupRunText = function (st) {
     try {
       if (typeof injectSetupDecision !== 'function') return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st) : ''
-      const kind = injectSetupDecision(st, undefined, { injectNow: false })
+      const kind = injectSetupDecision(st, undefined, { injectNow: false, allowCard: true })
       if (kind !== 'setup') return ''
       return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st) : ''
     } catch (e) { return '' }

@@ -74,14 +74,15 @@ export const confirmStatusSetupPick = function(s){
   try{if(s.cwd)setCachedSelection(s.cwd,s.selection)}catch{}
   emit(s);closeStatusSetupPick(s)
   if(typeof host!=='undefined'&&host.call)host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){const ok=res&&(res.ok||(res.value&&res.value.ok));if(ok){try{flash(s,'已选择 '+(typeof labelOf==='function'?labelOf(id):id),'ok')}catch{};loadSnapshot(s,true,true)}else{s.selection=prev;emit(s);try{flash(s,tr('switch.bindFail',{err:String(res&&(res.error||res.message)||'unknown')}),'warn')}catch{}}}).catch(function(){s.selection=prev;emit(s)})
-  try{ injectSetupDecision(s,id) }catch(e){} // #496 Q2 缺仓改发建仓指引；#655 布局已在这一步记下，注入决策只判不再问
+  try{ injectSetupDecision(s,id,{allowCard:true}) }catch(e){} // #496 Q2 缺仓改发建仓指引；#655 布局已在这一步记下，注入决策只判不再问
 }
-// #655：黄条那颗「初始化」按钮也走同一个注入决策函数 —— 布局没选过时那个函数只开卡不注入，
-//   所以这里不再自己判「弹卡还是注入」，一律交出去（否则就是规格里说的「绕过小卡直接注入」）。
+// #655：黄条那颗「初始化」按钮也走同一个注入决策函数 —— 布局没选过时那个函数只开卡不注入
+//   （allowCard:true 是因为这张卡就渲染在黄条下面，弹得出来），所以这里不再自己判「弹卡还是注入」，
+//   一律交出去（否则就是规格里说的「绕过小卡直接注入」）。
 export const onStatusSetupInit = function(s){
   const id=s.selection && s.selection.backendId!=null ? s.selection.backendId : (s.setupPickSelected||s.setupPickRecommended||firstBackendIdOf(null));
   try{s.setupPickOpen=false;emit(s);}catch(e){}
-  try{ injectSetupDecision(s,id) }catch(e){}
+  try{ injectSetupDecision(s,id,{allowCard:true}) }catch(e){}
 }
 export const openStatusGate = function(s){
   s.gateModalOpen=true;s.gateModalSource='status';if(!s.gateSelected)s.gateSelected=firstBackendIdOf(null);s.gateError='';emit(s);
@@ -91,5 +92,5 @@ export const closeStatusGate = function(s){ s.gateModalOpen=false; s.gateModalSo
 export const confirmStatusGate = function(s){ const id=s.gateSelected||firstBackendIdOf(null); if(String(id).toLowerCase()==='other'){ s.gateError=tr('switch.gateOtherErr'); emit(s); return; }
   // #655：这个弹窗（第一次打开工作区时选后端）里也放了同一组单选；在这里选过就记进会话状态，与黄条那张卡同一口径。
   applyStatusSetupLayout(s, layoutSelectionOf(s))
-  const prev=s.selection; const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null; const nxt={backendId:id,source:'explicit',ref:repoRef}; s.selection=nxt; try{ if(s.cwd)setCachedSelection(s.cwd,nxt) }catch(e){} s.gateModalOpen=false; s.gateModalSource=null; emit(s); if(typeof host!=='undefined'&&host.call){ host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){ const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok); if(ok){ s.tab='list'; emit(s); try{ flash(s,tr('switch.bindOk',{label:(typeof labelOf==='function'?labelOf(id):String(id))}),'ok') }catch(e){} try{ injectSetupDecision(s,id) }catch(e){} // #496 Q2：缺仓改发建仓指引并记待补标记
+  const prev=s.selection; const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null; const nxt={backendId:id,source:'explicit',ref:repoRef}; s.selection=nxt; try{ if(s.cwd)setCachedSelection(s.cwd,nxt) }catch(e){} s.gateModalOpen=false; s.gateModalSource=null; emit(s); if(typeof host!=='undefined'&&host.call){ host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){ const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok); if(ok){ s.tab='list'; emit(s); try{ flash(s,tr('switch.bindOk',{label:(typeof labelOf==='function'?labelOf(id):String(id))}),'ok') }catch(e){} try{ injectSetupDecision(s,id,{allowCard:true}) }catch(e){} // #496 Q2：缺仓改发建仓指引并记待补标记；#655 卡就在这个弹窗所在的界面上，弹得出来
  loadSnapshot(s,true,true); } else { s.selection=prev; try{ if(s.cwd)setCachedSelection(s.cwd,prev) }catch(e){} emit(s); try{ flash(s,tr('switch.bindFail',{err:String(res&&(res.error||res.message)||'unknown')}),'warn') }catch(e){} } }).catch(function(){ s.selection=prev; try{ if(s.cwd)setCachedSelection(s.cwd,prev) }catch(e){} emit(s); }); } };

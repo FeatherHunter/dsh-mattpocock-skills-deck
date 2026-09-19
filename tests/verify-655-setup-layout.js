@@ -22,15 +22,24 @@ function loadPrompts(localeDict) {
   const injected = []
   const emitted = []
   const logged = []
+  // moduleMetaOf 不由 prompts.js 提供：它在真正的产物里由另一个内核模块（kernel/builtin-backends.js）声明，
+  //   与 prompts.js 拼回同一个闭包后直接可用。沙箱里必须自己顶一个替身，否则「缺仓库改发建仓指引」那一档
+  //   在本门禁里永远走不到（typeof 判定为假 → 一路回落到「直接注入」），等于那半条路径没人守。
+  const moduleMetaOf = function (st, bid) {
+    const list = (st && Array.isArray(st.backendModules)) ? st.backendModules : []
+    for (let i = 0; i < list.length; i++) { if (list[i] && String(list[i].id) === String(bid)) return list[i] }
+    return null
+  }
   const tail = '\n;const L = ' + JSON.stringify(localeDict) + ';'
     + '\n;return { PROMPTS: PROMPTS, setupRunParamsFrom: setupRunParamsFrom, setupRunPrompt: setupRunPrompt, setupOrRepoPrompt: setupOrRepoPrompt, injectSetupDecision: injectSetupDecision, consumePendingSetup: consumePendingSetup, readSetupLayout: readSetupLayout, normalizeSetupLayout: normalizeSetupLayout, SETUP_LAYOUT_TEXT_KEYS: SETUP_LAYOUT_TEXT_KEYS }'
-  const factory = new Function('inject', 'emit', 'isEnabled', 'log', 'console', body + tail)
+  const factory = new Function('inject', 'emit', 'isEnabled', 'log', 'console', 'moduleMetaOf', body + tail)
   const mod = factory(
     function (st, text) { injected.push(String(text)) },
     function (st) { emitted.push(st) },
     function () { return false },
     function (level, event, fields) { logged.push({ level: level, event: event, fields: fields }) },
-    { log: function () {}, warn: function () {}, error: function () {} }
+    { log: function () {}, warn: function () {}, error: function () {} },
+    moduleMetaOf
   )
   return { mod: mod, injected: injected, emitted: emitted, logged: logged }
 }
@@ -50,9 +59,12 @@ async function loadLocale() {
 }
 
 // —— 三个后端的描述数据替身（形状与 host 转发来的 modules 元素一致）——
+//   注意 repoRemoteFix：真实后端模块声明了这条「缺仓库时改发的建仓指引」，不声明它的话
+//   #496 那一档会一路回落到「直接注入初始化全文」，测出来的就不是真行为了。
+const repoFixOf = (id) => ({ zh: '缺仓库指引 · ' + id, en: 'repo guide · ' + id })
 const BACKENDS = {
-  github: { id: 'github', setupPrompt: { trackerLine: 'setup.github.trackerLine', trackerChoice: 'setup.github.trackerChoice', backendNote: 'setup.github.backendNote', labelReqs: 'setup.github.labelReqs' }, capabilities: { repoCreateChain: true } },
-  gitlab: { id: 'gitlab', setupPrompt: { trackerLine: 'setup.gitlab.trackerLine', trackerChoice: 'setup.gitlab.trackerChoice', backendNote: 'setup.gitlab.backendNote', labelReqs: 'setup.gitlab.labelReqs' }, capabilities: { repoCreateChain: true } },
+  github: { id: 'github', setupPrompt: { trackerLine: 'setup.github.trackerLine', trackerChoice: 'setup.github.trackerChoice', backendNote: 'setup.github.backendNote', labelReqs: 'setup.github.labelReqs' }, capabilities: { repoCreateChain: true }, prompts: { repoRemoteFix: repoFixOf('github') } },
+  gitlab: { id: 'gitlab', setupPrompt: { trackerLine: 'setup.gitlab.trackerLine', trackerChoice: 'setup.gitlab.trackerChoice', backendNote: 'setup.gitlab.backendNote', labelReqs: 'setup.gitlab.labelReqs' }, capabilities: { repoCreateChain: true }, prompts: { repoRemoteFix: repoFixOf('gitlab') } },
   markdown: { id: 'markdown', setupPrompt: { trackerLine: 'setup.markdown.trackerLine', trackerChoice: 'setup.markdown.trackerChoice', backendNote: 'setup.markdown.backendNote', labelReqs: 'setup.markdown.labelReqs' }, capabilities: {} },
 }
 // 会话状态：有仓库 / 没仓库 / 布局已选 / 布局未选，四个维度按用例拼
@@ -80,21 +92,52 @@ async function main() {
     return Object.prototype.hasOwnProperty.call(p, name) ? String(p[name]) : m
   })
 
-  console.log('== #655 · 布局未定时先问，不注入 ==')
+  console.log('== #655 · 能弹出卡来的入口（allowCard）：布局未定时先问，不注入 ==')
   for (const backend of Object.keys(BACKENDS)) {
     for (const hasRepo of [true, false]) {
       const st = stateOf({ backend: backend, hasRepo: hasRepo })
-      const dec = mod.setupOrRepoPrompt(st, backend)
-      ok(dec.kind === 'setup-card', '布局未选 · ' + backend + (hasRepo ? ' · 有仓库' : ' · 缺仓库') + ' → 决定是先问（实得 ' + dec.kind + '）')
-      ok(dec.text === '', '布局未选 · ' + backend + ' → 一个字都不注入（长度 ' + dec.text.length + '）')
       const before = injected.length
-      const kind = mod.injectSetupDecision(st, backend)
-      ok(kind === 'setup-card', '布局未选 · ' + backend + ' → 注入决策返回先问（实得 ' + kind + '）')
-      ok(injected.length === before, '布局未选 · ' + backend + ' → 真的一次注入都没发生')
+      const kind = mod.injectSetupDecision(st, backend, { allowCard: true })
+      ok(kind === 'setup-card', '布局未选 · ' + backend + (hasRepo ? ' · 有仓库' : ' · 缺仓库') + ' → 决定是先问（实得 ' + kind + '）')
+      ok(injected.length === before, '布局未选 · ' + backend + ' → 一个字都没注入')
       ok(st.setupLayoutCardOpen === true, '布局未选 · ' + backend + ' → 那张小卡被要求打开')
       ok(emitted.length > 0, '布局未选 · ' + backend + ' → 要求界面重绘，卡才看得见')
     }
   }
+  // 回归守卫（2026-09-19 现场）：切换后端那条路拿不到那张卡（卡只在「该工作区尚未初始化」的黄条里渲染），
+  //   所以它不许走「先问」这一档——否则既弹不出卡、又不注入，用户看到的是「点了确定什么都没发生」。
+  //   判据：不传 allowCard 的入口，布局没选过也必须照旧注入（按缺省布局填），而不是卡在半路。
+  console.log('== #655 · 拿不到卡的入口（切换后端等）：布局没选过也照旧注入，不许卡在半路 ==')
+  for (const backend of Object.keys(BACKENDS)) {
+    const b = BACKENDS[backend]
+    const claimsRepo = !!(b.capabilities && b.capabilities.repoCreateChain)
+    for (const hasRepo of [true, false]) {
+      const st = stateOf({ backend: backend, hasRepo: hasRepo })
+      const before = injected.length
+      const kind = mod.injectSetupDecision(st, backend)
+      const tag = '布局未选 · ' + backend + (hasRepo ? ' · 有仓库' : ' · 缺仓库')
+      if (claimsRepo && !hasRepo) {
+        // 旧行为的分支一：这个后端自带创仓链能力位、而眼下还没有仓库 → 照旧改发建仓指引，不塞初始化全文
+        ok(kind === 'repo', tag + ' → 照旧改发建仓指引（实得 ' + kind + '）')
+        ok(injected.length === before + 1 && injected[injected.length - 1] === repoFixOf(backend).zh, tag + ' → 建仓指引确实注入了，不是「什么都没发生」')
+        ok(st.pendingSetupAfterPublish === true, tag + ' → 记下了「建仓成功后补发一次」的标记')
+      } else {
+        // 旧行为的分支二与三：有仓库（github/gitlab）、或这个后端本来就没有创仓链能力位（markdown）→ 注入初始化全文
+        ok(kind === 'setup', tag + ' → 仍然注入全文（实得 ' + kind + '）')
+        ok(injected.length === before + 1, tag + ' → 确实注入了，不是「什么都没发生」')
+        ok(injected[injected.length - 1].indexOf('{contextLayout}') < 0, tag + ' → 注入的全文里没有悬空占位符')
+        ok(injected[injected.length - 1].indexOf(L.zh['setup.layout.single']) >= 0, tag + ' → 没选过布局时按缺省「一个仓库共用一份词表」填，不留空')
+      }
+    }
+  }
+  // 缺仓那一档也需要一条真能走到的用例：#496 说「有创仓链能力位 + 缺仓库 + 该后端声明了建仓指引」才改发指引。
+  //   这里喂一份带 repoRemoteFix 的后端描述数据，把这条分支真正走一遍（否则上面那两条只是「判定不成立时回落」）。
+  const repoFixStub = { id: 'github', setupPrompt: { trackerLine: 'setup.github.trackerLine', trackerChoice: 'setup.github.trackerChoice', backendNote: 'setup.github.backendNote', labelReqs: 'setup.github.labelReqs' }, capabilities: { repoCreateChain: true }, prompts: { repoRemoteFix: { zh: '先建仓库再初始化', en: 'create the repo first' } } }
+  const stFix = { cwd: '/w/fix', backendModules: [repoFixStub], selection: { backendId: 'github' } }
+  const beforeFix = injected.length
+  ok(mod.injectSetupDecision(stFix, 'github') === 'repo', '带建仓指引声明的后端缺仓库时 → 走建仓指引那一档')
+  ok(injected.length === beforeFix + 1 && injected[injected.length - 1] === '先建仓库再初始化', '建仓指引的原文确实注入了')
+  ok(stFix.pendingSetupAfterPublish === true, '缺仓这一档照样记下补发标记')
 
   console.log('== #655 · 选过之后注入全文，两种布局是两句不同的话 ==')
   const seen = {}
@@ -165,7 +208,7 @@ async function main() {
   ok(mod.injectSetupDecision(st1, 'github', { injectNow: false }) === 'setup', 'injectNow:false 时仍然给出 setup 这个决定（检查页那颗按钮要靠它）')
   ok(injected.length === n1, 'injectNow:false 时决策函数自己不注入（注入动作归调用处）')
   const stCard = stateOf({ backend: 'github' })
-  ok(mod.injectSetupDecision(stCard, 'github', { injectNow: false }) === 'setup-card', 'injectNow:false 时布局未定也返回先问')
+  ok(mod.injectSetupDecision(stCard, 'github', { injectNow: false, allowCard: true }) === 'setup-card', 'injectNow:false + allowCard 时布局未定也返回先问（检查页那颗按钮）')
   ok(stCard.setupLayoutCardOpen === true, 'injectNow:false 时那一档照样开卡')
 
   console.log('== #655 · 缺仓库那一档不被布局挡死 ==')

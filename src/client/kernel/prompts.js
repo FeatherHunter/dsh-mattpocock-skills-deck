@@ -117,16 +117,13 @@
     //   前置答案（仓库是谁）缺失时不发完整初始化全文，改发该后端声明的缺仓指引；
     //   判据只读两样：仓库引用（会话/快照）与后端模块能力位（capabilities.repoCreateChain，有创仓链能力的后端才需先有仓库；无此能力位原样直注）。
     //   返回 { kind: 'setup' | 'repo' | 'setup-card', text, layout }；失败一律回落旧行为。日志只记分支不记隐私。
-    // #655 新增第三档 'setup-card'（布局未选定：先问，不注入）：布局由用户在初始化那一刻选，不探测仓库形状；
-    //   没选过时 text 就是空串，谁调用都不许注入半段文案（用户故事 5／6）。布局这一档排在缺仓指引之前 ——
-    //   布局是用户的选择，与仓库无关，先把这一句答完再谈建仓。
-    //   opts.ignoreLayoutGate=true 只给「建仓成功后的自动补发」用：那时不再问第二次，直接沿用已选的答案（用户故事 13）。
-    export const setupOrRepoPrompt = function (st, backendId, opts) {
-      const layout = readSetupLayout(st)
-      const layoutGate = !(opts && opts.ignoreLayoutGate === true)
-      const decLayout = layout || SETUP_LAYOUT_DEFAULT
+    // #655 起这一档不再是「谁调用都先问」——那个写法有毛病：切换后端等入口拿不到那张卡（卡只在「该工作区尚未初始化」的
+    //   黄条里渲染），于是既没弹卡、又不注入，用户看到的是「点了确定什么都没发生」。所以「先问」这一档挪到
+    //   injectSetupDecision，并且只对能弹出卡来的入口开放（allowCard）；本函数回到 #496 的行为：缺仓先给建仓指引，
+    //   否则给初始化全文（布局没选过就按缺省布局填，用户故事 5／6 的「先问」由上层那张卡负责）。
+    export const setupOrRepoPrompt = function (st, backendId) {
+      const decLayout = readSetupLayout(st) || SETUP_LAYOUT_DEFAULT
       const setupText = function () {
-        if (layoutGate && !layout) return ''
         try { return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st, backendId, decLayout) : '' } catch (e) { return '' }
       }
       try {
@@ -145,8 +142,7 @@
         let repo = null
         try { repo = (st && st.repository) || (st && st.snapshot && st.snapshot.repository) || null } catch (e) { repo = null }
         const hasRepo = !!(repo && (repo.owner || repo.name))
-        try { console.log('[MattSkillsDeck] setup-inject decision needsRepo=' + needsRepo + ' hasRepo=' + hasRepo + ' layout=' + (layout || 'unset')) } catch (e) {}
-        if (layoutGate && !layout) return { kind: 'setup-card', text: '', layout: null }
+        try { console.log('[MattSkillsDeck] setup-inject decision needsRepo=' + needsRepo + ' hasRepo=' + hasRepo + ' layout=' + (readSetupLayout(st) || 'unset')) } catch (e) {}
         if (needsRepo && !hasRepo) {
           let fix = ''
           try {
@@ -163,23 +159,26 @@
     }
     // #655：唯一允许注入初始化文案的地方 —— 所有能触发初始化的入口（状态栏黄条、检查页红牌上的「执行初始化」按钮、
     //   开门链与切换后端的两个弹窗、建仓成功后的自动补发）都先经过它。
-    //   布局还没选定就开那张小卡、不注入任何文字（返回 'setup-card'）；选定了才注入，返回注入的种类。
+    //   「布局还没选定就先问」这一档由 opts.allowCard 开启，而且**只给能弹出那张卡来的入口**用：黄条与检查页那张红牌
+    //   （那张卡渲染在状态栏里，只在「该工作区尚未初始化」的黄条出现时才有位置）。没开这一档的入口（切换后端、
+    //   建仓后的补发等）保持 #496 的老行为：该注入什么就注入什么，布局没选过就按缺省布局填——
+    //   否则那些入口会「既弹不出卡、又不注入」，用户看到的就是「点了确定什么都没发生」。
     //   opts.injectNow=false 只返回决定、由调用处自己注入（检查页那颗按钮走动作分发器，注入这个动作归分发器做）。
     export const injectSetupDecision = function (st, backendId, opts) {
-      let dec = null
-      try { dec = (typeof setupOrRepoPrompt === 'function') ? setupOrRepoPrompt(st, backendId, opts) : null } catch (e) { dec = null }
-      if (!dec) { try { const lay = readSetupLayout(st) || SETUP_LAYOUT_DEFAULT; dec = { kind: 'setup', text: ((typeof setupRunPrompt === 'function') ? setupRunPrompt(st, backendId, lay) : ''), layout: lay } } catch (e) { dec = { kind: 'setup', text: '', layout: SETUP_LAYOUT_DEFAULT } } }
-      const kind = (dec && dec.kind) || 'setup'
-      const usedLayout = (dec && dec.layout) || SETUP_LAYOUT_DEFAULT
-      // 布局未选定：把控制权交给小卡 —— 只开卡，不注入半段文案。
-      if (kind === 'setup-card') {
-        try { st.setupLayoutCardOpen = true; if (typeof emit === 'function') emit(st) } catch (e) {}
+      if (opts && opts.allowCard === true && !readSetupLayout(st)) {
+        try { st.setupLayoutCardOpen = true } catch (e) {}
+        try { if (typeof emit === 'function') emit(st) } catch (e) {}
         // 按需日志（#655，附录 1.5 的 #64 inject.decision）：这一步是用户点击触发的、一次一条，
         //   只记三个枚举（哪段文案 / 决定了哪一种 / 按哪种布局），不记仓库、路径与文案原文；
         //   调试开关关着时只读一次开关就返回，不组装字段对象（按需埋点的守卫纪律）。
-        try { if (isEnabled('debug')) log('debug', 'inject.decision', { prompt: 'setupRun', kind: kind, layout: 'unset' }) } catch (eL) {}
-        return kind
+        try { if (isEnabled('debug')) log('debug', 'inject.decision', { prompt: 'setupRun', kind: 'setup-card', layout: 'unset' }) } catch (eL) {}
+        return 'setup-card'
       }
+      let dec = null
+      try { dec = (typeof setupOrRepoPrompt === 'function') ? setupOrRepoPrompt(st, backendId) : null } catch (e) { dec = null }
+      if (!dec) { try { const lay = readSetupLayout(st) || SETUP_LAYOUT_DEFAULT; dec = { kind: 'setup', text: ((typeof setupRunPrompt === 'function') ? setupRunPrompt(st, backendId, lay) : ''), layout: lay } } catch (e) { dec = { kind: 'setup', text: '', layout: SETUP_LAYOUT_DEFAULT } } }
+      const kind = (dec && dec.kind) || 'setup'
+      const usedLayout = (dec && dec.layout) || SETUP_LAYOUT_DEFAULT
       try { st.setupLayoutCardOpen = false } catch (e) {}
       try { st.pendingSetupAfterPublish = (kind === 'repo'); st.pendingSetupCwd = ((kind === 'repo' && st && st.cwd) ? st.cwd : '') } catch (e) {}
       try { console.log('[MattSkillsDeck] setup-inject applied kind=' + kind) } catch (e) {}
@@ -188,13 +187,12 @@
       return kind
     }
     // Q2 #496：建仓成功处消费标记，补发一次初始化全文（标记按工作区键核对，不跨区）。
-    // #655：补发时传 ignoreLayoutGate —— 刚才在卡上选过哪一项，答案已经在会话状态里，沿用它，不再问第二次；
-    //   真没选过（例如用户压根没走过卡片）就按缺省布局填，也不补问（这条路径没有界面可弹卡）。
+    // #655：这条路径没有界面可弹卡，所以不传 allowCard —— 沿用会话里已选的布局，没选过就按缺省布局填（用户故事 13）。
     export const consumePendingSetup = function (st) {
       try {
         if (st && st.pendingSetupAfterPublish && (!st.pendingSetupCwd || st.pendingSetupCwd === st.cwd)) {
           st.pendingSetupAfterPublish = false; st.pendingSetupCwd = ''
-          const kind = (typeof injectSetupDecision === 'function') ? injectSetupDecision(st, undefined, { ignoreLayoutGate: true }) : ''
+          const kind = (typeof injectSetupDecision === 'function') ? injectSetupDecision(st, undefined, undefined) : ''
           if (kind === 'setup') {
             try { console.log('[MattSkillsDeck] setup-inject reissued after repo ready (once)') } catch (e) {}
             return true
