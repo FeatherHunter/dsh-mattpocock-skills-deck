@@ -40,13 +40,10 @@ export const ChecksTab = ({ st }) => {
   //   它以前绕开共用注入入口直接取全文，现在一律过同一个注入决策函数：布局没选过时那个函数只开卡、不注入
   //   （allowCard:true 是因为卡就渲染在这个界面顶部的状态栏里，弹得出来），这里返回空串；
   //   选过之后返回全文，注入这个动作仍归动作分发器做（injectNow:false，本函数不自己注入）。
+  // #664：这份判断搬进内核一处（prompts.js 的 setupRunTextForClick），本文件只转调 —— 它返回 null 表示
+  //   「这次确实一个字都不该注入」，分发器见 null 就不注入（不会再落到「按原样注入键名」那条兜底上）。
   const resolveSetupRunText = function (st) {
-    try {
-      if (typeof injectSetupDecision !== 'function') return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st) : ''
-      const kind = injectSetupDecision(st, undefined, { injectNow: false, allowCard: true })
-      if (kind !== 'setup') return ''
-      return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st) : ''
-    } catch (e) { return '' }
+    try { return (typeof setupRunTextForClick === 'function') ? setupRunTextForClick(st) : '' } catch (e) { return null }
   }
   const chainDispatcher = (function () {
     try {

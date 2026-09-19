@@ -62,12 +62,13 @@ const check = function (cond, msg) { if (!cond) { failed = true; problems.push(m
 const EXPECT_REGISTRY_ENTRIES = 20 // 注册表条目数（2026-09 现状；拆行/换引号不会让它少，因为 S1 用求值解析）
 // S3 各后端 prompts 块顶层键数。v2 §1.1 写的是 7/9/6，实测不成立（gitlab 只有 4 键、markdown 只有 2 键），
 // 这里按实测值硬编码并在失败信息里报出真实值，避免「按错值写断言导致永久红」。
-const EXPECT_BACKEND_KEYS = { github: 8, gitlab: 5, markdown: 3 }
+const EXPECT_BACKEND_KEYS = { github: 6, gitlab: 5, markdown: 3 }
 // S3 各后端 prompts 块内的字符串字面量总数（含字符串拼接的续段，如 ensureLabels 的命令就藏在续段里）。
 // 这个数字是「词法扫描不许静默少扫」的硬保证：少扫一段就会对不上。
-const EXPECT_BACKEND_LITERALS = { github: 44, gitlab: 10, markdown: 6 }
-const EXPECT_HOST_PROMPT_CONSTS = 1 // src/host 全树 *_PROMPT 常量数（今天只有 GH_INSTALL_PROMPT）
-const EXPECT_EXEMPT = 12 // 豁免登记条数硬编码（防偷偷加豁免）
+const EXPECT_BACKEND_LITERALS = { github: 40, gitlab: 10, markdown: 6 }
+// #664：宿主那份「怎么装 gh」的长文（GH_INSTALL_PROMPT）按新流程退役，src/host 全树今天一个 *_PROMPT 常量都没有。
+const EXPECT_HOST_PROMPT_CONSTS = 0 // src/host 全树 *_PROMPT 常量数
+const EXPECT_EXEMPT = 10 // 豁免登记条数硬编码（防偷偷加豁免）
 
 // 受保护清单：全量覆盖 —— 所有扫描面的 id 减去「kind=rule 豁免」，一个不漏。
 // 下面 auditExemptTable 会断言这张硬编码清单与运行时算出来的集合逐条相等，所以清空它 / 删几行都会红。
@@ -77,19 +78,18 @@ const PROTECTED = [
   'registry#tpl.prototype', 'registry#tpl.execute', 'registry#tpl.handoff1', 'registry#tpl.handoff2',
   'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#newWayfinder',
   'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect',
-  'backend:github#ghAuthLogin', 'backend:github#noGhPrompt', 'backend:github#subIssue', 'backend:github#bodyFormat', 'backend:github#errorKinds',
+  'backend:github#ghAuthLogin', 'backend:github#subIssue', 'backend:github#bodyFormat', 'backend:github#errorKinds',
   'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix', 'backend:gitlab#subIssue', 'backend:gitlab#bodyFormat',
   'backend:markdown#wayfinderMapBuild', 'backend:markdown#subIssue', 'backend:markdown#bodyFormat',
-  'S4#GH_INSTALL_PROMPT',
 ]
 // 必须受判定（kind 只许是 scope）的 8 条：它们登记「不属首批」，但门禁仍然判它们
 const MUST_JUDGE = [
   'registry#ghAuthLogin', 'registry#installSkills',
-  'backend:github#ghAuthLogin', 'backend:github#noGhPrompt',
+  'backend:github#ghAuthLogin',
   'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix',
   'backend:gitlab#subIssue', 'backend:markdown#subIssue',
 ]
-const EXPECT_MUST_JUDGE = 8 // 硬编码：清空这张表等于让这 8 条脱离判定，所以条数要卡死
+const EXPECT_MUST_JUDGE = 7 // 硬编码：清空这张表等于让这 7 条脱离判定，所以条数要卡死
 // Object.prototype 的标准自有属性（原型污染检测的基线；多出任何一条就是被加了东西）
 const OBJECT_PROTO_KEYS = ['constructor', '__defineGetter__', '__defineSetter__', 'hasOwnProperty',
   '__lookupGetter__', '__lookupSetter__', 'isPrototypeOf', 'propertyIsEnumerable', 'toString', 'valueOf',
@@ -97,7 +97,7 @@ const OBJECT_PROTO_KEYS = ['constructor', '__defineGetter__', '__defineSetter__'
 // 每个面允许的 rule 豁免集合（硬编码：改一个 id 或把 scope 改成 rule 都会与这张表对不上）
 const RULE_EXEMPT_EXPECTED = {
   registry: [],
-  'backend:github': ['ensureLabels', 'repoAccessFix', 'repoRemoteFix'],
+  'backend:github': ['ensureLabels', 'repoAccessFix'],
   'backend:gitlab': ['glabRepoFix'],
   'backend:markdown': [],
   S4: [],
@@ -324,7 +324,7 @@ const auditExemptTable = function (list, surfaceIds, opts) {
     if (o.skipSurfaces && o.skipSurfaces.indexOf(parts[0]) >= 0) return
     const hit = list.filter(function (e) { return e && e.surface === parts[0] && e.id === parts[1] })
     if (hit.length !== 1) { out.push('EXEMPT 缺一条必须登记的 scope 条目：' + k); return }
-    if (hit[0].kind !== 'scope') out.push('EXEMPT 里 ' + k + ' 的 kind 被改成 ' + hit[0].kind + '（这 8 条必须受判定，只许 scope）')
+    if (hit[0].kind !== 'scope') out.push('EXEMPT 里 ' + k + ' 的 kind 被改成 ' + hit[0].kind + '（这 ' + MUST_JUDGE.length + ' 条必须受判定，只许 scope）')
   })
   // ⑥ 受保护清单：全量覆盖 + 与运行时算出来的集合逐条相等 + 非空
   const computedProtected = []
@@ -880,7 +880,8 @@ const contractChecksInner = function (reg, src) {
     'tpl.research': 5, 'tpl.prototype': 5, 'tpl.execute': 9, mapInspect: 6, newWayfinder: 14,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
-    bodyFormat: 7, setupRun: 12, progress: 3,
+    // #664：setupRun v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），版本号跟着抬到 13
+    bodyFormat: 7, setupRun: 13, progress: 3,
   }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
@@ -1400,10 +1401,12 @@ const selfDigest = function () {
   return sha256Of(Buffer.from(blanked, 'utf8'))
 }
 // ---- LOCK-BEGIN ----
+// #664：豁免登记表删掉 repoRemoteFix 与 noGhPrompt 两条（两段长文按新流程退役），摘要跟着重算；
+//   本文件自己也改了（版本底线、三面计数、受保护清单、必须受判清单、豁免名单），自摘要一并更新。
 const LOCK = {
-  'tests/prompt-gate-exempt.json': '1ded52d4fc14432ee1c66a3a78b2769272729248f9083d0fed96e22639022648',
+  'tests/prompt-gate-exempt.json': '3e7f0a18ca1caab69dd3508bbd17dbba6200887594cbdced3239c45f87923b50',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '05d227bdbca6a0a8cf531552e9de7936cebfc0a4388ef0d7a0af743f113cc296',
+  'tests/verify-prompts.js': 'bf3bf6e6bbfde2e31722e6b3b346b3f92c31f16783d18f9293abeeb2f9a4fef2',
 }
 // ---- LOCK-END ----
 
@@ -1795,7 +1798,7 @@ if (reg) {
   if (mutationMissed > 0) {
     fail('变异自检失效：把豁免换成受保护条目后审计仍然全绿（' + mutationMissed + '/' + PROTECTED.length + ' 条没被拦住）——豁免表可以被用来整体放行')
   }
-  if (stepOk(pEX)) console.log('  PASS 豁免登记表（形状 / 存在性 / 完备性 / 数量 / 逐面 rule 集合硬编码比对 / 8 条必须受判 / 受保护清单全量 ' + PROTECTED.length + ' 条 / 与登记文件相等 / 变异自检逐条）')
+  if (stepOk(pEX)) console.log('  PASS 豁免登记表（形状 / 存在性 / 完备性 / 数量 / 逐面 rule 集合硬编码比对 / ' + MUST_JUDGE.length + ' 条必须受判 / 受保护清单全量 ' + PROTECTED.length + ' 条 / 与登记文件相等 / 变异自检逐条）')
 }
 
 // —— L1 / L2 / L3 / 自注册 ——

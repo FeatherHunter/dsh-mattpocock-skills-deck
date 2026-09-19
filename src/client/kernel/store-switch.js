@@ -159,11 +159,10 @@
         const ok = res && (res.ok === true || (res.value && res.value.ok === true) || res.ok)
         if (!ok) { doFail((res && (res.error || res.message)) || 'unknown'); return }
         try { flash(st, tr('switch.bindOk', { label: (typeof labelOf === 'function' ? labelOf(targetId) : String(targetId)) }), 'ok') } catch {}
-        // #191（用户反馈修正）：切换后端的本质 = 按新后端初始化，注入 setupRun prompt（与横幅 setup 按钮同源）
-        //   让 AI 加载 /setup-matt-pocock-skills 技能；#230（D10）：占位符改由后端描述数据（setupPrompt 键入 locale）填充，UI 不拼装
-        // #511：显式经后端声明数据取一次初始化提示词（纯计算无注入，行为零改动），决策器内部复用同源文本做注入
-        try { if (typeof setupRunPrompt === 'function') setupRunPrompt(st, targetId) } catch {}
-        try { if (typeof injectSetupDecision === 'function') injectSetupDecision(st, targetId) } catch {} // #496 Q2
+        // #664：切换后端这条路不再往会话里注入任何文字（首开引导链定版 #661 第①条：门控与切换只把后端定下来）。
+        //   原先这里会顺手把初始化全文注入进会话（#191 起、#230/#511 改过的写法），于是 gh 还没装、仓库还没建
+        //   就先塞一段初始化长文 —— 正是这次定版要结束的那件事。要初始化请走「该工作区尚未初始化」那条黄条
+        //   那颗按钮：它按顺序排在仓库就绪之后，点开先问域文档布局，选完才注入。
         closeSwitchConfirm(st)
         try {
           if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true)

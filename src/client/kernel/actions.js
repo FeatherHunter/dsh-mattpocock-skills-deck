@@ -55,6 +55,10 @@ export function createActionDispatcher(ctx) {
         if (typeof ctx.resolvePrompt === 'function') {
           try {
             const resolved = await ctx.resolvePrompt(action.prompt, promptArgs)
+            // #664：null 与空串是两件事。空串 = 解析不出来 → 按下面那条兜底把 action.prompt 原样注入
+            //   （后端已经把文案填进 prompt 的情形走的就是它）；null = 这次确实什么都不该注入
+            //   （检查页那颗「执行初始化」按钮：仓库那一步还没过、或者该先弹那张布局小卡），那就一个字都不注入。
+            if (resolved === null) return { ok: true, action, data: { injected: false } }
             if (typeof resolved === 'string' && resolved) promptText = resolved
             else if (resolved && typeof resolved.text === 'string') {
               promptText = resolved.text

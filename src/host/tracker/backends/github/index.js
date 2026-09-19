@@ -14,6 +14,8 @@
  */
 
 import { CANONICAL_LABELS } from '../../../../shared/labels.js'
+// #664：缺 gh 时注入的那句原话（唯一一份）住在共享清单里，这里读它、不抄第二份字面量。
+import { guideInjectTextOf } from '../../../../shared/tracker/guide-steps.js'
 import { describe, issueUrl, searchUrl, linkPattern, links, capabilities, openRepository } from './repo.js'
 import { checks } from './checks.js'
 import { githubMatches, createGithubBackend } from './backend.js'
@@ -27,8 +29,11 @@ export { initProject } from './init-project.js'
  * 每个后端检查项的失败修复知识：hint（人读指引，随链渲染）+ actions（词汇表动作）。
  * host wf.chain 组装时按语言解析进 onFail.show.hint / onFail.actions（见 tracker/fixContract.js）；
  * UI 只渲染与分发，不识别后端、不推导修复步骤。
- * 文案引用本模块 prompts 键：ghAuthLogin / noGhPrompt / repoRemoteFix / repoAccessFix（双语单源）。
+ * 文案引用本模块 prompts 键：ghAuthLogin / repoAccessFix（双语单源）；缺 gh 时那句原话来自共享清单
+ *   src/shared/tracker/guide-steps.js（#664：同一个缺失状态不许有两份说明）。
  */
+// 缺 gh 时点一下要注入的那句原话（维护者 2026-09-19 给的那一句，逐字不改）。
+const GH_INSTALL_INJECT_TEXT = guideInjectTextOf('gh:installed')
 export const fixes = Object.freeze({
   // 2026-08-29（审查 S1/S2）：hint 只做「状态翻译」——说清这行为什么红、不修会怎样、有无第二条路；
   //   不再指挥点击（按钮自己会说话）、不贴命令（命令在指引全文里）、去掉与判定矛盾的「网络不通」表述。
@@ -38,7 +43,10 @@ export const fixes = Object.freeze({
       en: 'The GitHub CLI (gh) is not installed yet — install it to continue.',
     },
     actions: [
-      { type: 'inject-prompt', prompt: 'noGhPrompt', label: { zh: '安装指引', en: 'Install guide' } },
+      // #664：缺 gh 时那句话只有一份 —— 共享清单里 gh:installed 那一步的原话。这里直接把文案填进动作里
+      //   （fixContract 的解析规则本来就允许 action.prompt 直接是文案），于是检查页这一行的按钮与状态栏
+      //   那条横幅注入的是同一句话；原先那段按系统分平台的安装长文（noGhPrompt）按新流程退役。
+      { type: 'inject-prompt', prompt: GH_INSTALL_INJECT_TEXT, label: { zh: '安装指引', en: 'Install guide' } },
       { type: 'refresh', target: 'chain' },
     ],
   },
@@ -125,14 +133,10 @@ export const prompts = (function () {
       zh: '请完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。',
       en: 'Please complete gh login: run gh auth login and finish browser authorization; afterwards run gh auth status to confirm.',
     },
-    noGhPrompt: {
-      zh: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version；\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli；macOS → brew install gh；Linux → sudo apt install gh。',
-      en: 'Install the GitHub CLI (gh) for DSH — all panel data depends on it:\n\n1. Check first: run gh --version;\n2. If missing, install per OS: Windows → winget install --id GitHub.cli; macOS → brew install gh; Linux → sudo apt install gh.',
-    },
-    repoRemoteFix: {
-      zh: '当前工作区不是 GitHub 仓库（git remote 无法解析为 owner/name）。顺序要求：无远端时先建仓并推送成功，再按初始化全文生成文件与补标签；补标签命令需等待仓库就绪变绿后执行。优先路径：把本目录发布为 GitHub 仓库——用户可在「创建并发布」表单填写仓库名与可见性（公开/私有）提交（等价命令 gh repo create <name> --public/--private --source=. --push；非 Git 仓库由流程自动 git init）。仅当用户明确这是本地项目（不打算用 GitHub）时，才提示切换到「本地 Markdown」后端。不要替用户上传不属于本工作区的代码；创建前与用户确认仓库名与可见性。完成后请用户点「重新检查」。',
-      en: 'No GitHub repository could be resolved for the current workspace (git remote origin → owner/name failed). Ordering rule: without a remote, create and push the repo first, then follow the full setup prompt to generate files and complete labels; label commands must wait until the repo rows turn green. Confirm intent with the user, then do one of:\n\nA. Local project (no GitHub needed) → tell the user to switch to the "Local Markdown" backend in the top picker; the check passes after re-check;\nB. GitHub is really wanted → ① if a Git repo: git remote add origin https://github.com/<owner>/<repo>.git (repo must exist, or first gh repo create <repo> --public/--private --source=. --push); ② if not a Git repo: git init first, then ①; ③ after pushing, ask the user to re-check.\nNever upload code that does not belong to this workspace; confirm repo name and visibility (public/private) with the user before creating.',
-    },
+    // #664：原先这里有 noGhPrompt（按系统分平台的安装长文）与 repoRemoteFix（缺仓长文）两段。
+    //   缺 gh 那句话收成共享清单里 gh:installed 那一步的原话（见上面的 GH_INSTALL_INJECT_TEXT），
+    //   缺仓库那件事由界面上那一段负责（状态栏「还没有远端仓库」那条横幅 + 检查页那一行的两步建仓弹窗），
+    //   两段长文都退役了 —— 一个缺失状态不留第二份说明（规格 #662 定版三）。
     repoAccessFix: {
       zh: '当前仓库无法通过 GitHub API 访问（gh api repos/{owner}/{name} 失败）。顺序要求：若仓库尚未创建，先走「创建并发布」完成建仓推送，再重查；请按序排查：\n1. 仓库存在性：gh repo view <owner>/<name> --json nameWithOwner；不存在 → 与用户确认后执行 gh repo create（仓库名/可见性先确认）；\n2. 访问权限：gh auth status 确认登录账号；私有仓库需该账号有权限（403/404 都可能是权限问题）；\n3. 网络/代理：gh config get http_proxy 与网络连通性。\n排查修复后请用户点「重新检查」。',
       en: 'The repository is not reachable via the GitHub API (gh api repos/{owner}/{name} failed). Ordering rule: if the repo does not exist yet, run "Create & publish" to finish creating and pushing it, then re-check; investigate in order:\n1. Existence: gh repo view <owner>/<name> --json nameWithOwner; if missing → confirm with the user, then gh repo create (confirm name/visibility first);\n2. Permissions: gh auth status to confirm the account; private repos need access for this account (403/404 can both be permission issues);\n3. Network/proxy: gh config get http_proxy and connectivity.\nAfter fixing, ask the user to re-check.',

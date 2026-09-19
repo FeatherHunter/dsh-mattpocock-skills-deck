@@ -76,7 +76,9 @@ export const confirmStatusSetupPick = function(s){
   try{if(s.cwd)setCachedSelection(s.cwd,s.selection)}catch{}
   emit(s);closeStatusSetupPick(s)
   if(typeof host!=='undefined'&&host.call)host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){const ok=res&&(res.ok||(res.value&&res.value.ok));if(ok){try{flash(s,'已选择 '+(typeof labelOf==='function'?labelOf(id):id),'ok')}catch{};loadSnapshot(s,true,true)}else{s.selection=prev;emit(s);try{flash(s,tr('switch.bindFail',{err:String(res&&(res.error||res.message)||'unknown')}),'warn')}catch{}}}).catch(function(){s.selection=prev;emit(s)})
-  try{ injectSetupDecision(s,id,{allowCard:true}) }catch(e){} // #496 Q2 缺仓改发建仓指引；#655 布局已在这一步记下，注入决策只判不再问
+  // #664：这张小卡的确认就是「布局答完了」那一步，接着把初始化全文注进去（注入决策现在先判仓库那一步过没过：
+  //   没过就一个字都不注入，也不会走到这里 —— 那种情形下卡根本不会开）。
+  try{ injectSetupDecision(s,id,{allowCard:true}) }catch(e){}
 }
 // #655：黄条那颗「初始化」按钮也走同一个注入决策函数 —— 布局没选过时那个函数只开卡不注入
 //   （allowCard:true 是因为这张卡就渲染在黄条下面，弹得出来），所以这里不再自己判「弹卡还是注入」，

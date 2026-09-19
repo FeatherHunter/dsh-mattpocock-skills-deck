@@ -53,10 +53,8 @@ export const confirmOverlayGate = function(s, gateModules){
               s.tab='list'
               emit(s)
               try{ flash(s, tr('switch.bindOk', { label: (typeof labelOf==='function'?labelOf(id):String(id)) }), 'ok') }catch(e){}
-              try{
-                // #230（D10）：占位符由后端描述数据填充，UI 不再拼装
-                try{ injectSetupDecision(s, id) }catch(e){} // #496 Q2
-              }catch(e){}
+              // #664：绑定成功不再往会话里注入任何文字 —— 门控这个窗只把后端定下来；
+              //   初始化文案由「该工作区尚未初始化」那条黄条那颗按钮注入（先弹布局小卡，选完才注入）。
               loadSnapshot(s,true,true)
             } else {
               s.selection=prev; try{ if(s.cwd) setCachedSelection(s.cwd,prev) }catch(e){}; emit(s)

@@ -10,13 +10,6 @@
     },
     {
       "surface": "backend:github",
-      "id": "repoRemoteFix",
-      "kind": "rule",
-      "rule": "R1",
-      "reason": "建仓链路口径（gh repo create 等）不属首批，第二批再收"
-    },
-    {
-      "surface": "backend:github",
       "id": "repoAccessFix",
       "kind": "rule",
       "rule": "R1",
@@ -49,13 +42,6 @@
       "kind": "scope",
       "rule": "scope",
       "reason": "后端侧的 gh 登录指引，不是跟踪器写/查命令，不属首批（红队要求登记）"
-    },
-    {
-      "surface": "backend:github",
-      "id": "noGhPrompt",
-      "kind": "scope",
-      "rule": "scope",
-      "reason": "gh 未安装时的安装指引，不是跟踪器写/查命令，不属首批（红队要求登记）"
     },
     {
       "surface": "backend:gitlab",

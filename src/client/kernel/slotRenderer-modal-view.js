@@ -156,14 +156,17 @@
             }
           }
           // #420定版：no-gh / not-logged-in 自动注入指引（复用既有文案）
-          // 2026-09 修复（空注入）：注册表里没有 noGhPrompt 这个 id，旧写法 promptText('noGhPrompt') 恒返回空串 →
-          //   注入落了空。改走后端声明通道（与 NoRepoCard / StatusBar 同做法）；取不到就不注入、并明确报失败。
+          // #664：缺 gh 那份说明只有一份 —— 共享清单里 gh:installed 那一步的原话（原先读的后端声明 noGhPrompt 已退役）；
+          //   没登录那一档仍是后端声明的 ghAuthLogin；两样都取不到就不注入、并明确报失败（不静默）。
           if (code === 'no-gh' || code === 'not-logged-in') {
-            const bidG = (st.selection || (st.snapshot && st.snapshot.selection) || {}).backendId
-            const mmG = (typeof moduleMetaOf === 'function' && bidG != null) ? moduleMetaOf(st, bidG) : null
-            const declG = (mmG && mmG.prompts) ? mmG.prompts[code === 'no-gh' ? 'noGhPrompt' : 'ghAuthLogin'] : null
-            let guide = declG ? String((promptLang() === 'en' && declG.en) ? declG.en : (declG.zh || '')) : ''
-            if (!guide && code === 'not-logged-in') { try { guide = String(promptTextFor(st, 'ghAuthLogin') || '') } catch (_) {} }
+            let guide = ''
+            if (code === 'no-gh') { try { guide = (typeof guideInjectTextOf === 'function') ? String(guideInjectTextOf('gh:installed') || '') : '' } catch (_) {} } else {
+              const bidG = (st.selection || (st.snapshot && st.snapshot.selection) || {}).backendId
+              const mmG = (typeof moduleMetaOf === 'function' && bidG != null) ? moduleMetaOf(st, bidG) : null
+              const declG = (mmG && mmG.prompts) ? mmG.prompts.ghAuthLogin : null
+              guide = declG ? String((promptLang() === 'en' && declG.en) ? declG.en : (declG.zh || '')) : ''
+              if (!guide) { try { guide = String(promptTextFor(st, 'ghAuthLogin') || '') } catch (_) {} }
+            }
             if (guide) { try { if (typeof inject === 'function') inject(st, guide) } catch (_) {} }
             else { try { if (typeof flash === 'function') flash(st, tr('err.guideMissing'), 'warn') } catch (_) {} }
           }

@@ -150,6 +150,25 @@ export function guideStepDone(step, chainSteps) {
 }
 
 /**
+ * 清单里某一步没过时要注入的那句「逐字固定的原话」（这一步不是给固定原话就返回空串）。
+ * 用它、而不是各自去 GUIDE_STEPS 里翻一遍：缺 gh 时那句话只有一份 —— 状态栏那条横幅、检查页那一行的
+ * 按钮、建仓向导失败时自动注入的那一份，取的都是它（#664 定的口径：一个缺失状态不许有两份说明）。
+ * @param {string} stepId 步骤 id（例如 'gh:installed'）
+ * @returns {string}
+ */
+export function guideInjectTextOf(stepId) {
+  try {
+    const id = String(stepId == null ? '' : stepId)
+    if (!id) return ''
+    for (let i = 0; i < GUIDE_STEPS.length; i++) {
+      const s = GUIDE_STEPS[i]
+      if (s && String(s.id) === id && s.missing && typeof s.missing.text === 'string') return s.missing.text
+    }
+    return ''
+  } catch (e) { return '' }
+}
+
+/**
  * 把链快照的步骤按清单排好：清单上的步骤按清单顺序排在前，清单没覆盖的检查项按原有的先后接在后面。
  * 宿主组装 fullSnapshot 时用它（见 src/host/detectChain.js）；界面只照快照渲染，不自己排序。
  * ready 为 'gate' 的步骤不在链快照里（它没有对应检查项），参与排序时自动跳过。

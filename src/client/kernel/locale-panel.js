@@ -62,10 +62,10 @@
         'env.step.ghauth': '登录 GitHub',
         'env.step.setup': '完成工作区初始化',
         'env.step.skills': '安装核心技能套件',
-        // #230（D10 · 2026-08-28 生效）：setup 提示词后端描述数据 —— 后端经 BackendModule.setupPrompt 声明键，双语单源于此
+        // #230（D10 · 2026-08-28 生效）· #664：setup 提示词后端描述数据 —— 后端经 BackendModule.setupPrompt 声明键，双语单源于此；GitHub 那份 backendNote 删掉了「仓库还没就绪就先停下」那段告诫（界面已保证过），只留「本次已选后端：GitHub。」。
         'setup.github.trackerLine': '本仓库为 GitHub \u2192 提议 GitHub Issues',
         'setup.github.trackerChoice': 'GitHub Issues',
-        'setup.github.backendNote': '\n\n本次已选后端：GitHub \u2014 若此目录还没有关联 GitHub 远端，先停下：向用户确认仓库名与可见性（公开还是私有），然后自己用建仓命令建好并推送（等价 gh repo create <name> --public/--private --source=. --push，非 Git 目录先 git init），或请用户在面板环境检查中点「创建并发布」向导完成；建仓成功并重查变绿后，再按 GitHub 模板生成 docs/agents/issue-tracker.md',
+        'setup.github.backendNote': '\n\n本次已选后端：GitHub。',
         'setup.github.labelReqs': '，并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个',
         'setup.markdown.trackerLine': '本仓库为本地文件 \u2192 提议 Local markdown',
         'setup.markdown.trackerChoice': 'Local markdown',
@@ -232,10 +232,10 @@
         'env.step.ghauth': 'Sign in to GitHub',
         'env.step.setup': 'Finish workspace initialization',
         'env.step.skills': 'Install core skill suite',
-        // #230 (D10): backend-declared setup-prompt description data — keys resolved here, bilingual single source
+        // #230 (D10) · #664: backend-declared setup-prompt description data — keys resolved here, bilingual single source; the GitHub note lost its "repo not ready yet, stop" reminder (the UI already guarantees it).
         'setup.github.trackerLine': 'this repo is on GitHub \u2192 propose GitHub Issues',
         'setup.github.trackerChoice': 'GitHub Issues',
-        'setup.github.backendNote': '\n\nSelected backend: GitHub \u2014 if this directory is not linked to a GitHub remote yet, stop: confirm the repo name and visibility (public/private) with the user, then create and push it yourself (equivalent to gh repo create <name> --public/--private --source=. --push; git init first outside a Git repo), or ask the user to finish the "Create & publish" wizard in the panel environment checks; only after the repo rows turn green on re-check, generate docs/agents/issue-tracker.md from the GitHub template.',
+        'setup.github.backendNote': '\n\nSelected backend: GitHub.',
         'setup.github.labelReqs': ', and ensure the repo has the complete label set the skills need (the five triage-role labels + the wayfinder labels wayfinder:map / research / prototype / grilling / task) \u2014 not just a few',
         'setup.markdown.trackerLine': 'this repo uses local files \u2192 propose Local markdown',
         'setup.markdown.trackerChoice': 'Local markdown',

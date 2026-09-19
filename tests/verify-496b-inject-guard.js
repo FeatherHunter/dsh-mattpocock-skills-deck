@@ -1,6 +1,14 @@
-// verify-496b-inject-guard.js — #496 第二票（A 方案门控式）：无远端不发初始化全文，建成后补发一次
+// verify-496b-inject-guard.js — #496 第二票（A 方案门控式）：注入只有一个漏斗、判据不认品牌、门控确认不注入
 // 用法: node tests/verify-496b-inject-guard.js
-// 约束：UI 零品牌分支（能力位判据）、日志只记分支不记隐私、标记按工作区键隔离仅补一次
+// 约束：UI 零品牌分支、日志只记分支不记隐私、标记按工作区键隔离
+//
+// #664 改写说明（按规格 #662 把这张门禁收回 npm run verify 链上）：
+//   1. 「缺仓库时改发后端声明的 repoRemoteFix 长文」那一档按新流程退役了（缺仓库由界面上那一段负责），
+//      所以原先卡它存在的那条断言删掉；判据也跟着换 —— 现在读共享清单里标着 blocksSetup 的那一步过没过
+//      （见 prompts.js 的 setupBlockedByGuide），不再读后端的能力位 capabilities.repoCreateChain。
+//   2. 门控确认（开门链两个窗与切换后端确认）不再往会话里注入任何文字，所以原先「这几处都走决策器」
+//      那几条断言反过来钉：那三处的源码里不许再出现注入调用；状态栏黄条那条路照旧走决策器（它要弹布局小卡）。
+//   3. 「建仓成功后补发一次」那对标记与它的两个消费方留着（置真它的那一档已退役，今天走不到），照旧钉住。
 const fs = require('fs')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
@@ -11,21 +19,20 @@ const og = fs.readFileSync('src/client/panel/OverlayGate.js', 'utf8')
 const sw = fs.readFileSync('src/client/kernel/store-switch.js', 'utf8')
 const nr = fs.readFileSync('src/client/views/NoRepoCard.js', 'utf8')
 const mv = fs.readFileSync('src/client/kernel/slotRenderer-modal-view.js', 'utf8')
-// 1) 决策器存在：数据驱动读能力位，不做品牌分支
+// 1) 决策器存在：判据读共享清单里那一步，不做品牌分支
 check(/export\s+(const|function)\s+setupOrRepoPrompt\b/.test(prompts), 'prompts.js 导出 setupOrRepoPrompt')
 check(/export\s+(const|function)\s+injectSetupDecision\b/.test(prompts), 'prompts.js 导出 injectSetupDecision')
 check(/export\s+(const|function)\s+consumePendingSetup\b/.test(prompts), 'prompts.js 导出 consumePendingSetup')
-check(prompts.includes('capabilities.repoCreateChain'), '判据读能力位 repoCreateChain（非 id 判据）')
-check(prompts.includes('repoRemoteFix'), '缺仓改发后端声明的缺仓指引')
+check(prompts.includes('setupBlockedByGuide') && prompts.includes('blocksSetup'), '判据读共享清单里标着 blocksSetup 的那一步（非后端能力位）')
+check(!prompts.includes('repoRemoteFix'), '缺仓长文那一档已退役（决策器里不再去找这段文案）')
 check(!/(===|==)\s*['"](github|gitlab|markdown)['"]|['"](github|gitlab|markdown)['"]\s*(===|==)/.test(prompts), 'prompts.js 无品牌等值分支')
 // 2) 待补标记按工作区键隔离
-check(prompts.includes('pendingSetupAfterPublish') && prompts.includes('pendingSetupCwd'), '待补标记按工作区键隔离')
-// 3) 六处注入点统一走决策器
-const sites = (sb.match(/injectSetupDecision\(s,id\)/g) || []).length
-check(sites === 3, 'StatusBackend 三处走决策器（得 3，实 ' + sites + '）')
-check(dock.includes('injectSetupDecision(s,id)'), 'Dock 走决策器')
-check(og.includes('injectSetupDecision(s, id)'), 'OverlayGate 走决策器')
-check(sw.includes('injectSetupDecision(st, targetId)'), 'store-switch 走决策器')
+check(prompts.includes('pendingSetupAfterPublish') && prompts.includes('pendingSetupCwd'), '待补标记按工作区键隔离（字段仍在；置真它的那一档已退役，见 prompts.js 里的说明）')
+// 3) 注入入口：状态栏黄条仍走决策器；门控确认与切换后端这三条路都不许再注入
+check(/injectSetupDecision\(s,id,\{allowCard:true\}\)/.test(sb), '状态栏黄条那条路仍走决策器（允许弹那张布局小卡）')
+check(!/injectSetupDecision\s*\(/.test(dock), 'Dock 的门控确认不再注入（#664）')
+check(!/injectSetupDecision\s*\(/.test(og), 'OverlayGate 的门控确认不再注入（#664）')
+check(!/injectSetupDecision\s*\(/.test(sw), 'store-switch 的切换后端确认不再注入（#664）')
 // 4) 两处建仓成功消费标记，仅补一次
 check(nr.includes('consumePendingSetup(st)'), '旧红卡建成后消费标记')
 check(mv.includes('consumePendingSetup(st)'), '向导建成后消费标记')
@@ -34,4 +41,4 @@ const logs = (prompts.match(/\[MattSkillsDeck\] setup-inject/g) || []).length
 check(logs >= 3, '决策/执行/补发三处日志（实 ' + logs + '）')
 check(!prompts.includes('st.cwd +') && !prompts.includes('+ st.cwd'), '日志不记工作区路径等隐私')
 if (failed) { console.log('\n存在失败'); process.exit(1) }
-console.log('\n全部通过 · #496 第二票门控在位')
+console.log('\n全部通过 · #496 第二票漏斗与门控纪律在位（#664 改写）')

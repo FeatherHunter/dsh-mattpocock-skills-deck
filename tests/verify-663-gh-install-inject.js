@@ -117,6 +117,18 @@ async function main() {
   ok(copies.length === 0, '客户端源码里没有第二份字面量' + (copies.length ? '（多出：' + copies.join('、') + '）' : ''))
   ok(read('client.js').indexOf(ORIGINAL) >= 0, '客户端产物里带着它（随构建拼进闭包，界面读得到）')
 
+  console.log('== 7. 检查页那一行的按钮也注入同一句原话（#664 补：同一个缺失状态只有一份说明）==')
+  // 状态栏那条横幅与检查页那一行的按钮是两个落点，注入的必须是同一句话；先说那一行给的是什么。
+  const fixMod = await import(pathToFileURL(path.join(root, 'src/host/tracker/fixContract.js')).href)
+  const ghMod = await import(pathToFileURL(path.join(root, 'src/host/tracker/backends/github/index.js')).href)
+  const rowItems = fixMod.attachFixContract(ghMod.GITHUB_CHECKS, ghMod.githubModule, 'zh', { cwd: '/w/demo' })
+  const ghInstallRow = rowItems.find((x) => x && x.id === 'gh:installed')
+  const installAction = (ghInstallRow && ghInstallRow.onFail && Array.isArray(ghInstallRow.onFail.actions))
+    ? ghInstallRow.onFail.actions.find((a) => a && a.type === 'inject-prompt') : null
+  ok(!!installAction && installAction.prompt === ORIGINAL, '检查页 gh:installed 那一行的按钮注入的也是那句原话（逐字比对）')
+  ok(!!installAction && installAction.prompt.indexOf('winget') < 0 && installAction.prompt.indexOf('brew') < 0, '不是那段按系统分平台的安装长文')
+  ok(read('src/host/tracker/backends/github/index.js').indexOf('noGhPrompt:') < 0, '后端声明里不再有那份长文（那个键已按 #664 退役）')
+
   console.log(failed ? 'FAIL ' + total + ' 项检查里有 ' + failedN + ' 项未过' : 'PASS 全部 ' + total + ' 项检查通过')
   process.exit(failed ? 1 : 0)
 }

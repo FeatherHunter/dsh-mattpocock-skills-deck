@@ -30,7 +30,9 @@
       // #655（2026-09-19）：v12 新增布局占位符 {contextLayout} —— 用户在初始化小卡上选的域文档布局（single-context：根目录一份 CONTEXT.md /
       //   multi-context：子项目各一份 CONTEXT.md，根目录一份 CONTEXT-MAP.md）由它填空。取值来自用户选择，与后端无关，所以不放进后端 setupPrompt 键表，
       //   单独一条来源（见 setupRunParamsFrom 的 SETUP_LAYOUT_TEXT_KEYS）。两句话在 locale-panel.js 里各写中英一份。
-      "setupRun": { version: 12, placeholders: ['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs', 'contextLayout'], use: '环境检查横幅 · setup 未执行按钮（仅初始化记录配置，不安装/克隆技能；v12 #655 新增 {contextLayout}：用户选的域文档布局，写进 docs/agents/domain.md 与用户仓库 AGENTS.md 的 ## Agent skills 块；v11 #619 删掉 v10 加的那条「标签调色盘」注入通道：标签颜色改由插件自己放置的配色文件与面板改色弹窗负责，初始化注入不再教人去建那张已经没人读的表；labelReqs=按后端的标签要求条款，Markdown 为空即不要求标签齐全）', zh: '/setup-matt-pocock-skills\n\n初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：\n1. 按技能流程选择 issue tracker：{trackerLine}，由用户确认；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 {trackerChoice}；triage 标签保留默认五角色）{labelReqs}；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。{contextLayout}。{backendNote}', en: '/setup-matt-pocock-skills\n\nBootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths — it does not install or clone any skills):\n1. Follow the skill flow to pick the issue tracker: {trackerLine}, confirm with the user;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose {trackerChoice} as the tracker; keep the default triage-role labels){labelReqs}; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green). {contextLayout}.{backendNote}' },
+      // #664：v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（#661 第⑧条：界面已保证过），
+      //   按 #662 定的做法改中英两份词表，不在注入时截断 —— 注入的全文与声明的文本始终是同一份。
+      "setupRun": { version: 13, placeholders: ['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs', 'contextLayout'], use: '环境检查横幅 · setup 未执行按钮（仅初始化记录配置，不安装/克隆技能；v13 #664 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），GitHub 那份 backendNote 只留「本次已选后端：GitHub。」；v12 #655 新增 {contextLayout}：用户选的域文档布局，写进 docs/agents/domain.md 与用户仓库 AGENTS.md 的 ## Agent skills 块；v11 #619 删掉 v10 加的那条「标签调色盘」注入通道：标签颜色改由插件自己放置的配色文件与面板改色弹窗负责，初始化注入不再教人去建那张已经没人读的表；labelReqs=按后端的标签要求条款，Markdown 为空即不要求标签齐全）', zh: '/setup-matt-pocock-skills\n\n初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：\n1. 按技能流程选择 issue tracker：{trackerLine}，由用户确认；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 {trackerChoice}；triage 标签保留默认五角色）{labelReqs}；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。{contextLayout}。{backendNote}', en: '/setup-matt-pocock-skills\n\nBootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths — it does not install or clone any skills):\n1. Follow the skill flow to pick the issue tracker: {trackerLine}, confirm with the user;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose {trackerChoice} as the tracker; keep the default triage-role labels){labelReqs}; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green). {contextLayout}.{backendNote}' },
       "newWayfinder": { version: 14, placeholders: ['repo','subIssue'], use: '「+ 新建需求」按钮 · 清单式（A★）', zh: '/wayfinder\n请帮我处理一个需求（严格遵循 wayfinder 技能规则）。\n仓库（已自动填入当前工作区）：{repo}\n\n## 澄清\n- [ ] 对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认\n\n## 判断分类（先查仓库已有 wayfinder:map 和 issue，确认是否做过）\n- [ ] 新增：全新需求 → 新建 map\n  - [ ] 写出 map：Destination + Notes + plan\n  - [ ] 先把该 map 的现有正文取下来存成文件（文件里必须保留 `## Destination` 一节），改好任务清单后再调 {subIssue}\n  - [ ] 关联到该 map 的每个 ticket 都由脚本建原生边并自己校验数量；仅当后端明确不支持原生边时才回退到任务清单 + Part of\n  - [ ] 阻塞关系以脚本建的原生依赖边为准；正文里的 `Blocked by: #<n>` 行只作降级兜底\n- [ ] 复用：这个需求之前已做过（已有 map / issue）→ 打开复用它，不重复建\n- [ ] 直接实现：需求很小 → 建一个 issue 直接实现，不建大 map\n\n## 自查（对检查清单做检查）\n- [ ] 逐项核对上面每个 `- [ ]`：是否已落实、无遗漏；漏项补上，不跳过\n- [ ] 校验：看关联脚本回包的 expected 与 actual 是否一致（对不上脚本会非零退出，不要当成成功），且面板列表的 `closed/total` 不为 0/0（有子票时）\n- [ ] 结束前按进度契约更新（## 进度：N% + 下一步；95% 须写明待确认什么，未确认不得 close）\n', en: '/wayfinder\nPlease handle a requirement (strictly follow the wayfinder skill rules).\nRepo (auto-filled from current workspace): {repo}\n\n## Clarify\n- [ ] If you hold assumptions about the goal / scope / preferences, settle them with the grilling skill — never assume\n\n## Decide the case (check existing wayfinder:map and issues first)\n- [ ] Add: a brand-new requirement → build a new map\n  - [ ] Write the map: Destination + Notes + plan\n  - [ ] First fetch the map current body into a file (the file must keep the `## Destination` section), edit the task list, then call {subIssue}\n  - [ ] The script creates the native edges for every ticket under this map and verifies the count itself; only fall back to task list + Part of when the backend explicitly has no native edge\n  - [ ] Blocking comes from the native dependency edges the script creates; a `Blocked by: #<n>` line in the body is only the fallback\n- [ ] Reuse: this requirement has been done before (existing map / issue) → open and reuse it, do not build a new one\n- [ ] Directly implement: the requirement is small → create a single issue and implement it directly, no big map\n\n## Self-check (verify the checklist)\n- [ ] Go through every `- [ ]` above: confirmed done, no gaps; fill anything missed, do not skip\n- [ ] Verify: the wiring script return shows expected equals actual (a mismatch exits non-zero — never treat it as success) and the panel list `closed/total` is not 0/0 when tickets exist\n- [ ] Before finishing, update per the progress contract (## Progress: N% + next step)\n' },
       "newBugWayfinder": { version: 5, placeholders: ['repo'], use: '「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行）', zh: '/wayfinder\n请帮我新增一个 BUG 单（按 wayfinder 技能规则处理）。\n仓库：{repo}\n新建的单子必须带上 bug 标签；如果还没有经过诊断，同时带上 needs-triage 标签。远端后端按原生标签方式打标签，本地 Markdown 后端在正文加标签行（例如 Labels: bug, needs-triage）。', en: '/wayfinder\nPlease help me file a new BUG ticket (follow the wayfinder skill rules).\nRepo: {repo}\nNew tickets must carry the bug label; if not yet triaged, also carry needs-triage. On remote backends use native labels; on the local Markdown backend add a Labels line (e.g. Labels: bug, needs-triage).' },
       "ghAuthLogin": { version: 1, placeholders: [], use: 'gh 登录引导 · 链失败态 inject-prompt（#228 替换 openUrl 硬编码，动作不承诺修复，检查才判定）', zh: '请为本机完成 GitHub CLI 登录（gh auth login）：\n\n1. 终端执行 gh auth login \n2. 按向导选择 GitHub.com → HTTPS → Yes → 浏览器授权（OAuth）\n3. 完成后执行 gh auth status 验证已登录\n4. 回到面板点「重新检查」或等待自动重查，链条将自动推进\n5. 若遇网络/代理问题，请检查 gh config 与网络后重试', en: 'Please complete GitHub CLI login (gh auth login):\n\n1. Run gh auth login in terminal\n2. Choose GitHub.com → HTTPS → Yes → browser OAuth\n3. Verify with gh auth status\n4. Click "Re-check" at the top of the panel, or wait for auto re-check; the chain will advance via re-evaluation\n5. If network/proxy issues, check gh config and retry' },
@@ -113,14 +115,35 @@
       const id = backendId != null ? backendId : sel
       return promptText('setupRun', setupRunParamsFrom(st && st.backendModules, id, null, layout))
     }
-    // Q2 #496：绑定成功后的注入决策（数据驱动，UI 零品牌分支）。
-    //   前置答案（仓库是谁）缺失时不发完整初始化全文，改发该后端声明的缺仓指引；
-    //   判据只读两样：仓库引用（会话/快照）与后端模块能力位（capabilities.repoCreateChain，有创仓链能力的后端才需先有仓库；无此能力位原样直注）。
-    //   返回 { kind: 'setup' | 'repo' | 'setup-card', text, layout }；失败一律回落旧行为。日志只记分支不记隐私。
-    // #655 起这一档不再是「谁调用都先问」——那个写法有毛病：切换后端等入口拿不到那张卡（卡只在「该工作区尚未初始化」的
-    //   黄条里渲染），于是既没弹卡、又不注入，用户看到的是「点了确定什么都没发生」。所以「先问」这一档挪到
-    //   injectSetupDecision，并且只对能弹出卡来的入口开放（allowCard）；本函数回到 #496 的行为：缺仓先给建仓指引，
-    //   否则给初始化全文（布局没选过就按缺省布局填，用户故事 5／6 的「先问」由上层那张卡负责）。
+    // 绑定成功后的注入决策（数据驱动，UI 零品牌分支）。
+    // #661（首开引导链定版）与 #662（规格「定版二」第 3 条）把这一档改成「仓库没就绪就一个字都不注入」：
+    //   判据不再看后端的能力位，改看共享清单 src/shared/tracker/guide-steps.js 里当前后端有没有一步标着
+    //   blocksSetup 而它没过（读链快照，与状态栏那条横幅同一个口径）。「缺仓库时改发一段建仓长文」
+    //   那条 #496 的老行为到此结束 —— 缺仓库这件事由界面上那一段负责（状态栏「还没有远端仓库」那条横幅
+    //   与检查页那一行的两步建仓弹窗），注入这条路不再多给一份说明。
+    //   返回 { kind: 'setup' | 'blocked', text, layout }；blocked 时 text 是空串（调用处一个字都不注入）。
+    //   失败一律回落旧行为。日志只记分支不记隐私。
+    // 链快照里的步骤：与状态栏那条横幅同一口径（界面只读宿主发下来的快照，不自己算状态）。
+    const setupChainSteps = function (st) {
+      try { if (typeof chainSteps === 'function') return chainSteps(st) } catch (e) {}
+      try { return (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : [] } catch (e2) { return [] }
+    }
+    // 清单里这个后端有没有一步标着 blocksSetup 而它没过（没过 = 那一步的检查项在链快照里不全是 done）。
+    export const setupBlockedByGuide = function (st, backendId) {
+      try {
+        if (typeof guideStepsFor !== 'function' || typeof guideStepDone !== 'function') return false
+        let sel = backendId
+        if (sel == null && typeof currentBackendId === 'function') sel = currentBackendId(st)
+        const steps = guideStepsFor(sel)
+        const snapshot = setupChainSteps(st)
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i]
+          if (!step || step.blocksSetup !== true) continue
+          if (!guideStepDone(step, snapshot)) return true
+        }
+        return false
+      } catch (e) { return false }
+    }
     export const setupOrRepoPrompt = function (st, backendId) {
       const decLayout = readSetupLayout(st) || SETUP_LAYOUT_DEFAULT
       const setupText = function () {
@@ -134,38 +157,24 @@
             else if (st && st.snapshot && st.snapshot.selection && st.snapshot.selection.backendId != null) sel = st.snapshot.selection.backendId
           }
         } catch (e) {}
-        let needsRepo = false
-        try {
-          const meta = (typeof moduleMetaOf === 'function' && sel != null) ? moduleMetaOf(st, sel) : null
-          needsRepo = !!(meta && meta.capabilities && meta.capabilities.repoCreateChain)
-        } catch (e) { needsRepo = false }
-        let repo = null
-        try { repo = (st && st.repository) || (st && st.snapshot && st.snapshot.repository) || null } catch (e) { repo = null }
-        const hasRepo = !!(repo && (repo.owner || repo.name))
-        try { console.log('[MattSkillsDeck] setup-inject decision needsRepo=' + needsRepo + ' hasRepo=' + hasRepo + ' layout=' + (readSetupLayout(st) || 'unset')) } catch (e) {}
-        if (needsRepo && !hasRepo) {
-          let fix = ''
-          try {
-            const meta2 = (typeof moduleMetaOf === 'function' && sel != null) ? moduleMetaOf(st, sel) : null
-            const pr = meta2 && meta2.prompts && meta2.prompts.repoRemoteFix
-            if (pr) { const lg = (typeof promptLang === 'function') ? promptLang() : 'zh'; fix = String((lg === 'en' && pr.en) ? pr.en : (pr.zh || '')) }
-          } catch (e) { fix = '' }
-          if (fix) return { kind: 'repo', text: fix, layout: decLayout }
-        }
+        const blocked = setupBlockedByGuide(st, sel)
+        try { console.log('[MattSkillsDeck] setup-inject decision blocked=' + (blocked ? '1' : '0') + ' layout=' + (readSetupLayout(st) || 'unset')) } catch (e) {}
+        if (blocked) return { kind: 'blocked', text: '', layout: decLayout }
       } catch (e) {
         try { console.warn('[MattSkillsDeck] setup-inject decision fallback: ' + String((e && e.message) || e).slice(0, 120)) } catch (_) {}
       }
       return { kind: 'setup', text: setupText(), layout: decLayout }
     }
-    // #655：唯一允许注入初始化文案的地方 —— 所有能触发初始化的入口（状态栏黄条、检查页红牌上的「执行初始化」按钮、
-    //   开门链与切换后端的两个弹窗、建仓成功后的自动补发）都先经过它。
-    //   「布局还没选定就先问」这一档由 opts.allowCard 开启，而且**只给能弹出那张卡来的入口**用：黄条与检查页那张红牌
-    //   （那张卡渲染在状态栏里，只在「该工作区尚未初始化」的黄条出现时才有位置）。没开这一档的入口（切换后端、
-    //   建仓后的补发等）保持 #496 的老行为：该注入什么就注入什么，布局没选过就按缺省布局填——
-    //   否则那些入口会「既弹不出卡、又不注入」，用户看到的就是「点了确定什么都没发生」。
+    // 允许注入初始化文案的入口：状态栏黄条那颗按钮、检查页红牌那颗「执行初始化」按钮 —— 只有这两处能弹出那张
+    //   布局小卡来（卡渲染在「该工作区尚未初始化」的黄条下面），所以也只有这两处传 opts.allowCard。
+    //   #664 起，门控确认（开门链的两个门控窗与切换后端确认）不再经过这里：既不弹卡、也不再顺手注入一个字。
+    //   顺序上「仓库那一步没过」先判（返回 blocked）：这一步没过时连卡都不开 —— 卡只有在那条黄条下面才有位置，
+    //   而仓库没就绪时按顺序还轮不到黄条，此刻先弹卡会让用户选完布局才发现什么都没注入（#655 修过的同一类毛病）。
     //   opts.injectNow=false 只返回决定、由调用处自己注入（检查页那颗按钮走动作分发器，注入这个动作归分发器做）。
     export const injectSetupDecision = function (st, backendId, opts) {
-      if (opts && opts.allowCard === true && !readSetupLayout(st)) {
+      let guideBlocked = false
+      try { guideBlocked = setupBlockedByGuide(st, backendId) } catch (eB) { guideBlocked = false }
+      if (!guideBlocked && opts && opts.allowCard === true && !readSetupLayout(st)) {
         try { st.setupLayoutCardOpen = true } catch (e) {}
         try { if (typeof emit === 'function') emit(st) } catch (e) {}
         // 按需日志（#655，附录 1.5 的 #64 inject.decision）：这一步是用户点击触发的、一次一条，
@@ -180,14 +189,31 @@
       const kind = (dec && dec.kind) || 'setup'
       const usedLayout = (dec && dec.layout) || SETUP_LAYOUT_DEFAULT
       try { st.setupLayoutCardOpen = false } catch (e) {}
-      try { st.pendingSetupAfterPublish = (kind === 'repo'); st.pendingSetupCwd = ((kind === 'repo' && st && st.cwd) ? st.cwd : '') } catch (e) {}
+      // #664：「建仓成功后补发一次」那对标记（pendingSetupAfterPublish / pendingSetupCwd）原本只有缺仓那一档
+      //   （kind === 'repo'）会置真，那一档已按新流程退役，所以这里不再置真 —— 两个字段照留，是因为它们的
+      //   消费方（旧建仓卡 NoRepoCard 与建仓向导成功那两处）本票不碰（#662 的「不做什么」点名不动 NoRepoCard）。
+      //   要不要连这套补发机制一起退役，属另一次清理，已记在本票落地记录里。
+      try { st.pendingSetupAfterPublish = false; st.pendingSetupCwd = '' } catch (e) {}
       try { console.log('[MattSkillsDeck] setup-inject applied kind=' + kind) } catch (e) {}
       try { if (isEnabled('debug')) log('debug', 'inject.decision', { prompt: 'setupRun', kind: kind, layout: String(usedLayout) }) } catch (eL) {}
       if (dec && dec.text && !(opts && opts.injectNow === false)) { try { inject(st, dec.text) } catch (e) {} }
       return kind
     }
+    // #664：检查页那颗「执行初始化」按钮点下去该注入什么：给文字 = 初始化全文；null = 这次确实什么都不该注入
+    //   （仓库那一步还没过、或者该先弹那张布局小卡）。null 与空串是两件事 —— 空串是「解析不出来」，那条路上
+    //   分发器会按 action.prompt 原样注入（现场实测：不给文字却走那条兜底，会把键名 setupRun 当文案塞进会话）。
+    export const setupRunTextForClick = function (st) {
+      try {
+        if (typeof injectSetupDecision !== 'function') return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st) : null
+        const kind = injectSetupDecision(st, undefined, { injectNow: false, allowCard: true })
+        if (kind !== 'setup') return null
+        return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st) : ''
+      } catch (e) { return null }
+    }
     // Q2 #496：建仓成功处消费标记，补发一次初始化全文（标记按工作区键核对，不跨区）。
     // #655：这条路径没有界面可弹卡，所以不传 allowCard —— 沿用会话里已选的布局，没选过就按缺省布局填（用户故事 13）。
+    // #664：会置真那个标记的缺仓档已按新流程退役（见 injectSetupDecision 里的说明），今天没有任何一处把它置真，
+    //   这条补发路径因此走不到；本票不动它，理由与那里同一条。
     export const consumePendingSetup = function (st) {
       try {
         if (st && st.pendingSetupAfterPublish && (!st.pendingSetupCwd || st.pendingSetupCwd === st.cwd)) {

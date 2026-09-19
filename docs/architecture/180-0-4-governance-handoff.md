@@ -28,6 +28,7 @@
 ### 人机协作指引（装 CLI / 登录）
 - **装 CLI 与登录统一走 `prompt:` 注入**，宿主仅检测不自动装/登
 - 底层经 `preflight.prompt` 透传完整 prompt 文本（多态，`hint` 即完整文本，UI 直接 `inject(hint)`）；`gh` 缺失时后端 `ghPreflight` 返回 `GH_INSTALL_PROMPT`（`winget/brew/apt` + `gh --version`），UI 单按钮“AI 引导安装”直注后端文案（`prompt:installGh` key 已废止，`openUrl('https://cli.github.com/')` 副按钮已移除）；`gh auth` 仍 `prompt:ghAuthLogin` 待迁（#59）
+  - **这一段已在 2026-09-20（#664）退役**：缺 `gh` 的注入文案收成一句原话（住在共享清单 `src/shared/tracker/guide-steps.js` 的 `gh:installed` 那一步），那段按系统分平台的长文与 `preflight.prompt` 字段一并删除；上面这几句留作当时的记录，不再是今天的做法。
 - 分两阶段链式：`gh` 缺 → 只显安装卡；装好重检才显登录卡
 
 ## 约束

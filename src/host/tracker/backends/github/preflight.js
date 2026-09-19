@@ -13,11 +13,10 @@ import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { ghClient } from './client.js'
 import { classifyGhError } from './errors.js'
 
-// #195 修复：后端提供完整引导 prompt（多态），UI 直接 inject，不持有后端文案
-// 文案由后端决定，UI 仅透传；此处为 GitHub 后端专属
-// #573：原句「面板所有数据依赖 gh（issue / PR / label / 探测链 / 契约后端）」会被「模板里不得出现具体跟踪器命令」的门禁判红
-//   （gh 与 issue 之间只隔一个全角括号，R1 命中）。改写成「依赖它（…）」这种泛指，语义不变、不再是命令形态。
-const GH_INSTALL_PROMPT = '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖它（issue / PR / label / 探测链 / 契约后端）：\n\n1. 先检查：终端执行 `gh --version`；有版本号输出 → 直接汇报已装版本并结束，不要重复安装；\n2. 无 gh 则按 OS 安装（DSH 探测按 PATH + PATHEXT 找 gh.exe / gh）：\n   - Windows（PowerShell / pwsh）→ `winget install --id GitHub.cli` 或 `winget install --id GitHub.GitHubDesktop` 后勾选 GitHub CLI；或从 https://cli.github.com/ 下载 GitHubCLI.msi 安装，安装时勾选 PATH 选项；\n   - macOS → `brew install gh`；或 `brew install --cask github-cli`；无 brew 则 https://cli.github.com/ 下载 .pkg；\n   - Linux（Debian/Ubuntu）→ `sudo apt install gh` 或官方源 https://github.com/cli/cli/blob/trunk/docs/install_linux.md；\n   - Linux（Fedora）→ `sudo dnf install gh`；\n3. 安装后验证：重开终端使 PATH 生效，`gh --version` 输出版本号；\n4. 若 gh 已装但 DSH 仍报未安装：用户需在 DSH 中点环境检查的「重测」按钮（force 重探），或重启 DSH Desktop 让 ghPath 缓存失效；\n5. 完成后汇报：gh 版本号 + DSH 环境检查中「gh CLI 可用」项已变绿（如已登录 gh auth login，则「gh 已登录」也变绿）。'
+// #195 曾经在这里挂着一整段「怎么装 gh」的长文（按系统分平台列命令），交给界面直接注入。
+// #664（首开引导链定版 #661 第③条）：缺 gh 时注入的文案收成一句原话（「/wizard 帮用户安装gh cli 官方地址：
+//   https://cli.github.com/」），唯一一份住在共享清单 src/shared/tracker/guide-steps.js 的 gh:installed
+//   那一步里，界面从那一步取它。那段长文与预检结果里的 prompt 字段随之退役 —— 一个缺失状态不许有两份说明。
 
 function parseRepoRef(handle, ctx) {
   // 优先 handle.refId，其次 ctx.refId，再尝试从 cwd 的 git remote 解析（简化：若 refId 无则用 gh repo view）
@@ -46,14 +45,14 @@ export async function ghPreflight(handle, ctx) {
   try {
     const platform = opCtx.platform
     if (!platform || typeof platform.resolveExecutable !== 'function') {
-      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable unavailable' }, prompt: GH_INSTALL_PROMPT }
+      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable unavailable' } }
     }
     const ghPath = await platform.resolveExecutable('gh')
     if (!ghPath) {
-      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable returned null (install https://cli.github.com/)' }, prompt: GH_INSTALL_PROMPT }
+      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable returned null (install https://cli.github.com/)' } }
     }
   } catch (e) {
-    return { ok: false, error: { kind: ERROR_KIND.ENV, message: String((e && e.message) || e).slice(0, 400) }, prompt: GH_INSTALL_PROMPT }
+    return { ok: false, error: { kind: ERROR_KIND.ENV, message: String((e && e.message) || e).slice(0, 400) } }
   }
 
   // 2) 登录态：gh auth status
