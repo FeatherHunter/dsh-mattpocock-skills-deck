@@ -186,7 +186,14 @@ export const SubworkspaceMark = function (props) {
       //   在那个 150 像素宽的截图里量出来正是 40 像素对 32 像素。
       //   现在取外框 16 + 里面 13 像素的图形：两边都比邻居略收一点，留白节奏与邻居一致。
       //   #650 写下「18 像素」时，邻居按钮的外框还是 18；它们后来改成 16 了，这一条得跟着走，否则一排就对不齐。
-      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 16, height: 16, borderRadius: 5, border: '1px solid rgba(192,132,252,.38)', background: 'rgba(192,132,252,.07)', cursor: 'pointer', flex: 'none' },
+      //
+      // 底色与边框（维护者 2026-09-19 在真机上定）：
+      //   底色改成**纯透明**，不再用那层淡紫 rgba(192,132,252,.07) —— 叠在深色底上会泛出一点粉紫，
+      //   同一排里颜色不统一；透明之后它就跟着所在的那一行背景走。用 transparent 而不是 'none'，
+      //   是因为这里要的就是「不画东西」这个意思。
+      //   边框改成红色 #f85149（本仓既有的红色档：状态栏与列表里那些红色提示用的都是它），
+      //   与右边蓝色那颗「切换后端」、琥珀色那颗「标签配色」在颜色上区分开。
+      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 16, height: 16, borderRadius: 5, border: '1px solid #f85149', background: 'transparent', cursor: 'pointer', flex: 'none' },
     }, [iconSvg]),
   ])
   // 自动展开那一次用受控 visible；关掉（或本来就不再展开）之后交回 HoverTip 自己管（鼠标悬停照常出浮层）。

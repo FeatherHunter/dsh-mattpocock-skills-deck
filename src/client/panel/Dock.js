@@ -119,15 +119,15 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
         if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(apply)
         return function () { if (ro) ro.disconnect(); if (typeof window !== 'undefined') window.removeEventListener('resize', apply) }
       }, [])
-      // 头部自适应：空间充足时完整，挤压时先隐藏 MATT skills 文字（保留图标），最后仅留 repo（#28）
+      // 头部自适应：空间不足时收缩仓库名，最后只留短名（#28）。头部原先还有一个标题字要优先隐藏，
+      //   2026-09-19 维护者把标题字与罗盘图标去掉了，那一步随之没有了对象，这里只剩仓库名一条收缩链。
       React.useEffect(function () {
         const applyHead = function () {
           const hd = headRef.current
           if (!hd) return
-          const titleEl = hd.querySelector('[data-head-title]')
           const chip = hd.querySelector('[data-repo-chip]')
           const txt = chip && chip.querySelector('[data-repo-text]')
-          if (!titleEl || !chip || !txt) return
+          if (!chip || !txt) return
           const repo = s.snapshot && s.snapshot.repo
           const full = repo ? repo.owner + '/' + repo.name : ''
           const short = repo ? repo.name : ''
@@ -135,17 +135,12 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             try { if (typeof measureContentWidth === 'function') return measureContentWidth(hd) <= hd.clientWidth + 1 } catch (e) {}
             return hd.scrollWidth <= hd.clientWidth + 1
           }
-          // 基准：标题可见 + 完整仓库名（固宽测自然宽）
-          titleEl.style.display = ''
+          // 基准：完整仓库名（固宽测自然宽）
           if (full) txt.textContent = full
           chip.style.flex = 'none'
           void hd.offsetWidth
           if (naturalFits()) { chip.style.flex = '0 1 auto'; return }
-          // 阶段1：隐藏标题，优先保仓库名
-          titleEl.style.display = 'none'
-          void hd.offsetWidth
-          if (naturalFits()) { chip.style.flex = '0 1 auto'; return }
-          // 阶段2：极窄时仅留 repo
+          // 第一段：极窄时仅留 repo
           if (full && short) txt.textContent = short
           void hd.offsetWidth
           if (naturalFits()) { chip.style.flex = '0 1 auto'; return }
@@ -167,8 +162,9 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
         // 头部（标题 + 关闭）：横线不放在这行，下移到标签行下方与对话/轨迹对齐
         // #28 自适应：flex 容器 minWidth 0 + 芯片 flex 自适应，标题优先隐藏，极窄仅留 repo
         h('div', { ref: headRef, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '10px 12px 6px', flex: 'none', minWidth: 0 } }, [
-          Icon({ scheme: 'compass', size: 15 }),
-          h('span', { 'data-head-title': 1, style: { fontWeight: 600, fontSize: 13, flex: 'none', whiteSpace: 'nowrap' } }, tr('panel.title')),
+          // 2026-09-19 维护者定：这一行不再放罗盘图标与「MattSkills」字样，从仓库芯片开始。
+          //   品牌字样留在设置页与右栏标题那两处（那两处说的是「这个面板叫什么」，头部这一行说的是
+          //   「这份数据是谁的」，两件事不该挤在同一行）。
           // #155 Q5：仓库身份泛化 — RepositoryRef.name/url + 按 backend 着色；未知原串灰色；空 url 不链；pending/multiHit 黄条由下行承载
           (function(){
             let repoRef = (s.repository || (s.snapshot && s.snapshot.repository) || null)
