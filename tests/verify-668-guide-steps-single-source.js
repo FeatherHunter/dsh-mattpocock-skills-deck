@@ -138,12 +138,16 @@ async function main() {
   assert(checksTab.indexOf('chainSteps(st)') >= 0, '检查页照旧渲染链快照')
   assert(!/steps\.sort\(|\.slice\(\)\.sort\(|sort\(function|sort\(\(/.test(checksTab), '检查页没有第二处排序')
   assert(checksTab.indexOf('gh:installed') < 0 && checksTab.indexOf('tracker:initialized') < 0, '检查页不写死任何步骤顺序')
-  const statusBar = read('src/client/statusbar/StatusBar.js') + read('src/client/statusbar/checksums.js')
+  // #663 起，状态栏那条横幅也改读清单（src/client/statusbar/bannerChain.js 用 guideStepsFor + guideStepDone
+  //   逐步判「第一个没过的那一步」，不再按字面 id 自己认领检查项），所以读源加上那个模块；
+  //   「按字面 id 读链步骤」那一路照旧收 —— 谁再写死一个清单外的 id（例如 gh:labels）仍然红。
+  const statusBar = read('src/client/statusbar/StatusBar.js') + read('src/client/statusbar/checksums.js') + read('src/client/statusbar/bannerChain.js')
   const readIds = new Set()
   let mRead
   const readRe = /chainStep\(\s*[A-Za-z_$][\w$]*\s*,\s*'([^']+)'\s*\)/g
   while ((mRead = readRe.exec(statusBar)) !== null) readIds.add(mRead[1])
-  assert(readIds.size > 0, '状态栏确实在按 id 读链步骤（不是没接上）')
+  const readsByGuide = statusBar.indexOf('guideStepsFor(') >= 0 && statusBar.indexOf('guideStepDone(') >= 0
+  assert(readIds.size > 0 || readsByGuide, '状态栏确实在读链步骤（按字面 id 读，或照清单逐步判；不是没接上）')
   for (const id of readIds) {
     assert(guide.GUIDE_STEPS.some((s) => s.checks.indexOf(id) >= 0), `状态栏读的「${id}」是清单里声明过的检查项（它不能自己认领清单外的项）`)
   }

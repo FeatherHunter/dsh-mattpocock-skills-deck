@@ -354,6 +354,7 @@ const LEAF_MODULES = [
   { id: 'checksums', file: 'src/client/statusbar/checksums.js' },
   { id: 'StatusMenus', file: 'src/client/statusbar/StatusMenus.js' },
   { id: 'StatusBackend', file: 'src/client/statusbar/StatusBackend.js' },
+  { id: 'bannerChain', file: 'src/client/statusbar/bannerChain.js' }, // #663 新增：状态栏那条横幅按引导链清单决定出哪一条、那颗按钮点了做什么
   { id: 'StatusLogMenu', file: 'src/client/statusbar/StatusLogMenu.js' },
   { id: 'statusBar', file: 'src/client/statusbar/StatusBar.js' },
   { id: 'chainRenderer', file: 'src/client/views/shared/ChainRenderer.js' },

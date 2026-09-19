@@ -3,10 +3,12 @@
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
  * 以后谁改它：改状态栏后端选择（setup 黄条选后端：拉清单选定确认注入；gate 蓝条选后端：打开关闭确认绑定）的人改它。
- * #655 起本文件还管初始化小卡上的第二组单选（域文档布局）与「没选过布局就先弹卡、不注入」这条漏斗。
- * 接线：StatusBar.js 留六个转调包装（cancel/confirmSetupPick、onSetupInit、open/closeGate、confirmGateStatus）供渲染直调；
- *   本文件不引用 StatusMenus.js（同闭包拼回，调用方向见 StatusBar.js 转调六处）。
- *   openStatusSetupPick 当前渲染未直接调用（setup 黄条走 onStatusSetupInit），随旅程整体搬入保持行为一致。
+ * #655 起本文件还管初始化那张小卡上的第二组单选（域文档布局）与「没选过布局就先弹卡、不注入」这条漏斗。
+ * #663 起：门控那个窗只问后端（里面那组布局单选撤了，点确认也不再注入任何文字）；横幅那条链搬去
+ *   statusbar/bannerChain.js（出哪一条、按钮点下去干什么），本文件只留下它要调的那几个动作。
+ * 接线：StatusBar.js 留四个转调包装（cancel/confirmSetupPick、close/confirmGateStatus）供渲染直调；
+ *   本文件不引用 StatusMenus.js（同闭包拼回，调用方向见 StatusBar.js 转调四处）。
+ *   openStatusSetupPick 当前渲染未直接调用（黄条那颗按钮走 bannerChain → onStatusSetupInit），随旅程整体搬入保持行为一致。
  */
 // #655：域文档布局的两个取值（与 locale 里两句注入文案、卡片上两个选项一一对应）。
 //   布局只活在本次会话——不落持久状态、不加「改布局」的入口；想改就改 docs/agents/domain.md，或重跑一次初始化。
@@ -79,10 +81,12 @@ export const confirmStatusSetupPick = function(s){
 // #655：黄条那颗「初始化」按钮也走同一个注入决策函数 —— 布局没选过时那个函数只开卡不注入
 //   （allowCard:true 是因为这张卡就渲染在黄条下面，弹得出来），所以这里不再自己判「弹卡还是注入」，
 //   一律交出去（否则就是规格里说的「绕过小卡直接注入」）。
+// #663 起把那个决定的结果原样回给调用处（'setup' 注入了全文 / 'setup-card' 只开了小卡 / 其余没注成）：
+//   状态栏横幅那颗按钮要用它落一行「这次给出去的是哪一类」的常驻日志，不然日志里又是一笔空。
 export const onStatusSetupInit = function(s){
   const id=s.selection && s.selection.backendId!=null ? s.selection.backendId : (s.setupPickSelected||s.setupPickRecommended||firstBackendIdOf(null));
   try{s.setupPickOpen=false;emit(s);}catch(e){}
-  try{ injectSetupDecision(s,id,{allowCard:true}) }catch(e){}
+  try{ return injectSetupDecision(s,id,{allowCard:true}) }catch(e){ return '' }
 }
 export const openStatusGate = function(s){
   s.gateModalOpen=true;s.gateModalSource='status';if(!s.gateSelected)s.gateSelected=firstBackendIdOf(null);s.gateError='';emit(s);
@@ -90,7 +94,8 @@ export const openStatusGate = function(s){
 }
 export const closeStatusGate = function(s){ s.gateModalOpen=false; s.gateModalSource=null; s.gateError=''; emit(s); };
 export const confirmStatusGate = function(s){ const id=s.gateSelected||firstBackendIdOf(null); if(String(id).toLowerCase()==='other'){ s.gateError=tr('switch.gateOtherErr'); emit(s); return; }
-  // #655：这个弹窗（第一次打开工作区时选后端）里也放了同一组单选；在这里选过就记进会话状态，与黄条那张卡同一口径。
-  applyStatusSetupLayout(s, layoutSelectionOf(s))
-  const prev=s.selection; const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null; const nxt={backendId:id,source:'explicit',ref:repoRef}; s.selection=nxt; try{ if(s.cwd)setCachedSelection(s.cwd,nxt) }catch(e){} s.gateModalOpen=false; s.gateModalSource=null; emit(s); if(typeof host!=='undefined'&&host.call){ host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){ const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok); if(ok){ s.tab='list'; emit(s); try{ flash(s,tr('switch.bindOk',{label:(typeof labelOf==='function'?labelOf(id):String(id))}),'ok') }catch(e){} try{ injectSetupDecision(s,id,{allowCard:true}) }catch(e){} // #496 Q2：缺仓改发建仓指引并记待补标记；#655 卡就在这个弹窗所在的界面上，弹得出来
- loadSnapshot(s,true,true); } else { s.selection=prev; try{ if(s.cwd)setCachedSelection(s.cwd,prev) }catch(e){} emit(s); try{ flash(s,tr('switch.bindFail',{err:String(res&&(res.error||res.message)||'unknown')}),'warn') }catch(e){} } }).catch(function(){ s.selection=prev; try{ if(s.cwd)setCachedSelection(s.cwd,prev) }catch(e){} emit(s); }); } };
+  // #663：这个窗现在只问后端 —— 点确认只把后端定下来，不往会话里注入任何文字。
+  //   此前这里顺手记了「域文档布局」并在绑好后调一次注入决策；两处一起撤（#661 第①条）：
+  //   只撤单选而留注入，会在库房还没装 gh、还没建仓库的时候就把初始化长文塞进会话 ——
+  //   正是这次定版要结束的那件事。布局那一问现在只在初始化那一步问（黄条那颗按钮弹的小卡）。
+  const prev=s.selection; const repoRef=s.repository||(s.snapshot&&s.snapshot.repository)||null; const nxt={backendId:id,source:'explicit',ref:repoRef}; s.selection=nxt; try{ if(s.cwd)setCachedSelection(s.cwd,nxt) }catch(e){} s.gateModalOpen=false; s.gateModalSource=null; emit(s); if(typeof host!=='undefined'&&host.call){ host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){ const ok=res&&(res.ok===true||(res.value&&res.value.ok===true)||res.ok); if(ok){ s.tab='list'; emit(s); try{ flash(s,tr('switch.bindOk',{label:(typeof labelOf==='function'?labelOf(id):String(id))}),'ok') }catch(e){} loadSnapshot(s,true,true); } else { s.selection=prev; try{ if(s.cwd)setCachedSelection(s.cwd,prev) }catch(e){} emit(s); try{ flash(s,tr('switch.bindFail',{err:String(res&&(res.error||res.message)||'unknown')}),'warn') }catch(e){} } }).catch(function(){ s.selection=prev; try{ if(s.cwd)setCachedSelection(s.cwd,prev) }catch(e){} emit(s); }); } };

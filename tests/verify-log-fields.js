@@ -80,6 +80,8 @@ const ALLOWED = {
   'workspaceRoot.resolve': ['cwdHash', 'rootHash', 'source', 'cache'],
   // #655 新增一条按需事件（附录 1.5 节）：初始化这段文案「这次该不该注入、按哪种布局注入」这个决定的结果，只记三个枚举。
   'inject.decision': ['prompt', 'kind', 'layout'],
+  // #663 新增一条常驻事件（附录 1.4 节）：首开引导链那颗横幅按钮点下去给出去的是哪一类东西，只记两个短枚举（哪一步、哪一类）。
+  'guide.inject': ['step', 'outcome'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],

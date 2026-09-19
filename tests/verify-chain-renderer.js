@@ -105,7 +105,10 @@ check(prompts.includes('gh auth login'), 'ghAuthLogin 含 gh auth login 文案')
 const checksTab = file('src/client/views/ChecksTab.js')
 check(checksTab.includes('hintTextOf') && checksTab.includes('resolvePrompt'), 'ChecksTab 走通用 hint 解析（不再硬编码 ghAuthLogin，承接 fixContract）')
 check(!checksTab.includes("openUrl('https://cli.github.com/manual/gh_auth_login')") , 'ChecksTab 已删除 gh_auth_login openUrl 硬编码')
-const statusBar = file('src/client/statusbar/StatusBar.js')
+// #663：状态栏那颗按钮的注入搬去了 statusbar/bannerChain.js（横幅链），ghAuthLogin 这个名字现在写在
+//   共享步骤清单（src/shared/tracker/guide-steps.js）的 missing.prompt 上，由 bannerChain 按当前后端解析成完整指引。
+//   三份文件一起读，断言的主体没变：登录那颗按钮注入的是后端声明的指引，而不是外链官网。
+const statusBar = file('src/client/statusbar/StatusBar.js') + file('src/client/statusbar/bannerChain.js') + file('src/shared/tracker/guide-steps.js')
 check(statusBar.includes("promptText('ghAuthLogin')") || statusBar.includes('ghAuthLogin') || statusBar.includes('hintTextOf'), 'StatusBar 含 ghAuthLogin 或通用 hint（兼容）')
 check(!statusBar.includes("openUrl('https://cli.github.com/manual/gh_auth_login')"), 'StatusBar 已删除 openUrl 硬编码')
 const ghBackend = file('src/host/tracker/backends/github/index.js')

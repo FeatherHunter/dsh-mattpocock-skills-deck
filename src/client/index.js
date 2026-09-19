@@ -212,7 +212,7 @@ export default {
     // ==== leaf:skillFloatList (spliced by build) ====
     // ==== leaf:tabs (spliced by build) ====
 
-    // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
+    // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
 
     // ==== leaf:md (spliced by build) ====
     // ==== leaf:ticket (spliced by build) ====

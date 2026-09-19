@@ -49,7 +49,7 @@
         'banner.ghcli': '数据源前置条件未就绪 —— 点右侧按当前后端引导处理', // #231 中性化（键名保留为内部标识）
         'banner.ghcliBtn': 'AI 引导安装',
         'banner.ghauth': '登录态未就绪 —— 点右侧注入认证引导', // #231 中性化
-        'banner.ghauthBtn': '查看登录指南',
+        'banner.ghauthBtn': '查看登录指南', 'banner.repo': '这个目录还没有关联远端仓库', 'banner.repoBtn': '创建并发布', // #663：末两个键是首开引导链新加的「还没有远端仓库」那一段（只在 GitHub 那条链上出现；判据复用检查页已有的「已关联 GitHub 仓库」那一项，按钮直接开那个两步建仓弹窗，不注入缺仓长文）
         'banner.foldDeck': '收起MattSkillsDeck',
         'banner.expandDeck': '展开MattSkillsDeck',
         'banner.foldShort': '收起',
@@ -220,7 +220,7 @@
         'banner.ghcli': 'Data-source prerequisite missing — follow the guide for this backend',
         'banner.ghcliBtn': 'AI-guided install',
         'banner.ghauth': 'Sign-in prerequisite missing — open guide to authenticate',
-        'banner.ghauthBtn': 'View sign-in guide',
+        'banner.ghauthBtn': 'View sign-in guide', 'banner.repo': 'This directory has no remote repository yet', 'banner.repoBtn': 'Create & publish', // #663: the last two keys are the guide chain's new "no remote repository yet" segment (GitHub chain only; its button opens the existing two-step create-repo dialog)
         'banner.foldDeck': 'Collapse MattSkillsDeck',
         'banner.expandDeck': 'Expand MattSkillsDeck',
         'banner.foldShort': 'Collapse',
