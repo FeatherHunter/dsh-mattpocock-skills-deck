@@ -186,8 +186,34 @@ try {
 
   if (/width="13"/.test(r.html) && /height="13"/.test(r.html)) ok('E2 图标是 #650 定稿的 13×13 绘制')
   else bad('E2 图标尺寸不是 13×13：' + r.html.slice(0, 200))
-  if (/width: ?18px/.test(r.html) && /height: ?18px/.test(r.html)) ok('E3 标志的点击区是 18 像素（#650 定的「永不挤掉」）')
-  else bad('E3 点击区不是 18 像素：' + r.html.slice(0, 200))
+  // E3：外框尺寸要与面板头部左右两颗邻居按钮一模一样。这一条是维护者 2026-09-19 在真机上按截图
+  //   指出的「宽高没有和右边两个对齐」，当时量出来是 40 像素对 32 像素。真因是：邻居两颗按钮都是
+  //   style 里 width/height 16 + 1 像素边框（本站默认 content-box，所以外框就是 16×16），而这枚标志
+  //   原先写 18 + 1 像素边框、又没写 border-box，外框成了 20×20。用无头 Chrome 量过：改前 20.00×20.00，
+  //   改后 16.00×16.00，与两颗邻居一致。
+  //   这里的期望值不是写死的 16，而是**从邻居按钮的真源里读出来的** —— 邻居哪天改尺寸，这一条会跟着变，
+  //   不会变成钉死一个已经过时的数字。
+  const neighbourSize = function (rel, label) {
+    const src = read(rel)
+    // 取的是按钮那颗盒子的尺寸，不是它里面图标的尺寸：按钮这边的写法紧跟着 flex: 'none' 与 border，
+    //   而图标那边是 Ic({ n: …, size: … })（字面量里没有 width/height 这一段）。锚在 flex 上才不会抓错。
+    const re = /width:\s*(\d+),\s*height:\s*(\d+),\s*borderRadius:\s*\d+,\s*flex:\s*'none'[\s\S]{0,160}?border:\s*'1px solid/g
+    const hits = []
+    let m
+    while ((m = re.exec(src)) !== null) hits.push({ w: Number(m[1]), h: Number(m[2]) })
+    if (!hits.length) return null
+    return { w: hits[0].w, h: hits[0].h, count: hits.length, label: label }
+  }
+  const swap = neighbourSize('src/client/panel/Dock.js', '切换后端')
+  const palette = neighbourSize('src/client/views/labels/LabelColorEntry.js', '标签配色')
+  const markBox = /box-sizing: ?border-box;[^"]*?width: ?(\d+)px; ?height: ?(\d+)px/.exec(r.html)
+  if (!swap || !palette || !markBox) bad('E3 没读到三颗按钮的尺寸（邻居 ' + JSON.stringify([swap, palette]) + '，标志 ' + JSON.stringify(markBox && markBox.slice(1)) + '）')
+  else if (swap.w !== palette.w || swap.h !== palette.h) bad('E3 两颗邻居按钮自己就不一般大，这条判据的前提不成立：' + JSON.stringify([swap, palette]))
+  else if (Number(markBox[1]) === swap.w && Number(markBox[2]) === swap.h) ok('E3 标志外框 ' + markBox[1] + '×' + markBox[2] + '，与左右两颗邻居按钮（' + swap.label + ' / ' + palette.label + '，外框 ' + swap.w + '×' + swap.h + '）一样大')
+  else bad('E3 标志外框 ' + markBox[1] + '×' + markBox[2] + ' 与邻居的 ' + swap.w + '×' + swap.h + ' 不一致（维护者指出的「宽高没对齐」就是这个）')
+  const boxSizingOk = /box-sizing: ?border-box/.test(r.html)
+  if (boxSizingOk) ok('E3b 边框算在尺寸里（border-box），不会在 16 外面再加 2 像素')
+  else bad('E3b 没写 border-box：1 像素边框会另加，外框比邻居大一圈')
 
   const aria = (/aria-label="([^"]*)"/.exec(r.html) || [])[1] || ''
   const ariaLines = aria.split('；')

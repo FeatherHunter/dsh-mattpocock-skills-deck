@@ -178,7 +178,15 @@ export const SubworkspaceMark = function (props) {
       key: 'icon',
       'data-subws-mark': 1,
       role: 'img',
-      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: 5, border: '1px solid rgba(192,132,252,.38)', background: 'rgba(192,132,252,.07)', cursor: 'pointer', flex: 'none' },
+      // 外框尺寸必须与面板头部左右两颗邻居按钮一模一样。这一条用真浏览器重量过：
+      //   邻居「切换后端」与「标签配色」都是 style 里 width/height 16 + 1 像素边框，而本站默认的
+      //   box-sizing 是 content-box，所以它们真正画出来的外框是 **16×16**。
+      //   这枚标志原先写 18 + 1 像素边框、又没写 border-box，于是外框是 **20×20** ——
+      //   比左右两颗各宽出 4 像素、高出一圈。维护者 2026-09-19 在真机上按截图指出「宽高没有和右边两个对齐」，
+      //   在那个 150 像素宽的截图里量出来正是 40 像素对 32 像素。
+      //   现在取外框 16 + 里面 13 像素的图形：两边都比邻居略收一点，留白节奏与邻居一致。
+      //   #650 写下「18 像素」时，邻居按钮的外框还是 18；它们后来改成 16 了，这一条得跟着走，否则一排就对不齐。
+      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 16, height: 16, borderRadius: 5, border: '1px solid rgba(192,132,252,.38)', background: 'rgba(192,132,252,.07)', cursor: 'pointer', flex: 'none' },
     }, [iconSvg]),
   ])
   // 自动展开那一次用受控 visible；关掉（或本来就不再展开）之后交回 HoverTip 自己管（鼠标悬停照常出浮层）。
