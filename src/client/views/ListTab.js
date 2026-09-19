@@ -232,7 +232,7 @@ export     const ListTab = ({ st, narrow }) => {
           kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f0883e'),
           kpi(kpiClosed, tr('list.kpi.closed'), 'check', '#52525b'),
           h('span', { style: { flex: 1 } }),
-          // T2 #2：刷新按钮已上移至 OverlayPanel tabs 行（L1932）
+          // T2 #2：刷新按钮已上移至面板 tabs 行（页内浮窗退役后，面板只有右侧边栏这一处）
         ]),
         // B Timeline 定版（2026-08-28）：「N 项环境未就绪」红条已移除（顶部无错误信息；状态由检查页行级表达）
         // effort 筛选行（仅多 effort 仓库出现）：点一下只看某个 effort，再点取消；与状态/label 过滤叠加

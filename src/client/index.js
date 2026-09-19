@@ -262,7 +262,7 @@ export default {
 
     // ==== leaf:DockSync (spliced by build) ==== // ==== leaf:dock (spliced by build) ====
 
-    // ==== leaf:OverlayGate (spliced by build) ==== // ==== leaf:overlay (spliced by build) ====
+    // ==== leaf:OverlayGate (spliced by build) ====
 
     // ==== kernel:updateClient (spliced by build) ====
 

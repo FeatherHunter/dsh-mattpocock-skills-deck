@@ -43,7 +43,8 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
       const openPop = function (e) {
         e.stopPropagation()
         const trig = e.currentTarget
-        const host = trig.closest('.dsws-panel') || trig.closest('[data-dsws-host]')
+        // #646：面板容器现在在右侧边栏里（Dock 的根节点带 data-dsws-host），页内浮窗已退役
+        const host = trig.closest('[data-dsws-host]')
         showPop(trig, host, labels, x.title)
       }
       // R5：变化行视觉（变更琥珀渐隐 / 新增绿闪）

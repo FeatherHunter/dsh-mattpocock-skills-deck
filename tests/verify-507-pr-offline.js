@@ -25,7 +25,6 @@ const contractSrc = readFileSync(resolve(ROOT, 'src/host/tracker/contract.js'), 
 const prTabSrc = readFileSync(resolve(ROOT, 'src/client/views/PrTab.js'), 'utf8')
 const detailSrc = readFileSync(resolve(ROOT, 'src/client/views/IssueDetail.js'), 'utf8')
 const dockSrc = readFileSync(resolve(ROOT, 'src/client/panel/Dock.js'), 'utf8')
-const overlaySrc = readFileSync(resolve(ROOT, 'src/client/panel/Overlay.js'), 'utf8')
 const reasonSrc = readFileSync(resolve(ROOT, 'src/host/tracker/backends/github/fallback-reason.js'), 'utf8')
 const deckSrc = readFileSync(resolve(ROOT, 'src/shared/tracker/deck-derive.js'), 'utf8')
 
@@ -125,7 +124,7 @@ const prData = [
 }
 
 // ---------- D 前端四验收（只读源码断言，不改实现）----------
-check((dockSrc.includes('prTabVisible') && overlaySrc.includes('prTabVisible')) && dockSrc.includes("s.tab = 'list'") && overlaySrc.includes('#506'), 'D1 页签回归：两容器读能力位且无能力回列表（含 Overlay 注记）')
+check((dockSrc.includes('prTabVisible')) && dockSrc.includes("s.tab = 'list'"), 'D1 页签回归：面板容器读能力位且无能力回列表（#646 后只剩右侧边栏这一个容器）')
 check(detailSrc.includes('canComment') && detailSrc.includes('src.isPullRequest === true') && detailSrc.includes('snapIssue') && detailSrc.includes('Array.isArray(rawComments)') && detailSrc.includes('rawComments.nodes'), 'D2 评论隐藏双路：数组与图形状都兼容，任一来源标拉取请求即隐藏')
 check(prTabSrc.includes('prFilterForList()') && prTabSrc.includes("listIssues({ refId: 'owner/name' }"), 'D3 接线可抄：列表以过滤函数为依据并留后端直调示例')
 check(prTabSrc.includes('prIssuesOf') && prTabSrc.includes('只收 isPullRequest 为真'), 'D4 注记可懂：过滤归属写清快照全留过滤归前端')

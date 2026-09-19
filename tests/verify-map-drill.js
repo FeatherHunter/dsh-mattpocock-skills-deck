@@ -256,7 +256,8 @@ check(JSON.stringify(runSub({ number: 551, labels: [{ name: 'wayfinder:map' }] }
 // ============ 八、双产物同步 ============
 const cli = fs.readFileSync('client.js', 'utf8')
 const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
-;['enterDetail', 'enterSubDetail', 'navCrumb', 'recMapNum', 'canDrill', 'drill: false'].forEach((k) => {
+// #646：页内浮窗退役后不再有 drill:false 那一处传参（面板只有右侧边栏一处，压栈规则由 Dock 的 peekNav 承担）
+;['enterDetail', 'enterSubDetail', 'navCrumb', 'recMapNum', 'canDrill'].forEach((k) => {
   check(cli.includes(k) && pcli.includes(k), '矩阵：双产物含 ' + k)
 })
 check(cli.includes('… / ') && pcli.includes('… / '), '矩阵：双产物含超深省略号面包屑')

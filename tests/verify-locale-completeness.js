@@ -107,8 +107,7 @@ const BASELINE = {
   'kernel/slotRenderer-repo-sync.js': 2, // #454 K1 由 slotRenderer.js 拆出：同步流程分得 2 串
   'kernel/slotRenderer-modal-view.js': 36, // #454 K1 由 slotRenderer.js 拆出：弹窗本体分得 36 串
   'panel/Dock.js': 21,
-  'panel/Overlay.js': 16, // V4 #464 由 Overlay.js 拆出门控：主文件留 16 串（合计 17，与原持平）
-  'panel/OverlayGate.js': 1, // V4 #464 由 Overlay.js 拆出：门控分得 1 串（绑定失败透传文案）
+  'panel/OverlayGate.js': 1, // #646 页内浮窗退役：Overlay.js 已删，门控逻辑仍在（这个文件 1 串）
   'statusbar/StatusBar.js': 16, // B1 #460 由 StatusBar.js 拆出选后端：主文件留 16 串（合计 17，与原持平）
   'statusbar/StatusBackend.js': 1, // B1 #460 由 StatusBar.js 拆出：选后端确认分得 1 串（已选择透传文案）
   'views/ChecksTab.js': 0, // #529 环境检查标题诊断卡动作全部改走中英文词条：文件中不再留中文字符串，基线收紧到 0 防回退

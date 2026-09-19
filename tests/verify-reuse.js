@@ -55,7 +55,6 @@ for (const f of allLeaves) {
   if (ALLOWLIST.has(f)) continue
   if (Q2_STOCK_ALLOW.has(f)) continue
   const STOCK_NON_TOOLTIP = new Set([
-    'src/client/panel/Overlay.js',
     'src/client/statusbar/StatusBar.js',
     'src/client/index.js',
     'src/client/floating/SkillFloatList.js',

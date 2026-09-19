@@ -346,7 +346,6 @@ const LEAF_MODULES = [
   { id: 'dock', file: 'src/client/panel/Dock.js' },
   { id: 'namingFailBanner', file: 'src/client/panel/NamingFailBanner.js' },
   { id: 'OverlayGate', file: 'src/client/panel/OverlayGate.js' },
-  { id: 'overlay', file: 'src/client/panel/Overlay.js' },
   { id: 'seg', file: 'src/client/statusbar/Seg.js' },
   { id: 'checksums', file: 'src/client/statusbar/checksums.js' },
   { id: 'StatusMenus', file: 'src/client/statusbar/StatusMenus.js' },
@@ -434,7 +433,7 @@ ${PKG_CLIENT_SHIMS}
 `
   await gateSyntax(pkgCode, 'client-pkg')
   gateModuleLoader(pkgCode, 'client-pkg')
-  gateSingleDeclaration(pkgCode, 'client-pkg', ['StatusBar', 'DetailsDock', 'OverlayPanel', 'SettingsPage', 'RunPanel', 'IssueDetail'])
+  gateSingleDeclaration(pkgCode, 'client-pkg', ['StatusBar', 'DetailsDock', 'SettingsPage', 'RunPanel', 'IssueDetail'])
   write('package/lib/client.js', pkgCode)
   return { devCode, pkgCode }
 }

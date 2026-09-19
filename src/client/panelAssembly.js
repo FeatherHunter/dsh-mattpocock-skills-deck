@@ -74,7 +74,8 @@
       }, 'dsws: slot ' + slotName)
     }
     // 页内浮窗已退役（维护者 2026-09-19 定）：面板只有右侧边栏一个落点，所以这里不再注册浮窗挂载点。
-    //   原来挂在这个位置的是 OverlayPanel（shell.overlay 槽位）。它的提示条与切换弹窗 Dock 那边本来就有。
+    //   原来挂在这个位置的是页内浮窗组件（shell.overlay 槽位），它已随这次退役整份删除；
+    //   它当年负责的提示条与切换弹窗，Dock 那边本来就有。
     __injectOnce('conversation.input.dock', function () {
       return slots.register({ name: 'conversation.input.dock', id: 'dsh-mattpocock-skills-deck', order: 40 }, withCx(StatusBar))
     })

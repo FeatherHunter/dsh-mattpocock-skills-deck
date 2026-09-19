@@ -133,12 +133,11 @@ const dockSrc = fs.readFileSync('src/client/panel/Dock.js', 'utf8')
 check(dockSrc.includes('peekNav'), 'Dock 渲染优先级读栈顶')
 check(dockSrc.includes('hasIssueDetail') && dockSrc.includes('h(MapDetail') && dockSrc.includes('h(IssueDetail') && dockSrc.includes('h(ListTab'), 'Dock 保留 地图详情/工单详情/列表 三分支')
 
-// —— 5) T4 整改：悬浮面板禁压栈 + 子票阻塞票分流（只查源码接线，行为由上面状态机覆盖）
+// —— 5) T4 整改：子票阻塞票分流（只查源码接线，行为由上面状态机覆盖）；#646 起页内浮窗已退役，
+//       「悬浮面板禁压栈」那条随之作废（面板只有右侧边栏这一处，规则由 Dock 的 peekNav 承担）
 const mapViewSrc = fs.readFileSync('src/client/views/MapDetail.js', 'utf8')
-const overlaySrc = fs.readFileSync('src/client/panel/Overlay.js', 'utf8')
 const issueViewSrc = fs.readFileSync('src/client/views/IssueDetail.js', 'utf8')
-check(overlaySrc.includes('drill: false'), 'T4整改：悬浮面板内地图详情禁压栈（传 drill:false，只去雾与展示）')
-check(mapViewSrc.includes('drill !== false') && mapViewSrc.includes('if (canDrill) enterDetail(t)'), 'T4整改：地图行点进详情只在停靠栏生效')
+check(mapViewSrc.includes('drill !== false') && mapViewSrc.includes('if (canDrill) enterDetail(t)'), 'T4整改：地图行点进详情仍在（Dock 侧读取栈顶）')
 check(issueViewSrc.includes('enterSubDetail') && issueViewSrc.includes('findMapByIdentity'), 'T4整改：子票阻塞票按标签/快照分流（无标签按快照找图，找不到回落工单）')
 check(!issueViewSrc.includes("pushNav(st, 'issue', s.number)") && !issueViewSrc.includes("pushNav(st, 'issue', b.number)"), 'T4整改：子票阻塞票不再一律记工单')
 const cli = fs.readFileSync('client.js', 'utf8')

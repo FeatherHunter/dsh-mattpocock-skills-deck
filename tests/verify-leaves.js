@@ -37,8 +37,7 @@ const LEAVES = [
   { file: 'src/client/panel/DockSync.js', exports: ['useDockSync'], components: [] }, // V4 #464 由 Dock.js 拆出：工作区跟随（会话信号加同步加自愈钩子，无组件，纯函数）
   { file: 'src/client/panel/Dock.js', exports: ['DetailsDock'], components: ['DetailsDock'] },
   { file: 'src/client/panel/NamingFailBanner.js', exports: ['NamingFailBanner'], components: ['NamingFailBanner'] },
-  { file: 'src/client/panel/OverlayGate.js', exports: ['openOverlayGate', 'closeOverlayGate', 'confirmOverlayGate', 'pickOverlayBackend'], components: [] }, // V4 #464 由 Overlay.js 拆出：门控旅程（打开关闭确认直选，无组件，纯函数）
-  { file: 'src/client/panel/Overlay.js', exports: ['OverlayPanel'], components: ['OverlayPanel'] },
+  { file: 'src/client/panel/OverlayGate.js', exports: ['openOverlayGate', 'closeOverlayGate', 'confirmOverlayGate', 'pickOverlayBackend'], components: [] }, // V4 #464 由 Overlay.js 拆出：门控旅程（打开关闭确认直选，无组件，纯函数）；#646 浮窗本体已退役，这个门控逻辑仍在（Dock 也用）
   { file: 'src/client/statusbar/Seg.js', exports: ['num', 'seg'], components: [] },
   { file: 'src/client/statusbar/checksums.js', exports: ['checksumsOf'], components: [] },
   { file: 'src/client/statusbar/StatusMenus.js', exports: ['placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'placeStatusBugMenu', 'closeStatusBugMenu', 'showStatusBugMenu', 'placeStatusTakeMenu', 'closeStatusTakeMenu', 'showStatusTakeMenu', 'placeStatusBackendMenu', 'closeStatusBackendMenu', 'showStatusBackendMenu', 'useStatusMenus'], components: [] }, // B1 #460 由 StatusBar.js 拆出：悬浮菜单定位与开关（锚点测算加开关加重的定位钩子，无组件，纯函数）；#638 追加可接菜单三件（与 BUG 菜单同形，紫色需求入口）
@@ -118,7 +117,7 @@ function main() {
     'const MapDetail = ({ st, g, drill })', 'const NoRepoCard = function', 'const ListTab = ({ st, narrow })',
     'const RingSkills = ({ st, rec, list })', 'const SkillsTab = ({ st })', 'const ChecksTab = ({ st })',
     'const SettingsPage = (props)', 'const RunPanel = (props)', 'const DetailsDock = (props)',
-    'const OverlayPanel = (props)', 'const checksumsOf = function', 'const StatusBar = (props)',
+    'const checksumsOf = function', 'const StatusBar = (props)',
     'const SkillFloatList = function', 'const showPop = function',
   ]
   // IssueDetail spot（新增叶 · 独立 detail 插件化）
@@ -143,7 +142,9 @@ function main() {
   const idx = fs.readFileSync('src/client/index.js', 'utf8')
   check(!idx.includes('const StatusBar = '), 'src/client/index.js 已不含 StatusBar（迁出 statusbar/StatusBar.js）')
   check(!idx.includes('const DetailsDock = '), 'src/client/index.js 已不含 DetailsDock（迁出 panel/Dock.js）')
-  check(!idx.includes('const OverlayPanel = '), 'src/client/index.js 已不含 OverlayPanel（迁出 panel/Overlay.js）')
+  // #646：页内浮窗退役 —— 组件本体与它的拼接标记一起删除，源码里不该再有它的名字
+  check(!fs.existsSync('src/client/panel/Overlay.js'), 'src/client/panel/Overlay.js 已删除（页内浮窗退役）')
+  check(!idx.includes('OverlayPanel') && !cli.includes('OverlayPanel') && !pcli.includes('OverlayPanel'), '双产物与 index.js 里都不再有 OverlayPanel')
   check(!idx.includes('const ListTab = '), 'src/client/index.js 已不含 ListTab（迁出 views/ListTab.js）')
   check(!idx.includes('const SettingsPage = '), 'src/client/index.js 已不含 SettingsPage（迁出 views/SettingsPage.js）')
   check(idx.includes('tabsLevelDecide'), 'src/client/index.js 保留 tabsfold 机器（verify-tabsfold-leaf 文本基准）')
