@@ -57,13 +57,19 @@ const slots = {
 }
 const services = {
   slots,
+  // #646：原生右侧边栏类型登记表 —— 有它，本插件才会注册自己那条标签（面板内容体挂在它下面）
+  sidebarRightTabs: { register: () => () => {} },
   connection: { rpc: { call: async () => ({ ok: true, value: { ok: true, maps: [], checks: [], ready: 0, total: 0 } }) } },
   locale: { register: (ns, d) => { Object.assign(dict, d.zh || {}, d.en || {}); return () => {} }, bind: () => trFn },
   workspaces: { list: async () => [] },
   sessions: { list: async () => [] },
   timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
 }
-const ctx = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
+const ctx = {
+  get: (k) => services[k],
+  effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} },
+  inject: (deps, cb) => { cb(ctx); return { dispose: () => {} } },
+}
 
 let loaded = null
 window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
@@ -76,7 +82,8 @@ const mod = loaded.factory((m) => {
 })
 try { mod.apply(ctx) } catch (e) { console.log('  WARN apply threw:', e.message) }
 const byName = Object.fromEntries(registrations.map((r) => [r.meta && r.meta.name, r.comp]))
-const DetailsDockComp = byName.details
+// #646：面板内容体现在挂在右侧边栏那格槽位下（原来挂在 details 槽位，那条路已删）
+const DetailsDockComp = byName['sidebar.right.pane.tab']
 check(!!DetailsDockComp, 'DetailsDock 已注册可渲染')
 
 const GH_MODULES = [{ id: 'github', label: 'GitHub', capabilities: { labelsGuide: true, repoCreateChain: true, pullRequests: true } }]
@@ -100,12 +107,16 @@ async function renderDockHtml(store) {
   try {
     const useSessions = () => 'sid-530'
     const storeSvc = { useStore: () => store }
-    const cxPatched = null
     await act(async () => {
       root = ReactDOMClient.createRoot(container)
       root.render(React.createElement(DetailsDockComp, { sessionId: 'sid-530', session: { cwd: 'D:\\ws' }, useSessions, __storeSvc: storeSvc }))
-      await new Promise((r) => setTimeout(r, 30))
     })
+    // #646 起这一格挂的是面板内容体，它是「先出空壳、下一帧再挂内容」的组件（#603）：
+    //   等它把内容挂上来再读 HTML（原来直接挂 DetailsDock，第一帧就有内容）。
+    for (let i = 0; i < 20; i++) {
+      await act(async () => { await new Promise((r) => setTimeout(r, 25)) })
+      if (container.innerHTML.includes('dsws-tabs')) break
+    }
     return container.innerHTML
   } finally {
     try { if (root) root.unmount() } catch (e) {}
@@ -123,8 +134,12 @@ const htmlSmoke = await (async () => {
     await act(async () => {
       root = ReactDOMClient.createRoot(container)
       root.render(React.createElement(DetailsDockComp, { sessionId: 'sid-530', session: { cwd: 'D:\\ws' }, useSessions: () => null }))
-      await new Promise((r) => setTimeout(r, 30))
     })
+    // 同上：等内容体把内容挂上来（两跳之后才是真正的面板）
+    for (let i = 0; i < 20; i++) {
+      await act(async () => { await new Promise((r) => setTimeout(r, 25)) })
+      if (container.innerHTML.includes('dsws-tabs')) break
+    }
     return container.innerHTML
   } catch (e) {
     return 'RENDER-THREW:' + e.message

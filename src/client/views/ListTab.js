@@ -72,7 +72,8 @@ export     const ListTab = ({ st, narrow }) => {
         try {
           if (typeof ResizeObserver !== 'undefined') {
             ro = new ResizeObserver(function () { doFit() })
-            const panel = document.querySelector('.dsws-panel')
+            // #646：面板容器现在在右侧边栏里（Dock 的根节点带 data-dsws-host），页内浮窗已退役
+            const panel = document.querySelector('[data-dsws-host]')
             const body = document.querySelector('.dsws-body')
             if (panel) try { ro.observe(panel) } catch (e) {}
             if (body) try { ro.observe(body) } catch (e) {}

@@ -31,8 +31,9 @@ let passed = 0
 const ok = function (name) { passed++; console.log('  PASS', name) }
 const bad = function (name) { failed = true; console.log('  FAIL', name) }
 
-/** 只给类型的 deck 标签页打开（可以带 scope）：openTab({ type: 'deck:map' }, scope)。 */
-const RE_DECK_TAB_TYPE_ONLY = /openTab\(\{\s*type:\s*'deck:map'\s*\}/
+/** 只给类型的 deck 标签页打开（可以带 scope）：openTab({ type: 'deck:map' }, scope)。
+ *  #646 起类型名走 DECK_TAB_KIND 常量（它必须与 registerTab 那个 id 一致），两种写法都认。 */
+const RE_DECK_TAB_TYPE_ONLY = /openTab\(\{\s*type:\s*(?:'deck:map'|DECK_TAB_KIND)\s*\}/
 /** 带 path 的 deck 标签页打开：openTab({ type: 'deck:map', … path … })。 */
 const RE_DECK_TAB_WITH_PATH = /openTab\(\{[^}]*type:\s*'deck:map'[^}]*path/
 /** 任意一次打开面板的调用（不限是哪个标签页）：用来确认 hostShim.js 里已经不再打开面板。 */

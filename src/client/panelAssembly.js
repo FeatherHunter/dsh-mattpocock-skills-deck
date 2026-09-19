@@ -73,9 +73,8 @@
         }
       }, 'dsws: slot ' + slotName)
     }
-    __injectOnce('shell.overlay', function () {
-      return slots.register({ name: 'shell.overlay', id: 'dsws-overlay-v5', order: 10 }, withCx(OverlayPanel))
-    })
+    // 页内浮窗已退役（维护者 2026-09-19 定）：面板只有右侧边栏一个落点，所以这里不再注册浮窗挂载点。
+    //   原来挂在这个位置的是 OverlayPanel（shell.overlay 槽位）。它的提示条与切换弹窗 Dock 那边本来就有。
     __injectOnce('conversation.input.dock', function () {
       return slots.register({ name: 'conversation.input.dock', id: 'dsh-mattpocock-skills-deck', order: 40 }, withCx(StatusBar))
     })
@@ -91,11 +90,60 @@
     __injectOnce('settings.section', function () {
       return slots.register({ name: 'settings.section', id: 'dsws-settings-section', order: 18, label: function () { return tr('panel.title') } }, withCx(SettingsPage))
     })
-    // 原型：右侧停靠（details 槽位 · 替换内置工具详情面板；single 槽动态注册优先级低 → 胜出）
-    // priority: -1 低于内置详情面板的默认 0 → 无冲突且「低者胜出」替换内置面板
-    __injectOnce('details', function () {
-      return slots.register({ name: 'details', id: 'dsws-details', order: 10, priority: -1 }, withCx(DetailsDock))
-    })
+    // ============================================================
+    // #646 原生右侧边栏注册（用户选「DSH 右侧边栏」时走的就是这条）
+    // ============================================================
+    // 本插件自己在原生登记表里注册一个 tab 类型（builtin 档），右栏里那一格由我们自己渲染。
+    //   为什么类型名与交给 better-sidebar 的那个不同：同一类型名下 extension 档会盖住 builtin 档，
+    //   只要 better-sidebar 装着，它转发 deck:map 的那份就永远生效 —— 想让这条真由我们渲染，就得换个类型名。
+    //   等待方式是服务（ctx.inject(['sidebarRightTabs'])，不是在槽位声明上等）：原生右栏先声明槽位、
+    //   后提供服务，按槽位声明触发会读到空服务、永久注册不上（这条经验 better-sidebar 的源码注释里记过）。
+    export let nativeTabDisposer = null
+    export const registerNativeTabType = function () {
+      if (nativeTabDisposer) return true
+      const tabs = ctx.get('sidebarRightTabs')
+      if (!(tabs && typeof tabs.register === 'function')) return false
+      try {
+        nativeTabDisposer = tabs.register({
+          id: DECK_NATIVE_TYPE_ID,
+          kind: DECK_NATIVE_TAB_KIND,
+          title: function () { return tr('panel.title') },
+          icon: function () { return Ic({ n: 'map', size: 14 }) },
+          priority: 'builtin',
+          // 右栏「+」引导页里的入口：与交给 better-sidebar 那条同 order，用户在引导页也能自己把它加出来。
+          guide: [{ order: 60, title: function () { return tr('panel.title') }, icon: function () { return Ic({ n: 'map', size: 14 }) } }],
+        })
+      } catch (e) { nativeTabDisposer = null; return false }
+      return true
+    }
+    export const registerNativeTabSlots = function () {
+      if (!nativeTabDisposer) return false  // 类型没注册上就不注册内容体，避免留下半截注册
+      __injectOnce('sidebar.right.pane.tab', function () {
+        return slots.register({ name: 'sidebar.right.pane.tab', key: DECK_NATIVE_TYPE_ID, inject: function (sessionId) { return { sessionId: sessionId } } }, withCx(DeckSidebarTab))
+      })
+      __injectOnce('sidebar.right.pane.tab.title', function () {
+        return slots.register({ name: 'sidebar.right.pane.tab.title', key: DECK_NATIVE_TYPE_ID }, withCx(DeckNativeTabTitle))
+      })
+      return true
+    }
+    if (typeof ctx.inject === 'function') {
+      ctx.inject(['sidebarRightTabs'], function () {
+        if (registerNativeTabType()) registerNativeTabSlots()
+      })
+    } else {
+      // 老宿主没有 ctx.inject：退回每秒试一次（最多 10 次），与 better-sidebar 那条路同一套做法。
+      let nativeTries = 0
+      const nativeTimer = setInterval(function () {
+        nativeTries++
+        if (registerNativeTabType()) { registerNativeTabSlots(); clearInterval(nativeTimer) } else if (nativeTries >= 10) clearInterval(nativeTimer)
+      }, 1000)
+    }
+    ctx.effect(function () {
+      return function () {
+        try { if (nativeTabDisposer) nativeTabDisposer() } catch (e) { /* 忽略 */ }
+        nativeTabDisposer = null
+      }
+    }, 'dsh-mattpocock-skills-deck: native right sidebar tab')
 
     // v1.4.1：apply 时尽力注册 better-sidebar tab（MattSkillsDeck）；better-sidebar 服务未就绪（加载晚于本模块）→ 定时重试（最多 10 次）
     //   卸载（HMR / 插件禁用）时清理 disposer + 重试定时器

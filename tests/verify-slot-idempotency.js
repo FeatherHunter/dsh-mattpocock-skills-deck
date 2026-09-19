@@ -10,7 +10,9 @@ const src = ['src/client/index.js', 'src/client/panelAssembly.js'].map((f) => fs
 const dev = fs.readFileSync(path.resolve('client.js'), 'utf8')
 const pkg = fs.readFileSync(path.resolve('package/lib/client.js'), 'utf8')
 
-const slots = ['shell.overlay','conversation.input.dock','tool.view.cordis','settings.plugins.tab','settings.section','details']
+// #646：面板只落在右侧边栏里 —— 浮窗挂载点（shell.overlay）与已不存在的 details 列不再注册，
+//   改成两格原生右栏标签（内容体 + 标题栏），所以这里仍是 6 个槽位。
+const slots = ['conversation.input.dock','tool.view.cordis','settings.plugins.tab','settings.section','sidebar.right.pane.tab','sidebar.right.pane.tab.title']
 
 console.log('-- src/client/index.js 静态幂等门禁 --')
 check(src.includes('const __slotOnce = {}'), 'src 含 __slotOnce 闸')

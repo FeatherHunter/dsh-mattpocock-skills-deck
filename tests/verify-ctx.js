@@ -57,7 +57,7 @@ async function main() {
   // ---- 产物已注入（双产物同构 · 一源两物）----
   const cli = fs.readFileSync('client.js', 'utf8')
   const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
-  const need = ['const DswsCtx = React.createContext(null)', 'function createCx(deps)', 'const cx = createCx(', 'withCx(OverlayPanel)', 'withCx(StatusBar)', 'withCx(RunPanel)', 'withCx(SettingsPage)', 'withCx(DetailsDock)']
+  const need = ['const DswsCtx = React.createContext(null)', 'function createCx(deps)', 'const cx = createCx(', 'withCx(StatusBar)', 'withCx(RunPanel)', 'withCx(SettingsPage)', 'withCx(DeckSidebarTab)', 'withCx(DeckNativeTabTitle)']
   need.forEach((k) => {
     check(cli.includes(k) && pcli.includes(k), '产物(_dev)+(_pkg) 含 ' + k + '（' + (cli.includes(k) ? '✓' : '✗') + '/' + (pcli.includes(k) ? '✓' : '✗') + '）')
   })

@@ -22,7 +22,7 @@ export     const SettingsPage = (props) => {
       // T5 修订：订阅 store（设置页独立于面板 dock，需自己订阅 shared 才能渲染 flash toast）
       const sharedSt = cx ? cx.storeSvc.useStore(props && props.sessionId) : useStore(props && props.sessionId)
       // T2 悬停提示迁移：设置提示框的定位、翻转、挂顶显示已统一交给 HoverTip（mode='mouse'）负责，显示悬停提示、移动悬停提示、隐藏悬停提示三个旧函数（showCfgTip/moveCfgTip/hideCfgTip）已经下线，移除了全局显示时序，翻转阈值与样式走统一配置表，页面行为没有变化
-      const [openIn, setOpenIn] = React.useState(cfg.openIn || 'dock')
+      const [openIn, setOpenIn] = React.useState(cfg.openIn || 'native')
       const [openInNote, setOpenInNote] = React.useState(false)
       const [foldVer, setFoldVer] = React.useState(0)
       // #492调试分组：开关秒显宿主值，经 wf.logSetSwitch 写宿主，底座广播刷新；四键走宿主电话
@@ -171,14 +171,15 @@ export     const SettingsPage = (props) => {
         upd.banner,
         // #587：检查更新的浮层弹窗（#541/#542 原有的内容与行为不变，形态从页内分组改为居中浮层）
         upd.dialog,
-        // v1.4：打开位置（details 列 / better-sidebar）—— better-sidebar 未装时仅显示 dock 选项
+        // #646：打开位置 = 两个入口（本插件自己开进 DSH 右侧边栏 / 交给 dsh-better-sidebar）。
+        //   better-sidebar 未装时只显示本插件自己那一条 —— 那条不依赖任何第三方插件。
         h('div', { className: 'dsws-cfg-group' }, [
           h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'map', size: 13 }), h('span', null, tr('cfg.openIn'))]),
           h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.openInDesc')),
           h('div', { className: 'dsws-cfg-row' }, [
             h('span', { className: 'dsws-cfg-label' }, tr('cfg.openInLabel')),
             h('div', { className: 'dsws-cfg-seg' }, [
-              h('button', { key: 'dock', className: openIn === 'dock' ? 'on' : '', onClick: function () { pickOpenIn('dock') } }, tr('cfg.openInDock')),
+              h('button', { key: 'native', className: openIn === 'native' ? 'on' : '', onClick: function () { pickOpenIn('native') } }, tr('cfg.openInNative')),
               (function () { try { return !!ctx.get('betterSidebar') } catch (e) { return false } })()
                 ? h('button', { key: 'sidebar', className: openIn === 'sidebar' ? 'on' : '', onClick: function () { pickOpenIn('sidebar') } }, tr('cfg.openInSidebar'))
                 : null,

@@ -169,10 +169,12 @@ export default {
     // ==== kernel:probeChain (spliced by build) ====
     // ==== kernel:probeSnapshot (spliced by build) ====
     // ==== kernel:probeAuto (spliced by build) ====
-    // 打开形式（#373 用户拍板 2026-08-14）：仅右侧 details 列（停靠）一种形式。
+    // 打开形式（#373 用户拍板 2026-08-14；#646 改版）：面板只落在 DSH 右侧边栏里，没有第二个落点。
     //   已移除：① Document PiP 独立小窗（Electron 无法创建 PiP 窗口、曾致桌面卡死 —— 代码不再含 pip 形态）；
-    //   ② 停靠/悬浮双模式记忆（PANEL_MODE_KEY）；③ 状态栏「停靠」seg 与右栏「悬浮」按钮。
-    //   打开一律走 layout.openDetails()；layout 服务不可用时退回页内悬浮面板（仅兜底，无任何入口按钮）。
+    //   ② 停靠/悬浮双模式记忆（PANEL_MODE_KEY）；③ 状态栏「停靠」seg 与右栏「悬浮」按钮；
+    //   ④ #646：页内浮窗形态整体退役（打开面板那两个老函数与 details 列那条路，在维护者拍板后删除）。
+    //   打开有两个入口，用户选哪个走哪个，都落在右侧边栏里：
+    //     「DSH 右侧边栏」= 本插件自己注册的类型，我们渲染；「BetterSidebar」= 交给 dsh-better-sidebar 打开。
     // ==== kernel:router (spliced by build) ====
 
     // v10：沉淀 = 会话级动作 —— 注入「零丢失快照」prompt（默认文本见 §2.5 FIXATE_PROMPT，T2b 可编辑）

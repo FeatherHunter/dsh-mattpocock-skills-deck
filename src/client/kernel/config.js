@@ -8,19 +8,19 @@
  */
     export const CFG_KEY = 'dsws.cfg'
     // 功能配置（用户拍板 2026-08-14：外观图标/动作词由设计定死，不提供配置项）
-    // v1.4：打开位置 cfg.openIn —— 检测到 dsh-better-sidebar 已装则默认 'sidebar'，否则 'dock'；
-    //   localStorage 已有值则尊重用户选择（不覆盖）
+    // v1.4 起：打开位置 cfg.openIn —— 两个入口（#646 改版）：
+    //   'native'  = 本插件自己直接开进 DSH 原生右侧边栏（我们注册、我们渲染，不依赖任何第三方插件，所以是默认值）；
+    //   'sidebar' = 把面板交给 dsh-better-sidebar，由它开、它管（装了它才有这一项）。
+    //   localStorage 已有值则尊重用户选择（不覆盖）；旧值 'dock'（那个列在当前 DSH 里已经不存在）一律当 'native'。
     export const cfg = (function () {
-      const bsInstalled = !!(ctx.get('betterSidebar') && typeof ctx.get('betterSidebar').registerTab === 'function')
-      const d = { withWayfinder: true, openIn: bsInstalled ? 'sidebar' : 'dock' }
+      const d = { withWayfinder: true, openIn: 'native' }
       try {
         const raw = localStorage.getItem(CFG_KEY)
         if (raw) {
           const saved = JSON.parse(raw)
-          if (typeof saved.openIn === 'string') d.openIn = saved.openIn  // 用户已选过 → 尊重
-          else d.openIn = bsInstalled ? 'sidebar' : 'dock'              // 首次 → 按安装情况默认
+          if (typeof saved.openIn === 'string') d.openIn = (saved.openIn === 'sidebar') ? 'sidebar' : 'native'
         }
-        return Object.assign({ withWayfinder: true, openIn: 'dock' }, d)
+        return Object.assign({ withWayfinder: true, openIn: 'native' }, d)
       } catch (e) { try { log('warn', 'storage.fail', { key: CFG_KEY, op: 'read' }) } catch (eL) {} }
       return d
     })()

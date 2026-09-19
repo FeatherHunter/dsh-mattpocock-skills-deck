@@ -57,8 +57,11 @@ const slots = {
   },
   inject: (name, fn) => { try { fn() } catch (e) {} },
 }
+// #646：原生右侧边栏类型登记表（本插件自己那条入口要用它；没有它就不注册标签内容体）
+const nativeTypes = []
 const services = {
   slots,
+  sidebarRightTabs: { register: (def) => { nativeTypes.push(def); return () => {} } },
   connection: { rpc: { call: async () => ({ ok: true, value: { ok: true, maps: [], checks: [], ready: 0, total: 0 } }) } },
   locale: { register: (ns, d) => { Object.assign(dict, d.zh || {}, d.en || {}); return () => {} }, bind: () => trFn },
   workspaces: { list: async () => [] },
@@ -68,6 +71,8 @@ const services = {
 const ctx = {
   get: (k) => services[k],
   effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} },
+  // #646：等 sidebarRightTabs 服务就绪（真宿主是 ctx.inject(deps, cb)，这里直接同步回调）
+  inject: (deps, cb) => { cb(ctx); return { dispose: () => {} } },
 }
 
 // ---- 加载产物（pkg bundle） via __ModuleLoader__ stub ----
@@ -90,9 +95,15 @@ try { mod.apply(ctx) } catch (e) { console.log('  WARN apply threw:', e.message)
 check(registrations.length === 6, `slots.register 捕获 6 个插槽（实际 ${registrations.length}）`)
 const slotNames = registrations.map(r => r.meta && r.meta.name).join(', ')
 check(slotNames.includes('conversation.input.dock'), `statusbar 插槽已注册（${slotNames}）`)
-check(slotNames.includes('details'), `panel 插槽已注册（${slotNames}）`)
+check(slotNames.includes('settings.section'), `settings.section 插槽已注册（${slotNames}）`)
 check(slotNames.includes('settings.plugins.tab'), `settings 插槽已注册（${slotNames}）`)
-check(slotNames.includes('shell.overlay'), `overlay 插槽已注册（${slotNames}）`)
+// #646：面板只落在右侧边栏里 —— 浮窗（shell.overlay）与已不存在的 details 列都不再注册，
+//   改成注册本插件自己的原生标签内容体与标题栏两格。
+check(slotNames.includes('sidebar.right.pane.tab'), `右侧边栏内容体插槽已注册（${slotNames}）`)
+check(slotNames.includes('sidebar.right.pane.tab.title'), `右侧边栏标题栏插槽已注册（${slotNames}）`)
+check(!slotNames.includes('shell.overlay'), `不再注册页内浮窗挂载点（${slotNames}）`)
+check(nativeTypes.length === 1 && nativeTypes[0].kind === 'dsh-mattpocock-skills-deck:deck-map' && nativeTypes[0].priority === 'builtin',
+  `本插件自己注册了 1 个原生标签类型（builtin 档，实际 ${JSON.stringify(nativeTypes.map(t => [t.kind, t.priority]))}）`)
 
 // ---- 样式注入已在 smoke-client 验证，这里复核 ----
 const styles = window.document.head.querySelectorAll('style[data-plugin]')
@@ -127,8 +138,9 @@ async function renderAndCheck(Comp, props, expects, label) {
 const byId = Object.fromEntries(registrations.map(r => [r.meta && r.meta.id, r.comp]))
 const byName = Object.fromEntries(registrations.map(r => [r.meta && r.meta.name, r.comp]))
 const StatusBarComp = byName['conversation.input.dock'] || byId['dsh-mattpocock-skills-deck']
-const DetailsDockComp = byName['details']
-const OverlayComp = byName['shell.overlay']
+// #646：面板内容体由右侧边栏那两格承载（按槽位名取组件即可，keyed 注册也是这个 name）
+const PanelBodyComp = byName['sidebar.right.pane.tab']
+const PanelTitleComp = byName['sidebar.right.pane.tab.title']
 const SettingsComp = byName['settings.plugins.tab']
 
 // ---- StatusBar 渲染（关键路径：capsule / seg / 状态段）----
@@ -146,42 +158,24 @@ if (StatusBarComp) {
   check(false, 'StatusBar 组件未捕获')
 }
 
-// ---- DetailsDock 渲染（关键路径：panel / tabs 行）----
-if (DetailsDockComp) {
-  const dockProps = {
+// ---- 右侧边栏标签内容体渲染（关键路径：面板容器）----
+// 内容体是「先出空壳、下一帧再挂内容」的组件（#603）：这里只要求渲染不抛错，不等第二跳。
+if (PanelBodyComp) {
+  const paneProps = {
     sessionId: 'test-sid',
     session: { cwd: 'D:\\test' },
     useSessions: () => null,
   }
-  await renderAndCheck(DetailsDockComp, dockProps, ['dsws-tabs', 'dsws-body'], 'DetailsDock')
+  await renderAndCheck(PanelBodyComp, paneProps, [], 'right-pane body')
 } else {
-  check(false, 'DetailsDock 组件未捕获')
+  check(false, '右侧边栏内容体组件未捕获')
 }
 
-// ---- Overlay 渲染（关键路径：portal 挂载点）----
-// OverlayPanel 在未 open 时返回 null，渲染后应为 null 或空 div —— 不强制 DOM 特征，只要不抛错即视为通过
-if (OverlayComp) {
-  const overlayProps = { sessionId: 'test-sid', useSessions: () => null }
-  const container = window.document.createElement('div')
-  window.document.body.appendChild(container)
-  let root = null
-  let threw = false
-  try {
-    await act(async () => {
-      root = ReactDOMClient.createRoot(container)
-      root.render(React.createElement(OverlayComp, overlayProps))
-      await new Promise(r => setTimeout(r, 20))
-    })
-    check(true, 'OverlayPanel 渲染不抛错（空态）')
-  } catch (e) {
-    threw = true
-    check(false, 'OverlayPanel 渲染异常: ' + e.message)
-  } finally {
-    try { if (root) root.unmount() } catch (e) {}
-    try { if (container.parentNode) container.parentNode.removeChild(container) } catch (e) {}
-  }
+// ---- 右侧边栏标签标题栏渲染（一行面板名）----
+if (PanelTitleComp) {
+  await renderAndCheck(PanelTitleComp, {}, [dict['panel.title'] || 'panel.title'], 'right-pane title')
 } else {
-  check(false, 'OverlayPanel 组件未捕获')
+  check(false, '右侧边栏标题栏组件未捕获')
 }
 
 // ---- 直接测试 src 叶子小件（确保单文件 ≤350 且 runtime 可挂载）----

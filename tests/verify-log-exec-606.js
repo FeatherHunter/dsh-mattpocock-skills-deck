@@ -286,7 +286,7 @@ async function main() {
 
     // 再按运行核：把 router.js 里那三段真代码抽出来，配假记录器跑一遍。
     const start = routerSrc.indexOf('export const panelClock')
-    const end = routerSrc.indexOf('export const openPagePanel')
+    const end = routerSrc.indexOf('export const DECK_TAB_KIND')
     check(start >= 0 && end > start, '能从 router.js 里抽到计时与记日志那三段真代码')
     let lines = []
     let enabled = false
