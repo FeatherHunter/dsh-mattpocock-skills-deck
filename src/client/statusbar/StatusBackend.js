@@ -15,7 +15,7 @@ export const SETUP_LAYOUT_FALLBACK = 'single'
 export const readStatusSetupLayout = function(s){
   try{ const v=String((s&&s.setupLayout)||'').toLowerCase(); return SETUP_LAYOUT_VALUES.indexOf(v)>=0?v:null }catch(e){ return null }
 }
-// 卡片上这一组单选默认选中哪一项：已经选过的（含从别处选完又打开这张卡）优先，否则回到第一项「一个仓库共用一份词表」。
+// 卡片上这一组单选默认选中哪一项：已经选过的（含从别处选完又打开这张卡）优先，否则回到第一项「根目录一份 CONTEXT.md」。
 export const layoutSelectionOf = function(s){
   const picked=readStatusSetupLayout(s); if(picked) return picked
   try{ const v=String((s&&s.setupPickLayout)||'').toLowerCase(); if(SETUP_LAYOUT_VALUES.indexOf(v)>=0) return v }catch(e){}

@@ -126,7 +126,7 @@ async function main() {
         ok(kind === 'setup', tag + ' → 仍然注入全文（实得 ' + kind + '）')
         ok(injected.length === before + 1, tag + ' → 确实注入了，不是「什么都没发生」')
         ok(injected[injected.length - 1].indexOf('{contextLayout}') < 0, tag + ' → 注入的全文里没有悬空占位符')
-        ok(injected[injected.length - 1].indexOf(L.zh['setup.layout.single']) >= 0, tag + ' → 没选过布局时按缺省「一个仓库共用一份词表」填，不留空')
+        ok(injected[injected.length - 1].indexOf(L.zh['setup.layout.single']) >= 0, tag + ' → 没选过布局时按缺省「根目录一份 CONTEXT.md」填，不留空')
       }
     }
   }

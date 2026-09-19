@@ -162,7 +162,7 @@ async function main() {
   check(dEn.backendNote === G.en.default.backendNote && dEn.trackerLine === G.en.default.trackerLine && !('paletteNote' in dEn), '未知第三方后端 id → 缺省键组（=旧行为；不再有 paletteNote 项）')
 
   // ---- 验收 2+3：注入全文等价 & 状态无关 ----
-  //   两腿都跑：不传布局（=旧调用形态，按缺省「一个仓库共用一份词表」填）与传了具体布局（#655 的新形态）。
+  //   两腿都跑：不传布局（=旧调用形态，按缺省「根目录一份 CONTEXT.md」填）与传了具体布局（#655 的新形态）。
   //   关键不变量：任何一腿都不许把这句留空——注入文案里永远有一句布局结论可选。
   for (const lang of ['zh', 'en']) {
     const dict = L[lang]
