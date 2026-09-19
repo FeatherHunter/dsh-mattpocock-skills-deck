@@ -202,9 +202,11 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
   <p class="sub">这是给眼睛看的假面板：没有后端、没有真实数据、刷新就回到初始状态。底下那条黑色小条是原型自己的切换器，不是设计的一部分。</p>
   <div class="q">
     <b>这个原型要回答的设计问题</b><br>
-    一、<strong>面板该有多大、内容怎么摆，才能让人一眼找到自己要的那条路或那颗技能？</strong>面板里按工作流分组、每组写一句「这条适合什么时候用」、组内按顺序列技能，这是第一轮讨论已经定下的方向；还没定的是「找法」：按「我现在要干什么」找、按「原作者官网的编号分组」找，还是把两者叠起来。<br>
-    二、<strong>要不要一大块地方把内容一次看全？</strong>底部条上的「形状」开关可以把面板换成屏幕居中、尽量不用滚动的大区域：一条路一行（20 条路排成 20 行）或一颗技能一格（25 颗铺成网格）。面板底部那行「一眼看全」会告诉你当前窗口下到底看全了没有、还差多少。<br>
-    三、工作流从 6 块长到 20 块时，如果还用贴着按钮的小面板，怎么折、怎么滚、要不要留一个「一行一个工作流」的总览？
+    <b>形状已经定了（2026-09-19 拍板）：走「大区域」这一档</b>——屏幕居中一大块、尽量不用上下滑就能看全。
+    下面这些开关是在这一档里继续挑细节；小面板那一档留着做对照，切「形状」就能看到。<br>
+    一、<strong>大区域里内容怎么摆</strong>：一条路一行（20 条路排成 20 行）、一颗技能一格（25 颗铺成网格）、还是分成块并排几栏。<br>
+    二、<strong>找法</strong>：按「我现在要干什么」找、按「原作者官网的编号分组」找，还是把两者叠起来。<br>
+    三、<strong>说明放哪、点完关不关、该点哪个要不要突出</strong>这些细节。
   </div>
   <div class="tags">
     <span class="tag hot">换三种找法：底部条左右方向键 ← →</span>
@@ -253,7 +255,7 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
         <p>2. 把<i>形状</i>切到「大区域」：一大块地方居中摊开，看能不能把内容一次看全、不用上下滑；铺法有「一条路一行」与「一颗技能一格」两种，面板底部那行「一眼看全」会直说还差多少像素。看完再切回「小面板」对着比。</p>
         <p>3. 在小面板那一档里把<i>块数</i>切到「20 条路一块一条」和「22 处归并成 20 块」，看折叠与滚动够不够用、要不要那个「一行一个工作流」的总览态。</p>
         <p>4. 把<i>技能排版</i>切到「横向流水线」，看五棒折成一条链之后还认不认得出顺序；把<i>该点哪个</i>打开成「突出」，看那块绿是帮你还是吵你。</p>
-        <p>5. 把<i>技能行说明</i>切到「只在悬停里」，看没有那行小字时还认不认得；把<i>点完</i>切成「不关，留回执」看注入之后想不想继续点第二个。</p>
+        <p>5. 把<i>技能行说明</i>切到「写在行里」，看行变高之后还认不认得、大区域里还放不放得下；把<i>点完</i>切成「不关，留回执」看注入之后想不想继续点第二个。</p>
         <p>6. 窄面板那一档（260 与 200 像素）是照现在「文字收成图标」的行为摆的，看折到哪一档还能用。</p>
       </div>
     </div>
@@ -399,13 +401,13 @@ var S = {
   open:false,
   blocks:'g6',
   width:'w360',
-  descInline:true,
+  descInline:false,     // 说明先按真机现状来：只在悬停浮层里（写在行里会让大区域放不下，切过去就看得见代价）
   closeAfter:true,
   overview:false,
   stepsLayout:'rows',   // rows = 一行一个技能；pipe = 横向一条流水线
   markNext:false,       // 要不要把「当前该点的那一个」标出来
   reached:{},           // 每块走到第几棒（只在 markNext 打开时才记）：块 id → 已经点过的棒数
-  shape:'pop',          // pop = 贴着那颗按钮的小面板；big = 屏幕居中、尽量一眼看全的大区域
+  shape:'big',          // pop = 贴着那颗按钮的小面板；big = 屏幕居中、尽量一眼看全的大区域（2026-09-19 拍板走这一档）
   bigLayout:'oneper',   // 大区域里的三种铺法：oneper 一条路一行 / grid 一颗技能一格 / blocks 分组块
   expanded:{ '01':true, '02':true },
   hoverFlow:null,
@@ -577,11 +579,13 @@ function readURL(){
   var b = p.get('blocks'); if (BLOCKS[b]) S.blocks = b
   var w = p.get('width')
   for (var k in WIDTHS) if (String(WIDTHS[k].px) === String(w)) S.width = k
-  S.descInline = p.get('desc') !== 'hover'
+  // 说明的默认值是「只在悬停浮层里」——和真机现状一致，也是「大区域一眼看全」放得下的那一档
+  S.descInline = (p.get('desc') === 'inline')
   S.closeAfter = p.get('after') !== 'stay'
   S.stepsLayout = (p.get('layout') === 'pipe') ? 'pipe' : 'rows'
   S.markNext = p.get('next') === '1'
-  S.shape = (p.get('shape') === 'big') ? 'big' : 'pop'
+  // 形状的默认值是「大区域」——2026-09-19 已经拍板走这一档；要看小面板就切开关或加 ?shape=pop
+  S.shape = (p.get('shape') === 'pop') ? 'pop' : 'big'
   var bl = p.get('big'); if (bl === 'oneper' || bl === 'grid' || bl === 'blocks') S.bigLayout = bl
   S.overview = p.get('overview') === '1'
   S.expanded = expandDefault(S.variant)
@@ -601,7 +605,7 @@ function injectSkill(name, flowId, idx){
 function resetState(){
   var w = S.width
   S.open = false; S.blocks = 'g6'; S.width = w
-  S.descInline = true; S.closeAfter = true; S.overview = false
+  S.descInline = false; S.closeAfter = true; S.overview = false
   S.stepsLayout = 'rows'; S.markNext = false; S.reached = {}
   S.shape = 'pop'; S.bigLayout = 'oneper'
   S.expanded = expandDefault(S.variant)
@@ -1028,8 +1032,10 @@ function renderState(){
 function renderBar(){
   var bar = document.getElementById('bar')
   var keys = ['A','B','C']
+  // 一颗技能一格那一档是 25 颗平铺，不按处境分段，找法换不出花样来；这里明说，免得以为点坏了。
+  var navNote = (S.shape === 'big' && S.bigLayout === 'grid') ? ' · 这一档 25 颗平铺，找法不影响画面' : ''
   var html = '<div class="nav"><button class="arrow" id="prev">‹</button>' +
-    '<div class="cur">' + S.variant + ' — ' + esc(VARIANTS[S.variant].name) + '<small>← → 切换找法 · URL 里是 ?variant=' + S.variant + '</small></div>' +
+    '<div class="cur">' + S.variant + ' — ' + esc(VARIANTS[S.variant].name) + '<small>← → 切换找法 · URL 里是 ?variant=' + S.variant + esc(navNote) + '</small></div>' +
     '<button class="arrow" id="next">›</button></div><div class="sep"></div>'
   function grp(label, items, cur, kind){
     var s = '<div class="grp"><span class="gl">' + label + '</span>'
@@ -1100,7 +1106,7 @@ function render(){ renderHost(); renderPanel(); renderState(); renderBar(); if (
 function setVariant(v){
   S.variant = v
   S.open = false; S.blocks = 'g6'; S.lastHit = null; S.injectCount = 0; S.typedIn = ''
-  S.descInline = true; S.closeAfter = true; S.overview = false
+  S.descInline = false; S.closeAfter = true; S.overview = false
   S.stepsLayout = 'rows'; S.markNext = false; S.reached = {}
   S.shape = 'pop'; S.bigLayout = 'oneper'
   S.expanded = expandDefault(v)
@@ -1148,11 +1154,11 @@ var WALK = [
     what:'现在每一行的说明靠鼠标悬停的浮层承载。分组之后说明放哪、还悬不悬停、点下去面板关不关。',
     setup:function(){ setVariant('B') },
     steps:[
-      { say:'先看说明写在行里这一版：技能名字后面直接跟着那句大白话。', watch:'行变高了，一屏能放的块变少；但不用悬停就能读懂。', do:function(){ S.open = true } },
-      { say:'把「技能行说明」切到「只在悬停里」。', watch:'行矮回去、一屏能多装两块，但每颗技能要停一下才知道是干什么的。', opt:['desc','0'] },
-      { say:'把鼠标停在任意一颗技能上（比如 /implement）。', watch:'该行亮起左边那道紫线、说明从浮层里出来——切到「只在悬停里」这一档时，浮层就是唯一能读到说明的地方（现在就是这一档的行为）。' },
+      { say:'打开面板：默认这一档（和真机现状一样）说明只在悬停浮层里，每一行是矮的。', watch:'一屏能多装两块，但每颗技能要停一下才知道是干什么的。', do:function(){ S.open = true } },
+      { say:'把「技能行说明」切到「写在行里」。', watch:'技能名字后面直接跟着那句大白话，行变高了、一屏能放的块变少；好处是不用悬停就能读懂。', opt:['desc','1'] },
+      { say:'把鼠标停在任意一颗技能上（比如 /implement）。', watch:'不管哪一档，悬停都还有一层浮层：该行亮起左边那道紫线、说明从浮层里出来。' },
       { say:'点它一下。', watch:'默认是注入后关面板（和现在一样）：假输入框里出现 /implement，面板消失。' },
-      { say:'把「点完」切到「不关，留回执」，再打开面板点一颗别的技能。', watch:'面板留着，底部出现一条「刚注入了什么」，右边「已注入」计数加一。想想这样更顺手，还是更吵。', opt:['after','0'] }
+      { say:'把「点完」切到「不关，留回执」，把说明切回「只在悬停里」，再打开面板点一颗别的技能。', watch:'面板留着，底部出现一条「刚注入了什么」，右边「已注入」计数加一。想想这样更顺手，还是更吵。', opt:[['after','0'],['desc','0']] }
     ]
   },
   {
@@ -1233,7 +1239,7 @@ function walkReset(){
   resetState()
   S.open = false
   S.expanded = expandDefault(S.variant)
-  S.blocks = 'g6'; S.overview = false; S.descInline = true; S.closeAfter = true
+  S.blocks = 'g6'; S.overview = false; S.descInline = false; S.closeAfter = true
   S.stepsLayout = 'rows'; S.markNext = false; S.reached = {}
   W.step = 0
   W.done = {}
