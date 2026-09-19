@@ -3,23 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>原型 #643 · 大区域面板（只摆面板本身）</title>
+<title>原型 #643 · 大区域面板（只摆面板本身，左右方向键换形态）</title>
 <!--
   PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
   这是「只看面板本身」的那一份：和 docs/prototype/643-workflow-panel-variants.html 用同一套内容与渲染代码
-  （由脚本从那份文件里抽出来），但去掉了原型自己的切换条、状态卡、引导场景与假宿主页，
-  只留下面板本体，方便直接盯着成品看。
+  （由脚本从那份文件里抽出来），但去掉了原型自己的切换条、状态卡、引导场景与假宿主页，只留下面板本体。
 
-  已经定下来的那一套（2026-09-19）：大区域 + 分组块 + 处境 6 块·路成块 + 说明只在悬停（自己画的 100 毫秒气泡）
-  + 点完关面板 + 不突出「该点哪个」+ 不要一行总览；技能排版用的是「一行一个＋引导线」。
+  怎么用：按左右方向键在下面这 20 个形态里换（左下角那行会写清当前是第几个、叫什么、地址是什么）；
+  地址栏也跟着变，所以刷新、或者把地址复制给别人，看到的都是同一个形态。
+  点面板里的任意一颗技能名，真机上那一下会把「/技能名」写进当前会话的输入框。
 
-  地址栏上还能换的（想比就改这一段）：
-    ?steps=rows | rowsline | rowsline2 | pipe     技能排版（一行一个 / ＋引导线 / ＋向下箭头 / 横向流水线）
-    ?layout=web | scenesec | sceneblk | flat      摆法（官网 6 组 / 处境 6 块·路小节 / 处境 6 块·路成块 / 20 条路平铺）
-    ?tag=1                                        每条路的名字后面跟一枚官网组编号
-    ?desc=inline                                  说明写在行里（会放不下，面板底部那行会说还差多少）
-    ?after=stay                                   点完不关面板、底部留一条回执
-  运行：双击本文件即可，无后端、无依赖、刷新即重置。
+  已经定下来的那一套（2026-09-19）：大区域 + 分组块 + 说明只在悬停（自己画的 100 毫秒气泡）
+  + 点完关面板 + 不突出「该点哪个」+ 不要一行总览；技能排版默认「一行一个＋引导线」，摆法默认「处境 6 块·路成块」。
+
+  想直接跳某一档，用地址栏参数（等价于按方向键走到那一步）：
+    ?layout=web|scenesec|sceneblk|flat     摆法（官网 6 组 / 处境 6 块·路小节 / 处境 6 块·路成块 / 20 条路平铺）
+    ?steps=rows|rowsline|rowsline2|pipe    技能排版（一行一个 / ＋引导线 / ＋向下箭头 / 横向流水线）
+    ?tag=1                                 每条路的名字后面跟一枚官网组编号
+    ?shape=pop                             小面板那一档；?big=oneper|grid|blocks 大区域里的铺法
+    ?desc=inline                           说明写在行里；?after=stay 点完不关、留回执
 -->
 <style>
 :root{
@@ -214,15 +216,20 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 <style>
   /* 这一页自己没有别的装饰，就把面板摆在正中间 */
   body{background:#0c0e12}
-  .only-note{position:fixed;left:10px;bottom:10px;z-index:94000;max-width:640px;font-size:11px;line-height:1.7;color:var(--caption);background:#0b0d11e6;border:1px solid var(--border);border-radius:8px;padding:7px 10px}
+  .only-note{position:fixed;left:10px;bottom:10px;z-index:94000;max-width:900px;font-size:11px;line-height:1.75;color:var(--caption);background:#0b0d11e6;border:1px solid var(--border);border-radius:8px;padding:8px 11px}
   .only-note b{color:#cdb8ff}
+  .only-note .url{display:block;margin-top:3px;color:#7c8496;word-break:break-all;font-family:var(--mono);font-size:10.5px}
+  .only-note .hit{color:var(--success)}
 </style>
 </head>
 <body>
 <div class="badge">PROTOTYPE · 只摆面板本身</div>
 <div id="panelHost"></div>
-<div class="only-note" id="receipt">还没点过技能。点面板里的任意一颗技能名——真机上那一下会把「/技能名」写进当前会话的输入框。<br>
-  想换排版或摆法，改地址栏：<b>?steps=rows|rowsline|rowsline2|pipe</b> · <b>?layout=web|scenesec|sceneblk|flat</b> · <b>?tag=1</b> · <b>?desc=inline</b> · <b>?after=stay</b></div>
+<div class="only-note">
+  <div><b>← →</b> 换形态：<span id="tourLabel">…</span></div>
+  <span class="url" id="tourUrl"></span>
+  <div id="receipt">还没点过技能。点面板里的任意一颗技能名——真机上那一下会把「/技能名」写进当前会话的输入框。</div>
+</div>
 
 <script>
 
@@ -1193,37 +1200,102 @@ function render(){ hideTip(); renderHost(); renderPanel(); renderState(); render
 </script>
 
 <script>
-/* 这一页只留面板：原型页里那几件边角料（假宿主页、状态卡、底部切换条、引导场景）全部换成空函数。
-   下面这一段是唯一与那一份不同的地方。 */
+/* 这一页只留面板：原型页里那几件边角料（假宿主页、状态卡、底部切换条、引导场景）全部换成空函数。 */
 renderHost = function(){}
 renderState = function(){}
 renderBar = function(){}
-if (typeof hideTip !== 'function'){ var hideTip = function(){} }
+// 地址栏由下面那套走一遍来管：不让 render 每次都把参数补成又长又全的一串，
+// 这样点完技能之后地址还是清单上那一串，复制给别人照样能打开同一档。
+syncURL = function(){}
 
-// 已经定下来的那一套（地址栏里给了参数就按参数来）
-var q = new URLSearchParams(location.search)
-var wantBig = q.get('big')
-S.shape = q.get('shape') === 'pop' ? 'pop' : 'big'
-S.bigLayout = (wantBig === 'oneper' || wantBig === 'grid' || wantBig === 'blocks') ? wantBig : 'blocks'
-S.layout = q.get('layout') || 'sceneblk'
-S.tag = q.get('tag') === '1'
-S.stepsLayout = q.get('steps') || 'rowsline'
-S.descInline = q.get('desc') === 'inline'
-S.closeAfter = q.get('after') !== 'stay'
-S.markNext = false
-S.overview = false
-S.open = true
-applyLayout()
-S.expanded = expandDefault(S.variant)
+// 走一遍这些形态：每一项就是一个地址栏参数组合，方向键在里头换。
+var TOUR = [
+  { n:'默认（大区域 + 分组块 + 处境 6 块·路成块 + 引导线）', q:'' },
+  { n:'摆法：官网 6 组', q:'layout=web' },
+  { n:'摆法：处境 6 块·路小节', q:'layout=scenesec' },
+  { n:'摆法：处境 6 块·路成块', q:'layout=sceneblk' },
+  { n:'摆法：20 条路平铺', q:'layout=flat' },
+  { n:'摆法：处境 6 块·路成块 + 编号标记', q:'layout=sceneblk&tag=1' },
+  { n:'摆法：20 条路平铺 + 编号标记', q:'layout=flat&tag=1' },
+  { n:'排版：一行一个', q:'steps=rows' },
+  { n:'排版：一行一个＋引导线', q:'steps=rowsline' },
+  { n:'排版：一行一个＋向下箭头', q:'steps=rowsline2' },
+  { n:'排版：横向流水线', q:'steps=pipe' },
+  { n:'铺法：一条路一行', q:'big=oneper' },
+  { n:'铺法：一颗技能一格', q:'big=grid' },
+  { n:'铺法：分组块', q:'big=blocks' },
+  { n:'小面板那一档（贴着按钮、360 像素）', q:'shape=pop' },
+  { n:'说明写在行里（会放不下，底部那行会说差多少）', q:'desc=inline' },
+  { n:'点完不关、留回执', q:'after=stay' },
+  { n:'该点哪个＝突出（已定不做，留着对照）', q:'next=1' },
+  { n:'一行总览＝开（已定不要，留着对照）', q:'overview=1' },
+  { n:'组合：官网 6 组 + 一行一个 + 说明写在行里 + 小面板', q:'layout=web&steps=rows&desc=inline&shape=pop' }
+]
+var tourIndex = 0
 
-// 点完关面板之后没有假输入框了，就把「刚注入了什么」写在页面左下角那一行上
+// 把一个参数串变成面板状态；缺的参数按已经定下来的那一套兜底。
+function applyParams(qs){
+  var q = new URLSearchParams(qs)
+  var wantBig = q.get('big')
+  S.shape = q.get('shape') === 'pop' ? 'pop' : 'big'
+  S.bigLayout = (wantBig === 'oneper' || wantBig === 'grid' || wantBig === 'blocks') ? wantBig : 'blocks'
+  S.layout = q.get('layout') || 'sceneblk'
+  S.tag = q.get('tag') === '1'
+  S.stepsLayout = q.get('steps') || 'rowsline'
+  S.descInline = q.get('desc') === 'inline'
+  S.closeAfter = q.get('after') !== 'stay'
+  S.markNext = q.get('next') === '1'
+  S.overview = q.get('overview') === '1'
+  S.open = true
+  applyLayout()
+  S.expanded = expandDefault(S.variant)
+  S.hoverFlow = null; S.hoverSkill = null
+  hideTip()
+}
+function tourURL(i){
+  return location.origin === 'null' || location.protocol === 'file:'
+    ? decodeURIComponent(location.href.split('?')[0]) + (TOUR[i].q ? '?' + TOUR[i].q : '')
+    : location.origin + location.pathname + (TOUR[i].q ? '?' + TOUR[i].q : '')
+}
+function showStep(i){
+  tourIndex = (i + TOUR.length) % TOUR.length
+  var it = TOUR[tourIndex]
+  applyParams(it.q)
+  render()
+  // 放到 render 之后再写地址：render 里的 syncURL 会把参数写成又长又全的那一串，这里用清单上那串短的覆盖回去
+  history.replaceState(null, '', torchURLSafe(it))
+  document.getElementById('tourLabel').textContent = '第 ' + (tourIndex + 1) + ' / ' + TOUR.length + ' 个 —— ' + it.n
+  document.getElementById('tourUrl').textContent = location.href
+}
+function torchURLSafe(it){
+  var path = location.href.split('?')[0].split('#')[0]
+  return path + (it.q ? '?' + it.q : '')
+}
+// 打开时：地址栏上的参数要是正好等于走一遍里的某一步，就落在那一步上；否则从头开始。
+function findStartStep(){
+  var mine = new URLSearchParams(location.search).toString()
+  for (var i=0;i<TOUR.length;i++){
+    if (new URLSearchParams(TOUR[i].q).toString() === mine) return i
+  }
+  return -1
+}
+document.addEventListener('keydown', function(e){
+  var t = (e.target && e.target.tagName) || ''
+  if (t === 'INPUT' || t === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return
+  if (e.key === 'ArrowRight'){ showStep(tourIndex + 1); return }
+  if (e.key === 'ArrowLeft'){ showStep(tourIndex - 1); return }
+})
+// 点完关面板之后没有假输入框了，就把「刚注入了什么」写在左下角那一行上
 var __inject = injectSkill
 injectSkill = function(name, fid, idx){
   __inject(name, fid, idx)
   var r = document.getElementById('receipt')
-  if (r) r.innerHTML = '刚注入：<b>/' + name + '</b>（累计 ' + S.injectCount + ' 次）——真机上这一下会把「/' + name + '」写进当前会话的输入框，面板按设定关掉。'
+  if (r) r.innerHTML = '刚注入：<span class="hit">/' + name + '</span>（累计 ' + S.injectCount + ' 次）——真机上这一下会把「/' + name + '」写进当前会话的输入框，面板按设定关掉。'
 }
-render()
+S.open = true
+var start = findStartStep()
+if (start >= 0) showStep(start)
+else { applyParams(location.search); render(); document.getElementById('tourLabel').textContent = '自定义这一档（按 → 从第一个开始走）'; document.getElementById('tourUrl').textContent = location.href }
 </script>
 </body>
 </html>
