@@ -108,18 +108,35 @@ function evidenceSummary(channels, lang) {
   return ' [' + parts.join(' | ') + ']';
 }
 // 轻量 lightProbeReason（直接读盘版，仅含 HOME + 项目根，不含 bundled）—— 用于验证“无需补 bundled”
+/**
+ * 项目根：从会话目录逐层向上找最近一层自带 .git 的目录（与宿主 src/host/skillProbe.js 的
+ * findProjectRootDir 同一把尺：只看 .git，不看别的标记）。
+ * 为什么不能简化成「看 cwd 自己」：会话的目录可以是仓库里的子目录，那时项目级技能根在仓库根那一层；
+ * 按 cwd 自己算会得出「项目级候选根不存在」的错结论（#656 把这处对齐）。
+ */
+function projectRootUpward(cwd) {
+  if (!cwd) return null;
+  try {
+    let cur = path.resolve(String(cwd));
+    while (true) {
+      if (existsSync(path.join(cur, '.git'))) return cur;
+      const parent = path.dirname(cur);
+      if (parent === cur) return null;
+      cur = parent;
+    }
+  } catch { return null; }
+}
 async function lightProbeReasonDirect(skillName, lang, homeDir, cwd) {
   const candidates = [];
   if (homeDir) {
     candidates.push({ label:'user', root:'user-agents', dir: path.join(homeDir, '.agents','skills', skillName) });
     candidates.push({ label:'user', root:'user-dsh', dir: path.join(homeDir, '.dsh','skills', skillName) });
   }
-  // 项目根：仅当 cwd 存在且含 .git 时向上找，简化为 cwd 本身
-  if (cwd) {
-    try { if (existsSync(path.join(cwd, '.git')) || existsSync(path.join(cwd, 'package.json'))) {
-      candidates.push({ label:'project', root:'project-dsh', dir: path.join(cwd, '.dsh','skills', skillName)});
-      candidates.push({ label:'project', root:'project-agents', dir: path.join(cwd, '.agents','skills', skillName)});
-    }} catch {}
+  // 项目根：逐层向上找（见 projectRootUpward 的注释）
+  const projRoot = cwd ? projectRootUpward(cwd) : null;
+  if (projRoot) {
+    candidates.push({ label:'project', root:'project-dsh', dir: path.join(projRoot, '.dsh','skills', skillName)});
+    candidates.push({ label:'project', root:'project-agents', dir: path.join(projRoot, '.agents','skills', skillName)});
   }
   const channels = [];
   let validHit = null;
@@ -234,6 +251,27 @@ async function main(){
     check(lpValid.kind==='ok', 'B lightProbe 对有效 wayfinder 为 ok evidence direct hit');
     bl('B lightProbe kind='+lpValid.kind+' via='+lpValid.via);
   } finally { try{ rmSync(tmpValid,{recursive:true,force:true}); }catch{} }
+
+  // --- 3.5) 会话目录在仓库的子目录里：项目根要向上找（#656 对齐）---
+  console.log('\n-- 场景 D: 会话目录是仓库里的子目录（向上找项目根） --');
+  const tmpProj = mkdtempSync(path.join(os.tmpdir(), 'trio-proj-'));
+  try {
+    const projRootDir = path.join(tmpProj, 'repo');
+    const subDir = path.join(projRootDir, 'packages', 'a');
+    mkdirSync(subDir, { recursive: true });
+    mkdirSync(path.join(projRootDir, '.git'), { recursive: true });          // 仓库根：自带 .git
+    const projSkillDir = path.join(projRootDir, '.agents', 'skills', 'wayfinder');
+    mkdirSync(projSkillDir, { recursive: true });
+    writeFileSync(path.join(projSkillDir, 'SKILL.md'), readFileSync(path.join(bundledDir, 'wayfinder', 'SKILL.md'), 'utf8'), 'utf8');
+    check(projectRootUpward(subDir) === projRootDir, 'D 子目录会话向上找到的项目根就是外面那一层（实得 ' + projectRootUpward(subDir) + '）');
+    check(projectRootUpward(projRootDir) === projRootDir, 'D 自带 .git 的那一层停在自己身上');
+    const emptyHome = path.join(tmpProj, 'empty-home');
+    mkdirSync(emptyHome, { recursive: true });
+    const lpSub = await lightProbeReasonDirect('wayfinder', 'zh', emptyHome, subDir);
+    check(lpSub.kind === 'ok', 'D 子目录会话在项目根那一层命中技能（只看会话目录自己的话这里会是未安装，实得 ' + lpSub.kind + '） evidence direct:project');
+    check(String(lpSub.via || '').indexOf('project') >= 0, 'D 命中的是项目级候选根（via=' + lpSub.via + '）');
+    check(lpSub.channels.some(c => c.result === 'valid' && String(c.path).indexOf(projRootDir) === 0), 'D 命中路径在仓库根下面，不在会话目录下面');
+  } finally { try{ rmSync(tmpProj,{recursive:true,force:true}); }catch{} }
 
   // --- 3) 有无效名片：红牌分拣 + evidenceSummary ---
   console.log('\n-- 场景 C: 有无效名片（红牌分拣 + evidenceSummary） --');
