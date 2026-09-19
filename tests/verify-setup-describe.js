@@ -40,6 +40,12 @@ const LABEL_REQS = {
   zh: '，并确保仓库中技能所需标签齐全（triage 五角色 + wayfinder 标签 wayfinder:map / research / prototype / grilling / task），不要只建少数几个',
   en: ', and ensure the repo has the complete label set the skills need (the five triage-role labels + the wayfinder labels wayfinder:map / research / prototype / grilling / task) ' + EMDASH + ' not just a few',
 }
+// #655（2026-09-19）：v12 新增 {contextLayout} —— 用户在初始化小卡上选的域文档布局（规格 #657）。
+//   两句布局句与后端无关，来源是 kernel/locale-panel.js 里 setup.layout.single / setup.layout.multi 两条键；
+//   main() 里按同一份真源取金样（不另抄一份字面，避免门禁与词条各说各话）。
+const LAYOUT_KEY_OF = { single: 'setup.layout.single', multi: 'setup.layout.multi' }
+// 卡片上那句问题与两个选项也各有中英两份（界面文案，不是注入文案）：键在则语言齐、值非空。
+const LAYOUT_UI_KEYS = ['setup.layoutQuestion', 'setup.layoutSingle', 'setup.layoutMulti']
 // #619（2026-09-13）：v10 在注入末尾追加的那节「标签调色盘」整段删除 —— 标签颜色改由插件自己放置的
 //   配色文件（工作区里的 docs/agents/label-colors.json）与面板改色弹窗负责，初始化注入不再引导任何人
 //   去建那张已经没人读的 md 表格。
@@ -59,10 +65,11 @@ const PALETTE_TEXT_FORBIDDEN = [
 // 悬空标记守卫：占位符已从模板里删掉，任何一条注入文本都不该再印出 {paletteNote} 这串字。
 const PALETTE_PLACEHOLDER_MARKER = '{paletteNote}'
 
-// setupRun 全文期望：帧 = v11 模板静态文本（除四占位符）；值来自金样（#619 起不再有调色盘那一节）
-function expectSetupRun(lang, tl, tc, lr, bn) {
-  if (lang === 'zh') return '/setup-matt-pocock-skills\n\n初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：\n1. 按技能流程选择 issue tracker：' + tl + '，由用户确认；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 ' + tc + '；triage 标签保留默认五角色）' + lr + '；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。' + bn
-  return '/setup-matt-pocock-skills\n\nBootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths ' + EMDASH + ' it does not install or clone any skills):\n1. Follow the skill flow to pick the issue tracker: ' + tl + ', confirm with the user;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose ' + tc + ' as the tracker; keep the default triage-role labels)' + lr + '; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green).' + bn
+// setupRun 全文期望：帧 = v12 模板静态文本（除五占位符）；值来自金样（#619 起不再有调色盘那一节；#655 起多一句布局结论）。
+//   layoutLine 是用户这次选的布局对应的那一句（中文／英文各一份，由 main() 从真词表取）。
+function expectSetupRun(lang, tl, tc, lr, bn, layoutLine) {
+  if (lang === 'zh') return '/setup-matt-pocock-skills\n\n初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：\n1. 按技能流程选择 issue tracker：' + tl + '，由用户确认；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 ' + tc + '；triage 标签保留默认五角色）' + lr + '；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。' + layoutLine + '。' + bn
+  return '/setup-matt-pocock-skills\n\nBootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths ' + EMDASH + ' it does not install or clone any skills):\n1. Follow the skill flow to pick the issue tracker: ' + tl + ', confirm with the user;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose ' + tc + ' as the tracker; keep the default triage-role labels)' + lr + '; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green). ' + layoutLine + '.' + bn
 }
 const stripComments = (src) => src.split('\n').filter((l) => { const t = l.trim(); return !(t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) }).join('\n')
 // 生产替换算法复刻（与 promptText 一致）；standalone 环境下 promptLang 恒 zh，门禁按语言直取模板帧
@@ -114,6 +121,23 @@ async function main() {
   // #619：v10 那条 paletteNote 键已从两份词表里删掉——这里反过来钉住「不许复活」：
   //   判据与原来「双语键齐全」同强，只是一个要求它在、一个要求它不在。
   check(L.zh['setup.markdown.paletteNote'] === undefined && L.en['setup.markdown.paletteNote'] === undefined, 'locale 中英两份词表都不再有 setup.markdown.paletteNote（#619 删掉的键不许复活）')
+  // #655：布局这一组键的「中英两份都在、都不是空串」按同强判据钉住（卡片那句问题 + 两个选项 + 两句注入句）。
+  for (const k of LAYOUT_UI_KEYS) check(!!L.zh[k] && !!L.en[k], 'locale 双语键齐全（非空）' + k)
+  for (const lk of Object.keys(LAYOUT_KEY_OF)) {
+    const key = LAYOUT_KEY_OF[lk]
+    check(!!L.zh[key] && !!L.en[key], 'locale 双语键齐全（非空）' + key)
+    check(String(L.zh[key]).length > 20 && String(L.en[key]).length > 20, key + ' 两句都是能读懂的整句，不是占位式短词')
+    // 布局这一组键不再放进后端 setupPrompt 键表：布局是用户选的，与后端无关（规格「取值来源与后端无关」）
+    for (const st of stubs) check(!Object.keys(st.setupPrompt).some((f) => st.setupPrompt[f] === key), '后端 ' + st.id + ' 不声明布局键 ' + key)
+  }
+  check(L.zh[LAYOUT_KEY_OF.single] !== L.zh[LAYOUT_KEY_OF.multi] && L.en[LAYOUT_KEY_OF.single] !== L.en[LAYOUT_KEY_OF.multi], '两种布局的中英两份金样各是各的（不会串台）')
+  // 两种布局的注入全文（按语言取帧）逐字对照：除布局那一句外一字不差
+  for (const lang of ['zh', 'en']) {
+    const one = fill(P.PROMPTS.setupRun[lang], Object.assign({}, P.setupRunParamsFrom(stubs, 'github', L[lang], 'single'), { bodyFormat: '' }))
+    const many = fill(P.PROMPTS.setupRun[lang], Object.assign({}, P.setupRunParamsFrom(stubs, 'github', L[lang], 'multi'), { bodyFormat: '' }))
+    check(one.split(L[lang][LAYOUT_KEY_OF.single]).join('\u0000') === many.split(L[lang][LAYOUT_KEY_OF.multi]).join('\u0000'), lang + ' 两种布局的注入全文只差那一句布局结论')
+    check(one !== many, lang + ' 两种布局的注入全文确实不同（金样不同）')
+  }
 
   // ---- 验收 1：数据 == 金样 ----
   for (const lang of ['zh', 'en']) {
@@ -138,14 +162,21 @@ async function main() {
   check(dEn.backendNote === G.en.default.backendNote && dEn.trackerLine === G.en.default.trackerLine && !('paletteNote' in dEn), '未知第三方后端 id → 缺省键组（=旧行为；不再有 paletteNote 项）')
 
   // ---- 验收 2+3：注入全文等价 & 状态无关 ----
+  //   两腿都跑：不传布局（=旧调用形态，按缺省「一个仓库共用一份词表」填）与传了具体布局（#655 的新形态）。
+  //   关键不变量：任何一腿都不许把这句留空——注入文案里永远有一句布局结论可选。
   for (const lang of ['zh', 'en']) {
     const dict = L[lang]
     for (const b of BACKENDS) {
-      const params = P.setupRunParamsFrom(stubs, b, dict)
-      const got = fill(P.PROMPTS.setupRun[lang], params)
-      const wantLR = b === 'markdown' ? '' : LABEL_REQS[lang]
-      const want = expectSetupRun(lang, G[lang][b].trackerLine, G[lang][b].trackerChoice, wantLR, G[lang][b].backendNote)
-      check(got === want, lang + ' · ' + b + ' setupRun 全文与现行为等价' + (got !== want ? '（长度 ' + got.length + ' vs 期望 ' + want.length + '）' : ''))
+      for (const layout of [undefined, 'single', 'multi']) {
+        const params = P.setupRunParamsFrom(stubs, b, dict, layout)
+        const got = fill(P.PROMPTS.setupRun[lang], params)
+        const wantLR = b === 'markdown' ? '' : LABEL_REQS[lang]
+        const wantLine = L[lang][LAYOUT_KEY_OF[layout || 'single']]
+        const want = expectSetupRun(lang, G[lang][b].trackerLine, G[lang][b].trackerChoice, wantLR, G[lang][b].backendNote, wantLine)
+        const tag = layout ? ('布局 ' + layout) : '未传布局（按缺省 single）'
+        check(got === want, lang + ' · ' + b + ' · ' + tag + ' setupRun 全文与金样逐字相同' + (got !== want ? '（长度 ' + got.length + ' vs 期望 ' + want.length + '）' : ''))
+        check(params.contextLayout.length > 0, lang + ' · ' + b + ' · ' + tag + ' 布局那句不为空（任何一腿都不许留空）')
+      }
       const fresh = JSON.stringify(P.setupRunParamsFrom(stubs, b, dict))
       const init = JSON.stringify(P.setupRunParamsFrom(stubs.slice(), b + '', dict))
       check(fresh === init, lang + ' · ' + b + ' 占位符与工作区初始化状态无关（同值）')
@@ -174,6 +205,18 @@ async function main() {
   const ghTxt = P.promptText('setupRun', P.setupRunParamsFrom(stubs, 'github', L.zh))
   check(ghTxt.indexOf('确保仓库中技能所需标签齐全') >= 0, 'github 注入文本保留标签齐全要求')
   check(ghTxt.indexOf('/setup-matt-pocock-skills') === 0, '注入文本以手动命令 /setup-matt-pocock-skills 开头（手动输入与按钮两路共用同一模板）')
+  // #655：布局那句必须落在注入文本里、且不留悬空标记；没传布局时按缺省布局填（不印出 {contextLayout} 这串字）
+  const ghLayoutTxt = P.promptText('setupRun', P.setupRunParamsFrom(stubs, 'github', L.zh, 'multi'))
+  check(ghLayoutTxt.indexOf(L.zh[LAYOUT_KEY_OF.multi]) >= 0, 'github 注入文本里出现用户选的那一句布局结论')
+  check(ghLayoutTxt.indexOf(LAYOUT_KEY_OF.multi) < 0, '注入文本里不许印出键名（正文只写人话）')
+  for (const lang of ['zh', 'en']) {
+    for (const b of BACKENDS) {
+      for (const layout of [undefined, 'single', 'multi']) {
+        const t = fill(P.PROMPTS.setupRun[lang], P.setupRunParamsFrom(stubs, b, L[lang], layout))
+        check(t.indexOf('{contextLayout}') < 0, lang + ' · ' + b + ' · ' + (layout || '未传布局') + ' 注入文本不含悬空标记 {contextLayout}')
+      }
+    }
+  }
   // UI 统一入口优先级（standalone import 无闭包字典 → 双方同走“缺省解析”，比较键路由而非最终文案）
   const selRoute = P.setupRunPrompt({ selection: { backendId: 'markdown' }, backendModules: stubs })
   const directRoute = P.promptText('setupRun', P.setupRunParamsFrom(stubs, 'markdown', null))

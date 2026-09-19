@@ -879,7 +879,8 @@ const contractChecksInner = function (reg, src) {
     mapExecute: 9, complete: 9, fixate: 6, 'tpl.diagnose': 10, 'tpl.fix': 7, 'tpl.discuss': 8,
     'tpl.research': 5, 'tpl.prototype': 5, 'tpl.execute': 9, mapInspect: 6, newWayfinder: 14,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
-    bodyFormat: 7, setupRun: 11, progress: 3,
+    // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
+    bodyFormat: 7, setupRun: 12, progress: 3,
   }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
@@ -1402,7 +1403,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '1ded52d4fc14432ee1c66a3a78b2769272729248f9083d0fed96e22639022648',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '6286ea3876dedab8bdadea02201132a266066b57fae6c8d926c46aaa21415955',
+  'tests/verify-prompts.js': '05d227bdbca6a0a8cf531552e9de7936cebfc0a4388ef0d7a0af743f113cc296',
 }
 // ---- LOCK-END ----
 

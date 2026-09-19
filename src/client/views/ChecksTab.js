@@ -36,6 +36,18 @@ export const ChecksTab = ({ st }) => {
   // no-repo 判定：链步骤 gh:remote 失败（原 findCheck('gh:remote').level==='bad'）
   const remoteStep = chainStep(st, 'gh:remote')
   const remoteBad = !!(remoteStep && remoteStep.status === 'fail')
+  // #655：检查页那张红牌上的「执行初始化」按钮就是走这条 resolvePrompt 注入初始化文案的，
+  //   它以前绕开共用注入入口直接取全文，现在一律过同一个注入决策函数：布局没选过时那个函数只开卡、不注入，
+  //   这里返回空串（分发器随后回落为裸 prompt 名，那串字等于没有信息，实际效果就是「点了没注入、卡弹出来了」）；
+  //   选过之后返回全文，注入这个动作仍归动作分发器做（injectNow:false，本函数不自己注入）。
+  const resolveSetupRunText = function (st) {
+    try {
+      if (typeof injectSetupDecision !== 'function') return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st) : ''
+      const kind = injectSetupDecision(st, undefined, { injectNow: false })
+      if (kind !== 'setup') return ''
+      return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st) : ''
+    } catch (e) { return '' }
+  }
   const chainDispatcher = (function () {
     try {
       if (typeof createActionDispatcher === 'function') {
@@ -87,7 +99,7 @@ export const ChecksTab = ({ st }) => {
             try { loadSnapshot(st, true, true) } catch (e) {}
           },
           tr: tr,
-          resolvePrompt: function (id, params) { try { if (id === 'setupRun' && typeof setupRunPrompt === 'function') return setupRunPrompt(st); return promptTextFor(st, id, params) } catch (e) { return '' } }
+          resolvePrompt: function (id, params) { try { if (id === 'setupRun') return resolveSetupRunText(st); return promptTextFor(st, id, params) } catch (e) { return '' } }
         })
       }
     } catch (e) {}

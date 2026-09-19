@@ -58,6 +58,9 @@ const REQUIRED = [
   // #626：普通票的显示名。TypeChip 渲染的是 tr('type.' + 类型值)，缺了这条，
   // 界面上会直接印出 'type.issue' 这串字（#626 实测）。
   'type.issue',
+  // #655：初始化小卡上那组单选与两句注入句。缺了卡片会印出键名，注入文案里那句布局结论会空着。
+  'setup.layoutQuestion', 'setup.layoutSingle', 'setup.layoutMulti',
+  'setup.layout.single', 'setup.layout.multi',
 ]
 for (const k of REQUIRED) {
   if (k in allKeys) ok('B. 键在 ' + k)

@@ -210,7 +210,9 @@ export const StatusBar = (props) => {
   const openGate = function(){ openStatusGate(s) }
   const closeGate = function(){ closeStatusGate(s) }
   const confirmGateStatus = function(){ confirmStatusGate(s) }
-  const setupPickCard = s.setupPickOpen ? (function(){
+  // #655：这张卡有两个开启来源 —— 黄条按钮（onStatusSetupInit 里由注入决策函数开）与「从哪里点初始化都先问」那条漏斗
+  //   （检查页红牌的执行初始化按钮也经同一个函数，它开的也是这张卡）。关掉时两个标记一起清。
+  const setupPickCard = (s.setupPickOpen || s.setupLayoutCardOpen) ? (function(){
     const mods=s.setupPickModules||[];const rec=s.setupPickRecommended||firstBackendIdOf(null);const sel=s.setupPickSelected||rec
     return h('div', { style:{ width:'100%', maxWidth:560, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:10, background:'var(--dsw-alias-bg-layer-2,#16181d)', padding:10, boxShadow:'0 8px 24px rgba(0,0,0,.35)' } }, [
       h('div', { style:{ fontSize:12, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:8 } }, [Ic({n:'compass',size:12}), h('span', null, tr('banner.setupPickTitle')), s.setupPickLoading ? h('span', {style:{fontSize:10,color:'#8b8b95'}}, tr('list.loading')) : null]),
@@ -227,6 +229,7 @@ export const StatusBar = (props) => {
           isRec ? h('span', { style:{ fontSize:10, color:'#4ade80', border:'1px solid #4ade80', borderRadius:4, padding:'0 4px', lineHeight:1.6 } }, tr('banner.setupPickRecommended')) : null,
         ])
       })),
+      layoutRadios(s, h),
       h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:10 } }, [
         h('button', { className:'dsws-btn ghost', onClick: cancelSetupPick, style:{ fontSize:12 } }, tr('banner.setupPickCancel')),
         h('button', { className:'dsws-btn', style:{ background:'#58a6ff', borderColor:'#58a6ff', color:'#0b1220', fontWeight:700 }, onClick: confirmSetupPick }, tr('banner.setupPickConfirm')),
@@ -273,6 +276,7 @@ export const StatusBar = (props) => {
           return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border:isSel?'1px solid '+col:'1px solid var(--dsw-alias-border-l1,#2a2d35)', background:isSel?'rgba(88,166,255,.08)':'transparent', cursor:'pointer' } }, [ h('input',{type:'radio',checked:isSel,onChange:function(){s.gateSelected=m.id;emit(s)}}), h('span',{style:{width:8,height:8,borderRadius:'50%',background:col,flex:'none'}}), h('span',{style:{fontSize:12,fontWeight:600}},m.label), h('span',{style:{fontSize:10,color:'#8b8b95'}},m.id), h('span',{style:{flex:1}}), isRec?h('span',{style:{fontSize:10,color:'#4ade80',border:'1px solid #4ade80',borderRadius:4,padding:'0 4px'}},'推荐'):null ])
         })),
         s.gateError ? h('div', { style:{ fontSize:11, color:'#f87171', marginTop:8 } }, s.gateError) : null,
+        layoutRadios(s, h),
         h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 } }, [ h('button',{className:'dsws-btn ghost',onClick:closeGate,style:{fontSize:12}},'取消'), h('button',{className:'dsws-btn',style:{background:'#58a6ff',borderColor:'#58a6ff',color:'#0b1220',fontWeight:700,fontSize:12},onClick:confirmGateStatus},'确认并继续') ])
       ])
     ]) : null),

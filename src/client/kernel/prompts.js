@@ -27,7 +27,10 @@
       "installSkills": { version: 3, placeholders: ['probeList', 'probeCount'], use: '技能安装引导 · DSH 专用（横幅 / 引导 g4 / 设置页复制）· v3 #fix-banner：probeList 动态从 shared/matt-skills.js 注入（25 项）', zh: '请为 DSH 安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）：\n\n1. 先检查：确认 ~/.agents/skills 下这 {probeCount} 个技能已全部就位：{probeList}。已全部就位 → 直接汇报已装技能清单并结束，不要重复安装；\n2. 有缺失则安装：优先用官方安装器 `npx -y skills@latest add mattpocock/skills -a cline -g --copy -y`（安装器未列出 DSH，但 `-a cline` 的全局目录恰为 ~/.agents/skills，与 DSH 读取目录一致；`--copy` 用复制而非符号链接，防 npx 缓存清理后断链）；若无 npx 或安装失败，回退：克隆 https://github.com/mattpocock/skills，把 skills/engineering 与 skills/productivity 目录下的全部技能复制到 ~/.agents/skills；\n3. 安装目标是 DSH 读取的用户级技能目录：~/.agents/skills —— 不要装进其他工具的技能目录（如 ~/.claude/skills）；\n4. 安装后复验：第 1 步的 {probeCount} 个技能已全部就位；\n5. 完成后汇报安装结果与已装技能清单（用第 1 步的完整清单，不要只列 10 项）。', en: 'Install the Matt Pocock skills collection (mattpocock/skills) for DSH:\n\n1. Check first: confirm these {probeCount} skills are all present under ~/.agents/skills: {probeList}. If all are present, report the installed skill list and stop — do not reinstall;\n2. If any are missing, install: prefer the official installer `npx -y skills@latest add mattpocock/skills -a cline -g --copy -y` (the installer does not list DSH, but `-a cline` installs globally into ~/.agents/skills — the same directory DSH reads; `--copy` copies instead of symlinking so npx cache cleanup cannot break the links); if npx is unavailable or fails, fall back: clone https://github.com/mattpocock/skills and copy all skills from skills/engineering and skills/productivity into ~/.agents/skills;\n3. Install into the user-level skill directory DSH reads: ~/.agents/skills — do not install into the skill directories of other tools (e.g. ~/.claude/skills);\n4. After install, re-verify: all {probeCount} skills from step 1 are in place;\n5. When done, report the result and the installed skill list (use the full list from step 1, not just the first 10).' },
       // #619（2026-09-13）：v11 删掉了 v10 的 paletteNote 占位符、locale 里中英两份「标签调色盘」注入文案，
       //   以及 markdown 房间 setupPrompt 声明它的那一项（详见本条目 use 字段与门禁 tests/verify-setup-describe.js）。
-      "setupRun": { version: 11, placeholders: ['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs'], use: '环境检查横幅 · setup 未执行按钮（仅初始化记录配置，不安装/克隆技能；v11 #619 删掉 v10 加的那条「标签调色盘」注入通道：标签颜色改由插件自己放置的配色文件与面板改色弹窗负责，初始化注入不再教人去建那张已经没人读的表；labelReqs=按后端的标签要求条款，Markdown 为空即不要求标签齐全）', zh: '/setup-matt-pocock-skills\n\n初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：\n1. 按技能流程选择 issue tracker：{trackerLine}，由用户确认；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 {trackerChoice}；triage 标签保留默认五角色）{labelReqs}；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。{backendNote}', en: '/setup-matt-pocock-skills\n\nBootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths — it does not install or clone any skills):\n1. Follow the skill flow to pick the issue tracker: {trackerLine}, confirm with the user;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose {trackerChoice} as the tracker; keep the default triage-role labels){labelReqs}; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green).{backendNote}' },
+      // #655（2026-09-19）：v12 新增布局占位符 {contextLayout} —— 用户在初始化小卡上选的域文档布局（一个仓库共用一份词表 /
+      //   每个子项目各有一份词表）由它填空。取值来自用户选择，与后端无关，所以不放进后端 setupPrompt 键表，
+      //   单独一条来源（见 setupRunParamsFrom 的 SETUP_LAYOUT_TEXT_KEYS）。两句话在 locale-panel.js 里各写中英一份。
+      "setupRun": { version: 12, placeholders: ['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs', 'contextLayout'], use: '环境检查横幅 · setup 未执行按钮（仅初始化记录配置，不安装/克隆技能；v12 #655 新增 {contextLayout}：用户选的域文档布局，写进 docs/agents/domain.md 与用户仓库 AGENTS.md 的 ## Agent skills 块；v11 #619 删掉 v10 加的那条「标签调色盘」注入通道：标签颜色改由插件自己放置的配色文件与面板改色弹窗负责，初始化注入不再教人去建那张已经没人读的表；labelReqs=按后端的标签要求条款，Markdown 为空即不要求标签齐全）', zh: '/setup-matt-pocock-skills\n\n初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：\n1. 按技能流程选择 issue tracker：{trackerLine}，由用户确认；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 {trackerChoice}；triage 标签保留默认五角色）{labelReqs}；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。{contextLayout}。{backendNote}', en: '/setup-matt-pocock-skills\n\nBootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths — it does not install or clone any skills):\n1. Follow the skill flow to pick the issue tracker: {trackerLine}, confirm with the user;\n2. During init, follow the setup-matt-pocock-skills skill own flow (choose {trackerChoice} as the tracker; keep the default triage-role labels){labelReqs}; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;\n3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green). {contextLayout}.{backendNote}' },
       "newWayfinder": { version: 14, placeholders: ['repo','subIssue'], use: '「+ 新建需求」按钮 · 清单式（A★）', zh: '/wayfinder\n请帮我处理一个需求（严格遵循 wayfinder 技能规则）。\n仓库（已自动填入当前工作区）：{repo}\n\n## 澄清\n- [ ] 对目标 / 范围 / 偏好有假设时，先用 grilling 技能澄清，不默认\n\n## 判断分类（先查仓库已有 wayfinder:map 和 issue，确认是否做过）\n- [ ] 新增：全新需求 → 新建 map\n  - [ ] 写出 map：Destination + Notes + plan\n  - [ ] 先把该 map 的现有正文取下来存成文件（文件里必须保留 `## Destination` 一节），改好任务清单后再调 {subIssue}\n  - [ ] 关联到该 map 的每个 ticket 都由脚本建原生边并自己校验数量；仅当后端明确不支持原生边时才回退到任务清单 + Part of\n  - [ ] 阻塞关系以脚本建的原生依赖边为准；正文里的 `Blocked by: #<n>` 行只作降级兜底\n- [ ] 复用：这个需求之前已做过（已有 map / issue）→ 打开复用它，不重复建\n- [ ] 直接实现：需求很小 → 建一个 issue 直接实现，不建大 map\n\n## 自查（对检查清单做检查）\n- [ ] 逐项核对上面每个 `- [ ]`：是否已落实、无遗漏；漏项补上，不跳过\n- [ ] 校验：看关联脚本回包的 expected 与 actual 是否一致（对不上脚本会非零退出，不要当成成功），且面板列表的 `closed/total` 不为 0/0（有子票时）\n- [ ] 结束前按进度契约更新（## 进度：N% + 下一步；95% 须写明待确认什么，未确认不得 close）\n', en: '/wayfinder\nPlease handle a requirement (strictly follow the wayfinder skill rules).\nRepo (auto-filled from current workspace): {repo}\n\n## Clarify\n- [ ] If you hold assumptions about the goal / scope / preferences, settle them with the grilling skill — never assume\n\n## Decide the case (check existing wayfinder:map and issues first)\n- [ ] Add: a brand-new requirement → build a new map\n  - [ ] Write the map: Destination + Notes + plan\n  - [ ] First fetch the map current body into a file (the file must keep the `## Destination` section), edit the task list, then call {subIssue}\n  - [ ] The script creates the native edges for every ticket under this map and verifies the count itself; only fall back to task list + Part of when the backend explicitly has no native edge\n  - [ ] Blocking comes from the native dependency edges the script creates; a `Blocked by: #<n>` line in the body is only the fallback\n- [ ] Reuse: this requirement has been done before (existing map / issue) → open and reuse it, do not build a new one\n- [ ] Directly implement: the requirement is small → create a single issue and implement it directly, no big map\n\n## Self-check (verify the checklist)\n- [ ] Go through every `- [ ]` above: confirmed done, no gaps; fill anything missed, do not skip\n- [ ] Verify: the wiring script return shows expected equals actual (a mismatch exits non-zero — never treat it as success) and the panel list `closed/total` is not 0/0 when tickets exist\n- [ ] Before finishing, update per the progress contract (## Progress: N% + next step)\n' },
       "newBugWayfinder": { version: 5, placeholders: ['repo'], use: '「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行）', zh: '/wayfinder\n请帮我新增一个 BUG 单（按 wayfinder 技能规则处理）。\n仓库：{repo}\n新建的单子必须带上 bug 标签；如果还没有经过诊断，同时带上 needs-triage 标签。远端后端按原生标签方式打标签，本地 Markdown 后端在正文加标签行（例如 Labels: bug, needs-triage）。', en: '/wayfinder\nPlease help me file a new BUG ticket (follow the wayfinder skill rules).\nRepo: {repo}\nNew tickets must carry the bug label; if not yet triaged, also carry needs-triage. On remote backends use native labels; on the local Markdown backend add a Labels line (e.g. Labels: bug, needs-triage).' },
       "ghAuthLogin": { version: 1, placeholders: [], use: 'gh 登录引导 · 链失败态 inject-prompt（#228 替换 openUrl 硬编码，动作不承诺修复，检查才判定）', zh: '请为本机完成 GitHub CLI 登录（gh auth login）：\n\n1. 终端执行 gh auth login \n2. 按向导选择 GitHub.com → HTTPS → Yes → 浏览器授权（OAuth）\n3. 完成后执行 gh auth status 验证已登录\n4. 回到面板点「重新检查」或等待自动重查，链条将自动推进\n5. 若遇网络/代理问题，请检查 gh config 与网络后重试', en: 'Please complete GitHub CLI login (gh auth login):\n\n1. Run gh auth login in terminal\n2. Choose GitHub.com → HTTPS → Yes → browser OAuth\n3. Verify with gh auth status\n4. Click "Re-check" at the top of the panel, or wait for auto re-check; the chain will advance via re-evaluation\n5. If network/proxy issues, check gh config and retry' },
@@ -68,8 +71,20 @@
       backendNote: 'setup.default.backendNote',
       labelReqs: 'setup.default.labelReqs',
     }
+    // #655：域文档布局的取值与后端无关，单独一条来源（不塞进上面的后端键表）。
+    //   两个取值与卡片上那两个选项一一对应；缺省取 single —— 等值于卡片默认选中的那一项。
+    export const SETUP_LAYOUT_TEXT_KEYS = { single: 'setup.layout.single', multi: 'setup.layout.multi' }
+    export const SETUP_LAYOUT_DEFAULT = 'single'
+    // 会话状态里读这次选的布局；没选过（或值不认识）→ null，由调用处决定是「先问」还是「按缺省走」。
+    export const normalizeSetupLayout = function (v) {
+      const t = String(v == null ? '' : v).toLowerCase()
+      return (t === 'single' || t === 'multi') ? t : null
+    }
+    export const readSetupLayout = function (st) { try { return normalizeSetupLayout(st && st.setupLayout) } catch (e) { return null } }
     // 纯函数：modules = wf.registry modules 数组（元素可带 setupPrompt 键表）；dictOverride 供单测直喂 locale 字典（单测不依赖闭包 L）
-    export const setupRunParamsFrom = function (modules, backendId, dictOverride) {
+    // layout 是用户这次选的布局（'single' / 'multi'）；没选过一律按缺省 single 填 —— 这条是兜底，
+    //   正常路径由注入决策函数先把用户拦在卡上（见 setupOrRepoPrompt 的 'setup-card' 那一档）。
+    export const setupRunParamsFrom = function (modules, backendId, dictOverride, layout) {
       const list = Array.isArray(modules) ? modules : []
       let m = null
       for (let i = 0; i < list.length; i++) { if (list[i] && String(list[i].id) === String(backendId)) { m = list[i]; break } }
@@ -80,12 +95,15 @@
       ;['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs'].forEach(function (k) {
         try { out[k] = (dict && dict[declared[k]] != null) ? String(dict[declared[k]]) : '' } catch (e) { out[k] = '' }
       })
+      const lk = SETUP_LAYOUT_TEXT_KEYS[normalizeSetupLayout(layout) || SETUP_LAYOUT_DEFAULT]
+      try { out.contextLayout = (dict && dict[lk] != null) ? String(dict[lk]) : '' } catch (e) { out.contextLayout = '' }
       return out
     }
     // UI 统一入口：显式 backendId 优先（绑定/切换流程）；否则当前 selection；再无 → 缺省键组。所有注入路径一律走这里。
     // 2026-08-28 修复“未指定”回退：显式选择已落在 host + localStorage selectionByCwd，但 prompt 之前只读 s.selection（单会话乐观），
     // 新会话/快照未水合时为 null 导致永远 default。现按权威链 s.selection → snapshot.selection → getCachedSelection(cwd) 取 id，保持 UI 零硬编码。
-    export const setupRunPrompt = function (st, backendId) {
+    // #655：layout 由调用处显式传入（会话状态里的用户选择），不在这里自己读 —— 决策函数与注入路径已把「选没选」判过了。
+    export const setupRunPrompt = function (st, backendId, layout) {
       let sel = null
       try {
         if (st && st.selection && st.selection.backendId != null) sel = st.selection.backendId
@@ -93,14 +111,24 @@
         else if (st && st.cwd && typeof getCachedSelection === 'function') { const cs = getCachedSelection(st.cwd); if (cs && cs.backendId != null) sel = cs.backendId }
       } catch {}
       const id = backendId != null ? backendId : sel
-      return promptText('setupRun', setupRunParamsFrom(st && st.backendModules, id))
+      return promptText('setupRun', setupRunParamsFrom(st && st.backendModules, id, null, layout))
     }
     // Q2 #496：绑定成功后的注入决策（数据驱动，UI 零品牌分支）。
     //   前置答案（仓库是谁）缺失时不发完整初始化全文，改发该后端声明的缺仓指引；
     //   判据只读两样：仓库引用（会话/快照）与后端模块能力位（capabilities.repoCreateChain，有创仓链能力的后端才需先有仓库；无此能力位原样直注）。
-    //   返回 { kind: 'setup' | 'repo', text }；失败一律回落旧行为。日志只记分支不记隐私。
-    export const setupOrRepoPrompt = function (st, backendId) {
-      const setupText = function () { try { return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st, backendId) : '' } catch (e) { return '' } }
+    //   返回 { kind: 'setup' | 'repo' | 'setup-card', text, layout }；失败一律回落旧行为。日志只记分支不记隐私。
+    // #655 新增第三档 'setup-card'（布局未选定：先问，不注入）：布局由用户在初始化那一刻选，不探测仓库形状；
+    //   没选过时 text 就是空串，谁调用都不许注入半段文案（用户故事 5／6）。布局这一档排在缺仓指引之前 ——
+    //   布局是用户的选择，与仓库无关，先把这一句答完再谈建仓。
+    //   opts.ignoreLayoutGate=true 只给「建仓成功后的自动补发」用：那时不再问第二次，直接沿用已选的答案（用户故事 13）。
+    export const setupOrRepoPrompt = function (st, backendId, opts) {
+      const layout = readSetupLayout(st)
+      const layoutGate = !(opts && opts.ignoreLayoutGate === true)
+      const decLayout = layout || SETUP_LAYOUT_DEFAULT
+      const setupText = function () {
+        if (layoutGate && !layout) return ''
+        try { return (typeof setupRunPrompt === 'function') ? setupRunPrompt(st, backendId, decLayout) : '' } catch (e) { return '' }
+      }
       try {
         let sel = backendId
         try {
@@ -117,7 +145,8 @@
         let repo = null
         try { repo = (st && st.repository) || (st && st.snapshot && st.snapshot.repository) || null } catch (e) { repo = null }
         const hasRepo = !!(repo && (repo.owner || repo.name))
-        try { console.log('[MattSkillsDeck] setup-inject decision needsRepo=' + needsRepo + ' hasRepo=' + hasRepo) } catch (e) {}
+        try { console.log('[MattSkillsDeck] setup-inject decision needsRepo=' + needsRepo + ' hasRepo=' + hasRepo + ' layout=' + (layout || 'unset')) } catch (e) {}
+        if (layoutGate && !layout) return { kind: 'setup-card', text: '', layout: null }
         if (needsRepo && !hasRepo) {
           let fix = ''
           try {
@@ -125,32 +154,51 @@
             const pr = meta2 && meta2.prompts && meta2.prompts.repoRemoteFix
             if (pr) { const lg = (typeof promptLang === 'function') ? promptLang() : 'zh'; fix = String((lg === 'en' && pr.en) ? pr.en : (pr.zh || '')) }
           } catch (e) { fix = '' }
-          if (fix) return { kind: 'repo', text: fix }
+          if (fix) return { kind: 'repo', text: fix, layout: decLayout }
         }
       } catch (e) {
         try { console.warn('[MattSkillsDeck] setup-inject decision fallback: ' + String((e && e.message) || e).slice(0, 120)) } catch (_) {}
       }
-      return { kind: 'setup', text: setupText() }
+      return { kind: 'setup', text: setupText(), layout: decLayout }
     }
-    // Q2 #496：注入执行 + 待补标记（按工作区键隔离，建成后凭标记补发一次，仅一次）。
-    export const injectSetupDecision = function (st, backendId) {
+    // #655：唯一允许注入初始化文案的地方 —— 所有能触发初始化的入口（状态栏黄条、检查页红牌上的「执行初始化」按钮、
+    //   开门链与切换后端的两个弹窗、建仓成功后的自动补发）都先经过它。
+    //   布局还没选定就开那张小卡、不注入任何文字（返回 'setup-card'）；选定了才注入，返回注入的种类。
+    //   opts.injectNow=false 只返回决定、由调用处自己注入（检查页那颗按钮走动作分发器，注入这个动作归分发器做）。
+    export const injectSetupDecision = function (st, backendId, opts) {
       let dec = null
-      try { dec = (typeof setupOrRepoPrompt === 'function') ? setupOrRepoPrompt(st, backendId) : null } catch (e) { dec = null }
-      if (!dec) { try { dec = { kind: 'setup', text: ((typeof setupRunPrompt === 'function') ? setupRunPrompt(st, backendId) : '') } } catch (e) { dec = { kind: 'setup', text: '' } } }
-      try { st.pendingSetupAfterPublish = !!(dec && dec.kind === 'repo'); st.pendingSetupCwd = ((dec && dec.kind === 'repo' && st && st.cwd) ? st.cwd : '') } catch (e) {}
-      try { console.log('[MattSkillsDeck] setup-inject applied kind=' + ((dec && dec.kind) || 'setup')) } catch (e) {}
-      if (dec && dec.text) { try { inject(st, dec.text) } catch (e) {} }
-      return (dec && dec.kind) || 'setup'
+      try { dec = (typeof setupOrRepoPrompt === 'function') ? setupOrRepoPrompt(st, backendId, opts) : null } catch (e) { dec = null }
+      if (!dec) { try { const lay = readSetupLayout(st) || SETUP_LAYOUT_DEFAULT; dec = { kind: 'setup', text: ((typeof setupRunPrompt === 'function') ? setupRunPrompt(st, backendId, lay) : ''), layout: lay } } catch (e) { dec = { kind: 'setup', text: '', layout: SETUP_LAYOUT_DEFAULT } } }
+      const kind = (dec && dec.kind) || 'setup'
+      const usedLayout = (dec && dec.layout) || SETUP_LAYOUT_DEFAULT
+      // 布局未选定：把控制权交给小卡 —— 只开卡，不注入半段文案。
+      if (kind === 'setup-card') {
+        try { st.setupLayoutCardOpen = true; if (typeof emit === 'function') emit(st) } catch (e) {}
+        // 按需日志（#655，附录 1.5 的 #64 inject.decision）：这一步是用户点击触发的、一次一条，
+        //   只记三个枚举（哪段文案 / 决定了哪一种 / 按哪种布局），不记仓库、路径与文案原文；
+        //   调试开关关着时只读一次开关就返回，不组装字段对象（按需埋点的守卫纪律）。
+        try { if (isEnabled('debug')) log('debug', 'inject.decision', { prompt: 'setupRun', kind: kind, layout: 'unset' }) } catch (eL) {}
+        return kind
+      }
+      try { st.setupLayoutCardOpen = false } catch (e) {}
+      try { st.pendingSetupAfterPublish = (kind === 'repo'); st.pendingSetupCwd = ((kind === 'repo' && st && st.cwd) ? st.cwd : '') } catch (e) {}
+      try { console.log('[MattSkillsDeck] setup-inject applied kind=' + kind) } catch (e) {}
+      try { if (isEnabled('debug')) log('debug', 'inject.decision', { prompt: 'setupRun', kind: kind, layout: String(usedLayout) }) } catch (eL) {}
+      if (dec && dec.text && !(opts && opts.injectNow === false)) { try { inject(st, dec.text) } catch (e) {} }
+      return kind
     }
     // Q2 #496：建仓成功处消费标记，补发一次初始化全文（标记按工作区键核对，不跨区）。
+    // #655：补发时传 ignoreLayoutGate —— 刚才在卡上选过哪一项，答案已经在会话状态里，沿用它，不再问第二次；
+    //   真没选过（例如用户压根没走过卡片）就按缺省布局填，也不补问（这条路径没有界面可弹卡）。
     export const consumePendingSetup = function (st) {
       try {
         if (st && st.pendingSetupAfterPublish && (!st.pendingSetupCwd || st.pendingSetupCwd === st.cwd)) {
           st.pendingSetupAfterPublish = false; st.pendingSetupCwd = ''
-          const txt = (typeof setupRunPrompt === 'function') ? setupRunPrompt(st) : ''
-          if (txt) { try { inject(st, txt) } catch (e) {} }
-          try { console.log('[MattSkillsDeck] setup-inject reissued after repo ready (once)') } catch (e) {}
-          return true
+          const kind = (typeof injectSetupDecision === 'function') ? injectSetupDecision(st, undefined, { ignoreLayoutGate: true }) : ''
+          if (kind === 'setup') {
+            try { console.log('[MattSkillsDeck] setup-inject reissued after repo ready (once)') } catch (e) {}
+            return true
+          }
         }
       } catch (e) {}
       return false
