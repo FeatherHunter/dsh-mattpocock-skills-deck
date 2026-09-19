@@ -148,13 +148,14 @@ if (isPolluted({ ok: true, maps: [], repository: { name: 'D:\\ilife\\packages\\s
 // ── D. 归属标志的出现条件与文案 ──────────────────────────────────────────
 console.log('\nD) 归属标志只在子目录会话里出现')
 const markSrc = read('src/client/views/SubworkspaceMark.js')
-// 出现条件那一段（isSub 的计算）单独跑：给不同 store 看它认不认。
-// 组件里 kOf 是本文件内定义的小助手，这里照它的定义补一份同样的（同一实现，只是拿到外面来）。
-const isSubOf = new Function(
-  'keyOf',
-  'const kOf = function (v) { return (typeof keyOf === \'function\') ? keyOf(v) : String(v || \'\') }' + '\n' +
-  'function f(root, cwd) {' + /const isSub = [^\n]+/.exec(markSrc)[0] + '\n return isSub }' + '\nreturn f'
-)(keyOfFn)
+// 出现条件那一段（取根 + 「该不该出现」）单独跑：给不同 store 看它认不认。
+// #666 起这两个决定住在纯函数里（组件只负责画），所以这里把它们从真源里取来跑，不再照抄组件内部的小助手；
+// 更详尽的用例（含「显示哪几行」与中英两条文案）在 tests/verify-666-subws-mark-root.js，这里只守本票那四条判据。
+const markBlock = noExport(
+  markSrc.slice(markSrc.indexOf('export const subwsMarkRootOf'), markSrc.indexOf('export const SubworkspaceMark'))
+)
+const markApi = new Function('keyOf', 'tr', markBlock + '\nreturn { shows: subwsMarkShows }')(keyOfFn, (k) => k)
+const isSubOf = function (root, cwd) { try { return markApi.shows(root, cwd) === true } catch (e) { return false } }
 if (isSubOf(ROOT_DIR, SUB_DIR) === true) ok('子目录会话：出现（所选目录 ≠ 工作区根）')
 else bad('子目录会话没出现标志')
 if (isSubOf(ROOT_DIR, ROOT_DIR) === false) ok('根会话：不出现')

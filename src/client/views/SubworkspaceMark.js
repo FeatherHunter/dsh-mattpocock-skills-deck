@@ -15,50 +15,56 @@
 //
 // 用户可见之处一律说大白话（#649 定的措辞纪律）：界面上不出现「子工作区」「工作区根」这类内部术语，
 // 只出现「面板数据来自工作区 …」「当前目录是它的子目录」这种人人看得懂的句子。
+//
+// #666 修正（2026-09-19）：这枚标志原先读会话状态上的 st.workspaceRoot，而客户端里没有任何地方给那个字段
+//   赋过值，于是它自 #653 落地以来一次都没亮过（证据在票 #666）。现在**唯一来源**是面板正在显示的那份快照：
+//   宿主从 #652 起在每份快照里带回工作区根（snapshot.workspaceRoot），面板分桶读的也是同一份快照。
+//   这里不再另读「所选目录 → 工作区根」那张表：那张表存的是折算过的工作区键（大小写与分隔符都规整过），
+//   拿它当显示路径会与「面板数据来自工作区 D:\ilife」这句话对不上；而且那张表是整个工作区共用的，
+//   别的会话学到的根会窜到本会话的浮层里。快照里没有工作区根时返回空串：认不出根就不出现，不猜、不谎报。
+//
+// 渲染之外的决定（取根、该不该出现、相对尾巴怎么拼、显示哪几行）全在这几个纯函数里，组件只负责画与点击 ——
+// 门禁因此能直接断言「该不该出现、出现时是哪几行」，不必去渲染一棵 React 树（tests/verify-666-subws-mark-root.js）。
+export const subwsMarkRootOf = function (st) {
+  try { return (st && st.snapshot && st.snapshot.workspaceRoot) ? String(st.snapshot.workspaceRoot).trim() : '' } catch (e) { return '' }
+}
+// 折算到同一把键再比较（大小写、分隔符写法不同也算同一条目录）。keyOf 是内核里那把规整函数的单源；
+//   真闭包里拿不到它时退回原样比较 —— 两串本就同源同写法，结论仍然对，不会把子目录误判成根。
+export const subwsMarkCmpKey = function (v) {
+  try { return (typeof keyOf === 'function') ? String(keyOf(v)) : String(v == null ? '' : v) } catch (e) { return '' }
+}
+// 这枚标志该不该出现：所选目录与工作区根不是同一条目录时才出现。
+//   根会话、嵌套仓库（子目录自带 .git，那时工作区根就是它自己）、无仓库目录都不满足这个条件。
+export const subwsMarkShows = function (root, cwd) {
+  return !!(root && cwd && subwsMarkCmpKey(root) !== subwsMarkCmpKey(cwd))
+}
+// 相对尾巴：所选目录去掉工作区根前缀的那一段，用 › 连接。绝不把反斜杠原样吐给用户。
+export const subwsMarkRelOf = function (root, cwd) {
+  try {
+    const r = String(root || '').replace(/[\\/]+$/, '')
+    let rest = String(cwd || '')
+    if (rest.length > r.length && subwsMarkCmpKey(rest.slice(0, r.length)) === subwsMarkCmpKey(r)) rest = rest.slice(r.length)
+    const segs = rest.split(/[\\/]+/).filter(function (x) { return !!x })
+    return segs.join(' › ')
+  } catch (e) { return '' }
+}
+// 该显示哪几行（空数组＝这枚标志不出现）。四行文案存在 locale 的一个键里、用 \n 分行；
+//   取出来先拆行，再把 {root} / {rel} 填上；第四行「{root}还未初始化」只在确实知道根还没初始化时（false）才留。
+export const subwsMarkLinesOf = function (root, cwd, rootInitialized) {
+  try {
+    if (!subwsMarkShows(root, cwd)) return []
+    const rel = subwsMarkRelOf(root, cwd)
+    const parts = String(tr('panel.wsMarkTip')).split('\n').map(function (s) {
+      return s.replace(/\{root\}/g, String(root)).replace(/\{rel\}/g, String(rel))
+    })
+    return (rootInitialized === false) ? parts : parts.slice(0, 3)
+  } catch (e) { return [] }
+}
 export const SubworkspaceMark = function (props) {
   const p = props || {}
   const st = p.st || null
-  // 出现条件：宿主报回来的工作区根，与本会话所选目录不是同一条 → 说明这个会话处在一个子目录里。
-  //   根会话、嵌套仓库（子目录自带 .git，那时根就是它自己）、无仓库目录都不会满足这个条件，自然不出现。
-  const root = (st && st.workspaceRoot) || null
+  const root = subwsMarkRootOf(st)
   const cwd = (st && st.cwd) || ''
-  const kOf = function (v) { return (typeof keyOf === 'function') ? keyOf(v) : String(v || '') }
-  const isSub = !!(root && cwd && kOf(root) !== kOf(cwd))
-  // 「第一次自动展开」按工作区记一份状态：记在工作区根这把键上，同一个工作区只展开一次。
-  const AUTO_KEY = 'dsws.subwsAutoShown'
-  const readAutoMap = function () {
-    try { const raw = localStorage.getItem(AUTO_KEY); const m = raw ? JSON.parse(raw) : null; return (m && typeof m === 'object') ? m : {} } catch (e) { return {} }
-  }
-  const [autoOpen, setAutoOpen] = React.useState(false)
-  const [autoDone, setAutoDone] = React.useState(false)
-  React.useEffect(function () {
-    if (!isSub || !root) return
-    try {
-      const m = readAutoMap()
-      if (m[kOf(root)]) { setAutoDone(true); return } // 这个工作区已经自动展开过，不再打扰
-      setAutoOpen(true)
-    } catch (e) {}
-  }, [isSub, root])
-  const markAutoShown = function () {
-    try {
-      const m = readAutoMap()
-      m[kOf(root)] = 1
-      localStorage.setItem(AUTO_KEY, JSON.stringify(m))
-    } catch (e) {}
-    setAutoOpen(false)
-    setAutoDone(true)
-  }
-  if (!isSub) return null
-  // 相对尾巴：所选目录去掉工作区根前缀的那一段，用 › 连接。绝不把反斜杠原样吐给用户。
-  const relOf = function () {
-    try {
-      const r = String(root).replace(/[\\/]+$/, '')
-      let rest = String(cwd)
-      if (rest.length > r.length && kOf(rest.slice(0, r.length)) === kOf(r)) rest = rest.slice(r.length)
-      const segs = rest.split(/[\\/]+/).filter(function (x) { return !!x })
-      return segs.join(' › ')
-    } catch (e) { return '' }
-  }
   // 「工作区根初始化了没有」——只回答确实知道的那一半，不知道时**不出**第四行：
   //   ① 检查链里那一步（tracker:initialized）求值完成：done 就是已初始化，current/fail 就是还没初始化；
   //      那一步还没跑（链还没加载）时它什么都不说，往下走第 ② 条；
@@ -74,19 +80,38 @@ export const SubworkspaceMark = function (props) {
       return (s && s.status) ? (s.status === 'done') : null
     } catch (e) { return null }
   }
-  // 第四行出不出的唯一判据：链那一步**明确**为「还没完成」时才出（false）。null 是「还不知道」，不出。
   const rootIsInitialized = function () { return chainStepOk('tracker:initialized') !== false }
-  const rel = relOf()
   const inited = rootIsInitialized()
-  // 四行文案存在一个键里、用 \n 分行（省行数用；文件里 setup.*.backendNote 也是这个写法）：
-  //   取出来先拆成行，再逐行把 {root} / {rel} 填上。第四行（工作区还没初始化）在根已经初始化时丢掉。
-  const parts = String(tr('panel.wsMarkTip')).split('\n').map(function (s) {
-    return s.replace(/\{root\}/g, String(root)).replace(/\{rel\}/g, String(rel))
-  })
-  const shown = inited ? parts.slice(0, 3) : parts
+  const shown = subwsMarkLinesOf(root, cwd, inited)
+  const isSub = shown.length > 0
+  // 「第一次自动展开」按工作区记一份状态：记在工作区根这把键上，同一个工作区只展开一次。
+  const AUTO_KEY = 'dsws.subwsAutoShown'
+  const readAutoMap = function () {
+    try { const raw = localStorage.getItem(AUTO_KEY); const m = raw ? JSON.parse(raw) : null; return (m && typeof m === 'object') ? m : {} } catch (e) { return {} }
+  }
+  const [autoOpen, setAutoOpen] = React.useState(false)
+  const [autoDone, setAutoDone] = React.useState(false)
+  React.useEffect(function () {
+    if (!isSub || !root) return
+    try {
+      const m = readAutoMap()
+      if (m[subwsMarkCmpKey(root)]) { setAutoDone(true); return } // 这个工作区已经自动展开过，不再打扰
+      setAutoOpen(true)
+    } catch (e) {}
+  }, [isSub, root])
+  const markAutoShown = function () {
+    try {
+      const m = readAutoMap()
+      m[subwsMarkCmpKey(root)] = 1
+      localStorage.setItem(AUTO_KEY, JSON.stringify(m))
+    } catch (e) {}
+    setAutoOpen(false)
+    setAutoDone(true)
+  }
+  if (!isSub) return null
   const aria = shown.join('；')
   const dim = { fontSize: 11, lineHeight: '16px', whiteSpace: 'normal', wordBreak: 'break-word' }
-  // 六行渲染时，最后一行是那条「还没初始化」的提醒，用琥珀色；其余灰色。
+  // 渲染时，最后一行是那条「还没初始化」的提醒，用琥珀色；其余灰色。
   const tipContent = h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, shown.map(function (s, i) {
     const isWarn = (!inited && i === shown.length - 1)
     return h('div', { key: 'l' + i, style: Object.assign({}, dim, { color: (i === 0 ? '#e6edf3' : (isWarn ? '#f59e0b' : '#8b8b95')) }) }, s)
