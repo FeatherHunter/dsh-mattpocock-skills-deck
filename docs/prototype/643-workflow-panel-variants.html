@@ -101,6 +101,15 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 .skl.next{border-left-color:var(--success);background:rgba(74,222,128,.10)}
 .skl .nb{font-size:9.5px;line-height:1.6;color:#08240f;background:var(--success);border-radius:99px;padding:0 5px;flex:none;font-weight:700;align-self:center}
 .pipe .skp.next{border-color:var(--success);background:rgba(74,222,128,.12)}
+/* 「场景在前、编号在后」那一档，路名后面跟一枚官网组编号；有了它，这种找法才和「只按处境找」不一样 */
+.gtag{font-size:10px;color:var(--caption);border:1px solid var(--border);border-radius:4px;padding:0 4px;margin-left:6px;white-space:nowrap;flex:none}
+/* 悬停气泡：原型自己画的，100 毫秒出内容（浏览器自带的那层提示延迟由系统定、样式也改不了） */
+.protoTip{position:fixed;z-index:99999;max-width:320px;background:#0b0d11;border:1px solid var(--border2);border-radius:8px;box-shadow:0 8px 26px rgba(0,0,0,.55);color:var(--text);font-size:11.5px;line-height:1.5;padding:6px 9px;display:none;pointer-events:none}
+/* 「一行一个＋引导线」：一行一个的清爽不动，把序号做成串在一条竖线上的圆点——
+   顺序感像流水线那样一眼看得出，但不横着摊开。 */
+.spop.gline .skl .sl{position:relative;width:18px;height:18px;border-radius:50%;border:1px solid #6f7a90;display:flex;align-items:center;justify-content:center;font-size:10px;color:#c9d1e0;background:var(--card);align-self:center;flex:none}
+.spop.gline .skl:not(:last-child) .sl::after{content:'';position:absolute;left:50%;top:18px;width:1px;height:9px;background:#6f7a90;transform:translateX(-50%)}
+.spop.gline .skl{padding-left:6px}
 .spop .foot{border-top:1px solid var(--border);padding:6px 10px;font-size:10.5px;color:var(--caption);background:var(--card2);display:flex;gap:8px;align-items:center}
 .spop .foot .hit{color:var(--success)}
 /* ---- 一行一个工作流的总览态 ---- */
@@ -207,6 +216,15 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
     一、<strong>大区域里内容怎么摆</strong>：一条路一行（20 条路排成 20 行）、一颗技能一格（25 颗铺成网格）、还是分成块并排几栏。<br>
     二、<strong>找法</strong>：按「我现在要干什么」找、按「原作者官网的编号分组」找，还是把两者叠起来。<br>
     三、<strong>说明放哪、点完关不关、该点哪个要不要突出</strong>这些细节。
+  </div>
+  <div class="q">
+    <b>已经定下来的（2026-09-19 拍的板）</b><br>
+    形状 = <b>大区域</b>（屏幕居中一大块，尽量不用滚）· 铺法 = <b>分组块</b> ·
+    技能行说明 = <b>只在悬停里，用自己画的悬停气泡，100 毫秒出内容</b>（不是浏览器自带的那层）·
+    点完 = <b>注入后关面板</b>（和现在一样）· 「当前该点的那一个」= <b>不突出</b>——除非有机制能确定用户此刻走到哪一棒，
+    现在做不到，标了就是瞎标 · 一行总览 = <b>不要</b>（视觉上直接看清楚就行）。<br>
+    <b>还在选的：三种找法、块数三档、技能排版（一行一个 / 一行一个＋引导线 / 横向流水线）。</b>
+    这几档的开关照旧留在底部条上，切过去就能比；已经定下来的那几档也留着，方便回头对照。
   </div>
   <div class="tags">
     <span class="tag hot">换三种找法：底部条左右方向键 ← →</span>
@@ -408,7 +426,7 @@ var S = {
   markNext:false,       // 要不要把「当前该点的那一个」标出来
   reached:{},           // 每块走到第几棒（只在 markNext 打开时才记）：块 id → 已经点过的棒数
   shape:'big',          // pop = 贴着那颗按钮的小面板；big = 屏幕居中、尽量一眼看全的大区域（2026-09-19 拍板走这一档）
-  bigLayout:'oneper',   // 大区域里的三种铺法：oneper 一条路一行 / grid 一颗技能一格 / blocks 分组块
+  bigLayout:'blocks',   // 大区域里的三种铺法：oneper 一条路一行 / grid 一颗技能一格 / blocks 分组块（2026-09-19 拍板走这一档）
   expanded:{ '01':true, '02':true },
   hoverFlow:null,
   hoverSkill:null,
@@ -582,7 +600,7 @@ function readURL(){
   // 说明的默认值是「只在悬停浮层里」——和真机现状一致，也是「大区域一眼看全」放得下的那一档
   S.descInline = (p.get('desc') === 'inline')
   S.closeAfter = p.get('after') !== 'stay'
-  S.stepsLayout = (p.get('layout') === 'pipe') ? 'pipe' : 'rows'
+  S.stepsLayout = (p.get('layout') === 'pipe') ? 'pipe' : (p.get('layout') === 'rowsline' ? 'rowsline' : 'rows')
   S.markNext = p.get('next') === '1'
   // 形状的默认值是「大区域」——2026-09-19 已经拍板走这一档；要看小面板就切开关或加 ?shape=pop
   S.shape = (p.get('shape') === 'pop') ? 'pop' : 'big'
@@ -607,7 +625,7 @@ function resetState(){
   S.open = false; S.blocks = 'g6'; S.width = w
   S.descInline = false; S.closeAfter = true; S.overview = false
   S.stepsLayout = 'rows'; S.markNext = false; S.reached = {}
-  S.shape = 'pop'; S.bigLayout = 'oneper'
+  S.shape = 'pop'; S.bigLayout = 'blocks'
   S.expanded = expandDefault(S.variant)
   S.hoverFlow = null; S.hoverSkill = null; S.lastHit = null
   S.injectCount = 0; S.typedIn = ''
@@ -672,7 +690,7 @@ function panelStyle(){
 }
 
 // 「一眼看全」这一条到底成不成立：量面板里那一截有没有藏起来的东西，直说要不要滚。
-// 放不下的时候顺带指出最省事的那一步——把每颗技能的说明收进悬停浮层，一行就矮一截。
+// 放不下的时候顺带指出最省事的那一步——把每颗技能的说明收进悬停气泡，一行就矮一截。
 function fitReport(){
   var sc = document.getElementById('spopScroll')
   if (!sc) return '面板还没开'
@@ -680,6 +698,57 @@ function fitReport(){
   if (over <= 1) return '全看得到，不用滚'
   var hint = S.descInline ? '；把「技能行说明」切到「只在悬停里」就能收下来' : ''
   return '还差 ' + Math.round(over) + ' 像素，要滚' + hint
+}
+
+// ---- 悬停气泡：自己画的那种，不是浏览器自带的那层提示 ----
+// 为什么要自己画：浏览器自带的 title 延迟由系统定（通常半秒往上）、样式改不了、也不能保证贴着面板；
+// 这里固定 100 毫秒出内容，位置在目标下面、贴边时自动翻到上面，面板一重画/一滚动就收起来。
+var TIP_DELAY = 100
+var TIP = { el:null, timer:null }
+function tipEl(){
+  if (!TIP.el){
+    TIP.el = document.createElement('div')
+    TIP.el.className = 'protoTip'
+    document.body.appendChild(TIP.el)
+  }
+  return TIP.el
+}
+function hideTip(){
+  if (TIP.timer){ clearTimeout(TIP.timer); TIP.timer = null }
+  if (TIP.el) TIP.el.style.display = 'none'
+}
+function showTip(text, anchor){
+  var el = tipEl()
+  el.textContent = text
+  el.style.display = 'block'
+  var r = anchor.getBoundingClientRect()
+  var w = el.offsetWidth, h = el.offsetHeight
+  var left = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - w - 8))
+  var top = r.bottom + 6
+  if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6)
+  el.style.left = left + 'px'
+  el.style.top = top + 'px'
+}
+function hoverTip(anchor, text){
+  hideTip()
+  TIP.timer = setTimeout(function(){ showTip(text, anchor) }, TIP_DELAY)
+}
+
+// 这条路最主要落在官网哪一组里（看它第一棒属于哪组）——「场景在前、编号在后」那一档用它当认路标记，
+// 有了这个标记，那一种找法才真的和「只按处境找」不一样。
+function routeWebGroup(f){
+  for (var i=0;i<f.steps.length;i++){
+    for (var j=0;j<WEB_GROUPS.length;j++){
+      if ((WEB_GROUPS[j].skills||[]).indexOf(f.steps[i]) >= 0) return WEB_GROUPS[j]
+    }
+  }
+  return null
+}
+function webGroupTag(f){
+  if (S.variant !== 'C') return ''
+  var g = routeWebGroup(f)
+  if (!g) return ''
+  return '<span class="gtag">' + esc(g.id + ' ' + g.title) + '</span>'
 }
 
 // 大区域「一条路一行」要摆哪些路：按处境分段（找法是 B 时就平铺成一段）。
@@ -743,7 +812,7 @@ function renderPanel(){
     else rows += (S.expanded[it.id] ? countSkillRowsOf(it.group) : 0)
   })
   var big = (S.shape === 'big')
-  var cls = 'spop' + (mini ? ' mini' : '') + (big ? (' big' + (S.bigLayout === 'blocks' ? (' cols' + bigColumns()) : '')) : '')
+  var cls = 'spop' + (mini ? ' mini' : '') + (big ? (' big' + (S.bigLayout === 'blocks' ? (' cols' + bigColumns()) : '')) : '') + (S.stepsLayout === 'rowsline' ? ' gline' : '')
   var headCount
   if (big && S.bigLayout === 'oneper'){
     var routes = 0, chips = 0
@@ -830,16 +899,25 @@ function renderPanel(){
     el.onmouseenter = function(){ setHoverBlock(el.getAttribute('data-bid')) }
   })
   function wireSkillPick(el){
-    el.onmouseenter = function(){ setHoverSkill(el.getAttribute('data-sname')) }
-    el.onmouseleave = function(){ setHoverSkill(null) }
+    el.onmouseenter = function(){ setHoverSkill(el.getAttribute('data-sname')); hoverTip(el, el.getAttribute('data-tip') || '') }
+    el.onmouseleave = function(){ setHoverSkill(null); hideTip() }
     el.onclick = function(e){
       e.stopPropagation()
+      hideTip()
       var idx = parseInt(el.getAttribute('data-sidx'), 10)
       injectSkill(el.getAttribute('data-sname'), el.getAttribute('data-fid'), isNaN(idx) ? -1 : idx)
       render()
     }
   }
   Array.prototype.forEach.call(host.querySelectorAll('.skl, .skp'), wireSkillPick)
+  // 路的名字上也挂同一种气泡：它那句「适合什么时候用」（以及还归在哪些处境下）就写在里面。
+  Array.prototype.forEach.call(host.querySelectorAll('.rn'), function(el){
+    el.onmouseenter = function(){ hoverTip(el, el.getAttribute('data-tip') || '') }
+    el.onmouseleave = function(){ hideTip() }
+    el.onclick = function(e){ hideTip() }
+  })
+  var scroller = document.getElementById('spopScroll')
+  if (scroller) scroller.addEventListener('scroll', hideTip)
   Array.prototype.forEach.call(host.querySelectorAll('[data-raid]'), function(el){
     el.onclick = function(e){
       e.stopPropagation()
@@ -862,7 +940,7 @@ function skillRow(name, fid, lead, idx){
   var key = fid || ''
   // 「该点哪个」打开时，每一块里进度指到的那一棒被标出来（原型里从第一棒开始，点过就往下走一格）。
   var isNext = S.markNext && (S.reached[key] || 0) === idx
-  return '<div class="skl' + (on ? ' armed' : '') + (isNext ? ' next' : '') + '" data-sname="' + esc(name) + '" data-fid="' + esc(key) + '" data-sidx="' + idx + '" title="' + esc(SKILL_LINE[name]||'') + '">' +
+  return '<div class="skl' + (on ? ' armed' : '') + (isNext ? ' next' : '') + '" data-sname="' + esc(name) + '" data-fid="' + esc(key) + '" data-sidx="' + idx + '" data-tip="' + esc(SKILL_LINE[name]||'') + '">' +
     '<span class="sl">' + lead + '</span>' +
     '<span class="sn">/' + esc(name) + '</span>' +
     (isNext ? '<span class="nb">该点这个</span>' : '') +
@@ -872,14 +950,14 @@ function skillRow(name, fid, lead, idx){
 }
 
 // 一颗技能的方片（流水线、一条路一行、一格一颗都用它）。和行式共用 renderPanel 里那套点击与悬停处理。
-// compact = 一条路一行那一档用的窄方片：不带箭头，名字太长就省略号收尾（全名在悬停提示里）。
+// compact = 一条路一行那一档用的窄方片：不带箭头，名字太长就省略号收尾（全名在悬停气泡里）。
 function chipHTML(name, fid, i, compact){
   var key = fid || ''
   var isNext = S.markNext && (S.reached[key] || 0) === i
   var pin = compact
     ? ('<i>' + (i+1) + '</i><span class="nm">' + esc(name) + '</span>')
     : ((i ? '<em class="arw">→</em>' : '') + '<i>' + (i+1) + '</i>/' + esc(name))
-  return '<span class="skp' + (compact ? ' slim' : '') + (isNext ? ' next' : '') + '" data-sname="' + esc(name) + '" data-fid="' + esc(key) + '" data-sidx="' + i + '" title="' + esc(SKILL_LINE[name]||'') + '">' +
+  return '<span class="skp' + (compact ? ' slim' : '') + (isNext ? ' next' : '') + '" data-sname="' + esc(name) + '" data-fid="' + esc(key) + '" data-sidx="' + i + '" data-tip="' + esc(SKILL_LINE[name]||'') + '">' +
     '<span class="pn">' + pin + '</span>' +
     (S.descInline ? '<span class="pd">' + esc(SKILL_LINE[name]||'') + '</span>' : '') +
   '</span>'
@@ -892,11 +970,11 @@ function skillChain(names, fid){
 }
 
 // 大区域·一条路一行：一块地方把「编号 + 路的名字 + 这条路顺下来的技能」排在一条线上，
-// 20 条路排下来就是「一眼看全」的那种列表；路名上的悬停提示写清了它那句场景与还归在哪些处境下。
+// 20 条路排下来就是「一眼看全」的那种列表；路名上的悬停气泡写清了它那句场景与还归在哪些处境下。
 function renderRouteLine(f){
   var h = '<div class="rline' + (S.markNext ? ' mark' : '') + '" data-bid="' + esc(f.id) + '">'
   h += '<span class="num gray">' + esc(f.id) + '</span>'
-  h += '<span class="rn" title="' + esc(f.scene + (alsoInTitle(f.id) ? '（也归在：' + alsoInTitle(f.id) + '）' : '')) + '">' + esc(f.title) + '</span>'
+  h += '<span class="rn" data-tip="' + esc(f.scene + (alsoInTitle(f.id) ? '（也归在：' + alsoInTitle(f.id) + '）' : '')) + '">' + esc(f.title) + '</span>'
   h += '<span class="chain">'
   f.steps.forEach(function(n, i){ h += chipHTML(n, f.id, i, true) })
   h += '</span></div>'
@@ -913,7 +991,7 @@ function renderSkillGrid(){
     var used = 0
     FLOWS.forEach(function(f){ if (f.steps.indexOf(n) >= 0) used++ })
     var where = used ? ('用在 ' + used + ' 条路里') : '不单独占一棒，平时由别的技能带出来'
-    h += '<span class="skp cell" data-sname="' + esc(n) + '" data-fid="" data-sidx="-1" title="' + esc(SKILL_LINE[n]||'') + '">' +
+    h += '<span class="skp cell" data-sname="' + esc(n) + '" data-fid="" data-sidx="-1" data-tip="' + esc((SKILL_LINE[n]||'') + '（' + where + '）') + '">' +
       '<span class="pn">/' + esc(n) + '</span>' +
       (S.descInline ? '<span class="pd">' + esc(SKILL_LINE[n]||'') + '</span>' : '') +
       '<span class="pd">' + esc(where) + '</span>' +
@@ -948,7 +1026,7 @@ function renderFlowOnlyBlock(it){
   var openFlag = (S.expanded[f.id] !== false)
   var h = '<div class="blk' + (openFlag ? ' open' : '') + '" data-bid="' + esc(f.id) + '" data-fid="' + esc(f.id) + '">'
   h += '<div class="bh"><span class="arrow">▼</span><span class="num gray">' + esc(f.id) + '</span>' +
-       '<span class="bn">' + esc(f.title) + '</span><span class="bc">' + f.steps.length + ' 棒</span></div>'
+       '<span class="bn">' + esc(f.title) + '</span>' + webGroupTag(f) + '<span class="bc">' + f.steps.length + ' 棒</span></div>'
   if (!openFlag) return h + '</div>'
   h += '<div class="bd">'
   if (S.descInline) h += '<div class="bs">' + esc(f.scene) + '</div>'
@@ -980,7 +1058,7 @@ function renderFlowBlock(g){
     ;(g.flows || []).forEach(function(fid){
       var f = flowById(fid); if (!f) return
       h += '<div style="margin-bottom:8px">'
-      h += '<div class="bs" style="padding:4px 2px 2px"><b style="font-size:12px;color:#e6edf3">' + esc(f.title) + '</b>'
+      h += '<div class="bs" style="padding:4px 2px 2px"><b style="font-size:12px;color:#e6edf3">' + esc(f.title) + '</b>' + webGroupTag(f)
       if (S.descInline) h += '<br>' + esc(f.scene)
       h += '</div>'
       if (S.stepsLayout === 'pipe') h += skillChain(f.steps, f.id)
@@ -995,7 +1073,13 @@ function renderFlowBlock(g){
 function renderState(){
   var gs = groupsFor()
   var fits = computeFits()
-  var modeText = { g6:'官网 6 组（第一轮保底那一版）', f17:'20 条路一块一条', s22:'22 处归并成 20 块（同一条路挂在多个处境下）' }[S.blocks]
+  // 这三档说清各自「一块是什么」：官网 6 组是一块 = 一组技能；20 条路是一块 = 一条能照着走的路；
+  // 22 处那一档说的是「一条路挂在两个处境下时怎么算」，块还是 20 块，只是块上写明它还归在哪几处。
+  var modeText = {
+    g6:  '官网 6 组：每一块 = 官网首页的一组技能（01 入门 到 06 参考层），组里只列技能、不分先后',
+    f17: '20 条路：每一块 = 一条能照着走的路（路名 + 什么时候进 + 走到哪算结束 + 按顺序的技能）',
+    s22: '22 处归并成 20 块：一条路挂在两个处境下时只画一块，块上写明它还归在哪几处（按处境数会是 22 处）'
+  }[S.blocks]
   var items = panelItems()
   var flowItems = items.filter(function(it){ return it.kind === 'flow' }).length
   var blockLine = '共 <b>' + items.length + '</b> 块'
@@ -1013,7 +1097,7 @@ function renderState(){
   rows.push(['面板开没开', S.open ? '<span class="ok">开着</span>' : '关着'])
   rows.push(['哪几块展开', esc(Object.keys(S.expanded).filter(function(k){ return S.expanded[k] }).join('、') || '一个都没展开')])
   rows.push(['技能行说明', S.descInline ? '写在行里（悬停还多一层浮层）' : '只在悬停的浮层里'])
-  rows.push(['技能排版', S.stepsLayout === 'pipe' ? '横向一条流水线（一根棒一个方片，中间 → 连着）' : '一行一个技能'])
+  rows.push(['技能排版', S.stepsLayout === 'pipe' ? '横向一条流水线（一根棒一个方片，中间 → 连着）' : (S.stepsLayout === 'rowsline' ? '一行一个技能，左边一道引导线串起顺序' : '一行一个技能')])
   rows.push(['该点哪个', S.markNext ? ('<span class="ok">被突出</span>（每块标出下一棒）· 各块进度：' + esc(reachedSummary())) : '不突出'])
   rows.push(['点完技能', S.closeAfter ? '注入后关面板（＝现在的行为）' : '不关，留一条回执继续点'])
   rows.push(['一行总览态', S.overview ? '开着' : '关着'])
@@ -1052,7 +1136,7 @@ function renderBar(){
   if (S.shape === 'pop' || S.bigLayout === 'blocks') groups.push(grp('块数', [{k:'g6',n:'官网 6 组'},{k:'f17',n:'20 条路一块一条'},{k:'s22',n:'22 处归并成 20 块'}], S.blocks, 'blocks'))
   if (S.shape === 'pop') groups.push(grp('宽度', [{k:'w360',n:'360'},{k:'w260',n:'260'},{k:'w200',n:'200'}], S.width, 'width'))
   groups.push(grp('技能行说明', [{k:'1',n:'写在行里'},{k:'0',n:'只在悬停里'}], S.descInline ? '1' : '0', 'desc'))
-  if (S.shape === 'pop' || S.bigLayout === 'blocks') groups.push(grp('技能排版', [{k:'1',n:'一行一个'},{k:'0',n:'横向流水线'}], S.stepsLayout === 'rows' ? '1' : '0', 'layout'))
+  if (S.shape === 'pop' || S.bigLayout === 'blocks') groups.push(grp('技能排版', [{k:'rows',n:'一行一个'},{k:'rowsline',n:'一行一个＋引导线'},{k:'pipe',n:'横向流水线'}], S.stepsLayout, 'layout'))
   groups.push(grp('点完', [{k:'1',n:'关面板'},{k:'0',n:'不关，留回执'}], S.closeAfter ? '1' : '0', 'after'))
   groups.push(grp('该点哪个', [{k:'1',n:'突出'},{k:'0',n:'不突出'}], S.markNext ? '1' : '0', 'next'))
   if (S.shape === 'pop' || S.bigLayout === 'blocks') groups.push(grp('一行总览', [{k:'1',n:'开'},{k:'0',n:'关'}], S.overview ? '1' : '0', 'overview'))
@@ -1072,7 +1156,7 @@ function setOption(kind, k){
   if (kind==='desc') S.descInline = (k==='1')
   if (kind==='after') S.closeAfter = (k==='1')
   if (kind==='overview') S.overview = (k==='1')
-  if (kind==='layout') S.stepsLayout = (k==='1') ? 'rows' : 'pipe'
+  if (kind==='layout') S.stepsLayout = (k === 'pipe' || k === 'rowsline') ? k : 'rows'
   if (kind==='shape') S.shape = (k==='1') ? 'pop' : 'big'
   if (kind==='biglayout') S.bigLayout = k
   // 换「该点哪个」这一档时把进度清干净，免得上一档点过的痕迹留着看不懂。
@@ -1095,7 +1179,7 @@ function expandDefault(v){
   if (v === 'B') return { '01':true, '02':true }
   return { 'S1':true, 'S2':true, 'S3':true, 'S4':true, 'S5':true, 'S6':true }
 }
-function render(){ renderHost(); renderPanel(); renderState(); renderBar(); if (window.renderWalk) window.renderWalk(); syncURL() }
+function render(){ hideTip(); renderHost(); renderPanel(); renderState(); renderBar(); if (window.renderWalk) window.renderWalk(); syncURL() }
 </script>
 
 <script>
@@ -1108,7 +1192,7 @@ function setVariant(v){
   S.open = false; S.blocks = 'g6'; S.lastHit = null; S.injectCount = 0; S.typedIn = ''
   S.descInline = false; S.closeAfter = true; S.overview = false
   S.stepsLayout = 'rows'; S.markNext = false; S.reached = {}
-  S.shape = 'pop'; S.bigLayout = 'oneper'
+  S.shape = 'pop'; S.bigLayout = 'blocks'
   S.expanded = expandDefault(v)
 }
 
@@ -1189,10 +1273,11 @@ var WALK = [
     setup:function(){ setVariant('B') },
     steps:[
       { say:'打开面板，看 02 主干那一组：五棒是一行一个、按顺序排下来的。', watch:'一行一个像清单，顺序清楚；代价是一屏占的高度最多。', do:function(){ S.open = true } },
-      { say:'把「技能排版」切到「横向流水线」。', watch:'同样五棒折成一条链（一根棒一个方片，中间用 → 连着）。高度省下来了，代价是每颗技能的名字变短、一眼扫过去的顺序感变弱。', opt:['layout','0'] },
-      { say:'切回「一行一个」，再把「该点哪个」打开成「突出」。', watch:'每一块里都有一棒被标成绿的、写着「该点这个」。原型里固定从第一棒开始；真机上这一格该跟着会话走到哪儿。', opt:[['layout','1'],['next','1']] },
+      { say:'把「技能排版」切到「横向流水线」。', watch:'同样五棒折成一条链（一根棒一个方片，中间用 → 连着）。方向感最强，代价是名字变短、并排读起来更费神。', opt:['layout','pipe'] },
+      { say:'再切到「一行一个＋引导线」。', watch:'还是一行一个的清爽，但左边那道线把顺序串起来了——两边的好处各拿一半，看它够不够。', opt:['layout','rowsline'] },
+      { say:'切回「一行一个」，再把「该点哪个」打开成「突出」。', watch:'每一块里都有一棒被标成绿的、写着「该点这个」。注意：这一格只有我们能确定「用户此刻走到哪一棒」时才成立，做不到就是瞎标。', opt:[['layout','rows'],['next','1']] },
       { say:'把「点完」切成「不关，留回执」，然后点一下被标出来的那一棒。', watch:'标记往下走一格（点过的那一棒不再是「该点这个」）。想一下：这块绿是帮你看清下一步，还是变成了噪声。', opt:['after','0'] },
-      { say:'把「技能排版」「该点哪个」「点完」都切回默认，和刚才那几版对一下。', watch:'开关叠起来之后，面板还认不认得出来这是在说哪一块。', opt:[['layout','1'],['next','0'],['after','1']] }
+      { say:'把「技能排版」「该点哪个」「点完」都切回默认，和刚才那几版对一下。', watch:'开关叠起来之后，面板还认不认得出来这是在说哪一块。', opt:[['layout','rows'],['next','0'],['after','1']] }
     ]
   },
   {
