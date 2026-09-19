@@ -1202,8 +1202,9 @@ if (typeof hideTip !== 'function'){ var hideTip = function(){} }
 
 // 已经定下来的那一套（地址栏里给了参数就按参数来）
 var q = new URLSearchParams(location.search)
-S.shape = 'big'
-S.bigLayout = 'blocks'
+var wantBig = q.get('big')
+S.shape = q.get('shape') === 'pop' ? 'pop' : 'big'
+S.bigLayout = (wantBig === 'oneper' || wantBig === 'grid' || wantBig === 'blocks') ? wantBig : 'blocks'
 S.layout = q.get('layout') || 'sceneblk'
 S.tag = q.get('tag') === '1'
 S.stepsLayout = q.get('steps') || 'rowsline'
