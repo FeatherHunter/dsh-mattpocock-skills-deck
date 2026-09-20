@@ -54,7 +54,10 @@ const dswsLogEnsurePath = function () {
       return { ok: true, dir: dswsLogKnown.dir, path: dswsLogKnown.path }
     }).catch(function (e) { dswsLogWarnCall('wf.logExport', 'log-resolve', e); return { ok: false, error: (e && e.message) || String(e) } })
   } catch (e) {
-    dswsLogFail('wf.logExport', 'log-resolve', (e && e.message) || e);
+    // 这里原先调的是一个从来没有定义过的 dswsLogFail —— 这一段在真源里叫不出名字，走到这条 catch 时
+    //   它自己会抛 ReferenceError（#669 2026-09-21 扫产物时发现，与那一件真机现场同属一类）。
+    //   同形记账改用旁边的 dswsLogWarnCall：事件名与字段与上面几处失败路径一字不差（host.call.fail）。
+    dswsLogWarnCall('wf.logExport', 'log-resolve', e);
     return Promise.resolve({ ok: false, error: (e && e.message) || String(e) })
   }
 }
