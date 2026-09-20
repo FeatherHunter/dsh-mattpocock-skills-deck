@@ -23,13 +23,47 @@ const statChecks = function (src, tag) {
   ok('胶囊 .dsws-capsule CSS 含 flex-wrap:nowrap', /\.dsws-capsule\s*\{[^}]*flex-wrap:nowrap/.test(src))
   ok('胶囊 .dsws-capsule CSS 不含 flex-wrap:wrap', !/\.dsws-capsule\s*\{[^}]*flex-wrap:wrap/.test(src))
   ok('胶囊 .dsws-capsule CSS 含 white-space:nowrap（防御性单行）', /\.dsws-capsule\s*\{[^}]*white-space:nowrap/.test(src))
-  ok('胶囊 .dsws-capsule CSS max-width 用 100%（跟随输入区宽，非 96vw）', /\.dsws-capsule\s*\{[^}]*max-width:\s*min\(100%,\s*1400px\)/.test(src))
+  // #640 改写：胶囊的宽度上限不再自编一个像素数，改为与输入卡同源的那个变量
+  //   （宿主 .p_FcLG_card 用的就是 --dsh-composer-card-max-width；外层容器已按同一条算式收窄，
+  //    所以胶囊外框与输入卡外框等宽）。自编 min(100%,1400px) 的毛病：它比输入卡宽，
+  //   于是「对齐」形同虚设 —— 实测胶囊 1377、输入卡 1231，被 100% 撑满。
+  //   真正的像素级对齐由 tests/verify-640-dock-width-browser.js 在浏览器里量，不在本文件里断言字符串。
+  ok('胶囊 .dsws-capsule CSS max-width 取宿主卡宽变量（不再自编 1400px）',
+    /\.dsws-capsule\s*\{[^}]*max-width:\s*var\(--dsh-composer-card-max-width,\s*100%\)\s*\}/.test(src))
+  // 旧的自编兜底（第一条规则里那个 min(100%,1400px)）必须在改造后消失，否则两条规则里还留着老上限
+  ok('胶囊 .dsws-capsule CSS 不再自编像素上限（1400px 已弃）', !/max-width:\s*min\(100%,\s*1400px\)/.test(src))
   ok('胶囊 .dsws-capsule CSS 不再含 max-width:min(96vw, ...) （旧 R1 行为已弃）', !/\.dsws-capsule\s*\{[^}]*max-width:\s*min\(96vw/.test(src))
   ok('胶囊 .dsws-capsule CSS 不再含 margin:0 auto（外层 wrapper 负责居中）', !/\.dsws-capsule\s*\{[^}]*margin:\s*0\s+auto/.test(src))
-  ok('外层 wrapper display:flex + flex:\'none\' + justify-content:center 居中胶囊', /display:\s*'flex',\s*flex:\s*'none',\s*justifyContent:\s*'center'/.test(src))
-  ok('外层 wrapper width:100% 跟输入区容器宽', /display:\s*'flex'(?:,\s*flex:\s*'none')?,\s*justifyContent:\s*'center'[\s\S]{0,80}width:\s*'100%'/.test(src))
-  ok('外层 wrapper boxSizing:border-box 防 padding 撑破', /display:\s*'flex'(?:,\s*flex:\s*'none')?,\s*justifyContent:\s*'center'[\s\S]{0,200}boxSizing:\s*'border-box'/.test(src))
-  ok('外层 wrapper 正常路径 overflow:hidden 截 capsule 溢出，缺 ReactDOM 时 visible 降级保留浮层可用性', /display:\s*'flex'(?:,\s*flex:\s*'none')?,\s*justifyContent:\s*'center'[\s\S]{0,250}overflow:\s*RDOM\s*\?\s*'hidden'\s*:\s*'visible'/.test(src))
+  // #640 改写：外层容器的几何收敛到 StatusBar.js 的 dswsStatusDockGeom 一处，三支容器都调它。
+  //   原来这里断言的是「wrapper 内联 width:100% + boxSizing + overflow」这串属性，那是改造前的形状；
+  //   那条断言在改造前就已经失效（主干上一直红着，且没挂进门禁链），所以这里改成断言真源关系。
+  ok('外层容器几何收敛到 dswsStatusDockGeom 一处（三支容器共用）', /const dswsStatusDockGeom = function \(\)/.test(src))
+  ok('外层容器宽度取宿主「侧距」变量（不是内联 100%）',
+    /width:\s*'calc\(100%\s*-\s*2\s*\*\s*var\(--dsh-composer-side-clearance/.test(src))
+  ok('外层容器 max-width 取宿主卡宽变量（不再无约束铺满整列）',
+    /maxWidth:\s*'var\(--dsh-composer-card-max-width,\s*100%\)'/.test(src))
+  ok('外层容器不带横向内边距（否则胶囊会被再挤进来一层，与输入卡又对不上）',
+    /padding:\s*'3px 0 0'/.test(src))
+  // 外层容器三支都必须**亲自**调用几何：原来这里只数「dswsStatusDockGeom() 出现次数 >= 3」，
+  //   数次数会漏掉「某一支停止调用、别处多一次字符串」（独立复核的变异实验 c 就是这样漏过去的），
+  //   所以改成每一支各断言一次结构（branchHits 由上面按三种锚点文本分别扫出来）。
+  const helperCalls = (src.match(/dswsStatusDockGeom\(\)/g) || []).length
+  ok('外层容器几何被调用（至少 3 次：收起态 / 无横幅 / 有横幅各一次）', helperCalls >= 3)
+  const branchHits = [
+    ['收起态（justifyContent:center 那一支）', /Object\.assign\(\{ display:\s*'flex',\s*flex:\s*'none',\s*justifyContent:\s*'center' \},\s*dswsStatusDockGeom\(\)\)/],
+    ['无横幅那一支（gap: 2）', /Object\.assign\(\{ display:\s*'flex',\s*flex:\s*'none',\s*flexDirection:\s*'column',\s*alignItems:\s*'center',\s*gap:\s*2,[^}]*\},\s*dswsStatusDockGeom\(\)\)/],
+    // 这一支的属性顺序与另两支不同（flexDirection 排在 flex 前面），所以断言只钉住它独有的两个词
+    // （gap: 4 + position: relative）与末尾的 helper 调用，不钉属性顺序。
+    ['有横幅那一支（gap: 4 + position:relative）', /Object\.assign\([\s\S]{0,240}gap:\s*4[\s\S]{0,120}position:\s*'relative'\s*\},\s*dswsStatusDockGeom\(\)\)/],
+  ]
+  for (const [label, re] of branchHits) ok('几何套在这一支上：' + label, re.test(src))
+  // 三支的横向内边距只由几何那一处给：断言几何的 padding 就是 '3px 0 0'，且三支都不再自己拼字面量。
+  //   注意不要把范围放宽成「整个文件里不许出现 padding:'0 8px'」——那个写法在状态栏别处还有正当用途
+  //   （折叠按钮等），一并禁掉会误伤。
+  ok('几何自带的 padding 就是不带横向内边距的 \'3px 0 0\'', /padding:\s*'3px 0 0'/.test(src))
+  ok('三支都不再各自硬写外层容器的横向内边距', !/gap:\s*2\s*,[^}]*padding:/.test(src) && !/gap:\s*4\s*,\s*position:\s*'relative'\s*,\s*padding:/.test(src))
+  ok('外层容器正常路径仍保留 overflow:hidden 截胶囊溢出、缺 ReactDOM 时 visible 降级',
+    /overflow:\s*RDOM\s*\?\s*'hidden'\s*:\s*'visible'/.test(src))
   ok('胶囊 CSS 不再加 overflow:hidden（让 capsule 圆角背景完整，圆角处不漏白）', !/\.dsws-capsule\s*\{[^}]*overflow:\s*hidden/.test(src))
   // 期望 2：children 保持 flex:none + gap 居中
   ok('children 仍 flex:none（capsule-word / seg / timebtn）', /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-seg\{flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-timebtn\{flex:none/.test(src))

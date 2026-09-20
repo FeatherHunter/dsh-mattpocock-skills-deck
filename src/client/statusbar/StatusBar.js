@@ -5,6 +5,42 @@
 // #491 房外埋点：模块级计数（组件外一次，避免每渲染重置；只记枚举与计数，不记路径原文）。
 const dswsStatusHydN = { n: 0 }
 const dswsStatusFbLast = { reason: '' }
+
+/**
+ * 状态栏最外层容器的几何（#640）。整条状态栏（横幅那一行 + 胶囊那一行）都住在这个容器里，
+ * 所以它的左右边就是这两行的左右边。
+ *
+ * 为什么要单独写出来：宿主把输入区做成一个纵向列，列里每一项各自声明自己的宽度。宿主输入卡的真实算式是
+ * （`dsh-client-ui-conversation/lib/client.js` 第 15757 行的原文）
+ *   .p_FcLG_root{padding:0 var(--dsh-composer-side-clearance) 8px}    ← 内层左右各留一个「侧距」
+ *   .p_FcLG_card{width:100%; max-width:var(--dsh-composer-card-max-width)}
+ * 也就是「卡片外框宽 = min(列宽 − 2×侧距, 卡宽上限)」。本插件原来什么都没写，
+ * 于是这个容器横向铺满整列，比输入卡左右各宽出约 90 CSS px——宿主的输入区底色从那块多出来的地方露出来，
+ * 就是用户看到的那条横带。
+ *
+ * 所以这里照抄的是**卡片**那条算式，不是宿主自己那三个输入区商品（待办/目标/队列）用的另一条
+ * 「再各内缩 2×内距」的算式：那三家是宿主要给卡片让位的挂件，本来就比卡片窄 32px；
+ * 而本插件要的是「横幅/胶囊/输入卡三者左右边对齐」（issue #640 的达成判据），所以取卡片那条。
+ *
+ * 横向 padding 不放这里：容器带横向 padding 会把胶囊再往里挤 8px，让三者又对不上；
+ * 横内边距交给胶囊自己，保证「胶囊外框 = 卡片外框」。
+ *
+ * 兜底为什么是 0 而不是 16：宿主那两条规则里，`--dsh-composer-side-clearance` 是**没有兜底值**的
+ *   （`padding:0 var(--dsh-composer-side-clearance) 8px`）。变量缺失时那条 padding 整条作废，卡片的左右边
+ *   就是列的两边、一点内缩都没有。所以这里也只有退回 0（＝不加内缩）才对得上卡片；若退回 16，
+ *   在没有这个变量的旧宿主上容器反而会比卡片窄 32px（实测过，浏览器量尺给出左右各差 16）。
+ * @returns {Object} 可直接塞进 style 的几何片段
+ */
+const dswsStatusDockGeom = function () {
+  return {
+    width: 'calc(100% - 2 * var(--dsh-composer-side-clearance, 0px))',
+    maxWidth: 'var(--dsh-composer-card-max-width, 100%)',
+    marginLeft: 'auto',
+    marginRight: 'auto',
+    boxSizing: 'border-box',
+    padding: '3px 0 0',
+  }
+}
 export const StatusBar = (props) => {
   const sid = props && props.sessionId
   const cx = React.useContext(DswsCtx)
@@ -153,7 +189,8 @@ export const StatusBar = (props) => {
   ]))
   if (deckFolded) {
     // 收起态：只留一颗带文字的小按钮（点即恢复横幅与状态栏；设置页工作区行是另一条恢复路径）
-    return h('div', { style: { display: 'flex', flex: 'none', justifyContent: 'center', padding: '0 8px' } }, [
+    // #640：收起态也套同一条几何 —— 三支容器的左右边必须同源，否则「收起 / 展开」之间会横向跳动。
+    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', justifyContent: 'center' }, dswsStatusDockGeom()) }, [
       h(Tip, { content: tr('banner.folded') }, h('button', { className: 'dsws-btn ghost', 'aria-label': tr('banner.expandDeck'), onClick: expandBanner, style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, padding: '0 8px', lineHeight: 1.2, border: 'none', borderRadius: 99, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, [
         Ic({ n: 'chev-up', size: 10 }),
         h('span', null, tr('banner.expandDeck')),
@@ -241,7 +278,7 @@ export const StatusBar = (props) => {
   })() : null
   if (!bannerStep) {
     // 无 banner 时为胶囊 + 常驻收起按钮（#422：收起即整个功能区消失）
-    return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, width: '100%', boxSizing: 'border-box', padding: '3px 8px 0', overflow: RDOM ? 'hidden' : 'visible' } }, [capsule])
+    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [capsule])
   }
   const bann = function (text, btnLabel, onBtn, foldable) {
     return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
@@ -266,7 +303,7 @@ export const StatusBar = (props) => {
     const isSetupStep = !!(bannerStep.missing && bannerStep.missing.prompt === 'setupRun')
     return isSetupStep ? h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, width:'100%' } }, [node, setupPickCard]) : node
   })()
-  return h('div', { style: { display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '3px 8px 0', position:'relative' } }, [
+  return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, position: 'relative' }, dswsStatusDockGeom()) }, [
 
     stepBanner,
     capsule,

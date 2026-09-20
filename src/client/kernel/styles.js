@@ -115,19 +115,27 @@
       //   之前 capsule width:fit-content → 默认按内容自然宽（约 700px），小于 wrapper 1300px，居中后左右各300px空白。
       //   改为条件式宽度：dn=0 (宽视口) → width:100% 撑满 wrapper，左右边 = 输入区边；
       //                  dn>=1 → width:fit-content 自然宽居中（用户之前已接受「dn=4 时 capsule 不再缩」方案 B）。
-      //   max-width:min(100%,1400px) 仍保留（防超宽屏溢出）。
+      // 曾经把上限写成 min(100%,1400px) 仍保留（防超宽屏溢出）。#640 起这条已废，见下面那条规则。
       // #16 R10（用户验收反馈 2026-08-18 R9 后）：capsule 内容宽 = textarea 宽（iw px），但 capsule 自带
       //   padding:3px 6px + border:1px（CSS 默认 content-box）→ capsule border-box 外框 = iw + 9 + 2 = iw + 11，
       //   比 textarea 外框（iw）宽 11px（左右各 5.5px）。改为 box-sizing:border-box，让 capsule border-box = textarea 外框。
       // #16 R11（用户验收反馈 2026-08-18 R10 后）：capsule 固定宽 = iw → children 居中后左右空白随 children 缩小而变大。
       //   改为 CSS width:fit-content（默认 children 自然宽）；inline maxWidth:iw 防止 capsule 比输入框宽（pixel 对齐 R10 保留）。
-      '.dsws-capsule{max-width:min(100%,1400px);width:100%;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
+      // #640：胶囊的宽度上限只留下面那一条（与输入卡同源）。这里原来还自编了 min(100%,1400px) 兜底，
+      //   它比输入卡宽、等于让「对齐」形同虚设（按宿主算式算：有该变量时胶囊本可等于卡片 1231，
+      //   兜底值 1400 却比卡片还宽，等于没上限）。两条上限并存还容易让人改错一条，所以直接去掉。
+      '.dsws-capsule{width:100%;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
       // DSH Alpha 对齐修复（2026-08-31）：新版输入区卡片宽度由 --dsh-composer-card-max-width + --dsh-composer-side-clearance 驱动，
-      // 旧版仅用 textarea 宽度。胶囊与卡片同源变量，保证“外框=卡片外框”在任意版本下像素级对齐；变量不存在时回退到 min(100%,1400px)。
-      '.dsws-capsule{max-width:var(--dsh-composer-card-max-width, min(100%,1400px))}',
-      // dn>=1 时 capsule 变 fit-content 自然宽居中（用户 B 方案：dn=4 后 capsule 不再缩）
-      '',
-      // 外层 wrapper 调试钩子见 StatusBar render 处 inline style 注释
+      // 旧版仅用 textarea 宽度。胶囊与卡片同源变量，保证“外框=卡片外框”在任意版本下像素级对齐。
+      // #640 修正（2026-09-20）：上限改为与输入卡同一个变量（宿主 .p_FcLG_card 用的就是它），外层容器
+      //   已按同一条算式收窄到卡片宽，胶囊随之与卡片外框等宽（浏览器量尺实测左右差 0）。
+      //   兜底为什么是 100% 而不是 min(…,1400px)：本插件的对齐目标是输入卡，卡片自己没有像素上限
+      //   （宿主那条规则只夹到 cardMax），所以这里不该再自造一个绝对天花板；宿主变量缺失时退成
+      //   「撑满容器」，而容器那时也退成列宽 —— 两者仍然对齐。
+      '.dsws-capsule{max-width:var(--dsh-composer-card-max-width, 100%)}',
+      // #640 注：这里原来还挂着一条「dn>=1 时胶囊变 fit-content」的规则槽，规则本身早已删除、只剩注释，
+      //   一并清掉，免得下一个改胶囊宽度的人照着一条不存在的规则去调。
+      // 外层 wrapper 的宽度约束见 StatusBar.js 的 dswsStatusDockGeom（#640）。
       '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:none}',
       '.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
       '.dsws-capsule .dsws-seg{flex:none}',
