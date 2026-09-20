@@ -11,8 +11,33 @@
     // #284 修订（对抗式审查 2026-08-28）：并发门——同 cwd 同轮次的 in-flight 请求复用；
     //   面板多组件（ChecksTab/StatusBar/Dock）挂载并发调用不再重复触发 25 名技能探测与 gh 网络调用。
     const _chainInflightByCwd = new Map()
-    // 「当前在途的那一次链请求」的键（同一时刻只有一个算数）：回包时用它挡住晚到的旧结果，见 loadChain。
-    let currentChainKey = null
+    // #669 第 4 件：回包时怎么判「这一次还算不算数」——两问都过才算，见 loadChain 里那道守卫：
+    //   ① 同一个键上后来又发过更新的一次（晚到的旧结果）；
+    //   ② 这个会话现在要的已经不是这条链了（键变了：换了后端、换了工作区、换了语言）。
+    // 两样都按「键」各记一份：_chainLatestByKey 记这个键上最新那次请求的序号（那一次跑完就摘掉，不留常驻表），
+    //   _chainSeqN 是全库自增的序号。按键分开记是为了不串门：A 工作区的重取不会把 B 工作区正在飞的那次顶掉。
+    // ① 是按「键」判、不是按「会话」判的，代价写在明处：同一个工作区里两个会话同时 force 重取时，
+    //   先发的那次回包会一并被丢掉（同一把键上的两次读数只认最后那一次，免得旧读数顺着共享缓存流到别的会话）。
+    //   那一侧不会因此没数据：它手里仍是自己上一份快照，随后的那一拍自刷新或下一次挂载会再取一次。
+    // 这一处 2026-09-20 的第一版把「当前那次」冻结在**发请求时**算，于是①那一问变成
+    //   「发这一次的时候上一次还在飞吗」，判反了：晚到的旧结果照旧写进会话状态，新那一次反被丢掉。
+    // 快照那一侧本来就是回包时重算一次键再比（probe-snapshot.js 的 H2），链这一侧这次补成同一个口径。
+    let _chainSeqN = 0
+    const _chainLatestByKey = new Map() // Map<链共享键, 这个键上最新那次请求的序号>
+    // 链共享键（工作区键 + 后端 id + 语言，见 #324 / #529）只有这一处算法：发请求时算一次，回包时再算一次，
+    //   两次算的是同一把尺子，才能判出「这个会话现在要的是不是这条链」。自刷新那两个定时器也用它，不另抄一份。
+    const _chainKeyOfState = function (state) {
+      const bid = (state && state.selection && state.selection.backendId) || ''
+      const lg = (typeof promptLang === 'function' ? promptLang() : 'zh')
+      const ws = (typeof wsKeyOf === 'function' ? wsKeyOf(state && state.cwd) : String((state && state.cwd) || ''))
+      return (typeof getChainCacheKey === 'function' ? getChainCacheKey(ws, bid, lg) : String(ws || '') + '|' + String(bid) + '|' + String(lg || ''))
+    }
+    // 这一次回包还算不算数（两问都过才算，见上面那段）。判不出来时一律当「不算数」——宁可少写一次，
+    //   也不让一份判不出来源的回包去盖会话状态；下一次探测（挂载时那次、或 8 秒那一拍）会照常补上。
+    const _chainRespStale = function (key, seq, state) {
+      try { if (_chainLatestByKey.get(key) !== seq) return true } catch (eS) { return true }
+      try { return _chainKeyOfState(state) !== key } catch (eK) { return true }
+    }
     // #653：链的在途去重与链快照缓存一律按工作区键（wsKeyOf）——同一个仓库里，根会话与子目录会话
     //   是同一条链、同一次求值；此前按会话所选目录分键，两边各求一次、互相看不到对方的链快照。
     // #491 房外埋点：在途复用计数（窗口到记一次；dswsLogHash 同闭包见 probe-snapshot.js）。
@@ -25,9 +50,7 @@
     const _chainAutoPollTimers = new Map()
     export const scheduleChainAutoRefresh = function(st, ms){
       try{
-        const bid = (st.selection && st.selection.backendId) || ''
-        const lg = (typeof promptLang === 'function' ? promptLang() : 'zh')
-        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(wsKeyOf(st.cwd), bid, lg) : String(wsKeyOf(st.cwd)||'')+'|'+String(bid)+'|'+String(lg || ''))
+        const key = _chainKeyOfState(st)
         if(!key || _chainAutoPollTimers.has(key)) return
         const delay = (typeof ms === 'number' && ms>0) ? ms : CHAIN_AUTO_POLL_MS
         const tid = (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function')
@@ -38,9 +61,7 @@
     }
     export const cancelChainAutoRefresh = function(st){
       try{
-        const bid = (st.selection && st.selection.backendId) || ''
-        const lg = (typeof promptLang === 'function' ? promptLang() : 'zh')
-        const key = (typeof getChainCacheKey === 'function' ? getChainCacheKey(wsKeyOf(st.cwd), bid, lg) : String(wsKeyOf(st.cwd)||'')+'|'+String(bid)+'|'+String(lg || ''))
+        const key = _chainKeyOfState(st)
         const tid = _chainAutoPollTimers.get(key)
         if(tid){ try{ clearTimeout(tid) }catch(e){} _chainAutoPollTimers.delete(key) }
       }catch(e){}
@@ -50,7 +71,7 @@
       // 链共享键 = 工作区键 + 后端 id + 语言（#324 按工作区单次求值按后端隔离；#529 加语言：host 明细按语言产出，中英快照分开缓存，切换语言即时重取）
       const _backendIdForChain = (st.selection && st.selection.backendId) || ''
       const _langForChain = (typeof promptLang === 'function' ? promptLang() : 'zh')
-      const norm = (typeof getChainCacheKey === 'function' ? getChainCacheKey(wsKeyOf(st.cwd), _backendIdForChain, _langForChain) : ((typeof wsKeyOf === 'function' ? wsKeyOf(st.cwd) : String(st.cwd||'')) + '|' + String(_backendIdForChain) + '|' + String(_langForChain || '')))
+      const norm = _chainKeyOfState(st)
       if (!force) {
         const inflight = _chainInflightByCwd.get(norm)
         if (inflight) { try { dswsChainDedupN.n += 1; if (isEnabled('debug') && dswsChainDedupN.n % 10 === 0) log('debug', 'dedup.hit', { scope: 'chain', keyHash: dswsLogHash(norm) }) } catch (eL) {}; return inflight }
@@ -75,16 +96,22 @@
       // #529：附带当前语言（host 明细按语言双语产出，不传则恒为中文）
       const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {}, force ? { force:true } : {}, { lang: _langForChain })
       const chainT0 = Date.now()
-      // 在途登记：键 = 上面那条共享键。回包时会拿它跟「当前键」比一次，
-    //   不是当前键就把回包丢掉（理由见下面那段竞态说明）。
-    const _chainKeyP = { key: norm, current: currentChainKey === null || currentChainKey === undefined ? true : currentChainKey === norm }
-    const p = host.call('wf.chain', args).then(function(res){
+      // 在途登记：这一次请求的序号记在这把键上（#669 第 4 件）。发出去就记，
+      //   回包时凭它跟「这个键上最新那次的序号」比一次，比不过就是要丢的那一次（见下面那段竞态说明）。
+      const _mySeq = (_chainSeqN += 1)
+      try { _chainLatestByKey.set(norm, _mySeq) } catch (eSeq) {}
+      const p = host.call('wf.chain', args).then(function(res){
         try { if (res && res.ok) log('info', 'host.call', { method: 'wf.chain', latencyMs: Date.now() - chainT0, ok: true, kind: 'chain' }); else log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-not-ok'), 120, 'error')) }) } catch (eL) {}
-        // 竞态守卫（#669 之后补）：一个在途的链请求回来时，如果这一段里已经又发过新请求
-        //   （最常见的现场：点「确认并继续」选完后端，紧接着一次次级重取；而选择之前那次请求还飞着，
-        //   它不带 backendId，回包里没有后端段），晚到的旧结果会把新快照盖回去 ——
-        //   界面就会从「还没有远端仓库」退回「什么都没有」。所以这里比一次键：不是当前那次就丢弃。
-        if (!_chainKeyP.current) {
+        // 竞态守卫（#669 第 4 件，2026-09-21 重写）：这一次回来的读数还算不算数，按两问判 ——
+        //   ① 同一个键上后来又发过更新的一次？② 这个会话现在要的还是不是这条链（键变了没有）？
+        //   最常见的那一次：点「确认并继续」选完后端，紧接着 force 重取一次链（#669 第 3 件补的），
+        //   而选之前那次请求还飞着 —— 它不带 backendId，回包里没有后端段。旧的那次晚回来如果照写，
+        //   界面就从「还没有远端仓库」退回「什么都没有」，前面那一修等于白修。
+        //   判据落在回包这一侧（不是发请求那一侧）：一份回包过没过期，只有它回来的时候才说得准。
+        // 现在这版之前还有一个 2026-09-20 的写法：把「当前在途的那一次」在发请求时就冻成一个布尔值，
+        //   于是它是拿「发这一次的时候上一次还在不在飞」当判据，正好判反 —— 晚到的旧结果被采纳、
+        //   新的那一次反被丢掉；更糟的是那把键一旦停在被丢掉的那一次上，后面换后端的重取会连着被丢。
+        if (_chainRespStale(norm, _mySeq, st)) {
           try { if (isEnabled('debug')) log('debug', 'chain.stale.drop', { keyHash: dswsLogHash(norm) }) } catch (eDrop) {}
           return null
         }
@@ -117,11 +144,10 @@
         try{ const snapPrev = st.chainSnapshot; const stepsPrev = snapPrev && Array.isArray(snapPrev.steps) ? snapPrev.steps : []; const notDonePrev = stepsPrev.length ? stepsPrev.some(function(s){ return s.status !== 'done' }) : true; if(notDonePrev && st.cwd) scheduleChainAutoRefresh(st, CHAIN_AUTO_POLL_MS) }catch(eRetry){}
         return null }).finally(function(){
         try { _chainInflightByCwd.delete(norm) } catch (e) {}
-        // 收尾：这一次跑完就把它从「当前在途的那一次」上摘掉（万一它是最新那一次）。
-        try { if (_chainKeyP.current && currentChainKey === norm) currentChainKey = null } catch (eK) {}
+        // 收尾：这一次跑完，如果它还是这个键上最新的一次，就把登记摘掉（这张表不留常驻条目；
+        //   比它早发的那几次如果这时才回来，比不到自己的序号，照样判成过期）。
+        try { if (_chainLatestByKey.get(norm) === _mySeq) _chainLatestByKey.delete(norm) } catch (eK) {}
       })
-      // 一次新请求发出，就把「当前在途的那一次」改成它：比它早发出的请求，回包一律丢弃。
-      try { currentChainKey = norm } catch (eSet) {}
       if (!force) _chainInflightByCwd.set(norm, p)
       return p
     }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-669-chain-after-pick.js — 「选完后端立刻重取一次链」门禁（2026-09-21）
+ * verify-669-chain-after-pick.js — 「选完后端立刻重取一次链，且晚到的旧结果不许盖回新快照」门禁（#669）
  *
  * 起因（用户在真机上报）：点完蓝条的「确认并继续」，那条该出现的横幅要等一会儿才出来。
  *   查明之后：这条路（`statusbar/StatusBackend.js` 的 `confirmStatusGate`）绑定成功只重取了快照，
@@ -8,11 +8,19 @@
  *   实测：点确认 → 横幅出现 11.4 秒，其中 8.16 秒纯等定时器，1.7 秒是这一轮链探测本身；
  *   只补一次立刻重取 → 1.73 秒。同仓另外两条路本来就是一对（`kernel/store-switch.js`、`views/NoRepoCard.js`），
  *   只有蓝条这条门控路少了后半句。
+ * 补上那次重取之后又带出后半件（C、D 两组钉的就是它）：选后端之前那次链请求还飞着，它不带 backendId、
+ *   回包里没有后端段；旧的那次晚回来如果照写，界面就从「还没有远端仓库」退回「什么都没有」。
  *
- * 断两组（都用真身求值，不测 DOM）：
+ * 断四组（A、C 都用真身求值，不测 DOM）：
  *   A 行为层：把 StatusBackend.js 取出来在沙箱里求值、调真的 confirmStatusGate，断言
  *     「绑定成功之后确实又发了一次链重取，而且是 force 的那一次」。
- *   B 源码层：那条门控路线里必须有 loadChain 调用；`probe-chain.js` 里那条「晚到的旧结果不许盖回新快照」的守卫在。
+ *   B 源码层：那条门控路线里必须有 loadChain 调用；`probe-chain.js` 里那道守卫按两问判
+ *     （① 同一个键上后来又发过更新的一次 ② 这个会话现在要的还是不是这条链），且旧写法已消失。
+ *   C 行为层（竞态）：把 `probe-chain.js` 真身取出来，喂一个可以按任意顺序回包的假 host，走六种现场 ——
+ *     旧结果晚到、顺序正常、中途换后端、两个工作区各自在飞、同一个键上两次重取、同键非 force 并发 ——
+ *     每一种都必须留下该留的那一份（会话状态与共享缓存都不许被旧结果盖）。
+ *   D 反证：把守卫整段摘掉 / 只留第一问 / 只留第二问 / 把按键隔离改成全局一份，
+ *     C 里对应的那几条必须当场量不通过；哪一条都量不出来，说明这一门是假绿的。
  *
  * 用法：node tests/verify-669-chain-after-pick.js
  */
@@ -59,7 +67,7 @@ console.log('== A 行为层：真的调一次 confirmStatusGate，看它绑完�
 }
 
 console.log('')
-console.log('== B 源码层：这条路上有那次重取，且旧结果盖不回新快照 ==')
+console.log('== B 源码层：这条路上有那次重取，那道守卫按两问判、旧写法已消失 ==')
 {
   const start = sbSrc.indexOf('export const confirmStatusGate')
   const nextDecl = sbSrc.indexOf('export const ', start + 10)
@@ -70,11 +78,212 @@ console.log('== B 源码层：这条路上有那次重取，且旧结果盖不�
   check(afterSnapshot >= 0, '门控确认那条路上仍在重取快照')
   check(afterChain > afterSnapshot, '紧跟快照那次之后又重取了一次链（距离 ' + (afterChain - afterSnapshot) + ' 字）')
   check(sbSrc.indexOf('注入决策') >= 0 || sbSrc.indexOf('一个字都不注入') >= 0, '这次改动没有把「点确认不注入」那条说明碰掉')
-  check(chainSrc.indexOf('_chainKeyP') >= 0 && chainSrc.indexOf('currentChainKey') >= 0, 'probe-chain.js 里那条「晚到的旧结果丢弃」的守卫在')
-  const guardIdx = chainSrc.indexOf('if (!_chainKeyP.current)')
+  // 两问：① 同一个键上又发过更新的一次（按序号比）② 这个会话现在要的还是不是这条链（回包时重算键再比）。
+  check(chainSrc.indexOf('_chainRespStale') >= 0, 'probe-chain.js 里有那道「这一次回包还算不算数」的守卫')
+  check(chainSrc.indexOf('_chainLatestByKey.get(key) !== seq') >= 0, '第一问在：同一个键上有没有更新的一次（按序号比，不是拿发请求时的状态当判据）')
+  check(chainSrc.indexOf('_chainKeyOfState(state) !== key') >= 0, '第二问在：这个会话现在要的还是不是这条链（用同一把键的算法在回包时重算一次）')
+  const guardIdx = chainSrc.indexOf('_chainRespStale(norm, _mySeq, st)')
   const writeIdx = chainSrc.indexOf('st.chainSnapshot = snap')
-  check(guardIdx > 0 && writeIdx > guardIdx, '守卫在写快照之前（先判新旧、再决定写不写）')
+  check(guardIdx > 0 && writeIdx > guardIdx, '守卫在写快照之前（先判还算不算数、再决定写不写）')
   check(chainSrc.indexOf('chain.stale.drop') >= 0, '丢弃旧结果时留了一条按需日志（调试开关开着才记）')
+  // 旧写法必须消失：那一版在发请求时就把「当前那一次」冻成布尔值（判据落在发请求那一侧 → 判反）。
+  check(!/_chainKeyP/.test(chainSrc) && chainSrc.indexOf('currentChainKey') < 0, '2026-09-20 那版「发请求时冻结的当前键」写法已消失')
+  // 键只有一处算法：定义一处，三处用它（loadChain 的 norm、自刷新定时器的排与撤）。
+  const keyUses = chainSrc.split('_chainKeyOfState(').length - 1
+  check(keyUses >= 4, '「工作区键 + 后端 + 语言」只有 _chainKeyOfState 一处算法（实得 ' + keyUses + ' 处引用：1 处定义 + 3 处调用）')
+}
+
+// ── C 组用的沙箱：把 probe-chain.js 真身取出来，喂一个可以按任意顺序回包的假 host ──────────────
+const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
+const deferredOf = () => { let res; const p = new Promise((r) => { res = r }); return { p: p, res: res } }
+const tick = () => new Promise((r) => setTimeout(r, 0))
+
+function makeChain (srcText) {
+  const calls = []
+  const cache = new Map()
+  const keyOf = (cwd, bid, lang) => String(cwd) + '|' + String(bid || '') + '|' + String(lang || '')
+  const sandbox = {
+    host: { call: (method, params) => { const d = deferredOf(); calls.push({ method: method, params: params, d: d }); return d.p } },
+    wsKeyOf: (p) => String(p || '').replace(/\\/g, '/').toLowerCase(),
+    getChainCacheKey: keyOf,
+    getCachedChain: (cwd, bid, lang) => cache.get(keyOf(cwd, bid, lang)) || null,
+    setCachedChain: (cwd, bid, lang, snap) => { cache.set(keyOf(cwd, bid, lang), snap) },
+    promptLang: () => 'zh',
+    isEnabled: () => false,
+    log: () => {},
+    dswsLogHash: (s) => 'h' + String(s || '').length,
+    dswsLogTrunc: (s) => String(s || '').slice(0, 120),
+    emit: () => {},
+    nowStr: () => '00:00:00',
+    timer: null,
+    setTimeout: setTimeout,
+    clearTimeout: clearTimeout,
+    console: { log () {}, warn () {}, error () {} },
+  }
+  const names = Object.keys(sandbox)
+  const body = stripExports(srcText) + '\n;return { loadChain: loadChain, scheduleChainAutoRefresh: scheduleChainAutoRefresh, cancelChainAutoRefresh: cancelChainAutoRefresh }'
+  const mod = new Function(...names, body)(...names.map((n) => sandbox[n]))
+  return { loadChain: mod.loadChain, calls: calls, cache: cache }
+}
+const snapOf = (id) => ({ ok: true, fullSnapshot: { id: id, steps: [{ status: 'done' }] } })
+const NEW10 = '新（10 步，有仓库那一段）'
+
+// 六种现场各走一遍，返回每一步实得的东西（C 组断言、D 组反证共用同一套量法）。
+//   每个现场都新开一个沙箱：序号与在途登记都是模块级的，混在一起量不准。
+const runScenarios = async function (srcText) {
+  const out = {}
+
+  // 现场 1：全新空目录里，先开一次不带后端的链；用户选 GitHub、紧接着 force 重取一次；
+  //   最坏顺序 —— 新的先回来，旧的后回来。
+  {
+    const c = makeChain(srcText)
+    const st = { cwd: 'D:\\demo1', selection: null, chainSnapshot: null }
+    c.loadChain(st, false)
+    st.selection = { backendId: 'github' }
+    c.loadChain(st, true)
+    out.scenarioOneSent = c.calls.length === 2 && !c.calls[0].params.backendId && c.calls[1].params.backendId === 'github'
+    c.calls[1].d.res(snapOf(NEW10))
+    await tick()
+    c.calls[0].d.res(snapOf('旧（6 步，没有仓库那一段）'))
+    await tick()
+    out.afterStaleLate = st.chainSnapshot && st.chainSnapshot.id
+    out.newKeyCache = (c.cache.get('d:/demo1|github|zh') || {}).id || null
+    out.staleKeyCacheEmpty = !c.cache.get('d:/demo1||zh')
+  }
+
+  // 现场 2：顺序正常（旧的先回、新的后回）—— 也必须留下新的那一份。
+  {
+    const c = makeChain(srcText)
+    const st = { cwd: 'D:\\demo2', selection: null, chainSnapshot: null }
+    c.loadChain(st, false)
+    st.selection = { backendId: 'github' }
+    c.loadChain(st, true)
+    c.calls[0].d.res(snapOf('旧（6 步）'))
+    await tick()
+    c.calls[1].d.res(snapOf('新（10 步）'))
+    await tick()
+    out.afterNormalOrder = st.chainSnapshot && st.chainSnapshot.id
+  }
+
+  // 现场 3：一个会话中途换后端（github → 本地 Markdown），前一次重取还飞着；
+  //   新后端那次先回来，旧后端那次晚回来 —— 晚回来的那份不许把新链盖成旧后端的链。
+  {
+    const c = makeChain(srcText)
+    const st = { cwd: 'D:\\demo3', selection: { backendId: 'github' }, chainSnapshot: { id: '初始' } }
+    c.loadChain(st, true)
+    st.selection = { backendId: 'markdown' }
+    c.loadChain(st, true)
+    c.calls[1].d.res(snapOf('markdown 的链（新）'))
+    await tick()
+    c.calls[0].d.res(snapOf('github 的链（旧，晚到）'))
+    await tick()
+    out.afterSwitchBackend = st.chainSnapshot && st.chainSnapshot.id
+  }
+
+  // 现场 4：两个工作区各自在飞（同一个页面里两个会话）—— 谁都不许把对方顶掉。
+  {
+    const c = makeChain(srcText)
+    const stA = { cwd: 'D:\\wsA', selection: { backendId: 'github' }, chainSnapshot: null }
+    const stB = { cwd: 'D:\\wsB', selection: { backendId: 'github' }, chainSnapshot: null }
+    c.loadChain(stA, true)   // A 工作区先发
+    c.loadChain(stB, true)   // B 工作区后发（键不同）
+    c.calls[0].d.res(snapOf('A 工作区的链'))
+    c.calls[1].d.res(snapOf('B 工作区的链'))
+    await tick()
+    out.crossA = stA.chainSnapshot && stA.chainSnapshot.id
+    out.crossB = stB.chainSnapshot && stB.chainSnapshot.id
+  }
+
+  // 现场 5：同一个键上两次重取（8 秒那一拍与手动重查撞上）—— 先发的那次晚回来，不许盖掉后发的那次。
+  {
+    const c = makeChain(srcText)
+    const st = { cwd: 'D:\\demo5', selection: { backendId: 'github' }, chainSnapshot: { id: '初始' } }
+    c.loadChain(st, true)
+    c.loadChain(st, true)
+    c.calls[1].d.res(snapOf('后一次（新）'))
+    await tick()
+    c.calls[0].d.res(snapOf('前一次（旧，晚到）'))
+    await tick()
+    out.sameKeyLateOld = st.chainSnapshot && st.chainSnapshot.id
+  }
+
+  // 现场 6（回归）：非 force 的同键并发照旧复用一次请求，两个调用方都拿到同一份快照。
+  {
+    const c = makeChain(srcText)
+    const st = { cwd: 'D:\\demo6', selection: { backendId: 'github' }, chainSnapshot: null }
+    const p1 = c.loadChain(st, false)
+    const p2 = c.loadChain(st, false)
+    c.calls[0].d.res(snapOf('同键非 force 的一次'))
+    const both = await Promise.all([p1, p2])
+    out.dedupeCalls = c.calls.length
+    out.dedupeSamePromise = p1 === p2
+    out.dedupeBothGot = !!(both[0] && both[1] && both[0].id === '同键非 force 的一次' && both[1].id === '同键非 force 的一次')
+  }
+
+  return out
+}
+
+console.log('')
+console.log('== C 行为层：六种竞态现场，每一种都要留下该留的那一份 ==')
+const real = await runScenarios(chainSrc)
+check(real.scenarioOneSent, '现场 1 确实先后发出了两次（先不带后端、后带 github）')
+check(real.afterStaleLate === NEW10, '现场 1 旧结果晚到之后，会话状态里仍是新快照（实得「' + real.afterStaleLate + '」）')
+check(real.newKeyCache === NEW10, '现场 1 新快照进了共享缓存（实得「' + real.newKeyCache + '」）')
+check(real.staleKeyCacheEmpty, '现场 1 被判过期的那一次一个字都没落（连它自己那把键的共享缓存也没写）')
+check(real.afterNormalOrder === '新（10 步）', '现场 2 顺序正常时留下的是新快照（实得「' + real.afterNormalOrder + '」）')
+check(real.afterSwitchBackend === 'markdown 的链（新）', '现场 3 换完后端留下的是新后端那条链（实得「' + real.afterSwitchBackend + '」）')
+check(real.crossA === 'A 工作区的链' && real.crossB === 'B 工作区的链', '现场 4 两个工作区互不顶掉（实得 A=「' + real.crossA + '」B=「' + real.crossB + '」）')
+check(real.sameKeyLateOld === '后一次（新）', '现场 5 同一个键上先发的那次晚回来，盖不掉后发的那次（实得「' + real.sameKeyLateOld + '」）')
+check(real.dedupeCalls === 1 && real.dedupeSamePromise && real.dedupeBothGot, '现场 6 同键非 force 并发照旧只发一次请求、两个调用方都拿到（实得 ' + real.dedupeCalls + ' 次）')
+
+console.log('')
+console.log('== D 反证：把守卫做坏，C 里对应的那几条必须当场量不通过 ==')
+{
+  // 每一版都对着真源改一处（改不动就当场报错：反证没造出来 = 这一门本身坏了），
+  //   然后要求「该红的那几条」确实红了 —— 红不出来就说明 C 那一问在量空气。
+  const variants = [
+    {
+      label: '守卫整段摘掉',
+      patches: [['if (_chainRespStale(norm, _mySeq, st)) {', 'if (false) {']],
+      must: ['现场 1 会话状态', '现场 1 过期那一次不落', '现场 3 换后端', '现场 5 同键先后'],
+    },
+    {
+      label: '只留第一问（同一个键上有没有更新的一次）',
+      patches: [['try { return _chainKeyOfState(state) !== key } catch (eK) { return true }', 'return false']],
+      must: ['现场 1 会话状态', '现场 1 过期那一次不落', '现场 3 换后端'],
+    },
+    {
+      label: '只留第二问（这个会话还要不要这条链）',
+      patches: [['try { if (_chainLatestByKey.get(key) !== seq) return true } catch (eS) { return true }', 'if (false) { }']],
+      must: ['现场 5 同键先后'],
+    },
+    {
+      label: '把按键隔离改成全局一份',
+      patches: [['_chainLatestByKey.set(norm, _mySeq)', '_chainLatestByKey.set("全局", _mySeq)'], ['_chainLatestByKey.get(norm)', '_chainLatestByKey.get("全局")']],
+      must: ['现场 4 跨工作区'],
+    },
+  ]
+  const worse = (key, got) => {
+    if (key === '现场 1 会话状态') return got.afterStaleLate !== NEW10
+    if (key === '现场 1 过期那一次不落') return got.staleKeyCacheEmpty === false
+    if (key === '现场 3 换后端') return got.afterSwitchBackend !== 'markdown 的链（新）'
+    if (key === '现场 4 跨工作区') return got.crossA !== 'A 工作区的链' || got.crossB !== 'B 工作区的链'
+    if (key === '现场 5 同键先后') return got.sameKeyLateOld !== '后一次（新）'
+    return false
+  }
+  for (let i = 0; i < variants.length; i++) {
+    const v = variants[i]
+    let broken = chainSrc
+    let patched = true
+    for (const pair of v.patches) {
+      if (broken.indexOf(pair[0]) < 0) { patched = false; break }
+      broken = broken.replace(pair[0], pair[1])
+    }
+    if (!patched) { check(false, '反证 ' + (i + 1) + '（' + v.label + '）：没能在真源里找到要改的那一段，这道反证本身坏了'); continue }
+    const got = await runScenarios(broken)
+    const notRed = v.must.filter((k) => !worse(k, got))
+    check(notRed.length === 0, '反证 ' + (i + 1) + '（' + v.label + '）：该红的都红了（' + (notRed.length ? '这几条没红，C 那几个断言量不住它：' + notRed.join(' / ') : v.must.join('、')) + '）')
+  }
 }
 
 console.log('')
