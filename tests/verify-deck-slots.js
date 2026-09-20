@@ -165,9 +165,13 @@ try{
   // renderForm 打开 modal（ensureFormModal / openFormModal）
   check(ct.includes('ensureFormModal') || ct.includes('openFormModal'), 'ChecksTab renderForm 调用 ensureFormModal/openFormModal')
   check(!ct.includes('try { onSubmit({}) } catch (e) {}') || ct.includes('ensureFormModal'), 'ChecksTab renderForm 不再是 no-op onSubmit({})（或已替换为 modal）')
-  // 挂载点
-  check(ct.includes('FormModalSeat'), 'ChecksTab 挂载 FormModalSeat')
-  check(ct.includes('formModalNode'), 'ChecksTab 含 formModalNode')
+  // 挂载点（2026-09-21 搬家）：弹窗座位从检查页搬到状态栏 ——
+  //   检查页只在「面板当前页 = 检查」时才进树，于是面板没开时点横幅那颗按钮什么都不会发生。
+  //   现在：状态栏挂（三支渲染都要带上），检查页不许再挂（两处同挂会叠两层遮罩）。
+  const sbSrc = file('src/client/statusbar/StatusBar.js')
+  check(sbSrc.includes('FormModalSeat'), 'StatusBar 挂载 FormModalSeat')
+  check(sbSrc.includes('modalSeat'), 'StatusBar 含 modalSeat')
+  check(!ct.includes('FormModalSeat'), 'ChecksTab 不再挂 FormModalSeat（防两处同挂）')
 }catch(e){ check(false, 'ChecksTab 挂接校验异常: '+e.message)}
 
 console.log('')

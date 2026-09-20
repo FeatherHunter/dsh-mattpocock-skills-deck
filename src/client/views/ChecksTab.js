@@ -177,10 +177,10 @@ export const ChecksTab = ({ st }) => {
       primaryBtn,
     ])
   }) : null
-  // #308 modal-seat 挂载点（shell.overlay / root / single，复用 .dsws-modal 遮罩）
-  const formModalNode = (typeof FormModalSeat === 'function') ? (function(){ try { return h(FormModalSeat, { st: st }) } catch(e){ return null } })() : null
+  // 弹窗座位（#308 起挂在这里；2026-09-21 搬去状态栏的 StatusBar.js）：这一页挂在右侧面板里，
+  //   而面板只在「当前页 = 检查」时才被渲染，于是「面板没开时点横幅那颗按钮什么都不会发生」。
+  //   搬走之后这里**不许再挂一份** —— 两处同时渲染会叠两层遮罩、两套关窗与焦点处理。
   return h('div', null, [
-    formModalNode,
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 12 } }, [
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'gear', size: 12 }), h('span', null, tr('env.title', { n: envLabel(st) }))]),
       (function () {

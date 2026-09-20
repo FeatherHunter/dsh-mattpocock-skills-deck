@@ -187,6 +187,18 @@ export const StatusBar = (props) => {
   const capsuleToggle = h(Tip, { content: tr('banner.foldDeck') }, h('span', { className: 'dsws-fold-toggle', onClick: function (e) { e.stopPropagation(); foldBanner() }, 'aria-label': tr('banner.foldDeck'), style: { display: 'inline-flex', alignItems: 'center', padding: '2px 2px', borderRadius: 6, color: 'var(--dsw-alias-label-caption,#8b8b95)', cursor: 'pointer', flex: 'none' } }, [
     Ic({ n: 'chev-down', size: 12 }),
   ]))
+  // 弹窗座位（2026-09-21）：从这里渲染，不再挂在右侧面板的检查页上。
+  //   为什么搬家：弹窗的**界面**本来就是全屏遮罩（`.dsws-modal` 是 position:fixed 挂到 body，样式见 kernel/styles.js），
+  //   但它的 React 生命原来绑在检查页上（`Dock.js` 只在「面板当前页 = 检查」时渲染 ChecksTab），于是
+  //     · 右侧面板没打开、或面板不在检查页时，点横幅那颗「创建并发布」按钮**什么都不会发生** ——
+  //       状态写进去了（`slotRenderer-queue.js` 里 `m.open = true` 加 emit），却没有组件去渲染它；
+  //       用户要等到哪天打开面板切到检查页，弹窗才突然冒出来（用户看到的是「点了没反应」与「出得很慢」两件事）。
+  //     · 反方向同样错：在检查页点出来之后切到别的标签页，弹窗跟着消失。
+  //   状态栏这一支挂在宿主的输入区 dock 上（panelAssembly.js 注册 conversation.input.dock），
+  //   与右侧面板是否存在无关，正是「全应用之上」该有的宿主。三个分支（收起态 / 无横幅 / 有横幅）都要带上它：
+  //   漏掉任何一支，那一支下点按钮就又会回到「什么都没有」。
+  //   先例：同目录的 StatusLogMenu.js 就是从状态栏弹一张盖住全应用的小窗；组件本身取不到会话状态时自己返回 null。
+  const modalSeat = (typeof FormModalSeat === 'function') ? h(FormModalSeat, { st: s }) : null
   if (deckFolded) {
     // 收起态：只留一颗带文字的小按钮（点即恢复横幅与状态栏；设置页工作区行是另一条恢复路径）
     // #640：收起态也套同一条几何 —— 三支容器的左右边必须同源，否则「收起 / 展开」之间会横向跳动。
@@ -195,6 +207,7 @@ export const StatusBar = (props) => {
         Ic({ n: 'chev-up', size: 10 }),
         h('span', null, tr('banner.expandDeck')),
       ])),
+      modalSeat,
     ])
   }
   // #522：调试开关关闭时小灰点不挂载（胶囊里不留空位）；开时常驻；开关切换经已有的日志开关广播刷新各会话界面，此处只读开关不另加广播。
@@ -278,7 +291,7 @@ export const StatusBar = (props) => {
   })() : null
   if (!bannerStep) {
     // 无 banner 时为胶囊 + 常驻收起按钮（#422：收起即整个功能区消失）
-    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [capsule])
+    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [modalSeat, capsule])
   }
   const bann = function (text, btnLabel, onBtn, foldable) {
     return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
@@ -307,6 +320,7 @@ export const StatusBar = (props) => {
 
     stepBanner,
     capsule,
+    modalSeat,
     (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) closeGate() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10, borderRadius:8, padding:12 } }, [
       h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:14, width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
         h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, tr('switch.pleaseSelectTracker'))]),

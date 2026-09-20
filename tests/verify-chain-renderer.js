@@ -92,7 +92,10 @@ check(cr.includes('onSubmit'), 'ChainForm 含 onSubmit')
 const rendererBody = cr.slice(cr.indexOf('export const ChainRenderer'), cr.indexOf('export const ChainRenderer')+3000)
 check(!rendererBody.includes('h(ChainForm'), 'ChainRenderer 不再内嵌 ChainForm（#308 form 改走 modal-seat）')
 const ctForForm = file('src/client/views/ChecksTab.js')
-check(ctForForm.includes('FormModalSeat') || ctForForm.includes('ensureFormModal'), 'ChecksTab 接入 FormModalSeat（form 走弹窗）')
+// 2026-09-21 搬家：座位从检查页搬到状态栏（面板没开时那一页不在树上，点按钮什么都不会发生）。
+//   这一条改指状态栏，并反过来钉住检查页不再挂。
+check(file('src/client/statusbar/StatusBar.js').includes('FormModalSeat'), 'StatusBar 接入 FormModalSeat（form 走弹窗）')
+check(!ctForForm.includes('FormModalSeat'), 'ChecksTab 不再挂 FormModalSeat（防两处同挂）')
 const srForForm = ['src/client/kernel/slotRenderer-queue.js','src/client/kernel/slotRenderer-repo-sync.js','src/client/kernel/slotRenderer-modal-view.js'].map(file).join('\n') // 顺带 454 遗留：slotRenderer.js 已拆为三文件，读三文件拼起来的内容断言
 check(srForForm.includes('FormModalSeat') && srForForm.includes('dsws-modal'), 'slotRenderer 含 FormModalSeat 弹窗（含 .dsws-modal）')
 

@@ -11,6 +11,8 @@
     // #284 修订（对抗式审查 2026-08-28）：并发门——同 cwd 同轮次的 in-flight 请求复用；
     //   面板多组件（ChecksTab/StatusBar/Dock）挂载并发调用不再重复触发 25 名技能探测与 gh 网络调用。
     const _chainInflightByCwd = new Map()
+    // 「当前在途的那一次链请求」的键（同一时刻只有一个算数）：回包时用它挡住晚到的旧结果，见 loadChain。
+    let currentChainKey = null
     // #653：链的在途去重与链快照缓存一律按工作区键（wsKeyOf）——同一个仓库里，根会话与子目录会话
     //   是同一条链、同一次求值；此前按会话所选目录分键，两边各求一次、互相看不到对方的链快照。
     // #491 房外埋点：在途复用计数（窗口到记一次；dswsLogHash 同闭包见 probe-snapshot.js）。
@@ -73,8 +75,19 @@
       // #529：附带当前语言（host 明细按语言双语产出，不传则恒为中文）
       const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {}, force ? { force:true } : {}, { lang: _langForChain })
       const chainT0 = Date.now()
-      const p = host.call('wf.chain', args).then(function(res){
+      // 在途登记：键 = 上面那条共享键。回包时会拿它跟「当前键」比一次，
+    //   不是当前键就把回包丢掉（理由见下面那段竞态说明）。
+    const _chainKeyP = { key: norm, current: currentChainKey === null || currentChainKey === undefined ? true : currentChainKey === norm }
+    const p = host.call('wf.chain', args).then(function(res){
         try { if (res && res.ok) log('info', 'host.call', { method: 'wf.chain', latencyMs: Date.now() - chainT0, ok: true, kind: 'chain' }); else log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-not-ok'), 120, 'error')) }) } catch (eL) {}
+        // 竞态守卫（#669 之后补）：一个在途的链请求回来时，如果这一段里已经又发过新请求
+        //   （最常见的现场：点「确认并继续」选完后端，紧接着一次次级重取；而选择之前那次请求还飞着，
+        //   它不带 backendId，回包里没有后端段），晚到的旧结果会把新快照盖回去 ——
+        //   界面就会从「还没有远端仓库」退回「什么都没有」。所以这里比一次键：不是当前那次就丢弃。
+        if (!_chainKeyP.current) {
+          try { if (isEnabled('debug')) log('debug', 'chain.stale.drop', { keyHash: dswsLogHash(norm) }) } catch (eDrop) {}
+          return null
+        }
         if (res && res.ok && (res.fullSnapshot || res.snapshot)) {
           const snap = res.fullSnapshot || res.snapshot
           st.chainSnapshot = snap
@@ -102,7 +115,13 @@
         try { log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }); log('warn', 'chain.derive.error', { stepId: 'chain.load', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
         // #344 加固：宿主异常也安排重试（探测暂时不可用时 8s 后再探，避免黄条卡死）
         try{ const snapPrev = st.chainSnapshot; const stepsPrev = snapPrev && Array.isArray(snapPrev.steps) ? snapPrev.steps : []; const notDonePrev = stepsPrev.length ? stepsPrev.some(function(s){ return s.status !== 'done' }) : true; if(notDonePrev && st.cwd) scheduleChainAutoRefresh(st, CHAIN_AUTO_POLL_MS) }catch(eRetry){}
-        return null }).finally(function(){ try { _chainInflightByCwd.delete(norm) } catch (e) {} })
+        return null }).finally(function(){
+        try { _chainInflightByCwd.delete(norm) } catch (e) {}
+        // 收尾：这一次跑完就把它从「当前在途的那一次」上摘掉（万一它是最新那一次）。
+        try { if (_chainKeyP.current && currentChainKey === norm) currentChainKey = null } catch (eK) {}
+      })
+      // 一次新请求发出，就把「当前在途的那一次」改成它：比它早发出的请求，回包一律丢弃。
+      try { currentChainKey = norm } catch (eSet) {}
       if (!force) _chainInflightByCwd.set(norm, p)
       return p
     }
