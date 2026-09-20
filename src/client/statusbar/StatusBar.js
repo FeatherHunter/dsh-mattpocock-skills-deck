@@ -200,17 +200,16 @@ export const StatusBar = (props) => {
   //   先例：同目录的 StatusLogMenu.js 就是从状态栏弹一张盖住全应用的小窗；组件本身取不到会话状态时自己返回 null。
   const modalSeat = (typeof FormModalSeat === 'function') ? h(FormModalSeat, { st: s }) : null
   if (deckFolded) {
-    // 收起态：整个功能区只剩这一颗按钮（点即恢复横幅与状态栏；设置页工作区行是另一条恢复路径）。
-    // #669：这颗按钮原来是 10px 的灰字幽灵按钮（没有底色、没有描边），看起来像一句注释而不像按钮 ——
-    //   用户按下横幅上那颗叉之后，整条状态栏连同胶囊一起消失，眼前只剩这么一句灰字，认不出是「回来的路」，
-    //   就报成「整个胶囊状态栏不见了」。所以收起态这颗按钮照胶囊自己的样式画（同一个底色变量、同一条描边变量、
-    //   同一个圆角），字号与胶囊一致，把面板名写全，一眼能看出是个可点的按钮。
+    // 收起态：整个功能区只剩这一颗细小灰字按钮（点即恢复横幅与状态栏；设置页工作区行是另一条恢复路径）。
+    // 2026-09-21 按维护者要求还原：2026-09-20 那两轮一度把它画成「有底色、有描边、12px 粗体、带面板图标」的按钮，
+    //   维护者看过真机之后不认可那一下改动（收起态原本只有一句 10px 灰字，改完高了一倍多、显眼过头），
+    //   要求退回改动前的样子。所以这里照原文写回：10px、无底色、无描边、圆角 99。
+    //   收起与展开这条行为一点没动 —— 点它照样把横幅与胶囊一起带回来（下面那道「回来的路」门禁仍然钉着这一点）。
     // #640：收起态也套同一条几何 —— 三支容器的左右边必须同源，否则「收起 / 展开」之间会横向跳动。
     return h('div', { style: Object.assign({ display: 'flex', flex: 'none', justifyContent: 'center' }, dswsStatusDockGeom()) }, [
-      h(Tip, { content: tr('banner.folded') }, h('button', { className: 'dsws-btn dsws-cap-recover', 'aria-label': tr('banner.expandDeck'), onClick: expandBanner, style: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, lineHeight: 1.4, padding: '3px 12px', borderRadius: 14, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: 'var(--dsw-alias-bg-layer-1,#10131a)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer' } }, [
-        Icon({ scheme: s.ui.icon, size: 14 }),
-        h('span', { style: { fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, tr('banner.expandDeck')),
-        Ic({ n: 'chev-up', size: 12 }),
+      h(Tip, { content: tr('banner.folded') }, h('button', { className: 'dsws-btn ghost', 'aria-label': tr('banner.expandDeck'), onClick: expandBanner, style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, padding: '0 8px', lineHeight: 1.2, border: 'none', borderRadius: 99, color: 'var(--dsws-alias-label-caption,#8b8b95)' } }, [
+        Ic({ n: 'chev-up', size: 10 }),
+        h('span', null, tr('banner.expandDeck')),
       ])),
       modalSeat,
     ])
@@ -299,14 +298,16 @@ export const StatusBar = (props) => {
     return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [modalSeat, capsule])
   }
   const bann = function (text, btnLabel, onBtn, foldable) {
-    // #669：这颗「收起」与左边那颗主按钮之间留 12px（原来只隔 6px，两颗长得一样、手一偏就落到它上面）。
-    //   2026-09-21 返工：它原来是一个纯图形叉，点下去却是「把整个功能区收起来」，被读成「关掉这条黄条」——
-    //   真机走查里那次「点了黄条整条胶囊就没了」就是这么来的；现在是带字的「收起」，一眼看得出收的是什么。
+    // #669：这颗叉（收起整个功能区）与左边那颗主按钮之间留 12px —— 原来只隔 6px，两颗按钮长得一样高、
+    //   一样是描边方块，用户冲黄条那颗主按钮点下去、手一偏就落在叉上，于是「点了黄条，整条状态栏全没了」。
+    //   留开距离不能让手不偏，但能让两颗按钮在视觉上分成两组，点之前看得出来是两件事。这一段保留。
+    // 2026-09-21 按维护者要求还原：2026-09-20 那次一度把它改成带字的「收起」（怕纯图形叉被读成「关掉这条黄条」），
+    //   维护者看过真机之后要求退回改动前的图形叉。叉形字形 11px、悬停与无障碍名仍是全称「收起MattSkillsDeck」。
     return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
       Ic({ n: 'alert', size: 13 }),
       h('span', { style: { flex: 1 } }, text),
       h('button', { className: 'dsws-btn', style: { borderColor: 'rgba(245,158,11,.6)' }, onClick: onBtn }, btnLabel),
-      foldable ? h(Tip, { content: tr('banner.foldDeck') }, h('button', { className: 'dsws-btn ghost dsws-banner-collapse', 'aria-label': tr('banner.foldDeck'), onClick: foldBanner, style: { borderColor: 'rgba(245,158,11,.6)', padding: '1px 6px', marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 3 } }, [Ic({ n: 'chev-down', size: 11, key: 'chev' }), h('span', { key: 'txt' }, tr('banner.foldShort'))])) : null,
+      foldable ? h(Tip, { content: tr('banner.foldDeck') }, h('button', { className: 'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), onClick: foldBanner, style: { borderColor: 'rgba(245,158,11,.6)', padding: '1px 6px', marginLeft: 12, display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 11 }))) : null,
     ])
   }
   // #663：横幅就这一条 —— 正文与按钮标签用清单里那对词条键，按钮点下去照清单声明的 missing 走
@@ -316,8 +317,8 @@ export const StatusBar = (props) => {
     // 蓝条那一档（后端还没选定）仍是今天这套样式，含「正在探测后端」那个过渡态。
     if (meta.tone === 'info') {
       return _isGatePending
-        ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', color:'#f59e0b', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }), h('span', { style:{ flex:1, fontSize:12 } }, '正在探测后端'), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(245,158,11,.6)', fontSize:11 }, onClick:function(){ loadSnapshot(s,true,true) } }, '重试'), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-collapse', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(245,158,11,.6)', color:'#f59e0b', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center', gap:3 }, onClick: foldBanner }, [Ic({ n:'chev-down', size:11, key:'chev' }), h('span', { key:'txt' }, tr('banner.foldShort'))])) ])
-        : h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, tr(meta.text)), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, onClick: function(){ runGuideMissing(s, bannerStep) } }, tr(meta.btn)), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-collapse', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center', gap:3 }, onClick: foldBanner }, [Ic({ n:'chev-down', size:11, key:'chev' }), h('span', { key:'txt' }, tr('banner.foldShort'))])) ])
+        ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', color:'#f59e0b', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }), h('span', { style:{ flex:1, fontSize:12 } }, '正在探测后端'), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(245,158,11,.6)', fontSize:11 }, onClick:function(){ loadSnapshot(s,true,true) } }, '重试'), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(245,158,11,.6)', color:'#f59e0b', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ])
+        : h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, tr(meta.text)), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, onClick: function(){ runGuideMissing(s, bannerStep) } }, tr(meta.btn)), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ])
     }
     const node = bann(tr(meta.text, guideBannerParams(s, bannerStep)), tr(meta.btn), function () { runGuideMissing(s, bannerStep) }, true)
     // 初始化那一步：正文下面还挂那张布局小卡（黄条那颗按钮点开它；卡的开关一直住在会话状态里）。
