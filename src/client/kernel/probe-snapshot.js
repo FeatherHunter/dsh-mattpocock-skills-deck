@@ -149,6 +149,18 @@
         emit(st)
       }, 2600)
     }
+    // 收下 wf.cwd 顺手带回来的工作区根（2026-09-19 加）。做两件事：
+    //   ① 记进 store：面板头部那枚归属标志就能在快照到达之前先画出来（它原先只能等一整份仓库快照）；
+    //   ② 记进那张「所选目录 → 工作区根」的表（原样用于显示、折算键用于比较），别的抽屉按工作区根分桶时也能早点对齐。
+    //   空值什么都不做 —— 这条路上「不知道」就是不知道，不拿空串去顶替一个根。
+    export const rememberSessionWorkspaceRoot = function (st, root) {
+      try {
+        const raw = String(root == null ? '' : root).trim()
+        if (!st || !raw) return
+        st.sessionWorkspaceRoot = raw
+        if (st.cwd) rememberWorkspaceRoot(st.cwd, raw)
+      } catch (eR) {}
+    }
     // 快照（#346：面板数据源；force 走 wf.refresh 全量重建；wf.snapshot 侧 5s 缓存）
     // #58 缓存优先：按 cwd 内存快照 + 空 cwd 同步，避免首开空 cwd 探路 miss 缓存导致 100-400ms 闪 loading
     export const loadSnapshot = function (st, force, silent) {
@@ -312,9 +324,24 @@
       }
       if (!st.cwd && st.sessionId && typeof host !== 'undefined' && typeof host.call === 'function') {
         return host.call('wf.cwd', { sessionId: st.sessionId }).then(function (res) {
+          // 这条电话从 2026-09-19 起顺手带回「这个会话的工作区根」。先收下它：面板头部那枚归属标志
+          //   只要这一个值，收下就能在下面那份快照到达之前先画出来（缓存没命中时快照要等几十秒）。
+          try { if (res && res.workspaceRoot) rememberSessionWorkspaceRoot(st, res.workspaceRoot) } catch (eR) {}
           if (res && res.ok && res.cwd && !st.cwd) { st.cwd = res.cwd; hydrateFromCache(st); emit(st) }
           return doLoad()
         }).catch(function () { return doLoad() })
+      }
+      // cwd 已经有了的常见情形：这条电话本来不一定会走，但工作区根值得单独问一次 —— 它很便宜
+      //   （宿主侧 30 秒缓存），而且是那枚标志唯一的早到来源。拿到了就重画一次；拿不到什么都不做，
+      //   界面上不会因为这一条失败而出现任何变化。
+      //   只问一次（记在 store 的 _wsRootAsked 上）：万一宿主那一版还不回这个字段，也不至于每次开面板都多一问。
+      if (st.cwd && st.sessionId && !st.sessionWorkspaceRoot && !st._wsRootAsked && typeof host !== 'undefined' && typeof host.call === 'function') {
+        st._wsRootAsked = true
+        try {
+          host.call('wf.cwd', { sessionId: st.sessionId }).then(function (res) {
+            if (res && res.workspaceRoot) { rememberSessionWorkspaceRoot(st, res.workspaceRoot); emit(st) }
+          }).catch(function () {})
+        } catch (eAsk) {}
       }
       return doLoad()
     }

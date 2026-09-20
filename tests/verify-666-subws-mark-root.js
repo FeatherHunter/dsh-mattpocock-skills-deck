@@ -72,19 +72,35 @@ const makeApi = (tmpl) => new Function(
 const api = makeApi(grabs[0] || '')
 const apiEn = makeApi(grabs[1] || '')
 
-console.log('\nA) 取根：唯一来源是面板正在显示的那份快照')
+console.log('\nA) 取根：快照优先，wf.cwd 带回来的根作早到来源')
 let got = api.rootOf({ cwd: SUB_DIR, snapshot: { workspaceRoot: ROOT_DIR } })
 if (got === ROOT_DIR) ok('A1 快照带着工作区根时取到它（#666 修的就是这一条，旧写法这里恒为空）')
 else bad('A1 快照带着工作区根时没取到：' + JSON.stringify(got))
 
-if (api.rootOf({ cwd: SUB_DIR }) === '') ok('A2 一点快照都还没到时回空串（认不出根就不出现）')
-else bad('A2 没有快照时应回空串')
+// A2 改了：原先「没有快照就回空串」。现在 sessionWorkspaceRoot（wf.cwd 顺手带回来的根）也是来源之一，
+//   所以「没有快照」还要再分两种情况 —— 有那个早到值就取它，没有才回空串。
+if (api.rootOf({ cwd: SUB_DIR }) === '') ok('A2 快照与早到来源都没有时回空串（认不出根就不出现）')
+else bad('A2 什么都没有时应回空串')
 
-if (api.rootOf({ cwd: SUB_DIR, snapshot: {} }) === '') ok('A3 快照里没有这一项时回空串')
+if (api.rootOf({ cwd: SUB_DIR, snapshot: {} }) === '') ok('A3 快照里没有这一项、也没有早到来源时回空串')
 else bad('A3 快照缺这一项时应回空串')
 
 if (api.rootOf({ cwd: SUB_DIR, workspaceRoot: ROOT_DIR }) === '') ok('A4 会话状态上那个没人写的字段不再算一档来源（旧病不许回来）')
 else bad('A4 那个没人写的字段又被当来源读了')
+
+// A5：wf.cwd 带回来的根是有效来源 —— 有它就能在快照到达之前先画出这枚标志
+if (api.rootOf({ cwd: SUB_DIR, sessionWorkspaceRoot: ROOT_DIR }) === ROOT_DIR) ok('A5 wf.cwd 带回来的工作区根也算一档来源（快照没到也能先画）')
+else bad('A5 早到来源没被采纳：' + JSON.stringify(api.rootOf({ cwd: SUB_DIR, sessionWorkspaceRoot: ROOT_DIR })))
+
+// A6：两个来源都在时以**快照**为准。快照是面板正在显示的那份数据，早到那个只是先顶一下。
+//   这一条挡住的是「快照换了工作区、早到那个还是旧的」这类串台。
+if (api.rootOf({ cwd: SUB_DIR, snapshot: { workspaceRoot: 'D:\\other' }, sessionWorkspaceRoot: ROOT_DIR }) === 'D:\\other')
+  ok('A6 两个来源都在时以快照为准（早到那个不许盖过正在显示的数据）')
+else bad('A6 早到来源盖过了快照：' + JSON.stringify(api.rootOf({ cwd: SUB_DIR, snapshot: { workspaceRoot: 'D:\\other' }, sessionWorkspaceRoot: ROOT_DIR })))
+
+// A7：早到那个是空串／空白时当作没有，不能拿它顶替一个根
+if (api.rootOf({ cwd: SUB_DIR, sessionWorkspaceRoot: '   ' }) === '') ok('A7 早到来源是空白时当作没有（不拿空串顶替）')
+else bad('A7 空白值被当成了根')
 
 console.log('\nB) 该不该出现')
 if (api.shows(ROOT_DIR, SUB_DIR) === true) ok('B1 子目录会话：出现')
@@ -184,6 +200,20 @@ try {
   if (r.isSub === true) ok('E1 子目录会话里真的画出了这枚标志（不再恒为 null）')
   else bad('E1 子目录会话里一个标志都没画出来（#666 的病又回来了）')
 
+  // E1b：快照**一点都还没到**，只有 wf.cwd 带回来的那个根时也要画得出来。
+  //   这正是「面板一打开就能看到」那件事的门禁：原先只能等一整份仓库快照，缓存没命中就是几十秒。
+  const rEarly = await renderMark({ cwd: SUB_DIR, sessionWorkspaceRoot: ROOT_DIR })
+  if (rEarly.isSub === true && /面板数据来自工作区 /.test(rEarly.html)) ok('E1b 快照还没到、只有 wf.cwd 带回来的根时，标志也画得出来（面板一打开就能看到）')
+  else bad('E1b 只有早到来源时没画出来：' + JSON.stringify(rEarly.html.slice(0, 160)))
+
+  // E1c：两个都在时，画面上的路径要以**快照**为准（早到那个只是先顶一下，不许盖过正在显示的数据）。
+  //   断言用浮层里真实显示的那句话，不拿正则去抠 HTML —— 反斜杠在 HTML 里是转义的，抠出来容易连断言一起写错。
+  const rBoth = await renderMark({ cwd: SUB_DIR, snapshot: { ok: true, maps: [], workspaceRoot: ROOT_DIR }, sessionWorkspaceRoot: 'D:\\somewhere-else' })
+  const bothText = String(tipTextOf(rBoth.tipCalls))
+  if (rBoth.isSub === true && bothText.indexOf('面板数据来自工作区 ' + ROOT_DIR) >= 0 && bothText.indexOf('somewhere-else') < 0)
+    ok('E1c 两个来源都在时以快照为准（画面里是快照那个根，早到那个不出现）')
+  else bad('E1c 早到来源盖过了快照：' + JSON.stringify(bothText.slice(0, 120)))
+
   if (/width="13"/.test(r.html) && /height="13"/.test(r.html)) ok('E2 图标是 #650 定稿的 13×13 绘制')
   else bad('E2 图标尺寸不是 13×13：' + r.html.slice(0, 200))
   // E3：外框尺寸要与面板头部左右两颗邻居按钮一模一样。这一条是维护者 2026-09-19 在真机上按截图
@@ -214,6 +244,29 @@ try {
   const boxSizingOk = /box-sizing: ?border-box/.test(r.html)
   if (boxSizingOk) ok('E3b 边框算在尺寸里（border-box），不会在 16 外面再加 2 像素')
   else bad('E3b 没写 border-box：1 像素边框会另加，外框比邻居大一圈')
+
+  // E3c：边框与里面的图形要用**同一个红**。原来图形用的是 currentColor，跟着所在那一行的字色走
+  //   （头部那行字色是浅色的），于是画出来是个浅色文件夹配一个红边框，两截颜色 —— 维护者 2026-09-19
+  //   在真机上指出这一点，所以图形颜色写死成与边框同一处常量。
+  //   两边写法不一样（style 里的颜色浏览器会算成 rgb(...)，SVG 属性上是十六进制），所以先归一再比。
+  const toRgb = function (v) {
+    const s = String(v || '').trim()
+    let m = /^#([0-9a-f]{6})$/i.exec(s)
+    if (m) { const n = parseInt(m[1], 16); return 'rgb(' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(', ') + ')' }
+    m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(s)
+    if (m) return 'rgb(' + [m[1], m[2], m[3]].join(', ') + ')'
+    return s.toLowerCase()
+  }
+  const markStyle = (/<span[^>]*data-subws-mark="1"[^>]*style="([^"]*)"/.exec(r.html) || [])[1] || ''
+  const borderCol = toRgb((/border: ?1px solid ([^;"]+)/.exec(markStyle) || [])[1] || '')
+  const svgTag = (/<svg([^>]*)>/.exec(r.html) || [])[1] || ''
+  const rectTag = (/<rect([^>]*)>/.exec(r.html) || [])[1] || ''
+  const strokeCol = toRgb((/stroke="([^"]+)"/.exec(svgTag) || [])[1] || '')          // 文件夹轮廓的描边
+  const fillCol = toRgb((/fill="([^"]+)"/.exec(rectTag) || [])[1] || '')             // 里面那块实心方块
+  if (borderCol && strokeCol === borderCol && fillCol === borderCol) ok('E3c 边框、文件夹轮廓、里面那块是同一个红（' + borderCol + '），不会一半红一半浅色')
+  else bad('E3c 框与图形颜色不一致：边框 ' + JSON.stringify(borderCol) + '，轮廓描边 ' + JSON.stringify(strokeCol) + '，方块填充 ' + JSON.stringify(fillCol))
+  if (!/currentcolor/i.test(strokeCol) && !/currentcolor/i.test(fillCol)) ok('E3c2 图形颜色写死了，不跟外层字色漂移')
+  else bad('E3c2 图形还在用 currentColor，会跟着外层字色变')
 
   const aria = (/aria-label="([^"]*)"/.exec(r.html) || [])[1] || ''
   const ariaLines = aria.split('；')
@@ -340,6 +393,100 @@ try {
   fsx.rmSync(base, { recursive: true, force: true })
 } catch (e) {
   bad('F 组没跑起来：' + ((e && e.message) || e))
+}
+
+// ── G. 宿主那条轻电话顺手带回来的工作区根（2026-09-19 加，治「面板打开几十秒才出现标志」）────────
+// 这一段不另写仿制品：真的是 src/host/sessionLifecycle.js 里那个电话体，只把它依赖的服务换成夹具。
+//   两件事都要断：① 算得出来时字段在、值是对的；② 算不出来时它只是少了这个字段，电话本身照常成功
+//   （这条电话原本只答 cwd，不能因为算根出问题就把它的行为改坏）。
+console.log('\nG) wf.cwd 顺手带回工作区根：算得出来就带上，算不出来不许影响它原有的答复')
+try {
+  const fsx = require('fs')
+  const nodePath = require('path')
+  const nodeOs = require('os')
+  const { pathToFileURL } = require('url')
+  const fsp = fsx.promises
+
+  const wm = await import(pathToFileURL(nodePath.join(root, 'src/host/workspaceKey.js')).href)
+  const mod = await import(pathToFileURL(nodePath.join(root, 'src/host/sessionLifecycle.js')).href)
+  const fsSvc = {
+    async resolve(p) { return { path: String(p), targetKey: String(p) } },
+    async lstat(p) { return fsp.lstat(String(p)) },
+    async stat(t) { return fsp.stat(String(t)) },
+    async listDir(t) { return fsp.readdir(String(t)) },
+  }
+
+  // 一个最小的 ctx：只提供那条电话要用的 sessions.get
+  const makePhone = function (cwdOfSession, canonical) {
+    const life = mod.createSessionLifecycle({
+      ctx: {
+        get: function (k) {
+          if (k !== 'sessions') return undefined
+          return { get: function () { return cwdOfSession ? { header: { cwd: cwdOfSession } } : { header: {} } } }
+        },
+      },
+      DEFAULT_CWD: 'D:\\',
+      errText: function (e) { return String((e && e.message) || e) },
+      getDetectionService: async function () { return null },
+      getTrackerRegistry: async function () { return null },
+      getPlatform: async function () { return { os: process.platform, path: nodePath } },
+      canonicalKey: canonical,
+      logCtx: null,
+    })
+    return life.handleCwd
+  }
+
+  // ① 能算出根：字段在，且就是 canonicalKey 算出来的那个值（与快照里那个 workspaceRoot 同一把尺子）
+  const markedRoot = 'd:/ilife'
+  const okPhone = makePhone('D:\\ilife\\packages\\skill-calorie', async function () { return markedRoot })
+  const r1 = await okPhone({ sessionId: 'sid-1' })
+  if (r1 && r1.ok === true && r1.cwd === 'D:\\ilife\\packages\\skill-calorie' && r1.workspaceRoot === markedRoot)
+    ok('G1 算得出根时，回包里既保留了原来的 cwd，也多带上 workspaceRoot（值是 canonicalKey 算的）')
+  else bad('G1 回包不对：' + JSON.stringify(r1))
+
+  // ② 算不出来：只是少了这个字段，电话本身照样成功、cwd 照旧回
+  const badPhone = makePhone('D:\\ilife\\packages\\skill-calorie', async function () { throw new Error('探不通') })
+  const r2 = await badPhone({ sessionId: 'sid-2' })
+  if (r2 && r2.ok === true && r2.cwd === 'D:\\ilife\\packages\\skill-calorie' && !('workspaceRoot' in r2))
+    ok('G2 算根失败时：电话照常成功、cwd 照旧回，只是不带那个字段（不把原有行为改坏）')
+  else bad('G2 算根失败后回包变了：' + JSON.stringify(r2))
+
+  // ③ 客户端没给 canonicalKey（老版本宿主／单元环境）：同样不许影响答复
+  const noDepPhone = makePhone('D:\\ilife\\packages\\skill-calorie', undefined)
+  const r3 = await noDepPhone({ sessionId: 'sid-3' })
+  if (r3 && r3.ok === true && r3.cwd === 'D:\\ilife\\packages\\skill-calorie' && !('workspaceRoot' in r3))
+    ok('G3 没给算根的依赖时一样照常答复（只是不带字段）')
+  else bad('G3 缺依赖时回包变了：' + JSON.stringify(r3))
+
+  // ④ 少了 sessionId / 会话没有 cwd：原有那两条失败分支不许动
+  const r4 = await okPhone({})
+  if (r4 && r4.ok === false && r4.error === '缺少 sessionId') ok('G4 没给 sessionId 时仍是原来那句「缺少 sessionId」')
+  else bad('G4 缺 sessionId 的分支变了：' + JSON.stringify(r4))
+  const r5 = await makePhone('', async function () { return markedRoot })({ sessionId: 'sid-5' })
+  if (r5 && r5.ok === false && !('workspaceRoot' in r5)) ok('G5 会话没有 cwd 时仍是失败答复，且不带工作区根')
+  else bad('G5 无 cwd 的分支变了：' + JSON.stringify(r5))
+
+  // ⑤ ④ 的分支里那条 canonicalKey，与快照那条路是同一把尺子：拿真盘再验一次它停在工作区根上
+  const base = fsx.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'subws666g-'))
+  const wsRoot = nodePath.join(base, 'ws-root')
+  const deep = nodePath.join(wsRoot, 'packages', 'skill-calorie')
+  fsx.mkdirSync(deep, { recursive: true })
+  fsx.writeFileSync(nodePath.join(wsRoot, '.git'), 'gitdir: somewhere\n')
+  const canon = async function (raw) {
+    return wm.canonicalWorkspaceKey(raw, { getPlatform: async function () { return { os: process.platform, path: nodePath } }, getFs: function () { return fsSvc } })
+  }
+  const realPhone = makePhone(deep, canon)
+  const r6 = await realPhone({ sessionId: 'sid-6' })
+  if (r6 && r6.workspaceRoot && String(r6.workspaceRoot) === String(await canon(deep)))
+    ok('G6 真盘上跑一遍：带回来的工作区根就是 canonicalKey 在子目录上算出来的那个（与快照同一个来源）')
+  else bad('G6 真盘上算出来的根不对：' + JSON.stringify(r6))
+  const linesEarly = api.linesOf(r6 && r6.workspaceRoot, deep, true)
+  if (linesEarly.length === 3 && linesEarly[0] === '面板数据来自工作区 ' + wsRoot)
+    ok('G7 把这个早到的根直接喂给标志，第一行就是那个工作区（面板一打开就能画）')
+  else bad('G7 早到的根喂给标志画不出来：' + JSON.stringify(linesEarly))
+  fsx.rmSync(base, { recursive: true, force: true })
+} catch (e) {
+  bad('G 组没跑起来：' + ((e && e.message) || e))
 }
 
 if (failed) {

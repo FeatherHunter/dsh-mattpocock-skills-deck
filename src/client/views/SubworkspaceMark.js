@@ -29,7 +29,17 @@
 //   的 A～D 组跑纯函数，E 组渲染组件）—— 因为本票的缺陷是「纯函数全对、组件却每次都返回 null」，
 //   只断纯函数拦不住它。
 export const subwsMarkRootOf = function (st) {
-  try { return (st && st.snapshot && st.snapshot.workspaceRoot) ? String(st.snapshot.workspaceRoot).trim() : '' } catch (e) { return '' }
+  try {
+    if (!st) return ''
+    // ① 首选：面板正在显示的那份快照里的工作区根。它是显示用的原始数据源，也最权威。
+    const fromSnap = (st.snapshot && st.snapshot.workspaceRoot) ? String(st.snapshot.workspaceRoot).trim() : ''
+    if (fromSnap) return fromSnap
+    // ② 退一步：wf.cwd 那条轻电话顺手带回来的工作区根（2026-09-19 加）。
+    //   它存在的唯一理由是「早」—— 快照要等一整份仓库数据（缓存没命中时几十秒），这一条几百毫秒就有。
+    //   于是面板一打开这枚标志就能出现，不必陪着快照一起等。
+    //   ③ 两个都没有就返回空串：认不出根就不出现，不猜。这一条没变。
+    return (st.sessionWorkspaceRoot) ? String(st.sessionWorkspaceRoot).trim() : ''
+  } catch (e) { return '' }
 }
 // 显示用的工作区根：把宿主那份快照里的根，按本会话所选目录的写法还原出来。
 //   为什么需要这一步：宿主放进快照的那个值是**折算过的键**（`canonicalWorkspaceKey`：Windows 上小写折叠、
@@ -157,9 +167,13 @@ export const SubworkspaceMark = function (props) {
     const isWarn = (!inited && i === shown.length - 1)
     return h('div', { key: 'l' + i, style: Object.assign({}, dim, { color: (i === 0 ? '#e6edf3' : (isWarn ? '#f59e0b' : '#8b8b95')) }) }, s)
   }))
-  const iconSvg = h('svg', { key: 'icon', viewBox: '0 0 16 16', width: 13, height: 13, fill: 'none', stroke: 'currentColor', strokeWidth: 1.3, strokeLinejoin: 'round', strokeLinecap: 'round' }, [
+  // 图形颜色写死成与边框同一个红 #f85149（2026-09-19 维护者定）：原先用的是 currentColor，
+  //   跟着所在那一行的字色走 —— 头部那行字色是浅色的，于是画出来是个橙色文件夹配一个红边框，两截颜色。
+  //   写死之后框与图形是同一个红，不随外层字色漂移。
+  const MARK_RED = '#f85149'
+  const iconSvg = h('svg', { key: 'icon', viewBox: '0 0 16 16', width: 13, height: 13, fill: 'none', stroke: MARK_RED, strokeWidth: 1.3, strokeLinejoin: 'round', strokeLinecap: 'round' }, [
     h('path', { key: 'folder', d: 'M1.9 5.2A1.3 1.3 0 0 1 3.2 3.9h2.3l1.1 1.3h4.3a1.3 1.3 0 0 1 1.3 1.3v4.3a1.3 1.3 0 0 1-1.3 1.3H3.2a1.3 1.3 0 0 1-1.3-1.3z' }),
-    h('rect', { key: 'block', x: 8.1, y: 7.4, width: 3.9, height: 3.9, rx: 1.1, fill: 'currentColor', stroke: 'none' }),
+    h('rect', { key: 'block', x: 8.1, y: 7.4, width: 3.9, height: 3.9, rx: 1.1, fill: MARK_RED, stroke: 'none' }),
   ])
   // 下面几处把子元素写成数组（iconSvg 里面的 [path, rect]、[iconSvg]、[span]），数组里每个元素都要带 key：
   //   React 19 对「当子元素传进来的数组」逐个要 key，**哪怕数组里只有一个元素**，缺了就在控制台留一行警告。
@@ -193,7 +207,7 @@ export const SubworkspaceMark = function (props) {
       //   是因为这里要的就是「不画东西」这个意思。
       //   边框改成红色 #f85149（本仓既有的红色档：状态栏与列表里那些红色提示用的都是它），
       //   与右边蓝色那颗「切换后端」、琥珀色那颗「标签配色」在颜色上区分开。
-      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 16, height: 16, borderRadius: 5, border: '1px solid #f85149', background: 'transparent', cursor: 'pointer', flex: 'none' },
+      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 16, height: 16, borderRadius: 5, border: '1px solid ' + MARK_RED, background: 'transparent', cursor: 'pointer', flex: 'none' },
     }, [iconSvg]),
   ])
   // 自动展开那一次用受控 visible；关掉（或本来就不再展开）之后交回 HoverTip 自己管（鼠标悬停照常出浮层）。

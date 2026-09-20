@@ -2,7 +2,7 @@
 // 以后谁改它：改会话启停电话或早选与 force 判据的人。预估约70行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；ctx 与探测服务显式注入，快照与刷新经 index 转供给复用；本文件不引用其他新文件。
 export function createSessionLifecycle(deps) {
-  const { ctx, DEFAULT_CWD, errText, getDetectionService, getTrackerRegistry, getPlatform, logCtx } = deps
+  const { ctx, DEFAULT_CWD, errText, getDetectionService, getTrackerRegistry, getPlatform, canonicalKey, logCtx } = deps
   // #491 房外埋点：hash8 只记散列不记原文；探测结论低频常驻，直接落盘（库体内兜底）。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   async function handlePing() {
@@ -18,15 +18,30 @@ export function createSessionLifecycle(deps) {
         // 现代 DSH 的 Session 结构：header.cwd 为权威；兼容旧 meta / 直接 cwd 字段
         const header = s && (s.header || s.meta)
         const cwd = header && (header.cwd || header.path || header.worktree || header.projectDir || header.directory)
-        if (typeof cwd === 'string' && cwd) return { ok: true, cwd: cwd }
+        if (typeof cwd === 'string' && cwd) return await withRoot({ ok: true, cwd: cwd }, cwd)
         const meta = s && s.meta
         const cwd2 = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory)
-        if (typeof cwd2 === 'string' && cwd2) return { ok: true, cwd: cwd2 }
-        if (s && typeof s.cwd === 'string' && s.cwd) return { ok: true, cwd: s.cwd }
+        if (typeof cwd2 === 'string' && cwd2) return await withRoot({ ok: true, cwd: cwd2 }, cwd2)
+        if (s && typeof s.cwd === 'string' && s.cwd) return await withRoot({ ok: true, cwd: s.cwd }, s.cwd)
         return { ok: false, error: '会话无 cwd 信息' }
       } catch (e) {
         return { ok: false, error: errText(e) }
       }
+  }
+  // 顺手把「这个会话的工作区根」也带回给客户端（2026-09-19 加，维护者报「面板打开后几十秒才出现归属标志」）。
+  //   为什么加在这里：面板头部那枚归属标志只要工作区根这一个值，原先却只能等一整份仓库快照（含全部票与地图）
+  //   拿回来才画得出来，缓存没命中时就是几十秒。而工作区根是一条很便宜的信息，这条电话（wf.cwd）在面板打开时
+  //   本来就会被调用，顺路带回来客户端几百毫秒内就有根了，与快照什么时候到无关。
+  //   取法与快照里那个 workspaceRoot 完全同一把尺子（canonicalKey）：同源才不会出现「两处算出两个根」。
+  //   失败一律只当「这次没带这个值」：这条电话原本只答 cwd，不能因为算根出问题就把它的行为改坏。
+  //   （这里不记日志：算根失败是个安静的可选增强，这条电话本身的成败已经由 host.call / host.call.fail 记着了。）
+  async function withRoot(res, rawCwd) {
+    try {
+      if (typeof canonicalKey !== 'function') return res
+      const root = await canonicalKey(rawCwd)
+      if (typeof root === 'string' && root) res.workspaceRoot = root
+    } catch (e) {}
+    return res
   }
   // 两处前奏的同一判据收敛：显式绑定优先，否则实时探测。快照与刷新经显式参数复用本函数，不各留一份拷贝。
   async function selectEarly(selCtx) {

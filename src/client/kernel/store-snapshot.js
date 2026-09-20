@@ -25,6 +25,8 @@
       backendMenuOpen: false,
       backendMenuPos: null,
       cwd: '', lblFilters: [], effFilters: [], skillView: 'list', expLabels: false,
+      // 由 wf.cwd 带回来的工作区根（2026-09-19 加）：归属标志的早到来源，收下与写表在 probe-snapshot.js。
+      sessionWorkspaceRoot: '',
       // #374：状态过滤 + 排序（默认 更新时间↓，与现状一致）
       stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
       chainSnapshot: null, chainLoadedAt: '', backendChain: null, fullChain: null,
