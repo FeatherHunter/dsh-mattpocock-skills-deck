@@ -9,12 +9,15 @@
     export const STYLE_TEXT = [
       // #670：面板挂载前那一帧（.dsws-hold）也要是面板本人，不能是一块透亮的空块。
       //   来历：右侧边栏那个标签内容体先画一个空壳、等两跳 rAF 才挂真面板（#603 为了点开不白等），
-      //   而空壳原来没有任何背景 —— 那一帧里右栏显示的是它底下透出来的东西（宿主页面/右栏自己的底色，
-      //   比面板的底色更亮或更暗都可能），紧接着才被面板整块盖住，用户看到的就是「先黑一下」。
-      //   现在空壳与面板根节点用同一档底色（与 Dock.js 的 background 是同一个令牌同一个兜底值），
-      //   从第一帧起就是「面板已经在、只是内容还没到」。
-      //   显示上仍是「先出壳、再填内容」（#603 定下的取舍），变的是这一帧画什么。
-      '.dsws-hold{height:100%;overflow:hidden;flex:1 1 auto;min-height:0;background:var(--dsw-alias-bg-layer-1,#10131a)}',
+      //   而空壳原来没有任何背景 —— 那一帧里右栏显示的是它底下透出来的东西，紧接着才被面板整块盖住。
+      // 2026-09-20 更正（#670 第三轮现场核实）：用户看见的「先黑一下」，主要不是这一帧画什么，
+      //   而是这一帧**底下那一层** —— 宿主右栏面板容器自己的底（background: var(--dsw-alias-bg-base)，
+      //   深色主题 #151517，比页面那一档 #232324 更黑）。那一层在本插件画出第一笔之前就已经画上了，
+      //   插件缩短不了它，只能让自己的底色与它取同一档。所以空壳与面板根节点（Dock.js）都改用
+      //   --dsw-alias-bg-base：那一格从出现到有内容全程同一档颜色，用户只会看到「内容出现了」。
+      //   浅色主题下 bg-base 与 bg-layer-1 都是 #ffffff，本次改动在浅色主题下是空操作。
+      //   显示上仍是「先出壳、再填内容」（#603 定下的取舍），那两跳不要顺手删。
+      '.dsws-hold{height:100%;overflow:hidden;flex:1 1 auto;min-height:0;background:var(--dsw-alias-bg-base,#10131a)}',
       '.dsws-panel{position:fixed;left:16px;top:76px;width:460px;max-height:calc(100vh - 24px);display:flex;flex-direction:column;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.45);z-index:9999;font-family:var(--dsw-font-family);font-size:13px;color:var(--dsw-alias-label-primary,#e6edf3);line-height:1.6;overflow:hidden}',
       '.dsws-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l1,#2a2d35);cursor:move;user-select:none}',
       '.dsws-tabs{display:flex;flex-wrap:nowrap;gap:4px;padding:8px 12px 0;overflow:hidden;white-space:nowrap}',

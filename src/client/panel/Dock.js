@@ -158,7 +158,13 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
         if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(applyHead)
         return function () { if (ro2) try { ro2.disconnect() } catch (e) {} ; if (typeof window !== 'undefined') window.removeEventListener('resize', onWin) }
       }, [s.snapshot && s.snapshot.repo && (s.snapshot.repo.owner + '/' + s.snapshot.repo.name), dw])
-      return h('div', { ref: dockRef, 'data-dsws-host': '1', className: narrow ? 'dsws-narrow' : undefined, style: { position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'var(--dsw-font-family)', fontSize: 12, color: 'var(--dsw-alias-label-primary,#e6edf3)', background: 'var(--dsw-alias-bg-layer-1,#10131a)' } }, [
+      // #670（2026-09-20 第三轮定）：面板底色取 --dsw-alias-bg-base，与它所在的那一层同档。
+      //   面板自 #646 起住在 DSH 原生右侧边栏里，那一格是宿主右栏面板容器画的底（同样取 bg-base）。
+      //   本插件在此之前用的是 --dsw-alias-bg-layer-1（页面那一档，深色主题 #232324），比右栏的底亮一档：
+      //   宿主画好那一格、本插件还没画出第一笔的那一瞬，露出来的是更黑的宿主底，用户看到的就是「突然黑一下」。
+      //   取同一档之后，那一格从出现到有内容全程一个颜色，只剩「内容出现」这一下。
+      //   浅色主题下两个令牌都是 #ffffff，这一条在浅色主题下不改变任何东西。
+      return h('div', { ref: dockRef, 'data-dsws-host': '1', className: narrow ? 'dsws-narrow' : undefined, style: { position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'var(--dsw-font-family)', fontSize: 12, color: 'var(--dsw-alias-label-primary,#e6edf3)', background: 'var(--dsw-alias-bg-base,#10131a)' } }, [
         // 头部（仓库芯片 + 归属标志 + 三颗按钮 + 关闭）：横线不放在这行，下移到标签行下方与对话/轨迹对齐。
         //   这一行的第一个元素就是仓库芯片 —— 品牌那一段（罗盘图标 + 「MattSkills」字样）已按 #667 去掉。
         // #28 自适应：flex 容器 minWidth 0 + 芯片 flex 自适应，仓库名先收成短名、极窄再交给芯片自己省略
