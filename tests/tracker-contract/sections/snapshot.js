@@ -12,8 +12,6 @@ import { createRegistry } from '../../../src/host/tracker/registryCore.js' // V1
 import { createSnapshotComposer } from '../../../src/host/tracker/snapshot.js'
 import { OPERATIONS } from '../../../src/host/tracker/contract.js'
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-
 const ref = { backend: 'fake', refId: 'r1', name: 'R1', url: '' }
 const refU = { backend: 'unsup', refId: 'r2', name: 'R2', url: '' }
 
@@ -77,13 +75,26 @@ export async function run() {
     composer.clear()
     await composer.composeSnapshot('fake', ref, {})
     await assert('clear → 重新 list', listCalls === 4, `listCalls=${listCalls}`)
-    const exp = createSnapshotComposer(registry, { snapshotTtl: 1, depsTtl: 1 })
-    await exp.composeSnapshot('fake', ref, {})
-    await sleep(10)
-    await exp.composeSnapshot('fake', ref, {})
-    await assert('✗ probe: TTL 过期 → 重新 list（不 Serve 陈旧）', listCalls === 6, `listCalls=${listCalls}`)
-    const stale = await exp.composeSnapshot('fake', ref, {})
-    await assert('TTL 过期后已重新缓存', stale.cached === true)
+    // TTL 这一段用可控时钟，不再靠「睡 10 毫秒 + 1 毫秒 TTL」去赌机器快慢：
+    //   旧写法里最后那次「刚写进缓存就该命中」的断言只留了 1 毫秒的窗口，机器一忙就红；
+    //   它一红 tests/verify-tracker-contract.js 就以 CONTRACT SKELETON NOT SELF-CONSISTENT 截断整条
+    //   npm run verify 链，看起来像大面积回归（历史全量日志里 40 次出现过 2 次）。
+    //   缓存过不过期只该由「时钟走了多久」决定，所以这里把 Date.now 换成可控值：
+    //   过期确定发生、命中确定发生，两条断言的强度一点都不减。
+    const realNow = Date.now
+    let fakeNow = realNow()
+    Date.now = () => fakeNow
+    try {
+      const exp = createSnapshotComposer(registry, { snapshotTtl: 1000, depsTtl: 1000 })
+      await exp.composeSnapshot('fake', ref, {})
+      fakeNow += 5000 // 时钟往前推 5 秒：缓存确定过期（不看机器忙不忙）
+      await exp.composeSnapshot('fake', ref, {})
+      await assert('✗ probe: TTL 过期 → 重新 list（不 Serve 陈旧）', listCalls === 6, `listCalls=${listCalls}`)
+      const stale = await exp.composeSnapshot('fake', ref, {})
+      await assert('TTL 过期后已重新缓存', stale.cached === true)
+    } finally {
+      Date.now = realNow
+    }
   }
 
   // ── 依赖 LRU：只缓存边数据 ──
