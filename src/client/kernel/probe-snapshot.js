@@ -6,7 +6,7 @@
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
-    export const pendingSnapshotByCwd = new Map() // Map<工作区键,{promise,controller}> dedup 30s（#653：按工作区根去重，根会话与子目录会话共用一次在途请求）
+    export const pendingSnapshotByCwd = new Map() // Map<工作区键+后端,{promise,controller,backendId,seq}> dedup 30s（#653：按工作区根去重；#669 第 5 件：键里再带后端 —— 换过后端就不是同一次请求，见 kernel/probe-stale.js）
     // #491 房外埋点 helpers（同一闭包拼回后全内核文件可见；只记散列与计数，渲染路径不用）：
     const dswsLogHash = function (s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
     const dswsScrubHits = {}
@@ -166,20 +166,9 @@
     export const loadSnapshot = function (st, force, silent) {
       const doLoad = async function () {
         // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
-        try{ const _nk=wsKeyOf(st.cwd||''); const _pend=pendingSnapshotByCwd.get(_nk); if(_pend&&_pend.promise) {
-          // #366 修复：force 不复用非 force 的在途请求——手动刷新必须走到 wf.refresh
-          const _shouldReuse = !force || _pend.force === true;
-          if (_shouldReuse) {
-            try { dswsDedupWin.n += 1; if (isEnabled('debug') && dswsDedupWin.n % 10 === 0) log('debug', 'dedup.hit', { scope: 'snapshot', keyHash: dswsLogHash(_nk) }) } catch (eL) {}
-            // 同 cwd 在途复用：新调用方挂载后从共享缓存水合，不再发第二份请求
-            return _pend.promise.then(function(snap){
-              try{ if (isEnabled('debug')) log('debug', 'snapshot.fanout', { sessionIdHash: dswsLogHash(String((st && (st.sessionId || st.cwd)) || '')), stale: false, force: !!(_pend && _pend.force), count: ((_pend.n = (((_pend && _pend.n) || 0) + 1))) }) }catch(eL){}
-              // 在途结果已落 per-cwd 缓存（首发方 then 中 setCachedSnapshot），此处仅水合当前 store
-              try{ hydrateFromCache(st); emit(st); }catch(eHyd){}
-              return snap;
-            }).catch(function(e){ throw e; });
-          }
-        } }catch(e){}
+        // #669 第 5 件：在途复用（含「换过后端就不复用」「force 不复用非 force」两条判据）都判在 kernel/probe-stale.js。
+        const _reuse = _snapReuseInFlight(st, force)
+        if (_reuse) return _reuse
         // fix H1: remove global snapLoading guard — rely on per-cwd pendingSnapshotByCwd dedup (gate flake, #diagnosing-bugs)
         if (typeof host === 'undefined' || typeof host.call !== 'function') {
           st.snapMode = 'err'
@@ -226,7 +215,9 @@
         const _rawP = force ? host.call('wf.refresh', args) : host.call('wf.snapshot', args);
         const _timeoutP = new Promise((_,rej)=>{ _timer=setTimeout(()=>{ try{_ctrl.abort();}catch{}; rej(new Error('client loadSnapshot timeout 30s')); },30000); });
         const p = Promise.race([_rawP, _timeoutP]).finally(function(){ try{clearTimeout(_timer);}catch{}; });
-        try{ pendingSnapshotByCwd.set(_normKeyP,{promise:p, controller:_ctrl, force: !!force}); p.finally(function(){ try{ const cur=pendingSnapshotByCwd.get(_normKeyP); if(cur && cur.promise===p) pendingSnapshotByCwd.delete(_normKeyP);}catch{} }); }catch(e){}
+        // #669 第 5 件：登记这一次请求（序号 + 这次问的后端 + 在途键），发出去就记（判据见 kernel/probe-stale.js）。
+        const _mine = _snapMarkRequest(st)
+        try{ pendingSnapshotByCwd.set(_mine.pendKey,{promise:p, controller:_ctrl, force: !!force, backendId: _mine.reqBackend, seq: _mine.seq}); p.finally(function(){ try{ const cur=pendingSnapshotByCwd.get(_mine.pendKey); if(cur && cur.promise===p) pendingSnapshotByCwd.delete(_mine.pendKey);}catch{} }); }catch(e){}
         const _reqNorm = _normKeyP // capture request cwd for H2 stale discard
         // #653：宿主这次回话里带的工作区根，先记进工作区键表——本会话与同工作区的其它会话随后都按它分桶。
         //   不管 ok 与否都记：它是宿主算出来的事实，与这份快照能不能装没有关系。
@@ -244,8 +235,14 @@
             // #653：这里的键是请求发出时的那把工作区键，不是会话所选目录——跨会话复用的正是它。
             try { setCachedSnapshot(_reqNorm, snap) } catch (e232r4) {}
             st.snapLoading = false
-            try{ const cur2=pendingSnapshotByCwd.get(_curNorm); if(cur2 && cur2.promise===p) pendingSnapshotByCwd.delete(_curNorm);}catch(e){}
+            try{ const cur2=pendingSnapshotByCwd.get(_mine.pendKey); if(cur2 && cur2.promise===p) pendingSnapshotByCwd.delete(_mine.pendKey);}catch(e){}
             return
+          }
+          // #669 第 5 件：换过后端的这一份不算数（或已经不是这把键上最新的一次）—— 照装的话，
+          //   面板会从刚切过去的后端退回切换前那个，用户看到的就是「点了确认没反应」（判据见 probe-stale.js）。
+          if (_snapRespStale(_reqNorm, _mine.seq, _mine.reqBackend, st)) {
+            try { if (isEnabled('debug')) log('debug', 'snapshot.stale.drop', { keyHash: dswsLogHash(_reqNorm) }) } catch (eDrop) {}
+            st.snapLoading = false; emit(st); return
           }
           st.snapLoading = false
           if (snap && (snap.notModified===true || snap.status===304)) {

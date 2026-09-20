@@ -267,6 +267,7 @@ const KERNEL_MODULES = [
   { name: 'slotRendererRepoSync', file: 'src/client/kernel/slotRenderer-repo-sync.js' },
   { name: 'slotRendererModalView', file: 'src/client/kernel/slotRenderer-modal-view.js' },
   { name: 'probeChain', file: 'src/client/kernel/probe-chain.js' },
+  { name: 'probeStale', file: 'src/client/kernel/probe-stale.js' },
   { name: 'probeSnapshot', file: 'src/client/kernel/probe-snapshot.js' },
   { name: 'probeAuto', file: 'src/client/kernel/probe-auto.js' },
   { name: 'router', file: 'src/client/kernel/router.js' },

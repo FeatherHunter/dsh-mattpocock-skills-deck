@@ -168,6 +168,7 @@ export default {
 
     // ---- 环境检查链（#228/#284 · host.call('wf.chain')；通用链 + 后端链全链快照）----
     // #284：九格目录视图（wf.status/checks）退役，读数点位全部改从链快照派生
+    // ==== kernel:probeStale (spliced by build) ====
     // ==== kernel:probeChain (spliced by build) ====
     // ==== kernel:probeSnapshot (spliced by build) ====
     // ==== kernel:probeAuto (spliced by build) ====

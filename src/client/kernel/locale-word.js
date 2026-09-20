@@ -52,7 +52,9 @@
         'switch.gateIntro': '不同后端的初始化与前置检查不同，选择后将回到主线流程',
         'gate.wipNotice': 'Markdown 预览，GitLab 筹备中',
         // #189 · 切换三选一确认 Modal（#186 定版：默认保留 + prompt 可编辑 + CRI 仅阻断迁移）
-        'switch.title': '切换 Tracker 后端', 'switch.hint': '确认切换？',
+        // #669 第 5 件：标题缩短成四个字（用户 2026-09-21 拍板）——原标题「切换 Tracker 后端」在窄面板上把
+        //   同一行的按钮挤成竖排，短标题是这一处的第一手改法。
+        'switch.title': '切换后端', 'switch.hint': '确认切换？',
         'switch.hintDesc': '现有 issues 保留在原后端，切换后不可见，切回可见。',
         'switch.promptLabel': '提示词（可编辑）',
         'switch.promptHint': '可编辑后确认，默认：现有 issues 保留在原后端，切换后不可见，切回可见',
@@ -204,8 +206,8 @@
         'switch.pleaseSelectTracker': 'Choose a tracker backend to continue',
         'switch.gateIntro': 'Initialization and preflight differ per backend; picking one returns you to the main flow.',
         'gate.wipNotice': 'Markdown preview, GitLab in preparation',
-        // #189 · switch confirm modal
-        'switch.title': 'Switch Tracker Backend', 'switch.hint': 'Confirm switch?',
+        // #189 · switch confirm modal（#669 第 5 件：标题与中文一并缩短）
+        'switch.title': 'Switch backend', 'switch.hint': 'Confirm switch?',
         'switch.hintDesc': 'Existing issues stay in the original backend, invisible after switch, visible when you switch back.',
         'switch.promptLabel': 'Prompt (editable)',
         'switch.promptHint': 'Editable before confirming. Default: Existing issues stay in original backend, invisible after switch, visible when switching back.',

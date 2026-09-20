@@ -88,6 +88,8 @@ const ALLOWED = {
   'guide.inject': ['step', 'outcome'],
   // 2026-09-21 新增一条按需事件（附录 1.5 节）：链快照回包时晚到的旧结果被丢弃（这一段里已经又发过新请求），只记一个散列。
   'chain.stale.drop': ['keyHash'],
+  // 2026-09-21 新增一条按需事件（附录 1.5 节）：面板快照回包时这一次已经不算数（换过后端，或这个工作区上又发过更新的一次），只记一个散列。
+  'snapshot.stale.drop': ['keyHash'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],

@@ -69,7 +69,7 @@ export const SwitchConfirmModal = (props) => {
   const overlayStyle = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(0,0,0,.45)', padding: '16px 16px 16px', borderRadius: 12, overflowY: 'auto' }
   // #191（用户反馈）：弹窗高度固定，内容多少不跳动（keep/migrate/clear 三态同高，多出部分内部滚动）
   // #191（用户反馈）：顶部固定（标题 + 按钮恒定），内容区独立向下延伸滚动——按钮永不跳动
-  const cardStyle = { boxSizing: 'border-box', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 560, maxHeight: '90vh', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12, background: 'var(--dsw-alias-bg-layer-2,#16181d)', boxShadow: '0 16px 48px rgba(0,0,0,.5)', padding: 16 }
+  const cardStyle = { boxSizing: 'border-box', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 560, maxHeight: '90vh', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12, background: 'var(--dsw-alias-bg-layer-2,#16181d)', boxShadow: '0 16px 48px rgba(0,0,0,.5)', padding: 16, overflowX: 'hidden' }
   const bodyStyle = { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }
   // #191（用户反馈）：去圆点，点整行即选中；行高固定为选中态高度（徽标占位，选中不跳动）
   const radioRow = function (id, checked, label, desc, badge) {
@@ -90,14 +90,20 @@ export const SwitchConfirmModal = (props) => {
   return h('div', { style: overlayStyle, onClick: function (e) { if (e.target === e.currentTarget) doClose() } }, [
     h('div', { style: cardStyle }, [
       // #191（用户反馈）：操作按钮与标题同行右侧（取消 + 确认切换 + ✕），顶部 Y 恒定，不占独立行
-      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flex: 'none' } }, [
-        typeof Ic === 'function' ? Ic({ n: 'compass', size: 14 }) : h('span', null, '◉'),
-        h('span', { style: { fontSize: 13, fontWeight: 700, flex: 'none' } }, tr('switch.title')),
-        h('span', { style: { flex: 1 } }),
-        h(Tip, { content: tr('switch.clearBindTitle') }, h('button', { className: 'dsws-btn ghost', onClick: function () { try { if (typeof clearBackendBinding === 'function') clearBackendBinding(s) } catch (e) {} }, style: { fontSize: 12, padding: '2px 10px', color: '#f87171', borderColor: 'rgba(248,113,113,.45)' } }, tr('switch.clearBind'))),
-        h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { fontSize: 12, padding: '2px 10px' } }, tr('switch.cancel')),
-        h('button', { className: 'dsws-btn', disabled: confirmDisabled, onClick: doConfirm, style: { fontSize: 12, padding: '2px 10px', background: confirmDisabled ? '#2a2d35' : '#58a6ff', borderColor: confirmDisabled ? '#2a2d35' : '#58a6ff', color: confirmDisabled ? '#8b8b95' : '#0b1220', fontWeight: 700, cursor: confirmDisabled ? 'not-allowed' : 'pointer' } }, sc.confirming ? tr('switch.confirming') : tr('switch.confirm')),
-        h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { padding: '2px 6px' } }, '✕'),
+      // #669 第 5 件（用户 2026-09-21 真机截图）：面板窄的时候这一行原本把三颗按钮挤成了竖排
+      //   （「清除后端选择」六个字竖着排六行，确认按钮被推出卡片右边，✕ 看不见）。
+      //   改法：标题那一组可收缩（省略号），按钮那一组整体换行到第二行，按钮自己不许断行。
+      h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10, flex: 'none' } }, [
+        h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, flex: '1 1 auto' } }, [
+          typeof Ic === 'function' ? Ic({ n: 'compass', size: 14 }) : h('span', null, '◉'),
+          h('span', { style: { fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('switch.title')),
+        ]),
+        h('span', { style: { display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, flex: '0 1 auto', maxWidth: '100%', marginLeft: 'auto', boxSizing: 'border-box' } }, [
+          h(Tip, { content: tr('switch.clearBindTitle') }, h('button', { className: 'dsws-btn ghost', onClick: function () { try { if (typeof clearBackendBinding === 'function') clearBackendBinding(s) } catch (e) {} }, style: { fontSize: 12, padding: '2px 10px', whiteSpace: 'nowrap', flex: 'none', color: '#f87171', borderColor: 'rgba(248,113,113,.45)' } }, tr('switch.clearBind'))),
+          h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { fontSize: 12, padding: '2px 10px', whiteSpace: 'nowrap', flex: 'none' } }, tr('switch.cancel')),
+          h('button', { className: 'dsws-btn', disabled: confirmDisabled, onClick: doConfirm, style: { fontSize: 12, padding: '2px 10px', whiteSpace: 'nowrap', flex: 'none', background: confirmDisabled ? '#2a2d35' : '#58a6ff', borderColor: confirmDisabled ? '#2a2d35' : '#58a6ff', color: confirmDisabled ? '#8b8b95' : '#0b1220', fontWeight: 700, cursor: confirmDisabled ? 'not-allowed' : 'pointer' } }, sc.confirming ? tr('switch.confirming') : tr('switch.confirm')),
+          h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { padding: '2px 6px', whiteSpace: 'nowrap', flex: 'none' } }, '✕'),
+        ]),
       ]),
       // #191：内容区独立滚动（向下延伸），起始标记
       h('div', { style: bodyStyle }, [

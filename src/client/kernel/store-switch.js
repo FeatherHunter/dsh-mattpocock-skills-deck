@@ -155,8 +155,16 @@
         try { flash(st, tr('switch.bindFail', { err: String(msg).slice(0, 120) }), 'warn') } catch {}
       }
       if (typeof host === 'undefined' || typeof host.call !== 'function') { doFail('host.call 不可用'); return }
+      // #669 第 5 件：这条跨边界电话以前一个字都不记 —— 真机上出现「点确认切换没反应」时，
+      //   日志里既没有成功那一行也没有失败那一行，事后只能靠猜。补上与其它跨边界调用同形的两行
+      //   （事件名沿用现成的 host.call / host.call.fail，不新增事件名）。
+      const bindT0 = Date.now()
       host.call('wf.bind', { cwd: st.cwd || '', backendId: targetId }).then(function (res) {
         const ok = res && (res.ok === true || (res.value && res.value.ok === true) || res.ok)
+        try {
+          if (ok) log('info', 'host.call', { method: 'wf.bind', latencyMs: Date.now() - bindT0, ok: true, kind: 'switch-bind' })
+          else log('warn', 'host.call.fail', { method: 'wf.bind', kind: 'switch-bind', errorHash: dswsLogHash(dswsLogTrunc(String((res && (res.error || res.message)) || 'bind-not-ok'), 120, 'error')) })
+        } catch (eL) {}
         if (!ok) { doFail((res && (res.error || res.message)) || 'unknown'); return }
         try { flash(st, tr('switch.bindOk', { label: (typeof labelOf === 'function' ? labelOf(targetId) : String(targetId)) }), 'ok') } catch {}
         // #664：切换后端这条路不再往会话里注入任何文字（首开引导链定版 #661 第①条：门控与切换只把后端定下来）。
@@ -168,7 +176,10 @@
           if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true)
           if (typeof loadChain === 'function') loadChain(st, true)
         } catch {}
-      }).catch(function (e) { doFail(e && e.message || e) })
+      }).catch(function (e) {
+        try { log('warn', 'host.call.fail', { method: 'wf.bind', kind: 'switch-bind', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
+        doFail(e && e.message || e)
+      })
     }
     // 方案3（2026-08-28 拍板）：清除后端选择 —— 删除主锚/想重新走选择流程时的逃生舱。
     //   wf.bind(null) = 显式无后端（registry 契约：byHandle 记 null，select ① 回 explicit null），

@@ -93,7 +93,12 @@ const checks = [
   ['src/client/kernel/store-prefs.js', /getCachedRepository.*wsKeyOf/, 'getCachedRepository 按 wsKeyOf'],
   ['src/client/kernel/store-snapshot.js', /getCachedChain.*wsKeyOf|getChainCacheKey/, 'getCachedChain 存在且按工作区键'],
   ['src/client/kernel/store-snapshot.js', /chainByCwd/, 'chainByCwd 共享缓存存在'],
-  ['src/client/kernel/probe-snapshot.js', /pendingSnapshotByCwd.*wsKeyOf|wsKeyOf.*pendingSnapshotByCwd/, 'pendingSnapshotByCwd 按 wsKeyOf'],
+  // #669 第 5 件口径变更（本门禁同步改）：在途去重的钥匙从「工作区键」再升级成「工作区键 + 后端 id」——
+  //   换过后端就不算同一次请求，换后端之后那次重取一定真发一次。键算法与守卫 2026-09-21 收进
+  //   src/client/kernel/probe-stale.js（probe-snapshot.js 超了 350 行上限），两文件同属一个闭包。
+  ['src/client/kernel/probe-stale.js', /_snapPendKey = function[\s\S]{0,200}?wsKeyOf/, 'pendingSnapshotByCwd 的键算法用 wsKeyOf'],
+  ['src/client/kernel/probe-stale.js', /pendingSnapshotByCwd\.get\(_snapPendKey/, 'pendingSnapshotByCwd 按那把键读（工作区键 + 后端）'],
+  ['src/client/kernel/probe-snapshot.js', /pendingSnapshotByCwd\.set\(_mine\.pendKey|pendingSnapshotByCwd.*wsKeyOf|wsKeyOf.*pendingSnapshotByCwd/, 'pendingSnapshotByCwd 按那把键写'],
   ['src/client/kernel/probe-chain.js', /_chainInflightByCwd.*wsKeyOf|getChainCacheKey/, '_chainInflightByCwd 按工作区键+backendId'],
   ['src/client/kernel/probe-chain.js', /keyOf.*cwd.*\|.*backendId|getChainCacheKey/, '链键含 backendId'],
   ['src/client/kernel/store-snapshot.js', /snapshotByCwd/, 'snapshotByCwd 存在'],
