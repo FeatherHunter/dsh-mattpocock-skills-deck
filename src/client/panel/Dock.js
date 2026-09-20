@@ -120,7 +120,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
         return function () { if (ro) ro.disconnect(); if (typeof window !== 'undefined') window.removeEventListener('resize', apply) }
       }, [])
       // 头部自适应：空间不足时收缩仓库名，最后只留短名（#28）。头部原先还有一个标题字要优先隐藏，
-      //   2026-09-19 维护者把标题字与罗盘图标去掉了，那一步随之没有了对象，这里只剩仓库名一条收缩链。
+      //   2026-09-19 维护者把标题字与罗盘图标去掉了（#667），那一步随之没有了对象，这里只剩仓库名一条收缩链。
       React.useEffect(function () {
         const applyHead = function () {
           const hd = headRef.current
@@ -159,8 +159,9 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
         return function () { if (ro2) try { ro2.disconnect() } catch (e) {} ; if (typeof window !== 'undefined') window.removeEventListener('resize', onWin) }
       }, [s.snapshot && s.snapshot.repo && (s.snapshot.repo.owner + '/' + s.snapshot.repo.name), dw])
       return h('div', { ref: dockRef, 'data-dsws-host': '1', className: narrow ? 'dsws-narrow' : undefined, style: { position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'var(--dsw-font-family)', fontSize: 12, color: 'var(--dsw-alias-label-primary,#e6edf3)', background: 'var(--dsw-alias-bg-layer-1,#10131a)' } }, [
-        // 头部（标题 + 关闭）：横线不放在这行，下移到标签行下方与对话/轨迹对齐
-        // #28 自适应：flex 容器 minWidth 0 + 芯片 flex 自适应，标题优先隐藏，极窄仅留 repo
+        // 头部（仓库芯片 + 归属标志 + 三颗按钮 + 关闭）：横线不放在这行，下移到标签行下方与对话/轨迹对齐。
+        //   这一行的第一个元素就是仓库芯片 —— 品牌那一段（罗盘图标 + 「MattSkills」字样）已按 #667 去掉。
+        // #28 自适应：flex 容器 minWidth 0 + 芯片 flex 自适应，仓库名先收成短名、极窄再交给芯片自己省略
         h('div', { ref: headRef, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '10px 12px 6px', flex: 'none', minWidth: 0 } }, [
           // 2026-09-19 维护者定：这一行不再放罗盘图标与「MattSkills」字样，从仓库芯片开始。
           //   品牌字样留在设置页与右栏标题那两处（那两处说的是「这个面板叫什么」，头部这一行说的是
@@ -202,7 +203,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
           // #191 · 仓库名右侧切换按钮（已选态常驻 · pending 灰置 · _isOther 隐藏）
           (function(){ if(_isOther) return null; var _sel=s.selection||(s.snapshot&&s.snapshot.selection)||null, _bid=_sel?_sel.backendId:null; if(_bid==null) return null; var _pend=!!(_sel&&_sel.pending), _col=(typeof backendColorOf==='function'?backendColorOf(_bid):'#6e7681'); return h(Tip, { content: _pend ? '切换后端 · 探测中不可用' : '切换后端' }, h('button',{'data-repo-switch':1,type:'button','aria-label':'切换后端','aria-disabled':_pend?'true':'false',disabled:_pend,onClick:function(e){try{if(e&&e.preventDefault)e.preventDefault();if(e&&e.stopPropagation)e.stopPropagation()}catch(_){};if(_pend)return;try{openSwitchConfirm(s,null)}catch(_){}},style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:16,height:16,borderRadius:4,flex:'none',border:'1px solid '+_col,color:_col,background:'transparent',cursor:_pend?'not-allowed':'pointer',opacity:_pend?0.45:1,fontSize:10,lineHeight:1,padding:0,colorScheme:'light dark'}},Ic({n:'swap',size:10}))) })(),
           // #621 标签配色入口：16 像素见方的小图标（与左边那颗切换后端按钮同规格），点开改色弹窗；
-          //   头部自适应折叠只动标题与仓库名，这颗按钮定宽、不参与裁切，窄面板下也在。
+          //   头部自适应折叠只动仓库名（品牌那一段已按 #667 去掉），这颗按钮定宽、不参与裁切，窄面板下也在。
           //   会话号一起传进去：宿主靠它算「写这个工作区」要用的沙箱政策（#624 的研究结论）。
           h(LabelColorEntry, {
             key: 'labelcolors', cwd: s.cwd, sessionId: sid, narrow: narrow,
