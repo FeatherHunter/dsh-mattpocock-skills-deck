@@ -8,14 +8,15 @@
   PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
   issue：FeatherHunter/dsh-mattpocock-skills-deck#643（地图 #641 第二张票）
 
-  这一版只摆「还没定的东西」。已经被点名去掉的九档——一条路一行、一颗技能一格、说明写在行里、
+  这一版只摆「还没定的东西」。摆法只剩三档（处境 6 块·路成块 / 处境 6 块·路小节 / 20 条路平铺），
+  小面板那一档与「官网 6 组」那一档都已经排除，连开关和代码都不留。已经被点名去掉的九档——一条路一行、一颗技能一格、说明写在行里、
   点完不关、该点哪个＝突出、一行总览＝开、一行一个、一行一个＋向下箭头、横向流水线——
   在这里连开关、代码路径与样式都不留了。已经定下来的：大区域 + 分组块 + 一行一个＋引导线 +
   说明只在悬停（自己画的 100 毫秒气泡）+ 点完关面板 + 不突出「该点哪个」+ 不要一行总览。
   还想对照那些被去掉的样子，去分支上更早的提交看（本文件 git 历史里有）。
 
-  还在选的只有两件：**摆法**（官网 6 组 / 处境 6 块·路小节 / 处境 6 块·路成块 / 20 条路平铺）、
-  **每条路要不要跟一枚官网组编号**；另有小面板那一档做对照。
+  还在选的只有两件：**摆法**（处境 6 块·路成块 / 处境 6 块·路小节 / 20 条路平铺）、
+  **每条路要不要跟一枚官网组编号**——合起来五个形状。
   运行：双击本文件即可，无后端、无依赖、刷新即重置。
   内容来源：research/642-aihero-workflows.md 与官网首页六组。
 -->
@@ -108,9 +109,6 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
 /* 处境分段那行标题（摆法「处境 6 块·路成块」用） */
 .rgroup{font-size:11.5px;color:#cdb8ff;border-bottom:1px solid var(--border);padding:9px 2px 5px;margin-top:2px}
 .rgroup span{color:var(--caption);font-size:10.5px}
-/* ---- 窄到极致时的图标态（小面板那一档） ---- */
-.spop.mini .blk .bs,.spop.mini .blk .bd{display:none}
-.spop.mini .blk .bn{font-size:12px}
 /* ---- 右边：状态面板 ---- */
 .st{font-size:12.5px}
 .strow{display:flex;gap:8px;padding:5px 0;border-bottom:1px dashed var(--border)}
@@ -175,11 +173,11 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
     点完 = <b>注入后关面板</b> · 「当前该点的那一个」= <b>不突出</b> · 一行总览 = <b>不要</b>。<br>
     <b>已经被点名去掉、这一版里连开关和代码都不留的九档</b>：一条路一行、一颗技能一格、说明写在行里、
     点完不关、该点哪个＝突出、一行总览＝开、一行一个、一行一个＋向下箭头、横向流水线。<br>
-    <b>还在选的只有两件：摆法（四档）、每条路要不要跟一枚官网组编号；另有小面板那一档做对照。</b>
+    <b>还在选的只有两件：摆法（三档：处境 6 块·路成块 / 处境 6 块·路小节 / 20 条路平铺）、每条路要不要跟一枚官网组编号——合起来正好五个形状。</b>
   </div>
   <div class="tags">
     <span class="tag hot">换摆法：底部条左右方向键 ← →</span>
-    <span class="tag">形状 / 摆法 / 编号标记 / 宽度（小面板）：并列开关</span>
+    <span class="tag">摆法 / 编号标记：两个开关</span>
     <span class="tag">内容取自 research/642-aihero-workflows.md</span>
   </div>
 </div>
@@ -219,10 +217,10 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px
     <div class="card">
       <h2>怎么用这个原型 <span class="hint">给拿主意的人</span></h2>
       <div class="sub" style="font-size:12.5px">
-        <p>1. 按 <kbd>←</kbd> <kbd>→</kbd> 在四种摆法里换：官网 6 组 / 处境 6 块·路小节 / 处境 6 块·路成块 / 20 条路平铺。看哪一种让你更快认出「我该点哪条」。</p>
+        <p>1. 按 <kbd>←</kbd> <kbd>→</kbd> 在三种摆法里换：处境 6 块·路成块 / 处境 6 块·路小节 / 20 条路平铺。看哪一种让你更快认出「我该点哪条」。</p>
         <p>2. 再切「编号标记」：打开时每条路的名字后面会多一枚官网组编号（例如「02 主干」），用它认路。</p>
-        <p>3. 最后切到「小面板」那一档做对照：贴着那颗按钮、360 像素宽，就是现在真机上的那个位置。</p>
-        <p>4. 八个引导场景每个从干净状态开始，按顺序点「做这一步」走一遍即可。</p>
+        <p>3. 看面板底部那行判语：当前窗口下到底一眼看得全，还是还差多少像素。</p>
+        <p>4. 七个引导场景每个从干净状态开始，按顺序点「做这一步」走一遍即可。</p>
       </div>
     </div>
   </div>
@@ -330,7 +328,6 @@ var SCENE_GROUPS = [
 
 // 摆法：一个开关说清「第一层怎么分 + 一块是什么」。
 var LAYOUTS = [
-  { k:'web',      n:'官网 6 组',        what:'每一块 = 官网首页的一组技能（01 入门 到 06 参考层），组里只列技能、不分先后' },
   { k:'scenesec', n:'处境 6 块·路小节',  what:'每一块 = 一个处境；处境里一条路一个小节（路名 + 那句场景 + 顺着排下来的技能）' },
   { k:'sceneblk', n:'处境 6 块·路成块',  what:'每一块 = 一条路，按处境分成六段；同一条路只画一块，块上写明它还归在哪几处' },
   { k:'flat',     n:'20 条路平铺',      what:'不分处境，20 条路一块一条、按研究里 A 到 Z 的顺序排下来（认路用）' }
@@ -338,17 +335,9 @@ var LAYOUTS = [
 function layoutName(k){ for (var i=0;i<LAYOUTS.length;i++) if (LAYOUTS[i].k === k) return LAYOUTS[i].n; return k }
 function layoutWhat(k){ for (var i=0;i<LAYOUTS.length;i++) if (LAYOUTS[i].k === k) return LAYOUTS[i].what; return '' }
 
-var WIDTHS = {
-  w360: { key:'w360', px:360, name:'360 像素（正常）' },
-  w260: { key:'w260', px:260, name:'260 像素（窄）' },
-  w200: { key:'w200', px:200, name:'200 像素（极窄）' }
-}
-
 var S = {
   open:false,
-  width:'w360',
-  shape:'big',          // pop = 贴着那颗按钮的小面板；big = 屏幕居中、尽量一眼看全的大区域（2026-09-19 拍板走这一档）
-  layout:'web',         // 摆法：web / scenesec / sceneblk / flat
+  layout:'sceneblk',    // 摆法：sceneblk 处境 6 块·路成块 / scenesec 处境 6 块·路小节 / flat 20 条路平铺
   tag:false,            // 每条路的名字后面要不要跟一枚官网组编号
   variant:'B',          // 内部用：下面那几个渲染分支读它（由 applyLayout 从 layout 推出来）
   blocks:'g6',          // 内部用，同上
@@ -365,17 +354,14 @@ function flowById(id){ for (var i=0;i<FLOWS.length;i++) if (FLOWS[i].id===id) re
 
 // 把「摆法 + 编号标记」翻译成渲染分支要用的两个内部开关。
 function applyLayout(){
-  if (S.layout === 'web'){ S.variant = 'B'; S.blocks = 'g6' }
-  else if (S.layout === 'scenesec'){ S.variant = S.tag ? 'C' : 'A'; S.blocks = 'g6' }
+  if (S.layout === 'scenesec'){ S.variant = S.tag ? 'C' : 'A'; S.blocks = 'g6' }
   else if (S.layout === 'sceneblk'){ S.variant = S.tag ? 'C' : 'A'; S.blocks = 's22' }
   else { S.variant = 'A'; S.blocks = 'f17' }
 }
-function groupsFor(){
-  if (S.blocks === 'f17' || S.blocks === 's22') return SCENE_GROUPS
-  return (S.variant === 'B') ? WEB_GROUPS : SCENE_GROUPS
-}
-function isFlowMode(){ return (S.blocks === 'f17' || S.blocks === 's22') }
-function isSimpleGroups(){ return (S.variant === 'B' && S.blocks === 'g6') }
+function groupsFor(){ return SCENE_GROUPS }
+// 「一块一条路」的两档（处境 6 块·路成块、20 条路平铺）才是一块 = 一条路；
+// 「处境 6 块·路小节」那一档一块 = 一个处境，里面一条路一个小节。
+function isFlowMode(){ return (S.layout === 'sceneblk' || S.layout === 'flat') }
 function countSkillRowsOf(g){
   var n = 0
   ;(g.flows||[]).forEach(function(fid){ var f = flowById(fid); if (f) n += f.steps.length })
@@ -471,28 +457,15 @@ function hoverTip(anchor, text){
 
 function syncURL(){
   var u = new URL(location.href)
-  u.searchParams.set('shape', S.shape)
   u.searchParams.set('layout', S.layout)
   u.searchParams.set('tag', S.tag ? '1' : '0')
-  if (S.shape === 'pop') u.searchParams.set('width', String(WIDTHS[S.width].px)); else u.searchParams.delete('width')
   history.replaceState(null,'',u)
 }
 function readURL(){
   var p = new URLSearchParams(location.search)
-  var w = p.get('width')
-  for (var k in WIDTHS) if (String(WIDTHS[k].px) === String(w)) S.width = k
   var lay = p.get('layout')
-  if (lay === 'web' || lay === 'scenesec' || lay === 'sceneblk' || lay === 'flat') S.layout = lay
-  else {
-    // 老的 variant/blocks 两个参数还认，能换算成摆法
-    var ob = p.get('blocks'), ov = (p.get('variant') || '').toUpperCase()
-    if (ob === 'f17') S.layout = 'flat'
-    else if (ob === 's22') S.layout = 'sceneblk'
-    else if (ov === 'B') S.layout = 'web'
-    else if (ov === 'A' || ov === 'C') S.layout = 'scenesec'
-  }
-  if (p.get('tag') === '1' || (p.get('variant') || '').toUpperCase() === 'C') S.tag = true
-  S.shape = (p.get('shape') === 'pop') ? 'pop' : 'big'
+  if (lay === 'scenesec' || lay === 'sceneblk' || lay === 'flat') S.layout = lay
+  if (p.get('tag') === '1') S.tag = true
   applyLayout()
   S.expanded = expandDefault(S.variant)
 }
@@ -508,10 +481,8 @@ function injectSkill(name, flowId){
   closePanel()
 }
 function resetState(){
-  var w = S.width
-  S.open = false; S.width = w
-  S.shape = 'pop'
-  S.layout = 'web'; S.tag = false; applyLayout()
+  S.open = false
+  S.layout = 'sceneblk'; S.tag = false; applyLayout()
   S.expanded = expandDefault(S.variant)
   S.hoverFlow = null; S.hoverSkill = null; S.lastHit = null
   S.injectCount = 0; S.typedIn = ''
@@ -556,23 +527,10 @@ function bigColumns(){
   var w = bigSize().w
   return w >= 1150 ? 3 : (w >= 780 ? 2 : 1)
 }
-// 面板实际能有多高（小面板那一档用）：视口高度的一半多一点、不超过 620 像素，也不能高过假按钮上方那点空间。
-function panelMaxHeight(){
-  var btn = document.getElementById('skillBtn')
-  var r = btn ? btn.getBoundingClientRect() : { top: 300 }
-  return Math.max(180, Math.min(620, Math.round(window.innerHeight * 0.65), Math.round(r.top - 12)))
-}
+// 面板只有一个形状：屏幕居中一大块。
 function panelStyle(){
-  if (S.shape === 'big'){
-    var b = bigSize()
-    return 'left:50%;top:24px;transform:translateX(-50%);width:' + b.w + 'px;height:' + b.h + 'px;max-height:none'
-  }
-  var btn = document.getElementById('skillBtn')
-  var r = btn ? btn.getBoundingClientRect() : { right: 120, top: 300 }
-  var right = Math.max(8, Math.round(window.innerWidth - r.right))
-  var bottom = Math.max(8, Math.round(window.innerHeight - r.top + 4))
-  var w = WIDTHS[S.width].px
-  return 'right:' + right + 'px;bottom:' + bottom + 'px;width:' + w + 'px;max-height:' + panelMaxHeight() + 'px'
+  var b = bigSize()
+  return 'left:50%;top:24px;transform:translateX(-50%);width:' + b.w + 'px;height:' + b.h + 'px;max-height:none'
 }
 // 「一眼看全」：量面板里那一截有没有藏起来的东西，直说要不要滚。
 function fitReport(){
@@ -585,7 +543,6 @@ function fitReport(){
 function panelItems(){
   var gs = groupsFor()
   var items = []
-  if (isSimpleGroups()) return gs.map(function(g){ return { kind:'group', id:g.id, group:g } })
   if (S.layout === 'flat'){
     return flatRouteIds().map(function(fid){ return { kind:'flow', id:fid, flow:flowById(fid), alias:[], heading:'' } })
   }
@@ -612,27 +569,23 @@ function renderPanel(){
   var host = document.getElementById('panelHost')
   if (!S.open){ host.innerHTML = ''; return }
   var items = panelItems()
-  var mini = (S.shape === 'pop') && WIDTHS[S.width].px <= 200
+  // 标题条上那个「几行」= 面板里真的画出几行技能
   var rows = 0
   items.forEach(function(it){
     if (it.kind === 'flow') rows += (it.flow ? it.flow.steps.length : 0)
-    else if (it.group.skills) rows += (S.expanded[it.id] ? it.group.skills.length : 0)
-    else rows += (S.expanded[it.id] ? countSkillRowsOf(it.group) : 0)
+    else rows += countSkillRowsOf(it.group)
   })
-  var big = (S.shape === 'big')
-  var cls = 'spop' + (mini ? ' mini' : '') + (big ? (' big cols' + bigColumns()) : '')
+  var cls = 'spop big cols' + bigColumns()
   var html = '<div class="' + cls + '" id="spop" style="' + panelStyle() + '">'
   html += '<div class="head"><span class="t">按工作流找技能</span><span class="c">' + items.length + ' 块 · ' + rows + ' 行</span><span class="x" id="panelX">✕</span></div>'
   html += '<div class="scroll" id="spopScroll">'
   items.forEach(function(it){
     if (it.heading) html += '<div class="rgroup">' + esc(it.heading) + '</div>'
     if (it.kind === 'flow') html += renderFlowOnlyBlock(it)
-    else if (it.group.flows) html += renderFlowBlock(it.group)
-    else html += renderGroupBlk(it.group)
+    else html += renderFlowBlock(it.group)
   })
   html += '</div>'
-  var foot = '悬停有说明：自己画的气泡，100 毫秒出内容（鼠标停上去）· 点技能：注入后关面板'
-  if (big) foot = '<span class="hit" id="fitVerdict"></span> · ' + foot
+  var foot = '<span class="hit" id="fitVerdict"></span> · 悬停有说明：自己画的气泡，100 毫秒出内容（鼠标停上去）· 点技能：注入后关面板'
   html += '<div class="foot">' + foot + '</div>'
   html += '</div>'
   var scrollBefore = document.getElementById('spopScroll')
@@ -704,22 +657,6 @@ function skillRow(name, fid, lead){
   '</div>'
 }
 
-// 形态一：一块里就是一组技能（摆法「官网 6 组」）
-function renderGroupBlk(g){
-  var openFlag = !!S.expanded[g.id]
-  var skills = g.skills || []
-  var h = '<div class="blk' + (openFlag ? ' open' : '') + '" data-bid="' + g.id + '">'
-  h += '<div class="bh"><span class="arrow">▼</span><span class="num' + (/^[0-9]+$/.test(String(g.id)) ? '' : ' gray') + '">' + esc(g.id) + '</span>' +
-       '<span class="bn">' + esc(g.title) + '</span><span class="bc">' + skills.length + ' 个技能</span></div>'
-  if (openFlag && groupBlurb(g)) h += '<div class="bs">' + esc(groupBlurb(g)) + '</div>'
-  if (openFlag && skills.length){
-    h += '<div class="bd">'
-    skills.forEach(function(n, i){ h += skillRow(n, g.id, (i+1)) })
-    h += '</div>'
-  }
-  return h + '</div>'
-}
-
 // 形态二之一：一块就是一条路（摆法「处境 6 块·路成块」与「20 条路平铺」）
 function renderFlowOnlyBlock(it){
   var f = it.flow
@@ -775,10 +712,8 @@ function renderState(){
   if (flowItems) blockLine += '（其中 ' + flowItems + ' 条路）'
   var rows = []
   rows.push(['摆法', '<b>' + esc(layoutName(S.layout)) + '</b> — ' + esc(layoutWhat(S.layout))])
-  rows.push(['形状', S.shape === 'big'
-    ? ('大区域·屏幕居中，' + bigSize().w + ' × ' + bigSize().h + ' 像素；铺法固定分组块（分 ' + bigColumns() + ' 栏）')
-    : ('小面板·贴着那颗按钮，' + WIDTHS[S.width].px + ' 像素宽（对照用）')])
-  if (S.shape === 'big') rows.push(['一眼看全', esc(fitReport())])
+  rows.push(['面板', '大区域·屏幕居中，' + bigSize().w + ' × ' + bigSize().h + ' 像素；铺法固定分组块（分 ' + bigColumns() + ' 栏）'])
+  rows.push(['一眼看全', esc(fitReport())])
   rows.push(['这一档摆出来', esc(blockLine)])
   if (S.layout !== 'web') rows.push(['编号标记', S.tag ? '每条路的名字后面跟一枚官网组编号（例如「02 主干」）' : '不跟编号'])
   rows.push(['面板开没开', S.open ? '<span class="ok">开着</span>' : '关着'])
@@ -807,7 +742,7 @@ function computeFits(){
     }
     return n
   }
-  var limit = S.shape === 'big' ? bigSize().h : panelMaxHeight()
+  var limit = bigSize().h
   var items = panelItems()
   var used = 40, fits = 0
   for (var k=0;k<items.length;k++){
@@ -832,10 +767,8 @@ function renderBar(){
     return s + '</div>'
   }
   var groups = []
-  groups.push(grp('形状', [{k:'1',n:'小面板'},{k:'0',n:'大区域'}], S.shape === 'pop' ? '1' : '0', 'shape'))
   groups.push(grp('摆法', LAYOUTS.map(function(l){ return { k:l.k, n:l.n, tip:l.what } }), S.layout, 'layout'))
-  if (S.layout !== 'web') groups.push(grp('编号标记', [{k:'1',n:'跟编号'},{k:'0',n:'不跟'}], S.tag ? '1' : '0', 'tag'))
-  if (S.shape === 'pop') groups.push(grp('宽度', [{k:'w360',n:'360'},{k:'w260',n:'260'},{k:'w200',n:'200'}], S.width, 'width'))
+  groups.push(grp('编号标记', [{k:'1',n:'跟编号'},{k:'0',n:'不跟'}], S.tag ? '1' : '0', 'tag'))
   html += groups.join('<div class="sep"></div>')
   html += '<div class="sep"></div><span class="kbd"><kbd>Esc</kbd> 关面板</span>'
   bar.innerHTML = html
@@ -847,8 +780,6 @@ function renderBar(){
 }
 
 function setOption(kind, k){
-  if (kind==='shape') S.shape = (k==='1') ? 'pop' : 'big'
-  if (kind==='width') S.width = k
   if (kind==='layout'){ S.layout = k; applyLayout(); S.expanded = expandDefault(S.variant) }
   if (kind==='tag'){ S.tag = (k==='1'); applyLayout() }
   render()
@@ -875,45 +806,33 @@ function setVariant(layoutKey){
   S.tag = false
   applyLayout()
   S.open = false; S.lastHit = null; S.injectCount = 0; S.typedIn = ''
-  S.shape = 'pop'
   S.expanded = expandDefault(S.variant)
 }
 
 var WALK = [
   {
-    k:'W1', name:'一、四种摆法：先看第一层怎么分',
-    what:'同一个位置换四种摆法，看哪一种让你更快认出「我该点哪条」。',
-    setup:function(){ setVariant('web') },
+    k:'W1', name:'一、三种摆法：先看第一层怎么分',
+    what:'同一个位置换三种摆法，看哪一种让你更快认出「我该点哪条」。三种的区别只在两件事上：有没有处境分段、一条路是自己一块还是住在处境块里。',
+    setup:function(){ setVariant('scenesec') },
     steps:[
-      { say:'先看「官网 6 组」：01 入门与 02 主干默认展开，和官网首页的顺序一样。', watch:'组里只有技能名、没有先后顺序，「我该先点哪个」看不出来。', do:function(){ S.open = true } },
-      { say:'按 ← 切到「处境 6 块·路小节」。', watch:'第一层变成六个处境（我要把一件事从想法做到能合并 / 这块活太大 …），处境里一条路一个小节。', hint:'←' },
-      { say:'再按 ← 切到「处境 6 块·路成块」。', watch:'同一条路挂两个处境时只画一块（诊断既在「活是外面报进来的」也在「东西坏了」），块上写明它还归在哪几处。' },
-      { say:'再按 ← 切到「20 条路平铺」。', watch:'不分处境，20 条路按研究里 A 到 Z 的顺序一块一条，认路最快。' }
+      { say:'先看「处境 6 块·路小节」：第一层是六个处境（我要把一件事从想法做到能合并 / 这块活太大 …）。', watch:'面板头部写着「6 块」；每个处境是一块，块里一条路一个小节，折叠时折的是处境。', do:function(){ S.open = true } },
+      { say:'按 ← 切到「处境 6 块·路成块」。', watch:'头部变成「20 块」：处境成了六行细标题，下面是各自的块，一条路一块、可以单独折叠；同一条路挂两个处境时只画一块，块上写明它还归在哪几处。', hint:'←' },
+      { say:'再按 ← 切到「20 条路平铺」。', watch:'六行处境标题没了，20 条路按研究里 A 到 Z 的顺序平铺；认路最快，但看不出「我此刻处在哪个处境」。' },
+      { say:'回过头想一下：你要的是「先按处境缩小范围」，还是「直接一眼扫完所有路」。', watch:'这一件事决定了摆法选哪一档——其余差别都是它带出来的。' }
     ]
   },
   {
-    k:'W2', name:'二、编号标记：认路的第二层信息',
-    what:'「编号标记」打开时，每条路的名字后面会多一枚官网组编号（例如「02 主干」）。这一场看它值不值得留。',
+    k:'W2', name:'二、编号标记：那枚小标签值不值得留',
+    what:'「编号标记」打开时，每条路的名字后面会多一枚官网组编号（例如「02 主干」）。这一场只看它值不值。',
     setup:function(){ setVariant('sceneblk') },
     steps:[
-      { say:'先看没编号的样子。', watch:'处境是处境、路是路，但没有「这条路落在官网哪一组」的线索。', do:function(){ S.open = true } },
-      { say:'把「编号标记」切到「跟编号」。', watch:'每条路的名字后面多一枚小标签（02 主干 / 03 塑形 / 04 维护 / 05 生产力）。看一眼：这枚标签是帮你认路，还是噪音。', opt:['tag','1'] },
+      { say:'先看没有编号的样子。', watch:'处境是处境、路是路，但没有「这条路落在官网哪一组」的线索。', do:function(){ S.open = true } },
+      { say:'把「编号标记」切到「跟编号」。', watch:'每条路的名字后面多一枚小标签（02 主干 / 03 塑形 / 04 维护 / 05 生产力）。看一眼：它帮你认路，还是只是多了一点噪音。', opt:['tag','1'] },
       { say:'切到「20 条路平铺」，看同一枚标签在平铺那一档里读起来怎么样。', watch:'平铺时没有处境标题帮忙，这枚标签这时更像唯一的认路线索。', opt:['layout','flat'] }
     ]
   },
   {
-    k:'W3', name:'三、小面板那一档（对照用）',
-    what:'真机上那颗紫色按钮打开的面板本来是贴按钮的小面板。这一场把它摆出来对照：同样是分组内容，小块地方里是什么感觉。',
-    setup:function(){ setVariant('web') },
-    steps:[
-      { say:'先看大区域这一档：屏幕居中一大块，内容一眼看全。', do:function(){ S.open = true } },
-      { say:'把「形状」切到「小面板」。', watch:'同一个面板位置缩到 360 像素宽、贴着那颗按钮；内容要靠折叠与滚动看。', opt:['shape','1'] },
-      { say:'再把宽度切到 200 像素。', watch:'说明与技能行一起收起来，只剩块标题——这就是现在「文字收成图标」那一档的等效行为。', opt:['width','w200'] },
-      { say:'切回大区域，想想两种位置各自适合什么场合。', opt:['shape','0'] }
-    ]
-  },
-  {
-    k:'W4', name:'四、那行说明：自己画的悬停气泡',
+    k:'W3', name:'三、那行说明：自己画的悬停气泡',
     what:'说明已经定成「只在悬停里」，而且是原型自己画的气泡：固定 100 毫秒出内容，不是浏览器自带的那层提示。',
     setup:function(){ setVariant('sceneblk') },
     steps:[
@@ -924,7 +843,7 @@ var WALK = [
     ]
   },
   {
-    k:'W5', name:'五、跨会话那条用法',
+    k:'W4', name:'四、跨会话那条用法',
     what:'像 handoff 分出去做原型、做完再交回来这种，怎么在一屏里说清它要换会话。',
     setup:function(){ setVariant('sceneblk') },
     steps:[
@@ -934,7 +853,7 @@ var WALK = [
     ]
   },
   {
-    k:'W6', name:'六、主干五棒（拿真实内容对一遍）',
+    k:'W5', name:'五、主干五棒（拿真实内容对一遍）',
     what:'用内容最实的一条路检查排列对不对：官网反复给出的那条主干。',
     setup:function(){ setVariant('sceneblk') },
     steps:[
@@ -945,7 +864,7 @@ var WALK = [
     ]
   },
   {
-    k:'W7', name:'七、一行一个＋引导线：为什么选它',
+    k:'W6', name:'六、一行一个＋引导线：为什么选它',
     what:'技能排版已经定成「一行一个＋引导线」：一行一个的清爽不动，序号做成串在一条竖线上的圆点，顺序感一眼看得出。',
     setup:function(){ setVariant('sceneblk') },
     steps:[
@@ -955,11 +874,11 @@ var WALK = [
     ]
   },
   {
-    k:'W8', name:'八、大区域这一档：一眼看全',
-    what:'形状已经定成大区域。这一场看底部那行判语：当前窗口下到底看全了没有。',
+    k:'W7', name:'七、一眼看全：底部那行判语',
+    what:'内容一眼看得全，是这一版最要紧的一条。面板底部那行判语量的是「当前窗口下到底看全了没有」。',
     setup:function(){ setVariant('sceneblk') },
     steps:[
-      { say:'打开面板。', watch:'屏幕居中一大块；底部那行写着「一眼看全：全看得到，不用滚」或者「还差 N 像素，要滚」。', do:function(){ S.open = true } },
+      { say:'打开面板。', watch:'底部那行写着「一眼看全：全看得到，不用滚」或者「还差 N 像素，要滚」。', do:function(){ S.open = true } },
       { say:'把窗口拖窄一点，看那行判语怎么变。', watch:'窄了之后要么要滚，要么块会折行——这正是真机上要量的那件事。' },
       { say:'切到「20 条路平铺」再拖一次窗口。', watch:'平铺那一档块最多、最吃高度，它是「一眼看全」最吃紧的一种摆法。', opt:['layout','flat'] }
     ]
