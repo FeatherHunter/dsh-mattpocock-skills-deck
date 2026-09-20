@@ -53,7 +53,7 @@ console.log('== A 静态层：标题四个字、标题行可换行、按钮不�
   check(/flexWrap:\s*'wrap'/.test(rowSlice), '标题那一行可以换行（flexWrap wrap）——窄面板下按钮整组挪到第二行，而不是被压成竖排')
   check(/minWidth:\s*0[^}]*overflow:\s*'hidden'[^}]*textOverflow:\s*'ellipsis'/.test(rowSlice) || /overflow:\s*'hidden'[^}]*textOverflow:\s*'ellipsis'[^}]*whiteSpace:\s*'nowrap'/.test(rowSlice), '标题自己可收缩（minWidth 0 + 省略号）')
   const nowrapCount = (rowSlice.match(/whiteSpace:\s*'nowrap'/g) || []).length
-  check(nowrapCount >= 4, '标题行里四颗按钮都写了「不许断行」（实得 ' + nowrapCount + ' 处，应为 4：清除后端选择 / 取消 / 确认切换 / ✕）')
+  check(nowrapCount >= 3, '标题行里三颗按钮都写了「不许断行」（实得 ' + nowrapCount + ' 处，应为 3：取消 / 确认切换 / ✕ —— 「清除后端选择」那颗 2026-09-21 已删）')
   check(/overflowX:\s*'hidden'/.test(rowSlice), '卡片自己也挡住横向溢出（overflowX hidden）')
 }
 
@@ -170,16 +170,20 @@ check(mounted.css.indexOf('.dsws-btn') >= 0, '取到了产物自己的样式表�
     console.log('  宽度 ' + w + '：卡片 ' + JSON.stringify(m.card) + '；按钮 ' + JSON.stringify(m.btns.map((b) => b.t + ':' + b.w + 'x' + b.h)))
     check(v.ok, '宽度 ' + w + ' 下：每颗按钮都只有一行（竖排的高 >40 的有 ' + v.tall.length + ' 颗）、卡片不横向溢出、按钮都待在卡片里（越界 ' + v.over.length + ' 颗）')
   }
-  // 反证：把这一版的换行写法做坏 —— 按钮不许断行去掉、标题行不许换行、按钮恢复成可被压缩（flex none 去掉）。
-  //   这三步合起来就是用户截图里那一版：窄面板下三颗按钮被压成竖排、确认按钮被推出卡片右边。
-  const broken = mounted.overlayHTML
+  // 反证：这一条量的是**尺子还灵不灵**，要复现的是用户截图里那一版（长标签按钮 + 没有那几处换行保护）：
+  //   ① 把当初「清除后端选择」那颗六字长按钮放回去；② 把 title 行的 white-space:nowrap / flex-wrap:wrap /
+  //   flex:none 三处保护撤掉。2026-09-21 对抗式审查指出：只做 ② 已经压不垮这一行（长按钮删了，剩下的字都短），
+  //   反证红不起来等于这一门失去了反证 —— 所以把 ① 一起做进去。
+  const broken = mounted.overlayHTML.replace(/(<button\b[^>]*>)([^<]*)(<\/button>)/g, function (m, open, text, close) {
+    return /Confirm|确认/.test(text) ? open + '清除后端选择（长标签压测）' + close : m
+  })
     .replace(/white-space:\s*nowrap/gi, 'white-space: normal')
     .replace(/flex-wrap:\s*wrap/gi, 'flex-wrap: nowrap')
     .replace(/flex:\s*none/gi, 'flex: 0 1 auto')
-  check(broken !== mounted.overlayHTML, '反证 B：能把三处换行写法改坏（说明这一门量的就是这几处）')
+  check(broken !== mounted.overlayHTML, '反证 B：能把一颗按钮换回当初那颗长标签（说明这一门量的就是那一行）')
   const mb = await measure(380, broken, mounted.css)
   const vb = verdict(mb)
-  check(!vb.ok, '反证 B 成立：改坏之后 380 宽度当场量不通过（竖排按钮 ' + vb.tall.length + ' 颗、越出卡片 ' + vb.over.length + ' 颗、卡片 ' + JSON.stringify(vb.card) + '）')
+  check(!vb.ok, '反证 B 成立：放进长标签之后 380 宽度当场量不通过（竖排按钮 ' + vb.tall.length + ' 颗、越出卡片 ' + vb.over.length + ' 颗、卡片 ' + JSON.stringify(vb.card) + '）')
   await browser.close()
 }
 
@@ -225,6 +229,9 @@ const makeSnap = function (srcText) {
     nowStr: () => '00:00:00',
     lcApplySavedColorsOnInstall: () => {},
     promptLang: () => 'zh',
+    // #669 第 6 件（ADR 20260921）：hint 只报「用户亲手选过的那条」——这条闸的真身在 store-prefs.js，
+    //   这里取真身来判，所以 fixture 里的选择必须带 userPicked 才会上报后端（不带时请求上就没有 backendId）。
+    userHintOf: new Function('return ' + (read('src/client/kernel/store-prefs.js').split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || '').trim().replace(/^export const userHintOf = /, ''))(),
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
     setTimeout, clearTimeout, AbortController,
     console: { log () {}, warn () {}, error () {} },
@@ -242,7 +249,7 @@ const runScenarios = async function (srcText) {
     const s = makeSnap(srcText)
     const st = { cwd: 'D:\\w1', selection: { backendId: 'github' }, snapshot: { bid: 'github-旧' } }
     s.loadSnapshot(st, true, true)
-    st.selection = { backendId: 'markdown' } // 绑定成功：乐观切到新后端
+    st.selection = { backendId: 'markdown', userPicked: true } // 绑定成功：用户亲手切到新后端（带标记 → 这一次请求会把它当 hint 上报）
     s.loadSnapshot(st, true, true)
     await tick()
     out.debug = s.calls.map((c) => c.method + '|' + ((c.params && c.params.backendId) || '-'))
@@ -283,7 +290,7 @@ const runScenarios = async function (srcText) {
     const st = { cwd: 'D:\\w4', selection: { backendId: 'github' }, snapshot: null }
     s.loadSnapshot(st, true, true)
     await tick()
-    st.selection = { backendId: 'markdown' }
+    st.selection = { backendId: 'markdown', userPicked: true }
     s.calls[0].d.res(snapOf('github', '切换前那一份'))
     await tick()
     out.staleDropped = !st.snapshot || st.snapshot.tag !== '切换前那一份'

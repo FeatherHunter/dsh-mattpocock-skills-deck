@@ -94,7 +94,9 @@
       // 2026-08-28 修复（后端物理隔离）：链的后端段必须与 UI 当前绑定的后端一致——
       //   此前只传 cwd，host 回退到 detect 自产的 selection（默认 github），导致 markdown 工作区出现 GitHub 检查行。
       // #529：附带当前语言（host 明细按语言双语产出，不传则恒为中文）
-      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {}, force ? { force:true } : {}, { lang: _langForChain })
+      // #669 第 6 件（ADR 20260921）：只有用户亲手选过的那条才当 hint 上报 —— 派生值不许冒充意图
+      const _hintBid = (typeof userHintOf === 'function') ? userHintOf(st.selection) : undefined
+      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, _hintBid ? { backendId: _hintBid } : {}, force ? { force:true } : {}, { lang: _langForChain })
       const chainT0 = Date.now()
       // 在途登记：这一次请求的序号记在这把键上（#669 第 4 件）。发出去就记，
       //   回包时凭它跟「这个键上最新那次的序号」比一次，比不过就是要丢的那一次（见下面那段竞态说明）。

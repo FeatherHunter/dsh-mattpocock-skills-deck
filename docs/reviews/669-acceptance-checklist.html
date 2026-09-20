@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>验收清单 · 切换后端之后该发生什么（#669 第 6 件 / ADR 20260921）</title>
+<style>
+  :root { color-scheme: dark }
+  body { margin: 0; padding: 28px 32px 60px; background: #0b0f16; color: #e6e8ee;
+         font: 14px/1.75 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; max-width: 980px }
+  h1 { font-size: 21px; margin: 0 0 6px }
+  h2 { font-size: 16px; margin: 30px 0 8px; padding-top: 14px; border-top: 1px solid #1e2531 }
+  .sub { color: #8b93a3; margin: 0 0 18px; font-size: 13px }
+  .note { background: #131a25; border-left: 3px solid #58a6ff; padding: 10px 14px; border-radius: 6px; margin: 12px 0 }
+  .warn { background: #211a12; border-left: 3px solid #f59e0b }
+  ul { padding-left: 22px; margin: 8px 0 }
+  li { margin: 5px 0 }
+  label { display: block; margin: 6px 0 6px 2px; cursor: pointer }
+  input[type=checkbox] { margin-right: 8px; transform: translateY(1px) }
+  code { background: #161d29; padding: 1px 6px; border-radius: 4px; font-size: 12.5px }
+  .bad { color: #f87171 } .good { color: #4ade80 } .dim { color: #8b93a3 }
+  table { border-collapse: collapse; margin: 10px 0; font-size: 13px }
+  th, td { border: 1px solid #222b39; padding: 6px 10px; text-align: left; vertical-align: top }
+  th { background: #141b26; font-weight: 600 }
+</style>
+</head>
+<body>
+<h1>验收清单 · 切换后端之后该发生什么</h1>
+<p class="sub">对应：#669 第 6 件 · 决策记录 <code>docs/adr/20260921-tracker-choice-precedence.md</code> · 发版 1.7.24</p>
+
+<div class="note warn">
+  <b>先做这一步：重启 DSH 桌面应用。</b>这次改动里有宿主那一侧（判定顺序），必须重启才会加载新的一份；面板本身刷新页面即可，但宿主不重启就还是旧逻辑。
+</div>
+
+<div class="note">
+  <b>这次改了哪三件事</b>（都不需要额外设置）：
+  <ul>
+    <li><b>谁说了算</b>：用户自己在面板上选的后端 &gt; 仓库里那份 <code>docs/agents/issue-tracker.md</code>（AI 写下的声明）&gt; 自动识别。</li>
+    <li><b>切完之后做什么</b>：已经初始化过的仓库 → 给 AI 一段「把记录后端的地方对齐到新后端」的指令；还没初始化 → 和黄色横幅那条路完全一样（先问域文档布局，答完注入初始化全文）；仓库还没就绪 → 什么都不注入，只提示下一步。</li>
+    <li><b>按不动的按钮不再假装能按</b>：「清除后端选择」删掉了；「迁移」「清空」和 GitLab 变灰、按不动（鼠标停上去有理由）。</li>
+  </ul>
+</div>
+
+<h2>场景一 · 已初始化的仓库，从 GitHub 切到本地 Markdown（就是原来那次失败的现场）</h2>
+<ul>
+  <li><span class="dim">前置：该工作区已经初始化过（<code>docs/agents/issue-tracker.md</code> 里写着 GitHub），面板顶部后端标显示 GitHub。</span></li>
+</ul>
+<label><input type="checkbox"> 点顶部后端标 → 面板里的「切换后端」→ 目标选 <b>Markdown</b> → 方式保持「保留」→ 点「确认切换」</label>
+<label><input type="checkbox"> 弹窗关闭；底部出现提示条：<b>「已切换到 Markdown（旧数据已保留）」</b></label>
+<label><input type="checkbox"> <b>顶部后端标立刻变成 Markdown，并且不再变回 GitHub</b>：等 10 秒、再点一次面板刷新、再关掉面板重开，都仍是 Markdown</label>
+<label><input type="checkbox"> 会话输入框里被放进一段话，内容是「后端已从 GitHub 切换为 Markdown，请把仓库里记录后端的那几处对齐到 Markdown」，点名要改 <code>docs/agents/issue-tracker.md</code>、<code>docs/agents/domain.md</code>、<code>AGENTS.md</code> 的 <code>## Agent skills</code> 块，并要求改完回读、把那一行原文抄给你</label>
+<label><input type="checkbox"> 那段话<b>没有</b>要求重新初始化，也没有要求重建 CONTEXT.md 之类的产物、没有要求新建骨架</label>
+<label><input type="checkbox"> 把那段话发给 AI 执行 → 仓库里 <code>docs/agents/issue-tracker.md</code> 里那一行变成 Markdown；改完刷新面板仍是 Markdown</label>
+<label><input type="checkbox"> 反过来切回 GitHub：提示条是「已切换到 GitHub（旧数据已保留）」，注入的那段话里 从/到 两个字是 Markdown → GitHub</label>
+<label><input type="checkbox"> 切回 GitHub 之后，本地 Markdown 那一边的 issue 数据仍在、没有被删（切换只换指向）</label>
+
+<h2>场景二 · 还没初始化的仓库（仓库已就绪），切到 Markdown</h2>
+<label><input type="checkbox"> 提示条是：<b>「已切换到 Markdown，接下来按提示完成初始化」</b>（不再说「旧数据已保留」）</label>
+<label><input type="checkbox"> 面板里出现「初始化前最后一问」那张小卡：问「这个仓库的各部分共用一套用语，还是各有各的用语？」，两个选项是「根目录一份 CONTEXT.md」「子项目各一份 CONTEXT.md，根目录 CONTEXT-MAP.md」</label>
+<label><input type="checkbox"> 选完布局之后才注入初始化那段话；<b>没选之前一个字都不注入</b></label>
+<label><input type="checkbox"> 这一次注入的话和点状态栏黄色横幅那颗「初始化」给出的是一样的（同一个出口、同一份判据）</label>
+
+<h2>场景三 · 还没初始化、而且仓库还没就绪（例如切到 GitHub，但远端仓库还没建）</h2>
+<label><input type="checkbox"> 提示条是<b>警示色</b>的：「已切换到 GitHub；这个工作区的仓库还没就绪，先按状态栏那条提示处理」</label>
+<label><input type="checkbox"> 会话里<b>一个字都没有被注入</b>（不会冒出一段初始化长文让你在还没建仓库的时候就去初始化）</label>
+<label><input type="checkbox"> 状态栏那条提示（黄条）与它给的下一步动作照旧能走通</label>
+
+<h2>场景四 · 按不动的按钮</h2>
+<label><input type="checkbox"> 「切换后端」弹窗里：<b>「清除后端选择」那颗按钮不见了</b>（只剩取消、确认切换、✕）</label>
+<label><input type="checkbox"> 「迁移」「清空」两张卡都变灰、点不动；鼠标停上去有理由；「清空」的正文写明今天没有实现</label>
+<label><input type="checkbox"> <b>GitLab</b> 在三个地方都灰、都点不动：切换后端弹窗的目标按钮、面板里那张选后端的窗、状态栏点出来的那张选后端的窗（鼠标停上去都有一句「这个后端能力还不全（筹备中），先别切过去。」）</label>
+<label><input type="checkbox"> 面板顶部的后端标那一条行里，三颗按钮（取消 / 确认切换 / ✕）都是横着一行、没有变成竖排文字，也没有被挤出卡片</label>
+
+<h2>场景五 · 失败要说清楚</h2>
+<label><input type="checkbox"> 断网或把后端切到一个坏掉的环境时点确认切换：底部出现<b>失败提示</b>，顶部后端标<b>回到切换前那一个</b>（不许停在新后端假装成功）</label>
+<label><input type="checkbox"> 失败之后会话里没有被注入任何指令</label>
+
+<h2>场景六 · 全新工作区第一次选后端（蓝条那条路）</h2>
+<label><input type="checkbox"> 提示条是「已切换到 X，接下来按提示完成初始化」（这句话在那个窗里才是对的：那里从来没有「旧数据」）</label>
+<label><input type="checkbox"> 绑好之后黄色横幅立刻出现（不用等十秒）</label>
+
+<h2>已知限制（这几条不是故障，验收时如实记下就好）</h2>
+<table>
+  <tr><th>限制</th><th>为什么</th><th>怎么办</th></tr>
+  <tr>
+    <td>切换后如果<b>没有</b>让 AI 跑那段对齐指令，仓库里 <code>docs/agents/issue-tracker.md</code> 仍是旧后端</td>
+    <td>插件不写用户的仓库文件（一直如此）；真正持久的「真相」是文件，靠 AI 去改</td>
+    <td>把那段话发给 AI 执行一次</td>
+  </tr>
+  <tr>
+    <td>用户手动改 <code>docs/agents/issue-tracker.md</code>，面板<b>不会</b>跟着变</td>
+    <td>「用户的手动选择」优先级最高，而这份选择没有到期时间（决策记录第 4 节攻击 8）</td>
+    <td>在面板上再切一次；或清掉这台浏览器的缓存（切回「锚文件说了算」）</td>
+  </tr>
+  <tr>
+    <td>换一台机器 / 清了浏览器缓存后，面板回到锚文件写的那个后端</td>
+    <td>用户的选择按工作区存在浏览器本地；跨机器没有同步机制（决策记录第 4 节攻击 2）</td>
+    <td>在新机器上再选一次，或让 AI 把锚文件改好</td>
+  </tr>
+  <tr>
+    <td>本地 Markdown 后端看不见 GitHub 上的旧 issue</td>
+    <td>「保留」只换指向，不搬数据；切回 GitHub 就又能看见</td>
+    <td>需要搬数据的话，「迁移」今天没有实现（已置灰）</td>
+  </tr>
+</table>
+
+<h2>排查用（可选）</h2>
+<label><input type="checkbox"> 打开调试开关后切一次后端，日志里能看到一条 <code>inject.decision</code>：<code>prompt=switchAlign</code>、<code>kind=align</code>、<code>layout=unset</code>（未初始化那一档记的是 <code>prompt=setupRun</code>）；日志里不该出现仓库路径原文或那段话的原文</label>
+
+<p class="dim" style="margin-top:26px">验收结论请写回对应的票里（每条打勾或写明现象 + 截图）。任何一条与这里写的不一样，都算没通过。</p>
+</body>
+</html>

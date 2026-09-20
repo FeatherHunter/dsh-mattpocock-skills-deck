@@ -90,7 +90,8 @@ export const ChecksTab = ({ st }) => {
           },
           refresh: async function (target) {
             try {
-              if (typeof host !== 'undefined' && host.call) { await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (st.selection && st.selection.backendId) || undefined }) }
+              // #669 第 6 件（ADR 20260921）：hint 只报「用户亲手选过的那条」（派生值不许冒充意图）
+              if (typeof host !== 'undefined' && host.call) { await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined }) }
             } catch (e) {}
             try { loadChain(st, true) } catch (e) {}
             try { loadSnapshot(st, true, true) } catch (e) {}

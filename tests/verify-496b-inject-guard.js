@@ -28,11 +28,15 @@ check(!prompts.includes('repoRemoteFix'), '缺仓长文那一档已退役（决�
 check(!/(===|==)\s*['"](github|gitlab|markdown)['"]|['"](github|gitlab|markdown)['"]\s*(===|==)/.test(prompts), 'prompts.js 无品牌等值分支')
 // 2) 待补标记按工作区键隔离
 check(prompts.includes('pendingSetupAfterPublish') && prompts.includes('pendingSetupCwd'), '待补标记按工作区键隔离（字段仍在；置真它的那一档已退役，见 prompts.js 里的说明）')
-// 3) 注入入口：状态栏黄条仍走决策器；门控确认与切换后端这三条路都不许再注入
+// 3) 注入入口：状态栏黄条仍走决策器；门控确认那两条路不许再注入；切换后端按场景注入（#669 第 6 件 / ADR 20260921）
 check(/injectSetupDecision\(s,id,\{allowCard:true\}\)/.test(sb), '状态栏黄条那条路仍走决策器（允许弹那张布局小卡）')
 check(!/injectSetupDecision\s*\(/.test(dock), 'Dock 的门控确认不再注入（#664）')
 check(!/injectSetupDecision\s*\(/.test(og), 'OverlayGate 的门控确认不再注入（#664）')
-check(!/injectSetupDecision\s*\(/.test(sw), 'store-switch 的切换后端确认不再注入（#664）')
+// 切换后端那条路 2026-09-21 按场景分了两支：未初始化走决策器（与黄条同一条，允许开卡），
+// 已初始化注入的是另一条「切换后对齐」的 prompt。这里只钉「不许自己拼初始化全文」这条 #664 的本意。
+check(!/setupRunPrompt\(st,\s*targetId\)/.test(sw), 'store-switch 不自己拼初始化全文（#664 的本意不动）')
+check(/injectSetupDecision\(st,\s*targetId,\s*\{\s*allowCard:\s*true\s*\}\)/.test(sw), '未初始化那一支走决策器 + 允许开那张布局小卡（#669 第 6 件）')
+check(/promptText\('switchAlign'/.test(sw), '已初始化那一支注入的是 switchAlign（对齐仓库里的后端记录）')
 // 4) 两处建仓成功消费标记，仅补一次
 check(nr.includes('consumePendingSetup(st)'), '旧红卡建成后消费标记')
 check(mv.includes('consumePendingSetup(st)'), '向导建成后消费标记')

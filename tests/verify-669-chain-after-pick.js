@@ -102,8 +102,13 @@ function makeChain (srcText) {
   const calls = []
   const cache = new Map()
   const keyOf = (cwd, bid, lang) => String(cwd) + '|' + String(bid || '') + '|' + String(lang || '')
+  // #669 第 6 件（ADR 20260921）：hint 只报「用户亲手选过的那条」——这条闸的真身住在 store-prefs.js，
+  //   本门禁取它的真身来判（不另写一份替身），所以下面那些 fixture 必须带上 userPicked 才会上报后端。
+  const hintLine = read('src/client/kernel/store-prefs.js').split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || ''
+  const userHintOf = new Function('return ' + hintLine.trim().replace(/^export const userHintOf = /, ''))()
   const sandbox = {
     host: { call: (method, params) => { const d = deferredOf(); calls.push({ method: method, params: params, d: d }); return d.p } },
+    userHintOf: userHintOf,
     wsKeyOf: (p) => String(p || '').replace(/\\/g, '/').toLowerCase(),
     getChainCacheKey: keyOf,
     getCachedChain: (cwd, bid, lang) => cache.get(keyOf(cwd, bid, lang)) || null,
@@ -139,7 +144,7 @@ const runScenarios = async function (srcText) {
     const c = makeChain(srcText)
     const st = { cwd: 'D:\\demo1', selection: null, chainSnapshot: null }
     c.loadChain(st, false)
-    st.selection = { backendId: 'github' }
+    st.selection = { backendId: 'github', userPicked: true } // #669 第 6 件：这一处是「用户在门控窗点确认选出来的那条」，只有带标记的才当 hint 上报
     c.loadChain(st, true)
     out.scenarioOneSent = c.calls.length === 2 && !c.calls[0].params.backendId && c.calls[1].params.backendId === 'github'
     c.calls[1].d.res(snapOf(NEW10))
@@ -156,7 +161,7 @@ const runScenarios = async function (srcText) {
     const c = makeChain(srcText)
     const st = { cwd: 'D:\\demo2', selection: null, chainSnapshot: null }
     c.loadChain(st, false)
-    st.selection = { backendId: 'github' }
+    st.selection = { backendId: 'github', userPicked: true } // #669 第 6 件：这一处是「用户在门控窗点确认选出来的那条」，只有带标记的才当 hint 上报
     c.loadChain(st, true)
     c.calls[0].d.res(snapOf('旧（6 步）'))
     await tick()
@@ -169,9 +174,9 @@ const runScenarios = async function (srcText) {
   //   新后端那次先回来，旧后端那次晚回来 —— 晚回来的那份不许把新链盖成旧后端的链。
   {
     const c = makeChain(srcText)
-    const st = { cwd: 'D:\\demo3', selection: { backendId: 'github' }, chainSnapshot: { id: '初始' } }
+    const st = { cwd: 'D:\\demo3', selection: { backendId: 'github', userPicked: true }, chainSnapshot: { id: '初始' } }
     c.loadChain(st, true)
-    st.selection = { backendId: 'markdown' }
+    st.selection = { backendId: 'markdown', userPicked: true } // 同上：切换（用户亲手选的那一下）
     c.loadChain(st, true)
     c.calls[1].d.res(snapOf('markdown 的链（新）'))
     await tick()
@@ -183,8 +188,8 @@ const runScenarios = async function (srcText) {
   // 现场 4：两个工作区各自在飞（同一个页面里两个会话）—— 谁都不许把对方顶掉。
   {
     const c = makeChain(srcText)
-    const stA = { cwd: 'D:\\wsA', selection: { backendId: 'github' }, chainSnapshot: null }
-    const stB = { cwd: 'D:\\wsB', selection: { backendId: 'github' }, chainSnapshot: null }
+    const stA = { cwd: 'D:\\wsA', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
+    const stB = { cwd: 'D:\\wsB', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
     c.loadChain(stA, true)   // A 工作区先发
     c.loadChain(stB, true)   // B 工作区后发（键不同）
     c.calls[0].d.res(snapOf('A 工作区的链'))
@@ -197,7 +202,7 @@ const runScenarios = async function (srcText) {
   // 现场 5：同一个键上两次重取（8 秒那一拍与手动重查撞上）—— 先发的那次晚回来，不许盖掉后发的那次。
   {
     const c = makeChain(srcText)
-    const st = { cwd: 'D:\\demo5', selection: { backendId: 'github' }, chainSnapshot: { id: '初始' } }
+    const st = { cwd: 'D:\\demo5', selection: { backendId: 'github', userPicked: true }, chainSnapshot: { id: '初始' } }
     c.loadChain(st, true)
     c.loadChain(st, true)
     c.calls[1].d.res(snapOf('后一次（新）'))
@@ -210,7 +215,7 @@ const runScenarios = async function (srcText) {
   // 现场 6（回归）：非 force 的同键并发照旧复用一次请求，两个调用方都拿到同一份快照。
   {
     const c = makeChain(srcText)
-    const st = { cwd: 'D:\\demo6', selection: { backendId: 'github' }, chainSnapshot: null }
+    const st = { cwd: 'D:\\demo6', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
     const p1 = c.loadChain(st, false)
     const p2 = c.loadChain(st, false)
     c.calls[0].d.res(snapOf('同键非 force 的一次'))

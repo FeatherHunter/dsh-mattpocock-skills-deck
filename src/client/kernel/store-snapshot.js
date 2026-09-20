@@ -189,8 +189,8 @@
           changed=true
         }
         // 同步 selection/repository 镜像（per-cwd）
-        // 2026-08-28 审查：快照 selection 合并统一走 mergeSelection——旧快照的 fallback null 不得覆盖新意图（LocalStorage 绑定）
-        if (c.selection !== undefined) { if (mergeSelection(st, c.selection)) changed = true }
+        // 2026-08-28 审查：快照 selection 合并统一走 mergeSelection——旧快照的 fallback null 不得覆盖新意图（LocalStorage 绑定）；#669 第 6 件补一句：这里水合的是**缓存**里那份旧快照，它带的 selection 是切换前那份结论，所以当会话这一侧已有「用户刚点的那一下」（带 userPicked 的选择）时整条不合并 —— 否则 hint 还没发出去就被抹掉、仓库标回退；宿主这次的真回包仍走 mergeSelection，照旧能纠正用户的选择。
+        if (c.selection !== undefined && !(typeof userHintOf === 'function' && userHintOf(st.selection))) { if (mergeSelection(st, c.selection)) changed = true }
         if (c.repository !== undefined) { st.repository = c.repository; setCachedRepository(st.cwd, c.repository) }
         // backendModules 缓存
         if (c.backendModules) { st.backendModules = c.backendModules; setPresentationMap(c.backendModules) }
@@ -236,13 +236,13 @@
      * 优先级：真相（backendId 非空 / explicit 显式 Other）> 意图（localStorage 持久化绑定）> fallback null 尊重意图 > pending 保留。
      *  - explicit/matches（backendId 非空）：落盘/绑定真相 → 覆盖并写回缓存（意图自愈为真相）
      *  - explicit null（source='explicit'，用户显式无后端逃生舱）：明确意图 → 覆盖
-     *  - fallback null（source='fallback'，无锚无匹配）：尊重客户端持久化意图——cur 已选则不覆盖不写缓存；
-     *    同时等效承接旧 isSuspiciousFallback 的 idle-refresh flake 防抖（flake 即 fallback null，不覆盖即防抖、不污染 localStorage）
+     *  - fallback null（source='fallback'，无锚无匹配）：尊重客户端持久化意图——cur 已选则不覆盖不写缓存；同时等效承接旧 isSuspiciousFallback 的 idle-refresh flake 防抖（flake 即 fallback null，不覆盖即防抖、不污染 localStorage）
      *  - pending（探测中）：保留现状，不闪
      * @returns {boolean} 是否发生覆盖（changed）
      */
     export const mergeSelection = function (st, incoming) {
       if (!incoming || typeof incoming !== 'object') return false
+      incoming = (typeof keepUserPick === 'function') ? keepUserPick(st.selection, incoming) : incoming // #669 第 6 件（ADR 攻击 1）：宿主回同一条后端时留住「用户亲手选的」标记，规则住在 store-prefs.js
       if (!incoming.backendId) {
         if (incoming.pending) return false
         if (incoming.source === 'explicit') {

@@ -59,7 +59,7 @@ const fail = function (msg) { failed = true; problems.push(msg); return false }
 const check = function (cond, msg) { if (!cond) { failed = true; problems.push(msg) } return !!cond }
 
 // ==================== 0. 契约常量（硬编码，改动要走评审） ====================
-const EXPECT_REGISTRY_ENTRIES = 20 // 注册表条目数（2026-09 现状；拆行/换引号不会让它少，因为 S1 用求值解析）
+const EXPECT_REGISTRY_ENTRIES = 21 // 注册表条目数（2026-09-21 现状：新增「切换后端后对齐」那条 switchAlign；拆行/换引号不会让它少，因为 S1 用求值解析）
 // S3 各后端 prompts 块顶层键数。v2 §1.1 写的是 7/9/6，实测不成立（gitlab 只有 4 键、markdown 只有 2 键），
 // 这里按实测值硬编码并在失败信息里报出真实值，避免「按错值写断言导致永久红」。
 const EXPECT_BACKEND_KEYS = { github: 6, gitlab: 5, markdown: 3 }
@@ -76,7 +76,7 @@ const PROTECTED = [
   'registry#mapExecute', 'registry#complete', 'registry#fixate', 'registry#progress', 'registry#bodyFormat',
   'registry#tpl.diagnose', 'registry#tpl.fix', 'registry#tpl.discuss', 'registry#tpl.research',
   'registry#tpl.prototype', 'registry#tpl.execute', 'registry#tpl.handoff1', 'registry#tpl.handoff2',
-  'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#newWayfinder',
+  'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#switchAlign', 'registry#newWayfinder',
   'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect',
   'backend:github#ghAuthLogin', 'backend:github#subIssue', 'backend:github#bodyFormat', 'backend:github#errorKinds',
   'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix', 'backend:gitlab#subIssue', 'backend:gitlab#bodyFormat',
@@ -1403,10 +1403,12 @@ const selfDigest = function () {
 // ---- LOCK-BEGIN ----
 // #664：豁免登记表删掉 repoRemoteFix 与 noGhPrompt 两条（两段长文按新流程退役），摘要跟着重算；
 //   本文件自己也改了（版本底线、三面计数、受保护清单、必须受判清单、豁免名单），自摘要一并更新。
+// #669 第 6 件：注册表新增 switchAlign（切换后端后对齐那条），条目数 20 → 21，受保护清单同步加一条，
+//   自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '3e7f0a18ca1caab69dd3508bbd17dbba6200887594cbdced3239c45f87923b50',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'bf3bf6e6bbfde2e31722e6b3b346b3f92c31f16783d18f9293abeeb2f9a4fef2',
+  'tests/verify-prompts.js': '46811c0b6d149bdaee3d5f38d5e8fa86d80614622a996a3c651b90825de89b7a',
 }
 // ---- LOCK-END ----
 

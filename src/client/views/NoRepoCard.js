@@ -88,7 +88,7 @@ export     const NoRepoCard = function (props) {
                 } else { try{ onSubmit({}) }catch(e){} }
               } catch(e){ try{ onSubmit({}) }catch(e2){} }
             },
-            refresh: async function(){ try{ if(typeof host!=='undefined'&& host.call) await host.call('wf.detect',{cwd:st.cwd||'', force:true, backendId:(st.selection&&st.selection.backendId)||undefined}) }catch(e){}; try{ loadChain(st,true) }catch(e){}; try{ loadSnapshot(st,true,true) }catch(e){} },
+            refresh: async function(){ try{ if(typeof host!=='undefined'&& host.call) await host.call('wf.detect',{cwd:st.cwd||'', force:true, backendId:(typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined}) }catch(e){}; try{ loadChain(st,true) }catch(e){}; try{ loadSnapshot(st,true,true) }catch(e){} }, // hint 只报「用户亲手选过的那条」：#669 第 6 件 / ADR 20260921
             tr: tr,
             resolvePrompt: function(id,pa){ try{ if(id==='setupRun'){ if(typeof injectSetupDecision!=='function') return (typeof setupRunPrompt==='function')?setupRunPrompt(st):''; return (injectSetupDecision(st,undefined,{injectNow:false,allowCard:true})==='setup'&&typeof setupRunPrompt==='function')?setupRunPrompt(st):'' } return promptTextFor(st,id,pa)}catch(e){ return '' } }
           }) : null

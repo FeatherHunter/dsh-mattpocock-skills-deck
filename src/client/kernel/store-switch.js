@@ -110,7 +110,7 @@
       // #529：附带当前语言与绑定后端（与 loadChain 同口径；否则英文界面下明细恒为中文）
       const criT0 = Date.now()
       const criLang = (typeof promptLang === 'function' ? promptLang() : 'zh')
-      const criArgs = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (st.selection && st.selection.backendId) ? { backendId: st.selection.backendId } : {}, { lang: criLang })
+      const criArgs = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (typeof userHintOf === 'function' && userHintOf(st.selection)) ? { backendId: userHintOf(st.selection) } : {}, { lang: criLang })
       host.call('wf.chain', criArgs).then(function (res) {
         try { if (res && res.ok) log('info', 'host.call', { method: 'wf.chain', latencyMs: Date.now() - criT0, ok: true, kind: 'chain-cri' }); else log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-cri', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-not-ok'), 120, 'error')) }) } catch (eL) {}
         if (!st.switchConfirm) return
@@ -144,7 +144,9 @@
       const targetId = sc.targetBackendId
       const prevSel = st.selection
       const repoRef = st.repository || (st.snapshot && st.snapshot.repository) || null
-      const optimistic = { backendId: targetId, source: 'explicit', ref: repoRef }
+      // #669 第 6 件（ADR 20260921）：这是**用户亲手选**的那一条 —— 盖上 userPicked 标记，此后
+      //   只有带这个标记的选择才会当 hint 上报给宿主（宿主那边带 hint 就压过锚文件）。
+      const optimistic = { backendId: targetId, source: 'explicit', ref: repoRef, userPicked: true }
       st.selection = optimistic
       try { if (st.cwd) setCachedSelection(st.cwd, optimistic) } catch {}
       emit(st)
@@ -166,49 +168,67 @@
           else log('warn', 'host.call.fail', { method: 'wf.bind', kind: 'switch-bind', errorHash: dswsLogHash(dswsLogTrunc(String((res && (res.error || res.message)) || 'bind-not-ok'), 120, 'error')) })
         } catch (eL) {}
         if (!ok) { doFail((res && (res.error || res.message)) || 'unknown'); return }
-        try { flash(st, tr('switch.bindOk', { label: (typeof labelOf === 'function' ? labelOf(targetId) : String(targetId)) }), 'ok') } catch {}
-        // #664：切换后端这条路不再往会话里注入任何文字（首开引导链定版 #661 第①条：门控与切换只把后端定下来）。
-        //   原先这里会顺手把初始化全文注入进会话（#191 起、#230/#511 改过的写法），于是 gh 还没装、仓库还没建
-        //   就先塞一段初始化长文 —— 正是这次定版要结束的那件事。要初始化请走「该工作区尚未初始化」那条黄条
-        //   那颗按钮：它按顺序排在仓库就绪之后，点开先问域文档布局，选完才注入。
+        // —— 切换成功之后按「这个工作区初始化过没有」分两条路（#669 第 6 件 / ADR 20260921）——
+        //   判据是链上那一步 `tracker:initialized`（它的检查项就是「工作区根有没有 docs/agents/issue-tracker.md」），
+        //   与状态栏横幅读的是同一份清单、同一条链快照。**链里根本没有这一步时不许猜**：那一档既不能当
+        //   「没初始化」（会把初始化全文注进已经初始化过的仓库 = 让 AI 重跑 setup，正是本票要结束的那件事），
+        //   也不能当「已初始化」（会往新仓库里发一条对齐指令）。做法：先强制重取一次链，拿到证据再决定。
+        const _label = (typeof labelOf === 'function' ? labelOf(targetId) : String(targetId))
+        const _fromLabel = (typeof labelOf === 'function' ? labelOf(sc.curBackendId) : String(sc.curBackendId || ''))
+        const _mine = (typeof guideStepsFor === 'function') ? guideStepsFor(targetId) : []
+        const _stepsNow = function () { return (typeof chainSteps === 'function') ? chainSteps(st) : [] }
+        const _hasInitStep = function (steps) { return (Array.isArray(steps) ? steps : []).some(function (x) { return x && String(x.id) === 'tracker:initialized' }) }
+        const _done = function (id) {
+          try {
+            const step = _mine.filter(function (x) { return x && x.id === id })[0]
+            return !!(step && typeof guideStepDone === 'function' && guideStepDone(step, _stepsNow()))
+          } catch (eD) { return false }
+        }
+        const _route = function () {
+          if (_done('tracker:initialized')) {
+            // 已初始化：注入「切换后对齐」那条 —— 让 AI 把仓库里记录后端的那几处改成新后端（并回读自证）。
+            //   插件自己不写用户仓库的文件（Q4 既有决定），这件事交给 AI（它就是初始化那只手）。
+            try {
+              const _txt = (typeof promptText === 'function') ? promptText('switchAlign', { from: _fromLabel, to: _label }) : ''
+              if (_txt && typeof inject === 'function') inject(st, _txt)
+              // 日志点（按需 #64 inject.decision，沿用初始化那条的字段与开关纪律）：切换之后到底给出去的是什么。
+              //   此前这一段没有任何轨迹，真机出现「切完没有任何指令」时只能靠猜；这里只记三个枚举，不记文案与路径。
+              try { if (isEnabled('debug')) log('debug', 'inject.decision', { prompt: 'switchAlign', kind: 'align', layout: 'unset' }) } catch (eL) {}
+            } catch (eInj) {}
+            try { flash(st, tr('switch.bindOk', { label: _label }), 'ok') } catch (eF) {}
+            return
+          }
+          if (!_hasInitStep(_stepsNow())) {
+            // 链里连「初始化过没有」这一步都没有（还没取到链、或取链失败）：一个字都不注入，只把下一步指向状态栏
+            try { flash(st, tr('switch.bindOkNotReady', { label: _label }), 'warn') } catch (eF0) {}
+            return
+          }
+          // 还没初始化：走与黄条那颗按钮**同一个**决策器 —— 「仓库那一步过没过」这条判据在它里面（没过返回
+          //   blocked：一个字不注入、也不开卡），本文件不再自己判一遍，判据只有那一份（#668 单源口径）。
+          //   提示条按它这次实际给出的东西选：blocked 说「先按状态栏那条提示处理」，其余说「按提示完成初始化」
+          //   （它的 'setup-card' 就是先问域文档布局那一问，答完才注入全文）。
+          let _kind = 'blocked'
+          try { if (typeof injectSetupDecision === 'function') _kind = injectSetupDecision(st, targetId, { allowCard: true }) } catch (eDec) {}
+          try { flash(st, tr(_kind === 'blocked' ? 'switch.bindOkNotReady' : 'switch.bindOkFresh', { label: _label }), _kind === 'blocked' ? 'warn' : 'ok') } catch (eF3) {}
+        }
+        const _hadEvidence = _hasInitStep(_stepsNow())
         closeSwitchConfirm(st)
+        let _chainP = null
         try {
           if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true)
-          if (typeof loadChain === 'function') loadChain(st, true)
-        } catch {}
+          _chainP = (typeof loadChain === 'function') ? loadChain(st, true) : null
+        } catch (eLoad) {}
+        // 有证据就当场决定；没有就等这次强制重取回来的链（上面那一取，同时也是状态栏要用的那一取）再决定
+        if (_hadEvidence) _route()
+        else if (_chainP && typeof _chainP.then === 'function') _chainP.then(_route, _route)
+        else _route()
       }).catch(function (e) {
         try { log('warn', 'host.call.fail', { method: 'wf.bind', kind: 'switch-bind', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
         doFail(e && e.message || e)
       })
     }
-    // 方案3（2026-08-28 拍板）：清除后端选择 —— 删除主锚/想重新走选择流程时的逃生舱。
-    //   wf.bind(null) = 显式无后端（registry 契约：byHandle 记 null，select ① 回 explicit null），
-    //   客户端经 mergeSelection 的 explicit-null 分支覆盖（S6），此后 gate「还没有设置」重新引导。
-    export const clearBackendBinding = function (st) {
-      if (!st || !st.cwd) return false
-      const prev = st.selection
-      const nxt = { backendId: null, source: 'explicit' }
-      st.selection = nxt
-      try { if (st.cwd) setCachedSelection(st.cwd, nxt) } catch {}
-      try { if (typeof closeSwitchConfirm === 'function') closeSwitchConfirm(st) } catch {}
-      emit(st)
-      if (typeof host === 'undefined' || typeof host.call !== 'function') { try { flash(st, tr('switch.bindFail', { err: 'host.call 不可用' }), 'warn') } catch {}; return true }
-      host.call('wf.bind', { cwd: st.cwd || '', backendId: null }).then(function (res) {
-        const ok = res && (res.ok === true || (res.value && res.value.ok === true) || res.ok)
-        if (ok) { try { flash(st, tr('switch.clearBindOk'), 'ok') } catch {} }
-        else {
-          st.selection = prev
-          try { if (st.cwd) setCachedSelection(st.cwd, prev) } catch {}
-          emit(st)
-          try { flash(st, tr('switch.bindFail', { err: String((res && (res.error || res.message)) || 'unknown') }), 'warn') } catch {}
-        }
-        try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch {}
-        try { if (typeof loadChain === 'function') loadChain(st, true) } catch {}
-      }).catch(function (e) {
-        st.selection = prev
-        try { if (st.cwd) setCachedSelection(st.cwd, prev) } catch {}
-        emit(st)
-        try { flash(st, '清除失败:' + String((e && e.message) || e).slice(0, 120), 'warn') } catch {}
-      })
-      return true
-    }
+    // 「清除后端选择」（显式无后端 `wf.bind(null)`）2026-09-21 随 ADR 20260921 退役：
+    //   它与「切换后端」那张卡表达的是两件事（那张卡问「换成哪个」，这个按钮说「我不要了」），
+    //   混在一起没人读得懂；而本次定下的优先级里，「用户的手动选择」只指「切到某个后端」这一件事。
+    //   要回到未选择状态，用户直接换一个别的后端即可；本函数连同调用它的那颗按钮一起删除
+    //   （门禁 tests/verify-kernel.js / verify-leaves.js / verify-repo-switch-chip.js 的清单同步收）。

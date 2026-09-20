@@ -41,7 +41,7 @@ export const confirmOverlayGate = function(s, gateModules){
         if (String(id).toLowerCase()==='other') { s.gateError=tr('switch.gateOtherErr'); emit(s); return }
         const prev = s.selection
         const repoRef = s.repository || (s.snapshot && s.snapshot.repository) || null
-        const next = { backendId: id, source: 'explicit', ref: repoRef }
+        const next = { backendId: id, source: 'explicit', ref: repoRef, userPicked: true } // #669 第 6 件：门控确认＝用户亲手选的那一下，带上标记（这个叶今天没有调用点，留着是为了将来接线时不静默少一道闸）
         s.selection = next
         try{ if(s.cwd) setCachedSelection(s.cwd,next) }catch(e){}
         s.gateModalOpen=false

@@ -199,5 +199,16 @@
     }
     export const getCachedSelection = function (cwd) { try { const k = wsKeyOf(cwd); return (cwd && k) ? (selectionByCwd[k] || null) : null } catch(e){ return cwd ? (selectionByCwd[cwd] || null) : null } }
     export const setCachedSelection = function (cwd, sel) { try { const k = wsKeyOf(cwd); if (cwd && k) { selectionByCwd[k] = sel; persistSelectionByCwd() } } catch(e){ if (cwd) { selectionByCwd[cwd] = sel; persistSelectionByCwd() } } }
+    // #669 第 6 件（ADR 20260921）：**只有用户亲手选过的那一条**才配当「用户的手动选择」上报给宿主。
+    //   为什么要有这把闸：缓存里的这条选择有两种来源 —— 用户点出来的（意图），和快照/链/自动识别算出来的
+    //   （派生）。宿主那边的顺序是「人的意图 > 锚文件 > 机器推断」，如果派生值也当意图上报，锚文件上一次的
+    //   结论就会被缓存下来、永久压住锚文件本身（谁改文件都不生效），比修之前更糟。
+    //   标记只有一个来源：用户点确认的那两处（门控窗与切换弹窗）写选择时带 userPicked:true。
+    //   快照/链合并写缓存时不带（mergeSelection 先进 keepUserPick，规则就在下面），所以派生值天然没有这把钥匙。
+    //   而 keepUserPick 只在「宿主回包的 backendId 与当前相同」时把钥匙留住——宿主回了别的后端（它不认这个
+    //   后端 id、于是没采纳这条 hint，或别处把文件对齐了）就照宿主的来，钥匙自然消失。合并时留住它，是为了让
+    //   「用户亲手选的」这件事不因为一次刷新就丢：丢了等于锚文件重新说话，正是 ADR 攻击 1 要防的那条。
+    export const userHintOf = function (sel) { try { return (sel && sel.userPicked === true && sel.backendId) ? sel.backendId : undefined } catch (e) { return undefined } }
+    export const keepUserPick = function (cur, incoming) { try { if (cur && cur.userPicked === true && incoming && incoming.userPicked !== true && String(incoming.backendId || '') === String(cur.backendId || '')) return Object.assign({}, incoming, { userPicked: true }) } catch (e) { /* 合并守住标记失败时按原样用宿主回包 */ } return incoming }
     export const getCachedRepository = function (cwd) { try { const k = wsKeyOf(cwd); return (cwd && k) ? repositoryByCwd[k] : null } catch(e){ return cwd ? repositoryByCwd[cwd] : null } }
     export const setCachedRepository = function (cwd, repo) { try { const k = wsKeyOf(cwd); if (cwd && k) repositoryByCwd[k] = repo } catch(e){ if (cwd) repositoryByCwd[cwd] = repo } }

@@ -314,12 +314,15 @@ async function main() {
   // #663：门控那个窗里那组单选撤了（全新工作区还没装 gh、还没建仓库，先把「各部分共用一套用语吗」问出来是超前的问题），
   //   布局那一问现在只在初始化那一步出现 —— 所以源码里只剩那张小卡一处放这组单选。
   ok(barSrc.indexOf('layoutRadios(s, h)') >= 0 && (barSrc.match(/layoutRadios\(s, h\)/g) || []).length >= 1, '初始化那张小卡上放着这组单选（门控弹窗里那组已按 #663 撤掉）')
-  // #664：门控确认与切换后端那三条路不再注入任何文字（原先它们都调过这个决策函数）。
-  const noInjectFiles = ['src/client/panel/Dock.js', 'src/client/panel/OverlayGate.js', 'src/client/kernel/store-switch.js']
+  // #664：**门控确认**那两条路不再注入任何文字（原先它们都调过这个决策函数）。
+  //   #669 第 6 件（ADR 20260921）：切换后端那条路**重新**按场景注入 —— 未初始化且仓库就绪时走这个决策函数
+  //   （与黄条同一条：先开布局小卡、选完注入初始化全文），已初始化时注入的是另一条「切换后对齐」的 prompt。
+  //   场景分流由 tests/verify-669-choice-precedence.js 守着（含三种场景与反证），这里只守门控那两条路。
+  const noInjectFiles = ['src/client/panel/Dock.js', 'src/client/panel/OverlayGate.js']
   const stillInject = noInjectFiles.filter(function (rel) {
     try { return /injectSetupDecision\s*\(/.test(fs.readFileSync(path.join(root, rel), 'utf8')) } catch (e) { return false }
   })
-  ok(stillInject.length === 0, '门控确认与切换后端那三条路都不再注入任何文字' + (stillInject.length ? '（还在调：' + stillInject.join('、') + '）' : ''))
+  ok(stillInject.length === 0, '门控那两条路都不再注入任何文字' + (stillInject.length ? '（还在调：' + stillInject.join('、') + '）' : ''))
 
   console.log(failed ? 'FAIL ' + (total - 0) + ' 项检查中有失败' : 'PASS 全部 ' + total + ' 项检查通过')
   process.exit(failed ? 1 : 0)

@@ -126,23 +126,24 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       }
     }
 
-    // ① explicit(file) 分支
+    // ① explicit(file) 分支：读锚文件（声明）。**照旧每次都读** —— 结果里的 explicit 一栏要带给调用方
+    //   （界面与排查都用它看「用户仓库里那份文件写的是什么」），与「这一次采用谁」是两件事。
     const explicitRes = await detectExplicit(handle, { platform, cwd, fs }, registry)
     let selection = explicitRes.selection
     const explicit = { raw: explicitRes.raw, parsed: explicitRes.parsed }
 
-    // ② 用户显式选择（持久化意图，2026-08-28 拍板层级：主锚 > 用户选择 > 自动识别(matches) > 兜底）
-    //    客户端持久化绑定经 opts.hintBackendId 上报——与 registry.select 的 explicit(bind 记忆) 同权，并跨重启可用；
-    //    未注册 id 忽略（诚实）→ 落 matches；主锚有结论时本分支不参与（锚即真相优先）。
-    //    #297 失效维度：若工作区已空（全部文件已删），此前持久化选择视为过期意图，不采纳 hint，直接视为显式无后端（让蓝条重现）
-    //    2026-09-21 修正（#665 真机现场）：这条「过期」判定只作废「记忆里的选择」，不作废「当场指定的选择」。
-    //      原来两者一起作废，后果是一个全新空目录里用户刚在蓝条上选完后端，这里又把它判成「无后端」——
-    //      调用方（组装链快照的 handleChain）拿到 backendId 为空，于是后端链整段不组装，链快照里连
-    //      「已关联 GitHub 仓库」那一行都没有；界面那条横幅因为快照里没有那一行，会跳过它、提前把
-    //      「该工作区尚未初始化」黄条给出去（把用户往错误的一步引）。带上 hintBackendId 的那次调用
-    //      正是「用户这一下刚做的选择」，所以这里照常采纳它；不带 hint 的那条路（读记忆）行为一字不变，
-    //      空工作区的旧绑定仍然失效、蓝条仍然回来。
-    if (!selection && opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId)) {
+    // ② 用户的手动选择（意图）：ADR 20260921 定的顺序是「人的意图 > 人写下过的声明 > 机器推断」——
+    //   所以带 hint 的那一次调用**压过锚文件**（此前是「锚有结论时本分支不参与」，那条 2026-08-27 的
+    //   顺序在真机上表现成「面板里切了后端，仓库标仍是旧后端」：锚文件写着 GitHub，快照照旧回 GitHub，
+    //   客户端再把用户刚选的那一条盖掉）。
+    //   谁算「用户的手动选择」：只有客户端能分清 —— 用户亲手点过的那条选择带 userPicked 标记，
+    //   客户端只把带标记的那条当 hint 上报；派生出来的选择（快照/链/自动识别的结论）不带标记、不上报。
+    //   这一条是 ADR 攻击 1 的整改：不区分来源的话，锚文件的历史结论会被缓存下来冒充用户意图，
+    //   之后谁改锚文件都不再生效（比修之前更糟）。宿主这一侧不做判别：上报即信任，判别在客户端那一次写入。
+    //   未注册 id 忽略（诚实）→ 落回锚文件。
+    //   #297 失效维度：工作区已空（文件全删）时「记忆里的选择」视为过期 —— 那条判定在缓存分支与
+    //   `registry.select` 的记忆侧（不带 hint 的那条路行为一字不变）；带 hint 的这一次是用户当场的选择，照采纳。
+    if (opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId)) {
       try {
         let ref = null
         try { ref = registry.describe(handle, opts.hintBackendId) } catch {}

@@ -63,7 +63,7 @@
         'switch.optMigrate': '迁移',
         'switch.optMigrateDesc': '尽力复制 issues 到新后端（分批 20 + 映射），有损，仅说明不落地。源仓不动。',
         'switch.optClear': '清空',
-        'switch.optClearDesc': '清空当前视图（GitHub=批量关闭 / Markdown=删除文件），不可逆。',
+        'switch.optClearDesc': '清空当前视图（GitHub=批量关闭 / Markdown=删除文件），不可逆。今天没有实现，这一项按不动。',
         'switch.badgeExp': '实验', 'switch.criLoading': '正在检查前置条件…',
         'switch.criOk': '前置检查通过（迁移可用）', 'switch.criBlocked': '前置检查未通过 — 迁移已阻断',
         'switch.criHintFallback': '切换前置检查未全部通过，请按上方清单处理后重试',
@@ -77,10 +77,16 @@
         'switch.confirm': '确认切换',
         'switch.confirming': '切换中…',
         'switch.bindFail': '切换失败：{err}',
-        'switch.clearBind': '清除后端选择',
-        'switch.clearBindTitle': '清除本节选择并重新开始（工作区数据保留，仅重选后端）',
-        'switch.clearBindOk': '已清除后端选择 — 请重新选择',
+        // #669 第 6 件（ADR 20260921）：原来那颗「清除后端选择」连同它的三条词条一起退役
+        //   （维护者 2026-09-21 拍板：这张卡只问「换成哪个」，不再兼「我不要了」）。
+        // 切换成功的提示条按场景分两句：还没初始化的那条要把「接下来干什么」说出来（那一刻布局小卡就开在眼前），
+        //   已经初始化的那条保持原话 —— 它说的「旧数据已保留」在那个场景里是实话。
         'switch.bindOk': '已切换到 {label}（旧数据已保留）',
+        'switch.bindOkFresh': '已切换到 {label}，接下来按提示完成初始化',
+        'switch.bindOkNotReady': '已切换到 {label}；这个工作区的仓库还没就绪，先按状态栏那条提示处理',
+        // 置灰项的两句悬停说明（不写在卡面上，见 SwitchConfirmModal 的 OPTION_LOCKED 与内置后端名单）
+        'switch.optLockedTip': '这一项还没有实现：当前只保留展示、按不动，等它单独做出来再开放。',
+        'switch.targetLockedTip': '这个后端能力还不全（筹备中），先别切过去。',
         // #529 环境检查行标题（检查项 show.i18nKey 的中英文单源；英文界面经 checkShowTitle 取英文，中文与原兜底一字不差）
         'check.skill.wayfinder.pass': '技能 wayfinder 已安装', 'check.skill.wayfinder.fail': '技能 wayfinder 未安装',
         'check.skill.setup-matt-pocock-skills.pass': '技能 setup-matt-pocock-skills 已安装',
@@ -216,7 +222,7 @@
         'switch.optMigrate': 'Migrate',
         'switch.optMigrateDesc': 'Best-effort copy issues to new backend (batch 20 + mapping), lossy, description only, source untouched.',
         'switch.optClear': 'Clear',
-        'switch.optClearDesc': 'Clears current view (GitHub=close issues / Markdown=delete files), irreversible.',
+        'switch.optClearDesc': 'Clears current view (GitHub=close issues / Markdown=delete files), irreversible. Not implemented yet — this option cannot be picked.',
         'switch.badgeExp': 'Experimental', 'switch.criLoading': 'Checking prerequisites…',
         'switch.criOk': 'Prerequisites passed (migration available)', 'switch.criBlocked': 'Prerequisites failed — migration blocked',
         'switch.criHintFallback': 'Switch preflight not fully passed — resolve items above and retry',
@@ -228,10 +234,12 @@
         'switch.clearOk': 'Confirmed', 'switch.cancel': 'Cancel',
         'switch.confirm': 'Confirm switch', 'switch.confirming': 'Switching…',
         'switch.bindFail': 'Switch failed: {err}',
-        'switch.clearBind': 'Clear backend selection',
-        'switch.clearBindTitle': 'Clear this selection and start over (workspace data kept — only re-choose the backend)',
-        'switch.clearBindOk': 'Backend selection cleared — choose again',
+        // #669 第 6 件（ADR 20260921）：see the zh block for why these three were retired and these five added.
         'switch.bindOk': 'Switched to {label} (previous data kept)',
+        'switch.bindOkFresh': 'Switched to {label} — follow the prompt to finish initializing',
+        'switch.bindOkNotReady': 'Switched to {label}; this workspace has no repository yet — handle the status-bar prompt first',
+        'switch.optLockedTip': 'Not implemented yet: shown for reference only, cannot be picked. It will open once it is built.',
+        'switch.targetLockedTip': 'This backend is still incomplete (in preparation) — do not switch to it yet.',
         // #529 environment-check row titles (single source for check show.i18nKey; English UI reads English via checkShowTitle)
         'check.skill.wayfinder.pass': 'Skill wayfinder is installed', 'check.skill.wayfinder.fail': 'Skill wayfinder is missing',
         'check.skill.setup-matt-pocock-skills.pass': 'Skill setup-matt-pocock-skills is installed',

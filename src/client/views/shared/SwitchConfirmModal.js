@@ -45,6 +45,8 @@ export const SwitchConfirmModal = (props) => {
   const onOption = function (opt) {
     // #191（用户反馈）：未选 target 时不允许选三选一（radio disabled 双保险）
     if (s.switchConfirm.targetBackendId == null) return
+    // #669 第 6 件（ADR 20260921）：置灰的那两张卡（迁移 / 清空 —— 今天都没有实现）在这里再挡一道
+    if (OPTION_LOCKED[opt]) return
     s.switchConfirm.option = opt
     // 切换到迁移时若尚未加载 CRI，触发加载
     if (opt === 'migrate' && !s.switchConfirm.criChecks && !s.switchConfirm.criLoading) {
@@ -71,11 +73,17 @@ export const SwitchConfirmModal = (props) => {
   // #191（用户反馈）：顶部固定（标题 + 按钮恒定），内容区独立向下延伸滚动——按钮永不跳动
   const cardStyle = { boxSizing: 'border-box', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 560, maxHeight: '90vh', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12, background: 'var(--dsw-alias-bg-layer-2,#16181d)', boxShadow: '0 16px 48px rgba(0,0,0,.5)', padding: 16, overflowX: 'hidden' }
   const bodyStyle = { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }
+  // #669 第 6 件（ADR 20260921）：「迁移」「清空」两张卡**保留、置灰不可点**（维护者 2026-09-21 拍板）。
+  //   为什么置灰：这两条今天只有文案与门槛、**没有任何实现**（迁移不落地、清空确认之后走的还是「保留」那段代码）。
+  //   留着能按的按钮，就是在刚修好的那条路上再放一个「看着能点、点了没反应」的同类陷阱。
+  //   为什么不写原因在卡上：维护者选了「只置灰」；原因放在鼠标悬停的一句提示里（不占卡面）。
+  const OPTION_LOCKED = { migrate: 'switch.optLockedTip', clear: 'switch.optLockedTip' }
   // #191（用户反馈）：去圆点，点整行即选中；行高固定为选中态高度（徽标占位，选中不跳动）
   const radioRow = function (id, checked, label, desc, badge) {
     const col = id === 'keep' ? '#4ade80' : id === 'migrate' ? '#f59e0b' : '#f87171'
-    const disabled = isTargetPending
-    return h('div', { key: id, onClick: function(){ if(disabled) return; onOption(id) }, style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, minHeight: 54, boxSizing: 'border-box', border: checked ? '1px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: checked ? 'rgba(88,166,255,.06)' : 'transparent', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1 } }, [
+    const locked = !!OPTION_LOCKED[id]
+    const disabled = isTargetPending || locked
+    const row = h('div', { key: id, onClick: function(){ if(disabled) return; onOption(id) }, 'data-opt-id': id, 'data-opt-locked': locked ? 1 : 0, style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, minHeight: 54, boxSizing: 'border-box', border: checked ? '1px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: checked ? 'rgba(88,166,255,.06)' : 'transparent', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1 } }, [
       h('span', { style: { flex: 1, minWidth: 0 } }, [
         h('span', { style: { fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, minHeight: 18 } }, [
           h('span', null, label),
@@ -86,6 +94,7 @@ export const SwitchConfirmModal = (props) => {
         h('span', { style: { fontSize: 11, color: '#8b8b95', display: 'block', marginTop: 2 } }, desc),
       ]),
     ])
+    return locked ? h(Tip, { key: id, content: tr(OPTION_LOCKED[id]) }, row) : row
   }
   return h('div', { style: overlayStyle, onClick: function (e) { if (e.target === e.currentTarget) doClose() } }, [
     h('div', { style: cardStyle }, [
@@ -99,7 +108,8 @@ export const SwitchConfirmModal = (props) => {
           h('span', { style: { fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('switch.title')),
         ]),
         h('span', { style: { display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, flex: '0 1 auto', maxWidth: '100%', marginLeft: 'auto', boxSizing: 'border-box' } }, [
-          h(Tip, { content: tr('switch.clearBindTitle') }, h('button', { className: 'dsws-btn ghost', onClick: function () { try { if (typeof clearBackendBinding === 'function') clearBackendBinding(s) } catch (e) {} }, style: { fontSize: 12, padding: '2px 10px', whiteSpace: 'nowrap', flex: 'none', color: '#f87171', borderColor: 'rgba(248,113,113,.45)' } }, tr('switch.clearBind'))),
+          // #669 第 6 件（ADR 20260921）：原来这里还有一颗「清除后端选择」—— 它与这张卡问的不是一件事
+          //   （这张卡问「换成哪个」，那颗按钮说「我不要了」），2026-09-21 维护者拍板删掉（连带内核里那条路径）。
           h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { fontSize: 12, padding: '2px 10px', whiteSpace: 'nowrap', flex: 'none' } }, tr('switch.cancel')),
           h('button', { className: 'dsws-btn', disabled: confirmDisabled, onClick: doConfirm, style: { fontSize: 12, padding: '2px 10px', whiteSpace: 'nowrap', flex: 'none', background: confirmDisabled ? '#2a2d35' : '#58a6ff', borderColor: confirmDisabled ? '#2a2d35' : '#58a6ff', color: confirmDisabled ? '#8b8b95' : '#0b1220', fontWeight: 700, cursor: confirmDisabled ? 'not-allowed' : 'pointer' } }, sc.confirming ? tr('switch.confirming') : tr('switch.confirm')),
           h('button', { className: 'dsws-btn ghost', onClick: doClose, style: { padding: '2px 6px', whiteSpace: 'nowrap', flex: 'none' } }, '✕'),
@@ -130,13 +140,17 @@ export const SwitchConfirmModal = (props) => {
         ])
         const wipBanner = h('div', { style:{ fontSize:11, color:'#f59e0b', background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.25)', borderRadius:6, padding:'6px 8px', marginBottom:10 } }, tr('gate.wipNotice'));
         // #191（用户反馈）：picker 永远渲染（即使已选也可重选 target）
+        // #669 第 6 件（ADR 20260921）：今天真正能用的后端只有 GitHub 与本地 Markdown ——
+        //   GitLab 能力不全（链上会一串红牌），在这里置灰不可选，理由放鼠标悬停（与另两张卡同款）。
         const picker = h('div', { style: { display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' } }, modules.map(function(m){
           const col = typeof backendColorOf === 'function' ? backendColorOf(m.id) : ''
           const isSelected = s.switchConfirm.targetBackendId === m.id
-          return h('button', { key: m.id, type: 'button', 'data-target-id': m.id, onClick: function(){ onPick(m.id) }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: isSelected ? '5px 11px' : '6px 12px', borderRadius: 8, border: isSelected ? '2px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSelected ? 'rgba(88,166,255,.10)' : 'transparent', color: isSelected ? col : '#8b8b95', fontSize: 12, fontWeight: isSelected ? 700 : 500, cursor: 'pointer' } }, [
+          const locked = (typeof isBackendUnavailable === 'function') ? isBackendUnavailable(m.id) : false
+          const btn = h('button', { key: m.id, type: 'button', 'data-target-id': m.id, 'data-target-locked': locked ? 1 : 0, disabled: !!locked, onClick: function(){ if (locked) return; onPick(m.id) }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: isSelected ? '5px 11px' : '6px 12px', borderRadius: 8, border: isSelected ? '2px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSelected ? 'rgba(88,166,255,.10)' : 'transparent', color: isSelected ? col : '#8b8b95', fontSize: 12, fontWeight: isSelected ? 700 : 500, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.45 : 1 } }, [
             h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: col, flex: 'none' } }),
             h('span', null, m.label || m.id),
           ])
+          return locked ? h(Tip, { key: m.id, content: tr('switch.targetLockedTip') }, btn) : btn
         }))
         return h('div', null, [headerRow, wipBanner, picker])
       })(),
