@@ -233,31 +233,34 @@ const mountLive = async function (code) {
   if (!comp) throw new Error('状态栏组件没有登记到插槽上')
   const container = window.document.getElementById('bar')
   const root = ReactDOMClient.createRoot(container)
+  // 注入的落点与界面上真用的一致（状态栏会把 props.inputActions.setDraft 写进会话状态）；
+  //   #669 第 4 件起这一门要用它断言「确认之后注入的正文里带着选中的布局」。
+  const drafts = []
   const step = async (ms) => { await act(async () => { await sleep(ms || 30) }) }
   await act(async () => {
     root.render(React.createElement(comp, {
       sessionId: 'sid-669',
       session: { cwd: 'D:\\tmp\\669-fold' },
       useSessions: () => undefined,
-      inputActions: { setDraft: () => {} },
+      inputActions: { setDraft: (t) => { drafts.push(String(t)) } },
     }))
     await sleep(30)
   })
   for (let i = 0; i < 40 && !container.querySelector('.dsws-banner'); i++) await step(25)
-  const click = async (sel) => {
-    const el = container.querySelector(sel)
+  const clickNode = async (el) => {
     if (!el) return false
     await act(async () => { el.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await sleep(40) })
     await step(40)
     return true
   }
+  const click = async (sel) => clickNode(container.querySelector(sel))
   // 收工：把这一份挂载拆干净（卸载 React 根 + 关掉 jsdom 窗口）。不拆的话，状态栏里那颗 2 秒的定时器
   //   会跟着每个现场一直跑下去，这一门会越跑越慢、日志里全是 React 的账（实测：不拆时十几秒能跑完的一页跑不完）。
   const dispose = function () {
     try { root.unmount() } catch (e) {}
     try { window.close() } catch (e) {}
   }
-  return { window: window, container: container, dict: dict, trFn: trFn, methods: methods, click: click, step: step, dispose: dispose }
+  return { window: window, container: container, dict: dict, trFn: trFn, methods: methods, drafts: drafts, click: click, clickNode: clickNode, step: step, dispose: dispose }
 }
 
 // 收起态那颗按钮是还原后的写法：只带幽灵类名（dsws-btn ghost），所以它身上不再有专门的类名可抓，
@@ -375,12 +378,36 @@ console.log('== C 真产物行为层：逐个点一遍，看谁会让整条状�
     }
   }
   check(hideSet === 0, 'C 汇总：点横幅正文 / 主按钮 / 胶囊 / 状态段，一处都没让状态栏消失（实得 ' + hideSet + ' 处）')
-  // 真凶那一处单独钉一遍：点黄条那颗主按钮，初始化小卡必须真的出来（后端名单还没到时走内置兜底名单），
-  //   而不是像 2026-09-21 之前那样，在那条兜底分支里抛 ReferenceError 把整条状态栏带走。
+  // 黄条那颗主按钮这一处单独钉住（#669 第 4 件之后它问的东西变了）：
+  //   ① 小卡必须真的渲染出来（而不是像 2026-09-21 之前那样在渲染里抛错、把整条状态栏带走）；
+  //   ② 卡上只问「域文档布局」这一问 —— 不再有后端单选（后端到这一步早在门控那一步定完了）；
+  //   ③ 卡上只读地写着这次用哪个后端；那句属于「挑后端」那一步的橙字提示也不该再出现在这张卡上。
   const primary = rows.filter((r) => r.label === '横幅上的主按钮')[0]
   check(!!primary && !primary.err && primary.cardRadios > 0, 'C：点黄条那颗主按钮之后，初始化小卡真的渲染出来了（布局单选框实得 ' + (primary && primary.cardRadios) + ' 个）')
-  check(!!primary && primary.moduleRadios >= 3, 'C：那张小卡的选项列的是内置兜底名单（后端单选项实得 ' + (primary && primary.moduleRadios) + ' 个，应有 3 个）')
-  check(!!primary && /GitHub/.test(primary.cardText || ''), 'C：那张小卡的选项里看得见 GitHub（实得文字里有 GitHub：' + /GitHub/.test((primary && primary.cardText) || '') + '）')
+  check(!!primary && primary.moduleRadios === 0, 'C：这张卡上不再有后端单选（实得 ' + (primary && primary.moduleRadios) + ' 个，应为 0）')
+  check(!!primary && /GitHub/.test(primary.cardText || ''), 'C：卡上只读地写着这次用哪个后端（实得文字里有 GitHub：' + /GitHub/.test((primary && primary.cardText) || '') + '）')
+  {
+    const live0 = await mountLive(code)
+    const wip = String(live0.dict['gate.wipNotice'] || 'Markdown 预览，GitLab 筹备中')
+    await live0.click('.dsws-banner button.dsws-btn')
+    const cardText = String(live0.container.textContent || '')
+    check(cardText.indexOf(wip) < 0, 'C：那句「' + wip + '」不再出现在这张卡上（属于挑后端那一步的注解）')
+    // 点卡上的「确认并继续」（它不在横幅里面，是横幅下面那张卡自己的按钮）：只记布局、只注入 ——
+    //   不许再写选择、不许再打绑定电话。
+    const confirmText = String(live0.dict['banner.setupPickConfirm'] || '确认并继续').trim()
+    const confirmBtn = Array.prototype.slice.call(live0.container.querySelectorAll('button'))
+      .filter((b) => String(b.textContent || '').trim() === confirmText)[0]
+    check(!!confirmBtn, 'C：那张卡上找得到「' + confirmText + '」那颗按钮')
+    const before = live0.methods.length
+    await live0.clickNode(confirmBtn)
+    const afterMethods = live0.methods.slice(before)
+    const draft = String((live0.drafts || []).slice(-1)[0] || '')
+    check(afterMethods.indexOf('bind') < 0, 'C：卡上那颗确认不再打绑定电话（这一段新出现的电话实得 ' + JSON.stringify(afterMethods) + '）')
+    check(draft.indexOf('single-context') >= 0, 'C：确认之后按选中的布局注入了初始化全文（注入文案里找得到 single-context：' + (draft.indexOf('single-context') >= 0) + '；开头「' + draft.slice(0, 60) + '」）')
+    check(!live0.container.querySelector('input[name=setup-layout]'), 'C：确认之后这张卡关掉了（布局单选框已从界面上消失）')
+    check(!!live0.container.querySelector('.dsws-banner') && !!live0.container.querySelector('.dsws-capsule'), 'C：确认这一下没有把横幅或胶囊带走')
+    live0.dispose()
+  }
   // 那颗叉身上一个字都没有（还原的就是图形叉），但悬停与无障碍名仍是全称（与界面同源）。
   const live = await mountLive(code)
   const btn = live.container.querySelector('.dsws-banner-fold-x')

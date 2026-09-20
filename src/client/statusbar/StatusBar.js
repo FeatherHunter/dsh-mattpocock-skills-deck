@@ -267,26 +267,19 @@ export const StatusBar = (props) => {
   const confirmSetupPick = function(){ confirmStatusSetupPick(s) }
   const closeGate = function(){ closeStatusGate(s) }
   const confirmGateStatus = function(){ confirmStatusGate(s) }
-  // #655：这张卡有两个开启来源 —— 黄条按钮（onStatusSetupInit 里由注入决策函数开）与「从哪里点初始化都先问」那条漏斗
-  //   （检查页红牌的执行初始化按钮也经同一个函数，它开的也是这张卡）。关掉时两个标记一起清。
-  const setupPickCard = (s.setupPickOpen || s.setupLayoutCardOpen) ? (function(){
-    const mods=s.setupPickModules||[];const rec=s.setupPickRecommended||firstBackendIdOf(null);const sel=s.setupPickSelected||rec
+  // #655：这张卡由注入决策函数打开（黄条那颗按钮走 onStatusSetupInit，检查页红牌那颗「执行初始化」也走同一个函数）。
+  // #669 第 4 件（2026-09-21）：这张卡只问「域文档布局」这一问。
+  //   它原先还带着一组后端单选（标题也写着「选择希望使用的后端」），那是更早流程的遗留：到这一步后端早已在
+  //   门控那一步定完（#663 起门控那个窗只问后端），再问一遍不只是多余 —— 卡上那颗「确认并继续」会把工作区
+  //   重新绑一遍（等于从一张「只是答个布局」的卡上换后端）。现在卡上只读地写出这次用哪个后端、去哪儿换，
+  //   换后端仍走右侧面板那颗「切换后端」。
+  const setupPickCard = (s.setupLayoutCardOpen) ? (function(){
+    const curId = (s.selection && s.selection.backendId) || (s.snapshot && s.snapshot.selection && s.snapshot.selection.backendId) || firstBackendIdOf(null)
+    const curLabel = (typeof labelOf === 'function' ? labelOf(curId) : '') || (typeof builtinLabelOf === 'function' ? builtinLabelOf(curId) : '') || String(curId || '')
     return h('div', { style:{ width:'100%', maxWidth:560, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:10, background:'var(--dsw-alias-bg-layer-2,#16181d)', padding:10, boxShadow:'0 8px 24px rgba(0,0,0,.35)' } }, [
-      h('div', { style:{ fontSize:12, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:8 } }, [Ic({n:'compass',size:12}), h('span', null, tr('banner.setupPickTitle')), s.setupPickLoading ? h('span', {style:{fontSize:10,color:'#8b8b95'}}, tr('list.loading')) : null]),
-      h('div', { style:{ fontSize:11, color:'#f59e0b', background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.25)', borderRadius:6, padding:'6px 8px', marginBottom:8 } }, tr('gate.wipNotice')),
-      s.setupPickErr ? h('div', {style:{fontSize:11,color:'#f87171', marginBottom:6}}, s.setupPickErr) : null,
-      h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, (mods.length?mods:supportedBackendViews()).map(function(m){
-        const isRec=rec===m.id;const isSel=sel===m.id;const col=typeof backendColorOf==='function'?backendColorOf(m.id):''
-        return h('label', { key:m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 9px', borderRadius:8, border: isSel ? '1px solid '+col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSel ? 'rgba(88,166,255,.08)' : 'transparent', cursor:'pointer' } }, [
-          h('input', { type:'radio', name:'setup-pick', checked: isSel, onChange: function(){ s.setupPickSelected=m.id; emit(s) } }),
-          h('span', { style:{ width:8, height:8, borderRadius:'50%', background: col, flex:'none' } }),
-          h('span', { style:{ fontSize:12, fontWeight:600 } }, m.label),
-          h('span', { style:{ fontSize:10, color:'#8b8b95' } }, m.id),
-          h('span', { style:{ flex:1 } }),
-          isRec ? h('span', { style:{ fontSize:10, color:'#4ade80', border:'1px solid #4ade80', borderRadius:4, padding:'0 4px', lineHeight:1.6 } }, tr('banner.setupPickRecommended')) : null,
-        ])
-      })),
+      h('div', { style:{ fontSize:12, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:8 } }, [Ic({n:'compass',size:12}), h('span', null, tr('setup.cardTitle'))]),
       layoutRadios(s, h),
+      h('div', { style:{ fontSize:11, color:'#8b8b95', marginTop:8, lineHeight:1.5 } }, tr('setup.cardBackend', { name: curLabel })),
       h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:10 } }, [
         h('button', { className:'dsws-btn ghost', onClick: cancelSetupPick, style:{ fontSize:12 } }, tr('banner.setupPickCancel')),
         h('button', { className:'dsws-btn', style:{ background:'#58a6ff', borderColor:'#58a6ff', color:'#0b1220', fontWeight:700 }, onClick: confirmSetupPick }, tr('banner.setupPickConfirm')),

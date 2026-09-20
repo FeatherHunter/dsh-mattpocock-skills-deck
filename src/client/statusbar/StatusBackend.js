@@ -2,13 +2,15 @@
  * statusbar/StatusBackend.js — 状态栏后端选择与门控动作（从 StatusBar.js 拆出，B1 #460，纯结构、行为零变化）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
- * 以后谁改它：改状态栏后端选择（setup 黄条选后端：拉清单选定确认注入；gate 蓝条选后端：打开关闭确认绑定）的人改它。
- * #655 起本文件还管初始化那张小卡上的第二组单选（域文档布局）与「没选过布局就先弹卡、不注入」这条漏斗。
+ * 以后谁改它：改状态栏后端选择（gate 蓝条选后端：打开关闭确认绑定）与初始化那张小卡（域文档布局）的人改它。
+ * #655 起本文件还管初始化那张小卡上的那组单选（域文档布局）与「没选过布局就先弹卡、不注入」这条漏斗。
  * #663 起：门控那个窗只问后端（里面那组布局单选撤了，点确认也不再注入任何文字）；横幅那条链搬去
  *   statusbar/bannerChain.js（出哪一条、按钮点下去干什么），本文件只留下它要调的那几个动作。
+ * #669 第 4 件起：那张小卡也只问布局 —— 卡上原来那组后端单选（连带拉清单的 ensureStatusSetupPick 与
+ *   它的开启入口 openStatusSetupPick）一并退役：到这一步后端早在门控那一步定完，卡上那颗确认不再写选择、
+ *   也不再打 wf.bind（换后端仍走右侧面板那颗「切换后端」）。
  * 接线：StatusBar.js 留四个转调包装（cancel/confirmSetupPick、close/confirmGateStatus）供渲染直调；
  *   本文件不引用 StatusMenus.js（同闭包拼回，调用方向见 StatusBar.js 转调四处）。
- *   openStatusSetupPick 当前渲染未直接调用（黄条那颗按钮走 bannerChain → onStatusSetupInit），随旅程整体搬入保持行为一致。
  */
 // #655：域文档布局的两个取值（与 locale 里两句注入文案、卡片上两个选项一一对应）。
 //   布局只活在本次会话——不落持久状态、不加「改布局」的入口；想改就改 docs/agents/domain.md，或重跑一次初始化。
@@ -44,38 +46,15 @@ export const layoutRadios = function(s, h){
     h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, [one('single','setup.layoutSingle'), one('multi','setup.layoutMulti')]),
   ])
 }
-export const normStatusMods = function(r){
-  let ms=null
-  if(r&&r.ok&&r.value&&Array.isArray(r.value.modules)) ms=r.value.modules
-  else if(r&&r.ok&&Array.isArray(r.modules)) ms=r.modules
-  else if(r&&r.modules&&Array.isArray(r.modules)) ms=r.modules
-  if(!Array.isArray(ms)) return null
-  const f=ms.filter(function(m){return String(m.id).toLowerCase()!=='other'})
-  return f.length?f:null
-}
-export const ensureStatusSetupPick = function(s, cb){
-  if(s.setupPickModules&&s.setupPickModules.length){cb(s.setupPickModules);return}
-  if(typeof host==='undefined'||typeof host.call!=='function'){s.setupPickModules=[];cb(s.setupPickModules);return}
-  s.setupPickLoading=true;emit(s)
-  host.call('wf.registry',{cwd:s.cwd||''}).then(function(r){
-    s.setupPickLoading=false
-    const ms=normStatusMods(r)
-    if(ms){s.setupPickModules=ms;const cur=s.selection&&s.selection.backendId!=null?s.selection.backendId:firstBackendIdOf(null);s.setupPickRecommended=cur;if(!s.setupPickSelected)s.setupPickSelected=cur;emit(s);cb(ms);return}
-    s.setupPickErr=String(r&&(r.error||r.message)||'unknown').slice(0,120);emit(s);cb([])
-  }).catch(function(e){s.setupPickLoading=false;s.setupPickErr=String(e).slice(0,120);emit(s);cb([])})
-}
-export const openStatusSetupPick = function(s){s.setupPickOpen=true;if(!s.setupPickSelected){const cur=s.selection&&s.selection.backendId!=null?s.selection.backendId:firstBackendIdOf(null);s.setupPickSelected=cur;s.setupPickRecommended=cur}if(!s.setupPickLayout)s.setupPickLayout=layoutSelectionOf(s);ensureStatusSetupPick(s, function(){emit(s)});emit(s)}
-export const closeStatusSetupPick = function(s){s.setupPickOpen=false;s.setupLayoutCardOpen=false;s.setupPickErr='';emit(s)}
+export const closeStatusSetupPick = function(s){s.setupLayoutCardOpen=false;emit(s)}
 export const cancelStatusSetupPick = function(s){closeStatusSetupPick(s)}
 export const confirmStatusSetupPick = function(s){
-  const id=s.setupPickSelected||s.setupPickRecommended||firstBackendIdOf(null)
-  // #655：卡上这一组单选（域文档布局）与后端一起答完再注入。
+  // #669 第 4 件：这张卡只有「域文档布局」这一问 —— 后端到这一步已经定完了（门控那一步定的）。
+  //   所以这里不再写 selection、不再打 wf.bind：换后端是门控那个窗与右侧面板「切换后端」的事，
+  //   不该从一张只问布局的卡上顺手做掉。注入用的后端取会话当下那一个。
   applyStatusSetupLayout(s, layoutSelectionOf(s))
-  const prev=s.selection
-  s.selection={backendId:id,source:'explicit',ref:(s.repository||(s.snapshot&&s.snapshot.repository)||null)}
-  try{if(s.cwd)setCachedSelection(s.cwd,s.selection)}catch{}
-  emit(s);closeStatusSetupPick(s)
-  if(typeof host!=='undefined'&&host.call)host.call('wf.bind',{cwd:s.cwd||'',backendId:id}).then(function(res){const ok=res&&(res.ok||(res.value&&res.value.ok));if(ok){try{flash(s,'已选择 '+(typeof labelOf==='function'?labelOf(id):id),'ok')}catch{};loadSnapshot(s,true,true)}else{s.selection=prev;emit(s);try{flash(s,tr('switch.bindFail',{err:String(res&&(res.error||res.message)||'unknown')}),'warn')}catch{}}}).catch(function(){s.selection=prev;emit(s)})
+  const id = (s.selection && s.selection.backendId != null) ? s.selection.backendId : firstBackendIdOf(null)
+  closeStatusSetupPick(s)
   // #664：这张小卡的确认就是「布局答完了」那一步，接着把初始化全文注进去（注入决策现在先判仓库那一步过没过：
   //   没过就一个字都不注入，也不会走到这里 —— 那种情形下卡根本不会开）。
   try{ injectSetupDecision(s,id,{allowCard:true}) }catch(e){}
@@ -86,8 +65,7 @@ export const confirmStatusSetupPick = function(s){
 // #663 起把那个决定的结果原样回给调用处（'setup' 注入了全文 / 'setup-card' 只开了小卡 / 其余没注成）：
 //   状态栏横幅那颗按钮要用它落一行「这次给出去的是哪一类」的常驻日志，不然日志里又是一笔空。
 export const onStatusSetupInit = function(s){
-  const id=s.selection && s.selection.backendId!=null ? s.selection.backendId : (s.setupPickSelected||s.setupPickRecommended||firstBackendIdOf(null));
-  try{s.setupPickOpen=false;emit(s);}catch(e){}
+  const id = (s.selection && s.selection.backendId != null) ? s.selection.backendId : firstBackendIdOf(null);
   try{ return injectSetupDecision(s,id,{allowCard:true}) }catch(e){ return '' }
 }
 export const openStatusGate = function(s){

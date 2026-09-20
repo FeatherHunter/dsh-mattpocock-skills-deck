@@ -21,18 +21,6 @@ export function firstBackendIdOf(list) {
   const f = otherFiltered(list)
   return (f[0] && f[0].id) || ''
 }
-/**
- * 内置后端名单的 UI 视图（registry 数据还没到时，界面上那一列选项取它）。
- *
- * 形状与 `wf.registry` 回包里的 modules 对齐（每项至少 id 与 label），所以调用方拿到它就能直接渲染。
- * 为什么要有它：#231 收编时把各处自己抄的「三个后端」名单删掉了，界面那几处改成「registry 数据没到就取这份兜底」；
- *   #669 的真机现场正是踩在这里 —— 状态栏那张初始化小卡在名单还没到的那一档调它，而这个函数当时没有落地，
- *   于是渲染当场抛 ReferenceError、整条状态栏从界面上消失（用户看到的就是「点了黄条，整个胶囊状态栏全没了」）。
- * 回来一份拷贝，免得调用方顺手改到这份共用名单。
- */
-export function supportedBackendViews() {
-  return otherFiltered(null).map(function (m) { return { id: m.id, label: m.label } })
-}
 /** 开仓契约动作解析（#231）：'folder' | 'url' | ''（未声明且无 url 即诚实无动作）。 */
 export function repositoryActionOf(st, bid) {
   const mm = moduleMetaOf(st, bid)
