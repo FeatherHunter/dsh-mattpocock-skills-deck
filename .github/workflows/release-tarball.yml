@@ -1,0 +1,54 @@
+name: Release tarball
+
+# 为什么需要这个 workflow：
+# 市场（awesome-dsh-plugin 列表与 dsh-market）里那条「预构建包安装」链接写的是
+#   https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/releases/latest/download/dsh-mattpocock-skills-deck.tgz
+# 其中 latest 是请求时解析的，但文件名是照字面取的：只有「最新那条 Release 上恰好有一个
+# 叫这个名字的资产」，链接才会指向最新版。只要某一次发版忘了附着，链接就 404，
+# 所以这件事不能靠人记着做，交给这里自动完成。
+#
+# 附上去的是 npm 官方源上这一版的原样产物（不是另外构建的第二份），
+# 因此市场里下载到的包与 `dsh plugin add dsh-mattpocock-skills-deck` 装到的是同一份。
+#
+# 下面脚本里的 NAME 与 `package/package.json` 的包名一致；改包名时这里要跟着改。
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 把这一版的原样产物附着到 Release（固定文件名）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          NAME="dsh-mattpocock-skills-deck"
+          WORK="$(mktemp -d)"
+          cd "$WORK"
+          # npm 刚发出去时 registry 的 CDN 可能还没同步，隔一会儿重试几次
+          ok=0
+          for attempt in 1 2 3 4 5 6; do
+            if npm pack "${NAME}@${VERSION}" >/dev/null 2>&1 && [ -f "${NAME}-${VERSION}.tgz" ]; then ok=1; break; fi
+            echo "npm 上还读不到 ${NAME}@${VERSION}（第 ${attempt} 次），30 秒后重试"
+            sleep 30
+          done
+          if [ "$ok" != "1" ]; then
+            echo "拿不到 ${NAME}@${VERSION} 的产物；本次没有附着任何资产。" >&2
+            exit 1
+          fi
+          mv "${NAME}-${VERSION}.tgz" "${NAME}.tgz"
+          sha256sum "${NAME}.tgz"
+          gh release upload "${TAG}" "${NAME}.tgz" --clobber
+          echo "已附着：${TAG} ← ${NAME}.tgz"

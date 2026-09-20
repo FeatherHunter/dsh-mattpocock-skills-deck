@@ -126,7 +126,7 @@
 2. 发布到官方源（AI 在交互窗口执行 `(cd package && npm publish --registry https://registry.npmjs.org --auth-type=web)`，人在窗口内按回车→浏览器完成二次验证→再按回车）
 3. 查询验证（AI 执行 `npm view --prefer-online`）
 4. 打标签并推送（AI 执行 `git tag vX.Y.Z && git push origin vX.Y.Z`）
-5. 创建 GitHub Release 并附产物说明（AI 执行 `gh release create`，与 CHANGELOG 同文）
+5. 创建 GitHub Release 并附产物说明（AI 执行 `gh release create`，与 CHANGELOG 同文）。Release 一建好，`.github/workflows/release-tarball.yml` 会自动把 npm 上这一版的原样产物，以固定文件名 `dsh-mattpocock-skills-deck.tgz` 附着到这条 Release 上——不需要 AI 或人再上传。市场里那条「预构建包安装」链接指向的就是这个文件（见第 9 节）。
 6. 验证已装形态（AI 在已装 DSH 中验证版本号可见，面板行为符合发布内容）
 
 > 不提供回滚操作。出问题时递增下一个修补版本覆盖，流程保持极简。
@@ -141,7 +141,14 @@
 - 更新时仅改动自有条目且不手改生成产物，分类取最贴近的一项且不纠结。
 - 描述逐项对应真实能力且含冒号的描述已加引号，以便市场检查一次性通过。
 - 打包产物中的介绍需与市场描述同源。
-- 技能指引：发布后按需更新市场条目时遵循 `/awesome-dsh-plugin-submit` 技能（只改自己 YAML、重生成 README、不手改产物；npm 包发布后可补 `npm:` 字段；先发布 npm 再收录体验更好）。
+- 技能指引：发布后按需更新市场条目时遵循 `/awesome-dsh-plugin-submit` 技能（只改自己 YAML、重生成 README、不手改产物；先发布 npm 再收录体验更好）。
+- 条目里**不要写** `npm:` 之类的字段：npm 包与仓库的关联由市场自己判定——它读发布包 `package/package.json` 里的 `repository`，看它是否指回被收录的那个仓库。手写 `npm:` 会被市场校验直接拒掉，PR 因此过不了。
+- 预构建包链接固定写成下面这一行，不要再写带版本号的资产名（`latest/download` 里的文件名是照字面取的，带版本号的话下一次发版就 404）：
+  ```
+  tarball: https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/releases/latest/download/dsh-mattpocock-skills-deck.tgz
+  ```
+  这个资产由第 8 节第 5 步提到的 workflow 在每次发布 Release 后自动附着，所以链接永远指向最新版，换完之后不再需要为它改条目。（现在条目里那条还钉在 `v1.7.14`，下次更新条目时一并换成上面这行。）
+- 截图与 README 都不用提 PR：`screenshots.json` 放在仓库根、`package.json` 旁边，写 1–8 张图、数组顺序就是市场详情页的展示顺序；两个 README 同理。改完推到 `main`，下一次市场构建自动生效。
 
 ---
 
@@ -181,3 +188,4 @@
   ③ 新增门禁 `tests/verify-wizard-exit-609.js` 并挂进 `npm run verify`：它驱动真实脚本代码（把 `scripts/wizard-release.sh` 里每一处 `open_url` 调用与第 285–320 行的发布段原样抽出来跑，npm 与调起器都是桩），上面两条缺陷任一条回来都会当场变红；原先的 `tests/verify-release-contract.js` F 段只做关键字与语法检查，这两条它都拦不住。
   本次为缺陷修正，不改 8+4+2 清单，生效日期保持 2026-08-31。
 - 2026-09-17 增补：第 2 节写明致谢区的花数规则与核对口径——一朵花对应本人提交的一次 Issue 或 PR（按「提交」算、不按「合入」算；只在评论区或讨论区留过言、没提过票的人不带花），并给出两条 `gh` 数花命令与「中英 README、包内说明三处逐行一致」的落地步骤。本次为备注级增补，不改 8+4+2 清单编号，生效日期保持 2026-08-31。
+- 2026-09-20 增补（市场里的预构建包链接接上最新版）：第 8 节第 5 步写明预构建包资产由新增的 `.github/workflows/release-tarball.yml` 在每次发布 Release 后自动附着，文件名固定为 `dsh-mattpocock-skills-deck.tgz`；第 9 节改掉「npm 包发布后可补 `npm:` 字段」这句错误指引（市场现在会拒绝该字段，包与仓库的关联改由发布包的 `repository` 自动判定），并写明预构建包链接的固定写法与「截图、README 改自家仓库即可、不用提 PR」。起因：市场条目里那条 `tarball` 还钉在 `v1.7.14`，而 npm 上已是 `1.7.22`——链接本身有效，但谁从市场点「预构建包安装」，装到的是九版之前的产物。本次为备注级增补，不改 8+4+2 清单编号，生效日期保持 2026-08-31。
