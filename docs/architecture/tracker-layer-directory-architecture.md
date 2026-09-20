@@ -49,7 +49,8 @@ MattSkillsDeck 是 DeepSeek Harness（DSH）里的「地图/任务」生态：�
 ```
 src/
 ├── bridge/                        ⌈ 原 seam/ ⌉ DSH host↔client 绑定桥
-│   ├── rpc.js  runtime.js  timer.js  style.js  editor.js  sidebar.js  gate.js  index.js
+│   ├── rpc.js  runtime.js  timer.js  style.js  editor.js  gate.js  index.js
+（原还有 sidebar.js，为 dsh-better-sidebar 做的幂等注册，2026-09-21 随那条路一起删除）
 │
 ├── shared/                        ⌈ host + client 共享，纯数据/类型，无 IO ⌉
 │   ├── parser.js                  (existing)

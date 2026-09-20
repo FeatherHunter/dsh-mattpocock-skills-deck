@@ -44,7 +44,8 @@ const assert = (condition, message) => {
   try {
     const context = await browser.newContext({ viewport: null })
     await context.addInitScript(() => {
-      try { localStorage.setItem('dsws.cfg', JSON.stringify({ withWayfinder: true, openIn: 'sidebar' })) } catch (e) { /* ignore */ }
+      // 2026-09-21：存档里的 openIn 已不再是配置项（面板只有 DSH 原生右侧边栏一条路），种子里去掉它。
+      try { localStorage.setItem('dsws.cfg', JSON.stringify({ withWayfinder: true })) } catch (e) { /* ignore */ }
     })
     const page = await context.newPage()
     let healthy = false

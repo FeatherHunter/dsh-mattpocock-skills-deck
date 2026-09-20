@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 /**
- * verify-646-native-tab.js — #646 验收：面板有两个入口，都落在 DSH 右侧边栏里；页内浮窗退役。
+ * verify-646-native-tab.js — 验收：面板只有一个落点、一条路，就是 DSH 原生右侧边栏。
  *
- * 背景（这次要守住的东西）：
- *   面板的「打开位置」有两条路，用户选哪条就走哪条 ——
- *     「DSH 右侧边栏」= 本插件自己注册一个 tab 类型，右栏里那一格由我们自己渲染；
- *     「BetterSidebar」= 把面板类型交给 dsh-better-sidebar，它开、它管。
- *   两条路必须用**不同的类型名**：原生侧边栏的类型登记器规定，同一个类型名下 extension 档盖住 builtin 档，
- *   只要 better-sidebar 装着，它转发 deck:map 的那份就永远生效 —— 想让「本插件自己那条」真由我们渲染，
- *   就得另起一个类型名。这一条是本次改造的要点，也是上一版实现（两条路都用 deck:map）看不出差别的原因。
- *   交给 better-sidebar 的那个类型名（deck:map）不能改：改了旧标签会变成打不开的占位页（#598）。
+ * 这份门禁的来历（读的人先看这里，别被文件名误导）：
+ *   #646 当年定的是「两个入口」——本插件自己注册的类型 + 把类型交给 dsh-better-sidebar，两条并存。
+ *   2026-09-21 维护者拍板改成只有一条路：那个插件把面板画进的是同一列，于是原生右栏的引导页里
+ *   出现两枚同名入口（用户看到「两个 MattSkills」）。所以本文件保留文件名、内容整体改写成
+ *   「只有一条路」的断言：凡是一条路不该有的东西，出现即红。
  *
- * 落点：面板只落在右侧边栏里。原先的「details 列」在当前 DSH 里已经不存在，页内浮窗这个形态也已退役，
- *   两条老路（openDockPanel / openPagePanel）连同它们的槽位注册都不再保留。
+ * 现在要守住的东西：
+ *   1) 打开面板只有 openInNativeRight 一条路，没有第二个入口，也没有「这个不行改走另一个」的分派；
+ *   2) 面板类型注册进 DSH 原生登记表（builtin 档），内容体与标题两个槽位按我们自己的类型 id 分格；
+ *   3) 全仓不再有 dsh-better-sidebar 的服务调用（ctx.get('betterSidebar') / registerTab / openTab）；
+ *   4) 设置页不再有「打开位置」那一项，cfg 里也不再留 openIn；
+ *   5) 页内浮窗仍然不注册（shell.overlay 挂载点不给面板用）；
+ *   6) 拿桩上下文真跑一遍 apply：注册了什么、没注册什么、缺服务时崩不崩。
  *
  * 覆盖：src 真源两份文件 + 两份构建产物（产物由 scripts/build.mjs 从 src 重生成，行首 export 会被剥掉）。
  * 运行：node tests/verify-646-native-tab.js
@@ -28,7 +30,10 @@ function check(ok, msg) { if (ok) { console.log('  PASS ' + msg); passed++ } els
 
 const ROUTER = 'src/client/kernel/router.js'
 const ASSEMBLY = 'src/client/panelAssembly.js'
-const FILES = [ROUTER, ASSEMBLY, 'client.js', 'package/lib/client.js']
+const CONFIG = 'src/client/kernel/config.js'
+const SETTINGS = 'src/client/views/SettingsPage.js'
+const LOCALE_FLOW = 'src/client/kernel/locale-flow.js'
+const FILES = [ROUTER, ASSEMBLY, CONFIG, SETTINGS, LOCALE_FLOW, 'client.js', 'package/lib/client.js']
 const texts = {}
 for (const rel of FILES) {
   const p = resolve(rel)
@@ -38,14 +43,26 @@ for (const rel of FILES) {
 // 规则归谁管：打开路径在 router，注册形状在 panelAssembly；两份产物里两者都有。
 const SET_ROUTER = [ROUTER, 'client.js', 'package/lib/client.js']
 const SET_ASSEMBLY = [ASSEMBLY, 'client.js', 'package/lib/client.js']
+const SET_ALL = [ROUTER, ASSEMBLY, CONFIG, SETTINGS, LOCALE_FLOW, 'client.js', 'package/lib/client.js']
 
-console.log('== R1 两个入口用两个类型名（本插件自己那条不能与交给 better-sidebar 的撞名）==')
+/** 去掉注释后的源码：断言「代码里没有某样东西」时必须用它，否则会被解说说辞误伤。 */
+function stripComments(t) {
+  return String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
+}
+
+console.log('== R1 只留一条路：本插件自己注册的类型 ==')
 for (const rel of SET_ROUTER) {
   const t = texts[rel]
   if (!t) continue
-  check(t.includes("DECK_TAB_KIND = 'deck:map'"), rel + ' 交给 better-sidebar 的类型名仍是 deck:map（历史沿用，改了旧标签会变成占位页）')
-  check(t.includes("DECK_NATIVE_TAB_KIND = 'dsh-mattpocock-skills-deck:deck-map'"), rel + ' 本插件自己那条另起一个类型名')
+  check(t.includes("DECK_NATIVE_TAB_KIND = 'dsh-mattpocock-skills-deck:deck-map'"), rel + ' 面板类型名仍是本插件自己那条')
   check(t.includes('DECK_NATIVE_TYPE_ID'), rel + ' 类型 id 有自己的常量')
+  const code = stripComments(t)
+  check(!code.includes("ctx.get('betterSidebar')"), rel + ' 代码里不再取 better-sidebar 的服务')
+  check(!/\bensureSidebarTab\b/.test(code), rel + ' 不再有 ensureSidebarTab（那条注册已整段删除）')
+  check(!/\bopenInSidebar\b/.test(code), rel + ' 不再有 openInSidebar（第二个入口已整段删除）')
+  check(!/\bsidebarTabDisposer\b/.test(code) && !/\bsidebarTabRetry\b/.test(code), rel + ' 不再有那条注册的 disposer 与重试定时器')
+  check(!/DECK_TAB_KIND\b/.test(code), rel + ' 不再有交给第三方插件用的那个类型名常量')
+  check(!/registerTab\s*\(/.test(code), rel + ' 不再往第三方插件登记表注册面板类型')
 }
 for (const rel of SET_ASSEMBLY) {
   const t = texts[rel]
@@ -53,40 +70,55 @@ for (const rel of SET_ASSEMBLY) {
   const start = t.indexOf('registerNativeTabType')
   const block = start >= 0 ? t.slice(start, start + 900) : ''
   check(/priority:\s*'builtin'/.test(block), rel + ' 原生登记用 builtin 档')
-  check(block.length > 0 && !/priority:\s*'extension'/.test(block), rel + ' 原生登记没有用 extension 档（不撞 better-sidebar 转发的那份）')
   check(/kind:\s*DECK_NATIVE_TAB_KIND/.test(block), rel + ' 原生登记的 kind 取自常量（避免两处漂移）')
   check(/id:\s*DECK_NATIVE_TYPE_ID/.test(block), rel + ' 原生登记的 id 取自常量')
   check(/guide:\s*\[\{\s*order:\s*60/.test(block), rel + ' 带一条引导页入口（order 60）')
   check(t.includes("name: 'sidebar.right.pane.tab'") && t.includes("name: 'sidebar.right.pane.tab.title'"), rel + ' 注册了标签内容体与标题栏两个槽位')
   check(/key:\s*DECK_NATIVE_TYPE_ID/.test(t), rel + ' 两个槽位按我们自己的类型 id 分格（keyed）')
   check(/inject:\s*function \(sessionId\)/.test(t), rel + ' 内容体从原生右栏的 inject(sessionId) 拿会话号')
+  check(!stripComments(t).includes("__injectOnce('shell.overlay'"), rel + ' 不注册页内浮窗挂载点（shell.overlay 只留给横幅/弹窗/提示三个席位）')
 }
 
 console.log('')
-console.log('== R2 两个入口的分派，以及浮窗与老路的退役 ==')
+console.log('== R2 打开面板只剩一条路，且不再有第二个入口与分派 ==')
 for (const rel of SET_ROUTER) {
   const t = texts[rel]
   if (!t) continue
   const from = t.indexOf('const openPanel')
   const body = from >= 0 ? t.slice(from, from + 1800) : ''
-  check(body.length > 0 && body.includes("openInSidebar(st)") && body.includes('openInNativeRight(st)'), rel + ' openPanel 里两个入口都在（选哪个走哪个，另一个当退路）')
-  check(t.includes("cfg.openIn === 'sidebar'"), rel + ' 选侧边栏时走 better-sidebar 那条')
-  check(t.includes("ctx.get('sidebarRight')") && t.includes('openTabIn') && t.includes('api.openTab('), rel + ' 本插件自己那条走原生控制器（含跨会话 openTabIn 与退路 openTab）')
-  check(/registerTab\(\{[\s\S]{0,260}?id:\s*'deck:map'/.test(t), rel + ' better-sidebar 注册仍在（deck:map 原样）')
-  check(/openTab\(\{\s*type:\s*DECK_TAB_KIND\s*\}/.test(t), rel + ' better-sidebar 打开仍在（只给类型，不给路径 —— #594 的规矩）')
+  check(body.length > 0 && body.includes('openInNativeRight(st)'), rel + ' openPanel 走原生右侧边栏那条')
+  check(body.length > 0 && !body.includes('openInSidebar'), rel + ' openPanel 里不再有第二个入口')
+  check(!t.includes("cfg.openIn === 'sidebar'"), rel + ' 不再按配置二选一')
+  check(!/entry-fallback/.test(t), rel + ' 不再有「这个入口不行改走另一个」那条日志')
+  check(t.includes("ctx.get('sidebarRight')") && t.includes('openTabIn') && t.includes('api.openTab('), rel + ' 走原生控制器（含跨会话 openTabIn 与退路 openTab）')
   check(!t.includes('openPagePanel'), rel + ' 页内浮窗那条路已删（不再有 openPagePanel）')
   check(!t.includes('openDockPanel'), rel + ' details 列那条老路已删（不再有 openDockPanel）')
   check(!t.includes('openDetails'), rel + ' 不再调用 layout.openDetails（那个方法在当前 DSH 里不存在）')
 }
-for (const rel of SET_ASSEMBLY) {
+
+console.log('')
+console.log('== R3 设置页与配置：不再有「打开位置」这一项 ==')
+for (const rel of SET_ALL) {
   const t = texts[rel]
   if (!t) continue
-  check(!t.includes("__injectOnce('shell.overlay'"), rel + ' 不再注册页内浮窗挂载点（shell.overlay）')
-  check(!t.includes("__injectOnce('details'"), rel + ' 不再注册 details 槽位（当前 DSH 里不存在这个槽）')
+  const code = stripComments(t)
+  check(!code.includes('pickOpenIn'), rel + ' 不再有 pickOpenIn')
+  check(!/\bcfg\.openIn\b/.test(code), rel + ' 代码里不再读写字面量 cfg.openIn')
+  check(!code.includes('openIn:'), rel + ' 不再写 openIn 这个配置键')
+}
+for (const rel of [SETTINGS, 'client.js', 'package/lib/client.js']) {
+  const t = texts[rel]
+  if (!t) continue
+  check(!stripComments(t).includes("'settings.save'"), rel + ' 不再记 settings.save（那一项即时保存随「打开位置」一起没了）')
+}
+for (const rel of [LOCALE_FLOW, 'client.js', 'package/lib/client.js']) {
+  const t = texts[rel]
+  if (!t) continue
+  check(!t.includes("'cfg.openIn'") && !t.includes("'cfg.openInDesc'") && !t.includes("'cfg.openInNative'") && !t.includes("'cfg.openInSidebar'"), rel + ' 七个「打开位置」文案键已撤掉')
 }
 
 console.log('')
-console.log('== R3 等待方式：等服务，不等槽位声明 ==')
+console.log('== R4 等待方式：等服务，不等槽位声明 ==')
 for (const rel of SET_ASSEMBLY) {
   const t = texts[rel]
   if (!t) continue
@@ -131,6 +163,7 @@ console.log('== 运行时断言：拿桩上下文跑一遍 apply，看真的注�
     workspaces: { list: async () => [] },
     sessions: { list: async () => [] },
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
+    // 注意这里**没有** betterSidebar：这一整套桩就是「那个插件不在」的世界，apply 必须照常跑通。
   }
   // 桩：原生 tab 类型登记表（只记注册），原生控制器（只记调用）
   const registeredTypes = []
@@ -167,16 +200,16 @@ console.log('== 运行时断言：拿桩上下文跑一遍 apply，看真的注�
   check(registeredTypes.length === 1, '只注册了 1 个原生 tab 类型（实际 ' + registeredTypes.length + '）')
   const def = registeredTypes[0] || {}
   check(def.kind === 'dsh-mattpocock-skills-deck:deck-map', '类型的 kind 是本插件自己那条（实际 ' + JSON.stringify(def.kind) + '）')
-  check(def.kind !== 'deck:map', '类型名与交给 better-sidebar 的那个不同（两条路才互不打架）')
   check(def.priority === 'builtin', '类型的档位 = builtin（实际 ' + JSON.stringify(def.priority) + '）')
   check(def.id === 'dsh-mattpocock-skills-deck/deck:map', '类型 id = 包名 + 面板名（实际 ' + JSON.stringify(def.id) + '）')
   check(typeof def.title === 'function', '类型带标题函数')
-  check(Array.isArray(def.guide) && def.guide.length === 1 && def.guide[0].order === 60, '带一条引导页入口（order 60）')
+  check(Array.isArray(def.guide) && def.guide.length === 1 && def.guide[0].order === 60, '带一条引导页入口（order 60）—— 引导页里因此只有一枚')
   check(Array.isArray(def.guide) && typeof def.guide[0].title === 'function' && typeof def.guide[0].icon === 'function', '引导页入口自带标题与图标函数')
 
   const names = registrations.map((r) => r.meta.name)
   check(names.includes('sidebar.right.pane.tab'), '注册了标签内容体槽位')
   check(names.includes('sidebar.right.pane.tab.title'), '注册了标签标题栏槽位')
+  check(!names.includes('shell.overlay'), '没有把面板挂到 shell.overlay（页内浮窗仍是退役状态）')
   const body = registrations.find((r) => r.meta.name === 'sidebar.right.pane.tab')
   check(!!body && body.meta.key === 'dsh-mattpocock-skills-deck/deck:map', '内容体按我们自己的类型 id 分格')
   check(!!body && typeof body.meta.inject === 'function' && body.meta.inject('sid-1').sessionId === 'sid-1', '内容体从槽位拿到 sessionId')

@@ -37,7 +37,7 @@
     }
 
     // ============================================================
-    // 6. 插槽注册（#298 幂等：与 ensureSidebarTab 同构，二次 apply/HMR 不增生）
+    // 6. 插槽注册（#298 幂等：每个槽位只注入一次，二次 apply/HMR 不增生）
     // ============================================================
     // 模块级闸门：每个槽位仅注入一次；卸载时经 ctx.effect 复位，允许重装后重注
     export const __slotOnce = {}
@@ -92,13 +92,14 @@
       return slots.register({ name: 'settings.section', id: 'dsws-settings-section', order: 18, label: function () { return tr('panel.title') } }, withCx(SettingsPage))
     })
     // ============================================================
-    // #646 原生右侧边栏注册（用户选「DSH 右侧边栏」时走的就是这条）
+    // 面板的落点：DSH 原生右侧边栏（2026-09-21 起唯一落点）
     // ============================================================
     // 本插件自己在原生登记表里注册一个 tab 类型（builtin 档），右栏里那一格由我们自己渲染。
-    //   为什么类型名与交给 better-sidebar 的那个不同：同一类型名下 extension 档会盖住 builtin 档，
-    //   只要 better-sidebar 装着，它转发 deck:map 的那份就永远生效 —— 想让这条真由我们渲染，就得换个类型名。
     //   等待方式是服务（ctx.inject(['sidebarRightTabs'])，不是在槽位声明上等）：原生右栏先声明槽位、
-    //   后提供服务，按槽位声明触发会读到空服务、永久注册不上（这条经验 better-sidebar 的源码注释里记过）。
+    //   后提供服务，按槽位声明触发会读到空服务、永久注册不上。
+    //   2026-09-21：原来另有一条路 —— 把面板类型交给 dsh-better-sidebar，由它开、它管。那条已整段删除：
+    //   那个插件把面板画进的是同一列，于是原生右栏的引导页里出现两枚同名入口（用户看到「两个 MattSkills」）。
+    //   删掉之后本插件不再依赖任何第三方插件，面板只有这一条路。
     export let nativeTabDisposer = null
     export const registerNativeTabType = function () {
       if (nativeTabDisposer) return true
@@ -111,7 +112,7 @@
           title: function () { return tr('panel.title') },
           icon: function () { return Ic({ n: 'map', size: 14 }) },
           priority: 'builtin',
-          // 右栏「+」引导页里的入口：与交给 better-sidebar 那条同 order，用户在引导页也能自己把它加出来。
+          // 右栏「+」引导页里的入口：用户在引导页也能自己把面板加出来。
           guide: [{ order: 60, title: function () { return tr('panel.title') }, icon: function () { return Ic({ n: 'map', size: 14 }) } }],
         })
       } catch (e) { nativeTabDisposer = null; return false }
@@ -132,7 +133,7 @@
         if (registerNativeTabType()) registerNativeTabSlots()
       })
     } else {
-      // 老宿主没有 ctx.inject：退回每秒试一次（最多 10 次），与 better-sidebar 那条路同一套做法。
+      // 老宿主没有 ctx.inject：退回每秒试一次（最多 10 次）。
       let nativeTries = 0
       const nativeTimer = setInterval(function () {
         nativeTries++
@@ -145,23 +146,6 @@
         nativeTabDisposer = null
       }
     }, 'dsh-mattpocock-skills-deck: native right sidebar tab')
-
-    // v1.4.1：apply 时尽力注册 better-sidebar tab（MattSkillsDeck）；better-sidebar 服务未就绪（加载晚于本模块）→ 定时重试（最多 10 次）
-    //   卸载（HMR / 插件禁用）时清理 disposer + 重试定时器
-    if (!ensureSidebarTab()) {
-      let tries = 0
-      sidebarTabRetry = setInterval(function () {
-        tries++
-        if (ensureSidebarTab() || tries >= 10) { clearInterval(sidebarTabRetry); sidebarTabRetry = null }
-      }, 1000)
-    }
-    ctx.effect(function () {
-      return function () {
-        try { if (sidebarTabDisposer) sidebarTabDisposer() } catch (e) { /* 忽略 */ }
-        sidebarTabDisposer = null
-        if (sidebarTabRetry) { clearInterval(sidebarTabRetry); sidebarTabRetry = null }
-      }
-    }, 'dsh-mattpocock-skills-deck: better-sidebar tab')
 
     // #490 client 日志底座：开关启动对账（本地秒显已在 log.js 顶层同步完成；
     //   此处再向宿主读开关，以宿主为准；宿主不可用就保持本地值，不阻断启动）。

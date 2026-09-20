@@ -288,7 +288,7 @@
       "items": [
         "src/ 真源 → scripts/build.mjs esbuild 双 entry",
         "_dev 产 cordis_define 函数体，_pkg 产 ModuleLoader 形态",
-        "seam 六绑定 B1–B6 换方言，G 门禁编译校验"
+        "seam 五绑定 B1–B5 换方言，G 门禁编译校验（原 B6 sidebar 于 2026-09-21 随 better-sidebar 那条路删除）"
       ]
     },
     {

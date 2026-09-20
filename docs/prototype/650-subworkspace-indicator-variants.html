@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #650 — 子工作区标志的形态与文案</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+  issue：FeatherHunter/dsh-mattpocock-skills-deck#650（地图 #647 第 3 张票）
+
+  分支判定：这个问题是「界面应该长什么样」→ UI 分支（同一处承载面上的多个变体 + 底部悬浮切换条）。
+  承载面（子形态 A：长在既有页面上）：面板顶部（Dock 头部）与输入框下方的状态栏胶囊。这两个面在真机里
+    本来就存在，本页把它们按真源码的配色、圆角、字号摆出来，避免「孤零零一条看不出问题」。
+
+  plan：四个变体，switchable via ?variant=，都长在面板与状态栏这两个既有承载面上：
+        A 仓库芯片旁的归属 chip / B 状态栏胶囊里的一段 / C 检查链一行 + 首次进入的一次性提示条 / D 面包屑路径行。
+        另配六个并列开关：反向标记、点击行为、标志做法（四个方向）、说明句写法、界面语言、面板标题，都能现场翻。
+
+  运行：双击本文件即可（无后端、无依赖）。URL 里 ?variant=A|B|C|D 可分享给没在看的人。
+
+  数据来源（都是读源码与定版记录得来的事实，不是编的）：
+    - docs/adr/20260918-subworkspace-identity-root.md（工作区根判定、用户可见之处说大白话）
+    - src/client/panel/Dock.js（面板头部：标题 + 仓库芯片 + 切换后端 + 标签配色 + 关闭；头部四级自适应收缩）
+    - src/client/statusbar/StatusBar.js、kernel/styles.js（胶囊段落与样式）
+    - src/client/views/ChecksTab.js、views/primitives/Tip.js（检查行与悬浮说明）
+    - src/host/tracker/backends/markdown/index.js（本地 Markdown 的仓库名 = 工作区根目录名）
+-->
+<style>
+:root{
+  --bg:#07080b; --layer1:#10131a; --layer2:#16181d; --layer3:#0c0e12; --card:#1a1d24; --card2:#20242e;
+  --border:#2a2d35; --border2:#3a3f4a;
+  --text:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --primary:#c084fc; --primary-dim:#a855f7;
+  --ok:#4ade80; --warn:#f59e0b; --bad:#f87171; --blue:#58a6ff;
+  --mono:Consolas,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.6;font-size:14px}
+.pbadge{position:fixed;top:8px;left:8px;background:#ff3b30;color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;z-index:100000;letter-spacing:.02em}
+.wrap{max-width:1600px;margin:0 auto;padding:42px 16px 300px}
+h1{font-size:20px;margin:0 0 6px}
+h2{font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:8px;justify-content:space-between}
+p{margin:6px 0}
+.sub{font-size:13px;color:var(--sec)}
+.mono{font-family:var(--mono)}
+code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+.hero{border:1px solid var(--border);border-radius:14px;background:linear-gradient(180deg,#181d26,#101319);padding:16px 18px;margin-bottom:12px}
+.hero .q{font-size:14px;color:#f3f4f6;background:#141922;border-left:3px solid var(--primary);border-radius:0 8px 8px 0;padding:10px 14px;margin:10px 0 0}
+.hero .q b{color:var(--primary)}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.tag{font-size:11.5px;border:1px solid var(--border);border-radius:99px;padding:2px 10px;color:var(--sec)}
+.tag.hot{border-color:var(--primary);color:#cdb8ff}
+.card{border:1px solid var(--border);border-radius:12px;background:var(--layer2);padding:13px 14px;margin-bottom:12px}
+.card .hint{font-size:11.5px;color:var(--cap);font-weight:400}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:12px;align-items:start}
+@media(max-width:1160px){.cols{grid-template-columns:minmax(0,1fr)}}
+
+/* ---- 控制区：情形 + 并列开关 ---- */
+.ctl{display:flex;flex-direction:column;gap:8px}
+.ctlrow{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.cl{font-size:12px;color:var(--cap);width:74px;flex:none;padding-top:3px}
+.chips{display:flex;gap:5px;flex-wrap:wrap;flex:1;min-width:0}
+.chip{font-size:12px;border:1px solid var(--border);border-radius:99px;padding:3px 11px;color:var(--sec);background:var(--layer1);cursor:pointer}
+.chip:hover{border-color:var(--border2);color:var(--text)}
+.chip.on{border-color:var(--primary);background:rgba(192,132,252,.14);color:#e9d5ff;font-weight:600}
+.chip small{color:var(--cap);font-weight:400}
+.grp{display:flex;align-items:center;gap:5px;flex-wrap:wrap;border-left:1px solid var(--border);padding-left:9px}
+.grp:first-child{border-left:0;padding-left:0}
+
+/* ---- 四联对照：四个变体并排，一眼看差别 ---- */
+.minis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media(max-width:1000px){.minis{grid-template-columns:minmax(0,1fr)}}
+.mini{border:1px solid var(--border);border-radius:10px;background:var(--layer1);padding:10px 11px;cursor:pointer;display:flex;flex-direction:column}
+.mini:hover{border-color:var(--border2)}
+.mini.on{border-color:var(--primary);background:#171226}
+.locked-tag{font-size:10px;font-weight:700;color:#0f2417;background:var(--ok);border-radius:99px;padding:0 6px;flex:none}
+.mini .mk .locked-tag{margin-left:auto}
+.mini .mk{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700}
+.mini .key{font-family:var(--mono);font-size:10.5px;border:1px solid var(--border2);border-radius:4px;padding:0 5px;color:var(--cap);flex:none}
+.mini.on .key{border-color:var(--primary);color:#e9d5ff}
+.mini .where{font-size:11px;color:var(--cap);margin:3px 0 8px;line-height:1.45}
+.mini .mock{border:1px solid var(--border);border-radius:8px;background:#0b0e13;padding:8px;display:flex;flex-direction:column;gap:6px;min-height:104px}
+.mini .row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:10.5px;color:var(--sec);min-width:0}
+.mini .mk-repo{font-family:var(--mono);color:#e6edf3;background:rgba(56,139,253,.16);border:1px solid rgba(56,139,253,.5);border-radius:5px;padding:0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.mini .shape{font-size:10.5px;color:#cdb8ff;margin:0 0 6px}
+.mini .shape b{color:#e9d5ff}
+.mini .mk-tab{color:var(--cap);white-space:nowrap}
+.mini .mk-tab.on{color:var(--text);font-weight:600;border-bottom:2px solid var(--primary)}
+.mini .bite{max-width:100%;min-width:0;display:inline-flex;align-items:center;min-height:17px}
+.mini .cap{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--sec);border:1px solid var(--border);border-radius:99px;padding:2px 6px;flex-wrap:nowrap;overflow:hidden}
+.mini .ck{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--cap)}
+.mini .ck i{width:11px;height:11px;border-radius:50%;background:#16a34a;color:#fff;font-style:normal;font-size:8px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.mini .diff{font-size:11px;color:var(--sec);margin-top:8px;line-height:1.5}
+.mini .diff b{color:#e9d5ff}
+/* ③ 卡里的图标四选一 */
+.iconpick{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.ipick{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:4px 9px;border-radius:8px;border:1px solid var(--border);background:var(--layer1);color:var(--sec);cursor:pointer}
+.ipick:hover{border-color:var(--border2);color:var(--text)}
+.ipick.on{border-color:var(--primary);background:#171226;color:#e9d5ff;font-weight:600}
+.ipick .ic{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;border:1px solid rgba(192,132,252,.35);color:#e9d5ff;background:rgba(192,132,252,.07)}
+.mini .why{font-size:10.5px;color:var(--cap);margin-top:6px;line-height:1.5}
+
+/* ---- 真机承载面示意 ---- */
+.host{border:1px solid var(--border);border-radius:12px;background:#05070a;overflow:hidden}
+.sessbar{display:flex;align-items:center;gap:8px;padding:7px 12px;background:#0d1016;border-bottom:1px solid var(--border);font-size:12px;color:var(--sec)}
+.sessbar .dots{display:flex;gap:4px}
+.sessbar .d{width:9px;height:9px;border-radius:50%;background:#2f343d}
+.sessbar .path{font-family:var(--mono);color:var(--text)}
+.hostgrid{display:grid;grid-template-columns:minmax(330px,1fr) 440px;gap:0}
+@media(max-width:980px){.hostgrid{grid-template-columns:minmax(0,1fr)}}
+/* 左：对话 + 输入卡 + 胶囊 */
+.conv{display:flex;flex-direction:column;padding:14px 16px 0;min-height:520px;border-right:1px solid var(--border);background:#0a0d12}
+.bub{font-size:12.5px;color:var(--sec);max-width:78%;padding:7px 11px;border-radius:10px;margin-bottom:8px;line-height:1.6}
+.bub.me{align-self:flex-end;background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.28);color:#cfe3ff}
+.bub.ai{align-self:flex-start;background:var(--layer2);border:1px solid var(--border)}
+.composer{margin-top:auto;padding-bottom:10px}
+.inputcard{background:var(--layer1);border:1px solid var(--border);border-radius:14px;padding:10px 12px;font-size:12.5px;color:var(--cap);min-height:58px}
+.inputcard .typed{color:var(--text);font-family:var(--mono)}
+/* 胶囊（样式抄自 kernel/styles.js 的 .dsws-capsule 与其段） */
+.capwrap{display:flex;justify-content:center;padding:8px 0 4px}
+.dsws-capsule{max-width:100%;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--layer1);border:1px solid var(--border);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--sec);user-select:none}
+.capword{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--text);flex:none}
+.seg{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px solid transparent;display:inline-flex;align-items:center;gap:4px;flex:none}
+.seg:hover{background:rgba(255,255,255,.08);border-color:var(--border)}
+.seg.green{color:var(--ok)} .seg.red{color:var(--bad)} .seg.amber{color:var(--warn)} .seg.purple{color:var(--primary)} .seg.blue{color:var(--blue)}
+.timebtn{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px dashed transparent;color:var(--cap);font-variant-numeric:tabular-nums;flex:none}
+.num{display:inline-block;min-width:5ch;text-align:center;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:11px}
+/* 右：面板 Dock */
+.dock{display:flex;flex-direction:column;height:520px;background:var(--layer1)}
+.dockhead{display:flex;align-items:center;gap:6px;padding:10px 12px 6px;flex:none;min-width:0}
+.dockhead .title{font-weight:600;font-size:13px;flex:none;white-space:nowrap}
+.chiprepo{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border-radius:6px;padding:1px 8px;flex:0 1 auto;min-width:40px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);border:1px solid transparent}
+.chiprepo.gh{color:#e6edf3;background:rgba(56,139,253,.16);border-color:rgba(56,139,253,.5)}
+.chiprepo.md{color:#e6edf3;background:rgba(26,127,55,.18);border-color:rgba(26,127,55,.55)}
+.chiprepo.unk{color:var(--warn);background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.5)}
+.chiprepo.none{color:var(--bad);background:rgba(248,113,113,.12);border-color:rgba(248,113,113,.5)}
+.iconbtn{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;flex:none;border:1px solid var(--border2);color:var(--sec);background:transparent;font-size:10px;line-height:1;padding:0}
+.docktabs{display:flex;align-items:center;gap:10px;padding:0 12px 7px;border-bottom:1px solid var(--border);flex:none;font-size:12px;flex-wrap:nowrap;overflow:hidden}
+.docktabs .t{color:var(--cap);cursor:pointer;padding:2px 0;border-bottom:2px solid transparent;white-space:nowrap;flex:none}
+.docktabs .t:hover{color:var(--text)}
+.docktabs .t.on{color:var(--text);border-bottom-color:var(--primary);font-weight:600}
+.docktabs .sp{flex:1}
+.dockbody{flex:1;overflow:auto;padding:10px 12px}
+.irow{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-radius:8px}
+.irow:hover{background:rgba(255,255,255,.045)}
+.irow .nb{font-family:var(--mono);font-size:11px;color:var(--cap);flex:none;width:34px}
+.irow .tt{font-size:12px;color:var(--text);min-width:0}
+.irow .lb{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.lab{font-size:9.5px;border-radius:99px;padding:0 6px;border:1px solid;font-weight:600}
+.ckcard{display:flex;align-items:center;gap:10px;margin-bottom:6px;padding:4px 0}
+.ckdot{width:16px;height:16px;border-radius:50%;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex:none}
+.cknm{font-size:12px;font-weight:600}
+.ckdt{font-size:11px;color:var(--cap)}
+.banner{display:flex;align-items:center;gap:8px;border-radius:8px;padding:6px 10px;min-height:42px;height:42px;margin:6px 0;font-size:12px;font-weight:600;overflow:hidden}
+.banner.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);color:var(--warn)}
+.banner.bad{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.45);color:var(--bad)}
+/* 一次性提示条（变体 C 用）：比 42 像素的 banner 更轻，一行，可收起 */
+.noticebar{display:flex;align-items:center;gap:8px;margin:0 12px 6px;padding:5px 9px;border-radius:8px;background:rgba(192,132,252,.10);border:1px solid rgba(192,132,252,.42);color:#e9d5ff;font-size:11.5px}
+.noticebar .x{margin-left:auto;cursor:pointer;color:#cdb8ff;border:1px solid rgba(192,132,252,.5);border-radius:5px;padding:0 5px;font-size:10.5px;flex:none}
+/* 面包屑整行（变体 D 用）：独占一整行，不许挤进标签行 */
+.crumbs{display:flex;align-items:center;gap:4px;margin:14px 12px 0;padding:0 0 7px;font-size:11.5px;font-family:var(--mono);color:var(--sec);border-bottom:1px solid var(--border);flex:none;flex-wrap:wrap}
+.crumbs .c{padding:1px 5px;border-radius:5px}
+.crumbs .c.root{color:#e9d5ff;background:rgba(192,132,252,.14);border:1px solid rgba(192,132,252,.45);cursor:pointer}
+.crumbs .c.cur{color:var(--text);background:rgba(255,255,255,.06)}
+.crumbs .sep2{color:var(--cap)}
+.crumbs .tail{margin-left:auto;color:var(--cap);font-family:-apple-system,"PingFang SC",sans-serif}
+/* 本变体新增的东西：只用一个紫色小箭头 ❯ + 角标指出来，不再套虚线框（虚线框会污染对标志本体的判断） */
+.pv-hit{position:relative}
+.pv-caret{color:var(--primary);font-size:12px;line-height:1;flex:none;padding:0 3px 0 1px;opacity:.9}
+.pv-tag{position:absolute;left:0;top:-11px;font-size:9px;line-height:1.35;color:#e9d5ff;background:#2a1440;border:1px solid rgba(192,132,252,.6);border-radius:4px;padding:0 4px;white-space:nowrap;pointer-events:none}
+.pv-tag.below{top:auto;bottom:-11px}
+.pv-tag.right{left:auto;right:0}
+
+/* ---- 四个「标志做法」方向：外观与措辞各不相同 ---- */
+/* ① 两段胶囊：左段灰（我在哪）▸ 右段紫（属于谁） */
+.mk2{display:inline-flex;align-items:center;gap:4px;font-size:11px;line-height:1.5;border-radius:99px;padding:1px 8px;background:rgba(192,132,252,.09);border:1px solid rgba(192,132,252,.28);max-width:100%;overflow:hidden;white-space:nowrap}
+.mk2 .a{color:var(--cap);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.mk2 .ar{color:var(--primary);flex:none;font-size:9px}
+.mk2 .b{color:#e9d5ff;font-weight:700;flex:none}
+/* ② 一行路径：无底色无边框，等宽字体，根那一段带紫色下划线 */
+.mkpath{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:10.5px;line-height:1.6;max-width:100%;overflow:hidden;white-space:nowrap;color:var(--cap)}
+.mkpath .root{color:#e9d5ff;border-bottom:1px solid rgba(192,132,252,.65)}
+.mkpath .sep{color:var(--border2)}
+.mkpath .cur{color:var(--sec);overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* ③ 只一枚图标：18 像素小方块，无文字（图标四选一，见「图标」开关） */
+.mkicon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;border:1px solid rgba(192,132,252,.38);color:#e9d5ff;background:rgba(192,132,252,.07);flex:none}
+.mkicon:hover{border-color:rgba(192,132,252,.75);background:rgba(192,132,252,.16)}
+.mkicon svg{display:block}
+/* ④ 一行弱化小字：无底色无边框，灰色，悬停才加下划线 */
+.mkplain{font-size:10.5px;line-height:1.7;color:var(--cap);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.mkplain u{text-decoration:none;border-bottom:1px dotted var(--border2);color:var(--sec)}
+
+/* ---- 状态面板 ---- */
+.st{font-size:12.5px}
+.strow{display:flex;gap:8px;padding:5px 0;border-bottom:1px dashed var(--border)}
+.strow:last-child{border-bottom:0}
+.strow .k{color:var(--cap);flex:none;width:96px}
+.strow .v{color:var(--text);min-width:0;word-break:break-word}
+.strow .v b{color:var(--primary)}
+.strow .v .ok{color:var(--ok)} .strow .v .warn{color:var(--warn)} .strow .v .bad{color:var(--bad)} .strow .v .mono{font-family:var(--mono);font-size:11.5px}
+.callout{font-size:12px;background:#141922;border-left:3px solid var(--primary);border-radius:0 8px 8px 0;padding:8px 11px;margin:8px 0 0;color:#d8dbe2}
+.callout b{color:var(--primary)}
+.callout.amber{border-left-color:var(--warn)} .callout.amber b{color:var(--warn)}
+.vd{font-size:12.5px;color:var(--sec)}
+.vd b{color:var(--text)}
+.vd ul{margin:6px 0 0;padding-left:18px}
+.vd li{margin:3px 0}
+.kv{font-family:var(--mono);font-size:11.5px;color:#cdb8ff}
+/* ---- 底部悬浮切换条 ---- */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:99999;display:flex;justify-content:center;pointer-events:none}
+.barin{pointer-events:auto;margin-bottom:14px;background:#181b22;border:1px solid var(--border2);border-radius:99px;box-shadow:0 12px 34px rgba(0,0,0,.6);padding:7px 10px;display:flex;flex-direction:column;gap:6px;max-width:min(1400px,96vw)}
+.barnav{display:flex;align-items:center;gap:10px}
+.arrow{width:34px;height:30px;border-radius:99px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:16px;line-height:1;cursor:pointer}
+.arrow:hover{border-color:var(--primary);color:#e9d5ff}
+.cur{text-align:center;font-size:13px;font-weight:700;min-width:250px}
+.cur small{display:block;font-size:10.5px;color:var(--cap);font-weight:400}
+.barbody{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:6px}
+.barbody .gl{font-size:11px;color:var(--cap)}
+.op{font-size:11.5px;border:1px solid var(--border);border-radius:99px;padding:2px 9px;background:var(--layer1);color:var(--sec);cursor:pointer}
+.op.on{border-color:var(--primary);background:rgba(192,132,252,.15);color:#e9d5ff;font-weight:600}
+.sep3{width:1px;height:16px;background:var(--border)}
+kbd{font-family:var(--mono);font-size:11px;background:var(--card2);border:1px solid var(--border);border-radius:4px;padding:0 4px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:120px;background:#221533;border:1px solid rgba(192,132,252,.55);color:#e9d5ff;font-size:12px;border-radius:8px;padding:7px 12px;z-index:100001;opacity:0;transition:opacity .15s}
+.toast.on{opacity:1}
+/* 悬浮说明浮层：照 Tip（HoverTip 的锁定预设）的样子做，用来预演标志的悬浮内容 */
+.tipflt{position:fixed;z-index:99998;max-width:270px;background:#0c0e12;border:1px solid var(--border2);border-radius:10px;padding:8px 11px;box-shadow:0 8px 24px rgba(0,0,0,.55);font-size:11px;line-height:1.5;color:var(--text);pointer-events:none}
+.tipflt .th{font-size:10px;color:var(--cap)}
+.tipflt .tb{color:var(--text);word-break:break-word}
+.tipflt hr{border:0;border-top:1px dashed var(--border);margin:6px 0}
+.tipflt .act{color:#e9d5ff}
+/* 浮层四行：结论 → 证据 → 动作 → 提醒（顺序就是信息优先级） */
+.tipflt .t1{font-size:11.5px;line-height:1.55;color:var(--text)}
+.tipflt .t1 b{color:#e9d5ff;font-family:var(--mono);font-weight:600}
+.tipflt .t2{font-size:10.5px;line-height:1.55;color:var(--cap);margin-top:3px}
+.tipflt .t2 .mono{font-family:var(--mono);color:var(--sec)}
+.tipflt .t3{font-size:11px;line-height:1.5;color:#cdb8ff}
+.tipflt .t4{font-size:10.5px;line-height:1.5;color:var(--cap);margin-top:3px}
+.tipflt .auto{margin-top:6px;font-size:9.5px;color:#8b8b95}
+</style>
+</head>
+<body>
+<div class="pbadge">原型 · 不是产品界面</div>
+
+<div class="wrap">
+  <div class="hero">
+    <h1>子工作区标志：放在哪、长什么样、说什么</h1>
+    <p class="sub">一句话：在仓库的子目录里开新会话时，界面上给一处简洁的标志，告诉你「当前目录属于工作区 X」。</p>
+    <div class="q">
+      <b>要回答的设计问题</b>：标志放哪（面板顶部仓库芯片旁 / 环境检查链里多一行 / 状态栏胶囊 / 几处配合）、长什么样、文案怎么写、能不能点、什么时候出现，
+      以及与既有的「未识别仓库」琥珀芯片、「该工作区尚未初始化」提示是什么关系（替代还是并存）。
+    </div>
+    <p class="sub" style="margin-top:10px">
+      分支判定：这是「界面应该长什么样」那一支 → 同一处承载面上的多个变体 + 底部悬浮切换条。
+      变体都长在真机已有的两个面上：<b>面板顶部</b>（Dock 头部）与<b>输入框下方的状态栏胶囊</b>；本页把这两个面按真源码的配色与尺寸摆出来，免得在空页面上做判断。
+      需要用底部的箭头切换 <b>A / B / C / D</b>，用「情形」看边界，用「并列开关」定文案与点击行为。
+      四个变体的落点已并排画在下面第一块「四联对照」里 —— 先看那一块最快。
+    </p>
+    <div class="tags">
+      <span class="tag hot">#650 · wayfinder:prototype</span>
+      <span class="tag">依据：docs/adr/20260918-subworkspace-identity-root.md</span>
+      <span class="tag">承载面：Dock.js 头部 · StatusBar.js 胶囊 · ChecksTab.js 检查行</span>
+      <span class="tag">抛完即弃，不写测试、不连后端</span>
+    </div>
+  </div>
+
+  <div class="card ctl">
+    <div class="ctlrow">
+      <span class="cl">情形</span>
+      <div class="chips" id="scenes"></div>
+    </div>
+    <div class="ctlrow">
+      <span class="cl">并列开关</span>
+      <div class="chips" id="knobs"></div>
+    </div>
+  </div>
+
+  <div class="card" id="locked">
+    <h2>已经定下来的（拿不准的留在下面继续翻）<span class="hint">这一块随下面的开关实时更新</span></h2>
+    <div id="lockedbody" class="vd"></div>
+    <div class="callout" style="margin-top:10px">
+      <b>本票已收口（2026-09-19）</b>：结论与落地规格写在 <code>#650</code> 里，落地照做在 <code>#653</code>。
+      这个文件是整套变体的原始记录，按原型技能第 6 条归档到抛弃式分支 <code>prototype/650-subworkspace-indicator</code>，不随主干走。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>四联对照：同一情形下，四个变体各自把标志放在哪里<span class="hint">点任意一格就切到那个变体 · 小样只表示「落在哪一处」，字号与宽度都比真机小，真实宽度看左边的面板</span></h2>
+    <div class="minis" id="minis"></div>
+  </div>
+
+  <div class="card">
+    <h2>四向对照：标志本身长什么样、上面写什么（四个做法结构不同）<span class="hint">都摆在同一个位置（面板头部仓库芯片旁）· 点任意一格就切到那个做法</span></h2>
+    <div class="minis" id="dirs"></div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <div class="card">
+        <h2>真机承载面（示意）<span class="hint">左：对话与输入区、胶囊 · 右：面板 · 紫色小箭头 ❯ 指着的那一处就是本次新加的东西（不再套虚线框，免得挡住标志本身的样子）</span></h2>
+        <div class="host">
+          <div class="sessbar">
+            <span class="dots"><span class="d"></span><span class="d"></span><span class="d"></span></span>
+            <span>会话窗口</span>
+            <span class="path" id="sesspath"></span>
+            <span style="margin-left:auto;color:var(--cap)">（真机主区不一定显示这条路径 —— 这正是本原型要补的信息）</span>
+          </div>
+          <div class="hostgrid">
+            <div class="conv">
+              <div class="bub me">在这个子目录里继续做 #650 吧</div>
+              <div class="bub ai">好。先看面板里这个仓库的待办，需要的话我按你选的形态把标志做出来。</div>
+              <div class="composer">
+                <div class="inputcard"><span class="typed">/wayfinder</span> <span style="color:#5c626c">输入指令或问题…</span></div>
+                <div class="capwrap"><div class="dsws-capsule" id="capsule"></div></div>
+              </div>
+            </div>
+            <div class="dock">
+              <div id="dockhead"></div>
+              <div id="dockcrumb"></div>
+              <div id="docknotice"></div>
+              <div id="docktabs" class="docktabs"></div>
+              <div class="dockbody" id="dockbody"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>当前状态（随上面每一次切换重画）</h2>
+        <div class="st" id="state"></div>
+      </div>
+      <div class="card">
+        <h2>这一变体渲染了什么、代价是什么</h2>
+        <div class="vd" id="vrender"></div>
+      </div>
+      <div class="card">
+        <h2>③ 的浮层里放什么：从第一性原理倒推</h2>
+        <div class="vd">
+          <ul>
+            <li><b>用户此刻只有一个问题</b>：我看到的这份数据是谁的？ —— 所以浮层第一行直接给结论：<span class="kv">面板数据来自工作区 D:\ilife</span>。先讲「关系」再讲「是谁」会让人多读一遍。</li>
+            <li><b>关系需要两个目录并列才成立</b>：只给一个路径，用户会以为那就是自己打开的目录 —— 所以第二行给对照：<span class="kv">你这次打开的目录是它的子目录：packages › skill-calorie</span>（用相对尾巴，省长度）。</li>
+            <li><b>失败模式决定要不要补第四行</b>：今天在子目录里会看到「该工作区尚未初始化」，人会去重新初始化，于是在同一个仓库里长出第二套配置与票仓 —— 所以<b>根还没初始化时</b>才补一句 <span class="kv">D:\ilife还未初始化</span>；根已经初始化时不写「不用重新初始化」这种安慰话（维护者 2026-09-19 定）。</li>
+            <li><b>不放什么</b>：后端名与仓库芯片的内容（芯片上已经有了）、判定依据（哪一层有 <code>.git</code>，那是环境检查页那一行的事）。浮层只回答一个问题，多放一句就多一分噪音。</li>
+            <li><b>没有文字的代价得自己补上</b>：图标第一次出现时自动展开一次这个浮层；同时给图标加 <code>aria-label</code>（读屏用户没有「悬停」这个动作）。</li>
+          </ul>
+          <div class="callout" style="margin-top:10px">
+            <b>顺序就是优先级</b>：结论 → 证据 → 动作 → 提醒。四行都定稿在原型里，中文与英文各一套，切「界面语言」就能对照看。
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>怎么读</h2>
+        <div class="vd">
+          <ul>
+            <li>这一页有两个维度，别混：<b>四个变体（A/B/C/D）= 放在哪</b>；<b>四个做法（①②③④）= 这枚标志本身长什么样、上面写什么</b>。页顶两块对照条分别比的这两件事，点任意一格就切过去。</li>
+            <li>最上面那排<b>四联对照</b>把四个变体并排画成小样 —— A 是仓库芯片旁、B 是胶囊里一段、C 是提示条加检查行、D 是一整行路径。先看那一块最快。</li>
+            <li>左上的<b>情形</b>换的是数据：会话在哪个目录、后端是哪个、仓库引用有没有。左边界面跟着重画，右边状态跟着重算。</li>
+            <li>左下的<b>并列开关</b>换的是还没定的那几件事：标志<b>做法</b>（四个方向：长什么样、上面写什么）、<b>说明句</b>写法（用在悬浮浮层与检查行里）、能不能点、根会话要不要反向标出下面的会话数、界面中英文、面板头部标题要不要让位。</li>
+            <li>底部箭头换<b>位置</b>（A/B/C/D 四个变体），左下的「做法」换<b>这枚标志本身的长相</b>（①②③④） —— 两个维度可以任意组合。</li>
+            <li>带紫色虚线框并标「本变体」的就是这个变体新加的东西；状态面板会报出它在当前文案下有没有被截断（按真实像素量出来的）。</li>
+            <li><b>把鼠标停到标志上</b>会弹出真机那颗 Tip 会说的话（三块：这句归属、两个目录、点一下会怎样），点一下则会弹出「真机上这一步会走什么接口」的提示。</li>
+            <li>「面板标题」开关管面板头部那串「✦ MattSkills」：默认只留图标，把宽度让给归属 chip；真机头部挤压时本来就是先隐藏这串文字、保留图标。</li>
+          </ul>
+          <div class="callout" style="margin-top:10px">
+            <b>先看这条：</b>票面问题 4 里的选项「点了把面板切到工作区根的数据」在 #649 定版之后已经不成立 ——
+            子目录会话与根会话<b>同桶</b>，面板上显示的一直就是工作区根的数据（本页情形里就是 <span class="kv" id="samebucket"></span> 的 issue）。
+            所以还值得争的只有：打开工作区根目录 / 复制根路径 / 不可点。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tipflt" id="tip" style="display:none"></div>
+<div class="toast" id="toast"></div>
+<div class="bar"><div class="barin">
+  <div class="barnav">
+    <button class="arrow" id="prev" title="上一个变体（←）">‹</button>
+    <div class="cur" id="cur"></div>
+    <button class="arrow" id="next" title="下一个变体（→）">›</button>
+  </div>
+  <div class="barbody" id="barbody"></div>
+</div></div>
+
+<script>
+/* ===================== 数据：情形（会话所处目录与后端） ===================== */
+/* 每条都注明判定停在哪一层，依据 docs/adr/20260918-subworkspace-identity-root.md 第 3.2 节。 */
+var SCENES = {
+  s1: {
+    n: 'GitHub · 子目录', tip: '主场景：D:\\ilife 的子目录里开会话',
+    sess: 'D:\\ilife\\packages\\skill-calorie', root: 'D:\\ilife',
+    stop: '从所选目录往上，D:\\ilife 这一层自带 .git → 工作区根就是它',
+    backend: 'GitHub Issues', chipKind: 'gh', chip: 'FeatherHunter/ilife',
+    sub: true, siblings: 0,
+    checks: [
+      ['ok', '后端已选定', 'GitHub Issues（按工作区根判定）'],
+      ['ok', '工作区已初始化', '读的是 D:\\ilife\\docs\\agents\\issue-tracker.md，不再是子目录里那个必红的路径'],
+      ['ok', 'GitHub CLI 可用', 'gh 2.62.0'],
+      ['ok', '登录态就绪', '账号 FeatherHunter']
+    ],
+    rel: '仓库芯片照常显示 FeatherHunter/ilife；「该工作区尚未初始化」那条横幅在这条规则生效后不再出现（它以前读的是子目录路径）。',
+    extra: '面板里的 issue、标签、配色文件都是 D:\\ilife 那一份，子目录不再长出第二套。'
+  },
+  s2: {
+    n: '本地 Markdown · 子目录', tip: '本地 Markdown 后端的子目录（今天连后端都选不出来）',
+    sess: 'D:\\3DeepSeekHarness\\agents\\xiaoshuai\\research', root: 'D:\\3DeepSeekHarness\\agents\\xiaoshuai',
+    stop: '往上第一层自带 docs/agents/issue-tracker.md 的是 …\\agents\\xiaoshuai → 工作区根就是它',
+    backend: 'Local markdown', chipKind: 'md', chip: 'xiaoshuai',
+    sub: true, siblings: 0,
+    checks: [
+      ['ok', '后端已选定', 'Local markdown（按工作区根声明判定）'],
+      ['ok', '工作区已初始化', '读的是 …\\agents\\xiaoshuai\\docs\\agents\\issue-tracker.md'],
+      ['ok', '票仓可解析', '.scratch/ 与各子谱 map.md 都在工作区根下']
+    ],
+    rel: '这条就是票面问题 6 的情形：本地 Markdown 没有仓库名，芯片上显示的是工作区根目录的名字（xiaoshuai）。',
+    extra: '今天在这个子目录里：判定从不跑 git，选不出后端、面板没有数据；规则生效后按工作区根的后端与票仓干活。'
+  },
+  s3: {
+    n: 'GitHub · 根会话', tip: '会话就在工作区根上——正向标志不该出现',
+    sess: 'D:\\ilife', root: 'D:\\ilife',
+    stop: '所选目录自带 .git → 工作区根就是所选目录本身（不是子工作区）',
+    backend: 'GitHub Issues', chipKind: 'gh', chip: 'FeatherHunter/ilife',
+    sub: false, siblings: 3,
+    checks: [
+      ['ok', '后端已选定', 'GitHub Issues'],
+      ['ok', '工作区已初始化', '读的是 D:\\ilife\\docs\\agents\\issue-tracker.md'],
+      ['ok', 'GitHub CLI 可用', 'gh 2.62.0'],
+      ['ok', '登录态就绪', '账号 FeatherHunter']
+    ],
+    rel: '正向标志不出现（所选目录就是工作区根）。把并列开关里的「反向标记」打开，可以看到另一种做法：在根会话里标出「下面有 3 个子目录会话」。',
+    extra: '反向标记要读会话清单（DSH 的 sessions.list）才知道有哪些会话落在本工作区下面 —— 这条数据今天的落地票 #653 里没有，勾上等于给落地票加一条。'
+  },
+  s4: {
+    n: '嵌套仓库 · 子目录自带 .git', tip: '边界：子目录自己有 .git，自成一套',
+    sess: 'D:\\ilife\\packages\\skill-calorie', root: 'D:\\ilife\\packages\\skill-calorie',
+    stop: '最近的 .git 在所选目录自己这一层就停 → 工作区根 = 所选目录，不上溯到 D:\\ilife',
+    backend: 'GitHub Issues', chipKind: 'gh', chip: 'FeatherHunter/skill-calorie',
+    sub: false, siblings: 0,
+    checks: [
+      ['ok', '后端已选定', 'GitHub Issues'],
+      ['ok', '工作区已初始化', '读的是这个嵌套仓库自己的 docs/agents/issue-tracker.md'],
+      ['ok', 'GitHub CLI 可用', 'gh 2.62.0'],
+      ['ok', '登录态就绪', '账号 FeatherHunter']
+    ],
+    rel: '标志不该出现，也不该说「属于 D:\\ilife」——它在自己的仓库里，芯片显示的也是自己的仓库名。这条是判定规则最容易做错的地方。',
+    extra: '「谁近听谁」：更近的 .git 会截住上溯，不会跳到外层带主锚文件的目录去。'
+  },
+  s5: {
+    n: '子目录 · 仓库引用缺失', tip: '两个不同的坏消息叠在一起：归属正常，仓库引用缺失',
+    sess: 'D:\\ilife\\packages\\skill-calorie', root: 'D:\\ilife',
+    stop: 'D:\\ilife 这一层自带 .git → 工作区根是它',
+    backend: 'GitHub Issues', chipKind: 'unk', chip: '未识别仓库',
+    sub: true, siblings: 0,
+    checks: [
+      ['ok', '后端已选定', 'GitHub Issues'],
+      ['ok', '工作区已初始化', '读的是 D:\\ilife\\docs\\agents\\issue-tracker.md'],
+      ['fail', '仓库引用', 'git remote 没解析出 owner/name —— 详见环境检查红牌'],
+      ['ok', '登录态就绪', '账号 FeatherHunter']
+    ],
+    rel: '与「未识别仓库」琥珀色芯片并存，不替代：一个是「你在谁的里面」，一个是「这个仓库引用没解析出来」，两件事互不覆盖。',
+    extra: '如果归属标志把琥珀芯片挤掉了，用户会丢掉「引用缺失」这条更要紧的红牌提示 —— 所以两者必须同屏。'
+  },
+  s6: {
+    n: '无仓库目录 · 未初始化', tip: '边界：一路到盘符根都没有标记，工作区根就是所选目录本身',
+    sess: 'D:\\scratch\\notes', root: 'D:\\scratch\\notes',
+    stop: '往上走到 D:\\ 都没有 .git 也没有主锚文件 → 工作区根 = 所选目录，不做上溯',
+    backend: null, chipKind: 'none', chip: '没有后端',
+    sub: false, siblings: 0,
+    checks: [
+      ['fail', '后端已选定', '还没有选后端 —— 点击选择后端'],
+      ['fail', '工作区已初始化', '这个目录里还没有 docs/agents/issue-tracker.md'],
+      ['pending', 'GitHub CLI 可用', '等待探测']
+    ],
+    rel: '标志不出现（不是子工作区）。「该工作区尚未初始化」的提示照旧出现 —— 它是这里的真话，不该被归属标志换掉。',
+    extra: '这一档要保持今天的诚实形态：不假装有工作区，也不假装有仓库。'
+  },
+  s7: {
+    n: '子目录 · 根还没初始化', tip: '第四行就是为这一档写的：数据来自根，而根还没初始化',
+    sess: 'D:\\ilife\\packages\\skill-calorie', root: 'D:\\ilife',
+    stop: 'D:\\ilife 这一层自带 .git → 工作区根是它',
+    backend: 'GitHub Issues', chipKind: 'gh', chip: 'FeatherHunter/ilife',
+    sub: true, siblings: 0,
+    checks: [
+      ['ok', '后端已选定', 'GitHub Issues（按工作区根判定）'],
+      ['fail', '工作区已初始化', 'D:\\ilife 下还没有 docs/agents/issue-tracker.md —— 初始化要在根上做'],
+      ['ok', 'GitHub CLI 可用', 'gh 2.62.0'],
+      ['ok', '登录态就绪', '账号 FeatherHunter']
+    ],
+    rel: '浮层第四行在这一档出现：「D:\\ilife还未初始化」。不写这句，用户会在这个子目录里点初始化，于是在同一个仓库里长出第二套配置与票仓。',
+    extra: '初始化动作落在工作区根，不是当前子目录（#652 的写路径口径）。'
+  }
+};
+
+/* ===================== 数据：文案三稿（票面问题 3，中英各一句） ===================== */
+var WORDS = {
+  w1: {
+    n: '① 定版口径原句',
+    short: '当前目录属于工作区 …',
+    zh: function (sc) { return '当前目录属于工作区 ' + sc.root },
+    en: function (sc) { return 'This folder belongs to workspace ' + sc.root },
+    fit: '句子自带「属于」关系，不靠位置暗示；定版记录里写的原句。偏长，窄面（芯片、胶囊）放不下会被截断。'
+  },
+  w2: {
+    n: '② 最短（只留目录名）',
+    short: '属于 <目录名>',
+    zh: function (sc) { return '属于 ' + lastSeg(sc.root) },
+    en: function (sc) { return 'in ' + lastSeg(sc.root) },
+    fit: '适合芯片与胶囊。注意本地 Markdown 后端的芯片本身就是这个目录名（xiaoshuai），会出现同一个词说两遍；GitHub 情形下「属于 ilife」与芯片 FeatherHunter/ilife 是可分的。'
+  },
+  w3: {
+    n: '③ 解释型',
+    short: '当前目录是子目录，面板数据来自 …',
+    zh: function (sc) { return '当前目录是子目录，面板数据来自 ' + sc.root },
+    en: function (sc) { return 'Nested folder — the panel shows ' + sc.root },
+    fit: '把「你在这个子目录里、面板显示的是上面那份数据」一次说清，适合检查行与悬浮浮层；三稿里最长。'
+  }
+};
+
+/* ===================== 数据：点击行为（票面问题 4） ===================== */
+var CLICKS = {
+  open: { n: '打开工作区根目录', act: function (sc) { return '（原型示意）会调用 wf.openFolder({ cwd: \'' + sc.root + '\' })' }, fit: '现在只有本地 Markdown 的芯片能打开文件夹；GitHub 子目录会话恰恰缺这一手，标志正好补上。' },
+  copy: { n: '复制工作区根路径', act: function (sc) { return '（原型示意）已复制 ' + sc.root }, fit: '最省事，也不需要动宿主的打开文件夹能力；但用户还得自己去文件管理器里粘贴。' },
+  none: { n: '不可点，只悬浮说明', act: function () { return '（原型示意）鼠标悬停 500 毫秒弹出说明，不响应点击' }, fit: '最不容易误触；代价是看到标志却想去点的人会白点一下。' }
+};
+
+/* ===================== 数据：③ 那枚图标（四选一） =====================
+   判据只有一条：**12 像素下能不能一眼看懂「我在一个更大的目录里面」**。
+   SVG 统一 16 视框、13 像素绘制、stroke-width 1.3、currentColor，保证在深浅主题下都跟着字色走。 */
+var ICONS = {
+  ic_folder: {
+    n: '文件夹里放着一块',
+    why: '文件管理器里最熟的语言：外层是文件夹，里面那块小方块代表你所在的子目录。',
+    svg: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round">' +
+      '<path d="M1.9 5.2A1.3 1.3 0 0 1 3.2 3.9h2.3l1.1 1.3h4.3a1.3 1.3 0 0 1 1.3 1.3v4.3a1.3 1.3 0 0 1-1.3 1.3H3.2a1.3 1.3 0 0 1-1.3-1.3z"/>' +
+      '<rect x="8.1" y="7.4" width="3.9" height="3.9" rx="1.1" fill="currentColor" stroke="none"/></svg>'
+  },
+  ic_nest: {
+    n: '方块套方块',
+    why: '最中性：没有任何「文件夹」的固有含义，纯讲「里面还有一层」。',
+    svg: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">' +
+      '<rect x="2.1" y="2.1" width="11.8" height="11.8" rx="3"/>' +
+      '<rect x="7.1" y="7.1" width="5.5" height="5.5" rx="1.6" fill="currentColor" stroke="none"/></svg>'
+  },
+  ic_up: {
+    n: '从框里向上跳',
+    why: '它讲的是「上一层」，正好和点击动作（打开工作区根目录）一致 —— 但讲的是动作，不是「归属」这个事实。',
+    svg: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M2.4 9.6v2.9a1.4 1.4 0 0 0 1.4 1.4h8.4a1.4 1.4 0 0 0 1.4-1.4V9.6"/>' +
+      '<path d="M8 10.5V2.3"/><path d="M4.9 5.5 8 2.3l3.1 3.2"/></svg>'
+  },
+  ic_branch: {
+    n: '树上的一个节点',
+    why: '「我在这一支上」：竖线是干、圆点是本次会话。层级感最强，但小尺寸下容易被看成一条普通折线。',
+    svg: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">' +
+      '<path d="M4.3 2.4v7.4a2.6 2.6 0 0 0 2.6 2.6h5.3"/>' +
+      '<circle cx="4.3" cy="12.4" r="1.5" fill="currentColor" stroke="none"/></svg>'
+  }
+};
+
+/* ===================== 数据：标志本身的四个做法（外观 + 措辞，结构各不相同） =====================
+   这是第二个维度：位置定在「面板头部仓库芯片旁」，四个做法比的是**这枚标志长什么样、上面写什么**。
+   每个做法自己决定形状、字体、颜色与措辞 —— 不是一个胶囊换四种颜色。 */
+var MARKERS = {
+  m1: {
+    n: '① 两段胶囊：我在哪 ▸ 属于谁',
+    shape: '带淡底色的胶囊，两段文字，用一个小箭头连起来',
+    text: function (sc, S) { return lastSeg(sc.sess) + ' ▸ ' + lastSeg(sc.root) },
+    render: function (sc, S, o) {
+      return '<span class="mk2" data-clickmark="1" data-measure="1" style="max-width:' + o.px + 'px">' +
+        '<span class="a">' + esc(lastSeg(sc.sess)) + '</span>' +
+        '<span class="ar">▸</span>' +
+        '<span class="b">' + esc(lastSeg(sc.root)) + '</span></span>'
+    },
+    good: '信息最全、看得出层级；只有两个目录名，没有一句系统腔的话。',
+    bad: '第一次看要猜那个箭头的意思（靠悬浮补全）；两个名字都很长时会一起挤。',
+    width: '短，与仓库芯片同量级'
+  },
+  m2: {
+    n: '② 一行路径：本来就在路径里',
+    shape: '没有底色、没有边框，等宽字体的一行路径，根那一段带紫色下划线',
+    text: function (sc, S) { return sc.root + ' › ' + shortPath(sc) },
+    render: function (sc, S, o) {
+      return '<span class="mkpath" data-clickmark="1" data-measure="1" style="max-width:' + o.px + 'px">' +
+        '<span class="root">' + esc(sc.root) + '</span><span class="sep">›</span>' +
+        '<span class="cur">' + esc(shortPath(sc)) + '</span></span>'
+    },
+    good: '不写一句解释，路径本身就是答案；与 D 变体（面包屑）同一种语言，两处可以统一。',
+    bad: '最长（本情形约 250 像素），窄面板下会被裁；等宽字体与旁边的仓库芯片风格接近，容易连成一片。',
+    width: '长'
+  },
+  m3: {
+    n: '③ 只一枚图标：不占位，悬浮才说话',
+    shape: '18 像素的小方块，里面一枚图标，一个字都不写（图标四选一见「图标」开关）',
+    text: function () { return '（没有文字）' },
+    render: function (sc, S, o) {
+      var label = sc.root ? tipPlain(sc) : '（没有工作区归属）'
+      return '<span class="mkicon" data-clickmark="1" data-measure="1" role="img" aria-label="' + esc(label) + '">' +
+        (ICONS[S.icon] || ICONS.ic_folder).svg + '</span>'
+    },
+    good: '几乎不占宽度，头部永远不会因为它挤压；面板看起来最干净。',
+    bad: '不悬停就完全不知道它是什么意思 —— 可发现性最差，所以要么让它第一次出现时自动展开一次，要么跟 C 的一次性提示条配着用。',
+    width: '极短（18 像素）'
+  },
+  m4: {
+    n: '④ 一行弱化小字：属于 X，不画框',
+    shape: '没有底色、没有边框，一小段灰色文字，悬停才出现细下划线',
+    text: function (sc, S) { return S.lang === 'en' ? 'in ' + sc.root : '属于 ' + sc.root },
+    render: function (sc, S, o) {
+      var t = S.lang === 'en' ? 'in <u>' + esc(sc.root) + '</u>' : '属于 <u>' + esc(sc.root) + '</u>'
+      return '<span class="mkplain" data-clickmark="1" data-measure="1" style="max-width:' + o.px + 'px">' + t + '</span>'
+    },
+    good: '最轻，不像控件，不抢仓库芯片的注意力；措辞最短（「属于 D:\\ilife」）。',
+    bad: '容易被完全忽略；深浅主题下这段灰字的对比度要单独调，否则会糊成一片。',
+    width: '短'
+  }
+};
+
+/* ===================== 数据：四个变体 ===================== */
+var VARIANTS = {
+  A: {
+    name: '仓库芯片旁的归属 chip',
+    where: '面板头部 · 仓库芯片右侧',
+    line: '四个变体，switchable via ?variant=，都长在面板与状态栏这两个既有承载面上；A 把归属做成仓库身份的一部分，靠面板标题让位腾出宽度。',
+    render: function (sc, S) {
+      return [
+        '<b>位置</b>：<code>Dock.js</code> 头部，紧挨仓库芯片右侧，用与「未识别仓库」同规格的小 chip（11 像素、圆角 6、图标 + 短文本）。',
+        '<b>宽度从哪来</b>：面板头部的「✦ MattSkills」字样让位（右上「面板标题」开关，默认只留 ✦ 图标）。真机头部本来就有一套四级收缩，第一级正是「先隐藏这段文字、保留图标」，所以这不是新增的让步，只是把默认行为往前提了一级。',
+        '<b>悬浮说明</b>：用现成的 <code>Tip</code>（500 毫秒延迟、深色浮层）。本页真做了这个浮层：鼠标停到标志上就会弹出，三块内容 —— 这句归属、两个目录（工作区根 / 本次会话目录）、点一下会怎样。',
+        '<b>代价</b>：让位后头部仍然要装「仓库芯片 + 归属 chip + 三颗按钮」；本地 Markdown 那种长目录名换到仓库芯片上时，两者会一起挤。',
+        '<b>宽度预算</b>：' + budgetLine(S, 190),
+        '<b>实际长什么样</b>：由「标志做法」开关决定（① 两段胶囊 / ② 一行路径 / ③ 只一枚图标 / ④ 弱化小字）—— 见页顶「四向对照」。',
+        '<b>回答票面哪几条</b>：问题 1（放哪）、问题 2（长什么样）、问题 4（点击）、问题 5（只在子工作区会话里出现）。'
+      ]
+    }
+  },
+  B: {
+    name: '状态栏胶囊里的一段',
+    where: '输入框下方胶囊 · 品牌字右侧',
+    line: 'B 不碰面板，把归属放进每次打字都会扫一眼的胶囊里。',
+    render: function (sc, S) {
+      return [
+        '<b>位置</b>：<code>StatusBar.js</code> 的胶囊，紧跟品牌字「MattSkills」，排在「可接 / BUG / 诊断」之前 —— 因为它是上下文，不是待办数字。',
+        '<b>优点</b>：不占面板头部的宽度，窄面板下不会和仓库名抢空间。',
+        '<b>代价</b>：胶囊已有一套折叠优先级（1 最先收 … 9 最后收），新段要排优先级；要占一个位置，窄屏时会被优先收掉，收起后归属信息就没了。',
+        '<b>文案预算</b>：' + budgetLine(S, 118),
+        '<b>回答票面哪几条</b>：问题 1、问题 2、问题 5（与根会话的关系）。'
+      ]
+    }
+  },
+  C: {
+    name: '检查链一行 + 首次进入的一次性提示条',
+    where: '面板头部下方提示条 + 环境检查标签页里的链行',
+    line: 'C 是两处配合：进门提示一次，之后留在环境检查里可查证。',
+    render: function (sc, S) {
+      return [
+        '<b>位置一</b>：面板头部下方一条一行高的提示条（比 42 像素的横幅更轻），只在**第一次**在这个子目录会话里打开面板时出现，点「知道了」收起。',
+        '<b>位置二</b>：环境检查标签页的链里多一行「目录归属」，状态为通过（绿点），说明里写判定停在哪一层，永久可查。',
+        '<b>代价</b>：两处实现；「已经读过了」要按工作区记一份状态 → 新增一份内存/磁盘缓存，按本仓库的日志纪律要补一行记录点。',
+        '<b>文案预算</b>：' + budgetLine(S, 330),
+        '<b>回答票面哪几条</b>：问题 1、问题 5（与「未初始化」提示的关系最容易在这里看出）、问题 2。'
+      ]
+    }
+  },
+  D: {
+    name: '面包屑路径行',
+    where: '面板标题行下方 · 占满整行',
+    line: 'D 不摆徽章，把归属做成一行可点的路径导航。',
+    render: function (sc, S) {
+      return [
+        '<b>位置</b>：<code>Dock.js</code> 头部之下、标签行之上，一整行面包屑：工作区根那一节可点，当前目录那一节高亮，行尾小字写「面板数据来自 …」。',
+        '<b>优点</b>：一眼看清「我在哪、上面是谁」；不需要读一句话，路径本身就是答案。',
+        '<b>代价</b>：常驻占掉约 22 像素高度，窄面板下也收不掉（不像 chip 可以让位）；长路径在 384 像素面板里会折行。',
+        '<b>文案预算</b>：路径本身按像素裁，' + budgetLine(S, 340),
+        '<b>回答票面哪几条</b>：问题 1、问题 2（形态是路径不是徽章）、问题 4（哪一节可点）。'
+      ]
+    }
+  }
+};
+
+/* ===================== 状态 ===================== */
+var S = { variant: 'A', scene: 's1', reverse: false, click: 'open', word: 'w1', lang: 'zh', tab: 'list', noticed: false, lastAct: null, title: 'icon', marker: 'm3', icon: 'ic_folder', autoTip: true, tipShown: false };
+
+function lastSeg(p) { var a = String(p || '').split(/[\\/]/); return a[a.length - 1] || p }
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') }
+function w(sc, S) { return (S.lang === 'en' ? WORDS[S.word].en(sc) : WORDS[S.word].zh(sc)) }
+function reverseText(sc) {
+  if (S.lang === 'en') return sc.siblings + ' nested-folder sessions below'
+  return '下面有 ' + sc.siblings + ' 个子目录会话'
+}
+/* 粗糙的文案宽度估算：中日韩字符按 12 像素、其余按 7 像素（够用来提示「这稿放不下」） */
+function textPx(t) {
+  var n = 0
+  for (var i = 0; i < String(t).length; i++) n += /[\u2e80-\u9fff\uff00-\uffef]/.test(String(t)[i]) ? 12 : 7
+  return Math.round(n)
+}
+function budgetLine(S, px) {
+  var cur = w(SCENES[S.scene], S)
+  var need = textPx(cur)
+  var verdict = need <= px ? '<span class="ok">放得下</span>' : '<span class="warn">会被截断</span>'
+  return '这一稿长 ' + need + ' 像素，可用约 ' + px + ' 像素 → ' + verdict + '（' + WORDS[S.word].n + '）'
+}
+
+/* ===================== 渲染：控制区 ===================== */
+function renderControls() {
+  var sc = SCENES[S.scene]
+  var sHtml = ''
+  for (var k in SCENES) {
+    sHtml += '<button class="chip' + (k === S.scene ? ' on' : '') + '" data-kind="scene" data-k="' + k + '">' + esc(SCENES[k].n) + '</button>'
+  }
+  document.getElementById('scenes').innerHTML = sHtml
+
+  function grp(label, items, cur, kind) {
+    var s = '<div class="grp"><span class="gl">' + label + '</span>'
+    items.forEach(function (it) {
+      s += '<button class="op' + (String(it.k) === String(cur) ? ' on' : '') + '" data-kind="' + kind + '" data-k="' + it.k + '">' + esc(it.n) + '</button>'
+    })
+    return s + '</div>'
+  }
+  var html = ''
+  html += grp('反向标记', [{ k: '1', n: '开（根会话里标出下面的会话）' }, { k: '0', n: '关（只做单向标志）' }], S.reverse ? '1' : '0', 'reverse')
+  html += grp('点击标志', [{ k: 'open', n: '打开根目录' }, { k: 'copy', n: '复制根路径' }, { k: 'none', n: '不可点' }], S.click, 'click')
+  html += grp('标志做法', [{ k: 'm1', n: '① 两段胶囊' }, { k: 'm2', n: '② 一行路径' }, { k: 'm3', n: '③ 只一枚图标' }, { k: 'm4', n: '④ 弱化小字' }], S.marker, 'marker')
+  html += grp('图标', [{ k: 'ic_folder', n: '文件夹里放着一块' }, { k: 'ic_nest', n: '方块套方块' }, { k: 'ic_up', n: '从框里向上跳' }, { k: 'ic_branch', n: '树上的一个节点' }], S.icon, 'icon')
+  html += grp('图标首次自动展开', [{ k: '1', n: '开（第一次出现自己说一次话）' }, { k: '0', n: '关' }], S.autoTip ? '1' : '0', 'autotip')
+  html += grp('说明句写法', [{ k: 'w1', n: '① 定版原句' }, { k: 'w2', n: '② 最短' }, { k: 'w3', n: '③ 解释型' }], S.word, 'word')
+  html += grp('界面语言', [{ k: 'zh', n: '中文' }, { k: 'en', n: 'English' }], S.lang, 'lang')
+  html += grp('面板标题', [{ k: 'full', n: '图标 + MattSkills 字样' }, { k: 'icon', n: '只留图标（腾宽度）' }, { k: 'none', n: '整个隐藏' }], S.title, 'title')
+  document.getElementById('knobs').innerHTML = html
+
+  var all = document.querySelectorAll('.chip[data-kind], .op[data-kind]')
+  Array.prototype.forEach.call(all, function (b) {
+    b.onclick = function () { setOpt(b.getAttribute('data-kind'), b.getAttribute('data-k')) }
+  })
+}
+function setOpt(kind, k) {
+  if (kind === 'scene') S.scene = k
+  if (kind === 'variant') { S.variant = k; if (k === 'C') S.tab = 'checks'; S.noticed = false }
+  if (kind === 'reverse') S.reverse = (k === '1')
+  if (kind === 'click') S.click = k
+  if (kind === 'word') S.word = k
+  if (kind === 'marker') { S.marker = k; if (k !== 'm3') hideTip() }
+  if (kind === 'icon') S.icon = k
+  if (kind === 'autotip') { S.autoTip = (k === '1'); if (S.autoTip) S.tipShown = false; else hideTip() }
+  if (kind === 'lang') S.lang = k
+  if (kind === 'title') S.title = k
+  if (kind === 'tab') S.tab = k
+  render()
+}
+
+/* ===================== 渲染：真机承载面 ===================== */
+function renderHost() {
+  var sc = SCENES[S.scene]
+  document.getElementById('sesspath').textContent = sc.sess
+
+  /* ---- 面板头部 ---- */
+  var head = ''
+  head += '<div class="dockhead">'
+  /* 头部标题按「面板标题」开关让位：真机在空间不够时也是先隐藏这段文字（保留图标）；
+     让出来的宽度正好给 A 的归属 chip。 */
+  if (S.title !== 'none') head += '<span style="color:var(--primary);font-size:14px;flex:none">✦</span>'
+  if (S.title === 'full') head += '<span class="title">MattSkills</span>'
+  head += '<span class="chiprepo ' + sc.chipKind + '" title="' + esc(sc.chip) + '">' + esc(sc.chip) + '</span>'
+  if (S.variant === 'A' && markerVisible(sc)) {
+    head += '<span class="pv-hit" data-hit="1" data-label="' + S.marker.toUpperCase() + ' 做法 · 位置 A">' +
+      '<span class="pv-tag">A 位置 · ' + esc(MARKERS[S.marker].n.slice(0, 2)) + ' 做法</span>' +
+      '<span class="pv-caret">❯</span>' + markerHtml(sc, 190) + '</span>'
+  }
+  if (S.reverse && sc.siblings > 0) {
+    head += '<span class="pv-hit" data-hit="1" data-label="反向标记">' +
+      '<span class="pv-tag">反向标记（并列开关）</span>' +
+      '<span class="chiprepo" style="color:#e9d5ff;background:rgba(192,132,252,.14);border-color:rgba(192,132,252,.5);cursor:pointer" data-clickmark="1">' + esc(reverseText(sc)) + '</span></span>'
+  }
+  head += '<button class="iconbtn" title="切换后端">⇄</button>'
+  head += '<button class="iconbtn" title="标签配色">◧</button>'
+  head += '<span style="flex:1"></span>'
+  head += '<button class="iconbtn" title="关闭面板">✕</button>'
+  head += '</div>'
+  document.getElementById('dockhead').innerHTML = head
+
+  /* ---- C 的一次性提示条 ---- */
+  var notice = ''
+  if (S.variant === 'C' && markerVisible(sc) && !S.noticed) {
+    notice = '<div class="noticebar pv-hit" data-hit="1" data-label="C 变体的提示条">' +
+      '<span class="pv-tag">C 变体的提示条（首次进入才出现）</span>' +
+      '<span style="flex:none">➜</span>' + markerHtml(sc, 330, 'plain') +
+      '<span class="x" id="noticex">知道了</span></div>'
+  } else if (S.variant === 'C' && markerVisible(sc) && S.noticed) {
+    notice = '<div style="padding:0 12px 4px;font-size:10.5px;color:var(--cap)">提示条已收起（本会话内不再出现）—— 归属仍可在环境检查里查到</div>'
+  }
+  document.getElementById('docknotice').innerHTML = notice
+  var nx = document.getElementById('noticex')
+  if (nx) nx.onclick = function () { S.noticed = true; render() }
+
+  /* ---- D 的面包屑整行：独占头部与标签行之间的一行，不挤标签 ---- */
+  var crumbs = ''
+  if (S.variant === 'D' && markerVisible(sc)) {
+    crumbs += '<div class="crumbs pv-hit" data-hit="1" data-label="D 变体的面包屑行" data-measure="1"><span class="pv-tag">D 变体新加的一整行</span>'
+    crumbs += crumbParts(sc)
+    crumbs += '<span class="tail">面板数据来自 ' + esc(sc.root) + '</span></div>'
+  }
+  document.getElementById('dockcrumb').innerHTML = crumbs
+
+  /* ---- 标签行：固定四个标签，不换行、不参与折叠 ---- */
+  var tabs = '<span class="t' + (S.tab === 'list' ? ' on' : '') + '" data-t="list">列表</span>' +
+    '<span class="t' + (S.tab === 'checks' ? ' on' : '') + '" data-t="checks">环境检查</span>' +
+    '<span class="t">拉取请求</span><span class="t">技能</span><span class="sp"></span>' +
+    '<span style="font-size:11px;color:var(--cap);white-space:nowrap">更新 · v1.3.3</span>'
+  document.getElementById('docktabs').innerHTML = tabs
+  Array.prototype.forEach.call(document.querySelectorAll('#docktabs .t[data-t]'), function (t) {
+    t.onclick = function () { setOpt('tab', t.getAttribute('data-t')) }
+  })
+
+  /* ---- 面板主体 ---- */
+  if (S.tab === 'list') document.getElementById('dockbody').innerHTML = bodyList()
+  else document.getElementById('dockbody').innerHTML = bodyChecks()
+
+  /* ---- 胶囊 ---- */
+  var cap = ''
+  cap += '<span class="capword">✦ MattSkills</span>'
+  if (S.variant === 'B' && markerVisible(sc)) {
+    cap += '<span class="pv-hit" data-hit="1" data-label="' + S.marker.toUpperCase() + ' 做法 · 位置 B">' +
+      '<span class="pv-tag below">B 位置 · ' + esc(MARKERS[S.marker].n.slice(0, 2)) + ' 做法</span>' + markerHtml(sc, 170, 'seg') + '</span>'
+  }
+  if (S.reverse && sc.siblings > 0) {
+    cap += '<span class="pv-hit" data-hit="1" data-label="反向标记"><span class="pv-tag below right">反向标记</span>' +
+      '<span class="seg purple" data-clickmark="1">⊂ ' + esc(reverseText(sc)) + '</span></span>'
+  }
+  cap += '<span class="seg green">可接 <span class="num">12</span></span>'
+  cap += '<span class="seg red">BUG <span class="num">3</span></span>'
+  cap += '<span class="seg amber">诊断 <span class="num">5</span></span>'
+  cap += '<span class="seg purple">沉淀</span>'
+  cap += '<span class="seg blue">交接</span>'
+  cap += '<span class="seg amber">环境 <span class="num">' + (S.scene === 's6' ? '0/3' : '4/4') + '</span></span>'
+  cap += '<span class="timebtn">更新 12:04</span>'
+  cap += '<span class="seg" style="color:var(--cap)">◍</span>'
+  document.getElementById('capsule').innerHTML = cap
+
+  /* 标志本体：按点击行为决定可点/不可点；鼠标停上去会弹出真机那颗 Tip 会说的话 */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-clickmark]'), function (el) {
+    el.style.cursor = S.click === 'none' ? 'default' : 'pointer'
+    el.onmouseenter = function () { showTip(el, sc) }
+    el.onmouseleave = function () { hideTip() }
+    el.onclick = function (e) {
+      e.stopPropagation()
+      hideTip()
+      if (S.click === 'none') { toast('这一版设定：不可点。看到标志的人会白点一下 —— 所以要标清楚它只是说明'); }
+      else { toast(CLICKS[S.click].act(sc)); }
+      S.lastAct = CLICKS[S.click].n
+      renderState()
+    }
+  })
+}
+/* 浮层文案（③ 的全部信息都在这里）—— 顺序是信息优先级：结论 → 证据 → 动作 →（必要时）提醒。
+   从第一性原理倒推：用户此刻只有一个问题「我看到的这份数据是谁的？」，
+   所以第一行直接回答「面板数据来自哪个目录」，第二行才补关系（关系要靠两个目录并列才成立），第三行是动作。
+   第四行只在「工作区根还没初始化」时出现 —— 根已初始化时不写「不用重新初始化」这种安慰话（维护者 2026-09-19 定）。 */
+function initLine(sc) {
+  var ok = (sc.checks || []).some(function (c) { return c[1] === '工作区已初始化' && c[0] === 'ok' })
+  if (ok) return ''
+  return S.lang === 'en' ? esc(sc.root) + ' is not initialized yet' : esc(sc.root) + '还未初始化'
+}
+function tipLines(sc) {
+  var rel = shortPath(sc)
+  if (S.lang === 'en') {
+    return {
+      t1: 'Panel data comes from workspace <b>' + esc(sc.root) + '</b>',
+      t2: 'The current folder is a subfolder of it: <span class="mono">' + esc(rel) + '</span>',
+      t3: S.click === 'none' ? 'This version is not clickable' : 'Click to open ' + esc(sc.root),
+      t4: initLine(sc)
+    }
+  }
+  return {
+    t1: '面板数据来自工作区 <b>' + esc(sc.root) + '</b>',
+    t2: '当前目录是它的子目录：<span class="mono">' + esc(rel) + '</span>',
+    t3: S.click === 'none' ? '这一版设定不可点' : '点一下打开 ' + esc(sc.root),
+    t4: initLine(sc)
+  }
+}
+function tipPlain(sc) {
+  var L = tipLines(sc)
+  var parts = [L.t1, L.t2, L.t3]
+  if (L.t4) parts.push(L.t4)
+  return parts.join('；').replace(/<[^>]+>/g, '')
+}
+function tipHtml(sc) {
+  var L = tipLines(sc)
+  return '<div class="t1">' + L.t1 + '</div>' +
+    '<div class="t2">' + L.t2 + '</div>' +
+    '<hr><div class="t3">' + L.t3 + '</div>' +
+    (L.t4 ? '<div class="t4">' + L.t4 + '</div>' : '') +
+    (S.marker === 'm3' && S.autoTip ? '<div class="auto">（这次是自动展开的：图标没有文字，第一次出现必须自己说一次话）</div>' : '')
+}
+function showTip(el, sc) {
+  var t = document.getElementById('tip')
+  if (!t) return
+  t.innerHTML = tipHtml(sc)
+  t.style.display = 'block'
+  var r = el.getBoundingClientRect()
+  var w = t.offsetWidth, hgt = t.offsetHeight
+  var left = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - w - 8))
+  var top = r.bottom + 8
+  if (top + hgt > window.innerHeight - 8) top = Math.max(8, r.top - hgt - 8)
+  t.style.left = left + 'px'
+  t.style.top = top + 'px'
+}
+function hideTip() { var t = document.getElementById('tip'); if (t) t.style.display = 'none' }
+function markerVisible(sc) { return !!sc.sub }
+/* 标志路由：具体长什么样由「标志做法」决定（MARKERS），位置由变体决定。
+   flavor：head 面板头部（小方块）/ seg 状态栏胶囊（胶囊段）/ plain 无底色。 */
+function markerHtml(sc, px, flavor) {
+  var m = MARKERS[S.marker] || MARKERS.m1
+  return m.render(sc, S, { px: px, flavor: flavor || 'head' })
+}
+function crumbParts(sc) {
+  var root = sc.root, cur = sc.sess
+  var rest = cur.slice(root.length).replace(/^[\\/]+/, '')
+  var out = '<span class="c root" data-clickmark="1">' + esc(root) + '</span>'
+  if (rest) out += '<span class="sep2">›</span><span class="c cur">' + esc(rest.replace(/[\\/]/g, ' › ')) + '</span>'
+  return out
+}
+function bodyList() {
+  var rows = [
+    ['#650', '原型：子工作区标志的形态与文案', [['wayfinder:prototype', '#f59e0b']]],
+    ['#653', '落地：客户端侧按工作区根分桶并渲染子工作区标志', [['wayfinder:task', '#10b981']]],
+    ['#649', '讨论：子工作区身份规则定版', [['wayfinder:grilling', '#9d7cd8']]],
+    ['#648', '研究：子目录工作区在各后端下的实际故障判据', [['wayfinder:research', '#0ea5e9'], ['ready-for-agent', '#0e8a16']]]
+  ]
+  var html = ''
+  rows.forEach(function (r) {
+    var labs = ''
+    r[2].forEach(function (l) { labs += '<span class="lab" style="color:' + l[1] + ';border-color:' + l[1] + ';background:' + l[1] + '22">' + esc(l[0]) + '</span>' })
+    html += '<div class="irow"><span class="nb">' + esc(r[0]) + '</span><span class="tt">' + esc(r[1]) + '<span class="lb">' + labs + '</span></span></div>'
+  })
+  if (S.scene === 's6') html = '<div class="banner bad">✕ 这个目录还没有选后端 —— 点击选择后端</div>' + html
+  return html
+}
+function bodyChecks() {
+  var sc = SCENES[S.scene]
+  var html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px"><span>⚙ 环境检查 ' + sc.checks.length + (S.variant === 'C' && markerVisible(sc) ? '+1' : '') + '</span><span style="flex:1"></span><span style="font-size:10px;border:1px solid rgba(139,140,255,.45);color:#9a9aff;border-radius:99px;padding:0 8px">' + esc(sc.backend || '未选') + '</span></div>'
+  sc.checks.forEach(function (c) {
+    var meta = { ok: ['✓', '#16a34a', 'var(--ok)'], fail: ['✕', '#ef4444', 'var(--bad)'], pending: ['…', '#6b7280', 'var(--cap)'] }[c[0]]
+    html += '<div class="ckcard"><span class="ckdot" style="background:' + meta[1] + '">' + meta[0] + '</span><div><div class="cknm" style="color:' + meta[2] + '">' + esc(c[1]) + '</div><div class="ckdt">' + esc(c[2]) + '</div></div></div>'
+  })
+  if (S.variant === 'C' && markerVisible(sc)) {
+    html += '<div class="ckcard pv-hit" data-hit="1" data-label="C 变体的链行"><span class="pv-tag" style="top:-6px">C 变体新加的检查行</span>' +
+      '<span class="ckdot" style="background:#16a34a">✓</span><div><div class="cknm" style="color:var(--ok)">目录归属</div>' +
+      '<div class="ckdt" data-measure="1">' + esc(w(sc, S)) + ' —— ' + esc(sc.stop) + '</div></div></div>'
+  }
+  if (S.variant !== 'C' && markerVisible(sc)) {
+    html += '<div style="margin-top:8px;font-size:11px;color:var(--cap)">本变体不改这一页 —— 切到 A / B / D 看它们各自把标志放在哪里。</div>'
+  }
+  return html
+}
+
+/* ===================== 渲染：四联对照（四个变体并排，一眼看差别） ===================== */
+function shortPath(sc) { return String(sc.sess).slice(String(sc.root).length).replace(/^[\\/]+/, '').replace(/[\\/]/g, ' › ') }
+/* 小样里的面板头部也跟着「面板标题」开关走，免得小样与实际面板不一致；
+   extra 传进来的东西会和仓库芯片排在同一行 —— 真机头部就是一行。 */
+function miniHead(sc, extra) {
+  var out = '<div class="row">'
+  if (S.title !== 'none') out += '<span style="color:var(--primary);flex:none">✦</span>'
+  if (S.title === 'full') out += '<span style="color:var(--text);font-weight:600;flex:none">MattSkills</span>'
+  out += '<span class="mk-repo">' + esc(sc.chip) + '</span>'
+  if (extra) out += extra
+  out += '</div>'
+  return out
+}
+function miniCard(k, sc) {
+  var v = VARIANTS[k]
+  var txt = esc(w(sc, S))
+  var mock = ''
+  var diff = ''
+  var shape = ''
+  if (k === 'A') {
+    mock = miniHead(sc, '<span class="bite">' + markerHtml(sc, 150) + '</span>') +
+      '<div class="row"><span class="mk-tab on">列表</span><span class="mk-tab">环境检查</span><span class="mk-tab">拉取请求</span><span class="mk-tab">技能</span></div>'
+    shape = '占位：<b>面板头部同一行</b>（✦ 图标 + 仓库芯片 + 归属 chip），不新增行'
+    diff = '标志与仓库芯片<b>同一排</b>，算仓库身份的一部分；面板标题让位（默认只留 ✦ 图标）后这点宽度刚好够它不折行。鼠标停上去弹出三块说明：这句话、两个目录、点了会怎样。'
+  } else if (k === 'B') {
+    mock = miniHead(sc) +
+      '<div class="cap"><span style="color:var(--primary)">✦</span> MattSkills <span class="bite">' + markerHtml(sc, 150, 'seg') + '</span> <span style="color:var(--ok);white-space:nowrap">可接 12</span> <span style="color:var(--bad);white-space:nowrap">BUG 3</span></div>'
+    shape = '占位：<b>面板不占位</b>，只在输入框下方的胶囊里多一段'
+    diff = '<b>面板一个字都不改</b>，标志放进输入框下方的胶囊里 —— 打字时才看得见，窄屏会被胶囊的折叠优先级先收掉。'
+  } else if (k === 'C') {
+    mock = miniHead(sc) +
+      '<div class="row"><span style="flex:none">➜</span><span class="bite">' + markerHtml(sc, 200, 'plain') + '</span> <span style="color:#cdb8ff;font-size:10px">知道了</span></div>' +
+      '<div class="ck"><i>✓</i> 目录归属（环境检查页里常驻一行）</div>'
+    shape = '占位：<b>面板头部下方一行</b>（可收起）+ 环境检查页多一行'
+    diff = '<b>进门提示一次 + 检查页留一行</b>：两处配合，提示条能「知道了」收起，检查行永久可查证。'
+  } else {
+    mock = miniHead(sc) +
+      '<div class="row"><span class="bite">' + esc(sc.root) + ' › ' + esc(shortPath(sc)) + '</span></div>' +
+      '<div class="row"><span class="mk-tab on">列表</span><span class="mk-tab">环境检查</span><span class="mk-tab">拉取请求</span><span class="mk-tab">技能</span></div>'
+    shape = '占位：<b>头部下方独占一整行</b>（多占约 22 像素高度）'
+    diff = '不做徽章，改成<b>一整行路径导航</b>：工作区根那一节可点、当前目录高亮 —— 常驻占约 22 像素高度，长路径会折行。'
+  }
+  return '<div class="mini' + (k === S.variant ? ' on' : '') + '" data-variant="' + k + '">' +
+    '<div class="mk"><span class="key">' + k + '</span><span>' + esc(v.name) + '</span>' +
+    (LOCKED.variant.indexOf(k) > -1 ? '<span class="locked-tag">已选定</span>' : '') + '</div>' +
+    '<div class="where">' + esc(v.where) + '</div>' +
+    '<div class="shape">' + shape + '</div>' +
+    '<div class="mock">' + mock + '</div>' +
+    '<div class="diff">' + diff + '</div></div>'
+}
+function renderMinis() {
+  var sc = SCENES[S.scene]
+  var html = ''
+  ;['A', 'B', 'C', 'D'].forEach(function (k) { html += miniCard(k, sc) })
+  document.getElementById('minis').innerHTML = html
+  Array.prototype.forEach.call(document.querySelectorAll('#minis .mini'), function (m) {
+    m.onclick = function () { setOpt('variant', m.getAttribute('data-variant')) }
+  })
+  renderDirs()
+}
+/* 四向对照：四个「标志做法」都摆在同一个位置（A：面板头部仓库芯片旁），比外观与措辞 */
+function dirCard(key, sc) {
+  var d = MARKERS[key]
+  var on = (key === S.marker)
+  var extra = ''
+  if (key === 'm3') {
+    /* ③ 的图标本身是四选一，选项直接摆在这张卡里，省得来回找开关 */
+    extra = '<div class="iconpick">' + Object.keys(ICONS).map(function (ik) {
+      return '<button class="ipick' + (ik === S.icon ? ' on' : '') + '" data-icon="' + ik + '" title="' + esc(ICONS[ik].n) + '">' +
+        '<span class="ic">' + ICONS[ik].svg + '</span><span class="in">' + esc(ICONS[ik].n) + '</span></button>'
+    }).join('') + '</div><div class="why">' + esc(ICONS[S.icon].why) + '</div>'
+  }
+  return '<div class="mini' + (on ? ' on' : '') + '" data-marker="' + key + '">' +
+    '<div class="mk"><span class="key">' + key.slice(1) + '</span><span>' + esc(d.n.slice(2)) + '</span>' +
+    (LOCKED.marker.indexOf(key) > -1 ? '<span class="locked-tag">已选定</span>' : '') + '</div>' +
+    '<div class="where">' + esc(d.shape) + '</div>' +
+    '<div class="mock"><div class="row">' +
+      (S.title !== 'none' ? '<span style="color:var(--primary);flex:none">✦</span>' : '') +
+      (S.title === 'full' ? '<span style="color:var(--text);font-weight:600;flex:none">MattSkills</span>' : '') +
+      '<span class="mk-repo">' + esc(sc.chip) + '</span>' +
+      '<span class="bite">' + d.render(sc, S, { px: 260, flavor: 'head' }) + '</span>' +
+    '</div></div>' +
+    '<div class="shape" style="margin-top:7px">上面写的是：<b>' + esc(d.text(sc, S)) + '</b></div>' +
+    extra +
+    '<div class="diff"><span class="ok">好</span>：' + esc(d.good) + '<br><span class="warn">代价</span>：' + esc(d.bad) + '</div>' +
+    '</div>'
+}
+function renderDirs() {
+  var sc = SCENES[S.scene]
+  var html = ''
+  ;['m1', 'm2', 'm3', 'm4'].forEach(function (k) { html += dirCard(k, sc) })
+  document.getElementById('dirs').innerHTML = html
+  Array.prototype.forEach.call(document.querySelectorAll('#dirs .mini'), function (m) {
+    m.onclick = function () { setOpt('marker', m.getAttribute('data-marker')) }
+  })
+  Array.prototype.forEach.call(document.querySelectorAll('#dirs .ipick'), function (b) {
+    b.onclick = function (e) { e.stopPropagation(); setOpt('icon', b.getAttribute('data-icon')) }
+  })
+}
+
+/* 已选定：位置 A、做法 ③、图标「文件夹里放着一块」—— 摘要随开关实时更新，免得任何人打开后猜当前定到哪 */
+var LOCKED = { variant: ['A'], marker: ['m3'], icon: 'ic_folder', click: 'open' }
+function renderLocked() {
+  var sc = SCENES[S.scene]
+  var rows = []
+  rows.push(['位置', (LOCKED.variant.indexOf(S.variant) > -1 ? '<span class="ok">已选定</span> ' : '<span style="color:var(--cap)">看的是</span> ') + '<b>' + S.variant + ' — ' + esc(VARIANTS[S.variant].name) + '</b>' + (LOCKED.variant.indexOf(S.variant) > -1 ? '' : '<br><span style="color:var(--cap)">已选定的位置是 A（面板头部、仓库芯片右侧）</span>')])
+  rows.push(['做法', (LOCKED.marker.indexOf(S.marker) > -1 ? '<span class="ok">已选定</span> ' : '<span style="color:var(--cap)">看的是</span> ') + '<b>' + esc(MARKERS[S.marker].n) + '</b>' + (LOCKED.marker.indexOf(S.marker) > -1 ? '' : '<br><span style="color:var(--cap)">已选定的做法是 ③ 只一枚图标：不占位、不写字，信息全在浮层里</span>')])
+  rows.push(['图标', '<span class="ok">已选定</span> <b>' + esc(ICONS[S.icon].n) + '</b>' + (S.icon === LOCKED.icon ? '' : '<br><span class="warn">现在翻的是别的图标，已选定的是「' + esc(ICONS[LOCKED.icon].n) + '」</span>')])
+  rows.push(['浮层文案', '<span class="ok">已定稿</span><br><span style="color:var(--cap)">三行固定（结论 → 证据 → 动作），工作区根还没初始化时补第四行；改稿经过见右栏第二张卡</span>'])
+  rows.push(['点击行为', (S.click === LOCKED.click ? '<span class="ok">已选定</span> ' : '<span class="warn">现在翻的是别的，已选定的是</span> ') + '<b>打开工作区根目录</b><br><span style="color:var(--cap)">复用宿主的打开文件夹能力；现在只有本地 Markdown 的仓库芯片能开文件夹，GitHub 子目录会话正好缺这一手</span>'])
+  rows.push(['反向标记（根会话标出下面的会话数）', '<span class="ok">已确认：本期不做</span><br><span style="color:var(--cap)">要读会话清单（DSH 的 sessions.list），属新数据源；原型里仍可打开看效果</span>'])
+  rows.push(['图标没有文字的兜底', (S.autoTip ? '<span class="ok">开着</span>' : '<span class="warn">关着</span>') + ' —— 第一次出现自动展开一次浮层；并带 <code>aria-label</code>'])
+  var html = '<div class="st">'
+  rows.forEach(function (r) { html += '<div class="strow"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></div>' })
+  html += '</div>'
+  document.getElementById('lockedbody').innerHTML = html
+}
+
+/* ===================== 渲染：状态面板（外显状态） ===================== */
+function renderState() {
+  var sc = SCENES[S.scene]
+  var rows = []
+  rows.push(['会话所选目录', '<span class="mono">' + esc(sc.sess) + '</span>'])
+  rows.push(['工作区根', '<span class="mono">' + esc(sc.root) + '</span><br><span style="color:var(--cap)">' + esc(sc.stop) + '</span>'])
+  rows.push(['是不是子工作区', sc.sub ? '<span class="warn">是</span> —— 标志该出现' : '<span class="ok">不是</span> —— 正向标志不出现'])
+  rows.push(['后端 / 仓库引用', esc(sc.backend || '（还没选后端）') + ' · 芯片显示 <span class="mono">' + esc(sc.chip) + '</span>'])
+  rows.push(['标志做法（外观）', '<b>' + esc(MARKERS[S.marker].n) + '</b><br><span style="color:var(--cap)">' + esc(MARKERS[S.marker].shape) + ' · 宽度：' + esc(MARKERS[S.marker].width) + '</span>'])
+  if (S.marker === 'm3') {
+    rows.push(['图标', '<b>' + esc(ICONS[S.icon].n) + '</b><br><span style="color:var(--cap)">' + esc(ICONS[S.icon].why) + '</span>'])
+    rows.push(['图标没有文字时的兜底', (S.autoTip ? '<span class="ok">第一次出现自动展开一次</span>（可关）' : '<span class="warn">关掉了</span> —— 那它就完全靠用户自己去悬停发现') + '<br><span style="color:var(--cap)">另外必须带 aria-label，读屏用户没有「悬停」这个动作</span>'])
+  }
+  var L = tipLines(sc)
+  rows.push(['悬浮浮层的文案（维护者定稿）', '<b>' + (L.t1 + '').replace(/<[^>]+>/g, '') + '</b><br><span style="color:var(--cap)">' + (L.t2 + '').replace(/<[^>]+>/g, '') + '</span><br><span style="color:#cdb8ff">' + (L.t3 + '').replace(/<[^>]+>/g, '') + '</span>' +
+    (L.t4 ? '<br><span class="warn">' + (L.t4 + '').replace(/<[^>]+>/g, '') + '</span>' : '<br><span style="color:var(--cap)">（第 4 行只在工作区根还没初始化时出现，这里不出现）</span>')])
+  rows.push(['说明句写法（用在环境检查行）', '<b>' + esc(w(sc, S)) + '</b><br><span style="color:var(--cap)">' + esc(WORDS[S.word].n) + ' · ' + (S.lang === 'en' ? '英文界面' : '中文界面') + ' · ' + textPx(w(sc, S)) + ' 像素</span>'])
+  rows.push(['放在哪', esc(VARIANTS[S.variant].where)])
+  rows.push(['点击行为', S.click === 'none' ? '不可点，只有悬浮说明' : esc(CLICKS[S.click].n) + '<br><span style="color:var(--cap)">' + esc(CLICKS[S.click].act(sc)) + '</span>'])
+  rows.push(['面板标题', (S.title === 'full' ? '图标 + MattSkills 字样（原样）' : S.title === 'icon' ? '<span class="warn">只留图标</span> —— 让出来的宽度给归属 chip（真机头部挤压时也是先隐藏这段文字、保留图标）' : '<span class="warn">整个隐藏</span> —— 头部只剩仓库芯片与三颗按钮，面板顶部再没有品牌字样')])
+  rows.push(['反向标记', S.reverse ? (sc.siblings > 0 ? '<span class="warn">开</span> —— 根会话里标出「' + esc(reverseText(sc)) + '」' : '<span class="warn">开</span>，但本情形不是根会话，没有可标记的对象') : '关 —— 只做单向标志'])
+  rows.push(['与既有提示的关系', esc(sc.rel)])
+  rows.push(['边界说明', esc(sc.extra)])
+  if (S.lastAct) rows.push(['刚才在原型里点了标志', esc(S.lastAct) + '<br><span style="color:var(--cap)">真机上这一步会走宿主接口，落地票里要补一行日志记录点</span>'])
+  var html = ''
+  rows.forEach(function (r) { html += '<div class="strow"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></div>' })
+  html += '<div class="strow"><span class="k">实测截断</span><span class="v" id="trunc">量一下…</span></div>'
+  document.getElementById('state').innerHTML = html
+  setTimeout(measure, 0)
+}
+/* 量真实像素：本变体的标志在真机尺寸下有没有被裁掉。
+   做法：把标志里的文字克隆到一个同字体的隐藏元素上量自然宽，再与标志实际占到的宽度比。 */
+function measureText(text, refEl) {
+  try {
+    var st = window.getComputedStyle(refEl)
+    var d = document.createElement('span')
+    d.textContent = text
+    d.style.cssText = 'position:absolute;left:-9999px;top:0;white-space:nowrap;visibility:hidden;font-family:' + st.fontFamily + ';font-size:' + st.fontSize + ';font-weight:' + st.fontWeight + ';letter-spacing:' + st.letterSpacing
+    document.body.appendChild(d)
+    var w = d.getBoundingClientRect().width
+    document.body.removeChild(d)
+    return Math.round(w)
+  } catch (e) { return 0 }
+}
+function measure() {
+  var el = document.getElementById('trunc')
+  if (!el) return
+  var hits = document.querySelectorAll('[data-hit]')
+  if (!hits.length) { el.innerHTML = '<span style="color:var(--cap)">本变体在当前情形下没有渲染任何标志（情形不是子工作区，或按开关设定不该出现）</span>'; return }
+  var out = []
+  Array.prototype.forEach.call(hits, function (h) {
+    var label = h.getAttribute('data-label') || '标志'
+    var target = h.querySelector('[data-measure]') || h.querySelector('.chiprepo, .seg') || h
+    var need = measureText((target.textContent || '').trim(), target)
+    /* 行内元素（图标、纯文字这种）用 clientWidth 会得到 0，改用外框宽度 */
+    var avail = Math.round(target.getBoundingClientRect().width)
+    if (!avail) { out.push('<b>' + esc(label) + '</b>：这一版没能量出像素（浏览器没给出尺寸）'); return }
+    if (!need) { out.push('<b>' + esc(label) + '</b>：没有文字，只占 ' + avail + ' 像素 —— 信息全在悬浮浮层里'); return }
+    var nowrap = false
+    try { var ws = window.getComputedStyle(target).whiteSpace; nowrap = (ws === 'nowrap' || ws === 'pre') } catch (e) {}
+    var verdict
+    if (need <= avail + 1) verdict = '<span class="ok">放得下</span>'
+    else if (nowrap) verdict = '<span class="warn">放不下，尾部被截断（差 ' + (need - avail) + ' 像素）</span>'
+    else verdict = '<span class="warn">放不下，会折成两行（差 ' + (need - avail) + ' 像素）</span>'
+    out.push('<b>' + esc(label) + '</b>：这一处宽 ' + avail + ' 像素，文字自然宽 ' + need + ' 像素 → ' + verdict)
+  })
+  el.innerHTML = out.join('<br>')
+}
+
+function renderVariantDoc() {
+  var sc = SCENES[S.scene]
+  var v = VARIANTS[S.variant]
+  var html = '<div style="margin-bottom:8px"><b>' + S.variant + ' — ' + esc(v.name) + '</b><div style="color:var(--cap);font-size:11.5px">' + esc(v.line) + '</div></div>'
+  html += '<ul><li>' + v.render(sc, S).join('</li><li>') + '</li></ul>'
+  document.getElementById('vrender').innerHTML = html
+}
+
+/* ===================== 底部悬浮切换条 ===================== */
+function renderBar() {
+  var keys = ['A', 'B', 'C', 'D']
+  document.getElementById('cur').innerHTML = S.variant + ' — ' + esc(VARIANTS[S.variant].name) +
+    '<small>← → 切换形态 · URL 里是 ?variant=' + S.variant + ' · 情形与开关也在 URL 里</small>'
+  function grp(label, items, cur, kind) {
+    var s = '<span class="gl">' + label + '</span>'
+    items.forEach(function (it) {
+      s += '<button class="op' + (String(it.k) === String(cur) ? ' on' : '') + '" data-kind="' + kind + '" data-k="' + it.k + '">' + esc(it.n) + '</button>'
+    })
+    return s
+  }
+  var html = ''
+  html += grp('情形', Object.keys(SCENES).map(function (k) { return { k: k, n: SCENES[k].n } }), S.scene, 'scene')
+  html += '<span class="sep3"></span>'
+  html += grp('反向标记', [{ k: '1', n: '开' }, { k: '0', n: '关' }], S.reverse ? '1' : '0', 'reverse')
+  html += '<span class="sep3"></span>'
+  html += grp('点击', [{ k: 'open', n: '打开根目录' }, { k: 'copy', n: '复制路径' }, { k: 'none', n: '不可点' }], S.click, 'click')
+  html += '<span class="sep3"></span>'
+  html += grp('句子', [{ k: 'w1', n: '①' }, { k: 'w2', n: '②' }, { k: 'w3', n: '③' }], S.word, 'word')
+  html += '<span class="sep3"></span>'
+  html += grp('做法', [{ k: 'm1', n: '① 两段胶囊' }, { k: 'm2', n: '② 路径' }, { k: 'm3', n: '③ 图标' }, { k: 'm4', n: '④ 小字' }], S.marker, 'marker')
+  html += '<span class="sep3"></span>'
+  html += grp('语言', [{ k: 'zh', n: '中' }, { k: 'en', n: 'EN' }], S.lang, 'lang')
+  html += '<span class="sep3"></span>'
+  html += grp('标题', [{ k: 'full', n: '全' }, { k: 'icon', n: '只留图标' }, { k: 'none', n: '隐藏' }], S.title, 'title')
+  html += '<span class="sep3"></span><span class="gl"><kbd>←</kbd><kbd>→</kbd> 换形态</span>'
+  document.getElementById('barbody').innerHTML = html
+  document.getElementById('prev').onclick = function () { cycle(-1) }
+  document.getElementById('next').onclick = function () { cycle(1) }
+  Array.prototype.forEach.call(document.querySelectorAll('#barbody .op'), function (b) {
+    b.onclick = function () { setOpt(b.getAttribute('data-kind'), b.getAttribute('data-k')) }
+  })
+}
+function cycle(d) {
+  var keys = ['A', 'B', 'C', 'D']
+  var i = keys.indexOf(S.variant)
+  S.variant = keys[(i + d + keys.length) % keys.length]
+  if (S.variant === 'C') S.tab = 'checks'
+  S.noticed = false
+  render()
+}
+function toast(msg) {
+  var t = document.getElementById('toast')
+  t.textContent = msg
+  t.classList.add('on')
+  clearTimeout(toast._t)
+  toast._t = setTimeout(function () { t.classList.remove('on') }, 2600)
+}
+
+/* ===================== URL 同步（file:// 下 history 可能被拒，退回 hash） ===================== */
+function syncURL() {
+  var u = new URL(location.href)
+  u.searchParams.set('variant', S.variant)
+  u.searchParams.set('scene', S.scene)
+  u.searchParams.set('word', S.word)
+  u.searchParams.set('click', S.click)
+  u.searchParams.set('lang', S.lang)
+  u.searchParams.set('reverse', S.reverse ? '1' : '0')
+  u.searchParams.set('marker', S.marker)
+  u.searchParams.set('icon', S.icon)
+  u.searchParams.set('title', S.title)
+  u.searchParams.set('autotip', S.autoTip ? '1' : '0')
+  try { history.replaceState(null, '', u.toString()) } catch (e) {
+    try { location.hash = 'variant=' + S.variant + '&scene=' + S.scene + '&word=' + S.word + '&click=' + S.click + '&lang=' + S.lang + '&reverse=' + (S.reverse ? '1' : '0') } catch (e2) {}
+  }
+}
+function readURL() {
+  var p = new URLSearchParams(location.search)
+  if (!p.toString() && location.hash) p = new URLSearchParams(location.hash.replace(/^#/, ''))
+  /* 只在 URL 里真的带了这一项时才覆盖；否则保留文件里的默认值（用默认值开文件的人看到的就是那个变体） */
+  var v = (p.get('variant') || '').toUpperCase()
+  if (VARIANTS[v]) S.variant = v
+  if (SCENES[p.get('scene')]) S.scene = p.get('scene')
+  if (WORDS[p.get('word')]) S.word = p.get('word')
+  if (CLICKS[p.get('click')]) S.click = p.get('click')
+  if (p.get('lang') === 'en' || p.get('lang') === 'zh') S.lang = p.get('lang')
+  if (p.get('reverse') === '1') S.reverse = true
+  if (p.get('reverse') === '0') S.reverse = false
+  if (MARKERS[p.get('marker')]) { S.marker = p.get('marker'); if (S.marker !== 'm3') S.autoTip = false }
+  if (ICONS[p.get('icon')]) S.icon = p.get('icon')
+  if (p.get('title') === 'full' || p.get('title') === 'icon' || p.get('title') === 'none') S.title = p.get('title')
+  if (p.get('autotip') === '0') S.autoTip = false
+  if (p.get('autotip') === '1') S.autoTip = true
+  if (S.variant === 'C') S.tab = 'checks'
+}
+
+function render() {
+  document.getElementById('samebucket').textContent = SCENES[S.scene].root
+  renderControls()
+  renderLocked()
+  renderMinis()
+  renderHost()
+  renderState()
+  renderVariantDoc()
+  renderBar()
+  syncURL()
+  /* ③ 没有文字，第一次出现得自己说一次话（可在「图标首次自动展开」里关掉）；
+     只在「标志真的会出现」的情形下自动展开，免得在根会话/无仓库目录里也弹 */
+  if (S.marker === 'm3' && S.autoTip && !S.tipShown && markerVisible(SCENES[S.scene])) {
+    var iconEl = document.querySelector('.dockhead .mkicon') || document.querySelector('.mkicon')
+    if (iconEl) { S.tipShown = true; setTimeout(function () { showTip(iconEl, SCENES[S.scene]) }, 0) }
+  }
+}
+/* 点页面上任何地方都收起浮层（免得自动展开的那次挡着看别的） */
+document.addEventListener('click', function () { hideTip() })
+
+document.getElementById('prev'); /* keep refs simple */
+window.addEventListener('keydown', function (e) {
+  var t = e.target
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+  if (e.key === 'ArrowLeft') { cycle(-1); return }
+  if (e.key === 'ArrowRight') { cycle(1); return }
+})
+readURL()
+render()
+</script>
+</body>
+</html>

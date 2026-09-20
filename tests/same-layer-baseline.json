@@ -248,15 +248,6 @@
     },
     {
       "file": "src/seam/index.js",
-      "spec": "./sidebar.js",
-      "resolved": "src/seam/sidebar.js",
-      "layer": "seam",
-      "count": 1,
-      "owner": "二批·seam拆分票（待开，聚合出口）",
-      "note": "接缝聚合出口重出侧边栏绑定"
-    },
-    {
-      "file": "src/seam/index.js",
       "spec": "./gate.js",
       "resolved": "src/seam/gate.js",
       "layer": "seam",

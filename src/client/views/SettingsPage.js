@@ -22,8 +22,6 @@ export     const SettingsPage = (props) => {
       // T5 修订：订阅 store（设置页独立于面板 dock，需自己订阅 shared 才能渲染 flash toast）
       const sharedSt = cx ? cx.storeSvc.useStore(props && props.sessionId) : useStore(props && props.sessionId)
       // T2 悬停提示迁移：设置提示框的定位、翻转、挂顶显示已统一交给 HoverTip（mode='mouse'）负责，显示悬停提示、移动悬停提示、隐藏悬停提示三个旧函数（showCfgTip/moveCfgTip/hideCfgTip）已经下线，移除了全局显示时序，翻转阈值与样式走统一配置表，页面行为没有变化
-      const [openIn, setOpenIn] = React.useState(cfg.openIn || 'native')
-      const [openInNote, setOpenInNote] = React.useState(false)
       const [foldVer, setFoldVer] = React.useState(0)
       // #492调试分组：开关秒显宿主值，经 wf.logSetSwitch 写宿主，底座广播刷新；四键走宿主电话
       const [dbgPending, setDbgPending] = React.useState(false)
@@ -129,16 +127,9 @@ export     const SettingsPage = (props) => {
       // 状态与电话调用收进 views/useUpdatePanel.js（本文件已顶到 350 行上限），
       // 这里只拿它的结果渲染：按钮四态、待重启常驻提示行、浮层弹窗（views/UpdateDialog.js）。
       const upd = useUpdatePanel({ st: sharedSt, sid: props && props.sessionId })
-      // v1.4.1：打开位置即时生效 —— seg 点击即写入 cfg + localStorage + 广播（无需滚到底部点保存全部）
-      const pickOpenIn = function (v) {
-        setOpenIn(v)
-        cfg.openIn = v
-        saveCfg()
-        broadcastCfg()
-        try { log('info', 'settings.save', { openIn: String(v || ''), tplChangedCount: 0 }) } catch (eL) {}
-        setOpenInNote(true)
-        if (timer !== undefined) timer.timeout(function () { setOpenInNote(false) }, 2600)
-      }
+      // 2026-09-21：这里原来有一项「打开位置」（点一下就写 cfg + 存档 + 全组广播，并落一行 settings.save）。
+      //   面板现在只有 DSH 原生右侧边栏一条路，没有可选的入口，所以整项删除：
+      //   两个状态、pickOpenIn、那一行 settings.save 日志与页面上的那一栏一并去掉。
       // #155 Q1 改：只读全局总览（wf.bindings + workspaces.list + wf.registry 色值，不可改；不调 wf.bind）
       // 数据装载与跳转收进 views/SettingsWorkspaces.js 的 useWsOverview（纯结构搬移，行为零变化）
       const overview = useWsOverview(cx, sharedSt)
@@ -171,24 +162,8 @@ export     const SettingsPage = (props) => {
         upd.banner,
         // #587：检查更新的浮层弹窗（#541/#542 原有的内容与行为不变，形态从页内分组改为居中浮层）
         upd.dialog,
-        // #646：打开位置 = 两个入口（本插件自己开进 DSH 右侧边栏 / 交给 dsh-better-sidebar）。
-        //   better-sidebar 未装时只显示本插件自己那一条 —— 那条不依赖任何第三方插件。
-        h('div', { className: 'dsws-cfg-group' }, [
-          h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'map', size: 13 }), h('span', null, tr('cfg.openIn'))]),
-          h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.openInDesc')),
-          h('div', { className: 'dsws-cfg-row' }, [
-            h('span', { className: 'dsws-cfg-label' }, tr('cfg.openInLabel')),
-            h('div', { className: 'dsws-cfg-seg' }, [
-              h('button', { key: 'native', className: openIn === 'native' ? 'on' : '', onClick: function () { pickOpenIn('native') } }, tr('cfg.openInNative')),
-              (function () { try { return !!ctx.get('betterSidebar') } catch (e) { return false } })()
-                ? h('button', { key: 'sidebar', className: openIn === 'sidebar' ? 'on' : '', onClick: function () { pickOpenIn('sidebar') } }, tr('cfg.openInSidebar'))
-                : null,
-            ]),
-            // 收-1（#521）：常驻小字，长期可见的确定性答案（原 2.6 秒闪现保留，不依赖它传达）
-            h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('cfg.openInSavedHint')),
-            openInNote ? h('div', { style: { fontSize: 11, color: '#4ade80', marginTop: 6 } }, tr('cfg.openInHint')) : null,
-          ]),
-        ]),
+        // 2026-09-21：这里原来是「打开位置」那一栏（DSH 右侧边栏 / BetterSidebar 二选一），整栏已删。
+        //   面板只有 DSH 原生右侧边栏一条路，没有什么可选的，所以这一栏连着它的文案键一起撤掉。
         // #155 Q1 改：只读全局总览（wf.bindings + workspaces.list + wf.registry 色值，不可改；不调 wf.bind）
         // 分组渲染收进 views/SettingsWorkspaces.js 的 renderWsOverview（纯结构搬移，行为零变化）
         renderWsOverview(h, sharedSt, overview.wsOverview, overview.loadRef, foldVer, setFoldVer),

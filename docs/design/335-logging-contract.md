@@ -144,8 +144,8 @@ getDroppedCount()       // 读累计丢弃数（写盘失败与通道丢弃都�
 | 32 | naming.guard | 信息 | 标题截断 80 字 | 1/1 | kernel/api.js 改名轮询与共享命名守护 | 附录 1.4 #32 |
 | 33 | naming.lock | 信息 | 原因记枚举 | 1/1 | shared/naming-guardian.js 值比对锁 | 附录 1.4 #33 |
 | 34 | issuePath.record | 信息 | 标题只记散列 | 1/1 | src/client/kernel/store.js 记录 | 附录 1.4 #34 |
-| 35 | settings.save | 信息 | 纠偏纳入常驻、不记模板正文 | 1/1 | src/client/views/SettingsPage.js 即时保存 | 附录 1.4 #35 |
-| 36 | panel.open | 信息 | 无敏感字段 | 1/1 | src/client/kernel/router.js 三形态打开 | 附录 1.4 #36 |
+| 35 | settings.save（已退役，2026-09-21） | 信息 | 纠偏纳入常驻、不记模板正文 | 1/1 | 原落点 src/client/views/SettingsPage.js 即时保存；设置页「打开位置」一项删除后落点消失，事件随之退役（见附录 1.4 退役说明） | 附录 1.4 #35 |
+| 36 | panel.open | 信息 | 无敏感字段（2026-09-21 去掉 mode） | 1/1 | src/client/kernel/router.js 点开面板处 | 附录 1.4 #36 |
 | 38 | statusbar.fallback | 信息 | 纠偏纳入常驻、原因记枚举 | 1/1 | src/client/statusbar/StatusBar.js | 附录 1.4 #38 |
 | 39 | dock.rehydrate | 告警 | 直通刷盘、路径散列 | 1/1 | src/client/panel/Dock.js 跟随与自愈 | 附录 1.4 #39 |
 | 40 | storage.fail | 告警 | 直通刷盘、键名记枚举 | 1/1 | kernel/store.js 与 config.js 本地存储 | 附录 1.4 #40 |

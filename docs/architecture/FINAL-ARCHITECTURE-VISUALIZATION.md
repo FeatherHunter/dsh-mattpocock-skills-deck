@@ -46,8 +46,8 @@ dsh-mattpocock-skills-deck/                  ← 仓库根
     │   ├── rpc.js                           rpcCall 桥
     │   ├── style.js                         styles.insert 适配
     │   ├── timer.js                         setTimeout 兜底
-    │   ├── editor.js                        editor 服务桥
-    │   └── sidebar.js                       sidebar 适配
+    │   └── editor.js                        editor 服务桥
+    │       （2026-09-21：原来还有一个 sidebar.js（为 dsh-better-sidebar 做的幂等注册），随那条路一起删除）
     │
     └── client/                               ★ 表现半（DSH 加载 = 单 bundle）
         │

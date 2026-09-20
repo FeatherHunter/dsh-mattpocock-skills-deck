@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#651 初始化流程的「多上下文」支持 · 第 1 轮（修订版）</title>
+<style>
+:root{--bg:#0d0f12;--card:#171b21;--line:#2a313b;--txt:#e8ecf1;--mut:#9aa6b5;--acc:#8b5cf6;--ok:#10b981;--warn:#f59e0b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.7 "PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:28px 20px 60px}
+.hero{border:1px solid var(--line);border-radius:14px;padding:20px 22px;background:linear-gradient(180deg,#181d26,#12151c)}
+.hero h1{margin:0 0 6px;font-size:22px}.hero p{margin:6px 0;color:var(--mut)}
+.hero code,.ctx code,.opt code,.rec code,.facts code{background:#0b1016;border:1px solid #27313d;border-radius:5px;padding:1px 5px;color:#bcd3ea;font-size:12.5px}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:2px 10px;color:var(--mut)}
+.tag.hot{border-color:var(--acc);color:#cdb8ff}
+.quick{margin-top:14px;border:1px solid #1f8a6b;background:#0e1f1a;border-radius:10px;padding:12px 14px;font-size:14px}
+.quick b{color:#5eead4}
+.toc{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+.toc a{color:#cdb8ff;text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--card);font-size:13px}
+.dead{border:1px solid #5b3a15;background:#1d1509;border-radius:14px;padding:14px 18px;margin:16px 0}
+.dead h3{margin:0 0 6px;font-size:15px;color:#fbbf24}
+.dead ul{margin:6px 0 0;padding-left:20px;color:#d8c9a8;font-size:14px}
+.facts{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:14px 18px;margin:16px 0}
+.facts h3{margin:0 0 8px;font-size:15px;color:#cdb8ff}
+.facts ul{margin:0;padding-left:20px}
+.facts li{margin:8px 0;color:#cfd8e3;font-size:14px}
+.card{border:1px solid var(--line);border-radius:14px;background:var(--card);margin:16px 0;overflow:hidden}
+.card header{padding:16px 18px 0}.num{display:inline-block;font-size:12px;background:#242c38;border-radius:6px;padding:2px 8px;color:var(--mut);margin-right:8px}
+.card h2{display:inline;font-size:17px;margin:0}
+.ctx{padding:10px 18px;color:var(--mut);font-size:14px;border-left:3px solid var(--acc);margin:12px 18px 0;background:#141922;border-radius:0 8px 8px 0}
+.opt{margin:10px 18px;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.opt b{display:block;margin-bottom:4px}.opt span{color:var(--mut);font-size:13.5px}
+.opt.win{border-color:#1f8a6b;background:#101f1b}.opt.win b{color:#5eead4}
+.opt.no{opacity:.72}
+.rec{margin:12px 18px;border:1px solid #1f8a6b;background:#0e1f1a;border-radius:10px;padding:10px 12px}
+.rec b{color:#5eead4}
+.procon{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 18px 18px}
+.procon div{border-radius:10px;padding:10px 12px;font-size:13.5px}
+.pro{background:#0f231a;border:1px solid #1c4d3c}.con{background:#251a10;border:1px solid #5b3a15}
+.pro b{color:var(--ok)}.con b{color:var(--warn)}
+.pro ul,.con ul{margin:6px 0 0;padding-left:18px;color:#cfd8e3}
+.footer{color:var(--mut);font-size:13px;margin-top:22px;border-top:1px dashed var(--line);padding-top:14px}
+@media(max-width:640px){.procon{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="hero">
+<h1>初始化流程的「多上下文」支持 · 第 1 轮（修订版）</h1>
+<p><strong style="color:#fff">已定：域文档布局由用户在初始化那一刻选定</strong>，不靠探测仓库形状——初始化时仓库可能一个文件都没有，本来就探不到信号。所以这一轮只剩三件事：<strong style="color:#fff">在哪问、怎么问、答案怎么带进注入文案</strong>。</p>
+<div class="meta"><span class="tag">仓库 FeatherHunter/dsh-mattpocock-skills-deck</span><span class="tag">讨论类票 #651</span><span class="tag">地图 #647 第 4 项</span><span class="tag hot">已定版关闭</span></div>
+<div class="quick"><b>已收尾（2026-09-18）：</b><code>P1 甲 · P2 两个选项、默认「一个仓库共用一份」 · P3 只记结论 · P4 甲 单漏斗 · P5 不存状态</code>，加上第一轮没变的三条与「结论句写两处」。<br><b>去向：</b>规则文本与改动清单固化进规格单 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/657">#657</a>（已挂到地图 #647 下、`ready-for-agent`）；长期留存写进 <code>docs/adr/20260918-init-domain-layout-choice.md</code>；落地由 #655 执行。<br><b>范围：</b>只谈插件对<strong>用户仓库</strong>的行为；本仓自身的域文档布局不在本票范围内。</div>
+</div>
+<div class="toc"><a href="#dead">已作废的两问</a><a href="#now">今天的实情</a><a href="#p1">P1 在哪问</a><a href="#p2">P2 文案与默认</a><a href="#p3">P3 列不列清单</a><a href="#p4">P4 没有弹窗的入口</a><a href="#p5">P5 能不能改</a><a href="#p6">补 结论句写哪</a><a href="#keep">没变的三条</a></div>
+
+<div class="dead" id="dead">
+<h3>已按你的答复作废的两问（不用再答）</h3>
+<ul>
+<li><b>原来的 Q2「信号清单」</b>——不再需要：不探测形状，就没有清单。</li>
+<li><b>原来的 Q3(b)「自动判断判不准怎么办」</b>——不再需要：由人定，就没有「判不准」这个状态。</li>
+</ul>
+</div>
+
+<div class="facts" id="now">
+<h3>今天的实情（决定了 P1 与 P4 怎么选）</h3>
+<ul>
+<li><b>点黄条 = 一键直接注入</b>，中间没有任何弹窗。<code>StatusBar.js</code> 第 261 行的按钮直接调 <code>onSetupInit</code> 注入文案。</li>
+<li><b>绕过弹窗直接注入的还有一条：检查页那张红牌的「执行初始化」按钮。</b>它走的是检查项动作（<code>check-catalog-views.js</code> 第 95 行声明），经检查页自己的派发器直接注入，连共用的注入入口都不经过。</li>
+<li><b>设置页的「复制提示词」入口已经不存在了</b>（<code>src/</code> 里已无处复制初始化提示词；设置页只剩复制调试目录、工作区页只剩复制工作区路径）。这条入口作废。</li>
+<li><b>有弹窗的两条路本来就在问后端</b>：开门链那张「请选择 Tracker 后端以继续」（状态栏与面板各一处）与「切换后端」的三选一弹窗（保留／迁移／清空）。</li>
+<li><b>建仓成功后会自动补发一次初始化文案</b>（无界面），所以这一路的答案要跟着本次会话的选择一起带过去。</li>
+<li><b>代码里其实躺着一张「选择希望使用的后端」的小卡</b>（含推荐徽标、取消/确认两个按钮，第 213–235 行），但它的开关没有调用点——是上一段旅程留下的、已经断线的组件。要"在面板里问"，接回这张卡是最省的做法。</li>
+<li><b>注入文案的四个占位符全部由"后端声明的键"填充</b>（是静态的，按后端而定）；用户选的布局是动态的，要多一条与后端无关的来源，这就是 <code>{contextLayout}</code> 要新加的原因。</li>
+</ul>
+</div>
+
+<div class="card" id="p1"><header><span class="num">P1</span><h2>这一问放在哪？</h2></header>
+<div class="ctx">前因：今天点黄条一步就注入，面板里从没问过布局。后果：在面板里问要接回那张断线的卡（多一次点击）；不在面板里问，就只能让 AI 在聊天里问，答案与措辞都不由插件掌握。</div>
+<div class="opt win"><b>甲 · 接回小卡：点黄条 → 出一张小卡（后端 ＋ 域文档布局 两组单选）→ 确认即注入（推荐）</b><span>与开门链那张选后端的弹窗同一形态；一次交互答完两件事。</span></div>
+<div class="opt no"><b>乙 · 保持一键注入，由注入文案让 AI 在会话里问</b><span>零 UI 改动，但答案与措辞每次都可能不一样，面板上也不留痕。</span></div>
+<div class="opt no"><b>丙 · 只在没绑定后端时弹卡，已绑定时默认单上下文</b><span>点击最少，但多项目仓库会拿到错默认，还得靠用户自己发现。</span></div>
+<div class="rec"><b>➡️ 推荐甲。</b>既然定「由用户决定」，就要放在一个<strong>保证问到</strong>的位置——聊天里问依赖 AI 记着问，面板里问则由插件保证。新增成本很低：那张卡已经在代码里，接回一行调用、加一组单选即可。</div>
+<div class="procon"><div class="pro"><b>选甲利</b><ul><li>答案确定，注入文案里能直接写「已选定 X」</li><li>用户当场看到布局是初始化的一部分</li></ul></div><div class="con"><b>选甲弊</b><ul><li>主路径多一次点击（今天一键即注入）</li><li>要加中英文案并同步几条门禁</li></ul></div></div>
+</div>
+
+<div class="card" id="p2"><header><span class="num">P2</span><h2>两个选项怎么写、默认选哪个？</h2></header>
+<div class="ctx">前因：仓库有一条纪律——界面上的字一律说人话，不出现内部术语（「子工作区」「上下文」这类词只用在票名与文档里）。而「单上下文／多上下文」本身就是要翻成人话的词。</div>
+<div class="opt win"><b>选项一：一个仓库共用一份词表（默认选中 · 推荐）</b><span>领域词汇集中放在根目录 <code>CONTEXT.md</code>，架构决定放在 <code>docs/adr/</code>。绝大多数仓库选这个。</span></div>
+<div class="opt win"><b>选项二：每个子项目各有一份词表</b><span>子项目各自一份 <code>CONTEXT.md</code>（例如 <code>packages/foo/CONTEXT.md</code>），根目录放一份 <code>CONTEXT-MAP.md</code> 指向它们。</span></div>
+<div class="opt no"><b>选项三：以后再定</b><span>不推荐——初始化不写，后面补写要回头改 <code>docs/agents/domain.md</code> 与 <code>AGENTS.md</code> 两处。</span></div>
+<div class="rec"><b>➡️ 推荐：只留两选项、默认选「一个仓库共用一份」。</b>理由：多数仓库就是一份；两个选项都能在选项下方各配一句人话解释，用户不必理解「上下文」这个词。</div>
+<div class="procon"><div class="pro"><b>这样定利</b><ul><li>不出现内部术语，符合既有纪律</li><li>默认合多数人，回车即可继续</li></ul></div><div class="con"><b>这样定弊</b><ul><li>两个选项各要多一句解释，卡片会变高</li></ul></div></div>
+</div>
+
+<div class="card" id="p3"><header><span class="num">P3</span><h2>选了「每个子项目各有一份」之后，要不要当场列清单？</h2></header>
+<div class="ctx">前因：初始化时仓库可能是空的——子项目目录还不存在，名字也可能还没想好。而地图里最有价值的一节是「这些子项目之间怎么关联」，这一节初始化时根本写不出来。</div>
+<div class="opt win"><b>只记结论：这是多项目仓库，地图与各份词表等真正落到第一个词条时再建（推荐）</b><span>初始化只在 <code>docs/agents/domain.md</code> 与 <code>AGENTS.md</code> 上标明布局。</span></div>
+<div class="opt no"><b>当场让用户填各子项目的名字与目录，初始化就把空壳铺出来</b><span>会留下一堆空文件；子项目改名或调整后还要回来改。</span></div>
+<div class="rec"><b>➡️ 推荐只记结论。</b>空仓库场景下，多问一层只会拿到不准确的答案；这两份文件本来就是"第一个词条落定时才创建"的设计。</div>
+<div class="procon"><div class="pro"><b>这样定利</b><ul><li>不在用户仓库里留空文件</li><li>空仓库下也只问一个问题</li></ul></div><div class="con"><b>这样定弊</b><ul><li>地图要等到第一次真正写词条才出现</li></ul></div></div>
+</div>
+
+<div class="card" id="p4"><header><span class="num">P4</span><h2>绕开弹窗的那两条入口怎么办？</h2></header>
+<div class="ctx">前因（已修正）：设置页那条「复制提示词」的入口经查已经不存在。今天真正绕开弹窗、直接注入的是两条——<strong>状态栏黄条</strong>，和<strong>检查页那张红牌的「执行初始化」按钮</strong>（它连共用的注入入口都不走）。后果：这两条若不问，同一个仓库会因为用户从哪儿点进去而得到不同布局。</div>
+<div class="opt win"><b>甲 · 单漏斗：注入前若还没选过布局，先弹那张卡，选完再注入（推荐）</b><span>所有走共用注入入口的路（黄条、开门链、切换后端）自动获得这个行为；检查页那条红牌按钮改成也走同一个入口，一处实现处处生效。</span></div>
+<div class="opt no"><b>乙 · 只给黄条按钮弹卡，其余入口由注入文案兜底问一句</b><span>改动少，但同一次初始化会因为入口不同而问法不同。</span></div>
+<div class="opt no"><b>丙 · 谁都不弹卡，全部由注入文案让 AI 在会话里问</b><span>等于回到 P1 的乙，与已定的「在面板里问」不一致。</span></div>
+<div class="rec"><b>➡️ 推荐甲。</b>插件里问得到的地方就由卡片问：问一次，答案跟着这一次注入一起走；只有一个入口要改接线，比「有的入口问、有的入口靠聊天」更可预期。</div>
+<div class="procon"><div class="pro"><b>选甲利</b><ul><li>任何入口都不会漏问，答案是确定的</li><li>一处实现覆盖四条路径</li></ul></div><div class="con"><b>选甲弊</b><ul><li>检查页那条按钮要改接线</li><li>已初始化的仓库重跑时也会再问一次（与 P5 一致）</li></ul></div></div>
+</div>
+
+<div class="card" id="p5"><header><span class="num">P5</span><h2>选错了能不能改？选择要不要记住？</h2></header>
+<div class="ctx">前因：产物 <code>docs/agents/domain.md</code> 会写明本仓库是哪种布局，用户随时能改那个文件；面板上没有「改布局」的入口。要不要把选择存进工作区状态，影响的是下次初始化会不会再问一次。</div>
+<div class="opt win"><b>不存状态、不加新入口：想改就改那个文件，或重跑一次初始化（推荐）</b><span>与「插件不擅自改用户仓库里已有的东西」同款口径。</span></div>
+<div class="opt no"><b>记住上次选择，下次初始化跳过提问</b><span>省一次点击，但要新增一份持久状态与它的一致性口径（换目录、换后端、删了文件怎么办）。</span></div>
+<div class="rec"><b>➡️ 推荐不存状态。</b>这个选择一辈子只做一次，省一次点击不值一份新状态；重跑初始化本来就会再问一次，天然就是"改"的入口。</div>
+<div class="procon"><div class="pro"><b>这样定利</b><ul><li>不新增持久状态与一致性问题</li><li>重跑初始化即可改，路径单一</li></ul></div><div class="con"><b>这样定弊</b><ul><li>面板上找不到"改布局"的字样</li></ul></div></div>
+</div>
+
+<div class="card" id="p6"><header><span class="num">补</span><h2>「用户这个仓库是哪种布局」这句话写在哪儿（并入定稿草案，不再单独占一问）</h2></header>
+<div class="ctx">前因：插件初始化时写进<strong>用户仓库</strong>的文件里有两处会提到布局——<code>docs/agents/domain.md</code>（技能种子模板里只有两张结构图，<strong>没有任何结论句</strong>）与用户仓库 <code>AGENTS.md</code> 的 <code>## Agent skills</code> 块里那句布局摘要。后果：没有结论句时，读的人只看见两张图，不知道该按哪张做。</div>
+<div class="opt win"><b>甲 · 两处都写同一句（推荐，随定稿草案一起确认）</b><span><code>domain.md</code> 里加一行「本仓库是<strong>单上下文</strong>／<strong>多上下文</strong>」；<code>AGENTS.md</code> 那一行按同一答案写。</span></div>
+<div class="opt no"><b>乙 · 只写 domain.md</b><span>少改一处，但 <code>AGENTS.md</code> 是 agent 每次开场先读的那份。</span></div>
+</div>
+
+<div class="facts" id="keep">
+<h3>第一轮里没变的三条（推荐照旧，不用重答）</h3>
+<ul>
+<li><b>插件不读 <code>CONTEXT-MAP.md</code></b>：域文档是技能与会话 AI 的事；只在注入文案里带一句「先读 <code>docs/agents/domain.md</code>」。不做面板展示、不做环境检查行。</li>
+<li><b>与 #649 的分工写成一句规则</b>：<code>docs/agents/</code> 下的文件与票仓只有一份、永远在工作区根；<code>CONTEXT.md</code> 与 <code>docs/adr/</code> 属于子项目、可以各一份。并加一条：工作区根的判据不得增加第三个标记——某目录自带 <code>CONTEXT.md</code> 不代表它是独立工作区。</li>
+<li><b>技能本体不动</b>：它在 <code>package/bundled-skills/</code> 里，是从上游整目录复制来的，同步一次就会整目录覆盖；所有改动放进插件那段注入文字。</li>
+</ul>
+</div>
+
+<div class="footer">回法：回 <code>P4 甲，补 甲</code> 即视为定稿。定稿后我把规则文本与 #655 的落地清单（新增占位符 <code>{contextLayout}</code>、版本号 v11→v12、接回小卡、检查页按钮并入共用入口、要同步的门禁）写进 #651 正文，再提醒你走一次 <code>/to-spec</code> 固化成规格单并挂到地图 #647。票面进度与查证事实见 #651 正文。</div>
+</div>
+</body>
+</html>

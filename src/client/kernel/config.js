@@ -8,19 +8,17 @@
  */
     export const CFG_KEY = 'dsws.cfg'
     // 功能配置（用户拍板 2026-08-14：外观图标/动作词由设计定死，不提供配置项）
-    // v1.4 起：打开位置 cfg.openIn —— 两个入口（#646 改版）：
-    //   'native'  = 本插件自己直接开进 DSH 原生右侧边栏（我们注册、我们渲染，不依赖任何第三方插件，所以是默认值）；
-    //   'sidebar' = 把面板交给 dsh-better-sidebar，由它开、它管（装了它才有这一项）。
-    //   localStorage 已有值则尊重用户选择（不覆盖）；旧值 'dock'（那个列在当前 DSH 里已经不存在）一律当 'native'。
+    // 2026-09-21：原来这里还有一个「打开位置」（openIn，DSH 右侧边栏 与 BetterSidebar 二选一）配置项，整项已删。
+    //   现在面板只有一条路：本插件自己注册一个类型、直接开进 DSH 原生右侧边栏，不依赖任何第三方插件，
+    //   所以「用哪个入口打开」不再是一个可以选的东西，设置页那一栏也随之去掉。
+    //   本地存档里若还留着 openIn 的旧值，读的时候不再读它；下次写存档时它自然被覆写掉，不需要迁移。
     export const cfg = (function () {
-      const d = { withWayfinder: true, openIn: 'native' }
+      const d = { withWayfinder: true }
       try {
         const raw = localStorage.getItem(CFG_KEY)
-        if (raw) {
-          const saved = JSON.parse(raw)
-          if (typeof saved.openIn === 'string') d.openIn = (saved.openIn === 'sidebar') ? 'sidebar' : 'native'
-        }
-        return Object.assign({ withWayfinder: true, openIn: 'native' }, d)
+        // 存档里已经没有本插件要读的键了。这里仍解析一次：存档被写坏时照旧留一行告警，内容本身不再参与配置。
+        if (raw) JSON.parse(raw)
+        return d
       } catch (e) { try { log('warn', 'storage.fail', { key: CFG_KEY, op: 'read' }) } catch (eL) {} }
       return d
     })()

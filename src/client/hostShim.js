@@ -5,9 +5,10 @@
  * 以后谁改它：修宿主环境差异兜底（现在只剩 timer 缺失降级这一件）与自由变量绑定的人改它。
  * 接线：本文件只用闭包已有名字（ctx/React/setTimeout/console），不引用其他新文件。
  */
-    // 2026-08-28 实机修复：timer 服务在部分宿主上下文（better-sidebar tab / Web 壳）可能未注入、
+    // 2026-08-28 实机修复：timer 服务在部分宿主上下文（Web 壳）里可能未注入、
     //   或仅提供 setTimeout 而无 timeout 方法——曾出现「Cannot read properties of undefined (reading 'timeout')」
-    //   整面板红条（better-sidebar RenderBoundary 捕获）。
+    //   整面板变成一条红条（当年那格挂在 better-sidebar 的容器里，它用 RenderBoundary 把异常画成了红条；
+    //   2026-09-21 起本插件不再用 better-sidebar，但 Web 壳这条上下文仍在，降级逻辑照旧保留）。
     //   根治：timer 恒为非空包装对象——timeout 优先走原服务；缺失时降级原服务的 setTimeout；再缺失用全局 setTimeout。
     export const _timerRaw = ctx.get('timer')
     export const timer = {
@@ -23,8 +24,6 @@
       },
     }
     export const h = React.createElement
-    // #598：这里原有一段「把旧会话里存的 waystation:map 打开记录迁回 deck:map」的兜底代码，已整段删除，原因两条：
-    //   1) 它调的两个方法（migrateLegacyTabIds 与 listOpenTabs）在 dsh-better-sidebar 0.19.0 里根本不存在，
-    //      两处 typeof 判断恒为假，整段从落地起就没执行过 —— 是看着在兜底、实际不动的死代码；
-    //   2) #598 决定不再保留旧名兼容：直接删掉那个别名注册，不做任何迁移（旧布局里残留的旧名标签
-    //      会渲染成可关闭的占位页，维护者已接受这个代​价）。
+    // 2026-09-21：这里原本还有一段说明，讲当年往 dsh-better-sidebar 注册面板类型时留下的一个坑。
+    //   那套东西已经整段删除（面板现在只有 DSH 原生右侧边栏一条路），说明随之撤掉；
+    //   留一句记住这里的规矩：本文件只放「修宿主环境差异的兜底」与自由变量绑定，不放业务。

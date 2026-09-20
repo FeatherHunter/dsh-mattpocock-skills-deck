@@ -10,7 +10,7 @@
  *   _dev → 根 client.js / host.js（cordis_define 函数体形态，须过 precheckCode）
  *   _pkg → package/lib/client.js / package/lib/index.js（ModuleLoader / ESM 形态，pkg entry 提供 shim）
  *
- * seam（src/seam/*）：B1 runtime / B2 style / B3 rpc / B4 timer / B5 editor / B6 sidebar + G 门禁。
+ * seam（src/seam/*）：B1 runtime / B2 style / B3 rpc / B4 timer / B5 editor + G 门禁。
  * pkg 产物 = 规范源函数体（逐字保留）+ 工厂壳 + seam shim 词法绑定 —— 文本组合而非 esbuild 重写，
  * 因此 verify-* 的文本特征断言（zIndex: 2147483000、单引号、const L = { 等）保持不变。
  *

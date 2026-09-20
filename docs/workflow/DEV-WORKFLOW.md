@@ -16,7 +16,7 @@
 | `src/client/views/*`、`statusbar/*`、`panel/*`、`floating/*` | 叶子 21 文件（G4 ≤350 单文件，useContext(DswsCtx) 消费） |
 | `src/host/index.js` | Host 组装入口（RPC 派发） |
 | `src/shared/parser.js`、`src/client/kernel/tabsfold.js` | 纯函数叶子（阶段 1） |
-| `src/seam/*` | 6 绑定方言适配（runtime/style/rpc/timer/editor/sidebar） |
+| `src/seam/*` | 5 绑定方言适配（runtime/style/rpc/timer/editor） |
 
 **可变产物 = `client.js` / `host.js` / `package/lib/*`**，由 `scripts/build.mjs` 一源出两物生成，**gitignore，不提交**：
 

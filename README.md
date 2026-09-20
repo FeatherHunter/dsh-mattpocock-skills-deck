@@ -46,7 +46,7 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.22 --registry ht
 
 **点开面板不用再等：从点击到内容可见，真机实测从 5075 毫秒降到 193 毫秒。** 这是 2026-09-11 的真机复测；同一份记录里，提交阶段从 4948 毫秒降到 117 毫秒。做法是把标签折叠与地图行适配从「量一次、改一次」交替的循环改成先量后改，布局不再被反复重算。纪律与证据链见 [`docs/adr/20260911-zero-layout-jitter.md`](docs/adr/20260911-zero-layout-jitter.md)。
 
-窄屏用户可顺手把 dsh-better-sidebar 装进同一个 profile，列表与详情并排看。
+面板就开在 DSH 自己的右侧边栏里：左边列表、右边详情，并排看。不需要再装别的插件。
 
 **👇 装完重启，面板就绪就是这个样子。**
 

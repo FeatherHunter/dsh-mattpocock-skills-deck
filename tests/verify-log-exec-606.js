@@ -264,11 +264,13 @@ async function main() {
     const dockSyncSrc = read(path.join('src', 'client', 'panel', 'DockSync.js'))
     const listTabSrc = read(path.join('src', 'client', 'views', 'ListTab.js'))
 
-    // 1) panel.open 只剩正式那一条，字段还是原来那六个，没有多也没有少。
+    // 1) panel.open 只剩正式那一条，字段就是下面这五个（2026-09-21 去掉了 mode：面板只有一条路，
+    //    「走哪个入口」不再是一个可记的东西），没有多也没有少。
     const panelOpenSites = routerSrc.split('\n').filter((l) => l.includes("'panel.open'"))
     check(panelOpenSites.length === 1, 'panel.open 只剩一行记录点（实得 ' + panelOpenSites.length + ' 行）')
-    const formalOk = panelOpenSites.length === 1 && ['mode', 'hasCache', 'snapFresh', 'keyHash', 'snapVersion', 'backendId'].every((k) => panelOpenSites[0].includes(k + ':')) && panelOpenSites[0].includes("log('info', 'panel.open'")
-    check(formalOk, 'panel.open 仍是原来那条正式记录（信息级、六个字段：mode、hasCache、snapFresh、keyHash、snapVersion、backendId）')
+    const formalOk = panelOpenSites.length === 1 && ['hasCache', 'snapFresh', 'keyHash', 'snapVersion', 'backendId'].every((k) => panelOpenSites[0].includes(k + ':')) && panelOpenSites[0].includes("log('info', 'panel.open'")
+    check(formalOk, 'panel.open 仍是那条正式记录（信息级、五个字段：hasCache、snapFresh、keyHash、snapVersion、backendId）')
+    check(!panelOpenSites[0].includes('mode:'), 'panel.open 不再记 mode（面板只有一条路之后它没有第二种取值）')
     // 2) 把耗时编码进 mode 取值的临时写法没了。
     const tempModes = ['sidebar-t0', 'sidebar-beforeTab', 'sidebar-ensureDone', 'sidebar-tabReturned', 'sidebar-painted', 'dock-render', 'loaf-late']
     const leftOver = tempModes.filter((m) => routerSrc.includes(m) || dockSyncSrc.includes(m) || dockSrc.includes(m) || listTabSrc.includes(m))
@@ -277,16 +279,17 @@ async function main() {
     const tempGlobals = ['__dswsLoaf', '__dswsDockRenderStart', '__dswsDockRenderLogged', '__dswsDockCommitMs', '__dswsDockSeg', '__dswsMarkFn', '__dswsFitMs', '__openMs', '_dswsLoafText']
     const globalsLeft = tempGlobals.filter((g) => routerSrc.includes(g) || dockSyncSrc.includes(g) || dockSrc.includes(g) || listTabSrc.includes(g))
     check(globalsLeft.length === 0, '全局变量与状态对象上的临时计时字段全撤了' + (globalsLeft.length ? ' —— 残留：' + globalsLeft.join('、') : '（查过 ' + tempGlobals.length + ' 个）'))
-    // 4) 四个文件都往同一个计时对象写，阶段名齐。
-    const stages = ['sidebar-registered', 'sidebar-opened', 'render-commit', 'render-paint', 'fit-measure', 'click-to-painted']
+    // 4) 四个文件都往同一个计时对象写，阶段名齐（2026-09-21 去掉 sidebar-registered / sidebar-opened 两个：
+    //    那两个是 better-sidebar 那条路的测点，那条路已删）。
+    const stages = ['render-commit', 'render-paint', 'fit-measure', 'click-to-painted']
     const missingStage = stages.filter((s) => !(routerSrc + dockSyncSrc).includes("'" + s + "'"))
-    check(missingStage.length === 0, '六个阶段名都在代码里' + (missingStage.length ? ' —— 缺：' + missingStage.join('、') : '（' + stages.join('、') + '）'))
+    check(missingStage.length === 0, '四个阶段名都在代码里' + (missingStage.length ? ' —— 缺：' + missingStage.join('、') : '（' + stages.join('、') + '）'))
     check(routerSrc.includes('panelClock') && dockSyncSrc.includes('panelClock') && dockSrc.includes('panelClock') && listTabSrc.includes('panelClock'), '四个文件共用同一个 panelClock 计时对象（启动、渲染、提交、折叠各自写自己那段）')
     check(!/\bglobalThis\b/.test(dockSyncSrc.split('\n').filter((l) => l.includes('panelClock')).join('')), '计时对象没挂在 globalThis 上')
 
     // 再按运行核：把 router.js 里那三段真代码抽出来，配假记录器跑一遍。
     const start = routerSrc.indexOf('export const panelClock')
-    const end = routerSrc.indexOf('export const DECK_TAB_KIND')
+    const end = routerSrc.indexOf('export const DECK_NATIVE_TAB_KIND')
     check(start >= 0 && end > start, '能从 router.js 里抽到计时与记日志那三段真代码')
     let lines = []
     let enabled = false
@@ -299,9 +302,8 @@ async function main() {
     mod.logPanelStage('click-to-painted', 123)
     check(enabled === false && lines.length === 0, '关闭时记阶段一行都不落（实得 ' + lines.length + ' 行）')
     enabled = true
-    mod.panelClock.mode = 'sidebar'
     mod.panelClock.t0 = mod.panelNow()
-    mod.logPanelStage('sidebar-registered', 3)
+    mod.logPanelStage('native-open', 3)
     mod.logPanelStage('render-commit', 7)
     mod.logPanelStage('render-paint', 9)
     mod.logPanelStage('fit-measure', 2)
@@ -310,8 +312,7 @@ async function main() {
     check(lines.every((l) => l.event === 'panel.render' && l.level === 'debug'), '五行都是调试级的 panel.render（按需级）')
     const msRead = lines.map((l) => l.fields && l.fields.ms)
     check(msRead.join(',') === '3,7,9,2,179', '每行都带自己那段的毫秒数，各段读得出（实得 ' + msRead.join('、') + '）')
-    check(lines.every((l) => Object.keys(l.fields).sort().join(',') === 'mode,ms,stage'), '字段恰为白名单三项（stage、ms、mode）')
-    check(lines.every((l) => l.fields.mode === 'sidebar'), '每行都带打开形态（sidebar）')
+    check(lines.every((l) => Object.keys(l.fields).sort().join(',') === 'ms,stage'), '字段恰为白名单两项（stage、ms）—— 2026-09-21 去掉了 mode')
     console.log('  样例（同一轮打开的五条阶段行，逐行自己的毫秒数）：')
     for (const l of lines) console.log('    ' + JSON.stringify({ level: l.level, event: l.event, fields: l.fields }))
   }

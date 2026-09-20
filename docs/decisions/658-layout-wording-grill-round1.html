@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#658 初始化小卡上那一问的措辞 · 第 1 轮</title>
+<style>
+:root{--bg:#0d0f12;--card:#171b21;--line:#2a313b;--txt:#e8ecf1;--mut:#9aa6b5;--acc:#8b5cf6;--ok:#10b981;--warn:#f59e0b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.7 "PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:24px 20px 60px}
+a{color:#cdb8ff}
+code{background:#0b1016;border:1px solid #27313d;border-radius:5px;padding:1px 5px;color:#bcd3ea;font-size:12.5px}
+.hero{border:1px solid var(--line);border-radius:14px;padding:20px 22px;background:linear-gradient(180deg,#181d26,#12151c)}
+.hero h1{margin:0 0 6px;font-size:22px}.hero p{margin:8px 0;color:var(--mut)}.hero strong{color:#fff}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:2px 10px;color:var(--mut)}
+.tag.hot{border-color:var(--acc);color:#cdb8ff}
+.quick{margin-top:14px;border:1px solid #1f8a6b;background:#0e1f1a;border-radius:10px;padding:12px 14px;font-size:14px}
+.quick b{color:#5eead4}
+nav.toc{position:sticky;top:0;z-index:5;display:flex;gap:6px;flex-wrap:wrap;margin:0 -20px 18px;padding:10px 20px;background:rgba(13,15,18,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+nav.toc a{color:#cdb8ff;text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:4px 10px;background:var(--card);font-size:12.5px}
+h2.sec{font-size:15px;color:#cdb8ff;margin:26px 0 10px;padding-left:10px;border-left:3px solid var(--acc)}
+table{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:#1d232c;color:var(--mut);font-weight:600;font-size:12.5px}
+tr:last-child td{border-bottom:0}
+td.pick{color:#5eead4;font-weight:600;white-space:nowrap}
+.facts{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:14px 18px;margin:16px 0}
+.facts ul{margin:0;padding-left:20px}.facts li{margin:7px 0;color:#cfd8e3;font-size:14px}
+.card{border:1px solid var(--line);border-radius:14px;background:var(--card);margin:16px 0;overflow:hidden}
+.card header{padding:14px 18px 0}.num{display:inline-block;font-size:12px;background:#242c38;border-radius:6px;padding:2px 8px;color:var(--mut);margin-right:8px}
+.card h2{display:inline;font-size:17px;margin:0}
+.ctx{padding:10px 14px;color:var(--mut);font-size:13.5px;border-left:3px solid var(--acc);margin:12px 18px 0;background:#141922;border-radius:0 8px 8px 0}
+.opt{margin:10px 18px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
+.opt b{display:block;margin-bottom:3px}.opt span{color:var(--mut);font-size:13px}
+.opt.win{border-color:#1f8a6b;background:#101f1b}.opt.win b{color:#5eead4}
+.opt.no{opacity:.72}
+.rec{margin:12px 18px;border:1px solid #1f8a6b;background:#0e1f1a;border-radius:10px;padding:10px 12px;font-size:14px}
+.rec b{color:#5eead4}
+.procon{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 18px 18px}
+.procon div{border-radius:10px;padding:9px 12px;font-size:13px}
+.pro{background:#0f231a;border:1px solid #1c4d3c}.con{background:#251a10;border:1px solid #5b3a15}
+.pro b{color:var(--ok)}.con b{color:var(--warn)}
+.pro ul,.con ul{margin:5px 0 0;padding-left:17px;color:#cfd8e3}
+.mock{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 18px 18px}
+.mock .lbl{font-size:12px;color:var(--mut);margin-bottom:6px;display:block}
+.panel{border:1px solid var(--line);border-radius:12px;background:#0f1218;padding:11px 12px}
+.panel .q{font-size:11.5px;color:#8b8b95;line-height:1.5;margin-bottom:8px}
+.panel .row{display:flex;gap:8px;align-items:center;padding:6px 9px;border-radius:8px;margin-bottom:6px;font-size:12.5px;font-weight:600;line-height:1.45}
+.panel .row code{white-space:nowrap;font-weight:600}
+.panel .row .txt{min-width:0}
+.panel .row:last-child{margin-bottom:0}
+.row.sel{border:1px solid #58a6ff;background:rgba(88,166,255,.08)}
+.row.off{border:1px solid var(--line)}
+.dot{flex:0 0 auto;width:13px;height:13px;border-radius:50%;border:2px solid #6b7280}
+.dot.on{border-color:#58a6ff;background:radial-gradient(circle,#58a6ff 0 40%,transparent 42%)}
+details{margin:16px 0;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:10px 16px}
+details summary{cursor:pointer;color:#cdb8ff;font-size:14px;font-weight:600}
+details ul{margin:10px 0 4px;padding-left:20px;color:#cfd8e3;font-size:13.5px}
+details li{margin:6px 0}
+.footer{color:var(--mut);font-size:13px;margin-top:22px;border-top:1px dashed var(--line);padding-top:14px}
+@media(max-width:640px){.procon,.mock{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+<h1>初始化小卡上那一问的措辞 · 第 1 轮</h1>
+<p><strong>一句话：卡片上的「词表」落到用户仓库里就是 <code>CONTEXT.md</code>。</strong>你的直觉是对的——这个词在插件自己的仓库里有三个所指，读者会分不清。这一轮要定六件事：<strong>选项写不写文件名、选项之上那一行怎么问、英文那份要不要同步、写进用户仓库的结论句要不要跟着改、选项顺序、以及改文案的落地放哪</strong>。</p>
+<div class="meta"><span class="tag">讨论票 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/658">#658</a></span><span class="tag">地图 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/647">#647</a> 第 10 项</span><span class="tag">wayfinder:grilling</span><span class="tag hot" style="border-color:#1f8a6b;color:#5eead4">已定版关闭</span></div>
+<div class="quick"><b>已收尾（2026-09-19）：</b>六条全部按推荐落定，其中你改了两处——<b>选项二缩短成「子项目各一份 <code>CONTEXT.md</code>，根目录 <code>CONTEXT-MAP.md</code>」</b>（去掉「每个」与「指过去」），<b>注入句改用随包技能的原术语 <code>single-context</code> / <code>multi-context</code></b>，让会话里的 AI 写进用户仓库时用的就是技能要的那个词。<br><b>去向：</b>定稿原文在 #658 的决议评论；落地另开 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/659">#659（落地：初始化小卡上布局那一问的措辞）</a>；#655 已改成等 #659。<br><b>下面是第 1 轮原样的候选与推荐，留档不改。</b></div>
+</div>
+
+<nav class="toc"><a href="#summary">速览</a><a href="#why">前因</a><a href="#scene">single／multiple 什么场景</a><a href="#q1">Q1 主词</a><a href="#q2">Q2 怎么问</a><a href="#q3">Q3 英文</a><a href="#q4">Q4 结论句</a><a href="#q5">Q5 顺序默认</a><a href="#q6">Q6 落地放哪</a></nav>
+
+<h2 class="sec" id="summary">速览：六件事与推荐</h2>
+<table>
+<thead><tr><th style="width:34px">#</th><th>要定的事</th><th style="width:150px">推荐</th><th style="width:230px">一句话理由</th></tr></thead>
+<tbody>
+<tr><td><a href="#q1">Q1</a></td><td>两个选项用什么词做主词</td><td class="pick">只用文件名</td><td>文件名是唯一不含糊的所指，用户迟早真会看到这两个文件</td></tr>
+<tr><td><a href="#q2">Q2</a></td><td>选项之上那一行怎么问</td><td class="pick">问「共用还是各用」</td><td>用户只答得出自己确定的事，不必先懂「领域文档」</td></tr>
+<tr><td><a href="#q3">Q3</a></td><td>英文那份要不要同步改</td><td class="pick">同步，保留 glossary</td><td>中英是同一套设计的两个实现，只改一边就分叉</td></tr>
+<tr><td><a href="#q4">Q4</a></td><td>写进用户仓库的结论句改不改</td><td class="pick">一起改</td><td>那句话要长期留在用户仓库里，留着旧词等于没修</td></tr>
+<tr><td><a href="#q5">Q5</a></td><td>选项顺序与默认选中项</td><td class="pick">维持不动</td><td>技能本体的默认就是单上下文，多数仓库走这条</td></tr>
+<tr><td><a href="#q6">Q6</a></td><td>改文案的落地放哪（流程）</td><td class="pick">另开小落地票</td><td>#655 已 95%、只等真机确认，塞进去会让票面与提交对不上</td></tr>
+</tbody>
+</table>
+
+<h2 class="sec" id="why">前因：「词表」这一个词，今天有三个所指</h2>
+<div class="facts">
+<ul>
+<li><b>卡片上这个「词表」</b>＝ 用户仓库里记名词与用语的文档 → 文件就是 <code>CONTEXT.md</code>。英文界面今天用的词是 <b>glossary</b>，中文那三个词是它的译法。</li>
+<li><b>插件自己的代码与文档里，「词表」指的是另一个东西</b>：界面上的中英双语字符串表（<code>src/client/kernel/locale-*.js</code>）。仓库文档写「留在 <code>locale*.js</code> 的词表里」「界面拿 key 去词表取那一句人话」，说的都是它。</li>
+<li><b>插件自己的 <code>CONTEXT.md</code> 又叫「术语表」</b>，也是词表。</li>
+</ul>
+<p style="margin:10px 0 0;color:#fbbf24;font-size:14px">三个所指共用一个词，所以读者分不清不是读者的问题，是词的问题。</p>
+</div>
+<div class="facts" style="border-color:#5b3a15;background:#1d1509">
+<ul>
+<li style="color:#e8d9b8"><b style="color:#fbbf24">还有一层会改工作量：这两句话不只活在界面上。</b>选项原文被当作「结论」引用进注入文案，由会话里的 AI 写进用户仓库的 <code>docs/agents/domain.md</code> 与 <code>AGENTS.md</code> 的 <code>## Agent skills</code> 块。所以<b>「选项怎么改」等于「写进用户仓库的那句结论怎么改」</b>（对应 Q4）。</li>
+</ul>
+</div>
+
+<h2 class="sec" id="scene">关键信息：single 与 multiple 各适用什么场景</h2>
+<table>
+<thead><tr><th style="width:110px"></th><th>一个仓库共用一份（single）</th><th>每个子项目各有一份（multiple）</th></tr></thead>
+<tbody>
+<tr><td><b>根目录</b></td><td>一份 <code>CONTEXT.md</code></td><td>一份 <code>CONTEXT-MAP.md</code>，指向各份</td></tr>
+<tr><td><b>架构决定</b></td><td>根目录 <code>docs/adr/</code></td><td>系统级的在根，各上下文自己的在 <code>src/&lt;上下文&gt;/docs/adr/</code></td></tr>
+<tr><td><b>谁该选</b></td><td>只有一个应用或库；<b>或者虽然分了多个包，但全仓库共用一套名词与同一批约定</b></td><td>仓库里放着几个<b>各自独立</b>的部分，各有各的名词、各有各的架构决定，写在一份里会互相污染</td></tr>
+<tr><td><b>代价</b></td><td>只有一份要维护；部分一多，词条会混、界限会糊</td><td>改一处不牵动别人；代价是根上多一份地图要维护，会话里的 AI 每次先读地图再挑相关的几份</td></tr>
+<tr><td><b>AI 怎么读</b></td><td>直接读根上那一份</td><td>先读根上那份地图，再读跟当前话题相关的那几份</td></tr>
+</tbody>
+</table>
+<div class="facts">
+<ul>
+<li><b>判据不是「包多不多」。</b>随包技能本来想让会话里的 AI 按仓库形状猜：有 <code>pnpm-workspace.yaml</code>、<code>package.json</code> 里有 <code>workspaces</code>、或 <code>packages/*</code> 每个包自带 <code>src/</code>，就算「多上下文信号」。</li>
+<li><b>这条判据当场被这个插件仓库自己推翻</b>：它<b>有</b> <code>pnpm-workspace.yaml</code>（<code>packages/</code> 下有 <code>dsh-log</code>、<code>dsh-plugin-update</code> 两个包），按上面三条算「有信号」，但它今天明明白白是<b>单上下文</b>——根上一份 <code>CONTEXT.md</code>、没有 <code>CONTEXT-MAP.md</code>，<code>docs/agents/domain.md</code> 里写着 <code>This repo is single-context</code>。同一个形状两个结论，所以插件把这一问交给你，不让 AI 猜。</li>
+<li><b>真正能拿主意的口径是「这些部分是不是各说各的话」。</b></li>
+<li><b>选错了代价不高：两种都是懒创建</b>——初始化只记一句结论，<code>CONTEXT.md</code> 与 <code>CONTEXT-MAP.md</code> 都等「第一次真正写下词条」时才建。改起来就是改 <code>docs/agents/domain.md</code> 那句话，或重跑一次初始化。</li>
+</ul>
+</div>
+
+<div class="card" id="q1"><header><span class="num">Q1</span><h2>两个选项用什么词做主词？</h2></header>
+<div class="ctx"><b>前因：</b>今天两个选项写的是「一个仓库共用一份<b>词表</b>」「每个子项目各有一份<b>词表</b>」，而「词表」有三个所指。<b>后果：</b>主词选错，用户读完仍不知道这个选择会在他仓库里产生什么。<b>你的提议是只用文件名</b>，下面是三个候选与改前改后的实样。</div>
+<div class="mock">
+<div><span class="lbl">今天（真机截图）</span><div class="panel">
+<div class="q">这个仓库的词表怎么组织？（词表就是写这个仓库各模块用语的文档）</div>
+<div class="row sel"><span class="dot on"></span>一个仓库共用一份词表</div>
+<div class="row off"><span class="dot"></span>每个子项目各有一份词表</div>
+</div></div>
+<div><span class="lbl">采纳推荐（A）之后</span><div class="panel">
+<div class="q">这个仓库的各部分共用一套用语，还是各有各的用语？</div>
+<div class="row sel"><span class="dot on"></span><span class="txt">根目录一份 <code>CONTEXT.md</code></span></div>
+<div class="row off"><span class="dot"></span><span class="txt">每个子项目各一份 <code>CONTEXT.md</code>，根目录 <code>CONTEXT-MAP.md</code> 指过去</span></div>
+</div></div>
+</div>
+<div class="opt win"><b>A · 只用文件名（推荐）</b><span><code>根目录一份 CONTEXT.md</code> ／ <code>每个子项目各一份 CONTEXT.md，根目录 CONTEXT-MAP.md 指过去</code></span></div>
+<div class="opt no"><b>B · 中文名词 ＋ 文件名</b><span><code>全仓库共用一份领域词表（根目录 CONTEXT.md）</code> ／ <code>每个子项目各一份领域词表（各自 CONTEXT.md，根目录 CONTEXT-MAP.md 指过去）</code></span></div>
+<div class="opt no"><b>C · 保持今天句式、只把「词表」换成别的中文名词</b><span>术语表 ／ 领域文档 ／ 目录词典——换个词继续猜。</span></div>
+<div class="rec"><b>➡️ 推荐 A。</b>文件名是这个词唯一不含糊的所指，而且用户迟早会在自己仓库里真的看到这两个文件。B 把让人困惑的「词表」留在选项里，等于没解决根因；C 只是换一个词。</div>
+<div class="procon"><div class="pro"><b>选 A 利</b><ul><li>零歧义：选项直接指向用户将看到的文件</li><li>中文界面里不再需要那半句括号解释</li><li>与英文侧 <code>CONTEXT.md</code> 天然对齐</li></ul></div><div class="con"><b>选 A 弊</b><ul><li>选项行变长，窄面板里会折成两行</li><li>要一条拍板：ADR 第 2.1 条「不出现内部术语」怎么读（见下）</li></ul></div></div>
+<div class="facts" style="margin-bottom:18px;border-color:#5b3a15;background:#1d1509">
+<ul><li style="color:#e8d9b8"><b style="color:#fbbf24">附带要你拍板的一条读法：</b>ADR <code>20260918-init-domain-layout-choice.md</code> 第 2.1 条与规格 #657 用户故事 15 写的是「不出现内部术语」。我读成那条针对的是<b>插件自己的私词</b>（「上下文」「子工作区」「工作区根」），<b>不是用户仓库里真实存在的文件名</b>。采纳 A 就要把这条读法写进决议；必要时给 ADR 补一句，免得以后有人拿它当依据把文件名删掉。</li></ul>
+</div>
+</div>
+
+<div class="card" id="q2"><header><span class="num">Q2</span><h2>选项之上那一行怎么问？</h2></header>
+<div class="ctx"><b>前因：</b>今天那一行是「这个仓库的词表怎么组织？」，后面还挂半句解释「（词表就是写这个仓库各模块用语的文档）」——那半句之所以存在，就是因为前面那个词没人看得懂。<b>后果：</b>这一行决定用户知不知道「为什么要问我这个」。</div>
+<div class="opt win"><b>B · 改问「共用还是各用」（推荐）</b><span><code>这个仓库的各部分共用一套用语，还是各有各的用语？</code>　变体：<code>同一个东西在这个仓库里是不是只有一种叫法？</code></span></div>
+<div class="opt no"><b>A · 保留今天句式只换词</b><span><code>这个仓库的领域文档怎么放？</code>——仍然要求用户先懂「领域文档」是什么。</span></div>
+<div class="opt no"><b>C · 直接问最底层的形状</b><span><code>这个仓库里是一个项目，还是几个各自独立的子项目？</code>——会把人引到数包上，而上文那个反例正说明包数答不了这个问题。</span></div>
+<div class="rec"><b>➡️ 推荐 B。</b>① 这是用户唯一能确定的事——他可能说不清「领域文档」，但一定知道自己仓库里那几个部分是不是说同一套话；② 选 B 之后，今天括号里那半句解释可以<b>整句删掉</b>，那一行也不再需要「小灰字＋解释」两层。</div>
+<div class="procon"><div class="pro"><b>选 B 利</b><ul><li>按用户已知的事发问，不需要先学概念</li><li>顺带删掉一行解释，卡片变矮</li></ul></div><div class="con"><b>选 B 弊</b><ul><li>「用语」这个词仍属抽象，需要靠两个选项兜住含义</li><li>问题行问的是「说法」，选项回答的是「文件」，中间靠读者自己接上</li></ul></div></div>
+</div>
+
+<div class="card" id="q3"><header><span class="num">Q3</span><h2>英文那份要不要同步改？</h2></header>
+<div class="ctx"><b>前因：</b>今天英文是 <code>One shared glossary for the whole repo</code> ／ <code>One glossary per subproject</code>，与中文是同一套设计的两个实现。<b>后果：</b>只改一边，英文界面用户会看到另一个版本的两句话。</div>
+<div class="opt win"><b>推荐 · 同步改，但英文保留 glossary 这个词、只补文件名</b><span>保留 <code>glossary</code> 等于留住「这个东西本来就有个名字」这条信息；补上 <code>CONTEXT.md</code> 才和中文侧指向同一个文件。</span></div>
+<div class="opt no"><b>另一种做法 · 英文也把 glossary 去掉、只写文件名</b><span>与中文完全对称，但放弃了那个已有的名字。</span></div>
+<div class="rec"><b>➡️ 推荐前者。</b>中英两份由同一条门禁管着「两边键集合全等」，改一份必然要动另一份；既然要动，就让两边都指向同一个文件、同时各保留一个可读的普通名词。</div>
+</div>
+
+<div class="card" id="q4"><header><span class="num">Q4</span><h2>跟着注入进用户仓库的那两句结论，要不要一起改？</h2></header>
+<div class="ctx"><b>前因：</b>用户选完，插件注入给会话的文案里带着这一句：「本仓库的域文档布局已在初始化时与用户确认为『<b>一个仓库共用一份词表</b>』：请把这一句结论写进 <code>docs/agents/domain.md</code>…」。<b>后果：</b>这句话会被 AI 抄进用户仓库的 <code>docs/agents/domain.md</code> 与 <code>AGENTS.md</code>，长期留着。界面改了、这里不改，用户下次打开自己的 <code>AGENTS.md</code> 还会问一遍「词表是什么」。</div>
+<div class="opt win"><b>推荐 · 一起改</b><span>结论句跟着换成同一套说法。这也是这条决定自己的要求——「界面与说明文件两处说法一致」。</span></div>
+<div class="opt no"><b>只改界面</b><span>改动面小，但用户仓库里留下旧词，等于把困惑搬到了他的文件里。</span></div>
+<div class="rec"><b>➡️ 推荐一起改。</b>另需你给一个口径：结论句<b>直接引用新选项的原文</b>，还是<b>另写一句更完整的说明</b>？我倾向后者——选项若是「根目录一份 <code>CONTEXT.md</code>」，当成结论句读会太短，不足以告诉将来读它的人该怎么找文件。</div>
+</div>
+
+<div class="card" id="q5"><header><span class="num">Q5</span><h2>选项顺序与默认选中项要不要动？</h2></header>
+<div class="ctx"><b>前因：</b>今天「一个仓库共用一份」排第一、默认选中。措辞一改，排在前面的那句会变成另一个样子，顺序本身有可能被顺手带偏。</div>
+<div class="opt win"><b>推荐 · 维持不动</b><span>「全仓库一份」仍排第一、仍默认选中。</span></div>
+<div class="rec"><b>➡️ 推荐维持。</b>随包技能自己定的默认就是单上下文（原话：<i>This fits almost every repo; write it without asking</i>），绝大多数仓库属这一种；最常见的路径应当零点击。</div>
+</div>
+
+<div class="card" id="q6"><header><span class="num">Q6</span><h2>改文案的落地放在哪？（这一条是流程，不是措辞）</h2></header>
+<div class="ctx"><b>前因：</b>今天还开着 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/655">#655（落地：初始化流程与弹窗支持多上下文）</a>，进度 95%，只等真机确认。它验收自查第 ① 条写的就是「卡上有『这个仓库的词表怎么组织？』那组二选一」——措辞一改，那条自查要重做。</div>
+<div class="opt win"><b>推荐 · 另开一张小落地票</b><span>措辞定版后，把界面三条键、注入两句、五个门禁一次改完。</span></div>
+<div class="opt no"><b>塞进 #655</b><span>少开一张票，但会让「已落地的提交」与「票面描述」对不上，真机复验时也分不清是哪一次改的。</span></div>
+<div class="rec"><b>➡️ 推荐另开。</b>我已经在地图上给 #655 加了一条原生阻塞边：<b>#658 定版之前 #655 不该收尾</b>。你不认同这条边，我撤掉。</div>
+</div>
+
+<details>
+<summary>展开：改文案时已知会一起变红的地方（落地用，现在不用看）</summary>
+<ul>
+<li><code>src/client/kernel/locale-panel.js</code> 的中英各三条键（问题行、两个选项）</li>
+<li><code>src/client/kernel/prompts.js</code> 的注释与 <code>SETUP_LAYOUT_TEXT_KEYS</code>，以及两句注入文案</li>
+<li><code>tests/verify-655-setup-layout.js</code>、<code>tests/verify-setup-describe.js</code>（全文金样）</li>
+<li><code>tests/verify-t3-locale.js</code> 与 <code>verify-locale-completeness.js</code>（中英配对）</li>
+<li><code>research/489-appendix.md</code> 里日志枚举那两处描述（正文写作「single 一个仓库共用一份词表」）</li>
+</ul>
+</details>
+
+<div class="footer">回法：<code>按推荐的来</code>，或逐条改（例如 <code>Q2 选 A，Q4 结论句直接引用选项原文</code>）。定版后我把结论写成决议评论、关掉 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/658">#658</a>，把结论挂回地图 #647 的「Decisions so far」，再开那张小落地票。票面的完整事实与边界见 #658 正文。</div>
+
+</div>
+</body>
+</html>

@@ -40,8 +40,7 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # DSH Desktop app 
 # Pin to latest for extra stability (currently 1.7.22):
 # dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.22 --registry https://registry.npmjs.org
 
-# ③ Better on narrow screens (optional): install better-sidebar into the SAME profile
-dsh plugin --profile desktop add dsh-better-sidebar
+# ③ That's it — the panel opens in DSH's own right sidebar (no third-party plugin needed)
 ```
 
 <div align="center">
@@ -53,13 +52,11 @@ One restart of the matching DSH entry and it works — zero config. Desktop app:
 </div>
 
 <details>
-<summary>Better on narrow screens: pair it with better-sidebar</summary>
+<summary>Where does the panel open? (it used to need better-sidebar)</summary>
 
-We recommend pairing with better-sidebar: view the list and details side by side in a VSCode-style sidebar for the best experience. Install it into the SAME profile as the plugin (example below targets the desktop app; web-server users: use --profile web).
+In DSH's own right sidebar — the plugin registers its own panel type there and draws it itself, so nothing else has to be installed. The list and the details sit side by side in that column.
 
-```bash
-dsh plugin --profile desktop add dsh-better-sidebar
-```
+Until 2026-09-21 the plugin also offered a second way: hand the panel to the third-party plugin `dsh-better-sidebar` and let it open and manage the panel. Both ways ended up in the same column, so the right sidebar's guide page listed the panel twice (two identical "MattSkills" entries). That second way is gone; the "open location" setting went with it.
 
 </details>
 
@@ -169,9 +166,9 @@ Desktop app users: replace `--profile web` with `--profile desktop`.
 </details>
 
 <details>
-<summary>Can I use it on a narrow window without better-sidebar?</summary>
+<summary>Can I use it on a narrow window?</summary>
 
-Yes. The mission list lives in the main panel and details open in the right column; install better-sidebar later if you want them side by side.
+Yes. The panel opens in DSH's own right sidebar: the mission list is on the left of that column and the details open beside it.
 
 </details>
 

@@ -7,39 +7,40 @@
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
     // #606 面板打开各阶段计时的唯一状态。一次「点开面板」的调用链上只写读这几个数：
-    //   kernel/router.js 的 openPanel 记下点击那一刻与走哪条路；panel/Dock.js 记下进入渲染那一刻与提交完成；
+    //   kernel/router.js 的 openPanel 记下点击那一刻；panel/Dock.js 记下进入渲染那一刻与提交完成；
     //   views/ListTab.js 把提交阶段里做折叠测量花掉的毫秒累加进来；panel/DockSync.js 在副作用里把各段落成日志。
     // 刻意不挂在会话状态对象上（那会被当成业务状态、参与相等比较与持久化），也不挂到 globalThis 上
     //   （那会污染全局并在会话之间残留）。构建时这四个文件拼进同一个 apply 闭包，共享这个对象不需要任何导入。
-    export const panelClock = { t0: 0, mode: '', renderT0: 0, commitMs: -1, fitMs: 0 }
+    export const panelClock = { t0: 0, renderT0: 0, commitMs: -1, fitMs: 0 }
     // 计时用的时钟：优先高精度性能计时，没有就用墙上时间。四处共用同一个函数，免得两段相减跨了两种时钟。
     export const panelNow = function () {
       try { if (typeof performance !== 'undefined' && performance && typeof performance.now === 'function') return performance.now() } catch (e) {}
       return Date.now()
     }
     // 打开面板各阶段写一行日志（按需级）：只在调试开关打开时才组装字段，关着时连字段对象都不建。
-    //   为什么毫秒放在 ms 字段、而不是编进 mode 取值：日志的 ts 是宿主收到批次那一刻盖的章，
+    //   为什么毫秒放在 ms 字段、而不是编进 stage 取值：日志的 ts 是宿主收到批次那一刻盖的章，
     //   同一批内所有行共享同一毫秒、批内先后顺序不可信；可信的是每行自带的毫秒数，所以耗时必须有正规字段装。
+    //   （2026-09-21：原有一个 mode 字段记「走哪个入口」。现在面板只有一条路，那个字段随之删除。）
     export const logPanelStage = function (stage, ms) {
-      try { if (isEnabled('debug')) log('debug', 'panel.render', { stage: String(stage || ''), ms: Math.round(Number(ms) || 0), mode: String(panelClock.mode || '') }) } catch (e) {}
+      try { if (isEnabled('debug')) log('debug', 'panel.render', { stage: String(stage || ''), ms: Math.round(Number(ms) || 0) }) } catch (e) {}
     }
-    // #646 面板有两个入口，各用一个 tab 类型名，右栏里就是两张各自独立的标签：
-    //   「DSH 右侧边栏」= 本插件自己注册一个类型，自己在右栏里渲染（DECK_NATIVE_TAB_KIND）；
-    //   「BetterSidebar」= 把类型交给 dsh-better-sidebar，由它开、它管（DECK_TAB_KIND）。
-    //   为什么要两个类型名：原生侧边栏的类型登记器规定，同一个类型名下 extension 档会盖住 builtin 档
-    //   （见 @deepseek-ai/dsh-client-ui-sidebar-right 的 SidebarRightTabRegistry.register）。
-    //   只要 better-sidebar 装着，它转发 deck:map 的那份就永远生效 —— 我们那份等于不存在。
-    //   所以「本插件自己那条」必须用一个 better-sidebar 不接管的类型名。
-    export const DECK_TAB_KIND = 'deck:map'  // 交给 better-sidebar 用；历史沿用，改了旧标签会变成打不开的占位页（#598）
-    export const DECK_NATIVE_TAB_KIND = 'dsh-mattpocock-skills-deck:deck-map'  // 本插件自己交进 DSH 原生右侧边栏用
-    export const DECK_NATIVE_TYPE_ID = 'dsh-mattpocock-skills-deck/deck:map'   // 上一行那个类型在原生登记表里的 id（右栏按它找内容体）
-    // 右侧边栏里那张标签的内容体：两个入口共用同一个组件（同一个面板，只是开法不同）。
+    // 面板只有一条路（2026-09-21 定）：本插件自己在 DSH 原生右侧边栏的类型登记表里注册一个类型，右栏里那一格由我们渲染。
+    //   拿不到原生控制器就不算打开 —— 记一行日志并给用户一句可见提示，不再悄悄退回别的形态（页内浮窗已退役）。
+    //   这里两个标识必须成对：kind 是打开请求上带的类型名，id 是类型在登记表里的身份，右栏按 id 找内容体与标题。
+    export const DECK_NATIVE_TAB_KIND = 'dsh-mattpocock-skills-deck:deck-map'
+    export const DECK_NATIVE_TYPE_ID = 'dsh-mattpocock-skills-deck/deck:map'
+    // 右侧边栏里那张标签的内容体（面板本体）。
     //   先出空壳、下一帧再挂内容（#603）：打开是在点击处理器里同步跑完的，一次把整棵树建完会让浏览器
     //   在处理器返回前画不出第一帧 —— 用户看到的就是「点了半天面板不出来」。实测首挂 5.6 秒 → 0.19 秒。
+    // #670：空壳自己必须是「面板本人」，不能是一块透亮的空块。挂载这一路上有两个时刻会画空壳
+    //   （刷新页面时右栏恢复、右栏被收起再展开、进会话时右栏重建），空壳没有背景的话，那几帧里
+    //   这一格显示的是底下透出来的东西（宿主页面/右栏自己的底色），紧接着才被面板整块盖住 ——
+    //   用户看到的就是「先黑一下」。所以空壳与面板根节点共用同一档底色（.dsws-hold，样式表里与
+    //   Dock.js 的 background 是同一个令牌同一个兜底值）：从第一帧起就是「面板已经在、内容还没到」。
+    //   注意这里改的是「第一帧画什么」，那两跳是为了不让点击白等（#603），不要顺手删。
     export const DeckSidebarTab = function (props) {
-      // 两个入口给会话号的方式不同：交给 better-sidebar 那条给 props.scope.sessionId（它按描述符渲染），
-      //   本插件自己那条由原生右栏的 inject(sessionId) 直接给 props.sessionId。两条路共用这一个组件。
-      const sessionId = (props && props.sessionId) || (props && props.scope && props.scope.sessionId) || undefined
+      // 会话号由原生右栏就近给：注册内容体槽位时写了 inject(sessionId)，宿主在渲染这一格时把它交进来。
+      const sessionId = (props && props.sessionId) || undefined
       const [ready, setReady] = React.useState(false)
       React.useEffect(function () {
         if (ready) return
@@ -49,12 +50,12 @@
         const id1 = raf(function () { id2 = raf(function () { setReady(true) }) })
         return function () { try { if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id1) } catch (eC1) {} try { if (id2 !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id2) } catch (eC2) {} }
       }, [ready])
-      if (!ready) return h('div', { style: { height: '100%', overflow: 'hidden' } })
-      return h('div', { style: { height: '100%', overflow: 'hidden' } }, h(DetailsDock, { sessionId: sessionId }))
+      if (!ready) return h('div', { className: 'dsws-hold' })
+      return h('div', { className: 'dsws-hold' }, h(DetailsDock, { sessionId: sessionId }))
     }
-    // 右栏标签条上那枚标题（本插件自己那条入口用）：内容就是面板名，与交给 better-sidebar 那条同名。
+    // 右栏标签条上那枚标题：内容就是面板名。
     export const DeckNativeTabTitle = function () { return h('span', null, tr('panel.title')) }
-    // 两个入口共用的收尾：把这次打开记成「面板已开」，并按 #58 的规矩缓存优先（已水合就直接展示，否则后台拉）。
+    // 打开面板的收尾：把这次打开记成「面板已开」，并按 #58 的规矩缓存优先（已水合就直接展示，否则后台拉）。
     export const afterPanelOpened = function (st) {
       if (!st.cwd) {
         const sync = getCwdSync(st.sessionId)
@@ -76,8 +77,8 @@
         loadSnapshot(st, false)
       }
     }
-    // 入口一（用户选「DSH 右侧边栏」走这条）：本插件自己把面板交进 DSH 原生右侧边栏，类型见上方 DECK_NATIVE_TAB_KIND。
-    //   拿不到原生控制器就返回 false，由调用处决定下一步 —— 不再悄悄退回页内浮窗：
+    // 打开面板：把面板交进 DSH 原生右侧边栏，类型见上方 DECK_NATIVE_TAB_KIND。
+    //   拿不到原生控制器就返回 false，由调用处决定下一步 —— 不再悄悄退回别的形态：
     //   维护者 2026-09-19 定：页内浮窗这个形态不做了，面板只有右侧边栏一个落点。
     export const openInNativeRight = function (st) {
       const api = ctx.get('sidebarRight')
@@ -91,93 +92,22 @@
       afterPanelOpened(st)
       return true
     }
-    // v1.4：打开位置可选 —— cfg.openIn: 'dock'（details 列，默认）/ 'sidebar'（dsh-better-sidebar tab）
-    //   better-sidebar 已装时可用；未装或服务不可用 → 回退 details 列
-    // v1.4.1 修复「切侧边栏没反应」：
-    //   ① ensureSidebarTab 幂等注册 —— better-sidebar 的 client 可能晚于本模块加载（未声明 inject 依赖），
-    //      注册必须可重试；openTab 前 ensure 一次保证已注册（否则 openTab 静默 no-op）。
-    //   ② 打开时只给类型，不给 path（#594 修复）。
-    //      早先为了让折叠的侧边栏自动展开，这里给 openTab 传了一个假的 path（'deck:map'）。
-    //      better-sidebar 0.19 起，带 path 的打开会被当成「打开一个真实文件」，转发给 DSH 原生
-    //      右侧栏并按文件地址解析；宿主于是拿 deck:map 这个字符串去文件系统里 realpath，
-    //      找不到就抛 cannot resolve target "...\deck:map"，面板打不开，用户只看到这条报错。
-    //      不传 path 才是这个版本的正确用法：better-sidebar 会把 deck:map 当成我们注册的面板
-    //      类型（registerTab 的 id 就是它的 kind），落到 DSH 原生右侧栏；展开由它自己按描述符做
-    //      ——本面板没有 createTab，所以 revealIfOpened 恒为真，折叠状态下也会展开。
-    export let sidebarTabDisposer = null
-    export let sidebarTabRetry = null
-    export const ensureSidebarTab = function () {
-      if (sidebarTabDisposer) return true
-      try {
-        const bs = ctx.get('betterSidebar')
-        if (!(bs && typeof bs.registerTab === 'function')) return false
-        // 面板内容体 DeckSidebarTab 已提到模块顶层：两个入口共用同一个组件（见上方定义处）。
-        // 第一性原理：对外品牌为 MattSkillsDeck，单一 tab id = deck:map —— 只注册这一个面板类型，不注册任何旧名别名。
-        // #fix-two-sliders：旧版同时注册 deck:map + waystation:map 两份同 component、同 order、同 single 的注册器，
-        //   better-sidebar 按 id 区分 tab 条目，结果 better-sidebar 显示两条 slider（用户报告「MattSkills slider 两个」）。
-        // #598：旧名别名那行注册已整段删除，不再注册。要害在于 hidden: true 只管「+」菜单，管不到
-        //   better-sidebar 自己的设置页 —— 那一页在本机 node_modules/dsh-better-sidebar 的
-        //   src/client/SideCardSection.tsx，它按「已注册的面板类型」逐张画卡片，标了 hidden 的也照画
-        //   （只按同文件的 tabOrder 排到最后），所以别名会让同一个面板在设置里多出一张卡片、多一个开关。
-        //   代价（#598 已接受的处置方式：直接删别名、不做迁移）：旧布局里若还开着这个旧名标签，会渲染成
-        //   better-sidebar 的占位页（它内部叫 OrphanedTab，显示「插件未加载」加类型 id），点关即消失，不影响 deck:map。
-        //   教训：以后想让某个注册「在界面上看不见」，先确认目标界面的过滤规则，别默认 hidden 在哪儿都管用。
-        sidebarTabDisposer = bs.registerTab({
-          id: 'deck:map',
-          title: function () { return tr('panel.title') },
-          icon: function () { return Ic({ n: 'map', size: 14 }) },
-          order: 60,
-          single: true,
-          component: DeckSidebarTab,
-        })
-  return true
-      } catch (e) { return false }
-    }
-    // 入口二（用户选「BetterSidebar」走这条）：把面板类型交给 dsh-better-sidebar，由它开、它管
-    //   （它自己的设置卡片与开关、按会话落位都在它那边）。它不在或注册不上就返回 false，交给调用处决定下一步。
-    export const openInSidebar = function (st) {
-      const bs = ctx.get('betterSidebar')
-      if (!(bs && typeof bs.openTab === 'function')) return false
-      // 常规测点（按需）：把「插件把面板交给 better-sidebar」与「它交还控制」两段分别记一行。
-      //   为什么量这两段：外层渲染期的分段已证明「点开到画面出来」那几秒不在插件的渲染体里，
-      //   所以它要么在 better-sidebar 内部的开签流程里，要么在下一次 React 渲染的提交阶段。
-      //   两行都从点击那一刻算起，各自带毫秒，不靠批内先后顺序判断。
-      if (!ensureSidebarTab()) return false
-      if (isEnabled('debug')) logPanelStage('sidebar-registered', panelNow() - panelClock.t0)
-      // #2-fix（2026-08-19 用户反馈「新会话点状态栏面板不开」）：必须传 scope={sessionId}。
-      //   better-sidebar 的 openTab(seed, scope) 内部 `targetSessionId = scope?.sessionId ?? store.getSnapshot().sessionId`；
-      //   新会话时宿主尚未 setSession(setId) → store sessionId 为 undefined → openTab 静默 return，面板不开。
-      //   显式传当前 store 的 sessionId 后走 reduceFor(scope.sessionId) 路径（按给定 id 初始化布局），面板正常展开。
-      //   仅当 st.sessionId 有值时传 scope（无值时传 {sessionId:undefined} 会令 targetsInactiveSession=true 走错分支）。
-      // #594：只给类型。带上 path 会被 better-sidebar 当成真实文件路径转发给原生右侧栏，
-      // 宿主 realpath 失败即报 cannot resolve target；展开由 better-sidebar 按描述符自己做。
-      try { bs.openTab({ type: DECK_TAB_KIND }, st.sessionId ? { sessionId: st.sessionId } : undefined) } catch (e) { return false }
-      if (isEnabled('debug')) logPanelStage('sidebar-opened', panelNow() - panelClock.t0)
-      afterPanelOpened(st)
-      return true
-    }
     export const openPanel = function (st) {
-      // 两个入口（维护者 2026-09-19 定）—— 用户选哪个就走哪个：
-      //   「DSH 右侧边栏」走 openInNativeRight（本插件自己注册的类型，右栏里那一格由我们渲染）；
-      //   「BetterSidebar」走 openInSidebar（把类型交给 dsh-better-sidebar，它开、它管）。
-      //   选的那个当下不可用时改走另一个（记一行日志）；两个都不可用才算这次没打开 —— 不再悄悄退回页内浮窗，
-      //   而是记一行日志并给用户一句可见提示（维护者定：浮窗这个形态不做了，面板只有右侧边栏一个落点）。
-      const entry = (cfg.openIn === 'sidebar') ? 'sidebar' : 'native'
-      const openOne = function (which) { return which === 'sidebar' ? openInSidebar(st) : openInNativeRight(st) }
-      try { const _keyHash = dswsLogHash((typeof keyOf === 'function' ? keyOf(st.cwd || '') : String(st.cwd || ''))); const _snapVer = (typeof getSnapshotVersion === 'function' ? getSnapshotVersion(st.cwd) : '') || (st.snapshot && st.snapshot.version) || ''; const _bid = String((st.selection && st.selection.backendId) || ''); log('info', 'panel.open', { mode: entry, hasCache: !!(st.snapshot || (typeof getCachedSnapshot === 'function' && getCachedSnapshot(st.cwd))), snapFresh: (typeof snapFresh === 'function' ? snapFresh(st) : false), keyHash: _keyHash, snapVersion: _snapVer, backendId: _bid }) } catch (eL) {} // 串门自证（#495）：单行 #36 即可定罪——工作区键散列对上哪家、快照是哪个版本、后端是哪一个
-      // #606 常规测点起点：记下「点开面板」这一刻与走哪条入口，供后面各段算出各自耗时（按需级，日志在 DockSync 收口）。
+      // 面板只有一条路（2026-09-21 定）：本插件注册的类型，开进 DSH 原生右侧边栏，右栏里那一格由我们渲染。
+      //   原来这里还有一个二选一（把面板交给 dsh-better-sidebar 打开）。两条路并存时，那个插件会把面板
+      //   画进同一列，于是原生右栏的引导页里出现两枚同名入口（用户看到的就是「两个 MattSkills」），
+      //   所以那条路连同它的注册整段删除，本插件不再依赖任何第三方插件。
+      try { const _keyHash = dswsLogHash((typeof keyOf === 'function' ? keyOf(st.cwd || '') : String(st.cwd || ''))); const _snapVer = (typeof getSnapshotVersion === 'function' ? getSnapshotVersion(st.cwd) : '') || (st.snapshot && st.snapshot.version) || ''; const _bid = String((st.selection && st.selection.backendId) || ''); log('info', 'panel.open', { hasCache: !!(st.snapshot || (typeof getCachedSnapshot === 'function' && getCachedSnapshot(st.cwd))), snapFresh: (typeof snapFresh === 'function' ? snapFresh(st) : false), keyHash: _keyHash, snapVersion: _snapVer, backendId: _bid }) } catch (eL) {} // 串门自证（#495）：单行 #36 即可定罪——工作区键散列对上哪家、快照是哪个版本、后端是哪一个
+      // #606 常规测点起点：记下「点开面板」这一刻，供后面各段算出各自耗时（按需级，日志在 DockSync 收口）。
       //   起点与各段都归 panelClock 一个对象管，用完即清；不挂在会话状态对象上，也不挂到 globalThis 上。
       //   调试开关关着时这一整段跳过：连时钟都不读，后面各段也就没有起点可算，唯一代价是读一次开关。
       if (isEnabled('debug')) {
         panelClock.t0 = panelNow()
-        panelClock.mode = entry
         panelClock.renderT0 = 0
         panelClock.commitMs = -1
         panelClock.fitMs = 0
       }
-      if (openOne(entry)) return
-      const other = entry === 'sidebar' ? 'native' : 'sidebar'
-      if (openOne(other)) { logPanelStage('entry-fallback', panelNow() - panelClock.t0); return }
+      if (openInNativeRight(st)) return
       logPanelStage('entry-unavailable', panelNow() - panelClock.t0)
       try { flash(st, tr('panel.openUnavailable'), 'warn') } catch (e) {}
     }
