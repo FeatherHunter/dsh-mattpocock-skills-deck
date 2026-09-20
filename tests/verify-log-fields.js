@@ -50,8 +50,9 @@ const ALLOWED = {
   'backend.switch': ['from', 'to', 'cwdHash'],
   'naming.guard': ['sidHash', 'outcome', 'hintHash'],
   'naming.lock': ['sidHash', 'reason'],
-  'settings.save': ['openIn', 'tplChangedCount'],
-  'panel.open': ['mode', 'hasCache', 'snapFresh', 'keyHash', 'snapVersion', 'backendId'],
+  // 2026-09-21：settings.save 随设置页的「打开位置」一项退役（那是它唯一的落点）；
+  //   panel.open 去掉 mode 字段（面板只有 DSH 原生右侧边栏一条路，形态不再有第二种取值）。
+  'panel.open': ['hasCache', 'snapFresh', 'keyHash', 'snapVersion', 'backendId'],
   'statusbar.hydrate': ['cwdSource'],
   'statusbar.fallback': ['reason'],
   'dock.rehydrate': ['sidHash', 'cwdChanged', 'polluted'],
@@ -67,6 +68,9 @@ const ALLOWED = {
   'detail.cache.hit': ['numHash', 'ageMs'],
   // #606 新增两条按需事件（附录 1.5 节）：exec.run 记经 ctx.exec 起的外部命令，panel.render 记面板打开各阶段耗时。
   'exec.run': ['argv0', 'cwdHash', 'latencyMs', 'exitCode', 'via'],
+  // mode 仍在白名单里，但只剩更新面板那条线在用（views/useUpdatePanel.js 记 mode:'update'，
+  //   用来把它自己的阶段推进与「打开面板那一路的阶段」分开）；面板打开那一路（kernel/router.js 的
+  //   logPanelStage）自 2026-09-21 起不再记 mode —— 面板只有一条路之后它没有第二种取值。
   'panel.render': ['stage', 'ms', 'mode'],
   'host.start': ['pid', 'startedAt', 'dir'],
   'update.install.exec': ['route', 'ok', 'exitCode', 'durationMs', 'pluginId'],
@@ -82,6 +86,8 @@ const ALLOWED = {
   'inject.decision': ['prompt', 'kind', 'layout'],
   // #663 新增一条常驻事件（附录 1.4 节）：首开引导链那颗横幅按钮点下去给出去的是哪一类东西，只记两个短枚举（哪一步、哪一类）。
   'guide.inject': ['step', 'outcome'],
+  // 2026-09-21 新增一条按需事件（附录 1.5 节）：链快照回包时晚到的旧结果被丢弃（这一段里已经又发过新请求），只记一个散列。
+  'chain.stale.drop': ['keyHash'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],
