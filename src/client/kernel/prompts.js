@@ -79,7 +79,7 @@
       const t = String(v == null ? '' : v).toLowerCase()
       return (t === 'single' || t === 'multi') ? t : null
     }
-    export const readSetupLayout = function (st) { try { return normalizeSetupLayout(st && st.setupLayout) } catch (e) { return null } }
+    export const readSetupLayout = function (st) { try { return normalizeSetupLayout(st && st.setupLayout) || normalizeSetupLayout((typeof getCachedSetupLayout === 'function') ? getCachedSetupLayout(st && st.cwd) : null) } catch (e) { return null } } // 2026-09-21：会话里没答过就沿用这个工作区记住过的那一份（按工作区持久化，见 store-prefs.js；两份都过一遍取值校验，不认识的取值一律当没答过）
     // 纯函数：modules = wf.registry modules 数组（元素可带 setupPrompt 键表）；dictOverride 供单测直喂 locale 字典（单测不依赖闭包 L）
     // layout 是用户这次选的布局（'single' / 'multi'）；没选过一律按缺省 single 填 —— 这条是兜底，
     //   正常路径由注入决策函数先把用户拦在卡上（见 setupOrRepoPrompt 的 'setup-card' 那一档）。
@@ -170,10 +170,11 @@
     //   顺序上「仓库那一步没过」先判（返回 blocked）：这一步没过时连卡都不开 —— 卡只有在那条黄条下面才有位置，
     //   而仓库没就绪时按顺序还轮不到黄条，此刻先弹卡会让用户选完布局才发现什么都没注入（#655 修过的同一类毛病）。
     //   opts.injectNow=false 只返回决定、由调用处自己注入（检查页那颗按钮走动作分发器，注入这个动作归分发器做）。
+    //   opts.askLayout=true（黄条那颗「初始化」按钮专用，维护者 2026-09-21 拍板）：布局答过也照旧先弹卡 —— 卡上预选着上次那一项，看得见、随时能改；不传它的入口（检查页那颗按钮、切换后端那条路）保持「答过就直接注入」。
     export const injectSetupDecision = function (st, backendId, opts) {
       let guideBlocked = false
       try { guideBlocked = setupBlockedByGuide(st, backendId) } catch (eB) { guideBlocked = false }
-      if (!guideBlocked && opts && opts.allowCard === true && !readSetupLayout(st)) {
+      if (!guideBlocked && opts && opts.allowCard === true && (opts.askLayout === true || !readSetupLayout(st))) {
         try { st.setupLayoutCardOpen = true } catch (e) {}
         try { if (typeof emit === 'function') emit(st) } catch (e) {}
         // 按需日志（#655，附录 1.5 的 #64 inject.decision）：这一步是用户点击触发的、一次一条，

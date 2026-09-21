@@ -212,3 +212,33 @@
     export const keepUserPick = function (cur, incoming) { try { if (cur && cur.userPicked === true && incoming && incoming.userPicked !== true && String(incoming.backendId || '') === String(cur.backendId || '')) return Object.assign({}, incoming, { userPicked: true }) } catch (e) { /* 合并守住标记失败时按原样用宿主回包 */ } return incoming }
     export const getCachedRepository = function (cwd) { try { const k = wsKeyOf(cwd); return (cwd && k) ? repositoryByCwd[k] : null } catch(e){ return cwd ? repositoryByCwd[cwd] : null } }
     export const setCachedRepository = function (cwd, repo) { try { const k = wsKeyOf(cwd); if (cwd && k) repositoryByCwd[k] = repo } catch(e){ if (cwd) repositoryByCwd[cwd] = repo } }
+    // 初始化那张小卡上答的「域文档布局」按工作区记住（维护者 2026-09-21 拍板：A + 记住）。
+    //   此前它只活在本次会话的内存里 —— 同一个工作区新开一个会话又得答一遍，换个会话还可能答成另一个样，
+    //   而 AI 是照各自收到的那一句去写 docs/agents/domain.md 的。现在按工作区存一份，下次打开直接沿用；
+    //   想改随时在黄条那颗按钮弹出的那张卡上改（那条路每次都问，见 prompts.js 的 injectSetupDecision）。
+    //   存法沿用选择集同例：归一键 → 'single' | 'multi'；localStorage 不可用时降级为仅内存。
+    //   取值只有这两个，与 StatusBackend.js 的 SETUP_LAYOUT_VALUES 是同一套（那边管卡片怎么画，这边管记不记得住）。
+    export const SETUP_LAYOUT_BY_CWD_KEY = 'dsws.setupLayoutByCwd'
+    export const setupLayoutByCwd = {}
+    ;(function () {
+      try {
+        const raw = localStorage.getItem(SETUP_LAYOUT_BY_CWD_KEY)
+        if (raw) { const m = JSON.parse(raw); if (m && typeof m === 'object') { for (const k of Object.keys(m)) { const nk = (typeof keyOf === 'function' ? keyOf(k) : k); if (!(nk in setupLayoutByCwd)) setupLayoutByCwd[nk] = m[k] } } }
+      } catch (e) { /* 存储不可用降级为仅内存 */ }
+    })()
+    const persistSetupLayoutByCwd = function () { try { localStorage.setItem(SETUP_LAYOUT_BY_CWD_KEY, JSON.stringify(setupLayoutByCwd)) } catch (e) { /* 忽略 */ } }
+    export const getCachedSetupLayout = function (cwd) {
+      try {
+        const k = wsKeyOf(cwd)
+        const v = String(((cwd && k) ? setupLayoutByCwd[k] : (cwd ? setupLayoutByCwd[cwd] : '')) || '').toLowerCase()
+        return (v === 'single' || v === 'multi') ? v : null
+      } catch (e) { return null }
+    }
+    export const setCachedSetupLayout = function (cwd, v) {
+      try {
+        const s = String(v == null ? '' : v).toLowerCase()
+        if (s !== 'single' && s !== 'multi') return
+        const k = wsKeyOf(cwd)
+        if (cwd && k) { setupLayoutByCwd[k] = s; persistSetupLayoutByCwd() }
+      } catch (e) { /* 忽略 */ }
+    }

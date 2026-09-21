@@ -140,7 +140,7 @@ async function main() {
     flash: () => {},
     loadSnapshot: () => {},
     moduleMetaOf: () => null,
-    injectSetupDecision: (st, id, opts) => { sbSeen.decisions.push({ id: id, allowCard: !!(opts && opts.allowCard) }); return 'setup-card' },
+    injectSetupDecision: (st, id, opts) => { sbSeen.decisions.push({ id: id, allowCard: !!(opts && opts.allowCard), askLayout: !!(opts && opts.askLayout) }); return 'setup-card' },
     host: { call: (method, params) => { sbSeen.bound.push({ method: method, params: params }); return Promise.resolve({ ok: true }) } },
     console: { log: function () {}, warn: function () {}, error: function () {} },
   }
@@ -169,6 +169,7 @@ async function main() {
   const kind = sbMod.onStatusSetupInit(sbSetup)
   ok(kind === 'setup-card', 'StatusBackend 的那个入口把决定结果回了给调用处（实得 ' + kind + '）')
   ok(sbSeen.decisions.length === 1 && sbSeen.decisions[0].allowCard === true, '初始化那颗按钮仍然只走允许弹小卡的那条入口（#655 的漏斗没动）')
+  ok(sbSeen.decisions.length === 1 && sbSeen.decisions[0].askLayout === true, '而且黄条这一颗每次都要先问布局（askLayout:true，2026-09-21 维护者拍板 A）')
 
   console.log('== 10. 接线：状态栏真的用了它，旧的手写优先级没了 ==')
   const barSrc = read('src/client/statusbar/StatusBar.js')

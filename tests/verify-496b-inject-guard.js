@@ -29,7 +29,7 @@ check(!/(===|==)\s*['"](github|gitlab|markdown)['"]|['"](github|gitlab|markdown)
 // 2) 待补标记按工作区键隔离
 check(prompts.includes('pendingSetupAfterPublish') && prompts.includes('pendingSetupCwd'), '待补标记按工作区键隔离（字段仍在；置真它的那一档已退役，见 prompts.js 里的说明）')
 // 3) 注入入口：状态栏黄条仍走决策器；门控确认那两条路不许再注入；切换后端按场景注入（#669 第 6 件 / ADR 20260921）
-check(/injectSetupDecision\(s,id,\{allowCard:true\}\)/.test(sb), '状态栏黄条那条路仍走决策器（允许弹那张布局小卡）')
+check(/injectSetupDecision\(s,id,\{allowCard:true,\s*askLayout:true\}\)/.test(sb), '状态栏黄条那条路仍走决策器，且每次都先弹那张布局小卡（askLayout:true，2026-09-21 维护者拍板 A）')
 check(!/injectSetupDecision\s*\(/.test(dock), 'Dock 的门控确认不再注入（#664）')
 check(!/injectSetupDecision\s*\(/.test(og), 'OverlayGate 的门控确认不再注入（#664）')
 // 切换后端那条路 2026-09-21 按场景分了两支：未初始化走决策器（与黄条同一条，允许开卡），

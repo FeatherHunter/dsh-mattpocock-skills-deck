@@ -13,11 +13,15 @@
  *   本文件不引用 StatusMenus.js（同闭包拼回，调用方向见 StatusBar.js 转调四处）。
  */
 // #655：域文档布局的两个取值（与 locale 里两句注入文案、卡片上两个选项一一对应）。
-//   布局只活在本次会话——不落持久状态、不加「改布局」的入口；想改就改 docs/agents/domain.md，或重跑一次初始化。
+//   2026-09-21 维护者拍板改成「A + 记住」：这份答案按工作区记住（写进本地缓存，见 store-prefs.js 的
+//   getCachedSetupLayout / setCachedSetupLayout），同一个工作区下次打开直接沿用；想改随时在黄条那颗
+//   「初始化」按钮弹出的那张卡上改 —— 那条入口每次都问（卡上预选着上次那一项），确认后才注入。
 export const SETUP_LAYOUT_VALUES = ['single', 'multi']
 export const SETUP_LAYOUT_FALLBACK = 'single'
 export const readStatusSetupLayout = function(s){
-  try{ const v=String((s&&s.setupLayout)||'').toLowerCase(); return SETUP_LAYOUT_VALUES.indexOf(v)>=0?v:null }catch(e){ return null }
+  try{ const v=String((s&&s.setupLayout)||'').toLowerCase(); if(SETUP_LAYOUT_VALUES.indexOf(v)>=0) return v }catch(e){}
+  try{ if(typeof getCachedSetupLayout==='function'){ const c=getCachedSetupLayout(s&&s.cwd); if(c) return c } }catch(e){}
+  return null
 }
 // 卡片上这一组单选默认选中哪一项：已经选过的（含从别处选完又打开这张卡）优先，否则回到第一项「根目录一份 CONTEXT.md」。
 export const layoutSelectionOf = function(s){
@@ -25,11 +29,12 @@ export const layoutSelectionOf = function(s){
   try{ const v=String((s&&s.setupPickLayout)||'').toLowerCase(); if(SETUP_LAYOUT_VALUES.indexOf(v)>=0) return v }catch(e){}
   return SETUP_LAYOUT_FALLBACK
 }
-// 把布局记进会话状态：注入决策函数就是从这里读「这个仓库的布局选没选过」的，所以只在这里写。
+// 把布局记进会话状态**并按工作区记住**：注入决策函数就是从这里读「这个仓库的布局选没选过」的，所以只在这里写。
 export const applyStatusSetupLayout = function(s, v){
   const t=String(v==null?'':v).toLowerCase()
   if(SETUP_LAYOUT_VALUES.indexOf(t)<0) return
   try{ s.setupLayout=t }catch(e){}
+  try{ if(typeof setCachedSetupLayout==='function') setCachedSetupLayout(s&&s.cwd, t) }catch(e2){}
 }
 // 卡片与门控弹窗共用的一组单选（域文档布局）：返回一组 label，供 StatusBar.js 的两处渲染直接放进去。
 export const layoutRadios = function(s, h){
@@ -59,14 +64,15 @@ export const confirmStatusSetupPick = function(s){
   //   没过就一个字都不注入，也不会走到这里 —— 那种情形下卡根本不会开）。
   try{ injectSetupDecision(s,id,{allowCard:true}) }catch(e){}
 }
-// #655：黄条那颗「初始化」按钮也走同一个注入决策函数 —— 布局没选过时那个函数只开卡不注入
-//   （allowCard:true 是因为这张卡就渲染在黄条下面，弹得出来），所以这里不再自己判「弹卡还是注入」，
-//   一律交出去（否则就是规格里说的「绕过小卡直接注入」）。
+// #655：黄条那颗「初始化」按钮也走同一个注入决策函数 —— 它自己判「弹卡还是注入」，这里不判
+//   （否则就是规格里说的「绕过小卡直接注入」）。allowCard:true 是因为这张卡就渲染在黄条下面，弹得出来。
+//   2026-09-21 维护者拍板（A）：这一颗**每次都先弹卡**（askLayout:true）—— 布局答过也照旧问一遍，
+//   卡上预选着上次那一项，看得见、随时能改；答完点确认才注入。检查页那颗按钮与切换后端那条路不传它。
 // #663 起把那个决定的结果原样回给调用处（'setup' 注入了全文 / 'setup-card' 只开了小卡 / 其余没注成）：
 //   状态栏横幅那颗按钮要用它落一行「这次给出去的是哪一类」的常驻日志，不然日志里又是一笔空。
 export const onStatusSetupInit = function(s){
   const id = (s.selection && s.selection.backendId != null) ? s.selection.backendId : firstBackendIdOf(null);
-  try{ return injectSetupDecision(s,id,{allowCard:true}) }catch(e){ return '' }
+  try{ return injectSetupDecision(s,id,{allowCard:true, askLayout:true}) }catch(e){ return '' }
 }
 export const openStatusGate = function(s){
   s.gateModalOpen=true;s.gateModalSource='status';if(!s.gateSelected)s.gateSelected=firstBackendIdOf(null);s.gateError='';emit(s);

@@ -27,12 +27,15 @@ const ok = (cond, msg) => { total++; if (cond) console.log('  PASS ' + msg); els
 //   所以这里把真词表塞进求值体的末尾（不塞的话占位符会空着，测的就不是真行为了）。
 //   guideStepsFor / guideStepDone 是共享清单 src/shared/tracker/guide-steps.js 里的两个真函数
 //   （生产里随构建拼进同一个闭包，沙箱里必须自己顶上，否则「仓库那一步没过」那一档永远走不到）。
-function loadPrompts(localeDict, guide) {
+function loadPrompts(localeDict, guide, cachedLayout) {
   const src = fs.readFileSync(path.join(root, 'src/client/kernel/prompts.js'), 'utf8')
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
   const injected = []
   const emitted = []
   const logged = []
+  // getCachedSetupLayout 在生产里由 kernel/store-prefs.js 声明、与 prompts.js 拼进同一个闭包；
+  //   沙箱里默认给一个「什么都没记住」的替身（等价于旧行为），要量「按工作区记住」那一档时由调用方换掉它。
+  const cached = (cachedLayout && typeof cachedLayout.getCachedSetupLayout === 'function') ? cachedLayout.getCachedSetupLayout : function () { return null }
   // moduleMetaOf 不由 prompts.js 提供：它在真正的产物里由另一个内核模块（kernel/builtin-backends.js）声明，
   //   与 prompts.js 拼回同一个闭包后直接可用。沙箱里必须自己顶一个替身，否则按后端查声明数据那几处
   //   在本门禁里永远拿不到东西，测出来的就不是真行为了。
@@ -43,7 +46,7 @@ function loadPrompts(localeDict, guide) {
   }
   const tail = '\n;const L = ' + JSON.stringify(localeDict) + ';'
     + '\n;return { PROMPTS: PROMPTS, setupRunParamsFrom: setupRunParamsFrom, setupRunPrompt: setupRunPrompt, setupOrRepoPrompt: setupOrRepoPrompt, injectSetupDecision: injectSetupDecision, setupBlockedByGuide: setupBlockedByGuide, setupRunTextForClick: setupRunTextForClick, consumePendingSetup: consumePendingSetup, readSetupLayout: readSetupLayout, normalizeSetupLayout: normalizeSetupLayout, SETUP_LAYOUT_TEXT_KEYS: SETUP_LAYOUT_TEXT_KEYS }'
-  const factory = new Function('inject', 'emit', 'isEnabled', 'log', 'console', 'moduleMetaOf', 'guideStepsFor', 'guideStepDone', body + tail)
+  const factory = new Function('inject', 'emit', 'isEnabled', 'log', 'console', 'moduleMetaOf', 'guideStepsFor', 'guideStepDone', 'getCachedSetupLayout', body + tail)
   const mod = factory(
     function (st, text) { injected.push(String(text)) },
     function (st) { emitted.push(st) },
@@ -52,7 +55,8 @@ function loadPrompts(localeDict, guide) {
     { log: function () {}, warn: function () {}, error: function () {} },
     moduleMetaOf,
     guide.guideStepsFor,
-    guide.guideStepDone
+    guide.guideStepDone,
+    cached
   )
   return { mod: mod, injected: injected, emitted: emitted, logged: logged }
 }
@@ -234,6 +238,39 @@ async function main() {
   const stCard = stateOf({ backend: 'github' })
   ok(mod.injectSetupDecision(stCard, 'github', { injectNow: false, allowCard: true }) === 'setup-card', 'injectNow:false + allowCard 时布局未定也返回先问（检查页那颗按钮）')
   ok(stCard.setupLayoutCardOpen === true, 'injectNow:false 时那一档照样开卡')
+
+  console.log('== 2026-09-21（维护者拍板 A + 记住）· 黄条那颗按钮每次都先问；答过的那一份按工作区记住 ==')
+  {
+    // ① 黄条那颗按钮（askLayout:true）：布局答过也照样先把卡弹出来（卡上预选着上次那一项），确认之后才注入。
+    const stA = stateOf({ backend: 'github', layout: 'single' })
+    const nA = injected.length
+    const kA = mod.injectSetupDecision(stA, 'github', { allowCard: true, askLayout: true })
+    ok(kA === 'setup-card', '黄条那颗按钮：布局已答（single）→ 仍然先弹卡（实得 ' + kA + '）')
+    ok(stA.setupLayoutCardOpen === true, '黄条那颗按钮：那张卡确实被要求打开（看得见上次选的是哪一项）')
+    ok(injected.length === nA, '黄条那颗按钮：弹卡的这一下一个字都不注入（等用户点确认）')
+    // ② 别的入口（检查页那颗按钮、切换后端那条路）不传 askLayout：答过就直接注入，别再让人多点一次。
+    const stB = stateOf({ backend: 'github', layout: 'single' })
+    const nB = injected.length
+    const kB = mod.injectSetupDecision(stB, 'github', { allowCard: true })
+    ok(kB === 'setup', '检查页/切换那条路（不传 askLayout）：布局已答 → 直接注入（实得 ' + kB + '）')
+    ok(injected.length === nB + 1 && injected[injected.length - 1] === textOf('github', 'single', 'zh'), '那条路注入的全文与金样逐字相同（还是那句已答的结论）')
+    // ③ 按工作区记住：会话里没答过时，读这个工作区记住过的那一份（同一个工作区换个会话不该再问一遍）。
+    const remembered = { '/w/demo': 'multi' }
+    const withCache = loadPrompts(L, G, { getCachedSetupLayout: function (cwd) { return remembered[String(cwd || '')] || null } })
+    const stC = stateOf({ backend: 'github' }) // 本次会话没答过
+    ok(withCache.mod.readSetupLayout(stC) === 'multi', '会话里没答过 → 读到这个工作区记住的那一份（multi）')
+    ok(withCache.mod.injectSetupDecision(stC, 'github', { allowCard: true }) === 'setup', '记住过之后，检查页/切换那条路直接用记住的那份注入（不再问）')
+    ok(withCache.injected[withCache.injected.length - 1].indexOf(L.zh['setup.layout.multi']) >= 0, '注入的就是记住的那一份（多上下文那一句）')
+    const stD = stateOf({ backend: 'github', layout: 'single' }) // 本次会话答过 single，工作区记住的是 multi
+    ok(withCache.mod.readSetupLayout(stD) === 'single', '会话里答过 → 本次会话那一份优先于记住的那一份（当场改的立刻生效）')
+    const stE = stateOf({ backend: 'github' }) // 工作区没记住过 + 会话没答过
+    const none = loadPrompts(L, G, { getCachedSetupLayout: function () { return null } })
+    ok(none.mod.readSetupLayout(stE) === null, '既没答过、也没记住过 → 仍然算没答过（照旧先问）')
+    ok(none.mod.injectSetupDecision(stE, 'github', { allowCard: true }) === 'setup-card', '没答过的那一档照旧先弹卡')
+    // ④ 记住的那一份不认识时不许当答案用（按未选定处理，免得把垃圾值写进注入文本）
+    const junk = loadPrompts(L, G, { getCachedSetupLayout: function () { return 'nonsense' } })
+    ok(junk.mod.readSetupLayout({ cwd: '/w/demo', selection: { backendId: 'github' } }) === null, '记住的值不认识时按未选定处理（不认识的取值不参与填空）')
+  }
 
   console.log('== #664 · 本地 Markdown 没有「先建仓库」这一步：缺仓库也直接注入（与改造前一致）==')
   const stMd = stateOf({ backend: 'markdown', layout: 'single' })
