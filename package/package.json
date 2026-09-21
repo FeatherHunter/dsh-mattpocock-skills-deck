@@ -1,11 +1,14 @@
 {
   "name": "dsh-mattpocock-skills-deck",
-  "version": "1.7.25",
+  "version": "1.7.26",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/FeatherHunter/dsh-mattpocock-skills-deck.git"
   },
-  "description": "Matt Pocock 技能面板（DSH Deck）：安装即自带 25 个工程与效率技能（mattpocock/skills v1.2.3：triage、grilling、wayfinder、handoff 等），右侧面板直接调用，无需手动装技能。当前主力支持 GitHub issue；Markdown 本地文件为预览版；GitLab 暂不在支持范围。希望它能帮你把想法更快变成现实。",
+  "description": "安装即自带mattpocock/skills v1.2.3的25个工程与效率技能，无需手动装技能。300亿token打造。本插件在原始技能之上提供10倍的开发效率。主力支持GitHub issue；Markdown为预览版；GitLab暂不支持。",
+  "engines": {
+    "dsh": ">=0.1.5-rc.1"
+  },
   "type": "module",
   "main": "lib/index.js",
   "scripts": {

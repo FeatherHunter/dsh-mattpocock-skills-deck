@@ -129,7 +129,14 @@ console.log("");
 console.log("[B] 说明锁定（description / keywords / human-first）");
 const desc = pkgPkg?.description || "";
 assert(desc.length > 20, `package.json description 非空且长度 >20（实际 ${desc.length}）`);
-assert(desc.includes("DeepSeek") || desc.includes("DeepSeek Harness") || desc.includes("DSH"), `description 含 DSH/DeepSeek 标识（human-first 可检索）`);
+// 2026-09-21 放宽（维护者裁决）：这条原先要求介绍文字里必须出现 DSH/DeepSeek 字样。市场条目全在
+// DSH 语境里（「不要强调是DSH插件，这插件市场只能是DSH插件」），介绍不必再重复一次；改成
+// 「介绍里出现，或包自己带 dsh 身份（包名 / keywords）」即为通过。判据意图不变：任何人拿到这个
+// 包或这条介绍，都能确认它与 DSH 的关系（keywords 那条在第 155 行另有独立检查）。
+const descNamesHost = desc.includes("DeepSeek") || desc.includes("DSH");
+const pkgNamesHost = String(pkgPkg?.name || "").includes("dsh")
+  || (Array.isArray(pkgPkg?.keywords) && (pkgPkg.keywords.includes("dsh") || pkgPkg.keywords.includes("dsh-plugin")));
+assert(descNamesHost || pkgNamesHost, `description 或包自身（name/keywords）含 DSH/DeepSeek 标识（human-first 可检索）`);
 assert(desc.includes("Matt Pocock") || desc.includes("mattpocock") || desc.includes("技能"), `description 含 Matt Pocock/技能 标识`);
 // 校验 description 与 GitHub About 同源的本地代理：检查 README/Runbook 引用中无夸大数字
 // 任何数字与能力名需可在产物中检索到——此处校验 description 中的数字是否在 README 中出现
