@@ -34,6 +34,11 @@ export const IssueDetail = function (props) {
       const detail = (st.issueDetail && st.issueDetail.number === issueNumber && (st.issueDetail.effortId === undefined || String(st.issueDetail.effortId) === issueEffort)) ? st.issueDetail : null
       const issues = (st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []
       const snapIssue = issues.find(function (x) { return x.number === issueNumber && effortOf(x) === issueEffort }) || issues.find(function (x) { return x.number === issueNumber })
+      // #693 取数口径：快照那一行只当**轻量预览**用（标题、状态、标签、指派人、被阻塞、
+      //   是不是拉取请求这些），**正文与评论一律以详情自己那次取数为准**。
+      //   理由：快照那一行可能是不带正文、也不带评论的薄片段（阶段 2 的历史行就是这样），
+      //   拿它当「没有」会把「还没拿到」说成「实际上没有」—— 那是说假话。
+      //   顶部仍先用快照那一行画出来（秒开，#58 的成果保留），下面 src 只用来画这些轻量字段。
       const src = detail || snapIssue
       const mode = st.issueMode || 'idle'
       const err = st.issueError
@@ -138,7 +143,7 @@ export const IssueDetail = function (props) {
             h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'back', size: 12 }), h('span', null, tr('list.back'))]),
             h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11 } }, navCrumb),
           ]),
-          h('div', { style: { padding: '24px 0', textAlign: 'center', color: 'var(--dsw-alias-label-caption,#8b8b95)', fontSize: 12 } }, '无描述（快照未命中，细节加载中）'),
+          h('div', { style: { padding: '24px 0', textAlign: 'center', color: 'var(--dsw-alias-label-caption,#8b8b95)', fontSize: 12 } }, tr('detail.bodyNotYet')),
         ])
       }
       const labels = (src.labels && src.labels.nodes) ? src.labels.nodes : (src.labels || [])
@@ -157,7 +162,16 @@ export const IssueDetail = function (props) {
       const title = src.title || ('#' + issueNumber)
       // effort 维度：详情页标出这张票属于哪个 effort（只在多 effort 仓库出现，单 effort 界面不变）
       const effortChip = (issueEffort && effortNamesOf(st).length > 1) ? h(Tip, { content: issueEffort }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': issueEffort, style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, issueEffort)) : null
-      const body = src.body || ''
+      // #693 正文格：**只有详情回来了才能说「无描述」**。详情没回来时说加载中，取不到时说「还没拿到」。
+      //   取数失败的失败原因与重试在页面顶部那条横幅上（这里不重复放一个按钮）。
+      const bodySlot = detail
+        ? ((detail.body && String(detail.body).trim())
+            ? h('div', { style: { fontSize: 12, lineHeight: 1.6, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, (typeof mdToHtml === 'function' ? mdToHtml(detail.body, { st: st }) : String(detail.body)))
+            : h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.noBody')))
+        : h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)', display: 'flex', alignItems: 'center', gap: 6 } }, [
+            mode === 'err' ? null : h('div', { className: 'dsws-spinner', style: { width: 11, height: 11, border: '2px solid rgba(255,255,255,.15)', borderTopColor: '#c084fc', borderRadius: '50%', animation: 'dsws-spin 1s linear infinite' } }),
+            h('span', null, mode === 'err' ? tr('detail.bodyNotYet') : tr('list.loading')),
+          ])
       const has = function (nm) { return labelArr.some(function (l) { return (l.name || l) === nm }) }
       const _isTriageLikeLocal = !labelArr.length || has('needs-triage')
       const fakeIssue = { number: issueNumber, ['title']: title, labels: labelArr.map(function (l) { return typeof l === 'string' ? { name: l } : l }), state: stateRaw }
@@ -174,15 +188,23 @@ export const IssueDetail = function (props) {
       const subNodes = (src.subIssues && src.subIssues.nodes) ? src.subIssues.nodes : []
       const subTotal = (src.subIssues && typeof src.subIssues.totalCount === 'number') ? src.subIssues.totalCount : subNodes.length
       const blockedNodes = (src.blockedBy && src.blockedBy.nodes) ? src.blockedBy.nodes : []
-      const commentsNodes = (src.comments && src.comments.nodes) ? src.comments.nodes : []
+      // #693 评论也只认详情那次取数：快照那一行可能不带评论，拿它当「没有评论」会说错话。
+      const commentsSource = detail ? detail.comments : undefined
+      const commentsNodes = (commentsSource && commentsSource.nodes) ? commentsSource.nodes : []
       const isStale = !detail && !!snapIssue
       // ======== #255 · 评论输入区（GitHub 单点 · MISSING 零分支）========
       // 显隐以能力字段有无判：comments 存在即渲染（EMPTY=[] 渲染、MISSING=省略 不渲染），
       // 零后端身份分支。数组形状（契约 Comment[]）与 GraphQL 形状（{nodes,pageInfo}）双兼容。
-      const rawComments = src.comments
+      // #693：这个「能力字段」同样只看详情带回来的那一份（commentsSource），不看快照那一行。
+      const rawComments = commentsSource
       let canComment = !!rawComments && (Array.isArray(rawComments) ? true : !!(typeof rawComments === 'object' && Array.isArray(rawComments.nodes)))
       // #506 首版只读：拉取请求详情只看评论列表，不给输入框（快照与详情任一来源标为拉取请求即只读；评审合并展示留后续，#507 再验）。
-      if ((src && src.isPullRequest === true) || (snapIssue && snapIssue.isPullRequest === true)) canComment = false
+      const fromPullRequest = (src && src.isPullRequest === true) || (snapIssue && snapIssue.isPullRequest === true)
+      if (fromPullRequest) canComment = false
+      // #693：底部那句「只读」只在**确实不能评论**时才说。详情还没回来时 canComment 也是假
+      //   （手上根本没有这份数据），但那只是「还没拿到」，不是「不能评论」——
+      //   拉取请求，或详情回来说这个后端不带评论能力，才算真只读。
+      const readOnlyKnown = fromPullRequest || (!!detail && !canComment)
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } }, [
         // 顶部固定行（#565 粘性固定，随滚动保持可见）
         h('div', { className: 'dsws-stickybar', style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }, [
@@ -239,9 +261,7 @@ export const IssueDetail = function (props) {
         // body
         h('div', { style: { padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [
           h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 4 } }, '描述'),
-          (body && String(body).trim())
-            ? h('div', { style: { fontSize: 12, lineHeight: 1.6, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, (typeof mdToHtml === 'function' ? mdToHtml(body, { st: st }) : String(body)))
-            : h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, '无描述'),
+          bodySlot,
         ]),
         // sub-issues
         subNodes.length || subTotal ? h('div', { style: { padding: '6px 0' } }, [
@@ -273,12 +293,13 @@ export const IssueDetail = function (props) {
           })),
         ]) : null,
       // comments（列表 + 输入区收进 views/IssueDetailComments.js，纯结构搬移，行为零变化）
-      h('div', { style: { padding: '8px 0 4px' } }, renderIssueDetailComments(h, st, issueNumber, src, detail, mode, commentsNodes, canComment, issueEffort)),
+      // #693：评论区也只喂详情那一份（快照那一行可能不带评论，喂进去会把「没拿到」画成「没有」）。
+      h('div', { style: { padding: '8px 0 4px' } }, renderIssueDetailComments(h, st, issueNumber, detail, mode, commentsNodes, canComment, issueEffort)),
         // 底部动作
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 } }, [
           primaryBtn,
           h('span', { style: { flex: 1 } }),
-          !canComment ? h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.readOnlyHint')) : null,
+          readOnlyKnown ? h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.readOnlyHint')) : null,
         ]),
         // 图片放大浮层（渲染函数共用，状态放共享 store，点缩略图打开，点空白与关闭与退出键关闭）
         (typeof mdImgOverlay === 'function' ? mdImgOverlay(st) : null),

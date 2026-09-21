@@ -4,8 +4,11 @@
 // 以后谁改它：改评论提交、评论列表、加载下 50、输入框的人改它。
 // 接线：IssueDetail.js 的评论分组处调 renderIssueDetailComments，返回数组直接做分组子节点（此前是字面数组，原样）；
 //   确认下标、错误文案、提交动作内聚在本函数里，主文件只留显隐谓词（底部动作也要读它）。
-// 参数：h = 创建函数；st = 详情 store；src = 快照或详情源；detail/mode/commentsNodes/canComment = 派生（调用方传入）。
-export const renderIssueDetailComments = function (h, st, issueNumber, src, detail, mode, commentsNodes, canComment, issueEffort) {
+// 参数：h = 创建函数；st = 详情 store；detail = 详情自己那次取数（**评论一律以它为准**，见 #693）；
+//   mode/commentsNodes/canComment = 派生（调用方传入）。
+// #693 起，这里不再收「快照那一行」：那一行只是轻量预览，可能不带评论，
+//   它的分页游标也只有详情带回来的那一份才有。
+export const renderIssueDetailComments = function (h, st, issueNumber, detail, mode, commentsNodes, canComment, issueEffort) {
       const _eff = (issueEffort === undefined || issueEffort === null) ? '' : String(issueEffort)
       // #255 提交确认闪烁下标：仅当 force 重取后的评论里真实存在 body 全等匹配项才点亮
       // （新评论必须来自服务端重取的证据；定时清空归位，无乐观假设）
@@ -52,7 +55,10 @@ export const renderIssueDetailComments = function (h, st, issueNumber, src, deta
         })
       }
       return [
-        h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, '评论 ' + (commentsNodes.length ? '(' + commentsNodes.length + ')' : '(0)') + (mode === 'loading' && !detail ? ' · 加载中' : '')),
+        // #693：详情还没回来时不许报「评论 (0)」—— 那是把「还没拿到」说成「没有」。
+        h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, detail
+          ? '评论 ' + (commentsNodes.length ? '(' + commentsNodes.length + ')' : '(0)')
+          : '评论 · ' + (mode === 'err' ? tr('detail.notYet') : tr('list.loading'))),
         commentsNodes.length ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } }, commentsNodes.slice(0,50).map(function (c, i) {
           const login = c.author && c.author.login || 'ghost'
           const t = c.createdAt ? String(c.createdAt).slice(0,10) : ''
@@ -67,7 +73,9 @@ export const renderIssueDetailComments = function (h, st, issueNumber, src, deta
             ]),
             h('div', { style: { fontSize: 12, lineHeight: 1.5 } }, (typeof mdToHtml === 'function' ? mdToHtml(c.body || '', { st: st }) : (c.body || ''))),
           ])
-        })) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '8px', background: 'rgba(255,255,255,.03)', borderRadius: 6, border: '1px dashed rgba(255,255,255,.1)' } }, mode === 'loading' && !detail ? '加载中…' : '无评论'),
+        })) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '8px', background: 'rgba(255,255,255,.03)', borderRadius: 6, border: '1px dashed rgba(255,255,255,.1)' } }, detail
+          ? tr('detail.noComments')
+          : (mode === 'loading' ? '加载中…' : tr('detail.notYet'))),
         // 加载下 50 按钮（T5 反向分页 cursor，节流 600ms，失败重试与 3 次兜底）
         commentsNodes.length ? (function(){
           const fail = st.issueCommentsFailCount || 0
@@ -78,7 +86,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, src, deta
               h('a', { href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { color: '#58a6ff', textDecoration: 'underline' } }, tr('detail.viewOnTrackerHint')),
             ])
           }
-          const hasMore = (src.comments && src.comments.pageInfo) ? src.comments.pageInfo.hasNextPage : commentsNodes.length >= 50
+          const hasMore = (detail.comments && detail.comments.pageInfo) ? detail.comments.pageInfo.hasNextPage : commentsNodes.length >= 50
           if (!hasMore && fail===0) return null
           const label = st.issueCommentsMoreLoading ? '加载中' : (fail>0 ? '重试' : '加载下 50')
           return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 8 } }, [
@@ -88,7 +96,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, src, deta
               onClick: function () {
                 if (st.issueCommentsMoreLoading) return
                 // 节流：600ms 内禁用由 st.issueCommentsMoreLoading 保障，api 侧同样节流
-                const after = (src.comments && src.comments.pageInfo && src.comments.pageInfo.endCursor) ? src.comments.pageInfo.endCursor : String(commentsNodes.length)
+                const after = (detail.comments && detail.comments.pageInfo && detail.comments.pageInfo.endCursor) ? detail.comments.pageInfo.endCursor : String(commentsNodes.length)
                 if (typeof fetchIssueComments === 'function') fetchIssueComments(st, issueNumber, after, { effortId: _eff })
                 else { st.issueCommentsMoreLoading = true; emit(st); setTimeout(function(){ st.issueCommentsMoreLoading=false; emit(st); },600) }
               },

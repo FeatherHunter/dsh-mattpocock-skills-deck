@@ -111,8 +111,8 @@ const BASELINE = {
   'statusbar/StatusBar.js': 16, // B1 #460 由 StatusBar.js 拆出选后端：主文件留 16 串（合计 17，与原持平）
   'statusbar/StatusBackend.js': 1, // B1 #460 由 StatusBar.js 拆出：选后端确认分得 1 串（已选择透传文案）
   'views/ChecksTab.js': 0, // #529 环境检查标题诊断卡动作全部改走中英文词条：文件中不再留中文字符串，基线收紧到 0 防回退
-  'views/IssueDetail.js': 16, // #463 V3 由 IssueDetail.js 拆出评论区：主文件留 16 串（合计 29，与原持平）
-  'views/IssueDetailComments.js': 13, // #463 V3 由 IssueDetail.js 拆出：评论区分得 13 串
+  'views/IssueDetail.js': 13, // #463 V3 由 IssueDetail.js 拆出评论区：主文件留 13 串；#693 把「无描述」等正文/评论兜底文案改走词条，由 16 收紧到 13
+  'views/IssueDetailComments.js': 12, // #463 V3 由 IssueDetail.js 拆出：评论区分得 12 串；#693 「无评论」改走词条后由 13 收紧到 12
   'views/NoRepoCard.js': 15,
   'views/SettingsPage.js': 12, // #463 V3 由 SettingsPage.js 拆出后端总览：主文件留 12 串
   'views/SettingsWorkspaces.js': 0, // #528 总览文案全部改走中英文词条：文件中不再留中文字符串，基线收紧到 0 防回退

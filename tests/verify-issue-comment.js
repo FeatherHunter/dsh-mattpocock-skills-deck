@@ -36,7 +36,7 @@ check(detailSrc.includes('submitIssueComment'), 'IssueDetail 调 submitIssueComm
 check(detailSrc.includes('metaKey || ev.ctrlKey') || detailSrc.includes('metaKey||ev.ctrlKey'), '支持 ⌘+Enter / Ctrl+Enter 快捷发送')
 check(detailSrc.includes('disabled: !(st.cmtDraft'), '空内容发送按钮 disabled')
 check(detailSrc.includes("st.cmtSending = true"), '提交态置位（防重复提交）')
-check(detailSrc.includes("!canComment ? h('span'"), '只读提示条件化（有能力时由输入区替代）')
+check(detailSrc.includes("readOnlyKnown ? h('span'"), '只读提示条件化（只在确实不能评论时才提示；#693 起「还没拿到评论」不再冒充「只读」）')
 check(detailSrc.includes("placeholder: tr('detail.cmtPlaceholder')"), 'Markdown 提示占位符接入 locale')
 ;['detail.cmtAuthFail', 'detail.cmtRateLimit', 'detail.cmtGeneric'].forEach(k => check(detailSrc.includes("'" + k + "'"), '分流文案键 ' + k))
 

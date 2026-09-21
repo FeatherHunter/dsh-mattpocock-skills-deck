@@ -142,7 +142,7 @@ check(prTabSrc.includes('同号') && detailSrc.includes('评审合并展示留�
   const normal = withPR([], { isPullRequest: false }, { isPullRequest: false })
   check(arr === false && nodes === false, 'F1 拉取请求详情只读（数组与图形状有评论也不给输入框）')
   check(missing === false && normal === true, 'F2 非拉取请求保持原语义（省略隐藏、空数组显示）')
-  check(detailSrc.includes("!canComment ? h('span'"), 'F3 只读提示条件化（输入区被替代时才提示）')
+  check(detailSrc.includes("readOnlyKnown ? h('span'"), 'F3 只读提示条件化（只在确实不能评论时才提示；#693 起「还没拿到评论」不再冒充「只读」，拉取请求照旧提示）')
 }
 
 // ---------- G 失败空态（入口保留，不白屏）----------

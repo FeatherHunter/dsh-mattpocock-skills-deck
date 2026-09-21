@@ -54,7 +54,7 @@
         'detail.viewOnTracker': '打开原票',
         'detail.viewOnTrackerHint': '点此打开原票查看',
         'detail.authFailCta': '去原平台处理后重试',
-        'detail.readOnlyHint': 'read-only · 写操作请走 新会话 / 打开原票',
+        'detail.readOnlyHint': 'read-only · 写操作请走 新会话 / 打开原票', 'detail.noBody': '无描述', 'detail.bodyNotYet': '正文还没拿到', 'detail.notYet': '还没拿到', 'detail.noComments': '无评论', // #693：详情页的「还没有」与「确实没有」分开说（四条挤在一行，是因为本文件已贴着 350 行上限）
         'list.openInGithubTitle': '在 GitHub 上查看 #{n}', // 过渡遗留：清尾批删除
         'list.mapTitle': '查看地图详情',
         'list.issueDetailTitle': '查看 issue 详情',
@@ -218,7 +218,7 @@
         'detail.viewOnTracker': 'Open issue',
         'detail.viewOnTrackerHint': 'Click to open the issue',
         'detail.authFailCta': 'Resolve on the platform, then retry',
-        'detail.readOnlyHint': 'read-only · write actions live in a new session or on the platform',
+        'detail.readOnlyHint': 'read-only · write actions live in a new session or on the platform', 'detail.noBody': 'No description', 'detail.bodyNotYet': 'Description not loaded yet', 'detail.notYet': 'Not loaded yet', 'detail.noComments': 'No comments', // #693: "not loaded yet" and "genuinely empty" are different statements
         'list.openInGithubTitle': 'Open #{n} on GitHub', // transitional; removed by sweep commit
         'list.mapTitle': 'View map details',
         'list.issueDetailTitle': 'View issue details',
