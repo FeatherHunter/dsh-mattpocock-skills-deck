@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 #643 · 五个形态并排看</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+  这一页只做一件事：把还在选的五个形态并排摆出来，方便一眼对比。
+  每一格都是一个活的 iframe，指向 docs/prototype/643-panel-only.html 加不同的地址参数，
+  所以在框里也能直接点技能、点块标题折叠。五格用的是同一份代码，区别只来自两个开关：
+  摆法（三档）与编号标签（开 / 关）。
+  格子的排列顺序是刻意排的：(1,4) 一对、(3,5) 一对，只差那枚签的两个形态左右相邻。
+-->
+<style>
+:root{--bg:#0c0e12;--panel:#16181d;--border:#2a2d35;--border2:#3a3f4a;--text:#e6edf3;--muted:#a1a1aa;--caption:#8b8b95;--primary:#c084fc;--warn:#fbbf24;--mono:Consolas,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.65;font-size:14px}
+.wrap{max-width:1960px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:20px;margin:0 0 6px}
+h2{font-size:15px;margin:26px 0 10px;padding-top:14px;border-top:1px solid var(--border)}
+.sub{font-size:13px;color:var(--muted);margin:0 0 12px}
+.legend{border:1px solid var(--border);border-radius:10px;background:var(--panel);padding:11px 15px;margin-bottom:16px;font-size:12.5px;color:var(--muted)}
+.legend b{color:#cdb8ff}
+.legend .row{margin:2px 0}
+.legend .axis{display:inline-block;min-width:96px;color:#cdb8ff;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.zoomband{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.zoomband .span2{grid-column:span 2}.cell{border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:10px 12px 12px}
+.cell .hd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:5px}
+.cell .no{font-family:var(--mono);font-size:11px;font-weight:700;color:#cdb8ff;background:rgba(192,132,252,.12);border:1px solid rgba(192,132,252,.4);border-radius:5px;padding:1px 6px}
+.cell .tt{font-size:13.5px;font-weight:700}
+.cell .head{font-size:11px;color:var(--caption);font-family:var(--mono);margin-left:auto}
+.cell .facts{font-size:11.5px;color:var(--caption);margin:0 0 6px}
+.cell .facts b{color:#cdb8ff;font-weight:600}
+.cell .note{font-size:12px;color:var(--muted);margin-top:8px}
+.cell.pair{border-color:rgba(251,191,36,.42)}
+.cell.pair .no{color:var(--warn);background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.45)}
+.cell .pairmark{font-size:11px;font-weight:700;color:var(--warn);border:1px dashed rgba(251,191,36,.5);border-radius:5px;padding:0 6px;white-space:nowrap}
+.frame{position:relative;width:100%;overflow:hidden;border:1px solid var(--border2);border-radius:8px;background:#0c0e12}
+.frame iframe{position:absolute;left:0;width:1280px;height:1400px;border:0;transform-origin:top left}
+.frame .ring{position:absolute;border:2px dashed var(--warn);border-radius:6px;pointer-events:none;box-shadow:0 0 0 2px rgba(12,14,18,.8)}
+.chip{font-size:10px;color:var(--caption);border:1px solid var(--border);border-radius:4px;padding:0 4px;white-space:nowrap}
+.chipwrap{color:var(--warn);border:1px dashed rgba(251,191,36,.5);border-radius:5px;padding:0 7px;font-size:11px;white-space:nowrap}
+.side{display:flex;flex-direction:column;gap:10px}
+.side .point{border-left:2px solid var(--border2);padding-left:10px;font-size:12.5px;color:var(--muted)}
+.side .point b{color:var(--text)}
+.side .big{font-size:13px}
+.side code{font-family:var(--mono);font-size:11.5px;color:#cdb8ff;background:rgba(192,132,252,.08);border-radius:4px;padding:0 4px}
+.points2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 22px}
+@media(max-width:1200px){.points2{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:1200px){.grid,.grid3,.zoomband{grid-template-columns:minmax(0,1fr)}.zoomband .span2{grid-column:auto}.points2{grid-template-columns:minmax(0,1fr)}}
+/* 窄一点就把五档排成一列：两列的话每一格只剩六百来像素，面板会被缩到看不清。 */
+@media(max-width:1560px){.grid{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>原型 #643 · 还在选的五个形态，并排看</h1>
+  <p class="sub">每一格都是一个活的面板（在框里可以直接点技能名、点块标题折叠、鼠标停在技能行上看说明气泡）。五格用的是同一份代码，区别只来自两个开关：<b>摆法</b>（三档）与<b>编号标签</b>（开 / 关）。格子上那行「几块 · 几行」是面板自己量出来的，用它最快分清哪一档。</p>
+  <div class="legend">
+    <div class="row"><span class="axis">要不要处境</span>第 1、4、2 个<b>有</b>「处境」这一层（先把内容分成六个处境）；第 3、5 个<b>没有</b>，二十条路直接平铺。</div>
+    <div class="row"><span class="axis">处境是什么</span>第 2 个里处境是<b>一整块能折叠的块</b>（标题条写 6 块）；第 1、4 个里处境只是<b>一行细标题</b>，真正能折叠的是它下面 20 个路块。</div>
+    <div class="row"><span class="axis">编号标签</span>第 4 与第 1、第 5 与第 3 之间，差别<b>只有</b>每个路名后面那枚小灰签。黄色虚线边框的格子就是这两对，它们被特意排成左右相邻。</div>
+  </div>
+
+  <h2>五档摆出来是什么样</h2>
+  <div class="grid">
+    <div class="cell">
+      <div class="hd"><span class="no">1</span><span class="tt">处境 6 块·路成块（默认）</span><span class="head">标题条：20 块 · 51 行</span></div>
+      <div class="facts">第一层：<b>六行处境标题</b> · 一块是：<b>一条路一块</b></div>
+      <div class="frame" data-y0="0" data-vis="920" data-w="1280"><iframe src="643-panel-only.html" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">处境当「分组标题」：20 个路块铺在六段里，一段一段往下读；每条路是独立单元，能单独折叠。</div>
+    </div>
+    <div class="cell pair">
+      <div class="hd"><span class="no">4</span><span class="tt">同一个 ＋ 编号标签</span><span class="pairmark">与左边只差一枚签</span><span class="head">标题条：20 块 · 51 行</span></div>
+      <div class="facts">第一层：<b>六行处境标题</b> · 一块是：<b>一条路一块 + 标签</b></div>
+      <div class="frame" data-y0="0" data-vis="920" data-w="1280"><iframe src="643-panel-only.html?layout=sceneblk&tag=1" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">和第 1 个并排放着，唯一的差别是每个路名后面多一枚小灰签。下面「放大看差别」把它圈了出来。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">3</span><span class="tt">20 条路平铺</span><span class="head">标题条：20 块 · 51 行</span></div>
+      <div class="facts">第一层：<b>没有处境标题</b> · 一块是：<b>一条路一块</b></div>
+      <div class="frame" data-y0="0" data-vis="920" data-w="1280"><iframe src="643-panel-only.html?layout=flat" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">没有处境这一层：20 条路按研究里 A→Z 的顺序一列排开，像一本路目录；找某条具体的路最快。</div>
+    </div>
+    <div class="cell pair">
+      <div class="hd"><span class="no">5</span><span class="tt">同一个 ＋ 编号标签</span><span class="pairmark">与左边只差一枚签</span><span class="head">标题条：20 块 · 51 行</span></div>
+      <div class="facts">第一层：<b>没有处境标题</b> · 一块是：<b>一条路一块 + 标签</b></div>
+      <div class="frame" data-y0="0" data-vis="920" data-w="1280"><iframe src="643-panel-only.html?layout=flat&tag=1" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">和第 3 个并排放着，唯一的差别是同一枚小灰签。平铺时没有处境标题帮忙，这枚签是唯一的认路线索——也正因为如此，它是这几档里唯一真正可能用上的场合。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">2</span><span class="tt">处境 6 块·路小节</span><span class="head">标题条：6 块 · 57 行</span></div>
+      <div class="facts">第一层：<b>六个处境块</b> · 一块是：<b>一个处境一块</b></div>
+      <div class="frame" data-y0="0" data-vis="920" data-w="1280"><iframe src="643-panel-only.html?layout=scenesec" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">处境当「抽屉」：一屏只有六块，先挑处境、再在里面挑路；路不是独立单元，折叠折的是处境。</div>
+    </div>
+    <div class="cell side">
+      <div class="hd"><span class="no">怎么自己看</span></div>
+      <div class="point">这一页里每一格都是活的面板：可以直接点技能名看注入效果、点块标题折叠展开、鼠标停在技能行上看说明气泡。并排板本身没有开关，每一格显示哪一档由它的地址决定。</div>
+      <div class="point">想把某一档放到整屏看，就打开 <code>docs/prototype/643-panel-only.html</code>：打开就是默认那一套，按 <b>← →</b> 在五个形态里走一圈，左下角写清现在是第几个、叫什么。</div>
+      <div class="point">带上参数可以直接落到某一档：<br>
+        <code>?layout=sceneblk</code>（第 1 档）<br>
+        <code>?layout=scenesec</code>（第 2 档）<br>
+        <code>?layout=flat</code>（第 3 档）<br>
+        <code>?layout=sceneblk&amp;tag=1</code>（第 4 档）<br>
+        <code>?layout=flat&amp;tag=1</code>（第 5 档）</div>
+      <div class="point">这一页只是「摆出来给人看」的并排板，不是原型本身；原型是上面那个 html。两份文件都不进主干，都留在一次性分支 <code>prototype/643-workflow-panel-variants</code> 上。</div>
+    </div>
+  </div>
+
+  <h2>放大看差别（同一处左上角，放大约 1.35 倍）</h2>
+  <div class="zoomband">
+    <div class="cell zoomcell">
+      <div class="hd"><span class="no">1</span><span class="tt">形态 1 的左上角</span></div>
+      <div class="frame zoom" data-x0="20" data-y0="24" data-vis="210" data-w="1280" data-z="1.35"><iframe src="643-panel-only.html" scrolling="no" title="原型面板（放大）"></iframe></div>
+      <div class="note">处境是一行细标题——「我要把一件事从想法做到能合并（3 条）」，标题下面直接开始摆路块。注意路名「主建造链（要跨多个会话）」后面是空的，直接就是「5 棒」。</div>
+    </div>
+    <div class="cell zoomcell">
+      <div class="hd"><span class="no">4</span><span class="tt">形态 4 的左上角（同一处）</span></div>
+      <div class="frame zoom" data-x0="20" data-y0="24" data-vis="210" data-w="1280" data-z="1.35"><iframe src="643-panel-only.html?layout=sceneblk&tag=1" scrolling="no" title="原型面板（放大）"></iframe><div class="ring" data-need="520" style="left:440px;top:137px;width:69px;height:35px"></div></div>
+      <div class="note">和左边完全同一处，唯一的差别是圈出来的那枚签：内容是「02 主干」，意思是这条路归在官网第 2 组。它按原大小量是 43 × 18 像素、字 10 像素——所以缩到并排板的尺寸就看不见了。原大小是这么小：<span class="chip">02 主干</span></div>
+    </div>
+    <div class="cell zoomcell span2">
+      <div class="hd"><span class="no">2</span><span class="tt">形态 2 的左上角（横着铺满，看得更全）</span></div>
+      <div class="frame zoom" data-x0="-60" data-y0="24" data-vis="210" data-w="1280" data-z="1.35"><iframe src="643-panel-only.html?layout=scenesec" scrolling="no" title="原型面板（放大）"></iframe></div>
+      <div class="note">处境在这里是一整块能折叠的标题块：左边一个三角、一个「S1」、然后是处境的名字。路变成块里的小节（「主建造链（要跨多个会话）」下面直接写它那句场景）。面板标题条上的计数也从 20 块变成 6 块。</div>
+    </div>
+  </div>
+
+  <h2>一句话说清五个的关系</h2>
+  <div class="cell side">
+    <div class="point big"><b>本质上是三个结构档，不是五个。</b>第 1 和第 4、第 3 和第 5 各自的差别只有那枚小灰签；把那枚签去掉，剩下的就是三档。</div>
+    <div class="points2">
+      <div class="point"><b>第 1 档（默认）</b>＝ 处境当标题。二十条路各自是一块、各自能折叠，处境只是把它们分成六段。好处是每条路都是独立单元；代价是「处境」这一层很轻，容易被当成普通分隔线划过。</div>
+      <div class="point"><b>第 2 档</b>＝ 处境当抽屉。一屏只有六块，先挑处境再在里面挑路。好处是「我此刻是什么处境」这个问题被摆到了台面上；代价是多一次点击，路也不再是能单独折叠的单元。</div>
+      <div class="point"><b>第 3 档</b>＝ 不要处境。二十条路按字母平铺，找一条知道名字的路最快；代价是完全丢掉「我现在该走哪条」的线索。</div>
+      <div class="point"><b>那枚编号签</b>＝ 每条路的路名后面跟一枚官网组编号（按这条路的头一棒属于官网哪一组算出来），用它认「这条路落在官网哪一组」。它只在第 3、5 这一对里可能挣到位置——平铺时没别的认路线索；有处境标题时它只是一个几乎看不见的重复信息。</div>
+    </div>
+  </div>
+</div>
+<script>
+// 每一格都开了一个 1280x1400 的「内部窗口」，再把其中一段滚到框里。
+// 这样做有两个原因：一是让面板按真机的最大尺寸渲染（1240 宽），文字不会被缩到看不清；
+// 二是内部窗口比屏幕高，面板自己那条固定在窗口底部的形态清单就落到了可见范围之外。
+function fit(){
+  Array.prototype.forEach.call(document.querySelectorAll('.frame'), function(fr){
+    var ifr = fr.querySelector('iframe')
+    var w = Number(fr.dataset.w), y0 = Number(fr.dataset.y0), vis = Number(fr.dataset.vis), x0 = Number(fr.dataset.x0 || 0)
+    var z = fr.dataset.z ? Number(fr.dataset.z) : (fr.clientWidth / w)
+    ifr.style.transform = 'scale(' + z + ')'
+    ifr.style.left = (-x0 * z) + 'px'
+    ifr.style.top = (-y0 * z) + 'px'
+    fr.style.height = Math.round(vis * z) + 'px'
+    var ring = fr.querySelector('.ring')
+    // 放大格里那个圈是按实测像素放的；框窄到装不下它时就收起来，免得圈在错的地方。
+    if (ring) ring.style.display = fr.clientWidth >= Number(ring.dataset.need) ? '' : 'none'
+  })
+}
+fit()
+window.addEventListener('resize', fit)
+window.addEventListener('load', fit)
+</script>
+</body>
+</html>
