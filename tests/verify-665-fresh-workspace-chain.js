@@ -61,7 +61,7 @@ async function loadBackends() {
 }
 
 // —— 一个沙箱装上整条链：横幅 + 后端动作 + 注入决策，三处互相调用，闭包里的外部依赖按真形状顶替 ——
-async function loadChain(locale, backends) {
+async function loadChain(locale, backends, sbPatch) {
   const guide = await import(url('src/shared/tracker/guide-steps.js'))
   const actions = await import(url('src/client/kernel/actions.js'))
   const seen = {
@@ -80,7 +80,8 @@ async function loadChain(locale, backends) {
   }
   // 三个模块的真实文件文本拼在一起，装饰掉行首 export 后当同一个闭包求值（与 scripts/build.mjs 的拼法一致）。
   const body = read('src/client/kernel/prompts.js').replace(/^[ \t]*export[ \t]+/gm, '')
-    + read('src/client/statusbar/StatusBackend.js').replace(/^[ \t]*export[ \t]+/gm, '')
+    // sbPatch：反证用 —— 把 StatusBackend 的真源按改动后的文本喂进来（正常路径下就是真源本身）
+    + ((sbPatch && sbPatch.text) ? sbPatch.text : read('src/client/statusbar/StatusBackend.js')).replace(/^[ \t]*export[ \t]+/gm, '')
     + read('src/client/statusbar/bannerChain.js').replace(/^[ \t]*export[ \t]+/gm, '')
   // 词表本身在生产里也住同一个闭包（kernel/locale.js 合并四个片段得到），这里照同一形状塞进去。
   const tail = '\n;const L = ' + JSON.stringify({ zh: locale.zh, en: locale.en }) + ';'
@@ -349,6 +350,33 @@ async function main() {
   // 换个会话（同一工作区、本次会话没答过）：记住的那一份被直接用上，注入的仍是同一句结论
   const stNext = stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'github', backends: backends })
   ok(mod.readSetupLayout(stNext) === 'single', '同一个工作区的新会话：读到记住的那一份（single）')
+  // 卡上「换一个选项」必须当场生效（2026-09-25 真机上报：记住过答案之后，卡上另一个选项点不动 ——
+  //   原因是卡片预选读的是「记住的那一份」并且排在用户刚点的那一下前面，于是刚点的立刻被按回去）。
+  const stEdit = stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'github', backends: backends })
+  stEdit.cwd = '/w/pick-edit'
+  seen.layoutMemory['/w/pick-edit'] = 'single' // 这个工作区之前答过 single
+  stEdit.setupLayoutCardOpen = true            // 卡开着
+  ok(mod.layoutSelectionOf(stEdit) === 'single', '卡刚打开：预选的是这个工作区记住的那一项（single）')
+  stEdit.setupPickLayout = 'multi'             // 用户在卡上点了另一个选项
+  ok(mod.layoutSelectionOf(stEdit) === 'multi', '用户在卡上点了另一项 → 当场就选成那一项（记住的那份不许把它按回去）')
+  mod.applyStatusSetupLayout(stEdit, mod.layoutSelectionOf(stEdit)) // 卡上「确认并继续」
+  ok(stEdit.setupLayout === 'multi' && seen.layoutMemory['/w/pick-edit'] === 'multi', '卡上确认 → 会话与记住的那份都改成用户刚选的那一项（multi）')
+  const textEdited = mod.setupOrRepoPrompt(stEdit, 'github').text || ''
+  ok(textEdited.indexOf('multi-context') >= 0, '注入的全文跟着换成「多上下文」那一句结论（不是记住的旧答案）')
+  // 反证：把「卡片开着时以卡上刚点的那一下为准」这一段从真源里拆掉，上面三条必须当场变红
+  //   （这个 bug 就是这么进来的：1.7.25 让卡片预选去读「记住的那一份」，却没把它排在用户刚点的那一下后面）。
+  const sbText = read('src/client/statusbar/StatusBackend.js')
+  const brokenText = sbText.replace('try{ if(s&&s.setupLayoutCardOpen===true){ const p=inCard(); if(p) return p } }catch(e){}', '')
+  ok(brokenText !== sbText, '反证：能在真源里拆掉「卡片开着时以卡上刚点的那一下为准」那一段')
+  if (brokenText !== sbText) {
+    const brokenChain = await loadChain(locale, backends, { text: brokenText })
+    const stBroken = stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'github', backends: backends })
+    stBroken.cwd = '/w/pick-edit'
+    brokenChain.seen.layoutMemory['/w/pick-edit'] = 'single'
+    stBroken.setupLayoutCardOpen = true
+    stBroken.setupPickLayout = 'multi'
+    ok(brokenChain.mod.layoutSelectionOf(stBroken) !== 'multi', '反证成立：拆掉之后，卡上刚点的另一项被记住的那份按了回去（实得 ' + brokenChain.mod.layoutSelectionOf(stBroken) + '）—— 正是真机上报的「点不动」')
+  }
   const nNext = seen.injected.length
   ok(mod.injectSetupDecision(stNext, 'github', { allowCard: true }) === 'setup', '新会话里检查页/切换那条路直接用记住的那份注入（不再问）')
   ok(seen.injected.length === nNext + 1 && seen.injected[seen.injected.length - 1].indexOf('single-context') >= 0, '新会话注入的也是同一句布局结论（single-context）')

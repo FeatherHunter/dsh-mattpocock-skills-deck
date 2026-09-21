@@ -23,10 +23,14 @@ export const readStatusSetupLayout = function(s){
   try{ if(typeof getCachedSetupLayout==='function'){ const c=getCachedSetupLayout(s&&s.cwd); if(c) return c } }catch(e){}
   return null
 }
-// 卡片上这一组单选默认选中哪一项：已经选过的（含从别处选完又打开这张卡）优先，否则回到第一项「根目录一份 CONTEXT.md」。
+// 卡片上这一组单选默认选中哪一项：**卡片开着时以用户在卡上刚点的那一下为准**（否则点了另一个选项会立刻被按回去 ——
+//   2026-09-25 真机上报的「另一个选项点不动」就是这个顺序错），卡片没开时按「会话里答过的 > 这个工作区记住的 >
+//   卡上上次碰过的」给值，都没有再回到第一项「根目录一份 CONTEXT.md」。
 export const layoutSelectionOf = function(s){
+  const inCard=function(){ try{ const v=String((s&&s.setupPickLayout)||'').toLowerCase(); return SETUP_LAYOUT_VALUES.indexOf(v)>=0?v:null }catch(e){ return null } }
+  try{ if(s&&s.setupLayoutCardOpen===true){ const p=inCard(); if(p) return p } }catch(e){}
   const picked=readStatusSetupLayout(s); if(picked) return picked
-  try{ const v=String((s&&s.setupPickLayout)||'').toLowerCase(); if(SETUP_LAYOUT_VALUES.indexOf(v)>=0) return v }catch(e){}
+  const rest=inCard(); if(rest) return rest
   return SETUP_LAYOUT_FALLBACK
 }
 // 把布局记进会话状态**并按工作区记住**：注入决策函数就是从这里读「这个仓库的布局选没选过」的，所以只在这里写。
@@ -52,12 +56,14 @@ export const layoutRadios = function(s, h){
   ])
 }
 export const closeStatusSetupPick = function(s){s.setupLayoutCardOpen=false;emit(s)}
-export const cancelStatusSetupPick = function(s){closeStatusSetupPick(s)}
+// 取消：卡上刚点的那一下一并作废（记住的那一份不动），下次再点黄条仍按「现在这个答案」预选。
+export const cancelStatusSetupPick = function(s){ try{ delete s.setupPickLayout }catch(e){} closeStatusSetupPick(s) }
 export const confirmStatusSetupPick = function(s){
   // #669 第 4 件：这张卡只有「域文档布局」这一问 —— 后端到这一步已经定完了（门控那一步定的）。
   //   所以这里不再写 selection、不再打 wf.bind：换后端是门控那个窗与右侧面板「切换后端」的事，
   //   不该从一张只问布局的卡上顺手做掉。注入用的后端取会话当下那一个。
   applyStatusSetupLayout(s, layoutSelectionOf(s))
+  try{ delete s.setupPickLayout }catch(e0){} // 卡上那一下已经落定（会话 + 按工作区记住），这份草稿清掉，免得下次打开时它还压着
   const id = (s.selection && s.selection.backendId != null) ? s.selection.backendId : firstBackendIdOf(null)
   closeStatusSetupPick(s)
   // #664：这张小卡的确认就是「布局答完了」那一步，接着把初始化全文注进去（注入决策现在先判仓库那一步过没过：
