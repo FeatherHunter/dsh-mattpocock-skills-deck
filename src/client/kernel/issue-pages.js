@@ -149,13 +149,13 @@
       const o = opts || {}
       const view = o.view || 'list'
       const b = issuePageBucketOf(st, view)
-      if (!b) return Promise.resolve({ ok: false, error: { kind: 'env', message: '没有工作区状态' } })
-      if (b.loading) return Promise.resolve({ ok: false, error: { kind: 'throttle', message: '正在取' } })
+      if (!b) return Promise.resolve({ ok: false, error: { kind: 'env', message: 'no workspace state' } })
+      if (b.loading) return Promise.resolve({ ok: false, error: { kind: 'throttle', message: 'loading' } })
       const wantNext = o.next === true
       if (!wantNext && b.pages.length) return Promise.resolve({ ok: true, cached: true })
       // 后端已经答过「做不到」：不再反复撞（G5：调一次、按真实返回退化；界面显示「在网页上看全部」）。
       // o.force 是给「用户明确再点一次」留的出口，正常三处触发点都不带它。
-      if (!wantNext && b.notice === 'noweb' && o.force !== true) return Promise.resolve({ ok: false, error: b.error || { kind: 'unsupported', message: '这个后端不支持翻页' } })
+      if (!wantNext && b.notice === 'noweb' && o.force !== true) return Promise.resolve({ ok: false, error: b.error || { kind: 'unsupported', message: 'unsupported: listPage' } })
       const cursor = wantNext ? String(b.nextCursor || '') : ''
       if (wantNext && !cursor) return Promise.resolve({ ok: true, done: true })
       // 工作单元只有一个被选中时把它作为寻址范围带上去（多选了就不带：后端一条请求只能对应一个范围，
@@ -181,7 +181,7 @@
           emit(st)
           return { ok: true, items: res.items || [], nextCursor: b.nextCursor, total: b.total }
         }
-        const err = (res && res.error) || { kind: 'network', message: '没有回包' }
+        const err = (res && res.error) || { kind: 'network', message: 'no response' }
         const kind = String(err.kind || '')
         // 游标失效：认得出、丢游标、重取第一页。重取的那一次没有游标，所以不会再走回这一支（不会打转）。
         if (cursor && (kind === 'not-found' || kind === 'parse')) {
