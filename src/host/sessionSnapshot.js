@@ -2,13 +2,11 @@
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 export function createSessionSnapshot(deps) {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, getChoiceStore } = deps
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
   let _dedupeP = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
-  // #595：快照必须把后端的 prompts 声明一起带给客户端 —— 正文格式契约按当前后端解析。磁盘缓存存的是
-  //   「上次写盘那一刻」的 backendModules，旧版本写的缓存没有 prompts 这一栏，直接回放会让远端后端
-  //   （GitHub）静默丢掉两步写回步骤。所以磁盘缓存命中时一律用当前注册表重挂一遍；注册表取不到时保留缓存原值。
+  // #595：快照带后端的 prompts 声明（正文格式按当前后端解析）。盘缓存存的是旧 backendModules、无 prompts，直接回放会丢两步写回，故命中时用当前注册表重挂，取不到保留原值。
   async function freshBackendModules() {
     try {
       const regM = await getTrackerRegistry()
@@ -19,15 +17,11 @@ export function createSessionSnapshot(deps) {
     return null
   }
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
-  // #653 快照回包里多带一项 workspaceRoot，值就是本函数开头算出来的 cwd。#652 起 canonicalKey 已经把
-  //   「哪个目录算这个会话的工作区」锚到工作区根；客户端要拿这个值把五样抽屉（面板快照、检查链快照、
-  //   在途去重、后端选择镜像、仓库引用）都按工作区根分桶，并在面板头部渲染那条归属提示。客户端自己算
-  //   不出来（要读文件系统逐层向上找 .git 或主锚文件），所以由宿主随快照如实带过去。
+  // #653 快照多带 workspaceRoot（即开头算出的 cwd，已锚到工作区根）；客户端靠它按根分桶并渲染归属提示，自己算不出根故由宿主带过去。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
-  // 五条分支回给客户端的快照是同一个形状，只差内容；收在一处组装（#653）。
-  // 为什么现在收：五处各写一份结构字面量时，加一个字段要改五处，漏一处那一档就少了这个字段——
-  //   本票要加的 workspaceRoot 正是这种字段（客户端靠它分桶，缺了那一档就退回按所选目录分桶）。
-  // repo 与 repoRoot 的取值五档不同，所以由调用方传入；其余整份照旧。
+  // #683（F1 · ADR 的 R6）：快照里带上记住的布局答案（同 R4 那条路：落后的那扇窗不靠它就永远停在老答案上）。
+  async function readSetupLayoutOf(cwd) { try { const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore() : null; if (!cs || typeof cs.getLayout !== 'function') return null; const r = await cs.getLayout(cwd); return (r && r.found === true) ? { layout: r.layout, pickedAt: r.pickedAt } : null } catch (e) { return null } }
+  // 五条分支的快照同形，收在一处组装（#653：加字段改一处，免漏；repo 与 repoRoot 由调用方传入）。
   function buildSnap(o) {
     const snap = {
       ok: true,
@@ -41,6 +35,7 @@ export function createSessionSnapshot(deps) {
       repository: (o.repository !== undefined ? o.repository : null),
       backendModules: o.backendModules,
       selection: o.selection,
+      setupLayout: (o.setupLayout !== undefined ? o.setupLayout : null),
       capabilities: null,
       viewer: (o.viewer !== undefined ? o.viewer : null),
       viewerLogin: (o.viewerLogin !== undefined ? o.viewerLogin : null),
@@ -49,37 +44,55 @@ export function createSessionSnapshot(deps) {
     return snap
   }
   let snapSampleN = 0
-  async function adoptSnapLog(snap, c) { try { if (logCtx && snap && snap.fromCache !== true) logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } catch (e) {} return adoptSnapshot(snap, c) }
+  const snapshotInflight = new Map() // #696 在途合并：同钥匙同后端同强制标记的并发共用同一份重建，强制刷新不进表
+  // #689：snapshot.built 多了三个字段（open / closed 是后端计数给的真值、拿不到记 -1；partial 说这份行数据全不全）—— 加在既有事件里不新增一条（每次重建都会走到这里），字段表见 research/489-appendix.md 第 1 章。
+  async function adoptSnapLog(snap, c) { try { if (logCtx && snap && snap.fromCache !== true) { const _d = (snap.deck && typeof snap.deck === 'object') ? snap.deck : {}; const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null; logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } } catch (e) {} return adoptSnapshot(snap, c) }
   async function handleSnapshot(args) {
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const now = Date.now()
       // 第一性原理分发前置：先算 selection，再决定缓存与数据链路（避免旧 GitHub 缓存遮住 Markdown）
-      const _selEarly = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
+      const _selEarly = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })
+      const _layEarly = await readSetupLayoutOf(cwd) // #683（F1 · R6）：记住的布局答案随每条回包一起回去（同 R4 那条路）
       const useComposerEarly = isComposerSelection(_selEarly)
       const isForce = !!(args && args.force)
+      // #683（F1 · ADR 的 R4）：每一条回包都要带权威 {selection, rev}。下面三条短路路径（内存缓存、磁盘回放、以及 304）此前回的是缓存里那份**旧** selection —— 只换了后端时快照内容一个字没变、版本号也没变，客户端就收到「没变」，于是面板头与状态栏继续显示旧后端，而同屏的链与横幅（走 wf.detect）已经按新值答了 —— 自己跟自己打架。
+      //   只在「缓存里那条选择与这一轮算出来的不是同一个后端、或修订号变了」时才换一份浅拷贝带上新值；选择没变时照旧返回缓存里那**同一个对象**（缓存优先那条纪律：这一步不重新拼数据，也不联网核对）。
+      const shortCircuit = function () {
+        const c = getCache(cwd)
+        const s = c && c.snapshot
+        if (!s || !_selEarly || !_selEarly.backendId) return s
+        const prevRev = Number.isInteger(s.selection && s.selection.rev) ? s.selection.rev : 0
+        const nowRev = Number.isInteger(_selEarly.rev) ? _selEarly.rev : 0
+        const sameBackend = String((s.selection && s.selection.backendId) || '') === String(_selEarly.backendId)
+        const sameLayout = String((s.setupLayout && s.setupLayout.layout) || '') === String((_layEarly && _layEarly.layout) || '')
+        if (sameBackend && prevRev === nowRev && (sameLayout || !_layEarly)) return s
+        const cp = Object.assign({}, s, { selection: _selEarly, rev: nowRev }); if (_layEarly) cp.setupLayout = _layEarly; return cp
+      }
       try { if (logCtx) logCtx.fire('info', 'snapshot.request', { cwdHash: hash8(cwd), backend: String((_selEarly && _selEarly.backendId) || ''), force: isForce }) } catch (eL) {}
-      if (!isForce && getCache().snapshot && getCache().cwd === cwd) {
+      const cachedEntry = getCache(cwd)
+      if (!isForce && cachedEntry.snapshot) {
         // GitHub 路径才用 issue 索引校验；Markdown 等走通用缓存时只看时间与 backend 是否一致
         // 权威动作 force 必须无条件重建，不走此短路（P2 要求）
         if (useComposerEarly) {
-          const cachedBackend = getCache().snapshot.selection && getCache().snapshot.selection.backendId
-          if (cachedBackend === _selEarly.backendId && now - getCache().ts < CACHE_MS) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - getCache().ts } }) } catch (eL) {}; return getCache().snapshot }
+          const cachedBackend = cachedEntry.snapshot.selection && cachedEntry.snapshot.selection.backendId
+          if (cachedBackend === _selEarly.backendId && now - cachedEntry.ts < CACHE_MS) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - cachedEntry.ts } }) } catch (eL) {}; return shortCircuit() }
         } else {
-          // 手上有缓存 → 立即交付，不在交付前先联网核对。核对要把全仓库扫一遍（实测 505 条
-          // 6 页、约 4~5 秒），结论绝大多数是「没变」，那几秒纯属白等。正确性交给既有的 60 秒
-          // 自动探测：它发现变化就把缓存标脏，标脏后走不到这条短路。不加「缓存太旧就不交付」
-          // 的门槛：客户端那份几乎总是超过 60 秒，加了等于每次都回到「先核对」的老路。
-          return getCache().snapshot
+          // 手上有缓存立即交付，不先联网核对（全仓库扫描约 4~5 秒，多为没变，白等）；正确性交 60 秒自动探测，不加年龄门槛。
+          return shortCircuit()
         }
-        const current = await cacheSnapshotIsCurrent(getCache().snapshot, cwd)
-        if (current === true || (current === null && now - getCache().ts < CACHE_MS)) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - getCache().ts } }) } catch (eL) {}; return getCache().snapshot }
+        const current = await cacheSnapshotIsCurrent(cachedEntry.snapshot, cwd)
+        if (current === true || (current === null && now - cachedEntry.ts < CACHE_MS)) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - cachedEntry.ts } }) } catch (eL) {}; return shortCircuit() }
       }
-      const missReason = (function () { try { if (isForce) return 'force'; const c = getCache(); if (!c.snapshot) return 'empty'; if (c.cwd !== cwd) return 'cwd-changed'; const cb = c.snapshot.selection && c.snapshot.selection.backendId; const nb = _selEarly && _selEarly.backendId; if (cb !== nb) return 'backend-changed'; return 'expired' } catch (e) { return 'expired' } })()
+      const missReason = (function () { try { if (isForce) return 'force'; const c = getCache(cwd); if (!c.snapshot) return 'empty'; const cb = c.snapshot.selection && c.snapshot.selection.backendId; const nb = _selEarly && _selEarly.backendId; if (cb !== nb) return 'backend-changed'; return 'expired' } catch (e) { return 'expired' } })()
       try { if (logCtx) logCtx.fire('info', 'snapshot.cache.miss', { reason: missReason }) } catch (eL) {}
+      // #696 在途合并：同根同后端同语言同强制标记的并发共用同一份重建（快照无语言参数恒为空串，另带修订号与版本号免串份），强制不进表；先回来的写缓存，后到的拿同一份
+      const snapshotDedupKey = cwd + '|' + String((_selEarly && _selEarly.backendId) || '') + '|' + String((args && args.lang) || '') + '|' + (isForce ? '1' : '0') + '|' + String((args && args.baseRev) || 0) + '|' + String((args && (args.ifNoneMatch || args.version)) || '')
+      if (!isForce) { const ongoing = snapshotInflight.get(snapshotDedupKey); if (ongoing) return await ongoing }
+      const snapshotPending = (async function () {
       try {
         // 复用已算的 selection，避免二次探测
         let _sel = _selEarly
-        if (!_sel) _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
+        if (!_sel) _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })
         const useComposer = isComposerSelection(_sel)
         if (useComposer) {
           const reg = await getTrackerRegistry()
@@ -94,6 +107,12 @@ export function createSessionSnapshot(deps) {
           const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force) })
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
+          // #683（F1 · ADR 的 R4）：后端说「没变」（304）时也要把权威选择带上 —— 那正是「只换了后端、 快照内容一个字没变」这个现场：不带的话客户端收到 304 就什么都不做，面板头继续显示旧后端。
+          if (res.notModified === true || res.status === 304) {
+            const _pair = (_selEarly && _selEarly.backendId) ? { selection: _selEarly, rev: (Number.isInteger(_selEarly.rev) ? _selEarly.rev : 0) } : {}
+            if (_layEarly) _pair.setupLayout = _layEarly
+            return Object.assign({ ok: true, notModified: true, status: 304, version: res.version || '', cached: true, generatedMs: now }, _pair)
+          }
                     const inner = upcaseSnapStates(res.snapshot)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
           let allForList = []
@@ -190,7 +209,7 @@ export function createSessionSnapshot(deps) {
           const snap = buildSnap({
             repoRoot, workspaceRoot: cwd,
             maps: inner.maps, issues: allForList, labels: labels,
-            repository: repoRef, backendModules: backendModules, selection: _sel, deck: inner.deck,
+            repository: repoRef, backendModules: backendModules, selection: _sel, setupLayout: _layEarly, deck: inner.deck,
           })
           return adoptSnapLog(snap, cwd)
         }
@@ -207,7 +226,7 @@ export function createSessionSnapshot(deps) {
           const snap = buildSnap({
             repoRoot, workspaceRoot: cwd,
             maps: [], issues: [], labels: [],
-            backendModules, selection: _sel,
+            backendModules, selection: _sel, setupLayout: _layEarly,
             deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
           })
           return adoptSnapLog(snap, cwd)
@@ -236,7 +255,7 @@ export function createSessionSnapshot(deps) {
             const snapNoRepo = buildSnap({
               repoRoot: repoRootNoRepo, workspaceRoot: cwd,
               maps: [], issues: [], labels: [],
-              backendModules: backendModulesNoRepo, selection: _selNoRepo,
+              backendModules: backendModulesNoRepo, selection: _selNoRepo, setupLayout: _layEarly,
               deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
             })
             return adoptSnapLog(snapNoRepo, cwd)
@@ -313,7 +332,7 @@ export function createSessionSnapshot(deps) {
         const snap2 = buildSnap({
           repo: repo0b, repoRoot: repoRoot2, workspaceRoot: cwd,
           maps: inner2.maps, issues: allForList2, labels: labels2,
-          repository: repoRef2, backendModules: backendModules2, selection: _sel,
+          repository: repoRef2, backendModules: backendModules2, selection: _sel, setupLayout: _layEarly,
           viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck,
         })
         await writeDiskCache(snap2.repo, snap2)
@@ -322,6 +341,9 @@ export function createSessionSnapshot(deps) {
         setCache({ ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd })
         return { ok: false, error: errText(e), env: { ghError: getGhLastError() } }
       }
+      })()
+      if (!isForce) { snapshotInflight.set(snapshotDedupKey, snapshotPending); try { return await snapshotPending } finally { snapshotInflight.delete(snapshotDedupKey) } }
+      return await snapshotPending
   }
   return { handleSnapshot }
 }

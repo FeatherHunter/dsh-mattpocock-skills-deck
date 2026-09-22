@@ -107,3 +107,13 @@ export function issueRefNumbersFrom(text, st) {
   }
   return out
 }
+
+// #684：「体检」这条提示词条目的 {subject} 占位符 —— 后端在 src/host/tracker/backends/<id>/index.js 的
+//   prompts.healthCheck 里声明自己那份科目（GitHub 是游离的开放票归位、GitLab 照同一套、本地 Markdown 是两条
+//   文件级判据）；client 只按当前后端查表填空，零 backendId 字面量分支 —— 与 subIssue / bodyFormat 同一条路。
+//   后端没声明该键（含快照里没有这个后端）时返回空串：总纲照旧完整，只是少一节后端自己的科目。
+//   住在这里而不是 prompts.js：那个文件已经贴着 350 行上限（仓库的文件行数门禁）。
+export const healthCheckParamsFrom = function (modules, backendId) {
+  const dict = backendPromptFrom(modules, backendId, 'healthCheck')
+  return { subject: declaredLangPick(dict, promptLang()) }
+}

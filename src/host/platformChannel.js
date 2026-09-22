@@ -241,7 +241,9 @@ export function createPlatformChannel(deps) {
           const ok = missing.length === 0 && !hasPending
           return { ok, missing, probes, hasPending, pendingError, pending: hasPending }
         }
-        _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => ({ setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } }), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }), exec: detectionExec })
+        // #683（F1）：判定链要读宿主侧那份记忆（用户选的后端按工作区记着），实例由 index.js 单点持有 ——
+        //   那条读-改-写队列必须全进程只有一条，不能在这里另建一份。
+        _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => ({ setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } }), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }), exec: detectionExec, getChoiceStore: getChoiceStore, logCtx: logCtx })
       } catch (e) {
         // 兜底：最小二联（explicit → matches）不含 preflight/skill
         _detectionService = {
@@ -259,5 +261,15 @@ export function createPlatformChannel(deps) {
       return _detectionService
     }
   function clearWorkspaceStore() { try { if (_workspaceStore && typeof _workspaceStore.clear === 'function') _workspaceStore.clear() } catch {} }
-  return { getTrackerRegistry, getPlatform, getWorkspaceStore, detectionExec, getDetectionService, clearWorkspaceStore }
+  // #683（F1）：宿主侧那份记忆（H）的单例就在这里建 —— 读它的是两处（绑定写入、判定读取），而它内部
+  //   那条读-改-写队列必须全进程只有一条（两个窗口同时写才排得成队）。规则与字段见 src/host/choiceStore.js 文件头。
+  let _choiceStoreP = null
+  function getChoiceStore() {
+    if (!_choiceStoreP) _choiceStoreP = (async function () {
+      const mod = await import('./choiceStore.js')
+      return mod.createChoiceStoreForHost({ getHome: async function () { const p = await getPlatform(); return p.getHome() }, getTrackerRegistry: function () { return getTrackerRegistry.apply(null, arguments) }, logCtx: logCtx })
+    })().catch(function () { return null })
+    return _choiceStoreP
+  }
+  return { getTrackerRegistry, getPlatform, getWorkspaceStore, detectionExec, getDetectionService, getChoiceStore, clearWorkspaceStore }
 }

@@ -110,7 +110,7 @@
       // #529：附带当前语言与绑定后端（与 loadChain 同口径；否则英文界面下明细恒为中文）
       const criT0 = Date.now()
       const criLang = (typeof promptLang === 'function' ? promptLang() : 'zh')
-      const criArgs = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (typeof userHintOf === 'function' && userHintOf(st.selection)) ? { backendId: userHintOf(st.selection) } : {}, { lang: criLang })
+      const criArgs = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (typeof userHintOf === 'function' && userHintOf(st.selection)) ? { backendId: userHintOf(st.selection), baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) } : {}, { lang: criLang })
       host.call('wf.chain', criArgs).then(function (res) {
         try { if (res && res.ok) log('info', 'host.call', { method: 'wf.chain', latencyMs: Date.now() - criT0, ok: true, kind: 'chain-cri' }); else log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-cri', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-not-ok'), 120, 'error')) }) } catch (eL) {}
         if (!st.switchConfirm) return
@@ -146,7 +146,7 @@
       const repoRef = st.repository || (st.snapshot && st.snapshot.repository) || null
       // #669 第 6 件（ADR 20260921）：这是**用户亲手选**的那一条 —— 盖上 userPicked 标记，此后
       //   只有带这个标记的选择才会当 hint 上报给宿主（宿主那边带 hint 就压过锚文件）。
-      const optimistic = { backendId: targetId, source: 'explicit', ref: repoRef, userPicked: true }
+      const optimistic = (typeof userPickSelection === 'function') ? userPickSelection(targetId, repoRef, prevSel) : { backendId: targetId, source: 'explicit', ref: repoRef, userPicked: true }
       st.selection = optimistic
       try { if (st.cwd) setCachedSelection(st.cwd, optimistic) } catch {}
       emit(st)
@@ -168,6 +168,11 @@
           else log('warn', 'host.call.fail', { method: 'wf.bind', kind: 'switch-bind', errorHash: dswsLogHash(dswsLogTrunc(String((res && (res.error || res.message)) || 'bind-not-ok'), 120, 'error')) })
         } catch (eL) {}
         if (!ok) { doFail((res && (res.error || res.message)) || 'unknown'); return }
+        // #683（F1 · ADR 20260921 的 R2）：宿主这一通接受了用户的选择之后会回一个新修订号，
+        //   把它落到本地这条上 —— 此后这个壳上报的都带着它，宿主才判得出这份是不是最新那一版。
+        try { if (typeof adoptBoundRev === 'function') adoptBoundRev(st, res) } catch (eRev) {}
+        // #683 R7c：绑定成了、但宿主侧那份记忆没写进去（persisted:false）—— 按现成的 bindFail 那条路如实说一句。
+        try { var _np=res&&(res.persisted===false||(res.value&&res.value.persisted===false)); if(_np) flash(st,tr('switch.bindFail',{err:'已切换，但宿主侧这次没能记住：下次重启或换个地址打开可能要再选一次'}),'warn') } catch (eP) {}
         // —— 切换成功之后按「这个工作区初始化过没有」分两条路（#669 第 6 件 / ADR 20260921）——
         //   判据是链上那一步 `tracker:initialized`（它的检查项就是「工作区根有没有 docs/agents/issue-tracker.md」），
         //   与状态栏横幅读的是同一份清单、同一条链快照。**链里根本没有这一步时不许猜**：那一档既不能当

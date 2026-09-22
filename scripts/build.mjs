@@ -244,8 +244,13 @@ const KERNEL_MODULES = [
   { name: 'localeWord', file: 'src/client/kernel/locale-word.js' },
   // #621 标签配色弹窗的中英词条：单独一份片段，由 locale.js 的合并器一起并进 L
   { name: 'localeLabels', file: 'src/client/kernel/locale-labels.js' },
+  // #690 历史票按需翻页的五条文案：locale-flow.js 已贴 350 行上限，照 #621 的做法自成一个片段
+  { name: 'localePages', file: 'src/client/kernel/locale-pages.js' },
   { name: 'locale', file: 'src/client/kernel/locale.js' },
   { name: 'icons', file: 'src/client/kernel/icons.js' },
+  // #685：「体检」按钮的件数派生与开新会话注入（游离票口径见 #678、按钮形态见 #681）；
+  //   它写的那条常驻日志必须落在内核文件里（渲染目录写日志是一张点名白名单），所以单独一片。
+  { name: 'healthCheck', file: 'src/client/kernel/health-check.js' },
   { name: 'prompts', file: 'src/client/kernel/prompts.js' },
   { name: 'config', file: 'src/client/kernel/config.js' },
   // #586 切更新包：面板要用的电话名与轮询间隔由更新包派生（改名或改间隔只改包，不在这里写死）
@@ -261,6 +266,9 @@ const KERNEL_MODULES = [
   { name: 'apiWorkspace', file: 'src/client/kernel/api-workspace.js' },
   { name: 'apiNewSession', file: 'src/client/kernel/api-new-session.js' },
   { name: 'apiIo', file: 'src/client/kernel/api-io.js' },
+  // #690：历史票的页数据（已关闭票按需翻页）—— 按工作区/后端/仓库/视图/筛选分桶、按身份去重、
+  //   静默刷新不清空、内存最多留 10 页；单独一片是因为 storeSnapshot 已贴 350 行上限，塞不进去。
+  { name: 'issuePages', file: 'src/client/kernel/issue-pages.js' },
   { name: 'actions', file: 'src/client/kernel/actions.js' },
   { name: 'slots', file: 'src/client/kernel/slots.js' },
   { name: 'slotRendererQueue', file: 'src/client/kernel/slotRenderer-queue.js' },
@@ -330,10 +338,12 @@ const LEAF_MODULES = [
   { id: 'tagsFit', file: 'src/client/views/shared/tagsFit.js' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.js' },
   { id: 'ticketRow', file: 'src/client/views/TicketRow.js' },
+  { id: 'mapDetailHead', file: 'src/client/views/MapDetailHead.js' }, // #691 由 MapDetail.js 拆出：编号/标题/「本图 N 张子票」那一行（MapDetail 贴着 350 行上限）
   { id: 'mapDetail', file: 'src/client/views/MapDetail.js' },
   { id: 'IssueDetailComments', file: 'src/client/views/IssueDetailComments.js' },
   { id: 'IssueDetail', file: 'src/client/views/IssueDetail.js' },
   { id: 'noRepoCard', file: 'src/client/views/NoRepoCard.js' },
+  { id: 'ListTabClosed', file: 'src/client/views/ListTabClosed.js' }, // #690 新增：折叠行展开、滚到底这两个触发点，与「已加载 x / 共 N」那一行（排在 ListTab 之前，ListTab 调它们）
   { id: 'ListTabRow', file: 'src/client/views/ListTabRow.js' },
   { id: 'listTab', file: 'src/client/views/ListTab.js' },
   { id: 'prTab', file: 'src/client/views/PrTab.js' },

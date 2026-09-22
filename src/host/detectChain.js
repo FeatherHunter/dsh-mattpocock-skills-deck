@@ -6,6 +6,7 @@ export function createDetectChain(deps) {
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   let chainSampleN = 0
+  const chainInflight = new Map() // #696 在途合并：同钥匙同后端同语言同强制标记的并发共用同一份求值，强制不进表
   let lastPredAt = 0
   let lastPredStatus = {}
   const CHAIN_CACHE_MS = 30000
@@ -16,7 +17,7 @@ export function createDetectChain(deps) {
       if (force) resetGhCache()
       try {
         const svc = await getDetectionService()
-        const res = await svc.detect({ cwd }, { force, hintBackendId: (args && args.backendId) || undefined })
+        const res = await svc.detect({ cwd }, { force, hintBackendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })
         try { if (logCtx) logCtx.fire('info', 'detection.detect', { cwdHash: hash8(cwd), explicit: !!((res && res.selection && res.selection.source === 'explicit')), pending: !!((res && res.selection && res.selection.pending)), selection: String((res && res.selection && res.selection.backendId) || '') }) } catch (eL) {}
         // 对抗式：ensure DetectionResult 形态（含 selection/pending/multiHit，按 #125）
         return { ok: true, ...res }
@@ -34,16 +35,21 @@ export function createDetectChain(deps) {
       const chainLang = (args && args.lang === 'en') ? 'en' : 'zh'
       if (force) resetGhCache()
       try{
-        // 缓存命中（force 绕过；探测 pending 结果不缓存——与旧 statusCache 同纪律）
+        // 缓存命中只读自己根那条（force 绕过；pending 结果不缓存——与旧 statusCache 同纪律）
         const cacheKey = cwd + '|' + String(args && args.backendId || '') + '|' + chainLang
-        if (!force && getChainCache().value && getChainCache().key === cacheKey && Date.now() - getChainCache().ts < CHAIN_CACHE_MS) {
-          try { if (logCtx && logCtx.isEnabled('debug') && ((++chainSampleN % 100) === 0)) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(cacheKey), lang: chainLang, ageMs: Date.now() - getChainCache().ts } }) } catch (eL) {}
-          return getChainCache().value
+        const chainEntry = getChainCache(cacheKey)
+        if (!force && chainEntry.value && Date.now() - chainEntry.ts < CHAIN_CACHE_MS) {
+          try { if (logCtx && logCtx.isEnabled('debug') && ((++chainSampleN % 100) === 0)) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(cacheKey), lang: chainLang, ageMs: Date.now() - chainEntry.ts } }) } catch (eL) {}
+          return chainEntry.value
         }
-        try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (!getChainCache().value ? 'empty' : (getChainCache().key !== cacheKey ? 'key-changed' : 'expired')) } }) } catch (eL) {}
+        try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (!chainEntry.value ? 'empty' : 'expired') } }) } catch (eL) {}
+        // #696 在途合并：同钥匙同后端同语言同强制标记共用同一份（另带修订号，免不同修订串份）；先回来的写缓存，后到的拿同一份；强制不参与合并
+        const chainDedupKey = cacheKey + '|' + (force ? '1' : '0') + '|' + String((args && args.baseRev) || 0)
+        if (!force) { const ongoingChain = chainInflight.get(chainDedupKey); if (ongoingChain) return await ongoingChain }
+        const chainPending = (async function () {
         const platform = await getPlatform()
         // 用户显式选择（客户端持久化绑定）作为 detect hint——「主锚 > 用户选择 > matches」层级，见 detectionService.detect
-        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined }) }).catch(function(){ return null })
+        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 }) }).catch(function(){ return null })
         // 2026-08-28 语义修正（锚即真相，Q4 契约）：落盘主锚（detect 的 explicit/matches 判定）是权威——
         //   工作区「错误地用 GitHub 模板初始化」→ 检测就是 github（工作区名字不影响检测）；
         //   客户端绑定仅在 detect 无结论（无锚 fallback null / 探测中）时兜底，旧绑定记忆不得篡改已落盘的真相。
@@ -269,6 +275,9 @@ export function createDetectChain(deps) {
         })()
         if (!chainNotAllDone) setChainCache({ ts: Date.now(), key: cacheKey, value: result })
         return result
+        })()
+        if (!force) { chainInflight.set(chainDedupKey, chainPending); try { return await chainPending } finally { chainInflight.delete(chainDedupKey) } }
+        return await chainPending
       }catch(e){
         return { ok: false, error: String((e && e.message)||e) }
       }

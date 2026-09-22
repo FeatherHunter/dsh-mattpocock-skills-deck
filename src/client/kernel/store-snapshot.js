@@ -42,10 +42,8 @@
     //   而客户端这五样抽屉（面板快照、检查链快照、在途去重、后端选择镜像、仓库引用）此前都按
     //   「会话所选目录」分桶。同一个仓库里，根会话与子目录会话因此各占一桶、互不相认——
     //   子目录会话打开面板时看不到根会话已经取好的数据，只会空着。
-    // 客户端自己算不出工作区根（要读文件系统：逐层向上找 `.git` 或主锚文件），所以这个值由宿主给：
-    //   快照回包里的 workspaceRoot 一项。没拿到时一律退回所选目录，行为与改动前一致（诚实失败，不猜）。
-    // 存法：所选目录的规整键 → 工作区根（在装快照时记下）。同一张表里也把「工作区根 → 工作区根」
-    //   记一份，于是在途去重那种手上只有请求键的场景传进来也能命中自己。
+    // 客户端自己算不出工作区根（要读文件系统：逐层向上找 `.git` 或主锚文件），所以这个值由宿主给：快照回包里的 workspaceRoot 一项。没拿到时一律退回所选目录，行为与改动前一致（诚实失败，不猜）。
+    // 存法：所选目录的规整键 → 工作区根（在装快照时记下）。同一张表里也把「工作区根 → 工作区根」记一份，于是在途去重那种手上只有请求键的场景传进来也能命中自己。
     export const workspaceRootByCwd = {}
     export const rememberWorkspaceRoot = function (selected, root) {
       try {
@@ -53,6 +51,8 @@
         const rk = (typeof keyOf === 'function') ? keyOf(root) : String(root || '')
         if (sk && rk) workspaceRootByCwd[sk] = rk
         if (rk) workspaceRootByCwd[rk] = rk
+        // #683（F1 · ADR 的 R7d）：工作区根是**后来才**认出来的 —— 原先那份选择与布局按「会话所选目录」那把键存着，而从此读写都改走根键，老键那条就此没人再看（界面会一边说 Markdown、另一边说「还没有设置」）。认到根的这一刻把它搬过去；根键上已经有了就不动它。
+        if (sk && rk && sk !== rk) { try { if (typeof migrateCachedChoiceToKey === 'function') migrateCachedChoiceToKey(sk, rk) } catch (eMv) {} }
       } catch (e) {}
     }
     // 分桶用的钥匙：给所选目录，回工作区根；认不出（宿主还没回过话）就回所选目录本身。

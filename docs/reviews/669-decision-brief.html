@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#669 决策简报：现在需要你的两件事</title>
+<style>
+  :root{
+    --bg:#0d1117; --card:#161b22; --card2:#1b2230; --line:#2a2d35;
+    --ink:#e6edf3; --muted:#9aa4b2; --dim:#6e7681;
+    --ok:#4ade80; --warn:#f59e0b; --ask:#58a6ff; --rec:#c084fc; --bad:#f87171;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.75 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:900px;margin:0 auto;padding:28px 20px 64px}
+  header h1{margin:0 0 6px;font-size:26px;letter-spacing:.3px}
+  header .sub{color:var(--muted);font-size:14px}
+  .lead{margin:20px 0 30px;padding:16px 18px;border-radius:12px;
+        background:linear-gradient(180deg,#152033,#111722);border:1px solid #24314a}
+  .lead b{color:#fff}
+  .pills{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .pill{font-size:13px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .pill.ok{color:var(--ok);border-color:#1f4d33;background:#0f2418}
+  .pill.ask{color:var(--ask);border-color:#1d3b5c;background:#0f1c2b}
+  nav{display:flex;gap:14px;font-size:14px;margin:0 0 26px}
+  nav a{color:var(--ask);text-decoration:none;border-bottom:1px dashed #2d4a6b}
+  h2{margin:38px 0 14px;font-size:20px;display:flex;align-items:center;gap:10px}
+  h2 .n{display:inline-flex;width:26px;height:26px;border-radius:8px;background:#1d2430;
+        color:var(--muted);font-size:14px;align-items:center;justify-content:center}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+  .card.ok{border-left:3px solid var(--ok)}
+  .card.ask{border-left:3px solid var(--ask)}
+  .card.rec{border-left:3px solid var(--rec);background:var(--card2)}
+  .q{font-weight:700}
+  .a{color:var(--muted);margin-top:6px}
+  .a b{color:var(--ink)}
+  code{background:#0b0f16;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:13px;color:#c9d5e4}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:13px}
+  ul.check{list-style:none;padding:0;margin:10px 0 0}
+  ul.check li{position:relative;padding:10px 0 10px 34px;border-bottom:1px dashed #232a35}
+  ul.check li:last-child{border-bottom:0}
+  ul.check li:before{content:"✓";position:absolute;left:4px;top:9px;color:var(--ok);font-weight:700}
+  .yes{color:var(--ok);font-weight:600}
+  .no{color:var(--bad);font-weight:600}
+  .opt{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-size:14px}
+  .opt .h{color:var(--muted);font-size:13px}
+  .gain:before{content:"得";color:var(--ok);font-weight:700;margin-right:6px}
+  .loss:before{content:"失";color:var(--warn);font-weight:700;margin-right:6px}
+  .tag{font-size:12px;padding:2px 8px;border-radius:999px;background:#2a1d3a;color:#d8b4fe;border:1px solid #3f2c56}
+  .reply{margin-top:10px;padding:14px 16px;border-radius:10px;background:#0b0f16;border:1px dashed #33405a;
+         font-family:ui-monospace,Consolas,monospace;font-size:13.5px;color:#cfe0f5;user-select:all}
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--dim);font-size:13px}
+  footer code{font-size:12.5px}
+  @media (max-width:640px){ .opt{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>#669 决策简报</h1>
+  <div class="sub">2026-09-21 · 三处缺陷已修完并合进 main · 现在只等你两件事</div>
+</header>
+
+<div class="lead">
+  <b>一句话：</b>「点黄条整条胶囊消失」查到底了（真凶是一个从来没定义过的函数，渲染当场抛错）；你指出的「小卡不该再问一遍后端」也照你给的文案改完了。剩下的不是开发，是<b>你的眼睛</b>与<b>一个方向</b>。
+  <div class="pills">
+    <span class="pill ok">已修：3 处</span>
+    <span class="pill ok">verify + smoke 全绿</span>
+    <span class="pill ok">已 push 到 origin/main</span>
+    <span class="pill ask">等你：真机看 3 处现场</span>
+    <span class="pill ask">等你：日志那一档给个方向</span>
+  </div>
+</div>
+
+<nav>
+  <a href="#q">你问过的三件事 → 我的答复</a>
+  <a href="#look">第一件事：看三处现场</a>
+  <a href="#log">第二件事：日志动不动包</a>
+</nav>
+
+<h2 id="q"><span class="n">Q</span>你问过的三件事，我的答复</h2>
+
+<div class="card ok">
+  <div class="q">1.「点了黄条之后，整个胶囊状态栏全部消失」——是我点错了，还是真坏了？</div>
+  <div class="a"><b>真坏了。</b>真凶是那张初始化小卡在「后端名单还没到」这一档调了一个<b>从来没有定义过</b>的函数（<code>supportedBackendViews</code>）：渲染当场抛错，React 把整条状态栏摘掉 —— 所以既没有收起按钮，也没有「回来的路」。已修，并加了一道类级门禁：产物里一旦出现「被调用、但全文没有定义的名字」，构建期就变红。</div>
+</div>
+
+<div class="card ok">
+  <div class="q">2.「走到 /setup 时，小卡不该再问一遍 GitHub」——我说的对吗？</div>
+  <div class="a"><b>对，而且比“多余”更重。</b>卡上那颗「确认并继续」会写后端选择、落缓存、再打一通绑定电话 —— 等于从一张「只答文档布局」的卡上把整个工作区换后端（同一张卡上 GitLab 还写着「筹备中」）。已按你给的文案改掉：卡上只剩「域文档布局」这一问 ＋ 一行只读说明。</div>
+</div>
+
+<div class="card ok">
+  <div class="q">3.「我们讨论的这些开发做好了吗？」</div>
+  <div class="a"><b>做完了。</b>三处修复（竞态守卫判反 / 整条胶囊消失 / 小卡重复问后端）都已提交并 push；<code>npm run verify</code> 与 <code>npm run test:smoke</code> 全绿；产物已同步进三个 profile（client 半，<b>刷新页面即生效</b>）。</div>
+</div>
+
+<h2 id="look"><span class="n">1</span>第一件事：换上新产物，看三处现场（要你的眼睛，不是选择题）</h2>
+<div class="card ask">
+  <div class="a"><b>为什么只能你来：</b>这三处都是“观感”（快不快、闪不闪、卡上写了什么）。我这边最多只能证明代码与门禁，真机那一眼给不了。</div>
+  <ul class="check">
+    <li>选完后端那一刻：应当<b>立刻</b>出现「这个目录还没有关联远端仓库」那一段；中间<span class="no">不许闪回</span>「什么都没有」。</li>
+    <li>点黄条那颗按钮：<b>整条状态栏不许消失</b>，弹出来的是那张小卡（横幅与胶囊都还在原地）。</li>
+    <li>那张小卡上<b>只有</b>「域文档布局」这一问，并写着「将用 GitHub 执行初始化。要换后端：右侧面板「切换后端」。」；选完点确认，注入的全文里带着选中的布局（single-context / multi-context）。</li>
+  </ul>
+  <div class="a" style="margin-top:12px"><b>如果哪一处不对：</b>给我「哪一处 + 当时的截图或时间点」就够 —— 这条路上的点击与日志点都在，我能对到具体那一拍。</div>
+</div>
+
+<h2 id="log"><span class="n">2</span>第二件事：常驻日志那一档，要不要动 <code>dsh-log</code> 包（要你拍板）</h2>
+<div class="card">
+  <div class="q">前因后果</div>
+  <div class="a">查「胶囊消失」时我把本机日志翻了一遍：<b>14 天、全部工作区，一条 info 都没有</b>（连宿主每次启动都会写的 <code>host.start</code> 也不在里面）。读源码对上了 —— 实现是「只有错误与告警直通，信息与调试一律看调试开关」，开关默认关。可仓库里写的纪律是「常驻事件<b>始终落盘</b>」：<b>文档与实现在这一点上不一致</b>。后果是：#663 专门为「点一下到底给出去什么」加的 <code>guide.inject</code>、以及收起/展开这类动作，在真机上一条都查不到。这次能给「点了黄条整条没了」定案，靠的是真产物复现，<b>不是</b>日志。</div>
+</div>
+
+<table>
+  <tr><th style="width:132px">关键信息</th><th>是什么</th></tr>
+  <tr><td>契约说</td><td>常驻（P0）事件始终落盘，不等人先打开调试开关</td></tr>
+  <tr><td>代码做</td><td>信息级与调试级一律看开关；开关默认关 → 真机上等于没有 info 日志</td></tr>
+  <tr><td>影响谁</td><td>只影响用这份日志包的人（本插件三个 profile；它是一个已发布包 <code>dsh-log</code>）</td></tr>
+  <tr><td>要碰什么</td><td><code>src/host/index.js</code> 的 <code>fireLog</code> 与 <code>logPkg/store.js</code> 的 <code>isEnabled</code>；包自己的文档；附录第 1 章的条数；四道日志门禁里写死的数字</td></tr>
+  <tr><td>体积估计</td><td>常驻事件是低频（启动、绑定、点横幅、刷新各一条），每天几 KB ～ 几十 KB 量级，按天分文件、可清空</td></tr>
+</table>
+
+<div class="card rec">
+  <div class="q">选项与利弊 <span class="tag">推荐 A</span></div>
+  <div class="opt" style="margin-top:10px">
+    <div class="h">A · 让「常驻」真的落盘</div><div class="h">（信息级在开关关着时也写，调试级仍看开关）</div>
+    <div class="gain">实现追上文档；以后「点了没反应 / 整条不见了」这类事故第一次就能靠日志定位；刚加的 <code>guide.inject</code>、折叠动作立刻有用。</div>
+    <div class="loss">动的是已发布的包（要抬版本、同步三处产物与它自己的文档）；日志体积增长；日志门禁的数字要跟着改。</div>
+  </div>
+  <div class="opt" style="margin-top:14px;padding-top:14px;border-top:1px dashed #232a35">
+    <div class="h">B · 不改包，改说法</div><div class="h">（把「常驻始终落盘」改成「常驻＝纳入名单，仍需开关」，并写明默认没有 info 日志）</div>
+    <div class="gain">零风险、零工作量，文档立刻诚实。</div>
+    <div class="loss">以后同类事故仍然只能靠复现；等于承认这条纪律是空话。</div>
+  </div>
+  <div class="opt" style="margin-top:14px;padding-top:14px;border-top:1px dashed #232a35">
+    <div class="h">C · 折中</div><div class="h">（包不动，把少数几件“查事故必须有”的动作改用现有能落盘的通道记）</div>
+    <div class="gain">只碰我们自己的代码。</div>
+    <div class="loss">把正常动作记成「告警」，语义脏；仍然绕不开「常驻那一档名不副实」。</div>
+  </div>
+  <div class="a" style="margin-top:14px"><b>我推荐 A：</b>契约与纪律已经写在仓库里、门禁也按那个条数在跑，A 是「让实现追上文档」；B 省事，但把纪律降级成口号。若你近期要发版、不想动包，选 B 我也不会把话说死 —— 那就顺手把附录改诚实。</div>
+</div>
+
+<div class="card">
+  <div class="q">怎么回我（复制这一行改一下就行）</div>
+  <div class="reply">走查：都过 ／ 第 __ 处不对（截图 + 时间）　·　日志：A ／ B ／ C</div>
+  <div class="a" style="margin-top:10px">你回完我会：走查都过 → 把 #669 写 100% 并关闭（#665 随之解锁），并在 map #660 追加小结；日志选哪个 → 按选项开一张票（或当场把附录改诚实）。</div>
+</div>
+
+<footer>
+  <div>三处修复：<code>7208564</code> 竞态守卫判反 · <code>0fbc4ea</code> 整条胶囊消失（未定义函数）＋类级门禁 · <code>43f57d3</code>＋<code>9fbfb46</code> 初始化小卡只问布局（文案逐字钉住）</div>
+  <div>门禁：<code>verify-669-chain-after-pick.js</code> 29 条 · <code>verify-669-collapsed-recoverable.js</code> 75 条 · 新增 <code>verify-client-no-undef.js</code> 5 条；<code>npm run verify</code> 与 <code>npm run test:smoke</code> 全绿</div>
+  <div>产物：已构建并同步进 web / desktop / dsh-build 三个 profile（hash 校验通过）· 本页：<code>docs/reviews/669-decision-brief.html</code></div>
+</footer>
+
+</div>
+</body>
+</html>

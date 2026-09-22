@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #474（第二轮）— 地图详情页的五个方向</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+  issue：FeatherHunter/dsh-mattpocock-skills-deck#474（清晰而模糊的目的地 ＋ 战争迷雾三态）
+
+  这一轮回答什么：
+    「地图详情页可以是什么」——五个**设计理念完全不同**的方向，不是同一个页面的五种配色或排法。
+    同一个问题（终点在哪 / 我现在能做什么 / 哪些路还没走过 / 走过的路留没留下痕迹），
+    五种答案背后的主张互不相容，选一个就是选一种产品气质。
+
+  五个方向（各自独立成形，不共用布局）：
+    D1 星空      地图 = 夜空。终点是北极星（永不熄灭），走过的是连成星座的亮星，没走的躺在星云里。
+                 主问题：我离北极星还有多远？        气质：浪漫、克制、有方向感。
+    D2 战棋迷雾  地图 = 一张正在被点亮的方格战场。黑格是没走到的地方，站在哪一格就照亮周围一圈。
+                 主问题：我脚下亮着的这一圈有多大？    气质：游戏、直白、战术感。
+    D3 等高线    地图 = 一座要爬的山。层 = 海拔，层越靠上离山顶越近，层的宽度 = 那一层有几张票。
+                 主问题：我在山的哪一段？             气质：踏实、有重量感、进度感来自高度。
+    D4 连载手稿  地图 = 一篇正在写的稿子。走完的是已刊出的段落，正在写的是当前这一节，没动笔的是留白。
+                 主问题：这个故事写到哪了？           气质：安静、可读、给愿意读的人。
+    D5 任务控制台 地图 = 一块仪表板。一屏只说一句「现在做这一件」，其余全是数字与告警。
+                 主问题：我下一件该干什么？           气质：功能、极简信息、给赶时间的人。
+
+  四个状态对所有方向通用（走亮 / 照亮中 / 现在能做 / 雾），数据也是同一份真数据。
+  切换：底部悬浮条（左右箭头循环，键盘 ← → 也可以）；URL 参数 ?v=D1..D5 &s=active|empty|big|done &w=400|560|810 &fog=0|1 &bar=0
+  运行：双击本文件即可（无后端、无依赖、无定时器）。
+
+  数据来源（真数据）：
+    - 地图 #604 的 Destination / 子票 / 战雾条目 / Decisions / Out of scope 取 issue #604 正文原文；
+    - 四张子票与层级取真机面板快照（层 1 #605 → 层 2 #606 → 层 3 #607 进行中 → 层 4 #608 被 #607 挡着）；
+    - 「还没画图」与「大图」两个状态是示例，不是真票，界面上都标了「示例」。
+-->
+<style>
+:root{
+  --bg:#07080b;--base:#10131a;--l2:#16181d;--l3:#0c0e12;--bd:#2a2d35;--bd2:#3a3f4a;
+  --tx:#e6edf3;--sec:#a1a1aa;--cap:#8b8b95;
+  --walk:#4ade80;--view:#58a6ff;--fog:#a3a8c0;--map:#c084fc;--know:#f59e0b;
+  --mono:Consolas,"SF Mono",Menlo,monospace;
+  --serif:"Iowan Old Style",Georgia,"Songti SC","SimSun",serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font-size:14px;line-height:1.6;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+.pbadge{position:fixed;top:8px;left:8px;z-index:99999;background:#ff3b30;color:#fff;font:700 11px/1 -apple-system,sans-serif;padding:5px 9px;border-radius:99px}
+.wrap{max-width:1500px;margin:0 auto;padding:44px 18px 190px}
+h1{font-size:19px;margin:0 0 8px}
+.lead{border:1px solid var(--bd);border-radius:14px;background:linear-gradient(180deg,#181d26,#101319);padding:14px 16px;margin-bottom:14px}
+.lead p{margin:6px 0;font-size:13px;color:var(--sec)}
+.lead b{color:var(--tx)}
+.dirs{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:8px;margin-top:10px}
+.dir{border:1px solid var(--bd);border-radius:10px;padding:9px 11px;background:#0e1117}
+.dir .h{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:650;color:var(--tx)}
+.dir .h .k{font:700 10px/1.5 var(--mono);color:var(--map);border:1px solid rgba(192,132,252,.45);border-radius:5px;padding:0 5px}
+.dir .m{font-size:11.5px;color:var(--sec);margin-top:4px;line-height:1.6}
+.dir .q{font-size:11px;color:var(--cap);margin-top:5px}
+.dir.on{border-color:var(--map);background:rgba(192,132,252,.08)}
+.stage{display:flex;justify-content:center;margin-top:6px}
+/* 面板外框：真机里这一格是宿主右侧边栏，宽 360–810 由用户拖 */
+.panel{width:810px;max-width:100%;background:var(--base);border:1px solid var(--bd);border-radius:14px;overflow:hidden;
+  display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.55)}
+.chrome{flex:none;border-bottom:1px solid var(--bd);background:var(--l2)}
+.chrome-top{display:flex;align-items:center;gap:6px;padding:9px 12px 5px;font-size:11px}
+.chrome-top .repo{color:var(--view);font-family:var(--mono);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chrome-top .ico{color:var(--cap);border:1px solid var(--bd);border-radius:5px;padding:0 5px;font-size:10px}
+.chrome-tabs{display:flex;align-items:center;gap:4px;padding:0 10px 8px;font-size:11px;flex-wrap:nowrap;overflow:hidden}
+.chrome-tabs .tab{padding:1px 7px;border-radius:6px;color:var(--sec)}
+.chrome-tabs .tab.on{background:rgba(192,132,252,.14);border:1px solid rgba(192,132,252,.45);color:#e9d5ff}
+.chrome-tabs .mini{border:1px solid var(--bd);border-radius:6px;padding:0 6px;color:var(--sec);font-size:10.5px}
+.chrome-tabs .ver{color:var(--cap);font-size:10px;font-family:var(--mono)}
+.panel.narrow .chrome-tabs .mini,.panel.narrow .chrome-tabs .ver{display:none}
+.sp{flex:1}
+.sticky{display:flex;align-items:center;gap:7px;padding:8px 12px;background:var(--l2);border-bottom:1px solid var(--bd)}
+.btn{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid var(--bd);background:var(--base);color:var(--tx);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px}
+.btn:hover{border-color:var(--bd2)}
+.btn.primary{background:var(--walk);border-color:transparent;color:#04120a;font-weight:700}
+.btn.ghost{background:transparent;color:var(--sec)}
+.btn.sm{font-size:10.5px;padding:2px 7px}
+.crumb{font-size:10.5px;color:var(--cap);font-family:var(--mono);white-space:nowrap}
+.chipm{font-size:10px;padding:1px 7px;border-radius:99px;border:1px solid rgba(192,132,252,.5);color:var(--map);background:rgba(192,132,252,.08);font-family:var(--mono);white-space:nowrap}
+.panel.narrow .sticky .crumb{display:none}
+.scroll{overflow:auto}
+.tiny{font-size:10px;color:var(--cap)}
+.acts{display:flex;gap:5px;align-items:center;margin-top:6px}
+.fogoffnote{font-size:10px;color:var(--cap);margin-top:5px}
+
+/* ===== D1 星空 ===== */
+.sky{position:relative;overflow:hidden;background:radial-gradient(130% 80% at 50% 4%,#131a2c 0,#080b13 55%,#05060a 100%)}
+.sky .field{position:absolute;inset:0;opacity:.9;
+  background-image:
+    radial-gradient(rgba(255,255,255,.75) 1.1px,transparent 1.5px),
+    radial-gradient(rgba(255,255,255,.45) .9px,transparent 1.3px),
+    radial-gradient(rgba(190,215,255,.55) .8px,transparent 1.2px);
+  background-size:67px 53px,113px 89px,173px 131px;background-position:0 0,21px 27px,53px 61px}
+.sky .lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.sky .lines path{fill:none;stroke-linecap:round}
+.glow-walk{stroke:#7ce8a8;stroke-width:1.6;filter:drop-shadow(0 0 5px rgba(124,232,168,.9))}
+.glow-view{stroke:#7fb6ff;stroke-width:1.6;filter:drop-shadow(0 0 6px rgba(127,182,255,.95))}
+.glow-dim{stroke:rgba(163,168,192,.42);stroke-width:1.1;stroke-dasharray:3 6}
+.star{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:118px;text-align:center;cursor:pointer;z-index:3}
+.star .dot{width:9px;height:9px;border-radius:50%;background:#3a4053;position:relative;flex:none}
+.star .dot::after{content:"";position:absolute;left:-5px;top:-5px;right:-5px;bottom:-5px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.20),transparent 62%)}
+.star.st-walk .dot{background:#e9f6ff;box-shadow:0 0 10px 2px rgba(170,225,255,.8)}
+.star.st-view .dot{background:#dbeaff;box-shadow:0 0 16px 4px rgba(88,166,253,.95)}
+.star.st-open .dot{background:#d6ffe6;box-shadow:0 0 14px 4px rgba(74,222,128,.85)}
+.star.st-fog .dot{background:#454b5e;box-shadow:none}
+.star .no{font:600 9.5px/1.4 var(--mono);color:var(--cap)}
+.star .tt{font-size:10px;line-height:1.35;color:var(--sec);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.star.st-walk .tt{color:#5f6b7d}
+.star.st-view .tt,.star.st-open .tt{color:var(--tx)}
+.star.sel .dot{outline:2px solid rgba(192,132,252,.85);outline-offset:3px}
+st-fog-blur{}
+.star.st-fog .tt,.star.st-fog .no{filter:blur(1.5px);opacity:.7}
+.star.st-fog.revealed .tt,.star.st-fog.revealed .no{filter:none;opacity:1;color:var(--tx)}
+.neb{position:absolute;border-radius:50%;pointer-events:none;mix-blend-mode:screen;
+  background:radial-gradient(circle at 46% 42%,rgba(186,178,255,.30),rgba(120,110,190,.16) 48%,rgba(120,110,190,0) 74%);filter:blur(13px)}
+.neb::after{content:"";position:absolute;inset:0;border-radius:50%;
+  background:repeating-linear-gradient(-45deg,rgba(210,215,255,.14) 0 4px,transparent 4px 10px)}
+.polaris{position:absolute;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;z-index:4;width:230px;text-align:center}
+.polaris .pdot{width:16px;height:16px;border-radius:50%;background:#efe6ff;box-shadow:0 0 22px 6px rgba(192,132,252,.85),0 0 46px 14px rgba(150,110,255,.35);position:relative}
+.polaris .pdot::before,.polaris .pdot::after{content:"";position:absolute;left:50%;top:50%;background:rgba(240,230,255,.75);transform:translate(-50%,-50%)}
+.polaris .pdot::before{width:34px;height:1.4px}
+.polaris .pdot::after{width:1.4px;height:34px}
+.polaris .plab{font-size:10px;letter-spacing:.1em;color:#d8c7ff;text-transform:uppercase}
+.polaris .pttl{font-size:11.5px;color:#f0e9ff;line-height:1.45}
+.skycard{position:absolute;left:10px;right:10px;bottom:10px;z-index:5;border:1px solid rgba(192,132,252,.35);border-radius:12px;
+  background:rgba(11,14,22,.93);padding:9px 11px;backdrop-filter:blur(6px)}
+.skycard .h{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--cap);font-family:var(--mono)}
+.skycard .t{font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.45}
+.skycard .s{font-size:10.5px;color:var(--sec);margin-top:3px}
+.skylegend{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:9px;font-size:10.5px;color:var(--sec)}
+.skylegend .li{display:inline-flex;align-items:center;gap:4px}
+.vdot{width:7px;height:7px;border-radius:50%;flex:none}
+
+/* ===== D2 战棋迷雾 ===== */
+.boardwrap{padding:10px 12px 14px;background:
+  radial-gradient(120% 70% at 50% 0,rgba(88,166,253,.05),transparent 62%),#0a0d12}
+.boardhead{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--cap);font-family:var(--mono);margin-bottom:8px}
+.goalbar{display:flex;align-items:center;gap:8px;border:1px solid rgba(192,132,252,.42);border-radius:10px;padding:7px 10px;
+  background:linear-gradient(90deg,rgba(192,132,252,.14),rgba(192,132,252,.02));margin-bottom:9px}
+.goalbar .g{font-size:10px;letter-spacing:.08em;color:#d8c7ff;text-transform:uppercase}
+.goalbar .t{font-size:11.5px;color:#efe6ff;line-height:1.45}
+.board{border-radius:11px;padding:12px 10px 14px;
+  background:
+    radial-gradient(120% 60% at 50% 0,rgba(88,166,253,.05),transparent 62%),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 26px),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.022) 0 1px,transparent 1px 26px),
+    #0a0d13}
+.brow{display:flex;justify-content:center;gap:8px}
+.corridor{height:20px;display:flex;justify-content:center}
+.corridor span{width:3px;height:100%;background:repeating-linear-gradient(180deg,rgba(163,168,192,.5) 0 4px,transparent 4px 9px)}
+.tile{position:relative;width:190px;min-height:64px;border-radius:9px;border:1px solid #1d2230;background:#0d1118;
+  display:flex;flex-direction:column;justify-content:space-between;gap:4px;padding:6px 7px;overflow:hidden}
+.panel.narrow .tile{width:146px;min-height:60px;padding:5px 6px}
+.tile .glyph{font:700 12px/1 var(--mono);color:#3a4053}
+.tile .lab{font-size:9.5px;color:#4b5266;font-family:var(--mono)}
+.tile .tt{font-size:10px;line-height:1.35;color:var(--sec);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile.dark::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(163,168,192,.05) 0 5px,transparent 5px 11px)}
+.tile.t-walk{border-color:rgba(74,222,128,.5);background:linear-gradient(180deg,rgba(74,222,128,.16),rgba(74,222,128,.04))}
+.tile.t-walk .glyph{color:var(--walk)}
+.tile.t-walk .tt{color:#bfe9cd}
+.tile.t-view{border-color:rgba(88,166,253,.65);background:linear-gradient(180deg,rgba(88,166,253,.2),rgba(88,166,253,.05));
+  box-shadow:0 0 0 1px rgba(88,166,253,.25),0 0 18px rgba(88,166,253,.25)}
+.tile.t-view .glyph{color:var(--view)}
+.tile.t-open{border-color:rgba(74,222,128,.75);background:linear-gradient(180deg,rgba(74,222,128,.18),rgba(74,222,128,.05));
+  box-shadow:0 0 16px rgba(74,222,128,.22)}
+.tile.t-open .glyph{color:var(--walk)}
+.tile.t-open .tt,.tile.t-view .tt{color:var(--tx)}
+.tile.t-fog{border-color:rgba(163,168,192,.45);background:#12151f}
+.tile.t-fog .glyph{color:var(--fog)}
+.tile.t-fog .tt{filter:blur(1.6px);opacity:.75}
+.tile.t-fog.revealed .tt{filter:none;opacity:1;color:var(--tx)}
+.tile .foglayer{position:absolute;inset:0;pointer-events:none;opacity:.9;
+  background:repeating-linear-gradient(-45deg,rgba(163,168,192,.10) 0 4px,transparent 4px 9px),
+  radial-gradient(circle at 50% 40%,rgba(200,206,230,.30),rgba(140,146,175,.10) 60%,transparent 80%);filter:blur(2.5px)}
+.tile.vision{border-color:rgba(88,166,253,.28)}
+.tile.vision::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(88,166,253,.16),transparent 76%);pointer-events:none}
+.tile.here::after{content:"你在这里";position:absolute;right:5px;top:4px;font-size:8.5px;color:#bfe0ff;background:rgba(88,166,253,.18);
+  border:1px solid rgba(88,166,253,.4);border-radius:5px;padding:0 3px}
+.tile .go{position:absolute;right:5px;bottom:5px;font-size:9px;padding:1px 6px;border-radius:6px;border:none;background:var(--walk);color:#04120a;font-weight:700;cursor:pointer}
+.wallrow{height:5px;border-radius:3px;margin:7px 0;background:repeating-linear-gradient(90deg,rgba(163,168,192,.22) 0 6px,transparent 6px 13px)}
+.boardfoot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:9px;font-size:10.5px;color:var(--sec)}
+
+/* ===== D3 等高线 ===== */
+.terrain{padding:10px 0 12px;background:#0a0d12}
+.terrhead{padding:0 12px 8px}
+.terrhead .cap{font:600 10px/1.7 var(--mono);letter-spacing:.14em;color:var(--map);text-transform:uppercase}
+.terrhead .tt{font-size:12.5px;color:#efe6ff;line-height:1.55;margin-top:3px}
+.terrain svg{display:block;width:100%}
+.tr-zone{fill:rgba(255,255,255,.028);stroke:rgba(255,255,255,.07)}
+.tr-zone.walk{fill:rgba(74,222,128,.13);stroke:rgba(74,222,128,.45)}
+.tr-zone.view{fill:rgba(88,166,253,.15);stroke:rgba(88,166,253,.5)}
+.tr-zone.fog{fill:rgba(163,168,192,.05);stroke:rgba(163,168,192,.28);stroke-dasharray:4 5}
+.tr-cap{font:600 9.5px/1 var(--mono);fill:#8b8b95}
+.tr-t{font:600 9.5px/1 -apple-system,sans-serif;fill:#c9ccd8}
+.tr-cloud{fill:rgba(214,220,240,.5);filter:blur(7px)}
+.tr-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:3px 12px 0;font-size:10.5px;color:var(--sec)}
+
+/* ===== D4 手稿 ===== */
+.ms{padding:16px 20px 18px;background:#0c0e13}
+.ms-kick{font:600 10px/1.7 var(--mono);letter-spacing:.14em;color:var(--map);text-transform:uppercase}
+.ms h1{font-family:var(--serif);font-size:19px;line-height:1.45;margin:7px 0 0;color:#f3f1fb;font-weight:600}
+.ms-goal{font-family:var(--serif);font-size:13.5px;line-height:1.9;color:#cdd2de;border-left:2px solid rgba(192,132,252,.5);padding-left:12px;margin:10px 0 0}
+.ms-tally{font:11px/1.8 var(--mono);color:var(--cap);margin:12px 0 2px}
+.ms-sec{border-top:1px solid rgba(255,255,255,.075);padding:12px 0 10px}
+.ms-sec .sn{font:600 10px/1 var(--mono);color:var(--cap)}
+.ms-sec h2{font-family:var(--serif);font-size:14px;font-weight:600;line-height:1.5;margin:5px 0 4px;color:#eae7f5}
+.ms-sec .ms-body{font-size:12px;color:var(--sec);line-height:1.8}
+.ms-sec.done h2{color:#868d9c}
+.ms-sec.done .ms-body{color:#6f7686}
+.ms-sec .stamp{display:inline-block;font:600 9.5px/1.5 var(--mono);color:var(--walk);border:1px solid rgba(74,222,128,.45);border-radius:4px;padding:0 4px;margin-left:6px;vertical-align:2px}
+.ms-sec.now{background:linear-gradient(90deg,rgba(88,166,253,.09),transparent 70%);border-left:2px solid var(--view);
+  padding-left:12px;margin-left:-14px;border-top-color:rgba(88,166,253,.35)}
+.ms-sec.now h2{color:#e9f2ff}
+.ms-sec.next h2{color:#b9c0cf}
+.ms-redact{background:#232837;color:transparent;border-radius:3px;user-select:none;text-shadow:none}
+.ms-sec.unwritten .ms-body{color:var(--cap)}
+.ms-blanks{border-top:1px solid rgba(255,255,255,.075);padding-top:11px;margin-top:2px}
+.ms-blanks .cap{font:600 10px/1.7 var(--mono);letter-spacing:.12em;color:var(--fog);text-transform:uppercase}
+.ms-blanks .it{font-family:var(--serif);font-size:12px;line-height:1.85;color:#9aa1b1;margin-top:5px;padding-left:12px;border-left:1px dashed rgba(163,168,192,.3)}
+
+/* ===== D5 任务控制台 ===== */
+.cp{padding:12px 12px 16px;background:#090c11;font-variant-numeric:tabular-nums}
+.cp-cap{font:600 10px/1.7 var(--mono);letter-spacing:.16em;color:var(--cap);text-transform:uppercase}
+.cp-task{border:1px solid rgba(74,222,128,.5);border-radius:12px;padding:11px 12px;
+  background:linear-gradient(180deg,rgba(74,222,128,.13),rgba(74,222,128,.01));margin-top:6px}
+.cp-task .no{font:700 10.5px/1.5 var(--mono);color:var(--walk)}
+.cp-task .t{font-size:14.5px;font-weight:650;line-height:1.5;margin-top:5px;color:#eafff2}
+.cp-task .meta{font-size:10.5px;color:var(--sec);margin-top:5px}
+.cp-gauges{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:12px}
+.gg{border:1px solid var(--bd);border-radius:10px;padding:7px 9px 8px;background:#0d1017}
+.gg .n{font:700 19px/1.15 var(--mono);color:var(--tx)}
+.gg.w .n{color:var(--walk)} .gg.v .n{color:var(--view)} .gg.f .n{color:var(--fog)} .gg.o .n{color:var(--walk)}
+.gg .l{font-size:10px;color:var(--cap);margin-top:1px}
+.ggbar{height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin-top:8px;overflow:hidden}
+.ggbar i{display:block;height:100%}
+.cp-rail{display:flex;gap:3px;margin-top:12px;align-items:center}
+.cp-rail b{height:9px;border-radius:2px;flex:1;background:rgba(255,255,255,.08)}
+.cp-rail b.walk{background:var(--walk);box-shadow:0 0 8px rgba(74,222,128,.4)}
+.cp-rail b.view{background:var(--view);box-shadow:0 0 8px rgba(88,166,253,.4)}
+.cp-rail b.fog{background:repeating-linear-gradient(90deg,rgba(163,168,192,.55) 0 4px,transparent 4px 8px)}
+.cp-board{margin-top:12px;border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:#0d1017}
+.cp-bh{padding:6px 9px;background:rgba(245,158,11,.09);border-bottom:1px solid rgba(245,158,11,.25);
+  font:600 10.5px/1.6 var(--mono);color:#f0b457;letter-spacing:.06em}
+.cp-br{display:flex;align-items:baseline;gap:7px;padding:7px 9px;font-size:11.5px;border-bottom:1px solid rgba(255,255,255,.05)}
+.cp-br:last-child{border-bottom:0}
+.cp-br .no{font:700 10px/1.5 var(--mono);color:var(--cap);flex:none}
+.cp-br .ti{flex:1;min-width:0;color:var(--sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-br .why{flex:none;color:var(--fog);font-size:10.5px;font-family:var(--mono)}
+.cp-done{margin-top:10px;font-size:11px;color:var(--sec);display:flex;align-items:center;gap:7px}
+.cp-dest{margin-top:12px;border-top:1px solid var(--bd);padding-top:10px;font-size:11.5px;color:var(--sec);line-height:1.7}
+.cp-dest .cap{font:600 10px/1.7 var(--mono);letter-spacing:.14em;color:var(--map);text-transform:uppercase}
+
+/* ===== 悬浮切换条（原型自己的，不属于设计） ===== */
+.bar{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:9999;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  background:rgba(20,23,30,.95);border:1px solid var(--bd2);border-radius:14px;padding:8px 12px;
+  box-shadow:0 12px 34px rgba(0,0,0,.6);backdrop-filter:blur(8px);max-width:calc(100vw - 24px)}
+.arrow{width:30px;height:30px;border-radius:50%;border:1px solid var(--bd2);background:#141821;color:var(--tx);cursor:pointer;font-size:12px}
+.arrow:hover{border-color:var(--map);color:#e9d5ff}
+.vlabel{font-size:12.5px;font-weight:650;color:#e9d5ff;min-width:150px;text-align:center}
+.bd{width:1px;height:22px;background:var(--bd)}
+.gl{font-size:11px;color:var(--cap)}
+.seg{font-size:11.5px;padding:3px 9px;border-radius:99px;border:1px solid var(--bd);background:#141821;color:var(--sec);cursor:pointer}
+.seg:hover{border-color:var(--bd2);color:var(--tx)}
+.seg.on{border-color:var(--map);background:rgba(192,132,252,.16);color:#e9d5ff;font-weight:600}
+</style>
+</head>
+<body>
+<div class="pbadge">PROTOTYPE · #474 · 第二轮</div>
+<div class="wrap">
+  <h1>地图详情页可以是什么 · 五个方向</h1>
+  <div class="lead">
+    <p>同一个问题——<b>终点在哪、我现在能做什么、哪些路还没走过、走过的路留下了什么</b>——五种互不相容的答案。它们不是同一张页面的五种排法，而是五种产品气质。</p>
+    <div class="dirs" id="dirs"></div>
+    <p style="margin-top:10px">数据是同一份真数据（地图 #604：4 张票、4 层、1 张进行中、1 张被挡着），四个状态也通用：<b>走亮 / 照亮中 / 现在能做 / 雾</b>。
+      底部悬浮条左右箭头循环切换（键盘 ← → 也可以），四个状态与两种开关在条的右侧。</p>
+  </div>
+  <div class="stage"><div class="panel" id="panel"></div></div>
+</div>
+
+<div class="bar" id="bar">
+  <button class="arrow" id="prev" aria-label="上一个方向">◀</button>
+  <span class="vlabel" id="vlabel">D1 — 星空</span>
+  <button class="arrow" id="next" aria-label="下一个方向">▶</button>
+  <span class="bd"></span>
+  <span class="gl">状态</span>
+  <button class="seg" data-k="s" data-v="active">推进中</button>
+  <button class="seg" data-k="s" data-v="empty">还没画图</button>
+  <button class="seg" data-k="s" data-v="big">大图示例</button>
+  <button class="seg" data-k="s" data-v="done">已走亮</button>
+  <span class="bd"></span>
+  <span class="gl">宽度</span>
+  <button class="seg" data-k="w" data-v="400">400</button>
+  <button class="seg" data-k="w" data-v="560">560</button>
+  <button class="seg" data-k="w" data-v="810">810</button>
+  <span class="bd"></span>
+  <span class="gl">迷雾</span>
+  <button class="seg" data-k="fog" data-v="1">盖着</button>
+  <button class="seg" data-k="fog" data-v="0">全亮</button>
+</div>
+
+<script>
+/* ========================= 数据（真数据 + 两个标注为示例的状态） ========================= */
+const ACTIVE = {
+  no: 604, title: 'MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）',
+  destination: '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。',
+  tickets: [
+    { no: 605, type: 'task', title: '收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票', state: 'CLOSED', blockedBy: [] },
+    { no: 606, type: 'task', title: '补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点', state: 'CLOSED', blockedBy: [605] },
+    { no: 607, type: 'research', title: '全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单', state: 'OPEN', blockedBy: [605, 606], claimedBy: 'FeatherHunter' },
+    { no: 608, type: 'grilling', title: '宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个', state: 'OPEN', blockedBy: [607] },
+  ],
+  decisions: [{ t: '收口上个会话的遗留', g: '倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）' },
+              { t: '补上 gh 调用的测量盲区', g: '真机一天 2538 次 gh 调用，中位 7.8 秒，严重超过「单次 ≤ 1.5 秒」' }],
+  fog: ['按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票：每一条毛病单独成票，数量与内容要等体检结果才知道，现在切不出来。',
+        '客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换、详情页各自慢不慢、慢在哪，现在说不清，等体检数字。'],
+  fogTotal: 5,
+  outOfScope: ['改 DSH 本体：如果「宿主调用被推迟」真的发生在 ctx.exec 内部，本插件只能适应与上报。', '改其它仓库（D:\\ilife 等）：本次只读参考。'],
+  outOfScopeTotal: 5,
+};
+const EMPTY = { no: 800, title: '去泰国旅游', sample: true,
+  destination: '到泰国这件事是明确的：机票落地曼谷、玩十天、把该看的地方看完。怎么去、走哪条线、花多少钱，现在全是待探索——这张图还没画完。',
+  tickets: [], decisions: [], fog: [], fogTotal: 0, outOfScope: [], outOfScopeTotal: 0 };
+const DONE = JSON.parse(JSON.stringify(ACTIVE));
+DONE.tickets = DONE.tickets.map((t) => Object.assign({}, t, { state: 'CLOSED', claimedBy: '' }));
+const BIG = { no: 900, title: '示例大图：9 张票 · 4 层', sample: true,
+  destination: '把这条链路的读写路径各治一遍：先查清楚、再定方案、再落地、最后真机复测。到终点 = 每个环节都有实测数字，谁慢在哪一眼能指出来。',
+  tickets: [
+    { no: 901, type: 'research', title: '盘点现行取数路径与调用点（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 902, type: 'research', title: '客户端渲染路径实测（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 903, type: 'prototype', title: '缓存键与合并策略原型（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 904, type: 'grilling', title: '定版：接缝画在哪、缓存键怎么定（示例）', state: 'CLOSED', blockedBy: [901, 902] },
+    { no: 905, type: 'grilling', title: '定版：请求合并与三个扫描器收成一个（示例）', state: 'OPEN', blockedBy: [902, 903], claimedBy: 'FeatherHunter' },
+    { no: 906, type: 'task', title: '落地：取数层收敛（示例）', state: 'OPEN', blockedBy: [904] },
+    { no: 907, type: 'task', title: '落地：渲染路径单点改造（示例）', state: 'OPEN', blockedBy: [905] },
+    { no: 908, type: 'task', title: '落地：日志落盘批量写（示例）', state: 'OPEN', blockedBy: [905] },
+    { no: 909, type: 'research', title: '真机复测：四个场景逐条给数字（示例）', state: 'OPEN', blockedBy: [906, 907, 908] },
+  ],
+  decisions: [{ t: '现在要治的是 gh 调用链与渲染起点（示例）', g: '倍数结论：点击到内容可见 5075 → 193 毫秒' }],
+  fog: ['体检清单毕业出来的落地票，数量与内容要等体检结果（示例）', '跨插件的统一治理是否纳入本图（示例）'],
+  fogTotal: 4, outOfScope: ['改 DSH 本体（示例）', '改其它仓库（示例）'], outOfScopeTotal: 2 };
+
+/* ========================= 通用判定 ========================= */
+function levelize(tickets) {
+  const byNo = new Map(tickets.map((t) => [String(t.no), t]));
+  const memo = new Map();
+  const lv = (t) => {
+    if (memo.has(String(t.no))) return memo.get(String(t.no));
+    const bs = (t.blockedBy || []).map((b) => byNo.get(String(b))).filter(Boolean);
+    const v = bs.length ? Math.max.apply(null, bs.map(lv)) + 1 : 0;
+    memo.set(String(t.no), v); return v;
+  };
+  tickets.forEach(lv);
+  const layers = [];
+  tickets.forEach((t) => { const i = lv(t); (layers[i] = layers[i] || { i: i, items: [] }).items.push(t); });
+  return layers.filter(Boolean);
+}
+function stateOf(t, all) {
+  if (t.state === 'CLOSED') return 'walk';
+  if (t.claimedBy) return 'view';
+  const bs = (t.blockedBy || []).map((b) => all.find((x) => String(x.no) === String(b))).filter(Boolean);
+  return bs.some((b) => b.state === 'OPEN') ? 'fog' : 'open';
+}
+const blockersOf = (t, all) => (t.blockedBy || []).map((b) => all.find((x) => String(x.no) === String(b))).filter(Boolean).filter((b) => b.state === 'OPEN');
+const blockerNames = (t, all) => blockersOf(t, all).map((b) => '#' + b.no).join('、');
+const counts = (map) => {
+  const all = map.tickets;
+  return { walk: all.filter((t) => stateOf(t, all) === 'walk').length, view: all.filter((t) => stateOf(t, all) === 'view').length,
+    open: all.filter((t) => stateOf(t, all) === 'open').length, fog: all.filter((t) => stateOf(t, all) === 'fog').length, total: all.length };
+};
+const TYPE_L = { task: '任务', research: '研究', grilling: '对齐', prototype: '原型', map: '地图' };
+const GLYPH = { task: '⚒', research: '⌕', grilling: '❝', prototype: '◳', map: '▣' };
+const STATE_WORD = { walk: '已走亮', view: '照亮中', open: '现在能做', fog: '雾里（还没走过）' };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const clamp = (s, n) => (String(s).length > n ? String(s).slice(0, n) + '…' : String(s));
+
+/* ========================= D1 星空 ========================= */
+function renderSky(map, o) {
+  const all = map.tickets, layers = levelize(all), W = Number(o.w) - 2, H = map.tickets.length ? layers.length * 116 + 250 : 330;
+  const destY = 74, top = 150, rowH = 116;
+  const pos = {};
+  layers.forEach((L, li) => {
+    const n = L.items.length, y = top + li * rowH;
+    L.items.forEach((t, i) => { pos[t.no] = { x: n === 1 ? W / 2 : (W / (n + 1)) * (i + 1), y: y }; });
+  });
+  const dpos = { x: W / 2, y: destY };
+  let lines = '';
+  for (let i = 1; i < layers.length; i++) {
+    const a = layers[i - 1].items[0], b = layers[i].items[0], pa = pos[a.no], pb = pos[b.no];
+    const sa = stateOf(a, all), sb = stateOf(b, all);
+    const cls = (sa === 'walk' && (sb === 'walk' || sb === 'open' || sb === 'view')) ? (sb === 'view' ? 'glow-view' : 'glow-walk') : 'glow-dim';
+    lines += '<path class="' + cls + '" d="M' + pa.x + ' ' + pa.y + ' C' + (pa.x - 16) + ' ' + (pa.y + 40) + ' ' + (pb.x + 16) + ' ' + (pb.y - 40) + ' ' + pb.x + ' ' + pb.y + '"/>';
+  }
+  const last = layers.length ? layers[layers.length - 1].items[0] : null;
+  if (last) {
+    const lp = pos[last.no];
+    lines += '<path class="' + (last.state === 'CLOSED' ? 'glow-walk' : 'glow-dim') + '" d="M' + lp.x + ' ' + lp.y + ' C' + (lp.x - 30) + ' ' + (lp.y - 60) + ' ' + dpos.x + ' ' + (dpos.y + 90) + ' ' + dpos.x + ' ' + (dpos.y + 14) + '"/>';
+  }
+  let html = '<div class="sky" style="height:' + H + 'px">' +
+    '<div class="field"></div>' +
+    '<div class="polaris" style="top:' + (destY - 40) + 'px"><span class="pdot"></span><span class="plab">北极星 · 目的地</span>' +
+    '<span class="pttl">' + esc(clamp(map.title, 34)) + '</span></div>' +
+    '<svg class="lines" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' + lines + '</svg>';
+  if (o.fog) layers.forEach((L) => L.items.forEach((t) => {
+    if (stateOf(t, all) !== 'fog') return;
+    const p = pos[t.no];
+    html += '<div class="neb" style="left:' + (p.x - 104) + 'px;top:' + (p.y - 54) + 'px;width:208px;height:150px"></div>';
+  }));
+  layers.forEach((L) => L.items.forEach((t) => {
+    const s = stateOf(t, all), p = pos[t.no], sel = state.sel;
+    html += '<div class="star st-' + s + (sel === t.no ? ' sel' : '') + '" data-no="' + t.no + '" style="left:' + p.x + 'px;top:' + p.y + 'px" title="' + esc(t.title) + '">' +
+      '<span class="dot"></span><span class="no">#' + t.no + '</span><span class="tt">' + esc(clamp(t.title, 24)) + '</span></div>';
+  }));
+  const sel = all.find((t) => t.no === state.sel) || all.find((t) => stateOf(t, all) === 'view') || all.find((t) => stateOf(t, all) === 'open') || all[0];
+  if (sel) {
+    const s = stateOf(sel, all);
+    html += '<div class="skycard"><div class="h">#' + sel.no + ' · ' + (TYPE_L[sel.type] || sel.type) + ' · ' + STATE_WORD[s] +
+      (s === 'fog' ? ' · 被 ' + blockerNames(sel, all) + ' 挡着' : '') + (s === 'view' ? ' · ' + esc(sel.claimedBy) : '') + '</div>' +
+      '<div class="t">' + esc(sel.title) + '</div>' +
+      '<div class="s">' + (s === 'walk' ? '这一段已经走完了。' :
+        s === 'view' ? '正在照亮这一片，接着做就是它。' :
+        s === 'open' ? '现在就能做的一张。' :
+        '路已经画出来了，但通不通还不知道 —— 先把它前面的那张走完。') + '</div>' +
+      ((s === 'view' || s === 'open') ? '<div class="acts"><button class="btn primary sm">' + (s === 'view' ? '继续这张' : '推进这张') + '</button><button class="btn ghost sm">在新会话打开</button></div>' : '') +
+      '</div>';
+  } else {
+    html += '<div class="skycard"><div class="h">这张图还是黑的</div><div class="t">还没有画图</div>' +
+      '<div class="s">只有北极星亮着：目的地是清楚的，通往它的路一条都还没有。</div>' +
+      '<div class="acts"><button class="btn primary sm">用 wayfinder 把这张图画出来</button></div></div>';
+  }
+  html += '</div>';
+  const c = counts(map);
+  html += '<div class="skylegend">' +
+    '<span class="li"><span class="vdot" style="background:#e9f6ff;box-shadow:0 0 8px rgba(170,225,255,.8)"></span>走亮 ' + c.walk + '</span>' +
+    '<span class="li"><span class="vdot" style="background:#dbeaff;box-shadow:0 0 8px rgba(88,166,253,.9)"></span>照亮中 ' + c.view + '</span>' +
+    '<span class="li"><span class="vdot" style="background:#d6ffe6;box-shadow:0 0 8px rgba(74,222,128,.8)"></span>现在能做 ' + c.open + '</span>' +
+    '<span class="li"><span class="vdot" style="background:#454b5e"></span>雾里 ' + c.fog + '</span>' +
+    '<span class="li" style="color:var(--cap)">' + (o.fog ? '点星点看它是哪一段；星云只盖视觉，不挡点按' : '雾已收起：没走过的星仍然是暗的') + '</span>' +
+    '</div>';
+  return html;
+}
+
+/* ========================= D2 战棋迷雾 ========================= */
+function renderBoard(map, o) {
+  const all = map.tickets, layers = levelize(all);
+  let html = '<div class="boardwrap">' +
+    '<div class="boardhead">每格一张票 · 上下相邻的两层是连通的 · 站在哪一格就照亮那一片</div>' +
+    '<div class="goalbar"><span class="g">目的地在图的尽头</span><span class="t">' +
+    esc(clamp(map.destination.split('。')[0] + '。', 66)) + '</span></div>';
+  if (!all.length) {
+    html += '<div class="board"><div class="brow">' +
+      '<div class="tile t-fog"><div class="foglayer"></div><span class="glyph">⚑</span>' +
+      '<span class="tt">终点的位置</span><span class="lab">还没有路通到这里</span></div>' +
+      '</div></div>' +
+      '<div class="boardfoot"><span>整张图还是黑的：还没有画图，只有终点那一格亮着。</span>' +
+      '<button class="btn primary sm" style="margin-left:auto">用 wayfinder 把图画出来</button></div></div>';
+    return html;
+  }
+  const viewLayer = layers.findIndex((L) => L.items.some((t) => stateOf(t, all) === 'view'));
+  html += '<div class="board">';
+  layers.forEach((L, li) => {
+    if (li) html += '<div class="corridor"><span></span></div>';
+    html += '<div class="brow">';
+    L.items.forEach((t) => {
+      const s = stateOf(t, all);
+      let cls = 'tile t-' + s;
+      if (viewLayer >= 0 && Math.abs(li - viewLayer) <= 1) cls += ' vision';
+      if (li === viewLayer && s === 'view') cls += ' here';
+      html += '<div class="' + cls + '" data-no="' + t.no + '" title="' + esc(t.title) + '">' +
+        ((o.fog && s === 'fog') ? '<div class="foglayer"></div>' : '') +
+        '<span class="glyph">' + (s === 'walk' ? '✓' : (s === 'fog' ? '?' : GLYPH[t.type] || '•')) + '</span>' +
+        '<span class="tt">' + esc(clamp(t.title, 26)) + '</span>' +
+        '<span class="lab">#' + t.no + ' · ' + (TYPE_L[t.type] || t.type) + (s === 'fog' ? ' · 被 ' + blockerNames(t, all) + ' 挡着' : '') + '</span>' +
+        (s === 'open' ? '<button class="go">推进</button>' : '') +
+        '</div>';
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+  const c = counts(map);
+  html += '<div class="boardfoot">' +
+    '<span>走亮 ' + c.walk + ' · 照亮中 ' + c.view + ' · 现在能做 ' + c.open + ' · 雾里 ' + c.fog + '</span>' +
+    '<span style="color:var(--cap)">' + (o.fog ? '站在「照亮中」那一格，周围一圈跟着亮起来（视野）' : '雾已收起：没走过的格子仍然标着「?」，没假装走完') + '</span>' +
+    '</div></div>';
+  return html;
+}
+
+/* ========================= D3 等高线（一座要爬的山） ========================= */
+function renderTerrain(map, o) {
+  const all = map.tickets, layers = levelize(all);
+  const W = Number(o.w) - 2, padX = 26;
+  const bandH = 60, topY = 18;
+  const n = layers.length;
+  const H = Math.max(230, topY + n * bandH + 46);
+  let svg = '';
+  // 山体：每层一条等高带，带的宽度 = 那一层有几张票（并行度）
+  layers.forEach((L, li) => {
+    const y = topY + (n - 1 - li) * bandH;              // 层号越大越靠上（离山顶越近）
+    const c = L.items.map((t) => stateOf(t, all));
+    const kind = c.every((s) => s === 'walk') ? 'walk' : (c.indexOf('view') >= 0 ? 'view' : (c.every((s) => s === 'fog') ? 'fog' : 'mix'));
+    const w = Math.min(W - padX * 2, (W - padX * 2) * (0.46 + 0.15 * Math.min(L.items.length, 4)));
+    const x = (W - w) / 2;
+    svg += '<path class="tr-zone ' + kind + '" d="M' + x + ' ' + (y + bandH - 9) + ' Q' + (x + w * 0.25) + ' ' + (y + 4) + ' ' + (x + w * 0.5) + ' ' + (y + 9) +
+      ' Q' + (x + w * 0.75) + ' ' + (y + 14) + ' ' + (x + w) + ' ' + (y + bandH - 9) + ' Z"/>' +
+      '<text class="tr-cap" x="' + (x + 8) + '" y="' + (y + 16) + '">第 ' + (li + 1) + ' 层 · ' + L.items.length + ' 张</text>';
+    // 票：摆在这一层坡面上的一排；同层多张 = 并行，用一条细横线连起来
+    const rowY = y + bandH - 26;
+    const mxs = [];
+    L.items.forEach((t, i) => {
+      const s = stateOf(t, all);
+      const px = L.items.length === 1 ? W / 2 : x + 30 + ((w - 60) / (L.items.length - 1)) * i;
+      mxs.push(px);
+      const fill = s === 'walk' ? 'var(--walk)' : s === 'view' ? 'var(--view)' : s === 'open' ? '#1d3a28' : '#2b3040';
+      const stroke = s === 'walk' ? 'var(--walk)' : s === 'view' ? 'var(--view)' : s === 'open' ? 'var(--walk)' : '#6b7183';
+      svg += '<circle cx="' + px + '" cy="' + rowY + '" r="8" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.6"' +
+        (s === 'fog' ? ' stroke-dasharray="2 2"' : '') + '/>' +
+        '<text class="tr-t" x="' + px + '" y="' + (rowY + 3.4) + '" text-anchor="middle">' + (s === 'walk' ? '✓' : s === 'fog' ? '?' : '·') + '</text>' +
+        '<text class="tr-cap" x="' + px + '" y="' + (rowY + 20) + '" text-anchor="middle">#' + t.no + '</text>';
+      if (o.fog && s === 'fog') svg += '<ellipse class="tr-cloud" cx="' + px + '" cy="' + rowY + '" rx="46" ry="20" opacity=".85"/>';
+    });
+    if (mxs.length > 1) svg += '<path d="M' + mxs[0] + ' ' + rowY + ' H' + mxs[mxs.length - 1] + '" stroke="rgba(163,168,192,.45)" stroke-width="1.6" stroke-dasharray="3 5" fill="none"/>';
+  });
+  // 亮痕：从山脚一路点到山顶
+  for (let i = 0; i < n; i++) {
+    const y1 = topY + (n - 1 - i) * bandH + 30;
+    const y0 = i + 1 < n ? topY + (n - 2 - i) * bandH + 30 : y1;
+    const a = layers[i].items[0], b = layers[i + 1] ? layers[i + 1].items[0] : null;
+    const lit = stateOf(a, all) === 'walk' && (!b || stateOf(b, all) !== 'fog');
+    svg += '<path d="M' + (W / 2) + ' ' + y1 + ' L' + (W / 2) + ' ' + y0 + '" stroke="' + (lit ? 'rgba(74,222,128,.9)' : 'rgba(163,168,192,.4)') +
+      '" stroke-width="' + (lit ? 3 : 2) + '" stroke-linecap="round"' + (lit ? '' : ' stroke-dasharray="3 6"') + '/>';
+  }
+  const summitLit = all.length > 0 && all.every((t) => t.state === 'CLOSED');
+  svg += '<path d="M' + (W / 2) + ' ' + (topY + 30) + ' L' + (W / 2) + ' ' + (topY + 6) + '" stroke="' + (summitLit ? 'rgba(192,132,252,.95)' : 'rgba(163,168,192,.45)') +
+    '" stroke-width="3" stroke-linecap="round"' + (summitLit ? '' : ' stroke-dasharray="3 6"') + '/>';
+  svg += '<path d="M' + (W / 2) + ' ' + (topY + 6) + ' l0 -14 l16 4 l-16 4" fill="none" stroke="var(--map)" stroke-width="1.8" stroke-linejoin="round"/>';
+  let html = '<div class="terrain">' +
+    '<div class="terrhead"><div class="cap">山顶 · 目的地（山顶永远是晴天，不盖雾）</div>' +
+    '<div class="tt">' + esc(clamp(map.destination, map.tickets.length ? 96 : 150)) + '</div></div>' +
+    '<svg viewBox="0 0 ' + W + ' ' + H + '" height="' + H + '">' + svg + '</svg>';
+  const c = counts(map);
+  html += '<div class="tr-foot">' +
+    '<span>走亮 ' + c.walk + ' · 照亮中 ' + c.view + ' · 现在能做 ' + c.open + ' · 雾里 ' + c.fog + '</span>' +
+    '<span style="color:var(--cap)">' + (o.fog ? '云只盖还没走上去的那几段；带的宽窄 = 那一层有几张票' : '云已收起：没上去的段仍然是虚线') + '</span></div></div>';
+  return html;
+}
+
+/* ========================= D4 连载手稿（一篇正在写的稿子） ========================= */
+function renderJournal(map, o) {
+  const all = map.tickets, layers = levelize(all), c = counts(map);
+  const CN = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五'];
+  const nowT = all.find((t) => stateOf(t, all) === 'view') || all.find((t) => stateOf(t, all) === 'open');
+  const nowWord = nowT ? (stateOf(nowT, all) === 'view' ? '正在写第 ' + (all.indexOf(nowT) + 1) + ' 节' : '下一节可以动笔') : '全都写完了';
+  let html = '<div class="ms">' +
+    '<div class="ms-kick">地图 #' + map.no + ' · 连载中 · ' + nowWord + '</div>' +
+    '<h1>' + esc(map.title) + '</h1>' +
+    '<p class="ms-goal">' + esc(map.destination) + '</p>' +
+    '<div class="ms-tally">已走完 ' + c.walk + ' 段 · 正在写 ' + c.view + ' 段 · 还没动笔 ' + c.fog + ' 段 · 留白 ' + (map.fogTotal || 0) + ' 处</div>';
+  if (!all.length) {
+    html += '<div class="ms-sec unwritten"><div class="sn">第一节</div><h2>还没动笔</h2>' +
+      '<div class="ms-body">这张图只有开篇那句目的地，正文一个字都还没有。用 wayfinder 把段落排出来，这份稿子才算开了头。</div></div>' +
+      '<div class="ms-blanks"><div class="cap">留白</div><div class="it">要走哪条线、花多少钱、先去哪座城 —— 都还没想清楚。</div></div></div>';
+    return html;
+  }
+  let dIdx = 0;
+  layers.forEach((L, li) => {
+    L.items.forEach((t) => {
+      const s = stateOf(t, all);
+      if (s === 'walk') {
+        const gist = (map.decisions && map.decisions[dIdx]) ? map.decisions[dIdx].g : '';
+        dIdx++;
+        html += '<div class="ms-sec done"><div class="sn">第 ' + (li + 1) + ' 节 · #' + t.no + '</div>' +
+          '<h2>' + esc(t.title) + '<span class="stamp">已走完</span></h2>' +
+          '<div class="ms-body">' + (gist ? esc(gist) : '这一段走完了，结论留在票里。') + '</div></div>';
+      } else if (s === 'view') {
+        html += '<div class="ms-sec now"><div class="sn">正在写的这一节 · #' + t.no + ' · ' + (TYPE_L[t.type] || t.type) + '</div>' +
+          '<h2>' + esc(t.title) + '</h2>' +
+          '<div class="ms-body">' + esc(t.claimedBy) + ' 正在写。这是全图唯一点亮着的一段。</div>' +
+          '<div class="acts"><button class="btn primary sm">继续写这一节</button><button class="btn ghost sm">在新会话打开</button></div></div>';
+      } else if (s === 'open') {
+        html += '<div class="ms-sec next"><div class="sn">下一节 · #' + t.no + ' · ' + (TYPE_L[t.type] || t.type) + '</div>' +
+          '<h2>' + esc(t.title) + '</h2><div class="ms-body">前面已经通了，想动笔随时可以动。</div>' +
+          '<div class="acts"><button class="btn primary sm">开始写这一节</button></div></div>';
+      } else {
+        const body = '这一节还没动笔 —— ' + blockerNames(t, all) + ' 还没写完，写不到这里。';
+        html += '<div class="ms-sec unwritten"><div class="sn">还没动笔 · #' + t.no + ' · ' + (TYPE_L[t.type] || t.type) + '</div>' +
+          '<h2>' + (o.fog ? '<span class="ms-redact">' + esc(t.title) + '</span>' : esc(t.title)) + '</h2>' +
+          '<div class="ms-body">' + esc(body) + (o.fog ? '' : '（雾已收起，标题显示出来，但这一节仍然没动笔）') + '</div></div>';
+      }
+    });
+  });
+  html += '<div class="ms-blanks"><div class="cap">留白 · 还没想清楚的地方（' + (map.fogTotal || 0) + '）</div>' +
+    (map.fog.length ? map.fog.map((f) => '<div class="it">' + esc(f) + '</div>').join('') : '<div class="it">没有记下留白。</div>') +
+    (map.fogTotal > map.fog.length ? '<div class="it" style="color:var(--cap)">本原型只带前 2 条原文做样本</div>' : '') +
+    '<div class="cap" style="margin-top:11px;color:var(--map)">不在这张图里（' + (map.outOfScopeTotal || 0) + '）</div>' +
+    (map.outOfScope.length ? map.outOfScope.map((x) => '<div class="it" style="border-left-style:solid;border-left-color:rgba(192,132,252,.3)">' + esc(x) + '</div>').join('') : '') +
+    '</div></div>';
+  return html;
+}
+
+/* ========================= D5 任务控制台（一屏只说一句话） ========================= */
+function renderConsole(map, o) {
+  const all = map.tickets, layers = levelize(all), c = counts(map);
+  const view = all.find((t) => stateOf(t, all) === 'view');
+  const open = all.find((t) => stateOf(t, all) === 'open');
+  const next = view || open;
+  let html = '<div class="cp">';
+  if (!all.length) {
+    html += '<div class="cp-cap">现在该做的一件事</div>' +
+      '<div class="cp-task" style="border-color:var(--bd)"><div class="no">还没有可推进的</div>' +
+      '<div class="t">这张图还没画出来</div><div class="meta">只有目的地是清楚的，下面一个步骤都没有。</div>' +
+      '<div class="acts"><button class="btn primary sm">用 wayfinder 把这张图画出来</button></div></div>' +
+      '<div class="cp-gauges"><div class="gg f"><div class="n">0</div><div class="l">票</div></div>' +
+      '<div class="gg"><div class="n">—</div><div class="l">走亮</div></div><div class="gg"><div class="n">—</div><div class="l">照亮中</div></div>' +
+      '<div class="gg f"><div class="n">' + (map.fogTotal || 0) + '</div><div class="l">留白</div></div></div>' +
+      '<div class="cp-dest"><div class="cap">目的地</div>' + esc(map.destination) + '</div></div>';
+    return html;
+  }
+  html += '<div class="cp-cap">现在该做的一件事</div>';
+  if (next) {
+    const s = stateOf(next, all);
+    html += '<div class="cp-task"><div class="no">#' + next.no + ' · ' + STATE_WORD[s] + (s === 'view' ? ' · ' + esc(next.claimedBy) : '') + '</div>' +
+      '<div class="t">' + esc(next.title) + '</div>' +
+      '<div class="meta">' + (s === 'view' ? '已经开工的一张：接着做，别开新的' : '前面全通了，现在就能动的一张') + '</div>' +
+      '<div class="acts"><button class="btn primary sm">' + (s === 'view' ? '继续这张' : '推进这张') + '</button><button class="btn ghost sm">在新会话打开</button></div></div>';
+  } else {
+    html += '<div class="cp-task" style="border-color:rgba(245,158,11,.5);background:linear-gradient(180deg,rgba(245,158,11,.1),transparent)">' +
+      '<div class="no" style="color:#f0b457">现在没有能立刻推进的</div>' +
+      '<div class="t">剩下的都被还没关的票挡着</div>' +
+      '<div class="meta">见下面「谁挡着谁」。要不就是全走亮了，可以收图。</div></div>';
+  }
+  const pct = c.total ? Math.round((c.walk / c.total) * 100) : 0;
+  html += '<div class="cp-gauges">' +
+    '<div class="gg w"><div class="n">' + c.walk + '/' + c.total + '</div><div class="l">走亮</div><div class="ggbar"><i style="width:' + pct + '%;background:var(--walk)"></i></div></div>' +
+    '<div class="gg v"><div class="n">' + c.view + '</div><div class="l">照亮中</div></div>' +
+    '<div class="gg o"><div class="n">' + c.open + '</div><div class="l">现在能做</div></div>' +
+    '<div class="gg f"><div class="n">' + c.fog + '</div><div class="l">雾里</div></div>' +
+    '</div>';
+  html += '<div class="cp-rail">' + layers.map((L) => {
+    const cs = L.items.map((t) => stateOf(t, all));
+    const k = cs.every((s) => s === 'walk') ? 'walk' : (cs.indexOf('view') >= 0 ? 'view' : (cs.every((s) => s === 'fog') ? 'fog' : ''));
+    return '<b class="' + k + '" title="第 ' + (L.i + 1) + ' 层 · ' + L.items.length + ' 张"></b>';
+  }).join('') + '<span class="tiny" style="margin-left:6px">' + layers.length + ' 段轨</span></div>';
+  const blocked = all.filter((t) => stateOf(t, all) === 'fog');
+  if (blocked.length) {
+    html += '<div class="cp-board"><div class="cp-bh">谁挡着谁 · ' + blocked.length + ' 张卡在雾里</div>' +
+      blocked.map((t) => '<div class="cp-br"><span class="no">#' + t.no + '</span><span class="ti">' + esc(t.title) + '</span>' +
+        '<span class="why">← ' + blockerNames(t, all) + ' 未关</span></div>').join('') + '</div>';
+  }
+  if (c.walk) {
+    html += '<div class="cp-done"><span style="color:var(--walk)">✓</span><span>已完成 ' + c.walk + ' 段航程</span>' +
+      '<span class="tiny" style="margin-left:auto">' + all.filter((t) => stateOf(t, all) === 'walk').map((t) => '#' + t.no).join(' · ') + '</span></div>';
+  }
+  html += '<div class="cp-dest"><div class="cap">目的地</div>' + esc(map.destination) + '</div></div>';
+  return html;
+}
+
+/* ========================= 启动：方向表 + 切换条 + 键盘 ========================= */
+const DIRS = [
+  { k: 'D1', name: '星空', slogan: '地图 = 夜空：终点是北极星，走过的是星座',
+    mech: '终点叫北极星，永远亮着且带十字星芒；走亮的票是连成星座的亮星，没走的躺在星云里。', q: '我离北极星还有多远？' },
+  { k: 'D2', name: '战棋迷雾', slogan: '地图 = 一张正在被点亮的方格战场',
+    mech: '每张票占一格；没走到的地方是暗格，站在「照亮中」那一格，周围一圈跟着亮（视野半径）。', q: '我脚下亮着的这一圈有多大？' },
+  { k: 'D3', name: '等高线', slogan: '地图 = 一座要爬的山：层就是海拔',
+    mech: '每层一条等高带，层号越大越靠上；带的宽窄 = 那一层有几张票（并行度）；云只盖还没走上去的段。', q: '我在山的哪一段？' },
+  { k: 'D4', name: '连载手稿', slogan: '地图 = 一篇正在写的稿子',
+    mech: '走完的是已刊出的段落（带结论摘录），正在写的是当前这一节，没动笔的用涂黑块盖住标题。', q: '这个故事写到哪了？' },
+  { k: 'D5', name: '任务控制台', slogan: '地图 = 一块仪表板：一屏只说一句「做这件」',
+    mech: '最大的一块是「现在该做的一件事」，其余全是数字、轨道和告警，没有一句散文。', q: '我下一件该干什么？' },
+];
+const state = { v: 'D1', s: 'active', w: 810, fog: 1, sel: null };
+const qs = new URLSearchParams(location.search);
+['v', 's', 'w', 'fog'].forEach((k) => { if (qs.get(k) != null) state[k] = qs.get(k); });
+state.w = Number(state.w); state.fog = Number(state.fog);
+const mapOf = () => state.s === 'empty' ? EMPTY : (state.s === 'done' ? DONE : (state.s === 'big' ? BIG : ACTIVE));
+
+function paint() {
+  const map = mapOf(), o = { fog: !!state.fog, w: state.w };
+  const d = DIRS.find((x) => x.k === state.v) || DIRS[0];
+  const body = state.v === 'D1' ? renderSky(map, o) : state.v === 'D2' ? renderBoard(map, o)
+    : state.v === 'D3' ? renderTerrain(map, o) : state.v === 'D4' ? renderJournal(map, o) : renderConsole(map, o);
+  const panel = document.getElementById('panel');
+  panel.className = 'panel' + (state.w < 520 ? ' narrow' : '');
+  panel.style.width = state.w + 'px';
+  panel.innerHTML = '<div class="chrome">' +
+      '<div class="chrome-top"><span class="repo">FeatherHunter/dsh-mattpocock-skills-deck</span><span class="sp"></span>' +
+      '<span class="ico">⚙</span><span class="ico">✕</span></div>' +
+      '<div class="chrome-tabs"><span class="tab on">列表</span><span class="tab">拉取请求</span><span class="tab">技能</span><span class="tab">环境检查</span>' +
+      '<span class="sp"></span><span class="mini">+ 需求</span><span class="mini">+ bug</span><span class="mini">刷新</span><span class="ver">v1.7.24</span></div>' +
+    '</div>' +
+    '<div class="sticky"><button class="btn ghost sm">← 返回</button><span class="crumb">列表 / #' + map.no + '</span>' +
+    '<span class="chipm">▣ wayfinder:map</span><span class="sp"></span><button class="btn primary sm">' +
+    (DIRS.findIndex((x) => x.k === state.v) === 4 ? '▶ 推进这张图' : '▶ 推进这张图') + '</button></div>' +
+    '<div class="scroll">' + body + '</div>';
+  wire(map);
+  document.getElementById('vlabel').textContent = d.k + ' — ' + d.name;
+  document.querySelectorAll('#dirs .dir').forEach((el) => el.classList.toggle('on', el.dataset.k === d.k));
+  document.querySelectorAll('.seg').forEach((b) => b.classList.toggle('on', String(state[b.dataset.k]) === b.dataset.v));
+  const u = new URL(location.href);
+  ['v', 's', 'w', 'fog'].forEach((k) => u.searchParams.set(k, String(state[k])));
+  history.replaceState(null, '', u.toString());
+}
+function wire(map) {
+  document.querySelectorAll('.star,.tile').forEach((el) => {
+    el.onclick = function (e) {
+      const no = Number(el.dataset.no);
+      if (!no) return;
+      if (el.classList.contains('st-fog') || el.classList.contains('t-fog')) {
+        if (el.classList.contains('revealed')) { state.sel = no; }
+        else { el.classList.add('revealed'); }
+      } else { state.sel = no; }
+      if (state.sel) paint();
+    };
+  });
+}
+function cycle(step) {
+  const i = DIRS.findIndex((x) => x.k === state.v);
+  state.v = DIRS[(i + step + DIRS.length) % DIRS.length].k;
+  state.sel = null;
+  paint();
+}
+document.getElementById('prev').onclick = () => cycle(-1);
+document.getElementById('next').onclick = () => cycle(1);
+document.querySelectorAll('.seg').forEach((b) => {
+  b.onclick = function () { const k = b.dataset.k; state[k] = (k === 'v' || k === 's') ? b.dataset.v : Number(b.dataset.v); paint(); };
+});
+window.addEventListener('keydown', function (e) {
+  const tag = (e.target && e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || (e.target && e.target.isContentEditable)) return;
+  if (e.key === 'ArrowLeft') { cycle(-1); e.preventDefault(); }
+  if (e.key === 'ArrowRight') { cycle(1); e.preventDefault(); }
+});
+document.getElementById('dirs').innerHTML = DIRS.map((d) =>
+  '<div class="dir" data-k="' + d.k + '"><div class="h"><span class="k">' + d.k + '</span>' + d.name + '</div>' +
+  '<div class="m">' + d.slogan + '</div><div class="q">' + d.mech + '</div><div class="q">它先回答：' + d.q + '</div></div>').join('');
+document.querySelectorAll('#dirs .dir').forEach((el) => {
+  el.style.cursor = 'pointer';
+  el.onclick = () => { state.v = el.dataset.k; state.sel = null; paint(); };
+});
+if (qs.get('bar') === '0') document.getElementById('bar').style.display = 'none';
+paint();
+</script>
+</body>
+</html>

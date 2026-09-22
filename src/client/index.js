@@ -81,6 +81,8 @@ export default {
     // ==== kernel:localeWord (spliced by build) ====
     // #621：标签配色弹窗的中英词条单独一份片段（老的三份片段都在 350 行上限附近，塞不下）
     // ==== kernel:localeLabels (spliced by build) ====
+    // #690 历史票按需翻页的五条文案：locale-flow.js 已贴 350 行上限，照 #621 的做法自成一个片段。
+    // ==== kernel:localePages (spliced by build) ====
     // ==== kernel:locale (spliced by build) ====
     const localeSvc = ctx.get('locale')
     if (localeSvc && typeof localeSvc.register === 'function') {
@@ -134,6 +136,7 @@ export default {
     // ==== shared:trackerSync (spliced by build) ====
     // ==== shared:slots (spliced by build) ====
     // ==== kernel:icons (spliced by build) ====
+    // ==== kernel:healthCheck (spliced by build) ====
 
     // ============================================================
     // 2.5 配置模型（v25 · T2a：dsws.cfg + dsws.templates；旧 dsws.startCfg 自动迁移）
@@ -188,6 +191,8 @@ export default {
     // ==== kernel:apiWorkspace (spliced by build) ====
     // ==== kernel:apiNewSession (spliced by build) ====
     // ==== kernel:apiIo (spliced by build) ====
+    // #690：历史票的页数据（已关闭票按需翻页）。排在 apiIo 之后 —— 它调的 fetchIssuesPage 住在 apiIo 里。
+    // ==== kernel:issuePages (spliced by build) ====
 
     // ==== kernel:actions (spliced by build) ====
     // ==== kernel:slots (spliced by build) ====
@@ -223,6 +228,7 @@ export default {
 
     // ==== leaf:ticketRow (spliced by build) ====
 
+    // ==== leaf:mapDetailHead (spliced by build) ====
     // ==== leaf:mapDetail (spliced by build) ====
 
     // ==== leaf:IssueDetailComments (spliced by build) ==== // ==== leaf:IssueDetail (spliced by build) ====
@@ -230,7 +236,7 @@ export default {
     // ==== leaf:tagsFit (spliced by build) ====
     // ==== leaf:pop (spliced by build) ====
     // ==== leaf:noRepoCard (spliced by build) ====
-    // ==== leaf:ListTabRow (spliced by build) ==== // ==== leaf:listTab (spliced by build) ====
+    // ==== leaf:ListTabClosed (spliced by build) ==== // ==== leaf:ListTabRow (spliced by build) ==== // ==== leaf:listTab (spliced by build) ====
 
     // ==== leaf:prTab (spliced by build) ====
 

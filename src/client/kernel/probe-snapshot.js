@@ -84,8 +84,7 @@
       applyTo(shared)
       Object.keys(stores).forEach(function (k) { applyTo(stores[k]) })
     }
-    // #490 client 日志底座：开关变更广播（与 broadcastCfg 同构：共享与全组逐个走访并逐个发出更新；
-    //   开关值本身只存一份（logSwitch 内存与 dsws.debug 本地），广播只为让各会话界面刷新）。
+    // #490 client 日志底座：开关变更广播（与 broadcastCfg 同构：共享与全组逐个走访并逐个发出更新； 开关值本身只存一份（logSwitch 内存与 dsws.debug 本地），广播只为让各会话界面刷新）。
     export const broadcastLogSwitch = function () {
       const applyTo = function (st) {
         if (!st) return
@@ -95,8 +94,7 @@
       Object.keys(stores).forEach(function (k) { applyTo(stores[k]) })
     }
 
-    // v1.5 T10 R4（用户拍板）：数据层增量 diff —— 变更/新增/删除 按票号对比（含 map 子票级变化），
-    //   多视图（列表/map详情/状态栏计数/过滤结果）数据驱动自动增量；diff 结果供 R5 视觉消费
+    // v1.5 T10 R4（用户拍板）：数据层增量 diff —— 变更/新增/删除 按票号对比（含 map 子票级变化）， 多视图（列表/map详情/状态栏计数/过滤结果）数据驱动自动增量；diff 结果供 R5 视觉消费
     export const diffSnapshots = function (oldS, newS) {
       try{ if(oldS&&newS&&oldS.version&&newS.version&&oldS.version===newS.version) return {added:[],removed:[],changed:[],issueFlash:{},ts:Date.now(),skipped:true}; }catch(e){}
       const out = { added: [], removed: [], changed: [], issueFlash: {}, ts: Date.now() }
@@ -206,7 +204,8 @@
         // #669 第 6 件（ADR 20260921）：只有用户亲手选过的那条才当 hint 上报 —— 派生值不许冒充意图
         //   （宿主那边带 hint 就压过锚文件，见 store-prefs.js 的 userHintOf 与 ADR 的攻击 1）。
         const _hintBid = (typeof userHintOf === 'function') ? userHintOf(st.selection) : undefined
-        const args = Object.assign({}, st.cwd ? { cwd: st.cwd, ifNoneMatch: ver, version: ver } : (ver?{ifNoneMatch:ver,version:ver}:{}), _hintBid ? { backendId: _hintBid } : {})
+        const _hintRev = (typeof baseRevOf === 'function') ? baseRevOf(st.selection) : 0 // #683（F1 · ADR 的 R2）：hint 旁边带上「这条选择是从哪个修订号来的」，宿主才判得出新旧
+        const args = Object.assign({}, st.cwd ? { cwd: st.cwd, ifNoneMatch: ver, version: ver } : (ver?{ifNoneMatch:ver,version:ver}:{}), _hintBid ? { backendId: _hintBid, baseRev: _hintRev } : {})
         const _normKeyP = wsKeyOf(st.cwd||'');
         let _ctrl=null; try{ _ctrl=typeof AbortController!=='undefined'?new AbortController():{signal:{aborted:false},abort(){}}; }catch(e){ _ctrl={signal:{aborted:false},abort(){}}; }
         let _timer=null;
@@ -250,6 +249,9 @@
           if (snap && (snap.notModified===true || snap.status===304)) {
             // 304 zero emit per spec: version unchanged -> keep old table, no UI change
             st.snapLoading=false;
+            // #683（F1 · ADR 的 R4）：304 也要合并权威选择 —— 「只换了后端、快照内容一个字没变」正是这条路的现场：版本号没变所以这里什么都不做，于是面板头与状态栏继续显示旧后端，而同屏的链与横幅（走 wf.detect）已经按新值答了。宿主这一版回包里带着 {selection, rev}，这里合并它。
+            try { if (snap.selection && typeof mergeSelection === 'function') { if (mergeSelection(st, snap.selection)) emit(st) } } catch (eSel) {}
+            try { if (snap.setupLayout && typeof setCachedSetupLayout === 'function') setCachedSetupLayout(st.cwd, snap.setupLayout) } catch (eSL) {} // #683（F1 · R6）：304 也回填记住的布局（版本号没变不代表布局没变）
             // still touch LRU ts via setCachedSnapshot? keep old
             emit(st); // minimal tick for probe freshness but no data change
             return;
@@ -267,6 +269,7 @@
             if (_df.removed.length) flash(st, tr('panel.diffRemoved', { n: _df.removed.length }), 'info')
             scheduleFlashClear(st)
             st.snapshot = snap
+            try { if (snap.setupLayout && typeof setCachedSetupLayout === 'function') setCachedSetupLayout(st.cwd, snap.setupLayout) } catch (eSL) {} // #683（F1 · R6）：宿主记住的布局回填本地（两壳各答一样时按时刻仲裁，本地刚点的那一下不会被顶回去）
             // #635：这份快照如果是「保存前就发出去、保存后才回来」的那一次刷新拿回来的，它不知道刚改过的
             // 标签颜色，装进来就会把面板倒回旧色。装进来之后先按那次保存确认过的色值补一遍，
             // 补的规则与记录都住在 views/labels/labelColorPatch.js（比那份记录旧才补，新的就作废记录）。

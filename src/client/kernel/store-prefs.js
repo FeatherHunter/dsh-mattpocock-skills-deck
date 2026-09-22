@@ -167,7 +167,40 @@
         } } } }
       } catch (e) { /* 存储不可用降级为仅内存 */ }
     })()
-    const persistSelectionByCwd = function () { try { localStorage.setItem(SELECTION_BY_CWD_KEY, JSON.stringify(selectionByCwd)) } catch (e) { /* 忽略 */ } }
+    // #683（F1 · ADR 20260921 的 R7b）：写这张镜像表要「读回磁盘上那张 → 只换本工作区那一条 → 写回」。
+    //   从前这里是把进程内存里那份**整表**序列化写回：同一个访问地址开两个窗口时，后写的那扇窗会把
+    //   另一扇窗刚写进去的键整条顶掉（一个窗口里选完后端，另一个窗口一刷新就看不见了）。
+    //   写失败也不再一口吞掉：与同文件 saveListPrefs / saveLabelClicks 同例记一条 storage.fail（ADR 的 R7c）。
+    //   本文件另有一张横幅折叠表（bannerFoldByCwd）还是老写法 —— 那条路今天没有跨窗口场景，本次不动它。
+    const writeTableEntry = function (storeKey, entryKey, value) {
+      try {
+        let table = null
+        try { const raw = localStorage.getItem(storeKey); table = raw ? JSON.parse(raw) : null } catch (eR) { table = null }
+        if (!table || typeof table !== 'object' || Array.isArray(table)) table = {}
+        table[entryKey] = value
+        localStorage.setItem(storeKey, JSON.stringify(table))
+      } catch (e) { try { log('warn', 'storage.fail', { key: storeKey, op: 'write' }) } catch (eL) {} }
+    }
+    // 别的工作区、别的窗口改了这张表时，把磁盘上那份合并回内存。磁盘那张是各窗口写进去的并集，
+    //   同名的那一条以磁盘为准 —— 我们自己刚写的那一次也在里面，不会被顶掉。
+    const mergeTableFromStorage = function (storeKey, inMemory) {
+      try {
+        const raw = localStorage.getItem(storeKey)
+        if (!raw) return
+        const m = JSON.parse(raw)
+        if (!m || typeof m !== 'object' || Array.isArray(m)) return
+        for (const k of Object.keys(m)) inMemory[k] = m[k]
+      } catch (e) { /* 磁盘上那份读不出来时就按内存里这份继续用 */ }
+    }
+    // storage 事件只在**别的**同源文档改了这份存储时触发，正是「另一扇窗刚写了一条」那个现场。
+    const onStorageMerge = function (ev) {
+      try {
+        const k = ev && ev.key
+        if (k === SELECTION_BY_CWD_KEY) mergeTableFromStorage(SELECTION_BY_CWD_KEY, selectionByCwd)
+        else if (k === SETUP_LAYOUT_BY_CWD_KEY) mergeTableFromStorage(SETUP_LAYOUT_BY_CWD_KEY, setupLayoutByCwd)
+      } catch (e) {}
+    }
+    try { if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('storage', onStorageMerge) } catch (e) {}
     // #422 · 提示横幅按工作区收起记忆（默认全部展开；各类提示横幅都可收，由调用方横幅决定是否给收起入口）。
     //   存法沿用选择集同例：归一键 → 1（收起），缺席即展开；localStorage 不可用时降级为仅内存。
     export const BANNER_FOLD_KEY = 'dsws.bannerFold'
@@ -198,7 +231,7 @@
       } catch (e2) {}
     }
     export const getCachedSelection = function (cwd) { try { const k = wsKeyOf(cwd); return (cwd && k) ? (selectionByCwd[k] || null) : null } catch(e){ return cwd ? (selectionByCwd[cwd] || null) : null } }
-    export const setCachedSelection = function (cwd, sel) { try { const k = wsKeyOf(cwd); if (cwd && k) { selectionByCwd[k] = sel; persistSelectionByCwd() } } catch(e){ if (cwd) { selectionByCwd[cwd] = sel; persistSelectionByCwd() } } }
+    export const setCachedSelection = function (cwd, sel) { try { const k = wsKeyOf(cwd); if (cwd && k) { selectionByCwd[k] = sel; writeTableEntry(SELECTION_BY_CWD_KEY, k, sel) } } catch(e){ if (cwd) { selectionByCwd[cwd] = sel; writeTableEntry(SELECTION_BY_CWD_KEY, cwd, sel) } } }
     // #669 第 6 件（ADR 20260921）：**只有用户亲手选过的那一条**才配当「用户的手动选择」上报给宿主。
     //   为什么要有这把闸：缓存里的这条选择有两种来源 —— 用户点出来的（意图），和快照/链/自动识别算出来的
     //   （派生）。宿主那边的顺序是「人的意图 > 锚文件 > 机器推断」，如果派生值也当意图上报，锚文件上一次的
@@ -209,7 +242,33 @@
     //   后端 id、于是没采纳这条 hint，或别处把文件对齐了）就照宿主的来，钥匙自然消失。合并时留住它，是为了让
     //   「用户亲手选的」这件事不因为一次刷新就丢：丢了等于锚文件重新说话，正是 ADR 攻击 1 要防的那条。
     export const userHintOf = function (sel) { try { return (sel && sel.userPicked === true && sel.backendId) ? sel.backendId : undefined } catch (e) { return undefined } }
-    export const keepUserPick = function (cur, incoming) { try { if (cur && cur.userPicked === true && incoming && incoming.userPicked !== true && String(incoming.backendId || '') === String(cur.backendId || '')) return Object.assign({}, incoming, { userPicked: true }) } catch (e) { /* 合并守住标记失败时按原样用宿主回包 */ } return incoming }
+    // #683（F1 · ADR 20260921 的 R2）：每条记录都要带「这条选择是从哪个修订号来的」。
+    //   rev 由宿主发号（每接受一次用户选择 +1），客户端只把它一路带着走 —— 写入时记下当时知道的那一个，
+    //   上报时换成 baseRev 这个名字原样回给宿主，宿主才判得出「你手里这份是不是最新那一版」。
+    //   没有版本位的老记录按 0 处理：那种记录只在宿主那边还没有该工作区记录时被采纳一次（一次性迁移）。
+    export const baseRevOf = function (sel) { try { return (sel && typeof sel.rev === 'number' && isFinite(sel.rev) && sel.rev > 0) ? sel.rev : 0 } catch (e) { return 0 } }
+    // 用户亲手选的那一条的形状：标记 + 点击时刻 + 这条是从哪个修订号来的。
+    //   四个「用户点确认」的写入点都从这里取，别各写一份 —— 漏一处就等于那一条上报时会冒充最新版。
+    export const userPickSelection = function (backendId, ref, prevSelection) {
+      return { backendId: backendId, source: 'explicit', ref: (ref === undefined ? null : ref), userPicked: true, pickedAt: Date.now(), rev: baseRevOf(prevSelection) }
+    }
+    // 绑定的回包回来之后，把宿主发的新修订号落到本地那条上（ADR 的 §5 接线）。
+    //   回包形状两种都可能（有的路是裸对象、有的是包在 value 里的信封），这里只认 rev 这一个字段。
+    export const adoptBoundRev = function (st, res) {
+      try {
+        const payload = (res && res.value && typeof res.value === 'object') ? res.value : res
+        const rev = (payload && typeof payload.rev === 'number' && isFinite(payload.rev) && payload.rev > 0) ? payload.rev : null
+        if (rev === null) return null
+        if (!st || !st.selection || st.selection.userPicked !== true) return null
+        st.selection.rev = rev
+        if (st.cwd) { try { setCachedSelection(st.cwd, st.selection) } catch (eC) {} }
+        return rev
+      } catch (e) { return null }
+    }
+    // #683（F1 · ADR 的 R2b）：版本位必须活过一次往返 —— 宿主这一次没带 rev/pickedAt 时把本地那份留住。
+    //   不留住的话，第一次快照合并就把它抹掉，此后这个壳上报的都是「没带版本位」，会被宿主当成最旧的一版顶回。
+    //   这一行必须保持单行：tests/verify-669-choice-precedence.js 是按「含 keepUserPick 的那一行」取出真身来跑的。
+    export const keepUserPick = function (cur, incoming) { try { if (cur && cur.userPicked === true && incoming && incoming.userPicked !== true && String(incoming.backendId || '') === String(cur.backendId || '')) { const out = Object.assign({}, incoming, { userPicked: true }); if (!(typeof out.rev === 'number' && isFinite(out.rev)) && typeof cur.rev === 'number' && isFinite(cur.rev)) out.rev = cur.rev; if (!(typeof out.pickedAt === 'number' && isFinite(out.pickedAt)) && typeof cur.pickedAt === 'number' && isFinite(cur.pickedAt)) out.pickedAt = cur.pickedAt; return out } } catch (e) { /* 合并守住标记失败时按原样用宿主回包 */ } return incoming }
     export const getCachedRepository = function (cwd) { try { const k = wsKeyOf(cwd); return (cwd && k) ? repositoryByCwd[k] : null } catch(e){ return cwd ? repositoryByCwd[cwd] : null } }
     export const setCachedRepository = function (cwd, repo) { try { const k = wsKeyOf(cwd); if (cwd && k) repositoryByCwd[k] = repo } catch(e){ if (cwd) repositoryByCwd[cwd] = repo } }
     // 初始化那张小卡上答的「域文档布局」按工作区记住（维护者 2026-09-21 拍板：A + 记住）。
@@ -226,19 +285,44 @@
         if (raw) { const m = JSON.parse(raw); if (m && typeof m === 'object') { for (const k of Object.keys(m)) { const nk = (typeof keyOf === 'function' ? keyOf(k) : k); if (!(nk in setupLayoutByCwd)) setupLayoutByCwd[nk] = m[k] } } }
       } catch (e) { /* 存储不可用降级为仅内存 */ }
     })()
-    const persistSetupLayoutByCwd = function () { try { localStorage.setItem(SETUP_LAYOUT_BY_CWD_KEY, JSON.stringify(setupLayoutByCwd)) } catch (e) { /* 忽略 */ } }
     export const getCachedSetupLayout = function (cwd) {
       try {
         const k = wsKeyOf(cwd)
-        const v = String(((cwd && k) ? setupLayoutByCwd[k] : (cwd ? setupLayoutByCwd[cwd] : '')) || '').toLowerCase()
+        const raw = (cwd && k) ? setupLayoutByCwd[k] : (cwd ? setupLayoutByCwd[cwd] : null)
+        // #683（F1 · ADR 的 R6）：这张表里一条现在存 {layout, pickedAt}（与后端那张同一种形状），
+        //   读出来永远只给取值（老版本存的裸字符串照旧认，外面看不出形状变了）。
+        const v = String((raw && typeof raw === 'object' ? raw.layout : raw) || '').toLowerCase()
         return (v === 'single' || v === 'multi') ? v : null
       } catch (e) { return null }
     }
     export const setCachedSetupLayout = function (cwd, v) {
       try {
-        const s = String(v == null ? '' : v).toLowerCase()
+        // 卡上点的那一下传裸字符串（记下现在这一刻）；宿主回填传 {layout, pickedAt}（留着宿主那一刻）——
+        //   两个壳各答一个样时按时刻仲裁：新的覆盖旧的（ R6：没有这个依据，落后的那扇窗永远停在老答案上）。
+        let s = '', at = 0
+        if (v && typeof v === 'object') { s = String(v.layout == null ? '' : v.layout).toLowerCase(); at = Number(v.pickedAt) || 0 }
+        else { s = String(v == null ? '' : v).toLowerCase(); at = Date.now() }
         if (s !== 'single' && s !== 'multi') return
         const k = wsKeyOf(cwd)
-        if (cwd && k) { setupLayoutByCwd[k] = s; persistSetupLayoutByCwd() }
+        if (cwd && k) {
+          const cur = setupLayoutByCwd[k]
+          const curAt = (cur && typeof cur === 'object') ? (Number(cur.pickedAt) || 0) : 0
+          // 刚在卡上点的那一下（at=0 不可能：卡上走的一定是裸字符串那条，时刻就是现在）；宿主回填的老值不许
+          //   顶掉本地更新的那条。老版本存的裸字符串一律当 0（宿主回填、或本次点确认都会把它换成带时刻的形状）。
+          if (!(at > 0 && curAt > 0) || at >= curAt) { const rec = { layout: s, pickedAt: at }; setupLayoutByCwd[k] = rec; writeTableEntry(SETUP_LAYOUT_BY_CWD_KEY, k, rec) }
+        }
       } catch (e) { /* 忽略 */ }
+    }
+    // #683（F1 · ADR 20260921 的 R7d）：把一条记录从老键搬到新键 —— 用在「工作区根后来才认出来」那一下。
+    //   为什么必须搬：工作区认根之前，选择与布局是按「会话所选目录」那把键存的；根一认出来，读写都改走根键，
+    //   老键那条就此没人再看 —— 界面会一边按老键说 Markdown、另一边（按根键）说「还没有设置」。
+    //   这条顺带把 #653「旧键不迁移」留下的那批记录救回来。目标键上已经有记录时不动它（只补空缺，不覆盖）。
+    export const migrateCachedChoiceToKey = function (fromKey, toKey) {
+      try {
+        if (!fromKey || !toKey || fromKey === toKey) return false
+        let moved = false
+        try { if (!(toKey in selectionByCwd)) { const s = selectionByCwd[fromKey]; if (s) { selectionByCwd[toKey] = s; writeTableEntry(SELECTION_BY_CWD_KEY, toKey, s); moved = true } } } catch (e1) {}
+        try { if (!(toKey in setupLayoutByCwd)) { const l = setupLayoutByCwd[fromKey]; if (l) { setupLayoutByCwd[toKey] = l; writeTableEntry(SETUP_LAYOUT_BY_CWD_KEY, toKey, l); moved = true } } } catch (e2) {}
+        return moved
+      } catch (e) { return false }
     }

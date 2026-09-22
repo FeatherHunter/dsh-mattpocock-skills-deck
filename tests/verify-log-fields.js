@@ -27,7 +27,7 @@ const ALLOWED = {
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],
   'issues.fallback': ['from', 'to', 'reason'],
-  'snapshot.built': ['maps', 'issues', 'labels', 'fallback', 'latencyMs'],
+  'snapshot.built': ['maps', 'issues', 'labels', 'fallback', 'latencyMs', 'open', 'closed', 'partial'],
   'probe.eval': ['repoKeyHash', 'since', 'count', 'changed'],
   'panelSync.eval': ['repoKeyHash', 'baseline', 'dirty', 'failures'],
   'panelSync.dirty': ['cwdHash', 'ageMs'],
@@ -86,10 +86,20 @@ const ALLOWED = {
   'inject.decision': ['prompt', 'kind', 'layout'],
   // #663 新增一条常驻事件（附录 1.4 节）：首开引导链那颗横幅按钮点下去给出去的是哪一类东西，只记两个短枚举（哪一步、哪一类）。
   'guide.inject': ['step', 'outcome'],
+  // #685 新增一条常驻事件（附录 1.3 节）：KPI 那一行右边缘那颗「体检」按钮点下去，开一个新会话并把当前后端的体检提示词
+  //   带过去 —— 照 #662 为横幅注入定的先例（用户点一下、插件往会话里写字），只记两个短枚举：哪个后端、注入成功还是失败。
+  'healthCheck.inject': ['backend', 'outcome'],
   // 2026-09-21 新增一条按需事件（附录 1.5 节）：链快照回包时晚到的旧结果被丢弃（这一段里已经又发过新请求），只记一个散列。
   'chain.stale.drop': ['keyHash'],
   // 2026-09-21 新增一条按需事件（附录 1.5 节）：面板快照回包时这一次已经不算数（换过后端，或这个工作区上又发过更新的一次），只记一个散列。
   'snapshot.stale.drop': ['keyHash'],
+  // 2026-09-22 新增五条（#683 F1 · 宿主侧那份「用户选的后端按工作区记着」的记忆）：读它命中/未命中按需记；
+  //   文件坏与写失败是「出事了」的两档，告警级始终落盘；淘汰与「被更旧的顶回」按需记。都只记散列、枚举与数字。
+  'choiceStore.read': ['keyHash', 'outcome'],
+  'choiceStore.file.bad': ['reason'],
+  'choiceStore.write.fail': ['keyHash', 'reason'],
+  'choiceStore.hint.reject': ['keyHash', 'baseRev', 'rev'],
+  'choiceStore.evict': ['count', 'max'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],

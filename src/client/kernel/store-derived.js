@@ -77,9 +77,23 @@
     }
     export const frontierAll = (st) => compute(st).reduce(function (n, g) { return n + g.frontier.length }, 0)
 
+    // #689 工单口径（唯一一处判断）：拉取请求不算工单 —— 主列表、KPI、状态栏那几枚共用它。
+    //   #294/#505 裁定拉取请求与工单同池、不新增集合，而面板另有专门的拉取请求页签，所以凡要说「工单」的地方都从这里过；池子本身与拉取请求页签照旧。
+    export const isTicketRow = (x) => !(x && x.isPullRequest === true)
+    export const ticketRowsOf = (arr) => (Array.isArray(arr) ? arr : []).filter(isTicketRow)
+    // #689 宿主给的后端计数（deck.counts，产出见 tracker/snapshot.js）：面板顶部那几个数字改读它。拿不到（这个后端没实现计数 / 配额耗尽 / 还没升级的旧快照）返回 null，调用方退回按池子派生；scoped=true 表示界面当前带着筛选（按工作单元或标签筛过）—— 全仓数字与眼前这一屏不是一个口径，一并返回 null。
+    export const deckCountsOf = function (st, scoped) {
+      try {
+        if (scoped) return null
+        const c = (st && st.snapshot && st.snapshot.deck && st.snapshot.deck.counts) || null
+        if (!c) return null
+        const isN = function (v) { return typeof v === 'number' && isFinite(v) && v >= 0 && Math.floor(v) === v }
+        return (isN(c.open) && isN(c.closed) && isN(c.total)) ? { open: c.open, closed: c.closed, total: c.total } : null
+      } catch (e) { return null }
+    }
     // v18-30：状态栏可接/占用改用「列表 open issue」口径（与面板列表一致）：
     //   可接 = open issue 中未认领且未被 open 阻塞；占用 = 已认领 + 被阻塞；两者之和 = 全部 open issue
-    export const openIssuesOf = (st) => ((st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []).filter(function (x) { return x.state !== 'CLOSED' })
+    export const openIssuesOf = (st) => ticketRowsOf((st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []).filter(function (x) { return x.state !== 'CLOSED' })
     // #544 独立票阻塞边共用小函数（isOccupied 回落与 applyStandaloneBlocks 共用）：
     //   standaloneKeyOfRef 把数字/字符串/{key}/{number} 等形状归一成 key 字符串；
     //   standaloneStateMapOf 把快照里全部票（issues + 各地图子票）的状态按数字与 key 双键收成大写表。

@@ -6,22 +6,21 @@ export function createSessionRefresh(deps) {
   const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx } = deps
   // #491 房外埋点 helpers：hash8 只记散列；脏回执与组装返回均为低频常驻，直接落盘（库体内兜底）。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
-  async function adoptSnapLog(snap, c) { try { if (logCtx && snap && snap.fromCache !== true) logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } catch (e) {} return adoptSnapshot(snap, c) }
+  // #689：snapshot.built 多了三个字段（open / closed 是后端计数给的真值、拿不到记 -1；partial 说这份行数据全不全）—— 加在既有事件里不新增一条（每次重建都会走到这里），字段表见 research/489-appendix.md 第 1 章。
+  async function adoptSnapLog(snap, c) { try { if (logCtx && snap && snap.fromCache !== true) { const _d = (snap.deck && typeof snap.deck === 'object') ? snap.deck : {}; const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null; logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } } catch (e) {} return adoptSnapshot(snap, c) }
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
   let _dedupeP = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
   async function handleRefresh(args) {
-      // #652：与 wf.snapshot 用同一把钥匙（规整键 + 工作区根）。旧写法这里收的是原样入参，
-      //   而快照那条路收的是规整钥匙——同一个工作区的宿主单槽快照因此会「刷新写进一个桶、快照读另一个桶」，
-      //   于是刷新完的快照永远命不中内存短路。两条路现在同形（面板快照按工作区根分桶）。
+      // #652 与快照同钥匙（规整键+工作区根）；#696 起宿主内存按根分表，强制刷新只重写自己根那条。
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const refT0 = Date.now()
-      try { if (logCtx) logCtx.fire('info', 'panelSync.dirty', { cwdHash: hash8(cwd), ageMs: (function () { try { const c = getCache(); return (c && c.ts) ? Math.max(0, refT0 - c.ts) : 0 } catch (e) { return 0 } })() }) } catch (eL) {}
+      try { if (logCtx) logCtx.fire('info', 'panelSync.dirty', { cwdHash: hash8(cwd), ageMs: (function () { try { const c = getCache(cwd); return (c && c.ts) ? Math.max(0, refT0 - c.ts) : 0 } catch (e) { return 0 } })() }) } catch (eL) {}
       // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
       resetGhCache()
       try {
         // 第一性原理分发：与 wf.snapshot 同构
-        let _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
+        let _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })
         const useComposer = isComposerSelection(_sel)
         if (useComposer) {
           const reg = await getTrackerRegistry()

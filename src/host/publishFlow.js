@@ -136,9 +136,9 @@ export function createPublishFlow(deps) {
         return { ok: false, errorKind: kind, error: pushR.error, repoUrl: repoUrl, repo: repoUrl ? { owner: owner, name: name } : undefined, halfCreated: !!repoUrl }
       }
     }
-    // 成功后失效全部缓存，使头部 owner/repo 立即出现
-    setCache({ ts: 0, snapshot: null, error: null, cwd: null })
+    // #696 只清自己根那条（建仓改了这一个工作区的身份，别的根不动）；头部 owner/repo 靠这一次失效立即出现
     const rk3 = await canonicalKey(cwd || DEFAULT_CWD)
+    try { setCache({ ts: 0, snapshot: null, error: null, cwd: rk3 }) } catch (eCache) { /* 缓存失效兜底 */ }
     if (rk3 && repoKeys[rk3] !== undefined) delete repoKeys[rk3]
     if (rk3 && repoRoots[rk3] !== undefined) delete repoRoots[rk3]
     // 优先用 getRepoKey 重解析（parseGithubRepo），兜底用 currentUser
@@ -174,7 +174,7 @@ export function createPublishFlow(deps) {
     } catch (e) { /* remote 缺失时兜底 */ }
     const pushR = await gitExec([git, 'push', '-u', 'origin', 'HEAD'], cwd)
     if (pushR.ok) {
-      try { setCache({ ts: 0, snapshot: null, error: null, cwd: null }) } catch (eCache) { /* 缓存失效兜底 */ }
+      try { const rkRetry = await canonicalKey(cwd || DEFAULT_CWD); setCache({ ts: 0, snapshot: null, error: null, cwd: rkRetry }) } catch (eCache) { try { setCache({ ts: 0, snapshot: null, error: null, cwd: null }) } catch {} /* #696 锚根失败兜底清全部（拿不出目录，仅此一条） */ }
       return { ok: true, repo: { owner: owner, name: name }, repoUrl: owner ? ('https://github.com/' + owner + '/' + name) : '' }
     }
     const kind = classifyCreateError(pushR.error, null)

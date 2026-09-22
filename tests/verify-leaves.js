@@ -25,6 +25,7 @@ const LEAVES = [
   { file: 'src/client/views/IssueDetailComments.js', exports: ['renderIssueDetailComments'], components: [] }, // V3 #463 由 IssueDetail.js 拆出：评论区（无组件，纯函数）
   { file: 'src/client/views/IssueDetail.js', exports: ['IssueDetail'], components: ['IssueDetail'] },
   { file: 'src/client/views/NoRepoCard.js', exports: ['NoRepoCard'], components: ['NoRepoCard'] },
+  { file: 'src/client/views/ListTabClosed.js', exports: ['useClosedPageScroll', 'closedPagesNode', 'repoWebIssuesUrlOf'], components: [] }, // #690 新增：主列表「已关闭票按需翻页」的三个触发点（展开折叠行、切到已关闭、滚到底）与「已加载 x / 共 N」那一行（无组件，纯函数与钩子）
   { file: 'src/client/views/ListTabRow.js', exports: ['listIssueRow'], components: [] }, // V3 #463 由 ListTab.js 拆出：单行渲染（无组件，纯函数）
   { file: 'src/client/views/ListTab.js', exports: ['ListTab'], components: ['ListTab'] },
   { file: 'src/client/views/RingSkills.js', exports: ['RingSkills'], components: ['RingSkills'] },

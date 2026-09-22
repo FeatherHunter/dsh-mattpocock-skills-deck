@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #643 · 综合版（把已经选定的合起来，再试剩下没定的）</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+  和 643-panel-only.html、643-workflow-panel-variants.html 用同一套内容与渲染代码（由脚本抽出来），
+  区别只在：这一份把「已经拍板的东西」全部当成底座写死，然后只摆还没定的那几件。
+
+  底座（写死，不给开关）：大区域居中 + 分组块 + 一行一个＋引导线 + 说明只在悬停（自己画的 100 毫秒气泡）
+  + 点完关面板 + 不突出「该点哪个」+ 不要一行总览；摆法收在「处境当标题」（处境 6 块·路成块）；编号签去掉。
+  面板头部照真机的排法画：仓库芯片 + 子工作区标志（#650 定稿的那一枚文件夹图标，SVG 原样抄自
+  docs/decisions/650-subworkspace-landing-spec.md）+ 切换后端 + 标签配色 + ✕。
+
+  还在试的四件事（地址参数，或按 ← → 走一圈）：
+    ?form=base|segfold|index   形态：现状 / 处境整段能折 / 平铺＋处境索引条
+    ?size=cap|gap|fill         面板占多大：1240×880 封顶 / 上方留一条缝 / 真占满
+    ?open=all|first|none       默认展开几块：全开 / 每个处境只开第一条 / 全折
+    ?cross=1                   跨会话那条路要不要先留一句提示
+
+  这是原型，不是方案：写死的部分如果收错了，改脚本重出即可。
+-->
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --card:#1c1f27; --card2:#20242e;
+  --border:#2a2d35; --border2:#3a3f4a; --text:#e6edf3; --muted:#a1a1aa;
+  --caption:#8b8b95; --primary:#c084fc; --primary2:#8a5cf6;
+  --success:#4ade80; --error:#f87171; --amber:#fbbf24; --blue:#58a6ff;
+  --mono:Consolas,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.6;font-size:14px}
+.badge{position:fixed;top:8px;left:8px;background:#ff3b30;color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;z-index:100000;letter-spacing:.02em}
+.wrap{max-width:1180px;margin:0 auto;padding:44px 18px 340px}
+h1{font-size:20px;margin:0 0 6px}
+h2{font-size:15px;margin:0 0 10px}
+p{margin:6px 0}
+.sub{font-size:13px;color:var(--muted)}
+.mono{font-family:var(--mono)}
+code{font-family:var(--mono);font-size:12.5px;background:var(--card2);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+.hero{border:1px solid var(--border);border-radius:14px;background:linear-gradient(180deg,#181d26,#12151c);padding:18px 20px;margin-bottom:14px}
+.hero .q{font-size:15px;color:#f3f4f6;background:#141922;border-left:3px solid var(--primary);border-radius:0 8px 8px 0;padding:10px 14px;margin:12px 0 0}
+.hero .q b{color:var(--primary)}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.tag{font-size:11.5px;border:1px solid var(--border);border-radius:99px;padding:2px 10px;color:var(--muted)}
+.tag.hot{border-color:var(--primary);color:#cdb8ff}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;align-items:start}
+@media(max-width:1000px){.cols{grid-template-columns:minmax(0,1fr)}}
+.card{border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:14px;margin-bottom:12px}
+.card h2{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.card .hint{font-size:12px;color:var(--caption);font-weight:400}
+/* ---- 假装的宿主界面：一条输入框 + 一条状态栏胶囊 ---- */
+.host{border:1px solid var(--border);border-radius:12px;background:#101317;padding:12px 14px 0}
+.host .input{background:var(--card);border:1px solid var(--border);border-radius:10px;min-height:64px;padding:10px 12px;font-size:13px;color:var(--caption)}
+.host .input .typed{color:var(--text);font-family:var(--mono)}
+.host .capsule{margin:10px 0 0;background:var(--card2);border:1px solid var(--border);border-radius:999px 999px 0 0;border-bottom:0;padding:7px 12px;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.capsule .seg{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.capsule .dot{width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block}
+.capsule .grow{flex:1}
+.skillbtn{display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:6px;cursor:pointer;color:var(--caption);border:1px solid transparent}
+.skillbtn.on{color:var(--primary);border-color:rgba(192,132,252,.45);background:rgba(192,132,252,.10)}
+.skillbtn svg{display:block}
+/* ---- 悬浮面板本体 ---- */
+.spop{position:fixed;z-index:90000;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border2);border-radius:10px;box-shadow:0 10px 34px rgba(0,0,0,.5);overflow:hidden}
+.spop .head{padding:9px 11px;border-bottom:1px solid var(--border);background:var(--card2);display:flex;align-items:center;gap:8px}
+.spop .head .t{font-size:12.5px;font-weight:700}
+.spop .head .c{font-size:11px;color:var(--caption);margin-left:auto;white-space:nowrap}
+.spop .head .x{cursor:pointer;color:var(--caption);font-size:14px;line-height:1;padding:0 2px}
+.spop .scroll{overflow-y:auto;overflow-x:hidden;padding:6px}
+/* ---- 一块工作流 ---- */
+.blk{border:1px solid var(--border);border-radius:9px;background:var(--card);margin:6px 0}
+.blk.open{border-color:rgba(192,132,252,.4)}
+.blk.hovered{border-color:rgba(192,132,252,.55)}
+.blk .bh{display:flex;align-items:center;gap:7px;padding:8px 9px;cursor:pointer}
+.blk .bh:hover{background:var(--card2)}
+.blk .num{font-family:var(--mono);font-size:10.5px;font-weight:700;color:#cdb8ff;background:rgba(192,132,252,.12);border:1px solid rgba(192,132,252,.4);border-radius:5px;padding:1px 6px;flex:none}
+.blk .num.gray{color:var(--caption);background:transparent;border-color:var(--border)}
+.blk .bn{font-size:12.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blk .bc{font-size:10.5px;color:var(--caption);flex:none;white-space:nowrap}
+.blk .arrow{font-size:9px;color:var(--caption);flex:none;transform:rotate(-90deg);transition:transform .12s}
+.blk.open .arrow{transform:rotate(0deg)}
+.blk .bs{font-size:11px;color:var(--muted);padding:0 9px 8px 9px}
+.blk .bd{border-top:1px dashed var(--border);padding:7px 9px 8px}
+.blk .note{font-size:10.5px;color:#f0b46b;background:rgba(251,191,36,.08);border-left:2px solid rgba(251,191,36,.5);border-radius:0 5px 5px 0;padding:5px 8px;margin:0 0 7px 0}
+/* ---- 技能行（只有这一种排法：一行一个＋引导线） ---- */
+.skl{display:flex;align-items:baseline;gap:7px;padding:4px 7px;border-radius:6px;cursor:pointer;border-left:2px solid transparent;position:relative;padding-left:6px}
+.skl:hover{background:rgba(255,255,255,.06);border-left-color:var(--primary)}
+.skl .sl{position:relative;width:18px;height:18px;border-radius:50%;border:1px solid #6f7a90;display:flex;align-items:center;justify-content:center;font-size:10px;color:#c9d1e0;background:var(--card);align-self:center;flex:none}
+.skl:not(:last-child) .sl::after{content:'';position:absolute;left:50%;top:18px;width:1px;height:9px;background:#6f7a90;transform:translateX(-50%)}
+.skl .sn{font-size:12px;color:var(--text);font-family:var(--mono);white-space:nowrap;flex:none}
+.skl .inside{font-size:11px;color:#8fb8ff}
+.skl.armed{background:rgba(74,222,128,.12);border-left-color:var(--success)}
+.skl.armed .sn{color:var(--success)}
+/* 每条路的名字后面那枚官网组编号 */
+.gtag{font-size:10px;color:var(--caption);border:1px solid var(--border);border-radius:4px;padding:0 4px;margin-left:6px;white-space:nowrap;flex:none}
+/* 悬停气泡：自己画的，100 毫秒出内容 */
+.protoTip{position:fixed;z-index:99999;max-width:320px;background:#0b0d11;border:1px solid var(--border2);border-radius:8px;box-shadow:0 8px 26px rgba(0,0,0,.55);color:var(--text);font-size:11.5px;line-height:1.5;padding:6px 9px;display:none;pointer-events:none}
+.spop .foot{border-top:1px solid var(--border);padding:6px 10px;font-size:10.5px;color:var(--caption);background:var(--card2);display:flex;gap:8px;align-items:center}
+.spop .foot .hit{color:var(--success)}
+/* ---- 大区域 ---- */
+.spop.big{border-radius:12px;border-color:var(--border2)}
+.spop.big .head{padding:11px 14px}
+.spop.big .head .t{font-size:13.5px}
+.spop.big .scroll{padding:8px 10px 12px}
+.spop.big.cols2 .scroll{column-count:2;column-gap:12px}
+.spop.big.cols3 .scroll{column-count:3;column-gap:12px}
+.spop.big .scroll > .blk{break-inside:avoid;-webkit-column-break-inside:avoid}
+.spop.big .scroll > .rgroup{break-after:avoid;-webkit-column-break-after:avoid;break-inside:avoid}
+/* 处境分段那行标题（摆法「处境 6 块·路成块」用） */
+.rgroup{font-size:11.5px;color:#cdb8ff;border-bottom:1px solid var(--border);padding:9px 2px 5px;margin-top:2px}
+.rgroup span{color:var(--caption);font-size:10.5px}
+/* ---- 右边：状态面板 ---- */
+.st{font-size:12.5px}
+.strow{display:flex;gap:8px;padding:5px 0;border-bottom:1px dashed var(--border)}
+.strow:last-child{border-bottom:0}
+.strow .k{color:var(--caption);flex:none;width:104px}
+.strow .v{color:var(--text);min-width:0;word-break:break-word}
+.strow .v b{color:var(--primary)}
+.strow .v .ok{color:var(--success)}
+.strow .v .warn{color:var(--amber)}
+.legend{font-size:11.5px;color:var(--caption);margin-top:8px}
+.legend div{margin:3px 0}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.btn{font-size:12px;padding:5px 11px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer}
+.btn:hover{border-color:var(--border2)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#1a1030;font-weight:700}
+.btn.small{font-size:11.5px;padding:4px 9px}
+/* ---- 引导场景 ---- */
+.tabs{display:flex;gap:3px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:10px}
+.tabs button{font-size:12px;padding:6px 11px;border:0;background:transparent;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tabs button.active{color:var(--text);border-bottom-color:var(--primary)}
+.walk .what{font-size:12.5px;color:var(--muted);background:#141922;border-left:3px solid var(--primary);border-radius:0 8px 8px 0;padding:9px 12px;margin-bottom:10px}
+.walk .what b{color:#f3f4f6}
+.steps{display:flex;flex-direction:column;gap:6px}
+.step{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--border);border-radius:9px;padding:8px 10px;background:var(--card)}
+.step.done{opacity:.5}
+.step.now{border-color:var(--primary)}
+.step .idx{font-family:var(--mono);font-size:11px;color:var(--caption);flex:none;padding-top:2px}
+.step .body{flex:1;min-width:0}
+.step .say{font-size:12.5px}
+.step .watch{font-size:11.5px;color:var(--caption)}
+.step .acts{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.walk .reset{font-size:11.5px;color:var(--caption);margin-top:9px}
+/* ---- 底部悬浮切换条 ---- */
+.bar{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:95000;background:#0b0d11;border:1px solid var(--border2);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.6);padding:8px 10px;display:flex;gap:8px;align-items:center;max-width:calc(100vw - 20px);flex-wrap:wrap;justify-content:center}
+.bar .nav{display:flex;align-items:center;gap:6px}
+.bar .arrow{width:26px;height:26px;border-radius:8px;border:1px solid var(--border2);background:var(--panel);color:var(--text);cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center}
+.bar .arrow:hover{border-color:var(--primary);color:#cdb8ff}
+.bar .cur{font-size:12.5px;font-weight:700;min-width:230px;text-align:center;color:#f3f4f6}
+.bar .cur small{display:block;font-weight:400;color:var(--caption);font-size:10.5px}
+.bar .sep{width:1px;height:24px;background:var(--border)}
+.bar .grp{display:flex;gap:5px;align-items:center}
+.bar .gl{font-size:10.5px;color:var(--caption);margin-right:1px}
+.bar .op{font-size:11px;padding:3px 9px;border-radius:99px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer}
+.bar .op.on{background:var(--primary);border-color:var(--primary);color:#1a1030;font-weight:700}
+.bar .kbd{font-size:10.5px;color:var(--caption)}
+.bar .kbd kbd{font-family:var(--mono);background:var(--panel);border:1px solid var(--border2);border-radius:4px;padding:0 4px}
+.proto-note{position:fixed;right:10px;bottom:10px;z-index:94000;font-size:10.5px;color:var(--caption);background:#0b0d11cc;border:1px solid var(--border);border-radius:8px;padding:4px 8px}
+</style>
+<style>
+  /* ---- 这一页自己的那层：假对话背景、面板头部照真机排的那几颗、综合形态用的样式 ---- */
+  body{background:#0c0e12}
+  .fakechat{position:fixed;inset:0;padding:14px 20px;display:flex;flex-direction:column;gap:9px;overflow:hidden}
+  .fakechat .fb{max-width:min(760px,62vw);font-size:12.5px;line-height:1.6;border-radius:10px;padding:7px 11px;border:1px solid var(--border);background:var(--card);color:var(--muted)}
+  .fakechat .fb.me{margin-left:auto;background:rgba(192,132,252,.12);border-color:rgba(192,132,252,.35);color:#e6edf3}
+  .fakechat .fcap{font-size:11px;color:#5c626d;letter-spacing:.04em}
+
+  /* 面板头部照真机：仓库芯片 + 子工作区标志 + 两颗 16 像素小按钮（切换后端 / 标签配色） */
+  .spop .head .chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;font-family:var(--mono);color:#cdb8ff;background:rgba(192,132,252,.12);border:1px solid rgba(192,132,252,.42);border-radius:6px;padding:1px 8px;flex:none;white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis}
+  .spop .head .wsmark{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:16px;height:16px;border-radius:5px;border:1px solid #f85149;background:transparent;flex:none;cursor:pointer}
+  .spop .head .hicon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;border:1px solid var(--border2);color:var(--caption);background:transparent;flex:none;cursor:pointer;font-size:10px;line-height:1;padding:0}
+  .spop .head .hicon.hot{color:#f0b46b;border-color:rgba(251,191,36,.5)}
+  .spop .head .sep2{width:1px;height:14px;background:var(--border);flex:none}
+
+  /* 综合形态一：处境整段能折（把「处境当块」那档的折叠并进「处境当标题」） */
+  .rgroup.seg{display:flex;align-items:center;gap:6px;cursor:pointer;border-radius:6px 6px 0 0}
+  .rgroup.seg:hover{background:rgba(192,132,252,.08)}
+  .rgroup .segcar{font-size:9px;color:var(--caption);flex:none;transition:transform .12s}
+  .rgroup.seg.closed .segcar{transform:rotate(-90deg)}
+  .rgroup.seg.closed{border-bottom-color:transparent;opacity:.75}
+
+  /* 综合形态二：平铺 + 处境索引条（把「平铺好找」与「处境看得见」并起来） */
+  .idxbar{column-span:all;display:flex;flex-wrap:wrap;gap:5px;padding:7px 4px 8px;margin-bottom:4px;background:var(--card2);border-bottom:1px solid var(--border)}
+  .idxbar .il{font-size:10px;color:var(--caption);align-self:center;margin-right:2px}
+  .idxop{font-size:10.5px;padding:2px 8px;border-radius:99px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;white-space:nowrap}
+  .idxop:hover{border-color:var(--primary);color:#cdb8ff}
+  .idxop.on{background:var(--primary);border-color:var(--primary);color:#1a1030;font-weight:700}
+  .blk.inseg{border-left:3px solid rgba(251,191,36,.75)}
+  .blk.flash{box-shadow:0 0 0 2px rgba(251,191,36,.6)}
+
+  /* 跨会话那条路的提示 */
+  .xcrosstag{font-size:10px;color:#f0b46b;border:1px dashed rgba(251,191,36,.55);border-radius:4px;padding:0 5px;white-space:nowrap;flex:none;margin-left:6px}
+  .xcrossline{display:block;color:#f0b46b;background:rgba(251,191,36,.08);border-left:2px solid rgba(251,191,36,.5);border-radius:0 5px 5px 0;padding:5px 8px;margin:0 0 8px}
+
+  .only-note{position:fixed;left:10px;bottom:10px;z-index:94000;max-width:560px;font-size:11px;line-height:1.6;color:var(--caption);background:#0b0d11ee;border:1px solid var(--border);border-radius:8px;padding:8px 11px}
+  .only-note b{color:#cdb8ff}
+  .only-note .row{margin-top:2px}
+  .only-note .url{display:block;margin-top:3px;color:#7c8496;word-break:break-all;font-family:var(--mono);font-size:10.5px}
+  .only-note .hit{color:var(--success)}
+  .only-note .warn{color:#f0b46b}
+</style>
+</head>
+<body>
+<div class="badge">PROTOTYPE · 综合版（底座写死，只试还没定的）</div>
+
+<!-- 假对话背景：只有面板「上方留一条缝」那一档才看得见它，其余各档面板会盖住。 -->
+<div class="fakechat" id="fakechat">
+  <div class="fcap">（下面这个是假对话页，只为让「面板盖住多少」看得出来，不是设计的一部分）</div>
+  <div class="fb me">把技能面板改成按工作流分组的样子，先做个低保真原型看看好不好用。</div>
+  <div class="fb">好 —— 先把已经拍板的那些写死在底座里，只摆还没定的那几件。</div>
+  <div class="fb me">我想一眼看全，不用上下滑，点一下就输入。</div>
+  <div class="fb">那就用屏幕正中一大块，铺法用分组块，技能一行一个加引导线。</div>
+</div>
+
+<div id="panelHost"></div>
+
+<div class="only-note">
+  <div><b>← →</b> 走一圈：<span id="tourLabel">…</span></div>
+  <div class="row" id="stateLine">…</div>
+  <span class="url" id="tourUrl"></span>
+  <div id="receipt">还没点过技能。点面板里的任意一颗技能名——真机上那一下会把「/技能名」写进当前会话的输入框。</div>
+</div>
+
+<script>
+
+
+/* =========================================================================
+   第一部分：内容（真实工作流，取自 research/642-aihero-workflows.md）
+   ========================================================================= */
+
+// 技能一句话：给「技能行」用。文字取自报告第 2 节那张表的「大白话」一列。
+var SKILL_LINE = {
+  'grill-with-docs':'被追问一遍方案，同时把决定记进文档',
+  'to-spec':'把聊定的对话变成一份书面规格',
+  'to-tickets':'把规格拆成 agent 能一件件做的小工单',
+  'implement':'把定稿的规格做成代码，测试先行',
+  'code-review':'拿改动对照标准和规格审一遍',
+  'tdd':'先写测试再写实现的红绿循环（建造环节里的发动机）',
+  'grill-me':'不碰仓库，纯对话把想法问一遍',
+  'wayfinder':'把一大块活画成一张决策地图，再逐条敲定',
+  'triage':'把外面报进来的活整理成有人能领走的工单',
+  'diagnosing-bugs':'从一个能复现的失败开始诊断难修的 bug',
+  'improve-codebase-architecture':'扫出值得重构的模块，出一份可视化报告',
+  'resolving-merge-conflicts':'一块一块把合并或变基冲突解决掉',
+  'handoff':'把这段会话写成一份文件，另起一个会话接着做',
+  'prototype':'用一段做完就删的代码回答一个设计问题',
+  'research':'读一手资料，交一份带出处的答案',
+  'to-questionnaire':'把答不了的问题写成一份让别人填的问卷',
+  'teach':'跨很多次会话、一层层往上地学一个主题',
+  'wait-what':'让 agent 用大白话把刚才那段重讲一遍',
+  'ask-matt':'不知道该用哪个技能时问它',
+  'setup-matt-pocock-skills':'把一个仓库配好，后面所有技能才知道它怎么运转',
+  'wizard':'生成一个脚本，牵着人一步步做完只有人能做的设置',
+  'domain-modeling':'把项目用的词磨准，并写进文档',
+  'codebase-design':'设计深模块用的那套词汇',
+  'grilling':'别的技能用来把方案问穿的访谈',
+  'writing-for-agents':'怎么写技能和别人给 agent 读的文档'
+}
+
+// 工作流：一条 = 一块。
+// id 是给切换器与引导场景用的短标记；title 是面板上给人看的名字。
+// scene 是「这条工作流适合什么场景」，也就是第一轮讨论定的那句组说明。
+// steps 是这条路上的技能，按先后顺序排列；branch 里的 b 那几棒是「可以跳过或分岔」的一棒，用括号标出来。
+// note 是研究里点名「不写清会教错人」的地方，只在需要时出现。
+var FLOWS = [
+  { id:'A', title:'主建造链（要跨多个会话）', scene:'有个想法，要一路做到能合并的代码，而且这件事大到值得分成好几个会话来做。', enter:'想法还没想清楚的时候进入；它只能由人手动敲，agent 不会自己拉起它。', end:'code-review 是链尾。评审之后不是回头重跑实现：先提交，再对着你分叉出来的那个点评审，拿到发现用 amend 或补一个 fixup 提交；工单和验收标准由人自己收。', steps:['grill-with-docs','to-spec','to-tickets','implement','code-review'], inside:{'implement':['tdd']} },
+  { id:'B', title:'短路径（跳过规格与工单）', scene:'这次改动装得进一个上下文窗口，不值得为它拆规格和工单。', enter:'动手前就能判断出「装得进一个窗口」时才跳这两棒；不是聊完才回头发现。', end:'最后一棒要换一个干净会话再跑 code-review。作者的理由是：同一个上下文审自己写的代码不是评审，是给确认偏误加一条命令。', steps:['grill-with-docs','implement','code-review'], inside:{'implement':['tdd']}, note:'前三棒留在同一个会话里连着跑；只有最后一棒必须换会话。' },
+  { id:'C', title:'大工程先划路（wayfinder）', scene:'一大块活，一个会话装不下，而且路还看不清。', enter:'作者把它定位成「情境入口，不是默认前门」；由人手动唤起。', end:'走到「前面再没有要拍板的事」就结束，它自己不写代码；常规收尾是交给 to-spec 把地图收拢成一份规格。', steps:['wayfinder','to-spec','to-tickets','implement','code-review'], note:'地图上的票有四种：research / prototype / grilling / task。研究票与原型票都可以并行跑。' },
+  { id:'D', title:'接收外来活（triage）', scene:'活在你这儿是外面报进来的：别人提的 issue、外部交上来的拉取请求，而不是你自己起的事。', enter:'只对外面进来的 issue 用，自己拆出来的工单不要拿它过一遍。', end:'有四个出口：给无人值守 agent 的工单（ready-for-agent）、写明为什么不能委托出去的说明（ready-for-human）、复现不出来就挂着等报告人回话、查重命中或拒掉就关掉。', steps:['triage','implement'], inside:{'triage':['grilling','domain-modeling']} },
+  { id:'E', title:'定期保养：扫出值得重构的模块', scene:'给代码库攒活，不干活：每隔几天扫一次，或者空当出现时扫一次。', enter:'作者给了四种用法：例行保养；大改动之前先问「怎么改才容易」（他说这是它最有效的用法）；老仓库体检；补测试前先找缺失的接缝。', end:'报告出来、人挑一条、谈定、写进规格；重构本身在另一段会话里按正常流程做。报告只活在临时文件里，要带走的是那条候选本身。', steps:['improve-codebase-architecture','grilling','to-spec'], inside:{'grilling':['domain-modeling','codebase-design']} },
+  { id:'F', title:'难 bug 诊断', scene:'难修的 bug、性能退化，而且你手上已经有一个能复现的失败。', enter:'人可以随时喊它；它是少数几个模型也能自己触发的技能。', end:'结论写进提交信息或拉取请求说明；复盘时如果发现根因是代码缺少能锁住这个 bug 的接缝，修完之后再交给「定期保养」那条路。', steps:['triage','diagnosing-bugs','improve-codebase-architecture'], note:'作者自己承认：triage 与 diagnosing-bugs 两个文件的正文里都没提对方，这条缝是用户发现后反馈的，还没修。' },
+  { id:'G', title:'收尾一次合并或变基', scene:'merge 或 rebase 的冲突正卡着你。', enter:'任何冲突现场都能进。', end:'不是「冲突标记消失」就结束，而是树干净且已经提交，一次合并一路带到那个完成的提交。', steps:['resolving-merge-conflicts','diagnosing-bugs'], note:'合干净了但行为不对，就从这里转去诊断：那是诊断问题，不是冲突问题。它自己也不提供 --abort。' },
+  { id:'H', title:'跨会话走两个来回（分出去做原型，再交回来）', scene:'你在一场设计对话里陷得很深，撞到一个「只有跑代码才能回答」的问题，而你不想把好不容易建立起来的那条线索花在试错上。', enter:'只有在「要搬到别的目录」或「中途分叉一条支线」这两种情形下才走成这条路。', end:'答案交回原对话、原对话引用它。', steps:['handoff','prototype','handoff','ask-matt'], note:'这条路最容易教错人的地方：原对话不结束；上下文快满了该用的是 /compact，不是 /handoff——handoff 只在「这份活要搬到别处去」时才用。' },
+  { id:'I', title:'一个阶段做完了，下一步该不该换上下文', scene:'一个阶段做完了，你要决定这一段上下文怎么处理。', enter:'只有在一个阶段的边界上才问这个问题；阶段中途没有可决定的：要么继续，要么把剩下的活拆给子代理。', end:'五选一：继续留在原会话、/clear、/handoff、委派子代理、/compact。', steps:['ask-matt','handoff','wait-what'], note:'这张表不等于那棵判定树：作者说分支判断的顺序画在 /ask-matt 里，按顺序问下来第一个「是」就赢。' },
+  { id:'J', title:'不碰仓库，先把想法问穿', scene:'有个想法，先别碰代码，把想法本身问穿。', enter:'由人手动敲；它要求在新会话里启动，但写规格之前又明确不要另起新会话（站点自己这两处对不上）。', end:'问穿之后就着这次对话往下走，别把这段对话清掉。', steps:['grill-me','grilling'] },
+  { id:'K', title:'在仓库里一边对齐一边留下记录', scene:'手上有仓库，要一边被追问一边把定下来的事记进文档。', enter:'一次改动的开头进入，此时方案还模糊、要用的词也没定。', end:'会话结束时不要 /clear，把同一个会话直接交给 to-spec。', steps:['grill-with-docs','grilling','domain-modeling'] },
+  { id:'L', title:'有个问题自己答不了，得问别人', scene:'有个决定你答不上来，边界在你自己的知识之外。', enter:'卡住的当下就能进；必须在同一个会话里跑。', end:'问卷由一个人填（异步填或开会一起填），答案回来后接回原来的路：再追问一轮、或交给文档对齐、或写进规格。', steps:['to-questionnaire','grilling'] },
+  { id:'M', title:'跨很多次会话学一件事', scene:'要学一门新东西，而且它得跨很多次会话、一节课接一节课。', enter:'想系统学一件事的时候进，和工程流程不共用任何产物。', end:'连续性是那个文件夹，不是那段对话；一课接一课往下走。', steps:['teach'] },
+  { id:'N', title:'听不懂就让重讲', scene:'上一条消息没听懂。', enter:'任何时刻、任何对话、任何技能内部都能用；它只管当前对话的上一条消息。', end:'听完重讲接着做原来的事，不用换会话。', steps:['wait-what'] },
+  { id:'O', title:'不知道该用哪个技能', scene:'你分不清现在该用哪个技能，或者两个技能看着可以互换。', enter:'不确定就走它；已经自己选好技能时它没用，直接调那个技能就行。', end:'它只推荐、然后停下：它不访谈、不写文档、也不替你触发那个技能，你拿到的是「接下来该敲的那一条」。', steps:['ask-matt'] },
+  { id:'P', title:'开工前先把仓库配好', scene:'第一次在一个仓库里用这套技能，或者半途接手一个仓库，下游技能开始瞎猜 issue 记在哪、贴出你 tracker 里根本没有的标签。', enter:'每个仓库一次，在第一次用任何其它工程技能之前。', end:'AGENTS.md 或 CLAUDE.md 里出现「Agent skills」那一段、docs/agents/ 下出现那几份文件。', steps:['setup-matt-pocock-skills'] },
+  { id:'Q', title:'把读资料的活交出去，再带着事实回到主干', scene:'关键动作是「去搞清楚一个外部事实」，而你不想为此停下手上这条线。', enter:'需要带出处的答案时进；起一个后台代理去读一手来源，你继续干别的。', end:'产出一份留在仓库里、每条结论带出处的 Markdown；之后要由人主动把它带进下一步，后面的会话不会自动复用以前的研究文件。', steps:['research','grill-with-docs','to-spec'] },
+  { id:'R', title:'访谈里撞到「不跑代码定不下来」的问题', scene:'在一场追问里遇到靠说话定不下来的问题（状态模型的边界情形、界面该长什么样），硬聊正是会话失控膨胀的地方。', enter:'访谈中途撞上了就进，不换会话、也不写交接文档。', end:'看一眼原型，把一句话答案带回原来的访谈继续。', steps:['grilling','prototype'] },
+  { id:'S', title:'票发完之后：每张票一个干净会话', scene:'规格已经切成多张票，要一张张做出来。', enter:'阻断关系清空的那张票才开工。', end:'开一个干净会话做一张票；提交、清掉上下文、再开下一个会话做下一张。', steps:['to-tickets','implement','code-review'] },
+  { id:'V', title:'合干净了但行为不对', scene:'冲突已经解完、树是干净的，但合完之后代码行为不对，而你看不出为什么。', enter:'从合并收尾那条路转进来。', end:'当 bug 诊断做完；若复盘发现代码没有能锁住这个 bug 的接缝，修完之后再交给「定期保养」那条路。', steps:['resolving-merge-conflicts','diagnosing-bugs'] },
+  { id:'X', title:'功能建完了，补上人手那一半', scene:'功能已经由 agent 建出来、代码也合并了，但要真正跑起来还差只有人能做的步骤：申请凭据、把密钥填进流水线、在第三方控制台里点开关。', enter:'建造路上遇到只有人能过的步骤就进。', end:'人跑完脚本、值落到位，回到实现那一棒把功能走完。', steps:['implement','wizard'] },
+  { id:'Z', title:'不写规格，直接测试先行做一个具体行为', scene:'有一个具体行为要建、输入输出说得清，但手里没有完整规格、也不想为它写规格。', enter:'硬前置：写任何测试之前，先把要测的接缝写下来并问过人。', end:'一个测试配一份最小实现，按垂直切片跑红到绿；重构不属于这个循环，归评审阶段。', steps:['tdd'] }
+]
+
+// 官网首页的六组：组名与组说明是官网原话的直译，块里的技能照官网归属。
+// 用它当「按编号分组」那一种找法的骨架（第一轮讨论已定它保底）。
+var WEB_GROUPS = [
+  { id:'01', title:'入门', blurb:'配置一次，然后自己在整套技能里找到路。', skills:['setup-matt-pocock-skills','ask-matt'] },
+  { id:'02', title:'主干', blurb:'从想法到发布的脊椎骨，有先后顺序。', skills:['grill-with-docs','to-spec','to-tickets','implement','code-review'] },
+  { id:'03', title:'塑形', blurb:'把一个还没定下来的问题探清楚，交出一个决定或者一份答案，再喂进那条主干。', skills:['wayfinder','prototype','research'] },
+  { id:'04', title:'维护', blurb:'让代码库与议题列表保持健康，并且给主干攒出活来。', skills:['improve-codebase-architecture','diagnosing-bugs','resolving-merge-conflicts','triage','wizard'] },
+  { id:'05', title:'生产力', blurb:'给人用的工作流，不围着代码转。', skills:['grill-me','handoff','to-questionnaire','teach','wait-what','writing-for-agents'] },
+  { id:'06', title:'参考层', blurb:'别的技能会调用或引用的那一层，可以重复用。', skills:['codebase-design','domain-modeling','grilling','tdd'] }
+]
+
+// 「按我现在要干什么」那一种找法：分组的名字就是人此刻的处境，块就是该走的路。
+// 「按处境找」那一种里，一条路可以出现在两个处境块里（诊断既在「外面报进来的活」也在「东西坏了」），
+// 所以块数比路数多——这正是「块数会长到多少」最容易翻车的地方，如实算给看的人。
+var SCENE_GROUPS = [
+  { id:'S1', title:'我要把一件事从想法做到能合并', blurb:'你起了个头，要一路做到底；差别只在这次改动装不装得进一个上下文窗口。', flows:['A','B','S'] },
+  { id:'S2', title:'这块活太大，一个会话装不下', blurb:'路还看不清，或者一张地图已经摊开了要逐条敲定。', flows:['C','K','J'] },
+  { id:'S3', title:'活是外面报进来的', blurb:'别人提的 issue、外部交上来的拉取请求，不是你自己起的事。', flows:['D','F','E'] },
+  { id:'S4', title:'东西坏了，或者合并卡住了', blurb:'有一个能复现的失败，或者冲突正卡着你。', flows:['F','V','G'] },
+  { id:'S5', title:'答案不在我这个会话里', blurb:'要靠跑一段代码看、要靠翻一手资料、要靠别人回答，或者得换个会话接着做。', flows:['R','H','Q','L','M','N'] },
+  { id:'S6', title:'这套技能该怎么用', blurb:'配好仓库、不知道点哪一个、或者要把结论沉淀成文档。', flows:['P','O','I','K'] }
+]
+
+
+</script>
+
+<script>
+
+/* =========================================================================
+   第二部分：状态与外显
+   ========================================================================= */
+
+// 摆法：一个开关说清「第一层怎么分 + 一块是什么」。
+var LAYOUTS = [
+  { k:'scenesec', n:'处境 6 块·路小节',  what:'每一块 = 一个处境；处境里一条路一个小节（路名 + 那句场景 + 顺着排下来的技能）' },
+  { k:'sceneblk', n:'处境 6 块·路成块',  what:'每一块 = 一条路，按处境分成六段；同一条路只画一块，块上写明它还归在哪几处' },
+  { k:'flat',     n:'20 条路平铺',      what:'不分处境，20 条路一块一条、按研究里 A 到 Z 的顺序排下来（认路用）' }
+]
+function layoutName(k){ for (var i=0;i<LAYOUTS.length;i++) if (LAYOUTS[i].k === k) return LAYOUTS[i].n; return k }
+function layoutWhat(k){ for (var i=0;i<LAYOUTS.length;i++) if (LAYOUTS[i].k === k) return LAYOUTS[i].what; return '' }
+
+var S = {
+  open:false,
+  layout:'sceneblk',    // 摆法：sceneblk 处境 6 块·路成块 / scenesec 处境 6 块·路小节 / flat 20 条路平铺
+  tag:false,            // 每条路的名字后面要不要跟一枚官网组编号
+  variant:'B',          // 内部用：下面那几个渲染分支读它（由 applyLayout 从 layout 推出来）
+  blocks:'g6',          // 内部用，同上
+  expanded:{ '01':true, '02':true },
+  hoverFlow:null,
+  hoverSkill:null,
+  lastHit:null,
+  injectCount:0,
+  typedIn:''
+}
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+function flowById(id){ for (var i=0;i<FLOWS.length;i++) if (FLOWS[i].id===id) return FLOWS[i]; return null }
+
+// 把「摆法 + 编号标记」翻译成渲染分支要用的两个内部开关。
+function applyLayout(){
+  if (S.layout === 'scenesec'){ S.variant = S.tag ? 'C' : 'A'; S.blocks = 'g6' }
+  else if (S.layout === 'sceneblk'){ S.variant = S.tag ? 'C' : 'A'; S.blocks = 's22' }
+  else { S.variant = 'A'; S.blocks = 'f17' }
+}
+function groupsFor(){ return SCENE_GROUPS }
+// 「一块一条路」的两档（处境 6 块·路成块、20 条路平铺）才是一块 = 一条路；
+// 「处境 6 块·路小节」那一档一块 = 一个处境，里面一条路一个小节。
+function isFlowMode(){ return (S.layout === 'sceneblk' || S.layout === 'flat') }
+function countSkillRowsOf(g){
+  var n = 0
+  ;(g.flows||[]).forEach(function(fid){ var f = flowById(fid); if (f) n += f.steps.length })
+  return n
+}
+function groupBlurb(g){
+  if (S.variant === 'A') return ''
+  return g.blurb || ''
+}
+function alsoInGroups(gs, index, fid){
+  if (S.layout !== 'sceneblk') return []
+  var out = []
+  for (var i=0;i<gs.length;i++){
+    if (i === index) continue
+    var fl = (gs[i] && gs[i].flows) || []
+    if (fl.indexOf(fid) >= 0) out.push(gs[i].title)
+  }
+  return out
+}
+// 20 条路按研究里的字母顺序排一遍，给「平铺」那一档用。
+function allRouteIds(){
+  var seen = {}, out = []
+  SCENE_GROUPS.forEach(function(g){
+    (g.flows||[]).forEach(function(fid){ if (!seen[fid]) { seen[fid] = 1; out.push(fid) } })
+  })
+  return out
+}
+function flatRouteIds(){
+  var ids = allRouteIds()
+  var order = {}
+  FLOWS.forEach(function(f, i){ order[f.id] = i })
+  return ids.sort(function(a, b){ return (order[a] || 0) - (order[b] || 0) })
+}
+// 这条路还挂在哪些别的处境下（只在「路成块」那一档显示）。
+function alsoInTitle(fid){
+  var out = []
+  SCENE_GROUPS.forEach(function(g){ if ((g.flows||[]).indexOf(fid) >= 0) out.push(g.title) })
+  return out.join(' / ')
+}
+// 这条路最主要落在官网哪一组里（看它第一棒属于哪组）——「编号标记」用它当认路标记。
+function routeWebGroup(f){
+  for (var i=0;i<f.steps.length;i++){
+    for (var j=0;j<WEB_GROUPS.length;j++){
+      if ((WEB_GROUPS[j].skills||[]).indexOf(f.steps[i]) >= 0) return WEB_GROUPS[j]
+    }
+  }
+  return null
+}
+function webGroupTag(f){
+  if (!S.tag) return ''
+  var g = routeWebGroup(f)
+  if (!g) return ''
+  return '<span class="gtag">' + esc(g.id + ' ' + g.title) + '</span>'
+}
+// 这个处境下原本挂了几条路，给分段标题上那句「几条」用。
+function countGroupRoutes(gs, i){
+  var seen = {}, n = 0
+  ;((gs[i] && gs[i].flows) || []).forEach(function(fid){ if (!seen[fid]) { seen[fid] = 1; n++ } })
+  return n
+}
+
+// ---- 悬停气泡：自己画的那种，不是浏览器自带的那层提示（固定 100 毫秒出内容） ----
+var TIP_DELAY = 100
+var TIP = { el:null, timer:null }
+function tipEl(){
+  if (!TIP.el){
+    TIP.el = document.createElement('div')
+    TIP.el.className = 'protoTip'
+    document.body.appendChild(TIP.el)
+  }
+  return TIP.el
+}
+function hideTip(){
+  if (TIP.timer){ clearTimeout(TIP.timer); TIP.timer = null }
+  if (TIP.el) TIP.el.style.display = 'none'
+}
+function showTip(text, anchor){
+  var el = tipEl()
+  el.textContent = text
+  el.style.display = 'block'
+  var r = anchor.getBoundingClientRect()
+  var w = el.offsetWidth, h = el.offsetHeight
+  var left = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - w - 8))
+  var top = r.bottom + 6
+  if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6)
+  el.style.left = left + 'px'
+  el.style.top = top + 'px'
+}
+function hoverTip(anchor, text){
+  hideTip()
+  TIP.timer = setTimeout(function(){ showTip(text, anchor) }, TIP_DELAY)
+}
+
+function syncURL(){
+  var u = new URL(location.href)
+  u.searchParams.set('layout', S.layout)
+  u.searchParams.set('tag', S.tag ? '1' : '0')
+  history.replaceState(null,'',u)
+}
+function readURL(){
+  var p = new URLSearchParams(location.search)
+  var lay = p.get('layout')
+  if (lay === 'scenesec' || lay === 'sceneblk' || lay === 'flat') S.layout = lay
+  if (p.get('tag') === '1') S.tag = true
+  applyLayout()
+  S.expanded = expandDefault(S.variant)
+}
+
+function toggle(id){ S.expanded[id] = !S.expanded[id] }
+function openPanel(){ S.open = true; S.lastHit = null }
+function closePanel(){ S.open = false; S.hoverFlow = null; S.hoverSkill = null; hideTip() }
+// 点一颗技能：写进假输入框、记一条回执，然后关掉面板（和真机现状一样）。
+function injectSkill(name, flowId){
+  S.injectCount++
+  S.lastHit = { skill:name, flow:flowId, at:new Date().toLocaleTimeString('zh-CN',{hour12:false}) }
+  S.typedIn = '/' + name
+  closePanel()
+}
+function resetState(){
+  S.open = false
+  S.layout = 'sceneblk'; S.tag = false; applyLayout()
+  S.expanded = expandDefault(S.variant)
+  S.hoverFlow = null; S.hoverSkill = null; S.lastHit = null
+  S.injectCount = 0; S.typedIn = ''
+}
+function expandDefault(v){
+  if (v === 'B') return { '01':true, '02':true }
+  return { 'S1':true, 'S2':true, 'S3':true, 'S4':true, 'S5':true, 'S6':true }
+}
+
+</script>
+
+<script>
+
+/* =========================================================================
+   第三部分：把状态画出来 —— 假的宿主界面、悬浮面板本体、状态面板、切换条
+   ========================================================================= */
+
+var ICON_SKILLS = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v5H2V2zm7 0h5v5H9V2zM2 9h5v5H2V9zm7 0h5v5H9V9z"/></svg>'
+
+function renderHost(){
+  var cap = document.getElementById('capsule')
+  cap.innerHTML =
+    '<span class="seg"><i class="dot"></i>可接 3</span>' +
+    '<span class="seg">占用 1</span>' +
+    '<span class="seg">Bug 12</span>' +
+    '<span class="seg">诊断 5</span>' +
+    '<span class="seg">环境 8/8</span>' +
+    '<span class="grow"></span>' +
+    '<span class="seg">09-16 21:57</span>' +
+    '<span class="skillbtn' + (S.open ? ' on' : '') + '" id="skillBtn" title="技能（原型的开关，真机上这颗图标是紫色的）">' + ICON_SKILLS + ' 技能</span>'
+  document.getElementById('skillBtn').onclick = function(e){
+    e.stopPropagation()
+    if (S.open) closePanel(); else openPanel()
+    render()
+  }
+  document.getElementById('typedHint').textContent = S.typedIn ? (S.typedIn + '（刚注入的，真机上会写进主输入框）') : ''
+}
+
+// 大区域：屏幕居中，宽取「1240 与（窗口宽 - 40）里小的那个」，高取「880 与（窗口高 - 56）里小的那个」。
+function bigSize(){
+  return { w: Math.min(1240, window.innerWidth - 40), h: Math.max(360, Math.min(880, window.innerHeight - 56)) }
+}
+function bigColumns(){
+  var w = bigSize().w
+  return w >= 1150 ? 3 : (w >= 780 ? 2 : 1)
+}
+// 面板只有一个形状：屏幕居中一大块。
+function panelStyle(){
+  var b = bigSize()
+  return 'left:50%;top:24px;transform:translateX(-50%);width:' + b.w + 'px;height:' + b.h + 'px;max-height:none'
+}
+// 「一眼看全」：量面板里那一截有没有藏起来的东西，直说要不要滚。
+function fitReport(){
+  var sc = document.getElementById('spopScroll')
+  if (!sc) return '面板还没开'
+  var over = sc.scrollHeight - sc.clientHeight
+  return over <= 1 ? '全看得到，不用滚' : ('还差 ' + Math.round(over) + ' 像素，要滚')
+}
+// 面板里要画的东西，先算成一张扁平的清单：块列表、标题条上的计数、一屏估算都读它。
+function panelItems(){
+  var gs = groupsFor()
+  var items = []
+  if (S.layout === 'flat'){
+    return flatRouteIds().map(function(fid){ return { kind:'flow', id:fid, flow:flowById(fid), alias:[], heading:'' } })
+  }
+  if (isFlowMode()){
+    var seen = {}
+    for (var i=0;i<gs.length;i++){
+      var mine = gs[i].flows || []
+      var first = true
+      for (var j=0;j<mine.length;j++){
+        var fid = mine[j]
+        if (seen[fid]) continue
+        seen[fid] = 1
+        items.push({ kind:'flow', id:fid, flow:flowById(fid), alias:alsoInGroups(gs, i, fid),
+                     heading: (first && S.layout === 'sceneblk') ? (gs[i].title + '（' + countGroupRoutes(gs, i) + ' 条）') : '' })
+        first = false
+      }
+    }
+    return items
+  }
+  return gs.map(function(g){ return { kind:'group', id:g.id, group:g } })
+}
+
+function renderPanel(){
+  var host = document.getElementById('panelHost')
+  if (!S.open){ host.innerHTML = ''; return }
+  var items = panelItems()
+  // 标题条上那个「几行」= 面板里真的画出几行技能
+  var rows = 0
+  items.forEach(function(it){
+    if (it.kind === 'flow') rows += (it.flow ? it.flow.steps.length : 0)
+    else rows += countSkillRowsOf(it.group)
+  })
+  var cls = 'spop big cols' + bigColumns()
+  var html = '<div class="' + cls + '" id="spop" style="' + panelStyle() + '">'
+  html += '<div class="head"><span class="t">按工作流找技能</span><span class="c">' + items.length + ' 块 · ' + rows + ' 行</span><span class="x" id="panelX">✕</span></div>'
+  html += '<div class="scroll" id="spopScroll">'
+  items.forEach(function(it){
+    if (it.heading) html += '<div class="rgroup">' + esc(it.heading) + '</div>'
+    if (it.kind === 'flow') html += renderFlowOnlyBlock(it)
+    else html += renderFlowBlock(it.group)
+  })
+  html += '</div>'
+  var foot = '<span class="hit" id="fitVerdict"></span> · 悬停有说明：自己画的气泡，100 毫秒出内容（鼠标停上去）· 点技能：注入后关面板'
+  html += '<div class="foot">' + foot + '</div>'
+  html += '</div>'
+  var scrollBefore = document.getElementById('spopScroll')
+  var keepTop = scrollBefore ? scrollBefore.scrollTop : 0
+  host.innerHTML = html
+  var scrollAfter = document.getElementById('spopScroll')
+  if (scrollAfter) scrollAfter.scrollTop = keepTop
+  var fitVerdict = document.getElementById('fitVerdict')
+  if (fitVerdict) fitVerdict.textContent = '一眼看全：' + fitReport()
+
+  var x = document.getElementById('panelX')
+  if (x) x.onclick = function(e){ e.stopPropagation(); closePanel(); render() }
+  Array.prototype.forEach.call(host.querySelectorAll('.blk .bh'), function(el){
+    el.onclick = function(e){
+      e.stopPropagation()
+      var bid = el.parentNode.getAttribute('data-bid')
+      if (isFlowMode()) S.expanded[bid] = !(S.expanded[bid] !== false)
+      else toggle(bid)
+      render()
+    }
+  })
+  // 悬停只在现有这棵 DOM 上换样式，不整块重画：一重画，鼠标底下那块就换成新节点，滚动位置也会被冲掉。
+  function setHoverBlock(id){
+    S.hoverFlow = id
+    Array.prototype.forEach.call(host.querySelectorAll('.blk'), function(el){
+      if (el.getAttribute('data-bid') === id) el.classList.add('hovered'); else el.classList.remove('hovered')
+    })
+    renderState()
+  }
+  function setHoverSkill(name){
+    S.hoverSkill = name
+    Array.prototype.forEach.call(host.querySelectorAll('.skl'), function(el){
+      if (name && el.getAttribute('data-sname') === name) el.classList.add('armed'); else el.classList.remove('armed')
+    })
+    renderState()
+  }
+  Array.prototype.forEach.call(host.querySelectorAll('.blk'), function(el){
+    el.onmouseenter = function(){ setHoverBlock(el.getAttribute('data-bid')) }
+  })
+  Array.prototype.forEach.call(host.querySelectorAll('.skl'), function(el){
+    el.onmouseenter = function(){ setHoverSkill(el.getAttribute('data-sname')); hoverTip(el, el.getAttribute('data-tip') || '') }
+    el.onmouseleave = function(){ setHoverSkill(null); hideTip() }
+    el.onclick = function(e){
+      e.stopPropagation()
+      hideTip()
+      injectSkill(el.getAttribute('data-sname'), el.getAttribute('data-fid'))
+      render()
+    }
+  })
+  var scroller = document.getElementById('spopScroll')
+  if (scroller) scroller.addEventListener('scroll', hideTip)
+}
+
+// 这一棒里还内嵌着别的技能时（比如 implement 里跑 tdd），名字后面标一个括号清单。
+function stepInside(fid, name){
+  var f = flowById(fid)
+  if (!f || !f.inside || !f.inside[name]) return ''
+  return '<span class="inside">（内含 /' + f.inside[name].join(' / ') + '）</span>'
+}
+
+// 技能行：只有「一行一个＋引导线」这一种排法（序号是串在竖线上的圆点）。
+function skillRow(name, fid, lead){
+  var on = (S.hoverSkill === name)
+  var key = fid || ''
+  return '<div class="skl' + (on ? ' armed' : '') + '" data-sname="' + esc(name) + '" data-fid="' + esc(key) + '" data-tip="' + esc(SKILL_LINE[name]||'') + '">' +
+    '<span class="sl">' + lead + '</span>' +
+    '<span class="sn">/' + esc(name) + '</span>' +
+    stepInside(fid, name) +
+  '</div>'
+}
+
+// 形态二之一：一块就是一条路（摆法「处境 6 块·路成块」与「20 条路平铺」）
+function renderFlowOnlyBlock(it){
+  var f = it.flow
+  if (!f) return ''
+  var openFlag = (S.expanded[f.id] !== false)
+  var h = '<div class="blk' + (openFlag ? ' open' : '') + '" data-bid="' + esc(f.id) + '" data-fid="' + esc(f.id) + '">'
+  h += '<div class="bh"><span class="arrow">▼</span><span class="num gray">' + esc(f.id) + '</span>' +
+       '<span class="bn">' + esc(f.title) + '</span>' + webGroupTag(f) + '<span class="bc">' + f.steps.length + ' 棒</span></div>'
+  if (!openFlag) return h + '</div>'
+  h += '<div class="bd">'
+  h += '<div class="bs">' + esc(f.scene) + '</div>'
+  if (it.alias && it.alias.length) h += '<div class="note">这条路也归在「' + esc(it.alias.join('」「')) + '」下，面板里只画一次。</div>'
+  f.steps.forEach(function(n, i){ h += skillRow(n, f.id, (i+1)) })
+  var meta = []
+  if (f.enter) meta.push('<b>什么时候进</b>：' + esc(f.enter))
+  if (f.end) meta.push('<b>走到哪算结束</b>：' + esc(f.end))
+  if (meta.length) h += '<div class="bs" style="padding-top:7px;border-top:1px dashed var(--border);margin-top:6px">' + meta.join('<br>') + '</div>'
+  if (f.note) h += '<div class="note">' + esc(f.note) + '</div>'
+  h += '</div>'
+  return h + '</div>'
+}
+
+// 形态二之二：一块是一个处境，里面一条路一个小节（摆法「处境 6 块·路小节」）
+function renderFlowBlock(g){
+  var openFlag = !!S.expanded[g.id]
+  var h = '<div class="blk' + (openFlag ? ' open' : '') + '" data-bid="' + g.id + '">'
+  h += '<div class="bh"><span class="arrow">▼</span>' +
+       '<span class="num gray">' + esc(g.id) + '</span>' +
+       '<span class="bn">' + esc(g.title) + '</span>' +
+       '<span class="bc">' + ((g.flows || []).length) + ' 条路</span></div>'
+  if (openFlag && groupBlurb(g)) h += '<div class="bs">' + esc(groupBlurb(g)) + '</div>'
+  if (openFlag){
+    h += '<div class="bd">'
+    ;(g.flows || []).forEach(function(fid){
+      var f = flowById(fid); if (!f) return
+      h += '<div style="margin-bottom:8px">'
+      h += '<div class="bs" style="padding:4px 2px 2px"><b style="font-size:12px;color:#e6edf3">' + esc(f.title) + '</b>' + webGroupTag(f)
+      h += '<br>' + esc(f.scene)
+      h += '</div>'
+      f.steps.forEach(function(n, i){ h += skillRow(n, f.id, (i+1)) })
+      h += '</div>'
+    })
+    h += '</div>'
+  }
+  return h + '</div>'
+}
+
+function renderState(){
+  var items = panelItems()
+  var fits = computeFits()
+  var flowItems = items.filter(function(it){ return it.kind === 'flow' }).length
+  var blockLine = '共 ' + items.length + ' 块'
+  if (flowItems) blockLine += '（其中 ' + flowItems + ' 条路）'
+  var rows = []
+  rows.push(['摆法', '<b>' + esc(layoutName(S.layout)) + '</b> — ' + esc(layoutWhat(S.layout))])
+  rows.push(['面板', '大区域·屏幕居中，' + bigSize().w + ' × ' + bigSize().h + ' 像素；铺法固定分组块（分 ' + bigColumns() + ' 栏）'])
+  rows.push(['一眼看全', esc(fitReport())])
+  rows.push(['这一档摆出来', esc(blockLine)])
+  if (S.layout !== 'web') rows.push(['编号标记', S.tag ? '每条路的名字后面跟一枚官网组编号（例如「02 主干」）' : '不跟编号'])
+  rows.push(['面板开没开', S.open ? '<span class="ok">开着</span>' : '关着'])
+  rows.push(['哪几块展开', esc(Object.keys(S.expanded).filter(function(k){ return S.expanded[k] }).join('、') || '一个都没展开')])
+  rows.push(['技能排版', '一行一个＋引导线（已定，没有开关）'])
+  rows.push(['技能行说明', '只在悬停里，自己画的气泡，100 毫秒出内容（已定，没有开关）'])
+  rows.push(['点完技能', '注入后关面板（已定，没有开关）'])
+  rows.push(['鼠标停在哪', S.hoverSkill ? ('技能 /' + esc(S.hoverSkill)) : (S.hoverFlow ? ('块 ' + esc(S.hoverFlow)) : '没停')])
+  rows.push(['已注入', S.injectCount + ' 次' + (S.lastHit ? ' · 最近一次 /' + esc(S.lastHit.skill) + '（' + esc(S.lastHit.at) + '）' : '')])
+  rows.push(['估算', S.open ? ('一屏能完整露出 <b>' + fits + '</b> 块（量的）') : ('面板还没开；按高度估，打开后大约能露出 <b>' + fits + '</b> 块')])
+  var html = '<div class="st">'
+  rows.forEach(function(r){ html += '<div class="strow"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></div>' })
+  html += '</div>'
+  document.getElementById('state').innerHTML = html
+}
+function computeFits(){
+  var sc = document.getElementById('spopScroll')
+  if (sc){
+    var box = sc.getBoundingClientRect()
+    var blocks = sc.querySelectorAll('.blk')
+    var n = 0
+    for (var i=0;i<blocks.length;i++){
+      var r = blocks[i].getBoundingClientRect()
+      if (r.top > box.bottom + 0.5) break
+      if (r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5) n++
+    }
+    return n
+  }
+  var limit = bigSize().h
+  var items = panelItems()
+  var used = 40, fits = 0
+  for (var k=0;k<items.length;k++){
+    var bh = 30 + (items[k].kind === 'flow' && items[k].flow ? items[k].flow.steps.length * 32 + 90 : 120)
+    if (used + bh > limit) break
+    used += bh; fits++
+  }
+  return fits
+}
+
+function renderBar(){
+  var bar = document.getElementById('bar')
+  var keys = LAYOUTS.map(function(l){ return l.k })
+  var html = '<div class="nav"><button class="arrow" id="prev">‹</button>' +
+    '<div class="cur">' + esc(layoutName(S.layout)) + '<small>← → 切换摆法 · URL 里是 ?layout=' + S.layout + '</small></div>' +
+    '<button class="arrow" id="next">›</button></div><div class="sep"></div>'
+  function grp(label, items, cur, kind){
+    var s = '<div class="grp"><span class="gl">' + label + '</span>'
+    items.forEach(function(it){
+      s += '<button class="op' + (it.k === cur ? ' on' : '') + '" data-kind="' + kind + '" data-k="' + it.k + '" title="' + esc(it.tip || '') + '">' + esc(it.n) + '</button>'
+    })
+    return s + '</div>'
+  }
+  var groups = []
+  groups.push(grp('摆法', LAYOUTS.map(function(l){ return { k:l.k, n:l.n, tip:l.what } }), S.layout, 'layout'))
+  groups.push(grp('编号标记', [{k:'1',n:'跟编号'},{k:'0',n:'不跟'}], S.tag ? '1' : '0', 'tag'))
+  html += groups.join('<div class="sep"></div>')
+  html += '<div class="sep"></div><span class="kbd"><kbd>Esc</kbd> 关面板</span>'
+  bar.innerHTML = html
+  document.getElementById('prev').onclick = function(){ cycleVariant(-1) }
+  document.getElementById('next').onclick = function(){ cycleVariant(1) }
+  Array.prototype.forEach.call(bar.querySelectorAll('.op'), function(b){
+    b.onclick = function(){ setOption(b.getAttribute('data-kind'), b.getAttribute('data-k')) }
+  })
+}
+
+function setOption(kind, k){
+  if (kind==='layout'){ S.layout = k; applyLayout(); S.expanded = expandDefault(S.variant) }
+  if (kind==='tag'){ S.tag = (k==='1'); applyLayout() }
+  render()
+}
+function cycleVariant(d){
+  var keys = LAYOUTS.map(function(l){ return l.k })
+  var i = keys.indexOf(S.layout)
+  S.layout = keys[(i + d + keys.length) % keys.length]
+  applyLayout()
+  S.expanded = expandDefault(S.variant)
+  render()
+}
+function render(){ hideTip(); renderHost(); renderPanel(); renderState(); renderBar(); if (window.renderWalk) window.renderWalk(); syncURL() }
+
+</script>
+
+<script>
+/* =========================================================================
+  第五部分（只有这一份有）：把底座写死，再把还没定的四件事做成开关
+  ========================================================================= */
+
+/* 这一份里原型页那几件边角料全部不要：没有假状态栏、没有状态卡、没有原型的切换条。 */
+renderHost = function(){}
+renderBar = function(){}
+
+var V = { form:'base', size:'cap', open:'all', cross:false }
+
+/* 底座写死：摆法固定「处境当标题」（处境 6 块·路成块），编号签不要。 */
+function applyBase(){
+  S.layout = (V.form === 'index') ? 'flat' : 'sceneblk'
+  S.tag = false
+  S.open = true
+  applyLayout()
+}
+/* 默认展开哪几块 —— 这是还没定的三件之一。
+   注意「第一条路」的算法要跟面板自己画的一致：同一条路挂在两个处境下时只画一次（画在前一个处境里），
+   所以每个处境「画出来的第一条」是它里面第一条还没被前面处境画过的路，不是它数组里的第一个。 */
+function applyOpen(){
+  var seen = {}, firstOf = {}, ids = []
+  SCENE_GROUPS.forEach(function(g){
+    var fs = g.flows || [], got = false
+    for (var i=0;i<fs.length;i++){
+      var fid = fs[i]
+      if (seen[fid]) continue
+      seen[fid] = 1
+      ids.push(fid)
+      if (!got){ firstOf[g.id] = fid; got = true }
+    }
+  })
+  if (V.open === 'all'){
+    ids.forEach(function(id){ S.expanded[id] = true })
+  } else if (V.open === 'none'){
+    ids.forEach(function(id){ S.expanded[id] = false })
+  } else {
+    ids.forEach(function(id){ S.expanded[id] = false })
+    Object.keys(firstOf).forEach(function(gid){ S.expanded[firstOf[gid]] = true })
+  }
+}
+
+/* 面板占多大 —— 还没定的三件之一。 */
+function bigSize(){
+  var iw = window.innerWidth, ih = window.innerHeight
+  if (V.size === 'fill') return { w: Math.max(360, iw - 16), h: Math.max(360, ih - 16) }
+  if (V.size === 'gap')  return { w: Math.min(1240, iw - 40), h: Math.max(360, ih - 112 - 16) }
+  return { w: Math.min(1240, iw - 40), h: Math.max(360, Math.min(880, ih - 56)) }
+}
+function panelStyle(){
+  var b = bigSize()
+  var top = (V.size === 'fill') ? 8 : (V.size === 'gap' ? 112 : 24)
+  return 'left:50%;top:' + top + 'px;transform:translateX(-50%);width:' + b.w + 'px;height:' + b.h + 'px;max-height:none'
+}
+
+/* 面板头部照真机的排法：仓库芯片 + 子工作区标志 + 切换后端 + 标签配色。
+   文件夹图标与浮层文案原样抄自 #650 定稿（docs/decisions/650-subworkspace-landing-spec.md）。 */
+var WS_MARK = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="#f85149" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round">' +
+  '<path d="M1.9 5.2A1.3 1.3 0 0 1 3.2 3.9h2.3l1.1 1.3h4.3a1.3 1.3 0 0 1 1.3 1.3v4.3a1.3 1.3 0 0 1-1.3 1.3H3.2a1.3 1.3 0 0 1-1.3-1.3z"/>' +
+  '<rect x="8.1" y="7.4" width="3.9" height="3.9" rx="1.1" fill="#f85149" stroke="none"/></svg>'
+/* 反斜杠用字符码拼，免得这一份生成出来时被转义吃掉（Windows 路径里那种）。 */
+var BS = String.fromCharCode(92)
+var ROOT = 'D:' + BS + 'ilife'
+var WS_TIP = '面板数据来自工作区 ' + ROOT + '\n当前目录是它的子目录：packages › skill-calendar\n点一下打开 ' + ROOT
+var WS_TIP_HTML = WS_TIP.split('\n').join('&#10;')
+var CHROME =
+  '<span class="chip" title="这个面板正在说哪个仓库的数据">FeatherHunter/dsh-mattpocock-skills-deck</span>' +
+  '<span class="wsmark" role="img" aria-label="' + WS_TIP.replace(/"/g, '') + '" title="' + WS_TIP_HTML + '">' + WS_MARK + '</span>' +
+  '<span class="sep2"></span>' +
+  '<button class="hicon" type="button" title="切换后端" aria-label="切换后端">⇄</button>' +
+  '<button class="hicon hot" type="button" title="标签配色" aria-label="标签配色">◆</button>'
+
+/* 这是还没定的第四件：跨会话那条路（handoff 分出去、做完交回来）要不要先留一句提示。 */
+var CROSS_FLOW = 'H'
+
+var __renderPanel = renderPanel
+renderPanel = function(){
+  __renderPanel()
+  var host = document.getElementById('panelHost')
+  if (!S.open || !host.querySelector('.spop')) return
+  var head = host.querySelector('.spop .head')
+  if (head && !head.querySelector('.chip')) head.insertAdjacentHTML('afterbegin', CHROME)
+  if (V.form === 'segfold') paintSegfold(host)
+  if (V.form === 'index') paintIndex(host)
+  if (V.cross) paintCross(host)
+}
+
+/* 综合形态一：白处境当成一个能整段折叠的段头（点段头就把这一段的路全折起来）。
+   路的块还是各自能折 —— 「处境当块」那档的折叠能力，并进「处境当标题」这一档。 */
+function paintSegfold(host){
+  var sc = host.querySelector('.scroll')
+  if (!sc) return
+  var segs = [], cur = null
+  Array.prototype.forEach.call(sc.children, function(el){
+    if (el.classList.contains('rgroup')){ cur = { el:el, ids:[] }; segs.push(cur) }
+    else if (el.classList.contains('blk') && cur) cur.ids.push(el.getAttribute('data-bid'))
+  })
+  segs.forEach(function(sg){
+    var closed = sg.ids.length > 0 && sg.ids.every(function(id){ return S.expanded[id] === false })
+    sg.el.classList.add('seg')
+    if (closed) sg.el.classList.add('closed')
+    sg.el.insertAdjacentHTML('afterbegin', '<span class="segcar">▼</span>')
+    sg.el.onclick = function(e){
+      e.stopPropagation()
+      var toClose = !closed
+      sg.ids.forEach(function(id){ S.expanded[id] = !toClose })
+      render()
+    }
+  })
+}
+
+/* 综合形态二：20 条路还是平铺（认路最快），但面板顶上多一条处境索引条 ——
+   点一个处境，它下面那几条路就整段被标出来并滚过去。平铺丢掉的那一层，用这一条补回来。 */
+var IDX_CUR = null
+function paintIndex(host){
+  var sc = host.querySelector('.scroll')
+  if (!sc) return
+  var bar = document.createElement('div')
+  bar.className = 'idxbar'
+  bar.innerHTML = '<span class="il">按处境找：</span>'
+  SCENE_GROUPS.forEach(function(g){
+    var b = document.createElement('button')
+    b.className = 'idxop' + (IDX_CUR === g.id ? ' on' : '')
+    b.type = 'button'
+    b.textContent = g.id + ' ' + g.title
+    b.onclick = function(e){ e.stopPropagation(); jumpToGroup(g.id) }
+    bar.appendChild(b)
+  })
+  sc.insertBefore(bar, sc.firstChild)
+  if (IDX_CUR) markGroup(host, IDX_CUR)
+}
+function markGroup(host, gid){
+  var g = null
+  SCENE_GROUPS.forEach(function(x){ if (x.id === gid) g = x })
+  if (!g) return
+  ;(g.flows || []).forEach(function(fid){
+    var el = host.querySelector('.blk[data-bid="' + fid + '"]')
+    if (el) el.classList.add('inseg')
+  })
+}
+function jumpToGroup(gid){
+  IDX_CUR = gid
+  var g = null
+  SCENE_GROUPS.forEach(function(x){ if (x.id === gid) g = x })
+  if (!g || !(g.flows || []).length) return
+  ;(g.flows || []).forEach(function(fid){ S.expanded[fid] = true })
+  render()
+  var first = document.querySelector('.spop .blk[data-bid="' + g.flows[0] + '"]')
+  if (first){
+    try { first.scrollIntoView({ block:'nearest' }) } catch (e) { /* 老浏览器没有这个参数就当没滚 */ }
+    first.classList.add('flash')
+    setTimeout(function(){ if (first) first.classList.remove('flash') }, 1100)
+  }
+}
+
+/* 跨会话那条路：在路名后面挂一枚小签，并在块里写清「点它会开一个新会话，原对话不结束」。 */
+function paintCross(host){
+  var blk = host.querySelector('.blk[data-bid="' + CROSS_FLOW + '"]')
+  if (!blk) return
+  var bn = blk.querySelector('.bn')
+  if (bn && !blk.querySelector('.xcrosstag')) bn.insertAdjacentHTML('afterend', '<span class="xcrosstag">要换会话</span>')
+  var bs = blk.querySelector('.bs')
+  if (bs && !blk.querySelector('.xcrossline')) bs.insertAdjacentHTML('beforebegin', '<div class="bs xcrossline">这条路要换会话：点这里的技能会另起一个会话，原来这场对话**不会**结束。</div>')
+}
+
+/* 左下角那行：现在这一档到底是什么，以及面板自己量出来的数字。 */
+function renderState(){
+  var items = panelItems()
+  var rows = items.filter(function(it){ return it.kind === 'flow' }).length
+  var line = document.getElementById('stateLine')
+  if (!line) return
+  line.innerHTML =
+    '形态 <b>' + formName(V.form) + '</b> · 占多大 <b>' + sizeName(V.size) + '</b> · 默认展开 <b>' + openName(V.open) + '</b> · 跨会话提示 <b>' + (V.cross ? '有' : '没有') + '</b>' +
+    ' ｜ 面板现在：<b>' + bigSize().w + ' × ' + bigSize().h + '</b>、共 <b>' + items.length + '</b> 块 / <b>' + rows + '</b> 条路' +
+    ' ｜ 一眼看全：<b>' + esc(fitReport()) + '</b>'
+}
+
+function formName(k){ return k === 'segfold' ? '处境整段能折' : (k === 'index' ? '平铺＋处境索引条' : '综合版默认（处境当标题）') }
+function sizeName(k){ return k === 'fill' ? '真占满整屏' : (k === 'gap' ? '上方留一条缝' : '1240 × 880 封顶') }
+function openName(k){ return k === 'first' ? '每个处境只开第一条路' : (k === 'none' ? '全折起来' : '全展开') }
+
+/* 地址栏只留这一份自己的四个参数，保持短地址。 */
+function syncURL(){}
+
+function applyParams(qs){
+  var q = new URLSearchParams(qs || '')
+  var f = q.get('form'); V.form = (f === 'segfold' || f === 'index') ? f : 'base'
+  var z = q.get('size'); V.size = (z === 'fill' || z === 'gap') ? z : 'cap'
+  var o = q.get('open'); V.open = (o === 'first' || o === 'none') ? o : 'all'
+  V.cross = q.get('cross') === '1'
+  IDX_CUR = null
+  applyBase()
+  applyOpen()
+  S.hoverFlow = null; S.hoverSkill = null
+  hideTip()
+}
+function paramString(){
+  var p = []
+  if (V.form !== 'base') p.push('form=' + V.form)
+  if (V.size !== 'cap') p.push('size=' + V.size)
+  if (V.open !== 'all') p.push('open=' + V.open)
+  if (V.cross) p.push('cross=1')
+  return p.join('&')
+}
+
+/* 还没定的四件事合起来，走一圈看下来。 */
+var TOUR = [
+  { n:'综合版底座：大区域 + 分组块 + 处境当标题 + 一行一个＋引导线', q:'' },
+  { n:'处境整段能折（把「处境当块」那档的折叠并进来）', q:'form=segfold' },
+  { n:'20 条路平铺 ＋ 顶上一条处境索引条', q:'form=index' },
+  { n:'面板真占满整屏', q:'size=fill' },
+  { n:'上方留一条缝，能看见对话', q:'size=gap' },
+  { n:'默认只展开每个处境的第一条路', q:'open=first' },
+  { n:'默认全折起来，只留块标题', q:'open=none' },
+  { n:'处境整段折起来之后，一屏只剩六个段头', q:'form=segfold&open=none' },
+  { n:'跨会话那条路先留一句提示', q:'cross=1' }
+]
+var tourIndex = 0
+
+function tourPath(it){
+  var path = location.href.split('?')[0].split('#')[0]
+  return path + (it.q ? '?' + it.q : '')
+}
+function showStep(i){
+  tourIndex = (i + TOUR.length) % TOUR.length
+  var it = TOUR[tourIndex]
+  applyParams(it.q)
+  render()
+  history.replaceState(null, '', tourPath(it))
+  document.getElementById('tourLabel').textContent = '第 ' + (tourIndex + 1) + ' / ' + TOUR.length + ' 个 —— ' + it.n
+  document.getElementById('tourUrl').textContent = location.href
+}
+function findStartStep(){
+  var mine = new URLSearchParams(location.search).toString()
+  for (var i=0;i<TOUR.length;i++){
+    if (new URLSearchParams(TOUR[i].q).toString() === mine) return i
+  }
+  return -1
+}
+document.addEventListener('keydown', function(e){
+  var t = (e.target && e.target.tagName) || ''
+  if (t === 'INPUT' || t === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return
+  if (e.key === 'ArrowRight'){ showStep(tourIndex + 1); return }
+  if (e.key === 'ArrowLeft'){ showStep(tourIndex - 1); return }
+})
+
+/* 点技能：和真机一样注入后关面板，顺手在左下角留一条回执。 */
+var __inject = injectSkill
+injectSkill = function(name, fid){
+  __inject(name, fid)
+  var r = document.getElementById('receipt')
+  if (r) r.innerHTML = '刚注入：<span class="hit">/' + name + '</span>（累计 ' + S.injectCount + ' 次）—— 真机上这一下会把「/' + name + '」写进当前会话的输入框，面板按设定关掉。'
+}
+
+window.addEventListener('resize', function(){ render() })
+
+var start = findStartStep()
+if (start >= 0) showStep(start)
+else {
+  applyParams(location.search)
+  render()
+  document.getElementById('tourLabel').textContent = '自定义这一档（按 → 从第一个开始走）'
+  document.getElementById('tourUrl').textContent = location.href
+}
+</script>
+</body>
+</html>

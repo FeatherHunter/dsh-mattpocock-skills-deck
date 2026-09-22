@@ -41,7 +41,7 @@ export const confirmOverlayGate = function(s, gateModules){
         if (String(id).toLowerCase()==='other') { s.gateError=tr('switch.gateOtherErr'); emit(s); return }
         const prev = s.selection
         const repoRef = s.repository || (s.snapshot && s.snapshot.repository) || null
-        const next = { backendId: id, source: 'explicit', ref: repoRef, userPicked: true } // #669 第 6 件：门控确认＝用户亲手选的那一下，带上标记（这个叶今天没有调用点，留着是为了将来接线时不静默少一道闸）
+        const next = (typeof userPickSelection === 'function') ? userPickSelection(id, repoRef, prev) : { backendId: id, source: 'explicit', ref: repoRef, userPicked: true } // #669 第 6 件：门控确认＝用户亲手选的那一下，带上标记（这个叶今天没有调用点，留着是为了将来接线时不静默少一道闸）
         s.selection = next
         try{ if(s.cwd) setCachedSelection(s.cwd,next) }catch(e){}
         s.gateModalOpen=false
@@ -50,6 +50,8 @@ export const confirmOverlayGate = function(s, gateModules){
           host.call('wf.bind', { cwd: s.cwd||'', backendId: id }).then(function(res){
             const ok = res && (res.ok===true || (res.value && res.value.ok===true) || res.ok)
             if(ok){
+              try{ if(typeof adoptBoundRev === 'function') adoptBoundRev(s, res) }catch(eRev){}
+              try{ var _np=res&&(res.persisted===false||(res.value&&res.value.persisted===false)); if(_np) flash(s, tr('switch.bindFail',{err:'已切换，但宿主侧这次没能记住：下次重启或换个地址打开可能要再选一次'}), 'warn') }catch(eP){}
               s.tab='list'
               emit(s)
               try{ flash(s, tr('switch.bindOk', { label: (typeof labelOf==='function'?labelOf(id):String(id)) }), 'ok') }catch(e){}

@@ -74,6 +74,8 @@
       '.dsws-btn.primary:hover{border-color:rgba(20,10,30,.55)}',
       // v1.3.3：窄屏只剩图标时保持按钮高度、画成正方形（高=宽=按钮高），图标居中
       '.dsws-btn.narrow-icon{width:20px;height:20px;padding:0;justify-content:center;align-items:center;gap:0}',
+      // #685：「体检」按钮收到「图标 + 件数」那一档（窄面板第二档）：件数是它的价值信号，不跟着按钮名一起收掉。
+      '.dsws-btn.narrow-count{padding:1px 5px;gap:2px;width:auto}',
       '.dsws-btn.ghost{background:transparent;border-color:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)}',
       '.dsws-grp{margin:12px 0 4px;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);display:flex;align-items:center;gap:6px}',
       '.dsws-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}',

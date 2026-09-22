@@ -46,6 +46,118 @@ export const GET_QUERY = `query($owner:String!,$name:String!,$number:Int!){
   }
 }`
 
+// 计数查询（#689 的 counts op）。一次往返拿两个数：不翻页、不带任何行，所以只花 1 点额度（2026-09-22 实测）。
+// 为什么用 issues 连接：它天然不含拉取请求（契约要求「只数工单」），而 REST 的 open_issues_count 把拉取
+//   请求也算在内，不能用。
+// 带标签筛的那一版单独一份查询：filterBy 只在真有标签要筛时才出现 —— 无标签时传 filterBy:{labels:[]}
+//   在各版本上的行为不一致（空数组是「不筛」还是「全都要有」，没有把握），所以不让它出现。
+// 两个别名（openIssues / closedIssues）对应契约里的 open 与 closed，total 由调用方相加（一次查询里
+//   两个数同源同时刻，相加不会出现「两个时刻凑出来的总数」）。
+export const COUNTS_QUERY = `query($owner:String!,$name:String!){
+  repository(owner:$owner,name:$name){
+    openIssues: issues(states:[OPEN]){ totalCount }
+    closedIssues: issues(states:[CLOSED]){ totalCount }
+  }
+}`
+
+// 同上，多了「必须同时带上这些标签」这一层筛（GraphQL 的 filterBy.labels 是 AND 语义）。
+export const COUNTS_QUERY_WITH_LABELS = `query($owner:String!,$name:String!,$labels:[String!]!){
+  repository(owner:$owner,name:$name){
+    openIssues: issues(states:[OPEN], filterBy:{labels:$labels}){ totalCount }
+    closedIssues: issues(states:[CLOSED], filterBy:{labels:$labels}){ totalCount }
+  }
+}`
+
+// 按页取票的薄片段（#690 的 listPage 那条操作用）：只抓「画成列表里一行」用得上的字段。
+// 字段清单的出处是研究底稿 research/677-field-consumption.md 第 6 节：A 组「画像素直接用」9 项、
+//   B 组「列表这条流水线要用」6 项，再减去后端自己就能推出来的三样（key 由 number 来、effortId 在
+//   GitHub 上恒为空串、type 由 wayfair:map 标签推）与不需要向 GitHub 要的 number 之外的身份。
+// 不带 body 与 comments：真机上整份快照 11.8 MB 里 body 2.94 MB、comments 1.80 MB（规格第 14 节实测），
+//   而画一行一个字都用不到它们 —— 点开单票详情时另有它自己那一次取数。
+// 不带 reviews / parent / milestone / reason / closedAt：底稿第 6.2 节列的「今天确定没有任何客户端
+//   读者」清单里有它们（milestone 与 reason 只有检查页那张诊断卡「数在不在」这一种读者）。
+// 不带 blockedBy：页数据目前只用来装**已关闭**的票，而「被阻塞」小标只对未关闭票有意义
+//   （store-derived.js 的 applyStandaloneBlocks 本来就是跳过已关闭行）。哪天页数据要装未关闭票，这里一起改。
+export const PAGE_ISSUE_FRAGMENT = [
+  'number',
+  'title',
+  'state',
+  'url',
+  'createdAt',
+  'updatedAt',
+  'author{login avatarUrl __typename ... on User{name} ... on Organization{name}}',
+  'assignees(first:20){nodes{login}}',
+  'labels(first:50){nodes{name color}}',
+].join(' ')
+
+// 按页取票查询（#690 的 listPage 那条操作）。三条硬约束写死在查询里：
+//   排序键固定「创建时间倒序」—— 翻页期间别的票被更新时，按更新时间排序会让票在页与页之间挪位置、
+//   可能漏掉一张；创建时间写下来就不动（契约 contract-page.js 的「分页契约」）。
+//   states 由调用方给，且必有值：已关闭票按需翻页走的就是 states:[CLOSED]。
+//   totalCount 与 nodes 取自同一个连接，天然同时刻，供界面写「已加载 x / 共 N」。
+// 带标签筛的这一版单独一份查询：filterBy 只在真有标签要筛时才出现 —— 空数组是「不筛」还是「全都要有」
+//   在各版本上行为不一致，没有把握，所以不让它出现（与上面两条计数查询同一处置）。
+export const LIST_PAGE_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!){
+  repository(owner:$owner,name:$name){
+    issues(first:$first, after:$after, states:$states, orderBy:{field:CREATED_AT, direction:DESC}){
+      totalCount
+      nodes{ ${PAGE_ISSUE_FRAGMENT} }
+      pageInfo{ hasNextPage endCursor }
+    }
+  }
+}`
+
+// 同上，多了「必须同时带上这些标签」这一层筛（GraphQL 的 filterBy.labels 是 AND 语义）。
+export const LIST_PAGE_QUERY_WITH_LABELS = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!,$labels:[String!]!){
+  repository(owner:$owner,name:$name){
+    issues(first:$first, after:$after, states:$states, orderBy:{field:CREATED_AT, direction:DESC}, filterBy:{labels:$labels}){
+      totalCount
+      nodes{ ${PAGE_ISSUE_FRAGMENT} }
+      pageInfo{ hasNextPage endCursor }
+    }
+  }
+}`
+
+// 地图子票用的片段（#691 阶段 3）：画一行要的字段，外加正文。
+// 与 ISSUE_FRAGMENT 的两处差别都是省额度、不是省信息：
+//  - 不带 `comments`：地图详情与列表都只画一行，评论只在用户点开单票详情时按需取；
+//  - 不带 `milestone`：画一行用不到它。
+// `body` 必须带上 —— 子票的「进度」写在正文里的 `## 进度：N%`，由宿主解析成数字后把正文剥掉，
+// 正文本身不随行数据发给界面（见 src/host/mapTickets.js）。
+export const SUB_ISSUE_FRAGMENT = [
+  'number', // 只作 key 的来源，不外泄成 Issue.number（与 ISSUE_FRAGMENT 同口径）
+  'title',
+  'state',
+  'body',
+  'url',
+  'createdAt',
+  'updatedAt',
+  'closedAt',
+  'author{login avatarUrl __typename ... on User{name} ... on Organization{name}}',
+  'assignees(first:50){nodes{login name avatarUrl __typename}}',
+  'labels(first:50){nodes{name color description}}',
+  'parent{number}',
+  'blockedBy(first:50){nodes{number title state}}',
+].join(' ')
+
+// 一张地图的全部子票（#691 阶段 3）。与列表那条路的关键差别：
+//   列表（LIST_QUERY）取整个仓库的票，带 500 条安全上限 —— 子票超过 100 张的地图会被它截断；
+//   这条查询从「父票 → 子票」的原生关系往下取，按页翻到底，不受那个上限影响。
+//   连接上的 totalCount 用来核对「拉到的张数 == 总数」，对不上就把差额报出来，不许静默少几条。
+// 代价是每 100 张一页，所以只在用户真的打开一张地图时才跑（唯一调用者：宿主电话 wf.mapTickets）。
+export const SUB_ISSUES_QUERY = `query($owner:String!,$name:String!,$number:Int!,$first:Int!,$after:String){
+  repository(owner:$owner,name:$name){
+    issue(number:$number){
+      number
+      subIssues(first:$first, after:$after){
+        totalCount
+        nodes{ ${SUB_ISSUE_FRAGMENT} }
+        pageInfo{ hasNextPage endCursor }
+      }
+    }
+  }
+}`
+
 // 拉取请求片段（#504 落 #294 形状 A：只取契约三字段所需来源 + 复用工单核心字段）。
 // 真仓结论（2026-09-06，真仓 FeatherHunter/dsh-mattpocock-skills-deck，用 gh 直查，令牌与地址已脱敏）：
 // 工单口 /issues 全量 403 条（含拉取请求条目），拉取请求口 /pulls 全量 7 条；
@@ -106,4 +218,4 @@ export const GET_PR_QUERY = `query($owner:String!,$name:String!,$number:Int!){
 
 // 兼容旧命名（#132 登记旧片段迁移）：保留但指向新 fragment
 export const GITHUB_ISSUE_FIELDS = ISSUE_FRAGMENT
-export default { ISSUE_FRAGMENT, GITHUB_ISSUE_FIELDS, LIST_QUERY, GET_QUERY, PULL_REQUEST_FRAGMENT, LIST_PR_QUERY, GET_PR_QUERY }
+export default { ISSUE_FRAGMENT, GITHUB_ISSUE_FIELDS, LIST_QUERY, GET_QUERY, COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS, PULL_REQUEST_FRAGMENT, LIST_PR_QUERY, GET_PR_QUERY }

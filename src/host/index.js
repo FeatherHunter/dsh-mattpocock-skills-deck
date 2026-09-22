@@ -1,21 +1,12 @@
 /**
  * dsh-mattpocock-skills-deck · Host 半（数据层实现 · T3 #345）
- *
- * 实现：
- *   1. gh 封装层：resolveExecutable 解析 → 兜底 DSH_GH_PATH/系统 gh；30s 超时（timer race + terminate）；
- *      错误归一化（auth / network / notfound / exit）。
- *   2. 数据流：gh issue list 枚举 wayfinder:map → 每 map 一次 GraphQL（subIssues + labels + assignees +
- *      blockedBy + blocking）→ 组装快照（map 五区块解析 + tickets + stats 分组）。
- *   3. RPC：wf.snapshot（5s 缓存）/ wf.refresh（wf.ping 已随 #498 退役，探活改走 wf.logGetSwitch）。
- *   4. 轮询：timer 60s 刷新缓存 + 与上次 stats diff（P2 toast 预留字段）。
- *   5. 检查链快照（#228/#284）：wf.chain —— 通用链 + 当前后端链求值快照，替代九格目录视图。
- *   6. 技能判装多通道并联（#296）：注册表未命中时并联探标准根（DSH fs 服务 + 插件只读直读）。
- *      直读是对「探测零 OS 直碰」的限定例外——只读、仅技能标准根候选路径，契约见
- *      docs/adr/20260828-skill-probe-union-channels.md。
- *
- * 已验证（.charting/verify.js，真实数据 PASS）：分组 frontier/claimed/blocked 与 GitHub 页面一致；
- * 9 张 open map 中仅 4 张有 Destination —— body 解析全部容错。
- *
+ * 实现：1. gh 封装（解析与兜底，30s 超时，错误归一 auth/network/notfound/exit）。
+ *   2. 数据流：枚举 wayfinder:map → 每 map 一次 GraphQL → 组装快照（五区块+tickets+stats）。
+ *   3. RPC：wf.snapshot（5s 缓存）/ wf.refresh（wf.ping 已退役，探活走 wf.logGetSwitch）。
+ *   4. 轮询：timer 60s 刷新缓存 + 与上次 stats diff（P2 toast 预留）。
+ *   5. 检查链快照（#228/#284）：通用链 + 当前后端链求值快照，替代九格目录视图。
+ *   6. 技能判装多通道并联（#296）：注册表未命中时并联探标准根（只读直读为例外，见 docs/adr/20260828-skill-probe-union-channels.md）。
+ * 已验证：分组与 GitHub 页面一致；9 张 open map 中仅 4 张有 Destination，body 解析全部容错。
  * 本文件内容 = cordis_define 的 code.host（纯 JS 函数体，返回 Cordis Plugin）。
  */
 
@@ -59,7 +50,11 @@ export default {
     // #195 修复：失败不永久缓存 —— ghLastError 仅保留最近一次失败（覆盖式），环境修复后下次 resolveGh 覆盖为 null；不像旧实现首次失败永不重试
     let ghLastError = null
     let repoKeys = {}  // v12：repoKey 按 cwd 缓存（切换仓库会话时不再串仓库）
-    let cache = { ts: 0, snapshot: null, error: null, cwd: null }
+    // #696 按工作区根分桶：单格改成表，每条含快照与时间（60秒有效），最多20条，超了丢最久没用的那条
+    const snapshotByRoot = new Map()
+    function touchSnapshotLRU(k, v) { if (snapshotByRoot.has(k)) snapshotByRoot.delete(k); snapshotByRoot.set(k, v); if (snapshotByRoot.size > 20) snapshotByRoot.delete(snapshotByRoot.keys().next().value) }
+    function getCache(cwd) { if (cwd == null) return { ts: 0, snapshot: null, error: null, cwd: null }; const k = String(cwd); const e = snapshotByRoot.get(k); if (e) { snapshotByRoot.delete(k); snapshotByRoot.set(k, e); return e } return { ts: 0, snapshot: null, error: null, cwd: k } }
+    function setCache(v) { const c = v && v.cwd; if (!c) { snapshotByRoot.clear(); return } /* #696 清全部仅兼容旧调用（现宿主快照写路径都有目录，无生产调用走此分支） */ const k = String(c); if (v.ts === 0 && !v.snapshot && !v.error) { snapshotByRoot.delete(k); return } touchSnapshotLRU(k, { ts: v.ts, snapshot: v.snapshot, error: v.error, cwd: k }) }
     let userHome = null                                     // 保留占位（#171 已迁 platform.getHome，缓存归平台 memoize）
     // H1 #445：repoRoots 留守（建仓失效删裸变量）与 _detectionService 恒空留守（唯一引用是 wf.bind 内无动作空检查，有无值行为一致）。
     let repoRoots = {}           // 根路径按 cwd 缓存
@@ -83,15 +78,16 @@ export default {
     let _bootP = null
     function _boot() { if (!_bootP) _bootP = import('./bootstrap.js').then(function(m){ return m.createBootstrap({ ctx: ctx }) }); return _bootP }
     let _platP = null
-    function _plat() { if (!_platP) _platP = (async function(){ const boot = await _boot(); const mod = await import('./platformChannel.js'); return mod.createPlatformChannel({ ctx: ctx, subprocess: subprocess, timer: timer, fs: fs, DEFAULT_CWD: DEFAULT_CWD, TIMEOUT_MS: TIMEOUT_MS, getMattSkillProbeNames: function(){ return getMattSkillProbeNames.apply(null, arguments) }, probeSkill: function(){ return probeSkill.apply(null, arguments) }, logCtx: logCtx }) })(); return _platP }
+    function _plat() { if (!_platP) _platP = (async function(){ const boot = await _boot(); const mod = await import('./platformChannel.js'); return mod.createPlatformChannel({ ctx: ctx, subprocess: subprocess, timer: timer, fs: fs, DEFAULT_CWD: DEFAULT_CWD, TIMEOUT_MS: TIMEOUT_MS, getMattSkillProbeNames: function(){ return getMattSkillProbeNames.apply(null, arguments) }, probeSkill: function(){ return probeSkill.apply(null, arguments) }, getChoiceStore: function(){ return getChoiceStore.apply(null, arguments) }, logCtx: logCtx }) })(); return _platP }
     let _repoP = null
-    function _repo() { if (!_repoP) _repoP = (async function(){ const plat = await _plat(); const mod = await import('./repoKeys.js'); return mod.createRepoKeys({ subprocess: subprocess, timer: timer, fs: fs, DEFAULT_CWD: DEFAULT_CWD, TIMEOUT_MS: TIMEOUT_MS, repoKeys: repoKeys, repoRoots: repoRoots, getGhPath: function(){ return ghPath }, setGhPath: function(v){ ghPath = v }, getGhLastError: function(){ return ghLastError }, setGhLastError: function(v){ ghLastError = v }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getWorkspaceStore: function(){ return getWorkspaceStore.apply(null, arguments) }, setCache: function(v){ cache = v }, clearWorkspaceStore: function(){ return plat.clearWorkspaceStore.apply(plat, arguments) }, namingSweepSoon: function(){ return namingSweepSoon.apply(null, arguments) }, parseGithubRepo: function(){ return parseGithubRepo.apply(null, arguments) }, logCtx: logCtx }) })(); return _repoP }
+    function _repo() { if (!_repoP) _repoP = (async function(){ const plat = await _plat(); const mod = await import('./repoKeys.js'); return mod.createRepoKeys({ subprocess: subprocess, timer: timer, fs: fs, DEFAULT_CWD: DEFAULT_CWD, TIMEOUT_MS: TIMEOUT_MS, repoKeys: repoKeys, repoRoots: repoRoots, getGhPath: function(){ return ghPath }, setGhPath: function(v){ ghPath = v }, getGhLastError: function(){ return ghLastError }, setGhLastError: function(v){ ghLastError = v }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getWorkspaceStore: function(){ return getWorkspaceStore.apply(null, arguments) }, setCache: setCache, clearWorkspaceStore: function(){ return plat.clearWorkspaceStore.apply(plat, arguments) }, namingSweepSoon: function(){ return namingSweepSoon.apply(null, arguments) }, parseGithubRepo: function(){ return parseGithubRepo.apply(null, arguments) }, logCtx: logCtx }) })(); return _repoP }
     async function getMattSkillProbeNames() { const h = await _boot(); return h.getMattSkillProbeNames.apply(h, arguments) }
     async function getTrackerRegistry() { const h = await _plat(); return h.getTrackerRegistry.apply(h, arguments) }
     async function getPlatform() { const h = await _plat(); return h.getPlatform.apply(h, arguments) }
     async function getWorkspaceStore() { const h = await _plat(); return h.getWorkspaceStore.apply(h, arguments) }
     async function detectionExec() { const h = await _plat(); return h.detectionExec.apply(h, arguments) }
     async function getDetectionService() { const h = await _plat(); return h.getDetectionService.apply(h, arguments) }
+    async function getChoiceStore() { const h = await _plat(); return h.getChoiceStore.apply(h, arguments) } // #683（F1）：宿主侧那份记忆（H）归 platformChannel 单点持有（读它的是两处：绑定写入与判定读取；队列全进程只许一条。规则见 src/host/choiceStore.js 文件头）。
     async function resolveGh() { const h = await _repo(); return h.resolveGh.apply(h, arguments) }
     async function resetGhCache() { const h = await _repo(); return h.resetGhCache.apply(h, arguments) }
     async function runGh() { const h = await _repo(); return h.runGh.apply(h, arguments) }
@@ -109,13 +105,12 @@ export default {
     try { _plat().then(function(pl){ try { pl.getTrackerRegistry().catch(function(){}) } catch (e1) {} }).catch(function(){}) } catch (e2) {}
 
     // ---- H2 #446 接线：3 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
-    // 留守（行为零变化优先；调用方在 H4/H5/H6 的同步上下文里，动态加载给不出同步函数）：
-    //   computeLevels/groupTickets（H4 三处同步分组）、isRateLimitError（H5 三处同步判别）、
+    // 留守（行为零变化优先；调用方在 H4/H5/H6 的同步上下文里，动态加载给不出同步函数）：computeLevels/groupTickets（H4 三处同步分组）、isRateLimitError（H5 三处同步判别）、
     //   issueIndexFromSnapshot/issueIndexChanged/rememberIssueIndex（H6 探测同步取值与同刻写表）。
     let _mapBodyP = null
     function _mapBody() { if (!_mapBodyP) _mapBodyP = import('./mapBody.js').then(function(m){ return m.createMapBody() }); return _mapBodyP }
     let _issueListP = null
-    function _issueList() { if (!_issueListP) _issueListP = (async function(){ const mod = await import('./issueList.js'); return mod.createIssueList({ getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, setCache: function(v){ cache = v }, issueIndexFromSnapshot: issueIndexFromSnapshot, issueIndexChanged: issueIndexChanged, rememberIssueIndex: rememberIssueIndex, readDiskCache: function(){ return readDiskCache.apply(null, arguments) }, logCtx: logCtx }) })(); return _issueListP }
+    function _issueList() { if (!_issueListP) _issueListP = (async function(){ const mod = await import('./issueList.js'); return mod.createIssueList({ getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, setCache: setCache, issueIndexFromSnapshot: issueIndexFromSnapshot, issueIndexChanged: issueIndexChanged, rememberIssueIndex: rememberIssueIndex, readDiskCache: function(){ return readDiskCache.apply(null, arguments) }, logCtx: logCtx }) })(); return _issueListP }
     let _issueDetailP = null
     // #599：快照组装在 snapshotBuild.js（单票详情仍在 issueDetail.js）；两边共享的东西由这里组合后传进去 —— 同层互引门禁不许两个干活的文件互相引用，组合点落在入口（既有 25 条同形先例）。
     function _issueSnap() { let p = null; if (!p) p = (async function(){ const mod = await import('./snapshotBuild.js'); const detail = await _issueDetail(); const mb = await _mapBody(); const grp = await _group(); return mod.createSnapshotBuilder({ getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, execProc: function(){ return execProc.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getRepoRoot: function(){ return getRepoRoot.apply(null, arguments) }, ctx: ctx, timer: timer, getGhPath: function(){ return ghPath }, getGhLastError: function(){ return ghLastError }, fetchIssues: function(){ return fetchIssues.apply(null, arguments) }, fetchMapsDetailREST: function(){ return fetchMapsDetailREST.apply(null, arguments) }, fetchMapsDetail: detail.fetchMapsDetail, mapTicket: mb.mapTicket, parseMapBody: mb.parseMapBody, computeLevels: grp.computeLevels, groupTickets: grp.groupTickets, isRateLimitError: isRateLimitError }) })(); return p }
@@ -139,14 +134,17 @@ export default {
     async function fetchIssueDetail() { const h = await _issueDetail(); return h.fetchIssueDetail.apply(h, arguments) }
     async function buildSnapshot() { const h = await _issueSnap(); return h.buildSnapshot.apply(h, arguments) }
     // ---- H3 #447 接线：3 新文件动态 import 加载，新文件之间不互引用 ----
-    // 留守：parseGithubRepo 留守（repoKeys 同步调用）；chainCache 本块留守（index 单一持有）；harness.handle 注册留守（apply 同步注册）。
-    let chainCache = { ts: 0, key: null, value: null }
+    // 留守：parseGithubRepo 留守（repoKeys 同步调用）；链表由本块持有（按工作区根+后端+语言，30秒有效，最多20条）；harness.handle 注册留守。
+    const chainByKey = new Map()
+    function touchChainLRU(k, v) { if (chainByKey.has(k)) chainByKey.delete(k); chainByKey.set(k, v); if (chainByKey.size > 20) chainByKey.delete(chainByKey.keys().next().value) }
+    function getChainCache(key) { if (!key) return { ts: 0, key: null, value: null }; const k = String(key); const e = chainByKey.get(k); if (e) { chainByKey.delete(k); chainByKey.set(k, e); return e } return { ts: 0, key: k, value: null } }
+    function setChainCache(v) { if (!v || !v.key) { chainByKey.clear(); return } /* #696 清全部仅技能广播（无目录）与旧调用 */ touchChainLRU(String(v.key), { ts: v.ts, key: String(v.key), value: v.value }) }
     let _remotePredP = null
     function _remotePred() { if (!_remotePredP) _remotePredP = import('./remotePredicates.js').then(function(m){ return m.createRemotePredicates() }); return _remotePredP }
     let _skillProbeP = null
-    function _skillProbe() { if (!_skillProbeP) _skillProbeP = (async function(){ const mod = await import('./skillProbe.js'); return mod.createSkillProbe({ ctx: ctx, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getWorkspaceStore: function(){ return getWorkspaceStore.apply(null, arguments) }, resetChainCache: function(){ chainCache = { ts: 0, key: null, value: null } }, logCtx: logCtx }) })(); return _skillProbeP }
+    function _skillProbe() { if (!_skillProbeP) _skillProbeP = (async function(){ const mod = await import('./skillProbe.js'); return mod.createSkillProbe({ ctx: ctx, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getWorkspaceStore: function(){ return getWorkspaceStore.apply(null, arguments) }, resetChainCache: function(){ chainByKey.clear() } /* #696 技能广播清全部链（整机事，无目录可分） */, logCtx: logCtx }) })(); return _skillProbeP }
     let _detectChainP = null
-    function _detectChain() { if (!_detectChainP) _detectChainP = (async function(){ const mod = await import('./detectChain.js'); return mod.createDetectChain({ canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, DEFAULT_CWD: DEFAULT_CWD, resetGhCache: function(){ return resetGhCache.apply(null, arguments) }, getDetectionService: function(){ return getDetectionService.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, timer: timer, probeSkill: function(){ return probeSkill.apply(null, arguments) }, mdParseOkPredicate: function(){ return mdParseOkPredicate.apply(null, arguments) }, getChainCache: function(){ return chainCache }, setChainCache: function(v){ chainCache = v }, logCtx: logCtx }) })(); return _detectChainP }
+    function _detectChain() { if (!_detectChainP) _detectChainP = (async function(){ const mod = await import('./detectChain.js'); return mod.createDetectChain({ canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, DEFAULT_CWD: DEFAULT_CWD, resetGhCache: function(){ return resetGhCache.apply(null, arguments) }, getDetectionService: function(){ return getDetectionService.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, timer: timer, probeSkill: function(){ return probeSkill.apply(null, arguments) }, mdParseOkPredicate: function(){ return mdParseOkPredicate.apply(null, arguments) }, getChainCache: getChainCache, setChainCache: setChainCache, logCtx: logCtx }) })(); return _detectChainP }
     // ---- H3 #447 委托：原函数名与签名不变，外部调用方零改动 ----
     async function mdParseOkPredicate() { const h = await _remotePred(); return h.mdParseOkPredicate.apply(h, arguments) }
     async function mdMapCandidates() { const h = await _remotePred(); return h.mdMapCandidates.apply(h, arguments) }
@@ -232,9 +230,11 @@ export default {
     let _sessLifeP = null
     function _sessLife() { if (!_sessLifeP) _sessLifeP = (async function(){ const mod = await import('./sessionLifecycle.js'); return mod.createSessionLifecycle({ ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, errText: errText, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, getDetectionService: function(){ return getDetectionService.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, logCtx: logCtx }) })(); return _sessLifeP }
     let _sessSnapP = null
-    function _sessSnap() { if (!_sessSnapP) _sessSnapP = (async function(){ const life = await _sessLife(); const mod = await import('./sessionSnapshot.js'); const grp = await _group(); return mod.createSessionSnapshot({ canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, selectEarly: life.selectEarly, isComposerSelection: life.isComposerSelection, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, getCache: function(){ return cache }, setCache: function(v){ cache = v }, CACHE_MS: CACHE_MS, cacheSnapshotIsCurrent: function(){ return cacheSnapshotIsCurrent.apply(null, arguments) }, upcaseSnapStates: upcaseSnapStates, computeLevels: grp.computeLevels, groupTickets: grp.groupTickets, getRepoRoot: function(){ return getRepoRoot.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, readDiskCache: function(){ return readDiskCache.apply(null, arguments) }, writeDiskCache: function(){ return writeDiskCache.apply(null, arguments) }, adoptSnapshot: function(){ return adoptSnapshot.apply(null, arguments) }, detectionExec: function(){ return detectionExec.apply(null, arguments) }, getGhPath: function(){ return ghPath }, getGhLastError: function(){ return ghLastError }, errText: errText, DEFAULT_CWD: DEFAULT_CWD, logCtx: logCtx }) })(); return _sessSnapP }
+    function _sessSnap() { if (!_sessSnapP) _sessSnapP = (async function(){ const life = await _sessLife(); const mod = await import('./sessionSnapshot.js'); const grp = await _group(); return mod.createSessionSnapshot({ canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, selectEarly: life.selectEarly, isComposerSelection: life.isComposerSelection, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, getCache: getCache, setCache: setCache, CACHE_MS: CACHE_MS, cacheSnapshotIsCurrent: function(){ return cacheSnapshotIsCurrent.apply(null, arguments) }, upcaseSnapStates: upcaseSnapStates, computeLevels: grp.computeLevels, groupTickets: grp.groupTickets, getRepoRoot: function(){ return getRepoRoot.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, readDiskCache: function(){ return readDiskCache.apply(null, arguments) }, writeDiskCache: function(){ return writeDiskCache.apply(null, arguments) }, adoptSnapshot: function(){ return adoptSnapshot.apply(null, arguments) }, detectionExec: function(){ return detectionExec.apply(null, arguments) }, getGhPath: function(){ return ghPath }, getGhLastError: function(){ return ghLastError }, errText: errText, DEFAULT_CWD: DEFAULT_CWD, logCtx: logCtx, getChoiceStore: function(){ return getChoiceStore.apply(null, arguments) } }) })(); return _sessSnapP }
+    let _mapTicketsP = null // #691（阶段 3）：地图子票按需电话 —— 点开一张地图时现去后端把它的子票拉全（已关闭的地图不在快照首屏里）
+    function _mapTickets() { if (!_mapTicketsP) _mapTicketsP = (async function(){ const life = await _sessLife(); const mod = await import('./mapTickets.js'); const grp = await _group(); return mod.createMapTickets({ canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, selectEarly: life.selectEarly, isComposerSelection: life.isComposerSelection, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, logCtx: logCtx, groupTickets: grp.groupTickets, getMapBody: function(){ return _mapBody() }, detectionExec: function(){ return detectionExec.apply(null, arguments) } }) })(); return _mapTicketsP }
     let _sessRefP = null
-    function _sessRef() { if (!_sessRefP) _sessRefP = (async function(){ const life = await _sessLife(); const mod = await import('./sessionRefresh.js'); const grp = await _group(); return mod.createSessionRefresh({ canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, selectEarly: life.selectEarly, isComposerSelection: life.isComposerSelection, resetGhCache: function(){ return resetGhCache.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, getCache: function(){ return cache }, setCache: function(v){ cache = v }, upcaseSnapStates: upcaseSnapStates, computeLevels: grp.computeLevels, groupTickets: grp.groupTickets, getRepoRoot: function(){ return getRepoRoot.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, readDiskCache: function(){ return readDiskCache.apply(null, arguments) }, writeDiskCache: function(){ return writeDiskCache.apply(null, arguments) }, adoptSnapshot: function(){ return adoptSnapshot.apply(null, arguments) }, detectionExec: function(){ return detectionExec.apply(null, arguments) }, getGhPath: function(){ return ghPath }, getGhLastError: function(){ return ghLastError }, errText: errText, DEFAULT_CWD: DEFAULT_CWD, logCtx: logCtx }) })(); return _sessRefP }
+    function _sessRef() { if (!_sessRefP) _sessRefP = (async function(){ const life = await _sessLife(); const mod = await import('./sessionRefresh.js'); const grp = await _group(); return mod.createSessionRefresh({ canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, selectEarly: life.selectEarly, isComposerSelection: life.isComposerSelection, resetGhCache: function(){ return resetGhCache.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, getCache: getCache, setCache: setCache, upcaseSnapStates: upcaseSnapStates, computeLevels: grp.computeLevels, groupTickets: grp.groupTickets, getRepoRoot: function(){ return getRepoRoot.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, readDiskCache: function(){ return readDiskCache.apply(null, arguments) }, writeDiskCache: function(){ return writeDiskCache.apply(null, arguments) }, adoptSnapshot: function(){ return adoptSnapshot.apply(null, arguments) }, detectionExec: function(){ return detectionExec.apply(null, arguments) }, getGhPath: function(){ return ghPath }, getGhLastError: function(){ return ghLastError }, errText: errText, DEFAULT_CWD: DEFAULT_CWD, logCtx: logCtx }) })(); return _sessRefP }
     // ---- H4 #448 委托：电话名与签名不变，外部调用方零改动 ----
     // #498 退役：wf.ping 删注册（全仓零调用点、零日志行；探活改走 wf.logGetSwitch）。handlePing 实现留守（他处未引用，删注册不断链）。
 
@@ -254,6 +254,9 @@ export default {
     // #179 回切自愈：空 cwd 仍兜 DEFAULT_CWD 作最后兜底（避免“没有仓库”空白），但客户端已保证同 sid 切工作区亦触发，空窗极短
     harness.handle('wf.snapshot', async function (args) { const h = await _sessSnap(); return h.handleSnapshot(args) })
 
+    // #691：地图子票按需取（in-panel 地图详情页打开时调用；后端没实现这条读路径时界面照旧用快照那份）
+    harness.handle('wf.mapTickets', async function (args) { const h = await _mapTickets(); return h.handleMapTickets(args) })
+
     harness.handle('wf.refresh', async function (args) { const h = await _sessRef(); return h.handleRefresh(args) })
 
     // ---- H5 #449 接线：2 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
@@ -263,15 +266,18 @@ export default {
     // H5 #449：见下接线区（原工作区归一与绑定选择）。
     // H5 #449：见下接线区（原单票详情与评论读写及探针）。
     let _workspaceP = null
-    function _workspace() { if (!_workspaceP) _workspaceP = (async function(){ const mod = await import('./workspaceCwd.js'); return mod.createWorkspaceCwd({ ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getWorkspaceStore: function(){ return getWorkspaceStore.apply(null, arguments) }, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, setCache: function(v){ cache = v }, timer: timer, detectionExec: function(){ return detectionExec.apply(null, arguments) }, logCtx: logCtx }) })(); return _workspaceP }
+    function _workspace() { if (!_workspaceP) _workspaceP = (async function(){ const mod = await import('./workspaceCwd.js'); return mod.createWorkspaceCwd({ ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getWorkspaceStore: function(){ return getWorkspaceStore.apply(null, arguments) }, getChoiceStore: function(){ return getChoiceStore.apply(null, arguments) }, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, setCache: setCache, timer: timer, detectionExec: function(){ return detectionExec.apply(null, arguments) }, logCtx: logCtx }) })(); return _workspaceP }
     let _commentsP = null
-    function _comments() { if (!_commentsP) _commentsP = (async function(){ const ws = await _workspace(); const life = await _sessLife(); const mod = await import('./commentThreads.js'); return mod.createCommentThreads({ normCwd: ws.normCwd, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, selectEarly: life.selectEarly, isComposerSelection: life.isComposerSelection, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, timer: timer, DEFAULT_CWD: DEFAULT_CWD, errText: errText, isRateLimitError: isRateLimitError, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, execProc: function(){ return execProc.apply(null, arguments) }, fetchIssueDetail: function(){ return fetchIssueDetail.apply(null, arguments) }, fetchIssueIndex: function(){ return fetchIssueIndex.apply(null, arguments) }, fetchIssueIndexWindowed: function(){ return fetchIssueIndexWindowed.apply(null, arguments) }, issueIndexFromSnapshot: issueIndexFromSnapshot, issueIndexChanged: issueIndexChanged, rememberIssueIndex: rememberIssueIndex, getCache: function(){ return cache }, setCache: function(v){ cache = v }, lastIssueIndexByRepo: lastIssueIndexByRepo, lastProbeAtByRepo: lastProbeAtByRepo, logCtx: logCtx }) })(); return _commentsP }
+    function _comments() { if (!_commentsP) _commentsP = (async function(){ const ws = await _workspace(); const life = await _sessLife(); const mod = await import('./commentThreads.js'); return mod.createCommentThreads({ normCwd: ws.normCwd, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, selectEarly: life.selectEarly, isComposerSelection: life.isComposerSelection, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, timer: timer, DEFAULT_CWD: DEFAULT_CWD, errText: errText, isRateLimitError: isRateLimitError, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, execProc: function(){ return execProc.apply(null, arguments) }, fetchIssueDetail: function(){ return fetchIssueDetail.apply(null, arguments) }, fetchIssueIndex: function(){ return fetchIssueIndex.apply(null, arguments) }, fetchIssueIndexWindowed: function(){ return fetchIssueIndexWindowed.apply(null, arguments) }, issueIndexFromSnapshot: issueIndexFromSnapshot, issueIndexChanged: issueIndexChanged, rememberIssueIndex: rememberIssueIndex, getCache: getCache, setCache: setCache, lastIssueIndexByRepo: lastIssueIndexByRepo, lastProbeAtByRepo: lastProbeAtByRepo, logCtx: logCtx }) })(); return _commentsP }
     // ---- H5 #449 委托：原函数名与签名不变，外部调用方（含 H6 认领/交接）零改动 ----
+    let _issuePageP = null; function _issuePage() { if (!_issuePageP) _issuePageP = (async function(){ const ws = await _workspace(); const life = await _sessLife(); const mod = await import('./issuePage.js'); return mod.createIssuePage({ normCwd: ws.normCwd, selectEarly: life.selectEarly, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, detectionExec: function(){ return detectionExec.apply(null, arguments) }, logCtx: logCtx }) })(); return _issuePageP }
+    harness.handle('wf.issuesPage', async function (args) { const h = await _issuePage(); return h.handleIssuesPage(args) }) // #690 历史票按页取（已关闭票按需翻页那三个触发点的唯一出口）
     async function normCwd() { const h = await _workspace(); return h.normCwd.apply(h, arguments) }
     harness.handle('wf.bind', async function () { const h = await _workspace(); return h.handleBind.apply(h, arguments) })
     harness.handle('wf.bindings', async function () { const h = await _workspace(); return h.handleBindings.apply(h, arguments) })
     harness.handle('wf.registry', async function () { const h = await _workspace(); return h.handleRegistry.apply(h, arguments) })
     harness.handle('wf.selection', async function () { const h = await _workspace(); return h.handleSelection.apply(h, arguments) })
+    harness.handle('wf.setupLayout', async function (args) { const h = await _workspace(); return h.handleSetupLayout(args) }) // #683（F1 · ADR 的 R6）：布局答案按工作区记（H 与 C 各一份），卡片确认同时写两处。
     // #627 标签配色两条电话：端点名与契约操作名一致（listLabels / setLabelColors），
     //   界面经客户端到宿主那条既有接口（/api/dsws 通道按端点名分发）就能调到它们。
     harness.handle('wf.listLabels', async function (args) { const h = await _workspace(); return h.handleListLabels(args) })
@@ -284,11 +290,11 @@ export default {
     // ---- H6 #450 接线：5 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
     // 第 5 件 ticketGrouping 为压线追加（用户定夺）：computeLevels/groupTickets 纯函数搬出，H2/H4 loader 取值后转供给。
     let _handoffP = null
-    function _handoff() { if (!_handoffP) _handoffP = (async function(){ const mod = await import('./handoffClaim.js'); return mod.createHandoffClaim({ fs: fs, DEFAULT_CWD: DEFAULT_CWD, normCwd: function(){ return normCwd.apply(null, arguments) }, getDetectionService: function(){ return getDetectionService.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, setCache: function(v){ cache = v }, logCtx: logCtx }) })(); return _handoffP }
+    function _handoff() { if (!_handoffP) _handoffP = (async function(){ const mod = await import('./handoffClaim.js'); return mod.createHandoffClaim({ fs: fs, DEFAULT_CWD: DEFAULT_CWD, normCwd: function(){ return normCwd.apply(null, arguments) }, getDetectionService: function(){ return getDetectionService.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, setCache: setCache, logCtx: logCtx }) })(); return _handoffP }
     let _namingP = null
     function _naming() { if (!_namingP) _namingP = (async function(){ const mod = await import('./namingGuardian.js'); return mod.createNamingGuardian({ fs: fs, timer: timer, DEFAULT_CWD: DEFAULT_CWD, getCacheDir: function(){ return getCacheDir.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, logCtx: logCtx }) })(); return _namingP }
     let _publishP = null
-    function _publish() { if (!_publishP) _publishP = (async function(){ const mod = await import('./publishFlow.js'); return mod.createPublishFlow({ DEFAULT_CWD: DEFAULT_CWD, resolveGit: function(){ return resolveGit.apply(null, arguments) }, resolveGh: function(){ return resolveGh.apply(null, arguments) }, getGhLastError: function(){ return ghLastError }, runGh: function(){ return runGh.apply(null, arguments) }, execProc: function(){ return execProc.apply(null, arguments) }, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, repoKeys: repoKeys, repoRoots: repoRoots, setCache: function(v){ cache = v }, logCtx: logCtx }) })(); return _publishP }
+    function _publish() { if (!_publishP) _publishP = (async function(){ const mod = await import('./publishFlow.js'); return mod.createPublishFlow({ DEFAULT_CWD: DEFAULT_CWD, resolveGit: function(){ return resolveGit.apply(null, arguments) }, resolveGh: function(){ return resolveGh.apply(null, arguments) }, getGhLastError: function(){ return ghLastError }, runGh: function(){ return runGh.apply(null, arguments) }, execProc: function(){ return execProc.apply(null, arguments) }, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, repoKeys: repoKeys, repoRoots: repoRoots, setCache: setCache, logCtx: logCtx }) })(); return _publishP }
     let _pickerP = null
     function _picker() { if (!_pickerP) _pickerP = (async function(){ const mod = await import('./pickerShell.js'); return mod.createPickerShell({ DEFAULT_CWD: DEFAULT_CWD, getPlatform: function(){ return getPlatform.apply(null, arguments) }, subprocess: subprocess, timer: timer, logCtx: logCtx }) })(); return _pickerP }
     let _groupP = null
@@ -328,16 +334,10 @@ export default {
     harness.handle('wf.updateStatus', async function (args) { const h = await _update(); return h.handleUpdateStatus(args) })
     harness.handle('wf.updateCheck', async function (args) { const h = await _update(); return h.handleUpdateCheck(args) })
     harness.handle('wf.updateInstall', async function (args) { const h = await _update(); return h.handleUpdateInstall(args) })
-    // ============ 轮询：已按 #348 拍板 Q3 关闭（60s 全量 × 8 map ≈ 2400-4800 GraphQL points/h 贴 5000 限额）============
-    // 刷新策略 = 纯手动（状态条/面板按钮 wf.refresh）+ 打开面板即刷（client 侧 loadSnapshot）。
-    // P1 若做状态变化 toast 提醒，再考虑低频自动（届时恢复本块并观察配额）。
-
-    // #265：命名守护常驻轻量任务启动（脏账落盘心跳；守护块见上）
-    // #265 常驻轻量任务启动（H6 #450 后由命名模块持有，入口防火即发，脏账落盘心跳语义不变）。
+    // 轮询已按 #348 Q3 关闭（60s 全量贴配额上限）：纯手动刷新 + 打开面板即刷，自动待 P1 再议。
+    // #265 命名守护常驻轻量任务启动（由命名模块持有，入口防火即发，脏账落盘心跳语义不变）。
     _naming().then(function(h){ try { h.startNamingGuardianLoop() } catch (eLoop) {} }).catch(function(){})
-    // ---- RPC 通道注册（#596 换到 DSH 公开的 /api 载体）----
-    // 客户端每次 host.call 都落在这条通道上；注册不上，面板就只画缓存旧数据：点刷新没反应。
-    // 注册方式、信封校验与失败记账都在 ./rpcChannel.js（#596 从本文件搬出），这里只递端点表与日志发射函数。
+    // ---- RPC 通道注册（#596 换到 /api 载体，细节见 ./rpcChannel.js，这里只递端点表与日志函数）----
     // 这里那个 catch 只兜「本文件加载 rpcChannel.js 失败」；通道注册失败由 rpcChannel.js 自己记账。
     let _rpcChannelP = null
     function _rpcChannel() { if (!_rpcChannelP) _rpcChannelP = import('./rpcChannel.js'); return _rpcChannelP }

@@ -1,13 +1,10 @@
 /**
  * src/client/kernel/prompts.js — 内核模块（阶段 2 内核迁移 · #96 T3）
  *
- * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
- * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
- * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
- * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
- * 单源新架构：真源 src/client/kernel/*.js，改后必跑 node scripts/build.mjs 生成
- * client.js / package/lib/client.js，勿手改产物（见 docs/architecture/kernel-contract.md）。
- * 动工前必读：本文件头 20 行 + docs/architecture/kernel-contract.md + 跑 node scripts/build.mjs 及 tests/verify-*。
+ * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首 export 关键字，
+ * 把声明体拼回 src/client/index.js 的拼接标记处（apply 闭包内原位），与 ctx.js/seam 同模式，
+ * 一源两物、src 零复制；接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
+ * 改 src 后必跑 node scripts/build.mjs，生成 client.js / package/lib/client.js，勿手改产物。
  */
     export const PROMPTS = {
       "mapExecute": { version: 9, placeholders: ['n', 'title', 'url', 'bodyFormat'], use: 'map 执行 / 新会话（未完成态）· 推进式 · 清单式（A★）', zh: '## 目标 map\n- 编号：#{n}\n- 标题：{title}\n- 链接：{url}\n\n请使用 wayfinder 技能推进该 map（遵循其规则）：\n\n## 分析\n- [ ] 加载 wayfinder 技能（如未加载）\n- [ ] 分析这个 map：Destination / Notes / 阻塞关系 / 当前 frontier\n\n## 选票\n- [ ] 按第一性原理，选 frontier 中最值得推进的下一个 issue（价值最高 / 风险最低 / 最解阻）\n\n## 执行\n- [ ] 认领该票 → 读 Description / Notes / 阻塞关系 → 制定方案 → 实施 → 验收\n- [ ] 若该票带 needs-triage：先按阶段闸门完成诊断（读现状 / 判断进展：真实 / 虚假 / 未动工）再进入实施，不许跳过\n\n## 收尾\n- [ ] 结束前按进度契约更新该票正文（## 进度：N% + 下一步；95% 须写明待确认什么，未确认不得 close）；验收通过 → 100% + close\n- [ ] 若本次推进关闭了票：同步 map 记录（Decisions so far 追加 gist / 迷雾毕业 / Out of scope）\n\n{bodyFormat}', en: '## Target map\n- No: #{n}\n- Title: {title}\n- Link: {url}\n\nPlease use the wayfinder skill to advance this map (follow its rules):\n\n## Analyze\n- [ ] Load the wayfinder skill (if not loaded)\n- [ ] Analyze this map: Destination / Notes / blocking relationships / current frontier\n\n## Pick the ticket\n- [ ] From first principles, pick the next issue on the frontier most worth advancing (highest value / lowest risk / most unblocking)\n\n## Execute\n- [ ] Claim the ticket → read Description / Notes / blocking relationships → plan → implement → verify\n- [ ] If the ticket carries needs-triage: first complete the stage-gate diagnosis (read current state / judge progress: real / fake / not started) before implementation — do not skip\n\n## Wrap-up\n- [ ] Before finishing, update the ticket body per the progress contract (## Progress: N% + next step; at 95% state what awaits confirmation and do not close before confirmation); verified → 100% + close\n- [ ] If this advance closes any ticket, sync the map records (Decisions so far gist / fog graduation / Out of scope)\n\n{bodyFormat}' },
@@ -34,6 +31,7 @@
       "newBugWayfinder": { version: 5, placeholders: ['repo'], use: '「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行）', zh: '/wayfinder\n请帮我新增一个 BUG 单（按 wayfinder 技能规则处理）。\n仓库：{repo}\n新建的单子必须带上 bug 标签；如果还没有经过诊断，同时带上 needs-triage 标签。远端后端按原生标签方式打标签，本地 Markdown 后端在正文加标签行（例如 Labels: bug, needs-triage）。', en: '/wayfinder\nPlease help me file a new BUG ticket (follow the wayfinder skill rules).\nRepo: {repo}\nNew tickets must carry the bug label; if not yet triaged, also carry needs-triage. On remote backends use native labels; on the local Markdown backend add a Labels line (e.g. Labels: bug, needs-triage).' },
       "ghAuthLogin": { version: 1, placeholders: [], use: 'gh 登录引导 · 链失败态 inject-prompt（#228 替换 openUrl 硬编码，动作不承诺修复，检查才判定）', zh: '请为本机完成 GitHub CLI 登录（gh auth login）：\n\n1. 终端执行 gh auth login \n2. 按向导选择 GitHub.com → HTTPS → Yes → 浏览器授权（OAuth）\n3. 完成后执行 gh auth status 验证已登录\n4. 回到面板点「重新检查」或等待自动重查，链条将自动推进\n5. 若遇网络/代理问题，请检查 gh config 与网络后重试', en: 'Please complete GitHub CLI login (gh auth login):\n\n1. Run gh auth login in terminal\n2. Choose GitHub.com → HTTPS → Yes → browser OAuth\n3. Verify with gh auth status\n4. Click "Re-check" at the top of the panel, or wait for auto re-check; the chain will advance via re-evaluation\n5. If network/proxy issues, check gh config and retry' },
             "mapInspect": { version: 6, placeholders: ['n', 'title', 'url', 'bodyFormat', 'subIssue'], use: 'map 空态 0/0 检查 · 诊断关联缺失', zh: '## 目标 map\n- 编号：#{n}\n- 标题：{title}\n- 链接：{url}\n\n该 map 在面板中显示为 0/0（无子议题），这不正常——按 wayfinder 规则，有规划的 map 应通过子议题推进，0/0 通常意味着创建时子议题没有以本后端的原生父子关系正确关联到该 map。\n\n请按 wayfinder 技能排查并修复关联（遵循其规则）：\n\n## 排查\n- [ ] 加载 wayfinder 技能（如未加载），结合该 map 的 Destination / Notes 回顾本应有哪些子议题\n- [ ] 在当前后端中核对这些子议题是否已存在但未成为该 map 的真正子议题（面板计数仍 0/0、详情未展示）\n\n## 修复\n- [ ] 先把该 map 的现有正文取下来存成绝对路径文件（文件里必须保留 `## Destination` 一节），再按本后端声明的关联方式把子议题建成该 map 的子议题：{subIssue}\n- [ ] 若子议题尚未创建，按原规划创建后，用同一种关联方式补建\n- [ ] 修复后按上面的校验方式核对子议题数量与预期一致，并确认面板中该 map 的计数不再是 0/0，详情页能看到完整子议题列表且阻塞关系正确\n\n## 收尾\n- [ ] 结束前按进度契约更新相关 issue 正文（## 进度：N% + 下一步）\n- [ ] 校验子议题数与面板计数一致，且不再为 0/0\n\n{bodyFormat}', en: '## Target map\n- No: #{n}\n- Title: {title}\n- Link: {url}\n\nThis map shows 0/0 (no sub-issues) in the panel, which is abnormal — a planned map is expected to advance via sub-issues. 0/0 typically means the sub-issues were not wired as native sub-issues of this map when it was created.\n\nPlease investigate and fix the wiring per the wayfinder skill (follow its rules):\n\n## Investigate\n- [ ] Load the wayfinder skill (if not loaded) and review Destination / Notes to recall what sub-issues were intended\n- [ ] Check whether those sub-issues already exist but are not showing as true sub-issues of this map (count still 0/0, not listed in detail)\n\n## Fix\n- [ ] First fetch the map current body into an absolute-path file (keep the `## Destination` section), then wire the sub-issues to this map the way this backend declares: {subIssue}\n- [ ] If the sub-issues do not exist yet, create them per the original plan, then wire them the same way\n- [ ] After fixing, verify the sub-issue count matches the way stated above, and that the panel count is no longer 0/0 and the detail page lists all sub-issues with correct blocking\n\n## Wrap-up\n- [ ] Update related issue bodies per the progress contract (## Progress: N% + next step) before finishing\n- [ ] Verify sub-issue count matches the panel count and is no longer 0/0\n\n{bodyFormat}' },
+                  "healthCheck": { version: 1, placeholders: ['subject', 'bodyFormat'], use: '「体检」按钮 · 所有后端共用的总纲（游离票归位：先出建议清单、人点头才动手）；后端自己的科目由后端声明、经 {subject} 填空', zh: '## 体检（把游离的开放票归位）\n\n这次体检的范围是**整个仓库的开放票**（不跟随面板当前的筛选）：把游离的票找出来，给你一份建议清单，你点头之后才动手。\n\n### 一、什么算游离\n\n三条结构事实同时成立才算：**票未关闭**、**票自己不是地图**、**票没有父票**（不在任何地图的子票里——与列表里「独立票」的显示同一个口径）。\n\n**不按标签排除**：写着等人动手、写着不做打算的票同样算游离。标签只在报告里用来分区。\n\n在此之上再对每张游离票判一句「这张是不是明确可以单张票处理掉的」：是的话也可以不管它——不挂图、留在原地，只在报告里登记一行并写明理由。\n\n### 二、只做两件结构动作\n\n1. 建原生子议题边：把票挂到合适的地图下。\n2. 为人点过头的票开一张新地图。\n\n**一律不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关闭任何票、不删评论、不改源码、不发版、不提交。清单里凡是要动其中任何一项的，都不做，改成写进建议里等人处理。\n\n### 三、交付形态：先出建议清单，等人点头才动手\n\n清单必须写清每条结论：\n\n- 这张票 → 挂到哪张地图下 + 一句话理由；\n- 这张票 → 建议自立成一张新地图 + 一句话理由；\n- 这张票 → 建议留在原地不动 + 一句话理由。\n\n写完之后停下来等点头。**不要自动往票上写评论**：动手本身留下的原生边就是留痕。\n\n### 四、挑地图的判据\n\n由你读每张地图的 Destination 与 Notes 做语义归类，给出「挂到哪张 + 一句话理由」。**挑不出唯一一张就列 2 到 3 个候选让人选，不硬选**；一张地图都装不下，就按第三节建议自立成地图（只写最小的 Destination 草稿，正文由维护者或负责人补，不设数量门槛）；连自立成图也不成立，就建议留在原地并写明理由。\n\n### 五、当前后端自己的科目\n\n{subject}\n\n{bodyFormat}', en: '## Health check (put orphaned open tickets where they belong)\n\nThis health check covers **every open ticket in the whole repository** (it does not follow the current panel filters): find the orphaned ones, and hand me a suggestion list — act only after I nod.\n\n### 1. What counts as orphaned\n\nAll three structural facts must hold: **the ticket is not closed**, **the ticket is not itself a map**, and **the ticket has no parent** (it is not a sub-ticket of any map — the same rule the list uses for the "standalone ticket" display).\n\n**Do not exclude by label**: tickets marked as waiting for a human, or marked as not planned, still count as orphaned. Labels are only used to group the report.\n\nOn top of that, judge each orphaned ticket with one sentence — "is this clearly something a single ticket can finish?" If yes, you may also leave it alone: do not attach it to a map, keep it where it is, and just log one line with the reason in the report.\n\n### 2. Only two structural actions\n\n1. Create a native sub-ticket edge: attach the ticket under a suitable map.\n2. Open a new map, for a ticket the human has nodded on.\n\n**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close any ticket, delete comments, change source code, publish a release, or commit. Anything in the list that would touch one of those is not done — it goes into the suggestions for a human instead.\n\n### 3. Deliverable: a suggestion list first — act only after the human nods\n\nThe list must state each conclusion:\n\n- this ticket → attach under which map + a one-sentence reason;\n- this ticket → suggest a new map of its own + a one-sentence reason;\n- this ticket → suggest leaving it where it is + a one-sentence reason.\n\nThen stop and wait for the nod. **Do not automatically write comments on tickets**: the native edges left by the structural actions are the record.\n\n### 4. How to pick the map\n\nRead each map Destination and Notes yourself and group by meaning, giving "attach under this one + a one-sentence reason". **If no single map is clearly right, list 2 to 3 candidates for the human to choose — do not force one**; if no map can hold it, suggest a new map per section 3 (write only the minimal Destination draft, let the maintainer or owner fill in the body, no count threshold); if even that does not hold up, suggest leaving it where it is and state why.\n\n### 5. The subject of this backend\n\n{subject}\n\n{bodyFormat}' },
     }
     // 当前语言（跟随 DSH locale 快照 active；缺省 zh）
     export const promptLang = function () {
@@ -43,9 +41,7 @@
       } catch (e) { return 'zh' }
     }
     // 取 prompt：promptText(id) 或 promptText(id, { 占位符: 值 })
-    // v9（#230 · D10）：setupRun 的 client 内置缺省分支已删 —— 占位符一律由后端描述数据（BackendModule.setupPrompt 键入 locale）经 setupRunParamsFrom 填充
     // #595：{bodyFormat} 是「按当前后端填空」的占位符，正常情况下由 promptTextFor / backendParamsFor 填好；
-    //   这里再兜一次底（后端上下文缺失时填通用版），保证任何路径都不会把标记原文注入会话。
     export const promptText = function (id, params) {
       const p = PROMPTS[id]
       if (!p) return ''
@@ -60,7 +56,6 @@
     // #230（D10 · 2026-08-28 生效）setupRun 后端描述数据（键入 locale 方案定版）：
     // 旧 setupTrackerLine/setupTrackerChoice/setupBackendNote 三函数（client 内 backendId 分支硬编码双语值）删除；
     // 后端模块经 BackendModule.setupPrompt 声明「locale 键名」，wf.registry 转发到 st.backendModules，此处只做 键→值 解析与占位符填充 —— client 零 backendId 分支。
-    // 数据缺失/未声明后端的兜底 = SETUP_DEFAULT_PROMPT_KEYS（与旧「缺省 GitHub」行为等价：未知 id 同样落到该缺省键组）。
     // #619（2026-09-13 生效）：v10 的 paletteNote 占位符连同「标签调色盘」那节注入文案一并删除 ——
     //   标签颜色改由插件自己放的配色文件（工作区里的 docs/agents/label-colors.json）与面板改色弹窗负责，
     //   初始化注入不再引导任何人去建那张已经没人读的表；四个占位符一律由后端声明数据填充。
@@ -252,13 +247,13 @@
       const p = PROMPTS['bodyFormat'] || {}
       return String((promptLang() === 'en' && p.en) ? p.en : (p.zh || ''))
     }
-    // 当前后端 id：st.selection → snapshot.selection → 按工作区缓存，三档都取不到就 null（无分支硬编码）
+    // 当前后端 id：st.selection → snapshot.selection → 按工作区缓存（**只在宿主还没回过任何一次之前**），三档都取不到就 null。#683（F1 · ADR 的 R6b）：第三档读的是本地那份镜像，而本次裁决把它降级成「本壳的临时镜像」（权威在宿主侧那份记录里），所以这道前提必须留着 —— 只有一份快照都还没有（宿主一次都没回过话）时才拿它垫一下（免得刷新页面先闪「还没有设置」）；宿主一旦回过话（哪怕回的是「这个工作区没有后端」）就以宿主的答复为准。
     export const currentBackendId = function (st) {
       let sel = null
       try {
         if (st && st.selection && st.selection.backendId != null) sel = st.selection.backendId
         else if (st && st.snapshot && st.snapshot.selection && st.snapshot.selection.backendId != null) sel = st.snapshot.selection.backendId
-        else if (st && st.cwd && typeof getCachedSelection === 'function') { const cs = getCachedSelection(st.cwd); if (cs && cs.backendId != null) sel = cs.backendId }
+        else if (!(st && st.snapshot) && st && st.cwd && typeof getCachedSelection === 'function') { const cs = getCachedSelection(st.cwd); if (cs && cs.backendId != null) sel = cs.backendId }
       } catch (e) {}
       return sel
     }
@@ -310,11 +305,17 @@
       }
       return bodyFormatDefault()
     }
-    // 渲染参数：模板里声明的 {bodyFormat} / {subIssue} 都按当前后端解析（模板只留占位符名，不留字面副本）
+    // #684：渲染参数 —— 注册表里的 {bodyFormat} / {subIssue} / {subject} 都按当前后端解析填入，模板只留占位符名。
+    //   {subject} 取后端在 prompts.healthCheck 里声明的体检科目；后端没声明该键时是空串（总纲照旧完整）。
+    //   取这三行值都用本文件里的查表函数、不跨文件调用：本文件这一段会被门禁单独求值校验（门禁的渲染面）。
     export const backendParamsFor = function (st, params) {
       const p = Object.assign({}, params || {})
       if (!Object.prototype.hasOwnProperty.call(p, 'bodyFormat')) p.bodyFormat = bodyFormatText(st)
       if (!Object.prototype.hasOwnProperty.call(p, 'subIssue')) p.subIssue = newWayfinderParamsFrom(st && st.backendModules, currentBackendId(st)).subIssue
+      if (!Object.prototype.hasOwnProperty.call(p, 'subject')) p.subject = declaredLangPick(backendPromptFrom(st && st.backendModules, currentBackendId(st), 'healthCheck'), promptLang())
+      // #684：只替换一遍不够 —— 后端那条科目文本（{subject} 的值）里还会引用别的占位符（GitHub 用它引出
+      //   {subIssue} 那段原生关联文本），不补这一遍就会把嵌套占位符原样注入会话。只补 {subject} 这一个值就够。
+      p.subject = String(p.subject).replace(/\{(\w+)\}/g, function (m, k) { return Object.prototype.hasOwnProperty.call(p, k) ? String(p[k]) : m })
       return p
     }
     // 按当前后端渲染一条 prompt（正文格式/子议题关联方式由后端声明注入口）
@@ -333,7 +334,6 @@
     // v4（#63 grilling 定版 2026-08-20）：去 wayfinder 内部规则复述（#63 想法1：prompt 不含已知规则，gh 硬编码解耦由 bodyFormat #62 承担）+ 字段集 4 项顺序实际→期望→复现→环境 + 形态括号单行（想法2：字段名（说明）：冒号即填，无悬行例行）
     //   字段集（第一性原理：Bug = 实际 vs 期望偏差，实际先于期望）：实际（吸收现象+影响范围）/ 期望 / 复现步骤（吸收背景+场景 preamble）/ 环境信息；zh 只中文、en 只英文，跟随 DSH 语言一次只出一种
     export const NEW_BUG_FIELDS_BODY = function () { return '\n\n实际（看到什么；可含影响范围）：\n期望（应发生什么 / 预期结果）：\n复现步骤（[前置 / 场景] + 编号步骤）：\n环境信息（OS + 浏览器 + 插件版本）：' }
-    // v4（#63）：EN locale 版 —— 括号说明单行，跟随 v4 zh 实际→期望顺序
     export const NEW_BUG_FIELDS_BODY_EN = function () { return '\n\nActual (what happened; may include impact):\nExpected (what should happen / expected result):\nReproduction ([Preamble / Scenario] + numbered steps):\nEnvironment (OS + browser + plugin version):' }
     // v5（#77 grilling 定版 2026-08-21）：mapHead 自包含化 —— 标识头三字段内联 complete 顶部，completePrompt 补 title 参数并填 {n}/{title}/{url}
     export const completePrompt = function (st, num, title, total, closed) {

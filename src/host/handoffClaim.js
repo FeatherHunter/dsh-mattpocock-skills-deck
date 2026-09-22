@@ -145,18 +145,18 @@ export function createHandoffClaim(deps) {
       }
       const r = await tracker.setAssignees(repoRef, key, [assignee], {}, opCtx)
       if (!r || !r.ok) return r
-      setCache({ ts: 0, snapshot: null, error: null })
+      setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) // #696 只清自己根
       return { ok: true, number: n, assignedTo: assignee, url: '' }
     }
     const repo = await getRepoKey(cwd)
     if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
     const r = await runGh(['issue', 'edit', String(n), '--add-assignee', '@me'], cwd)
     if (!r.ok) return { ok: false, error: r }
-    // 认领成功 → 取当前用户 login 供面板展示；失效快照缓存，让下次 wf.snapshot 拉到新 assignee
+    // 认领成功 → 取当前用户 login 供面板展示；只清自己根，让下次快照拉到新 assignee（#696）
     let assignedTo = ''
     const u = await runGh(['api', 'user', '-q', '.login'])
     if (u.ok) assignedTo = u.text.trim()
-    setCache({ ts: 0, snapshot: null, error: null })
+    setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
     return { ok: true, number: n, assignedTo: assignedTo, url: 'https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + String(n) }
   }
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }

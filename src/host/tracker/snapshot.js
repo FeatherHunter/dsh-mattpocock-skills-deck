@@ -17,6 +17,9 @@
  *    同号异类（同 key 但是否为拉取请求不同）靠是否为拉取请求区分身份，不互相吞；
  *    组装层只做 pass-through（有字段原样带，无字段保持省略），不替后端补默认值；
  *    界面按类型过滤是前端页签的事（#506），组装层不过滤、不隐藏任何一类。
+ *  - 数字与「全不全」都由这一层写进 deck（#689）：`deck.counts` 是后端 counts 给的真数字（拿不到就省略），
+ *    `deck.partial` 说「手上这份行数据被截断过」。界面只读这两个，不自己数池子（规格见
+ *    docs/design/677-issue-pool-completeness-spec.md 第 6 节）。
  */
 
 import { ERROR_KIND, effortOf, idOfParts } from '../../shared/tracker/constants.js'
@@ -38,7 +41,14 @@ function poolIdOf(it) {
 }
 
 /** 组装（纯函数）：maps（挂一层 tickets）+ 未挂图票（孤儿：破链 / 根票；map 节点本身不算孤儿——它已在 maps[] 作为容器）。
- * 同池：拉取请求与普通工单都进 tickets/issues，不分片；拷贝原样带字段（EMPTY 保持空值，MISSING 保持省略）。 */
+ * 同池：拉取请求与普通工单都进 tickets/issues，不分片；拷贝原样带字段（EMPTY 保持空值，MISSING 保持省略）。
+ *
+ * #691（阶段 3）：**已关闭地图的子票不进首屏** —— 用户点开那张地图时才按需抓（宿主电话 wf.mapTickets）。
+ *   为什么：首屏那份行数据是「打开面板就要看的东西」，而一张已关闭地图的子票属于历史，不必每次重建都付它的
+ *   取数与体积（规格第 6.4 节）。地图行本身照旧留着（它是容器），只是不带子票；列表上那个进度环也因此不画
+ *   （环要靠子票算，见 views/ListTabRow.js）。
+ *   一处要紧的细节：这些子票既不算「挂在图上的行」，也不算「未挂图的票」—— 否则它们会从 issues 那条路
+ *   悄悄漏回首屏，等于白改。 */
 function assembleSnapshot(repo, all) {
   // 口径断言：组装层不判定后端能力是否一致（混合返回不断言一致），只做 pass-through；身份区分靠 poolIdOf（三态），BAD 单独隔离。
   // effort 维度：父子分组按 (effortId, parentKey) —— 不同 effort 的地图各自只收本 effort 的票。
@@ -52,6 +62,8 @@ function assembleSnapshot(repo, all) {
       byParent.set(pk, arr)
     }
   }
+  // 已关闭地图的子票：按池内身份收在一处，供下面算 issues 时排除（见本函数开头的说明）。
+  const closedMapTickets = new Set()
   const maps = all
     .filter((i) => i && i.type === 'map')
     .map((m) => {
@@ -60,8 +72,12 @@ function assembleSnapshot(repo, all) {
       // GitHub 切到编排器后曾漏解析，点 Map 行进详情页即报 Cannot read properties of undefined (reading 'length')。
       // 在组装层统一解析补齐（与旧 gh 直连路径一致），无区块也给 EMPTY（'' / []），不 MISSING。
       const bp = parseMapBody(m.body)
+      const own = byParent.get(idOfParts(effortOf(m), m.key)) || []
+      // 大写的 CLOSED 是本仓库的统一口径（upcaseSnapStates 在电话层再盖一次），这里自己也认小写，免得看后端脸色。
+      const isClosed = String((m && m.state) || '').toUpperCase() === 'CLOSED'
+      if (isClosed) for (const t of own) closedMapTickets.add(poolIdOf(t))
       return Object.assign({}, m, {
-        tickets: (byParent.get(idOfParts(effortOf(m), m.key)) || []).map((t) => Object.assign({}, t)),
+        tickets: (isClosed ? [] : own).map((t) => Object.assign({}, t)),
         destination: bp.destination,
         notes: bp.notes,
         decisions: bp.decisions,
@@ -74,9 +90,40 @@ function assembleSnapshot(repo, all) {
   for (const m of maps) for (const t of m.tickets) attached.add(poolIdOf(t))
   // issues = 未挂在任何 map 下的「非 map」票（破链票指 parentKey 指向已删/不存在 map；根票 parentKey=null 也在此——它们无 map 归属）
   const issues = all
-    .filter((i) => i && i.type !== 'map' && !attached.has(poolIdOf(i)))
+    .filter((i) => i && i.type !== 'map' && !attached.has(poolIdOf(i)) && !closedMapTickets.has(poolIdOf(i)))
     .map((t) => Object.assign({}, t))
   return { repository: repo, maps, issues, deck: null }
+}
+
+/**
+ * 池子里「工单」有多少行（拉取请求不算工单）—— #689 判定「这份行数据全不全」用的第一个数。
+ * 池子 = 各地图的子票并集 + 未挂图的票（map 节点本身是容器，不算一行票）。
+ */
+function poolTicketCountOf(snapshot) {
+  let n = 0
+  const put = (rows) => { for (const t of (Array.isArray(rows) ? rows : [])) if (t && t.isPullRequest !== true) n++ }
+  for (const m of (snapshot && Array.isArray(snapshot.maps) ? snapshot.maps : [])) put(m && m.tickets)
+  put(snapshot && snapshot.issues)
+  return n
+}
+
+/**
+ * 向后端要计数（契约的 counts op）。拿不到一律返回 null（没实现的后端由注册表补桩、回 unsupported；
+ * 配额/网络/形状不对同样算拿不到）—— 调用方据此退回派生值并把 deck.partial 置真，绝不猜一个数出来。
+ * 契约里写明了「unsupported 不进缓存」（G5）：这里也不缓存，每次重建照问（编排层本来就会重建）。
+ */
+async function countsFromBackend(tracker, ref, ctx) {
+  if (!tracker || typeof tracker.counts !== 'function') return null
+  try {
+    const r = await tracker.counts(ref, {}, ctx)
+    if (!r || r.ok !== true) return null
+    const d = r.data || {}
+    const isCount = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && Math.floor(v) === v)
+    if (!isCount(d.open) || !isCount(d.closed) || !isCount(d.total)) return null
+    return { open: d.open, closed: d.closed, total: d.total }
+  } catch (e) {
+    return null
+  }
 }
 
 /**
@@ -101,7 +148,7 @@ export function createSnapshotComposer(registry, opts = {}) {
   // 拉取请求三字段进版号（与 #508 口径一致：字段省略=MISSING 记一类，有值/空值按值记；只改拉取请求字段也换版号，不 served 陈旧 304）。
   function prSigOf(x){ try{ const has=Object.prototype.hasOwnProperty; const pr=!has.call(x,'isPullRequest')?'MISSING':(x.isPullRequest===true?'pr':(x.isPullRequest===false?'issue':'BAD')); const mg=!has.call(x,'mergedAt')?'MISSING':(x.mergedAt==null?'null':String(x.mergedAt)); let rv='MISSING'; if(has.call(x,'reviews')){ rv=!Array.isArray(x.reviews)?'BAD':('n'+x.reviews.length+':'+x.reviews.map(function(r){ try{ return String((r&&r.state)||'')+'@'+String((r&&r.reviewer&&r.reviewer.login)||'')+'@'+String((r&&r.submittedAt)||''); }catch(e){ return '?'; } }).sort().join(',').slice(0,200)); } return pr+'|'+mg+'|'+rv; }catch(e){ return 'ERR'; } }
   function snapshotVersionOf(snap){ try{ const all=[]; const lblOf=function(x){ try{ return (x.labels||[]).map(function(l){ return typeof l==='string'?l:(l.name||''); }).slice().sort().join(','); }catch(e){ return ''; } }; (snap.maps||[]).forEach(function(m){ const mapTitle=String(m.title||''); const mapLbl=lblOf(m); const mapUpd=String(m.updatedAt||''); (m.tickets||[]).forEach(function(t){ all.push(effortOf(t)+'#'+String(t.key||t.number)+':'+String(t.state||'')+':'+String(t.title||'')+':'+lblOf(t)+':'+String(t.updatedAt||'')+':'+String(t.progress||'')+':'+String(t.claimedBy||'')+':'+prSigOf(t)); }); // map 自身变化也计入版号（标题/标签/时间）
-      all.push('map:'+effortOf(m)+'#'+String(m.key||m.number)+':'+String(m.state||'')+':'+mapTitle+':'+mapLbl+':'+mapUpd); }); (snap.issues||[]).forEach(function(it){ all.push(effortOf(it)+'#'+String(it.key||it.number)+':'+String(it.state||'')+':'+String(it.title||'')+':'+lblOf(it)+':'+String(it.updatedAt||'')+':'+prSigOf(it)); }); all.sort(); const str=all.join('|'); try{ const cr=require('crypto'); if(cr&&cr.createHash) return cr.createHash('sha1').update(str).digest('hex').slice(0,12);}catch(e){} let h=0; for(let i=0;i<str.length;i++) h=((h<<5)-h+str.charCodeAt(i))|0; return (h>>>0).toString(16).padStart(8,'0'); }catch(e){ return '0'; }}
+      all.push('map:'+effortOf(m)+'#'+String(m.key||m.number)+':'+String(m.state||'')+':'+mapTitle+':'+mapLbl+':'+mapUpd); }); (snap.issues||[]).forEach(function(it){ all.push(effortOf(it)+'#'+String(it.key||it.number)+':'+String(it.state||'')+':'+String(it.title||'')+':'+lblOf(it)+':'+String(it.updatedAt||'')+':'+prSigOf(it)); }); const _dc=(snap.deck&&snap.deck.counts)||null; all.push('deck:'+(_dc?(_dc.open+','+_dc.closed+','+_dc.total):'none')+':'+((snap.deck&&snap.deck.partial===true)?'1':'0')); all.sort(); const str=all.join('|'); try{ const cr=require('crypto'); if(cr&&cr.createHash) return cr.createHash('sha1').update(str).digest('hex').slice(0,12);}catch(e){} let h=0; for(let i=0;i<str.length;i++) h=((h<<5)-h+str.charCodeAt(i))|0; return (h>>>0).toString(16).padStart(8,'0'); }catch(e){ return '0'; }}
   const depsCache = new Map() // `${backendId}:${refId}#${key}` -> {data, at}
 
   const snapKeyOf = (backendId, ref) => `${backendId}:${(ref && ref.refId) || ''}${(ref && ref.effortId !== undefined && ref.effortId !== null) ? '#' + String(ref.effortId) : ''}`
@@ -160,7 +207,21 @@ export function createSnapshotComposer(registry, opts = {}) {
       }
 
       const snapshot = assembleSnapshot(ref, all)
-      snapshot.deck = deriveDeck(snapshot)
+      const deck = deriveDeck(snapshot)
+      // #689：数字改问后端要（契约的 counts），并把「这份行数据全不全」写成 deck.partial。
+      //   没有 counts 之前，deck 里的数字是数「手上这份票池」数出来的，而票池会被后端悄悄截断
+      //   （GitHub 最多 500 条、GitLab 只取一页），数字于是跟着偏少（缺陷票 #677）。现在两件事分开：
+      //     · 数字：counts 给的真值（拿不到就留着派生值，绝不显示一个漂亮的大数字骗人）；
+      //     · 行数据全不全：拿池子里的工单行数与 counts.total 比，对不上就说明这份清单不全 → partial。
+      //   两种「对不上」都不采信那个数字：手上的行比总数还多（这不可能，说明计数本身错了、或只数了一页），
+      //   一样退回派生值。拿不到 counts 时 partial 一律置真（规格第 6.5 节）：这时候连「全不全」都无从判断。
+      //   与行数据同一趟重建里取（快照缓存 TTL 5 秒 + 版号），所以数字与列表看到的是同一时刻的仓库。
+      const counts = await countsFromBackend(tracker, ref, ctx)
+      const poolTickets = poolTicketCountOf(snapshot)
+      const countsTrusted = !!counts && poolTickets <= counts.total
+      if (countsTrusted) deck.counts = counts
+      deck.partial = !countsTrusted || poolTickets < counts.total
+      snapshot.deck = deck
       try{ const ver=snapshotVersionOf(snapshot); snapshot.version=ver; snapshot.etag=ver; }catch(e){}
       const ent={snapshot, version:snapshot.version||'', at:Date.now()};
       touchSnapLRU(sk, ent);

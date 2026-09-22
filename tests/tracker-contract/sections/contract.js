@@ -17,6 +17,8 @@ const EXPECTED_OPNAMES = [
   'getCurrentUser',
   'initProject',
   'listLabels', 'setLabelColors',   // #627 标签配色两条（精确清单：多一个名字或漏一个名字都判红）
+  'counts',                          // #689 后端计数（只回数字不回行；语义见 contract.js 的「计数契约」）
+  'listPage',                        // #690 按页取票（创建时间倒序的薄片段；语义见 contract-page.js 的「分页契约」）
 ]
 const LEGACY_OPS = ['detect', 'label', 'subIssue', 'blockedBy', 'syncSnapshot']
 

@@ -330,7 +330,9 @@ console.log('== E 反证：把实现做坏，上面该红的必须当场红 ==')
   const platA = { fs: { resolve: async (rel, o) => path.resolve((o && o.cwd) || '.', rel), readText: async (p) => fs.readFileSync(p, 'utf8'), lstat: async (p) => fs.lstatSync(p), stat: async (p) => fs.statSync(p), readdir: async (p) => fs.readdirSync(p) }, path: path }
   const svcA = createDetectionService({ registry: regA, getPlatform: async () => platA, getFs: () => platA.fs, getTimers: () => null, workspaceStore: null, exec: null })
   // A 的反证：把 hint 分支整段关掉（等价于旧顺序：锚先说话）—— 那一份现场里带 hint 的一次必须退回锚文件的 github
-  const staleSrc = detectionSrc.replace(/if \(opts\.hintBackendId && registry/, 'if (false && opts.hintBackendId && registry')
+  // 2026-09-22（#683 F1）：hint 那一支改成按修订号判的四档之后，这一刀的落点从 `if (opts.hintBackendId && registry`
+  //   换成那句 `const hintUsable = !!(opts.hintBackendId …)` —— 关掉它等于「客户端报上来的选择一律不算数」，意图不变。
+  const staleSrc = detectionSrc.replace('const hintUsable = !!(opts.hintBackendId', 'const hintUsable = false && !!(opts.hintBackendId')
   check(staleSrc !== detectionSrc, '反证 A 的改法能在真源里落地（hint 分支关掉）')
   const svcBroken = await makeDetection(staleSrc)
   const hintWins = await svcA.detect({ cwd: wsA }, { skipSkillProbes: true, hintBackendId: 'markdown' })
@@ -341,7 +343,7 @@ console.log('== E 反证：把实现做坏，上面该红的必须当场红 ==')
   check(noHintA.selection.backendId === 'github', '（对照）真源里不带 hint 时也是锚文件的 github')
   // A 的反证二：把 hint 分支挪到锚文件读取**之前**（先判 hint、再读锚）不会改变结论，但把它挪到
   //   `if (!selection)` 兜底里就会「锚赢」——这一条量的是「hint 与锚的先后不许被调换」。
-  const lateSrc = detectionSrc.replace('if (opts.hintBackendId && registry', 'if (selection) { /* 锚已经赢了 */ } else if (opts.hintBackendId && registry')
+  const lateSrc = detectionSrc.replace('} else if (hintUsable) {', '} else if (hintUsable && !selection) {')
   check(lateSrc !== detectionSrc, '反证 A2 的改法能在真源里落地（hint 分支挪到兜底里）')
   const svcLate = await makeDetection(lateSrc)
   const lateHint = await svcLate.detect({ cwd: wsA }, { skipSkillProbes: true, hintBackendId: 'markdown' })

@@ -11,7 +11,11 @@
  */
 export const checksumsOf = function (s) {
   // v18-30：可接/占用 = 列表 open issue 口径（与面板列表一致）
-  const fr = frontierCount(s)
+  // #689：口径收成「工单口径」（拉取请求不算工单，判断住在 store-derived 的 isTicketRow，与主列表、KPI 共用）；
+  //   「可接」再优先用宿主给的后端计数（deck.counts.open）减去本地数出来的阻塞 —— 数字与 KPI 那一行同源。
+  const occ = occCount(s)
+  const counts = deckCountsOf(s, false)
+  const fr = counts ? Math.max(0, counts.open - occ) : frontierCount(s)
   const bugN = bugCount(s)
   const triageN = triageCount(s)
   const n = readyCount(s)

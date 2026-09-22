@@ -4,6 +4,7 @@ import { parseMd } from './parse.js'
 import { normalizeIssue } from './normalize.js'
 import { readTextFile, exists } from './read.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue, setLabelsIssue } from './issues.js'
+import { countIssues } from './counts.js'
 import { getDependenciesForKey } from './graph.js'
 import { addComment } from './comments.js'
 import { listLabels, setLabelColors } from './label-colors-ops.js'
@@ -120,6 +121,9 @@ export function createMarkdownBackend(ctx){
       }catch(e){const kind=e&&e.kind?e.kind:ERROR_KIND.ENV;return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
     },
     list:(repo,filter,opCtx)=>listIssues(opCtx||ctx,repo,filter),
+    // #691：本地 Markdown 补上契约的 counts（数「列举会返回的那些票行」，地图容器行分开算）。
+    // 语义见 tracker/contract.js 的「计数契约」；本后端数的口径见 counts.js 顶部注释。
+    counts:(repo,filter,opCtx)=>countIssues(opCtx||ctx,repo,filter),
     get:(repo,key,opts,opCtx)=>getIssue(opCtx||ctx,repo,key,opts),
     getDependencies:(repo,key,opts,opCtx)=>getDependenciesForKey(opCtx||ctx,repo,key),
     create:(repo,input,opCtx)=>createIssue(opCtx||ctx,repo,input),
@@ -179,6 +183,13 @@ export const prompts = {
     //   随包分发的也只有两个 GitHub 专用脚本 —— 照做不到。改成这个后端真的能做的动作：在 map 文件的任务清单里引用子票。
     zh: '在本仓库的 map 文件里，按已有写法在任务清单逐条引用这些子票，并把清单条目数与 map 的子票数对齐一致',
     en: 'add each sub-ticket to the task list inside the map file the way this repo already writes it, and keep the task-list entry count equal to the map sub-ticket count',
+  },
+  // #684：「体检」的本地 Markdown 科目。这里的票就是工作区里的文件，所以游离必须落到文件上：
+  //   两条判据查的都是「票文件与地图清单对不对得上」。另外照 GitHub 那条口径，把「这张能不能单张票处理掉」
+  //   的 AI 判断一起带上（是的话也可以不管、只在报告里登记一行）。
+  healthCheck: {
+    zh: '**本后端的票就是工作区里的文件**（每个工作单元一个目录，地图写在 map.md 里、每张票写成一个文件），所以「游离」必须落到文件上。**查两条文件级判据**：\n1. 票文件存在，却没有被任何 map.md 的清单引用 —— 游离在外；\n2. map.md 的清单里列了某张票，但对应的文件不存在 —— 断链。\n\n**一条 AI 判断照 GitHub 的口径一起带上**：对每一张判一句「这张是不是明确可以单张票处理掉的」；是的话也可以不管，只登记一行。\n\n**三种结论**（挂在某张地图下 / 建议自立成一张新地图 / 建议留在原地 + 一句话理由）都只进建议清单，等人点头才动手。\n\n**不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关票、不改源码、不提交。\n\n体检的范围是这个工作区里的全部票文件，不跟随面板当前的筛选。',
+    en: '**On this backend a ticket is a file in this workspace** (one directory per work unit, the map written as map.md and each ticket as a file), so "orphaned" has to land on files. **Check two file-level criteria**:\n1. a ticket file exists but no map.md list references it — it is floating outside;\n2. a map.md list references a ticket whose file does not exist — a broken link.\n\n**One AI judgement, same rule as GitHub**: for each ticket, judge with one sentence — "is this clearly something a single ticket can finish?" If yes, you may also leave it alone and just log one line.\n\n**All three conclusions** (attach under a map / suggest a new map of its own / suggest leaving it where it is + a one-sentence reason) only go into the suggestion list — act only after the human nods.\n\n**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, change source code, or commit.\n\nThe health check covers every ticket file in this workspace and does not follow the current panel filters.',
   },
   // #595：正文格式契约归后端单源 —— 本地 Markdown 后端改的就是本机文件本身，没有远端登录、没有插件目录、没有写回脚本
   bodyFormat: {

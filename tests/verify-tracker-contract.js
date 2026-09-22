@@ -17,6 +17,9 @@
  *      批量改色逐条记账、每类失败落在哪一档、沙箱拒绝能单独辨认；
  *      另有对着真实 GitHub 与本地 Markdown 后端模块的探针（诚实说做不到 或 检查器全过）与
  *      宿主两条电话的信封与分档断言；每段自带反例。
+ *   9. counts 段（#689）：后端计数这条操作 —— 做不到的后端诚实说做不到、能计数的三个数形状与自洽、
+ *      数不全时整体失败、真实 GitHub 模块「要么诚实失败要么数字给对」（含带 errors 与缺 totalCount
+ *      两次必须失败的验真）；另有编排层把 counts 写进 deck 的那一段，见 sections/snapshot.js。
  *
  * 每段含「✗ probe」违规样例自证测试会逮。
  * 运行：node tests/verify-tracker-contract.js
@@ -36,6 +39,7 @@ import deckSection from './tracker-contract/sections/deck.js'
 import snapshotSection from './tracker-contract/sections/snapshot.js'
 import chainSection from './tracker-contract/sections/chain.js'
 import labelsSection from './tracker-contract/sections/labels.js'
+import countsSection from './tracker-contract/sections/counts.js'
 
 const results = [
   ...runContractTests(compliant), // 合规 → 应全 PASS
@@ -221,7 +225,7 @@ try {
   results.push({ name: 'pr-shape · probe-crash', ok: false, detail: String(e && e.stack || e) })
 }
 
-for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection]) {
+for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection, countsSection]) {
   try {
     const r = await s.run()
     results.push(...r)

@@ -2,26 +2,21 @@
 // 以后谁改它：改工作区路径归一、后端绑定选择，或「取到后端之后转交它的标签配色两条电话（#627）」的人。预估约 200 行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；normCwd 由本文件单一持有，评论线程经 index 转供给复用；本文件不引用其他新文件。
 export function createWorkspaceCwd(deps) {
-  const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, canonicalKey, setCache, logCtx, timer, detectionExec } = deps
+  const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, canonicalKey, setCache, logCtx, timer, detectionExec } = deps
   // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）
   // 根因：workspaces 服务在 client runtime 暴露的 item.path 可能是相对名（如 "matt-demo-markdown"），
   // 传给 wf.selection 后 select() 三级联中 markdown.matches 收到相对 cwd，plat.join(cwd,...) 仍是相对，
   // fs.resolve 默认基于进程 cwd 解析失败 → matches false → fallback → UI "未绑定"。
   // 归一后所有 handler 收到绝对 cwd，markdown.matches 命中 docs/agents/issue-tracker.md → Markdown 自动。
-  // #652 起：上面三步回退连同「往上锚到工作区根」一起收进 canonicalWorkspaceKey 这一个出口
-  //   （源码在 src/host/workspaceKey.js，本文件只转交）。理由两条：① 钥匙只能有一个出口，读写删三侧
-  //   同形才删得中（#301 踩过的坑）；② 锚根正是本文件每条电话都要的——后端选择、后端绑定、配色文件
-  //   落点、标签读写全该按工作区根算。与旧行为的差别只有一条：会话选在子目录里时算出的是工作区根。
+  // #652 起：上面三步回退连同「往上锚到工作区根」一起收进 canonicalWorkspaceKey 这一个出口 （源码在 src/host/workspaceKey.js，本文件只转交）。理由两条：① 钥匙只能有一个出口，读写删三侧 同形才删得中（#301 踩过的坑）；② 锚根正是本文件每条电话都要的——后端选择、后端绑定、配色文件 落点、标签读写全该按工作区根算。与旧行为的差别只有一条：会话选在子目录里时算出的是工作区根。
   async function normCwd(raw){
     try { return await canonicalKey(raw || DEFAULT_CWD) } catch (e) { return raw || DEFAULT_CWD }
   }
   // #155 + #152：后端绑定（per-workspace 覆盖，唯一写路径不回写 issue-tracker.md）+ 注册表查询 + detection 缓存失效
   // #618：用户为工作区选定后端这一步，顺手在工作区里放一份默认配色文件（幂等：文件在就一个字都不改）。
   // 只有 Markdown 系后端放：GitHub 的颜色是仓库标签的实体数据，没有这份文件；GitLab 这一轮不动。
-  // 怎么认出「Markdown 系」：后端自己实现 ensureLabelColorsFile 这个方法，host 只问它愿不愿意放，
-  //   不在这里写死文件路径与后端 id（路径与内容是这个后端自己的事）。GitHub / GitLab 按 id 明确跳过。
-  // 放失败不影响绑定本身（用户这次是来选后端的），但**不能无声**：失败要记一条日志，并且把结果如实
-  //   放进 bind 的回包里（labelColorsFile 一项），让界面与排查的人都能看见「这次没放上、为什么」。
+  // 怎么认出「Markdown 系」：后端自己实现 ensureLabelColorsFile 这个方法，host 只问它愿不愿意放， 不在这里写死文件路径与后端 id（路径与内容是这个后端自己的事）。GitHub / GitLab 按 id 明确跳过。
+  // 放失败不影响绑定本身（用户这次是来选后端的），但**不能无声**：失败要记一条日志，并且把结果如实 放进 bind 的回包里（labelColorsFile 一项），让界面与排查的人都能看见「这次没放上、为什么」。
   //   真正要用这份文件的时候（打开改色弹窗）会再试一次，那时按写失败分档如实报「写不进去」。
   async function placeLabelColorsFile(cwd, backendId) {
     if (!backendId || backendId === 'github' || backendId === 'gitlab') return { ok: true, skipped: 'not-markdown' }
@@ -50,8 +45,8 @@ export function createWorkspaceCwd(deps) {
       const handle = { cwd: cwd }
       // null = 显式无后端（Other 逃生舱）；'other' 已弃用按 registry 拒绝
       reg.bind(handle, backendId === undefined ? null : backendId)
-      // 失效快照 + 状态 + 探测三缓存（per-workspace 切换不串台，Q3；workspaceStore 内存单例失效）
-      setCache({ ts: 0, snapshot: null, error: null, cwd: null })
+      // #696 只清自己根那条（手上有目录）；失效快照+状态+探测三缓存，切换不串台
+      setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
       try { const ws = await getWorkspaceStore(); ws.invalidate(handle) } catch {}
       // #618：选好之后顺手放一份默认配色文件（幂等）。失败不回滚绑定，但如实放进回包并在日志里留痕。
       let labelColorsFile = null
@@ -62,15 +57,26 @@ export function createWorkspaceCwd(deps) {
         } catch (eL) {}
       }
       // H1 #445 恒空留守省略：原 _detectionService 空检查为无动作分支，有无值行为一致，搬出时省略。
-      const out = { ok: true, cwd: cwd, backendId: backendId === undefined ? null : backendId }
-      // 「放没放、为什么没放」如实回给调用方；因为别的后端不放，用 null 表示「这一次不需要放」。
-      out.labelColorsFile = labelColorsFile
+      // #683（F1 · ADR 20260921 的 R1/R2/R7c）：用户亲手选的这一下多存一份在宿主侧（跨 DSH 重启、跨访问地址、跨桌面端/浏览器都不失忆）；修订号由宿主发号，写不成功要如实回（persisted:false），不许无声失败。
+      const persistedBackendId = backendId === undefined ? null : backendId
+      const cw = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null
+      const wr = (cw && typeof cw.rememberWorkspace === 'function') ? await cw.rememberWorkspace(cwd, persistedBackendId).catch(function () { return null }) : null
+      const out = { ok: true, cwd: cwd, backendId: persistedBackendId, labelColorsFile: labelColorsFile, rev: (wr && wr.ok === true) ? (wr.rev || 0) : 0, persisted: !!(wr && wr.ok === true) }
       return out
     } catch (e) {
       const msg = String((e && e.message) || e)
       if (/unknown-backend/.test(msg)) return { ok: false, error: msg, kind: 'unknown-backend' }
       return { ok: false, error: msg }
     }
+  }
+  // #683（F1 · ADR 的 R6）：卡片确认写的是「卡上当时显示的那一个」—— 同时写 H（宿主侧那份记忆）与 C（本地那份）；layout 没给就是读：新壳/新地址第一次打开时，就靠这一问知道上次选了 single 还是 multi。
+  async function handleSetupLayout(args) {
+    const cwd = await normCwd((args && args.cwd) || '')
+    const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null
+    const v = args ? args.layout : undefined
+    if (v == null) { const r = (cs && typeof cs.getLayout === 'function') ? await cs.getLayout(cwd).catch(function () { return null }) : null; return (r && r.found === true) ? { ok: true, cwd: cwd, layout: r.layout, pickedAt: r.pickedAt } : { ok: true, cwd: cwd, layout: null, pickedAt: 0 } }
+    const w = (cs && typeof cs.rememberLayout === 'function') ? await cs.rememberLayout(cwd, String(v).toLowerCase()).catch(function () { return null }) : null
+    return (w && w.ok === true) ? { ok: true, cwd: cwd, layout: String(v).toLowerCase(), pickedAt: w.pickedAt } : { ok: false, cwd: cwd, error: 'not-stored' }
   }
   async function handleBindings() {
     try {
@@ -92,8 +98,7 @@ export function createWorkspaceCwd(deps) {
       const reg = await getTrackerRegistry()
       if (!reg) return { ok: false, error: 'registry unavailable' }
       const mods = reg.modules().map(function(m){ return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.labelPalette ? { labelPalette: m.labelPalette } : {}, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}, m.openRepository ? { openRepository: m.openRepository } : {}) })
-      // #652：这一条问的是「这个工作区绑了哪个后端」，所以入参要先洗成与绑定同一把钥匙。
-      //   旧写法把 args.cwd 原样交给 reg.bound()，而 wf.bind 用的是规整后的钥匙——同一条目录两把钥匙，
+      // #652：这一条问的是「这个工作区绑了哪个后端」，所以入参要先洗成与绑定同一把钥匙。 旧写法把 args.cwd 原样交给 reg.bound()，而 wf.bind 用的是规整后的钥匙——同一条目录两把钥匙，
       //   绑定写进一个桶、这里读另一个桶，回包一直看不到那份绑定（研究 #648 第四节的实测在案）。
       const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
       let bound = undefined
@@ -114,14 +119,11 @@ export function createWorkspaceCwd(deps) {
   }
   // ============ 标签配色两条电话（#627 契约票）============
   // 「列出标签与颜色」与「批量改色」两个契约操作，界面经下面两条电话调到。
-  // 为什么住在本文件：两条电话的第一步都要把工作区路径归一（normCwd 是本文件单一持有者），
-  //   第二步都要按工作区问出当前后端。归一与选择都在本文件，就地转交选中的后端即可，
+  // 为什么住在本文件：两条电话的第一步都要把工作区路径归一（normCwd 是本文件单一持有者）， 第二步都要按工作区问出当前后端。归一与选择都在本文件，就地转交选中的后端即可，
   //   不必让别的文件再走一遍这两步（同层互引门禁也不许新开的文件之间互相引用）。
-  // 交给后端的「本次调用上下文」（契约 OpContext）：工作区、平台、沙箱 fs、本次调用的中止信号、
-  //   本次用的记录器、起外部程序的执行器（房内 gh/glab 命令走它，每次调用落一条 exec.run 日志），
+  // 交给后端的「本次调用上下文」（契约 OpContext）：工作区、平台、沙箱 fs、本次调用的中止信号、 本次用的记录器、起外部程序的执行器（房内 gh/glab 命令走它，每次调用落一条 exec.run 日志），
   //   以及可中断的定时器。
-  // 为什么必须带 signal（不能省）：契约的 OpContext 就写着这一项，而后端真的会读它 ——
-  //   GitHub 后端调外部命令时用 `opts.signal || ctx.signal` 当超时中止信号，GitLab 后端发起鉴权预检时
+  // 为什么必须带 signal（不能省）：契约的 OpContext 就写着这一项，而后端真的会读它 —— GitHub 后端调外部命令时用 `opts.signal || ctx.signal` 当超时中止信号，GitLab 后端发起鉴权预检时
   //   也要 `ctx.signal` 才能被中断。少了这一项，这两条电话调后端时那些命令就没有中止信号可用。
   // 传同一个 signal 给两步（先是问当前后端，再把上下文交给后端执行）是为了两次调用一致。
   // 失败怎么分档（用户看到的文案随之不同，所以口径要死）：
@@ -343,5 +345,5 @@ export function createWorkspaceCwd(deps) {
     else if (res && res.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
     else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && (res.error || res.errorKind)) || 'workspace-not-ok')) }) } catch (eL) {} }
   function loggedPhone(method, kind, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
-  return { normCwd: normCwd, handleBind: loggedPhone('wf.bind', 'bind', handleBind), handleBindings: loggedPhone('wf.bindings', 'bindings', handleBindings), handleRegistry: loggedPhone('wf.registry', 'registry', handleRegistry), handleSelection: loggedPhone('wf.selection', 'selection', handleSelection), handleListLabels: loggedPhone('wf.listLabels', 'label-colors', handleListLabels), handleSetLabelColors: loggedPhone('wf.setLabelColors', 'label-colors', handleSetLabelColors) }
+  return { normCwd: normCwd, handleBind: loggedPhone('wf.bind', 'bind', handleBind), handleSetupLayout: loggedPhone('wf.setupLayout', 'setup-layout', handleSetupLayout), handleBindings: loggedPhone('wf.bindings', 'bindings', handleBindings), handleRegistry: loggedPhone('wf.registry', 'registry', handleRegistry), handleSelection: loggedPhone('wf.selection', 'selection', handleSelection), handleListLabels: loggedPhone('wf.listLabels', 'label-colors', handleListLabels), handleSetLabelColors: loggedPhone('wf.setLabelColors', 'label-colors', handleSetLabelColors) }
 }

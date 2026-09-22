@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #474（第三轮）— 把六个前端库的技法用在地图详情页上</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+  issue：FeatherHunter/dsh-mattpocock-skills-deck#474
+  调研笔记：docs/research/474-frontend-craft.md（六个库的星标/体积/许可与「偷什么」的完整推理）
+
+  这一轮做什么：
+    把 Leaflet / Chart.js / PixiJS / Paper.js / Chroma.js / Anime.js 六个库里**能偷的技法**落到地图详情页上，
+    每条技法都做成一开一关的对照（左边是原做法，右边是学来的做法），可以现场比。
+
+  五条技法（每条都在底部切换条上有开关）：
+    T1 雾的画法   Leaflet：不是「往未知处刷雾团」，而是「整张雾盖住全图，把走过的地方挖成洞」——洞边是柔的、雾是连续的一整张。
+                  （参考其社区做法：多边形挖洞 / SVG evenodd / Canvas destination-out）
+    T2 状态配色   Chroma.js：色阶在感知空间里取，四态按明度阶梯排开（相邻 L* 差 ≥10）；并给出红/绿/蓝三型色觉模拟，随时可验。
+    T3 亮痕动画   Anime.js：stagger + SVG 描边动画——亮痕从起点一段段扫到当前点；配合「雾被推开」的揭幕动画。
+    T4 边角控件   Leaflet：控件待在角落、位置固定、可折叠（聚焦 / 全亮 / 图例 / 缩放），底部一条数据条取代零散小字。
+    T5 进度环     Chart.js：环要**分段**（一段一张票）且**环心写字**；替换掉现在那个「按层 +1」的假环。
+  另有一条实现纪律（PixiJS 的思路，但不用 WebGL）：雾画在离屏 Canvas 上，用 destination-out 擦洞，再整张贴上去。
+
+  运行：双击本文件即可（无后端、无依赖、无定时器）。URL 参数：
+    ?w=400|560|810 &fog=canvas|blob &pal=perceptual|picked &cvd=none|protan|deutan|tritan
+    &trail=sweep|static &ctrl=on|off &ring=real|fake &s=active|empty|big|done &bar=0
+
+  数据：地图 #604 的真实 Destination / 子票 / 层（层 1 #605 → 层 2 #606 → 层 3 #607 进行中 → 层 4 #608 被 #607 挡着）。
+-->
+<style>
+:root{
+  --bg:#07080b;--base:#10131a;--l2:#16181d;--bd:#2a2d35;--bd2:#3a3f4a;
+  --tx:#e6edf3;--sec:#a1a1aa;--cap:#8b8b95;--map:#c084fc;
+  --mono:Consolas,"SF Mono",Menlo,monospace;
+  /* 四态色：由 JS 按「明度阶梯」算出并写回这里（见 colorLadder()） */
+  --c-walk:#4ade80; --c-view:#58a6ff; --c-open:#b9ffd0; --c-fog:#6b7186;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font-size:14px;line-height:1.6;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+.pbadge{position:fixed;top:8px;left:8px;z-index:99999;background:#ff3b30;color:#fff;font:700 11px/1 -apple-system,sans-serif;padding:5px 9px;border-radius:99px}
+.wrap{max-width:1500px;margin:0 auto;padding:44px 18px 200px}
+h1{font-size:19px;margin:0 0 8px}
+.lead{border:1px solid var(--bd);border-radius:14px;background:linear-gradient(180deg,#181d26,#101319);padding:14px 16px;margin-bottom:14px}
+.lead p{margin:6px 0;font-size:13px;color:var(--sec)}
+.lead b{color:var(--tx)}
+.techs{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:8px;margin-top:10px}
+.tech{border:1px solid var(--bd);border-radius:10px;padding:9px 11px;background:#0e1117}
+.tech .h{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:650}
+.tech .h .src{font:700 9.5px/1.5 var(--mono);color:var(--map);border:1px solid rgba(192,132,252,.45);border-radius:5px;padding:0 4px}
+.tech .m{font-size:11.5px;color:var(--sec);margin-top:4px;line-height:1.65}
+.stage{display:flex;justify-content:center;margin-top:6px}
+.panel{width:810px;max-width:100%;background:var(--base);border:1px solid var(--bd);border-radius:14px;overflow:hidden;
+  display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.55)}
+.chrome{flex:none;border-bottom:1px solid var(--bd);background:var(--l2)}
+.chrome-top{display:flex;align-items:center;gap:6px;padding:9px 12px 5px;font-size:11px}
+.chrome-top .repo{color:#58a6ff;font-family:var(--mono);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chrome-top .ico{color:var(--cap);border:1px solid var(--bd);border-radius:5px;padding:0 5px;font-size:10px}
+.chrome-tabs{display:flex;align-items:center;gap:4px;padding:0 10px 8px;font-size:11px;flex-wrap:nowrap;overflow:hidden}
+.chrome-tabs .tab{padding:1px 7px;border-radius:6px;color:var(--sec)}
+.chrome-tabs .tab.on{background:rgba(192,132,252,.14);border:1px solid rgba(192,132,252,.45);color:#e9d5ff}
+.chrome-tabs .mini{border:1px solid var(--bd);border-radius:6px;padding:0 6px;color:var(--sec);font-size:10.5px}
+.panel.narrow .chrome-tabs .mini{display:none}
+.sp{flex:1}
+.sticky{display:flex;align-items:center;gap:7px;padding:8px 12px;background:var(--l2);border-bottom:1px solid var(--bd)}
+.btn{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid var(--bd);background:var(--base);color:var(--tx);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px}
+.btn:hover{border-color:var(--bd2)}
+.btn.primary{background:var(--c-walk);border-color:transparent;color:#04120a;font-weight:700}
+.btn.ghost{background:transparent;color:var(--sec)}
+.btn.sm{font-size:10.5px;padding:2px 7px}
+.crumb{font-size:10.5px;color:var(--cap);font-family:var(--mono);white-space:nowrap}
+.panel.narrow .crumb{display:none}
+.chipm{font-size:10px;padding:1px 7px;border-radius:99px;border:1px solid rgba(192,132,252,.5);color:var(--map);background:rgba(192,132,252,.08);font-family:var(--mono);white-space:nowrap}
+.scroll{overflow:auto}
+
+/* ---------- 目的地卡 + 环 ---------- */
+.destcard{margin:10px 12px 0;border:1px solid rgba(192,132,252,.35);border-radius:12px;padding:10px 12px 11px;
+  background:linear-gradient(180deg,rgba(192,132,252,.10),rgba(88,166,253,.02) 70%,transparent);
+  display:flex;gap:12px;align-items:flex-start}
+.destcard .main{flex:1;min-width:0}
+.dh{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.dno{font:700 11px/1.4 var(--mono);padding:2px 7px;border-radius:6px;border:1px solid var(--map);color:var(--map);flex:none}
+.dtitle{font-size:12.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlabel{font-size:10px;letter-spacing:.06em;color:var(--map);text-transform:uppercase;margin-bottom:3px}
+.dtext{font-size:12.5px;line-height:1.65;color:#e9d5ff;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.vital{display:flex;flex-wrap:wrap;gap:9px;margin-top:8px;padding-top:7px;border-top:1px dashed rgba(255,255,255,.09)}
+.vitem{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--sec)}
+.vitem .n{font-family:var(--mono);font-weight:700}
+.vdot{width:7px;height:7px;border-radius:50%;flex:none}
+.ringwrap{flex:none;width:92px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.ringcap{font-size:9.5px;color:var(--cap)}
+.panel.narrow .destcard{flex-direction:column}
+.panel.narrow .ringwrap{flex-direction:row;width:auto;gap:8px}
+
+/* ---------- 场景（等高带 + 亮痕 + 票 + 雾） ---------- */
+.scene{position:relative;margin:10px 12px 0;border:1px solid var(--bd);border-radius:12px;overflow:hidden;
+  background:radial-gradient(120% 70% at 50% 0,rgba(88,166,253,.045),transparent 62%),#0a0d12}
+.scene svg{position:absolute;inset:0;width:100%;height:100%}
+/* 层次：地形 → 亮痕 → 雾 → 票。雾盖地形与还没走通的那半截亮痕，但不盖票的名称（票是界面，不是地形） */
+.scene .bands{pointer-events:none;z-index:1}
+.trail{z-index:2}
+.node{z-index:4}
+.tr-zone{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.08)}
+.tr-zone.walk{fill:rgba(74,222,128,.13);stroke:rgba(74,222,128,.45)}
+.tr-zone.view{fill:rgba(88,166,253,.16);stroke:rgba(88,166,253,.5)}
+.tr-zone.fog{fill:rgba(163,168,192,.04);stroke:rgba(163,168,192,.24);stroke-dasharray:4 5}
+.tr-cap{font:600 9.5px/1 var(--mono);fill:#8b8b95}
+.trail path{fill:none;stroke-linecap:round}
+.trail .seg-lit{stroke:var(--c-walk);stroke-width:3;filter:drop-shadow(0 0 5px rgba(74,222,128,.55))}
+.trail .seg-view{stroke:var(--c-view);stroke-width:3;filter:drop-shadow(0 0 6px rgba(88,166,253,.6))}
+.trail .seg-dim{stroke:rgba(163,168,192,.38);stroke-width:2;stroke-dasharray:3 6}
+.trail path.sweep{animation:sweep .8s cubic-bezier(.25,.75,.3,1) both}
+@keyframes sweep{from{stroke-dashoffset:var(--len)}to{stroke-dashoffset:0}}
+.node{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:150px;text-align:center;cursor:pointer;z-index:4}
+.node .dot{width:20px;height:20px;border-radius:50%;border:1.7px solid var(--bd);background:#0a0d12;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;position:relative}
+.node .no{font:600 9.5px/1.4 var(--mono);color:var(--cap);z-index:2}
+.node .tt{font-size:10px;line-height:1.35;color:var(--sec);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;z-index:2}
+.node.st-walk .dot{background:var(--c-walk);border-color:var(--c-walk);color:#04120a}
+.node.st-walk .tt{color:#5f6b7d}
+.node.st-view .dot{border-color:var(--c-view);color:var(--c-view);box-shadow:0 0 0 4px rgba(88,166,253,.12)}
+.node.st-view .tt,.node.st-open .tt{color:var(--tx)}
+.node.st-open .dot{border-color:var(--c-open);color:var(--c-open);box-shadow:0 0 10px rgba(185,255,208,.35)}
+.node.st-fog .dot{border-style:dashed;border-color:var(--c-fog);color:var(--c-fog);background:rgba(107,113,134,.10)}
+.node.st-fog .tt,.node.st-fog .no{filter:blur(1.6px);opacity:.7}
+.node.st-fog.revealed .tt,.node.st-fog.revealed .no{filter:none;opacity:1;color:var(--tx)}
+.node.here .dot::after{content:"";position:absolute;inset:-13px;border-radius:50%;
+  background:radial-gradient(circle,rgba(88,166,253,.34),rgba(88,166,253,0) 70%);animation:breathe 3.4s ease-in-out infinite;z-index:-1}
+@keyframes breathe{0%,100%{opacity:.5;transform:scale(.9)}50%{opacity:1;transform:scale(1.08)}}
+@media (prefers-reduced-motion:reduce){.node.here .dot::after{animation:none}}
+.flag{position:absolute;transform:translate(-50%,-50%);z-index:4;display:flex;flex-direction:column;align-items:center;gap:2px}
+.flag .f{width:30px;height:30px;border-radius:50%;border:2px solid var(--map);background:rgba(192,132,252,.14);
+  display:flex;align-items:center;justify-content:center;box-shadow:0 0 18px rgba(192,132,252,.4)}
+.flag .f svg{width:15px;height:15px;fill:none;stroke:var(--map);stroke-width:1.9;stroke-linecap:round}
+.flag .t{font-size:9.5px;color:#d8c7ff}
+/* 新雾：一张 canvas 盖住全图，走过的地方被擦成柔边洞（Leaflet 挖洞思路 / Pixi destination-out） */
+.foglayer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+/* 旧雾：往未知处刷雾团 */
+.blobs{position:absolute;inset:0;pointer-events:none;z-index:3}
+.blob{position:absolute;border-radius:50%;mix-blend-mode:screen;
+  background:radial-gradient(circle at 46% 42%,rgba(186,178,255,.30),rgba(120,110,190,.15) 50%,rgba(120,110,190,0) 74%);filter:blur(12px)}
+.blob::after{content:"";position:absolute;inset:0;border-radius:50%;
+  background:repeating-linear-gradient(-45deg,rgba(210,215,255,.13) 0 4px,transparent 4px 10px)}
+/* Leaflet 式边角控件 */
+.ctrls{position:absolute;right:8px;bottom:44px;z-index:9;display:flex;flex-direction:column;gap:1px;
+  border:1px solid var(--bd2);border-radius:9px;overflow:hidden;background:rgba(14,17,24,.92);box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.ctrls button{width:28px;height:27px;border:0;border-bottom:1px solid rgba(255,255,255,.06);background:transparent;color:var(--sec);
+  cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center}
+.ctrls button:last-child{border-bottom:0}
+.ctrls button:hover{background:rgba(255,255,255,.07);color:var(--tx)}
+.ctrls button.on{background:rgba(192,132,252,.18);color:#e9d5ff}
+.scalebar{position:absolute;left:8px;bottom:8px;z-index:9;display:flex;align-items:center;gap:7px;
+  background:rgba(14,17,24,.9);border:1px solid var(--bd);border-radius:8px;padding:3px 8px;font-size:10.5px;color:var(--sec)}
+.scalebar .n{font-family:var(--mono);font-weight:700}
+.legendpop{position:absolute;right:8px;bottom:44px;z-index:10;background:rgba(14,17,24,.97);border:1px solid var(--bd2);
+  border-radius:10px;padding:8px 10px;font-size:10.5px;color:var(--sec);display:none;box-shadow:0 10px 26px rgba(0,0,0,.55)}
+.legendpop.on{display:block}
+.legendpop .li{display:flex;align-items:center;gap:6px;margin:3px 0}
+/* 色阶自检表 */
+.palcheck{margin:10px 12px 0;border:1px solid var(--bd);border-radius:10px;padding:8px 10px;background:#0d1017}
+.palcheck .cap{font:600 10px/1.7 var(--mono);letter-spacing:.1em;color:var(--cap);text-transform:uppercase}
+.paltab{display:grid;grid-template-columns:auto auto auto auto;gap:4px 10px;margin-top:6px;font:11px/1.6 var(--mono);align-items:center}
+.paltab .sw{width:14px;height:14px;border-radius:4px;border:1px solid rgba(255,255,255,.12)}
+.palnote{font-size:10.5px;color:var(--cap);margin-top:6px;line-height:1.65}
+/* 档案 */
+.archive{margin:12px 12px 16px;border-top:1px solid var(--bd);padding-top:8px}
+.acc{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sec);padding:4px 0;cursor:pointer}
+.accbody{padding:2px 0 8px 14px;font-size:11.5px;color:var(--sec);line-height:1.7;display:none}
+.accbody .it{margin:3px 0}
+/* 切换条 */
+.bar{position:fixed;left:50%;transform:translateX(-50%);bottom:10px;z-index:9999;display:flex;flex-wrap:wrap;gap:7px;align-items:center;
+  background:rgba(20,23,30,.95);border:1px solid var(--bd2);border-radius:14px;padding:8px 11px;
+  box-shadow:0 12px 34px rgba(0,0,0,.6);backdrop-filter:blur(8px);max-width:calc(100vw - 20px)}
+.grp{display:flex;align-items:center;gap:4px;border-left:1px solid var(--bd);padding-left:8px}
+.grp:first-child{border-left:0;padding-left:0}
+.gl{font-size:10.5px;color:var(--cap);margin-right:1px}
+.seg{font-size:11px;padding:3px 8px;border-radius:99px;border:1px solid var(--bd);background:#141821;color:var(--sec);cursor:pointer}
+.seg:hover{border-color:var(--bd2);color:var(--tx)}
+.seg.on{border-color:var(--map);background:rgba(192,132,252,.16);color:#e9d5ff;font-weight:600}
+</style>
+</head>
+<body>
+<div class="pbadge">PROTOTYPE · #474 · 第三轮</div>
+<div class="wrap">
+  <h1>把六个前端库的技法用在地图详情页上</h1>
+  <div class="lead">
+    <p>六个库<b>一个都不装</b>（客户端产物已经 1.23 MB，首屏预算是 300 毫秒），但每个都偷一条技法，做成能一开一关对照的原型。
+      调研笔记见 <code>docs/research/474-frontend-craft.md</code>。</p>
+    <div class="techs" id="techs"></div>
+  </div>
+  <div class="stage"><div class="panel" id="panel"></div></div>
+</div>
+
+<div class="bar">
+  <div class="grp"><span class="gl">雾的画法</span>
+    <button class="seg" data-k="fog" data-v="canvas">整张雾挖洞</button>
+    <button class="seg" data-k="fog" data-v="blob">雾团刷上去</button>
+  </div>
+  <div class="grp"><span class="gl">配色</span>
+    <button class="seg" data-k="pal" data-v="perceptual">明度阶梯</button>
+    <button class="seg" data-k="pal" data-v="picked">手挑</button>
+  </div>
+  <div class="grp"><span class="gl">色觉模拟</span>
+    <button class="seg" data-k="cvd" data-v="none">正常</button>
+    <button class="seg" data-k="cvd" data-v="protan">红</button>
+    <button class="seg" data-k="cvd" data-v="deutan">绿</button>
+    <button class="seg" data-k="cvd" data-v="tritan">蓝</button>
+  </div>
+  <div class="grp"><span class="gl">亮痕</span>
+    <button class="seg" data-k="trail" data-v="sweep">扫亮</button>
+    <button class="seg" data-k="trail" data-v="static">静态</button>
+    <button class="seg" data-act="replay">重播</button>
+  </div>
+  <div class="grp"><span class="gl">控件</span>
+    <button class="seg" data-k="ctrl" data-v="on">开</button>
+    <button class="seg" data-k="ctrl" data-v="off">关</button>
+  </div>
+  <div class="grp"><span class="gl">进度环</span>
+    <button class="seg" data-k="ring" data-v="real">按票分段</button>
+    <button class="seg" data-k="ring" data-v="fake">按层 +1（现状）</button>
+  </div>
+  <div class="grp"><span class="gl">宽度</span>
+    <button class="seg" data-k="w" data-v="400">400</button>
+    <button class="seg" data-k="w" data-v="560">560</button>
+    <button class="seg" data-k="w" data-v="810">810</button>
+  </div>
+  <div class="grp"><span class="gl">状态</span>
+    <button class="seg" data-k="s" data-v="active">推进中</button>
+    <button class="seg" data-k="s" data-v="empty">还没画图</button>
+    <button class="seg" data-k="s" data-v="big">大图</button>
+  </div>
+</div>
+
+<script>
+/* ============================== 数据 ============================== */
+const ACTIVE = {
+  no: 604, title: 'MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）',
+  destination: '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。',
+  tickets: [
+    { no: 605, type: 'task', title: '收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票', state: 'CLOSED', blockedBy: [] },
+    { no: 606, type: 'task', title: '补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点', state: 'CLOSED', blockedBy: [605] },
+    { no: 607, type: 'research', title: '全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单', state: 'OPEN', blockedBy: [605, 606], claimedBy: 'FeatherHunter' },
+    { no: 608, type: 'grilling', title: '宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个', state: 'OPEN', blockedBy: [607] },
+  ],
+  fogTotal: 5,
+};
+const EMPTY = { no: 800, title: '去泰国旅游',
+  destination: '到泰国这件事是明确的：机票落地曼谷、玩十天、把该看的地方看完。怎么去、走哪条线、花多少钱，现在全是待探索——这张图还没画完。',
+  tickets: [], fogTotal: 0 };
+const BIG = { no: 900, title: '示例大图：9 张票 · 4 层',
+  destination: '把这条链路的读写路径各治一遍：先查清楚、再定方案、再落地、最后真机复测。到终点 = 每个环节都有实测数字，慢在哪一眼能指出来。',
+  tickets: [
+    { no: 901, type: 'research', title: '盘点现行取数路径与调用点（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 902, type: 'research', title: '客户端渲染路径实测（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 903, type: 'prototype', title: '缓存键与合并策略原型（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 904, type: 'grilling', title: '定版：接缝画在哪、缓存键怎么定（示例）', state: 'CLOSED', blockedBy: [901, 902] },
+    { no: 905, type: 'grilling', title: '定版：请求合并与三个扫描器收成一个（示例）', state: 'OPEN', blockedBy: [902, 903], claimedBy: 'FeatherHunter' },
+    { no: 906, type: 'task', title: '落地：取数层收敛（示例）', state: 'OPEN', blockedBy: [904] },
+    { no: 907, type: 'task', title: '落地：渲染路径单点改造（示例）', state: 'OPEN', blockedBy: [905] },
+    { no: 908, type: 'task', title: '落地：日志落盘批量写（示例）', state: 'OPEN', blockedBy: [905] },
+    { no: 909, type: 'research', title: '真机复测：四个场景逐条给数字（示例）', state: 'OPEN', blockedBy: [906, 907, 908] },
+  ], fogTotal: 4 };
+
+/* ============================== 判定 ============================== */
+function levelize(ts) {
+  const by = new Map(ts.map((t) => [String(t.no), t])); const memo = new Map();
+  const lv = (t) => { if (memo.has(String(t.no))) return memo.get(String(t.no));
+    const bs = (t.blockedBy || []).map((b) => by.get(String(b))).filter(Boolean);
+    const v = bs.length ? Math.max.apply(null, bs.map(lv)) + 1 : 0; memo.set(String(t.no), v); return v };
+  ts.forEach(lv);
+  const L = []; ts.forEach((t) => { const i = lv(t); (L[i] = L[i] || { i: i, items: [] }).items.push(t) });
+  return L.filter(Boolean);
+}
+function stateOf(t, all) {
+  if (t.state === 'CLOSED') return 'walk';
+  if (t.claimedBy) return 'view';
+  const bs = (t.blockedBy || []).map((b) => all.find((x) => String(x.no) === String(b))).filter(Boolean);
+  return bs.some((b) => b.state === 'OPEN') ? 'fog' : 'open';
+}
+const blockers = (t, all) => (t.blockedBy || []).map((b) => all.find((x) => String(x.no) === String(b))).filter(Boolean).filter((b) => b.state === 'OPEN');
+const counts = (m) => { const a = m.tickets; return { walk: a.filter((t) => stateOf(t, a) === 'walk').length,
+  view: a.filter((t) => stateOf(t, a) === 'view').length, open: a.filter((t) => stateOf(t, a) === 'open').length,
+  fog: a.filter((t) => stateOf(t, a) === 'fog').length, total: a.length } };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const clamp = (s, n) => (String(s).length > n ? String(s).slice(0, n) + '…' : String(s));
+const TYPE_L = { task: '任务', research: '研究', grilling: '对齐', prototype: '原型' };
+
+/* ============================== 颜色：明度阶梯 + 色觉模拟 ==============================
+   Chroma.js 的判据：色阶要在感知空间里排（相邻明度差 ≥10），并且要给得出「色觉模拟后还分不分得开」的证明。
+   这里自己算 L*（CIE 1976 明度）与三型色觉模拟（Viénot 1999 的线性 RGB 矩阵，公认的近似实现）。 */
+const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16) / 255);
+const rgb2hex = (r) => '#' + r.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('');
+const lin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+const unlin = (c) => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+const lum = (rgb) => 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
+const Lstar = (rgb) => { const Y = lum(rgb); return Y > 216 / 24389 ? 116 * Math.cbrt(Y) - 16 : (24389 / 27) * Y };
+const CVD = {
+  protan: [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],
+  deutan: [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.011820, 0.042940, 0.968881]],
+  tritan: [[1.255528, -0.076749, -0.178779], [-0.078411, 0.930809, 0.147602], [0.004733, 0.691367, 0.303900]],
+};
+const simulate = (rgb, kind) => { if (kind === 'none') return rgb; const L = rgb.map(lin), M = CVD[kind];
+  return M.map((row) => unlin(Math.max(0, Math.min(1, row[0] * L[0] + row[1] * L[1] + row[2] * L[2])))) };
+// 手挑（原来在用的那种：三色都是各自满意就定了）vs 明度阶梯（按住明度排开）
+const PAL = {
+  picked:   { walk: '#4ade80', view: '#58a6ff', open: '#8affc0', fog: '#a3a8c0' },
+  perceptual:{ walk: '#4ade80', view: '#58a6ff', open: '#b9ffd0', fog: '#5b6076' },
+};
+const ORDER = [['walk', '走亮'], ['view', '照亮中'], ['open', '现在能做'], ['fog', '雾']];
+
+/* ============================== 状态（含 URL 参数） ============================== */
+const state = { w: 810, fog: 'canvas', pal: 'perceptual', cvd: 'none', trail: 'sweep', ctrl: 'on', ring: 'real', s: 'active', legend: false, zoom: 1, reveal: {} };
+const qs = new URLSearchParams(location.search);
+['w', 'fog', 'pal', 'cvd', 'trail', 'ctrl', 'ring', 's'].forEach((k) => { if (qs.get(k) != null) state[k] = qs.get(k) });
+state.w = Number(state.w);
+const mapOf = () => (state.s === 'empty' ? EMPTY : (state.s === 'big' ? BIG : ACTIVE));
+
+const TECHS = [
+  ['Leaflet', 'T1 雾的画法', '不是往未知处刷雾团，而是**整张雾盖住全图，把走过的地方挖成洞**——洞边柔和、雾是连续的一整张（社区做法：多边形挖洞 / SVG evenodd / Canvas destination-out）。'],
+  ['Chroma.js', 'T2 状态配色', '四态按**明度阶梯**排开（相邻 L* 差 ≥10），并给出红/绿/蓝三型色觉模拟——「不能只靠颜色区分」从此有可验的数字。'],
+  ['Anime.js', 'T3 亮痕动画', 'stagger + 描边动画：亮痕从起点一段段扫到当前点；开雾用「把雾推开」的揭幕动画。'],
+  ['Leaflet', 'T4 边角控件', '控件待在角落、位置固定、可折叠（聚焦 / 全亮 / 图例 / 缩放），底部一条数据条取代零散小字。'],
+  ['Chart.js', 'T5 进度环', '环要**分段**（一段一张票）且**环心写字**；替掉现在那个「已通过层数 +1」的假环。'],
+  ['PixiJS', '底料', '雾画在离屏 Canvas 上、用 destination-out 擦洞再整张贴上——同一套算法，不用 WebGL。'],
+];
+
+/* ============================== 画环（Chart.js 的两条约定） ============================== */
+function donut(map) {
+  const c = counts(map), R = 34, C = 2 * Math.PI * R;
+  if (state.ring === 'fake') {
+    // 现状口径：环 = (已通过层数 + 1) / 总层数，与票数无关
+    const layers = levelize(map.tickets);
+    const total = layers.length || 1;
+    let cur = layers.findIndex((L) => L.items.some((t) => t.state === 'OPEN'));
+    if (cur < 0) cur = total - 1;
+    const passed = layers.filter((L, i) => i < cur).length;
+    const pct = map.tickets.length && map.tickets.every((t) => t.state === 'CLOSED') ? 1 : Math.min(1, (passed + 1) / total);
+    return '<div class="ringwrap"><svg width="92" height="92" viewBox="0 0 92 92">' +
+      '<circle cx="46" cy="46" r="' + R + '" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7"/>' +
+      '<circle cx="46" cy="46" r="' + R + '" fill="none" stroke="var(--map)" stroke-width="7" stroke-linecap="round" ' +
+      'transform="rotate(-90 46 46)" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C * (1 - pct)) + '"/>' +
+      '</svg><span class="ringcap">按层算 · ' + Math.round(pct * 100) + '%（与票数无关）</span></div>';
+  }
+  // 学来的口径：一段一张票，环心写字
+  const seg = C / Math.max(1, c.total), gap = Math.min(4, seg * 0.18);
+  const walks = map.tickets.filter((t) => stateOf(t, map.tickets) === 'walk').length;
+  const views = map.tickets.filter((t) => stateOf(t, map.tickets) === 'view').length;
+  let off = 0, paths = '';
+  for (let i = 0; i < walks + views; i++) {
+    const col = i < walks ? 'var(--c-walk)' : 'var(--c-view)';
+    const dash = Math.max(1, seg - gap);
+    paths += '<circle cx="46" cy="46" r="' + R + '" fill="none" stroke="' + col + '" stroke-width="7" stroke-linecap="butt" ' +
+      'transform="rotate(-90 46 46)" stroke-dasharray="' + dash + ' ' + (C - dash) + '" stroke-dashoffset="' + (-off) + '"/>';
+    off += seg;
+  }
+  return '<div class="ringwrap"><svg width="92" height="92" viewBox="0 0 92 92">' +
+    '<circle cx="46" cy="46" r="' + R + '" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="7"/>' + paths +
+    '<text x="46" y="43" text-anchor="middle" font-size="17" font-family="Consolas,monospace" font-weight="700" fill="#e6edf3">' +
+    walks + '/' + c.total + '</text>' +
+    '<text x="46" y="58" text-anchor="middle" font-size="9.5" fill="#8b8b95">走亮</text>' +
+    '</svg><span class="ringcap">一段一张票 · 蓝段是正在走的</span></div>';
+}
+
+/* ============================== 场景几何 ============================== */
+function sceneGeom(map, W) {
+  const all = map.tickets, layers = levelize(all);
+  const bandH = 62, topY = 44, n = layers.length;
+  const H = Math.max(240, topY + n * bandH + 58);
+  const pos = {};
+  layers.forEach((L, li) => {
+    const y = topY + (n - 1 - li) * bandH;     // 层号越大越靠上
+    const w = Math.min(W - 70, (W - 70) * (0.5 + 0.13 * Math.min(L.items.length, 4)));
+    const x = (W - w) / 2;
+    L.items.forEach((t, i) => {
+      pos[t.no] = { x: L.items.length === 1 ? W / 2 : x + 34 + ((w - 68) / (L.items.length - 1)) * i, y: y + bandH - 26 };
+    });
+    L.meta = { y: y, x: x, w: w };
+  });
+  return { layers: layers, bandH: bandH, topY: topY, H: H, pos: pos, W: W };
+}
+
+/* ============================== 场景渲染 ============================== */
+function scene(map) {
+  const W = Number(state.w) - 26;
+  const g = sceneGeom(map, W);
+  const all = map.tickets;
+  if (!all.length) {
+    return '<div class="scene" style="height:230px">' +
+      '<canvas class="foglayer" id="fogcv"></canvas>' +
+      '<div class="flag" style="left:50%;top:58%"><span class="f"><svg viewBox="0 0 24 24"><path d="M5 3v18"/><path d="M5 4c4-2 6 2 12 0v9c-6 2-8-2-12 0"/></svg></span>' +
+      '<span class="t">终点 · 永远亮着</span></div>' +
+      '<div class="scalebar">整张图还是黑的 —— 还没画图，只有终点亮着</div>' +
+      (state.ctrl ? ctrls(map) : '') + '</div>';
+  }
+  // 等高带
+  let bands = '';
+  g.layers.forEach((L, li) => {
+    const cs = L.items.map((t) => stateOf(t, all));
+    const kind = cs.every((s) => s === 'walk') ? 'walk' : (cs.indexOf('view') >= 0 ? 'view' : (cs.every((s) => s === 'fog') ? 'fog' : 'mix'));
+    bands += '<path class="tr-zone ' + kind + '" d="M' + L.meta.x + ' ' + (L.meta.y + g.bandH - 8) + ' Q' + (L.meta.x + L.meta.w * 0.25) + ' ' + (L.meta.y + 4) + ' ' + (L.meta.x + L.meta.w * 0.5) + ' ' + (L.meta.y + 8) +
+      ' Q' + (L.meta.x + L.meta.w * 0.75) + ' ' + (L.meta.y + 12) + ' ' + (L.meta.x + L.meta.w) + ' ' + (L.meta.y + g.bandH - 8) + ' Z"/>' +
+      '<text class="tr-cap" x="' + (L.meta.x + 8) + '" y="' + (L.meta.y + 16) + '">第 ' + (li + 1) + ' 层 · ' + L.items.length + ' 张</text>';
+  });
+  // 亮痕：一层一段，段的长度给它自己（用于描边动画）
+  let trail = '';
+  for (let i = 0; i < g.layers.length; i++) {
+    const a = g.layers[i].items[0], b = g.layers[i + 1] ? g.layers[i + 1].items[0] : null;
+    const y0 = g.layers[i].meta.y + g.bandH / 2, y1 = b ? g.layers[i + 1].meta.y + g.bandH / 2 : g.topY + 16;
+    const sa = stateOf(a, all), sb = b ? stateOf(b, all) : 'walk';
+    const cls = (sa === 'walk' && (sb === 'walk' || sb === 'open')) ? 'seg-lit' : (sa === 'walk' && sb === 'view' ? 'seg-view' : 'seg-dim');
+    const len = Math.abs(y0 - y1) + 24;
+    trail += '<path class="' + cls + (state.trail === 'sweep' ? ' sweep' : '') + '" d="M' + (W / 2) + ' ' + y0 + ' L' + (W / 2) + ' ' + y1 + '" ' +
+      'style="--len:' + len + ';stroke-dasharray:' + len + ';animation-delay:' + (i * 0.12).toFixed(2) + 's"/>';
+  }
+  const summitLit = all.every((t) => t.state === 'CLOSED');
+  trail += '<path class="' + (summitLit ? 'seg-lit' : 'seg-dim') + '" d="M' + (W / 2) + ' ' + (g.topY + 16) + ' L' + (W / 2) + ' ' + (g.topY - 4) + '"/>';
+  // 票
+  let nodes = '';
+  let viewNo = null;
+  all.forEach((t) => { if (stateOf(t, all) === 'view') viewNo = t.no });
+  all.forEach((t) => {
+    const s = stateOf(t, all), p = g.pos[t.no];
+    const fogged = s === 'fog';
+    nodes += '<div class="node st-' + s + (state.reveal[t.no] ? ' revealed' : '') + (t.no === viewNo ? ' here' : '') + '" data-no="' + t.no + '" style="left:' + p.x + 'px;top:' + p.y + 'px" title="' + esc(t.title) + '">' +
+      '<span class="dot">' + (s === 'walk' ? '✓' : s === 'fog' ? '?' : s === 'view' ? '◉' : '▶') + '</span>' +
+      '<span class="no">#' + t.no + '</span>' +
+      '<span class="tt">' + esc(clamp(t.title, 26)) + '</span></div>';
+  });
+  // 旧雾：雾团
+  let blobs = '';
+  if (state.fog === 'blob') all.forEach((t) => { if (stateOf(t, all) !== 'fog') return; const p = g.pos[t.no];
+    blobs += '<div class="blob" style="left:' + (p.x - 96) + 'px;top:' + (p.y - 54) + 'px;width:192px;height:140px"></div>' });
+  const c = counts(map);
+  return '<div class="scene" style="height:' + g.H + 'px">' +
+    '<svg class="bands" viewBox="0 0 ' + W + ' ' + g.H + '" preserveAspectRatio="none">' + bands + '</svg>' +
+    '<svg class="trail" viewBox="0 0 ' + W + ' ' + g.H + '" preserveAspectRatio="none">' + trail + '</svg>' +
+    nodes +
+    '<div class="flag" style="left:' + (W / 2) + 'px;top:' + (g.topY - 16) + 'px"><span class="f"><svg viewBox="0 0 24 24"><path d="M5 3v18"/><path d="M5 4c4-2 6 2 12 0v9c-6 2-8-2-12 0"/></svg></span><span class="t">终点 · 永远亮着</span></div>' +
+    blobs +
+    (state.fog === 'canvas' ? '<canvas class="foglayer" id="fogcv"></canvas>' : '') +
+    '<div class="scalebar">走亮 <span class="n">' + c.walk + '</span>/' + c.total + ' · 照亮中 <span class="n">' + c.view + '</span> · 雾里 <span class="n">' + c.fog + '</span></div>' +
+    (state.ctrl ? ctrls(map) : '') +
+    (state.ctrl && state.legend ? legendPop() : '') +
+    '</div>';
+}
+function ctrls(map) {
+  return '<div class="ctrls">' +
+    '<button data-act="zoom-in" title="放大">＋</button>' +
+    '<button data-act="zoom-out" title="缩小">－</button>' +
+    '<button data-act="focus" title="聚焦正在推进的那张">◎</button>' +
+    '<button data-act="alllit" title="一键全亮（收雾，但不假装走完）">☀</button>' +
+    '<button data-act="legend" title="图例" class="' + (state.legend ? 'on' : '') + '">ⓘ</button>' +
+    '</div>';
+}
+function legendPop() {
+  return '<div class="legendpop on">' +
+    ORDER.map(([k, w]) => '<div class="li"><span class="vdot" style="background:' + (k === 'fog' ? 'var(--c-fog)' : 'var(--c-' + k + ')') + '"></span>' + w + '</div>').join('') +
+    '<div class="li" style="color:var(--cap);margin-top:5px">雾只盖视觉，点一下能揭开</div></div>';
+}
+
+/* ============================== 雾：一张遮罩，挖洞（Leaflet / Pixi 思路） ==============================
+   画法要点（与「刷雾团」相反）：
+     1) 先把整块画布铺满雾（半透明 + 噪点）；
+     2) 用 destination-out 擦掉走过 / 照亮 / 能走的地方，擦的时候用径向渐变 → 洞边是柔的；
+     3) 终点单独留一个洞，且带紫光——目的地永远清晰。 */
+function drawFog(canvas, map, geom, progress) {
+  if (!canvas) return;
+  const W = canvas.clientWidth || geom.W, H = canvas.clientHeight || geom.H;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const covered = !state.alllit;
+  if (!covered) return;
+  const sx = W / geom.W, sy = H / geom.H;
+  // 「半黑」而不是「全黑」：地形还看得见，只是细节被雾盖住（#474 原文：结构可见、细节盖雾）
+  ctx.fillStyle = 'rgba(12,15,22,.74)';
+  ctx.fillRect(0, 0, W, H);
+  // 挖洞
+  ctx.globalCompositeOperation = 'destination-out';
+  const holes = [];
+  const all = map.tickets;
+  if (!all.length) holes.push({ x: W / 2, y: H * 0.58, r: 96 * progress });
+  all.forEach((t) => {
+    const s = stateOf(t, all);
+    if (s === 'fog') return;
+    const p = geom.pos[t.no];
+    holes.push({ x: p.x * sx, y: p.y * sy, r: (s === 'view' ? 108 : s === 'walk' ? 80 : 92) * progress });
+  });
+  if (all.length) holes.push({ x: W / 2, y: (geom.topY - 16) * sy, r: 78 * progress });
+  holes.forEach((h) => {
+    const grd = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, Math.max(1, h.r));
+    grd.addColorStop(0, 'rgba(0,0,0,1)');
+    grd.addColorStop(0.58, 'rgba(0,0,0,.94)');
+    grd.addColorStop(0.82, 'rgba(0,0,0,.45)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(h.x, h.y, Math.max(1, h.r), 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.globalCompositeOperation = 'source-over';
+  // 噪点：只画在还盖着雾的地方（source-atop）
+  ctx.globalCompositeOperation = 'source-atop';
+  ctx.fillStyle = 'rgba(210,216,236,.10)';
+  for (let y = 0; y < H; y += 7) {
+    for (let x = (y / 7 % 2) * 3.5; x < W; x += 7) { ctx.fillRect(x, y, 1.6, 1.6) }
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/* ============================== 色阶自检表 ============================== */
+function palcheck() {
+  const P = PAL[state.pal];
+  const rows = ORDER.map(([k, w]) => {
+    const rgb = hex2rgb(P[k]);
+    const s = simulate(rgb, state.cvd);
+    return { k: k, w: w, hex: P[k], L: Lstar(rgb), hex2: rgb2hex(s), L2: Lstar(s) };
+  });
+  let gaps = '', ok = true;
+  for (let i = 0; i < rows.length - 1; i++) {
+    const d = Math.abs(rows[i].L2 - rows[i + 1].L2);
+    if (d < 8) ok = false;
+    gaps += (i ? ' · ' : '') + d.toFixed(1);
+  }
+  const cvdWord = { none: '正常视觉', protan: '红色盲模拟', deutan: '绿色盲模拟', tritan: '蓝色盲模拟' }[state.cvd];
+  return '<div class="palcheck"><div class="cap">色阶自检 · ' + cvdWord + '（Chroma.js 的判据：相邻明度差 ≥ 10 才算分得开）</div>' +
+    '<div class="paltab">' + rows.map((r) =>
+      '<span class="sw" style="background:' + r.hex2 + '"></span><span>' + r.w + '</span>' +
+      '<span style="color:var(--cap)">L* ' + r.L.toFixed(1) + '</span><span style="color:' + (r.k === 'fog' ? 'var(--c-fog)' : 'var(--tx)') + '">' +
+      (state.cvd === 'none' ? '本色' : 'L* ' + r.L2.toFixed(1)) + '</span>').join('') + '</div>' +
+    '<div class="palnote">相邻明度差：' + gaps + '　' + (ok ? '✓ 色觉模拟下仍是单调阶梯（形状与明暗都在）' : '✗ 有两态在模拟后挤在一起，需要拉开明度') + '</div></div>';
+}
+
+/* ============================== 组装面板 ============================== */
+function archive(map) {
+  const D = [{ t: '收口上个会话的遗留', g: '倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）' },
+             { t: '补上 gh 调用的测量盲区', g: '真机一天 2538 次 gh 调用，中位 7.8 秒，超过「单次 ≤ 1.5 秒」' }];
+  const F = ['按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票：数量与内容要等体检结果才知道，现在切不出来。',
+             '客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换各自慢不慢，等体检数字。'];
+  if (!map.tickets.length) return '';
+  return '<div class="archive">' +
+    '<div class="acc" data-acc="1"><span>▶</span><span>已定的方向（Decisions so far ' + (map.tickets.length > 2 ? 2 : 0) + '）</span></div>' +
+    '<div class="accbody">' + D.map((d) => '<div class="it"><b style="color:var(--tx);font-weight:600">' + esc(d.t) + '</b> — ' + esc(d.g) + '</div>').join('') + '</div>' +
+    '<div class="acc" data-acc="1"><span>▶</span><span>还没想清楚的地方（战雾 ' + (map.fogTotal || 0) + '）</span></div>' +
+    '<div class="accbody">' + F.map((f) => '<div class="it">· ' + esc(f) + '</div>').join('') + '</div>' +
+    '</div>';
+}
+function panelHTML(map) {
+  const c = counts(map);
+  const all = map.tickets;
+  let vital = '<div class="vital">' +
+    ORDER.map(([k, w]) => '<span class="vitem"><span class="vdot" style="background:' + (k === 'fog' ? 'var(--c-fog)' : 'var(--c-' + k + ')') + '"></span>' + w + ' <span class="n">' + c[k] + '</span></span>').join('') +
+    (map.fogTotal ? '<span class="vitem" style="color:var(--cap)">· 还没想清楚 ' + map.fogTotal + ' 条</span>' : '') + '</div>';
+  return '<div class="chrome">' +
+      '<div class="chrome-top"><span class="repo">FeatherHunter/dsh-mattpocock-skills-deck</span><span class="sp"></span>' +
+      '<span class="ico">⚙</span><span class="ico">✕</span></div>' +
+      '<div class="chrome-tabs"><span class="tab on">列表</span><span class="tab">拉取请求</span><span class="tab">技能</span><span class="tab">环境检查</span>' +
+      '<span class="sp"></span><span class="mini">+ 需求</span><span class="mini">+ bug</span><span class="mini">刷新</span></div>' +
+    '</div>' +
+    '<div class="sticky"><button class="btn ghost sm">← 返回</button><span class="crumb">列表 / #' + map.no + '</span>' +
+    '<span class="chipm">▣ wayfinder:map</span><span class="sp"></span><button class="btn primary sm">▶ 推进这张图</button></div>' +
+    '<div class="scroll">' +
+      '<div class="destcard"><div class="main">' +
+        '<div class="dh"><span class="dno">#' + map.no + '</span><span class="dtitle">' + esc(map.title) + '</span></div>' +
+        '<div class="dlabel">⛳ 目的地</div><div class="dtext">' + esc(map.destination) + '</div>' + vital +
+      '</div>' + donut(map) + '</div>' +
+      scene(map) +
+      palcheck() +
+      archive(map) +
+    '</div>';
+}
+function paint() {
+  state.alllit = false;
+  const map = mapOf();
+  const panel = document.getElementById('panel');
+  panel.className = 'panel' + (Number(state.w) < 520 ? ' narrow' : '');
+  panel.style.width = Number(state.w) + 'px';
+  // 四态色写进 CSS 变量（色觉模拟时换掉）
+  const P = PAL[state.pal];
+  ['walk', 'view', 'open', 'fog'].forEach((k) => {
+    document.documentElement.style.setProperty('--c-' + k, rgb2hex(simulate(hex2rgb(P[k]), state.cvd)));
+  });
+  panel.innerHTML = panelHTML(map);
+  wire(map);
+  document.querySelectorAll('.seg').forEach((b) => { if (b.dataset.k) b.classList.toggle('on', String(state[b.dataset.k]) === b.dataset.v) });
+  if (state.fog === 'canvas') requestAnimationFrame(() => reveal(map));
+  const u = new URL(location.href);
+  ['w', 'fog', 'pal', 'cvd', 'trail', 'ctrl', 'ring', 's'].forEach((k) => u.searchParams.set(k, String(state[k])));
+  history.replaceState(null, '', u.toString());
+}
+/* 揭幕：把雾推开（洞的半径从 0 长到目标），与亮痕的扫亮同时发生 */
+function reveal(map) {
+  const cv = document.getElementById('fogcv');
+  if (!cv) return;
+  const geom = sceneGeom(map, Number(state.w) - 26);
+  if (state.trail === 'static') { state.alllit = false; drawFog(cv, map, geom, 1); return }
+  const t0 = performance.now(), DUR = 900;
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / DUR);
+    const e = 1 - Math.pow(1 - p, 3);
+    drawFog(cv, map, geom, e);
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function wire(map) {
+  document.querySelectorAll('.node').forEach((el) => {
+    el.onclick = function () {
+      const no = Number(el.dataset.no);
+      if (el.classList.contains('st-fog') && !el.classList.contains('revealed')) {
+        el.classList.add('revealed'); state.reveal[no] = true; return;
+      }
+      state.focus = no; flash(el);
+    };
+  });
+  document.querySelectorAll('.acc').forEach((h) => {
+    h.onclick = function () { const b = h.nextElementSibling, on = b.style.display === 'block'; b.style.display = on ? 'none' : 'block'; h.firstChild.textContent = on ? '▶' : '▼' };
+  });
+  document.querySelectorAll('.ctrls button').forEach((b) => {
+    b.onclick = function () {
+      const a = b.dataset.act;
+      if (a === 'legend') { state.legend = !state.legend; paint(); return }
+      if (a === 'alllit') { state.alllit = true; const cv = document.getElementById('fogcv'); if (cv) cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); return }
+      if (a === 'focus') {
+        const el = document.querySelector('.node.here') || document.querySelector('.node.st-open');
+        if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); flash(el) }
+        return;
+      }
+      if (a === 'zoom-in' || a === 'zoom-out') {
+        state.zoom = Math.max(1, Math.min(1.6, state.zoom + (a === 'zoom-in' ? 0.2 : -0.2)));
+        const sc = document.querySelector('.scene');
+        if (sc) { sc.style.transformOrigin = '50% 100%'; sc.style.transform = 'scale(' + state.zoom + ')'; sc.style.transition = 'transform .2s ease' }
+      }
+    };
+  });
+}
+function flash(el) {
+  el.animate([{ transform: 'translate(-50%,-50%) scale(1)' }, { transform: 'translate(-50%,-50%) scale(1.18)' }, { transform: 'translate(-50%,-50%) scale(1)' }],
+    { duration: 520, easing: 'ease-out' });
+}
+
+/* ============================== 切换条 ============================== */
+document.querySelectorAll('.seg').forEach((b) => {
+  b.onclick = function () {
+    if (b.dataset.act === 'replay') { state.zoom = 1; state.reveal = {}; paint(); return }
+    const k = b.dataset.k;
+    state[k] = (k === 'w') ? Number(b.dataset.v) : b.dataset.v;
+    paint();
+  };
+});
+document.getElementById('techs').innerHTML = TECHS.map((t) =>
+  '<div class="tech"><div class="h"><span class="src">' + t[0] + '</span>' + t[1] + '</div><div class="m">' + t[2] + '</div></div>').join('');
+if (qs.get('bar') === '0') document.querySelector('.bar').style.display = 'none';
+paint();
+</script>
+</body>
+</html>

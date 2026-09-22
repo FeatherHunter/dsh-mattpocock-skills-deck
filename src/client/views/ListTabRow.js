@@ -35,7 +35,11 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
       const blk = blockOf[idOf(x)]
       const blocked = !!(blk && blk.by && blk.by.length)
       const blockedTip = blocked ? blk.by.map(function (b) { return '#' + b }).join('、') : ''
-      const mapDone=!!(isMap&&mapObj&&mapObj.stats&&mapObj.stats.total>0&&mapObj.stats.closed===mapObj.stats.total);const mapEmpty=!!(isMap&&mapObj&&mapObj.stats&&mapObj.stats.total===0)
+      // #691（阶段 3）：已关闭的地图行不带子票（打开那张地图时才按需取，见 views/MapDetailHead.js），
+      //   所以既不画进度环、也不把它当「空地图」上橙色 —— 没有子票不等于一张子票都没有。
+      const mapClosed=!!(isMap&&mapObj&&String(mapObj.state||'').toUpperCase()==='CLOSED')
+      const mapDone=!!(isMap&&mapObj&&mapObj.stats&&mapObj.stats.total>0&&mapObj.stats.closed===mapObj.stats.total)
+      const mapEmpty=!!(isMap&&mapObj&&mapObj.stats&&mapObj.stats.total===0&&!mapClosed)
       const numColor=mapDone?'#3fb950':mapEmpty?'#f59e0b':actionColorOf(x,colorOf)
       // v1.3.3 UI：全部标签渲染（渲染后贪心折叠，放不下的隐藏进 +N；+N 弹窗显示全部）
       const labels = x.labels || []
@@ -67,7 +71,7 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
             h('span', { className: 'dsws-idnum', style: { color: numColor, borderColor: numColor } }, '#' + (x.key != null ? x.key : x.number)),
           ]),
           h('span', { style: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 } }, [h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, x.title)]) }, h('span', { className: 'dsws-tt-wrap', style: { flex: 1, minWidth: 0, fontWeight: isMap ? 600 : undefined, color: isOpen ? undefined : 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, x.title)), (x.author && x.author.login && x.author.login !== ((st.snapshot && (st.snapshot.viewer && st.snapshot.viewer.login || st.snapshot.viewerLogin)) || '')) ? (x.author.avatarUrl ? h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('img', { src: x.author.avatarUrl, style: { width: 16, height: 16, borderRadius: '50%', border: '2px solid ' + authorColor(x.author.login), flex: 'none' }, alt: x.author.login })) : h(Tip, { content: (x.author.name ? x.author.name + ' (@' + x.author.login + ')' : '@' + x.author.login) }, h('span', { style: { width: 16, height: 16, borderRadius: '50%', background: hexA(authorColor(x.author.login), 0.18), border: '2px solid ' + authorColor(x.author.login), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' } }, [Ic({ n: 'person', size: 10 })]))) : null]),
-          (isMap && mapObj && mapObj.stats) ? ringOf(mapObj.stats) : null,
+          (isMap && mapObj && mapObj.stats && !mapClosed) ? ringOf(mapObj.stats) : null,
           !isOpen ? h('span', { className: 'dsws-chip', style: { fontSize: 10, marginRight: 0, flex: 'none', background: 'rgba(139,139,149,.12)', color: '#8b8b95', border: '1px solid rgba(139,139,149,.35)' } }, [Ic({ n: 'check', size: 9 }), h('span', null, tr('map.subClosed'))]) : null,
         ]),
         // 行2：标签贪心折叠（单行不换行）+ 按钮组（常显）（T1 Map #120：marginTop 8→2，全局收紧至 8px = gap6+mt2，所有行一致）

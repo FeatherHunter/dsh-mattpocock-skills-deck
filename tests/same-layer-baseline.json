@@ -749,6 +749,15 @@
       "count": 1,
       "owner": "#599",
       "note": "#599 接线：入口动态加载快照组装模块（把 issueDetail.js 里的一半分出来，让单票详情那条路腾出位置补「已合并」状态归一）"
+    },
+    {
+      "file": "src/host/platformChannel.js",
+      "spec": "./choiceStore.js",
+      "resolved": "src/host/choiceStore.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#683 F1",
+      "note": "F1 装配：用户选的后端那份状态文件（H）的实例在此建 —— 读它的是两处（绑定写入、判定读取），而它内部那条读-改-写队列必须全进程只有一条，所以两处共用这一个实例（与同文件里探测服务的装配同一类）"
     }
   ]
 }

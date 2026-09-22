@@ -338,6 +338,111 @@ export async function run() {
     await assert('✗ probe: 关调试开关 → 按需命中零记录，常驻未命中照记', hitsOff.length === 0 && missOff.length === 1 && missOff[0].fields.reason === 'empty', `hits=${hitsOff.length} miss=${JSON.stringify(missOff)}`)
   }
 
+  // ── #689：数字走后端计数（deck.counts / deck.partial / 版号覆盖新字段）──
+  //   这一段守的是「面板上的数字从哪来」：数字是后端 counts 给的真值（不是数池子数出来的），
+  //   「这份行数据全不全」由池子行数与 counts.total 对比得出；两者都要算进版号，否则数字变了会被 304 糊过去。
+  {
+    const base = (o) => Object.assign({ type: 'issue', title: 'T', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }, o)
+    const POOL = [base({ key: '1', title: 'A' }), base({ key: '2', title: 'B', state: 'closed' })]
+    let countsCalls = 0
+    const mkReg = (countsImpl) => {
+      const reg = createRegistry({}, { matchesTimeout: 50 })
+      reg.register({
+        id: 'counted', label: 'counted',
+        create: () => ({
+          list: async () => ({ ok: true, data: POOL }),
+          counts: async () => { countsCalls++; return countsImpl() },
+        }),
+        matches: async () => true,
+      })
+      return reg
+    }
+
+    // ① 后端能计数、池子装全了：三个数进 deck，partial 为假，同数据版号可复现
+    {
+      const live = { open: 1, closed: 1, total: 2 }
+      const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: Object.assign({}, live) })), { snapshotTtl: 60000, depsTtl: 60000 })
+      const r = await composer.composeSnapshot('counted', ref, {})
+      await assert('后端计数的三个数写进 deck.counts（面板不再自己数池子）',
+        r.ok === true && r.snapshot.deck.counts && r.snapshot.deck.counts.open === 1 && r.snapshot.deck.counts.closed === 1 && r.snapshot.deck.counts.total === 2,
+        JSON.stringify(r.snapshot.deck.counts))
+      await assert('池子装全了（工单行数 == 后端说的总数）→ partial 为假', r.snapshot.deck.partial === false, 'partial=' + JSON.stringify(r.snapshot.deck.partial))
+      const v1 = r.version
+      const again = await composer.composeSnapshot('counted', ref, {}, { force: true })
+      await assert('同数据重建 → 版号不变（可复现）', again.version === v1, `v1=${v1} again=${again.version}`)
+      // ② 数字变了必须换版号：否则带着旧版号问一次就能被 304 糊过去（规格第 12 节点名的风险）
+      live.total = 3
+      live.closed = 2
+      const rChanged = await composer.composeSnapshot('counted', ref, {}, { force: true, ifNoneMatch: v1 })
+      await assert('✗ probe: 后端数字变了 → 版号变化且不回 304（数字变了不许被 304 糊过去）',
+        rChanged.version !== v1 && rChanged.notModified !== true && rChanged.snapshot.deck.counts.closed === 2,
+        `v1=${v1} changed=${rChanged.version} notModified=${JSON.stringify(rChanged.notModified)}`)
+      // ③ 池子被截断（总数比手上这些行多）→ partial 为真；且这个变化也要换版号
+      const v2 = rChanged.version
+      const rTrunc = await (async () => {
+        const reg2 = createRegistry({}, { matchesTimeout: 50 })
+        reg2.register({
+          id: 'counted', label: 'counted',
+          create: () => ({
+            list: async () => ({ ok: true, data: POOL }),
+            counts: async () => ({ ok: true, data: { open: 1, closed: 1, total: 649 } }),
+          }),
+          matches: async () => true,
+        })
+        const c2 = createSnapshotComposer(reg2, { snapshotTtl: 60000, depsTtl: 60000 })
+        return c2.composeSnapshot('counted', ref, {})
+      })()
+      await assert('✗ probe: 池子被截断（总数 649 > 手上 2 行）→ partial 为真（夹具覆盖「池子被截断 + 总数更大」这一态）',
+        rTrunc.snapshot.deck.partial === true && rTrunc.snapshot.deck.counts.total === 649 && rTrunc.version !== v2,
+        `partial=${JSON.stringify(rTrunc.snapshot.deck.partial)} version=${rTrunc.version} v2=${v2}`)
+    }
+
+    // ④ 拿不到计数（后端没实现 / 配额耗尽 / 形状不对）：deck 不写 counts、partial 置真，绝不猜一个数
+    {
+      const cases = [
+        ['后端没实现（注册表补的 unsupported 桩）', () => ({ ok: false, error: { kind: 'unsupported', message: 'counted does not implement op counts' } })],
+        ['配额耗尽', () => ({ ok: false, error: { kind: 'rate-limit', message: 'quota exhausted' } })],
+        ['回了个坏形状（数字缺失 / 不是整数）', () => ({ ok: true, data: { open: 1, closed: null, total: 2 } })],
+      ]
+      for (const [label, impl] of cases) {
+        countsCalls = 0
+        const composer = createSnapshotComposer(mkReg(impl), { snapshotTtl: 60000, depsTtl: 60000 })
+        const r = await composer.composeSnapshot('counted', ref, {})
+        const noCounts = !r.snapshot.deck.counts
+        await assert('拿不到计数（' + label + '）→ 不写 deck.counts、partial 置真（界面据此说「这份清单不全」）',
+          noCounts && r.snapshot.deck.partial === true && typeof r.snapshot.deck.stats.total === 'number',
+          JSON.stringify({ counts: r.snapshot.deck.counts, partial: r.snapshot.deck.partial }))
+        await composer.composeSnapshot('counted', ref, {}, { force: true })
+        await assert('✗ probe: 计数失败不被缓存（' + label + '：每次重建都再问一次）', countsCalls === 2, 'countsCalls=' + countsCalls)
+      }
+    }
+
+    // ⑤ 池子里的工单行数比 counts.total 还多 = 这个数字不可能对 → 同样置 partial（编排层那道判据）
+    {
+      const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: { open: 1, closed: 0, total: 1 } })), { snapshotTtl: 60000, depsTtl: 60000 })
+      const r = await composer.composeSnapshot('counted', ref, {})
+      await assert('✗ probe: 池子行数（2）比后端说的总数（1）还多 → partial 置真（数字不可信的另一种情形）',
+        r.snapshot.deck.partial === true, 'partial=' + JSON.stringify(r.snapshot.deck.partial))
+    }
+
+    // ⑥ 池子里的拉取请求不算工单：partial 的判据只数工单（与界面口径同一句话）
+    {
+      const reg6 = createRegistry({}, { matchesTimeout: 50 })
+      reg6.register({
+        id: 'counted', label: 'counted',
+        create: () => ({
+          list: async () => ({ ok: true, data: POOL.concat([base({ key: '9', title: 'PR9', isPullRequest: true, mergedAt: null, reviews: [] })]) }),
+          counts: async () => ({ ok: true, data: { open: 1, closed: 1, total: 2 } }),
+        }),
+        matches: async () => true,
+      })
+      const c6 = createSnapshotComposer(reg6, { snapshotTtl: 60000, depsTtl: 60000 })
+      const r6 = await c6.composeSnapshot('counted', ref, {})
+      await assert('拉取请求不计入「池子装全了没有」的判据（工单口径：2 张工单 == 总数 2 → partial 为假）',
+        r6.snapshot.deck.partial === false && r6.snapshot.issues.length === 3, JSON.stringify({ partial: r6.snapshot.deck.partial, rows: r6.snapshot.issues.length }))
+    }
+  }
+
   // ── 未知后端 ──
   {
     const composer = createSnapshotComposer(createRegistry({}, { matchesTimeout: 50 }), {})

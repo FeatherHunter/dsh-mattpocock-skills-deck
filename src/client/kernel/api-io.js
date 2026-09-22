@@ -220,3 +220,109 @@
         return { ok: false, error: { kind: 'network', message: String((e && e.message) || e) } }
       })
     }
+    // #690 · 历史票按页取（宿主电话 wf.issuesPage 的客户端包装）：主列表翻已关闭票的那三个触发点都走它。
+    // 本函数只负责「把这一页要到手」并如实回形状；页数据怎么存、怎么在下一次静默刷新后还在、最多留几页，
+    // 都不在这里（见 kernel/issue-pages.js）。契约那条操作叫 listPage，语义见宿主侧 contract-page.js。
+    // 日志点 issues.page 就落在这里（常驻：用户自己点出来的操作，次数少；字段按 #489 附录 1.4 的白名单）——
+    // 翻这一页到底取回几行、一共多少行、等了多久，只有拿到请求参数与回包的这一层知道。
+    export const fetchIssuesPage = function (st, opts) {
+      const o = opts || {}
+      const state = (o.state === 'open' || o.state === 'closed') ? String(o.state) : ''
+      const labels = Array.isArray(o.labels) ? o.labels.filter(function (x) { return typeof x === 'string' && x }) : []
+      const cursor = (o.cursor != null) ? String(o.cursor) : ''
+      const limit = (typeof o.limit === 'number' && o.limit > 0) ? o.limit : 50
+      if (typeof host === 'undefined' || typeof host.call !== 'function') {
+        return Promise.resolve({ ok: false, error: { kind: 'env', message: tr('err.hostUnavailable') } })
+      }
+      const args = Object.assign({
+        state: state, labels: labels, cursor: cursor, limit: limit,
+      }, o.effortId ? { effortId: String(o.effortId) } : {}, o.backendId ? { backendId: String(o.backendId) } : {}, (st && st.cwd) ? { cwd: st.cwd } : {})
+      const pgT0 = Date.now()
+      const logPage = function (res, errText) {
+        try {
+          const ok = !errText && !!(res && res.ok)
+          const items = (res && Array.isArray(res.items)) ? res.items : []
+          const total = (res && typeof res.total === 'number') ? res.total : -1
+          const raw = errText || (ok ? '' : String(((res && res.error && (res.error.message || res.error.kind)) || 'issues-page-not-ok')))
+          log(ok ? 'info' : 'warn', 'issues.page', {
+            state: state, labelsCount: labels.length, returned: items.length, total: total,
+            latencyMs: Date.now() - pgT0, ok: ok, errorHash: raw ? dswsLogHash(dswsLogTrunc(String(raw), 120, 'error')) : '',
+          })
+        } catch (eL) {}
+      }
+      return host.call('wf.issuesPage', args).then(function (res) {
+        logPage(res, null)
+        if (!res) return { ok: false, error: { kind: 'network', message: tr('err.snapshotEmpty') } }
+        if (res.ok === true) {
+          return { ok: true, items: Array.isArray(res.items) ? res.items : [], nextCursor: res.nextCursor || null, total: (typeof res.total === 'number') ? res.total : null }
+        }
+        return { ok: false, error: res.error || { kind: 'network', message: 'issues page failed' } }
+      }).catch(function (e) {
+        logPage(null, String((e && e.message) || e))
+        return { ok: false, error: { kind: 'network', message: String((e && e.message) || e) } }
+      })
+    }
+    // #691（阶段 3）· 地图子票按需取（宿主电话 wf.mapTickets）。
+    // 为什么单独一份：快照首屏不再装已关闭地图的子票（宿主侧 tracker/snapshot.js 里写明），
+    //   用户在面板里点开一张地图时才现去取 —— 取回的是那张地图的**全部**子票（开放与已关闭都在），
+    //   宿主已经把它们分层、算好统计，正文也剥掉了，界面直接画。
+    // 放在哪：st.mapTickets 按「工作单元 + 地图编号」分桶（同号地图在不同工作单元里是两张，不能互相顶掉），
+    //   每个桶是 { mode, items, stats, total, fetched, capped, missing, error, ts }；不落磁盘（随时可再取）。
+    // 在途去重：同一张地图的并发请求合并成一次 —— 面板一重渲染就会连着触发，不合并会白花额度。
+    const dswsMapTicketsInflight = {}
+    const MAP_TICKETS_TTL = 60 * 1000
+    export const fetchMapTickets = function (st, n, opts) {
+      // 地图的编号按原样当字符串用：本地 Markdown 后端的地图编号是 '00'，GitHub 是 '692' —— 两边都收。
+      // （早先写成 Number() 判一下是不行的：Markdown 工作区里连「调一次、按真实返回退化」都做不到。）
+      const mKey = String(n === undefined || n === null ? '' : n).trim()
+      if (!mKey) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'missing map key' } })
+      const force = !!(opts && opts.force)
+      const effortId = (opts && opts.effortId !== undefined && opts.effortId !== null) ? String(opts.effortId) : ''
+      const bucketKey = idOfParts(effortId, mKey)
+      if (!st.mapTickets) st.mapTickets = {}
+      const cur = st.mapTickets[bucketKey]
+      const now = Date.now()
+      if (!force && cur && cur.mode === 'real' && (now - (cur.ts || 0)) < MAP_TICKETS_TTL) return Promise.resolve({ ok: true, fromCache: true })
+      if (!force && dswsMapTicketsInflight[bucketKey]) return dswsMapTicketsInflight[bucketKey]
+      if (typeof host === 'undefined' || typeof host.call !== 'function') {
+        const err = { kind: 'env', message: tr('err.hostUnavailable') }
+        st.mapTickets[bucketKey] = Object.assign({}, cur, { mode: 'err', error: err })
+        emit(st)
+        return Promise.resolve({ ok: false, error: err })
+      }
+      st.mapTickets[bucketKey] = Object.assign({}, cur, { mode: 'loading', error: null })
+      emit(st)
+      const cwdArg = st.cwd ? { cwd: st.cwd } : {}
+      const mtT0 = Date.now()
+      const p = host.call('wf.mapTickets', Object.assign({ key: mKey }, effortId ? { effortId: effortId } : {}, cwdArg)).then(function (res) {
+        try { if (res && res.ok === true) log('info', 'host.call', { method: 'wf.mapTickets', latencyMs: Date.now() - mtT0, ok: true, kind: 'map-tickets' }); else log('warn', 'host.call.fail', { method: 'wf.mapTickets', kind: 'map-tickets', errorHash: dswsLogHash(dswsLogTrunc(String(((res && res.error && (res.error.message || res.error.kind)) || 'map-tickets-not-ok')), 120, 'error')) }) } catch (eL) {}
+        if (res && res.ok === true) {
+          const bucket = {
+            mode: 'real', ts: Date.now(),
+            items: Array.isArray(res.items) ? res.items : [],
+            stats: res.stats || null,
+            total: (typeof res.total === 'number') ? res.total : null,
+            fetched: (typeof res.fetched === 'number') ? res.fetched : null,
+            capped: res.capped === true,
+            missing: (typeof res.missing === 'number') ? res.missing : 0,
+            error: null,
+          }
+          st.mapTickets[bucketKey] = bucket
+          emit(st)
+          return { ok: true, bucket: bucket }
+        }
+        const err = (res && res.error) || { kind: 'network', message: tr('err.snapshotEmpty') }
+        st.mapTickets[bucketKey] = Object.assign({}, cur, { mode: 'err', error: err })
+        emit(st)
+        return { ok: false, error: err }
+      }).catch(function (e) {
+        try { log('warn', 'host.call.fail', { method: 'wf.mapTickets', kind: 'map-tickets', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
+        const err = { kind: 'network', message: String((e && e.message) || e) }
+        st.mapTickets[bucketKey] = Object.assign({}, cur, { mode: 'err', error: err })
+        emit(st)
+        return { ok: false, error: err }
+      })
+      dswsMapTicketsInflight[bucketKey] = p
+      p.then(function () { delete dswsMapTicketsInflight[bucketKey] }, function () { delete dswsMapTicketsInflight[bucketKey] })
+      return p
+    }

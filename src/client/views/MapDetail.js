@@ -12,19 +12,31 @@ export     const MapDetail = ({ st, g, drill }) => {
       // effort 维度：地图的身份是 (effortId, key)，不是裸编号；本 effort 内的子票编号才唯一。
       const mId = idOf(m)
       const multiEffort = effortNamesOf(st).length > 1
+      // #691（阶段 3）：子票按需取 —— 打开一张地图时现去后端把它**全部**子票拉回来（含已关闭）。
+      //   为什么要有这一步：已关闭地图的子票不进快照首屏（宿主侧 tracker/snapshot.js），而开放地图
+      //   在首屏那份行数据里也可能被列表的 500 条上限截断。取回来的那份按需数据放在 st.mapTickets 里，
+      //   按「工作单元 + 地图编号」分桶（与 api-io.js 的 fetchMapTickets 同键）。
+      //   后端明确回 unsupported 时界面一个字都不加、照旧画快照那份（规格第 5.4 节：按真实返回退化）。
+      const mt = (st.mapTickets && st.mapTickets[mId]) || null
+      React.useEffect(function () {
+        if (typeof fetchMapTickets !== 'function') return
+        fetchMapTickets(st, (m.key != null ? m.key : m.number), { effortId: effortOf(m) })
+      }, [mId, st.cwd])
       // T4 整改 #554：只有停靠栏允许点行下钻（T2 定案：只支持停靠栏下钻）。
       // 悬浮面板里同一个组件只做去雾与展示，不写导航栈（悬浮面板调用方传 drill:false，
       // 否则点行会污染停靠栏共用的栈）。调用方不传时默认允许（停靠栏），旧状态不崩。
       const canDrill = drill !== false
       const colorOf = buildColorOf(st)
       const wayfinderTypeOf = function(t){ const ls=(t.labels||[]); for(let i=0;i<ls.length;i++){ const n=typeof ls[i]==='string'?ls[i]:ls[i].name; if(n==='wayfinder:map') return 'map'; if(n==='wayfinder:research') return 'research'; if(n==='wayfinder:prototype') return 'prototype'; if(n==='wayfinder:grilling') return 'grilling'; if(n==='wayfinder:task') return 'task'; } const tt=t.type||''; if(['research','prototype','grilling','task','map'].indexOf(tt)>=0) return tt; return 'issue'; };
-      const tickets = m.tickets || []
+      const tickets = (mt && mt.mode === 'real' && Array.isArray(mt.items)) ? mt.items : (m.tickets || [])
+      // 统计（层数、open/closed 张数）优先用在途取回的那一份 —— 它与 tickets 同源，不能让层号与行数据打架。
+      const effStats = (mt && mt.mode === 'real' && mt.stats) ? mt.stats : m.stats
       // 区块字段防御性兜底：快照组装层已恒填 EMPTY（[] / ''），旧磁盘缓存/异常数据仍可能缺失，
       // 缺失时按空区块渲染（曾因 m.decisions 等 undefined 直接读 .length 抛 Cannot read properties of undefined）
       const decisions = Array.isArray(m.decisions) ? m.decisions : []
       const fogList = Array.isArray(m.fog) ? m.fog : []
       const outOfScope = Array.isArray(m.outOfScope) ? m.outOfScope : []
-      const levels = (m.stats && m.stats.levels) || []
+      const levels = (effStats && effStats.levels) || []
       const totalLayers = levels.length
       // 当前层 = 第一个含 open 票的层（无 open 全 done → 最后一层）
       const curLevel = (function () {
@@ -166,7 +178,7 @@ export     const MapDetail = ({ st, g, drill }) => {
         ]
       }
       // 完成态：全 closed → 进度条全绿 + 环满圈
-      const allClosed = m.stats && m.stats.total > 0 && m.stats.closed === m.stats.total
+      const allClosed = effStats && effStats.total > 0 && effStats.closed === effStats.total
       const ringPct = allClosed ? 1 : (totalLayers ? Math.min(1, (passedLayers + 1) / totalLayers) : 0)
       const C = 2 * Math.PI * 31
       const ringOff = C * (1 - ringPct)
@@ -197,7 +209,7 @@ export     const MapDetail = ({ st, g, drill }) => {
           h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap' } }, navCrumb),
           h('span', { className: 'dsws-chip dsws-chip-m' }, [Ic({ n: 'map', size: 11 }), h('span', null, 'wayfinder:map')]),
           h('span', { style: { flex: 1 } }),
-          (m.stats && m.stats.total === 0)
+          (effStats && effStats.total === 0)
             ? h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
                 let t2 = ''
                 try { t2 = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2 = promptTextFor(st, 'mapInspect', { n: String(m.number||''), ['title']: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2) t2 = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2 } catch(_){ t2 = startText(st, m) } }
@@ -206,9 +218,9 @@ export     const MapDetail = ({ st, g, drill }) => {
                 Ic({ n: 'search', size: 10 }),
                 h('span', null, tr('act.inspect')),
               ]))
-            : (m.stats && m.stats.total > 0 && m.stats.closed === m.stats.total)
+            : (effStats && effStats.total > 0 && effStats.closed === effStats.total)
             ? h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-                const text = completePrompt(st, m.number, m.title, m.stats.total, m.stats.closed)
+                const text = completePrompt(st, m.number, m.title, effStats.total, effStats.closed)
                 inject(st, text)
               }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 600 } }, [
                 Ic({ n: 'check', size: 10 }),
@@ -227,15 +239,9 @@ export     const MapDetail = ({ st, g, drill }) => {
             h('span', null, tr('list.newSessionLabel')),
           ])),
         ]),
-        // T14：map 编号徽章 —— 标题前方、紫色、与列表 map 行同款（dsws-idnum）
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, marginBottom: 2 } }, [
-          h('span', { className: 'dsws-idnum', style: { color: '#c084fc', borderColor: '#c084fc', flex: 'none' } }, '#' + m.number),
-          h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, m.title)]) }, h('div', { className: 'dsws-mtitle dsws-tt-wrap', style: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 } }, [
-            // effort 维度：地图属于哪个 effort 一眼可见（多个 effort 时同号地图不再分不清）
-            (multiEffort && effortOf(m)) ? h(Tip, { content: effortOf(m) }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': effortOf(m), style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, effortOf(m))) : null,
-            h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis' } }, m.title),
-          ])),
-        ]),
+        // #691：编号 + 标题 + 「本图 N 张子票（已关闭 M 张）」那一行，整块拆到 MapDetailHead.js
+        //   （本文件贴着 350 行上限；头部那一块连同它的取数状态一起搬走，形态一字未改）。
+        h(MapDetailHead, { st: st, m: m, mt: mt, multiEffort: multiEffort }),
         m.error ? h('div', { style: { color: '#f87171', fontSize: 11, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 11 }), h('span', null, String((m.error && m.error.error) || tr('list.loadFail')).slice(0, 160))]) : null,
         // D2：分段静态进度条 = 地图层缩略图（无动画，唯一真相源）
         (levels.length > 0) ? h('div', { className: 'dsws-layers' }, [
@@ -279,7 +285,7 @@ export     const MapDetail = ({ st, g, drill }) => {
             h('div', { className: 'title' }, tr('map.destCap')),
             h('div', { className: 'acts' }, [
               // v1.4：底部按钮与顶部同语义 —— 完成态「完成」（COMPLETE_PROMPT 同列表）/ 未完成「执行」（execute 模板）
-              (m.stats && m.stats.total === 0)
+              (effStats && effStats.total === 0)
                 ? h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
                     let t2b = ''
                     try { t2b = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2b = promptTextFor(st, 'mapInspect', { n: String(m.number||''), ['title']: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2b) t2b = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2b } catch(_){ t2b = startText(st, m)} }
@@ -288,9 +294,9 @@ export     const MapDetail = ({ st, g, drill }) => {
                     Ic({ n: 'search', size: 11 }),
                     h('span', null, tr('act.inspect')),
                   ]))
-                : (m.stats && m.stats.total > 0 && m.stats.closed === m.stats.total)
+                : (effStats && effStats.total > 0 && effStats.closed === effStats.total)
                 ? h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-                    const text = completePrompt(st, m.number, m.title, m.stats.total, m.stats.closed)
+                    const text = completePrompt(st, m.number, m.title, effStats.total, effStats.closed)
                     inject(st, text)
                   }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 700 } }, [
                     Ic({ n: 'check', size: 11 }),

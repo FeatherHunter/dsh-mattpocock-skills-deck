@@ -31,6 +31,8 @@ import { STATE, ISSUE_TYPE, ERROR_KIND, CONTRACT_VERSION } from '../../shared/tr
  *
  * @property {(handle: RepoHandle, ctx: OpContext) => Promise<PreflightResult>} preflight 环境门禁（只判环境：工具在不在/登录/可达/fs;不预判能力）
  * @property {(repo: RepositoryRef, filter?: ListFilter, ctx: OpContext) => Promise<OpResult<Issue[]>>} list
+ * @property {(repo: RepositoryRef, filter?: ListFilter, ctx: OpContext) => Promise<OpResult<Counts>>} counts 这个后端里符合条件的票有多少张（工单口径，不含拉取请求；只回数字不回行，语义见下方「计数契约」）
+ * @property {(repo: RepositoryRef, filter?: ListFilter, opts?: PageOpts, ctx: OpContext) => Promise<OpResult<PageResult>>} listPage 按页取票（「已关闭票按需浏览」用；排序键固定创建时间倒序；取回来的行是薄片段，不带正文与评论。语义见 contract-page.js 的「分页契约」）
  * @property {(repo: RepositoryRef, key: string, opts?: GetOpts, ctx: OpContext) => Promise<OpResult<Issue>>} get
  * @property {(repo: RepositoryRef, key: string, opts?: DepsOpts, ctx: OpContext) => Promise<OpResult<Dependencies>>} getDependencies 便利投影（blockedBy 唯一真源；blocking 反向聚合）
  * @property {(repo: RepositoryRef, input: CreateInput, ctx: OpContext) => Promise<OpResult<Issue>>} create
@@ -51,7 +53,7 @@ import { STATE, ISSUE_TYPE, ERROR_KIND, CONTRACT_VERSION } from '../../shared/tr
 /**
  * 操作名清单（= OpName；能力零声明，只有动词）。
  * 无 detect（身份=matches+select+describe）；无 snapshot/children（宿主编排便利，非契约）。
- * @typedef {'preflight'|'list'|'get'|'getDependencies'|'create'|'close'|'reopen'|'comment'|'update'|'setLabels'|'setAssignees'|'setParent'|'setBlockedBy'|'getCurrentUser'|'initProject'|'listLabels'|'setLabelColors'} OpName
+ * @typedef {'preflight'|'list'|'counts'|'listPage'|'get'|'getDependencies'|'create'|'close'|'reopen'|'comment'|'update'|'setLabels'|'setAssignees'|'setParent'|'setBlockedBy'|'getCurrentUser'|'initProject'|'listLabels'|'setLabelColors'} OpName
  */
 export const OPERATIONS = Object.freeze([
   'preflight', 'list', 'get', 'getDependencies',
@@ -62,6 +64,13 @@ export const OPERATIONS = Object.freeze([
   // #627 新增两条（标签配色）。加进本清单的作用：注册表会自动给没实现它们的后端补一个
   // 「做不到」的桩（registryShape.js 的 unsupportedStub），所以不需要兼容层，也不会碰坏现有后端。
   'listLabels', 'setLabelColors',
+  // #689 新增一条（后端计数）。加进本清单的作用与上面两条相同：注册表自动给没实现它的后端补桩，
+  // 界面按「做不到」退化（G5：不做能力表）。语义见下方「计数契约」。
+  'counts',
+  // #690 新增一条（按页取票）。同上：没实现它的后端由注册表补桩，界面按「做不到」退化 ——
+  // 那正是「这个后端只能在它自己的网页上看全部」这句提示的来路，不做能力表。
+  // 语义见同目录的 contract-page.js（「分页契约」）。
+  'listPage',
 ])
 
 /**
@@ -228,106 +237,47 @@ export const OPERATIONS = Object.freeze([
  * @typedef {string | {login: string, kind?: import('../../shared/tracker/shape.js').ActorKind, name?: string, avatarUrl?: string}} AssigneeInput
  */
 
+// 标签配色两条操作（listLabels / setLabelColors）的语义住在同目录的 contract-label-colors.js ——
+// #689 往本文件加「计数」这条操作时撞上 350 行上限，按仓库既有做法把那两条的正文原样挪了出去（一个字没改）。
+
 // ─────────────────────────────────────────────────────────────────────────────
-// 标签配色契约（#627 定版，2026-09-13；出处：地图 #610 与 #615 的两轮讨论）
+// 计数契约（#689 新加，2026-09-22；规格见 docs/design/677-issue-pool-completeness-spec.md 第 4.1 与第 6 节）
 //
-// 这两条操作是「标签颜色可编辑」在契约层的全部接缝：界面只跟它们打交道，不知道底下是
-// GitHub 的仓库标签，还是本地 Markdown 工作区里那个用户可以自己手改的配色文件。
-// 首期只做 GitHub 与本地 Markdown；GitLab 这一轮一行不改，自动落到「做不到」的回答。
+// 为什么要有它：面板顶部那几个数字原来是客户端数「手上那份票池」数出来的，而票池被后端悄悄截断过
+// （GitHub 最多 500 条、GitLab 只取一页、本地 Markdown 读全部），于是数字跟着池子一起偏。数字该问后端要：
+// 后端自己知道库里符合条件的有多少张。这条操作只回答「多少张」，不返回任何行 —— 行怎么取是另一件事。
+//
+// 语义：
+//  - 只数工单，不含拉取请求（GitHub 的 issues 连接天然不含拉取请求，GitLab 的 issues 接口也不含合并请求，
+//    本地 Markdown 没有这个概念）。「可接 / 阻塞」两个数字不在这里：它们要逐票看有没有指派人、有没有
+//    开放着的阻塞者，只能按票算（见规格第 6 节）。
+//  - effort（工作单元）由 repo.effortId 带（编排层的快照键已经含它），多工作单元的后端据此分别数。
+//  - filter 复用 ListFilter，但只认两项，其余字段（type / parentKey / keys / isPullRequest）忽略：
+//      state  —— 收窄到这一种状态（等价于「先按状态筛，再数」，于是另一种状态计 0）；
+//      labels —— 必须同时带上这些标签的票（GitHub 走 GraphQL 的 filterBy:{labels}，是「这些都要有」）。
+//  - 拿不全就整体失败，不许猜一个数出来：返回里带 errors、或三个数里任何一个不是非负整数，都算失败
+//    （与 listLabels 那条「取不全必须整体失败」同一原则）。
+//  - 失败语义：unsupported（这个后端没实现）/ rate-limit / network / auth / parse。
+//  - unsupported 的结果不进任何缓存（G5 红线，与 getDependencies 同例）：缓存里绝不留「做不到」的判定。
+//  - **不升 CONTRACT_VERSION**：这一次是纯新增操作，没实现它的后端由注册表自动补桩兜住，既有形状与既有
+//    后端一个都没改。（这句话写在这里，是免得以后有人看见「契约加了东西却没升版号」再查一遍。）
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** 一条标签与它的颜色。
- *  颜色统一写成**不带井号的 6 位十六进制小写**（例：9d7cd8）。空串 '' 表示这个标签还没配颜色，
- *  界面按灰显示（能返回颜色却不知道颜色 = 空值，不是省略）。description 省略 = 这个后端给不了。
- *  列表项**只许这三个键**：不带「有多少张票在用这个标签」这类计数，也不带分组标记。 */
 /**
- * @typedef {Object} LabelColor
- * @property {string} name 标签名，原样返回（不做大小写折叠；名字里可以有冒号、空格）
- * @property {string} color 6 位小写十六进制、不带井号；'' = 还没配颜色
- * @property {string} [description] 省略 = 给不了
- */
-
-/** 一次批量改色里的一条改动：标签名与它的新颜色（只许这两个键）。
- *  调用方只放**真正变了**的标签（增量），比色前两边都转小写再比：实测本仓库的 wayfinder:grilling
- *  在 GitHub 上存的是大写 9D7CD8，不转小写会被判成「颜色变了」而白发一次请求。 */
-/**
- * @typedef {Object} LabelColorChange
- * @property {string} name
- * @property {string} color 新颜色（6 位十六进制，大小写都收；写进真源后由后端给回小写）
- */
-
-/** 批量改色的逐条记账结果。
- *  - applied：**改色命令被接受**的标签，与这次写下去的目标颜色（见下一段的口径说明）。
- *  - failed：没改成功的标签与原因。reason 就是本文件既有的 TrackerError 形状（kind + message），
- *    **不新增字段、不新增枚举值**；message 由后端组装成可以直接展示给用户的一句话（不许把原始
- *    错误对象的字段直接塞进去——原子写失败时错误里的路径是临时文件名，用户会去找一个不存在的文件）。
- *  - 入参里**每一条改动必须恰好出现在 applied 或 failed 之一**：不许漏记账，也不许两边都算。
- *
- *  applied 里的颜色是**这次要写下去的目标颜色**（后端自己写进真源的那一个值），不是「写完之后再回读
- *  真源拿到的值」。两个后端的口径因此一致：本地 Markdown 写的就是文件里那一行，GitHub 发出去的就是
- *  我们归一好的六位小写（实测 GitHub 原样存你发的大小写）。**保存完之后界面要重新调一次「列出标签」
- *  拿真值刷新**（见下面 setLabelColors 的正文），所以这里不需要为了「回读」多发一轮请求。
+ * 后端计数（`counts(repo, filter, ctx)` → `OpResult<Counts>`）。
+ * 宿主拿它覆盖快照 deck 里的数字（见 tracker/snapshot.js 的 composeSnapshot）；拿不到时界面退回按池子
+ * 派生，并把「这份清单不全」说出来（deck.partial）。
  */
 /**
- * @typedef {Object} LabelColorBatchResult
- * @property {{name: string, color: string}[]} applied
- * @property {{name: string, reason: TrackerError}[]} failed
+ * @typedef {Object} Counts
+ * @property {number} open 未关闭的工单张数
+ * @property {number} closed 已关闭的工单张数
+ * @property {number} total 一共多少张（= open + closed）
  */
 
-/** 列出标签与颜色（`listLabels(repo, ctx)`）。
- *
- *  「全部标签」的统一语义：**这个后端能改色的全部标签**，各后端自己聚合 —— GitHub 给仓库标签全量
- *  （含还没被任何票用到的）；本地 Markdown 给「票面出现过的 ∪ 配色文件里的 ∪ 内置默认那些」的并集。
- *
- *  **取不全就必须整体失败，不许静默返回残缺列表**（2026-09-13 二次整改新增，见 #627）：
- *  返回的清单要么是这后端的完整一份，要么别返回。后端自己知道有没有拿全 —— 接口默认只回前若干条
- *  （GitHub 列标签默认只回 30 条，本仓库真出过这个 bug）、翻页没翻完、合并的来源读了一半，都算没拿全。
- *  没拿全时按下列两档整体失败，并在 message 里说清是「未能获取全部标签」：
- *    env     —— 本机这边的原因取不全（工具版本不支持翻页、配色文件读了一半之类）；
- *    network —— 连不通、超时、请求半路断掉。
- *  为什么定死：列表项只有 name/color/description 三个键，没有任何位置能表示「这份清单被截断了」，
- *  于是残缺列表在界面看来和全量一模一样，用户只会看到「标签凭空少了几个」而不知道为什么。
- *  契约测试按「已知的全量清单里每个标签都出现在返回里」判定，见 tests/tracker-contract/sections/labels.js 的 labelCompletenessCheck。
- *
- *  颜色的最终值由后端算好交给界面，界面永远不自己查表算色。契约里既有的 labelPalette（后端自报的
- *  默认调色盘）保留不动：一个是自报的描述数据，一个是算出来的结果，职责不同。面板快照里那份标签表
- *  同样不是权威（它是从各票标签收集来的派生数据，本来就不保证拿全）；权威列表只来自本操作。
- *
- *  失败按既有分类：这个后端不做这个操作 = unsupported（注册表自动补的桩给的就是它）；工作区里那个
- *  配色文件存在但读不出来、解析不了 = parse（不许装作「没有这个文件」，否则用户会以为刚手改的内容丢了）。
- */
-
-/** 批量改标签颜色（`setLabelColors(repo, changes, ctx)`）。
- *
- *  返回是**逐条记账**，不是整体成败：批量中途失败没有回滚，会留下「前几个改了、后几个没改」的半成品，
- *  只给整体成败的契约会让界面在部分成功时只能说谎。保存成功后界面必须重新调一次「列出标签」拿真值
- *  刷新，不得乐观地把界面刷成用户填的那份。
- *
- *  错误分档（沿用既有分类，不新增枚举值）：
- *    颜色写法不合法（不是 6 位十六进制）→ parse（落在该条的 failed 上）
- *    入参不是一批改动 → parse（整体失败）
- *    没登录、凭据失效、没有这个仓库的写权限 → auth
- *    标签不存在、仓库不存在 → not-found（**两边一律报不存在，都不许新增**：GitHub 上改不存在的标签
- *      本来就是 404，如实报；本地 Markdown 上要改的标签不在配色文件里时同样报不存在，不新增一行。
- *      代价是本地给一个还没进配色文件的标签上色会失败，所以 message 必须说清怎么做才能成功）
- *    这个后端不做这个操作 → unsupported（整体失败）
- *    触发限速 → rate-limit；网络不通 → network
- *    工作区缺工具、本地配色文件写不进去 → env
- *    环境类里**沙箱拒绝必须能单独辨认**：那是插件自己的限制，不是用户的文件权限问题。message 里必须
- *      同时说清两件事——「这是插件自己的限制」与「不是你的文件权限问题」——且绝不许说成「目录不可写」
- *      （契约测试按这两句与这一条禁用词判定，见 tests/tracker-contract/sections/labels.js）。
- *      判据照 #476 已实锤的那条：拒信含 file access denied 或 workspace-write，或错误码 FS_SANDBOX_DENIED。
- *  404（没权限）的判定归 GitHub 后端自己：撞到 404 时自己多问一次仓库权限，把结论写进 message；
- *  这是 GitHub 专有的情况，不进通用代码。
- *
- *  本地 Markdown 写那个配色文件的三条硬要求（写在这里，免得散在实现里）：
- *    ① 读—改—写要串行化：同一工作区两个会话同时保存，现在会静默丢一轮改色（后写覆盖先写）；
- *       照抄仓库里日志落盘那套单写者队列（src/host/logStore.js）。
- *    ② 文件读不出来或解析不了时，一律不许写：宁可报「读不出来」，也绝不把文件推平重写。
- *    ③ 改色写入必须原子写（临时文件＋改名）：那个文件是用户会手改、会提交进版本库的，只有它走
- *       发布式写入；票文件那几处不在本范围。
- *  「文件有就用文件、没有用内置、都没有回灰」这套合并规则由后端负责。
- */
+// 按页取票这条操作（listPage）的语义，与它的 PageOpts / PageResult 两个形状，住在同目录的
+// contract-page.js —— 与标签配色那两条同样的做法：本文件受「每个文件不超 350 行」的门禁管，
+// 长文正文放在续篇里，本文件只留一句指向它的话。以后改这条操作的语义，改那个文件。
 
 /** 归一化规则（供诊断/审计引用；各后端 normalize.js 依此实现）。 */
 export const NORMALIZE_RULES = Object.freeze({

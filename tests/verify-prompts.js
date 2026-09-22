@@ -59,13 +59,15 @@ const fail = function (msg) { failed = true; problems.push(msg); return false }
 const check = function (cond, msg) { if (!cond) { failed = true; problems.push(msg) } return !!cond }
 
 // ==================== 0. 契约常量（硬编码，改动要走评审） ====================
-const EXPECT_REGISTRY_ENTRIES = 21 // 注册表条目数（2026-09-21 现状：新增「切换后端后对齐」那条 switchAlign；拆行/换引号不会让它少，因为 S1 用求值解析）
+const EXPECT_REGISTRY_ENTRIES = 22 // 注册表条目数（2026-09-21 现状：新增「切换后端后对齐」那条 switchAlign；拆行/换引号不会让它少，因为 S1 用求值解析）
 // S3 各后端 prompts 块顶层键数。v2 §1.1 写的是 7/9/6，实测不成立（gitlab 只有 4 键、markdown 只有 2 键），
 // 这里按实测值硬编码并在失败信息里报出真实值，避免「按错值写断言导致永久红」。
-const EXPECT_BACKEND_KEYS = { github: 6, gitlab: 5, markdown: 3 }
+// #684：三个后端各加一条 healthCheck（体检科目），7/6/4。
+const EXPECT_BACKEND_KEYS = { github: 7, gitlab: 6, markdown: 4 }
 // S3 各后端 prompts 块内的字符串字面量总数（含字符串拼接的续段，如 ensureLabels 的命令就藏在续段里）。
 // 这个数字是「词法扫描不许静默少扫」的硬保证：少扫一段就会对不上。
-const EXPECT_BACKEND_LITERALS = { github: 40, gitlab: 10, markdown: 6 }
+// #684：github +2（healthCheck 的 zh/en）、gitlab +2、markdown +2。
+const EXPECT_BACKEND_LITERALS = { github: 42, gitlab: 12, markdown: 8 }
 // #664：宿主那份「怎么装 gh」的长文（GH_INSTALL_PROMPT）按新流程退役，src/host 全树今天一个 *_PROMPT 常量都没有。
 const EXPECT_HOST_PROMPT_CONSTS = 0 // src/host 全树 *_PROMPT 常量数
 const EXPECT_EXEMPT = 10 // 豁免登记条数硬编码（防偷偷加豁免）
@@ -77,10 +79,13 @@ const PROTECTED = [
   'registry#tpl.diagnose', 'registry#tpl.fix', 'registry#tpl.discuss', 'registry#tpl.research',
   'registry#tpl.prototype', 'registry#tpl.execute', 'registry#tpl.handoff1', 'registry#tpl.handoff2',
   'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#switchAlign', 'registry#newWayfinder',
-  'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect',
+  'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect', 'registry#healthCheck',
   'backend:github#ghAuthLogin', 'backend:github#subIssue', 'backend:github#bodyFormat', 'backend:github#errorKinds',
+  'backend:github#healthCheck',
   'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix', 'backend:gitlab#subIssue', 'backend:gitlab#bodyFormat',
+  'backend:gitlab#healthCheck',
   'backend:markdown#wayfinderMapBuild', 'backend:markdown#subIssue', 'backend:markdown#bodyFormat',
+  'backend:markdown#healthCheck',
 ]
 // 必须受判定（kind 只许是 scope）的 8 条：它们登记「不属首批」，但门禁仍然判它们
 const MUST_JUDGE = [
@@ -1405,10 +1410,12 @@ const selfDigest = function () {
 //   本文件自己也改了（版本底线、三面计数、受保护清单、必须受判清单、豁免名单），自摘要一并更新。
 // #669 第 6 件：注册表新增 switchAlign（切换后端后对齐那条），条目数 20 → 21，受保护清单同步加一条，
 //   自摘要跟着重算。
+// #684：注册表新增 healthCheck（「体检」总纲），条目数 21 → 22；三个后端各加一条 healthCheck 科目，
+//   键数 6/5/3 → 7/6/4、字面量 40/10/6 → 42/12/8，受保护清单同步加四条，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '3e7f0a18ca1caab69dd3508bbd17dbba6200887594cbdced3239c45f87923b50',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '46811c0b6d149bdaee3d5f38d5e8fa86d80614622a996a3c651b90825de89b7a',
+  'tests/verify-prompts.js': 'd67f306360da8488d537b4e7ae626d1b429662e424d7275e72d606762cb2f581',
 }
 // ---- LOCK-END ----
 

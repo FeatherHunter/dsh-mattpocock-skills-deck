@@ -18,11 +18,15 @@ const MODULES = [
   { name: 'localeFlow', file: 'locale-flow', exports: ['L_FLOW'] },
   { name: 'localeWord', file: 'locale-word', exports: ['L_WORD'] },
   { name: 'localeLabels', file: 'locale-labels', exports: ['L_LABELS'] },
+  { name: 'localePages', file: 'locale-pages', exports: ['L_PAGES'] },
   { name: 'locale', exports: ['L'] },
   { name: 'icons', exports: ['ICON_SCHEMES', 'WORD_SCHEMES', 'Icon', 'Ic'] },
+  // #685：「体检」按钮的三样东西（游离票件数派生、显隐门、开新会话注入）；单独一片是因为它要写的那条
+  //   常驻日志必须落在内核文件里（渲染目录写日志是一张点名白名单），而 store-derived.js 已经贴着 350 行上限。
+  { name: 'healthCheck', file: 'health-check', exports: ['healthCheckCountOf', 'healthCheckVisible', 'healthCheckSubjectOf', 'healthCheckLogEvent', 'openHealthCheck'] },
   { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'BODY_FORMAT', 'completePrompt', 'FIXATE_PROMPT'] },
   { name: 'config', exports: ['CFG_KEY', 'cfg', 'templates', 'migrateStartCfg', 'TPL_DEFAULT', 'renderTemplate', 'validateTemplate'] },
-  { name: 'storePrefs', file: 'store-prefs', exports: ['DEFAULT_PANEL_H', 'listPrefs', 'saveListPrefs', 'labelClicks', 'saveLabelClicks', 'NOREPO_DISMISS_PREFIX', 'cwdHash', 'noRepoDismissKey', 'isNoRepoDismissed', 'setNoRepoDismissed', 'cwdBasename', 'isNoRepoNameValid', 'ensureNoRepoCard', 'setActiveMap', 'clearActiveMap', 'setActiveIssue', 'clearActiveIssue', 'clearActiveDetail', 'ISSUE_CACHE_TTL', 'selectionByCwd', 'repositoryByCwd', 'SELECTION_BY_CWD_KEY', 'BANNER_FOLD_KEY', 'bannerFoldByCwd', 'isBannerFolded', 'setBannerFolded', 'getCachedSelection', 'setCachedSelection', 'userHintOf', 'keepUserPick', 'getCachedRepository', 'setCachedRepository', 'SETUP_LAYOUT_BY_CWD_KEY', 'setupLayoutByCwd', 'getCachedSetupLayout', 'setCachedSetupLayout'] },
+  { name: 'storePrefs', file: 'store-prefs', exports: ['DEFAULT_PANEL_H', 'listPrefs', 'saveListPrefs', 'labelClicks', 'saveLabelClicks', 'NOREPO_DISMISS_PREFIX', 'cwdHash', 'noRepoDismissKey', 'isNoRepoDismissed', 'setNoRepoDismissed', 'cwdBasename', 'isNoRepoNameValid', 'ensureNoRepoCard', 'setActiveMap', 'clearActiveMap', 'setActiveIssue', 'clearActiveIssue', 'clearActiveDetail', 'ISSUE_CACHE_TTL', 'selectionByCwd', 'repositoryByCwd', 'SELECTION_BY_CWD_KEY', 'BANNER_FOLD_KEY', 'bannerFoldByCwd', 'isBannerFolded', 'setBannerFolded', 'getCachedSelection', 'setCachedSelection', 'userHintOf', 'keepUserPick', 'baseRevOf', 'userPickSelection', 'adoptBoundRev', 'getCachedRepository', 'setCachedRepository', 'SETUP_LAYOUT_BY_CWD_KEY', 'setupLayoutByCwd', 'getCachedSetupLayout', 'setCachedSetupLayout', 'migrateCachedChoiceToKey'] },
   // #669 第 6 件（ADR 20260921）：clearBackendBinding 随「清除后端选择」那颗按钮一起退役（全仓已无调用点）。
   { name: 'storeSwitch', file: 'store-switch', exports: ['labelOf', 'presentationById', 'setPresentationMap', 'backendColorOf', 'backendBgOf', 'backendBorderOf', 'repoShortName', 'DEFAULT_SWITCH_PROMPT_ZH', 'openSwitchConfirm', 'closeSwitchConfirm', 'loadSwitchCri', 'confirmSwitchConfirm'] },
   { name: 'storeSnapshot', file: 'store-snapshot', exports: ['makeStore', 'shared', 'stores', 'storeOf', 'emit', 'sub', 'useStore', 'SNAP_CWD_LRU_MAX', 'snapshotByCwd', 'touchLRUClient', 'getCachedSnapshot', 'getCachedEntry', 'setCachedSnapshot', 'getSnapshotVersion', 'lastProbeAtByCwd', 'getProbeAt', 'touchProbeAt', 'SNAP_DISK_CAP', 'diskPutSnapshot', 'diskGetSnapshot', 'CHAIN_CWD_LRU_MAX', 'chainByCwd', 'getChainCacheKey', 'getCachedChain', 'setCachedChain', 'hydrateFromCache', 'mergeSelection', 'applySnapshotSelection', 'getCwdSync', 'NOTICE_COLOR', 'noticeIcon', 'flash'] },
@@ -36,7 +40,9 @@ const MODULES = [
   { name: 'apiPresetGuard', file: 'api-preset-guard', exports: ['describeReuseDecision', 'verifyFreshPreset', 'tryQuarantineSession', 'createVerifiedPTCSession'] },
   { name: 'apiWorkspace', file: 'api-workspace', exports: ['workspacePathOf', 'workspaceIdOf', 'workspaceNormOf', 'workspaceCollectFromSnap', 'workspaceMatchEntry', 'workspaceTryCreateWid', 'resolveWorkspaceEntry'] },
   { name: 'apiNewSession', file: 'api-new-session', exports: ['probeHandoffReady', 'doHandoff', 'doHandoffOpen', 'openTextInNewSession'] },
-  { name: 'apiIo', file: 'api-io', exports: ['openInNewSession', 'inject', 'openUrl', 'copyText', 'fetchIssueDetail', 'clearIssueDetailCache', 'fetchIssueComments', 'submitIssueComment'] },
+  { name: 'apiIo', file: 'api-io', exports: ['openInNewSession', 'inject', 'openUrl', 'copyText', 'fetchIssueDetail', 'clearIssueDetailCache', 'fetchIssueComments', 'submitIssueComment', 'fetchIssuesPage'] },
+  // #690：历史票的页数据（已关闭票按需翻页）—— 分桶存放、按身份去重、静默刷新不清空、最多留 10 页。
+  { name: 'issuePages', file: 'issue-pages', exports: ['ISSUE_PAGE_MAX', 'ISSUE_PAGE_LIMIT', 'issuePageFilterOf', 'issuePageKeyOf', 'issuePageBucketRead', 'issuePageBucketOf', 'issuePageRowsOf', 'issuePageStatOf', 'loadIssuePage'] },
   { name: 'actions', exports: ['createActionDispatcher', 'ACTIONS_VERSION'] },
   { name: 'backendList', file: 'builtin-backends', exports: ['BUILTIN_BACKENDS', 'SWITCH_UNAVAILABLE_BACKENDS', 'builtinLabelOf', 'otherFiltered', 'firstBackendIdOf', 'repositoryActionOf', 'moduleMetaOf'] },
   { name: 'link', exports: ['issueUrlFor', 'openIssueUrl', 'searchUrlFor', 'repoUrlFor', 'issueRefNumbersFrom'] },

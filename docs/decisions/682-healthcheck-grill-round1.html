@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>面板「体检」按钮 · 第 1 轮对齐（7 个决策）</title>
+<style>
+:root{--bg:#0d0f12;--card:#171b21;--line:#2a313b;--txt:#e8ecf1;--mut:#9aa6b5;--acc:#8b5cf6;--ok:#10b981;--warn:#f59e0b;--info:#38bdf8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.7 "PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:26px 18px 70px}
+.hero{border:1px solid var(--line);border-radius:14px;padding:20px 22px;background:linear-gradient(180deg,#181d26,#12151c)}
+.hero h1{margin:0 0 8px;font-size:22px}
+.hero p{margin:8px 0;color:var(--mut);font-size:14.5px}
+.hero p strong{color:#fff}
+.quote{margin:12px 0 0;padding:10px 12px;border-left:3px solid var(--acc);background:#141922;border-radius:0 8px 8px 0;color:#cfd8e3;font-size:13.5px}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:2px 10px;color:var(--mut)}
+.tag.hot{border-color:var(--acc);color:#cdb8ff}
+.tag.ok{border-color:#1f8a6b;color:#5eead4}
+h2.sec{font-size:15px;color:var(--mut);font-weight:600;margin:26px 0 10px;letter-spacing:.02em}
+table.quick{width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:13.5px}
+table.quick th,table.quick td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+table.quick thead th{background:#1b2129;color:var(--mut);font-weight:600;font-size:12.5px}
+table.quick tbody tr:hover{background:#1a2027}
+table.quick td:first-child{white-space:nowrap;color:var(--mut)}
+table.quick td:last-child{color:#d7f4e8}
+table.quick a{color:#cdb8ff;text-decoration:none}
+table.quick tbody tr:last-child td{border-bottom:0}
+.card{border:1px solid var(--line);border-radius:14px;background:var(--card);margin:16px 0;overflow:hidden}
+.card header{padding:15px 18px 0}
+.num{display:inline-block;font-size:12px;background:#242c38;border-radius:6px;padding:2px 8px;color:var(--mut);margin-right:8px}
+.card h3{display:inline;font-size:17px;margin:0}
+.ctx{padding:10px 14px;color:#bcc7d4;font-size:14px;border-left:3px solid var(--acc);margin:12px 18px 0;background:#141922;border-radius:0 8px 8px 0}
+.key{margin:12px 18px 0;padding:11px 13px;border:1px solid #1d4f66;background:#0d1c24;border-radius:10px;font-size:13.5px;color:#cfe9f5}
+.key b{color:#7dd3fc;display:block;margin-bottom:4px;font-size:12.5px;letter-spacing:.02em}
+.key table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}
+.key td{padding:3px 6px;border-bottom:1px dashed #1d3a48;color:#cfe9f5}
+.key td:first-child{white-space:nowrap;color:#8fb6c8}
+.key tr:last-child td{border-bottom:0}
+.opt{margin:10px 18px 0;border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.opt b{display:block;margin-bottom:2px}
+.opt span{color:var(--mut);font-size:13.5px}
+.opt.pick{border-color:#1f8a6b}
+.opt .badge{font-size:11px;color:#5eead4;border:1px solid #1f8a6b;border-radius:99px;padding:1px 7px;margin-left:6px}
+.rec{margin:12px 18px;border:1px solid #1f8a6b;background:#0e1f1a;border-radius:10px;padding:10px 12px;font-size:14px}
+.rec b{color:#5eead4}
+.procon{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 18px 18px}
+.procon div{border-radius:10px;padding:10px 12px;font-size:13.5px}
+.pro{background:#0f231a;border:1px solid #1c4d3c}
+.con{background:#251a10;border:1px solid #5b3a15}
+.pro b{color:var(--ok)}
+.con b{color:var(--warn)}
+.pro ul,.con ul{margin:6px 0 0;padding-left:18px;color:#cfd8e3}
+.footer{color:var(--mut);font-size:13px;margin-top:26px;border-top:1px dashed var(--line);padding-top:14px}
+.footer a{color:#cdb8ff;text-decoration:none}
+.top{display:block;margin-top:8px;font-size:12px;color:#6f7b8a;text-decoration:none}
+@media(max-width:640px){.procon{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+<h1>面板「体检」按钮 · 第 1 轮对齐（7 个决策）</h1>
+<p>现状：右侧面板那一行（<strong>14 可接 · 4 阻塞 · 492 已关闭</strong>）今天只有三枚指标，右端是一个空位、没有任何按钮。要做的是在这一行右边加一颗<strong>「体检」</strong>按钮，点它按当前后端注入各自的体检提示词；GitHub 这一套 = 把<strong>游离的开放票</strong>找出来，按分析挂到合适的地图下，或者让它自己成为一张地图。</p>
+<div class="quote">需求原话（2026-09-22）：「在右侧面板的【可接、阻塞、已关闭】这一行的右边增加一个按钮，叫 体检。对于不同后端会注入不同的prompt。对于github后端就是调查游离的OPEN的ISSUE，根据分析将其挂载在合适的MAP下或者自己就是MAP。」凡是超出这句话的解释，都算假设，就是下面这 7 问。</div>
+<div class="meta">
+<span class="tag">仓库 FeatherHunter/dsh-mattpocock-skills-deck</span>
+<span class="tag">地图 #682 · 七张子票（4 关 3 开）</span>
+<span class="tag ok">研究票 #680 已关闭</span>
+<span class="tag ok">已回 · 2026-09-22</span>
+</div>
+</div>
+
+<h2 class="sec">一页速览（点问题跳转）</h2>
+<table class="quick">
+<thead><tr><th>#</th><th>要定的事</th><th>我的推荐</th></tr></thead>
+<tbody>
+<tr><td><a href="#q1">Q1</a></td><td>这张图的终点（定完方案就收 vs 一路做到能用）</td><td>携带落地：讨论 → 落地 → 验收都在图上收口</td></tr>
+<tr><td><a href="#q2">Q2</a></td><td>点下去以后，提示词怎么送到会话里</td><td>写进当前会话输入框草稿，你看一眼再发</td></tr>
+<tr><td><a href="#q3">Q3</a></td><td>体检结果：AI 自己动手，还是先出清单等你点头</td><td>先出建议清单，你点头才动手</td></tr>
+<tr><td><a href="#q4">Q4</a></td><td>什么算「游离的开放票」</td><td>三条件（未关闭 + 不是地图 + 没有父票），不按标签排除</td></tr>
+<tr><td><a href="#q5">Q5</a></td><td>什么时候让它「自己就是地图」</td><td>不设数量门槛：装不下且终点清楚就建议开图</td></tr>
+<tr><td><a href="#q6">Q6</a></td><td>GitLab 与本地 Markdown 各查什么</td><td>GitLab 照 GitHub 同一套；Markdown 查两条文件级判据</td></tr>
+<tr><td><a href="#q7">Q7</a></td><td>按钮上要不要带「有 N 张游离票」的数字</td><td>带；算不出来时只显示文字，绝不显示 0</td></tr>
+</tbody>
+</table>
+
+<h2 class="sec">已定（2026-09-22 维护者回答；下方卡片保留的是提问当时的推荐与利弊，不再更新）</h2>
+<table class="quick">
+<thead><tr><th>#</th><th>结论</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>Q1</td><td>携带落地</td><td>讨论 → 落地 → 验收都在图上收口；落地票由讨论结论毕业而来</td></tr>
+<tr><td>Q2</td><td>开一个新会话带过去</td><td>与提问时的推荐不同：点一下立刻起一个干净会话，当前这轮对话原地不动</td></tr>
+<tr><td>Q3</td><td>先出建议清单，人点头才动手</td><td>第一版；它在真库上判准之后，再考虑放开自动执行（二期）</td></tr>
+<tr><td>Q4</td><td>三条结构事实，不按标签排除</td><td>未关闭 + 不是地图 + 没有父票。加注：提示词里再让 AI 判一句「这张能不能单张票处理掉」，能就放着不管——靠设计提示词实现，不进面板的计数口径</td></tr>
+<tr><td>Q5</td><td>不设数量门槛</td><td>现有地图一张都装不下、且这张票自己要清楚，就建议自立成地图；只写最小的 Destination 草稿</td></tr>
+<tr><td>Q6</td><td>GitLab 照 GitHub 同一套；本地 Markdown 查两条</td><td>Markdown 两条：票文件没被任何 <code>map.md</code> 清单引用 / <code>map.md</code> 列了但文件不存在</td></tr>
+<tr><td>Q7</td><td>带件数</td><td>结构口径（同 Q4 三条件）；某个后端算不出来时只显示「体检」两个字，绝不显示 0</td></tr>
+</tbody>
+</table>
+<p style="color:#9aa6b5;font-size:13px;margin:8px 0 0">逐条写在对应票正文的 <code>## 方案</code> 一节：<a href="#q2">#681 按钮形态</a> · <a href="#q3">#678 GitHub 口径</a> · #679 其余后端。两票已按上面结论关闭；剩下八条由维护者交给会话定，见下表。</p>
+
+<h2 class="sec">第 2 轮（维护者把决定权交给会话：从第一性原理出发选最合适的答案）</h2>
+<table class="quick">
+<thead><tr><th>#</th><th>要定的事</th><th>结论</th></tr></thead>
+<tbody>
+<tr><td>R1</td><td>按钮放在哪、怎么对齐</td><td>贴那一行的右边缘——左边三枚是读数、右边这颗是动作，位置把两类东西分开，也与页签行那枚刷新按钮同侧</td></tr>
+<tr><td>R2</td><td>什么时候不该出现</td><td>没绑定后端 / 工作区未初始化 / 后端没有体检科目：整颗不显示（点它会开出一个空会话，而「为什么没就绪」已有专门的地方在讲）</td></tr>
+<tr><td>R3</td><td>图标与中英文案</td><td>中文「体检」、英文 <code>Health check</code>；图标取现成图标集，不新增资源、不用 emoji</td></tr>
+<tr><td>R4</td><td>窄面板怎么折</td><td>先随行换行 → 收成「图标 + 件数」 → 最后才纯图标；件数是价值信号，不能跟着一起收掉</td></tr>
+<tr><td>R5</td><td>凭什么挑中某一张地图</td><td>AI 读每张图的 Destination 与 Notes 做语义归类（这是语义问题，没有结构规则能替代）；挑不出唯一一张就列 2–3 个候选，不硬选</td></tr>
+<tr><td>R6</td><td>一次体检查多大范围</td><td>全仓库的开放票，不跟随面板筛选——同一个动作在不同筛选下必须给出同一个结论</td></tr>
+<tr><td>R7</td><td>体检要不要留痕</td><td>不自动往票上写评论（动手本身留下原生边就是留痕）；但那次注入按 #662 的先例记一条常驻日志，只记后端与成功/失败两个短枚举</td></tr>
+<tr><td>R8</td><td>一律不碰的东西</td><td>只做两件事：建原生子议题边、为人点过头的票开新地图；已关闭的票、标题与正文、标签与认领状态、其它仓库都不动</td></tr>
+</tbody>
+</table>
+<p style="color:#9aa6b5;font-size:13px;margin:8px 0 0"><strong style="color:#5eead4">落地约束（维护者交代）：</strong>开发必须尊重五层架构——界面层只消费契约产物、契约层定义接口与求值、后端层各自声明与实现、平台抽象层封装系统能力原语、系统底座层各平台实现。三张落地票的正文里都写了这一条具体怎么落实（不新增宿主电话、界面零后端分支、后端声明各在自己的房间里、按房纪律分会话改）。</p>
+
+<div class="card" id="q1"><header><span class="num">Q1</span><h3>这张图的终点：定完方案就收，还是一路做到真机能用？</h3></header>
+<div class="ctx"><b>前因：</b>wayfinder 默认「只决策、不交付」，但你这个需求本身就是要让面板上真的出现一颗能点的按钮。仓库里两种图都有先例：悬浮技能面板那张图明说只产方案（落地另起票），性能那张图携带落地（图上查清 → 方案 → 落地 → 复测）。<br><b>后果：</b>选携带落地，落地票要等三张讨论票关了才毕业（不会更早动手）；选只产方案，写代码要另外起票或另开一张图。</div>
+<div class="opt pick"><b>A · 携带落地<span class="badge">我的推荐</span></b><span>图上先把口径与提示词定版，讨论票一关就毕业出落地票与验收票，写代码与真机验收都在图上收口。</span></div>
+<div class="opt"><b>B · 只产方案</b><span>图上只交代口径、按钮形态与各后端提示词，落地另起票。</span></div>
+<div class="rec"><b>➡️ 推荐 A。</b>你要的是一颗真能用的按钮，口径定完顺势落地最省事；落地票天然会带上「被三张讨论票阻塞」的原生依赖边。</div>
+<div class="procon">
+<div class="pro"><b>选 A 利</b><ul><li>定完就能动手，不用再开一张图接上</li><li>落地票与验收票都留在同一张图里，收口清楚</li></ul></div>
+<div class="con"><b>选 A 弊</b><ul><li>图上会多出落地与验收票，这张图关得晚一些</li></ul></div>
+</div></div>
+
+<div class="card" id="q2"><header><span class="num">Q2</span><h3>点下去以后，这段体检提示词怎么送到会话里？</h3></header>
+<div class="ctx"><b>前因：</b>面板里今天有两条现成写法，都有先例——写进当前会话的输入框草稿（列表每行的诊断 / 修复 / 讨论 / 执行就是这么做），或者开一个新会话并把这段文字带过去（页签行的「+ 新建需求」「+ 新增BUG单」是这么做）。<br><b>后果：</b>写进草稿 = 你按回车它才跑；开新会话 = 立刻起一个干净会话，但你手上这轮对话留在原地。</div>
+<div class="key"><b>关键信息</b>体检会<b style="display:inline">真的改仓库里的票</b>（建 GitHub 原生子议题边、可能新开地图）。写进草稿不碰任何东西，按回车才碰；这一点决定了「先看一眼」值不值那一次回车。</div>
+<div class="opt pick"><b>A · 写进当前会话的输入框草稿<span class="badge">我的推荐</span></b><span>你看到那段提示词，可以改字、可以删掉，按回车才发。</span></div>
+<div class="opt"><b>B · 开一个新会话带过去</b><span>点下去立刻起一个干净会话，体检在那边跑完把结论写回票里。</span></div>
+<div class="rec"><b>➡️ 推荐 A。</b>体检要改真东西，默认让你确认一次更稳；真想开新会话时，列表每行本来就有「新会话」这颗按钮。</div>
+<div class="procon">
+<div class="pro"><b>选 A 利</b><ul><li>默认不自作主张，随时能改字或删掉</li><li>体检结论留在你正在看的这轮对话里</li></ul></div>
+<div class="con"><b>选 A 弊</b><ul><li>多发一次回车；想连着体检两个后端时要手动清草稿</li></ul></div>
+</div></div>
+
+<div class="card" id="q3"><header><span class="num">Q3</span><h3>体检的结果：让它自己动手，还是先出清单等你点头？</h3></header>
+<div class="ctx"><b>前因：</b>这是这条需求里风险最高的一问——「动手」指的是直接建 GitHub 原生子议题边、直接开新地图，改的是你仓库里的真实结构；「出清单」指的是先把「哪张挂到哪张、理由一句话」摆给你，点头后再执行。<br><b>后果：</b>动手档省一次确认，但判错就要一张张手动撤；清单档多一步，错在第一眼就能拦下。</div>
+<div class="key"><b>关键信息 · 判错具体长什么样</b>
+<table>
+<tr><td>挂错地图</td><td>把一张讲性能的 bug 挂进「首开引导顺序」那张地图下——面板计数与阻塞关系立刻变错，撤边要一张张来。</td></tr>
+<tr><td>空壳地图</td><td>为一张孤立的小 bug 开出一张新地图，地图列表变长，图上却没有真正要推进的东西。</td></tr>
+<tr><td>今天的量</td><td>本仓库现开放票 19 张，其中游离 11 张；批量误挂的机会不小，而人工扫一眼成本很低。</td></tr>
+</table>
+</div>
+<div class="opt pick"><b>A · 先出建议清单，你点头才动手<span class="badge">我的推荐</span></b><span>清单写清「这张 → 挂到哪张（理由）／建议自立成地图／建议留在原地不动」。</span></div>
+<div class="opt"><b>B · 直接动手</b><span>体检跑完顺手把边建好、该开的图开好，你不用再确认。</span></div>
+<div class="rec"><b>➡️ 推荐 A（第一版）。</b>先看它在真库上判得准不准；准了再放开自动执行，那是二期，随时可以加。</div>
+<div class="procon">
+<div class="pro"><b>选 A 利</b><ul><li>错的边根本不会建出来，不用收拾</li><li>你能顺便校准它的判断口径</li></ul></div>
+<div class="con"><b>选 A 弊</b><ul><li>每次体检多一步确认；批量归位时要一张张看</li></ul></div>
+</div></div>
+
+<div class="card" id="q4"><header><span class="num">Q4</span><h3>什么算「游离的开放票」？</h3></header>
+<div class="ctx"><b>前因：</b>需求原话是「调查游离的 OPEN 的 ISSUE」。在数据上，「游离」只有一条硬判据：这张票没有父票（快照里每一行都带这个字段）。争议在要不要再按标签把一些票排除掉（例如等人动手的、明确不做的）。<br><b>后果：</b>不排除会多几条你可能暂时不想动的票；排除得狠了会把真正没人管的票漏掉。</div>
+<div class="key"><b>关键信息 · 今天 11 张游离票的标签分布</b>
+<table>
+<tr><td>4 张</td><td>只有 needs-triage 或一个标签都没有（#677、#474、#435 …）——典型「没人管」</td></tr>
+<tr><td>3 张</td><td>ready-for-human（#674、#672、#578）——写着等人动手</td></tr>
+<tr><td>2 张</td><td>wayfinder:grilling（#502、#429）——本来就是一张讨论票，却没有图</td></tr>
+<tr><td>1 张</td><td>ready-for-agent（#640）</td></tr>
+</table>
+没有一种标签组合能把「该管的」和「不用管的」干净分开；而且标签谁都能随手改，唯一稳定的结构事实只有「有没有父票」。</div>
+<div class="opt pick"><b>A · 只按三条件判：未关闭 + 不是地图 + 没有父票<span class="badge">我的推荐</span></b><span>标签不参与判定，只在报告里分区显示（一眼看出该先管谁）。</span></div>
+<div class="opt"><b>B · 三条件 + 排除 ready-for-human 与 wontfix</b><span>清单更短，但会漏掉「等人动手」里其实没人管的那些。</span></div>
+<div class="rec"><b>➡️ 推荐 A。</b>判据只留结构事实，宁可在报告里多几行字，也不要漏票。</div>
+<div class="procon">
+<div class="pro"><b>选 A 利</b><ul><li>不漏票；判据稳定、可复算</li><li>按标签分区照样能一眼看出优先级</li></ul></div>
+<div class="con"><b>选 A 弊</b><ul><li>报告里会出现几张你暂时不想动的票</li></ul></div>
+</div></div>
+
+<div class="card" id="q5"><header><span class="num">Q5</span><h3>什么时候让它「自己就是地图」？</h3></header>
+<div class="ctx"><b>前因：</b>需求原话是「挂载在合适的 MAP 下或者自己就是 MAP」。剩下的选择是：单张票也允许开新图，还是要求凑够同主题的几张才开。<br><b>后果：</b>不设门槛会多出一些只有一张子票的小地图（地图列表变长）；设了门槛会逼着把不相干的票凑成一张图（比小地图更糟）。</div>
+<div class="key"><b>关键信息 · 今天的样本</b>现有 3 张地图对 11 张游离票。其中 #427 与 #428 是同一台新电脑上的两条环境型假阴性（天然成对），而 #677（面板「已关闭」票数不准）是孤立的一个 bug——按「凑够两张」的门槛，它只能被塞进某张不相干的地图，或者继续没人管。</div>
+<div class="opt pick"><b>A · 不设数量门槛<span class="badge">我的推荐</span></b><span>只要「现有地图一张都装不下」且这张票自己有清楚终点，就建议为它开一张新图；开图时只写最小的 Destination 草稿，正文由你或负责人补。</span></div>
+<div class="opt"><b>B · 凑够两张以上同主题才开图</b><span>地图数量更少，但孤立的需求没有容身之处。</span></div>
+<div class="rec"><b>➡️ 推荐 A。</b>门槛会制造「硬凑」，而硬凑出来的图比一张只有一张子票的小图更难收场。</div>
+<div class="procon">
+<div class="pro"><b>选 A 利</b><ul><li>孤立需求也有地方去，不会被硬塞</li><li>判据是「装得下 / 装不下」，不靠猜数量</li></ul></div>
+<div class="con"><b>选 A 弊</b><ul><li>地图列表会变长，可能出现只有一张子票的图</li></ul></div>
+</div></div>
+
+<div class="card" id="q6"><header><span class="num">Q6</span><h3>另外两个后端，体检各查什么？</h3></header>
+<div class="ctx"><b>前因：</b>需求原话是「对于不同后端会注入不同的 prompt」。GitHub 的科目已经说定（游离票归位），GitLab 与本地 Markdown 的科目要在这里定。<br><b>后果：</b>定了才能给这两个后端写提示词；没定的话，按钮在这两个后端上只能显示一句「这个后端还没有体检科目」。</div>
+<div class="key"><b>关键信息 · 两个后端今天的形态</b>
+<table>
+<tr><td>GitLab</td><td>票仓结构与 GitHub 本来是同一套（地图 + 原生子议题 + 阻塞边）；差别是它的父子边要靠链接 / 正文回退解析，<b style="display:inline">解析率还没实测</b>（研究票里那条「没查到」）。</td></tr>
+<tr><td>本地 Markdown</td><td>票就是工作区里的文件（<code>.scratch/&lt;工作单元&gt;/</code> 下的 <code>map.md</code> 与各张票文件），没有远端接口可查，只能对着文件判。</td></tr>
+</table>
+</div>
+<div class="opt pick"><b>A · GitLab 照 GitHub 同一套；Markdown 查两条文件级判据<span class="badge">我的推荐</span></b><span>Markdown 的两条：① 票文件存在、却没有被任何 <code>map.md</code> 的清单引用；② <code>map.md</code> 清单里列了、但对应文件不存在。做不到的地方（如 GitLab 原生边）在提示词里如实说明，不硬来。</span></div>
+<div class="opt"><b>B · 这两个后端先不做</b><span>按钮在这两个后端只显示一句「这个后端还没有体检科目」，等真有人用了再说。</span></div>
+<div class="rec"><b>➡️ 推荐 A。</b>GitLab 几乎不用另想科目，Markdown 那两条判据也简单可判；先不做的话，这两个后端上这颗按钮等于不存在。</div>
+<div class="procon">
+<div class="pro"><b>选 A 利</b><ul><li>三个后端都有体检科目，行为一致</li><li>Markdown 的两条判据纯看文件，不依赖网络</li></ul></div>
+<div class="con"><b>选 A 弊</b><ul><li>GitLab 那条路要等实测才知道能判准多少，第一版可能偏保守</li></ul></div>
+</div></div>
+
+<div class="card" id="q7"><header><span class="num">Q7</span><h3>按钮上要不要带一个「有 N 张游离票」的数字？</h3></header>
+<div class="ctx"><b>前因：</b>那一行左边三枚指标都带数字，加一个数字你一眼就知道值不值得点。之前绕不过一个问题——这个数到底算不算得出来，所以先没问；研究票已经把它查清了。<br><b>后果：</b>带数字 = 多一小段派生逻辑（数据不用重新取）；不带 = 按钮只有两个字，你得点进去才知道有没有活干。</div>
+<div class="key"><b>关键信息 · 研究结论</b>每张票在面板快照里都带「有没有父票」这个字段（宿主已经在用它把票挂到地图下），客户端今天没读过它。把「未关闭 + 不是地图 + 没有父票」合成一个数，<b style="display:inline">要新写一小段派生，不需要新的取数、也不需要新的宿主接口</b>。一个例外：GitLab 的父子边解析率没实测，所以「算不出来」这件事必须留一条退路。</div>
+<div class="opt pick"><b>A · 带数字，算不出来时只显示文字<span class="badge">我的推荐</span></b><span>正常显示「体检 11」；某个后端算不出来就显示「体检」，不显示 0。</span></div>
+<div class="opt"><b>B · 不带数字</b><span>按钮只写「体检」，点进去再看有没有游离票。</span></div>
+<div class="rec"><b>➡️ 推荐 A。</b>数字是这颗按钮唯一的价值信号——它告诉你「现在值不值得点」。退化规则写死「不显示 0」，因为 0 会被读成「一张都没有」。</div>
+<div class="procon">
+<div class="pro"><b>选 A 利</b><ul><li>一眼看出要不要点，和三枚指标同一套视觉</li><li>不用点进去也能知道票仓有没有积压</li></ul></div>
+<div class="con"><b>选 A 弊</b><ul><li>多一小段派生与它的门禁；GitLab 上第一版可能显示不出数字</li></ul></div>
+</div></div>
+
+<div class="footer">
+<div><b style="color:#e8ecf1">怎么回我：</b>在对话里写「Q3 选 A」这样就行（只回你有意见的那几问也可以）。答完我会把结论写回对应票的 <code>## 方案</code> 一节并关票，然后毕业落地票、建原生阻塞边。</div>
+<div style="margin-top:10px">相关票与底稿：<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/682">地图 #682「面板体检按钮」</a> · <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/681">#681 按钮形态</a> · <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/678">#678 GitHub 口径</a> · <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/679">#679 其余后端科目</a> · <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/680">#680 接线盘点（已关闭）</a> · 底稿 <code>research/680-healthcheck-wiring.md</code></div>
+<div style="margin-top:8px">生成于 2026-09-22 · 放在 <code>docs/decisions/682-healthcheck-grill-round1.html</code> · 未提交（是否入库由你定）</div>
+</div>
+
+</div>
+</body>
+</html>

@@ -91,6 +91,9 @@ export     const ListTab = ({ st, narrow }) => {
           if (typeof window !== 'undefined') window.removeEventListener('resize', onWin)
         }
       }, [])
+      // #690：历史票按需翻页。这一钩子在「看得到已关闭票」的两处生效（状态筛到「已关闭」，或底部那条
+      //   折叠行被展开）：进去先把第一页备上，滚到底再顺着游标取下一页。三个触发点共用同一份页数据。
+      useClosedPageScroll(st, st.stateFilter === 'closed' || st.closedFoldOpen === true)
       // effort 维度：仓库里有几个 effort（去重排序，来自共享小件；单 effort 后端恒 []，界面不变）
       const effortNames = effortNamesOf(st)
       const multiEffort = effortNames.length > 1
@@ -99,7 +102,11 @@ export     const ListTab = ({ st, narrow }) => {
         const sel = st.effFilters || []
         return !sel.length || sel.indexOf(effortOf(x)) >= 0
       }
-      const issues = (st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []
+      // #689 工单口径：拉取请求不进主列表（面板另有专门的拉取请求页签；口径判断住在 store-derived 的
+      //   isTicketRow，与 KPI、状态栏共用同一处）。池子（snapshot.issues）本身不动，仍是原样全收。
+      // #690：再并上「按需翻回来的那些页」里池子没有的行（issuePageRowsOf 已按身份去掉重复的），
+      //   于是已关闭那一堆里既有首屏那一百条、也有用户翻出来的更早的票；静默刷新只换池子，页数据不动。
+      const issues = ticketRowsOf((st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []).concat(issuePageRowsOf(st, 'list'))
       const openIssues = issues.filter(function (x) { return x.state !== 'CLOSED' })
       const closedIssues = issues.filter(function (x) { return x.state === 'CLOSED' })
       // #374：多维排序 —— map 行恒置顶，map 组与普通组各自按所选维度排序；默认 更新时间↓（与现状一致）
@@ -205,10 +212,19 @@ export     const ListTab = ({ st, narrow }) => {
         }, nm)
       }
       // KPI 口径：与全局一致，但跟随 effort 筛选（未选 effort 时就是全局）
+      // #689：两个数字优先读宿主给的后端计数（deck.counts）—— 「已关闭」直接是它；「可接」= 后端说的未关闭
+      //   张数减去本地数出来的阻塞（阻塞要逐票看指派人、看有没有开放阻塞者，后端计数给不了）。
+      //   拿不到计数、或界面带着筛选时退回按池子派生：deckCountsOf 那时会返回 null（全仓数字与筛过的一屏
+      //   不是一个口径），宁可退回派生值，也不拿全仓数字冒充筛过的数字。
+      const kpiFiltered = !!((st.effFilters || []).length)
+      const kpiCounts = deckCountsOf(st, kpiFiltered)
       const kpiOpenScoped = openIssuesOf(st).filter(effPass)
       const kpiOcc = kpiOpenScoped.filter(function (x) { return isOccupied(st, x) }).length
-      const kpiFrontier = kpiOpenScoped.length - kpiOcc
-      const kpiClosed = closedIssues.filter(effPass).length
+      const kpiFrontier = kpiCounts ? Math.max(0, kpiCounts.open - kpiOcc) : (kpiOpenScoped.length - kpiOcc)
+      const kpiClosed = kpiCounts ? kpiCounts.closed : closedIssues.filter(effPass).length
+      // 折叠行那两个数：N（一共多少张）来自后端计数、x（列表里已经加载了多少张）就是手上这些行。
+      //   带任何筛选时 N 退回手上的行数 —— 后端给的是全仓总数，与筛过的列表对不上会让人以为少了票。
+      const foldCounts = deckCountsOf(st, !!(((st.effFilters || []).length) || ((st.lblFilters || []).length)))
       const kpi = (num, lab, icon, color) => h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, [Ic({ n: icon, size: 11, color: color }), h('span', null, String(num) + ' ' + lab)])
       return h('div', null, [
         // v1.5：已选标签过滤条（仅标签 · 颜色 = 该标签配置色 · 点 ✕ 关闭）
@@ -231,7 +247,28 @@ export     const ListTab = ({ st, narrow }) => {
           kpi(kpiFrontier, tr('list.kpi.takeable'), 'target', '#4ade80'),
           kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f0883e'),
           kpi(kpiClosed, tr('list.kpi.closed'), 'check', '#52525b'),
+          // #689：这份行数据被截断过就说出来（宿主写的 deck.partial）。拿不到后端计数时它也是真的 ——
+          //   那时候连「全不全」都无从判断，只能老实说不全（规格第 6.5 节）；提示里把两种情况都讲清楚。
+          (st.snapshot && st.snapshot.deck && st.snapshot.deck.partial === true) ? h(Tip, { content: tr('list.partialTitle') }, h('span', { className: 'dsws-chip', style: { flex: 'none', alignSelf: 'center', fontSize: 10, color: '#f59e0b', background: 'rgba(245,158,11,.10)', border: '1px solid rgba(245,158,11,.4)' } }, tr('list.partial'))) : null,
           h('span', { style: { flex: 1 } }),
+          // #685：「体检」按钮 —— 贴这一行的右边缘（左三枚是读数、右边这颗是动作，用位置把两类分开；
+          //   与页签行那枚刷新按钮形成「面板级操作都在右侧」的一致手势，#681 定版）。
+          //   件数口径见 #678（未关闭 + 不是地图 + 不在任何地图的子票里，与列表里独立票的行数一致），
+          //   算不出来时只显示名字、绝不显示 0；三种情况整颗不渲染（见 healthCheckVisible）。
+          //   点一下开一个新会话并把当前后端的体检提示词带过去（讲清为什么见 openHealthCheck 里那段注释）。
+          (function () {
+            if (!healthCheckVisible(st)) return null
+            const nHc = healthCheckCountOf(st)
+            const btnTier = (!narrow && tr('list.healthCheck').length > 6) ? '' : (nHc == null ? ' narrow-icon' : ' narrow-count')
+            const hcStyle = { display: 'inline-flex', alignItems: 'center', gap: 3, flex: 'none', alignSelf: 'center', fontSize: 11, padding: '1px 6px', background: 'rgba(255,255,255,.06)', borderColor: 'rgba(255,255,255,.15)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)' }
+            if (btnTier === ' narrow-icon') { hcStyle.padding = '0'; hcStyle.justifyContent = 'center' }
+            else if (btnTier === ' narrow-count') { hcStyle.padding = '1px 5px'; hcStyle.gap = 2 }
+            return h(Tip, { content: tr('list.healthCheckTitle') }, h('button', {
+              className: 'dsws-btn' + btnTier,
+              onClick: function (e) { e.stopPropagation(); openHealthCheck(st) },
+              style: hcStyle,
+            }, [Ic({ n: 'clipboard', size: 11 }), (btnTier === ' narrow-count' || btnTier === '') ? h('span', null, tr('list.healthCheck') + (nHc == null ? '' : ' ' + nHc)) : null]))
+          })(),
           // T2 #2：刷新按钮已上移至面板 tabs 行（页内浮窗退役后，面板只有右侧边栏这一处）
         ]),
         // B Timeline 定版（2026-08-28）：「N 项环境未就绪」红条已移除（顶部无错误信息；状态由检查页行级表达）
@@ -274,6 +311,9 @@ export     const ListTab = ({ st, narrow }) => {
           (!st.expLabels && sortedLabels.length > 4) ? h(Tip, { content: tr('list.tagsTitle', { names: sortedLabels.join('、') }) }, h('span', { key: 'lbl-more', className: 'dsws-chip', onClick: function (e) { e.stopPropagation(); st.expLabels = true; emit(st) }, style: { fontSize: 10, marginRight: 4, marginBottom: 3, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px dashed rgba(188,140,255,.55)', cursor: 'pointer' } }, '+' + (sortedLabels.length - 4))) : null,
           st.expLabels ? h(Tip, { content: tr('list.tagsCollapseTitle') }, h('span', { key: 'lbl-less', className: 'dsws-chip', onClick: function (e) { e.stopPropagation(); st.expLabels = false; emit(st) }, style: { fontSize: 10, marginRight: 4, marginBottom: 3, background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-caption,#8b8b95)', border: '1px dashed rgba(255,255,255,.3)', cursor: 'pointer' } }, tr('list.collapse'))) : null,
         ]),
+        // #690：历史票翻页那一行 —— 「已加载 x / 共 N」、翻页位置失效、取不到、后端不支持翻页各说各的
+        //   （出处见 views/ListTabClosed.js 的注释；x 与折叠行那两个数同源：就是当前列表里真的画出来的行数）。
+        closedPagesNode(h, st, closedRows.length),
         // T3 #5：加载遮罩（替代单行文本，全屏遮罩 + 转圈 + 禁点）
         // v1.3.3 修复：加载遮罩仅首开无数据时显示（手动刷新已走静默路径，不再叠加）
         // #58 缓存优先：已有快照（本 store 或 per-cwd 缓存）时不显示全屏 loading，秒开旧列表 + 后台静默刷新
@@ -287,10 +327,12 @@ export     const ListTab = ({ st, narrow }) => {
         showOpen ? (filteredOpen.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredOpen.map(function (x) { return listIssueRow(h, st, x, true, narrow, blockOf, colorOf, multiEffort) })) : null,
         showClosedList ? (filteredClosed.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredClosed.map(function (x) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf, multiEffort) })) : null,
         // v14-4⑤：列表底部「已关闭 (N)」折叠行（仅「全部」状态显示；默认收起，只占一行，展开可见）
-        (st.stateFilter === 'all' && closedRows.length) ? h('details', { style: { marginTop: 8 } }, [
+        // #689：文案改成「已关闭 N（已加载 x）」—— N 是后端计数说的总数，x 是列表里真加载到的行数；
+        //   两个不一样时（本仓现在就是）用户一眼能看出「还有多少没装进来」，而不是以为列表就是全部。
+        (st.stateFilter === 'all' && closedRows.length) ? h('details', { style: { marginTop: 8 }, onToggle: function (e) { const open = !!(e && e.target && e.target.open); st.closedFoldOpen = open; emit(st); if (open) loadIssuePage(st, { view: 'list' }) } }, [
           h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 2px', userSelect: 'none' } }, [
             Ic({ n: 'check', size: 11 }),
-            h('span', null, tr('list.closedN', { n: closedRows.length })),
+            h('span', null, tr('list.closedN', { n: foldCounts ? foldCounts.closed : closedRows.length, x: closedRows.length })),
           ]),
           h('div', null, closedRows.map(function (x) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf, multiEffort) })),
         ]) : null,

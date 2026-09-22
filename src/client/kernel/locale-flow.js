@@ -31,6 +31,8 @@
         'list.kpi.takeable': '可接',
         'list.kpi.occupied': '阻塞',
         'list.kpi.closed': '已关闭',
+        'list.healthCheck': '体检', // #685：KPI 那一行右边缘那颗动作按钮的名字（维护者原话），件数由代码拼在它后面
+        'list.healthCheckTitle': '体检：开一个新会话，对当前ISSUE的健康程度进行检查。', // #685：这颗按钮的悬浮提示（两条都住这里，是因为 locale-panel.js 贴着 350 行上限，而 list.* 这一族键本来就在本片段）
         'list.refresh': '刷新',
         'list.refreshing': '刷新中…',
         'list.envWarn': '{n} 项环境未就绪，点此查看',
@@ -39,7 +41,9 @@
         'list.errFull': '快照加载失败：{err}',
         'list.restFallback': '⚠ GraphQL 配额已耗尽，已切换 REST 通道（数据可能略旧，配额恢复后自动回切）',
         'list.none': '暂无',
-        'list.closedN': '已关闭 {n}',
+        'list.closedN': '已关闭 {n}（已加载 {x}）', // #689：n 是后端计数说的总数、x 是列表里真加载到的行数（两个不一样时，用户一眼看出「还有多少没装进来」）
+        'list.partial': '这份清单不全', // #689：deck.partial 为真时说一句（有的是后端一次给不了那么多票，有的是拿不到精确计数；详情在下一行的悬停提示里）
+        'list.partialTitle': '这份清单不全：有的是后端一次给不了那么多票，有的是拿不到精确计数（这个后端不支持计数，或者配额用尽了）。列表与数字都可能比仓库里实际的少。',
         'list.collapse': '收起',
         'list.blocked': '被阻塞',
         'list.blockedTitle': '被 {by} 阻塞（点击查看地图详情）',
@@ -80,6 +84,7 @@
         'map.subClaimed': '已认领 {who}',
         'map.subBlocked': '被阻塞：{who}',
         'map.subClosed': '已关闭',
+        'map.subCount': '本图 {n} 张子票（已关闭 {c} 张）', 'map.subCountLoading': '正在取子票…', 'map.subCountFail': '子票没取到：{msg}', 'map.subCountRetry': '重试', 'map.subCountCapped': '只加载了前 {n} 张', 'map.subCountShort': '还有 {n} 张没取到', // #691 地图详情头部那一行（取数中／取不到／撞 1000 张硬上限／与总数对不上的差额，四种情形各一句）
         'map.executeTitle': '从第一性原理推进该地图，注入开始提示词',
         'map.doneTitle': '汇总子票并归档地图，注入收尾确认',
         'map.inspectTitle': '检测空地图并补全 Destination，注入修复提示词',
@@ -195,6 +200,8 @@
         'list.kpi.takeable': 'Ready',
         'list.kpi.occupied': 'Blocked',
         'list.kpi.closed': 'Closed',
+        'list.healthCheck': 'Health check', // #685: the action button at the right edge of the KPI row; the count is appended by code
+        'list.healthCheckTitle': 'Health check: open a new session to check the health of the current ISSUE.', // #685: the hover tip for that button
         'list.refresh': 'Refresh',
         'list.refreshing': 'Refreshing…',
         'list.envWarn': '{n} check(s) not ready — click to view',
@@ -203,7 +210,9 @@
         'list.errFull': 'Snapshot failed: {err}',
         'list.restFallback': '⚠ GraphQL quota exhausted — switched to REST channel (data may be slightly stale; auto-reverts when quota resets)',
         'list.none': 'None',
-        'list.closedN': 'Closed {n}',
+        'list.closedN': 'Closed {n} ({x} loaded)', // #689: n = the backend's own count, x = rows actually loaded
+        'list.partial': 'This list is incomplete', // #689: shown when the host says the row data was truncated (or counting was unavailable)
+        'list.partialTitle': 'This list is incomplete: either the backend cannot hand over that many tickets at once, or exact counts are unavailable (this backend does not support counting, or the quota ran out). Both the numbers and the list may be smaller than what the repository really holds.',
         'list.collapse': 'Collapse',
         'list.blocked': 'Blocked',
         'list.blockedTitle': 'Blocked by {by} (click for map details)',
@@ -244,6 +253,7 @@
         'map.subClaimed': 'Claimed by {who}',
         'map.subBlocked': 'Blocked by: {who}',
         'map.subClosed': 'Closed',
+        'map.subCount': '{n} sub-issues (closed {c})', 'map.subCountLoading': 'Loading sub-issues…', 'map.subCountFail': 'Sub-issues not loaded: {msg}', 'map.subCountRetry': 'Retry', 'map.subCountCapped': 'only the first {n} loaded', 'map.subCountShort': '{n} more not loaded', // #691 the sub-issue line in the map detail header (loading / failed / capped / shortfall)
         'map.executeTitle': 'Advance the map from first principles, inject start prompt',
         'map.doneTitle': 'Summarize children and archive, inject wrap-up confirmation',
         'map.inspectTitle': 'Detect empty map and fill Destination, inject repair prompt',

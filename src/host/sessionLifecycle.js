@@ -51,7 +51,7 @@ export function createSessionLifecycle(deps) {
     try {
       const svc = await getDetectionService()
       if (svc && typeof svc.detect === 'function') {
-        const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: backendId })
+        const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: backendId, baseRev: (selCtx && Number.isInteger(selCtx.baseRev)) ? selCtx.baseRev : 0 })
         if (det && det.selection) sel = det.selection
       }
     } catch {}

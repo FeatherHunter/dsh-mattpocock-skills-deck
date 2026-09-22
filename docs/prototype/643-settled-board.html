@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 #643 · 综合版并排看</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+  这一页只做一件事：把 643-panel-settled-variants.html 的九档并排摆出来。
+  每一格都是一个活的 iframe，指向那一份并加不同的地址参数，所以在框里能直接点技能、点块标题、
+  点处境索引条。九格用的是同一份代码，区别只来自四个开关：形态 / 占多大 / 默认展开 / 跨会话提示。
+-->
+<style>
+:root{--bg:#0c0e12;--panel:#16181d;--border:#2a2d35;--border2:#3a3f4a;--text:#e6edf3;--muted:#a1a1aa;--caption:#8b8b95;--primary:#c084fc;--warn:#fbbf24;--ok:#3fb950;--mono:Consolas,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.65;font-size:14px}
+.wrap{max-width:1960px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:20px;margin:0 0 6px}
+h2{font-size:15px;margin:26px 0 10px;padding-top:14px;border-top:1px solid var(--border)}
+.sub{font-size:13px;color:var(--muted);margin:0 0 12px}
+.legend{border:1px solid var(--border);border-radius:10px;background:var(--panel);padding:11px 15px;margin-bottom:16px;font-size:12.5px;color:var(--muted)}
+.legend b{color:#cdb8ff}
+.legend .row{margin:3px 0}
+.legend .axis{display:inline-block;min-width:118px;color:#cdb8ff;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.cell{border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:10px 12px 12px}
+.cell .hd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:5px}
+.cell .no{font-family:var(--mono);font-size:11px;font-weight:700;color:#cdb8ff;background:rgba(192,132,252,.12);border:1px solid rgba(192,132,252,.4);border-radius:5px;padding:1px 6px}
+.cell .tt{font-size:13.5px;font-weight:700}
+.cell .head{font-size:11px;color:var(--caption);font-family:var(--mono);margin-left:auto}
+.cell .facts{font-size:11.5px;color:var(--caption);margin:0 0 6px}
+.cell .note{font-size:12px;color:var(--muted);margin-top:8px}
+.cell.base{border-color:rgba(63,185,80,.45)}
+.cell.base .no{color:var(--ok);background:rgba(63,185,80,.12);border-color:rgba(63,185,80,.45)}
+.frame{position:relative;width:100%;overflow:hidden;border:1px solid var(--border2);border-radius:8px;background:#0c0e12}
+.frame iframe{position:absolute;left:0;width:1400px;height:900px;border:0;transform-origin:top left}
+.side{display:flex;flex-direction:column;gap:10px}
+.point{border-left:2px solid var(--border2);padding-left:10px;font-size:12.5px;color:var(--muted)}
+.point b{color:var(--text)}
+.point code{font-family:var(--mono);font-size:11.5px;color:#cdb8ff;background:rgba(192,132,252,.08);border-radius:4px;padding:0 4px}
+@media(max-width:1200px){.grid,.grid3{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:1560px){.grid{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>原型 #643 · 综合版：把已经选定的合起来，只剩没定的那几件分成九档</h1>
+  <p class="sub">每一格都是一个活的面板（能直接点技能名、点块标题折叠、点处境索引条），七格外面都是同一个 1400 × 900 的窗口，所以「面板占多大」这件事也看得出。格子上那行灰字是这一档改了哪一处。</p>
+  <div class="legend">
+    <div class="row"><span class="axis">底座（写死）</span>大区域居中 · 分组块 · <b>处境当标题</b> · 一行一个＋引导线 · 说明只在悬停（自己画的 100 毫秒气泡）· 点完关面板 · 不突出「该点哪个」· 不要一行总览 · <b>不跟编号签</b>。面板头部照真机的排法画，含 #650 定稿的那一枚子工作区标志。</div>
+    <div class="row"><span class="axis">还在试的四件</span>① 形态（底座 / 处境整段能折 / 平铺＋处境索引条）② 面板占多大（1240×880 封顶 / 上方留一条缝 / 真占满）③ 默认展开几块（全开 / 每个处境只开第一条 / 全折）④ 跨会话那条路要不要先留一句提示。</div>
+    <div class="row"><span class="axis">地址参数</span><code>?form=base|segfold|index</code> · <code>?size=cap|gap|fill</code> · <code>?open=all|first|none</code> · <code>?cross=1</code>；直接打开那一份按 <b>← →</b> 也能走一圈。</div>
+  </div>
+
+  <h2>九档并排看</h2>
+  <div class="grid">
+    <div class="cell base">
+      <div class="hd"><span class="no">1</span><span class="tt">综合版底座</span><span class="head">就是已经拍板的那一套</span></div>
+      <div class="facts">大区域 1240 × 844 · 分组块 · 处境当标题 · 一行一个＋引导线</div>
+      <div class="frame" data-y0="0" data-vis="900" data-w="1400"><iframe src="643-panel-settled-variants.html" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">面板头部照真机的排法画：仓库芯片 + 子工作区标志（#650 定稿的那一枚文件夹图标）+ 切换后端 + 标签配色 + ✕。这一档是下面所有档的底座，其余八档都只改一处。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">2</span><span class="tt">处境整段能折</span><span class="head">点段头就把这一段折起来</span></div>
+      <div class="facts">把「处境当块」那档的折叠，并进「处境当标题」这一档</div>
+      <div class="frame" data-y0="0" data-vis="900" data-w="1400"><iframe src="643-panel-settled-variants.html?form=segfold" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">原来折一处只折一条路；现在处境那一行本身也能点，点一下它下面几条路一起收起来。路的块还是各自能折——两种折叠同时存在，这是第 2 档与第 1 档唯一的区别。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">3</span><span class="tt">平铺 ＋ 处境索引条</span><span class="head">好找 + 处境还看得见</span></div>
+      <div class="facts">20 条路按字母平铺，顶上多一条处境索引条</div>
+      <div class="frame" data-y0="0" data-vis="900" data-w="1400"><iframe src="643-panel-settled-variants.html?form=index" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">平铺那一档找一条知道名字的路最快，代价是丢掉「我在哪个处境」。这一档把处境做成顶上一条：点一个处境，它下面那几条路整段被标出来并滚过去。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">4</span><span class="tt">真占满整屏</span><span class="head">1384 × 884，四周只留 8 像素</span></div>
+      <div class="facts">和底座的 1240 × 844 比，四周的桌面全被盖住</div>
+      <div class="frame" data-y0="0" data-vis="900" data-w="1400"><iframe src="643-panel-settled-variants.html?size=fill" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">底座是 1240 × 844 封顶，窗口越大越显得小；这一档四面都撑到边。代价是对话区一点都看不见了。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">5</span><span class="tt">上方留一条缝</span><span class="head">1240 × 772，顶在 112 像素处</span></div>
+      <div class="facts">上面那 112 像素能看见对话的最后几条</div>
+      <div class="frame" data-y0="0" data-vis="900" data-w="1400"><iframe src="643-panel-settled-variants.html?size=gap" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">盖住整个对话区是这一票要人拍的一条。这一档把面板往下挪，让顶上留出一条缝——截图里面板上方那几行假对话就是缝里能看见的东西。下面是假对话页，只为让「盖住多少」看得出来。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">6</span><span class="tt">默认只开每个处境的第一条路</span><span class="head">6 块摊开、其余 14 块只留标题</span></div>
+      <div class="facts">和底座的「全展开」比，一屏短了很多</div>
+      <div class="frame" data-y0="0" data-vis="900" data-w="1400"><iframe src="643-panel-settled-variants.html?open=first" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">「默认展开哪几块」是还没定的三件之一。这一档每个处境只摊开第一条路，其余收起；一眼能看到六个处境各自有什么，想细看再点开。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">7</span><span class="tt">默认全折起来</span><span class="head">20 个块头，全部只留标题</span></div>
+      <div class="facts">面板最短，但一行技能都看不见</div>
+      <div class="frame" data-y0="0" data-vis="900" data-w="1400"><iframe src="643-panel-settled-variants.html?open=none" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">同一件事的另一头：打开只有二十行标题，像一本路目录。适合「先扫一眼有哪几条路」，不适合「我要马上点一个」。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">8</span><span class="tt">处境整段折起来之后</span><span class="head">一屏只剩六个段头</span></div>
+      <div class="facts">第 2 档 + 第 7 档合起来的样子</div>
+      <div class="frame" data-y0="0" data-vis="900" data-w="1400"><iframe src="643-panel-settled-variants.html?form=segfold&open=none" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">这是「处境整段能折」真正换来的一屏：六个处境名字，别的什么都没有。想从「我这会儿是什么处境」出发找路，这一屏比二十行标题更好挑。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">9</span><span class="tt">跨会话那条路先留一句提示</span><span class="head">路名后一枚小签 + 块里一句大白话</span></div>
+      <div class="facts">「跨会话走两个来回」那条路（handoff 分出去、做完交回来）</div>
+      <div class="frame" data-y0="0" data-vis="900" data-w="1400"><iframe src="643-panel-settled-variants.html?cross=1" scrolling="no" title="原型面板"></iframe></div>
+      <div class="note">这一票要人拍的最后一条：首版要不要先留一句提示。这一档在路名后挂一枚「要换会话」的小签，并在块里写清「点它会另起一个会话，原来这场对话不会结束」——研究里说这条最容易教错人。</div>
+    </div>
+  </div>
+
+  <h2>底座那一处放大看（面板头部照真机画的那些）</h2>
+  <div class="grid3">
+    <div class="cell">
+      <div class="hd"><span class="no">头部</span><span class="tt">仓库芯片 + 归属标志 + 两颗小按钮</span></div>
+      <div class="frame" data-x0="80" data-y0="22" data-vis="108" data-w="1400" data-z="1.35"><iframe src="643-panel-settled-variants.html" scrolling="no" title="原型面板（放大）"></iframe></div>
+      <div class="note">从左到右：仓库芯片「FeatherHunter/dsh-mattpocock-skills-deck」、<b style="color:#f85149">红框那枚文件夹图标</b>（#650 定稿的子工作区标志，鼠标停上去出三行说明）、一道分隔、切换后端、标签配色，再是面板自己的名字与「20 块 · 51 行」，最右是 ✕。这一整排是照 <code>src/client/panel/Dock.js</code> 现在的排法画的，不是新设计。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">处境</span><span class="tt">处境当标题（底座那一档）</span></div>
+      <div class="frame" data-x0="80" data-y0="66" data-vis="170" data-w="1400" data-z="1.35"><iframe src="643-panel-settled-variants.html" scrolling="no" title="原型面板（放大）"></iframe></div>
+      <div class="note">处境是一行细标题「我要把一件事从想法做到能合并（3 条）」，标题下面是各自能折的路块。第 2 档给它加一枚可以点的三角，让整段一起折。</div>
+    </div>
+    <div class="cell">
+      <div class="hd"><span class="no">不做</span><span class="tt">这一版里明确没有的东西</span></div>
+      <div style="padding:14px 4px;font-size:12.5px;color:var(--muted);line-height:1.9">
+        · 没有「该点哪个」的绿色标记<br>
+        · 没有一行总览<br>
+        · 没有编号签（那条只在平铺档才可能有用）<br>
+        · 没有横向流水线、没有一格一颗技能<br>
+        · 没有小面板那一档<br>
+        · 没有「说明写在行里」
+      </div>
+      <div class="note">这些都是前面几轮点名删掉、连地址参数都不再认的。</div>
+    </div>
+  </div>
+
+  <h2>这一份里哪些是定的、哪些是我替你收拢的</h2>
+  <div class="cell side">
+    <div class="point"><b>完全按已经拍板的写死</b>（没有开关）：大区域居中、分组块、一行一个＋引导线、说明只在悬停的 100 毫秒气泡、点完关面板、不突出「该点哪个」、不要一行总览。</div>
+    <div class="point"><b>我替你收拢的两处</b>，如果不合意请直接说：① 摆法取「<b>处境当标题</b>」（处境 6 块·路成块），没有取「处境当抽屉」，理由是路仍然是能各自折叠的独立单元；② <b>编号签去掉</b>，理由是它只值一处差别、而且有处境标题时它是一份几乎看不见的重复信息。</div>
+    <div class="point"><b>从别的票已经落地的成果里拿过来的</b>：面板头部那一枚子工作区标志（#650 定稿、#653 落地，SVG 与浮层文案原样照抄）；说明气泡沿用 #379 定下的那一套做法。</div>
+    <div class="point"><b>还没定的四件</b>就在上面九档里：形态两种新做法要不要、面板做多大、默认展开几块、跨会话那条路要不要先提示。这四件定了，这一票就能收。</div>
+  </div>
+</div>
+<script>
+// 每一格开一个 1400x900 的「真窗口」，再把它整块缩进格子里。
+// 这样做是因为九档里有三档差的是「面板占多大」，只截面板本身就正好把要比的东西裁掉了。
+function fit(){
+  Array.prototype.forEach.call(document.querySelectorAll('.frame'), function(fr){
+    var ifr = fr.querySelector('iframe')
+    var w = Number(fr.dataset.w), y0 = Number(fr.dataset.y0), vis = Number(fr.dataset.vis), x0 = Number(fr.dataset.x0 || 0)
+    var z = fr.dataset.z ? Number(fr.dataset.z) : (fr.clientWidth / w)
+    ifr.style.transform = 'scale(' + z + ')'
+    ifr.style.left = (-x0 * z) + 'px'
+    ifr.style.top = (-y0 * z) + 'px'
+    fr.style.height = Math.round(vis * z) + 'px'
+  })
+}
+fit()
+window.addEventListener('resize', fit)
+window.addEventListener('load', fit)
+</script>
+</body>
+</html>

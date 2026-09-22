@@ -9,6 +9,9 @@ import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { ghClient } from './client.js'
 import { ghPreflight } from './preflight.js'
 import { listIssues, getIssue } from './issues.js'
+import { countIssues } from './counts.js'
+import { listIssuesPage } from './page.js'
+import { listSubIssues } from './sub-issues.js'
 import { createIssue, closeIssue, reopenIssue, updateIssue, setAssignees } from './issues-write.js'
 import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
@@ -66,6 +69,14 @@ export function createGithubBackend(ctx) {
     id: 'github',
     preflight: (handle, opCtx) => ghPreflight(handle, opCtx || ctx),
     list: (repo, filter, opCtx) => listIssues(repo, filter, opCtx || ctx),
+    // #689：后端计数（一次 GraphQL 的 totalCount，只数工单）。语义见 contract.js 的「计数契约」。
+    counts: (repo, filter, opCtx) => countIssues(repo, filter, opCtx || ctx),
+    // #690：按页取票（创建时间倒序 + 薄片段 + 游标 + 总数）。语义见 tracker/contract-page.js 的「分页契约」。
+    listPage: (repo, filter, opts, opCtx) => listIssuesPage(repo, filter, opts, opCtx || ctx),
+    // #691：一张地图的全部子票（翻页拉到底 + totalCount 核对 + 1000 张硬上限）。
+    //   它是读路径的实现细节、不进契约的 OPERATIONS（与 snapshotFast 同一条豁免，见 contract.js 的「非 op 旁路豁免」）；
+    //   唯一调用者是宿主电话 wf.mapTickets，没实现它的后端由那条电话按 unsupported 退化。
+    listSubIssues: (repo, mapKey, opts, opCtx) => listSubIssues(repo, mapKey, opts, opCtx || ctx),
     get: (repo, key, opts, opCtx) => getIssue(repo, key, opts, opCtx || ctx),
     getDependencies: (repo, key, opts, opCtx) => getDependencies(repo, key, opts, opCtx || ctx),
     create: (repo, input, opCtx) => createIssue(repo, input, opCtx || ctx),

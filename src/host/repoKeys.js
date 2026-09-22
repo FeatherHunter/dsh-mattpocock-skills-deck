@@ -84,7 +84,7 @@ export function createRepoKeys(deps) {
       try {
         const a = Array.isArray(args) ? args : []
         if (a.length >= 2 && a[0] === 'issue' && /^(create|edit|close|comment|reopen)$/.test(String(a[1]))) {
-          try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
+          try { let rkWrite = cwd; try { rkWrite = await canonicalKey(cwd || DEFAULT_CWD) } catch {} setCache({ ts: 0, snapshot: null, error: null, cwd: rkWrite }) } catch {} // #696 只清自己根
           if (String(a[1]) === 'create') { try { namingSweepSoon(500) } catch (eW) {} }
         }
       } catch (e) {}

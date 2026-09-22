@@ -96,7 +96,8 @@
       // #529：附带当前语言（host 明细按语言双语产出，不传则恒为中文）
       // #669 第 6 件（ADR 20260921）：只有用户亲手选过的那条才当 hint 上报 —— 派生值不许冒充意图
       const _hintBid = (typeof userHintOf === 'function') ? userHintOf(st.selection) : undefined
-      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, _hintBid ? { backendId: _hintBid } : {}, force ? { force:true } : {}, { lang: _langForChain })
+      const _hintRev = (typeof baseRevOf === 'function') ? baseRevOf(st.selection) : 0 // #683（F1 · ADR 的 R2）：hint 旁边带上「这条选择是从哪个修订号来的」，宿主才判得出新旧
+      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, _hintBid ? { backendId: _hintBid, baseRev: _hintRev } : {}, force ? { force:true } : {}, { lang: _langForChain })
       const chainT0 = Date.now()
       // 在途登记：这一次请求的序号记在这把键上（#669 第 4 件）。发出去就记，
       //   回包时凭它跟「这个键上最新那次的序号」比一次，比不过就是要丢的那一次（见下面那段竞态说明）。
