@@ -43,9 +43,8 @@
         'banner.gateBtn': '去选择',
         'banner.setupPickConfirm': '确认并继续', 'banner.setupPickCancel': '取消', 'banner.setupPickHint': '将按所选后端生成对应的 issue-tracker 模板',
         'setup.cardTitle': '初始化前最后一问：', 'setup.cardBackend': '将用 {name} 执行初始化。要换后端：右侧面板「切换后端」。',
-        'setup.layoutQuestion': '这个仓库的各部分共用一套用语，还是各有各的用语？', 'setup.layoutSingle': '根目录一份 CONTEXT.md', 'setup.layoutMulti': '子项目各一份 CONTEXT.md，根目录 CONTEXT-MAP.md',
-        'setup.layout.single': '本仓库的域文档布局已在初始化时与用户确认为 single-context（一个仓库共用一份根目录的 CONTEXT.md，架构决定放 docs/adr/）：请把 single-context 这一句结论写进 docs/agents/domain.md，并让 AGENTS.md 的 ## Agent skills 块里 Domain docs 那一行也用这同一个词（技能要求的写法是「一行布局摘要 ＋ See docs/agents/domain.md」）；本次初始化不创建 CONTEXT-MAP.md 与各子项目的 CONTEXT.md，留到第一次真正写下词条时再建',
-        'setup.layout.multi': '本仓库的域文档布局已在初始化时与用户确认为 multi-context（子项目各一份 CONTEXT.md，根目录一份 CONTEXT-MAP.md）：请把 multi-context 这一句结论写进 docs/agents/domain.md，并让 AGENTS.md 的 ## Agent skills 块里 Domain docs 那一行也用这同一个词（技能要求的写法是「一行布局摘要 ＋ See docs/agents/domain.md」）；本次初始化不创建 CONTEXT-MAP.md 与各子项目的 CONTEXT.md，留到第一次真正写下词条时再建，届时由仓库根目录的 CONTEXT-MAP.md 指向它们',
+        // #698：布局那一问的标题、两个选项、以及「已经初始化过」那一句说明，都搬去了 locale-pages.js
+        //   （本文件贴着 350 行上限，照 #621 / #690 的做法自成一片；locale 合并器会把四个片段并成同一份词表）。
         'banner.ghcli': '数据源前置条件未就绪 —— 点右侧按当前后端引导处理', // #231 中性化（键名保留为内部标识）
         'banner.ghcliBtn': 'AI 引导安装',
         'banner.ghauth': '登录态未就绪 —— 点右侧注入认证引导', // #231 中性化
@@ -213,10 +212,8 @@
         'banner.gateBtn': 'Select',
         'banner.setupPickConfirm': 'Confirm and continue', 'banner.setupPickCancel': 'Cancel', 'banner.setupPickHint': 'The issue-tracker template for the selected backend will be generated',
         'setup.cardTitle': 'One last question before setup:', 'setup.cardBackend': 'This setup will run with {name}. To change the backend: use “Switch backend” in the right panel.',
-        // #655: the second radio group on the setup card (domain-doc layout). Two key groups, see SETUP_LAYOUT_TEXT_KEYS in kernel/prompts.js.
-        'setup.layoutQuestion': 'Do the parts of this repo share one glossary, or does each keep its own?', 'setup.layoutSingle': 'One CONTEXT.md at the repo root', 'setup.layoutMulti': 'One CONTEXT.md per subproject, plus a root CONTEXT-MAP.md',
-        'setup.layout.single': 'The domain-doc layout for this repo was confirmed with the user at setup time as single-context (one CONTEXT.md at the repo root, with architecture decisions in docs/adr/): write that single-context conclusion into docs/agents/domain.md, and make the Domain docs line in the ## Agent skills block of AGENTS.md use that same word too (the skill’s required form is “a one-line layout summary + See docs/agents/domain.md”); this setup run creates neither CONTEXT-MAP.md nor per-subproject CONTEXT.md files — they wait until the first real glossary entry is written',
-        'setup.layout.multi': 'The domain-doc layout for this repo was confirmed with the user at setup time as multi-context (one CONTEXT.md per subproject, plus a CONTEXT-MAP.md at the repo root): write that multi-context conclusion into docs/agents/domain.md, and make the Domain docs line in the ## Agent skills block of AGENTS.md use that same word too (the skill’s required form is “a one-line layout summary + See docs/agents/domain.md”); this setup run creates neither CONTEXT-MAP.md nor the per-subproject CONTEXT.md files — they wait until the first real glossary entry is written, and the CONTEXT-MAP.md at the repo root will then point at them',
+        // #698: the domain-doc layout radio group (its question, both option labels, both conclusion sentences and
+        // the "already set up" note) moved to locale-pages.js — this file is at its 350-line cap.
         'banner.ghcli': 'Data-source prerequisite missing — follow the guide for this backend',
         'banner.ghcliBtn': 'AI-guided install',
         'banner.ghauth': 'Sign-in prerequisite missing — open guide to authenticate',

@@ -198,6 +198,9 @@ export const StatusBar = (props) => {
   //   与右侧面板是否存在无关，正是「全应用之上」该有的宿主。三个分支（收起态 / 无横幅 / 有横幅）都要带上它：
   //   漏掉任何一支，那一支下点按钮就又会回到「什么都没有」。
   //   先例：同目录的 StatusLogMenu.js 就是从状态栏弹一张盖住全应用的小窗；组件本身取不到会话状态时自己返回 null。
+  //   #698（2026-09-22）：那个「域文档布局」的小卡也搬进了这个座位（渲染在 slotRenderer-modal-view.js 的
+  //   SetupLayoutCard），所以本文件里原先挂在黄条下面的那份卡整份删掉 —— 一个座位上只留一处渲染，
+  //   卡因此与「当前有没有横幅」「功能区收没收起」都不再相干，而它在「已初始化 + 切后端」那条路上也画得出来。
   const modalSeat = (typeof FormModalSeat === 'function') ? h(FormModalSeat, { st: s }) : null
   if (deckFolded) {
     // 收起态：整个功能区只剩这一颗细小灰字按钮（点即恢复横幅与状态栏；设置页工作区行是另一条恢复路径）。
@@ -263,8 +266,6 @@ export const StatusBar = (props) => {
   // 以后改状态栏后端选择（setup 黄条与 gate 蓝条）的人改 StatusBackend.js，本处只留转调包装。
   // #663：横幅那条链（出哪一条、按钮点下去干什么）搬去 statusbar/bannerChain.js，
   //   所以原先「开选后端窗」与「点初始化」那两个转调包装删了 —— 两条都走 bannerChain 的统一入口。
-  const cancelSetupPick = function(){ cancelStatusSetupPick(s) }
-  const confirmSetupPick = function(){ confirmStatusSetupPick(s) }
   const closeGate = function(){ closeStatusGate(s) }
   const confirmGateStatus = function(){ confirmStatusGate(s) }
   // #655：这张卡由注入决策函数打开（黄条那颗按钮走 onStatusSetupInit，检查页红牌那颗「执行初始化」也走同一个函数）。
@@ -273,19 +274,10 @@ export const StatusBar = (props) => {
   //   门控那一步定完（#663 起门控那个窗只问后端），再问一遍不只是多余 —— 卡上那颗「确认并继续」会把工作区
   //   重新绑一遍（等于从一张「只是答个布局」的卡上换后端）。现在卡上只读地写出这次用哪个后端、去哪儿换，
   //   换后端仍走右侧面板那颗「切换后端」。
-  const setupPickCard = (s.setupLayoutCardOpen) ? (function(){
-    const curId = (s.selection && s.selection.backendId) || (s.snapshot && s.snapshot.selection && s.snapshot.selection.backendId) || firstBackendIdOf(null)
-    const curLabel = (typeof labelOf === 'function' ? labelOf(curId) : '') || (typeof builtinLabelOf === 'function' ? builtinLabelOf(curId) : '') || String(curId || '')
-    return h('div', { style:{ width:'100%', maxWidth:560, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:10, background:'var(--dsw-alias-bg-layer-2,#16181d)', padding:10, boxShadow:'0 8px 24px rgba(0,0,0,.35)' } }, [
-      h('div', { style:{ fontSize:12, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:8 } }, [Ic({n:'compass',size:12}), h('span', null, tr('setup.cardTitle'))]),
-      layoutRadios(s, h),
-      h('div', { style:{ fontSize:11, color:'#8b8b95', marginTop:8, lineHeight:1.5 } }, tr('setup.cardBackend', { name: curLabel })),
-      h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:10 } }, [
-        h('button', { className:'dsws-btn ghost', onClick: cancelSetupPick, style:{ fontSize:12 } }, tr('banner.setupPickCancel')),
-        h('button', { className:'dsws-btn', style:{ background:'#58a6ff', borderColor:'#58a6ff', color:'#0b1220', fontWeight:700 }, onClick: confirmSetupPick }, tr('banner.setupPickConfirm')),
-      ]),
-    ])
-  })() : null
+  // #698（2026-09-22）：这张卡的**界面**搬去弹窗座位那一层了（slotRenderer-modal-view.js 的 SetupLayoutCard，
+  //   渲染入口就是上面那个 modalSeat）—— 它原先只挂在本文件这条黄条下面，于是工作区一旦初始化过、
+  //   黄条不出现，卡就没有地方可画（「切换后端时改布局」这条路上工作区总是初始化过的）。
+  //   这里因此不再声明它；两个转调包装留着，卡的界面在那边直接调用它们。
   if (!bannerStep) {
     // 无 banner 时为胶囊 + 常驻收起按钮（#422：收起即整个功能区消失）
     return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [modalSeat, capsule])
@@ -314,9 +306,9 @@ export const StatusBar = (props) => {
         : h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, tr(meta.text)), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, onClick: function(){ runGuideMissing(s, bannerStep) } }, tr(meta.btn)), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ])
     }
     const node = bann(tr(meta.text, guideBannerParams(s, bannerStep)), tr(meta.btn), function () { runGuideMissing(s, bannerStep) }, true)
-    // 初始化那一步：正文下面还挂那张布局小卡（黄条那颗按钮点开它；卡的开关一直住在会话状态里）。
-    const isSetupStep = !!(bannerStep.missing && bannerStep.missing.prompt === 'setupRun')
-    return isSetupStep ? h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, width:'100%' } }, [node, setupPickCard]) : node
+    // #698：这一支原先在黄条正文下面挂那张布局小卡；卡已搬去弹窗座位（上面那个 modalSeat），
+    //   所以这里不再拼它 —— 黄条照旧出，卡在哪个分支都画得出来。
+    return node
   })()
   return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, position: 'relative' }, dswsStatusDockGeom()) }, [
 

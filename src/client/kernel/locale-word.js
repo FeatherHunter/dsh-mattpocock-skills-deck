@@ -89,6 +89,10 @@
         'switch.bindOk': '已切换到 {label}（旧数据已保留）',
         'switch.bindOkFresh': '已切换到 {label}，接下来按提示完成初始化',
         'switch.bindOkNotReady': '已切换到 {label}；这个工作区的仓库还没就绪，先按状态栏那条提示处理',
+        // #698：切换那条路现在每次都先问一次域文档布局（与黄条同一套风格），所以绑定成功之后先说这一句，
+        //   等用户答完那张卡再接着说下一步注入了什么。
+        'switch.bindOkAskLayout': '已切换到 {label}，请先回答下面那一问（域文档布局）',
+        'switch.setupCardOpen': '那张「域文档布局」的小卡还开着，先答完它再切换后端。',
         // 置灰项的两句悬停说明（不写在卡面上，见 SwitchConfirmModal 的 OPTION_LOCKED 与内置后端名单）
         'switch.optLockedTip': '这一项还没有实现：当前只保留展示、按不动，等它单独做出来再开放。',
         'switch.targetLockedTip': '这个后端能力还不全（筹备中），先别切过去。',
@@ -244,6 +248,10 @@
         'switch.bindOk': 'Switched to {label} (previous data kept)',
         'switch.bindOkFresh': 'Switched to {label} — follow the prompt to finish initializing',
         'switch.bindOkNotReady': 'Switched to {label}; this workspace has no repository yet — handle the status-bar prompt first',
+        // #698: the switch route now always asks the domain-doc layout question first (same style as the yellow banner),
+        //   so it says this once binding succeeds, then reports what was injected after the card is answered.
+        'switch.bindOkAskLayout': 'Switched to {label} — please answer the question below (domain-doc layout) first',
+        'switch.setupCardOpen': 'The "domain-doc layout" card is still open — answer it before switching backends.',
         'switch.optLockedTip': 'Not implemented yet: shown for reference only, cannot be picked. It will open once it is built.',
         'switch.targetLockedTip': 'This backend is still incomplete (in preparation) — do not switch to it yet.',
         // #529 environment-check row titles (single source for check show.i18nKey; English UI reads English via checkShowTitle)

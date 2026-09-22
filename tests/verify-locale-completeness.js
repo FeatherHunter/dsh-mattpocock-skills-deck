@@ -105,7 +105,8 @@ const BASELINE = {
   'kernel/actions.js': 1, // 2026-08-28 #317 wizard 队列与提交闭环：RPC 业务失败透传文案，按封顶章程登记（0→1）
   'kernel/slotRenderer-queue.js': 6, // #454 K1 由 slotRenderer.js 拆出：打开入口与守门分得 6 串（合计 44，较原 46 缩小，注释已剥离不计）
   'kernel/slotRenderer-repo-sync.js': 2, // #454 K1 由 slotRenderer.js 拆出：同步流程分得 2 串
-  'kernel/slotRenderer-modal-view.js': 36, // #454 K1 由 slotRenderer.js 拆出：弹窗本体分得 36 串
+  'kernel/slotRenderer-modal-view.js': 32, // #454 K1 由 slotRenderer.js 拆出：弹窗本体分得 36 串；#698 把表单字段那一串渲染搬去 kernel/modal-fields.js，随之带走 4 串（36→32）
+  'kernel/modal-fields.js': 4, // #698 由 slotRenderer-modal-view.js 拆出：表单字段那串渲染带过来的 4 个中文串（与上一行是同一批，不是新增文案）
   'panel/Dock.js': 21,
   'panel/OverlayGate.js': 1, // #646 页内浮窗退役：Overlay.js 已删，门控逻辑仍在（这个文件 1 串）
   'statusbar/StatusBar.js': 16, // B1 #460 由 StatusBar.js 拆出选后端：主文件留 16 串（合计 17，与原持平）
@@ -132,7 +133,7 @@ const seen = {}
 })(SRC_CLIENT)
 function inspect(file) {
   const rel = path.relative(SRC_CLIENT, file).replace(/\\/g, '/')
-  if (rel === 'kernel/locale.js' || rel === 'kernel/locale-panel.js' || rel === 'kernel/locale-flow.js' || rel === 'kernel/locale-word.js' || rel === 'kernel/locale-labels.js' || rel === 'kernel/locale-pages.js' || rel === 'kernel/prompts.js') return // #458 K5：三片段与合并器均为双语定义本体，不入清单（与原 locale.js 同口径）；#621 的 locale-labels.js、#690 的 locale-pages.js 同为此类
+  if (rel === 'kernel/locale.js' || rel === 'kernel/locale-panel.js' || rel === 'kernel/locale-flow.js' || rel === 'kernel/locale-word.js' || rel === 'kernel/locale-labels.js' || rel === 'kernel/locale-pages.js' || rel === 'kernel/prompts.js' || rel === 'kernel/prompts-skills.js' || rel === 'kernel/prompts-setup.js') return // #458 K5：三片段与合并器均为双语定义本体，不入清单（与原 locale.js 同口径）；#621 的 locale-labels.js、#690 的 locale-pages.js 同为此类；#698 又把 prompts-skills.js（installSkills 的中英长句）与 prompts-setup.js（决策的说明）单列成片，同样不入清单
   const buf = stripComments(fs.readFileSync(file, 'utf8'))
   let count = 0
   const strRe = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g

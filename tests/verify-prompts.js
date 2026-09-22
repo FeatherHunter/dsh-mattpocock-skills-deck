@@ -59,7 +59,7 @@ const fail = function (msg) { failed = true; problems.push(msg); return false }
 const check = function (cond, msg) { if (!cond) { failed = true; problems.push(msg) } return !!cond }
 
 // ==================== 0. 契约常量（硬编码，改动要走评审） ====================
-const EXPECT_REGISTRY_ENTRIES = 22 // 注册表条目数（2026-09-21 现状：新增「切换后端后对齐」那条 switchAlign；拆行/换引号不会让它少，因为 S1 用求值解析）
+const EXPECT_REGISTRY_ENTRIES = 23 // 注册表条目数（2026-09-22 现状：#698 新增「改了域文档布局之后对齐」那条 switchLayout；拆行/换引号不会让它少，因为 S1 用求值解析；#698 把 switchAlign / switchLayout 搬到 kernel/prompts-switch.js 并在表尾合并，条目数不变）
 // S3 各后端 prompts 块顶层键数。v2 §1.1 写的是 7/9/6，实测不成立（gitlab 只有 4 键、markdown 只有 2 键），
 // 这里按实测值硬编码并在失败信息里报出真实值，避免「按错值写断言导致永久红」。
 // #684：三个后端各加一条 healthCheck（体检科目），7/6/4。
@@ -78,7 +78,7 @@ const PROTECTED = [
   'registry#mapExecute', 'registry#complete', 'registry#fixate', 'registry#progress', 'registry#bodyFormat',
   'registry#tpl.diagnose', 'registry#tpl.fix', 'registry#tpl.discuss', 'registry#tpl.research',
   'registry#tpl.prototype', 'registry#tpl.execute', 'registry#tpl.handoff1', 'registry#tpl.handoff2',
-  'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#switchAlign', 'registry#newWayfinder',
+  'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#switchAlign', 'registry#switchLayout', 'registry#newWayfinder',
   'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect', 'registry#healthCheck',
   'backend:github#ghAuthLogin', 'backend:github#subIssue', 'backend:github#bodyFormat', 'backend:github#errorKinds',
   'backend:github#healthCheck',
@@ -1415,7 +1415,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '3e7f0a18ca1caab69dd3508bbd17dbba6200887594cbdced3239c45f87923b50',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'd67f306360da8488d537b4e7ae626d1b429662e424d7275e72d606762cb2f581',
+  'tests/verify-prompts.js': '857cacefe5491bcc493eb73da95a3bdf3517b55488a163bcf662bed31f4909d3',
 }
 // ---- LOCK-END ----
 
@@ -1452,13 +1452,16 @@ if (!IS_CHILD) {
 // —— S1 + S5 ——
 const s1Path = singleFileMode ? fileArgs[0] : path.join(ROOT, 'src/client/kernel/prompts.js')
 const s1Label = singleFileMode ? fileArgs[0] : 'src/client/kernel/prompts.js'
+// #698：prompts.js 在本票里贴着 350 行上限（表里加了 switchLayout 一条，靠把两段注释压短腾出的地方），
+//   本门禁照旧只评估这一份、不拼别的文件 —— 条目必须一条一行、文本内联，这条口径没有放松。
+const s1Fragment = ''
 let reg = null
 let s1Ids = []
 try {
   const s1Src = fs.readFileSync(s1Path, 'utf8')
-  reg = evalRegistrySource(s1Src)
+  reg = evalRegistrySource(s1Fragment + '\n' + s1Src)
   s1Ids = Object.keys(reg)
-  auditRegistryShape(s1Src, reg).forEach(function (m) { fail(m) })
+  auditRegistryShape(s1Src + '\n' + s1Fragment, reg).forEach(function (m) { fail(m) })
 } catch (e) {
   fail('FAIL S1 ' + s1Label + ' 求值失败（模板语法错误或写法被改坏）：' + e.message + '\n' +
     '     修法：模板条目必须是一行一条、单引号包裹的合法 JS；求值失败即判红，不许静默少扫')
@@ -1535,7 +1538,7 @@ if (reg) {
   try {
     const FIX_IDS = ['mapExecute', 'complete', 'fixate', 'bodyFormat', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
     // #595 核心验收：把 11 个条目按「真渲染函数 + 后端声明文本」渲染出来再断言（不再断言源码字面量）
-    evalPromptHelpers.prime(fs.readFileSync(s1Path, 'utf8'))
+    evalPromptHelpers.prime(s1Fragment + '\n' + fs.readFileSync(s1Path, 'utf8'))
     const backendDecls = {}
     BACKENDS.forEach(function (b) {
       const bsrc = fs.readFileSync(backendPath(b, backendProbe), 'utf8')

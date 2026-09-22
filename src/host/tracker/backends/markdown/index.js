@@ -5,6 +5,7 @@ import { normalizeIssue } from './normalize.js'
 import { readTextFile, exists } from './read.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue, setLabelsIssue } from './issues.js'
 import { countIssues } from './counts.js'
+import { listIssuesPage } from './page.js'
 import { getDependenciesForKey } from './graph.js'
 import { addComment } from './comments.js'
 import { listLabels, setLabelColors } from './label-colors-ops.js'
@@ -124,6 +125,9 @@ export function createMarkdownBackend(ctx){
     // #691：本地 Markdown 补上契约的 counts（数「列举会返回的那些票行」，地图容器行分开算）。
     // 语义见 tracker/contract.js 的「计数契约」；本后端数的口径见 counts.js 顶部注释。
     counts:(repo,filter,opCtx)=>countIssues(opCtx||ctx,repo,filter),
+    // #691：本地 Markdown 补上契约的 listPage（按「创建时间倒序」切一页票行 + 同口径总数）。
+    // 语义见 tracker/contract-page.js 的「分页契约」；本后端的游标是「排好序的票行列表里的下标」。
+    listPage:(repo,filter,opts,opCtx)=>listIssuesPage(opCtx||ctx,repo,filter,opts),
     get:(repo,key,opts,opCtx)=>getIssue(opCtx||ctx,repo,key,opts),
     getDependencies:(repo,key,opts,opCtx)=>getDependenciesForKey(opCtx||ctx,repo,key),
     create:(repo,input,opCtx)=>createIssue(opCtx||ctx,repo,input),

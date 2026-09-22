@@ -179,6 +179,8 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             // 2026-08-28 契约修正（用户复核）：仓库名一律由 host 后端 describe 经契约层产出，UI 零派生——
             //   markdown 本地形态（目录即仓库）同理由 describe 给出 name=目录名；前端不再有派生分支，
             //   剩余 null 只可能是异常态 → 诚实警示「未识别仓库」。
+            // 快照没回来之前两枚芯片都不画（Markdown 下目录明明存在，说“未识别仓库”/“没有后端”都是把“还没拿到”说成了结论；与全屏门控只认快照落地同口径）。
+            if (!repoRef && !s.snapshot) return null
             if (!repoRef && sel && sel.backendId) {
               // 远程型后端（github/gitlab）已选但仓库引用缺失：诚实警示，不冒充仓库名；诊断交由环境检查 gh:remote 红牌
               return h(Tip, { content: tr('panel.repoUnidentifiedTitle') }, h('span', { 'aria-label': tr('panel.repoUnidentifiedTitle'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f59e0b', background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.5)', borderRadius: 6, padding: '1px 8px', flex: 'none', whiteSpace: 'nowrap' } }, [Ic({ n: 'alert', size: 11 }), h('span', null, tr('panel.repoUnidentified'))]))

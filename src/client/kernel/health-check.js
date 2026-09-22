@@ -12,22 +12,44 @@
  *
  * 数据全部来自契约快照与后端声明，不新增宿主电话、不新增取数。
  */
+    // 票身份（与仓库既有口径一致）：effortId + NUL + key；effortId 为空时就是 key。
+    //   本文件必须自足：门禁会单独把这一个文件拼成模块跑，所以这里不走别处的 idOf。
+    const healthCheckRowIdOf = function (x) {
+      if (!x) return ''
+      const effort = (x.effortId === undefined || x.effortId === null) ? '' : String(x.effortId)
+      let k = (x.key === undefined || x.key === null) ? '' : String(x.key)
+      if (!k && x.number !== undefined && x.number !== null) k = String(x.number)
+      return effort ? effort + '\u0000' + k : k
+    }
     // 游离票的件数（#678 定版的三条结构事实：未关闭 + 不是地图 + 不在任何地图的子票里）。
-    //   「不在任何地图的子票里」用的是快照自己的分组口径 —— 宿主按 parentKey 分组时，已经挂到
-    //   某张地图下的票进了 maps[].tickets，没挂上的才留在 issues 里（破链票也算留下，节点在
-    //   src/host/tracker/snapshot.js 的 assembleSnapshot）。所以只数 issues，件数永远与列表里
-    //   「独立票」的行数一致，不会出现「数字说有 11 张、列表里只看见 9 行」。
+    //   第三条必须自己查一遍「在不在某张地图的子票里」：客户端手上这份 issues 是扁平的 ——
+    //   src/host/sessionSnapshot.js 把「地图容器 + 地图下所有子票 + 未挂图的票」拼成一个数组再交给界面，
+    //   所以挂在地图下的票也躺在 issues 里。只数 issues 会把它们当游离一起算进去（#686 真机验收时
+    //   面板显示 17、按口径应是 11，差的就是那几张已挂图的开放子票）。判定口径与件数要求一致：
+    //   以「在不在 maps[].tickets 里」为准（仓库里 isOccupied / applyStandaloneBlocks 同一口径），
+    //   父票指向已删地图的破链票不在任何地图的子票里，照样算游离。
     //   算不出来时返回 null（不是 0）—— 0 会被读成「一张都没有」，两件事必须分得开（#681 定版）。
     export const healthCheckCountOf = function (st) {
       try {
-        const issues = (st && st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : null
+        const snap = st && st.snapshot
+        const issues = (snap && Array.isArray(snap.issues)) ? snap.issues : null
         if (!issues) return null
+        const maps = Array.isArray(snap.maps) ? snap.maps : []
+        const attached = {}
+        for (let i = 0; i < maps.length; i++) {
+          const ts = (maps[i] && maps[i].tickets) || []
+          for (let j = 0; j < ts.length; j++) {
+            const id = healthCheckRowIdOf(ts[j])
+            if (id) attached[id] = true
+          }
+        }
         let n = 0
         for (let i = 0; i < issues.length; i++) {
           const x = issues[i]
           if (!x || String(x.state || '').toUpperCase() === 'CLOSED') continue
           if (x.type === 'map') continue
           if ((x.labels || []).some(function (l) { return l && l.name === 'wayfinder:map' })) continue
+          if (attached[healthCheckRowIdOf(x)]) continue
           n += 1
         }
         return n

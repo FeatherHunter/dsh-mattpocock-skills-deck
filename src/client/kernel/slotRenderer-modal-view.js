@@ -1,4 +1,7 @@
 // slotRenderer-modal-view.js — 弹窗本体 FormModalSeat（K1 由 slotRenderer.js 拆出，行为零变化；打开入口与守门见 slotRenderer-queue.js，同步流程见 slotRenderer-repo-sync.js）。
+// #698 起这个座位管两样东西：这个表单/建仓弹窗，与「域文档布局」那张小卡（卡的界面在 views/SetupCard.js）。
+//   两样同一时刻只画一张 —— 卡开着就画卡（见下面那一段）。表单字段那一串渲染搬去了 kernel/modal-fields.js
+//   （本文件当场到了 404 行，超 350 行上限）。
     const fillDefaults = function (schema, base) {
       const init = Object.assign({}, base)
       for (let i = 0; i < schema.length; i++) { const fd = schema[i]; if (fd && fd.defaultValue != null && init[fd.name] === undefined) init[fd.name] = String(fd.defaultValue) }
@@ -8,6 +11,11 @@
       const st = props && props.st ? props.st : null
       const cx = (typeof DswsCtx !== 'undefined' && DswsCtx) ? React.useContext(DswsCtx) : null
       const h = (cx && cx.h) ? cx.h : React.createElement
+      // #698：这个座位现在可能要被两样东西用 —— 建仓/表单弹窗，与「域文档布局」那张小卡。
+      //   卡开着就先画卡（它是用户刚点出来的那一步：黄条那颗按钮、或刚切完后端）。
+      //   两张同时置真的窗口本来就该被挡住（store-switch.js 的 openSwitchConfirm 挡一道、
+      //   它那条路上「只落一次」的那道守卫再挡一道），这里只是位置上的最后一道兜底。
+      if (st && st.setupLayoutCardOpen === true) { try { return SetupLayoutCard({ st: st }) } catch (eCard) { return null } }
       if (!st) return null
       const m = st.formModal
       if (!m) return null
@@ -197,50 +205,7 @@
           try { if (typeof flash === 'function') flash(st, String((e && e.message) || e).slice(0, 200), 'warn') } catch(_){}
         }
       }
-      const fields = curSchema.map(function (f, idx) {
-        const id = 'modal-form-' + String(f.name || idx) + (isWizard ? '-s' + stepIndex : '')
-        const rawLabel = (f && (f.label || f.labelKey)) || (f && f.name) || String(idx)
-        const label = typeof rawLabel === 'object' && rawLabel !== null ? (rawLabel.zh || rawLabel.en || String(rawLabel)) : String(rawLabel)
-        const placeholder = (function(){
-          const ph = (f && (f.placeholder || f.placeholderKey)) || ''
-          return typeof ph === 'object' && ph !== null ? (ph.zh || ph.en || String(ph)) : String(ph)
-        })()
-        const isSingle = f && f.type === 'single'
-        const isMulti = f && f.type === 'multi'
-        const isDirectory = f && f.type === 'directory'
-        const isFile = f && f.type === 'file'
-        const isPicker = isDirectory || isFile
-        if (isPicker) {
-          return h('div', { key: f.name || idx, style: { display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 } }, [
-            h('label', { htmlFor: id, style: { fontSize: 11, color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: 4 } }, [ h('span', null, label), f && f.required ? h('span', { style: { color: '#f87171' } }, '*') : null ]),
-            h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
-              h('input', { id: id, type: 'text', value: String(vals[f.name] || ''), placeholder: placeholder || (isDirectory ? '请选择目录或手动输入' : '请选择文件或手动输入'), disabled: !!m.pending, onChange: function (e) { const nxt = Object.assign({}, vals); nxt[f.name] = e.target.value; setVals(nxt) }, style: { flex: 1, minWidth: 0, fontSize: 12, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: 'var(--dsw-alias-bg-layer-1,#10131a)', color: 'var(--dsw-alias-label-primary,#e6edf3)' } }),
-              h('button', { type: 'button', className: 'dsws-btn', disabled: !!m.pending, onClick: onPick(f), style: { fontSize: 11, padding: '4px 10px', flex: 'none' } }, isDirectory ? '浏览目录…' : '浏览文件…')
-            ]),
-          ])
-        }
-        return h('div', { key: f.name || idx, style: { display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 } }, [
-          h('label', { htmlFor: id, style: { fontSize: 11, color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: 4 } }, [ h('span', null, label), f && f.required ? h('span', { style: { color: '#f87171' } }, '*') : null ]),
-          isSingle ? h('div', { style: { display: 'flex', gap: 8 } }, (f.options || []).map(function (opt) {
-            const active = String(vals[f.name] || '') === String(opt)
-            return h('label', { key: opt, role: 'radio', tabIndex: m.pending ? -1 : 0, 'aria-checked': active ? 'true' : 'false', 'aria-label': String(opt), onClick: function(){ if(m.pending) return; const nxt = Object.assign({}, vals); nxt[f.name] = String(opt); setVals(nxt); if(isWizard && m.valuesByStep && m.valuesByStep[stepIndex]) m.valuesByStep[stepIndex] = Object.assign({}, nxt); }, onKeyDown: function(e){ const k = e && e.key; if(k===' '||k==='Enter'||k==='Spacebar'||k==='Space'){ try{ if(e.preventDefault) e.preventDefault() }catch(_){} if(m.pending) return; const nxt = Object.assign({}, vals); nxt[f.name] = String(opt); setVals(nxt); if(isWizard && m.valuesByStep && m.valuesByStep[stepIndex]) m.valuesByStep[stepIndex] = Object.assign({}, nxt); } }, style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 8px', border: '1px solid ' + (active ? 'var(--dsw-alias-interactive-bg-primary,#c084fc)' : 'var(--dsw-alias-border-l1,#2a2d35)'), borderRadius: 10, background: active ? 'rgba(192,132,252,.08)' : 'var(--dsw-alias-bg-layer-2,#16181d)', color: active ? 'var(--dsw-alias-interactive-bg-primary,#c084fc)' : 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: m.pending ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color .12s,background .12s', opacity: m.pending ? 0.6 : 1 } }, [
-              h('span', { style: { width: 13, height: 13, borderRadius: '50%', border: '1.5px solid ' + (active ? 'var(--dsw-alias-interactive-bg-primary,#c084fc)' : 'var(--dsw-alias-border-l2,#3a3f4a)'), flex: 'none', display: 'grid', placeItems: 'center' } }, active ? h('span', { style: { width: 7, height: 7, borderRadius: '50%', background: 'var(--dsw-alias-interactive-bg-primary,#c084fc)' } }) : null),
-              h('span', null, String(opt)),
-              (f.optionSubs && f.optionSubs[opt]) ? h('span', { style: { fontSize: 11, color: (active ? 'var(--dsw-alias-interactive-bg-primary,#c084fc)' : 'var(--dsw-alias-label-caption,#8b8b95)'), fontWeight: 400, whiteSpace: 'nowrap' } }, typeof f.optionSubs[opt] === 'object' ? (f.optionSubs[opt].zh || f.optionSubs[opt].en || String(f.optionSubs[opt])) : String(f.optionSubs[opt])) : null,
-            ])
-          })) : isMulti ? h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4 } }, (f.options || []).map(function (opt) {
-            const checked = Array.isArray(vals[f.name]) ? vals[f.name].indexOf(opt) >= 0 : false
-            return h('label', { key: opt, style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, border: '1px solid #2a2d35', borderRadius: 6, padding: '2px 6px', cursor: m.pending ? 'not-allowed' : 'pointer', background: checked ? 'rgba(88,166,255,.12)' : 'transparent', opacity: m.pending ? 0.6 : 1 } }, [
-              h('input', { type: 'checkbox', checked: checked, disabled: !!m.pending, onChange: function (e) { const arr = Array.isArray(vals[f.name]) ? vals[f.name].slice() : []; if (e.target.checked) { if (arr.indexOf(opt) < 0) arr.push(opt) } else { const p = arr.indexOf(opt); if (p >= 0) arr.splice(p, 1) } const nxt = Object.assign({}, vals); nxt[f.name] = arr; setVals(nxt) } }),
-              h('span', null, opt)
-            ])
-          })) : h('input', { id: id, type: f && f.type === 'number' ? 'number' : f && f.type === 'date' ? 'date' : 'text', value: String(vals[f.name] || ''), placeholder: placeholder, disabled: !!m.pending, onChange: function (e) { const nxt = Object.assign({}, vals); nxt[f.name] = e.target.value; setVals(nxt) }, style: { fontSize: 12, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: 'var(--dsw-alias-bg-layer-1,#10131a)', color: 'var(--dsw-alias-label-primary,#e6edf3)' } }),
-          // 预览行（2026-08-28 用户定版）：字段声明 preview 模板时渲染全蓝 URL 预览（无底无框）
-          (f && typeof f.preview === 'string' && f.preview) ? h('div', { style: { fontSize: 12, fontWeight: 500, color: '#58a6ff', marginTop: 2, wordBreak: 'break-all', letterSpacing: '.01em', lineHeight: 1.5 } }, [
-            h('span', null, String(f.preview).replace(/\{owner\}/g, 'owner').replace(/\{name\}/g, String(vals[f.name] || '').trim() || '...')),
-          ]) : null,
-        ])
-      })
+      const fields = modalFormFields(curSchema, { m: m, isWizard: isWizard, stepIndex: stepIndex, vals: vals, setVals: setVals, onPick: onPick, h: h })
       // 焦点聚集：打开时自动聚焦首控件，TAB 在弹窗内循环（不外泄），ESC 关闭
       React.useEffect(function () {
         if (!m.open) return

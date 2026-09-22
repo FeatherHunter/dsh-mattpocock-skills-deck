@@ -72,8 +72,9 @@ async function main() {
   check(hc.healthCheckSubjectOf(edge) === 5, '件数取数接口与派生同口径（healthCheckSubjectOf）')
 
   // ─────────── 二、件数与列表一致 ───────────
-  // 宿主按 parentKey 分组时，挂到地图下的票进 maps[].tickets，没挂上的留在 issues 里；
-  // 列表画的「独立票」就是 issues 里不是地图的那些行 —— 两边的数必须一字不差。
+  // 宿主交给界面的 issues 是扁平的（地图容器 + 地图下所有子票 + 未挂图的票拼在一起，见
+  // src/host/sessionSnapshot.js），所以「独立票」必须靠「在不在 maps[].tickets 里」判，
+  // 不能假设 issues 里只有未挂图的票（#686 真机验收发现的那处）。
   const realish = {
     snapshot: {
       maps: [
@@ -96,6 +97,47 @@ async function main() {
   check(hc.healthCheckCountOf(realish) === standaloneRows.length,
     '件数与列表里「独立票」的行数一致（件数 ' + hc.healthCheckCountOf(realish) + ' vs 行数 ' + standaloneRows.length + '）')
   check(hc.healthCheckCountOf(realish) === 4, '地图节点与已挂图的子票都不计进件数（那两张即便出现在扁平行集里也不数）')
+
+  // #686 真机验收发现的偏差：宿主交给界面的 issues 是**扁平的** —— src/host/sessionSnapshot.js 把
+  //   「地图容器 + 地图下所有子票 + 未挂图的票」拼成一个数组再交给界面，所以挂在地图下的票也在 issues 里。
+  //   这些行只能靠「在不在 maps[].tickets 里」排除；只数 issues 会把它们当游离算进去（真机 17 vs 应得 11）。
+  const flattened = {
+    snapshot: {
+      maps: [
+        { number: 682, title: '地图', tickets: [{ key: '686', number: 686, parentKey: '682', state: 'OPEN', labels: [] }] },
+        { number: 660, title: '地图', tickets: [{ key: '669', number: 669, parentKey: '660', state: 'OPEN', labels: [] }] },
+      ],
+      issues: [
+        { key: '682', number: 682, state: 'OPEN', type: 'map', labels: [{ name: 'wayfinder:map' }] },
+        { key: '660', number: 660, state: 'OPEN', type: 'map', labels: [{ name: 'wayfinder:map' }] },
+        { key: '686', number: 686, parentKey: '682', state: 'OPEN', labels: [] },
+        { key: '669', number: 669, parentKey: '660', state: 'OPEN', labels: [] },
+        { key: '427', number: 427, parentKey: null, state: 'OPEN', labels: [] },
+        { key: '428', number: 428, parentKey: null, state: 'OPEN', labels: [] },
+        { key: '502', number: 502, parentKey: null, state: 'OPEN', labels: [{ name: 'wayfinder:grilling' }] },
+      ],
+    },
+  }
+  const nonMapOpenRows = flattened.snapshot.issues.filter((x) => String(x.state).toUpperCase() !== 'CLOSED' && !isMapRow(x)).length
+  check(nonMapOpenRows === 5, '对照量成立：扁平行集里非地图的开放行确实是 5 行（实得 ' + nonMapOpenRows + '）')
+  check(hc.healthCheckCountOf(flattened) === 3,
+    '扁平行集里已挂图的子票不算游离（应得 3，实得 ' + hc.healthCheckCountOf(flattened) + '；只数 issues 会得 5）')
+  // 破链票（父票指向已删地图）：不在任何地图的子票里，按 #678 口径仍算游离
+  check(hc.healthCheckCountOf({ snapshot: { maps: [], issues: [{ key: '900', number: 900, parentKey: 'ghost', state: 'OPEN', labels: [] }] } }) === 1,
+    '破链票（父票指向已删地图）仍算游离')
+  // effort 维度：两个工作单元里同号的两张票各算各的，不许互相抵消
+  const twoEfforts = {
+    snapshot: {
+      maps: [{ key: '01', effortId: 'a', title: '地图', tickets: [{ key: '01', effortId: 'a', state: 'OPEN', labels: [] }] }],
+      issues: [
+        { key: '01', effortId: 'a', state: 'OPEN', labels: [] },
+        { key: '01', effortId: 'b', state: 'OPEN', labels: [] },
+      ],
+    },
+  }
+  check(hc.healthCheckCountOf(twoEfforts) === 1, '同号不同工作单元不互相抵消（b 里那张算游离，实得 ' + hc.healthCheckCountOf(twoEfforts) + '）')
+  check(hc.healthCheckCountOf({ snapshot: { issues: [{ key: '1', number: 1, state: 'OPEN', labels: [] }] } }) === 1,
+    '快照里没有 maps 一项时不抛错、按「没有地图」算（1）')
 
   // ─────────── 三、显隐门 ───────────
   const backendModules = [

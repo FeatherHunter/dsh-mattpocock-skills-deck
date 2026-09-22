@@ -76,6 +76,13 @@
       const cur = st.selection ? st.selection.backendId : null
       if (cur == null) return false
       if (targetId != null && cur === targetId) return false
+      // #698 第四步（同一时刻只允许一张这样的卡在屏幕上）：那张布局小卡开着时不许再开这个窗。
+      //   两张都是「要用户回答一句话」的小窗，同时摆在屏幕上用户要先答哪一张是说不清的；
+      //   反过来也一样 —— 卡那一侧从不主动抢，因为切换这条路永远是「先开窗、关了窗才轮到卡」。
+      if (st.setupLayoutCardOpen === true) {
+        try { if (typeof flash === 'function') flash(st, tr('switch.setupCardOpen'), 'warn') } catch (eF) {}
+        return false
+      }
       st.switchConfirm = {
         open: true,
         curBackendId: cur,
@@ -185,6 +192,12 @@
         const _mine = (typeof guideStepsFor === 'function') ? guideStepsFor(targetId) : []
         const _stepsNow = function () { return (typeof chainSteps === 'function') ? chainSteps(st) : [] }
         const _hasInitStep = function (steps) { return (Array.isArray(steps) ? steps : []).some(function (x) { return x && String(x.id) === 'tracker:initialized' }) }
+        // #698：这个决定只许落一次。以前有证据就当场决定、没有就挂在「那次强制重取回来的链」上，
+        //   本意是二选一；真写出来却是「当场决定一次，稍后 take 回来时**又**决定一次」。
+        //   旧写法下第二次多半因链已刷新而被静默跳过，看上去没病；从 #698 起这一档会多弹一张卡，
+        //   重跑一次就是重弹一张、用户在屏幕上看见两张一样的问句。这里补上「只落一次」。
+        let _routed = false
+        const _hadToWait = !_hasInitStep(_stepsNow())
         const _done = function (id) {
           try {
             const step = _mine.filter(function (x) { return x && x.id === id })[0]
@@ -192,9 +205,32 @@
           } catch (eD) { return false }
         }
         const _route = function () {
+          if (_hadToWait && _routed) return
+          _routed = true
           if (_done('tracker:initialized')) {
-            // 已初始化：注入「切换后对齐」那条 —— 让 AI 把仓库里记录后端的那几处改成新后端（并回读自证）。
-            //   插件自己不写用户仓库的文件（Q4 既有决定），这件事交给 AI（它就是初始化那只手）。
+            // 已初始化（#698 起）：这条路**每次都先问一次域文档布局**（与黄条同一套风格：卡上预选着上次那一项，
+            //   不想改就点确认）。用户点确认 / 取消之后由 StatusBackend.js 的 settleSwitchCard 收尾 ——
+            //   无论确认还是取消，「把后端对齐」那条指令照旧注入（不因为多问一句就把本来该给的东西扣下）；
+            //   只有布局那一项真的被改了，才**多**注入一条「把布局那一句也对齐过去」。
+            //   `switchAlign` 那条模板本身一个字没动，改的只是「什么时候给」。
+            try {
+              const _lay = (typeof readSetupLayout === 'function') ? readSetupLayout(st) : null
+              st.switchCardFrom = sc.curBackendId
+              st.switchCardTo = targetId
+              st.switchCardLayoutFrom = _lay || (typeof SETUP_LAYOUT_DEFAULT === 'string' ? SETUP_LAYOUT_DEFAULT : 'single')
+              st.switchAlignDone = false
+            } catch (eRec) {}
+            let _kind = ''
+            // askLayout:true 是这次维护者拍板的那一条：布局答过也照旧问一遍（#674 的「答过就不问」到此为止）。
+            //   source:'switch' 让决策器把这张卡记成「由切换那条路负责收尾」，并回一个专门的返回值
+            //   'setup-card-switch'（黄条那条路回的是 'setup-card'，两边的收尾不一样）。
+            try { if (typeof injectSetupDecision === 'function') _kind = injectSetupDecision(st, targetId, { allowCard: true, askLayout: true, source: 'switch' }) } catch (eDec) {}
+            if (_kind === 'setup-card-switch') {
+              try { flash(st, tr('switch.bindOkAskLayout', { label: _label }), 'ok') } catch (eF) {}
+              return
+            }
+            // 卡没开成（例如链里连「工作区已初始化」这一步都没有，这一档走不到这里）—— 退回到原来那一条：
+            //   直接注入「把后端对齐」，与 #669 第 6 件定的行为一致。
             try {
               const _txt = (typeof promptText === 'function') ? promptText('switchAlign', { from: _fromLabel, to: _label }) : ''
               if (_txt && typeof inject === 'function') inject(st, _txt)
@@ -214,19 +250,21 @@
           //   blocked：一个字不注入、也不开卡），本文件不再自己判一遍，判据只有那一份（#668 单源口径）。
           //   提示条按它这次实际给出的东西选：blocked 说「先按状态栏那条提示处理」，其余说「按提示完成初始化」
           //   （它的 'setup-card' 就是先问域文档布局那一问，答完才注入全文）。
+          // #698：这一档也传 source:'switch' 与 askLayout:true —— 与上面「已初始化」那一档走**同一份判据**
+          //   （收在 prompts.js 的 layoutCardShouldOpen 里），两边都是「每次都问」。答完由卡交回 settleSwitchCard 收尾。
           let _kind = 'blocked'
-          try { if (typeof injectSetupDecision === 'function') _kind = injectSetupDecision(st, targetId, { allowCard: true }) } catch (eDec) {}
-          try { flash(st, tr(_kind === 'blocked' ? 'switch.bindOkNotReady' : 'switch.bindOkFresh', { label: _label }), _kind === 'blocked' ? 'warn' : 'ok') } catch (eF3) {}
+          try { if (typeof injectSetupDecision === 'function') _kind = injectSetupDecision(st, targetId, { allowCard: true, askLayout: true, source: 'switch' }) } catch (eDec) {}
+          try { flash(st, tr(_kind === 'blocked' ? 'switch.bindOkNotReady' : (_kind === 'setup' ? 'switch.bindOkFresh' : 'switch.bindOkAskLayout'), { label: _label }), _kind === 'blocked' ? 'warn' : 'ok') } catch (eF3) {}
         }
-        const _hadEvidence = _hasInitStep(_stepsNow())
         closeSwitchConfirm(st)
         let _chainP = null
         try {
           if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true)
           _chainP = (typeof loadChain === 'function') ? loadChain(st, true) : null
         } catch (eLoad) {}
-        // 有证据就当场决定；没有就等这次强制重取回来的链（上面那一取，同时也是状态栏要用的那一取）再决定
-        if (_hadEvidence) _route()
+        // 有证据就当场决定；没有就等这次强制重取回来的链（上面那一取，同时也是状态栏要用的那一取）再决定。
+        //   _hadToWait 是上面算好的那一份（与 _routed 配对，保证只落一次）。
+        if (!_hadToWait) _route()
         else if (_chainP && typeof _chainP.then === 'function') _chainP.then(_route, _route)
         else _route()
       }).catch(function (e) {

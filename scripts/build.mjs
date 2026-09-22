@@ -252,6 +252,10 @@ const KERNEL_MODULES = [
   //   它写的那条常驻日志必须落在内核文件里（渲染目录写日志是一张点名白名单），所以单独一片。
   { name: 'healthCheck', file: 'src/client/kernel/health-check.js' },
   { name: 'prompts', file: 'src/client/kernel/prompts.js' },
+  // #698：初始化那段文案「该不该注入 / 先问还是先给」的决策（layoutCardShouldOpen / injectSetupDecision）
+  { name: 'promptsSetup', file: 'src/client/kernel/prompts-setup.js' },
+  // #698：弹窗表单字段那一串渲染（slotRenderer-modal-view.js 那时到了 404 行）
+  { name: 'modalFields', file: 'src/client/kernel/modal-fields.js' },
   { name: 'config', file: 'src/client/kernel/config.js' },
   // #586 切更新包：面板要用的电话名与轮询间隔由更新包派生（改名或改间隔只改包，不在这里写死）
   { name: 'updateClient', file: 'scripts/generated/updateClient.derived.js' },
@@ -343,6 +347,7 @@ const LEAF_MODULES = [
   { id: 'IssueDetailComments', file: 'src/client/views/IssueDetailComments.js' },
   { id: 'IssueDetail', file: 'src/client/views/IssueDetail.js' },
   { id: 'noRepoCard', file: 'src/client/views/NoRepoCard.js' },
+  { id: 'setupCard', file: 'src/client/views/SetupCard.js' }, // #698 新增：盖住整个应用的「域文档布局」小卡（原先只渲染在黄条下面，工作区一初始化就没有地方可画）
   { id: 'ListTabClosed', file: 'src/client/views/ListTabClosed.js' }, // #690 新增：折叠行展开、滚到底这两个触发点，与「已加载 x / 共 N」那一行（排在 ListTab 之前，ListTab 调它们）
   { id: 'ListTabRow', file: 'src/client/views/ListTabRow.js' },
   { id: 'listTab', file: 'src/client/views/ListTab.js' },

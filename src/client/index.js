@@ -150,6 +150,8 @@ export default {
     //   审阅：docs/reviews/prompts-review-v1.5.html / .md · 契约校验：tests/verify-prompts.js
     // ============================================================
     // ==== kernel:prompts (spliced by build) ====
+    // ==== kernel:promptsSetup (spliced by build) ====
+    // ==== kernel:modalFields (spliced by build) ====
     // ==== kernel:config (spliced by build) ====
     // ==== kernel:log (spliced by build) ====
 
@@ -236,6 +238,7 @@ export default {
     // ==== leaf:tagsFit (spliced by build) ====
     // ==== leaf:pop (spliced by build) ====
     // ==== leaf:noRepoCard (spliced by build) ====
+    // ==== leaf:setupCard (spliced by build) ====
     // ==== leaf:ListTabClosed (spliced by build) ==== // ==== leaf:ListTabRow (spliced by build) ==== // ==== leaf:listTab (spliced by build) ====
 
     // ==== leaf:prTab (spliced by build) ====

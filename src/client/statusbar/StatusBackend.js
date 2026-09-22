@@ -9,8 +9,15 @@
  * #669 第 4 件起：那张小卡也只问布局 —— 卡上原来那组后端单选（连带拉清单的 ensureStatusSetupPick 与
  *   它的开启入口 openStatusSetupPick）一并退役：到这一步后端早在门控那一步定完，卡上那颗确认不再写选择、
  *   也不再打 wf.bind（换后端仍走右侧面板那颗「切换后端」）。
- * 接线：StatusBar.js 留四个转调包装（cancel/confirmSetupPick、close/confirmGateStatus）供渲染直调；
- *   本文件不引用 StatusMenus.js（同闭包拼回，调用方向见 StatusBar.js 转调四处）。
+ * #698 起：卡答完之后怎么收尾也归本文件 —— 同一个确认函数要按「这张卡是谁开的」分两条路。
+ *   黄条 / 检查页开的：照旧注入初始化全文（问一次、答一次），这就是今天的行为；
+ *   切换后端那条路开的（session 状态里 setupCardOwner === 'switch'）：先**重新判一次**这个工作区
+ *   现在初始化了没有，再决定注初始化全文还是注「把后端 / 布局对齐」那两条 —— 开卡到点确认之间，
+ *   刚注入的那条对齐指令可能已经把仓库初始化完了，照旧结论会把初始化全文注进一个已经初始化过的仓库。
+ * 接线：#698 起这张卡的界面渲染在弹窗座位那一层（slotRenderer-modal-view.js 的 SetupLayoutCard），
+ *   它直接调用本文件的 cancelStatusSetupPick / confirmStatusSetupPick；StatusBar.js 里的
+ *   close/confirmGateStatus 两个转调包装留给门控那个窗。
+ *   本文件不引用 StatusMenus.js（同闭包拼回，调用方向见 StatusBar.js 转调两处）。
  */
 // #655：域文档布局的两个取值（与 locale 里两句注入文案、卡片上两个选项一一对应）。
 //   2026-09-21 维护者拍板改成「A + 记住」：这份答案按工作区记住（写进本地缓存，见 store-prefs.js 的
@@ -57,25 +64,97 @@ export const layoutRadios = function(s, h){
 }
 export const closeStatusSetupPick = function(s){s.setupLayoutCardOpen=false;emit(s)}
 // 取消：卡上刚点的那一下一并作废（记住的那一份不动），下次再点黄条仍按「现在这个答案」预选。
-export const cancelStatusSetupPick = function(s){ try{ delete s.setupPickLayout }catch(e){} closeStatusSetupPick(s) }
+export const cancelStatusSetupPick = function(s){
+  try{ delete s.setupPickLayout }catch(e){}
+  const wasSwitch=cardOwnedBySwitch(s)
+  closeStatusSetupPick(s)
+  // #698：切换那条路上，点取消也要把「把后端对齐」那条指令照旧给出去 —— 用户取消的是「改布局」这一问，
+  //   不是「换了后端、把记录对齐过去」这件事；多问一句就把本来该给的东西扣下，是这次要结束的老毛病。
+  if(wasSwitch) settleSwitchCard(s, 'cancel')
+}
+// #698：这张卡是「切换后端」那条路弹出来的吗（黄条 / 检查页那两条路不走切换这套收尾）。
+export const cardOwnedBySwitch = function(s){ try{ return !!(s && s.setupCardOwner === 'switch') }catch(e){ return false } }
+// 把两个布局取值翻成人话（卡上那两句词条），用来写「从 X 改成 Y」那条对齐指令。
+const layoutWordOf=function(v){ try{ return tr(SETUP_LAYOUT_VALUES.indexOf(String(v||'').toLowerCase())>=0 ? ('setup.layout'+(v==='multi'?'Multi':'Single')) : 'setup.layoutSingle') }catch(e){ return '' } }
+// #698 第四步：点确认那一刻**重新判一次场景**，不用开卡那一刻的旧结论。
+//   为什么必须重判：切换这条路上，从「点确认切换」到「用户答完布局」之间，刚刚注入的那条对齐指令
+//   可能已经把仓库初始化完了（AI 正在改文件、正在建产物）—— 开卡时判的是「还没初始化」，
+//   点确认时现实已经是「已初始化」，照旧结论就会把初始化全文注进一个已经初始化过的仓库，等于让 AI 重跑一遍初始化。
+//   （#664 与 ADR 20260921 第 4 节攻击 10 要结束的正是这件事。）
+// 返回 'initialized' | 'fresh' | 'unknown'；unknown = 链快照里根本没有「工作区已初始化」这一步
+//   （还没取到链、或取链失败）—— 那时一个字都不注入，只把下一步指向状态栏（与 store-switch 同口径）。
+export const worktreeInitializedState = function(s){
+  try{
+    const steps=(typeof chainSteps==='function')?chainSteps(s):((s&&s.chainSnapshot&&Array.isArray(s.chainSnapshot.steps))?s.chainSnapshot.steps:[])
+    const has=function(id){ return (Array.isArray(steps)?steps:[]).some(function(x){ return x && String(x.id)===String(id) }) }
+    if(!has('tracker:initialized')) return 'unknown'
+    if(typeof guideStepsFor!=='function'||typeof guideStepDone!=='function') return 'unknown'
+    const bid=(s&&s.selection&&s.selection.backendId!=null)?s.selection.backendId:firstBackendIdOf(null)
+    const mine=guideStepsFor(bid)||[]
+    const step=mine.filter(function(x){ return x && x.id==='tracker:initialized' })[0]
+    if(!step) return 'unknown'
+    return guideStepDone(step,steps)?'initialized':'fresh'
+  }catch(e){ return 'unknown' }
+}
+// #698：切换那条路上，卡答完之后该往会话里给什么。phase='confirm'（点了确认）/ 'cancel'（点了取消）。
+//   点确认：已初始化 → 把后端对齐（若这次还没给过）+ 布局真的改了才多给一条布局对齐；
+//          还没初始化 → 注入初始化全文（与黄条那条路同一份文本）；链里没这一步 → 什么都不注入，只提示看状态栏。
+//   点取消：已初始化 → 后端对齐照旧给（不给布局对齐）；还没初始化 → 一个字都不注入（与今天一致）。
+export const settleSwitchCard = function(s, phase){
+  const label=function(id){ try{ return (typeof labelOf==='function'?labelOf(id):String(id)) }catch(e){ return String(id||'') } }
+  const fromLabel=label(s&&s.switchCardFrom), toLabel=label(s&&s.switchCardTo)
+  const target=(s&&s.switchCardTo!=null)?s.switchCardTo:((s&&s.selection&&s.selection.backendId!=null)?s.selection.backendId:firstBackendIdOf(null))
+  const state=worktreeInitializedState(s)
+  if(state==='fresh'){
+    if(phase!=='confirm'){ return 'none' }
+    // 还没初始化：走与黄条那颗按钮**同一个**决策器（仓库那一步过没过这条判据住在它里面；
+    //   没过它返回 blocked，那时一个字都不注入）。
+    let kind=''
+    try{ kind=injectSetupDecision(s,target,{allowCard:false}) }catch(e){ kind='' }
+    return kind==='setup'?'setup':'blocked'
+  }
+  if(state==='unknown'){
+    try{ flash(s,tr('switch.bindOkNotReady',{label:toLabel}),'warn') }catch(e){}
+    return 'blocked'
+  }
+  // 已初始化：先给「把后端对齐」那条（确认与取消都一样 —— 这件事与布局那一问无关）。
+  if(s&&s.switchAlignDone!==true){
+    try{ const t=(typeof promptText==='function')?promptText('switchAlign',{from:fromLabel,to:toLabel}):''; if(t&&typeof inject==='function') inject(s,t) }catch(eInj){}
+    try{ if(s) s.switchAlignDone=true }catch(eF){}
+    try{ if(isEnabled('debug')) log('debug','inject.decision',{prompt:'switchAlign',kind:'align',layout:'unset'}) }catch(eL){}
+  }
+  // 布局真的被改了，才**多**给一条「把布局那一句也对齐过去」（没改就只留上面那一条，别多问一句就多发一段）。
+  let changedLayout=false
+  try{ changedLayout=!!(s&&s.switchCardLayoutFrom&&s.setupLayout&&s.switchCardLayoutFrom!==s.setupLayout) }catch(eC){}
+  if(changedLayout){
+    try{ const t=(typeof promptText==='function')?promptText('switchLayout',{from:layoutWordOf(s.switchCardLayoutFrom),to:layoutWordOf(s.setupLayout)}):''; if(t&&typeof inject==='function') inject(s,t) }catch(eInj2){}
+    try{ if(isEnabled('debug')) log('debug','inject.decision',{prompt:'switchLayout',kind:'align-layout',layout:String((s&&s.setupLayout)||'')}) }catch(eL2){}
+    return 'align-layout'
+  }
+  return 'align'
+}
 export const confirmStatusSetupPick = function(s){
   // #669 第 4 件：这张卡只有「域文档布局」这一问 —— 后端到这一步已经定完了（门控那一步定的）。
   //   所以这里不再写 selection、不再打 wf.bind：换后端是门控那个窗与右侧面板「切换后端」的事，
   //   不该从一张只问布局的卡上顺手做掉。注入用的后端取会话当下那一个。
+  const ownerSwitch=cardOwnedBySwitch(s)
   applyStatusSetupLayout(s, layoutSelectionOf(s))
   // #683（F1 · ADR 的 R6）：卡上确认写的是「卡上当时显示的那一个」—— 同时写 H（宿主侧，跨重启跨地址不失忆）与 C（本地，applyStatusSetupLayout 刚写过）。宿主写不进去也不挡注入（下次打开卡片重选一次即可；宿主侧那次失败宿主自己记了 warn）。
   try{ if(typeof host!=='undefined'&&host.call) host.call('wf.setupLayout',{cwd:s.cwd||'',layout:layoutSelectionOf(s)}).catch(function(){}) }catch(eSL){}
   try{ delete s.setupPickLayout }catch(e0){} // 卡上那一下已经落定（会话 + 按工作区记住），这份草稿清掉，免得下次打开时它还压着
   const id = (s.selection && s.selection.backendId != null) ? s.selection.backendId : firstBackendIdOf(null)
   closeStatusSetupPick(s)
-  // #664：这张小卡的确认就是「布局答完了」那一步，接着把初始化全文注进去（注入决策现在先判仓库那一步过没过：
-  //   没过就一个字都不注入，也不会走到这里 —— 那种情形下卡根本不会开）。
+  // #698：切换那条路自己收尾（它会先重判「这个工作区现在初始化了没有」，再决定注全文还是注对齐）；
+  //   黄条 / 检查页那两条路照旧 —— 这张小卡的确认就是「布局答完了」那一步，接着把初始化全文注进去
+  //   （注入决策现在先判仓库那一步过没过：没过就一个字都不注入，也不会走到这里 —— 那种情形下卡根本不会开）。
+  if(ownerSwitch){ settleSwitchCard(s,'confirm'); return }
   try{ injectSetupDecision(s,id,{allowCard:true}) }catch(e){}
 }
 // #655：黄条那颗「初始化」按钮也走同一个注入决策函数 —— 它自己判「弹卡还是注入」，这里不判
-//   （否则就是规格里说的「绕过小卡直接注入」）。allowCard:true 是因为这张卡就渲染在黄条下面，弹得出来。
+//   （否则就是规格里说的「绕过小卡直接注入」）。allowCard:true 是因为这张卡弹得出来（#698 起它有自己的位置）。
 //   2026-09-21 维护者拍板（A）：这一颗**每次都先弹卡**（askLayout:true）—— 布局答过也照旧问一遍，
-//   卡上预选着上次那一项，看得见、随时能改；答完点确认才注入。检查页那颗按钮与切换后端那条路不传它。
+//   卡上预选着上次那一项，看得见、随时能改；答完点确认才注入。检查页那颗按钮不传它。
+//   2026-09-22 维护者拍板：#698 起「切换后端」那条路也传它（同样是每次都问），两条路共用同一份判据。
 // #663 起把那个决定的结果原样回给调用处（'setup' 注入了全文 / 'setup-card' 只开了小卡 / 其余没注成）：
 //   状态栏横幅那颗按钮要用它落一行「这次给出去的是哪一类」的常驻日志，不然日志里又是一笔空。
 export const onStatusSetupInit = function(s){

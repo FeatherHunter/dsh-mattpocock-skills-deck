@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#697 决策简报：体检门禁常驻计数过期</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; background: #f1f5f9; color: #1e293b; line-height: 1.7; padding: 32px 16px; }
+  .page { max-width: 860px; margin: 0 auto; }
+  header { background: linear-gradient(135deg, #0f766e, #0d9488); color: #fff; border-radius: 14px; padding: 28px 30px; margin-bottom: 20px; }
+  header .no { font-size: 13px; opacity: .8; letter-spacing: 1px; }
+  header h1 { font-size: 22px; margin: 4px 0 10px; }
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge { font-size: 12px; padding: 3px 12px; border-radius: 999px; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35); }
+  .badge.warn { background: #fef3c7; color: #92400e; border-color: #fcd34d; font-weight: 700; }
+  .card { background: #fff; border-radius: 12px; padding: 22px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); border-left: 5px solid #0d9488; }
+  .card h2 { font-size: 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .dot { width: 10px; height: 10px; border-radius: 50%; background: #0d9488; flex-shrink: 0; }
+  .card.decision { border-left-color: #d97706; }
+  .card.decision h2 .dot { background: #d97706; }
+  .timeline { list-style: none; }
+  .timeline li { padding: 8px 0 8px 22px; position: relative; border-left: 2px solid #cbd5e1; margin-left: 6px; font-size: 14px; }
+  .timeline li:last-child { border-left-color: transparent; }
+  .timeline li::before { content: ""; position: absolute; left: -6px; top: 14px; width: 10px; height: 10px; border-radius: 50%; background: #0d9488; }
+  .timeline li.now::before { background: #d97706; box-shadow: 0 0 0 4px #fef3c7; }
+  .key { background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 12px 14px; font-size: 14px; margin-top: 10px; }
+  .key strong { color: #065f46; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f8fafc; color: #475569; font-weight: 600; }
+  .pass { color: #059669; font-weight: 700; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+  @media (max-width: 640px) { .cols { grid-template-columns: 1fr; } }
+  .pro, .con { border-radius: 8px; padding: 12px 14px; font-size: 14px; }
+  .pro { background: #ecfdf5; border: 1px solid #6ee7b7; }
+  .con { background: #fef2f2; border: 1px solid #fca5a5; }
+  .pro h3, .con h3 { font-size: 14px; margin-bottom: 6px; }
+  .pro h3 { color: #065f46; } .con h3 { color: #991b1b; }
+  .pro ul, .con ul { padding-left: 18px; }
+  .rec { background: #fffbeb; border: 2px solid #f59e0b; border-radius: 8px; padding: 12px 14px; font-size: 15px; margin-top: 10px; }
+  code.cmd { display: block; background: #1e293b; color: #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 13px; margin-top: 10px; overflow-x: auto; white-space: nowrap; }
+  footer { text-align: center; color: #94a3b8; font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="no">FEATHERHUNTER / DSH-MATTPOCOCK-SKILLS-DECK · ISSUE #697</div>
+    <h1>体检门禁常驻计数过期：按字面改已经错了</h1>
+    <div class="badges">
+      <span class="badge">bug · ready-for-agent · wayfinder:task</span>
+      <span class="badge warn">进度 95% · 待你确认</span>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2><span class="dot"></span>前因后果</h2>
+    <ul class="timeline">
+      <li><strong>票面诉求：</strong>#683 新增 2 条常驻事件后，体检自测门禁里写死的 <code>32</code> 过期，要求改成 <code>34</code>，只改测试、不碰产品代码。</li>
+      <li><strong>建票后发生的事：</strong>提交 <code>4f8f162</code> 用了更彻底的修法——体检门禁<strong>不再写死总数</strong>，只认“事件登没登记”，总数判责完全交给计数门禁。</li>
+      <li><strong>数字又往前走了：</strong>计数清单随后随 #690 涨到<strong>常驻 35 / 按需 31 / 自监控 5 / 总数 71</strong>。</li>
+      <li class="now"><strong>现在：</strong>若还按票面把 32 改成 34，写完立刻又是红的（当前是 35）。正确动作是<strong>不改代码</strong>，确认新写法承接了票面意图。</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2><span class="dot"></span>验证结果（均未改代码）</h2>
+    <table>
+      <tr><th>门禁</th><th>结果</th></tr>
+      <tr><td>体检按钮自测门禁</td><td class="pass">63 项全绿 ✓</td></tr>
+      <tr><td>日志计数门禁（总数 71）</td><td class="pass">83 项全绿 ✓</td></tr>
+      <tr><td>字段白名单 / 外层判断 / 覆盖门禁</td><td class="pass">148 / 22 / 105 项全绿 ✓</td></tr>
+      <tr><td>写死断言残留检查</td><td class="pass">已无 32/34 硬编码 ✓</td></tr>
+    </table>
+    <div class="key"><strong>一句话结论：</strong>票里说的那个 FAIL 在本地已不存在，两种门禁互相一致，回归面干净。</div>
+  </section>
+
+  <section class="card decision">
+    <h2><span class="dot"></span>待决策：接受“去写死”写法替代原“32→34”方案吗？</h2>
+    <div class="rec">✅ <strong>推荐答案：接受。</strong>理由见下面利弊对比。</div>
+    <div class="cols">
+      <div class="pro">
+        <h3>接受的好处</h3>
+        <ul>
+          <li>以后加事件不再打爆体检门禁，断了这类过期数字的根</li>
+          <li>总数判责只有计数门禁一处，权责清晰</li>
+          <li>零代码改动，零回归风险</li>
+        </ul>
+      </div>
+      <div class="con">
+        <h3>风险与代价</h3>
+        <ul>
+          <li>体检门禁不再独立校验总数，完全信任计数门禁（但计数门禁本身全绿且有附录对照）</li>
+          <li>与票面字面方案不一致，需在票里留一笔实施记录（已备好）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="dot"></span>下一步（各就各位）</h2>
+    <div style="font-size:14px">你确认后，我做两件事：① 网络恢复后写回票面进度（95%→100% + close）；② 票面写回此前失败过，载荷文件已备好，重试只需一条命令：</div>
+    <code class="cmd">node scripts/fix-issue-body.mjs --issue 697 --body-file .tmp-697-body-95.md</code>
+    <div style="font-size:13px;color:#64748b;margin-top:8px">当前阻塞：api.github.com 间歇连不上（GraphQL/REST 均 EOF，已重试约 6 次）。工作区另有 #690 在途半成品改动，与本票无关，未动。</div>
+  </section>
+
+  <footer>生成于 2026-09-22 · 只收录结论与决策信息，详细验证日志见终端输出</footer>
+</div>
+</body>
+</html>

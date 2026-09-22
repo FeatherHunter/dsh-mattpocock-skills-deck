@@ -21,6 +21,7 @@ import * as path from 'node:path'
 import * as os from 'node:os'
 import { countIssues } from '../src/host/tracker/backends/markdown/counts.js'
 import { listIssues } from '../src/host/tracker/backends/markdown/issues-read.js'
+import { listIssuesPage } from '../src/host/tracker/backends/markdown/page.js'
 
 let failed = false
 const check = (ok, msg) => {
@@ -159,10 +160,64 @@ console.log('\n== 四、一个票都没有的空工作区 → {open:0, closed:0,
     '还没有 .scratch 的工作区 → ' + countsText(r2))
 }
 
+console.log('\n== 五、按页取票（listPage）：创建时间倒序、游标不重不漏、薄片段 ==')
+{
+  const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-f-'))
+  // 三张票，创建时间（票文件修改时间）依次递增：01 最旧、03 最新 —— 倒序就该是 03、02、01
+  writeEffort(ws, 'page', [['01-old.md', 'resolved', ''], ['02-mid.md', 'resolved', ''], ['03-new.md', 'ready-for-agent', '']])
+  const dir = path.join(ws, '.scratch', 'page', 'issues')
+  const t0 = Date.parse('2026-01-01T00:00:00.000Z')
+  const stamp = (f, mins) => fs.utimesSync(path.join(dir, f), new Date(t0 + mins * 60000), new Date(t0 + mins * 60000))
+  stamp('01-old.md', 0); stamp('02-mid.md', 10); stamp('03-new.md', 20)
+  const ctx = makeCtx(ws)
+  const pageRepo = { ...REPO, refId: '.scratch/page' }
+
+  const p1 = await listIssuesPage(ctx, pageRepo, {}, { limit: 2 })
+  check(p1.ok && p1.data.items.length === 2 && p1.data.total === 3 && p1.data.nextCursor === '2',
+    '第一页：按创建时间倒序切两行、总数 3、下一页游标 2 → ' + JSON.stringify(p1.ok ? { keys: p1.data.items.map((x) => x.key), total: p1.data.total, next: p1.data.nextCursor } : p1.error))
+  check(p1.ok && p1.data.items.map((x) => x.key).join(',') === '03,02',
+    '顺序是按创建时间倒序（最新的 03 在最前）→ 实得 ' + (p1.ok ? p1.data.items.map((x) => x.key).join(',') : '(失败)'))
+  check(p1.ok && p1.data.items.every((x) => x.body === undefined && x.comments === undefined),
+    '行数据是薄片段：不带正文、不带评论 → 实得 ' + (p1.ok ? JSON.stringify(Object.keys(p1.data.items[0])) : '(失败)'))
+
+  const p2 = await listIssuesPage(ctx, pageRepo, {}, { cursor: p1.data.nextCursor, limit: 2 })
+  check(p2.ok && p2.data.items.map((x) => x.key).join(',') === '01' && p2.data.nextCursor === null,
+    '第二页接上第一页的游标：只剩 01、且没有下一页（nextCursor 为 null）→ ' + (p2.ok ? JSON.stringify({ keys: p2.data.items.map((x) => x.key), next: p2.data.nextCursor }) : JSON.stringify(p2.error)))
+  const all = p1.data.items.concat(p2.data.items).map((x) => x.key)
+  check(all.length === 3 && new Set(all).size === 3, '翻到底拼起来不重不漏（三张票各出现一次）→ ' + all.join(','))
+
+  const closed = await listIssuesPage(ctx, pageRepo, { state: 'closed' }, { limit: 50 })
+  check(closed.ok && closed.data.total === 2 && closed.data.items.every((x) => String(x.state).toUpperCase() === 'CLOSED'),
+    'filter.state=closed 收窄：只回已关闭的两张，总数与它同口径 → ' + (closed.ok ? JSON.stringify({ n: closed.data.items.length, total: closed.data.total }) : JSON.stringify(closed.error)))
+
+  const badCursor = await listIssuesPage(ctx, pageRepo, {}, { cursor: '9' })
+  check(badCursor.ok === false && badCursor.error.kind === 'not-found' && badCursor.error.message.includes('游标已失效'),
+    '游标越过现在这份数据 → 明说「游标已失效，请重新加载」（界面据此重取第一页）→ ' + JSON.stringify(badCursor.error))
+  const junkCursor = await listIssuesPage(ctx, pageRepo, {}, { cursor: 'abc' })
+  check(junkCursor.ok === false && junkCursor.error.kind === 'parse',
+    '游标不是数字 → 解析档失败（不假装历史翻到了头）→ ' + JSON.stringify(junkCursor.error))
+
+  const readHurt = await listIssuesPage(makeCtx(ws, ['02-mid.md']), pageRepo, {}, { limit: 50 })
+  check(readHurt.ok === false && String(readHurt.error.message).includes('02'),
+    '有票文件读不动 → 整页整体失败（不许在历史里悄悄少几行）→ ' + JSON.stringify(readHurt.error))
+}
+
+console.log('\n== 六、limit 上限 200：要多了按上限给，不是报错 ==')
+{
+  const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-g-'))
+  const many = []
+  for (let i = 1; i <= 205; i++) many.push([String(i).padStart(2, '0') + '-t.md', 'resolved', ''])
+  writeEffort(ws, 'big', many)
+  const ctx = makeCtx(ws)
+  const r = await listIssuesPage(ctx, { ...REPO, refId: '.scratch/big' }, {}, { limit: 999 })
+  check(r.ok && r.data.items.length === 200 && r.data.total === 205 && r.data.nextCursor === '200',
+    '要 999 行 → 按上限给 200 行，总数仍是 205，游标指向 200 → ' + (r.ok ? JSON.stringify({ n: r.data.items.length, total: r.data.total, next: r.data.nextCursor }) : JSON.stringify(r.error)))
+}
+
 fs.rmSync(tmpRoot, { recursive: true, force: true })
 console.log('  临时工作区已清理')
 if (failed) {
-  console.log('\n存在失败 — verify-691-markdown-counts 未通过')
+  console.log('\n存在失败 — verify-691-markdown-counts-page 未通过')
   process.exit(1)
 }
-console.log('\n全部通过 — 本地 Markdown 计数符合 #688 / #691 定的口径')
+console.log('\n全部通过 — 本地 Markdown 的计数与按页取票都符合 #688 / #691 定的口径')

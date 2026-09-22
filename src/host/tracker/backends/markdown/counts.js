@@ -29,14 +29,15 @@ import { ERROR_KIND, ISSUE_TYPE, STATE } from '../../../../shared/tracker/consta
 import { classifyError } from '../../preflight.js'
 import { enumerateIssueRows } from './issues-read.js'
 
-/** filter.state 归一：只有 'open' 与 'closed' 两种收窄，其余（含没给）都是「两种状态一起数」。 */
-function narrowStateOf(filter) {
+/** filter.state 归一：只有 'open' 与 'closed' 两种收窄，其余（含没给）都是「两种状态一起数」。
+ *  导出给 page.js 共用：分页与计数说的必须是同一批票，判定只留这一份。 */
+export function narrowStateOf(filter) {
   const s = filter && typeof filter === 'object' ? String(filter.state || '').toLowerCase() : ''
   return (s === STATE.OPEN || s === STATE.CLOSED) ? s : ''
 }
 
-/** filter.labels 归一：去掉空白项与重复项，保持原顺序（与 GitHub 那条同一口径：这些标签都要有）。 */
-function labelsOf(filter) {
+/** filter.labels 归一（导出给 page.js 共用）：去掉空白项与重复项，保持原顺序（与 GitHub 那条同一口径）。 */
+export function labelsOf(filter) {
   const raw = filter && typeof filter === 'object' ? filter.labels : null
   if (!Array.isArray(raw)) return []
   const out = []
@@ -50,8 +51,8 @@ function labelsOf(filter) {
   return out
 }
 
-/** 一张票是不是同时带上了要求的全部标签（本地票面只写标签名，按名字精确比对）。 */
-function hasAllLabels(row, wanted) {
+/** 一张票是不是同时带上了要求的全部标签（导出给 page.js 共用；本地票面只写标签名，按名字精确比对）。 */
+export function hasAllLabels(row, wanted) {
   if (!wanted.length) return true
   const names = []
   const list = row && Array.isArray(row.labels) ? row.labels : []
@@ -60,8 +61,8 @@ function hasAllLabels(row, wanted) {
   return true
 }
 
-/** 把「读不动的票文件」清单拼成一句人看得懂的话：说清是哪几个编号、哪个文件、哪一档错。 */
-function readFailureMessage(errors) {
+/** 把「读不动的票文件」清单拼成一句人看得懂的话（导出给 page.js 共用）：说清是哪几个编号、哪个文件、哪一档错。 */
+export function readFailureMessage(errors) {
   const parts = errors.map(function (e) { return String(e.key) + '（' + String(e.path) + '）' })
   const first = errors[0] || {}
   return '本地 Markdown 有票文件读不动，数字不完整，拒绝回一个偏小的数：' + parts.join('、') +

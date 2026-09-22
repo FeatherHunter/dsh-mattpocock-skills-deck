@@ -1,17 +1,20 @@
 /**
- * src/client/kernel/locale-pages.js — 内核模块（#690 历史票按需翻页的中英词条）
+ * src/client/kernel/locale-pages.js — 内核模块（#690 历史票按需翻页的中英词条；#698 又收了布局那一问的几条）
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
  * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  *
- * 为什么单独一份：locale-flow.js 已经贴着「单文件不超 350 行」这条门禁（#621 给标签配色
- * 加词条时就是这么做的，见 locale-labels.js），这一票的五条文案放不下，于是照同一做法自成一片。
+ * 为什么单独一份：locale-flow.js 与 locale-panel.js 都已经贴着「单文件不超 350 行」这条门禁
+ * （#621 给标签配色加词条时就是这么做的，见 locale-labels.js），放不下更多文案，于是照同一做法自成一片。
  * 片段真源：locale-panel.js / locale-flow.js / locale-word.js / locale-labels.js / 本文件，
  * 由 locale.js 的合并器一起并进 L。
  *
- * 这五条说的是同一件事的不同情形（规格第 7.4、9、10 节）：翻页翻到多少了、后端不支持时去哪看、
- * 翻页位置失效了怎么办、没取到怎么办、内存里腾了旧页怎么办。中英各一份，键名与占位符两边一致。
+ * #690 那五条说的是同一件事的不同情形（规格第 7.4、9、10 节）：翻页翻到多少了、后端不支持时去哪看、
+ * 翻页位置失效了怎么办、没取到怎么办、内存里腾了旧页怎么办。
+ * #698 那四条说的是「域文档布局」那一问的卡面：问的是什么、两个选项各叫什么（这一对既当选项标签、
+ *   也当「从 X 改成 Y」那条对齐指令里的两个词）、以及切换后端那条路上工作区已经初始化过时多说的那一句。
+ * 中英各一份，键名与占位符两边一致。
  */
     export const L_PAGES = {
       zh: {
@@ -20,6 +23,13 @@
         'list.pageStale': '翻页位置已失效，已从最近的一页重新开始',
         'list.pageFail': '历史票没取到，稍后再试',
         'list.pageTrimmed': '更早的页已从内存腾出，再往上滚会重新加载',
+        // #698（域文档布局那一问的卡面）
+        'setup.layoutQuestion': '这个仓库的各部分共用一套用语，还是各有各的用语？',
+        'setup.layoutSingle': '根目录一份 CONTEXT.md',
+        'setup.layoutMulti': '子项目各一份 CONTEXT.md，根目录 CONTEXT-MAP.md',
+        'setup.layout.single': '本仓库的域文档布局已在初始化时与用户确认为 single-context（一个仓库共用一份根目录的 CONTEXT.md，架构决定放 docs/adr/）：请把 single-context 这一句结论写进 docs/agents/domain.md，并让 AGENTS.md 的 ## Agent skills 块里 Domain docs 那一行也用这同一个词（技能要求的写法是「一行布局摘要 ＋ See docs/agents/domain.md」）；本次初始化不创建 CONTEXT-MAP.md 与各子项目的 CONTEXT.md，留到第一次真正写下词条时再建',
+        'setup.layout.multi': '本仓库的域文档布局已在初始化时与用户确认为 multi-context（子项目各一份 CONTEXT.md，根目录一份 CONTEXT-MAP.md）：请把 multi-context 这一句结论写进 docs/agents/domain.md，并让 AGENTS.md 的 ## Agent skills 块里 Domain docs 那一行也用这同一个词（技能要求的写法是「一行布局摘要 ＋ See docs/agents/domain.md」）；本次初始化不创建 CONTEXT-MAP.md 与各子项目的 CONTEXT.md，留到第一次真正写下词条时再建，届时由仓库根目录的 CONTEXT-MAP.md 指向它们',
+        'setup.layoutSwitchNote': '这个工作区已经初始化过。这里改的是记在仓库里的域文档布局结论；点确认之后，除「把记录后端的那几处对齐到新后端」之外，还会请 AI 把 docs/agents/domain.md 与 AGENTS.md 里记布局的那两行也改成新结论（不会重跑初始化、也不会重建已有产物）。',
       },
       en: {
         'list.pageLoaded': '{x} loaded / {n} total',
@@ -27,5 +37,13 @@
         'list.pageStale': 'The page position expired; restarted from the most recent page',
         'list.pageFail': 'Could not load more history; try again shortly',
         'list.pageTrimmed': 'Older pages were dropped from memory; scrolling back up reloads them',
+        // #698 (the domain-doc layout question)
+        'setup.layoutQuestion': 'Do the parts of this repo share one glossary, or does each keep its own?',
+        'setup.layoutSingle': 'One CONTEXT.md at the repo root',
+        'setup.layoutMulti': 'One CONTEXT.md per subproject, plus a root CONTEXT-MAP.md',
+        'setup.layout.single': 'The domain-doc layout for this repo was confirmed with the user at setup time as single-context (one CONTEXT.md at the repo root, with architecture decisions in docs/adr/): write that single-context conclusion into docs/agents/domain.md, and make the Domain docs line in the ## Agent skills block of AGENTS.md use that same word too (the skill’s required form is “a one-line layout summary + See docs/agents/domain.md”); this setup run creates neither CONTEXT-MAP.md nor per-subproject CONTEXT.md files — they wait until the first real glossary entry is written',
+        'setup.layout.multi': 'The domain-doc layout for this repo was confirmed with the user at setup time as multi-context (one CONTEXT.md per subproject, plus a CONTEXT-MAP.md at the repo root): write that multi-context conclusion into docs/agents/domain.md, and make the Domain docs line in the ## Agent skills block of AGENTS.md use that same word too (the skill’s required form is “a one-line layout summary + See docs/agents/domain.md”); this setup run creates neither CONTEXT-MAP.md nor the per-subproject CONTEXT.md files — they wait until the first real glossary entry is written, and the CONTEXT-MAP.md at the repo root will then point at them',
+        'setup.layoutSwitchNote': 'This workspace is already set up. What you change here is the domain-doc layout conclusion recorded in the repo; after you confirm, the plugin will additionally ask the AI to rewrite the two lines that record the layout in docs/agents/domain.md and AGENTS.md (it will not re-run setup and will not rebuild existing artifacts).',
       },
     }
+

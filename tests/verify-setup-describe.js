@@ -80,13 +80,15 @@ const fill = (frame, prm) => String(frame).replace(/\{(\w+)\}/g, function (mm, n
 async function main() {
   const root = process.cwd()
   console.log('== #230 · setup 提示词后端描述数据化（键入 locale）==')
-  const localeSrc = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale.js'].map((f) => fs.readFileSync(path.join(root, f), 'utf8')).join('\n') // #458 K5：locale.js 已拆为三片段加合并器，src 侧读四文件拼合（panel 含 setup 全家，合并器无键仅合并逻辑）
+  const localeSrc = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale-pages.js', 'src/client/kernel/locale.js'].map((f) => fs.readFileSync(path.join(root, f), 'utf8')).join('\n') // #458 K5：locale.js 已拆为三片段加合并器，src 侧读五文件拼合（panel 含 setup 全家，合并器无键仅合并逻辑）；#698 起布局那一问的四条键在 locale-pages.js（panel 贴着 350 行上限）
 
   const P = await import(pathToFileURL(path.join(root, 'src/client/kernel/prompts.js')).href)
   const LOCALE_PANEL = await import(pathToFileURL(path.join(root, 'src/client/kernel/locale-panel.js')).href) // #458 K5：合并器在构建闭包内才可见三片段，单文件 import 拿不到 L，故此处直引三片段按合并器同逻辑拼出 L
   const LOCALE_FLOW = await import(pathToFileURL(path.join(root, 'src/client/kernel/locale-flow.js')).href)
   const LOCALE_WORD = await import(pathToFileURL(path.join(root, 'src/client/kernel/locale-word.js')).href)
-  const L = { zh: Object.assign({}, LOCALE_PANEL.L_PANEL.zh, LOCALE_FLOW.L_FLOW.zh, LOCALE_WORD.L_WORD.zh), en: Object.assign({}, LOCALE_PANEL.L_PANEL.en, LOCALE_FLOW.L_FLOW.en, LOCALE_WORD.L_WORD.en) }
+  // #698：布局那一问的四条键（问题、两个选项、两条结论句、以及切换那条路上的说明）搬去了 locale-pages.js
+  const LOCALE_PAGES = await import(pathToFileURL(path.join(root, 'src/client/kernel/locale-pages.js')).href)
+  const L = { zh: Object.assign({}, LOCALE_PANEL.L_PANEL.zh, LOCALE_FLOW.L_FLOW.zh, LOCALE_WORD.L_WORD.zh, LOCALE_PAGES.L_PAGES.zh), en: Object.assign({}, LOCALE_PANEL.L_PANEL.en, LOCALE_FLOW.L_FLOW.en, LOCALE_WORD.L_WORD.en, LOCALE_PAGES.L_PAGES.en) }
 
   // ---- 后端声明提取 ----
   const BACKENDS = ['github', 'markdown', 'gitlab']
