@@ -63,10 +63,25 @@ export const layoutRadios = function(s, h){
   ])
 }
 export const closeStatusSetupPick = function(s){s.setupLayoutCardOpen=false;emit(s)}
-// 取消：卡上刚点的那一下一并作废（记住的那一份不动），下次再点黄条仍按「现在这个答案」预选。
+// #698：开卡那一刻把「现在这个答案是哪个」记一份草稿，给取消那条路回退用。
+//   为什么要有它：卡上那两个单选一点下去就经 applyStatusSetupLayout 把答案写进会话与那份按工作区记住的表
+//   （那是「点一下就生效」的老设计，黄条那条路一直如此）。所以「取消」不能只是把界面关掉 —— 那样用户点过的
+//   那一下已经生效了，与卡上「取消」两个字说的不是一回事（本票对抗式自查时从这条断言里量出来的）。
+export const snapshotSetupLayoutForCard = function(s){
+  try{ s.setupLayoutDraftBefore = readStatusSetupLayout(s) }catch(e){}
+}
+// 取消：卡上刚点的那一下作废 —— 把答案退回开卡前那一份；开关本身照旧关掉。
 export const cancelStatusSetupPick = function(s){
-  try{ delete s.setupPickLayout }catch(e){}
   const wasSwitch=cardOwnedBySwitch(s)
+  try{
+    const hasDraft=Object.prototype.hasOwnProperty.call(s,'setupLayoutDraftBefore')
+    if(hasDraft){
+      const before=s.setupLayoutDraftBefore
+      if(SETUP_LAYOUT_VALUES.indexOf(String(before||'').toLowerCase())>=0) applyStatusSetupLayout(s,before)
+      delete s.setupLayoutDraftBefore
+    }
+  }catch(eRoll){}
+  try{ delete s.setupPickLayout }catch(e){}
   closeStatusSetupPick(s)
   // #698：切换那条路上，点取消也要把「把后端对齐」那条指令照旧给出去 —— 用户取消的是「改布局」这一问，
   //   不是「换了后端、把记录对齐过去」这件事；多问一句就把本来该给的东西扣下，是这次要结束的老毛病。
@@ -75,7 +90,13 @@ export const cancelStatusSetupPick = function(s){
 // #698：这张卡是「切换后端」那条路弹出来的吗（黄条 / 检查页那两条路不走切换这套收尾）。
 export const cardOwnedBySwitch = function(s){ try{ return !!(s && s.setupCardOwner === 'switch') }catch(e){ return false } }
 // 把两个布局取值翻成人话（卡上那两句词条），用来写「从 X 改成 Y」那条对齐指令。
-const layoutWordOf=function(v){ try{ return tr(SETUP_LAYOUT_VALUES.indexOf(String(v||'').toLowerCase())>=0 ? ('setup.layout'+(v==='multi'?'Multi':'Single')) : 'setup.layoutSingle') }catch(e){ return '' } }
+//   取值不认识（或词条查不到）时落回「根目录一份 CONTEXT.md」那一句 —— 宁可话说得保守一点，也不留空占位符。
+const layoutWordOf=function(v){
+  try{
+    const t=String(v==null?'':v).toLowerCase()
+    return tr(t==='multi' ? 'setup.layoutMulti' : 'setup.layoutSingle')
+  }catch(e){ return '' }
+}
 // #698 第四步：点确认那一刻**重新判一次场景**，不用开卡那一刻的旧结论。
 //   为什么必须重判：切换这条路上，从「点确认切换」到「用户答完布局」之间，刚刚注入的那条对齐指令
 //   可能已经把仓库初始化完了（AI 正在改文件、正在建产物）—— 开卡时判的是「还没初始化」，
@@ -121,14 +142,16 @@ export const settleSwitchCard = function(s, phase){
   if(s&&s.switchAlignDone!==true){
     try{ const t=(typeof promptText==='function')?promptText('switchAlign',{from:fromLabel,to:toLabel}):''; if(t&&typeof inject==='function') inject(s,t) }catch(eInj){}
     try{ if(s) s.switchAlignDone=true }catch(eF){}
-    try{ if(isEnabled('debug')) log('debug','inject.decision',{prompt:'switchAlign',kind:'align',layout:'unset'}) }catch(eL){}
+    // 轨迹：#698 起这一条与「只开了卡」在日志里必须分得开（见 kernel/prompts-setup.js 的 logSwitchSettle；
+    //   记在那边而不是这里，是因为 statusbar/ 目录里不许新开日志点 —— 纪律见 tests/verify-log-truncate.js）。
+    try{ if(typeof logSwitchSettle==='function') logSwitchSettle('align',s) }catch(eL){}
   }
   // 布局真的被改了，才**多**给一条「把布局那一句也对齐过去」（没改就只留上面那一条，别多问一句就多发一段）。
   let changedLayout=false
   try{ changedLayout=!!(s&&s.switchCardLayoutFrom&&s.setupLayout&&s.switchCardLayoutFrom!==s.setupLayout) }catch(eC){}
   if(changedLayout){
     try{ const t=(typeof promptText==='function')?promptText('switchLayout',{from:layoutWordOf(s.switchCardLayoutFrom),to:layoutWordOf(s.setupLayout)}):''; if(t&&typeof inject==='function') inject(s,t) }catch(eInj2){}
-    try{ if(isEnabled('debug')) log('debug','inject.decision',{prompt:'switchLayout',kind:'align-layout',layout:String((s&&s.setupLayout)||'')}) }catch(eL2){}
+    try{ if(typeof logSwitchSettle==='function') logSwitchSettle('align-layout',s) }catch(eL2){}
     return 'align-layout'
   }
   return 'align'
@@ -142,6 +165,7 @@ export const confirmStatusSetupPick = function(s){
   // #683（F1 · ADR 的 R6）：卡上确认写的是「卡上当时显示的那一个」—— 同时写 H（宿主侧，跨重启跨地址不失忆）与 C（本地，applyStatusSetupLayout 刚写过）。宿主写不进去也不挡注入（下次打开卡片重选一次即可；宿主侧那次失败宿主自己记了 warn）。
   try{ if(typeof host!=='undefined'&&host.call) host.call('wf.setupLayout',{cwd:s.cwd||'',layout:layoutSelectionOf(s)}).catch(function(){}) }catch(eSL){}
   try{ delete s.setupPickLayout }catch(e0){} // 卡上那一下已经落定（会话 + 按工作区记住），这份草稿清掉，免得下次打开时它还压着
+  try{ delete s.setupLayoutDraftBefore }catch(e1){} // 确认了就没有「退回开卡前那一份」这回事了（那份是给取消用的）
   const id = (s.selection && s.selection.backendId != null) ? s.selection.backendId : firstBackendIdOf(null)
   closeStatusSetupPick(s)
   // #698：切换那条路自己收尾（它会先重判「这个工作区现在初始化了没有」，再决定注全文还是注对齐）；

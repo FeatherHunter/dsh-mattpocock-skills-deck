@@ -194,7 +194,8 @@ try{
 console.log('')
 console.log('-- 7) slotRenderer 外观与交互（遮罩 + 居中盒 + 校验 + 重求值） --')
 try{
-  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js'].map(file).join('\n') // 原单文件已拆三，读拼合断言
+  // 原单文件已拆三，读拼合断言；#698 又把表单字段那一串渲染拆去 kernel/modal-fields.js，一并读进来
+  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js', 'src/client/kernel/modal-fields.js'].map(file).join('\n')
   check(sr.includes('FormModalSeat'), 'slotRenderer 含 FormModalSeat')
   check(sr.includes('ensureFormModal') && sr.includes('openFormModal') && sr.includes('closeFormModal'), 'slotRenderer 含 ensure/open/close 三件套')
   check(sr.includes('dsws-modal') && sr.includes('dsws-modalbox'), 'slotRenderer 复用 .dsws-modal/.dsws-modalbox')
@@ -226,7 +227,8 @@ try{
 console.log('')
 console.log('-- 9) 向导多步分页与步进导航（#319） --')
 try{
-  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js'].map(file).join('\n') // 原单文件已拆三，读拼合断言
+  // 原单文件已拆三，读拼合断言；#698 又把表单字段那一串渲染拆去 kernel/modal-fields.js，一并读进来
+  const sr = ['src/client/kernel/slotRenderer-queue.js', 'src/client/kernel/slotRenderer-repo-sync.js', 'src/client/kernel/slotRenderer-modal-view.js', 'src/client/kernel/modal-fields.js'].map(file).join('\n')
   const shared = file('src/shared/ui/slots.js')
   const chain = file('src/shared/tracker/chain-types.js') + '\n' + file('src/shared/tracker/chain-validate.js') + '\n' + file('src/shared/tracker/chain-evaluate.js')
   // 单弹窗内分页 + 步进条数字圆点 + 标题

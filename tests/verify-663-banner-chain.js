@@ -36,7 +36,7 @@ async function loadBannerChain() {
     promptTextFor: (st, id) => '提示词全文：' + id,
     moduleMetaOf: (st, bid) => ((st && st.backendModules) || []).find((m) => String(m.id) === String(bid)) || null,
     promptLang: () => 'zh',
-    onStatusSetupInit: (st) => { seen.setupInit += 1; return (st && ('__setupKind' in st)) ? st.__setupKind : 'setup-card' },
+    onStatusSetupInit: (st) => { seen.setupInit += 1; return (st && ('__setupKind' in st)) ? st.__setupKind : 'askLayout' },
     createActionDispatcher: actions.createActionDispatcher,
     inject: (st, text) => { seen.injected.push(String(text)) },
     openUrl: () => {},
@@ -140,7 +140,7 @@ async function main() {
     flash: () => {},
     loadSnapshot: () => {},
     moduleMetaOf: () => null,
-    injectSetupDecision: (st, id, opts) => { sbSeen.decisions.push({ id: id, allowCard: !!(opts && opts.allowCard), askLayout: !!(opts && opts.askLayout) }); return 'setup-card' },
+    injectSetupDecision: (st, id, opts) => { sbSeen.decisions.push({ id: id, allowCard: !!(opts && opts.allowCard), askLayout: !!(opts && opts.askLayout) }); return 'askLayout' },
     host: { call: (method, params) => { sbSeen.bound.push({ method: method, params: params }); return Promise.resolve({ ok: true }) } },
     console: { log: function () {}, warn: function () {}, error: function () {} },
   }
@@ -156,7 +156,7 @@ async function main() {
   ok(stGate.gateModalOpen === false, '窗关掉了')
 
   console.log('== 9. 黄条那颗按钮的走法不变：布局没答过弹小卡、答过直接注入 ==')
-  const stSetupCard = Object.assign({ __setupKind: 'setup-card' }, stOf({ backend: 'github', chain: repoReady }))
+  const stSetupCard = Object.assign({ __setupKind: 'askLayout' }, stOf({ backend: 'github', chain: repoReady }))
   const outCard = mod.runGuideMissing(stSetupCard, mod.guideBannerStep(stSetupCard, false))
   ok(seen.setupInit === 1 && outCard === 'action', '布局没答过 → 只开小卡（归到「交给弹窗那类」），一个字的注入都没有')
   const stSetupText = Object.assign({ __setupKind: 'setup' }, stOf({ backend: 'github', chain: repoReady }))
@@ -167,7 +167,7 @@ async function main() {
   ok(mod.runGuideMissing(stOther, mod.guideBannerStep(stOther, false)) === 'none', '漏斗什么都没给出来（例如仓库没就绪被挡下）→ 记成「没有文案可注入」')
   const sbSetup = { cwd: '/w/demo', selection: { backendId: 'github' } }
   const kind = sbMod.onStatusSetupInit(sbSetup)
-  ok(kind === 'setup-card', 'StatusBackend 的那个入口把决定结果回了给调用处（实得 ' + kind + '）')
+  ok(kind === 'askLayout', 'StatusBackend 的那个入口把决定结果回了给调用处（实得 ' + kind + '）')
   ok(sbSeen.decisions.length === 1 && sbSeen.decisions[0].allowCard === true, '初始化那颗按钮仍然只走允许弹小卡的那条入口（#655 的漏斗没动）')
   ok(sbSeen.decisions.length === 1 && sbSeen.decisions[0].askLayout === true, '而且黄条这一颗每次都要先问布局（askLayout:true，2026-09-21 维护者拍板 A）')
 
@@ -177,7 +177,11 @@ async function main() {
   ok(barSrc.indexOf('guideBannerStep(s,') >= 0 && barSrc.indexOf('runGuideMissing(s, bannerStep)') >= 0, '状态栏按清单取那一步，按钮点下去走统一入口')
   ok(barSrc.indexOf('guideBannerParams(s, bannerStep)') >= 0, '横幅正文的占位符也照清单那一步取（技能那条的 {list}）')
   ok(barSrc.indexOf('firstBlock') < 0 && sumSrc.indexOf('ghCliBad') < 0 && sumSrc.indexOf('ghAuthBad') < 0, '手写的那串优先级与它那几个布尔读数都删了')
-  ok((barSrc.match(/layoutRadios\(s, h\)/g) || []).length === 1, '布局那组单选只剩初始化那张小卡一处（门控窗里那处撤了）')
+  // #698（2026-09-22）：那张布局小卡的界面搬去了弹窗座位那一层（views/SetupCard.js）——
+  //   原先它挂在黄条下面，工作区一旦初始化过就没有地方可画。所以这组单选现在既不在门控窗里，也不在本文件里。
+  const cardSrc = read('src/client/views/SetupCard.js')
+  ok((cardSrc.match(/layoutRadios\(st, h\)/g) || []).length === 1, '布局那组单选只剩那张小卡一处（门控窗里那处撤了；#698 起卡在 views/SetupCard.js）')
+  ok((barSrc.match(/layoutRadios\(/g) || []).length === 0, '状态栏不再自己拼这组单选（一个座位只留一处渲染）')
   const clientBundle = read('client.js')
   const pkgBundle = read('package/lib/client.js')
   ok(clientBundle.indexOf('const guideBannerStep = function') >= 0 && pkgBundle.indexOf('const guideBannerStep = function') >= 0, '双产物里都带着这份横幅链（已随构建拼进闭包）')

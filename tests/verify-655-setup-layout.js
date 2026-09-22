@@ -28,7 +28,10 @@ const ok = (cond, msg) => { total++; if (cond) console.log('  PASS ' + msg); els
 //   guideStepsFor / guideStepDone 是共享清单 src/shared/tracker/guide-steps.js 里的两个真函数
 //   （生产里随构建拼进同一个闭包，沙箱里必须自己顶上，否则「仓库那一步没过」那一档永远走不到）。
 function loadPrompts(localeDict, guide, cachedLayout) {
+  // #698：注入决策那一段（injectSetupDecision / setupBlockedByGuide 的调用方）搬去了 kernel/prompts-setup.js，
+  //   与 prompts.js 在构建时拼回同一个闭包；沙箱里照同一口径把它们拼起来求值。
   const src = fs.readFileSync(path.join(root, 'src/client/kernel/prompts.js'), 'utf8')
+    + '\n' + fs.readFileSync(path.join(root, 'src/client/kernel/prompts-setup.js'), 'utf8')
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
   const injected = []
   const emitted = []
@@ -70,9 +73,11 @@ async function loadLocale() {
   const F = await import(url('src/client/kernel/locale-flow.js'))
   const W = await import(url('src/client/kernel/locale-word.js'))
   const L = await import(url('src/client/kernel/locale-labels.js'))
+  // #698：布局那一问的四条键（问题、两个选项、两条结论句）搬去了 locale-pages.js（locale-panel.js 贴着 350 行上限）
+  const PG = await import(url('src/client/kernel/locale-pages.js'))
   return {
-    zh: Object.assign({}, P.L_PANEL.zh, F.L_FLOW.zh, W.L_WORD.zh, L.L_LABELS.zh),
-    en: Object.assign({}, P.L_PANEL.en, F.L_FLOW.en, W.L_WORD.en, L.L_LABELS.en),
+    zh: Object.assign({}, P.L_PANEL.zh, F.L_FLOW.zh, W.L_WORD.zh, L.L_LABELS.zh, PG.L_PAGES.zh),
+    en: Object.assign({}, P.L_PANEL.en, F.L_FLOW.en, W.L_WORD.en, L.L_LABELS.en, PG.L_PAGES.en),
   }
 }
 async function loadGuide() {
@@ -145,7 +150,7 @@ async function main() {
     const st = stateOf({ backend: backend })
     const before = injected.length
     const kind = mod.injectSetupDecision(st, backend, { allowCard: true })
-    ok(kind === 'setup-card', '布局未选 · ' + backend + ' → 决定是先问（实得 ' + kind + '）')
+    ok(kind === 'askLayout', '布局未选 · ' + backend + ' → 决定是先问（实得 ' + kind + '）')
     ok(injected.length === before, '布局未选 · ' + backend + ' → 一个字都没注入')
     ok(st.setupLayoutCardOpen === true, '布局未选 · ' + backend + ' → 那张小卡被要求打开')
     ok(emitted.length > 0, '布局未选 · ' + backend + ' → 要求界面重绘，卡才看得见')
@@ -236,7 +241,7 @@ async function main() {
   ok(mod.injectSetupDecision(st1, 'github', { injectNow: false }) === 'setup', 'injectNow:false 时仍然给出 setup 这个决定（检查页那颗按钮要靠它）')
   ok(injected.length === n1, 'injectNow:false 时决策函数自己不注入（注入动作归调用处）')
   const stCard = stateOf({ backend: 'github' })
-  ok(mod.injectSetupDecision(stCard, 'github', { injectNow: false, allowCard: true }) === 'setup-card', 'injectNow:false + allowCard 时布局未定也返回先问（检查页那颗按钮）')
+  ok(mod.injectSetupDecision(stCard, 'github', { injectNow: false, allowCard: true }) === 'askLayout', 'injectNow:false + allowCard 时布局未定也返回先问（检查页那颗按钮）')
   ok(stCard.setupLayoutCardOpen === true, 'injectNow:false 时那一档照样开卡')
 
   console.log('== 2026-09-21（维护者拍板 A + 记住）· 黄条那颗按钮每次都先问；答过的那一份按工作区记住 ==')
@@ -245,7 +250,7 @@ async function main() {
     const stA = stateOf({ backend: 'github', layout: 'single' })
     const nA = injected.length
     const kA = mod.injectSetupDecision(stA, 'github', { allowCard: true, askLayout: true })
-    ok(kA === 'setup-card', '黄条那颗按钮：布局已答（single）→ 仍然先弹卡（实得 ' + kA + '）')
+    ok(kA === 'askLayout', '黄条那颗按钮：布局已答（single）→ 仍然先弹卡（实得 ' + kA + '）')
     ok(stA.setupLayoutCardOpen === true, '黄条那颗按钮：那张卡确实被要求打开（看得见上次选的是哪一项）')
     ok(injected.length === nA, '黄条那颗按钮：弹卡的这一下一个字都不注入（等用户点确认）')
     // ② 别的入口（检查页那颗按钮、切换后端那条路）不传 askLayout：答过就直接注入，别再让人多点一次。
@@ -266,7 +271,7 @@ async function main() {
     const stE = stateOf({ backend: 'github' }) // 工作区没记住过 + 会话没答过
     const none = loadPrompts(L, G, { getCachedSetupLayout: function () { return null } })
     ok(none.mod.readSetupLayout(stE) === null, '既没答过、也没记住过 → 仍然算没答过（照旧先问）')
-    ok(none.mod.injectSetupDecision(stE, 'github', { allowCard: true }) === 'setup-card', '没答过的那一档照旧先弹卡')
+    ok(none.mod.injectSetupDecision(stE, 'github', { allowCard: true }) === 'askLayout', '没答过的那一档照旧先弹卡')
     // ④ 记住的那一份不认识时不许当答案用（按未选定处理，免得把垃圾值写进注入文本）
     const junk = loadPrompts(L, G, { getCachedSetupLayout: function () { return 'nonsense' } })
     ok(junk.mod.readSetupLayout({ cwd: '/w/demo', selection: { backendId: 'github' } }) === null, '记住的值不认识时按未选定处理（不认识的取值不参与填空）')
@@ -349,8 +354,12 @@ async function main() {
   ok(statusSrc.indexOf('injectSetupDecision') >= 0, '状态栏黄条与那张小卡的确认都走同一个注入决策函数')
   const barSrc = fs.readFileSync(path.join(root, 'src/client/statusbar/StatusBar.js'), 'utf8')
   // #663：门控那个窗里那组单选撤了（全新工作区还没装 gh、还没建仓库，先把「各部分共用一套用语吗」问出来是超前的问题），
-  //   布局那一问现在只在初始化那一步出现 —— 所以源码里只剩那张小卡一处放这组单选。
-  ok(barSrc.indexOf('layoutRadios(s, h)') >= 0 && (barSrc.match(/layoutRadios\(s, h\)/g) || []).length >= 1, '初始化那张小卡上放着这组单选（门控弹窗里那组已按 #663 撤掉）')
+  //   布局那一问现在只在初始化那一步出现 —— 所以整个客户端里只有一处放这组单选。
+  // #698（2026-09-22）：那一处的**界面**搬去了弹窗座位那一层（views/SetupCard.js）——
+  //   原先它挂在状态栏黄条下面，工作区一旦初始化过就没有地方可画；现在与黄条那条在不在无关。
+  const cardSrc = fs.readFileSync(path.join(root, 'src/client/views/SetupCard.js'), 'utf8')
+  ok((cardSrc.match(/layoutRadios\(st, h\)/g) || []).length >= 1, '初始化那张小卡上放着这组单选（#698 起在 views/SetupCard.js）')
+  ok(!/layoutRadios\(/.test(barSrc), '状态栏那边不再自己拼这组单选（一个座位只留一处渲染，不两处同挂）')
   // #664：**门控确认**那两条路不再注入任何文字（原先它们都调过这个决策函数）。
   //   #669 第 6 件（ADR 20260921）：切换后端那条路**重新**按场景注入 —— 未初始化且仓库就绪时走这个决策函数
   //   （与黄条同一条：先开布局小卡、选完注入初始化全文），已初始化时注入的是另一条「切换后对齐」的 prompt。

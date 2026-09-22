@@ -34,15 +34,17 @@ const RETIRED_TAIL = [
   '建仓成功并重查变绿后',
   '仓库还没就绪',
 ]
-// 真词表：四个片段按 kernel/locale.js 的合并逻辑拼起来（与 verify-655 / verify-setup-describe 同口径）。
+// 真词表：五个片段按 kernel/locale.js 的合并逻辑拼起来（与 verify-655 / verify-setup-describe 同口径）。
 async function loadLocale() {
   const P = await import(url('src/client/kernel/locale-panel.js'))
   const F = await import(url('src/client/kernel/locale-flow.js'))
   const W = await import(url('src/client/kernel/locale-word.js'))
   const L = await import(url('src/client/kernel/locale-labels.js'))
+  // #698：布局那一问的四条键（问题、两个选项、两条结论句）搬去了 locale-pages.js（locale-panel.js 贴着 350 行上限）
+  const PG = await import(url('src/client/kernel/locale-pages.js'))
   return {
-    zh: Object.assign({}, P.L_PANEL.zh, F.L_FLOW.zh, W.L_WORD.zh, L.L_LABELS.zh),
-    en: Object.assign({}, P.L_PANEL.en, F.L_FLOW.en, W.L_WORD.en, L.L_LABELS.en),
+    zh: Object.assign({}, P.L_PANEL.zh, F.L_FLOW.zh, W.L_WORD.zh, L.L_LABELS.zh, PG.L_PAGES.zh),
+    en: Object.assign({}, P.L_PANEL.en, F.L_FLOW.en, W.L_WORD.en, L.L_LABELS.en, PG.L_PAGES.en),
   }
 }
 
@@ -79,7 +81,10 @@ async function loadChain(locale, backends, sbPatch) {
     return null
   }
   // 三个模块的真实文件文本拼在一起，装饰掉行首 export 后当同一个闭包求值（与 scripts/build.mjs 的拼法一致）。
+  //   #698：注入决策那一段（injectSetupDecision / layoutCardShouldOpen）搬去了 kernel/prompts-setup.js，
+  //   构建时与 prompts.js 拼回同一个闭包；沙箱里照同一口径把它接在 prompts.js 后面。
   const body = read('src/client/kernel/prompts.js').replace(/^[ \t]*export[ \t]+/gm, '')
+    + read('src/client/kernel/prompts-setup.js').replace(/^[ \t]*export[ \t]+/gm, '')
     // sbPatch：反证用 —— 把 StatusBackend 的真源按改动后的文本喂进来（正常路径下就是真源本身）
     + ((sbPatch && sbPatch.text) ? sbPatch.text : read('src/client/statusbar/StatusBackend.js')).replace(/^[ \t]*export[ \t]+/gm, '')
     + read('src/client/statusbar/bannerChain.js').replace(/^[ \t]*export[ \t]+/gm, '')
@@ -205,7 +210,11 @@ async function main() {
   // 这个窗里只许有一组单选（后端那组）。渲染那段源码里 layoutRadios 不许出现 —— 出现了就是把布局那一问塞回门控窗。
   const gateBlock = gateSrc.slice(gateSrc.indexOf("gateModalOpen && s.gateModalSource==='status'"), gateSrc.indexOf('#663：这个窗里那组'))
   ok(gateBlock.indexOf('layoutRadios') < 0, '门控窗那段渲染里没有布局那组单选（只问后端）')
-  ok((gateSrc.match(/layoutRadios\(s, h\)/g) || []).length === 1, '全文件里布局那组单选只剩一处（初始化那张小卡）')
+  // #698（2026-09-22）：那张布局小卡的界面搬去了弹窗座位那一层（views/SetupCard.js）——
+  //   原先它挂在黄条下面，工作区一旦初始化过就没有地方可画，所以状态栏里现在一处都不该有。
+  const cardSrc = read('src/client/views/SetupCard.js')
+  ok((cardSrc.match(/layoutRadios\(st, h\)/g) || []).length === 1, '整个客户端里布局那组单选只剩一处（views/SetupCard.js 那张小卡）')
+  ok((gateSrc.match(/layoutRadios\(/g) || []).length === 0, '状态栏里不再自己拼这组单选（一个座位只留一处渲染，不两处同挂）')
   for (const backend of [null, 'markdown', 'gitlab']) {
     const st = stateOf(chainOf(STEP_CHAIN.noRepo, { 'gh:remote': [wizard] }), { backend: backend, backends: backends })
     st.gateModalOpen = true
@@ -394,7 +403,7 @@ async function main() {
   stReady2.cwd = '/w/never-answered'
   ok(mod.readSetupLayout(stReady2) === null, '反向：这个目录从没答过也没记住过（确实是「未选定」那一档）')
   const readyDecision = mod.injectSetupDecision(stReady2, 'github', { allowCard: true })
-  ok(readyDecision === 'setup-card', '反向：硬走一次决策，返回的是「先问」（实得 ' + readyDecision + '），不是自动注入')
+  ok(readyDecision === 'askLayout', '反向：硬走一次决策，返回的是「先问」（实得 ' + readyDecision + '），不是自动注入')
   ok(stReady2.setupLayoutCardOpen === true, '反向：这一步开的是那张卡（等用户回答，不是自动写字）')
   ok(seen.injected.length === beforeReady, '反向：没有第二次注入（整轮下来会话里一个字都没多）')
   // 反向再确认一条：全绿之后不会再有「重建远端仓库」那一段被点开。

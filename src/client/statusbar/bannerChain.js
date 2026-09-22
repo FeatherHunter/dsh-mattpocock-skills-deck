@@ -200,8 +200,8 @@ export const runGuideMissing = function (st, step) {
   }
   if (missing.prompt === 'setupRun') {
     const kind = setupInit(st)
-    // 'setup' = 真注入了全文；'setup-card' = 只开了那张小卡；'blocked'（仓库那一步还没过）与空值 = 一个字都没给出去。
-    const out = (kind === 'setup-card') ? 'action' : (kind === 'setup' ? 'text' : 'none')
+    // 'setup' = 真注入了全文；'askLayout' = 只开了那张小卡（#698 起这个名字替代 'setup-card'）；'blocked'（仓库那一步还没过）与空值 = 一个字都没给出去。
+    const out = (kind === 'askLayout') ? 'action' : (kind === 'setup' ? 'text' : 'none')
     logGuideInject(stepId, out); return out
   }
   const text = missing.text ? String(missing.text) : promptFor(st, missing.prompt)

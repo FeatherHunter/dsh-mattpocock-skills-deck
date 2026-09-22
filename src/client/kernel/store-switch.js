@@ -222,10 +222,11 @@
             } catch (eRec) {}
             let _kind = ''
             // askLayout:true 是这次维护者拍板的那一条：布局答过也照旧问一遍（#674 的「答过就不问」到此为止）。
-            //   source:'switch' 让决策器把这张卡记成「由切换那条路负责收尾」，并回一个专门的返回值
-            //   'setup-card-switch'（黄条那条路回的是 'setup-card'，两边的收尾不一样）。
+            //   source:'switch' 让决策器把这张卡的收尾记在会话状态上（statusbar/StatusBackend.js 的
+            //   settleSwitchCard 要读它）；返回值只有一个名字 'askLayout' —— 黄条那条路与这条路开的是同一张卡，
+            //   不按「谁开的」分两个名字，分开的只是「谁在等这一问的答案」。
             try { if (typeof injectSetupDecision === 'function') _kind = injectSetupDecision(st, targetId, { allowCard: true, askLayout: true, source: 'switch' }) } catch (eDec) {}
-            if (_kind === 'setup-card-switch') {
+            if (_kind === 'askLayout') {
               try { flash(st, tr('switch.bindOkAskLayout', { label: _label }), 'ok') } catch (eF) {}
               return
             }
@@ -249,7 +250,7 @@
           // 还没初始化：走与黄条那颗按钮**同一个**决策器 —— 「仓库那一步过没过」这条判据在它里面（没过返回
           //   blocked：一个字不注入、也不开卡），本文件不再自己判一遍，判据只有那一份（#668 单源口径）。
           //   提示条按它这次实际给出的东西选：blocked 说「先按状态栏那条提示处理」，其余说「按提示完成初始化」
-          //   （它的 'setup-card' 就是先问域文档布局那一问，答完才注入全文）。
+          //   （它说的「先开卡问布局」就是那个 askLayout 返回值，答完才注入全文）。
           // #698：这一档也传 source:'switch' 与 askLayout:true —— 与上面「已初始化」那一档走**同一份判据**
           //   （收在 prompts.js 的 layoutCardShouldOpen 里），两边都是「每次都问」。答完由卡交回 settleSwitchCard 收尾。
           let _kind = 'blocked'

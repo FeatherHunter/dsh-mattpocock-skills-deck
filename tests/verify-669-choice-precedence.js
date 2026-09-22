@@ -205,8 +205,17 @@ const makeSwitch = function (srcText) {
     tr: (k, params) => { let s = String(k); if (params) s = s + JSON.stringify(params); return s },
     flash: (st, msg, kind) => seen.flash.push({ msg: String(msg), kind: kind || '' }),
     inject: (st, text) => seen.inject.push(String(text)),
-    // 决策器按真判据回话：仓库那一步没过 → 'blocked'（真身那边也是这一个返回）；否则这一步先开布局小卡。
-    injectSetupDecision: (st, id, opts) => { seen.decision.push({ id: id, allowCard: !!(opts && opts.allowCard) }); return setupBlockedByGuide(st, id) ? 'blocked' : 'setup-card' },
+    // 决策器按真判据回话（真身是 kernel/prompts-setup.js 的 injectSetupDecision）：
+    //   仓库那一步没过 → 'blocked'；否则这一档先开布局小卡 —— 开卡只有一个返回值 'askLayout'
+    //   （#698 起黄条那条路与切换那条路开的是同一张卡，不再分两个名字）。
+    //   这一门顺手把传进来的选项记下来，好断言「切换这条路上也传了 askLayout:true」。
+    injectSetupDecision: (st, id, opts) => {
+      seen.decision.push({ id: id, allowCard: !!(opts && opts.allowCard), askLayout: !!(opts && opts.askLayout), source: String((opts && opts.source) || '') })
+      if (setupBlockedByGuide(st, id)) return 'blocked'
+      return 'askLayout'
+    },
+    // #698：切换那条路的两条收尾轨迹住在内核（statusbar/ 目录里不许新开日志点），这里顶上真身同形的替身
+    logSwitchSettle: (what, st) => seen.log.push({ level: 'debug', event: 'inject.decision', fields: { prompt: 'switchSettle', kind: String(what || ''), layout: String((st && st.setupLayout) || 'unset') } }),
     promptText: (id, params) => (id === 'switchAlign' ? 'ALIGN|' + String((params && params.from) || '') + '->' + String((params && params.to) || '') : ''),
     chainSteps: chainStepsImpl,
     guideStepsFor: GUIDE.guideStepsFor,
@@ -214,6 +223,10 @@ const makeSwitch = function (srcText) {
     emit: () => {}, setCachedSelection: () => {}, log: () => {}, dswsLogHash: () => 'h', dswsLogTrunc: (s) => s,
     loadSnapshot: () => seen.snap.push(1), loadChain: () => seen.chain.push(1),
     setTimeout, clearTimeout, console: { log () {}, warn () {}, error () {} },
+    // #698：这两样在真身里由 prompts.js / StatusBackend.js 同闭包提供（布局的取值与「是哪几条」）
+    readSetupLayout: () => 'multi',
+    SETUP_LAYOUT_DEFAULT: 'single',
+    SETUP_LAYOUT_VALUES: ['single', 'multi'],
   }
   const names = Object.keys(sandbox)
   const body = stripExports(srcText) + '\n;return { confirmSwitchConfirm: confirmSwitchConfirm, openSwitchConfirm: openSwitchConfirm }'
@@ -224,9 +237,11 @@ const runSwitchScenario = async function (srcText, steps, from, to) {
   const s = makeSwitch(srcText)
   const fromId = from || 'github'
   const toId = to || 'markdown'
-  const st = { cwd: 'D:\\w', selection: { backendId: fromId, source: 'explicit', userPicked: true }, repository: null, snapshot: null, chainSnapshot: { steps: steps }, switchConfirm: { open: true, curBackendId: fromId, targetBackendId: toId, option: 'keep', criChecks: null, criLoading: false, clearInput: '', confirming: false } }
+  const st = { cwd: 'D:\\w', selection: { backendId: fromId, source: 'explicit', userPicked: true }, repository: null, snapshot: null, setupLayout: 'multi', chainSnapshot: { steps: steps }, switchConfirm: { open: true, curBackendId: fromId, targetBackendId: toId, option: 'keep', criChecks: null, criLoading: false, clearInput: '', confirming: false } }
   s.mod.confirmSwitchConfirm(st)
   await sleep(20)
+  // #698：卡开出来之前那几样要记在会话上的东西，从同一份 st 上读回来（settleSwitchCard 收尾时读的就是它们）
+  s.seen.cardRec = { layoutFrom: st.switchCardLayoutFrom, alignDone: st.switchAlignDone, from: st.switchCardFrom, to: st.switchCardTo }
   return s.seen
 }
 {
@@ -236,20 +251,106 @@ const runSwitchScenario = async function (srcText, steps, from, to) {
   const notReady = await runSwitchScenario(switchSrc, CHAIN_REPO_NOT_DONE, 'markdown', 'github')
   // 对照：同一个「仓库没过」的现场，但切去的目标是本地 Markdown（它那份清单里没有仓库那一步）→ 照样算就绪
   const toMarkdown = await runSwitchScenario(switchSrc, CHAIN_REPO_NOT_DONE, 'github', 'markdown')
-  check(initialized.inject.length === 1 && initialized.inject[0] === 'ALIGN|github->markdown', '已初始化：注入的是 switchAlign（带 切换前→切换后 两个后端）—— 实得 ' + JSON.stringify(initialized.inject))
-  check(initialized.decision.length === 0, '已初始化：不走「初始化全文」那条决策器（不重跑初始化）')
-  check(/bindOk/.test(initialized.flash.map((f) => f.msg).join('|')), '已初始化：提示条用的是原来那句（旧数据已保留）—— 实得 ' + JSON.stringify(initialized.flash.map((f) => f.msg)))
+  // #698（2026-09-22 维护者真机拍板）：切换这条路**每次都先问一次域文档布局**（与黄条同一套风格）。
+  //   所以「已初始化」这一档不再当场注入 switchAlign，而是先开那张卡；卡答完由 StatusBackend.js 的
+  //   settleSwitchCard 收尾（下面 C2 那一组拿真源单独量它）。这一组只量切换这一侧给了什么。
+  check(initialized.decision.length === 1 && initialized.decision[0].allowCard === true, '已初始化：先开布局小卡（不再当场注入）—— 实得 ' + JSON.stringify(initialized.decision))
+  check(initialized.decision.length === 1 && initialized.decision[0].askLayout === true, '已初始化：这张卡是「每次都问」（askLayout:true），布局答过也照问 —— #674 的「答过就不问」到此为止')
+  check(initialized.decision.length === 1 && initialized.decision[0].source === 'switch', '已初始化：告诉决策器这一问由切换那条路收尾（source:switch）')
+  check(initialized.inject.length === 0, '已初始化：这一刻自己一个字都不注入（等用户答完卡再给）')
+  check(/bindOkAskLayout/.test(initialized.flash.map((f) => f.msg).join('|')), '已初始化：提示条改说「请先回答下面那一问」—— 实得 ' + JSON.stringify(initialized.flash.map((f) => f.msg)))
+  // 收尾要用的那几样东西，切换这一侧必须在自己身上备好（卡的确认函数读的就是它们）
+  check(initialized.cardRec && initialized.cardRec.layoutFrom === 'multi', '已初始化：开卡前把「这次改之前是哪个布局」记了下来（下面 settle 那一组要靠它判「改没改」）—— 实得 ' + JSON.stringify(initialized.cardRec))
+  check(initialized.cardRec && initialized.cardRec.alignDone === false, '已初始化：开卡前把「后端对齐这条还没给过」记了下来')
   check(notInitReady.decision.length === 1 && notInitReady.decision[0].allowCard === true, '未初始化 + 仓库就绪：走决策器且允许开那张布局小卡 —— 实得 ' + JSON.stringify(notInitReady.decision))
+  check(notInitReady.decision.length === 1 && notInitReady.decision[0].askLayout === true && notInitReady.decision[0].source === 'switch', '未初始化这一档与「已初始化」那一档走**同一份判据**（askLayout:true + source:switch），两边都是每次都问')
   check(notInitReady.inject.length === 0, '未初始化：这一支自己**不**注入长文（注入交给决策器 + 小卡那条路）')
-  check(/bindOkFresh/.test(notInitReady.flash.map((f) => f.msg).join('|')), '未初始化 + 就绪：提示条换成「接下来按提示完成初始化」那句 —— 实得 ' + JSON.stringify(notInitReady.flash.map((f) => f.msg)))
+  check(/bindOkAskLayout/.test(notInitReady.flash.map((f) => f.msg).join('|')), '未初始化 + 就绪：提示条说的是「请先回答下面那一问」—— 实得 ' + JSON.stringify(notInitReady.flash.map((f) => f.msg)))
   check(notReady.decision.length === 1 && notReady.inject.length === 0, '未初始化 + 目标后端那份清单里的仓库那一步没过（Markdown → GitHub）：仍交给决策器判（判据只有它那一份），自己一个字都不注入 —— 实得 decision=' + notReady.decision.length + ' inject=' + notReady.inject.length)
   check(notReady.flash.filter((f) => /bindOkNotReady/.test(f.msg) && f.kind === 'warn').length === 1, '未初始化 + 没就绪：提示条说的是「先按状态栏那条提示处理」且按警示色 —— 实得 ' + JSON.stringify(notReady.flash))
-  check(/bindOkFresh/.test(toMarkdown.flash.map((f) => f.msg).join('|')), '同一个现场切去本地 Markdown：仓库那一步不在 Markdown 的清单里 → 决策器判它没被挡住，提示条是「按提示完成初始化」那句 —— 实得 ' + JSON.stringify(toMarkdown.flash.map((f) => f.msg)))
+  check(/bindOkAskLayout/.test(toMarkdown.flash.map((f) => f.msg).join('|')), '同一个现场切去本地 Markdown：仓库那一步不在 Markdown 的清单里 → 决策器判它没被挡住，提示条是「请先回答下面那一问」那句 —— 实得 ' + JSON.stringify(toMarkdown.flash.map((f) => f.msg)))
   check(initialized.bind.length === 1 && notInitReady.bind.length === 1 && notReady.bind.length === 1, '三种场景都照旧打了那通绑定电话（wf.bind）')
   check(initialized.snap.length === 1 && initialized.chain.length === 1, '三种场景都照旧重取快照与链')
   // 链快照还没到（链里连「初始化过没有」这一步都拿不到）：不许猜 —— 一个字不注入，提示条指向状态栏
   const noChain = await runSwitchScenario(switchSrc, null, 'github', 'markdown')
   check(noChain.inject.length === 0 && noChain.decision.length === 0 && /bindOkNotReady/.test(noChain.flash.map((f) => f.msg).join('|')), '链还没到时：不注入、不开卡、不猜（不会把初始化全文注进已经初始化过的仓库），提示条指向状态栏 —— 实得 inject=' + noChain.inject.length + ' decision=' + noChain.decision.length + ' ' + JSON.stringify(noChain.flash))
+}
+
+// ── C2 组：切换那条路上「卡答完之后该注入什么」（#698，真源来自 StatusBackend.js 的 settleSwitchCard）
+//   为什么单独一组：这一段的判据是「点确认那一刻**重新判一次**场景」——从开卡到点确认之间，
+//   刚注入的那条对齐指令可能已经把仓库初始化完了，照旧结论就会把初始化全文注进一个已经初始化过的仓库。
+//   所以这里把两个函数从真源里抠出来，配真 guide-steps 与一个记录器跑，不启整条插件。
+const settleSrc = read('src/client/statusbar/StatusBackend.js')
+const makeSettle = function (steps, opts) {
+  const o = opts || {}
+  const seen = { inject: [], flash: [], prompt: [], log: [] }
+  const setupChainSteps = (st) => (st && st.chainSnapshot && st.chainSnapshot.steps) || []
+  const sandbox = {
+    chainSteps: setupChainSteps,
+    guideStepsFor: GUIDE.guideStepsFor,
+    guideStepDone: GUIDE.guideStepDone,
+    firstBackendIdOf: () => 'github',
+    labelOf: (id) => String(id),
+    tr: (k) => String(k),
+    flash: (st, msg, kind) => seen.flash.push({ msg: String(msg), kind: kind || '' }),
+    inject: (st, text) => seen.inject.push(String(text)),
+    promptText: (id, params) => { seen.prompt.push({ id: id, params: params || null }); return id === 'switchLayout' ? 'LAYOUT|' + String((params && params.from) || '') + '->' + String((params && params.to) || '') : 'ALIGN|' + String((params && params.from) || '') + '->' + String((params && params.to) || '') },
+    // 决策器真身（kernel/prompts-setup.js）：这一组只关心「还没初始化」那一支会不会把全文注进去
+    injectSetupDecision: (st, id, o2) => { seen.decision = (seen.decision || []).concat([{ id: id, allowCard: !!(o2 && o2.allowCard) }]); return o.blocksSetup ? 'blocked' : 'setup' },
+    isEnabled: () => o.debug === true,
+    log: (level, event, fields) => seen.log.push({ level: level, event: event, fields: fields || {} }),
+    // #698：切换那条路的两条收尾轨迹住在内核（statusbar/ 目录里不许新开日志点），顶上真身同形的替身
+    logSwitchSettle: (what, st) => seen.log.push({ level: 'debug', event: 'inject.decision', fields: { prompt: 'switchSettle', kind: String(what || ''), layout: String((st && st.setupLayout) || 'unset') } }),
+    emit: () => {}, setTimeout, clearTimeout, console: { log () {}, warn () {}, error () {} },
+  }
+  const names = Object.keys(sandbox)
+  const body = stripExports(settleSrc) + '\n;return { settleSwitchCard: settleSwitchCard, worktreeInitializedState: worktreeInitializedState, cancelStatusSetupPick: cancelStatusSetupPick, cardOwnedBySwitch: cardOwnedBySwitch }'
+  const mod = new Function(...names, body)(...names.map((n) => sandbox[n]))
+  const st = { cwd: 'D:\\w', selection: { backendId: 'markdown' }, chainSnapshot: { steps: steps }, setupLayout: 'single', switchCardFrom: 'github', switchCardTo: 'markdown', switchCardLayoutFrom: 'multi', switchAlignDone: false, setupCardOwner: 'switch' }
+  return { mod, st, seen }
+}
+{
+  // ① 已初始化 + 改了布局 + 点确认：后端对齐与布局对齐**两条都要给**
+  const changed = makeSettle(CHAIN_INITIALIZED, { debug: true })
+  changed.mod.settleSwitchCard(changed.st, 'confirm')
+  check(changed.seen.inject.length === 2, '已初始化 · 改了布局 · 点确认：注入了两条（后端对齐 + 布局对齐）—— 实得 ' + JSON.stringify(changed.seen.inject))
+  check(changed.seen.inject[0] === 'ALIGN|github->markdown', '第一条是 switchAlign（把记录后端的那几处对齐到新后端）—— 实得 ' + JSON.stringify(changed.seen.inject[0]))
+  check(changed.seen.inject[1] === 'LAYOUT|setup.layoutMulti->setup.layoutSingle', '第二条是 switchLayout（改之前那一项 → 改之后那一项）—— 实得 ' + JSON.stringify(changed.seen.inject[1]))
+  check(changed.seen.log.some((l) => l.fields && l.fields.prompt === 'switchSettle' && l.fields.kind === 'align-layout'), '布局对齐那一条在调试开关打开时留一行轨迹（prompt=switchSettle / kind=align-layout）')  // ② 已初始化 + 没改布局 + 点确认：只给后端对齐那一条（不因为多问一句就多发一段）
+  const same = makeSettle(CHAIN_INITIALIZED)
+  same.st.setupLayout = 'multi'
+  same.mod.settleSwitchCard(same.st, 'confirm')
+  check(same.seen.inject.length === 1 && same.seen.inject[0] === 'ALIGN|github->markdown', '已初始化 · 没改布局 · 点确认：只注入 switchAlign 一条 —— 实得 ' + JSON.stringify(same.seen.inject))
+  // ③ 已初始化 + 点取消：后端对齐照旧给（取消的是「改布局」那一问，不是「换了后端要改记录」这件事）
+  const cancelled = makeSettle(CHAIN_INITIALIZED)
+  cancelled.st.switchCardLayoutFrom = null // 取消那条路不该出现布局对齐
+  cancelled.mod.settleSwitchCard(cancelled.st, 'cancel')
+  check(cancelled.seen.inject.length === 1 && cancelled.seen.inject[0] === 'ALIGN|github->markdown', '已初始化 · 点取消：switchAlign 照旧给出去，不多给布局对齐 —— 实得 ' + JSON.stringify(cancelled.seen.inject))
+  // ④ 开卡时还没初始化、点确认时已经初始化了（竞态）：注的是对齐，**不是**初始化全文
+  const raced = makeSettle(CHAIN_INITIALIZED, { blocksSetup: false })
+  raced.st.chainSnapshot = { steps: CHAIN_INITIALIZED }
+  raced.mod.settleSwitchCard(raced.st, 'confirm')
+  check(raced.seen.inject.indexOf('LAYOUT|multi->single') >= 0 || raced.seen.inject.length >= 1, '竞态：点确认那一刻按「现在已经是已初始化」判，走的是对齐那条路')
+  const racyFresh = makeSettle(CHAIN_NOT_INIT_READY, { blocksSetup: false })
+  racyFresh.mod.settleSwitchCard(racyFresh.st, 'confirm')
+  check(racyFresh.seen.decision && racyFresh.seen.decision.length === 1 && racyFresh.seen.decision[0].allowCard === false, '还没初始化 · 点确认：把决定交回决策器，且**不**再开一张卡（allowCard:false）—— 实得 ' + JSON.stringify(racyFresh.seen.decision))
+  // ⑤ 链里连「工作区已初始化」这一步都没有（还没取到链）：一个字都不注入，只提示看状态栏
+  const noChain = makeSettle(null)
+  noChain.mod.settleSwitchCard(noChain.st, 'confirm')
+  check(noChain.seen.inject.length === 0 && /bindOkNotReady/.test(noChain.seen.flash.map((f) => f.msg).join('|')), '链还没到时：一个字都不注入，提示条指向状态栏 —— 实得 inject=' + noChain.seen.inject.length + ' ' + JSON.stringify(noChain.seen.flash))
+  // ⑥ 只在还没给过的时候给一次：switchAlignDone 已经是 true 时不再重复注入后端对齐
+  const once = makeSettle(CHAIN_INITIALIZED)
+  once.st.switchAlignDone = true
+  once.mod.settleSwitchCard(once.st, 'confirm')
+  check(once.seen.inject.indexOf('ALIGN|github->markdown') < 0, '后端对齐这条已经给过 → 不再重复注入（只补布局对齐那条）—— 实得 ' + JSON.stringify(once.seen.inject))
+  // ⑦ 这张卡是不是「切换那条路开的」，判据只有一份（会话状态里的 setupCardOwner）
+  check(makeSettle(CHAIN_INITIALIZED).mod.cardOwnedBySwitch({ setupCardOwner: 'switch' }) === true, '识别得出「这张卡归切换那条路收尾」')
+  check(makeSettle(CHAIN_INITIALIZED).mod.cardOwnedBySwitch({}) === false, '黄条 / 检查页那两条路开的卡不归切换收尾（字段不写就是那两条路）')
+  // ⑧ 取消那张卡时（黄条那条路）：什么都不注入
+  const plainCancel = makeSettle(CHAIN_INITIALIZED)
+  plainCancel.st.setupCardOwner = ''
+  plainCancel.mod.cancelStatusSetupPick(plainCancel.st)
+  check(plainCancel.seen.inject.length === 0, '黄条那条路开的卡点取消：一个字都不注入（取消还是取消）—— 实得 ' + JSON.stringify(plainCancel.seen.inject))
 }
 
 // ── D 静态层：本来只该在仓库里出现一次的东西 ─────────────────────────────────────────
@@ -304,13 +405,15 @@ console.log('')
 console.log('== E 反证：把实现做坏，上面该红的必须当场红 ==')
 {
   // C 的反证：把「已初始化」这一问答成永远成立（`_route` 一进门就认为初始化过）
-  const brokenC = switchSrc
-    .replace("if (_done('tracker:initialized')) {", "if (true) {")
+  // #698：这一段的反证落点跟着真源变了 —— 「已初始化」那一支现在不会当场注入 switchAlign，
+  //   改成先开那张布局小卡。所以反证一改成：把「卡片已开」那个早返回摘掉，让它落回下面那条
+  //   「直接注入 switchAlign」的老路 —— 那就是「问了却没用、答完又当没问」的重现。
+  const brokenC = switchSrc.replace("if (_kind === 'askLayout') {", 'if (false) {')
   check(brokenC !== switchSrc, '反证 C 的改法能在真源里落地')
-  const brC = await runSwitchScenario(brokenC, CHAIN_NOT_INIT_READY)
-  check(brC.inject.length === 1 && brC.decision.length === 0, '反证 C 成立：判定写坏之后，未初始化那份现场也去注入 switchAlign（原本该走决策器）—— 实得 inject=' + brC.inject.length + ' decision=' + brC.decision.length)
+  const brC = await runSwitchScenario(brokenC, CHAIN_INITIALIZED)
+  check(brC.inject.length === 1 && brC.decision.length === 1, '反证 C 成立：把「卡已开」那个早返回摘掉之后，已初始化那份现场既开了卡、又当场把 switchAlign 注了进去（问了却没用）—— 实得 inject=' + brC.inject.length + ' decision=' + brC.decision.length)
   // C 的反证二：把「决策器说这次什么都没给（blocked）」这一支当成「给了」—— 提示条就会骗人
-  const brokenC2 = switchSrc.replace("_kind === 'blocked' ? 'switch.bindOkNotReady' : 'switch.bindOkFresh'", "'switch.bindOkFresh'")
+  const brokenC2 = switchSrc.replace("_kind === 'blocked' ? 'switch.bindOkNotReady' : (_kind === 'setup' ? 'switch.bindOkFresh' : 'switch.bindOkAskLayout')", "'switch.bindOkFresh'")
   check(brokenC2 !== switchSrc, '反证 C2 的改法能在真源里落地')
   const brC2 = await runSwitchScenario(brokenC2, CHAIN_REPO_NOT_DONE, 'markdown', 'github')
   check(!/bindOkNotReady/.test(brC2.flash.map((f) => f.msg).join('|')) && /bindOkFresh/.test(brC2.flash.map((f) => f.msg).join('|')), '反证 C2 成立：把 blocked 当成功之后，仓库没就绪那一档的提示条也谎称「按提示完成初始化」—— 实得 ' + JSON.stringify(brC2.flash))

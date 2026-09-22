@@ -275,7 +275,7 @@ export const StatusBar = (props) => {
   //   重新绑一遍（等于从一张「只是答个布局」的卡上换后端）。现在卡上只读地写出这次用哪个后端、去哪儿换，
   //   换后端仍走右侧面板那颗「切换后端」。
   // #698（2026-09-22）：这张卡的**界面**搬去弹窗座位那一层了（slotRenderer-modal-view.js 的 SetupLayoutCard，
-  //   渲染入口就是上面那个 modalSeat）—— 它原先只挂在本文件这条黄条下面，于是工作区一旦初始化过、
+  //   渲染入口就是上面那个座位（那个 const））—— 它原先只挂在本文件这条黄条下面，于是工作区一旦初始化过、
   //   黄条不出现，卡就没有地方可画（「切换后端时改布局」这条路上工作区总是初始化过的）。
   //   这里因此不再声明它；两个转调包装留着，卡的界面在那边直接调用它们。
   if (!bannerStep) {
@@ -306,7 +306,7 @@ export const StatusBar = (props) => {
         : h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, tr(meta.text)), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, onClick: function(){ runGuideMissing(s, bannerStep) } }, tr(meta.btn)), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ])
     }
     const node = bann(tr(meta.text, guideBannerParams(s, bannerStep)), tr(meta.btn), function () { runGuideMissing(s, bannerStep) }, true)
-    // #698：这一支原先在黄条正文下面挂那张布局小卡；卡已搬去弹窗座位（上面那个 modalSeat），
+    // #698：这一支原先在黄条正文下面挂那张布局小卡；卡已搬去弹窗座位（上面那一处），
     //   所以这里不再拼它 —— 黄条照旧出，卡在哪个分支都画得出来。
     return node
   })()

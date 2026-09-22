@@ -26,12 +26,17 @@ export const injectSetupDecision = function (st, backendId, opts) {
   //   分开的只是「谁在等这一问的答案」：黄条那条答完就注入初始化全文；切换那条要先判
   //   「这个工作区**现在**初始化了没有」（开卡到点确认之间，刚注入的对齐指令可能已经把仓库初始化完了），
   //   再决定注全文还是注对齐。所以这一档单独给一个返回值，调用处用它把「答完归谁办」记进会话状态。
-  const cardKind = (opts && opts.source === 'switch') ? 'setup-card-switch' : 'setup-card'
+  // 开了那张布局小卡：返回值只有一个名字 'askLayout'。黄条那条路与切换那条路开的是同一张卡，
+  //   所以不按「谁开的」分两个名字 —— 「答完由谁收尾」记在 opts.source 与会话状态里的 setupCardOwner 上。
+  const cardKind = 'askLayout'
   // 顺序上「仓库那一步没过」先判（返回 blocked）：这一步没过时连卡都不开 —— 那一步没过时按顺序
   //   还轮不到「该工作区尚未初始化」，此刻先弹卡会让用户选完布局才发现什么都没注入
   //   （#655 修过的同一类毛病）。
   if (!guideBlocked && opts && opts.allowCard === true && layoutCardShouldOpen(st, opts)) {
     try { st.setupLayoutCardOpen = true } catch (e) {}
+    // #698：开卡这一刻把「现在这个答案是哪个」留一份草稿 —— 取消那条路用它把卡上点过的那一下退回。
+    //   两处开卡（黄条那颗按钮、切换后端那条路）都走这一个分支，所以草稿只有这一个落点，不会漏记。
+    try { if (typeof snapshotSetupLayoutForCard === 'function') snapshotSetupLayoutForCard(st) } catch (eSnap) {}
     try { if (opts && opts.source === 'switch') st.setupCardOwner = 'switch'; else delete st.setupCardOwner } catch (eOw) {}
     try { if (typeof emit === 'function') emit(st) } catch (e) {}
     // 按需日志（#655，附录 1.5 的 #64 inject.decision）：这一步是用户点击触发的、一次一条，
@@ -55,4 +60,21 @@ export const injectSetupDecision = function (st, backendId, opts) {
   try { if (isEnabled('debug')) log('debug', 'inject.decision', { prompt: 'setupRun', kind: kind, layout: String(usedLayout) }) } catch (eL) {}
   if (dec && dec.text && !(opts && opts.injectNow === false)) { try { inject(st, dec.text) } catch (e) {} }
   return kind
+}
+/**
+ * 切换后端那条路上「刚刚给出去的是哪一类」那一行轨迹（#698）。
+ *
+ * 为什么要有它：切换这条路从 #698 起会分成「先开卡问布局 / 直接对齐后端 / 多给一条布局对齐 / 什么都没给」四种，
+ *   而原来只有一句按需的 inject.decision —— 「在等你答卡」这种正常状态与「卡根本没渲染出来」在日志里长得一模一样。
+ * 为什么记在这里而不是记在切换那一段代码里：那一段住在 statusbar/ 目录，而「渲染目录里只许点名文件写日志」
+ *   这条纪律（见 tests/verify-log-truncate.js）不允许在那里新开日志点；同一个事件的另两处落点本来就都在内核目录里
+ *   （prompt 表那两个函数），所以这一处也放进内核，三处写法一致。
+ * 级别沿用 #64 inject.decision 的按需：外层先判调试开关，关着连字段对象都不组装；只记枚举，不记文案与路径。
+ * @param {string} what 这一次给出去的是哪一类（setup 注入初始化全文 / align 只对齐后端 / align-layout 又补了布局对齐 / askLayout 只开了卡 / blocked 一个字都没给）
+ * @param {Object} st 会话状态（只用来读这次是哪种布局，读不到记 unset）
+ */
+export const logSwitchSettle = function (what, st) {
+  try {
+    if (isEnabled('debug')) log('debug', 'inject.decision', { prompt: 'switchSettle', kind: String(what || ''), layout: String((st && st.setupLayout) || 'unset') })
+  } catch (eL) {}
 }

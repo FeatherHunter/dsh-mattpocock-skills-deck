@@ -48,11 +48,18 @@ console.log('== A 源码层：座位只在状态栏（三支都带上），检�
   check(ctSrc.indexOf('FormModalSeat') < 0, '检查页不再挂那个座位（两处同挂会叠两层遮罩）')
   check(ctSrc.indexOf('formModalNode') < 0, '检查页也不留旧变量名（真搬走，不是注释掉）')
   check(clientSrc.indexOf('const FormModalSeat = function') >= 0, '产物里带着那个弹窗组件')
+  // #698：那个座位现在也管「域文档布局」那张小卡 —— 卡的界面在 views/SetupCard.js，
+  //   座位里按 st.setupLayoutCardOpen 分派（同一时刻只画一张，不叠两层遮罩）。
+  check(clientSrc.indexOf('const SetupLayoutCard = function') >= 0, '产物里还带着那张布局小卡的界面（#698 搬进座位的第二件东西）')
+  check(/setupLayoutCardOpen === true\) \{ try \{ return SetupLayoutCard\(/.test(clientSrc), '座位里按「卡开着」分派到那张卡（不只画表单弹窗）')
 }
 
 // —— B 组的取值口径：产物里那段弹窗渲染体，原样抽出来跑（不启动整条插件）——
 //   抽法：从「const FormModalSeat = function」那一行开始，按花括号配平找它的收尾
 //   （不能按「下一个顶层声明」找：那一段里还有别的东西，会切在半截，语法就崩了）。
+// #698：那段渲染体现在要调 kernel/modal-fields.js 的 modalFormFields（表单字段那一串搬了出去），
+//   所以抽出来的那段单独跑会缺这个名字 —— 下面配一个能真渲染的替身（与产物里那一份同形：
+//   一层 div + 一行 label），B 组量的本来就是「弹窗落在哪一层」，不是字段长什么样。
 function extractSeatSource (code) {
   const lines = code.split('\n')
   let start = -1
@@ -128,6 +135,11 @@ async function renderSeat (withModal) {
       timer: { setTimeout: (fn, ms) => setTimeout(fn, ms), timeout: (fn, ms) => setTimeout(fn, ms) },
       supportsBackend: () => false,
       _queueLen: () => 0,
+      // #698：表单字段那一串渲染搬去了 kernel/modal-fields.js（同闭包内直调），抽出来的这一段单独跑要顶上它。
+      //   替身与真身同形：一层 div + 一行 label，够 B 组把「弹窗落在哪一层」量准。
+      modalFormFields: (schema, ctx) => (Array.isArray(schema) ? schema : []).map((f, i) => ctx.h('div', { key: i }, ctx.h('label', null, String((f && f.label) || (f && f.name) || i)))),
+      // #698：座位里那句分派会读它（卡开着才画卡；B 组两份夹具都不是那一档）
+      SetupLayoutCard: () => null,
     }
     const names = Object.keys(deps)
     const factory = new Function(...names, seat.src + '\n;return FormModalSeat')
