@@ -58,7 +58,11 @@ export async function listSubIssues(repo, mapKey, opts, ctx) {
       const args = ['api', 'graphql', '-f', `query=${SUB_ISSUES_QUERY}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `number=${num}`, '-F', `first=${PAGE_SIZE}`]
       if (after) args.push('-F', `after=${after}`)
       else args.push('-F', 'after=')
-      const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
+      // 这一台机器上 api.github.com/graphql 的 POST 偶发 `unexpected EOF`（仓库里早有记载，见 issues.js 的 REST 降级注释）。
+      // 列表那条路为它准备了一整套 REST 降级；这条路只在用户点开一张地图时跑、最多十页，抖一下就整张地图空白不值得，
+      // 所以对**同一页**多试一次：第一次失败先按原样重试，第二次还失败才如实报错（界面那里有「重试」）。
+      let r = await c.execGh(args, { cwd: ctx && ctx.cwd })
+      if (!r.ok) r = await c.execGh(args, { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: (r && r.error) || { kind: ERROR_KIND.NETWORK, message: '子票取数：这一页没取回来' } }
       let j
       try { j = JSON.parse(r.data.stdout || '') } catch (e) {

@@ -153,6 +153,9 @@
       if (b.loading) return Promise.resolve({ ok: false, error: { kind: 'throttle', message: '正在取' } })
       const wantNext = o.next === true
       if (!wantNext && b.pages.length) return Promise.resolve({ ok: true, cached: true })
+      // 后端已经答过「做不到」：不再反复撞（G5：调一次、按真实返回退化；界面显示「在网页上看全部」）。
+      // o.force 是给「用户明确再点一次」留的出口，正常三处触发点都不带它。
+      if (!wantNext && b.notice === 'noweb' && o.force !== true) return Promise.resolve({ ok: false, error: b.error || { kind: 'unsupported', message: '这个后端不支持翻页' } })
       const cursor = wantNext ? String(b.nextCursor || '') : ''
       if (wantNext && !cursor) return Promise.resolve({ ok: true, done: true })
       // 工作单元只有一个被选中时把它作为寻址范围带上去（多选了就不带：后端一条请求只能对应一个范围，
@@ -189,7 +192,12 @@
           b.notice = 'stale'
           b.error = err
           emit(st)
-          return loadIssuePage(st, { view: view })
+          return loadIssuePage(st, { view: view }).then(function (r) {
+            // 重取那一次会把 notice 先清成 loading；取回来之后把「位置失效、已重新开始」这件事补回去，
+            // 界面才说得出这一句（它是这一支的结论，不是中间态）。
+            if (r && r.ok) { b.notice = 'stale'; emit(st) }
+            return r
+          })
         }
         b.notice = (kind === 'unsupported') ? 'noweb' : 'fail'
         b.error = err

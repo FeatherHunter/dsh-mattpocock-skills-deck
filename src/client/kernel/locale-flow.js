@@ -43,7 +43,7 @@
         'list.none': '暂无',
         'list.closedN': '已关闭 {n}（已加载 {x}）', // #689：n 是后端计数说的总数、x 是列表里真加载到的行数（两个不一样时，用户一眼看出「还有多少没装进来」）
         'list.partial': '这份清单不全', // #689：deck.partial 为真时说一句（有的是后端一次给不了那么多票，有的是拿不到精确计数；详情在下一行的悬停提示里）
-        'list.partialTitle': '这份清单不全：有的是后端一次给不了那么多票，有的是拿不到精确计数（这个后端不支持计数，或者配额用尽了）。列表与数字都可能比仓库里实际的少。',
+        'list.partialTitle': 'ISSUE 未完全加载，体检可能遗漏。', // 竖条的悬浮句：只说事实与后果，不解释原因
         'list.collapse': '收起',
         'list.blocked': '被阻塞',
         'list.blockedTitle': '被 {by} 阻塞（点击查看地图详情）',
@@ -212,7 +212,7 @@
         'list.none': 'None',
         'list.closedN': 'Closed {n} ({x} loaded)', // #689: n = the backend's own count, x = rows actually loaded
         'list.partial': 'This list is incomplete', // #689: shown when the host says the row data was truncated (or counting was unavailable)
-        'list.partialTitle': 'This list is incomplete: either the backend cannot hand over that many tickets at once, or exact counts are unavailable (this backend does not support counting, or the quota ran out). Both the numbers and the list may be smaller than what the repository really holds.',
+        'list.partialTitle': 'ISSUEs not fully loaded — the health check may miss some.',
         'list.collapse': 'Collapse',
         'list.blocked': 'Blocked',
         'list.blockedTitle': 'Blocked by {by} (click for map details)',

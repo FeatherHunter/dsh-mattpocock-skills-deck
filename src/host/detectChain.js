@@ -45,7 +45,7 @@ export function createDetectChain(deps) {
         try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (!chainEntry.value ? 'empty' : 'expired') } }) } catch (eL) {}
         // #696 在途合并：同钥匙同后端同语言同强制标记共用同一份（另带修订号，免不同修订串份）；先回来的写缓存，后到的拿同一份；强制不参与合并
         const chainDedupKey = cacheKey + '|' + (force ? '1' : '0') + '|' + String((args && args.baseRev) || 0)
-        if (!force) { const ongoingChain = chainInflight.get(chainDedupKey); if (ongoingChain) return await ongoingChain }
+        if (!force) { const ongoingChain = chainInflight.get(chainDedupKey); if (ongoingChain) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return await ongoingChain } }
         const chainPending = (async function () {
         const platform = await getPlatform()
         // 用户显式选择（客户端持久化绑定）作为 detect hint——「主锚 > 用户选择 > matches」层级，见 detectionService.detect

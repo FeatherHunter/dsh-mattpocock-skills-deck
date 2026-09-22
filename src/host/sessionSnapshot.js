@@ -87,7 +87,7 @@ export function createSessionSnapshot(deps) {
       try { if (logCtx) logCtx.fire('info', 'snapshot.cache.miss', { reason: missReason }) } catch (eL) {}
       // #696 在途合并：同根同后端同语言同强制标记的并发共用同一份重建（快照无语言参数恒为空串，另带修订号与版本号免串份），强制不进表；先回来的写缓存，后到的拿同一份
       const snapshotDedupKey = cwd + '|' + String((_selEarly && _selEarly.backendId) || '') + '|' + String((args && args.lang) || '') + '|' + (isForce ? '1' : '0') + '|' + String((args && args.baseRev) || 0) + '|' + String((args && (args.ifNoneMatch || args.version)) || '')
-      if (!isForce) { const ongoing = snapshotInflight.get(snapshotDedupKey); if (ongoing) return await ongoing }
+      if (!isForce) { const ongoing = snapshotInflight.get(snapshotDedupKey); if (ongoing) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'snapshot', keyHash: hash8(snapshotDedupKey) } }) } catch (eL) {}; return await ongoing } }
       const snapshotPending = (async function () {
       try {
         // 复用已算的 selection，避免二次探测

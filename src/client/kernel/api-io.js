@@ -243,14 +243,13 @@
           const ok = !errText && !!(res && res.ok)
           const items = (res && Array.isArray(res.items)) ? res.items : []
           const total = (res && typeof res.total === 'number') ? res.total : -1
-          const raw = errText || (ok ? '' : String(((res && res.error && (res.error.message || res.error.kind)) || 'issues-page-not-ok')))
-          log(ok ? 'info' : 'warn', 'issues.page', {
-            state: state, labelsCount: labels.length, returned: items.length, total: total,
-            latencyMs: Date.now() - pgT0, ok: ok, errorHash: raw ? dswsLogHash(dswsLogTrunc(String(raw), 120, 'error')) : '',
-          })
+          const raw = errText || String(((res && res.error && (res.error.message || res.error.kind)) || 'issues-page-not-ok'))
+          if (ok) log('info', 'issues.page', { state: state, labelsCount: labels.length, returned: items.length, total: total, latencyMs: Date.now() - pgT0, ok: true, errorHash: '' })
+          else log('warn', 'issues.page', { state: state, labelsCount: labels.length, returned: items.length, total: total, latencyMs: Date.now() - pgT0, ok: false, errorHash: dswsLogHash(dswsLogTrunc(String(raw), 120, 'error')) })
         } catch (eL) {}
       }
       return host.call('wf.issuesPage', args).then(function (res) {
+        try { if (res && res.ok === true) log('info', 'host.call', { method: 'wf.issuesPage', latencyMs: Date.now() - pgT0, ok: true, kind: 'issues-page' }); else log('warn', 'host.call.fail', { method: 'wf.issuesPage', kind: 'issues-page', errorHash: dswsLogHash(dswsLogTrunc(String(((res && res.error && (res.error.message || res.error.kind)) || 'issues-page-not-ok')), 120, 'error')) }) } catch (eL) {}
         logPage(res, null)
         if (!res) return { ok: false, error: { kind: 'network', message: tr('err.snapshotEmpty') } }
         if (res.ok === true) {

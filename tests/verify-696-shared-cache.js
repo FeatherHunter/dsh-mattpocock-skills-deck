@@ -108,6 +108,7 @@ async function main() {
   {
     const table = makeSnapshotTable()
     let builds = 0
+    const snapFires = []
     const { createSessionSnapshot } = await import(url('src/host/sessionSnapshot.js'))
     const h = createSessionSnapshot({
       canonicalKey: async (raw) => { if (raw === RAW.sub || raw === RAW.subDeep || raw === RAW.repo) return K.repo; if (raw === RAW.sibling) return K.sibling; return String(raw) },
@@ -127,7 +128,7 @@ async function main() {
       readDiskCache: async () => null, writeDiskCache: async () => {},
       adoptSnapshot: (snap, cwd) => { table.setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd }); return snap },
       detectionExec: async () => ({ ok: false }), getGhPath: () => '', getGhLastError: () => '', errText: (e) => String((e && e.message) || e),
-      DEFAULT_CWD: RAW.repo, logCtx: { fire: () => {}, isEnabled: () => false },
+      DEFAULT_CWD: RAW.repo, logCtx: { fire: (level, event, fields) => { snapFires.push({ level: level, event: event, fields: (typeof fields === 'function') ? fields() : fields }) }, isEnabled: () => true },
     })
     const first = await h.handleSnapshot({ cwd: RAW.repo })
     must(first && first.ok !== false && builds === 1, '根目录会话首次打开面板重建一次（后端只调一次）', 'builds=' + builds)
@@ -138,6 +139,7 @@ async function main() {
     builds = 0
     const [c1, c2] = await Promise.all([h.handleSnapshot({ cwd: RAW.repo }), h.handleSnapshot({ cwd: RAW.subDeep })])
     must(builds === 1 && c1 === c2, '同根并发同时打开只重建一次，两边拿到同一份', 'builds=' + builds + ' same=' + (c1 === c2))
+    must(snapFires.some((f) => f.event === 'dedup.hit' && f.fields && f.fields.scope === 'snapshot'), '同根并发的后来者在途命中记 dedup.hit（作用域为快照）', JSON.stringify(snapFires.filter((f) => f.event === 'dedup.hit')))
     // A/B 隔离：B 重建不影响 A，切回 A 命中
     const buildsBeforeB = builds
     const bFirst = await h.handleSnapshot({ cwd: RAW.sibling })
@@ -187,6 +189,7 @@ async function main() {
     must(table.map.size === 20, '链表最多留 20 条，超出丢最久没用的', 'size=' + table.map.size)
     // 并发共用同一份：真跑 handleChain，计数探测次数
     let detects = 0
+    const chainFires = []
     const { createDetectChain } = await import(url('src/host/detectChain.js'))
     const chainTable = makeChainTable()
     const dh = createDetectChain({
@@ -201,11 +204,12 @@ async function main() {
       probeSkill: async () => { await new Promise((r) => setTimeout(r, 60)); return { ok: false, level: 'bad', detail: 'x', hint: '', repo: null } },
       mdParseOkPredicate: async () => ({ status: 'pending', detail: 'x' }),
       getChainCache: chainTable.getChainCache, setChainCache: chainTable.setChainCache,
-      logCtx: { fire: () => {}, isEnabled: () => false },
+      logCtx: { fire: (level, event, fields) => { chainFires.push({ level: level, event: event, fields: (typeof fields === 'function') ? fields() : fields }) }, isEnabled: () => true },
     })
     const [r1, r2] = await Promise.all([dh.handleChain({ cwd: RAW.repo, backendId: 'github', lang: 'zh' }), dh.handleChain({ cwd: RAW.sub, backendId: 'github', lang: 'zh' })])
     must(r1 === r2, '同根并发同时求链拿到同一份（在途合并）', 'same=' + (r1 === r2))
     must(detects === 1, '同根并发只求值一次（后端只算一次）', 'detects=' + detects)
+    must(chainFires.some((f) => f.event === 'dedup.hit' && f.fields && f.fields.scope === 'chain'), '同根并发的后来者在途命中记 dedup.hit（作用域为链）', JSON.stringify(chainFires.filter((f) => f.event === 'dedup.hit')))
     const chainSrc = read('src/host/detectChain.js')
     must(/chainNotAllDone/.test(chainSrc), '链没全绿不存的纪律还在（未全绿不写 30 秒缓存）', '纪律被删')
     must(/CHAIN_CACHE_MS\s*=\s*30000/.test(chainSrc), '链缓存 30 秒有效', 'TTL 被改')
@@ -243,7 +247,8 @@ async function main() {
     must(detSrc.indexOf('chain.cache.hit') >= 0 && detSrc.indexOf('chain.cache.miss') >= 0, '链复用已有事件名（命中与未命中，不新增）', '事件 missing')
     const newEventLike = Array.from(changed.matchAll(/fire\s*\(\s*['"](?:info|debug|warn|error)['"]\s*,\s*['"]([^'"]+)['"]/g)).map((m) => m[1]).filter((e) => /696|shared\.cache|inflight|dedup\.snapshot/i.test(e))
     must(newEventLike.length === 0, '未新增日志事件名（附录第 1 章条数不动，由既有计数门禁守）', '新增=' + newEventLike.join(','))
-    must(!/snapshot\.cache\.hit[^]*cwdHash/.test(snapSrc + detSrc) || true, '命中高频路径不记路径原文（只记散列与枚举，占位不断言细节，由字段门禁守）', '')
+    must(/dedup\.hit/.test(snapSrc) && /scope:\s*'snapshot'/.test(snapSrc), '快照在途命中记复用事件 dedup.hit（作用域为快照，不新增事件名）', 'dedup.hit missing')
+    must(/dedup\.hit/.test(detSrc) && /scope:\s*'chain'/.test(detSrc), '链在途命中记复用事件 dedup.hit（作用域为链，不新增事件名）', 'dedup.hit missing')
   }
 
   title('E) 门禁入链')

@@ -17,16 +17,19 @@ export const useClosedPageScroll = function (st, enabled) {
         try { loadIssuePage(st, { view: 'list' }) } catch (e) {}
         if (typeof document === 'undefined') return
         const el = document.querySelector('.dsws-body')
-        if (!el || typeof el.addEventListener !== 'function') return
+        // 滚动容器可能比本组件晚一步挂上来（面板换页/换布局时会重建）：找得到就盯它，
+        // 找不到就先盯 document 的捕获相（滚动事件不冒泡，只有捕获相收得到），真滚起来时再回查一次。
+        const bound = (el && typeof el.addEventListener === 'function') ? el : document
         const onScroll = function (ev) {
           try {
-            const target = (ev && ev.target && ev.target.scrollTop !== undefined) ? ev.target : el
+            const target = (ev && ev.target && ev.target.scrollHeight !== undefined) ? ev.target : (document.querySelector('.dsws-body') || el)
+            if (!target || target.scrollHeight === undefined) return
             if ((target.scrollTop + target.clientHeight) < (target.scrollHeight - 80)) return
             loadIssuePage(st, { view: 'list', next: true })
           } catch (e) {}
         }
-        el.addEventListener('scroll', onScroll, { passive: true })
-        return function () { try { el.removeEventListener('scroll', onScroll) } catch (e) {} }
+        bound.addEventListener('scroll', onScroll, { passive: true, capture: true })
+        return function () { try { bound.removeEventListener('scroll', onScroll, { capture: true }) } catch (e) {} }
       }, [enabled])
     }
 

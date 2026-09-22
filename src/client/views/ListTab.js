@@ -247,9 +247,8 @@ export     const ListTab = ({ st, narrow }) => {
           kpi(kpiFrontier, tr('list.kpi.takeable'), 'target', '#4ade80'),
           kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f0883e'),
           kpi(kpiClosed, tr('list.kpi.closed'), 'check', '#52525b'),
-          // #689：这份行数据被截断过就说出来（宿主写的 deck.partial）。拿不到后端计数时它也是真的 ——
-          //   那时候连「全不全」都无从判断，只能老实说不全（规格第 6.5 节）；提示里把两种情况都讲清楚。
-          (st.snapshot && st.snapshot.deck && st.snapshot.deck.partial === true) ? h(Tip, { content: tr('list.partialTitle') }, h('span', { className: 'dsws-chip', style: { flex: 'none', alignSelf: 'center', fontSize: 10, color: '#f59e0b', background: 'rgba(245,158,11,.10)', border: '1px solid rgba(245,158,11,.4)' } }, tr('list.partial'))) : null,
+          // #689 的 partial 状态不再单独占一格（橙色胶囊太抢眼，又长得像按钮但点不动）——
+          //   改为体检按钮内侧左边缘一道 2px 竖条 + 悬浮说明追加一句，见下面按钮里的 isPartial。
           h('span', { style: { flex: 1 } }),
           // #685：「体检」按钮 —— 贴这一行的右边缘（左三枚是读数、右边这颗是动作，用位置把两类分开；
           //   与页签行那枚刷新按钮形成「面板级操作都在右侧」的一致手势，#681 定版）。
@@ -259,15 +258,16 @@ export     const ListTab = ({ st, narrow }) => {
           (function () {
             if (!healthCheckVisible(st)) return null
             const nHc = healthCheckCountOf(st)
+            const isPartial = !!(st.snapshot && st.snapshot.deck && st.snapshot.deck.partial === true) // #689：行数据不全时按钮内侧多一道竖条，悬浮里追加一句（竖条是状态不是控件）
             const btnTier = (!narrow && tr('list.healthCheck').length > 6) ? '' : (nHc == null ? ' narrow-icon' : ' narrow-count')
             const hcStyle = { display: 'inline-flex', alignItems: 'center', gap: 3, flex: 'none', alignSelf: 'center', fontSize: 11, padding: '1px 6px', background: 'rgba(255,255,255,.06)', borderColor: 'rgba(255,255,255,.15)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)' }
             if (btnTier === ' narrow-icon') { hcStyle.padding = '0'; hcStyle.justifyContent = 'center' }
             else if (btnTier === ' narrow-count') { hcStyle.padding = '1px 5px'; hcStyle.gap = 2 }
-            return h(Tip, { content: tr('list.healthCheckTitle') }, h('button', {
+            return h(Tip, { content: tr('list.healthCheckTitle') + (isPartial ? '\n' + tr('list.partialTitle') : '') }, h('button', {
               className: 'dsws-btn' + btnTier,
               onClick: function (e) { e.stopPropagation(); openHealthCheck(st) },
               style: hcStyle,
-            }, [Ic({ n: 'clipboard', size: 11 }), (btnTier === ' narrow-count' || btnTier === '') ? h('span', null, tr('list.healthCheck') + (nHc == null ? '' : ' ' + nHc)) : null]))
+            }, [(isPartial ? h('span', { 'aria-label': tr('list.partial'), style: { width: 2, alignSelf: 'stretch', borderRadius: 2, background: 'rgba(245,158,11,.55)', flex: 'none' } }) : null), Ic({ n: 'clipboard', size: 11 }), (btnTier === ' narrow-count' || btnTier === '') ? h('span', null, tr('list.healthCheck') + (nHc == null ? '' : ' ' + nHc)) : null]))
           })(),
           // T2 #2：刷新按钮已上移至面板 tabs 行（页内浮窗退役后，面板只有右侧边栏这一处）
         ]),

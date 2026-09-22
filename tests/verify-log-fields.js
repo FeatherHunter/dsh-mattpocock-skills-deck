@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655：57 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690：58 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -100,6 +100,9 @@ const ALLOWED = {
   'choiceStore.write.fail': ['keyHash', 'reason'],
   'choiceStore.hint.reject': ['keyHash', 'baseRev', 'rev'],
   'choiceStore.evict': ['count', 'max'],
+  // 2026-09-22 新增一条常驻事件（#690，附录 1.4 节）：界面向后端要一页历史票（展开折叠行 / 筛到已关闭 / 滚到底）。
+  //   只记这一页要的是哪一档状态、筛了几个标签、取回几行、后端说一共多少行，以及耗时、成没成与失败散列。
+  'issues.page': ['state', 'labelsCount', 'returned', 'total', 'latencyMs', 'ok', 'errorHash'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],

@@ -40,6 +40,7 @@ import snapshotSection from './tracker-contract/sections/snapshot.js'
 import chainSection from './tracker-contract/sections/chain.js'
 import labelsSection from './tracker-contract/sections/labels.js'
 import countsSection from './tracker-contract/sections/counts.js'
+import listPageSection from './tracker-contract/sections/listPage.js'
 
 const results = [
   ...runContractTests(compliant), // 合规 → 应全 PASS
@@ -225,7 +226,7 @@ try {
   results.push({ name: 'pr-shape · probe-crash', ok: false, detail: String(e && e.stack || e) })
 }
 
-for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection, countsSection]) {
+for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection, countsSection, listPageSection]) {
   try {
     const r = await s.run()
     results.push(...r)

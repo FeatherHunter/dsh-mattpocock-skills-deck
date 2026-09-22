@@ -27,12 +27,14 @@ function listJsFiles(dir) {
 const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const Q = String.fromCharCode(39)
 
-// 电话清单：35 注册减退役 2 个，现役 33 个，加 #541 只读更新电话 2 个，现役 35 个，加 #542 装更新电话 1 个，现役 36 个，加 #627 标签配色电话 2 个（wf.listLabels / wf.setLabelColors），现役 38 个。增删电话必须同步改本表、附录 1.7 与计数门禁。
+// 电话清单：35 注册减退役 2 个，现役 33 个，加 #541 只读更新电话 2 个，现役 35 个，加 #542 装更新电话 1 个，现役 36 个，加 #627 标签配色电话 2 个（wf.listLabels / wf.setLabelColors），现役 38 个；#691 地图子票按需电话 1 个（wf.mapTickets），现役 39 个；#690 历史票按页取电话 1 个（wf.issuesPage），现役 40 个。增删电话必须同步改本表、附录 1.7 与计数门禁。
 const PHONES = [
   'wf.detect', 'wf.chain', 'wf.cwd', 'wf.snapshot', 'wf.refresh',
   'wf.bind', 'wf.bindings', 'wf.registry', 'wf.selection', 'wf.setupLayout',
   'wf.listLabels', 'wf.setLabelColors',
   'wf.issueDetail', 'wf.issueComments', 'wf.commentIssue', 'wf.probe',
+  'wf.issuesPage',
+  'wf.mapTickets',
   'wf.handoffLatest', 'wf.handoffResolve',
   'wf.namingRegister', 'wf.registerNewSessionWatcher', 'wf.namingSignal', 'wf.namingPlan',
   'wf.namingResult', 'wf.cancelNewSessionWatcher', 'wf.awaitCreatedIssue',
