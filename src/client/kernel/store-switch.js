@@ -172,7 +172,9 @@
         //   把它落到本地这条上 —— 此后这个壳上报的都带着它，宿主才判得出这份是不是最新那一版。
         try { if (typeof adoptBoundRev === 'function') adoptBoundRev(st, res) } catch (eRev) {}
         // #683 R7c：绑定成了、但宿主侧那份记忆没写进去（persisted:false）—— 按现成的 bindFail 那条路如实说一句。
-        try { var _np=res&&(res.persisted===false||(res.value&&res.value.persisted===false)); if(_np) flash(st,tr('switch.bindFail',{err:'已切换，但宿主侧这次没能记住：下次重启或换个地址打开可能要再选一次'}),'warn') } catch (eP) {}
+        //   理由那条文本走词条 switch.bindNotPersisted（中英各一份）：原先四个绑定确认点各写一份硬编码中文，
+        //   英文界面上会直接印出中文，中文那边又与「切换失败：」这个模板拼成一句自相矛盾的话。
+        try { var _np=res&&(res.persisted===false||(res.value&&res.value.persisted===false)); if(_np) flash(st,tr('switch.bindFail',{err:tr('switch.bindNotPersisted')}),'warn') } catch (eP) {}
         // —— 切换成功之后按「这个工作区初始化过没有」分两条路（#669 第 6 件 / ADR 20260921）——
         //   判据是链上那一步 `tracker:initialized`（它的检查项就是「工作区根有没有 docs/agents/issue-tracker.md」），
         //   与状态栏横幅读的是同一份清单、同一条链快照。**链里根本没有这一步时不许猜**：那一档既不能当

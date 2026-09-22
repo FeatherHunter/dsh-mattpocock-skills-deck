@@ -11,6 +11,9 @@
  *   - C：绑定回包里宿主发的新修订号要落到本地那条上、并写进本地缓存；
  *   - D：版本位必须活过一次快照往返（宿主这次没带时不许把它抹掉）；
  *   - E：全仓扫描 —— 每一处把 hint 报给宿主的调用点都要同时带 baseRev（漏一处就等于那一条上报时会冒充最新版）。
+ *   - H：R7c 那条「绑定成了，但宿主没把这次选择记住」的提示 —— 四个绑定确认点都要说，而且理由那句话走词条
+ *        （原先四个点各写一份硬编码中文：英文界面上直接印中文，中文那边又与「切换失败：{err}」这个模板
+ *        拼成一句自相矛盾的话）。
  *
  * 做法：把 src/client/kernel/store-prefs.js 的真身文本喂进沙箱求值（真源 + 假 localStorage/window），
  *   再用改坏的那一份跑同一批断言 —— 该红的必须当场红。
@@ -202,7 +205,7 @@ console.log('== G R6b：宿主回过话之后不再回头看本地镜像 ==')
 
 // ── H R7c：四个绑定确认点都要把 persisted:false 说出来 ──────────────────────────────────────
 console.log('')
-console.log('== H R7c：绑定成了但宿主侧没记住 → 按 bindFail 那条路如实说一句 ==')
+console.log('== H R7c：绑定成了但宿主侧没记住 → 按 bindFail 那条路如实说一句，理由走词条 ==')
 {
   const bindSites = [
     ['src/client/kernel/store-switch.js', '切换弹窗'],
@@ -210,11 +213,26 @@ console.log('== H R7c：绑定成了但宿主侧没记住 → 按 bindFail 那�
     ['src/client/panel/Dock.js', '面板门控窗'],
     ['src/client/panel/OverlayGate.js', '那个当前没有调用点的叶'],
   ]
+  // 理由那句话的文本（接在 switch.bindFail 的 {err} 位置上）不许再写死在客户端文件里：
+  //   写死的那一版在英文界面上直接印中文，中文那边又与「切换失败：」拼成一句前后打架的话。
+  const HARDCODED_CJK_ERR = /err\s*:\s*'[^']*[\u4e00-\u9fff]/
   bindSites.forEach(function (w) {
     const src = read(w[0])
     check(/persisted\s*===\s*false/.test(src), w[1] + '里认回包里的 persisted:false（只认明确的 false，老宿主没这个字段时不吭声）')
     check(/persisted\s*===\s*false[\s\S]{0,400}switch\.bindFail/.test(src), w[1] + '里 persisted:false 走的是现成的 bindFail 那条提示路')
+    check(/persisted\s*===\s*false[\s\S]{0,400}switch\.bindNotPersisted/.test(src), w[1] + '里那一支的理由走词条 switch.bindNotPersisted')
+    check(!HARDCODED_CJK_ERR.test(src), w[1] + '里不许再把中文理由写死在代码里（写死的在英文界面上会直接印出中文）')
   })
+  // 词条本体：中英各一份（少一份，英文界面会印出键名或空着）
+  const wordSrc = read('src/client/kernel/locale-word.js')
+  const nKey = wordSrc.split("'switch.bindNotPersisted':").length - 1
+  check(nKey === 2, 'switch.bindNotPersisted 在词条表里 zh/en 各一条（实得 ' + nKey + ' 条）')
+  // 反证 V1：把写死的那份中文放回 Dock.js 那一处 → 「不许硬编码」那条必须当场红
+  const dockSrc = read('src/client/panel/Dock.js')
+  const putBack = dockSrc.replace("err:tr('switch.bindNotPersisted')", "err:'已切换，但宿主侧这次没能记住：下次重启或换个地址打开可能要再选一次'")
+  check(putBack !== dockSrc, '反证 V1 的改法能在真源里落地（把写死的中文理由放回 Dock.js 那一处）')
+  check(HARDCODED_CJK_ERR.test(putBack), '反证 V1 成立：放回去之后「不许硬编码」那条当场变红 —— 说明它量的就是这一处')
+  check(!HARDCODED_CJK_ERR.test(dockSrc), '反证 V1 对照：现在的真源里同一处不再命中')
 }
 
 // ── F 反证：把实现做坏，上面该红的必须当场红 ──────────────────────────────────────────

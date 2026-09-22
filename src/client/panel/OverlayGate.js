@@ -51,7 +51,7 @@ export const confirmOverlayGate = function(s, gateModules){
             const ok = res && (res.ok===true || (res.value && res.value.ok===true) || res.ok)
             if(ok){
               try{ if(typeof adoptBoundRev === 'function') adoptBoundRev(s, res) }catch(eRev){}
-              try{ var _np=res&&(res.persisted===false||(res.value&&res.value.persisted===false)); if(_np) flash(s, tr('switch.bindFail',{err:'已切换，但宿主侧这次没能记住：下次重启或换个地址打开可能要再选一次'}), 'warn') }catch(eP){}
+              try{ var _np=res&&(res.persisted===false||(res.value&&res.value.persisted===false)); if(_np) flash(s, tr('switch.bindFail',{err:tr('switch.bindNotPersisted')}), 'warn') }catch(eP){}
               s.tab='list'
               emit(s)
               try{ flash(s, tr('switch.bindOk', { label: (typeof labelOf==='function'?labelOf(id):String(id)) }), 'ok') }catch(e){}

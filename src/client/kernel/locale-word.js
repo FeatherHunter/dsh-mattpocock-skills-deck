@@ -77,6 +77,11 @@
         'switch.confirm': '确认切换',
         'switch.confirming': '切换中…',
         'switch.bindFail': '切换失败：{err}',
+        // ADR 20260921 的 R7c：「绑定成了，但宿主那边没把这次选择记住」（回包 persisted:false）。
+        //   这句话以前在四个绑定确认点里各写一份硬编码中文，而 switch.bindFail 的模板是「切换失败：{err}」——
+        //   拼出来是「切换失败：已切换，但宿主侧这次没能记住：…」，前后自相矛盾；英文界面上还会直接印出中文。
+        //   现在收成一条词条，四个点共用（写法是「失败的原因」，好接在 {err} 那个位置上），中英各一份。
+        'switch.bindNotPersisted': '宿主这边没能记住这次选择：下次重启、或换个访问地址打开，可能要再选一次',
         // #669 第 6 件（ADR 20260921）：原来那颗「清除后端选择」连同它的三条词条一起退役
         //   （维护者 2026-09-21 拍板：这张卡只问「换成哪个」，不再兼「我不要了」）。
         // 切换成功的提示条按场景分两句：还没初始化的那条要把「接下来干什么」说出来（那一刻布局小卡就开在眼前），
@@ -234,6 +239,7 @@
         'switch.clearOk': 'Confirmed', 'switch.cancel': 'Cancel',
         'switch.confirm': 'Confirm switch', 'switch.confirming': 'Switching…',
         'switch.bindFail': 'Switch failed: {err}',
+        'switch.bindNotPersisted': 'the host did not remember this choice — after a restart, or from another address, you may need to pick again',
         // #669 第 6 件（ADR 20260921）：see the zh block for why these three were retired and these five added.
         'switch.bindOk': 'Switched to {label} (previous data kept)',
         'switch.bindOkFresh': 'Switched to {label} — follow the prompt to finish initializing',
