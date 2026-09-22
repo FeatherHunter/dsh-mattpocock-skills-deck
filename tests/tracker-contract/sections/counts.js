@@ -22,6 +22,9 @@
  * 每段自带反例（✗ probe）：检查器是纯函数，把故意写错的样本喂给它必须逮住；逮不住这一段就形同虚设。
  */
 
+import * as nodeFs from 'node:fs'
+import * as nodePath from 'node:path'
+import * as nodeOs from 'node:os'
 import { createRegistry } from '../../../src/host/tracker/registryCore.js'
 import { ERROR_KIND } from '../../../src/shared/tracker/constants.js'
 import { gitlabBackend } from '../../../src/host/tracker/backends/gitlab/index.js'
@@ -30,6 +33,36 @@ import { markdownModule } from '../../../src/host/tracker/backends/markdown/inde
 import { unsupportedAnswerCheck } from './labels.js'
 
 const KNOWN_KINDS = Object.values(ERROR_KIND)
+
+/**
+ * 造一个临时工作区（系统临时目录里的 `.scratch/demo`），用完即删：给「真实 markdown 后端」的探针用。
+ * 两个工作单元形态与 tests/verify-691-markdown-counts.js 同一套：2 张开着的票 + 3 张已关闭的票
+ * （已关闭的判据是票里 `Status:` 行落进 resolved / completed / closed / done 四者之一，见 #688 的实测结论）。
+ */
+function makeMarkdownFixture() {
+  const root = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'dsws-counts-'))
+  const dir = nodePath.join(root, '.scratch', 'demo')
+  nodeFs.mkdirSync(nodePath.join(dir, 'issues'), { recursive: true })
+  nodeFs.writeFileSync(nodePath.join(dir, 'map.md'), '# Demo\n\nStatus: ready-for-agent\n', 'utf8')
+  const rows = [['01-a.md', 'in-progress'], ['02-b.md', 'ready-for-agent'], ['03-c.md', 'resolved'], ['04-d.md', 'done'], ['05-e.md', 'completed']]
+  for (const [file, status] of rows) nodeFs.writeFileSync(nodePath.join(dir, 'issues', file), '# ' + file + '\n\nStatus: ' + status + '\n', 'utf8')
+  const plat = {
+    path: nodePath.posix,
+    fs: {
+      async resolve(p) { return p },
+      async readText(t) { return nodeFs.readFileSync(t, 'utf8') },
+      async writeText(t, c) { nodeFs.mkdirSync(nodePath.dirname(t), { recursive: true }); nodeFs.writeFileSync(t, c, 'utf8') },
+      async lstat(t) { try { return nodeFs.statSync(t) } catch (e) { return null } },
+      async listDir(t) { try { return nodeFs.readdirSync(t) } catch (e) { return [] } },
+      async stat(t) { try { return nodeFs.statSync(t) } catch (e) { return null } },
+    },
+  }
+  return {
+    repo: { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' },
+    ctx: { platform: plat, fs: plat.fs, cwd: root, get(name) { return name === 'fs' ? plat.fs : undefined } },
+    cleanup() { try { nodeFs.rmSync(root, { recursive: true, force: true }) } catch (e) {} },
+  }
+}
 
 /** 计数回答检查器：返回违规清单（空 = 合规）。三个数必须是非负整数，且 open + closed = total。 */
 export function countsShapeCheck(res) {
@@ -192,12 +225,27 @@ export async function run() {
     const GOOD = { data: { repository: { openIssues: { totalCount: 31 }, closedIssues: { totalCount: 649 } } } }
     const probeCtx = (ghPayload, opts) => ({ cwd: '/ws/fake', platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null) }, exec: mkScriptedGh(ghPayload, opts), isEnabled: () => false, logEvent: () => {} })
 
-    for (const rb of [{ id: 'gitlab', mod: gitlabBackend }, { id: 'markdown', mod: markdownModule }]) {
+    for (const rb of [{ id: 'gitlab', mod: gitlabBackend }]) {
       const regReal = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
       const d = regReal.register(rb.mod)
       const r = await regReal.get(rb.id).counts(ref(rb.id), {}, ctx)
       await assert('真实 ' + rb.id + ' 后端：counts 自动落到「做不到」（不碰它一行代码）', unsupportedAnswerCheck('counts', r).length === 0, unsupportedAnswerCheck('counts', r).join('；') || JSON.stringify(r))
       d.dispose()
+    }
+
+    // 本地 Markdown 这一轮真实现了（#691 第四件）：给它一个临时工作区，要求它把三个数给对。
+    // 判据一个字没放宽 —— 检查的还是**真实模块的输出**，只是这次它应当回一个数而不是「做不到」。
+    {
+      const fx = makeMarkdownFixture() // 2 张开着 + 3 张已关闭
+      try {
+        const regMd = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
+        const dMd = regMd.register(markdownModule)
+        const rMd = await regMd.get('markdown').counts(fx.repo, {}, fx.ctx)
+        await assert('真实 markdown 后端：数字给对（2 开 3 关，数的是临时工作区里真实的票文件）', countsShapeCheck(rMd).length === 0 && rMd.ok === true && rMd.data.open === 2 && rMd.data.closed === 3 && rMd.data.total === 5, countsShapeCheck(rMd).join('；') || JSON.stringify(rMd))
+        dMd.dispose()
+      } finally {
+        fx.cleanup()
+      }
     }
 
     const regGh = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
