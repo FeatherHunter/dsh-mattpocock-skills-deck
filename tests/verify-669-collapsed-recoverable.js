@@ -96,19 +96,25 @@ const runStatic = function (src, tag) {
   check(!/className:\s*'dsws-btn ghost dsws-banner-collapse'/.test(src), tag + ' · 带字那一版的写法已消失（不再有一颗写着「收起」的按钮）')
   // #669 第 4 件：那张初始化小卡上的话是维护者 2026-09-21 给的原文，逐字钉住（顺序也钉住：
   //   标题 → 问题与两个选项 → 只读说明 → 两个按钮），免得以后有人顺手改字或把顺序调了。
+  // #698（2026-09-22）：这张卡的**界面**搬去了弹窗座位那一层（src/client/views/SetupCard.js）——
+  //   它原先只渲染在黄条下面，工作区一旦初始化过就没有地方可画。所以这一段改成读那个文件；
+  //   卡的关闭/确认也不再是本文件里那两个转调包装，而是直接调 StatusBackend.js 的那两个函数。
   const loc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/locale-panel.js'), 'utf8')
+  const locPages = fs.readFileSync(path.join(ROOT, 'src/client/kernel/locale-pages.js'), 'utf8')
+  const card = fs.readFileSync(path.join(ROOT, 'src/client/views/SetupCard.js'), 'utf8')
   check(loc.indexOf("'setup.cardTitle': '初始化前最后一问：'") >= 0,
     tag + ' · 卡片标题就是维护者给的那句（初始化前最后一问：）')
   check(loc.indexOf("'setup.cardBackend': '将用 {name} 执行初始化。要换后端：右侧面板「切换后端」。'") >= 0,
     tag + ' · 只读说明就是维护者给的那句（后端名用 {name} 填）')
-  const iTitle = src.indexOf("tr('setup.cardTitle')")
-  const iRadios = src.indexOf('layoutRadios(s, h)')
-  const iBackend = src.indexOf("tr('setup.cardBackend'")
-  const iConfirm = src.indexOf('onClick: confirmSetupPick')
+  check(locPages.indexOf("'setup.layoutQuestion':") >= 0, tag + ' · 那一问的正文在 locale-pages.js（#698 搬过去的）')
+  const iTitle = card.indexOf("tr('setup.cardTitle')")
+  const iRadios = card.indexOf('layoutRadios(st, h)')
+  const iBackend = card.indexOf("tr('setup.cardBackend'")
+  const iConfirm = card.indexOf('confirmStatusSetupPick(st)')
   check(iTitle >= 0 && iRadios > iTitle && iBackend > iRadios && iConfirm > iBackend,
     tag + ' · 卡上的顺序是 标题 → 问题与两个选项 → 只读说明 → 两个按钮（实得 ' + [iTitle, iRadios, iBackend, iConfirm].join(' < ') + '）')
   // 那句橙字注解（gate.wipNotice）在别处还留着（面板的门控浮层等），这里只要求「这张卡那一段里没有它」。
-  const cardSlice = src.slice(iTitle, iConfirm)
+  const cardSlice = card.slice(iTitle, iConfirm)
   const wipInCard = cardSlice.indexOf("tr('gate.wipNotice')")
   check(iTitle >= 0 && iConfirm > iTitle && wipInCard < 0,
     tag + ' · 那句橙字注解不再出现在这张卡上（卡那一段 ' + cardSlice.length + ' 字里实得 ' + wipInCard + '，应为 -1）')
