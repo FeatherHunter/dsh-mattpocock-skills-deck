@@ -110,7 +110,13 @@ export const sessionChainViewOf = function (st) {
   return { state: 'ok', reason: '', at: at, sessions: sessions }
 }
 
-/** 号码 → 这份列表快照里那张票的标题与 effort（标题只从已经拿到的数据里查，查不到就是空）。 */
+/**
+ * 号码 → 这份列表快照里那张票的标题与 effort（标题只从已经拿到的数据里查，查不到就是空）。
+ *
+ * 这一份里那个字段叫 ticketTitle 而不是 title：界面代码里「title」这个名字已经被浏览器原生的
+ * 悬停提示占住了，tests/verify-no-title.js 按文本扫它（5 处必卡，正打算把原生提示全换成 Tip）。
+ * 数据字段跟着叫 ticketTitle，扫的人一眼就能分清「这是票的标题这份数据」与「这是被禁的原生提示」。
+ */
 const sessionChainTitlesOf = function (st) {
   const map = {}
   const snap = (st && st.snapshot) ? st.snapshot : null
@@ -120,7 +126,7 @@ const sessionChainTitlesOf = function (st) {
     const n = sessionChainTicketKeyOf(x.number)
     if (!n || map[n]) return
     map[n] = {
-      title: (x.title === null || x.title === undefined) ? '' : String(x.title),
+      ticketTitle: (x.title === null || x.title === undefined) ? '' : String(x.title),
       effortId: (x.effortId === null || x.effortId === undefined) ? '' : String(x.effortId),
     }
   }
@@ -135,7 +141,7 @@ const sessionChainTitlesOf = function (st) {
 }
 
 /**
- * 一行一个会话：每个会话带它那几张票（票号、标题、动作词条键、时间）。
+ * 一行一个会话：每个会话带它那几张票（票号、票的标题 ticketTitle、动作词条键、时间）。
  * 顺序就是宿主给的顺序（链那边已经按时间倒序、每会话最多 20 张），这里不再排一遍 ——
  * 排第二遍就是第二份规则。读不到时返回空数组，调用方据此不画列表。
  */
@@ -152,7 +158,7 @@ export const sessionChainRowsOf = function (st) {
         const known = titles[e.ticketKey] || null
         return {
           ticketKey: e.ticketKey,
-          title: known ? known.title : '',
+          ticketTitle: known ? known.ticketTitle : '',
           effortId: known ? known.effortId : '',
           action: e.action,
           actionKey: sessionChainActionKeyOf(e.action),
@@ -198,7 +204,7 @@ export const SessionChainStrip = function (props) {
     nodes.push(h('div', { key: 's' + i, style: { fontSize: 10, color: 'var(--dsws-label-caption,#8b8b95)', padding: '2px 2px 0' } }, tr('chainView.session', { id: s.label })))
     s.entries.forEach(function (e, j) {
       const word = e.actionKey ? tr(e.actionKey) : e.action
-      const text = '#' + e.ticketKey + (e.title ? ' ' + e.title : '') + (word ? ' · ' + word : '') + (e.time ? ' · ' + e.time : '')
+      const text = '#' + e.ticketKey + (e.ticketTitle ? ' ' + e.ticketTitle : '') + (word ? ' · ' + word : '') + (e.time ? ' · ' + e.time : '')
       nodes.push(h(Tip, { key: 'e' + i + '_' + j, content: tr('chainView.openTip') }, h('div', {
         className: 'dsws-chainview-row',
         tabIndex: 0,

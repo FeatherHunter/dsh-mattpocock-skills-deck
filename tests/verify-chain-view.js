@@ -161,8 +161,8 @@ async function main() {
   const crossTalk = A.filter(function (e) { return B.some(function (b) { return b.ticketKey === e.ticketKey }) })
   if (crossTalk.length) fail('两个会话的票串了：' + JSON.stringify(crossTalk))
   if (A[0].actionKey !== 'chainView.action.comment' || A[2].actionKey !== 'chainView.action.create') fail('动作类别没有翻成词条键：' + JSON.stringify(A.map(function (e) { return e.actionKey })))
-  if (A[2].title !== '甲票标题') fail('标题没有从已经拿到的票列表里查出来：' + JSON.stringify(A[2].title))
-  if (A[1].title !== '') fail('快照里没有的票不该凭空有个标题：' + JSON.stringify(A[1].title))
+  if (A[2].ticketTitle !== '甲票标题') fail('标题没有从已经拿到的票列表里查出来：' + JSON.stringify(A[2].ticketTitle))
+  if (A[1].ticketTitle !== '') fail('快照里没有的票不该凭空有个标题：' + JSON.stringify(A[1].ticketTitle))
   // 时间显示的是宿主记下的那一刻（条目里的 at），不是渲染的那一刻
   const wantClock = (function (ms) { const d = new Date(ms); const pad = function (n) { return (n < 10 ? '0' : '') + n }; return pad(d.getHours()) + ':' + pad(d.getMinutes()) })(A[0].at)
   if (A[0].time !== wantClock) fail('时间没有按宿主记下的那一刻显示：' + A[0].time + '（应当是 ' + wantClock + '）')
