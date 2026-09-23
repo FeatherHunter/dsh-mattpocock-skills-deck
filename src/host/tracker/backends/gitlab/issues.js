@@ -9,11 +9,14 @@ import { fail } from '../../preflight.js'
 import { glabClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { classifyGlabError } from './errors.js'
-import { projectPath, issuesPath, issuePath, notesPath, linksPath, milestonesPath } from './queries.js'
+import { issuesPath, issuePath, notesPath, linksPath, milestonesPath } from './queries.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
 // 本间房专属的「建后按锚回查」在 ./idempotency.js（服务端搜索 + 按创建时间倒序列出逐张看票面）。
 import { checkIdempotencyKey } from '../../../../shared/refresh/idempotency.js'
 import { withAnchor, lookupByAnchor } from './idempotency.js'
+// #722：建票只有一条写路径（POST 到集合端点），发几次、许不许再发一次由纯函数判。
+// 不许再写成「先发 PUT、拿不到票面再回落发 POST」——那是一次调用里两次可能都成功的写。
+import { writeNewIssue, createWriteFailureKind, createWriteFailureMessage } from './create-write.js'
 
 function repoId(repo) {
   if (!repo) return ''
@@ -152,21 +155,14 @@ export async function createIssue(ctx, repo, input, opCtx) {
       const names = input.labels.map((l) => typeof l === 'string' ? l : l.name).filter(Boolean)
       if (names.length) body.labels = names.join(',')
     }
+    // #722：到这里建票只走一条写路径（POST 到集合端点），回包判据与「许不许再发一次」都在纯函数里。
+    // 「可能已经写出去」的回包（超时、EOF、回包形状不对、5xx）一律不再发第二次写，只如实失败并带上幂等键。
     // parentKey → 创建后链 relates_to
-    const created = await apiPut(effective, `${projectPath(id)}/issues`, body) // POST via PUT fallback? glab api POST
-    // glab api 默认 GET，需指定 POST
-    // 上述apiPut用PUT，create需POST，重试
-    let raw = created
-    if (!raw || !raw.iid) {
-      const c = glabClient(effective)
-      const args = ['api', `${projectPath(id)}/issues`, '--method', 'POST', '-f', `title=${body.title}`]
-      if (body.description) args.push('-f', `description=${body.description}`)
-      if (body.labels) args.push('-f', `labels=${body.labels}`)
-      const res = await c.run(args, { timeout: 8000 })
-      if (res.code !== 0) throw Object.assign(new Error(res.stderr || res.stdout), { stderr: res.stderr, stdout: res.stdout, code: res.code })
-      raw = parseJsonSafe(res.stdout)
+    const written = await writeNewIssue(effective, id, body)
+    if (written.verdict.verdict !== 'created') {
+      return fail(createWriteFailureKind(written.verdict), createWriteFailureMessage(written.verdict, idemKey, written.argvs))
     }
-    if (!raw || !raw.iid) return fail(ERROR_KIND.PARSE, 'create returned no iid')
+    const raw = written.verdict.issue
     // 若有parentKey，建立 relates_to
     if (input.parentKey != null) {
       try {
