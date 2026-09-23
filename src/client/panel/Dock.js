@@ -31,7 +31,7 @@ export     const DetailsDock = (props) => {
       //   （提示写着「关闭面板」、动作却是关详情），没有调用点的 closeDock 一并删了。面板开合仍由壳自己管。
       const dockRef = React.useRef(null)
       const [dw, setDw] = React.useState(460)
-      // 头部第一行右侧那两个控件收到第几档（0=都展开 / 1=刷新按钮只留图标 / 2=时间标签也收起，档号由头部折叠机算）。
+      // 头部第一行右侧那两个控件（以及它们让完之后才动的仓库名）收到第几档：阶梯表见下面那台头部折叠机，档号由它算。
       const [headFold, setHeadFold] = React.useState(0)
       // 列宽感知：details 列 300-520px；窄于 380 时动作按钮折叠为纯图标（与悬浮面板同阈值）
       React.useEffect(function () {
@@ -116,47 +116,46 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
         if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(apply)
         return function () { if (ro) ro.disconnect(); if (typeof window !== 'undefined') window.removeEventListener('resize', apply) }
       }, [])
-      // 头部自适应：空间不足时收缩仓库名，最后只留短名（#28）。头部原先还有一个标题字要优先隐藏，
-      //   2026-09-19 维护者把标题字与罗盘图标去掉了（#667），那一步随之没有了对象，这里只剩仓库名一条收缩链。
+      // 头部第一行那一排随宽度逐字变短的判据在 panel/headFold.js（纯函数，只有一条阶梯）；
+      //   这里把「现在该画什么」的数据凑齐，再算出当前档位下每个元素画什么 —— 渲染与折叠机读的都是它。
+      const headBox = (typeof truthFreshnessBox === 'function') ? truthFreshnessBox(s, Date.now()) : null
+      const headRepo = s.repository || (s.snapshot && s.snapshot.repository) || null
+      const headAgo = headBox ? tr(headBox.agoKey, headBox.agoParams) : ''
+      const headTip = headBox ? tr('truth.updatedTip', { ago: headAgo, time: headBox.time }) : ''
+      // 仓库名按版面上显示的那一串（就是芯片里那串字）逐字变短；完整的那一串留在悬停提示里，一个字都不丢。
+      const headLadder = (typeof headFoldLadderOf === 'function') ? headFoldLadderOf({ name: headRepo ? String(headRepo.name || '') : '', refresh: tr('list.refresh'), time: headAgo, icons: ['palette', 'switch', 'mark'] }) : null
+      const headNow = headLadder ? headFoldStateAt(headLadder, headFold) : null
+      const headIconCls = function (id) { return (headNow && headNow.icons[id] === false) ? 'dsws-folded' : undefined }
+      // 头部自适应（#28 那条收缩链的第三代，维护者 2026-09-22 定）：空间不够时照 panel/headFold.js 那条阶梯
+      //   一档一档往下走，每一步最多少一个字符 —— 先动右侧那两个控件（刷新的字 → 时间标签），再让仓库名尾部
+      //   逐字变短，最后才是那几颗单字形小图标一颗一颗撤；刷新那颗齿轮图标永不让位。档号 = 已经走了几步。
       React.useEffect(function () {
         const applyHead = function () {
           const hd = headRef.current
-          if (!hd) return
-          const chip = hd.querySelector('[data-repo-chip]')
-          const txt = chip && chip.querySelector('[data-repo-text]')
-          if (!chip || !txt) return
-          const repo = s.snapshot && s.snapshot.repo
-          const full = repo ? repo.owner + '/' + repo.name : ''
-          const short = repo ? repo.name : ''
-          const naturalFits = function () {
-            try { if (typeof measureContentWidth === 'function') return measureContentWidth(hd) <= hd.clientWidth + 1 } catch (e) {}
-            return hd.scrollWidth <= hd.clientWidth + 1
-          }
-          // 右侧那两个控件逐级收回（与状态栏胶囊、tabs 行同一套做法：先全展开，再按优先序逐个收，收到放得下为止）。
-          //   一级收「刷新」按钮的字（只留图标），二级收整个时间标签（上次更新的时间挪进刷新按钮的悬停提示）。
-          //   收法就是给元素加 .dsws-folded（规则在 kernel/styles.js），同时把档号交给 React（悬停提示要用它）。
-          const foldAt = function (n) {
-            const bt = hd.querySelector('[data-head-fold="1"]'), tb = hd.querySelector('[data-head-fold="2"]')
-            if (bt) bt.classList.toggle('dsws-folded', n >= 1)
-            if (tb) tb.classList.toggle('dsws-folded', n >= 2)
+          if (!hd || !headLadder) return
+          const nameEl = hd.querySelector('[data-repo-text]')
+          if (!nameEl) return
+          const rfEl = hd.querySelector('[data-head-refresh-text]')
+          const tmEl = hd.querySelector('[data-updated-ago]')
+          const iconEls = Array.from(hd.querySelectorAll('[data-head-icon]'))
+          // 放不下怎么判：用这一行自己的 scrollWidth —— 它量的是内容的真实横跨宽（含内边距），与面板宽度线性对应，
+          //   于是「窄 6 像素 = 多让位一格（一格一个字）」这件事成立。measureContentWidth 只取「最后一个还有宽度的
+          //   孩子」的右缘，末尾那个空了的元素一挡就少算十几像素（真机实测：内容已溢出还说放得下，下一档掉好几个字）。
+          const naturalFits = function () { return hd.scrollWidth <= hd.clientWidth + 1 }
+          // 把这一行推到第 tier 档（每一步只少一个字符，按 headFoldStateAt 说的画），推完立刻量一次放不放得下。
+          const applyTier = function (tier) {
+            const st = headFoldStateAt(headLadder, tier)
+            nameEl.textContent = st.name
+            if (rfEl) rfEl.textContent = st.refresh
+            if (tmEl) tmEl.textContent = st.time
+            for (const el of iconEls) el.classList.toggle('dsws-folded', st.icons[el.getAttribute('data-head-icon')] === false)
             void hd.offsetWidth
           }
-          const settle = function (n) { chip.style.flex = '0 1 auto'; setHeadFold(function (p) { return p === n ? p : n }) }
-          // 基准：完整仓库名 + 两个控件都展开（固宽测自然宽）
-          if (full) txt.textContent = full
-          chip.style.flex = 'none'
-          foldAt(0)
+          const settle = function (n) { setHeadFold(function (p) { return p === n ? p : n }) }
+          applyTier(0)
           if (naturalFits()) return settle(0)
-          // 第一段：极窄时仅留 repo
-          if (full && short) txt.textContent = short
-          void hd.offsetWidth
-          if (naturalFits()) return settle(0)
-          // 第二段：「刷新」先只留图标（文字先收）
-          foldAt(1)
-          if (naturalFits()) return settle(1)
-          // 第三段：时间标签也收起
-          foldAt(2)
-          settle(2)
+          for (let t = 1; t <= headLadder.steps.length; t++) { applyTier(t); if (naturalFits()) return settle(t) }
+          settle(headLadder.steps.length)
         }
         applyHead()
         let ro2 = null
@@ -168,22 +167,17 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
         if (typeof window !== 'undefined') window.addEventListener('resize', onWin)
         if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(applyHead)
         return function () { if (ro2) try { ro2.disconnect() } catch (e) {} ; if (typeof window !== 'undefined') window.removeEventListener('resize', onWin) }
-      }, [s.snapshot && s.snapshot.repo && (s.snapshot.repo.owner + '/' + s.snapshot.repo.name), s.snapshot && s.snapshot.generatedMs, dw])
+      }, [headLadder ? headLadder.name : '', headAgo, headTip, dw])
       // #670（2026-09-20 第三轮定）：面板底色取 --dsw-alias-bg-base，与它所在的那一层同档。
       //   面板自 #646 起住在 DSH 原生右侧边栏里，那一格是宿主右栏面板容器画的底（同样取 bg-base）。
       //   本插件在此之前用的是 --dsw-alias-bg-layer-1（页面那一档，深色主题 #232324），比右栏的底亮一档：
       //   宿主画好那一格、本插件还没画出第一笔的那一瞬，露出来的是更黑的宿主底，用户看到的就是「突然黑一下」。
       //   取同一档之后，那一格从出现到有内容全程一个颜色，只剩「内容出现」这一下。
       //   浅色主题下两个令牌都是 #ffffff，这一条在浅色主题下不改变任何东西。
-      // 头部右侧那个小时间标签要说的话（判据在 views/shared/truthLines.js）：版面只画相对时间那句，
-      //   悬停提示那句完整说法（含「上次更新」与精确时刻）另给，宽度不够时它还会挪进刷新按钮的悬停提示。
-      const headBox = (typeof truthFreshnessBox === 'function') ? truthFreshnessBox(s, Date.now()) : null
-      const headAgo = headBox ? tr(headBox.agoKey, headBox.agoParams) : ''
-      const headTip = headBox ? tr('truth.updatedTip', { ago: headAgo, time: headBox.time }) : ''
       return h('div', { ref: dockRef, 'data-dsws-host': '1', className: narrow ? 'dsws-narrow' : undefined, style: { position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'var(--dsw-font-family)', fontSize: 12, color: 'var(--dsw-alias-label-primary,#e6edf3)', background: 'var(--dsw-alias-bg-base,#10131a)' } }, [
         // 头部（仓库芯片 + 归属标志 + 三颗按钮 + 刷新 / 时间）：横线不放在这行，下移到标签行下方与对话/轨迹对齐。
         //   这一行的第一个元素就是仓库芯片 —— 品牌那一段（罗盘图标 + 「MattSkills」字样）已按 #667 去掉。
-        // #28 自适应：flex 容器 minWidth 0 + 芯片 flex 自适应，仓库名先收成短名、极窄再交给芯片自己省略
+        // #28 自适应：这一行整排随宽度逐字变短（阶梯表在 panel/headFold.js）；上面那台折叠机算出的档号在这行上。
         h('div', { ref: headRef, 'data-head-tier': headFold, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '10px 12px 6px', flex: 'none', minWidth: 0 } }, [
           // 2026-09-19 维护者定：这一行不再放罗盘图标与「MattSkills」字样，从仓库芯片开始。
           //   品牌字样留在设置页与右栏标题那两处（那两处说的是「这个面板叫什么」，头部这一行说的是
@@ -209,8 +203,11 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             const bdc = (typeof backendBorderOf==='function'? backendBorderOf(bid) : '')
             const short = (typeof repoShortName==='function'? repoShortName(repoRef) : String(repoRef.name||'').split('/').pop())
             const href = repoRef.url || ''
-            const inner = [h('svg', { viewBox: '0 0 16 16', width: 11, height: 11, fill: 'currentColor', style: { flex: 'none' } }, [h('path', { d: 'M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 8h8.5V1.5z' })]), h('span', { 'data-repo-text': 1, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, repoRef.name)]
-            const chipStyle = { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: col, backgroundColor: bg, border: '1px solid transparent', borderRadius: 6, padding: '1px 8px', flex: '0 1 auto', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', borderColor: bdc, colorScheme: 'light dark' }
+            const inner = [h('svg', { viewBox: '0 0 16 16', width: 11, height: 11, fill: 'currentColor', style: { flex: 'none' } }, [h('path', { d: 'M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 8h8.5V1.5z' })]), h('span', { 'data-repo-text': 1, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } }, headNow ? headNow.name : repoRef.name)]
+            // #667 第三轮：这枚芯片不再靠 flex 收缩 + 省略号截断（那样一次掉好几个字），长度全由 panel/headFold.js
+            //   那条阶梯一格一格地减。boxSizing 必须是 border-box —— minWidth 40 是照「外框 40 像素」写的，默认的
+            //   content-box 会把它垫成外框 58（真机实测：名字收到只剩省略号时芯片卡在 58，后面几格一格也省不出宽度）。
+            const chipStyle = { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: col, backgroundColor: bg, border: '1px solid transparent', borderRadius: 6, padding: '1px 8px', flex: 'none', boxSizing: 'border-box', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', borderColor: bdc, colorScheme: 'light dark' }
             // #231（契约动作）：开仓行为由后端 openRepository 声明驱动 —— folder 型注入 wf.openFolder，url 型浏览器原生新窗；无声明且无 url 即无动作（诚实渲染）
             const act = repositoryActionOf(s, bid)
             if (act === 'folder') {
@@ -219,17 +216,21 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             if (!href) return h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullRepo')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, repoRef.name)]) }, h('span', { 'aria-label': repoRef.name, 'data-repo-chip': 1, style: Object.assign({}, chipStyle, { cursor:'default' }) }, inner))
             // #191（用户反馈）：GitHub/GitLab 路径只 target='_blank'（浏览器原生新窗口），
             //   之前的 onClick openUrl 导致点一次开两个浏览器。Markdown 路径见上方分支（保留 onClick wf.openFolder）
-            return h(Tip, { content: tr('panel.repoTitle') }, h('a', { href: href, target: '_blank', rel: 'noreferrer', 'aria-label': tr('panel.repoTitle'), 'data-repo-chip': 1, style: chipStyle }, inner))
+            // 悬停提示里始终摆着**完整**的仓库名（维护者 2026-09-22 定：版面上那一串会随宽度逐字变短，
+            //   一个字都不许丢，完整的那串必须能在悬停时读到），再加一句这颗芯片点下去做什么。
+            return h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullRepo')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, repoRef.name), h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px', marginTop: 2 } }, tr('panel.repoTitle'))]) }, h('a', { href: href, target: '_blank', rel: 'noreferrer', 'aria-label': repoRef.name, 'data-repo-chip': 1, style: chipStyle }, inner))
           })(),
           // #653：这枚归属标志只在「会话所选目录 ≠ 工作区根」时出现（根会话、嵌套仓库、无仓库目录都不出现），
           //   放在仓库芯片右侧、与「未识别仓库」琥珀芯片和「该工作区尚未初始化」提示并存，不替代任何一条既有提示。
-          h(SubworkspaceMark, { key: 'subws', st: s }),
+          // #667 第三轮：它是一颗单字形小图标，宽度不够时一颗一颗撤（撤的是外面这层 span：它身上不写 display，
+          //   所以 kernel/styles.js 那条 .dsws-folded 规则盖得住；里面那颗按钮自己写着 display，标记不能落在它身上）。
+          h('span', { 'data-head-fold': 'icon', 'data-head-icon': 'mark', className: headIconCls('mark') }, h(SubworkspaceMark, { key: 'subws', st: s })),
           // #191 · 仓库名右侧切换按钮（已选态常驻 · pending 灰置 · _isOther 隐藏）
-          (function(){ if(_isOther) return null; var _sel=s.selection||(s.snapshot&&s.snapshot.selection)||null, _bid=_sel?_sel.backendId:null; if(_bid==null) return null; var _pend=!!(_sel&&_sel.pending), _col=(typeof backendColorOf==='function'?backendColorOf(_bid):'#6e7681'); return h(Tip, { content: _pend ? '切换后端 · 探测中不可用' : '切换后端' }, h('button',{'data-repo-switch':1,type:'button','aria-label':'切换后端','aria-disabled':_pend?'true':'false',disabled:_pend,onClick:function(e){try{if(e&&e.preventDefault)e.preventDefault();if(e&&e.stopPropagation)e.stopPropagation()}catch(_){};if(_pend)return;try{openSwitchConfirm(s,null)}catch(_){}},style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:16,height:16,borderRadius:4,flex:'none',border:'1px solid '+_col,color:_col,background:'transparent',cursor:_pend?'not-allowed':'pointer',opacity:_pend?0.45:1,fontSize:10,lineHeight:1,padding:0,colorScheme:'light dark'}},Ic({n:'swap',size:10}))) })(),
+          h('span', { 'data-head-fold': 'icon', 'data-head-icon': 'switch', className: headIconCls('switch') }, (function(){ if(_isOther) return null; var _sel=s.selection||(s.snapshot&&s.snapshot.selection)||null, _bid=_sel?_sel.backendId:null; if(_bid==null) return null; var _pend=!!(_sel&&_sel.pending), _col=(typeof backendColorOf==='function'?backendColorOf(_bid):'#6e7681'); return h(Tip, { content: _pend ? '切换后端 · 探测中不可用' : '切换后端' }, h('button',{'data-repo-switch':1,type:'button','aria-label':'切换后端','aria-disabled':_pend?'true':'false',disabled:_pend,onClick:function(e){try{if(e&&e.preventDefault)e.preventDefault();if(e&&e.stopPropagation)e.stopPropagation()}catch(_){};if(_pend)return;try{openSwitchConfirm(s,null)}catch(_){}},style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:16,height:16,borderRadius:4,flex:'none',border:'1px solid '+_col,color:_col,background:'transparent',cursor:_pend?'not-allowed':'pointer',opacity:_pend?0.45:1,fontSize:10,lineHeight:1,padding:0,colorScheme:'light dark'}},Ic({n:'swap',size:10}))) })()),
           // #621 标签配色入口：16 像素见方的小图标（与左边那颗切换后端按钮同规格），点开改色弹窗；
-          //   头部自适应折叠只动仓库名（品牌那一段已按 #667 去掉），这颗按钮定宽、不参与裁切，窄面板下也在。
+          //   它和左右两颗单字形图标一样，宽度不够时一颗一颗撤（撤的是外面那层 span，见上面 #667 第三轮那句）。
           //   会话号一起传进去：宿主靠它算「写这个工作区」要用的沙箱政策（#624 的研究结论）。
-          h(LabelColorEntry, {
+          h('span', { 'data-head-fold': 'icon', 'data-head-icon': 'palette', className: headIconCls('palette') }, h(LabelColorEntry, {
             key: 'labelcolors', cwd: s.cwd, sessionId: sid, narrow: narrow,
             // #635：保存成功这一刻就把后端确认过的颜色写进面板这份快照并重画，不再等下面那次全量重拉——
             // 那次在 GitHub 工作区上要二十多秒，等它等于让用户看着旧颜色以为没刷新。
@@ -237,22 +238,21 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
               try { if (lcPanelSavedColors(s, applied, Date.now())) emit(s) } catch (e) { /* 当场改色失败不影响这次保存的结果 */ }
               try { loadSnapshot(s, true, true) } catch (e2) { /* 后台那次全量重拉失败也不影响已经改好的颜色 */ }
             },
-          }),
+          })),
           h('span', { style: { flex: 1 } }),
-          // 2026-09-22 维护者定：这一行右侧放两个各自独立的控件 —— 左：刷新按钮；右：小时间标签（默认只画相对时间）。
-          //   那颗 × 整块删掉了（它的文字与行为对不上，来历见上方那句注释），这一片原先就是它的位置；「刷新」原先在
-          //   第二排（tabs 行）最右，挪到这里。两者之间只留这一行的 gap，不许用分隔符粘成一句（verify-667 的 A14 / B8
-          //   盯着这件事）；宽度不够时由上面那台头部折叠机逐级收：先收刷新的字，再收整个时间标签（时间挪进悬停提示）。
-          h(Tip, { content: (headFold >= 2 && headTip) ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', null, tr('list.refresh')), h('div', null, headTip)]) : tr('list.refresh') }, h('button', {
+          // 这一行右侧两个各自独立的控件（维护者 2026-09-22 定）：左＝刷新按钮，右＝小时间标签，两者只用这一行的 gap 分开，
+          //   不许用分隔符粘成一句（verify-667 的 A14 / B8 盯着）。宽度不够时它们最先瘦身：刷新的字逐字变少、只剩齿轮图标，
+          //   再轮到时间标签那句相对时间逐字变少；时间标签一个字都不剩时，完整说法与精确时刻挪进刷新按钮的悬停提示。
+          h(Tip, { content: (headNow && headNow.time === '' && headTip) ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', null, tr('list.refresh')), h('div', null, headTip)]) : tr('list.refresh') }, h('button', {
             className: 'dsws-btn', 'data-head-refresh': 1, type: 'button', 'aria-label': tr('list.refresh'),
             onClick: function () { refreshAll(s) },
             style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none' },
-          }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', { 'data-head-fold': 1, className: headFold >= 1 ? 'dsws-folded' : undefined }, tr('list.refresh'))])),
-          // 时间标签：版面上只有一句相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前），上色沿用原来那条状态行的口径（灰 / 黄 / 红）。
-          headBox ? h(Tip, { content: headTip }, h('span', {
-            'data-head-updated': 1, 'data-head-fold': 2, className: headFold >= 2 ? 'dsws-folded' : undefined,
-            style: { flex: 'none', fontSize: 11, whiteSpace: 'nowrap', color: 'var(--dsw-alias-label-caption,#8b8b95)' },
-          }, h('span', { 'data-updated-ago': 1, style: { color: headBox.tone === 'red' ? 'var(--dsw-alias-state-error-primary,#f87171)' : (headBox.tone === 'yellow' ? 'var(--dsw-alias-state-warning-primary,#f59e0b)' : 'var(--dsw-alias-label-caption,#8b8b95)'), fontVariantNumeric: 'tabular-nums' } }, headAgo))) : null,
+          }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]),
+            h('span', { 'data-head-refresh-text': 1, style: { whiteSpace: 'nowrap' } }, headNow ? headNow.refresh : tr('list.refresh'))])),
+          // 时间标签：版面上那句相对时间按阶梯逐字变短（3 分钟前 → 3 分钟 → 3 分 → …，一个字都不许整块消失），
+          //   上色沿用原来那条状态行的口径（灰 / 黄 / 红）。
+          headBox ? h(Tip, { content: headTip }, h('span', { 'data-head-updated': 1, style: { flex: 'none', fontSize: 11, whiteSpace: 'nowrap', color: headBox.tone === 'red' ? 'var(--dsw-alias-state-error-primary,#f87171)' : (headBox.tone === 'yellow' ? 'var(--dsw-alias-state-warning-primary,#f59e0b)' : 'var(--dsw-alias-label-caption,#8b8b95)') } },
+            h('span', { 'data-updated-ago': 1, style: { fontVariantNumeric: 'tabular-nums' } }, headNow ? headNow.time : headAgo))) : null,
         ]),
         // #155 Q5：Pending / MultiHit 黄条（提示不阻断）
         (function(){

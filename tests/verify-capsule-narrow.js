@@ -72,10 +72,11 @@ const statChecks = function (src, tag) {
 
   // 期望 3（V2）：内容自适应渐进收缩
   // 3a. CSS 折叠规则：一条规则命中所有带 data-fold-priority 且被加 .dsws-folded 的文字 span
-  //   2026-09-22：这条规则与面板头部第一行右侧那两个控件（刷新按钮的字 / 整个时间标签，标记 data-head-fold）
-  //   共用同一条 —— 折叠做法是同一套（全展开 → 按优先序逐个加 .dsws-folded → 收到放得下为止），
-  //   所以断言跟着真实落点走：两种标记必须都被这一条规则收掉。
-  ok('V2 · CSS 折叠规则同时管胶囊与面板头部那两个控件',
+  //   2026-09-22 起这条规则也管面板头部第一行里那几颗单字形小图标（标记 data-head-fold + data-head-icon，
+  //   见 panel/Dock.js）：图标本身就是单个字形，一步撤一颗，做法与胶囊同一套（全展开 → 按优先序逐个加
+  //   .dsws-folded → 收到放得下为止）。同一行里那些「一串字」的元素（仓库名 / 刷新按钮的字 / 时间标签）
+  //   不走这一条 —— 它们按 panel/headFold.js 那条阶梯逐字变短，永远不整块 display:none。
+  ok('V2 · CSS 折叠规则同时管胶囊与面板头部那几颗单字形小图标',
     /'\.dsws-capsule \[data-fold-priority\]\.dsws-folded,\[data-head-fold\]\.dsws-folded\{display:none\}'/.test(src))
   // 3b. 9 个文字 span 的 priority 绑定（信息价值 1→9）：
   //     品牌(1) 沉淀(2) 交接(3) 刷新字(4) 可接(5) BUG(6) 诊断(7) 环境(8) 时间(9)

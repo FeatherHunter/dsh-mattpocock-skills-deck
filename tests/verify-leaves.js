@@ -38,6 +38,8 @@ const LEAVES = [
   { file: 'src/client/panel/DockSync.js', exports: ['useDockSync'], components: [] }, // V4 #464 由 Dock.js 拆出：工作区跟随（会话信号加同步加自愈钩子，无组件，纯函数）
   { file: 'src/client/panel/Dock.js', exports: ['DetailsDock'], components: ['DetailsDock'] },
   { file: 'src/client/panel/NamingFailBanner.js', exports: ['NamingFailBanner'], components: ['NamingFailBanner'] },
+  // #667 第三轮：面板头部第一行的逐字折叠阶梯（纯函数，无组件）。登在这里是为了让「单文件 ≤350 行」与「产物已拼接」两条检查也覆盖到它。
+  { file: 'src/client/panel/headFold.js', exports: ['headFoldLadderOf', 'headFoldStateAt'], components: [] },
   { file: 'src/client/panel/OverlayGate.js', exports: ['openOverlayGate', 'closeOverlayGate', 'confirmOverlayGate', 'pickOverlayBackend'], components: [] }, // V4 #464 由 Overlay.js 拆出：门控旅程（打开关闭确认直选，无组件，纯函数）；#646 浮窗本体已退役，这个门控逻辑仍在（Dock 也用）
   { file: 'src/client/statusbar/Seg.js', exports: ['num', 'seg'], components: [] },
   { file: 'src/client/statusbar/checksums.js', exports: ['checksumsOf'], components: [] },

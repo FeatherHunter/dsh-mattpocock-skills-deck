@@ -282,7 +282,7 @@ export default {
     }
     // ==== leaf:namingFailBanner (spliced by build) ====
 
-    // ==== leaf:DockSync (spliced by build) ==== // ==== leaf:dock (spliced by build) ====
+    // ==== leaf:DockSync (spliced by build) ==== // ==== leaf:headFold (spliced by build) ==== // ==== leaf:dock (spliced by build) ====
 
     // ==== leaf:OverlayGate (spliced by build) ====
 

@@ -22,9 +22,12 @@
  *   C 反向两处照旧：DSH 右栏标签页的名字仍是「MattSkills」；状态胶囊栏里那枚品牌图标与字样仍在，
  *     而且仍是折叠优先级 1（最先收）。
  *   D 反证：把一段旧的品牌标记插回头部最前面，B 的那几条必须当场变红 —— 否则这道门量的是死数据，是假绿。
- *   E 三档折叠（2026-09-22 维护者定，按面板真实宽度跑）：头部第一行右侧那两个控件（刷新按钮 / 小时间标签）
- *     按这一行的真实可用宽度逐级收 —— 够宽时刷新的字与整个时间标签都在；中等时刷新的字先收（只留图标）；
- *     最窄时时间标签也收起，上次更新的时间挪进刷新按钮的悬停提示。三档都必须出现过，且窄下去档号只升不降。
+ *   E 整行逐字折叠（2026-09-22 维护者第三轮定，按面板真实宽度每 6 像素扫一档）：这一行里会随宽度变短的东西
+ *     （仓库名那一长串 / 刷新按钮上的字 / 时间标签那句相对时间 / 三颗单字形小图标）**不许整块一下子不见**——
+ *     一次让步最多只能少一个字符。核心断言就是这句话的可执行版：任意相邻两档之间，版面上的可见字符数最多减 1；
+ *     另加：完整仓库名与完整的上次更新说法在每一档的悬停提示里都读得到，刷新那颗齿轮图标每一档都还在。
+ *   F 源码层：一串字的元素身上不许挂折叠类（不许整块消失）；单字形小图标的折叠标记要落在不写死 display 的那层。
+ *   G 判据层（纯函数，不开浏览器）：把 panel/headFold.js 那条阶梯喂一份同形数据，逐档核对「最多少一个字符」与让位顺序。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
  * 运行：node tests/verify-667-dock-header-no-brand.js
@@ -98,8 +101,13 @@ if (!headBlock) {
   const fitStop = dockSrc.indexOf('// #670', fitStart)
   const fitBlock = fitStart >= 0 ? dockSrc.slice(fitStart, fitStop > fitStart ? fitStop : fitStart + 3000) : ''
   check(!!fitBlock && fitBlock.indexOf('titleEl') < 0, 'A6 头部自适应里不再找那个标题字元素（原先那段「先隐藏标题」已随元素一起去掉）')
-  check(!!fitBlock && /txt\.textContent = full/.test(fitBlock) && /txt\.textContent = short/.test(fitBlock) && /chip\.style\.flex = '0 1 auto'/.test(fitBlock),
-    'A7 仓库名三段收缩链还在（全长 → 短名 → 弹性省略）')
+  // A7（2026-09-22 第三轮改写）：仓库名不再是「全长 / 短名 / 交给芯片自己省略」三段，也不再靠 flex 收缩截断
+  //   （那样一次会掉好几个字）。现在的判据是：折叠机照 panel/headFold.js 那条阶梯一档一档推，仓库名的那串字
+  //   由阶梯算出来写进去 —— 「一次最多少一个字符」这条在 G 组逐档核对，这里只钉「机器拿的是阶梯算的字」。
+  check(!!fitBlock && /headFoldStateAt\(/.test(fitBlock) && /nameEl\.textContent = st\.name/.test(fitBlock),
+    'A7 折叠机画的是阶梯算出来的那串字（headFoldStateAt + 写进仓库名那个元素）')
+  check(!!fitBlock && /for \(let t = 1; t <= headLadder\.steps\.length; t\+\+\)/.test(fitBlock) && /settle\(headLadder\.steps\.length\)/.test(fitBlock),
+    'A8 折叠机是一档一档推的（先试第 1 档、放不下再试第 2 档…推到阶梯走完为止），不是一刀切')
 
   // A13-A15（2026-09-22 维护者定）：这一行右侧放两个各自独立的控件 —— 左边一颗「刷新」，右边一个装时间的盒子。
   //   两个控件之间只用间距，不许用「·」之类的分隔符把它们粘成一句。
@@ -112,6 +120,86 @@ if (!headBlock) {
     check(between.indexOf('·') < 0, 'A14 两个控件之间没有分隔符「·」（实测之间那段代码的尾巴：' + JSON.stringify(between.slice(-48)) + '）')
     check(between.indexOf('h(') >= 0, 'A15 时间控件在刷新按钮之后另起一个元素（不是把两个钩子写在同一个元素上）')
   }
+
+  // F 组（2026-09-22 第三轮，维护者要求）：这一行的逐字折叠在源码上必须满足两条 ——
+  //   一串字的元素永远不整块消失（不许在它身上挂折叠类），单字形小图标的折叠标记必须落在不写死 display 的那一层
+  //   （上一轮踩过：标记落在自己写着 display 的元素上，CSS 那条 .dsws-folded 规则盖不住它）。
+  const nameLine = headBlock.split(/\r?\n/).filter((l) => /'data-repo-text'/.test(l))[0] || ''
+  check(!!nameLine && nameLine.indexOf('dsws-folded') < 0,
+    'F1 仓库名那串字身上没有折叠类（它是逐字变短的，不许整块消失；实测那一行含 dsws-folded：' + (nameLine.indexOf('dsws-folded') >= 0) + '）')
+  const textSpanLines = headBlock.split(/\r?\n/).filter((l) => /'data-head-refresh-text'|'data-updated-ago'/.test(l))
+  check(textSpanLines.length === 2 && textSpanLines.every((l) => l.indexOf('dsws-folded') < 0),
+    'F2 刷新按钮的字与时间标签那两串字身上也没有折叠类（实测命中 ' + textSpanLines.length + ' 行，带折叠类的 ' + textSpanLines.filter((l) => l.indexOf('dsws-folded') >= 0).length + ' 行）')
+  const iconTags = headBlock.match(/h\('span', \{[^}]*'data-head-icon'[^}]*\}/g) || []
+  check(iconTags.length === 3 && iconTags.every((s) => s.indexOf('display') < 0),
+    'F3 三颗单字形小图标的标记落在**不写死 display** 的那一层上（写了就会盖住 .dsws-folded 那条规则；实测那三处标记各自的属性对象：' + JSON.stringify(iconTags.join(' / ')) + '）')
+  const gearLines = headBlock.split(/\r?\n/).filter((l) => /dsws-rficon|'data-head-refresh':/.test(l))
+  check(gearLines.length >= 2 && gearLines.every((l) => l.indexOf('data-head-icon') < 0 && l.indexOf('dsws-folded') < 0),
+    'F4 刷新那颗齿轮图标不在阶梯里（它身上既没有小图标的标记、也没有折叠类，谁也收不走它；实测命中 ' + gearLines.length + ' 行）')
+}
+
+console.log('')
+console.log('G) 逐字阶梯的判据本身（纯函数，不开浏览器）：相邻两档之间每个元素最多少一个字符')
+// 维护者这一轮的核心要求是「一次让步最多少一个字符」，这条判据最该被逐档核对 —— 所以先不画界面：
+//   把 panel/headFold.js 那两个纯函数跑起来，喂一份与真机同形的数据（本仓那个长名 + 中文的刷新与时间），
+//   一档一档看每个元素少几个字。E 组在真浏览器里量的正是同一个判据，这里先给它一个快而稳的底座。
+const headFoldSrc = existsSync(resolve('src/client/panel/headFold.js')) ? readFileSync(resolve('src/client/panel/headFold.js'), 'utf8') : ''
+const headFold = (function () {
+  if (!headFoldSrc) return null
+  try {
+    // 与 scripts/build.mjs 拼接时同一套做法：剥掉行首 export，丢进同一个作用域里跑。
+    return new Function(headFoldSrc.replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn { headFoldLadderOf, headFoldStateAt }')()
+  } catch (e) { return null }
+})()
+if (!headFold) {
+  bad('G 读不到 src/client/panel/headFold.js，或者它跑不起来')
+} else {
+  const SAMPLE = { name: 'FeatherHunter/dsh-mattpocock-skills-deck', refresh: '刷新', time: '3 分钟前', icons: ['palette', 'switch', 'mark'] }
+  // 英文那一套也跑一遍：中文一个字 11 像素、英文一个字母只有 5 像素上下，两种字宽下的阶梯都得满足
+  //   「相邻两档之间每个元素最多少一个字符」—— 这一条与语言的字宽无关，纯函数这边两种都量。
+  const SAMPLE_EN = { name: 'FeatherHunter/dsh-mattpocock-skills-deck', refresh: 'Refresh', time: '3 min ago', icons: ['palette', 'switch', 'mark'] }
+  // 数「从这一档到下一档，每个元素各少了几个字」——这条尺子本身就是这组断言的判据，所以先把它单独写出来：
+  //   仓库名末尾那个省略号是记号，不算被减掉的名字（不然一步减两个字也能糊过去）。
+  const visible = (s) => String(s == null ? '' : s).replace(/\s+/g, '')
+  const nameBody = (s) => { const v = visible(s); return v.slice(-1) === '…' ? v.slice(0, -1) : v }
+  const stepDrop = (a, b) => Math.max(
+    visible(a.refresh).length - visible(b.refresh).length,
+    visible(a.time).length - visible(b.time).length,
+    nameBody(a.name).length - nameBody(b.name).length,
+  )
+  const dropTable = function (sample) {
+    const ladder = headFold.headFoldLadderOf(sample)
+    const states = []
+    for (let t = 0; t <= ladder.steps.length; t++) states.push(headFold.headFoldStateAt(ladder, t))
+    const drops = []
+    for (let i = 1; i < states.length; i++) drops.push({ step: i, el: (ladder.steps[i - 1] || {}).el, d: stepDrop(states[i - 1], states[i]) })
+    return { ladder: ladder, states: states, drops: drops }
+  }
+  const zhRun = dropTable(SAMPLE)
+  const enRun = dropTable(SAMPLE_EN)
+  const ladder = zhRun.ladder
+  const states = zhRun.states
+  const worstZh = zhRun.drops.reduce((m, x) => Math.max(m, x.d), 0)
+  const worstEn = enRun.drops.reduce((m, x) => Math.max(m, x.d), 0)
+  const whereOf = (run) => run.drops.filter((x) => x.d === run.drops.reduce((m, y) => Math.max(m, y.d), 0)).map((x) => '第' + x.step + '步(' + x.el + ')').join('、')
+  check(worstZh <= 1 && worstEn <= 1,
+    'G1 每一档之间每个元素最多少一个字符（实测中文那一套最多一次少 ' + worstZh + ' 个字' + (worstZh ? '：' + whereOf(zhRun) : '') + '；英文那一套最多 ' + worstEn + ' 个字' + (worstEn ? '：' + whereOf(enRun) : '') + '；中文阶梯共 ' + ladder.steps.length + ' 档、英文共 ' + enRun.ladder.steps.length + ' 档）')
+  const firstOf = (el) => ladder.steps.findIndex((s) => s.el === el)
+  const lastOf = (el) => ladder.steps.reduce((m, s, i) => (s.el === el ? i : m), -1)
+  check(firstOf('refresh') === 0 && lastOf('refresh') < firstOf('time') && lastOf('time') < firstOf('name') && lastOf('name') < firstOf('icon'),
+    'G2 让位顺序：先刷新的字，再时间标签，再仓库名，最后才是小图标（实测各段：刷新 ' + firstOf('refresh') + '–' + lastOf('refresh') + ' / 时间 ' + firstOf('time') + '–' + lastOf('time') + ' / 仓库名 ' + firstOf('name') + '–' + lastOf('name') + ' / 小图标 ' + firstOf('icon') + '–' + lastOf('icon') + '）')
+  check(ladder.steps.filter((s) => s.el === 'icon').map((s) => s.id).join(',') === 'palette,switch,mark',
+    'G3 三颗单字形小图标从最右一颗开始一颗一颗撤，齿轮（刷新那颗）不在阶梯里（实测 ' + JSON.stringify(ladder.steps.filter((s) => s.el === 'icon').map((s) => s.id)) + '）')
+  const last = states[states.length - 1]
+  check(last.name === '…' && last.refresh === '' && last.time === '' && Object.keys(last.icons).length === 3,
+    'G4 走到最后一档：仓库名只剩一个省略号记号、刷新与时间的字都不剩、三颗小图标都撤了（实测 ' + JSON.stringify({ name: last.name, refresh: last.refresh, time: last.time, icons: Object.keys(last.icons) }) + '）')
+  check(states[0].name === SAMPLE.name && ladder.name === SAMPLE.name,
+    'G5 第 0 档画的就是完整仓库名，完整那串一直拿在阶梯里（界面上一格一格减，判据这边一个字都没丢；实测 ' + JSON.stringify(states[0].name) + '）')
+  // 自带反证：这把尺子抓得住「一次掉两个字符」吗？拿两处故意做坏的样子喂进去看。
+  const badNameDrop = stepDrop({ name: 'abcd', refresh: '', time: '' }, { name: 'ab…', refresh: '', time: '' })
+  const badRefreshDrop = stepDrop({ name: '', refresh: '刷新', time: '' }, { name: '', refresh: '', time: '' })
+  check(badNameDrop === 2 && badRefreshDrop === 2,
+    'G6 自带反证：一次掉两个字符的坏样子会被这把尺子抓住（实测仓库名一步掉 ' + badNameDrop + ' 个字、刷新的字一步掉 ' + badRefreshDrop + ' 个字）')
 }
 
 console.log('')
@@ -206,7 +294,11 @@ const services = {
   slots: { register: (m, c) => { regs.push({ m, c }); return () => {} }, inject: (n, f) => { try { f() } catch (e) {} } },
   sidebarRightTabs: { register: (d) => { nativeTypes.push(d); return () => {} } },
   connection: { rpc: { call: async (channel, endpoint, body) => { rpcMethods.push(body && body.method); return { ok: true, value: reply(body && body.method) } } } },
-  locale: { register: (ns, d) => { Object.assign(dict, (d && d.zh) || {}, (d && d.en) || {}); return () => {} }, bind: () => trFn },
+  // 这一页只用中文那一半词条（原来中英都并进来，英文覆盖中文）：E 组那台「每 6 像素扫一档、断言可见字符数最多减 1」
+  //   的尺子，只有在「一个字符至少 6 像素宽」时才分得清一格 —— 中文字 11 像素、拉丁字母只有五点几像素。
+  //   英文界面上一次真掉两个字母，尺子也会报「减 2」，但那是尺子分不出来，不是设计漏了一格；
+  //   所以英文那一套「一次最多少一个字符」改由 G 组用英文样本单独量（纯函数，与字宽无关）。
+  locale: { register: (ns, d) => { Object.assign(dict, (d && d.zh) || {}); return () => {} }, bind: () => trFn },
   workspaces: { list: async () => [] },
   sessions: { list: async () => [] },
   timer: { timeout: (f, ms) => setTimeout(f, ms) },
@@ -308,30 +400,51 @@ window.__SETTLE_WIDTH__ = async function (w) {
   return last
 }
 
-// E 组用：头部那一行右侧两个控件此刻各自是什么样子（在不在版面上、画的是什么字、悬停提示说的是什么）。
-window.__HEAD_TIERS__ = function () {
+// E 组用：头部第一行此刻的样子。这里只读画出来的结果 —— 三串字各自现在是什么（空白不算字）、
+//   那几颗单字形小图标还剩几颗、齿轮在不在、两条完整信息（完整仓库名 / 完整的上次更新说法）读不读得到。
+window.__HEAD_ROW__ = function () {
   const row = window.__ROW__()
   if (!row) return { error: 'no row' }
-  const btn = row.querySelector('[data-head-refresh]')
-  const btnText = row.querySelector('[data-head-fold="1"]')
-  const timeBox = row.querySelector('[data-head-fold="2"]')
-  const visible = function (el) {
+  const vis = function (el) {
     if (!el) return false
     const r = el.getBoundingClientRect()
     return r.width > 0 && r.height > 0
   }
+  const text = function (el) { return (el && vis(el)) ? (el.textContent || '').replace(/\\s+/g, '') : '' }
+  const nameEl = row.querySelector('[data-repo-text]')
+  const rfEl = row.querySelector('[data-head-refresh-text]')
+  const tmEl = row.querySelector('[data-updated-ago]')
+  const chipEl = row.querySelector('[data-repo-chip]')
+  const timeEl = row.querySelector('[data-head-updated]')
+  const icons = {}
+  Array.from(row.querySelectorAll('[data-head-icon]')).forEach(function (el) { icons[el.getAttribute('data-head-icon')] = vis(el) })
+  const name = text(nameEl), refresh = text(rfEl), time = text(tmEl)
   return {
     ok: true,
-    tier: row.getAttribute('data-head-tier'),
+    tier: Number(row.getAttribute('data-head-tier')),
     rowWidth: Math.round(row.getBoundingClientRect().width * 100) / 100,
+    rowOverflow: row.scrollWidth - row.clientWidth,
+    clientW: row.clientWidth,
+    scrollW: row.scrollWidth,
+    kidRects: Array.from(row.children).map(function (el) {
+      const r = el.getBoundingClientRect()
+      return el.tagName.toLowerCase() + ':' + Math.round(r.width) + '@' + Math.round(r.right - row.getBoundingClientRect().left)
+    }).join(' '),
+    nameRectW: nameEl ? Math.round(nameEl.getBoundingClientRect().width * 10) / 10 : null,
+    nameTextLen: nameEl ? (nameEl.textContent || '').length : null,
+    chipKids: (function () {
+      const c = row.querySelector('[data-repo-chip]')
+      if (!c) return null
+      return Array.from(c.children).map(function (el) { return el.tagName.toLowerCase() + ':' + Math.round(el.getBoundingClientRect().width * 10) / 10 }).join(' ')
+    })(),
     rowText: (row.textContent || '').replace(/\\s+/g, ' ').trim(),
-    refreshTextVisible: visible(btnText),
-    refreshTextText: btnText ? (btnText.textContent || '').trim() : null,
-    timeBoxPresent: !!timeBox,
-    timeBoxVisible: visible(timeBox),
-    timeAgoText: timeBox ? (timeBox.textContent || '').replace(/\\s+/g, ' ').trim() : null,
-    timeBoxAria: timeBox ? timeBox.getAttribute('aria-label') : null,
-    refreshAria: btn ? btn.getAttribute('aria-label') : null,
+    name: name, refresh: refresh, time: time,
+    chars: name.length + refresh.length + time.length,
+    chipAria: chipEl ? chipEl.getAttribute('aria-label') : null,
+    timeAria: timeEl ? timeEl.getAttribute('aria-label') : null,
+    gearVisible: vis(row.querySelector('.dsws-rficon')),
+    icons: icons,
+    iconsLeft: Object.keys(icons).filter(function (k) { return icons[k] }).length,
   }
 }
 
@@ -496,64 +609,99 @@ try {
     }
 
     console.log('')
-    console.log('E) 三档折叠（按面板真实宽度跑）：够宽 / 中等 / 最窄各画什么、不画什么')
+    console.log('E) 整行逐字折叠（按面板真实宽度跑，每 6 像素一档）：不许有超过一个字符的东西突然不见')
     // 做法照状态栏胶囊那一套：面板宽度是用户拖出来的，所以按头部这一行的真实可用宽度逐级收，不认视口宽度。
-    //   宽度从 900 一路收到 240，每一档第一次出现时的实况都记下来；三档缺一档就是这道门要拦的回归。
+    //   档号 = 已经走了几步（阶梯表在 panel/headFold.js：先刷新的字、再时间标签、再仓库名、最后三颗小图标）。
+    //   核心判据是维护者那句话的可执行版：任意相邻两档之间，版面上的**可见字符数最多减 1**。
+    //   宽度从 900 一路收到 108（阶梯在这个宽度上正好走完：只剩齿轮与仓库名那个省略号；再窄就该溢出，
+    //   而不是继续掉字了），每一档的实况都记下来。
+    const MIN_W = 108
     const REL = /(刚刚|分钟前|小时前|天前|just now|min ago|h ago|d ago)/
     const TIP = /(上次更新|Updated)/
     const CLOCK = /(取数时刻|read at)\s*\d{2}:\d{2}/
-    const samples = {}
-    const tierSeq = []
+    const samples = []
     let headErr = null
-    for (let w = 900; w >= 240; w -= 6) {
+    for (let w = 900; w >= MIN_W; w -= 6) {
       const tier = await page.evaluate((x) => window.__SETTLE_WIDTH__(x), w)
       if (tier === null) { headErr = { error: 'no row at ' + w }; break }
-      const t = await page.evaluate(() => window.__HEAD_TIERS__())
-      if (t && t.error) { headErr = t; break }
-      const n = Number(tier)
-      tierSeq.push(n)
-      if (!(n in samples)) samples[n] = { w: w, m: t }
+      const m = await page.evaluate(() => window.__HEAD_ROW__())
+      if (m && m.error) { headErr = m; break }
+      samples.push({ w: w, m: m })
+    }
+    // 把面板宽度定到某一档，再悬停指定控件，读回悬停提示里所有字（提示是 fixed 定位的浮层，只在这时候才画）。
+    //   每次先把鼠标挪开、等上一条提示收掉，免得读到上一条的残留。
+    const tipAt = async function (w, sel) {
+      await page.evaluate((x) => window.__SETTLE_WIDTH__(x), w)
+      await page.mouse.move(3, 3)
+      await page.waitForTimeout(320)
+      await page.hover(sel)
+      await page.waitForTimeout(700)
+      const tips = await page.evaluate(() => Array.from(document.querySelectorAll('div'))
+        .filter((el) => el.style && el.style.position === 'fixed' && el.style.zIndex === '2147483000')
+        .map((el) => (el.textContent || '').replace(/\s+/g, ' ').trim()))
+      return tips.join(' | ')
     }
     if (headErr) {
       bad('E 没量到头部那一行：' + JSON.stringify(headErr))
     } else {
-      check(0 in samples, 'E1 「够宽」那一档出现过：刷新按钮带字 + 时间标签都在（实测第一次出现在面板宽 ' + (samples[0] ? samples[0].w : '从未出现') + '）')
-      check(1 in samples, 'E2 「中等」那一档出现过：刷新按钮只留图标、时间标签还在（实测第一次出现在面板宽 ' + (samples[1] ? samples[1].w : '从未出现') + '）')
-      check(2 in samples, 'E3 「最窄」那一档出现过：时间标签也收起（实测第一次出现在面板宽 ' + (samples[2] ? samples[2].w : '从未出现') + '）')
-      let maxTier = -1
-      let monotone = true
-      for (const n of tierSeq) { if (n < maxTier) { monotone = false; break } if (n > maxTier) maxTier = n }
-      check(monotone, 'E4 面板越窄档号只升不降（实测档号序列 ' + JSON.stringify(tierSeq) + '）')
-      if (samples[0]) {
-        const m = samples[0].m
-        check(m.refreshTextVisible === true && m.timeBoxVisible === true,
-          'E5 够宽那一档：刷新的字在、时间标签也在（实测刷新字 ' + JSON.stringify(m.refreshTextText) + ' / 时间标签 ' + JSON.stringify(m.timeAgoText) + '）')
-        check(REL.test(m.timeAgoText || ''), 'E6 够宽那一档：时间标签画的是一句相对时间（实测 ' + JSON.stringify(m.timeAgoText) + '）')
-        check(!TIP.test(m.rowText), 'E7 版面上不出现「上次更新」这类整句说法（那四个字只在悬停提示里；实测这一行的字 ' + JSON.stringify(m.rowText.slice(0, 90)) + '）')
-        check(TIP.test(m.timeBoxAria || '') && CLOCK.test(m.timeBoxAria || ''),
-          'E8 时间标签的悬停提示里带着完整说法与精确时刻（实测 ' + JSON.stringify(m.timeBoxAria) + '）')
+      // 先把这个宽度扫出来的阶梯表打印出来（报告要逐个元素列「宽度档 → 渲染成什么」，这张表就是它的出处）：
+      //   每个档号第一次出现的那一档：宽度 → 仓库名 / 刷新的字 / 时间的字 / 小图标剩几颗。
+      const firstAt = {}
+      samples.forEach((s) => { if (!(s.m.tier in firstAt)) firstAt[s.m.tier] = s })
+      console.log('     （宽度 → 渲染成什么；每档第一次出现的那一处）')
+      Object.keys(firstAt).map(Number).sort((a, b) => a - b).forEach((t) => {
+        const s = firstAt[t]
+        console.log('       第 ' + t + ' 档 @ ' + s.w + 'px：仓库名 ' + JSON.stringify(s.m.name) + ' / 刷新的字 ' + JSON.stringify(s.m.refresh) + ' / 时间的字 ' + JSON.stringify(s.m.time) + ' / 小图标剩 ' + s.m.iconsLeft + ' 颗 / 齿轮在 ' + s.m.gearVisible)
+      })
+      console.log('     （窄段实况：宽度、档号、可见字符数、行溢出、clientWidth/scrollWidth、每个孩子的 宽@右缘）')
+      samples.slice(-14).forEach((s) => {
+        console.log('       ' + s.w + 'px 第' + s.m.tier + '档 字' + s.m.chars + ' 溢' + s.m.rowOverflow + ' cw' + s.m.clientW + ' sw' + s.m.scrollW + ' | 名span 宽' + s.m.nameRectW + ' 长' + s.m.nameTextLen + ' | 芯片孩子 ' + s.m.chipKids + ' | ' + s.m.kidRects)
+      })
+      // 一、核心判据：任意相邻两档之间，版面上那几个元素的可见字符数最多减 1
+      let worst = null
+      for (let i = 1; i < samples.length; i++) {
+        const a = samples[i - 1].m, b = samples[i].m
+        const drop = a.chars - b.chars
+        if (!worst || drop > worst.drop) worst = { drop: drop, w: samples[i].w, from: a.name + '|' + a.refresh + '|' + a.time, to: b.name + '|' + b.refresh + '|' + b.time }
       }
-      if (samples[1]) {
-        const m = samples[1].m
-        check(m.refreshTextVisible === false && m.timeBoxVisible === true,
-          'E9 中等那一档：刷新的字先收（只留图标），时间标签还在（实测刷新字可见 ' + m.refreshTextVisible + ' / 时间标签可见 ' + m.timeBoxVisible + '）')
-        check(REL.test(m.timeAgoText || ''), 'E10 中等那一档：时间标签照旧只画相对时间（实测 ' + JSON.stringify(m.timeAgoText) + '）')
-      }
-      if (samples[2]) {
-        const m = samples[2].m
-        check(m.refreshTextVisible === false && m.timeBoxVisible === false,
-          'E11 最窄那一档：时间标签也收起、刷新的字也没了（实测刷新字可见 ' + m.refreshTextVisible + ' / 时间标签可见 ' + m.timeBoxVisible + '）')
-        // 最窄那一档下悬停刷新按钮：上次更新的时间必须还在悬停提示里（信息不丢，只是不占版面）
-        await page.evaluate((x) => window.__SETTLE_WIDTH__(x), samples[2].w)
-        await page.waitForTimeout(200)
-        await page.hover('[data-head-refresh]')
-        await page.waitForTimeout(700)
-        const tips = await page.evaluate(() => Array.from(document.querySelectorAll('div'))
-          .filter((el) => el.style && el.style.position === 'fixed' && el.style.zIndex === '2147483000')
-          .map((el) => (el.textContent || '').replace(/\s+/g, ' ').trim()))
-        const tipAll = tips.join(' | ')
-        check(TIP.test(tipAll) && REL.test(tipAll) && CLOCK.test(tipAll),
-          'E12 最窄那一档下悬停刷新按钮：提示里仍带着上次更新的时间（完整说法 + 相对时间 + 精确时刻；实测 ' + JSON.stringify(tipAll.slice(0, 160)) + '）')
+      check(!!worst && worst.drop <= 1,
+        'E1 任意相邻两档之间，版面上的可见字符数最多减 1（实测最多减 ' + (worst ? worst.drop : '?') + ' 个，出现在 ' + (worst ? worst.w : '?') + ' 像素那一档：' + JSON.stringify(worst ? worst.from : '') + ' → ' + JSON.stringify(worst ? worst.to : '') + '）')
+      // 二、档号只升不降（同一个宽度上不来回跳）
+      let maxTier = -1, monotone = true
+      const tiers = samples.map((s) => s.m.tier)
+      for (const n of tiers) { if (n < maxTier) monotone = false; if (n > maxTier) maxTier = n }
+      check(monotone, 'E2 面板越窄档号只升不降（实测档号 ' + tiers.join(',') + '）')
+      // 三、齿轮图标每一档都在（它是这个控件唯一还能点的入口，永不让位）
+      const noGear = samples.filter((s) => s.m.gearVisible !== true).map((s) => s.w)
+      check(noGear.length === 0, 'E3 刷新那颗齿轮图标每一档都在（最后一档也在；实测不在的宽度 ' + JSON.stringify(noGear) + '）')
+      // 四、最窄那一档：仓库名只剩一个省略号记号、三颗小图标都撤了、刷新与时间的字都不剩
+      const lastOne = samples[samples.length - 1]
+      const lastS = lastOne.m
+      check(lastS.tier === maxTier && lastS.name === '…' && lastS.iconsLeft === 0 && lastS.refresh === '' && lastS.time === '',
+        'E4 最窄那一档只剩齿轮与仓库名那个省略号记号（实测 ' + JSON.stringify({ w: lastOne.w, tier: lastS.tier, name: lastS.name, refresh: lastS.refresh, time: lastS.time, iconsLeft: lastS.iconsLeft }) + '）')
+      // 五、信息不丢：完整仓库名每一档都读得到（芯片的 aria-label 始终是完整那一串，不随宽度变短）
+      const fullName = samples[0].m.name
+      const nameBad = samples.filter((s) => s.m.chipAria !== fullName).map((s) => s.w)
+      check(fullName.length > 10 && nameBad.length === 0,
+        'E5 完整仓库名每一档都读得到（实测 ' + JSON.stringify(fullName) + '；对不上的宽度 ' + JSON.stringify(nameBad) + '）')
+      // 六、信息不丢：完整的上次更新说法每一档都读得到（时间标签那条悬停提示始终带着完整说法与精确时刻）
+      const timeBad = samples.filter((s) => !TIP.test(s.m.timeAria || '') || !CLOCK.test(s.m.timeAria || '')).map((s) => s.w)
+      check(timeBad.length === 0,
+        'E6 完整的上次更新说法每一档都读得到（实测第一档 ' + JSON.stringify(samples[0].m.timeAria) + '；不合格的宽度 ' + JSON.stringify(timeBad) + '）')
+      // 七、版面上不出现整句说法（「上次更新」这类字只在悬停提示里）
+      check(!TIP.test(samples[0].m.rowText),
+        'E7 版面上不出现「上次更新」这类整句说法（实测这一行的字 ' + JSON.stringify(samples[0].m.rowText.slice(0, 90)) + '）')
+      // 八、悬停抽查（最宽、最窄各一处，中间每 18 档抽一处）：芯片的提示里是完整仓库名；
+      //   时间标签还在就悬停它、不在就悬停刷新按钮 —— 两条路的提示里都要有完整说法与精确时刻。
+      const picks = samples.filter((s, i) => i === 0 || i === samples.length - 1 || i % 18 === 0)
+      for (const s of picks) {
+        const chipTip = await tipAt(s.w, '[data-repo-chip]')
+        check(chipTip.indexOf(fullName) >= 0,
+          'E8 悬停仓库芯片（' + s.w + ' 像素，第 ' + s.m.tier + ' 档）：提示里是完整仓库名（实测 ' + JSON.stringify(chipTip.slice(0, 120)) + '）')
+        const onTime = s.m.time !== ''
+        const rfTip = await tipAt(s.w, onTime ? '[data-head-updated]' : '[data-head-refresh]')
+        check(TIP.test(rfTip) && REL.test(rfTip) && CLOCK.test(rfTip),
+          'E9 悬停「' + (onTime ? '时间标签' : '刷新按钮') + '」（' + s.w + ' 像素，第 ' + s.m.tier + ' 档）：提示里仍有完整说法 + 相对时间 + 精确时刻（实测 ' + JSON.stringify(rfTip.slice(0, 140)) + '）')
       }
     }
 

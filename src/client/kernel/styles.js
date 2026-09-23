@@ -160,7 +160,7 @@
       //   每个可收缩文字 span 打 data-fold-priority（1=最先收…9=最后收），applyFold 在
       //   全展开基础上按 priority 升序逐个加 .dsws-folded，直到 scrollWidth ≤ clientWidth。
       //   优先级 = 信息价值：品牌(1) → 沉淀(2)/交接(3)/刷新字(4) → 可接(5)/BUG(6)/诊断(7)/环境(8) → 时间(9)。
-      //   图标+数字永不收缩；最窄态 = 图标+数字紧凑条（wrapper overflow:hidden 截右缘，禁止换行）。这一条也管面板头部第一行右侧那两个控件（标记 data-head-fold 见 panel/Dock.js 的头部折叠机：1=刷新按钮的字，2=整个时间标签；那两个元素身上不许再写死 display，否则这一条盖不住它）。
+      //   图标+数字永不收缩；最窄态 = 图标+数字紧凑条（wrapper overflow:hidden 截右缘，禁止换行）。这一条也管面板头部第一行那几颗单字形小图标（标记 data-head-fold + data-head-icon，见 panel/Dock.js）：图标本身就是单个字形，一步撤一颗，撤的标记必须落在**不写死 display** 的那层元素上，否则这一条盖不住它；同一行里那些「一串字」的元素（仓库名 / 刷新按钮的字 / 时间标签）不走这一条，它们按 panel/headFold.js 那条阶梯逐字变短，永远不整块 display:none。
       '.dsws-capsule [data-fold-priority].dsws-folded,[data-head-fold].dsws-folded{display:none}',
       '.dsws-banner{display:flex;align-items:center;gap:8px;border-radius:8px;padding:6px 10px;font-size:12px;margin:6px 0;cursor:pointer}',
       '.dsws-banner.bad{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.45);color:#f87171}',

@@ -388,6 +388,7 @@ const LEAF_MODULES = [
   { id: 'settingsPage', file: 'src/client/views/SettingsPage.js' },
   { id: 'runPanel', file: 'src/client/views/RunPanel.js' },
   { id: 'DockSync', file: 'src/client/panel/DockSync.js' },
+  { id: 'headFold', file: 'src/client/panel/headFold.js' }, // #667 新增：面板头部第一行的逐字折叠阶梯（纯函数，无组件）
   { id: 'dock', file: 'src/client/panel/Dock.js' },
   { id: 'namingFailBanner', file: 'src/client/panel/NamingFailBanner.js' },
   { id: 'OverlayGate', file: 'src/client/panel/OverlayGate.js' },
