@@ -242,14 +242,14 @@
 <ol>
   <li>运行期我们的上下文是否确实未打作用域标、监听器是否真的被调用（读代码只能证明"未打标就放行"）。</li>
   <li><code>{ global: true }</code> 到底必需不必需（依赖上一条）。</li>
-  <li>运行时生效的是哪个 profile（web 还是 desktop）与哪个 preset；若是 <code>ptc</code>，内层工具调用会以另一种形态送达，只订 <code>tool/call</code> 会漏。<b>（2026-09-24 已查清：跑的是 Web 系档案，预设默认 <code>standard</code>；但进程级环境变量 <code>DSH_TOOLS_MODE=ptc</code> 会让 <code>standard</code> 会话也变内层形态。见 <code>research/dsh-platform-facts-2026-09-24.md</code>）</b></li>
+  <li>运行时生效的是哪个 profile（web 还是 desktop）与哪个 preset；若是 <code>ptc</code>，内层工具调用会以另一种形态送达，只订 <code>tool/call</code> 会漏。<b>（2026-09-24 已查清：跑的是 Web 系档案，预设默认 <code>standard</code>；但进程级环境变量 <code>DSH_TOOLS_MODE=ptc</code> 会让 <code>standard</code> 会话也变内层形态。见 <code>research/dsh-platform-facts-2026-09-23.md</code>）</b></li>
   <li>Windows 上实际生效的 shell 工具叫 <code>bash</code> 还是 <code>pwsh</code>（读代码推不出）。<b>（2026-09-24 已查清：是 <code>pwsh</code>，<code>bash</code> 那一行在 win32 上被显式关掉）</b></li>
   <li>插件加载之前发生的历史事件收不到（事件是即时推送），补历史只能读会话日志。<b>（2026-09-24 已查清补课接口：</b><code>ctx.sessionQuery</code> <b>的</b> <code>listSessions()</code> <b>与</b> <code>readSession(id)</code><b>，读取不会把会话变活）</b></li>
   <li>子代理会话的工具调用是否真被我们看见（代码路径指向同一个存储，但属结构性推断）。</li>
 </ol>
 
 <div class="callout">
-  <p><b>2026-09-24 补记：</b>上面这六件事里，第三、四、五条已经查清（读 DSH 安装目录的打包代码得出，证据见 <code>research/dsh-platform-facts-2026-09-24.md</code>，对应票据 #717）。第三、四条的结论与这份记录里的说法一致，第五条补上了具体接口。另外查出两处需要更正的说法：会话事件里叫 <code>tool/result</code>（单数），<code>tools/result</code> 是另一套 Cordis 运行时事件（它反而是更省事的订阅点，一次给全工具名、已解析参数与结构化结果）；本机这一版会话事件共 <b>56</b> 条，不是 57 条。还剩第一、二、六条要在插件落地时实测。</p>
+  <p><b>2026-09-24 补记：</b>上面这六件事里，第三、四、五条已经查清（读 DSH 安装目录的打包代码得出，证据见 <code>research/dsh-platform-facts-2026-09-23.md</code>，对应票据 #717）。第三、四条的结论与这份记录里的说法一致，第五条补上了具体接口。另外查出两处需要更正的说法：会话事件里叫 <code>tool/result</code>（单数），<code>tools/result</code> 是另一套 Cordis 运行时事件（它反而是更省事的订阅点，一次给全工具名、已解析参数与结构化结果）；本机这一版会话事件共 <b>56</b> 条，不是 57 条。还剩第一、二、六条要在插件落地时实测。</p>
 </div>
 
 <h2><span class="num">第四部分</span>15 个待你拍板的问题</h2>
@@ -400,7 +400,7 @@
   <div class="q-head"><span class="id">Q15</span><h3>要不要把覆盖面做到最大</h3></div>
   <div class="q-body">
     <div class="q-row"><p class="lab">问什么</p><p class="txt">只订 <code>tool/call</code> 会漏两种情形：跑 <code>ptc</code> preset 时（形态是另一种事件）、以及拿不到结构化退出码时。(a) 只订 <code>tool/call</code>，命中即刷；(b) 订三种事件（<code>tool/call</code> + 内层派发 + <code>tools/result</code>），合并判定，并用结构化退出码判断成功；(c) 只订两种工具调用，不看成功与否。</p></div>
-    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>选 (b)。</b>判定逻辑稍复杂（三种形态归一到同一个"看到一次写操作"的结论），但换来"不管你跑哪种 preset、不管命令是 bash 还是 pwsh，插件都看得见"，而且不会在命令失败时白花一次重建。<br><b>2026-09-24 补记（读源码所得）：</b>还有一条更省事的路——只订运行时事件 <code>tools/result</code> 这一条，它同时覆盖原生调用与 <code>ptc</code> 内层派发，且直接给出工具名、已解析的参数对象、是否出错与结构化结果；代价是它不落盘、插件加载之前的调用收不到。另外更正：会话事件里叫 <code>tool/result</code>，<code>tools/result</code> 是 Cordis 运行时事件，两者不是同一个东西。落地时在 (b) 与这条之间定。见 <code>research/dsh-platform-facts-2026-09-24.md</code>。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>选 (b)。</b>判定逻辑稍复杂（三种形态归一到同一个"看到一次写操作"的结论），但换来"不管你跑哪种 preset、不管命令是 bash 还是 pwsh，插件都看得见"，而且不会在命令失败时白花一次重建。<br><b>2026-09-24 补记（读源码所得）：</b>还有一条更省事的路——只订运行时事件 <code>tools/result</code> 这一条，它同时覆盖原生调用与 <code>ptc</code> 内层派发，且直接给出工具名、已解析的参数对象、是否出错与结构化结果；代价是它不落盘、插件加载之前的调用收不到。另外更正：会话事件里叫 <code>tool/result</code>，<code>tools/result</code> 是 Cordis 运行时事件，两者不是同一个东西。落地时在 (b) 与这条之间定。见 <code>research/dsh-platform-facts-2026-09-23.md</code>。</p></div>
     <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">写事件识别的完整形状与实测项（哪种 preset、哪个 shell）。</p></div>
   </div>
 </section>

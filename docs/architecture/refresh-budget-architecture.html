@@ -387,7 +387,7 @@
   <li><strong>旋钮</strong>：探测 5 秒 / 对账 10 分钟 / 预检寿命 10 分钟 / 链退避序列 / 额度比例 35% 与读写三七分 / 写入保底 10% / 活跃上限 2 / 视野失效 90 秒 / 行级补行的合并窗口 10 秒。全部集中在 <code>budget.js</code> 一处，改一个数字即生效，且门禁测试会跟着重算。</li>
   <li><strong>前提一：将来要做"后台新票提醒"这类主动通知。</strong>那不是优化点，是新需求；但这套设计已经给它留好了位置——它是一种"订阅"，以后台档身份领取自己的份额（比如每个订阅 5 分钟一次、最多 5 个订阅），不需要改动架构。</li>
   <li><strong>前提二：如果 GitHub 以后给了更便宜的变更通知</strong>（webhook 或真正可用的条件请求），探测成本能再降一档。当前探测已经是"1 条 REST／次"的地板，所以这是外部变量，不是我们留的坑。</li>
-  <li><strong>前提三：DSH 的会话事件能力。</strong>已查清的部分——事件对全部会话广播（含子代理）、我们的插件拿到的是普通 Cordis 上下文（第一方有同类订阅先例）、订阅面没有任何隔离（见第十二章）。<strong>2026-09-24 又查清三件</strong>（读安装目录源码所得，完整结论在 <code>research/dsh-platform-facts-2026-09-24.md</code>，票 #717）：桌面跑的是 Web 系档案（本机名 <code>web</code>，默认名 <code>desktop</code>，组合一致，不必写两套），预设默认 <code>standard</code>，但进程级 <code>DSH_TOOLS_MODE=ptc</code> 会让 <code>standard</code> 会话也变成内层派发形态；Windows 上执行命令的工具名是 <code>pwsh</code>（<code>bash</code> 在 win32 上被关掉），命令行统一取 <code>JSON.parse(arguments).command</code>；会话事件共 <b>56</b> 条，工具相关四种是 <code>tool/call</code>、<code>tool/result</code>、<code>tool/ptc-dispatch-start</code>、<code>tool/ptc-dispatch</code>（详见第十五章）。还没实测、必须落地第一步就验的只剩三条：我们的插件实际能不能收到、<code>{ global: true }</code> 是否必需、子代理会话的写操作是否可见。验不通也不破坏架构——退回"5 秒探测"那条底线即可。</li>
+  <li><strong>前提三：DSH 的会话事件能力。</strong>已查清的部分——事件对全部会话广播（含子代理）、我们的插件拿到的是普通 Cordis 上下文（第一方有同类订阅先例）、订阅面没有任何隔离（见第十二章）。<strong>2026-09-24 又查清三件</strong>（读安装目录源码所得，完整结论在 <code>research/dsh-platform-facts-2026-09-23.md</code>，票 #717）：桌面跑的是 Web 系档案（本机名 <code>web</code>，默认名 <code>desktop</code>，组合一致，不必写两套），预设默认 <code>standard</code>，但进程级 <code>DSH_TOOLS_MODE=ptc</code> 会让 <code>standard</code> 会话也变成内层派发形态；Windows 上执行命令的工具名是 <code>pwsh</code>（<code>bash</code> 在 win32 上被关掉），命令行统一取 <code>JSON.parse(arguments).command</code>；会话事件共 <b>56</b> 条，工具相关四种是 <code>tool/call</code>、<code>tool/result</code>、<code>tool/ptc-dispatch-start</code>、<code>tool/ptc-dispatch</code>（详见第十五章）。还没实测、必须落地第一步就验的只剩三条：我们的插件实际能不能收到、<code>{ global: true }</code> 是否必需、子代理会话的写操作是否可见。验不通也不破坏架构——退回"5 秒探测"那条底线即可。</li>
 </ul>
 
 <h2><span class="num">增补·第十章</span>体验目标与降档顺序</h2>
@@ -556,7 +556,7 @@
 </div>
 
 <h2><span class="num">增补·第十五章</span>平台事实核实：会话事件、工具名、多窗口（2026-09-24）</h2>
-<p class="section-intro">这一章换了个问法：不再问"我们的设计应该怎样"，而是问"DSH 这个平台到底给了什么、没给什么"。结论来自读本机 DSH 桌面应用安装目录里的打包代码与配置（<code>D:\0Tools\DSH Desktop\resources\app\</code>，版本 2.0.10），完整证据（文件路径 + 行号）写在仓库文件 <code>research/dsh-platform-facts-2026-09-24.md</code>，对应票据 #717。这一章只留对设计有影响的部分，其中两条推翻了此前写在别处的说法，已在下文标出。</p>
+<p class="section-intro">这一章换了个问法：不再问"我们的设计应该怎样"，而是问"DSH 这个平台到底给了什么、没给什么"。结论来自读本机 DSH 桌面应用安装目录里的打包代码与配置（<code>D:\0Tools\DSH Desktop\resources\app\</code>，版本 2.0.10），完整证据（文件路径 + 行号）写在仓库文件 <code>research/dsh-platform-facts-2026-09-23.md</code>，对应票据 #717。这一章只留对设计有影响的部分，其中两条推翻了此前写在别处的说法，已在下文标出。</p>
 <div class="tablewrap">
 <table>
   <thead><tr><th>问的事</th><th>答案</th><th>对哪一章有影响</th></tr></thead>
