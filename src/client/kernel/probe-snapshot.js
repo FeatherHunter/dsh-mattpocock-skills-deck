@@ -14,42 +14,9 @@
     const dswsDiskSnapHitN = { n: 0 } // #498 磁盘快照命中采样计数（百一采样，只增不显）
     const dswsLogTrunc = function (s, n, field) { try { const t = String(s || ''); if (t.length <= n) return t; try { const k = String(field || 'text') + ':T' + n; dswsScrubHits[k] = (dswsScrubHits[k] || 0) + 1; dswsScrubN.n += 1; if (dswsScrubN.n % 50 === 0 && isEnabled('debug')) log('debug', 'privacy.scrub', { field: String(field || 'text'), rule: 'T' + n, hit: true }) } catch (e) {} return t.slice(0, n) } catch (e) { return '' } }
     const dswsDedupWin = { n: 0 }
-    // v11：label 用 GitHub 配置色渲染 —— hex → rgba（.18 背景），无效 hex 返回 null 走兜底
-    export const hexA = function (hex, a) {
-      try {
-        const hh = String(hex || '').replace('#', '')
-        if (!/^[0-9a-fA-F]{6}$/.test(hh)) return null
-        const r = parseInt(hh.slice(0, 2), 16), g = parseInt(hh.slice(2, 4), 16), b = parseInt(hh.slice(4, 6), 16)
-        return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')'
-      } catch (e) { return null }
-    }
-    // v14-18：hex → HSL 亮度下调 amt（0-1）→ hex（chips 边框比 label 色深一档）
-    export const darken = function (hex, amt) {
-      try {
-        const hh = String(hex || '').replace('#', '')
-        if (!/^[0-9a-fA-F]{6}$/.test(hh)) return null
-        const r = parseInt(hh.slice(0, 2), 16) / 255, g = parseInt(hh.slice(2, 4), 16) / 255, b = parseInt(hh.slice(4, 6), 16) / 255
-        const mx = Math.max(r, g, b), mn = Math.min(r, g, b)
-        const l = (mx + mn) / 2
-        let hue = 0, sat = 0
-        if (mx !== mn) {
-          const d = mx - mn
-          sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
-          if (mx === r) hue = ((g - b) / d + (g < b ? 6 : 0))
-          else if (mx === g) hue = ((b - r) / d + 2)
-          else hue = ((r - g) / d + 4)
-          hue *= 60
-        }
-        const l2 = Math.max(0, l - amt)
-        const hue2rgb = function (p, q, t) { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p }
-        const q2 = l2 < 0.5 ? l2 * (1 + sat) : l2 + sat - l2 * sat
-        const p2 = 2 * l2 - q2
-        const rr = Math.round(hue2rgb(p2, q2, hue / 360 + 1 / 3) * 255)
-        const gg = Math.round(hue2rgb(p2, q2, hue / 360) * 255)
-        const bb = Math.round(hue2rgb(p2, q2, hue / 360 - 1 / 3) * 255)
-        return '#' + ((1 << 24) + (rr << 16) + (gg << 8) + bb).toString(16).slice(1)
-      } catch (e) { return null }
-    }
+    // #707 拆出：颜色小函数（hexA / darken）、数据层增量差异 diffSnapshots、高亮清除 scheduleFlashClear
+    //   都搬去了 kernel/probe-snapshot-helpers.js（本文件当时已 349 行、门禁上限 350，没有下脚的地方）。
+    //   三样东西的行为一行没改，拼接顺序保证同一个闭包里前后可见；拼接标记在 src/client/index.js 里。
 
     // ============================================================
     // 4. 文本生成 + 复制/注入
@@ -94,59 +61,6 @@
       Object.keys(stores).forEach(function (k) { applyTo(stores[k]) })
     }
 
-    // v1.5 T10 R4（用户拍板）：数据层增量 diff —— 变更/新增/删除 按票号对比（含 map 子票级变化）， 多视图（列表/map详情/状态栏计数/过滤结果）数据驱动自动增量；diff 结果供 R5 视觉消费
-    export const diffSnapshots = function (oldS, newS) {
-      try{ if(oldS&&newS&&oldS.version&&newS.version&&oldS.version===newS.version) return {added:[],removed:[],changed:[],issueFlash:{},ts:Date.now(),skipped:true}; }catch(e){}
-      const out = { added: [], removed: [], changed: [], issueFlash: {}, ts: Date.now() }
-      if (!oldS || !oldS.ok || !Array.isArray(oldS.maps)) return out
-      if (!newS || !newS.ok || !Array.isArray(newS.maps)) return out
-      const lbl = function (x) { return (x.labels || []).map(function (l) { return typeof l === 'string' ? l : l.name }).sort().join(',') }
-      // effort 维度：差异索引按票身份 (effort, 编号) 键入，否则不同 effort 的同号地图互相顶掉、变更探测不到
-      const idx = function (snap) { const m = {}; snap.maps.forEach(function (x) { m[idOf(x)] = x }); return m }
-      const a = idx(oldS), b = idx(newS)
-      // 子票级变化：逐票对比（新增/变更标 issueFlash；任一变化 → 该 map 计入 changed，map 详情视图增量）
-      //   字段实证（#458 核验）：map 子票在快照里是 tickets（非 issues）；票级变化 = state/progress/claimedBy/labels
-      Object.keys(b).forEach(function (n) {
-        if (!a[n]) { out.added.push(n); return }
-        var x = a[n], y = b[n]
-        var sub = false
-        var ix = {}; (x.tickets || []).forEach(function (i) { ix[idOf(i)] = i })
-        var iy = {}; (y.tickets || []).forEach(function (i) { iy[idOf(i)] = i })
-        Object.keys(iy).forEach(function (k) {
-          if (!ix[k]) { sub = true; out.issueFlash[k] = 'added'; return }
-          var a2 = ix[k], b2 = iy[k]
-          if (a2.state !== b2.state || a2.progress !== b2.progress || a2.claimedBy !== b2.claimedBy || lbl(a2) !== lbl(b2) || String(a2.updatedAt || '') !== String(b2.updatedAt || '')) { sub = true; out.issueFlash[k] = 'changed' }
-        })
-        if (Object.keys(ix).length !== Object.keys(iy).length) sub = true
-        if (x.state !== y.state || x.title !== y.title || lbl(x) !== lbl(y) || sub) out.changed.push(n)
-      })
-      // #255 · 孤儿票（根票）对比 —— 右侧主列表行闪烁的数据源补口：原实现只遍历 maps 子票，
-      // 根票（parentKey=null）任何变化都不产 rowFlash；且把核心字段 updatedAt 纳入比较元组——
-      // GitHub 加评论会 bump updated_at，probe 索引（STATE|updated_at）判 changed 触发静默重建后，
-      // 闪烁由本差异真实产出（重求值推进，无乐观假设）。
-      const ia = {}; if (oldS && Array.isArray(oldS.issues)) oldS.issues.forEach(function (i) { if (i) ia[idOf(i)] = i })
-      const iy0 = {}; if (newS && Array.isArray(newS.issues)) newS.issues.forEach(function (i) { if (i) iy0[idOf(i)] = i })
-      Object.keys(iy0).forEach(function (k) {
-        if (!ia[k]) { out.added.push(k); return }
-        var xa = ia[k], ya = iy0[k]
-        if (xa.state !== ya.state || xa.title !== ya.title || lbl(xa) !== lbl(ya) || String(xa.updatedAt || '') !== String(ya.updatedAt || '')) out.changed.push(k)
-      })
-      Object.keys(ia).forEach(function (k) { if (!iy0[k]) out.removed.push(k) })
-      return out
-    }
-    // R5：高亮定时清除（防堆积；一次只排一个 timer）
-    export let _flashClearPending = false
-    export const scheduleFlashClear = function (st) {
-      if (_flashClearPending) return
-      _flashClearPending = true
-      if (timer === undefined) { _flashClearPending = false; return }
-      timer.timeout(function () {
-        _flashClearPending = false
-        st.rowFlash = {}
-        st.issueFlash = {}
-        emit(st)
-      }, 2600)
-    }
     // 收下 wf.cwd 顺手带回来的工作区根（2026-09-19 加）。做两件事：
     //   ① 记进 store：面板头部那枚归属标志就能在快照到达之前先画出来（它原先只能等一整份仓库快照）；
     //   ② 记进那张「所选目录 → 工作区根」的表（原样用于显示、折算键用于比较），别的抽屉按工作区根分桶时也能早点对齐。
@@ -158,6 +72,17 @@
         st.sessionWorkspaceRoot = raw
         if (st.cwd) rememberWorkspaceRoot(st.cwd, raw)
       } catch (eR) {}
+    }
+    // #707：切进工作区的那一瞬间要先用旧快照铺满（定稿第十章、票面验收的「目标 ≤100 毫秒」），再上报
+    //   「我在看谁」。hydrateFromCache 是同步的（内存里那份快照），宿主那条电话是异步的 —— 先同步铺满
+    //   就一定发生在异步上报之前，与谁先谁后无关。已有内容时不覆盖它（那是用户正在看的画面）。
+    export const cacheFirstThenAttend = function (st, kind) {
+      try {
+        const had = !!(st && (st.snapshot || getCachedSnapshot(st.cwd || '')))
+        if (st && typeof hydrateFromCache === 'function') { if (hydrateFromCache(st) && !had) emit(st) }
+      } catch (eHyd) {}
+      try { if (typeof reportWorkspaceAttention === 'function') reportWorkspaceAttention(st, kind, null) } catch (eAt) {}
+      return st
     }
     // 快照（#346：面板数据源；force 走 wf.refresh 全量重建；wf.snapshot 侧 5s 缓存）
     // #58 缓存优先：按 cwd 内存快照 + 空 cwd 同步，避免首开空 cwd 探路 miss 缓存导致 100-400ms 闪 loading
@@ -307,6 +232,9 @@
           } else {
             st.snapMode = 'err'
             st.snapError = (snap && snap.error) ? String(snap.error).slice(0, 160) : tr('err.snapshotEmpty')
+            // #715：这次取数失败，把「是哪一种失败」一起收下 —— 判据由宿主看真实读数分好类
+            //   （wf.snapshot 回包的 failKind：配额被别人耗尽 / 插件自己的取数失败），界面只翻成两句不同的话。
+            st.snapFail = { kind: (snap && snap.failKind === 'quota-exhausted') ? 'quota-exhausted' : 'fetch-failed', at: Date.now() }
             if (force && !silent) flash(st, tr('toast.snapFail', { err: st.snapError }), 'warn')
           }
           emit(st)
@@ -324,6 +252,9 @@
         const sync = getCwdSync(st.sessionId)
         if (sync) { st.cwd = sync; hydrateFromCache(st) }
       }
+      // #707：老会话与直接进面板这两条常见路径也要先铺满、再上报「我在看谁」。
+      //   放在这里（而不是更早）是因为此刻工作区根已经能拿到（hydrateFromCache 顺路把缓存里的根收进来）。
+      try { cacheFirstThenAttend(st, 'panel-open') } catch (eAtt) {}
       if (!st.cwd && st.sessionId && typeof host !== 'undefined' && typeof host.call === 'function') {
         return host.call('wf.cwd', { sessionId: st.sessionId }).then(function (res) {
           // 这条电话从 2026-09-19 起顺手带回「这个会话的工作区根」。先收下它：面板头部那枚归属标志

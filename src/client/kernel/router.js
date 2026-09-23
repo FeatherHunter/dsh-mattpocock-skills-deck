@@ -57,6 +57,8 @@
     export const DeckNativeTabTitle = function () { return h('span', null, tr('panel.title')) }
     // 打开面板的收尾：把这次打开记成「面板已开」，并按 #58 的规矩缓存优先（已水合就直接展示，否则后台拉）。
     export const afterPanelOpened = function (st) {
+      // #707：面板打开就是「我开始看这个工作区了」的一个信号源，所以在这里装监听与心跳（幂等，只装一次）。
+      try { if (typeof startAttentionSignals === 'function') startAttentionSignals() } catch (eSig) {}
       if (!st.cwd) {
         const sync = getCwdSync(st.sessionId)
         if (sync) { st.cwd = sync; hydrateFromCache(st) }

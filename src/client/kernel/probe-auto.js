@@ -22,7 +22,10 @@
       if (typeof host === 'undefined' || typeof host.call !== 'function') return
       if (fromFocus) {
         const now = Date.now()
-        if (now - lastFocusProbe < FOCUS_PROBE_MIN_MS) return
+        // #707：宿主已经在活跃集合里给了这个工作区一个探测间隔（正在看的 5 秒），回到前台时按它判；
+        //   拿不到那个间隔（还没上报过、或不在活跃集合里）就退回 #232 那条 60 秒的限流。
+        const gateMs = (_attentionPlan.intervalMs > 0) ? _attentionPlan.intervalMs : FOCUS_PROBE_MIN_MS
+        if (now - lastFocusProbe < gateMs) return
         lastFocusProbe = now
       }
       // #45 修复（2026-08-20）：多工作区异步回调导致右侧面板串台
@@ -156,6 +159,42 @@
       }
     }
 
+    // ── #707（T3 第二批）：只服务活跃工作区的那条探测节拍 ──────────────────────────────────
+    // 这条循环替掉「遍历所有工作区各发一次探测」那件事：只探**我这个会话正在看的那个工作区根**，
+    // 间隔由宿主说了算（正在看的 5 秒、刚离开的 15 秒，见 wf.focus 回话里的 probeIntervalMs）。
+    // 三件事凑齐才探：① 面板可见；② 宿主说我在活跃集合里（standing 为 'active'）；③ 距上一次探测
+    // 不满一个间隔就不重复探（同一条工作区根只探一次，#324 / #653 的口径不变）。
+    // 后台那些工作区一次都不探 —— 它们由宿主那一侧按视野模型安排，界面上一个定时器都不给它们。
+    export const _activeProbeAt = { at: 0 }
+    export const startActiveProbeLoop = function () {
+      try {
+        if (!_attentionPlan.intervalMs) return
+        if (shared._activeTimer) {
+          // 间隔变了（比如从「正在看」掉到「刚离开」）：重排一次，别让旧节拍继续跑。
+          try { clearInterval(shared._activeTimer) } catch (eClr) {}
+          shared._activeTimer = null
+        }
+        const step = function () {
+          try {
+            if (!attentionVisible()) return
+            if (_attentionPlan.standing !== 'active') return
+            const st = attentionStoreOf(null)
+            const cwd = (st && st.cwd) || ''
+            if (!cwd) return
+            const gap = _attentionPlan.intervalMs || PROBE_MS
+            if (_activeProbeAt.at && (Date.now() - _activeProbeAt.at) < gap) return
+            _activeProbeAt.at = Date.now()
+            probeNow(false)
+          } catch (e) {}
+        }
+        if (timer === undefined || typeof timer.interval !== 'function') {
+          // 宿主没给定时器出口（单测与无计时器环境）：不排节拍，什么都不做。
+          return
+        }
+        shared._activeTimer = timer.interval(step, _attentionPlan.intervalMs)
+      } catch (e) {}
+    }
+
     // v1.5 T10 R7（用户拍板）：手动刷新（状态栏「更新」/ 列表「刷新」/ 检查页「重新检查」）
     //   走静默路径 —— 无全屏遮罩、不禁点；按钮 spinner 即时反馈（命令式 DOM 直操作，不等 React 重渲染）
     //   CSS 动画走合成线程：即使主线程被重渲染占用，转圈照常可见
@@ -171,7 +210,9 @@
       // #195 约束：refreshAll 永不因 refreshing 锁死（重查按钮必须有反应）
       st.refreshing = true
       // 先发 RPC（异步即返回），再触发渲染 —— 避免重渲染挡住数据请求
-      var _p1Raw = (typeof loadChain === 'function' ? loadChain(st, true).catch(function(){}) : Promise.resolve())
+      // #709（T5）：这是「重新检查」按钮的真身。人亲手点的这一次永不降档，所以带上 'user-recheck'：
+      // 宿主看到它就照做，不看退避退到了第几档。
+      var _p1Raw = (typeof loadChain === 'function' ? loadChain(st, true, 'user-recheck').catch(function(){}) : Promise.resolve())
       // #366 补充：链刷新兜底超时，避免宿主链探测卡住导致按钮一直转圈
       var p1 = new Promise(function(resolve){ var _t=setTimeout(function(){ try{ resolve(null); }catch(e){} }, 15000); _p1Raw.then(function(v){ clearTimeout(_t); resolve(v); }).catch(function(){ clearTimeout(_t); resolve(null); }); });
       var p2 = loadSnapshot(st, true, true)

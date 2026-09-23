@@ -785,6 +785,15 @@
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
       "note": "#709 新增功能：链求值这一步要判「这一次是人亲手点的还是插件自己的动作」（挂载时那一次强制刷新不许记成人手动过的），判据归 refreshSource.js 一处；链路顶层已在同层内（它本来就要加载 refresh/chainBackoff.js 与 tracker/detection/*），要消掉这条边得连同链求值这一步一起搬层，属单独重构"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./refresh/attention.js",
+      "resolved": "src/host/refresh/attention.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#723 T19（宿主层接线与拆文件时收口）",
+      "note": "#707 新增功能：宿主电话 wf.focus 的加载器落在宿主入口文件里（与既有 ./workspaceCwd.js、./commentThreads.js 同形）。要消掉这条边，得在接线时把宿主入口那一堆电话加载器一起搬进单独的注册模块——那正是 #723 要做的拆文件工作"
     }
   ]
 }
