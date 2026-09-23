@@ -42,6 +42,18 @@ try {
   console.log('[build] 没能加载 label-color-core/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过内置 TypeScript 核的转译与类型检查。')
 }
 
+// #720 刷新核心（refresh-core/）：形态与上面的配色核心一致，转译与类型检查都写在它自己的 build.mjs 里。
+// 差别是这里要拿到两个函数（runTypeCheck 与 buildAll），所以存的是整个模块对象，不是单个函数。
+// 同样写成「先试着加载、加载不到只打印一行提示」而不是文件头静态 import：那棵源码树不进 npm 包
+// （package/package.json 的 files 白名单里没有它），在只有 scripts/ 与 shared/ 的子树里跑构建时，
+// 静态 import 会在加载阶段直接抛错，把整个构建打断，连一行提示都打不出来。这里要的是「这一步跳过、其余照跑」。
+let buildRefreshCore = null
+try {
+  buildRefreshCore = await import('../refresh-core/build.mjs')
+} catch (e) {
+  console.log('[build] 没能加载 refresh-core/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过刷新核心的转译与类型检查。')
+}
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 // ---------- 工具 ----------
@@ -672,6 +684,15 @@ syncReadme(version, repoUrl)
 // 它自己会判源码目录在不在（发布包与 package/ 子树里没有这棵源码树），不在就跳过并打印提示。
 // 放在两段派生之前：产物是客户端闭包的输入，必须比闭包先就位。
 if (buildLabelColorCore) buildLabelColorCore()
+
+// #720 内置 TypeScript 核（刷新核心）：类型检查与转译各调用一次，产物落进 src/shared/refresh/。
+// 两步分开调是因为 refresh-core/build.mjs 把它们拆成了两个函数（它的 buildAll 只管转译）；
+// 它自己会判源码目录在不在（发布包与 package/ 子树里没有这棵源码树），不在就跳过并打印一行提示。
+// 与配色核心一样放在两段派生之前：产物是宿主与界面要用的纯逻辑，必须比闭包先就位。
+if (buildRefreshCore) {
+  buildRefreshCore.runTypeCheck()
+  buildRefreshCore.buildAll()
+}
 
 // #564 日志系统派生：先把日志包产物派生为运行时文件（旧文件不动），再拼装。
 // #586 更新系统派生：同样先把更新包产物派生为运行时文件（旧文件不动）。
