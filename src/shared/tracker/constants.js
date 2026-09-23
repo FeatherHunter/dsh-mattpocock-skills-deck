@@ -44,12 +44,14 @@ export const SNAP_MODE = Object.freeze({
 
 /**
  * 关闭原因保留值（开放 string；未知→原样展示，不分支）。
+ * 表里只收插件自己**认得**的那两个值（#719 收口时按此清过一遍）。
+ * GitHub 那一侧的同一个字段上还见过 `not_planned`（未计划）与 `reopened`（重新打开）两个取值，
+ * 插件今天既不产出它们、也不读它们，所以不再收进这张表——留着就是没人碰的死词汇。
+ * 将来真要用到，**连调用点一起加回来**：那时这个值自然就有了产出与读者（#719 统筹者的裁决）。
  * ⚠️ `reason` 是能力字段：closed 时给原因；open 依后端支持情况给 `''`(EMPTY) 或省略(MISSING)。
  */
 export const CLOSED_REASON = Object.freeze({
   COMPLETED: 'completed',
-  NOT_PLANNED: 'not_planned',
-  REOPENED: 'reopened',
   DUPLICATE: 'duplicate',
 })
 

@@ -52,32 +52,29 @@ const CONTRACT_DIRS = ['src/shared']
 const SELF = path.relative(ROOT, __filename).replace(/\\/g, '/')
 
 /**
- * 存量清单（按统筹者裁定：每条一行，写清 名字 / 为什么留着 / 谁在读）。
- * 只收「间接被读」那一种：值由共享层模块产出、随返回值流到调用方，因此今天的读者是**拿到返回的那一方**，
- * 不是生产代码里某一行。真没人读的一律删掉（#719 删掉的六个 *_SOURCE 就是这一类），不进这份清单。
+ * 存量清单（按统筹者裁定 A：每条一行，写清 名字 / 为什么留着 / 谁在读）。
+ * 只收「间接被读」那一种：值由共享层模块产出、随返回值流到调用方，因此这里的读取面**是返回信封**
+ *（调用方拿到的那个 reason / items 字段），它只是不叫「变量名」，也不一定有测试断言。
+ * 真没人读的一律删掉，不进这份清单（#719 删掉的六个 *_SOURCE 与 CLOSED_REASON 里那两个值就是这一类）。
  */
 const KNOWN_UNPRODUCED = {
   'src/shared/deck-tools/edges.js.EDGE_LANDING.FILE_NOTE':
-    '为什么留着：本地 Markdown 单根工作区那种「归属写在票文件注释里」的落点名字，工具返回必须把它如实标出来，删了这条边就没法说清落在哪；谁在读：edges.js:43 的 landingOf → :54 的 edgeEvidence 把它写进返回项，再由四个宿主工具文件把它交回调用方（src/host/tools/deckIssueCreate.js:90、deckMapLink.js:76 与 :91 与 :97、deckMapPlanCreate.js:173）—— 读它的是拿到这次返回的人（与 AI）。',
+    '为什么留着：本地 Markdown 单根工作区那种「归属写在票文件注释里」的落点名字，工具返回必须把它如实标出来，删了这条边就没法说清落在哪；谁在读：edges.js:43 的 landingOf → :54 的 edgeEvidence 把它写进返回项，再由四个宿主工具文件把它交回调用方（src/host/tools/deckIssueCreate.js:90、deckMapLink.js:76 与 :91 与 :97、deckMapPlanCreate.js:173）—— **读取面是返回信封**（拿到这次返回的人与 AI）。',
   'src/shared/deck-tools/shell.js.REFUSAL_REASONS.NO_SESSION':
-    '为什么留着：三态返回里「没拿到会话」那一档的机器可读原因，删了调用方就没法按原因分支；谁在读：shell.js:96 把它写进返回信封的 reason 字段（宿主工具把信封原样交回平台），tests/verify-deck-tools.js:297 另外按同一句值断言。',
+    '为什么留着：三态返回里「没拿到会话」那一档的机器可读原因，删了调用方就没法按原因分支；谁在读：shell.js:96 把它写进返回信封的 reason 字段（宿主工具把信封原样交回平台）—— **读取面是返回信封**；tests/verify-deck-tools.js:297 另外按同一句值断言。',
   'src/shared/deck-tools/shell.js.REFUSAL_REASONS.OVER_CAP':
-    '为什么留着：额度超顶那一次拒绝的机器可读原因（拒绝必须说清超的是哪一项，这正是它存在的理由）；谁在读：shell.js:178 把它写进返回信封的 reason 字段，值随返回值流到调用方 —— **今天没有别的读者**（没有测试按它断言）。',
+    '为什么留着：额度超顶那一次拒绝的机器可读原因（拒绝必须说清超的是哪一项，这正是它存在的理由）；谁在读：shell.js:178 把它写进返回信封的 reason 字段 —— **读取面是返回信封，今天没有任何测试按值断言**（裁定 A：返回信封是真正的读取面，不为它补一条无意义的测试）。',
   'src/shared/deck-tools/shell.js.REFUSAL_REASONS.GATE_DEFER':
-    '为什么留着：被闸推迟那一档的机器可读原因；谁在读：shell.js:203 与 :272 把它写进返回信封的 reason 字段，值随返回值流到调用方 —— **今天没有别的读者**（没有测试按它断言）。',
+    '为什么留着：被闸推迟那一档的机器可读原因；谁在读：shell.js:203 与 :272 把它写进返回信封的 reason 字段 —— **读取面是返回信封，今天没有任何测试按值断言**（同裁定 A）。',
   'src/shared/deck-tools/shell.js.REFUSAL_REASONS.BACKEND_THREW':
-    '为什么留着：后端实现抛错那一档的机器可读原因（工具永不抛，改用它如实说）；谁在读：shell.js:202 与 :263 把它写进返回信封的 reason 字段，tests/verify-deck-tools.js:287 另外按同一句值断言。',
-  'src/shared/tracker/constants.js.CLOSED_REASON.NOT_PLANNED':
-    '为什么留着：GitHub 关闭原因字段的保留值之一（该字段按方案是「开放 string，未知值原样展示、不分支」），留着是给读字段的人一个对照；谁在读：今天没有读者 —— 本票只把它如实列进这份清单，删掉 CLOSED_REASON 整张表或给它补调用点都由统筹者定。',
-  'src/shared/tracker/constants.js.CLOSED_REASON.REOPENED':
-    '为什么留着：同上（CLOSED_REASON.REOPENED）；谁在读：今天没有读者。',
+    '为什么留着：后端实现抛错那一档的机器可读原因（工具永不抛，改用它如实说）；谁在读：shell.js:202 与 :263 把它写进返回信封的 reason 字段 —— **读取面是返回信封**；tests/verify-deck-tools.js:287 另外按同一句值断言。',
 }
 
 /**
- * 收集 .js 文件。**跳过以点开头的目录与文件**：`.git`、`.tmp`、`.scratch` 这些是仓库元数据与临时产物，
- * 不是真代码。这一条不是洁癖，实测踩过：`tests/.tmp-repo-out/` 与 `tests/.tmp-repo-out2/` 是某次契约
- * 测试留下的临时仓库副本（里面有整份源码的拷贝），它们把 constants.js 的两个死常量「救活」了
- *（副本里当然也有那份声明），于是存量清单被误判成过期。
+ * 收集 .js 文件。**跳过以点开头的目录与文件**，为什么：`.git`、`.tmp`、`.scratch` 这些是仓库元数据与
+ * 临时产物，不是真代码；这一条实测踩过——`tests/.tmp-repo-out/` 与 `tests/.tmp-repo-out2/` 是某次契约
+ * 测试留下的临时仓库副本（里面有整份源码的拷贝），它们把 constants.js 里的死常量「救活」了
+ *（副本里当然也有那份声明），于是存量清单被误判成过期。规则只有这一句，不涉及其它目录。
  */
 function walk(dir, out) {
   if (!fs.existsSync(dir)) return out
