@@ -20,6 +20,11 @@
  *   9. counts 段（#689）：后端计数这条操作 —— 做不到的后端诚实说做不到、能计数的三个数形状与自洽、
  *      数不全时整体失败、真实 GitHub 模块「要么诚实失败要么数字给对」（含带 errors 与缺 totalCount
  *      两次必须失败的验真）；另有编排层把 counts 写进 deck 的那一段，见 sections/snapshot.js。
+ *  10. idempotency 段（#711）：创建幂等锚 —— 同一个锚提交两次只多出一张票、返回同一个 key（两次提交
+ *      之间把全部进程内状态丢掉，换一个全新后端实例），不带锚时仍是每次新建；真实本地 Markdown
+ *      后端上把票文件读出来看锚在不在、第二次盘上文件数与修改时间都没变；真实 GitHub / GitLab 模块
+ *      上验锚进了远端请求正文、以及搜索没命中时靠「列出来逐张读票面」照样复用；回查拿不准时如实
+ *      失败、一张票都不建。见 sections/idempotency.js。
  *
  * 每段含「✗ probe」违规样例自证测试会逮。
  * 运行：node tests/verify-tracker-contract.js
@@ -41,6 +46,7 @@ import chainSection from './tracker-contract/sections/chain.js'
 import labelsSection from './tracker-contract/sections/labels.js'
 import countsSection from './tracker-contract/sections/counts.js'
 import listPageSection from './tracker-contract/sections/listPage.js'
+import idempotencySection from './tracker-contract/sections/idempotency.js'
 
 const results = [
   ...runContractTests(compliant), // 合规 → 应全 PASS
@@ -226,7 +232,7 @@ try {
   results.push({ name: 'pr-shape · probe-crash', ok: false, detail: String(e && e.stack || e) })
 }
 
-for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection, countsSection, listPageSection]) {
+for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection, countsSection, listPageSection, idempotencySection]) {
   try {
     const r = await s.run()
     results.push(...r)

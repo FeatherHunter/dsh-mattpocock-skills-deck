@@ -42,6 +42,8 @@ const WHITELIST_RE = [
   /^src\/shared\/label-color\//,
   /^src\/host\/tracker\/preflight\.js$/,
   /^src\/host\/platform\//,
+  // #711: the idempotency-anchor product of refresh-core (src/shared/refresh/idempotency.js). The three backend rooms judge "did I already create this ticket" by this one shared module.
+  /^src\/shared\/refresh\//,
 ]
 
 const BUILTIN_SET = new Set(builtinModules)

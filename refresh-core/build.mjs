@@ -41,6 +41,12 @@ const TSCONFIG = resolve(ROOT, 'refresh-core/tsconfig.json')
 const UNITS = [
   { ts: 'ports.ts', js: 'ports.js' },
   { ts: 'budget.ts', js: 'budget.js' },
+  // #711 加的第三份：创建幂等锚的构造与回查判据。三个后端房间都 import 它的产物
+  //（见 tests/verify-no-cross-import.js 白名单里的 src/shared/refresh/）。
+  { ts: 'idempotency.ts', js: 'idempotency.js' },
+  // #706（T2）加的第四份：闸的裁决纯函数。宿主侧 src/host/refresh/gate.js 每放行一笔就调它一次，
+  // 数字由 gate.js 从 budget.js 取好注入（policy.ts 自己不 import 任何产物，免得踩同层互引）。
+  { ts: 'policy.ts', js: 'policy.js' },
 ]
 
 function headerFor(tsName) {

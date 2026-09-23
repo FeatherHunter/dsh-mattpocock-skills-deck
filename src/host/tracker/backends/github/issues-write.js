@@ -12,18 +12,36 @@ import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { classifyGhError } from './errors.js'
 import { getIssue, parseRepo, repoId } from './issues.js'
+// #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
+// 本间房专属的「建后按锚回查」在 ./idempotency.js（两条路：搜索接口 + 最近更新列表逐张读正文）。
+import { checkIdempotencyKey } from '../../../../shared/refresh/idempotency.js'
+import { withAnchor, lookupByAnchor } from './idempotency.js'
 
 /**
  * create(repo, input, ctx) -> OpResult<Issue>
- * input: {title, body?, type?, parentKey?, labels?, assignees?}
+ * input: {title, body?, type?, parentKey?, labels?, assignees?, idempotencyKey?}
+ *
+ * #711：`idempotencyKey` 是可选输入。带上它时，票面正文的第一行是锚（渲染后看不见的 HTML 注释），
+ * 建票之前先按锚回查一次：命中就把那张票交回去（返回同一个 key、不再建），没命中才照常建。
+ * 回查拿不准时如实失败、绝不建票。不带这个字段时行为与加字段之前完全一样。
  */
 export async function createIssue(repo, input, ctx) {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `create: repo.refId missing: ${repoId(repo)}`)
     if (!input || typeof input.title !== 'string' || !input.title.trim()) return fail(ERROR_KIND.PARSE, 'create: title required')
+    // 幂等键当场检查：不合规（空、超长、带换行或注释收尾符）绝不落到正文上，
+    // 而且必须比「回查」更早失败 —— 键不合法时连回查都无从做起。
+    const wantKey = input.idempotencyKey === undefined || input.idempotencyKey === null ? null : checkIdempotencyKey(input.idempotencyKey)
+    if (wantKey && !wantKey.ok) return fail(ERROR_KIND.PARSE, `create: idempotencyKey 不能用：${wantKey.reason}`)
+    const idemKey = wantKey ? wantKey.key : ''
+    if (idemKey) {
+      const found = await lookupByAnchor(repo, idemKey, ctx, normalizeIssue)
+      if (!found.ok) return { ok: false, error: found.error }
+      if (found.hit) return { ok: true, data: found.issue }
+    }
     const c = ghClient(ctx)
-    const body = typeof input.body === 'string' ? input.body : ''
+    const body = withAnchor(typeof input.body === 'string' ? input.body : '', idemKey)
     // 先用 REST 创建
     const payload = { title: input.title.trim(), body }
     // labels: LabelInput[] → name[]

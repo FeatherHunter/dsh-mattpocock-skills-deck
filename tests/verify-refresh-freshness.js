@@ -21,6 +21,10 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 const UNITS = [
   { ts: 'refresh-core/src/ports.ts', js: 'src/shared/refresh/ports.js' },
   { ts: 'refresh-core/src/budget.ts', js: 'src/shared/refresh/budget.js' },
+  // #711 加的第三份：创建幂等锚。与上面两份同一口径 —— 改了 TS 没重新生成产物就红。
+  { ts: 'refresh-core/src/idempotency.ts', js: 'src/shared/refresh/idempotency.js' },
+  // #706（T2）加的第四份：闸的裁决纯函数。同一口径。
+  { ts: 'refresh-core/src/policy.ts', js: 'src/shared/refresh/policy.js' },
 ]
 
 // 去掉块注释与整行注释之后再找相对 import，避免把注释里的示例当成真的引用（写法同 verify-update-freshness.js）。

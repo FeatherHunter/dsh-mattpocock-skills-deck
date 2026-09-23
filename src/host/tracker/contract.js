@@ -204,6 +204,7 @@ export const OPERATIONS = Object.freeze([
  * @property {string|null} [parentKey]
  * @property {LabelInput[]} [labels]
  * @property {AssigneeInput[]} [assignees]
+ * @property {string} [idempotencyKey] 创建幂等锚（#711）：同一个锚提交两次只多出一张票、返回同一个 key；不传时行为与没有这个字段之前完全一样。语义与「回查拿不准必须如实失败」见同目录的 contract-idempotency.js，锚怎么构造与命中判据见 refresh-core/src/idempotency.ts
  */
 
 /** close 选项。 */
@@ -278,6 +279,9 @@ export const OPERATIONS = Object.freeze([
 // 按页取票这条操作（listPage）的语义，与它的 PageOpts / PageResult 两个形状，住在同目录的
 // contract-page.js —— 与标签配色那两条同样的做法：本文件受「每个文件不超 350 行」的门禁管，
 // 长文正文放在续篇里，本文件只留一句指向它的话。以后改这条操作的语义，改那个文件。
+
+// 创建幂等锚（#711）的语义住在同目录的 contract-idempotency.js：它不新增操作、不升版号，
+// 只是 create 的一个可选输入字段（见上面 CreateInput.idempotencyKey），所以正文挪出去不影响本文件的自洽。
 
 /** 归一化规则（供诊断/审计引用；各后端 normalize.js 依此实现）。 */
 export const NORMALIZE_RULES = Object.freeze({

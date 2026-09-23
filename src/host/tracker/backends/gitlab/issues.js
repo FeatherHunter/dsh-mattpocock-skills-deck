@@ -9,7 +9,11 @@ import { fail } from '../../preflight.js'
 import { glabClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { classifyGlabError } from './errors.js'
-import { issuesPath, issuePath, notesPath, linksPath, milestonesPath } from './queries.js'
+import { projectPath, issuesPath, issuePath, notesPath, linksPath, milestonesPath } from './queries.js'
+// #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
+// 本间房专属的「建后按锚回查」在 ./idempotency.js（服务端搜索 + 按创建时间倒序列出逐张看票面）。
+import { checkIdempotencyKey } from '../../../../shared/refresh/idempotency.js'
+import { withAnchor, lookupByAnchor } from './idempotency.js'
 
 function repoId(repo) {
   if (!repo) return ''
@@ -129,8 +133,21 @@ export async function createIssue(ctx, repo, input, opCtx) {
   if (!id) return fail(ERROR_KIND.NOTFOUND, 'create: repo.refId missing')
   if (!input || typeof input.title !== 'string' || !input.title.trim()) return fail(ERROR_KIND.PARSE, 'create: title required')
   try {
+    // #711：幂等键当场检查 —— 不合规的键绝不落到 description 上，而且必须比回查更早失败。
+    const wantKey = input.idempotencyKey === undefined || input.idempotencyKey === null ? null : checkIdempotencyKey(input.idempotencyKey)
+    if (wantKey && !wantKey.ok) return fail(ERROR_KIND.PARSE, 'create: idempotencyKey 不能用：' + wantKey.reason)
+    const idemKey = wantKey ? wantKey.key : ''
+    // #711：建票之前先按锚回查（回查看的是票面上的 description，不是内存里的表）。
+    // 命中就复用那张票、返回同一个 key，一个字节都不再往远端写；回查拿不准时如实失败、绝不建票。
+    if (idemKey) {
+      const found = await lookupByAnchor(repo, idemKey, effective)
+      if (!found.ok) return found
+      if (found.hit) return { ok: true, data: found.issue }
+    }
     const body = { title: input.title.trim() }
-    if (typeof input.body === 'string' && input.body) body.description = input.body
+    // 锚写在 description 的第一行（渲染后看不见的 HTML 注释），重试时凭它把这张票找回来。
+    const description = withAnchor(typeof input.body === 'string' ? input.body : '', idemKey)
+    if (description) body.description = description
     if (Array.isArray(input.labels) && input.labels.length) {
       const names = input.labels.map((l) => typeof l === 'string' ? l : l.name).filter(Boolean)
       if (names.length) body.labels = names.join(',')
