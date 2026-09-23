@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>刷新机制定稿设计：把「不会超限」变成结构属性</title>
+<style>
+  :root{
+    --ink:#16181d; --ink-2:#3d434e; --ink-3:#6b7280;
+    --hair:#e6e8ec; --hair-2:#f1f2f5;
+    --paper:#ffffff; --paper-2:#fafafa;
+    --accent:#1c4f73; --accent-soft:#eef4f9;
+    --good:#2f6b52; --good-soft:#eff6f1;
+    --warn:#9a6a12; --warn-soft:#fdf6e7;
+    --risk:#9b3b3b; --risk-soft:#fbf0f0;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+    font-size:16px;line-height:1.9;letter-spacing:.01em;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:0 28px 96px}
+  header.top{padding:72px 0 40px;border-bottom:1px solid var(--hair)}
+  .eyebrow{font-size:12px;letter-spacing:.18em;color:var(--ink-3);text-transform:uppercase;margin:0 0 18px}
+  h1{font-size:clamp(26px,3.4vw,36px);line-height:1.38;margin:0 0 18px;font-weight:650;letter-spacing:-.01em}
+  .lede{font-size:17px;color:var(--ink-2);margin:0;max-width:46em}
+  .lede b{font-weight:650;color:var(--ink)}
+  h2{font-size:22px;line-height:1.5;margin:64px 0 8px;font-weight:640}
+  h2 .num{display:block;font-size:12px;letter-spacing:.18em;color:var(--accent);font-weight:600;margin-bottom:8px}
+  h3{font-size:17px;margin:32px 0 8px;font-weight:640}
+  h4{font-size:15px;margin:22px 0 6px;font-weight:640}
+  p{margin:14px 0}
+  ul,ol{margin:14px 0;padding-left:1.35em}
+  li{margin:7px 0}
+  strong{font-weight:640}
+  code{font-family:var(--mono);font-size:.88em;background:var(--paper-2);border:1px solid var(--hair);border-radius:4px;padding:1px 5px;white-space:nowrap}
+  .section-intro{color:var(--ink-2);margin:10px 0 26px;max-width:46em}
+  .note{font-size:13px;color:var(--ink-3);margin:10px 0 0}
+
+  .callout{border:1px solid var(--hair);border-left:3px solid var(--accent);background:var(--accent-soft);padding:20px 22px;margin:32px 0;border-radius:0 6px 6px 0}
+  .callout p{margin:0;color:var(--ink-2)}
+  .callout p+p{margin-top:10px}
+  .callout b{color:var(--ink)}
+
+  .tablewrap{overflow-x:auto;margin:24px 0;border:1px solid var(--hair)}
+  table{border-collapse:collapse;width:100%;font-size:14px;line-height:1.7;min-width:640px}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--hair-2);vertical-align:top}
+  thead th{background:var(--paper-2);font-weight:640;color:var(--ink-2);border-bottom:1px solid var(--hair);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.num,th.num{font-family:var(--mono);white-space:nowrap;font-size:13px}
+  .cell-good{color:var(--good);font-weight:600}
+  .cell-warn{color:var(--warn);font-weight:600}
+  .cell-risk{color:var(--risk);font-weight:600}
+
+  /* invariants */
+  .inv{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--hair);border:1px solid var(--hair);margin:28px 0}
+  .inv > div{background:var(--paper);padding:18px 20px}
+  .inv .k{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:700;letter-spacing:.06em;margin:0 0 6px}
+  .inv .t{font-size:15px;font-weight:640;margin:0 0 6px;line-height:1.6}
+  .inv .d{font-size:13.5px;color:var(--ink-3);margin:0;line-height:1.75}
+
+  /* layered diagram */
+  .stack{margin:30px 0;border:1px solid var(--hair);border-radius:8px;overflow:hidden}
+  .layer{display:grid;grid-template-columns:150px 1fr;gap:0;border-bottom:1px solid var(--hair)}
+  .layer:last-child{border-bottom:0}
+  .layer .lt{padding:16px 18px;background:var(--paper-2);border-right:1px solid var(--hair);font-size:14px;font-weight:640}
+  .layer .lt span{display:block;font-family:var(--mono);font-size:11px;color:var(--ink-3);font-weight:500;letter-spacing:.06em;margin-top:4px}
+  .layer .lc{padding:16px 20px;font-size:14px;color:var(--ink-2)}
+  .layer .lc b{color:var(--ink)}
+  .layer.hot{background:var(--accent-soft)}
+  .layer.hot .lt{background:#e6eff6}
+
+  /* component cards */
+  .comp{border:1px solid var(--hair);border-radius:8px;margin:24px 0;overflow:hidden}
+  .comp-head{padding:16px 22px;background:var(--paper-2);border-bottom:1px solid var(--hair);display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .comp-head .id{font-family:var(--mono);font-size:12px;font-weight:700;color:#fff;background:var(--ink);border-radius:4px;padding:2px 8px}
+  .comp-head h3{margin:0;font-size:18px}
+  .comp-head .tag{font-size:11px;color:var(--ink-3);border:1px solid var(--hair);border-radius:999px;padding:3px 9px}
+  .comp-body{padding:6px 22px 20px}
+  .field{display:grid;grid-template-columns:112px 1fr;gap:14px;padding:14px 0;border-bottom:1px dashed var(--hair)}
+  .field:last-child{border-bottom:0}
+  .field .label{font-size:13px;color:var(--ink-3);line-height:1.9}
+  .field .body{margin:0;color:var(--ink-2)}
+  .field .body strong{color:var(--ink)}
+  .field .body ul{margin:6px 0 0}
+
+  .kv{font-family:var(--mono);font-size:13px}
+  .pill{display:inline-block;font-size:12px;border-radius:999px;padding:2px 9px;border:1px solid var(--hair);color:var(--ink-3);margin:2px 6px 2px 0;white-space:nowrap}
+  .pill.ok{background:var(--good-soft);border-color:#cfe3d7;color:var(--good)}
+  .pill.warn{background:var(--warn-soft);border-color:#ecdcb7;color:var(--warn)}
+  .pill.risk{background:var(--risk-soft);border-color:#eccfcf;color:var(--risk)}
+  .pill.key{background:var(--accent-soft);border-color:#cfe0ec;color:var(--accent)}
+
+  .code-block{font-family:var(--mono);font-size:13px;color:var(--ink-2);background:var(--paper-2);border:1px solid var(--hair);border-radius:6px;padding:14px 16px;overflow-x:auto;line-height:1.85;white-space:pre}
+  footer{margin-top:72px;padding-top:26px;border-top:1px solid var(--hair);color:var(--ink-3);font-size:13.5px}
+  footer h3{font-size:14px;color:var(--ink-2);margin:0 0 10px}
+
+  @media (max-width:840px){
+    .inv{grid-template-columns:1fr}
+    .layer{grid-template-columns:1fr}
+    .layer .lt{border-right:0;border-bottom:1px solid var(--hair)}
+    .field{grid-template-columns:1fr;gap:4px}
+    .wrap{padding:0 18px 64px}
+    header.top{padding:48px 0 28px}
+  }
+  @media print{
+    body{font-size:11pt}
+    .comp,.inv,.stack,table,.callout{break-inside:avoid}
+    h2{break-after:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">DSH 右侧面板 · 刷新机制 · 定稿设计</p>
+  <h1>把「不会超限」变成结构属性</h1>
+  <p class="lede">这份文档给出的是<strong>终局方案</strong>：不按开发成本裁剪，一次做到没有下一次。它不是"更聪明地省配额"，而是换一条根本思路——<b>让插件在结构上失去把配额用光的能力</b>，同时保证你每一次看向某个工作区时，看到的东西一定是新的，或者被明确标成旧的。</p>
+</header>
+
+<div class="callout">
+  <p><b>终局判定标准（四条，缺一不算到位）：</b></p>
+  <p>① 任何自动行为都不可能越过额度——不是"算出来不会"，而是"越不过去"；<br>
+     ② 用量与你打开几个工作区<strong>无关</strong>；<br>
+     ③ 以后新增任何取数功能，都自动继承这套上限，不需要重新论证；<br>
+     ④ 你看到的东西，"新"或"旧"永远是明确的，不存在自称新的陈旧数据。</p>
+</div>
+
+<p class="note" style="margin-top:22px">本轮增补（第二轮，2026-09-22）：文末第十～第十三章是这一轮拷问后补上的四节——<b>体验目标与降档顺序</b>、<b>行级增量刷新</b>、<b>会话↔票 处理链</b>、<b>对抗式审查</b>。前面各章的节拍与用量数字已按新决定更正（探测从 30 秒改成 5 秒，日常变化不再整池重建）。</p>
+
+<h2><span class="num">第一章</span>六条不变量</h2>
+<p class="section-intro">不变量是这份设计的宪法：任何实现、任何新功能、任何一次改代码，违背其中一条就判红。后面所有设计都是为了满足这六条。</p>
+
+<div class="inv">
+  <div>
+    <p class="k">I1</p>
+    <p class="t">唯一出口</p>
+    <p class="d">对 GitHub 的每一次调用，无论由哪个模块、哪个功能发起，都必须经过同一道取数闸。没有任何一条路可以绕过它——这条由静态扫描门禁强制。</p>
+  </div>
+  <div>
+    <p class="k">I2</p>
+    <p class="t">后台零定时器</p>
+    <p class="d">没有任何一个"正在看的"工作区之外的工作区拥有<strong>长期</strong>定时器：刚离开的那个只保留最多 30 秒的"收尾节拍"，之后必然归零；更早离开的一次都不发，切回来时补一次。<span style="color:var(--ink-3)">（原来是字面的"零定时器"，独立审查指出它与"刚离开 30 秒仍按快档探测"自相矛盾，而且会把探测预算吃掉一半，因此改为"限时收尾"。）</span></p>
+  </div>
+  <div>
+    <p class="k">I3</p>
+    <p class="t">首屏只付行数据的钱</p>
+    <p class="d">首屏列表只付"画一行要用的字段"和"两个数字"。正文、评论、评审、地图子票，全部只在人点开时取。</p>
+  </div>
+  <div>
+    <p class="k">I4</p>
+    <p class="t">用量与工作区数量无关</p>
+    <p class="d">总用量只由三件事决定：你在多少个工作区之间切换、那个仓库有多活跃、你点了多少次。开 3 个和开 30 个，花费同阶。</p>
+  </div>
+  <div>
+    <p class="k">I5</p>
+    <p class="t">失败必可见、必退避</p>
+    <p class="d">取数失败不许悄悄吞掉：界面要说明、重试要拉开间隔、连续失败要熔断。失败永远不放大成请求风暴。</p>
+  </div>
+  <div>
+    <p class="k">I6</p>
+    <p class="t">花费可归因、可对账</p>
+    <p class="d">每一笔花费都记在账上：谁发起、属于哪一档、花了多少、当时剩多少。真机上任何时候都能对出账。</p>
+  </div>
+</div>
+
+<h2><span class="num">第二章</span>为什么原来的做法注定会超限</h2>
+<p class="section-intro">先把病因说准，否则方案只是换一种痒。</p>
+<ul>
+  <li><strong>没有出口，只有一堆各自为政的调用点。</strong>探测、重建、检查链、命名守护、单票详情、地图子票，各写各的节拍、各自决定发不发请求。任何一处多写一行，整体就会越线——今天的最坏情况（10 个工作区、检查链都没全绿时约 24,300 次/小时，是上限的 4.9 倍）就是这样来的。</li>
+  <li><strong>预算花在看不见的地方。</strong>只有一块屏幕在亮，却给每个工作区都上定时器；检查链甚至不看页面是否可见，面板关掉也照跳。</li>
+  <li><strong>单价没被当成设计对象。</strong>每次重建都把正文和每票 50 条评论一起拖回来：实测 25 点。而列表要画一行，一个字都用不到它们。</li>
+  <li><strong>失败没有代价。</strong>限流了、离线了，节拍照旧——不计数、不退避（代码里那两个熔断常量至今没有任何调用方）。</li>
+  <li><strong>失败没有声音。</strong>只要手上还有一份旧数据，取数失败就一个字都不显示：面板照旧画，你分不清"远端没变"和"半小时没刷上"。</li>
+</ul>
+
+<h2><span class="num">第三章</span>定稿架构：三层 + 一道闸</h2>
+<p class="section-intro">整份设计只有四个角色，职责严格分开：界面只负责"我在看谁"，宿主只负责"什么时候、给谁刷新"，闸只负责"能不能花、花多少"，而账本负责"这一切怎么被看见"。</p>
+
+<div class="stack">
+  <div class="layer hot">
+    <div class="lt">界面层<span>我只回答一个问题</span></div>
+    <div class="lc"><b>现在在看的是哪个工作区（按工作区根算）。</b>会话切换、面板打开、窗口获得焦点时上报一次；除此之外什么都不决定。界面不做节拍、不做重试、不做配额判断——它没有能力犯错。</div>
+  </div>
+  <div class="layer">
+    <div class="lt">调度层<span>什么时候刷、刷谁</span></div>
+    <div class="lc"><b>视野模型</b>把工作区分成「活跃」（最多 2 个：正在看的 + 刚离开 30 秒内的）与「后台」（其余全部）。活跃档上节拍（变化探测 5 秒、发现变化只补变的那几条、整池重建只在冷启动与对账时做）；后台档零定时器。<b>检查链</b>与<b>命名守护</b>不再是定时器，而是事件驱动的诊断。</div>
+  </div>
+  <div class="layer">
+    <div class="lt">闸<span>能不能花、花多少</span></div>
+    <div class="lc"><b>每一笔去 GitHub 的调用都在这里过。</b>先把请求分成三类：<span class="pill key">用户动作</span>永远放行、<span class="pill">生命周期</span>（切进来那一次）预算内放行、<span class="pill warn">后台</span>预算内放行超出即推迟。闸持有两个桶的账（REST 次数 / GraphQL 点数），每分钟从免费接口同步一次服务端剩余（<code>gh api rate_limit</code> 不扣配额，实测确认），并按剩余自动降档。</div>
+  </div>
+  <div class="layer">
+    <div class="lt">账本<span>怎么被看见</span></div>
+    <div class="lc"><b>每一笔花费、每一次推迟、每一次降档都留痕</b>（按仓库日志纪律记成"打开调试开关才记"那一档，不占常驻名额）。界面上同步出三件事：这份数据是什么时候取的、上次刷新成功没有、现在是不是降级状态。</div>
+  </div>
+</div>
+
+<h2><span class="num">第四章</span>五个部件，逐个定稿</h2>
+
+<section class="comp">
+  <div class="comp-head"><span class="id">01</span><h3>取数闸：唯一的出口</h3><span class="tag">I1 · I5 · I6</span></div>
+  <div class="comp-body">
+    <div class="field"><p class="label">它做什么</p><p class="body">给每一笔调用定类、记账、裁决。<strong>用户动作</strong>（点刷新、点开票、翻页、发评论、改标签、建票）永远放行——人的动作不该被算法拦住；<strong>生命周期</strong>（切进工作区那一次）在预算内放行，预算不足时降级为"只出缓存 + 只探测不重建"；<strong>后台</strong>（定时探测、链、守护）在预算内放行，超出即<strong>推迟</strong>。</p></div>
+    <div class="field"><p class="label">推迟 ≠ 失败</p><p class="body">同一个工作区在队列里只保留最后一次请求（多次合并成一次），并且带过期时间（5 分钟）：过期直接丢，不排队、不堆积、不重试。所以"越线"在当前这一小时里不会变成错误风暴，只会变成"这次先不刷"。</p></div>
+    <div class="field"><p class="label">额度怎么定</p><p class="body">插件每小时最多用掉<strong>剩余额度的 35%</strong>，绝对值不超过 1,750（5,000 的 35%）。其中<strong>读</strong>最多 70%（1,225），<strong>写</strong>保底 30%（525）——写操作是你手动触发的，任何时候都必须有额度可用。剩下的 65% 全部留给你的 agent：插件永远不会成为压死骆驼的那根稻草。</p></div>
+    <div class="field"><p class="label">三档降级</p>
+      <p class="body">
+        <span class="pill ok">绿</span>用掉不足六成：按正常节拍跑。<br>
+        <span class="pill warn">黄</span>用掉六成到八成五：活跃探测放慢到 120 秒、重建最快 300 秒一次、后台刷新全停。<br>
+        <span class="pill risk">红</span>用掉八成五以上，或已经撞过一次限流：自动刷新全停，只留用户动作；界面上明说「配额紧张，自动刷新已暂停」。<br>
+        <span class="note" style="display:block">档位由闸自己算，不需要你干预，也不需要重启。</span>
+      </p>
+    </div>
+    <div class="field"><p class="label">为什么这样就不退化</p><p class="body">以后任何新功能（比如"后台盯着某个工作区"、"打开面板就预取地图子票"）只能以<strong>后台</strong>类的身份进入这把预算，拿到的是被分配的那一份，越不过线。这就是"一次做到位"的技术含义：<strong>上限不是靠每加一个功能重新算一遍，而是被结构挡住的。</strong></p></div>
+  </div>
+</section>
+
+<section class="comp">
+  <div class="comp-head"><span class="id">02</span><h3>视野模型：把预算花在看得见的地方</h3><span class="tag">I2 · I4</span></div>
+  <div class="comp-body">
+    <div class="field"><p class="label">活跃的定义</p><p class="body">界面在上报"我在看谁"时给的是<strong>工作区根</strong>，不是会话目录——所以同一个仓库下的多个会话（你说的共享根）天然算一个工作区，只花一份钱。活跃集合最多 2 个：当前正在看的 + 刚离开 30 秒内的那个（照顾你在两个工作区之间快速来回切的手感）。</p></div>
+    <div class="field"><p class="label">活跃档怎么跑</p><p class="body">变化探测 5 秒一次（每次 1 条 REST）；一旦探到变化，<strong>只补变的那几条</strong>（1~2 点，不再整池重来）。为什么是 5 秒：它是"你刚写完、面板在几秒内跟上"的感知阈值；而"只补那几条"则是让高频探测变得付得起的前提——整池重建只在冷启动与对账时做。</p></div>
+    <div class="field"><p class="label">两个活跃怎么分额度</p><p class="body">活跃集合最多 2 个，但<strong>探测额度只有一份</strong>：正在看的那个 5 秒，刚离开的那个降到 15~30 秒。否则 2 × 720 = 1,440 条/小时就超过了读份额（1,225），目标延迟会被自己的预算打掉。</p></div>
+    <div class="field"><p class="label">心跳</p><p class="body">面板可见时每 20 秒发一次<strong>本地心跳</strong>（零配额、不出网）；"90 秒无信号就收摊"只对"面板不可见"生效。可见而心跳断掉时，界面直说"自动刷新已暂停"——不许把故障伪装成安静。</p></div>
+    <div class="field"><p class="label">后台档怎么跑</p><p class="body"><strong>一次都不发。</strong>切回来时：先用磁盘/内存里的快照把界面铺满（毫秒级），同时探测一次，有变化或数据超过 5 分钟就重建一次——这一次按<strong>生命周期</strong>类走闸。</p></div>
+    <div class="field"><p class="label">信号失效怎么办</p><p class="body">如果 90 秒内没有任何"我在看谁"的上报（客户端崩了、窗口被藏了、有 bug），宿主<strong>自动把全部工作区降为后台档</strong>，只保留用户动作。这样即使前端出故障，也不会有人偷偷烧配额——兜底方向永远是"更省"，不是"更快"。</p></div>
+    <div class="field"><p class="label">多窗口的兜底</p><p class="body">"同一时间只看一个"是你的使用习惯，代码里不当假设：活跃集合的硬上限是 2，多个窗口同时上报时取最近上报过的那两个，仍然不超过 2。<strong>窗口身份要我们自己造</strong>——平台侧没有"哪个窗口活跃"的状态，也没有"最近获得焦点"的记录，插件宿主接口拿到的是「接口名 + 载荷 + 取消信号」，认不出调用方是谁。做法：客户端自己生成一个窗口标识放 <code>sessionStorage</code>（或内存里），<strong>不能放 <code>localStorage</code></strong>（同源所有窗口共享，后写覆盖先写）；宿主侧存成"窗口标识 → 最近一次上报时间"的表，而不是只存一个变量；前端本来就是浏览器页面，可以用 <code>document.hasFocus()</code> / <code>focus</code> / <code>visibilitychange</code> 主动上报"我已不再活跃"。</p></div>
+  </div>
+</section>
+
+<section class="comp">
+  <div class="comp-head"><span class="id">03</span><h3>单价分层：一次取什么就花多少钱</h3><span class="tag">I3</span></div>
+  <div class="comp-body">
+    <div class="field"><p class="label">L0 行数据</p><p class="body">列表画一行要用的字段（编号、标题、状态、链接、时间、作者、认领人、标签），<strong>薄片段</strong>：实测 2 点/100 行。首屏只付这一层。</p></div>
+    <div class="field"><p class="label">L1 单票</p><p class="body">正文、依赖边、标签明细：打开某张票时 1 点。今天已经是这样。</p></div>
+    <div class="field"><p class="label">L2 评论与评审</p><p class="body">分页取，每页 1 点，展开/翻页时付。今天已经是这样。</p></div>
+    <div class="field"><p class="label">L3 两个数字</p><p class="body">"共多少张 / 多少未关闭"这条计数查询：1 点，且只在列表页可见时随重建一起取，不单独轮询。</p></div>
+    <div class="field"><p class="label">一次重建的单价</p><p class="body">工单池 5 页 × 2 点 + 拉取请求 1 页 × 2 点 + 计数 1 点 = <span class="kv">13 点</span>（现在是 25 点：正文与每票 50 条评论被一起拖了回来，而列表一个字都用不到）。<strong>正文与评论一个字都不少</strong>——只是改成点开才取。</p></div>
+    <div class="field"><p class="label">变化时怎么补</p><p class="body">探测只说"哪几条变了"，那就<strong>只取那几条</strong>（1~2 点），合并进现有列表；整池重建不再参与日常刷新——它只剩两处用途：冷启动，以及每 10 分钟一次的对账。详见增补第十一章。</p></div>
+    <div class="field"><p class="label">留了口子的一处</p><p class="body">如果将来把首屏票池从"最近 500 行"缩到"未关闭 + 最近 100 行已关闭"（这正是你们规格 #677 里写的目标形态），一次重建会从 13 点降到 <span class="kv">7 点</span>。这一步牵扯"地图进度环要不要算已关闭子票"，是数据完整性问题、不是刷新问题，所以本设计<strong>默认不动</strong>池子，只把这条路径标出来。</p></div>
+  </div>
+</section>
+
+<section class="comp">
+  <div class="comp-head"><span class="id">04</span><h3>检查链与命名守护：从定时器改成事件驱动的诊断</h3><span class="tag">I2 · I5</span></div>
+  <div class="comp-body">
+    <div class="field"><p class="label">为什么改</p><p class="body">现在只要链上还有一步不是绿的，就每 8 秒强制重算一次，一次约 5 条命令，<strong>不看页面可见性、面板关掉也不停</strong>——单独一项就能吃掉 2,250 条/小时/工作区。而"登录态、仓库可达、技能装没装"这些东西，一分钟之内根本不会变。</p></div>
+    <div class="field"><p class="label">新触发</p><p class="body">① 切进一个工作区；② 你点"重新检查"；③ 你刚做完可能改变它的动作（初始化、绑定后端、装技能）；④ 写入操作成功之后。<strong>没有定时器。</strong></p></div>
+    <div class="field"><p class="label">新退避</p><p class="body">真有"还没好"的步骤时，按 8 秒 → 30 秒 → 2 分钟 → 5 分钟退，一旦有进展立刻回到快档；全绿后缓存 30 分钟（全绿状态变化很慢）。</p></div>
+    <div class="field"><p class="label">顺手砍掉重复</p><p class="body">今天一次链求值里，"登录态"跑两遍、"仓库可达"跑两遍（探测预检一遍、谓词又一遍）。改成<strong>一次求值里环境预检只花一次</strong>，谓词复用同一份结果：一次求值从 5 条降到 3 条。环境预检本身的寿命也从 30 秒放宽到 10 分钟（成功时），失败立刻重试一次。</p></div>
+    <div class="field"><p class="label">命名守护</p><p class="body">建号本身是事件（<code>gh issue create</code> 已经被拦截并触发即时推进），所以定时那一跳只留兜底：10 分钟一次，每跳最多扫 1 个仓库（多仓库公平轮转），也走闸的后台档。</p></div>
+  </div>
+</section>
+
+<section class="comp">
+  <div class="comp-head"><span class="id">05</span><h3>账本与诚实显示：让"旧"和"失败"永远说得出来</h3><span class="tag">I5 · I6</span></div>
+  <div class="comp-body">
+    <div class="field"><p class="label">界面三件事</p><p class="body">① 数据带上取数时刻（"上次更新：12:04"），超过 5 分钟变黄、超过 30 分钟变红；② 上次刷新失败就直说"刷新失败，正在重试 / 已暂停（配额紧张）"，不再只写进日志；③ 降级要说出来——GraphQL 换成 REST、这份清单不全、指标退回本地估算，各自有落点（其中"已切 REST 通道"的文案和渲染都已经写好，只缺上游给字段，接上即可）。</p></div>
+    <div class="field"><p class="label">失败代价</p><p class="body">每个工作区独立记账：连续 3 次失败 → 退到 1 分钟，再失败 5 分钟、30 分钟，成功一次立刻归零。撞到限流的那个工作区当轮直接停，等闸的档位恢复。</p></div>
+    <div class="field"><p class="label">账本</p><p class="body">三个事件：<code>quota.spend</code>（谁发起、哪一档、花了多少、剩多少）、<code>refresh.decide</code>（放行 / 降级 / 推迟 + 原因）、<code>refresh.skipped</code>（因后台档或额度不足被跳过）。按仓库日志纪律做成"打开调试开关才记"那一档，不占常驻名额；同时作为验收时的对账依据。</p></div>
+  </div>
+</section>
+
+<h2><span class="num">第五章</span>算一遍：终局方案的最坏情况</h2>
+<p class="section-intro">场景按你的真实用法取最坏：10 个工作区、你每小时来回切 60 次（已经是很勤的频率）、当前那个仓库每分钟都有变化。</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>花费项</th><th>怎么来的</th><th class="num">每小时</th></tr></thead>
+  <tbody>
+    <tr><td>变化探测</td><td>活跃工作区 1 个 × 5 秒一次 × 1 条 REST</td><td class="num">720 条 REST</td></tr>
+    <tr><td>环境预检</td><td>10 分钟一次 × 2 条（登录态 + 仓库可达）</td><td class="num">12 条 REST</td></tr>
+    <tr><td>检查链</td><td>事件驱动，最坏 20 次 × 3 条（预检复用后）</td><td class="num">60 条 REST</td></tr>
+    <tr><td>切换补刷</td><td>60 次切换 × 1 次探测（同一工作区 10 秒内不重探）</td><td class="num">60 条 REST</td></tr>
+    <tr><td>发现变化后补行</td><td>假设每小时 60 次变化 × 1~2 点（只取变的那几条）</td><td class="num">60~120 点</td></tr>
+    <tr><td>整池重建</td><td>只在冷启动与对账做：1 次冷启动 + 6 次对账 × 13 点</td><td class="num">≈91 点</td></tr>
+    <tr><td>单票 / 评论 / 翻页</td><td>由你的点击产生，每次 1~3 点</td><td class="num">按点击（另有保底额度）</td></tr>
+    <tr><td colspan="2"><b>合计（自动部分）</b></td><td class="num cell-good">REST ≈852（17%）<br>GraphQL ≈150~210（3~4%）</td></tr>
+    <tr><td colspan="2"><b>闸允许的硬上限</b></td><td class="num">REST 1,750 ／ GraphQL 1,750（35%）</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="note">关键的一格是最右边那列：自动刷新<strong>就算比最坏情况再糟一倍，也碰不到闸的上限</strong>；而闸的上限本身又给 agent 留了 65%。这就是"结构上不可能超限"的完整含义——不是这一次算得准，而是无论怎么变都不会越过。</p>
+
+<h2><span class="num">第六章</span>未来会发生什么，以及它为什么不需要再优化</h2>
+<p class="section-intro">"没有优化点"不能只是宣称，得逐个交代：下面每一行都是将来真会发生的事，以及它被哪一条不变量吸收。</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>将来会发生的</th><th>现在这套设计怎么接</th></tr></thead>
+  <tbody>
+    <tr><td>又加了取数功能（PR 列表、地图子票预取、后台盯梢）</td><td>只能以<b>后台档</b>进闸，拿到被分配的那一份；越不过线。I1</td></tr>
+    <tr><td>工作区涨到 30 个</td><td>后台档零定时器，用量与个数无关；只有你切过去的那个在花钱。I2 · I4</td></tr>
+    <tr><td>某个仓库每分钟被改几十次（agent 在猛干）</td><td>合并窗口把一分钟内的所有变化收成一次重建；薄查询把单价压到 13 点。I3</td></tr>
+    <tr><td>你在十几个工作区之间狂切</td><td>切换走<b>生命周期档</b>，受闸约束；预算紧张时降级为"只出缓存、只探测不重建"，操作照样秒回。I1</td></tr>
+    <tr><td>你的 agent 把额度吃到只剩 5%</td><td>闸读到剩余不足 → 自动降红档 → 插件只剩用户动作；插件不会成为压死骆驼的那根稻草。I1</td></tr>
+    <tr><td>网络继续抽风（这台机器上 <code>gh api</code> 偶发 EOF）</td><td>失败可见 + 退避 + 熔断；面板明说"刷新失败"，不再假装一切正常。I5</td></tr>
+    <tr><td>GitHub 改了配额数字</td><td>上限是配置；闸按"剩余比例"工作，改一个数字即可，架构不动。</td></tr>
+    <tr><td>GitHub 将来给了更便宜的变更通知（webhook / 条件请求）</td><td>"变化探测"是一个接口，不是散落的实现：把它的实现换掉，其余四层一行不改。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2><span class="num">第七章</span>落地清单（按完整范围，不按成本裁剪）</h2>
+
+<h3>新增</h3>
+<ul>
+  <li><code>src/shared/tracker/budget.js</code>：全部节拍与额度的<strong>唯一真源</strong>（探测 5 秒、对账 10 分钟、预检寿命 10 分钟、链退避序列、35% / 1,750 / 读 70% 写 30%、写入保底 10%、活跃上限 2、视野失效 90 秒、行级补行的合并窗口 10 秒）。</li>
+  <li><code>src/host/refresh/gate.js</code>：唯一出口。分类、记账、裁决、推迟队列（合并 + 过期丢弃）。</li>
+  <li><code>src/host/refresh/policy.js</code>：<strong>纯函数</strong>——给"请求类别 + 当前档位 + 已用额度 + 工作区状态"，返回"放行 / 降级 / 推迟"。这样做是为了能把它整块测干净。</li>
+  <li><code>src/host/refresh/ledger.js</code>：两个桶的本地账 + 每分钟一次的服务端剩余同步（用那个不扣配额的配额接口）。</li>
+  <li><code>src/host/refresh/attention.js</code>：视野模型。持有"当前在看哪个工作区根"，维护活跃集合（≤2），90 秒无信号自动收摊。</li>
+  <li>宿主电话 <code>wf.focus</code>：界面在会话切换/面板打开时上报"我在看谁"（一次轻量调用，不是轮询）。</li>
+  <li><code>docs/adr/20260922-refresh-budget-architecture.md</code>：把六条不变量写成 ADR，成为以后改动的判据。</li>
+</ul>
+
+<h3>改造</h3>
+<ul>
+  <li><strong>收口</strong>：<code>src/host/repoKeys.js</code> / <code>src/host/platformChannel.js</code> 里的 gh 执行入口全部改为"先过闸再执行"；这是 I1 的物理落点。</li>
+  <li><strong>探测</strong>：<code>src/host/issueList.js</code> 的索引扫描走闸并复用预检；<code>src/host/tracker/detection/detectionService.js</code> + <code>preflight.js</code> 改成"成功缓存 10 分钟、失败立即重试一次"。</li>
+  <li><strong>检查链</strong>：<code>src/host/detectChain.js</code> 去掉定时语义、加退避、一次求值内复用预检；<code>src/client/kernel/probe-chain.js</code> 删掉 8 秒自轮询，改为事件触发。</li>
+  <li><strong>探测节拍</strong>：<code>src/client/kernel/probe-auto.js</code> 从"遍历所有工作区"改为"只服务活跃工作区"；<code>probe-snapshot.js</code> 的强制刷新合并进 60 秒窗口。</li>
+  <li><strong>命名守护</strong>：<code>src/host/namingGuardian.js</code> 改事件驱动 + 10 分钟兜底 + 每跳一个仓库轮转。</li>
+  <li><strong>单价</strong>：<code>src/host/tracker/backends/github/queries.js</code> 的列表查询换成薄片段（正文与评论从列表里去掉），<code>issues.js</code> 与 <code>normalize.js</code> 跟着对齐字段消费。</li>
+  <li><strong>诚实显示</strong>：<code>src/client/views/ListTab.js</code>、<code>src/client/statusbar/StatusBar.js</code>、<code>src/client/kernel/probe-snapshot.js</code> 加"取数时刻 / 刷新失败 / 降级中"三处落点；把已有却永不出现的降级横幅接上线；<code>locale-*.js</code> 补词条（中英双语，走现有红线检查）。</li>
+</ul>
+
+<h3>新增（第二批：写事件与工具）</h3>
+<ul>
+  <li><code>src/host/refresh/writeEvents.js</code>：订阅 DSH 会话事件（<code>ctx.on('session/event', …, { global: true })</code>），只处理三类（<code>tool/call</code>、<code>ptc</code> 派发形态、<code>tools/result</code>），把命中归一成"一次写操作"。<strong>只认成功</strong>；"确定写"立即补行，"可疑动作"只立即发一条探测。先看工具名、再解析命令，其余事件立即返回（性能约束）。</li>
+  <li><code>src/host/refresh/sessionTickets.js</code>：会话↔票 的处理链（数据侧）。键 =（工作区根，后端，票 key）；三个来源＝我们工具的调用参数 / 当前后端的命令行 / markdown 后端的票文件路径；每会话留最近 20 张；内存 + 工作区缓存落盘。</li>
+  <li><code>src/host/tools/</code>：7 个后端无关的工具（薄壳，坐在 tracker 契约之上）：<code>deck_context</code>、<code>deck_issue_get</code>、<code>deck_map_snapshot</code>、<code>deck_issue_create</code>、<code>deck_map_plan_create</code>、<code>deck_map_link</code>、<code>deck_issue_patch</code>；内部代码<strong>直接调用同一批实现函数</strong>，不绕工具层。</li>
+</ul>
+
+<h3>清理与迁移（本轮盘点出来的四处）</h3>
+<ul>
+  <li><b>删死词汇</b>：<code>src/shared/tracker/sync.js</code> 的四个事件源常量（今天没有任何生产者）与相关测试断言；<code>docs/design/335-logging-contract.md</code> 里两条已失效的 <code>issuePath.*</code> 行连同计数一起删。清理时补一条新断言：<strong>契约层不再出现没有生产者的常量</strong>。</li>
+  <li><b>改名去误导</b>：宿主侧自建的 <code>const harness</code> 改成 <code>hostCalls</code>，注明"我们用的是 <code>ctx</code>，不是动态包沙箱的 harness"；落地第一步用一条五行探针确认 <code>typeof harness</code>。</li>
+  <li><b>一处文案与实现不符</b>：<code>backends/gitlab/index.js:146</code> 写"建原生父子边"，但 GitLab 的 <code>setParent</code> 实现是 <code>relates_to</code> 链接——工具化时以契约实现为准，文案同步改正。</li>
+  <li><b>六条通用规则上移</b>（不进工具）：禁止 BOM、正文真实换行、进度区、写完读回核对、<code>Blocked by: #n</code> 首行降级写法、认领＝指派人；另把 <code>guide-steps.js:23</code> 那句安装 gh 的话术挪回后端声明。</li>
+</ul>
+
+<h3>编辑纪律（不进门禁，供实现与评审对照）</h3>
+<ul>
+  <li>工具描述每个两句话以内，参数名自解释；后端说明不塞进每个工具描述（需要时由 <code>deck_context</code> 回答）。</li>
+  <li>返回值必须自解释：落在哪个后端与仓库、做了什么、校验结果、替调用方补了哪些规范。</li>
+  <li>写操作幂等：同标题 + 同标签 5 分钟内视为重复，返回已有票号并提醒。</li>
+</ul>
+
+<h3>第三批：独立审查要求补进实现的八条</h3>
+<ul>
+  <li><b>契约层创建幂等锚</b>：<code>create(input.idempotencyKey)</code>，落到票面可查的标识，建后按标识回查。</li>
+  <li><b>串行写队列</b>：同一工作区的创建与建边串行执行；markdown 的"读目录取号 + 落盘"两段都必须在临界区内，落盘用<strong>独占创建</strong>（<code>wx</code>）语义——本机实测：并发建票两张都报 <code>ok:true</code> 却只落一张，重试会落成两张，调用方都拿不到失败信号。</li>
+  <li><b>重试纪律</b>：只在能证明"没写成功"时重试；"退出码非 0 但可能已经写进去了"一律先回查再决定。</li>
+  <li><b>批量工具中间态</b>：计划、已建成的键、已建的边逐项落盘；报告给出可续跑的清单。</li>
+  <li><b>工具取会话</b>：工作区与仓库一律从会话上下文取（<code>exec.agent.session</code> 是现成取法），不接受调用方传参；<code>deck_context</code> 回显解析结果。<span class="note" style="display:block">好消息：把会话上下文递进后端 ctx 是仓库现成的惯例（<code>write.js</code>、<code>issues-locate.js</code> 都在读 <code>ctx.platform</code> / <code>ctx.get('fs')</code>），这处只是一根接线，不是重构。</span></li>
+  <li><b>三态返回</b>：<code>ok</code> / <code>partial</code> / <code>unsupported</code>；部分成功逐项列出；工具永不抛异常。</li>
+  <li><b>写后失效缓存</b>：写路径显式失效该票的缓存条目（快照与依赖边两处），写工具返回值即写后真状态。</li>
+  <li><b>订阅白名单</b>：维护 <code>sessionId → 工作区根散列</code>，根从 <code>session.header.cwd</code> 算、归一化口径与 DSH 的 <code>canonicalKey</code> 对齐；事件处理函数第一行就过这道门（本机实测确认平台不提供隔离）。</li>
+</ul>
+
+<h3>门禁（这是"不退化"的保证，不是可选项）</h3>
+<ul>
+  <li><code>tests/verify-budget-worstcase.js</code>：按 <code>budget.js</code> 的常量算出最坏小时的调用数，断言低于闸的上限。以后谁把节拍调快，这条先红。</li>
+  <li><code>tests/verify-gh-gateway.js</code>：静态扫描"所有对 gh 的调用点都在闸后面"，外加运行期"漏网调用数 == 0"的断言。新写的调用点绕过闸 → 红。</li>
+  <li><code>tests/verify-attention-model.js</code>：断言后台档零定时器、活跃集合上限为 2、同一工作区根下的多个会话只产生一次探测、90 秒无信号后全部收摊。</li>
+  <li><code>tests/verify-visible-truth.js</code>：断言"取数时刻 / 失败 / 降级"三处文案在界面代码里都有真实读取点（今天 <code>list.restFallback</code>、<code>panel.snapErr</code> 这类词条就是"写了没人读"的活例子）。</li>
+  <li><code>tests/verify-event-budget.js</code>：把<b>事件驱动的花费</b>也算上界——写事件次数 × 单价、切换次数 × 探测单价，断言加起来仍低于闸的上限。（原来的最坏用量只算定时器，而增长最快的花费全在事件那边。）</li>
+  <li><code>tests/verify-gate-accounting.js</code>：断言"闸的累计账 == 实际出站 HTTP 请求数"（含分页、重试、兜底链、扇出）；对不上就判红。</li>
+  <li>日志门禁：三个新事件进 <code>research/489-appendix.md</code> 对照表，并跑通 <code>tests/verify-log-*</code> 三条自动检查。</li>
+</ul>
+
+<h2><span class="num">第八章</span>怎么证明它真的成立</h2>
+<ol>
+  <li><strong>结构证明（门禁）</strong>：I1 由"唯一出口 + 漏网计数为 0"保证；I2 由"后台档零定时器"断言保证；I4 由"活跃集合上限 2"保证。三条都是自动检查，不靠人记。</li>
+  <li><strong>数值证明</strong>：最坏小时用量由常量算出并断言低于闸的上限（今天：REST ≈852 / GraphQL ≈150~210，上限 1,750）。</li>
+  <li><strong>真机对账</strong>：开 10 个工作区、来回切 20 次、看 10 分钟，用不扣配额的配额接口前后取差，核对与账本一致。附带验一条负向用例：临时把额度上限调到很低，确认面板确实降档、确实说出"自动刷新已暂停"，而不是继续偷偷打请求。</li>
+</ol>
+
+<h2><span class="num">第九章</span>诚实的部分：旋钮与三个前提</h2>
+<p class="section-intro">"没有优化点"这句话，严格说只能做到"没有结构性的优化点"。以下这些是参数，不是缺口——它们可以被调，但怎么调都不会破坏第六章那张表里的结论。</p>
+<ul>
+  <li><strong>旋钮</strong>：探测 5 秒 / 对账 10 分钟 / 预检寿命 10 分钟 / 链退避序列 / 额度比例 35% 与读写三七分 / 写入保底 10% / 活跃上限 2 / 视野失效 90 秒 / 行级补行的合并窗口 10 秒。全部集中在 <code>budget.js</code> 一处，改一个数字即生效，且门禁测试会跟着重算。</li>
+  <li><strong>前提一：将来要做"后台新票提醒"这类主动通知。</strong>那不是优化点，是新需求；但这套设计已经给它留好了位置——它是一种"订阅"，以后台档身份领取自己的份额（比如每个订阅 5 分钟一次、最多 5 个订阅），不需要改动架构。</li>
+  <li><strong>前提二：如果 GitHub 以后给了更便宜的变更通知</strong>（webhook 或真正可用的条件请求），探测成本能再降一档。当前探测已经是"1 条 REST／次"的地板，所以这是外部变量，不是我们留的坑。</li>
+  <li><strong>前提三：DSH 的会话事件能力。</strong>已查清的部分——事件对全部会话广播（含子代理）、我们的插件拿到的是普通 Cordis 上下文（第一方有同类订阅先例）、订阅面没有任何隔离（见第十二章）。<strong>2026-09-24 又查清三件</strong>（读安装目录源码所得，完整结论在 <code>research/dsh-platform-facts-2026-09-24.md</code>，票 #717）：桌面跑的是 Web 系档案（本机名 <code>web</code>，默认名 <code>desktop</code>，组合一致，不必写两套），预设默认 <code>standard</code>，但进程级 <code>DSH_TOOLS_MODE=ptc</code> 会让 <code>standard</code> 会话也变成内层派发形态；Windows 上执行命令的工具名是 <code>pwsh</code>（<code>bash</code> 在 win32 上被关掉），命令行统一取 <code>JSON.parse(arguments).command</code>；会话事件共 <b>56</b> 条，工具相关四种是 <code>tool/call</code>、<code>tool/result</code>、<code>tool/ptc-dispatch-start</code>、<code>tool/ptc-dispatch</code>（详见第十五章）。还没实测、必须落地第一步就验的只剩三条：我们的插件实际能不能收到、<code>{ global: true }</code> 是否必需、子代理会话的写操作是否可见。验不通也不破坏架构——退回"5 秒探测"那条底线即可。</li>
+</ul>
+
+<h2><span class="num">增补·第十章</span>体验目标与降档顺序</h2>
+<p class="section-intro">这一章是本次补上的最重要的一节。原来的定稿只从"预算"倒推节拍（算出一次重建多少钱 → 定多久刷一次），从没为"你写完东西多久能看到"定过目标。正确的顺序是先定目标、再让预算决定"不够时牺牲谁"——顺序反了就会得到"30 秒探测"这种由成本倒推出来的数字。</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>时刻</th><th>目标</th><th>靠什么达成</th></tr></thead>
+  <tbody>
+    <tr><td>你在面板里写了东西（评论、认领、改标签、关闭）</td><td class="num">≤1 秒</td><td>写成功即触发，只补那几条（1~2 点）</td></tr>
+    <tr><td>AI 在会话里写了东西，被工具或会话事件命中</td><td class="num">≤2 秒</td><td>工具调用本身即可知；或订阅会话事件立即补行</td></tr>
+    <tr><td>AI 在会话里写了东西，但事件没认出来（脚本、别的通道）</td><td class="num">≤5 秒</td><td>5 秒探测节拍</td></tr>
+    <tr><td>会话之外改的（手机、CI、同事）</td><td class="num">绿 ≤5 秒<br>黄 ≤30 秒<br>红 手动</td><td>探测节拍；面板上始终显示"上次更新于"</td></tr>
+    <tr><td>你切进一个工作区</td><td class="num">≤100 毫秒出数据<br>≤5 秒补齐</td><td>缓存先铺满 + 一次探测 +（有变化才）补行</td></tr>
+    <tr><td>后台工作区</td><td class="num">不适用</td><td>后台档零定时器；会话事件只"标脏"，切回来才取</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>额度不够时，牺牲谁、保住谁（写死，不临场决定）</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th class="num">顺序</th><th>牺牲什么</th><th>怎么降</th></tr></thead>
+  <tbody>
+    <tr><td class="num">1</td><td>"别处发生变化"的灵敏度</td><td>5 秒 → 30 秒 → 停</td></tr>
+    <tr><td class="num">2</td><td>后台对账的频率</td><td>10 分钟 → 30 分钟 → 停</td></tr>
+    <tr><td class="num">3</td><td>最后才动"本地写入的即时性"</td><td>仍有 10% 保底额度（500 点）；同一工作区 10 秒合并一次</td></tr>
+    <tr><td class="num">—</td><td><b>永不降档</b>：你亲手点、亲手写的那一下</td><td>红档也照做——这是这个面板存在的意义</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="note">顺序的理由只有一句：<b>越靠近"你亲手做的动作"，越不能牺牲</b>。别处变化的灵敏度是"锦上添花"，你刚写完的东西看不到结果则是"这个面板坏了"。</p>
+
+<h2><span class="num">增补·第十一章</span>行级增量刷新：只补变的那几条</h2>
+<p class="section-intro">把"整池重来"从日常路径上拿掉——它是让"5 秒探测"变得付得起的那个前提。</p>
+<section class="comp">
+  <div class="comp-head"><span class="id">06</span><h3>行级增量：日常刷新的唯一形态</h3><span class="tag">I3 · I4</span></div>
+  <div class="comp-body">
+    <div class="field"><p class="label">怎么做</p><p class="body">探测回来的是"哪几条变了"（索引里带着每张票的状态与更新时间）。那就<strong>只取那几条</strong>——一次薄查询 1~2 点，合并进现有列表，再本地重算受影响的派生值。</p></div>
+    <div class="field"><p class="label">什么时候仍整池</p><p class="body">只有三处：① <strong>冷启动</strong>（第一次打开某个仓库，13 点）；② 每 10 分钟一次<strong>对账</strong>；③ <strong>票号增减</strong>（出现没见过的号、或有号消失）——这是增量看不见的事，也是"票被删掉"唯一能被发现的地方。</p></div>
+    <div class="field"><p class="label">三条实现纪律</p><p class="body">① 行级补丁<strong>必须产出新的版本号</strong>，否则"内容没变"那条 304 捷径会把新数据当成旧的丢掉；② 派生值（地图进度环、<code>deck.counts</code>、<code>deck.partial</code>）必须跟着重算，或明确标成"待确认"——不能拿旧数字配新行；③ 删票只能靠对账。</p></div>
+    <div class="field"><p class="label">水印与待办</p><p class="body">探测的"上次看到哪"（水印）<strong>只在变化真正合并进列表之后才推进</strong>——现在实现里是探测一回来就无条件推进，一旦这一笔取数被推迟或丢弃，那条变化就再也发现不了了（仓库里为同一类竞态留过警告：<code>snapshotBuild.js:94-99</code>）。被推迟/丢弃的请求进一份<strong>持久化待办</strong>；丢弃只清队列、不动水印；切进工作区先清待办，有待办就整池。</p></div>
+    <div class="field"><p class="label">消失（删票）</p><p class="body">增量算式只会"加"不会"减"，所以"某张票不见了"在增量链路上<strong>永远观察不到</strong>。因此：整扫必须<strong>重置</strong>基线，而不是把增量并进旧基线；对账触发用"整扫回来出现缺失的票号"，<b>不用</b>"计数与行数对不上"（那个计数是全仓库口径，被 500 行上限卡住时会永久不等）。</p></div>
+    <div class="field"><p class="label">世代号</p><p class="body">每个工作区一个世代号：整池对账与增量补行可能并发，<strong>迟到的整池结果不许覆盖更新的增量结果</strong>。界面上的"上次更新"取快照的取数时刻，不取渲染时刻。</p></div>
+    <div class="field"><p class="label">单价对比</p><p class="body">旧：每次重建 <span class="kv">25 点</span> → 新：冷启动与对账 <span class="kv">13 点</span>，日常变化 <span class="kv">1~2 点</span>。</p></div>
+  </div>
+</section>
+
+<h2><span class="num">增补·第十二章</span>会话与票：处理链（数据侧）</h2>
+<p class="section-intro">"UI 能看到每个会话在处理哪些票"——这一章只定<strong>数据侧</strong>；展示面（画在哪、怎么画）另立一票，等工具做好之后再谈。</p>
+<section class="comp">
+  <div class="comp-head"><span class="id">07</span><h3>这张处理链怎么记</h3><span class="tag">新需求</span></div>
+  <div class="comp-body">
+    <div class="field"><p class="label">键</p><p class="body"><code>（工作区根，后端，票 key）</code>——三个后端同形：github 的 key 是数字串、markdown 是编号、gitlab 是 iid。所以这张表的结构不随后端变。</p></div>
+    <div class="field"><p class="label">三个来源</p><p class="body">
+      <span class="pill hot">最准</span>我们自己的工具调用——参数里直接带着票号；<br>
+      <span class="pill">其次</span>当前后端的命令行——github 是 <code>gh</code>、gitlab 是 <code>glab</code>，从命令行解析票号；<br>
+      <span class="pill">本地特有</span>markdown 后端里 AI 常常直接读写票文件，那就从文件路径解析编号（如 <code>0012-xxx.md</code>）。
+    </p></div>
+    <div class="field"><p class="label">只记什么</p><p class="body">只记<strong>写操作与明确的处理动作</strong>；"顺手看一眼"（读）不进链——否则链会被噪音灌满，看起来像在处理十张票。读可以单独记"最近看过"，但那是另一件事。</p></div>
+    <div class="field"><p class="label">留存</p><p class="body">每个会话留最近 <b>20 张</b>（去重、按时间倒序）；内存 + 工作区缓存落盘（照命名守护的做法），重启不丢。超过 20 张的旧记录丢弃。</p></div>
+    <div class="field"><p class="label">隐私与日志</p><p class="body">落盘只存"票 key + 时间 + 动作类别"，不存命令原文、不存令牌、不存路径原文（与仓库日志纪律同口径）；插件日志里只记"识别到一次写操作"这个事实与类别。</p></div>
+<div class="field"><p class="label">订阅入口的硬约束</p><p class="body">事件订阅的面是<strong>整个 DSH</strong>，而且平台侧<strong>不存在任何隔离开关</strong>——真机实测确认：跨会话、跨工作区、跨子代理的 <code>tool/call</code> 全部会到达；会话的载体键全是 <code>undefined</code>，连"给自己的监听器打上工作区标"也不过滤，<code>{ global: true }</code> 与隔离无关。所以隔离只能<strong>我们自己实现</strong>：维护一份 <code>sessionId → 工作区根散列</code> 的白名单，按 id 放行，而不是每条事件现场重算路径。<b>决定为这条事件做任何事之前</b>先过这道门（含日志、含内存表、含处理链落盘）；<strong>参数只做瞬时匹配，绝不写进日志、绝不落盘、绝不回给界面。</strong></p></div>
+    <div class="field"><p class="label">根从哪来</p><p class="body">会话对象上没有现成的工作区根，但有 <code>session.header.cwd</code>（绝对路径，DSH 侧强制）。所以根由我们自己算——<strong>归一化口径必须与 DSH 的 <code>canonicalKey</code> 对齐</strong>（Windows 的大小写、尾斜杠、联接点差异），否则同一个根会被算成两个，白名单就失效。</p></div>
+  </div>
+</section>
+
+<h2><span class="num">增补·第十三章</span>对抗式审查：自己找出来的漏洞与处置</h2>
+<p class="section-intro">这一章是从第一性原理把上面整套设计当成"敌人"攻击之后的产物。每条都是具体场景，不是泛泛的"要考虑边界情况"。另有两支独立审查（只读这份文档、不看讨论过程）同时进行，它们的结论回来后会以补遗形式附在本章末尾。</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>攻击</th><th>会看到什么坏结果</th><th>处置</th></tr></thead>
+  <tbody>
+    <tr><td>共享令牌被别人吃光（你的 AI 在同一小时里烧掉 4,900 点）</td><td>连"永不降档"的用户动作也会失败——用户会以为插件坏了</td><td>界面必须区分两种失败：「插件刷新失败」与「配额已被其他使用者耗尽」。后者要明说，并提示"等整点恢复"</td></tr>
+    <tr><td>行级补丁走完"内容没变"那条 304 捷径</td><td>新数据被当成旧的丢掉，面板停在上一次的样子</td><td>行级补丁必须产出新版本号，304 判定以新版本号为准（第十一章纪律①）</td></tr>
+    <tr><td>我只补了那一行，地图进度环/计数还是旧值</td><td>数字与实际行对不上（"看起来全关了，进度还是 40%"）</td><td>补行后本地重算派生值；计数要么重取（1 点）要么标"待确认"（纪律②）</td></tr>
+    <tr><td>票被真删掉（增量看不见）</td><td>面板上永远挂着一张不存在的票</td><td>对账触发条件③（票号增减）+ 10 分钟兜底</td></tr>
+    <tr><td>你在两个窗口里各看一个工作区，又开了第三个</td><td>第三个窗口永远不刷新，用户不知道原因</td><td>活跃集合按"最近上报过的 2 个窗口"；第 3 个窗口显示「未在刷新（同时活跃上限 2）」</td></tr>
+    <tr><td>批量建图建到第 7 张票失败</td><td>重试会重复建前 6 张；不重试就缺一半</td><td>批量工具"先查后建"：按标题 + 标签查重，已有则复用；返回逐项报告（新建/已存在/失败），可安全重试</td></tr>
+    <tr><td>"写入永不降档"被滥用（AI 一分钟写 30 次）</td><td>保底额度被瞬间吃光，红档下再没有余量</td><td>"写"本身不降档，但"写触发的补行"在同一工作区 10 秒内合并一次</td></tr>
+    <tr><td>闸把请求推迟了，但界面什么都不说</td><td>用户看到的是"没反应"，与静默陈旧同类</td><td>推迟发生时界面显示「有更新，已推后」；这也是 I5 的一部分</td></tr>
+    <tr><td>订阅了所有会话的 57 类事件</td><td>高频回调占 CPU，甚至在刷新热路径上抢时间</td><td>只处理三类事件；先看工具名、再解析命令；其余立即返回</td></tr>
+    <tr><td>处理链把"看了一眼"也记成"在处理"</td><td>链变成噪音，UI 显示一堆假任务</td><td>只记写与明确的处理动作（第十二章）</td></tr>
+    <tr><td>我们不改规范，AI 继续用 <code>gh</code></td><td>工具使用率低 → 写事件的"结构化"那条腿基本没用上</td><td>接受（Q19 已定：先观察）。但要设观察指标：工具使用率、写操作覆盖率；到期再决定是否把规范升格为 tools-first</td></tr>
+    <tr><td>删死词汇会拉红现有测试</td><td>清理做到一半，verify 链一直是红的</td><td>清理项连带改断言（不是删测试）：保留一条"契约层不再有孤儿常量"的新断言</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>独立审查补遗（第二支审查，只读代码、不看上面的讨论）</h3>
+<p class="section-intro">这一节的每一条都是它独立发现的，我不替它修饰。它一共给了 12 条"必须补进设计"的东西，下面是原文浓缩，"处置"栏写的是已经并进本设计的哪一处。</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th class="num">#</th><th>它发现的问题</th><th>处置（写进哪里）</th></tr></thead>
+  <tbody>
+    <tr><td class="num">1</td><td>事件订阅面是"整个 DSH"：未打作用域标的监听器被全局放行，别的会话、子代理、工作区的 <code>tool/call</code> 参数（含命令全文、客户数据、路径）都会进我们的回调</td><td>回调第一件事按工作区根硬过滤；参数只做瞬时匹配，绝不进日志、落盘、回包。<b>本机实测补充</b>：平台没有隔离开关（作用域标也不过滤），必须自建 <code>sessionId → 工作区根散列</code> 白名单，根从 <code>session.header.cwd</code> 算、归一化口径与 DSH 的 <code>canonicalKey</code> 对齐（第十二章）</td></tr>
+    <tr><td class="num">2</td><td>创建不是幂等的：GitHub 的 REST 回落遇到"退出码非 0 但票已建"再重试就重复建票；markdown 的建票是"读目录 max+1 → 写"且不在单写者锁里，并发会撞号丢票</td><td>契约层加创建幂等锚；创建与建边进按工作区串行写队列；重试只在能证明没写成功时发生。<b>已在本机真代码上复现</b>：并发建票两路都回 <code>ok:true</code> 却只落一张，重试同一张票落成两张，两条路径调用方都拿不到失败信号（落地清单第三批）</td></tr>
+    <tr><td class="num">3</td><td>看一眼也算写：AI 连读二十张票会被全判成写，刷新旁路绕开合并窗口，白花两百多点</td><td>写动词清单只收真写意图；事件触发的刷新仍走合并窗口；账本单列"事件触发"一档</td></tr>
+    <tr><td class="num">4</td><td>命令解析会重犯仓库里已经记录过的老错（<code>--add-label</code> 被当流转、从正文回退取任意数字当票号）</td><td>只做首词与子命令匹配；票号只从结构化出口取；解析不出记"未知"，绝不猜</td></tr>
+    <tr><td class="num">5</td><td>批量建图失败后没有可续跑的中间态，重跑就是重复建</td><td>计划与已建结果逐项落盘；报告同时给"本次建成的键"与"续跑要跳过的键"（落地清单第三批）</td></tr>
+    <tr><td class="num">6</td><td>三个后端不同形却被回成同一个 <code>ok:true</code>：GitLab 的父子其实是平级链接、markdown 没有原生边、GitHub 的阻塞边回落到改正文行</td><td>每条边在返回里标出落点；做不到就如实说做不到；<b>不建能力表</b>（契约层既有红线）</td></tr>
+    <tr><td class="num">7</td><td>工具若不从会话上下文取工作区，就只能猜进程目录——父子目录各开一个会话时会静默写错仓库</td><td>工具一律从会话取工作区；<code>deck_context</code> 回显解析到的工作区根与仓库；工作区与仓库不许当参数传</td></tr>
+    <tr><td class="num">8</td><td>工具注册面对所有会话常驻 7 份 schema，提示词成本付给不碰工单的会话</td><td>描述压到一句话，详细语义放进 <code>deck_context</code> 的返回值（编辑纪律）</td></tr>
+    <tr><td class="num">9</td><td>写后立刻读会命中 5 秒 TTL 的旧缓存，AI 以为没写成功、再写一次</td><td>写路径显式失效该票缓存；写工具返回值就是写后真状态（落地清单第三批）</td></tr>
+    <tr><td class="num">10</td><td>处理链会串台：票键各后端不通用、同根多会话互相覆盖、落盘若带原始路径就违反日志纪律</td><td>键含会话 id + 后端 + 仓库散列；按会话分片；落盘只存散列与键（第十二章）</td></tr>
+    <tr><td class="num">11</td><td>返回码承诺要写死，否则"用可用方式建立了关系"会被 AI 当成"已建立层级"</td><td>三态 <code>ok</code> / <code>partial</code> / <code>unsupported</code>，部分成功逐项列出；工具永不抛异常（否则 AI 退回流熟悉的 <code>gh</code>，两条写路径同时开火）</td></tr>
+    <tr><td class="num">12</td><td>事件订阅与处理链都是新的常驻活，日志契约要跟上</td><td>新事件进 <code>research/489-appendix.md</code> 对照表，字段只用白名单子集，跑通三條 <code>verify-log-*</code> 检查</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="note"><b>它提出的两个实测都已经做完（结论已并进本节）：</b>① <b>订阅面</b>——真机起订阅实测：跨会话、跨工作区、跨子代理的 <code>tool/call</code> 全部到达；比代码推断更硬的是平台侧<strong>不存在任何隔离开关</strong>——会话的载体键全是 <code>undefined</code>，连"给自己的监听器打上工作区标"也不过滤，<code>{ global: true }</code> 与隔离无关，所以隔离必须由我们自己实现（见第十二章与落地清单第三批）。② <b>并发建票</b>——在真代码路径上复现：并发建票两路都回 <code>ok:true</code>、都报"建在 03"，实际只剩一张；重试同一张票落成两张；两种情况调用方都拿不到失败信号。完整审查原文在 <code>docs/reviews/deck-tools-adversarial-review.md</code>，实验脚本与结论留在 <code>%TEMP%\dsh-probe-43fda4ef\</code>。</p>
+
+<h2><span class="num">增补·第十四章</span>独立审查（刷新架构那支）与由此改掉的四个决定</h2>
+<p class="section-intro">这一支审查只读代码、不看我们的讨论，任务是"把这套设计打坏"。它找出四个致命、六个严重，其中三条直接推翻了之前拍板的细节。处置已经并进上面的章节，这一章是索引与交代。</p>
+
+<h3>四个致命（已处置）</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>它怎么打坏的</th><th>处置（落在哪）</th></tr></thead>
+  <tbody>
+    <tr><td><b>焦点没有心跳</b>：上报只发生在"切会话 / 开面板 / 窗口获焦"，所以"你盯着面板看"恰好不产生任何信号——90 秒后宿主判定信号失效，自动刷新全停，而这 3.5 分钟里界面看着是新的</td><td>面板可见时每 20 秒一次本地心跳（零配额）；"90 秒失效"只对面板不可见生效；可见却断流时界面直说"已暂停自动刷新"（第四章·视野模型）</td></tr>
+    <tr><td><b>水印在探测那一刻就前进，而取数可以被丢弃</b>：丢弃一次，那条变化就永远发现不了；而"只补变化的那几条"正好拆掉了原来的兜底（作废缓存 → 整池重建）</td><td>水印只在变化真正合并进列表后推进；被推迟/丢弃的请求进持久化待办；丢弃只清队列、不动水印；切进工作区先清待办（第十一章）</td></tr>
+    <tr><td><b>"永不降档"实际豁免的是 AI</b>：一次批量建图约 61 点 × 20 次 = 1,220 点，是写保底的 2.3 倍，且完全免疫闸——"结构上不可能超限"在这条路上不成立</td><td>永不降档只给<b>人在界面上点的动作</b>；AI 的工具调用单列一档，有单次与每小时硬顶，超顶<b>拒绝</b>并明说；批量工具调用前算出点数并写进返回（第十章 + 第四章）</td></tr>
+    <tr><td><b>删票永远观察不到</b>：合并算式只增不减，"票号减少"这个对账触发条件结构上不可达</td><td>整扫<b>重置</b>基线；对账触发改成"整扫回来出现缺失的票号，且不是被 500 行上限卡住的"（第十一章）</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>六个严重（已处置或写成纪律）</h3>
+<ul>
+  <li><strong>探测单价不是"1 条 REST"</strong>：<code>--paginate</code> 一页一条、重启后整扫（本仓库 6 页）、失败兜底链再加约 9 条——按 20% 失败率算，两个活跃工作区约 4,032 条/小时，而账本只记 1,440。→ 闸按<strong>真实出站 HTTP 请求数</strong>记账；预算表给"平均单价 / 最坏单价"两列；门禁用最坏单价。</li>
+  <li><strong>两个活跃 × 5 秒本身就超读份额</strong>：2 × 720 = 1,440 &gt; 1,225。→ 探测额度只有一份：正在看的 5 秒、刚离开的 15~30 秒（第四章）。</li>
+  <li><strong>行级增量与"创建时间倒序分页 + 全仓计数"打架</strong>：列表 500 行上限 vs 计数是整仓 <code>totalCount</code>，超过 500 条的仓库永久不等。→ 计数只用于显示"共 N 张（已显示前 500）"，<b>不当对账触发条件</b>。</li>
+  <li><strong>对账与增量并发没有世代号</strong>：慢的、更旧的那次后到就赢，界面会"说还开着、其实已经关了"。→ 每工作区一个世代号，迟到结果作废；时间戳取快照取数时刻。</li>
+  <li><strong>"两桶账"不成立</strong>：一次逻辑动作可能扇出几十条并发请求（降级通道最坏 10 页 × 100 条 + 每张地图一条）。→ 记账单位改成 HTTP 请求；扇出排队而不是并行发；二级限流（<code>Retry-After</code>）也算降档信号。</li>
+  <li><strong>与 AI 共用令牌 → "35%"是单向承诺</strong>：读数最多落后 60 秒。→ 配额读数取<strong>保守下界</strong>（本地已花与上次读数取小者，两次同步之间不再加额度）；REST 与 GraphQL <b>各自独立档位</b>；文案区分"我花超了"与"额度被别人用掉了"。</li>
+</ul>
+
+<h3>由此改掉的四个已定决定（请一并记住）</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>原来的决定</th><th>改成</th><th>为什么改</th></tr></thead>
+  <tbody>
+    <tr><td>Q2：用户写入永不降档（对一切写入）</td><td>只对<b>人在界面上点的动作</b>永不降档；AI 的工具调用单列一档、超顶拒绝</td><td>AI 一分钟能建 30 张票，豁免等于给最贵的路径开了不限量的口子</td></tr>
+    <tr><td>Q3：对账触发含"数量与计数对不上"</td><td>改成"整扫回来出现缺失的票号，且不是被 500 行上限卡住的"</td><td>计数是全仓口径，超过 500 行的仓库会永久触发，等于每个重建周期都整池</td></tr>
+    <tr><td>I2：后台零定时器（字面意义）</td><td>刚离开的工作区保留最多 30 秒的收尾节拍，之后必然归零</td><td>原话与"刚离开 30 秒仍按快档探测"自相矛盾，而且会吃掉一半探测预算</td></tr>
+    <tr><td>常态探测 5 秒（对所有活跃工作区）</td><td>正在看的 5 秒；刚离开的 15~30 秒</td><td>2 × 720 条/小时 &gt; 读份额 1,225，目标延迟会被自己的预算打掉</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>它其余的处置（都已并入）</h3>
+<ul>
+  <li>降档时把延迟承诺显示出来（"数据可能落后 X 分钟"），不许"≤5 秒补齐"在降档时静默变长（第十章）。</li>
+  <li>写事件判定写成可测判定表，含 <code>gh api graphql</code> 这类没有写动词的形态；<b>认不出的默认档是"立即探测"，不是"丢弃"</b>（第十一章）。</li>
+  <li>活跃判定加入窗口可见性与"最近一次人类输入"；同一 git 根的多会话/多窗口只占一个名额（第四章）。</li>
+  <li>账本记每个仓库的实测页数；最坏用量按页数上界（<code>MAX_PAGES = 10</code>）算（第五章与门禁）。</li>
+  <li>门禁补两条：事件驱动的每小时上界；"闸的累计账 == 实际出站请求数"（第七章）。</li>
+  <li>两桶与 35% 是 GitHub 专属（<code>glab</code> 的额度模型不同，本地后端没有远端额度）——其它后端按"请求数 + 本地预算"简化处理（第九章）。</li>
+  <li>未来"后台盯梢 / 新票提醒"与"后台零定时器"的关系要写清：那是显式订阅，领自己的一份额度，不走后台档（第九章）。</li>
+</ul>
+
+<div class="callout">
+  <p><b>一句话总结定稿：</b>界面只说"我在看谁"，宿主只说"什么时候刷谁"，闸说了算"能不能花"——<b>插件因此在结构上失去了把配额用光的能力</b>，而你看东西的时候，"新"或"旧"永远是明确的。</p>
+  <p>下一步只需要一句话：<b>按这份定稿实现</b>。我会先立 ADR 与那份常量真源，再按"收口 → 视野 → 单价 → 链与服务 → 诚实显示 → 门禁"的顺序落地，每一段都以门禁测试转绿为完成标志。</p>
+</div>
+
+<h2><span class="num">增补·第十五章</span>平台事实核实：会话事件、工具名、多窗口（2026-09-24）</h2>
+<p class="section-intro">这一章换了个问法：不再问"我们的设计应该怎样"，而是问"DSH 这个平台到底给了什么、没给什么"。结论来自读本机 DSH 桌面应用安装目录里的打包代码与配置（<code>D:\0Tools\DSH Desktop\resources\app\</code>，版本 2.0.10），完整证据（文件路径 + 行号）写在仓库文件 <code>research/dsh-platform-facts-2026-09-24.md</code>，对应票据 #717。这一章只留对设计有影响的部分，其中两条推翻了此前写在别处的说法，已在下文标出。</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>问的事</th><th>答案</th><th>对哪一章有影响</th></tr></thead>
+  <tbody>
+    <tr><td>运行时跑的是哪份档案、哪个预设</td><td>桌面组合的是一份「Web 系档案」（本机名字是 <code>web</code>，默认名是 <code>desktop</code>，两者都是 <code>dsh-base</code> + <code>dsh-web-app</code> 再叠桌面壳的补丁层）。<b>不必为两种档案写两套。</b>智能体预设的默认值是 <code>standard</code>，由 Web 层写死，桌面只覆盖 <code>roots</code> 不动默认值</td><td>第四章（视野模型与形态假设）、第十一章</td></tr>
+    <tr><td><code>ptc</code> 会不会改变事件形态</td><td>会：内层工具调用变成 <code>tool/ptc-dispatch-start</code> 与 <code>tool/ptc-dispatch</code>，只订 <code>tool/call</code> 必漏。而且<b>不只由预设决定</b>——进程级环境变量 <code>DSH_TOOLS_MODE</code>（<code>native</code> / <code>ptc</code> / <code>both</code>）设成 <code>ptc</code> 时，连跑 <code>standard</code> 预设的会话也会变成内层形态</td><td>第十一章（写事件判定表）、第十二章</td></tr>
+    <tr><td>Windows 上执行命令的工具叫什么</td><td><code>pwsh</code>，参数键是 <code>command</code>。预设文件里 <code>tool-bash</code> 那行在 win32 上被显式关掉，<code>tool-pwsh</code> 只在非 win32 关掉。命令行统一取 <code>JSON.parse(arguments).command</code></td><td>第十一章</td></tr>
+    <tr><td>两个窗口同时上报会不会互相顶掉</td><td><b>平台层不存在答案</b>：宿主没有"哪个窗口活跃"的状态，也没有"最近获得焦点"的记录；插件宿主接口拿到的是「接口名 + 载荷 + 取消信号」，认不出调用方是谁；桌面应用还有单实例锁，所以"两个窗口"指的是两个浏览器标签页。顶不顶掉完全取决于我们的代码怎么写</td><td>第四章（多窗口的兜底）</td></tr>
+    <tr><td>插件加载之前发生的事能不能补</td><td>能：<code>ctx.sessionQuery</code> 的 <code>listSessions()</code> 与 <code>readSession(id)</code> 可以列出全部会话、读回任意会话的完整事件日志，而且读取不会把会话变活。但它只能读、不能推，实时订阅仍然不可省</td><td>第十二章（处理链数据侧）</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>两处更正（推翻了此前写在文档里的说法）</h3>
+<div class="fields">
+  <div class="field"><p class="label">更正一：<code>tools/result</code> 不是会话事件</p><p class="body">会话事件里叫 <code>tool/result</code>（单数），<code>tools/result</code> 是另一套东西——<code>dsh-tools</code> 在每次工具执行收尾时发出的 <b>Cordis 运行时事件</b>。读源码时发现它反而对第十一章更有利：<code>ctx.on('tools/result', (exec, result) =&gt; …)</code> 一次给全 <code>exec.name</code>、已解析的 <code>exec.arguments</code>（对象，不是 JSON 串）、<code>exec.parent</code>（内层派发时才有值）、<code>result.isError</code> 与 <code>result.value</code>，而且原生调用与 <code>ptc</code> 内层派发走的是同一条收尾路径——<b>订这一条就绕开了"两三种事件形态"的问题</b>。代价是它不落盘、插件加载之前的调用收不到（那部分用 <code>sessionQuery</code> 补）。落地时在两种订阅方式之间二选一，判定表要能同时喂两种形态。</p></div>
+  <div class="field"><p class="label">更正二：会话事件是 56 条，不是 57 条</p><p class="body">本机这一版 <code>known-event-types.js</code> 里登记 56 条（第 22–77 行，逐行数是 56），与工具相关的四条是 <code>tool/call</code>、<code>tool/result</code>、<code>tool/ptc-dispatch-start</code>、<code>tool/ptc-dispatch</code>。<b>不要把这个数字当断言用</b>——换一版 DSH 就会变。</p></div>
+  <div class="field"><p class="label">顺手记两个会在落地时咬人的坑</p><p class="body">① 磁盘格式 v2→v3 迁移会把 <code>tool/ptc-dispatch*</code> 写成 <code>tool/code-dispatch*</code>，官方恢复函数再改回 <code>ptc</code> 名——我们若自己解析落盘文件，两种名字都要认。② 本机除 <code>pwsh</code> 外，还有第三方插件注册的 <code>terminal_create</code> / <code>terminal_send</code> / <code>terminal_read</code> 这一族能执行命令，参数字段形状不遵循 <code>command</code> 约定——要不要把它们算作"写操作"是产品决定，落地时再定，不猜字段名。</p></div>
+  <div class="field"><p class="label">还剩三条只能跑起来才能验</p><p class="body">① 我们的插件实际能不能收到会话事件（代码推断能，但没在真插件里跑过）；② <code>{ global: true }</code> 写不写都能收到吗（此前实测它与隔离无关，真插件里再确认一次）；③ 子代理会话里的写操作可见吗。三条都写进了落地第一步的验收，验不通就退回"5 秒探测"那条底线。</p></div>
+</div>
+
+<div class="callout">
+  <p><b>这一章带来的设计改动很小，但它换掉了一个假设：</b>原来写"多窗口同时上报时取最近一次信号"，背后其实假设了平台会告诉我们谁最近获得焦点——平台没有这个信息。现在的写法是客户端自己造窗口标识（放 <code>sessionStorage</code>，不能放 <code>localStorage</code>，那是同源共享的），宿主侧存"窗口标识 → 最近上报时间"的表。改动已并进票面：视野模型 #707、写事件订阅 #710，以及地图 #704 的决策记录。</p>
+</div>
+
+<footer>
+  <h3>这份文档里的实测数字</h3>
+  <p style="margin-top:0">全部为本机实测（2026-09-22），用插件源码里那几条查询原样发出、带 <code>rateLimit{cost}</code> 读真实花费；配额上限取自 GitHub 官方文档（GraphQL 与 REST 各 5,000/小时，两套独立桶）。</p>
+  <ul>
+    <li>现在的全量重建 <span class="kv">25 点</span>（工单 5 页 × 4 + 拉取请求 1 页 × 4 + 计数 1）</li>
+    <li>薄片段一页 100 行 <span class="kv">2 点</span>；一页 50 行 <span class="kv">1 点</span>；拉取请求薄片段一页 <span class="kv">2 点</span>；地图子票一页 <span class="kv">3 点</span></li>
+    <li>一次变化探测 = 1 条 REST（索引）+ 2 条（环境预检）；一次强制链求值 = 5 条（合并后 3 条）</li>
+    <li>现在检查链的 8 秒循环 = <span class="kv">2,250 条/小时/工作区</span>，不看可见性、面板关掉也不停</li>
+    <li>本机当前实际用量：REST ≈1,200 次/小时、GraphQL ≈80 点/小时（多个会话开着）；10 个工作区最坏 ≈24,300 次/小时（上限的 4.9 倍）</li>
+    <li>改造后绿档最坏用量（探测 5 秒 + 行级增量）：REST ≈852（17%）／GraphQL ≈150~210（3~4%）；日常一次变化只花 1~2 点，冷启动与对账各 13 点</li>
+    <li><code>gh api rate_limit</code> 本身不扣配额（实测确认），可作为闸的免费配额读数</li>
+  </ul>
+</footer>
+
+</div>
+</body>
+</html>

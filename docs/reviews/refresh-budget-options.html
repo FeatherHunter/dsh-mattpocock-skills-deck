@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>面板刷新：四个可选方案</title>
+<style>
+  :root{
+    --ink:#16181d;
+    --ink-2:#3d434e;
+    --ink-3:#6b7280;
+    --hair:#e6e8ec;
+    --hair-2:#f1f2f5;
+    --paper:#ffffff;
+    --paper-2:#fafafa;
+    --accent:#1c4f73;
+    --accent-soft:#eef4f9;
+    --good:#2f6b52;
+    --good-soft:#eff6f1;
+    --warn:#9a6a12;
+    --warn-soft:#fdf6e7;
+    --risk:#9b3b3b;
+    --risk-soft:#fbf0f0;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+    font-size:16px;
+    line-height:1.9;
+    letter-spacing:.01em;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:0 28px 96px}
+  header.top{padding:72px 0 40px;border-bottom:1px solid var(--hair)}
+  .eyebrow{font-size:12px;letter-spacing:.18em;color:var(--ink-3);text-transform:uppercase;margin:0 0 18px}
+  h1{font-size:clamp(27px,3.6vw,38px);line-height:1.35;margin:0 0 18px;font-weight:650;letter-spacing:-.01em}
+  .lede{font-size:17px;color:var(--ink-2);margin:0;max-width:44em}
+  .lede b{font-weight:650;color:var(--ink)}
+  h2{font-size:22px;line-height:1.5;margin:64px 0 8px;font-weight:640;letter-spacing:-.005em}
+  h2 .num{display:block;font-size:12px;letter-spacing:.18em;color:var(--accent);font-weight:600;margin-bottom:8px}
+  h3{font-size:17px;margin:34px 0 8px;font-weight:640}
+  p{margin:14px 0}
+  ul,ol{margin:14px 0;padding-left:1.35em}
+  li{margin:7px 0}
+  strong{font-weight:640}
+  code{font-family:var(--mono);font-size:.88em;background:var(--paper-2);border:1px solid var(--hair);border-radius:4px;padding:1px 5px;white-space:nowrap}
+  .rule{height:1px;background:var(--hair);border:0;margin:0}
+  .section-intro{color:var(--ink-2);margin:10px 0 26px;max-width:44em}
+
+  /* KPI strip */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--hair);border:1px solid var(--hair);margin:36px 0 8px}
+  .kpi{background:var(--paper);padding:20px 18px}
+  .kpi .k{font-size:12px;color:var(--ink-3);margin:0 0 8px;line-height:1.6}
+  .kpi .v{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.2;margin:0}
+  .kpi .v small{font-size:12px;font-family:inherit;color:var(--ink-3);font-weight:500;margin-left:4px}
+  .kpi .n{font-size:12px;color:var(--ink-3);margin:8px 0 0;line-height:1.6}
+  .note{font-size:13px;color:var(--ink-3);margin:10px 0 0}
+
+  /* callout */
+  .callout{border:1px solid var(--hair);border-left:3px solid var(--accent);background:var(--accent-soft);padding:20px 22px;margin:32px 0;border-radius:0 6px 6px 0}
+  .callout p{margin:0;color:var(--ink-2)}
+  .callout p+p{margin-top:10px}
+  .callout b{color:var(--ink)}
+
+  /* tables */
+  .tablewrap{overflow-x:auto;margin:24px 0;border:1px solid var(--hair)}
+  table{border-collapse:collapse;width:100%;font-size:14px;line-height:1.7;min-width:620px}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--hair-2);vertical-align:top}
+  thead th{background:var(--paper-2);font-weight:640;color:var(--ink-2);border-bottom:1px solid var(--hair);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.num,th.num{font-family:var(--mono);white-space:nowrap;font-size:13px}
+  .cell-good{color:var(--good);font-weight:600}
+  .cell-warn{color:var(--warn);font-weight:600}
+  .cell-risk{color:var(--risk);font-weight:600}
+
+  /* scheme cards */
+  .scheme{border:1px solid var(--hair);border-radius:8px;margin:28px 0;overflow:hidden}
+  .scheme.recommended{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .scheme-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:18px 22px;background:var(--paper-2);border-bottom:1px solid var(--hair)}
+  .scheme-head .letter{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--paper);background:var(--ink);border-radius:4px;padding:2px 8px;letter-spacing:.04em}
+  .scheme .scheme-head h3{margin:0;font-size:18px}
+  .badge{font-size:11px;letter-spacing:.06em;padding:3px 9px;border-radius:999px;border:1px solid var(--hair);color:var(--ink-3);white-space:nowrap}
+  .badge.pick{background:var(--accent);border-color:var(--accent);color:#fff}
+  .badge.calm{background:var(--good-soft);border-color:#cfe3d7;color:var(--good)}
+  .badge.cost{background:var(--warn-soft);border-color:#ecdcb7;color:var(--warn)}
+  .scheme-body{padding:6px 22px 22px}
+  .field{display:grid;grid-template-columns:96px 1fr;gap:14px;padding:14px 0;border-bottom:1px dashed var(--hair)}
+  .field:last-child{border-bottom:0}
+  .field .label{font-size:13px;color:var(--ink-3);line-height:1.9}
+  .field .body{margin:0;color:var(--ink-2)}
+  .field .body strong{color:var(--ink)}
+  .field .body ul{margin:6px 0 0}
+  .mini{font-family:var(--mono);font-size:13px}
+
+  .lanes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0 6px}
+  .lane{border:1px solid var(--hair);border-radius:6px;padding:12px 14px;background:var(--paper)}
+  .lane .lt{font-size:13px;font-weight:640;margin:0 0 6px}
+  .lane .ld{font-size:13px;color:var(--ink-3);margin:0;line-height:1.75}
+  .lane.hot{border-color:#cfe0ec;background:var(--accent-soft)}
+  .lane.off{background:var(--paper-2)}
+
+  .checklist{border:1px solid var(--hair);border-radius:8px;padding:6px 22px 18px;margin:24px 0;background:var(--paper-2)}
+  .checklist .item{padding:14px 0;border-bottom:1px dashed var(--hair)}
+  .checklist .item:last-child{border-bottom:0}
+  .checklist .item h4{margin:0 0 6px;font-size:15px;font-weight:640}
+  .checklist .item p{margin:0;color:var(--ink-2);font-size:14.5px}
+
+  footer{margin-top:72px;padding-top:26px;border-top:1px solid var(--hair);color:var(--ink-3);font-size:13.5px}
+  footer h3{font-size:14px;color:var(--ink-2);margin:0 0 10px}
+  footer ul{padding-left:1.2em}
+  footer code{background:var(--paper-2)}
+  .mono-block{font-family:var(--mono);font-size:13px;color:var(--ink-2);background:var(--paper-2);border:1px solid var(--hair);border-radius:6px;padding:14px 16px;overflow-x:auto;line-height:1.8}
+
+  @media (max-width:820px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .lanes{grid-template-columns:1fr}
+    .field{grid-template-columns:1fr;gap:4px}
+    .wrap{padding:0 18px 64px}
+    header.top{padding:48px 0 28px}
+  }
+  @media print{
+    body{font-size:11pt}
+    .scheme,table,.callout,.checklist{break-inside:avoid}
+    h2{break-after:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">DSH 右侧面板 · 刷新机制设计讨论</p>
+  <h1>面板刷新：四个可选方案</h1>
+  <p class="lede">目标只有一个：<b>同时开着十几个工作区，也永远碰不到 GitHub 的配额上限</b>，同时你切回去的时候，看到的东西仍然是新的。下面从第一性原理把「刷新」拆开，给出四个各自完整、可以直接选的方案——你不用做任何决定，回一个字母就行。</p>
+</header>
+
+<div class="kpis">
+  <div class="kpi">
+    <p class="k">现在的最坏情况（10 个工作区，检查链都没全绿）</p>
+    <p class="v">4.9<small>倍</small></p>
+    <p class="n">约 24,300 次/小时，上限是 5,000</p>
+  </div>
+  <div class="kpi">
+    <p class="k">推荐方案的最坏情况</p>
+    <p class="v">5% <small>+</small> 18%</p>
+    <p class="n">REST 与 GraphQL 两只桶各占多少</p>
+  </div>
+  <div class="kpi">
+    <p class="k">一次全量重建</p>
+    <p class="v">25 <small>→</small> 13</p>
+    <p class="n">换成薄查询后实测的单价（点）</p>
+  </div>
+  <div class="kpi">
+    <p class="k">用量由什么决定</p>
+    <p class="v">切换次数</p>
+    <p class="n">而不是打开的工作区个数</p>
+  </div>
+</div>
+<p class="note">所有数字都是本机实测（2026-09-22，仓库 FeatherHunter/dsh-mattpocock-skills-deck，684 张票 + 10 个拉取请求）。出处列在文末。</p>
+
+<h2><span class="num">第一部分</span>先把「刷新」这件事拆开</h2>
+<p class="section-intro">不谈方案，先立四条不能违背的前提。它们决定了什么样的设计才叫「高效」。</p>
+
+<h3>四条前提（事实，不是选择）</h3>
+<ol>
+  <li><strong>配额是两只独立的桶，各 5,000/小时。</strong>一只按「请求次数」算（REST），一只按「点数」算（GraphQL）。用光一只不影响另一只，但两只都跟你的 agent 共用同一份额度——插件花掉的，就是 agent 少掉的。</li>
+  <li><strong>同一时刻，你只看一个工作区。</strong>其余的工作区即使开着会话、面板挂在那儿，屏幕上也看不见它们。</li>
+  <li><strong>切换是你唯一真正在意的时刻。</strong>你从 A 跳回 B，希望 B 是新的；你在看 A 的这段时间里，B 新不新无所谓。</li>
+  <li><strong>同一个根目录下的多个会话，是同一个工作区。</strong>仓库根和它的子目录会话看到的是同一批票，只该花一份钱。</li>
+</ol>
+
+<div class="callout">
+  <p><b>一句话推导：</b>既然只有一块屏幕在亮，那「一直盯着所有工作区」就是拿 90% 的预算去买你看不见的东西。真正值得持续花钱的，只有「你现在正在看的那个工作区」；其余的，等你看它的时候再花。</p>
+  <p>而「等你看它的时候再花」这件事，体验上并不会变差——因为切换本来就是「先用手上的旧数据把界面铺满（毫秒级），随后静默取一次新的、再闪一下差异」。现在缺的只是那一次「取新的」。</p>
+</div>
+
+<h3>于是「刷新」变成四个可以各自决定的问题</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>要决定的事</th><th>现在怎么做的</th><th>可选做法</th></tr></thead>
+  <tbody>
+    <tr><td><b>什么时候去问远端</b></td><td>所有工作区，每 60 秒各问一次；检查链没全绿的每 8 秒问一次</td><td>只在「正在看的」工作区上按节拍问；其余在切进来那一瞬间问一次</td></tr>
+    <tr><td><b>谁的额度先花</b></td><td>没有区分。后台轮询和用户点刷新花的是同一份，谁先到谁先花</td><td>分两档：用户动作发起的永远放行；后台自己发起的从一份预算里取，取不到就推迟</td></tr>
+    <tr><td><b>一次取多少</b></td><td>每次全量重建都把正文和每票 50 条评论一起拖回来：一次 25 点</td><td>列表只取「画一行要用的字段」（一次 13 点），正文和评论在你点开某张票时再取（现在本来就是这样）</td></tr>
+    <tr><td><b>失败时怎么办</b></td><td>不计数、不退避：限流了也照原来的节拍继续打</td><td>失败越多、间隔越长；并且把你「正在看的东西可能是旧的」这件事说出来</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2><span class="num">第二部分</span>四个方案</h2>
+<p class="section-intro">四个方案都是完整的：每个都替你定好了上面那四个问题的答案，你不需要在方案内部再做任何选择。每个方案都标了「每小时花多少」——按 10 个工作区、你来回切 20 次、其中一个仓库很活跃来算。</p>
+
+<!-- ============ A ============ -->
+<section class="scheme">
+  <div class="scheme-head">
+    <span class="letter">A</span>
+    <h3>止血版：只修最费的三处，刷新模型不动</h3>
+    <span class="badge calm">改动最小</span>
+    <span class="badge">半天到一天</span>
+  </div>
+  <div class="scheme-body">
+    <div class="field"><p class="label">怎么跑</p><p class="body">仍然「所有工作区都定时探测」，但把三件最费的事按住：① 检查链从固定 8 秒改成带退避（8 秒 → 30 秒 → 2 分钟 → 5 分钟封顶，一旦有进展立刻回到 8 秒）；② 环境预检（登录态 + 仓库可达）的缓存从 30 秒放宽到 10 分钟，失败时立即重试一次；③ 连续失败三次就退到 1 分钟、再失败退到 5 分钟、30 分钟，成功一次立刻回来。</p></div>
+    <div class="field"><p class="label">每小时</p><p class="body"><span class="mini">REST ≈ 1,260 次（25%）</span>；<span class="mini">GraphQL 不变，仍是 25 点/次</span>。三个仓库同时在动就能吃掉九成额度。</p></div>
+    <div class="field"><p class="label">要改什么</p><p class="body">三个文件：链的轮询、环境预检的缓存寿命、失败退避（今天这两个熔断常量在代码里没有任何调用方）。外加两条门禁测试。</p></div>
+    <div class="field"><p class="label">你会感觉到</p><p class="body">没什么变化——检查页从「8 秒一跳」变成「先快后慢」，修复完成后自动变绿会慢几秒。</p></div>
+    <div class="field"><p class="label">代价</p><p class="body">后台那九个看不见的工作区仍然在花钱；每次重建还是 25 点；<strong>并且没有任何东西拦着「以后新增的调用点」再次越线</strong>——它把 4.9 倍压到 1.3 倍，但没有把越线这件事变成不可能。</p></div>
+  </div>
+</section>
+
+<!-- ============ B ============ -->
+<section class="scheme recommended">
+  <div class="scheme-head">
+    <span class="letter">B</span>
+    <h3>视线驱动版：看谁刷谁，顺手把单价减半</h3>
+    <span class="badge pick">推荐</span>
+    <span class="badge">2～4 天</span>
+  </div>
+  <div class="scheme-body">
+    <div class="field"><p class="label">怎么跑</p><p class="body">工作区分成两种状态，只有一种在花钱：</p></div>
+    <div class="lanes">
+      <div class="lane hot">
+        <p class="lt">正在看的那个工作区</p>
+        <p class="ld">变化探测每 30 秒一次；一旦发现远端有变化，最多每 60 秒重建一次（半分钟里连改五张票，也只重建一次）。</p>
+      </div>
+      <div class="lane">
+        <p class="lt">切进来的那一瞬间</p>
+        <p class="ld">先用手上的数据把界面铺满，同时探测一次；数据超过 5 分钟、或探测到有变化，就重建一次。</p>
+      </div>
+      <div class="lane off">
+        <p class="lt">其余所有工作区</p>
+        <p class="ld">一次请求都不发。检查链、命名守护、重建，全部停表；切回去时重新上表。</p>
+      </div>
+    </div>
+    <div class="field"><p class="label">顺手修的单价</p><p class="body">列表那条查询改成「只取画一行要用的字段」——把正文和每票 50 条评论从重建里去掉（点开单票时本来就另有一次取数）。<strong>实测从 25 点降到 13 点</strong>；正文与评论在单票页照旧随点随取，一个字都不少。</p></div>
+    <div class="field"><p class="label">每小时</p><p class="body"><span class="mini">REST ≈ 270 次（5%）</span> ｜ <span class="mini">GraphQL ≈ 910 点（18%）</span>，其中约 780 点是「每分钟都有变化、每分钟重建一次」的上限。这跟你打开几个工作区<strong>无关</strong>——只跟你切换多少次、以及那个仓库有多活跃有关。</p></div>
+    <div class="field"><p class="label">要改什么</p><p class="body">① 把「现在在看哪个工作区」这个信号从界面传到宿主（今天判定的只是「整个应用窗口有没有被最小化」）；② 探测与链的定时器改成只服务当前这个工作区；③ 列表查询换薄片段 + 反查它用到的字段消费者；④ 面板头部补一句「上次更新：X 分钟前 / 刷新失败」；⑤ 顺手把已经写好、但今天永远不会出现的降级横幅接上线（那句「⚠ GraphQL 配额已耗尽，已切换 REST 通道」的文案和渲染都在，只缺上游给它一个字段）。</p></div>
+    <div class="field"><p class="label">你会感觉到</p><p class="body">切回来时先看到旧数据、一两秒后闪一下新差异——这正是今天的行为，只是现在它真的会发生，而不是「等 60 秒恰好撞上那一拍」。另外多了一句「上次更新于 XX:XX」，你终于能一眼看出「是没变」还是「没刷」。</p></div>
+    <div class="field"><p class="label">代价</p><p class="body">你在看 A 的时候，B 是旧的（切回去才更新）。这句诚实提示必须一起做，否则我们只是把「刷太多」换成「静默地旧」。另外「同时只能看一个」是你的使用习惯，代码里要用一个「最多允许 2 个活跃工作区」的硬上限兜住，不能当成假设。</p></div>
+  </div>
+</section>
+
+<!-- ============ C ============ -->
+<section class="scheme">
+  <div class="scheme-head">
+    <span class="letter">C</span>
+    <h3>出口闸版：在 B 之上，把「不会越线」变成代码保证</h3>
+    <span class="badge">B + 3～5 天</span>
+  </div>
+  <div class="scheme-body">
+    <div class="field"><p class="label">怎么跑</p><p class="body">B 的全部内容照做，再加一道闸门：所有出去找 GitHub 的调用都从这一个地方过。闸门里区分两种调用——<strong>你点出来的</strong>（刷新、翻页、点开票、发评论）永远放行；<strong>插件自己发起的</strong>（探测、重建、链、命名守护）从一份预算里取额度，取不到就把这次推迟（不是失败，界面照旧显示手上的数据）。闸门每分钟读一次配额接口（这个接口本身不扣配额，实测确认），并且只允许插件用掉剩余的 35%——因为剩下的要留给你的 agent。</p></div>
+    <div class="field"><p class="label">分三档降级</p>
+      <div class="tablewrap" style="margin:6px 0 0">
+        <table style="min-width:520px">
+          <thead><tr><th>档位</th><th>触发</th><th>自动做什么</th></tr></thead>
+          <tbody>
+            <tr><td class="cell-good">绿</td><td>额度充足</td><td>按 B 的节拍正常跑</td></tr>
+            <tr><td class="cell-warn">黄</td><td>已用掉六成以上</td><td>正在看的那个工作区的探测放慢到 2 分钟；其余后台刷新全停</td></tr>
+            <tr><td class="cell-risk">红</td><td>已用掉八成五以上，或已经撞过一次限流</td><td>自动刷新全停，只留你手动点；面板上明说「配额紧张，自动刷新已暂停」</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="field"><p class="label">每小时</p><p class="body">绿档下与 B 同量级（<span class="mini">REST 5% ｜ GraphQL 18%</span>）。它买到的不是更省，而是<strong>无论以后加什么功能、谁写了新的调用点，都不可能越过上限</strong>——新功能自动继承这道闸。</p></div>
+    <div class="field"><p class="label">代价</p><p class="body">多了一层间接：排查问题时要多看一眼闸门的日志；实现量最大，而且要改到所有调用点。好处是从此不必再靠「我们算过了」来安心。</p></div>
+  </div>
+</section>
+
+<!-- ============ D ============ -->
+<section class="scheme">
+  <div class="scheme-head">
+    <span class="letter">D</span>
+    <h3>按需版：零轮询，只在你看和点的时候取</h3>
+    <span class="badge cost">最省</span>
+    <span class="badge">1～2 天</span>
+  </div>
+  <div class="scheme-body">
+    <div class="field"><p class="label">怎么跑</p><p class="body">把定时刷新整块拿掉。只在三种时刻取数：切进一个工作区、你手动点「更新」、你自己在面板里写完票。</p></div>
+    <div class="field"><p class="label">每小时</p><p class="body"><span class="mini">REST ≈ 100 次（2%）</span> ｜ <span class="mini">GraphQL ≈ 200 点（4%）</span>，几乎全是切换与点击产生的。</p></div>
+    <div class="field"><p class="label">你会感觉到</p><p class="body">省钱省到你察觉得到：agent 在你看着面板的时候新建了一张票，<strong>你不点「更新」就看不到它</strong>；「可接 / 阻塞 / 已认领」这些数也会停在上一次你点过的时刻。</p></div>
+    <div class="field"><p class="label">代价</p><p class="body">面板从「自动跟上远端」降级成「手动取数」。切进来的自动刷新还是会做（这一条不能省，否则切换体验直接坏掉），所以真正失去的只是「边看边变」这一条。同样必须配「上次更新于 XX:XX」的提示，否则你分不清「没变」和「没刷」。</p></div>
+  </div>
+</section>
+
+<h2><span class="num">第三部分</span>四个方案摆在一起</h2>
+<div class="tablewrap">
+<table>
+  <thead>
+    <tr>
+      <th>　</th>
+      <th class="num">A 止血</th>
+      <th class="num">B 视线驱动（推荐）</th>
+      <th class="num">C 出口闸</th>
+      <th class="num">D 按需</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><b>每小时 REST</b>（上限 5,000）</td><td class="num">≈1,260</td><td class="num cell-good">≈270</td><td class="num cell-good">≈270</td><td class="num cell-good">≈100</td></tr>
+    <tr><td><b>每小时 GraphQL</b>（上限 5,000）</td><td class="num cell-risk">最多 4,500</td><td class="num cell-good">≈910</td><td class="num cell-good">≈910</td><td class="num cell-good">≈200</td></tr>
+    <tr><td><b>用量由什么决定</b></td><td>工作区个数</td><td>切换次数 + 仓库活跃度</td><td>切换次数 + 仓库活跃度</td><td>你的点击</td></tr>
+    <tr><td><b>会不会越线</b></td><td class="cell-warn">仍有可能</td><td class="cell-warn">极端情况仍可能</td><td class="cell-good">不可能（闸门拦死）</td><td class="cell-good">不可能</td></tr>
+    <tr><td><b>界面上的变化</b></td><td>几乎看不出</td><td>切回先见旧数据 + 新鲜度提示</td><td>同 B，另加配额状态说明</td><td>不再自动跟随远端</td></tr>
+    <tr><td><b>失去什么</b></td><td>没解决根本，且没有兜底</td><td>后台工作区在你切回去前是旧的</td><td>多一层排查路径</td><td>「边看边变」这条体验</td></tr>
+    <tr><td><b>改动量</b></td><td class="num">半天～1 天</td><td class="num">2～4 天</td><td class="num">再加 3～5 天</td><td class="num">1～2 天</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="note">「最多 4,500」那一格说的是：A 不改重建的单价，所以只要有三四个仓库同时在动，GraphQL 就会贴近上限——这跟开了几个工作区无关，是单价问题。</p>
+
+<h2><span class="num">第四部分</span>不管选哪个，这三件事都建议做</h2>
+<div class="checklist">
+  <div class="item">
+    <h4>一、把失败退避补上（今天完全没有）</h4>
+    <p>现在无论失败多少次，探测都是固定 60 秒、检查链都是固定 8 秒接着打。代码里其实已经写好了「连续三次失败就熔断五分钟」这套常量，但它们<strong>没有任何调用方</strong>。接上去，一条命令的事。</p>
+  </div>
+  <div class="item">
+    <h4>二、把「旧」和「失败」说出来</h4>
+    <p>今天只要手上还有一份旧数据，取数失败就是一个字都不显示：面板照旧画，你分不清「远端没变」和「半小时没刷上」。这不是刷新机制的问题，是它必须配的一半。做法很小：面板头部一句「上次更新于 XX:XX」，失败时那句变成「刷新失败，正在重试 / 已暂停」，再把已经写好却永远不出现的降级横幅接上线。</p>
+  </div>
+  <div class="item">
+    <h4>三、给检查链一个更像人的节拍</h4>
+    <p>环境检查不是实时数据：登录态、仓库可达、技能有没有装，一分钟之内不会变。让它在「切进来」和「你点重新检查」时各算一次，再给一条退避（8 秒 → 30 秒 → 2 分钟 → 5 分钟封顶，有进展就回快档）。这一条单独就能把最坏情况从「每工作区 2,250 次/小时」压到一两百次。</p>
+  </div>
+</div>
+
+<h2><span class="num">第五部分</span>怎么证明它真的没超限</h2>
+<p class="section-intro">「不会超限」这句话，如果只是我们俩算出来的，就还是一次信心。三件小事能让它变成可查的事实：</p>
+<ol>
+  <li><strong>节拍只留一份真源，并给它配一条门禁测试。</strong>把所有「几秒一次」的常量继续收在契约层那一处（今天已经是这么做的），再加一条测试：按常量算出「最坏情况下每小时的调用数」，断言它低于预算。以后谁改快了节拍，测试先红。</li>
+  <li><strong>每次刷新落一行账。</strong>记下这次是探测还是重建、花了多少点、当前剩余多少。按仓库已有的日志纪律做成「只在打开调试开关时记」的那一档，不占常驻名额。</li>
+  <li><strong>真机对账一次。</strong>开 10 个工作区、来回切 20 次、看 10 分钟，用 <code>gh api rate_limit</code> 前后取差（这个接口不扣配额）。只要实测用量低于我们算的两倍，这套设计就算成立。</li>
+</ol>
+
+<div class="callout">
+  <p><b>我的建议：选 B。</b>它一次把三件事同时解决——用量不再随工作区个数增长、单价减半、切换体验反而更确定；改动集中在四五个地方，两三天能落地。</p>
+  <p>如果你希望「不会超限」从此是代码保证、而不是每次改动后重新算一遍，那就选 <b>C</b>（多三到五天）。如果你现在只想先把最坏情况按住、别的都先不动，选 <b>A</b>；如果你其实很少盯着面板看变化，选 <b>D</b> 最省。</p>
+</div>
+
+<h2><span class="num">第六部分</span>你只需要回一个字母</h2>
+<p>四个方案都已经内部定好了所有细节，你不需要在方案里再拍任何一个点。回 <code>A</code> / <code>B</code> / <code>C</code> / <code>D</code>，我就把它写成能开工的规格（含每个文件的改动点与验收清单）。如果你想要「先做 A 止血、随后接 B」，也可以直接说 <code>A→B</code>，那是最省心的顺序。</p>
+
+<footer>
+  <h3>附录：这篇文章里的数字从哪来</h3>
+  <p style="margin-top:0">全部为本机实测（2026-09-22），用插件源码里那几条查询原样发出、带 <code>rateLimit{cost}</code> 读真实花费；配额上限取自 GitHub 官方文档（GraphQL 与 REST 各 5,000/小时，两套独立）。</p>
+  <div class="tablewrap">
+    <table style="min-width:560px">
+      <thead><tr><th>动作</th><th class="num">实测花费</th><th>出处</th></tr></thead>
+      <tbody>
+        <tr><td>现在的全量重建（工单 5 页 + 拉取请求 1 页 + 计数）</td><td class="num">25 点</td><td><code>queries.js</code> 的 LIST_QUERY / LIST_PR_QUERY / COUNTS_QUERY</td></tr>
+        <tr><td>薄片段一页（100 行，含正文与评论都没取）</td><td class="num">2 点</td><td><code>queries.js</code> 的 LIST_PAGE_QUERY</td></tr>
+        <tr><td>薄片段一页（50 行，历史票翻页在用）</td><td class="num">1 点</td><td>同上</td></tr>
+        <tr><td>拉取请求的薄片段一页</td><td class="num">2 点</td><td>按 PULL_REQUEST_FRAGMENT 去掉评论与评审后实测</td></tr>
+        <tr><td>地图子票一页（4 张）</td><td class="num">3 点</td><td><code>queries.js</code> 的 SUB_ISSUES_QUERY</td></tr>
+        <tr><td>一次变化探测</td><td class="num">1 + 2 条</td><td>索引扫描 1 条（<code>issueList.js</code>），环境预检 2 条（<code>preflight.js</code>）</td></tr>
+        <tr><td>一次强制检查链求值</td><td class="num">5 条</td><td><code>detectChain.js</code>：登录态 ×2、仓库可达 ×2、当前用户 ×1</td></tr>
+        <tr><td>现在检查链的 8 秒循环（每个没全绿的工作区）</td><td class="num">2,250 条/小时</td><td>8 秒 × 5 条，且不看页面是否可见、面板关掉也不停</td></tr>
+        <tr><td>本机当前实际用量（多个会话开着）</td><td class="num">REST ≈1,200/时<br>GraphQL ≈80/时</td><td>用 <code>gh api rate_limit</code> 前后取差，5 分钟一次</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">仓库规模：684 张工单（666 已关闭 + 18 开放）+ 10 个拉取请求；列表最多取 500 行，所以工单是 5 页。REST 那一栏的「REST」指走 <code>gh api</code> 的请求计数桶，与 GraphQL 的点数桶互不相干。</p>
+</footer>
+
+</div>
+</body>
+</html>

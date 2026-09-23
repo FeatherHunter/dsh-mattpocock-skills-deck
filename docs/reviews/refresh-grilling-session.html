@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>刷新机制 · 拷问记录与事实核查</title>
+<style>
+  :root{
+    --ink:#16181d; --ink-2:#3d434e; --ink-3:#6b7280;
+    --hair:#e6e8ec; --hair-2:#f1f2f5;
+    --paper:#ffffff; --paper-2:#fafafa;
+    --accent:#1c4f73; --accent-soft:#eef4f9;
+    --good:#2f6b52; --good-soft:#eff6f1;
+    --warn:#9a6a12; --warn-soft:#fdf6e7;
+    --risk:#9b3b3b; --risk-soft:#fbf0f0;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+    font-size:16px;line-height:1.9;letter-spacing:.01em}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 28px 96px}
+  header.top{padding:70px 0 36px;border-bottom:1px solid var(--hair)}
+  .eyebrow{font-size:12px;letter-spacing:.18em;color:var(--ink-3);text-transform:uppercase;margin:0 0 18px}
+  h1{font-size:clamp(26px,3.4vw,36px);line-height:1.38;margin:0 0 18px;font-weight:650;letter-spacing:-.01em}
+  .lede{font-size:17px;color:var(--ink-2);margin:0;max-width:46em}
+  .lede b{font-weight:650;color:var(--ink)}
+  h2{font-size:22px;line-height:1.5;margin:62px 0 8px;font-weight:640}
+  h2 .num{display:block;font-size:12px;letter-spacing:.18em;color:var(--accent);font-weight:600;margin-bottom:8px}
+  h3{font-size:17px;margin:32px 0 8px;font-weight:640}
+  h4{font-size:15px;margin:22px 0 6px;font-weight:640}
+  p{margin:14px 0}
+  ul,ol{margin:14px 0;padding-left:1.35em}
+  li{margin:7px 0}
+  code{font-family:var(--mono);font-size:.87em;background:var(--paper-2);border:1px solid var(--hair);border-radius:4px;padding:1px 5px;white-space:nowrap}
+  .section-intro{color:var(--ink-2);margin:10px 0 26px;max-width:46em}
+  .note{font-size:13px;color:var(--ink-3);margin:10px 0 0}
+
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hair);border:1px solid var(--hair);margin:34px 0 8px}
+  .kpi{background:var(--paper);padding:20px 18px}
+  .kpi .k{font-size:12.5px;color:var(--ink-3);margin:0 0 8px;line-height:1.6}
+  .kpi .v{font-size:17px;font-weight:650;line-height:1.5;margin:0}
+  .kpi .n{font-size:12.5px;color:var(--ink-3);margin:8px 0 0;line-height:1.65}
+
+  .callout{border:1px solid var(--hair);border-left:3px solid var(--accent);background:var(--accent-soft);padding:20px 22px;margin:30px 0;border-radius:0 6px 6px 0}
+  .callout p{margin:0;color:var(--ink-2)}
+  .callout p+p{margin-top:10px}
+  .callout b{color:var(--ink)}
+
+  .tablewrap{overflow-x:auto;margin:22px 0;border:1px solid var(--hair)}
+  table{border-collapse:collapse;width:100%;font-size:14px;line-height:1.7;min-width:640px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--hair-2);vertical-align:top}
+  thead th{background:var(--paper-2);font-weight:640;color:var(--ink-2);border-bottom:1px solid var(--hair);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.k{white-space:nowrap;font-weight:640}
+  .cell-good{color:var(--good);font-weight:600}
+  .cell-warn{color:var(--warn);font-weight:600}
+  .cell-risk{color:var(--risk);font-weight:600}
+
+  /* question cards */
+  .q{border:1px solid var(--hair);border-radius:8px;margin:20px 0;overflow:hidden}
+  .q-head{display:flex;gap:12px;align-items:baseline;padding:14px 20px;background:var(--paper-2);border-bottom:1px solid var(--hair)}
+  .q-head .id{font-family:var(--mono);font-size:12px;font-weight:700;color:#fff;background:var(--accent);border-radius:4px;padding:2px 8px;flex:none}
+  .q-head h3{margin:0;font-size:16.5px;font-weight:640;line-height:1.6}
+  .q-body{padding:4px 20px 18px}
+  .q-row{display:grid;grid-template-columns:88px 1fr;gap:14px;padding:12px 0;border-bottom:1px dashed var(--hair)}
+  .q-row:last-child{border-bottom:0}
+  .q-row .lab{font-size:12.5px;color:var(--ink-3);line-height:1.9}
+  .q-row .txt{margin:0;color:var(--ink-2);font-size:15px}
+  .q-row .txt b{color:var(--ink)}
+  .rec{background:var(--accent-soft);border-radius:6px;padding:12px 14px;color:var(--ink);font-size:15px}
+  .rec b{font-weight:650}
+  .unlock{font-size:13.5px;color:var(--ink-3)}
+  .grp{font-size:13px;letter-spacing:.06em;color:var(--accent);font-weight:640;margin:38px 0 -6px}
+
+  /* design tree */
+  .tree{border:1px solid var(--hair);border-radius:8px;overflow:hidden;margin:26px 0}
+  .tr-row{display:grid;grid-template-columns:170px 1fr;border-bottom:1px solid var(--hair)}
+  .tr-row:last-child{border-bottom:0}
+  .tr-row .side{padding:16px 18px;background:var(--paper-2);border-right:1px solid var(--hair);font-size:13.5px;font-weight:640}
+  .tr-row .side span{display:block;font-weight:500;color:var(--ink-3);font-size:12px;margin-top:5px;font-family:var(--mono)}
+  .tr-row .main{padding:16px 20px;font-size:14.5px;color:var(--ink-2)}
+  .tr-row.done .side{color:var(--good)}
+  .tr-row.open .side{color:var(--warn)}
+  .tr-row.blocked .side{color:var(--ink-3)}
+  .pill{display:inline-block;font-size:12px;border-radius:999px;padding:2px 9px;border:1px solid var(--hair);color:var(--ink-3);margin:2px 6px 2px 0;white-space:nowrap}
+  .pill.ok{background:var(--good-soft);border-color:#cfe3d7;color:var(--good)}
+  .pill.warn{background:var(--warn-soft);border-color:#ecdcb7;color:var(--warn)}
+  .pill.hot{background:var(--accent-soft);border-color:#cfe0ec;color:var(--accent)}
+
+  .code-block{font-family:var(--mono);font-size:12.5px;color:var(--ink-2);background:var(--paper-2);border:1px solid var(--hair);border-radius:6px;padding:13px 15px;overflow-x:auto;line-height:1.85;white-space:pre}
+  footer{margin-top:70px;padding-top:24px;border-top:1px solid var(--hair);color:var(--ink-3);font-size:13.5px}
+  footer h3{font-size:14px;color:var(--ink-2);margin:0 0 10px}
+  @media (max-width:840px){
+    .kpis{grid-template-columns:1fr}
+    .q-row{grid-template-columns:1fr;gap:4px}
+    .tr-row{grid-template-columns:1fr}
+    .tr-row .side{border-right:0;border-bottom:1px solid var(--hair)}
+    .wrap{padding:0 18px 64px}
+    header.top{padding:46px 0 26px}
+  }
+  @media print{
+    body{font-size:11pt}
+    .q,.tree,table,.callout,.kpis{break-inside:avoid}
+    h2{break-after:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">DSH 右侧面板 · 刷新机制 · 拷问记录</p>
+  <h1>从你上一句话到现在，发生了什么</h1>
+  <p class="lede">你上一句话里让我做两件事：<b>查清"插件能不能看见 agent 的写操作"</b>，以及<b>开始拷问</b>。这份文档把之后的一切都收在一起——你问的场景引出的 <b>15 个待你拍板的问题</b>、为了回答问题做的 <b>三路事实核查</b>、以及它们对那份定稿架构意味着什么。看不懂技术细节没关系：每一节都先用大白话说结论，再给证据。</p>
+</header>
+
+<div class="kpis">
+  <div class="kpi">
+    <p class="k">你要的"close 完立刻看到"</p>
+    <p class="v">能做到，2~5 秒</p>
+    <p class="n">做法是把"整池重来"换成"只补变的那几条"，再加快探测</p>
+  </div>
+  <div class="kpi">
+    <p class="k">"让插件看见 agent 写的票"</p>
+    <p class="v">平台支持，不用改造</p>
+    <p class="n">订阅会话事件即可；不需要 agent 换工具、不需要换我们的通信通道</p>
+  </div>
+  <div class="kpi">
+    <p class="k">现在还差什么</p>
+    <p class="v">15 个问题的答案</p>
+    <p class="n">每个都附了我的推荐；你答完我只剩一轮收尾，然后才动定稿文档</p>
+  </div>
+</div>
+
+<h2><span class="num">第一部分</span>背景：这些问题为什么会被问出来</h2>
+<p class="section-intro">不铺垫前情，后面的问题会像天书。这一节用大白话把来龙去脉说清，三分钟读完。</p>
+
+<h3>为什么"刷新"这件事值得这么大费周章</h3>
+<ul>
+  <li><strong>有两只独立的额度桶，各 5000/小时，而且跟你的 AI 共用同一份额度。</strong>一只按"请求次数"算（REST），一只按"点数"算（GraphQL）。插件多花的每一次，都是你的 AI 少掉的每一次。</li>
+  <li><strong>你同时开着很多工作区（十个量级），但同一时刻只有一块屏幕在亮。</strong>旧的做法是"每个工作区都定时去问远端有没有变"，等于把九成的预算花在你看不见的地方。十个工作区、环境检查还没做完的情况下，最坏能烧到 5000 的 <strong>4.9 倍</strong>。</li>
+  <li><strong>现在每次"重建"一次面板数据要 25 点</strong>，因为它把每张票的正文和 50 条评论一起拖了回来——而列表要画一行，一个字都用不到它们。</li>
+</ul>
+
+<h3>那份定稿架构做了什么（一句话版）</h3>
+<p>界面只说一件事——"我在看哪个工作区"；宿主据此把工作区分成"正在看的"（有节拍）和"其余的"（一次都不发，切回来才补）；所有去 GitHub 的调用都从<b>同一道闸</b>过，闸把请求分成"用户动作（永远放行）／生命周期（切进来那一次）／后台（超出预算就推迟，不失败）"，并且每小时最多用掉剩余额度的 35%，剩下的留给你的 AI。</p>
+
+<h3>你问的三个场景，各自炸出了什么</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>场景</th><th>结论</th><th>暴露的缺口</th></tr></thead>
+  <tbody>
+    <tr>
+      <td class="k">一、会话里 close 一张票，面板要立刻变</td>
+      <td>定稿当时只能做到最坏 90 秒</td>
+      <td><span class="pill warn">真缺口</span>文档只从"预算"倒推节拍（30 秒探测、60 秒合并），从没为"你写完东西多久看到"定过目标。补法是两个：<b>只补变的那几条行</b>（1~2 点，而不是整池 13 点）+ <b>变化探测加快</b>。</td>
+    </tr>
+    <tr>
+      <td class="k">二、一直切来切去会不会堆积请求</td>
+      <td>不会堆积，全局在途请求有硬上限（≤4 个）</td>
+      <td><span class="pill warn">两处要钉紧</span>强制刷新今天不进"在途合并"表（狂切会各发一份）；额度紧张时可能出现"永远旧下去"且没有出口。</td>
+    </tr>
+    <tr>
+      <td class="k">三、父子工作区来回切，数据能不能复用</td>
+      <td>能，而且是全链路复用</td>
+      <td>基本没有缺口。只有一个边界：工作区"根"还没识别出来之前先切进去，会多建一个桶。</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<p class="note">"父子工作区"指的是同一个 git 根下的两个会话（仓库根 + 子目录）：插件认的是"根"，所以它们天然是同一个工作区、同一份缓存、同一个探测节拍——来回切零请求、秒显。</p>
+
+<h3>为什么要专门查"插件能不能看见 agent 写操作"</h3>
+<p>因为"close 完立刻看到"这件事，理想情况下不该靠"每几秒去问一次"，而该靠"你写的那一刻我就知道"。如果插件能在 agent 执行 <code>gh issue close</code> 的瞬间收到通知，那次刷新就是零延迟、零浪费。所以这个问题决定了体验能做到"2 秒"还是只能做到"5 秒"。</p>
+
+<h2><span class="num">第二部分</span>术语表：后面会反复出现的几个词</h2>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>词</th><th>大白话解释</th></tr></thead>
+  <tbody>
+    <tr><td class="k">探测</td><td>花 1 次请求问一句"这个仓库自上次以来有没有变化"。便宜、不带内容。</td></tr>
+    <tr><td class="k">整池重建</td><td>把整个仓库的票重新拉一遍（现在 25 点、改造后 13 点）。贵，但一次到位。</td></tr>
+    <tr><td class="k">行级增量</td><td>只把"变了的那几条"重新拉回来，合并进现有列表。1~2 点，快。本次要新增的机制。</td></tr>
+    <tr><td class="k">活跃工作区</td><td>你现在正在看的那个工作区（按工作区的根算，不看是不是子目录会话）。最多允许 2 个：正在看的 + 刚离开 30 秒的。</td></tr>
+    <tr><td class="k">闸</td><td>所有去 GitHub 的调用都要过的唯一一道门。它分类、记账、决定"放行 / 降级 / 推迟"。</td></tr>
+    <tr><td class="k">档位（绿黄红）</td><td>额度用得少叫绿（正常跑）、用到六成转黄（放慢）、八成五或撞过限流转红（自动刷新全停，只留你手动）。</td></tr>
+    <tr><td class="k">写事件</td><td>"刚刚有一次写操作发生了"这条通知。拿到它 = 不用等探测就知道要刷新。</td></tr>
+    <tr><td class="k">session/event</td><td>DSH 内部的一条事件广播带：会话每追加一条事件（包括"模型调用了某个工具"）都会播一次，插件可以订阅。</td></tr>
+    <tr><td class="k">tool/call</td><td>上面那条广播里的一类事件：模型调用了哪个工具、参数是什么。对执行命令的工具，参数里就带着那行命令。</td></tr>
+    <tr><td class="k">preset</td><td>DSH 里"会话以哪套能力启动"。不同的 preset 会改变工具调用的形态，这会影响我们能看见什么。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2><span class="num">第三部分</span>三路事实核查：查到了什么</h2>
+<p class="section-intro">这三路都是只读调查（没有修改任何代码），每条结论都标了出处。命令只在侧边栏终端里跑过只读的 git 查询与读文件。</p>
+
+<h3>第一路：插件今天能看见什么</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>问题</th><th>结论</th><th>证据</th></tr></thead>
+  <tbody>
+    <tr>
+      <td class="k">插件能看见 agent 在会话里跑的 gh 命令吗</td>
+      <td><span class="cell-risk">从来没有过</span>。它只看得见"自己启动的 gh"（六处进程入口），没有会话内容读取，也没有文件监听。</td>
+      <td><code>src/host/repoKeys.js:28,46,105</code>、<code>platformChannel.js:190</code>、<code>platform/index.js:138</code>；仓库里早有同结论：<code>docs/research/session-rename-failure-paths.md:5,10</code></td>
+    </tr>
+    <tr>
+      <td class="k">那"写后事件"（gh-create 等词汇）是谁产生的</td>
+      <td>是插件<b>自己</b>跑写命令时记的（比如面板里的认领），不是 agent。而且这条链已经在 #345 被整块删除（提交 <code>6c51e71</code>，13 个文件 +54/−606）。</td>
+      <td><code>src/shared/tracker/sync.js:23-26</code>（词汇表今天无生产者）；<code>tests/verify-issue232-sync.js:95,114-116</code> 直接断言那条路不存在</td>
+    </tr>
+    <tr>
+      <td class="k">插件今天从 DSH 拿到什么</td>
+      <td>宿主侧：<code>subprocess / timer / fs / sessions / platform / connection</code> 等服务，加一个自建的"电话簿"（约 38 条 <code>wf.*</code>）。客户端侧：面板槽位、状态栏、语言、工作区列表。</td>
+      <td><code>src/host/index.js:18,20-35</code>、<code>package/package.json:13,18-23,48-57</code></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>第二路：DSH 给插件的能力（这条是好消息）</h3>
+<ul>
+  <li><strong>能注册工具</strong>：注册之后模型就能看见并调用（<code>harness.defineTool</code> + <code>harness.registerTool</code>，或普通插件的 <code>ctx.tools.register</code>）。证据：<code>dsh-cordis-host-runner/lib/types/sandbox.js:28-35,117-133</code>、<code>guard.js:560-563</code>。</li>
+  <li><strong>能订阅会话事件</strong>：<code>ctx.on('session/event', (session, event) =&gt; …)</code>。事件类型有 56 种（本机 2.0.10 这一版；此前写 57 是旧数），含 <code>tool/call</code>（模型调了哪个工具）、<code>tool/result</code>（结果）、<code>command/run</code>（人打的斜杠命令）等。证据：<code>dsh-tool-cordis/lib/index.js:5412-5425</code>、第一方先例 <code>dsh-session/lib/types/invariant.js:176-184</code>。</li>
+  <li><strong>能拦、能包，但不能改写命令</strong>：<code>tools/pre-execute</code>（放行/拒绝/询问）、<code>tools/execute</code>（包住派发）、<code>tools/post-execute</code>（改结果）——但明确不允许改写命令参数（<code>dsh-tools/README.zh.md:224</code>）。也就是说"把裸 gh 偷偷换成我们的工具"做不到，只能"要么放行、要么拒绝"。</li>
+  <li><strong>人类打的斜杠命令拦不住</strong>：只有跑完之后的事件日志（<code>command/run</code> / <code>command/done</code>）。</li>
+  <li>顺带发现：我们的宿主侧自建了一个 <code>const harness</code> 遮蔽了 DSH 注入的真 harness，对外走自建的 <code>/api/dsws</code> 通道（<code>src/host/index.js:29-35</code>、<code>rpcChannel.js:90-113</code>）。要用原生能力不必碰这条通道——订阅和注册都通过 <code>ctx</code>。</li>
+</ul>
+
+<h3>第三路：我们这种插件到底能不能真订到事件（结论：能，但要实测）</h3>
+<ul>
+  <li><strong>事件对所有会话都播</strong>：真播点在"会话每追加一条事件"那里（<code>dsh-session/lib/index.js:1195-1202</code>），与"是不是某个 preset"无关。子代理的写操作也走同一个存储，所以我们一样看得见。</li>
+  <li><strong>我们的插件拿到的是普通 Cordis 上下文</strong>，<code>on</code> 没被冻结也没被包装（加载路径：<code>dsh-app-boot/lib/index.js:862-877</code> → <code>cordis-plugin-loader/lib/index.js:537</code> → <code>cordis/lib/index.js:1053,1070</code>）。第一方在同类位置订阅会话事件的先例有好几个。</li>
+  <li><strong>订阅时建议显式写 <code>{ global: true }</code></strong>：未打作用域标的监听器本来就全局放行，写上更稳（<code>dsh-scope/lib/index.js:327-338</code> 的 332 行）。</li>
+  <li><strong>事件里带什么</strong>：<code>tool/call</code> 带工具名与参数，参数是模型给的原始 JSON 串——<code>JSON.parse(arguments).command</code> 就是那行命令，够认出 <code>gh issue close</code>。成功与否看 <code>tool/result</code> 的 <code>message.content[0].isError</code>；结构化退出码不在 <code>session/event</code> 里（只在正文文本的 <code>[exit code: N]</code>），要结构化得改用 <code>tools/result</code> 事件的 <code>result.value.exitCode</code>。</li>
+  <li><strong>注意别用错事件</strong>：<code>command/run</code> 是人打的斜杠命令，不是 shell 命令，不能拿来认 gh。</li>
+</ul>
+
+<h3>必须实测才能确认的六件事</h3>
+<ol>
+  <li>运行期我们的上下文是否确实未打作用域标、监听器是否真的被调用（读代码只能证明"未打标就放行"）。</li>
+  <li><code>{ global: true }</code> 到底必需不必需（依赖上一条）。</li>
+  <li>运行时生效的是哪个 profile（web 还是 desktop）与哪个 preset；若是 <code>ptc</code>，内层工具调用会以另一种形态送达，只订 <code>tool/call</code> 会漏。<b>（2026-09-24 已查清：跑的是 Web 系档案，预设默认 <code>standard</code>；但进程级环境变量 <code>DSH_TOOLS_MODE=ptc</code> 会让 <code>standard</code> 会话也变内层形态。见 <code>research/dsh-platform-facts-2026-09-24.md</code>）</b></li>
+  <li>Windows 上实际生效的 shell 工具叫 <code>bash</code> 还是 <code>pwsh</code>（读代码推不出）。<b>（2026-09-24 已查清：是 <code>pwsh</code>，<code>bash</code> 那一行在 win32 上被显式关掉）</b></li>
+  <li>插件加载之前发生的历史事件收不到（事件是即时推送），补历史只能读会话日志。<b>（2026-09-24 已查清补课接口：</b><code>ctx.sessionQuery</code> <b>的</b> <code>listSessions()</code> <b>与</b> <code>readSession(id)</code><b>，读取不会把会话变活）</b></li>
+  <li>子代理会话的工具调用是否真被我们看见（代码路径指向同一个存储，但属结构性推断）。</li>
+</ol>
+
+<div class="callout">
+  <p><b>2026-09-24 补记：</b>上面这六件事里，第三、四、五条已经查清（读 DSH 安装目录的打包代码得出，证据见 <code>research/dsh-platform-facts-2026-09-24.md</code>，对应票据 #717）。第三、四条的结论与这份记录里的说法一致，第五条补上了具体接口。另外查出两处需要更正的说法：会话事件里叫 <code>tool/result</code>（单数），<code>tools/result</code> 是另一套 Cordis 运行时事件（它反而是更省事的订阅点，一次给全工具名、已解析参数与结构化结果）；本机这一版会话事件共 <b>56</b> 条，不是 57 条。还剩第一、二、六条要在插件落地时实测。</p>
+</div>
+
+<h2><span class="num">第四部分</span>15 个待你拍板的问题</h2>
+<p class="section-intro">每题四段：问什么、为什么现在问（前提已经确定）、选项、我的推荐。它们互相独立，你可以一次答完。</p>
+
+<p class="grp">A 组 · 目标与节拍（Q1–Q6）</p>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q1</span><h3>"及时"到底写几秒，以及为它常态花多少额度</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">(A) 常态探测 <b>5 秒</b>一次（每小时 720 条 REST，占 REST 配额 14%），目标写成"别处发生变化 ≤10 秒落到界面"；(B) 常态 15 秒、只有你刚写过东西后的 60 秒内加速到 5 秒（每小时约 240 条，5%），目标只能写"≤20 秒"。</p></div>
+    <div class="q-row"><p class="lab">为什么</p><p class="txt">目标延迟一旦写进文档，就决定了常态探测频率——两者是同一件事。差别只体现在"别人（你的 AI、网页、手机）改的那张票，多久出现在你眼前"。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>选 A。</b>额度账算得过来（REST 14% + 行级增量后 GraphQL 约 4%，闸是 35%），而"及时"是你这次的第一诉求；B 省下的额度换来的正是你最不想要的那种迟钝。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">探测节拍、闸的份额分配、以及"体验目标"那一节的所有数字。</p></div>
+  </div>
+</section>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q2</span><h3>额度紧张（红档）时，你亲手写的那一次要不要也停</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">牺牲顺序是"先降别处变化的灵敏度 → 再降后台对账 → 最后才动本地写入的即时性"。但"最后动"有两种解释：① <b>永不降档</b>——给"用户写入触发的刷新"留固定 10% 保底额度（500 点），红档也照做；② 红档全停，连你刚写的也不刷，等你手动点。</p></div>
+    <div class="q-row"><p class="lab">为什么</p><p class="txt">这决定"额度用完时这个面板还有没有用"。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>选 ①。</b>你亲手做的动作看不到结果，这个面板就失去存在意义。500 点按整池重换算约每小时 38 次、按行级补行算几百次，足够。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">闸的保底份额与降档顺序的写法。</p></div>
+  </div>
+</section>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q3</span><h3>整池重建还剩哪些用途；切进工作区要不要做一次对账</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">有行级增量之后，整池重建只剩"冷启动"和"对账"。对账触发条件：① 定时兜底（10 分钟一次）；② 数量与计数对不上；③ 出现没见过的票号、或有票号消失；④ <b>每次切进工作区都做一次</b>。</p></div>
+    <div class="q-row"><p class="lab">为什么</p><p class="txt">④ 是唯一有代价的：做了最稳（能发现"票被删掉"这种增量看不见的事），代价是每次切开一个工作区最多 13 点。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec">①②③ 都做，<b>④ 不做</b>。切进来只做"一次探测 + 补变的那几条"（最坏 1~2 点，秒开），"票被删了"交给 10 分钟兜底。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">行级增量与整池对账的分工、切工作区的最坏花费。</p></div>
+  </div>
+</section>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q4</span><h3>写入之后、数据回来之前的那一秒，界面显示什么</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">① 什么都不显示（可能让人以为没点到，重复操作）；② 给那一行加一个"更新中"的淡标记，<b>不改状态</b>；③ 先按你的意图把那行画成新状态，等远端确认。</p></div>
+    <div class="q-row"><p class="lab">为什么</p><p class="txt">仓库既有纪律是"不做乐观更新"（动作不承诺结果）。③ 直接违背它。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>选 ②。</b>不违背纪律，又让你知道点到了。③ 明确否决——那是"面板说已关闭、其实没关"这类谎话的来源。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">界面在写入窗口期的表现。</p></div>
+  </div>
+</section>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q5</span><h3>切回一个后台工作区：先出旧数据，还是等新的</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">① 先用手上那份旧数据铺满（≤100 毫秒）+ 标"更新中" + ≤5 秒补齐；② 显示加载态，等新的到了再画。</p></div>
+    <div class="q-row"><p class="lab">为什么</p><p class="txt">"切工作区"是你最高频的动作；两条路的差别是"秒开但可能先看到旧数据"还是"绝不显示旧数据但每次都慢一下"。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>选 ①。</b>秒开比"绝不显示旧数据"重要得多；旧数据配一个诚实标记就够了。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">切换时的界面行为与"更新中"标记的用法。</p></div>
+  </div>
+</section>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q6</span><h3>文档形态与范围</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">定稿要新增两章（体验目标与降档顺序、行级增量刷新）、一节（前提与待确认项）、以及落地清单与门禁。做成一份单页，还是拆成"架构"与"落地规格"两份？</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>一份单页。</b>门禁清单必须跟架构规则放在一起读——规则和它的自动检查一旦分开，迟早对不上，而这次整套设计的价值恰恰在于"规则有自动检查兜着"。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">文档改稿的结构。</p></div>
+  </div>
+</section>
+
+<p class="grp">B 组 · 看见写操作（Q7–Q9）</p>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q7</span><h3>"看见 agent 写操作"是必须满足的前提，还是可选的加速项</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">最坏情况下（平台不给事件、也不给注册工具），能不能接受定稿的最终形态是"agent 写的票最多 5 秒被探测发现"？另一个选项是把它当必须满足的前提——平台不给就改用"把 gh 包一层、要求 agent 必须走我们的工具"来换取"看得见"。</p></div>
+    <div class="q-row"><p class="lab">为什么</p><p class="txt">这决定定稿是"自己就能成立"还是"吊在一个外部能力上"。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec">把"≤5 秒探测发现"做成<b>定稿自身的能力</b>（不依赖平台），把"看得见写操作"当成<b>可选加速项</b>（有就 ≤2 秒）。任何"必须经过我们的工具"的强约束，只要被绕过一次（你自己开终端、换个 agent、手机上改），面板就会静默过期——而那正是这次要根治的病。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">"前提"那一节怎么写，以及它跟平台能力的关系。</p></div>
+  </div>
+</section>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q8</span><h3>要不要明说"不复活 #345 删掉的那条路"</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">#345 删掉的 issuePath 链（状态栏胶囊 + 提及识别 + 4 秒轮询 + 事件队列）与本次要做的事不是同一件——那张票关心的是"给我看这张票的链接"，我们要的是"远端变了要刷新"。但实现的人翻开 <code>sync.js</code> 会看到同一套词汇，很可能误以为该把它复活。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>写一句明确的边界</b>：本次重建的是"写后刷新"，与 issuePath 那条路无关，旧链的删除维持现状。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">落地清单里"别碰什么"的说明。</p></div>
+  </div>
+</section>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q9</span><h3>合同层那批"有常量没人产生"的死词汇怎么处置</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt"><code>sync.js</code> 的四个事件源常量今天没有任何生产者（只有测试引用），日志契约文档里两条 <code>issuePath.*</code> 事件的落点也已不存在。① 一并删干净（常量、文档表、测试断言）；② 保留词汇表，由新架构接管命名；③ 先不动。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>选 ①，</b>新写的写事件用新名字。这次调查之所以要在两套代码间来回核对，一半原因是"留着但没人产生"——合同层里放着一批没有生产者的常量，就是在给下一个读代码的人挖坑。（这条我拿不准，所以要你定。）</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">落地清单里"清理项"的范围。</p></div>
+  </div>
+</section>
+
+<p class="grp">C 组 · 机制选择（Q10–Q13）</p>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q10</span><h3>"看见写操作"走哪条路</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">(A) 订阅会话事件，从工具调用参数里认出 <code>gh</code> 写命令（被动、不需要任何一方配合、不改变 agent 的工作方式）；(B) 注册我们自己的 gh 读写工具，让 agent 走它（主动，但靠提示词纪律，绕过就看不见）；(C) 加一道守卫，拒绝裸 <code>gh</code> 写命令，逼 agent 走我们的工具（最强也最侵入，而且不能改写命令，只能放行/拒绝/询问）。</p></div>
+    <div class="q-row"><p class="lab">为什么</p><p class="txt">平台三条路都能走（证据见第三部分），所以这是纯取舍。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>只做 A</b>，B 留作以后有明确需求时的可选加速项，<b>明确否决 C</b>。A 不需要任何人配合；C 会把插件变成"必须经过的关卡"——一旦换 preset、换 agent、或你在终端里直接跑，它要么炸要么形同虚设，而且它连人类斜杠命令都拦不住。代价要认：A 是尽力而为的加速项（脚本里绕一层就认不出），所以探测兜底不能取消。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">落地清单里"写事件源"的形态。</p></div>
+  </div>
+</section>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q11</span><h3>认哪些算"可能改变了远端"</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">① 只认 <code>gh</code> 的写子命令；② 再加 <code>git push</code>；③ 再加我们自己的工具调用；④ 成功判定：命令一发出就刷新，还是只认成功（看 <code>tool/result</code>）？</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec">①②③ 都认，<b>并且只认成功</b>。命令发出就刷会在命令失败时白花一次重建；等结果是零成本（都在同一条本地事件流里）。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">写事件的判定规则。</p></div>
+  </div>
+</section>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q12</span><h3>"能订到会话事件"要不要先实测再写进定稿</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">机制证据齐了，但我们的插件（bundle 形态）实际能不能收到事件没有实测过。定稿里写成"待确认的未知依赖"，还是"已确认的前提 + 落地第一步就验"？</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec">写成<b>后者</b>：定稿的底线能力仍是不依赖平台的那条（≤5 秒探测），事件命中时升级到 ≤2 秒。这样即使实测不通，架构一个字都不用改，只是少了一格加速。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">"前提与待实测项"那一节的内容与顺序。</p></div>
+  </div>
+</section>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q13</span><h3>要不要顺势改回 DSH 原生链路</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">我们的宿主侧今天遮蔽了真的 <code>harness</code>、走自建的 <code>/api/dsws</code> 通道。要用原生能力，是否顺手把整条跨进程通话链路换回原生？</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>不换。</b>订阅事件用 <code>ctx.on</code>、注册工具用 <code>ctx.tools.register</code>，两者都通过 <code>ctx</code>，与通道无关；为了一个加速项去翻新整条通话链路，风险远大于收益。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">落地清单里"不动什么"的边界。</p></div>
+  </div>
+</section>
+
+<p class="grp">D 组 · 覆盖范围（Q14–Q15）</p>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q14</span><h3>订阅范围与用法</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">事件免费（纯本地，不花配额），所以可以订所有会话：(a) 只订当前活跃工作区的会话——事件只用于"立即刷新"；(b) 订所有会话——活跃的立即刷新，后台的<b>只标脏、不取数</b>（切回来时优先取数）。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>选 (b)。</b>它不花配额、不违反"后台不烧钱"（标脏是零成本的本地状态），但把"切回一个刚被 AI 改过的工作区"从"先旧数据、5 秒后补齐"变成"先旧数据、立刻补齐"。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">订阅的注册范围与"脏标记"的用法。</p></div>
+  </div>
+</section>
+
+<section class="q">
+  <div class="q-head"><span class="id">Q15</span><h3>要不要把覆盖面做到最大</h3></div>
+  <div class="q-body">
+    <div class="q-row"><p class="lab">问什么</p><p class="txt">只订 <code>tool/call</code> 会漏两种情形：跑 <code>ptc</code> preset 时（形态是另一种事件）、以及拿不到结构化退出码时。(a) 只订 <code>tool/call</code>，命中即刷；(b) 订三种事件（<code>tool/call</code> + 内层派发 + <code>tools/result</code>），合并判定，并用结构化退出码判断成功；(c) 只订两种工具调用，不看成功与否。</p></div>
+    <div class="q-row"><p class="lab">推荐</p><p class="txt rec"><b>选 (b)。</b>判定逻辑稍复杂（三种形态归一到同一个"看到一次写操作"的结论），但换来"不管你跑哪种 preset、不管命令是 bash 还是 pwsh，插件都看得见"，而且不会在命令失败时白花一次重建。<br><b>2026-09-24 补记（读源码所得）：</b>还有一条更省事的路——只订运行时事件 <code>tools/result</code> 这一条，它同时覆盖原生调用与 <code>ptc</code> 内层派发，且直接给出工具名、已解析的参数对象、是否出错与结构化结果；代价是它不落盘、插件加载之前的调用收不到。另外更正：会话事件里叫 <code>tool/result</code>，<code>tools/result</code> 是 Cordis 运行时事件，两者不是同一个东西。落地时在 (b) 与这条之间定。见 <code>research/dsh-platform-facts-2026-09-24.md</code>。</p></div>
+    <div class="q-row"><p class="lab">答完解锁</p><p class="txt unlock">写事件识别的完整形状与实测项（哪种 preset、哪个 shell）。</p></div>
+  </div>
+</section>
+
+<h2><span class="num">第五部分</span>设计树：现在走到哪一步了</h2>
+<div class="tree">
+  <div class="tr-row done">
+    <div class="side">已定<span>不需要你再拍板</span></div>
+    <div class="main">定稿架构的三层 + 一道闸；三个场景的走查结论；四条补法（体验目标与降档顺序、行级增量刷新、在途合并的旁路、切换探测的最小间隔）；"看见写操作"的技术路线（订阅会话事件，不改通道、不逼 agent 换工具）。</div>
+  </div>
+  <div class="tr-row done">
+    <div class="side">已查清<span>事实基础</span></div>
+    <div class="main">插件看不见 agent 的 gh 命令（历史与今天都看不见）；DSH 给了插件注册工具与订阅会话事件的能力；我们的插件拿到的是普通 Cordis 上下文，同类订阅在第一方有先例；事件的形状与"成功判定"的取法；六条必须实测的事项。</div>
+  </div>
+  <div class="tr-row open">
+    <div class="side">等你回答<span>Q1–Q15</span></div>
+    <div class="main">目标延迟与常态节拍、红档保底、对账范围、写入窗口的界面表现、切换体验、文档形态、写事件是"加速项"还是"前提"、历史死词汇的处置、三条技术路线取舍、判定规则、实测时机、通道去留、订阅范围、覆盖范围。</div>
+  </div>
+  <div class="tr-row blocked">
+    <div class="side">等你答完才问<span>预计最后 1 轮</span></div>
+    <div class="main">预计只剩收尾问题：写事件的判定放在宿主还是客户端、脏标记的有效期、以及"体验目标"表里每一格对应的验收方式。</div>
+  </div>
+</div>
+
+<h2><span class="num">第六部分</span>你答完之后会发生什么</h2>
+<ol>
+  <li><strong>重算前沿</strong>，问最后一轮收尾问题（预计 2~4 个）。</li>
+  <li><strong>改定稿文档</strong>：新增「体验目标与降档顺序」一章、「行级增量刷新」一章、「前提与待实测项」一节；落地清单补上两个代码隐患与清理项；门禁清单加四条（最坏用量、唯一出口、后台零定时器、诚实显示有读取点）。</li>
+  <li><strong>重算数字</strong>：按 Q1 的选择把"最坏每小时用量"重算一遍（行级增量后，绿档大约是 REST 14% + GraphQL 4%）。</li>
+  <li>确认之后再谈开工——按"常量真源 → 收口 → 视野 → 单价 → 链与服务 → 诚实显示 → 门禁"的顺序落地，每段以门禁转绿为完成标志。</li>
+</ol>
+
+<div class="callout">
+  <p><b>过程中有两处我要更正，记在这里：</b></p>
+  <p>① 我最初把"代码现状"与"架构应该怎样"混在同一段里讲，你指出之后，我改成了三层分开说（环境与平台事实 / 架构规则 / 今天代码的坑）。<br>
+     ② 我说过"已经派了一路去查我们插件能不能订到事件"——当时只是打算派，实际没派出去；下一轮才补上，也就是这份文档第三部分的第三路。</p>
+</div>
+
+<h2><span class="num">第七部分</span>速答表（照着回编号就行）</h2>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>编号</th><th>一句话问题</th><th>我的推荐</th></tr></thead>
+  <tbody>
+    <tr><td class="k">Q1</td><td>目标延迟写几秒＋常态探测花多少额度</td><td class="cell-good">A：常态 5 秒，"别处变化 ≤10 秒"</td></tr>
+    <tr><td class="k">Q2</td><td>红档时你亲手写的那次要不要也停</td><td class="cell-good">① 永不降档，留 10% 保底</td></tr>
+    <tr><td class="k">Q3</td><td>切进工作区要不要做整池对账</td><td class="cell-good">①②③ 做，④ 不做</td></tr>
+    <tr><td class="k">Q4</td><td>写入窗口那一秒界面显示什么</td><td class="cell-good">② 淡标记"更新中"，不改状态</td></tr>
+    <tr><td class="k">Q5</td><td>切回后台工作区：先旧数据还是等新的</td><td class="cell-good">① 先旧数据 + ≤5 秒补齐</td></tr>
+    <tr><td class="k">Q6</td><td>文档做成一份还是两份</td><td class="cell-good">一份单页</td></tr>
+    <tr><td class="k">Q7</td><td>看见写操作是前提还是加速项</td><td class="cell-good">加速项；底线是 ≤5 秒探测</td></tr>
+    <tr><td class="k">Q8</td><td>要不要明说"不复活 #345 那条路"</td><td class="cell-good">要写这句</td></tr>
+    <tr><td class="k">Q9</td><td>合同层死词汇怎么处置</td><td class="cell-warn">① 删干净（这条我拿不准）</td></tr>
+    <tr><td class="k">Q10</td><td>三条技术路线走哪条</td><td class="cell-good">只做 A（订阅事件），否决 C</td></tr>
+    <tr><td class="k">Q11</td><td>认哪些算"可能改了远端"</td><td class="cell-good">gh 写 + git push + 我们的工具，且只看成功</td></tr>
+    <tr><td class="k">Q12</td><td>"能订到事件"要不要先实测</td><td class="cell-good">写成"前提 + 落地第一步验"</td></tr>
+    <tr><td class="k">Q13</td><td>要不要改回 DSH 原生通道</td><td class="cell-good">不换</td></tr>
+    <tr><td class="k">Q14</td><td>订阅范围：只订活跃还是订全部</td><td class="cell-good">(b) 订全部，后台只标脏</td></tr>
+    <tr><td class="k">Q15</td><td>覆盖范围：订几种事件</td><td class="cell-good">(b) 三种，合并判定</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2><span class="num">第八部分</span>全部决定（Q1–Q27 的答案）</h2>
+<p class="section-intro">这一节是这场拷问的收口：每个问题的最终答案。定稿文档已按这一栏改过。</p>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>编号</th><th>问题</th><th>最终决定</th></tr></thead>
+  <tbody>
+    <tr><td class="k">Q1</td><td>目标延迟与常态探测节拍</td><td>A：常态 5 秒探测；目标"别处变化 ≤10 秒落到界面"</td></tr>
+    <tr><td class="k">Q2</td><td>红档时你亲手写的那次要不要也停</td><td>① 永不降档：写入保底 10%（500 点），同一工作区 10 秒合并一次</td></tr>
+    <tr><td class="k">Q3</td><td>整池重建还剩哪些用途</td><td>①②③ 做（定时 10 分钟 / 数量对不上 / 票号增减），④ 不做（切进来不整池）</td></tr>
+    <tr><td class="k">Q4</td><td>写入窗口那一秒界面显示什么</td><td>② 极轻的视觉状态（复用现有机制），不改状态、不改布局；已确认指的是面板内写操作，不是刷新按钮</td></tr>
+    <tr><td class="k">Q5</td><td>切回后台工作区：先旧数据还是等新的</td><td>① 先铺旧数据（≤100 毫秒）+ ≤5 秒补齐</td></tr>
+    <tr><td class="k">Q6</td><td>文档形态</td><td>一份单页</td></tr>
+    <tr><td class="k">Q7</td><td>看见写操作是前提还是加速项</td><td>加速项；底线是"≤5 秒探测"，不依赖任何平台能力</td></tr>
+    <tr><td class="k">Q8</td><td>要不要复活 issuePath（会话在处理哪些票）</td><td>目标认可；实现改为"从会话事件顺带知道"（零 token、不需 AI 上报）；后端无关（键 = 工作区根 + 后端 + 票 key）</td></tr>
+    <tr><td class="k">Q9</td><td>合同层死词汇怎么处置</td><td>删干净（无生产者的常量、日志契约里失效的两行、相关断言）；新写事件用新名字</td></tr>
+    <tr><td class="k">Q10</td><td>三条技术路线走哪条</td><td>订阅事件（A）+ 提供工具（B）都做；否决拒绝裸 gh 的守卫（C）</td></tr>
+    <tr><td class="k">Q11</td><td>认哪些算"可能改了远端"</td><td>三档：确定写→立即补行；可疑（脚本 / curl / WebFetch / 认不出的远端 MCP / <code>git push</code>）→立即探测；其余→5 秒兜底。只认成功</td></tr>
+    <tr><td class="k">Q12</td><td>"能订到事件"要不要先实测</td><td>写成"前提 + 落地第一步就验"；万一订不到则退回 5 秒底线</td></tr>
+    <tr><td class="k">Q13</td><td>要不要改回 DSH 原生通道</td><td>不换（bundle 插件本来就没有沙箱 harness）；自建对象改名 <code>hostCalls</code> + 注释 + 一条五行探针</td></tr>
+    <tr><td class="k">Q14</td><td>订阅范围</td><td>(b) 订全部会话；后台工作区只标脏、不取数</td></tr>
+    <tr><td class="k">Q15</td><td>覆盖范围：订几种事件</td><td>(b) 三种形态合并判定，用结构化退出码判成功</td></tr>
+    <tr><td class="k">Q16</td><td>工具层定位</td><td>(a) 一套实现两个入口：内部直接调函数，工具层只是给 AI 的薄壳</td></tr>
+    <tr><td class="k">Q17</td><td>工具面多大、坐在哪一层</td><td>(a) 坐在 tracker 契约之上、后端无关；最终 7 个工具</td></tr>
+    <tr><td class="k">Q18</td><td>工具是强制规范还是帮手</td><td>(a) 强制最小规范 + 返回值说明"我替你加了什么"</td></tr>
+    <tr><td class="k">Q19</td><td>要不要改工作规范</td><td>(c) 先不改、不动 setup 写入工作区的内容；观察后再决定是否升格为 tools-first</td></tr>
+    <tr><td class="k">Q20</td><td>工具与 gh 并存时的重复</td><td>(a) 轻量幂等（同标题 + 同标签 5 分钟）；长期方向 tools-first、gh 兜底</td></tr>
+    <tr><td class="k">Q21</td><td>工具清单</td><td>通过 7 个：context / issue_get / map_snapshot / issue_create / <b>map_plan_create</b> / map_link / issue_patch</td></tr>
+    <tr><td class="k">Q22</td><td>AI 怎么知道当前后端</td><td>(b) 返回值里带 + <code>deck_context</code> 兜底；不把后端说明塞进每个工具描述</td></tr>
+    <tr><td class="k">Q23</td><td>动作提示词里的硬编码</td><td>落地后单独立票清理；动手前先盘清（已完成：33 种命令 / 111 处 / 14 个文件）</td></tr>
+    <tr><td class="k">Q24</td><td>工具描述要不要加门禁</td><td>不加，只写编辑纪律，不给方案加复杂度</td></tr>
+    <tr><td class="k">Q25</td><td>处理链算不算本次范围</td><td>数据侧进定稿；UI 呈现另立一票</td></tr>
+    <tr><td class="k">Q26</td><td>工具清单是否通过</td><td>认可（含唯一的批量工具 <code>deck_map_plan_create</code>）</td></tr>
+    <tr><td class="k">Q27</td><td>处理链记多长</td><td>每会话最近 20 张（去重、时间倒序、落盘）</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="note">定稿已同步改过：新增第十～第十三章（体验目标与降档顺序、行级增量刷新、会话与票的处理链、对抗式审查），并把探测节拍与最坏用量重算为"5 秒探测 + 行级增量"（绿档 REST ≈17%、GraphQL ≈3~4%）。</p>
+<p class="note"><b>后续修正（两支独立对抗审查之后，见定稿第十四章）：</b>上面表格里有四条<b>已被改掉</b>，以定稿为准——① Q2 的"永不降档"收窄为<b>只对人在界面上点的动作</b>（AI 的工具调用单列一档、超顶拒绝）；② Q3 的对账触发条件换成"整扫回来出现缺失的票号，且不是被 500 行上限卡住的"（原来的"数量与计数对不上"会永久触发）；③ I2 的"后台零定时器"改成"刚离开的工作区保留最多 30 秒收尾节拍"；④ 常态 5 秒探测只给"正在看的那个"，刚离开的降到 15~30 秒。</p>
+
+<footer>
+  <h3>这份文档是什么、不是什么</h3>
+  <p style="margin-top:0">它是一次<b>拷问记录 + 事实核查</b>的汇总：你上一句话（让我查"插件能不能看见 agent 的写操作"、并开始拷问）之后发生的全部事情。它<b>不是</b>定稿——定稿仍然是 <code>docs/architecture/refresh-budget-architecture.html</code>，在你回答这 15 个问题、我们确认对齐之后我才会改它。</p>
+  <h3>事实从哪来</h3>
+  <ul>
+    <li>三路调查全部是<b>只读</b>：读 DSH 安装目录里的包与源码映射、读本仓库源码与文档；命令只在侧边栏终端里跑过只读的 git 查询与读文件，没有修改任何文件。</li>
+    <li>本仓库侧的关键出处：<code>src/host/repoKeys.js:28,46,81-89,105</code>、<code>src/host/platformChannel.js:190</code>、<code>src/shared/tracker/sync.js:23-26,69-72</code>、<code>src/host/index.js:18,20-35</code>、<code>docs/research/session-rename-failure-paths.md:5,10</code>、提交 <code>6c51e71</code>（#345）。</li>
+    <li>DSH 侧的关键出处：<code>dsh-cordis-host-runner/lib/types/sandbox.js:28-35,117-133</code>、<code>guard.js:560-563,569</code>、<code>dsh-tool-cordis/lib/index.js:4269,5412-5425,921-988</code>、<code>dsh-session/lib/index.js:1195-1202,1428-1447</code>、<code>dsh-scope/lib/index.js:327-338</code>、<code>cordis/lib/index.js:258-264,1053,1070</code>、<code>dsh-app-boot/lib/index.js:862-877</code>、<code>dsh-api-session-controller/lib/typert.host.js:1717</code>、<code>dsh-agent-loop/lib/index.js:686-713</code>。</li>
+    <li>还没实测的六件事列在第三部分末尾；定稿会把它们写成"前提 + 落地第一步就验"。</li>
+  </ul>
+</footer>
+
+</div>
+</body>
+</html>
