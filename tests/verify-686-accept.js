@@ -65,9 +65,15 @@ async function main () {
   }
   const all = [ghM, glM, mdM]
   const stOf = (id) => ({ selection: { backendId: id }, backendModules: all, snapshot: { selection: { backendId: id }, repository: { refId: 'x/y' }, backendModules: all } })
+  // 三个后端各自「只有它自己那一份科目会说」的一句话，用来认出渲染出来的正文里带的是谁的那份文本。
+  // 旧表里的三条期望已经过期（提交 8a78970「提示词里不再写死 GitHub：能做的改走工具」改的正是这些文案）：
+  //   GitHub 那份从「点名 gh issue list」改成「查数与动手都走工具」，所以 gh issue list 在真源里已经
+  //   一个字都不剩 —— 而那正是那次改动的目的（本条门禁第六组自己也断言总纲里不许出现具体跟踪器命令）；
+  //   GitLab 中文那句加了一个「也」字（解析率也还没用真仓库量过）。
+  // 现在这三条按真源里的原话取，仍然只认「这段文本里带着自家科目的原话」这一件事。
   const MARK = {
-    github: { zh: 'gh issue list', en: 'gh issue list' },
-    gitlab: { zh: '解析率还没用真仓库量过', en: 'has not been measured' },
+    github: { zh: '这条后端查数与动手都走工具', en: 'On this backend, counting and acting both go through the tools' },
+    gitlab: { zh: '解析率也还没用真仓库量过', en: 'has not been measured' },
     markdown: { zh: 'map.md', en: 'map.md' },
   }
   const ALLOWED_LEFT = ['owner', 'repo', 'child', 'map', 'id', 'blocker', 'blocker_id']

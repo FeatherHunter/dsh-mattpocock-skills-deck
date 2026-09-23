@@ -72,13 +72,26 @@ function listJsFiles(dir) {
 }
 
 // 四、调用处不等写盘：全仓无等待记、等待发、等待转发的写法。
+// 同名函数豁免（#710 的写事件订阅随 #723 接线）：src/host/refresh/writeEvents.js 里自己声明了一个取数函数
+//   fire（`async function fire(…)`，它 await 的是闸的 gate.send，与日志发射没有关系）。
+//   JS 的 scoping 里，同文件自己声明的函数本来就会遮蔽外来的同名函数，所以「这个文件里自己声明过这个名字」
+//   就等于「这个文件里的这个名字不是日志发射」。这与上一条「模块懒加载不算等待写盘」是同一类豁免：
+//   只豁免同文件自己声明的同名函数，别的文件照旧一处不漏。
 {
   const files = listJsFiles(path.join(ROOT, 'src', 'host')).concat(listJsFiles(path.join(ROOT, 'src', 'client')))
   const hits = []
   for (const f of files) {
     const rel = path.relative(ROOT, f)
-    fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
-      if (/await\s+(log|fire|rlog|sendLogBatch)\s*\(/.test(line)) hits.push(rel + ' 第 ' + (i + 1) + ' 行：' + line.trim().slice(0, 100))
+    const text = fs.readFileSync(f, 'utf8')
+    const locallyDeclared = {}
+    for (const nm of ['log', 'fire', 'rlog', 'sendLogBatch']) {
+      locallyDeclared[nm] =
+        new RegExp('(?:^|[^A-Za-z0-9_$.])(?:async\\s+)?function\\s+' + nm + '\\s*\\(').test(text) ||
+        new RegExp('(?:^|[^A-Za-z0-9_$])(?:const|let|var)\\s+' + nm + '\\s*=').test(text)
+    }
+    text.split('\n').forEach((line, i) => {
+      const awaited = /await\s+(log|fire|rlog|sendLogBatch)\s*\(/.exec(line)
+      if (awaited && !locallyDeclared[awaited[1]]) hits.push(rel + ' 第 ' + (i + 1) + ' 行：' + line.trim().slice(0, 100))
       if (/await\s+host\.call\s*\(\s*['"]wf\.logBatch['"]/.test(line)) hits.push(rel + ' 第 ' + (i + 1) + ' 行：' + line.trim().slice(0, 100))
       // 模块懒加载（_log 等动态 import 的承诺）只等模块文本不等落盘，不算等待写盘。
       if (/(?:^|[^A-Za-z0-9_$])(?:log|fire|rlog)\s*\([^();]*\)\s*\.then\s*\(/.test(line) && !/(_log|_boot|_plat|_repo|_naming)\(\)\.then|import\s*\(/.test(line)) hits.push(rel + ' 第 ' + (i + 1) + ' 行：' + line.trim().slice(0, 100))

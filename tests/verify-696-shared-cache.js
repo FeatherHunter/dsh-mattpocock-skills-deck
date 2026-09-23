@@ -11,7 +11,7 @@
  * 覆盖（按票面验收逐条）：
  *   A. 钥匙：子目录与根同钥匙，兄弟不同（真跑 canonicalWorkspaceKey）。
  *   B. 面板快照表：先后命中不重建、并发只重建一次、A/B 互不干扰、强制只写自己根、写操作只清自己根、20 条上限与 60 秒有效。
- *   C. 链快照表：先后命中（直接表行为）、A/B 隔离、并发共用同一份、30 秒有效、全绿才存的纪律还在。
+ *   C. 链快照表：先后命中（直接表行为）、A/B 隔离、并发共用同一份、退避与全绿寿命、全绿才存的纪律还在。
  *   D. 静态钉住单格不回来 + 日志纪律（复用已有四个事件名，不新增，字段只用白名单）。
  *   E. 本门禁已挂进 npm run verify 链。
  *
@@ -169,7 +169,7 @@ async function main() {
     must(Date.now() - missCheck.ts >= 60000, '60 秒前的条目已过期（下次按过期重建，不按空算）', 'age=' + (Date.now() - missCheck.ts))
   }
 
-  title('C) 链快照表：先后、隔离、并发、30 秒与全绿纪律')
+  title('C) 链快照表：先后、隔离、并发、退避与全绿纪律')
   {
     const table = makeChainTable()
     const kA = K.repo + '|github|zh'
@@ -180,10 +180,10 @@ async function main() {
     must(table.getChainCache(kB).value === null, '另一个工作区拿不到这条链（不同桶）', 'sibling=' + JSON.stringify(table.getChainCache(kB).value))
     must(table.getChainCache(K.repo + '|markdown|zh').value === null && table.getChainCache(K.repo + '|github|en').value === null,
       '链键还带后端与语言：换后端或换语言算另一条', 'md/en miss')
-    // 30 秒有效：旧条目过期
+    // 这张假表只按键存取、读的时候不判过期（真判定现在住退避模块里）：这里验的是它把 ts 原样留着。
     table.setChainCache({ ts: Date.now() - 31000, key: kA, value: vA })
     const old = table.getChainCache(kA)
-    must(Date.now() - old.ts >= 30000, '30 秒前的链条目已过期', 'age=' + (Date.now() - old.ts))
+    must(Date.now() - old.ts >= 30000, '假表按键存着旧条目、读时不判过期', 'age=' + (Date.now() - old.ts))
     // 20 条上限
     for (let i = 0; i < 21; i++) table.setChainCache({ ts: Date.now(), key: 'k' + i, value: { marker: i } })
     must(table.map.size === 20, '链表最多留 20 条，超出丢最久没用的', 'size=' + table.map.size)
@@ -211,8 +211,16 @@ async function main() {
     must(detects === 1, '同根并发只求值一次（后端只算一次）', 'detects=' + detects)
     must(chainFires.some((f) => f.event === 'dedup.hit' && f.fields && f.fields.scope === 'chain'), '同根并发的后来者在途命中记 dedup.hit（作用域为链）', JSON.stringify(chainFires.filter((f) => f.event === 'dedup.hit')))
     const chainSrc = read('src/host/detectChain.js')
-    must(/chainNotAllDone/.test(chainSrc), '链没全绿不存的纪律还在（未全绿不写 30 秒缓存）', '纪律被删')
-    must(/CHAIN_CACHE_MS\s*=\s*30000/.test(chainSrc), '链缓存 30 秒有效', 'TTL 被改')
+    const budgetSrc = read('src/shared/refresh/budget.js')
+    const backoffSrc = read('src/host/refresh/chainBackoff.js')
+    must(/chainNotAllDone/.test(chainSrc), '链没全绿不存的纪律还在（未全绿不写缓存）', '纪律被删')
+    // 旧断言盯的是 `CHAIN_CACHE_MS = 30000` 这个写死在 detectChain.js 里的常量 —— #709（T5）之后它已经不在了：
+    // 「这条链什么时候该重算」与「全绿结论还能用多久」改成按缓存键的退避，数字的唯一真源是
+    // src/shared/refresh/budget.js（退避阶梯 CHAIN_BACKOFF_MS、全绿寿命 CHAIN_ALL_GREEN_TTL_MS），
+    // 判定落在 src/host/refresh/chainBackoff.js。旧期望不是「漏了个数字」，是整个设计换掉了，所以改成钉新设计。
+    must(!/CHAIN_CACHE_MS/.test(chainSrc), '链的寿命不再写死在 detectChain.js 里（不是那一个 30 秒常量了）', '旧常量还在')
+    must(/CHAIN_BACKOFF_MS\s*=/.test(budgetSrc) && /CHAIN_ALL_GREEN_TTL_MS\s*=/.test(budgetSrc), '退避阶梯与全绿寿命在数字的单源里（budget.js）', '数字 missing')
+    must(/verdict\(key/.test(backoffSrc) && /_stateByKey\.get\(key\)/.test(backoffSrc), '该不该重算由退避按缓存键判（键还是那条键）', '退避 missing')
   }
 
   title('D) 静态钉住单格不回来 + 日志纪律')
@@ -230,7 +238,11 @@ async function main() {
     must(/getCache\(cwd\)/.test(refSrc), '强制刷新读自己根那条（脏回执按根算年龄）', '仍读单格')
     const detSrc = read('src/host/detectChain.js')
     must(/chainInflight/.test(detSrc) && /chainDedupKey/.test(detSrc), '链在途合并在', '合并 missing')
-    must(/getChainCache\(cacheKey\)/.test(detSrc), '链读命中只读自己那条键', '仍读单格')
+    // 旧断言找的是 `getChainCache(cacheKey)`：那时「命中」是 detectChain 自己拿键去读宿主那张表。
+    // #709（T5）之后这一步交给退避模块判（它按缓存键记态、按键回上一份快照），detectChain 这一侧要钉的是
+    // 「交给退避的是这条链自己的键」，以及「写回那张表时也只写这条键」。
+    must(/backoff\.verdict\(\s*cacheKey\b/.test(detSrc), '链读命中只读自己那条键（按这条链的键问退避）', '未按键问退避')
+    must(/setChainCache\(\{\s*ts:\s*Date\.now\(\),\s*key:\s*cacheKey/.test(detSrc), '链写回那张表也只写自己那条键', '未按键写回')
     must(!/key-changed/.test(detSrc), '链未命中不再比单格键（不同键是不同条目）', '旧键比较还在')
     const bindSrc = read('src/host/workspaceCwd.js')
     must(/setCache\(\{\s*ts:\s*0[^}]*cwd:\s*cwd\s*\}\)/.test(bindSrc), '绑定写操作只清自己根', '仍清全部')

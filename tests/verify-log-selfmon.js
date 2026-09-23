@@ -24,6 +24,11 @@ const settingsSrc = readSrc(path.join('src', 'client', 'views', 'SettingsPage.js
 // #596：46 的发射点（分发 catch 与通道注册失败记账）随协议代码搬进 rpcChannel.js，门禁跟着它走，
 // 否则这段代码搬到哪、门禁就瞎到哪（附录 1.6 的落点列已同步改成这个文件）。
 const dispatchSrc = readSrc(path.join('src', 'host', 'rpcChannel.js'))
+// #515：errorKind 的那几个字面（auth / network / notfound / exit / internal）从来不在发射点旁边，而在
+// 分发异常的归类函数里；那段归类随 #515 从 host/index.js 搬进 dispatchMeta.js 之后，原来只扫 index.js 的
+// 枚举检查就再也看不见 exit 了（附录 1.6 一直写着它，属于门禁的实现面漏了文件，不是登记缺失）。
+// 所以实现面 = 发射点（rpcChannel.js）+ 归类函数（dispatchMeta.js）两处，缺一处这门禁就会对着空气断言。
+const metaSrc = readSrc(path.join('src', 'host', 'dispatchMeta.js'))
 
 // 一、五事件逐个有点名（注释不算，只算代码里的加引号事件名）。
 {
@@ -117,9 +122,15 @@ const dispatchSrc = readSrc(path.join('src', 'host', 'rpcChannel.js'))
   for (const w of ['host.dispatch.error', 'log.persist.fail', 'log.forward.summary', 'log.switch.watchdog', 'log.export.fail']) {
     check(appendix.includes(w), '附录 1.6 含 ' + w)
   }
+  // 附录这一面的判据原来写的是 appendix.includes(w) —— 整份八百多行的附录里出现过这个子串就算数，
+  // 「exitCode 退出码」这类别的行也能把它喂饱，等于没判。收紧成「附录末尾那段『枚举取值』的行里
+  // 逐个点名了它」：那一段才是这些取值的登记处，这才对得上「附录与实现一致」这句话。
+  // 那一段找不到时后面七条会整组红，所以先把它在不在单独钉一条（免得红得莫名其妙）。
+  const enumNote = appendix.split('\n').filter((l) => l.indexOf('枚举取值') >= 0).join('\n')
+  check(enumNote.length > 0, '附录有「枚举取值」那一段（本组判据的附录面）')
   for (const w of ['queue-full', 'packet-trim', 'send-fail', 'host-reject', 'path-missing', 'waiting-host', 'exit']) {
-    const inSrc = indexSrc.includes(w) || storeSrc.includes(w) || logSrc.includes(w) || menuSrc.includes(w) || settingsSrc.includes(w)
-    check(appendix.includes(w) && inSrc, '枚举 ' + w + ' 附录与实现一致')
+    const inSrc = indexSrc.includes(w) || storeSrc.includes(w) || logSrc.includes(w) || menuSrc.includes(w) || settingsSrc.includes(w) || metaSrc.includes(w)
+    check(enumNote.includes(w) && inSrc, '枚举 ' + w + ' 附录与实现一致')
   }
   const pkg = JSON.parse(readSrc(path.join('package.json')))
   check(pkg.scripts.verify.includes('verify-log-selfmon.js'), '本门禁已接入 npm run verify 链')

@@ -46,12 +46,24 @@ const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
   const badN = hits.filter((h) => h.n !== 80 && h.n !== 120 && h.n !== 160)
   check(badN.length === 0, '截断字数只许 80、120、160 三档' + (badN.length ? ' —— 越界：' + badN.map((h) => h.file + ' 用 ' + h.n).join('；') : '（实得字数 ' + Array.from(new Set(hits.map((h) => h.n))).sort().join('、') + '）'))
   // 错误散列行：先截断 120 字再散列，或纯散列；不许记错误原文。
+  // 「这一行本来就没有错误原文」的两个形状不算越界（判据写在值上，不是放行整个字段）：
+  //   ① 值就是空串（#690：issues.page 成功那一支写 errorHash: ''，那行没有错误可散）；
+  //   ② 散列结果先赋给局部变量再放进字段（#713：src/shared/deck-tools/shell.js 里
+  //      `const eh = hash8(…)` 在上一行、`errorHash: eh` 在这一行，散列调用不在同一行上）——
+  //      只认「这个变量名在本文件里确实由散列函数赋值过」；别的裸标识符照旧越界。
   let errHashBad = []
   for (const f of files) {
     const rel = path.relative(ROOT, f)
-    fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
-      if (!/errorHash\s*:/.test(line)) return
-      if (!/dswsLogTrunc\s*\(\s*[^,]+?,\s*120|hash8\s*\(/.test(line)) errHashBad.push(rel + ' 第 ' + (i + 1) + ' 行')
+    const src = fs.readFileSync(f, 'utf8')
+    src.split('\n').forEach((line, i) => {
+      const field = /errorHash\s*:\s*([^,}]*)/.exec(line)
+      if (!field) return
+      const value = field[1].trim()
+      if (value === "''" || value === '""') return
+      if (/dswsLogTrunc\s*\(\s*[^,]+?,\s*120|hash8\s*\(/.test(line)) return
+      const bare = /^([A-Za-z_$][A-Za-z0-9_$]*)$/.exec(value)
+      if (bare && new RegExp('(?:const|let|var)\\s+' + bare[1] + '\\s*=\\s*(?:hash8|dswsLogHash)\\s*\\(').test(src)) return
+      errHashBad.push(rel + ' 第 ' + (i + 1) + ' 行')
     })
   }
   check(errHashBad.length === 0, '错误只记散列（先 120 字截断再散列，或纯散列）' + (errHashBad.length ? ' —— 越界：' + errHashBad.join('；') : ''))

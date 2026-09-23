@@ -27,12 +27,11 @@ export function createDetectChain(deps) {
   }
   /** 探测级联那一侧用的执行器（签名 = platformChannel 的 detectionExec）。 */
   function scopedDetectionExec(scope) { return function (cmd, args, opts, via) { return scope.exec(cmd, args, opts, via) } }
-  // #723（T19）：默认超时不再写死在这里（数字住在 github/client.js 的 TIMEOUT_MS，由宿主接线传进来）。
+  // #723（T19）：默认超时不再写死在这里（数字住在 github/client.js 的 TIMEOUT_MS，由宿主接线经 ghTimeoutMs 传进来）。
   const CHANNEL_GH_TIMEOUT_MS = (typeof ghTimeoutMs === 'number' && ghTimeoutMs > 0) ? ghTimeoutMs : 30000
-  // #723（T19）：这一次求值的裁决与记账经闸落一笔（身份 = refreshSourceOf 算出来的那两个名字之一，
-  // 所以「谁按的、哪一档、什么时候」留在账上）。报给闸的条数写 0：这条链真正花出去的每一条出站请求
-  // 都由传输层各自报过一笔（repoKeys.runGh 与 detectionExec 里的 noteOutbound），这里再报一遍会把
-  // 同一笔数成两笔。闸没接上时照旧求值，只是这一笔不在账上（不抛，绝不为记账打断链）。
+  // #723（T19）：这一次求值的裁决与记账经闸落一笔（身份 = refreshSourceOf 算出来的那两个名字之一，所以
+  // 「谁按的、哪一档、什么时候」留在账上）。报给闸的条数写 0：这条链真正花出去的每一条出站请求都由传输层
+  // 各自报过一笔（repoKeys.runGh 与 detectionExec 的 noteOutbound），再报一遍会把同一笔数成两笔。
   async function noteChainEval(source, workspaceKey) {
     try {
       if (!gate || typeof gate.send !== 'function') return
@@ -74,7 +73,8 @@ export function createDetectChain(deps) {
         const cacheKey = cwd + '|' + String(args && args.backendId || '') + '|' + chainLang
         // #709（T5）：退避与全绿缓存这一段由纯函数裁定。人亲手点「重新检查」（trigger='user-recheck'）
         // 永不降档，无论退到第几档都照做；其余三种事件按退避判，挡下的那一次直接回上一份快照。
-        const backoff = await getChainBackoff()
+        // 接线没给退避模块（或它取不到）时按「取不到」处理、照旧求值：可选的加速件不该把整条链打成「链失败」（src/host/repoKeys.js 里同一处依赖也是先判有没有这个函数）。
+        const backoff = (typeof getChainBackoff === 'function') ? await getChainBackoff().catch(function () { return null }) : null
         const nowMs = Date.now()
         const v = backoff
           ? await backoff.verdict(cacheKey, nowMs, { trigger: trigger })

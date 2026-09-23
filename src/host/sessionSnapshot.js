@@ -1,8 +1,20 @@
 // src/host/sessionSnapshot.js —— 会话快照电话（H4 #448 从 host/index.js 310–658 搬出电话体，早选前奏改调共享判据，纯结构、行为零变化）。
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
+// 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给。
+// #723（T19）：信封组装（字段清单与落盘那一步的日志）搬到了同目录的 ./snapshotEnvelope.js —— 这个文件
+// 贴着 350 行上限，要让出位置把「每个会话在处理哪些票」的读数挂到快照回包上（票面 3e）。搬的时候只搬不改。
+import { createSnapshotEnvelope } from './snapshotEnvelope.js'
+
+// 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 export function createSessionSnapshot(deps) {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, getChoiceStore } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, getChoiceStore, envelope, chainReadout } = deps
+  // #723（T19）：快照信封（字段清单 + 落盘那一步的 snapshot.built 日志）搬到了 ./snapshotEnvelope.js
+  // （这个文件贴着 350 行上限，要让出位置挂「每个会话在处理哪些票」的读数）。没注入时现造一个，
+  // 行为与搬前逐字一致 —— 单测里手工拼实例的那几处就靠这条兜底。
+  const env = envelope || createSnapshotEnvelope({ getGhPath: getGhPath, getGhLastError: getGhLastError, adoptSnapshot: adoptSnapshot, logCtx: logCtx })
+  const buildSnap = env.buildSnap
+  const adoptSnapLog = env.adoptSnapLog
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
   let _dedupeP = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
@@ -21,33 +33,20 @@ export function createSessionSnapshot(deps) {
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   // #683（F1 · ADR 的 R6）：快照里带上记住的布局答案（同 R4 那条路：落后的那扇窗不靠它就永远停在老答案上）。
   async function readSetupLayoutOf(cwd) { try { const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore() : null; if (!cs || typeof cs.getLayout !== 'function') return null; const r = await cs.getLayout(cwd); return (r && r.found === true) ? { layout: r.layout, pickedAt: r.pickedAt } : null } catch (e) { return null } }
-  // 五条分支的快照同形，收在一处组装（#653：加字段改一处，免漏；repo 与 repoRoot 由调用方传入）。
-  function buildSnap(o) {
-    const snap = {
-      ok: true,
-      repo: (o.repo !== undefined ? o.repo : null),
-      repoRoot: o.repoRoot,
-      workspaceRoot: o.workspaceRoot,
-      updatedAt: new Date().toISOString(),
-      generatedMs: Date.now(),
-      env: { ghPath: getGhPath(), ghError: getGhLastError() },
-      maps: o.maps, issues: o.issues, labels: o.labels,
-      repository: (o.repository !== undefined ? o.repository : null),
-      backendModules: o.backendModules,
-      selection: o.selection,
-      setupLayout: (o.setupLayout !== undefined ? o.setupLayout : null),
-      capabilities: null,
-      viewer: (o.viewer !== undefined ? o.viewer : null),
-      viewerLogin: (o.viewerLogin !== undefined ? o.viewerLogin : null),
-      deck: o.deck, fallback: (o.fallback === 'rest' ? 'rest' : null), refresh: (o.refresh || null),
-    }
-    return snap
-  }
   let snapSampleN = 0
   const snapshotInflight = new Map() // #696 在途合并：同钥匙同后端同强制标记的并发共用同一份重建，强制刷新不进表
-  // #689：snapshot.built 多了三个字段（open / closed 是后端计数给的真值、拿不到记 -1；partial 说这份行数据全不全）—— 加在既有事件里不新增一条（每次重建都会走到这里），字段表见 research/489-appendix.md 第 1 章。
-  async function adoptSnapLog(snap, c) { try { if (logCtx && snap && snap.fromCache !== true) { const _d = (snap.deck && typeof snap.deck === 'object') ? snap.deck : {}; const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null; logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } } catch (e) {} return adoptSnapshot(snap, c) }
-  async function handleSnapshot(args) {
+  // #723（T19）票面 3e：把「每个会话在处理哪些票」的读数挂到快照回包上（#721 界面上那一块读的就是它）。
+  // 包在最外一层而不是写进 buildSnap：短路那两条回的是缓存里**同一个对象**，写进去会把读数的时刻冻在
+  // 缓存落盘那一刻。读数由接线处传进来的 chainReadout 现算；没接上就不挂这个字段 —— 界面会如实说
+  // 「处理链读不到」，不拿空列表冒充「没有人在处理票」。
+  function withChainReadout(reply) {
+    if (!reply || typeof reply !== 'object' || reply.ok !== true) return reply
+    if (typeof chainReadout !== 'function') return reply
+    try { reply.sessionTickets = chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
+    return reply
+  }
+  async function handleSnapshot(args) { return withChainReadout(await snapshotOf(args)) }
+  async function snapshotOf(args) {
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const now = Date.now()
       // 第一性原理分发前置：先算 selection，再决定缓存与数据链路（避免旧 GitHub 缓存遮住 Markdown）
