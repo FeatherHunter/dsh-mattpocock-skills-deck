@@ -1,8 +1,8 @@
 // src/host/detectChain.js —— H3 #447 从 host/index.js 639-884 搬出，纯结构、行为零变化。
 // 以后谁改它：改探测编排或检查链快照的人。预估约260行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给。
-// #709（T5 补）新增一处引用：./refresh/refreshSource.js —— 判「这一次求值是谁在按」（人亲手点 / 插件自己）。
 import { refreshSourceOf } from './refresh/refreshSource.js'
+import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
 
 export function createDetectChain(deps) {
   const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, ghTimeoutMs } = deps
@@ -322,11 +322,10 @@ export function createDetectChain(deps) {
           return steps.some(function (s) { return s.status !== 'done' })
         })()
         if (!chainNotAllDone) setChainCache({ ts: Date.now(), key: cacheKey, value: result })
-        // #709（T5）：把这一份快照记进退避态。链上多出一步 done 才算进展（重跑拿到一样的结果不算），
-        // 有进展立刻回第一档；没进展就往后退一档，退到最慢那档就停在那里。
-        try { if (backoff) await backoff.note(cacheKey, fullSnapshot, Date.now()) } catch (eNote) {}
+        // #709（T5）：把这一份快照记进退避态。链上多出一步 done 才算进展（重跑拿到一样的结果不算），有进展立刻回第一档；没进展就往后退一档，退到最慢那档就停在那里。
+        try { if (backoff) await backoff.note(cacheKey, fullSnapshot, Date.now(), result) } catch (eNote) {}
         // #723（T19）：这一次求值的裁决与记账经闸落一笔（身份来自 refreshSourceOf，见 noteChainEval）。
-        await noteChainEval(chainSource, cwd)
+        await noteChainEval(chainSource, workspaceKeyOf(cwd))
         // #709（T5 补）这次求值的环境预检收尾：真问了几条、复用省掉了几次。按需级（debug，外层先判
         // 开关，关着连字段对象都不组装；按 docs/design/335-logging-contract.md 第 3 章判定），
         // 每次求值只落一行，只记工作区短指纹与计数，不记命令原文、不记路径原文、不记任何返回值。
@@ -342,6 +341,7 @@ export function createDetectChain(deps) {
         if (!force) { chainInflight.set(chainDedupKey, chainPending); try { return await chainPending } finally { chainInflight.delete(chainDedupKey) } }
         return await chainPending
       }catch(e){
+        try { const m = String((e && e.message) || e); if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: hash8(m), errorKind: (/is not a function|is not defined|of undefined|of null/i.test(m) ? 'missing-dep' : (/timeout|timed out/i.test(m) ? 'timeout' : 'throw')) }) } catch (eL) {}   // #724：异常也留一行（从前静默吞掉，真机查了两天没有原文）；errorKind 把「接线没给全」（missing-dep）与「跑起来真失败」（throw）分开
         return { ok: false, error: String((e && e.message)||e) }
       }
   }

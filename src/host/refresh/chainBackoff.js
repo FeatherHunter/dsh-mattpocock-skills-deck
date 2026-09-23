@@ -5,7 +5,8 @@
 //   ① 把 budget.js 里的那四个数字取出来装成 BackoffLimits；
 //   ② 把每个工作区（严格说是每条链的缓存键）的退避态记在内存里；
 //   ③ 把「这一刻该不该重算」的结论连同原因代号交回调用方；
-//   ④ 顺手保管「这个键上最近那一份快照」——被退避挡下的那一次就拿它直接回，界面不会因此白屏。
+//   ④ 顺手保管「这个键上最近那一份快照与那一次那份完整回包」——被退避挡下的那一次就把完整回包原样回，
+//      界面不会因此白屏（#724：从前回的是光一份快照，客户端认不出来，于是每次没带 force 的取数都失败）。
 //
 // 本文件**不排任何定时器**，一条都没有。退避给出的 waitMs 只是「按规则还差多久」，不是「请挂一个
 // 等这么久的循环」：下一次求值只可能由四种事件带起来（切进工作区、点「重新检查」、做完可能改变它的
@@ -16,7 +17,7 @@
 export function createChainBackoff(deps) {
   const { logCtx } = deps || {}
 
-  /** 每个链缓存键：{ step, evaluatedAtMs, allGreen, snapshot, doneCount }。丢了最多多查一次，不落盘。 */
+  /** 每个链缓存键：{ step, evaluatedAtMs, allGreen, snapshot, doneCount, result }。丢了最多多查一次，不落盘。 */
   const _stateByKey = new Map()
   let _backoff = null
   let _limits = null
@@ -69,33 +70,43 @@ export function createChainBackoff(deps) {
    * 其余情况交给纯函数按退避判。取不到纯函数（发布包里没有源码树）时一律 needed ——
    * 宁可照旧多算一次，也不要因为读不到规则而让检查页僵在那里。
    *
-   * 返回 { needed, reason, waitMs, cached }：cached 是被退避挡下时可以直接回给界面的上一份快照。
+   * 返回 { needed, reason, waitMs, cached }：cached 是「被退避挡下时可以直接回给界面的那一份」。
+   *
+   * #724 修正（真机 107 次全败的真身）：这里从前回的是**光一份快照**（{steps, currentIndex, …}），
+   * 而调用方（src/host/detectChain.js）在退避挡下时把它**原样**当了回包交回去。客户端认的回包形状是
+   * `res.ok && (res.fullSnapshot || res.snapshot)`（src/client/kernel/probe-chain.js），一份光快照没有 ok
+   * 那一栏 → 客户端判成「回话里没有内容」，于是每次没带 force 的取数都失败（界面那一格于是永远是 --，
+   * 而宿主这边其实早就有读数）。所以现在记的是**上一次那份完整回包**，退避挡下就原样回它；
+   * 拿不到完整回包时才退回光快照（诚实降级，不编一个 ok:true）。
    */
   async function verdict(key, nowMs, opts) {
     const st = _stateByKey.get(key) || null
     const snap = st ? st.snapshot : null
+    const lastReply = st ? (st.result || st.snapshot) : null
     const trigger = String((opts && opts.trigger) || '')
     const r = await ready()
-    if (!r) return { needed: true, reason: 'backoff-unavailable', waitMs: 0, cached: snap }
+    if (!r) return { needed: true, reason: 'backoff-unavailable', waitMs: 0, cached: lastReply }
     if (trigger === 'user-recheck') {
       try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.backoff', { keyHash: hash8(key), decision: 'user-recheck-bypass' }) } catch (eL) {}
-      return { needed: true, reason: 'user-recheck-bypass', waitMs: 0, cached: snap }
+      return { needed: true, reason: 'user-recheck-bypass', waitMs: 0, cached: lastReply }
     }
     const v = r.backoff.chainRefreshVerdict(st ? { step: st.step, evaluatedAtMs: st.evaluatedAtMs, allGreen: st.allGreen } : null, nowMs, r.limits)
     // 手里一份快照都没有的时候必须算：否则界面第一次进来就没东西可画（退避不该把首屏也拦住）。
-    if (!v.needed && !snap) return { needed: true, reason: 'no-snapshot-yet', waitMs: 0, cached: null }
+    // 有快照、却没有完整回包（旧版本写下的状态）时也照样真算一次 —— 免得把一份客户端认不出的回包递出去。
+    if (!v.needed && (!snap || !st.result)) return { needed: true, reason: snap ? 'no-full-reply-yet' : 'no-snapshot-yet', waitMs: 0, cached: null }
     try {
       // 常驻一条：这是「后台零定时器」之后唯一还能回答「为什么这次没查」的地方，查问题时全靠它。
       if (logCtx) logCtx.fire('info', 'chain.backoff', { keyHash: hash8(key), decision: v.needed ? 'recompute' : 'defer', reason: String(v.reason || ''), waitMs: Math.max(0, Math.floor(Number(v.waitMs) || 0)), step: st ? st.step : 0, trigger: trigger || 'event' })
     } catch (eL) {}
-    return { needed: !!v.needed, reason: String(v.reason || ''), waitMs: Math.max(0, Math.floor(Number(v.waitMs) || 0)), cached: snap }
+    return { needed: !!v.needed, reason: String(v.reason || ''), waitMs: Math.max(0, Math.floor(Number(v.waitMs) || 0)), cached: lastReply }
   }
 
   /**
-   * 记一次求值结果：把这一份快照留下、按「有没有进展」推进或回退档位。
+   * 记一次求值结果：把这一份快照与**这一份完整回包**留下、按「有没有进展」推进或回退档位。
    * progressed 由这里自己判——链上多出一步 done 才算进展，重跑一次拿到一样的结果不算。
+   * `result` 是可选的那一份完整回包（detectChain 交出来的、客户端认的那形状）；给了就在退避挡下时原样回它。
    */
-  async function note(key, snapshot, nowMs) {
+  async function note(key, snapshot, nowMs, result) {
     const st = _stateByKey.get(key) || null
     const prevDone = st ? Number(st.doneCount) || 0 : 0
     const done = doneCountOf(snapshot)
@@ -103,7 +114,7 @@ export function createChainBackoff(deps) {
     const progressed = done > prevDone
     const r = await ready()
     const step = r ? r.backoff.advanceChainStep(st ? st.step : 0, progressed, r.limits) : 0
-    _stateByKey.set(key, { step: step, evaluatedAtMs: Number(nowMs) || Date.now(), allGreen: allGreen, snapshot: snapshot, doneCount: done })
+    _stateByKey.set(key, { step: step, evaluatedAtMs: Number(nowMs) || Date.now(), allGreen: allGreen, snapshot: snapshot, doneCount: done, result: (result && typeof result === 'object') ? result : null })
     // 缓存变更记一行（#709 新增内存缓存：命中 / 未命中 / 过期 / 写回四件事都要看得见）。
     try {
       if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.write', { keyHash: hash8(key), allGreen: allGreen, doneCount: done, step: step, progressed: progressed })

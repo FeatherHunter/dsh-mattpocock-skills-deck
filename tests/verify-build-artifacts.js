@@ -149,9 +149,10 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // 按翻了几页算价钱的算式）与 src/shared/refresh/backend-quota.js（每个后端的额度桶形状与按后端算价），
   // 两份都由 refresh-core/src/*.ts 转译而来，总数 +2 到 44；同一天另一个代理收尾时删掉了
   // src/shared/refresh/__diag-attention.mjs（一个临时诊断脚本，源码侧已不在），总数落到 43。
+  // #724：宿主接线与检查链两边共用同一份「闸的工作区钥匙」纯逻辑，新增 src/shared/refresh-workspace-key.js，总数 43→44。
   // 这个数是「src/shared 树里实际有几个文件」，会随别的票增减 —— 每次改完记得重跑本门禁对数。
-  check(srcSharedFiles.length === 43, `src/shared 43 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 43, `package/shared 43 文件（实得 ${pkgSharedFiles.length}）`)
+  check(srcSharedFiles.length === 44, `src/shared 44 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 44, `package/shared 44 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

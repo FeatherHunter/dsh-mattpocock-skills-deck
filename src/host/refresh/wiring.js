@@ -31,6 +31,11 @@ import { createDeckToolsForHost, DECK_TOOL_FILES } from '../platform/deckToolsAs
 import { createPatchForHost } from '../platform/refreshAssembly.js'
 import * as budget from '../../shared/refresh/budget.js'
 import * as toolCost from '../../shared/refresh/tool-cost.js'
+// #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（理由见那个文件的文件头：
+// 宿主层的文件之间不许互相引用，而链求值那一侧也要用同一把钥匙）。本文件把它转出来，
+// 于是「活跃集合、写事件白名单、七个 deck_* 工具、行级增量、检查链记账」五处用的是同一个函数。
+import { hash8, workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
+export { workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
 
 /** 把一堆依赖包装成「取一次、以后复用」的惰性实例（模块加载失败不许把整个插件带崩）。 */
 function once(fn) {
@@ -42,16 +47,6 @@ function once(fn) {
     }
     return box.value
   }
-}
-
-/** 短散列：与仓库其它地方同款（只用来在日志与内存表里指代一个工作区，不落路径原文）。 */
-function hash8(s) {
-  try {
-    const t = String(s || '')
-    let h = 5381
-    for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0)
-    return ('0000000' + h.toString(16)).slice(-8)
-  } catch (e) { return '00000000' }
 }
 
 /**
@@ -178,7 +173,7 @@ export function createRefreshWiring(deps) {
    * （policy.js 的 background-inactive：后台档不在活跃集合里就一次都不发）—— 接线看起来接上了、
    * 实际一笔都发不出去。所以这两个去处必须由同一份「当前在看谁」同时喂，钥匙也必须是同一把：
    * writeEvents 过闸时带的 workspaceKey 是它自己的短散列（rootHash，见 writeEvents.js 的 fire），
-   * 闸按那把钥匙认活跃集合，所以这里标活跃用的也是 hash8(root)。
+   * 闸按那把钥匙认活跃集合，所以这里标活跃用的也是同一把（#724 起只有一处实现：workspaceKeyOf）。
    */
   async function syncAttention() {
     let roots = []
@@ -188,12 +183,12 @@ export function createRefreshWiring(deps) {
     } catch (e) { roots = [] }
     for (const root of roots) {
       if (allowed.indexOf(root) < 0) { try { await writeEvents.allowRoot(root) } catch (eA) {} }
-      try { gate.setWorkspace(hash8(root), { active: true }) } catch (eG) {}
+      try { gate.setWorkspace(workspaceKeyOf(root), { active: true }) } catch (eG) {}
     }
     for (const root of allowed) {
       if (roots.indexOf(root) < 0) {
         try { writeEvents.forgetRoot(root) } catch (eF) {}
-        try { gate.setWorkspace(hash8(root), { active: false }) } catch (eG2) {}
+        try { gate.setWorkspace(workspaceKeyOf(root), { active: false }) } catch (eG2) {}
       }
     }
     allowed = roots
@@ -202,9 +197,9 @@ export function createRefreshWiring(deps) {
 
   /** 一个工作区现在算不算活跃（闸裁决的输入之一：不在活跃集合里的后台档一次都不发）。 */
   function noteWorkspaceActive(root, active) {
-    // 与 syncAttention 用同一把钥匙（hash8(root)）：散列层级不同就会让活跃集合里那一格认不出来，
+    // 与 syncAttention 用同一把钥匙（workspaceKeyOf）：散列层级不同就会让活跃集合里那一格认不出来，
     // 于是这条路上的每一笔都被判「推迟」（#723 复核抓到的那个「接上了却没走通」）。
-    try { return gate.setWorkspace(hash8(String(root || '')), { active: !!active }) } catch (e) { return null }
+    try { return gate.setWorkspace(workspaceKeyOf(root), { active: !!active }) } catch (e) { return null }
   }
 
   /** b 真订阅。宿主入口在 apply 里调一次（attach 要一个 ctx）。 */
@@ -264,10 +259,11 @@ export function createRefreshWiring(deps) {
           },
           hourUsage: function () { try { return ledger.hourOf('ai-tool') || {} } catch (e) { return {} } },
           log: logCtx || null,
-          // #723（T19c）：工作区键用与活跃集合同一把短散列（hash8(root)）——**不许**在这里用别的归一
+          // #723（T19c）：工作区键用与活跃集合同一把短散列（workspaceKeyOf）——**不许**在这里用别的归一
           // （散列层级不同、长度不同、空串，都会让闸里那一格从来不是活跃，于是每一笔都被判推迟；
-          // 这一条有门禁盯着：tests/verify-deck-tools-host-wiring.js 与 verify-delta-wiring.js）。
-          workspaceKeyOf: function (cwd) { return hash8(String(cwd || '')) },
+          // 这一条有门禁盯着：tests/verify-deck-tools-host-wiring.js 与 verify-delta-wiring.js，
+          // 另加 #724 的「同一个工作区根在闸里只许有一格」tests/verify-refresh-workspace-key.js）。
+          workspaceKeyOf: workspaceKeyOf,
           now: Date.now,
         })
         return Object.assign({ reason: '', files: DECK_TOOL_FILES }, built)
@@ -298,7 +294,7 @@ export function createRefreshWiring(deps) {
         decide: function (req) { return gate.decideFor(req) },
         // 与活跃集合、写事件白名单同一把短散列（见 syncAttention）：不一致的后果是探测这一条路
         // 每一笔都被判「推迟」——门禁里的「真的放行过」那条断言会当场抓住。
-        workspaceKeyOf: function (cwd) { return hash8(String(cwd || '')) },
+        workspaceKeyOf: workspaceKeyOf,
         now: Date.now,
         logCtx: logCtx,
       })

@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709：83 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724：84 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -46,7 +46,7 @@ const ALLOWED = {
   'platform.resolve': ['name', 'ok', 'latencyMs'],
   'naming.sweep': ['trigger', 'count'],
   'host.call': ['method', 'latencyMs', 'ok', 'kind', 'pluginId'],
-  'host.call.fail': ['method', 'kind', 'errorHash', 'pluginId'],
+  'host.call.fail': ['method', 'kind', 'errorHash', 'pluginId', 'errorKind'],
   'snapshot.hydrate': ['cwdHash', 'fresh', 'latencyMs', 'source', 'winnerVersion', 'loserVersion', 'outcome'],
   'snapshot.fanout': ['sessionIdHash', 'stale', 'force', 'count'],
   'dedup.hit': ['scope', 'keyHash'],
@@ -142,6 +142,11 @@ const ALLOWED = {
   'chain.event': ['reason'],
   'naming.guard.event': ['reason'],
   'chain.preflight.reuse': ['cwdHash', 'checks', 'reused', 'userAction'],
+  // 2026-09-25 #724 新增一条常驻事件（附录 1.4 节 #88 `host.dispatch.empty`）：处理函数回话了、回话里却没有
+  //   可用内容 —— 分发这一层唯一看得见这种形状的地方。三个键都是短的：哪条电话（method）、哪一种形状
+  //   （shape：no-value / null-value / no-error，也就是缺的是哪一个键）、服务这一份的版本（version，
+  //   读不到就是 unknown）。不记入参原文、不记回话内容、不记路径；业务性的正常失败回参不触发它。
+  'host.dispatch.empty': ['method', 'shape', 'version'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],
