@@ -97,6 +97,11 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
   const probeSkills = typeof skillProbe === 'function' ? skillProbe : async () => ({ ok: true, missing: [], probes: {} })
 
   async function detect(handle, opts = {}) {
+    // #709（T5 补）一次评估里环境预检只花一次：调用方可以为自己这一次求值交来一个「外部命令执行器」，
+    //   本函数这一整轮（含下面那次 preflight）都用它。检查链那边交来的是一个包过的执行器，
+    //   同一轮里成名的两条预检命令（登录态、仓库可达）因此只真问一次，后端链的谓词复用同一份结论。
+    //   没交（其它调用方，例如 wf.detect）就照原样用注入进来的那个 exec —— 少省那两条，行为不变。
+    const execForThisRound = (typeof opts.exec === 'function') ? opts.exec : exec
     // 规整钥匙（地图 #278 A 方案）：workspaceStore 按 handleKey=cwd|refId 分桶，写读删必须同形。
     // 入口先洗 cwd（空值保持空串——上层 handler 已回退 DEFAULT_CWD；洗钥匙异常则回退原串）。
     if (handle && typeof handle.cwd === 'string' && handle.cwd) {
@@ -242,7 +247,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
 
     // ③ matches > fallback（经 registry.select，含 pending/multiHit + 超时 3000ms + AbortSignal）
     if (!selection) {
-      const opCtx = buildOpContextBase(cwd, platform, fs, timers, exec, 'detect-select')
+      const opCtx = buildOpContextBase(cwd, platform, fs, timers, execForThisRound, 'detect-select')
       // 若调用方传 signal，可在此注入 opCtx.signal = opts.signal（registry withTimeout 内部会合并）
       if (opts.signal) opCtx.signal = opts.signal
       opCtx.caller = 'detection-service'; selection = await registry.select(handle, opCtx)
@@ -262,7 +267,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       try {
         const tracker = registry.get(selection.backendId)
         if (tracker && typeof tracker.preflight === 'function') {
-          const opCtx2 = buildOpContextBase(cwd, platform, fs, timers, exec, 'detect-preflight')
+          const opCtx2 = buildOpContextBase(cwd, platform, fs, timers, execForThisRound, 'detect-preflight')
           if (opts.signal) opCtx2.signal = opts.signal
           // preflight 可能经 ghClient 走 subprocess，需传 platform
           opCtx2.platform = platform

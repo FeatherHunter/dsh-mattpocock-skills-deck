@@ -767,6 +767,24 @@
       "count": 1,
       "owner": "#683 F1",
       "note": "F1 装配：用户选的后端那份状态文件（H）的实例在此建 —— 读它的是两处（绑定写入、判定读取），而它内部那条读-改-写队列必须全进程只有一条，所以两处共用这一个实例（与同文件里探测服务的装配同一类）"
+    },
+    {
+      "file": "src/host/detectChain.js",
+      "spec": "./tracker/detection/preflightScope.js",
+      "resolved": "src/host/tracker/detection/preflightScope.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#723 T19（宿主层接线与拆文件时收口）",
+      "note": "#709 新增功能：一次评估里环境预检（登录态、仓库可达）只许真问一次，链求值这一步要在求值开始时按目的动态加载那个复用位（一次一个、用完即弃），没法在上层预先注入（它活着的时间比任何装配实例都短）。要消掉这条边，得先把复用位挪进另一个层或改成不需要动态加载的形态 —— 那是一次单独的重构，记在这张票里会顺手改到别票的地盘"
+    },
+    {
+      "file": "src/host/detectChain.js",
+      "spec": "./refresh/refreshSource.js",
+      "resolved": "src/host/refresh/refreshSource.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#723 T19（宿主层接线与拆文件时收口）",
+      "note": "#709 新增功能：链求值这一步要判「这一次是人亲手点的还是插件自己的动作」（挂载时那一次强制刷新不许记成人手动过的），判据归 refreshSource.js 一处；链路顶层已在同层内（它本来就要加载 refresh/chainBackoff.js 与 tracker/detection/*），要消掉这条边得连同链求值这一步一起搬层，属单独重构"
     }
   ]
 }

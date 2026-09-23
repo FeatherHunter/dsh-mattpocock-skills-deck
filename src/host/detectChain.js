@@ -1,15 +1,48 @@
 // src/host/detectChain.js —— H3 #447 从 host/index.js 639-884 搬出，纯结构、行为零变化。
 // 以后谁改它：改探测编排或检查链快照的人。预估约260行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给；本文件不引用其他新文件。
+// 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给。
+// #709（T5 补）新增一处引用：./refresh/refreshSource.js —— 判「这一次求值是谁在按」（人亲手点 / 插件自己）。
+import { refreshSourceOf } from './refresh/refreshSource.js'
+
 export function createDetectChain(deps) {
-  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, logCtx } = deps
+  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   let chainSampleN = 0
   const chainInflight = new Map() // #696 在途合并：同钥匙同后端同语言同强制标记的并发共用同一份求值，强制不进表
   let lastPredAt = 0
   let lastPredStatus = {}
-  const CHAIN_CACHE_MS = 30000
+  /**
+   * #709（T5 补）一次评估的环境预检只花一次。
+   *
+   * 环境预检（登录态「gh auth status」、仓库可达「gh api repos/…」）不是实时数据，一次求值里从前被问
+   * 两遍（探测级联一遍、后端链的 gh:authed 与 gh:repoAccess 谓词各一遍），一次求值因此花 5 条 REST。
+   * 现在每次求值开一个只活在这一次里的复用位，谁先问出来谁写进去、后面再问的人直接拿那份 —— 降到 3 条。
+   * 三条边界（不是缓存、不跨评估串味、只有成功的才留下）都写在
+   * src/host/tracker/detection/preflightScope.js 的文件头。
+   */
+  async function openPreflightScope() {
+    try {
+      // 给它的执行器 = 宿主那条真出口（第 4 位是日志用的链名，runGh 只认前两位、多传不坏）。
+      const mod = await import('./tracker/detection/preflightScope.js')
+      if (typeof mod.createPreflightScope !== 'function') return null
+      return mod.createPreflightScope(function (cmd, args, opts, via) { return runGh(args, (opts && opts.cwd) || undefined, via) })
+    } catch (e) { return null }
+  }
+  /** 探测级联那一侧用的执行器（签名 = platformChannel 的 detectionExec）。 */
+  function scopedDetectionExec(scope) { return function (cmd, args, opts, via) { return scope.exec(cmd, args, opts, via) } }
+  /**
+   * 这条链上要问 gh 的时候走这里：有复用位就用它（同一轮里成名的预检只真问一次），没有就原样问。
+   * 问法的形状以探测级联那一条为准，而且默认超时也补上：复用位按「命令 + 工作目录 + 超时」认
+   * 「是不是同一件事」，两条路问法不一致就认不出来（实测踩过：一边带 30000、一边不带，白问两遍）。
+   */
+  const CHANNEL_GH_TIMEOUT_MS = 30000
+  function ghOptsFor(cwdIn) { return { cwd: cwdIn, timeout: CHANNEL_GH_TIMEOUT_MS } }
+  // #709（T5）：从前这里写死一个 30 秒缓存（CHAIN_CACHE_MS）。现在「下一次什么时候再算一次」整段
+  // 交给 refresh-core 的纯函数裁定（宿主薄壳 src/host/refresh/chainBackoff.js，数字真源是 budget.ts）：
+  // 8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档；全绿之后这份结论缓存 30 分钟。
+  // 触发只有四种事件（切进工作区、点「重新检查」、做完可能改变它的动作、写入成功之后）——宿主侧一个
+  // 自续定时器都没有；人亲手点「重新检查」的那一次带 trigger='user-recheck' 上来，它永不降档。
   async function handleDetect(args) {
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const force = !!(args && args.force)
@@ -25,31 +58,46 @@ export function createDetectChain(deps) {
         try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.detect', kind: 'detect', errorHash: hash8(String((e && e.message) || e)) }) } catch (eL) {}; return { ok: false, error: String((e && e.message) || e) }
       }
   }
-    // #228/#284 链渲染器主机侧：通用链 + 当前后端链求值快照（契约层纯函数求值，谓词只读探测，失败返回不抛，超时 pending）
-    // #284 增强：backend 谓词由 host 既有探测包装注册（repoRemote/repoAccess/ghAuth/mdParseOk），后端链不再只是声明。
-    // #284 修订（对抗式审查 2026-08-28）：30s per(cwd+backendId+lang) 缓存——面板多组件挂载不再重复 25 名技能探测与 gh 网络调用；
-    //   等待计数只随真实探针轮次（force）推进，不被 UI 刷新次数偷换。
+  /** 主机侧的链求值入口：通用链 + 当前后端的链，两段各自求值、最后拼成一份快照。 */
   async function handleChain(args) {
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const force = !!(args && args.force)
       const chainLang = (args && args.lang === 'en') ? 'en' : 'zh'
+      const trigger = String((args && args.trigger) || '')
+      // #709（T5 补）这一次求值是什么身份（人亲手点的 / 插件自己的动作）。插件自己也会调这个入口
+      //（挂载、快照回包、动作做完之后再补一次），那种调用不带 trigger。判据只有 refreshSource.js 一处：
+      // 带 trigger='user-recheck' 的算人的动作，其余一律归后台档 —— 挂载时那一次强制刷新走的正是后者。
+      // 不分开的话，账本会把插件自己的动作记成「人手动过」，而人的动作在闸上永不降档。
+      const chainSource = refreshSourceOf(trigger)
       if (force) resetGhCache()
       try{
-        // 缓存命中只读自己根那条（force 绕过；pending 结果不缓存——与旧 statusCache 同纪律）
         const cacheKey = cwd + '|' + String(args && args.backendId || '') + '|' + chainLang
-        const chainEntry = getChainCache(cacheKey)
-        if (!force && chainEntry.value && Date.now() - chainEntry.ts < CHAIN_CACHE_MS) {
-          try { if (logCtx && logCtx.isEnabled('debug') && ((++chainSampleN % 100) === 0)) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(cacheKey), lang: chainLang, ageMs: Date.now() - chainEntry.ts } }) } catch (eL) {}
-          return chainEntry.value
+        // #709（T5）：退避与全绿缓存这一段由纯函数裁定。人亲手点「重新检查」（trigger='user-recheck'）
+        // 永不降档，无论退到第几档都照做；其余三种事件按退避判，挡下的那一次直接回上一份快照。
+        const backoff = await getChainBackoff()
+        const nowMs = Date.now()
+        const v = backoff
+          ? await backoff.verdict(cacheKey, nowMs, { trigger: trigger })
+          : { needed: true, reason: 'backoff-unavailable', waitMs: 0, cached: null }
+        if (!v.needed) {
+          try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.hit', function () { return { keyHash: hash8(cacheKey), lang: chainLang, deferred: true, reason: v.reason, waitMs: v.waitMs } }) } catch (eL) {}
+          return v.cached
         }
-        try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (!chainEntry.value ? 'empty' : 'expired') } }) } catch (eL) {}
+        try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (v.reason || 'due') } }) } catch (eL) {}
         // #696 在途合并：同钥匙同后端同语言同强制标记共用同一份（另带修订号，免不同修订串份）；先回来的写缓存，后到的拿同一份；强制不参与合并
         const chainDedupKey = cacheKey + '|' + (force ? '1' : '0') + '|' + String((args && args.baseRev) || 0)
         if (!force) { const ongoingChain = chainInflight.get(chainDedupKey); if (ongoingChain) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return await ongoingChain } }
         const chainPending = (async function () {
         const platform = await getPlatform()
+        // #709（T5 补）：这次求值的环境预检复用位。开不出来（没这个模块）就是 null，后面照走原路。
+        const preflightScope = await openPreflightScope()
+        const ghTunnel = preflightScope ? scopedDetectionExec(preflightScope) : null
+        /** 这条链上要问 gh 的时候走这里：有复用位就用它（同一轮里成名的预检只真问一次），没有就原样问。 */
+        const ghAsk = ghTunnel || function (cmd, args, opts, via) { return runGh(args, (opts && opts.cwd) || undefined, via) }
         // 用户显式选择（客户端持久化绑定）作为 detect hint——「主锚 > 用户选择 > matches」层级，见 detectionService.detect
-        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 }) }).catch(function(){ return null })
+        // #709（T5 补）：这次探测的预检（登录态、仓库可达）走 ghTunnel —— 与下面后端链那两个谓词共用同一份
+        // 复用位，所以一次求值里这两条命令各只真问一次（从前各问两遍，一次求值 5 条 REST）。
+        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0, exec: ghTunnel || undefined }) }).catch(function(){ return null })
         // 2026-08-28 语义修正（锚即真相，Q4 契约）：落盘主锚（detect 的 explicit/matches 判定）是权威——
         //   工作区「错误地用 GitHub 模板初始化」→ 检测就是 github（工作区名字不影响检测）；
         //   客户端绑定仅在 detect 无结论（无锚 fallback null / 探测中）时兜底，旧绑定记忆不得篡改已落盘的真相。
@@ -96,7 +144,7 @@ export function createDetectChain(deps) {
             const zh = (pctx && pctx.lang) !== 'en'
             const rk = await getRepoKey(pctx && pctx.cwd || cwd)
             if (!rk || !rk.owner || !rk.name) return { status: 'fail', detail: zh ? '未找到 GitHub 仓库关联' : 'repo not located' }
-            const r = await runGh(['api', 'repos/' + rk.owner + '/' + rk.name], pctx && pctx.cwd || cwd)
+            const r = await ghAsk('gh', ['api', 'repos/' + rk.owner + '/' + rk.name], ghOptsFor(pctx && pctx.cwd || cwd), 'repoAccess')
             if (r.ok) return { status: 'pass', detail: zh ? 'GitHub 接口访问正常' : 'api.github.com 200' }
             // 2026-08-28 实机复核修正（用户反馈：仓库已找到却提示创建发布——错误）：只有「确定仓库不存在/无权限」
             //   （kind=notfound）才判 fail 并挂「创建并发布」修复动作；未登录（auth）/网络/其他异常一律 pending（诚实未知）——
@@ -109,7 +157,7 @@ export function createDetectChain(deps) {
           try {
             // 2026-08-29（审查 S1）：detail 双语——fail 说清「登录失效」，pending 如实区分网络与未知
             const zh = (pctx && pctx.lang) !== 'en'
-            const r = await runGh(['auth', 'status'])
+            const r = await ghAsk('gh', ['auth', 'status'], ghOptsFor(cwd), 'ghAuth')
             if (r.ok) { const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]; return { status: 'pass', detail: first || (zh ? '已登录' : 'Logged in') } }
             // 2026-08-28 实机修复：仅当明确「未登录」（kind=auth）才判 fail 并展示登录指引；
             //   网络失败/其他异常归 pending（诚实未知），避免在 TLS 网络抖动时误导用户「未登录」。
@@ -265,7 +313,7 @@ export function createDetectChain(deps) {
         const backendSnapE = (backendChain && backendChain.snapshot) ? enrichSnap(backendChain.snapshot, backendChain.resolved) : (backendChain && backendChain.snapshot)
         if (backendChain) backendChain.snapshot = backendSnapE
         fullSnapshot = enrichSnap(fullSnapshot, allResolved)
-        const result = { ok: true, backendId: backendId || null, chain: chainAndSnap.chain, resolved: chainAndSnap.resolved, snapshot: genericSnap, backendChain: backendChain, fullChain: fullChain, fullSnapshot: fullSnapshot }
+        const result = { ok: true, backendId: backendId || null, chain: chainAndSnap.chain, resolved: chainAndSnap.resolved, snapshot: genericSnap, backendChain: backendChain, fullChain: fullChain, fullSnapshot: fullSnapshot, chainSource: chainSource }
         // #284 修订 + 2026-08-28 B 方案（用户定版）：链未全绿（仍存在 pending/fail/current 步骤）不写 30s 缓存——
         //   未完成区是动态区（修复由对话/终端发生在链外），panel 轮询每次真探测，修复完成即自动变绿；
         //   全部通过（done）才缓存（全绿后零重复探测，client 轮询也随之停止）。
@@ -274,6 +322,20 @@ export function createDetectChain(deps) {
           return steps.some(function (s) { return s.status !== 'done' })
         })()
         if (!chainNotAllDone) setChainCache({ ts: Date.now(), key: cacheKey, value: result })
+        // #709（T5）：把这一份快照记进退避态。链上多出一步 done 才算进展（重跑拿到一样的结果不算），
+        // 有进展立刻回第一档；没进展就往后退一档，退到最慢那档就停在那里。
+        try { if (backoff) await backoff.note(cacheKey, fullSnapshot, Date.now()) } catch (eNote) {}
+        // #709（T5 补）这次求值的环境预检收尾：真问了几条、复用省掉了几次。按需级（debug，外层先判
+        // 开关，关着连字段对象都不组装；按 docs/design/335-logging-contract.md 第 3 章判定），
+        // 每次求值只落一行，只记工作区短指纹与计数，不记命令原文、不记路径原文、不记任何返回值。
+        try {
+          if (logCtx && logCtx.isEnabled('debug') && preflightScope) {
+            const askedN = preflightScope.asked()
+            logCtx.fire('debug', 'chain.preflight.reuse', function () {
+              return { cwdHash: hash8(cwd), checks: askedN, reused: preflightScope.reused(), userAction: trigger === 'user-recheck' }
+            })
+          }
+        } catch (eL) {}
         return result
         })()
         if (!force) { chainInflight.set(chainDedupKey, chainPending); try { return await chainPending } finally { chainInflight.delete(chainDedupKey) } }
