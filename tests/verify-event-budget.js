@@ -33,28 +33,42 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 /** 定稿第五章那个最坏场景的三个次数（每小时）。它们不是额度常量，是本门禁的输入参数。 */
 const SCENARIO = { switchesPerHour: 60, writeEventsPerHour: 60, changesPerHour: 60 }
 
+/** 重建那几页的单价，全部从 budget.js 取（门禁里不写任何一个额度或单价数字）。 */
+const PAGE_PRICES_OF = (b) => ({
+  listPagePoints: b.PAGE_COST_POINTS,
+  listPageRequests: b.LIST_PAGE_COST_REQUESTS,
+  prPagePoints: b.PR_PAGE_COST_POINTS,
+  prPageRequests: b.PR_PAGE_COST_REQUESTS,
+  countPoints: b.COUNT_COST_POINTS,
+  countRequests: b.COUNT_COST_REQUESTS,
+  prPageCount: b.REBUILD_PR_PAGE_COUNT,
+})
+
 /**
- * 定时那一半 + 事件那一半 = 每小时上界。b 是 budget.js（或它的变体），s 是场景次数。
+ * 定时那一半 + 事件那一半 = 每小时上界。b 是 budget.js（或它的变体），s 是场景次数，pb 是 page-budget.js。
  * 返回 { rest, reads, writes, points, timer, parts }：整桶、读那一部分、写那一部分、点数、
  * 只算定时器的对照值、逐项明细。
+ * 重建那一项按**页数上界**（budget.MAX_PAGES）算，与 verify-budget-worstcase 同一口径：
+ * 定稿第十四章写的是「最坏用量按页数上界算」，典型值（REBUILD_PAGE_COUNT 那一笔 13 点）只用来讲单价。
  */
-function hourlyBound(b, s) {
+function hourlyBound(b, s, pb) {
   const perHour = (intervalMs) => (intervalMs > 0 ? Math.floor(b.HOUR_MS / intervalMs) : Infinity)
   const fastActive = 1
   const lingerActive = Math.max(0, b.MAX_ACTIVE_WORKSPACES - fastActive)
   const rebuilds = 1 + perHour(b.RECONCILE_INTERVAL_MS)   // 冷启动 1 次 + 对账那几次
+  const rebuild = pb.worstCaseRebuildCost(0, b.MAX_PAGES, PAGE_PRICES_OF(b))
   const parts = {
     probe: (fastActive * perHour(b.PROBE_INTERVAL_MS) + lingerActive * perHour(b.PROBE_INTERVAL_LINGER_MS)) * b.PROBE_COST_REQUESTS,
     preflight: perHour(b.PREFLIGHT_TTL_MS) * b.PREFLIGHT_COST_REQUESTS,
     chain: perHour(b.CHAIN_BACKOFF_MS[b.CHAIN_BACKOFF_MS.length - 1]) * b.CHAIN_EVAL_COST_REQUESTS,
     quotaSync: perHour(b.QUOTA_SYNC_INTERVAL_MS) * b.QUOTA_READ_COST_REQUESTS,
-    coldStart: 1 * b.REBUILD_COST_REQUESTS,
-    reconcile: perHour(b.RECONCILE_INTERVAL_MS) * b.REBUILD_COST_REQUESTS,
+    coldStart: 1 * rebuild.requests,
+    reconcile: perHour(b.RECONCILE_INTERVAL_MS) * rebuild.requests,
     switches: s.switchesPerHour * b.SWITCH_COST_REQUESTS,
     writes: s.writeEventsPerHour * b.WRITE_EVENT_COST_REQUESTS,
     patches: s.changesPerHour * b.PATCH_COST_REQUESTS,
   }
-  const pointParts = { rebuilds: rebuilds * b.REBUILD_COST_POINTS, patches: s.changesPerHour * b.PATCH_COST_POINTS_MAX }
+  const pointParts = { rebuilds: rebuilds * rebuild.points, patches: s.changesPerHour * b.PATCH_COST_POINTS_MAX }
   const reads = parts.probe + parts.preflight + parts.chain + parts.switches
   const writes = parts.writes
   const timer = parts.probe + parts.preflight + parts.chain + parts.quotaSync + parts.coldStart + parts.reconcile
@@ -65,8 +79,8 @@ function hourlyBound(b, s) {
 }
 
 /** 同一套判据跑一套常量与一套场景，返回结论与一句话。 */
-function judge(b, s) {
-  const bound = hourlyBound(b, s)
+function judge(b, s, pb) {
+  const bound = hourlyBound(b, s, pb)
   const restCap = b.PLUGIN_HOURLY_CAP
   const readCap = b.READ_HOURLY_CAP
   const writeCap = b.WRITE_HOURLY_CAP
@@ -83,8 +97,9 @@ function judge(b, s) {
 async function main() {
   console.log('事件花费门禁（#706 T2：定时 + 事件两半加起来，整桶、读份额、写保底、点数四道都要过关）')
   const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'budget.js')).href)
+  const pageBudget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'page-budget.js')).href)
 
-  const real = judge(budget, SCENARIO)
+  const real = judge(budget, SCENARIO, pageBudget)
   check(real.ok, '真实常量下「定时 + 事件」的最坏每小时用量低于上限：' + real.text)
   console.log('    明细：探测 ' + real.bound.parts.probe + ' 条、预检 ' + real.bound.parts.preflight + ' 条、检查链 ' +
     real.bound.parts.chain + ' 条、额度同步 ' + real.bound.parts.quotaSync + ' 条、冷启动 ' + real.bound.parts.coldStart +
@@ -101,16 +116,16 @@ async function main() {
   check(real.bound.pointParts.patches > 0, '补行的点数真的算进了点数桶（' + real.bound.pointParts.patches + ' 点）')
 
   // 反证一：把变化次数按百倍算（一个仓库被疯狂改动），点数那一桶必须判红。
-  const manyChanges = judge(budget, Object.assign({}, SCENARIO, { changesPerHour: SCENARIO.changesPerHour * 100 }))
+  const manyChanges = judge(budget, Object.assign({}, SCENARIO, { changesPerHour: SCENARIO.changesPerHour * 100 }), pageBudget)
   check(!manyChanges.ok, '反证：变化次数按百倍算必须判红（点数桶顶破读份额）—— ' + manyChanges.text)
 
   // 反证二：把写事件次数按百倍算（人和 AI 一起猛写），写保底与整桶必须判红。
-  const manyWrites = judge(budget, Object.assign({}, SCENARIO, { writeEventsPerHour: SCENARIO.writeEventsPerHour * 100 }))
+  const manyWrites = judge(budget, Object.assign({}, SCENARIO, { writeEventsPerHour: SCENARIO.writeEventsPerHour * 100 }), pageBudget)
   check(!manyWrites.ok, '反证：写事件次数按百倍算必须判红（写保底与整桶一起顶破）—— ' + manyWrites.text)
 
   // 第三向（绿）：把次数减半、旋钮收紧一档，同一套判据仍然判绿。
   const good = judge(Object.assign({}, budget, { PROBE_INTERVAL_MS: budget.PROBE_INTERVAL_MS * 2 }),
-    Object.assign({}, SCENARIO, { switchesPerHour: 30, writeEventsPerHour: 30, changesPerHour: 30 }))
+    Object.assign({}, SCENARIO, { switchesPerHour: 30, writeEventsPerHour: 30, changesPerHour: 30 }), pageBudget)
   check(good.ok, '合规变体（次数减半、探测放慢一倍）判绿 —— ' + good.text)
 
   console.log(failed ? '\n存在失败 — verify-event-budget 未通过' : '\n全部通过 — 事件花费门禁生效（' + total + ' 项断言）')

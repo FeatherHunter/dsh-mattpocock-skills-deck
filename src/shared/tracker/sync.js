@@ -5,10 +5,17 @@
  *   - 本模块 = 契约层：「远端索引已变更」谓词的形状定义与求值器（纯函数；host 与 client 共用，
  *     经 SHARED_SPLICE 拼回 client 闭包 / host 半运行时 import()，与 naming-guardian 同模式）。
  *   - host：把 gh 探测原语的真实结果喂入谓词（平台原语封装归平台/宿主层），推进只来自重求值；
- *   - client：按事件源词汇表决定是否调度探针；UI 不分支 backendId、不乐观插入行。
+ *   - client：按 SYNC 里的节拍常量决定何时发起探针；UI 不分支 backendId、不乐观插入行。
  *
- * 重求值触发语义：写后事件（gh-create/gh-edit/claim —— UI 动作或宿主白名单产生）与
- * index-dirty（宿主对真实远端索引做轻 REST 求值并验证差值后产生）都只是**调度提示**；
+ * #719 删掉的四个事件源常量（SOURCE_GH_CREATE / SOURCE_GH_EDIT / SOURCE_CLAIM /
+ * SOURCE_INDEX_DIRTY）与它们的判定函数 needProbeSource：这四个值对应的是
+ * issuePath 面包屑事件队列那套通道，那套通道已随 #345 整块移除，今天没有任何代码会产出这四个值
+ *（只有那条判定函数自己在读），所以它们是「没有生产者的常量」——留在契约层会让后来人以为
+ * 这条触发路还在。定稿第十四章把这类词列为要清的死词汇，门禁 tests/verify-contract-vocabulary.js
+ * 从此守着契约层：字符串型常量必须有生产者的字面量在场，否则判红。
+ * 下面那些节拍常量是另一回事：它们是「调一次多久」的旋钮，读它们的人在生产代码里。
+ *
+ * 重求值触发语义（历史口径，保留供追溯）：写后事件与 index-dirty 都只是**调度提示**；
  * 最终 UI 更新必须经既有 wf.probe 的 changed 判定 + 静默快照重算 + diffSnapshots 产出闪烁。
  * 动作不承诺修复，检查才判定状态 —— 本模块不引入任何回调式乐观更新通道。
  *
@@ -19,11 +26,6 @@
 
 export const SYNC = Object.freeze({
   version: 1,
-  /** 事件源词汇表（needProbeSource 判定单源；client 不得再写字面量集合）。 */
-  SOURCE_GH_CREATE: 'gh-create',
-  SOURCE_GH_EDIT: 'gh-edit',
-  SOURCE_CLAIM: 'claim',
-  SOURCE_INDEX_DIRTY: 'index-dirty',
   /** 同一 repoKey 两次增量求值的最小间隔（配额闸；实际周期 = POLL_GRID_MS 的整数倍向上取整）。 */
   EVAL_GAP_MS: 4500,
   /** 每个 poll tick 至多求值的 cwd 数（多工作区轮转公平性上限）。 */
@@ -53,6 +55,10 @@ export const SYNC = Object.freeze({
   FOCUS_PROBE_MIN_MS: 60000,
   /** 打开面板的快照即时新鲜阈值（超阈才发起一次加载；≤阈纯展示零请求）。 */
   SNAP_FRESH_MS: 60000,
+  /** #707：面板可见时「我还在看这个工作区」的本地心跳间隔（零配额、不出网，只上报事实）。
+   *  与 refresh-core/src/budget.ts 的 ATTENTION_HEARTBEAT_MS 同一个数：那边是宿主与核心用的唯一真源，
+   *  这里给客户端用（客户端半边今天不 import 核心产物，跨端常量一律落在契约层，见本文件头）。 */
+  ATTENTION_HEARTBEAT_MS: 20000,
   /** Issue 详情单条缓存 TTL（列表新鲜度之外的独立维度；写后 bump 由宿主失效路径承接）。 */
   ISSUE_CACHE_TTL: 60000,
 })
@@ -60,15 +66,6 @@ export const SYNC = Object.freeze({
 /** 求值态工厂（Data Clumps 收敛：字段形状与 noteEval* 纯转移同住契约层）。 */
 export function createSyncState() {
   return { baseline: null, maxUpd: '', lastEvalAt: 0, failures: 0, suspendedUntil: 0, resolving: false }
-}
-
-/**
- * 判定 issuePath 轮询事件的 source 是否应触发面板探针。
- * #213 三源（gh-create / gh-edit / claim）+ #232 新增 index-dirty，判定单源化。
- */
-export function needProbeSource(name) {
-  return name === SYNC.SOURCE_GH_CREATE || name === SYNC.SOURCE_GH_EDIT ||
-    name === SYNC.SOURCE_CLAIM || name === SYNC.SOURCE_INDEX_DIRTY
 }
 
 /**

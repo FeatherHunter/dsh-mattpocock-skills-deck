@@ -140,8 +140,18 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // 其中 colors.js 与 prompt.js 由 scripts/build.mjs 拼进客户端闭包），总数 +3 到 26。
   // #668：首开引导链的步骤清单新增 src/shared/tracker/guide-steps.js（顺序唯一真源，零依赖；
   // 由 scripts/build.mjs 的 SHARED_SPLICE 拼进客户端闭包，宿主按它给链快照排序），总数 +1 到 27。
-  check(srcSharedFiles.length === 27, `src/shared 27 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 27, `package/shared 27 文件（实得 ${pkgSharedFiles.length}）`)
+  // #704 刷新机制那批落地（#706–#722 等）：新增 src/shared/deck-tools/ 三个文件（edges.js / plan.js /
+  // shell.js，deck 工具共用的纯逻辑）、src/shared/naming-attribution.js / naming-titles.js /
+  // naming-tracking.js 三个文件（命名守护拆出来的纯逻辑），以及 src/shared/refresh/ 下由
+  // refresh-core/src/*.ts 逐文件转译出来的产物（另有一个 __diag-attention.mjs 是诊断脚本，一并落在
+  // 这棵树里）；总数 +15 到 42。
+  // #719（T15 收口）：刷新机制再补两份纯逻辑产物 —— src/shared/refresh/page-budget.js（一次整池重建
+  // 按翻了几页算价钱的算式）与 src/shared/refresh/backend-quota.js（每个后端的额度桶形状与按后端算价），
+  // 两份都由 refresh-core/src/*.ts 转译而来，总数 +2 到 44；同一天另一个代理收尾时删掉了
+  // src/shared/refresh/__diag-attention.mjs（一个临时诊断脚本，源码侧已不在），总数落到 43。
+  // 这个数是「src/shared 树里实际有几个文件」，会随别的票增减 —— 每次改完记得重跑本门禁对数。
+  check(srcSharedFiles.length === 43, `src/shared 43 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 43, `package/shared 43 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

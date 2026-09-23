@@ -20,7 +20,8 @@
 //
 // 这个文件不联网、不起定时器：同步服务端剩余读数的节拍由调用方按 budget.js 的 QUOTA_SYNC_INTERVAL_MS
 // 问 `syncDue()`，真去打那次不扣配额的 `gh api rate_limit` 的是闸那一路（它也走闸、也记账）。
-import { HOUR_MS, QUOTA_SYNC_INTERVAL_MS, hourlyAllowance, writeReserve, usedRatio, tierFor } from '../../shared/refresh/budget.js'
+import { HOUR_MS, QUOTA_SYNC_INTERVAL_MS, hourlyAllowance, writeReserve, usedRatio, tierFor, MAX_PAGES, PAGE_COST_POINTS, PR_PAGE_COST_POINTS, COUNT_COST_POINTS, LIST_PAGE_COST_REQUESTS, PR_PAGE_COST_REQUESTS, COUNT_COST_REQUESTS, REBUILD_PR_PAGE_COUNT } from '../../shared/refresh/budget.js'
+import { pageCountReport, rebuildCost, worstCaseRebuildCost } from '../../shared/refresh/page-budget.js'
 
 /** 三个档位（分开记账的名字）。 */
 export const LEDGER_ACCOUNTS = ['plugin', 'user-action', 'ai-tool']
@@ -30,6 +31,23 @@ export const LEDGER_BUCKETS = ['rest', 'graphql']
 
 /** 同步服务端剩余读数的节拍（毫秒），值来自 budget.js —— 这里不另写一个数字。 */
 export const SYNC_INTERVAL_MS = QUOTA_SYNC_INTERVAL_MS
+
+/**
+ * 重建那几页的单价，全部来自 budget.js（本文件不写任何一个额度或单价数字）。
+ * 交给 shared/refresh/page-budget.js 的纯函数算账，理由同文件头：单一物理真源在 budget.ts。
+ */
+export const PAGE_PRICES = Object.freeze({
+  listPagePoints: PAGE_COST_POINTS,
+  listPageRequests: LIST_PAGE_COST_REQUESTS,
+  prPagePoints: PR_PAGE_COST_POINTS,
+  prPageRequests: PR_PAGE_COST_REQUESTS,
+  countPoints: COUNT_COST_POINTS,
+  countRequests: COUNT_COST_REQUESTS,
+  prPageCount: REBUILD_PR_PAGE_COUNT,
+})
+
+/** 最坏用量那条线用的页数上界（budget.MAX_PAGES）。 */
+export const PAGE_UPPER_BOUND = MAX_PAGES
 
 function num(v) {
   return (typeof v === 'number' && isFinite(v)) ? v : 0
@@ -99,6 +117,67 @@ export function createLedger(deps) {
     if (!b.reading) return 0
     const serverSide = Math.max(0, num(b.reading.remaining) - b.spentSinceSync)
     return Math.min(share, serverSide)
+  }
+
+  /**
+   * 每个仓库的重建页数实测（定稿第十四章：「账本记每个仓库的实测页数，最坏用量按页数上界算」）。
+   * 键由调用方给（工作区根或仓库标识，跟闸的记账口径一致）；每个仓库记三样：
+   * 最近一次翻了几页、历史上最多见过几页、累计重建过几次。
+   * 为什么要记「最多见过几页」而不只记最近一次：最坏上界要的是一个不会被突破的数，
+   * 只记最近一次的话，某次翻到 12 页、下一次回到 3 页，最坏上界就又变回 10 页了——
+   * 那等于把已经发生过的事忘掉。算式在 shared/refresh/page-budget.js 里，只此一处。
+   */
+  const pagesByRepo = {}
+
+  /** 记下这一次整池重建在一个仓库里实际翻了几页。observed: { issuePages, prPages?, at? }。 */
+  function notePages(repoKey, observed) {
+    const k = String(repoKey || '')
+    if (!k) throw new Error('记实测页数要带仓库标识：页数是按仓库分别记的，没有标识就分不出是谁的')
+    const o = observed || {}
+    const issuePages = Math.max(1, Math.floor(num(o.issuePages)))
+    const prPages = Math.max(0, Math.floor(num(o.prPages)))
+    const t = (typeof o.at === 'number') ? o.at : now()
+    const prev = pagesByRepo[k]
+    const next = {
+      issuePages: issuePages,
+      maxIssuePages: prev ? Math.max(prev.maxIssuePages, issuePages) : issuePages,
+      prPages: prPages,
+      rebuilds: (prev ? prev.rebuilds : 0) + 1,
+      at: t,
+    }
+    pagesByRepo[k] = next
+    return Object.assign({ repoKey: k }, next)
+  }
+
+  /** 这个仓库的页数实测；没记过时给 null（调用方按 1 页估，不编一个典型值出来）。 */
+  function pagesFor(repoKey) {
+    const k = String(repoKey || '')
+    const p = pagesByRepo[k]
+    return p ? Object.assign({ repoKey: k }, p) : null
+  }
+
+  /**
+   * 这个仓库下一次重建该按几页估：按它自己的实测页数（没记过时 1 页）。
+   * 这是「估」，与最坏上界是两件事——小仓库不必替大仓库付那份钱。
+   */
+  function estimateRebuild(repoKey) {
+    const p = pagesFor(repoKey)
+    return rebuildCost(p ? p.issuePages : 1, PAGE_PRICES)
+  }
+
+  /**
+   * 这个仓库最坏一次重建要花多少：实测页数与页数上界（MAX_PAGES）取大的那个。
+   * 门禁核对最坏用量走的是同一个算式（shared/refresh/page-budget.js），两处不会各算一份。
+   */
+  function worstRebuild(repoKey) {
+    const p = pagesFor(repoKey)
+    return worstCaseRebuildCost(p ? p.maxIssuePages : 0, PAGE_UPPER_BOUND, PAGE_PRICES)
+  }
+
+  /** 页数报告：实测多少、上界多少、这次按哪个算、实测有没有突破上界。 */
+  function pageReport(repoKey) {
+    const p = pagesFor(repoKey)
+    return pageCountReport(p ? p.maxIssuePages : 0, PAGE_UPPER_BOUND)
   }
 
   /** 闸要的那份账：额度、已用、剩余（保守下界）、写保底、档位。桶名给错直接抛，不静默返回一份假的。 */
@@ -218,7 +297,10 @@ export function createLedger(deps) {
       byAccount[name] = { hour: hourOf(name) }
       for (const b of LEDGER_BUCKETS) byAccount[name][b] = { requests: accounts[name][b].requests, points: accounts[name][b].points }
     }
-    return { buckets: views, byAccount: byAccount, free: { requests: free.requests, points: free.points }, total: { requests: total.requests, points: total.points }, hourKey: hourKey }
+    // 页数实测也进总览：界面与对账要看「这个仓库上一次翻了几页、最坏按几页算」时有现成的数。
+    const pages = {}
+    for (const k of Object.keys(pagesByRepo)) pages[k] = Object.assign({}, pagesByRepo[k], { worst: worstRebuild(k), report: pageReport(k) })
+    return { buckets: views, byAccount: byAccount, free: { requests: free.requests, points: free.points }, total: { requests: total.requests, points: total.points }, pages: pages, hourKey: hourKey }
   }
 
   return {
@@ -230,5 +312,10 @@ export function createLedger(deps) {
     hour: hour,
     hourOf: hourOf,
     snapshot: snapshot,
+    notePages: notePages,
+    pagesFor: pagesFor,
+    estimateRebuild: estimateRebuild,
+    worstRebuild: worstRebuild,
+    pageReport: pageReport,
   }
 }

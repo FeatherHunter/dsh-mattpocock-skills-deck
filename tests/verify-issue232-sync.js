@@ -64,9 +64,15 @@ async function main() {
   check(S.bumpMaxUpdated('2026-08-27T09:30:00Z', { '5': 'OPEN|2026-08-28T00:00:00Z', '6': 'OPEN|bad' }) === '2026-08-28T00:00:00Z', 'bumpMaxUpdated 取最大 updatedAt 并容忍坏值')
   check(S.bumpMaxUpdated('', {}) === '', 'bumpMaxUpdated 空集保持水位')
 
-  // needProbeSource：词汇表单源（#213 三源保留 + index-dirty；mention/未知源不触发探针）
-  check(S.needProbeSource('gh-create') && S.needProbeSource('gh-edit') && S.needProbeSource('claim') && S.needProbeSource('index-dirty'), 'needProbeSource 四源触发')
-  check(!S.needProbeSource('mention') && !S.needProbeSource('') && !S.needProbeSource(undefined), 'needProbeSource 其他源不触发探针')
+  // #719：事件源词汇表与它的判定函数已从契约层删除（那四个值只有这条判定函数一个读者，
+  // 生产者随 #345 的面包屑事件队列一起没了）。这里只固化「删干净了」这件事，余下的断言见
+  // tests/verify-contract-vocabulary.js（契约层字符串型常量必须有生产者）。
+  // 注释先剥掉再查：文件头那段话就是在说明「这四个名字为什么被删掉」，它当然会写出这几个名字。
+  const syncSrc = readSrc('src/shared/tracker/sync.js').replace(/\/\*[\s\S]*?\*\//g, ' ')
+  check(!syncSrc.includes('SOURCE_GH_CREATE') && !syncSrc.includes('SOURCE_GH_EDIT') &&
+    !syncSrc.includes('SOURCE_CLAIM') && !syncSrc.includes('SOURCE_INDEX_DIRTY') &&
+    !syncSrc.includes('needProbeSource'),
+    '四个事件源常量与 needProbeSource 已从契约层删除（#719；死词汇清理，契约代码里不再有没生产者的常量）')
 
   // pickSyncCandidates：首看优先 / gap 闸 / resolving / 熔断 / cap / 去重保序
   const now = 10000000
@@ -111,7 +117,7 @@ async function main() {
   const storeSrc = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js'].map(readSrc).join('\n').replace(/\r\n/g, '\n') // #455 K2：store.js 已拆为四文件，此处读四文件拼起来的内容断言（SYNC.ISSUE_CACHE_TTL 在 prefs，delete s2.status 在 snapshot）
   check(!storeSrc.includes("host.call('wf.issuePathPoll'"), 'client poll 通道已随 #345 彻底移除（不再上报可见 cwd 列表）')
   check(!storeSrc.includes('pollIssuePathHost'), 'client 轮询函数 pollIssuePathHost 已随 #345 移除（视线门控随通道一并退役）')
-  check(!storeSrc.includes('needProbeSource(ev.source)'), '探针触发源判定已随面包屑通道移除（#345）；needProbeSource 纯函数保留于契约层供单测')
+  check(!storeSrc.includes('needProbeSource'), '探针触发源判定已随面包屑通道移除（#345）；#719 连同四个事件源常量把那个只剩自己没有生产者的函数也从契约层删掉')
   check(!storeSrc.includes("ev.source === 'gh-create'"), '旧三源字面量判定已移除（第二真源清零）')
   check(!storeSrc.includes('scheduleDirtyProbe') && !storeSrc.includes('dirtyCwds'), 'dirtyCwds 回执消费已随 #345 移除（宿主侧缓存失效由 runGh 白名单与 wf.probe 承担）')
   const probeSrc = ['src/client/kernel/probe-chain.js', 'src/client/kernel/probe-snapshot.js', 'src/client/kernel/probe-auto.js'].map(readSrc).join('\n').replace(/\r\n/g, '\n') // #456 K3：probe.js 已拆为三文件，此处读三文件拼起来的内容断言（chain 含 loadChain/链派生，snapshot 含 loadSnapshot/diff，auto 含节拍/probeNow/refreshAll）
