@@ -12,20 +12,28 @@ function check(ok, msg, detail=''){
 
 console.log('== #344 修复验证 ==');
 
-// 1. client probe 自动重求值存在
-console.log('\n— client 链自动重求值 —');
+// 1. client probe 自动重求值：**#709（T5）起改事件驱动，自轮询整体退役**
+//    改动说明（不许删测试，只改断言方向）：原来这 5 条斷言是「必须存在 CHAIN_AUTO_POLL_MS /
+//    scheduleChainAutoRefresh / cancelChainAutoRefresh」，那是 #344 加 8 秒自轮询时的验收。
+//    #709 把这条自轮询删掉了（票面硬要求「没有定时器」），所以同样这 5 条断言翻成「必须不存在」：
+//    谁把自轮询抄回来，这一条立刻红。功能面（修好之后检查页仍能自动变绿）改由事件驱动承担，
+//    断言在下面第一节后半段与 tests/verify-709-no-self-continuing-timers.js 里。
+console.log('\n— client 链自动重求值（#709 起为事件驱动）—');
 try{
   const probeSrc = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map((f) => readFileSync(f,'utf8')).join('\n'); // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言
-  check(probeSrc.includes('CHAIN_AUTO_POLL_MS'), 'probe.js 定义 CHAIN_AUTO_POLL_MS');
-  check(probeSrc.includes('scheduleChainAutoRefresh'), 'probe.js 导出 scheduleChainAutoRefresh');
-  check(probeSrc.includes('cancelChainAutoRefresh'), 'probe.js 导出 cancelChainAutoRefresh');
+  check(!probeSrc.includes('CHAIN_AUTO_POLL_MS'), '#709：8 秒自轮询常量 CHAIN_AUTO_POLL_MS 已退役');
+  check(!probeSrc.includes('scheduleChainAutoRefresh'), '#709：scheduleChainAutoRefresh 已退役');
+  check(!probeSrc.includes('cancelChainAutoRefresh'), '#709：cancelChainAutoRefresh 已退役');
   check(probeSrc.includes('#344'), 'probe.js 含 #344 修复注释');
-  check(probeSrc.includes('loadChain(st, true)'), 'probe.js 在非全绿时自动 force 重算');
-  // 构建产物
+  check(probeSrc.includes('chainEventRefresh'), '#709：改为事件驱动入口 chainEventRefresh');
+  check(probeSrc.includes("'user-recheck'"), '#709：人亲手点的「重新检查」永不降档');
+  check(probeSrc.includes("'action-done'"), '#709：做完可能改变它的动作也触发一次');
+  // 构建产物：client.js 由构建重新生成。产物里同样不许再出现自轮询。
   const clientBuilt = readFileSync('client.js','utf8');
-  check(clientBuilt.includes('CHAIN_AUTO_POLL_MS'), '构建产物 client.js 含自动轮询');
+  check(!clientBuilt.includes('CHAIN_AUTO_POLL_MS'), '构建产物 client.js 里自轮询已消失（需重新构建）');
+  check(clientBuilt.includes('chainEventRefresh'), '构建产物 client.js 里事件驱动入口在（需重新构建）');
   const pkgBuilt = readFileSync('package/lib/client.js','utf8');
-  check(pkgBuilt.includes('CHAIN_AUTO_POLL_MS'), '构建产物 package/lib/client.js 含自动轮询');
+  check(!pkgBuilt.includes('CHAIN_AUTO_POLL_MS'), '构建产物 package/lib/client.js 里自轮询已消失（需重新构建）');
 }catch(e){ check(false, '读取 probe 相关文件', String(e.message)); }
 
 // 2. host 探测加固

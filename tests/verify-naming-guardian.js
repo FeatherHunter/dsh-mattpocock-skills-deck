@@ -151,16 +151,21 @@ console.log('\n— 单一真源守卫 —')
     check(hostSrc.includes("'" + op + "'"), 'host 注册操作（#211 复原 · 建号感知） ' + op)
   }
   check(hostSrc.includes('core.attributeNewNumbers') && hostSrc.includes('core.isNumberAwaitStage'), 'host 索引差值/候选取样走共享核心纯函数')
-  check(hostSrc.includes('function namingSweepNow()') && hostSrc.includes('function namingSweepSoon('), 'host 索引差值结算 + 即时推进存在')
+  check(hostSrc.includes('function namingSweepNow(') && hostSrc.includes('function namingSweepSoon('), 'host 索引差值结算 + 即时推进存在')
   check(!hostSrc.includes('newSessionWatchers'), '旧 #211 内存轮询结构（newSessionWatchers Map）已退役（职责并入持久化守护）')
   check(hostSrc.includes('.dsh-mattskillsdeck-cache') && hostSrc.includes("naming-guardian.json"), '跟踪态落盘既有缓存目录')
-  check(hostSrc.includes('startNamingGuardianLoop()'), 'host 常驻轻量任务随 apply 启动')
+  // #709（T5）：宿主侧那条 15 秒自续 tick 整体退役，换成事件驱动入口。断言方向跟着翻：
+  // 不再查「启动了一个循环」，改查「事件入口在、旧循环一个名字都不剩」。
+  check(hostSrc.includes('startNamingGuardianEvents()'), '#709：host 事件驱动入口随 apply 启动（不再是常驻循环）')
+  check(hostSrc.includes('function namingGuardianEvent('), '#709：host 事件入口存在（四种事件与兜底都汇到它）')
+  check(!/NAMING_TICK_MS|NAMING_SWEEP_MS|namingLoopTick|startNamingGuardianLoop/.test(hostSrc.replace(/\/\/[^\n]*/g, '')), '#709：host 的 15 秒自续 tick 已彻底退役')
+  check(hostSrc.includes('NAMING_FALLBACK_MS') && hostSrc.includes('_namingSweepCursor'), '#709：命名守护留 10 分钟兜底，每跳最多扫 1 个仓库且轮转')
 
   const buildSrc = readFileSync(join(ROOT, 'scripts/build.mjs'), 'utf8')
   check(buildSrc.includes("'src/shared/naming-titles.js'") && buildSrc.includes("'src/shared/naming-tracking.js'") && buildSrc.includes("'src/shared/naming-attribution.js'"), '构建登记 shared splice 三文件（client 半同源注入）')
   const clientIdx = ['src/client/index.js', 'src/client/panelAssembly.js'].map((f) => readFileSync(join(ROOT, f), 'utf8')).join('\n') // #459：index.js 已拆出装配，此处读两文件拼起来的内容断言
   check(clientIdx.includes('// ==== shared:namingTitles (spliced by build) ====') && clientIdx.includes('// ==== shared:namingTracking (spliced by build) ====') && clientIdx.includes('// ==== shared:namingAttribution (spliced by build) ===='), 'client 闭包挂共享核心三拼接标记')
-  check(clientIdx.includes('startNamingGuardianPoll()'), 'client apply 启动常驻渲染钩子拉询')
+  check(clientIdx.includes('startNamingGuardianEvents()'), '#709：client 渲染钩子改为事件驱动启动（不再是 5 秒轮询）')
 
   const apiSrc = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：api.js 已拆为三文件，此处读三文件拼起来的内容断言（naming 含命名守护全家与工厂，new-session 含 openTextInNewSession，io 含 openInNewSession/inject）
   // （namingSignal 的 client 发送点在 store.js recordIssuePath，下一节单独断言）

@@ -125,5 +125,32 @@ console.log('\n— 客户端面校验（faceSid 匹配）—');
   check(!shouldBlock(undefined, 'A'), 'undefined 不拦截');
 }
 
+// ---------- #709（T5）：命名守护改事件驱动之后，这一票的隔离修复仍在 ----------
+// 本节是加断言，不是删测试：上面 12 条功能断言一条不少。本节做两件事——
+// ① 钉住上面那份 filterOrders 本地副本没有与宿主实现走岔（宿主里那段抑制逻辑必须还在）；
+// ② 钉住改事件驱动时没有把隔离修复顺手动掉，也没有把自续定时器抄回来。
+console.log('\n— #709 事件驱动改造后的隔离修复守卫 —');
+{
+  const fsMod = await import('node:fs');
+  const pathMod = await import('node:path');
+  const urlMod = await import('node:url');
+  const root = pathMod.join(pathMod.dirname(urlMod.fileURLToPath(import.meta.url)), '..');
+  const read = (p) => fsMod.readFileSync(pathMod.join(root, p), 'utf8');
+  const hostNaming = read('src/host/namingGuardian.js');
+  check(hostNaming.includes('byRepoHasHint'), '宿主 wf.namingPlan 里的同仓库裸档抑制逻辑仍在（上面本地副本的对照物）');
+  check(hostNaming.includes("o.kind === 'draft' && !o.hint"), '抑制的是「同仓库的裸档草稿单」本身，判定条件没被改写');
+  check(hostNaming.includes('function keepRelatedAssigned('), '「无关新号不硬配」仍在（#315 追加修复）');
+  // 事件驱动改造不许顺手删掉任何一条对外电话
+  for (const op of ['wf.registerNewSessionWatcher', 'wf.cancelNewSessionWatcher', 'wf.awaitCreatedIssue', 'wf.namingPlan']) {
+    check(hostNaming.includes("'" + op + "'"), '宿主电话仍在：' + op);
+  }
+  // 再也不许有自己给自己排下一跳的定时器（含旧名字）
+  const hostNoComment = hostNaming.replace(/\/\/[^\n]*/g, '');
+  check(!/NAMING_TICK_MS|NAMING_SWEEP_MS|namingLoopTick|startNamingGuardianLoop|setInterval/.test(hostNoComment), '宿主命名守护里没有自续定时器');
+  const apiNaming = read('src/client/kernel/api-naming.js').replace(/\/\/[^\n]*/g, '');
+  check(!/NAMING_POLL_MS|startNamingGuardianPoll|_namingPollTimer|setInterval/.test(apiNaming), '客户端命名轮询已退役，且没有换成另一种自续定时器');
+  check(apiNaming.includes('function namingGuardianEvent('), '客户端改为事件驱动入口 namingGuardianEvent');
+}
+
 if (failed) { console.log('\nFAIL ' + total + ' checks, some failed'); process.exit(1); }
 else { console.log('\nPASS all ' + total + ' checks'); }

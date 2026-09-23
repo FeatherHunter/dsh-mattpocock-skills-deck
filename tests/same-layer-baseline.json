@@ -32,6 +32,15 @@
     },
     {
       "file": "src/host/index.js",
+      "spec": "./refresh/chainBackoff.js",
+      "resolved": "src/host/refresh/chainBackoff.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "四批·T5 #709",
+      "note": "检查链退避的宿主薄壳：index 装配扇入，与 detectChain.js 同一条做法"
+    },
+    {
+      "file": "src/host/index.js",
       "spec": "./sessionLifecycle.js",
       "resolved": "src/host/sessionLifecycle.js",
       "layer": "host",
