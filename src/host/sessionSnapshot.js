@@ -8,7 +8,7 @@ import { createSnapshotEnvelope } from './snapshotEnvelope.js'
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 export function createSessionSnapshot(deps) {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, getChoiceStore, envelope, chainReadout } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, getChoiceStore, envelope, chainReadout, chainField } = deps
   // #723（T19）：快照信封（字段清单 + 落盘那一步的 snapshot.built 日志）搬到了 ./snapshotEnvelope.js
   // （这个文件贴着 350 行上限，要让出位置挂「每个会话在处理哪些票」的读数）。没注入时现造一个，
   // 行为与搬前逐字一致 —— 单测里手工拼实例的那几处就靠这条兜底。
@@ -37,12 +37,11 @@ export function createSessionSnapshot(deps) {
   const snapshotInflight = new Map() // #696 在途合并：同钥匙同后端同强制标记的并发共用同一份重建，强制刷新不进表
   // #723（T19）票面 3e：把「每个会话在处理哪些票」的读数挂到快照回包上（#721 界面上那一块读的就是它）。
   // 包在最外一层而不是写进 buildSnap：短路那两条回的是缓存里**同一个对象**，写进去会把读数的时刻冻在
-  // 缓存落盘那一刻。读数由接线处传进来的 chainReadout 现算；没接上就不挂这个字段 —— 界面会如实说
-  // 「处理链读不到」，不拿空列表冒充「没有人在处理票」。
+  // 缓存落盘那一刻。读数由接线处传进来的 chainReadout 现算；没接上就不挂这个字段（界面会如实说读不到）。
   function withChainReadout(reply) {
     if (!reply || typeof reply !== 'object' || reply.ok !== true) return reply
     if (typeof chainReadout !== 'function') return reply
-    try { reply.sessionTickets = chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
+    try { reply[chainField || 'sessionTickets'] = chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
     return reply
   }
   async function handleSnapshot(args) { return withChainReadout(await snapshotOf(args)) }

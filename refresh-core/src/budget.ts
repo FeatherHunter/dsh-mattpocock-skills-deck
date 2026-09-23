@@ -110,7 +110,13 @@ export const TIER_RED_AT = 0.85
 /** 活跃工作区的硬上限：2 个（正在看的 + 刚离开的）。多个窗口同时上报时取最近上报过的两个。 */
 export const MAX_ACTIVE_WORKSPACES = 2
 
-/** 一个仓库最坏要翻多少页。最坏用量按这个上界算，不是按「这次看到几页」算。 */
+/**
+ * 一个仓库最坏要翻多少页：10 页。最坏用量按这个上界算，不是按「这次看到几页」算
+ *（定稿第十四章「账本记每个仓库的实测页数；最坏用量按页数上界算」）。
+ * 算式在 refresh-core/src/page-budget.ts（worstCaseRebuildCost）：实测页数与这个上界取大的那个。
+ * 门禁 verify-budget-worstcase / verify-event-budget 与账本的最坏列都走那一个入口，
+ * 所以改这个数会同时改动它们的结论——那正是想要的效果，不是要顺手同步的负担。
+ */
 export const MAX_PAGES = 10
 
 // ---------- 五、AI 工具那一档的硬顶 ----------
@@ -244,19 +250,74 @@ export const PR_PAGE_COST_POINTS = 2
 export const SUB_ISSUES_PAGE_COST_POINTS = 3
 /** 「共多少张 / 多少未关闭」那条计数查询的单价：1 点。 */
 export const COUNT_COST_POINTS = 1
-/** 一次整池重建要翻几页工单池、几页拉取请求（各一页计数）。 */
+/** 列表薄片段一页、拉取请求薄页、计数器各发出去几条请求：都是 1 条（一页一次往返）。 */
+export const LIST_PAGE_COST_REQUESTS = 1
+export const PR_PAGE_COST_REQUESTS = 1
+export const COUNT_COST_REQUESTS = 1
+/**
+ * 一个仓库的工单池平时要翻几页：5 页（本仓实测）。
+ * 它是「估」用的典型值，不是上界——最坏用量一律按 MAX_PAGES 算（见下面那条注释与
+ * refresh-core/src/page-budget.ts）。账本另记每个仓库自己的实测页数，小仓库不必按 5 页估。
+ */
 export const REBUILD_PAGE_COUNT = 5
 export const REBUILD_PR_PAGE_COUNT = 1
 
 /**
  * 整池重建一次的单价：工单池 5 页 × 2 点 + 拉取请求 1 页 × 2 点 + 计数 1 点 = 13 点、7 条请求
  *（定稿第三章「一次重建的单价」）。13 与 7 是两个算式，不是两个手写的数。
+ *
+ * 这两个数是**典型值**（按上一条那个常用页数算），最坏用量不在这里——最坏按页数上界
+ * MAX_PAGES 算，算式见 page-budget.ts 的 worstCaseRebuildCost；门禁（verify-budget-worstcase /
+ * verify-event-budget）与账本的最坏列都走那一个入口。把「典型」与「最坏」分成两个算式，
+ * 是为了不让「13 点」这个典型值被当成最坏值用。
  */
 export const REBUILD_COST_POINTS = REBUILD_PAGE_COUNT * PAGE_COST_POINTS + REBUILD_PR_PAGE_COUNT * PR_PAGE_COST_POINTS + COUNT_COST_POINTS
-export const REBUILD_COST_REQUESTS = REBUILD_PAGE_COUNT + REBUILD_PR_PAGE_COUNT + 1
+export const REBUILD_COST_REQUESTS = REBUILD_PAGE_COUNT * LIST_PAGE_COST_REQUESTS + REBUILD_PR_PAGE_COUNT * PR_PAGE_COST_REQUESTS + COUNT_COST_REQUESTS
 
 /** 一次写事件（评论、认领、改标签、关闭、建票）的单价：1 条请求。 */
 export const WRITE_EVENT_COST_REQUESTS = 1
 
 /** 切进一个工作区那一次的补探单价：与一次变化探测同价，不另写一个数字。 */
 export const SWITCH_COST_REQUESTS = PROBE_COST_REQUESTS
+
+// ---------- 八、诚实显示要用的阈值（#715 T11：新鲜度与降档的延迟承诺） ----------
+
+/**
+ * 数据超过多久算「黄」：5 分钟。
+ * 出处是定稿第十章「界面三件事」第一条：数据带上取数时刻（"上次更新：12:04"），
+ * 超过 5 分钟变黄、超过 30 分钟变红。
+ */
+export const FRESHNESS_YELLOW_MS = 5 * 60_000
+
+/** 数据超过多久算「红」：30 分钟。 */
+export const FRESHNESS_RED_MS = 30 * 60_000
+
+/**
+ * 一份数据现在算新鲜、发黄，还是陈旧。
+ *
+ * 传进来的那个数是「现在」减去「快照的取数时刻」的毫秒差 —— 取数时刻是数据取回来的那一刻
+ * （宿主组装快照时写下的 generatedMs），不是界面把它画出来的那一刻：一份两小时前取回来的数据
+ * 在刚打开面板时仍然是两小时前的，界面不许把它算成刚取的。
+ *
+ * 界面只许调这个函数，不许自己再写 300000 / 1800000 这两个数字：同一个阈值写两处，
+ * 改一处漏一处的那天，界面就开始骗人了。
+ */
+export function freshnessLevel(ageMs: number): 'fresh' | 'yellow' | 'red' {
+  const age = (typeof ageMs === 'number' && isFinite(ageMs) && ageMs > 0) ? ageMs : 0
+  if (age > FRESHNESS_RED_MS) return 'red'
+  if (age > FRESHNESS_YELLOW_MS) return 'yellow'
+  return 'fresh'
+}
+
+/**
+ * 降档之后对「数据可能落后多久」的承诺：绿档 5 秒、黄档 2 分钟、红档自动刷新全停。
+ *
+ * 黄档那个 2 分钟就是黄档的探测间隔（120 秒），不是另写一个数字；红档返回 paused=true
+ * 并且不给上界（自动刷新全停之后没有「最多落后多久」这回事，界面该说的是「已暂停」）。
+ * 界面拿它把延迟说出来（"数据可能落后 X 分钟"）—— 不许让「≤5 秒补齐」在降档时静默变长。
+ */
+export function lagPromiseFor(tier: string): { paused: boolean; maxLagMs: number | null } {
+  if (tier === 'red') return { paused: true, maxLagMs: null }
+  if (tier === 'yellow') return { paused: false, maxLagMs: PROBE_INTERVAL_YELLOW_MS }
+  return { paused: false, maxLagMs: PROBE_INTERVAL_MS }
+}

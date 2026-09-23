@@ -261,7 +261,8 @@
         let _chainP = null
         try {
           if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true)
-          _chainP = (typeof loadChain === 'function') ? loadChain(st, true) : null
+          // #709（T5）：绑定后端属于「做完可能改变它的动作」这一类事件——头部与状态栏那边等这一次的结果。
+          _chainP = (typeof loadChain === 'function') ? loadChain(st, true, 'action-done') : null
         } catch (eLoad) {}
         // 有证据就当场决定；没有就等这次强制重取回来的链（上面那一取，同时也是状态栏要用的那一取）再决定。
         //   _hadToWait 是上面算好的那一份（与 _routed 配对，保证只落一次）。

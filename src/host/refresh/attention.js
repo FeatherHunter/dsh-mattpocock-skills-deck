@@ -239,14 +239,25 @@ export function createAttention(deps) {
  * 的零增长基线），所以那条接线上只留一行注册，把「懒加载 + 幂等建实例 + 把依赖接过去」整段收在这里。
  * 这是本仓库既有的做法（每个宿主模块都导出一个 create* 工厂，入口那侧只负责传依赖）。
  * 用具名导出而不是默认导出：产物转译脚本（refresh-core/build.mjs）只认具名导出。
+ *
+ * #723（T19）加的两个入参：
+ *   - `attention`：**已经建好的那一份**视野模型。宿主里只许有一份「当前在看谁」（票面 3c）——
+ *     接线那一侧（src/host/refresh/wiring.js）拿它喂写事件白名单与闸的活跃集合；这里要是另建一份，
+ *     两处看到的就是两个不同的世界。给了就用它，没给才现造（门禁与单测里手工拼实例的那几处走这条兜底）。
+ *   - `afterReport(out)`：每次上报之后回调一次。接线那一侧用它把活跃集合同步给白名单与闸；回调抛错
+ *     不许影响上报结果（上报的结论已经算出来了）。
  */
 export function createFocusHandler(deps) {
-  const box = { inst: null }
+  const d = deps || {}
+  const box = { inst: d.attention || null }
   const inst = function () {
-    if (!box.inst) box.inst = createAttention(deps || {})
+    if (!box.inst) box.inst = createAttention(d)
     return box.inst
   }
   return function (args) {
-    return Promise.resolve(inst()).then(function (h) { return h.handleFocus(args) })
+    return Promise.resolve(inst()).then(function (h) { return h.handleFocus(args) }).then(function (out) {
+      if (typeof d.afterReport === 'function') { try { return Promise.resolve(d.afterReport(out)).then(function () { return out }) } catch (eA) { return out } }
+      return out
+    })
   }
 }

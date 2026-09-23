@@ -153,4 +153,4 @@
     // #347：加载真数据快照（repo 链接 + 前置检测兜底），失败静默
     loadSnapshot(shared, false)
     // #265：命名守护常驻渲染钩子（面板未开也续跑；计划单经 wf.namingPlan 拉取后代执行改名）
-    startNamingGuardianPoll()
+    startNamingGuardianEvents()

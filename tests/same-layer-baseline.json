@@ -788,12 +788,84 @@
     },
     {
       "file": "src/host/index.js",
-      "spec": "./refresh/attention.js",
+      "spec": "./refresh/wiring.js",
+      "resolved": "src/host/refresh/wiring.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#723 T19（宿主层接线与拆文件时收口）",
+      "note": "#723 接线：刷新机制在宿主里真的装起来那一处（闸 + 账本 + 写事件订阅 + 视野模型 + 会话↔票处理链）。入口文件 src/host/index.js 贴着 350 行上限（tests/verify-file-granularity.js 的零增长基线，#707 起不许再往里加行），所以加载器与装配整段收在 wiring.js，入口只留一行调用 —— 与既有 25 处「入口动态加载某模块」同形（见本清单里 index.js 的其余条目）。"
+    },
+    {
+      "file": "src/host/refresh/wiring.js",
+      "spec": "./ledger.js",
+      "resolved": "src/host/refresh/ledger.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#723 T19（宿主层接线与拆文件时收口）",
+      "note": "#723 接线：wiring.js 是刷新机制在宿主里的装配点 —— 闸、账本、写事件订阅、视野模型、会话↔票处理链这五件的产物在这里拼起来，所以它必然要引用这五个模块。同层互引门禁管的是「干活的文件互相引用造成环」，装配点是它明许的例外方向（本清单里 index.js、platformChannel.js、tracker/index.js 三处装配扇入都是同一条先例）。把装配搬回 index.js 会顶破那个文件的 350 行上限。"
+    },
+    {
+      "file": "src/host/refresh/wiring.js",
+      "spec": "./gate.js",
+      "resolved": "src/host/refresh/gate.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#723 T19（宿主层接线与拆文件时收口）",
+      "note": "#723 接线：装配点造闸（createGate({ ledger })）并把它交给写事件订阅与 deck 工具的壳。同 ledger.js 那一条。"
+    },
+    {
+      "file": "src/host/refresh/wiring.js",
+      "spec": "./writeEvents.js",
+      "resolved": "src/host/refresh/writeEvents.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#723 T19（宿主层接线与拆文件时收口）",
+      "note": "#723 接线：装配点建写事件订阅（createWriteEvents(...).attach(ctx)），并把判定过的那一笔喂给处理链。同 ledger.js 那一条。"
+    },
+    {
+      "file": "src/host/refresh/wiring.js",
+      "spec": "./sessionTickets.js",
+      "resolved": "src/host/refresh/sessionTickets.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#723 T19（宿主层接线与拆文件时收口）",
+      "note": "#723 接线：装配点建会话↔票处理链（createSessionTickets()）—— 喂数据的是写事件订阅，读数是下面那一条。同 ledger.js 那一条。"
+    },
+    {
+      "file": "src/host/refresh/wiring.js",
+      "spec": "./sessionChainReadout.js",
+      "resolved": "src/host/refresh/sessionChainReadout.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#723 T19（宿主层接线与拆文件时收口）",
+      "note": "#723 接线：装配点把处理链转成界面读数（buildSessionChainReadout），快照回包挂的就是它。同 ledger.js 那一条。"
+    },
+    {
+      "file": "src/host/refresh/wiring.js",
+      "spec": "./attention.js",
       "resolved": "src/host/refresh/attention.js",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
-      "note": "#707 新增功能：宿主电话 wf.focus 的加载器落在宿主入口文件里（与既有 ./workspaceCwd.js、./commentThreads.js 同形）。要消掉这条边，得在接线时把宿主入口那一堆电话加载器一起搬进单独的注册模块——那正是 #723 要做的拆文件工作"
+      "note": "#723 接线：装配点建视野模型（createAttention），写事件白名单的活跃集合来源就是它（票面 3c：两处用的是同一份「当前在看谁」）。同 ledger.js 那一条。"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./snapshotEnvelope.js",
+      "resolved": "src/host/snapshotEnvelope.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#723 T19（宿主层接线与拆文件时收口）",
+      "note": "#723 拆文件：会话快照信封（字段清单 + 落盘那一步的 snapshot.built 日志）从 sessionSnapshot.js 搬到 snapshotEnvelope.js，好给「每个会话在处理哪些票」的读数腾出位置（票面 3e）。搬运只搬不改、行为逐字等价（校验：tests/verify-723-gate-wiring.js 与复核探针都逐字段比对过，snapshot.built 那行日志还在）。入口那一行的加载器里注入了它。"
+    },
+    {
+      "file": "src/host/sessionSnapshot.js",
+      "spec": "./snapshotEnvelope.js",
+      "resolved": "src/host/snapshotEnvelope.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#723 T19（宿主层接线与拆文件时收口）",
+      "note": "#723 拆文件：同上那一步的引用。会话快照电话要拼信封、要写 snapshot.built 那一行日志；没注入时（门禁与单测里手工拼实例的那几处）现造一个，行为与搬前一致。"
     }
   ]
 }

@@ -293,7 +293,13 @@ const KERNEL_MODULES = [
   { name: 'probeChain', file: 'src/client/kernel/probe-chain.js' },
   { name: 'probeStale', file: 'src/client/kernel/probe-stale.js' },
   { name: 'probeSnapshot', file: 'src/client/kernel/probe-snapshot.js' },
+  // #707：probe-snapshot.js 拆到这里之前 349 行（门禁上限 350），已无下脚的地方，故把颜色小函数、
+  //   数据层增量差异、高亮清除这三样与「下载快照」无关的东西搬成单独一片。
+  { name: 'probeSnapshotHelpers', file: 'src/client/kernel/probe-snapshot-helpers.js' },
   { name: 'probeAuto', file: 'src/client/kernel/probe-auto.js' },
+  // #707：视野模型的客户端半边 —— 窗口标识（sessionStorage，不能放 localStorage）、焦点与可见性监听、
+  //   面板可见时每 20 秒一次的本地心跳（零配额、不出网）、以及「只服务活跃工作区」那条探测节拍。
+  { name: 'attentionHeartbeat', file: 'src/client/kernel/attention-heartbeat.js' },
   { name: 'router', file: 'src/client/kernel/router.js' },
 ]
 
@@ -326,6 +332,11 @@ const SHARED_SPLICE = [
   // 产物里不许出现 __DSW_VERSION__ 与 __DSW_REPO_URL__（拼接发生在版本注入之后）。
   { marker: '// ==== shared:labelColors (spliced by build) ====', file: 'src/shared/label-color/colors.js' },
   { marker: '// ==== shared:labelColorPrompt (spliced by build) ====', file: 'src/shared/label-color/prompt.js' },
+  // #715 诚实显示：新鲜度阈值（5 分钟黄 / 30 分钟红）、合并窗口（10 秒）、降档的延迟承诺，
+  // 全部只有一份真源 refresh-core/src/budget.ts，产物由本文件上面的 refresh-core 构建步骤生成。
+  // 界面那一半不能运行时 import（客户端半边今天没有任何对 src/shared 的运行时 import），
+  // 所以按同一套拼接做法把这一份拼进界面闭包 —— 界面只许消费这些名字，不许再写一份数字。
+  { marker: '// ==== shared:refreshBudget (spliced by build) ====', file: 'src/shared/refresh/budget.js' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
@@ -353,6 +364,8 @@ const LEAF_MODULES = [
   { id: 'stateKind', file: 'src/client/views/shared/stateKind.js' }, // #599 新增：票的状态判据（打开/已关闭/已合并）单源，拉取请求页与单票详情页共用一个函数
   { id: 'tagsFit', file: 'src/client/views/shared/tagsFit.js' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.js' },
+  { id: 'truthLines', file: 'src/client/views/shared/truthLines.js' }, // #715 新增：面板头部那几句「上次更新 / 刷新失败 / 现在是不是降级」的判据（纯函数，画在 ListTab 最上面那一行；行上的「更新中」标记也问它）
+  { id: 'sessionChainView', file: 'src/client/views/shared/sessionChainView.js' }, // #721 新增：面板顶部那一条「每个会话在处理哪些票」（判据加画法；只读宿主写下的那一个快照字段，读不到就说读不到）
   { id: 'ticketRow', file: 'src/client/views/TicketRow.js' },
   { id: 'mapDetailHead', file: 'src/client/views/MapDetailHead.js' }, // #691 由 MapDetail.js 拆出：编号/标题/「本图 N 张子票」那一行（MapDetail 贴着 350 行上限）
   { id: 'mapDetail', file: 'src/client/views/MapDetail.js' },

@@ -3,7 +3,7 @@
 // 接线：由 index.js 动态 import 加载；normCwd 与单票分发前奏经 index 转供给复用（H4 同例），不各留一份拷贝；本文件不引用其他新文件。
 import { idOfParts } from '../shared/tracker/constants.js'
 export function createCommentThreads(deps) {
-  const { normCwd, canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, fetchIssueIndexWindowed, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, logCtx } = deps
+  const { normCwd, canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, fetchIssueIndexWindowed, commitIssueIndex, deltaRefresh, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, logCtx } = deps
   // T5 #10 · 评论分页（反向分页 cursor，节流由 client 侧 600ms 控制；单页 50，失败重试与 3 次兜底）
   async function fetchIssueCommentsREST(n, after, cwd) {
     const repo = await getRepoKey(cwd)
@@ -240,14 +240,50 @@ export function createCommentThreads(deps) {
       // 增量索引（本轮新增）：改走 fetchIssueIndexWindowed —— 它只回答「自上次以来有没有变」，
       //   并把增量并进完整基线后给出 changed。这里不再自己维护一份基线、也不再自行比对：
       //   两份状态会各自漂移，而漂移的后果是面板长期显示旧数据且不报错（静默漏报，最难查）。
+      // #723（T19c）第 E 件：探测说变了之后，**先把变的那几条补进列表**（refresh/patch.js 的
+      //   行级增量：一张票一条薄查询），再回给客户端那一份补好的结果 —— 从前这一步没人做，
+      //   客户端只能整池重建，于是「只补变的那几条」那条窄路白写了。
+      //   水印只在这一步真的并进列表之后才推进（commitIssueIndex），被推迟 / 被丢弃 / 失败时
+      //   一个字节都不动 —— 否则那条变化会被挤出下一次的扫描窗口，此后再也发现不了。
       const remote = await fetchIssueIndexWindowed(cwd)
       if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe 失败') }
       const repo = remote.repo
       const rk1 = repo.owner + '/' + repo.name
       const changed = remote.changed === true
       lastProbeAtByRepo[rk1] = new Date().toISOString()
+      const commit = function () { try { return commitIssueIndex(cwd, remote.nextWatermarkMs, remote.index) } catch (eC) { return null } }
+      if (!changed) {
+        // 没变 = 列表与远端一致，推水印（与基线）是安全的（不推就要每拍重扫同一个窗口）。
+        commit()
+        return { ok: true, changed: false, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
+      }
+      let delta = null
+      try { delta = (typeof deltaRefresh === 'function') ? await deltaRefresh(cwd, {}) : null } catch (eD) { delta = null }
+      if (delta && delta.mode === 'patch' && delta.rows && delta.rows.length) {
+        // 并进列表了：水印与基线跟着走，客户端直接用这一份（不再发整池大查询）。
+        commit()
+        const cur = (typeof getCache === 'function') ? getCache(cwd) : null
+        return {
+          ok: true, changed: true, mode: 'patch', repo: repo, count: remote.count,
+          rows: delta.rows, version: delta.version, queries: delta.queries, partial: delta.partial === true,
+          snapshot: (cur && cur.snapshot) ? cur.snapshot : null, since: lastProbeAtByRepo[rk1],
+        }
+      }
+      if (delta && delta.mode === 'nothing') {
+        commit()
+        return { ok: true, changed: false, mode: 'nothing', repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
+      }
+      if (delta && (delta.mode === 'deferred' || delta.mode === 'failed' || delta.mode === 'stale-dropped')) {
+        // 没并进去：水印与基线一个字节都不动 —— 那条变化下一次仍然在窗口里、仍然会被发现；
+        // 客户端这一拍什么都不用做（它就靠这个「没并进去」的回报原地不动）。
+        return { ok: true, changed: true, mode: delta.mode, reason: String(delta.reason || ''), pending: delta.pending || 0, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
+      }
+      // 该整池的那几档（冷启动 / 票号增减 / 条数过多 / 旧结构）：如实告诉客户端「这一次得整池」。
+      // 这一档推水印与基线：客户端收到之后就会整池重建，那一次会把整仓重拿一遍，变化是被并进列表的
+      // （不推的话每一拍都要从很旧的水印重扫，白烧额度）。
       if (changed) setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
-      return { ok: true, changed: changed, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
+      commit()
+      return { ok: true, changed: true, mode: 'rebuild', reason: String((delta && delta.reason) || 'no-delta'), repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
     } catch (e) { return { ok: false, error: errText(e) } }
   }
   return { fetchIssueCommentsREST, fetchIssueComments, handleIssueDetail, handleIssueComments, handleCommentIssue, handleProbe }

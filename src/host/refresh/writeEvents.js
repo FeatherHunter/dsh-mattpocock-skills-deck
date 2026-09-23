@@ -26,6 +26,7 @@
 //   （活跃集合变化时调，来源是视野模型 src/host/refresh/attention.js）；`w.forgetRoot(<切走的工作区根>)` 收摊。
 //   本票没有动 src/host/index.js（全库共用的大文件，别的票同时在改），这一处接线请统筹者统一做。
 import { detectWrite, actionFor } from '../../shared/refresh/write-detect.js'
+import { chainRootHash } from '../../shared/refresh/chain.js'
 import { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } from '../../shared/refresh/budget.js'
 
 /** 闸的调用点名字（事件触发那一档）。闸按它分类记账；本文件不改闸与账本一个字。 */
@@ -73,9 +74,17 @@ export function createWriteEvents(deps) {
 
   const allowedRoots = new Set()   // 我们服务的工作区根散列（白名单，按散列存）
   const sessionRoots = new Map()   // 会话 id → 工作区根散列（**只有归我们的会话**才进这张表）
+  // #723（T19）：会话 id → 归一化之后的工作区根原文。上面那张表按短散列存（门与钥匙用），
+  // 但处理链要的是它自己那套 16 位指纹（chainRootHash 从**原文**算），所以在门过掉之后
+  // 把原文也留一份 —— 只留归我们的会话，一样不落盘、不进日志。
+  const sessionRootKeys = new Map()
   const lastFireAt = new Map()     // 工作区根散列 → 上一次事件触发取数的时刻（10 秒合并窗口）
   const firedLogAt = new Map()     // 工作区根散列 → 上一次记日志的时刻（节流，1 秒一条）
   const stats = { seen: 0, fired: 0, coalesced: 0, deferred: 0, sent: 0, noGate: 0, noKeyFn: 0, event: { requests: 0, points: 0 } }
+  // 最近一次过闸带的那把工作区钥匙（只在内存里，是个短散列）。门禁与现场排查据它核对
+  // 「过闸用的钥匙」与「标活跃用的钥匙」是不是同一把 —— #723（T19）就是在这里栽过一次
+  // （同一份逻辑把已经是散列的值又散列了一遍，两把钥匙对不上，于是这条路径恒被推迟）。
+  let lastGateKey = ''
 
   /** 会话的工作区钥匙：交给接线处传进来的宿主既有出口算（本文件不另写一套归一化）。 */
   async function keyOf(cwd) {
@@ -107,6 +116,7 @@ export function createWriteEvents(deps) {
     const rootHash = hash8(key)
     if (!allowedRoots.has(rootHash)) return false   // 别的会话、别的工作区：到此为止，不留任何痕迹
     sessionRoots.set(id, rootHash)
+    sessionRootKeys.set(id, key)   // 归一化后的根原文：处理链按它算自己那套 16 位指纹
     return true
   }
 
@@ -124,7 +134,7 @@ export function createWriteEvents(deps) {
   function forgetRoot(rootOrCwd) {
     const h = hash8(String(rootOrCwd || ''))
     allowedRoots.delete(h)
-    for (const [id, v] of Array.from(sessionRoots.entries())) if (v === h) sessionRoots.delete(id)
+    for (const [id, v] of Array.from(sessionRoots.entries())) if (v === h) { sessionRoots.delete(id); sessionRootKeys.delete(id) }
     lastFireAt.delete(h)
     firedLogAt.delete(h)
   }
@@ -140,6 +150,26 @@ export function createWriteEvents(deps) {
   /** 命令行：Windows 上命令工具是 pwsh，命令行在 `JSON.parse(arguments).command`。原样喂给纯函数，随即丢弃。 */
   function commandOf(argsObj) {
     try { return (argsObj && typeof argsObj.command === 'string') ? argsObj.command : '' } catch (e) { return '' }
+  }
+
+  /**
+   * #723（T19）：给处理链那一边用的动作词。链的白名单只认这几个（src/shared/refresh/chain.js 的
+   * CHAIN_ACTIONS）：它们必须从**写事件判定表认得的命令动词**上来，不能编。
+   *   我们自己的写工具：工具名就是动作（deck_issue_create → create）；
+   *   gh / glab 的写子命令：从命令行里第二个位置词取（`gh issue comment 723` → comment）。
+   * 认不出来就回空串 —— 链那边会如实丢掉并说 chain.no-ticket / chain.read-excluded，不假装记下。
+   */
+  const ACTION_BY_TOOL = Object.freeze({
+    deck_issue_create: 'create', deck_issue_patch: 'edit', deck_map_plan_create: 'create', deck_map_link: 'link',
+    create: 'create', edit: 'edit', close: 'close', reopen: 'reopen', comment: 'comment',
+    assign: 'assign', label: 'label', unlabel: 'unlabel', link: 'link', unlink: 'unlink', delete: 'delete',
+  })
+  function actionOf(tool, command) {
+    const t = String(tool || '').toLowerCase()
+    if (Object.prototype.hasOwnProperty.call(ACTION_BY_TOOL, t)) return ACTION_BY_TOOL[t]
+    const hit = /\b(?:gh|glab)\s+\w+\s+([a-z-]+)/i.exec(String(command || ''))
+    const verb = hit ? String(hit[1]).toLowerCase().replace(/^--?/, '') : ''
+    return Object.prototype.hasOwnProperty.call(ACTION_BY_TOOL, verb) ? ACTION_BY_TOOL[verb] : ''
   }
 
   /** 会话事件里的正文（`tool/result` 的 message.content、ptc 派发的 content 两处形状都认）。 */
@@ -187,12 +217,16 @@ export function createWriteEvents(deps) {
       return { tier: verdict.tier, reason: verdict.reason, action: plan.action, ticket: plan.ticket, gated: false }
     }
     const kind = (plan.action === 'patch-now') ? 'patch' : 'probe'
-    // 过闸：调用点名字写 `event.write`（事件触发那一档）。闸的调用点表里暂时没有这个名字，于是它按
-    // 「认不出 → 后台档」处理并把这一笔记进 stats().unclassified —— 这是闸设计好的兜底（先按后台算、
-    // 同时让人看得见「这个调用点还没登记」）。要让账本真单列出第四档，得动账本与闸那三个文件
-    //（ledger.js 的档位表、gate.js 的调用点表、policy.ts 的类别联合），不属本票，已写进施工报告。
+    // 过闸：调用点名字写 `event.write`（事件触发那一档），**并且带上这个工作区的钥匙**（rootHash）。
+    //
+    // #723（T19）修掉的一处真错：从前这里没带 workspaceKey，闸就落到它的「认不出这个工作区」兜底上
+    // （workspaceKey || 'unknown' 那一格），而那一格永远不会被 setWorkspace 标成活跃 —— 后台档的
+    // background-inactive 于是**恒**把这里的每一笔判成推迟：接线看起来接上了，实际一次都发不出去。
+    // rootHash 就是「归我们的那个工作区根」的钥匙（上面 isOurs 那道门用的也是它）；接线那一侧
+    // （wiring.js 的 syncAttention）拿同一把钥匙标活跃，所以这一笔才放行得出来。
+    lastGateKey = rootHash
     const out = await gate.send(
-      { source: WRITE_EVENT_SOURCE, kind: kind, plan: [{ action: plan.action, ticket: plan.ticket }] },
+      { source: WRITE_EVENT_SOURCE, kind: kind, workspaceKey: rootHash, plan: [{ action: plan.action, ticket: plan.ticket }] },
       async function (step, meta) { return doFetch ? await doFetch(step, meta) : { requests: 0, points: 0 } }
     )
     if (out && out.sent) { stats.sent += 1; stats.event.requests += num(out.requests, 0); stats.event.points += num(out.points, 0) }
@@ -219,7 +253,13 @@ export function createWriteEvents(deps) {
     const ours = await isOurs(session)
     if (!ours) return null
     stats.seen += 1
-    const keyHash = hash8(String(sessionRoots.get(sessionIdOf(session)) || ''))
+    // #723（T19）修掉的一处真错：这一行原来多套了一层散列（hash8(hash8(root))），而 sessionRoots 里存的
+    // **已经是散列**（见 isOurs 里的 sessionRoots.set(id, rootHash)，以及它拿同一个值去 allowedRoots.has）。
+    // 于是同一条工作区根有了两把钥匙：「标活跃」那一侧（wiring.js 的 syncAttention → gate.setWorkspace）
+    // 用 hash8(root)，「过闸」这一侧（下面 fire 里的 workspaceKey: rootHash）拿到的是 hash8(hash8(root))。
+    // 两把钥匙对不上，闸那一格就永远是 active=false，后台档的 background-inactive 把这条路上**每一笔**
+    // 都判成推迟 —— 接线看起来接上了，生产里一次都发不出去。现在与 isOurs 用的是同一个值。
+    const keyHash = String(sessionRoots.get(sessionIdOf(session)) || '')
     const argsObj = parsedArgs(rawArgs)
     const verdict = detectWrite({ shape: shape, tool: String(tool || ''), command: commandOf(argsObj), args: argsObj, succeeded: succeeded })
     const plan = actionFor(verdict, limits)
@@ -227,12 +267,22 @@ export function createWriteEvents(deps) {
     // refresh/sessionTickets.js 的 note），这样界面上「每个会话在处理哪些票」才不是恒空。
     // 时序也在这里定死：喂数据与读数是同一个订阅的两头，先有喂才有读数 —— 只接读数会让
     // 界面恒显示「取到了、空的」，那比如实说「读不到」更坏。note 抛错不许影响取数那一路。
+    //
+    // 喂进去的形状必须按**链自己的判据**来（#723 复核钉出来的两处对不上，两处都在这一份 payload 上）：
+    //   ① 根那栏要的是 chainRootHash（8 位 djb2 + 8 位 fnv，共 16 位小写十六进制），不是本文件用的
+    //      8 位短散列 —— 长度不到 16 位，链在第一道判据就回 chain.bad-root，一笔都不记（界面于是恒空）；
+    //   ② 后端那栏从前写死空串，链的第二道判据 chain.bad-backend 会把它丢掉（白名单只有 github/gitlab/
+    //      markdown 三个名字）。真后端名不在本文件手上，由接线处给一个按工作区根现取的来源（opts.backendOf）。
+    // 两处都不自己做主：认不出来就照实让链丢掉并说原因，不编一个假值让它看着能记。
     if (typeof opts.note === 'function') {
+      let backendName = ''
+      if (typeof opts.backendOf === 'function') { try { backendName = String(await opts.backendOf(sessionRootKeys.get(sessionIdOf(session)) || '') || '') } catch (eB) { backendName = '' } }
+      const verb = actionOf(tool, commandOf(argsObj))
       try {
         await opts.note({
-          sessionId: sessionIdOf(session), rootHash: keyHash, backend: '',
+          sessionId: sessionIdOf(session), rootHash: chainRootHash(sessionRootKeys.get(sessionIdOf(session)) || ''), backend: backendName,
           tool: String(tool || ''), source: (String(tool || '').toLowerCase().indexOf('deck_') === 0) ? 'tool-args' : 'cli',
-          tier: verdict.tier, reason: verdict.reason, verb: '', ticketKey: verdict.ticket || '', args: argsObj,
+          tier: verdict.tier, reason: verdict.reason, verb: verb, ticketKey: verdict.ticket || '', args: argsObj,
         })
       } catch (eN) { /* 喂链失败不许影响取数 */ }
     }
@@ -291,6 +341,8 @@ export function createWriteEvents(deps) {
     onToolResult: onToolResult,
     onSessionEvent: onSessionEvent,
     stats: function () { return { seen: stats.seen, fired: stats.fired, coalesced: stats.coalesced, deferred: stats.deferred, sent: stats.sent, noGate: stats.noGate, noKeyFn: stats.noKeyFn, event: { requests: stats.event.requests, points: stats.event.points } } },
+    /** 最近一次过闸带的工作区钥匙（短散列）。同一把钥匙也被接线那一侧用来标活跃，两处必须相等。 */
+    lastGateKey: function () { return lastGateKey },
     /** 只给门禁看的一份内部表：几个数字而已，没有会话 id、没有路径、没有命令。 */
     debugState: function () { return { allowedRoots: allowedRoots.size, knownSessions: sessionRoots.size, windows: lastFireAt.size } },
   }

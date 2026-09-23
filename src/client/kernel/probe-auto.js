@@ -40,6 +40,13 @@
           // #327 特性 A：探测完成即走针（无论是否检出变化）
           try { if (res && res.ok) touchProbeAt(cwd) } catch (ePA) {}
           if (!(res && res.ok && res.changed)) return
+          // #723（T19c）第 E 件：宿主在探测那一步已经把变的那几条用薄查询补进列表了
+          //   （res.mode === 'patch'，回包里带的 snapshot 就是补好的那一份），这里直接吃它，
+          //   不再发整池大查询 —— 从前这一行下面一律 loadSnapshot(primary, true, true)，
+          //   于是「只补变的那几条」那条窄路等于白写。
+          //   宿主明确说「没并进去」时（被推迟 / 被丢弃 / 失败）这一拍什么都不做：水印一个字节都没动，
+          //   下一拍仍然会发现同一条变化；这时候去整池反而会把「谁欠着一次」这件事抹掉。
+          if (res.mode === 'deferred' || res.mode === 'failed' || res.mode === 'stale-dropped') return
           const group = []
           // #653：分组按工作区键（wsKeyOf）——同一个仓库里，根会话与子目录会话算同一组，
           //   一次全量重建的结果扇出给组内所有会话，不再各拉各的。
@@ -58,9 +65,13 @@
           const primary = group[0]
           if (!primary.cwd) primary.cwd = cwd
           const rest = group.slice(1)
-          return loadSnapshot(primary, true, true).then(function () {
-            const newSnap = primary.snapshot
-            if (!newSnap || newSnap.ok !== true || !Array.isArray(newSnap.maps)) return
+          // 把一份快照落进本组：主 store 就地更新，同组其余会话按差异带闪烁标记。
+          const applySnap = function (raw) {
+            const newSnap = raw || primary.snapshot
+            if (!newSnap || newSnap.ok !== true || !Array.isArray(newSnap.maps)) return false
+            primary.snapshot = newSnap
+            primary.snapMode = 'real'
+            primary.snapError = null
             rest.forEach(function (st2) {
               st2.lastDiff = diffSnapshots(st2.snapshot, newSnap)
               st2.rowFlash = {}
@@ -75,6 +86,15 @@
               scheduleFlashClear(st2)
               emit(st2)
             })
+            try { emit(primary) } catch (eEmit) {}
+            return true
+          }
+          // ① 宿主已经补好行级增量：直接用，一条大查询都不发。
+          if (res.mode === 'patch' && res.snapshot && applySnap(res.snapshot)) return
+          // ② 宿主说该整池（冷启动 / 票号增减 / 条数过多 / 旧结构），或者这一版宿主没给增量结果：
+          //    走原来那条整池重建的路（行为与改动前一致）。
+          return loadSnapshot(primary, true, true).then(function () {
+            applySnap(primary.snapshot)
           }).catch(function () { /* 忽略 */ })
         }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.probe', kind: 'probe', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
       }

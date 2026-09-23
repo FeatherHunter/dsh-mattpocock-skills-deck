@@ -34,7 +34,8 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  */
 
 /**
- * 关闭原因（开放 string；保留值 completed / not_planned / reopened / duplicate）。
+ * 关闭原因（开放 string；插件自己认得并收进 constants.js 的 CLOSED_REASON 表里的保留值只有
+ * completed 与 duplicate 两个；GitHub 那一侧还有 not_planned / reopened 等取值，原样透传、不分支、不查表）。
  * 只在 state=closed 有意义；open 依后端支持情况给 ''(EMPTY) 或省略(MISSING)。
  * @typedef {string} ClosedReason
  */

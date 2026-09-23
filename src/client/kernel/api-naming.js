@@ -139,8 +139,7 @@ export let pendingDraftTargetSid = null
     // 本侧只做渲染钩子 —— 拉取计划单、按本机语言落地档位词、经会话门面（face.rename）执行改名、回报结果。
     // 纯判定真源 = src/shared/naming-titles.js 等 3 个文件（构建经 shared:namingTitles 等 3 个 splice 注入本闭包，无第二处实现）。
     // 旧 #211 的 5 秒手改跳过标记（死代码）自本版起全面移除：手改保护由值比对锁真检测承担。
-    export const NAMING_POLL_MS = 5000
-    let _namingPollTimer = null
+    // #709（T5）：从前这里有 NAMING_POLL_MS = 5000 与 _namingPollTimer（自续轮询用）。两者随轮询一起退役。
     let _namingPullBusy = false
     // 值比对锁的「当前标题」来源：优先 sessions.get(sid) 实时标题（若宿主暴露，即时而非快照），回退到 sessions.list 快照 byId[sid].title
     export function namingCurrentTitleOf(sid) {
@@ -309,19 +308,23 @@ export let pendingDraftTargetSid = null
         } catch (eClean) {}
       }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.namingPlan', kind: 'naming-plan', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; _namingPullBusy = false })
     }
-    // 常驻拉询（web 半加载即活，面板未开也续跑；globalThis 单例句柄清热重载遗留环）
-    export function startNamingGuardianPoll() {
-      try {
-        if (typeof globalThis !== 'undefined') {
-          const prev = globalThis.__dswsNamingPollTimer
-          if (prev) try { clearTimeout(prev) } catch (ePrev) {}
-        }
-      } catch (eGuard) {}
-      if (_namingPollTimer) return
+    // #709（T5）：命名守护的客户端拉询改事件驱动 —— 从前那条 5 秒自续轮询（NAMING_POLL_MS + tick）
+    // 整体退役，客户端侧不再有任何自续定时器。
+    // 为什么删得掉：宿主侧那三条宿主事件（`gh issue create` 被拦截、新会话注册、认领推送）已经把
+    //「什么时候可能出编号」说清了；客户端这边只要在四种事件到来时催一次即可：
+    //   切进工作区、点「重新检查」、做完可能改变它的动作（初始化 / 绑定后端 / 装技能）、写入成功之后。
+    export function namingGuardianEvent(why) {
+      const reason = String(why || 'event')
+      try { if (isEnabled('debug')) log('debug', 'naming.guard.event', { reason: reason }) } catch (eL) {}
       namingGuardianKick()
-      const tick = function () { namingGuardianKick(); _namingPollTimer = setTimeout(tick, NAMING_POLL_MS) }
-      _namingPollTimer = setTimeout(tick, NAMING_POLL_MS); try { if (isEnabled('debug')) log('debug', 'timer.schedule', { name: 'naming-poll', intervalMs: NAMING_POLL_MS }) } catch (eL) {}
-      try { if (typeof globalThis !== 'undefined') globalThis.__dswsNamingPollTimer = _namingPollTimer } catch (eKeep) {}
+    }
+    // 随 apply 启动。注意这里**不启动任何循环**：只把上一代 apply（旧版本）万一留下的轮询清掉，
+    // 然后做一次拉取（等价于「刚切进这个工作区」那一次）。
+    export function startNamingGuardianEvents() {
+      try {
+        if (typeof globalThis !== 'undefined' && globalThis.__dswsNamingPollTimer) { try { clearTimeout(globalThis.__dswsNamingPollTimer) } catch (ePrev) {} globalThis.__dswsNamingPollTimer = null }
+      } catch (eGuard) {}
+      namingGuardianEvent('apply-start')
     }
     // 需求1（2026-08-18）：交接按钮 = 第一击（注入 /handoff 模板，不再变字）；「新会话交接」小按钮 = 原第二击逻辑
     // 需求1·二阶段 rev（2026-08-18）：灰/亮双态的真实依据 = 磁盘上确实存在交接文档（wf.handoffLatest 探测）。

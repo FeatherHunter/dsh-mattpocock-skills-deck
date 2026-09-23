@@ -9,27 +9,18 @@
 export const ChecksTab = ({ st }) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
-  React.useEffect(function () { loadChain(st, false) }, [])
+  // #709（T5）：打开检查页 = 「切进这个工作区」那一次事件，链快照在这里取一次。
+  React.useEffect(function () { loadChain(st, false, (typeof CHAIN_EVENT_REASONS !== 'undefined' ? CHAIN_EVENT_REASONS.enterWorkspace : 'enter-workspace')) }, [])
   // #529：语言切换即时重取——快照内说明行按取回时语言 baked（标题走词条自动翻）；
   //   快照语言与当前不一致时 force 重取，说明行也翻；重取前标题已先翻，无闪烁回退。
   const curLang = (typeof promptLang === 'function' ? promptLang() : 'zh')
   React.useEffect(function () {
-    try { if (st.chainSnapshot && st.chainLangLoaded && st.chainLangLoaded !== curLang) loadChain(st, true) } catch (e) {}
+    try { if (st.chainSnapshot && st.chainLangLoaded && st.chainLangLoaded !== curLang) loadChain(st, true, 'action-done') } catch (e) {}
   }, [curLang])
-  // B 方案（2026-08-28 用户定版）：链未全绿时每 20s 静默重查一次——修复（在对话/终端完成）后面板自动变绿，
-  //   无需手动点「重新检查」；host 侧对未全绿快照不写 30s 缓存，poll 每次真探测；链全部通过后定时器停止（零开销）。
-  React.useEffect(function () {
-    const pollTimer = setInterval(function () {
-      try {
-        const steps = chainSteps(st)
-        if (!steps.length) return
-        if (steps.every(function (s) { return s.status === 'done' })) return
-        if (st.refreshing) return
-        loadChain(st, false)
-      } catch (e) {}
-    }, 20000); try { if (isEnabled('debug')) log('debug', 'timer.schedule', { name: 'checks-poll', intervalMs: 20000 }) } catch (eL) {}
-    return function () { try { clearInterval(pollTimer) } catch (e) {} }
-  }, [])
+  // #709（T5）：这里从前有一条 20 秒自轮询（B 方案 2026-08-28「链未全绿时每 20s 静默重查一次」）。
+  //   它整体退役 —— 界面侧不再有任何自续定时器。现在「修好之后检查页自动变绿」靠事件带起来：
+  //   做完可能改变链的动作（初始化 / 绑定后端 / 装技能）与写入成功之后都会催宿主重算一次，
+  //   该不该真算由宿主按退避裁定（8 秒 → 30 秒 → 2 分钟 → 5 分钟，有进展立刻回第一档）。
   // #284：单一口径 = 链快照步骤（pending = 诚实未知/未接入，置灰展示，不计入 ready/total）
   const steps = chainSteps(st)
   const chainSnapshot = st.chainSnapshot || null
@@ -93,7 +84,7 @@ export const ChecksTab = ({ st }) => {
               // #669 第 6 件（ADR 20260921）：hint 只报「用户亲手选过的那条」（派生值不许冒充意图）
               if (typeof host !== 'undefined' && host.call) { await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined, baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) }) }
             } catch (e) {}
-            try { loadChain(st, true) } catch (e) {}
+            try { loadChain(st, true, (typeof CHAIN_EVENT_REASONS !== 'undefined' ? CHAIN_EVENT_REASONS.userRecheck : 'user-recheck')) } catch (e) {}
             try { loadSnapshot(st, true, true) } catch (e) {}
           },
           tr: tr,

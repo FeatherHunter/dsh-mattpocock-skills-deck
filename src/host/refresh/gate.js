@@ -44,6 +44,7 @@ export const CALL_SITE_CATEGORIES = {
   'naming.sweep': 'background',        // 命名守护的兜底一跳
   'quota.sync': 'background',          // 每分钟读一次服务端剩余（不扣配额，但仍是真实出站）
   'tool.call': 'ai-tool',              // AI 通过我们的工具发起的调用
+  'event.write': 'background',         // #723（T19）写完一笔触发的那次取数（writeEvents.js 发）
 }
 
 /** 请求种类 → 记哪一个桶。REST 数请求条数、GraphQL 数点数，两桶各自一份额度与档位。 */

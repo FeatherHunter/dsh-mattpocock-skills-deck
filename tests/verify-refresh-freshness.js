@@ -25,6 +25,22 @@ const UNITS = [
   { ts: 'refresh-core/src/idempotency.ts', js: 'src/shared/refresh/idempotency.js' },
   // #706（T2）加的第四份：闸的裁决纯函数。同一口径。
   { ts: 'refresh-core/src/policy.ts', js: 'src/shared/refresh/policy.js' },
+  // #707（T3）加的第八份：视野模型的纯逻辑（活跃名额与淘汰、同一工作区根只占一个名额、90 秒收摊）。
+  { ts: 'refresh-core/src/attention.ts', js: 'src/shared/refresh/attention.js' },
+  // #710（T6）加的第五份：写事件的判定表（纯函数，能被单测穷举）。同一口径。
+  { ts: 'refresh-core/src/write-detect.ts', js: 'src/shared/refresh/write-detect.js' },
+  // #708（T4）加的第六份：行级增量刷新的纯逻辑。同一口径 —— 改了 TS 没重新生成产物就红。
+  { ts: 'refresh-core/src/delta.ts', js: 'src/shared/refresh/delta.js' },
+  // #714（T10）加的第七份：会话↔票 处理链的纯逻辑（键构造、按会话分格、只记写不记读、落盘形状）。
+  { ts: 'refresh-core/src/chain.ts', js: 'src/shared/refresh/chain.js' },
+  // #709（T5）加的第九份：「下一次什么时候再查」的纯函数 —— 退避序列（8 秒 → 30 秒 → 2 分钟 → 5 分钟）、
+  // 有进展立刻回快档、全绿缓存 30 分钟、环境预检寿命 10 分钟、失败后允许立刻重试几次。同一口径。
+  { ts: 'refresh-core/src/backoff.ts', js: 'src/shared/refresh/backoff.js' },
+  // #713（T9）加的第十份：AI 工具的「调用前算账」（预估点数、预估出站请求数、是否超单次顶、建议分几片）。
+  // 额度常量由宿主侧从 budget.js 现取现传，所以产物自己一个相对引用都没有 —— 上面那条「零相对引用」正好管它。
+  { ts: 'refresh-core/src/tool-cost.ts', js: 'src/shared/refresh/tool-cost.js' },
+  // #722（T18）加的第十一份：GitLab 建票写请求的结果判据。同一口径 —— 改了 TS 没重新生成产物就红。
+  { ts: 'refresh-core/src/create-write.ts', js: 'src/shared/refresh/create-write.js' },
 ]
 
 // 去掉块注释与整行注释之后再找相对 import，避免把注释里的示例当成真的引用（写法同 verify-update-freshness.js）。

@@ -47,6 +47,41 @@ const UNITS = [
   // #706（T2）加的第四份：闸的裁决纯函数。宿主侧 src/host/refresh/gate.js 每放行一笔就调它一次，
   // 数字由 gate.js 从 budget.js 取好注入（policy.ts 自己不 import 任何产物，免得踩同层互引）。
   { ts: 'policy.ts', js: 'policy.js' },
+  // #707（T3）加的第五份：视野模型的纯逻辑（活跃集合的名额与淘汰、同一工作区根只占一个名额、
+  // 90 秒无信号的收摊判定、每个活跃根该按什么间隔探测）。宿主侧 src/host/refresh/attention.js
+  // 拿它当薄壳，数字同样由那一边从 budget.js 取好注入。
+  { ts: 'attention.ts', js: 'attention.js' },
+  // #710（T6）加的第六份：写事件的判定表（纯函数）。宿主侧 src/host/refresh/writeEvents.js 每收到一条
+  // 成功的工具调用就喂它一次，返回「三档 + 票号或未知」；参数只在这一层做瞬时匹配，返回值里不带命令原文。
+  { ts: 'write-detect.ts', js: 'write-detect.js' },
+  // #709（T5）加的第七份：「下一次什么时候再查」的纯函数 —— 退避序列（8 秒 → 30 秒 → 2 分钟 → 5 分钟）、
+  // 有进展立刻回快档、全绿缓存 30 分钟、环境预检寿命 10 分钟、失败后允许立刻重试几次。
+  // 数字由调用方从 budget.js 取好注入（backoff.ts 自己不 import 任何产物，免得踩同层互引）。
+  { ts: 'backoff.ts', js: 'backoff.js' },
+  // #714（T10）加的第八份：会话↔票 处理链的纯逻辑（链的键构造、按会话分格的去重与留存、
+  // 「只记写不记读」的过滤判定、落盘形状与隐私自检）。宿主侧 src/host/refresh/sessionTickets.js
+  // 拿它当薄壳：内存表与落盘在那一边，时间由那一边传进来。
+  { ts: 'chain.ts', js: 'chain.js' },
+  // #708（T4）加的第九份：行级增量刷新的纯逻辑 —— 差分与合并规则、水印推进的判定（只在变化真正并进
+  // 列表之后才推进）、世代号的新旧比较、派生值该重算还是标「待确认」、旧结构的判定。
+  // 宿主侧 src/host/refresh/patch.js 每一步都调它；索引与时间都由那一边传进来，本文件一个都不自己取。
+  { ts: 'delta.ts', js: 'delta.js' },
+  // #713（T9）加的第十份：AI 工具的「调用前算账」（预估点数、预估出站请求数、是否超单次顶、
+  // 建议分几片）。额度常量仍然只有一处物理真源（budget.ts），由宿主侧取好传进来 ——
+  // 产物之间不许互相 import（tests/verify-no-same-layer-import.js 与新鲜度门禁的「产物零相对引用」），
+  // 所以本文件只放算式与形状，做法与 policy.ts / backoff.ts 一致。
+  { ts: 'tool-cost.ts', js: 'tool-cost.js' },
+  // #722（T18）加的第十一份：GitLab 建票那一次写请求的结果判据（四档结论 + 许不许再发一次）。
+  // 宿主侧 src/host/tracker/backends/gitlab/create-write.js 拿它判每一次 glab 调用，判据只此一处；
+  // 「确定没发出去」才允许重发一次，其余（含超时）一律不再写，免得远端多出一张票。
+  { ts: 'create-write.ts', js: 'create-write.js' },
+  // #719（T15）加的第十二份：一次整池重建按「翻了几页」算价钱的算式（实测算用的页数与
+  // 最坏用量用的页数上界分开）。宿主侧 src/host/refresh/ledger.js 记每个仓库的实测页数，
+  // 每页单价由那一边从 budget.js 取好传进来 —— 本文件自己不 import 任何产物。
+  { ts: 'page-budget.ts', js: 'page-budget.js' },
+  // #719（T15）加的第十三份：每个后端的额度桶形状与「按后端算价」（GitHub 两桶 / GitLab 只按
+  // 请求数（数值待实测）/ 本地 Markdown 不出站不计费）。本文件不写任何额度数值，只写形状与判定。
+  { ts: 'backend-quota.ts', js: 'backend-quota.js' },
 ]
 
 function headerFor(tsName) {

@@ -42,31 +42,30 @@
     //   是同一条链、同一次求值；此前按会话所选目录分键，两边各求一次、互相看不到对方的链快照。
     // #491 房外埋点：在途复用计数（窗口到记一次；dswsLogHash 同闭包见 probe-snapshot.js）。
     const dswsChainDedupN = { n: 0 }
-    // #344 修复（2026-08-31）：链自动重求值 — 当链非全绿时周期 force 重算，直至全绿后停止
-    // 原理：tracker:initialized 等声明式检查的推进只来自重求值，初始化完成后文件写入为链外事件；
-    // 宿主侧链缓存“未全绿不缓存”已保证 force 可穿透，但客户端无自动触发导致黄条常驻需手动点“重查”。
-    // 本调度在每次链加载后检查，若存在非 done 步骤则 8s 后自动 force 重算，跨工作区隔离、单定时器防抖。
-    const CHAIN_AUTO_POLL_MS = 8000
-    const _chainAutoPollTimers = new Map()
-    export const scheduleChainAutoRefresh = function(st, ms){
-      try{
-        const key = _chainKeyOfState(st)
-        if(!key || _chainAutoPollTimers.has(key)) return
-        const delay = (typeof ms === 'number' && ms>0) ? ms : CHAIN_AUTO_POLL_MS
-        const tid = (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function')
-          ? timer.timeout(function(){ _chainAutoPollTimers.delete(key); try{ const snap = st.chainSnapshot; const steps = snap && Array.isArray(snap.steps) ? snap.steps : []; const notDone = steps.some(function(s){ return s.status !== 'done' }); if(notDone && st.cwd) loadChain(st, true) }catch(e){} }, delay)
-          : setTimeout(function(){ _chainAutoPollTimers.delete(key); try{ const snap = st.chainSnapshot; const steps = snap && Array.isArray(snap.steps) ? snap.steps : []; const notDone = steps.some(function(s){ return s.status !== 'done' }); if(notDone && st.cwd) loadChain(st, true) }catch(e){} }, delay)
-        _chainAutoPollTimers.set(key, tid)
-      }catch(e){}
+    // #709（T5）：链自动重求值改事件驱动 —— #344 加的那条 8 秒自轮询（「只要链没全绿就 8 秒后再
+    // force 一次」的那一对排期/取消函数，外加它的间隔常量）整体退役，客户端侧不再有任何自续定时器。
+    // 为什么删得掉：那条轮询存在的理由是「初始化之类的动作发生在链外，没人告诉链该重算」。
+    // 现在四种事件会主动说：切进工作区、点「重新检查」、做完可能改变它的动作（初始化 / 绑定后端 /
+    // 装技能）、写入成功之后。它们都调下面这一个入口，由宿主按退避判「这次真算还是继续用上一份」
+    //（8 秒 → 30 秒 → 2 分钟 → 5 分钟，有进展立刻回快档；全绿之后缓存 30 分钟）。
+    // 人亲手点的「重新检查」传 'user-recheck'，那一种永不降档。
+    export const CHAIN_EVENT_REASONS = {
+      enterWorkspace: 'enter-workspace',
+      userRecheck: 'user-recheck',
+      actionDone: 'action-done',
+      writeDone: 'write-done'
     }
-    export const cancelChainAutoRefresh = function(st){
-      try{
-        const key = _chainKeyOfState(st)
-        const tid = _chainAutoPollTimers.get(key)
-        if(tid){ try{ clearTimeout(tid) }catch(e){} _chainAutoPollTimers.delete(key) }
-      }catch(e){}
+    /**
+     * 事件触发入口：四种事件全部走这里。返回值与 loadChain 一样是这一次求值的 promise
+     *（被退避挡下时宿主直接回上一份快照，界面照常铺满，不会白屏）。
+     */
+    export const chainEventRefresh = function (st, why) {
+      const reason = String(why || CHAIN_EVENT_REASONS.enterWorkspace)
+      try { if (isEnabled('debug')) log('debug', 'chain.event', { reason: reason }) } catch (eL) {}
+      if (!st || !st.cwd) return Promise.resolve(null)
+      return loadChain(st, true, reason)
     }
-    export const loadChain = function(st, force){
+    export const loadChain = function(st, force, trigger){
       if (typeof host === 'undefined' || typeof host.call !== 'function') return Promise.resolve(null)
       // 链共享键 = 工作区键 + 后端 id + 语言（#324 按工作区单次求值按后端隔离；#529 加语言：host 明细按语言产出，中英快照分开缓存，切换语言即时重取）
       const _backendIdForChain = (st.selection && st.selection.backendId) || ''
@@ -97,7 +96,7 @@
       // #669 第 6 件（ADR 20260921）：只有用户亲手选过的那条才当 hint 上报 —— 派生值不许冒充意图
       const _hintBid = (typeof userHintOf === 'function') ? userHintOf(st.selection) : undefined
       const _hintRev = (typeof baseRevOf === 'function') ? baseRevOf(st.selection) : 0 // #683（F1 · ADR 的 R2）：hint 旁边带上「这条选择是从哪个修订号来的」，宿主才判得出新旧
-      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, _hintBid ? { backendId: _hintBid, baseRev: _hintRev } : {}, force ? { force:true } : {}, { lang: _langForChain })
+      const args = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, _hintBid ? { backendId: _hintBid, baseRev: _hintRev } : {}, force ? { force:true } : {}, { lang: _langForChain }, trigger ? { trigger: String(trigger) } : {})
       const chainT0 = Date.now()
       // 在途登记：这一次请求的序号记在这把键上（#669 第 4 件）。发出去就记，
       //   回包时凭它跟「这个键上最新那次的序号」比一次，比不过就是要丢的那一次（见下面那段竞态说明）。
@@ -130,21 +129,16 @@
           // 落共享缓存，供同工作区其他会话秒显
           try { if (typeof setCachedChain === 'function') setCachedChain(wsKeyOf(st.cwd), _backendIdForChain, _langForChain, snap) } catch(eSet){}
           emit(st)
-          // #344 自动重求值调度：非全绿时安排下一次 force 重算，全绿时取消
-          try{
-            const steps = snap && Array.isArray(snap.steps) ? snap.steps : []
-            const notDone = steps.some(function(s){ return s.status !== 'done' })
-            if(notDone) scheduleChainAutoRefresh(st, CHAIN_AUTO_POLL_MS)
-            else cancelChainAutoRefresh(st)
-          }catch(eAuto){}
+          // #709（T5）：这里从前会「只要链没全绿就安排 8 秒后再 force 一次」。现在不排任何定时器：
+          // 下一次重算由四种事件带起来，该不该真算由宿主按退避裁定。
           return snap
         }
         try { log('warn', 'chain.derive.error', { stepId: 'chain.snapshot', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-derive-empty'), 120, 'error')) }) } catch (eL) {}
         return null
       }).catch(function(e){
         try { log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }); log('warn', 'chain.derive.error', { stepId: 'chain.load', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
-        // #344 加固：宿主异常也安排重试（探测暂时不可用时 8s 后再探，避免黄条卡死）
-        try{ const snapPrev = st.chainSnapshot; const stepsPrev = snapPrev && Array.isArray(snapPrev.steps) ? snapPrev.steps : []; const notDonePrev = stepsPrev.length ? stepsPrev.some(function(s){ return s.status !== 'done' }) : true; if(notDonePrev && st.cwd) scheduleChainAutoRefresh(st, CHAIN_AUTO_POLL_MS) }catch(eRetry){}
+        // #709（T5）：这里从前也会排一次 8 秒后的重试。同样退役——宿主异常不该自己给自己续命，
+        // 等四种事件里的下一个到来时自然再试一次。
         return null }).finally(function(){
         try { _chainInflightByCwd.delete(norm) } catch (e) {}
         // 收尾：这一次跑完，如果它还是这个键上最新的一次，就把登记摘掉（这张表不留常驻条目；
