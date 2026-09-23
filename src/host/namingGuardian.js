@@ -20,15 +20,14 @@ export function createNamingGuardian(deps) {
     return _namingCoreInit
   }
   const NAMING_STATE_FILE = 'naming-guardian.json'
-  const NAMING_TICK_MS = 15000
-  const NAMING_SWEEP_MS = NAMING_TICK_MS
+  // #709（T5）：只剩这一个 10 分钟兜底的间隔（从前那两个 15 秒的常量随自续 tick 一起退役）。
+  const NAMING_FALLBACK_MS = 10 * 60_000
   let _namingState = null            // { version:1, sessions:{sid:跟踪态}, indexes:{repoKey:索引快照} } 内存态（加载自磁盘，变更防抖落盘）
   let _namingStateDirty = false
   let _namingPersistTimer = null
-  let _namingLoopTimer = null
-  // #266 建号感知：索引差值结算的防重入/防堆积守卫（host 常驻 tick + 即时路径共用）
+  // #266 建号感知：索引差值结算的防重入/防堆积守卫（事件跳 + 兜底跳共用）
   let _namingSweepBusy = false
-  let _namingSweepTimer = null; let sweepAnyChanged = false, sweepAssignedTotal = 0, sweepTrigger = 'tick'; function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  let _namingSweepTimer = null; let sweepAnyChanged = false, sweepAssignedTotal = 0, sweepTrigger = 'event'; function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   function namingDefaultState() { return { version: 1, sessions: {}, indexes: {} } }
   async function loadNamingState() {
     if (_namingState) return _namingState
@@ -66,25 +65,21 @@ export function createNamingGuardian(deps) {
     if (_namingPersistTimer) return
     _namingPersistTimer = timer.timeout(function () { _namingPersistTimer = null; if (_namingStateDirty) persistNamingState() }, 1200); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-persist', intervalMs: 1200 }) } catch (eL) {}
   }
-  let _namingAssignedRun = 0
-  async function namingLoopTick() {
-    try { if (_namingStateDirty) persistNamingState() } catch (eTick) {}
-    // #266：常驻 tick 承担索引差值结算（建号感知底座；防重入由 _namingSweepBusy 保证）
-    try { await namingSweepNow() } catch (eSweepT) {}
-    // 退避（本轮新增）：这一跳每轮把「还有会话在等编号」的仓库整个扫一遍（7~12 秒），却多数
-    // 毫无收获。故连续几跳无收获即退到 60 秒 —— 真实建号另有事件驱动通道（repoKeys.js 拦到
-    // `gh issue create` 即触发即时推进），这一跳只是兜底，一旦真有归属立刻回到 15 秒。
-    if (sweepAnyChanged) _namingAssignedRun = 0; else _namingAssignedRun++
-    _namingLoopTimer = timer.timeout(namingLoopTick, _namingAssignedRun >= 3 ? NAMING_SWEEP_MS * 4 : NAMING_TICK_MS)
+  // ============ 事件驱动（#709 · T5：取代从前那条 15 秒自续 tick）============
+  // 从前那条 tick 每跳把「还有会话在等编号」的仓库整个扫一遍（7~12 秒），却多数毫无收获。现在宿主侧没有
+  // 任何自续定时器：每一跳都由事件带起来（`gh issue create` 被拦到、新会话注册、认领推送、客户端上报的四种
+  // 事件），另加每 10 分钟至多一次的兜底，兜底每跳只轮转扫 1 个仓库。入口是下面这个，事件跳扫全量。
+  let _namingFallbackAt = 0
+  let _namingSweepCursor = 0
+  function namingGuardianEvent(reason, booting) {
+    if (booting) { try { if (typeof globalThis !== 'undefined' && globalThis.__dswsNamingGuardianLoop) { clearTimeout(globalThis.__dswsNamingGuardianLoop); globalThis.__dswsNamingGuardianLoop = null } } catch (eG) {}; try { if (_namingStateDirty) persistNamingState() } catch (eInit) {} }
+    namingSweepSoon(0, { trigger: String(reason || 'event') })
+    const now = Date.now()
+    if (_namingFallbackAt > 0 && now - _namingFallbackAt < NAMING_FALLBACK_MS) return
+    _namingFallbackAt = now
+    try { namingSweepNow({ oneRepo: true, trigger: 'fallback' }) } catch (eF) {}
   }
-  function startNamingGuardianLoop() {
-    // 热重载守卫：上一代 apply 遗留的循环先清（globalThis 单例句柄）
-    try {
-      if (typeof globalThis !== 'undefined' && globalThis.__dswsNamingGuardianLoop) { try { clearTimeout(globalThis.__dswsNamingGuardianLoop) } catch (e0) {} }
-    } catch (eG) {}
-    _namingLoopTimer = timer.timeout(namingLoopTick, NAMING_TICK_MS); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-guardian', intervalMs: NAMING_TICK_MS }) } catch (eL) {}
-    try { if (typeof globalThis !== 'undefined') globalThis.__dswsNamingGuardianLoop = _namingLoopTimer } catch (eK) {}
-  }
+  function startNamingGuardianEvents() { namingGuardianEvent('apply-start', true) }   // 随 apply 启动（只做一次铺垫，不启动任何循环）
 
   // ============ 建号感知复原（#266 · F1/F2 修复义务）============
   // 历史：#211 的三个 handler（registerNewSessionWatcher / cancelNewSessionWatcher /
@@ -136,7 +131,7 @@ export function createNamingGuardian(deps) {
    * （归属判定为共享核心纯函数 attributeNewNumbers；prev 快照缺失 → 仅基线建档不归属，
    * 避免把存量全量误归属）。归属即时落盘（关键事件）；索引快照随脏账防抖落盘。
    */
-  async function namingSweepNow() {
+  async function namingSweepNow(opts) {
     if (_namingSweepBusy) return
     _namingSweepBusy = true
     try {
@@ -151,7 +146,11 @@ export function createNamingGuardian(deps) {
         if (!byRepo[s.repoKey]) byRepo[s.repoKey] = { sessions: [], cwd: s.cwd || DEFAULT_CWD }
         byRepo[s.repoKey].sessions.push(s)
       }
-      for (const repoKey in byRepo) {
+      // #709：兜底跳每跳最多只扫 1 个仓库，游标轮转；事件跳照旧扫全部。
+      let repoNames = Object.keys(byRepo)
+      if (opts && opts.oneRepo && repoNames.length) { repoNames = [repoNames[_namingSweepCursor % repoNames.length]]; _namingSweepCursor += 1 }
+      for (let ri = 0; ri < repoNames.length; ri++) {
+        const repoKey = repoNames[ri]
         const grp = byRepo[repoKey]
         const r = await namingFetchIndex(repoKey, grp.cwd)
         if (!r.ok) continue
@@ -178,13 +177,13 @@ export function createNamingGuardian(deps) {
       try { const trig = sweepTrigger, cnt = sweepAssignedTotal, chg = sweepAnyChanged; sweepTrigger = 'tick'; sweepAnyChanged = false; sweepAssignedTotal = 0; if (chg && logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'naming.sweep', { trigger: trig, count: cnt }) } catch (eL) {}
     } catch (eSweep) { /* 净失败静默：下轮 tick 重试 */ } finally { _namingSweepBusy = false }
   }
-  /** 即时推进：短窗合并（防堆积），注册/白名单/认领推送 nudge 共用。 */
-  function namingSweepSoon(delayMs) {
+  /** 即时推进：短窗合并（防堆积），注册/白名单/认领推送/四种事件共用。opts.trigger 只影响日志里的来路。 */
+  function namingSweepSoon(delayMs, opts) {
     const delay = typeof delayMs === 'number' ? delayMs : 1500
     if (_namingSweepTimer) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-sweep', intervalMs: delay }) } catch (eL) {}; return }
     _namingSweepTimer = timer.timeout(function () {
       _namingSweepTimer = null
-      try { sweepTrigger = 'soon'; namingSweepNow() } catch (e) {}
+      try { sweepTrigger = (opts && opts.trigger) || 'soon'; namingSweepNow(opts) } catch (e) {}
     }, delay)
   }
 
@@ -230,6 +229,7 @@ export function createNamingGuardian(deps) {
   }
 
   async function handleNamingPlan() {
+    try { namingGuardianEvent('client-pull') } catch (eEv) {}   // #709：界面每次来拉计划单都是一个真实事件，借它把 10 分钟兜底带上
     const core = await getNamingCore()
     if (!core) return { ok: true, orders: [], tracked: [], failures: [] }
     const st = await loadNamingState()
@@ -346,5 +346,5 @@ export function createNamingGuardian(deps) {
     else if (res && res.ok) { if (level === 'debug') { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) } else if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
     else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && ((res.error && res.error.message) || res.error)) || 'naming-not-ok')) }) } catch (eL) {} }
   function loggedPhone(method, kind, level, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, level, t0, r); return r } catch (e) { phoneLog(method, kind, level, t0, null, e); throw e } } }
-  return { namingSweepSoon, namingRegisterHandler: loggedPhone('wf.registerNewSessionWatcher', 'naming-register', 'info', namingRegisterHandler), handleNamingSignal: loggedPhone('wf.namingSignal', 'naming-signal', 'info', handleNamingSignal), handleNamingPlan: loggedPhone('wf.namingPlan', 'naming-plan', 'debug', handleNamingPlan), handleNamingResult: loggedPhone('wf.namingResult', 'naming-result', 'info', handleNamingResult), handleCancelNewSessionWatcher: loggedPhone('wf.cancelNewSessionWatcher', 'naming-cancel', 'info', handleCancelNewSessionWatcher), handleAwaitCreatedIssue: loggedPhone('wf.awaitCreatedIssue', 'naming-await', 'info', handleAwaitCreatedIssue), startNamingGuardianLoop }
+  return { namingSweepSoon, namingRegisterHandler: loggedPhone('wf.registerNewSessionWatcher', 'naming-register', 'info', namingRegisterHandler), handleNamingSignal: loggedPhone('wf.namingSignal', 'naming-signal', 'info', handleNamingSignal), handleNamingPlan: loggedPhone('wf.namingPlan', 'naming-plan', 'debug', handleNamingPlan), handleNamingResult: loggedPhone('wf.namingResult', 'naming-result', 'info', handleNamingResult), handleCancelNewSessionWatcher: loggedPhone('wf.cancelNewSessionWatcher', 'naming-cancel', 'info', handleCancelNewSessionWatcher), handleAwaitCreatedIssue: loggedPhone('wf.awaitCreatedIssue', 'naming-await', 'info', handleAwaitCreatedIssue), namingGuardianEvent, startNamingGuardianEvents }
 }

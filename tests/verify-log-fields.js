@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690：58 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709：83 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -35,7 +35,10 @@ const ALLOWED = {
   'registry.stub': ['op', 'backendId'],
   'detection.detect': ['cwdHash', 'explicit', 'matches', 'pending', 'selection'],
   'workspaceStore.hit': ['keyHash', 'fresh', 'ttlMs'],
-  'chain.cache.hit': ['keyHash', 'lang', 'ageMs'],
+  // 2026-09-25 登记订正（#709 · T5）：这一条的落点已经变成「被退避挡下，直接把上一份快照回给界面」，
+  //   实现记的是 keyHash、lang、deferred、reason、waitMs 五个键；从前的 ageMs 早已不再发射，
+  //   按「允许字段就是能记的全部字段」的口径把它从白名单里去掉（落点：src/host/detectChain.js）。
+  'chain.cache.hit': ['keyHash', 'lang', 'deferred', 'reason', 'waitMs'],
   'chain.predicate': ['id', 'status', 'latencyMs'],
   'skill.probe': ['name', 'level', 'via'],
   'skill.pending.cap': ['name', 'attempts', 'max'],
@@ -109,6 +112,36 @@ const ALLOWED = {
   'quota.spend': ['account', 'bucket', 'requests', 'points', 'remaining'],
   'refresh.decide': ['category', 'kind', 'verdict', 'reason', 'tier'],
   'refresh.skipped': ['keyHash', 'kind', 'reason', 'pending'],
+  // 2026-09-23 #708（T4 第三批）新增一条按需事件（附录 1.5 节 #82）：一次行级增量跑完之后的结论 ——
+  //   这一次走的是哪一档（补那几条薄查询 / 该整池 / 没变 / 被推迟 / 过期丢弃）、为什么、变了几行、
+  //   真发出去几条薄查询、水印推没推、待办里现在几条。只记短散列、枚举与数字，不记路径与命令原文。
+  'refresh.patch': ['keyHash', 'mode', 'reason', 'changed', 'queries', 'watermark', 'pending'],
+  // 2026-09-23 #707（T3 第二批）新增两条按需事件（附录 1.5 节 #78～#79）：视野模型自己产生的两条轨迹 ——
+  //   一次上报（哪一种信号、窗口散列、工作区根散列、面板可不可见、这一笔算不算数）、
+  //   一次收摊结论（活跃几个、保留几个定时器、停掉几个、有没有一个收尾节拍、整桌收没收、正在看的几个）。
+  //   都只记枚举、散列与数字：心跳每 20 秒一次，所以上报那条按十取一采样。
+  'attention.report': ['kind', 'windowHash', 'rootHash', 'visible', 'accepted'],
+  'attention.sweep': ['active', 'keep', 'cancel', 'linger', 'collaped', 'keepers'],
+  // 2026-09-23 #714（T10）新增一条常驻事件（附录 1.4 节 #80）：会话↔票 处理链自己产生的轨迹 ——
+  //   一次写记进了哪个会话的链、这一次落盘成没成、重启后从落盘读回了没有。只记两个散列、三个枚举与一个数字，
+  //   不记路径原文、不记命令原文、不记票标题；读那一路一条都不记（顺手看一眼不进链，所以这一族不会刷屏）。
+  'sessionTickets.chain': ['sidHash', 'rootHash', 'kind', 'ok', 'action', 'count'],
+  // 2026-09-23 #710（T6 第二批）新增一条按需事件（附录 1.5 节 #81 `write.event`）：写事件订阅自己产生的轨迹 ——
+  //   一次成功的工具调用被判成哪一档、凭什么判的、接下来要做什么、票号认没认出来、从哪条订阅路来的。
+  //   只记一个散列、三个枚举与一个布尔：**命令原文一个字都不记**（参数只做瞬时匹配），也不记票号本身。
+  'write.event': ['keyHash', 'shape', 'tier', 'reason', 'action', 'hasTicket'],
+  // 2026-09-25 登记收口（#709 · T5 与并行各票新增的埋点，附录 1.4 / 1.5 节 #83～#87）：这五条在代码里
+  //   早就发出去了，只是登记没跟上，本票把它们如实补进白名单。字段是各落点的并集（本表的既有口径：
+  //   允许字段就是「这个事件名能记的全部字段」）：
+  //   · chain.backoff 定常驻 —— 那条 8 秒自续循环拆掉之后，宿主侧不再有任何自续定时器，「这次为什么
+  //     没查 / 还在等多久」只能靠这一条回答，而查它的人不会先打开调试开关；另外两处同族落点记的是
+  //     它的子集，且都在同一行先判调试开关。
+  //   · 其余四条都是调试级按需，同一行先判开关，字段只取散列、枚举、数字与布尔。
+  'chain.backoff': ['keyHash', 'decision', 'reason', 'waitMs', 'step', 'trigger'],
+  'chain.cache.write': ['keyHash', 'allGreen', 'doneCount', 'step', 'progressed'],
+  'chain.event': ['reason'],
+  'naming.guard.event': ['reason'],
+  'chain.preflight.reuse': ['cwdHash', 'checks', 'reused', 'userAction'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],
@@ -243,7 +276,7 @@ function collectCalls() {
 const found = collectCalls()
 const names = Object.keys(found).sort()
 
-// 一、允许表里每个事件都有埋点落点（55 个事件里自监控 #46 由 verify-log-selfmon.js 覆盖，退役的 2 个不在源码里）。
+// 一、允许表里每个事件都有埋点落点（83 个事件里自监控 #46 由 verify-log-selfmon.js 覆盖，退役的 3 个不在源码里）。
 for (const name of Object.keys(ALLOWED).sort()) {
   check(!!found[name], '事件有埋点落点 ' + name + (found[name] ? '（' + found[name].sites.length + ' 处）' : '（全仓未找到）'))
 }

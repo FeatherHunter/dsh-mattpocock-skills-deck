@@ -4,7 +4,8 @@
 // 日志函数体内仍保留内部拦截做兜底。
 // 做法：全部调试级调用必须同行带是否开启判断（唯一的例外是归一函数，
 // 它的判断写在外层函数入口并附带结果变化才记）；房内三点六个事件与
-// 执行 gh 的外层判断逐项点名；命名守护启动调度那一行单独锁死。
+// 执行 gh 的外层判断逐项点名；命名守护那两条还在排定时器的调度行同行判开关，
+// 退役的自续 tick 调度行反向锁死（不许回来）。
 const fs = require('fs')
 const path = require('path')
 
@@ -30,7 +31,8 @@ function listJsFiles(dir) {
 const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
 // 一、高频路径：全部调试级调用同行带是否开启判断。
-// 调试级事件共 16 个（按需），关闭时一律不产生；同行判断保证字段函数不求值。
+// 调试级调用点（按需那一档，2026-09-25 现行 42 条事件里带调试级的都算），关闭时一律不产生；
+// 同行判断保证字段函数不求值。
 {
   const files = listJsFiles(path.join(ROOT, 'src', 'host')).concat(listJsFiles(path.join(ROOT, 'src', 'client')))
   const bad = []
@@ -95,13 +97,18 @@ const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
   check(!fnBody.includes('isEnabled'), '常驻直发不判开关（库体内兜底，无上下文时静默跳过）')
 }
 
-// 五、命名守护启动调度那一行带判断（此前单行整改锁死，退化即红）。
+// 五、命名守护：从前那条「启动时排一条自续 tick」的调度行随 #709（T5）整体退役 ——
+// 本段改成反向锁死：那个调度行不许回来；剩下真正会排定时器的两条（防抖落盘、短窗合并）
+// 仍须同一行判调试开关，一条都不许退化成「先排后判」。
 {
   const src = readSrc(path.join('src', 'host', 'namingGuardian.js'))
   const lines = src.split('\n')
-  const startLine = lines.find((l) => l.includes("'timer.schedule'") && l.includes('naming-guardian'))
-  check(!!startLine, '命名守护启动记调度事件')
-  check(!!startLine && startLine.includes('isEnabled') && startLine.includes('debug'), '启动调度同行判调试开关（与跳过分支一致）')
+  const retiredLine = lines.find((l) => l.includes("'timer.schedule'") && l.includes('naming-guardian'))
+  check(!retiredLine, '命名守护的自续 tick 调度行不再有（#709 T5 已退役，回来即红）' + (retiredLine ? ' —— 又冒出来：' + retiredLine.trim() : ''))
+  check(src.includes('startNamingGuardianEvents') && src.includes('NAMING_FALLBACK_MS'), '命名守护改事件驱动入口并只留 10 分钟兜底（没有自续循环）')
+  const schedLines = lines.filter((l) => l.includes("'timer.schedule'"))
+  check(schedLines.length === 2, '命名守护只剩两条会排定时器的调度行：防抖落盘、短窗合并（实得 ' + schedLines.length + ' 条）')
+  check(schedLines.length > 0 && schedLines.every((l) => l.includes('isEnabled') && l.includes('debug')), '留下的调度行同行判调试开关（' + schedLines.map((l) => (l.match(/name: '([^']+)'/) || [])[1] || '?').join('、') + '）')
 }
 
 // 六、链谓词例外：判断在外层大括号，15 秒节流加逐个变化才记。

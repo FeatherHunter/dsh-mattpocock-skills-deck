@@ -5,7 +5,7 @@
 import { refreshSourceOf } from './refresh/refreshSource.js'
 
 export function createDetectChain(deps) {
-  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx } = deps
+  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, ghTimeoutMs } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   let chainSampleN = 0
@@ -13,13 +13,9 @@ export function createDetectChain(deps) {
   let lastPredAt = 0
   let lastPredStatus = {}
   /**
-   * #709（T5 补）一次评估的环境预检只花一次。
-   *
-   * 环境预检（登录态「gh auth status」、仓库可达「gh api repos/…」）不是实时数据，一次求值里从前被问
-   * 两遍（探测级联一遍、后端链的 gh:authed 与 gh:repoAccess 谓词各一遍），一次求值因此花 5 条 REST。
-   * 现在每次求值开一个只活在这一次里的复用位，谁先问出来谁写进去、后面再问的人直接拿那份 —— 降到 3 条。
-   * 三条边界（不是缓存、不跨评估串味、只有成功的才留下）都写在
-   * src/host/tracker/detection/preflightScope.js 的文件头。
+   * #709（T5 补）一次评估的环境预检只花一次：开一个只活在这一次里的复用位，谁先问出来谁写进去，
+   * 后面再问的人直接拿那份（一次求值因此从 5 条 REST 降到 3 条）。三条边界（不是缓存、不跨评估串味、
+   * 只有成功的才留下）写在 src/host/tracker/detection/preflightScope.js 的文件头。
    */
   async function openPreflightScope() {
     try {
@@ -31,18 +27,22 @@ export function createDetectChain(deps) {
   }
   /** 探测级联那一侧用的执行器（签名 = platformChannel 的 detectionExec）。 */
   function scopedDetectionExec(scope) { return function (cmd, args, opts, via) { return scope.exec(cmd, args, opts, via) } }
-  /**
-   * 这条链上要问 gh 的时候走这里：有复用位就用它（同一轮里成名的预检只真问一次），没有就原样问。
-   * 问法的形状以探测级联那一条为准，而且默认超时也补上：复用位按「命令 + 工作目录 + 超时」认
-   * 「是不是同一件事」，两条路问法不一致就认不出来（实测踩过：一边带 30000、一边不带，白问两遍）。
-   */
-  const CHANNEL_GH_TIMEOUT_MS = 30000
+  // #723（T19）：默认超时不再写死在这里（数字住在 github/client.js 的 TIMEOUT_MS，由宿主接线传进来）。
+  const CHANNEL_GH_TIMEOUT_MS = (typeof ghTimeoutMs === 'number' && ghTimeoutMs > 0) ? ghTimeoutMs : 30000
+  // #723（T19）：这一次求值的裁决与记账经闸落一笔（身份 = refreshSourceOf 算出来的那两个名字之一，
+  // 所以「谁按的、哪一档、什么时候」留在账上）。报给闸的条数写 0：这条链真正花出去的每一条出站请求
+  // 都由传输层各自报过一笔（repoKeys.runGh 与 detectionExec 里的 noteOutbound），这里再报一遍会把
+  // 同一笔数成两笔。闸没接上时照旧求值，只是这一笔不在账上（不抛，绝不为记账打断链）。
+  async function noteChainEval(source, workspaceKey) {
+    try {
+      if (!gate || typeof gate.send !== 'function') return
+      await gate.send({ source: source, kind: 'chain', workspaceKey: workspaceKey }, async function () { return { requests: 0, points: 0 } })
+    } catch (e) { /* 记账不许把链求值带崩 */ }
+  }
   function ghOptsFor(cwdIn) { return { cwd: cwdIn, timeout: CHANNEL_GH_TIMEOUT_MS } }
-  // #709（T5）：从前这里写死一个 30 秒缓存（CHAIN_CACHE_MS）。现在「下一次什么时候再算一次」整段
-  // 交给 refresh-core 的纯函数裁定（宿主薄壳 src/host/refresh/chainBackoff.js，数字真源是 budget.ts）：
-  // 8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档；全绿之后这份结论缓存 30 分钟。
-  // 触发只有四种事件（切进工作区、点「重新检查」、做完可能改变它的动作、写入成功之后）——宿主侧一个
-  // 自续定时器都没有；人亲手点「重新检查」的那一次带 trigger='user-recheck' 上来，它永不降档。
+  // #709（T5）：退避与全绿缓存整段交给 refresh-core 的纯函数裁定（薄壳 src/host/refresh/chainBackoff.js，
+  // 数字真源是 budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。
+  // 触发只有四种事件，宿主侧一个自续定时器都没有；人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
   async function handleDetect(args) {
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const force = !!(args && args.force)
@@ -325,16 +325,17 @@ export function createDetectChain(deps) {
         // #709（T5）：把这一份快照记进退避态。链上多出一步 done 才算进展（重跑拿到一样的结果不算），
         // 有进展立刻回第一档；没进展就往后退一档，退到最慢那档就停在那里。
         try { if (backoff) await backoff.note(cacheKey, fullSnapshot, Date.now()) } catch (eNote) {}
+        // #723（T19）：这一次求值的裁决与记账经闸落一笔（身份来自 refreshSourceOf，见 noteChainEval）。
+        await noteChainEval(chainSource, cwd)
         // #709（T5 补）这次求值的环境预检收尾：真问了几条、复用省掉了几次。按需级（debug，外层先判
         // 开关，关着连字段对象都不组装；按 docs/design/335-logging-contract.md 第 3 章判定），
         // 每次求值只落一行，只记工作区短指纹与计数，不记命令原文、不记路径原文、不记任何返回值。
         try {
-          if (logCtx && logCtx.isEnabled('debug') && preflightScope) {
-            const askedN = preflightScope.asked()
-            logCtx.fire('debug', 'chain.preflight.reuse', function () {
-              return { cwdHash: hash8(cwd), checks: askedN, reused: preflightScope.reused(), userAction: trigger === 'user-recheck' }
-            })
-          }
+          // 判断与落点同一行（tests/verify-log-guards.js 的口径：关着开关时连字段对象都不组装）：
+          // 这里原来把判断写成上一行的 if 大括号，判断本身一个字没减，只是搬到同一行。
+          if (logCtx && logCtx.isEnabled('debug') && preflightScope) logCtx.fire('debug', 'chain.preflight.reuse', function () {
+            return { cwdHash: hash8(cwd), checks: preflightScope.asked(), reused: preflightScope.reused(), userAction: trigger === 'user-recheck' }
+          })
         } catch (eL) {}
         return result
         })()

@@ -27,9 +27,10 @@ function listJsFiles(dir) {
 const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const Q = String.fromCharCode(39)
 
-// 电话清单：35 注册减退役 2 个，现役 33 个，加 #541 只读更新电话 2 个，现役 35 个，加 #542 装更新电话 1 个，现役 36 个，加 #627 标签配色电话 2 个（wf.listLabels / wf.setLabelColors），现役 38 个；#691 地图子票按需电话 1 个（wf.mapTickets），现役 39 个；#690 历史票按页取电话 1 个（wf.issuesPage），现役 40 个。增删电话必须同步改本表、附录 1.7 与计数门禁。
+// 电话清单：35 注册减退役 2 个，现役 33 个，加 #541 只读更新电话 2 个，现役 35 个，加 #542 装更新电话 1 个，现役 36 个，加 #627 标签配色电话 2 个（wf.listLabels / wf.setLabelColors），现役 38 个；#691 地图子票按需电话 1 个（wf.mapTickets），现役 39 个；#690 历史票按页取电话 1 个（wf.issuesPage），现役 40 个；#707 视野模型上报电话 1 个（wf.focus），现役 41 个。增删电话必须同步改本表、附录 1.7 与计数门禁。
 const PHONES = [
   'wf.detect', 'wf.chain', 'wf.cwd', 'wf.snapshot', 'wf.refresh',
+  'wf.focus',
   'wf.bind', 'wf.bindings', 'wf.registry', 'wf.selection', 'wf.setupLayout',
   'wf.listLabels', 'wf.setLabelColors',
   'wf.issueDetail', 'wf.issueComments', 'wf.commentIssue', 'wf.probe',
@@ -131,15 +132,23 @@ const CALLEE_COVERS = [
   check(panel.indexOf('return host.call(endpoint, args)') >= 0, '动态透传点已知其一（panelAssembly 通用透传）')
   check(slot.indexOf('host.call(method,') >= 0, '动态透传点已知其二（slotRenderer 动态方法）')
 }
-// 五、五类动因点名：新事件、定时器六名、解析 kind、来源键。
+// 五、五类动因点名：新事件、定时器调度名（在排的三个必须有、退役的三个不许有）、解析 kind、来源键。
 {
   const all = listJsFiles(path.join(ROOT, 'src', 'host')).concat(listJsFiles(path.join(ROOT, 'src', 'client')))
     .map((f) => fs.readFileSync(f, 'utf8')).join('\n')
   const hasEvent = (e) => all.indexOf(Q + e + Q) >= 0
   const newEvents = ['chain.cache.miss', 'workspaceStore.miss', 'client.snapshot.hit', 'client.snapshot.miss', 'detail.cache.hit', 'host.start']
   for (const e of newEvents) check(hasEvent(e), '新事件有发射 ' + e)
-  const timers = ['naming-guardian', 'naming-sweep', 'naming-persist', 'naming-poll', 'statusbar-poll', 'checks-poll']
+  // 定时器调度名两张表（2026-09-25 收紧）：#709（T5）把三条自续循环连根拆掉 —— 宿主侧命名守护的
+  //   15 秒自续 tick（naming-guardian）、客户端命名轮询（naming-poll）、检查页那条 20 秒静默重查
+  //   （checks-poll），所以「还在排的定时器必须有调度名」只管今天真在排的三个，退役的三个反过来
+  //   不许再有调度名（比从前「六条都要有名」更严：旧循环一旦被抄回来，这里立刻红）。
+  //   退役判据的权威是 tests/verify-709-no-self-continuing-timers.js（全库不许有自续定时器）。
+  const timers = ['naming-sweep', 'naming-persist', 'statusbar-poll']
   for (const n of timers) check(all.indexOf('name: ' + Q + n + Q) >= 0, '定时器调度有名 ' + n)
+  const retiredTimers = ['naming-guardian', 'naming-poll', 'checks-poll']
+  const revived = retiredTimers.filter((n) => all.indexOf('name: ' + Q + n + Q) >= 0)
+  check(revived.length === 0, '退役定时器不再有调度名（#709 T5 拆掉的三条自续循环，回来即红）' + (revived.length ? ' —— 又冒出来：' + revived.join('、') : '（已退役：' + retiredTimers.join('、') + '）'))
   let resolveKinds = 0
   for (const f of listJsFiles(path.join(ROOT, 'src', 'client'))) {
     if (fs.readFileSync(f, 'utf8').indexOf('log-resolve') >= 0) resolveKinds += 1
