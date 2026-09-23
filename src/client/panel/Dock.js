@@ -301,6 +301,9 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             ])
           ]) : null,
         ]) : h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
+          // #721：面板顶部这一条「每个会话在处理哪些票」固定在正文最上面（换页签也在），
+          //   数据只读宿主写下的那一个快照字段；读不到时它自己会说读不到，没有数据时它整块不画。
+          h(SessionChainStrip, { key: 'sessionChainView', st: s, narrow: narrow }),
           s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'pr' ? (showPrTab ? (hasIssueDetail ? h(IssueDetail, { st: s }) : h(PrTab, { st: s, narrow: narrow })) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,

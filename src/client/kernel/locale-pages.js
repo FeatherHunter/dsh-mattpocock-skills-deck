@@ -42,6 +42,23 @@
         'truth.notRefreshing': '未在刷新（同时活跃上限 2）',
         'truth.lag': '数据可能落后 {min} 分钟',
         'truth.writing': '更新中',
+        // #721（处理链展示面）：面板顶部那一条「每个会话在处理哪些票」用的词条。
+        //   判据与画法在 views/shared/sessionChainView.js；数据只有宿主写下的一份读数一个来源。
+        //   action.* 这八个键与链的闭集合（chain.ts 的 CHAIN_ACTIONS）逐个对应，门禁每次核对。
+        'chainView.title': '每个会话在处理哪些票',
+        'chainView.readAt': '宿主读数 {time}',
+        'chainView.session': '会话 {id}',
+        'chainView.unreadable': '处理链读不到：宿主这次没有给出这份读数（空白不等于没有人正在处理票）',
+        'chainView.unreadableTip': '宿主给的代号：{reason}',
+        'chainView.openTip': '打开宿主记下的这张票',
+        'chainView.action.create': '建票',
+        'chainView.action.plan': '写计划',
+        'chainView.action.comment': '评论',
+        'chainView.action.edit': '改内容',
+        'chainView.action.state': '改状态',
+        'chainView.action.link': '建立关联',
+        'chainView.action.file-write': '改票文件',
+        'chainView.action.other-write': '其他写操作',
       },
       en: {
         'list.pageLoaded': '{x} loaded / {n} total',
@@ -68,6 +85,24 @@
         'truth.notRefreshing': 'Not refreshing (concurrent active limit 2)',
         'truth.lag': 'Data may lag up to {min} min',
         'truth.writing': 'Updating',
+        // #721 (the processing-chain strip): the words used by "which tickets each session is working on".
+        //   The judgement and the drawing live in views/shared/sessionChainView.js; the only data source
+        //   is the one reading the host writes. The eight action.* keys line up one for one with the
+        //   chain's closed set (CHAIN_ACTIONS in chain.ts), and a gate re-checks that every run.
+        'chainView.title': 'Which tickets each session is working on',
+        'chainView.readAt': 'host reading {time}',
+        'chainView.session': 'session {id}',
+        'chainView.unreadable': 'The processing chain cannot be read: the host did not hand over this reading this time (a blank list does not mean nobody is working on a ticket)',
+        'chainView.unreadableTip': 'Code from the host: {reason}',
+        'chainView.openTip': 'Open this ticket as the host recorded it',
+        'chainView.action.create': 'opened a ticket',
+        'chainView.action.plan': 'wrote a plan',
+        'chainView.action.comment': 'commented',
+        'chainView.action.edit': 'edited',
+        'chainView.action.state': 'changed state',
+        'chainView.action.link': 'linked',
+        'chainView.action.file-write': 'wrote a ticket file',
+        'chainView.action.other-write': 'other write',
       },
     }
 
