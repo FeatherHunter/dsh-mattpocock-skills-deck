@@ -8,9 +8,12 @@
 // 不开浏览器、直接拿两组输入跑出来对比（tests/verify-visible-truth.js 就是这么验的）。
 //
 // 三条纪律，改这个文件的人先看这三条：
-//   1. **阈值不在这里**：5000 / 300000 / 1800000 这类数字全部来自 refresh-core 的 budget.ts，
+//   1. **刷新阈值不在这里**：5000 / 300000 / 1800000 这类数字全部来自 refresh-core 的 budget.ts，
 //      构建时把 src/shared/refresh/budget.js 拼进界面闭包（见 scripts/build.mjs 的 shared:refreshBudget）。
-//      本文件里一个毫秒字面量都不许写 —— 写了就是第二份数字，改一处漏一处。
+//      本文件里不写任何一个刷新阈值 —— 写了就是第二份数字，改一处漏一处。
+//      唯一的例外是下面那个「一分钟」的刻度常量 TRUTH_MINUTE_MS：它只把「离现在多久」折成人话
+//      （刚刚 / N 分钟前 / N 小时前 / N 天前），不参与也不影响新鲜度判定 —— 新鲜度仍只由
+//      budget.ts 的 freshnessLevel 判（见 truthFreshnessBox 把 tone 原样带出去）。
 //   2. **降级标记不在这里**：`fallback`（'rest' 之类）只由宿主快照组装处按真实降级事实写入
 //      （src/host/tracker/snapshot.js）。界面这一侧只读不写：谁在这里补一句赋值让横幅亮起来，
 //      就是把诚实做成了假装。tests/verify-visible-truth.js 有一条静态断言盯着这件事。
@@ -34,7 +37,35 @@ export const truthFreshnessLine = function (st, nowMs) {
   const now = (typeof nowMs === 'number' && isFinite(nowMs)) ? nowMs : Date.now()
   const d = new Date(at)
   const pad = function (n) { return (n < 10 ? '0' : '') + n }
-  return { key: 'truth.updatedAt', params: { time: pad(d.getHours()) + ':' + pad(d.getMinutes()) }, tone: freshnessLevel(now - at), kind: 'freshness' }
+  return { at: at, key: 'truth.updatedAt', params: { time: pad(d.getHours()) + ':' + pad(d.getMinutes()) }, tone: freshnessLevel(now - at), kind: 'freshness' }
+}
+// 「一分钟」这个刻度：只用来把「离现在多久」折成一句人话，不是刷新阈值（见文件头第 1 条的例外说明）。
+const TRUTH_MINUTE_MS = 60000
+/**
+ * 头部那个小时间控件要说的话（2026-09-22 维护者定：这条信息从面板正文那一行搬到头部，做成一个独立控件）。
+ * 它把上面那条判据（truthFreshnessLine）再读一遍，所以「取数时刻取哪一刻、新鲜度按什么阈值判」仍然只有一份：
+ *   · `agoKey`/`agoParams` 是控件默认画的那一句相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前）；
+ *   · `time` 是精确时刻（'22:41'），调用方把它拼进悬停提示那一句（那条 truth.updatedTip，
+ *     完整说法只在悬停时出现，版面上不出现「上次更新」四个字）；
+ *   · `tone` 是新鲜度那三档（fresh / yellow / red），调用方据此上色 —— 颜色由调用方定，这里不带颜色。
+ * 没有取数时刻（还没拿到快照）时返回 null：调用方那时一个时间的字都不画，而不是画一个猜的。
+ */
+export const truthFreshnessBox = function (st, nowMs) {
+  const line = truthFreshnessLine(st, nowMs)
+  if (!line) return null
+  const now = (typeof nowMs === 'number' && isFinite(nowMs)) ? nowMs : Date.now()
+  const age = Math.max(0, now - line.at)
+  const hour = 60 * TRUTH_MINUTE_MS
+  const day = 24 * hour
+  const agoKey = age >= day ? 'truth.updatedDayAgo' : (age >= hour ? 'truth.updatedHourAgo' : (age >= TRUTH_MINUTE_MS ? 'truth.updatedMinAgo' : 'truth.updatedJustNow'))
+  const n = agoKey === 'truth.updatedDayAgo' ? Math.floor(age / day) : (agoKey === 'truth.updatedHourAgo' ? Math.floor(age / hour) : Math.floor(age / TRUTH_MINUTE_MS))
+  return {
+    at: line.at,
+    tone: line.tone,
+    agoKey: agoKey,
+    agoParams: agoKey === 'truth.updatedJustNow' ? {} : { n: n },
+    time: line.params.time,
+  }
 }
 export const truthNoticeLines = function (st, nowMs) {
   const lines = []

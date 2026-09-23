@@ -16,6 +16,9 @@
 //      动作类别的词条键与链的闭集合 CHAIN_ACTIONS 逐个对上（链上加了新类别而这里没跟上就红）。
 //   五、**没有第二个数据来源**（静态断言）：界面代码里不许出现会话事件、命令行解析、链的键构造、
 //      链的过滤判定、落盘文件名、任何 host.call / fetch。
+//   六、**读不到那句人话**（2026-09-22 维护者定）：主句要短（≤12 字）、没有括号、第一次读就懂；
+//      「这次没拿到 ≠ 没人在处理票」这层解释与宿主给的原因代号都归悬停提示；那一行用仓库既有的
+//      危险色变量上色（不许写死色值）。这三条判据各自带一次反证，防止判据本身失灵。
 //
 // 反证（人工做过两次，见回报）：把一句中文写死在界面里、把「读不到」改成显示空列表 —— 都被本门禁打红。
 const fs = require('fs')
@@ -56,6 +59,14 @@ function hardcodedTextHits(src) {
     if (m) hits.push((i + 1) + ': ' + m.join(' '))
   })
   return hits
+}
+
+/**
+ * 「读不到」那一行的红色判据：只认仓库既有的危险色变量（var(--dsw-alias-state-error-primary,…)）。
+ * 写死色值（'#f87171' 这种）不算通过 —— 换主题时写死的那个不会跟着走。
+ */
+function dangerColorOk(color) {
+  return /^var\(--dsw-alias-state-error-primary,/.test(String(color || ''))
 }
 
 /** 最小的假 React：createElement 只搭一棵普通对象树，useContext 一律返回空（组件就会退回 React.createElement）。 */
@@ -221,6 +232,22 @@ async function main() {
       if (t.indexOf('读不到') < 0) fail(c.what + '：没有如实说读不到：' + JSON.stringify(t))
       if (/[0-9]/.test(t)) fail(c.what + '：读不到那一屏里出现了数字（0 会把「不知道」说成「没有人」）：' + JSON.stringify(t))
       if (leaf.sessionChainRowsOf(s).length !== 0) fail(c.what + '：读不到却还交出了会话行')
+      // 六之一、主句：短（≤12 字）、没有括号、第一次读就懂；「没拿到 ≠ 没人在处理票」那层解释不在主句里
+      const main = String(tr('chainView.unreadable') || '')
+      if (main.length > 12) fail(c.what + '：读不到那句主句太长（' + main.length + ' 字，最多 12 字）：' + JSON.stringify(main))
+      if (/[（）()\[\]【】]/.test(main)) fail(c.what + '：读不到那句主句里还有括号：' + JSON.stringify(main))
+      if (main.indexOf('不表示') >= 0 || main.indexOf('不等于') >= 0) fail(c.what + '：那层解释（这次没拿到 ≠ 没人在处理票）混进了主句，它该在悬停提示里：' + JSON.stringify(main))
+      const enMain = String(en['chainView.unreadable'] || '')
+      if (!enMain) fail(c.what + '：英文那一份没有这句词条')
+      else if (/[()]/.test(enMain)) fail(c.what + '：英文主句里还有括号：' + JSON.stringify(enMain))
+      // 六之二、解释与原因代号都在悬停提示里（主句之外，一点也不许丢）
+      const tip = String(tr('chainView.unreadableTip', { reason: v.reason }) || '')
+      if (tip.indexOf('不表示没有会话在处理票') < 0) fail(c.what + '：悬停提示里没有「这次没拿到、不表示没有会话在处理票」这层意思：' + JSON.stringify(tip))
+      if (tip.indexOf(String(v.reason)) < 0) fail(c.what + '：悬停提示里没有宿主给的原因代号（那一码信息不许丢）：' + JSON.stringify(tip))
+      if (tip.indexOf('（') >= 0 || tip.indexOf('(') >= 0) fail(c.what + '：悬停提示里也用括号把话套住了（这次要求的是整句说清，不是套括号）：' + JSON.stringify(tip))
+      // 六之三、这一行用仓库既有的危险色变量上色（不许写死色值）
+      const rowColor = String((n && n.props && n.props.style && n.props.style.color) || '')
+      if (!dangerColorOk(rowColor)) fail(c.what + '：读不到那一行没有用危险色变量上色（实得 ' + JSON.stringify(rowColor) + '）')
     } else {
       if (n !== null && n !== undefined) fail(c.what + '：这一块应当整块不画（不占位、不显示空框），实际画了：' + JSON.stringify(textOf(n)).slice(0, 120))
       if (leaf.sessionChainRowsOf(s).length !== 0) fail(c.what + '：没有票却交出了会话行')
@@ -228,6 +255,10 @@ async function main() {
   })
   // 还没拿到快照时一个字都不说（还在取数，不到说读不到的时候）
   if (leaf.SessionChainStrip({ st: { snapshot: null }, narrow: false }) !== null) fail('还没拿到面板快照时不该画读不到那一句')
+  // 危险色那条判据本身要有牙齿：合规写法必过，写死色值与灰色说明都不许过
+  if (!dangerColorOk('var(--dsw-alias-state-error-primary,#f87171)')) fail('反证：合规的危险色变量写法没被判通过')
+  if (dangerColorOk('#f87171')) fail('反证：写死色值也被判成合规（危险色那条判据失灵了）')
+  if (dangerColorOk('var(--dsws-label-caption,#8b8b95)')) fail('反证：灰色说明那种写法也被判成危险色（判据失灵了）')
   // 空读数的来历也要对：宿主没拿到链实例时说 ok:false，界面照它说的报
   if (emptyReadout.ok !== true || emptyReadout.reason !== 'host.chain.empty') fail('空读数的形状不对：' + JSON.stringify(emptyReadout).slice(0, 120))
 
@@ -278,6 +309,7 @@ async function main() {
   console.log('  PASS 真代码一路到底：链 → 宿主读数 → 界面判据（两个会话各三张/两张，不串）')
   console.log('  PASS 点一行跳到链记下的那张票（票号取自读数，不是界面猜的）')
   console.log('  PASS 读不到就说读不到（字段删掉 / 改成空 / 宿主说没取到），那一屏一个数字都没有')
+  console.log('  PASS 读不到那句主句短、没有括号，解释与原因代号都在悬停提示里，那一行用危险色变量上色')
   console.log('  PASS 宿主说「取到了、就是没有」时整块不画；还没拿到快照时一个字都不说')
   console.log('  PASS 中英词条键集合全等；动作词的键与链的闭集合 CHAIN_ACTIONS 逐个对上')
   console.log('  PASS 静态：界面只读快照里那一个字段，没有第二个数据来源，没有写死的文案')

@@ -322,10 +322,10 @@ export     const ListTab = ({ st, narrow }) => {
           h('span', { style: { fontSize: 12, color: '#e6edf3' } }, tr('list.loading')),
         ]) : null,
         (st.snapMode === 'err' && !st.snapshot && !getCachedSnapshot(st.cwd)) ? h('div', { style: { color: '#f87171', fontSize: 12, padding: '14px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 12 }), h('span', null, tr('list.errFull', { err: st.snapError }))]) : null,
-        // #715（诚实显示）：最上面那一行说清「这份数据多新、上次刷新成不成、现在是不是降级」。取数时刻取快照的 generatedMs（不是渲染时刻）；判据与词条见 views/shared/truthLines.js，没有事实的那句不画（不替宿主编事实）。
+        // #715（诚实显示）：这一行说清「这份数据多新、上次刷新成不成、现在是不是降级」。取数时刻取快照的 generatedMs（不是渲染时刻）；判据与词条见 views/shared/truthLines.js，没有事实的那句不画（不替宿主编事实）。
         (function () {
-          const ls = truthNoticeLines(st, Date.now()), fr = truthFreshnessLine(st, Date.now())
-          if (fr) ls.unshift(fr)
+          // 2026-09-22 维护者定：「上次更新」那一条搬去面板头部第一行右侧那个小时间标签（panel/Dock.js），这一行从此只说其余那些状态句（刷新失败 / 已暂停 / 落后 / 已推后 / 未在刷新…），同一条信息不再出现两次。
+          const ls = truthNoticeLines(st, Date.now())
           if (!ls.length) return null
           const tone = function (t) { return t === 'red' ? '#f87171' : (t === 'yellow' ? '#f59e0b' : 'var(--dsws-label-caption,#8b8b95)') }
           return h('div', { className: 'dsws-truth', style: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontSize: 11, padding: '2px 2px 4px' } }, ls.map(function (ln) { return h('span', { key: ln.kind || ln.key, style: { color: tone(ln.tone) } }, tr(ln.key, ln.params)) }))

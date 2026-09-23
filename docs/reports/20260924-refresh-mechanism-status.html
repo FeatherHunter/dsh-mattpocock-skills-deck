@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>刷新机制与工具链 · 落地进展（v1.7.28）</title>
+<style>
+  :root{
+    --ink:#0f172a; --sub:#475569; --faint:#94a3b8;
+    --line:#e5e7eb; --bg:#ffffff; --soft:#f8fafc;
+    --blue:#2563eb; --green:#15803d; --amber:#b45309; --red:#b91c1c;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:56px 28px 96px}
+  header{border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:40px}
+  .kicker{color:var(--faint);font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+  h1{font-size:31px;line-height:1.35;margin:14px 0 10px;letter-spacing:-.01em}
+  .lede{color:var(--sub);font-size:17px;margin:0}
+  h2{font-size:21px;margin:56px 0 8px;display:flex;align-items:center;gap:10px}
+  h2::before{content:"";width:4px;height:20px;background:var(--blue);border-radius:2px;display:inline-block}
+  h3{font-size:16px;margin:26px 0 6px}
+  p{margin:10px 0}
+  .sub{color:var(--sub)}
+  .muted{color:var(--faint);font-size:14px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;
+       background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  .cards{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin:20px 0}
+  .card{border:1px solid var(--line);border-radius:12px;padding:18px 18px 16px;background:#fff}
+  .card h3{margin:0 0 6px;font-size:15px}
+  .card p{margin:0;color:var(--sub);font-size:14.5px}
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14.5px}
+  th,td{text-align:left;vertical-align:top;padding:11px 12px;border-bottom:1px solid var(--line)}
+  th{color:var(--faint);font-weight:600;font-size:13px;letter-spacing:.03em}
+  td.k{white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+  .flow{display:grid;gap:10px;margin:20px 0}
+  .step{border-left:2px solid var(--line);padding:2px 0 2px 16px}
+  .step b{font-weight:600}
+  .note{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:20px 0}
+  .note h3{margin:0 0 6px}
+  .pill{display:inline-block;font-size:12.5px;border-radius:999px;padding:2px 10px;border:1px solid var(--line);color:var(--sub);background:#fff;margin-right:6px}
+  .ok{color:var(--green)} .warn{color:var(--amber)} .no{color:var(--red)}
+  pre{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;font-size:13px;line-height:1.6}
+  ul{margin:10px 0 10px 22px;padding:0} li{margin:6px 0}
+  footer{margin-top:64px;border-top:1px solid var(--line);padding-top:22px;color:var(--faint);font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">DSH · Matt Pocock Skills Deck · v1.7.28</div>
+  <h1>刷新机制与工具链：现在到了哪一步</h1>
+  <p class="lede">一句话：<b>刷新的机制已经落地并且被门禁守着；工具也做出来了、在宿主里被证明真跑通，但 AI 在会话里还调不到它们。</b></p>
+</header>
+
+<section>
+  <h2>先给结论</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>刷新机制 <span class="pill ok">已落地</span></h3>
+      <p>唯一出口闸与账本、预算真源、行级增量、视野模型、写事件订阅、检查链事件驱动、诚实显示，全部落地并各带门禁与反证。</p>
+    </div>
+    <div class="card">
+      <h3>对外工具 <span class="pill warn">做出但未通电</span></h3>
+      <p>七个后端无关工具在宿主里能真建票、真过闸；但还没挂到 DSH 的模型工具面，<b>AI 今天在会话里调不到</b>。</p>
+    </div>
+    <div class="card">
+      <h3>会话↔票记录 <span class="pill ok">已落地</span></h3>
+      <p>只记「写」不记「读」，内存表 + 落盘文件都有；界面通过快照回包的一个字段读到它。</p>
+    </div>
+    <div class="card">
+      <h3>终局真机验收 <span class="pill no">未跑</span></h3>
+      <p>所有结论目前都是门禁与离线证据；真机上的六项实测（含真 GitLab 建票、真会话走工具）还没做。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>1 · 刷新机制长什么样</h2>
+  <p class="sub">整条主线只有四句话：<b>谁在看才去刷 → 每次出站都先过闸 → 变化只补那几行 → 界面只说实话。</b></p>
+
+  <div class="flow">
+    <div class="step"><b>谁在看才去刷（视野模型）</b>　只有当前真的在被看的工作区才值得刷新；同时活跃上限 <b>2</b> 个；同一个工作区根只占一个名额、只产生一次探测；<b>90 秒</b>没有信号就把这一整套收摊，后台没有自续定时器。</div>
+    <div class="step"><b>客户端心跳（三道门）</b>　窗口标识放在 <code>sessionStorage</code>（不用 <code>localStorage</code>，同源会互相覆盖）；面板可见时每 <b>20 秒</b>一次本地心跳，焦点、可见性、人类输入三道门都过才发；90 秒没回话就判定「自动刷新已暂停」。</div>
+    <div class="step"><b>每次出站都先过闸（唯一出口）</b>　跑 <code>gh</code>、起子进程、探测版本，每一笔都在起进程之前登记给闸并记账；此前绕开闸的存量口子从 <b>3 处降到 0 处</b>，门禁里那条上限也跟着归零——以后再有新口子会当场变红。</div>
+    <div class="step"><b>变化只补那几行（行级增量）</b>　只有变了的那几张票被单独重查，新行并进原列表，其余行连对象引用都不动；<b>水印只在变化真的并进列表之后才前进</b>，被推迟或丢弃时一个字节不动，并把变化记进待办下次补上。</div>
+    <div class="step"><b>写事件订阅（工具改完立刻知道）</b>　订阅工具出结果与会话事件；第一道门是工作区白名单——别的仓库的事件一个字都不判、不写日志、不取数；<b>10 秒合并窗口</b>把连着的几笔并成一次取数。</div>
+    <div class="step"><b>检查链改成事件驱动</b>　删掉 8 秒自续循环与 20 秒轮询；退避 <b>8 秒 → 30 秒 → 2 分钟 → 5 分钟</b>，一有进展立刻回快档；全绿时缓存 <b>30 分钟</b>；环境预检（登录态、仓库是否可达）在一次求值里<b>只真问一次</b>（实测出站从 5 条降到 3 条）。</div>
+    <div class="step"><b>界面只说实话</b>　新鲜度、失败形态、降级标记全部读宿主写下的真实值，界面不现算、不写死文案；读不到就如实说读不到（「读不到」与「确实没有」是两件事，分开显示）。</div>
+  </div>
+
+  <h3>几个关键数字（都能在门禁里查到）</h3>
+  <table>
+    <tr><th>项</th><th>值</th><th>说明</th></tr>
+    <tr><td class="k">同时活跃工作区</td><td>2</td><td>超过就淘汰；同一个工作区根只占一个名额</td></tr>
+    <tr><td class="k">收摊</td><td>90 秒</td><td>没有信号就整桌收摊，后台零自续定时器</td></tr>
+    <tr><td class="k">写事件合并窗口</td><td>10 秒</td><td>连着几笔并成一次取数</td></tr>
+    <tr><td class="k">退避序列</td><td>8s / 30s / 2min / 5min</td><td>有进展立刻回第一档；全绿缓存 30 分钟</td></tr>
+    <tr><td class="k">AI 工具单次硬顶</td><td>600 点 / 400 条请求</td><td>超顶当场拒绝，并把原话给出来（建议分几片）</td></tr>
+    <tr><td class="k">AI 工具每小时</td><td>2000 点 / 1500 条请求</td><td>插件本体另有 1750 条/时（读份额 1225、写保底 525）</td></tr>
+    <tr><td class="k">一次调用最多子票</td><td>60 张</td><td>超了按上界分片，不硬来</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>2 · 对外工具清单（七个，全部后端无关）</h2>
+  <p class="sub">这七个是给 AI 用的票务工具。它们只认契约、不认后端 id，并且对每一条边<b>如实报出它落在后端的哪里</b>。</p>
+  <table>
+    <tr><th>工具</th><th>做什么</th><th>后端差异（实测矩阵跑出来的）</th></tr>
+    <tr><td class="k">deck_context</td><td>取当前上下文（当前工作区、后端、正在看的票）</td><td>—</td></tr>
+    <tr><td class="k">deck_issue_get</td><td>看一张票（正文、状态、标签）</td><td>—</td></tr>
+    <tr><td class="k">deck_map_snapshot</td><td>看整张地图与每张子票的进度</td><td>—</td></tr>
+    <tr><td class="k">deck_issue_create</td><td>建票（带幂等锚，重复调用不会建出第二张）</td><td>GitHub / GitLab：一次调用只发一次写；本地 Markdown：落到票文件</td></tr>
+    <tr><td class="k">deck_map_plan_create</td><td>建地图骨架（母票 + 子票 + 顺序）</td><td>—</td></tr>
+    <tr><td class="k">deck_map_link</td><td>补边：父子关系、阻塞关系</td><td>GitHub：父子＝原生层级、阻塞＝原生依赖边；GitLab：父子＝平级链接（不是层级）、阻塞＝正文里的一行；本地 Markdown：父子做不到（如实说做不到）、阻塞＝正文里的一行</td></tr>
+    <tr><td class="k">deck_issue_patch</td><td>改票：状态、标签、正文、认领、关闭、评论</td><td>本地 Markdown 只改状态不记认领人时，如实回「部分完成」</td></tr>
+  </table>
+  <div class="note">
+    <h3>这里必须说清楚一句</h3>
+    <p>这七个工具<b>已经在宿主里被证明真跑通</b>（真工作区里真建票、闸真的放行、每笔调用至少过两次闸），但<b>还没有挂到 DSH 的模型工具面</b>——也就是说，<b>AI 今天在会话里还调不到它们</b>。这是工具链的最后一公里，已经立票跟踪。</p>
+  </div>
+</section>
+
+<section>
+  <h2>3 · AI 在会话里处理了哪些票：现在有机制记录吗</h2>
+  <p class="sub">有。它叫「会话↔票处理链」，而且它<b>只记「写」不记「读」</b>——AI 看一眼票不算处理，真去建票、改票、评论、关票才算。</p>
+
+  <h3>记了什么</h3>
+  <ul>
+    <li>会话分格散列（不是会话原文）、工作区根散列、后端名</li>
+    <li>票键（issue 的号码）、时刻、动作类别（评论 / 建票 / 改状态 / 关闭 …）</li>
+  </ul>
+
+  <h3>记在哪</h3>
+  <ul>
+    <li><b>内存表</b>：宿主进程内，随刷新机制的那一套实例一起建起来。</li>
+    <li><b>落盘文件</b>：<code>&lt;进程当前目录&gt;/.dsh-mattskillsdeck-cache/session-tickets.json</code>（与命名守护用同一个缓存目录，所以重启不丢）。</li>
+    <li><b>隐私</b>：写下去的只有散列与票键 —— 会话 id 原文、路径原文、命令原文一个都不在里面；落盘前还要过一遍检查。</li>
+  </ul>
+
+  <h3>未来 UI 怎么读到它（这就是你要的那条 API）</h3>
+  <p>两条电话拼起来，缺一不可：</p>
+  <pre>① 会话 → 票        wf.snapshot  的回包字段  sessionTickets
+                     （常量 SESSION_CHAIN_FIELD = 'sessionTickets'）
+
+   {
+     ok: true,                  // false 表示「这一次没读到」，附 reason
+     at: 1758700000000,         // 这份读数是什么时候取的
+     reason: 'host.chain.ok',
+     sessions: [
+       { shardId: 'ab12cd34',   // 会话分格散列前 8 位
+         backend: 'github',
+         entries: [ { ticketKey: '723', at: 1758699990000, action: 'comment' } ] }
+     ]
+   }
+
+② 票 → 路径/链接    wf.issueDetail（票详情）或 wf.issuesPage（列表页）</pre>
+  <p><b>关键一点：处理链那份读数里只有「号码」，没有 issuePath。</b>这是刻意的隐私决定——处理链只记「写到哪张票」，不搬路径与标题。所以未来 UI 要拿到「某个会话在处理哪张票、那张票在哪」需要两步：<b>先用 <code>wf.snapshot</code> 的 <code>sessionTickets</code> 拿到号码与后端</b>，<b>再用号码问 <code>wf.issueDetail</code> 拿路径/链接</b>。</p>
+  <p class="muted">（同机的脚本也可以直接读上面那个 JSON 文件，但那是内部缓存格式，不建议 UI 直接依赖。）</p>
+
+  <div class="note">
+    <h3>现在这块在界面上的样子</h3>
+    <p>面板正文最上面有一条「每个会话在处理哪些票」：一行一张票，点一行跳到那张票。它有三种诚实的显示——<b>读不到</b>（字段缺失或宿主说这一轮没取到）、<b>取到了但确实没有</b>（整块不画）、<b>有数据</b>（照实画出来）。</p>
+    <p class="muted">如实说明：喂数据（写事件订阅）与读数（快照回包）两头都已接线，离线门禁证明两头都通；但<b>真机上还没有验证过</b>——在终局真机验收跑完之前，界面在生产里可能照实显示「处理链读不到」。那不是故障，是它还没被真人看过一眼。</p>
+  </div>
+</section>
+
+<section>
+  <h2>4 · 还没做完的（照实列）</h2>
+  <table>
+    <tr><th>缺口</th><th>为什么重要</th></tr>
+    <tr><td><b>工具挂上模型工具面</b></td><td>不做这一步，AI 在会话里调不到那七个工具，整条工具链对用户等于零</td></tr>
+    <tr><td><b>「列表行不搬正文」的薄片段优化</b></td><td>设计里最大的一块成本削减；今天列表行仍然搬正文，而且「省到多少」那个数字还是推算、没实测</td></tr>
+    <tr><td><b>终局真机验收</b></td><td>六项必做实测（真 GitLab 建票一次写一张票、真会话里 AI 走工具建边、活宿主里真收到写事件、真被拒绝的现场、客户端吃增量、整批门禁一次全跑）；没跑之前，所有结论都只是离线证据</td></tr>
+    <tr><td><b>宿主入口改名的收尾</b></td><td>入口里有个自建对象把注入参数遮住了，<b>害三条门禁收到 0 条电话却照绿</b>——空转的门禁比没有门禁更坏</td></tr>
+  </table>
+  <p class="muted">另外：整条 <code>npm run verify</code> 链<b>不是全绿</b>——还剩开工前就存在的红灯（两条同层引用边，来自 2026-09-22 的提交）与 6 条与本批无关的存量红。它们都逐条记在仓库的门禁清单里，没有被算作通过。</p>
+</section>
+
+<footer>
+  版本 v1.7.28 · 发布契约门禁 <code>verify-release-contract --version v1.7.28</code>：61 通过 / 0 失败 ·
+  本批新门禁（唯一出口闸、预算最坏情况、行级增量、视野模型、写事件、处理链、七个工具与三后端矩阵、诚实显示、工具宿主装配、增量接线、单一刷新实例、闸接线）逐条单独跑过、全部 EXIT=0 ·
+  已关闭 19 张票，未完成 4 张（薄片段 / 工具面 / 入口改名收尾 / 终局验收）在 GitHub 上跟踪。
+</footer>
+
+</div>
+</body>
+</html>

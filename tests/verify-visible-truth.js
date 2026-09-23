@@ -5,6 +5,8 @@
 //
 // 它验七件事：
 //   一、新鲜度：时间戳取快照的**取数时刻**（generatedMs），阈值 5 分钟黄 / 30 分钟红（常量来自 budget.ts）；
+//      2026-09-22 起这条信息显示在面板头部那个小时间标签上（panel/Dock.js），标签只画相对时间、
+//      完整说法与精确时刻在悬停提示里 —— 那一节判据（truthFreshnessBox）也在这里量。
 //   二、两种失败是两句不同的话（「插件自己的取数失败」与「配额已被其他使用者耗尽」）；
 //   三、T3 那两句也要有读取点（「自动刷新已暂停」与「未在刷新（同时活跃上限 2）」）；
 //   四、降档时把延迟承诺说出来（"数据可能落后 X 分钟"），绿档不说、红档说的是「已暂停」；
@@ -104,6 +106,38 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   })
 })()
 
+// ---------- 一之二、头部那个小时间标签要说的话（truthFreshnessBox）----------
+// 2026-09-22 维护者定：「上次更新」那一条从面板正文那一行搬到面板头部第一行右侧那个小时间标签（panel/Dock.js）。
+//   标签版面上只画一句相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前），完整说法与精确时刻只在悬停提示里；
+//   所以这一节量的是「四档相对时间各自算对了吗、精确时刻还是不是快照取数时刻、没快照时会不会凭空画一句」。
+;(function checkHeadBox() {
+  const tiers = [
+    [20 * 1000, 'truth.updatedJustNow', 0, '刚刚'],
+    [3 * 60_000, 'truth.updatedMinAgo', 3, '3 分钟前'],
+    [5 * 60 * 60_000, 'truth.updatedHourAgo', 5, '5 小时前'],
+    [3 * 24 * 60 * 60_000, 'truth.updatedDayAgo', 3, '3 天前'],
+  ]
+  for (const [ageMs, wantKey, wantN, wantText] of tiers) {
+    const box = truth.truthFreshnessBox(stWith(), T1204 + ageMs)
+    if (!box) { fail('头部时间标签：' + wantKey + ' 那一档没有算出话来'); continue }
+    if (box.agoKey !== wantKey) fail('头部时间标签：' + wantKey + ' 那一档算成了 ' + box.agoKey + '（' + JSON.stringify(box) + '）')
+    if (wantKey !== 'truth.updatedJustNow' && box.agoParams.n !== wantN) fail('头部时间标签：' + wantKey + ' 的数目应当是 ' + wantN + '，实得 ' + JSON.stringify(box.agoParams))
+    if (box.time !== '12:04') fail('头部时间标签：精确时刻仍应取快照取数时刻 12:04（不是渲染时刻），实得 ' + JSON.stringify(box.time))
+    const shown = say(box.agoKey, box.agoParams)
+    if (shown !== wantText) fail('头部时间标签：' + wantKey + ' 画出来的话应当是「' + wantText + '」，实得 ' + JSON.stringify(shown))
+    // 新鲜度那一档不许在这里另算一份：它必须就是上面那条判据给的 tone
+    const line = truth.truthFreshnessLine(stWith(), T1204 + ageMs)
+    if (line && box.tone !== line.tone) fail('头部时间标签的 tone 与新鲜度判据不一致（' + box.tone + ' vs ' + line.tone + '）')
+    // 完整说法（悬停提示那句）里必须同时有「上次更新」、那句相对时间、以及精确时刻
+    const tip = say('truth.updatedTip', { ago: shown, time: box.time })
+    if (tip.indexOf('上次更新') < 0 || tip.indexOf(shown) < 0 || tip.indexOf('12:04') < 0) {
+      fail('悬停提示那句没把完整说法与精确时刻都说出来：' + JSON.stringify(tip))
+    }
+  }
+  // 还没拿到快照时一句话都不画（这条判据不许凭空造一个时刻）
+  if (truth.truthFreshnessBox({ snapshot: null }, T1204) !== null) fail('还没拿到快照时头部时间标签不该算出任何一句话')
+})()
+
 // ---------- 二、两种失败是两句不同的话；第三种「已暂停」也说得出来 ----------
 ;(function checkTwoFailures() {
   const base = { snapshot: snapAt(T1204, { refresh: { tier: null, deferred: false, paused: false, notRefreshing: false } }), snapMode: 'err', snapError: 'boom' }
@@ -156,7 +190,11 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
 ;(function checkReadPoints() {
   const listTab = fs.readFileSync(path.join(ROOT, 'src/client/views/ListTab.js'), 'utf8')
   const row = fs.readFileSync(path.join(ROOT, 'src/client/views/ListTabRow.js'), 'utf8')
-  if (!/truthNoticeLines\(st/.test(listTab) || !/truthFreshnessLine\(st/.test(listTab)) fail('ListTab.js 没有读新鲜度/通知那两路判据（写了没人读）')
+  // 2026-09-22：「上次更新」那一条从面板正文那一行搬到了面板头部那个小时间标签，所以新鲜度那条判据的
+  //   读取点跟着搬了家 —— 判据跟着真实落点走。两处都读：ListTab 仍读通知那一路（写了两边没人读就红）。
+  if (!/truthNoticeLines\(st/.test(listTab)) fail('ListTab.js 没有读通知那一批判据（写了没人读）')
+  const dock = fs.readFileSync(path.join(ROOT, 'src/client/panel/Dock.js'), 'utf8')
+  if (!/truthFreshnessBox\(s/.test(dock) || !/tr\(headBox\.agoKey/.test(dock)) fail('panel/Dock.js 没有读新鲜度判据、也没有把那一句画出来（头部那个小时间标签；写了没人读 / 读了没画）')
   if (!/tr\(ln\.key/.test(listTab)) fail('ListTab.js 没有把判据吐出来的词条画出来（读了没画）')
   if (!/snapshot\.fallback === 'rest'/.test(listTab) || !/tr\('list\.restFallback'\)/.test(listTab)) fail('ListTab.js 没有读降级标记并画出「已切 REST 通道」横幅')
   if (!/truthWriteWindowOpen\(st\.writeAt/.test(row) || !/tr\('truth\.writing'\)/.test(row)) fail('ListTabRow.js 没有在写入窗口期画出那一行「更新中」标记')
@@ -231,6 +269,7 @@ if (failed) {
   process.exit(1)
 }
 console.log('  PASS 新鲜度取快照取数时刻，5 分钟黄 / 30 分钟红（阈值来自 budget.ts）')
+console.log('  PASS 头部那个小时间标签：四档相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前）都算对，精确时刻只在悬停提示里，没快照时一句话都不画')
 console.log('  PASS 两种失败两句不同的话（插件自己的取数失败 / 配额已被其他使用者耗尽）')
 console.log('  PASS T3 两句有读取点（自动刷新已暂停 / 未在刷新（同时活跃上限 2））')
 console.log('  PASS 降档说出延迟承诺（数据可能落后 ' + Math.round(budget.PROBE_INTERVAL_YELLOW_MS / 60000) + ' 分钟）')

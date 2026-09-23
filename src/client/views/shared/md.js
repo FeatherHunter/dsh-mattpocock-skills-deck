@@ -92,7 +92,7 @@ export     const mdImgOverlay = function (st) {
       const box = h('div', { role: 'dialog', 'aria-label': cur.alt || 'Image', tabIndex: -1, onKeyDown: onKey, style: { background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 10, maxWidth: '92%', maxHeight: '86%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 12px 48px rgba(0,0,0,.55)' } }, [
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [
           h('span', { style: { flex: 1, minWidth: 0, fontSize: 12, color: 'var(--dsw-alias-label-primary,#e6edf3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, cur.alt || 'Image'),
-          h('button', { className: 'dsws-btn ghost', autoFocus: true, onClick: function (e) { try { e.stopPropagation() } catch (e2) {} close() }, style: { padding: '2px 8px', fontSize: 11 }, 'aria-label': mdT('panel.closeTitle', 'Close panel') }, '✕'),
+          h('button', { className: 'dsws-btn ghost', autoFocus: true, onClick: function (e) { try { e.stopPropagation() } catch (e2) {} close() }, style: { padding: '2px 8px', fontSize: 11 }, 'aria-label': mdT('panel.closeDetailTitle', 'Close details') }, '✕'),
         ]),
         h('div', { style: { padding: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, overflow: 'auto' } }, [
           h('img', { src: cur.src, alt: cur.alt || 'Image', style: { maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: 6 } }),

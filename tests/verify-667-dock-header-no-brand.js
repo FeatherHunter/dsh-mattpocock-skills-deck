@@ -22,6 +22,9 @@
  *   C 反向两处照旧：DSH 右栏标签页的名字仍是「MattSkills」；状态胶囊栏里那枚品牌图标与字样仍在，
  *     而且仍是折叠优先级 1（最先收）。
  *   D 反证：把一段旧的品牌标记插回头部最前面，B 的那几条必须当场变红 —— 否则这道门量的是死数据，是假绿。
+ *   E 三档折叠（2026-09-22 维护者定，按面板真实宽度跑）：头部第一行右侧那两个控件（刷新按钮 / 小时间标签）
+ *     按这一行的真实可用宽度逐级收 —— 够宽时刷新的字与整个时间标签都在；中等时刷新的字先收（只留图标）；
+ *     最窄时时间标签也收起，上次更新的时间挪进刷新按钮的悬停提示。三档都必须出现过，且窄下去档号只升不降。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
  * 运行：node tests/verify-667-dock-header-no-brand.js
@@ -82,17 +85,33 @@ if (!headBlock) {
     ['h(SubworkspaceMark', '归属标志'],
     ['data-repo-switch', '切换后端按钮'],
     ['h(LabelColorEntry', '标签配色入口'],
-    ['panel.closeTitle', '关闭按钮'],
+    ['data-head-refresh', '刷新按钮'],
+    ['data-head-updated', '上次更新时间控件'],
   ]) {
     check(headCode.indexOf(needle) >= 0, 'A5 其余元素还在：' + label)
   }
 
   // #28 那条自适应收缩链：去掉标题字之后只剩仓库名一条，且三段（全长 → 短名 → 交给芯片自己省略）都在。
+  //   这一段要把整台折叠机都取到（2026-09-22 起这台机器里还管头部右侧那两个控件的逐级收回），
+  //   所以按「到下一段注释为止」取，不按固定字数截口 —— 截口会随着机器变长而漏掉后半段。
   const fitStart = dockSrc.indexOf('const applyHead = function')
-  const fitBlock = fitStart >= 0 ? dockSrc.slice(fitStart, fitStart + 1600) : ''
+  const fitStop = dockSrc.indexOf('// #670', fitStart)
+  const fitBlock = fitStart >= 0 ? dockSrc.slice(fitStart, fitStop > fitStart ? fitStop : fitStart + 3000) : ''
   check(!!fitBlock && fitBlock.indexOf('titleEl') < 0, 'A6 头部自适应里不再找那个标题字元素（原先那段「先隐藏标题」已随元素一起去掉）')
   check(!!fitBlock && /txt\.textContent = full/.test(fitBlock) && /txt\.textContent = short/.test(fitBlock) && /chip\.style\.flex = '0 1 auto'/.test(fitBlock),
     'A7 仓库名三段收缩链还在（全长 → 短名 → 弹性省略）')
+
+  // A13-A15（2026-09-22 维护者定）：这一行右侧放两个各自独立的控件 —— 左边一颗「刷新」，右边一个装时间的盒子。
+  //   两个控件之间只用间距，不许用「·」之类的分隔符把它们粘成一句。
+  //   这两条静态判据就是「两个独立元素 + 之间没有分隔符」这件事在源码上的样子（反证：插一个「·」进去必红）。
+  const ri = headCode.indexOf('data-head-refresh')
+  const ui = headCode.indexOf('data-head-updated')
+  check(ri >= 0 && ui > ri, 'A13 两个控件各有一个钩子，且刷新按钮在时间控件之前（实测下标 ' + ri + ' / ' + ui + '）')
+  if (ri >= 0 && ui > ri) {
+    const between = headCode.slice(ri, ui)
+    check(between.indexOf('·') < 0, 'A14 两个控件之间没有分隔符「·」（实测之间那段代码的尾巴：' + JSON.stringify(between.slice(-48)) + '）')
+    check(between.indexOf('h(') >= 0, 'A15 时间控件在刷新按钮之后另起一个元素（不是把两个钩子写在同一个元素上）')
+  }
 }
 
 console.log('')
@@ -139,7 +158,9 @@ const CWD = 'D:\\ilife\\packages\\skill-calorie'
 const SNAP = {
   ok: true,
   version: 'verify-667',
-  generatedMs: 1,
+  // 取数时刻写成「三分钟前」这么远：头部那个小时间标签因此有一句确定的相对时间可量
+  //   （E 组要断言它画的是一句相对时间，写死一个 1970 年的一刻就只能量到「两万天前」那种废话）。
+  generatedMs: Date.now() - 3 * 60 * 1000,
   workspaceRoot: 'd:/ilife',
   maps: [],
   checks: null,
@@ -254,7 +275,14 @@ window.__MEASURE__ = function () {
     markIdx: idxOf('[data-subws-mark]'),
     switchIdx: idxOf('[data-repo-switch]'),
     paletteIdx: idxOf('[data-label-colors]'),
-    closeIdx: idxOf('.dsws-btn.ghost'),
+    refreshIdx: idxOf('[data-head-refresh]'),
+    updatedIdx: idxOf('[data-head-updated]'),
+    // 两个控件之间到底有没有文字：把它们之间的兄弟节点的文字拼起来看，空的才算「只用间距分开」。
+    betweenControlsText: (function () {
+      const a = idxOf('[data-head-refresh]'), b = idxOf('[data-head-updated]')
+      if (a < 0 || b < 0 || b <= a) return null
+      return kids.slice(a + 1, b).map(function (el) { return el.textContent || '' }).join('')
+    })(),
     childCount: kids.length,
     childTags: kids.map((el) => el.tagName.toLowerCase()).join(','),
   }
@@ -263,6 +291,48 @@ window.__MEASURE__ = function () {
 window.__RESIZE__ = function (w) {
   document.getElementById('pane').style.width = w + 'px'
   return w
+}
+
+// E 组用：把面板宽度设成 w，然后等这一行那一档真的定下来（连续三次读到同一个档号才算定）。
+//   档号不是写死的阈值算出来的，是 panel/Dock.js 那台头部折叠机按这一行的真实可用宽度量出来的。
+window.__SETTLE_WIDTH__ = async function (w) {
+  document.getElementById('pane').style.width = w + 'px'
+  const row = window.__ROW__()
+  if (!row) return null
+  let last = null, same = 0
+  for (let i = 0; i < 60; i++) {
+    await new Promise(function (r) { requestAnimationFrame(function () { setTimeout(r, 16) }) })
+    const cur = row.getAttribute('data-head-tier')
+    if (cur === last) { same++; if (same >= 3) return cur } else { last = cur; same = 0 }
+  }
+  return last
+}
+
+// E 组用：头部那一行右侧两个控件此刻各自是什么样子（在不在版面上、画的是什么字、悬停提示说的是什么）。
+window.__HEAD_TIERS__ = function () {
+  const row = window.__ROW__()
+  if (!row) return { error: 'no row' }
+  const btn = row.querySelector('[data-head-refresh]')
+  const btnText = row.querySelector('[data-head-fold="1"]')
+  const timeBox = row.querySelector('[data-head-fold="2"]')
+  const visible = function (el) {
+    if (!el) return false
+    const r = el.getBoundingClientRect()
+    return r.width > 0 && r.height > 0
+  }
+  return {
+    ok: true,
+    tier: row.getAttribute('data-head-tier'),
+    rowWidth: Math.round(row.getBoundingClientRect().width * 100) / 100,
+    rowText: (row.textContent || '').replace(/\\s+/g, ' ').trim(),
+    refreshTextVisible: visible(btnText),
+    refreshTextText: btnText ? (btnText.textContent || '').trim() : null,
+    timeBoxPresent: !!timeBox,
+    timeBoxVisible: visible(timeBox),
+    timeAgoText: timeBox ? (timeBox.textContent || '').replace(/\\s+/g, ' ').trim() : null,
+    timeBoxAria: timeBox ? timeBox.getAttribute('aria-label') : null,
+    refreshAria: btn ? btn.getAttribute('aria-label') : null,
+  }
 }
 
 // 反证用：把改动前那一段（罗盘图标 + 品牌字样）照原样插回头部最前面。
@@ -386,8 +456,10 @@ try {
       check(!m.hasCompass, 'B4 整行没有罗盘那几笔图形（' + JSON.stringify(m.hasCompass) + '）')
       check(m.rowOverflow <= 1, 'B5 一行不溢出（scrollWidth-clientWidth = ' + m.rowOverflow + '）')
       check(m.chipIdx === 0, 'B6 仓库芯片是第 0 个孩子（实测下标 ' + m.chipIdx + '）')
-      check(m.markIdx > 0 && m.switchIdx > m.markIdx && m.paletteIdx > m.switchIdx && m.closeIdx > m.paletteIdx,
-        'B7 其余元素的相对次序不变：芯片 → 归属标志 → 切换后端 → 标签配色 → 关闭（实测下标 ' + JSON.stringify([m.chipIdx, m.markIdx, m.switchIdx, m.paletteIdx, m.closeIdx]) + '）')
+      check(m.markIdx > 0 && m.switchIdx > m.markIdx && m.paletteIdx > m.switchIdx && m.refreshIdx > m.paletteIdx && m.updatedIdx > m.refreshIdx,
+        'B7 其余元素的相对次序不变：芯片 → 归属标志 → 切换后端 → 标签配色 → 刷新 → 上次更新（实测下标 ' + JSON.stringify([m.chipIdx, m.markIdx, m.switchIdx, m.paletteIdx, m.refreshIdx, m.updatedIdx]) + '）')
+      check(m.betweenControlsText === '',
+        'B8 刷新按钮与「上次更新」时间控件之间没有任何文字（两个独立控件，只靠间距分开；实测之间读到 ' + JSON.stringify(m.betweenControlsText) + '）')
       console.log('     （这一行实测有 ' + m.childCount + ' 个孩子：' + m.childTags + '）')
     }
 
@@ -404,7 +476,8 @@ try {
       check(n.chipLeftGap !== null && Math.abs(n.chipLeftGap) <= 1.5, 'Bn2 窄面板下仓库芯片仍贴着左内边距、左边没有空位（实测芯片左偏 ' + n.chipLeftGap + ' 像素）')
       check(n.rowText.indexOf('MattSkills') < 0 && !n.hasCompass, 'Bn3 窄面板下没有品牌字样也没有罗盘图形')
       check(n.rowOverflow <= 1, 'Bn4 窄面板下一行不溢出（scrollWidth-clientWidth = ' + n.rowOverflow + '）—— 去掉那一段没有把这一行撑破')
-      check(n.switchIdx > 0 && n.paletteIdx > 0 && n.closeIdx > 0, 'Bn5 三颗按钮窄面板下都还在（切换后端 / 标签配色 / 关闭）')
+      check(n.switchIdx > 0 && n.paletteIdx > 0 && n.refreshIdx > 0 && n.updatedIdx > n.refreshIdx,
+        'Bn5 窄面板下这几件都还在：切换后端 / 标签配色 / 刷新按钮 / 时间标签（实测下标 ' + JSON.stringify([n.switchIdx, n.paletteIdx, n.refreshIdx, n.updatedIdx]) + '）')
     }
 
     console.log('')
@@ -420,6 +493,68 @@ try {
       check(cap.wordHasIcon, 'C4 状态胶囊栏里那枚品牌图标仍在')
       check(cap.foldPriority === '1' && cap.foldText === cap.wordText,
         'C5 品牌那一段仍是折叠优先级 1（最先收）（实测 priority ' + JSON.stringify(cap.foldPriority) + '）')
+    }
+
+    console.log('')
+    console.log('E) 三档折叠（按面板真实宽度跑）：够宽 / 中等 / 最窄各画什么、不画什么')
+    // 做法照状态栏胶囊那一套：面板宽度是用户拖出来的，所以按头部这一行的真实可用宽度逐级收，不认视口宽度。
+    //   宽度从 900 一路收到 240，每一档第一次出现时的实况都记下来；三档缺一档就是这道门要拦的回归。
+    const REL = /(刚刚|分钟前|小时前|天前|just now|min ago|h ago|d ago)/
+    const TIP = /(上次更新|Updated)/
+    const CLOCK = /(取数时刻|read at)\s*\d{2}:\d{2}/
+    const samples = {}
+    const tierSeq = []
+    let headErr = null
+    for (let w = 900; w >= 240; w -= 6) {
+      const tier = await page.evaluate((x) => window.__SETTLE_WIDTH__(x), w)
+      if (tier === null) { headErr = { error: 'no row at ' + w }; break }
+      const t = await page.evaluate(() => window.__HEAD_TIERS__())
+      if (t && t.error) { headErr = t; break }
+      const n = Number(tier)
+      tierSeq.push(n)
+      if (!(n in samples)) samples[n] = { w: w, m: t }
+    }
+    if (headErr) {
+      bad('E 没量到头部那一行：' + JSON.stringify(headErr))
+    } else {
+      check(0 in samples, 'E1 「够宽」那一档出现过：刷新按钮带字 + 时间标签都在（实测第一次出现在面板宽 ' + (samples[0] ? samples[0].w : '从未出现') + '）')
+      check(1 in samples, 'E2 「中等」那一档出现过：刷新按钮只留图标、时间标签还在（实测第一次出现在面板宽 ' + (samples[1] ? samples[1].w : '从未出现') + '）')
+      check(2 in samples, 'E3 「最窄」那一档出现过：时间标签也收起（实测第一次出现在面板宽 ' + (samples[2] ? samples[2].w : '从未出现') + '）')
+      let maxTier = -1
+      let monotone = true
+      for (const n of tierSeq) { if (n < maxTier) { monotone = false; break } if (n > maxTier) maxTier = n }
+      check(monotone, 'E4 面板越窄档号只升不降（实测档号序列 ' + JSON.stringify(tierSeq) + '）')
+      if (samples[0]) {
+        const m = samples[0].m
+        check(m.refreshTextVisible === true && m.timeBoxVisible === true,
+          'E5 够宽那一档：刷新的字在、时间标签也在（实测刷新字 ' + JSON.stringify(m.refreshTextText) + ' / 时间标签 ' + JSON.stringify(m.timeAgoText) + '）')
+        check(REL.test(m.timeAgoText || ''), 'E6 够宽那一档：时间标签画的是一句相对时间（实测 ' + JSON.stringify(m.timeAgoText) + '）')
+        check(!TIP.test(m.rowText), 'E7 版面上不出现「上次更新」这类整句说法（那四个字只在悬停提示里；实测这一行的字 ' + JSON.stringify(m.rowText.slice(0, 90)) + '）')
+        check(TIP.test(m.timeBoxAria || '') && CLOCK.test(m.timeBoxAria || ''),
+          'E8 时间标签的悬停提示里带着完整说法与精确时刻（实测 ' + JSON.stringify(m.timeBoxAria) + '）')
+      }
+      if (samples[1]) {
+        const m = samples[1].m
+        check(m.refreshTextVisible === false && m.timeBoxVisible === true,
+          'E9 中等那一档：刷新的字先收（只留图标），时间标签还在（实测刷新字可见 ' + m.refreshTextVisible + ' / 时间标签可见 ' + m.timeBoxVisible + '）')
+        check(REL.test(m.timeAgoText || ''), 'E10 中等那一档：时间标签照旧只画相对时间（实测 ' + JSON.stringify(m.timeAgoText) + '）')
+      }
+      if (samples[2]) {
+        const m = samples[2].m
+        check(m.refreshTextVisible === false && m.timeBoxVisible === false,
+          'E11 最窄那一档：时间标签也收起、刷新的字也没了（实测刷新字可见 ' + m.refreshTextVisible + ' / 时间标签可见 ' + m.timeBoxVisible + '）')
+        // 最窄那一档下悬停刷新按钮：上次更新的时间必须还在悬停提示里（信息不丢，只是不占版面）
+        await page.evaluate((x) => window.__SETTLE_WIDTH__(x), samples[2].w)
+        await page.waitForTimeout(200)
+        await page.hover('[data-head-refresh]')
+        await page.waitForTimeout(700)
+        const tips = await page.evaluate(() => Array.from(document.querySelectorAll('div'))
+          .filter((el) => el.style && el.style.position === 'fixed' && el.style.zIndex === '2147483000')
+          .map((el) => (el.textContent || '').replace(/\s+/g, ' ').trim()))
+        const tipAll = tips.join(' | ')
+        check(TIP.test(tipAll) && REL.test(tipAll) && CLOCK.test(tipAll),
+          'E12 最窄那一档下悬停刷新按钮：提示里仍带着上次更新的时间（完整说法 + 相对时间 + 精确时刻；实测 ' + JSON.stringify(tipAll.slice(0, 160)) + '）')
+      }
     }
 
     console.log('')

@@ -192,7 +192,11 @@ export const SessionChainStrip = function (props) {
   const view = sessionChainViewOf(st)
   if (view.state === 'idle') return null
   if (view.state !== 'ok') {
-    return h('div', { className: 'dsws-chainview dsws-chainview-unreadable', style: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--dsws-label-caption,#8b8b95)', padding: '2px 2px 4px' } }, [
+    // 2026-09-22 维护者定：主句只说「读不到处理记录」——短、没有括号、第一次读就懂；
+    //   「这次没拿到、不代表没人在处理票」那层意思整句挪进悬停提示（chainView.unreadableTip，
+    //   宿主给的原因代号也跟着留在悬停里，信息不丢）。这一行整行用危险色（与「刷新失败」同一支红）：
+    //   它不是一句灰说明，是「面板这一次没拿到读数」，要用户看见。
+    return h('div', { className: 'dsws-chainview dsws-chainview-unreadable', style: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--dsw-alias-state-error-primary,#f87171)', padding: '2px 2px 4px' } }, [
       Ic({ n: 'alert', size: 11 }),
       h(Tip, { content: tr('chainView.unreadableTip', { reason: view.reason }) }, h('span', null, tr('chainView.unreadable'))),
     ])

@@ -43,8 +43,9 @@ export const useTabsRow = function (s, tabsRef) {
       Ic({ n: 'bug', size: 11 }),
       h('span', null, tr('panel.newBug')),
     ]),
-    // T2 #2：刷新按钮上移至 tabs 行 · 紧贴环境检查右边（用户需求：列表 / 技能 / 环境检查 / 刷新）
-    h('button', { className: 'dsws-btn', 'data-priority': 3, onMouseMove: function (e) { tabsTip(e, tr('list.refresh'), 3) }, onMouseLeave: tabsTipOff, onClick: function () { refreshAll(s) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none' } }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', null, tr('list.refresh'))]),
+    // T2 #2 那颗「刷新」2026-09-22 挪出这一排了：维护者要求它离开面板的第二排，与「上次更新」的时间盒子
+    //   并排放到面板头部第一行右侧（画在 panel/Dock.js 的头部那一行里）。所以这一排从此没有 priority=3
+    //   的元素，版本号「什么时候让位」的判据也跟着换了口径 —— 见 Dock.js 折叠机第 3 步（按其真实处境判）。
     (tabTip && portalTop) ? portalTop(h('div', { style: { position: 'fixed', left: tabTip.x, top: tabTip.y, zIndex: 2147483000, padding: '4px 8px', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.4)', maxWidth: 220 } }, tabTip.text)) : null,
     // #repo-link：版本号可点——新窗打开插件仓库主页（DSW_REPO_URL 构建期注入，见 index.js；hover 样式在 styles.js .dsws-ver）
     h(Tip, { content: DSW_REPO_URL }, h('a', { className: 'dsws-ver', href: DSW_REPO_URL, target: '_blank', rel: 'noreferrer', style: { fontSize: 9, flex: 'none', fontVariantNumeric: 'tabular-nums' } }, DSW_VERSION)),

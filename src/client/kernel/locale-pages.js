@@ -34,6 +34,15 @@
         //   两种失败是两句不同的话：「插件自己的取数失败」与「配额已被其他使用者耗尽」。
         //   键名与占位符中英一致；渲染点在 views/shared/truthLines.js（判据）与 views/ListTab.js（画）。
         'truth.updatedAt': '上次更新：{time}',
+        // 2026-09-22 维护者定：这一条从面板正文那一行搬到了头部第一行右侧那个小时间控件里。
+        //   控件默认只画一句相对时间（下面四条），版面上不出现「上次更新」这四个字；
+        //   完整的那句话（含「上次更新」与精确时刻）只在鼠标悬停时出现，就是下面这条 updatedTip，
+        //   它的 {ago} 取自下面四条，{time} 取自快照的取数时刻（两个都由 views/shared/truthLines.js 算好）。
+        'truth.updatedJustNow': '刚刚',
+        'truth.updatedMinAgo': '{n} 分钟前',
+        'truth.updatedHourAgo': '{n} 小时前',
+        'truth.updatedDayAgo': '{n} 天前',
+        'truth.updatedTip': '上次更新 {ago}，取数时刻 {time}',
         'truth.failRetry': '刷新失败，正在重试',
         'truth.failPaused': '刷新失败，已暂停（配额紧张）',
         'truth.failQuota': '刷新失败：配额已被其他使用者耗尽，等整点恢复',
@@ -48,8 +57,10 @@
         'chainView.title': '每个会话在处理哪些票',
         'chainView.readAt': '宿主读数 {time}',
         'chainView.session': '会话 {id}',
-        'chainView.unreadable': '处理链读不到：宿主这次没有给出这份读数（空白不等于没有人正在处理票）',
-        'chainView.unreadableTip': '宿主给的代号：{reason}',
+        // #721 补（2026-09-22 维护者定）：主句只说读不到，短到一眼读完；「这次没拿到、不代表没人」那层意思
+        //   整句挪进悬停提示（unreadableTip），宿主给的原因代号也跟着在悬停里，主句里不再有括号。
+        'chainView.unreadable': '读不到处理记录',
+        'chainView.unreadableTip': '宿主这一次没有回传这份记录。这只说明我们没拿到，不表示没有会话在处理票。宿主给的代号：{reason}',
         'chainView.openTip': '打开宿主记下的这张票',
         'chainView.action.create': '建票',
         'chainView.action.plan': '写计划',
@@ -77,6 +88,11 @@
         //   last refresh worked, and whether the plugin is degraded. The two failures are two
         //   different sentences: "our own fetch failed" versus "the quota was used up by others".
         'truth.updatedAt': 'Last updated: {time}',
+        'truth.updatedJustNow': 'just now',
+        'truth.updatedMinAgo': '{n} min ago',
+        'truth.updatedHourAgo': '{n} h ago',
+        'truth.updatedDayAgo': '{n} d ago',
+        'truth.updatedTip': 'Updated {ago}, read at {time}',
         'truth.failRetry': 'Refresh failed; retrying',
         'truth.failPaused': 'Refresh failed; paused (quota is tight)',
         'truth.failQuota': 'Refresh failed: the hourly quota was used up by others; it recovers on the hour',
@@ -92,8 +108,8 @@
         'chainView.title': 'Which tickets each session is working on',
         'chainView.readAt': 'host reading {time}',
         'chainView.session': 'session {id}',
-        'chainView.unreadable': 'The processing chain cannot be read: the host did not hand over this reading this time (a blank list does not mean nobody is working on a ticket)',
-        'chainView.unreadableTip': 'Code from the host: {reason}',
+        'chainView.unreadable': 'Cannot read the processing record',
+        'chainView.unreadableTip': 'The host did not hand back this record this time. That only means we did not get it; it does not mean no session is working on a ticket. Code from the host: {reason}',
         'chainView.openTip': 'Open this ticket as the host recorded it',
         'chainView.action.create': 'opened a ticket',
         'chainView.action.plan': 'wrote a plan',
