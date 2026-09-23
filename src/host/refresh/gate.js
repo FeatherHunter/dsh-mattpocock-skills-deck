@@ -1,23 +1,20 @@
 // src/host/refresh/gate.js —— 刷新机制的唯一出口闸（#706 T2 第二批）
 //
-// 依据：定稿第三章「三层 + 一道闸」与第四章第 01 件。它回答的只有一句：这一笔去 GitHub 的调用，
-// 现在放行、降级，还是推迟？放行之后再记一笔真实花费。裁决本身一行都不在这里 —— 它调
-// refresh-core 那份纯函数产物 policy.js（第一批的成果），数字全部从 budget.js 取好注入进去。
-// 这两个 import 是「只许复用、不许再写一份」的落地方式：本文件里没有一条裁决规则、没有一个额度数字。
+// 依据：定稿第三章「三层 + 一道闸」与第四章第 01 件。它只回答一句：这一笔去 GitHub 的调用，
+// 现在放行、降级，还是推迟？放行之后再记一笔真实花费。裁决本身一行都不在这里 —— 它调 refresh-core
+// 那份纯函数产物 policy.js（第一批的成果），数字全部从 budget.js 取好注入。所以本文件里没有一条裁决规则、
+// 没有一个额度数字，这两个 import 就是「只许复用、不许再写一份」的落地方式。
 //
-// 这个文件守住五件事（票面点名的五条硬要求，逐条对应下面一段代码）：
-//   1. **唯一出口**：发给 GitHub 的每一笔都从这里过。分类（人的动作 / 生命周期 / 后台 / AI 工具）、
-//      记账、裁决、推迟队列四件事都在这里做；静态扫描门禁（tests/verify-gh-gateway.js）扫整个 src，
-//      要求每一个能起 gh 进程的调用点都登记在册 —— 新写一条绕开闸的路会判红。
-//   2. **记账单位是真实出站 HTTP 请求数**：调用方报几条、传输层真发几条，两个数各自记在账上并当场对账；
+// 守住五件事（票面点名的五条硬要求，逐条对应下面一段代码）：
+//   1. **唯一出口**：分类（人的动作 / 生命周期 / 后台 / AI 工具）、记账、裁决、推迟队列四件事都在这里做。
+//      静态扫描门禁（tests/verify-gh-gateway.js）扫整个 src，要求每一个能起 gh 进程的调用点都登记在册。
+//   2. **记账单位是真实出站 HTTP 请求数**：调用方报几条、传输层真发几条，两个数各自记账并当场对账；
 //      分页、重试、兜底链、扇出都要算进去，所以闸不认「逻辑上一次调用」这个说法。
-//   3. **扇出排队，不并行发**：一次 send 里的多步（翻页、兜底链、批量）排成一队逐条发；
-//      同时来的多次 send 也在同一条队上 —— 并发数恒为 1。
-//   4. **推迟 ≠ 失败**：被推迟的请求进推迟队列，同一个工作区只留最后一次（多次合并成一次），
-//      5 分钟（budget.js 的 DEFER_EXPIRY_MS）过期即丢；过期丢弃不算失败、不计入连续失败次数，
-//      下一条请求照常走。失败才会被数进 workspace.failuresSinceSuccess，由裁决那侧安排退避。
-//   5. **运行期漏网计数**：传输层每真发一条就报一次（noteOutbound），闸自己记的是「经过裁决的那几笔」，
-//      两者之差就是绕开闸发出去的条数（escaped()）。这个数不为 0 就说明有人偷偷发了请求。
+//   3. **扇出排队，不并行发**：一次 send 里的多步（翻页、兜底链、批量）排成一队逐条发，多次 send 也同队。
+//   4. **推迟 ≠ 失败**：被推迟的进推迟队列，同一工作区只留最后一次，5 分钟（DEFER_EXPIRY_MS）过期即丢；
+//      丢弃不算失败、不计连续失败次数。只有真失败才进 failuresSinceSuccess，由裁决那侧安排退避。
+//   5. **运行期漏网计数**：传输层每真发一条就报一次（noteOutbound），与闸记下来的条数之差就是绕开闸
+//      发出去的条数（escaped()）—— 这个数不为 0，就说明有人偷偷发了请求。
 //
 // 二级限流（Retry-After）也是降档信号：noteRetryAfter() 一次就把所在桶按红档处理（主桶没用完也降档），
 // 并把那个工作区标成撞限流 —— 裁决那侧对它的处置是「后台停、生命周期降级、人的动作照做」。
@@ -247,10 +244,8 @@ export function createGate(deps) {
   /** 传输层每真发一条就报一次（生产里挂在起 gh 进程那一层）。绕开闸发的那几条就靠它露出来。 */
   function noteOutbound(entry) {
     const e = entry || {}
-    const requests = num(e.requests) || 1
-    const points = num(e.points)
-    stats.transport.requests += requests
-    stats.transport.points += points
+    stats.transport.requests += num(e.requests) || 1
+    stats.transport.points += num(e.points)
     return { requests: stats.transport.requests, points: stats.transport.points }
   }
 
@@ -288,16 +283,8 @@ export function createGate(deps) {
     const plan = children > 0 ? budget.shardPlan(children) : { shards: 1, perShard: budget.AI_TOOL_SHARD_SIZE }
     fireDecide(r, a.admitted ? 'allow' : 'reject', a.reason, q.tier)
     if (!a.admitted) fireSkipped(r.workspaceKey, 'tool-batch', a.reason, deferred.size)
-    return {
-      admitted: a.admitted,
-      reason: a.reason,
-      points: a.points,
-      requests: a.requests,
-      remaining: q.remaining,
-      shards: plan.shards,
-      perShard: plan.perShard,
-      text: a.admitted ? '' : refusalText(a, q, hour, plan),
-    }
+    return { admitted: a.admitted, reason: a.reason, points: a.points, requests: a.requests, remaining: q.remaining,
+      shards: plan.shards, perShard: plan.perShard, text: a.admitted ? '' : refusalText(a, q, hour, plan) }
   }
 
   /**

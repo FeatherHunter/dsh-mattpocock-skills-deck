@@ -100,7 +100,7 @@ async function main() {
   check(good.ok, '合规变体（探测 10 秒、对账 20 分钟）判绿 —— ' + good.text)
 
   console.log('  说明：读份额那一道按「每一桶各自那份份额」核对 —— REST 桶的单位是请求条数，GraphQL 桶是点数，')
-  console.log('        两个桶各自独立，不是把点数与请求数混着比（口径见 budget.ts 第五节的说明）。')
+  console.log('        两个桶各自独立，不是把点数与请求数混着比（口径见 budget.ts 第七节的说明）。')
   console.log(failed ? '\n存在失败 — verify-budget-worstcase 未通过' : '\n全部通过 — 最坏用量门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
