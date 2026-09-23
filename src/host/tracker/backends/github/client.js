@@ -32,13 +32,34 @@ function roomInfoEnabled(ctx) {
   } catch { return true }
 }
 
-const TIMEOUT_MS = 30000
+/**
+ * 这一层起 gh 命令时用的默认超时（毫秒）。#723（T19）把它交出去：`src/host/detectChain.js` 里
+ * 那条链要按「命令 + 工作目录 + 超时」认「是不是同一件事」，从前它在自己文件里又写了一遍
+ * 30000 —— 两处各写一份，改一处就会静默对不上（实测踩过：一边带 30000、一边不带，白问两遍）。
+ * 现在那个文件从宿主接线接这一个数（`src/host/registerPhones.js` 转发），全仓只有这一处字面量。
+ */
+export const TIMEOUT_MS = 30000
 
 function getExec(ctx) {
   if (ctx && typeof ctx.exec === 'function') return ctx.exec.bind(ctx)
   // 兼容：BackendContext.platform + fs/timers 注入时，exec 可能在 ctx 上或 ctx.platform 上
   if (ctx && ctx.platform && typeof ctx.platform.exec === 'function') return ctx.platform.exec.bind(ctx.platform)
   return null
+}
+
+/**
+ * #723（T19）：这一笔真实出站报给闸（I1）。闸由接线处注入（`ctx.gate`，production 里是
+ * `src/host/refresh/gate.js` 的产物），本房不 import 它（跨房间/同层引用都不许）。
+ * 房内不报的后果是账对不上（漏网计数会露出来），所以没接上时这里什么都不做 —— 不允许
+ * 「没接上就自己发出去还不说」。
+ */
+function reportOutbound(ctx, args) {
+  try {
+    const gate = ctx && ctx.gate
+    if (!gate || typeof gate.noteOutbound !== 'function') return
+    const isGraphql = String(args && args[0] || '').indexOf('graphql') >= 0
+    gate.noteOutbound({ requests: 1, points: isGraphql ? 1 : 0 })
+  } catch { /* 报账失败不许影响已经起来的这一条命令 */ }
 }
 
 function getPlatform(ctx) {
@@ -82,6 +103,7 @@ export function ghClient(ctx) {
       // 避免因为 subprocess.resolveExecutable 的 PATH 与 pwsh 的 PATH 不一致导致 414 这类外部建票永远拉不到
       if (exec) {
         try {
+          reportOutbound(ctx, ['--version'])
           const probe = await exec('gh', ['--version'], { cwd: cwd || getCwd(ctx, undefined), timeout: 3000 })
           if (probe && probe.stdout && String(probe.stdout).includes('gh version')) {
             return { ok: true, ghPath: 'gh' }
@@ -138,6 +160,9 @@ export function ghClient(ctx) {
     const timeout = opts.timeout != null ? opts.timeout : TIMEOUT_MS
 
     try {
+      // #723（T19）：这一笔真实出站先报给闸（I1）。报在 exec 之前 —— 真起了进程才算这一笔，
+      // 而下面这条路一定起（exec 拿不到时上面已经 return 了）。
+      reportOutbound(ctx, args)
       const result = await exec('gh', args, { cwd, timeout, signal })
       // DSH ctx.exec 契约：{stdout, stderr, code}
       // #620 整改（D2）：拿不到**整数**退出码时按失败处理（-1），不再当成 0。

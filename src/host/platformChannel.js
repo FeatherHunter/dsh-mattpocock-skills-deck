@@ -2,7 +2,7 @@
 // 以后谁改它：改平台抽象、后端注册表或探测级联的人。预估约 280 行，超 350 打回。
 // 接线：由 index.js 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；本文件不引用其他新文件。
 export function createPlatformChannel(deps) {
-  const { ctx, subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, getMattSkillProbeNames, probeSkill, logCtx } = deps
+  const { ctx, subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, getMattSkillProbeNames, probeSkill, logCtx, gate } = deps
   // #494 O1：旧文本通道退役——backend.diagnostic 不再产生（github 房内零调用；残留 ctx.log.* 调用自动静默，gitlab 房由本房 O 票另行结构化）。房内埋点只走 logEvent/isEnabled。
   const backendLogCtx = (logCtx && typeof logCtx.fire === 'function') ? logCtx : null
   function backendLogEvent(level, event, fields) { try { if (backendLogCtx) backendLogCtx.fire(level, event, fields) } catch (e) {} }
@@ -185,6 +185,16 @@ export function createPlatformChannel(deps) {
       const c = (opts && opts.cwd) || ''
       // 起始时刻只在开关打开时才取：关着时这一行读一个布尔就结束，连时钟都不读，后面那行自然也不落。
       const execT0 = (logCtx && logCtx.isEnabled('debug')) ? Date.now() : 0
+      // #723（T19）：这一笔真实出站先报给闸（I1）。这条通道是操作上下文交给后端的那种 exec 出口
+      // （tracker 三个房间与快照那几路都走它），起的是 gh / glab / git 三条命令；gh 与 glab 是真出站，
+      // git 只读远端地址，但都是「起了一个进程」，一起报才能保证账上的条数与真起的命令数一一对应。
+      try {
+        if (gate && typeof gate.noteOutbound === 'function') {
+          const a0 = String((args && args[0]) || '')
+          const isGraphql = a0.indexOf('graphql') >= 0
+          gate.noteOutbound({ requests: 1, points: isGraphql ? 1 : 0 })
+        }
+      } catch (eR) { /* 报账失败不许影响已经起来的这一条命令 */ }
       let handle
       try {
         handle = subprocess.spawn({

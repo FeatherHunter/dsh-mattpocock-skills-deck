@@ -19,6 +19,10 @@
  * 后两向每次运行都会自动跑一遍（夹具在 tests/fixtures/gh-gateway/ 下），所以「门禁有没有牙齿」
  * 不需要人记得去试。也可以用 --root 手动指向夹具目录单独跑。
  *
+ * #723（T19）之后：`LEGACY_MAX` 是 0 —— 存量三处（repoKeys / platformChannel / github/client）
+ * 已经全部接进闸，登记表里没有一行 `transport-pending` 了。所以运行输出里不再有那三条 INFO，
+ * 而且从今往后**任何一处新的出站调用点都必须当场接进闸**，没有「先登记、以后再接」这条路。
+ *
  * 用法：
  *   node tests/verify-gh-gateway.js                       # 扫整个仓库（默认扫描根 = 本脚本上一级）
  *   node tests/verify-gh-gateway.js --root <目录>          # 换扫描根（例如探针样本目录）
@@ -61,9 +65,9 @@ const REPORT_RE = /noteOutbound\s*\(|ghGate\b|refresh\/gate\.js/
  *   not-github       —— 起的是别的程序（更新安装器、打开文件、另一个平台后端），不是 GitHub 的出口。
  */
 const EXITS = [
-  { file: 'src/host/repoKeys.js', role: 'transport-pending', ticket: '#706（第三批接线：闸接进取数层）', reason: '宿主侧取数层的执行出口：runGh 起 gh、execProc 起任意命令（含 gh 与 git），全仓绝大多数 GitHub 出站都从这里出去' },
-  { file: 'src/host/platformChannel.js', role: 'transport-pending', ticket: '#706（第三批接线：闸接进取数层）', reason: '操作上下文交给后端的那种 exec 出口（tracker 三个房间与快照那几路都走它）' },
-  { file: 'src/host/tracker/backends/github/client.js', role: 'transport-pending', ticket: '#706（第三批接线：闸接进取数层）', reason: 'GitHub 房间执行 gh 的地方（exec(\'gh\', args) 与 gh --version 探测），最终落到上面两个出口' },
+  { file: 'src/host/repoKeys.js', role: 'gateway', reason: '宿主侧取数层的执行出口：runGh 起 gh、execProc 起任意命令（含 gh 与 git），全仓绝大多数 GitHub 出站都从这里出去。#723（T19）接线：每一笔真实出站在起进程之前报给闸（reportOutbound）。' },
+  { file: 'src/host/platformChannel.js', role: 'gateway', reason: '操作上下文交给后端的那种 exec 出口（tracker 三个房间与快照那几路都走它）。#723（T19）接线：detectionExec 起进程之前把这一笔报给闸（注入的 gate.noteOutbound）。' },
+  { file: 'src/host/tracker/backends/github/client.js', role: 'gateway', reason: 'GitHub 房间执行 gh 的地方（exec(\'gh\', args) 与 gh --version 探测），最终落到上面两个出口。#723（T19）接线：execGh 与 gh --version 探测都先报给闸（ctx.gate 注进来）。' },
   { file: 'src/host/platform/index.js', role: 'not-github', reason: '起的是「打开文件 / 打开文件夹」那条路，不是 GitHub 出站' },
   { file: 'src/host/updateStore.js', role: 'not-github', reason: '更新安装器：起的是 dsh 自己那条命令，不是 GitHub 出站' },
   { file: 'src/host/updatePkg/store.js', role: 'not-github', reason: '更新包的派生副本（packages/dsh-plugin-update 编译产物），同上' },
@@ -72,8 +76,12 @@ const EXITS = [
   { file: 'src/host/tracker/backends/gitlab/preflight.js', role: 'not-github', reason: '起的是 glab（另一个后端的预检），不是 GitHub 的出口' },
 ]
 
-/** 「还没接线的存量出口」只许减不许增：加一行必须同一次改动里把这个数字一起改大（会让评审看见）。 */
-const LEGACY_MAX = 3
+/**
+ * 「还没接线的存量出口」只许减不许增：加一行必须同一次改动里把这个数字一起改大（会让评审看见）。
+ * #723（T19）把上面三处存量出口接进闸之后，这个数从 3 降到 **0** —— 从今往后任何一处新的出站调用点
+ * 都必须当场接进闸，没有「先登记、以后再接」这条路了。
+ */
+const LEGACY_MAX = 0
 
 function stripComments(text) {
   return text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/\/\/.*$/gm, (m) => ' '.repeat(m.length))

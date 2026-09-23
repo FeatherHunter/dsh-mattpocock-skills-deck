@@ -166,6 +166,10 @@ export default {
     // 界面文案一律从词条传进去，核心不含任何用户能看到的字（详见 label-color-core/README.md）。
     // ==== shared:labelColors (spliced by build) ====
     // ==== shared:labelColorPrompt (spliced by build) ====
+    // #715 诚实显示：新鲜度阈值（5 分钟黄 / 30 分钟红）、写入合并窗口、降档的延迟承诺，
+    // 只有一份真源（refresh-core/src/budget.ts → src/shared/refresh/budget.js），拼进来给界面读；
+    // 判据与渲染见 views/shared/truthLines.js 与 views/ListTab.js。
+    // ==== shared:refreshBudget (spliced by build) ====
     // ==== kernel:storePrefs (spliced by build) ====
     // ==== kernel:storeSwitch (spliced by build) ====
     // ==== kernel:storeSnapshot (spliced by build) ====
@@ -176,7 +180,9 @@ export default {
     // ==== kernel:probeStale (spliced by build) ====
     // ==== kernel:probeChain (spliced by build) ====
     // ==== kernel:probeSnapshot (spliced by build) ====
+    // ==== kernel:probeSnapshotHelpers (spliced by build) ====
     // ==== kernel:probeAuto (spliced by build) ====
+    // ==== kernel:attentionHeartbeat (spliced by build) ====
     // 打开形式（#373 用户拍板 2026-08-14；#646 改版；2026-09-21 收敛为唯一一条路）：
     //   面板只落在 DSH 原生右侧边栏里 —— 本插件自己在原生登记表注册一个类型，右栏里那一格由我们渲染，
     //   不依赖任何第三方插件，也没有第二个落点、没有可选的入口。
@@ -221,6 +227,8 @@ export default {
     // ==== leaf:chainRenderer (spliced by build) ====
     // ==== leaf:skillFloatList (spliced by build) ====
     // ==== leaf:tabs (spliced by build) ====
+    // ==== leaf:truthLines (spliced by build) ====
+    // ==== leaf:sessionChainView (spliced by build) ====
 
     // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
 

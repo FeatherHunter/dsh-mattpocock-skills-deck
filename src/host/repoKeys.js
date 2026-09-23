@@ -2,8 +2,14 @@
 // 以后谁改它：改外部进程执行（gh/git）、工作区钥匙规整或仓库根与磁盘缓存策略的人。预估约 270 行，超 350 打回。
 // 接线：由 index.js 动态 import 动态加载；getPlatform/getWorkspaceStore/setCache/clearWorkspaceStore/namingSweepSoon/parseGithubRepo 显式注入；本文件不引用其他新文件。
 // 显式传参编辑：共享状态归 index.js 持有——ghPath/ghLastError 经存取器读写，repoKeys/repoRoots 按引用共享，cache 重赋值改 setCache；resetGhCache 的 _workspaceStore 直访改 clearWorkspaceStore（状态归 platformChannel）。行为与搬前一致。
+//
+// #723（T19）闸接进取数层：这里是唯一的进程出口（全仓绝大多数 GitHub 出站都从 runGh / execProc 出去），
+// 所以**每一笔真实出站都在起进程之前报给闸一次**（gate.noteOutbound）—— 这是不变量 I1「对 GitHub 的每一次
+// 调用都必须经过闸」的物理落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
+// （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
+// 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
 export function createRepoKeys(deps) {
-  const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, parseGithubRepo, logCtx } = deps
+  const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate } = deps
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
   // #491 房外埋点 helpers：hash8 只记散列不记原文；P1 事件外层先判开关再组装字段（字段函数只在守卫通过后求值）。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
@@ -12,6 +18,17 @@ export function createRepoKeys(deps) {
   function progName(cmd) { try { return String(cmd || '').split(/[\\/]/).pop() || '' } catch (e) { return '' } }
   let lastNormKind = ''
   let lastCanonOut = ''
+
+  /** 这一笔真实出站报给闸（I1）。闸没接上时什么都不做——但那正是门禁要判红的现场，不许静默假装记过账。 */
+  function reportOutbound(args) {
+    try {
+      if (!gate || typeof gate.noteOutbound !== 'function') return
+      // GraphQL 那一桶按点数计（一条 gh api graphql 命令算一点），REST 那一桶按请求条数计，两桶互不折算。
+      const isGraphql = (String(args && args[0]) === 'api' && String(args && args[1] || '').indexOf('graphql') >= 0)
+      gate.noteOutbound({ requests: 1, points: isGraphql ? 1 : 0 })
+    } catch (e) { /* 报账失败不许影响已经起来的这一条命令 */ }
+  }
+
     // ============ gh 封装 ============
     // #195 修复：resolveGh 不再缓存失败（ghLastError 仅最近一次失败，环境修复后下次探测即恢复）
     async function resolveGh() {
@@ -25,6 +42,8 @@ export function createRepoKeys(deps) {
       // 回退：platform 未找到时，直接探测 gh 是否在 PATH 可执行（与 pwsh 的 where gh 一致）
       // 避免因 subprocess.resolveExecutable 的 PATH 与用户终端 PATH 分叉导致 414 这类外部建票永远拉不到
       try {
+        // #723（T19）：这一条 `gh --version` 探测也是一笔真实出站（虽然不扣配额），照记一笔。
+        reportOutbound(['--version'])
         const probeHandle = subprocess.spawn({ argv: ['gh', '--version'], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 }, stderr: { maxBytes: 1024 } }, graceMs: 1000 })
         const probeOutcome = await Promise.race([probeHandle.done, timer.timeout(2000).then(function(){ try{ probeHandle.terminate(); }catch(e){} return { exitCode: -1 } })])
         const outProbe = (probeHandle.collected && probeHandle.collected.stdout) ? probeHandle.collected.stdout.readFrom(0) : { text: '' }
@@ -41,6 +60,9 @@ export function createRepoKeys(deps) {
       const ghT0 = Date.now()
       const exe = await resolveGh()
       if (!exe) return { ok: false, kind: 'env', error: getGhLastError() }
+      // #723（T19）：这一笔真实出站先报给闸（I1 的唯一出口）。起来之后才报，是因为「报的条数」必须
+      // 与「真的起了几条命令」一一对应；resolveGh 失败那一条根本没有出站，不该记进账。
+      reportOutbound(args)
       let handle
       try {
         handle = subprocess.spawn({
@@ -86,6 +108,9 @@ export function createRepoKeys(deps) {
         if (a.length >= 2 && a[0] === 'issue' && /^(create|edit|close|comment|reopen)$/.test(String(a[1]))) {
           try { let rkWrite = cwd; try { rkWrite = await canonicalKey(cwd || DEFAULT_CWD) } catch {} setCache({ ts: 0, snapshot: null, error: null, cwd: rkWrite }) } catch {} // #696 只清自己根
           if (String(a[1]) === 'create') { try { namingSweepSoon(500) } catch (eW) {} }
+          // #709（T5）「写入成功之后」这一类事件：写很可能改变检查链（首次建号、仓库刚有内容等），
+          // 所以把退避拉回第一档 —— 下一个事件到来时立刻真算一次，不必等到退到 5 分钟那一档。
+          try { if (typeof getChainBackoff === 'function') getChainBackoff().then(function (b) { try { if (b) b.noteWriteActivity() } catch (e) {} }).catch(function () {}) } catch (eWr) {}
         }
       } catch (e) {}
       try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'ok', exitCode: 0 }) } catch (eL) {}
@@ -100,6 +125,10 @@ export function createRepoKeys(deps) {
     async function execProc(argv, cwd, via) {
       // 起始时刻只在开关打开时才取：关着时这一行读一个布尔就结束，连时钟都不读，后面两行自然也不落。
       const _execT0 = (logCtx && logCtx.isEnabled('debug')) ? Date.now() : 0
+      // #723（T19）：这一笔真实出站先报给闸（I1）。这条路的调用方是 git / glab / gh 三条，
+      // 其中 gh 与 glab 是真实出站；git 只读远端地址、不起 HTTP 请求，但它是同一个进程出口，
+      // 一起报能保证「起过几条命令」与账上的条数一一对应（宁可多记一笔，也不要漏一笔）。
+      reportOutbound(argv)
       let handle
       try {
         handle = subprocess.spawn({
@@ -262,5 +291,7 @@ export function createRepoKeys(deps) {
       try { if (logCtx) logCtx.fire('info', 'repo.resolve.tier', { tier: 3, ok: true, latencyMs: Date.now() - rkT0 }) } catch (eL) {}
       return repoKeys[key]
     }
-  return { resolveGh, resetGhCache, runGh, execProc, resolveGit, getHome, canonicalKey, getRepoRoot, getCacheDir, cacheFileName, readDiskCache, writeDiskCache, getRepoKey }
+  // #723（T19）：TIMEOUT_MS 一并交出去，让 detectChain 那侧取这一个数（从前它在自己文件里重复写了
+  // 一个 30000 字面量，两处各写一份，改一处就会静默对不上——见 detectChain.js 的 CHANNEL_GH_TIMEOUT_MS）。
+  return { resolveGh, resetGhCache, runGh, execProc, resolveGit, getHome, canonicalKey, getRepoRoot, getCacheDir, cacheFileName, readDiskCache, writeDiskCache, getRepoKey, TIMEOUT_MS }
 }

@@ -55,6 +55,8 @@ function shortHash(s) {
  *                   这里不直接 import 那个文件：同层互引门禁（tests/verify-no-same-layer-import.js）
  *                   要求宿主层的文件之间不互相引用，依赖一律由接线处显式传入（本目录既有做法）。
  *   fetch     —— 真去取数的函数（由宿主接线传进来，T3/T4 那一层）。签名 fetch(step, meta)。
+ *   note      —— 可选：把判定过的那一笔喂给会话↔票处理链（生产里是 sessionTickets.js 的 note）。
+ *                给了它，界面上「每个会话在处理哪些票」才有东西可读（#723 T19 接的线）。
  *   logCtx / now / hash8 / mergeWindowMs / probeIntervalMs —— 可选，与仓库其它模块同款。
  */
 export function createWriteEvents(deps) {
@@ -221,6 +223,19 @@ export function createWriteEvents(deps) {
     const argsObj = parsedArgs(rawArgs)
     const verdict = detectWrite({ shape: shape, tool: String(tool || ''), command: commandOf(argsObj), args: argsObj, succeeded: succeeded })
     const plan = actionFor(verdict, limits)
+    // #723（T19）把处理链喂上：判定过的那一笔交给接线处传进来的 note（生产里是
+    // refresh/sessionTickets.js 的 note），这样界面上「每个会话在处理哪些票」才不是恒空。
+    // 时序也在这里定死：喂数据与读数是同一个订阅的两头，先有喂才有读数 —— 只接读数会让
+    // 界面恒显示「取到了、空的」，那比如实说「读不到」更坏。note 抛错不许影响取数那一路。
+    if (typeof opts.note === 'function') {
+      try {
+        await opts.note({
+          sessionId: sessionIdOf(session), rootHash: keyHash, backend: '',
+          tool: String(tool || ''), source: (String(tool || '').toLowerCase().indexOf('deck_') === 0) ? 'tool-args' : 'cli',
+          tier: verdict.tier, reason: verdict.reason, verb: '', ticketKey: verdict.ticket || '', args: argsObj,
+        })
+      } catch (eN) { /* 喂链失败不许影响取数 */ }
+    }
     if (plan.action === 'wait-tick') return { tier: verdict.tier, reason: verdict.reason, action: plan.action }
     return await fire(shape, verdict, plan, keyHash)
   }
