@@ -32,6 +32,20 @@ import { parseMapBody } from '../../shared/parser.js'
  * false 与 MISSING 不再混同，各算各的；字段在但不是布尔值记 BAD（后缀 \0bad）单独隔离。混合返回不断言一致，不抛错，不吞票。
  * #504 交接约束：有拉取请求能力的后端逐票必带 isPullRequest（true/false），引用也应带该字段；老引用缺字段时按裸 key 回落找同号票。
  */
+/**
+ * 这一趟 list 失败，是「配额已经被别人用掉」还是「插件自己的取数失败」。
+ *
+ * #715（诚实显示）用：两种失败在界面上是两句不同的话，所以判据必须在宿主这一侧有一条，
+ * 而且只认真实读数 —— 今天能拿到的真实读数就是 gh 回包自报的限流（429 / `API rate limit exceeded` /
+ * 二级限流 `secondary rate limit`）。闸的账本接进宿主之后，判据换成账本读数（剩余额度掉到保底线以下、
+ * 而本地几乎没花），界面一个字都不用动：它只认 kind 这个字段。
+ */
+function failKindOfListError(error) {
+  const t = String((error && (error.message || error.error || error.kind)) || '')
+  if (error && (error.kind === ERROR_KIND.RATELIMIT || error.kind === 'rate-limit')) return 'quota-exhausted'
+  return /rate.?limit|quota|secondary/i.test(t) ? 'quota-exhausted' : 'fetch-failed'
+}
+
 function poolIdOf(it) {
   const k = idOfParts(effortOf(it), (it && it.key) || '')
   if (!it || !Object.prototype.hasOwnProperty.call(it, 'isPullRequest')) return k // MISSING
@@ -193,13 +207,16 @@ export function createSnapshotComposer(registry, opts = {}) {
 
       // 可选后端快路径（非 op；只接受完整 Issue[]，否则回落 list——桩不误导）
       let all = null
+      // #715：这一趟 list 到底走的 GraphQL 还是掉到了 REST —— 后端真的降级时才往上报（见 github/issues.js 的 REST 通道）。
+      let listFallback = null
       if (typeof tracker.snapshotFast === 'function') {
         const fast = await tracker.snapshotFast(ref, ctx)
-        if (fast && fast.ok === true && Array.isArray(fast.data)) all = fast.data
+        if (fast && fast.ok === true && Array.isArray(fast.data)) { all = fast.data; if (fast.fallback === 'rest') listFallback = 'rest' }
       }
       if (!all) {
         const res = await tracker.list(ref, {}, ctx)
-        if (!res.ok) return { ok: false, error: res.error }
+        if (!res.ok) return { ok: false, error: res.error, fail: { kind: failKindOfListError(res.error), at: Date.now() } }
+        if (res.fallback === 'rest') listFallback = 'rest'
         all = res.data
       }
       if (!Array.isArray(all)) {
@@ -222,6 +239,14 @@ export function createSnapshotComposer(registry, opts = {}) {
       if (countsTrusted) deck.counts = counts
       deck.partial = !countsTrusted || poolTickets < counts.total
       snapshot.deck = deck
+      // #715（诚实显示）：降级标记与「推迟 / 暂停 / 这个窗口没在刷新」这四项读数，只在这里写。
+      //   降级标记（'rest'）是上面那一趟 list 真实掉到 REST 通道才带回来的事实 —— 界面层永远不许写它
+      //   （tests/verify-visible-truth.js 有一条静态断言盯着这件事：谁也別想在客户端补一句赋值让横幅亮起来）。
+      snapshot.fallback = listFallback === 'rest' ? 'rest' : null
+      // tier 是额度档位：今天宿主这一侧还没有闸的账本读数（闸与账本接进宿主是后面的事），所以如实留 null。
+      //   留 null 的直接后果是界面不说「数据可能落后 X 分钟」——这是对的：不知道就不说，不许编一个。
+      //   deferred / paused / notRefreshing 同理：没有那个事实就是 false，界面一个字都不显示。
+      snapshot.refresh = { tier: null, deferred: false, paused: false, notRefreshing: false }
       try{ const ver=snapshotVersionOf(snapshot); snapshot.version=ver; snapshot.etag=ver; }catch(e){}
       const ent={snapshot, version:snapshot.version||'', at:Date.now()};
       touchSnapLRU(sk, ent);

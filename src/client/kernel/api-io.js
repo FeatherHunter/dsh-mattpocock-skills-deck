@@ -206,7 +206,9 @@
       return host.call('wf.commentIssue', Object.assign({ number: num, body: text }, ciEffort ? { effortId: ciEffort } : {}, cwdArg)).then(function (res) {
         try { if (res && res.ok === true) log('info', 'host.call', { method: 'wf.commentIssue', latencyMs: Date.now() - ciT0, ok: true, kind: 'comment' }); else log('warn', 'host.call.fail', { method: 'wf.commentIssue', kind: 'comment', errorHash: dswsLogHash(dswsLogTrunc(String(((res && res.error && (res.error.message || res.error.kind)) || 'comment-not-ok')), 120, 'error')) }) } catch (eL) {}
         if (!res) return { ok: false, error: { kind: 'network', message: tr('err.snapshotEmpty') } }
-        if (res.ok === true) return { ok: true, comment: res.data != null ? res.data : (res.comment || null) }
+        // #715：评论真写进远端之后，记下「这一行刚写过」的时刻 —— 列表那一行据此在合并窗口内显示
+        //   「更新中」，窗口一过自动消失（窗口长度取自 budget.ts，标记本身不改状态也不改布局）。
+        if (res.ok === true) { try { if (typeof markRowWrite === 'function') markRowWrite(st, num, ciEffort) } catch (eW) {}; return { ok: true, comment: res.data != null ? res.data : (res.comment || null) } }
         const err = res.error || {}
         // 契约 canonical kind（rate-limit/not-found）与 wf 遗产通道拼写（rateLimit/notFound）双兼容
         let k = String(err.kind || '')

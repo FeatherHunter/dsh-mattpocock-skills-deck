@@ -39,7 +39,7 @@ export function createSessionSnapshot(deps) {
       capabilities: null,
       viewer: (o.viewer !== undefined ? o.viewer : null),
       viewerLogin: (o.viewerLogin !== undefined ? o.viewerLogin : null),
-      deck: o.deck,
+      deck: o.deck, fallback: (o.fallback === 'rest' ? 'rest' : null), refresh: (o.refresh || null),
     }
     return snap
   }
@@ -106,7 +106,7 @@ export function createSessionSnapshot(deps) {
           const { createSnapshotComposer } = await import('./tracker/snapshot.js')
           const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force) })
-          if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
+          if (!res.ok) { const _e1 = new Error((res.error && res.error.message) || 'composeSnapshot failed'); if (res.fail) _e1.fail = res.fail; throw _e1 }
           // #683（F1 · ADR 的 R4）：后端说「没变」（304）时也要把权威选择带上 —— 那正是「只换了后端、 快照内容一个字没变」这个现场：不带的话客户端收到 304 就什么都不做，面板头继续显示旧后端。
           if (res.notModified === true || res.status === 304) {
             const _pair = (_selEarly && _selEarly.backendId) ? { selection: _selEarly, rev: (Number.isInteger(_selEarly.rev) ? _selEarly.rev : 0) } : {}
@@ -209,7 +209,7 @@ export function createSessionSnapshot(deps) {
           const snap = buildSnap({
             repoRoot, workspaceRoot: cwd,
             maps: inner.maps, issues: allForList, labels: labels,
-            repository: repoRef, backendModules: backendModules, selection: _sel, setupLayout: _layEarly, deck: inner.deck,
+            repository: repoRef, backendModules: backendModules, selection: _sel, setupLayout: _layEarly, deck: inner.deck, fallback: inner.fallback, refresh: inner.refresh,
           })
           return adoptSnapLog(snap, cwd)
         }
@@ -271,7 +271,7 @@ export function createSessionSnapshot(deps) {
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
         const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force) })
-        if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
+        if (!res2.ok) { const _e2 = new Error((res2.error && res2.error.message) || 'composeSnapshot failed'); if (res2.fail) _e2.fail = res2.fail; throw _e2 }
                   const inner2 = upcaseSnapStates(res2.snapshot)
         ;(inner2.maps || []).forEach(function(m){ 
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
@@ -333,13 +333,13 @@ export function createSessionSnapshot(deps) {
           repo: repo0b, repoRoot: repoRoot2, workspaceRoot: cwd,
           maps: inner2.maps, issues: allForList2, labels: labels2,
           repository: repoRef2, backendModules: backendModules2, selection: _sel, setupLayout: _layEarly,
-          viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck,
+          viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck, fallback: inner2.fallback, refresh: inner2.refresh,
         })
         await writeDiskCache(snap2.repo, snap2)
         return adoptSnapLog(snap2, cwd)
       } catch (e) {
-        setCache({ ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd })
-        return { ok: false, error: errText(e), env: { ghError: getGhLastError() } }
+        setCache({ ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }) // #715 失败也把种类一起回给界面（见下一行）：配额被别人耗尽 / 插件自己的取数失败 = 两句不同的话；没带种类的一律按后者说，拿不准时不许说「等整点恢复」。
+        return { ok: false, error: errText(e), failKind: (e && e.fail && e.fail.kind) ? e.fail.kind : 'fetch-failed', env: { ghError: getGhLastError() } }
       }
       })()
       if (!isForce) { snapshotInflight.set(snapshotDedupKey, snapshotPending); try { return await snapshotPending } finally { snapshotInflight.delete(snapshotDedupKey) } }

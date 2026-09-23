@@ -232,7 +232,10 @@ export async function listIssues(repo, filter, ctx) {
         try { restNorm.push(normalizeIssue(n)) } catch { droppedRest += 1 }
       }
       if (droppedRest) emitBadNodes(ctx, 'rest', droppedRest, rawFixed.length)
-      return { ok: true, data: applyIssueFilter(restNorm, filter) }
+      // #715：这一趟真的掉到 REST 通道了，把这件事如实带给调用方（`fallback: 'rest'`）——
+      //   宿主快照组装处据此在快照上写下降级标记，界面那一侧只读不写（面板上那句「已切 REST 通道」的
+      //   横幅本来就画好了，缺的一直是这个上游事实）。
+      return { ok: true, data: applyIssueFilter(restNorm, filter), fallback: 'rest' }
     }
     return { ok: true, data: applyIssueFilter(all, filter) }
   } catch (e) {

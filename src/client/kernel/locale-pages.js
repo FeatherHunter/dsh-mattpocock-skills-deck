@@ -30,6 +30,18 @@
         'setup.layout.single': '本仓库的域文档布局已在初始化时与用户确认为 single-context（一个仓库共用一份根目录的 CONTEXT.md，架构决定放 docs/adr/）：请把 single-context 这一句结论写进 docs/agents/domain.md，并让 AGENTS.md 的 ## Agent skills 块里 Domain docs 那一行也用这同一个词（技能要求的写法是「一行布局摘要 ＋ See docs/agents/domain.md」）；本次初始化不创建 CONTEXT-MAP.md 与各子项目的 CONTEXT.md，留到第一次真正写下词条时再建',
         'setup.layout.multi': '本仓库的域文档布局已在初始化时与用户确认为 multi-context（子项目各一份 CONTEXT.md，根目录一份 CONTEXT-MAP.md）：请把 multi-context 这一句结论写进 docs/agents/domain.md，并让 AGENTS.md 的 ## Agent skills 块里 Domain docs 那一行也用这同一个词（技能要求的写法是「一行布局摘要 ＋ See docs/agents/domain.md」）；本次初始化不创建 CONTEXT-MAP.md 与各子项目的 CONTEXT.md，留到第一次真正写下词条时再建，届时由仓库根目录的 CONTEXT-MAP.md 指向它们',
         'setup.layoutSwitchNote': '这个工作区已经初始化过。这里改的是记在仓库里的域文档布局结论；点确认之后，除「把记录后端的那几处对齐到新后端」之外，还会请 AI 把 docs/agents/domain.md 与 AGENTS.md 里记布局的那两行也改成新结论（不会重跑初始化、也不会重建已有产物）。',
+        // #715（诚实显示）：面板头部那几句话说清「这份数据多新、上次刷新成不成、现在是不是降级」。
+        //   两种失败是两句不同的话：「插件自己的取数失败」与「配额已被其他使用者耗尽」。
+        //   键名与占位符中英一致；渲染点在 views/shared/truthLines.js（判据）与 views/ListTab.js（画）。
+        'truth.updatedAt': '上次更新：{time}',
+        'truth.failRetry': '刷新失败，正在重试',
+        'truth.failPaused': '刷新失败，已暂停（配额紧张）',
+        'truth.failQuota': '刷新失败：配额已被其他使用者耗尽，等整点恢复',
+        'truth.deferred': '有更新，已推后',
+        'truth.paused': '自动刷新已暂停',
+        'truth.notRefreshing': '未在刷新（同时活跃上限 2）',
+        'truth.lag': '数据可能落后 {min} 分钟',
+        'truth.writing': '更新中',
       },
       en: {
         'list.pageLoaded': '{x} loaded / {n} total',
@@ -44,6 +56,18 @@
         'setup.layout.single': 'The domain-doc layout for this repo was confirmed with the user at setup time as single-context (one CONTEXT.md at the repo root, with architecture decisions in docs/adr/): write that single-context conclusion into docs/agents/domain.md, and make the Domain docs line in the ## Agent skills block of AGENTS.md use that same word too (the skill’s required form is “a one-line layout summary + See docs/agents/domain.md”); this setup run creates neither CONTEXT-MAP.md nor per-subproject CONTEXT.md files — they wait until the first real glossary entry is written',
         'setup.layout.multi': 'The domain-doc layout for this repo was confirmed with the user at setup time as multi-context (one CONTEXT.md per subproject, plus a CONTEXT-MAP.md at the repo root): write that multi-context conclusion into docs/agents/domain.md, and make the Domain docs line in the ## Agent skills block of AGENTS.md use that same word too (the skill’s required form is “a one-line layout summary + See docs/agents/domain.md”); this setup run creates neither CONTEXT-MAP.md nor the per-subproject CONTEXT.md files — they wait until the first real glossary entry is written, and the CONTEXT-MAP.md at the repo root will then point at them',
         'setup.layoutSwitchNote': 'This workspace is already set up. What you change here is the domain-doc layout conclusion recorded in the repo; after you confirm, the plugin will additionally ask the AI to rewrite the two lines that record the layout in docs/agents/domain.md and AGENTS.md (it will not re-run setup and will not rebuild existing artifacts).',
+        // #715 (honest display): the panel-header lines that say how old this data is, whether the
+        //   last refresh worked, and whether the plugin is degraded. The two failures are two
+        //   different sentences: "our own fetch failed" versus "the quota was used up by others".
+        'truth.updatedAt': 'Last updated: {time}',
+        'truth.failRetry': 'Refresh failed; retrying',
+        'truth.failPaused': 'Refresh failed; paused (quota is tight)',
+        'truth.failQuota': 'Refresh failed: the hourly quota was used up by others; it recovers on the hour',
+        'truth.deferred': 'Updates found; postponed',
+        'truth.paused': 'Auto refresh paused',
+        'truth.notRefreshing': 'Not refreshing (concurrent active limit 2)',
+        'truth.lag': 'Data may lag up to {min} min',
+        'truth.writing': 'Updating',
       },
     }
 
