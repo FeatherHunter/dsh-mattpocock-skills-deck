@@ -232,7 +232,7 @@
       // 先发 RPC（异步即返回），再触发渲染 —— 避免重渲染挡住数据请求
       // #709（T5）：这是「重新检查」按钮的真身。人亲手点的这一次永不降档，所以带上 'user-recheck'：
       // 宿主看到它就照做，不看退避退到了第几档。
-      var _p1Raw = (typeof loadChain === 'function' ? loadChain(st, true, 'user-recheck').catch(function(){}) : Promise.resolve())
+      var _p1Raw = (typeof chainEventRefresh === 'function' ? chainEventRefresh(st, 'user-recheck').catch(function(){}) : (typeof loadChain === 'function' ? loadChain(st, true, 'user-recheck').catch(function(){}) : Promise.resolve()))
       // #366 补充：链刷新兜底超时，避免宿主链探测卡住导致按钮一直转圈
       var p1 = new Promise(function(resolve){ var _t=setTimeout(function(){ try{ resolve(null); }catch(e){} }, 15000); _p1Raw.then(function(v){ clearTimeout(_t); resolve(v); }).catch(function(){ clearTimeout(_t); resolve(null); }); });
       var p2 = loadSnapshot(st, true, true)

@@ -48,7 +48,7 @@
             await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined, baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) })
           }
           try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch(_){}
-          try { if (typeof loadChain === 'function') await loadChain(st, true, 'user-recheck') } catch(_){}
+          try { if (typeof chainEventRefresh === 'function') await chainEventRefresh(st, 'user-recheck'); else if (typeof loadChain === 'function') await loadChain(st, true, 'user-recheck') } catch(_){}
         } catch (e) { /* 重查失败由 finishRepoSync 定态 */ }
         finishRepoSync(st)
       })()
@@ -61,7 +61,7 @@
             await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined, baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) })
           }
           try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch(_){}
-          try { if (typeof loadChain === 'function') await loadChain(st, true, 'action-done') } catch(_){}
+          try { if (typeof chainEventRefresh === 'function') await chainEventRefresh(st, 'action-done'); else if (typeof loadChain === 'function') await loadChain(st, true, 'action-done') } catch(_){}
         } catch (e) { /* 重查异常照常定态 */ }
         finishRepoSync(st)
       })()

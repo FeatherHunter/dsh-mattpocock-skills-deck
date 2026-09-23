@@ -9,8 +9,12 @@
 export const ChecksTab = ({ st }) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
-  // #709（T5）：打开检查页 = 「切进这个工作区」那一次事件，链快照在这里取一次。
-  React.useEffect(function () { loadChain(st, false, (typeof CHAIN_EVENT_REASONS !== 'undefined' ? CHAIN_EVENT_REASONS.enterWorkspace : 'enter-workspace')) }, [])
+  // #709（T5）：打开检查页 = 「切进这个工作区」那一次事件，链快照在这里取一次。走内核那一个事件入口
+  //   （chainEventRefresh），并且传 force=false —— 这一路沿用缓存优先：共享缓存里有就秒显、不联网
+  //   （其余几路事件才是绕过缓存的）。typeof 兜底是因为这个叶子文件也会被单独求值，那种沙箱里没有入口。
+  const whyEnter = (typeof CHAIN_EVENT_REASONS !== 'undefined' ? CHAIN_EVENT_REASONS.enterWorkspace : 'enter-workspace')
+  const whyRecheck = (typeof CHAIN_EVENT_REASONS !== 'undefined' ? CHAIN_EVENT_REASONS.userRecheck : 'user-recheck')
+  React.useEffect(function () { try { (typeof chainEventRefresh === 'function' ? chainEventRefresh(st, whyEnter, false) : loadChain(st, false, whyEnter)) } catch (e) {} }, [])
   // #529：语言切换即时重取——快照内说明行按取回时语言 baked（标题走词条自动翻）；
   //   快照语言与当前不一致时 force 重取，说明行也翻；重取前标题已先翻，无闪烁回退。
   const curLang = (typeof promptLang === 'function' ? promptLang() : 'zh')
@@ -84,7 +88,7 @@ export const ChecksTab = ({ st }) => {
               // #669 第 6 件（ADR 20260921）：hint 只报「用户亲手选过的那条」（派生值不许冒充意图）
               if (typeof host !== 'undefined' && host.call) { await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined, baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) }) }
             } catch (e) {}
-            try { loadChain(st, true, (typeof CHAIN_EVENT_REASONS !== 'undefined' ? CHAIN_EVENT_REASONS.userRecheck : 'user-recheck')) } catch (e) {}
+            try { (typeof chainEventRefresh === 'function' ? chainEventRefresh(st, whyRecheck) : loadChain(st, true, whyRecheck)) } catch (e) {}
             try { loadSnapshot(st, true, true) } catch (e) {}
           },
           tr: tr,

@@ -105,7 +105,7 @@ console.log('== B 源码层：这条路上有那次重取，那道守卫按两�
   // 退休的 8 秒自轮询与接手的事件入口。这一条从前量的是那两个已经不存在的函数名（桩表过期），
   //   现在量「旧的那一套确实整体走了、接手的入口在场」——与 tests/verify-709-no-self-continuing-timers.js 同一口径。
   check(chainSrc.indexOf('scheduleChainAutoRefresh') < 0 && chainSrc.indexOf('cancelChainAutoRefresh') < 0 && chainSrc.indexOf('_chainAutoPollTimers') < 0, '8 秒自轮询那一对排期/取消函数与它的定时器表已整体退役（不再按已经不存在的老名字量）')
-  check(chainSrc.indexOf('chainEventRefresh') > 0 && chainSrc.indexOf('CHAIN_EVENT_REASONS') > 0, '接手的是事件驱动入口 chainEventRefresh（四种事件的原因代号）')
+  check(chainSrc.indexOf('chainEventRefresh') > 0 && chainSrc.indexOf('CHAIN_EVENT_REASONS') > 0, '接手的是事件驱动入口 chainEventRefresh（客户端那几路事件的原因代号）')
 }
 
 // ── C 组用的沙箱：把 probe-chain.js 真身取出来，喂一个可以按任意顺序回包的假 host ──────────────
@@ -263,27 +263,77 @@ check(real.sameKeyLateOld === '后一次（新）', '现场 5 同一个键上先
 check(real.dedupeCalls === 1 && real.dedupeSamePromise && real.dedupeBothGot, '现场 6 同键非 force 并发照旧只发一次请求、两个调用方都拿到（实得 ' + real.dedupeCalls + ' 次）')
 
 console.log('')
-console.log('== E 行为层：退休的 8 秒自轮询，它的活由事件入口接着做 ==')
+console.log('== E 层：退休的 8 秒自轮询，它的活由几条真实事件路接着做（而且都走内核那一个事件入口）==')
 {
   // 从前这条链「只要还没全绿，就自己排一次 8 秒后的 force 重取，直到全绿才停」。那个自续循环在
-  //   #709（T5）整体退役（见 tests/verify-709-no-self-continuing-timers.js），接手的是事件驱动入口：
-  //   四种事件（切进工作区 / 自己点重新检查 / 做完可能改变它的动作 / 写入成功之后）都走它一次 force 重取，
-  //   该不该真算由宿主按退避裁定（8 秒 → 30 秒 → 2 分钟 → 5 分钟，有进展立刻回快档）。
-  //   这里量的是那个真身 —— 把事件入口当场跑一遍，看它是不是真的发了一次带原因的重取。
-  const c = makeChain(chainSrc)
-  const st = { cwd: 'D:\\demo7', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
-  check(typeof c.chainEventRefresh === 'function', 'probe-chain.js 里的事件入口取得到（真源里在场）')
-  if (typeof c.chainEventRefresh === 'function') {
-    const p = c.chainEventRefresh(st, 'action-done')
-    await tick()
-    const one = (c.calls[0] && c.calls[0].params) || {}
-    check(c.calls.length === 1 && one.force === true, '事件入口真的发出一次 force 重取（实得 ' + JSON.stringify(c.calls.map(function (x) { return x.params.force })) + '）')
-    check(one.trigger === 'action-done', '而且把「为什么重取」带给了宿主（宿主凭它判退避；实得 trigger=' + JSON.stringify(one.trigger) + '）')
-    if (c.calls[0]) c.calls[0].d.res(snapOf('事件带起来的那一份'))
-    await tick()
-    if (p && p.catch) await p.catch(function () {})
-    check(st.chainSnapshot && st.chainSnapshot.id === '事件带起来的那一份', '这一份回包照旧写进会话状态（实得「' + (st.chainSnapshot && st.chainSnapshot.id) + '」）')
+  //   #709（T5）整体退役（见 tests/verify-709-no-self-continuing-timers.js）。接手的是真实事件路，
+  //   它们都从 probe-chain.js 的链事件入口 chainEventRefresh 过（下面逐条量「哪一路、在哪个文件、带什么原因」）：
+  //     ① 切进工作区（打开检查页）—— 这一路**不绕过缓存**（缓存优先，下面当场跑一遍量它）；
+  //     ② 人亲手点「重新检查」（检查页上的按钮、refreshAll 那条静默路）；
+  //     ③ 做完可能改变它的动作（绑定后端、配置派生）；
+  //     ④ 写入成功之后那一路发生在宿主侧（chainBackoff.noteWriteActivity），不发客户端这一条。
+  //   这几条都照真源当下的落点量：谁改了落点这里会红，不会假绿。
+  const lineIn = function (rel, re) { return ((read(rel).split(/\r?\n/)).filter(function (l) { return re.test(l) })[0] || '').trim() }
+  const paths = [
+    ['src/client/views/ChecksTab.js', /chainEventRefresh\(st, whyEnter, false\)/, '① 切进工作区（打开检查页）'],
+    ['src/client/views/ChecksTab.js', /chainEventRefresh\(st, whyRecheck\)/, '② 检查页上那个「重新检查」按钮'],
+    ['src/client/kernel/probe-auto.js', /chainEventRefresh\(st, 'user-recheck'\)/, '② 人点「重新检查」（refreshAll 那条静默路）'],
+    ['src/client/kernel/store-switch.js', /chainEventRefresh\(st, 'action-done'\)/, '③ 绑定后端'],
+    ['src/client/kernel/slotRenderer-repo-sync.js', /chainEventRefresh\(st, 'action-done'\)/, '③ 配置派生'],
+    ['src/client/kernel/slotRenderer-repo-sync.js', /chainEventRefresh\(st, 'user-recheck'\)/, '② 同一文件里那次同步重查'],
+  ]
+  for (let i = 0; i < paths.length; i++) {
+    check(lineIn(paths[i][0], paths[i][1]).length > 0, paths[i][2] + ' 那一路走的是事件入口 chainEventRefresh（' + paths[i][0] + '）')
   }
+  check(lineIn('src/client/kernel/probe-chain.js', /chainEventRefresh = function/).length > 0 && lineIn('src/client/kernel/probe-chain.js', /CHAIN_EVENT_REASONS = \{/).length > 0, '事件入口与四个原因代号仍然同住 probe-chain.js（入口没被搬走、也没被删）')
+
+  // ①「打开检查页」这一路必须是缓存优先（不联网）。判据不认注释、认取数路径：把真源里那一行当场跑起来，
+  //   先往共享缓存里放一份链 —— 必须一次 host.call 都不发，直接把缓存那份铺到会话上。
+  //   再照事件入口的缺省行为跑一次（缺省是绕过缓存）作对照：那一次必须真发请求、真写回会话状态。
+  //   这两条合起来就是「打开检查页不联网」的机器证据（谁把第三参数删了、或改成 true，这里当场红）。
+  const openChecksLine = lineIn('src/client/views/ChecksTab.js', /chainEventRefresh\(st, whyEnter/)
+  const runOpenChecksLine = async function () {
+    const c = makeChain(chainSrc)
+    const st = { cwd: 'D:\\demo8', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
+    // 共享缓存里那一份链快照的形状与运行时一致（缓存存的是快照本体，不是回包外层）。
+    c.cache.set('d:/demo8|github|zh', { id: '共享缓存里那一份', steps: [{ status: 'done' }] })
+    const deps = {
+      st: st, whyEnter: 'enter-workspace',
+      chainEventRefresh: c.chainEventRefresh, loadChain: c.loadChain,
+      CHAIN_EVENT_REASONS: { enterWorkspace: 'enter-workspace', userRecheck: 'user-recheck', actionDone: 'action-done', writeDone: 'write-done' },
+      React: { useEffect: function (fn) { fn() } },
+      console: { log () {}, warn () {}, error () {} },
+    }
+    const names = Object.keys(deps)
+    new Function(names.join(', '), openChecksLine).apply(null, names.map(function (k) { return deps[k] }))
+    await tick()
+    return { calls: c.calls.length, got: st.chainSnapshot && st.chainSnapshot.id, c: c }
+  }
+  const openNoForce = await runOpenChecksLine()
+  check(openNoForce.calls === 0 && openNoForce.got === '共享缓存里那一份', '切进工作区那一路：共享缓存里有就直接秒显，一次 host.call 都不发（实得发 ' + openNoForce.calls + ' 次、铺上「' + openNoForce.got + '」）')
+  if (openNoForce.c.calls[0]) openNoForce.c.calls[0].d.res(snapOf('缓存优先那一份'))
+  const c2 = makeChain(chainSrc)
+  const st2 = { cwd: 'D:\\demo8', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
+  c2.cache.set('d:/demo8|github|zh', snapOf('共享缓存里那一份'))
+  const p2 = c2.chainEventRefresh(st2, 'enter-workspace')
+  await tick()
+  check(c2.calls.length === 1, '对照：同一个入口缺省（绕过缓存）时会真发一次请求 —— 上面那条不是「什么都不做」蒙过去的（实得发 ' + c2.calls.length + ' 次）')
+  if (c2.calls[0]) c2.calls[0].d.res(snapOf('绕过缓存取回来的那一份'))
+  await tick()
+  if (p2 && p2.catch) await p2.catch(function () {})
+  check(st2.chainSnapshot && st2.chainSnapshot.id === '绕过缓存取回来的那一份', '对照那一次的回包照旧写进会话状态（实得「' + (st2.chainSnapshot && st2.chainSnapshot.id) + '」）')
+
+  // ②③ 那几路仍旧要把「为什么重取」带给宿主，宿主凭它判退避。
+  const c3 = makeChain(chainSrc)
+  const st3 = { cwd: 'D:\\demo9', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
+  const p3 = c3.chainEventRefresh(st3, 'action-done')
+  await tick()
+  const one3 = (c3.calls[0] && c3.calls[0].params) || {}
+  check(c3.calls.length === 1 && one3.force === true && one3.trigger === 'action-done', '绕过缓存那几路：真的发一次 force 重取，并把「为什么重取」带给宿主（实得 force=' + JSON.stringify(one3.force) + ' trigger=' + JSON.stringify(one3.trigger) + '）')
+  if (c3.calls[0]) c3.calls[0].d.res(snapOf('事件带起来的那一份'))
+  await tick()
+  if (p3 && p3.catch) await p3.catch(function () {})
+  check(st3.chainSnapshot && st3.chainSnapshot.id === '事件带起来的那一份', '这一份回包照旧写进会话状态（实得「' + (st3.chainSnapshot && st3.chainSnapshot.id) + '」）')
 }
 
 console.log('')

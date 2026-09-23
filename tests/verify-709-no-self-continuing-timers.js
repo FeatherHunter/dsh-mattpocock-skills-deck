@@ -198,8 +198,11 @@ console.log('\n— 四种事件触发都在 —')
     check(chainSrc.includes(r), '链的事件类型里有 ' + r)
   }
   check(/CHAIN_EVENT_REASONS\.enterWorkspace/.test(readFileSync(join(ROOT, 'src/client/views/ChecksTab.js'), 'utf8')), '检查页打开时按「切进工作区」触发一次')
-  check(/loadChain\(st, true, 'user-recheck'\)/.test(readFileSync(join(ROOT, 'src/client/kernel/probe-auto.js'), 'utf8')), '「重新检查」按钮带 user-recheck（人的动作永不降档）')
-  check(/loadChain\(st, true, 'action-done'\)/.test(readFileSync(join(ROOT, 'src/client/kernel/store-switch.js'), 'utf8')), '绑定后端按「做完可能改变它的动作」触发')
+  // 下面两条原先按字面找 `loadChain(st, true, '<原因>')`。这几个调用点后来都改走内核那一个事件入口
+  //   chainEventRefresh（见 #669 门禁的 E 组，那里逐条量了「哪一路走哪一个入口」）—— 事件驱动的
+  //   这一点没变，变的只是入口的名字与落点，所以这两条跟着新落点量。
+  check(/chainEventRefresh\(st, 'user-recheck'\)/.test(readFileSync(join(ROOT, 'src/client/kernel/probe-auto.js'), 'utf8')), '「重新检查」按钮带 user-recheck（人的动作永不降档）')
+  check(/chainEventRefresh\(st, 'action-done'\)/.test(readFileSync(join(ROOT, 'src/client/kernel/store-switch.js'), 'utf8')), '绑定后端按「做完可能改变它的动作」触发')
   check(/noteWriteActivity/.test(readFileSync(join(ROOT, 'src/host/repoKeys.js'), 'utf8')), '写入成功之后（gh issue 写操作拦到）把退避拉回第一档')
   const hostNaming = readFileSync(join(ROOT, 'src/host/namingGuardian.js'), 'utf8')
   check(/NAMING_FALLBACK_MS = 10 \* 60_000/.test(hostNaming), '命名守护留 10 分钟兜底')

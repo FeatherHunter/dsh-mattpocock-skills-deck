@@ -45,9 +45,11 @@
     // #709（T5）：链自动重求值改事件驱动 —— #344 加的那条 8 秒自轮询（「只要链没全绿就 8 秒后再
     // force 一次」的那一对排期/取消函数，外加它的间隔常量）整体退役，客户端侧不再有任何自续定时器。
     // 为什么删得掉：那条轮询存在的理由是「初始化之类的动作发生在链外，没人告诉链该重算」。
-    // 现在四种事件会主动说：切进工作区、点「重新检查」、做完可能改变它的动作（初始化 / 绑定后端 /
-    // 装技能）、写入成功之后。它们都调下面这一个入口，由宿主按退避判「这次真算还是继续用上一份」
+    // 现在事情自己会说话：切进工作区、人点「重新检查」、做完可能改变它的动作（初始化 / 绑定后端 /
+    // 装技能）—— 这三路都调下面这一个入口，由宿主按退避判「这次真算还是继续用上一份」
     //（8 秒 → 30 秒 → 2 分钟 → 5 分钟，有进展立刻回快档；全绿之后缓存 30 分钟）。
+    // 第四路「写入成功之后」发生在宿主侧（repoKeys 拦到写操作 → chainBackoff.noteWriteActivity 把退避
+    // 拉回第一档），不是一个客户端调用点，所以下面枚举里的 write-done 今天只有宿主那一侧在用。
     // 人亲手点的「重新检查」传 'user-recheck'，那一种永不降档。
     export const CHAIN_EVENT_REASONS = {
       enterWorkspace: 'enter-workspace',
@@ -56,14 +58,24 @@
       writeDone: 'write-done'
     }
     /**
-     * 事件触发入口：四种事件全部走这里。返回值与 loadChain 一样是这一次求值的 promise
-     *（被退避挡下时宿主直接回上一份快照，界面照常铺满，不会白屏）。
+     * 事件触发入口：客户端那几路事件都走这里重取一次链，并把「为什么重取」带给宿主 ——
+     *   ① 切进工作区（views/ChecksTab.js 打开检查页那一次，传 force=false，见下一段）；
+     *   ② 人亲手点「重新检查」（views/ChecksTab.js 上的按钮、kernel/probe-auto.js 的 refreshAll）；
+     *   ③ 做完可能改变它的动作（kernel/store-switch.js 绑定后端、kernel/slotRenderer-repo-sync.js 配置派生）。
+     * 返回值与 loadChain 一样是这一次求值的 promise（被退避挡下时宿主直接回上一份快照，界面照常铺满，不会白屏）。
+     *
+     * 第三个参数是「要不要绕过缓存」：缺省绕过（true）—— ②③ 那几路是人或动作叫起来的，本来就该真问一次；
+     * 只有 ①「打开检查页」传 false，那一路沿用缓存优先：共享缓存里有就秒显、不联网（#324 / #653）。
+     *
+     * 调用点都写了 typeof 兜底：这几个叶子文件也会被几条门禁单独求值，那种沙箱里没有这个入口，
+     * 退回直接调 loadChain（行为一样，少的只是这一行按需日志）。
      */
-    export const chainEventRefresh = function (st, why) {
+    export const chainEventRefresh = function (st, why, force) {
       const reason = String(why || CHAIN_EVENT_REASONS.enterWorkspace)
+      const bypassCache = (force === undefined) ? true : !!force
       try { if (isEnabled('debug')) log('debug', 'chain.event', { reason: reason }) } catch (eL) {}
       if (!st || !st.cwd) return Promise.resolve(null)
-      return loadChain(st, true, reason)
+      return loadChain(st, bypassCache, reason)
     }
     export const loadChain = function(st, force, trigger){
       if (typeof host === 'undefined' || typeof host.call !== 'function') return Promise.resolve(null)
