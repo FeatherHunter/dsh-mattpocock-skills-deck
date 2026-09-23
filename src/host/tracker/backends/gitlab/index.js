@@ -127,6 +127,8 @@ export function createGitlabBackend(ctx) {
 
 /** 修复契约注入文案（GitLab 后端，双语单源；供 fixes 引用，host 组装时解析）。 */
 export const prompts = {
+  // #716：这个后端自己的命令行名与站点名（提示词模板里的 {cli} / {cliBrand} 由这一格填）。
+  commandVocabulary: { cli: 'glab', cliBrand: 'GitLab' },
   glabInstallFix: {
     zh: '请为 DSH 安装 GitLab CLI（glab）：\n1. 先检查：终端执行 glab --version；\n2. 无 glab 则按 OS 安装：Windows → winget install --id GitLab.gitlab-cli（或 scoop install glab）；macOS → brew install glab；Linux → 按 gitlab.com/gitlab-org/cli 官方方式安装；\n3. 安装完成后请用户点「重查」。',
     en: 'Install the GitLab CLI (glab) for DSH:\n1. Check first: glab --version;\n2. If missing, install per OS: Windows → winget install --id GitLab.gitlab-cli (or scoop install glab); macOS → brew install glab; Linux → follow gitlab.com/gitlab-org/cli official install;\n3. After install, ask the user to re-check.',
@@ -141,18 +143,22 @@ export const prompts = {
   },
   subIssue: {
     // 2026-09 修正：旧文案让 agent 执行 setParent(map.key) / list({parentKey})，但宿主侧没有这些 agent tool —— 照做不到。
-    //   改成这个后端真的能做的动作：用后端自己的命令行建原生父子边，建完自校验数量。
-    //   具体子命令不写死（各版本命令行语法未逐一查证，宁可泛指，避免写进用不上的命令）。
-    zh: '用后端自己的命令行把每个子票建成这个 map 的原生子议题（先按本机安装的版本核对命令语法），建完用同一条命令行核对子议题数量与预期一致',
-    en: 'use the backend command line to make each sub-ticket a native child of this map; check the exact syntax of the version installed on this machine first, then re-query with the same command line to confirm the child count matches the plan',
+    //   改成这个后端真的能做的动作：在 map 文件的任务清单里引用子票。
+    // #716 两处改正：
+    //   ① 建边与校验已经搬进契约层的 deck_map_link / deck_map_snapshot，所以这里只讲用哪个工具，不留裸命令；
+    //   ② 原先这段写「建原生父子边」，与本后端的实现不符 —— setParent 落下去的是 relates_to 平级链接
+    //      （见 graph-membership.js），不是原生父子边。以契约为准，文案同步改正：GitLab 上这条边只会落成
+    //      一条平级链接，工具会如实回报它落在那一列，不要把它说成父子关系。
+    zh: '建边用 deck_map_link：父子边传 parentKey、阻塞边传 blockedBy。要注意本后端的能力边界 —— GitLab 上没有原生父子关系，parentKey 落下去是一条 relates_to 平级链接（工具会如实回报它落在哪一列，不要把平级链接说成父子关系）；阻塞边在免费档往往也拿不到原生能力，工具会回落到正文首行的那行降级写法。建完用 deck_map_snapshot 读回地图，核对子票张数与预期一致。',
+    en: 'Wire edges with deck_map_link: parentKey for the parent-child edge, blockedBy for blocking edges. Mind this backend\'s limit — GitLab has no native parent-child relation, so parentKey lands as a relates_to sibling link (the tool reports which column it landed in; do not describe a sibling link as a parent-child relation); on the free tier blocking edges usually have no native capability either and the tool falls back to the first line of the body. Then read the map back with deck_map_snapshot and confirm the child count matches the plan.',
   },
   // #595：正文格式契约归后端单源 —— GitLab 写回用后端自己的命令行，正文从文件读入；
-  // #684：「体检」的 GitLab 科目。票仓结构与 GitHub 是同一套（地图 + 原生子议题 + 阻塞边），所以口径照搬；
-  //   唯一的实话是父子边要靠本后端自己的命令行去建、解析率还没用真仓库量过 —— 写进文案让人先量再下结论，不硬来。
-  //   这里不写任何具体命令：怎么建边由本模块 subIssue 那份声明去说。
+  // #684：「体检」的 GitLab 科目。票仓结构与 GitHub 是同一套（地图 + 子议题 + 阻塞边），所以口径照搬；
+  //   唯一的实话是父子边在 GitLab 上落成 relates_to 平级链接、解析率还没用真仓库量过 —— 写进文案让人先量再下结论，不硬来。
+  // #716：查数与建边改为走工具（deck_context / deck_map_snapshot / deck_map_link），这里一条裸命令都不留。
   healthCheck: {
-    zh: '**游离的开放票**在这条后端上的落地口径：这张票**没有关闭**、**自己不是地图**、**不在任何地图的子票里** —— 与 GitHub 同一套（两个后端的票仓结构本来就是同一套：地图 + 原生子议题 + 阻塞边）。\n\n**动手时只做两件结构动作**：\n1. 建原生父子边，把票挂到合适的地图下：{subIssue}\n2. 为人点过头的票开一张新地图：先写最小的 Destination 草稿。\n\n**本后端今天做不到的地方，如实写出来**：父子边要靠本后端自己的命令行去建，解析率还没用真仓库量过 —— 动手之前先量一次，量与不出来的原因都写进报告，**不要硬来**。\n\n**不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关票、不删评论、不改源码、不发版、不提交。\n\n报告按标签与建议类型分区，但体检的范围是全部开放票、不跟随面板当前的筛选。',
-    en: '**How "orphaned open ticket" lands on this backend**: the ticket is **not closed**, it is **not itself a map**, and it is **not inside any map as a sub-ticket** — the same rules as GitHub (both backends share one ticket-store shape: maps + native sub-tickets + blocking edges).\n\n**When acting, only two structural actions**:\n1. Create the native parent-child edge that attaches the ticket under a suitable map: {subIssue}\n2. Open a new map for a ticket the human has nodded on: write only the minimal Destination draft.\n\n**State plainly what this backend cannot do today**: the parent-child edge has to be created with this backend own command line, and its resolution rate has not been measured against a real repository yet — measure once before acting, write both the measurement and any reason it fails into the report, and **do not force it**.\n\n**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, delete comments, change source code, publish a release, or commit.\n\nGroup the report by label and suggestion type, but the health check always covers every open ticket and does not follow the current panel filters.',
+    zh: '**游离的开放票**在这条后端上的落地口径：这张票**没有关闭**、**自己不是地图**、**不在任何地图的子票里** —— 与另一条远端后端同一套（两个后端的票仓结构本来就是同一套：地图 + 子议题 + 阻塞边）。\n\n**动手时只做两件结构动作**，都走工具：\n1. 建边，把票挂到合适的地图下：deck_map_link 的 parentKey；\n2. 为人点过头的票开一张新地图：deck_map_plan_create 先写最小的 Destination 草稿。\n\n**本后端今天做不到的地方，如实写出来**：GitLab 上没有原生父子关系，parentKey 落下去是一条 relates_to 平级链接，解析率也还没用真仓库量过 —— 动手之前先量一次，量与不出来的原因都写进报告，**不要硬来**。\n\n**不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关票、不删评论、不改源码、不发版、不提交。\n\n报告按标签与建议类型分区，但体检的范围是全部开放票、不跟随面板当前的筛选。',
+    en: '**How "orphaned open ticket" lands on this backend**: the ticket is **not closed**, it is **not itself a map**, and it is **not inside any map as a sub-ticket** — the same rules as the other remote backend (both backends share one ticket-store shape: maps + sub-tickets + blocking edges).\n\n**When acting, only two structural actions**, both through the tools:\n1. Wire the edge that attaches the ticket under a suitable map: deck_map_link with parentKey;\n2. Open a new map for a ticket the human has nodded on: deck_map_plan_create, writing only the minimal Destination draft.\n\n**State plainly what this backend cannot do today**: GitLab has no native parent-child relation, so parentKey lands as a relates_to sibling link, and its resolution rate has not been measured against a real repository yet — measure once before acting, write both the measurement and any reason it fails into the report, and **do not force it**.\n\n**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, delete comments, change source code, publish a release, or commit.\n\n{subject}',
   },
   //   具体命令不写死（各版本命令行语法未逐一查证，宁可泛指，避免写进用不上的命令）。
   bodyFormat: {

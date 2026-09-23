@@ -44,10 +44,12 @@ check(cli.includes("role: 'alert'") && cli.includes('m.fail.text'), 'slotRendere
 //   恒返回空串，等于「提示已注入、会话里却是空的」。改成断言「走后端声明通道 + 取不到就明确报失败」。
 // #664 再改：缺 gh 那份说明收成共享清单里 gh:installed 那一步的原话（后端声明的 noGhPrompt 那段长文退役），
 //   没登录那一档仍走后端声明的 prompts.ghAuthLogin；取不到就明确报失败不变。
-check(cli.includes("code === 'no-gh' || code === 'not-logged-in'") && cli.includes("guideInjectTextOf('gh:installed')") && cli.includes("mmG.prompts.ghAuthLogin"), 'slotRenderer no-gh 注入共享清单那句原话、not-logged-in 走后端声明的 ghAuthLogin');
+// #716 三改：装 gh 的那句原话从共享清单挪回后端声明（GitHub 的 prompts.cliInstall），清单里那一步只留键名，
+//   所以两档合成同一条路：先问清单要「注入哪条提示词」，再向当前后端要文本（mmG.prompts[key]）。
+check(cli.includes("code === 'no-gh' || code === 'not-logged-in'") && cli.includes("guideInjectPromptOf('gh:installed')") && cli.includes('mmG.prompts[key]'), 'slotRenderer no-gh 走共享清单给的提示词键、两档都向后端声明要文本');
 check(cli.includes("tr('err.guideMissing')"), 'slotRenderer 取不到指引文案时不注入、并给出明确失败提示（tr(err.guideMissing)）');
 check(!cli.includes("promptText(code === 'no-gh'"), 'slotRenderer 已删除空注入旧写法（注册表没有 noGhPrompt 这个 id）');
-check(pcli.includes("guideInjectTextOf('gh:installed')") && pcli.includes("err.guideMissing"), 'package client 空注入修复镜像');
+check(pcli.includes("guideInjectPromptOf('gh:installed')") && pcli.includes('err.guideMissing'), 'package client 空注入修复镜像');
 check(cli.includes("m.lastVis = String"), 'slotRenderer 记录可见性（成功弹窗按提交选择显示公开/私有）');
 
 // 5) 同步过渡态 UI（ChecksTab：#419 定版 同步中/超时/禁用创建按钮）

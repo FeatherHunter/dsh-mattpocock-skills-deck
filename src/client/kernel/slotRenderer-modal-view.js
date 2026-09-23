@@ -164,16 +164,21 @@
             }
           }
           // #420定版：no-gh / not-logged-in 自动注入指引（复用既有文案）
-          // #664：缺 gh 那份说明只有一份 —— 共享清单里 gh:installed 那一步的原话（原先读的后端声明 noGhPrompt 已退役）；
-          //   没登录那一档仍是后端声明的 ghAuthLogin；两样都取不到就不注入、并明确报失败（不静默）。
+          // #664：缺 gh 那份说明只有一份 —— 原先取共享清单里 gh:installed 那一步的原话；
+          // #716：那段话已经挪回后端声明（GitHub 的 prompts.cliInstall），共享清单只留键名，
+          //   所以这一档与下面那一档改成同一条路：先问清单要「注入哪条提示词」，再向当前后端要文本。
+          //   两样都取不到就不注入、并明确报失败（不静默）。
           if (code === 'no-gh' || code === 'not-logged-in') {
             let guide = ''
-            if (code === 'no-gh') { try { guide = (typeof guideInjectTextOf === 'function') ? String(guideInjectTextOf('gh:installed') || '') : '' } catch (_) {} } else {
+            const key = (code === 'no-gh')
+              ? ((typeof guideInjectPromptOf === 'function') ? String(guideInjectPromptOf('gh:installed') || '') : '')
+              : 'ghAuthLogin'
+            if (key) {
               const bidG = (st.selection || (st.snapshot && st.snapshot.selection) || {}).backendId
               const mmG = (typeof moduleMetaOf === 'function' && bidG != null) ? moduleMetaOf(st, bidG) : null
-              const declG = (mmG && mmG.prompts) ? mmG.prompts.ghAuthLogin : null
+              const declG = (mmG && mmG.prompts) ? mmG.prompts[key] : null
               guide = declG ? String((promptLang() === 'en' && declG.en) ? declG.en : (declG.zh || '')) : ''
-              if (!guide) { try { guide = String(promptTextFor(st, 'ghAuthLogin') || '') } catch (_) {} }
+              if (!guide) { try { guide = String(promptTextFor(st, key) || '') } catch (_) {} }
             }
             if (guide) { try { if (typeof inject === 'function') inject(st, guide) } catch (_) {} }
             else { try { if (typeof flash === 'function') flash(st, tr('err.guideMissing'), 'warn') } catch (_) {} }

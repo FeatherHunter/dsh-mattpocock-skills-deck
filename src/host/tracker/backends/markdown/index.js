@@ -177,6 +177,9 @@ export const defaultLabelPalette = [
 useBuiltinLabelColors(defaultLabelPalette)
 /** 修复契约注入文案（Markdown 后端本地语义，双语单源；供 fixes 引用，host 组装时解析）。 */
 export const prompts = {
+  // #716：本地 Markdown 后端没有自己的命令行工具（票就是工作区里的文件），所以只声明站点名字；
+  //   {cli} 那一格留空，渲染时回落中性说法「当前后端的命令行」—— 提示词里绝不写死别的后端的命令名。
+  commandVocabulary: { cliBrand: '本地 Markdown' },
   // 2026-08-29 定版（用户）：注入只放 /wayfinder 命令与需求占位，规则由技能自身负责，不加解释。
   wayfinderMapBuild: {
     zh: '/wayfinder (请输入任务需求)',
@@ -189,11 +192,13 @@ export const prompts = {
     en: 'add each sub-ticket to the task list inside the map file the way this repo already writes it, and keep the task-list entry count equal to the map sub-ticket count',
   },
   // #684：「体检」的本地 Markdown 科目。这里的票就是工作区里的文件，所以游离必须落到文件上：
-  //   两条判据查的都是「票文件与地图清单对不对得上」。另外照 GitHub 那条口径，把「这张能不能单张票处理掉」
+  //   两条判据查的都是「票文件与地图清单对不对得上」。另外照别的后端那条口径，把「这张能不能单张票处理掉」
   //   的 AI 判断一起带上（是的话也可以不管、只在报告里登记一行）。
+  // #716：本条原先点名「与 GitHub 同一套」「照 GitHub 的口径」—— 这是本地后端自己的科目，不该拿另一个
+  //   后端的名字来解释自己，改成中性说法（同一个工作区的票仓结构在三个后端上本来就是同一套）。
   healthCheck: {
-    zh: '**本后端的票就是工作区里的文件**（每个工作单元一个目录，地图写在 map.md 里、每张票写成一个文件），所以「游离」必须落到文件上。**查两条文件级判据**：\n1. 票文件存在，却没有被任何 map.md 的清单引用 —— 游离在外；\n2. map.md 的清单里列了某张票，但对应的文件不存在 —— 断链。\n\n**一条 AI 判断照 GitHub 的口径一起带上**：对每一张判一句「这张是不是明确可以单张票处理掉的」；是的话也可以不管，只登记一行。\n\n**三种结论**（挂在某张地图下 / 建议自立成一张新地图 / 建议留在原地 + 一句话理由）都只进建议清单，等人点头才动手。\n\n**不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关票、不改源码、不提交。\n\n体检的范围是这个工作区里的全部票文件，不跟随面板当前的筛选。',
-    en: '**On this backend a ticket is a file in this workspace** (one directory per work unit, the map written as map.md and each ticket as a file), so "orphaned" has to land on files. **Check two file-level criteria**:\n1. a ticket file exists but no map.md list references it — it is floating outside;\n2. a map.md list references a ticket whose file does not exist — a broken link.\n\n**One AI judgement, same rule as GitHub**: for each ticket, judge with one sentence — "is this clearly something a single ticket can finish?" If yes, you may also leave it alone and just log one line.\n\n**All three conclusions** (attach under a map / suggest a new map of its own / suggest leaving it where it is + a one-sentence reason) only go into the suggestion list — act only after the human nods.\n\n**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, change source code, or commit.\n\nThe health check covers every ticket file in this workspace and does not follow the current panel filters.',
+    zh: '**本后端的票就是工作区里的文件**（每个工作单元一个目录，地图写在 map.md 里、每张票写成一个文件），所以「游离」必须落到文件上。**查两条文件级判据**：\n1. 票文件存在，却没有被任何 map.md 的清单引用 —— 游离在外；\n2. map.md 的清单里列了某张票，但对应的文件不存在 —— 断链。\n\n**一条 AI 判断照同一套口径一起带上**：对每一张判一句「这张是不是明确可以单张票处理掉的」；是的话也可以不管，只登记一行。\n\n**三种结论**（挂在某张地图下 / 建议自立成一张新地图 / 建议留在原地 + 一句话理由）都只进建议清单，等人点头才动手。\n\n**不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关票、不改源码、不提交。\n\n体检的范围是这个工作区里的全部票文件，不跟随面板当前的筛选。',
+    en: '**On this backend a ticket is a file in this workspace** (one directory per work unit, the map written as map.md and each ticket as a file), so "orphaned" has to land on files. **Check two file-level criteria**:\n1. a ticket file exists but no map.md list references it — it is floating outside;\n2. a map.md list references a ticket whose file does not exist — a broken link.\n\n**One AI judgement on the same rules**: for each ticket, judge with one sentence — "is this clearly something a single ticket can finish?" If yes, you may also leave it alone and just log one line.\n\n**All three conclusions** (attach under a map / suggest a new map of its own / suggest leaving it where it is + a one-sentence reason) only go into the suggestion list — act only after the human nods.\n\n**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, change source code, or commit.\n\nThe health check covers every ticket file in this workspace and does not follow the current panel filters.',
   },
   // #595：正文格式契约归后端单源 —— 本地 Markdown 后端改的就是本机文件本身，没有远端登录、没有插件目录、没有写回脚本
   bodyFormat: {

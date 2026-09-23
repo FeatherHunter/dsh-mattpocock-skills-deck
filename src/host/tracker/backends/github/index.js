@@ -14,8 +14,8 @@
  */
 
 import { CANONICAL_LABELS } from '../../../../shared/labels.js'
-// #664：缺 gh 时注入的那句原话（唯一一份）住在共享清单里，这里读它、不抄第二份字面量。
-import { guideInjectTextOf } from '../../../../shared/tracker/guide-steps.js'
+// #716：缺 gh 时那句装 CLI 的原话，从共享清单挪回了本模块的 prompts.cliInstall（它跟具体后端有关，
+//   共享清单是三个后端共用的文件，不该住那儿）。共享清单里 gh:installed 那一步只留「注入 cliInstall」。
 import { describe, issueUrl, searchUrl, linkPattern, links, capabilities, openRepository } from './repo.js'
 import { checks } from './checks.js'
 import { githubMatches, createGithubBackend } from './backend.js'
@@ -29,11 +29,10 @@ export { initProject } from './init-project.js'
  * 每个后端检查项的失败修复知识：hint（人读指引，随链渲染）+ actions（词汇表动作）。
  * host wf.chain 组装时按语言解析进 onFail.show.hint / onFail.actions（见 tracker/fixContract.js）；
  * UI 只渲染与分发，不识别后端、不推导修复步骤。
- * 文案引用本模块 prompts 键：ghAuthLogin / repoAccessFix（双语单源）；缺 gh 时那句原话来自共享清单
- *   src/shared/tracker/guide-steps.js（#664：同一个缺失状态不许有两份说明）。
+ * 文案引用本模块 prompts 键：cliInstall / ghAuthLogin（双语单源）；操作类的事一律交给工具
+ *   （deck_* 那一批），提示词里不再教任何一条跟踪器命令 —— #716 定的口径：提示词与文档里剩下的
+ *   裸命令只有三类（登录、建仓、阻塞降级写法）。
  */
-// 缺 gh 时点一下要注入的那句原话（维护者 2026-09-19 给的那一句，逐字不改）。
-const GH_INSTALL_INJECT_TEXT = guideInjectTextOf('gh:installed')
 export const fixes = Object.freeze({
   // 2026-08-29（审查 S1/S2）：hint 只做「状态翻译」——说清这行为什么红、不修会怎样、有无第二条路；
   //   不再指挥点击（按钮自己会说话）、不贴命令（命令在指引全文里）、去掉与判定矛盾的「网络不通」表述。
@@ -43,10 +42,9 @@ export const fixes = Object.freeze({
       en: 'The GitHub CLI (gh) is not installed yet — install it to continue.',
     },
     actions: [
-      // #664：缺 gh 时那句话只有一份 —— 共享清单里 gh:installed 那一步的原话。这里直接把文案填进动作里
-      //   （fixContract 的解析规则本来就允许 action.prompt 直接是文案），于是检查页这一行的按钮与状态栏
-      //   那条横幅注入的是同一句话；原先那段按系统分平台的安装长文（noGhPrompt）按新流程退役。
-      { type: 'inject-prompt', prompt: GH_INSTALL_INJECT_TEXT, label: { zh: '安装指引', en: 'Install guide' } },
+      // #664：缺 gh 时那句话只有一份。#716 把那份话挪回了本模块 prompts.cliInstall，这里改成按提示词键引用 ——
+      //   检查页这一行的按钮与状态栏那条横幅注入的仍是同一句话（原先那段按系统分平台的安装长文 noGhPrompt 已退役）。
+      { type: 'inject-prompt', prompt: 'cliInstall', label: { zh: '安装指引', en: 'Install guide' } },
       { type: 'refresh', target: 'chain' },
     ],
   },
@@ -125,33 +123,47 @@ export const prompts = (function () {
   const zhNames = names.join(', ')
   const enNames = names.join(', ')
   return {
+    // #716：这个后端自己的命令行名与站点名。提示词模板里只留 {cli} / {cliBrand} 两个占位符，
+    //   渲染时由这里填 —— 换一个后端（或换一个命令行工具）改的只有这一格，模板一行都不用动。
+    commandVocabulary: { cli: 'gh', cliBrand: 'GitHub' },
     ensureLabels: {
-      zh: '请为当前仓库补全缺失的核心标签（共 ' + names.length + ' 个）：\n\n必备标签：' + zhNames + '\n\n步骤：\n- [ ] 先检查现有标签（gh api repos/{owner}/{repo}/labels 或 gh label list --json name；名大小写不敏感）\n- [ ] 对缺失的每个标签执行 gh label create --repo {owner}/{repo} --name "<name>" --color <color> --description "<desc>"（已存在跳过，幂等；失败不回滚仓库）\n- [ ] 完成后用 gh label list 复查直至齐全\n\n色值/描述以 src/shared/labels.js 单源为准，仅校验名子集。',
-      en: 'Please complete the missing canonical labels (' + names.length + ' total):\n\nRequired labels: ' + enNames + '\n\nSteps:\n- [ ] Check existing labels first (gh api repos/{owner}/{repo}/labels or gh label list --json name; case-insensitive)\n- [ ] For each missing label run gh label create --repo {owner}/{repo} --name "<name>" --color <color> --description "<desc>" (skip if exists, idempotent; do not rollback on failure)\n- [ ] Re-check via gh label list afterwards until complete\n\nColors/descriptions are single-sourced in src/shared/labels.js; verification is name-subset only.',
+      zh: '请为当前仓库补全缺失的核心标签（共 ' + names.length + ' 个）：\n\n必备标签：' + zhNames + '\n\n步骤：\n- [ ] 先看现在有哪些标签：调 deck_context 拿当前后端与仓库，票上带了哪些标签用 deck_issue_get 读\n- [ ] 缺哪个补哪个：调 deck_issue_patch 并把缺的标签名放进 addLabels —— 它按当前后端自己的方式打标签，已经有的不会重复建，成没成逐条回报\n- [ ] 补完再调一次 deck_context 核对标签已齐\n\n色值/描述以 src/shared/labels.js 单源为准，仅校验名子集。',
+      en: 'Please complete the missing canonical labels (' + names.length + ' total):\n\nRequired labels: ' + enNames + '\n\nSteps:\n- [ ] See what labels exist now: call deck_context for the current backend and repo; read which labels a ticket carries with deck_issue_get\n- [ ] Add whatever is missing: call deck_issue_patch with the missing names in addLabels — it applies labels the way the current backend does, never creates duplicates, and reports each one\n- [ ] Re-check with deck_context until the labels are complete\n\nColors/descriptions are single-sourced in src/shared/labels.js; verification is name-subset only.',
+    },
+    // #716：装 gh 的那句原话（维护者 2026-09-19 给的那一句，逐字不改）。原先它写在共享清单
+    //   src/shared/tracker/guide-steps.js 里，是三个后端共用的文件；装 CLI 这件事只跟 GitHub 有关，
+    //   所以搬回这里。缺 gh 时状态栏横幅、检查页那一行的按钮取的都是这一条（一个缺失状态不许有两份说明）。
+    cliInstall: {
+      zh: '/wizard 帮用户安装gh cli 官方地址：https://cli.github.com/',
+      en: '/wizard help the user install the gh CLI — official page: https://cli.github.com/',
     },
     ghAuthLogin: {
       zh: '请完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。',
       en: 'Please complete gh login: run gh auth login and finish browser authorization; afterwards run gh auth status to confirm.',
     },
     // #664：原先这里有 noGhPrompt（按系统分平台的安装长文）与 repoRemoteFix（缺仓长文）两段。
-    //   缺 gh 那句话收成共享清单里 gh:installed 那一步的原话（见上面的 GH_INSTALL_INJECT_TEXT），
-    //   缺仓库那件事由界面上那一段负责（状态栏「还没有远端仓库」那条横幅 + 检查页那一行的两步建仓弹窗），
-    //   两段长文都退役了 —— 一个缺失状态不留第二份说明（规格 #662 定版三）。
+    //   缺 gh 那句话收成 prompts.cliInstall（见上），缺仓库那件事由界面上那一段负责（状态栏「还没有远端仓库」
+    //   那条横幅 + 检查页那一行的两步建仓弹窗），两段长文都退役了 —— 一个缺失状态不留第二份说明（规格 #662 定版三）。
+    // #716：本条目原先是一串排查用的 gh 命令。仓库读得通读不通这件事，工具自己会报（deck_context 会把
+    //   当前后端与仓库、以及读不通的原因一起回给 AI），提示词这里只留「按哪几步想」——建仓那一步走面板上的
+    //   「创建并发布」向导，不再教人去敲建仓命令。
     repoAccessFix: {
-      zh: '当前仓库无法通过 GitHub API 访问（gh api repos/{owner}/{name} 失败）。顺序要求：若仓库尚未创建，先走「创建并发布」完成建仓推送，再重查；请按序排查：\n1. 仓库存在性：gh repo view <owner>/<name> --json nameWithOwner；不存在 → 与用户确认后执行 gh repo create（仓库名/可见性先确认）；\n2. 访问权限：gh auth status 确认登录账号；私有仓库需该账号有权限（403/404 都可能是权限问题）；\n3. 网络/代理：gh config get http_proxy 与网络连通性。\n排查修复后请用户点「重新检查」。',
-      en: 'The repository is not reachable via the GitHub API (gh api repos/{owner}/{name} failed). Ordering rule: if the repo does not exist yet, run "Create & publish" to finish creating and pushing it, then re-check; investigate in order:\n1. Existence: gh repo view <owner>/<name> --json nameWithOwner; if missing → confirm with the user, then gh repo create (confirm name/visibility first);\n2. Permissions: gh auth status to confirm the account; private repos need access for this account (403/404 can both be permission issues);\n3. Network/proxy: gh config get http_proxy and connectivity.\nAfter fixing, ask the user to re-check.',
+      zh: '当前仓库读不通（工具报「取不到这个仓库」）。顺序要求：若仓库尚未创建，先走「创建并发布」完成建仓推送，再重查；请按序排查：\n1. 仓库存在性：这个目录还没有远端仓库时，先点「创建并发布」（面板上那个两步向导会把仓库建好并推上去）；\n2. 登录与权限：看环境检查里「已登录 GitHub」那一行的状态；私有仓库需要当前登录的账号有权限（权限不足与「找不到」在服务端都可能是 404）；\n3. 网络与代理：看环境检查里网络那一类结果，按它的提示处理。\n排查修复后请用户点「重新检查」。',
+      en: 'The repository is not readable right now (the tools report that they cannot reach it). Ordering rule: if the repo does not exist yet, run "Create & publish" to create and push it, then re-check; investigate in order:\n1. Existence: when this directory has no remote repo yet, click "Create & publish" (the two-step wizard creates the repo and pushes it);\n2. Login and permissions: check the status of the "Signed in to GitHub" row; a private repo needs access for the signed-in account (no access and "not found" can both come back as 404);\n3. Network and proxy: check the network row in the environment check and follow what it says.\nAfter fixing, ask the user to re-check.',
     },
     subIssue: {
-      // #603：改回 gh 直连写法（用户环境本来就有 gh，不必先解析插件目录再调脚本）。先取子票的数据库 id 建原生子议题边，再校验张数；阻塞关系建原生依赖边，`Blocked by:` 文字行只作降级兜底。
-      zh: '先 gh api repos/{owner}/{repo}/issues/{child} --jq .id 取子议题数据库 id，再 gh api repos/{owner}/{repo}/issues/{map}/sub_issues -X POST -F sub_issue_id={id} 建边；以 gh api repos/{owner}/{repo}/issues/{map}/sub_issues --jq length 校验计数与预期一致。阻塞关系建原生依赖边：gh api repos/{owner}/{repo}/issues/{child}/dependencies/blocked_by -X POST -F issue_id={阻塞它的那张票的数据库 id}；子票正文首行的 `Blocked by: #n` 只作降级兜底。',
-      en: 'first gh api repos/{owner}/{repo}/issues/{child} --jq .id for child id, then gh api repos/{owner}/{repo}/issues/{map}/sub_issues -X POST -F sub_issue_id={id}; verify with gh api repos/{owner}/{repo}/issues/{map}/sub_issues --jq length equals expected. Build blocking as a native dependency edge: gh api repos/{owner}/{repo}/issues/{child}/dependencies/blocked_by -X POST -F issue_id={database id of the blocking issue}; the `Blocked by: #n` line at the top of the child body is only the fallback.'
+      // #716：这一段原先写着一整套 gh api 直连命令（取数据库号 → 建原生子议题边 → 校验张数 → 建原生依赖边）。
+      //   这些事已经搬进契约层的 deck_map_link / deck_map_snapshot（票面点名「该搬进工具实现的：建边与校验」），
+      //   所以这里只讲「用哪个工具、参数是什么、工具会回报什么」，一条裸命令都不留。
+      zh: '建边用 deck_map_link：父子边传 parentKey（把这张子票挂到那张地图下），阻塞边传 blockedBy（数组里放阻塞它的那几张票号）；工具自己按本后端的方式落下去，并逐条回报这条边落在哪一列。建完用 deck_map_snapshot 读回地图，核对子票张数与预期一致（deck_map_link 也会在返回值里给出读回结果）。原生能力拿不到时工具会如实说这条边落成了正文行的降级写法。',
+      en: 'Wire edges with deck_map_link: pass parentKey for the parent-child edge (attach this child under that map) and blockedBy for blocking edges (the numbers of the tickets blocking it); the tool lands each edge the way this backend does and reports, per edge, which column it landed in. Then read the map back with deck_map_snapshot and confirm the child count matches the plan (deck_map_link also returns the read-back result). When the native capability is unavailable the tool says plainly that the edge landed as the body-line fallback.',
     },
     // #684：「体检」的 GitHub 科目（游离的开放票归位）。总纲住在提示词单源 src/client/kernel/prompts.js 的
     //   healthCheck 一条；这里只交 GitHub 自己那一份，经总纲里的 {subject} 填空。建边与开图复用本模块已声明的
     //   prompts.subIssue 那份原生关联文本（{subIssue}），不在新文案里重抄一遍命令。
     healthCheck: {
-      zh: '**这条后端查数与动手都用下面这套写法**（总纲里的三条口径在这里不变）。\n\n查数：用 gh issue list 拿全仓库开放票，再用每张地图的原生子议题清单核对（gh api repos/{owner}/{repo}/issues/{map}/sub_issues --jq length 逐张数，出现在任何一张清单里的都不算游离）。\n\n建边：先用 gh api repos/{owner}/{repo}/issues/{child} --jq .id 取子票的数据库编号，再用 gh api repos/{owner}/{repo}/issues/{map}/sub_issues -X POST -F sub_issue_id={id} 建原生子议题边，最后用同一条清单命令核对张数与预期一致。{subIssue}\n\n阻塞关系：先把下面命令里的 {blocker} 换成阻塞它的那张票的票号，用 gh api repos/{owner}/{repo}/issues/{blocker} --jq .id 取到它的数据库编号，记为 {blocker_id}，再用 gh api repos/{owner}/{repo}/issues/{child}/dependencies/blocked_by -X POST -F issue_id={blocker_id} 建原生依赖边。子票正文首行的 Blocked by: #n 只作降级兜底。',
-      en: '**On this backend, count and act with the wiring below** (the three rules from the general section stay as they are).\n\nCounting: list every open ticket in the repository with gh issue list, then check each map native sub-ticket list (gh api repos/{owner}/{repo}/issues/{map}/sub_issues --jq length, counted map by map — anything appearing in any list is not orphaned).\n\nAttaching: first gh api repos/{owner}/{repo}/issues/{child} --jq .id for the sub-ticket database id, then gh api repos/{owner}/{repo}/issues/{map}/sub_issues -X POST -F sub_issue_id={id} for the native sub-ticket edge, then re-query the same list command to confirm the count matches the plan. {subIssue}\n\nBlocking: first replace {blocker} in the command below with the number of the ticket blocking it, run gh api repos/{owner}/{repo}/issues/{blocker} --jq .id for its database id, call it {blocker_id}, then gh api repos/{owner}/{repo}/issues/{child}/dependencies/blocked_by -X POST -F issue_id={blocker_id} for the native dependency edge. A Blocked by: #n line at the top of the child body is only the fallback.\n\nGroup the report by label and suggestion type.',
+      zh: '**这条后端查数与动手都走工具**（总纲里的三条口径在这里不变）。\n\n查数：用 deck_context 拿当前后端与仓库；用 deck_map_snapshot 逐张读地图的子票清单（出现在任何一张清单里的都不算游离）。\n\n建边：用 deck_map_link 的 parentKey 把票挂到选中的地图下（原生子议题边与它的读回校验都由工具负责）。{subIssue}\n\n阻塞关系：用 deck_map_link 的 blockedBy 传阻塞它的那张票的票号；工具会自己决定落原生依赖边还是正文首行的降级写法，并在返回值里说清落在哪一列。\n\n报告按标签与建议类型分区，但体检的范围是全部开放票、不跟随面板当前的筛选。',
+      en: '**On this backend, counting and acting both go through the tools** (the three rules from the general section stay as they are).\n\nCounting: use deck_context for the current backend and repo; read each map\'s child list with deck_map_snapshot (anything appearing in any list is not orphaned).\n\nAttaching: use deck_map_link with parentKey to attach a ticket under the chosen map (the tool owns the native sub-ticket edge and its read-back check). {subIssue}\n\nBlocking: use deck_map_link with blockedBy, passing the numbers of the tickets that block it; the tool decides whether the edge lands as a native dependency edge or as the first-line fallback and says which one it used.\n\nGroup the report by label and suggestion type, but the health check always covers every open ticket and does not follow the current panel filters.',
     },
     // #595：正文格式契约归后端单源；#603：改回 #567 之前的写法（只讲正文文件该怎么写，不点名任何命令 —— 写回命令各后端自己知道，GitHub 就是 gh）
     bodyFormat: {

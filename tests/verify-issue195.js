@@ -11,17 +11,20 @@
 //   不许回来、ghLastError 与 resetGhCache 要在、没有「安装副按钮」外链、没有 installGh 提示词键）。
 const fs = require('fs')
 const files = process.argv.slice(2)
-const targets = files.length ? files : ['client.js', 'package/lib/client.js', 'host.js', 'package/lib/index.js', 'src/host/tracker/contract.js', 'src/host/tracker/backends/github/preflight.js']
+const targets = files.length ? files : ['client.js', 'package/lib/client.js', 'host.js', 'package/lib/index.js', 'src/host/tracker/contract.js', 'src/host/tracker/backends/github/preflight.js', 'src/host/tracker/backends/github/index.js']
 let failed = false
 
-// 缺 gh cli 时注入的那句原话（与清单里逐字一致；金样比对在 verify-663-gh-install-inject.js）。
+// 缺 gh cli 时注入的那句原话（与后端声明里逐字一致；金样比对在 verify-663-gh-install-inject.js）。
+// #716：这句话从共享清单 src/shared/tracker/guide-steps.js 挪回了 GitHub 后端声明（prompts.cliInstall），
+//   所以它现在应该出现在后端声明文件里（客户端产物里只有「去查 cliInstall 这条提示词」这个键名）。
 const GH_INSTALL_ORIGINAL = '/wizard 帮用户安装gh cli 官方地址：https://cli.github.com/'
 
 function check(file) {
   const src = fs.readFileSync(file, 'utf8')
   const problems = []
   const isClient = /client\.js$/.test(file)
-  const isHost = /index\.js$/.test(file) || /host\.js$/.test(file)
+  // #716：后端房间的 index.js（backends/<id>/index.js）不是宿主入口，不按宿主那一套判。
+  const isHost = (/index\.js$/.test(file) || /host\.js$/.test(file)) && !/backends[\\/]/.test(file)
   const isContract = /contract\.js$/.test(file)
   const isPreflight = /preflight\.js$/.test(file)
 
@@ -60,8 +63,13 @@ function check(file) {
     //   状态栏那条横幅改由首开引导链清单派生，手写优先级读数 ghCliBad 已经删除。
     if (!src.includes("guideBannerStep")) problems.push("UI: 状态栏横幅没按首开引导链清单取（缺 guideBannerStep）")
     if (src.includes("ghCliBad")) problems.push("UI: 又出现手写优先级读数 ghCliBad（横幅应读共享清单）")
-    // 缺 gh 时那颗按钮必须真的给得出东西：那句原话要随构建进到客户端产物里。
-    if (src.indexOf(GH_INSTALL_ORIGINAL) < 0) problems.push("UI: 缺 gh 时注入的那句原话不在客户端产物里（点一下又等于什么都没给）")
+    // 缺 gh 时那颗按钮必须真的给得出东西：#716 起客户端只带「去查哪条提示词」的键名，
+    //   那句话本身住在 GitHub 后端声明里（下一步在那边直断它还在，两边合起来才算「点一下给得出话」）。
+    if (src.indexOf("'cliInstall'") < 0) problems.push("UI: 客户端产物里没有 cliInstall 这个提示词键（缺 gh 时那颗按钮不知道该去问哪条文案）")
+  }
+
+  if (/backends\/github\/index\.js$/.test(file)) {
+    if (src.indexOf(GH_INSTALL_ORIGINAL) < 0) problems.push("Backend: 缺 gh 时注入的那句原话不在 GitHub 后端声明里（点一下又等于什么都没给）")
   }
 
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }

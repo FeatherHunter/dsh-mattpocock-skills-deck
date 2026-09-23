@@ -2,20 +2,6 @@
   "note": "提示词门禁的豁免登记表（#573）。门禁 tests/verify-prompts.js 只读这个文件，不在代码里留第二份。kind=rule 表示这条确实还写着具体跟踪器命令、属第二批范围，门禁跳过对它的判定（这是登记在案的债）；kind=scope 表示这条不属首批范围，但门禁仍然判它，只是登记「不属首批」——所以 scope 不是放行口子。每条必须写 reason；改动这张表要走评审。",
   "entries": [
     {
-      "surface": "backend:github",
-      "id": "ensureLabels",
-      "kind": "rule",
-      "rule": "R1",
-      "reason": "标签补全链路（gh api 读标签、gh label create 建标签）不属首批（#576 Out of scope：一次收完十五条提示词），第二批再收"
-    },
-    {
-      "surface": "backend:github",
-      "id": "repoAccessFix",
-      "kind": "rule",
-      "rule": "R1",
-      "reason": "仓库可达性排查口径（gh api / gh repo view 等）不属首批，第二批再收"
-    },
-    {
       "surface": "backend:gitlab",
       "id": "glabRepoFix",
       "kind": "rule",

@@ -63,14 +63,20 @@ const EXPECT_REGISTRY_ENTRIES = 23 // 注册表条目数（2026-09-22 现状：#
 // S3 各后端 prompts 块顶层键数。v2 §1.1 写的是 7/9/6，实测不成立（gitlab 只有 4 键、markdown 只有 2 键），
 // 这里按实测值硬编码并在失败信息里报出真实值，避免「按错值写断言导致永久红」。
 // #684：三个后端各加一条 healthCheck（体检科目），7/6/4。
-const EXPECT_BACKEND_KEYS = { github: 7, gitlab: 6, markdown: 4 }
+// #716：三个后端各加一条 commandVocabulary（自己的命令行名与站点名字，供模板里的 {cli} / {cliBrand} 填空），
+//   9/7/5。
+const EXPECT_BACKEND_KEYS = { github: 9, gitlab: 7, markdown: 5 }
 // S3 各后端 prompts 块内的字符串字面量总数（含字符串拼接的续段，如 ensureLabels 的命令就藏在续段里）。
 // 这个数字是「词法扫描不许静默少扫」的硬保证：少扫一段就会对不上。
 // #684：github +2（healthCheck 的 zh/en）、gitlab +2、markdown +2。
-const EXPECT_BACKEND_LITERALS = { github: 42, gitlab: 12, markdown: 8 }
+// #716：github +4（commandVocabulary 的 cli/cliBrand + cliInstall 的 zh/en，同时 subIssue 与 healthCheck 改写、
+//   ensureLabels 与 repoAccessFix 去命令，净 +4）、gitlab +2、markdown +1。
+const EXPECT_BACKEND_LITERALS = { github: 46, gitlab: 14, markdown: 9 }
 // #664：宿主那份「怎么装 gh」的长文（GH_INSTALL_PROMPT）按新流程退役，src/host 全树今天一个 *_PROMPT 常量都没有。
 const EXPECT_HOST_PROMPT_CONSTS = 0 // src/host 全树 *_PROMPT 常量数
-const EXPECT_EXEMPT = 10 // 豁免登记条数硬编码（防偷偷加豁免）
+// #716：github 那两条 rule 豁免（ensureLabels / repoAccessFix）所欠的债已经还清 —— 两条文案改成走工具，
+//   一个裸命令都不剩，所以从登记表里撤掉，10 → 8（撤掉的这两条从此受判定）。
+const EXPECT_EXEMPT = 8 // 豁免登记条数硬编码（防偷偷加豁免）
 
 // 受保护清单：全量覆盖 —— 所有扫描面的 id 减去「kind=rule 豁免」，一个不漏。
 // 下面 auditExemptTable 会断言这张硬编码清单与运行时算出来的集合逐条相等，所以清空它 / 删几行都会红。
@@ -81,11 +87,12 @@ const PROTECTED = [
   'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#switchAlign', 'registry#switchLayout', 'registry#newWayfinder',
   'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect', 'registry#healthCheck',
   'backend:github#ghAuthLogin', 'backend:github#subIssue', 'backend:github#bodyFormat', 'backend:github#errorKinds',
-  'backend:github#healthCheck',
+  'backend:github#healthCheck', 'backend:github#commandVocabulary', 'backend:github#cliInstall',
+  'backend:github#ensureLabels', 'backend:github#repoAccessFix',
   'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix', 'backend:gitlab#subIssue', 'backend:gitlab#bodyFormat',
-  'backend:gitlab#healthCheck',
+  'backend:gitlab#healthCheck', 'backend:gitlab#commandVocabulary',
   'backend:markdown#wayfinderMapBuild', 'backend:markdown#subIssue', 'backend:markdown#bodyFormat',
-  'backend:markdown#healthCheck',
+  'backend:markdown#healthCheck', 'backend:markdown#commandVocabulary',
 ]
 // 必须受判定（kind 只许是 scope）的 8 条：它们登记「不属首批」，但门禁仍然判它们
 const MUST_JUDGE = [
@@ -102,7 +109,8 @@ const OBJECT_PROTO_KEYS = ['constructor', '__defineGetter__', '__defineSetter__'
 // 每个面允许的 rule 豁免集合（硬编码：改一个 id 或把 scope 改成 rule 都会与这张表对不上）
 const RULE_EXEMPT_EXPECTED = {
   registry: [],
-  'backend:github': ['ensureLabels', 'repoAccessFix'],
+  // #716：github 面那两条 rule 豁免已经撤掉（文案改成走工具，不再写裸命令），所以这一档现在是空的。
+  'backend:github': [],
   'backend:gitlab': ['glabRepoFix'],
   'backend:markdown': [],
   S4: [],
@@ -1254,7 +1262,7 @@ const runFixtureSelfCheck = function (reg, backendSrc) {
   // 后端面绕过（整改②）。#603 起 github 面允许 gh 命令，所以这里钉的是 R8：
   //   往 prompts.subIssue 里塞回「先解析插件目录，再调包内脚本」那套间接写法，必须判红。
   //   注入锚点先自证存在：锚点没了就是空操作，等于这条自检失效（旧锚点「输出有多行时…」随两步写回一起撤掉了）。
-  const anchor603 = '--jq .id 取子议题数据库 id'
+  const anchor603 = '建边用 deck_map_link'
   const injected = String(backendSrc).replace(anchor603, anchor603 + '；先跑 dsh plugin --profile <配置名> exec node -e "console.log(require.resolve("dsh-mattpocock-skills-deck/package.json"))" 拿插件安装目录')
   if (injected === String(backendSrc)) fail('L1 后端面绕过自检失效：注入锚点在新文本里找不到（注入成了空操作）')
   const subLits = scanAllLiterals(extractObjectLiteral(injected, 'export const prompts') || '')
@@ -1345,7 +1353,7 @@ const runL2Injection = function () {
         //   旧锚点随两步写回一起撤掉了，不换锚点这条 payload 就是「注入空操作」。
         //   注入的内容是本票要消灭的间接写法（先解析插件目录，再调包内脚本）：github 面允许 gh 命令，但 R8 在 github 面照样判。
         const srcBefore = String(backendSrc)
-        const injectAt = '先 gh api repos/{owner}/{repo}/issues/{child} --jq .id'
+        const injectAt = '建边用 deck_map_link'
         const injectedText = '先跑 dsh plugin --profile <配置名> exec node -e "console.log(require.resolve("dsh-mattpocock-skills-deck/package.json"))" 拿插件安装目录，再 ' + injectAt
         const mutatedBackend = srcBefore.replace(injectAt, injectedText)
         if (mutatedBackend === srcBefore) fail('L2 payload「' + p.n + '」注入锚点在新文本里找不到（注入成了空操作；锚点要跟着提示词一起改）')
@@ -1412,10 +1420,15 @@ const selfDigest = function () {
 //   自摘要跟着重算。
 // #684：注册表新增 healthCheck（「体检」总纲），条目数 21 → 22；三个后端各加一条 healthCheck 科目，
 //   键数 6/5/3 → 7/6/4、字面量 40/10/6 → 42/12/8，受保护清单同步加四条，自摘要跟着重算。
+// #716：三个后端各加一条 commandVocabulary（自己的命令行名与站点名字），github 另加一条 cliInstall
+//   （装 CLI 的原话从共享清单挪回后端声明），键数 7/6/4 → 9/7/5、字面量 42/12/8 → 46/14/9；
+//   github 面那两条 rule 豁免（ensureLabels / repoAccessFix）还清、从豁免登记表撤掉，条数 10 → 8；
+//   github 的 subIssue 与 mapInspect 渲染断言由「必须 gh 直连」改成「必须走 deck_* 工具」；
+//   豁免登记表与自摘要一并重算。
 const LOCK = {
-  'tests/prompt-gate-exempt.json': '3e7f0a18ca1caab69dd3508bbd17dbba6200887594cbdced3239c45f87923b50',
+  'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '857cacefe5491bcc493eb73da95a3bdf3517b55488a163bcf662bed31f4909d3',
+  'tests/verify-prompts.js': '3d34b6967a9b2dda915cfbf99d3616572f3620866122ce5c0d5692b4adc55a46',
 }
 // ---- LOCK-END ----
 
@@ -1513,25 +1526,24 @@ if (reg) {
   surfaceReport.S5 = s1.rendered
   // 结构契约（沿用既有断言，陈旧两组已按现状修正）
   contractChecks(reg, fs.readFileSync(s1Path, 'utf8'))
-  // 后端注入链的另一半（#603：模板里只有 {subIssue} 占位符，真正的关联步骤写在 github 后端的 prompts.subIssue 里，
-  //   经 {subIssue} 渲染时填空）。这里先按语言逐条钉住「必须是 gh 直连写法」：
-  //   ① 必须是 gh api 直连（不许退回「先解析插件目录再调脚本」）；
-  //   ② 建原生子议题边（sub_issues + sub_issue_id）；
-  //   ③ 校验张数（--jq length）；
-  //   ④ 原生阻塞边（dependencies/blocked_by + issue_id）—— B 方案明确要求保留这个能力。
+  // 后端注入链的另一半（#603 定的是「模板里只有 {subIssue} 占位符，真正的关联步骤写在 github 后端的
+  //   prompts.subIssue 里，经 {subIssue} 渲染时填空」）。#716 把那些事搬进了契约层的 deck_* 工具，
+  //   所以这里改钉「工具写法」而不是「gh 直连」——同一件事的两种实现，后者已被本票取代：
+  //   ① 建边走 deck_map_link（父子边 parentKey、阻塞边 blockedBy）；
+  //   ② 建完读回核对走 deck_map_snapshot；
+  //   ③ 一个裸跟踪器命令都不许再出现（这一条由 tests/verify-prompt-command-inventory.js 逐类归零，这里直断一次）。
   ;['zh', 'en'].forEach(function (lang) {
     const t = String(subIssueValues['github.' + lang] || '')
-    const where = '#603 github 后端 prompts.subIssue.' + lang
+    const where = '#716 github 后端 prompts.subIssue.' + lang
     if (!t) { fail(where + ' 取不到声明值（后端没声明这一条）'); return }
-    if (t.indexOf('gh api') < 0) fail(where + ' 缺 gh api 直连（#603 改回 gh 直连，不再解析插件目录调脚本）')
-    if (t.indexOf('sub_issues') < 0) fail(where + ' 缺 sub_issues（建原生子议题边的那条路径）')
-    if (t.indexOf('sub_issue_id') < 0) fail(where + ' 缺 sub_issue_id（POST 建边要传的参数名）')
-    if (t.indexOf('dependencies/blocked_by') < 0) fail(where + ' 缺 dependencies/blocked_by（原生阻塞边；B 方案要求保留，文字行 Blocked by 只作降级兜底）')
-    if (t.indexOf('issue_id') < 0) fail(where + ' 缺 issue_id（原生阻塞边要传的参数名）')
-    if (t.indexOf('--jq length') < 0) fail(where + ' 缺 --jq length（建完要校验子议题张数）')
+    if (t.indexOf('deck_map_link') < 0) fail(where + ' 缺 deck_map_link（建边要交给工具，不再教人敲命令）')
+    if (t.indexOf('parentKey') < 0) fail(where + ' 缺 parentKey（父子边要传的参数名）')
+    if (t.indexOf('blockedBy') < 0) fail(where + ' 缺 blockedBy（阻塞边要传的参数名）')
+    if (t.indexOf('deck_map_snapshot') < 0) fail(where + ' 缺 deck_map_snapshot（建完要读回地图核对张数）')
+    if (/gh\s+api|sub_issues|sub_issue_id|--jq|dependencies\/blocked_by/.test(t)) fail(where + ' 残留裸跟踪器命令（#716 起建边与校验都搬进工具，文案里不该再出现命令）')
     // R8：这一条本身不许再出现「先解析插件目录再调脚本」的间接写法（判定层也判，这里直断一次，失败信息更直白）
     const indirect = RE_INDIRECT.exec(t)
-    if (indirect) fail(where + ' 残留间接写法「' + indirect[0] + '」（#603 起提示词改回 gh 直连，不再调包内脚本）')
+    if (indirect) fail(where + ' 残留间接写法「' + indirect[0] + '」（提示词一个包内脚本都不许引用）')
   })
   // #603：渲染面 + 名实一致（提示词一个脚本都不许引用；发布包里仍带那两条脚本当可选工具）
   const p603 = problems.length
@@ -1593,12 +1605,13 @@ if (reg) {
         })
       })
     })
-    // GitHub 声明面必须真的给出 gh 直连（用真实数据断言，不许空转）：{subIssue} 接上后端声明后，渲染结果里要看得见 gh api 与 sub_issues。
+    // GitHub 声明面必须真的给出建边写法（用真实数据断言，不许空转）：{subIssue} 接上后端声明后，
+    //   渲染结果里要看得见那两个工具名（#716 起建边与校验走工具，不再写裸命令）。
     ;[['zh', renderOf('github', 'mapInspect', 'zh')], ['en', renderOf('github', 'mapInspect', 'en')]].forEach(function (pair) {
-      const where = '#603 github/mapInspect.' + pair[0]
-      if (pair[1].indexOf('gh api') < 0) fail(where + ' 渲染结果缺 gh api（{subIssue} 没接上后端声明）')
-      if (pair[1].indexOf('sub_issues') < 0) fail(where + ' 渲染结果缺 sub_issues（{subIssue} 没接上后端声明的建边方式）')
-      if (pair[1].indexOf('dependencies/blocked_by') < 0) fail(where + ' 渲染结果缺 dependencies/blocked_by（原生阻塞边要保住）')
+      const where = '#716 github/mapInspect.' + pair[0]
+      if (pair[1].indexOf('deck_map_link') < 0) fail(where + ' 渲染结果缺 deck_map_link（{subIssue} 没接上后端声明）')
+      if (pair[1].indexOf('deck_map_snapshot') < 0) fail(where + ' 渲染结果缺 deck_map_snapshot（{subIssue} 没接上后端声明的读回核对）')
+      if (/gh\s+api|sub_issues|dependencies\/blocked_by/.test(pair[1])) fail(where + ' 渲染结果残留裸跟踪器命令（#716 起建边与校验都搬进工具）')
     })
     // 追加点（BODY_FORMAT(st)）也按后端解析：GitHub 拿到还原后的正文格式块（只讲写法规矩，无命令），
     //   Markdown 拿到本地文件版。原来这里有两条「Markdown 渲染结果/正文格式必须比 GitHub 短」的长度比较，
@@ -1718,8 +1731,8 @@ if (reg) {
   } catch (e) {
     fail('#603 断言执行时抛错：' + String((e && e.message) || e))
   }
-  if (stepOk(p603)) console.log('  PASS #603 渲染面（11 条目 × zh/en × 三后端：github 渲染出 gh 直连的 {subIssue} 与无命令的正文格式块，Markdown/GitLab 渲染出各自的后端版；渲染结果无 undefined、无残留占位符、无「先解析插件目录再调脚本」的间接写法）+ completePrompt 真实调用形态 + 提示词零脚本引用 + 发布包仍带两条脚本 + 生成物 sha256 一致')
-  if (stepOk(pS1)) console.log('  PASS 面 S1 ' + s1Label + '（' + s1Ids.length + ' 条注册表，扫描 ' + s1.scanned + ' 条；含占位符 ' + s1.rendered + ' 条走渲染面）+ 契约断言 + 跨门禁一致性 + github 后端注入链（gh 直连三步 + 原生阻塞边）')
+  if (stepOk(p603)) console.log('  PASS #603/#716 渲染面（11 条目 × zh/en × 三后端：github 渲染出带 deck_* 工具的 {subIssue} 与无命令的正文格式块，Markdown/GitLab 渲染出各自的后端版；渲染结果无 undefined、无残留占位符、无裸跟踪器命令、无「先解析插件目录再调脚本」的间接写法）+ completePrompt 真实调用形态 + 提示词零脚本引用 + 发布包仍带两条脚本 + 生成物 sha256 一致')
+  if (stepOk(pS1)) console.log('  PASS 面 S1 ' + s1Label + '（' + s1Ids.length + ' 条注册表，扫描 ' + s1.scanned + ' 条；含占位符 ' + s1.rendered + ' 条走渲染面）+ 契约断言 + 跨门禁一致性 + github 后端注入链（#716 起：建边与校验走 deck_* 工具）')
 }
 
 // —— S2 / S3 / S4（单文件模式跳过：L2 注入只针对 S1） ——

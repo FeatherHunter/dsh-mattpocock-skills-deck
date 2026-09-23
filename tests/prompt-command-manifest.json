@@ -1,0 +1,59 @@
+{
+  "note": "票 #716 的命令清单：提示词面与文档面里，跟踪器命令按这张表逐条归零。每条写明「哪一类命令」「改成什么」。允许留下的只有三类：登录、建仓、阻塞降级写法。维护这张表的人请看每条的 what（人话）与 why。",
+  "surfaces": [
+    { "id": "registry", "kind": "prompt", "path": "src/client/kernel/prompts.js", "what": "客户端提示词注册表（注入会话的那一批模板）" },
+    { "id": "locale-labels", "kind": "prompt", "path": "src/client/kernel/locale-labels.js", "what": "标签配色弹窗里那段「复制给 AI」的文案" },
+    { "id": "locale-flow", "kind": "prompt", "path": "src/client/kernel/locale-flow.js", "what": "面板流程里的提示词词条" },
+    { "id": "locale-panel", "kind": "prompt", "path": "src/client/kernel/locale-panel.js", "what": "面板页面级词条（含仓库错误那两句）" },
+    { "id": "guide-steps", "kind": "prompt", "path": "src/shared/tracker/guide-steps.js", "what": "首开引导链清单（三个后端共用）" },
+    { "id": "backend:github", "kind": "prompt", "path": "src/host/tracker/backends/github/index.js", "what": "GitHub 后端自己声明的提示词与修复指引" },
+    { "id": "backend:gitlab", "kind": "prompt", "path": "src/host/tracker/backends/gitlab/index.js", "what": "GitLab 后端自己声明的提示词与修复指引" },
+    { "id": "backend:markdown", "kind": "prompt", "path": "src/host/tracker/backends/markdown/index.js", "what": "本地 Markdown 后端自己声明的提示词与修复指引" },
+    { "id": "doc:issue-tracker", "kind": "doc", "path": "docs/agents/issue-tracker.md", "what": "本仓库的跟踪器说明（技能与 AI 都读它）" },
+    { "id": "doc:template-github", "kind": "doc", "path": "package/bundled-skills/setup-matt-pocock-skills/issue-tracker-github.md", "what": "随包发给用户的 GitHub 版跟踪器模板" }
+  ],
+  "zeroed": [
+    { "id": "issue-create", "what": "建一张票", "pattern": "(?:gh|glab)\\s+issue\\s+create", "movedTo": "deck_issue_create", "why": "建票已经搬进工具，提示词与文档只该说「用哪个工具」" },
+    { "id": "issue-view", "what": "读一张票", "pattern": "(?:gh|glab)\\s+issue\\s+view", "movedTo": "deck_issue_get", "why": "读票已经搬进工具" },
+    { "id": "issue-list", "what": "列出票", "pattern": "(?:gh|glab)\\s+issue\\s+list", "movedTo": "deck_context", "why": "列票与看地图都走工具" },
+    { "id": "issue-comment", "what": "在票上发评论", "pattern": "(?:gh|glab)\\s+issue\\s+(?:comment|note)", "movedTo": "deck_issue_patch", "why": "评论已经搬进工具" },
+    { "id": "issue-label", "what": "改一张票的标签", "pattern": "(?:gh|glab)\\s+issue\\s+(?:edit|update)[^\\n]{0,60}--(?:add|remove)-label", "movedTo": "deck_issue_patch", "why": "补标签已经搬进工具" },
+    { "id": "issue-close", "what": "关闭一张票", "pattern": "(?:gh|glab)\\s+issue\\s+close", "movedTo": "deck_issue_patch", "why": "关闭已经搬进工具" },
+    { "id": "issue-body", "what": "改票的正文", "pattern": "(?:gh|glab)\\s+issue\\s+(?:edit|update)[^\\n]{0,60}--body-file", "movedTo": "deck_issue_patch", "why": "改正文已经搬进工具（写完由工具读回核对）" },
+    { "id": "issue-assign", "what": "认领（指派人）", "pattern": "(?:gh|glab)\\s+issue\\s+(?:edit|update)[^\\n]{0,60}--add-assignee", "movedTo": "deck_issue_patch", "why": "认领＝指派人，已经搬进工具" },
+    { "id": "edge-dbid", "what": "建边前先取数据库编号", "pattern": "(?:gh|glab)\\s+api[^\\n]{0,120}--jq\\s+\\.id", "movedTo": "deck_map_link", "why": "取编号这一步是工具内部的事，不该由提示词教" },
+    { "id": "edge-subissue", "what": "建原生子议题边", "pattern": "(?:gh|glab)\\s+api[^\\n]{0,120}sub_issues", "movedTo": "deck_map_link", "why": "建边与数数校验已经搬进工具" },
+    { "id": "edge-blocking", "what": "建阻塞边", "pattern": "(?:gh|glab)\\s+api[^\\n]{0,140}blocked_by", "movedTo": "deck_map_link", "why": "建边与数数校验已经搬进工具" },
+    { "id": "label-color", "what": "改标签颜色的命令行", "pattern": "(?:gh|glab)\\s+label\\s+(?:edit|list|create)", "movedTo": "", "evidence": "改色弹窗", "why": "标签配色由面板的改色弹窗按契约层那两条操作自己写，提示词不教命令；这一条的「改成什么」就写在 evidence 那句里" },
+    { "id": "pr-ops", "what": "PR / MR 上的跟踪器命令", "pattern": "(?:gh|glab)\\s+(?:pr|mr)\\s+(?:view|list|diff|comment|note|edit|update|close|create)", "movedTo": "", "evidence": "按当前后端自己的方式读写 PR", "why": "PR 分诊是三后端共用的通用规则，要按当前后端自己的说法写，不能拿某一个后端的命令当通用规则" },
+    { "id": "tracker-passthrough", "what": "包内写回脚本 / 让 AI 去解析插件安装目录那套间接写法", "pattern": "(?:dsh\\s+plugin|require\\.resolve|fix-issue-body\\s*\\.\\s*mjs|wire-subissues\\s*\\.\\s*mjs)", "movedTo": "", "why": "这两条脚本的活已经由工具承担，提示词与文档一个都不许再引用" }
+  ],
+  "allowed": [
+    {
+      "id": "login",
+      "what": "登录流程（票面允许留下的三类之一）",
+      "pattern": "(?:gh|glab)\\s+auth\\s+(?:login|status|refresh|config)",
+      "mayAppearIn": ["backend:github", "backend:gitlab", "locale-flow", "locale-panel", "doc:issue-tracker", "doc:template-github"],
+      "why": "登录发生在跟踪器之外，工具管不到；它是使用者的环境准备动作，属于「后端声明」那一档"
+    },
+    {
+      "id": "repo-create",
+      "what": "建仓库流程（票面允许留下的三类之一）",
+      "pattern": "(?:gh|glab)\\s+repo\\s+(?:create|view)",
+      "mayAppearIn": ["backend:github", "backend:gitlab", "doc:issue-tracker", "doc:template-github"],
+      "why": "建仓库也发生在跟踪器之外（它是 git 远端的事），属于「后端声明」那一档"
+    },
+    {
+      "id": "blocked-by-fallback",
+      "what": "拿不到原生能力时的阻塞降级写法（票面允许留下的三类之一）",
+      "pattern": "Blocked by:\\s*#",
+      "mayAppearIn": ["registry", "backend:github", "backend:gitlab", "doc:issue-tracker", "doc:template-github"],
+      "why": "它是三后端共用的通用降级写法（正文首行一行文字），不是某一个后端的命令"
+    }
+  ],
+  "renderExempt": [
+    { "id": "installSkills", "why": "这条讲的是安装 Matt Pocock 的技能套件，里面的仓库地址是那套技能自己的主页，跟跟踪器无关（它不读写任何一张票）" },
+    { "id": "installSkillsFix", "why": "同上：技能安装那一档的一句短提示" }
+  ],
+  "renderExemptExpected": ["installSkills", "installSkillsFix"]
+}

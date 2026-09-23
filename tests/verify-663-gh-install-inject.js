@@ -15,8 +15,12 @@ let total = 0
 const ok = (cond, msg) => { total++; if (cond) console.log('  PASS ' + msg); else { failed = true; failedN += 1; console.log('  FAIL ' + msg) } }
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8')
 
-// 维护者 2026-09-19 给的那句原话（金样写在本门禁里：谁把清单里那句改了，这里先红）。
+// 维护者 2026-09-19 给的那句原话（金样写在本门禁里：谁把那句改了，这里先红）。
+// #716：这句话从共享清单 src/shared/tracker/guide-steps.js 挪回了 GitHub 后端声明（prompts.cliInstall）——
+//   它是「怎么装 gh」，只跟 GitHub 有关，不该住在三个后端共用的清单里。清单那一步现在只留键名。
 const ORIGINAL = '/wizard 帮用户安装gh cli 官方地址：https://cli.github.com/'
+// 清单里那一步声明的提示词键名（注入哪段话由清单说了算，话本身在后端声明里）。
+const INSTALL_PROMPT_KEY = 'cliInstall'
 // 那句陈述句 —— 旧写法注入的就是它，新流程里一个字都不许再出现在注入路径上。
 const OLD_STATEMENT = 'GitHub 助手（gh cli）还没安装，安装后即可继续。'
 
@@ -66,15 +70,19 @@ const ghMissing = (extra) => ({
 
 async function main() {
   const { mod, seen, guide } = await loadBannerChain()
+  const ghMod = await import(pathToFileURL(path.join(root, 'src/host/tracker/backends/github/index.js')).href)
+  const ghPrompts = ghMod.prompts
   const ghStep = guide.GUIDE_STEPS.find((s) => s.id === 'gh:installed')
   ok(!!ghStep, '清单里有「gh cli 已安装」这一步')
 
-  console.log('== 1. 清单里那句原话逐字等于维护者给的那一句 ==')
+  console.log('== 1. 清单只说注哪条提示词，那句话在后端声明里逐字等于维护者给的那一句 ==')
   ok(!!ghStep && ghStep.missing && ghStep.missing.type === 'inject', '这一步的 missing 是一次注入')
-  ok(!!ghStep && ghStep.missing.text === ORIGINAL, '注入的就是那句原话（逐字比对，一个字不差）')
+  ok(!!ghStep && ghStep.missing.prompt === INSTALL_PROMPT_KEY, '清单这一步指向的提示词键是 ' + INSTALL_PROMPT_KEY + '（清单不再自带那段话）')
+  ok(!!ghPrompts && !!ghPrompts[INSTALL_PROMPT_KEY] && ghPrompts[INSTALL_PROMPT_KEY].zh === ORIGINAL, '后端声明里那句原话逐字等于维护者给的那一句（一个字不差）')
 
   console.log('== 2. 点那颗按钮：注入的是那句原话，不是链上那句陈述句 ==')
   const st = ghMissing()
+  st.backendModules = [{ id: 'github', prompts: ghPrompts }]
   ok(mod.guideBannerStep(st, false).id === 'gh:installed', '缺 gh cli 时出的就是这一步的横幅')
   const out = mod.runGuideMissing(st, ghStep)
   ok(out === 'text', '归到「注入了一段文案」（实得 ' + out + '）')
@@ -110,23 +118,25 @@ async function main() {
   const lastLog = bare.seen.logged[bare.seen.logged.length - 1]
   ok(lastLog && lastLog.event === 'guide.inject' && lastLog.fields.step === 'gh:authed' && lastLog.fields.outcome === 'none', '日志把这一回记成 none，不是静默')
 
-  console.log('== 6. 那句话只有一份：住在共享清单里，客户端源码不许再抄一份 ==')
-  ok(read('src/shared/tracker/guide-steps.js').indexOf(ORIGINAL) >= 0, '原话住在共享清单里')
-  const clientFiles = ['src/client/statusbar/StatusBar.js', 'src/client/statusbar/bannerChain.js', 'src/client/statusbar/checksums.js', 'src/client/views/ChecksTab.js']
+  console.log('== 6. 那句话只有一份：住在 GitHub 后端声明里，清单与客户端源码都不许再抄一份 ==')
+  ok(read('src/host/tracker/backends/github/index.js').indexOf(ORIGINAL) >= 0, '原话住在 GitHub 后端声明里')
+  const clientFiles = ['src/client/statusbar/StatusBar.js', 'src/client/statusbar/bannerChain.js', 'src/client/statusbar/checksums.js', 'src/client/views/ChecksTab.js', 'src/shared/tracker/guide-steps.js']
   const copies = clientFiles.filter((f) => read(f).indexOf(ORIGINAL) >= 0)
-  ok(copies.length === 0, '客户端源码里没有第二份字面量' + (copies.length ? '（多出：' + copies.join('、') + '）' : ''))
-  ok(read('client.js').indexOf(ORIGINAL) >= 0, '客户端产物里带着它（随构建拼进闭包，界面读得到）')
+  ok(copies.length === 0, '清单与客户端源码里没有第二份字面量' + (copies.length ? '（多出：' + copies.join('、') + '）' : ''))
+  ok(read('client.js').indexOf("'" + INSTALL_PROMPT_KEY + "'") >= 0, '客户端产物里带着那个提示词键名（界面据此向后端声明要文本，界面读得到）')
 
   console.log('== 7. 检查页那一行的按钮也注入同一句原话（#664 补：同一个缺失状态只有一份说明）==')
   // 状态栏那条横幅与检查页那一行的按钮是两个落点，注入的必须是同一句话；先说那一行给的是什么。
   const fixMod = await import(pathToFileURL(path.join(root, 'src/host/tracker/fixContract.js')).href)
-  const ghMod = await import(pathToFileURL(path.join(root, 'src/host/tracker/backends/github/index.js')).href)
   const rowItems = fixMod.attachFixContract(ghMod.GITHUB_CHECKS, ghMod.githubModule, 'zh', { cwd: '/w/demo' })
   const ghInstallRow = rowItems.find((x) => x && x.id === 'gh:installed')
   const installAction = (ghInstallRow && ghInstallRow.onFail && Array.isArray(ghInstallRow.onFail.actions))
     ? ghInstallRow.onFail.actions.find((a) => a && a.type === 'inject-prompt') : null
-  ok(!!installAction && installAction.prompt === ORIGINAL, '检查页 gh:installed 那一行的按钮注入的也是那句原话（逐字比对）')
-  ok(!!installAction && installAction.prompt.indexOf('winget') < 0 && installAction.prompt.indexOf('brew') < 0, '不是那段按系统分平台的安装长文')
+  // 这一行给出去的要么是那句原话本身（fixContract 把键解析成文本），要么是那条键名（界面再向后端声明要文本）；
+  // 两种都算「两边同一份说明」，但都不许是别的东西。
+  const installGiven = installAction ? String(installAction.prompt) : ''
+  ok(installGiven === ORIGINAL || installGiven === INSTALL_PROMPT_KEY, '检查页 gh:installed 那一行的按钮指向的仍是同一份说明（实得「' + installGiven.slice(0, 60) + '」）')
+  ok(!!installAction && String(installAction.prompt).indexOf('winget') < 0 && String(installAction.prompt).indexOf('brew') < 0, '不是那段按系统分平台的安装长文')
   ok(read('src/host/tracker/backends/github/index.js').indexOf('noGhPrompt:') < 0, '后端声明里不再有那份长文（那个键已按 #664 退役）')
 
   console.log(failed ? 'FAIL ' + total + ' 项检查里有 ' + failedN + ' 项未过' : 'PASS 全部 ' + total + ' 项检查通过')

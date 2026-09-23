@@ -19,8 +19,11 @@ const STEP_ACTION = Object.freeze({ INJECT: 'inject', FIXES_ACTION: 'fixes-actio
 const MISSING = Object.freeze({
   // 「已选择后端」这一步由界面自己开那张选后端的窗（它不碰后端，所以不是后端声明的修复动作）。
   pickBackend: Object.freeze({ type: 'open-backend-picker' }),
-  // 「gh cli 已安装」这一步注入维护者 2026-09-19 给的原话：让代理用 /wizard 技能帮用户装。
-  installGh: Object.freeze({ type: STEP_ACTION.INJECT, text: '/wizard 帮用户安装gh cli 官方地址：https://cli.github.com/' }),
+  // 「命令行工具已安装」这一步注入哪段话：按当前后端声明的提示词键去取（GitHub 上是 prompts.ghInstall，
+  //   内容就是维护者 2026-09-19 给的那句原话，让代理用 /wizard 技能帮用户装）。#716 之前这句话写死在这份
+  //   共享清单里 —— 共享清单是三个后端共用的文件，装 CLI 的地址与名字都跟具体后端有关，于是把它挪回各自的
+  //   后端声明，清单这里只留「注入哪条提示词」这个键名（与下面 ghAuthLogin 那一步同一种写法）。
+  installCli: Object.freeze({ type: STEP_ACTION.INJECT, prompt: 'cliInstall' }),
   // 「已登录 GitHub」注入按当前后端解析的登录指引（提示词 id 与今天一致）。
   ghAuthLogin: Object.freeze({ type: STEP_ACTION.INJECT, prompt: 'ghAuthLogin' }),
   // 「已关联 GitHub 仓库」用后端为这一项声明的第一个修复动作（GitHub 那枚两步建仓弹窗）。
@@ -65,7 +68,7 @@ export const GUIDE_STEPS = Object.freeze([
     backends: ['github'],
     ready: STEP_READY.CHAIN,
     banner: BANNER.ghCli,
-    missing: MISSING.installGh,
+    missing: MISSING.installCli,
     blocksSetup: false,
   },
   {
@@ -153,6 +156,8 @@ export function guideStepDone(step, chainSteps) {
  * 清单里某一步没过时要注入的那句「逐字固定的原话」（这一步不是给固定原话就返回空串）。
  * 用它、而不是各自去 GUIDE_STEPS 里翻一遍：缺 gh 时那句话只有一份 —— 状态栏那条横幅、检查页那一行的
  * 按钮、建仓向导失败时自动注入的那一份，取的都是它（#664 定的口径：一个缺失状态不许有两份说明）。
+ * #716：装 CLI 那句话已经挪回后端声明，这一步改成返回「去查哪条提示词」。两种情况都用 guideInjectPromptOf
+ * 拿键名更省事，但这条老出口留着 —— 别的后端将来若真给固定原话，仍然走它。
  * @param {string} stepId 步骤 id（例如 'gh:installed'）
  * @returns {string}
  */
@@ -163,6 +168,26 @@ export function guideInjectTextOf(stepId) {
     for (let i = 0; i < GUIDE_STEPS.length; i++) {
       const s = GUIDE_STEPS[i]
       if (s && String(s.id) === id && s.missing && typeof s.missing.text === 'string') return s.missing.text
+    }
+    return ''
+  } catch (e) { return '' }
+}
+
+/**
+ * 清单里某一步没过时要注入的是**哪一条后端声明提示词**（这一步不是按提示词键注入就返回空串）。
+ * 为什么要有它：注入哪段话由清单说了算（清单是顺序与方式的唯一真源），但那段话本身属于具体后端，
+ * 住在后端的 prompts 声明里（GitHub 的装 CLI 原话就是 prompts.cliInstall）。调用处拿这个键去问当前
+ * 后端要文本，取不到就如实报失败，不静默注入一个键名。
+ * @param {string} stepId 步骤 id（例如 'gh:installed'）
+ * @returns {string} 提示词键名（例如 'cliInstall'）；这一步不按提示词键注入时是空串
+ */
+export function guideInjectPromptOf(stepId) {
+  try {
+    const id = String(stepId == null ? '' : stepId)
+    if (!id) return ''
+    for (let i = 0; i < GUIDE_STEPS.length; i++) {
+      const s = GUIDE_STEPS[i]
+      if (s && String(s.id) === id && s.missing && typeof s.missing.prompt === 'string') return s.missing.prompt
     }
     return ''
   } catch (e) { return '' }
