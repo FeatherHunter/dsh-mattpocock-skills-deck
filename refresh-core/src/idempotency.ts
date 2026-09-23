@@ -219,8 +219,7 @@ export function describeAnchorFailure(m: AnchorMatch): string {
   return '这次带锚创建没能做成回查，所以没有建票：' + why + '。这不是「已经建过」的意思 —— 请换用不带锚的创建，或者先把锚回查这一条修好再来。'
 }
 
-/**
- * 这份文件定义在哪个文件里（与 ports.ts 的 PORTS_SOURCE 同一用途：类型被擦掉之后，
- * 产物里还留着一行能追溯来源的标识）。
- */
-export const IDEMPOTENCY_SOURCE = 'refresh-core/src/idempotency.ts'
+// 这里原来有一行 `export const IDEMPOTENCY_SOURCE = 'refresh-core/src/idempotency.ts'`。#719 把它删掉：
+// 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由 refresh-core/build.mjs 按真实文件名
+// 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
+// 空壳产物（refresh-core/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。

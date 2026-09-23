@@ -22,8 +22,10 @@
  * src/shared/ 同层互引会被 tests/verify-no-same-layer-import.js 判红，需要用的东西一律由调用方传进来。
  */
 
-/** 这份文件定义在哪个文件里。产物里留着它，用来证明「产物确实来自这份源码」。 */
-export const DELTA_SOURCE = 'refresh-core/src/delta.ts'
+// 这里原来有一行 `export const DELTA_SOURCE = 'refresh-core/src/delta.ts'`。#719 把它删掉：
+// 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由 refresh-core/build.mjs 按真实文件名
+// 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
+// 空壳产物（refresh-core/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
 // ---------- 一、索引与差分的形状 ----------
 

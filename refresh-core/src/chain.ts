@@ -23,8 +23,10 @@
  * 取数（订阅会话事件、读回会话、真正落盘）留在 src/host/refresh/sessionTickets.js。
  */
 
-/** 这份文件定义在哪个文件里。产物里留着它，用来证明「产物确实来自这份源码」。 */
-export const CHAIN_SOURCE = 'refresh-core/src/chain.ts'
+// 这里原来有一行 `export const CHAIN_SOURCE = 'refresh-core/src/chain.ts'`。#719 把它删掉：
+// 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由 refresh-core/build.mjs 按真实文件名
+// 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
+// 空壳产物（refresh-core/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
 /** 每个会话留最近多少张（票面硬要求：20 张，去重、按时间倒序，超过就丢最旧的）。 */
 export const CHAIN_SESSION_CAP = 20

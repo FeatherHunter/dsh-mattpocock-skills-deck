@@ -1,25 +1,38 @@
-// verify-contract-vocabulary.js —— 门禁：契约层里不许再有「没有生产者的常量」（#719 T15 收口）
+// verify-contract-vocabulary.js —— 门禁：契约层里不许有「死了的常量」（#719 T15 收口 · 2026-09-24 按统筹者裁定放大到整棵 src/shared）
 // 用法：在插件根目录执行 node tests/verify-contract-vocabulary.js，可独立运行。
 //
-// 为什么要有这一条（票面第 3 条的原话）：契约层是「两个半场共用的词汇表」，它多一个常量，
+// 为什么要有这一条（票面第 3 条的原话）：契约层与共享层是「两个半场共用的词汇表」，它多一个常量，
 // 后来人就会以为那条路还在。真实事故正是这样发生的：#213/#232 的四个事件源常量
 //（gh-create / gh-edit / claim / index-dirty）对应的 issuePath 面包屑事件队列已随 #345 整块移除，
 // 那四个值从此没有任何生产者，可它们还留在 src/shared/tracker/sync.js 里，只有那条判定函数在自读；
 // 谁照着它们改代码，就会在一条早已不存在的路上花时间。
 //
 // 判据（两条，满足任意一条即算「活着」，两条都不满足才判红）：
-//   ① **值有人产出**：这个字符串值能在生产代码里找到（说明真有东西会产出这个名字）；
-//   ② **常量有人读**：这个常量的名字（顶层常量名，或它所在那个对象的名字）在生产代码里被引用过。
+//   ① **值有人产出**：这个字符串值能在**生产代码**（src/host、src/client）里找到。
+//      为什么这一条只认生产代码：值的意义是「真有东西会产出这个名字」。测试里出现同一个字符串
+//      往往正是一条**否证断言**（例如测试断言「源码里不该再有 'gh-create'」），把它算成产出，
+//      等于让否证本身把死词汇救活。
+//   ② **名字有人读**：这个常量的名字在**生产代码或测试**（src/host、src/client、tests）里被引用过。
+//      为什么这一条把测试也算上：仓库既有先例就不是生产代码在读——PORTS_SOURCE 的读者是
+//      tests/verify-refresh-freshness.js、POLICY_SOURCE 的读者是 tests/verify-policy.js。
+//      一个常量只被门禁读，和「谁都不读」是两件事，所以测试读它算活着。
 //
-// 为什么要两条一起看：只按①判会把一堆「契约层自己用的内部映射值」误判致死（实测 90 条，
-// 例如 check-catalog-dirs.js 的 MIGRATION_MAP 里那些 'GENERIC_CATALOG[0]'、constants.js 的
-// CLOSED_REASON 里那些 'not_planned' —— 它们是喂给后端当参数的枚举值，不是谁产出的名字）；
+// 为什么要两条一起看：只按①判会把一堆「共享层自己用的枚举/映射值」误判致死（举例：按①单判实测
+// 会多报 90 条，例如 check-catalog-dirs.js 的 MIGRATION_MAP 里那些 'GENERIC_CATALOG[0]'）；
 // 只按②判则抓不到 #719 要清的那四个事件源常量——它们**确实**被自己人读过（needProbeSource 读的），
-// 读者在契约层内部，生产代码一次都没碰过。两条都不满足，才是「谁都碰不到」那种死词汇。
+// 读者在共享层内部，生产代码一次都没碰过。两条都不满足，才是「谁都碰不到」那种死词汇。
 //
-// 存量清单（KNOWN_UNPRODUCED）：今天两条都不满足、但确实该留着的字符串型常量，逐个写明理由。
-// 这份清单只许减不许增——新加进来的常量必须当场有值产出或有人读，否则本门禁判红。
-// 反证（每次运行都跑）：拿一份合成出来的「契约层常量」喂同一个判据，两种死法各验一次，必须判红。
+// 扫哪棵树：整棵 `src/shared`（2026-09-24 统筹者裁定；此前只扫 src/shared/tracker/）。
+// 门禁自己这个文件不参与扫描：它必然要写出那些待查的名字（例如下面那条 #719 的硬断言），
+// 把它算成读者就是自证。
+//
+// 存量清单（KNOWN_UNPRODUCED）：今天两条都不满足、按裁定「间接被读」放行的条目。
+// 每条**一行**，写清三件事：名字 / 为什么留着 / 谁在读。这份清单只许减不许增——
+// 新加进来的常量必须当场有值产出或有人读，否则本门禁判红；条目后来补上读者了也要当场删掉
+// （下面有「过期条目」那条断言盯着）。
+//
+// 反证（每次运行都跑）：拿一份合成出来的常量清单喂同一个判据，两种死法各验一次，必须判红；
+// 另外正向验一次「只被测试读的名字」与「值在生产代码里的名字」不许误判。
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -29,41 +42,47 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-/** 生产代码那两棵树：契约层里那个常量必须在这两棵里有人读、或它的值有人产出。 */
-const PRODUCER_DIRS = ['src/host', 'src/client']
-/**
- * 扫哪棵树：`src/shared/tracker/` —— 仓库语境里「契约层」就是它（CONTEXT.md 后端感知架构词条：
- * 契约层 = 后端↔宿主/UI 的接口合同；三个后端房间共用它的词汇）。只扫 .js，测试文件不算契约层。
- *
- * 为什么不连 `src/shared/refresh/`（转译产物的那一层）与 `src/shared/deck-tools/` 一起扫：
- * 实测把范围放大到整棵 `src/shared`（43 个 .js、117 个字符串型常量）时，本判据会多报 14 条，
- * 它们分两类，都不是这里要清的那种死词汇：
- *   ① **来源标注**（8 条）：`refresh-core/src/*.ts` 转译时写在产物头几行的 `*_SOURCE`，值是
- *      `refresh-core/src/*.ts`，给人追溯「这份 JS 从哪来」用。今天其中只有两条被门禁读过
- *      （POLICY_SOURCE 被 tests/verify-policy.js、PORTS_SOURCE 被 tests/verify-refresh-freshness.js），
- *      其余六条（ATTENTION / BACKOFF / CHAIN / CREATE_WRITE / DELTA / WRITE_DETECT）全仓没读者。
- *   ② **模块自己产出的值**（6 条）：`IDEMPOTENCY_MARKER_PREFIX`（值是 withAnchor 写进票面正文的锚
- *      前缀）与 `deck-tools/shell.js` 的四个 `REFUSAL_REASONS.*` / `deck-tools/edges.js` 的
- *      `EDGE_LANDING.FILE_NOTE` —— 产出它们的就是这个契约层模块自己，生产代码只需调函数、不必碰字面量。
- * 这两类塞进本文件的存量清单，等于让这份清单替另外两层背书。它们该不该留、该不该各自补断言，
- * 是那两层自己的票的事；这件事记在 #719 的回报里交给统筹者，不在本门禁里假装它已经清楚。
- */
-const CONTRACT_DIRS = ['src/shared/tracker']
+/** 值扫这三棵树里的前两棵：生产代码。 */
+const VALUE_DIRS = ['src/host', 'src/client']
+/** 名字扫这三棵：生产代码 + 测试与门禁。 */
+const NAME_DIRS = ['src/host', 'src/client', 'tests']
+/** 契约层就是整棵 src/shared（共享词汇表）。 */
+const CONTRACT_DIRS = ['src/shared']
+/** 本门禁自己的文件：扫描时要跳过（它必然写出待查的名字，算成读者就是自证）。 */
+const SELF = path.relative(ROOT, __filename).replace(/\\/g, '/')
 
 /**
- * 存量清单：今天还没有生产者的字符串型常量。
- * 每条都必须写清「为什么先留着、等谁处理」，不许只写一个名字。
+ * 存量清单（按统筹者裁定：每条一行，写清 名字 / 为什么留着 / 谁在读）。
+ * 只收「间接被读」那一种：值由共享层模块产出、随返回值流到调用方，因此今天的读者是**拿到返回的那一方**，
+ * 不是生产代码里某一行。真没人读的一律删掉（#719 删掉的六个 *_SOURCE 就是这一类），不进这份清单。
  */
 const KNOWN_UNPRODUCED = {
+  'src/shared/deck-tools/edges.js.EDGE_LANDING.FILE_NOTE':
+    '为什么留着：本地 Markdown 单根工作区那种「归属写在票文件注释里」的落点名字，工具返回必须把它如实标出来，删了这条边就没法说清落在哪；谁在读：edges.js:43 的 landingOf → :54 的 edgeEvidence 把它写进返回项，再由四个宿主工具文件把它交回调用方（src/host/tools/deckIssueCreate.js:90、deckMapLink.js:76 与 :91 与 :97、deckMapPlanCreate.js:173）—— 读它的是拿到这次返回的人（与 AI）。',
+  'src/shared/deck-tools/shell.js.REFUSAL_REASONS.NO_SESSION':
+    '为什么留着：三态返回里「没拿到会话」那一档的机器可读原因，删了调用方就没法按原因分支；谁在读：shell.js:96 把它写进返回信封的 reason 字段（宿主工具把信封原样交回平台），tests/verify-deck-tools.js:297 另外按同一句值断言。',
+  'src/shared/deck-tools/shell.js.REFUSAL_REASONS.OVER_CAP':
+    '为什么留着：额度超顶那一次拒绝的机器可读原因（拒绝必须说清超的是哪一项，这正是它存在的理由）；谁在读：shell.js:178 把它写进返回信封的 reason 字段，值随返回值流到调用方 —— **今天没有别的读者**（没有测试按它断言）。',
+  'src/shared/deck-tools/shell.js.REFUSAL_REASONS.GATE_DEFER':
+    '为什么留着：被闸推迟那一档的机器可读原因；谁在读：shell.js:203 与 :272 把它写进返回信封的 reason 字段，值随返回值流到调用方 —— **今天没有别的读者**（没有测试按它断言）。',
+  'src/shared/deck-tools/shell.js.REFUSAL_REASONS.BACKEND_THREW':
+    '为什么留着：后端实现抛错那一档的机器可读原因（工具永不抛，改用它如实说）；谁在读：shell.js:202 与 :263 把它写进返回信封的 reason 字段，tests/verify-deck-tools.js:287 另外按同一句值断言。',
   'src/shared/tracker/constants.js.CLOSED_REASON.NOT_PLANNED':
-    '存量：GitHub 的关闭原因保留值之一（ticket 的关闭原因字段按方案是「开放 string，未知值原样展示、不分支」）。这个值今天在生产代码里既没有产出者也没有读者——它是给字段做注释用的保留值，不是被谁产出的名字。要不要删掉 CLOSED_REASON 这整张表由统筹者定（删或补上调用点都行），本票只把它如实列进这份存量清单，不代它做决定。',
+    '为什么留着：GitHub 关闭原因字段的保留值之一（该字段按方案是「开放 string，未知值原样展示、不分支」），留着是给读字段的人一个对照；谁在读：今天没有读者 —— 本票只把它如实列进这份清单，删掉 CLOSED_REASON 整张表或给它补调用点都由统筹者定。',
   'src/shared/tracker/constants.js.CLOSED_REASON.REOPENED':
-    '存量：同上（CLOSED_REASON.REOPENED）。',
+    '为什么留着：同上（CLOSED_REASON.REOPENED）；谁在读：今天没有读者。',
 }
 
+/**
+ * 收集 .js 文件。**跳过以点开头的目录与文件**：`.git`、`.tmp`、`.scratch` 这些是仓库元数据与临时产物，
+ * 不是真代码。这一条不是洁癖，实测踩过：`tests/.tmp-repo-out/` 与 `tests/.tmp-repo-out2/` 是某次契约
+ * 测试留下的临时仓库副本（里面有整份源码的拷贝），它们把 constants.js 的两个死常量「救活」了
+ *（副本里当然也有那份声明），于是存量清单被误判成过期。
+ */
 function walk(dir, out) {
   if (!fs.existsSync(dir)) return out
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (ent.name.startsWith('.')) continue
     const p = path.join(dir, ent.name)
     if (ent.isDirectory()) walk(p, out)
     else if (ent.isFile() && ent.name.endsWith('.js')) out.push(p)
@@ -71,15 +90,21 @@ function walk(dir, out) {
   return out
 }
 
-/** 去掉注释与字符串里的干扰：这里只用来找「这个值有没有出现在生产代码里」，保守即多留不算漏。 */
+/** 剥掉注释：只用来找「这个值/名字有没有出现在真代码里」，保守即多留不算漏。 */
 function stripComments(src) {
   return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ')
 }
 
-/** 把生产代码两棵树读成一段文本（注释已经剥掉）。 */
-function producerText() {
+/** 把几棵树读成一段文本（剥注释、跳过本门禁自己）。 */
+function textOf(dirs) {
   const parts = []
-  for (const d of PRODUCER_DIRS) for (const f of walk(path.join(ROOT, d), [])) parts.push(stripComments(fs.readFileSync(f, 'utf8')))
+  for (const d of dirs) {
+    for (const f of walk(path.join(ROOT, d), [])) {
+      const rel = path.relative(ROOT, f).replace(/\\/g, '/')
+      if (rel === SELF) continue
+      parts.push(stripComments(fs.readFileSync(f, 'utf8')))
+    }
+  }
   return parts.join('\n')
 }
 
@@ -108,25 +133,30 @@ function stringConstantsOf(modExport, modName) {
 }
 
 /**
- * 判据本体：一份常量清单 + 一段生产代码，返回既没人产出、也没人读的那些。
- * 名字按「整词」匹配（前后不是标识符字符），免得 USER 这种短名字撞上别处的词。
+ * 判据本体：一份常量清单 + 两段文本（值那一份只看生产代码，名字那一份含测试），
+ * 返回既没人产出、也没人读的那些。名字按「整词」匹配（前后不是标识符字符），
+ * 免得 USER 这种短名字撞上别处的词。
  */
-function unproduced(constants, text) {
-  const tokenSeen = (t) => new RegExp('(^|[^A-Za-z0-9_$])' + t.replace(/[$]/g, '\\$&') + '([^A-Za-z0-9_$]|$)').test(text)
+function dead(constants, valueText, nameText) {
+  const tokenSeen = (t) => new RegExp('(^|[^A-Za-z0-9_$])' + t.replace(/[$]/g, '\\$&') + '([^A-Za-z0-9_$]|$)').test(nameText)
   return constants.filter((c) => {
-    if (text.indexOf(c.value) >= 0) return false
+    if (valueText.indexOf(c.value) >= 0) return false
     return !(c.tokens || []).some(tokenSeen)
   })
 }
 
 async function main() {
-  console.log('契约层词汇门禁（#719 T15：字符串型常量必须有生产者，没有生产者的常量判红）')
-  const text = producerText()
-  check(text.length > 0, '生产代码扫到了内容（src/host 与 src/client 两棵树，' + text.length + ' 个字符）')
+  console.log('共享层词汇门禁（#719 T15：整棵 src/shared 的字符串型常量都要有出处，死了的判红）')
+  const valueText = textOf(VALUE_DIRS)
+  const nameText = textOf(NAME_DIRS)
+  check(valueText.length > 0, '生产代码扫到了内容（src/host 与 src/client 两棵树，' + valueText.length + ' 个字符）')
+  check(nameText.length > valueText.length, '名字那一份比值那一份大（多扫了 tests 那棵树，' + nameText.length + ' 个字符）')
+  // 自证防护：本门禁自己的文件必须真的没被扫进去（它里面写着待查的名字，算成读者就是自证）。
+  check(nameText.indexOf('死了的字符串型常量') < 0, '本门禁自己的文件没有被算进读者那一段文本（排除生效）')
 
   const files = []
   for (const d of CONTRACT_DIRS) walk(path.join(ROOT, d), files)
-  check(files.length > 0, '契约层扫到了 ' + files.length + ' 个 .js 文件')
+  check(files.length > 0, '共享层扫到了 ' + files.length + ' 个 .js 文件')
 
   const constants = []
   for (const f of files) {
@@ -140,37 +170,43 @@ async function main() {
     }
     for (const c of stringConstantsOf(mod, rel)) constants.push(c)
   }
-  check(constants.length > 0, '契约层里收到 ' + constants.length + ' 个字符串型常量')
+  check(constants.length > 0, '共享层里收到 ' + constants.length + ' 个字符串型常量')
 
-  const bad = unproduced(constants, text)
+  const bad = dead(constants, valueText, nameText)
   const known = bad.filter((c) => Object.prototype.hasOwnProperty.call(KNOWN_UNPRODUCED, c.name))
   const fresh = bad.filter((c) => !Object.prototype.hasOwnProperty.call(KNOWN_UNPRODUCED, c.name))
   for (const c of bad) {
-    console.log('    没有生产者：' + c.name + ' = ' + JSON.stringify(c.value) +
-      (KNOWN_UNPRODUCED[c.name] ? '（存量，理由：' + KNOWN_UNPRODUCED[c.name] + '）' : ''))
+    console.log('    死了：' + c.name + ' = ' + JSON.stringify(c.value) +
+      (KNOWN_UNPRODUCED[c.name] ? '（存量：' + KNOWN_UNPRODUCED[c.name] + '）' : ''))
   }
-  check(fresh.length === 0, '契约层没有「新增的、没有生产者的字符串型常量」（存量 ' + known.length + ' 条，新增 ' + fresh.length + ' 条）')
+  check(fresh.length === 0, '共享层没有「新增的、死了的字符串型常量」（存量 ' + known.length + ' 条，新增 ' + fresh.length + ' 条）')
 
-  // 存量清单只许减不许增：清单里已经补上生产者的条目要当场删掉，否则这份清单会自己长毛。
+  // 存量清单只许减不许增：清单里已经补上读者的条目要当场删掉，否则这份清单会自己长毛。
   const stale = Object.keys(KNOWN_UNPRODUCED).filter((k) => !bad.some((c) => c.name === k))
-  check(stale.length === 0, '存量清单里没有「其实已经有生产者」的过期条目（过期 ' + stale.length + ' 条）' + (stale.length ? '：' + stale.join('、') : ''))
+  check(stale.length === 0, '存量清单里没有「其实已经活过来」的过期条目（过期 ' + stale.length + ' 条）' + (stale.length ? '：' + stale.join('、') : ''))
 
   // #719 那两个事件的名字与判定函数不许回来（这一票就是为它们做的，单独立一条更直白）。
   const syncText = stripComments(fs.readFileSync(path.join(ROOT, 'src', 'shared', 'tracker', 'sync.js'), 'utf8'))
   check(!/SOURCE_GH_CREATE|SOURCE_GH_EDIT|SOURCE_CLAIM|SOURCE_INDEX_DIRTY|needProbeSource/.test(syncText),
     '四个事件源常量与 needProbeSource 已从 src/shared/tracker/sync.js 删掉')
 
-  // 反证：合成一份契约层常量，两种死法各验一次，同一个判据必须判红。
-  const fake = [
-    { name: 'fake/example.js.SOURCE_GONE', value: 'never-produced-value-719', tokens: ['SOURCE_GONE'] },
-    { name: 'fake/example.js.HAS_PRODUCER', value: 'gh', tokens: ['HAS_PRODUCER'] },
-    { name: 'fake/example.js.IS_READ', value: 'never-produced-value-719-b', tokens: ['canonicalKey'] },
-  ]
-  const fakeBad = unproduced(fake, text)
-  check(fakeBad.length === 1 && fakeBad[0].name === 'fake/example.js.SOURCE_GONE',
-    '反证：既没人产出、也没人读的常量必须被判红，而有人产出的与有人读的两条都不许误判（抓到 ' + fakeBad.length + ' 条：' + fakeBad.map((c) => c.name).join('、') + '）')
+  // #719 删掉的六个来源标注不许回来（它们的产物第一行已经有机器生成的 AUTO-GENERATED 包头）。
+  const goneSources = ['ATTENTION_SOURCE', 'BACKOFF_SOURCE', 'CHAIN_SOURCE', 'CREATE_WRITE_SOURCE', 'DELTA_SOURCE', 'IDEMPOTENCY_SOURCE']
+  const refreshJs = walk(path.join(ROOT, 'src', 'shared', 'refresh'), []).map((f) => fs.readFileSync(f, 'utf8')).join('\n')
+  const back = goneSources.filter((n) => new RegExp('export const ' + n + '\\b').test(refreshJs))
+  check(back.length === 0, '六个没有读者的来源标注已从产物里删掉（' + goneSources.length + ' 个里找回了 ' + back.length + ' 个' + (back.length ? '：' + back.join('、') : '') + '）')
 
-  console.log(failed ? '\n存在失败 — verify-contract-vocabulary 未通过' : '\n全部通过 — 契约层词汇门禁生效（' + total + ' 项断言）')
+  // 反证：合成一份常量清单，两种死法各验一次，同一个判据必须判红；两种活法不许误判。
+  const fake = [
+    { name: 'fake/a.js.NOBODY', value: 'never-produced-value-719', tokens: ['NOBODY'] },
+    { name: 'fake/b.js.HAS_PRODUCER', value: 'gh', tokens: ['HAS_PRODUCER'] },
+    { name: 'fake/c.js.READ_BY_TEST', value: 'never-produced-value-719-b', tokens: ['VIOLATING_EXPECTED_FAILURES'] },
+  ]
+  const fakeBad = dead(fake, valueText, nameText)
+  check(fakeBad.length === 1 && fakeBad[0].name === 'fake/a.js.NOBODY',
+    '反证：既没人产出、也没人读的常量必须被判红，而「值在生产代码里」（gh）与「名字只被测试读」两条都不许误判（抓到 ' + fakeBad.length + ' 条：' + fakeBad.map((c) => c.name).join('、') + '）')
+
+  console.log(failed ? '\n存在失败 — verify-contract-vocabulary 未通过' : '\n全部通过 — 共享层词汇门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
 

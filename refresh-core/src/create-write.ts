@@ -27,8 +27,10 @@
  * 把它当成「没发出去」正是本票要堵的那个洞。
  */
 
-/** 这份文件定义在哪个文件里。产物里留着它，用来证明「产物确实来自这份源码」。 */
-export const CREATE_WRITE_SOURCE = 'refresh-core/src/create-write.ts'
+// 这里原来有一行 `export const CREATE_WRITE_SOURCE = 'refresh-core/src/create-write.ts'`。#719 把它删掉：
+// 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由 refresh-core/build.mjs 按真实文件名
+// 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
+// 空壳产物（refresh-core/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
 /** 四档结论。字面会被门禁与报告引用，只许加、不许改字面。 */
 export type CreateWriteVerdict = 'created' | 'never-sent' | 'endpoint-absent' | 'maybe-written'

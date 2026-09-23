@@ -19,8 +19,10 @@
  */
 import type { BackoffLimits, ChainBackoffState, ChainFreshness } from './ports.js'
 
-/** 这份文件定义在哪个文件里。产物里留着它，用来证明「产物确实来自这份源码」。 */
-export const BACKOFF_SOURCE = 'refresh-core/src/backoff.ts'
+// 这里原来有一行 `export const BACKOFF_SOURCE = 'refresh-core/src/backoff.ts'`。#719 把它删掉：
+// 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由 refresh-core/build.mjs 按真实文件名
+// 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
+// 空壳产物（refresh-core/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
 /** 退避序列最少要有几档：只有一档就没有「退」这件事，门禁按它核对调用方传进来的序列。 */
 export const MIN_BACKOFF_STEPS = 2

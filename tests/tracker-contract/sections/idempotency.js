@@ -34,6 +34,7 @@ import { gitlabBackend } from '../../../src/host/tracker/backends/gitlab/index.j
 import { markdownModule } from '../../../src/host/tracker/backends/markdown/index.js'
 import { normalizeIssue as ghNormalize } from '../../../src/host/tracker/backends/github/normalize.js'
 import {
+  IDEMPOTENCY_MARKER_PREFIX,
   anchorLineFor,
   checkIdempotencyKey,
   idempotencyKeyOf,
@@ -315,7 +316,8 @@ export async function run() {
     // 认锚按「一整行」认，这就是它为什么不做模糊匹配：下面第二种写法是**正文里提到**这个标记名字，
     // 不该被认成锚 —— 认错了回查就会指向一张不相干的票。
     await assert('整行只写成这个标记名（缺 <!-- 那半截）不算锚', idempotencyKeyOf('DSH-IDEMPOTENCY-KEY: 别人写的') === '', JSON.stringify(idempotencyKeyOf('DSH-IDEMPOTENCY-KEY: 别人写的')))
-    await assert('✗ probe: 注释没写收尾符的写法不许被认成锚', idempotencyKeyOf('<!-- DSH-IDEMPOTENCY-KEY: 半截') === '', '检查器放过了没有收尾符的写法')
+    // 输入按锚前缀常量拼（不再抄一遍那串字面量：抄一遍就有两处，改一处漏一处的那天这条断言会开始骗人）。
+    await assert('✗ probe: 注释没写收尾符的写法不许被认成锚', idempotencyKeyOf(IDEMPOTENCY_MARKER_PREFIX + ' 半截') === '', '检查器放过了没有收尾符的写法')
 
     const good = checkIdempotencyKey('  run-2026.09.24_01  ')
     await assert('合规的幂等键过检查，并要求两头空白只去不改成别的串', good.ok === true && good.key === 'run-2026.09.24_01', JSON.stringify(good))

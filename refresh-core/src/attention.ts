@@ -26,8 +26,10 @@
  *      「30 秒后必然收摊」这条不变量就成了一句空话。现算之后，同一份输入收一百次，结论完全一样。
  */
 
-/** 这份文件定义在哪个文件里。产物里留着它，用来证明「产物确实来自这份源码」。 */
-export const ATTENTION_SOURCE = 'refresh-core/src/attention.ts'
+// 这里原来有一行 `export const ATTENTION_SOURCE = 'refresh-core/src/attention.ts'`。#719 把它删掉：
+// 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由 refresh-core/build.mjs 按真实文件名
+// 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
+// 空壳产物（refresh-core/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
 /** 活跃集合的硬上限取不到调用方给的数字时用它兜底（真源是 budget.ts 的 MAX_ACTIVE_WORKSPACES）。 */
 export const ATTENTION_ACTIVE_CAP_FALLBACK = 2
