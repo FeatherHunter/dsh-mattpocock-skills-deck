@@ -316,6 +316,18 @@ const snapSrc = read('src/host/sessionSnapshot.js')
   if (snapSrc.includes(from2)) {
     const broken2 = path.join(makeDir('dsh-683-broken2-'), 'sessionSnapshot.mjs')
     fs.writeFileSync(broken2, snapSrc.replace(from2, 'return s'), 'utf8')
+    // 这一组跑的是把源文件**复制到临时目录**再改坏的一份。复制过去的那一份，它 import 的兄弟文件
+    //   也在新目录里找 —— 所以兄弟文件必须一起带过去，否则这一组连求值都到不了，先在解析阶段就报
+    //   ERR_MODULE_NOT_FOUND（那是夹具缺件，不是实现错）。
+    //   #723（T19）把快照电话拆了：信封组装搬到了同目录的 ./snapshotEnvelope.js，就是这一次踩到的。
+    //   按真源里那些相对 import 逐个带，以后谁再拆一次也不用回来改这里。
+    const siblingRe = /^[ \t]*import[^\n]*from[ \t]*['"](\.\/[^'"]+)['"]/gm
+    let sm
+    while ((sm = siblingRe.exec(snapSrc)) !== null) {
+      const fromPath = path.join(ROOT, 'src', 'host', sm[1].replace(/^\.\//, ''))
+      if (!fs.existsSync(fromPath)) continue
+      fs.copyFileSync(fromPath, path.join(path.dirname(broken2), path.basename(fromPath)))
+    }
     const mod2 = await import(pathToFileURL(broken2).href)
     const cached = { ok: true, generatedMs: 1, maps: [], issues: [], labels: [], selection: { backendId: 'github', source: 'auto' } }
     const cache = { ts: Date.now(), snapshot: cached, error: null, cwd: 'D:\\ws' }

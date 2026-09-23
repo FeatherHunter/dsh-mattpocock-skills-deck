@@ -57,7 +57,37 @@ check(detect.indexOf("args.lang === 'en'") >= 0, '宿主按请求语言产出明
 const switcher = read('src/client/kernel/store-switch.js')
 check(switcher.indexOf('lang: criLang') >= 0, '切换确认框链请求携带当前语言')
 check(probe.indexOf('st.chainLangLoaded = _langForChain') >= 0, '链加载记下快照语言')
-check(checksTab.indexOf('st.chainLangLoaded !== curLang') >= 0 && checksTab.indexOf('loadChain(st, true)') >= 0, '检查页语言变化时重取链快照')
+// 判据 4b：语言切换即时重取（面板开着切语言，说明行不许停留在旧语言）。
+//   判据不认字面、认行为：从前这里按字面找 `loadChain(st, true)`，而调用现在多了第三个参数
+//   「为什么重取」（#709 的事件原因：'action-done'），字面对不上就误报；真行为一直没变。
+//   改法是把检查页里那**一份真实调用**抠出来当场跑：喂「快照还是上一门语言」的现场，看它发不发一次 force 重取；
+//   再喂「语言没变」「还没有快照」两种现场，确认它不乱重取（这比字面断言更强，不只是「字符串还在」）。
+const reloadsOnLanguage = function (st, curLang) {
+  const line = (checksTab.split(/\r?\n/).filter(function (l) { return l.indexOf('chainLangLoaded !== curLang') >= 0 })[0] || '').trim()
+  if (!line) return { noGuard: true, reloads: [] }
+  const seen = []
+  const push = function (force, why) { seen.push({ force: force, why: why }); return Promise.resolve(null) }
+  const deps = {
+    st: st, curLang: curLang,
+    loadChain: function (s, force, why) { return push(force, why) },
+    chainEventRefresh: function (s, why) { return push(true, why) },
+    CHAIN_EVENT_REASONS: { enterWorkspace: 'enter-workspace', userRecheck: 'user-recheck', actionDone: 'action-done', writeDone: 'write-done' },
+    promptLang: function () { return curLang },
+  }
+  try {
+    const names = Object.keys(deps)
+    new Function(names.join(', '), line).apply(null, names.map(function (k) { return deps[k] }))
+  } catch (e) { return { threw: String(e && e.message), reloads: seen } }
+  return { reloads: seen }
+}
+const langChanged = reloadsOnLanguage({ chainSnapshot: { steps: [] }, chainLangLoaded: 'zh' }, 'en')
+const langSame = reloadsOnLanguage({ chainSnapshot: { steps: [] }, chainLangLoaded: 'zh' }, 'zh')
+const langNotLoadedYet = reloadsOnLanguage({ chainSnapshot: null, chainLangLoaded: undefined }, 'zh')
+check(!langChanged.noGuard, '在检查页里找得到「快照语言与当前语言不一致」那条守卫（语言变了要能察觉）')
+check(!langChanged.threw && langChanged.reloads.length === 1 && langChanged.reloads[0].force === true,
+  '语言变了就真的重取一次链、而且是 force（实得 ' + JSON.stringify(langChanged) + '）')
+check(!langSame.threw && langSame.reloads.length === 0, '语言没变就不重取（不许每次渲染都白跑一趟）（实得 ' + JSON.stringify(langSame.reloads) + '）')
+check(!langNotLoadedYet.threw && langNotLoadedYet.reloads.length === 0, '还没有链快照时不误判成「语言变了」（实得 ' + JSON.stringify(langNotLoadedYet.reloads) + '）')
 
 // 判据 5：两渲染文件中文字符串清零（防回退收紧，与 locale-completeness 基线同口径）
 function cjkCount(buf) {

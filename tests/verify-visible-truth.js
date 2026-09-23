@@ -198,9 +198,29 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   // 上游那一处降级事实：github 后端的 REST 通道真的降级时才带 fallback: 'rest'
   const gh = fs.readFileSync(path.join(ROOT, 'src/host/tracker/backends/github/issues.js'), 'utf8')
   if (!/return \{ ok: true, data: applyIssueFilter\(restNorm, filter\), fallback: 'rest' \}/.test(gh)) fail('github 后端的 REST 降级通道没有把 fallback: \'rest\' 这个事实带回来')
-  // 快照回包要把这两个字段带上（否则宿主写了、界面读不到）
+  // 快照回包要把这两个字段带上（否则宿主写了、界面读不到）。
+  //   #723（T19）把信封组装从 sessionSnapshot.js 搬到了 src/host/snapshotEnvelope.js —— 判据跟着**真实落点**走：
+  //   不再按字面找那一行，而是把组装函数真的加载起来、喂两组输入，看它吐出来的那份回包上带没带那个标记。
+  //   它原来断言的是「宿主写了却到不了界面」，这里断言的是「到得了」的同一件事（强度不减）：
+  //   上游真降级 → 回包上必须是 'rest'；上游没降级 → 必须是 null（不许把没降级的也写成降级）。
+  //   再加一条接线断言：那条电话真的在用这个组装函数、也真的把上游的降级事实交给它 —— 只查组装函数本身
+  //   会因为「电话根本没接上」而变成假绿。
+  const envRel = 'src/host/snapshotEnvelope.js'
+  let snapFromRest = null
+  let snapFromNone = null
+  try {
+    const envMod = loadModule(envRel, {})
+    const env = envMod.createSnapshotEnvelope({ getGhPath: function () { return null }, getGhLastError: function () { return null }, adoptSnapshot: function (s) { return s } })
+    snapFromRest = env.buildSnap({ fallback: 'rest', deck: null })
+    snapFromNone = env.buildSnap({ fallback: null, deck: null })
+  } catch (eEnv) {
+    fail('快照回包组装（' + envRel + '）加载不起来，降级标记到不到界面无从判定：' + eEnv.message)
+  }
+  if (!snapFromRest || snapFromRest.fallback !== 'rest') fail('wf.snapshot 的回包没有把降级标记带出去（宿主写了却到不了界面）：上游真的降级时，回包上的 fallback 实得 ' + JSON.stringify(snapFromRest && snapFromRest.fallback))
+  if (!snapFromNone || snapFromNone.fallback !== null) fail('wf.snapshot 的回包把没降级的也写成了降级（这条上界要如实）：上游没带降级事实时，回包上的 fallback 实得 ' + JSON.stringify(snapFromNone && snapFromNone.fallback))
   const snapReply = fs.readFileSync(path.join(ROOT, 'src/host/sessionSnapshot.js'), 'utf8')
-  if (!/fallback: \(o\.fallback === 'rest' \? 'rest' : null\)/.test(snapReply)) fail('wf.snapshot 的回包没有把降级标记带出去（宿主写了却到不了界面）')
+  if (snapReply.indexOf('createSnapshotEnvelope') < 0 || !/buildSnap\(\{/.test(snapReply)) fail('快照那条电话没有用 ' + envRel + ' 里的组装函数（组装得再好也到不了界面）')
+  if (!/fallback: inner2?\.fallback/.test(snapReply)) fail('快照那条电话没有把上游的真实降级事实交给组装函数（宿主写了却到不了界面）')
 })()
 
 // ---------- 输出 ----------

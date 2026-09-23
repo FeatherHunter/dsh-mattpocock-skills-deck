@@ -88,9 +88,24 @@ console.log('== B 源码层：这条路上有那次重取，那道守卫按两�
   check(chainSrc.indexOf('chain.stale.drop') >= 0, '丢弃旧结果时留了一条按需日志（调试开关开着才记）')
   // 旧写法必须消失：那一版在发请求时就把「当前那一次」冻成布尔值（判据落在发请求那一侧 → 判反）。
   check(!/_chainKeyP/.test(chainSrc) && chainSrc.indexOf('currentChainKey') < 0, '2026-09-20 那版「发请求时冻结的当前键」写法已消失')
-  // 键只有一处算法：定义一处，三处用它（loadChain 的 norm、自刷新定时器的排与撤）。
+  // 键只有一处算法（#324 / #529）：定义一处，用到它的地方都按名字调。
+  //   这一条从前数的是「≥4 处引用：1 处定义 + 3 处调用」，而那三处调用里有两处正是自刷新定时器的排与撤
+  //   （d99c62e 那一次改动里被删掉的 scheduleChainAutoRefresh / cancelChainAutoRefresh 各一处）。
+  //   它们随 #709（T5）的事件驱动改造一起退役了，剩下的调用就是「发请求算一次、回包再算一次」这一对 ——
+  //   正是这道守卫靠它判「这个会话现在要的还是不是这条链」的那把尺子。所以判据从「数够 4 处」改成
+  //   「算法只有一处定义、发请求与回包两侧都在用它、也没有第二处手抄的键」：数量门槛跟着真实落点走，
+  //   「只有一处算法」这件事不放松。
+  const keyDefs = (chainSrc.match(/(?:const|let|var|function)\s+_chainKeyOfState\b/g) || []).length
   const keyUses = chainSrc.split('_chainKeyOfState(').length - 1
-  check(keyUses >= 4, '「工作区键 + 后端 + 语言」只有 _chainKeyOfState 一处算法（实得 ' + keyUses + ' 处引用：1 处定义 + 3 处调用）')
+  const keyHandRolled = chainSrc.split('getChainCacheKey(').length - 1
+  check(keyDefs === 1, '「工作区键 + 后端 + 语言」这把键只有一处定义（实得 ' + keyDefs + ' 处）')
+  check(keyUses >= 2 && chainSrc.indexOf('_chainKeyOfState(st)') > 0, '发请求与回包两侧都在用这一处算法（实得 ' + keyUses + ' 处调用：发请求算一次、回包算一次）')
+  check(chainSrc.indexOf('_chainKeyOfState(state) !== key') > 0, '回包时重算用的还是这一处算法（不是另抄一份）')
+  check(keyHandRolled === 1, '这个文件里没有第二处手抄的链缓存键（getChainCacheKey 只在那一处算法里被调，实得 ' + keyHandRolled + ' 处）')
+  // 退休的 8 秒自轮询与接手的事件入口。这一条从前量的是那两个已经不存在的函数名（桩表过期），
+  //   现在量「旧的那一套确实整体走了、接手的入口在场」——与 tests/verify-709-no-self-continuing-timers.js 同一口径。
+  check(chainSrc.indexOf('scheduleChainAutoRefresh') < 0 && chainSrc.indexOf('cancelChainAutoRefresh') < 0 && chainSrc.indexOf('_chainAutoPollTimers') < 0, '8 秒自轮询那一对排期/取消函数与它的定时器表已整体退役（不再按已经不存在的老名字量）')
+  check(chainSrc.indexOf('chainEventRefresh') > 0 && chainSrc.indexOf('CHAIN_EVENT_REASONS') > 0, '接手的是事件驱动入口 chainEventRefresh（四种事件的原因代号）')
 }
 
 // ── C 组用的沙箱：把 probe-chain.js 真身取出来，喂一个可以按任意顺序回包的假 host ──────────────
@@ -126,9 +141,15 @@ function makeChain (srcText) {
     console: { log () {}, warn () {}, error () {} },
   }
   const names = Object.keys(sandbox)
-  const body = stripExports(srcText) + '\n;return { loadChain: loadChain, scheduleChainAutoRefresh: scheduleChainAutoRefresh, cancelChainAutoRefresh: cancelChainAutoRefresh }'
+  // 要取哪几个名字，**按真源里还有哪些**来定：#709（T5）把链的 8 秒自轮询那一对排期/取消函数
+  //   （scheduleChainAutoRefresh / cancelChainAutoRefresh）整体退役了，再按老名字去要，就会在求值这一步
+  //   抛 ReferenceError —— 那是门禁自己的桩表过期，C 组连行为都量不到，不是实现坏。
+  //   现在按名字在真源里存不存在来挑：有就取出来用，没有就不取。
+  const want = ['loadChain', 'chainEventRefresh', 'scheduleChainAutoRefresh', 'cancelChainAutoRefresh']
+  const have = want.filter(function (n) { return new RegExp('(?:const|let|var|function)\\s+' + n + '\\b').test(srcText) })
+  const body = stripExports(srcText) + '\n;return { ' + have.join(', ') + ' }'
   const mod = new Function(...names, body)(...names.map((n) => sandbox[n]))
-  return { loadChain: mod.loadChain, calls: calls, cache: cache }
+  return { loadChain: mod.loadChain, chainEventRefresh: mod.chainEventRefresh, calls: calls, cache: cache }
 }
 const snapOf = (id) => ({ ok: true, fullSnapshot: { id: id, steps: [{ status: 'done' }] } })
 const NEW10 = '新（10 步，有仓库那一段）'
@@ -199,7 +220,7 @@ const runScenarios = async function (srcText) {
     out.crossB = stB.chainSnapshot && stB.chainSnapshot.id
   }
 
-  // 现场 5：同一个键上两次重取（8 秒那一拍与手动重查撞上）—— 先发的那次晚回来，不许盖掉后发的那次。
+  // 现场 5：同一个键上两次重取（事件带起来的那次与手动重查撞上）—— 先发的那次晚回来，不许盖掉后发的那次。
   {
     const c = makeChain(srcText)
     const st = { cwd: 'D:\\demo5', selection: { backendId: 'github', userPicked: true }, chainSnapshot: { id: '初始' } }
@@ -240,6 +261,30 @@ check(real.afterSwitchBackend === 'markdown 的链（新）', '现场 3 换完�
 check(real.crossA === 'A 工作区的链' && real.crossB === 'B 工作区的链', '现场 4 两个工作区互不顶掉（实得 A=「' + real.crossA + '」B=「' + real.crossB + '」）')
 check(real.sameKeyLateOld === '后一次（新）', '现场 5 同一个键上先发的那次晚回来，盖不掉后发的那次（实得「' + real.sameKeyLateOld + '」）')
 check(real.dedupeCalls === 1 && real.dedupeSamePromise && real.dedupeBothGot, '现场 6 同键非 force 并发照旧只发一次请求、两个调用方都拿到（实得 ' + real.dedupeCalls + ' 次）')
+
+console.log('')
+console.log('== E 行为层：退休的 8 秒自轮询，它的活由事件入口接着做 ==')
+{
+  // 从前这条链「只要还没全绿，就自己排一次 8 秒后的 force 重取，直到全绿才停」。那个自续循环在
+  //   #709（T5）整体退役（见 tests/verify-709-no-self-continuing-timers.js），接手的是事件驱动入口：
+  //   四种事件（切进工作区 / 自己点重新检查 / 做完可能改变它的动作 / 写入成功之后）都走它一次 force 重取，
+  //   该不该真算由宿主按退避裁定（8 秒 → 30 秒 → 2 分钟 → 5 分钟，有进展立刻回快档）。
+  //   这里量的是那个真身 —— 把事件入口当场跑一遍，看它是不是真的发了一次带原因的重取。
+  const c = makeChain(chainSrc)
+  const st = { cwd: 'D:\\demo7', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
+  check(typeof c.chainEventRefresh === 'function', 'probe-chain.js 里的事件入口取得到（真源里在场）')
+  if (typeof c.chainEventRefresh === 'function') {
+    const p = c.chainEventRefresh(st, 'action-done')
+    await tick()
+    const one = (c.calls[0] && c.calls[0].params) || {}
+    check(c.calls.length === 1 && one.force === true, '事件入口真的发出一次 force 重取（实得 ' + JSON.stringify(c.calls.map(function (x) { return x.params.force })) + '）')
+    check(one.trigger === 'action-done', '而且把「为什么重取」带给了宿主（宿主凭它判退避；实得 trigger=' + JSON.stringify(one.trigger) + '）')
+    if (c.calls[0]) c.calls[0].d.res(snapOf('事件带起来的那一份'))
+    await tick()
+    if (p && p.catch) await p.catch(function () {})
+    check(st.chainSnapshot && st.chainSnapshot.id === '事件带起来的那一份', '这一份回包照旧写进会话状态（实得「' + (st.chainSnapshot && st.chainSnapshot.id) + '」）')
+  }
+}
 
 console.log('')
 console.log('== D 反证：把守卫做坏，C 里对应的那几条必须当场量不通过 ==')
