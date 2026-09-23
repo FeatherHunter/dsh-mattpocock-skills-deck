@@ -103,6 +103,12 @@ const ALLOWED = {
   // 2026-09-22 新增一条常驻事件（#690，附录 1.4 节）：界面向后端要一页历史票（展开折叠行 / 筛到已关闭 / 滚到底）。
   //   只记这一页要的是哪一档状态、筛了几个标签、取回几行、后端说一共多少行，以及耗时、成没成与失败散列。
   'issues.page': ['state', 'labelsCount', 'returned', 'total', 'latencyMs', 'ok', 'errorHash'],
+  // 2026-09-23 #706（T2 第二批）新增三条按需事件（附录 1.5 节 #75～#77）：闸与账本自己产生的三条轨迹 ——
+  //   一笔花费（哪一档、哪个桶、几条真实出站请求、几点、记完还剩多少）、一次裁决（类别、种类、结论、原因代号、档位）、
+  //   一次跳过（工作区键散列、种类、原因、推迟队列里现在几条）。都只记枚举、散列与数字，不记路径原文与命令原文。
+  'quota.spend': ['account', 'bucket', 'requests', 'points', 'remaining'],
+  'refresh.decide': ['category', 'kind', 'verdict', 'reason', 'tier'],
+  'refresh.skipped': ['keyHash', 'kind', 'reason', 'pending'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],

@@ -1,0 +1,8 @@
+[
+  {
+    "file": "src/host/goodGated.js",
+    "role": "transport",
+    "reason": "合规样本：起 gh 之前先把这一笔报给闸（noteOutbound），每一条真实出站都记在闸的账上",
+    "reportsToGate": true
+  }
+]

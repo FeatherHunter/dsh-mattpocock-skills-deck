@@ -34,6 +34,13 @@ export const PROBE_INTERVAL_MS = 5_000
 /** 黄档时探测放慢到这个间隔（120 秒）；红档不下探，直接全停。 */
 export const PROBE_INTERVAL_YELLOW_MS = 120_000
 
+/**
+ * 活跃集合里「刚离开的那个」的探测间隔：15 秒。
+ * 定稿第四章写的是「刚离开的那个降到 15~30 秒」；上界一律取短的这一端（15 秒），
+ * 因为上界要按最费钱的取值算，取 30 秒会把最坏情况算小。
+ */
+export const PROBE_INTERVAL_LINGER_MS = 15_000
+
 /** 黄档时两次整池重建之间至少隔 300 秒，防止降档之后还按原节奏重建。 */
 export const REBUILD_MIN_INTERVAL_YELLOW_MS = 300_000
 
@@ -192,3 +199,64 @@ export function aiToolCallWithinCaps(points: number, requests: number): boolean 
 export function aiToolHourWithinCaps(points: number, requests: number): boolean {
   return points <= AI_TOOL_MAX_POINTS_PER_HOUR && requests <= AI_TOOL_MAX_REQUESTS_PER_HOUR
 }
+
+// ---------- 七、单价与同步节拍（#706 第二批补全） ----------
+
+/**
+ * 一小时有多少毫秒。门禁按它把「每 N 秒一次」折成「每小时几次」。
+ * 它只是单位换算，不是旋钮——旋钮是上面那些间隔本身。
+ */
+export const HOUR_MS = 3_600_000
+
+/**
+ * 服务端剩余额度多久同步一次：每分钟一次。
+ * 走的是不扣配额的 `gh api rate_limit`（实测确认），所以它不吃这一份额度，但它仍然是一条真实出站请求，
+ * 账本照样记（I6：每一笔花费都记在账上）。
+ */
+export const QUOTA_SYNC_INTERVAL_MS = 60_000
+
+/** 读一次服务端剩余额度发出去几条请求：1 条（不扣配额）。 */
+export const QUOTA_READ_COST_REQUESTS = 1
+
+/** 变化探测一次的单价：1 条 REST，不花点数。 */
+export const PROBE_COST_REQUESTS = 1
+
+/** 环境预检一次的单价：2 条（登录态 + 仓库可达）。 */
+export const PREFLIGHT_COST_REQUESTS = 2
+
+/** 检查链一次求值的单价：3 条（同一份预检结果被谓词复用，见定稿第四章）。 */
+export const CHAIN_EVAL_COST_REQUESTS = 3
+
+/** 行级补行一次的单价：1~2 点、1 条请求（只取变的那几条，见增补第十一章）。 */
+export const PATCH_COST_POINTS_MIN = 1
+export const PATCH_COST_POINTS_MAX = 2
+export const PATCH_COST_REQUESTS = 1
+
+// 每一页的单价（定稿第三章「单价分层」）：整池重建那个 13 点就是从这四个数加出来的，
+// 不再是在别处写死一个 13；账本对这些页对账、门禁核对最坏用量，都拿同一组数。
+/** 列表薄片段一页（工单池 100 行）的单价：2 点。 */
+export const PAGE_COST_POINTS = 2
+/** 列表薄片段半页（50 行）的单价：1 点。 */
+export const PAGE_COST_POINTS_HALF = 1
+/** 拉取请求薄页的单价：2 点。 */
+export const PR_PAGE_COST_POINTS = 2
+/** 地图子票一页的单价：3 点。 */
+export const SUB_ISSUES_PAGE_COST_POINTS = 3
+/** 「共多少张 / 多少未关闭」那条计数查询的单价：1 点。 */
+export const COUNT_COST_POINTS = 1
+/** 一次整池重建要翻几页工单池、几页拉取请求（各一页计数）。 */
+export const REBUILD_PAGE_COUNT = 5
+export const REBUILD_PR_PAGE_COUNT = 1
+
+/**
+ * 整池重建一次的单价：工单池 5 页 × 2 点 + 拉取请求 1 页 × 2 点 + 计数 1 点 = 13 点、7 条请求
+ *（定稿第三章「一次重建的单价」）。13 与 7 是两个算式，不是两个手写的数。
+ */
+export const REBUILD_COST_POINTS = REBUILD_PAGE_COUNT * PAGE_COST_POINTS + REBUILD_PR_PAGE_COUNT * PR_PAGE_COST_POINTS + COUNT_COST_POINTS
+export const REBUILD_COST_REQUESTS = REBUILD_PAGE_COUNT + REBUILD_PR_PAGE_COUNT + 1
+
+/** 一次写事件（评论、认领、改标签、关闭、建票）的单价：1 条请求。 */
+export const WRITE_EVENT_COST_REQUESTS = 1
+
+/** 切进一个工作区那一次的补探单价：与一次变化探测同价，不另写一个数字。 */
+export const SWITCH_COST_REQUESTS = PROBE_COST_REQUESTS

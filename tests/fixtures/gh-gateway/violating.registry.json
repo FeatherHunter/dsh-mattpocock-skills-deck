@@ -1,0 +1,8 @@
+[
+  {
+    "file": "src/host/badRegistered.js",
+    "role": "gateway",
+    "reason": "反证样本二：登记表里写了它是传输出口，正文里却没有报给闸的那一步（模拟「登记表说谎」）",
+    "reportsToGate": true
+  }
+]
