@@ -64,17 +64,6 @@ function emptyReplyShape(value) {
   return ''
 }
 
-/**
- * 「分发时不认识端点名」是哪一种形状（与下面回话空那三档共用同一条告警事件）。
- *   unknown-endpoint —— 客户端调的电话名在宿主端点表里不存在（新旧版本错位时旧宿主继续服务，
- *      见 #733：24 号白天新界面调旧宿主，316 次全回这一句，宿主侧一个字都没留下）。
- * 为什么要有这一档（#733）：它与 #724 那三档是同一类盲区 —— 分发这一层看得见、日志里没留下，
- * 事后只能拿客户端散列反推。业务性的正常回话不在此列，不记。
- */
-function unknownEndpointShape(endpoint) {
-  return (typeof endpoint === 'string' && endpoint) ? 'unknown-endpoint' : ''
-}
-
 function rpcIdOf(raw) {
   return (typeof raw === 'string' && DSH_RPC_ID_PATTERN.test(raw)) ? raw : 'invalid-request'
 }
@@ -113,8 +102,10 @@ export function createRpcChannel(deps) {
     const fn = handlers.get(endpoint)
     if (!fn) {
       // #733：不认识端点名也留一行常驻告警（与 #724 回话空共用 host.dispatch.empty，不新增事件名）。
-      // 只记电话名、形状与服务版本：不记入参原文、不记路径。失败本身照常回给客户端，不吞掉。
-      try { log('warn', 'host.dispatch.empty', { method: 'wf.' + endpoint, shape: unknownEndpointShape(endpoint) || 'unknown-endpoint', version: versionOfServingCopy() }) } catch (eL) {}
+      // 形状只有一种取值 unknown-endpoint（客户端调的电话名在宿主端点表里不存在，多见于新旧版本错位时
+      // 旧宿主继续服务：24 号白天新界面调旧宿主，316 次全回这一句，宿主侧一个字都没留下）。
+      // 只记电话名明文、形状与服务版本：不记入参原文、不记路径。失败本身照常回给客户端，不吞掉。
+      try { log('warn', 'host.dispatch.empty', { method: 'wf.' + endpoint, shape: 'unknown-endpoint', version: versionOfServingCopy() }) } catch (eL) {}
       return { ok: false, error: { code: 'internal', message: 'unknown endpoint: ' + endpoint, details: {} } }
     }
     try {

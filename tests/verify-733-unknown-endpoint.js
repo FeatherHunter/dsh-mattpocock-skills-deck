@@ -32,7 +32,8 @@ check(rpcSrc.includes("log('warn', 'host.dispatch.empty'"), '未知端点走 log
   check(hit.length >= 1, '未知端点留痕行存在（实得 ' + hit.length + ' 行）')
   check(hit.every((l) => !/isEnabled\s*\(/.test(l)), '告警直发不判开关')
 }
-check(rpcSrc.includes('unknownEndpointShape'), '形状由小函数收口（不散写字面）')
+// 形状字面只出现一处（不散写两处，不另包单值小函数）。
+check((rpcSrc.match(/unknown-endpoint/g) || []).length >= 2, 'unknown-endpoint 字面收口（实现与门禁各一处）')
 
 // ---------- ② 真跑一次 ----------
 const services = { connection: { fetch: { register: (route) => { globalThis.__733route = route; return () => {} } } } }
