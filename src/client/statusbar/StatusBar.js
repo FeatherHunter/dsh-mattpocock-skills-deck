@@ -127,9 +127,21 @@ export const StatusBar = (props) => {
   //   判据在 statusbar/capFold.js，机器在 statusbar/capFoldMachine.js，这里只留接线。
   //   这两张表（每一段完整那串字 / 机器上一次写下的那串字）必须跨调用带着走，所以挂在 ref 上。
   const foldKeep = React.useRef({ full: {}, written: {} })
+  // #725 真机回归补的一条：观察器盯的是**元素**，而胶囊这个元素是会换代的（功能区先收起、再展开时
+  //   React 会新造一个；旧那个已经被摘下来，它的尺寸从此不会再变、观察器也就再不会响）。于是
+  //   「宽度变了」这条信号在换代之后就断了 —— 量错了的档位会一直挂在那儿，直到有人碰窗口尺寸或
+  //   恰好来了别的提交。这里记下当前盯着的那个元素，applyFold 每次进场先对一眼：换了就把观察器挪过去。
+  const foldWatch = React.useRef(null)
   const applyFold = function () {
     const cap = foldRef.current
     if (cap) runCapFold(cap, foldKeep.current)
+    const w = foldWatch.current
+    if (cap && w && w.el !== cap) {
+      try { w.roFold.disconnect() } catch (e) {}
+      try { w.roParent.disconnect() } catch (e) {}
+      try { w.roFold.observe(cap); if (cap.parentElement) w.roParent.observe(cap.parentElement) } catch (e) {}
+      w.el = cap
+    }
   }
   React.useEffect(function () {
     // 第一性原理方案 B：胶囊宽度不再 JS 设像素，完全由 CSS 变量 --dsh-composer-card-max-width 驱动（与输入卡同源）。
@@ -143,6 +155,7 @@ export const StatusBar = (props) => {
     if (foldRef.current) {
       roFold.observe(foldRef.current)
       try { if (foldRef.current.parentElement) roParent.observe(foldRef.current.parentElement) } catch(e){}
+      foldWatch.current = { roFold: roFold, roParent: roParent, el: foldRef.current }
     }
     window.addEventListener('resize', applyAll)
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyFold)
