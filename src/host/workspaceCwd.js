@@ -1,6 +1,7 @@
 // src/host/workspaceCwd.js —— 工作区归一与绑定选择（H5 #449 从 host/index.js 302–388 搬出电话体，纯结构、行为零变化）。
 // 以后谁改它：改工作区路径归一、后端绑定选择，或「取到后端之后转交它的标签配色两条电话（#627）」的人。预估约 200 行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；normCwd 由本文件单一持有，评论线程经 index 转供给复用；本文件不引用其他新文件。
+// 接线：由 index.js 动态 import 加载；normCwd 由本文件单一持有，评论线程经 index 转供给复用；本文件不引用其他新文件；目录取法调 shared 共用函数（#730）。
+import { resolveSessionCwd } from '../shared/session-cwd.js'
 export function createWorkspaceCwd(deps) {
   const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, canonicalKey, setCache, logCtx, timer, detectionExec } = deps
   // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）
@@ -181,8 +182,7 @@ export function createWorkspaceCwd(deps) {
       const all = svc.list() || []
       const hits = []
       for (const s of all) {
-        const header = s && (s.header || s.meta)
-        const c = header && (header.cwd || header.path)
+        const c = resolveSessionCwd(s) // #730：与电话体同一套取法（从前只认 header.cwd 等 2 个槽位会漏读）
         if (!c) continue
         const k = pathKeyOf(c)
         if (!k) continue
