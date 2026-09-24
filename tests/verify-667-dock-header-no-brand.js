@@ -20,7 +20,8 @@
  *   B 真渲染层（真 Chromium + 真产物 + 真数据）：头部第一个孩子是仓库芯片、贴着左内边距（左侧没有空位）、
  *     整行没有品牌字样也没有罗盘图形、一行不溢出；360 像素窄面板下这四条照旧（#28 那条收缩链还在跑）。
  *   C 反向两处照旧：DSH 右栏标签页的名字仍是「MattSkills」；状态胶囊栏里那枚品牌图标与字样仍在，
- *     而且仍是折叠优先级 1（最先收）。
+ *     而且仍是折叠优先级 1（最先收）。新口径（2026-09-24 晚回改）再加三条：宽面板下那串字真的画出来了
+ *     （C5）、宽到 1600 时整串都在（C6，「有位置就显示」）、收窄时它是第一个让位的（C7）。
  *   D 反证：把一段旧的品牌标记插回头部最前面，B 的那几条必须当场变红 —— 否则这道门量的是死数据，是假绿。
  *   E 整行逐字折叠（2026-09-22 维护者第三轮定，按面板真实宽度每 6 像素扫一档）：这一行里会随宽度变短的东西
  *     （仓库名那一长串 / 刷新按钮上的字 / 时间标签那句相对时间 / 三颗单字形小图标）**不许整块一下子不见**——
@@ -514,6 +515,16 @@ window.__CAPSULE__ = async function () {
     window.__RDOM__.createRoot(host).render(React.createElement(capsuleComp.c, props))
   } catch (e) { thrown = String((e && e.message) || e) }
   const arrived = await window.__WAIT__(() => !!host.querySelector('.dsws-capsule'), 5000)
+  // 等这一档真的定下来（连续三次读到同一个档号）再读 —— 新口径下品牌那串字随宽度来，
+  //   不等定档就量，量到的可能是挂载那一帧还没排完档的样子。
+  if (arrived) {
+    let last = null, same = 0
+    for (let i = 0; i < 60; i++) {
+      await new Promise(function (r) { requestAnimationFrame(function () { setTimeout(r, 16) }) })
+      const cur = host.querySelector('.dsws-capsule') ? host.querySelector('.dsws-capsule').getAttribute('data-fold-tier') : null
+      if (cur === last) { same++; if (same >= 3) break } else { last = cur; same = 0 }
+    }
+  }
   const cap = host.querySelector('.dsws-capsule')
   const word = cap && cap.querySelector('.dsws-capsule-word')
   const fold = cap && cap.querySelector('[data-fold-priority]')
@@ -525,16 +536,23 @@ window.__CAPSULE__ = async function () {
     wordHasIcon: !!(word && word.querySelector('svg')),
     foldPriority: fold ? fold.getAttribute('data-fold-priority') : null,
     foldText: fold ? (fold.textContent || '').trim() : '',
-    // 2026-09-24（#725）：品牌那一段按维护者定的「默认折叠」收起，收起的形状是给它加 .dsws-folded
-    //   （kernel/styles.js 那条 display:none）。这里量的是浏览器算出来的 display ——
-    //   「一个字都不写」和「真的被这条规矩收起来」在这里分得清。
+    // 2026-09-24 晚（#725 回改）：品牌那一段的口径从「默认收起」改成「有位置就显示、宽度不够时它第一个让位」。
+    //   所以这里量的是**画出来的矩形**：宽高都 > 0 才算它真的占着位置（上一版那一串字被 .dsws-folded
+    //   收成 display:none，矩形是 0×0 —— 真机上看到的就是「左边只剩一枚罗盘图标」）。
+    foldRect: (function () {
+      const r = fold ? fold.getBoundingClientRect() : null
+      return r ? { w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10 } : null
+    })(),
     foldFolded: !!(fold && fold.classList.contains('dsws-folded')),
     foldDisplay: fold ? getComputedStyle(fold).display : null,
   }
 }
 
-// C6 用：把胶囊那条横条的宿主宽度改成 w，等这一档真的定下来（连续三次读到同一个档号），
-//   再读一遍品牌那一段 —— 「默认折叠」是规矩，不该因为「宽到 3000 像素」就把品牌字放出来。
+// C6/C7 用：把胶囊那条横条的宿主宽度改成 w，等这一档真的定下来（连续三次读到同一个档号），
+//   再读一遍品牌那一段与其余几段 —— 新口径下品牌那串字随宽度来：宽到整条放得下时它整串都在
+//   （「有位置就显示」），窄到放不下时它**第一个**让位（一次少一个字）。
+//   回改的由来：上一版把维护者那句「品牌字默认折叠」落成了「起手就折叠」，于是宽到 3000 像素
+//   也不放出来 —— 真机上左边只剩一枚罗盘图标，就是 2026-09-24 晚那次反馈。
 window.__CAPSULE_WIDTH__ = async function (w) {
   const host = window.__CAP_HOST__
   if (!host) return { error: 'capsule host not mounted' }
@@ -549,12 +567,25 @@ window.__CAPSULE_WIDTH__ = async function (w) {
   }
   const fold = cap.querySelector('[data-fold-priority="1"]')
   const word = cap.querySelector('.dsws-capsule-word')
+  const rect = (el) => {
+    const r = el ? el.getBoundingClientRect() : null
+    return r ? { w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10 } : null
+  }
+  // 九段各自的现状（号码 → 那串字）：用来证明「品牌先让位」—— 某一档上品牌已经短了，而第 2 段还没动。
+  const segs = {}
+  Array.from(cap.querySelectorAll('[data-fold-priority]')).forEach(function (el) {
+    segs[String(el.getAttribute('data-fold-priority'))] = String(el.textContent || '')
+  })
   return {
     tier: cap.getAttribute('data-fold-tier'),
     width: Math.round(cap.getBoundingClientRect().width),
     wordText: word ? (word.textContent || '').trim() : '',
     foldText: fold ? (fold.textContent || '').trim() : '',
+    foldRect: rect(fold),
     foldDisplay: fold ? getComputedStyle(fold).display : null,
+    segs: segs,
+    // 这一档放不放得下（scrollWidth 与 clientWidth 都是内边距盒口径，照 capFoldMachine 的读法）
+    overflow: cap.scrollWidth - cap.clientWidth,
   }
 }
 window.__PROBE_READY__ = true
@@ -660,16 +691,35 @@ try {
     if (!cap.ok) {
       bad('C3 状态胶囊栏没挂起来：' + JSON.stringify(cap))
     } else {
-      // 2026-09-24（#725，维护者定「品牌字默认折叠」）：胶囊里那枚品牌字样从「显示着」改成「默认收起」——
-      //   本票 C 组要守的那件事没变（那一段**没有被删掉**）：挂点还在、图标还在、优先级仍是 1（最先让位）。
-      //   所以 C3/C4/C5 量的是这三件事，另加 C6 量「默认折叠是真的规矩，不是碰巧放不下」。
+      // 2026-09-24 晚（#725 回改，维护者真机反馈「胶囊左边那串 MattSkills 还是看不见」）：胶囊里那一段
+      //   品牌字从上一版的「默认收起（任何宽度都不显示）」改成新口径 —— **有位置就显示，宽度不够时它
+      //   第一个让位**。本票 C 组要守的那件事一点没变（那一段没有被删掉）：挂点还在、图标还在、
+      //   优先级仍是 1（最先让位）。所以 C3/C4 量那两件事，C5/C6/C7 三条量新口径：
+      //   C5 宽面板上它真的画出来了（矩形非零、文本非空）；C6 宽到 1600 时它整串都在（「有位置就显示」）；
+      //   C7 窄到放不下时它**第一个**让位（它先短了，而第 2 段还是完整的 —— 「宽度不够时它第一个让位」）。
       check(cap.foldPriority === '1', 'C3 状态胶囊栏里那枚品牌字样的挂点仍在（实测 priority ' + JSON.stringify(cap.foldPriority) + '）')
       check(cap.wordHasIcon, 'C4 状态胶囊栏里那枚品牌图标仍在')
-      check(cap.foldFolded === true && cap.foldText === '' && cap.foldDisplay === 'none',
-        'C5 品牌那一段默认收起：收起靠的是 .dsws-folded 那条规矩（浏览器算出来的 display 实测 ' + JSON.stringify(cap.foldDisplay) + '、字 ' + JSON.stringify(cap.foldText) + '）')
-      const wide = await page.evaluate(() => window.__CAPSULE_WIDTH__(3000))
-      check(!!wide && wide.wordText === '' && wide.foldDisplay === 'none',
-        'C6 宽到 3000 像素也不放出品牌字（默认折叠是规矩，不是碰巧放不下；实测 ' + JSON.stringify(wide) + '）')
+      check(!!cap.foldRect && cap.foldRect.w > 0 && cap.foldRect.h > 0 && String(cap.foldText).trim() !== '',
+        'C5 宽面板下品牌那串字可见：矩形非零且文本非空（getBoundingClientRect 实测 ' + JSON.stringify(cap.foldRect) + '、字 ' + JSON.stringify(cap.foldText) + '）')
+      const wide = await page.evaluate(() => window.__CAPSULE_WIDTH__(1600))
+      check(!!wide && String(wide.foldText).trim() === 'MattSkills' && wide.foldRect && wide.foldRect.w > 0,
+        'C6 宽到 1600 像素时品牌那串字整串都在（有位置就显示：不再有任何宽度都收着不放的规矩；实测 ' + JSON.stringify(wide) + '）')
+      // C7：从宽一路收窄，找到第一个「品牌已经让位、而下一段（优先级 2）还没动」的宽度 ——
+      //   这就是「它第一个让位」的可执行版。找不到那种宽度也判红：说明它不是第一个让位的。
+      //   扫描实况只打印「品牌那一段变过的地方」那几档（每一档都打印会把报告冲成一片宽度数字）。
+      const fullBrand = 'MattSkills'
+      let firstGive = null
+      const sweep = []
+      let lastBrand = null
+      for (let x = 1400; x >= 240; x -= 40) {
+        const s = await page.evaluate((v) => window.__CAPSULE_WIDTH__(v), x)
+        if (!s || s.error) continue
+        const b1 = String((s.segs || {})['1'] || '')
+        const b2 = String((s.segs || {})['2'] || '')
+        if (b1 !== lastBrand) { sweep.push(x + 'px 第' + s.tier + '档→' + JSON.stringify(b1) + '（第2段 ' + JSON.stringify(b2) + '，溢 ' + s.overflow + '）'); lastBrand = b1 }
+        if (b1.length < fullBrand.length && b1.length > 0 && b2 === '沉淀') { firstGive = { w: x, brand: b1, next: b2, overflow: s.overflow }; break }
+      }
+      check(!!firstGive, 'C7 窄下来时品牌是第一个让位的（品牌已经少字、而优先级 2 那一段反倒还完整；实测 ' + JSON.stringify(firstGive) + '；品牌那一段变过的地方 ' + JSON.stringify(sweep) + '）')
     }
 
     console.log('')

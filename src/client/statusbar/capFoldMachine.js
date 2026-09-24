@@ -59,15 +59,50 @@ export const runCapFold = function (cap, keep) {
   const last = Math.max(0, capFoldStepCount(ladder) - 1)
   let tier = 0
   applyTier(0)
-  if (cap.scrollWidth > cap.clientWidth + 1) {
+  if (!capFoldFits(cap)) {
     tier = last
-    for (let t = 1; t <= tier; t++) { applyTier(t); if (cap.scrollWidth <= cap.clientWidth + 1) { tier = t; break } }
+    for (let t = 1; t <= tier; t++) { applyTier(t); if (capFoldFits(cap)) { tier = t; break } }
   }
   cap.dataset.foldTier = String(tier)
   cap.dataset.fold = String(slots.filter(function (s) { return s.el.classList.contains('dsws-folded') }).length)
   return tier
 }
 
+/**
+ * 这一档放不放得下：把「这一条横条里的东西按其本来宽度摆开」，看装不装得下。装得下返回 true。
+ *
+ * 为什么不能直接比 cap.scrollWidth 与 cap.clientWidth：那枚「一串字」的元素（品牌那一段）住在一个
+ *   会收缩的框（.dsws-capsule-word，flex:1 1 auto + min-width:0）里。宿主窄到这个框不够装那串字时，
+ *   框先缩到接近零、字被挤在框的边缘；这一条横条自己的 scrollWidth 这时是「框的宽 + 框后面各段的宽」，
+ *   于是它照样报「不溢出」。真机上的样子就是 2026-09-24 晚那次反馈：宽到 680 像素时左边那串
+ *   MattSkills 早被挤得只剩一两个字宽（看起来就是「那串字还是看不见」），而机器还以为第 0 档放得下，
+ *   一个台阶都不走 —— 「有位置就显示、宽度不够时它第一个让位」这句话就成了空话。
+ *
+ * 所以这里量的是一件与「谁被挤住」无关的事实：**把每一段孩子按 flex:0 0 auto 摆开（也就是不让谁
+ *   为了塞进去而缩）之后，这一条横条的内容到底有多宽**。比 clientWidth 宽就是放不下 —— 接下来该由
+ *   阶梯收字，而不是由那层框把字挤掉。量完立刻把每段原来的行内 flex 写回去（一个字、一个类都不动 DOM
+ *   里别的东西；量不到就先撤掉再量，最坏情况也只是回到「按当前收敛的样子量」这一条老路）。
+ *
+ * 为什么用行内样式量、而不是读每段自己的 scrollWidth：品牌那一段是行内元素（<span> 里只有文字），
+ *   行内元素的 clientWidth 恒为 0，拿它与 scrollWidth 比永远比不出东西（这条 2026-09-24 实测过，
+ *   写成那样等于把这条守卫关掉）。
+ */
+const capFoldFits = function (cap) {
+  try {
+    const kids = Array.from(cap.children)
+    const saved = kids.map(function (el) { return el.style.flex })
+    try {
+      for (let i = 0; i < kids.length; i++) kids[i].style.flex = '0 0 auto'
+      void cap.offsetWidth
+      return cap.scrollWidth <= cap.clientWidth + 1
+    } finally {
+      for (let i = 0; i < kids.length; i++) kids[i].style.flex = saved[i]
+    }
+  } catch (e) {
+    // 量不出来时不改判据：回到「这一条横条自己不溢出」这一条老路（宁可少收一点，也不要因为一次异常一路收到最后）
+    return cap.scrollWidth <= cap.clientWidth + 1
+  }
+}
 /**
  * 这一条现在有多少**可用宽**：返回内容盒宽（孩子真正能摆下的那点宽）；量不到时返回 null（未知）。
  *

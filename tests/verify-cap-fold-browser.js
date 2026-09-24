@@ -12,13 +12,16 @@
  *
  * 本文件钉三条不变量（维护者 2026-09-24 那三条，逐条对应一组断言）：
  *   I1 载荷不撤、永不全折：品牌图标与四枚计数器的数字在任何宽度都在 DOM 里可见（矩形宽高 > 0、
- *      文本非空、没被 .dsws-folded 收掉）；宽的那两档还要求「放得下」且仍有字露在外面。
+ *      文本非空、没被 .dsws-folded 收掉）；宽的那两档还要求「放得下」、露出来的字至少六段，
+ *      而且品牌那串字整串可见（维护者的真意「有位置就显示」—— 宽条上不该只剩一枚罗盘图标）。
  *   I2 无效测量不推进档位：首帧还没布局（列宽 0 / 父容器 display:none）那一趟，机器不许拿
- *      「量到 0」当「放不下」一路推到最后一档 —— 除品牌那一段（契约里本来就默认折叠）外，
- *      不许有第二段字被收掉。
+ *      「量到 0」当「放不下」一路推到最后一档 —— 那一趟一段字都不许被收掉（2026-09-24 晚改口径：
+ *      品牌那一段不再是「默认折叠」那一段，它跟其余八段一样只有真放不下时才让位）。
  *   I3 可回弹：宽度从窄变宽，版面上露出来的字只许变多不许变少（每一档的可见字集合是上一层宽度的子集）。
  *   I4 宽度变化就是重算信号：胶囊晚生（先收起功能区、再展开）之后，只改面板列宽（窗口尺寸一点没动）
  *      也必须重算 —— 这台机器靠 ResizeObserver 与「每次提交后重算一次」，不靠任何轮询。
+ *   W 第 0 档（九段字全展开、品牌那串也在）要多大：宽到 1600 时它必须放得下，机器就停在第 0 档、
+ *      一段都不收 —— 这是「有位置就显示，宽度不够时它第一个让位」里「有位置就显示」那一半的地面。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
  * 运行：node tests/verify-cap-fold-browser.js（先 node scripts/build.mjs 生成产物）
@@ -315,6 +318,35 @@ try {
     check(m.cap.overflow <= 1, 'I1b 列宽 ' + w + '：宽条上放得下（scrollWidth-clientWidth = ' + m.cap.overflow + '）')
     check(m.folded < m.labelCount, 'I1b 列宽 ' + w + '：没有全折（收掉 ' + m.folded + ' 段，共 ' + m.labelCount + ' 段）')
     check(m.words.length >= 6, 'I1b 列宽 ' + w + '：宽条上露出来的字至少六段（实测 ' + JSON.stringify(m.words) + '）')
+    // 900 那一档的胶囊可用宽只有 662 像素（列宽到 900 以上就被卡片上限夹住了），九段字全展开放不下 ——
+    //   那时该让位的正是品牌（它是第一个让位的）。但不管让到哪一档，**四枚计数器的数字与时间串都必须在**
+    //   （载荷不撤；维护者截图里那一次是整条只剩两枚图标）。
+    if (w === 900) {
+      const keep = ['5', '6', '7', '8', '9'].every((p) => m.words.indexOf(p) >= 0)
+      check(keep, 'I1b 列宽 900（胶囊可用宽 662，九段全展开放不下）：该让的都让了，而四枚数字与时间串这几段仍在（实测露出的字 ' + JSON.stringify(m.words) + '）')
+    }
+  }
+  // I1b（这一轮新口径的核心一条）：宽到放得下时，品牌那串字必须**整串**看得见。
+  //   2026-09-24 晚维护者的真机反馈是「左边只剩一枚罗盘图标」—— 所以这里量的是画出来的那串字
+  //   （getBoundingClientRect 的宽高 + 文本），不是「有没有挂点」。
+  {
+    await page.evaluate(() => window.__SET_COLUMN__(1600))
+    const wide = await page.evaluate(() => window.__MEASURE__())
+    const brand = wide.labels.filter((l) => l.p === '1')[0] || null
+    const box = brand && brand.box
+    check(!!brand && brand.folded !== true && String(brand.text) === 'MattSkills' && !!box && box.w > 0.5 && box.h > 0,
+      'I1b 列宽 1600（放得下）：品牌那串字整串看得见（矩形与文本都非空；实测 ' + JSON.stringify({ text: brand ? brand.text : null, w: box ? box.w : null, h: box ? box.h : null, folded: brand ? brand.folded : null }) + '）')
+  }
+  // I1b：中档（列宽 1200，胶囊可用宽 750）—— 这时九段字放不下，让位的必须是品牌，而且它是**一格一格**让的：
+  //   它少字（还可能被收掉末尾），而后面那几段一段都不许动。这条量的是「宽度不够时它第一个让位」。
+  {
+    await page.evaluate(() => window.__SET_COLUMN__(1200))
+    const mid = await page.evaluate(() => window.__MEASURE__())
+    const brand = mid.labels.filter((l) => l.p === '1')[0] || null
+    const others = mid.labels.filter((l) => l.p !== '1' && String(l.text).trim() === '' && ['2', '3', '5', '6', '7', '8', '9'].indexOf(l.p) >= 0).map((l) => l.p)
+    const brandText = String(brand ? brand.text : '')
+    check(!!brand && brandText.length > 0 && brandText.length < 'MattSkills'.length && brandText === 'MattSkills'.slice(0, brandText.length) && others.length === 0,
+      'I1b 列宽 1200（九段放不下）：让位的是品牌，而且是它自己一格一格让（其余各段一字未动；实测品牌 ' + JSON.stringify(brandText) + '、被写空的其它段 ' + JSON.stringify(others) + '）')
   }
   // I1c：载荷装得下的时候，四枚数字必须都在胶囊框里；装不下时（胶囊比载荷还窄）这一条几何上做不到，
   //   按契约由外层的 overflow 处理 —— 门禁把观测值照原样打出来，但只在「装得下」时判红绿。
@@ -345,12 +377,16 @@ try {
       console.log('     列宽 ' + w + '：胶囊可用 ' + t0.clientW + '，第 0 档要 ' + t0.scrollW + '（溢 ' + t0.overflow + '）；机器定在 档' + m.tier + '（收 ' + m.folded + '/9）')
       if (w === 1600) zeroFits = t0.overflow
     }
-    // 宽到 1600 时第 0 档放得下 —— 那机器就必须停在那一档（只收掉契约里默认折叠的品牌那一段）
+    // 宽到 1600 时第 0 档放得下 —— 那机器就必须停在那一档，**一段都不收**（2026-09-24 晚改口径：
+    //   品牌那一段不再是「默认折叠」那一段，它跟其余八段一样在第 0 档整串可见）
     check(zeroFits !== null && zeroFits <= 1, 'W1 列宽 1600：第 0 档放得下（实测溢 ' + zeroFits + '）')
     await page.evaluate(() => window.__SET_COLUMN__(1600))
     const wideNow = await page.evaluate(() => window.__MEASURE__())
-    check(Number(wideNow.tier) === 0 && wideNow.folded === 1,
-      'W1 列宽 1600：第 0 档放得下时机器就停在第 0 档、只收掉品牌那一段（实测 档' + wideNow.tier + '、收 ' + wideNow.folded + '/9）')
+    const wideBrand = wideNow.labels.filter((l) => l.p === '1')[0] || null
+    check(Number(wideNow.tier) === 0 && wideNow.folded === 0,
+      'W1 列宽 1600：第 0 档放得下时机器就停在第 0 档、一段都不收（实测 档' + wideNow.tier + '、收 ' + wideNow.folded + '/9）')
+    check(!!wideBrand && wideBrand.folded !== true && String(wideBrand.text).trim() === 'MattSkills' && !!wideBrand.box && wideBrand.box.w > 0,
+      'W1 列宽 1600：品牌那串字整串可见（矩形与文本都非空；实测 ' + JSON.stringify(wideBrand ? { text: wideBrand.text, w: wideBrand.box && wideBrand.box.w, folded: wideBrand.folded } : null) + '）')
   }
 
   console.log('')
@@ -361,14 +397,15 @@ try {
     if (!mounted || !mounted.ok) { bad('I2 ' + flavor + ' 挂不起来：' + JSON.stringify(mounted)); continue }
     const m = await page.evaluate(() => window.__MEASURE__())
     console.log('     ' + flavor + ' → ' + payLine(m))
-    // 除品牌那一段（契约里默认折叠）以外，不许有第二段字被收掉
-    const foldedOther = m.labels.filter((l) => l.folded && l.p !== '1').map((l) => l.p)
-    check(foldedOther.length === 0, 'I2 ' + flavor + ' 那一趟没有把别的字收掉（实测被收的号码：' + JSON.stringify(foldedOther) + '，共 ' + m.folded + ' 段）')
+    // 无效测量的那一趟一段字都不许被收掉（2026-09-24 晚改口径：品牌那一段不再享有豁免 ——
+    //   它跟其余八段一样，只有真放不下时才让位）
+    const foldedAny = m.labels.filter((l) => l.folded).map((l) => l.p)
+    check(foldedAny.length === 0, 'I2 ' + flavor + ' 那一趟一段字都没有被收掉（实测被收的号码：' + JSON.stringify(foldedAny) + '，共 ' + m.folded + ' 段）')
     check(m.tier === null || Number(m.tier) < m.labelCount, 'I2 ' + flavor + ' 那一趟没有落到最后一档（实测档号 ' + m.tier + '）')
     const numsOk = m.nums.length >= 4 && m.nums.every((n) => n.text.trim() !== '')
     check(numsOk, 'I2 ' + flavor + ' 那一帧四枚数字的文本都还在（实测 ' + numLine(m) + '）')
-    // 「不推进档位」的另一种说法：那九段字里除品牌那一段外，一段都不许被写成空串
-    const lost = m.labels.filter((l) => l.p !== '1' && String(l.text).trim() === '').map((l) => l.p)
+    // 「不推进档位」的另一种说法：那九段字里一段都不许被写成空串
+    const lost = m.labels.filter((l) => String(l.text).trim() === '').map((l) => l.p)
     check(lost.length === 0, 'I2 ' + flavor + ' 那一帧没有一段字被写成空串（实测空掉的号码：' + JSON.stringify(lost) + '）')
     if (flavor === 'zero') {
       // 宽度真的到齐之后必须回到正确档（这一条是绿的是因为在的那几条重算路还在：观察器 / 提交 / 字体）
