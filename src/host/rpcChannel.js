@@ -64,6 +64,17 @@ function emptyReplyShape(value) {
   return ''
 }
 
+/**
+ * 「分发时不认识端点名」是哪一种形状（与下面回话空那三档共用同一条告警事件）。
+ *   unknown-endpoint —— 客户端调的电话名在宿主端点表里不存在（新旧版本错位时旧宿主继续服务，
+ *      见 #733：24 号白天新界面调旧宿主，316 次全回这一句，宿主侧一个字都没留下）。
+ * 为什么要有这一档（#733）：它与 #724 那三档是同一类盲区 —— 分发这一层看得见、日志里没留下，
+ * 事后只能拿客户端散列反推。业务性的正常回话不在此列，不记。
+ */
+function unknownEndpointShape(endpoint) {
+  return (typeof endpoint === 'string' && endpoint) ? 'unknown-endpoint' : ''
+}
+
 function rpcIdOf(raw) {
   return (typeof raw === 'string' && DSH_RPC_ID_PATTERN.test(raw)) ? raw : 'invalid-request'
 }
@@ -100,7 +111,12 @@ export function createRpcChannel(deps) {
   // 一次分发：命中端点表，异常归一到 RpcResult 失败信封并留一行错误级日志（#46）。
   const dispatchRpcEndpoint = async function (endpoint, payload) {
     const fn = handlers.get(endpoint)
-    if (!fn) return { ok: false, error: { code: 'internal', message: 'unknown endpoint: ' + endpoint, details: {} } }
+    if (!fn) {
+      // #733：不认识端点名也留一行常驻告警（与 #724 回话空共用 host.dispatch.empty，不新增事件名）。
+      // 只记电话名、形状与服务版本：不记入参原文、不记路径。失败本身照常回给客户端，不吞掉。
+      try { log('warn', 'host.dispatch.empty', { method: 'wf.' + endpoint, shape: unknownEndpointShape(endpoint) || 'unknown-endpoint', version: versionOfServingCopy() }) } catch (eL) {}
+      return { ok: false, error: { code: 'internal', message: 'unknown endpoint: ' + endpoint, details: {} } }
+    }
     try {
       const value = await fn(payload)
       // #724：回话里没有内容的三种形状各留一行常驻告警（方法名、缺了哪个键、服务这一份的版本）。
