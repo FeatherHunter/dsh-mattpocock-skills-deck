@@ -192,8 +192,8 @@ export function createWorkspaceCwd(deps) {
       return hits
     } catch (e) { return [] }
   }
-  // 政策服务算政策：有会话就按会话算（含会话自己的模式），没有会话就交给它兜底。
-  // 取不到政策服务时返回 undefined —— 后端拿到 undefined 就不传第 5 个参数，维持现状并如实报失败，
+  // 政策服务算政策：有归属会话才按会话算（含会话自己的模式）；找不到归属会话就不调服务（#730），
+  //   回 undefined 让后端如实报失败，不拿默认政策静默写。
   // 绝不在插件这边自己拼一个宽松政策。
   // #652：传进来的 cwd 现在是工作区根，而子目录会话自己仍挂在子目录上，所以「按同一条目录找」之外
   //   还要能「按这个根找它下面的会话」（sessionsOfWorkspace 的第二个参数），否则子目录会话写文件拿不到政策。
@@ -210,8 +210,8 @@ export function createWorkspaceCwd(deps) {
           if (inside.length === 1) session = inside[0]
         }
       }
-      const policy = svc.resolve(session ? { session: session } : {})
-      return { policy: policy, sessionId: (session && session.id) ? String(session.id) : '' }
+      if (!session) return { policy: undefined, sessionId: '' } // #730：无归属会话不取默认政策，免静默落错档
+      return { policy: svc.resolve({ session: session }), sessionId: session.id ? String(session.id) : '' }
     } catch (e) { return { policy: undefined, sessionId: '' } }
   }
   // 两条电话共用的第一步：把工作区解析成「当前后端 + 它的仓库引用 + 它的适配器」。

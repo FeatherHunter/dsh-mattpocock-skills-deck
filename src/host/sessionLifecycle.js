@@ -11,14 +11,16 @@ export function createSessionLifecycle(deps) {
   }
   async function handleCwd(args) {
       const sid = args && args.sessionId
-      if (!sid) return { ok: false, error: '缺少 sessionId' }
+      // 失败四种各有机器可读种类（#730：无目录与找不到会话必须分开，否则排查分不清哪一类现场；旧文案一个字不改）。
+      if (!sid) return { ok: false, error: '缺少 sessionId', kind: 'no-sid' }
       const sessions = ctx.get('sessions')
-      if (sessions === undefined || typeof sessions.get !== 'function') return { ok: false, error: 'sessions 服务不可用' }
+      if (sessions === undefined || typeof sessions.get !== 'function') return { ok: false, error: 'sessions 服务不可用', kind: 'no-service' }
       try {
         const s = sessions.get(sid)
-        const cwd = resolveSessionCwd(s) // #730：与沙箱同一套取法，经 shared 读 header.cwd 等槽位，语义与旧取法等价
+        if (!s) return { ok: false, error: '找不到这个会话', kind: 'not-found' }
+        const cwd = resolveSessionCwd(s) // #730：与沙箱同一套取法，只读 header.cwd
         if (cwd) return await withRoot({ ok: true, cwd: cwd }, cwd)
-        return { ok: false, error: '会话无 cwd 信息' }
+        return { ok: false, error: '会话无 cwd 信息', kind: 'no-cwd' }
       } catch (e) {
         return { ok: false, error: errText(e) }
       }
