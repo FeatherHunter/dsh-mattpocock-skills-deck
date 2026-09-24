@@ -1,12 +1,19 @@
 // verify-chain-view.js —— 门禁：处理链展示面「每个会话在处理哪些票」（票 #721 / T17）
 // 用法：在插件根目录执行 node tests/verify-chain-view.js（比产物新鲜度那几条不查产物，可独立运行）
 //
+// 2026-09-24 维护者改口径：这一块的**展示面暂时下线** —— UI 上先不显示，能力全留着
+//   （去向与原因写在 src/client/views/shared/sessionChainView.js 文件头那段指针里）。
+//   于是本门禁按「能力保留、暂不挂载」这一条事实量，判据层与画法层的断言**一条都没删**：
+//   它们量的是这一份能力本身（将来在别处挂回来时照用），只是不再拿「面板里画出来了」当结论；
+//   另加一节（第五件）静态盯住「面板那处挂载点确实摘掉了、下线处留了指针」。
+//   面板里到底有没有这一块，由 tests/verify-chain-view-ui.js 在真 Chromium 里量。
+//
 // 这一条门禁跑的是**真代码**，一路到底：
 //   真的链（#714 的 createSessionTickets 记下五次写）→ 真的宿主读数（src/host/refresh/sessionChainReadout.js）
 //   → 真的界面判据与画法（src/client/views/shared/sessionChainView.js，按 scripts/build.mjs 同一套做法
 //     剥掉行首 export、放进一个作用域里跑，React 用最小的假件代替）。
 //
-// 它盯六件事：
+// 它盯七件事：
 //   一、**取数路径**：界面读的就是快照里那一个字段（sessionTickets）。真跑一遍：两个会话各几张票，
 //      按会话分组不串；界面拿不到会话 id 原文（链只留散列）。
 //   二、**「还没有记录」归空、「真读坏了」才可见**（2026-09-24 维护者改的口径）：
@@ -20,6 +27,8 @@
 //      读不到那句主句仍要短（≤12 字）、没有括号，解释与原因代号都在悬停提示里。
 //   六、**没有第二个数据来源**（静态断言）：界面代码里不许出现会话事件、命令行解析、链的键构造、
 //      链的过滤判定、落盘文件名、任何 host.call / fetch。
+//   七、**挂载点那一处**（2026-09-24 维护者改口径后新增）：面板不再挂它（能力保留、暂不挂载），
+//      而且下线那一处留了指针（写清「暂时下线、能力保留、未来在别处挂」），别让后来人当废弃代码删掉。
 //
 // 反证（人工做过三次，见回报）：把一句中文写死在界面里、把「读不到」改成显示空列表、
 //   把 absent 改回「整句独占一行」的旧画法 —— 都被本门禁打红。
@@ -192,7 +201,9 @@ async function main() {
   // 版面次序就是宿主的次序：会话 B 那两条排在会话 A 那三条前面（链那边按时间倒序），序号 1、2 按版面从上到下发。
   if (A[0].sessionIndex !== 1 || B[0].sessionIndex !== 0) fail('会话序号不是按版面从上到下发：' + JSON.stringify({ A: A[0].sessionIndex, B: B[0].sessionIndex }))
 
-  // 渲染：真组件吐出来的那棵树 —— 一行一条记录（重做后不再有「会话」小标题那一层）
+  // 渲染：真组件吐出来的那棵树 —— 一行一条记录（重做后不再有「会话」小标题那一层）。
+  //   2026-09-24 起这是**能力本体单独挂出来**量的（面板正文那一处已经不挂它了，见文件头与第五件）：
+  //   这条断言量的是「这一份画法本身对不对」，将来在别处挂回来时照用，所以一条不减。
   const node = leaf.SessionChainStrip({ st: st, narrow: false })
   const text = textOf(node)
   if (!text || text.indexOf('每个会话在处理哪些票') < 0) fail('这一块没有画出它自己的标题：' + JSON.stringify(text).slice(0, 120))
@@ -255,6 +266,8 @@ async function main() {
   else { row703.props.onClick(); if (st.tab !== 'list') fail('点了那一行没有切回列表页'); if (!pushed.length || pushed[0].n !== 703 || pushed[0].kind !== 'issue') fail('点了 #703 那一行没有跳到链记下的那张票：' + JSON.stringify(pushed)) }
 
   // ---------- 二、「还没有记录」归空、「读坏了」才可见（2026-09-24 维护者改的口径）----------
+  // 这一节的每一条都是拿**能力本体**量的（面板正文那一处现在不挂它了，见文件头与第五件）：
+  //   量的是「这一份判据与画法在四种状态下各自说什么」——将来在别处挂回来时照用，所以一条不减。
   // 口径改动的来路（真机反馈）：面板上那句「读不到处理记录」从来没消失过，而且它独占一行很影响体验。
   // 第一性原理：那句话是**一句道歉**，不携带任何用户可行动的信息；而「确实没有会话在处理票」才是信息。
   //   所以：`host.chain.absent`（还没有记录）归「空」——与 empty 一样整块不画；
@@ -401,6 +414,29 @@ async function main() {
   const badSource = "export const y = function (st) { return st.snapshot['sessionTickets'] + host.call('wf.x', {}) }\n"
   if (badSource.indexOf('host.call') < 0) fail('反证：取数调用的坏样本没有被判据逮住')
 
+  // ---------- 五、挂载点那一处：能力保留、面板暂不挂载（2026-09-24 维护者改口径后新增）----------
+  // 口径的来路（维护者原话）：「UI 上先不显示这个，但是能力层面还具备这个能力，未来会根据之前的
+  //   issuePath 找个地方进行显示。」所以这一节盯四件事，缺一不可：
+  //   ① 面板那一处挂载点确实摘掉了（只查组件本身会因为「组件还在、却没人挂」变成假绿 —— 那种状态下
+  //      界面上确实没有它，可原因不是这次改动，而是从来就没挂上过）；
+  //   ② 能力本体还在（组件与它的导出原样留在 LEAF 里，谁也没趁「反正不画了」把它删掉）——
+  //      这一条与 verify-leaves 的导出清单互为表里；
+  //   ③ 下线处留了指针：Dock.js 那一处与组件文件头都写清「暂时下线、能力保留、未来在别处挂」，
+  //      免得后来人把它当成废弃代码顺手删掉；
+  //   ④ 指针里如实交代了去向到哪一步（票号没有找到，就写「未找到，待维护者指明」，
+  //      不许拿另一张票的号顶上去 —— 编一个票号比不写更坏）。
+  const dockSrc = fs.readFileSync(path.join(ROOT, 'src/client/panel/Dock.js'), 'utf8')
+  // 「还挂着没有」只看代码那一截（剥掉注释）：下线那一处留的指针里会写到组件的名字，
+  //   按整份文本找 h(SessionChainStrip 会把指针本身当成人还在挂它。
+  const dockCode = codeOnly('src/client/panel/Dock.js')
+  if (/h\(\s*SessionChainStrip/.test(dockCode)) fail('面板正文那一处还挂着 SessionChainStrip（展示面应当先下线、暂不挂载）')
+  if (dockSrc.indexOf('SessionChainStrip') < 0) fail('Dock.js 里连一行指针都没有了（下线那一处要写清「暂时下线、将来在别处挂」，别让后来人当废弃代码）')
+  if (dockSrc.indexOf('SessionChainStrip') < 0) fail('Dock.js 里连一行指针都没有了（下线那一处要写清「暂时下线、将来在别处挂」，别让后来人当废弃代码）')
+  if (dockSrc.indexOf('暂时不挂载') < 0 && dockSrc.indexOf('暂时下线') < 0) fail('Dock.js 下线那一处没有写清「暂时不挂载」（只删不写，看起来像被废弃了）')
+  if (!/export[ \t]+const[ \t]+SessionChainStrip/.test(leafSrc)) fail('能力本体被拆了：' + LEAF + ' 里没有 SessionChainStrip 的导出了（展示面下线不等于把能力删掉）')
+  if (leafSrc.indexOf('展示面暂时下线') < 0) fail(LEAF + ' 文件头没有「展示面暂时下线」这段指针（能力保留、未来按票号在别处挂载）')
+  if (leafSrc.indexOf('待维护者指明') < 0) fail(LEAF + ' 文件头没有如实交代去向到哪一步（找不到票号就写「未找到，待维护者指明」，不许编一个号）')
+
   try { fs.rmSync(dir, { recursive: true, force: true }) } catch (e) { /* 临时目录清不掉不影响结论 */ }
 
   if (failed) { problems.forEach(function (p) { console.log('  FAIL ' + p) }); console.log('\n存在失败'); process.exit(1) }
@@ -411,6 +447,7 @@ async function main() {
   console.log('  PASS 读不到那句主句短、没有括号；那一块用危险色变量上色（旧画法更高，反证量得出差别）')
   console.log('  PASS 中英词条键集合全等；动作词的键与链的闭集合 CHAIN_ACTIONS 逐个对上')
   console.log('  PASS 静态：界面只读快照里那一个字段，没有第二个数据来源，没有写死的文案')
+  console.log('  PASS 能力保留、暂不挂载：面板那一处不再挂它，能力本体与导出原样都在，下线处留了指针且如实交代去向')
   console.log('\n全部通过')
 }
 

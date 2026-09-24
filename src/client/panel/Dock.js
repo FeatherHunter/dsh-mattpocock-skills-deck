@@ -330,9 +330,9 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             ])
           ]) : null,
         ]) : h('div', { className: 'dsws-body', style: { flex: 1, overflowY: 'auto', padding: '10px 12px' } }, [
-          // #721：面板顶部这一条「每个会话在处理哪些票」固定在正文最上面（换页签也在），
-          //   数据只读宿主写下的那一个快照字段；读不到时它自己会说读不到，没有数据时它整块不画。
-          h(SessionChainStrip, { key: 'sessionChainView', st: s, narrow: narrow }),
+          // 2026-09-24 维护者定：这一行（h(SessionChainStrip, …)「每个会话在处理哪些票」#721）**暂时不挂载** ——
+          //   UI 上先不显示，能力全留着（判据与画法都在 views/shared/sessionChainView.js，文件头有指针与去向）。
+          //   维护者指了票号要显示时，把那一行接回这里即可；在那之前别把它的判据、词条与导出顺手删掉。
           s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'pr' ? (showPrTab ? (hasIssueDetail ? h(IssueDetail, { st: s }) : h(PrTab, { st: s, narrow: narrow })) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,

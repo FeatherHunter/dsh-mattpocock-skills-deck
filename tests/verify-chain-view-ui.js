@@ -1,30 +1,27 @@
 #!/usr/bin/env node
 /**
- * verify-chain-view-ui.js — 「每个会话在处理哪些票」这一块的真浏览器门禁（2026-09-24 晚重做，维护者反馈）
+ * verify-chain-view-ui.js — 「每个会话在处理哪些票」这一块的浏览器门禁
+ * （2026-09-24 维护者改口径：展示面**暂时下线**，能力保留）
  *
- * 维护者原话：「不应该这样呈现，这样UI非常丑陋」。他截的图逐字长这样：
+ * 维护者的原话：「我的意思是 UI 上先不显示这个，但是能力层面还具备这个能力，未来会根据之前的
+ * issuePath 找个地方进行显示。」所以这一条门禁量的是两件事，缺一不可：
  *
- *     每个会话在处理哪些票 · 宿主读数 16:50
- *     会话 307d37e6
- *     #951 · 改内容 · 16:40
- *     会话 1af66bb1
- *     #950 · 评论 · 16:32
+ *   一、**面板的列表页里没有这一块**（这次改动的正文）：在真 Chromium 里把真面板挂起来、落在列表页上，
+ *       然后断言找不到那块标题、找不到任何会话行、也找不到「读不到处理记录」那句。
+ *       为什么非要在真浏览器里量：断源码只能证明「某处不再挂着它」，证明不了「画出来的画面上真没有」——
+ *       这一块从前就挂在面板正文最上面，它是不是真的下去了，只有把那一页画出来才看得见。
+ *   二、**能力还在、尺子有牙齿**（反向自检）：同一份能力组件（判据与画法都在
+ *       src/client/views/shared/sessionChainView.js）单独挂出来之后，同一把尺子必须找得到标题、
+ *       找得到会话行、找得到那句「读不到处理记录」。抓不住就是假绿 —— 那说明上面那几条「找不到」
+ *       是尺子失灵，而不是面板里真的没有。这一半同时是「能力保留」的证据：未来在别处挂回来时，
+ *       它画的还是那一套。
  *
- * 按那四条重做之后，这一份在真 Chromium 里量这四条（判据与画法在 views/shared/sessionChainView.js；
- *   纯判据那一半由 tests/verify-chain-view.js 逐格钉住，两份合起来才算把这一段钉牢）：
+ * 一份快照只管一趟页面：面板装上一份快照之后，短时间内不会为同一处再取一次（新鲜度窗口），
+ *   所以「两种读数各画一次」这件事要**各开一页**来做 —— 同一页里换一份数据再挂，画面上还是上一份
+ *   （实测踩过这一脚：换过去的那一份根本没落地，X 那一节于是量的是旧画面）。
  *
- *   U1 **块高随条数线性、且有上限**：记录从 1 条加到 6 条，每一跳都只多一行高；
- *      超过上限（SESSION_CHAIN_ROW_CAP，上限值从真源里读）之后块高不再长，末尾如实说明还有几条没画。
- *   U2 **版面上不出现 8 位十六进制散列**：那一串对人不可行动（认不出是哪个会话），它只能进悬停提示。
- *   U3 **版面上不出现内部行话**（「宿主读数」这一类）：换成一句人话，时间含义不变。
- *   U4 **一行一条记录**：记录行数等于记录条数，且每行高度一样（不整块、不换行）。
- *   U5 反向自检：往克隆件的一行文字里塞回一个 8 位散列 → U2 那把尺子必须当场报红；
- *      塞回「宿主读数」→ U3 必须报红（抓不住就是假绿；克隆件上做，真节点一个字不碰）。
- *
- * 为什么这一份要真起浏览器：块高、一行多高、版面上到底画了哪些字，都是**画出来之后**的事实；
- *   断源码只证明「某处写着一个数字」，证明不了它真的落在版面上。
- * 探针本身放在 tests/fixtures/chain-view-ui-probe.js（单独一份文件）：它要把叶子模块求值出来
- *   （与 scripts/build.mjs 同一套做法），写在模板字符串里层数太深、容易被转义绊住。
+ * 探针本身放在 tests/fixtures/chain-view-ui-probe.js（单独一份文件）：它要把真产物与那一份叶子都
+ *   求值出来（与 scripts/build.mjs 同一套做法），写在模板字符串里层数太深、容易被转义绊住。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
  * 运行：node tests/verify-chain-view-ui.js（先 node scripts/build.mjs 生成产物）
@@ -38,10 +35,8 @@ function ok(msg) { passed++; console.log('  PASS ' + msg) }
 function bad(msg) { failed++; console.log('  FAIL ' + msg) }
 function check(cond, msg) { if (cond) ok(msg); else bad(msg) }
 
-// 人工定的阈值（写进断言、也写进报告）：块高与「若干行 × 一行高」的偏差容差 0.5 像素（取整）。
+// 一行多高的容差（像素）：量「每多一条记录只多一行高」时用。
 const STEP_TOL = 0.5
-const HEX8 = /(?:^|[^0-9a-f])([0-9a-f]{8})(?![0-9a-f])/i
-const JARGON = ['宿主读数', '宿主', '读数', '分格', '散列']
 
 const CLIENT = 'package/lib/client.js'
 const LEAF = 'src/client/views/shared/sessionChainView.js'
@@ -52,12 +47,6 @@ for (const rel of [CLIENT, LEAF, PROBE]) {
     process.exit(1)
   }
 }
-// 行数上限从真源里读（不在这里另抄一份数字）：门禁量到的就是界面画的那一份。
-//   读不到时不提前退出：这一条本身就判红（说明那个常量没了），后面的每一条照旧量到底 ——
-//   修前跑这一份时要能看到「平台面/封顶」这些断言各自的实况，而不是一行「读不到」就收工。
-const VIEW_SRC = readFileSync(resolve(LEAF), 'utf8')
-const CAP_FROM_SRC = Number((/SESSION_CHAIN_ROW_CAP\s*=\s*(\d+)/.exec(VIEW_SRC) || [])[1] || 0)
-const ROW_CAP = CAP_FROM_SRC || 20
 
 // 这一页只装中文那一半词条：界面画的每一个字都来自词条，门禁量的是真词条（不是词条键）。
 //   取法：在这些片段里找第二层那个「zh」块（第一层是给中英各一份的容器），按大括号配对取出整块再求值。
@@ -82,21 +71,36 @@ const localeMod = (function () {
   return dict
 })()
 
+// 尺子要量的两句原话从真词条取（探针与门禁都不另抄一份文案）：块自己的标题、以及那句「读不到处理记录」。
+const TEXT_TITLE = String(localeMod['chainView.title'] || '')
+const TEXT_UNREADABLE = String(localeMod['chainView.unreadable'] || '')
+if (!TEXT_TITLE || !TEXT_UNREADABLE) {
+  console.log('词条缺失：chainView.title / chainView.unreadable 要从 src/client/kernel/locale-pages.js 的 zh 里读出来（实得 ' +
+    JSON.stringify({ title: TEXT_TITLE, unreadable: TEXT_UNREADABLE }) + '）')
+  process.exit(1)
+}
+
 const READ_AT = new Date(2026, 8, 24, 16, 50, 0).getTime()
 // 与维护者截图同形的样本：两个会话，会话标识都用十六进制散列。
 const SESSIONS = [
   { shardId: '307d37e6a1b2c3d4', backend: 'github', entries: [{ ticketKey: '951', action: 'edit', at: READ_AT - 600000 }, { ticketKey: '950', action: 'comment', at: READ_AT - 1200000 }] },
   { shardId: '1af66bb198765432', backend: 'github', entries: [{ ticketKey: '800', action: 'state', at: READ_AT - 300000 }, { ticketKey: '801', action: 'link', at: READ_AT - 400000 }, { ticketKey: '802', action: 'comment', at: READ_AT - 500000 }] },
 ]
+// 一条会话记满 25 张：比版面上限（SESSION_CHAIN_ROW_CAP，20 条）多 5 条 —— 从前末尾会多画一行「还有几条没画」。
+const MANY = []
+for (let i = 0; i < 25; i++) MANY.push({ ticketKey: String(900 - i), action: (i % 2 ? 'comment' : 'edit'), at: READ_AT - (i + 1) * 60000 })
 const CWD = 'D:\\ilife\\packages\\skill-calorie'
-const SNAP = {
+const BASE_SNAP = {
   ok: true, version: 'verify-chain-view-ui', generatedMs: READ_AT,
   workspaceRoot: 'd:/ilife', maps: [], checks: null, isLocal: false, tickets: [], groups: {},
   repository: { name: 'FeatherHunter/dsh-mattpocock-skills-deck', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', backend: 'github' },
   selection: { backendId: 'github', source: 'explicit' },
-  issues: [{ number: 951, title: '甲票标题', effortId: '' }, { number: 800, title: '乙票标题', effortId: '' }],
-  sessionTickets: { ok: true, at: READ_AT, sessions: SESSIONS },
+  issues: [{ number: 951, title: '甲票标题', effortId: '' }, { number: 800, title: '乙票标题', effortId: '' }, { number: 900, title: '丙票标题', effortId: '' }],
 }
+// 三份输入各是「从前画得出来」的一份：正常读数、超过行数上限、宿主说这次读坏了。
+const SNAP_WITH_DATA = Object.assign({}, BASE_SNAP, { sessionTickets: { ok: true, at: READ_AT, sessions: SESSIONS } })
+const SNAP_OVER_CAP = Object.assign({}, BASE_SNAP, { version: 'verify-chain-view-ui-overcap', sessionTickets: { ok: true, at: READ_AT, sessions: [{ shardId: '307d37e6a1b2c3d4', backend: 'github', entries: MANY }] } })
+const SNAP_BROKEN = Object.assign({}, BASE_SNAP, { version: 'verify-chain-view-ui-broken', sessionTickets: { ok: false, at: READ_AT, reason: 'host.chain.read-failed', sessions: [] } })
 
 const { build } = await import('esbuild')
 const bundled = await build({
@@ -104,105 +108,130 @@ const bundled = await build({
   bundle: true, format: 'iife', platform: 'browser', target: 'chrome120', write: false, logLevel: 'error',
 })
 const probeJs = bundled.outputFiles[0].text
-const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+const pageHtml = function (snap) {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
 html,body{margin:0;background:#10131a;color:#e6edf3;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
 #pane{width:460px;height:900px;display:flex;flex-direction:column}
 </style></head>
 <body><div id="pane"></div>
 <script>window.__CLIENT_SRC__ = ${JSON.stringify(readFileSync(resolve(CLIENT), 'utf8'))};</script>
-<script>window.__CWD__ = ${JSON.stringify(CWD)};window.__SNAP__ = ${JSON.stringify(SNAP)};window.__READ_AT__ = ${JSON.stringify(READ_AT)};window.__LEAF_SRC__ = ${JSON.stringify(VIEW_SRC)};window.__DICT_ZH__ = ${JSON.stringify(localeMod)};</script>
+<script>window.__CWD__ = ${JSON.stringify(CWD)};window.__SNAP__ = ${JSON.stringify(snap)};window.__READ_AT__ = ${JSON.stringify(READ_AT)};</script>
+<script>window.__LEAF_SRC__ = ${JSON.stringify(readFileSync(resolve(LEAF), 'utf8'))};window.__DICT_ZH__ = ${JSON.stringify(localeMod)};window.__TEXTS__ = ${JSON.stringify({ title: TEXT_TITLE, unreadable: TEXT_UNREADABLE })};</script>
 <script>${probeJs}</script></body></html>`
-
-const server = createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html) })
+}
+const ROUTE_SNAP = { '/': SNAP_WITH_DATA, '/overcap': SNAP_OVER_CAP, '/broken': SNAP_BROKEN }
+const server = createServer((req, res) => {
+  const path = String(req.url || '/').split('?')[0]
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+  res.end(pageHtml(ROUTE_SNAP[path] || SNAP_WITH_DATA))
+})
 await new Promise((r) => server.listen(0, '127.0.0.1', r))
-const origin = 'http://127.0.0.1:' + server.address().port + '/'
+const origin = 'http://127.0.0.1:' + server.address().port
 const { chromium } = await import('playwright')
 const browser = await chromium.launch({ headless: true })
 
-console.log('=== 「每个会话在处理哪些票」这一块的呈现（真 Chromium 量）===')
+const pageErrors = []
+/** 开一页（一份快照一页：见文件头那段「一份快照只管一趟页面」）。 */
+async function openPage(route) {
+  const page = await browser.newPage({ viewport: { width: 900, height: 900 } })
+  page.on('pageerror', (e) => pageErrors.push(route + ' pageerror: ' + (e && e.message)))
+  page.on('console', (m) => { if (m.type() === 'error' && m.text().indexOf('unique "key" prop') < 0) pageErrors.push(route + ' console: ' + m.text()) })
+  await page.goto(origin + route, { waitUntil: 'load' })
+  await page.waitForFunction(() => window.__PROBE_READY__ === true, null, { timeout: 15000 })
+  return page
+}
+
+console.log('=== 「每个会话在处理哪些票」（列表页里没有这一块 · 能力保留）===')
 console.log('')
 try {
-  const page = await browser.newPage({ viewport: { width: 900, height: 900 } })
-  const pageErrors = []
-  page.on('pageerror', (e) => pageErrors.push('pageerror: ' + (e && e.message)))
-  page.on('console', (m) => { if (m.type() === 'error' && m.text().indexOf('unique "key" prop') < 0) pageErrors.push('console: ' + m.text()) })
-  await page.goto(origin, { waitUntil: 'load' })
-  await page.waitForFunction(() => window.__PROBE_READY__ === true, null, { timeout: 15000 })
-
-  console.log('U1) 块高随条数线性、且有上限（上限 ' + ROW_CAP + ' 条，取自真源）')
-  check(CAP_FROM_SRC > 0, 'U1 真源里带着行数上限那个常量（SESSION_CHAIN_ROW_CAP；实测 ' + CAP_FROM_SRC + '）')
-  const heights = []
-  // 先挂一次（这一次让 React 把挂载点建起来），再逐档换数据重画 —— 所以第一档要挂在循环里量。
-  await page.evaluate((p) => window.__MOUNT__(p), SNAP)
-  for (const n of [1, 2, 3, 4, 5, 6]) {
-    const payload = await page.evaluate((k) => window.__SNAP_WITH__(k), n)
-    const m = await page.evaluate((p) => window.__MOUNT__(p), payload)
-    if (!m || !m.ok) { bad('U1 ' + n + ' 条时没挂起来：' + JSON.stringify(m)); continue }
-    const g = await page.evaluate(() => window.__GEOM__())
-    heights.push({ n: n, h: g.blockH, rows: g.rowCount })
-    console.log('     ' + n + ' 条 → 块高 ' + g.blockH + ' 像素、记录行 ' + g.rowCount + ' 行')
-  }
-  const diffs = []
-  for (let i = 1; i < heights.length; i++) diffs.push(Math.round((heights[i].h - heights[i - 1].h) * 100) / 100)
-  const step = heights.length >= 2 ? Math.round((heights[1].h - heights[0].h) * 100) / 100 : 0
-  check(heights.length === 6 && heights[0].rows === 1 && heights[5].rows === 6 && step > 0 &&
-    diffs.every(function (d) { return Math.abs(d - step) <= STEP_TOL }),
-    'U1 每多一条记录就只多一行高（线性）：实测每一跳 ' + JSON.stringify(diffs) + '（一行高 ' + step + ' 像素），块高 ' + JSON.stringify(heights.map(function (x) { return x.h })) + '）')
-  // 上限：条数超过上限之后，记录行数、块高都不再长，末尾如实说明还有几条没画
-  const bigPayload = await page.evaluate((k) => window.__SNAP_WITH__(k), ROW_CAP + 5)
-  const bigMounted = await page.evaluate((p) => window.__MOUNT__(p), bigPayload)
-  if (!bigMounted || !bigMounted.ok) bad('U1 超上限那一趟没挂起来：' + JSON.stringify(bigMounted))
-  else {
-    const bigG = await page.evaluate(() => window.__GEOM__())
-    const bigRest = await page.evaluate(() => { const el = document.querySelector('[data-chain-rest]'); return el ? String(el.textContent || '').trim() : null })
-    const atCapPayload = await page.evaluate((k) => window.__SNAP_WITH__(k), ROW_CAP)
-    await page.evaluate((p) => window.__MOUNT__(p), atCapPayload)
-    const capG = await page.evaluate(() => window.__GEOM__())
-    console.log('     超上限（' + (ROW_CAP + 5) + ' 条）→ 块高 ' + bigG.blockH + ' 像素、记录行 ' + bigG.rowCount + ' 行、末尾说明 ' + JSON.stringify(bigRest))
-    check(bigG.rowCount === ROW_CAP, 'U1 记录行数封顶在上限 ' + ROW_CAP + '（实测 ' + bigG.rowCount + ' 行）')
-    // 超过上限之后块高**不再随条数涨**：相对「正好到上限那一档」只多出末尾那一行的说明
-    //   （那一行是「还有 N 条没有列出」，它本身是一条信息、不是第 21 条记录）。
-    check(bigG.blockH - capG.blockH === 18,
-      'U1 超过上限之后块高不再随条数长（实测 ' + bigG.blockH + ' 像素 = 上限那一档 ' + capG.blockH + ' + 末尾说明那一行 18）')
-    check(!!bigRest && bigRest.indexOf(String(5)) >= 0, 'U1 末尾如实说明还有几条没画（实测 ' + JSON.stringify(bigRest) + '）')
-  }
-
-  console.log('')
-  console.log('U2/U3/U4) 版面上画了什么：散列与内部行话都不许出现、一行一条')
   const wantRows = SESSIONS.reduce(function (a, s) { return a + s.entries.length }, 0)
-  const mounted = await page.evaluate((p) => window.__MOUNT__(p), SNAP)
-  if (!mounted || !mounted.ok) bad('主样本没挂起来：' + JSON.stringify(mounted) + ' / 页面错误 ' + JSON.stringify(pageErrors.slice(0, 3)))
+  const page = await openPage('/')
+
+  console.log('W) 面板的列表页里没有这一块（这份输入从前正是画得出来的那一份：' + wantRows + ' 条记录）')
+  const mounted = await page.evaluate((p) => window.__PANEL_MOUNT__(p), SNAP_WITH_DATA)
+  if (!mounted || !mounted.ok) bad('W0 真面板没挂起来：' + JSON.stringify(mounted) + ' / 页面错误 ' + JSON.stringify(pageErrors.slice(0, 3)))
   else {
-    const vis = await page.evaluate(() => window.__VISIBLE__())
-    console.log('     版面上看得见的字：' + JSON.stringify(vis.text).slice(0, 240))
-    const hexHits = vis.lines.filter(function (t) { return HEX8.test(t) })
-    check(hexHits.length === 0, 'U2 版面上没有 8 位十六进制散列（实测命中 ' + JSON.stringify(hexHits) + '；版面上那几行：' + JSON.stringify(vis.lines.slice(0, 3)) + '）')
-    const jargonHits = JARGON.filter(function (w) { return vis.text.indexOf(w) >= 0 })
-    check(jargonHits.length === 0, 'U3 版面上没有内部行话（实测命中 ' + JSON.stringify(jargonHits) + '；说明那一行 ' + JSON.stringify(vis.lines[0]) + '）')
-    check(vis.rowCount === wantRows && vis.rowCount === vis.rowTexts.length,
-      'U4 一行一条记录（样本 ' + wantRows + ' 条记录，实测记录行 ' + vis.rowCount + ' 行、有字的行 ' + vis.rowTexts.length + ' 行）')
-    const hs = vis.rowHeights
-    check(hs.length > 1 && Math.max.apply(null, hs) - Math.min.apply(null, hs) <= STEP_TOL, 'U4 每一行高度一样（实测各行高 ' + JSON.stringify(hs) + '）')
-    const tipHits = vis.tips.filter(function (t) { return HEX8.test(t) })
-    check(tipHits.length === wantRows, 'U2 完整标识在悬停提示里（' + wantRows + ' 条记录各一份；实测 ' + tipHits.length + ' 条提示带着散列）')
-    console.log('     （悬停提示首条：' + JSON.stringify(vis.tips[0] || '').slice(0, 110) + '）')
+    const w = await page.evaluate(() => window.__PANEL_SCAN__())
+    console.log('     面板上看得见的字（前 240 字）：' + JSON.stringify(w.text))
+    check(w.panelBodies > 0, 'W1 面板真的画到了列表页那一层（正文容器 .dsws-body 在，实测 ' + w.panelBodies + ' 个）')
+    // 这一条是防假绿的：面板空着的时候「找不到那一块」也成立 —— 所以先证明列表页自己的东西画出来了。
+    check(w.listChips > 0, 'W2 列表页自己的内容在（过滤那一排 .dsws-chip 实测 ' + w.listChips + ' 个），不是空壳')
+    check(w.titleFound === false, 'W3 找不到那一块的标题（' + JSON.stringify(TEXT_TITLE) + '）')
+    check(w.sessionMarks === 0, 'W4 找不到任何会话行（[data-session] 实测 ' + w.sessionMarks + ' 条）')
+    check(w.chainRows === 0, 'W5 找不到记录行（.dsws-chainview-row 实测 ' + w.chainRows + ' 条）')
+    check(w.chainBlock === 0, 'W6 找不到那一块的外壳（.dsws-chainview 实测 ' + w.chainBlock + ' 个）')
   }
 
   console.log('')
-  console.log('U5) 反向自检：把散列与内部行话塞回版面，U2/U3 必须当场报红')
-  const rev = await page.evaluate(() => window.__REVERSE__())
-  check(!!rev && rev.ok === true, 'U5 反证件造出来了：' + JSON.stringify(rev && { hex: rev.hex, jargon: rev.jargon }))
-  if (rev && rev.ok) {
-    check(HEX8.test(rev.afterHex), 'U5 塞回一个 8 位十六进制散列之后，U2 那把尺子当场报红（实测那一行：' + JSON.stringify(String(rev.afterHex).slice(0, 60)) + '）')
-    check(JARGON.some(function (w) { return String(rev.afterJargon).indexOf(w) >= 0 }), 'U5 塞回「宿主读数」之后，U3 那把尺子当场报红（实测那一行：' + JSON.stringify(String(rev.afterJargon).slice(0, 60)) + '）')
+  console.log('W2) 条数超过版面上限那一份：末尾那句「还有几条没画」也不许再出现在面板里')
+  const pageOverCap = await openPage('/overcap')
+  const mountedCap = await pageOverCap.evaluate((p) => window.__PANEL_MOUNT__(p), SNAP_OVER_CAP)
+  if (!mountedCap || !mountedCap.ok) bad('W9 超上限那一趟面板没挂起来：' + JSON.stringify(mountedCap))
+  else {
+    const wc = await pageOverCap.evaluate(() => window.__PANEL_SCAN__())
+    check(wc.panelBodies > 0 && wc.listChips > 0, 'W9 超上限那一趟面板也画到了列表页那一层（.dsws-body ' + wc.panelBodies + ' 个、.dsws-chip ' + wc.listChips + ' 个）')
+    check(wc.rowCapNotice === 0, 'W10 找不到行数封顶那一行（[data-chain-rest] 实测 ' + wc.rowCapNotice + ' 条）')
+    check(wc.chainBlock === 0 && wc.sessionMarks === 0, 'W11 超上限那一趟同样没有那一块（.dsws-chainview ' + wc.chainBlock + ' 个、[data-session] ' + wc.sessionMarks + ' 条）')
   }
-  const thrown = pageErrors.filter((e) => e.indexOf('pageerror:') === 0)
-  check(thrown.length === 0, '整段扫描期间页面没有未捕获的报错（实测 ' + thrown.length + ' 条' + (thrown.length ? '：' + JSON.stringify(thrown.slice(0, 3)) : '') + '）')
+
+  console.log('')
+  console.log('X) 宿主说这次读坏了时，那句也不许出现在面板里')
+  const pageBroken = await openPage('/broken')
+  const broken = await pageBroken.evaluate((p) => window.__PANEL_MOUNT__(p), SNAP_BROKEN)
+  if (!broken || !broken.ok) bad('X0 坏读数那一趟面板没挂起来：' + JSON.stringify(broken))
+  else {
+    const x = await pageBroken.evaluate(() => window.__PANEL_SCAN__())
+    check(x.panelBodies > 0, 'X1 坏读数那一趟面板也画到了列表页那一层（.dsws-body 实测 ' + x.panelBodies + ' 个）')
+    check(x.unreadableFound === false, 'X2 面板里找不到「读不到处理记录」那句（' + JSON.stringify(TEXT_UNREADABLE) + '；随展示面一起下线，不再冒出来）')
+    check(x.chainBlock === 0 && x.sessionMarks === 0, 'X3 坏读数下同样没有那一块（.dsws-chainview ' + x.chainBlock + ' 个、[data-session] ' + x.sessionMarks + ' 条）')
+  }
+
+  console.log('')
+  console.log('R) 反向自检：能力本体单独挂出来时，同一把尺子必须抓得住（抓不住就是假绿）')
+  const rMounted = await page.evaluate((p) => window.__STRIP_MOUNT__(p), SNAP_WITH_DATA)
+  if (!rMounted || !rMounted.ok) bad('R0 能力本体没挂起来：' + JSON.stringify(rMounted))
+  else {
+    const r = await page.evaluate(() => window.__STRIP_SCAN__())
+    check(r.chainBlock === 1, 'R1 能力本体把那一块真画出来了（.dsws-chainview 实测 ' + r.chainBlock + ' 个）')
+    check(r.titleFound === true, 'R2 同一把尺子在这块上找得到标题（' + JSON.stringify(TEXT_TITLE) + '）')
+    check(r.sessionMarks === wantRows && r.chainRows === wantRows, 'R3 同一把尺子找得到每条记录的会话行（' + wantRows + ' 条，实测 [data-session] ' + r.sessionMarks + ' 条 / 记录行 ' + r.chainRows + ' 行）')
+  }
+  const rBroken = await page.evaluate((p) => window.__STRIP_MOUNT__(p), SNAP_BROKEN)
+  if (!rBroken || !rBroken.ok) bad('R4 能力本体的坏读数那一趟没挂起来：' + JSON.stringify(rBroken))
+  else {
+    const rb = await page.evaluate(() => window.__STRIP_SCAN__())
+    check(rb.unreadableFound === true, 'R4 坏读数时同一把尺子找得到「读不到处理记录」（' + JSON.stringify(TEXT_UNREADABLE) + '）：这句话量得出来，上面那几条「找不到」才有意义')
+    check(rb.chainRows === 0 && rb.sessionMarks === 0, 'R5 坏读数时能力本体也不画会话行（[data-session] 实测 ' + rb.sessionMarks + ' 条）')
+  }
+  // 一行一条、每多一条只多一行高：这条从前量的是面板，现在量能力本体（面板里已经没有它了）。
+  const heights = []
+  for (const n of [1, 2, 3]) {
+    const payload = await page.evaluate((k) => window.__STRIP_SNAP_WITH__(k), n)
+    const m = await page.evaluate((p) => window.__STRIP_MOUNT__(p), payload)
+    if (!m || !m.ok) { bad('R6 ' + n + ' 条时能力本体没挂起来：' + JSON.stringify(m)); continue }
+    const g = await page.evaluate(() => { const el = document.querySelector('#dsws-probe-strip .dsws-chainview'); return el ? { h: Math.round(el.getBoundingClientRect().height * 100) / 100, rows: el.querySelectorAll('.dsws-chainview-row').length } : null })
+    heights.push({ n: n, h: g ? g.h : 0, rows: g ? g.rows : 0 })
+    console.log('     ' + n + ' 条 → 块高 ' + (g ? g.h : 'n/a') + ' 像素、记录行 ' + (g ? g.rows : 'n/a') + ' 行')
+  }
+  const step = heights.length >= 2 ? Math.round((heights[1].h - heights[0].h) * 100) / 100 : 0
+  check(heights.length === 3 && heights[0].rows === 1 && heights[2].rows === 3 && step > 0 &&
+    Math.abs((heights[2].h - heights[0].h) - step * 2) <= STEP_TOL * 2,
+    'R6 一行一条记录、每多一条只多一行高（实测块高 ' + JSON.stringify(heights.map(function (x) { return x.h })) + ' 像素、每跳一行高 ' + step + ' 像素）')
+  const atCap = await page.evaluate((k) => window.__STRIP_SNAP_WITH__(k), 25)
+  const capMounted = await page.evaluate((p) => window.__STRIP_MOUNT__(p), atCap)
+  if (!capMounted || !capMounted.ok) bad('R7 超过行数上限那一趟没挂起来：' + JSON.stringify(capMounted))
+  else {
+    const rc = await page.evaluate(() => window.__STRIP_SCAN__())
+    check(rc.rowCapNotice === 1, 'R7 条数超过上限时能力本体画得出末尾那句「还有几条没画」（[data-chain-rest] 实测 ' + rc.rowCapNotice + ' 条）')
+  }
+
+  const thrown = pageErrors.filter((e) => e.indexOf('pageerror:') >= 0)
+  check(thrown.length === 0, '整段扫描期间三页都没有未捕获的报错（实测 ' + thrown.length + ' 条' + (thrown.length ? '：' + JSON.stringify(thrown.slice(0, 3)) : '') + '）')
 } finally {
   await browser.close()
   server.close()
 }
 console.log('')
 console.log(passed + ' 条通过，' + failed + ' 条失败')
-console.log(failed ? '=== FAIL：这一块的呈现还不符合那四条 ===' : '=== OK：「每个会话在处理哪些票」的呈现（线性块高 · 无散列 · 无内部行话 · 一行一条）===')
+console.log(failed ? '=== FAIL：展示面还在面板里，或者能力被拆掉了 ===' : '=== OK：面板的列表页里没有这一块，能力本体仍画得出来 ===')
 process.exit(failed ? 1 : 0)
