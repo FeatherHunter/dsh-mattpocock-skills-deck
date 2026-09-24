@@ -158,33 +158,47 @@ const sessionChainTitlesOf = function (st) {
 }
 
 /**
- * 一行一个会话：每个会话带它那几张票（票号、票的标题 ticketTitle、动作词条键、时间）。
- * 顺序就是宿主给的顺序（链那边已经按时间倒序、每会话最多 20 张），这里不再排一遍 ——
- * 排第二遍就是第二份规则。读不到时返回空数组，调用方据此不画列表。
+ * 一行一张票（2026-09-24 晚重做，维护者原话：「不应该这样呈现，这样UI非常丑陋」）。
+ *
+ * 重做前那一版长这样：一句「每个会话在处理哪些票 · 宿主读数 16:50」+ 每个会话再加一条
+ *   「会话 307d37e6」的小标题、标题下面才是票行 —— 两条记录就要占四行，字号还比列表行小一号；
+ *   而且那串 8 位十六进制散列对人不可行动（认不出是哪个会话），「宿主读数」也是我们内部的说法。
+ *
+ * 现在：
+ *   · 每条记录**一行**（票号 + 动作 + 相对时间），会话标识只在「换了会话」的那一行上写一次，
+ *     是给人读的序号（会话 1、会话 2 —— 序号就是版面上从上到下的第几个会话），不再是散列前缀；
+ *   · 完整标识（散列前 8 位）与完整说法都在悬停提示里（沿用现有 Tip 机制）；
+ *   · 行数有上限（SESSION_CHAIN_ROW_CAP）：到顶就截断并在末尾说明还有多少条没画，
+ *     于是整块高度随条数线性增长、且封顶。
+ * 顺序就是宿主给的顺序（链那边已经按时间倒序、每会话最多 20 张），这里不再排一遍。
  */
 export const sessionChainRowsOf = function (st) {
   const view = sessionChainViewOf(st)
   if (view.state !== 'ok') return []
   const titles = sessionChainTitlesOf(st)
-  return view.sessions.map(function (s) {
-    return {
-      shardId: s.shardId,
-      label: s.shardId.slice(0, 8),
-      backend: s.backend,
-      entries: s.entries.map(function (e) {
-        const known = titles[e.ticketKey] || null
-        return {
-          ticketKey: e.ticketKey,
-          ticketTitle: known ? known.ticketTitle : '',
-          effortId: known ? known.effortId : '',
-          action: e.action,
-          actionKey: sessionChainActionKeyOf(e.action),
-          at: e.at,
-          time: sessionChainClock(e.at),
-        }
-      }),
-    }
+  const out = []
+  view.sessions.forEach(function (s, si) {
+    const full = String(s.shardId)
+    s.entries.forEach(function (e, ei) {
+      const known = titles[e.ticketKey] || null
+      out.push({
+        shardId: s.shardId,
+        label: full.slice(0, 8),
+        sessionFull: full,
+        sessionIndex: si,
+        firstOfSession: ei === 0,
+        backend: s.backend,
+        ticketKey: e.ticketKey,
+        ticketTitle: known ? known.ticketTitle : '',
+        effortId: known ? known.effortId : '',
+        action: e.action,
+        actionKey: sessionChainActionKeyOf(e.action),
+        at: e.at,
+        time: sessionChainClock(e.at),
+      })
+    })
   })
+  return out
 }
 
 /** 点一行跳到那张票：切回列表页再进它的详情（跳转用的是链记下的票号，不是界面猜的）。 */
@@ -197,11 +211,22 @@ export const sessionChainOpenTicket = function (st, entry) {
 }
 
 /**
+ * 版面上最多画几行记录（2026-09-24 晚重做时人工定的上限，写进门禁断言）：
+ *   到顶就截断，并在末尾说明还有多少条没画 —— 于是这一块的高度随条数线性增长、且封顶，
+ *   不会因为某个会话记了几十条把面板顶部撑爆。20 条与「链那边每个会话最多记 20 张」同量级。
+ */
+export const SESSION_CHAIN_ROW_CAP = 20
+/** 一行多高（像素）：行高 15 + 下外边距 3。区块自己的纵向内边距另算，见下一行那个常量。 */
+export const SESSION_CHAIN_ROW_H = 18
+/** 区块自己的纵向内边距合计（上 3 + 下 3）。 */
+export const SESSION_CHAIN_BLOCK_PAD = 6
+
+/**
  * 面板顶部这一条。四种画法，没有第五种：
  *   还没取到快照 → 整块不返回（还在取数，不到下结论的时候）；
  *   这个进程里还没有任何处理记录 → 整块不返回（与「取到了、就是没有」同一种事实：不占位、不显示空框）；
  *   读这份记录那一步真坏了 → 一枚小图标，完整的话与原因代号都在悬停里（**不独占一行**，见下）；
- *   有数据 → 先一句「哪个会话在处理哪些票」，然后一个会话一段，段里一行一张票，点一行进那张票。
+ *   有数据 → 一行说明（这一块是什么、什么时候更新的）+ 一行一条记录，点一行进那张票。
  */
 export const SessionChainStrip = function (props) {
   const cx = React.useContext(DswsCtx)
@@ -221,24 +246,34 @@ export const SessionChainStrip = function (props) {
       h(Tip, { content: tr('chainView.unreadable') + ' ' + tr('chainView.unreadableTip', { reason: view.reason }) }, Ic({ n: 'alert', size: 11 })),
     ])
   }
-  const sessions = sessionChainRowsOf(st)
-  if (!sessions.length) return null
-  const nodes = [h('div', { key: 'head', style: { fontSize: 11, color: 'var(--dsws-label-caption,#8b8b95)', padding: '0 2px 3px' } }, tr('chainView.title') + (view.at ? ' · ' + tr('chainView.readAt', { time: sessionChainClock(view.at) }) : ''))]
-  sessions.forEach(function (s, i) {
-    nodes.push(h('div', { key: 's' + i, style: { fontSize: 10, color: 'var(--dsws-label-caption,#8b8b95)', padding: '2px 2px 0' } }, tr('chainView.session', { id: s.label })))
-    s.entries.forEach(function (e, j) {
-      const word = e.actionKey ? tr(e.actionKey) : e.action
-      const text = '#' + e.ticketKey + (e.ticketTitle ? ' ' + e.ticketTitle : '') + (word ? ' · ' + word : '') + (e.time ? ' · ' + e.time : '')
-      nodes.push(h(Tip, { key: 'e' + i + '_' + j, content: tr('chainView.openTip') }, h('div', {
-        className: 'dsws-chainview-row',
-        tabIndex: 0,
-        role: 'link',
-        'aria-label': text,
-        onClick: function () { sessionChainOpenTicket(st, e) },
-        onKeyDown: function (ev) { if (ev && (ev.key === 'Enter' || ev.key === ' ')) { if (ev.preventDefault) ev.preventDefault(); sessionChainOpenTicket(st, e) } },
-        style: { fontSize: 11, padding: '1px 6px', borderRadius: 4, cursor: 'pointer', color: 'var(--dsw-alias-label-primary,#e6edf3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-      }, text)))
-    })
+  const all = sessionChainRowsOf(st)
+  if (!all.length) return null
+  const shown = all.slice(0, SESSION_CHAIN_ROW_CAP)
+  const rest = all.length - shown.length
+  const head = tr('chainView.title') + (view.at ? ' · ' + tr('chainView.readAtFull', { time: sessionChainClock(view.at) }) : '')
+  const nodes = [h('div', { key: 'head', style: { fontSize: 12, lineHeight: '18px', height: 18, color: 'var(--dsws-label-caption,#8b8b95)', padding: '0 6px' } }, head)]
+  shown.forEach(function (e, i) {
+    const word = e.actionKey ? tr(e.actionKey) : e.action
+    // 会话标识只在「换了会话」的那一行上写一次，而且是给人读的序号（会话 1、会话 2……）。
+    // 那 8 位十六进制散列不上版面（对人不可行动）；它进悬停提示，见下面 tip。
+    const text = (e.firstOfSession ? tr('chainView.sessionShort', { n: e.sessionIndex + 1 }) + ' ' : '') +
+      '#' + e.ticketKey + (e.ticketTitle ? ' ' + e.ticketTitle : '') + (word ? ' · ' + word : '') + (e.time ? ' · ' + e.time : '')
+    const tip = tr('chainView.sessionTip', { id: e.label }) + ' · ' + text + ' · ' + tr('chainView.openTip')
+    nodes.push(h(Tip, { key: 'e' + i, content: tip }, h('div', {
+      className: 'dsws-chainview-row',
+      tabIndex: 0,
+      role: 'link',
+      'data-session': e.label,
+      'aria-label': text,
+      onClick: function () { sessionChainOpenTicket(st, e) },
+      onKeyDown: function (ev) { if (ev && (ev.key === 'Enter' || ev.key === ' ')) { if (ev.preventDefault) ev.preventDefault(); sessionChainOpenTicket(st, e) } },
+      style: { fontSize: 12, lineHeight: '15px', height: 15, marginBottom: 3, padding: '0 6px', borderRadius: 4, cursor: 'pointer', color: 'var(--dsw-alias-label-primary,#e6edf3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+    }, text)))
   })
-  return h('div', { className: 'dsws-chainview', style: { padding: '4px 2px 6px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', marginBottom: 6 } }, nodes)
+  if (rest > 0) {
+    nodes.push(h('div', { key: 'rest', 'data-chain-rest': String(rest), style: { fontSize: 12, lineHeight: '15px', height: 15, padding: '0 6px', color: 'var(--dsws-label-caption,#8b8b95)' } }, tr('chainView.moreRows', { n: rest })))
+  }
+  // 高度写死成「若干行 × 一行高 + 区块内边距」：随条数线性增长、且封顶（行数上面已按上限截断）。
+  const height = SESSION_CHAIN_BLOCK_PAD + SESSION_CHAIN_ROW_H * nodes.length
+  return h('div', { className: 'dsws-chainview', style: { height: height, boxSizing: 'border-box', padding: '3px 2px', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)', marginBottom: 6 } }, nodes)
 }

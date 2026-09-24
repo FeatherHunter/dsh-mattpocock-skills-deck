@@ -123,12 +123,13 @@ async function main() {
   // ---------- 一、真代码：链 → 宿主读数 → 界面判据 ----------
   const LEAF = 'src/client/views/shared/sessionChainView.js'
   const pushed = []
+  const TipStub = function (props, child) { return { type: TipStub, props: props || {}, children: child === undefined ? [] : [child] } }
   const leaf = loadModule(LEAF, {
     React: makeReact(),
     DswsCtx: null,
     tr: tr,
     Ic: function (props) { return { type: 'Ic', props: props || {}, children: [] } },
-    Tip: function (props, child) { return { type: 'Tip', props: props || {}, children: child === undefined ? [] : [child] } },
+    Tip: TipStub,
     pushNav: function (st, kind, n, effortId) { pushed.push({ kind: kind, n: n, effortId: effortId }) },
   })
   const READ_AT = new Date(2026, 0, 1, 12, 4, 0).getTime()
@@ -164,11 +165,14 @@ async function main() {
   const st = snapOf(readout)
   const view = leaf.sessionChainViewOf(st)
   if (view.state !== 'ok') fail('有链数据时判成了 ' + view.state + '（应当 ok）')
+  // 2026-09-24 晚重做：sessionChainRowsOf 交出来的从「每会话一组」改成「平铺的一行一条记录」，
+  //   每条记录带自己的会话信息（序号 / 是不是该会话的第一条 / 完整标识）。这里按同一件事换个形状核：
+  //   票的归属与顺序与重做前逐字相同，只是不再有「会话」这一层分组对象。
   const rows = leaf.sessionChainRowsOf(st)
-  const rowsOf = function (shardId) { const r = rows.filter(function (x) { return x.shardId === shardId })[0]; return r ? r.entries : null }
-  const A = rowsOf(shardA) || []
-  const B = rowsOf(chain.chainSessionShardId(SID_B)) || []
-  const rowA = rows.filter(function (x) { return x.shardId === shardA })[0] || null
+  const rowsOf = function (shardId) { return rows.filter(function (x) { return x.shardId === shardId }) }
+  const A = rowsOf(shardA)
+  const B = rowsOf(chain.chainSessionShardId(SID_B))
+  const rowA = A[0] || null
   if (A.map(function (e) { return e.ticketKey }).join(',') !== '703,702,701') fail('会话 A 的票不对或顺序不对：' + A.map(function (e) { return e.ticketKey }).join(','))
   if (B.map(function (e) { return e.ticketKey }).join(',') !== '802,801') fail('会话 B 的票不对或顺序不对：' + B.map(function (e) { return e.ticketKey }).join(','))
   const crossTalk = A.filter(function (e) { return B.some(function (b) { return b.ticketKey === e.ticketKey }) })
@@ -180,27 +184,62 @@ async function main() {
   const wantClock = (function (ms) { const d = new Date(ms); const pad = function (n) { return (n < 10 ? '0' : '') + n }; return pad(d.getHours()) + ':' + pad(d.getMinutes()) })(A[0].at)
   if (A[0].time !== wantClock) fail('时间没有按宿主记下的那一刻显示：' + A[0].time + '（应当是 ' + wantClock + '）')
   if (JSON.stringify(rows).indexOf(SID_A) >= 0 || JSON.stringify(rows).indexOf(SID_B) >= 0) fail('会话 id 原文漏到了界面这一侧（链只留散列）')
-  if (!rowA || rowA.label !== shardA.slice(0, 8)) fail('会话那一行的标识不是分格散列前 8 位：' + JSON.stringify(rowA && rowA.label))
+  // 完整标识仍要在数据里带着（散列前 8 位）—— 它现在进悬停提示，不再是版面上那一行标题。
+  if (!rowA || rowA.label !== shardA.slice(0, 8) || rowA.sessionFull !== shardA) fail('记录里没有带着完整标识（散列前 8 位）：' + JSON.stringify(rowA && { label: rowA.label, full: rowA.sessionFull }))
+  // 每一段的第一条要认得出来（版面上只在换了会话的那一行写一次会话序号）
+  if (A[0].firstOfSession !== true || A[1].firstOfSession !== false || B[0].firstOfSession !== true) fail('「这一段的第一条」没有标出来：' + JSON.stringify([A[0].firstOfSession, A[1].firstOfSession, B[0].firstOfSession]))
+  if (A[0].sessionIndex === B[0].sessionIndex) fail('两个会话分到了同一个序号：' + JSON.stringify([A[0].sessionIndex, B[0].sessionIndex]))
+  // 版面次序就是宿主的次序：会话 B 那两条排在会话 A 那三条前面（链那边按时间倒序），序号 1、2 按版面从上到下发。
+  if (A[0].sessionIndex !== 1 || B[0].sessionIndex !== 0) fail('会话序号不是按版面从上到下发：' + JSON.stringify({ A: A[0].sessionIndex, B: B[0].sessionIndex }))
 
-  // 渲染：真组件吐出来的那棵树，按会话分段，各段里只有自己那几张票
+  // 渲染：真组件吐出来的那棵树 —— 一行一条记录（重做后不再有「会话」小标题那一层）
   const node = leaf.SessionChainStrip({ st: st, narrow: false })
   const text = textOf(node)
   if (!text || text.indexOf('每个会话在处理哪些票') < 0) fail('这一块没有画出它自己的标题：' + JSON.stringify(text).slice(0, 120))
-  const labelA = tr('chainView.session', { id: shardA.slice(0, 8) })
-  const labelB = tr('chainView.session', { id: chain.chainSessionShardId(SID_B).slice(0, 8) })
-  const segs = []
-  ;(node.children || []).forEach(function (c) {
-    const t = textOf(c)
-    if (t === labelA || t === labelB) segs.push({ label: t, rows: [] })
-    else if (segs.length) segs[segs.length - 1].rows.push(t)
-  })
-  if (segs.length !== 2) fail('画出来的会话段不是两段（实得 ' + segs.length + '）：' + JSON.stringify(segs).slice(0, 200))
-  segs.forEach(function (sg) {
-    const mine = sg.label === labelA ? ['703', '702', '701'] : ['802', '801']
-    const other = sg.label === labelA ? ['801', '802'] : ['701', '702', '703']
-    mine.forEach(function (k) { if (!sg.rows.some(function (r) { return r.indexOf('#' + k) >= 0 })) fail(sg.label + ' 这一段里少了 #' + k) })
-    other.forEach(function (k) { if (sg.rows.some(function (r) { return r.indexOf('#' + k) >= 0 })) fail(sg.label + ' 这一段里混进了另一会话的 #' + k) })
-  })
+  // 会话序号那两句：给人读的「会话 1 / 会话 2」，不再是那串散列
+  const labelA = tr('chainView.sessionShort', { n: 2 })
+  const labelB = tr('chainView.sessionShort', { n: 1 })
+  if (text.indexOf(labelA) < 0 || text.indexOf(labelB) < 0) fail('版面上没有写会话序号（会话 1 / 会话 2）：' + JSON.stringify(text).slice(0, 160))
+  // 按**行节点**分段（不再按文本猜）：一行一条记录，每条带 data-session（那一行属于哪个会话）。
+  const rowSel = function (n) {
+    if (!n || typeof n !== 'object') return null
+    if (n.props && n.props.className === 'dsws-chainview-row') return n
+    return null
+  }
+  const rowTextsAll = (function collectRows(n, out) {
+    if (!n || typeof n !== 'object') return out
+    if (rowSel(n)) { out.push({ t: textOf(n), sess: String((n.props && n.props['data-session']) || '') }); return out }
+    const kids = Array.isArray(n.children) ? n.children : []
+    for (let i = 0; i < kids.length; i++) collectRows(kids[i], out)
+    return out
+  })(node, [])
+  const segsA = rowTextsAll.filter(function (r) { return r.sess === shardA.slice(0, 8) })
+  const segsB = rowTextsAll.filter(function (r) { return r.sess === chain.chainSessionShardId(SID_B).slice(0, 8) })
+  if (segsA.length !== 3 || segsB.length !== 2) fail('画出来的记录不是「会话 A 三行、会话 B 两行」（实得 ' + segsA.length + ' / ' + segsB.length + '）：' + JSON.stringify(rowTextsAll.map(function (r) { return r.sess + '=' + r.t.slice(0, 18) })))
+  segsA.forEach(function (r) { if (r.t.indexOf('#8') >= 0) fail('会话 A 的行里混进了另一会话的票：' + JSON.stringify(r.t)) })
+  // 一条记录一行、且版面上一行都不许出现 8 位十六进制散列（2026-09-24 晚重做的核心那一句）。
+  //   量的只能是**版面上看得见的字**（visibleTextOf 把悬停提示排除在外）—— 悬停里带着完整标识是这一版的要求。
+  const hex = /(?:^|[^0-9a-f])([0-9a-f]{8})(?![0-9a-f])/i
+  const rowTexts = rowTextsAll.map(function (r) { return r.t })
+  const withHex = rowTexts.filter(function (t) { return hex.test(t) })
+  if (withHex.length) fail('版面上出现了 8 位十六进制散列（散列不该上版面）：' + JSON.stringify(withHex.slice(0, 2)))
+  // 悬停提示里要有完整标识：把每一行的 Tip 内容取出来看。
+  //   这一份用的是最小的假 React：组件树上的节点是 { type, props, children }，而 type 就是**组件函数本身**
+  //   （字符串 'Tip' 不是任何一种形态）—— 所以按引用认出 Tip 才能取到内容；
+  //   2026-09-24 实测踩过这一脚：按 n.type === 'Tip' 认，一条都取不到。
+  const TIP = TipStub
+  const isTip = function (n) { return !!n && typeof n === 'object' && n.type === TIP }
+  const tipTexts = (function collectTips(n, out) {
+    if (!n || typeof n !== 'object') return out
+    if (isTip(n)) { out.push(String((n.props || {}).content || '')); return out }
+    const kids = Array.isArray(n.children) ? n.children : []
+    for (let i = 0; i < kids.length; i++) collectTips(kids[i], out)
+    return out
+  })(node, [])
+  const tipWithId = tipTexts.filter(function (t) { return t.indexOf(shardA.slice(0, 8)) >= 0 })
+  if (tipWithId.length !== 3) fail('完整标识没有进悬停提示（会话 A 那三条各一份）：' + JSON.stringify(tipTexts.map(function (t) { return t.slice(0, 40) })))
+  const tipWithIdB = tipTexts.filter(function (t) { return t.indexOf(chain.chainSessionShardId(SID_B).slice(0, 8)) >= 0 })
+  if (tipWithIdB.length !== 2) fail('会话 B 的完整标识没有进悬停提示（应有两份）：' + JSON.stringify(tipTexts.map(function (t) { return t.slice(0, 40) })))
   // 点一行跳到那张票（用的是链记下的票号）
   pushed.length = 0
   const rowNodes = (function collect(n, out) {
@@ -211,7 +250,7 @@ async function main() {
     return out
   })(node, [])
   if (rowNodes.length !== 5) fail('画出来的可点行不是五条（两个会话共五张票）：' + rowNodes.length)
-  const row703 = rowNodes.filter(function (r) { return textOf(r).indexOf('#703') === 0 })[0] || null
+  const row703 = rowNodes.filter(function (r) { return textOf(r).indexOf('#703') >= 0 })[0] || null
   if (!row703) fail('没有画出 #703 那一行（点一行要能跳到那张票）')
   else { row703.props.onClick(); if (st.tab !== 'list') fail('点了那一行没有切回列表页'); if (!pushed.length || pushed[0].n !== 703 || pushed[0].kind !== 'issue') fail('点了 #703 那一行没有跳到链记下的那张票：' + JSON.stringify(pushed)) }
 

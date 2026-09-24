@@ -55,8 +55,14 @@
         //   判据与画法在 views/shared/sessionChainView.js；数据只有宿主写下的一份读数一个来源。
         //   action.* 这八个键与链的闭集合（chain.ts 的 CHAIN_ACTIONS）逐个对应，门禁每次核对。
         'chainView.title': '每个会话在处理哪些票',
-        'chainView.readAt': '宿主读数 {time}',
-        'chainView.session': '会话 {id}',
+        // 2026-09-24 晚重做这一块（维护者原话：「不应该这样呈现，这样UI非常丑陋」）：
+        //   「宿主读数」是我们内部的说法，换成一句人话（时间含义没变：还是宿主记下那一刻的时分）；
+        //   那串 8 位十六进制散列不上版面 —— 版面上写给人读的序号（会话 1、会话 2……），
+        //   完整标识与完整说法都在链的悬停提示里（下面那两条 *Tip）；行数到顶时末尾说明还剩几条。
+        'chainView.readAtFull': '{time} 更新',
+        'chainView.sessionShort': '会话 {n}',
+        'chainView.sessionTip': '会话标识（前 8 位）：{id}',
+        'chainView.moreRows': '还有 {n} 条没有列出',
         // #721 补（2026-09-22 维护者定）：主句只说读不到，短到一眼读完；「这次没拿到、不代表没人」那层意思
         //   整句挪进悬停提示（unreadableTip），宿主给的原因代号也跟着在悬停里，主句里不再有括号。
         // 2026-09-24 维护者再定：`host.chain.absent`（还没有记录）归「空」，不再产出这句可见警告；
@@ -109,8 +115,13 @@
         //   is the one reading the host writes. The eight action.* keys line up one for one with the
         //   chain's closed set (CHAIN_ACTIONS in chain.ts), and a gate re-checks that every run.
         'chainView.title': 'Which tickets each session is working on',
-        'chainView.readAt': 'host reading {time}',
-        'chainView.session': 'session {id}',
+        // 2026-09-24 rework (maintainer: "不应该这样呈现，这样UI非常丑陋"): the internal phrase
+        //   "host reading" is gone; the eight-hex-digit shard id no longer sits on the panel
+        //   (the panel shows a human-readable index; the full id lives in the row's hover tip).
+        'chainView.readAtFull': 'updated {time}',
+        'chainView.sessionShort': 'session {n}',
+        'chainView.sessionTip': 'session id (first 8 hex digits): {id}',
+        'chainView.moreRows': '{n} more not listed',
         'chainView.unreadable': 'Cannot read the processing record',
         'chainView.unreadableTip': 'The host failed while reading this record. It does not mean no session is working on a ticket. Code from the host: {reason}',
         'chainView.openTip': 'Open this ticket as the host recorded it',
