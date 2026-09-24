@@ -185,9 +185,50 @@ function createClientLog(deps, configInput) {
   const logForwardState = { lastSummaryAt: 0, lastSummaryDropped: 0, lastReason: "" };
   const logFlushTimer = { id: null };
   const setLogSwitchGen = { n: 0 };
-  function isEnabled(level) {
+  const RESIDENT_EVENTS = /* @__PURE__ */ new Set([
+    "snapshot.request",
+    "snapshot.cache.miss",
+    "repo.resolve.tier",
+    "gh.exec",
+    "gh.timeout",
+    "gh.resolve.fail",
+    "graphql.fallback",
+    "issues.fallback",
+    "snapshot.built",
+    "panelSync.dirty",
+    "registry.select",
+    "detection.detect",
+    "skill.probe",
+    "skill.pending.cap",
+    "host.call",
+    "host.call.fail",
+    "snapshot.hydrate",
+    "backend.switch",
+    "naming.guard",
+    "naming.lock",
+    "panel.open",
+    "statusbar.fallback",
+    "dock.rehydrate",
+    "storage.fail",
+    "chain.derive.error",
+    "fallback.chain",
+    "client.snapshot.miss",
+    "host.start",
+    "update.install.exec",
+    "labelColors.write",
+    "guide.inject",
+    "healthCheck.inject",
+    "choiceStore.file.bad",
+    "choiceStore.write.fail",
+    "issues.page",
+    "sessionTickets.chain",
+    "chain.backoff",
+    "host.dispatch.empty"
+  ]);
+  function isEnabled(level, event) {
     if (level === "error" || level === "warn") return true;
     try {
+      if (typeof event === "string" && RESIDENT_EVENTS.has(event)) return true;
       return logSwitch.enabled === true;
     } catch (e) {
       void e;
@@ -195,7 +236,7 @@ function createClientLog(deps, configInput) {
     }
   }
   function log(level, event, fields) {
-    if (!isEnabled(level)) return;
+    if (!isEnabled(level, event)) return;
     if (logQueue.length >= LOG_QUEUE_MAX) {
       logDroppedState.count += 1;
       logForwardState.lastReason = "queue-full";

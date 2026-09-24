@@ -236,9 +236,27 @@ export function createLogStore(deps: LogStoreDeps, configInput?: HostLogConfigIn
       void e2
     }
   }
-  // 读当前级别是否允许产生日志；关闭时调用处直接返回。错误与告警始终允许。
-  function isEnabled(level: string): boolean {
+  // 常驻事件（#731 一次性修好：信息级里标为常驻的那批，开关关着也落盘）。
+  // 为什么是名单而不是逐个开后门：以后新增常驻只改这张表，不用再碰判断；
+  // 名单与 research/489-appendix.md 第 1 章常驻 38 条一致，测试会拿附录与计数门禁逐项核对。
+  const RESIDENT_EVENTS: ReadonlySet<string> = new Set([
+    'snapshot.request', 'snapshot.cache.miss', 'repo.resolve.tier', 'gh.exec',
+    'gh.timeout', 'gh.resolve.fail', 'graphql.fallback', 'issues.fallback',
+    'snapshot.built', 'panelSync.dirty', 'registry.select', 'detection.detect',
+    'skill.probe', 'skill.pending.cap', 'host.call', 'host.call.fail',
+    'snapshot.hydrate', 'backend.switch', 'naming.guard', 'naming.lock',
+    'panel.open', 'statusbar.fallback', 'dock.rehydrate', 'storage.fail',
+    'chain.derive.error', 'fallback.chain', 'client.snapshot.miss', 'host.start',
+    'update.install.exec', 'labelColors.write', 'guide.inject', 'healthCheck.inject',
+    'choiceStore.file.bad', 'choiceStore.write.fail', 'issues.page', 'sessionTickets.chain',
+    'chain.backoff', 'host.dispatch.empty',
+  ])
+  // 读当前级别与事件名是否允许产生日志；关闭时调用处直接返回。错误与告警始终允许；
+  // 信息级里落在常驻名单的也始终允许（#731 根因：从前只看级别，常驻信息全被开关拦掉）。
+  // 第二个参数可选，老调用方只传级别时行为与从前一致，不会误放行。
+  function isEnabled(level: string, event?: string): boolean {
     if (level === 'error' || level === 'warn') return true
+    if (typeof event === 'string' && RESIDENT_EVENTS.has(event)) return true
     return switchEnabled === true
   }
   // 队列满时按级别丢弃（#558 队列口径）：错误与告警优先，挤掉最旧的普通行；
@@ -256,8 +274,9 @@ export function createLogStore(deps: LogStoreDeps, configInput?: HostLogConfigIn
     dropped += 1
   }
   // 记一行日志：只进内存队列就返回，不等写盘完成。级别只有 error、warn、info、debug。
+  // 常驻事件名要透给放行判断（#731：只传级别会把常驻信息误拦掉）。
   function log(level: string, event: string, fields: Record<string, unknown>): void {
-    if (!isEnabled(level)) return
+    if (!isEnabled(level, event)) return
     if (queue.length >= config.maxQueue) {
       dropForRoom(level)
       if (queue.length >= config.maxQueue) return

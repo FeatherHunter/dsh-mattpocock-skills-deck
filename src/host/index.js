@@ -59,7 +59,7 @@ export default {
     // #491 房外公共区埋点：宿主侧日志上下文（设计 #335 第 3 章房外行 + #489 白名单；房间目录文件一律不碰）。
     // fire 防火即发（只进队列就返回，不等写盘）；函数式字段在开关判断通过后才求值；isEnabled 供 P1 外层判断（权威仍是库体内兜底）。
     let logSwitchCache = false
-    function fireLog(level, event, fieldsOrFn) { try { _log().then(function (h) { try { if (!h.isEnabled(level)) return; if (h.getSwitchState) { try { logSwitchCache = h.getSwitchState().enabled === true } catch (eC) {} } const fields = (typeof fieldsOrFn === 'function') ? fieldsOrFn() : fieldsOrFn; h.log(level, event, fields || {}) } catch (e) {} }).catch(function () {}) } catch (e) {} }
+    function fireLog(level, event, fieldsOrFn) { try { _log().then(function (h) { try { if (!h.isEnabled(level, event)) return; if (h.getSwitchState) { try { logSwitchCache = h.getSwitchState().enabled === true } catch (eC) {} } const fields = (typeof fieldsOrFn === 'function') ? fieldsOrFn() : fieldsOrFn; h.log(level, event, fields || {}) } catch (e) {} }).catch(function () {}) } catch (e) {} }
     function isLogEnabled(level) { if (level === 'error' || level === 'warn') return true; return logSwitchCache === true }
     const logCtx = { fire: fireLog, isEnabled: isLogEnabled }
     // H7 #515：分发异常行的两个纯函数（入参散列 shortArgHash + 错误归类 dispatchErrorKind，逐行原样）已搬到 ./dispatchMeta.js；此处只留动态加载器（D7 禁止静态 import）。

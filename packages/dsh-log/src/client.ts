@@ -254,10 +254,27 @@ export function createClientLog(deps: ClientLogDeps, configInput?: ClientLogConf
   // 写开关代际：调用 hang 住时超时放行，迟到回包按代际丢弃，不碰状态、不记新行。
   const setLogSwitchGen = { n: 0 }
 
-  // 读当前级别是否允许产生日志；关闭时调用处直接返回。错误与告警始终允许。
-  function isEnabled(level: string): boolean {
+  // 常驻事件（#731 一次性修好：信息级里标为常驻的那批，开关关着也转发）。
+  // 为什么与宿主包用同一张表：两端放行口径必须一致，否则客户端拦掉的行宿主永远收不到；
+  // 名单与 research/489-appendix.md 第 1 章常驻 38 条一致，测试会拿附录逐项核对。
+  const RESIDENT_EVENTS: ReadonlySet<string> = new Set([
+    'snapshot.request', 'snapshot.cache.miss', 'repo.resolve.tier', 'gh.exec',
+    'gh.timeout', 'gh.resolve.fail', 'graphql.fallback', 'issues.fallback',
+    'snapshot.built', 'panelSync.dirty', 'registry.select', 'detection.detect',
+    'skill.probe', 'skill.pending.cap', 'host.call', 'host.call.fail',
+    'snapshot.hydrate', 'backend.switch', 'naming.guard', 'naming.lock',
+    'panel.open', 'statusbar.fallback', 'dock.rehydrate', 'storage.fail',
+    'chain.derive.error', 'fallback.chain', 'client.snapshot.miss', 'host.start',
+    'update.install.exec', 'labelColors.write', 'guide.inject', 'healthCheck.inject',
+    'choiceStore.file.bad', 'choiceStore.write.fail', 'issues.page', 'sessionTickets.chain',
+    'chain.backoff', 'host.dispatch.empty',
+  ])
+  // 读当前级别与事件名是否允许产生日志；关闭时调用处直接返回。错误与告警始终允许；
+  // 信息级里落在常驻名单的也始终允许（#731 根因：从前只看级别，常驻信息全被开关拦掉）。
+  function isEnabled(level: string, event?: string): boolean {
     if (level === 'error' || level === 'warn') return true
     try {
+      if (typeof event === 'string' && RESIDENT_EVENTS.has(event)) return true
       return logSwitch.enabled === true
     } catch (e) {
       void e
@@ -267,7 +284,7 @@ export function createClientLog(deps: ClientLogDeps, configInput?: ClientLogConf
   // 记一行日志：体内仍先判断一次再写，做漏加外层判断的兜底；
   // 但兜底拦不住调用前已求值的拼接，所以高频调用处仍必须写外层判断，不许省略。
   function log(level: string, event: string, fields?: Record<string, unknown>): void {
-    if (!isEnabled(level)) return
+    if (!isEnabled(level, event)) return
     if (logQueue.length >= LOG_QUEUE_MAX) {
       logDroppedState.count += 1
       logForwardState.lastReason = 'queue-full'
