@@ -47,9 +47,10 @@ async function main () {
   const ghSrc = read(path.join('src', 'host', 'tracker', 'backends', 'github', 'index.js'))
   const glSrc = read(path.join('src', 'host', 'tracker', 'backends', 'gitlab', 'index.js'))
   const mdSrc = read(path.join('src', 'host', 'tracker', 'backends', 'markdown', 'index.js'))
-  const ghM = { id: 'github', prompts: { healthCheck: promptsOf(ghSrc, 'healthCheck'), subIssue: promptsOf(ghSrc, 'subIssue'), bodyFormat: promptsOf(ghSrc, 'bodyFormat') } }
-  const glM = { id: 'gitlab', prompts: { healthCheck: promptsOf(glSrc, 'healthCheck'), subIssue: promptsOf(glSrc, 'subIssue'), bodyFormat: promptsOf(glSrc, 'bodyFormat') } }
-  const mdM = { id: 'markdown', prompts: { healthCheck: promptsOf(mdSrc, 'healthCheck'), subIssue: promptsOf(mdSrc, 'subIssue'), bodyFormat: promptsOf(mdSrc, 'bodyFormat') } }
+  // #725：三后端各自的 prompts.bodyFormat 整节删除，这里不再从后端抠那一条。
+  const ghM = { id: 'github', prompts: { healthCheck: promptsOf(ghSrc, 'healthCheck'), subIssue: promptsOf(ghSrc, 'subIssue') } }
+  const glM = { id: 'gitlab', prompts: { healthCheck: promptsOf(glSrc, 'healthCheck'), subIssue: promptsOf(glSrc, 'subIssue') } }
+  const mdM = { id: 'markdown', prompts: { healthCheck: promptsOf(mdSrc, 'healthCheck'), subIssue: promptsOf(mdSrc, 'subIssue') } }
   check(!!ghM.prompts.healthCheck.zh && !!glM.prompts.healthCheck.zh && !!mdM.prompts.healthCheck.zh, '三房真实科目都从真源抠出来了（不是手抄的）')
 
   const tmpP = spliceToFile(

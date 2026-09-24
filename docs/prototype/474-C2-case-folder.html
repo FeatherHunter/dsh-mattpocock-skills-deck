@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>C2 · 卷宗夹 —— 地图 #604</title>
+<style>
+/* ============================================================================
+   C2 · 卷宗夹（打开一份刑事案卷）
+
+   概念：整页就是一份摊在桌上的牛皮纸卷宗夹。封皮上有案号（#604）和案由（目的地）；
+         掀开封盖以后，里面是按票号顺序装订起来的卷页。
+
+   四种状态各自落在认得出的实物上：
+     走亮   = 已归档的卷页：红章「已结」+ 手写结论 + 页角折痕
+     照亮中 = 正在批注的那一页：荧光笔 + 压着一支笔 + 页脚写着现任经办人
+     现在能做 = 别着回形针的绿色便签「可以动手」
+     雾里   = 封着的证物袋：透明袋 + 封口胶条 + 记号笔写着「待查」和「等谁结」，点一下才拆封
+
+   目的地（案由）钉在顶部，是卷宗书脊上最醒目的一行，翻页、滚动都一直在视野里。
+
+   下方「原型控制条」不属于设计本身，只是给评审切宽度、切状态用的。
+   ============================================================================ */
+
+:root{
+  --bg:#10131a; --card:#16181d; --line:#2a2d35;
+  --tx:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --walk:#4ade80; --view:#58a6ff; --dest:#c084fc; --warn:#f59e0b;
+
+  /* 牛皮纸 / 卷宗实物的颜色 */
+  --kraft:#d9c39a; --kraft-d:#b2946a; --kraft-dd:#8d7346; --kraft-l:#e9dcbd;
+  --paper:#f3ede0; --paper-d:#ded4bd; --ink:#2b2b2b; --pencil:#5c5850;
+  --stamp:#a01e1e; --marker:#22304d; --redline:#c0392b;
+
+  --mono:Consolas,Menlo,monospace;
+  --sans:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --serif:Georgia,"Times New Roman","Songti SC","SimSun",serif;
+  --hand:KaiTi,"Kaiti SC","STKaiti","Comic Sans MS",cursive;
+
+  --panelW:810px;
+  --coverH:560px;
+  --flap:0deg;
+  --gap:9px;
+}
+
+@property --st-turn { syntax:"<angle>";  inherits:false; initial-value:-9deg; }
+@property --st-press{ syntax:"<number>"; inherits:false; initial-value:1; }
+@property --st-ink  { syntax:"<number>"; inherits:false; initial-value:1; }
+@property --flap    { syntax:"<angle>";  inherits:false; initial-value:0deg; }
+@property --bag-tear{ syntax:"<number>"; inherits:false; initial-value:0; }
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#0a0d12;color:var(--tx);font-family:var(--sans);-webkit-font-smoothing:antialiased;
+  display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:12px 0 24px;
+  overflow-x:hidden;
+}
+body.embed{padding:0;background:var(--bg)}
+
+/* ---------------- 面板外壳（六个原型共用） ---------------- */
+#panel{
+  width:var(--panelW);background:var(--bg);border:1px solid var(--line);border-radius:10px;
+  overflow:hidden;display:flex;flex-direction:column;height:calc(100vh - 60px);min-height:420px;
+  container-type:inline-size;container-name:panel;
+}
+body.embed #panel{height:100vh;border:none;border-radius:0;max-height:100vh}
+
+.phead{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px 10px;
+  border-bottom:1px solid var(--line);background:linear-gradient(180deg,#151922,#12151c);
+}
+.pbtn{
+  appearance:none;background:transparent;border:1px solid transparent;color:var(--sec);
+  font:500 12px/1 var(--sans);padding:5px 8px;border-radius:6px;cursor:pointer;
+}
+.pbtn:hover{background:rgba(255,255,255,.06);color:var(--tx);border-color:var(--line)}
+.pbtn:focus-visible{outline:2px solid var(--view);outline-offset:1px}
+.crumb{display:flex;align-items:center;gap:7px;min-width:0}
+.crumb .no{font:600 12px/1 var(--mono);color:var(--tx)}
+.crumb .sep{color:#3a3f4b}
+.crumb .mapdesc{font-size:11.5px;color:var(--sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tag-map{
+  display:inline-flex;align-items:center;gap:4px;font:600 10.5px/1 var(--mono);
+  color:#d8c7ff;background:rgba(192,132,252,.13);border:1px solid rgba(192,132,252,.45);
+  border-radius:999px;padding:3px 8px;white-space:nowrap;
+}
+.pbtn.primary{margin-left:auto;background:rgba(88,166,253,.14);border-color:rgba(88,166,253,.55);color:#bfd9ff;font-weight:600}
+.pbtn.primary:hover{background:rgba(88,166,253,.24);color:#e6f1ff}
+
+/* ---------------- 桌面 ---------------- */
+#scroller{
+  flex:1 1 auto;overflow-y:auto;overflow-x:hidden;position:relative;
+  background:
+    radial-gradient(120% 60% at 50% 0%,#1a1f29 0%,#0f1218 60%,#0b0e13 100%);
+  scroll-behavior:smooth;
+}
+#scroller::-webkit-scrollbar{width:10px}
+#scroller::-webkit-scrollbar-thumb{background:#2b303b;border-radius:6px}
+#scroller::-webkit-scrollbar-track{background:#0d1015}
+
+/* 案由书脊：钉在顶部，永远看得见 */
+.spine{
+  position:sticky;top:0;z-index:60;display:flex;flex-direction:column;gap:5px;
+  padding:8px 12px 9px;border-bottom:1px solid #7d6538;
+  background:
+    linear-gradient(180deg,#e2cfa4,#d3ba8b 62%,#c6ab7b);
+  box-shadow:0 7px 16px -6px rgba(0,0,0,.75), inset 0 -1px 0 rgba(255,255,255,.28);
+  color:#33291a;
+}
+.spine-top{display:flex;align-items:center;gap:7px;min-width:0}
+.spine .tagline{
+  font:700 9px/1 var(--mono);letter-spacing:.14em;color:#fff;background:var(--stamp);
+  border-radius:3px;padding:3px 6px;flex:0 0 auto;
+}
+.spine .caseno{font:700 13px/1 var(--mono);color:#2b2214;letter-spacing:.03em;flex:0 0 auto}
+.spine .foldmark{margin-left:auto;font-size:10px;color:#6b573a;white-space:nowrap}
+.spine .dest{
+  font-family:var(--serif);font-size:12px;line-height:1.56;color:#2b2317;
+  text-wrap:pretty;
+}
+.spine .dest b{font-weight:700}
+.spine .seamline{
+  position:absolute;left:0;right:0;bottom:0;height:3px;
+  background:repeating-linear-gradient(90deg,var(--redline) 0 8px,transparent 8px 15px);
+  opacity:.55;
+}
+
+/* ---------------- 卷宗夹本体 ---------------- */
+.desk{padding:12px 12px 26px;position:relative}
+
+.case{
+  position:relative;z-index:2;
+  perspective:1600px;perspective-origin:50% 0%;
+  width:100%;
+}
+
+/* 卷宗袋身（里面是装订好的卷页）；封盖盖上时只露出 coverH 那么高 */
+.folder{
+  position:relative;width:100%;
+  background:
+    linear-gradient(158deg,#e6d3ab 0%,var(--kraft) 34%,#cfb488 78%,#bfa075 100%);
+  border-radius:4px 4px 7px 7px;
+  box-shadow:
+    0 26px 46px -18px rgba(0,0,0,.86),
+    0 4px 12px rgba(0,0,0,.5),
+    inset 0 0 0 1px rgba(255,255,255,.22);
+  overflow:hidden;
+  transition:height .62s cubic-bezier(.22,.86,.18,1);
+}
+/* 牛皮纸纤维 */
+.folder::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:1;mix-blend-mode:multiply;
+  background:#c4a87c;
+  filter:url(#f-kraft);
+  opacity:.72;
+}
+/* 口袋内侧的阴影，让卷页有「装在袋里」的深度 */
+.folder::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:1;border-radius:inherit;
+  box-shadow:inset 0 16px 26px -18px rgba(60,42,18,.85), inset 0 -12px 22px -16px rgba(60,42,18,.65);
+}
+
+/* ---------- 封盖（真 3D：perspective + rotateX，铰在顶边） ---------- */
+.lid{
+  position:absolute;left:0;right:0;top:0;height:var(--coverH);z-index:20;
+  transform-origin:50% 0%;transform-style:preserve-3d;
+  transform:rotateX(var(--flap));
+  transition:--flap .82s cubic-bezier(.42,0,.14,1), box-shadow .3s;
+  will-change:transform;
+  box-shadow:0 14px 26px -12px rgba(0,0,0,.7);
+}
+.lid-face{
+  position:absolute;inset:0;backface-visibility:hidden;overflow:hidden;
+  border-radius:4px 4px 0 0;
+  background:linear-gradient(160deg,#eddab2 0%,var(--kraft) 40%,#cdb083 100%);
+}
+.lid-face::before{ /* 牛皮纸纤维 */
+  content:"";position:absolute;inset:0;mix-blend-mode:multiply;background:#c4a87c;
+  filter:url(#f-kraft);opacity:.78;
+}
+.lid-back{transform:rotateX(180deg) translateZ(1px);
+  background:linear-gradient(160deg,#c4a97e,#a98e63 70%,#9c8259)}
+.lid-front .edge-top{
+  position:absolute;left:0;right:0;top:0;height:8px;
+  background:linear-gradient(180deg,rgba(255,255,255,.5),transparent);
+}
+
+/* 封皮上的内容 */
+.cov{position:relative;z-index:2;padding:16px 16px 46px;height:100%;display:flex;flex-direction:column;gap:9px;color:#2f2618}
+.cov-head{display:flex;align-items:center;gap:9px}
+.cov-head .vertical{
+  font:700 11px/1 var(--hand);letter-spacing:.22em;color:#7a2a20;
+  writing-mode:vertical-rl;border:1.5px solid rgba(122,42,32,.55);padding:5px 2px;border-radius:2px;
+  background:rgba(255,255,255,.16);
+}
+.cov-head .rows{display:flex;flex-direction:column;gap:3px;min-width:0}
+.cov-head .r1{font:700 11px/1 var(--mono);letter-spacing:.13em;color:#6a5734}
+.cov-head .r2{font-family:var(--serif);font-weight:700;font-size:19px;line-height:1.1;color:#241c10}
+.cov-head .r3{font-size:10.5px;color:#6a5734}
+
+/* 案由 —— 封皮上最醒目的一行 */
+.cause{
+  position:relative;border-top:2.5px solid #8f3a2c;border-bottom:2.5px solid #8f3a2c;
+  padding:8px 2px 9px;margin-top:1px;
+}
+.cause .lb{
+  position:absolute;top:-9px;left:0;font:700 9px/1 var(--mono);letter-spacing:.2em;
+  background:var(--stamp);color:#fff;padding:3px 6px;border-radius:2px;
+}
+.cause .tx{
+  font-family:var(--serif);font-size:14.5px;line-height:1.72;color:#221a0e;
+  text-wrap:pretty;margin-top:5px;
+}
+.cause .tx .mk{background:linear-gradient(transparent 58%,rgba(160,30,30,.34) 58%);font-weight:700}
+
+/* 封皮上印着的立卷信息 */
+.cov-fields{
+  display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:auto;
+  border:1.5px solid rgba(90,72,40,.42);border-radius:3px;background:rgba(255,255,255,.14);
+}
+.cov-fields span{display:flex;align-items:baseline;gap:6px;padding:6px 8px;min-width:0;border-bottom:1px solid rgba(90,72,40,.22)}
+.cov-fields span:nth-child(odd){border-right:1px solid rgba(90,72,40,.22)}
+.cov-fields span:nth-last-child(-n+2){border-bottom:none}
+.cov-fields i{font:700 9.5px/1.5 var(--mono);letter-spacing:.08em;color:#6b5734;font-style:normal;white-space:nowrap}
+.cov-fields b{font:600 11.5px/1.5 var(--sans);color:#2b2317;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* 卷内情况（封皮上的一块印刷表格） */
+.cov-tally{border:1.5px solid rgba(90,72,40,.5);border-radius:3px;background:rgba(255,255,255,.2)}.cov-tally .th{
+  font:700 9.5px/1 var(--mono);letter-spacing:.16em;color:#5d4c2e;
+  padding:4px 7px;border-bottom:1.5px solid rgba(90,72,40,.5);
+}
+.cov-tally .tb{display:flex;flex-wrap:wrap;gap:2px 12px;padding:6px 7px 7px}
+.cov-tally .cell{display:flex;align-items:center;gap:5px;font-size:11px;color:#31281a}
+.cov-tally .mk{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
+.mk.closed{background:var(--stamp);border-radius:50%}
+.mk.lit{background:var(--view);transform:rotate(45deg)}
+.mk.ready{background:#3f9d52}
+.mk.fog{background:#8a8a8a;border:1px dashed #555}
+.cov-tally .n{font:700 12px/1 var(--mono);font-variant-numeric:tabular-nums}
+.cov-tally .zero{color:#8a7a5c}
+
+/* 立案红章 */
+.seal-stamp{
+  position:absolute;right:16px;top:calc(50% - 52px);width:104px;height:104px;z-index:3;
+  display:grid;place-content:center;text-align:center;
+  color:rgba(160,30,30,.74);transform:rotate(-11deg);mix-blend-mode:multiply;
+  font-family:var(--serif);font-weight:700;letter-spacing:.1em;
+  border:3.5px double currentColor;border-radius:50%;
+  filter:url(#f-ink);
+}
+.seal-stamp i{display:block;font-style:normal;font-size:17px;line-height:1.15}
+.seal-stamp s{display:block;text-decoration:none;font-size:9px;letter-spacing:.05em;margin-top:3px}
+
+/* 封条：贴在封盖下沿，撕开才能打开卷宗 */
+.seal-strip{
+  position:absolute;left:-6px;right:-6px;bottom:-2px;height:34px;z-index:6;
+  display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;
+  background:repeating-linear-gradient(45deg,#f0e6cc 0 7px,#e3d5b2 7px 14px);
+  border-top:1px dashed rgba(120,95,55,.7);border-bottom:1px dashed rgba(120,95,55,.7);
+  box-shadow:0 3px 8px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.45);
+  font:700 12px/1 var(--sans);color:#7a2a20;
+}
+.seal-strip .wax{
+  position:absolute;left:18px;top:50%;width:26px;height:26px;margin:-13px 0 0 0;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#d2493c,#8e1d17 70%);
+  box-shadow:0 2px 5px rgba(0,0,0,.55), inset 0 -2px 3px rgba(0,0,0,.35);
+}
+.seal-strip .wax::after{content:"封";position:absolute;inset:0;display:grid;place-content:center;color:#ffe4dd;font:700 12px/1 var(--hand)}
+.seal-strip .tip{position:relative;z-index:2;background:rgba(255,255,255,.72);padding:3px 9px;border-radius:3px;
+  border:1px solid rgba(120,95,55,.5);box-shadow:0 1px 0 rgba(255,255,255,.7)}
+.seal-strip:hover .tip{background:#fff;color:#a01e1e}
+.seal-strip:focus-visible{outline:2px solid var(--view);outline-offset:2px}
+.seal-half{position:absolute;top:0;height:100%;width:52%;background:inherit;overflow:hidden;pointer-events:none}
+.seal-half.l{left:0;transform-origin:0% 50%}
+.seal-half.r{right:0;transform-origin:100% 50%}
+
+/* ---------------- 卷页（装订在里面） ---------------- */
+.stack{position:relative;z-index:2;padding:10px 12px 22px 12px;display:flex;flex-direction:column;gap:var(--gap)}
+
+/* 卷首条：贴在卷页最上面的一条牛皮纸标签 */
+.filehead{
+  position:relative;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  background:linear-gradient(180deg,#e4d2a9,#d2bb90);color:#3a2f1c;
+  border-radius:3px;padding:7px 10px;box-shadow:0 3px 8px -3px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.35);
+}
+.filehead .t{font:700 11px/1 var(--mono);letter-spacing:.08em}
+.filehead .d{font-size:10.5px;color:#6b5735}
+.filehead .bl{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.minibtn{
+  appearance:none;cursor:pointer;font:600 10.5px/1 var(--sans);color:#4a3a1e;
+  background:rgba(255,255,255,.55);border:1px solid rgba(105,84,45,.5);border-radius:4px;padding:4px 8px;
+}
+.minibtn:hover{background:#fff;color:#7a2a20}
+.minibtn:focus-visible{outline:2px solid var(--view);outline-offset:1px}
+.minibtn:disabled{opacity:.4;cursor:default}
+
+/* 装订线（贯穿整叠卷页的两股红绳） */
+.binding{position:absolute;left:6px;top:10px;bottom:22px;width:44px;pointer-events:none;z-index:5}
+.binding svg{width:100%;height:100%;display:block;overflow:visible}
+
+/* 一张卷页 */
+.pg{
+  position:relative;background:var(--paper);isolation:isolate;
+  border-radius:2px 3px 2px 3px;
+  padding:12px 14px 12px 46px;
+  box-shadow:0 6px 14px -8px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.5), inset 0 0 0 1px rgba(120,102,70,.34);
+  color:var(--ink);scroll-margin-top:180px;
+  transition:transform .22s cubic-bezier(.2,.8,.3,1), box-shadow .22s;
+  outline:none;
+}
+.pg::before{ /* 纸纹 */
+  content:"";position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;z-index:0;
+  filter:url(#f-paper);opacity:.72;background:#cdc3ab;
+}
+.pg::after{ /* 左侧红边线，像真的卷宗纸 */
+  content:"";position:absolute;left:40px;top:0;bottom:0;width:1px;background:rgba(192,57,43,.42);z-index:0;
+}
+.pg>*{position:relative;z-index:2}
+.pg:hover,.pg:focus-visible{transform:translateY(-2px);box-shadow:0 14px 24px -12px rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.5), inset 0 0 0 1px rgba(120,102,70,.4)}
+.pg:focus-visible{outline:2px dashed rgba(160,30,30,.8);outline-offset:3px}
+
+/* 装订孔 */
+.hole{position:absolute;left:11px;width:13px;height:13px;border-radius:50%;z-index:3;
+  background:radial-gradient(circle at 35% 32%,#8d7752,#4d3f28 70%);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.8), 0 1px 0 rgba(255,255,255,.65)}
+.hole.h1{top:16px}.hole.h2{top:44px}
+
+.pg-head{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:6px}
+.chip{
+  display:inline-flex;align-items:center;gap:5px;font:700 10px/1 var(--mono);letter-spacing:.04em;
+  padding:3px 7px;border-radius:3px;background:#ece3cf;border:1px solid rgba(120,102,70,.5);color:#4a4130;
+}
+.sttag{font:700 10px/1 var(--sans);padding:3px 8px;border-radius:2px;letter-spacing:.05em}
+.sttag.closed{color:#fff;background:var(--stamp);border-radius:2px}
+.sttag.lit{color:#08315e;background:#bcd9ff;border:1px solid #6aa6ea;border-radius:8px}
+.sttag.ready{color:#123c1c;background:#a7e8b4;border:1px solid #4ea862;border-radius:2px 8px 2px 8px}
+.sttag.fog{color:#2a2f38;background:#dfe3e8;border:1px dashed #6d747f;border-radius:0 0 6px 6px}
+.pg-title{font-family:var(--serif);font-size:14px;line-height:1.62;margin:0 0 6px;font-weight:700;text-wrap:pretty;color:#211c12}
+
+/* 页边关系批注：平时收着，手放上去才显形 */
+.rel{display:flex;flex-direction:column;gap:3px;margin-top:9px;font-family:var(--hand);font-size:11.5px;color:var(--pencil)}
+.rel .line{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;opacity:0;transform:translateY(2px);
+  transition:opacity .24s ease, transform .24s ease;transition-delay:calc(var(--d,0) * 55ms)}
+.pg:hover .rel .line,.pg:focus-within .rel .line{opacity:1;transform:none}
+.rel .k{color:#7d745f}
+.jump{
+  appearance:none;cursor:pointer;font:700 11px/1 var(--hand);color:#8a2b21;background:rgba(160,30,30,.09);
+  border:1px dashed rgba(160,30,30,.5);border-radius:3px;padding:1px 5px;
+}
+.jump:hover{background:rgba(160,30,30,.2);color:#5e160f}
+.jump:focus-visible{outline:2px solid var(--view);outline-offset:1px}
+.pg.flash{animation:pgFlash 1.05s ease-out}
+@keyframes pgFlash{0%,100%{box-shadow:0 6px 14px -8px rgba(0,0,0,.9), inset 0 0 0 1px rgba(120,102,70,.34)}
+  22%{box-shadow:0 0 0 3px rgba(192,132,252,.85), 0 14px 24px -12px rgba(0,0,0,.95)}}
+
+/* ---------- 走亮：已归档的卷页 ---------- */
+.pg[data-state="closed"] .pg-title{color:#20201c}
+.decide{
+  margin-top:4px;padding:7px 116px 8px 10px;border-left:3px solid rgba(160,30,30,.55);
+  background:linear-gradient(180deg,rgba(255,255,255,.5),rgba(240,232,214,.5));
+  border-radius:0 3px 3px 0;
+}
+.decide .lb{font:700 9.5px/1 var(--mono);letter-spacing:.14em;color:#8a2b21;display:block;margin-bottom:4px}
+.decide p{margin:0;font-family:var(--hand);font-size:13.5px;line-height:1.72;color:#232a3a;
+  mix-blend-mode:multiply;filter:url(#f-ink)}
+.cornerfold{
+  position:absolute;right:0;bottom:0;width:26px;height:26px;z-index:4;
+  background:linear-gradient(135deg,transparent 49%,#cfc3a5 50%,#efe7d4 100%);
+  box-shadow:-1px -1px 2px rgba(0,0,0,.28);border-top-left-radius:2px;
+}
+.stampwrap{position:absolute;right:16px;bottom:9px;width:104px;height:104px;z-index:5;pointer-events:none}
+.stamp,.stamp-edge{
+  position:absolute;inset:0;display:grid;place-content:center;text-align:center;
+  border:3.5px double currentColor;border-radius:50%;color:var(--stamp);
+  font-family:var(--serif);font-weight:700;letter-spacing:.1em;
+  transform:rotate(var(--st-turn)) scale(var(--st-press));opacity:var(--st-ink);
+  mix-blend-mode:multiply;filter:url(#f-ink);
+}
+.stamp i{font-style:normal;font-size:24px;line-height:1.05;display:block}
+.stamp s{text-decoration:none;font-size:9.5px;letter-spacing:.12em;display:block;margin-top:2px}
+.stamp-edge{
+  border:6px double currentColor;filter:url(#f-ink) blur(1.4px);opacity:calc(var(--st-ink) * .34);
+  transform:rotate(var(--st-turn)) scale(calc(var(--st-press) * 1.05));
+}
+/* 还没盖过章的卷页先藏起来；一开始盖，就由 --st-ink 从 0 淡出来 */
+.pg[data-stamped="0"] .stampwrap{opacity:0}
+.pg[data-stamped="0"].is-stamping .stampwrap{opacity:1}
+.pg.is-stamping .stamp,.pg.is-stamping .stamp-edge{
+  animation:stampSlam .86s cubic-bezier(.24,.72,.2,1) both;
+}
+@keyframes stampSlam{
+  0%  {--st-turn:-21deg;--st-press:2.0;--st-ink:0}
+  13% {--st-turn:-16deg;--st-press:1.62;--st-ink:.42}
+  27% {--st-turn:-8deg; --st-press:1.1;--st-ink:1}
+  35% {--st-turn:-2deg; --st-press:.93;--st-ink:1}      /* 按到底 */
+  40% {--st-turn:-1deg; --st-press:1.04;--st-ink:1}     /* 震一下 */
+  45% {--st-turn:-4deg; --st-press:.985;--st-ink:1}
+  50% {--st-turn:-2deg; --st-press:1.012;--st-ink:1}
+  56% {--st-turn:-3.4deg;--st-press:1;--st-ink:1}
+  72% {--st-turn:-6deg; --st-press:1;--st-ink:.95}
+  100%{--st-turn:-9deg; --st-press:1;--st-ink:.91}
+}
+
+/* ---------- 照亮中：正在批注的那一页 ---------- */
+.pg[data-state="lit"]{background:#fbf7ec;box-shadow:0 12px 26px -14px rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.6), inset 0 0 0 1px rgba(88,166,255,.45)}
+.pg[data-state="lit"]::after{background:rgba(88,166,255,.45)}
+.hl{background:linear-gradient(transparent 56%,rgba(255,214,64,.62) 56%);padding:0 1px;border-radius:1px}
+.pg[data-state="lit"] .pg-title{mix-blend-mode:multiply}
+.margin-note{
+  position:relative;margin-top:7px;padding:7px 10px 8px;border-radius:3px;
+  background:linear-gradient(180deg,#eaf3ff,#dceaff);border:1px solid rgba(88,166,253,.55);
+  box-shadow:0 2px 6px -3px rgba(0,0,0,.5);
+}
+.margin-note .lb{font:700 9.5px/1 var(--mono);letter-spacing:.14em;color:#1d5fa8;display:block;margin-bottom:4px}
+.margin-note p{margin:0;font-size:12px;line-height:1.7;color:#152a45;font-family:var(--hand)}
+.pg-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding-top:6px;border-top:1px dashed rgba(120,102,70,.55);font-size:11px;color:#5c5442}
+.pg-foot .who{font-family:var(--hand);font-size:12.5px;color:#1d5fa8}
+.pg-foot .foot-hint{font-size:10.5px;color:#7b7361}
+.pen{
+  position:absolute;right:14px;bottom:-16px;width:148px;height:11px;z-index:6;pointer-events:none;
+  transform:rotate(-31deg);border-radius:6px;
+  background:linear-gradient(90deg,#1f2a3d 0 58%,#2f6fc4 58% 82%,#d8dee8 82% 86%,#8c939f 86% 100%);
+  box-shadow:0 8px 14px -6px rgba(0,0,0,.75), inset 0 -2px 2px rgba(0,0,0,.35);
+}
+.pen::after{content:"";position:absolute;left:0;top:50%;width:0;height:0;margin-top:-5.5px;
+  border:5.5px solid transparent;border-right:11px solid #c9cdd4;margin-left:-11px}
+.spotlight{
+  position:absolute;inset:0;pointer-events:none;border-radius:inherit;z-index:1;mix-blend-mode:soft-light;
+  background:radial-gradient(70% 60% at 26% 12%,rgba(255,244,214,.85),transparent 68%);
+}
+
+/* ---------- 现在能做：别着回形针的绿色便签 ---------- */
+.pg[data-state="ready"] .readybox{position:relative;margin-top:6px;padding-right:4px}
+.sticky{
+  position:relative;max-width:290px;padding:14px 26px 16px 14px;z-index:4;
+  background:linear-gradient(160deg,#bff0c8 0%,#96e3a6 60%,#7fd693 100%);
+  box-shadow:0 5px 12px -5px rgba(0,0,0,.7), inset 0 0 0 1px rgba(255,255,255,.5);
+  border-radius:2px;transform:rotate(-1.5deg);
+}
+.sticky::after{ /* 便签右上角翘起 */
+  content:"";position:absolute;right:0;top:0;width:20px;height:20px;
+  background:linear-gradient(225deg,transparent 47%,rgba(38,84,48,.28) 50%,rgba(255,255,255,.6) 100%);
+  border-bottom-left-radius:3px;
+}
+.sticky .big{font-family:var(--hand);font-weight:700;font-size:17px;line-height:1.35;color:#123c1c;display:block}
+.sticky .sub{font-family:var(--hand);font-size:12px;color:#1d4d27;display:block;margin-top:3px;line-height:1.6}
+.paperclip{position:absolute;left:-14px;top:-12px;width:34px;height:70px;z-index:6;pointer-events:none;
+  transform:rotate(6deg);filter:drop-shadow(0 3px 3px rgba(0,0,0,.55))}
+
+/* ---------- 雾里：封着的证物袋 ---------- */
+.pg[data-state="fog"]{background:#ece5d4}
+.pg[data-state="fog"]::after{background:rgba(120,120,120,.32)}
+
+.bagslot{position:relative;margin-top:4px;min-height:150px}
+/* 袋子里那张纸：封着的时候看得见「有东西」，但读不出来 */
+.bag-real{
+  position:relative;z-index:1;margin-top:34px;padding:11px 13px 13px;border-radius:2px;
+  background:linear-gradient(168deg,#fdfaf1,#efe8d6);
+  box-shadow:0 4px 10px -6px rgba(0,0,0,.7), inset 0 0 0 1px rgba(255,255,255,.7);
+  transform:rotate(var(--bagrot,-.5deg));
+  filter:blur(3.4px);opacity:.6;pointer-events:none;
+  transition:filter .5s ease .16s, opacity .5s ease .16s;
+}
+.pg[data-opened="1"] .bag-real{filter:none;opacity:1;pointer-events:auto}
+.bag-real .rv-title{font-family:var(--serif);font-weight:700;font-size:13.5px;line-height:1.62;color:#201b12;margin:0 0 7px;text-wrap:pretty}
+.bag-real .rv-why{
+  border-left:3px solid rgba(120,120,120,.7);padding:6px 10px;background:rgba(255,255,255,.5);border-radius:0 3px 3px 0;
+}
+.bag-real .rv-why .lb{font:700 9.5px/1 var(--mono);letter-spacing:.14em;color:#5a5a5a;display:block;margin-bottom:4px}
+.bag-real .rv-why p{margin:0;font-family:var(--hand);font-size:13px;line-height:1.7;color:#2b2b2b}
+
+.bag{
+  position:absolute;left:-5px;right:-5px;top:0;bottom:-4px;z-index:8;cursor:pointer;border-radius:4px 4px 6px 6px;
+  background:linear-gradient(158deg,rgba(228,236,244,.46),rgba(198,210,222,.32) 46%,rgba(232,240,248,.4));
+  backdrop-filter:blur(3.6px) saturate(.8) brightness(1.07);
+  -webkit-backdrop-filter:blur(3.6px) saturate(.8) brightness(1.07);
+  transition:clip-path .52s cubic-bezier(.36,.05,.22,1), opacity .44s ease .3s,
+    backdrop-filter .44s ease .3s, -webkit-backdrop-filter .44s ease .3s;
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55), inset 0 0 0 2.5px rgba(150,162,176,.4), 0 6px 14px -8px rgba(0,0,0,.7);
+}
+.pg[data-opened="1"] .bag{
+  opacity:.34;pointer-events:none;
+  backdrop-filter:blur(0px) saturate(1) brightness(1);
+  -webkit-backdrop-filter:blur(0px) saturate(1) brightness(1);
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.5), 0 4px 10px -8px rgba(0,0,0,.55);
+}
+.bag:hover{box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.8), inset 0 0 0 2.5px rgba(150,162,176,.55), 0 8px 18px -8px rgba(0,0,0,.8)}
+.bag:focus-visible{outline:2px solid var(--view);outline-offset:2px}
+/* 塑料光泽 */
+.bag::after{
+  content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;mix-blend-mode:screen;
+  background:linear-gradient(104deg,transparent 14%,rgba(255,255,255,.62) 25%,transparent 36%,
+    transparent 56%,rgba(255,255,255,.34) 66%,transparent 77%);
+}
+/* 袋子两侧的热压封边 */
+.bag::before{
+  content:"";position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;border-radius:inherit;
+  box-shadow:inset 9px 0 9px -9px rgba(255,255,255,.9), inset -9px 0 9px -9px rgba(255,255,255,.9),
+    inset 0 -10px 10px -10px rgba(120,132,148,.4);
+}
+/* 封口胶条 */
+.tape{
+  position:absolute;left:0;right:0;top:0;height:30px;z-index:3;border-radius:3px 3px 0 0;
+  background:repeating-linear-gradient(52deg,rgba(255,255,255,.78) 0 6px,rgba(216,224,234,.66) 6px 12px);
+  border-bottom:1px dashed rgba(90,104,122,.8);
+  box-shadow:0 2px 5px rgba(0,0,0,.26), inset 0 0 0 1px rgba(255,255,255,.65);
+  display:flex;align-items:center;gap:8px;padding:0 8px;
+  transition:opacity .3s ease, transform .34s ease;
+}
+.pg[data-opened="1"] .tape{opacity:0;transform:translateY(-22px) rotate(-3deg)}
+.tape .wait{font-family:var(--hand);font-weight:700;font-size:12.5px;color:var(--marker);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tape .peel{margin-left:auto;font:700 10px/1 var(--sans);color:#7a2a20;background:rgba(255,255,255,.85);
+  border:1px solid rgba(120,95,55,.5);border-radius:3px;padding:3px 6px;white-space:nowrap}
+/* 物证袋上的红「封」戳 */
+.bag-seal{
+  position:absolute;right:12px;top:44px;z-index:4;width:36px;height:36px;display:grid;place-content:center;
+  border:2px solid rgba(160,30,30,.72);border-radius:50%;color:rgba(160,30,30,.8);
+  font-family:var(--serif);font-weight:700;font-size:16px;transform:rotate(-14deg);mix-blend-mode:multiply;
+  transition:opacity .3s ease;
+}
+.pg[data-opened="1"] .bag-seal{opacity:0}
+/* 物证标签（贴在袋子外面，拆封以后也还留在卷页上） */
+.bagtag{
+  position:absolute;left:9px;bottom:9px;z-index:10;pointer-events:none;display:flex;align-items:center;gap:6px;
+  background:linear-gradient(180deg,#fdfaf1,#eee5cf);border:1px solid rgba(120,102,70,.6);border-radius:2px;
+  padding:3px 7px;box-shadow:0 2px 5px -2px rgba(0,0,0,.6);
+}
+.bagtag .no{font:700 11px/1 var(--mono);color:#4a4130}
+.bagtag .tp{font-size:10px;color:#6b6350}
+.bagtag .mk{font-family:var(--hand);font-weight:700;font-size:12px;color:var(--marker)}
+.bagtag .strip{width:9px;height:9px;border-radius:50%;border:1.5px dashed #6d747f;background:#dfe3e8}
+/* 袋角露出来的便签：诚实点 —— 一眼看得出它被谁压着，但不写「第几层」 */
+.bag-peek{
+  position:absolute;right:-8px;bottom:-11px;z-index:11;pointer-events:none;
+  white-space:nowrap;
+  background:linear-gradient(160deg,#f6ef9c,#efe26a);border-radius:1px;
+  padding:6px 10px;transform:rotate(-3.4deg);
+  box-shadow:0 4px 9px -4px rgba(0,0,0,.75), inset 0 0 0 1px rgba(255,255,255,.5);
+  font-family:var(--hand);font-size:12px;line-height:1.5;color:#4a3f10;
+}
+.bag-peek b{color:#8a2b21;font-weight:700}
+
+/* 空样本：一张空白卷页 */
+.blank{background:#fbf8f0;border:1px dashed rgba(120,102,70,.6);border-radius:3px;padding:26px 18px 24px 46px;position:relative;isolation:isolate;color:#4a4130;min-height:280px}
+.blank h4{margin:0 0 8px;font-family:var(--serif);font-size:14.5px;color:#33291a}
+.blank p{margin:0 0 6px;font-size:12.5px;line-height:1.85;color:#5c5442;font-family:var(--hand)}
+.blank .rule{height:1px;background:repeating-linear-gradient(90deg,rgba(120,102,70,.45) 0 9px,transparent 9px 17px);margin:12px 0}
+.emptybag{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+.ebag{
+  position:relative;width:172px;height:112px;border-radius:4px;
+  background:linear-gradient(158deg,rgba(228,236,244,.44),rgba(198,210,222,.3));
+  backdrop-filter:blur(2.6px);-webkit-backdrop-filter:blur(2.6px);
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.5), inset 0 0 0 2.5px rgba(150,162,176,.35);
+}
+.ebag::after{content:"";position:absolute;inset:0;border-radius:4px;mix-blend-mode:screen;
+  background:linear-gradient(104deg,transparent 20%,rgba(255,255,255,.55) 30%,transparent 42%)}
+.ebag i{position:absolute;left:10px;right:10px;top:12px;height:26px;
+  background:repeating-linear-gradient(52deg,rgba(255,255,255,.7) 0 6px,rgba(216,224,234,.6) 6px 12px);
+  border-bottom:1px dashed rgba(90,104,122,.7);font-style:normal}
+.ebag b{position:absolute;left:12px;bottom:10px;font-family:var(--hand);font-size:11.5px;color:#6b6350;font-weight:700}
+
+/* 还没定下来的事（铅笔写的备忘页） */
+.memo{background:linear-gradient(180deg,#f7f3e8,#eee8d8);border-radius:3px;padding:14px 16px 14px 46px;position:relative;isolation:isolate;
+  color:#4a4130;box-shadow:0 5px 12px -7px rgba(0,0,0,.85), inset 0 0 0 1px rgba(120,102,70,.3)}
+.memo::before{content:"";position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;filter:url(#f-paper);opacity:.42;background:#ded5c0}
+.memo::after{content:"";position:absolute;left:40px;top:0;bottom:0;width:1px;background:rgba(192,57,43,.35)}
+.memo>*{position:relative;z-index:2}
+.memo h4{margin:0 0 8px;font:700 11px/1 var(--mono);letter-spacing:.14em;color:#6b5735}
+.memo ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px}
+.memo li{font-family:var(--hand);font-size:13px;line-height:1.75;color:#3f3a2c;padding-left:16px;position:relative}
+.memo li::before{content:"—";position:absolute;left:0;color:#8a836f}
+.memo .note{margin-top:9px;font-size:11.5px;color:#6b6350;line-height:1.7}
+
+/* ---------------- 底部原型控制条 ---------------- */
+#bar{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:7px 10px;border-top:1px solid var(--line);background:#12151c;font-size:11px;color:var(--cap);
+}
+#bar .blabel{font-weight:600;color:#7d8390}
+#bar .bgroup{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+#bar button{
+  appearance:none;cursor:pointer;font:500 11px/1 var(--sans);color:var(--sec);
+  background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:4px;padding:4px 8px;
+}
+#bar button:hover{color:var(--tx);border-color:#3b414d}
+#bar button[aria-pressed="true"]{color:#bfd9ff;border-color:rgba(88,166,253,.65);background:rgba(88,166,253,.14)}
+#bar button:focus-visible{outline:2px solid var(--view);outline-offset:1px}
+#bar .bhint{margin-left:auto;font:600 10px/1.5 var(--mono);color:var(--cap);text-align:right;max-width:300px}
+
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[hidden]{display:none!important}
+
+/* ---------------- 窄面板：真的按容器宽度换布局 ---------------- */
+@container panel (max-width: 560px){
+  .desk{padding:10px 8px 22px}
+  .pg{padding:11px 11px 11px 40px}
+  .pg::after{left:34px}
+  .stampwrap{width:80px;height:80px;right:10px;bottom:8px}
+  .stamp i{font-size:19px}
+  .stamp s{font-size:8.5px}
+  .cause .tx{font-size:13px;line-height:1.68}
+  .cov{padding:12px 12px 44px;gap:7px}
+  .cov-head .r2{font-size:17px}
+  .seal-stamp{width:84px;height:84px;right:8px;top:calc(50% - 42px)}
+  .seal-stamp i{font-size:14px}
+  .sticky{max-width:100%;transform:rotate(-.8deg)}
+  .pen{width:112px;right:12px;bottom:18px}
+  .bag-peek{white-space:normal;max-width:46%;font-size:10.5px;right:-4px}
+  .cov-fields{grid-template-columns:1fr}
+  .cov-fields span:nth-child(odd){border-right:none}
+  .cov-fields span:nth-last-child(-n+2){border-bottom:1px solid rgba(90,72,40,.22)}
+  .cov-fields span:last-child{border-bottom:none}
+  .ebag{width:100%}
+  .binding{left:2px;width:36px}
+  .spine .dest{font-size:11.5px;line-height:1.52}
+}
+@container panel (max-width: 430px){
+  .spine{padding:7px 9px 8px}
+  .spine .foldmark{display:none}
+  .pg-title{font-size:13px}
+  .cov-head .r3{display:none}
+  .stampwrap{width:68px;height:68px}
+  .stamp i{font-size:16px}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .folder,.lid,.bag,.torn,.pg{transition-duration:.01ms!important}
+  .pg.is-stamping .stamp,.pg.is-stamping .stamp-edge{animation-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<main id="panel" aria-label="地图详情 · 卷宗夹">
+  <header class="phead">
+    <button class="pbtn" id="back" type="button">← 返回</button>
+    <span class="crumb"><span class="mapdesc">列表</span><span class="sep">/</span><span class="no" id="crumbNo">#604</span></span>
+    <span class="tag-map">▣ wayfinder:map</span>
+    <button class="pbtn primary" id="drive" type="button">▶ 推进这张图</button>
+  </header>
+
+  <div id="scroller">
+    <div class="spine" id="spine" data-role="destination">
+      <div class="spine-top">
+        <span class="tagline">案由</span>
+        <span class="caseno" id="spineNo">案号 No.604</span>
+        <span class="foldmark" id="spineFold">本卷按票号顺序装订</span>
+      </div>
+      <div class="dest" id="spineDest"></div>
+      <span class="seamline" aria-hidden="true"></span>
+    </div>
+
+    <div class="desk" id="desk">
+      <div class="case" id="case">
+        <div class="folder" id="folder">
+          <div class="stack" id="stack"></div>
+          <svg class="binding" id="binding" viewBox="0 0 44 1000" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M14 0 C 17 160 11 320 14 480 C 17 640 11 800 14 1000" fill="none" stroke="#c0392b" stroke-width="1.7" vector-effect="non-scaling-stroke" opacity=".92"/>
+            <path d="M30 0 C 27 170 33 330 30 490 C 27 650 33 810 30 1000" fill="none" stroke="#a5342a" stroke-width="1.5" vector-effect="non-scaling-stroke" opacity=".8"/>
+          </svg>
+          <div class="lid" id="lid">
+            <div class="lid-face lid-front">
+              <span class="edge-top" aria-hidden="true"></span>
+              <div class="cov" id="cov"></div>
+              <div class="seal-strip" id="seal" role="button" tabindex="0" aria-label="撕开封条，打开卷宗">
+                <span class="seal-half l" aria-hidden="true"></span>
+                <span class="seal-half r" aria-hidden="true"></span>
+                <span class="wax" aria-hidden="true"></span>
+                <span class="tip" id="sealTip">撕开封条 · 打开卷宗</span>
+              </div>
+            </div>
+            <div class="lid-face lid-back" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer id="bar">
+    <span class="blabel">原型控制条（不属于设计本身）</span>
+    <span class="bgroup" id="wbtns">
+      <button type="button" data-w="400">宽 400</button>
+      <button type="button" data-w="810">宽 810</button>
+    </span>
+    <span class="bgroup" id="sbtns">
+      <button type="button" data-s="active">推进中</button>
+      <button type="button" data-s="empty">还没画图</button>
+      <button type="button" data-s="big">大图</button>
+    </span>
+    <span class="bgroup">
+      <button type="button" id="foldBtn">合上卷宗</button>
+      <button type="button" id="openAllBtn">把封着的袋子都拆开</button>
+    </span>
+    <span class="bhint">URL：?w=400|810 · ?s=active|empty|big · ?open=0 合着封盖 · ?bar=0 隐藏本行</span>
+  </footer>
+</main>
+
+<!-- ============ 内联 SVG 滤镜：纸纹、牛皮纸纤维、墨迹晕边（零图片资源） ============ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <!-- 牛皮纸纤维：横向的长纤维 + 上色 + 压在底图上 -->
+    <filter id="f-kraft" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.01 0.72" numOctaves="5" seed="17" result="n"/>
+      <feColorMatrix in="n" type="matrix"
+        values="0 0 0 0 0.50  0 0 0 0 0.35  0 0 0 0 0.14  1.5 0 0 0 -0.52" result="fibre"/>
+      <feComposite in="SourceGraphic" in2="fibre" operator="arithmetic" k1="0" k2="0.72" k3="0.8" k4="0"/>
+    </filter>
+
+    <!-- 纸张纹理：细颗粒 -->
+    <filter id="f-paper" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" seed="5" result="g"/>
+      <feColorMatrix in="g" type="matrix"
+        values="0 0 0 0 0.52  0 0 0 0 0.49  0 0 0 0 0.40  1.3 0 0 0 -0.52" result="grain"/>
+      <feComposite in="SourceGraphic" in2="grain" operator="arithmetic" k1="0" k2="0.86" k3="0.95" k4="0"/>
+    </filter>
+
+    <!-- 墨迹：边缘晕开一点，像真盖上去的章 -->
+    <filter id="f-ink" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.11" numOctaves="3" seed="9" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="3.4" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+</svg>
+
+<script>
+(function () {
+'use strict';
+
+/* ======================================================================
+   1. 三份真实数据（任务书第 4 节，原样抄入，一字不改）
+   ====================================================================== */
+
+var MAP_ACTIVE = {
+  no: 604,
+  title: 'MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）',
+  destination: '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。',
+  tickets: [
+    { no: 605, type: 'task',     title: '收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票', state: 'CLOSED', blockedBy: [] },
+    { no: 606, type: 'task',     title: '补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点', state: 'CLOSED', blockedBy: [605] },
+    { no: 607, type: 'research', title: '全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单', state: 'OPEN', claimedBy: 'FeatherHunter', blockedBy: [605, 606] },
+    { no: 608, type: 'grilling', title: '宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个', state: 'OPEN', blockedBy: [607] }
+  ],
+  decisions: [
+    { t: '收口上个会话的遗留', g: '倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）' },
+    { t: '补上 gh 调用的测量盲区', g: '真机一天 2538 次 gh 调用，中位 7.8 秒，超过「单次 ≤ 1.5 秒」' }
+  ],
+  fog: [
+    '按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票：每一条毛病单独成票，数量与内容要等体检结果才知道，现在切不出来。',
+    '客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换、详情页各自慢不慢、慢在哪，现在说不清，等体检数字。'
+  ]
+};
+
+var MAP_EMPTY = {
+  no: 604,
+  title: 'MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）',
+  destination: '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。',
+  tickets: [],
+  decisions: [],
+  fog: []
+};
+
+var MAP_BIG = {
+  no: 604,
+  title: 'MattSkillsDeck 全量性能调查与优化落地（示例大图）',
+  destination: '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。',
+  tickets: [
+    { no: 701, type: 'task',     title: '收口上个会话的遗留（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 702, type: 'task',     title: '补上 gh 调用的测量盲区（示例）', state: 'CLOSED', blockedBy: [701] },
+    { no: 703, type: 'research', title: '面板渲染耗时基线（示例）', state: 'CLOSED', blockedBy: [701] },
+    { no: 704, type: 'research', title: '宿主命令链耗时体检（示例）', state: 'OPEN', claimedBy: 'FeatherHunter', blockedBy: [701, 702] },
+    { no: 705, type: 'research', title: '客户端渲染耗时体检（示例）', state: 'CLOSED', blockedBy: [701, 703] },
+    { no: 706, type: 'research', title: '日志落盘与内存体检（示例）', state: 'OPEN', blockedBy: [703] },
+    { no: 707, type: 'research', title: '装配启动耗时体检（示例）', state: 'OPEN', blockedBy: [701] },
+    { no: 708, type: 'grilling', title: '宿主取数层设计：接缝画在哪、缓存键怎么定（示例）', state: 'OPEN', blockedBy: [704, 706] },
+    { no: 709, type: 'grilling', title: '请求合并与缓存键设计（示例）', state: 'OPEN', blockedBy: [708] },
+    { no: 710, type: 'task',     title: '三个扫描器收成一个（示例）', state: 'OPEN', blockedBy: [708] },
+    { no: 711, type: 'task',     title: '面板列表虚拟滚动落地（示例）', state: 'OPEN', blockedBy: [705] },
+    { no: 712, type: 'task',     title: '状态栏刷新链路瘦身（示例）', state: 'OPEN', blockedBy: [705] },
+    { no: 713, type: 'task',     title: '详情页首屏预算达标（示例）', state: 'OPEN', blockedBy: [711, 712] },
+    { no: 714, type: 'prototype',title: '地图详情页重构的观感原型（示例）', state: 'OPEN', blockedBy: [711] },
+    { no: 715, type: 'task',     title: '启动阶段懒装配（示例）', state: 'OPEN', blockedBy: [707] },
+    { no: 716, type: 'task',     title: '日志写入节流与批量落盘（示例）', state: 'OPEN', blockedBy: [706] },
+    { no: 717, type: 'task',     title: '内存占用回归门禁（示例）', state: 'OPEN', blockedBy: [716] },
+    { no: 718, type: 'task',     title: '真机全链复测（示例）', state: 'OPEN', blockedBy: [710, 713, 715, 717] },
+    { no: 719, type: 'task',     title: '性能预算写进 CI（示例）', state: 'OPEN', blockedBy: [718] },
+    { no: 720, type: 'task',     title: '把实测数字写进文档（示例）', state: 'OPEN', blockedBy: [718] }
+  ],
+  decisions: [
+    { t: '收口上个会话的遗留', g: '倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）' },
+    { t: '补上 gh 调用的测量盲区', g: '真机一天 2538 次 gh 调用，中位 7.8 秒' },
+    { t: '面板渲染耗时基线', g: '列表 300 行首屏 412 毫秒，超预算' },
+    { t: '客户端渲染耗时体检', g: '页签切换 180 毫秒，主要在重建列表 DOM' }
+  ],
+  fog: [
+    '按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票，数量与内容要等体检结果才知道。'
+  ]
+};
+
+/* ======================================================================
+   2. URL 参数与全局状态
+   ====================================================================== */
+
+var TYPE_L = { task: '任务', research: '调查', grilling: '推敲', prototype: '原型' };
+var STATE_L = { closed: '走亮 · 已办结', lit: '照亮中 · 正在批注', ready: '现在能做 · 可以动手', fog: '雾里 · 还封着' };
+
+var qs = new URLSearchParams(location.search);
+function num(v, d, lo, hi) { var n = Number(v); if (!isFinite(n)) return d; return Math.min(hi, Math.max(lo, n)); }
+
+var W = qs.has('w') ? num(qs.get('w'), 810, 360, 900) : 810;
+var S = (function () { var s = qs.get('s'); return (s === 'empty' || s === 'big') ? s : 'active'; })();
+var BAR = qs.get('bar') !== '0';
+var START_OPEN = qs.get('open') !== '0';
+
+var map = S === 'empty' ? MAP_EMPTY : (S === 'big' ? MAP_BIG : MAP_ACTIVE);
+
+/* 给外层自动化看的：盖章、拆袋的次数与事件流水 */
+var C2 = window.__c2 = { s: S, w: W, stampCount: 0, tearCount: 0, log: [], ready: false };
+
+/* ======================================================================
+   3. 四状态的判定 —— 全部只看「它自己的前置关没关」，与「第几层」无关
+   ====================================================================== */
+
+function ticketsOf(m) { return (m && m.tickets) || []; }
+
+function stateOf(t, all) {
+  if (!t) return 'fog';
+  if (t.state === 'CLOSED') return 'closed';
+  if (t.claimedBy) return 'lit';
+  var pre = (t.blockedBy || []);
+  if (!pre.length) return 'ready';
+  var openPre = pre.filter(function (no) {
+    var p = all.filter(function (x) { return x.no === no; })[0];
+    return p ? p.state !== 'CLOSED' : false;
+  });
+  return openPre.length ? 'fog' : 'ready';
+}
+
+function blockersOf(t, all) {
+  return (t.blockedBy || []).filter(function (no) {
+    return all.some(function (x) { return x.no === no; });
+  });
+}
+function waitingOn(t, all) {
+  return all.filter(function (x) { return (x.blockedBy || []).indexOf(t.no) >= 0; }).map(function (x) { return x.no; });
+}
+function tally(all) {
+  var c = { closed: 0, lit: 0, ready: 0, fog: 0, total: all.length };
+  all.forEach(function (t) { c[stateOf(t, all)]++; });
+  return c;
+}
+function decisionFor(t, m) {
+  var ds = m.decisions || [], found = null;
+  for (var i = 0; i < ds.length; i++) {
+    var k = ds[i].t || '';
+    if (!k) continue;
+    if (t.title.indexOf(k) === 0 || k.indexOf(t.title) === 0) { found = ds[i]; break; }
+  }
+  return found;
+}
+function short(no) { return '#' + no; }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
+  });
+}
+function clamp(s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+
+/* ======================================================================
+   4. 渲染
+   ====================================================================== */
+
+var el = function (id) { return document.getElementById(id); };
+var stack = el('stack'), cov = el('cov'), folder = el('folder'), lid = el('lid');
+
+function renderSpine(m) {
+  el('spineNo').textContent = '案号 No.' + m.no;
+  el('crumbNo').textContent = '#' + m.no;
+  var d = String(m.destination || '');
+  el('spineDest').innerHTML = '<b>目的地：</b>' + esc(d);
+  document.title = 'C2 · 卷宗夹 —— 地图 #' + m.no;
+}
+
+function tallyRow(c) {
+  var cells = [
+    ['closed', '已办结', c.closed],
+    ['lit', '正在批注', c.lit],
+    ['ready', '可以动手', c.ready],
+    ['fog', '还封着', c.fog]
+  ];
+  return '<div class="tb">' + cells.map(function (r) {
+    return '<span class="cell"><span class="mk ' + r[0] + '" aria-hidden="true"></span>' + r[1] +
+      ' <b class="n' + (r[2] ? '' : ' zero') + '">' + r[2] + '</b></span>';
+  }).join('') + '</div>';
+}
+
+/* ---- 封皮（封盖正面） ---- */
+function renderCover(m) {
+  var all = ticketsOf(m), c = tally(all);
+  var cause = String(m.destination || '');
+  var nos = all.map(function (t) { return t.no; });
+  var order = nos.length ? ('按票号 ' + Math.min.apply(null, nos) + ' → ' + Math.max.apply(null, nos)) : '本卷还没有卷页';
+  var who = (all.filter(function (t) { return t.claimedBy; })[0] || {}).claimedBy || '还没有人认领';
+  cov.innerHTML =
+    '<div class="cov-head">' +
+      '<span class="vertical" aria-hidden="true">案卷</span>' +
+      '<span class="rows">' +
+        '<span class="r1">WAYFINDER · MAP</span>' +
+        '<span class="r2">卷宗 No.' + m.no + '</span>' +
+        '<span class="r3">' + esc(clamp(m.title, 40)) + '</span>' +
+      '</span>' +
+    '</div>' +
+    '<div class="cause">' +
+      '<span class="lb">案由</span>' +
+      '<div class="tx">' + esc(cause) + '</div>' +
+    '</div>' +
+    '<div class="cov-fields">' +
+      '<span><i>立卷类别</i><b>wayfinder:map</b></span>' +
+      '<span><i>卷内件数</i><b>共 ' + c.total + ' 件</b></span>' +
+      '<span><i>装订次序</i><b>' + esc(order) + '</b></span>' +
+      '<span><i>当前经办人</i><b>' + esc(who) + '</b></span>' +
+    '</div>' +
+    '<div class="cov-tally">' +
+      '<div class="th">卷内情况</div>' +
+      tallyRow(c) +
+    '</div>' +
+    '<div class="seal-stamp" aria-hidden="true"><i>已立卷</i><s>WAYFINDER</s></div>';
+}
+
+/* ---- 卷首条 ---- */
+function renderFileHead(m) {
+  var all = ticketsOf(m), c = tally(all);
+  var canTear = c.fog > 0;
+  return '<div class="filehead">' +
+    '<span class="t">卷宗 No.' + m.no + ' · 卷内目录</span>' +
+    '<span class="d">本卷按票号顺序装订 · 共 ' + c.total + ' 件（走亮 ' + c.closed +
+      ' · 照亮中 ' + c.lit + ' · 现在能做 ' + c.ready + ' · 雾里 ' + c.fog + '）</span>' +
+    '<span class="bl">' +
+      (canTear
+        ? '<button class="minibtn" type="button" id="tearAll" data-act="tearAll">把封着的袋子都拆开</button>'
+        : '') +
+      '<button class="minibtn" type="button" data-act="close">合上卷宗</button>' +
+    '</span>' +
+  '</div>';
+}
+
+/* ---- 关系批注（平时收着，鼠标放上去或键盘聚焦才显形） ---- */
+function renderRel(t, all) {
+  var bl = blockersOf(t, all), wt = waitingOn(t, all), lines = [], d = 0;
+  if (bl.length) {
+    lines.push('<span class="line" style="--d:' + (d++) + '">' +
+      '<span class="k">这一页等：</span>' +
+      bl.map(function (no) { return '<button class="jump" type="button" data-jump="' + no + '">#' + no + '</button>'; }).join('') +
+      '<span class="k">办结</span></span>');
+  }
+  if (wt.length) {
+    lines.push('<span class="line" style="--d:' + (d++) + '">' +
+      '<span class="k">别的卷页等它：</span>' +
+      wt.slice(0, 8).map(function (no) { return '<button class="jump" type="button" data-jump="' + no + '">#' + no + '</button>'; }).join('') +
+      '</span>');
+  }
+  if (!lines.length) return '';
+  return '<div class="rel">' + lines.join('') + '</div>';
+}
+
+/* ---- 一张卷页 ---- */
+function renderPage(t, m, idx) {
+  var all = ticketsOf(m), s = stateOf(t, all);
+  var type = TYPE_L[t.type] || t.type || '票';
+  var head = '<div class="pg-head">' +
+      '<span class="chip">票 ' + short(t.no) + '</span>' +
+      '<span class="chip">' + esc(type) + '</span>' +
+      '<span class="sttag ' + s + '">' + STATE_L[s].split(' · ')[1] + '</span>' +
+    '</div>';
+
+  var body = '';
+  if (s === 'closed') {
+    var dec = decisionFor(t, m);
+    body =
+      '<h3 class="pg-title">' + esc(t.title) + '</h3>' +
+      (dec
+        ? '<div class="decide"><span class="lb">手写结论</span><p>' + esc(dec.g) + '</p></div>'
+        : '<div class="decide"><span class="lb">手写结论</span><p>这一件已经办结，卷里没有留下额外结论。</p></div>') +
+      '<div class="stampwrap"><span class="stamp-edge" aria-hidden="true"></span>' +
+        '<span class="stamp" aria-hidden="true"><i>已结</i><s>结案归档</s></span></div>' +
+      '<span class="cornerfold" aria-hidden="true"></span>';
+  } else if (s === 'lit') {
+    body =
+      '<span class="spotlight" aria-hidden="true"></span>' +
+      '<h3 class="pg-title"><span class="hl">' + esc(t.title) + '</span></h3>' +
+      '<div class="margin-note">' +
+        '<span class="lb">页边批注</span>' +
+        '<p>这一页正在办：数字还没跑齐，先把这一件排出来，别的卷页才有得等。</p>' +
+      '</div>' +
+      '<div class="pg-foot"><span>经办人：</span><span class="who">' + esc(t.claimedBy) + '</span>' +
+        '<span class="foot-hint">· 这一件还没有办完</span></div>' +      '<span class="pen" aria-hidden="true"></span>';
+  } else if (s === 'ready') {
+    var bl0 = blockersOf(t, all);
+    body =
+      '<h3 class="pg-title">' + esc(t.title) + '</h3>' +
+      '<div class="readybox">' +
+        '<div class="sticky">' +
+          '<span class="big">可以动手</span>' +
+          '<span class="sub">' + (bl0.length
+            ? '前面 ' + bl0.map(short).join('、') + ' 都结案了，这一件现在就能开工。'
+            : '这一件没有前置，现在就能开工。') + '</span>' +
+        '</div>' +
+        '<svg class="paperclip" viewBox="0 0 34 70" aria-hidden="true">' +
+          '<path d="M8 62 V16 a9 9 0 0 1 18 0 V56 a5.5 5.5 0 0 1 -11 0 V22" fill="none" stroke="#c9d2de" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M8 62 V16 a9 9 0 0 1 18 0 V56 a5.5 5.5 0 0 1 -11 0 V22" fill="none" stroke="#7f8896" stroke-width="1" stroke-linecap="round"/>' +
+        '</svg>' +
+      '</div>';
+  } else {
+    var bl = blockersOf(t, all);
+    var waitTxt = bl.length ? ('还等 ' + bl.map(short).join('、') + ' 结') : '前面还没清完';
+    var rot = (((t.no * 37) % 11) / 11 * 1.6 - 0.8).toFixed(2);
+    body =
+      '<div class="bagslot" style="--bagrot:' + rot + 'deg">' +
+        '<div class="bag-real">' +
+          '<p class="rv-title">' + esc(t.title) + '</p>' +
+          '<div class="rv-why"><span class="lb">拆封记录</span>' +
+            '<p>' + (bl.length
+              ? '袋子已经拆开看过：这一件的路是画出来了，但 ' + bl.map(short).join('、') + ' 还没结案，通不通还不知道，先记在这里。'
+              : '袋子已经拆开看过：这一件的路还没走通，先记在这里。') + '</p></div>' +
+        '</div>' +
+        '<div class="bag" role="button" tabindex="0" aria-label="拆开第 ' + t.no + ' 号证物袋">' +
+          '<div class="tape"><span class="wait">物证袋 · 待查</span>' +
+            '<span class="peel">点一下拆封</span></div>' +
+          '<span class="bag-seal" aria-hidden="true">封</span>' +
+        '</div>' +
+        '<div class="bagtag"><span class="strip" aria-hidden="true"></span>' +
+          '<span class="no">' + short(t.no) + '</span><span class="tp">' + esc(type) + '</span>' +
+          '<span class="mk">待查</span></div>' +
+        '<div class="bag-peek">袋角压着别的卷页：<b>' + esc(waitTxt) + '</b></div>' +
+      '</div>';
+  }
+
+  return '<article class="pg" data-ticket="' + t.no + '" data-state="' + s + '"' +
+    (s === 'fog' ? ' data-opened="0"' : '') +
+    (s === 'closed' ? ' data-stamped="0"' : '') +
+    ' data-idx="' + idx + '" tabindex="0"' +
+    ' aria-label="票 ' + t.no + '，' + esc(type) + '，' + STATE_L[s] + '：' + esc(t.title) + '">' +
+    '<span class="hole h1" aria-hidden="true"></span><span class="hole h2" aria-hidden="true"></span>' +
+    head + body + renderRel(t, all) +
+  '</article>';
+}
+
+function renderEmpty(m) {
+  return '' +
+    '<article class="blank">' +
+      '<h4>第一页还空着</h4>' +
+      '<p>这一卷已经立了，案由也写上了封皮 —— 但里面还没有任何一件要查的事。</p>' +
+      '<p>等第一件事定下来，才会写进这一页。</p>' +
+      '<div class="rule" aria-hidden="true"></div>' +
+      '<div class="emptybag">' +
+        '<div class="ebag"><i aria-hidden="true"></i><b>还没有东西要装</b></div>' +
+        '<div class="ebag"><i aria-hidden="true"></i><b>还没有东西要装</b></div>' +
+      '</div>' +
+    '</article>';
+}
+
+function renderMemo(m) {
+  var fog = m.fog || [];
+  if (!fog.length) return '';
+  return '<div class="memo">' +
+    '<h4>还没定下来的事（铅笔写的，写在卷末）</h4>' +
+    '<ul>' + fog.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
+    '<div class="note">这些还不是卷页：连票号都还没有，所以装订不进正文里。</div>' +
+  '</div>';
+}
+
+function render() {
+  var all = ticketsOf(map);
+  renderSpine(map);
+  renderCover(map);
+
+  var html = renderFileHead(map);
+  if (!all.length) {
+    html += renderEmpty(map);
+  } else {
+    all.slice().sort(function (a, b) { return a.no - b.no; }).forEach(function (t, i) {
+      html += renderPage(t, map, i);
+    });
+    html += renderMemo(map);
+  }
+  stack.innerHTML = html;
+  if (all.length > 10) stack.setAttribute('data-dense', '1');
+}
+
+/* ======================================================================
+   5. 卷宗的开与合（封盖用真 3D 翻起来）
+   ====================================================================== */
+
+var isOpen = false;
+var autoOpened = false;
+
+function measureCover() {
+  /* 封盖要正好盖住卷宗袋身，所以按封皮里内容的高度量一次；
+     卷宗合着的时候要占满大半屏，像一份真摊在桌上的案卷 */
+  lid.style.setProperty('--coverH', '0px');
+  cov.style.height = 'auto';
+  var natural = cov.offsetHeight;
+  cov.style.height = '';
+  var fill = Math.round(el('scroller').clientHeight * 0.64);
+  var h = Math.max(320, Math.min(760, Math.max(natural + 2, fill)));
+  lid.style.setProperty('--coverH', h + 'px');
+  return h;
+}
+
+function setOpen(open, animate) {
+  isOpen = !!open;
+  var coverH = lid.offsetHeight || 520;
+  var target;
+
+  if (open) {
+    /* 量出卷宗摊开以后的自然高度 */
+    folder.style.transition = 'none';
+    folder.style.height = 'auto';
+    target = folder.offsetHeight;
+    void folder.offsetHeight;
+  } else {
+    target = coverH;
+  }
+
+  if (!animate) {
+    folder.style.transition = 'none';
+    folder.style.height = target + 'px';
+    void folder.offsetHeight;
+    folder.style.transition = '';
+  } else {
+    folder.style.transition = 'none';
+    folder.style.height = coverH + 'px';   /* 起点：合着的时候就是这个高度 */
+    void folder.offsetHeight;
+    folder.style.transition = '';
+    void folder.offsetHeight;
+    folder.style.height = target + 'px';
+  }
+
+  lid.style.setProperty('--flap', open ? '-172deg' : '0deg');
+  el('case').setAttribute('data-open', open ? '1' : '0');
+  el('foldBtn').textContent = open ? '合上卷宗' : '打开卷宗';
+  el('sealTip').textContent = open ? '卷宗已打开' : '撕开封条 · 打开卷宗';
+  el('seal').setAttribute('aria-label', open ? '卷宗已打开' : '撕开封条，打开卷宗');
+  if (open) {
+    C2.log.push(['open', Date.now()]);
+    startStamping();
+  }
+}
+
+function tearSeal() {
+  var seal = el('seal');
+  if (seal.dataset.torn === '1') return;
+  seal.dataset.torn = '1';
+  var l = seal.querySelector('.seal-half.l'), r = seal.querySelector('.seal-half.r');
+  try {
+    l.animate([{ transform: 'rotate(0deg) translate(0,0)', opacity: 1 },
+               { transform: 'rotate(-24deg) translate(-16px,14px)', opacity: 0 }],
+              { duration: 620, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'forwards' });
+    r.animate([{ transform: 'rotate(0deg) translate(0,0)', opacity: 1 },
+               { transform: 'rotate(20deg) translate(18px,12px)', opacity: 0 }],
+              { duration: 620, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'forwards' });
+  } catch (e) { /* 动画不可用时直接开卷 */ }
+  C2.log.push(['tearSeal', Date.now()]);
+}
+
+function openFolder() {
+  if (isOpen) return;
+  tearSeal();
+  setOpen(true, true);
+}
+function closeFolder() {
+  if (!isOpen) return;
+  setOpen(false, true);
+  el('seal').dataset.torn = '';
+  var l = el('seal').querySelector('.seal-half.l'), r = el('seal').querySelector('.seal-half.r');
+  if (l.getAnimations) { l.getAnimations().forEach(function (a) { a.cancel(); }); }
+  if (r.getAnimations) { r.getAnimations().forEach(function (a) { a.cancel(); }); }
+}
+
+/* ======================================================================
+   6. 盖章：进入视野时按一次（只按一次），点一下可以补按
+   ====================================================================== */
+
+var stampObserver = null;
+
+function stampOnce(pg) {
+  if (pg.dataset.stamped === '1') return false;
+  pg.classList.add('is-stamping');
+  return true;
+}
+function onStampEnd(pg) {
+  pg.classList.remove('is-stamping');
+  pg.dataset.stamped = '1';
+  C2.stampCount++;
+  C2.log.push(['stamp', Number(pg.dataset.ticket), Date.now()]);
+  C2.__lastStamp = Number(pg.dataset.ticket);
+}
+
+function wireStamp(pg) {
+  if (pg.dataset.state !== 'closed') return;
+  var st = pg.querySelector('.stamp');
+  if (!st) return;
+  st.addEventListener('animationend', function () { onStampEnd(pg); });
+  if (!stampObserver) {
+    stampObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        var p = en.target.closest('.pg');
+        if (stampOnce(p)) stampObserver.unobserve(en.target);
+      });
+    }, { root: el('scroller'), rootMargin: '0px 0px -12% 0px', threshold: 0.25 });
+  }
+  stampObserver.observe(pg);
+}
+
+function startStamping() {
+  var pgs = stack.querySelectorAll('.pg[data-state="closed"]');
+  stack.querySelectorAll('.pg[data-state="fog"]').forEach(wireBag);
+  if (!('IntersectionObserver' in window)) { pgs.forEach(onStampEnd); return; }
+  pgs.forEach(wireStamp);
+  /* 已经在视野里的卷页，立刻按一次章（卷宗刚打开时最明显） */
+  requestAnimationFrame(function () {
+    pgs.forEach(function (pg) {
+      var r = pg.getBoundingClientRect();
+      var sr = el('scroller').getBoundingClientRect();
+      if (r.top < sr.bottom && r.bottom > sr.top) {
+        if (stampOnce(pg)) { if (stampObserver) stampObserver.unobserve(pg); }
+      }
+    });
+  });
+}
+
+/* ======================================================================
+   7. 证物袋：点一下拆封（撕口用 clip-path 锯齿）
+   ====================================================================== */
+
+/* 撕口：用 clip-path + polygon 做出锯齿边。
+   两种状态的顶点数量与走向完全一样，只是锯齿的 y 在变 —— 所以 clip-path 能平滑过渡。 */
+function tearPolygon(seed, torn) {
+  var n = 30, pts = [];
+  for (var i = 0; i <= n; i++) {
+    var x = (i / n) * 100;
+    var wob = Math.sin(i * 2.7 + seed) * 0.5 + Math.sin(i * 5.3 + seed * 1.7) * 0.5;
+    var y = torn ? ((i % 2 === 0 ? 3 : 25) + wob * 3.5) : 0;
+    pts.push(x.toFixed(2) + '% ' + y.toFixed(2) + 'px');
+  }
+  return 'polygon(' + pts.join(', ') + ', 100% 100%, 0 100%)';
+}
+
+function wireBag(pg) {
+  var bag = pg.querySelector('.bag');
+  if (!bag) return;
+  bag.style.clipPath = tearPolygon(Number(pg.dataset.ticket) % 7, false);
+}
+
+function openBag(pg) {
+  if (!pg || pg.dataset.opened === '1') return false;
+  pg.dataset.opened = '1';
+  var bag = pg.querySelector('.bag');
+  if (bag) bag.style.clipPath = tearPolygon(Number(pg.dataset.ticket) % 7, true);
+  C2.tearCount++;
+  C2.__lastTear = Number(pg.dataset.ticket);
+  C2.log.push(['tearBag', Number(pg.dataset.ticket), Date.now()]);
+  return true;
+}
+
+function tearAllBags() {
+  stack.querySelectorAll('.pg[data-opened="0"]').forEach(openBag);
+  updateTearAllBtn();
+}
+function updateTearAllBtn() {
+  var btn = el('tearAll');
+  if (!btn) return;
+  var left = stack.querySelectorAll('.pg[data-opened="0"]').length;
+  btn.disabled = left === 0;
+  btn.textContent = left === 0 ? '袋子都拆开了' : ('把封着的袋子都拆开（还有 ' + left + ' 个）');
+}
+
+/* ======================================================================
+   8. 卷页的交互：点一下、回车
+   ====================================================================== */
+
+function pageAction(pg) {
+  var s = pg.dataset.state;
+  if (s === 'fog') { return openBag(pg); }
+  if (s === 'closed') {
+    pg.dataset.stamped = '0';
+    pg.classList.remove('is-stamping');
+    void pg.offsetWidth;
+    pg.classList.add('is-stamping');
+    return true;
+  }
+  return false;
+}
+
+function jumpTo(no) {
+  var pg = stack.querySelector('.pg[data-ticket="' + no + '"]');
+  if (!pg) return;
+  pg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  pg.classList.remove('flash');
+  void pg.offsetWidth;
+  pg.classList.add('flash');
+  pg.focus({ preventScroll: true });
+}
+
+/* ======================================================================
+   9. 事件绑定
+   ====================================================================== */
+
+function bind() {
+  el('scroller').addEventListener('click', function (e) {
+    var jump = e.target.closest('[data-jump]');
+    if (jump) { e.stopPropagation(); jumpTo(Number(jump.dataset.jump)); return; }
+
+    var seal = e.target.closest('#seal');
+    if (seal && !isOpen) { e.stopPropagation(); openFolder(); return; }
+
+    var mb = e.target.closest('.minibtn');
+    if (mb) {
+      e.stopPropagation();
+      if (mb.dataset.act === 'tearAll') { tearAllBags(); }
+      if (mb.dataset.act === 'close') { closeFolder(); }
+      return;
+    }
+
+    var bag = e.target.closest('.bag');
+    if (bag) { e.stopPropagation(); pageAction(bag.closest('.pg')); return; }
+
+    var pg = e.target.closest('.pg');
+    if (pg) {
+      if (pg.dataset.state === 'fog' && pg.dataset.opened === '0') { pageAction(pg); return; }
+      if (pg.dataset.state === 'closed') { pageAction(pg); return; }
+      return;
+    }
+
+    if (!isOpen && e.target.closest('.cov')) { openFolder(); }
+  });
+
+  el('scroller').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    var t = e.target;
+    if (t.id === 'seal' && !isOpen) { e.preventDefault(); openFolder(); return; }
+    if (t.classList && t.classList.contains('bag')) { e.preventDefault(); pageAction(t.closest('.pg')); return; }
+    if (t.dataset && t.dataset.act === 'tearAll') { e.preventDefault(); tearAllBags(); return; }
+    if (t.dataset && t.dataset.act === 'close') { e.preventDefault(); closeFolder(); return; }
+    if (t.classList && t.classList.contains('pg')) { e.preventDefault(); pageAction(t); return; }
+  });
+
+  el('foldBtn').addEventListener('click', function () { isOpen ? closeFolder() : openFolder(); });
+  el('openAllBtn').addEventListener('click', tearAllBags);
+  el('back').addEventListener('click', function () { el('back').blur(); });
+  el('drive').addEventListener('click', function () { el('drive').blur(); });
+
+  el('wbtns').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-w]'); if (!b) return;
+    W = Number(b.dataset.w); applyWidth(); syncBar();
+  });
+  el('sbtns').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-s]'); if (!b) return;
+    var q = new URLSearchParams(location.search);
+    q.set('w', String(W)); q.set('s', b.dataset.s);
+    location.search = q.toString();
+  });
+}
+
+function applyWidth() {
+  document.documentElement.style.setProperty('--panelW', W + 'px');
+  C2.w = W;
+}
+function syncBar() {
+  el('wbtns').querySelectorAll('button').forEach(function (b) {
+    b.setAttribute('aria-pressed', String(Number(b.dataset.w) === W));
+  });
+  el('sbtns').querySelectorAll('button').forEach(function (b) {
+    b.setAttribute('aria-pressed', String(b.dataset.s === S));
+  });
+}
+
+/* ======================================================================
+   10. 启动
+   ====================================================================== */
+
+function boot() {
+  applyWidth();
+  render();
+  bind();
+  if (!BAR) el('bar').hidden = true;
+  document.body.classList.add('embed');
+  syncBar();
+
+  /* 封盖高度按内容量一次；窗口或容器变宽变窄时重量 */
+  measureCover();
+  folder.style.height = lid.offsetHeight + 'px';
+  el('case').setAttribute('data-open', '0');
+
+  var ro = null;
+  if ('ResizeObserver' in window) {
+    ro = new ResizeObserver(function () {
+      var h = measureCover();
+      if (!isOpen) folder.style.height = h + 'px';
+    });
+    ro.observe(el('panel'));
+  } else {
+    window.addEventListener('resize', function () {
+      var h = measureCover();
+      if (!isOpen) folder.style.height = h + 'px';
+    });
+  }
+
+  updateTearAllBtn();
+  el('scroller').addEventListener('click', function () { updateTearAllBtn(); }, true);
+
+  if (START_OPEN) {
+    /* 卷宗先在读者眼前合着，然后自己掀开封盖 —— 只掀这一次 */
+    setTimeout(function () {
+      if (!isOpen) { tearSeal(); setOpen(true, true); autoOpened = true; }
+    }, 700);
+  }
+  C2.ready = true;
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+
+})();
+</script>
+</body>
+</html>

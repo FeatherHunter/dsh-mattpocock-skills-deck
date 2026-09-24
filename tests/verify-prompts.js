@@ -10,7 +10,7 @@
 //
 // #603 的判定口径（领导 2026-09-11 拍板：撤掉「先用 dsh plugin 解析插件安装目录、再调包内脚本写回」那套间接写法，改回 gh 直连）：
 //   · 模板层照旧禁止一切具体命令（S1 注册表、S2 双产物、S6/S7/S8、以及渲染结果的**非 GitHub** 后端）：不许出现
-//     gh / glab 命令、经包管理器转发、裸 API 地址、heredoc；模板里只许留 {bodyFormat} / {subIssue} 这类占位符，
+//     gh / glab 命令、经包管理器转发、裸 API 地址、heredoc；模板里只许留 {subIssue} 这类占位符，
 //     由后端声明在渲染时填空。这条是 #573/#595 的原意，不因 #603 放松。
 //   · GitHub 后端声明面（S3 的 github）允许 gh 命令：gh 直连三步（取子票数据库 id → 建原生子议题边 → 校验张数）
 //     与原生阻塞边就写在 prompts.subIssue 里，经 {subIssue} 注入会话。judge() 的 allowTracker 选项就是按面开这一道
@@ -59,19 +59,21 @@ const fail = function (msg) { failed = true; problems.push(msg); return false }
 const check = function (cond, msg) { if (!cond) { failed = true; problems.push(msg) } return !!cond }
 
 // ==================== 0. 契约常量（硬编码，改动要走评审） ====================
-const EXPECT_REGISTRY_ENTRIES = 23 // 注册表条目数（2026-09-22 现状：#698 新增「改了域文档布局之后对齐」那条 switchLayout；拆行/换引号不会让它少，因为 S1 用求值解析；#698 把 switchAlign / switchLayout 搬到 kernel/prompts-switch.js 并在表尾合并，条目数不变）
+const EXPECT_REGISTRY_ENTRIES = 21 // 注册表条目数（#725：progress 与 bodyFormat 两条整节删除，23 → 21；拆行/换引号不会让它少，因为 S1 用求值解析）
 // S3 各后端 prompts 块顶层键数。v2 §1.1 写的是 7/9/6，实测不成立（gitlab 只有 4 键、markdown 只有 2 键），
 // 这里按实测值硬编码并在失败信息里报出真实值，避免「按错值写断言导致永久红」。
 // #684：三个后端各加一条 healthCheck（体检科目），7/6/4。
 // #716：三个后端各加一条 commandVocabulary（自己的命令行名与站点名字，供模板里的 {cli} / {cliBrand} 填空），
 //   9/7/5。
-const EXPECT_BACKEND_KEYS = { github: 9, gitlab: 7, markdown: 5 }
+// #725：三后端各自的 prompts.bodyFormat 整节删除 —— 键数各减 1：9/7/5 → 8/6/4。
+const EXPECT_BACKEND_KEYS = { github: 8, gitlab: 6, markdown: 4 }
 // S3 各后端 prompts 块内的字符串字面量总数（含字符串拼接的续段，如 ensureLabels 的命令就藏在续段里）。
 // 这个数字是「词法扫描不许静默少扫」的硬保证：少扫一段就会对不上。
 // #684：github +2（healthCheck 的 zh/en）、gitlab +2、markdown +2。
 // #716：github +4（commandVocabulary 的 cli/cliBrand + cliInstall 的 zh/en，同时 subIssue 与 healthCheck 改写、
 //   ensureLabels 与 repoAccessFix 去命令，净 +4）、gitlab +2、markdown +1。
-const EXPECT_BACKEND_LITERALS = { github: 46, gitlab: 14, markdown: 9 }
+// #725：正文格式那条声明删掉后，字面量各减 2（zh/en 两份）：46/14/9 → 44/12/7。
+const EXPECT_BACKEND_LITERALS = { github: 44, gitlab: 12, markdown: 7 }
 // #664：宿主那份「怎么装 gh」的长文（GH_INSTALL_PROMPT）按新流程退役，src/host 全树今天一个 *_PROMPT 常量都没有。
 const EXPECT_HOST_PROMPT_CONSTS = 0 // src/host 全树 *_PROMPT 常量数
 // #716：github 那两条 rule 豁免（ensureLabels / repoAccessFix）所欠的债已经还清 —— 两条文案改成走工具，
@@ -81,17 +83,17 @@ const EXPECT_EXEMPT = 8 // 豁免登记条数硬编码（防偷偷加豁免）
 // 受保护清单：全量覆盖 —— 所有扫描面的 id 减去「kind=rule 豁免」，一个不漏。
 // 下面 auditExemptTable 会断言这张硬编码清单与运行时算出来的集合逐条相等，所以清空它 / 删几行都会红。
 const PROTECTED = [
-  'registry#mapExecute', 'registry#complete', 'registry#fixate', 'registry#progress', 'registry#bodyFormat',
+  'registry#mapExecute', 'registry#complete', 'registry#fixate',
   'registry#tpl.diagnose', 'registry#tpl.fix', 'registry#tpl.discuss', 'registry#tpl.research',
   'registry#tpl.prototype', 'registry#tpl.execute', 'registry#tpl.handoff1', 'registry#tpl.handoff2',
   'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#switchAlign', 'registry#switchLayout', 'registry#newWayfinder',
   'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect', 'registry#healthCheck',
-  'backend:github#ghAuthLogin', 'backend:github#subIssue', 'backend:github#bodyFormat', 'backend:github#errorKinds',
+  'backend:github#ghAuthLogin', 'backend:github#subIssue', 'backend:github#errorKinds',
   'backend:github#healthCheck', 'backend:github#commandVocabulary', 'backend:github#cliInstall',
   'backend:github#ensureLabels', 'backend:github#repoAccessFix',
-  'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix', 'backend:gitlab#subIssue', 'backend:gitlab#bodyFormat',
+  'backend:gitlab#glabInstallFix', 'backend:gitlab#glabLoginFix', 'backend:gitlab#subIssue',
   'backend:gitlab#healthCheck', 'backend:gitlab#commandVocabulary',
-  'backend:markdown#wayfinderMapBuild', 'backend:markdown#subIssue', 'backend:markdown#bodyFormat',
+  'backend:markdown#wayfinderMapBuild', 'backend:markdown#subIssue',
   'backend:markdown#healthCheck', 'backend:markdown#commandVocabulary',
 ]
 // 必须受判定（kind 只许是 scope）的 8 条：它们登记「不属首批」，但门禁仍然判它们
@@ -180,7 +182,7 @@ const commandWordIn = function (text) {
 }
 
 const RULE_FIX = {
-  R1: '模板里一个具体命令都不许写：跟踪器操作改由后端声明、渲染时经占位符注入（GitHub 用 gh 直连、其它后端用自己那套），模板里只留 {bodyFormat} / {subIssue} 这类占位符',
+  R1: '模板里一个具体命令都不许写：跟踪器操作改由后端声明、渲染时经占位符注入（GitHub 用 gh 直连、其它后端用自己那套），模板里只留 {subIssue} 这类占位符',
   R2: '不要经包管理器转发跟踪器命令（npm exec gh / npx gh）',
   R3: '不要直接打跟踪器 API 地址（api.github.com / api.gitlab.com）',
   R4: '正文不许内联进命令行（--body <正文>）：先写成文件，再按当前后端自己的方式整份读进去',
@@ -393,7 +395,7 @@ const evalPromptHelpers = (function () {
     if (byLang[lang]) return byLang[lang]
     const body = String(src0).replace(/^[ \t]*export[ \t]+/gm, '')
     const factory = new Function('localeSvc', 'issueUrlFor', body +
-      '\n;return { PROMPTS: PROMPTS, promptText: promptText, promptTextFor: promptTextFor, bodyFormatText: bodyFormatText, BODY_FORMAT: BODY_FORMAT, completePrompt: completePrompt };')
+      '\n;return { PROMPTS: PROMPTS, promptText: promptText, promptTextFor: promptTextFor, completePrompt: completePrompt };')
     // issueUrlFor 由本门禁注入替身（真实那个住 router.js，不在这一段源码里）：只用于验「按真实调用形态渲染」。
     //   替身忠实反映签名 —— 只吃 (st, num)，多传的参数会被忽略，正是为了让「参数错位」这类 bug 现形。
     byLang[lang] = factory({ getSnapshot: function () { return { active: lang } } }, function (st, num) { return 'https://example.invalid/' + String(num) })
@@ -404,7 +406,6 @@ const evalPromptHelpers = (function () {
       if (src0 !== src) { src0 = src; Object.keys(byLang).forEach(function (k) { delete byLang[k] }) }
     },
     promptTextForForTest: function (st, id, params, lang) { return instanceOf(lang).promptTextFor(st, id, params) },
-    BODY_FORMAT: function (st, lang) { return instanceOf(lang || 'zh').BODY_FORMAT(st) },
     // #595 必修①：completePrompt 的真实调用形态 = (st, num, title, total, closed)，用它渲染来断言调用错位
     completePromptForTest: function (st, num, title, total, closed, lang) { return instanceOf(lang || 'zh').completePrompt(st, num, title, total, closed) },
   }
@@ -894,7 +895,9 @@ const contractChecksInner = function (reg, src) {
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
     // #664：setupRun v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），版本号跟着抬到 13
-    bodyFormat: 7, setupRun: 13, progress: 3,
+    // #725：正文格式契约（bodyFormat）与进度契约（progress）两条整节删除 —— 票的正文读写交给 deck_* 工具，
+    //   进度的格式与 95% 语义阶梯不再由提示词规定。两条的版本号表项同时撤掉。
+    setupRun: 13,
   }
   Object.keys(V_MIN).forEach(function (id) {
     const p = reg[id]
@@ -915,7 +918,7 @@ const contractChecksInner = function (reg, src) {
     if (me.zh.indexOf('阶段闸门') < 0 || me.en.indexOf('stage-gate') < 0) fail('T13 mapExecute 未含阶段闸门引用（needs-triage 先诊断）')
     if (me.zh.indexOf('needs-triage') < 0) fail('mapExecute zh 缺 needs-triage 标记')
     if (me.zh.indexOf('- [ ]') < 0) fail('mapExecute zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (me.zh.indexOf('## 目标 map') < 0 || me.zh.indexOf('## 分析') < 0 || me.zh.indexOf('## 选票') < 0 || me.zh.indexOf('## 执行') < 0 || me.zh.indexOf('## 收尾') < 0 || me.zh.indexOf('{bodyFormat}') < 0) fail('mapExecute zh 缺清单段标题（目标 map/分析/选票/执行/收尾/正文格式标记 {bodyFormat}）')
+    if (me.zh.indexOf('## 目标 map') < 0 || me.zh.indexOf('## 分析') < 0 || me.zh.indexOf('## 选票') < 0 || me.zh.indexOf('## 执行') < 0 || me.zh.indexOf('## 收尾') < 0) fail('mapExecute zh 缺清单段标题（目标 map/分析/选票/执行/收尾）')
     if (me.zh.indexOf('|') >= 0) fail('mapExecute zh 含表格 |（已约定无表格，全勾选框）')
     if (me.zh.indexOf('编号：') < 0 || me.zh.indexOf('标题：') < 0 || me.zh.indexOf('链接：') < 0) fail('mapExecute zh 缺 map 标识头三字段（编号/标题/链接）')
     if (me.placeholders.indexOf('n') < 0 || me.placeholders.indexOf('title') < 0 || me.placeholders.indexOf('url') < 0) fail('mapExecute 占位符缺 n/title/url（自包含 map 标识）')
@@ -926,7 +929,7 @@ const contractChecksInner = function (reg, src) {
   const ex = reg['tpl.execute']
   if (ex) {
     if (ex.zh.indexOf('- [ ]') < 0) fail('tpl.execute zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (ex.zh.indexOf('## 读现状') < 0 || ex.zh.indexOf('## 阶段闸门') < 0 || ex.zh.indexOf('## 收尾') < 0 || ex.zh.indexOf('{bodyFormat}') < 0) fail('tpl.execute zh 缺清单四段标题（读现状/阶段闸门/收尾/正文格式标记 {bodyFormat}）')
+    if (ex.zh.indexOf('## 读现状') < 0 || ex.zh.indexOf('## 阶段闸门') < 0 || ex.zh.indexOf('## 收尾') < 0) fail('tpl.execute zh 缺清单三段标题（读现状/阶段闸门/收尾）')
     if (ex.zh.indexOf('|') >= 0) fail('tpl.execute zh 含表格 |（已约定无表格，全勾选框）')
     if (ex.en.indexOf('- [ ]') < 0) fail('tpl.execute en 缺清单标记 - [ ]')
   }
@@ -934,7 +937,7 @@ const contractChecksInner = function (reg, src) {
   const di = reg['tpl.diagnose']
   if (di) {
     if (di.zh.indexOf('- [ ]') < 0) fail('tpl.diagnose zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (di.zh.indexOf('## 弄清现象') < 0 || di.zh.indexOf('## 根因候选') < 0 || di.zh.indexOf('## 分流建议') < 0 || di.zh.indexOf('## 阶段闸门') < 0 || di.zh.indexOf('{bodyFormat}') < 0) fail('tpl.diagnose zh 缺清单段标题（弄清现象/根因候选/分流建议/阶段闸门/正文格式标记 {bodyFormat}）')
+    if (di.zh.indexOf('## 弄清现象') < 0 || di.zh.indexOf('## 根因候选') < 0 || di.zh.indexOf('## 分流建议') < 0 || di.zh.indexOf('## 阶段闸门') < 0) fail('tpl.diagnose zh 缺清单段标题（弄清现象/根因候选/分流建议/阶段闸门）')
     if (di.zh.indexOf('|') >= 0) fail('tpl.diagnose zh 含表格 |（已约定无表格，全勾选框）')
     if (di.zh.indexOf('诊断≠修复') < 0) fail('tpl.diagnose zh 缺诊断≠修复显式（第一性原理）')
     if (di.zh.indexOf('grilling') < 0) fail('tpl.diagnose zh 缺 grill 澄清句')
@@ -981,7 +984,7 @@ const contractChecksInner = function (reg, src) {
   if (co) {
     if (co.version < 5) fail('complete 版本号未 bump（期望 ≥ v5）')
     if (co.zh.indexOf('- [ ]') < 0) fail('complete zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (co.zh.indexOf('## MAP完成确认') < 0 || co.zh.indexOf('## 调查') < 0 || co.zh.indexOf('## 报告你来定夺') < 0 || co.zh.indexOf('## 收尾') < 0 || co.zh.indexOf('{bodyFormat}') < 0) fail('complete zh 缺清单段标题（MAP完成确认/调查/报告你来定夺/收尾/正文格式标记 {bodyFormat}）')
+    if (co.zh.indexOf('## MAP完成确认') < 0 || co.zh.indexOf('## 调查') < 0 || co.zh.indexOf('## 报告你来定夺') < 0 || co.zh.indexOf('## 收尾') < 0) fail('complete zh 缺清单段标题（MAP完成确认/调查/报告你来定夺/收尾）')
     if (co.zh.indexOf('|') >= 0) fail('complete zh 含表格 |（已约定无表格，全勾选框）')
     if (co.zh.indexOf('子票') >= 0 || co.zh.indexOf('票') >= 0) fail('complete zh 专业术语未用英文（子票/票 → sub-issue/ticket）')
     if (co.zh.indexOf('## 目标 map') < 0 || co.zh.indexOf('编号：') < 0 || co.zh.indexOf('标题：') < 0 || co.zh.indexOf('链接：') < 0) fail('complete zh 缺 map 标识头三字段')
@@ -1016,7 +1019,7 @@ const contractChecksInner = function (reg, src) {
   if (fx) {
     if (fx.version < 2) fail('fixate 版本号未 bump（期望 ≥ v2）')
     if (fx.zh.indexOf('- [ ]') < 0) fail('fixate zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (fx.zh.indexOf('## 沉淀') < 0 || fx.zh.indexOf('## 可疑遗漏') < 0 || fx.zh.indexOf('## 核对') < 0 || fx.zh.indexOf('## 落盘') < 0 || fx.zh.indexOf('{bodyFormat}') < 0) fail('fixate zh 缺清单段标题（沉淀/可疑遗漏/核对/落盘/正文格式标记 {bodyFormat}）')
+    if (fx.zh.indexOf('## 沉淀') < 0 || fx.zh.indexOf('## 可疑遗漏') < 0 || fx.zh.indexOf('## 核对') < 0 || fx.zh.indexOf('## 落盘') < 0) fail('fixate zh 缺清单段标题（沉淀/可疑遗漏/核对/落盘）')
     if (fx.zh.indexOf('|') >= 0) fail('fixate zh 含表格 |（已约定无表格，全勾选框）')
     if (fx.zh.indexOf('思维对齐 · 成果沉淀') < 0) fail('fixate zh 缺新命名（思维对齐 · 成果沉淀，旧名「零丢失快照」已退役）')
     if (fx.zh.indexOf('零丢失') >= 0) fail('fixate zh 残留旧命名「零丢失」')
@@ -1038,61 +1041,29 @@ const contractChecksInner = function (reg, src) {
     if (is.zh.indexOf('{probeList}') < 0 || is.zh.indexOf('{probeCount}') < 0) fail('installSkills zh 缺动态注入占位符（{probeList} / {probeCount}，技能名清单由 shared/matt-skills.js 单源注入）')
     if (is.en.indexOf('{probeList}') < 0 || is.en.indexOf('{probeCount}') < 0) fail('installSkills en 缺动态注入占位符（{probeList} / {probeCount}）')
   } else fail('缺条目 installSkills')
-  // progress（#75）
-  const pr = reg['progress']
-  if (pr) {
-    if (pr.version < 3) fail('progress 版本号未 bump（期望 ≥ v3）')
-    if (pr.placeholders.length !== 0) fail('progress 不应有占位符')
-    if (pr.zh.indexOf('## 进度：N%') < 0) fail('progress zh 缺固定进度区格式（## 进度：N%）')
-    if (pr.zh.indexOf('## 进度：90%') < 0) fail('progress zh 缺格式正例（如 ## 进度：90%）')
-    if (pr.zh.indexOf('可上调也可下调') < 0) fail('progress zh 缺可上调可下调（真实当前值）')
-    if (pr.zh.indexOf('0% = 未动工') < 0 || pr.zh.indexOf('1-94% = 进行中') < 0) fail('progress zh 缺阶梯 0%/1-94% 定义')
-    if (pr.zh.indexOf('未确认不得 close') < 0) fail('progress zh 缺未确认不得 close（防 close@95% 违规）')
-    if (pr.zh.indexOf('确认后立即写 100% 并 close') < 0) fail('progress zh 缺确认后 100% + close')
-    if (pr.zh.indexOf('close 后进度区保留为历史') < 0) fail('progress zh 缺 close 后保留为历史')
-    if (pr.zh.indexOf('首次接触') < 0 || pr.zh.indexOf('实施记录相符') < 0) fail('progress zh 缺首触补写兜底（首次接触 / 实施记录相符）')
-    if (pr.en.indexOf('## Progress: N%') < 0) fail('progress en 缺固定进度区格式（## Progress: N%）')
-    if (pr.en.indexOf('## Progress: 90%') < 0) fail('progress en 缺格式正例')
-    if (pr.en.indexOf('may go up or down') < 0) fail('progress en 缺 may go up or down')
-    if (pr.en.indexOf('do not close before confirmation') < 0) fail('progress en 缺 do not close before confirmation')
-    if (pr.en.indexOf('stays as history after close') < 0) fail('progress en 缺 stays as history after close')
-    if (pr.en.indexOf('first contact') < 0 || pr.en.indexOf('implementation record') < 0) fail('progress en 缺首触补写兜底')
-  } else fail('缺条目 progress')
-  // bodyFormat（#76 契约 + #595 收敛 + #603 还原）：注册表这一条已从「GitHub 专用两步写回」降级为「通用兜底」——
-  //   三后端各自的正文格式文案声明在 src/host/tracker/backends/<id>/index.js 的 prompts.bodyFormat（后端单源）；
-  //   这里只卡兜底版自己该有的东西：公共格式要求必须齐 + 不得点名任何具体跟踪器命令/写回脚本。
-  const bf = reg['bodyFormat']
-  if (bf) {
-    if (bf.version < 7) fail('bodyFormat 版本号未 bump（期望 ≥ v7：#595 起为通用兜底版）')
-    if (bf.placeholders.length !== 0) fail('bodyFormat 不应有占位符')
-    if (bf.zh.indexOf('每个 `## 章节` 独占一行') < 0) fail('bodyFormat zh 缺「每个 ## 章节 独占一行」（结构规则）')
-    if (bf.zh.indexOf('段落间留空行') < 0) fail('bodyFormat zh 缺段落间留空行')
-    if (bf.zh.indexOf('先写成文件') < 0) fail('bodyFormat zh 缺「正文先写成文件」')
-    if (bf.zh.indexOf('不要把正文拼进命令行') < 0) fail('bodyFormat zh 缺「不要把正文拼进命令行」')
-    if (bf.zh.indexOf('反斜杠加 n 两个字符') < 0) fail('bodyFormat zh 缺「换行不要写成反斜杠加 n 两个字符」')
-    if (bf.en.indexOf('each `## section` on its own line') < 0) fail('bodyFormat en 缺 each ## section on its own line')
-    if (bf.en.indexOf('blank line between paragraphs') < 0) fail('bodyFormat en 缺 blank line between paragraphs')
-    if (bf.en.indexOf('never inline the body into the command line') < 0) fail('bodyFormat en 缺 never inline the body into the command line')
-    if (bf.en.indexOf('two characters backslash-n') < 0) fail('bodyFormat en 缺 two characters backslash-n')
-    // 兜底版必须工具无关：点名任何具体跟踪器命令 / 写回脚本 / 插件目录解析都属于「把 GitHub 专用步骤塞给所有后端」
-    if (/gh\s+issue|gh\s+api|gh\s+auth|glab\s+issue|glab\s+auth/.test(bf.zh + bf.en)) fail('bodyFormat 兜底版点名了具体跟踪器命令（应泛指「当前跟踪器自己的方式」）')
-    if (bf.zh.indexOf('fix-issue-body') >= 0 || bf.en.indexOf('fix-issue-body') >= 0 || bf.zh.indexOf('dsh plugin') >= 0 || bf.en.indexOf('dsh plugin') >= 0) {
-      fail('bodyFormat 兜底版点名了插件安装目录下的写回脚本（写回脚本只属声明了它的后端，兜底版不许提）')
-    }
-  } else fail('缺条目 bodyFormat')
-
-  // 模板里不许再留正文格式的字面副本（#595）：10 条模板的 zh/en 都只剩 {bodyFormat} 标记
+  // #725：progress（#75）与 bodyFormat（#76）两条整节删除 —— 提示词不再规定进度格式与语义阶梯，
+  //   也不再讲正文怎么写（票的正文读写交给 deck_* 工具）。这里留反向断言，防这两条被悄悄加回来。
+  if (reg['progress']) fail('#725 注册表不该再有 progress 条目（进度契约已删）')
+  if (reg['bodyFormat']) fail('#725 注册表不该再有 bodyFormat 条目（正文格式契约已删）')
+  Object.keys(reg).forEach(function (id) {
+    const e = reg[id] || {}
+    ;['zh', 'en'].forEach(function (lang) {
+      const t = String(e[lang] || '')
+      if (t.indexOf('{bodyFormat}') >= 0) fail('#725 条目 ' + id + '.' + lang + ' 仍带 {bodyFormat} 标记（该契约已删）')
+      if (t.indexOf('进度契约') >= 0 || t.indexOf('progress contract') >= 0) fail('#725 条目 ' + id + '.' + lang + ' 仍引用进度契约（该契约已删）')
+    })
+  })
+  // 统一模板不得残留 GitHub 专用串（与 #603 同口径，改按「逐条列出的那 10 条」判）
   const BODY_IDS = ['mapExecute', 'complete', 'fixate', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
   BODY_IDS.forEach(function (id) {
     const e = reg[id] || {}
     ;['zh', 'en'].forEach(function (lang) {
       const t = String(e[lang] || '')
-      if (t.indexOf('{bodyFormat}') < 0) fail('模板 ' + id + '.' + lang + ' 缺 {bodyFormat} 标记（正文格式不许硬抄在模板里）')
       ;['fix-issue-body', 'wire-subissues', 'dsh plugin', 'gh auth'].forEach(function (bad) {
         if (t.indexOf(bad) >= 0) fail('模板 ' + id + '.' + lang + ' 残留 GitHub 专用串「' + bad + '」（应改由后端声明、渲染时填空）')
       })
     })
-    if ((reg[id] || {}).placeholders.indexOf('bodyFormat') < 0) fail('模板 ' + id + ' 未声明占位符 {bodyFormat}')
+    if ((reg[id] || {}).placeholders.indexOf('bodyFormat') >= 0) fail('#725 模板 ' + id + ' 仍声明占位符 {bodyFormat}')
   })
   // 统一模板不得点名具体跟踪器命令（S1 判定已覆盖，这里补一条「说明文字里也不许引用」的正面检查）
   const zhBlockCount = (reg['mapExecute'] && reg['mapExecute'].zh.split('## 正文格式').length) || 0
@@ -1105,8 +1076,9 @@ const contractChecksInner = function (reg, src) {
     return /gh\s+auth|dsh plugin|fix-issue-body|wire-subissues/.test(t)
   })
   if (leaked.length) fail('注册表条目里残留写回脚本/插件目录指令：' + leaked.join(', ') + '（应搬进对应后端的 prompts 声明）')
+  // #725：「## 正文格式」那一节整节删除（模板里的标记、后端声明、注册表兜底版全没了），所以期望 0。
   const segCount = (src.match(/## 正文格式/g) || []).length
-  if (segCount !== 1) fail('「## 正文格式」段数 ' + segCount + '（期望 1：只剩兜底版那一条）')
+  if (segCount !== 0) fail('「## 正文格式」段数 ' + segCount + '（期望 0：#725 起正文格式契约已整节删除）')
   // workspace-relative 旧形态零残留（#588 立的断言；#603 起口径更严：提示词里一个脚本都不许调）
   const oldForm = (src.match(/`node scripts\/(fix-issue-body|wire-subissues)\.mjs/g) || []).length
   if (oldForm !== 0) fail('workspace-relative 旧形态残留 ' + oldForm + ' 处（`node scripts/<脚本>.mjs；期望 0：#603 起提示词改回 gh 直连，脚本只留在包里当可选工具）')
@@ -1428,7 +1400,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '3d34b6967a9b2dda915cfbf99d3616572f3620866122ce5c0d5692b4adc55a46',
+  'tests/verify-prompts.js': '792e58f7d5335d308020be1a6fa8fe7a1e4eac4fc071eeef0357567e2fd5109c',
 }
 // ---- LOCK-END ----
 
@@ -1548,22 +1520,16 @@ if (reg) {
   // #603：渲染面 + 名实一致（提示词一个脚本都不许引用；发布包里仍带那两条脚本当可选工具）
   const p603 = problems.length
   try {
-    const FIX_IDS = ['mapExecute', 'complete', 'fixate', 'bodyFormat', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
+    const FIX_IDS = ['mapExecute', 'complete', 'fixate', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
     // #595 核心验收：把 11 个条目按「真渲染函数 + 后端声明文本」渲染出来再断言（不再断言源码字面量）
     evalPromptHelpers.prime(s1Fragment + '\n' + fs.readFileSync(s1Path, 'utf8'))
     const backendDecls = {}
     BACKENDS.forEach(function (b) {
       const bsrc = fs.readFileSync(backendPath(b, backendProbe), 'utf8')
-      backendDecls[b] = { bodyFormat: backendPromptValues(bsrc, 'bodyFormat'), subIssue: backendPromptValues(bsrc, 'subIssue') }
-      ;['zh', 'en'].forEach(function (lang) {
-        const t = String((backendDecls[b].bodyFormat || {})[lang] || '')
-        if (!t) fail('#595 ' + b + ' 后端未声明 prompts.bodyFormat.' + lang + '（三后端都要声明自己那套正文格式）')
-      })
+      backendDecls[b] = { subIssue: backendPromptValues(bsrc, 'subIssue') }
     })
     const renderOf = function (b, id, lang) {
       const st = { selection: { backendId: b }, backendModules: [{ id: b, prompts: backendDecls[b] }] }
-      // bodyFormat 走的不是模板占位符，而是 BODY_FORMAT(st)（追加点用它）—— 按真路径渲染，别用替身
-      if (id === 'bodyFormat') return String(evalPromptHelpers.BODY_FORMAT(st, lang) || '')
       // 占位符给全（含 complete 的 closed/total）：这样「渲染后不许残留 {xxx}」才是有效断言 ——
       //   占位符给不全就必然残留，断言会变成永远红；给全了还残留，才是真的渲染入口漏填。
       const params = { n: '7', title: 'T', url: 'U', repo: 'owner/name', closed: '3', total: '3' }
@@ -1613,33 +1579,11 @@ if (reg) {
       if (pair[1].indexOf('deck_map_snapshot') < 0) fail(where + ' 渲染结果缺 deck_map_snapshot（{subIssue} 没接上后端声明的读回核对）')
       if (/gh\s+api|sub_issues|dependencies\/blocked_by/.test(pair[1])) fail(where + ' 渲染结果残留裸跟踪器命令（#716 起建边与校验都搬进工具）')
     })
-    // 追加点（BODY_FORMAT(st)）也按后端解析：GitHub 拿到还原后的正文格式块（只讲写法规矩，无命令），
-    //   Markdown 拿到本地文件版。原来这里有两条「Markdown 渲染结果/正文格式必须比 GitHub 短」的长度比较，
-    //   钉的是「GitHub 那版更长」这个已被撤掉的事实（GitHub 版原来长在两步写回上），改按内容断言。
-    const bfGh = String(evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: backendDecls.github }] }, 'zh') || '')
-    const bfMd = String(evalPromptHelpers.BODY_FORMAT({ selection: { backendId: 'markdown' }, backendModules: [{ id: 'markdown', prompts: backendDecls.markdown }] }, 'zh') || '')
-    if (bfGh.indexOf('## 正文格式') < 0) fail('#603 BODY_FORMAT(github) 缺「## 正文格式」段标题（追加点没取到后端声明）')
-    if (bfGh.indexOf('以文件方式提交') < 0) fail('#603 BODY_FORMAT(github) 缺「以文件方式提交」（正文写回要以文件提交）')
-    const bfGhBad = commandWordIn(bfGh)
-    if (bfGhBad) fail('#603 BODY_FORMAT(github) 出现命令词「' + bfGhBad + '」（正文格式只讲写法规矩，与后端命令无关）')
-    if (bfMd.indexOf('## 正文格式') < 0) fail('#603 BODY_FORMAT(markdown) 缺「## 正文格式」段标题（追加点没取到后端声明）')
-    const bfMdBad = commandWordIn(bfMd)
-    if (bfMdBad) fail('#603 BODY_FORMAT(markdown) 出现命令词「' + bfMdBad + '」（本地 Markdown 后端不需要命令行写回）')
-    // GitHub 后端声明面的正文格式块（backendDecls.github.bodyFormat）：还原后的写法块，必须只讲写法规矩。
-    ;[['zh', String((backendDecls.github.bodyFormat || {}).zh || '')], ['en', String((backendDecls.github.bodyFormat || {}).en || '')]].forEach(function (pair) {
-      const lang = pair[0]
-      const t = pair[1]
-      const where = '#603 github 后端 prompts.bodyFormat.' + lang
-      if (!t) { fail(where + ' 取不到声明值（后端没声明这一条）'); return }
-      const bad = commandWordIn(t)
-      if (bad) fail(where + ' 出现命令词「' + bad + '」（正文格式讲的是写法规矩，与后端命令无关）')
+    // #725：正文格式契约整节删除 —— 这条只做反向断言：渲染入口与三后端声明都不许再有它。
+    if (typeof evalPromptHelpers.BODY_FORMAT === 'function') fail('#725 渲染入口仍暴露 BODY_FORMAT（应随正文格式契约一起删掉）')
+    ;['github', 'gitlab', 'markdown'].forEach(function (b) {
+      if (backendDecls[b] && backendDecls[b].bodyFormat) fail('#725 ' + b + ' 后端仍声明 prompts.bodyFormat（该条已整节删除）')
     })
-    if (String((backendDecls.github.bodyFormat || {}).zh || '').indexOf('以文件方式提交') < 0) {
-      fail('#603 github 后端 prompts.bodyFormat.zh 缺「以文件方式提交」（正文写回要以文件提交，不要内联转义字符串）')
-    }
-    if (String((backendDecls.github.bodyFormat || {}).en || '').indexOf('via a file') < 0) {
-      fail('#603 github 后端 prompts.bodyFormat.en 缺 via a file（正文写回要以文件提交）')
-    }
     // #603 必修①：completePrompt 的真实调用形态 —— 签名 (st, num, title, total, closed)。
     //   视图侧曾经按 4 参调（st, num, total, closed），渲染出「标题：5」与「undefined/3 个 issue 已关闭」。
     const cpSt = { selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: backendDecls.github }] }

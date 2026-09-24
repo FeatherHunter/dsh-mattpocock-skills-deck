@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>探案板 · 时间线证据墙（P2）</title>
+<style>
+/* ==========================================================================
+   P2 · 时间线证据墙
+   材质还是探案板那套（软木板 / 图钉 / 红绳 / 纸），结构换掉：
+   卡片不再散落，全部挂在一条从上到下的主轴上（轴 = 从第 1 层到最后一层）。
+   主轴本身就是「走过留下的亮痕」：已走亮＝实线，正在推进＝带光晕，
+   还没走到＝虚线。红绳从轴的左侧绕出去表示「谁挡着谁」。
+   ========================================================================== */
+:root{
+  --bg:#10131a; --card:#16181d; --line:#2a2d35;
+  --fg:#e6edf3; --fg2:#a1a1aa; --cap:#8b8b95;
+  --walk:#4ade80; --view:#58a6ff; --dest:#c084fc; --warn:#f59e0b;
+  --cork-d:#2c241b; --cork-l:#3b3125;
+  --mono:Consolas,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#08090c; color:var(--fg);
+  font:400 13px/1.5 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  display:flex; justify-content:center; align-items:flex-start;
+  min-height:100vh; overflow:auto;
+}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid #7dd3fc;outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* ---------- 面板外壳（六个原型共用） ---------- */
+#panel{
+  width:810px; background:var(--bg); border:1px solid var(--line);
+  display:flex; flex-direction:column; overflow:hidden;
+  height:min(100vh, 1500px);
+}
+.p-top{
+  flex:0 0 auto; display:flex; align-items:center; gap:8px;
+  padding:8px 10px; border-bottom:1px solid var(--line); background:#0c0f15;
+}
+.p-top .back{
+  display:inline-flex; align-items:center; gap:4px; padding:4px 8px;
+  border:1px solid var(--line); border-radius:6px; color:var(--fg2); font-size:12px;
+}
+.p-top .back:hover{color:var(--fg);border-color:#3a3f4a}
+.p-top .crumbs{font-size:12px;color:var(--fg2);white-space:nowrap}
+.p-top .crumbs b{color:var(--fg);font-weight:600}
+.p-top .tag{
+  display:inline-flex; align-items:center; gap:5px; margin-left:2px;
+  font:600 10.5px/1 var(--mono); color:#c084fc;
+  border:1px solid rgba(192,132,252,.45); background:rgba(192,132,252,.10);
+  border-radius:999px; padding:4px 9px;
+}
+.p-top .cta{
+  margin-left:auto; flex:0 0 auto;
+  background:var(--walk); color:#04140a; font-weight:700; font-size:12px;
+  padding:7px 13px; border-radius:7px; white-space:nowrap;
+}
+.p-top .cta:hover{filter:brightness(1.08)}
+#panel[data-w="400"] .p-top .crumbs .mid{color:var(--cap)}
+#panel[data-w="400"] .p-top .tag{font-size:9.5px;padding:4px 7px}
+
+#scroller{flex:1 1 auto; overflow-y:auto; overflow-x:hidden; position:relative}
+.board-pad{padding:0 0 8px}
+
+/* ---------- 板子上的头（永远是全板最亮的东西 = 目的地） ---------- */
+.board-head{
+  position:relative; margin:12px 12px 0; padding:11px 12px 12px;
+  background:linear-gradient(180deg,#1b1533,#141726 70%);
+  border:1px solid rgba(192,132,252,.42); border-radius:11px;
+  box-shadow:0 0 0 1px rgba(192,132,252,.10) inset, 0 6px 22px rgba(192,132,252,.14);
+}
+.board-head .kicker{
+  display:flex; align-items:center; gap:6px;
+  font:600 10px/1 var(--mono); letter-spacing:.10em; color:#e9d5ff;
+}
+.board-head .kicker .dot{width:7px;height:7px;border-radius:50%;background:var(--dest);box-shadow:0 0 9px 2px rgba(192,132,252,.85)}
+.board-head h1{margin:7px 0 0; font-size:13.5px; line-height:1.4; font-weight:650; color:#f4f0ff}
+.board-head .dest{
+  margin-top:9px; display:flex; gap:8px; padding-top:9px;
+  border-top:1px dashed rgba(192,132,252,.32);
+}
+.board-head .dest .glyph{
+  flex:0 0 auto; width:22px; height:22px; border-radius:50%;
+  display:grid; place-items:center;
+  background:radial-gradient(circle at 50% 40%, #f2ddff, #c084fc 62%, #7e3fb0);
+  color:#2a0a3f; font-weight:800; font-size:12px;
+  box-shadow:0 0 12px 2px rgba(192,132,252,.55);
+}
+.board-head .dest .txt{font-size:12px; line-height:1.62; color:#dcd7ec}
+.board-head .dest .txt b{color:#efe6ff}
+
+/* ---------- 板子底板 ---------- */
+#board{
+  position:relative; margin:10px 12px 0; border-radius:11px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, var(--cork-l), var(--cork-d) 72%),
+    var(--cork-d);
+  border:1px solid #1e1a14;
+  box-shadow:0 12px 30px rgba(0,0,0,.45) inset;
+  overflow:hidden;
+}
+@supports (background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>")){
+  #board{
+    background-image:
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='5' height='5'><circle cx='1' cy='1' r='.7' fill='%23000' opacity='.35'/><circle cx='3.5' cy='3' r='.6' fill='%23fff' opacity='.06'/></svg>"),
+      radial-gradient(120% 80% at 50% 0%, var(--cork-l), var(--cork-d) 72%);
+  }
+}
+#board .rail{position:absolute; top:0; bottom:0; width:1px; background:rgba(255,255,255,.07); left:26px}
+#board .vignette{
+  position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(115% 88% at 50% 40%, transparent 52%, rgba(0,0,0,.42));
+}
+
+/* ---------- 彩纸屑（没有含义，纯粹让它像一块软木板） ---------- */
+.confetti{position:absolute; inset:0; pointer-events:none; overflow:hidden}
+.confetti i{position:absolute; width:5px; height:5px; border-radius:1px}
+
+/* ---------- 主轴：已经走亮 / 正在推进 / 还没走到 ---------- */
+.seg{position:absolute; left:26px; width:3px; border-radius:2px; transform:translateX(-1px)}
+.seg[data-kind="done"]{background:linear-gradient(180deg,#86efac,#4ade80); box-shadow:0 0 10px 1px rgba(74,222,128,.5)}
+.seg[data-kind="front"]{
+  background:repeating-linear-gradient(180deg,#58a6ff 0 7px,#2f6ea8 7px 11px);
+  box-shadow:0 0 16px 4px rgba(88,166,253,.55);
+}
+.seg[data-kind="todo"]{
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.34) 0 5px,transparent 5px 10px);
+}
+
+/* ---------- 进度章（每一层在轴上钉的一枚小牌） ---------- */
+.lpill{
+  position:absolute; left:6px; width:42px; z-index:3; text-align:center;
+  padding:3px 0 4px; border-radius:8px; font:700 10px/1.2 var(--mono);
+  border:2px solid; background:#1b1712; color:#efe7d8;
+  box-shadow:0 2px 7px rgba(0,0,0,.55);
+}
+.lpill .n{display:block; font-size:10px}
+.lpill .n b{font-size:11.5px; letter-spacing:.02em}
+.lpill[data-kind="done"]{border-color:var(--walk); color:#dcffe8}
+.lpill[data-kind="front"]{border-color:var(--view); color:#e0efff; animation:pulseb 2.4s ease-in-out infinite}
+.lpill[data-kind="todo"]{border-style:dashed; border-color:#9c9c9c; color:#d6d6d6}
+@keyframes pulseb{
+  0%,100%{box-shadow:0 0 0 0 rgba(88,166,253,.55), 0 2px 7px rgba(0,0,0,.55)}
+  50%{box-shadow:0 0 0 6px rgba(88,166,253,0), 0 2px 7px rgba(0,0,0,.55)}
+}
+
+/* ---------- 票（挂在主轴上的纸片） ---------- */
+.tk{
+  --ac:#8b8b95;
+  position:absolute; z-index:2; text-align:left; color:#efe9dd;
+  padding:9px 11px 10px 12px; border-radius:9px;
+  background:linear-gradient(180deg,#fdfaf3,#f3ece0);
+  border:1px solid rgba(55,45,32,.42);
+  box-shadow:0 7px 16px rgba(0,0,0,.42);
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+.tk:hover{transform:translateY(-1px); box-shadow:0 10px 20px rgba(0,0,0,.5)}
+.tk:focus-visible{outline:2px solid #7dd3fc; outline-offset:3px}
+.tk .pin{
+  position:absolute; left:50%; margin-left:-6px; top:-7px;
+  width:12px; height:12px; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #fff, var(--ac) 55%, rgba(0,0,0,.35));
+  border:1px solid rgba(0,0,0,.35);
+}
+.tk .spine-stub{position:absolute; left:-11px; top:var(--stub-y,20px); width:11px; height:2px; background:var(--ac); opacity:.55}
+.tk .row1{display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.tk .no{font:700 11px/1 var(--mono); color:#4a4030}
+.tk .kind{font-size:10.5px; color:#6b5f4a}
+.tk .mark{
+  margin-left:auto; display:inline-flex; align-items:center; gap:3px;
+  font-size:10px; font-weight:700; padding:2px 6px; border-radius:999px;
+  border:1px solid var(--ac); color:#2c2418; background:rgba(255,255,255,.5);
+}
+.tk .mark .g{font-size:11px; line-height:1; color:var(--ac); -webkit-text-stroke:.4px rgba(0,0,0,.38)}
+.tk h3{margin:6px 0 0; font-size:12.5px; line-height:1.48; font-weight:600; color:#2b2620}
+.tk .note{
+  margin-top:7px; display:flex; gap:5px; align-items:flex-start;
+  font-size:10.5px; line-height:1.45; color:#5f5340;
+}
+.tk .note .rope{flex:0 0 auto; width:14px; height:8px; margin-top:3px}
+.tk .claim{margin-top:6px; display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:#2b4f78}
+.tk .claim i{width:6px;height:6px;border-radius:50%;background:#3f9bf0;display:inline-block}
+
+/* 已走亮 —— 绿描边 + ✓ + 右上角折角 + 状态文字 */
+.tk[data-s="walk"]{--ac:var(--walk); border-color:rgba(34,120,70,.55); background:linear-gradient(180deg,#fbfdf8,#edf7ee)}
+.tk[data-s="walk"] .no{color:#1f6b45}
+.tk[data-s="walk"] .mark{border-color:#2f9e63; color:#14532d; background:rgba(74,222,128,.20)}
+.tk[data-s="walk"] h3{color:#3a4038}
+.tk[data-s="walk"] .fold{
+  position:absolute; right:0; bottom:0; width:0; height:0; border-style:solid;
+  border-width:0 0 15px 15px; border-color:transparent transparent #cfe9d6 transparent;
+  border-bottom-right-radius:8px;
+}
+/* 照亮中 —— 蓝描边 + 光晕 + ◉ + 左侧推进斜纹 */
+.tk[data-s="view"]{--ac:var(--view); border-color:rgba(37,99,180,.6);
+  box-shadow:0 0 0 2px rgba(88,166,253,.26), 0 8px 20px rgba(0,0,0,.45)}
+.tk[data-s="view"]::before{
+  content:""; position:absolute; left:0; top:0; bottom:0; width:5px; border-radius:9px 0 0 9px;
+  background:repeating-linear-gradient(115deg,#58a6ff 0 3px,#cfe6ff 3px 6px);
+}
+.tk[data-s="view"] .no{color:#1d4f8c}
+.tk[data-s="view"] .mark{border-color:#2f6ea8; color:#0b2d4d; background:rgba(88,166,253,.24)}
+/* 现在能做 —— 橙描边 + ▶ + 可以动手的字样 */
+.tk[data-s="open"]{--ac:var(--warn); border-color:rgba(180,120,10,.5)}
+.tk[data-s="open"] .no{color:#8a5a06}
+.tk[data-s="open"] .mark{border-color:#c07a06; color:#5c3a00; background:rgba(245,158,11,.22)}
+/* 雾里 —— 灰虚线 + ✕ + 斜纹底；封条没撕开时整层再压暗一层 */
+.tk[data-s="fog"]{--ac:#96968f; border-style:dashed; border-color:rgba(120,120,112,.7);
+  background-image:repeating-linear-gradient(135deg, rgba(90,90,84,.07) 0 6px, transparent 6px 12px)}
+.tk[data-s="fog"].sealed{opacity:.5; filter:saturate(.4)}
+.tk[data-s="fog"] .no{color:#6a6a62}
+.tk[data-s="fog"] h3{color:#5c5c55}
+.tk[data-s="fog"] .mark{border-color:#7a7a72; background:#eceae4; color:#4a4a44}
+.tk[data-s="fog"] .mark .g{color:#7a7a72}
+
+#probe{position:absolute;left:-9999px;top:0;visibility:hidden;pointer-events:none}
+
+/* ---------- 还没走到的那一段：横向封条（点一下撕开） ---------- */
+.fogseal{
+  position:absolute; left:0; right:0; z-index:9;
+  display:flex; flex-direction:column; justify-content:center; gap:9px; padding:10px 12px;
+  text-align:left; color:#3c2a12; cursor:pointer;
+  background:
+    repeating-linear-gradient(100deg, rgba(0,0,0,.05) 0 10px, transparent 10px 20px),
+    linear-gradient(180deg,#f2e0b9,#e2c88f 55%,#ceac6c);
+  border-top:2px solid #a9853f; border-bottom:2px solid #a9853f;
+  box-shadow:0 6px 20px rgba(0,0,0,.5);
+  transition:transform .45s cubic-bezier(.3,1.4,.5,1), opacity .45s ease;
+}
+/* 封条横着的第一行：火漆印 + 这行字 */
+.fogseal .seal-row{display:flex; align-items:center; gap:9px; width:100%}
+.fogseal .seal-glyph{
+  flex:0 0 auto; width:34px; height:34px; border-radius:50%;
+  display:grid; place-items:center; font-size:16px; font-weight:800;
+  color:#fdf6e6; background:radial-gradient(circle at 38% 32%, #e09a9a, #8f2f2f 62%, #5c1c1c);
+  border:1px solid #6b2424; box-shadow:0 3px 8px rgba(0,0,0,.45);
+}
+.fogseal .seal-txt{min-width:0}
+.fogseal .l1{display:block; font-weight:700; font-size:12px; letter-spacing:.01em}
+.fogseal .l2{display:block; font-size:10.5px; color:#5c4520; margin-top:1px; line-height:1.45}
+.fogseal .hint{
+  margin-left:auto; flex:0 0 auto; font:700 10px/1.2 var(--mono);
+  border:1px dashed #8a6c2e; border-radius:5px; padding:4px 6px; color:#6a4f16;
+}
+.fogseal .l3{
+  font:600 10.5px/1.4 var(--mono); color:#6a4f16; border-top:1px dashed #a9853f; padding-top:7px;
+}
+.fogseal[data-torn="1"]{
+  transform:translateX(-38%) rotate(-9deg); opacity:0; pointer-events:none;
+}
+.fogseal:hover{filter:brightness(1.04)}
+
+/* ---------- 目的地（终点那一头，永远明亮） ---------- */
+.endcap{
+  position:relative; z-index:3; margin:0 12px 0 46px;
+  display:flex; align-items:center; gap:8px;
+  padding:10px 12px; border-radius:10px;
+  background:linear-gradient(90deg, rgba(192,132,252,.24), rgba(192,132,252,.06) 70%);
+  border:1px solid rgba(192,132,252,.5);
+  box-shadow:0 0 18px rgba(192,132,252,.2);
+}
+.endcap .glyph{
+  flex:0 0 auto; width:24px; height:24px; border-radius:50%; display:grid; place-items:center;
+  background:radial-gradient(circle at 50% 40%, #f2ddff, #c084fc 62%, #7e3fb0);
+  color:#2a0a3f; font-weight:800; font-size:13px;
+  box-shadow:0 0 14px 3px rgba(192,132,252,.6);
+}
+.endcap .t{font-size:11.5px; line-height:1.4; color:#efe6ff; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.endcap .t b{display:block; font-size:11px; color:#d9c6f7; font-weight:700; letter-spacing:.06em}
+
+/* ---------- 图例 / 脚注 ---------- */
+.legend{
+  display:flex; flex-wrap:wrap; gap:6px 10px; margin:11px 12px 0;
+  font-size:10.5px; color:#cfc6b6;
+}
+.legend .li{display:inline-flex; align-items:center; gap:5px}
+.legend .k{
+  width:16px;height:16px;border-radius:5px;display:grid;place-items:center;
+  font-size:10px;font-weight:800;border:1.5px solid; background:#1b1712;
+}
+.legend .k[data-kind="done"]{border-color:var(--walk);color:var(--walk)}
+.legend .k[data-kind="front"]{border-color:var(--view);color:var(--view);
+  background:repeating-linear-gradient(115deg,rgba(88,166,253,.55) 0 3px,#1b1712 3px 6px)}
+.legend .k[data-kind="open"]{border-color:var(--warn);color:var(--warn)}
+.legend .k[data-kind="fog"]{border-color:#96968f;color:#c9c9c2;border-style:dashed}
+.footnote{margin:8px 12px 12px; font-size:10.5px; line-height:1.6; color:#a89a80}
+.footnote b{color:#e0d3b8}
+
+/* ---------- 空图 ---------- */
+.empty-board{
+  position:relative; margin:10px 12px 0; border-radius:11px;
+  background:
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8'><path d='M0 0h8M0 0v8' stroke='%23000' stroke-opacity='.22' stroke-width='1'/></svg>"),
+    radial-gradient(120% 80% at 50% 0%, var(--cork-l), var(--cork-d) 72%);
+  border:1px solid #1e1a14; overflow:hidden;
+}
+.empty-seal-box{
+  position:absolute; left:0; right:0; z-index:2;
+  display:flex; align-items:center; gap:9px; padding:10px 12px;
+  color:#3c2a12; background:linear-gradient(180deg,#f2e0b9,#e2c88f 55%,#ceac6c);
+  border-top:2px solid #a9853f; border-bottom:2px solid #a9853f;
+  box-shadow:0 6px 18px rgba(0,0,0,.45);
+}
+.empty-seal-box .seal-glyph{
+  flex:0 0 auto; width:34px; height:34px; border-radius:50%;
+  display:grid; place-items:center; font-size:16px; font-weight:800;
+  color:#fdf6e6; background:radial-gradient(circle at 38% 32%, #e09a9a, #8f2f2f 62%, #5c1c1c);
+  border:1px solid #6b2424; box-shadow:0 3px 8px rgba(0,0,0,.45);
+}
+.empty-seal-box .seal-txt{min-width:0}
+.empty-seal-box .l1{display:block; font-weight:700; font-size:12px}
+.empty-seal-box .l2{display:block; font-size:10.5px; color:#5c4520; margin-top:1px; line-height:1.45}
+.empty-note{
+  position:absolute; left:46px; right:12px; bottom:12px;
+  font-size:11.5px; line-height:1.5; color:#c9bda6;
+}
+
+/* ---------- 底部的大字目的地（跟着屏幕走，滚多远都看得见） ---------- */
+.dock{
+  margin:10px 12px 0; padding:9px 11px; border-radius:9px;
+  background:linear-gradient(180deg, rgba(192,132,252,.20), rgba(192,132,252,.07));
+  border:1px solid rgba(192,132,252,.42);
+  display:flex; gap:8px; align-items:flex-start;
+}
+.dock .glyph{
+  flex:0 0 auto; width:18px; height:18px; border-radius:50%; display:grid; place-items:center;
+  font-size:10px; font-weight:800; color:#2a0a3f;
+  background:radial-gradient(circle at 50% 40%, #f2ddff, #c084fc 62%, #7e3fb0);
+  box-shadow:0 0 9px rgba(192,132,252,.6);
+}
+.dock .t{font-size:10.5px; line-height:1.5; color:#ded3f3; min-width:0}
+.dock .t b{color:#f0e6ff}
+
+/* ---------- 原型控制条（不属于设计本身） ---------- */
+.bar{
+  flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  padding:7px 10px 8px; border-top:1px dashed var(--line); background:#0b0d12;
+  font-size:10.5px; color:var(--cap);
+}
+.bar .grp{display:inline-flex; align-items:center; gap:3px}
+.bar .grp > span{color:#6a6a72; margin-right:2px}
+.bar button{
+  border:1px solid var(--line); border-radius:6px; padding:3px 8px;
+  color:var(--fg2); font-size:10.5px;
+}
+.bar button:hover{color:var(--fg); border-color:#3a3f4a}
+.bar button[aria-pressed="true"]{
+  background:#1d2a3d; border-color:#3b6ea5; color:#cfe6ff; font-weight:700;
+}
+.bar .note{margin-left:auto; color:#6a6a72}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important; transition:none !important}
+}
+</style>
+</head>
+<body>
+<a class="sr" href="#board">跳到证据板</a>
+<div id="panel" data-w="810">
+  <header class="p-top">
+    <button class="back" type="button">← 返回</button>
+    <span class="crumbs">列表 <span class="mid">/</span> <b>#604</b></span>
+    <span class="tag">▣ wayfinder:map</span>
+    <button class="cta" type="button">▶ 推进这张图</button>
+  </header>
+  <div id="scroller">
+    <div class="board-pad" id="boardroot"></div>
+  </div>
+  <div id="probe" aria-hidden="true"></div>
+  <div class="bar" id="bar">
+    <span class="grp"><span>面板宽度</span>
+      <button type="button" data-act="w" data-v="400" aria-pressed="false">400</button>
+      <button type="button" data-act="w" data-v="810" aria-pressed="true">810</button>
+    </span>
+    <span class="grp"><span>状态</span>
+      <button type="button" data-act="s" data-v="active" aria-pressed="true">推进中</button>
+      <button type="button" data-act="s" data-v="empty" aria-pressed="false">还没画图</button>
+      <button type="button" data-act="s" data-v="big" aria-pressed="false">大图</button>
+    </span>
+    <span class="note">这一行只是原型的控制条，不属于设计本身</span>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   1. 数据（三份：推进中 = 真机快照里的地图 #604 原样数据；还没画图；大图）
+   ===================================================================== */
+var MAP_ACTIVE = {
+  no: 604,
+  title: "MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）",
+  destination: "把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。",
+  tickets: [
+    { no: 605, type: "task",     title: "收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票", state: "CLOSED", blockedBy: [] },
+    { no: 606, type: "task",     title: "补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点", state: "CLOSED", blockedBy: [605] },
+    { no: 607, type: "research", title: "全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单", state: "OPEN", claimedBy: "FeatherHunter", blockedBy: [605, 606] },
+    { no: 608, type: "grilling", title: "宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个", state: "OPEN", blockedBy: [607] }
+  ],
+  fogTotal: 5,
+  decisions: [
+    { t: "收口上个会话的遗留", g: "倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）" },
+    { t: "补上 gh 调用的测量盲区", g: "真机一天 2538 次 gh 调用，中位 7.8 秒，超过「单次 ≤ 1.5 秒」" }
+  ],
+  fog: [
+    "按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票：每一条毛病单独成票，数量与内容要等体检结果才知道，现在切不出来。",
+    "客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换、详情页各自慢不慢、慢在哪，现在说不清，等体检数字。"
+  ]
+};
+
+/* 大图：9 张票 4 层；层 1 三张并行、层 2 两张、层 3 三张、层 4 一张。
+   已关 4 张（351 352 353 354）、进行中 1 张（355）、雾里 3 张（356 357 359）、现在能做 1 张（358）。 */
+var MAP_BIG = {
+  no: 604,
+  title: "MattSkillsDeck 性能调查：大图样例（示例）",
+  destination: "把插件里每一处慢的地方都查清、治到位、并在真机上复测通过（示例）。",
+  tickets: [
+    { no: 351, type: "task",     title: "收口上个会话留下的两处面板渲染修复（示例）", state: "CLOSED", blockedBy: [] },
+    { no: 352, type: "research", title: "真机量一遍宿主命令链的耗时分布（示例）", state: "CLOSED", blockedBy: [] },
+    { no: 353, type: "task",     title: "把临时测点改成一组常备测点（示例）", state: "CLOSED", blockedBy: [] },
+    { no: 354, type: "grilling", title: "定版：缓存键怎么定、请求怎么合并（示例）", state: "CLOSED", blockedBy: [351, 352] },
+    { no: 355, type: "task",     title: "按体检清单落地方案并真机复测（示例）", state: "OPEN", claimedBy: "FeatherHunter", blockedBy: [354] },
+    { no: 356, type: "research", title: "客户端渲染各页面逐块实测（示例）", state: "OPEN", blockedBy: [355] },
+    { no: 357, type: "task",     title: "状态栏与详情页的重复渲染治理（示例）", state: "OPEN", blockedBy: [355] },
+    { no: 358, type: "task",     title: "装配与启动耗时逐段拆开（示例）", state: "OPEN", blockedBy: [354] },
+    { no: 359, type: "grilling", title: "日志落盘与内存的取舍定版（示例）", state: "OPEN", blockedBy: [356, 357, 358] }
+  ],
+  fogTotal: 3,
+  decisions: [{ t: "收口上个会话的遗留", g: "点击到内容可见 5075 → 193 毫秒（示例）" }],
+  fog: ["体检结果出来才知道要切哪些票（示例）。"]
+};
+
+var MAP_EMPTY = {
+  no: 604,
+  title: "MattSkillsDeck 全量性能调查与优化落地（示例）",
+  destination: "把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过（示例）。",
+  tickets: [], fogTotal: 0, decisions: [], fog: []
+};
+
+var TYPES = { task: "任务", research: "研究", prototype: "原型", grilling: "定版", bug: "缺陷", map: "地图" };
+var S = {
+  LBL:  { walk: "已走亮", view: "照亮中", open: "现在能做", fog: "雾里" },
+  GLYPH:{ walk: "✓", view: "◉", open: "▶", fog: "✕" },
+  COLOR:{ walk: "#4ade80", view: "#58a6ff", open: "#f59e0b", fog: "#96968f" }
+};
+
+/* =====================================================================
+   2. 小工具：任何字段缺了都按空渲染，绝不抛错
+   ===================================================================== */
+function str(v){ return (v === null || v === undefined) ? "" : String(v); }
+function esc(v){ return str(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function cut(v, n){ var s = str(v); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+function clean(v){ return Array.isArray(v) ? v.slice() : []; }
+
+/* 每个字段都做类型检查：tickets 不是数组等于空图 */
+function readMap(raw){
+  var m = raw || {};
+  var ts = clean(m.tickets).filter(function(t){ return t && typeof t === "object"; });
+  return {
+    no: (m.no === 0 || m.no) ? m.no : null,
+    title: str(m.title),
+    destination: str(m.destination),
+    tickets: ts,
+    fogTotal: (typeof m.fogTotal === "number" && isFinite(m.fogTotal)) ? m.fogTotal : 0,
+    fog: clean(m.fog).map(str),
+    decisions: clean(m.decisions).filter(function(d){ return d && typeof d === "object"; })
+  };
+}
+/* 每张票都补全：no 缺了就当空、blockedBy 不是数组就当空 */
+function normTicket(t){
+  return {
+    no: (t.no === 0 || t.no) ? t.no : null,
+    type: str(t.type) || "task",
+    title: str(t.title),
+    state: str(t.state).toUpperCase(),
+    claimedBy: str(t.claimedBy),
+    blockedBy: clean(t.blockedBy).filter(function(x){ return x !== null && x !== undefined; })
+  };
+}
+
+/* 层 = 按 blockedBy 算的最长路径深度。别人的阻塞者不在图里就忽略，环也不怕死循环。 */
+function levelize(ts){
+  var byNo = {}, i, t, key;
+  for (i = 0; i < ts.length; i++) if (ts[i].no !== null) byNo[ts[i].no] = ts[i];
+  for (i = 0; i < ts.length; i++) ts[i]._lv = 0;
+  for (var round = 0; round < ts.length + 2; round++){
+    var moved = false;
+    for (i = 0; i < ts.length; i++){
+      t = ts[i]; var mx = 0;
+      for (var j = 0; j < t.blockedBy.length; j++){
+        key = t.blockedBy[j];
+        var b = byNo[key];
+        if (b && b !== t) mx = Math.max(mx, (b._lv || 0) + 1);
+      }
+      if (mx > (t._lv || 0)){ t._lv = Math.min(mx, ts.length); moved = true; }
+    }
+    if (!moved) break;
+  }
+  var maxLv = 0;
+  for (i = 0; i < ts.length; i++) maxLv = Math.max(maxLv, ts[i]._lv || 0);
+  var out = [], li;
+  for (li = 0; li <= maxLv; li++) out.push({ li: li, items: [] });
+  for (i = 0; i < ts.length; i++) out[ts[i]._lv || 0].items.push(ts[i]);
+  for (li = 0; li < out.length; li++) out[li].items.sort(function(a, b){ return (a.no || 0) - (b.no || 0); });
+  return out;
+}
+function blockersOf(t, all){
+  var byNo = {}, i;
+  for (i = 0; i < all.length; i++) byNo[all[i].no] = all[i];
+  var out = [];
+  for (i = 0; i < t.blockedBy.length; i++){ var b = byNo[t.blockedBy[i]]; if (b && b !== t) out.push(b); }
+  return out;
+}
+/* 四个状态：缺 state / 缺 claimedBy 都不会崩 */
+function stateOf(t, all){
+  if (t.state === "CLOSED") return "walk";
+  if (t.claimedBy) return "view";
+  var bs = blockersOf(t, all);
+  for (var i = 0; i < bs.length; i++) if (bs[i].state !== "CLOSED") return "fog";
+  return "open";
+}
+function countsOf(states){
+  var c = { walk: 0, view: 0, open: 0, fog: 0, total: states.length };
+  for (var i = 0; i < states.length; i++) c[states[i]]++;
+  return c;
+}
+/* 一层是什么成色：都走亮＝已走亮；有照亮中＝正在推进；全是雾＝还没走到；其余＝现在能做 */
+function layerKind(states){
+  if (!states.length) return "todo";
+  var i, all = true, anyView = false, anyFog = false, anyLit = false;
+  for (i = 0; i < states.length; i++){
+    if (states[i] !== "walk"){ all = false; if (states[i] === "fog") anyFog = true; else anyLit = true; }
+    if (states[i] === "view") anyView = true;
+    if (states[i] !== "fog") anyLit = true;
+  }
+  if (all) return "done";
+  if (anyView) return "front";
+  if (!anyLit || (anyFog && !anyLit)) return "todo";
+  return "front";
+}
+function shortTitle(map){
+  var t = str(map.title);
+  var m = t.match(/^[^（(]*/);
+  var head = (m && m[0] ? m[0] : t).trim();
+  return cut(head || t, 30);
+}
+/* 主轴终点那一头用的一行短句（完整的目的地在板子顶部和底部那两条里） */
+function destLine(map){
+  return cut(str(map.destination).replace(/\s+/g, " "), 42);
+}
+
+/* =====================================================================
+   3. 画板子
+   ===================================================================== */
+var state = { w: 810, s: "active", torn: false };
+
+function confetti(){
+  var colors = ["rgba(255,222,120,.16)", "rgba(255,255,255,.10)", "rgba(192,132,252,.16)", "rgba(74,222,128,.13)", "rgba(88,166,253,.14)", "rgba(255,255,255,.06)"];
+  var s = "", i, seed = 1;
+  for (i = 0; i < 90; i++){
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    var r = seed / 2147483648;
+    var x = (r * 97) % 100, y = (r * 61 + i * 3.7) % 100;
+    var sz = 3 + Math.round(r * 3);
+    var rot = Math.round(r * 90);
+    s += '<i style="left:' + x.toFixed(2) + '%;top:' + y.toFixed(2) + '%;width:' + sz + 'px;height:' + sz +
+      'px;background:' + colors[i % colors.length] + ';transform:rotate(' + rot + 'deg)"></i>';
+  }
+  return '<div class="confetti" aria-hidden="true">' + s + '</div>';
+}
+
+/* 红绳：从挡路的那张票绕到被挡的那张票。
+   全部走板子左边那一条通道 —— 通道在票的左外沿之外，所以红绳既不穿过票，
+   也不会几条糊成一团（通道里一条占一个位置）。每根绳带一串小箭头指明方向。 */
+function stringSvg(channelX, chW, list, W, H){
+  if (!list.length) return "";
+  var paths = "", marks = "", i, k;
+  var lanes = Math.max(1, Math.floor((chW - 6) / 5));
+  for (i = 0; i < list.length; i++){
+    var g = list[i];
+    var x = channelX + 3 + (g.lane % lanes) * 5;
+    var y0 = g.from.y, y1 = g.to.y + 34;
+    if (y1 - y0 < 26) y1 = y0 + 26;
+    var r = 6;
+    var d = "M" + g.from.x + " " + y0 +
+      " L" + (x - r) + " " + y0 +
+      " Q" + x + " " + y0 + " " + x + " " + (y0 + r) +
+      " L" + x + " " + (y1 - r) +
+      " Q" + x + " " + y1 + " " + (x + r) + " " + y1 +
+      " L" + g.to.x + " " + y1;
+    paths += '<path d="' + d + '" fill="none" stroke="#9f2f2f" stroke-width="2" stroke-linejoin="round" opacity=".92"/>';
+    for (k = 1; k <= 4; k++){
+      var yy = y0 + r + (y1 - y0 - 2 * r) * (k / 5);
+      marks += '<path d="M' + (x + 1.6) + ' ' + (yy + 3.4) + ' l3.2 -5.6 l-6.4 0 z" fill="#9f2f2f" opacity=".9"/>';
+    }
+  }
+  return '<svg class="strings" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true" ' +
+    'style="position:absolute;left:0;top:0;width:100%;z-index:1;pointer-events:none">' +
+    paths + marks + '</svg>';
+}
+
+/* 量一次票的真实高度：先藏在一块看不见的地方量，再决定怎么摆 */
+function measureCards(normed, cardW, map){
+  var probe = document.getElementById("probe");
+  var html = "";
+  for (var i = 0; i < normed.length; i++) html += cardHtml(normed[i], null, map, "probe");
+  probe.style.width = cardW + "px";
+  probe.innerHTML = html;
+  var nodes = probe.querySelectorAll(".tk");
+  var h = {};
+  for (var j = 0; j < nodes.length; j++){
+    var v = Math.ceil(nodes[j].getBoundingClientRect().height);
+    var k = (normed[j].no === null) ? "_" + j : normed[j].no;
+    if (v > 0) h[k] = clamp(v, 78, 288);
+  }
+  probe.innerHTML = "";
+  return h;
+}
+
+function renderBoard(map, opts){
+  var all = map.tickets;
+  var mid = opts.w - 24;                     // 板子自身的宽度
+  var wide = opts.w >= 640;
+
+  /* ---------- 还没画图：主轴还在，但一张票都没有 ---------- */
+  if (!all.length){
+    var H0 = 250, sealTop = 98, sealH = 54;
+    return '' +
+      headBox(map) +
+      '<div class="empty-board" id="board" style="height:' + H0 + 'px" aria-label="空图">' +
+        /* 一整条虚线主轴：一段都没走通 */
+        '<div aria-hidden="true" style="position:absolute;left:25px;top:14px;height:' + (H0 - 56) +
+          'px;width:3px;background:repeating-linear-gradient(180deg,rgba(255,255,255,.34) 0 5px,transparent 5px 10px)"></div>' +
+        /* 终点那一头：不管盖不盖封条，都亮着 */
+        '<div style="position:absolute;left:46px;right:12px;top:14px;display:flex;align-items:center;gap:8px;' +
+          'padding:9px 11px;border-radius:9px;border:1px solid rgba(192,132,252,.5);' +
+          'background:linear-gradient(90deg, rgba(192,132,252,.24), rgba(192,132,252,.05) 70%);' +
+          'box-shadow:0 0 16px rgba(192,132,252,.18)">' +
+          '<span class="glyph" style="flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;' +
+          'font-size:12px;font-weight:800;color:#2a0a3f;background:radial-gradient(circle at 50% 40%, #f2ddff, #c084fc 62%, #7e3fb0)">◎</span>' +
+          '<span style="font-size:11.5px;color:#efe6ff"><b style="display:block;font-size:11px;color:#d9c6f7">终点 · 主轴的尽头就是这里</b>' +
+          esc(destLine(map) || "（这张图还没写目的地）") + '</span>' +
+        '</div>' +
+        '<div class="empty-seal-box" style="top:' + sealTop + 'px;height:' + sealH + 'px">' +
+          '<span class="seal-glyph" aria-hidden="true">✕</span>' +
+          '<span class="seal-txt"><span class="l1">这一段还没走通 · 里面还有 0 张没定下来</span>' +
+          '<span class="l2">整张图一张票都没有，所以没有东西被盖在下面</span></span>' +
+        '</div>' +
+        '<div class="empty-note">这是一张空图：只有目的地和标题，主轴上一张票都还没有。</div>' +
+        confetti() +
+        '<div class="vignette" aria-hidden="true"></div>' +
+      '</div>' +
+      destDock(map) +
+      '<div class="legend">' + legendHtml({ walk: 0, view: 0, open: 0, fog: 0, total: 0 }, 0) + '</div>' +
+      '<div class="footnote">主轴上每一段的深浅表示「这一段走过没有」：<b>实线</b>＝已走亮，' +
+      '<b>带光晕的线</b>＝正在推进，<b>虚线</b>＝还没走到。现在整条轴都还是虚线。</div>';
+  }
+
+  /* ---------- 算状态、算层 ---------- */
+  var i, j;
+  var normed = [];
+  for (i = 0; i < all.length; i++) normed.push(normTicket(all[i]));
+  for (i = 0; i < normed.length; i++) normed[i]._s = stateOf(normed[i], normed);
+  var layers = levelize(normed);
+  var stArr = [];
+  for (i = 0; i < normed.length; i++) stArr.push(normed[i]._s);
+  var c = countsOf(stArr);
+  var fogCards = c.fog;
+
+  /* ---------- 定尺寸（先定「一层排几列」，再用真实的票宽去量高度） ---------- */
+  var railX = 26, chanX = 38, chanW = wide ? 30 : 24;
+  var cardX = chanX + chanW + 8;
+  var cardW = mid - cardX - 14;
+  var twoCols = wide && cardW >= 340 && layers.some(function(L){ return L.items.length >= 3; });
+  var colW = twoCols ? (cardW - 12) / 2 : cardW;
+  var cols = twoCols ? 2 : 1;
+  var gapInRow = 12, rowGap = 10, layerGap = wide ? 40 : 34;
+  var headRoom = 8, tailRoom = 34;
+
+  var cardH = measureCards(normed, colW, map);   // 关键：用这一档宽度真实量一次
+  var hOf = function(t, idx){ var k = (t.no === null) ? "_" + idx : t.no; return cardH[k] || 110; };
+  for (i = 0; i < layers.length; i++){
+    var items = layers[i].items, rows = Math.ceil(items.length / cols), hh = 0;
+    for (j = 0; j < rows; j++){
+      var rowMax = 0;
+      for (var k2 = j * cols; k2 < Math.min(items.length, (j + 1) * cols); k2++){
+        var v2 = hOf(items[k2], normed.indexOf(items[k2]));
+        if (v2 > rowMax) rowMax = v2;
+      }
+      hh += rowMax + (j ? rowGap : 0);
+    }
+    /* 每层自己的一点高低错落（整层一起错开，所以层内的票永远不会挤在一起） */
+    var pad = (i % 3) * 6;
+    layers[i].pad = pad;
+    layers[i].h = Math.max(hh, 92) + pad;
+  }
+
+  /* ---------- 摆放：轴从上往下，一层占一段，票挂在自己那一段的轴上 ---------- */
+  var y = headRoom;
+  for (i = 0; i < layers.length; i++){
+    layers[i].top = y;
+    y += layers[i].h;
+    if (i < layers.length - 1) y += layerGap;
+  }
+  var bodyH = y + tailRoom;
+
+  var place = {}, cards = "", pills = "", segs = "", fogTops = [], fogBottoms = [];
+  var strings = [], lane = 0;
+
+  for (i = 0; i < layers.length; i++){
+    var L = layers[i];
+    var kinds = [];
+    for (j = 0; j < L.items.length; j++) kinds.push(L.items[j]._s);
+    var kind = layerKind(kinds);
+    var pad = L.pad || 0;
+    var top = L.top + pad, hgt = L.h - pad;
+    if (kinds.indexOf("fog") >= 0){ fogTops.push(L.top - 6); fogBottoms.push(L.top + L.h + 10); }
+
+    /* 这一段轴：实线＝已走亮，光晕＝正在推进，虚线＝还没走到 */
+    segs += '<div class="seg" data-kind="' + kind + '" aria-hidden="true" style="top:' + top +
+      'px;height:' + hgt + 'px"></div>';
+
+    /* 这一段轴上钉的进度章 */
+    pills += '<div class="lpill" data-kind="' + kind + '" style="top:' + Math.round(top + hgt / 2 - 14) + 'px">' +
+      '<span class="n">第 <b>' + (i + 1) + '</b> 层</span>' +
+      '<span class="n" style="font-size:8.5px;opacity:.88">' +
+      (kind === "done" ? "✓ 已走亮" : kind === "front" ? "◉ 在这里" : "✕ 还没走到") + '</span></div>';
+
+    var rows = Math.ceil(L.items.length / cols);
+    for (j = 0; j < rows; j++){
+      var yRow = top;
+      for (var rr = 0; rr < j; rr++){
+        var mx = 0;
+        for (var q = rr * cols; q < Math.min(L.items.length, (rr + 1) * cols); q++){
+          var hv = hOf(L.items[q], normed.indexOf(L.items[q]));
+          if (hv > mx) mx = hv;
+        }
+        yRow += mx + rowGap;
+      }
+      var rowItems = L.items.slice(j * cols, (j + 1) * cols);
+      for (var ci = 0; ci < rowItems.length; ci++){
+        var t = rowItems[ci];
+        var hCard = hOf(t, normed.indexOf(t));
+        var px = cardX + ci * (colW + gapInRow);
+        var py = yRow;                              /* 错落由整层一起错开（L.pad），层内保持整齐 */
+        place[t.no] = {
+          x: px, y: py, w: colW, h: hCard,
+          cy: py + hCard / 2, edgeL: px - 2, edgeR: px + colW + 2,
+          stubY: Math.round(hCard / 2) - 1
+        };
+        cards += cardHtml(t, place[t.no], map, "board");
+      }
+    }
+  }
+
+  /* ---------- 红绳：所有票都摆好了再连线 ---------- */
+  for (i = 0; i < normed.length; i++){
+    var tk = normed[i];
+    var p = place[tk.no];
+    if (!p || tk._s === "walk") continue;
+    var blocks = blockersOf(tk, normed);
+    if (!blocks.length) continue;
+    var fromX = [], fromY = [];
+    for (j = 0; j < blocks.length; j++){
+      var bp = place[blocks[j].no];
+      if (!bp) continue;
+      fromX.push(bp.edgeR); fromY.push(bp.cy);
+    }
+    if (!fromX.length) continue;
+    strings.push({
+      startX: Math.min.apply(null, fromX),
+      from: { x: Math.max.apply(null, fromX), y: Math.min.apply(null, fromY) },
+      to: { x: p.edgeL, y: p.cy },
+      lane: lane++
+    });
+  }
+  strings.sort(function(a, b){ return (a.startX - b.startX) || (a.from.y - b.from.y); });
+  var svg = stringSvg(chanX, chanW, strings, mid, bodyH);
+
+  /* ---------- 雾：轴末端还没走到的那一段，盖一条横向封条 ---------- */
+  var seal = "";
+  if (fogTops.length){
+    /* 封条按「这一段」的高度做，不按里面几张票——它就是横着糊住这一段的一张纸条 */
+    var sTop = Math.min.apply(null, fogTops) + 6;
+    var sBot = Math.max.apply(null, fogBottoms) - 16;
+    var nFog = fogTops.length;
+    var l2 = opts.torn
+      ? "封条已经撕开了 —— 底下的票还是「雾里」，只是能看清它们了"
+      : "还没撕开：底下的票是什么，现在看不清";
+    seal = '<button type="button" id="fogseal" class="fogseal' + (opts.torn ? " is-torn" : "") +
+      '" data-torn="' + (opts.torn ? "1" : "0") +
+      '" aria-expanded="' + (opts.torn ? "true" : "false") + '" ' +
+      'aria-label="这一段还没走通，里面还有 ' + fogCards + ' 张没定下来，点一下撕开封条" ' +
+      'style="top:' + sTop + 'px;height:' + clamp(sBot - sTop, 132, 330) + 'px">' +
+      '<span class="seal-row">' +
+        '<span class="seal-glyph" aria-hidden="true">✕</span>' +
+        '<span class="seal-txt">' +
+          '<span class="l1">这一段还没走通 · 里面还有 ' + fogCards + ' 张没定下来</span>' +
+          '<span class="l2">' + l2 + '</span>' +
+        '</span>' +
+        '<span class="hint">' + (opts.torn ? "已撕开" : "点一下撕开") + '</span>' +
+      '</span>' +
+      '<span class="l3">纸条后面盖着主轴末端 ' + nFog + ' 层 —— 撕开只是看清，不代表走通</span>' +
+      '</button>';
+  }
+
+  var nFogLayers = fogTops.length;
+  return headBox(map) +
+    '<div class="legend">' + legendHtml(c, layers.length) + '</div>' +
+    '<div id="board" style="height:' + bodyH + 'px" aria-label="时间线证据板">' +
+      '<div class="rail" aria-hidden="true" style="left:' + railX + 'px"></div>' +
+      confetti() +
+      svg +
+      segs + pills + cards +
+      seal +
+      '<div class="vignette" aria-hidden="true"></div>' +
+    '</div>' +
+    '<div class="endcap">' +
+      '<span class="glyph" aria-hidden="true">◎</span>' +
+      '<span class="t"><b>终点 · 主轴的尽头就是这里</b>' + esc(destLine(map) || "（这张图还没写目的地）") + '</span>' +
+    '</div>' +
+    destDock(map) +
+    '<div class="footnote">「谁挡着谁」在探案板上一向用<b>红绳</b>表示：红绳一律从轴的左边绕出去，' +
+    '从挡路的那张票拉到被挡的那张票，绝不压在任何一张票上面。<br>' +
+    '主轴上每一段：<b>实线</b>＝已走亮，<b>带光晕的线</b>＝正在推进，<b>虚线</b>＝还没走到。' +
+    (nFogLayers ? '轴末端那 ' + nFogLayers + ' 层盖着<b>封条</b>，撕开只是看清，不代表走通。' : '') +
+    '</div>';
+}
+
+function headBox(map){
+  return '<div class="board-head">' +
+    '<div class="kicker"><span class="dot" aria-hidden="true"></span>这张图的目的地 · 永远看得见</div>' +
+    '<h1>' + esc(map.title || "（这张图没写标题）") + '</h1>' +
+    '<div class="dest"><span class="glyph" aria-hidden="true">◎</span><div class="txt"><b>目的地：</b>' +
+      esc(map.destination || "（这张图还没写目的地）") + '</div></div>' +
+    '</div>';
+}
+function legendHtml(c, layerCount){
+  return legItem("walk", "已走亮", c.walk) + legItem("view", "照亮中", c.view) +
+    legItem("open", "现在能做", c.open) + legItem("fog", "雾里", c.fog) +
+    (layerCount ? '<span class="li" style="color:#c9bda6">主轴共 ' + layerCount + ' 层 · 票 ' + c.total + ' 张</span>' : "");
+}
+function legItem(kind, label, n){
+  var g = kind === "walk" ? "✓" : kind === "view" ? "◉" : kind === "open" ? "▶" : "✕";
+  return '<span class="li"><span class="k" data-kind="' + kind + '" aria-hidden="true">' + g + '</span>' + label +
+    (n ? '<span style="color:#8b8b95"> ' + n + '</span>' : "") + '</span>';
+}
+function destDock(map){
+  return '<div class="dock"><span class="glyph" aria-hidden="true">◎</span>' +
+    '<div class="t"><b>目的地（滚到哪儿都在这儿）：</b>' + esc(str(map.destination) || "（这张图还没写目的地）") +
+    '</div></div>';
+}
+
+/* 一张票：数字 + 类型 + 状态文字 + 图符 + 标题 + 说明。
+   状态从来不只是颜色：描边样式（实线/虚线）、图符（✓ ◉ ▶ ✕）、左上角图钉、走亮时的去角、
+   雾里的斜纹底，再加上右上角的文字，颜色之外至少还占三样。 */
+function cardHtml(t, p, map, where){
+  var s = t._s;
+  var label = "#" + (t.no === null ? "—" : t.no) + " " + (TYPES[t.type] || "任务") + " " + S.LBL[s];
+  var sealed = (s === "fog" && !state.torn) ? " sealed" : "";
+  var note = "";
+  if (s === "fog"){
+    note = '<div class="note"><svg class="rope" viewBox="0 0 14 8" aria-hidden="true">' +
+      '<path d="M0 0 L7 0 L7 8 L13 8" fill="none" stroke="#9f2f2f" stroke-width="1.6"/></svg>' +
+      '<span>红绳另一头是 ' + esc(blockerNames(t)) + '：它们没关，这张动不了</span></div>';
+  } else if (s === "open"){
+    note = '<div class="note"><span style="font-weight:700;color:#8a5a06" aria-hidden="true">▶</span>' +
+      '<span>挡着它的都关掉了，现在可以开工</span></div>';
+  } else if (s === "walk"){
+    note = '<div class="note"><span style="font-weight:700;color:#1f6b45" aria-hidden="true">✓</span>' +
+      '<span>这一段已经走通，痕迹留在轴上</span></div>';
+  }
+  var claim = (s === "view" && t.claimedBy)
+    ? '<div class="claim"><i aria-hidden="true"></i>' + esc(t.claimedBy) + ' 正在推进</div>' : "";
+  var dec = decFor(t, map);
+  if (dec && s === "walk"){
+    note += '<div class="note"><span style="font-weight:700;color:#1f6b45" aria-hidden="true">☆</span>' +
+      '<span>留下的数字：' + esc(cut(dec, 70)) + '</span></div>';
+  }
+  var geo = p
+    ? ' style="left:' + p.x + 'px;top:' + p.y + 'px;width:' + p.w + 'px;min-height:' + p.h +
+      'px;--stub-y:' + p.stubY + 'px"'
+    : ' style="position:relative;left:auto;top:auto;width:100%;height:auto"';
+  return '<button type="button" class="tk' + sealed + '" data-s="' + s + '" data-no="' + (t.no === null ? "" : t.no) + '"' +
+    (where === "probe" ? ' tabindex="-1" aria-hidden="true"' : "") + geo +
+    ' aria-label="' + esc(label + "：" + t.title) + '">' +
+    '<span class="pin" aria-hidden="true"></span>' +
+    '<span class="spine-stub" aria-hidden="true"></span>' +
+    '<span class="row1"><span class="no">#' + (t.no === null ? "—" : t.no) + '</span>' +
+      '<span class="kind">' + esc(TYPES[t.type] || "任务") + '</span>' +
+      '<span class="mark"><span class="g" aria-hidden="true">' + S.GLYPH[s] + '</span>' + S.LBL[s] + '</span></span>' +
+    '<h3>' + esc(cut(t.title, 170)) + '</h3>' +
+    claim + note +
+    (s === "walk" ? '<span class="fold" aria-hidden="true"></span>' : "") +
+    '</button>';
+}
+function blockerNames(t){
+  var names = [];
+  for (var i = 0; i < t.blockedBy.length; i++) names.push("#" + t.blockedBy[i]);
+  return names.length ? names.join("、") : "（这张票没写清楚）";
+}
+function decFor(t, map){
+  var ds = (map && map.decisions) ? map.decisions : [];
+  var head = cut(t.title, 14);
+  for (var i = 0; i < ds.length; i++){
+    var dt = str(ds[i].t);
+    if (dt && head.indexOf(dt) >= 0) return str(ds[i].g);
+  }
+  return "";
+}
+
+/* =====================================================================
+   4. 装进页面
+   ===================================================================== */
+function build(){
+  var raw = state.s === "empty" ? MAP_EMPTY : state.s === "big" ? MAP_BIG : MAP_ACTIVE;
+  var map = readMap(raw);
+  var root = document.getElementById("boardroot");
+  root.innerHTML = renderBoard(map, { w: state.w, torn: state.torn });
+  document.getElementById("panel").dataset.w = String(state.w);
+  wireBoard();
+}
+
+function wireBoard(){
+  var seal = document.getElementById("fogseal");
+  if (seal){
+    seal.addEventListener("click", function(){
+      state.torn = true;
+      seal.dataset.torn = "1";
+      seal.classList.add("is-torn");
+      seal.setAttribute("aria-expanded", "true");
+      var h = seal.querySelector(".hint"); if (h) h.textContent = "已撕开";
+      var l2 = seal.querySelector(".l2");
+      if (l2) l2.textContent = "封条已经撕开了 —— 底下的票还是「雾里」，只是能看清它们了";
+      state.tornCount = (state.tornCount || 0) + 1;
+      document.body.dataset.lastAction = "torn:" + state.tornCount;
+    });
+  }
+  var cards = document.querySelectorAll("#board .tk");
+  for (var i = 0; i < cards.length; i++){
+    cards[i].addEventListener("click", function(){
+      document.body.dataset.lastAction = "card:" + (this.dataset.no || "");
+      this.dataset.clicked = "1";
+    });
+  }
+}
+
+/* =====================================================================
+   5. 控制条（原型自带，不属于设计）
+   ===================================================================== */
+function syncBar(){
+  var bs = document.querySelectorAll(".bar button");
+  for (var i = 0; i < bs.length; i++){
+    var b = bs[i];
+    var on = (b.dataset.act === "w" && Number(b.dataset.v) === state.w) ||
+             (b.dataset.act === "s" && b.dataset.v === state.s);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+}
+document.getElementById("bar").addEventListener("click", function(e){
+  var b = e.target && e.target.closest ? e.target.closest("button") : null;
+  if (!b || !b.dataset.act) return;
+  if (b.dataset.act === "w") state.w = Number(b.dataset.v);
+  else { state.s = b.dataset.v; state.torn = false; state.tornCount = 0; }
+  syncBar();
+  build();
+});
+
+/* =====================================================================
+   6. 参数：?w=400|810  &s=active|empty|big  &bar=0
+   ===================================================================== */
+(function init(){
+  var q = new URLSearchParams(location.search);
+  var w = Number(q.get("w"));
+  state.w = (w === 400 || w === 810) ? w : 810;
+  var s = q.get("s");
+  state.s = (s === "empty" || s === "big" || s === "active") ? s : "active";
+  document.getElementById("panel").style.width = state.w + "px";
+  if (q.get("bar") === "0") document.getElementById("bar").style.display = "none";
+  syncBar();
+  build();
+})();
+</script>
+</body>
+</html>
+

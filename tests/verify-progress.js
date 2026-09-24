@@ -84,28 +84,19 @@ check(pcli.includes('t.progress <= 0'), 'package client tStatus 0% → todo（B4
 check(host.includes('#{1,6}') || hostMap.includes('#{1,6}'), 'host parseProgress 标题行锚定（B4）')
 check(pkg.includes('#{1,6}') || pkgMap.includes('#{1,6}'), 'package parseProgress 标题行锚定（B4）')
 
-// T16: client/package 均含 bodyFormat 契约与追加点
-check(cli.includes('"bodyFormat"'), 'client 含 bodyFormat prompt')
-check(pcli.includes('"bodyFormat"'), 'package client 含 bodyFormat prompt')
-check(cli.includes('const BODY_FORMAT'), 'client 含 BODY_FORMAT 常量')
-check(pcli.includes('const BODY_FORMAT'), 'package client 含 BODY_FORMAT 常量')
-// 追加点跨行容错（completePrompt 的 + 在上一行末尾，CRLF 源码）：\+ 与 ( 之间允许空白/换行
-// 2026-08-18（需求修复）：BODY_FORMAT 已函数化 —— 追加点形态为 BODY_FORMAT()
-// #595：追加点带上当前工作区状态 st —— 正文格式文案按当前后端解析
-const appendCount = (s) => (s.match(/\+[\s]*\(BODY_FORMAT\(st\) \? '\\n\\n' \+ BODY_FORMAT\(st\) : ''\)/g) || []).length
-// issue #4：新增 newBugWayfinderText（+ 新增BUG单 入口）→ 追加点 ×4；#68：mapExecute v5 自包含（正文格式内嵌）→ 追加点降为 ×3；
-// #69：complete v4 自包含（正文格式内嵌模板，不再外挂追加）→ 追加点降为 ×2（仅 newWayfinder + newBugWayfinder）
-check(appendCount(cli) === 2, 'client BODY_FORMAT(st) 追加点 ×2（newWayfinder + newBugWayfinder；mapExecute/complete 均已自包含内嵌正文格式标记）')
-check(appendCount(pcli) === 2, 'package client BODY_FORMAT(st) 追加点 ×2（newWayfinder + newBugWayfinder；mapExecute/complete 均已自包含内嵌正文格式标记）')
-// #595：模板里不再硬抄正文格式（GitHub 专用两步写回搬进各后端 prompts.bodyFormat）；模板只剩 {bodyFormat} 标记
-check(cli.includes('## MAP完成确认') && cli.includes('{bodyFormat}'), 'client complete v4 内嵌正文格式标记 {bodyFormat}（文案按后端解析，不再硬抄）')
-check(pcli.includes('## MAP完成确认') && pcli.includes('{bodyFormat}'), 'package client complete v4 内嵌正文格式标记 {bodyFormat}（文案按后端解析，不再硬抄）')
-check(cli.includes('bodyFormatText') && cli.includes('backendPromptFrom') && cli.includes('promptTextFor'), 'client 含按后端解析正文格式的渲染入口（bodyFormatText/backendPromptFrom/promptTextFor）')
-check(pcli.includes('bodyFormatText') && pcli.includes('backendPromptFrom') && pcli.includes('promptTextFor'), 'package client 含按后端解析正文格式的渲染入口（bodyFormatText/backendPromptFrom/promptTextFor）')
-check(cli.includes('newWayfinderText') && cli.includes('BODY_FORMAT(st) ?') && cli.includes("promptText('newWayfinder'"), 'client newWayfinder 建图入口挂 BODY_FORMAT(st)（F2 补强 + #595 按后端）')
-check(pcli.includes('newWayfinderText') && pcli.includes('BODY_FORMAT(st) ?') && pcli.includes("promptText('newWayfinder'"), 'package client newWayfinder 建图入口挂 BODY_FORMAT(st)（F2 补强 + #595 按后端）')
-check(cli.includes('newBugWayfinderText') && cli.includes('BODY_FORMAT(st) ?') && cli.includes("promptText('newBugWayfinder'"), 'client newBugWayfinder 新增 BUG 入口挂 BODY_FORMAT(st)（#4 + #595 按后端）')
-check(pcli.includes('newBugWayfinderText') && pcli.includes('BODY_FORMAT(st) ?') && pcli.includes("promptText('newBugWayfinder'"), 'package client newBugWayfinder 新增 BUG 入口挂 BODY_FORMAT(st)（#4 + #595 按后端）')
+// #725：正文格式契约（bodyFormat 条目 / BODY_FORMAT 追加点 / 按后端解析的渲染入口）整节删除 ——
+//   票的正文读写交给 deck_* 工具，模板不再讲「正文怎么写」。这里留反向断言，防这套东西被悄悄加回来。
+check(!cli.includes('bodyFormat'), 'client 不再含正文格式契约 bodyFormat（#725 整节删除）')
+check(!pcli.includes('bodyFormat'), 'package client 不再含正文格式契约 bodyFormat（#725 整节删除）')
+check(!cli.includes('BODY_FORMAT'), 'client 不再含 BODY_FORMAT 追加点（#725）')
+check(!pcli.includes('BODY_FORMAT'), 'package client 不再含 BODY_FORMAT 追加点（#725）')
+check(cli.includes('## MAP完成确认'), 'client complete 模板本体仍在（只删了正文格式标记与进度契约句）')
+check(pcli.includes('## MAP完成确认'), 'package client complete 模板本体仍在')
+// #725：进度契约（## 进度：N% 的格式与 95% 语义阶梯）也从提示词里删掉了 —— 留给 AI 自由表达。
+check(!cli.includes('## 进度：N%'), 'client 不再要求固定进度区格式（#725：进度交还 AI 自由表达）')
+check(!pcli.includes('## 进度：N%'), 'package client 不再要求固定进度区格式（#725：进度交还 AI 自由表达）')
+check(!cli.includes('未确认不得 close'), 'client 不再有「未确认不得 close」这条规矩（#725）')
+check(!pcli.includes('未确认不得 close'), 'package client 不再有「未确认不得 close」这条规矩（#725）')
 // #595：client 侧不许再硬抄 GitHub 专用的写回脚本 / 插件目录解析（那三处文案搬进 github 后端的 prompts.bodyFormat）
 const fixNameCount = (s) => (s.match(/scripts\/fix-issue-body\.mjs/g) || []).length
 check(fixNameCount(cli) === 0, 'client 不再硬抄写回脚本路径 ×0（#595：搬进 github 后端 prompts.bodyFormat）')

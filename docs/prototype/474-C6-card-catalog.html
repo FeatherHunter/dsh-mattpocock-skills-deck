@@ -1,0 +1,1230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>地图详情页 · C6 索引卡柜（档案室里的卡片抽屉）</title>
+<style>
+/* ============================================================
+   C6 · 索引卡柜 —— 档案室里的卡片抽屉
+   每张票 = 抽屉里的一张索引卡，只露出上沿（票号）；
+   鼠标划过时上面的卡被推开、下面的露出来；点一张往上抽，整张飞到眼前看详情。
+   四个状态用实物表达：打勾 + 归档红戳（走亮）／半截抽出来的卡 + 经办人压条（照亮中）／
+   绿色小旗「可以动手」（现在能做）／白纸一张、格子空着（雾里）。
+   本文件没有任何「第几层」的骨架：不按层分行、分列、分抽屉，也不挂「第几层」徽章。
+   ============================================================ */
+:root{
+  --panel:#10131a; --line:#2a2d35;
+  --ink:#e6edf3; --sub:#a1a1aa; --foot:#8b8b95;
+  --green:#4ade80; --blue:#58a6ff; --purple:#c084fc;
+  --kraft:#c8a97a;
+  --stamp:#a01e1e; --brassD:#6f5626; --brassL:#f4e0ac;
+
+  /* 卡瀑布的手感刻度：一格＝一条露在抽屉外面的卡沿（--off），卡整张多高（--cardH） */
+  --off:46px; --cardH:118px; --rodX:15px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#0b0d12;color:var(--ink);
+  font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:13px;overflow-x:hidden}
+body{display:flex;justify-content:center;min-height:100vh}
+#panel{position:relative;width:810px;max-width:100vw;height:100vh;display:flex;flex-direction:column;
+  background:var(--panel);overflow:hidden;border-left:1px solid var(--line);border-right:1px solid var(--line)}
+.mono{font-family:Consolas,Menlo,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- 顶部外壳（六个原型同一套） ---------- */
+.topbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);
+  background:linear-gradient(#171a21,#13161c);flex:0 0 auto;position:relative;z-index:20}
+.back{background:none;border:1px solid transparent;color:var(--sub);font:inherit;font-size:12.5px;
+  padding:3px 7px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.back:hover{background:#1d2029;color:var(--ink)}
+.crumb{color:var(--sub);font-size:12px;white-space:nowrap}
+.tabs{display:flex;gap:3px;background:#0e1117;border:1px solid var(--line);border-radius:7px;padding:2px}
+.tabs span{font-size:11.5px;color:var(--foot);padding:2px 8px;border-radius:5px;white-space:nowrap}
+.tabs span.on{background:#1e222c;color:var(--ink)}
+.tag{font-size:11px;color:var(--purple);border:1px solid #4a3a63;border-radius:999px;padding:2px 8px;
+  white-space:nowrap;background:#1a1526;font-family:Consolas,Menlo,monospace}
+.grow{flex:1 1 auto}
+.btn-main{font:inherit;font-size:12.5px;padding:5px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;
+  color:#08130a;background:linear-gradient(#5fe292,#3fc974);border:1px solid #2f9b57;font-weight:600}
+.btn-main:hover{background:linear-gradient(#6ff0a0,#49d47e)}
+
+/* ---------- 案件台面 ---------- */
+.stage{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;align-items:center;gap:12px;
+  padding:12px 14px 14px;overflow-y:auto;overflow-x:hidden;
+  background:radial-gradient(120% 80% at 50% -10%, rgba(88,166,255,.05), transparent 60%),
+             linear-gradient(#0f1218,#10131a);scrollbar-width:thin}
+
+/* ===== 目的地：柜子顶上立着的那块铜牌。永远看得见，不参与抽屉滚动 ===== */
+.plate{width:100%;max-width:596px;min-width:0;flex:0 1 auto;position:relative;z-index:3;
+  padding:9px 16px 9px 76px;border-radius:9px;
+  background:linear-gradient(150deg,#7a5f2c 0%,#42351a 18%,#6b5326 52%,#3a2f18 78%,#6a5326 100%);
+  border:1px solid #241d0e;
+  box-shadow:0 1px 0 rgba(255,235,190,.20) inset, 0 -1px 0 rgba(0,0,0,.6) inset, 0 8px 20px rgba(0,0,0,.5);
+  color:var(--brassL)}
+.plate::before{content:"";position:absolute;inset:0;border-radius:9px;pointer-events:none;opacity:.12;
+  background-image:repeating-linear-gradient(115deg, rgba(255,255,255,.9) 0 1px, transparent 1px 4px)}
+.seal{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:54px;height:54px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 56%, rgba(0,0,0,.30) 58% 100%),
+    repeating-conic-gradient(from 0deg at 50% 50%, #c7a15a 0deg 4deg, #6b5326 4deg 8deg),
+    radial-gradient(circle at 36% 30%, #f7e6b8, #b98f45 62%, #4d3d1d);
+  box-shadow:0 2px 6px rgba(0,0,0,.6), 0 0 0 2px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.4) inset;
+  color:#33290f;font-family:Consolas,Menlo,monospace;font-weight:700;font-size:11px;letter-spacing:.5px;
+  text-align:center;line-height:1.15;text-shadow:0 1px 0 rgba(255,255,255,.45)}
+.plate .pd{font-size:9.5px;letter-spacing:2px;color:#e6cf9a;font-family:Consolas,Menlo,monospace}
+.plate .pt{font-size:12.5px;line-height:1.45;margin:3px 0 4px;color:#fbf1d6;
+  text-shadow:0 1px 0 rgba(0,0,0,.75)}
+.plate .pc{font-size:10.5px;color:#c9b184;display:flex;gap:11px;flex-wrap:wrap;align-items:center;
+  font-family:Consolas,Menlo,monospace}
+.plate .pc i{font-style:normal;display:inline-flex;gap:4px;align-items:center}
+
+/* ============================================================
+   抽屉柜
+   ============================================================ */
+.cabinet{width:100%;max-width:596px;min-width:0;flex:0 1 auto;display:flex;justify-content:center;
+  position:relative;z-index:4}
+.drawer{width:100%;max-width:560px;max-height:min(78vh,620px);container-type:inline-size;container-name:drawer;
+  position:relative;
+  border-radius:12px 12px 10px 10px;padding:9px 9px 7px;
+  background:linear-gradient(180deg,#4a3823,#3a2c1c 22%,#2b2117);
+  border:1px solid #1d1610;
+  box-shadow:0 22px 40px rgba(0,0,0,.62), 0 2px 0 rgba(255,230,190,.10) inset;
+  display:flex;flex-direction:column}
+.drawer::before{content:"";position:absolute;inset:0;border-radius:12px 12px 10px 10px;pointer-events:none;
+  opacity:.5;filter:url(#grainW)}
+.rider{display:flex;align-items:center;gap:9px;padding:2px 6px 8px;color:#e8d6ae;flex:0 0 auto;position:relative}
+.rider .lbl{flex:1 1 auto;min-width:0;background:rgba(0,0,0,.32);border-radius:4px;padding:4px 9px;
+  font-family:Consolas,Menlo,monospace;font-size:11px;letter-spacing:.4px;color:#e6cf9a;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  box-shadow:0 1px 0 rgba(255,235,190,.16) inset, 0 0 0 1px rgba(0,0,0,.35)}
+.rider .cap{font-size:11px;color:#cbb68d;white-space:nowrap;font-family:Consolas,Menlo,monospace}
+.knob{width:30px;height:30px;border-radius:50%;flex:0 0 auto;position:relative;
+  background:radial-gradient(circle at 36% 30%, #f7e6b8, #b98f45 58%, #4d3d1d);
+  box-shadow:0 2px 5px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.5) inset}
+.knob::after{content:"";position:absolute;left:50%;top:14%;width:2.6px;height:38%;transform:translateX(-50%);
+  border-radius:2px;background:#3c2f16;opacity:.8}
+.well{position:relative;flex:0 1 auto;min-height:0;border-radius:5px;overflow:hidden;
+  background:linear-gradient(#241c13,#1d1712);box-shadow:0 2px 10px rgba(0,0,0,.6) inset}
+/* 抽屉深处：不是空，是还没翻到。这层渐变钉在抽屉口上，鼠标照样能点到卡 */
+.well::after{content:"";position:absolute;left:0;right:0;bottom:0;height:32px;pointer-events:none;z-index:35;
+  background:linear-gradient(transparent, rgba(20,15,10,.9))}
+.scroller{position:relative;overflow-y:auto;overflow-x:hidden;height:100%;padding:14px 20px 30px;
+  overscroll-behavior:contain;scrollbar-width:none;outline:none}
+.scroller::-webkit-scrollbar{width:0;height:0}
+
+/* 铜柱 + 穿卡孔：卡是穿在这根轴上的 */
+.rail{position:absolute;left:var(--rodX);top:8px;bottom:8px;width:6px;border-radius:3px;z-index:30;
+  transform:translateX(-50%);box-shadow:0 0 10px rgba(0,0,0,.6);
+  background:linear-gradient(90deg,#7a5f2c,#f4e0ac 42%,#b98f45 62%,#4d3d1d)}
+.rail::before,.rail::after{content:"";position:absolute;left:50%;width:13px;height:13px;border-radius:50%;
+  transform:translate(-50%,0);background:radial-gradient(circle at 34% 30%,#f7e6b8,#a8834f 60%,#3f3118);
+  box-shadow:0 2px 5px rgba(0,0,0,.6)}
+.rail::before{top:-7px}
+.rail::after{bottom:-7px}
+
+/* 抽屉里的分区：按「档案状态」分的，不是按层分的。
+   这一个 22px 是抽屉里的一张「导卡」——它的卡舌从一叠卡中间支出来，
+   上面刻着这一段的档案状态和张数。它不是章节标题，是插在卡堆里的实物。
+   卡堆是一叠压一叠的：下面一张卡的身子被下一张盖住，
+   所以导卡要压在「上一段最后一张卡的身子」之上（z-index 取下一段第一张卡的号），
+   又要被「下一段第一张卡」压住（DOM 顺序靠前，同号时后者在上）。 */
+.grphead{position:relative;height:22px;width:100%;
+  background:linear-gradient(#6a5330,#4e3c21);
+  border-top:1px solid rgba(255,236,196,.30);border-bottom:1px solid rgba(0,0,0,.5);
+  box-shadow:0 2px 5px rgba(0,0,0,.5), 0 -1px 0 rgba(255,240,200,.12) inset;
+  display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;
+  font-family:Consolas,Menlo,monospace;font-size:10.5px;color:#f0dcaa;
+  overflow:hidden;white-space:nowrap;z-index:var(--hz,1)}
+.grphead i{position:absolute;left:0;top:0;bottom:0;width:5px}
+.grphead b{font-weight:600;letter-spacing:.6px;text-shadow:0 1px 0 rgba(0,0,0,.6)}
+.grphead em{font-style:normal;color:#cbb68d;margin-left:auto;letter-spacing:.5px}
+/* 卡堆本身不撑高：卡的「格子」是绝对定位的，所以分区的占地高＝格数 × 错位量，
+   一格就是一条露出来的卡沿，多一寸都不留 */
+.grpbody{position:relative;margin:0;width:100%;height:calc(var(--n) * var(--off))}
+
+/* ============================================================
+   索引卡
+   ------------------------------------------------------------
+   这是这个方案的看家几何，必须精确：
+   · 一张票的节点＝它露在抽屉外面的那一条卡沿（高 --off，就是「一格」）；
+   · 卡纸（.sheet）挂在这条卡沿底下，高 --cardH，被下一张卡的卡沿压住，
+     所以每张卡只露出上面一条：票号、标题、和一排勾选框的**上半个**（故意被切断）；
+   · 节点盒子正好等于看得见的那条卡沿，眼睛看见的、鼠标点到的、DOM 里量到的
+     三样是同一个矩形 —— 不会出现「点到的其实是下一张卡」。
+   一张卡被压住多少、露出来多少，全靠下一张卡压在上面：这就是叠。
+   ============================================================ */
+.grp{position:relative;width:100%;height:calc(var(--tab) + var(--n) * var(--off))}
+.grpbody{position:absolute;left:0;right:0;top:var(--tab);height:calc(var(--n) * var(--off))}
+/* 抽屉前板：一叠卡最前头那块挡板，把最后一张卡露不出来的下半截压住。
+   有它，抽屉里每一张卡都只露一条卡沿，不会「最后一张整张摊开」。 */
+.frontboard{position:relative;width:100%;height:calc(var(--cardH) - var(--off));z-index:3000;
+  transform:translateY(var(--push,0px));
+  transition:transform .34s cubic-bezier(.2,.85,.28,1.02);
+  background:linear-gradient(#4a3823,#33271a 70%,#241b12);
+  border-top:1px solid rgba(255,236,196,.30);
+  box-shadow:0 -10px 16px -10px rgba(0,0,0,.85) inset, 0 8px 16px rgba(0,0,0,.45);
+  display:flex;align-items:center;gap:10px;padding:0 14px 0 20px;
+  font-family:Consolas,Menlo,monospace;font-size:10.5px;letter-spacing:.5px;color:#c2ab7e}
+.frontboard i{font-style:normal;flex:1 1 auto;height:1px;background:rgba(255,236,196,.18)}
+.frontboard b{font-weight:600;color:#e8d6ae}
+.card{position:absolute;left:0;right:0;top:calc(var(--k) * var(--off));height:var(--off);
+  border:0;padding:0;margin:0;text-align:left;font:inherit;color:#2b2b2b;background:none;cursor:pointer;
+  transform-origin:50% 0%;
+  transition:transform .34s cubic-bezier(.2,.85,.28,1.02), box-shadow .22s linear, opacity .2s linear;
+  transform:translateY(var(--push,0px));
+  z-index:calc(1 + var(--i))}
+/* 卡纸：从卡沿往下挂，长过格子，被挡住的那些根本看不见 */
+.sheet{position:absolute;left:0;right:0;top:0;height:var(--cardH);border-radius:3px 3px 2px 2px;
+  overflow:hidden;pointer-events:none;
+  background:radial-gradient(88% 62% at 50% -12%, #fdf6e3 0%, #f2e7c9 58%, #e6d9b2 100%),
+             linear-gradient(#f6ecd2,#e8dbb6);
+  box-shadow:
+    /* 上一张卡压在我身上时，它的下沿在我这儿投的影 */
+    0 -7px 9px -7px rgba(30,20,6,.55) inset,
+    /* 我自己的纸边：上沿一道亮线，下沿一道实影 */
+    0 1px 0 rgba(255,252,240,.85) inset, 0 -1px 0 rgba(96,78,44,.55) inset,
+    0 2px 4px rgba(0,0,0,.5), 0 9px 18px rgba(0,0,0,.42)}
+/* 卡沿投在「它压住的那张卡」上的影子：从我的上沿往上抹 6px */
+.card::before{content:"";position:absolute;left:0;right:0;top:-6px;height:6px;z-index:2;pointer-events:none;
+  border-radius:3px 3px 0 0;
+  background:linear-gradient(0deg, rgba(28,18,4,.50), rgba(28,18,4,.16) 55%, rgba(28,18,4,0))}
+/* 卡沿自己的厚度：上沿一条纸边亮线 */
+.card::after{content:"";position:absolute;left:0;right:0;top:0;height:1.6px;z-index:2;pointer-events:none;
+  background:linear-gradient(90deg, rgba(255,252,240,.35), rgba(255,252,240,.95) 30%, rgba(255,252,240,.9))}
+.hole{position:absolute;left:var(--rodX);top:calc(var(--off) / 2);width:11px;height:11px;border-radius:50%;
+  z-index:24;transform:translate(-50%,-50%);background:#2b2117;pointer-events:none;
+  box-shadow:0 1px 0 rgba(255,245,220,.55), 0 0 0 2px rgba(140,116,72,.35) inset, 0 2px 4px rgba(0,0,0,.5) inset}
+.hole::after{content:"";position:absolute;left:50%;top:50%;width:5px;height:5px;border-radius:50%;
+  transform:translate(-50%,-50%);background:radial-gradient(circle,#c8a55f,#4d3d1d)}
+.card .grain{position:absolute;left:0;right:0;top:0;height:var(--cardH);border-radius:3px;
+  pointer-events:none;opacity:.5;mix-blend-mode:multiply;filter:url(#grainC)}
+/* 打字纸上的横格线：一路排到看不见的地方，所以卡沿上一定看得到「下面还有半行」 */
+.card .rule{position:absolute;left:0;right:0;top:0;height:var(--cardH);border-radius:3px;
+  pointer-events:none;opacity:.26;z-index:1;
+  background-image:repeating-linear-gradient(180deg, rgba(120,100,60,.30) 0 1px, transparent 1px 15px)}
+/* 卡沿这一条上的字 */
+.face{position:absolute;left:0;right:0;top:0;height:var(--cardH);padding:5px 30px 0 30px;
+  display:flex;flex-direction:column;z-index:4;overflow:hidden;pointer-events:none}
+.crow{display:flex;align-items:baseline;gap:6px;min-width:0}
+.cno{font-family:Consolas,Menlo,monospace;font-weight:700;font-size:12.5px;line-height:1.1;
+  letter-spacing:.3px;color:#241f14;flex:0 0 auto}
+.ctype{font-size:9.5px;color:#6c5a38;border:1px solid rgba(110,90,50,.5);border-radius:3px;padding:0 4px;
+  line-height:1.25;white-space:nowrap;flex:0 0 auto}
+.smark{margin-left:auto;font-size:9.5px;font-family:Consolas,Menlo,monospace;color:#5d4b2c;
+  white-space:nowrap;flex:0 0 auto;line-height:1.1}
+.ctit{font-size:11.5px;line-height:1.22;margin:1px 0 0;color:#2f2a1c;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+/* 打勾的小格：故意压在卡沿下缘上，只露上一半 —— 「下面还有东西」看得见 */
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 4px;
+  margin-top:calc(var(--off) - 40px)}
+.cell{display:flex;align-items:center;gap:2px;min-width:0}
+.box{width:9.5px;height:9.5px;border:1.3px solid rgba(80,64,35,.7);border-radius:2px;flex:0 0 auto;
+  background:rgba(255,255,255,.4);position:relative;display:flex;align-items:center;justify-content:center}
+.cell u{text-decoration:none;font-size:8.5px;line-height:1;color:#6a593a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box i{font-style:normal;font-size:9.5px;line-height:1;color:#8f1d16;font-weight:700;
+  transform:rotate(-7deg) translateY(-1px)}
+.card.st-closed .box.on{border-color:#7a2318;background:rgba(160,30,30,.08)}
+.card.st-fog .box{border-style:dashed;border-color:rgba(110,96,70,.55);background:transparent}
+.card.st-fog .cell u{color:rgba(106,89,58,.45)}
+.card.st-fog .ctit{color:#6b6455}
+.card.st-fog .cno{color:#59523f}
+.card.st-fog .smark{color:#7b7259}
+/* 雾里的卡整张偏白、字淡 —— 是「还没写」，不是「没有」 */
+.sheet-fog{background:radial-gradient(88% 62% at 50% -12%, #fffdf8 0%, #f6f4ec 60%, #eae7db 100%),
+                      linear-gradient(#fbfaf5,#eeebe0)}
+
+/* 键盘办案的提示：刻在卡沿右端 */
+.hook{position:absolute;right:14px;top:calc(var(--off) - 13px);z-index:23;pointer-events:none;
+  font-size:7.5px;letter-spacing:.4px;color:#9a9070;font-family:Consolas,Menlo,monospace;
+  opacity:.9;white-space:nowrap}
+
+/* 走亮：打了勾、卡角盖了归档红戳（拉出来才看全）、上沿夹一条「已结」书签 */
+.stamp{position:absolute;right:10px;top:calc(var(--off) + 24px);width:62px;height:36px;
+  border:2.4px solid var(--stamp);
+  border-radius:5px;color:var(--stamp);z-index:8;pointer-events:none;transform:rotate(-11deg);opacity:.88;
+  mix-blend-mode:multiply;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  line-height:1;box-shadow:0 0 0 1px rgba(160,30,30,.3) inset;
+  -webkit-mask-image:radial-gradient(circle at 30% 40%,#000 0 46%,rgba(0,0,0,.30) 56%,#000 64%),
+    radial-gradient(circle at 72% 66%,#000 0 42%,rgba(0,0,0,.28) 54%,#000 60%);
+  -webkit-mask-size:23px 17px,27px 19px;-webkit-mask-repeat:repeat;
+  -webkit-mask-composite:source-over;
+          mask-image:radial-gradient(circle at 30% 40%,#000 0 46%,rgba(0,0,0,.30) 56%,#000 64%),
+    radial-gradient(circle at 72% 66%,#000 0 42%,rgba(0,0,0,.28) 54%,#000 60%);
+          mask-size:23px 17px,27px 19px;mask-repeat:repeat;mask-composite:add}
+.stamp b{font-size:15px;font-weight:700;letter-spacing:3px;
+  -webkit-mask-image:radial-gradient(circle at 40% 30%,#000 0 48%,rgba(0,0,0,.22) 60%,#000 68%);
+  -webkit-mask-size:19px 13px;-webkit-mask-repeat:repeat;
+          mask-image:radial-gradient(circle at 40% 30%,#000 0 48%,rgba(0,0,0,.22) 60%,#000 68%);
+          mask-size:19px 13px;mask-repeat:repeat}
+.stamp u{text-decoration:none;font-size:7.5px;letter-spacing:1px;margin-top:3px;
+  font-family:Consolas,Menlo,monospace}
+.bm{position:absolute;right:32px;top:0;width:26px;height:15px;z-index:23;pointer-events:none;
+  background:linear-gradient(#8f1d16,#6d130e);color:#ffd9d2;font-size:8.5px;letter-spacing:.5px;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.45);
+  clip-path:polygon(0 0,100% 0,100% 100%,50% 76%,0 100%)}
+
+/* 照亮中：卡从叠里抽出来半截（抬起来、挪出来一点），露出压着的经办人名条 */
+.card.st-lit{transform:translateY(calc(var(--push,0px) - 20px)) translateX(7px);
+  z-index:calc(60 + var(--i))}
+.card.st-lit .sheet{box-shadow:0 3px 0 rgba(255,255,255,.8) inset, 0 1px 0 rgba(120,100,60,.35) inset,
+    0 2px 3px rgba(0,0,0,.5), 0 12px 20px rgba(0,0,0,.55), 0 0 0 1px rgba(88,166,255,.28)}
+.card.st-lit .sheet::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:4;
+  background:linear-gradient(90deg, rgba(88,166,255,.13), transparent 42%)}
+.who{position:absolute;left:30px;right:38px;top:calc(var(--off) + 2px);z-index:10;height:16px;
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;color:#2b3d52;font-family:Consolas,Menlo,monospace;
+  background:linear-gradient(#e8f1ff,#cfe0f7);border:1px solid #9bb8d8;border-radius:3px;
+  padding:1px 6px;transform:rotate(-.9deg);box-shadow:0 1px 2px rgba(0,0,0,.25);pointer-events:none}
+.who b{font-weight:700;color:#12324f}
+.who s{text-decoration:none;margin-left:auto;font-size:9px;color:#3d5b7a}
+
+/* 现在能做：卡沿上贴着绿色小旗「可以动手」 */
+.flag{position:absolute;right:12px;top:calc(var(--off) - 26px);z-index:23;transform:rotate(-6deg);
+  transform-origin:right top;
+  background:linear-gradient(180deg,#63e08f,#2fa45f);color:#06230f;font-size:9.5px;font-weight:700;
+  letter-spacing:.4px;padding:2px 6px 2px 7px;border-radius:2px 0 0 2px;white-space:nowrap;pointer-events:none;
+  box-shadow:0 2px 5px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.4) inset}
+.flag::after{content:"";position:absolute;right:0;top:100%;width:0;height:0;
+  border-left:5px solid #1f7a45;border-bottom:5px solid transparent;border-right:0}
+.flag::before{content:"";position:absolute;right:4px;bottom:-11px;width:9px;height:9px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#f7e6b8,#a8834f 60%,#5a4620);box-shadow:0 1px 2px rgba(0,0,0,.5)}
+.card.st-ready .sheet{box-shadow:0 2px 0 rgba(255,255,255,.75) inset, 0 1px 0 rgba(120,100,60,.35) inset,
+  0 -3px 6px rgba(150,128,84,.22) inset, 0 1px 2px rgba(0,0,0,.55), 0 5px 12px rgba(0,0,0,.42),
+  0 0 0 1px rgba(74,222,128,.45)}
+
+/* 交叉索引行：抽出来的那一刻才显形（平时压在下面，被别的卡挡着） */
+.cross{position:absolute;left:0;right:0;top:calc(var(--cardH) - 22px);z-index:14;
+  padding:2px 34px 2px 30px;border-radius:0 0 3px 3px;
+  background:linear-gradient(180deg, rgba(240,231,208,.55), rgba(230,219,190,.99) 40%);
+  border-top:1px solid rgba(120,100,60,.45);
+  font-family:Consolas,Menlo,monospace;font-size:10px;color:#3b3324;line-height:1.5;
+  opacity:0;transform:translateY(6px);transition:opacity .22s linear,transform .28s cubic-bezier(.2,.85,.28,1);
+  pointer-events:none}
+.card.show-cross .cross{opacity:1;transform:none}
+.cross i{font-style:normal;color:#7a6a48}
+.cross b{font-weight:700;color:#1f1a10}
+
+/* 推挤：鼠标划过某张卡，压着它的那几张被推开（往上）、它压着的被挤出去（往下），
+   于是它自己多露出来一截 —— 那一刻能看清它的上下关系 */
+.card.hot{z-index:calc(900 + var(--i));
+  transform:translateY(calc(var(--push,0px) - 13px)) scale(1.008)}
+.card.hot .sheet{box-shadow:0 -7px 9px -7px rgba(30,20,6,.55) inset,
+    0 1px 0 rgba(255,252,240,.9) inset, 0 3px 4px rgba(0,0,0,.5), 0 22px 30px rgba(0,0,0,.55)}
+/* 关系显形：抽屉里对应的卡同时亮起。等它的被拉高一点，它挡着的往前倾 */
+.card.rel-lit{box-shadow:0 2px 0 rgba(255,255,255,.75) inset, 0 1px 0 rgba(120,100,60,.35) inset,
+  0 1px 2px rgba(0,0,0,.5), 0 0 0 2px rgba(200,132,252,.55), 0 0 16px rgba(192,132,252,.35);
+  transition-delay:calc(var(--lamp) * 45ms);z-index:calc(400 + var(--i))}
+.card.rel-up{transform:translateY(calc(var(--push,0px) - 6px))}
+.card.rel-block{transform:translateY(calc(var(--push,0px) + 6px))}
+/* 键盘焦点：铜色虚线框 —— 形状 + 颜色双重标记 */
+.card.kbd,.card:focus-visible{outline:2px dashed #d8ae63;outline-offset:-3px;
+  background:rgba(216,174,99,.10);z-index:calc(880 + var(--i))}
+.card.pulling{opacity:0;pointer-events:none}
+.scroller.busy .card{transition-duration:.5s}
+
+/* ============================================================
+   抽出来的卡落到眼前
+   ============================================================ */
+.dim{position:fixed;inset:0;z-index:60;pointer-events:auto;
+  background:radial-gradient(64% 52% at 50% 40%, rgba(4,6,10,.42), rgba(4,6,10,.80));
+  animation:dimin .26s linear both}
+@keyframes dimin{from{opacity:0}to{opacity:1}}
+.blurbox{position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;
+  padding:18px;pointer-events:none}
+/* 抽出来摆在眼前的那张卡：整张立着，不是一条卡沿 */
+.card.full{position:relative;left:auto;right:auto;top:auto;width:100%;height:var(--cardH)}
+.card.full .hook{display:none}
+.card.full .sheet{top:0;height:var(--cardH);border-radius:3px;
+  box-shadow:0 1px 0 rgba(255,252,240,.9) inset, 0 -1px 0 rgba(96,78,44,.5) inset,
+    0 1px 2px rgba(0,0,0,.3)}
+.card.full::before{display:none}
+.card.full::after{display:none}
+.card.full .hole{top:22px}
+.card.full .grid{margin-top:auto;padding-bottom:2px}
+.card.full .cross{position:relative;top:auto;opacity:1;transform:none;margin-top:6px}
+.card.full .stamp{top:auto;bottom:34px}
+.card.full .who{top:auto;bottom:8px}
+.card.full .flag{top:8px}
+
+/* 抽出来的卡落在眼前：卡纸摊在桌上 */
+.blurbox .dossier{pointer-events:auto;position:relative;width:100%;max-width:470px;border-radius:4px;color:#2b2b2b;
+  background:linear-gradient(#fdf7e6,#f0e5c8);overflow:hidden;
+  box-shadow:0 1px 0 rgba(255,255,255,.9) inset, 0 4px 5px rgba(0,0,0,.45), 0 30px 60px rgba(0,0,0,.7),
+    0 0 0 1px rgba(120,100,60,.4);
+  max-height:calc(100vh - 36px);display:flex;flex-direction:column}
+.blurbox .dossier .grain{position:absolute;inset:0;pointer-events:none;opacity:.42;mix-blend-mode:multiply;
+  filter:url(#grainC)}
+.sheethead{padding:11px 16px 8px;border-bottom:1.6px dashed rgba(120,100,60,.55);position:relative;z-index:2}
+.sheethead .r1{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.sheethead .no{font-family:Consolas,Menlo,monospace;font-weight:700;font-size:19px}
+.sheethead .ty{font-size:11px;color:#6c5a38;border:1px solid rgba(110,90,50,.5);border-radius:3px;padding:0 5px}
+.sheethead .stt{margin-left:auto;font-size:11px;font-family:Consolas,Menlo,monospace;color:#4b3f26;
+  display:flex;align-items:center;gap:5px;white-space:nowrap}
+.sheethead h2{margin:5px 0 0;font-size:14px;line-height:1.45;font-weight:600;color:#2b2416}
+.sheetbody{padding:9px 16px 12px;overflow-y:auto;position:relative;z-index:2}
+.sheetbody .kv{display:flex;gap:8px;font-size:11.5px;padding:4px 0;border-bottom:1px dotted rgba(120,100,60,.35);
+  line-height:1.5}
+.sheetbody .kv b{flex:0 0 72px;color:#5d4b2c;font-weight:500}
+.sheetbody .kv span{color:#332c1b;min-width:0}
+.sheetbody .done{margin-top:9px;font-size:11.5px;background:rgba(160,30,30,.07);border-left:3px solid var(--stamp);
+  padding:5px 8px;color:#5a2a25;line-height:1.5}
+.sheetbody .done b{display:block;font-size:10px;letter-spacing:.5px;color:var(--stamp);margin-bottom:2px}
+/* 卡背面：抽出来的那一刻就能看见「等谁 / 挡住谁」 */
+.dossier .crossback{border-top:1.6px dashed rgba(120,100,60,.55);background:rgba(226,213,184,.55);
+  padding:8px 16px 10px;font-family:Consolas,Menlo,monospace;font-size:11px;color:#332c1b;flex:0 0 auto;
+  position:relative;z-index:2}
+.crossback .ct{font-size:10px;letter-spacing:.8px;color:#7a6a48;margin-bottom:3px}
+.crossback .ln{display:flex;gap:7px;align-items:baseline;padding:1px 0;line-height:1.5}
+.crossback .ln b{color:#1f1a10}
+.crossback .ln u{text-decoration:none;color:#7a6a48;flex:0 0 auto}
+.sheetfoot{display:flex;gap:8px;align-items:center;padding:7px 14px;border-top:1px solid rgba(120,100,60,.4);
+  background:rgba(120,100,60,.10);flex:0 0 auto;position:relative;z-index:2}
+.sheetfoot .hint{font-size:10.5px;color:#6c5a38;margin-right:auto}
+.sheetfoot button{font:inherit;font-size:11.5px;padding:4px 11px;border-radius:6px;cursor:pointer;
+  border:1px solid #9b8355;background:linear-gradient(#fdf3dd,#e9d9b1);color:#3a2f1a}
+.sheetfoot button:hover{background:linear-gradient(#fffaea,#f0e2c0)}
+.sheetfoot button.p1{border-color:#2f7a52;background:linear-gradient(#dcf6e5,#b6e7c8);color:#0d2f1c}
+
+/* 正在飞的那张卡：位置由 Web Animations API 驱动 */
+.card.flight{position:fixed;left:0;top:0;transform-origin:0 0;z-index:90;pointer-events:none;
+  transition:none !important;
+  box-shadow:0 6px 6px rgba(0,0,0,.4), 0 34px 60px rgba(0,0,0,.72)}
+
+/* ============================================================
+   「还没写」的抽屉：一张提示卡 + 一格格的空格子
+   ============================================================ */
+.tipcard{position:relative;margin:8px 0 0 30px;max-width:400px;padding:11px 14px 12px;border-radius:4px;
+  background:linear-gradient(#fdf9ec,#f2e9cf);color:#3a3423;border:1px dashed rgba(120,100,60,.6);
+  box-shadow:0 3px 8px rgba(0,0,0,.4);transform:rotate(-.6deg)}
+.tipcard b{display:block;font-size:12.5px;margin-bottom:4px;color:#2b2416}
+.tipcard span{font-size:11px;line-height:1.55;color:#5d4b2c;display:block}
+.tipcard .stamped{position:absolute;right:9px;top:9px;font-size:9.5px;letter-spacing:1.5px;color:#8f1d16;
+  border:1.6px solid #8f1d16;border-radius:3px;padding:2px 4px;transform:rotate(-8deg);opacity:.75;
+  font-family:Consolas,Menlo,monospace}
+.cellrow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px 8px;margin-top:9px}
+.cellrow span{height:13px;border:1.3px dashed rgba(110,96,70,.5);border-radius:2px}
+.emptymsg{margin:9px 0 0 30px;font-size:11px;color:#cbb68d;font-family:Consolas,Menlo,monospace}
+.stair{margin:10px 0 0 30px;display:flex;flex-direction:column;gap:4px}
+.stair i{display:block;height:9px;border-radius:2px;background:linear-gradient(#f6efdc,#e3d8b8);
+  box-shadow:0 1px 2px rgba(0,0,0,.4);width:calc(100% - var(--k,0) * 18px);opacity:.6}
+
+/* ============================================================
+   窄面板：真的按容器宽度响应（抽屉自己就是查询容器）
+   ============================================================ */
+@container drawer (max-width:470px){
+  .card{height:96px}
+  .face{padding:6px 32px 6px 24px}
+  .ctit{font-size:11.5px}
+  .stamp{width:52px;height:31px;right:5px;bottom:5px}
+  .stamp b{font-size:12.5px}
+  .tipcard{margin-left:24px}
+  .rider .cap{display:none}
+  .scroller{padding:12px 16px 24px}
+}
+@container drawer (max-width:340px){
+  .ctype{display:none}
+  .grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .cell:nth-child(4){display:none}
+}
+@media (max-width:520px){
+  .tabs{display:none}
+  .stage{padding:9px 8px 10px;gap:9px}
+  .plate{padding:8px 11px 8px 62px}
+  .seal{width:44px;height:44px;font-size:10px}
+  .plate .pt{font-size:11.5px}
+  .btn-main{padding:5px 9px;font-size:11.5px}
+  .crumb{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .card{transition-duration:1ms !important}
+}
+
+/* ---------- 底部控制条（不属于设计本身） ---------- */
+.ctrl{flex:0 0 auto;border-top:1px solid var(--line);background:#0d0f14;padding:7px 12px;
+  display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--sub)}
+.ctrl .grp{display:flex;gap:5px;align-items:center}
+.ctrl b{color:var(--foot);font-weight:500}
+.cbtn{font:inherit;font-size:11.5px;background:#15181f;border:1px solid var(--line);color:var(--sub);
+  padding:3px 9px;border-radius:6px;cursor:pointer}
+.cbtn:hover{color:var(--ink);border-color:#39404d}
+.cbtn.on{background:#22303f;border-color:#3b6f9c;color:#cfe6ff}
+</style>
+</head>
+<body>
+
+<!-- 内联 SVG 滤镜：卡纸颗粒、抽屉木纹。零图片、零网络 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="grainC" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="11" stitchTiles="stitch" result="n"/>
+      <feColorMatrix in="n" type="matrix"
+        values="0 0 0 0 0.34  0 0 0 0 0.28  0 0 0 0 0.15  0.5 0.5 0.5 0 -0.8"/>
+    </filter>
+    <filter id="grainW" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="1.1 0.06" numOctaves="3" seed="7" stitchTiles="stitch" result="n"/>
+      <feColorMatrix in="n" type="matrix"
+        values="0 0 0 0 0.30  0 0 0 0 0.21  0 0 0 0 0.11  0.45 0.45 0.45 0 -0.72"/>
+    </filter>
+  </defs>
+</svg>
+
+<div id="panel">
+  <header class="topbar">
+    <button class="back" id="back">← 返回</button>
+    <span class="crumb mono">列表 / #604</span>
+    <span class="tag">▣ wayfinder:map</span>
+    <span class="grow"></span>
+    <button class="btn-main" id="push">▶ 推进这张图</button>
+  </header>
+
+  <main class="stage">
+    <!-- 目的地：柜子顶上那块铜牌，永远看得见 -->
+    <div class="plate" id="plate" data-role="destination">
+      <div class="seal" aria-hidden="true">#604<br>已立案</div>
+      <div class="pd">这个抽屉柜要办到哪里去</div>
+      <div class="pt" id="dest">—</div>
+      <div class="pc" id="plateCount"></div>
+    </div>
+
+    <section class="cabinet" aria-label="索引卡柜">
+      <div class="drawer" id="drawer">
+        <div class="rider">
+          <span class="knob" aria-hidden="true"></span>
+          <span class="lbl mono" id="dlabel">—</span>
+          <span class="cap mono" id="dcap"></span>
+        </div>
+        <div class="well" id="well">
+          <div class="rail" aria-hidden="true"></div>
+          <div class="scroller" id="scroller" role="group" aria-label="抽屉里的索引卡，用上下方向键翻卡，回车抽出来看">
+            <div id="cards"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="ctrl" id="ctrl">
+    <span class="grp"><b>面板宽度</b>
+      <button class="cbtn" data-w="400">400</button>
+      <button class="cbtn" data-w="810">810</button></span>
+    <span class="grp"><b>案子</b>
+      <button class="cbtn" data-s="active">推进中</button>
+      <button class="cbtn" data-s="empty">还没画图</button>
+      <button class="cbtn" data-s="big">大图（20 张卡）</button></span>
+    <span class="grow"></span>
+    <span class="mono" style="color:#6b7280">↑↓ 翻卡 · Enter 抽出来 · Esc 放回去</span>
+  </div>
+</div>
+
+<div id="layer"></div>
+<div class="sr mono" id="say" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ============================ 4. 真实数据（逐字抄自任务书第 4 节） ============================ */
+var DEST_MAIN = '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。';
+
+var DATA = {
+  active: {
+    no: 604,
+    title: 'MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）',
+    destination: DEST_MAIN,
+    tickets: [
+      { no: 605, type: 'task',     title: '收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票', state: 'CLOSED', blockedBy: [] },
+      { no: 606, type: 'task',     title: '补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点', state: 'CLOSED', blockedBy: [605] },
+      { no: 607, type: 'research', title: '全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单', state: 'OPEN', claimedBy: 'FeatherHunter', blockedBy: [605, 606] },
+      { no: 608, type: 'grilling', title: '宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个', state: 'OPEN', blockedBy: [607] }
+    ],
+    decisions: [
+      { t: '收口上个会话的遗留', g: '倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）' },
+      { t: '补上 gh 调用的测量盲区', g: '真机一天 2538 次 gh 调用，中位 7.8 秒，超过「单次 ≤ 1.5 秒」' }
+    ],
+    fog: [
+      '按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票：每一条毛病单独成票，数量与内容要等体检结果才知道，现在切不出来。',
+      '客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换、详情页各自慢不慢、慢在哪，现在说不清，等体检数字。'
+    ]
+  },
+  empty: {
+    no: 604,
+    title: '（这张图还没有标题）',
+    destination: DEST_MAIN,
+    tickets: [],
+    decisions: [],
+    fog: []
+  },
+  big: {
+    no: 604,
+    title: 'MattSkillsDeck 全量性能调查与优化落地（示例大图）',
+    destination: '同主样本的目的地，一字不改。',
+    tickets: [
+      { no: 701, type: 'task',      title: '收口上个会话的遗留（示例）', state: 'CLOSED', blockedBy: [] },
+      { no: 702, type: 'task',      title: '补上 gh 调用的测量盲区（示例）', state: 'CLOSED', blockedBy: [701] },
+      { no: 703, type: 'research',  title: '面板渲染耗时基线（示例）', state: 'CLOSED', blockedBy: [701] },
+      { no: 704, type: 'research',  title: '宿主命令链耗时体检（示例）', state: 'OPEN', claimedBy: 'FeatherHunter', blockedBy: [701, 702] },
+      { no: 705, type: 'research',  title: '客户端渲染耗时体检（示例）', state: 'CLOSED', blockedBy: [701, 703] },
+      { no: 706, type: 'research',  title: '日志落盘与内存体检（示例）', state: 'OPEN', blockedBy: [703] },
+      { no: 707, type: 'research',  title: '装配启动耗时体检（示例）', state: 'OPEN', blockedBy: [701] },
+      { no: 708, type: 'grilling',  title: '宿主取数层设计：接缝画在哪、缓存键怎么定（示例）', state: 'OPEN', blockedBy: [704, 706] },
+      { no: 709, type: 'grilling',  title: '请求合并与缓存键设计（示例）', state: 'OPEN', blockedBy: [708] },
+      { no: 710, type: 'task',      title: '三个扫描器收成一个（示例）', state: 'OPEN', blockedBy: [708] },
+      { no: 711, type: 'task',      title: '面板列表虚拟滚动落地（示例）', state: 'OPEN', blockedBy: [705] },
+      { no: 712, type: 'task',      title: '状态栏刷新链路瘦身（示例）', state: 'OPEN', blockedBy: [705] },
+      { no: 713, type: 'task',      title: '详情页首屏预算达标（示例）', state: 'OPEN', blockedBy: [711, 712] },
+      { no: 714, type: 'prototype', title: '地图详情页重构的观感原型（示例）', state: 'OPEN', blockedBy: [711] },
+      { no: 715, type: 'task',      title: '启动阶段懒装配（示例）', state: 'OPEN', blockedBy: [707] },
+      { no: 716, type: 'task',      title: '日志写入节流与批量落盘（示例）', state: 'OPEN', blockedBy: [706] },
+      { no: 717, type: 'task',      title: '内存占用回归门禁（示例）', state: 'OPEN', blockedBy: [716] },
+      { no: 718, type: 'task',      title: '真机全链复测（示例）', state: 'OPEN', blockedBy: [710, 713, 715, 717] },
+      { no: 719, type: 'task',      title: '性能预算写进 CI（示例）', state: 'OPEN', blockedBy: [718] },
+      { no: 720, type: 'task',      title: '把实测数字写进文档（示例）', state: 'OPEN', blockedBy: [718] }
+    ],
+    decisions: [
+      { t: '收口上个会话的遗留', g: '倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）' },
+      { t: '补上 gh 调用的测量盲区', g: '真机一天 2538 次 gh 调用，中位 7.8 秒' },
+      { t: '面板渲染耗时基线', g: '列表 300 行首屏 412 毫秒，超预算' },
+      { t: '客户端渲染耗时体检', g: '页签切换 180 毫秒，主要在重建列表 DOM' }
+    ],
+    fog: [
+      '按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票，数量与内容要等体检结果才知道。'
+    ]
+  }
+};
+
+/* ============================ 小工具 ============================ */
+var TYPE_LONG = { task:'做事', research:'调查', grilling:'问清楚', prototype:'试一版' };
+var STATE_CN = { closed:'走亮', lit:'照亮中', ready:'现在能做', fog:'雾里' };
+var STATE_MARK = { closed:'✓', lit:'◉', ready:'▶', fog:'□' };
+var STATE_COLOR = { closed:'#4ade80', lit:'#58a6ff', ready:'#4ade80', fog:'#c8a97a' };
+var GROUP_ORDER = ['closed','lit','ready','fog'];
+var GROUP_KICKER = {
+  closed:{ k:'已经办结 · 卡上打了勾、盖了归档红戳', s:'✓' },
+  lit:   { k:'正在办 · 卡抽出来半截，压着经办人名字', s:'◉' },
+  ready: { k:'现在能动 · 卡上贴着绿旗「可以动手」', s:'▶' },
+  fog:   { k:'还没探明 · 白纸一张，只有票号和标题', s:'□' }
+};
+/* 导卡卡舌左边那道色条：形状 + 文字 + 颜色一起表意，不靠颜色单独扛 */
+var GROUP_MARK = {
+  closed:'linear-gradient(#7fd39a,#3f9c62)',
+  lit:'linear-gradient(#7ab8f0,#2f74b8)',
+  ready:'linear-gradient(#7fd39a,#3f9c62)',
+  fog:'linear-gradient(#cbb68d,#8e7c5a)'
+};
+var CELL_LABELS = ['立案','排查','结论','复测'];
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+  return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' })[c]; }); }
+function clamp(s, n){ s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+
+/* 票的状态：只看这张票自己的前置关没关。跟「第几层」没有半点关系 */
+function stateOf(t){
+  if (t.state === 'CLOSED') return 'closed';
+  if (t.claimedBy) return 'lit';
+  var b = t.blockedBy || [];
+  for (var i = 0; i < b.length; i++){ if (!BY[b[i]] || BY[b[i]].state !== 'CLOSED') return 'fog'; }
+  return 'ready';
+}
+
+/* ============================ 运行时状态 ============================ */
+var MAP = null, CARDS = [], BY = {}, IDX = {}, ORDER = [];
+var SELECTED = null, HOVER = null, FLY = null, KBD_NO = null, GEOM = null;
+
+function $(id){ return document.getElementById(id); }
+function drawerEl(){ return $('drawer'); }
+function wellEl(){ return $('well'); }
+function scrollerEl(){ return $('scroller'); }
+function cardEl(no){ return document.querySelector('.card[data-ticket="' + no + '"]'); }
+function shownNo(){ return FLY ? FLY.no : SELECTED; }
+function reduced(){
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+function say(s){ var el = $('say'); if (el) el.textContent = s; }
+/* 某个屏幕上的一点下面压着哪张卡（自检脚本与提示都用得上） */
+function hitNo(x, y){
+  var arr = document.elementsFromPoint(x, y);
+  for (var i = 0; i < arr.length; i++){
+    var e = arr[i];
+    if (e.getAttribute && e.getAttribute('data-ticket') != null) return Number(e.getAttribute('data-ticket'));
+  }
+  return -1;
+}
+
+/* 几何刻度：每张卡露出来的一条卡沿多高（--off）、整张卡纸多高（--cardH）。
+   卡纸比卡沿高得多，多出来的那一截全被下一张卡压住 —— 叠的观感就是这么来的。 */
+function readGeom(){
+  var W = drawerEl().clientWidth || 400, H = window.innerHeight;
+  /* 一格＝一条卡沿：放得下票号、一行标题、和半排勾选框 */
+  var off = Math.round(H <= 620 ? 42 : (W <= 470 ? 44 : 46));
+  var ch = Math.round(off * 2.55);
+  GEOM = { W:W, H:H, off:off, cardH:ch };
+  document.documentElement.style.setProperty('--off', off + 'px');
+  document.documentElement.style.setProperty('--cardH', ch + 'px');
+  document.documentElement.style.setProperty('--tab', '22px');
+  document.documentElement.style.setProperty('--rodX', (W <= 470 ? 13 : 15) + 'px');
+}
+function off(){ return GEOM ? GEOM.off : 46; }
+function cardH(){ return GEOM ? GEOM.cardH : 117; }
+
+/* 抽屉里的「格」：每张卡在自己的分区里占一格，一格＝一条露出来的卡沿。
+   抽出去的卡不占格，所以它下面那些卡会整条往上补位 —— 这就是「补位」。 */
+function baseMap(){
+  var m = {}, k = 0, last = null;
+  ORDER.forEach(function(c){
+    if (c.no === shownNo()) return;
+    if (last !== null && c.st !== last) k = 0;
+    m[c.no] = k;
+    k++;
+    last = c.st;
+  });
+  return m;
+}
+function countVis(){
+  var n = 0;
+  ORDER.forEach(function(c){ if (c.no !== shownNo()) n++; });
+  return n;
+}
+function countRuns(){
+  var n = 0, last = null;
+  ORDER.forEach(function(c){
+    if (c.no === shownNo()) return;
+    if (c.st !== last){ n++; last = c.st; }
+  });
+  return n;
+}
+
+/* ============================ 建卡 ============================ */
+function build(){
+  BY = {};
+  var list = (MAP.tickets || []).filter(function(t){ return t && t.no != null; });
+  list.forEach(function(t){ BY[t.no] = t; });
+  CARDS = list.map(function(t){
+    return { t:t, no:t.no, title:t.title || '(这张卡还没写标题)', claimedBy:t.claimedBy || '',
+      parents:(t.blockedBy || []).filter(function(n){ return BY[n]; }),
+      children:[], st:stateOf(t), dec:[] };
+  });
+  CARDS.forEach(function(c){ c.st = stateOf(c.t); });
+  IDX = {}; CARDS.forEach(function(c, i){ IDX[c.no] = i; });
+  CARDS.forEach(function(c){
+    c.children = CARDS.filter(function(x){ return x.parents.indexOf(c.no) >= 0; }).map(function(x){ return x.no; });
+    c.st = stateOf(c.t);
+    c.dec = (MAP.decisions || []).filter(function(d){ return d.t === c.title; });
+  });
+  /* 抽屉里的分区顺序＝档案状态：办结的夹在最前，还没写字的排到最后。跟层无关 */
+  ORDER = CARDS.slice().sort(function(a, b){
+    var d = GROUP_ORDER.indexOf(a.st) - GROUP_ORDER.indexOf(b.st);
+    return d !== 0 ? d : (a.no - b.no);
+  });
+  ORDER.forEach(function(c, i){ c.i = i; });
+}
+function groupOf(st){ return GROUP_ORDER.indexOf(st); }
+function relText(c){
+  var a = c.parents.length
+    ? '等谁 <b>' + c.parents.map(function(n){ return '#' + n; }).join(' · ') + '</b> 关掉'
+    : '等谁 <b>没人挡着</b>，现在就能动手';
+  var b = c.children.length
+    ? '挡住谁 <b>' + c.children.map(function(n){ return '#' + n; }).join(' · ') + '</b>'
+    : '挡住谁 <b>没人被它挡着</b>';
+  return a + '　／　' + b;
+}
+function cellsHTML(st){
+  return CELL_LABELS.map(function(lb){
+    var on = st === 'closed' ? lb !== '复测' : false;   /* 归档的卡：前三格打了勾，最后一格还空着 */
+    return '<span class="cell"><span class="box' + (on ? ' on' : '') + '">' + (on ? '<i>✓</i>' : '') + '</span><u>' + lb + '</u></span>';
+  }).join('');
+}
+function cardHTML(c, opts){
+  opts = opts || {};
+  var mark = c.st === 'closed' ? '<b>✓</b> 已归档'
+           : c.st === 'lit' ? '<b>◉</b> 经办人 ' + esc(c.claimedBy)
+           : c.st === 'ready' ? '<b>▶</b> 可以动手'
+           : '<b>·</b> 还没探明';
+  var head = '<div class="sheet' + (c.st === 'fog' ? ' sheet-fog' : '') + '"></div>' +
+    '<div class="grain"></div><div class="rule"></div><span class="hole"></span>' +
+    (c.st === 'closed' ? '<span class="stamp"><b>已结</b><u>ARCHIVED</u></span><span class="bm">已结</span>' : '') +
+    (c.st === 'ready' ? '<span class="flag">可以动手</span>' : '') +
+    '<div class="face">' +
+      '<div class="crow"><span class="cno mono">#' + c.no + '</span>' +
+        '<span class="ctype">' + (TYPE_LONG[c.t.type] || c.t.type || '票') + '</span>' +
+        '<span class="smark">' + mark + '</span></div>' +
+      '<div class="ctit">' + esc(c.title) + '</div>' +
+      '<div class="grid">' + cellsHTML(c.st) + '</div>' +
+    '</div>' +
+    (c.st === 'lit' ? '<span class="who">经办人 <b>' + esc(c.claimedBy) + '</b><s>卡抽出来半截</s></span>' : '') +
+    '<div class="cross"><i>交叉索引 </i>' + relText(c) + '</div>';
+  return head;
+}
+
+/* ============================ 渲染 ============================ */
+function render(){
+  $('dest').textContent = MAP.destination || '这张图还没有写下目的地。';
+  var n = { closed:0, lit:0, ready:0, fog:0 };
+  CARDS.forEach(function(c){ n[c.st]++; });
+  var litCard = CARDS.filter(function(c){ return c.st === 'lit'; })[0];
+  $('plateCount').innerHTML =
+    '<i><span style="color:#4ade80">✓</span> 走亮 ' + n.closed + '</i>' +
+    '<i><span style="color:#58a6ff">◉</span> 照亮中 ' + n.lit + '</i>' +
+    '<i><span style="color:#4ade80">▶</span> 现在能做 ' + n.ready + '</i>' +
+    '<i><span style="color:#c8a97a">□</span> 雾里 ' + n.fog + '</i>' +
+    (litCard ? '<i>卡柜里有一张抽出来半截：# ' + litCard.no + '</i>' : '');
+  $('dlabel').textContent = '案卷 #' + MAP.no + ' · ' + clamp(MAP.title, 44);
+  $('dcap').textContent = CARDS.length + ' 张卡';
+
+  var host = $('cards');
+  if (!CARDS.length){
+    drawerEl().classList.add('none');
+    host.innerHTML =
+      '<div class="tipcard"><span class="stamped">未开封</span>' +
+        '<b>这个案子还没有写下第一张票</b>' +
+        '<span>柜子已经立在这儿了。抽屉里只有这张卡片，格子上一个字都没有 —— 不是没有，是还没写。</span>' +
+        '<div class="cellrow"><span></span><span></span><span></span><span></span></div>' +
+        '<span style="margin-top:8px">要开工，先看清铜牌上的目的地，再往抽屉里添第一张卡。</span>' +
+      '</div>' +
+      '<div class="emptymsg">抽屉是空的 —— 这个案子还没开始办。</div>' +
+      '<div class="stair"><i></i><i style="--k:1"></i><i style="--k:2"></i><i style="--k:3"></i></div>' +
+      '<div class="emptymsg" style="color:#8e7c5a">还没有任何一张票写下来，所以这里没有卡可以翻。</div>';
+    $('dcap').textContent = '空抽屉';
+    sizeWell();
+    return;
+  }
+  drawerEl().classList.remove('none');
+
+  var out = '';
+  GROUP_ORDER.forEach(function(g){
+    var list = ORDER.filter(function(c){ return c.st === g; });
+    if (!list.length) return;
+    out += '<section class="grp" data-group="' + g + '" style="--n:' + list.length + ';--hz:' + (1 + list[0].i) + '">' +
+      '<div class="grphead" aria-hidden="true"><i style="background:' + GROUP_MARK[g] + '"></i>' +
+        '<b>' + GROUP_KICKER[g].s + ' ' + esc(GROUP_KICKER[g].k) + '</b>' +
+        '<em>' + list.length + ' 张</em></div>' +
+      '<div class="grpbody">' +
+      list.map(function(c){
+        return '<div class="card st-' + c.st + '" data-ticket="' + c.no + '" data-state="' + c.st + '" ' +
+          'data-i="' + c.i + '" data-grp="' + c.st + '" role="button" tabindex="0" ' +
+          'style="z-index:' + (1 + c.i) + '" ' +
+          'aria-label="票 ' + c.no + '，' + esc(clamp(c.title, 40)) + '，状态：' + STATE_CN[c.st] + '。按回车抽出来看">' +
+          cardHTML(c) + '</div>';
+      }).join('') +
+      '</div></section>';
+  });
+  host.innerHTML = out +
+    '<div class="frontboard" aria-hidden="true"><b>抽屉前板</b><i></i>' +
+    '这个抽屉里一共 ' + CARDS.length + ' 张卡，到底了</div>';
+  CARDS.forEach(function(c){
+    var el = cardEl(c.no); if (!el) return;
+    el.style.setProperty('--i', c.i);
+    el.addEventListener('focus', function(){ KBD_NO = c.no; paintKbd(); setHover(c.no); });
+    el.addEventListener('blur', function(){ if (KBD_NO === c.no){ KBD_NO = null; paintKbd(); } });
+  });
+  writeCells();
+  sizeWell();
+  apply();
+}
+
+/* 把每张卡放进它那一格（--k），并算好它在整叠里的次序（--i，决定谁压着谁） */
+function writeCells(){
+  var m = baseMap();
+  ORDER.forEach(function(c){
+    var el = cardEl(c.no);
+    if (!el) return;
+    el.style.setProperty('--k', (m[c.no] != null ? m[c.no] : 0));
+  });
+}
+
+/* 抽屉留多深：由内容自己说了算，不写死数字。
+   一叠卡占的高度＝各分区（卡舌 + 格数 × 一格）之和 + 最后一张卡露不出来的那一截。 */
+function sizeWell(){
+  var host = $('cards');
+  if (!CARDS.length){
+    wellEl().style.height = Math.max(210, host.scrollHeight + 56) + 'px';
+    return;
+  }
+  var h = 0;
+  Array.prototype.forEach.call(host.querySelectorAll('.grp'), function(g){
+    h += g.offsetHeight || 0;
+  });
+  h += Math.max(0, cardH() - off()) + 8;
+  wellEl().style.height = Math.max(150, h + 16) + 'px';
+}
+
+/* ============================ 摆卡与推挤 ============================ */
+function visOrder(){ return ORDER.filter(function(c){ return c.no !== shownNo(); }); }
+function apply(){
+  var vac = shownNo();
+  if (!CARDS.length) return;
+  var vis = visOrder();
+  var pos = {}; vis.forEach(function(c, k){ pos[c.no] = k; });
+  var hit = FLY ? FLY.no : HOVER;
+  var K = (hit != null && pos[hit] != null) ? pos[hit] : -1;
+
+  /* 抽出/悬停某张卡时，抽屉里跟它相关的卡同时亮起：等它的被拉高，它挡着的往前倾 */
+  var up = {}, block = {}, d = 0;
+  if (vac != null && IDX[vac] != null){
+    var me = CARDS[IDX[vac]];
+    me.parents.concat(me.children).forEach(function(no){
+      if (up[no] || block[no] || no === vac) return;
+      if (me.parents.indexOf(no) >= 0) up[no] = d++; else block[no] = d++;
+    });
+  }
+
+  /* 抽走一张卡之后，那一段的占地跟着少一格：抽屉里不留空档，前板也跟着往上走 */
+  var pulledSt = (vac != null && IDX[vac] != null) ? CARDS[IDX[vac]].st : null;
+  Array.prototype.forEach.call(document.querySelectorAll('.grp'), function(sec){
+    var g = sec.getAttribute('data-group'), total = 0;
+    ORDER.forEach(function(c){ if (c.st === g) total++; });
+    sec.style.setProperty('--n', Math.max(0, total - (g === pulledSt ? 1 : 0)));
+  });
+  /* 前板：一叠卡最前头那块挡板。手拨到哪，它跟着让出多少，永远压在最后一张卡外面 */
+  var board = document.querySelector('.frontboard');
+  if (board) board.style.setProperty('--push', (K >= 0 ? Math.min(11 * (vis.length - K), 92) : 0) + 'px');
+
+  CARDS.forEach(function(c){
+    var el = cardEl(c.no); if (!el) return;
+    el.classList.remove('hot','rel-lit','rel-up','rel-block');
+    el.style.setProperty('--push', '0px');
+    /* z 号用稳定的全局次序（--i），不随是否有卡被抽走而变：
+       这样导卡永远压在上一段最后一张卡之上、又被本段第一张卡压住。 */
+    var z = 1 + c.i;
+    if (vac === c.no || el.classList.contains('pulling')){
+      /* 这张卡已经抽出去摆在眼前了，抽屉里留下的是它腾出的空位 */
+      el.style.zIndex = z;
+    } else if (up[c.no] != null || block[c.no] != null){
+      el.classList.add('rel-lit');
+      el.classList.add(up[c.no] != null ? 'rel-up' : 'rel-block');
+      el.style.setProperty('--lamp', (up[c.no] != null ? up[c.no] : block[c.no]));
+      el.style.setProperty('--push', (up[c.no] != null ? -12 : 18) + 'px');
+      el.style.zIndex = 400 + c.i;
+    } else if (K >= 0 && pos[c.no] != null){
+      /* 手拨过去：上面压着它的那几张被推开（往上），它压着的那些被挤出去（往下）。
+         被推开 / 被挤走多少，就是它自己多露出来多少 —— 这就是「看见上下关系」的瞬间。 */
+      var push = pos[c.no] < K ? -7 * (K - pos[c.no]) : (pos[c.no] > K ? Math.min(11 * (pos[c.no] - K), 88) : 0);
+      el.style.setProperty('--push', push + 'px');
+      if (c.no === hit){ el.classList.add('hot','show-cross'); el.style.zIndex = 900 + c.i; }
+      else el.style.zIndex = z;
+    } else if (c.no === hit){
+      el.classList.add('hot','show-cross'); el.style.zIndex = 900 + c.i;
+    } else {
+      el.style.zIndex = z;
+    }
+  });
+  writeCells();
+}
+function setHover(no){
+  if (!CARDS.length) return;
+  if (HOVER === no) return;
+  HOVER = no;
+  apply();
+}
+
+/* ============================ 抽卡 ============================ */
+function pull(no){
+  if (FLY || SELECTED === no || IDX[no] == null) return;
+  var c = CARDS[IDX[no]];
+  var src = cardEl(no); if (!src) return;
+  var sr = src.getBoundingClientRect();
+
+  HOVER = null;
+  FLY = { no:no, mode:'out' };
+  src.classList.add('pulling');
+  scrollerEl().classList.add('busy');
+  apply();
+  sizeWell();
+
+  var layer = $('layer');
+  layer.innerHTML = '<div class="dim" id="dim"></div><div class="blurbox" id="blurbox" aria-hidden="true"></div>';
+  var clone = document.createElement('div');
+  clone.className = 'card st-' + c.st + ' flight full';
+  clone.setAttribute('aria-hidden', 'true');
+  clone.innerHTML = cardHTML(c);
+  clone.style.setProperty('--i', 0);
+  clone.style.width = sr.width + 'px';
+  clone.style.height = sr.height + 'px';
+  $('blurbox').appendChild(clone);
+
+  /* 终点：详情卡弹层的位置（先用窗口尺寸算出来，不用等它渲染） */
+  var tw = Math.min(470, window.innerWidth - 36);
+  var tX = (window.innerWidth - tw) / 2;
+  var tY = Math.max(16, (window.innerHeight - Math.min(380, window.innerHeight - 50)) / 2);
+  var k = tw / sr.width;
+  var midY = Math.max(56, tY - 30);
+  var sx = sr.left, sy = sr.top;
+
+  requestAnimationFrame(function(){
+    var a = clone.animate([
+      { transform:'translate3d(' + sx + 'px,' + sy + 'px,0) scale(1) rotateX(-6deg)', opacity:1, filter:'blur(0px)' },
+      { transform:'translate3d(' + (sx + 13) + 'px,' + midY + 'px,0) scale(' + (1 + (k - 1) * 0.3).toFixed(3) + ') rotate(-1.7deg) rotateX(-16deg)', opacity:1, offset:.42, filter:'blur(0px)' },
+      { transform:'translate3d(' + sx + 'px,' + midY + 'px,0) scale(' + (1 + (k - 1) * 0.32).toFixed(3) + ') rotate(' + (k > 1.3 ? '-1.1deg' : '-0.5deg') + ')', opacity:1, offset:.62, filter:'blur(0px)' },
+      { transform:'translate3d(' + (tX + 7) + 'px,' + (tY + 9) + 'px,0) scale(' + k.toFixed(3) + ') rotate(0.5deg)', opacity:1, offset:.88, filter:'blur(0px)' },
+      { transform:'translate3d(' + tX + 'px,' + tY + 'px,0) scale(' + k.toFixed(3) + ')', opacity:0, filter:'blur(3px)' }
+    ], { duration: reduced() ? 1 : 660, easing:'cubic-bezier(.24,.9,.2,1)', fill:'forwards' });
+    a.onfinish = function(){ settle(no); };
+  });
+}
+function settle(no){
+  var src = cardEl(no); if (src) src.classList.remove('pulling');
+  scrollerEl().classList.remove('busy');
+  SELECTED = no; FLY = null;
+  var layer = $('layer');
+  layer.innerHTML = '<div class="dim" id="dim"></div>' + detailHTML(CARDS[IDX[no]]);
+  apply();
+  sizeWell();
+  var sheet = document.querySelector('.blurbox .dossier');
+  if (sheet && !reduced()){
+    sheet.animate([{ transform:'translateY(-10px) scale(.985)', opacity:.35 }, { transform:'none', opacity:1 }],
+      { duration:300, easing:'cubic-bezier(.2,.9,.2,1)' });
+  }
+  var d = $('dim');
+  if (d) d.addEventListener('click', function(){ unset(); });
+  say('抽出来了：票 ' + no + '，卡背面写着等谁、挡住谁');
+}
+function detailHTML(c){
+  var t = c.t;
+  var why = c.st === 'closed' ? '已经走完，卡上打了勾、盖了归档红戳'
+          : c.st === 'lit' ? '认领人 ' + esc(c.claimedBy) + ' 正在推，卡抽出来半截'
+          : c.st === 'ready' ? '没人认领，前置都已经关掉，现在就能开工'
+          : '前面还有票没关掉，这条路通不通还不知道';
+  var kv = '';
+  kv += '<div class="kv"><b>现在的状态</b><span>' + STATE_CN[c.st] + '（' + why + '）</span></div>';
+  kv += '<div class="kv"><b>票的类别</b><span>' + (TYPE_LONG[t.type] || t.type || '票') + '</span></div>';
+  kv += '<div class="kv"><b>等谁关掉</b><span>' + (c.parents.length
+        ? c.parents.map(function(n){ return '#' + n + ' ' + esc(clamp(BY[n].title, 24)); }).join('<br>')
+        : '没有人挡着它') + '</span></div>';
+  kv += '<div class="kv"><b>它挡住谁</b><span>' + (c.children.length
+        ? c.children.map(function(n){ return '#' + n + ' ' + esc(clamp(BY[n].title, 24)); }).join('<br>')
+        : '没有票在等它') + '</span></div>';
+  if (c.claimedBy) kv += '<div class="kv"><b>经办人</b><span>' + esc(c.claimedBy) + '</span></div>';
+  var done = c.dec.map(function(d){
+    return '<div class="done"><b>这一票留下的结论</b>' + esc(d.g) + '</div>'; }).join('');
+  return '<div class="blurbox"><div class="dossier" role="dialog" aria-modal="true" aria-label="票 ' + t.no + ' 的详情">' +
+    '<div class="grain"></div>' +
+    '<div class="sheethead"><div class="r1"><span class="no mono">#' + t.no + '</span>' +
+      '<span class="ty">' + (TYPE_LONG[t.type] || t.type || '票') + '</span>' +
+      '<span class="stt"><span style="color:' + STATE_COLOR[c.st] + '">' + STATE_MARK[c.st] + '</span>' + STATE_CN[c.st] + '</span></div>' +
+      '<h2>' + esc(t.title) + '</h2></div>' +
+    '<div class="sheetbody">' + kv + done + '</div>' +
+    '<div class="crossback"><div class="ct">卡背面 · 交叉索引（谁在等它、它挡住谁）</div>' + relLines(c) + '</div>' +
+    '<div class="sheetfoot"><span class="hint">Esc 放回抽屉 · 点暗处也能放回去</span>' +
+      '<button class="p1" id="closeCard">放回抽屉</button></div>' +
+    '</div></div>';
+}
+function relLines(c){
+  var out = '';
+  out += c.parents.length
+    ? '<div class="ln"><u>' + c.parents.length + ' 张卡在等它</u><span>等 ' + c.parents.map(function(n){ return '<b>#' + n + '</b>'; }).join(' · ') + ' 关掉</span></div>'
+    : '<div class="ln"><u>没人挡它</u><span>这张卡没有前置，掀开就能办</span></div>';
+  out += c.children.length
+    ? '<div class="ln"><u>' + c.children.length + ' 张被它挡住</u><span>' + c.children.map(function(n){ return '<b>#' + n + '</b>'; }).join(' · ') + '</span></div>'
+    : '<div class="ln"><u>没挡谁</u><span>没有票在等它</span></div>';
+  return out;
+}
+function unset(){
+  if (FLY || SELECTED == null) return;
+  var no = SELECTED;
+  var src = cardEl(no);
+  if (!src){ SELECTED = null; $('layer').innerHTML = ''; apply(); sizeWell(); return; }
+  var sheet = document.querySelector('.blurbox .dossier');
+  var tr = sheet ? sheet.getBoundingClientRect() : src.getBoundingClientRect();
+  var layer = $('layer');
+  var clone = document.createElement('div');
+  clone.className = 'card st-' + src.getAttribute('data-state') + ' flight full';
+  clone.innerHTML = src.innerHTML;
+  clone.style.setProperty('--i', 0);
+  clone.style.width = tr.width + 'px';
+  clone.style.height = tr.height + 'px';
+  layer.innerHTML = '';
+  layer.appendChild(clone);
+
+  FLY = { no:no, mode:'back' };
+  SELECTED = null;                 /* 抽屉里的卡立刻复位，下面的卡同时往上补位 */
+  src.style.visibility = 'hidden';
+  scrollerEl().classList.add('busy');
+  apply();
+  sizeWell();
+  var dst = src.getBoundingClientRect();
+  var k = dst.width / tr.width;
+  dst = { x:dst.left, y:dst.top };
+
+  requestAnimationFrame(function(){
+    var a = clone.animate([
+      { transform:'translate3d(' + tr.left + 'px,' + tr.top + 'px,0) scale(1)', opacity:1, filter:'blur(0px)' },
+      { transform:'translate3d(' + (tr.left + 14) + 'px,' + Math.max(36, tr.top - 26) + 'px,0) scale(' + (1 + (k - 1) * .34).toFixed(3) + ') rotateX(-15deg)', opacity:1, offset:.5, filter:'blur(0px)' },
+      { transform:'translate3d(' + dst.x + 'px,' + dst.y + 'px,0) scale(' + k.toFixed(3) + ') rotateX(-6deg)', opacity:0, filter:'blur(2px)' }
+    ], { duration: reduced() ? 1 : 430, easing:'cubic-bezier(.4,0,.55,1)', fill:'forwards' });
+    a.onfinish = function(){
+      layer.innerHTML = '';
+      src.style.visibility = '';
+      scrollerEl().classList.remove('busy');
+      FLY = null;
+      apply();
+      sizeWell();
+      say('放回去了：票 ' + no);
+    };
+  });
+}
+
+/* ============================ 键盘办案 ============================ */
+function move(d){
+  if (!CARDS.length) return;
+  var vis = visOrder(); if (!vis.length) return;
+  var cur = KBD_NO != null ? vis.map(function(c){ return c.no; }).indexOf(KBD_NO) : -1;
+  var next;
+  if (cur < 0) next = d > 0 ? 0 : vis.length - 1;
+  else next = Math.max(0, Math.min(vis.length - 1, cur + d));
+  KBD_NO = vis[next].no;
+  paintKbd();
+  var el = cardEl(KBD_NO);
+  if (el && el.scrollIntoView) el.scrollIntoView({ block:'nearest' });
+  setHover(KBD_NO);
+  say('翻到票 ' + KBD_NO + '，' + STATE_CN[vis[next].st] + '。按回车抽出来看');
+}
+function paintKbd(){
+  Array.prototype.forEach.call(document.querySelectorAll('.card.kbd'), function(e){ e.classList.remove('kbd'); });
+  if (KBD_NO == null) return;
+  var el = cardEl(KBD_NO); if (el) el.classList.add('kbd');
+}
+
+/* ============================ 绑定 ============================ */
+function bind(){
+  var host = $('cards');
+  host.addEventListener('pointerover', function(e){
+    var el = e.target && e.target.closest ? e.target.closest('.card') : null;
+    if (!el || FLY) return;
+    setHover(Number(el.getAttribute('data-ticket')));
+  });
+  host.addEventListener('pointerleave', function(){ if (!FLY){ HOVER = null; apply(); } });
+  host.addEventListener('click', function(e){
+    var el = e.target && e.target.closest ? e.target.closest('.card') : null;
+    if (!el || FLY) return;
+    var no = Number(el.getAttribute('data-ticket'));
+    KBD_NO = no; paintKbd();
+    pull(no);
+  });
+  window.addEventListener('keydown', function(e){
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    var d = 0;
+    if (e.key === 'ArrowDown') d = 1;
+    else if (e.key === 'ArrowUp') d = -1;
+    else if (e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      if (FLY) return;
+      if (SELECTED != null){ unset(); return; }
+      if (KBD_NO != null) pull(KBD_NO);
+      return;
+    } else if (e.key === 'Escape'){
+      if (FLY) return;
+      if (SELECTED != null){ e.preventDefault(); unset(); }
+      return;
+    } else return;
+    e.preventDefault();
+    if (FLY || SELECTED != null) return;
+    move(d);
+  });
+
+  $('back').addEventListener('click', function(){ say('返回列表（原型里不真的跳转）'); });
+  $('push').addEventListener('click', function(){
+    var c = CARDS.filter(function(x){ return x.st === 'ready' || x.st === 'lit'; })[0];
+    if (!c){ say('这张图上没有现在能动手的票'); return; }
+    KBD_NO = c.no; paintKbd(); setHover(c.no); pull(c.no);
+  });
+  $('layer').addEventListener('click', function(e){
+    if (e.target && e.target.id === 'closeCard') unset();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.ctrl .cbtn'), function(b){
+    b.addEventListener('click', function(){
+      if (b.getAttribute('data-w') != null) nav({ w:Number(b.getAttribute('data-w')) });
+      else nav({ s:b.getAttribute('data-s') });
+    });
+  });
+  window.addEventListener('resize', function(){ readGeom(); sizeWell(); apply(); });
+  if (window.ResizeObserver){
+    new ResizeObserver(function(){ readGeom(); sizeWell(); apply(); }).observe(drawerEl());
+  }
+}
+
+/* ============================ 启动 ============================ */
+var Q = new URLSearchParams(location.search);
+var QS = Q.get('s'); if (['active','empty','big'].indexOf(QS) < 0) QS = 'active';
+var QW = Number(Q.get('w')) || 810;
+if (!Q.get('w')) QW = Math.max(360, Math.min(810, window.innerWidth));
+
+function nav(p){
+  var w = p.w || QW, s = p.s || QS;
+  location.search = '?w=' + w + '&s=' + s + (Q.get('bar') === '0' ? '&bar=0' : '');
+}
+function applyChrome(){
+  $('panel').style.width = QW + 'px';
+  Array.prototype.forEach.call(document.querySelectorAll('.ctrl .cbtn'), function(b){
+    var w = b.getAttribute('data-w'), s = b.getAttribute('data-s');
+    b.classList.toggle('on', (w != null && Number(w) === QW) || (s != null && s === QS));
+  });
+  if (Q.get('bar') === '0') $('ctrl').style.display = 'none';
+}
+
+function boot(){
+  MAP = JSON.parse(JSON.stringify(DATA[QS]));
+  applyChrome();
+  readGeom();
+  build();
+  render();
+  bind();
+  window.C6 = {
+    pull: pull, unset: unset, move: move,
+    state: function(){ return { hover:HOVER, selected:SELECTED, kbd:KBD_NO, flying: FLY ? FLY.mode : null }; },
+    detail: function(){
+      var s = document.querySelector('.blurbox .dossier');
+      if (!s) return null;
+      return { no:(s.querySelector('.no') || {}).textContent,
+               title:(s.querySelector('h2') || {}).textContent,
+               back:(s.querySelector('.crossback') || {}).textContent };
+    },
+    cards: function(){
+      return Array.prototype.map.call(document.querySelectorAll('.card:not(.flight)'), function(e){
+        var r = e.getBoundingClientRect();
+        return { no:Number(e.getAttribute('data-ticket')), state:e.getAttribute('data-state'),
+          x:Math.round(r.left), y:Math.round(r.top), w:Math.round(r.width), h:Math.round(r.height),
+          tf:getComputedStyle(e).transform };
+      });
+    },
+    reach: function(){
+      var n = { closed:0, lit:0, ready:0, fog:0 };
+      CARDS.forEach(function(c){ n[c.st]++; });
+      return n;
+    },
+    /* 把某张卡滚进抽屉口（滚抽屉，不是滚整页） */
+    scrollTo: function(no){
+      var el = cardEl(no); if (!el) return null;
+      var sc = scrollerEl(), s = sc.getBoundingClientRect(), r = el.getBoundingClientRect();
+      if (r.top < s.top + 8) sc.scrollTop += (r.top - s.top - 34);
+      else if (r.bottom > s.bottom - 8) sc.scrollTop += (r.bottom - s.bottom + 34);
+      return Math.round(sc.scrollTop);
+    },
+    /* 这张卡露在抽屉外面的那条卡沿 —— 卡的节点本身就是它，鼠标点的就是这儿 */
+    strip: function(no){
+      var el = cardEl(no); if (!el) return null;
+      var r = el.getBoundingClientRect();
+      var x = Math.round(r.left + Math.min(r.width * 0.45, r.width - 6));
+      var y = Math.round(r.top + Math.min(11, r.height / 2));
+      return { x:x, y:y, w:Math.round(r.width), h:Math.round(r.height), hit:hitNo(x, y) };
+    },
+    /* 一叠卡现在各自露在哪、占第几格（给自检脚本量「谁被推开、谁补位」） */
+    edges: function(){
+      return Array.prototype.map.call(document.querySelectorAll('.card:not(.flight)'), function(e){
+        var r = e.getBoundingClientRect();
+        return { no:Number(e.getAttribute('data-ticket')), state:e.getAttribute('data-state'),
+          k:Number(e.style.getPropertyValue('--k')), top:Math.round(r.top), h:Math.round(r.height),
+          push:parseFloat(e.style.getPropertyValue('--push')) || 0,
+          cls:e.className.replace(/card |st-\w+ ?/g, '').trim() };
+      });
+    }
+  };
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
+</script>
+</body>
+</html>

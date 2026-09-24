@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>功能自检清单 · 刷新机制与面板（v1.7.28）</title>
+<style>
+  :root{
+    --ink:#111827; --sub:#4b5563; --faint:#9ca3af;
+    --line:#e5e7eb; --soft:#f9fafb;
+    --blue:#2563eb; --green:#15803d; --amber:#b45309; --red:#b91c1c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--ink);
+    font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto;padding:52px 26px 90px}
+  header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:34px}
+  .kicker{color:var(--faint);font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+  h1{font-size:28px;line-height:1.35;margin:12px 0 8px;letter-spacing:-.01em}
+  .lede{color:var(--sub);font-size:16.5px;margin:0}
+  h2{font-size:19px;margin:44px 0 10px;display:flex;align-items:center;gap:9px}
+  h2::before{content:"";width:4px;height:18px;background:var(--blue);border-radius:2px}
+  .card{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0;background:#fff}
+  .card .no{display:inline-block;min-width:24px;height:24px;line-height:24px;text-align:center;
+    border-radius:7px;background:var(--soft);border:1px solid var(--line);font-size:13px;color:var(--sub);margin-right:8px}
+  .card h3{display:inline;font-size:16.5px;margin:0}
+  .tag{float:right;font-size:12.5px;border-radius:999px;padding:2px 10px;border:1px solid var(--line);color:var(--sub);background:#fff}
+  .tag.new{color:var(--blue);border-color:#bfdbfe;background:#eff6ff}
+  .tag.warn{color:var(--amber);border-color:#fde68a;background:#fffbeb}
+  .card dl{margin:10px 0 0}
+  .card dt{font-size:13px;color:var(--faint);letter-spacing:.03em;margin-top:10px}
+  .card dd{margin:3px 0 0;color:var(--sub)}
+  .card dd b{color:var(--ink)}
+  .ok{color:var(--green)} .no{color:var(--red)}
+  .note{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:15px 18px;margin:18px 0}
+  .note h3{margin:0 0 6px;font-size:15.5px}
+  ul{margin:8px 0 8px 20px;padding:0} li{margin:5px 0;color:var(--sub)}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;
+    background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;color:var(--faint);font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">DSH · Skills Deck · v1.7.28</div>
+  <h1>功能自检清单（给你自己点着看）</h1>
+  <p class="lede">九条场景，每条只有三件事：<b>怎么操作 → 看什么算通过 → 什么算不合格</b>。不需要懂代码。</p>
+</header>
+
+<section>
+  <h2>先看这三条（刚改的，最可能返工）</h2>
+
+  <div class="card">
+    <span class="tag new">刚修</span><span class="no">1</span><h3>环境检测真的跑起来了</h3>
+    <dl>
+      <dt>怎么操作</dt>
+      <dd>打开面板 → 进 ilife（或任意工作区）→ 看状态栏那一格「环境」。</dd>
+      <dt>算通过</dt>
+      <dd>那格从红色 <code>--</code> 变成<b>真实数字</b>（例如 <b>5/8</b>）；等 30~60 秒再看，<b>不会退回 <code>--</code></b>；点它进检查页，每条检查项各有状态。</dd>
+      <dt>算不合格</dt>
+      <dd>一直停在 <code>--</code>；或者数字出现过又自己变回 <code>--</code>。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="tag new">刚改</span><span class="no">2</span><h3>面板头部的新形态</h3>
+    <dl>
+      <dt>怎么操作</dt>
+      <dd>打开面板，看头部第一行的右侧。</dd>
+      <dt>算通过</dt>
+      <dd>原来那颗 <b>×</b> 没了；右上角是<b>「刷新」+ 一个小时间标签</b>，两个各自独立、<b>中间没有点号</b>；时间显示「刚刚 / N 分钟前」。</dd>
+      <dt>算不合格</dt>
+      <dd>两者之间出现 <code>·</code> 之类的分隔符；或者时间又写成了「上次更新 …」这种整句。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="tag new">刚改</span><span class="no">3</span><h3>收窄时字符一个一个掉</h3>
+    <dl>
+      <dt>怎么操作</dt>
+      <dd>把面板宽度<b>从最宽慢慢拖到最窄</b>（一定要慢，一格一格看）。</dd>
+      <dt>算通过</dt>
+      <dd>字符<b>一个一个</b>掉：先刷新文字 → 再时间 → 再仓库名从尾部少 → 最后三颗小图标一颗颗撤；<b>齿轮图标一直在</b>。</dd>
+      <dt>算不合格</dt>
+      <dd>出现「一整块突然消失」（一次掉两个以上字）。</dd>
+    </dl>
+  </div>
+</section>
+
+<section>
+  <h2>再看这三条（这批的主干能力）</h2>
+
+  <div class="card">
+    <span class="no">4</span><h3>只刷你正在看的工作区</h3>
+    <dl>
+      <dt>怎么操作</dt>
+      <dd>打开面板停一会儿；然后切到另一个工作区，再切回来。</dd>
+      <dt>算通过</dt>
+      <dd>只有<b>当前工作区</b>的时间在推进；切走后回来会重新取数；<b>后台不会每几秒跳一次</b>。</dd>
+      <dt>算不合格</dt>
+      <dd>面板关着/切走了，时间仍每几秒跳一次（后台空转）。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="no">5</span><h3>改了票，列表自己跟上</h3>
+    <dl>
+      <dt>怎么操作</dt>
+      <dd>在 GitHub 网页上把某张票<b>关掉</b> → 回面板，<b>不要点刷新</b> → 等十几秒。</dd>
+      <dt>算通过</dt>
+      <dd>那一行自己变成「已关闭」；<b>其他行不闪、不重排</b>；右上角时间更新。</dd>
+      <dt>算不合格</dt>
+      <dd>整张列表重新加载一遍（全部闪一下）；或者十几秒后毫无反应。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="no">6</span><h3>诚实显示：该说话的时候必须说话</h3>
+    <dl>
+      <dt>怎么操作</dt>
+      <dd>看头部那个时间标签并悬停它；有条件的话断一下网，或者等它落后。</dd>
+      <dt>算通过</dt>
+      <dd>时间是相对时间、悬停给精确时刻；落后时有<b>黄色</b>说法；读不到时有<b>红色</b>说法。</dd>
+      <dt>算不合格</dt>
+      <dd><b>空白且不解释</b>——什么都不显示、也不说为什么。</dd>
+    </dl>
+  </div>
+</section>
+
+<section>
+  <h2>最后三条（顺手看一眼 / 已知未通过）</h2>
+
+  <div class="card">
+    <span class="no">7</span><h3>面板上的「每个会话在处理哪些票」</h3>
+    <dl>
+      <dt>怎么操作</dt>
+      <dd>新建一个会话，让 AI 去动一张票（加评论、改状态都行），然后回面板看正文最上面那块。</dd>
+      <dt>算通过</dt>
+      <dd>三种都算正常：<b class="no">红色「读不到处理记录」</b>（这次没拿到）／<b>整块不画</b>（确实没有）／<b>真画出记录</b>（一行一张票，点一行能跳到那张票）。</dd>
+      <dt>算不合格</dt>
+      <dd>画了空列表却说不出所以然（空着但不说明是"没拿到"还是"确实没有"）。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="no">8</span><h3>出站失败时不该静默</h3>
+    <dl>
+      <dt>怎么操作</dt>
+      <dd>到检查页点几次「重新检查」；额度紧的时候多观察一下界面反应。</dd>
+      <dt>算通过</dt>
+      <dd>不弹错误框、不出现命令报错；额度紧时界面<b>如实说</b>「已推后 / 配额紧张」之类，而不是什么都不说。</dd>
+      <dt>算不合格</dt>
+      <dd>点了没反应、也没有任何说明。</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="tag warn">已知未通过</span><span class="no">9</span><h3>AI 能不能调到那七个工具</h3>
+    <dl>
+      <dt>怎么操作</dt>
+      <dd>新建会话，让 AI 列出它能用的工具，或直接让它调 <code>deck_issue_get</code>。</dd>
+      <dt>算通过</dt>
+      <dd><b>今天必然调不到</b>——这是还没做的那张票（把工具挂上模型工具面）。<b>别当 bug 计</b>，它就是我们下一步要做的。</dd>
+      <dt>算不合格</dt>
+      <dd>——这条暂时没有"不合格"；等那张票做完，标准才变成"AI 真的调得到、并且走的是工具而不是手拼命令"。</dd>
+    </dl>
+  </div>
+</section>
+
+<section>
+  <h2>看结果的两条通用规矩</h2>
+  <div class="note">
+    <h3>什么才算"不对"</h3>
+    <ul>
+      <li>该有数字的地方<b>一直是占位符</b>；</li>
+      <li>该更新的地方<b>不动</b>；</li>
+      <li><b>该说话的时候什么都不说</b>（静默失败）。</li>
+    </ul>
+    <p style="margin:8px 0 0;color:var(--sub)">这三类算 bug；其它（颜色、间距、措辞偏好）都算偏好，不算 bug。</p>
+  </div>
+  <div class="note">
+    <h3>发现不对时，给我三样就够定位</h3>
+    <ul>
+      <li><b>截图</b>；</li>
+      <li>当时在<b>哪个工作区</b>；</li>
+      <li>面板右上角那个<b>时间标签的值</b>。</li>
+    </ul>
+    <p style="margin:8px 0 0;color:var(--sub)">这两轮我给"失败"留了痕：现在再出问题，日志会直接告诉我们是哪条电话、回话里缺了什么、服务的是哪一版，不用再靠反推。</p>
+  </div>
+</section>
+
+<footer>
+  建议顺序：先看 1、2、3（刚改的）→ 再看 5、4（增量与视野）→ 6、7、8 顺手看一眼 → 9 知道现在必然不过即可。<br>
+  版本 v1.7.28 · 本次改动已提交并同步到本机已装的插件目录，重启 DSH + 浏览器硬刷新 + 新建会话后生效。
+</footer>
+
+</div>
+</body>
+</html>

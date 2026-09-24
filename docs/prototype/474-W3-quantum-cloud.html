@@ -1,0 +1,990 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 #474 · W3 — 量子概率云（观测即坍缩）</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+  issue：FeatherHunter/dsh-mattpocock-skills-deck#474
+  设计任务书：docs/prototype/474-design-brief.md
+
+  W3 · 量子概率云（观测即坍缩）。一句话：
+    没走到的票不是一个待办，而是一团「还不确定在哪、也不确定它是什么」的概率云；
+    你点它一下就是一次观测，观测会让它坍缩成一张确定的票，并且让旁边的云也清楚一点。
+
+  怎么读这一屏：
+    - 确定态（已走亮 / 照亮中 / 现在能做）：清晰的圆点 + 实的连线 + 完整标题，不抖动。
+    - 概率云（雾里）：几十个细小粒子组成的一团模糊云，位置与透明度在缓慢浮动；
+      里面只有一个隐约的问号与票号，标题不写出来（因为确实不知道）。
+    - 点一下云 = 观测：粒子在 520 毫秒内收束坍缩成一颗确定的点，标题显形，连线接通，
+      原位不动，右上角留一个「✦ 已观测」标记。
+    - 一次观测会波及邻居（同一层 + 直接依赖它的票）：邻居的粒子数降到约一半、模糊度下降。
+      这就是「看清一处，周围也跟着清楚一点」。
+    - 目的地一颗亮锚点，永不抖动、永远可见；走亮的路从它往下连成一条实线光路。
+
+  为什么「原位保留 + 已观测标记」：坍缩不是把一张票搬到别处，而是这一处从此确定了；
+  界面要能看出「这一处是我观测出来的」。底部「重置观测」只服务原型演示，把这一屏的观测全部撤销。
+
+  性能与实现约束：
+    - 粒子总数 ≤ 200（40 粒/云 × 最多 5 云）。真实粒子数写在画布节点的 data-particles 上
+      （已坍缩 = 0）；每个画布还写死了 data-particles-max 作为上限，便于自检脚本读数。
+    - 没有 setInterval / setTimeout 轮询。粒子浮动是「只跑一次」的 requestAnimationFrame：
+      跑 3.2 秒后自己停下，云保持静止但仍然模糊（静止的云一样看得出"不知道"）。
+    - URL：?w=400|810  ?s=active|empty|big  ?bar=0  ?obs=0..n
+
+  数据：#604 那段 JSON 是 design brief §4 的原样真数据；empty / big 两个状态是示例，界面标了「示例」。
+-->
+<style>
+:root{
+  --base:#10131a;--l2:#16181d;--l3:#0c0e12;--bd:#2a2d35;--bd2:#3a3f4a;
+  --tx:#e6edf3;--sec:#a1a1aa;--cap:#8b8b95;
+  --walk:#4ade80;--view:#58a6ff;--map:#c084fc;--know:#f59e0b;
+  --mono:Consolas,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;overflow-x:hidden}
+body{background:#07080b;color:var(--tx);font-size:14px;line-height:1.6;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+.pbadge{position:fixed;top:8px;left:8px;z-index:99999;background:#ff3b30;color:#fff;
+  font:700 11px/1 -apple-system,sans-serif;padding:5px 9px;border-radius:99px}
+.stage{display:flex;justify-content:center;margin:0}
+.panel{width:810px;max-width:100%;background:var(--base);border:1px solid var(--bd);
+  overflow:hidden;display:flex;flex-direction:column;min-height:700px}
+.chrome{flex:none;border-bottom:1px solid var(--bd);background:var(--l2)}
+.chrome-top{display:flex;align-items:center;gap:6px;padding:9px 12px 5px;font-size:11px}
+.chrome-top .repo{color:var(--view);font-family:var(--mono);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chrome-top .ico{color:var(--cap);border:1px solid var(--bd);border-radius:5px;padding:0 5px;font-size:10px}
+.chrome-tabs{display:flex;align-items:center;gap:4px;padding:0 10px 8px;font-size:11px;flex-wrap:nowrap;overflow:hidden}
+.chrome-tabs .tab{padding:1px 7px;border-radius:6px;color:var(--sec)}
+.chrome-tabs .tab.on{background:rgba(192,132,252,.14);border:1px solid rgba(192,132,252,.45);color:#e9d5ff}
+.chrome-tabs .mini{border:1px solid var(--bd);border-radius:6px;padding:0 6px;color:var(--sec);font-size:10.5px}
+.chrome-tabs .ver{color:var(--cap);font-size:10px;font-family:var(--mono)}
+.panel.narrow .chrome-tabs .mini,.panel.narrow .chrome-tabs .ver{display:none}
+.sp{flex:1}
+.sticky{display:flex;align-items:center;gap:7px;padding:8px 12px;background:var(--l2);border-bottom:1px solid var(--bd);flex-wrap:nowrap}
+.panel.narrow .sticky{gap:5px}
+.btn{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid var(--bd);background:var(--base);
+  color:var(--tx);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px}
+.btn:hover{border-color:var(--bd2)}
+.btn:focus-visible{outline:2px solid var(--map);outline-offset:1px}
+.btn.primary{background:var(--walk);border-color:transparent;color:#04120a;font-weight:700}
+.btn.ghost{background:transparent}
+.crumb{color:var(--cap);font-size:11px;white-space:nowrap}
+.panel.narrow .crumb{font-size:10px}
+.chipm{font-size:10.5px;color:#e9d5ff;border:1px solid rgba(192,132,252,.45);border-radius:6px;padding:0 6px;
+  background:rgba(192,132,252,.1);white-space:nowrap}
+
+/* ---------- 图本体 ---------- */
+.mapwrap{flex:1 1 auto;overflow:auto;background:
+  radial-gradient(520px 300px at 50% 0%,rgba(192,132,252,.07),transparent 70%),var(--l3)}
+.map{position:relative;margin:0 auto}
+.map svg.links{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+.edge{fill:none;stroke-width:1.6}
+.edge.walk{stroke:rgba(74,222,128,.62)}
+.edge.dim{stroke:rgba(122,132,156,.34);stroke-dasharray:2 5}
+.edge.trail{stroke:rgba(74,222,128,.9);stroke-width:2.4}
+.edge.hot{stroke:rgba(192,132,252,.72);stroke-dasharray:5 6;animation:dash 1.4s linear 2}
+.edge.hit{stroke:rgba(233,213,255,.85);stroke-dasharray:4 5;animation:dash 1.1s linear 3}
+@keyframes dash{to{stroke-dashoffset:22}}
+
+.anchor{position:absolute;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:6px 12px 8px;border-radius:12px;border:1px solid rgba(192,132,252,.5);
+  background:radial-gradient(circle at 50% 22%,rgba(192,132,252,.20),rgba(16,19,26,.9) 72%);
+  box-shadow:0 0 22px rgba(192,132,252,.22);text-align:center;max-width:92%}
+.anchor .apin{width:13px;height:13px;border-radius:99px;background:#e9d5ff;
+  box-shadow:0 0 12px 3px rgba(233,213,255,.75),0 0 30px 10px rgba(192,132,252,.35)}
+.anchor .alab{font-size:10.5px;color:#e9d5ff;letter-spacing:.04em}
+.anchor .atxt{font-size:11.5px;color:var(--sec);line-height:1.5;max-width:560px}
+.panel.narrow .anchor .atxt{font-size:11px}
+
+/* 层的说明行：靠左对齐，避免和层间连线的竖干撞在一起 */
+.phase{position:absolute;transform:translateY(-50%);text-align:left;color:var(--cap);font-size:10.5px;line-height:1.4;width:120px}
+.panel.narrow .phase{width:46px}
+.panel.narrow .phase .wn{font-size:10.5px;line-height:1.15;letter-spacing:0}
+.panel.narrow .phase .pt{display:none}
+.phase .wn{display:block;font-family:var(--mono);font-size:11.5px;color:#c7d2e0;letter-spacing:.06em}
+
+/* 左边一条层的竖干：把层串起来 */
+.rail{position:absolute;left:9px;top:0;width:1px;background:repeating-linear-gradient(180deg,rgba(122,132,156,.45) 0 3px,transparent 3px 8px)}
+.panel.narrow .rail{display:none}
+
+/* 确定态：一颗清晰的点 + 一张清晰的卡。不抖动、不模糊 */
+.node{position:absolute;width:172px;margin-left:-86px;top:0}
+.panel.narrow .node{width:150px;margin-left:-75px}
+.node .card{border:1px solid var(--bd);border-radius:10px;background:#191c23;padding:7px 9px 8px;
+  position:relative;overflow:hidden}
+.node .head{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--cap);font-family:var(--mono)}
+.node .head .no{color:#c7d2e0}
+.node .glyph{width:15px;height:15px;flex:none;border-radius:5px;display:grid;place-items:center;
+  font-size:10px;border:1px solid var(--bd2);color:var(--sec)}
+.node .title{font-size:11.5px;line-height:1.45;color:var(--tx);margin-top:3px;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.node .why{margin-top:5px;font-size:10px;padding:1px 6px;border-radius:99px;display:inline-block;
+  border:1px solid var(--bd2);color:var(--sec);position:relative}
+.node .dot2{position:absolute;left:50%;top:-8px;width:9px;height:9px;margin-left:-4.5px;border-radius:99px;
+  border:1px solid #0b0d12;z-index:2}
+/* 已走亮：实心绿点 + 实线边 */
+.node.s-walk .card{border-color:rgba(74,222,128,.42);background:#151c19}
+.node.s-walk .dot2{background:var(--walk);box-shadow:0 0 9px rgba(74,222,128,.7)}
+.node.s-walk .why{color:#c9f7d8;border-color:rgba(74,222,128,.4)}
+.node.s-walk .glyph{color:var(--walk);border-color:rgba(74,222,128,.45)}
+/* 照亮中：实心蓝点 + 方角卡（形状不同，不只靠颜色） */
+.node.s-view .card{border-color:rgba(88,166,253,.55);background:#141b25;border-radius:3px}
+.node.s-view .dot2{background:var(--view);width:11px;height:11px;margin-left:-5.5px;top:-9px;
+  box-shadow:0 0 12px rgba(88,166,253,.85)}
+.node.s-view .why{color:#cfe4ff;border-color:rgba(88,166,253,.45)}
+.node.s-view .glyph{color:var(--view);border-color:rgba(88,166,253,.45)}
+/* 现在能做：空心的琥珀点 + 双描边（形状不同） */
+.node.s-open .card{border-color:rgba(245,158,11,.5);background:#1b1811;
+  box-shadow:0 0 18px rgba(245,158,11,.08)}
+.node.s-open .dot2{background:#1a1409;border:2px solid var(--know);width:12px;height:12px;margin-left:-6px;top:-10px;
+  box-shadow:0 0 10px rgba(245,158,11,.6)}
+.node.s-open .why{color:#ffe1ad;border-color:rgba(245,158,11,.45)}
+.node.s-open .glyph{color:var(--know);border-color:rgba(245,158,11,.45)}
+.node.is-here .card{outline:1px dashed rgba(88,166,253,.5);outline-offset:3px}
+.node{cursor:pointer}
+
+/* ---------- 概率云（雾里的票） ---------- */
+.node.is-cloud{cursor:crosshair}
+.node.is-cloud .card{background:transparent;border:1px dashed rgba(140,150,180,.30);
+  box-shadow:none;transition:border-color .4s ease,background .5s ease;
+  display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:78px}
+.node.is-cloud .qcanvas{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:1;
+  filter:blur(.55px);transition:filter .5s ease}
+.node.is-cloud .qover{position:relative;z-index:0;display:flex;flex-direction:column;gap:1px;
+  align-items:center;text-align:center;user-select:none;
+  /* 问号与票号底下垫一层很淡的暗光：粒子飘到字上也还能看清，但不吃掉云的感觉 */
+  background:radial-gradient(ellipse 62% 72% at 50% 50%,rgba(13,15,22,.72),rgba(13,15,22,0) 100%)}
+.node.is-cloud .gg{font-size:25px;line-height:1.05;color:rgba(224,230,244,.85);font-weight:600}
+.node.is-cloud .qno{font-family:var(--mono);font-size:10.5px;color:rgba(199,210,224,.70)}
+.node.is-cloud .qtip{font-size:9.5px;color:rgba(150,158,178,.62);line-height:1.45}
+.node.is-cloud:hover .card{border-color:rgba(192,132,252,.6)}
+.node.is-cloud:hover .gg{color:#e9d5ff}
+.node.is-cloud:focus-visible{outline:2px solid var(--map);outline-offset:2px}
+/* 被邻居的观测波及：粒子变少、模糊度下降、中心透出来 —— 这一处已经比别处清楚一点了 */
+.node.is-cloud.is-thinning .qcanvas{filter:blur(.15px)}
+.node.is-cloud.is-thinning .card{
+  background:radial-gradient(circle at 50% 46%,rgba(192,132,252,.11),transparent 72%);
+  border-color:rgba(160,170,205,.42)}
+.node.is-cloud.is-thinning .gg{color:rgba(233,213,255,.95)}
+.node.is-cloud.is-thinning .qtip{color:rgba(190,195,215,.72)}
+/* 坍缩那一瞬的一次性涟漪（不是循环动画） */
+.node.is-collapsing .card{border-color:rgba(233,213,255,.85);border-style:solid}
+.node.is-collapsing::after{content:"";position:absolute;left:50%;top:14px;width:64px;height:64px;margin-left:-32px;
+  border-radius:99px;border:1px solid rgba(233,213,255,.75);animation:ripple .62s ease-out 1 both;pointer-events:none;z-index:3}
+@keyframes ripple{from{transform:scale(.45);opacity:.95}to{transform:scale(2.3);opacity:0}}
+/* 坍缩后的确定态：原位定格 */
+.node.is-observed .card{border:1px solid rgba(192,132,252,.62);background:#191622}
+.node.is-observed .dot2{background:var(--map);box-shadow:0 0 12px rgba(192,132,252,.8)}
+.node.is-observed .why{border-color:rgba(192,132,252,.5);color:#e9d5ff}
+.obsmark{display:inline-block;margin-top:4px;margin-left:4px;font-size:9.5px;padding:0 5px;border-radius:99px;
+  background:#2a1f3d;border:1px solid rgba(192,132,252,.6);color:#e9d5ff;white-space:nowrap;
+  animation:popin .5s ease-out 1 both;vertical-align:top}
+@keyframes popin{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* 虚空：还没画图 */
+.void{position:absolute;left:0;right:0;text-align:center;color:var(--cap);font-size:11px;line-height:1.75;padding:0 22px}
+
+/* ---------- 读数与详情 ---------- */
+.readout{flex:none;border-top:1px solid var(--bd);background:var(--l2);padding:8px 12px;
+  display:flex;flex-direction:column;gap:3px}
+.rdrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.counts{font-family:var(--mono);font-size:12px;color:#c7d2e0;white-space:nowrap}
+.counts b{color:#e9d5ff;font-weight:700}
+.counts i{font-style:normal;color:var(--cap)}
+.honest{font-size:11px;color:var(--sec)}
+.hint{font-size:10.5px;color:var(--cap);line-height:1.5}
+.detail{flex:none;border-top:1px solid var(--bd);background:var(--base);padding:9px 12px 11px}
+.detail .dh{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--cap);font-family:var(--mono);flex-wrap:wrap}
+.detail .dt{font-size:12.5px;color:var(--tx);margin-top:4px;line-height:1.55}
+.detail .ds{font-size:11px;color:var(--sec);margin-top:3px;line-height:1.5}
+.detail .dw{color:#e9d5ff}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:10px;color:var(--cap)}
+.legend .li{display:flex;align-items:center;gap:4px}
+.legend .sw{width:14px;height:14px;flex:none;border-radius:4px;border:1px solid var(--bd2);position:relative}
+.legend .sw.walk{background:#151c19;border-color:rgba(74,222,128,.5)}
+.legend .sw.walk::after{content:"";position:absolute;left:2px;top:2px;width:8px;height:8px;border-radius:99px;background:var(--walk)}
+.legend .sw.view{background:#141b25;border-color:rgba(88,166,253,.6)}
+.legend .sw.view::after{content:"";position:absolute;left:2px;top:2px;width:8px;height:8px;background:var(--view)}
+.legend .sw.open{background:#1b1811;border-color:rgba(245,158,11,.5)}
+.legend .sw.open::after{content:"";position:absolute;left:2px;top:2px;width:8px;height:8px;border-radius:99px;border:2px solid var(--know)}
+.legend .sw.cloud{background:#0e1017;border:1px dashed rgba(140,150,180,.5);
+  box-shadow:inset 0 0 8px 3px rgba(160,170,200,.22)}
+.legend .sw.obs{background:#191622;border-color:rgba(192,132,252,.6)}
+.legend .sw.obs::after{content:"";position:absolute;left:2px;top:2px;width:8px;height:8px;border-radius:99px;background:var(--map)}
+
+/* ---------- 原型控制条（不属于设计本身） ---------- */
+.bar{position:fixed;left:50%;transform:translateX(-50%);bottom:10px;z-index:9999;display:flex;flex-wrap:wrap;
+  gap:6px;align-items:center;background:rgba(12,14,19,.94);border:1px solid var(--bd);border-radius:12px;
+  padding:7px 9px;box-shadow:0 10px 30px rgba(0,0,0,.55)}
+.grp{display:flex;align-items:center;gap:4px}
+.gl{font-size:10px;color:var(--cap);margin-right:1px}
+.seg{font-size:11px;padding:3px 8px;border-radius:99px;border:1px solid var(--bd);background:#141821;
+  color:var(--sec);cursor:pointer;font-family:inherit}
+.seg:hover{border-color:var(--bd2)}
+.seg:focus-visible{outline:2px solid var(--map);outline-offset:1px}
+.seg.on{border-color:var(--map);background:rgba(192,132,252,.16);color:#e9d5ff;font-weight:600}
+.note{max-width:1500px;margin:10px auto 0;padding:0 18px;font-size:11.5px;color:var(--cap);line-height:1.75}
+.note b{color:var(--sec)}
+/* 晃动敏感的人：把浮动与那圈涟漪都收掉，云仍然是模糊的云，只是不动 */
+@media (prefers-reduced-motion: reduce){
+  .node.is-cloud .qcanvas{filter:blur(1.1px)}
+  .node.is-collapsing::after{animation:none;opacity:0}
+  .edge.hot,.edge.hit{animation:none}
+}
+</style>
+</head>
+<body>
+<span class="pbadge">原型 PROTOTYPE</span>
+
+<div class="stage"><div class="panel" id="panel"></div></div>
+
+<div class="note" id="note"></div>
+
+<div class="bar" id="bar">
+  <div class="grp"><span class="gl">宽度</span>
+    <button class="seg" data-k="w" data-v="400">400</button>
+    <button class="seg" data-k="w" data-v="810">810</button>
+  </div>
+  <div class="grp"><span class="gl">状态</span>
+    <button class="seg" data-k="s" data-v="active">推进中</button>
+    <button class="seg" data-k="s" data-v="empty">还没画图</button>
+    <button class="seg" data-k="s" data-v="big">大图</button>
+  </div>
+  <div class="grp"><span class="gl">原型用</span>
+    <button class="seg" id="reset">重置观测</button>
+    <button class="seg" id="observeAll">观测下一团云</button>
+  </div>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+/* =====================================================================
+   1. 数据（design brief §4 的原样真数据；empty / big 是示例）
+   ===================================================================== */
+var ACTIVE = {
+  no: 604,
+  title: 'MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）',
+  destination: '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。',
+  tickets: [
+    { no: 605, type: 'task',     title: '收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票', state: 'CLOSED', blockedBy: [] },
+    { no: 606, type: 'task',     title: '补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点', state: 'CLOSED', blockedBy: [605] },
+    { no: 607, type: 'research', title: '全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单', state: 'OPEN', claimedBy: 'FeatherHunter', blockedBy: [605, 606] },
+    { no: 608, type: 'grilling', title: '宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个', state: 'OPEN', blockedBy: [607] }
+  ],
+  fogTotal: 5,
+  decisions: [
+    { t: '收口上个会话的遗留', g: '倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）' },
+    { t: '补上 gh 调用的测量盲区', g: '真机一天 2538 次 gh 调用，中位 7.8 秒，超过「单次 ≤ 1.5 秒」' }
+  ],
+  fog: [
+    '按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票：每一条毛病单独成票，数量与内容要等体检结果才知道，现在切不出来。',
+    '客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换、详情页各自慢不慢、慢在哪，现在说不清，等体检数字。'
+  ]
+};
+
+var EMPTY = {
+  no: 604,
+  title: 'MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）',
+  destination: '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过——插件里不再有「不知道慢在哪」的地方。',
+  tickets: [], fogTotal: 0, decisions: [], fog: []
+};
+
+/* 大图（示例）：9 张票 4 层。
+   层 1 三张 / 层 2 两张 / 层 3 三张 / 层 4 一张；
+   4 张已关、1 张进行中、3 张雾里、1 张现在能做 —— 层 1 里没有已关的票。 */
+var BIG = {
+  no: 900, sample: true,
+  title: '示例大图：9 张票 · 4 层',
+  destination: '把这条链路的读写路径各治一遍：先查清楚、再定方案、再落地、最后真机复测。到终点 = 每个环节都有实测数字，谁慢在哪一眼能指出来。',
+  tickets: [
+    { no: 901, type: 'research',  title: '盘点现行取数路径与调用点（示例）', state: 'OPEN', blockedBy: [] },
+    { no: 902, type: 'research',  title: '客户端渲染路径实测（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 903, type: 'prototype', title: '缓存键与合并策略原型（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 904, type: 'grilling',  title: '定版：接缝画在哪、缓存键怎么定（示例）', state: 'CLOSED', blockedBy: [901, 902] },
+    { no: 905, type: 'grilling',  title: '定版：请求合并与三个扫描器收成一个（示例）', state: 'OPEN', claimedBy: 'FeatherHunter', blockedBy: [902, 903] },
+    { no: 906, type: 'task',      title: '落地：取数层收敛（示例）', state: 'OPEN', blockedBy: [904] },
+    { no: 907, type: 'task',      title: '落地：渲染路径单点改造（示例）', state: 'OPEN', blockedBy: [905] },
+    { no: 908, type: 'task',      title: '落地：日志落盘批量写（示例）', state: 'OPEN', blockedBy: [905] },
+    { no: 909, type: 'research',  title: '真机复测：四个场景逐条给数字（示例）', state: 'CLOSED', blockedBy: [906, 907, 908] }
+  ],
+  fogTotal: 3,
+  decisions: [{ t: '现在要治的是 gh 调用链与渲染起点（示例）', g: '倍数结论：点击到内容可见 5075 → 193 毫秒' }],
+  fog: ['体检清单毕业出来的落地票，数量与内容要等体检结果（示例）', '跨插件的统一治理是否纳入本图（示例）']
+};
+
+/* =====================================================================
+   2. 判定（抄自 474-map-detail-ten-directions.html 的 levelize / stateOf / counts）
+   ===================================================================== */
+function levelize(tickets) {
+  var byNo = new Map(tickets.map(function (t) { return [String(t.no), t]; }));
+  var memo = new Map();
+  var lv = function (t) {
+    if (memo.has(String(t.no))) return memo.get(String(t.no));
+    var bs = (t.blockedBy || []).map(function (b) { return byNo.get(String(b)); }).filter(Boolean);
+    var v = bs.length ? Math.max.apply(null, bs.map(lv)) + 1 : 0;
+    memo.set(String(t.no), v);
+    return v;
+  };
+  tickets.forEach(lv);
+  var layers = [];
+  tickets.forEach(function (t) { var i = lv(t); (layers[i] = layers[i] || { i: i, items: [] }).items.push(t); });
+  return layers.filter(Boolean);
+}
+function stateOf(t, all) {
+  if (t.state === 'CLOSED') return 'walk';
+  if (t.claimedBy) return 'view';
+  var bs = (t.blockedBy || []).map(function (b) { return all.find(function (x) { return String(x.no) === String(b); }); }).filter(Boolean);
+  return bs.some(function (b) { return b.state === 'OPEN'; }) ? 'fog' : 'open';
+}
+function blockersOf(t, all) {
+  return (t.blockedBy || []).map(function (b) { return all.find(function (x) { return String(x.no) === String(b); }); })
+    .filter(Boolean).filter(function (b) { return b.state === 'OPEN'; });
+}
+function counts(map) {
+  var all = map.tickets;
+  return {
+    walk: all.filter(function (t) { return stateOf(t, all) === 'walk'; }).length,
+    view: all.filter(function (t) { return stateOf(t, all) === 'view'; }).length,
+    open: all.filter(function (t) { return stateOf(t, all) === 'open'; }).length,
+    fog: all.filter(function (t) { return stateOf(t, all) === 'fog'; }).length,
+    total: all.length
+  };
+}
+var TYPE_L = { task: '任务', research: '研究', grilling: '对齐', prototype: '原型', map: '地图' };
+var GLYPH = { task: '⚒', research: '⌕', grilling: '❝', prototype: '◳', map: '▣' };
+var STATE_WORD = { walk: '已走亮', view: '照亮中', open: '现在能做', fog: '雾里（还没走过）', observed: '你观测出来的' };
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function clamp(s, n) { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; }
+
+/* =====================================================================
+   3. 概率云：一团粒子。粒子数决定它有多"实在"，粒子在慢慢浮动。
+   ===================================================================== */
+var DOTS_MAX = 44;      // 每团云的粒子数上限（44 × 最多 5 云 = 220 粒子的画布操作，单帧仍然很轻）
+var THIN_RATIO = .45;   // 被邻居的观测波及后剩下多少粒子
+var DRIFT_MS = 3200;    // 浮动只跑这一次，跑完就停（没有定时器轮询）
+var COLLAPSE_MS = 520;  // 坍缩时长（400–600 毫秒之间）
+/* 系统里开了"减少动态效果"的人：云不飘，但观测后照样收束（收束本身就是这一步的意义） */
+var REDUCED = (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+if (REDUCED) DRIFT_MS = 0;
+
+function easeInOut(t) { return t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+function Cloud(no) {
+  this.no = no;
+  this.cv = null; this.ctx = null;
+  this.w = 60; this.h = 60;
+  this.parts = [];
+  this.count = DOTS_MAX;
+  this.collapse = null;
+}
+Cloud.prototype.mount = function (cv, w, h) {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  this.cv = cv; this.w = w; this.h = h;
+  cv.width = Math.round(w * dpr);
+  cv.height = Math.round(h * dpr);
+  cv.style.width = w + 'px';
+  cv.style.height = h + 'px';
+  this.ctx = cv.getContext('2d');
+  this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cv.setAttribute('data-particles', String(this.count));
+};
+Cloud.prototype.seed = function () {
+  var a = [];
+  var n = this.count || DOTS_MAX;
+  /* 几簇中心：让粒子结成一团一团，而不是均匀铺满 —— 这样看过去更像一团云，不像一张噪点图 */
+  var nc = n > 30 ? 3 : 2;
+  var centers = [];
+  for (var ci = 0; ci < nc; ci++) {
+    centers.push({
+      x: this.w * (.28 + .22 * ci) + (Math.random() * 10 - 5),
+      y: this.h * (.40 + .18 * Math.random()),
+      rr: Math.min(this.w, this.h) * (.20 + .07 * Math.random())
+    });
+  }
+  for (var i = 0; i < n; i++) {
+    var c0 = centers[i % nc];
+    // 每第三颗粒子起点放到云团外面一点点：坍缩时它们会从外面收进来，收束感更强
+    var out = (i % 3) === 0 ? 1.5 : 1;
+    var th = Math.random() * 6.28318, rr = Math.sqrt(Math.random()) * c0.rr * out;
+    a.push({
+      x0: c0.x + Math.cos(th) * rr, y0: c0.y + Math.sin(th) * rr,
+      ax: 3 + Math.random() * 8, ay: 3 + Math.random() * 8,
+      sp: .7 + Math.random() * .9, ph: Math.random() * 6.283,
+      r: .8 + Math.random() * 1.3, a0: .42 + Math.random() * .48
+    });
+  }
+  this.parts = a;
+  this.count = n;
+};
+Cloud.prototype.draw = function (ms) {
+  var c = this.ctx;
+  if (!c) return;
+  var coll = this.collapse;
+  var ep = 0;
+  if (coll) ep = easeInOut(Math.max(0, Math.min(1, coll.ms / coll.dur)));
+  var ps = this.parts, cx = this.w / 2, cy = this.h / 2, i, p, t, e, a;
+  /* 粒子变少 = 这团云没那么厚了：底雾变淡、剩下的粒子画得更大更清楚 */
+  var dens = Math.min(1, this.count / DOTS_MAX);
+  c.clearRect(0, 0, this.w, this.h);
+
+  if (!coll) {
+    var amb = .45 + .3 * Math.sin(ms / 620);
+    /* 一层很淡的底雾：让这团东西离开"纯黑背景"。粒子少了，这层雾也跟着淡下去 */
+    var e0 = c.createRadialGradient(cx, cy, 0, cx, cy, Math.max(this.w, this.h) * .62);
+    e0.addColorStop(0, 'rgba(118,130,174,' + (.30 * dens).toFixed(3) + ')');
+    e0.addColorStop(.55, 'rgba(100,112,155,' + (.16 * dens).toFixed(3) + ')');
+    e0.addColorStop(1, 'rgba(80,92,130,0)');
+    c.fillStyle = e0;
+    c.beginPath(); c.arc(cx, cy, Math.max(this.w, this.h) * .62, 0, 6.2832); c.fill();
+    /* 再叠一层会呼吸的柔光 */
+    e = c.createRadialGradient(cx, cy, 0, cx, cy, Math.max(this.w, this.h) * .5);
+    e.addColorStop(0, 'rgba(190,202,238,' + ((.07 + .05 * amb) * dens).toFixed(3) + ')');
+    e.addColorStop(1, 'rgba(150,162,200,0)');
+    c.fillStyle = e;
+    c.beginPath(); c.arc(cx, cy, Math.max(this.w, this.h) * .5, 0, 6.2832); c.fill();
+  }
+
+  for (i = 0; i < this.count; i++) {
+    p = ps[i];
+    if (!p) break;
+    t = ms * .001;
+    if (coll) {
+      var px0 = p.x0 + p.ax * Math.sin(t * p.sp + p.ph);
+      var py0 = p.y0 + p.ay * Math.cos(t * p.sp * .82 + p.ph * 1.3);
+      p.cx = px0 + (cx - px0) * ep;
+      p.cy = py0 + (cy - py0) * ep;
+      p.ca = p.a0 * (1 - ep);
+    } else {
+      p.cx = p.x0 + p.ax * Math.sin(t * p.sp + p.ph) - 2 * Math.sin(ms / 900 + p.ph);
+      p.cy = p.y0 + p.ay * Math.cos(t * p.sp * .82 + p.ph * 1.3) - 2 * Math.cos(ms / 800 + p.ph);
+      p.ca = p.a0 * (.60 + .40 * Math.sin(ms / 520 + p.ph));
+    }
+    a = Math.max(0, Math.min(.98, p.ca));
+    var rr = Math.max(.3, p.r * (1 - ep * .55) * (1 + (1 - dens) * .45));
+    c.beginPath();
+    c.arc(p.cx, p.cy, rr, 0, 6.2832);
+    c.fillStyle = 'rgba(238,243,255,' + a.toFixed(3) + ')';
+    c.fill();
+    if ((i % 4) === 0) {
+      c.beginPath();
+      c.arc(p.cx - 3, p.cy - 3, Math.max(.25, rr * .5), 0, 6.2832);
+      c.fillStyle = 'rgba(198,150,255,' + (a * .55).toFixed(3) + ')';
+      c.fill();
+    }
+  }
+  if (coll && ep >= 1) {
+    var g = c.createRadialGradient(cx, cy, 0, cx, cy, 20);
+    g.addColorStop(0, 'rgba(233,213,255,.95)');
+    g.addColorStop(.4, 'rgba(192,132,252,.45)');
+    g.addColorStop(1, 'rgba(192,132,252,0)');
+    c.fillStyle = g;
+    c.beginPath(); c.arc(cx, cy, 20, 0, 6.2832); c.fill();
+  }
+  if (this.cv) this.cv.setAttribute('data-particles', String(this.count));
+};
+
+/* 一个只跑一次的动画循环：跑 DRIFT_MS 就停；坍缩期间继续跑，收束完就停。
+   注意：坍缩的进度按"一帧最多推进 MAX_STEP 毫秒"累计，不用 now-start 直接算 ——
+   面板被切到后台或某一帧被浏览器拖慢时，直接算会让粒子在一帧里跳到终点（视觉上就是"闪一下没了"）。 */
+var clouds = [], rafId = 0, driftStart = 0, lastTick = 0;
+var MAX_STEP = 40;
+
+function tick() {
+  var now = performance.now();
+  if (manualPump) { manualMs += 16.7; now = manualMs; }
+  if (lastTick > now) lastTick = now;
+  var dt = lastTick ? Math.min(MAX_STEP, now - lastTick) : 16.7;
+  lastTick = now;
+  if (now - driftStart < 0) driftStart = now;
+  var drifting = (now - driftStart) < DRIFT_MS;
+  var anyCollapse = false;
+  clouds.forEach(function (cl) {
+    if (cl.collapse) {
+      var dur = cl.collapse.dur;
+      cl.collapse.ms = Math.min(dur, cl.collapse.ms + dt);
+      cl.draw(cl.collapse.ms);
+      if (cl.collapse.ms >= dur) endCollapse(cl);
+      else anyCollapse = true;
+    } else if (drifting && cl.count > 0) {
+      cl.draw(now - driftStart);
+    }
+  });
+  if (drifting || anyCollapse) rafId = requestAnimationFrame(tick);
+  else rafId = 0;
+}
+function ensureLoop() { lastTick = performance.now(); if (!rafId) rafId = requestAnimationFrame(tick); }
+
+/* 自检脚本用：manual=true 时把 rAF 手工推到底（headless 截图里 rAF 会被节流/暂停） */
+var manualPump = false, manualMs = 0;
+window.__w3PumpFrames = function (n) {
+  manualPump = true;
+  manualMs = performance.now();
+  lastTick = 0;
+  var i, limit = n || 200;
+  for (i = 0; i < limit; i++) {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    tick();
+  }
+};
+/* 自检脚本用：量一下"把这一屏所有云的粒子重画 60 帧"要多久（这个数字才是这一屏的真实每帧开销） */
+window.__w3BenchClouds = function (frames) {
+  var i, n = frames || 60, t0 = performance.now();
+  for (i = 0; i < n; i++) {
+    clouds.forEach(function (cl) { if (cl.count > 0) cl.draw(i * 16.7); });
+  }
+  return Math.round(((performance.now() - t0) / n) * 1000) / 1000;
+};
+/* 自检脚本用：看一眼动画循环的内部状态（坍缩进度、还剩几颗粒子、粒子散布半径、循环还开不开） */
+window.__w3Probe = function () {
+  return {
+    rafOpen: !!rafId, driftMs: Math.round(performance.now() - driftStart), manualPump: manualPump,
+    clouds: clouds.map(function (cl) {
+      /* 粒子离云心的平均距离：坍缩就是"这一团收成一个点"，所以这个数字应该一路变小 */
+      var d = 0, ps = cl.parts, cxp = cl.w / 2, cyp = cl.h / 2;
+      for (var i = 0; i < ps.length; i++) {
+        var dx = (ps[i].cx === undefined ? ps[i].x0 : ps[i].cx) - cxp;
+        var dy = (ps[i].cy === undefined ? ps[i].y0 : ps[i].cy) - cyp;
+        d += Math.sqrt(dx * dx + dy * dy);
+      }
+      return {
+        no: cl.no, count: cl.count, parts: cl.parts.length, w: cl.w, h: cl.h,
+        spread: ps.length ? Math.round(d / ps.length * 10) / 10 : null,
+        ms: cl.collapse ? Math.round(cl.collapse.ms) : null,
+        dur: cl.collapse ? cl.collapse.dur : null,
+        ep: cl.collapse ? Math.round(easeInOut(Math.max(0, Math.min(1, cl.collapse.ms / cl.collapse.dur))) * 100) / 100 : null
+      };
+    })
+  };
+};
+
+/* =====================================================================
+   4. 页面状态
+   ===================================================================== */
+var qs = new URLSearchParams(location.search);
+var state = {
+  w: Number(qs.get('w') || 810),
+  s: qs.get('s') || 'active',
+  bar: qs.get('bar') === '0',
+  observed: {},   // 票号 -> true：这一处是"观测"出来的（坍缩过）
+  thinned: {},    // 票号 -> true：被邻居的观测波及，已经清楚了一点
+  sel: null,
+  seq: 0          // 观测次数
+};
+if (qs.get('obs') !== null) {
+  var want = Number(qs.get('obs')) || 0;
+  if (want <= 0) { state.observed = {}; }
+  else if (state.s === 'big') { state.observed = { 906: true, 908: true, 907: true }; state.thinned = {}; state.seq = want; }
+  else { state.observed = { 608: true }; state.thinned = {}; state.seq = want; }
+}
+function mapOf() { return state.s === 'empty' ? EMPTY : (state.s === 'big' ? BIG : ACTIVE); }
+function effectiveState(t, map) {
+  if (state.observed[t.no]) return 'observed';
+  return stateOf(t, map.tickets);
+}
+/* 相邻 = 同一层 + 直接依赖它的票 */
+function neighborsOf(t, map) {
+  var all = map.tickets;
+  var lay = levelize(all).filter(function (L) { return L.items.indexOf(t) >= 0; })[0];
+  var out = [];
+  if (lay) lay.items.forEach(function (x) { if (x !== t) out.push(x); });
+  all.forEach(function (x) { if ((x.blockedBy || []).indexOf(t.no) >= 0) out.push(x); });
+  return out;
+}
+
+/* =====================================================================
+   5. 版式与渲染
+   ===================================================================== */
+function layout(map, W) {
+  var all = map.tickets, layers = levelize(all);
+  var anchorH = 104, rowH = 122, top = 18, tail = 30;
+  var pos = {};
+  var y = top + anchorH + 66;
+  layers.forEach(function (L) {
+    var n = L.items.length;
+    var sidepad = W < 520 ? 14 : 26;
+    var inner = W - sidepad * 2;
+    L.items.forEach(function (t, i) {
+      pos[t.no] = { x: sidepad + (inner / n) * i + (inner / n) / 2, y: y, layer: L.i };
+    });
+    y += rowH;
+  });
+  return { layers: layers, pos: pos, H: all.length ? y + tail : 320, anchorH: anchorH, rowH: rowH, top: top, tail: tail };
+}
+/* 正交折线：先竖、再横、再竖。rail 让同一次依赖分叉的多条边各走各的横线，不会叠在一起 */
+function orthoPath(a, b, rail) {
+  var d = b.y - a.y;
+  if (d <= 0) return 'M' + a.x + ' ' + a.y + 'L' + b.x + ' ' + b.y;
+  var ry = (rail === undefined) ? (b.y - Math.max(18, d * .42)) : rail;
+  return 'M' + a.x + ' ' + a.y + 'V' + Math.round(ry) + 'H' + Math.round(b.x) + 'V' + b.y;
+}
+function countsText() {
+  var map = mapOf(), all = map.tickets;
+  var c = counts(map);
+  var obsN = all.filter(function (t) { return state.observed[t.no]; }).length;
+  var unexplained = Math.max(0, c.fog - obsN);       // 还没观测的雾
+  var determined = c.total - unexplained;            // 已确定 = 走亮 + 照亮中 + 现在能做 + 观测出来的
+  return { determined: determined, unexplained: unexplained, c: c };
+}
+
+function render(map, W) {
+  var all = map.tickets, L = layout(map, W);
+  var pos = L.pos, H = L.H, c = counts(map);
+  var cn = countsText();
+  var html = '<div class="map" id="map" style="width:' + W + 'px;height:' + H + 'px">';
+  html += '<svg class="links" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true">';
+
+  /* 目的地锚点 → 最靠近终点的那一层：一条实线光路（走亮）或一条虚线（还没走通） */
+  var cx = W / 2, destY = L.top + L.anchorH;
+  var maxLayer = -1;
+  all.forEach(function (t) { if (pos[t.no].layer > maxLayer) maxLayer = pos[t.no].layer; });
+  var nearest = all.filter(function (t) { return pos[t.no].layer === maxLayer; });
+  var allDone = all.length > 0 && all.every(function (t) { return effectiveState(t, map) === 'walk'; });
+  var railBase = (destY + 18);
+  nearest.forEach(function (t, i) {
+    var sa = effectiveState(t, map), lit = (sa === 'walk' || sa === 'observed');
+    var ry = allDone ? railBase : railBase + i * 9;
+    html += '<path class="edge ' + (lit ? (allDone ? 'trail' : 'walk') : 'dim') + '" d="' +
+      orthoPath({ x: cx, y: destY }, pos[t.no], ry) + '"/>';
+  });
+  if (nearest.length) {
+    var note = allDone ? '已走通 · 实线光路' : '还没走通 · 最靠近终点的是第 ' + (maxLayer + 1) + ' 层';
+    html += (W < 520)
+      ? '<text x="10" y="' + (destY + 10) + '" font-size="10" fill="' + (allDone ? '#86efac' : '#8b8b95') + '">' + note + '</text>'
+      : '<text x="' + (cx + 9) + '" y="' + (destY + 34) + '" font-size="10.5" fill="' + (allDone ? '#86efac' : '#8b8b95') + '">' + note + '</text>';
+  }
+  var byNo = {};
+  all.forEach(function (t) { byNo[t.no] = t; });
+  var edges = [];
+  all.forEach(function (t) {
+    (t.blockedBy || []).forEach(function (bn) {
+      var b = byNo[bn];
+      if (!b || !pos[b.no] || !pos[t.no]) return;
+      edges.push({ b: b, t: t, gap: pos[b.no].layer + '>' + pos[t.no].layer });
+    });
+  });
+  // 同一个层间通道里的边各占一条横线，避免多条边叠成一条
+  var groups = {};
+  edges.forEach(function (e) { (groups[e.gap] = groups[e.gap] || []).push(e); });
+  Object.keys(groups).forEach(function (k) {
+    var g = groups[k];
+    g.forEach(function (e, i) {
+      var yTop = pos[e.b.no].y, yBot = pos[e.t.no].y;
+      var rail = (yBot - yTop) > 30 ? yTop + 26 + ((yBot - yTop - 38) * i) / Math.max(1, g.length - 1 || 1)
+        : (yTop + yBot) / 2;
+      if (g.length === 1) rail = yBot - Math.max(18, (yBot - yTop) * .42);
+      var sa = effectiveState(e.b, map), sb = effectiveState(e.t, map);
+      var cls = (sa === 'walk' && (sb === 'walk' || sb === 'view' || sb === 'open' || sb === 'observed')) ? 'walk' : 'dim';
+      var hot = state.observed[e.t.no] || state.observed[e.b.no];
+      html += '<path class="edge ' + cls + (hot ? ' hot' : '') + '" data-from="' + e.b.no + '" data-to="' + e.t.no + '" d="' +
+        orthoPath(pos[e.b.no], pos[e.t.no], rail) + '"/>';
+    });
+  });
+  html += '</svg>';
+
+  /* 目的地：永远清晰、永不抖动 */
+  html += '<div class="anchor" id="destination" style="left:' + cx + 'px;top:' + L.top + 'px;width:' +
+    Math.min(W - 32, 620) + 'px"><span class="apin"></span><span class="alab">目的地 · 永远清晰</span>' +
+    '<span class="atxt">' + esc(clamp(map.destination, W < 520 ? 130 : 230)) + '</span></div>';
+
+  /* 空图：一片还没有任何观测的虚空 */
+  if (!all.length) {
+    html += '<div class="void" style="top:' + (L.top + L.anchorH + 40) + 'px">' +
+      '<div style="color:#a1a1aa;font-size:12px">这张图还是一片虚空。</div>' +
+      '<div>没有一张票，也就没有一个地方被观测过 —— 只有上面那颗锚点亮着。</div>' +
+      '<div style="color:#c7d2e0">目的地是清楚的，通往它的路一条都还没有。</div>' +
+      '<div style="margin-top:10px">这是「不知道」最满的样子：我们连该问什么，现在还不知道。</div>' +
+      '</div></div>';
+    return { body: html, cn: cn };
+  }
+
+  /* 层的说明行 + 左边一条层的竖干 */
+  var firstY = pos[L.layers[0].items[0].no].y;
+  var lastY = pos[L.layers[L.layers.length - 1].items[0].no].y;
+  html += '<div class="rail" style="top:' + firstY + 'px;height:' + Math.max(20, lastY - firstY) + 'px"></div>';
+  L.layers.forEach(function (Lx) {
+    var yy = pos[Lx.items[0].no].y;
+    var states = Lx.items.map(function (t) { return effectiveState(t, map); });
+    var word = states.every(function (s) { return s === 'walk'; }) ? '这一段已经走亮'
+      : states.indexOf('view') >= 0 ? '这一层正在推进'
+      : states.indexOf('open') >= 0 ? '这一层现在就能做'
+      : states.every(function (s) { return s === 'fog'; }) ? '这一层全在雾里'
+      : '半层清楚、半层在雾里';
+    html += '<div class="phase" style="left:10px;top:' + (yy - 27) + 'px">' +
+      '<span class="wn">第 ' + (Lx.i + 1) + ' 层</span><span class="pt">' + word + '</span></div>';
+  });
+
+  /* 票节点 */
+  all.forEach(function (t) {
+    var p = pos[t.no];
+    var s = effectiveState(t, map);
+    var isObs = s === 'observed';
+    var isCloud = s === 'fog';
+    var thin = isCloud && !!state.thinned[t.no];
+    var cls = 'node s-' + s + (isCloud ? ' is-cloud' : '') + (thin ? ' is-thinning' : '') + (isObs ? ' is-observed' : '');
+    if (state.sel === t.no) cls += ' is-here';
+    var isBig = state.s === 'big';
+    var cw = Math.min(state.w < 520 ? 150 : 172, (isBig ? (state.w < 520 ? 120 : 150) : 172));
+    var ch = isBig ? (state.w < 520 ? 86 : 96) : Math.min(112, Math.max(70, 40 + Math.ceil(clamp(t.title, 42).length / 3) * 9));
+
+    html += '<div class="' + cls + '" data-no="' + t.no + '" data-state="' + s + '"' +
+      (isCloud ? ' role="button" tabindex="0" aria-label="' + esc('#' + t.no + ' 还在雾里，点一下观测它') + '"' : '') +
+      ' style="left:' + Math.round(p.x) + 'px;top:' + p.y + 'px;width:' + cw + 'px;margin-left:' + (-cw / 2) + 'px">' +
+      '<span class="dot2"></span><div class="card">';
+    if (isCloud) {
+      html += '<canvas class="qcanvas" data-particles-max="' + DOTS_MAX + '" data-particles="' + DOTS_MAX +
+        '" width="' + (cw * 2) + '" height="' + (ch * 2) + '"></canvas>' +
+        '<div class="qover" style="min-height:' + ch + 'px">' +
+        '<span class="gg">？</span>' +
+        '<span class="qno">#' + t.no + ' · ' + (TYPE_L[t.type] || t.type) + '</span>' +
+        '<span class="qtip">不知道它是什么，也不知道它在哪</span>' +
+        ((t.blockedBy && t.blockedBy.length) ? '<span class="qtip">路是画出来了，通不通还不知道</span>' : '') +
+        '</div>';
+    } else {
+      html += '<div class="head"><span class="glyph">' + (GLYPH[t.type] || '·') + '</span>' +
+        '<span class="no">#' + t.no + '</span><span>' + (TYPE_L[t.type] || '') + '</span></div>' +
+        '<div class="title">' + esc(clamp(t.title, 62)) + '</div>';
+    }
+    if (isObs) html += '<span class="obsmark">✦ 已观测 · 原位坍缩</span>';
+    if (!isCloud) {
+      var why = isObs ? ('观测出来的' + (state.seq ? ' · 第 ' + state.seq + ' 次观测' : ''))
+        : STATE_WORD[s] + (s === 'view' && t.claimedBy ? ' · ' + esc(t.claimedBy) : '');
+      html += '<div class="why">' + why + '</div>';
+    }
+    html += '</div></div>';
+  });
+
+  html += '</div>';
+  return { body: html, cn: cn };
+}
+
+function readoutHtml(cn, empty) {
+  return '<div class="readout">' +
+    '<div class="rdrow"><span class="counts" id="counts">已确定 <b>' + cn.determined + '</b> <i>·</i> 未观测 <b>' +
+    cn.unexplained + '</b></span>' +
+    '<span class="honest" id="honest">没观测的地方不是没有，是我们还不知道。</span></div>' +
+    '<div class="rdrow"><span class="hint">' +
+    (empty ? '这一屏里一个地方都还没被观测过。'
+      : '点一下那团雾（概率云）＝ 一次观测：粒子会收束坍缩成一张确定的票，同层和依赖它的邻居云也跟着清楚一点。') +
+    '</span></div></div>';
+}
+
+function legendHtml() {
+  return '<div class="legend">' +
+    '<span class="li"><span class="sw walk"></span>已走亮（实心圆点 · 实线）</span>' +
+    '<span class="li"><span class="sw view"></span>照亮中（方角卡 · 大点）</span>' +
+    '<span class="li"><span class="sw open"></span>现在能做（空心点 · 双描边）</span>' +
+    '<span class="li"><span class="sw cloud"></span>概率云（一团粒子 · 模糊 · 只在雾里）</span>' +
+    '<span class="li"><span class="sw obs"></span>观测出来的（原位定格 · 带 ✦ 标记）</span></div>';
+}
+function detailHtml(map) {
+  var all = map.tickets;
+  if (!all.length) {
+    return '<div class="detail" id="detail"><div class="dh">这一屏还没有票</div>' +
+      '<div class="dt">地图 #' + map.no + ' 还是一片虚空。</div>' +
+      '<div class="ds">它不是空白，也不是报错 —— 是「我们连该问什么还不知道」。</div>' +
+      legendHtml() + '</div>';
+  }
+  var sel = all.filter(function (t) { return t.no === state.sel; })[0]
+    || all.filter(function (t) { return state.observed[t.no]; })[0]
+    || all.filter(function (t) { return stateOf(t, map.tickets) === 'view'; })[0]
+    || all.filter(function (t) { return stateOf(t, map.tickets) === 'open'; })[0]
+    || all[all.length - 1];
+  state.sel = sel.no;
+  var s = effectiveState(sel, map);
+  var why = s === 'walk' ? '这一段已经走完了。'
+    : s === 'view' ? '正在照亮这一片，接着做就是它。'
+    : s === 'open' ? '现在就能做的一张 —— 它的阻塞者全都关了。'
+    : s === 'observed' ? '这一处是你刚刚观测出来的：原位坍缩成了一张确定的票。它原先是一团概率云 —— 不是没有，是我们还不知道。'
+    : '路是画出来了，但通不通还不知道 —— 它前面还有没关掉的票。';
+  var blockers = blockersOf(sel, map.tickets).map(function (b) { return '#' + b.no; }).join('、');
+  return '<div class="detail" id="detail">' +
+    '<div class="dh">#' + sel.no + ' · ' + (TYPE_L[sel.type] || sel.type) + ' · ' + (STATE_WORD[s] || s) +
+    (s === 'view' && sel.claimedBy ? ' · ' + esc(sel.claimedBy) : '') +
+    (s === 'fog' && blockers ? ' · 被 ' + blockers + ' 挡着' : '') +
+    (sel.state === 'CLOSED' ? ' · CLOSED' : '') + '</div>' +
+    '<div class="dt">' + esc(sel.title) + '</div>' +
+    '<div class="ds" style="color:#8b8b95">' + esc(clamp(map.destination, 170)) + '</div>' +
+    '<div class="ds dw">' + why + '</div>' + legendHtml() + '</div>';
+}
+function renderDetail() {
+  var host = document.getElementById('dhost');
+  if (host) host.innerHTML = detailHtml(mapOf());
+}
+
+/* =====================================================================
+   6. 装载与交互
+   ===================================================================== */
+function mountClouds(map) {
+  var all = map.tickets;
+  clouds = [];
+  var now = performance.now();
+  var drifting = (now - driftStart) < DRIFT_MS;   // 上一次的浮动还没跑完 → 接着这一轮的相位画，不重置
+  Array.prototype.forEach.call(document.querySelectorAll('.node'), function (node) {
+    var no = Number(node.dataset.no);
+    if (node.classList.contains('is-cloud')) {
+      var cv = node.querySelector('.qcanvas');
+      if (!cv) return;
+      var w = Math.round(parseFloat(cv.width) / 2) || 150;
+      var h = Math.round(parseFloat(cv.height) / 2) || 90;
+      var cl = new Cloud(no);
+      cl.mount(cv, w, h);
+      if (state.thinned[no]) cl.count = Math.max(6, Math.round(DOTS_MAX * THIN_RATIO));
+      /* 每一次重画界面都会拿到一块新的画布（旧像素不在了），所以粒子必须重新撒一遍 ——
+         少撒一遍的话，坍缩一开始就会看见"粒子凭空消失"。 */
+      cl.seed();
+      cl.draw(now - driftStart);
+      clouds.push(cl);
+      node.onclick = function () { observe(no); };
+      node.onkeydown = function (e) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); observe(no); }
+      };
+    } else {
+      node.onclick = function () { select(no); };
+    }
+  });
+  if (!drifting) driftStart = now;
+  if (!manualPump) ensureLoop();
+}
+/* 只是换一个"选中"，不重建 DOM —— 免得每次点确定态的票都把云的浮动重新起一遍 */
+function select(no) {
+  state.sel = no;
+  Array.prototype.forEach.call(document.querySelectorAll('.node'), function (n) {
+    n.classList.toggle('is-here', Number(n.dataset.no) === no);
+  });
+  renderDetail();
+}
+
+var pendingObs = null;   // 正在进行坍缩的那张票
+
+function observe(no) {
+  var map = mapOf(), all = map.tickets;
+  var t = all.filter(function (x) { return x.no === no; })[0];
+  if (!t) return;
+  if (effectiveState(t, map) !== 'fog') { select(no); return; }
+
+  state.observed[no] = true;
+  state.seq++;
+  state.sel = no;
+  pendingObs = no;
+
+  /* 邻居：同一层 + 直接依赖它的票 —— 它们的云也清楚一点 */
+  var nb = neighborsOf(t, map).filter(function (x) { return effectiveState(x, map) === 'fog'; });
+  nb.forEach(function (x) { state.thinned[x.no] = true; });
+
+  var cl = clouds.filter(function (x) { return x.no === no; })[0];
+  if (cl) cl.collapse = { start: performance.now(), ms: 0, dur: COLLAPSE_MS };
+
+  /* 先把 DOM 上的"坍缩中 + 邻居变清楚"表现出来，画布里的粒子在动画里收束 */
+  var node = document.querySelector('.node[data-no="' + no + '"]');
+  if (node) { node.classList.add('is-collapsing'); node.dataset.state = 'collapsing'; }
+  nb.forEach(function (x) {
+    var nx = document.querySelector('.node[data-no="' + x.no + '"]');
+    if (!nx) return;
+    nx.classList.add('is-thinning');
+    nx.dataset.state = 'fog-thinning';
+    var cv = nx.querySelector('.qcanvas');
+    var cx = clouds.filter(function (y) { return y.no === x.no; })[0];
+    if (cv && cx) { cx.count = Math.max(6, Math.round(DOTS_MAX * THIN_RATIO)); cv.setAttribute('data-particles', String(cx.count)); }
+  });
+  var countsEl = document.getElementById('counts');
+  if (countsEl) {
+    var cn = countsText();
+    countsEl.innerHTML = '已确定 <b>' + cn.determined + '</b> <i>·</i> 未观测 <b>' + cn.unexplained + '</b>';
+  }
+  renderDetail();
+  if (!manualPump) ensureLoop();
+}
+
+/* 坍缩收尾：原位定格，只重建这一屏（云的数量变了） */
+function endCollapse(cl) {
+  cl.count = 0;
+  cl.parts = [];
+  cl.collapse = null;
+  cl.draw(0);
+  if (cl.cv) cl.cv.setAttribute('data-particles', '0');
+  repaintAll();
+  /* 连线接通：把与它相连的线点亮一下（不是循环动画，跑几次就停） */
+  Array.prototype.forEach.call(document.querySelectorAll('.edge'), function (e) {
+    if (e.dataset.to === String(cl.no) || e.dataset.from === String(cl.no)) e.classList.add('hit');
+  });
+  pendingObs = null;
+}
+
+function repaintAll() {
+  var map = mapOf();
+  var panel = document.getElementById('panel');
+  panel.className = 'panel' + (state.w < 520 ? ' narrow' : '');
+  panel.style.width = state.w + 'px';
+  var r = render(map, state.w);
+  panel.innerHTML =
+    '<div class="chrome">' +
+      '<div class="chrome-top"><span class="repo">FeatherHunter/dsh-mattpocock-skills-deck</span><span class="sp"></span>' +
+      '<span class="ico">⚙</span><span class="ico">✕</span></div>' +
+      '<div class="chrome-tabs"><span class="tab on">列表</span><span class="tab">拉取请求</span><span class="tab">技能</span><span class="tab">环境检查</span>' +
+      '<span class="sp"></span><span class="mini">+ 需求</span><span class="mini">+ bug</span><span class="mini">刷新</span><span class="ver">v1.7.24</span></div>' +
+    '</div>' +
+    '<div class="sticky"><button class="btn ghost sm" id="back">← 返回</button>' +
+    '<span class="crumb">列表 / #' + map.no + '</span>' +
+    '<span class="chipm">▣ wayfinder:map</span><span class="sp"></span>' +
+    '<button class="btn primary sm" id="advance">▶ 推进这张图</button></div>' +
+    '<div class="mapwrap" id="mapwrap">' + r.body + '</div>' +
+    readoutHtml(r.cn, !map.tickets.length) +
+    '<div id="dhost"></div>';
+
+  document.getElementById('back').onclick = function () { state.sel = null; renderDetail(); };
+  document.getElementById('advance').onclick = function () {
+    var fog = map.tickets.filter(function (t) { return effectiveState(t, map) === 'fog'; })[0];
+    if (fog) { observe(fog.no); return; }
+    var open = map.tickets.filter(function (t) { return stateOf(t, map.tickets) === 'open'; })[0];
+    if (open) select(open.no);
+  };
+  mountClouds(map);
+  renderDetail();
+  document.querySelectorAll('.seg').forEach(function (b) {
+    if (b.dataset.k) b.classList.toggle('on', String(state[b.dataset.k]) === b.dataset.v);
+  });
+  var u = new URL(location.href);
+  u.searchParams.set('w', String(state.w));
+  u.searchParams.set('s', state.s);
+  if (state.seq) u.searchParams.set('obs', String(state.seq)); else u.searchParams.delete('obs');
+  history.replaceState(null, '', u.toString());
+}
+
+document.getElementById('note').innerHTML =
+  '<b>W3 · 量子概率云（观测即坍缩）</b>　雾里的票不是一个待办，而是一团还没有形状的概率云：' +
+  '位置在慢慢飘、标题写不出来，只剩一个隐约的问号。点它一下就是<b>一次观测</b> —— ' +
+  '粒子收束坍缩成一张确定的票，并且把邻居的云也带清楚一点。上面那颗紫色的锚点是目的地，它永远亮着、永远不抖。';
+
+document.querySelectorAll('.seg[data-k]').forEach(function (b) {
+  b.onclick = function () {
+    var k = b.dataset.k;
+    state[k] = (k === 'w') ? Number(b.dataset.v) : b.dataset.v;
+    if (k === 's') { state.observed = {}; state.thinned = {}; state.seq = 0; state.sel = null; }
+    repaintAll();
+  };
+});
+document.getElementById('reset').onclick = function () {
+  state.observed = {}; state.thinned = {}; state.seq = 0; state.sel = null;
+  repaintAll();
+};
+document.getElementById('observeAll').onclick = function () {
+  var map = mapOf();
+  var next = map.tickets.filter(function (t) { return effectiveState(t, map) === 'fog'; })[0];
+  if (next) observe(next.no); else repaintAll();
+};
+window.addEventListener('keydown', function (e) {
+  var tag = ((e.target && e.target.tagName) || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || (e.target && e.target.isContentEditable)) return;
+  /* ArrowLeft / ArrowRight 不拦截 */
+});
+if (state.bar) document.getElementById('bar').style.display = 'none';
+if (state.s === 'big' && state.seq) { /* obs 参数已经填好 */ }
+repaintAll();
+})();
+</script>
+</body>
+</html>

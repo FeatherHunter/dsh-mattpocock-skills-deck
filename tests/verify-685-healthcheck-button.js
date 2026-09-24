@@ -225,14 +225,14 @@ async function main() {
   lang = 'zh'; opened.length = 0; logged.length = 0
 
   // ─────────── 五、提示词真的通到底 ───────────
-  // 用真注册表 + 真的按后端渲染函数：{subject}（后端自己的科目）与 {bodyFormat} 都必须被填掉，
+  // 用真注册表 + 真的按后端渲染函数：{subject}（后端自己的科目）必须被填掉，
   // 嵌套引用（GitHub 那份科目里引用 {subIssue}）也不许原样漏进会话。
+  // #725：正文格式契约整节删除后，体检总纲里不再有 {bodyFormat} 这个占位符（这里补一条反向断言防它回来）。
   const ghModules = [{
     id: 'github',
     prompts: {
       healthCheck: { zh: 'GitHub 的科目：把游离票挂到合适的地图下，建边方式见下：{subIssue}', en: 'GitHub subject: attach orphaned tickets, wiring: {subIssue}' },
       subIssue: { zh: '用原生子议题边把它挂上去', en: 'wire it with a native sub-issue edge' },
-      bodyFormat: { zh: '写回正文时用真实换行', en: 'use real newlines when writing back' },
     },
   }]
   const stFull = { backendModules: ghModules, snapshot: { selection: { backendId: 'github' }, repository: repo, backendModules: ghModules } }
@@ -240,7 +240,7 @@ async function main() {
   check(rendered.length > 200, '渲染出来的体检提示词是一整段（实得 ' + rendered.length + ' 字符）')
   check(rendered.indexOf('GitHub 的科目') >= 0, '{subject} 被后端自己那份科目填掉')
   check(rendered.indexOf('原生子议题边') >= 0, '后端科目里嵌套引用的 {subIssue} 也被填掉（#684 修的那处）')
-  check(rendered.indexOf('真实换行') >= 0, '{bodyFormat} 被当前后端的正文格式填掉')
+  check(rendered.indexOf('{bodyFormat}') < 0, '体检总纲里没有 {bodyFormat}（#725 起正文格式契约已整节删除）')
   const leftover = (rendered.match(/\{[a-zA-Z]+\}/g) || [])
   check(leftover.length === 0, '没有占位符漏进会话' + (leftover.length ? '（漏了 ' + leftover.join('、') + '）' : ''))
   const renderedEn = (function () { lang = 'en'; const s = mod.promptTextFor(stFull, 'healthCheck'); lang = 'zh'; return s })()

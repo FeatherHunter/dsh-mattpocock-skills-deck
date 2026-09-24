@@ -165,11 +165,6 @@ export const prompts = (function () {
       zh: '**这条后端查数与动手都走工具**（总纲里的三条口径在这里不变）。\n\n查数：用 deck_context 拿当前后端与仓库；用 deck_map_snapshot 逐张读地图的子票清单（出现在任何一张清单里的都不算游离）。\n\n建边：用 deck_map_link 的 parentKey 把票挂到选中的地图下（原生子议题边与它的读回校验都由工具负责）。{subIssue}\n\n阻塞关系：用 deck_map_link 的 blockedBy 传阻塞它的那张票的票号；工具会自己决定落原生依赖边还是正文首行的降级写法，并在返回值里说清落在哪一列。\n\n报告按标签与建议类型分区，但体检的范围是全部开放票、不跟随面板当前的筛选。',
       en: '**On this backend, counting and acting both go through the tools** (the three rules from the general section stay as they are).\n\nCounting: use deck_context for the current backend and repo; read each map\'s child list with deck_map_snapshot (anything appearing in any list is not orphaned).\n\nAttaching: use deck_map_link with parentKey to attach a ticket under the chosen map (the tool owns the native sub-ticket edge and its read-back check). {subIssue}\n\nBlocking: use deck_map_link with blockedBy, passing the numbers of the tickets that block it; the tool decides whether the edge lands as a native dependency edge or as the first-line fallback and says which one it used.\n\nGroup the report by label and suggestion type, but the health check always covers every open ticket and does not follow the current panel filters.',
     },
-    // #595：正文格式契约归后端单源；#603：改回 #567 之前的写法（只讲正文文件该怎么写，不点名任何命令 —— 写回命令各后端自己知道，GitHub 就是 gh）
-    bodyFormat: {
-      zh: '## 正文格式（写/改 issue 正文时必须遵守）\n- [ ] 用真实换行书写：每个 `## 章节` 独占一行，段落间留空行\n- [ ] 禁止字面 \\n 转义（不要把换行写成 \\n 两个字符）、禁止正文以 BOM（\\ufeff）开头\n- [ ] 写回 issue 正文时以文件方式提交（文件内为真实换行），不要内联转义字符串\n- [ ] 正例：`## 进度：90%` 独占一行，空行后接 `下一步：xxx`（反例：`## 进度：90%\\n下一步：xxx`）',
-      en: '## Body format (mandatory when writing/editing an issue body)\n- [ ] Use real newlines: each `## section` on its own line, with a blank line between paragraphs\n- [ ] No literal \\n escapes (do not write newlines as the two characters backslash-n), no BOM (\\ufeff) at the start\n- [ ] Write the body back via a file (real newlines in the file), never an inline escaped string\n- [ ] Example: `## Progress: 90%` on its own line, blank line, then `Next step: ...` (not `## Progress: 90%\\nNext step: ...`)',
-    },
     errorKinds: {
       'bad-name': { zh: '仓库名仅支持字母、数字、._- 且不超过 100 个字符', en: 'Repo name supports only letters, digits, ._- and at most 100 characters' },
       'no-git': { zh: '未找到 git，请先安装 Git', en: 'git not found — please install Git' },

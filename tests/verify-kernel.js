@@ -24,7 +24,7 @@ const MODULES = [
   // #685：「体检」按钮的三样东西（游离票件数派生、显隐门、开新会话注入）；单独一片是因为它要写的那条
   //   常驻日志必须落在内核文件里（渲染目录写日志是一张点名白名单），而 store-derived.js 已经贴着 350 行上限。
   { name: 'healthCheck', file: 'health-check', exports: ['healthCheckCountOf', 'healthCheckVisible', 'healthCheckSubjectOf', 'healthCheckLogEvent', 'openHealthCheck'] },
-  { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'BODY_FORMAT', 'completePrompt', 'FIXATE_PROMPT'] },
+  { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'completePrompt', 'FIXATE_PROMPT'] },
   { name: 'config', exports: ['CFG_KEY', 'cfg', 'templates', 'migrateStartCfg', 'TPL_DEFAULT', 'renderTemplate', 'validateTemplate'] },
   { name: 'storePrefs', file: 'store-prefs', exports: ['DEFAULT_PANEL_H', 'listPrefs', 'saveListPrefs', 'labelClicks', 'saveLabelClicks', 'NOREPO_DISMISS_PREFIX', 'cwdHash', 'noRepoDismissKey', 'isNoRepoDismissed', 'setNoRepoDismissed', 'cwdBasename', 'isNoRepoNameValid', 'ensureNoRepoCard', 'setActiveMap', 'clearActiveMap', 'setActiveIssue', 'clearActiveIssue', 'clearActiveDetail', 'ISSUE_CACHE_TTL', 'selectionByCwd', 'repositoryByCwd', 'SELECTION_BY_CWD_KEY', 'BANNER_FOLD_KEY', 'bannerFoldByCwd', 'isBannerFolded', 'setBannerFolded', 'getCachedSelection', 'setCachedSelection', 'userHintOf', 'keepUserPick', 'baseRevOf', 'userPickSelection', 'adoptBoundRev', 'getCachedRepository', 'setCachedRepository', 'SETUP_LAYOUT_BY_CWD_KEY', 'setupLayoutByCwd', 'getCachedSetupLayout', 'setCachedSetupLayout', 'migrateCachedChoiceToKey'] },
   // #669 第 6 件（ADR 20260921）：clearBackendBinding 随「清除后端选择」那颗按钮一起退役（全仓已无调用点）。

@@ -1,0 +1,1490 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>地图详情 · 暗房（照片正在显影）· 原型 C5</title>
+<style>
+/* ==========================================================================
+   C5 · 暗房（照片正在显影）
+   每张票 = 一张相纸。墙上的晾片绳挂着已经洗好的照片（走完的路），
+   显影盘里泡着正在显影的那一张（正在办），盘边摆着还没放进去的相纸（现在能做），
+   相纸盒里立着一排还没曝光的黑相纸，只有手写编号（还没走过、不知道通不通）。
+   目的地 = 墙上唯一亮着的那张大照片，永远看得见，从不参与显影。
+   位置由「照片洗到哪一步」和「手把它放在哪」决定，不按层排。
+   ========================================================================== */
+
+/* ---------- 0. 颜色与外壳（照抄任务书第 5 节） ---------- */
+:root{
+  --panel:#10131a; --card:#16181d; --line:#2a2d35;
+  --tx:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --done:#4ade80; --dev:#58a6ff; --map:#c084fc; --warn:#f59e0b;
+  /* 暗房实物色 */
+  --kraft:#c8a97a; --file:#d9c39a; --ink:#2b2b2b; --cord:#c0392b; --stampred:#a01e1e;
+  --sans:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:Consolas,Menlo,monospace;
+  --pw:100%;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#0b0e13;color:var(--tx);font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit}
+
+/* 注册下来的显影进度：0 = 全黑没曝光，1 = 完全显影。
+   浏览器不支持 @property 时它就是初始值 1（直接显示），不会白屏也不会卡住。 */
+@property --dev{syntax:"<number>";inherits:true;initial-value:1}
+
+#panel{
+  position:relative;width:var(--pw);margin:0 auto;min-height:100vh;
+  background:
+    radial-gradient(120% 46% at 50% 0%, #1a1014 0%, #12141b 46%, #10131a 100%);
+  container-type:inline-size;container-name:panel;
+  display:flex;flex-direction:column;
+}
+/* 暗房红光：整页盖一层红光，屏幕混合。pointer-events:none，绝不挡点按。 */
+#safelight{
+  position:absolute;inset:0;z-index:20;pointer-events:none;mix-blend-mode:screen;
+  background:
+    radial-gradient(90% 34% at 50% -6%, rgba(255,74,48,.42), rgba(150,26,18,.16) 46%, rgba(0,0,0,0) 78%),
+    radial-gradient(50% 40% at 6% 42%, rgba(150,28,20,.16), rgba(0,0,0,0) 70%),
+    radial-gradient(50% 40% at 96% 60%, rgba(150,28,20,.13), rgba(0,0,0,0) 70%);
+}
+/* 颗粒：feTurbulence 现算，零图片。 */
+#grain{
+  position:absolute;inset:0;z-index:22;pointer-events:none;opacity:.085;mix-blend-mode:overlay;
+  filter:url(#f-grain);
+}
+
+/* ---------- 1. 面板头部（外壳） ---------- */
+.phead{
+  position:sticky;top:0;z-index:40;flex:0 0 auto;
+  display:flex;align-items:center;gap:8px;padding:8px 10px;
+  background:rgba(16,19,26,.86);backdrop-filter:blur(7px);
+  border-bottom:1px solid var(--line);
+}
+.pbtn{
+  appearance:none;cursor:pointer;font:600 11.5px/1 var(--sans);color:var(--sec);
+  background:#161a22;border:1px solid var(--line);border-radius:7px;padding:7px 10px;
+}
+.pbtn:hover{color:var(--tx);border-color:#3b414d}
+.pbtn:focus-visible{outline:2px solid var(--dev);outline-offset:1px}
+.pbtn.primary{color:#bfd9ff;border-color:rgba(88,166,253,.6);background:rgba(88,166,253,.14);margin-left:auto}
+.crumb{display:flex;align-items:center;gap:5px;font:600 11px/1 var(--mono);color:var(--sec)}
+.crumb .no{color:var(--tx)}
+.tag-map{
+  font:700 10px/1 var(--mono);color:var(--map);border:1px solid rgba(192,132,252,.45);
+  background:rgba(192,132,252,.12);border-radius:999px;padding:4px 8px;white-space:nowrap
+}
+
+/* ---------- 2. 目的地：墙上唯一亮着的那张大照片（永远可见） ---------- */
+#destwrap{
+  position:sticky;top:37px;z-index:32;padding:10px 12px 8px;
+  background:linear-gradient(#10131a 62%, rgba(16,19,26,0));
+  border-bottom:1px solid rgba(42,45,53,.9);
+}
+/* 墙上的光斑：只落在目的地照片上，用 mask-image 做光池 */
+.destlight{
+  position:absolute;left:0;right:0;top:-40px;height:230px;pointer-events:none;z-index:-1;
+  background:radial-gradient(60% 78% at 50% 42%, rgba(255,214,150,.20), rgba(255,150,90,.09) 52%, rgba(0,0,0,0) 76%);
+  -webkit-mask-image:radial-gradient(72% 70% at 50% 40%, #000 34%, rgba(0,0,0,.35) 62%, #0000 88%);
+  mask-image:radial-gradient(72% 70% at 50% 40%, #000 34%, rgba(0,0,0,.35) 62%, #0000 88%);
+  mix-blend-mode:screen;
+}
+.destprint{
+  position:relative;display:block;width:100%;text-align:left;cursor:pointer;
+  appearance:none;background:#0a0b0e;border:0;padding:0;color:inherit;
+  border-radius:3px;
+  box-shadow:0 16px 34px rgba(0,0,0,.66), 0 0 0 1px #453a2c;
+}
+.destprint:focus-visible{outline:2px solid var(--map);outline-offset:3px}
+.destprint .paperline{
+  background:linear-gradient(180deg,#e6d6b4,#d9c39a);padding:7px 9px 8px;border-radius:3px 3px 0 0;
+}
+.destprint .art{
+  position:relative;background:linear-gradient(160deg,#20242c,#0d0f14 62%,#07080b);
+  padding:9px 11px 10px;box-shadow:inset 0 0 40px rgba(0,0,0,.8);
+}
+.destprint .drow{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}
+.destprint .dname{font:800 21px/1.05 var(--sans);color:#fff8ec;letter-spacing:.04em;text-shadow:0 0 18px rgba(255,196,140,.42)}
+.destprint .dno{font:700 11px/1 var(--mono);color:#6b4a22;opacity:1}
+.destprint .dkeep{
+  margin-left:auto;font:700 9.5px/1.4 var(--mono);color:#7a1a1a;text-align:right;
+  border:1px dashed rgba(122,26,26,.55);border-radius:4px;padding:4px 6px;background:rgba(255,255,255,.28)
+}
+.destprint .dbar{display:flex;gap:3px;margin-top:8px}
+.destprint .dbar i{height:7px;flex:0 0 auto;width:16px;border-radius:1px;background:#fff;opacity:calc(.10 + var(--k)*.125)}
+.destprint .dcap{
+  background:linear-gradient(180deg,#d9c39a,#c8a97a);color:#2b2b2b;
+  padding:7px 9px 9px;border-radius:0 0 3px 3px;
+}
+.destprint .dlbrow{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.destprint .dlb{font:800 9.5px/1 var(--mono);color:#7a1a1a;letter-spacing:.14em}
+.destprint .dhint{
+  margin-left:auto;font:600 9px/1.3 var(--mono);color:#5c503a;
+  border:1px solid rgba(92,80,58,.4);border-radius:3px;padding:3px 5px;
+}
+.destprint .dcap .dtx{margin-top:4px;font:500 11.5px/1.62 var(--sans);color:#241f18}
+.destprint .dtx.clamp{
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+#destwrap.slim .destprint .dcap{display:none}
+
+/* ---------- 3. 分区通用 ---------- */
+#scroll{flex:1 1 auto;position:relative;z-index:2;display:flex;flex-direction:column;gap:0}
+.zone{position:relative;padding:13px 12px 16px;overflow-x:clip}
+.zone + .zone{border-top:1px solid rgba(42,45,53,.62)}
+.zlab{display:flex;align-items:center;gap:7px;margin:0 0 9px;flex-wrap:wrap}
+.zlab .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 0 3px rgba(255,255,255,.05)}
+.zlab .t{font:700 12px/1.3 var(--sans);color:var(--tx)}
+.zlab .s{font:600 10px/1.4 var(--mono);color:var(--cap)}
+.zlab .rule{flex:1 1 auto;height:1px;background:linear-gradient(90deg,rgba(42,45,53,.9),rgba(42,45,53,0))}
+.zone .hint{
+  margin:9px 0 0;font:600 10.5px/1.6 var(--mono);color:var(--cap);
+}
+.hand{
+  font:700 10.5px/1.5 var(--mono);color:#f0e3c8;opacity:.86;
+}
+
+/* ---------- 4. 晾片绳 ---------- */
+.linebox{position:relative;padding:0 4px 30px}
+#rope{
+  position:absolute;left:0;top:0;width:100%;height:56px;overflow:visible;pointer-events:none;z-index:1;
+}
+.hangs{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;position:relative;z-index:2}
+.bareline{position:relative;height:44px}
+.pinbare{position:absolute;top:0;left:0;width:22px;height:34px;margin-left:-11px;z-index:3}
+.hang{
+  position:relative;flex:1 1 0;min-width:0;max-width:224px;
+  appearance:none;background:none;border:0;padding:0;text-align:left;color:inherit;
+  cursor:grab;touch-action:none;
+}
+.hang:active{cursor:grabbing}
+.hang:focus-visible{outline:2px dashed #ffd479;outline-offset:3px;border-radius:4px}
+.hang .pinwrap{position:absolute;left:50%;top:2px;width:22px;height:34px;margin-left:-11px;z-index:3;pointer-events:none}
+.swing{display:block;position:relative;padding-top:26px;transform-origin:50% 10px;will-change:transform}
+
+/* 木夹子：木头色 + 弹簧金属丝 */
+.pin{position:absolute;left:0;top:0;width:22px;height:34px;z-index:3;pointer-events:none;transform-origin:50% 6px}
+.pin .jaw{
+  position:absolute;left:2px;top:7px;width:18px;height:11px;border-radius:2px;
+  background:linear-gradient(180deg,#e0c191,#a97f4c 55%,#7d5a33);
+  box-shadow:0 2px 3px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.35);
+}
+.pin .jaw.b{top:19px}
+.pin .spring{
+  position:absolute;left:2px;top:15px;width:18px;height:5px;border-radius:3px;
+  background:repeating-linear-gradient(90deg,#c9ccd3 0 2px,#6d7178 2px 3.4px);
+}
+.pin .top{
+  position:absolute;left:7px;top:2px;width:8px;height:6px;border-radius:2px;
+  background:linear-gradient(180deg,#f0d3a6,#b98a55);
+}
+
+/* ---------- 5. 相纸（照片本体）：齿孔边 + 白(牛皮)边 + 画面 ---------- */
+.print{
+  position:relative;width:100%;border-radius:2px;overflow:hidden;
+  box-shadow:0 10px 20px rgba(0,0,0,.62), 0 0 0 1px rgba(0,0,0,.7);
+}
+.perf{
+  height:11px;background:linear-gradient(180deg,#c2a879,#a98f63);
+  /* 齿孔用 JS 算出来的 clip-path 多边形真打洞；JS 没跑到时退化成实边，不影响可读 */
+}
+.print .body{
+  background:linear-gradient(180deg,#e2d2b0,#cdb489);padding:5px 5px 6px;
+}
+.art{
+  position:relative;display:flex;flex-direction:column;min-height:74px;
+  background:linear-gradient(165deg,#232830,#12151b 58%,#08090c);
+  box-shadow:inset 0 0 26px rgba(0,0,0,.86);
+  padding:6px 7px 7px;
+}
+/* 显影进度：亮度 / 对比度 / 模糊 全由 --dev 驱动 */
+.art{filter:brightness(calc(.05 + .95*var(--dev))) contrast(calc(2.9 - 1.9*var(--dev))) blur(calc(7px * (1 - var(--dev))))}
+/* 把一张相纸放进药水：--dev 从 0（全黑）走到 1（看清了）。2.1 秒，中间过程看得见。 */
+@keyframes develop{
+  0%  {--dev:0}
+  100%{--dev:1}
+}
+.print.dev-anim{animation:develop 2100ms cubic-bezier(.32,.18,.28,1) forwards}
+.ink{
+  position:relative;z-index:2;display:flex;flex-direction:column;flex:1 1 auto;
+  -webkit-mask-image:radial-gradient(circle at 50% 54%, #000 calc(var(--dev) * 135%), rgba(0,0,0,0) calc(var(--dev) * 135% + 15%));
+  mask-image:radial-gradient(circle at 50% 54%, #000 calc(var(--dev) * 135%), rgba(0,0,0,0) calc(var(--dev) * 135% + 15%));
+}
+.arow{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.no{font:800 15px/1 var(--mono);color:#eef4fb;letter-spacing:.02em}
+.kind{
+  font:700 8.5px/1 var(--mono);color:#0f1116;background:rgba(200,169,122,.9);
+  border-radius:2px;padding:2px 4px;text-transform:uppercase;
+}
+.ttl{margin-top:4px;font:500 9.5px/1.45 var(--sans);color:#cfd6de}
+.wedge{display:flex;gap:2px;margin-top:auto;padding-top:7px}
+.wedge i{height:8px;flex:1 1 0;background:#fff;opacity:calc(.10 + var(--k)*.128)}
+.stamp{
+  position:absolute;right:8px;bottom:7px;z-index:3;
+  font:800 13px/1 var(--sans);color:var(--stampred);letter-spacing:.16em;
+  border:2px solid var(--stampred);border-radius:4px;padding:3px 5px;
+  opacity:.86;transform:rotate(-9deg);
+  filter:url(#f-ink);
+  text-shadow:0 0 1px rgba(160,30,30,.6);
+}
+.stamp.small{font-size:10.5px;right:8px;bottom:7px;padding:2px 4px}
+/* 照片的显影颗粒：显影到一半时最重，定影后就淡了。
+   类名不能叫 .dev —— 那会跟蓝便签 .chip.dev 撞上。 */
+.devgrain{
+  position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;
+  filter:url(#f-grain);mix-blend-mode:overlay;
+}
+.cap{
+  background:linear-gradient(180deg,#dccaa6,#c8a97a);color:#2b2b2b;
+  padding:5px 6px 6px;
+}
+.cap .klb{font:800 8.5px/1 var(--mono);color:#7a1a1a;letter-spacing:.1em}
+.cap .ktx{margin-top:3px;font:500 9px/1.5 var(--sans);color:#2a251d;overflow-wrap:anywhere}
+.cap .ktx b{font-family:var(--mono)}
+
+/* 试显影里的那张：湿润的反光 + 微微摇晃 */
+.rockwrap{animation:rock 4.8s ease-in-out infinite;transform-origin:50% 8px}
+@keyframes rock{0%{transform:rotate(-.75deg)}50%{transform:rotate(.75deg) translateY(.7px)}100%{transform:rotate(-.75deg)}}
+@media (prefers-reduced-motion:reduce){.rockwrap{animation:none}}
+.wetsheen{
+  position:absolute;inset:0;z-index:5;pointer-events:none;mix-blend-mode:screen;
+  background:linear-gradient(115deg,rgba(190,215,235,.16) 0 18%,rgba(0,0,0,0) 38% 62%,rgba(190,215,235,.10) 82% 100%);
+}
+.art.trial{min-height:96px}
+
+/* 关系显形：谁挡着它 / 它挡着谁（平时收着，拿起才显形） */
+.linked{outline:2px dashed rgba(192,57,43,.85);outline-offset:2px;border-radius:4px}
+.linked::after{
+  content:"↔";position:absolute;right:-2px;top:-14px;font:800 11px/1 var(--mono);color:#e05a48;
+}
+/* 关系显形的小纸条：贴在视口底边上（固定定位），平时收着。
+   它是「拿起一张照片才显形」的那张提示条，不属于任何一个分区。 */
+.xrlamp{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:58px;z-index:48;
+  width:min(calc(var(--pw) - 24px),92vw);
+  background:linear-gradient(180deg,#e8d8b8,#cbb289);color:#241f18;
+  border-radius:5px;padding:8px 10px;box-shadow:0 14px 26px rgba(0,0,0,.66), 0 0 0 1px #6d573a;
+}
+.xrlamp[hidden]{display:none}
+.xrlamp .h{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.xrlamp .who{font:800 12px/1.2 var(--sans);color:#1e1a14}
+.xrlamp .no2{font:800 11px/1 var(--mono);color:#7a1a1a}
+.xrlamp .row{margin-top:5px;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.xrlamp .k{font:800 9.5px/1.4 var(--mono);color:#6b5a3c;flex:0 0 auto}
+.xrlamp .v{font:600 10.5px/1.5 var(--sans);color:#2a251d}
+.xrlamp .v i{font-style:normal;font-family:var(--mono);background:rgba(43,43,43,.10);border-radius:3px;padding:1px 4px;margin-right:3px}
+.xrlamp .none{color:#5c5a52;font-weight:500}
+
+/* ---------- 6. 台面：盘子 ---------- */
+.bench{display:grid;grid-template-columns:1fr;gap:12px}
+.dishwrap{position:relative}
+.dish{
+  position:relative;border:1px solid #3a2c31;border-radius:14px;padding:13px;
+  background:linear-gradient(180deg,#1d1418,#120d11 62%,#0d0a0d);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.05), inset 0 -12px 26px rgba(0,0,0,.72), 0 14px 30px rgba(0,0,0,.55);
+  min-height:120px;
+}
+.dish::before{
+  content:"";position:absolute;inset:7px;border-radius:9px;pointer-events:none;mix-blend-mode:screen;
+  background:radial-gradient(130% 90% at 28% 14%, rgba(126,164,182,.20), rgba(46,66,80,.16) 46%, rgba(0,0,0,0) 78%);
+}
+.dish .fluid{
+  position:absolute;left:10px;right:10px;bottom:9px;height:15px;border-radius:7px;pointer-events:none;
+  background:radial-gradient(120% 160% at 34% 20%, rgba(190,225,240,.30), rgba(120,160,180,.10) 58%, rgba(0,0,0,0) 88%);
+  mix-blend-mode:screen;
+}
+.dish .traytag{
+  position:absolute;left:14px;bottom:-9px;z-index:6;
+  font:800 9px/1 var(--mono);color:#0f1116;background:linear-gradient(180deg,#e6d6b4,#c8a97a);
+  border:1px solid #7a6440;border-radius:3px;padding:3px 6px;
+}
+.trayempty{
+  display:flex;align-items:center;justify-content:center;min-height:104px;text-align:center;
+  font:600 11.5px/1.7 var(--sans);color:var(--sec);
+}
+.trayside{
+  margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.chip{
+  font:700 10px/1.35 var(--mono);border-radius:4px;padding:4px 7px;white-space:nowrap;
+  border:1px solid transparent;
+}
+.chip.dev{color:#bcd9ff;background:rgba(88,166,253,.14);border-color:rgba(88,166,253,.5)}
+.chip.done{color:#b7f0cd;background:rgba(74,222,128,.12);border-color:rgba(74,222,128,.44)}
+.chip.warn{color:#ffd79a;background:rgba(245,158,11,.13);border-color:rgba(245,158,11,.44)}
+.chip.blue{color:#bcd9ff;background:rgba(88,166,253,.12);border-color:rgba(88,166,253,.4)}
+.chip.plain{color:var(--sec);background:rgba(255,255,255,.05);border-color:var(--line)}
+.btn2{
+  appearance:none;cursor:pointer;font:600 10.5px/1 var(--sans);color:var(--sec);
+  background:#161a22;border:1px solid var(--line);border-radius:6px;padding:5px 8px;
+}
+.btn2:hover{color:var(--tx);border-color:#3b414d}
+.btn2:focus-visible{outline:2px solid var(--dev);outline-offset:1px}
+.stickynote{
+  position:relative;background:linear-gradient(180deg,#7fe0a5,#43c97c);color:#0c2417;
+  border-radius:2px;padding:7px 8px 8px;font:700 10.5px/1.45 var(--sans);
+  box-shadow:0 7px 14px rgba(0,0,0,.5);
+  transform:rotate(-1.1deg);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 7px),94% 100%,88% calc(100% - 6px),80% 100%,72% calc(100% - 6px),64% 100%,56% calc(100% - 6px),48% 100%,40% calc(100% - 6px),32% 100%,24% calc(100% - 6px),16% 100%,8% calc(100% - 6px),0 100%);
+}
+.stickynote .sub{display:block;margin-top:3px;font:600 9px/1.4 var(--mono);opacity:.82}
+
+/* ---------- 7. 盘边空位：现在能动手的相纸 ---------- */
+.readylist{display:grid;grid-template-columns:1fr;gap:10px}
+.ready{
+  position:relative;appearance:none;text-align:left;cursor:pointer;color:inherit;
+  background:linear-gradient(180deg,#1a1c22,#111318);border:1px dashed #4b5563;border-radius:6px;
+  padding:10px 11px 11px;display:block;width:100%;
+}
+.ready:hover{border-color:#7d8b9c;background:linear-gradient(180deg,#1e2129,#131519)}
+.ready:focus-visible{outline:2px solid var(--done);outline-offset:2px}
+.ready.used{opacity:.42;border-style:solid}
+.ready .rr{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ready .rn{font:800 14px/1 var(--mono);color:#eef4fb}
+.ready .rt{display:block;margin-top:5px;font:500 11px/1.5 var(--sans);color:#d5dbe3}
+.ready .st{display:inline-block;margin-top:9px}
+.ready .slip{
+  position:absolute;right:-3px;top:-9px;background:linear-gradient(180deg,#e6d6b4,#c8a97a);
+  color:#2b2b2b;font:700 9px/1.3 var(--mono);border-radius:2px;padding:3px 5px;
+  box-shadow:0 5px 10px rgba(0,0,0,.5);transform:rotate(2deg);
+}
+
+/* ---------- 8. 相纸盒：还没曝光的相纸 ---------- */
+.paperbox{
+  position:relative;border:1px solid #33272b;border-radius:10px;padding:11px 10px 9px;
+  background:linear-gradient(180deg,#181418,#0e0c10 70%,#0a090c);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.04), inset 0 -14px 26px rgba(0,0,0,.7), 0 14px 26px rgba(0,0,0,.5);
+}
+.paperbox .lid{
+  display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:9px;
+}
+.paperbox .lid .lb{
+  font:800 9.5px/1 var(--mono);color:#0f1116;background:linear-gradient(180deg,#e6d6b4,#c8a97a);
+  border-radius:3px;padding:4px 6px;
+}
+.tabs{display:flex;align-items:flex-end;gap:3px;padding:9px 2px 0;position:relative;justify-content:flex-start}
+.tabs::after{
+  content:"";position:absolute;left:0;right:0;bottom:-3px;height:9px;border-radius:4px;
+  background:linear-gradient(180deg,#221a1d,#0d0b0e);box-shadow:0 -1px 0 rgba(255,255,255,.04) inset;
+}
+.fb{
+  position:relative;z-index:2;flex:0 1 74px;min-width:0;overflow:hidden;cursor:pointer;
+  appearance:none;border:0;border-radius:3px 3px 0 0;padding:7px 2px 8px;
+  background:linear-gradient(180deg,#232227,#0c0c0f 74%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10), 0 4px 9px rgba(0,0,0,.5);
+  transform:rotate(var(--rot,-.4deg));transform-origin:50% 100%;
+  transition:transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s;
+  touch-action:none;
+}
+.fb:hover,.fb:focus-visible{transform:rotate(0deg) translateY(-7px);box-shadow:0 12px 18px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.18)}
+.fb:focus-visible{outline:2px solid #ffd479;outline-offset:2px}
+.fb.gone{opacity:.24}
+.fb .num{
+  display:block;font:800 11px/1 var(--mono);color:#f2ece0;letter-spacing:.01em;
+  text-shadow:0 0 6px rgba(255,240,220,.35);
+}
+.fb .wait{display:block;margin-top:4px;font:700 8px/1 var(--mono);color:#f59e0b}
+.fb .qm{
+  display:block;margin-top:3px;font:800 12px/1 var(--mono);color:#c0392b;transform:rotate(-7deg);
+}
+.boxhint{margin-top:12px;font:600 10.5px/1.6 var(--mono);color:var(--cap)}
+
+/* ---------- 9. 记录本 / 还没切出来的 ---------- */
+.log{
+  background:linear-gradient(180deg,#1a1712,#12100d);border:1px solid #453a2c;border-radius:8px;
+  padding:11px 12px;
+}
+.log .lt{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.log .lt .n{font:800 12px/1 var(--mono);color:#f0d6a8}
+.log .lt .g{margin-top:5px;font:600 10.5px/1.6 var(--mono);color:#9fd8b4;flex:1 1 100%}
+.logrow{padding:8px 0 0}
+.logrow + .logrow{border-top:1px dashed rgba(122,100,64,.42);margin-top:9px}
+.fogroll{
+  border-left:3px solid #7a1a1a;padding:2px 0 2px 10px;
+  font:500 11.5px/1.68 var(--sans);color:#c3c8d0;
+}
+.fogroll + .fogroll{margin-top:11px}
+.fogroll .tag{
+  display:inline-block;font:800 9px/1 var(--mono);color:#ffb4a4;background:rgba(160,30,30,.22);
+  border:1px solid rgba(192,57,43,.5);border-radius:3px;padding:3px 5px;margin-right:6px;vertical-align:1px;
+}
+.emptycase{
+  border:1px dashed #4b5563;border-radius:8px;padding:14px 13px;background:linear-gradient(180deg,#15171d,#101218);
+}
+.emptycase .h{font:700 12.5px/1.5 var(--sans);color:var(--tx)}
+.emptycase .p{margin-top:6px;font:500 11.5px/1.7 var(--sans);color:var(--sec)}
+.emptycase .sealed{
+  margin-top:12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  background:linear-gradient(180deg,#2a2226,#151114);border:1px solid #3a2c31;border-radius:6px;padding:9px 11px;
+}
+.emptycase .sealed .tape{
+  width:26px;height:10px;border-radius:2px;flex:0 0 auto;
+  background:repeating-linear-gradient(135deg,#c8a97a 0 4px,#8d7450 4px 8px);
+  transform:rotate(-21deg)
+}
+.emptycase .sealed .tx{font:700 10.5px/1.4 var(--mono);color:#e8dcc6}
+.emptycase .sealed .sub{flex:1 1 100%;font:600 10px/1.5 var(--mono);color:#8b8b95}
+
+/* ---------- 10. 底部原型控制条（不属于设计本身） ---------- */
+#bar{
+  position:sticky;bottom:0;z-index:44;flex:0 0 auto;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 10px;border-top:1px solid var(--line);background:rgba(13,16,22,.94);backdrop-filter:blur(6px);
+}
+#bar[hidden]{display:none}
+#bar .bgroup{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+#bar .blabel{font:600 10px/1 var(--mono);color:var(--cap)}
+#bar button{
+  appearance:none;cursor:pointer;font:600 11px/1 var(--sans);color:var(--sec);
+  background:#161a22;border:1px solid var(--line);border-radius:6px;padding:5px 9px;
+}
+#bar button:hover{color:var(--tx);border-color:#3b414d}
+#bar button[aria-pressed="true"]{color:#bfd9ff;border-color:rgba(88,166,253,.65);background:rgba(88,166,253,.14)}
+#bar button:focus-visible{outline:2px solid var(--dev);outline-offset:1px}
+#bar .bhint{margin-left:auto;font:600 10px/1.5 var(--mono);color:var(--cap);text-align:right}
+#toast{
+  position:fixed;left:50%;bottom:64px;transform:translateX(-50%) translateY(10px);z-index:70;
+  background:linear-gradient(180deg,#e8d8b8,#cbb289);color:#241f18;
+  font:600 11px/1.4 var(--sans);border-radius:5px;padding:8px 12px;pointer-events:none;
+  opacity:0;box-shadow:0 12px 24px rgba(0,0,0,.6);
+}
+#toast.on{animation:toastin 2.6s ease forwards}
+@keyframes toastin{
+  0%{opacity:0;transform:translateX(-50%) translateY(10px)}
+  10%{opacity:1;transform:translateX(-50%) translateY(0)}
+  80%{opacity:1;transform:translateX(-50%) translateY(0)}
+  100%{opacity:0;transform:translateX(-50%) translateY(-6px)}
+}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- 11. 容器查询：面板窄到 400 时换一套排法 ---------- */
+@container panel (max-width:560px){
+  .destprint .dname{font-size:17px}
+  .destprint .dkeep{font-size:8.5px}
+  .destprint .dcap .dtx{font-size:10.5px;line-height:1.58}
+  .bench{grid-template-columns:1fr}
+  .readylist{grid-template-columns:1fr}
+  .zone{padding:12px 10px 14px}
+  .fb .num{font-size:10px}
+  .fb .wait{font-size:7.5px}
+  .fb{padding:6px 1px 7px}
+  .tabs{gap:2px}
+}
+@container panel (min-width:561px){
+  .bench{grid-template-columns:1.32fr 1fr;align-items:start}
+  .readylist{grid-template-columns:1fr 1fr}
+  .destprint .art{padding:12px 14px 13px}
+}
+</style>
+</head>
+<body>
+
+<!-- 内联 SVG 滤镜：颗粒 / 印章的毛边 / 牛皮纸纤维。零图片、零网络。 -->
+<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+  <defs>
+    <filter id="f-grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.86" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+    <filter id="f-ink" x="-8%" y="-8%" width="116%" height="116%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.10 0.17" numOctaves="2" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+</svg>
+
+<main id="panel" aria-label="地图详情 · 暗房原型">
+  <header class="phead">
+    <button class="pbtn" id="back" type="button">← 返回</button>
+    <span class="crumb"><span>列表</span><span>/</span><span class="no">#604</span></span>
+    <span class="tag-map">▣ wayfinder:map</span>
+    <button class="pbtn primary" id="drive" type="button">▶ 推进这张图</button>
+  </header>
+
+  <div id="scroll"></div>
+
+  <footer id="bar">
+    <span class="blabel">原型控制条（不属于设计本身）</span>
+    <span class="bgroup" id="wbtns">
+      <button type="button" data-w="400">宽 400</button>
+      <button type="button" data-w="810">宽 810</button>
+    </span>
+    <span class="bgroup" id="sbtns">
+      <button type="button" data-s="active">推进中</button>
+      <button type="button" data-s="empty">还没画图</button>
+      <button type="button" data-s="big">大图</button>
+    </span>
+    <span class="bhint">URL：?w=400|810 · ?s=active|empty|big · ?bar=0 隐藏本行</span>
+  </footer>
+
+  <div id="safelight" aria-hidden="true"></div>
+  <div id="grain" aria-hidden="true"></div>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="xrlamp" id="xrlamp" hidden></div>
+
+<script>
+(function () {
+'use strict';
+
+/* ============================================================================
+   1. 三份真实数据（任务书第 4 节，逐字抄入）
+   ============================================================================ */
+
+var MAP_ACTIVE = {
+  "no": 604,
+  "title": "MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）",
+  "destination": "把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。",
+  "tickets": [
+    { "no": 605, "type": "task",     "title": "收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票", "state": "CLOSED", "blockedBy": [] },
+    { "no": 606, "type": "task",     "title": "补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点", "state": "CLOSED", "blockedBy": [605] },
+    { "no": 607, "type": "research", "title": "全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单", "state": "OPEN", "claimedBy": "FeatherHunter", "blockedBy": [605, 606] },
+    { "no": 608, "type": "grilling", "title": "宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个", "state": "OPEN", "blockedBy": [607] }
+  ],
+  "decisions": [
+    { "t": "收口上个会话的遗留", "g": "倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）" },
+    { "t": "补上 gh 调用的测量盲区", "g": "真机一天 2538 次 gh 调用，中位 7.8 秒，超过「单次 ≤ 1.5 秒」" }
+  ],
+  "fog": [
+    "按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票：每一条毛病单独成票，数量与内容要等体检结果才知道，现在切不出来。",
+    "客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换、详情页各自慢不慢、慢在哪，现在说不清，等体检数字。"
+  ]
+};
+
+var MAP_EMPTY = {
+  "no": 604,
+  "title": "MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）",
+  "destination": MAP_ACTIVE.destination,
+  "tickets": []
+};
+
+var MAP_BIG = {
+  "no": 604,
+  "title": "MattSkillsDeck 全量性能调查与优化落地（示例大图）",
+  "destination": MAP_ACTIVE.destination,
+  "tickets": [
+    { "no": 701, "type": "task",     "title": "收口上个会话的遗留（示例）", "state": "CLOSED", "blockedBy": [] },
+    { "no": 702, "type": "task",     "title": "补上 gh 调用的测量盲区（示例）", "state": "CLOSED", "blockedBy": [701] },
+    { "no": 703, "type": "research", "title": "面板渲染耗时基线（示例）", "state": "CLOSED", "blockedBy": [701] },
+    { "no": 704, "type": "research", "title": "宿主命令链耗时体检（示例）", "state": "OPEN", "claimedBy": "FeatherHunter", "blockedBy": [701, 702] },
+    { "no": 705, "type": "research", "title": "客户端渲染耗时体检（示例）", "state": "CLOSED", "blockedBy": [701, 703] },
+    { "no": 706, "type": "research", "title": "日志落盘与内存体检（示例）", "state": "OPEN", "blockedBy": [703] },
+    { "no": 707, "type": "research", "title": "装配启动耗时体检（示例）", "state": "OPEN", "blockedBy": [701] },
+    { "no": 708, "type": "grilling", "title": "宿主取数层设计：接缝画在哪、缓存键怎么定（示例）", "state": "OPEN", "blockedBy": [704, 706] },
+    { "no": 709, "type": "grilling", "title": "请求合并与缓存键设计（示例）", "state": "OPEN", "blockedBy": [708] },
+    { "no": 710, "type": "task",     "title": "三个扫描器收成一个（示例）", "state": "OPEN", "blockedBy": [708] },
+    { "no": 711, "type": "task",     "title": "面板列表虚拟滚动落地（示例）", "state": "OPEN", "blockedBy": [705] },
+    { "no": 712, "type": "task",     "title": "状态栏刷新链路瘦身（示例）", "state": "OPEN", "blockedBy": [705] },
+    { "no": 713, "type": "task",     "title": "详情页首屏预算达标（示例）", "state": "OPEN", "blockedBy": [711, 712] },
+    { "no": 714, "type": "prototype", "title": "地图详情页重构的观感原型（示例）", "state": "OPEN", "blockedBy": [711] },
+    { "no": 715, "type": "task",     "title": "启动阶段懒装配（示例）", "state": "OPEN", "blockedBy": [707] },
+    { "no": 716, "type": "task",     "title": "日志写入节流与批量落盘（示例）", "state": "OPEN", "blockedBy": [706] },
+    { "no": 717, "type": "task",     "title": "内存占用回归门禁（示例）", "state": "OPEN", "blockedBy": [716] },
+    { "no": 718, "type": "task",     "title": "真机全链复测（示例）", "state": "OPEN", "blockedBy": [710, 713, 715, 717] },
+    { "no": 719, "type": "task",     "title": "性能预算写进 CI（示例）", "state": "OPEN", "blockedBy": [718] },
+    { "no": 720, "type": "task",     "title": "把实测数字写进文档（示例）", "state": "OPEN", "blockedBy": [718] }
+  ],
+  "decisions": [
+    { "t": "收口上个会话的遗留", "g": "倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）" },
+    { "t": "补上 gh 调用的测量盲区", "g": "真机一天 2538 次 gh 调用，中位 7.8 秒" },
+    { "t": "面板渲染耗时基线", "g": "列表 300 行首屏 412 毫秒，超预算" },
+    { "t": "客户端渲染耗时体检", "g": "页签切换 180 毫秒，主要在重建列表 DOM" }
+  ],
+  "fog": [
+    "按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票，数量与内容要等体检结果才知道。"
+  ]
+};
+
+/* 只有排法、不属于数据本身：
+   绳子上按「洗完挂上去的先后」挂，不是按票号、更不是按谁深谁浅；
+   盘边那几张也是随手摆的。 */
+var HANG_ORDER  = { big: [701, 703, 702, 705] };
+var READY_ORDER = { big: [711, 706, 712, 707] };
+
+/* ============================================================================
+   2. 小工具
+   ============================================================================ */
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+var $  = function (sel, root) { return (root || document).querySelector(sel); };
+var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+
+/* 参数 ------------------------------------------------------------------ */
+var Q = new URLSearchParams(location.search);
+var stateKey  = (function (v) { return (v === 'empty' || v === 'big') ? v : 'active'; })(Q.get('s'));
+var widthKey  = (function (v) { return (v === '400' || v === '810') ? v : null; })(Q.get('w'));
+var hideBar   = Q.get('bar') === '0';
+
+if (widthKey) document.documentElement.style.setProperty('--pw', widthKey + 'px');
+if (hideBar) $('#bar').hidden = true;
+
+function sampleOf(k){
+  if (k === 'empty') return MAP_EMPTY;
+  if (k === 'big')   return MAP_BIG;
+  return MAP_ACTIVE;
+}
+
+/* 四个状态：全是局部判断，不看第几层。
+   落成机器读的属性就是 closed / lit / ready / fog（lit = 照亮中、正在显影的那一张）。 */
+function statusOf(t, byNo){
+  if (t.state === 'CLOSED') return 'closed';
+  if (t.claimedBy) return 'lit';
+  var bs = t.blockedBy || [];
+  var blocked = bs.some(function (b) {
+    var x = byNo[b];
+    return !x || x.state !== 'CLOSED';   /* 前置不认识时按「没关」算，诚实 */
+  });
+  return blocked ? 'fog' : 'ready';
+}
+
+/* ============================================================================
+   3. 由数据算出页面需要的一切（渲染前算清，渲染后不再碰数据）
+   ============================================================================ */
+var VIEW = null;   /* 当前这一屏要用到的全部东西 */
+
+function buildView(sample){
+  var tickets = sample.tickets || [];
+  var byNo = {};
+  tickets.forEach(function (t) { byNo[t.no] = t; });
+
+  var groups = { closed: [], lit: [], ready: [], fog: [] };
+  var status = {};
+  tickets.forEach(function (t) {
+    var s = statusOf(t, byNo);
+    status[t.no] = s;
+    groups[s].push(t);
+  });
+
+  var order = HANG_ORDER[stateKey] || null;
+  if (order) {
+    groups.closed.sort(function (a, b) { return order.indexOf(a.no) - order.indexOf(b.no); });
+  }
+  var rorder = READY_ORDER[stateKey] || null;
+  if (rorder) {
+    groups.ready.sort(function (a, b) { return rorder.indexOf(a.no) - rorder.indexOf(b.no); });
+  }
+  groups.fog.sort(function (a, b) { return a.no - b.no; });   /* 相纸盒里按票号立着 */
+
+  var decisions = {};
+  (sample.decisions || []).forEach(function (d) {
+    tickets.forEach(function (t) {
+      if (decisions[t.no]) return;
+      if (t.title.indexOf(d.t) === 0 || d.t.indexOf(t.title) === 0) decisions[t.no] = d.g;
+      else if (t.title.replace('（示例）', '') === d.t) decisions[t.no] = d.g;
+    });
+  });
+
+  return {
+    sample: sample, byNo: byNo, status: status, groups: groups, decisions: decisions,
+    no: sample.no, title: sample.title, destination: sample.destination,
+    fogTexts: sample.fog || []
+  };
+}
+
+/* 谁挡着它 / 它挡住谁 —— 平时收着，拿起照片才显形 ------------------------- */
+function relationOf(no, v){
+  var t = v.byNo[no];
+  if (!t) return { waits: [], blocks: [] };
+  var waits = (t.blockedBy || []).map(function (x) {
+    var m = v.byNo[x];
+    return { no: x, known: !!m, open: !m || m.state !== 'CLOSED' };
+  });
+  var blocks = [];
+  Object.keys(v.byNo).forEach(function (k) {
+    var o = v.byNo[k];
+    if ((o.blockedBy || []).indexOf(no) >= 0) blocks.push({ no: o.no, open: o.state !== 'CLOSED' });
+  });
+  blocks.sort(function (a, b) { return a.no - b.no; });
+  return { waits: waits, blocks: blocks };
+}
+function statusWord(s){
+  return { closed: '已经洗完', lit: '正在显影', ready: '现在能动手', fog: '还没曝光' }[s] || '——';
+}
+
+/* ============================================================================
+   4. 相纸零件
+   ============================================================================ */
+function wedge(){
+  var out = '';
+  for (var i = 0; i < 8; i++) out += '<i style="--k:' + i + '"></i>';
+  return '<div class="wedge" aria-hidden="true">' + out + '</div>';
+}
+function perfBar(){ return '<div class="perf" data-perf></div>'; }
+
+/* 已经洗完的照片（走亮） */
+function closedPrintHTML(t, v, small){
+  var cap = v.decisions[t.no];
+  return '' +
+  '<div class="print" data-print data-no="' + t.no + '">' +
+    perfBar() +
+    '<div class="body">' +
+      '<div class="art">' +
+        '<div class="ink">' +
+          '<div class="arow"><span class="no">#' + t.no + '</span><span class="kind">' + esc(t.type || 'task') + '</span></div>' +
+          '<div class="ttl">' + esc(t.title) + '</div>' +
+          wedge() +
+        '</div>' +
+        '<div class="stamp' + (small ? ' small' : '') + '" aria-hidden="true">已结</div>' +
+        '<div class="devgrain" aria-hidden="true"></div>' +
+      '</div>' +
+    '</div>' +
+    perfBar() +
+    (cap ? '<div class="cap"><div class="klb">落地的结论</div><div class="ktx">' + esc(cap) + '</div></div>' : '') +
+  '</div>';
+}
+
+/* 正在显影的那一张（照亮中）：页面打开时它自己从黑里浮出来一次 */
+function trayPrintHTML(t, v){
+  return '' +
+  '<div class="print" data-print data-no="' + t.no + '" data-tray="dev">' +
+    perfBar() +
+    '<div class="body">' +
+      '<div class="art">' +
+        '<div class="ink">' +
+          '<div class="arow"><span class="no">#' + t.no + '</span><span class="kind">' + esc(t.type || 'task') + '</span></div>' +
+          '<div class="ttl">' + esc(t.title) + '</div>' +
+          '<div class="arow" style="margin-top:auto;padding-top:7px"><span class="chip dev">正在办 · ' + esc(t.claimedBy || '有人认领') + '</span></div>' +
+        '</div>' +
+        '<div class="devgrain" aria-hidden="true"></div>' +
+      '</div>' +
+    '</div>' +
+    perfBar() +
+  '</div>';
+}
+
+/* 试显影里刚放进去的那张（还没曝光 / 盘边那张都走这里） */
+function trialPrintHTML(t, v, fromState){
+  var rel = relationOf(t.no, v);
+  var waits = rel.waits.filter(function (w) { return w.open; });
+  var line;
+  if (fromState === 'fog') {
+    line = waits.length
+      ? '还在等：' + waits.map(function (w) { return '#' + w.no; }).join('、') + '。这些关了才轮到它。'
+      : '它在等的那几张都还没关。';
+  } else {
+    line = '前置都关了，现在就能动手。';
+  }
+  return '' +
+  '<div class="print" data-print data-no="' + t.no + '" data-trial="1">' +
+    perfBar() +
+    '<div class="body">' +
+      '<div class="art trial">' +
+        '<div class="ink">' +
+          '<div class="arow"><span class="no">#' + t.no + '</span><span class="kind">' + esc(t.type || 'task') + '</span></div>' +
+          '<div class="ttl">' + esc(t.title) + '</div>' +
+          '<div class="ttl" style="margin-top:7px;color:#f0d6a8">' + esc(line) + '</div>' +
+        '</div>' +
+        '<div class="devgrain" aria-hidden="true"></div>' +
+      '</div>' +
+    '</div>' +
+    perfBar() +
+    '<div class="cap"><div class="klb">这一张现在的样子</div><div class="ktx">' + esc(statusWord(fromState)) +
+      '—— 试显影只是把它看清楚，票的状态没有变。</div></div>' +
+  '</div>';
+}
+
+/* ============================================================================
+   5. 渲染整页
+   ============================================================================ */
+var scroll = $('#scroll');
+var ropeEl, ropeGeom = { w: 0, w2: 0 };
+
+function render(){
+  var v = buildView(sampleOf(stateKey));
+  VIEW = v;
+  var g = v.groups;
+  var total = (v.sample.tickets || []).length;
+  var html = '';
+
+  /* ---- 目的地：墙上唯一亮着的那张大照片（不参与显影，永远看得见） ---- */
+  html += '' +
+  '<section id="destwrap" aria-label="目的地">' +
+    '<div class="destlight" aria-hidden="true"></div>' +
+    '<button class="destprint" id="destBtn" type="button" data-role="destination" aria-expanded="true">' +
+      perfBar() +
+      '<div class="paperline">' +
+        '<div class="drow">' +
+          '<span class="dname">目的地</span>' +
+          '<span class="dno">地图 #' + esc(v.no) + ' · 墙上唯一亮着的一张</span>' +
+          '<span class="dkeep">这张不参与显影<br>从头到尾都看得见</span>' +
+        '</div>' +
+        '<div class="dbar" aria-hidden="true">' + (function () { var s = ''; for (var i = 0; i < 14; i++) s += '<i style="--k:' + i + '"></i>'; return s; })() + '</div>' +
+      '</div>' +
+      '<div class="art" id="destArt">' +
+        '<div class="ink">' +
+          '<div class="ttl" style="font-size:12px;color:#e8eef6">' + esc(v.title) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="dcap">' +
+        '<div class="dlbrow"><span class="dlb">案由 · 走完这张图就是到这儿</span>' +
+        '<span class="dhint">点这张照片可以收起 / 展开案由</span></div>' +
+        '<div class="dtx" id="destText">' + esc(v.destination || '这张图还没有写目的地。') + '</div>' +
+      '</div>' +
+      perfBar() +
+    '</button>' +
+  '</section>';
+
+  /* ---- 晾片绳：已经洗完的照片 ---- */
+  var hangOrder = g.closed.slice();
+  var small = hangOrder.length > 2;
+  html += '<section class="zone" id="zoneLine" aria-label="晾片绳">' +
+    '<div class="zlab"><span class="dot" style="background:#4ade80"></span>' +
+      '<span class="t">墙上 · 晾片绳</span>' +
+      '<span class="s">已经洗完定影的，' + hangOrder.length + ' 张</span><span class="rule"></span></div>' +
+    '<div class="linebox">' +
+      '<svg id="rope" aria-hidden="true">' +
+        '<path id="ropePath" fill="none" stroke="#c0392b" stroke-width="2.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>' +
+        '<path id="ropePath2" fill="none" stroke="rgba(255,180,140,.36)" stroke-width="1" stroke-linecap="round" vector-effect="non-scaling-stroke"/>' +
+      '</svg>' +
+      '<div class="hangs" id="hangs"></div>' +
+    '</div>' +
+    '<p class="hint">挂的先后就是洗完的先后，不是票号先后，也不是谁深谁浅。' +
+      '　按住照片往旁边拖：旁边的照片会跟着晃，松手整条绳慢慢静下来；按 Enter 也能拨一下。</p>' +
+  '</section>';
+
+  /* ---- 台面：显影盘 + 试片盘 ---- */
+  html += '<section class="zone" id="zoneBench" aria-label="台面：显影盘与试片盘">' +
+    '<div class="zlab"><span class="dot" style="background:#58a6ff"></span>' +
+      '<span class="t">台面 · 两盆药水</span>' +
+      '<span class="s">正在办的那一张 / 拿来试的相纸</span><span class="rule"></span></div>' +
+    '<div class="bench">';
+
+  /* 显影盘 */
+  html += '<div class="dishwrap"><div class="dish" id="dishDev">' +
+    '<div class="fluid" aria-hidden="true"></div>' +
+    (g.lit.length
+      ? '<div class="rockwrap" id="traySlot" data-ticket="' + g.lit[0].no + '" data-state="lit">' + trayPrintHTML(g.lit[0], v) + '</div>'
+      : '<div class="trayempty" id="traySlot">盆里是空的。<br>这张图上还没有人认领任何一张票。</div>') +
+    '<span class="traytag">显影盘</span>' +
+  '</div>';
+  if (g.lit.length) {
+    html += '<div class="trayside">' +
+      '<span class="chip dev">正在办 · ' + esc(g.lit[0].claimedBy || '有人认领') + '</span>' +
+      '<button class="btn2" type="button" data-rel="' + g.lit[0].no + '">看它在等谁 / 挡着谁</button>' +
+    '</div>';
+  }
+  html += '</div>';
+
+  /* 试片盘 */
+  html += '<div class="dishwrap"><div class="dish" id="dishTrial">' +
+    '<div class="fluid" aria-hidden="true"></div>' +
+    '<div id="trialSlot"><div class="trayempty">把一张还没洗的相纸放进来，<br>看看它到底在等谁。<br><br>' +
+      '<span style="color:#8b8b95">试显影不改票的状态。</span></div></div>' +
+    '<span class="traytag">试片盘</span>' +
+  '</div>' +
+  '<div class="trayside"><span class="chip warn">一盆只显一张：放下新的，原来那张回原位</span>' +
+    '<button class="btn2" type="button" id="trialBack" hidden>取回这张相纸</button>' +
+  '</div></div>';
+
+  html += '</div>';
+  html += '</section>';
+
+  /* ---- 盘边空位：现在能动手的 ---- */
+  html += '<section class="zone" id="zoneReady" aria-label="盘边空位">' +
+    '<div class="zlab"><span class="dot" style="background:#4ade80"></span>' +
+      '<span class="t">台面 · 盘边空位</span>' +
+      '<span class="s">还没放进药水、现在就能动手的，' + g.ready.length + ' 张</span><span class="rule"></span></div>';
+  if (g.ready.length) {
+    html += '<div class="readylist" id="readyList">' + g.ready.map(function (t) {
+      var waits = (t.blockedBy || []).map(function (x) { return '#' + x; }).join('、');
+      return '<button class="ready" type="button" data-ready="' + t.no + '" data-ticket="' + t.no + '" data-no="' + t.no + '" data-state="ready">' +
+        '<span class="slip">绿便签</span>' +
+        '<span class="rr"><span class="rn">#' + t.no + '</span><span class="chip done">现在能做</span>' +
+          (waits ? '<span class="chip plain">它的前置 ' + waits + ' 都关了</span>' : '') + '</span>' +
+        '<span class="rt">' + esc(t.title) + '</span>' +
+        '<span class="st stickynote">可以动手了' +
+          '<span class="sub">点一下 → 放进试片盘显影看看</span></span>' +
+      '</button>';
+    }).join('') + '</div>';
+  } else {
+    html += '<div class="emptycase" id="readyEmpty"><div class="h">盘边还没有空出新的位置</div>' +
+      '<div class="p">' +
+      (total === 0
+        ? '这个案子刚立：这张图上还一张票都没有，所以盘边没有事可以动手。'
+        : '现在能动手的都还压在别的前置后面，先把手上的办完。') +
+      '</div>' +
+      (total === 0
+        ? '<div class="sealed"><span class="tape"></span><span class="tx">相纸 · 一整叠还没拆封</span>' +
+          '<span class="sub">等着有人把第一张票画出来，才有的洗</span></div>'
+        : '') +
+      '</div>';
+  }
+  html += '</section>';
+
+  /* ---- 相纸盒：还没曝光的 ---- */
+  html += '<section class="zone" id="zoneBox" aria-label="还没曝光的相纸">' +
+    '<div class="zlab"><span class="dot" style="background:#8b8b95"></span>' +
+      '<span class="t">台下 · 相纸盒</span>' +
+      '<span class="s">还没曝光、只有手写编号的，' + g.fog.length + ' 张</span><span class="rule"></span></div>';
+  if (g.fog.length) {
+    html += '<div class="paperbox">' +
+      '<div class="lid"><span class="lb">相纸 · 未曝光</span>' +
+        '<span class="chip plain">票号先写好排好了，等前面关了才轮到洗</span></div>' +
+      '<div class="tabs" id="fogTabs">' + g.fog.map(function (t, i) {
+        var rel = relationOf(t.no, v);
+        var waits = rel.waits.filter(function (w) { return w.open; }).length;
+        var rot = (i % 2 === 0 ? -0.5 : 0.45) + ((t.no % 3) - 1) * 0.16;
+        return '<button class="fb" type="button" data-fog="' + t.no + '" data-ticket="' + t.no + '" data-no="' + t.no + '" data-state="fog" ' +
+          'style="--rot:' + rot.toFixed(2) + 'deg" ' +
+          'aria-label="还没曝光的相纸 #' + t.no + '，还在等 ' + waits + ' 张">' +
+          '<span class="num" aria-hidden="true">' + t.no + '</span>' +
+          '<span class="wait" aria-hidden="true">等 ' + waits + '</span>' +
+          '<span class="qm" aria-hidden="true">?</span>' +
+        '</button>';
+      }).join('') + '</div>' +
+      '<p class="boxhint">这一排是「还不知道」：相纸一张都没曝光，所以画面还是全黑；' +
+        '但编号写好了、按票号立着、每张都标着还在等几张。<br>' +
+        '点一张，它就进试片盘显影 —— 能洗出来的只是「它现在是什么情况」，不是它已经办完了。</p>' +
+    '</div>';
+  } else {
+    html += '<div class="emptycase"><div class="h">相纸盒是空盒子</div>' +
+      '<div class="p">' + (total === 0
+        ? '还没裁出相纸来 —— 这张图上连票都还没有。'
+        : '没有卡住的路：每一张要么洗完了，要么现在就能动手。') + '</div></div>';
+  }
+  html += '</section>';
+
+  /* ---- 显影记录本 ---- */
+  var decRows = Object.keys(v.decisions).map(function (no) {
+    var t = v.byNo[no];
+    return '<div class="logrow"><div class="lt"><span class="n">#' + no + '</span>' +
+      '<span class="chip done">已结</span><span class="g">' + esc(v.decisions[no]) + '</span></div></div>';
+  }).join('');
+  html += '<section class="zone" id="zoneLog" aria-label="显影记录本">' +
+    '<div class="zlab"><span class="dot" style="background:#c8a97a"></span>' +
+      '<span class="t">台下 · 显影记录本</span>' +
+      '<span class="s">走过的路留下的痕迹</span><span class="rule"></span></div>' +
+    '<div class="log">' + (decRows || '<div class="logrow"><div class="lt"><span class="g" style="color:#a1a1aa">本子还是新的：还没有一张票洗出来过。</span></div></div>') + '</div>' +
+  '</section>';
+
+  /* ---- 连票都切不出来的地方 ---- */
+  html += '<section class="zone" id="zoneUnknown" aria-label="还没切出来的地方">' +
+    '<div class="zlab"><span class="dot" style="background:#a01e1e"></span>' +
+      '<span class="t">台下 · 连相纸都还没裁出来的地方</span>' +
+      '<span class="s">想过了，但还切不成票</span><span class="rule"></span></div>';
+  if (v.fogTexts.length) {
+    html += v.fogTexts.map(function (x) {
+      return '<div class="fogroll"><span class="tag">还没裁</span>' + esc(x) + '</div>';
+    }).join('');
+  } else {
+    html += '<div class="fogroll" style="border-left-color:#4b5563;color:#a1a1aa">' +
+      '<span class="tag" style="color:#a1a1aa;background:rgba(255,255,255,.05);border-color:#2a2d35">还没裁</span>' +
+      '这张图上没有写「想过了但还没切出来」的地方。</div>';
+  }
+  html += '</section>';
+
+  scroll.innerHTML = html;
+
+  /* ---- 锁在墙上的那张目的地照片：它不算「显影」，永远是 1 ---- */
+  $$('.destprint, #destArt, #destArt .ink').forEach(function (el) { el.style.setProperty('--dev', 1); });
+
+  renderHangs();
+  renderPerf();
+  paintRope();
+  requestAnimationFrame(function () { layout(); });
+
+  $('#destBtn').addEventListener('click', function () {
+    var w = $('#destwrap');
+    var slim = w.classList.toggle('slim');
+    this.setAttribute('aria-expanded', slim ? 'false' : 'true');
+    $('#destText').classList.toggle('clamp', false);
+    layout();
+  });
+  $$('#readyList .ready').forEach(function (b) {
+    b.addEventListener('click', function () { startTrial(+this.dataset.ready, 'ready'); });
+  });
+  $$('#fogTabs .fb').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var no = +this.dataset.fog;
+      flyToTray(this);
+      startTrial(no, 'fog');
+    });
+  });
+  var tb = $('#trialBack');
+  if (tb) tb.addEventListener('click', clearTrial);
+  $$('[data-rel]').forEach(function (b) {
+    b.addEventListener('click', function () { showRel(+this.dataset.rel, true); });
+  });
+}
+
+/* ============================================================================
+   6. 晾片绳：把已经洗完的照片挂上去
+   ============================================================================ */
+var hangs = [];      /* 每张照片的物理状态 */
+var drag = null;
+
+function renderHangs(){
+  var host = $('#hangs');
+  var v = VIEW;
+  var list = v.groups.closed;
+  if (!list.length) {
+    /* 一张都没洗出来：绳子上挂着空夹子在等，绳子还是那根绳子 */
+    host.style.display = 'block';
+    var bare = '';
+    [0.19, 0.5, 0.81].forEach(function (x) {
+      bare += '<span class="pinbare" data-x="' + x + '" aria-hidden="true">' +
+        '<span class="pin"><span class="jaw"></span><span class="spring"></span><span class="jaw b"></span><span class="top"></span></span>' +
+      '</span>';
+    });
+    host.innerHTML = '<div class="bareline" aria-hidden="true">' + bare + '</div>' +
+      '<p class="hint" style="text-align:center;margin-top:2px">绳子还空着：一张都还没洗出来，夹子都挂在绳上等。</p>';
+    hangs = [];
+    return;
+  }
+  host.style.display = '';
+  var small = list.length > 2;
+  host.innerHTML = list.map(function (t) {
+    return '<button class="hang" type="button" data-ticket="' + t.no + '" data-no="' + t.no + '" data-state="closed" ' +
+      'aria-label="已经洗完的照片 #' + t.no + '：' + esc(t.title) + '。按住可以拖，旁边的照片会跟着晃">' +
+      '<span class="pinwrap" aria-hidden="true">' +
+        '<span class="pin"><span class="jaw"></span><span class="spring"></span><span class="jaw b"></span><span class="top"></span></span>' +
+      '</span>' +
+      '<span class="swing">' + closedPrintHTML(t, v, small) + '</span>' +
+    '</button>';
+  }).join('');
+
+  hangs = $$('#hangs .hang').map(function (el) {
+    var sw = $('.swing', el);
+    var pin = $('.pin', el);
+    return { el: el, sw: sw, pin: pin, no: +el.dataset.no, home: 0, hw: 0, baseY: 0, x: 0, px: 0, vx: 0, th: 0, w: 0 };
+  });
+  bindDrag();
+}
+
+/* ============================================================================
+   7. 时钟：绳子上的钟摆（rAF + 阻尼正弦，带邻居耦合）
+   阻尼来自速度项，邻居的力来自相邻两张之间的角度差，所以拖一张、旁边会跟着晃。
+   rAF 里只写 transform / path，不读任何布局数字。
+   ============================================================================ */
+var ropeH = 46;      /* 绳子纵向的用材高度 */
+var ROPE_TOP = 20;   /* 绳两端挂多低 */
+var ANCHOR_IN_PIN = 17; /* 夹子咬住绳子的那一点，在照片自己的坐标里是第 17 像素 */
+var tPend = 0, running = false, lastT = 0;
+
+function ensureLoop(){
+  if (running) return;
+  running = true;
+  lastT = 0;
+  requestAnimationFrame(tick);
+}
+
+function tick(now){
+  if (!lastT) lastT = now;
+  var dt = Math.min((now - lastT) / 1000, 1 / 30);
+  lastT = now;
+
+  var K = 16, C = 2.3, COUP = 17, PK = 6.4, PC = 2.0;
+  var maxA = 0;
+
+  for (var i = 0; i < hangs.length; i++) {
+    var h = hangs[i];
+    if (drag && drag.i === i) {
+      var nx = drag.pointerX - drag.grabDX;              /* 夹子在绳上滑到哪 */
+      h.px = Math.max(-h.slideLimit, Math.min(h.slideLimit, nx - h.home));
+      h.x = h.home + h.px;
+      var target = Math.max(-16, Math.min(16, h.px * 0.22));  /* 拉得越远，摆得越大 */
+      h.w = (target - h.th) / Math.max(dt, 1e-3);
+      h.th = target;
+    } else {
+      var l = (i > 0) ? hangs[i - 1] : null;
+      var r = (i < hangs.length - 1) ? hangs[i + 1] : null;
+      var lt = l ? l.th : 0, rt = r ? r.th : 0;
+      var lw = l ? l.w : 0, rw = r ? r.w : 0;
+      var a = -K * h.th - C * h.w;                        /* 自己往正下方回 */
+      a += COUP * ((lt - h.th) + (rt - h.th));            /* 邻居拽它 */
+      a -= 1.25 * (h.w - 0.5 * (lw + rw));                /* 相对速度阻尼：整条绳一起停下来 */
+      h.w += a * dt;
+      h.th += h.w * dt;
+      /* 夹子滑走的位移也弹回原位（绳上有粉笔记号） */
+      var pa = -PK * h.px - PC * h.vx;
+      var pl = (i > 0) ? hangs[i - 1].px * 0.22 : 0;
+      var pr = (i < hangs.length - 1) ? hangs[i + 1].px * 0.22 : 0;
+      pa += (pl - h.px) * 2.0 + (pr - h.px) * 2.0;
+      h.vx += pa * dt;
+      h.px += h.vx * dt;
+      h.x = h.home + h.px;
+    }
+    maxA = Math.max(maxA, Math.abs(h.th), Math.abs(h.w) * 0.05, Math.abs(h.px) * 0.06);
+  }
+
+  for (var j = 0; j < hangs.length; j++) {
+    var q = hangs[j];
+    q.el.style.transform = 'translate(' + q.px.toFixed(2) + 'px,' + q.baseY.toFixed(2) + 'px)';
+    q.sw.style.transform = 'rotate(' + q.th.toFixed(3) + 'deg)';
+    q.pin.style.transform = 'rotate(' + (q.th * 0.32).toFixed(3) + 'deg)';
+  }
+  paintRope();
+
+  if (maxA > 0.0015 || drag) {
+    requestAnimationFrame(tick);
+  } else {
+    for (var k = 0; k < hangs.length; k++) {
+      var z = hangs[k];
+      z.th = 0; z.w = 0; z.px = 0; z.vx = 0;
+      z.el.style.transform = 'translate(0px,' + z.baseY.toFixed(2) + 'px)';
+      z.sw.style.transform = 'rotate(0deg)';
+      z.pin.style.transform = 'rotate(0deg)';
+    }
+    paintRope();
+    running = false;
+  }
+}
+
+/* 绳子本体：穿过每个夹子的锚点画一条会下垂的曲线，夹子滑到哪，绳就跟着变 */
+function paintRope(){
+  var p = $('#ropePath');
+  if (!p) return;
+  var W = ropeGeom.w, H = ropeH;
+  if (!W) return;
+  var pts = [{ x: -30, y: ropeY(-30, W, H) }];
+  for (var i = 0; i < hangs.length; i++) {
+    pts.push({ x: hangs[i].x + hangs[i].hw / 2, y: ropeY(hangs[i].x + hangs[i].hw / 2, W, H) });
+  }
+  pts.push({ x: W + 30, y: ropeY(W + 30, W, H) });
+
+  var d = 'M' + pts[0].x.toFixed(1) + ',' + pts[0].y.toFixed(1);
+  for (var j = 0; j < pts.length - 1; j++) {
+    var p0 = pts[j - 1] || pts[j], p1 = pts[j], p2 = pts[j + 1], p3 = pts[j + 2] || pts[j + 1];
+    var c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+    var c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+    d += 'C' + c1x.toFixed(1) + ',' + c1y.toFixed(1) + ' ' + c2x.toFixed(1) + ',' + c2y.toFixed(1) + ' ' + p2.x.toFixed(1) + ',' + p2.y.toFixed(1);
+  }
+  p.setAttribute('d', d);
+  var p2 = $('#ropePath2');
+  if (p2) p2.setAttribute('d', d);
+}
+function ropeY(x, W, H){
+  var t = (x / W) * Math.PI;
+  var s = Math.sin(Math.max(0, Math.min(Math.PI, t)));
+  return ROPE_TOP + (H - ROPE_TOP - 6) * s;
+}
+
+/* 量一次尺寸，之后 rAF 里不再读布局。
+   用 offsetLeft/offsetWidth 而不是 getBoundingClientRect：位移是 transform 做的，
+   rect 会把当前的位移算进去，量出来的「原位」就漂了。 */
+function layout(){
+  var el = $('#rope');
+  ropeGeom.w = el ? (el.clientWidth || el.parentNode.clientWidth) : 0;
+  ropeGeom.w2 = ropeGeom.w / 2;
+  var W = ropeGeom.w || 1;
+  for (var i = 0; i < hangs.length; i++) {
+    var h = hangs[i];
+    h.home = h.el.offsetLeft;
+    h.hw = h.el.offsetWidth;
+    h.slideLimit = Math.max(10, h.hw * 0.42);
+    var ax = h.home + h.hw / 2;
+    h.baseY = ropeY(ax, W, ropeH) - ANCHOR_IN_PIN;
+    h.x = h.home + h.px;
+  }
+  applyHangs();
+  paintRope();
+  /* 空绳子上的夹子也要正好咬在绳子上 */
+  $$('#hangs .pinbare').forEach(function (pin) {
+    var pct = parseFloat(pin.dataset.x) || 0.5;
+    pin.style.left = (pct * W) + 'px';
+    pin.style.top = (ropeY(pct * W, W, ropeH) - ANCHOR_IN_PIN) + 'px';
+  });
+}
+/* 把「原位 + 当前位移」画上去（不进物理循环时也要对齐一次） */
+function applyHangs(){
+  for (var i = 0; i < hangs.length; i++) {
+    var h = hangs[i];
+    h.el.style.transform = 'translate(' + h.px.toFixed(2) + 'px,' + h.baseY.toFixed(2) + 'px)';
+  }
+}
+
+/* ============================================================================
+   8. 拖动：抓住一张照片往旁边拽，整条绳跟着晃
+   ============================================================================ */
+function bindDrag(){
+  hangs.forEach(function (h, i) {
+    h.el.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return;
+      var r = h.el.getBoundingClientRect();
+      drag = { i: i, pointerX: e.clientX, startX: e.clientX, grabDX: e.clientX - r.left, moved: 0 };
+      try { h.el.setPointerCapture(e.pointerId); } catch (err) {}
+      h.el.style.cursor = 'grabbing';
+      showRel(h.no, false);
+      ensureLoop();
+      e.preventDefault();
+    });
+    h.el.addEventListener('pointermove', function (e) {
+      if (!drag || drag.i !== i) return;
+      drag.pointerX = e.clientX;
+      drag.moved = Math.max(drag.moved, Math.abs(e.clientX - drag.startX));
+    });
+    h.el.addEventListener('pointerup', function (e) {
+      if (!drag || drag.i !== i) return;
+      var moved = drag.moved;
+      drag = null;
+      h.el.style.cursor = 'grab';
+      try { h.el.releasePointerCapture(e.pointerId); } catch (err) {}
+      ensureLoop();
+      layout();
+      if (moved < 6) { /* 只算「按了一下」：显形关系 + 拨一下 */
+        showRel(h.no, true);
+        h.w += 5.2;
+        ensureLoop();
+      } else {
+        setTimeout(function () { hideRelSoon(); }, 900);
+      }
+    });
+    h.el.addEventListener('pointercancel', function () { drag = null; h.el.style.cursor = 'grab'; });
+    h.el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        h.w += 6.4;
+        showRel(h.no, true);
+        ensureLoop();
+      }
+    });
+    h.el.addEventListener('focus', function () { showRel(h.no, false); });
+    h.el.addEventListener('blur', function () { hideRelSoon(220); });
+  });
+}
+
+/* ============================================================================
+   9. 关系显形：拿起一张就看见它在等谁、挡着谁
+   ============================================================================ */
+var relTimer = null;
+function showRel(no, sticky){
+  var v = VIEW;
+  if (!v || !v.byNo[no]) return;
+  var rel = relationOf(no, v);
+  var t = v.byNo[no];
+  var card = $('#xrlamp');
+  if (!card) return;
+  var waits = rel.waits.length
+    ? rel.waits.map(function (w) { return '<i>#' + w.no + '</i>' + (w.open ? '还没关' : '已经关了'); }).join('　')
+    : '<span class="none">没有前置，一开工就能动</span>';
+  var blocks = rel.blocks.length
+    ? rel.blocks.map(function (b) { return '<i>#' + b.no + '</i>' + (b.open ? '还没关' : '已经关了'); }).join('　')
+    : '<span class="none">它没有挡住任何一张</span>';
+  card.innerHTML =
+    '<div class="h"><span class="who">#' + no + ' 这一张</span>' +
+      '<span class="no2">' + esc(statusWord(v.status[no])) + '</span>' +
+      '<span style="font:600 10px/1.4 var(--sans);color:#5c5240">上下的关系，平时收着，拿起照片才显形</span></div>' +
+    '<div class="row"><span class="k">它在等谁</span><span class="v">' + waits + '</span></div>' +
+    '<div class="row"><span class="k">它挡住谁</span><span class="v">' + blocks + '</span></div>';
+  card.hidden = false;
+  $$('.linked').forEach(function (el) { el.classList.remove('linked'); });
+  rel.waits.concat(rel.blocks).forEach(function (x) {
+    $$('[data-no="' + x.no + '"]').forEach(function (el) { el.classList.add('linked'); });
+  });
+  if (relTimer) { clearTimeout(relTimer); relTimer = null; }
+  if (!sticky) hideRelSoon();
+}
+function hideRelSoon(ms){
+  if (relTimer) clearTimeout(relTimer);
+  relTimer = setTimeout(function () {
+    var card = $('#xrlamp');
+    if (card) { card.hidden = true; }
+    $$('.linked').forEach(function (el) { el.classList.remove('linked'); });
+  }, ms || 1400);
+}
+
+/* ============================================================================
+   10. 显影：把一张相纸放进试片盘，画面从全黑一点点浮出来
+       --dev 是注册过的 <number>，用 @property 让它可插值；
+       filter(brightness/contrast/blur) + mask-image 都读它，所以动画有中间过程。
+   ============================================================================ */
+var trialNo = null, trialFrom = null;
+
+function flyToTray(fromEl){
+  var dish = $('#dishTrial');
+  if (!dish || !fromEl) return;
+  var a = fromEl.getBoundingClientRect(), b = dish.getBoundingClientRect();
+  var fly = document.createElement('div');
+  fly.setAttribute('aria-hidden', 'true');
+  fly.style.cssText = 'position:fixed;z-index:65;pointer-events:none;border-radius:3px;' +
+    'background:linear-gradient(180deg,#232227,#0a0a0d);box-shadow:0 10px 22px rgba(0,0,0,.6);' +
+    'left:' + a.left + 'px;top:' + a.top + 'px;width:' + a.width + 'px;height:' + a.height + 'px';
+  document.body.appendChild(fly);
+  var dx = (b.left + 22) - a.left, dy = (b.top + 26) - a.top;
+  var anim = fly.animate([
+    { transform: 'translate(0,0) rotate(0deg) scale(1)', opacity: .95 },
+    { transform: 'translate(' + (dx * .6) + 'px,' + (dy * .5 - 34) + 'px) rotate(-11deg) scale(1.06)', opacity: 1, offset: .55 },
+    { transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(3deg) scale(.82)', opacity: .9 }
+  ], { duration: 460, easing: 'cubic-bezier(.25,.7,.3,1)' });
+  var done = function () { if (fly.parentNode) fly.parentNode.removeChild(fly); };
+  if (anim.finished && anim.finished.then) anim.finished.then(done, done); else setTimeout(done, 520);
+}
+
+function startTrial(no, fromState){
+  var v = VIEW;
+  var t = v.byNo[no];
+  var slot = $('#trialSlot');
+  if (!t || !slot) return;
+  trialNo = no; trialFrom = fromState;
+
+  slot.innerHTML = '<div class="rockwrap">' + trialPrintHTML(t, v, fromState) + '</div>';
+  var print = $('.print', slot);
+  var art = $('.art', slot);
+  var grain = $('.devgrain', slot);
+
+  /* 第 1 帧：全黑。然后交给 CSS 动画把 --dev 从 0 推到 1。 */
+  print.classList.remove('dev-anim');
+  void print.offsetWidth;                 /* 强制一次样式计算，让动画能重放 */
+  print.classList.add('dev-anim');
+
+  /* 颗粒：显影到一半最重，定影后淡下去 */
+  if (grain) {
+    grain.animate([
+      { opacity: 0 }, { opacity: .55, offset: .38 }, { opacity: .7, offset: .62 }, { opacity: .10 }
+    ], { duration: 2100, easing: 'cubic-bezier(.4,0,.35,1)', fill: 'forwards' });
+  }
+  art.dataset.dev = 'running';
+  setTimeout(function () { art.dataset.dev = 'done'; }, 2100);
+
+  var back = $('#trialBack');
+  if (back) back.hidden = false;
+  var oldFb = $('.fb.gone');
+  $$('#fogTabs .fb').forEach(function (b) { b.classList.remove('gone'); });
+  if (fromState === 'fog') {
+    var fb = $('.fb[data-fog="' + no + '"]');
+    if (fb) { fb.classList.add('gone'); fb.setAttribute('aria-pressed', 'true'); }
+  }
+  $$('#readyList .ready').forEach(function (b) { b.classList.toggle('used', fromState === 'ready' && +b.dataset.ready === no); });
+
+  showRel(no, false);
+}
+
+function clearTrial(){
+  var slot = $('#trialSlot');
+  if (slot) {
+    slot.innerHTML = '<div class="trayempty">把一张还没洗的相纸放进来，<br>看看它到底在等谁。<br><br>' +
+      '<span style="color:#8b8b95">试显影不改票的状态。</span></div>';
+  }
+  $$('#fogTabs .fb').forEach(function (b) { b.classList.remove('gone'); b.removeAttribute('aria-pressed'); });
+  $$('#readyList .ready').forEach(function (b) { b.classList.remove('used'); });
+  var back = $('#trialBack');
+  if (back) back.hidden = true;
+  trialNo = null;
+}
+
+/* 刚进页面时，显影盘里那一张自己浮一次出来（之后它就一直是显影好的样子） */
+function developTrayOnLoad(){
+  var p = $('[data-tray="dev"]');
+  if (!p) return;
+  var grain = $('.devgrain', p);
+  p.classList.add('dev-anim');
+  if (grain) {
+    grain.animate([
+      { opacity: 0 }, { opacity: .5, offset: .4 }, { opacity: .62, offset: .64 }, { opacity: .09 }
+    ], { duration: 2000, easing: 'cubic-bezier(.4,0,.35,1)', fill: 'forwards' });
+  }
+}
+
+/* ============================================================================
+   11. 相纸的齿孔：用 clip-path 多边形真的打出孔来（程序化生成，不用图片）
+   ============================================================================ */
+function makePerfPolygon(w, h){
+  if (w < 12) return null;
+  var pitch = 11, hole = 5.5, depth = 4.5;
+  var pts = [];
+  var x;
+  pts.push('0px 0px');
+  for (x = 4; x + hole <= w - 3; x += pitch) {
+    pts.push(x.toFixed(1) + 'px 0px', x.toFixed(1) + 'px ' + depth + 'px',
+             (x + hole).toFixed(1) + 'px ' + depth + 'px', (x + hole).toFixed(1) + 'px 0px');
+  }
+  pts.push(w.toFixed(1) + 'px 0px', w.toFixed(1) + 'px ' + h + 'px');
+  var bottom = [];
+  for (x = 4; x + hole <= w - 3; x += pitch) {
+    bottom.push(x.toFixed(1) + 'px ' + h + 'px', x.toFixed(1) + 'px ' + (h - depth) + 'px',
+                (x + hole).toFixed(1) + 'px ' + (h - depth) + 'px', (x + hole).toFixed(1) + 'px ' + h + 'px');
+  }
+  bottom.reverse();
+  pts = pts.concat(['0px ' + h + 'px'], bottom);
+  return 'polygon(' + pts.join(',') + ')';
+}
+function renderPerf(){
+  var bars = $$('[data-perf]');
+  var reads = bars.map(function (b) { return { el: b, w: b.clientWidth, h: b.clientHeight || 11 }; });
+  reads.forEach(function (r) {
+    var poly = makePerfPolygon(r.w, r.h);
+    if (poly) r.el.style.clipPath = poly;
+  });
+}
+
+/* ============================================================================
+   12. 启动
+   ============================================================================ */
+function applyView(){
+  render();
+  requestAnimationFrame(function () {
+    layout();
+    renderPerf();
+    developTrayOnLoad();
+  });
+}
+
+/* 面板被拖宽拖窄：重新量尺寸（不重渲染，保住交互状态之外的几何） */
+if (window.ResizeObserver) {
+  var ro = new ResizeObserver(function () {
+    layout();
+    renderPerf();
+  });
+  ro.observe($('#panel'));
+}
+
+/* 控制条 */
+$$('#wbtns button').forEach(function (b) {
+  if (widthKey === b.dataset.w) b.setAttribute('aria-pressed', 'true');
+  b.addEventListener('click', function () {
+    var u = new URLSearchParams(location.search);
+    u.set('w', b.dataset.w);
+    location.search = u.toString();
+  });
+});
+$$('#sbtns button').forEach(function (b) {
+  if (stateKey === b.dataset.s) b.setAttribute('aria-pressed', 'true');
+  b.addEventListener('click', function () {
+    var u = new URLSearchParams(location.search);
+    u.set('s', b.dataset.s);
+    location.search = u.toString();
+  });
+});
+
+/* 两颗外壳按钮：这是原型，不联网，也不真的推进 */
+function toast(msg){
+  var el = $('#toast');
+  el.textContent = msg;
+  el.classList.remove('on');
+  void el.offsetWidth;
+  el.classList.add('on');
+}
+$('#back').addEventListener('click', function () { toast('这是原型：返回上一页在真机的面板里才有。'); });
+$('#drive').addEventListener('click', function () {
+  toast('这是原型：点它不会真的推进这张图。');
+  var d = $('.destlight');
+  if (d) d.animate([{ opacity: 1 }, { opacity: .35 }, { opacity: 1 }], { duration: 900, easing: 'ease-in-out' });
+});
+
+applyView();
+
+/* 给自检用的把手（只读，不影响交互） */
+window.__C5__ = {
+  stateKey: stateKey, widthKey: widthKey,
+  counts: function () {
+    var out = {};
+    ['closed', 'lit', 'ready', 'fog'].forEach(function (s) {
+      out[s] = $$('[data-state="' + s + '"]').length;
+    });
+    out.tickets = $$('[data-ticket]').length;
+    return out;
+  },
+  view: function () { return VIEW; }
+};
+})();
+</script>
+</body>
+</html>

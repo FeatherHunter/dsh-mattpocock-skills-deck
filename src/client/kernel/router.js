@@ -156,7 +156,7 @@
           return completePrompt(st, t.number, t.title, stats.total, stats.closed)
         }
         // v1.5：技能 + 链接前置（用户规则：具体操作 prompt 开头 = /wayfinder + ISSUE 链接，单行空格分隔）
-        // v5（#68 grilling 定版）：mapExecute 自包含（map 标识头 + 闸门引用 + 正文格式已内嵌）→ gateText/BODY_FORMAT/head 外挂全删
+        // v5（#68 grilling 定版）：mapExecute 自包含（map 标识头 + 闸门引用）→ gateText/head 外挂全删
         return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapExecute', { n: String(t.number || ''), title: (t.title || ''), url: url })
       }
       const body = renderTemplate('execute', { number: String(t.number), url: url, title: t.title }, st)
@@ -167,11 +167,10 @@
     // 本文件不再声明任何命名真源：SESSION_TITLE_* / isNewPlaceholderTitle / newSessionTitleNew /
     // cleanTitleText / utf8Bytes / truncateTitleUtf8 / newSessionTitle 均以上述共享核心为准。
     // v1.5 T6：新增 wayfinder prompt —— /wayfinder + 仓库信息 + 需求引导（用户拍板：prompt 带仓库信息）
-    // T16 补强（#463 复核 F2）：建图入口同样挂正文格式契约（新建 map 正文从源头防字面 \\n / BOM）
-    // v7（#62 grill）：输入位绝对末尾 —— BODY_FORMAT 在中段，末尾追加 需求描述：/ Requirement:（满足 Q4）
-    export const newWayfinderText = (st) => newWayfinderPrompt(st) + (BODY_FORMAT(st) ? '\n\n' + BODY_FORMAT(st) : '') + (promptLang() === 'en' ? '\n\nRequirement: ' : '\n\n需求描述：')
-    // issue #4：新增 BUG 单 —— 与「+ 新建需求」同构（新会话 + 预填 /wayfinder prompt + 正文格式契约）
-    // v2（#1 BUG3 补强）：输入位挪到 BODY_FORMAT 之后，模板末尾（避免中途输入位）
+    // v8（#725）：正文格式契约整节删除（票的读写交给 deck_* 工具，模板不再追加「正文怎么写」那段）
+    export const newWayfinderText = (st) => newWayfinderPrompt(st) + (promptLang() === 'en' ? '\n\nRequirement: ' : '\n\n需求描述：')
+    // issue #4：新增 BUG 单 —— 与「+ 新建需求」同构（新会话 + 预填 /wayfinder prompt）
+    // v5（#725）：同上去掉正文格式契约追加点，输入位仍在最末尾
     // v3（#14 决议 #13 [T7]）：字段集精简为 4 项 + 例行指引（v3.4：每字段「字段名：」行 + 下方「例：示例」行紧贴，zh/en 分离跟随语言）；EN locale 切换（NEW_BUG_FIELDS_BODY_EN）
     // v4（#63 grilling 定版 2026-08-20）：去内部规则复述 + 字段括号单行 + 顺序实际→期望（hit #63 决议）
-    export const newBugWayfinderText = (st) => promptText('newBugWayfinder', { repo: repoUrlFor(st) }) + (BODY_FORMAT(st) ? '\n\n' + BODY_FORMAT(st) : '') + (promptLang() === 'en' ? NEW_BUG_FIELDS_BODY_EN() : NEW_BUG_FIELDS_BODY())
+    export const newBugWayfinderText = (st) => promptText('newBugWayfinder', { repo: repoUrlFor(st) }) + (promptLang() === 'en' ? NEW_BUG_FIELDS_BODY_EN() : NEW_BUG_FIELDS_BODY())

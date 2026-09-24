@@ -192,7 +192,7 @@ const main = async function () {
   const backends = await buildBackends()
   const renderers = { zh: evalRenderer('zh'), en: evalRenderer('en') }
   const idList = Object.keys(renderers.zh.PROMPTS)
-  check(idList.length >= 20, '渲染面拿到注册表条目（' + idList.length + ' 条）')
+  check(idList.length >= 18, '渲染面拿到注册表条目（' + idList.length + ' 条）')
   const exemptIds = (Array.isArray(mf.renderExempt) ? mf.renderExempt : []).map((e) => e.id)
   const expectedExempt = Array.isArray(mf.renderExemptExpected) ? mf.renderExemptExpected : []
   check(JSON.stringify(exemptIds.slice().sort()) === JSON.stringify(expectedExempt.slice().sort()),

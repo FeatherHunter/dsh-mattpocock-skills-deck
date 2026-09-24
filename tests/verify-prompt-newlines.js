@@ -2,10 +2,10 @@
  * verify-prompt-newlines.js — 提示词模板换行契约校验（#430 根因门禁）
  * 用法: node tests/verify-prompt-newlines.js
  *
- * 契约（#603 修订）：任何提示词模板文本（client PROMPTS 注册表 / host *_PROMPT 常量 /
- *   host 后端模块 prompts 字典的 zh/en 字面量）都不得含字面 \n 序列（两个字符：反斜杠 + n），
- *   只有「教学片段」例外：正文格式块要能原样引述「写成 \n 是什么样」。免豁免清单是 4 条固定引用，
- *   条数与内容指纹都钉死在下面（改一个字就红），不是随手能加的口子。
+ * 契约（#603 修订、#725 收口）：任何提示词模板文本（client PROMPTS 注册表 / host *_PROMPT 常量 /
+ *   host 后端模块 prompts 字典的 zh/en 字面量）都不得含字面 \n 序列（两个字符：反斜杠 + n）。
+ *   #603 曾为「正文格式块要能原样引述写成 \n 是什么样」开过 4 条豁免；#725 把正文格式块整节删掉后，
+ *   豁免清单已清空，且条数与指纹仍钉死在下面（见 ALLOWED_LITERAL_BSN）—— 不是随手能加的口子。
  *   为什么会有这几条：#603 按领导拍板把正文格式块还原成 #567 之前的写法，那份写法里就有
  *   点名 \n 的禁止条与一条反例。
  * 理由：#430 —— 模板里把换行写成双层转义（源码 \\n），运行时注入的是字面
@@ -21,16 +21,12 @@ const path = require('path')
 const ROOT = path.join(__dirname, '..')
 let failed = false
 
-// #603：正文格式块按领导拍板还原成 #567 之前的写法，它必须能引述「写成 \n 是什么样」，
-//   所以放行下面 4 条固定的教学片段。条数与内容指纹都硬编码，改这份清单必然变红。
-const ALLOWED_LITERAL_BSN = [
-  '禁止字面 \\n 转义（不要把换行写成 \\n 两个字符）',
-  '（反例：`## 进度：90%\\n下一步：xxx`）',
-  'No literal \\n escapes (do not write newlines as the two characters backslash-n)',
-  '(not `## Progress: 90%\\nNext step: ...`)',
-]
-const EXPECT_ALLOWED_COUNT = 4
-const EXPECT_ALLOWED_FINGERPRINT = '694a1d116d799ec7'
+// #725：正文格式契约（带「写成 \n 是什么样」那几句教学片段）整节删除，所以这份豁免清单已经空了。
+//   清单必须保持为空：条数与内容指纹仍硬编码，谁想加回一条口子都会红。
+const ALLOWED_LITERAL_BSN = []
+const EXPECT_ALLOWED_COUNT = 0
+// 空清单的指纹 = sha256('') 前 16 位十六进制
+const EXPECT_ALLOWED_FINGERPRINT = 'e3b0c44298fc1c14'
 const allTexts = []
 const stripAllowed = function (s) {
   let t = String(s)

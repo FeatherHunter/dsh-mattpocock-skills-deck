@@ -1,5 +1,18 @@
 
-## 2026-09-24 · v1.7.28 发布：刷新的每一笔出站都走同一个闸，界面说的时刻与失败都是真的
+## 2026-09-24 · v1.7.29 发布：提示词不再教 AI 怎么写正文、怎么报进度（这两件事交回给工具与 AI 自己）
+
+- **目的**：把提示词里两段「只能手敲跟踪器命令」时代的补丁删掉，并撤掉「进度必须写成固定格式、95% 不许关票」这套规矩。这两段当初是拿来防命令行转义、防进度乱写的；现在票的正文读写已经交给 `deck_*` 工具、进度也不再由插件规定写法，规矩本身反而成了每个会话都要背的负担。
+- **改了什么（按能看到的行为）**：
+  - 删掉「## 正文格式」整节：十一个动作模板末尾那段「正文先写成文件、别把正文拼进命令行、换行别写成反斜杠 n」连同三个后端各自的正文格式声明、注册表里的兜底版、以及客户端按后端解析它的那条渲染链（`bodyFormatText` / `BODY_FORMAT` / 新建需求与新增缺陷两处追加点）一并退役。它防的那些坑（命令行转义、BOM、写回脚本）随「票的读写走工具」一起消失。
+  - 删掉进度契约：不再要求 `## 进度：N%` 这个固定写法，不再有 0 / 1-94 / 95 / 100 的语义阶梯，也取消「95% 必须写明待确认什么、未确认不得 close」这条规矩 —— 进度怎么写、票什么时候关，由 AI 按事实自己决定，插件不干涉。
+  - 诊断闸门（带 needs-triage 的票）改看「正文 / 评论 / 标签 / 已有的实施记录」判断处在哪个阶段，不再拿进度数字当判据。
+  - 顺带删掉两处「先把该 map 的正文取下来存成文件、改好再写回」的中间文件要求（读票与写票都有工具了）。
+- **为什么这么做**：这些字是「还没有工具」时的替代品。插件已经有七个后端无关的票务工具来读写正文，再让每个会话背一套命令行时代的写法规矩，只占提示词、并且与工具的能力重复。
+- **对应提交**：本版主体提交（`src/client/kernel/prompts.js`、`router.js`、`config.js`、`link.js` 与三个后端的 `index.js`，以及同步收纳的门禁 `tests/verify-prompts.js`、`verify-progress.js`、`verify-prompt-newlines.js`、`verify-kernel.js`、`verify-prompt-command-inventory.js`、`verify-685-healthcheck-button.js`、`verify-686-accept.js`）与本版发布提交。
+- **验证**：`npm run verify` 整条链 170 步跑完、162 步绿；8 步红逐条核对过 —— 其中 2 步（`verify-685-healthcheck-button`、`verify-686-accept`）确实是本版改动造成的（它们在断言 `{bodyFormat}` 会被后端填掉），已按新事实改成反向断言并转绿；剩下 6 步是开工前就存在的存量红（`verify-no-same-layer-import` 的两条同层边、`verify-no-mixed-session`、`verify-multi-effort-panel`、`verify-668-guide-steps-single-source`、`verify-665-fresh-workspace-chain`、`verify-3-workspace-switch`），与提示词无关，本版没有把它们算作通过。单跑：`verify-prompts`（21 条注册表 / 五面扫描 / L1 夹具自证 / L2 机械注入 14 条全绿）、`verify-progress`、`verify-prompt-newlines`、`verify-kernel`、`verify-bug-entry`、`verify-b2-map-newsession`、`verify-prompt-command-inventory`、`verify-setup-describe`、`verify-685-healthcheck-button`（68 项）、`verify-686-accept`（48 项）全部 EXIT=0；`node tests/verify-release-contract.js --version v1.7.29` 全绿。
+- **影响**：装到本版后，注入会话的动作提示词明显变短；面板上的进度只反映 AI 自己写下的内容 —— 没写就没有数字，插件不再替它规定写法，也不会再因为「95% 未确认」拦住关票。**如实说明**：`deck_*` 工具目前仍只在插件进程内可用（还没挂到 DSH 的模型工具面上，跟踪票在仓库的 GitHub 上），所以「票的读写走工具」对新会话里的 AI 来说还差最后一步接线；本版删掉的是提示词里的写法规矩，不是工具本身。
+
+
 
 - **目的**：把「刷新到底花了多少额度、什么时候花的、失败时界面有没有说实话」这三件事收进机制里。此前刷新的节拍与花费分散在好几处，出站还有绕开闸的存量口子，界面上的新鲜度与失败形态也有硬编码的说法。
 - **改了什么（按能看到的行为）**：

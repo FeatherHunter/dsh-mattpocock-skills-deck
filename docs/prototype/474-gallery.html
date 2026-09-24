@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>#474 地图详情页 · 六个新方案对照</title>
+<style>
+:root{--bg:#07080b;--base:#10131a;--bd:#2a2d35;--tx:#e6edf3;--sec:#a1a1aa;--cap:#8b8b95;--map:#c084fc}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.6 -apple-system,"Segoe UI","PingFang SC",sans-serif;padding:40px 18px 90px}
+.wrap{max-width:1400px;margin:0 auto}
+h1{font-size:19px;margin:0 0 6px}
+.lead{border:1px solid var(--bd);border-radius:14px;background:linear-gradient(180deg,#181d26,#101319);padding:14px 16px;margin-bottom:14px}
+.lead p{margin:6px 0;font-size:13px;color:var(--sec)}.lead b{color:var(--tx)}
+.bar{position:sticky;top:0;z-index:9;display:flex;gap:7px;flex-wrap:wrap;background:rgba(16,19,26,.95);border:1px solid var(--bd);
+  border-radius:12px;padding:8px 10px;margin-bottom:12px;backdrop-filter:blur(6px)}
+.bar button{font-size:12px;padding:3px 11px;border-radius:99px;border:1px solid var(--bd);background:#141821;color:var(--sec);cursor:pointer}
+.bar button.on{border-color:var(--map);background:rgba(192,132,252,.16);color:#e9d5ff;font-weight:600}
+.item{display:none;border:1px solid var(--bd);border-radius:14px;background:var(--base);padding:14px 16px}
+.item.on{display:block}
+.item header{display:flex;align-items:center;gap:9px}
+.item .k{font:700 11px/1.6 Consolas,monospace;color:var(--map);border:1px solid rgba(192,132,252,.45);border-radius:6px;padding:0 6px}
+.item h2{font-size:16px;margin:0}
+.open{margin-left:auto;font-size:12px;color:#58a6ff;text-decoration:none;border:1px solid rgba(88,166,253,.45);border-radius:8px;padding:3px 10px}
+.item .c{margin:8px 0 2px;font-size:13.5px}
+.item .b{margin:2px 0 12px;font-size:12px;color:var(--sec)}
+.shots{display:flex;gap:14px;align-items:flex-start;overflow:auto}
+.shots img{border:1px solid var(--bd);border-radius:10px;display:block;height:auto}
+.shots .big{width:min(810px,64vw)}
+.shots .small{width:min(400px,30vw)}
+.tip{font-size:12px;color:var(--cap);margin-top:10px}
+</style></head><body><div class="wrap">
+<h1>地图详情页 · 六个新方案对照</h1>
+<div class="lead">
+  <p>维护者留下的只有「探案板」一个方向（D7）。这里是三份**把它做好的不同改法**（P1/P2/P3）与三个**另开一个世界**的方向（W1/W2/W3）。</p>
+  <p>每份都是<b>单文件、零依赖、双击即开</b>；同一份真数据（地图 #604），同一套四态语义：走亮 / 照亮中 / 现在能做 / 雾里。</p>
+  <p class="tip">用上面的按钮或键盘 ← → 切换；点右上「打开原型 ↗」直接在浏览器里开那个 HTML。</p>
+</div>
+<div class="bar"><button data-k="P1">P1 · 精修证据墙</button><button data-k="P2">P2 · 时间线证据墙</button><button data-k="P3">P3 · 卷宗柜 + 五条技法</button><button data-k="W1">W1 · 矿井剖面</button><button data-k="W2">W2 · 机场航班信息板</button><button data-k="W3">W3 · 概率云 · 观测即坍缩</button><button data-k="NOW">NOW · 现状（真机截图）</button></div>
+<section class="item" data-k="P1">
+  <header><span class="k">P1</span><h2>精修证据墙</h2>
+    <a class="open" href="474-P1-evidence-wall.html" target="_blank">打开原型 ↗</a></header>
+  <p class="c">探案板原样保留，把工艺做实：按层分行、卡片互不重叠、红绳只走卡片之间的缝道、纸微转但文字恒定水平</p>
+  <p class="b">最狠的一招：雾是一张没拆开的证物袋（点一下撕开）；状态用颜色＋描边形状＋顶带纹理＋状态字形四样叠加</p>
+  <div class="shots">
+    <img class="big" src="474-shots/p1-精修证据墙-810.png" alt="精修证据墙 810">
+    <img class="small" src="474-shots/p1-精修证据墙-400.png" alt="精修证据墙 400">
+  </div>
+</section>
+<section class="item" data-k="P2">
+  <header><span class="k">P2</span><h2>时间线证据墙</h2>
+    <a class="open" href="474-p2-timeline-evidence-wall.html" target="_blank">打开原型 ↗</a></header>
+  <p class="c">卡片不再散落，挂在一条从上到下的主轴上——主轴本身就是「走过留下的亮痕」</p>
+  <p class="b">最狠的一招：轴末端没走到的那一段盖着一条火漆封条：撕开只是看清，不代表走通</p>
+  <div class="shots">
+    <img class="big" src="474-shots/p2-时间线证据墙-810.png" alt="时间线证据墙 810">
+    <img class="small" src="474-shots/p2-时间线证据墙-400.png" alt="时间线证据墙 400">
+  </div>
+</section>
+<section class="item" data-k="P3">
+  <header><span class="k">P3</span><h2>卷宗柜 + 五条技法</h2>
+    <a class="open" href="474-P3-%E5%8D%B7%E5%AE%97%E6%9F%9C.html" target="_blank">打开原型 ↗</a></header>
+  <p class="c">每层一个档案抽屉，卡片是袋里的物证；把六个前端库偷来的五条技法全用上</p>
+  <p class="b">最狠的一招：Canvas 挖洞雾 ＋ 明度阶梯 ＋ 三型色觉模拟开关（技法重新长在探案板身上）</p>
+  <div class="shots">
+    <img class="big" src="474-shots/p3-卷宗柜-810.png" alt="卷宗柜 + 五条技法 810">
+    <img class="small" src="474-shots/p3-卷宗柜-400.png" alt="卷宗柜 + 五条技法 400">
+  </div>
+</section>
+<section class="item" data-k="W1">
+  <header><span class="k">W1</span><h2>矿井剖面</h2>
+    <a class="open" href="474-w1-mine-section.html" target="_blank">打开原型 ↗</a></header>
+  <p class="c">地图是一条往地下打的矿道：层就是深度，票是作业面，目的地是矿脉</p>
+  <p class="b">最狠的一招：「不知道」在这里天然成立——岩层本来就要挖开才知道，切面画的是斜线纹理</p>
+  <div class="shots">
+    <img class="big" src="474-shots/w1-矿井剖面-810.png" alt="矿井剖面 810">
+    <img class="small" src="474-shots/w1-矿井剖面-400.png" alt="矿井剖面 400">
+  </div>
+</section>
+<section class="item" data-k="W2">
+  <header><span class="k">W2</span><h2>机场航班信息板</h2>
+    <a class="open" href="474-w2-flight-board.html" target="_blank">打开原型 ↗</a></header>
+  <p class="c">每张票是一个航班：已到达 / 登机中 / 准点 / 待定；板上方一条塔台跑道，一层一段，尽头是永远亮着的灯塔</p>
+  <p class="b">最狠的一招：一屏装得下 20 个航班，而「待定」本身就是诚实的（虚线＋删除线＋雾块盖住标题后半截）</p>
+  <div class="shots">
+    <img class="big" src="474-shots/w2-航班信息板-810.png" alt="机场航班信息板 810">
+    <img class="small" src="474-shots/w2-航班信息板-400.png" alt="机场航班信息板 400">
+  </div>
+</section>
+<section class="item" data-k="W3">
+  <header><span class="k">W3</span><h2>概率云 · 观测即坍缩</h2>
+    <a class="open" href="474-W3-quantum-cloud.html" target="_blank">打开原型 ↗</a></header>
+  <p class="c">雾里的票是一团粒子组成的概率云；点一下等于「观测」，粒子收束成一张确定的票</p>
+  <p class="b">最狠的一招：观测会波及邻居——看清一处，周围也跟着清楚一点</p>
+  <div class="shots">
+    <img class="big" src="474-shots/w3-概率云-810.png" alt="概率云 · 观测即坍缩 810">
+    <img class="small" src="474-shots/w3-概率云-400.png" alt="概率云 · 观测即坍缩 400">
+  </div>
+</section>
+<section class="item" data-k="NOW">
+  <header><span class="k">NOW</span><h2>现状（真机截图）</h2>
+    </header>
+  <p class="c">现在线上的地图详情页：票面平铺、没有雾、底部圆环按「层 +1」算（与票数无关）</p>
+  <p class="b">最狠的一招：对照用：改完之后要能一眼看出差别</p>
+  <div class="shots">
+    
+    
+  </div>
+</section>
+</div>
+<script>
+const items=[...document.querySelectorAll('.item')],btns=[...document.querySelectorAll('.bar button')];
+let cur=items[0].dataset.k;
+function show(k){cur=k;items.forEach(i=>i.classList.toggle('on',i.dataset.k===k));btns.forEach(b=>b.classList.toggle('on',b.dataset.k===k))}
+btns.forEach(b=>b.onclick=()=>show(b.dataset.k));
+addEventListener('keydown',e=>{const i=items.findIndex(x=>x.dataset.k===cur);
+  if(e.key==='ArrowRight')show(items[(i+1)%items.length].dataset.k);
+  if(e.key==='ArrowLeft')show(items[(i-1+items.length)%items.length].dataset.k);});
+show(cur);
+</script></body></html>

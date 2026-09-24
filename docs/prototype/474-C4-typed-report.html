@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>C4 · 案情报告 · 打字机卷宗 —— 地图 #604</title>
+<style>
+/* ============================================================================
+   C4 · 案情报告（打字机打的卷宗 ＋ 涂黑解密）
+   概念：整页是一份打字机打出来的调查报告 —— 打孔、装订线、页边批注、胶带粘的附件。
+        每一张票 = 报告里的一段条目（编号就是票号）。
+   主张：涂黑是最诚实的雾 —— 不是「没有」，是「有，但还没解密」。
+
+   状态映射（全项目统一，不许改语义）：
+     走亮   = 已经打完并盖章的条目（墨实，下面有「结论：……」）
+     照亮中 = 正在打的那一条（光标在闪，后面还有半行没打完）
+     现在能做 = 条目是空的虚线框 ＋ 页边批注「可以动手」
+     雾里   = 涂黑的段落，点一下「解密」，黑条滑开露出真内容
+
+   「层」不是骨架：上下关系只用页边批注「参见 #704」＋页边竖线表达，悬停才显形。
+   ============================================================================ */
+
+:root{
+  --bg:#10131a; --card:#16181d; --line:#2a2d35;
+  --tx:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --walk:#4ade80; --view:#58a6ff; --dest:#c084fc; --warn:#f59e0b;
+  --mono:Consolas,Menlo,monospace;
+  --sans:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  /* 卷宗世界：纸与墨 */
+  --leaf:#e9e4d6;          /* 报告纸 */
+  --leaf2:#ddd6c4;         /* 纸的背光面 */
+  --ink:#2b2b2b;           /* 打字机墨 */
+  --ink-soft:#5d5a53;      /* 淡一点的墨 */
+  --red:#a01e1e;           /* 印章红 */
+  --pencil:#4a5b6e;        /* 页边批注（铅笔蓝） */
+  --kraft:#d9c39a;         /* 档案袋 / 胶带 */
+  --step:130ms;            /* 每段打字的耗时，JS 会按内容长度微调 */
+}
+*{box-sizing:border-box}
+/* 本页有自己的 display 规则，会盖掉浏览器默认的 [hidden]{display:none} —— 必须显式写死，
+   否则「解密后的原文」在没解密时就露出来了（实测踩过这个坑）。 */
+[hidden]{display:none!important}
+html,body{margin:0;padding:0}
+/* 浏览器默认给段落留的上边距，在卡片里会顶出一道缝（实测把装订纸左右挤了 10px） */
+p{margin:0}
+body{
+  background:#0b0e13;color:var(--tx);font-family:var(--sans);-webkit-font-smoothing:antialiased;
+  display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:12px 0 24px;
+}
+body.embed{padding:0;background:var(--bg)}
+
+/* ---------------- 面板外壳（六个原型共用） ---------------- */
+#panel{
+  width:810px;background:var(--bg);border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  display:flex;flex-direction:column;max-height:calc(100vh - 60px);
+  container-type:inline-size;container-name:panel;
+}
+body.embed #panel{max-height:100vh;border:none;border-radius:0}
+
+.phead{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px 10px;
+  border-bottom:1px solid var(--line);background:linear-gradient(180deg,#151922,#12151c);
+}
+.pbtn{
+  appearance:none;background:transparent;border:1px solid transparent;color:var(--sec);
+  font:500 12px/1 var(--sans);padding:5px 8px;border-radius:6px;cursor:pointer;
+}
+.pbtn:hover{background:rgba(255,255,255,.06);color:var(--tx);border-color:var(--line)}
+.pbtn:focus-visible{outline:2px solid var(--view);outline-offset:1px}
+.crumb{display:flex;align-items:center;gap:7px;min-width:0}
+.crumb .no{font:600 12px/1 var(--mono);color:var(--tx)}
+.crumb .sep{color:#3a3f4b}
+.crumb .desc{font-size:11.5px;color:var(--sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tag-map{
+  display:inline-flex;align-items:center;gap:4px;font:600 10.5px/1 var(--mono);color:#d8c7ff;
+  background:rgba(192,132,252,.13);border:1px solid rgba(192,132,252,.45);border-radius:999px;padding:3px 8px;white-space:nowrap;
+}
+.pbtn.primary{margin-left:auto;background:rgba(88,166,253,.14);border-color:rgba(88,166,253,.55);color:#bfd9ff;font-weight:600}
+.pbtn.primary:hover{background:rgba(88,166,253,.24);color:#e6f1ff}
+
+/* ---------------- 滚动区 ---------------- */
+.bodywrap{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable}
+.report{padding:10px 10px 44px}
+.sheet{margin:0}
+
+/* ---------------- 装订线 ＋ 报告纸 ---------------- */
+.sheet{
+  position:relative;border-radius:3px 8px 8px 3px;
+  /* 这里必须是 clip 而不是 hidden：overflow:hidden 会把它变成滚动容器，
+     里面 position:sticky 的「案由」就钉不住了（实测过）。clip 既能裁圆角，又不动 sticky 的参照。 */
+  overflow:clip;
+  background:
+    radial-gradient(120% 60% at 8% -6%,rgba(255,255,255,.7),transparent 58%),
+    radial-gradient(90% 50% at 100% 108%,rgba(120,104,72,.20),transparent 62%),
+    repeating-linear-gradient(0deg,rgba(120,104,72,.05) 0 1px,transparent 1px 27px),
+    linear-gradient(174deg,var(--leaf),var(--leaf2) 60%,#d3cbb6);
+  color:var(--ink);
+  box-shadow:0 12px 28px rgba(0,0,0,.5),0 2px 0 rgba(255,255,255,.05);
+}
+.sheet::after{ /* 纸纤维颗粒：内联 SVG 噪声，不联网、不贴图 */
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.18;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.bind{
+  position:absolute;left:0;top:0;bottom:0;width:22px;pointer-events:none;z-index:4;
+  border-right:1px solid rgba(150,60,48,.30);
+  background:
+    radial-gradient(circle at 11px 34px,#0d1118 0 4.4px,rgba(120,105,80,.45) 4.4px 5.6px,transparent 6.2px),
+    radial-gradient(circle at 11px 128px,#0d1118 0 4.4px,rgba(120,105,80,.45) 4.4px 5.6px,transparent 6.2px),
+    repeating-linear-gradient(180deg,transparent 0 42px,rgba(96,84,62,.22) 42px 44px),
+    linear-gradient(90deg,rgba(120,104,72,.26),transparent);
+}
+.sheet2{min-width:0;padding:18px 16px 26px 40px}
+
+/* ---------------- 案由（报告头：滚动时钉在顶上，永远看得见） ---------------- */
+.case{
+  position:sticky;top:0;z-index:6;padding:13px 14px 11px 40px;cursor:pointer;
+  border-bottom:1px solid rgba(120,104,72,.4);
+  background:
+    radial-gradient(120% 70% at 6% -10%,rgba(255,255,255,.75),transparent 60%),
+    linear-gradient(178deg,#f1ece0,#e4ddca);
+  box-shadow:0 6px 14px rgba(0,0,0,.22);
+}
+.case:focus-visible{outline:2px solid var(--view);outline-offset:-3px}
+.case .casenote{
+  position:absolute;right:12px;top:11px;width:106px;transform:rotate(1.6deg);
+  font:italic 11px/1.5 var(--sans);color:var(--pencil);text-align:right;
+}
+.case .punch{
+  position:absolute;left:9px;top:13px;width:11px;height:11px;border-radius:50%;
+  background:#0d1118;box-shadow:0 0 0 2px rgba(120,105,80,.35),inset 0 1px 2px rgba(0,0,0,.7);
+}
+.case .fileno{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding-right:112px}
+.case .fileno b{font:700 12.5px/1 var(--mono);letter-spacing:.06em;color:var(--red)}
+.case .fileno .sep{color:#a9a294}
+.case .fileno span{font:500 11px/1.4 var(--mono);color:var(--ink-soft)}
+.case h1{margin:8px 0 0;font:600 14px/1.5 var(--sans);color:var(--ink);padding-right:112px}
+.case .rule{display:block;width:64px;height:2px;margin:6px 0 7px;background:var(--red);opacity:.85}
+.case .destlabel{
+  display:inline-flex;align-items:center;gap:5px;font:700 10.5px/1 var(--mono);letter-spacing:.12em;color:#5d3b8a;
+  background:rgba(192,132,252,.16);border:1px solid rgba(120,76,168,.4);border-radius:3px;padding:3px 7px;
+}
+.case .dest{margin:7px 0 0;font:400 12.5px/1.85 var(--mono);color:var(--ink);text-wrap:pretty;font-variant-numeric:tabular-nums}
+.case .casefoot{
+  display:flex;gap:10px;flex-wrap:wrap;margin-top:9px;padding-top:8px;
+  border-top:1px dashed rgba(120,104,72,.45);font:600 10.5px/1.5 var(--mono);color:#6a6459;
+}
+.case .casefoot em{font-style:normal;color:var(--red)}
+/* 窄面板：案由钉在顶上会吃掉半屏，所以标题与案由先收短，点一下才摊开。
+   收短的始终是「一段」，永远看得见，不会整块消失。 */
+.case.clamped h1{max-height:1.5em;overflow:hidden}
+.case.clamped .dest{
+  max-height:5.2em;overflow:hidden;
+  -webkit-mask-image:linear-gradient(180deg,#000 62%,transparent);mask-image:linear-gradient(180deg,#000 62%,transparent);
+}
+.case .seeall{
+  display:none;appearance:none;margin-top:6px;background:rgba(43,43,43,.06);
+  border:1px dashed rgba(43,43,43,.35);border-radius:3px;padding:2px 8px;cursor:pointer;
+  font:600 10.5px/1.7 var(--mono);color:var(--ink-soft);
+}
+.case.clamped .seeall{display:inline-block}
+.case .seeall:hover{background:rgba(43,43,43,.12)}
+.stampbig{
+  position:absolute;left:50%;top:56%;transform:translate(-50%,-50%) rotate(-9.5deg);
+  font:700 34px/1 var(--sans);letter-spacing:5px;color:var(--red);opacity:.24;
+  border:4px double var(--red);border-radius:6px;padding:8px 16px;pointer-events:none;white-space:nowrap;
+}
+@media (prefers-reduced-motion:no-preference){
+  .entry .stamp{animation:stampin .55s cubic-bezier(.2,.9,.2,1) both}
+}
+@keyframes stampin{
+  from{opacity:0;transform:rotate(-16deg) scale(1.45)}
+  60%{opacity:.85}
+  to{opacity:.55;transform:rotate(-7deg) scale(1)}
+}
+
+/* ---------------- 图例：状态不靠颜色，靠文字 ＋ 记号 ----------------
+   这一块贴在米色纸上，所以用深墨字；用暗底浅字会在纸上糊成一片（实测看不清） */
+.tally{display:flex;gap:6px;flex-wrap:wrap;padding:10px 12px 2px 12px}
+.tally .k{
+  display:inline-flex;align-items:center;gap:5px;font:600 10.5px/1.4 var(--mono);color:#3a3630;
+  border:1px solid rgba(43,43,43,.28);border-radius:999px;padding:3px 8px;background:rgba(255,255,255,.45);
+}
+.tally .k i{font-style:normal;font-weight:700}
+.tally .k.walk i{color:#1c6b39} .tally .k.lit i{color:#1a4f8a}
+.tally .k.ready i{color:#8a5a00} .tally .k.fog i{color:#454545}
+.tally .k.fog i::before{content:"\25AE";letter-spacing:-1px}
+.tally .hint{font:400 11.5px/1.7 var(--sans);color:#5d5a53;padding:2px 2px 0}
+
+/* ---------------- 条目：每一张票 = 报告里的一段 ---------------- */
+.entries{position:relative;min-width:0}
+.entry{
+  content-visibility:auto;contain-intrinsic-size:auto 200px;
+  display:grid;grid-template-columns:62px 112px minmax(0,1fr);column-gap:10px;
+  position:relative;padding:16px 14px 16px 40px;border-bottom:1px dashed rgba(120,104,72,.42);
+}
+.entry:last-child{border-bottom:0}
+.entry.flash{animation:flash 1.2s ease-out both}
+@keyframes flash{
+  0%{background:rgba(245,158,11,.34)} 45%{background:rgba(245,158,11,.16)} 100%{background:rgba(245,158,11,0)}
+}
+.entry.focused{background:rgba(43,43,43,.05)}
+/* 悬停某条时，它引用的和被引用的条目在页边同时亮起（像校对时用的红线） */
+.entry.lit-related{background:rgba(161,30,30,.07)}
+.entry.lit-related .erel{border-left-color:var(--red);color:var(--red)}
+.entry.lit-related .erel .xgi{color:var(--red)}
+/* 键盘走到条目里的按钮时，整条也要亮起来 —— 关系不能只对鼠标显形 */
+.entry:focus-within{background:rgba(43,43,43,.05)}
+.entry:focus-within .erel{border-left-color:#7a7466}
+/* 滚动驱动动画：进视野淡入；不支持时整块不生效，内容直接显示（降级）。
+   淡入要在刚进视野的那一小段里走完，否则第一屏的条目会一直半透明。 */
+@supports (animation-timeline: view()){
+  .panel.anim .entry,.panel.anim .fognote{
+    animation:entryRise linear both;
+    animation-timeline:view();
+    animation-range:entry 0% entry 8%;
+  }
+}
+@keyframes entryRise{from{opacity:.35;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* 三栏：票号 ｜ 页边竖线 ｜ 条目正文。用列号而不是命名区，免得没定义名称时全部挤进第一栏 */
+.ecap{grid-column:1;grid-row:1;min-width:0;font:700 11px/1.5 var(--mono);color:var(--ink-soft);letter-spacing:.03em}
+.ecap b{display:block;font:700 15px/1.25 var(--mono);color:var(--ink);letter-spacing:.02em}
+.ecap .kind{
+  display:inline-block;margin-top:4px;font:600 9.5px/1.6 var(--mono);color:var(--ink-soft);
+  border:1px solid rgba(43,43,43,.35);border-radius:2px;padding:0 3px;
+}
+/* 页边竖线：平时极淡，悬停时亮起来（校对时用的红线）。这一栏必须有实测够用的宽度，
+   否则栏里的中文会被挤成一根竖条、甚至漏到正文上面去。 */
+.erel{
+  grid-column:2;grid-row:1;min-width:0;align-self:stretch;margin:0;border-left:2px solid rgba(43,43,43,.13);
+  padding-left:8px;font:italic 11.5px/1.7 var(--sans);color:var(--pencil);overflow-wrap:anywhere;
+  transition:border-color .18s ease-out,color .18s ease-out;
+}
+.erel .xgi{display:block;font:600 10.5px/1.7 var(--mono);color:#7d6c3e;margin-top:4px}
+.erel .xgi .chipref{color:#7d6c3e}
+.erel .xgi .chipref::before{content:none}
+/* 窄面板时：脚本把页边批注的副本搬进条目正文里（.inline-rel），页边那条就收起来 */
+.erel[hidden]{display:none}
+.inline-rel{
+  display:var(--inline,block);margin:9px 0 0;padding:6px 0 0;border-top:1px dashed #b9b2a0;
+  font:italic 11.5px/1.7 var(--sans);color:var(--pencil);
+}
+.xg{
+  appearance:none;cursor:pointer;background:transparent;border:0;padding:0;color:inherit;
+  font:600 11px/1.7 var(--mono);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;
+}
+.xg:hover{background:rgba(255,213,79,.55)}
+.xg:focus-visible{outline:2px solid var(--view);outline-offset:1px}
+.chipref::before{content:"#"}
+.entry.focused .erel{border-left-color:#7a7466}
+.entry.focused .erel .chipref{color:#7a3d8f}
+
+.ebody{grid-column:3;grid-row:1;min-width:0;overflow-wrap:anywhere}
+.ehead{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px}
+.estate{
+  display:inline-flex;align-items:center;gap:4px;font:700 9.5px/1 var(--mono);letter-spacing:.06em;
+  border-radius:2px;padding:3px 6px;border:1px solid;
+}
+.s-closed{color:#1c6b39;border-color:rgba(28,107,57,.55);background:rgba(28,107,57,.10)}
+.s-lit{color:#1a4f8a;border-color:rgba(26,79,138,.55);background:rgba(26,79,138,.10)}
+.s-ready{color:#8a5a00;border-color:rgba(138,90,0,.55);background:rgba(245,158,11,.13)}
+.s-fog{color:#454545;border-color:rgba(0,0,0,.45);background:rgba(0,0,0,.10)}
+.s-fog::before{content:"\25AE\00a0"}
+.emark{font:italic 11px/1.5 var(--mono);color:var(--ink-soft)}
+
+/* 打字机：逐段显影（每段一行，左→右扫开，留一条软边） */
+.etitle{margin:0;font:400 12.5px/1.95 var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+.typed{position:relative;display:block}
+.ghost{position:absolute;left:0;top:0;right:0;z-index:0;color:#ded9cb;user-select:none}
+.ink{position:relative;display:block;z-index:1;mix-blend-mode:multiply}
+.batch{position:relative;display:block;white-space:nowrap;min-width:0;overflow:hidden}
+/* 万一量宽失败、某段真的排不开：宁可让整句自然折行，也不许把一个词单独扔到下一行 */
+.js .batch{white-space:normal;overflow:hidden;overflow-wrap:anywhere}
+.batch .t{display:block}
+.batch .ecursor{
+  position:absolute;left:0;top:.18em;width:2px;height:1.3em;background:var(--ink);
+  opacity:0;pointer-events:none;z-index:3;transform-origin:0 0;
+}
+/* 只声明一次 .js：没有 JS 时所有文字直接是正常段落 */
+.js .batch .ink{clip-path:inset(0 100% 0 0)}
+.js .batch.typing .ecursor{
+  animation:cursorblink .8s steps(1,end) infinite,pushright var(--step) linear both;
+  opacity:.9;
+}
+@keyframes cursorblink{0%,50%{opacity:.9}50.01%,100%{opacity:0}}
+@keyframes pushright{to{transform:translate(100%,0)}}
+.js .batch.typing .ink{animation:typeone var(--step) linear both}
+@keyframes typeone{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 -8px 0 0)}}
+/* 打完：墨变实、软边收掉、光标收走。这三条只加一次，永不再摘（除非按「重播打字」） */
+.batch.under .ink{animation:none;clip-path:inset(0 -8px 0 0)}
+.batch.under .ecursor{animation:none;opacity:0;transform:translate(100%,0)}
+.typed.under .draw{animation:drawgo .45s ease-out both}
+.draw{display:block;width:0;height:1px;margin-top:5px;background:linear-gradient(90deg,rgba(43,43,43,.85),rgba(43,43,43,0))}
+@keyframes drawgo{from{width:0}to{width:100%}}
+.t-blink{display:inline-block;width:7px;height:14px;vertical-align:-2px;margin-left:2px;
+  background:var(--ink);opacity:.92;animation:blink .95s steps(1,end) infinite}
+@keyframes blink{0%,50%{opacity:.92}50.01%,100%{opacity:0}}
+
+/* 结论（走亮的条目下面有这一行，用真实决策文字） */
+.econcl{
+  position:relative;margin:9px 0 0;padding:7px 10px 7px 11px;border-left:3px solid rgba(28,107,57,.75);
+  background:rgba(28,107,57,.07);font:600 12px/1.75 var(--mono);color:#1b4a2c;
+}
+.econcl .k{display:block;font:700 9.5px/1.6 var(--mono);letter-spacing:.12em;color:#1c6b39}
+/* 章压在结论行末尾，但只轻轻压到一点点：垫一层薄纸色，别把数字盖住 */
+.econcl .stamp{
+  position:absolute;right:4px;bottom:3px;transform:rotate(-7deg);
+  font:700 11px/1 var(--sans);letter-spacing:1.5px;color:var(--red);opacity:.5;
+  border:1.5px solid var(--red);border-radius:3px;padding:1px 4px;pointer-events:none;
+  background:rgba(255,255,255,.55);
+}
+.efoot{margin:8px 0 0;font:italic 11px/1.75 var(--mono);color:var(--ink-soft)}
+.efoot b{font-style:normal}
+.enote{
+  margin:8px 0 0;font:italic 12px/1.75 var(--sans);color:var(--pencil);
+  background:rgba(74,91,110,.09);border-left:2px solid rgba(74,91,110,.45);padding:4px 8px;
+}
+.enote b{font-style:normal;color:#3f5470}
+.shredate{font:italic 10.5px/1.7 var(--mono);color:#8a8477;margin:8px 0 0}
+
+/* 现在能做：空着的虚线框 ＋ 页边批注「可以动手」 */
+.readybox{position:relative;margin:2px 0 0;padding:0}
+.readybox .erow{display:block;height:1.9em;border-bottom:1px dashed #c2bbaa}
+.readybox .openbar{display:inline-block;margin-top:6px;font:700 11.5px/1.8 var(--mono);color:#8a5a00}
+.readycap{
+  display:block;margin-top:6px;font:italic 11.5px/1.7 var(--sans);color:#8a5a00;
+}
+.readycap::before{content:"\270E\00a0";font-style:normal}
+
+/* 雾里：涂黑的段落 ＋ 解密 */
+.fogredact{margin:2px 0 0}
+.redactbtn{
+  display:block;width:100%;text-align:left;appearance:none;cursor:pointer;background:transparent;
+  border:0;padding:0;font:inherit;color:inherit;
+}
+.redactbtn:focus-visible{outline:2px solid var(--view);outline-offset:2px}
+/* 滑开的黑条必须被夹在这一段里：clip 只裁画面、不产生滚动容器，不会伤到别处的 sticky */
+.bars{position:relative;display:block;padding-bottom:2px;overflow:clip}
+.bars .rows{display:block}
+/* 解密后的原文要能整段折行；等宽 + nowrap 会让它被裁成一行 */
+.fogredact.on .bars .w{white-space:normal;line-height:1.55;overflow:visible}
+.bars .row{position:relative;display:block;height:1.55em;margin:6px 0}
+.fogredact.on .bars .row{height:auto;min-height:1.55em}
+.bars .bar{
+  position:absolute;left:0;top:0;height:1.4em;width:100%;border-radius:1.5px;z-index:2;
+  background:linear-gradient(180deg,#1c1c1c,#0a0a0a 55%,#181818);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 1px rgba(0,0,0,.35);
+  mix-blend-mode:multiply;
+}
+.bars .bar::after{
+  content:"";position:absolute;inset:0;opacity:.55;
+  background:repeating-linear-gradient(94deg,rgba(255,255,255,.11) 0 1.5px,transparent 1.5px 4px);
+}
+.bars .w{
+  position:absolute;left:0;top:0;height:1.4em;z-index:1;display:flex;align-items:center;
+  font:400 12px/1 var(--mono);color:#555;white-space:nowrap;overflow:hidden;
+}
+.fogredact.on .bars .bar{transform:translateX(calc(100% + 8px));transition:transform .62s cubic-bezier(.45,.05,.2,1)}
+.fogredact:not(.on) .bars .bar{transition:transform .32s ease-in}
+.fogredact.on .bars .w{color:var(--ink)}
+.efogtext{
+  margin:9px 0 0;padding:8px 10px;border:1px dashed rgba(245,158,11,.8);background:rgba(245,158,11,.11);
+  font:400 12px/1.8 var(--mono);color:#3a3630;border-radius:3px;text-wrap:pretty;
+}
+.efogtext .k{display:block;font:700 9.5px/1.6 var(--mono);letter-spacing:.1em;color:#8a5a00}
+.efogtext .st{
+  display:inline-block;font:700 10.5px/1.5 var(--sans);letter-spacing:1px;color:var(--red);
+  border:1.5px solid var(--red);border-radius:3px;padding:0 4px;transform:rotate(-3deg);vertical-align:1px;
+}
+.efogtext .note{display:block;margin-top:7px;font:italic 11.5px/1.7 var(--sans);color:#6a5b3a}
+/* 解密后绝不能看起来像「已完成」：暖色斜纹底 ＋ 明确的「还没动过」 */
+.fogredact.on .bars .rows{
+  background:repeating-linear-gradient(135deg,rgba(245,158,11,.12) 0 5px,transparent 5px 11px);
+  box-shadow:inset 0 0 0 1px rgba(245,158,11,.28);
+}
+.fogredact.on .bars .row{background:rgba(255,255,255,.35)}
+.entry.declassed .erel::after{content:"（已解密，票没动）";display:block;font:italic 10.5px/1.6 var(--sans);color:#8a5a00;margin-top:4px}
+
+/* 案外：还没编号的雾（不是票，但也是案卷里真实存在的一段未知） */
+.fognote{
+  content-visibility:auto;contain-intrinsic-size:auto 150px;
+  position:relative;padding:15px 14px 15px 40px;border-bottom:1px dashed rgba(120,104,72,.42);
+  background:rgba(43,43,43,.022);
+}
+.fognote .fnhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.fognote .ek{font:700 9.5px/1 var(--mono);letter-spacing:.06em;color:#454545;border:1px solid rgba(0,0,0,.42);padding:3px 6px;border-radius:2px;background:rgba(0,0,0,.08)}
+.fognote .hint{font:italic 11.5px/1.7 var(--sans);color:var(--pencil)}
+
+/* 附件：胶带粘在页边的第二张纸（页首的摘要用 mix-blend-mode 叠在纸纹上） */
+.attach{
+  position:relative;margin:16px 16px 6px;padding:14px 14px 14px 36px;transform:rotate(-.6deg);
+  background:linear-gradient(168deg,#efeadd,#e3dcc9);border:1px solid rgba(120,104,72,.4);border-radius:2px;
+  box-shadow:0 6px 16px rgba(0,0,0,.32),inset 0 0 0 1px rgba(255,255,255,.4);
+  color:var(--ink);
+  clip-path:polygon(0 3px,2% 0,9% 2px,18% .6%,30% 2.4px,44% .4%,60% 2.2px,74% .5%,88% 2px,97% .6%,100% 3px,100% calc(100% - 3px),96% 100%,80% calc(100% - 2px),63% 100%,47% calc(100% - 2.4px),31% 100%,15% calc(100% - 1.8px),4% 100%,0 calc(100% - 3px));
+}
+.attach::before,.attach::after{
+  content:"";position:absolute;width:64px;height:19px;background:rgba(217,195,154,.74);
+  border-left:1px solid rgba(255,255,255,.5);border-right:1px solid rgba(255,255,255,.5);
+  box-shadow:0 1px 3px rgba(0,0,0,.25);
+  clip-path:polygon(2px 0,100% 3px,calc(100% - 2px) 100%,0 calc(100% - 3px));
+}
+.attach::before{left:-18px;top:-8px;transform:rotate(-8deg)}
+.attach::after{right:-16px;bottom:-7px;transform:rotate(6deg)}
+.attach h3{margin:0 0 5px;font:700 12px/1.5 var(--sans);color:var(--ink)}
+.attach p{margin:7px 0 0;font:400 12px/1.85 var(--mono);color:#3a3630;text-wrap:pretty}
+.attach .cap{font:600 10px/1.6 var(--mono);letter-spacing:.1em;color:#8a5a00}
+.attach ul{list-style:none;margin:6px 0 0;padding:0}
+.attach li{font:400 12px/1.85 var(--mono);color:#3a3630;padding-left:15px;position:relative}
+.attach li::before{content:"\25AE ";position:absolute;left:0;color:#4a4a4a}
+.attach .cc{padding-top:7px;border-top:1px dashed rgba(120,104,72,.5)}
+
+/* 空案卷：一张只有案由的空白打字纸 */
+.blank{position:relative;padding:22px 18px 30px 40px;min-height:290px}
+.blank .ruler{height:26px;border-bottom:1px solid rgba(120,104,72,.3)}
+.blank .spine{position:absolute;left:30px;top:22px;bottom:24px;width:2px;background:rgba(150,60,48,.28)}
+.blank .ph{
+  position:absolute;left:54px;top:36px;right:24px;border:1px dashed #b3ab98;border-radius:3px;
+  padding:12px 14px;font:italic 12px/1.85 var(--sans);color:#6a6459;background:rgba(255,255,255,.28);
+}
+.blank .ph b{font-style:normal;color:#8a5a00}
+/* 空案卷的那颗章放在空白纸的右下角，别压住案由（案由永远要看得清） */
+.blank .stampbig{left:auto;right:22px;top:auto;bottom:26px;transform:rotate(-8deg)}
+
+/* ---------------- 底部原型控制条（不属于设计本身） ---------------- */
+#bar{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 10px;
+  border-top:1px solid var(--line);background:#12151c;font:400 11px/1.4 var(--sans);color:var(--cap);
+}
+#bar.hide{display:none}
+#bar .blabel{font-weight:600;color:var(--sec)}
+.bgroup{display:inline-flex;gap:2px;border:1px solid var(--line);border-radius:6px;padding:2px;background:#0e1117}
+.bgroup button{
+  appearance:none;background:transparent;border:0;color:var(--sec);font:500 11px/1 var(--sans);
+  padding:5px 7px;border-radius:4px;cursor:pointer;
+}
+.bgroup button:hover{background:rgba(255,255,255,.07);color:var(--tx)}
+.bgroup button[aria-pressed="true"]{background:rgba(88,166,253,.18);color:#cfe3ff}
+.bgroup button:focus-visible{outline:2px solid var(--view);outline-offset:1px}
+.bhint{margin-left:auto;font-size:10.5px;color:#6c6c78}
+
+/* ---------------- 400 宽：页边批注收进条目里（真响应容器宽度） ---------------- */
+@container panel (max-width:560px){
+  .panel{--inline:none}          /* 页边那条收起来，改成正文里的 .inline-rel */
+  .sheet2{padding:14px 12px 22px 30px}
+  .entry{grid-template-columns:56px minmax(0,1fr);column-gap:9px;padding:13px 11px 13px 30px}
+  .ecap{font-size:10.5px}
+  .erel{display:none}
+  .fognote{padding:13px 11px 13px 30px}
+  .case{padding:11px 11px 9px 30px}
+  .case .fileno,.case h1{padding-right:0}
+  .case .casenote{position:static;transform:none;text-align:left;margin:0 0 7px;width:auto;font-size:11.5px}
+  .case .dest{font-size:12px;line-height:1.7}
+  .stampbig{font-size:24px;letter-spacing:3px;opacity:.22}
+  .etitle{font-size:12px}
+  .attach{margin:14px 10px 6px;padding:12px 12px 12px 28px}
+}
+/* 万一容器查询没生效（旧浏览器），用 ResizeObserver 打的这个标记走同一套窄版样式 */
+.panel.narrow{--inline:none}
+.panel.narrow .sheet2{padding:14px 12px 22px 30px}
+.panel.narrow .entry{grid-template-columns:56px minmax(0,1fr);column-gap:9px;padding:13px 11px 13px 30px}
+.panel.narrow .ecap{font-size:10.5px}
+.panel.narrow .erel{display:none}
+.panel.narrow .fognote{padding:13px 11px 13px 30px}
+.panel.narrow .case{padding:11px 11px 9px 30px}
+.panel.narrow .case .fileno,.panel.narrow .case h1{padding-right:0}
+.panel.narrow .case .casenote{position:static;transform:none;text-align:left;margin:0 0 7px;width:auto;font-size:11.5px}
+.panel.narrow .case .dest{font-size:12px;line-height:1.7}
+.panel.narrow .stampbig{font-size:24px;letter-spacing:3px;opacity:.22}
+.panel.narrow .etitle{font-size:12px}
+.panel.narrow .attach{margin:14px 10px 6px;padding:12px 12px 12px 28px}
+/* 「参见 #704」这类交叉索引在窄面板里也必须在，不许被收走 */
+.ecap,.econcl,.efoot,.enote,.etitle,.efogtext,.inline-rel{display:revert}
+</style>
+</head>
+<body>
+<main id="panel" class="panel anim">
+  <header class="phead">
+    <button class="pbtn" id="back" type="button">← 返回</button>
+    <span class="crumb">
+      <span class="desc">列表</span><span class="sep">/</span><span class="no" id="crumbno">#604</span>
+    </span>
+    <span class="tag-map">▣ wayfinder:map</span>
+    <button class="pbtn primary" id="drive" type="button">▶ 推进这张图</button>
+  </header>
+
+  <div class="bodywrap" id="scroll">
+    <div id="host"></div>
+  </div>
+
+  <footer id="bar">
+    <span class="blabel">原型控制条（不属于设计本身）</span>
+    <span class="bgroup" id="wbtns">
+      <button type="button" data-w="400">宽 400</button>
+      <button type="button" data-w="810">宽 810</button>
+    </span>
+    <span class="bgroup" id="sbtns">
+      <button type="button" data-s="active">推进中</button>
+      <button type="button" data-s="empty">还没画图</button>
+      <button type="button" data-s="big">大图 20 张</button>
+    </span>
+    <span class="bgroup">
+      <button type="button" id="replay">重播打字</button>
+    </span>
+    <span class="bhint">地址栏参数：?w=400|810 · ?s=active|empty|big · ?bar=0 隐藏本行</span>
+  </footer>
+</main>
+
+<script>
+(function () {
+'use strict';
+var J = document.documentElement;
+
+/* ============================ 1. 真实数据（任务书 §4，逐字抄入） ============================ */
+
+var MAP_ACTIVE = {
+  no: 604,
+  title: 'MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）',
+  destination: '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。',
+  tickets: [
+    { no: 605, type: 'task', title: '收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票', state: 'CLOSED', blockedBy: [] },
+    { no: 606, type: 'task', title: '补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点', state: 'CLOSED', blockedBy: [605] },
+    { no: 607, type: 'research', title: '全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单', state: 'OPEN', claimedBy: 'FeatherHunter', blockedBy: [605, 606] },
+    { no: 608, type: 'grilling', title: '宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个', state: 'OPEN', blockedBy: [607] }
+  ],
+  decisions: [
+    { t: '收口上个会话的遗留', g: '倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）' },
+    { t: '补上 gh 调用的测量盲区', g: '真机一天 2538 次 gh 调用，中位 7.8 秒，超过「单次 ≤ 1.5 秒」' }
+  ],
+  fog: [
+    '按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票：每一条毛病单独成票，数量与内容要等体检结果才知道，现在切不出来。',
+    '客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换、详情页各自慢不慢、慢在哪，现在说不清，等体检数字。'
+  ]
+};
+
+var MAP_EMPTY = {
+  no: 604,
+  title: 'MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）',
+  destination: '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。',
+  tickets: []
+};
+
+var MAP_BIG = {
+  no: 604,
+  title: 'MattSkillsDeck 全量性能调查与优化落地（示例大图）',
+  destination: '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。',
+  tickets: [
+    { no: 701, type: 'task', title: '收口上个会话的遗留（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 702, type: 'task', title: '补上 gh 调用的测量盲区（示例）', state: 'CLOSED', blockedBy: [701] },
+    { no: 703, type: 'research', title: '面板渲染耗时基线（示例）', state: 'CLOSED', blockedBy: [701] },
+    { no: 704, type: 'research', title: '宿主命令链耗时体检（示例）', state: 'OPEN', claimedBy: 'FeatherHunter', blockedBy: [701, 702] },
+    { no: 705, type: 'research', title: '客户端渲染耗时体检（示例）', state: 'CLOSED', blockedBy: [701, 703] },
+    { no: 706, type: 'research', title: '日志落盘与内存体检（示例）', state: 'OPEN', blockedBy: [703] },
+    { no: 707, type: 'research', title: '装配启动耗时体检（示例）', state: 'OPEN', blockedBy: [701] },
+    { no: 708, type: 'grilling', title: '宿主取数层设计：接缝画在哪、缓存键怎么定（示例）', state: 'OPEN', blockedBy: [704, 706] },
+    { no: 709, type: 'grilling', title: '请求合并与缓存键设计（示例）', state: 'OPEN', blockedBy: [708] },
+    { no: 710, type: 'task', title: '三个扫描器收成一个（示例）', state: 'OPEN', blockedBy: [708] },
+    { no: 711, type: 'task', title: '面板列表虚拟滚动落地（示例）', state: 'OPEN', blockedBy: [705] },
+    { no: 712, type: 'task', title: '状态栏刷新链路瘦身（示例）', state: 'OPEN', blockedBy: [705] },
+    { no: 713, type: 'task', title: '详情页首屏预算达标（示例）', state: 'OPEN', blockedBy: [711, 712] },
+    { no: 714, type: 'prototype', title: '地图详情页重构的观感原型（示例）', state: 'OPEN', blockedBy: [711] },
+    { no: 715, type: 'task', title: '启动阶段懒装配（示例）', state: 'OPEN', blockedBy: [707] },
+    { no: 716, type: 'task', title: '日志写入节流与批量落盘（示例）', state: 'OPEN', blockedBy: [706] },
+    { no: 717, type: 'task', title: '内存占用回归门禁（示例）', state: 'OPEN', blockedBy: [716] },
+    { no: 718, type: 'task', title: '真机全链复测（示例）', state: 'OPEN', blockedBy: [710, 713, 715, 717] },
+    { no: 719, type: 'task', title: '性能预算写进 CI（示例）', state: 'OPEN', blockedBy: [718] },
+    { no: 720, type: 'task', title: '把实测数字写进文档（示例）', state: 'OPEN', blockedBy: [719] }
+  ],
+  decisions: [
+    { t: '收口上个会话的遗留', g: '倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）' },
+    { t: '补上 gh 调用的测量盲区', g: '真机一天 2538 次 gh 调用，中位 7.8 秒' },
+    { t: '面板渲染耗时基线', g: '列表 300 行首屏 412 毫秒，超预算' },
+    { t: '客户端渲染耗时体检', g: '页签切换 180 毫秒，主要在重建列表 DOM' }
+  ],
+  fog: [
+    '按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票，数量与内容要等体检结果才知道。'
+  ]
+};
+
+var STATES = { active: MAP_ACTIVE, empty: MAP_EMPTY, big: MAP_BIG };
+
+/* ============================ 2. 小工具 ============================ */
+
+function qs(name) {
+  try { return new URLSearchParams(location.search).get(name); } catch (e) { return null; }
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function $(sel, root) { return (root || document).querySelector(sel); }
+function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+/* 四种票状态（任务书 §3）：全都是看它自己那一小块就能判出来，不用问「第几层」 */
+function classify(t, byNo) {
+  if (t.state === 'CLOSED') return 'closed';
+  if (t.claimedBy) return 'lit';
+  var deps = t.blockedBy || [];
+  for (var i = 0; i < deps.length; i++) {
+    var d = byNo[deps[i]];
+    if (d && d.state !== 'CLOSED') return 'fog';
+  }
+  return 'ready';
+}
+var STATE_LABEL = { closed: '已结', lit: '正在打', ready: '可以动手', fog: '还没解密' };
+var STATE_GLYPH = { closed: '✔', lit: '✎', ready: '▢', fog: '▮' };
+var TYPE_LABEL = { task: '待办', research: '调查', grilling: '对谈定案', prototype: '原型', bug: '缺陷' };
+
+/* ============================ 3. 把数据渲染成报告 ============================ */
+
+var MAP = null, BYNO = {}, BLOCKS = {}, BLOCKEDBY = {};
+
+function buildIndex(m) {
+  BYNO = {}; BLOCKS = {}; BLOCKEDBY = {};
+  var ts = m.tickets || [];
+  ts.forEach(function (t) {
+    BYNO[t.no] = t;
+    BLOCKS[t.no] = [];
+    BLOCKEDBY[t.no] = (t.blockedBy || []).filter(function (n) { return n !== t.no; });
+  });
+  ts.forEach(function (t) {
+    (t.blockedBy || []).forEach(function (d) { if (BLOCKS[d] && d !== t.no) BLOCKS[d].push(t.no); });
+  });
+}
+
+/* 结论行：把 decisions 里的真实决策文字挂到对应的已结条目下面 */
+function conclFor(no) {
+  var t = BYNO[no]; if (!t) return null;
+  var title = String(t.title).replace(/（示例）/g, '');
+  var hit = null;
+  (MAP.decisions || []).forEach(function (d) {
+    if (!hit && d && d.t && (title.indexOf(d.t) === 0 || d.t.indexOf(title) === 0)) hit = d;
+  });
+  return hit;
+}
+
+function refButtons(list) {
+  return list.map(function (n) {
+    return '<button class="xg chipref" type="button" data-goto="' + n + '" ' +
+      'title="跳到第 ' + n + ' 条">' + n + '</button>';
+  }).join('');
+}
+
+function relHTML(no) {
+  var up = (BLOCKEDBY[no] || []).filter(function (n) { return BYNO[n]; });
+  var down = (BLOCKS[no] || []).filter(function (n) { return BYNO[n]; });
+  var h = '';
+  if (up.length) h += '<span>' + (up.length > 1 ? '等 ' : '参见 ') + refButtons(up) + ' 结掉</span>';
+  if (down.length) h += '<span class="xgi">\u21b3 它结掉才轮到 ' + refButtons(down) + '</span>';
+  if (!h) h = '<span class="xgi">没有别处引用它</span>';
+  return h;
+}
+
+var REDACT_ROWS = 3, REDACT_PER_ROW = 26;
+
+function redactHTML(key, text, isTicket) {
+  var rows = Math.max(1, Math.min(REDACT_ROWS, Math.ceil(String(text).length / REDACT_PER_ROW)));
+  var rowHTML = '';
+  for (var i = 0; i < rows; i++) {
+    rowHTML += '<span class="row"><span class="w">' +
+      esc(String(text).substr(i * REDACT_PER_ROW, REDACT_PER_ROW)) + '</span><span class="bar" aria-hidden="true"></span></span>';
+  }
+  var label = isTicket ? ('解密第 ' + key + ' 条涂黑的内容') : ('解密第 ' + (Number(key.replace('f', '')) + 1) + ' 段还没编号的内容');
+  return '<div class="fogredact" data-redact="' + key + '">' +
+    '<button class="redactbtn" type="button" data-t="' + key + '" aria-expanded="false" aria-label="' + esc(label) + '">' +
+      '<span class="bars"><span class="rows">' + rowHTML + '</span></span>' +
+    '</button>' +
+    '<p class="efogtext" data-fogtext hidden><span class="k">解密后的原文</span><span class="st">刚解密</span><br>' +
+      esc(text) +
+      '<span class="note">这一段只是「从黑条下面翻出来了」，它的票还在，还没办 —— 不等于办完了。</span>' +
+    '</p>' +
+  '</div>';
+}
+
+function entryHTML(t) {
+  var no = t.no, st = classify(t, BYNO);
+  var up = (BLOCKEDBY[no] || []).filter(function (n) { return BYNO[n]; });
+  var down = (BLOCKS[no] || []).filter(function (n) { return BYNO[n]; });
+  var typeLabel = TYPE_LABEL[t.type] || '记录';
+
+  var cap = '<div class="ecap"><b>' + no + '</b>' + esc(typeLabel) +
+    (up.length ? '<span class="kind">等 ' + up.length + ' 条</span>' : '') + '</div>';
+
+  var bodyHTML = '', footHTML = '', noteHTML = '';
+
+  if (st === 'closed') {
+    bodyHTML = '<p class="etitle" data-typed="0">' + esc(t.title) + '</p>';
+    var c = conclFor(no);
+    if (c) bodyHTML += '<p class="econcl"><span class="k">结论：</span>' + esc(c.g) + '<span class="stamp" aria-hidden="true">已结</span></p>';
+    noteHTML = '<p class="enote">这一条打完了，盖了章。上面的结论就是从这张票里摘出来的，不再改。</p>';
+  } else if (st === 'lit') {
+    bodyHTML = '<p class="etitle" data-typed="0">' + esc(t.title) + '</p>' +
+      '<p class="efoot">正在往下打：<span class="t-blink" aria-hidden="true"></span>后面还有半行没打完。</p>';
+    noteHTML = '<p class="enote">打字的是 <b>' + esc(t.claimedBy || '（没写名字）') + '</b>。报告停在这儿，不是结束了。</p>';
+  } else if (st === 'ready') {
+    bodyHTML = '<div class="readybox" aria-hidden="true"><span class="erow"></span></div>' +
+      '<p class="etitle" data-typed="0">' + esc(t.title) + '</p>' +
+      '<span class="readycap">条目还空着，手上没活的话，这一条现在就能动手。</span>';
+  } else {
+    bodyHTML = redactHTML(String(no), t.title, true);
+    footHTML = '<p class="efoot">为什么这段涂黑：' +
+      (up.length ? '前面 <b>' + up.join(' · ') + '</b> 还没结掉，通不通现在不知道。' : '还没人认领，也没人动过。') +
+      (down.length ? ' 它一旦结掉，才轮到 ' + down.join(' · ') + '。' : '') + '</p>';
+    noteHTML = '<p class="enote">涂黑不是「没有」：这一段确实有内容，只是还没解密。点黑条能看它写的什么 —— 看了也只是看过，票还是没办。</p>';
+  }
+
+  return '<article class="entry" data-ticket="' + no + '" data-state="' + st + '" ' +
+    'data-refs="' + up.join(',') + '" data-deps="' + down.join(',') + '" tabindex="-1">' +
+    cap +
+    '<div class="erel" aria-hidden="true">' + relHTML(no) + '</div>' +
+    '<div class="ebody">' +
+      '<div class="ehead">' +
+        '<span class="estate s-' + st + '">' + STATE_GLYPH[st] + ' ' + esc(STATE_LABEL[st]) + '</span>' +
+        '<span class="emark">' + esc(typeLabel) + ' · 编号 ' + no + '</span>' +
+      '</div>' + bodyHTML + footHTML + noteHTML +
+      '<p class="shredate">落笔位置：本卷第 ' + no + ' 条</p>' +
+    '</div>' +
+  '</article>';
+}
+
+function fogNoteHTML(text, idx) {
+  return '<article class="fognote" data-state="fog" data-kind="fog-note">' +
+    '<div class="fnhead"><span class="ek">▮ 案外未编号</span>' +
+      '<span class="hint">这一段还没被编成票 —— 连编号都还没有</span></div>' +
+    '<div class="ebody">' + redactHTML('f' + idx, text, false) +
+      '<p class="efoot">它没被编成票，是因为要等体检数字出来才知道怎么切。先留着，别当成待办去动手。</p>' +
+    '</div></article>';
+}
+
+function ruledHTML(n) {
+  var h = '';
+  for (var i = 0; i < n; i++) h += '<div class="ruler"></div>';
+  return h;
+}
+
+function renderReport() {
+  var host = $('#host');
+  var ts = (MAP.tickets || []).slice().sort(function (a, b) { return a.no - b.no; });
+  var counts = { closed: 0, lit: 0, ready: 0, fog: 0 };
+  ts.forEach(function (t) { counts[classify(t, BYNO)]++; });
+
+  var caseHTML = '<section class="case" id="case" data-role="destination" tabindex="-1" ' +
+      'style="border-radius:3px 8px 0 0" title="点这里回到报告最上面">' +
+    '<span class="punch" aria-hidden="true"></span>' +
+    '<div class="casenote" aria-hidden="true">地点：右侧面板<br>案卷号 ' + MAP.no + '<br>本卷共 ' + ts.length + ' 条记录</div>' +
+    '<div class="fileno"><b>案卷 ' + MAP.no + '</b><span class="sep">·</span>' +
+      '<span>办案报告 · 打字机誊清稿</span><span class="sep">·</span><span>第 1 页 / 共 1 页</span></div>' +
+    '<h1>' + esc(MAP.title || '（这份案卷还没写名字）') + '</h1>' +
+    '<span class="rule" aria-hidden="true"></span>' +
+    '<div><span class="destlabel">案由 · 要去的地方</span></div>' +
+    '<p class="dest">' + esc(MAP.destination || '（案由那一栏还空着）') + '</p>' +
+    '<button class="seeall" type="button" data-seeall>摊开案由全文</button>' +
+    '<div class="casefoot">' +
+      '<span>已结 <em>' + counts.closed + '</em></span>' +
+      '<span>正在打 <em>' + counts.lit + '</em></span>' +
+      '<span>可以动手 <em>' + counts.ready + '</em></span>' +
+      '<span>还没解密 <em>' + counts.fog + '</em></span>' +
+      '<span>页边小字写着这一条参考了哪几条</span>' +
+    '</div>' +
+    (ts.length ? '' : '') +
+  '</section>';
+
+  var legs = '<div class="tally">' +
+    '<span class="k walk"><i aria-hidden="true">' + STATE_GLYPH.closed + '</i>已结 ' + counts.closed +
+      '：打完了，下面一行结论</span>' +
+    '<span class="k lit"><i aria-hidden="true">' + STATE_GLYPH.lit + '</i>正在打 ' + counts.lit +
+      '：光标还在闪</span>' +
+    '<span class="k ready"><i aria-hidden="true">' + STATE_GLYPH.ready + '</i>可以动手 ' + counts.ready +
+      '：条目是空的虚线框</span>' +
+    '<span class="k fog"><i aria-hidden="true"></i>还没解密 ' + counts.fog + '：黑条盖着，点一下滑开</span>' +
+    (ts.length && counts.fog ?
+      '<span class="hint">涂黑不是「没有」，是「有，但还没解密」：看得出这里有多少条，看不出写的什么。</span>' : '') +
+    (ts.length && !counts.ready ?
+      '<span class="hint">这份卷宗现在没有一条是「可以动手」的：' +
+      (counts.lit ? '只有正在打的那一条在桌上，其余的都要等前面的条目先结掉。' : '每条都还被别的条目挡着，或者已经在办了。') +
+      '</span>' : '') +
+  '</div>';
+
+  var reportHTML;
+  if (!ts.length) {
+    reportHTML = '<section class="blank">' +
+      '<span class="spine" aria-hidden="true"></span>' +
+      '<div class="ph">这份案卷只填了「案由」一栏，还没有往里写过一条记录。<br>' +
+      '写下第一条之后，它会按编号打在这页纸上，和这个封面同在一份卷宗里 —— ' +
+      '所以现在看到的是<b>一张还没下笔的打字纸</b>，不是加载失败。</div>' +
+      ruledHTML(9) +
+      '<span class="stampbig" aria-hidden="true">未立案</span>' +
+    '</section>';
+  } else {
+    reportHTML = '<div class="entries">' +
+      ts.map(entryHTML).join('') +
+      (MAP.fog || []).map(fogNoteHTML).join('') +
+    '</div>';
+  }
+
+  var attach = '';
+  if (ts.length) {
+    var d = MAP.decisions || [];
+    attach = '<aside class="attach" aria-label="粘在卷宗上的附件：已经出手的实测数字">' +
+      '<h3>附件一 · 已经出手的实测数字</h3>' +
+      '<span class="cap">从这张图上已经结掉的票里摘出来，原样照抄</span>' +
+      '<ul>' + (d.length
+        ? d.map(function (x) { return '<li>' + esc(x.g) + '</li>'; }).join('')
+        : '<li>还没有结掉的票，所以还没有实测数字。</li>') + '</ul>' +
+      '<p class="cc">数字有出处，出事能追到票号。往回看的时候，这一页就是「我认真探索过的领域」的凭据。</p>' +
+    '</aside>';
+  }
+
+  host.innerHTML = '<div class="report"><div class="sheet">' +
+    '<div class="bind" aria-hidden="true"></div>' +
+    '<div class="sheet2">' + caseHTML + legs + reportHTML + '</div>' +
+  '</div>' + attach + '</div>';
+
+  $('#crumbno').textContent = '#' + MAP.no;
+  document.title = 'C4 · 案情报告 · 打字机卷宗 —— 地图 #' + MAP.no;
+  J.classList.add('js');
+}
+
+/* ============================ 4. 打字机：只在第一次出现时打一次，不循环 ============================ */
+
+/* ---- 打字机的分行：按「真实宽度」逐词贪心折行 ----
+   早先按「每行几个汉字」估算行数，标题里混进 gh / host / index 这类拉丁词就会算错：
+   拉丁字比汉字窄，按字数切会把一个词硬挤到下一行（#606 的「gh」曾单独占一行）。
+   现在直接量每个词的像素宽再做贪心折行，词不被撕开，行也排得满。 */
+var PER_W = 320;                 /* 一行能用的像素宽 */
+var typingTimer = null;          /* 打字机当前这一拍（打完就清空，绝不循环） */
+var mCtx = document.createElement('canvas').getContext('2d');
+var mCtxFont = '';
+
+/* 量宽用 canvas。字体串必须一个字段一个字段拼：getComputedStyle 的 font 简写在有些情况下
+   返回空串；而挂在段落里的隐藏 span 量出来也不准（实测把「补上 gh 调用…」量成放不下，
+   gh 又被挤到单独一行）。canvas 不受布局影响，量出来就是真宽度。 */
+function useFontOf(el) {
+  var cs = getComputedStyle(el);
+  var f = (cs.fontStyle && cs.fontStyle !== 'normal' ? cs.fontStyle + ' ' : '') +
+          (cs.fontWeight || '400') + ' ' + (cs.fontSize || '12.5px') + ' ' + (cs.fontFamily || 'monospace');
+  if (f !== mCtxFont) { mCtxFont = f; mCtx.font = f; }
+}
+function textWidth(el, s) {
+  useFontOf(el);
+  return mCtx.measureText(s).width;
+}
+/* 一行能用的宽度：正文栏的实宽（留 1px，别把最后一个字压到裁切线上） */
+function measurePerLine() {
+  var probe = $('.ebody') || $('.sheet2') || $('#panel');
+  var w = (probe && probe.clientWidth) || 320;
+  return Math.max(120, Math.min(900, w - 1));
+}
+
+/* 把文本切成词。汉字与中文标点单字成词（等宽字体下每字等宽），拉丁字母／数字／网址算一个词。
+   返回 [{s, sp}]：s 是词本身，sp 表示它前面原本就有空白（空格、换行都算），
+   好按原文决定词间到底留不留口子。 */
+function tokenizeWords(s) {
+  var out = [], re = /[A-Za-z0-9\uff10-\uff19._\-#]+|[\u3000-\u303f\uff00-\uffef]|[\u4e00-\u9fff]|\s+/g, m;
+  while ((m = re.exec(s)) !== null) {
+    if (/^\s+$/.test(m[0])) { if (out.length) out[out.length - 1].sp = true; continue; }
+    out.push({ s: m[0], sp: out.length > 0 && out[out.length - 1].sp === true });
+  }
+  return out;
+}
+/* 一个词本身就比一行还宽（长串网址之类）才切开；其余的词一律不许撕开 */
+function fitWords(hostEl, text, width) {
+  var out = [];
+  tokenizeWords(text).forEach(function (w) {
+    if (w.s.length < 2 || textWidth(hostEl, w.s) <= width) { out.push(w); return; }
+    var off = 0;
+    while (off < w.s.length) {
+      var cut = off + 1, lo = off + 1, hi = w.s.length, mid;
+      while (lo <= hi) {                       /* 二分：这一段最多能放几个字 */
+        mid = (lo + hi) >> 1;
+        if (textWidth(hostEl, w.s.substr(off, mid - off)) <= width) { cut = mid; lo = mid + 1; }
+        else hi = mid - 1;
+      }
+      out.push({ s: w.s.substr(off, cut - off), sp: off === 0 ? w.sp : false });
+      off = cut;
+    }
+  });
+  return out;
+}
+/* 折行：把词一个一个往当前行上加，加上去超宽就换行（宽度用 canvas 实量，不靠字数估算）。
+   每一行都记着它在原文里的起止位置 from/to，所以「各行拼回去 = 原文」是由构造保证的，
+   不需要靠猜「行间该不该补空格」——早期版本就是在那儿把空格补错、汉字之间被塞了空格的。 */
+function packByWidth(hostEl, text, width) {
+  var src = String(text), lines = [], from = 0, to = 0;
+  fitWords(hostEl, src, width).forEach(function (w) {
+    /* 这个词在原文里的位置：从上一个词末尾往后跳过空白，再取它本身的长度 */
+    var i = to;
+    while (i < src.length && /\s/.test(src.charAt(i))) i++;
+    var end = i + w.s.length;
+    var cand = src.slice(from, end);
+    if (to > from && textWidth(hostEl, cand) > width) {
+      lines.push(src.slice(from, to));      /* 断行：行尾不许留空格 */
+      from = i; to = end;
+    } else {
+      to = end;                             /* 接着加：中间那些空白原样留着 */
+    }
+  });
+  if (to > from) lines.push(src.slice(from, to));
+  return lines.length ? lines : [''];
+}
+
+/* 一段条目 = 若干「打字段」：每段占一行，从左往右扫开，留一条软的墨边。
+   分行用 p 自己的字体量宽（同一份 CSS），所以量出来的宽度就是真实排出来的宽度。 */
+function buildTyped(p, text) {
+  var lines = packByWidth(p, String(text), PER_W);
+  var i, ink = '', ghost = '';
+  for (i = 0; i < lines.length; i++) {
+    ink += '<span class="batch"><span class="t">' + esc(lines[i]) + '</span><span class="ecursor"></span></span>';
+    ghost += '<span class="batch"><span class="t">' + esc(lines[i]) + '</span></span>';
+  }
+  p.innerHTML = '<span class="ghost" aria-hidden="true">' + ghost + '</span>' +
+    '<span class="ink">' + ink + '</span><span class="draw" aria-hidden="true"></span>';
+  p.className = 'etitle typed';
+  p.setAttribute('data-typed', '1');
+  var chars = lines.join('').length || 1;
+  var ms = Math.round(Math.min(120, Math.max(38, 2600 / chars)));
+  $$('.batch', p).forEach(function (b) { b.style.setProperty('--step', ms + 'ms'); });
+  p._left = lines.length;
+  /* 一份报告只用一种节奏：整份卷宗统一，不按条目长短各自变 */
+  PER_STEP = ms;
+}
+var PER_STEP = 90;
+
+function startTyping() {
+  if (typingTimer) { clearTimeout(typingTimer); typingTimer = null; }
+  var batches = $$('.batch:not(.under)');
+  if (!batches.length) return;
+  var i = 0;
+  function step() {
+    if (i >= batches.length) { typingTimer = null; return; }
+    var b = batches[i];
+    /* 先在「墨」上标 right 类，等它扫到那一行，再落到「墨」上 */
+    b.style.setProperty('--step', PER_STEP + 'ms');
+    b.classList.add('typing');
+    typingTimer = window.setTimeout(function () {
+      b.classList.add('under');
+      b.classList.remove('typing');
+      var wrap = b.parentNode;
+      while (wrap && !(wrap.classList && wrap.classList.contains('typed'))) wrap = wrap.parentNode;
+      if (wrap) {
+        wrap._left = Math.max(0, (wrap._left || 1) - 1);
+        if (!wrap._left) wrap.classList.add('under');
+      }
+      i++;
+      step();
+    }, PER_STEP + 12);
+  }
+  step();
+}
+
+function runTypewriter() {
+  $$('.batch.under').forEach(function (b) { b.classList.remove('under'); });
+  $$('.typed').forEach(function (p) { p.classList.remove('under'); });
+  var ps = $$('.etitle[data-typed]');
+  ps.forEach(function (p, idx) {
+    if (!p._raw) p._raw = p.getAttribute('data-raw') || p.textContent || '';
+    p.setAttribute('data-raw', p._raw);
+    buildTyped(p, p._raw);
+  });
+  startTyping();
+}
+
+function resetRedactions() {
+  $$('[data-redact].on').forEach(function (r) {
+    r.classList.remove('on');
+    var t = $('.redactbtn', r); if (t) t.setAttribute('aria-expanded', 'false');
+    var ft = $('[data-fogtext]', r); if (ft) ft.hidden = true;
+    var art = r.closest('.entry'); if (art) art.classList.remove('declassed');
+  });
+}
+
+/* ============================ 5. 交叉索引（悬停时引用与被引用同时亮起） ============================ */
+
+function relatedOf(entry) {
+  var out = [];
+  var s = entry.getAttribute('data-refs') || '', d = entry.getAttribute('data-deps') || '';
+  if (s) out = out.concat(s.split(','));
+  if (d) out = out.concat(d.split(','));
+  return out.filter(Boolean);
+}
+function focusEntry(no) {
+  $$('.entry').forEach(function (e) { e.classList.remove('focused', 'lit-related'); });
+  if (no == null) return;
+  var self = $('.entry[data-ticket="' + no + '"]');
+  if (!self) return;
+  self.classList.add('focused');
+  relatedOf(self).forEach(function (n) {
+    var r = $('.entry[data-ticket="' + n + '"]');
+    if (r) r.classList.add('lit-related');
+  });
+}
+function gotoEntry(n) {
+  var el = $('.entry[data-ticket="' + n + '"]');
+  if (!el) return;
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+  try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { el.scrollIntoView(); }
+  window.setTimeout(function () { el.classList.remove('flash'); }, 1300);
+}
+function revealRedact(r) {
+  if (!r || r.classList.contains('on')) return;
+  r.classList.add('on');
+  var t = $('.redactbtn', r); if (t) t.setAttribute('aria-expanded', 'true');
+  var ft = $('[data-fogtext]', r); if (ft) ft.hidden = false;
+  var art = r.closest('.entry'); if (art) art.classList.add('declassed');
+}
+
+/* 页边批注：宽面板放页边，窄面板搬进条目里（同一份内容，书签会跟着走） */
+function layoutRelations() {
+  var box = $('#panel');
+  if (!box) return;
+  var narrow = box.clientWidth <= 560;
+  $$('.entry').forEach(function (e) {
+    var rel = $('.erel', e), body = $('.ebody', e);
+    var inline = $('.inline-rel', e);
+    if (!rel || !body) return;
+    if (narrow) {
+      if (!inline) {
+        var h = document.createElement('div');
+        h.className = 'inline-rel';
+        h.innerHTML = rel.innerHTML;
+        var target = $('.econcl', body) || $('.efoot', body) || $('.enote', body) || $('.readycap', body);
+        if (target) body.insertBefore(h, target); else body.appendChild(h);
+      }
+      rel.hidden = true;
+    } else {
+      if (inline) inline.remove();
+      rel.hidden = false;
+    }
+  });
+}
+function clampCase() {
+  var c = $('#case');
+  if (!c) return;
+  var box = $('#panel');
+  var narrow = box && box.clientWidth <= 560;
+  c.classList.toggle('clamped', !!narrow && !c.classList.contains('opened'));
+}
+
+/* ============================ 6. 事件 ============================ */
+
+var hintEl = null;
+function hint(msg) {
+  if (!hintEl) {
+    hintEl = document.createElement('div');
+    hintEl.setAttribute('role', 'status');
+    hintEl.style.cssText = 'position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:99;' +
+      'background:#1b2029;color:#e6edf3;border:1px solid #2a2d35;border-radius:8px;padding:9px 13px;' +
+      'font:500 12px/1.6 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;' +
+      'box-shadow:0 10px 24px rgba(0,0,0,.5);max-width:78vw;transition:opacity .45s';
+    document.body.appendChild(hintEl);
+  }
+  hintEl.textContent = msg;
+  hintEl.style.opacity = '1';
+  window.setTimeout(function () { hintEl.style.opacity = '0'; }, 2200);
+}
+
+function bind() {
+  document.addEventListener('click', function (e) {
+    var g = e.target.closest('[data-goto]');
+    if (g) { gotoEntry(g.getAttribute('data-goto')); return; }
+    var sa = e.target.closest('[data-seeall]');
+    if (sa) { sa.closest('.case').classList.add('opened'); clampCase(); return; }
+    var rb = e.target.closest('.redactbtn');
+    if (rb) { revealRedact(rb.closest('[data-redact]')); return; }
+    var cs = e.target.closest('#case');
+    if (cs) { var s = $('#scroll'); if (s) s.scrollTo({ top: 0, behavior: 'smooth' }); }
+  });
+  document.addEventListener('pointerover', function (e) {
+    var en = e.target.closest ? e.target.closest('.entry') : null;
+    focusEntry(en ? en.getAttribute('data-ticket') : null);
+  });
+  document.addEventListener('focusin', function (e) {
+    var en = e.target.closest ? e.target.closest('.entry') : null;
+    focusEntry(en ? en.getAttribute('data-ticket') : null);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var el = document.activeElement;
+    if (el && el.classList && el.classList.contains('entry')) {
+      e.preventDefault();
+      gotoEntry(el.getAttribute('data-ticket'));
+    }
+  });
+
+  var back = $('#back');
+  if (back) back.addEventListener('click', function () { hint('原型里没有上一页：真机上这颗按钮回列表。'); });
+  var drive = $('#drive');
+  if (drive) drive.addEventListener('click', function () { hint('「推进这张图」在真机上是开一张新票；原型里只做提示。'); });
+  var replay = $('#replay');
+  if (replay) replay.addEventListener('click', function () {
+    resetRedactions();
+    runTypewriter();
+  });
+}
+
+/* ============================ 7. 启动 ============================ */
+
+var PANEL_W = 810;
+
+function setWidth(w) {
+  PANEL_W = (Number(w) === 400) ? 400 : 810;
+  var p = $('#panel');
+  if (p) {
+    p.style.width = PANEL_W + 'px';
+    p.classList.toggle('narrow', PANEL_W <= 560);
+  }
+  $$('#wbtns button').forEach(function (b) {
+    b.setAttribute('aria-pressed', Number(b.getAttribute('data-w')) === PANEL_W ? 'true' : 'false');
+  });
+}
+
+function boot() {
+  var sName = qs('s');
+  MAP = (sName && STATES[sName]) ? STATES[sName] : MAP_ACTIVE;
+  buildIndex(MAP);
+  renderReport();
+  setWidth(qs('w'));
+  if (qs('bar') === '0') $('#bar').classList.add('hide');
+
+  PER_W = measurePerLine();
+  layoutRelations();
+  clampCase();
+  bind();
+
+  // 打字机：条目一进视野就打，而且只打这一次，不循环
+  var started = false;
+  function begin() { if (!started) { started = true; runTypewriter(); } }
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (ents) {
+      for (var i = 0; i < ents.length; i++) if (ents[i].isIntersecting) { io.disconnect(); begin(); return; }
+    }, { root: $('#scroll'), rootMargin: '380px 0px 380px 0px', threshold: 0.01 });
+    io.observe($('.entry') || $('.blank') || $('#host'));
+  } else begin();
+
+  // 面板被拖宽拖窄：重算一行的像素宽（布局交给 @container，这里只管文字分行）
+  if ('ResizeObserver' in window) {
+    var ro = new ResizeObserver(function (es) {
+      var w = es[0].contentRect.width;
+      var p = $('#panel');
+      if (p) p.classList.toggle('narrow', w <= 560);
+      layoutRelations();
+      clampCase();
+      var n = measurePerLine();
+      if (Math.abs(n - PER_W) < 2) return;
+      PER_W = n;
+      if (typingTimer) return;
+      $$('.typed').forEach(function (p2) {
+        if ($('.batch.under', p2)) return;
+        buildTyped(p2, p2.getAttribute('data-raw') || '');
+      });
+    });
+    ro.observe($('#panel'));
+  }
+
+  $$('#wbtns button').forEach(function (b) {
+    b.addEventListener('click', function () { setWidth(b.getAttribute('data-w')); });
+  });
+  var cur = (sName && STATES[sName]) ? sName : 'active';
+  $$('#sbtns button').forEach(function (b) {
+    b.setAttribute('aria-pressed', b.getAttribute('data-s') === cur ? 'true' : 'false');
+    b.addEventListener('click', function () {
+      try {
+        var u = new URL(location.href);
+        u.searchParams.set('s', b.getAttribute('data-s'));
+        location.href = u.toString();
+      } catch (err) { /* 地址栏改不动就什么也不做 */ }
+    });
+  });
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
+</script>
+</body>
+</html>

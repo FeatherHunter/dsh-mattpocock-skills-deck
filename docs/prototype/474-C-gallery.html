@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>地图详情页 · 第三轮：办案与档案的六种做法</title>
+<style>
+  :root { --bg:#0d1017; --card:#16181d; --line:#2a2d35; --fg:#e6edf3; --dim:#a1a1aa; --faint:#8b8b95;
+          --walk:#4ade80; --lit:#58a6ff; --dest:#c084fc; --warn:#f59e0b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.75 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+  .wrap { max-width:1180px; margin:0 auto; padding:28px 22px 80px; }
+  h1 { font-size:25px; line-height:1.4; margin:0 0 6px; }
+  .sub { color:var(--dim); margin:0 0 22px; }
+  .rule { border-top:1px solid var(--line); margin:26px 0; }
+  h2 { font-size:19px; margin:34px 0 10px; padding-left:10px; border-left:3px solid var(--dest); }
+  p { margin:8px 0; }
+  .lead { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:14px 0 6px; }
+  .lead b { color:var(--dest); }
+  .item { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin:20px 0; }
+  .item > h3 { margin:0 0 4px; font-size:18px; }
+  .one { color:var(--fg); font-size:15px; margin:2px 0 12px; }
+  .cols { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); gap:16px; align-items:start; }
+  @media (max-width:900px){ .cols { grid-template-columns:1fr; } }
+  .shot { width:100%; border:1px solid var(--line); border-radius:8px; display:block; background:#000; }
+  .shot-cap { color:var(--faint); font-size:12px; margin:6px 0 0; }
+  .thumbs { display:flex; gap:10px; margin-top:12px; }
+  .thumbs div { flex:1; min-width:0; }
+  dl { margin:0; }
+  dt { color:var(--dest); font-weight:600; margin-top:10px; }
+  dd { margin:2px 0 0; color:var(--fg); }
+  .weak dt, .weak dd { color:var(--dim); }
+  .tags { margin:10px 0 0; display:flex; flex-wrap:wrap; gap:6px; }
+  .tag { border:1px solid var(--line); border-radius:999px; padding:1px 9px; font-size:12px; color:var(--dim); }
+  .ok { color:var(--walk); } .bad { color:var(--warn); }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th,td { border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; }
+  th { background:#1b1e25; color:var(--dim); font-weight:600; }
+  code { font:12.5px/1.6 Consolas,Menlo,monospace; background:#0b0e14; border:1px solid var(--line);
+         border-radius:5px; padding:1px 5px; word-break:break-all; }
+  .q { background:#151a22; border:1px solid var(--line); border-left:3px solid var(--warn); border-radius:8px; padding:12px 16px; margin:12px 0; }
+  .q b { color:var(--warn); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>地图详情页 · 第三轮原型：把「层」拿掉之后，办案与档案的六种做法</h1>
+<p class="sub">同一份真实数据（地图 #604 与它的 20 张票示例）、同一套四状态语义、同一套外壳配色。
+六个方案的区别只在两件事：<b>它把票当成什么实物</b>，以及<b>手上功夫（交互与渲染技术）做到什么水平</b>。</p>
+
+<div class="lead">
+<p><b>这一轮唯一的新硬约束：不许用「层」当骨架。</b>
+数据里当然还算得出层（<code>blockedBy</code> 的最长路径深度），但它是给程序看的，不是给眼睛看的。
+所以六个方案里没有一个是按层分行、分抽屉、分章节，或者拿层当坐标轴的。</p>
+<p><b>替代方案是：位置由「档案状态」或「人的手」决定；关系只做线索，不做骨架</b>——用绳、页边批注、交叉索引、卡背写，
+平时收着，人一动手（悬停、拿起来、抽出来）才显形。</p>
+<p><b>另外，四个票状态本来就只看自己家前后，根本不需要层：</b>
+走亮＝这张票自己关了；照亮中＝开着且有人认领；现在能做＝开着、没人认领、<b>它自己的前置都关了</b>；
+雾里＝开着、<b>它自己至少有一个前置还开着</b>。</p>
+</div>
+
+<!-- ===================== C1 ===================== -->
+<h2>C1 · 无限画布探案板</h2>
+<div class="item">
+<h3>软木板 ＋ 拖拽提链</h3>
+<p class="one">一块无穷大的软木板。票是钉上去的卡，未知是还没拆封的证物袋；位置由人摆，关系靠拿起来看。</p>
+<div class="cols">
+  <div>
+    <img class="shot" src="474-shots/c1-infinite-board-big810.png" alt="C1 大图 810">
+    <p class="shot-cap">20 张票的大图（810 宽）。目的地卡钉在最中间，雾是半透明的「未拆封」证物袋，右下角是小地图与 ＋／−／⤢ 控件。</p>
+  </div>
+  <div>
+    <dl>
+      <dt>新在哪</dt>
+      <dd>用三个<b>动作</b>代替了三处布局：拖空白处平移板子、滚轮缩放（右下角实时小地图）、按住一张卡拖动时整条链条当场显形。</dd>
+      <dt>我实测的</dt>
+      <dd>拖动 #709 的那一下，DOM 里有 <b>236 个元素</b>同时发生变化（无关的卡拿到 <code>.dim</code>，链条上的卡拿到 <code>.chain upstream</code>，绳钉得到 <code>.peg</code>）；
+      整块板子 <b>8.3% 的像素</b>改变，受影响卡片的区域约 <b>39%</b>——也就是说这个「提起链条」是真的看得见，不是只改了个类名。</dd>
+      <dd>13 项技法：指针捕获拖拽、rAF、localStorage 记住位置、内联 SVG 滤镜做软木、小地图、<code>content-visibility</code>、<code>devicePixelRatio</code> 适配。</dd>
+      <dd>三份样本 × 两种宽度：零报错、零外链、四态齐全、目的地始终完整在视野里。</dd>
+      <dd>返修后：加载时相机自动对上内容——目的地卡（带红「终」印，下面列着已经板上钉钉的结论与「要过的关口：20 张／已经办结：4 张」）完整落在面板内，红绳在首屏就看得见，右下角小地图显示视野框盖住了内容，缩放 58%。</dd>
+    </dl>
+    <dl class="weak">
+      <dt>最弱的一处</dt>
+      <dd>它返修过一次：第一版 400 宽下首屏是一大片空软木，目的地卡被右边界切掉、只读得到「MattS…／落地 (…」——这一版是修好的版本。</dd>
+      <dd>20 张票的大图里，仍有 5 张（810 宽）到 8 张（400 宽）票的第一屏露出面积不到四分之一——无限画布本来就要拖、要缩放，这是设计代价；目的地与它附近几张是看得全的。</dd>
+      <dd>空样本里那两只「空档案袋」是占位物，不是真票（袋上写着「＃待编号 · 还没装进任何东西」）。</dd>
+    </dl>
+    <div class="tags"><span class="tag">无限画布</span><span class="tag">拖拽</span><span class="tag">拖起来看链条</span><span class="tag">小地图</span></div>
+  </div>
+</div>
+<div class="thumbs">
+  <div><img class="shot" src="474-shots/c1-infinite-board-810.png"><p class="shot-cap">4 张票（810）</p></div>
+  <div><img class="shot" src="474-shots/c1-infinite-board-400.png"><p class="shot-cap">拖到最窄（400）</p></div>
+</div>
+</div>
+
+<!-- ===================== C2 ===================== -->
+<h2>C2 · 卷宗夹</h2>
+<div class="item">
+<h3>打开一份刑事案卷</h3>
+<p class="one">整页就是一份摊在桌上的牛皮纸卷宗：封盖用真 3D 翻起来，里面按票号装订着一叠卷页。</p>
+<div class="cols">
+  <div>
+    <img class="shot" src="474-shots/c2-case-folder-810.png" alt="C2 810">
+    <p class="shot-cap">810 宽。四种状态各是一件实物：盖红章的已结页、压着笔的正在批注页、别着绿便签的可以动手页、封着的证物袋。</p>
+  </div>
+  <div>
+    <dl>
+      <dt>新在哪</dt>
+      <dd>四种状态不是四种颜色，是<b>四件不同的实物</b>。而且「诚实」这一条落到了实处：封着的证物袋角上压着一张黄便签，写着「袋角压着别的卷页：<b>还等 #607 结</b>」——它告诉你它在等谁，却一个字都没提「第几层」。</dd>
+      <dt>我实测的</dt>
+      <dd>12 项技法。<code>@property</code> 盖章是真的在插值（<code>--st-turn</code> 采样 −21° → −11.55° → −2.08°，按下、震、留下墨边），不是切类名。</dd>
+      <dd>拆封之后票的状态仍然诚实地停在「雾里」——看清楚了，不等于办完了。</dd>
+      <dd>三份样本 × 两种宽度：零报错、零横向滚动、四态齐全、目的地（236 字全文）钉在顶部书脊条上，滚到底还在。</dd>
+      <dd>首张票出现 <b>92–106ms</b>（面板的预算是 300ms）。</dd>
+    </dl>
+    <dl class="weak">
+      <dt>最弱的一处</dt>
+      <dd>设计者自己交代：封着的袋子里那张纸其实<b>已经在 DOM 里</b>（模糊 3.4px + 六成透明），眼睛看不见，但严格说「不算真封着」——这是他为键盘和读屏留的。</dd>
+      <dd>20 张票时它是一份很长的文档（要滚约 5000px）。</dd>
+    </dl>
+    <div class="tags"><span class="tag">牛皮纸</span><span class="tag">翻盖 3D</span><span class="tag">盖章 @property</span><span class="tag">证物袋</span><span class="tag">装订线</span></div>
+  </div>
+</div>
+<div class="thumbs">
+  <div><img class="shot" src="474-shots/c2-case-folder-big810.png"><p class="shot-cap">20 张票（810）</p></div>
+  <div><img class="shot" src="474-shots/c2-case-folder-400.png"><p class="shot-cap">拖到最窄（400）</p></div>
+</div>
+</div>
+
+<!-- ===================== C3 ===================== -->
+<h2>C3 · 案情桌面 ＋ 台灯</h2>
+<div class="item">
+<h3>光就是「已知」</h3>
+<p class="one">一张俯视的办公桌，一盏台灯。灯照到哪，哪才看得清——这里的雾不是画上去的一层，是物理上成立的暗。</p>
+<div class="cols">
+  <div>
+    <img class="shot" src="474-shots/c3-desk-lamp-big810.png" alt="C3 大图 810">
+    <p class="shot-cap">810 宽。灯的光圈跟着光标走（带阻尼，灯罩有重量）；卡是一叠叠扇形摊开的凭条，未拆封的物证袋立成一排。</p>
+  </div>
+  <div>
+    <dl>
+      <dt>新在哪</dt>
+      <dd>「未知」不需要额外解释：暗处的东西就是你还不知道的东西。而且<b>目的地永远是桌上最亮的那一点，跟灯在哪无关</b>——这一条是 #474 的第一条理念。</dd>
+      <dt>我实测的</dt>
+      <dd>13 项技法：跟随指针的 <code>mask-image</code> 光圈、<code>mix-blend-mode</code> 暖光锥、<code>pointerType==='pen'</code> 时用 <code>event.pressure</code> 决定笔迹粗细、localStorage、3D 变换。</dd>
+      <dd>「光到哪细节显到哪」是**可测量**的，不是形容词：同一张纸，光圈中心亮度 230，光圈边缘（被压暗 0.95）只剩 21；暗处的纸堆点一下能翻开（翻出来后红绳显形 2 条）；目的地名牌亮度 236 &gt; 光圈里最亮处 203。</dd>
+      <dd>返修后实测：桌面铺满面板、案由卡完全在面板内、顶栏在 400 宽下也是一行、**每一张票首屏可见率 ≥98.8%**（20 张的大样本也一样）。</dd>
+    </dl>
+    <dl class="weak">
+      <dt>最弱的一处</dt>
+      <dd>它返修过一次：第一版首屏几乎全是空桌面、内容全挤在右下角，案由卡被右边界切掉——这一版是修好的版本。</dd>
+      <dd>设计者主动交代的取舍：为了「桌面铺满面板 + 每张票首屏可见」，桌面从「比一屏大得多」收到 1.30 倍，20 张票全摆进首屏——代价是**「票藏在一屏之外、要靠拖动摸出来」这条没有了**。如果你要的是「桌面比一屏大」，这一条要让它改回去。</dd>
+      <dd>我的探针在大图下数到 37 对卡片互相重叠：那是「一摞一摞错位叠着的纸」（同状态一摞，dx22/dy30），是有意的，不是排版错误；代价是被压住的票要点一下抽到最上面才读得全。</dd>
+    </dl>
+    <div class="tags"><span class="tag">台灯＝已知</span><span class="tag">跟随指针的光圈</span><span class="tag">纸张层叠</span></div>
+  </div>
+</div>
+<div class="thumbs">
+  <div><img class="shot" src="474-shots/c3-desk-lamp-810.png"><p class="shot-cap">4 张票（810）</p></div>
+  <div><img class="shot" src="474-shots/c3-desk-lamp-400.png"><p class="shot-cap">拖到最窄（400）</p></div>
+</div>
+</div>
+
+<!-- ===================== C4 ===================== -->
+<h2>C4 · 打字机案情报告</h2>
+<div class="item">
+<h3>涂黑是最诚实的雾</h3>
+<p class="one">一份打字机打出来的调查报告。每张票是报告里的一段条目，而「雾」＝<b>涂黑的段落</b>——不是「没有」，是「有，但还没解密」。</p>
+<div class="cols">
+  <div>
+    <img class="shot" src="474-shots/c4-typed-report-810.png" alt="C4 810">
+    <p class="shot-cap">810 宽。左栏票号、中栏页边批注（「它结掉才轮到 #607」）、右栏正文；已结的段落下面有绿色「结论：」行和红章。</p>
+  </div>
+  <div>
+    <dl>
+      <dt>新在哪</dt>
+      <dd>把「未知」做成了<b>读过但读不到</b>的东西：你知道这里有一段，不知道写的是什么；点一下，黑条滑开、原文露出来。</dd>
+      <dt>我实测的</dt>
+      <dd>9 项技法：逐段扫墨的打字机（只打一次，不循环）、<code>mix-blend-mode: multiply</code> 做碳素复写、<code>animation-timeline: view()</code> 带降级、<code>@container</code> 在窄面板把页边批注搬进条目。</dd>
+      <dd>页边交叉索引是真的：悬停 #608 时，被它引用的 #607 页边竖线从 <code>rgba(43,43,43,.13)</code> 变成 <code>rgb(160,30,30)</code>；滚到报告最底，案由仍钉在报告头（top=54px）。</dd>
+      <dt>我抓到并让它修掉的一个真崩溃</dt>
+      <dd><code>?s=empty</code> 下抛 <code>ReferenceError: typingTimer is not defined</code>。它藏在「打字机延后启动」这条链上——我第一版审计只等 500ms，正好漏掉；等到 2.5 秒就必现。现在每份样本等满 2.5 秒也是零报错。</dd>
+    </dl>
+    <dl class="weak">
+      <dt>最弱的一处</dt>
+      <dd>400 宽下，钉在报告头的案由会吃掉约三成首屏高度（他做了「摊开案由全文」折叠来缓解，默认收起）。</dd>
+    </dl>
+    <div class="tags"><span class="tag">打字机</span><span class="tag">涂黑解密</span><span class="tag">页边交叉索引</span><span class="tag">碳素复写</span></div>
+  </div>
+</div>
+<div class="thumbs">
+  <div><img class="shot" src="474-shots/c4-typed-report-big810.png"><p class="shot-cap">20 张票（810）</p></div>
+  <div><img class="shot" src="474-shots/c4-typed-report-400.png"><p class="shot-cap">拖到最窄（400）</p></div>
+</div>
+</div>
+
+<!-- ===================== C5 ===================== -->
+<h2>C5 · 暗房</h2>
+<div class="item">
+<h3>照片正在显影</h3>
+<p class="one">一间暗房。票就是相纸：洗完定影的用木夹子晾在绳上，正在办的泡在显影盘里摇晃，没曝光的立成一排只有手写编号的黑相纸。</p>
+<div class="cols">
+  <div>
+    <img class="shot" src="474-shots/c5-darkroom-big810.png" alt="C5 大图 810">
+    <p class="shot-cap">810 宽。墙上是洗干净的照片（盖红章、白边写结论），台面是显影盘，台下是相纸盒里一排未曝光的黑相纸——每张都有编号、写着还在等几张。</p>
+  </div>
+  <div>
+    <dl>
+      <dt>新在哪</dt>
+      <dd>「试显影」：点一张没曝光的相纸进盘，洗出来的是它<b>真实的情况</b>（编号、标题、还在等 #710 #713 #715 #717），而盘边红字写着「<b>试显影只是把它看清楚，票的状态没有变</b>」。看，不等于改——这是六个方案里对「诚实」回答得最准的一句。</dd>
+      <dt>我实测的</dt>
+      <dd>13 项技法。<code>@property --dev</code> 驱动显影是真的有中间过程：<code>0.102 → 0.519 → 0.888 → 1.000</code>，250ms 时 filter 与 mask 都是中间值。</dd>
+      <dd>绳子是 rAF 阻尼摆动链：拖 #701 摆到 15.84° 时，旁边的 #703 跟着摆到 3.85°；松手 3.4 秒后整条绳静下来（−0.05°）。</dd>
+      <dd>三份样本 × 两种宽度：零报错；目的地那张照片任何状态下 <code>elementFromPoint</code> 都命中它自己（没被遮住），且不参与显影。</dd>
+    </dl>
+    <dl class="weak">
+      <dt>最弱的一处</dt>
+      <dd>它是一条很长的竖页面（810 下约 3600px），读起来像「一间间屋子看过去」，不是一屏。</dd>
+      <dd>晾片绳只有一行，已结票超过 8 张会挤；400 宽下 4 张并排时照片只有约 88px 宽。</dd>
+      <dd>20 张票里 11 张雾票被压成台面下一条窄带——对「雾是多数」这个实况来说，给的空间偏少。</dd>
+    </dl>
+    <div class="tags"><span class="tag">显影 @property</span><span class="tag">绳子阻尼摆动</span><span class="tag">试显影不改状态</span></div>
+  </div>
+</div>
+<div class="thumbs">
+  <div><img class="shot" src="474-shots/c5-darkroom-810.png"><p class="shot-cap">4 张票（810）</p></div>
+  <div><img class="shot" src="474-shots/c5-darkroom-400.png"><p class="shot-cap">拖到最窄（400）</p></div>
+</div>
+</div>
+
+<!-- ===================== C6 ===================== -->
+<h2>C6 · 索引卡柜</h2>
+<div class="item">
+<h3>抽屉里的索引卡，抽一张出来看卡背</h3>
+<p class="one">档案室的索引卡抽屉。卡叠着只露上沿，鼠标划过上面的被推开、下面的露出来；点一张往上抽，它飞到眼前看详情，后面的卡自动前倾补位。</p>
+<div class="cols">
+  <div>
+    <img class="shot" src="474-shots/c6-card-catalog-big810.png" alt="C6 大图 810">
+    <p class="shot-cap">810 宽。卡叠着一层压一层（每张只露 46px，勾选框故意只露半排）；带卡舌的导卡从卡堆里支出来当分区；最后一块抽屉前板写着「一共 N 张卡，到底了」。</p>
+  </div>
+  <div>
+    <dl>
+      <dt>新在哪</dt>
+      <dd>把关系<b>印在卡背面</b>：抽出来的那一刻看「等谁／挡住谁」，抽屉里相关的卡同时亮起。关系平时收着，动手才显形。</dd>
+      <dt>我实测的</dt>
+      <dd>悬停第 6 张卡：上方 5 张全被推开（位移全为负）、下方 14 张全被挤出（全为正）；抽 #708 之后，下面 10 张卡各前移一格补位（#709 1→0，#710 2→1…）。两条都用真指针跑过。</dd>
+      <dd>9 项技法：Web Animations API 做抽卡飞行、<code>@container</code>、卡片瀑布用 <code>--i</code> 逐张错开、内联 SVG 滤镜做卡纸。</dd>
+      <dt>我退回让它修的两处</dt>
+      <dd>① 第一版渲染成了「按状态分段的整行清单」，每张卡整张铺开，根本没有瀑布——它自己的卖点没做出来；② 空样本把真实目的地换成了兜底句「这张图还没有写下目的地。」，而那份数据里目的地是有的（152 字原文）。两处都改了。</dd>
+    </dl>
+    <dl class="weak">
+      <dt>最弱的一处</dt>
+      <dd>它自报「重叠对数 = 0」，这只在 810 宽成立。我的探针在 400 宽仍数到 active 3 对、big 32 对——来源是那张被抽出来一半的卡压到了邻卡。看起来像「抽出来的卡盖在别的卡上」，可以接受，但那个「0」不准确。</dd>
+    </dl>
+    <div class="tags"><span class="tag">卡片瀑布</span><span class="tag">抽卡</span><span class="tag">卡背交叉索引</span><span class="tag">导卡</span></div>
+  </div>
+</div>
+<div class="thumbs">
+  <div><img class="shot" src="474-shots/c6-card-catalog-810.png"><p class="shot-cap">4 张票（810）</p></div>
+  <div><img class="shot" src="474-shots/c6-card-catalog-400.png"><p class="shot-cap">拖到最窄（400）</p></div>
+</div>
+</div>
+
+<div class="rule"></div>
+<h2>六个方案的共同底线（我自己拿工具验的，不看设计者自报）</h2>
+<table>
+<tr><th>查什么</th><th>怎么查</th><th>结果</th></tr>
+<tr><td>零外链、零联网、零轮询</td><td>扫源码里真正的网络地址、<code>&lt;script src&gt;</code>、<code>@import</code>、<code>fetch</code>、<code>setInterval</code></td><td class="ok">六个全部通过（<code>createElementNS('http://www.w3.org/2000/svg')</code> 是 DOM 常量，不是联网，已排除）</td></tr>
+<tr><td>编码没坏</td><td>数 U+FFFD 与常见乱码串</td><td class="ok">六个全部为零</td></tr>
+<tr><td>三份样本 × 两种宽度</td><td>每份等满 1.4 秒再收 <code>pageerror</code> 与 <code>console.error</code></td><td class="ok">零报错（C4 空样本那个崩溃就是这样抓出来的）</td></tr>
+<tr><td>不许横向滚动</td><td><code>documentElement</code> 与 <code>body</code> 的 <code>scrollWidth</code></td><td class="ok">六个在 400 与 810 下都不滚</td></tr>
+<tr><td>四状态分类正确</td><td>断言 <code>data-ticket</code> / <code>data-state</code> 的分布：推进中 2/1/0/1，大图 4/1/4/11</td><td class="ok">六个全部对上</td></tr>
+<tr><td>雾不许挡点按</td><td>逐张票查自己与祖先的 <code>pointer-events</code></td><td class="ok">六个全部可点</td></tr>
+<tr><td>目的地永远清晰</td><td>查 <code>data-role="destination"</code> 是否在视野里</td><td class="ok">六个全部通过</td></tr>
+<tr><td>不许用层当骨架</td><td>扫源码与页面文字里的「第 N 层 / Level N / L3」写法</td><td class="ok">六个全部为零（页面上的「层」字只出现在原文抄录里，比如案由那句「每一层都有实测数字支撑的结论」）</td></tr>
+<tr><td>首屏预算 ≤ 300ms</td><td>从页面开始到第一张票进入 DOM</td><td class="ok">69–106ms</td></tr>
+</table>
+
+<div class="rule"></div>
+<h2>我退回重修过的地方（留个记录）</h2>
+<p>C1 第一版：400 宽下首屏是一大片空软木，目的地卡被右边界切掉（只能读到「MattS…／落地 (…」）。<br>
+C3 第一版：首屏几乎全是空桌面，内容挤在右下角，案由卡被右边界切掉，400 宽下顶栏崩成竖排。<br>
+C4 第一版：空样本崩溃；#606 标题被断成「补上／gh／调用…」三行，因为空白被当成了换行指令。<br>
+C6 第一版：渲染成整行清单没有瀑布；空样本丢掉了真实目的地。</p>
+<p class="sub">这些都不是我猜的：每一条都有截图或断言输出。</p>
+
+<div class="rule"></div>
+<h2>三个请你定夺的问题</h2>
+<div class="q">
+<p><b>一、</b>上面「四件事」的复述里（见 <code>474-feeling-notes.md</code>），有没有读错的、或者你还想强调的？</p>
+<p><b>二、</b>按<b>档案状态</b>分区（已经办结 / 正在办 / 现在能动手 / 还没探明）——它算不算你说的「层级关系」？我认为不算（那是状态，不是深度），但这一条由你定。</p>
+<p><b>三、</b>「谁挡着谁」只在<b>看某一张票 / 拿起来</b>的时候显形，平时板上不画连线——这是你要的收着的感觉，还是你其实想一眼看见全局的绳？</p>
+</div>
+
+<div class="rule"></div>
+<h2>怎么打开</h2>
+<p>六个都是单文件、零外链，双击就能开。每一页底部有一条原型控制条：切宽度（400 / 810）、切状态（推进中 / 还没画图 / 大图）、隐藏控制条。
+另外可以用网址参数：<code>?w=810&amp;s=big&amp;bar=0</code>。</p>
+<p><b>绝对路径：</b></p>
+<p>
+<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\prototype\474-C1-infinite-board.html</code><br>
+<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\prototype\474-C2-case-folder.html</code><br>
+<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\prototype\474-C3-desk-lamp.html</code><br>
+<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\prototype\474-C4-typed-report.html</code><br>
+<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\prototype\474-C5-darkroom.html</code><br>
+<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\prototype\474-C6-card-catalog.html</code>
+</p>
+<p><b>配套文档：</b>
+<code>474-feeling-notes.md</code>（我读完 #474 的复述与三个待你确认的问题）、
+<code>474-design-brief-caseboard.md</code>（这一轮的任务书，含禁用清单与技术菜单）、
+<code>474-design-brief.md</code>（第一、二轮的记录与裁决）。</p>
+
+</div>
+</body>
+</html>

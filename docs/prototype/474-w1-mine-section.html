@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原型 W1 · 矿井剖面（地图 #604，向下掘进）</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+  issue：FeatherHunter/dsh-mattpocock-skills-deck#474
+
+  这一版回答什么（W1 · 矿井剖面 · 向下掘进）：
+    把地图画成一条往地下打的矿道。层 = 深度，层号越大越深、越靠近矿脉。
+    目的地 = 一条发光的矿脉线，永远钉在剖面最下面（面板怎么滚都不会跑到它下面去）。
+    未知 = 还没挖开的岩层：斜线纹理 + 虚线轮廓 + 连灯都没有，不写字也看得出是「不知道」。
+    走过的路留痕 = 已贯通的巷道（支架、轨道、矿车、亮着的矿灯）＋ 标牌上的「有记录」。
+
+  四态用矿灯状态表达（同时给出字形与文字，不只靠颜色）：
+    已贯通（走亮）    = 矿灯亮着、轨道铺好、矿车装着矿石
+    正在掘进（照亮中）= 头灯 + 光锥、钻机、扬尘、掌子面
+    可开工（现在能做）= 空轨道 + 待装设备、矿灯装好但没点
+    未开采（雾里）    = 岩层里一段虚线轮廓 + 问号，没有灯
+
+  切换：底部控制条，或 URL 参数 ?w=400|810 &s=active|empty|big|done &bar=0
+  运行：双击本文件即可（无后端、无依赖、无定时器、无网络）。
+
+  数据：地图 #604 的 Destination / 子票 / 留白 / Decisions 取 issue #604 原文（与简报 §4 一致）；
+        「还没画图」与「大图」两个状态是示例，界面上都标了「示例」。
+-->
+<style>
+:root{
+  --bg:#07080b; --base:#10131a; --l2:#16181d; --bd:#2a2d35; --bd2:#3a3f4a;
+  --tx:#e6edf3; --sec:#a1a1aa; --cap:#8b8b95;
+  --walk:#4ade80; --view:#58a6ff; --open:#f59e0b; --fog:#a3a8c0; --map:#c084fc;
+  --mono:Consolas,Menlo,monospace;
+  --ruler:46px;                 /* 左侧深度标尺宽度 */
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;overflow:hidden;background:var(--bg);color:var(--tx);font-size:13px;line-height:1.6;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+.pbadge{position:fixed;top:8px;left:8px;z-index:99;background:#ff3b30;color:#fff;
+  font:700 10px/1 -apple-system,"Segoe UI",sans-serif;padding:4px 8px;border-radius:99px}
+.wrap{height:100%;display:flex;justify-content:center;align-items:stretch;padding:28px 18px 16px}
+body.withbar .wrap{padding-bottom:60px}
+
+/* ===== 面板外壳：与其余五个原型一致 ===== */
+.panel{width:810px;max-width:100%;height:100%;min-height:0;background:var(--base);border:1px solid var(--bd);
+  border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.55)}
+.panel.narrow .hideN{display:none}
+.chrome{flex:none;border-bottom:1px solid var(--bd);background:var(--l2)}
+.chrome-top{display:flex;align-items:center;gap:6px;padding:7px 12px 4px;font-size:11px}
+.chrome-top .repo{color:var(--view);font-family:var(--mono);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chrome-top .ico{color:var(--cap);border:1px solid var(--bd);border-radius:5px;padding:0 5px;font-size:10px}
+.chrome-tabs{display:flex;align-items:center;gap:4px;padding:0 10px 7px;font-size:11px;flex-wrap:nowrap;overflow:hidden}
+.chrome-tabs .tab{padding:1px 7px;border-radius:6px;color:var(--sec);white-space:nowrap}
+.chrome-tabs .tab.on{background:rgba(192,132,252,.14);border:1px solid rgba(192,132,252,.45);color:#e9d5ff}
+.chrome-tabs .mini{border:1px solid var(--bd);border-radius:6px;padding:0 6px;color:var(--sec);font-size:10.5px;white-space:nowrap}
+.chrome-tabs .ver{color:var(--cap);font-size:10px;font-family:var(--mono)}
+.sp{flex:1}
+.sticky{flex:none;display:flex;align-items:center;gap:7px;padding:7px 12px;background:var(--l2);border-bottom:1px solid var(--bd)}
+.panel.narrow .sticky{gap:5px;padding:7px 9px}
+.btn{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid var(--bd);background:var(--base);color:var(--tx);
+  cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px}
+.btn:hover{border-color:var(--bd2)}
+.btn.ghost{background:transparent;color:var(--sec)}
+.btn.primary{background:var(--walk);border-color:transparent;color:#04120a;font-weight:700}
+.btn.sm{font-size:10.5px;padding:2px 8px}
+.crumb{font-size:10.5px;color:var(--cap);font-family:var(--mono);white-space:nowrap}
+.chipm{font-size:10px;padding:1px 7px;border-radius:99px;border:1px solid rgba(192,132,252,.5);color:var(--map);
+  background:rgba(192,132,252,.08);font-family:var(--mono);white-space:nowrap}
+
+/* ===== 读数条：这口井挖到第几层了 ===== */
+.meters{flex:none;padding:6px 12px 7px;border-bottom:1px solid var(--bd);background:linear-gradient(180deg,#131720,#101319)}
+.mrow{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-size:11.5px;color:var(--sec)}
+.mrow b{color:var(--tx)}
+.meters .dist{margin-left:auto;color:var(--sec);font-size:11px;white-space:nowrap}
+.meters .dist b{color:var(--map);font-family:var(--mono);font-size:12.5px}
+.meters .quiet{color:var(--cap)}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px;align-items:center}
+.chip{font-size:9.5px;padding:1px 6px;border-radius:99px;border:1px solid var(--bd);color:var(--sec);background:#0e1117;white-space:nowrap}
+.chip.c-walk{border-color:rgba(74,222,128,.45);color:#a7f3c4}
+.chip.c-view{border-color:rgba(88,166,255,.45);color:#bcd8ff}
+.chip.c-open{border-color:rgba(245,158,11,.45);color:#fcd9a1}
+.chip.c-fog{border-color:rgba(163,168,192,.4);border-style:dashed;color:#c3c8d8}
+.chip.c-plain{color:var(--cap)}
+.scalenote{margin-left:auto;font-size:9.5px;color:var(--cap);font-family:var(--mono);white-space:nowrap}
+
+/* ===== 剖面本体 ===== */
+.mine{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.bands{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;position:relative;background:#0b0d12}
+.bands::-webkit-scrollbar{width:8px}
+.bands::-webkit-scrollbar-thumb{background:#2b303b;border-radius:8px}
+.bandsInner{position:relative;width:100%}
+.geo{position:absolute;pointer-events:none}
+.rockname{font:8.5px var(--mono);fill:rgba(230,237,243,.32);letter-spacing:.04em}
+.geolabel{font:8.5px var(--mono);fill:rgba(230,237,243,.42)}
+.geolabel.warn{fill:rgba(245,158,11,.62)}
+
+/* 深度标尺 */
+.ruler{position:absolute;left:0;top:0;bottom:0;width:var(--ruler);background:rgba(12,14,18,.84);
+  border-right:1px solid rgba(42,45,53,.9);pointer-events:none;z-index:4}
+.ruler .rtitle{position:absolute;top:4px;left:6px;font:700 9px/1.35 var(--mono);color:var(--cap);white-space:pre-line}
+.ruler .tick{position:absolute;left:0;right:0;height:0;border-top:1px solid rgba(139,139,149,.45)}
+.ruler .tick.minor{border-top:1px solid rgba(139,139,149,.18);left:30px}
+.ruler .tick.zero{border-top:1px dashed rgba(230,237,243,.55)}
+.ruler .tick span{position:absolute;right:5px;top:-7px;font:9px/1 var(--mono);color:var(--cap);background:rgba(12,14,18,.85);
+  padding:1px 2px;white-space:nowrap}
+.ruler .tick.zero span{color:var(--tx)}
+.ruler .remain{position:absolute;left:33px;width:4px;background:rgba(192,132,252,.20);border-radius:2px}
+
+/* 地表、井架、工程名牌 */
+.surface{position:absolute;left:var(--ruler);right:0;top:0;pointer-events:none;z-index:3}
+.surface .eng{position:absolute;right:10px;top:4px;max-width:62%;text-align:right;font-size:9.5px;line-height:1.4;color:var(--sec)}
+.surface .eng b{color:var(--tx);font-family:var(--mono);font-size:10px}
+.surface .eng .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--sec)}
+.surface .sign{position:absolute;left:10px;display:inline-flex;align-items:center;gap:5px;font-size:10px;color:#c3c8d8;
+  background:rgba(12,14,18,.88);border:1px dashed rgba(163,168,192,.5);border-radius:5px;padding:2px 7px}
+
+/* 巷道（已开掘的部分）：木支架（顶梁 + 竖腿 + 底梁）、道床与两条钢轨 */
+.road{position:absolute;border-radius:4px;overflow:hidden;pointer-events:none;
+  background:
+    radial-gradient(130% 200% at 50% 50%,rgba(0,0,0,0),rgba(0,0,0,.6) 100%),
+    linear-gradient(180deg,#0a0705,#161009 34%,#0b0805)}
+.road.lit{background:
+    radial-gradient(140% 200% at 50% 42%,rgba(255,196,120,.13),rgba(0,0,0,.62) 100%),
+    linear-gradient(180deg,#120c07,#1e1409 34%,#0d0a06)}
+.road .props{position:absolute;left:0;right:0;top:0;bottom:11px;
+  background-image:
+    linear-gradient(180deg,rgba(198,152,100,.8) 0 3px,transparent 3px),
+    repeating-linear-gradient(90deg,transparent 0 31px,rgba(180,134,86,.42) 31px 34px),
+    linear-gradient(0deg,rgba(180,134,86,.34) 0 2px,transparent 2px)}
+.road .floor{position:absolute;left:0;right:0;bottom:0;height:11px;background:linear-gradient(180deg,#1a130c,#090705)}
+.road .rails{position:absolute;left:0;right:0;bottom:0;height:11px;
+  background-image:
+    repeating-linear-gradient(90deg,rgba(140,108,70,.8) 0 2px,transparent 2px 12px),
+    linear-gradient(180deg,transparent 0 2px,rgba(228,236,248,.6) 2px 4px,transparent 4px),
+    linear-gradient(180deg,transparent 0 7px,rgba(228,236,248,.45) 7px 9px,transparent 9px)}
+.road.cutoff{border-top-right-radius:0;border-bottom-right-radius:0}
+
+/* 光：灯光池 / 光锥 / 扬尘 */
+.pool{position:absolute;pointer-events:none;mix-blend-mode:screen;
+  background:radial-gradient(closest-side,rgba(255,214,150,.34),rgba(255,180,90,.10) 55%,transparent 78%)}
+.cone{position:absolute;pointer-events:none;mix-blend-mode:screen;
+  background:radial-gradient(120% 100% at 0% 50%,rgba(255,222,170,.55),rgba(255,200,120,.16) 46%,transparent 80%);
+  clip-path:polygon(0 46%,100% 4%,100% 96%,0 54%)}
+.dust{position:absolute;pointer-events:none;filter:blur(1.2px);opacity:.8;
+  background-image:
+    radial-gradient(circle at 14% 42%,rgba(219,198,168,.55) 0 2.6px,transparent 3.6px),
+    radial-gradient(circle at 32% 68%,rgba(203,182,152,.45) 0 2.1px,transparent 3px),
+    radial-gradient(circle at 47% 35%,rgba(226,206,176,.5) 0 2.9px,transparent 3.9px),
+    radial-gradient(circle at 63% 62%,rgba(199,178,148,.4) 0 2px,transparent 2.9px),
+    radial-gradient(circle at 78% 44%,rgba(232,214,186,.45) 0 2.4px,transparent 3.3px),
+    radial-gradient(circle at 91% 70%,rgba(205,184,154,.35) 0 1.8px,transparent 2.6px);
+  animation:drift 9s ease-in-out infinite}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(6px,-3px)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+/* 未开采：岩层里一段虚线轮廓（路画出来了，通不通不知道） */
+.voidlane{position:absolute;pointer-events:none;border:1px dashed rgba(163,168,192,.55);border-radius:3px;
+  background:repeating-linear-gradient(45deg,rgba(230,237,243,.06) 0 1.5px,transparent 1.5px 9px)}
+.voidlane .q{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:700 24px/1 var(--mono);color:rgba(163,168,192,.5)}
+
+/* 掌子面（正在挖的那一段的岩壁）与钻机 */
+.facewall{position:absolute;pointer-events:none;
+  background:linear-gradient(90deg,rgba(10,8,6,.92),rgba(58,45,32,.85) 32%,rgba(40,31,22,.92));
+  clip-path:polygon(0 0,100% 7%,76% 21%,100% 36%,74% 53%,100% 70%,80% 86%,100% 100%,0 100%)}
+.rig{position:absolute;pointer-events:none}
+.rig .rbody{position:absolute;background:linear-gradient(180deg,#4a5262,#252a34);border:1px solid rgba(200,215,235,.22);border-radius:3px}
+.rig .bit{position:absolute;height:3px;background:linear-gradient(90deg,#8f97a6,#c9d3e2);border-radius:2px}
+.rig .leg{position:absolute;width:3px;height:13px;background:#2b313c;border-radius:2px}
+
+/* 矿车 / 待装设备 */
+.cart{position:absolute;pointer-events:none;width:30px;height:26px}
+.cart .cbody{position:absolute;left:0;right:0;top:0;height:16px;border:1px solid rgba(206,216,232,.28);
+  background:linear-gradient(180deg,#3d4451,#20252f);clip-path:polygon(0 0,100% 0,86% 100%,14% 100%)}
+.cart .ore{position:absolute;left:4px;right:4px;top:1px;height:6px;
+  background-image:radial-gradient(circle at 20% 55%,#d9b26a 0 30%,transparent 32%),
+                   radial-gradient(circle at 52% 40%,#b98f52 0 26%,transparent 28%),
+                   radial-gradient(circle at 80% 60%,#e2c589 0 22%,transparent 24%)}
+.cart .wh{position:absolute;left:3px;right:3px;bottom:0;height:10px;
+  background-image:radial-gradient(circle at 16% 50%,rgba(10,12,16,.95) 0 36%,rgba(206,216,232,.5) 37% 56%,transparent 58%),
+                   radial-gradient(circle at 84% 50%,rgba(10,12,16,.95) 0 36%,rgba(206,216,232,.5) 37% 56%,transparent 58%)}
+.crate{position:absolute;pointer-events:none;width:24px;height:16px;border:1px solid #241a10;transform:rotate(-3deg);
+  background:repeating-linear-gradient(90deg,#6b4f30 0 3px,#4a3623 3px 6px)}
+.crate::after{content:"";position:absolute;left:2px;right:2px;top:5px;height:2px;background:rgba(240,230,215,.35)}
+.pallet{position:absolute;pointer-events:none;height:4px;background:repeating-linear-gradient(90deg,#4a3623 0 8px,transparent 8px 11px)}
+
+/* 作业面（票）：按钮只覆盖标牌，灯与引线作为子元素伸出去 */
+.face{position:absolute;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-align:left;
+  cursor:pointer;z-index:6;border-radius:6px}
+.face:focus-visible{outline:2px solid var(--map);outline-offset:3px}
+.face .lamp{position:absolute;width:11px;height:11px;border-radius:50%}
+.face .rock{position:absolute;width:16px;height:12px;background:#5a4a37;border-radius:40% 60% 55% 45%/50% 45% 55% 50%;
+  box-shadow:inset 0 -2px 0 rgba(0,0,0,.5)}
+.face .leader{position:absolute;background:rgba(163,168,192,.5);width:1px}
+.face .leader.h{height:1px;background:rgba(163,168,192,.5)}
+.face .leaddash{background:none;border-left:1px dashed rgba(163,168,192,.55)}
+.face .leaddash.h{background:none;border-top:1px dashed rgba(163,168,192,.55)}
+.face .plate{position:absolute;border-radius:5px;padding:3px 5px;background:rgba(12,14,18,.88);
+  border:1px solid var(--bd);box-shadow:0 2px 8px rgba(0,0,0,.45)}
+.face .pmeta{display:flex;align-items:center;gap:4px;font:600 9.5px/1.35 var(--mono);white-space:nowrap;overflow:hidden}
+.face .pno{color:var(--tx)}
+.face .pstate{font-style:normal;font-weight:700}
+.face .ptype{margin-left:auto;font:9px/1.3 inherit;font-style:normal;color:var(--cap);border:1px solid var(--bd);border-radius:4px;padding:0 4px}
+.face .ptitle{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  font-size:9.5px;line-height:1.35;color:var(--sec);margin-top:2px}
+.face .rec{position:absolute;right:3px;top:3px;width:8px;height:8px;border-radius:2px;background:var(--walk);
+  box-shadow:0 0 0 2px rgba(12,14,18,.92)}
+.face.f-walk .lamp{background:#fff4dc;box-shadow:0 0 10px 3px rgba(255,214,150,.9),0 0 0 2px rgba(74,222,128,.85)}
+.face.f-walk .plate{border-color:rgba(74,222,128,.5)}
+.face.f-walk .pstate{color:#a7f3c4}
+.face.f-view .lamp{background:#e8f2ff;box-shadow:0 0 12px 4px rgba(88,166,255,.95),0 0 0 2px rgba(88,166,255,.9)}
+.face.f-view .plate{border-color:rgba(88,166,255,.6)}
+.face.f-view .pstate{color:#bcd8ff}
+.face.f-open .lamp{background:#20242c;border:1.5px dashed rgba(245,158,11,.85);box-shadow:none}
+.face.f-open .plate{border-color:rgba(245,158,11,.55);border-style:dashed}
+.face.f-open .pstate{color:#fcd9a1}
+.face.f-fog .plate{border-color:rgba(163,168,192,.5);border-style:dashed;background:rgba(12,14,18,.9)}
+.face.f-fog .pstate{color:#c3c8d8;font-weight:600}
+.face.f-fog .ptitle{color:#9aa0b2}
+.face .tagq{position:absolute;right:4px;top:50%;transform:translateY(-50%);font:700 12px/1 var(--mono);
+  color:rgba(163,168,192,.75);border:1px dashed rgba(163,168,192,.5);border-radius:4px;padding:0 3px}
+.face.on .plate{border-color:var(--map);box-shadow:0 0 0 2px rgba(192,132,252,.55),0 2px 10px rgba(0,0,0,.5)}
+.face.on .lamp{box-shadow:0 0 0 2px var(--map),0 0 12px 4px rgba(255,214,150,.6)}
+.face.on .plate::after{content:"▸ 已选中";position:absolute;left:4px;bottom:-13px;font:9px/1 var(--mono);color:var(--map)}
+
+/* 留白：还没切出来的票，标在最深一段岩层下方的未探明岩体里 */
+.fogband{position:absolute;pointer-events:none;border-top:1px dashed rgba(163,168,192,.4);
+  background-color:#1b1712;
+  background-image:repeating-linear-gradient(45deg,rgba(230,237,243,.10) 0 1.5px,transparent 1.5px 10px)}
+.fogband .cap{position:absolute;left:8px;top:3px;font-size:9.5px;color:#c3c8d8}
+.fogband .it{position:absolute;left:8px;right:34px;font-size:9px;line-height:1.4;color:#9aa0b2;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fogband .more{position:absolute;left:8px;font-size:9px;color:var(--cap)}
+.fogband .bigq{position:absolute;right:10px;top:50%;transform:translateY(-50%);font:700 30px/1 var(--mono);color:rgba(163,168,192,.32)}
+
+/* 矿脉：目的地，永远钉在剖面最下面 */
+.veinWrap{flex:none;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,#191225,#221733 55%,#2a1c3d)}
+.veinsvg{position:absolute;left:var(--ruler);top:0;height:100%;width:calc(100% - var(--ruler))}
+.veinWrap .vdepth{position:absolute;left:6px;top:3px;font:9px/1.35 var(--mono);color:#e9d5ff}
+.veinWrap .vdepth b{display:block;font-size:9.5px}
+.veinWrap .vlab{position:absolute;left:calc(var(--ruler) + 10px);top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.veinWrap .vtag{font-size:10.5px;font-weight:700;color:#e9d5ff;border:1px solid rgba(192,132,252,.55);
+  background:rgba(192,132,252,.12);border-radius:5px;padding:0 6px}
+.veinWrap .vnote{font-size:9.5px;color:#c9b6e6}
+.veinWrap .vtext{position:absolute;left:calc(var(--ruler) + 10px);right:10px;top:26px;font-size:10px;line-height:1.45;
+  color:#cbb9e8;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.veinWrap .vmore{position:absolute;right:10px;bottom:5px;font-size:9.5px;font-family:inherit;cursor:pointer;
+  color:#e9d5ff;background:rgba(192,132,252,.14);border:1px solid rgba(192,132,252,.5);border-radius:5px;padding:1px 7px}
+.veinWrap .vmore:hover{background:rgba(192,132,252,.26)}
+
+/* 底部：选中事项 + 巷道图例 */
+.foot{flex:none;border-top:1px solid var(--bd);background:var(--l2)}
+.sheet{height:92px;overflow:auto;padding:6px 12px 7px;border-bottom:1px dashed var(--bd)}
+.sheet .s1{display:flex;align-items:baseline;gap:6px;font-size:11px;color:var(--tx);flex-wrap:wrap}
+.sheet .s1 b{font-family:var(--mono);color:var(--tx)}
+.sheet .s1 .st{font-size:9.5px;border:1px solid var(--bd);border-radius:99px;padding:0 6px;white-space:nowrap}
+.sheet .s1 .st.walk{border-color:rgba(74,222,128,.5);color:#a7f3c4}
+.sheet .s1 .st.view{border-color:rgba(88,166,255,.5);color:#bcd8ff}
+.sheet .s1 .st.open{border-color:rgba(245,158,11,.5);color:#fcd9a1}
+.sheet .s1 .st.fog{border-color:rgba(163,168,192,.5);border-style:dashed;color:#c3c8d8}
+.sheet .s1 .x{margin-left:auto;font-size:10px;color:var(--cap);cursor:pointer;background:none;border:0;font-family:inherit}
+.sheet .t{font-size:11px;line-height:1.45;color:var(--tx);margin-top:2px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sheet .t.full{-webkit-line-clamp:99;display:block}
+.sheet .s2{font-size:10px;line-height:1.5;color:var(--sec);margin-top:2px}
+.sheet .rec2{font-size:10px;line-height:1.45;color:#a7f3c4;margin-top:2px}
+.legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 8px;padding:6px 12px 7px;font-size:9.5px;color:var(--sec)}
+.panel.narrow .legend{grid-template-columns:repeat(2,minmax(0,1fr))}
+.legend .li{display:flex;align-items:center;gap:5px;min-width:0;line-height:1.35}
+.legend .li .gl{flex:none;width:22px;height:13px;position:relative;border-radius:3px;background:#0e1117;border:1px solid #23262e}
+.legend .li span{overflow:hidden;text-overflow:ellipsis}
+.lg-lamp::after{content:"";position:absolute;left:7px;top:3px;width:7px;height:7px;border-radius:50%;
+  background:#fff4dc;box-shadow:0 0 6px 2px rgba(255,214,150,.9),0 0 0 1.5px rgba(74,222,128,.85)}
+.lg-cone::after{content:"";position:absolute;left:4px;top:2px;width:15px;height:9px;
+  background:linear-gradient(90deg,rgba(88,166,255,.75),rgba(88,166,255,.12));clip-path:polygon(0 42%,100% 0,100% 100%,0 58%)}
+.lg-track::before{content:"";position:absolute;left:4px;top:2px;width:8px;height:8px;border-radius:50%;
+  border:1.5px dashed rgba(245,158,11,.9)}
+.lg-track::after{content:"";position:absolute;left:3px;right:3px;bottom:3px;height:1px;background:rgba(206,216,232,.5);
+  box-shadow:0 -2px 0 rgba(206,216,232,.3)}
+.lg-q::after{content:"?";position:absolute;left:1px;right:1px;top:1px;bottom:1px;text-align:center;
+  font:700 11px/11px var(--mono);color:rgba(163,168,192,.8);border:1px dashed rgba(163,168,192,.5);border-radius:2px}
+.lg-hatch::after{content:"";position:absolute;left:1px;right:1px;top:1px;bottom:1px;
+  background-image:repeating-linear-gradient(45deg,rgba(230,237,243,.22) 0 1.2px,transparent 1.2px 6px)}
+.lg-vein::after{content:"";position:absolute;left:2px;right:2px;top:6px;height:2px;border-radius:2px;background:#c084fc;
+  box-shadow:0 0 6px 2px rgba(192,132,252,.75)}
+
+/* ===== 底部控制条（原型自己的，不属于设计本身） ===== */
+#bar{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:200;display:flex;align-items:center;gap:6px;
+  background:rgba(12,14,18,.94);border:1px solid var(--bd);border-radius:12px;padding:5px 9px;font-size:11px;
+  box-shadow:0 8px 30px rgba(0,0,0,.6);max-width:calc(100vw - 24px);flex-wrap:wrap;justify-content:center}
+#bar .bl{color:var(--cap);font-size:10px}
+.seg{font:inherit;font-size:10.5px;padding:2px 8px;border-radius:7px;border:1px solid var(--bd);background:#0e1117;
+  color:var(--sec);cursor:pointer;font-family:inherit}
+.seg:hover{border-color:var(--bd2);color:var(--tx)}
+.seg.on{background:rgba(192,132,252,.16);border-color:rgba(192,132,252,.6);color:#e9d5ff}
+#bar .hint{color:var(--cap);font-size:9.5px}
+</style>
+</head>
+<body>
+<div class="pbadge">原型 · 未合入</div>
+<div class="wrap"><div id="panel" class="panel"></div></div>
+<div id="bar">
+  <span class="bl">宽度</span>
+  <button class="seg" data-k="w" data-v="400">400</button>
+  <button class="seg" data-k="w" data-v="810">810</button>
+  <span class="bl">状态</span>
+  <button class="seg" data-k="s" data-v="active">推进中</button>
+  <button class="seg" data-k="s" data-v="empty">还没画图</button>
+  <button class="seg" data-k="s" data-v="big">大图</button>
+  <button class="seg" data-k="s" data-v="done">全部贯通</button>
+  <span class="bl">底栏</span>
+  <button class="seg" data-k="bar" data-v="0">隐藏</button>
+  <span class="hint">Tab 走遍作业面 · 回车看细节 · ?w= ?s= ?bar=0</span>
+</div>
+
+<script>
+/* ======================= 数据（地图 #604 原文，与简报 §4 一致） ======================= */
+const ACTIVE = {
+  no: 604, title: 'MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）',
+  destination: '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。',
+  tickets: [
+    { no: 605, type: 'task',     title: '收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票', state: 'CLOSED', blockedBy: [] },
+    { no: 606, type: 'task',     title: '补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点', state: 'CLOSED', blockedBy: [605] },
+    { no: 607, type: 'research', title: '全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单', state: 'OPEN', claimedBy: 'FeatherHunter', blockedBy: [605, 606] },
+    { no: 608, type: 'grilling', title: '宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个', state: 'OPEN', blockedBy: [607] },
+  ],
+  decisions: [
+    { t: '收口上个会话的遗留', g: '倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）' },
+    { t: '补上 gh 调用的测量盲区', g: '真机一天 2538 次 gh 调用，中位 7.8 秒，超过「单次 ≤ 1.5 秒」' },
+  ],
+  fogTotal: 5,
+  fog: [
+    '按体检清单毕业出来的「方案 ＋ 落地 ＋ 真机复测」票：每一条毛病单独成票，数量与内容要等体检结果才知道，现在切不出来。',
+    '客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换、详情页各自慢不慢、慢在哪，现在说不清，等体检数字。',
+  ],
+};
+/* 还没画图：只有目的地和标题，一张票都没有 */
+const EMPTY = { no: 800, title: '去泰国旅游', sample: true,
+  destination: '到泰国这件事是明确的：机票落地曼谷、玩十天、把该看的地方看完。怎么去、走哪条线、花多少钱，现在全是待探索——这张图还没画完。',
+  tickets: [], decisions: [], fog: [], fogTotal: 0 };
+/* 大图（示例）：9 张票 4 层；层 1 三张并行、层 2 两张、层 3 三张、层 4 一张 */
+const BIG = { no: 900, title: '示例大图：9 张票 · 4 层', sample: true,
+  destination: '把这条链路的读写路径各治一遍：先查清楚、再定方案、再落地、最后真机复测。到终点 = 每个环节都有实测数字，谁慢在哪一眼能指出来。',
+  tickets: [
+    { no: 901, type: 'research',  title: '盘点现行取数路径与调用点（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 902, type: 'research',  title: '客户端渲染路径实测（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 903, type: 'prototype', title: '缓存键与合并策略原型（示例）', state: 'CLOSED', blockedBy: [] },
+    { no: 904, type: 'grilling',  title: '定版：接缝画在哪、缓存键怎么定（示例）', state: 'CLOSED', blockedBy: [901, 902] },
+    { no: 905, type: 'grilling',  title: '定版：请求合并与三个扫描器收成一个（示例）', state: 'OPEN', claimedBy: 'FeatherHunter', blockedBy: [902, 903] },
+    { no: 906, type: 'task',      title: '落地：取数层收敛（示例）', state: 'OPEN', blockedBy: [904] },
+    { no: 907, type: 'task',      title: '落地：渲染路径单点改造（示例）', state: 'OPEN', blockedBy: [905] },
+    { no: 908, type: 'task',      title: '落地：日志落盘批量写（示例）', state: 'OPEN', blockedBy: [905] },
+    { no: 909, type: 'research',  title: '真机复测：四个场景逐条给数字（示例）', state: 'OPEN', blockedBy: [906, 907, 908] },
+  ],
+  decisions: [{ t: '现在要治的是 gh 调用链与渲染起点（示例）', g: '倍数结论：点击到内容可见 5075 → 193 毫秒' }],
+  fog: ['体检清单毕业出来的落地票，数量与内容要等体检结果（示例）', '跨插件的统一治理是否纳入本图（示例）'],
+  fogTotal: 4 };
+const DONE = JSON.parse(JSON.stringify(ACTIVE));
+DONE.tickets = DONE.tickets.map((t) => Object.assign({}, t, { state: 'CLOSED', claimedBy: '' }));
+
+/* ======================= 判定（抄自 474-map-detail-ten-directions.html 后段） ======================= */
+function levelize(tickets) {
+  const byNo = new Map(tickets.map((t) => [String(t.no), t]));
+  const memo = new Map();
+  const lv = (t) => {
+    if (memo.has(String(t.no))) return memo.get(String(t.no));
+    const bs = (t.blockedBy || []).map((b) => byNo.get(String(b))).filter(Boolean);
+    const v = bs.length ? Math.max.apply(null, bs.map(lv)) + 1 : 0;
+    memo.set(String(t.no), v); return v;
+  };
+  tickets.forEach(lv);
+  const layers = [];
+  tickets.forEach((t) => { const i = lv(t); (layers[i] = layers[i] || { i: i, items: [] }).items.push(t); });
+  return layers.filter(Boolean);
+}
+function stateOf(t, all) {
+  if (t.state === 'CLOSED') return 'walk';
+  if (t.claimedBy) return 'view';
+  const bs = (t.blockedBy || []).map((b) => all.find((x) => String(x.no) === String(b))).filter(Boolean);
+  return bs.some((b) => b.state === 'OPEN') ? 'fog' : 'open';
+}
+const counts = (map) => {
+  const all = map.tickets || [];
+  return { walk: all.filter((t) => stateOf(t, all) === 'walk').length, view: all.filter((t) => stateOf(t, all) === 'view').length,
+    open: all.filter((t) => stateOf(t, all) === 'open').length, fog: all.filter((t) => stateOf(t, all) === 'fog').length, total: all.length };
+};
+const TYPE_L = { task: '任务', research: '研究', grilling: '对齐', prototype: '原型', map: '地图' };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const clamp = (s, n) => (String(s).length > n ? String(s).slice(0, n) + '…' : String(s));
+
+/* ======================= 矿井的尺寸约定 ======================= */
+const M_LAYER = 12;        // 每层按 12 米岩层算（深度标尺与读数的唯一约定）
+const RULER_W = 46;        // 左侧深度标尺宽度
+const SKY_H = 58;          // 地表以上（井架、工程名牌）
+const TUNNEL_H = 64;       // 巷道净高
+const PLATE_H = 50;        // 作业面标牌高度
+const GAP = 18;            // 巷道上下各留的岩层厚度
+const FOG_H = 100;         // 未探明岩体（留白）带
+const DEEP_MIN = 40;       // 最深一段岩层的最小高度
+const DEEP_MAX = 150;      // 最深一段岩层最多长到多高，再多的空位分给各岩层
+const VEIN_H = 96;         // 矿脉带
+const LANE = 0.78;         // 作业面铺在可掘宽度的前 78%，右边留岩体
+const SW = { walk: '已贯通', view: '正在掘进', open: '可开工', fog: '未开采' };
+const SW2 = { walk: '走亮', view: '照亮中', open: '现在能做', fog: '雾里' };
+/* 岩层配色（土色，从上到下深浅交替，靠层理、煤层、颗粒拉开质感） */
+const ROCKB = [
+  { c: '#2c2519', n: '耕土 · 砂质黏土' },
+  { c: '#1f1c16', n: '泥岩' },
+  { c: '#33291b', n: '砂岩' },
+  { c: '#232019', n: '页岩' },
+  { c: '#3a2d1d', n: '砾岩' },
+  { c: '#1b1815', n: '泥质页岩' },
+];
+
+/* ======================= 计算：这张图在矿井里长什么样 ======================= */
+function plan(map) {
+  const all = (map.tickets || []).slice();
+  const layers = levelize(all);
+  const st = {}; all.forEach((t) => { st[t.no] = stateOf(t, all); });
+  const c = counts(map);
+  const n = layers.length;                                   // 真实层数
+  const drawn = Math.max(n, 2);                              // 空图也画两层完好岩层
+  const dugIdx = layers.reduce((acc, L, i) => L.items.some((t) => st[t.no] === 'walk' || st[t.no] === 'view') ? i : acc, -1);
+  const dugNo = dugIdx >= 0 ? dugIdx + 1 : 0;                // 已挖到第几层（1 基）
+  const dugM = dugNo ? M_LAYER * dugNo - 6 : 0;              // 最深那段巷道的深度（米）
+  const veinM = M_LAYER * drawn + 6;                         // 矿脉深度（米）
+  const dist = (n > 0 && dugNo > 0) ? veinM - dugM : null;    // 还差几米岩层
+  return { all, layers, st, c, n, drawn, dugNo, dugM, veinM, dist, map };
+}
+/* SVG 路径：岩层带在断层处错动（地质剖面图的老画法） */
+function shiftAt(x, faults, j) { let a = 0; for (const f of faults) if (x > f.x + f.slope * j) a += f.dy; return a; }
+function edgePts(xa, xb, y, faults, j) {
+  const pts = [[xa, y + shiftAt(xa, faults, j)]];
+  for (const f of faults) {
+    const sx = f.x + f.slope * j;
+    if (sx > xa && sx < xb) pts.push([sx, y + shiftAt(sx - 0.01, faults, j)], [sx, y + shiftAt(sx + 0.01, faults, j)]);
+  }
+  pts.push([xb, y + shiftAt(xb, faults, j)]);
+  return pts;
+}
+function bandPath(xa, xb, y0, y1, faults, j) {
+  const top = edgePts(xa, xb, y0, faults, j);
+  const bot = edgePts(xa, xb, y1, faults, j).reverse();
+  return 'M' + top.concat(bot).map((q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L') + ' Z';
+}
+function linePath(xa, xb, y, faults, j) {
+  return 'M' + edgePts(xa, xb, y, faults, j).map((q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L');
+}
+
+/* ======================= 状态与 URL 参数 ======================= */
+const state = { w: 810, s: 'active', bar: 1, sel: null, more: false };
+const qs = new URLSearchParams(location.search);
+if (qs.get('w') != null) state.w = Number(qs.get('w')) || 810;
+if (qs.get('s') != null) state.s = String(qs.get('s'));
+if (qs.get('bar') === '0') state.bar = 0;
+if (!['active', 'empty', 'big', 'done'].includes(state.s)) state.s = 'active';
+const mapOf = () => state.s === 'empty' ? EMPTY : (state.s === 'big' ? BIG : (state.s === 'done' ? DONE : ACTIVE));
+
+/* ======================= 面板外壳（照抄简报 §5） ======================= */
+function shellHTML(map) {
+  return '<div class="chrome">' +
+      '<div class="chrome-top"><span class="repo">FeatherHunter/dsh-mattpocock-skills-deck</span><span class="sp"></span>' +
+      '<span class="ico">⚙</span><span class="ico">✕</span></div>' +
+      '<div class="chrome-tabs"><span class="tab on">列表</span><span class="tab">拉取请求</span><span class="tab">技能</span>' +
+      '<span class="tab hideN">环境检查</span><span class="sp"></span><span class="mini hideN">+ 需求</span>' +
+      '<span class="mini hideN">+ bug</span><span class="mini hideN">刷新</span><span class="ver hideN">v1.7.24</span></div>' +
+    '</div>' +
+    '<div class="sticky"><button class="btn ghost sm">← 返回</button><span class="crumb"><span class="hideN">列表 / </span>#' + map.no + '</span>' +
+    '<span class="chipm">▣ wayfinder:map</span><span class="sp"></span><button class="btn primary sm">▶ 推进这张图</button></div>';
+}
+function metersHTML(map, p) {
+  const chips = [['c-walk', '已贯通', p.c.walk], ['c-view', '正在掘进', p.c.view], ['c-open', '可开工', p.c.open], ['c-fog', '未开采', p.c.fog]]
+    .map((a) => '<span class="chip ' + a[0] + '">' + a[1] + ' ' + a[2] + '</span>').join('') +
+    '<span class="chip c-plain">留白 ' + (map.fogTotal || 0) + ' 处</span>';
+  const head = p.n === 0 ? '这口井还没开工' : '这口井挖到第 <b>' + p.dugNo + '</b> 层 / 共 <b>' + p.n + '</b> 层';
+  const tail = p.dist != null ? '距矿脉还有 <b>' + p.dist + '</b> 米' : '矿脉标在 <b>-' + p.veinM + '</b> 米';
+  return '<div class="meters"><div class="mrow"><span>' + head + '</span>' +
+    (p.dugNo ? '<span class="quiet">最深已挖到 -' + p.dugM + ' 米</span>' : '') +
+    '<span class="dist">' + tail + '</span></div>' +
+    '<div class="chips">' + chips + '<span class="scalenote">每层按 12 米岩层算</span></div></div>';
+}
+
+/* ======================= 剖面：算几何 + 画出来 ======================= */
+function fit(map, p) {
+  const panel = document.getElementById('panel');
+  const bandsEl = document.getElementById('bands');
+  const inner = document.getElementById('bandsInner');
+  const panelW = panel.clientWidth || state.w;
+  const secW = Math.max(180, panelW - RULER_W);
+  const visH = Math.max(150, bandsEl.clientHeight || 300);
+  const narrow = panelW < 520;
+  const shaftW = Math.max(30, Math.min(56, secW * 0.09));
+
+  /* --- 1. 标牌排布：先算好每一张标牌放在哪一行，行数决定这一层有多厚 --- */
+  const plateW = narrow
+    ? Math.max(96, Math.min(132, secW - shaftW - 4))
+    : Math.max(110, Math.min(250, (secW - shaftW) * LANE / 3));
+  const glyph = [];       // glyph[层][第几张] = {left, row, pw}
+  const layerRows = [];
+  p.layers.forEach((L) => {
+    const usable = Math.max(60, secW - shaftW);
+    const laneW = Math.max(50, usable * LANE);
+    const slotW = laneW / L.items.length;
+    const pw = narrow ? plateW : Math.max(110, Math.min(250, slotW - 6));
+    const rights = []; const rows = [];
+    L.items.forEach((t, i) => {
+      const cx = shaftW + slotW * (i + 0.5);
+      const left = Math.max(shaftW + 2, Math.min(cx - pw / 2, secW - pw - 2));
+      let r = 0; for (; r < rights.length; r++) if (left >= rights[r] + 4) break;
+      if (r === rights.length) rights.push(left + pw); else rights[r] = left + pw;
+      rows.push({ left: left, row: r, pw: pw, slotW: slotW, cx: cx });
+    });
+    glyph.push(rows);
+    layerRows.push(Math.max(1, rights.length));
+  });
+  const maxRows = Math.max(1, ...layerRows);
+  const groupH = TUNNEL_H + 6 + maxRows * PLATE_H + (maxRows - 1) * 5;   // 一条巷道 + 它的标牌
+  let bandH = GAP + groupH + GAP;
+
+  /* --- 2. 纵向：岩层需要多高，面板里能放下多少；空出来的地方喂给岩层，别堆在深处 --- */
+  const need = SKY_H + p.drawn * bandH + FOG_H + DEEP_MIN;
+  const contentH = Math.max(need, visH);
+  const extra = Math.max(0, contentH - need);
+  const skyExtra = Math.min(extra * 0.15, 40);
+  const deepH = Math.min(DEEP_MAX, DEEP_MIN + Math.max(0, extra - skyExtra));
+  const bandExtra = Math.max(0, extra - skyExtra - (deepH - DEEP_MIN)) / Math.max(1, p.drawn);
+  bandH += bandExtra;
+  const sky = SKY_H + skyExtra;
+
+  /* --- 3. 断层：横穿剖面的两条，岩层在这里错动 --- */
+  const faults = narrow
+    ? [{ x: secW * 0.45, slope: 2.4, dy: 6, name: '断层' }]
+    : [{ x: secW * 0.30, slope: 2.4, dy: 7, name: '断层 A（岩层在这里错动了）' },
+       { x: secW * 0.72, slope: -2.0, dy: -5, name: '断层 B' }];
+
+  const bandYs = [];
+  for (let j = 0; j <= p.drawn + 1; j++) bandYs.push(sky + j * bandH);
+  const fogTop = bandYs[p.drawn];
+  const deepTop = fogTop + FOG_H;
+  const groundY = sky;
+  const W = secW, H = contentH;
+
+  /* --- 4. 画岩层（SVG） --- */
+  let svg = '<svg class="geo" style="left:' + RULER_W + 'px;top:0" width="' + W + '" height="' + H +
+    '" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' +
+    '<defs>' +
+      '<pattern id="mk-unknown" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">' +
+        '<line x1="0" y1="0" x2="0" y2="9" stroke="rgba(230,237,243,.16)" stroke-width="1.4"/></pattern>' +
+      '<pattern id="mk-grain" width="17" height="13" patternUnits="userSpaceOnUse">' +
+        '<circle cx="3" cy="4" r="0.8" fill="rgba(255,255,255,.05)"/><circle cx="11" cy="9" r="0.7" fill="rgba(0,0,0,.28)"/>' +
+        '<circle cx="7" cy="11" r="0.6" fill="rgba(255,255,255,.04)"/></pattern>' +
+      '<linearGradient id="mk-depth" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="rgba(0,0,0,0)"/><stop offset="1" stop-color="rgba(0,0,0,.42)"/></linearGradient>' +
+    '</defs>';
+  for (let j = 0; j < p.drawn; j++) {
+    const r = ROCKB[j % ROCKB.length];
+    const y0 = bandYs[j], y1 = bandYs[j + 1], hh = y1 - y0;
+    svg += '<path d="' + bandPath(0, W, y0, y1, faults, j) + '" fill="' + r.c + '"/>';
+    /* 层理：两条顺着错动的细线 */
+    svg += '<path d="' + linePath(0, W, y0 + hh * 0.30, faults, j) + '" stroke="rgba(255,255,255,.055)" fill="none" stroke-width="1"/>';
+    svg += '<path d="' + linePath(0, W, y0 + hh * 0.62, faults, j) + '" stroke="rgba(0,0,0,.32)" fill="none" stroke-width="1.5"/>';
+    svg += '<path d="' + linePath(0, W, y0 + hh * 0.86, faults, j) + '" stroke="rgba(255,255,255,.04)" fill="none" stroke-width="1"/>';
+    /* 隔层来一条薄煤层，剖面图上最抓眼的东西之一 */
+    if (j % 2 === 0) {
+      svg += '<path d="' + linePath(0, W, y0 + hh * 0.18, faults, j) + '" stroke="rgba(6,6,8,.9)" fill="none" stroke-width="5"/>';
+      svg += '<path d="' + linePath(0, W, y0 + hh * 0.18 + 3.5, faults, j) + '" stroke="rgba(255,255,255,.07)" fill="none" stroke-width="1"/>';
+    }
+    /* 颗粒感：砾岩里的卵石、砂岩里的透镜体 */
+    if (j % 3 === 2) for (let k = 0; k < 3; k++) {
+      const ex = W * (0.12 + k * 0.31), ey = y0 + hh * (0.72 + (k % 2) * 0.1);
+      svg += '<ellipse cx="' + ex.toFixed(0) + '" cy="' + ey.toFixed(0) + '" rx="' + (20 + k * 7) + '" ry="4" fill="rgba(230,237,243,.055)"/>';
+    }
+    if (j % 3 === 1) for (let k = 0; k < 6; k++) {
+      const px = W * (0.06 + k * 0.155), py = y0 + hh * (0.70 + (k % 3) * 0.09);
+      svg += '<circle cx="' + px.toFixed(0) + '" cy="' + py.toFixed(0) + '" r="' + (1.8 + (k % 3) * 0.9) + '" fill="rgba(230,237,243,.10)" stroke="rgba(0,0,0,.4)" stroke-width="1"/>';
+    }
+    svg += '<path d="' + bandPath(0, W, y0, y1, faults, j) + '" fill="url(#mk-grain)"/>';
+    svg += '<path d="' + linePath(0, W, y0, faults, j) + '" stroke="rgba(0,0,0,.55)" fill="none" stroke-width="1.5"/>';
+    if (!narrow) svg += '<text class="rockname" x="' + (W - 6) + '" y="' + (y0 + 12) + '" text-anchor="end">' + r.n + '</text>';
+  }
+  /* 更深的岩层：斜线纹理 = 里面有什么还不知道 */
+  svg += '<path d="' + bandPath(0, W, deepTop, deepTop + deepH, faults, p.drawn) + '" fill="#241e18"/>';
+  svg += '<path d="' + bandPath(0, W, deepTop, deepTop + deepH, faults, p.drawn) + '" fill="url(#mk-unknown)"/>';
+  svg += '<path d="' + linePath(0, W, deepTop, faults, p.drawn) + '" stroke="rgba(163,168,192,.45)" fill="none" stroke-width="1" stroke-dasharray="5 4"/>';
+  if (!narrow) svg += '<text class="geolabel" x="' + (W - 14) + '" y="' + (deepTop + 15) + '" text-anchor="end">更深的岩层 · 还没勘探（挖开才知道里面有什么）</text>';
+  else svg += '<text class="geolabel" x="' + (W - 14) + '" y="' + (deepTop + 14) + '" text-anchor="end">更深的岩层 · 还没勘探</text>';
+  /* 每层的可掘宽度、掌子面位置：先算出来，剖面与作业面都用这份 */
+  const laneInfo = p.layers.map((L, li) => {
+    const usable = Math.max(60, secW - shaftW);
+    const laneW = Math.max(50, usable * LANE);
+    const slotW = laneW / L.items.length;
+    let lastNonFog = -1, fogCount = 0;
+    L.items.forEach((t, i) => { if (p.st[t.no] === 'fog') fogCount++; else lastNonFog = i; });
+    const frontier = lastNonFog >= 0 ? shaftW + slotW * (lastNonFog + 1) : shaftW;
+    return { laneW: laneW, slotW: slotW, frontier: frontier, fogCount: fogCount, li: li };
+  });
+  /* 还没挖开的岩体：掌子面右边那一段（顶上画成斜线纹理 = 里面有什么还不知道） */
+  laneInfo.forEach((g) => {
+    if (!g.fogCount) return;                       // 整层都挖完了，右边只是围岩，不叫未知
+    const x0 = Math.max(shaftW, g.frontier), x1 = W - 1;
+    if (x1 - x0 < 6) return;
+    const j = g.li;
+    svg += '<path d="' + bandPath(x0, x1, bandYs[j] + 2, bandYs[j + 1] - 2, faults, j) + '" fill="rgba(231,236,245,.045)"/>';
+    svg += '<path d="' + bandPath(x0, x1, bandYs[j] + 2, bandYs[j + 1] - 2, faults, j) + '" fill="url(#mk-unknown)"/>';
+  });
+  /* 越深越暗：给整张剖面压一层向下的深色 */
+  svg += '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="url(#mk-depth)" pointer-events="none"/>';
+  /* 断层线（沿着岩层错动的那条线画下去） */
+  faults.forEach((f) => {
+    const pts = [];
+    for (let j = 0; j <= p.drawn; j++) pts.push([f.x + f.slope * j, bandYs[j] + shiftAt(f.x + f.slope * j - 0.01, faults, j)]);
+    pts.push([f.x + f.slope * (p.drawn + 1), deepTop + deepH]);
+    const d = 'M' + pts.map((q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L');
+    svg += '<path d="' + d + '" stroke="rgba(8,9,12,.85)" fill="none" stroke-width="4"/>';
+    svg += '<path d="' + d + '" stroke="rgba(230,237,243,.22)" fill="none" stroke-width="1" stroke-dasharray="7 5"/>';
+    if (!narrow) svg += '<text class="geolabel warn" x="' + (f.x + 6) + '" y="' + (groundY + 13) + '">' + f.name + '</text>';
+  });
+  /* 地表线 */
+  let gl = 'M0 ' + groundY;
+  for (let x = 0; x < W; x += 26) gl += ' Q' + (x + 6) + ' ' + (groundY - (x % 52 === 0 ? 3 : 1)) + ' ' + (x + 13) + ' ' + groundY + ' T' + (x + 26) + ' ' + groundY;
+  gl += ' L' + W + ' ' + (groundY + 3) + ' L0 ' + (groundY + 3) + ' Z';
+  svg += '<path d="' + gl + '" fill="#2a3a24" opacity=".85"/>';
+  svg += '<path d="M0 ' + groundY + ' L' + W + ' ' + groundY + '" stroke="rgba(230,237,243,.5)" stroke-width="1.4" fill="none"/>';
+  /* 地表以上：井架 + 卷扬机 */
+  const topY = Math.max(4, groundY - 46);
+  svg += '<path d="M' + (shaftW - 15) + ' ' + groundY + ' L' + shaftW + ' ' + topY + ' L' + (shaftW + 15) + ' ' + groundY + '" fill="none" stroke="rgba(206,216,232,.55)" stroke-width="2"/>' +
+    '<path d="M' + (shaftW - 10) + ' ' + (groundY - 14) + ' L' + (shaftW + 10) + ' ' + (groundY - 14) + '" stroke="rgba(206,216,232,.4)" stroke-width="1.4"/>' +
+    '<circle cx="' + shaftW + '" cy="' + topY + '" r="8" fill="none" stroke="rgba(206,216,232,.6)" stroke-width="2"/>' +
+    '<path d="M' + (shaftW - 8) + ' ' + topY + ' L' + (shaftW + 8) + ' ' + topY + '" stroke="rgba(206,216,232,.35)" stroke-width="1"/>' +
+    '<path d="M' + shaftW + ' ' + (topY + 8) + ' L' + shaftW + ' ' + (groundY - 4) + '" stroke="rgba(255,214,150,.55)" stroke-width="1.2" stroke-dasharray="3 3"/>';
+  /* 竖井：从地表打到最深一层 */
+  const dugLayerIdx = p.dugNo ? p.dugNo - 1 : 0;
+  const shaftBot = (p.n === 0 ? bandYs[2] : bandYs[dugLayerIdx + 1]) - 4;
+  svg += '<path d="M' + (shaftW - 13) + ' ' + groundY + ' L' + (shaftW - 13) + ' ' + shaftBot + ' L' + (shaftW + 13) + ' ' + shaftBot + ' L' + (shaftW + 13) + ' ' + groundY + ' Z" fill="#0b0906"/>';
+  svg += '<path d="M' + (shaftW - 13) + ' ' + groundY + ' L' + (shaftW - 13) + ' ' + shaftBot + '" stroke="rgba(170,125,80,.55)" stroke-width="2"/>';
+  svg += '<path d="M' + (shaftW + 13) + ' ' + groundY + ' L' + (shaftW + 13) + ' ' + shaftBot + '" stroke="rgba(170,125,80,.55)" stroke-width="2"/>';
+  for (let y = groundY + 12; y < shaftBot; y += 16) svg += '<path d="M' + (shaftW - 10) + ' ' + y + ' L' + (shaftW + 10) + ' ' + y + '" stroke="rgba(206,216,232,.22)" stroke-width="1"/>';
+
+  /* --- 5. 每层的巷道、掌子面、作业面 --- */
+  const blocks = [];
+  const faces = [];
+  const recTitles = (map.decisions || []).map((d) => String(d.t || ''));
+  p.layers.forEach((L, li) => {
+    const laneW = laneInfo[li].laneW, slotW = laneInfo[li].slotW, frontier = laneInfo[li].frontier;
+    const groupHi = TUNNEL_H + 6 + layerRows[li] * PLATE_H + (layerRows[li] - 1) * 5;
+    const padTop = Math.round((bandH - groupHi) * 0.42);          // 巷道连同标牌摆在岩层中间
+    const tTop = bandYs[li] + padTop;
+    const tBot = tTop + TUNNEL_H;
+    const tMid = tTop + TUNNEL_H / 2;
+    const excavated = frontier > shaftW + 2;
+    const lit = L.items.some((t) => p.st[t.no] === 'walk' || p.st[t.no] === 'view');
+    if (excavated) {
+      blocks.push('<div class="road' + (lit ? ' lit' : '') + ' cutoff" style="left:' + (RULER_W + shaftW) + 'px;top:' + tTop +
+        'px;width:' + (frontier - shaftW) + 'px;height:' + TUNNEL_H + 'px">' +
+        '<i class="floor"></i><i class="props"></i><i class="rails"></i></div>');
+      blocks.push('<div class="facewall" style="left:' + (RULER_W + frontier - 2) + 'px;top:' + tTop + 'px;width:22px;height:' + TUNNEL_H + 'px"></div>');
+      let holes = '';
+      for (let k = 0; k < 5; k++) holes += '<circle cx="' + (frontier + 8 + (k % 2) * 5) + '" cy="' + (tTop + 12 + k * 11) + '" r="1.7" fill="rgba(10,8,6,.75)"/>';
+      svg += holes;
+      if (!narrow) svg += '<text class="geolabel" x="' + (frontier + 11) + '" y="' + (tBot + 13) + '">掌子面</text>';
+    }
+    /* 作业面 */
+    L.items.forEach((t, i) => {
+      const s = p.st[t.no];
+      const g = glyph[li][i];
+      const plLeft = g.left, plTop = tTop + TUNNEL_H + 6 + g.row * (PLATE_H + 5);
+      const lampX = g.cx, lampY = tTop + 15;
+      const dash = s === 'fog';
+      let inner = '';
+      if (dash) inner += '<i class="rock" style="left:' + Math.round(lampX - plLeft - 8) + 'px;top:' + Math.round(lampY - plTop - 5) + 'px"></i>';
+      else inner += '<i class="lamp" style="left:' + Math.round(lampX - plLeft - 5.5) + 'px;top:' + Math.round(lampY - plTop - 5.5) + 'px"></i>';
+      /* 引线：灯 → 标牌（L 形） */
+      const vTop = lampY + 7, vBot = plTop - 8, vx = lampX - plLeft;
+      inner += '<i class="leader' + (dash ? ' leaddash' : '') + '" style="left:' + Math.round(vx) + 'px;top:' + Math.round(vTop - plTop) +
+        'px;height:' + Math.max(0, Math.round(vBot - vTop)) + 'px"></i>';
+      if (vx < 0 || vx > g.pw) {
+        inner += '<i class="leader h' + (dash ? ' leaddash' : '') + '" style="left:' + Math.round(Math.min(Math.max(vx, 0), g.pw)) +
+          'px;top:' + Math.round(vBot - plTop) + 'px;width:' + Math.round(Math.abs(Math.min(Math.max(vx, 0), g.pw) - vx)) + 'px"></i>';
+      }
+      const hasRec = s === 'walk' && recTitles.some((x) => x && t.title && t.title.indexOf(x) === 0);
+      inner += '<span class="plate" style="left:0;top:0;width:' + g.pw + 'px;min-height:' + PLATE_H + 'px">' +
+        (hasRec ? '<i class="rec" title="这一段留下了记录，点开看"></i>' : '') +
+        '<span class="pmeta"><b class="pno">#' + t.no + '</b><i class="pstate">' + SW[s] + '</i>' +
+        (narrow ? '' : '<em class="ptype">' + (TYPE_L[t.type] || '票') + '</em>') + '</span>' +
+        '<span class="ptitle">' + esc(t.title || '（没有标题）') + '</span></span>';
+      faces.push('<button class="face f-' + s + '" data-ticket="' + t.no + '" data-state="' + s + '" data-layer="' + (li + 1) +
+        '" aria-label="#' + t.no + ' ' + SW[s] + '（' + SW2[s] + '）' + esc(t.title || '') + '" ' +
+        'style="left:' + (RULER_W + plLeft) + 'px;top:' + Math.round(plTop) + 'px;width:' + g.pw + 'px;height:' + PLATE_H + 'px" ' +
+        'title="#' + t.no + ' ' + esc(t.title || '') + '">' + inner + '</button>');
+      /* 装饰件：光池 / 光锥 / 扬尘 / 矿车 / 待装设备 / 未开采的虚线巷道 */
+      if (s === 'walk') {
+        blocks.push('<div class="pool" style="left:' + Math.round(RULER_W + lampX - 84) + 'px;top:' + (tBot - 62) + 'px;width:168px;height:84px"></div>');
+        blocks.push('<div class="cart" style="left:' + Math.round(RULER_W + lampX - 15) + 'px;top:' + Math.round(tBot - 37) + 'px">' +
+          '<i class="cbody"><i class="ore"></i></i><i class="wh"></i></div>');
+      }
+      if (s === 'view') {
+        const coneW = Math.max(30, frontier - lampX + 12);
+        blocks.push('<div class="cone" style="left:' + Math.round(RULER_W + lampX) + 'px;top:' + Math.round(tMid - 30) + 'px;width:' + Math.round(coneW) + 'px;height:60px"></div>');
+        blocks.push('<div class="dust" style="left:' + Math.round(RULER_W + Math.max(lampX, frontier - 100)) + 'px;top:' + (tTop + 6) + 'px;width:112px;height:56px"></div>');
+        const rigLeft = Math.max(lampX, frontier - 46);
+        blocks.push('<div class="rig" style="left:' + Math.round(RULER_W + rigLeft) + 'px;top:' + Math.round(tBot - 43) + 'px;width:46px;height:34px">' +
+          '<i class="rbody" style="left:0;top:4px;width:22px;height:16px"></i>' +
+          '<i class="bit" style="left:20px;top:10px;width:' + Math.max(6, Math.round(frontier - rigLeft - 20)) + 'px"></i>' +
+          '<i class="leg" style="left:3px;top:19px"></i><i class="leg" style="left:16px;top:19px"></i></div>');
+      }
+      if (s === 'open') {
+        blocks.push('<div class="pallet" style="left:' + Math.round(RULER_W + lampX - 17) + 'px;top:' + (tBot - 15) + 'px;width:34px"></div>');
+        blocks.push('<div class="crate" style="left:' + Math.round(RULER_W + lampX - 12) + 'px;top:' + (tBot - 27) + 'px"></div>');
+      }
+      if (dash) {
+        const gx = Math.max(shaftW + 2, g.cx - g.slotW / 2), gw = Math.max(40, Math.min(g.slotW - 4, secW - gx - 4));
+        blocks.push('<div class="voidlane" style="left:' + Math.round(RULER_W + gx) + 'px;top:' + tTop + 'px;width:' + Math.round(gw) + 'px;height:' + TUNNEL_H + 'px"><i class="q">?</i></div>');
+      }
+    });
+  });
+  /* 留白：还没切出来的票，画在最深一段岩层下方的未探明岩体里 */
+  const fogItems = map.fog || [];
+  if ((map.fogTotal || 0) > 0 || fogItems.length) {
+    let fb = '<div class="fogband" style="left:' + RULER_W + 'px;top:' + fogTop + 'px;width:' + (panelW - RULER_W) + 'px;height:' + FOG_H + 'px">' +
+      '<div class="cap">未探明岩体 · 留白 ' + (map.fogTotal || fogItems.length) + ' 条（还没切出来的票，挖开才知道）</div><i class="bigq">?</i>';
+    fogItems.slice(0, 2).forEach((s, i) => {
+      fb += '<div class="it" style="top:' + (18 + i * 28) + 'px">' + (i + 1) + '. ' + esc(s) + '</div>';
+    });
+    if ((map.fogTotal || 0) > fogItems.length) fb += '<div class="more" style="top:' + (18 + Math.min(2, fogItems.length) * 28 + 6) + 'px">还有 ' +
+      ((map.fogTotal || 0) - fogItems.length) + ' 条没画出来（本原型只带前 2 条原文）</div>';
+    blocks.push(fb + '</div>');
+  }
+
+  /* --- 6. 深度标尺 --- */
+  let ruler = '<div class="rtitle">深度\n↓ 向下掘进</div>';
+  ruler += '<div class="tick zero" style="top:' + groundY + 'px"><span>0 m</span></div>';
+  for (let j = 1; j <= p.drawn; j++) {
+    for (let m = 4; m < M_LAYER; m += 4) ruler += '<div class="tick minor" style="top:' + (bandYs[j - 1] + bandH * m / M_LAYER) + 'px"></div>';
+    ruler += '<div class="tick" style="top:' + bandYs[j] + 'px"><span>-' + (j * M_LAYER) + ' m</span></div>';
+  }
+  ruler += '<div class="tick" style="top:' + deepTop + 'px;border-top-style:dashed;border-color:rgba(163,168,192,.35)"><span style="color:#8b8b95">没勘探</span></div>';
+  if (p.dugNo) ruler += '<div class="remain" style="top:' + Math.round(bandYs[p.dugNo] - 5) + 'px;height:' + Math.round(contentH - bandYs[p.dugNo] + 5) + 'px"></div>';
+  if (p.n === 0) ruler += '<div class="rtitle" style="top:' + Math.round(groundY + 12) + 'px;color:#c3c8d8;left:4px">还没挖一层</div>';
+
+  /* --- 7. 地表文字 --- */
+  const sign = p.n === 0 ? '<span class="sign" style="top:' + Math.round(groundY - 34) + 'px">还没开工 · 一张票都还没有</span>' : '';
+  const surface = '<div class="surface" style="height:' + Math.round(sky) + 'px">' +
+    '<div class="eng"><b>工程 #' + map.no + '</b>' + (map.sample ? '（示例）' : '') +
+    '<span class="t">' + esc(map.title || '') + '</span></div>' + sign + '</div>';
+
+  inner.style.height = contentH + 'px';
+  inner.innerHTML = svg + '</svg><div class="ruler">' + ruler + '</div>' + surface + blocks.join('') + faces.join('');
+  return { contentH, secW, sky, groundY, bandYs, fogTop, deepTop, deepH, bandH, panelW, narrow, visH };
+}
+
+/* ======================= 矿脉带（钉在剖面最下面，任何宽度都在视口里） ======================= */
+function veinHTML(map, p, geo) {
+  const note = p.n === 0 ? '这口井还没开工，矿脉的位置先标在这儿' :
+    (p.dist != null ? '从最深那段巷道再往下 ' + p.dist + ' 米岩层' : '目的地');
+  const W = Math.max(180, geo.panelW - RULER_W);
+  const d = 'M0 30 C' + (W * 0.18) + ' 20,' + (W * 0.3) + ' 42,' + (W * 0.46) + ' 30 C' + (W * 0.62) + ' 18,' + (W * 0.76) + ' 44,' + W + ' 30';
+  return '<div class="veinWrap" data-role="vein" style="height:' + VEIN_H + 'px">' +
+    '<svg class="veinsvg" viewBox="0 0 ' + W + ' ' + VEIN_H + '" preserveAspectRatio="none" aria-hidden="true">' +
+      '<defs><filter id="vf-glow" x="-30%" y="-60%" width="160%" height="220%">' +
+        '<feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' +
+      '<path d="' + d + '" fill="none" stroke="rgba(192,132,252,.22)" stroke-width="11"/>' +
+      '<path d="' + d + '" fill="none" stroke="#c084fc" stroke-width="2.4" filter="url(#vf-glow)"/>' +
+      '<path d="M' + (W * 0.12) + ' 30 l22 -12" stroke="rgba(192,132,252,.5)" stroke-width="1.6" fill="none"/>' +
+      '<path d="M' + (W * 0.55) + ' 30 l-20 13" stroke="rgba(192,132,252,.5)" stroke-width="1.6" fill="none"/>' +
+      '<path d="M' + (W * 0.8) + ' 30 l18 -11" stroke="rgba(192,132,252,.4)" stroke-width="1.4" fill="none"/>' +
+    '</svg>' +
+    '<div class="vdepth">矿脉<b>-' + p.veinM + ' m</b></div>' +
+    '<div class="vlab"><span class="vtag">矿脉 · 目的地</span><span class="vnote">' + note + '</span></div>' +
+    '<div class="vtext">' + esc(clamp(map.destination || '（这张图还没写目的地）', geo.narrow ? 58 : 130)) + '</div>' +
+    '<button class="vmore" data-act="dest">看全文</button></div>';
+}
+
+/* ======================= 底部：选中事项 + 巷道图例 ======================= */
+function indexLayer(p, no) {
+  for (let i = 0; i < p.layers.length; i++) if (p.layers[i].items.some((t) => t.no === no)) return i + 1;
+  return 0;
+}
+function sheetHTML(map, p) {
+  const sel = p.all.find((t) => t.no === state.sel);
+  if (state.more) {
+    return '<div class="sheet" id="sheet"><div class="s1"><b>目的地（矿脉）</b>' +
+      '<span class="st" style="border-color:rgba(192,132,252,.5);color:#e9d5ff">始终可见</span>' +
+      '<button class="x" data-act="closemore">收起</button></div>' +
+      '<div class="t full">' + esc(map.destination || '（这张图还没写目的地）') + '</div></div>';
+  }
+  if (sel) {
+    const s = p.st[sel.no];
+    const bs = (sel.blockedBy || []).map((b) => p.all.find((x) => String(x.no) === String(b))).filter(Boolean);
+    const openB = bs.filter((b) => b.state === 'OPEN');
+    const claim = sel.claimedBy ? '认领人 ' + sel.claimedBy : '还没人认领';
+    const blockTxt = bs.length === 0 ? '没有前置的票' :
+      (openB.length ? '还被 ' + openB.map((b) => '#' + b.no).join('、') + ' 挡着（挖开才知道通不通）'
+                    : '前置的 ' + bs.map((b) => '#' + b.no).join('、') + ' 都关了，可以开工');
+    const rec = (map.decisions || []).find((d) => sel.title && sel.title.indexOf(String(d.t)) === 0);
+    return '<div class="sheet" id="sheet">' +
+      '<div class="s1"><b>#' + sel.no + '</b><span class="st ' + s + '">' + SW[s] + '（' + SW2[s] + '）</span>' +
+      '<span class="st">第 ' + indexLayer(p, sel.no) + ' 层</span>' +
+      '<span class="st">' + (TYPE_L[sel.type] || '票') + '</span>' +
+      '<button class="x" data-act="clearsel">取消选中</button></div>' +
+      '<div class="t">' + esc(sel.title || '（没有标题）') + '</div>' +
+      '<div class="s2">状态：' + SW[s] + '（' + SW2[s] + '）· ' + claim + ' · ' + blockTxt + '</div>' +
+      (rec ? '<div class="rec2">这一段留下的记录：' + esc(rec.g) + '</div>' : '') + '</div>';
+  }
+  const view = p.all.find((t) => p.st[t.no] === 'view');
+  const open = p.all.find((t) => p.st[t.no] === 'open');
+  const next = view || open;
+  if (!next) {
+    return '<div class="sheet" id="sheet"><div class="s1"><b>' +
+      (p.n === 0 ? '这口井还没开工，没有任何作业面' : '这张图上的票都关了，巷道全部贯通') + '</b>' +
+      '<button class="x" data-act="dest">看目的地全文</button></div>' +
+      '<div class="t">' + (p.n === 0 ? '图上只有一个矿脉标记：目的地已经写清楚了，怎么挖还没画。'
+        : '往上翻，每一段巷道墙上的小绿块就是它留下的记录。') + '</div>' +
+      '<div class="s2">点剖面里的作业面（或者用 Tab 走一遍）看每一张票的细节。</div></div>';
+  }
+  return '<div class="sheet" id="sheet"><div class="s1">' +
+    '<b>' + (view ? '正在掘进' : '现在可以做') + '：#' + next.no + '</b>' +
+    '<span class="st ' + p.st[next.no] + '">' + SW[p.st[next.no]] + '（' + SW2[p.st[next.no]] + '）</span>' +
+    '<button class="x" data-act="select" data-no="' + next.no + '">看细节</button></div>' +
+    '<div class="t">' + esc(next.title || '') + '</div>' +
+    '<div class="s2">' + (view ? '这一张已经在手上，点它看认领人和前置。' : '前置的票都关了，这是图上排在最前面的活。') +
+    ' 点剖面里的作业面看细节。</div></div>';
+}
+function legendHTML() {
+  const items = [
+    ['lg-lamp', '矿灯亮着 = 已贯通（走亮）'],
+    ['lg-cone', '有光锥和扬尘 = 正在掘进（照亮中）'],
+    ['lg-track', '空轨道 + 待装设备 = 可开工（现在能做）'],
+    ['lg-q', '虚线轮廓 + 问号、埋在岩层里 = 未开采（雾里）'],
+    ['lg-hatch', '斜线纹理 = 还没挖开的岩层，里面有什么还不知道'],
+    ['lg-vein', '发光的矿脉线 = 目的地，永远标着'],
+  ];
+  return '<div class="legend">' + items.map((a) => '<div class="li"><span class="gl ' + a[0] + '"></span><span>' + a[1] + '</span></div>').join('') + '</div>';
+}
+
+/* ======================= 组装 ======================= */
+function paint() {
+  const map = mapOf();
+  const p = plan(map);
+  if (state.sel && !p.all.some((t) => t.no === state.sel)) state.sel = null;
+  const panel = document.getElementById('panel');
+  panel.className = 'panel' + (state.w < 520 ? ' narrow' : '');
+  panel.style.width = state.w + 'px';
+  panel.innerHTML = shellHTML(map) + metersHTML(map, p) +
+    '<div class="mine"><div class="bands" id="bands"><div class="bandsInner" id="bandsInner"></div></div>' +
+    veinHTML(map, p, { panelW: panel.clientWidth, narrow: panel.clientWidth < 520 }) + '</div>' +
+    '<div class="foot" id="foot">' + sheetHTML(map, p) + legendHTML() + '</div>';
+  fit(map, p);
+  document.querySelectorAll('.face').forEach((el) => el.classList.toggle('on', Number(el.dataset.ticket) === state.sel));
+  document.body.classList.toggle('withbar', !!state.bar);
+  document.getElementById('bar').style.display = state.bar ? 'flex' : 'none';
+  const u = new URL(location.href);
+  u.searchParams.set('w', String(state.w)); u.searchParams.set('s', state.s);
+  if (!state.bar) u.searchParams.set('bar', '0'); else u.searchParams.delete('bar');
+  history.replaceState(null, '', u.toString());
+  document.querySelectorAll('.seg').forEach((b) => {
+    b.classList.toggle('on', b.dataset.k === 'bar' ? !state.bar : String(state[b.dataset.k]) === b.dataset.v);
+  });
+}
+/* 只改选中：不重排，键盘焦点不丢 */
+function select(no) {
+  state.sel = no;
+  const map = mapOf(), p = plan(map);
+  document.querySelectorAll('.face').forEach((el) => el.classList.toggle('on', Number(el.dataset.ticket) === state.sel));
+  document.getElementById('foot').innerHTML = sheetHTML(map, p) + legendHTML();
+}
+document.getElementById('panel').addEventListener('click', function (e) {
+  const t = e.target;
+  const act = t.closest ? t.closest('[data-act]') : null;
+  if (act) {
+    const a = act.dataset.act;
+    if (a === 'dest') { state.more = true; state.sel = null; select(null); }
+    else if (a === 'closemore') { state.more = false; select(null); }
+    else if (a === 'clearsel') { select(null); }
+    else if (a === 'select') { select(Number(act.dataset.no)); }
+    return;
+  }
+  const f = t.closest ? t.closest('.face') : null;
+  if (f) { const no = Number(f.dataset.ticket); if (no) select(state.sel === no ? null : no); }
+});
+document.querySelectorAll('.seg').forEach((b) => {
+  b.onclick = function () {
+    const k = b.dataset.k;
+    if (k === 'bar') state.bar = state.bar ? 0 : 1;
+    else if (k === 'w') state.w = Number(b.dataset.v);
+    else state.s = b.dataset.v;
+    state.sel = null; state.more = false;
+    paint();
+  };
+});
+window.addEventListener('resize', function () { paint(); });
+paint();
+</script>
+</body>
+</html>
