@@ -25,16 +25,32 @@ export function createSessionRefresh(deps) {
     if (!env) return { ok: false, error: 'snapshot-envelope-not-wired' }
     return env.withChainReadout(await refreshOf(args))
   }
+  // #729 一次性方案：强制刷新也进与快照路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）。
+  let _sharedInflightP = null
+  function _loadSharedInflight() { if (!_sharedInflightP) _sharedInflightP = import('./snapshotInflight.js'); return _sharedInflightP }
   async function refreshOf(args) {
       // #652 与快照同钥匙（规整键+工作区根）；#696 起宿主内存按根分表，强制刷新只重写自己根那条。
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const refT0 = Date.now()
       try { if (logCtx) logCtx.fire('info', 'panelSync.dirty', { cwdHash: hash8(cwd), ageMs: (function () { try { const c = getCache(cwd); return (c && c.ts) ? Math.max(0, refT0 - c.ts) : 0 } catch (e) { return 0 } })() }) } catch (eL) {}
+      let _sel = null
+      try { _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 }) }
+      catch (eSel) { setCache({ ts: Date.now(), snapshot: null, error: errText(eSel), cwd: cwd }); return { ok: false, error: errText(eSel) } }
+      // #729：在途键与快照路同一把；强制只搭强制的车（在途是非强制就另起一趟，#366），搭上记现成的 dedup.hit。
+      const _sharedInflight = await _loadSharedInflight()
+      const refreshDedupKey = _sharedInflight.snapshotDedupKeyOf({ cwd: cwd, backendId: (_sel && _sel.backendId), lang: (args && args.lang), baseRev: (args && args.baseRev), version: (args && (args.ifNoneMatch || args.version)) })
+      { const _ride = _sharedInflight.snapshotInflightTake(refreshDedupKey, true, function () { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'snapshot', keyHash: hash8(refreshDedupKey) } }) } catch (eL) {} }); if (_ride) return _ride }
+      const _rebuild = refreshBuild(args, cwd, _sel)
+      const _entry = _sharedInflight.snapshotInflightPark(refreshDedupKey, true, _rebuild)
+      try { return await _rebuild } finally { _sharedInflight.snapshotInflightLeave(refreshDedupKey, _entry) }
+  }
+  // #729：刷新真正的组装（被在途表包住，一趟只跑一次；#195 的 resetGhCache 从入口搬进这里——
+  // 搭车的不再重复清：那一清里带一次异步落盘清空，在途那趟的脚下不能再扫一次）。
+  async function refreshBuild(args, cwd, _sel) {
       // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
       resetGhCache()
       try {
         // 第一性原理分发：与 wf.snapshot 同构
-        let _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })
         const useComposer = isComposerSelection(_sel)
         if (useComposer) {
           const reg = await getTrackerRegistry()

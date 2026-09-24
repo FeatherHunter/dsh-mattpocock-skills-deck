@@ -103,6 +103,24 @@
       "note": "H4 搬迁：快照编排器装配随函数搬入本文件"
     },
     {
+      "file": "src/host/sessionSnapshot.js",
+      "spec": "./snapshotInflight.js",
+      "resolved": "src/host/snapshotInflight.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#729（手动刷新另起一趟：两条电话路共用一张在途表）",
+      "note": "#729 一次性方案：本地在途表撤掉，快照路动态引入共用协调器（与刷新路同一张表）；门禁原文允许确认后记入，理由与归属见本条。"
+    },
+    {
+      "file": "src/host/sessionRefresh.js",
+      "spec": "./snapshotInflight.js",
+      "resolved": "src/host/snapshotInflight.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#729（手动刷新另起一趟：两条电话路共用一张在途表）",
+      "note": "#729 一次性方案：刷新路（客户端手动刷新的真路径）此前整篇无在途表，动态引入共用协调器；门禁原文允许确认后记入，理由与归属见本条。"
+    },
+    {
       "file": "src/host/tracker/index.js",
       "spec": "./contract.js",
       "resolved": "src/host/tracker/contract.js",
