@@ -20,6 +20,11 @@
  * 两面的扫描用同一把尺子（window.__PANEL_SCAN__ / window.__STRIP_SCAN__ 共用 scanOf），
  *   量的都是 DOM 里真实存在的东西：看得见的字，以及属性（悬停提示那句话落在 aria-label 上，
  *   真 Tip 与这里的替身都写它，所以「那句还在不在」量得出来）。
+ *
+ * 另外还有**两把尺子**（门禁那一侧的 R8 / R9 用，2026-09-24 从门禁搬进这一份里）：
+ *   能力本体画出来的**版面上**不许出现 8 位十六进制散列、也不许出现内部行话；把这两样塞回一行
+ *   可见文字之后，同一段判据必须当场报红（抓不住就是尺子失灵）。两把尺子共用下面那一段 rulerHitsOf，
+ *   「取可见文字」那一步也照 tests/verify-chain-view.js 里既有的那份取法抄（悬停提示不算版面上的字）。
  */
 import React from 'react'
 import * as ReactDOMClient from 'react-dom/client'
@@ -175,6 +180,125 @@ window.__STRIP_SNAP_WITH__ = function (n) {
     issues: [{ number: 900, title: '甲票标题', effortId: '' }],
     sessionTickets: { ok: true, at: window.__READ_AT__, sessions: [{ shardId: '307d37e6a1b2c3d4', backend: 'github', entries: one }] },
   })
+}
+
+// ---- 四、两把尺子：版面上不许出现 8 位十六进制散列、也不许出现内部行话 ----
+// 2026-09-24 那次提交（把这一块从面板摘下来，29dd75d）顺手删掉了门禁里量这两件事的两条断言
+//   （当时叫 U2/U3，配套的反证叫 U5）。能力既然一行未删地留着，这两把尺子就得跟着留：
+//   量的是**能力本体单独挂出来之后画在版面上**的字（面板里已经没有它了）。
+// 尺子为什么放在探针这一侧：R8（量真版面）与 R9（往克隆出来的一行里塞回这两样、再用同一把尺子量）
+//   必须是**同一段判据**；各写一份就成了两把尺子 —— 一把坏了另一把照旧绿，反证也就没有意义了。
+const HEX8 = /(?:^|[^0-9a-f])([0-9a-f]{8})(?![0-9a-f])/i
+const JARGON = ['宿主读数', '宿主', '读数', '分格', '散列']
+/** 唯一的尺子：一行行的可见文字进去，命中的行出来（散列与行话分开报，便于定位）。 */
+const rulerHitsOf = function (lines) {
+  const all = (Array.isArray(lines) ? lines : []).map(function (t) { return String(t) })
+  const hexLines = all.filter(function (t) { return HEX8.test(t) })
+  const jargonLines = all.filter(function (t) { return JARGON.some(function (w) { return t.indexOf(w) >= 0 }) })
+  return { hexLines: hexLines, jargonLines: jargonLines, hits: hexLines.concat(jargonLines) }
+}
+/** 这一把尺子长什么样（门禁把它的原样打进报告：量的就是这一段判据，不是门禁里另抄的一份）。 */
+window.__RULER_WHAT__ = function () { return { hexSource: HEX8.source, hexFlags: HEX8.flags, jargon: JARGON.slice() } }
+window.__RULER_HITS__ = rulerHitsOf
+
+// 「这一块**自己**看得见的文字」怎么取 —— 照 tests/verify-chain-view.js 里既有的那份取法抄：
+//   那一边的 visibleTextOf 把 Tip（悬停提示）整棵子树排除在外（悬停里带着完整标识是这一版的要求）。
+//   落到 DOM 上就是两件事：① 提示那一份落在**属性**上（真 Tip 与这里的替身都写 aria-label，替身
+//   另写一个 data-tip 便于人来查），属性不是版面上的字，所以这里只走文字节点、一个属性都不读；
+//   ② display:none / visibility:hidden 的节点在这一版面上看不见，取字时跳过整棵子树。
+const visibleTextOfNode = function (el) {
+  if (!el) return ''
+  const out = []
+  const walk = function (n) {
+    if (!n) return
+    if (n.nodeType === 3) { out.push(String(n.nodeValue || '')); return }
+    if (n.nodeType !== 1) return
+    const cs = window.getComputedStyle(n)
+    if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) return
+    const kids = n.childNodes
+    for (let i = 0; i < kids.length; i++) walk(kids[i])
+  }
+  walk(el)
+  return out.join('').replace(/\s+/g, ' ').trim()
+}
+
+/** 这一块画出来的**版面**：顶层每个孩子算一行（与从前那一版门禁同一取法：一行 = 块的一个顶层孩子）。 */
+const visibleTextLinesOf = function (block) {
+  if (!block) return []
+  const kids = block.children
+  const lines = []
+  for (let i = 0; i < kids.length; i++) lines.push(visibleTextOfNode(kids[i]))
+  return lines
+}
+const stripBlockOf = function () {
+  const host = document.getElementById(STRIP_HOST_ID)
+  return host ? host.querySelector('.dsws-chainview') : null
+}
+
+/** R8 量的是这一份：能力本体（正常读数那一份）画出来的每一行可见文字。 */
+window.__STRIP_TEXT_LINES__ = function () {
+  const block = stripBlockOf()
+  if (!block) return { ok: false, why: '能力本体没有画出来（容器里找不到 .dsws-chainview）', lines: [], rows: 0, nonEmpty: 0 }
+  const lines = visibleTextLinesOf(block)
+  return {
+    ok: true, lines: lines,
+    rows: block.querySelectorAll('.dsws-chainview-row').length,
+    nonEmpty: lines.filter(Boolean).length,
+  }
+}
+
+/**
+ * R9 的反证件：克隆出来的一行可见文字，往这一行里塞回一个 8 位散列与「宿主读数」，
+ *   再用上面**同一段**判据（rulerHitsOf）量一遍 —— 量不出命中就是尺子失灵，门禁必须判红。
+ * 两件事都要做，缺一件就会给假绿留一道缝：
+ *   ① 文字层面：把塞回去的那一行交给同一把尺子（证明这一段判据认得出散列与行话）；
+ *   ② 版面层面：真克隆一个节点、把字写进节点里、再走一遍「取可见文字」那一步
+ *      （证明取字那一步也看得见塞回去的字 —— 只做①的话，取字那一步写成「永远返回空」照样绿）。
+ * 克隆件挪到版面外（left:-10000px）而不是用 display:none / visibility:hidden 藏它：
+ *   取可见文字那一步会跳过看不见的节点，用那两种藏法反证件自己就取不到字了 —— 那就成了假红。
+ * 真节点一个字不碰：动的全是克隆件，量完就 remove。
+ * 挑哪一行：优先一条记录行（.dsws-chainview-row），块里没有记录行就退回头一行（说明行）——
+ *   两种都是一行可见文字，报告里会把「塞的是哪一行、塞之前长什么样」原样写出来。
+ */
+window.__STRIP_TEXT_COUNTERCHECK__ = function () {
+  const block = stripBlockOf()
+  if (!block) return { ok: false, why: '能力本体没有画出来，反证件无从下手' }
+  const lines = visibleTextLinesOf(block)
+  const fakeHex = '307d37e6'
+  const fakeJargon = '宿主读数'
+  // 克隆整块（真节点一个字不碰），从克隆件里挑**一行有字的**：优先一条记录行，块里没有记录行就退回头一行。
+  const clone = block.cloneNode(true)
+  clone.style.position = 'absolute'
+  clone.style.left = '-10000px'
+  clone.style.top = '0'
+  document.body.appendChild(clone)
+  const row = clone.querySelector('.dsws-chainview-row') || clone.children[0] || null
+  // 克隆出来这一行**自己的**可见文字（塞之前长什么样，报告里要留一份原文）
+  const lineBefore = row ? visibleTextOfNode(row) : ''
+  const injectedText = (lineBefore || lines.filter(Boolean)[0] || '') + ' · 会话 ' + fakeHex + ' · ' + fakeJargon + ' · 16:50'
+  // ① 文字层面：把塞回去的这一行交给同一把尺子
+  const textHit = rulerHitsOf([injectedText])
+  // ② 版面层面：把这一行**写进节点**，再走一遍「取可见文字」那一步，仍旧交给同一把尺子
+  if (row) row.textContent = injectedText
+  const injectedInto = row ? (row.className ? 'div.' + row.className : row.nodeName) : 'none'
+  const clonedLines = visibleTextLinesOf(clone)
+  const nodeHit = rulerHitsOf(clonedLines)
+  const injectedInNode = row ? visibleTextOfNode(row) : ''
+  clone.remove()
+  return {
+    ok: true,
+    fakeHex: fakeHex,
+    fakeJargon: fakeJargon,
+    lineBefore: lineBefore,
+    injectedInto: injectedInto,
+    injectedText: injectedText,
+    injectedInNode: injectedInNode,
+    clonedLines: clonedLines,
+    textHexHits: textHit.hexLines.length,
+    textJargonHits: textHit.jargonLines.length,
+    nodeHexHits: nodeHit.hexLines.length,
+    nodeJargonHits: nodeHit.jargonLines.length,
+  }
 }
 
 window.__PROBE_READY__ = true

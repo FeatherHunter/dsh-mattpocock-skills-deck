@@ -16,6 +16,16 @@
  *       是尺子失灵，而不是面板里真的没有。这一半同时是「能力保留」的证据：未来在别处挂回来时，
  *       它画的还是那一套。
  *
+ *   这一节之上另有两条（R8 / R9，2026-09-24 那次提交删掉的三条断言里补回来的，当时叫 U2 / U3 / U5）：
+ *     **R8（尺子一）**：这一块画出来的**版面上**不许出现 8 位十六进制散列、也不许出现内部行话
+ *       （黑名单 ['宿主读数','宿主','读数','分格','散列']）—— 散列是我们内部的说法，只能进悬停提示。
+ *     **R9（尺子二）**：R8 那条判据的反向自检 —— 把散列与行话故意塞回克隆出来的一行可见文字，
+ *       用**同一段判据**去量，必须当场命中；抓不住就是尺子失灵=假绿。
+ *     两条都量在**能力本体**上（面板那一层已经不再挂它，见下）：能力还在，就必须继续保证它画出来的
+ *       字里没有内部行话，这同时是「能力保留」的证据。判据只写一份（在探针 tests/fixtures/chain-view-ui-probe.js
+ *       里，__RULER_HITS__ 与 __STRIP_TEXT_COUNTERCHECK__ 走同一段尺子）—— 各写一份就是两把尺子。
+ *     「可见文字」的取法照 tests/verify-chain-view.js 里既有的那份抄：悬停提示里的字不算版面上的字。
+ *
  * 一份快照只管一趟页面：面板装上一份快照之后，短时间内不会为同一处再取一次（新鲜度窗口），
  *   所以「两种读数各画一次」这件事要**各开一页**来做 —— 同一页里换一份数据再挂，画面上还是上一份
  *   （实测踩过这一脚：换过去的那一份根本没落地，X 那一节于是量的是旧画面）。
@@ -224,6 +234,42 @@ try {
     const rc = await page.evaluate(() => window.__STRIP_SCAN__())
     check(rc.rowCapNotice === 1, 'R7 条数超过上限时能力本体画得出末尾那句「还有几条没画」（[data-chain-rest] 实测 ' + rc.rowCapNotice + ' 条）')
   }
+
+  // R8 / R9：2026-09-24 那次提交（29dd75d，把这一块从面板摘下来）删掉的三条断言里补回来的两条
+  //   （当时叫 U2「版面上没有 8 位十六进制散列」、U3「版面上没有内部行话」、U5 是它们的反证）。
+  //   那两条从前量的是**面板上**画出来的那一块，面板里现在没有它了，所以补在**能力本体**上：
+  //   能力还在，就必须继续保证它画出来的字里没有内部行话 —— 这同时是「能力保留」的证据。
+  //   两把尺子（判据）都在探针那一边（__RULER_HITS__ / __STRIP_TEXT_COUNTERCHECK__），
+  //   门禁这里不另写一份正则：R8 量真版面、R9 量塞回去的那一行，必须走同一段判据。
+  console.log('')
+  console.log('R8/R9) 版面上的两把尺子：可见文字里没有散列、没有内部行话；把二者塞回去必须当场报红')
+  // 先回到「正常读数那一份」：上面几趟（1/2/3 条、超上限那一份）已经把这容器换过数据了。
+  const r8Mounted = await page.evaluate((p) => window.__STRIP_MOUNT__(p), SNAP_WITH_DATA)
+  if (!r8Mounted || !r8Mounted.ok) bad('R8 尺子一那一趟能力本体没挂起来：' + JSON.stringify(r8Mounted))
+  else {
+    const vis = await page.evaluate(() => window.__STRIP_TEXT_LINES__())
+    const ruler = await page.evaluate(() => window.__RULER_WHAT__())
+    const hit = await page.evaluate((lines) => window.__RULER_HITS__(lines), vis.lines)
+    console.log('     版面上看得见的字（一行一件）：' + JSON.stringify(vis.lines))
+    const hexHits = (hit && hit.hexLines) || []
+    const jargonHits = (hit && hit.jargonLines) || []
+    check(!!vis.ok && vis.nonEmpty >= 2 && !!hit && hexHits.length === 0 && jargonHits.length === 0,
+      'R8 能力本体画出来的版面上没有 8 位十六进制散列、也没有内部行话（可见文字实测 ' + (vis.lines || []).length + ' 行、其中有字的 ' + vis.nonEmpty +
+      ' 行、记录行 ' + vis.rows + ' 行；散列命中 ' + hexHits.length + ' 行、行话命中 ' + jargonHits.length + ' 行 —— 行话黑名单 ' + JSON.stringify(ruler && ruler.jargon) +
+      '、散列正则 ' + JSON.stringify(ruler && ruler.hexSource) + '）' +
+      (hexHits.length || jargonHits.length ? '；命中的原文：' + JSON.stringify(hexHits.concat(jargonHits)) + '；版面前三行：' + JSON.stringify((vis.lines || []).slice(0, 3)) : ''))
+  }
+  const rev = await page.evaluate(() => window.__STRIP_TEXT_COUNTERCHECK__())
+  check(!!rev && rev.ok === true && rev.lineBefore.length > 0 &&
+    String(rev.injectedInNode).indexOf(rev.fakeHex) >= 0 && String(rev.injectedInNode).indexOf(rev.fakeJargon) >= 0 &&
+    rev.textHexHits >= 1 && rev.textJargonHits >= 1 && rev.nodeHexHits >= 1 && rev.nodeJargonHits >= 1,
+    'R9 反向自检：往克隆出来的一行可见文字里塞回一个 8 位散列与「宿主读数」之后，同一把尺子必须当场报红 —— ' +
+    '实测散列命中 ' + ((rev && rev.textHexHits) || 0) + ' 行、行话命中 ' + ((rev && rev.textJargonHits) || 0) + ' 行' +
+    '（再走一遍取字那一步，实测 ' + ((rev && rev.nodeHexHits) || 0) + ' / ' + ((rev && rev.nodeJargonHits) || 0) + '）；' +
+    '塞的是克隆件里的 ' + String((rev && rev.injectedInto) || 'n/a') + ' 那一行，塞之前 ' +
+    JSON.stringify(String((rev && rev.lineBefore) || '').slice(0, 60)) + '，塞完 ' + JSON.stringify(String((rev && rev.injectedInNode) || '').slice(0, 90)) +
+    '。抓不住就是尺子失灵=假绿' +
+    ((rev && rev.ok) ? '' : '（反证件没造出来：' + JSON.stringify(rev) + '）'))
 
   const thrown = pageErrors.filter((e) => e.indexOf('pageerror:') >= 0)
   check(thrown.length === 0, '整段扫描期间三页都没有未捕获的报错（实测 ' + thrown.length + ' 条' + (thrown.length ? '：' + JSON.stringify(thrown.slice(0, 3)) : '') + '）')
