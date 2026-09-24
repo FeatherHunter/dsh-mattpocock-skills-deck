@@ -128,6 +128,10 @@ async function main() {
     const CMD = 'gh issue comment 723 --body "723"'
     /** 生产装配的那一套：真闸真账本 + 真注册表（报告「这个工作区用 github」）+ 真处理链。 */
     function build(registryBackend) {
+      // #735 起落盘不再是只写不读：focus 会把盘上这一格读回来，所以缓存目录必须一次一格。
+      // 共用 os.tmpdir() 的话，上一次跑留下的 session-tickets.json 会被读回来，
+      // ④a 那条 sessions.length===1 就变成 2（自污染，与生产无关）。
+      const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 't19e-gate-chain-'));
       const base = ledgerMod.createLedger({ now: () => CLOCK })
       base.syncServer({ rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
       const entries = []
@@ -137,7 +141,7 @@ async function main() {
       const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK, logCtx: logCtx })
       const w = wiringMod.createRefreshWiring({
         ctx: { on: () => () => {} }, logCtx: logCtx, canonicalKey: async (x) => String(x),
-        getCacheDir: async () => os.tmpdir(), ledger: ledger, gate: gate,
+        getCacheDir: async () => cacheDir, ledger: ledger, gate: gate,
         // 真注册表那一档的替身：同一形状（describe 回这个工作区现在用哪个后端）。
         getTrackerRegistry: async () => ({ modules: () => [], describe: () => ({ backend: registryBackend || '', refId: 'acme/demo', name: 'acme/demo', url: '' }), get: () => null }),
       })
