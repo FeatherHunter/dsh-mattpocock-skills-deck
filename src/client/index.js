@@ -180,6 +180,9 @@ export default {
     // ==== kernel:probeStale (spliced by build) ====
     // ==== kernel:probeChain (spliced by build) ====
     // ==== kernel:probeSnapshot (spliced by build) ====
+    // #727：probe-select.js —— 「这个工作区用哪个后端」这条事实的两条专用轨迹（补问一次 wf.selection、
+    //   迟到快照回包的落地判据）。单独一片的原因与 #707 那次一样：probe-snapshot.js 贴着 350 行上限。
+    // ==== kernel:probeSelect (spliced by build) ====
     // ==== kernel:probeSnapshotHelpers (spliced by build) ====
     // ==== kernel:probeAuto (spliced by build) ====
     // ==== kernel:attentionHeartbeat (spliced by build) ====

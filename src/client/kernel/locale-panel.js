@@ -41,10 +41,10 @@
         'banner.setupBtn': '帮我执行 初始化 /setup-matt-pocock-skills',
         'banner.gate': '该工作区还没有设置 — 点击选择后端',
         'banner.gateBtn': '去选择',
+        'banner.gateReading': '正在读取这个工作区使用哪个后端…', // #727：「还没读到」与「没有设置」是两回事
         'banner.setupPickConfirm': '确认并继续', 'banner.setupPickCancel': '取消', 'banner.setupPickHint': '将按所选后端生成对应的 issue-tracker 模板',
         'setup.cardTitle': '初始化前最后一问：', 'setup.cardBackend': '将用 {name} 执行初始化。要换后端：右侧面板「切换后端」。',
-        // #698：布局那一问的标题、两个选项、以及「已经初始化过」那一句说明，都搬去了 locale-pages.js
-        //   （本文件贴着 350 行上限，照 #621 / #690 的做法自成一片；locale 合并器会把四个片段并成同一份词表）。
+        // #698：布局那一问的四条键搬去 locale-pages.js（本文件贴着 350 行上限，照 #621 / #690 的做法自成一片；locale 合并器会把片段并成同一份词表）。
         'banner.ghcli': '数据源前置条件未就绪 —— 点右侧按当前后端引导处理', // #231 中性化（键名保留为内部标识）
         'banner.ghcliBtn': 'AI 引导安装',
         'banner.ghauth': '登录态未就绪 —— 点右侧注入认证引导', // #231 中性化
@@ -211,10 +211,10 @@
         'banner.setupBtn': 'Run initialization /setup-matt-pocock-skills for me',
         'banner.gate': 'This workspace is not set up — select a backend',
         'banner.gateBtn': 'Select',
+        'banner.gateReading': 'Reading which backend this workspace uses…', // #727: "not read yet" is not "not set"
         'banner.setupPickConfirm': 'Confirm and continue', 'banner.setupPickCancel': 'Cancel', 'banner.setupPickHint': 'The issue-tracker template for the selected backend will be generated',
         'setup.cardTitle': 'One last question before setup:', 'setup.cardBackend': 'This setup will run with {name}. To change the backend: use “Switch backend” in the right panel.',
-        // #698: the domain-doc layout radio group (its question, both option labels, both conclusion sentences and
-        // the "already set up" note) moved to locale-pages.js — this file is at its 350-line cap.
+        // #698: the layout radio group moved to locale-pages.js — this file is at its 350-line cap.
         'banner.ghcli': 'Data-source prerequisite missing — follow the guide for this backend',
         'banner.ghcliBtn': 'AI-guided install',
         'banner.ghauth': 'Sign-in prerequisite missing — open guide to authenticate',

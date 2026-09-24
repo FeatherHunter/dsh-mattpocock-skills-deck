@@ -293,6 +293,10 @@ const KERNEL_MODULES = [
   { name: 'probeChain', file: 'src/client/kernel/probe-chain.js' },
   { name: 'probeStale', file: 'src/client/kernel/probe-stale.js' },
   { name: 'probeSnapshot', file: 'src/client/kernel/probe-snapshot.js' },
+  // #727：「这个工作区用哪个后端」这条事实的两条专用轨迹（进工作区补问一次 wf.selection；
+  //   那次快照超时之后、回包迟到时怎么落地那一小块）。理由与上一行的 #707 同一条：
+  //   probe-snapshot.js 一直贴着 350 行上限，塞不进去。
+  { name: 'probeSelect', file: 'src/client/kernel/probe-select.js' },
   // #707：probe-snapshot.js 拆到这里之前 349 行（门禁上限 350），已无下脚的地方，故把颜色小函数、
   //   数据层增量差异、高亮清除这三样与「下载快照」无关的东西搬成单独一片。
   { name: 'probeSnapshotHelpers', file: 'src/client/kernel/probe-snapshot-helpers.js' },

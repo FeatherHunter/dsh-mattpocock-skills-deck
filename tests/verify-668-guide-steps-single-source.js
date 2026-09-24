@@ -167,9 +167,13 @@ async function main() {
   assert(clientBundle.indexOf('export const GUIDE_STEPS') < 0, '拼接进闭包时已去掉行首 export（不在产物里留第二份声明）')
   ok('清单零依赖，且已随构建拼进客户端产物')
 
-  // —— 场景 8：那道「定版的原话」真的进了清单（逐字，与本单一致） ——
+  // —— 场景 8：那道「定版的原话」真的有去处，且清单不抄载荷（逐字文本本身按 #716 的口径住在后端声明里） ——
+  // #716 起的现状：装 CLI 的地址与名字跟具体后端有关，那句话搬回了 GitHub 模块的 prompts.cliInstall；
+  //   共享清单（三个后端共用的一份文件）只声明「按哪条提示词键注入」。所以这一条量的是清单声明的那条键，
+  //   文本逐字对不对由后端声明那份文件守着（tests/verify-663-gh-install-inject.js 与 verify-665 最后一段）。
   const ghStep = guide.GUIDE_STEPS.find((s) => s.id === 'gh:installed')
-  assert.strictEqual(ghStep.missing.text, '/wizard 帮用户安装gh cli 官方地址：https://cli.github.com/', 'gh cli 那一步的注入原话逐字等于维护者给的那句')
+  assert.strictEqual(ghStep.missing.prompt, 'cliInstall', 'gh cli 那一步声明的是「按后端声明的 cliInstall 提示词注入」')
+  assert.strictEqual(ghStep.missing.type, 'inject', 'gh cli 那一步的给法是「注入一段文案」')
   const repoStep = guide.GUIDE_STEPS.find((s) => s.id === 'gh:remote')
   assert.strictEqual(repoStep.missing.type, 'fixes-action', '远端仓库那一步用后端声明的修复动作，清单不抄弹窗载荷')
   assert.strictEqual(repoStep.blocksSetup, true, '远端仓库那一步没过之前不注入初始化全文')

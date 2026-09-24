@@ -177,6 +177,10 @@ export const StatusBar = (props) => {
   //   链快照（wf.chain）常早于选择回填到达，若此刻开放 setup/skills 黄条判定，
   //   全新工作区会「尚未初始化/技能缺失」黄条一闪而过，再跳到正确的 gate 蓝条。
   const _backendUndecided = !(_selSBGate && _selSBGate.backendId)
+  // #727（I2 · 「未知 ≠ 否」）：后端还不确定时还要分清「还没读到」与「确实没有设置」——这句判据原先只有
+  //   「该工作区还没有设置」一个形态，于是「那条取数正飞着」也被说成「没有设置」。两个在途理由都算：面板取数
+  //   那一趟还没回话（s.snapLoading）、那条专用电话还没回话（s.selPending，见 probe-select.js）。只管表达面。
+  const _selReading = !!(s.cwd && _backendUndecided && (s.snapLoading === true || s.selPending === true))
   // #663：今天出哪一条横幅改由清单决定（statusbar/bannerChain.js 的 guideBannerStep）——
   //   按 guideStepsFor(当前后端) 的顺序逐个看，第一个没过、且带横幅的那一步就是它；
   //   门控那一档读本地状态（上面那两个判定），其余读链快照。于是「黄条等仓库就绪」是顺序本身的结果：
@@ -304,9 +308,14 @@ export const StatusBar = (props) => {
     const meta = bannerStep.banner || {}
     // 蓝条那一档（后端还没选定）仍是今天这套样式，含「正在探测后端」那个过渡态。
     if (meta.tone === 'info') {
+      // #727：这一档原先只有两个形态（正在探测后端 / 还没有设置）。后端还没读到、而理由确实在途时（见上面
+      //   _selReading），不许说成「还没有设置」—— 那是把一个「还不知道」当成了结论，用户会去点那颗按钮重新选
+      //   一遍后端，而其实只要等这一趟回话。所以这一档多一句「正在读取」，一个动作都不给。最外层那条读的仍是
+      //   _isGatePending（探测在后端那件事上的过渡态），一个字没动。
+      const infoBar = function (reading) { const text = reading ? tr('banner.gateReading') : tr(meta.text); const act = reading ? null : h('button', { className:'dsws-btn', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, onClick: function(){ runGuideMissing(s, bannerStep) } }, tr(meta.btn)); return h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ reading ? h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }) : Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, text), act, h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ]) }
       return _isGatePending
         ? h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.35)', color:'#f59e0b', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ h('span', { className:'dsws-spinner', style:{ width:12, height:12, borderWidth:2, display:'inline-block' } }), h('span', { style:{ flex:1, fontSize:12 } }, '正在探测后端'), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(245,158,11,.6)', fontSize:11 }, onClick:function(){ loadSnapshot(s,true,true) } }, '重试'), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(245,158,11,.6)', color:'#f59e0b', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ])
-        : h('div', { className: 'dsws-banner', style: { margin: 0, maxWidth: 560, background:'rgba(56,139,253,.10)', border:'1px solid rgba(56,139,253,.35)', color:'#58a6ff', display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8 } }, [ Ic({ n:'compass', size:13, color:'#58a6ff' }), h('span', { style:{ flex:1, fontSize:12 } }, tr(meta.text)), h('button', { className:'dsws-btn', style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', fontSize:11 }, onClick: function(){ runGuideMissing(s, bannerStep) } }, tr(meta.btn)), h(Tip, { content: tr('banner.foldDeck') }, h('button', { className:'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'), style:{ borderColor:'rgba(56,139,253,.6)', color:'#58a6ff', padding:'1px 6px', marginLeft:12, display:'inline-flex', alignItems:'center' }, onClick: foldBanner }, Ic({ n:'x', size:11 }))) ])
+        : infoBar(_selReading)
     }
     const node = bann(tr(meta.text, guideBannerParams(s, bannerStep)), tr(meta.btn), function () { runGuideMissing(s, bannerStep) }, true)
     // #698：这一支原先在黄条正文下面挂那张布局小卡；卡已搬去弹窗座位（上面那一处），

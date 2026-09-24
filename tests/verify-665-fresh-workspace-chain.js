@@ -61,7 +61,6 @@ async function loadBackends() {
     gitlab: { id: 'gitlab', label: 'GitLab', setupPrompt: null, prompts: null, capabilities: {} },
   }
 }
-
 // —— 一个沙箱装上整条链：横幅 + 后端动作 + 注入决策，三处互相调用，闭包里的外部依赖按真形状顶替 ——
 async function loadChain(locale, backends, sbPatch) {
   const guide = await import(url('src/shared/tracker/guide-steps.js'))
@@ -305,7 +304,10 @@ async function main() {
   const stNoGh = stateOf(chainOf(STEP_CHAIN.noGh), { backend: 'github', backends: backends })
   const ghStep = bannerOf(mod, stNoGh, false)
   ok(!!ghStep && ghStep.id === 'gh:installed', 'gh cli 没装 → 出的是 gh 那一步（实得 ' + (ghStep && ghStep.id) + '）')
-  ok(!!ghStep && ghStep.missing.text === GH_INSTALL_ORIGINAL, '清单里那一步的注入文案逐字等于维护者给的那句原话')
+  // #716 起的现状：这句话不再写死在共享清单里（清单是三个后端共用的文件，装 CLI 的地址与名字跟具体后端
+  //   有关），清单只声明「按哪条提示词键注入」（missing.prompt = cliInstall），文本住在后端声明里。
+  //   所以这一条量的是**清单声明的那条键**；那句话本身逐字对不对，由下面那一下真点击量（注入的正文）。
+  ok(!!ghStep && ghStep.missing && ghStep.missing.prompt === 'cliInstall', '清单里那一步声明的是「按后端声明的那条 cliInstall 提示词注入」（实得 ' + JSON.stringify(ghStep && ghStep.missing) + '）')
   const beforeGh = seen.injected.length
   const ghClick = clickAndCount(stNoGh)
   ok(ghClick.out === 'text' && seen.injected.length === beforeGh + 1, '点一下恰好注入一次（实得 ' + (seen.injected.length - beforeGh) + ' 次）')
@@ -422,7 +424,18 @@ async function main() {
   for (const pair of [['client.js', clientBundle], ['package/lib/client.js', pkgBundle]]) {
     ok(pair[1].indexOf('const guideBannerStep = function') >= 0, pair[0] + ' 里带着横幅那条链')
     ok(pair[1].indexOf("'guide.inject'") >= 0, pair[0] + ' 里带着那条常驻注入日志')
-    ok(pair[1].indexOf(GH_INSTALL_ORIGINAL) >= 0, pair[0] + ' 里带着那句安装原话（缺 gh 时点一下给得出来）')
+  }
+  // #716 起的现状：那句安装原话按「一个缺失状态只有一份说明」的口径挪回了后端声明（GitHub 模块的
+  //   prompts.cliInstall），产物里因此不再有那句字面文本，只有它的键名；替身账本里也没有 GitHub 模块的
+  //   prompts（loadBackends 只搬了 id/label/setupPrompt/prompts，而替身走的是下面这条真身渲染路）。
+  //   所以这里改成量**真行为**：拿真后端声明（宿主那个模块）渲染这一步的按钮文案，看它逐字是不是那句原话。
+  const ghModule = (await import(url('src/host/tracker/backends/github/index.js'))).githubModule
+  const declared = ghModule && ghModule.prompts && ghModule.prompts.cliInstall
+  const rendered = declared ? String((declared.zh || declared.en || '')) : ''
+  ok(rendered === GH_INSTALL_ORIGINAL,
+    '这一步那颗按钮真渲染出来的文案逐字等于维护者给的那句原话（读的是宿主那份后端声明；#716 起字面文本住在那儿）')
+  for (const pair of [['client.js', clientBundle], ['package/lib/client.js', pkgBundle]]) {
+    ok(pair[1].indexOf('cliInstall') >= 0, pair[0] + ' 里带着那个提示词键名（界面据此向后端声明要文本）')
   }
 
   console.log(failed ? 'FAIL ' + total + ' 项检查里有 ' + failedN + ' 项未过' : 'PASS 全部 ' + total + ' 项检查通过')

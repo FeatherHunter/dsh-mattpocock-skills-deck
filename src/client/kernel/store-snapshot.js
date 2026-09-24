@@ -31,6 +31,8 @@
       stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir,
       chainSnapshot: null, chainLoadedAt: '', backendChain: null, fullChain: null,
       snapMode: 'loading', snapError: null, snapLoading: false,
+      // #727：后端那条事实的读取状态。selPending =「这个工作区用哪个后端」还说不准、而且有真的在途原因（面板取数在飞，或那条专用电话在飞）；_selAskedKey = 已经为哪个工作区补问过那条电话（见 probe-select.js）。
+      selPending: false, _selAskedKey: '',
       // T2 HoverTip 迁移（#381）：skillTip 已由 HoverTip 局部 state 统一，移除全局，skillHover 保留用于行高亮（后续可改 CSS :hover 再移除）
       refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, handoffSearching: false, skillsOpen: false, skillHover: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, takeMenuOpen: false, takeMenuHover: false, takeMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
       noRepoCard: { expanded: false, name: '', visibility: 'private', loading: false, error: '', errorKind: '', errorRepoUrl: '' },
@@ -148,8 +150,7 @@
         }).catch(function () { return null })
       } catch (e) { return Promise.resolve(null) }
     }
-    // 链快照共享缓存（#324 · 键 = 工作区键 + 后端 id + 语言，随后端与语言不同，新会话首见即秒显；#529 加语言维：中英快照分开存；
-    // #653：这里的「工作区键」走 wsKeyOf，传会话所选目录时锚到工作区根——子目录会话与根会话同一条链快照）
+    // 链快照共享缓存（#324 · 键 = 工作区键 + 后端 id + 语言；#529 加语言维：中英快照分开存；#653：这里的「工作区键」走 wsKeyOf 锚到工作区根）
     export const CHAIN_CWD_LRU_MAX = 20
     export const chainByCwd = new Map() // Map<工作区键+'|'+backendId+'|'+lang, {snapshot, ts}>
     export const getChainCacheKey = function(cwd, backendId, lang){ try{ return wsKeyOf(cwd) + '|' + String(backendId||'') + '|' + String(lang||''); }catch(e){ return String(cwd||'')+'|'+String(backendId||'')+'|'+String(lang||''); } }
@@ -188,12 +189,10 @@
           st.snapError = null
           changed=true
         }
-        // 同步 selection/repository 镜像（per-cwd）
-        // 2026-08-28 审查：快照 selection 合并统一走 mergeSelection——旧快照的 fallback null 不得覆盖新意图（LocalStorage 绑定）；#669 第 6 件补一句：这里水合的是**缓存**里那份旧快照，它带的 selection 是切换前那份结论，所以当会话这一侧已有「用户刚点的那一下」（带 userPicked 的选择）时整条不合并 —— 否则 hint 还没发出去就被抹掉、仓库标回退；宿主这次的真回包仍走 mergeSelection，照旧能纠正用户的选择。
+        // 同步 selection/repository 镜像（per-cwd）。2026-08-28 审查：快照 selection 合并统一走 mergeSelection——旧快照的 fallback null 不得覆盖新意图（LocalStorage 绑定）；#669 第 6 件补一句：这里水合的是**缓存**里那份旧快照，它带的 selection 是切换前那份结论，所以当会话这一侧已有「用户刚点的那一下」（带 userPicked 的选择）时整条不合并 —— 否则 hint 还没发出去就被抹掉、仓库标回退；宿主这次的真回包仍走 mergeSelection，照旧能纠正用户的选择。
         if (c.selection !== undefined && !(typeof userHintOf === 'function' && userHintOf(st.selection))) { if (mergeSelection(st, c.selection)) changed = true }
         if (c.repository !== undefined) { st.repository = c.repository; setCachedRepository(st.cwd, c.repository) }
-        // backendModules 缓存
-        if (c.backendModules) { st.backendModules = c.backendModules; setPresentationMap(c.backendModules) }
+        if (c.backendModules) { st.backendModules = c.backendModules; setPresentationMap(c.backendModules) } // backendModules 缓存
       }
       // selection/repository 单独缓存兜底（snapshot 未命中但 selection 有缓存）
       if (!st.selection) {

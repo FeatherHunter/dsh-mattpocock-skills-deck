@@ -7,6 +7,10 @@
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
     export const pendingSnapshotByCwd = new Map() // Map<工作区键+后端,{promise,controller,backendId,seq}> dedup 30s（#653：按工作区根去重；#669 第 5 件：键里再带后端 —— 换过后端就不是同一次请求，见 kernel/probe-stale.js）
+    // #727：这一次快照请求的落地状态。带上它是为了给「迟到的成功回包」划一条界线 ——
+    //   正常那一路已经跑过之后，迟到的这一份一个字节都不许重复装（同一个工作区两边同时就绪是会碰上的）。
+    //   判据与落地在 kernel/probe-select.js，读写都在本文件这一行与那里的迟到处理器之间。
+    export const _snapInstallState = { handedOff: false }
     // #491 房外埋点 helpers（同一闭包拼回后全内核文件可见；只记散列与计数，渲染路径不用）：
     const dswsLogHash = function (s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
     const dswsScrubHits = {}
@@ -17,6 +21,11 @@
     // #707 拆出：颜色小函数（hexA / darken）、数据层增量差异 diffSnapshots、高亮清除 scheduleFlashClear
     //   都搬去了 kernel/probe-snapshot-helpers.js（本文件当时已 349 行、门禁上限 350，没有下脚的地方）。
     //   三样东西的行为一行没改，拼接顺序保证同一个闭包里前后可见；拼接标记在 src/client/index.js 里。
+    // #727：这一趟取数里有三处与「子目录会话的第一帧」直接相关，判据与理由都在 kernel/probe-select.js
+    //   （本文件贴着上限，所以那一段的文字放在那边）：
+    //     ① 进工作区时补问一次 wf.selection（askSelectionOnce，本文件末尾那行接线）；
+    //     ② 超时之后那份回包迟到时的落地口（_installLateSnapshotSelection，本文件里那行 _rawP.then 接线）；
+    //     ③ 回包过期判据换成「按请求发出时那条目录比」（_snapRequestKeyWas，就是下面 H2 那一处守卫）。
 
     // ============================================================
     // 4. 文本生成 + 复制/注入
@@ -87,6 +96,11 @@
     // 快照（#346：面板数据源；force 走 wf.refresh 全量重建；wf.snapshot 侧 5s 缓存）
     // #58 缓存优先：按 cwd 内存快照 + 空 cwd 同步，避免首开空 cwd 探路 miss 缓存导致 100-400ms 闪 loading
     export const loadSnapshot = function (st, force, silent) {
+      // #727（I2 的表达面）：这一趟取数还没回话之前，「这个工作区用哪个后端」是「还不知道」，不是「没有设置」
+      //   —— 记在会话上，状态栏那条横幅据此改说「正在读取」（StatusBar 的 _selReading）。为什么放在最外层：
+      //   在途复用那条早退（_snapReuseInFlight）之后就没有第二次登记的机会了，而它同样意味着「有取数正飞着」。
+      //   清掉它的地方两处：回包处理完（含失败与超时）、以及迟到的回包落地时。
+      try { if (!(st.selection && st.selection.backendId)) st.selPending = true } catch (ePend) {}
       const doLoad = async function () {
         // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
         // #669 第 5 件：在途复用（含「换过后端就不复用」「force 不复用非 force」两条判据）都判在 kernel/probe-stale.js。
@@ -145,16 +159,23 @@
         const _mine = _snapMarkRequest(st)
         try{ pendingSnapshotByCwd.set(_mine.pendKey,{promise:p, controller:_ctrl, force: !!force, backendId: _mine.reqBackend, seq: _mine.seq}); p.finally(function(){ try{ const cur=pendingSnapshotByCwd.get(_mine.pendKey); if(cur && cur.promise===p) pendingSnapshotByCwd.delete(_mine.pendKey);}catch{} }); }catch(e){}
         const _reqNorm = _normKeyP // capture request cwd for H2 stale discard
+        // #727（I3）：迟到的正确结果必须能落地。那条 30 秒死线只结束「这一次等待」，不判「这份结果作废」——
+        //   所以原始回包单独挂一个处理器：p 先被超时判负时，由它把 selection 那一小块补装上去；
+        //   p 自己赢了（正常那一路跑过）时，_snapInstallState.handedOff 已经压下，这里一个字节都不重复装。
+        //   判据与落地都在 kernel/probe-select.js（本文件只留这一行接线）。
+        _rawP.then(function (lateSnap) { try { _installLateSnapshotSelection(st, lateSnap, _reqNorm, _mine) } catch (eLate) {} }, function () {});
         // #653：宿主这次回话里带的工作区根，先记进工作区键表——本会话与同工作区的其它会话随后都按它分桶。
         //   不管 ok 与否都记：它是宿主算出来的事实，与这份快照能不能装没有关系。
         return p.then(function (snap) {
+          if (_snapInstallState) _snapInstallState.handedOff = true // #727：正常那一路跑过了，迟到的处理器从此只认「不重复装」
           try { if (snap && snap.workspaceRoot) rememberWorkspaceRoot(st.cwd, snap.workspaceRoot) } catch (eWr) {}
           try { const okSnap = !!(snap && (snap.ok === true || snap.notModified === true || snap.status === 304)); const callKind = force ? 'refresh' : 'snapshot'; if (okSnap) log('info', 'host.call', { method: callMethod, latencyMs: Date.now() - callT0, ok: true, kind: callKind }); else log('warn', 'host.call.fail', { method: callMethod, kind: callKind, errorHash: dswsLogHash(dswsLogTrunc(String((snap && snap.error) || 'snapshot-failed'), 120, 'error')) }) } catch (eL) {}
           // #327 特性 A：对该工作区完成了一次检查（成功/304/串台落地均算——请求已真实发出并返回）→ 时间走针
           try { if (snap && (snap.ok === true || snap.notModified === true || snap.status === 304)) touchProbeAt(_normKeyP) } catch (ePA) {}
           // fix H2 stale discard — if 工作区根 switched during flight, drop stale fallback (gate flake guard)
+          // #727：这把尺子换成「请求发出时」那条目录（判据见下面这段末尾与 kernel/probe-select.js 的 _snapRequestKeyWas）。
           const _curNorm = wsKeyOf(st.cwd||'');
-          if (_reqNorm !== _curNorm) {
+          if (_curNorm !== _reqNorm && !_snapRequestKeyWas(_reqNorm, st)) {
             // #232 R4 · 在途结果必须落地：请求发出时该工作区正被观看，响应到达即写内存 LRU 缓存，
             // 切回时 hydrateFromCache 秒显最新数据（零新请求）。仍不给换视图后的 store 直接 emit
             // （#45 串台回归防线不动）；setCachedSnapshot 自带 ok/maps 守卫，坏形自然丢弃。
@@ -241,6 +262,9 @@
         }).catch(function (e) {
           try { log('warn', 'host.call.fail', { method: callMethod, kind: force ? 'refresh' : 'snapshot', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
           st.snapLoading = false
+          // #727：这一次等待到此为止（超时也算）——「在途」这个理由不再成立，横幅回到原来那套判据上。
+          //   注意这里只结束「等待」：那份回包若后来还是回来了，由上面的迟到处理器把 selection 补装上。
+          if (st.selPending === true) st.selPending = false
           st.snapMode = 'err'
           st.snapError = String((e && e.message) || e).slice(0, 160)
           if (force && !silent) flash(st, tr('toast.snapFail', { err: st.snapError }), 'warn')
@@ -276,5 +300,10 @@
           }).catch(function () {})
         } catch (eAsk) {}
       }
+      // #727（I1）：进工作区时若还不知道这个工作区用哪个后端，补问一次宿主那条专用电话（wf.selection）。
+      //   为什么放在这里：这一刻 cwd 已经是最终值（上面两条补齐 cwd 的路都走完了），而「等那份完整快照」
+      //   在大工作区上要几分钟 —— 一条几十字节的事实不该搭那趟车。幂等、限次、失败不弹提示，判据全在
+      //   kernel/probe-select.js 的 askSelectionOnce 里（本文件只留这一行接线）。
+      try { if (typeof askSelectionOnce === 'function') askSelectionOnce(st) } catch (eSelAsk) {}
       return doLoad()
     }
