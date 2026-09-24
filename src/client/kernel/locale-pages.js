@@ -59,8 +59,11 @@
         'chainView.session': '会话 {id}',
         // #721 补（2026-09-22 维护者定）：主句只说读不到，短到一眼读完；「这次没拿到、不代表没人」那层意思
         //   整句挪进悬停提示（unreadableTip），宿主给的原因代号也跟着在悬停里，主句里不再有括号。
+        // 2026-09-24 维护者再定：`host.chain.absent`（还没有记录）归「空」，不再产出这句可见警告；
+        //   只有真读坏了（read-failed / shape）才画标记。这两句现在只出现在悬停里 ——
+        //   界面上不再有整句文案独占一行，所以这两条只为悬停服务。
         'chainView.unreadable': '读不到处理记录',
-        'chainView.unreadableTip': '宿主这一次没有回传这份记录。这只说明我们没拿到，不表示没有会话在处理票。宿主给的代号：{reason}',
+        'chainView.unreadableTip': '宿主读这份记录那一步出错了，不表示没有会话在处理票。宿主给的代号：{reason}',
         'chainView.openTip': '打开宿主记下的这张票',
         'chainView.action.create': '建票',
         'chainView.action.plan': '写计划',
@@ -109,7 +112,7 @@
         'chainView.readAt': 'host reading {time}',
         'chainView.session': 'session {id}',
         'chainView.unreadable': 'Cannot read the processing record',
-        'chainView.unreadableTip': 'The host did not hand back this record this time. That only means we did not get it; it does not mean no session is working on a ticket. Code from the host: {reason}',
+        'chainView.unreadableTip': 'The host failed while reading this record. It does not mean no session is working on a ticket. Code from the host: {reason}',
         'chainView.openTip': 'Open this ticket as the host recorded it',
         'chainView.action.create': 'opened a ticket',
         'chainView.action.plan': 'wrote a plan',

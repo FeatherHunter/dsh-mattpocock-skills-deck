@@ -13,10 +13,12 @@
  *   1. **不在界面里推断谁在处理票**：不去读会话事件、不自己解析命令行、不自己拼链的键，也不去读
  *      那份落盘文件。这一半只认 st.snapshot 里那一个字段（字段名只有下面这一个常量）。
  *      tests/verify-chain-view.js 有一条静态断言盯着「界面没有第二个数据来源」这件事。
- *   2. **读不到就说读不到**（与 #715 同一条规矩）：宿主没写下这份读数、或写下时自己说没取到，
- *      这里就说读不到；绝不用 0、也不用一个空列表把它糊过去 —— 那等于把「不知道」说成
- *      「没有人在处理票」。反过来，宿主真说「取到了、就是没有」，这一块整块不画
- *      （票面要求：没有数据时不猜、不占位、不显示空框）。
+ *   2. **「还没有」与「读坏了」分开说**（2026-09-24 维护者定，改过一次口径）：
+ *      宿主没写下这份读数、或宿主自己说没有链实例 —— 都等于「这个进程里还没有任何处理记录」，
+ *      与「取到了、就是没有」是同一种事实，整块不画，绝不冒出一句常驻的道歉（那种句子占版面、
+ *      又不携带用户可行动的信息，只会训练用户忽略这一块）。只有读的时候真出错（read-failed）
+ *      与形状不对（shape）才画一个可见的小标记，而且只是一个标记、不独占一行。
+ *      任何情况下都不许用 0 或一个空列表把「不知道」说成「没有人在处理票」。
  *   3. **话都在词条里**：这一块画的每一个字都来自词条（chainView.*），代码里一个中文字面量都不写
  *      （门禁扫代码里的中文串，写死的文案会让它红）。动作类别那几个词也一样，键集合必须与链的
  *      闭集合（chain.ts 的 CHAIN_ACTIONS，产物 src/shared/refresh/chain.js）逐个对上，
@@ -69,22 +71,37 @@ const sessionChainTicketKeyOf = function (v) {
 }
 
 /**
- * 取数路径：只读宿主写下的那一个字段，输出三种状态之一。
+ * 取数路径：只读宿主写下的那一个字段，输出四种状态之一。
  *
  *   · `idle`      还没拿到面板快照（开关刚打开、正在取数）：什么都不说，也不占位。
- *   · `unreadable` 宿主没写下这份读数，或它自己说这次没取到：说读不到，并带上宿主给的代号。
+ *   · `empty`     这个进程里还没有任何处理记录（见下面那条判断的依据）：整块不画。
+ *   · `unreadable` 读这份记录那一步真坏了（读的时候抛错 / 形状不对）：画一个小标记，原因在悬停里。
  *   · `ok`        宿主说取到了：逐格收会话，形状不对的格子整格丢掉（宁可少显示，也不显示错的）。
  *
  * 判据一条也不在界面里现算：状态与原因都来自宿主写下的那两个字（ok 与 reason）。
+ *
+ * **为什么 `host.chain.absent` 归「空」而不归「读不到」**（2026-09-24 维护者定）：
+ *   这个代号的两处来源说的是同一件事 —— 字段没挂上（宿主那条回包路径没带它，或还没取到第一份快照），
+ *   以及宿主自己说没有链实例。两处都等于「这个进程里还没有任何处理记录」，
+ *   与 `host.chain.empty`（取到了、就是没有）是**同一种事实**，不是错误。
+ *   它不是「文件该有却被删了」：链的记录是只写的内存表加上落盘，进程里没有记录就是没有记录，
+ *   界面无从判断、也不该替宿主假设一份记录被谁动了。既然不是错误，就不该冒出一句道歉 ——
+ *   一句常驻的道歉比沉默更差：它占掉一行，还训练用户忽略那一块（而且它不携带任何用户可行动的信息）。
+ *   真的坏了只有两种：`host.chain.read-failed`（读的时候抛错）、`host.chain.shape`（形状不对）。
  */
 export const sessionChainViewOf = function (st) {
   const snap = (st && st.snapshot) ? st.snapshot : null
   if (!snap) return { state: 'idle', reason: '', at: 0, sessions: [] }
   const raw = snap[SESSION_CHAIN_FIELD]
-  if (raw === null || raw === undefined) return { state: 'unreadable', reason: 'host.chain.absent', at: 0, sessions: [] }
+  if (raw === null || raw === undefined) return { state: 'empty', reason: 'host.chain.absent', at: 0, sessions: [] }
   if (typeof raw !== 'object' || Array.isArray(raw)) return { state: 'unreadable', reason: 'host.chain.shape', at: 0, sessions: [] }
   const at = sessionChainAtOf(raw.at)
-  if (raw.ok !== true) return { state: 'unreadable', reason: String(raw.reason || 'host.chain.not-ok'), at: at, sessions: [] }
+  if (raw.ok !== true) {
+    // 宿主自己说这次没取到：只有「还没有记录」那一种归空，别的（读失败 / 形状不对 / 说不出的代号）照实报。
+    const reason = String(raw.reason || 'host.chain.not-ok')
+    if (reason === 'host.chain.absent') return { state: 'empty', reason: reason, at: at, sessions: [] }
+    return { state: 'unreadable', reason: reason, at: at, sessions: [] }
+  }
   const list = Array.isArray(raw.sessions) ? raw.sessions : []
   const sessions = []
   for (let i = 0; i < list.length; i++) {
@@ -180,9 +197,10 @@ export const sessionChainOpenTicket = function (st, entry) {
 }
 
 /**
- * 面板顶部这一条。三种画法，没有第四种：
- *   读不到 → 一行说明（带宿主给的代号，鼠标悬停看得到），一个数字都不显示；
- *   取到了但没有 → 整块不返回（不占位、不显示空框）；
+ * 面板顶部这一条。四种画法，没有第五种：
+ *   还没取到快照 → 整块不返回（还在取数，不到下结论的时候）；
+ *   这个进程里还没有任何处理记录 → 整块不返回（与「取到了、就是没有」同一种事实：不占位、不显示空框）；
+ *   读这份记录那一步真坏了 → 一枚小图标，完整的话与原因代号都在悬停里（**不独占一行**，见下）；
  *   有数据 → 先一句「哪个会话在处理哪些票」，然后一个会话一段，段里一行一张票，点一行进那张票。
  */
 export const SessionChainStrip = function (props) {
@@ -191,14 +209,16 @@ export const SessionChainStrip = function (props) {
   const st = props ? props.st : null
   const view = sessionChainViewOf(st)
   if (view.state === 'idle') return null
+  // 「还没有记录」整块不画：它和「取到了、就是没有」是同一种事实，处理也一样。
+  // （2026-09-24 之前这里画的是一整句道歉「读不到处理记录」，那句常驻一行、很占版面 —— 现在它不存在了。）
+  if (view.state === 'empty') return null
   if (view.state !== 'ok') {
-    // 2026-09-22 维护者定：主句只说「读不到处理记录」——短、没有括号、第一次读就懂；
-    //   「这次没拿到、不代表没人在处理票」那层意思整句挪进悬停提示（chainView.unreadableTip，
-    //   宿主给的原因代号也跟着留在悬停里，信息不丢）。这一行整行用危险色（与「刷新失败」同一支红）：
-    //   它不是一句灰说明，是「面板这一次没拿到读数」，要用户看见。
-    return h('div', { className: 'dsws-chainview dsws-chainview-unreadable', style: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--dsw-alias-state-error-primary,#f87171)', padding: '2px 2px 4px' } }, [
-      Ic({ n: 'alert', size: 11 }),
-      h(Tip, { content: tr('chainView.unreadableTip', { reason: view.reason }) }, h('span', null, tr('chainView.unreadable'))),
+    // 只有真坏了才画，而且**不许独占一行**（2026-09-24 维护者定，第一性原理）：
+    //   从前这里画的是一整句道歉占据一整行；可这句话不携带任何用户可行动的信息 —— 用户拿它没办法。
+    //   现在只留一枚 11 像素的危险色小图标（它不是一句文案行）：容器纵向不留任何 padding/外边距，
+    //   完整的话与宿主给的原因代号都进悬停提示，信息一点不丢。
+    return h('div', { className: 'dsws-chainview dsws-chainview-broken', style: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, lineHeight: '14px', color: 'var(--dsw-alias-state-error-primary,#f87171)', padding: '0 2px' } }, [
+      h(Tip, { content: tr('chainView.unreadable') + ' ' + tr('chainView.unreadableTip', { reason: view.reason }) }, Ic({ n: 'alert', size: 11 })),
     ])
   }
   const sessions = sessionChainRowsOf(st)

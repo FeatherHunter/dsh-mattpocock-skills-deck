@@ -2,8 +2,17 @@
 // 以后谁改它：改强制刷新或磁盘缓存的人。预估约330行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 // #652 改动：入口 cwd 由「原样入参」改成与 wf.snapshot 同一把规整钥匙（含工作区根），两条路的宿主单槽快照才同桶。
+// 2026-09-24（真机反馈「读不到处理记录」从来不消失）：本文件从前**自己手写四份信封字面量**，
+//   wf.snapshot 有的 setupLayout / fallback / fallbackAt / refresh / 处理链读数它一概没有——
+//   界面是 `force ? wf.refresh : wf.snapshot`，回来都装进同一个 st.snapshot，于是强制刷新一次就永久显示读不到。
+//   现在信封与「挂读数」那一步都改用接线处传进来的 snapshotEnvelope（与 wf.snapshot 同一个实例、同一份 buildSnap），
+//   两条路的字段集合由构造保证相等；tests/verify-reply-envelope-parity.js 每次运行都比一遍。
 export function createSessionRefresh(deps) {
-  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope } = deps
+  // 共用的那份信封（接线处 index.js 传进来，与 wf.snapshot 同一个实例）。
+  // 没传就没法组装出与 wf.snapshot 同形的回包 —— 那种情况下宁可如实回一次失败，
+  // 也不退回本文件自己拼一份（那正是这次故障的来路：两份信封各自漂）。
+  const env = (envelope && typeof envelope.buildSnap === 'function' && typeof envelope.withChainReadout === 'function') ? envelope : null
   // #491 房外埋点 helpers：hash8 只记散列；脏回执与组装返回均为低频常驻，直接落盘（库体内兜底）。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   // #689：snapshot.built 多了三个字段（open / closed 是后端计数给的真值、拿不到记 -1；partial 说这份行数据全不全）—— 加在既有事件里不新增一条（每次重建都会走到这里），字段表见 research/489-appendix.md 第 1 章。
@@ -11,7 +20,12 @@ export function createSessionRefresh(deps) {
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
   let _dedupeP = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
+  /** 回包交给界面之前，把「每个会话在处理哪些票」的读数挂上（与 wf.snapshot 同一个挂载口）。 */
   async function handleRefresh(args) {
+    if (!env) return { ok: false, error: 'snapshot-envelope-not-wired' }
+    return env.withChainReadout(await refreshOf(args))
+  }
+  async function refreshOf(args) {
       // #652 与快照同钥匙（规整键+工作区根）；#696 起宿主内存按根分表，强制刷新只重写自己根那条。
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const refT0 = Date.now()
@@ -140,25 +154,13 @@ export function createSessionRefresh(deps) {
             }
           } catch {}
           const repoRoot = await getRepoRoot(cwd)
-          const snap = {
-            ok: true,
-            repo: null,
-            repoRoot: repoRoot,
-            workspaceRoot: cwd,
-            updatedAt: new Date().toISOString(),
-            generatedMs: Date.now(),
-            env: { ghPath: getGhPath(), ghError: getGhLastError() },
-            maps: inner.maps,
-            issues: allForList,
-            labels: labels,
-            repository: repoRef,
-            backendModules: backendModules,
-            selection: _sel,
-            capabilities: null,
-            viewer: null,
-            viewerLogin: null,
+          // 共用信封（与 wf.snapshot 同一份 buildSnap）：字段清单只有一处说了算。
+          const snap = env.buildSnap({
+            repo: null, repoRoot: repoRoot, workspaceRoot: cwd,
+            maps: inner.maps, issues: allForList, labels: labels,
+            repository: repoRef, backendModules: backendModules, selection: _sel,
             deck: inner.deck,
-          }
+          })
           return adoptSnapLog(snap, cwd)
         }
         // 统一走编排器（所有后端）
@@ -171,25 +173,13 @@ export function createSessionRefresh(deps) {
               backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
             }
           } catch {}
-          const snap = {
-            ok: true,
-            repo: null,
-            repoRoot,
-            workspaceRoot: cwd,
-            updatedAt: new Date().toISOString(),
-            generatedMs: Date.now(),
-            env: { ghPath: getGhPath(), ghError: getGhLastError() },
-            maps: [],
-            issues: [],
-            labels: [],
-            repository: null,
-            backendModules,
-            selection: _sel,
-            capabilities: null,
-            viewer: null,
-            viewerLogin: null,
+          // 共用信封：没有后端时那份空快照与 wf.snapshot 同形。
+          const snap = env.buildSnap({
+            repo: null, repoRoot, workspaceRoot: cwd,
+            maps: [], issues: [], labels: [],
+            repository: null, backendModules, selection: _sel,
             deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
-          }
+          })
           return adoptSnapLog(snap, cwd)
         }
         const reg2 = await getTrackerRegistry()
@@ -212,25 +202,13 @@ export function createSessionRefresh(deps) {
               }
             } catch {}
             const _selNoRepo = (typeof _sel !== 'undefined' ? _sel : (typeof _selEarly !== 'undefined' ? _selEarly : null))
-            const snapNoRepo = {
-              ok: true,
-              repo: null,
-              repoRoot: repoRootNoRepo,
-              workspaceRoot: cwd,
-              updatedAt: new Date().toISOString(),
-              generatedMs: Date.now(),
-              env: { ghPath: getGhPath(), ghError: getGhLastError() },
-              maps: [],
-              issues: [],
-              labels: [],
-              repository: null,
-              backendModules: backendModulesNoRepo,
-              selection: _selNoRepo,
-              capabilities: null,
-              viewer: null,
-              viewerLogin: null,
+            // 共用信封：仓库都认不出来时那份空快照与 wf.snapshot 同形。
+            const snapNoRepo = env.buildSnap({
+              repo: null, repoRoot: repoRootNoRepo, workspaceRoot: cwd,
+              maps: [], issues: [], labels: [],
+              repository: null, backendModules: backendModulesNoRepo, selection: _selNoRepo,
               deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
-            }
+            })
             return adoptSnapLog(snapNoRepo, cwd)
           }
         }
@@ -303,25 +281,13 @@ export function createSessionRefresh(deps) {
             if (vr && vr.ok && vr.data) { viewer2 = vr.data; viewerLogin2 = vr.data.login || null }
           }
         } catch {}
-        const snap2 = {
-          ok: true,
-          repo: repo0b,
-          repoRoot: repoRoot2,
-          workspaceRoot: cwd,
-          updatedAt: new Date().toISOString(),
-          generatedMs: Date.now(),
-          env: { ghPath: getGhPath(), ghError: getGhLastError() },
-          maps: inner2.maps,
-          issues: allForList2,
-          labels: labels2,
-          repository: repoRef2,
-          backendModules: backendModules2,
-          selection: _sel,
-          capabilities: null,
-          viewer: viewer2,
-          viewerLogin: viewerLogin2,
-          deck: inner2.deck,
-        }
+        // 共用信封：这条路与 wf.snapshot 的 GitHub 分支同形（含 viewer / viewerLogin）。
+        const snap2 = env.buildSnap({
+          repo: repo0b, repoRoot: repoRoot2, workspaceRoot: cwd,
+          maps: inner2.maps, issues: allForList2, labels: labels2,
+          repository: repoRef2, backendModules: backendModules2, selection: _sel,
+          viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck,
+        })
         await writeDiskCache(snap2.repo, snap2)
         return adoptSnapLog(snap2, cwd)
       } catch (e) {

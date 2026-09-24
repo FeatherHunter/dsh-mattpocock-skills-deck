@@ -47,5 +47,26 @@ export function createSnapshotEnvelope(deps) {
     return d.adoptSnapshot(snap, c)
   }
 
-  return { buildSnap: buildSnap, adoptSnapLog: adoptSnapLog }
+  /**
+   * 把「每个会话在处理哪些票」的读数挂到一份 ok:true 的回包上（票 #721 的界面那一块读的就是它）。
+   *
+   * 为什么包在最外一层、而不是写进 buildSnap：缓存短路那两条回的是缓存里**同一个对象**，
+   * 写进信封会把读数的时刻冻在缓存落盘那一刻。读数每次现算，所以这一步只能在回包交出去之前做。
+   *
+   * 2026-09-24：这一步从 sessionSnapshot.js 搬到这里，因为**两条回包路径都要用它**——
+   * wf.snapshot 一直挂着这个字段，wf.refresh 从来没挂过，界面走过一次强制刷新就永久显示
+   * 「读不到处理记录」（真机反馈的那条）。搬家之后两条路共用同一份信封与同一个挂载口，
+   * 「两边字段不一样」这种漂移不再可能悄悄发生（tests/verify-reply-envelope-parity.js 每次比对）。
+   *
+   * 回包不是 ok:true（失败那种）、或接线处没给读数函数，都原样返回：不挂字段，
+   * 也不能把一份失败的快照伪装成成功的。
+   */
+  function withChainReadout(reply) {
+    if (!reply || typeof reply !== 'object' || reply.ok !== true) return reply
+    if (typeof d.chainReadout !== 'function') return reply
+    try { reply[d.chainField || 'sessionTickets'] = d.chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
+    return reply
+  }
+
+  return { buildSnap: buildSnap, adoptSnapLog: adoptSnapLog, withChainReadout: withChainReadout }
 }

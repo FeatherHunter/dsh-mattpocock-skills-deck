@@ -6,21 +6,23 @@
 //   → 真的界面判据与画法（src/client/views/shared/sessionChainView.js，按 scripts/build.mjs 同一套做法
 //     剥掉行首 export、放进一个作用域里跑，React 用最小的假件代替）。
 //
-// 它盯五件事：
+// 它盯六件事：
 //   一、**取数路径**：界面读的就是快照里那一个字段（sessionTickets）。真跑一遍：两个会话各几张票，
 //      按会话分组不串；界面拿不到会话 id 原文（链只留散列）。
-//   二、**读不到就说读不到**：字段被删掉、被改成空、宿主自己说没取到 —— 三种都必须说读不到，
-//      而且那一屏里一个数字都不许出现（0 会把「不知道」说成「没有人在处理票」）。
-//   三、**宿主说「取到了、就是没有」时整块不画**（票面要求：不猜、不占位、不显示空框）。
-//   四、**话都在词条里**：中英两份键集合全等；这一块画的每个字都来自词条（代码里不许有中文串）；
+//   二、**「还没有记录」归空、「真读坏了」才可见**（2026-09-24 维护者改的口径）：
+//      `host.chain.absent`（字段没挂 / 没有链实例）与「取到了、就是没有」是同一种事实，整块不画；
+//      只有 read-failed 与 shape 才画一个可见标记。
+//   三、**不可读时不占额外一行**：不许再有一整句道歉独占一行 —— 整句文案只许在悬停里，
+//      容器纵向不许有 padding；absent 与 empty 两种空态的容器高度必须都是 0（逐字对上票面那句）。
+//   四、**宿主说「取到了、就是没有」时整块不画**（票面要求：不猜、不占位、不显示空框）。
+//   五、**话都在词条里**：中英两份键集合全等；这一块画的每个字都来自词条（代码里不许有中文串）；
 //      动作类别的词条键与链的闭集合 CHAIN_ACTIONS 逐个对上（链上加了新类别而这里没跟上就红）。
-//   五、**没有第二个数据来源**（静态断言）：界面代码里不许出现会话事件、命令行解析、链的键构造、
+//      读不到那句主句仍要短（≤12 字）、没有括号，解释与原因代号都在悬停提示里。
+//   六、**没有第二个数据来源**（静态断言）：界面代码里不许出现会话事件、命令行解析、链的键构造、
 //      链的过滤判定、落盘文件名、任何 host.call / fetch。
-//   六、**读不到那句人话**（2026-09-22 维护者定）：主句要短（≤12 字）、没有括号、第一次读就懂；
-//      「这次没拿到 ≠ 没人在处理票」这层解释与宿主给的原因代号都归悬停提示；那一行用仓库既有的
-//      危险色变量上色（不许写死色值）。这三条判据各自带一次反证，防止判据本身失灵。
 //
-// 反证（人工做过两次，见回报）：把一句中文写死在界面里、把「读不到」改成显示空列表 —— 都被本门禁打红。
+// 反证（人工做过三次，见回报）：把一句中文写死在界面里、把「读不到」改成显示空列表、
+//   把 absent 改回「整句独占一行」的旧画法 —— 都被本门禁打红。
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
@@ -213,26 +215,67 @@ async function main() {
   if (!row703) fail('没有画出 #703 那一行（点一行要能跳到那张票）')
   else { row703.props.onClick(); if (st.tab !== 'list') fail('点了那一行没有切回列表页'); if (!pushed.length || pushed[0].n !== 703 || pushed[0].kind !== 'issue') fail('点了 #703 那一行没有跳到链记下的那张票：' + JSON.stringify(pushed)) }
 
-  // ---------- 二、读不到就说读不到（三种都要说，且那一屏一个数字都不许有）----------
+  // ---------- 二、「还没有记录」归空、「读坏了」才可见（2026-09-24 维护者改的口径）----------
+  // 口径改动的来路（真机反馈）：面板上那句「读不到处理记录」从来没消失过，而且它独占一行很影响体验。
+  // 第一性原理：那句话是**一句道歉**，不携带任何用户可行动的信息；而「确实没有会话在处理票」才是信息。
+  //   所以：`host.chain.absent`（还没有记录）归「空」——与 empty 一样整块不画；
+  //   只有 read-failed / shape（真读坏了）才画一个可见标记，而且**不独占一行**。
   const emptyReadout = readoutMod.buildSessionChainReadout({ tickets: ticketsMod.createSessionTickets({ cacheDir: dir, now: function () { return clock } }), at: READ_AT })
   const cases = [
-    { what: '宿主没写下这个字段（还没接上）', payload: undefined, state: 'unreadable' },
-    { what: '字段被改成空对象', payload: {}, state: 'unreadable' },
-    { what: '宿主自己说这次没取到', payload: readoutMod.buildSessionChainReadout({ tickets: null, at: READ_AT }), state: 'unreadable' },
+    { what: '宿主没写下这个字段（这个进程里还没有记录）', payload: undefined, state: 'empty' },
+    { what: '字段被改成空对象（形状不对）', payload: {}, state: 'unreadable' },
+    { what: '宿主自己说这次没取到：没有链实例', payload: readoutMod.buildSessionChainReadout({ tickets: null, at: READ_AT }), state: 'empty' },
+    { what: '宿主说读的时候抛错了', payload: { ok: false, at: READ_AT, reason: 'host.chain.read-failed', sessions: [] }, state: 'unreadable' },
+    { what: '宿主说存下来的形状不对', payload: { ok: false, at: READ_AT, reason: 'host.chain.shape', sessions: [] }, state: 'unreadable' },
     { what: '宿主说取到了、就是没有', payload: emptyReadout, state: 'ok' },
   ]
+
+  /** 一块的纵向占用（像素的近似值）：纵向 padding 加一行。整块不画就是 0。 */
+  const num = function (v) { const n = parseFloat(v); return isFinite(n) ? n : 0 }
+  const verticalPadding = function (style) {
+    const parts = String((style && style.padding) || '').split(/\s+/).filter(Boolean)
+    if (!parts.length) return 0
+    if (parts.length === 1) return num(parts[0]) * 2
+    if (parts.length === 3) return num(parts[0]) + num(parts[2])
+    if (parts.length === 4) return num(parts[0]) + num(parts[2])
+    return num(parts[0]) * 2
+  }
+  const blockHeight = function (node) {
+    if (node === null || node === undefined) return 0
+    const style = (node.props && node.props.style) || {}
+    const line = num(style.lineHeight) || num(style.fontSize)
+    return verticalPadding(style) + line
+  }
+  /** 一块**自己**看得见的文字（悬停提示里的不算：那是鼠标放上去才有的）。 */
+  const visibleTextOf = function (node) {
+    if (node === null || node === undefined || node === false) return ''
+    if (typeof node === 'string') return node
+    if (typeof node === 'number') return String(node)
+    if (Array.isArray(node)) return node.map(visibleTextOf).filter(Boolean).join(' ')
+    if (node.type === 'Tip') return ''
+    return visibleTextOf(node.children)
+  }
+
+  const tallies = { empty: [], unreadable: [] }
   cases.forEach(function (c) {
     const s = snapOf(c.payload)
     if (c.payload === undefined) delete s.snapshot.sessionTickets
     const v = leaf.sessionChainViewOf(s)
     if (v.state !== c.state) fail(c.what + '：判成了 ' + v.state + '（应当 ' + c.state + '）')
     const n = leaf.SessionChainStrip({ st: s, narrow: false })
-    if (c.state === 'unreadable') {
+    if (c.state === 'empty') {
+      // 一、还没有记录 = 取到了就是没有：同一种事实、同一种处理，整块不画。
+      if (n !== null && n !== undefined) fail(c.what + '：这一块应当整块不画（不占位、不显示空框），实际画了：' + JSON.stringify(textOf(n)).slice(0, 120))
+      // 二、**不再产出那句可见警告**（这次改动的主句）：一个字都不许冒出来。
+      if (textOf(n)) fail(c.what + '：不画却还有文字（那句道歉不该再出现）：' + JSON.stringify(textOf(n)))
+      if (leaf.sessionChainRowsOf(s).length !== 0) fail(c.what + '：没有记录却交出了会话行')
+      tallies.empty.push(blockHeight(n))
+    } else if (c.state === 'unreadable') {
       const t = textOf(n)
-      if (t.indexOf('读不到') < 0) fail(c.what + '：没有如实说读不到：' + JSON.stringify(t))
+      if (t.indexOf('读不到') < 0) fail(c.what + '：真读坏了却没有如实说：' + JSON.stringify(t))
       if (/[0-9]/.test(t)) fail(c.what + '：读不到那一屏里出现了数字（0 会把「不知道」说成「没有人」）：' + JSON.stringify(t))
       if (leaf.sessionChainRowsOf(s).length !== 0) fail(c.what + '：读不到却还交出了会话行')
-      // 六之一、主句：短（≤12 字）、没有括号、第一次读就懂；「没拿到 ≠ 没人在处理票」那层解释不在主句里
+      // 三、主句：短（≤12 字）、没有括号、第一次读就懂；「没拿到 ≠ 没人在处理票」那层解释不在主句里
       const main = String(tr('chainView.unreadable') || '')
       if (main.length > 12) fail(c.what + '：读不到那句主句太长（' + main.length + ' 字，最多 12 字）：' + JSON.stringify(main))
       if (/[（）()\[\]【】]/.test(main)) fail(c.what + '：读不到那句主句里还有括号：' + JSON.stringify(main))
@@ -240,21 +283,37 @@ async function main() {
       const enMain = String(en['chainView.unreadable'] || '')
       if (!enMain) fail(c.what + '：英文那一份没有这句词条')
       else if (/[()]/.test(enMain)) fail(c.what + '：英文主句里还有括号：' + JSON.stringify(enMain))
-      // 六之二、解释与原因代号都在悬停提示里（主句之外，一点也不许丢）
+      // 四、解释与原因代号都在悬停提示里（主句之外，一点也不许丢）
       const tip = String(tr('chainView.unreadableTip', { reason: v.reason }) || '')
       if (tip.indexOf('不表示没有会话在处理票') < 0) fail(c.what + '：悬停提示里没有「这次没拿到、不表示没有会话在处理票」这层意思：' + JSON.stringify(tip))
       if (tip.indexOf(String(v.reason)) < 0) fail(c.what + '：悬停提示里没有宿主给的原因代号（那一码信息不许丢）：' + JSON.stringify(tip))
       if (tip.indexOf('（') >= 0 || tip.indexOf('(') >= 0) fail(c.what + '：悬停提示里也用括号把话套住了（这次要求的是整句说清，不是套括号）：' + JSON.stringify(tip))
-      // 六之三、这一行用仓库既有的危险色变量上色（不许写死色值）
+      // 五、这一块用仓库既有的危险色变量上色（不许写死色值）
       const rowColor = String((n && n.props && n.props.style && n.props.style.color) || '')
-      if (!dangerColorOk(rowColor)) fail(c.what + '：读不到那一行没有用危险色变量上色（实得 ' + JSON.stringify(rowColor) + '）')
+      if (!dangerColorOk(rowColor)) fail(c.what + '：读不到那一块没有用危险色变量上色（实得 ' + JSON.stringify(rowColor) + '）')
+      // 六、**不许独占一行**（这次改动的主句）：自己不许有一句可见文案，纵向也不许有 padding。
+      if (visibleTextOf(n) !== '') fail(c.what + '：真读坏了那个标记自己带了可见文案（整句文案不许再独占一行，它该只在悬停里）：' + JSON.stringify(visibleTextOf(n)))
+      if (verticalPadding((n && n.props && n.props.style) || {}) !== 0) fail(c.what + '：那个标记带了纵向 padding（会撑出一行高度）：' + JSON.stringify(((n.props || {}).style || {}).padding))
+      tallies.unreadable.push(blockHeight(n))
     } else {
       if (n !== null && n !== undefined) fail(c.what + '：这一块应当整块不画（不占位、不显示空框），实际画了：' + JSON.stringify(textOf(n)).slice(0, 120))
       if (leaf.sessionChainRowsOf(s).length !== 0) fail(c.what + '：没有票却交出了会话行')
     }
   })
-  // 还没拿到快照时一个字都不说（还在取数，不到说读不到的时候）
-  if (leaf.SessionChainStrip({ st: { snapshot: null }, narrow: false }) !== null) fail('还没拿到面板快照时不该画读不到那一句')
+
+  // 七、**不可读态不占额外一行**：票面那句「容器高度与空态一致」按最要紧的那一种不可读态来断言 ——
+  //    `host.chain.absent`（从来没有记录，也就是这次真机上那条常驻警告的来路）与 empty 态必须**完全同高**。
+  //    两种都整块不画，所以都是 0；这里把「都是 0」逐个数一遍，将来谁给空态补一个占位框都会红。
+  if (tallies.empty.length < 2) fail('空态样本不足（实得 ' + tallies.empty.length + ' 个）：absent 与「取到了就是没有」两种都要被量到')
+  tallies.empty.forEach(function (hh, i) { if (hh !== 0) fail('空态样本 ' + i + ' 占了 ' + hh + ' 像素高（还没有记录时不许占任何高度，更不许独占一行）') })
+  // 反证（这一条判据本身要有牙齿）：把 absent 换回「整句独占一行」的旧画法，必须被逮住。
+  const oldStyleWarn = { type: 'div', props: { style: { fontSize: 11, padding: '2px 2px 4px' } }, children: [{ type: 'span', props: {}, children: ['读不到处理记录'] }] }
+  const absentIsSilent = function (node) { return (node === null || node === undefined) && blockHeight(node) === 0 }
+  if (!absentIsSilent(null)) fail('反证：不画的节点没被判成「沉默」')
+  if (absentIsSilent(oldStyleWarn)) fail('反证：旧那句独占一行的警告也被判成了「沉默」（这条判据失灵了）')
+  if (blockHeight(oldStyleWarn) <= tallies.unreadable[0]) fail('反证：旧画法（' + blockHeight(oldStyleWarn) + ' 像素）没有比现在的标记（' + tallies.unreadable[0] + ' 像素）更高，说明「不占额外一行」这条判据量不出差别')
+  // 还没拿到快照时一个字都不说（还在取数，不到下结论的时候）
+  if (leaf.SessionChainStrip({ st: { snapshot: null }, narrow: false }) !== null) fail('还没拿到面板快照时不该画任何东西')
   // 危险色那条判据本身要有牙齿：合规写法必过，写死色值与灰色说明都不许过
   if (!dangerColorOk('var(--dsw-alias-state-error-primary,#f87171)')) fail('反证：合规的危险色变量写法没被判通过')
   if (dangerColorOk('#f87171')) fail('反证：写死色值也被判成合规（危险色那条判据失灵了）')
@@ -308,9 +367,9 @@ async function main() {
   if (failed) { problems.forEach(function (p) { console.log('  FAIL ' + p) }); console.log('\n存在失败'); process.exit(1) }
   console.log('  PASS 真代码一路到底：链 → 宿主读数 → 界面判据（两个会话各三张/两张，不串）')
   console.log('  PASS 点一行跳到链记下的那张票（票号取自读数，不是界面猜的）')
-  console.log('  PASS 读不到就说读不到（字段删掉 / 改成空 / 宿主说没取到），那一屏一个数字都没有')
-  console.log('  PASS 读不到那句主句短、没有括号，解释与原因代号都在悬停提示里，那一行用危险色变量上色')
-  console.log('  PASS 宿主说「取到了、就是没有」时整块不画；还没拿到快照时一个字都不说')
+  console.log('  PASS 「还没有记录」与「取到了就是没有」同一种画法：整块不画，容器高度都是 0（不占额外一行）')
+  console.log('  PASS 只有 read-failed / shape 才可见：一枚标记、自己不带文案、纵向 padding 为 0、原因代号在悬停里')
+  console.log('  PASS 读不到那句主句短、没有括号；那一块用危险色变量上色（旧画法更高，反证量得出差别）')
   console.log('  PASS 中英词条键集合全等；动作词的键与链的闭集合 CHAIN_ACTIONS 逐个对上')
   console.log('  PASS 静态：界面只读快照里那一个字段，没有第二个数据来源，没有写死的文案')
   console.log('\n全部通过')
