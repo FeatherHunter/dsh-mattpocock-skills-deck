@@ -3,7 +3,7 @@
 //
 // 为什么有这条门禁：宿主有时答不出这个会话在哪个目录，真机 wf.cwd 失败散列 43cbab2a
 //   就是空分支。电话体（src/host/sessionLifecycle.js）与沙箱那一路
-//  （src/host/workspaceCwd.js 的 sessionsOfWorkspace）各写一遍取法，前者认 11 个槽位、
+//  （src/host/workspaceCwd.js 的 sessionsOfWorkspace）各写一遍取法，前者认 11 个字段、
 //   后者只认 2 个，同一份会话两处答案不同，写操作的沙箱政策静默落错档。
 //   本门禁只锁一件事：两处经同一只共用函数取值，分歧结构上不可能再出现。
 //   反证：把两处改回各写一遍（或删掉共用引用），本门禁必须变红。
@@ -67,6 +67,9 @@ async function main() {
     ok(r1 && r1.ok === true && r1.cwd === 'D:\\ilife', '电话体正常会话成功')
     const r2 = await makePhone({ header: {} })({ sessionId: 's-empty' })
     ok(r2 && r2.ok === false && r2.error === '会话无 cwd 信息' && r2.kind === 'no-cwd', '电话体空头会话报无目录种类（文案不变）')
+    // 真机对照：空分支的错误散列就是票面 5 次失败的 43cbab2a（与宿主电话日志同一只散列函数）。
+    const hash8 = (s) => { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+    ok(hash8(r2.error) === '43cbab2a', '空分支散列锚定真机现场（43cbab2a）')
     const r3 = await makePhone(null)({ sessionId: 's-ghost' })
     ok(r3 && r3.ok === false && r3.kind === 'not-found', '电话体未知会话报找不到种类（不混同无目录）')
     const r4 = await makePhone(null, undefined)({ sessionId: '' })
@@ -93,12 +96,12 @@ async function main() {
     ok(lifeSrc.indexOf('resolveSessionCwd') >= 0, '电话体调共用函数（不自写取法）')
     ok(wsSrc.indexOf('resolveSessionCwd') >= 0, '沙箱那一路调共用函数（不自写取法）')
     ok(lifeSrc.indexOf('header.worktree') < 0 && lifeSrc.indexOf('header.projectDir') < 0 && lifeSrc.indexOf('header.directory') < 0,
-      '电话体无自写多槽位取法（取法只活在共用函数里）')
+      '电话体无自写多字段取法（取法只活在共用函数里）')
     ok(wsSrc.indexOf('header.worktree') < 0 && wsSrc.indexOf('header.cwd || header.path') < 0,
       '沙箱那一路无自写取法（取法只活在共用函数里）')
     ok(sharedSrc.indexOf('worktree') < 0 && sharedSrc.indexOf('projectDir') < 0 && sharedSrc.indexOf('directory') < 0
       && sharedSrc.indexOf('s.meta') < 0 && sharedSrc.indexOf('s.cwd') < 0,
-      '共用函数无无证据槽位（只读头的目录）')
+      '共用函数无无证据字段（只读头的目录）')
     ok(wsSrc.indexOf('sessionsOfWorkspace') >= 0, '沙箱按工作区找会话的函数仍在（只换取法，不换行为骨架）')
     ok(wsSrc.indexOf('resolve({})') < 0, '沙箱无归属会话时不调默认政策（免静默落错档）')
   }

@@ -182,7 +182,7 @@ export function createWorkspaceCwd(deps) {
       const all = svc.list() || []
       const hits = []
       for (const s of all) {
-        const c = resolveSessionCwd(s) // #730：与电话体同一套取法（从前只认 header.cwd 等 2 个槽位会漏读）
+        const c = resolveSessionCwd(s) // #730：与电话体同一套取法（从前只认 header.cwd 等 2 个字段会漏读）
         if (!c) continue
         const k = pathKeyOf(c)
         if (!k) continue
