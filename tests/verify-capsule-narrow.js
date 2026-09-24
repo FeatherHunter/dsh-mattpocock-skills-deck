@@ -65,11 +65,19 @@ const statChecks = function (src, tag) {
   ok('外层容器正常路径仍保留 overflow:hidden 截胶囊溢出、缺 ReactDOM 时 visible 降级',
     /overflow:\s*RDOM\s*\?\s*'hidden'\s*:\s*'visible'/.test(src))
   ok('胶囊 CSS 不再加 overflow:hidden（让 capsule 圆角背景完整，圆角处不漏白）', !/\.dsws-capsule\s*\{[^}]*overflow:\s*hidden/.test(src))
-  // 期望 2：children 保持不被挤压（2026-09-24 #725 起：品牌那一段改成吃余量，另两段仍 flex:none）
-  //   维护者这一轮定「内容平铺在这一条里」：胶囊改成两端分布，多出来的空间由最左边那段品牌自己吃下
-  //   （flex:1 1 auto + min-width:0），它的列间距另有 clamp 上限 —— 所以宽条上不散成表格。
-  ok('children 的挤压规则照平铺来（品牌段 flex:1 1 auto 吃余量 / seg 与 timebtn 仍 flex:none）',
-    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:1 1 auto/.test(src) && /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*min-width:0/.test(src) && /\.dsws-capsule\s+\.dsws-seg\{flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-timebtn\{flex:none/.test(src))
+  // 期望 2：children 保持不被挤压（2026-09-24 #725 起：品牌那一段与另两段的挤压规则各自写明）
+  //   维护者这一轮定「内容平铺在这一条里」：胶囊两端分布，多出来的空间均分在**各项之间**。
+  //   2026-09-24 晚按真机测量改了一处：品牌那一段原来写 `flex:1 1 auto`，它一个元素把余量全吃了
+  //   （实测宽条上被撑到 230 像素、里面只装 79 像素的东西），其余各项被顶成一簇 —— 维护者看到的就是
+  //   「按钮过于集中在右侧」。现在它写 `flex:0 1 auto` + `max-width:max-content`：只占自己的内容宽、
+  //   仍可收缩（min-width:0 保留），余量交给 space-between 在各项之间平分（真机量与阈值见
+  //   tests/verify-capsule-layout.js）。seg 与 timebtn 仍 flex:none。
+  ok('children 的挤压规则照平铺来（品牌段只占内容宽 flex:0 1 auto + max-width:max-content + min-width:0 / seg 与 timebtn 仍 flex:none）',
+    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:0 1 auto/.test(src) && /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*max-width:max-content/.test(src) && /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*min-width:0/.test(src) && /\.dsws-capsule\s+\.dsws-seg\{flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-timebtn\{flex:none/.test(src))
+  // 图标与它自己那串字是一个不可分的整体：那一段自己的列间距写死 5px（原来那条随视口放大的 clamp
+  //   把它也撑开了，真机实测宽条 28px —— 维护者截图上「图标与文字之间的间隙太大」就是它）。
+  ok('图标↔自己的文字间隙写死不随视口变（那一段的 column-gap:5px；随宽度变化的那条只留给各项之间）',
+    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*column-gap:5px/.test(src) && !/\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*column-gap:clamp\(/.test(src))
   ok('胶囊 gap 保留 2px 6px（行间距 / 列间距）', /\.dsws-capsule\s*\{[^}]*gap:\s*2px\s+6px/.test(src))
   ok('胶囊 justify-content 是平铺的 space-between（#725 维护者定，替掉旧的 center）', /\.dsws-capsule\s*\{[^}]*justify-content:\s*space-between/.test(src))
 

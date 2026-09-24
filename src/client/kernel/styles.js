@@ -146,10 +146,9 @@
       //   （宿主那条规则只夹到 cardMax），所以这里不该再自造一个绝对天花板；宿主变量缺失时退成
       //   「撑满容器」，而容器那时也退成列宽 —— 两者仍然对齐。
       '.dsws-capsule{max-width:var(--dsh-composer-card-max-width, 100%)}',
-      // #640 注：这里原来还挂着一条「dn>=1 时胶囊变 fit-content」的规则槽，规则本身早已删除、只剩注释，
-      //   一并清掉，免得下一个改胶囊宽度的人照着一条不存在的规则去调。
-      // 外层 wrapper 的宽度约束见 StatusBar.js 的 dswsStatusDockGeom（#640）。
-      '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:1 1 auto;min-width:0;justify-content:flex-start;column-gap:clamp(6px,2.2vw,28px)}',
+      // 2026-09-24（维护者：图标与 MattSkills 的间隙太大、按钮过于集中在右侧）：品牌那段自己的列间距写死 5px、
+      //   改为只占内容宽（flex:0 1 auto + max-width:max-content）；原来是 clamp + flex:1 1 auto 落在这段自己身上。
+      '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:0 1 auto;min-width:0;max-width:max-content;justify-content:flex-start;column-gap:5px}',
       '.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
       '.dsws-capsule .dsws-seg{flex:none}',
       '.dsws-capsule .dsws-timebtn{flex:none}',
@@ -160,7 +159,9 @@
       //   一档一档往下走，每档只比上一档少一个单位（char 少一个字 / word 少一整段词），直到 scrollWidth ≤ clientWidth。
       //   优先级 = 信息价值：品牌(1) → 沉淀(2)/交接(3)/刷新字(4) → 可接(5)/BUG(6)/诊断(7)/环境(8) → 时间(9)，品牌默认收起；
       //   图标与数字永不收缩（最窄态 = 图标+数字紧凑条，外层 overflow:hidden 截右缘），这一条横条的内容是平铺的：
-      //   胶囊 space-between，余量由 .dsws-capsule-word 吃下、它的列间距另有 clamp 上限，所以宽条上不散成表格。这一条也管面板头部第一行那几颗单字形小图标（标记 data-head-fold + data-head-icon，见 panel/Dock.js）：图标本身就是单个字形，一步撤一颗，撤的标记必须落在**不写死 display** 的那层元素上，否则这一条盖不住它；同一行里那些「一串字」的元素（仓库名 / 刷新按钮的字 / 时间标签）不走这一条，它们按 panel/headFold.js 那条阶梯逐字变短，永远不整块 display:none。
+      //   胶囊 space-between 把余量均分在各项之间，那一段自己只占内容宽（下面那段注解写了 2026-09-24 这一改），
+      //   各项之间那条间隔随宽度伸缩但有上限（胶囊那层的 gap，实测四档相邻空隙最大÷最小 ≈ 1.0–1.14），
+      //   所以宽条上既不散成表格、也没有一格把余量一个人吃掉。这一条也管面板头部第一行那几颗单字形小图标（标记 data-head-fold + data-head-icon，见 panel/Dock.js）：图标本身就是单个字形，一步撤一颗，撤的标记必须落在**不写死 display** 的那层元素上，否则这一条盖不住它；同一行里那些「一串字」的元素（仓库名 / 刷新按钮的字 / 时间标签）不走这一条，它们按 panel/headFold.js 那条阶梯逐字变短，永远不整块 display:none。
       '.dsws-capsule [data-fold-priority].dsws-folded,[data-head-fold].dsws-folded{display:none}',
       '.dsws-banner{display:flex;align-items:center;gap:8px;border-radius:8px;padding:6px 10px;font-size:12px;margin:6px 0;cursor:pointer}',
       '.dsws-banner.bad{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.45);color:#f87171}',

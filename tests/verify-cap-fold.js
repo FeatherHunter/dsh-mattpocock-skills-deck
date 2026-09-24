@@ -300,14 +300,21 @@ check(/new ResizeObserver\(function \(\) \{ applyFold\(\) \}\)[\s\S]{0,300}roFol
   '两条 ResizeObserver（胶囊自己 + 它的父容器）仍是宽度的第一信号源')
 check(/document\.fonts\.ready\.then\(applyFold\)/.test(barSrc), '字体加载完再重算一次（防字体宽差误判）')
 const stylesSrc = existsSync(resolve(STYLES)) ? read(STYLES) : ''
+// 平铺那几条 CSS：2026-09-24 维护者看过真机之后改了两处（「图标与文字之间的间隙太大」、
+//   「按钮过于集中在右侧，应该均匀分布」），所以这一组断的是**改完之后的真实落点**：
+//   · 胶囊两端分布（space-between）不变 —— 余量均分在各项之间；
+//   · 那一段不再吃余量：它只占自己的内容宽（flex:0 1 auto + max-width:max-content），仍可收缩（min-width:0）；
+//   · 「图标↔自己的文字」的间隙在它自己那条规则里写死（5px），不再随视口放大（那件事由
+//     tests/verify-capsule-layout.js 在真浏览器里量；这里断的是规则本身还在，改完 src 忘了重建产物同样红）。
 const flatRules = function (src) {
   return /\.dsws-capsule\s*\{[^}]*justify-content:\s*space-between/.test(src) &&
-    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:1 1 auto/.test(src) &&
+    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:0 1 auto/.test(src) &&
+    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*max-width:max-content/.test(src) &&
     /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*min-width:0/.test(src) &&
     /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*justify-content:flex-start/.test(src) &&
-    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*column-gap:clamp\(/.test(src)
+    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*column-gap:5px/.test(src)
 }
-check(flatRules(stylesSrc), '平铺那几条 CSS 在 styles.js 里（胶囊两端分布；品牌段 flex:1 1 auto + min-width:0 + 左对齐 + 列间距 clamp 上限）')
+check(flatRules(stylesSrc), '平铺那几条 CSS 在 styles.js 里（胶囊两端分布；品牌段只占内容宽 flex:0 1 auto + max-width:max-content + min-width:0 + 左对齐 + 图标↔文字写死 5px）')
 check(ARTIFACTS.every((rel) => !artifacts[rel] || flatRules(artifacts[rel])), '两份产物里带着同一套平铺 CSS（改完 src 忘了重建产物就红在这里）')
 
 // ---------- 真渲染层：真 Chromium + 真产物 ----------

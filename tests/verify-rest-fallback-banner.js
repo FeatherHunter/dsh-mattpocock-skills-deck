@@ -84,6 +84,22 @@ const nKey = (locale.match(/'list\.restFallbackStale'/g) || []).length
 const nDis = (locale.match(/'list\.restFallbackDismiss'/g) || []).length
 check(nKey === 2, '「上次取数走的 REST…」两种语言各一条（实测 ' + nKey + '）')
 check(nDis === 2, '关闭钮的无障碍名两种语言各一条（实测 ' + nDis + '）')
+// 2026-09-24（维护者截图：横幅左边两个警告三角）：那枚三角由画面画**一次** ——
+//   RestFallbackBanner.js 里那颗 Ic({ n: 'alert' })。词条文本自己再带一枚就成了「图标 + ⚠」叠在一起，
+//   所以这两句词条里不许再出现任何字符版的警告三角（⚠ 与带异体选择符的 ⚠️ 两种写法都算）。
+//   断的是「词条这一侧一条都没有」＋「画面那一侧确实画了一枚」，两头一起才拦得住「两个三角」。
+//   两句词条都在上面那份合体文本里，各出现两次（中英各一次），所以逐条读出来看 —— 这条检查
+//   不能用「取第一个匹配」那种写法：那样第二条词条永远读的是第一条，等于漏了一半。
+const triangles = function (s) { return (String(s).match(/[\u26a0\ufe0f]/g) || []).length }
+;['list.restFallback', 'list.restFallbackStale'].forEach(function (k) {
+  const all = Array.from(locale.matchAll(new RegExp("'" + k.replace(/\./g, '\\.') + "':\\s*'([^']*)'", 'g')))
+  const texts = all.map(function (m) { return m[1] })
+  const bad = texts.filter(function (s) { return triangles(s) > 0 })
+  check(texts.length === 2 && bad.length === 0,
+    '词条 ' + k + ' 的中英两条里都没有字符版的警告三角（它由画面画一次；实测读到 ' + texts.length + ' 条：' + JSON.stringify(texts) + '）')
+})
+check((bannerSrc.match(/Ic\(\{\s*n:\s*'alert'/g) || []).length === 1,
+  '横幅自己画着恰好一枚警告三角（画面这一侧负责那一次；实测 ' + ((bannerSrc.match(/Ic\(\{\s*n:\s*'alert'/g) || []).length) + ' 枚）')
 ;['client.js', 'package/lib/client.js'].forEach(function (rel) {
   const p = path.join(ROOT, rel)
   if (!fs.existsSync(p)) { check(false, rel + ' 不存在（先跑 node scripts/build.mjs）'); return }
