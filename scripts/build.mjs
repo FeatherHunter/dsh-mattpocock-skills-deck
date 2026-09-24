@@ -365,6 +365,7 @@ const LEAF_MODULES = [
   { id: 'tagsFit', file: 'src/client/views/shared/tagsFit.js' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.js' },
   { id: 'truthLines', file: 'src/client/views/shared/truthLines.js' }, // #715 新增：面板头部那几句「上次更新 / 刷新失败 / 现在是不是降级」的判据（纯函数，画在 ListTab 最上面那一行；行上的「更新中」标记也问它）
+  { id: 'restFallbackBanner', file: 'src/client/views/shared/RestFallbackBanner.js' }, // 2026-09-24 由 ListTab.js 拆出：那条降级横幅的「画」这一段（判据仍是上面 truthLines 的 restFallbackView；ListTab 贴着 350 行上限）
   { id: 'sessionChainView', file: 'src/client/views/shared/sessionChainView.js' }, // #721 新增：面板顶部那一条「每个会话在处理哪些票」（判据加画法；只读宿主写下的那一个快照字段，读不到就说读不到）
   { id: 'ticketRow', file: 'src/client/views/TicketRow.js' },
   { id: 'mapDetailHead', file: 'src/client/views/MapDetailHead.js' }, // #691 由 MapDetail.js 拆出：编号/标题/「本图 N 张子票」那一行（MapDetail 贴着 350 行上限）
@@ -389,6 +390,7 @@ const LEAF_MODULES = [
   { id: 'runPanel', file: 'src/client/views/RunPanel.js' },
   { id: 'DockSync', file: 'src/client/panel/DockSync.js' },
   { id: 'headFold', file: 'src/client/panel/headFold.js' }, // #667 新增：面板头部第一行的逐字折叠阶梯（纯函数，无组件）
+  { id: 'repoChipSkeleton', file: 'src/client/panel/RepoChipSkeleton.js' }, // 2026-09-24 由 Dock.js 拆出：快照还没回来时那条灰色占位骨架（组件，Dock 贴着 350 行上限）
   { id: 'dock', file: 'src/client/panel/Dock.js' },
   { id: 'namingFailBanner', file: 'src/client/panel/NamingFailBanner.js' },
   { id: 'OverlayGate', file: 'src/client/panel/OverlayGate.js' },
@@ -396,6 +398,8 @@ const LEAF_MODULES = [
   { id: 'checksums', file: 'src/client/statusbar/checksums.js' },
   { id: 'StatusMenus', file: 'src/client/statusbar/StatusMenus.js' },
   { id: 'StatusBackend', file: 'src/client/statusbar/StatusBackend.js' },
+  { id: 'capFold', file: 'src/client/statusbar/capFold.js' }, // #725 新增：状态栏胶囊那条横条的逐字折叠阶梯（纯函数，无组件）
+  { id: 'capFoldMachine', file: 'src/client/statusbar/capFoldMachine.js' }, // #725 新增：同一处的阶梯机（读写胶囊那一段 DOM；判据在上一项，接线在 statusBar）
   { id: 'bannerChain', file: 'src/client/statusbar/bannerChain.js' }, // #663 新增：状态栏那条横幅按引导链清单决定出哪一条、那颗按钮点了做什么
   { id: 'StatusLogMenu', file: 'src/client/statusbar/StatusLogMenu.js' },
   { id: 'statusBar', file: 'src/client/statusbar/StatusBar.js' },

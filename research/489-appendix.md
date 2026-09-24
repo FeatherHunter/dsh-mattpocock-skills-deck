@@ -259,7 +259,7 @@ exec.run 的 via 取值表（枚举写死在这里）：snapshot 面板快照组
 
 - wf.ping：删宿主注册（src/host/index.js），全仓零调用点、从未有专属事件；探活改走免参开关读电话 wf.logGetSwitch；handlePing 实现留守；冒烟探活已改走新电话。
 - wf.claim：删宿主注册（src/host/index.js），全仓零调用点、从未有专属事件；认领取走 wf.handoffResolve；handleClaim 实现留守。
-- 定时器名现状（2026-09-25 订正）：timer.schedule 的 name 只许 naming-sweep、naming-persist、statusbar-poll 三个；#709（T5）把三条自续循环整条拆掉，随之退役的三个名字是 naming-guardian（宿主侧命名守护的 15 秒自续 tick）、naming-poll（客户端命名轮询）、checks-poll（检查页那条 20 秒静默重查）—— 这三个名字不许再出现在调度行里（`tests/verify-log-coverage.js` 反向锁死，全库「不许有自续定时器」由 `tests/verify-709-no-self-continuing-timers.js` 钉死）。有界一次性重试（如侧栏注册重试最多 10 次）、瞬态倒计时（如交接搜索秒级 tick）、纯界面延时（如 toast 清除）不记调度行，见覆盖门禁豁免表。
+- 定时器名现状（2026-09-24 订正）：timer.schedule 的 name 只许 naming-sweep、naming-persist 两个；#709（T5）把三条自续循环整条拆掉，随之退役的三个名字是 naming-guardian（宿主侧命名守护的 15 秒自续 tick）、naming-poll（客户端命名轮询）、checks-poll（检查页那条 20 秒静默重查）；#725 又把状态栏胶囊那台 2 秒折叠重算拆成「ResizeObserver + 每次提交后重算一次」，statusbar-poll 这个调度名一并退役（它原先只是为那台轮询记的调度行）。这四个名字都不许再出现在调度行里（`tests/verify-log-coverage.js` 反向锁死，全库「不许有自续定时器」由 `tests/verify-709-no-self-continuing-timers.js` 钉死）。有界一次性重试（如侧栏注册重试最多 10 次）、瞬态倒计时（如交接搜索秒级 tick）、纯界面延时（如 toast 清除）不记调度行，见覆盖门禁豁免表。
 
 ## 2 通道批量量化：批量大小、上报间隔、单包上限与失败降级
 

@@ -137,7 +137,7 @@
       // #640：胶囊的宽度上限只留下面那一条（与输入卡同源）。这里原来还自编了 min(100%,1400px) 兜底，
       //   它比输入卡宽、等于让「对齐」形同虚设（按宿主算式算：有该变量时胶囊本可等于卡片 1231，
       //   兜底值 1400 却比卡片还宽，等于没上限）。两条上限并存还容易让人改错一条，所以直接去掉。
-      '.dsws-capsule{width:100%;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:center;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
+      '.dsws-capsule{width:100%;box-sizing:border-box;display:flex;flex-wrap:nowrap;white-space:nowrap;justify-content:space-between;align-items:center;gap:2px 6px;background:var(--dsw-alias-bg-layer-1,#10131a);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:14px;padding:3px 6px;font-size:12px;color:var(--dsw-alias-label-secondary,#a1a1aa);cursor:pointer;user-select:none}',
       // DSH Alpha 对齐修复（2026-08-31）：新版输入区卡片宽度由 --dsh-composer-card-max-width + --dsh-composer-side-clearance 驱动，
       // 旧版仅用 textarea 宽度。胶囊与卡片同源变量，保证“外框=卡片外框”在任意版本下像素级对齐。
       // #640 修正（2026-09-20）：上限改为与输入卡同一个变量（宿主 .p_FcLG_card 用的就是它），外层容器
@@ -149,18 +149,18 @@
       // #640 注：这里原来还挂着一条「dn>=1 时胶囊变 fit-content」的规则槽，规则本身早已删除、只剩注释，
       //   一并清掉，免得下一个改胶囊宽度的人照着一条不存在的规则去调。
       // 外层 wrapper 的宽度约束见 StatusBar.js 的 dswsStatusDockGeom（#640）。
-      '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:none}',
+      '.dsws-capsule .dsws-capsule-word{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3);flex:1 1 auto;min-width:0;justify-content:flex-start;column-gap:clamp(6px,2.2vw,28px)}',
       '.dsws-capsule .dsws-capsule-word:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
       '.dsws-capsule .dsws-seg{flex:none}',
       '.dsws-capsule .dsws-timebtn{flex:none}',
-      // #16 V2（2026-08-18 复现后重设计）：5 级 [data-narrow-N] 阈值体系有结构性 bug——
-      //   dn 信号源 R5 起改为输入区（wrapper）宽，默认 1280 视口下输入区仅 812px → dn=0 永不出现，
-      //   宽屏默认缺品牌字；且 .dsws-seg.note 选择器引用不存在的 class（seg() 首参是图标名不是 class），
-      //   「无数字段」级从未生效。改为内容自适应渐进收缩（仿 #15）：
-      //   每个可收缩文字 span 打 data-fold-priority（1=最先收…9=最后收），applyFold 在
-      //   全展开基础上按 priority 升序逐个加 .dsws-folded，直到 scrollWidth ≤ clientWidth。
-      //   优先级 = 信息价值：品牌(1) → 沉淀(2)/交接(3)/刷新字(4) → 可接(5)/BUG(6)/诊断(7)/环境(8) → 时间(9)。
-      //   图标+数字永不收缩；最窄态 = 图标+数字紧凑条（wrapper overflow:hidden 截右缘，禁止换行）。这一条也管面板头部第一行那几颗单字形小图标（标记 data-head-fold + data-head-icon，见 panel/Dock.js）：图标本身就是单个字形，一步撤一颗，撤的标记必须落在**不写死 display** 的那层元素上，否则这一条盖不住它；同一行里那些「一串字」的元素（仓库名 / 刷新按钮的字 / 时间标签）不走这一条，它们按 panel/headFold.js 那条阶梯逐字变短，永远不整块 display:none。
+      // #16 V2（2026-08-18 复现后重设计）：5 级 [data-narrow-N] 阈值体系有结构性 bug —— dn 信号源 R5 起改为输入区（wrapper）宽，
+      //   默认 1280 视口下输入区仅 812px → dn=0 永不出现，宽屏默认缺品牌字；且 .dsws-seg.note 选择器引用不存在的 class，
+      //   「无数字段」级从未生效。改为内容自适应渐进收缩（仿 #15）：每个会随宽度变短的文字 span 打 data-fold-priority
+      //   （1=最先收…9=最后收）—— 判据在 statusbar/capFold.js（纯函数），机器在 statusbar/capFoldMachine.js：从第 0 档
+      //   一档一档往下走，每档只比上一档少一个单位（char 少一个字 / word 少一整段词），直到 scrollWidth ≤ clientWidth。
+      //   优先级 = 信息价值：品牌(1) → 沉淀(2)/交接(3)/刷新字(4) → 可接(5)/BUG(6)/诊断(7)/环境(8) → 时间(9)，品牌默认收起；
+      //   图标与数字永不收缩（最窄态 = 图标+数字紧凑条，外层 overflow:hidden 截右缘），这一条横条的内容是平铺的：
+      //   胶囊 space-between，余量由 .dsws-capsule-word 吃下、它的列间距另有 clamp 上限，所以宽条上不散成表格。这一条也管面板头部第一行那几颗单字形小图标（标记 data-head-fold + data-head-icon，见 panel/Dock.js）：图标本身就是单个字形，一步撤一颗，撤的标记必须落在**不写死 display** 的那层元素上，否则这一条盖不住它；同一行里那些「一串字」的元素（仓库名 / 刷新按钮的字 / 时间标签）不走这一条，它们按 panel/headFold.js 那条阶梯逐字变短，永远不整块 display:none。
       '.dsws-capsule [data-fold-priority].dsws-folded,[data-head-fold].dsws-folded{display:none}',
       '.dsws-banner{display:flex;align-items:center;gap:8px;border-radius:8px;padding:6px 10px;font-size:12px;margin:6px 0;cursor:pointer}',
       '.dsws-banner.bad{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.45);color:#f87171}',

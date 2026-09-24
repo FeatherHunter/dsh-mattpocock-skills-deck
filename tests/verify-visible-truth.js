@@ -196,7 +196,16 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   const dock = fs.readFileSync(path.join(ROOT, 'src/client/panel/Dock.js'), 'utf8')
   if (!/truthFreshnessBox\(s/.test(dock) || !/tr\(headBox\.agoKey/.test(dock)) fail('panel/Dock.js 没有读新鲜度判据、也没有把那一句画出来（头部那个小时间标签；写了没人读 / 读了没画）')
   if (!/tr\(ln\.key/.test(listTab)) fail('ListTab.js 没有把判据吐出来的词条画出来（读了没画）')
-  if (!/snapshot\.fallback === 'rest'/.test(listTab) || !/tr\('list\.restFallback'\)/.test(listTab)) fail('ListTab.js 没有读降级标记并画出「已切 REST 通道」横幅')
+  // 2026-09-24：降级横幅的判据搬进了纯函数 restFallbackView（views/shared/truthLines.js，行为由
+  //   tests/verify-rest-fallback-banner.js 逐档钉住）；横幅本体同日从 ListTab.js 搬到
+  //   views/shared/RestFallbackBanner.js（ListTab 贴着 350 行上限）。判据跟着**真实落点**走，强度不减：
+  //   ① 界面确实读了那个判据、也把词条画出来了 —— 量住横幅本体那一处；
+  //   ② ListTab 确实把这条横幅挂上去了 —— 只量组件本身会因为「组件写了没人用」变成假绿。
+  //   另外仍然钉死「界面不许自己给宿主的降级标记赋值」——承认事实，不制造事实。
+  const banner = fs.readFileSync(path.join(ROOT, 'src/client/views/shared/RestFallbackBanner.js'), 'utf8')
+  if (!/restFallbackView\(/.test(banner) || !/tr\(view\.key/.test(banner)) fail('降级横幅没有读那个纯函数判据、也没有把判据吐出来的词条画出来（写了没人读 / 读了没画）')
+  if (!/h\(RestFallbackBanner,\s*\{[^}]*st:\s*st/.test(listTab)) fail('ListTab.js 没有把降级横幅挂上去（组件写了没人用）')
+  if (/(snapshot|snap)\s*\.\s*fallback\s*=/.test(banner + listTab)) fail('界面自己给降级标记赋值了（界面只许读、不许写）')
   if (!/truthWriteWindowOpen\(st\.writeAt/.test(row) || !/tr\('truth\.writing'\)/.test(row)) fail('ListTabRow.js 没有在写入窗口期画出那一行「更新中」标记')
   const apiIo = fs.readFileSync(path.join(ROOT, 'src/client/kernel/api-io.js'), 'utf8')
   if (!/markRowWrite\(st, num, ciEffort\)/.test(apiIo)) fail('api-io.js 写入成功那一处没有记下时刻（「更新中」就没有事实来源）')

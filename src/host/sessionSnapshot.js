@@ -207,7 +207,7 @@ export function createSessionSnapshot(deps) {
           const snap = buildSnap({
             repoRoot, workspaceRoot: cwd,
             maps: inner.maps, issues: allForList, labels: labels,
-            repository: repoRef, backendModules: backendModules, selection: _sel, setupLayout: _layEarly, deck: inner.deck, fallback: inner.fallback, refresh: inner.refresh,
+            repository: repoRef, backendModules: backendModules, selection: _sel, setupLayout: _layEarly, deck: inner.deck, fallback: inner.fallback, fallbackAt: inner.fallbackAt, refresh: inner.refresh,
           })
           return adoptSnapLog(snap, cwd)
         }
@@ -331,7 +331,7 @@ export function createSessionSnapshot(deps) {
           repo: repo0b, repoRoot: repoRoot2, workspaceRoot: cwd,
           maps: inner2.maps, issues: allForList2, labels: labels2,
           repository: repoRef2, backendModules: backendModules2, selection: _sel, setupLayout: _layEarly,
-          viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck, fallback: inner2.fallback, refresh: inner2.refresh,
+          viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck, fallback: inner2.fallback, fallbackAt: inner2.fallbackAt, refresh: inner2.refresh,
         })
         await writeDiskCache(snap2.repo, snap2)
         return adoptSnapLog(snap2, cwd)

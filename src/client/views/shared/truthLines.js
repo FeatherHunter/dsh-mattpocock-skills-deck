@@ -119,3 +119,35 @@ export const markRowWrite = function (st, number, effortId) {
   map[n] = at
   try { map[idOfParts(effortId === undefined || effortId === null ? '' : String(effortId), n)] = at } catch (e) { /* 只留按编号那一把 */ }
 }
+
+// ── 降级横幅该不该画、画哪一句（2026-09-24，维护者反馈「这条在某些工作区出现过后就常驻」）──
+//
+// 那条横幅说的是**当下**的事（「已切换 REST 通道」），而快照里那个标记说的是**那一次构建**的事。
+//   两件事之间隔着缓存：标记随快照被写进宿主缓存、磁盘缓存、客户端内存 LRU，之后每一次取用都会把它
+//   原样带回来，于是横幅会一直挂着 —— 哪怕此刻配额早恢复了、取数早就走回 GraphQL。
+//
+// 判据（纯函数，界面只调用它，不自己判断）：
+//   ① 没有降级标记 → 不画（一个字都不说）；
+//   ② 本次会话已经关掉这一档（关闭时刻 >= 这次降级的时刻）→ 不画；新的一次降级时刻更晚，会重新出现；
+//   ③ 知道降级时刻且在一小时以内 → 说实话，用原来那句「已切换 REST 通道」；
+//   ④ 时刻缺失、或已经超过一小时 → 改口成「上次取数走的 REST 通道（N 分钟前）」，
+//      不再把一件历史事实说成现在（与本项目其他「不知道就不说、不许编」的口径一致）。
+export const REST_FALLBACK_STALE_MS = 60 * 60 * 1000
+export const restFallbackView = function (st, nowMs, dismissedAtMs) {
+  const snap = st && st.snapshot
+  if (!snap || snap.fallback !== 'rest') return null
+  const at = (typeof snap.fallbackAt === 'number' && snap.fallbackAt > 0) ? snap.fallbackAt : 0
+  if (at > 0 && typeof dismissedAtMs === 'number' && dismissedAtMs >= at) return null
+  const now = (typeof nowMs === 'number' && isFinite(nowMs)) ? nowMs : Date.now()
+  const ageMs = at > 0 ? Math.max(0, now - at) : -1
+  const stale = (at === 0) || (ageMs >= REST_FALLBACK_STALE_MS)
+  const minutes = ageMs >= 0 ? Math.floor(ageMs / TRUTH_MINUTE_MS) : 0
+  return {
+    stale: stale,
+    at: at,
+    ageMs: ageMs,
+    minutes: minutes,
+    key: stale ? 'list.restFallbackStale' : 'list.restFallback',
+    params: { n: minutes },
+  }
+}

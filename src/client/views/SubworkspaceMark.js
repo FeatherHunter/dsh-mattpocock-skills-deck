@@ -193,22 +193,19 @@ export const SubworkspaceMark = function (props) {
       key: 'icon',
       'data-subws-mark': 1,
       role: 'img',
-      // 外框尺寸必须与面板头部左右两颗邻居按钮一模一样。这一条用真浏览器重量过：
-      //   邻居「切换后端」与「标签配色」都是 style 里 width/height 16 + 1 像素边框，而本站默认的
-      //   box-sizing 是 content-box，所以它们真正画出来的外框是 **16×16**。
-      //   这枚标志原先写 18 + 1 像素边框、又没写 border-box，于是外框是 **20×20** ——
-      //   比左右两颗各宽出 4 像素、高出一圈。维护者 2026-09-19 在真机上按截图指出「宽高没有和右边两个对齐」，
-      //   在那个 150 像素宽的截图里量出来正是 40 像素对 32 像素。
-      //   现在取外框 16 + 里面 13 像素的图形：两边都比邻居略收一点，留白节奏与邻居一致。
-      //   #650 写下「18 像素」时，邻居按钮的外框还是 18；它们后来改成 16 了，这一条得跟着走，否则一排就对不齐。
+      // 外框尺寸必须与面板头部左右两颗邻居按钮逐字一致，三颗的规格只有一份：
+      //   **外框 16×16、圆角 4、1 像素描边、box-sizing: border-box**。
+      //   2026-09-24 更正（这条注释原先算错了一道算术）：本站默认 box-sizing 是 content-box，
+      //   「width/height 16 + 1 像素边框」在 content-box 下算出来的外框是 **16 + 1 + 1 = 18×18**，
+      //   不是 16×16。此前这里照着「邻居外框是 16」把本枚标志设成 16×16，而邻居们实际画的是 18×18 ——
+      //   于是红色这颗比左右两颗各小 2 像素，同一排里看着不齐（维护者 2026-09-24 按截图指出）。
+      //   现在统一成 border-box 16×16：本枚本来就是 16，另两颗补上 box-sizing 后跟着收到 16。
+      //   圆角也统一成 4（本枚此前是 5）。
       //
-      // 底色与边框（维护者 2026-09-19 在真机上定）：
-      //   底色改成**纯透明**，不再用那层淡紫 rgba(192,132,252,.07) —— 叠在深色底上会泛出一点粉紫，
-      //   同一排里颜色不统一；透明之后它就跟着所在的那一行背景走。用 transparent 而不是 'none'，
-      //   是因为这里要的就是「不画东西」这个意思。
-      //   边框改成红色 #f85149（本仓既有的红色档：状态栏与列表里那些红色提示用的都是它），
-      //   与右边蓝色那颗「切换后端」、琥珀色那颗「标签配色」在颜色上区分开。
-      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 16, height: 16, borderRadius: 5, border: '1px solid ' + MARK_RED, background: 'transparent', cursor: 'pointer', flex: 'none' },
+      // 底色与边框（维护者 2026-09-19 在真机上定，尺寸之外不变）：
+      //   底色**纯透明**，不用那层淡紫 rgba(192,132,252,.07)（叠在深色底上泛粉紫，同排颜色不统一）；
+      //   边框用本仓的红色档 #f85149，与右边蓝色那颗「切换后端」、木色那颗「标签配色」在颜色上区分开。
+      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 16, height: 16, borderRadius: 4, border: '1px solid ' + MARK_RED, background: 'transparent', cursor: 'pointer', flex: 'none' },
     }, [iconSvg]),
   ])
   // 自动展开那一次用受控 visible；关掉（或本来就不再展开）之后交回 HoverTip 自己管（鼠标悬停照常出浮层）。

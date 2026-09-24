@@ -189,8 +189,8 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             // 2026-08-28 契约修正（用户复核）：仓库名一律由 host 后端 describe 经契约层产出，UI 零派生——
             //   markdown 本地形态（目录即仓库）同理由 describe 给出 name=目录名；前端不再有派生分支，
             //   剩余 null 只可能是异常态 → 诚实警示「未识别仓库」。
-            // 快照没回来之前两枚芯片都不画（Markdown 下目录明明存在，说“未识别仓库”/“没有后端”都是把“还没拿到”说成了结论；与全屏门控只认快照落地同口径）。
-            if (!repoRef && !s.snapshot) return null
+            // 快照还没回来时画的是一条灰色占位骨架（它为什么长这样、为什么不许带 data-repo-text，都写在 panel/RepoChipSkeleton.js 的文件头）。
+            if (!repoRef && !s.snapshot) return h(RepoChipSkeleton, { key: 'repoSkeleton', label: tr('panel.repoLoading') })
             if (!repoRef && sel && sel.backendId) {
               // 远程型后端（github/gitlab）已选但仓库引用缺失：诚实警示，不冒充仓库名；诊断交由环境检查 gh:remote 红牌
               return h(Tip, { content: tr('panel.repoUnidentifiedTitle') }, h('span', { 'aria-label': tr('panel.repoUnidentifiedTitle'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f59e0b', background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.5)', borderRadius: 6, padding: '1px 8px', flex: 'none', whiteSpace: 'nowrap' } }, [Ic({ n: 'alert', size: 11 }), h('span', null, tr('panel.repoUnidentified'))]))
@@ -224,13 +224,13 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
           //   放在仓库芯片右侧、与「未识别仓库」琥珀芯片和「该工作区尚未初始化」提示并存，不替代任何一条既有提示。
           // #667 第三轮：它是一颗单字形小图标，宽度不够时一颗一颗撤（撤的是外面这层 span：它身上不写 display，
           //   所以 kernel/styles.js 那条 .dsws-folded 规则盖得住；里面那颗按钮自己写着 display，标记不能落在它身上）。
-          h('span', { 'data-head-fold': 'icon', 'data-head-icon': 'mark', className: headIconCls('mark') }, h(SubworkspaceMark, { key: 'subws', st: s })),
+          h('span', { 'data-head-fold': 'icon', 'data-head-icon': 'mark', className: headIconCls('mark'), style: { lineHeight: 0 } }, h(SubworkspaceMark, { key: 'subws', st: s })),
           // #191 · 仓库名右侧切换按钮（已选态常驻 · pending 灰置 · _isOther 隐藏）
-          h('span', { 'data-head-fold': 'icon', 'data-head-icon': 'switch', className: headIconCls('switch') }, (function(){ if(_isOther) return null; var _sel=s.selection||(s.snapshot&&s.snapshot.selection)||null, _bid=_sel?_sel.backendId:null; if(_bid==null) return null; var _pend=!!(_sel&&_sel.pending), _col=(typeof backendColorOf==='function'?backendColorOf(_bid):'#6e7681'); return h(Tip, { content: _pend ? '切换后端 · 探测中不可用' : '切换后端' }, h('button',{'data-repo-switch':1,type:'button','aria-label':'切换后端','aria-disabled':_pend?'true':'false',disabled:_pend,onClick:function(e){try{if(e&&e.preventDefault)e.preventDefault();if(e&&e.stopPropagation)e.stopPropagation()}catch(_){};if(_pend)return;try{openSwitchConfirm(s,null)}catch(_){}},style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:16,height:16,borderRadius:4,flex:'none',border:'1px solid '+_col,color:_col,background:'transparent',cursor:_pend?'not-allowed':'pointer',opacity:_pend?0.45:1,fontSize:10,lineHeight:1,padding:0,colorScheme:'light dark'}},Ic({n:'swap',size:10}))) })()),
+          h('span', { 'data-head-fold': 'icon', 'data-head-icon': 'switch', className: headIconCls('switch'), style: { lineHeight: 0 } }, (function(){ if(_isOther) return null; var _sel=s.selection||(s.snapshot&&s.snapshot.selection)||null, _bid=_sel?_sel.backendId:null; if(_bid==null) return null; var _pend=!!(_sel&&_sel.pending), _col=(typeof backendColorOf==='function'?backendColorOf(_bid):'#6e7681'); return h(Tip, { content: _pend ? '切换后端 · 探测中不可用' : '切换后端' }, h('button',{'data-repo-switch':1,type:'button','aria-label':'切换后端','aria-disabled':_pend?'true':'false',disabled:_pend,onClick:function(e){try{if(e&&e.preventDefault)e.preventDefault();if(e&&e.stopPropagation)e.stopPropagation()}catch(_){};if(_pend)return;try{openSwitchConfirm(s,null)}catch(_){}},style:{display:'inline-flex',alignItems:'center',justifyContent:'center',boxSizing:'border-box',width:16,height:16,borderRadius:4,flex:'none',border:'1px solid '+_col,color:_col,background:'transparent',cursor:_pend?'not-allowed':'pointer',opacity:_pend?0.45:1,fontSize:10,lineHeight:1,padding:0,colorScheme:'light dark'}},Ic({n:'swap',size:10}))) })()),
           // #621 标签配色入口：16 像素见方的小图标（与左边那颗切换后端按钮同规格），点开改色弹窗；
           //   它和左右两颗单字形图标一样，宽度不够时一颗一颗撤（撤的是外面那层 span，见上面 #667 第三轮那句）。
           //   会话号一起传进去：宿主靠它算「写这个工作区」要用的沙箱政策（#624 的研究结论）。
-          h('span', { 'data-head-fold': 'icon', 'data-head-icon': 'palette', className: headIconCls('palette') }, h(LabelColorEntry, {
+          h('span', { 'data-head-fold': 'icon', 'data-head-icon': 'palette', className: headIconCls('palette'), style: { lineHeight: 0 } }, h(LabelColorEntry, {
             key: 'labelcolors', cwd: s.cwd, sessionId: sid, narrow: narrow,
             // #635：保存成功这一刻就把后端确认过的颜色写进面板这份快照并重画，不再等下面那次全量重拉——
             // 那次在 GitHub 工作区上要二十多秒，等它等于让用户看着旧颜色以为没刷新。

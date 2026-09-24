@@ -330,8 +330,8 @@ export     const ListTab = ({ st, narrow }) => {
           const tone = function (t) { return t === 'red' ? '#f87171' : (t === 'yellow' ? '#f59e0b' : 'var(--dsws-label-caption,#8b8b95)') }
           return h('div', { className: 'dsws-truth', style: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontSize: 11, padding: '2px 2px 4px' } }, ls.map(function (ln) { return h('span', { key: ln.kind || ln.key, style: { color: tone(ln.tone) } }, tr(ln.key, ln.params)) }))
         })(),
-        // v1.5 B5 降级横幅：走 REST 通道取回来的那份数据要明说（降级标记由宿主写，界面只读）
-        st.snapMode === 'real' && st.snapshot && st.snapshot.fallback === 'rest' ? h('div', { style: { color: '#f59e0b', fontSize: 11, padding: '6px 12px', border: '1px solid rgba(245,158,11,.4)', borderRadius: 6, background: 'rgba(245,158,11,.08)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 11 }), h('span', null, tr('list.restFallback'))]) : null,
+        // v1.5 B5 降级横幅：走 REST 通道取回来的那份数据要明说 —— 判据（restFallbackView）与画法都在 views/shared/RestFallbackBanner.js。
+        h(RestFallbackBanner, { key: 'restFallback', st: st }),
         // #374：状态过滤渲染 —— open 主体 / closed 列表 / 「全部」态保留已关闭折叠行
         showOpen ? (filteredOpen.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredOpen.map(function (x) { return listIssueRow(h, st, x, true, narrow, blockOf, colorOf, multiEffort) })) : null,
         showClosedList ? (filteredClosed.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredClosed.map(function (x) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf, multiEffort) })) : null,

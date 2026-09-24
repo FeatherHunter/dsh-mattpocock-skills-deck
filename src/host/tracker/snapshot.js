@@ -243,6 +243,11 @@ export function createSnapshotComposer(registry, opts = {}) {
       //   降级标记（'rest'）是上面那一趟 list 真实掉到 REST 通道才带回来的事实 —— 界面层永远不许写它
       //   （tests/verify-visible-truth.js 有一条静态断言盯着这件事：谁也別想在客户端补一句赋值让横幅亮起来）。
       snapshot.fallback = listFallback === 'rest' ? 'rest' : null
+      // 2026-09-24（维护者反馈降级横幅「出现过后就常驻」）：降级这件事也带上它发生的时刻。
+      //   为什么必须有这个时刻：`fallback` 是**那一次构建**留下的历史事实，它会随快照被缓存、被反复取用；
+      //   界面只凭它说不出一句“现在已经切到 REST”的话（那句话说的是当下）。带上时刻之后，界面才能
+      //   在超过一小时后改口成「上次取数走的 REST（N 分钟前）」，不再冒充现在。
+      snapshot.fallbackAt = listFallback === 'rest' ? Date.now() : null
       // tier 是额度档位：今天宿主这一侧还没有闸的账本读数（闸与账本接进宿主是后面的事），所以如实留 null。
       //   留 null 的直接后果是界面不说「数据可能落后 X 分钟」——这是对的：不知道就不说，不许编一个。
       //   deferred / paused / notRefreshing 同理：没有那个事实就是 false，界面一个字都不显示。

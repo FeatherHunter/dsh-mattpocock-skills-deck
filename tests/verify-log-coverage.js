@@ -139,14 +139,15 @@ const CALLEE_COVERS = [
   const hasEvent = (e) => all.indexOf(Q + e + Q) >= 0
   const newEvents = ['chain.cache.miss', 'workspaceStore.miss', 'client.snapshot.hit', 'client.snapshot.miss', 'detail.cache.hit', 'host.start']
   for (const e of newEvents) check(hasEvent(e), '新事件有发射 ' + e)
-  // 定时器调度名两张表（2026-09-25 收紧）：#709（T5）把三条自续循环连根拆掉 —— 宿主侧命名守护的
+  // 定时器调度名两张表（2026-09-24 收紧）：#709（T5）把三条自续循环连根拆掉 —— 宿主侧命名守护的
   //   15 秒自续 tick（naming-guardian）、客户端命名轮询（naming-poll）、检查页那条 20 秒静默重查
-  //   （checks-poll），所以「还在排的定时器必须有调度名」只管今天真在排的三个，退役的三个反过来
-  //   不许再有调度名（比从前「六条都要有名」更严：旧循环一旦被抄回来，这里立刻红）。
+  //   （checks-poll）；#725 又把状态栏胶囊那台 2 秒折叠重算拆成「ResizeObserver + 每次提交后重算一次」，
+  //   为它记的调度名 statusbar-poll 随之退役。所以「还在排的定时器必须有调度名」只管今天真在排的两个，
+  //   退役的那几个反过来不许再有调度名（比从前「六条都要有名」更严：旧循环一旦被抄回来，这里立刻红）。
   //   退役判据的权威是 tests/verify-709-no-self-continuing-timers.js（全库不许有自续定时器）。
-  const timers = ['naming-sweep', 'naming-persist', 'statusbar-poll']
+  const timers = ['naming-sweep', 'naming-persist']
   for (const n of timers) check(all.indexOf('name: ' + Q + n + Q) >= 0, '定时器调度有名 ' + n)
-  const retiredTimers = ['naming-guardian', 'naming-poll', 'checks-poll']
+  const retiredTimers = ['naming-guardian', 'naming-poll', 'checks-poll', 'statusbar-poll']
   const revived = retiredTimers.filter((n) => all.indexOf('name: ' + Q + n + Q) >= 0)
   check(revived.length === 0, '退役定时器不再有调度名（#709 T5 拆掉的三条自续循环，回来即红）' + (revived.length ? ' —— 又冒出来：' + revived.join('、') : '（已退役：' + retiredTimers.join('、') + '）'))
   let resolveKinds = 0

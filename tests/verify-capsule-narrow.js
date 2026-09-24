@@ -65,10 +65,13 @@ const statChecks = function (src, tag) {
   ok('外层容器正常路径仍保留 overflow:hidden 截胶囊溢出、缺 ReactDOM 时 visible 降级',
     /overflow:\s*RDOM\s*\?\s*'hidden'\s*:\s*'visible'/.test(src))
   ok('胶囊 CSS 不再加 overflow:hidden（让 capsule 圆角背景完整，圆角处不漏白）', !/\.dsws-capsule\s*\{[^}]*overflow:\s*hidden/.test(src))
-  // 期望 2：children 保持 flex:none + gap 居中
-  ok('children 仍 flex:none（capsule-word / seg / timebtn）', /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-seg\{flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-timebtn\{flex:none/.test(src))
+  // 期望 2：children 保持不被挤压（2026-09-24 #725 起：品牌那一段改成吃余量，另两段仍 flex:none）
+  //   维护者这一轮定「内容平铺在这一条里」：胶囊改成两端分布，多出来的空间由最左边那段品牌自己吃下
+  //   （flex:1 1 auto + min-width:0），它的列间距另有 clamp 上限 —— 所以宽条上不散成表格。
+  ok('children 的挤压规则照平铺来（品牌段 flex:1 1 auto 吃余量 / seg 与 timebtn 仍 flex:none）',
+    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:1 1 auto/.test(src) && /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*min-width:0/.test(src) && /\.dsws-capsule\s+\.dsws-seg\{flex:none/.test(src) && /\.dsws-capsule\s+\.dsws-timebtn\{flex:none/.test(src))
   ok('胶囊 gap 保留 2px 6px（行间距 / 列间距）', /\.dsws-capsule\s*\{[^}]*gap:\s*2px\s+6px/.test(src))
-  ok('胶囊 justify-content:center 保留', /\.dsws-capsule\s*\{[^}]*justify-content:\s*center/.test(src))
+  ok('胶囊 justify-content 是平铺的 space-between（#725 维护者定，替掉旧的 center）', /\.dsws-capsule\s*\{[^}]*justify-content:\s*space-between/.test(src))
 
   // 期望 3（V2）：内容自适应渐进收缩
   // 3a. CSS 折叠规则：一条规则命中所有带 data-fold-priority 且被加 .dsws-folded 的文字 span
@@ -90,13 +93,16 @@ const statChecks = function (src, tag) {
   prio(7, /'data-fold-priority':\s*7[\s\S]{0,40}tr\('nav\.triage'\)/)
   prio(8, /'data-fold-priority':\s*8[\s\S]{0,40}tr\('nav\.env'\)/)
   prio(9, /'data-fold-priority':\s*9[\s\S]{0,40}timeStr/)
-  // 3c. applyFold 核心模式：全展开重算 + scrollWidth 溢出判定 + priority 升序逐个收
-  ok('V2 · applyFold 函数存在（全展开 → 逐个收）', /const applyFold = function\s*\(\)\s*\{/.test(src))
-  ok('V2 · applyFold 先全展开（remove dsws-folded + reflow）', /classList\.remove\(['"]dsws-folded['"]\)[\s\S]{0,120}void cap\.offsetWidth/.test(src))
-  ok('V2 · applyFold 按 priority 升序排序（小=先收）', /sort\(function \(a, b\) \{ return a\.p - b\.p \}\)/.test(src))
-  ok('V2 · applyFold 溢出判定 scrollWidth ≤ clientWidth+1 停止', /scrollWidth\s*<=\s*cap\.clientWidth\s*\+\s*1/.test(src))
-  ok('V2 · applyFold 加 .dsws-folded 后强制 reflow', /classList\.add\(['"]dsws-folded['"]\)[\s\S]{0,80}void cap\.offsetWidth/.test(src))
-  ok('V2 · applyFold 记录 dataset.fold 折叠数（调试/测试锚点）', /cap\.dataset\.fold\s*=\s*String\(/.test(src))
+  // 3c. 那台阶梯机的核心形状（2026-09-24 #725：机器搬进 statusbar/capFoldMachine.js —— 判据是
+  //   statusbar/capFold.js 的纯函数，StatusBar.js 只留接线。这些断言量的是**产物里的代码**，
+  //   搬了住处照样量得到；下面几句的判据一条没放松，只是把「谁在实现」写清楚了。）
+  ok('V2 · applyFold 函数存在（接线：把胶囊与两张跨调用带着走的表交给阶梯机）', /const applyFold = function\s*\(\)\s*\{/.test(src))
+  ok('V2 · 推到某一档时先去掉全部折叠类、再强制重排一次（拿到这一档放不下时的基准）', /classList\.remove\(['"]dsws-folded['"]\)[\s\S]{0,120}void cap\.offsetWidth/.test(src))
+  ok('V2 · 阶梯按 priority 升序（小号先让位）', /sort\(function \(a, b\) \{ return a\.p - b\.p \}\)/.test(src))
+  ok('V2 · 溢出判定 scrollWidth ≤ clientWidth+1（放得下就停在这一档）', /scrollWidth\s*<=\s*cap\.clientWidth\s*\+\s*1/.test(src))
+  ok('V2 · 收成空串的那几段加 .dsws-folded 之后强制重排', /classList\.add\(['"]dsws-folded['"]\)[\s\S]{0,80}void cap\.offsetWidth/.test(src))
+  ok('V2 · 记下 dataset.fold 折叠段数与 dataset.foldTier 档号（调试与门禁的锚点）',
+    /cap\.dataset\.fold\s*=\s*String\(/.test(src) && /cap\.dataset\.foldTier\s*=\s*String\(/.test(src))
   // 3d. foldRef 挂 capsule + ResizeObserver 监听
   ok('V2 · capsule 根挂 ref: foldRef', /className:\s*['"]dsws-capsule['"][^}]*ref:\s*foldRef/.test(src))
   ok('V2 · foldRef = React.useRef(null)', /foldRef\s*=\s*React\.useRef\(null\)/.test(src))
@@ -121,7 +127,12 @@ const statChecks = function (src, tag) {
   ok('R9 · 第一性原理：不再查询特定 textarea 类名（已去耦）', !/textarea\.uV2eYG_input/.test(src))
   ok('R9 · ResizeObserver 监听 foldRef 及其 parent（可用宽变化即折叠）', /new ResizeObserver\(function\s*\(\)\s*\{\s*applyFold\(\)\s*\}\)[\s\S]{0,300}roFold\.observe\(foldRef\.current\)/.test(src) && /roParent\.observe/.test(src))
   ok('R9 · useEffect 清理断开 roFold/roParent（防泄漏）', /roFold\.disconnect\(\)[\s\S]{0,120}roParent\.disconnect\(\)/.test(src))
-  ok('R9 · 轮询兜底保留（字体/宿主重排）', /setInterval\(applyAll, 2000\)/.test(src))
+  // 2026-09-24（#725）：这条 2 秒轮询退役（维护者定：这一条横向随宽度一格一格变短，但不许挂自续定时器）。
+  //   它原先兜的是「字被换掉了、尺寸没变，观察器不会响」那一种（React 重渲染会把收短的那串换回完整的一串），
+  //   现在由「每次提交之后重算一次」那条副作用接管；真实表现由 tests/verify-cap-fold.js 的宽度扫描门禁钉住
+  //   （含「改完宽度等 2200 毫秒再量一次，仍然正确」那条证据）。
+  ok('R9 · 2 秒轮询已退役（#725），改由 ResizeObserver + 提交后重算 + fonts.ready 三条路接管',
+    !/setInterval\(applyAll, 2000\)/.test(src) && /React\.useEffect\(function \(\) \{ applyFold\(\) \}\)/.test(src))
   ok('R12 · !firstBlock 分支 wrapper 含 flex:\'none\'（防 flex-shrink 压矮）', /display:\s*'flex',\s*flex:\s*'none',\s*justifyContent:\s*'center'/.test(src))
   ok('R12 · firstBlock 分支 wrapper 含 flex:\'none\'（横幅 + 胶囊列布局同样防压缩）', /display:\s*'flex',\s*flex:\s*'none',\s*flexDirection:\s*'column'/.test(src))
   ok('R6b · !firstBlock 分支 wrapper 不再含 alignItems:\'stretch\'', !/display:\s*'flex',\s*justifyContent:\s*'center'[\s\S]{0,200}alignItems:\s*'stretch'/.test(src))

@@ -42,7 +42,9 @@ const LINGER_ALLOWED = [/lingering|linger/i]
  * 这张表是本次施工如实记下的现状（见回报第 6 节），不是「本票认为这些没问题」。
  */
 const DECLARED_EXCEPTIONS = [
-  { match: /client[\\/]statusbar[\\/]StatusBar\.js$/, why: '状态栏胶囊折叠重算，2 秒一次，纯本地布局测量，不出网、不取数、与刷新机制无关' },
+  // 2026-09-24（#725）：原先这里还登记着「client/statusbar/StatusBar.js 的 2 秒折叠重算」——
+  //   那一条随本票拆掉阶梯机时一起去掉了（折叠改由 ResizeObserver 与每次提交后重算一次接管），
+  //   所以这条豁免跟着删：状态栏里再长出无人叫醒的定时器，本门会当场红。
   { match: /client[\\/]panelAssembly\.js$/, why: '老宿主没有 ctx.inject 时的注册重试，最多试 10 次就自己停（有次数上限，不是自续）' },
   { match: /client[\\/]kernel[\\/]api-new-session\.js$/, why: '交接文档落盘探测，最多试 600 次（约 10 分钟）就自己停，且只在人点过「交接」之后才跑' },
   { match: /client[\\/]views[\\/]useUpdatePanel\.js$/, why: '安装与校验任务进行中才跑，任务结束即停（由 updJobState 收口，不是自续）' },

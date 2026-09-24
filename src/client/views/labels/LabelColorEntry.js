@@ -72,6 +72,10 @@ export const LabelColorEntry = (props) => {
     },
     style: {
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      // 2026-09-24：补上 boxSizing —— 少了它，width/height 16 加两侧 1 像素边框会画成 18×18 的外框，
+      //   比左边那颗归属标志（border-box 16×16）大一圈，一排三颗看着就不齐。规格现在是三颗逐字一致：
+      //   外框 16×16、圆角 4、1 像素描边；这是「外框」尺寸，不是内容尺寸。
+      boxSizing: 'border-box',
       width: 16, height: 16, borderRadius: 4, flex: 'none',
       border: '1px solid ' + edgeTint, color: edge, background: 'transparent',
       cursor: 'pointer', lineHeight: 1, padding: 0, colorScheme: 'light dark',

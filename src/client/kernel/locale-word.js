@@ -175,6 +175,10 @@
         'skilldesc.to-tickets': '把规格拆成 tickets',
         'skilldesc.resolving-merge-conflicts': '解决合并冲突',
         'skilldesc.writing-great-skills': '为 AI 写出可复用、可测试的技能描述',
+        // 2026-09-24：降级横幅那两条从 locale-flow.js 搬来这里（那边贴着 350 行上限）——
+        //   横幅本体拆成了 views/shared/RestFallbackBanner.js，词条跟着它走；键名与文案一字未改。
+        'list.restFallbackStale': '⚠ 上次取数走的 REST 通道（{n} 分钟前）—— 数据可能略旧，配额恢复后自动回切',
+        'list.restFallbackDismiss': '本次会话不再提示',
       },
       en: {
         'skill.centerRing': 'Center is recommended, ring is related (filled=installed, hollow=not), click to inject /skill',
@@ -333,5 +337,8 @@
         'skilldesc.to-tickets': 'Split specs into tickets',
         'skilldesc.resolving-merge-conflicts': 'Resolve merge conflicts',
         'skilldesc.writing-great-skills': 'Write reusable, testable skill descriptions for AI',
+        // 2026-09-24: moved here from locale-flow.js together with the banner below it (the same two keys, no wording change).
+        'list.restFallbackStale': '⚠ Last fetch went through the REST channel ({n} min ago) — data may be slightly stale; auto-reverts when quota resets',
+        'list.restFallbackDismiss': 'Hide for this session',
       },
     }

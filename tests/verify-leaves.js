@@ -64,6 +64,15 @@ const LEAVES = [
   { file: 'src/client/views/labels/LabelColorEntry.js', exports: ['LabelColorEntry'], components: ['LabelColorEntry'] },
   // #721 处理链展示面：面板顶部那一条「每个会话在处理哪些票」（判据加画法；只读宿主写下的那一个快照字段）
   { file: 'src/client/views/shared/sessionChainView.js', exports: ['SESSION_CHAIN_FIELD', 'SESSION_CHAIN_ACTION_KEYS', 'sessionChainActionKeyOf', 'sessionChainClock', 'sessionChainViewOf', 'sessionChainRowsOf', 'sessionChainOpenTicket', 'SessionChainStrip'], components: ['SessionChainStrip'] },
+  // 2026-09-24 从贴着 350 行上限的两个文件里搬出来的两块：
+  //   · 降级横幅（views/ListTab.js → views/shared/RestFallbackBanner.js，判据仍是 truthLines 的 restFallbackView）
+  //   · 头部那条灰色占位骨架（panel/Dock.js → panel/RepoChipSkeleton.js）
+  // 登在这里是为了让「单文件 ≤350 行」与「产物已拼接」两条检查也覆盖到它们。
+  { file: 'src/client/views/shared/RestFallbackBanner.js', exports: ['RestFallbackBanner'], components: ['RestFallbackBanner'] },
+  { file: 'src/client/panel/RepoChipSkeleton.js', exports: ['RepoChipSkeleton'], components: ['RepoChipSkeleton'] },
+  // #725 状态栏胶囊那条横条：「谁先让位、一次让多少」的判据（纯函数）与读写的机器（碰 DOM）各一份。
+  { file: 'src/client/statusbar/capFold.js', exports: ['CAP_FOLD_POLICY', 'capFoldLadderOf', 'capFoldStateAt', 'capFoldStepCount'], components: [] },
+  { file: 'src/client/statusbar/capFoldMachine.js', exports: ['runCapFold'], components: [] },
 ]
 const SOURCES = [
   'src/client/index.js', 'scripts/build.mjs', 'package/package.json',

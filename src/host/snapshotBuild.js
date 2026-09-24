@@ -213,6 +213,7 @@ export function createSnapshotBuilder(deps) {
         issues: issues,
         labels: labels,
         fallback: d.fallback || null,  // v1.5 B5：'rest' = GraphQL 配额耗尽已降级 REST（client 可提示）
+        fallbackAt: d.fallbackAt || null,  // 2026-09-24：这次降级发生的时刻（界面据此说“多久以前”，不再冒充现在）
         repository: repository,
         backendModules: backendModules,
         selection: selection,

@@ -123,26 +123,13 @@ export const StatusBar = (props) => {
   const showTakeMenu = function(){ showStatusTakeMenu(s, takeAnchorRef, takeCloseRef) }
   // 菜单重定位副作用已搬 StatusMenus.js 的 useStatusMenus（B1 #460，同闭包拼回），此处单调供装配。
   useStatusMenus(s, { bugAnchorRef: bugAnchorRef, backendAnchorRef: backendAnchorRef, bugCloseRef: bugCloseRef, backendCloseRef: backendCloseRef, takeAnchorRef: takeAnchorRef, takeCloseRef: takeCloseRef })
+  // 状态栏胶囊那条横条「随宽度一格一格变短」的阶梯机（#725，维护者 2026-09-24 定）：
+  //   判据在 statusbar/capFold.js，机器在 statusbar/capFoldMachine.js，这里只留接线。
+  //   这两张表（每一段完整那串字 / 机器上一次写下的那串字）必须跨调用带着走，所以挂在 ref 上。
+  const foldKeep = React.useRef({ full: {}, written: {} })
   const applyFold = function () {
     const cap = foldRef.current
-    if (!cap) return
-    const targets = Array.from(cap.querySelectorAll('[data-fold-priority]'))
-    if (!targets.length) return
-    cap.classList.add('dsws-no-anim')
-    targets.forEach(function (el) { el.classList.remove('dsws-folded') })
-    void cap.offsetWidth
-    const items = targets.map(function (el) {
-      return { el: el, p: Number(el.getAttribute('data-fold-priority') || 99) }
-    }).sort(function (a, b) { return a.p - b.p })
-    for (const it of items) {
-      if (cap.scrollWidth <= cap.clientWidth + 1) break
-      it.el.classList.add('dsws-folded')
-      void cap.offsetWidth
-    }
-    cap.dataset.fold = String(targets.filter(function (el) {
-      return el.classList.contains('dsws-folded')
-    }).length)
-    cap.classList.remove('dsws-no-anim')
+    if (cap) runCapFold(cap, foldKeep.current)
   }
   React.useEffect(function () {
     // 第一性原理方案 B：胶囊宽度不再 JS 设像素，完全由 CSS 变量 --dsh-composer-card-max-width 驱动（与输入卡同源）。
@@ -159,14 +146,17 @@ export const StatusBar = (props) => {
     }
     window.addEventListener('resize', applyAll)
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyFold)
-    const poll = setInterval(applyAll, 2000); try { if (isEnabled('debug')) log('debug', 'timer.schedule', { name: 'statusbar-poll', intervalMs: 2000 }) } catch (eL) {}
     return function () {
       try { roFold.disconnect() } catch (e) {}
       try { roParent.disconnect() } catch(e){}
       window.removeEventListener('resize', applyAll)
-      clearInterval(poll)
     }
   }, [])
+  // 2026-09-24（#725）：原先这里还挂着一个 2 秒轮询（setInterval → applyFold），本票把它去掉了。
+  //   它当时兜的是「字被换掉了、但尺寸没有变，观察器不会响」这一种：React 重渲染时会把收短过的那串字
+  //   换回完整的一串（时间串一直在变），那一刻胶囊可能当场溢出。这件事现在由下面这条副作用接管 ——
+  //   它在每次提交之后跑一次，不排任何定时器、也不自续：谁把字写回完整的，下一帧就又被收一遍。
+  React.useEffect(function () { applyFold() })
   // #196 · 状态栏胶囊移除 backend segment 后不再在此处挂 SwitchConfirmModal（仍由 Dock/Overlay 挂载，状态机保留）
   const _isGatePending = !!(_selSBGate && _selSBGate.pending && !!s.cwd)
   const _gateActive = _isOtherSBGate || _isGatePending

@@ -377,6 +377,19 @@ window.__MEASURE__ = function () {
     })(),
     childCount: kids.length,
     childTags: kids.map((el) => el.tagName.toLowerCase()).join(','),
+    // 2026-09-24：#725 那批同排按钮的盒子规格收口后加的一组量。三颗（归属标志 / 切换后端 / 标签配色）
+    //   必须外框同宽同高、垂直中心也对齐 —— 此前「切换后端」与「标签配色」只写了 width/height 16，
+    //   没写 box-sizing（本站默认 content-box），于是外框是 18×18，而归属标志是 border-box 16×16，
+    //   三颗差 2 像素、看着不齐。这里用画出来的矩形量，不看 style 里写了什么。
+    btns: (function () {
+      const one = function (sel) {
+        const el = row.querySelector(sel)
+        if (!el) return null
+        const r = el.getBoundingClientRect()
+        return { w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10, cy: Math.round((r.top + r.bottom) / 2 * 10) / 10 }
+      }
+      return { mark: one('[data-subws-mark]'), switch: one('[data-repo-switch]'), palette: one('[data-label-colors]') }
+    })(),
   }
 }
 
@@ -491,6 +504,7 @@ window.__CAPSULE__ = async function () {
   const host = document.createElement('div')
   host.style.cssText = 'width:780px'
   document.body.appendChild(host)
+  window.__CAP_HOST__ = host
   const props = Object.assign(
     capsuleComp.m.inject ? capsuleComp.m.inject('sess-1') : { sessionId: 'sess-1' },
     { session: { cwd: CWD }, useSessions: () => null, inputActions: null },
@@ -511,6 +525,36 @@ window.__CAPSULE__ = async function () {
     wordHasIcon: !!(word && word.querySelector('svg')),
     foldPriority: fold ? fold.getAttribute('data-fold-priority') : null,
     foldText: fold ? (fold.textContent || '').trim() : '',
+    // 2026-09-24（#725）：品牌那一段按维护者定的「默认折叠」收起，收起的形状是给它加 .dsws-folded
+    //   （kernel/styles.js 那条 display:none）。这里量的是浏览器算出来的 display ——
+    //   「一个字都不写」和「真的被这条规矩收起来」在这里分得清。
+    foldFolded: !!(fold && fold.classList.contains('dsws-folded')),
+    foldDisplay: fold ? getComputedStyle(fold).display : null,
+  }
+}
+
+// C6 用：把胶囊那条横条的宿主宽度改成 w，等这一档真的定下来（连续三次读到同一个档号），
+//   再读一遍品牌那一段 —— 「默认折叠」是规矩，不该因为「宽到 3000 像素」就把品牌字放出来。
+window.__CAPSULE_WIDTH__ = async function (w) {
+  const host = window.__CAP_HOST__
+  if (!host) return { error: 'capsule host not mounted' }
+  host.style.width = w + 'px'
+  const cap = host.querySelector('.dsws-capsule')
+  if (!cap) return { error: 'no capsule' }
+  let last = null, same = 0
+  for (let i = 0; i < 60; i++) {
+    await new Promise(function (r) { requestAnimationFrame(function () { setTimeout(r, 16) }) })
+    const cur = cap.getAttribute('data-fold-tier')
+    if (cur === last) { same++; if (same >= 3) break } else { last = cur; same = 0 }
+  }
+  const fold = cap.querySelector('[data-fold-priority="1"]')
+  const word = cap.querySelector('.dsws-capsule-word')
+  return {
+    tier: cap.getAttribute('data-fold-tier'),
+    width: Math.round(cap.getBoundingClientRect().width),
+    wordText: word ? (word.textContent || '').trim() : '',
+    foldText: fold ? (fold.textContent || '').trim() : '',
+    foldDisplay: fold ? getComputedStyle(fold).display : null,
   }
 }
 window.__PROBE_READY__ = true
@@ -573,6 +617,20 @@ try {
         'B7 其余元素的相对次序不变：芯片 → 归属标志 → 切换后端 → 标签配色 → 刷新 → 上次更新（实测下标 ' + JSON.stringify([m.chipIdx, m.markIdx, m.switchIdx, m.paletteIdx, m.refreshIdx, m.updatedIdx]) + '）')
       check(m.betweenControlsText === '',
         'B8 刷新按钮与「上次更新」时间控件之间没有任何文字（两个独立控件，只靠间距分开；实测之间读到 ' + JSON.stringify(m.betweenControlsText) + '）')
+      // 2026-09-24 新增（维护者按截图指出「三颗按钮不水平」）：规格只有一份 —— 外框 16×16、圆角 4、
+      //   1 像素描边、box-sizing: border-box。这里量的是画出来的矩形，所以谁再漏写 box-sizing 都会当场红。
+      ;(function () {
+        const bs = m.btns || {}
+        const list = [['mark', bs.mark], ['switch', bs.switch], ['palette', bs.palette]]
+        const miss = list.filter(function (p) { return !p[1] }).map(function (p) { return p[0] })
+        if (miss.length) { bad('B9 三颗头部按钮没凑齐，缺 ' + miss.join('、') + '（实测 ' + JSON.stringify(bs) + '）'); return }
+        const near = function (arr) { return (Math.max.apply(null, arr) - Math.min.apply(null, arr)) <= 0.6 }
+        const ws = list.map(function (p) { return p[1].w })
+        const hs = list.map(function (p) { return p[1].h })
+        const cys = list.map(function (p) { return p[1].cy })
+        check(near(ws) && near(hs), 'B9 三颗头部按钮外框同宽同高（实测 宽 ' + JSON.stringify(ws) + ' / 高 ' + JSON.stringify(hs) + '）')
+        check(near(cys), 'B10 三颗头部按钮垂直中心对齐（实测中心 y ' + JSON.stringify(cys) + '）')
+      })()
       console.log('     （这一行实测有 ' + m.childCount + ' 个孩子：' + m.childTags + '）')
     }
 
@@ -602,10 +660,16 @@ try {
     if (!cap.ok) {
       bad('C3 状态胶囊栏没挂起来：' + JSON.stringify(cap))
     } else {
-      check(cap.wordText.indexOf('MattSkills') >= 0, 'C3 状态胶囊栏里那枚品牌字样仍在（实测 ' + JSON.stringify(cap.wordText) + '）')
+      // 2026-09-24（#725，维护者定「品牌字默认折叠」）：胶囊里那枚品牌字样从「显示着」改成「默认收起」——
+      //   本票 C 组要守的那件事没变（那一段**没有被删掉**）：挂点还在、图标还在、优先级仍是 1（最先让位）。
+      //   所以 C3/C4/C5 量的是这三件事，另加 C6 量「默认折叠是真的规矩，不是碰巧放不下」。
+      check(cap.foldPriority === '1', 'C3 状态胶囊栏里那枚品牌字样的挂点仍在（实测 priority ' + JSON.stringify(cap.foldPriority) + '）')
       check(cap.wordHasIcon, 'C4 状态胶囊栏里那枚品牌图标仍在')
-      check(cap.foldPriority === '1' && cap.foldText === cap.wordText,
-        'C5 品牌那一段仍是折叠优先级 1（最先收）（实测 priority ' + JSON.stringify(cap.foldPriority) + '）')
+      check(cap.foldFolded === true && cap.foldText === '' && cap.foldDisplay === 'none',
+        'C5 品牌那一段默认收起：收起靠的是 .dsws-folded 那条规矩（浏览器算出来的 display 实测 ' + JSON.stringify(cap.foldDisplay) + '、字 ' + JSON.stringify(cap.foldText) + '）')
+      const wide = await page.evaluate(() => window.__CAPSULE_WIDTH__(3000))
+      check(!!wide && wide.wordText === '' && wide.foldDisplay === 'none',
+        'C6 宽到 3000 像素也不放出品牌字（默认折叠是规矩，不是碰巧放不下；实测 ' + JSON.stringify(wide) + '）')
     }
 
     console.log('')
