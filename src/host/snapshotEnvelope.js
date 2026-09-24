@@ -28,7 +28,7 @@ export function createSnapshotEnvelope(deps) {
       capabilities: null,
       viewer: (o.viewer !== undefined ? o.viewer : null),
       viewerLogin: (o.viewerLogin !== undefined ? o.viewerLogin : null),
-      deck: o.deck, fallback: (o.fallback === 'rest' ? 'rest' : null), fallbackAt: (o.fallback === 'rest' ? (o.fallbackAt || null) : null), refresh: (o.refresh || null),
+      deck: o.deck, fallback: (o.fallback === 'rest' ? 'rest' : null), fallbackAt: (o.fallback === 'rest' ? (o.fallbackAt || null) : null), fallbackReason: (o.fallback === 'rest' ? (o.fallbackReason || null) : null), refresh: (o.refresh || null),
     }
     return snap
   }

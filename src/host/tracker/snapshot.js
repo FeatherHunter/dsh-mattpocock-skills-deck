@@ -209,14 +209,17 @@ export function createSnapshotComposer(registry, opts = {}) {
       let all = null
       // #715：这一趟 list 到底走的 GraphQL 还是掉到了 REST —— 后端真的降级时才往上报（见 github/issues.js 的 REST 通道）。
       let listFallback = null
+      // #734：降级原因随 fallback 一起上报（quota / other / 未知=null 三档；未知 = 老快路径没给、
+      //   老快照本来就没有这个字段）。界面只有 quota 才说配额耗尽，other 与未知一律说中性那句。
+      let listFallbackReason = null
       if (typeof tracker.snapshotFast === 'function') {
         const fast = await tracker.snapshotFast(ref, ctx)
-        if (fast && fast.ok === true && Array.isArray(fast.data)) { all = fast.data; if (fast.fallback === 'rest') listFallback = 'rest' }
+        if (fast && fast.ok === true && Array.isArray(fast.data)) { all = fast.data; if (fast.fallback === 'rest') { listFallback = 'rest'; listFallbackReason = fast.fallbackReason || null } }
       }
       if (!all) {
         const res = await tracker.list(ref, {}, ctx)
         if (!res.ok) return { ok: false, error: res.error, fail: { kind: failKindOfListError(res.error), at: Date.now() } }
-        if (res.fallback === 'rest') listFallback = 'rest'
+        if (res.fallback === 'rest') { listFallback = 'rest'; listFallbackReason = res.fallbackReason || null }
         all = res.data
       }
       if (!Array.isArray(all)) {
@@ -243,6 +246,9 @@ export function createSnapshotComposer(registry, opts = {}) {
       //   降级标记（'rest'）是上面那一趟 list 真实掉到 REST 通道才带回来的事实 —— 界面层永远不许写它
       //   （tests/verify-visible-truth.js 有一条静态断言盯着这件事：谁也別想在客户端补一句赋值让横幅亮起来）。
       snapshot.fallback = listFallback === 'rest' ? 'rest' : null
+      // #734：原因与标记同生同灭 —— 无降级时原因必须为空（恢复不清就红）；有降级但原因缺失时按未知
+      //   （null），界面按未知说中性那句。原因住在宿主侧，界面只读（verify-visible-truth 静态断言保持）。
+      snapshot.fallbackReason = listFallback === 'rest' ? (listFallbackReason || null) : null
       // 2026-09-24（维护者反馈降级横幅「出现过后就常驻」）：降级这件事也带上它发生的时刻。
       //   为什么必须有这个时刻：`fallback` 是**那一次构建**留下的历史事实，它会随快照被缓存、被反复取用；
       //   界面只凭它说不出一句“现在已经切到 REST”的话（那句话说的是当下）。带上时刻之后，界面才能

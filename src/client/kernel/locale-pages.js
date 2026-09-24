@@ -51,6 +51,10 @@
         'truth.notRefreshing': '未在刷新（同时活跃上限 2）',
         'truth.lag': '数据可能落后 {min} 分钟',
         'truth.writing': '更新中',
+        // #734（降级横幅按原因分岔）：只有宿主说是 quota 才许提「配额」；other 与未知走下面两句中性话，
+        //   一个字不许提配额。键名与占位符中英一致；判据在 views/shared/truthLines.js。
+        'list.restFallbackNonQuota': '这次取数走了 REST 通道（数据可能略旧）',
+        'list.restFallbackStaleNonQuota': '上次取数走的 REST 通道（{n} 分钟前）—— 数据可能略旧',
         // #721（处理链展示面）：面板顶部那一条「每个会话在处理哪些票」用的词条。
         //   判据与画法在 views/shared/sessionChainView.js；数据只有宿主写下的一份读数一个来源。
         //   action.* 这八个键与链的闭集合（chain.ts 的 CHAIN_ACTIONS）逐个对应，门禁每次核对。
@@ -110,6 +114,10 @@
         'truth.notRefreshing': 'Not refreshing (concurrent active limit 2)',
         'truth.lag': 'Data may lag up to {min} min',
         'truth.writing': 'Updating',
+        // #734 (the fallback banner branches by cause): only a host-reported quota may mention
+        //   the quota; other and unknown use the two neutral lines below (never the word quota).
+        'list.restFallbackNonQuota': 'This fetch went through the REST channel (data may be slightly stale)',
+        'list.restFallbackStaleNonQuota': 'Last fetch went through the REST channel ({n} min ago) — data may be slightly stale',
         // #721 (the processing-chain strip): the words used by "which tickets each session is working on".
         //   The judgement and the drawing live in views/shared/sessionChainView.js; the only data source
         //   is the one reading the host writes. The eight action.* keys line up one for one with the

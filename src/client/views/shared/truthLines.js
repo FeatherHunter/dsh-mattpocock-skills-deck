@@ -129,9 +129,11 @@ export const markRowWrite = function (st, number, effortId) {
 // 判据（纯函数，界面只调用它，不自己判断）：
 //   ① 没有降级标记 → 不画（一个字都不说）；
 //   ② 本次会话已经关掉这一档（关闭时刻 >= 这次降级的时刻）→ 不画；新的一次降级时刻更晚，会重新出现；
-//   ③ 知道降级时刻且在一小时以内 → 说实话，用原来那句「已切换 REST 通道」；
-//   ④ 时刻缺失、或已经超过一小时 → 改口成「上次取数走的 REST 通道（N 分钟前）」，
+//   ③ 知道降级时刻且在一小时以内 → 说当下：原因 quota 才说「配额已耗尽」，other 与未知说中性那句（这次取数走了 REST 通道），一个字不许提配额 —— 不真耗尽不许说耗尽（#734 硬规矩）；
+//   ④ 时刻缺失、或已经超过一小时 → 改口成「上次…」，同样按原因分岔：quota 走原来那句，other 与未知走中性那句，
 //      不再把一件历史事实说成现在（与本项目其他「不知道就不说、不许编」的口径一致）。
+// 为什么没有定时器：横幅只在新快照到来重渲染时重算；恢复后它靠一份干净的新快照（fallback 置空）
+//   消失，而不是靠时间自己撤 —— 缩时限与藏横幅都是把信号藏起来，#734 明确不许。
 export const REST_FALLBACK_STALE_MS = 60 * 60 * 1000
 export const restFallbackView = function (st, nowMs, dismissedAtMs) {
   const snap = st && st.snapshot
@@ -142,12 +144,14 @@ export const restFallbackView = function (st, nowMs, dismissedAtMs) {
   const ageMs = at > 0 ? Math.max(0, now - at) : -1
   const stale = (at === 0) || (ageMs >= REST_FALLBACK_STALE_MS)
   const minutes = ageMs >= 0 ? Math.floor(ageMs / TRUTH_MINUTE_MS) : 0
+  // #734：只有宿主说是 quota 才许提配额；other 与未知（null / 缺失）一律走中性句。
+  const isQuota = (snap.fallbackReason === 'quota')
   return {
     stale: stale,
     at: at,
     ageMs: ageMs,
     minutes: minutes,
-    key: stale ? 'list.restFallbackStale' : 'list.restFallback',
+    key: stale ? (isQuota ? 'list.restFallbackStale' : 'list.restFallbackStaleNonQuota') : (isQuota ? 'list.restFallback' : 'list.restFallbackNonQuota'),
     params: { n: minutes },
   }
 }

@@ -244,7 +244,7 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   if (!/res\.fallback === 'rest'|fast\.fallback === 'rest'/.test(asm)) fail('宿主快照组装处没有读上游带回来的真实降级事实（listFallback）')
   // 上游那一处降级事实：github 后端的 REST 通道真的降级时才带 fallback: 'rest'
   const gh = fs.readFileSync(path.join(ROOT, 'src/host/tracker/backends/github/issues.js'), 'utf8')
-  if (!/return \{ ok: true, data: applyIssueFilter\(restNorm, filter\), fallback: 'rest' \}/.test(gh)) fail('github 后端的 REST 降级通道没有把 fallback: \'rest\' 这个事实带回来')
+  if (!/return \{ ok: true, data: applyIssueFilter\(restNorm, filter\), fallback: 'rest'[^}]*\}/.test(gh)) fail('github 后端的 REST 降级通道没有把 fallback: \'rest\' 这个事实带回来')
   // 快照回包要把这两个字段带上（否则宿主写了、界面读不到）。
   //   #723（T19）把信封组装从 sessionSnapshot.js 搬到了 src/host/snapshotEnvelope.js —— 判据跟着**真实落点**走：
   //   不再按字面找那一行，而是把组装函数真的加载起来、喂两组输入，看它吐出来的那份回包上带没带那个标记。

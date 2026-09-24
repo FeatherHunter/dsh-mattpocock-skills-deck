@@ -220,7 +220,12 @@ export async function listIssues(repo, filter, ctx) {
     if (needRest) {
       // 双路兜底：GraphQL 不可用（unexpected EOF / 配额 / 形状差异）→ REST 分页 + pulls 富化 + sub_issues 树边修复。
       // 企业版（GHE）走同一 gh 命令（GH_HOST 由环境变量给 gh），失败按错误归一诚实返回，不另分支。
-      emitRestFallback(ctx, '地图', Date.now() - t0, pickFallbackReason(firstRestCause, ctx))
+      // #734：原因只算一次并随 fallback 交出去 —— 界面按它选句（只有 quota 才说配额耗尽）。
+      //   日志里那两行仍由 emitRestFallback 落细原因（timeout / rate-limit / ghe-host / graphql-error，
+      //   字段与附录不变）；快照里只放粗原因三档（quota / other / 未知=null），不真耗尽不许说耗尽。
+      const fbReason = pickFallbackReason(firstRestCause, ctx)
+      const fbCause = (fbReason === 'rate-limit' ? 'quota' : 'other')
+      emitRestFallback(ctx, '地图', Date.now() - t0, fbReason)
       const rest = await fetchAllIssuesREST(parsed, ctx)
       if (!rest.ok) return { ok: false, error: rest.error }
       const pulls = await fetchAllPullsREST(parsed, ctx)
@@ -235,7 +240,10 @@ export async function listIssues(repo, filter, ctx) {
       // #715：这一趟真的掉到 REST 通道了，把这件事如实带给调用方（`fallback: 'rest'`）——
       //   宿主快照组装处据此在快照上写下降级标记，界面那一侧只读不写（面板上那句「已切 REST 通道」的
       //   横幅本来就画好了，缺的一直是这个上游事实）。
-      return { ok: true, data: applyIssueFilter(restNorm, filter), fallback: 'rest' }
+      // #734：同时带上 `fallbackReason`（quota = 真配额耗尽，other = 其它原因走了 REST；
+      //   未知由调用方缺失表示为 null）。界面新鲜时只有 quota 才说「配额耗尽」，other 与未知一律
+      //   说中性那句，一个字不许提配额。旧判据 isRateLimitError 一处不动（裸 403 照旧走老路）。
+      return { ok: true, data: applyIssueFilter(restNorm, filter), fallback: 'rest', fallbackReason: fbCause }
     }
     return { ok: true, data: applyIssueFilter(all, filter) }
   } catch (e) {

@@ -41,25 +41,31 @@ if (!mod || typeof mod.restFallbackView !== 'function') {
 const view = mod.restFallbackView
 const MIN = 60 * 1000
 const NOW = 1760000000000
-const st = function (fallback, fallbackAt) { return { snapshot: { fallback: fallback, fallbackAt: fallbackAt } } }
+const st = function (fallback, fallbackAt, reason) {
+  const snap = { fallback: fallback, fallbackAt: fallbackAt }
+  if (reason !== undefined) snap.fallbackReason = reason
+  return { snapshot: snap }
+}
+// #734 起快照多带 fallbackReason（quota / other / 未知）：只有 quota 才说配额句。
+//   下面凡断言配额句的，一律显式给 quota（意图不变）；缺原因的中性档由 verify-rest-fallback-reason.js 钉住。
 
 check(view({ snapshot: null }, NOW, 0) === null, '没有快照 → 一个字都不画')
 check(view(st(null, null), NOW, 0) === null, '快照里没有降级标记 → 不画')
 check(view(st('graphql', NOW), NOW, 0) === null, '标记不是 rest → 不画')
 
-const fresh = view(st('rest', NOW - 5 * MIN), NOW, 0)
+const fresh = view(st('rest', NOW - 5 * MIN, 'quota'), NOW, 0)
 check(!!fresh && fresh.key === 'list.restFallback' && fresh.stale === false, '五分钟前的降级 → 照旧说「已切换 REST 通道」（实测 ' + JSON.stringify(fresh) + '）')
 check(!!fresh && fresh.minutes === 5, '带着分钟数 5（界面要能说「N 分钟前」）')
 
-const stale = view(st('rest', NOW - 2 * 60 * MIN), NOW, 0)
+const stale = view(st('rest', NOW - 2 * 60 * MIN, 'quota'), NOW, 0)
 check(!!stale && stale.key === 'list.restFallbackStale' && stale.stale === true, '两小时前的降级 → 改口成「上次取数走的 REST 通道（N 分钟前）」（实测 ' + JSON.stringify(stale) + '）')
 check(!!stale && stale.minutes === 120, '两小时 → 120 分钟（实测 ' + (stale && stale.minutes) + '）')
 
 const noAt = view(st('rest', null), NOW, 0)
-check(!!noAt && noAt.stale === true && noAt.key === 'list.restFallbackStale', '宿主没给时刻 → 不冒充现在，按「上次」那一句说（实测 ' + JSON.stringify(noAt) + '）')
+check(!!noAt && noAt.stale === true && noAt.key === 'list.restFallbackStaleNonQuota', '宿主没给时刻 → 不冒充现在，按「上次」的中性那一句说（原因未知，不提配额；实测 ' + JSON.stringify(noAt) + '）')
 
-check(view(st('rest', NOW - 5 * MIN), NOW, NOW - 5 * MIN) === null, '本次会话关掉这一档 → 不画')
-const again = view(st('rest', NOW - 1 * MIN), NOW, NOW - 5 * MIN)
+check(view(st('rest', NOW - 5 * MIN, 'quota'), NOW, NOW - 5 * MIN) === null, '本次会话关掉这一档 → 不画')
+const again = view(st('rest', NOW - 1 * MIN, 'quota'), NOW, NOW - 5 * MIN)
 check(!!again && again.key === 'list.restFallback', '新的一次降级（时刻更晚）→ 横幅重新出现（关掉的记的是「哪一次」）')
 
 // ── 二、界面接线 ──

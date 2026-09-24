@@ -34,7 +34,8 @@ export function createSessionSnapshot(deps) {
   // #683（F1 · ADR 的 R6）：快照里带上记住的布局答案（同 R4 那条路：落后的那扇窗不靠它就永远停在老答案上）。
   async function readSetupLayoutOf(cwd) { try { const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore() : null; if (!cs || typeof cs.getLayout !== 'function') return null; const r = await cs.getLayout(cwd); return (r && r.found === true) ? { layout: r.layout, pickedAt: r.pickedAt } : null } catch (e) { return null } }
   let snapSampleN = 0
-  const snapshotInflight = new Map() // #696 在途合并：同钥匙同后端同强制标记的并发共用同一份重建，强制刷新不进表
+  let _sharedInflightP = null // #729：本地表已撤，改用与刷新路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）
+  function _loadSharedInflight() { if (!_sharedInflightP) _sharedInflightP = import('./snapshotInflight.js'); return _sharedInflightP }
   // #723（T19）票面 3e：把「每个会话在处理哪些票」的读数挂到快照回包上（#721 界面上那一块读的就是它）。
   // 包在最外一层而不是写进 buildSnap：短路那两条回的是缓存里**同一个对象**，写进去会把读数的时刻冻在
   // 缓存落盘那一刻。读数由接线处传进来的 chainReadout 现算；没接上就不挂这个字段（界面会如实说读不到）。
@@ -83,9 +84,10 @@ export function createSessionSnapshot(deps) {
       }
       const missReason = (function () { try { if (isForce) return 'force'; const c = getCache(cwd); if (!c.snapshot) return 'empty'; const cb = c.snapshot.selection && c.snapshot.selection.backendId; const nb = _selEarly && _selEarly.backendId; if (cb !== nb) return 'backend-changed'; return 'expired' } catch (e) { return 'expired' } })()
       try { if (logCtx) logCtx.fire('info', 'snapshot.cache.miss', { reason: missReason }) } catch (eL) {}
-      // #696 在途合并：同根同后端同语言同强制标记的并发共用同一份重建（快照无语言参数恒为空串，另带修订号与版本号免串份），强制不进表；先回来的写缓存，后到的拿同一份
-      const snapshotDedupKey = cwd + '|' + String((_selEarly && _selEarly.backendId) || '') + '|' + String((args && args.lang) || '') + '|' + (isForce ? '1' : '0') + '|' + String((args && args.baseRev) || 0) + '|' + String((args && (args.ifNoneMatch || args.version)) || '')
-      if (!isForce) { const ongoing = snapshotInflight.get(snapshotDedupKey); if (ongoing) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'snapshot', keyHash: hash8(snapshotDedupKey) } }) } catch (eL) {}; return await ongoing } }
+      // #729：在途合并与刷新路共用一张表（键不带强制标记；强制只搭强制的车，非强制搭任何车）
+      const _sharedInflight = await _loadSharedInflight()
+      const snapshotDedupKey = _sharedInflight.snapshotDedupKeyOf({ cwd: cwd, backendId: (_selEarly && _selEarly.backendId), lang: (args && args.lang), baseRev: (args && args.baseRev), version: (args && (args.ifNoneMatch || args.version)) })
+      { const _ride = _sharedInflight.snapshotInflightTake(snapshotDedupKey, isForce, function () { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'snapshot', keyHash: hash8(snapshotDedupKey) } }) } catch (eL) {} }); if (_ride) return await _ride }
       const snapshotPending = (async function () {
       try {
         // 复用已算的 selection，避免二次探测
@@ -207,7 +209,7 @@ export function createSessionSnapshot(deps) {
           const snap = buildSnap({
             repoRoot, workspaceRoot: cwd,
             maps: inner.maps, issues: allForList, labels: labels,
-            repository: repoRef, backendModules: backendModules, selection: _sel, setupLayout: _layEarly, deck: inner.deck, fallback: inner.fallback, fallbackAt: inner.fallbackAt, refresh: inner.refresh,
+            repository: repoRef, backendModules: backendModules, selection: _sel, setupLayout: _layEarly, deck: inner.deck, fallback: inner.fallback, fallbackAt: inner.fallbackAt, fallbackReason: inner.fallbackReason, refresh: inner.refresh,
           })
           return adoptSnapLog(snap, cwd)
         }
@@ -331,7 +333,7 @@ export function createSessionSnapshot(deps) {
           repo: repo0b, repoRoot: repoRoot2, workspaceRoot: cwd,
           maps: inner2.maps, issues: allForList2, labels: labels2,
           repository: repoRef2, backendModules: backendModules2, selection: _sel, setupLayout: _layEarly,
-          viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck, fallback: inner2.fallback, fallbackAt: inner2.fallbackAt, refresh: inner2.refresh,
+          viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck, fallback: inner2.fallback, fallbackAt: inner2.fallbackAt, fallbackReason: inner2.fallbackReason, refresh: inner2.refresh,
         })
         await writeDiskCache(snap2.repo, snap2)
         return adoptSnapLog(snap2, cwd)
@@ -340,8 +342,7 @@ export function createSessionSnapshot(deps) {
         return { ok: false, error: errText(e), failKind: (e && e.fail && e.fail.kind) ? e.fail.kind : 'fetch-failed', env: { ghError: getGhLastError() } }
       }
       })()
-      if (!isForce) { snapshotInflight.set(snapshotDedupKey, snapshotPending); try { return await snapshotPending } finally { snapshotInflight.delete(snapshotDedupKey) } }
-      return await snapshotPending
+      const _entry = _sharedInflight.snapshotInflightPark(snapshotDedupKey, isForce, snapshotPending); try { return await snapshotPending } finally { _sharedInflight.snapshotInflightLeave(snapshotDedupKey, _entry) }
   }
   return { handleSnapshot }
 }
