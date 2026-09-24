@@ -14,12 +14,26 @@ process.chdir(tmp)
 let failures = 0
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
 const sleep = (ms) => new Promise(function (res) { setTimeout(res, ms) })
+// 「模拟 DSH 重启」在本冒烟里是**连续加载多个模块实例**：旧实例的定时器若还在跑，它和新实例会各自
+// 持一份内存账目、互相覆盖同一个状态文件——真实重启里前一个进程已经死了，不会发生这种事。所以每换
+// 一个实例之前都要先把上一个实例停手：先等它的防抖落盘窗口（1200 毫秒）走完，再清掉它排下的定时器。
+const pendingTimers = new Set()
+async function killInstance() {
+  await sleep(1300)
+  for (const h of pendingTimers) { try { clearTimeout(h) } catch (e) {} }
+  pendingTimers.clear()
+}
 // #266：gh api 索引快照由 stub 返回（测试可控；新号出现模拟「面板关闭期间会话内建号」）
 const GH_BASE = '{"number":1,"title":"既有一","state":"OPEN","updatedAt":"u1"}\n{"number":2,"title":"既有二","state":"CLOSED","updatedAt":"u2"}\n'
 let ghIndexText = GH_BASE
 // #596：宿主经 connection.fetch.register 注册一条精确路由 /api/dsws，端点名与入参装在请求体里。
 // 调用一律走这条路由，与真机同路（不再直接抓 handler 函数，那样会绕过整个协议层）。
 let route = null
+// 每次「重启」都会加载一个新的模块实例，而它要等 rpcChannel.js 动态加载完才会注册自己的路由；
+// 在那之前 route 仍指着上一个实例——上一个实例还活着，还持着自己那份内存账目。所以给每个实例一个
+// 代号，等「路由的代号」与「本次期望的代号」对上了才算它接管，调用才不会落到上一个实例身上。
+let routeGen = -1
+let expectGen = 0
 
 // fs 服务适配器：resolve 直通路径 + readText/writeText 走真实文件系统
 const fsSvc = {
@@ -37,11 +51,11 @@ const platformSvc = {
   env: { get: () => undefined },
 }
 
-function makeCtx() {
+function makeCtx(gen) {
   const subprocess = { async resolveExecutable() { return 'gh' }, spawn() { return { stdout: { on: () => {} }, stderr: { on: () => {} }, on: () => {}, terminate: () => {}, done: Promise.resolve({ exitCode: 0 }), collected: { stdout: { readFrom: () => ({ text: ghIndexText }) }, stderr: { readFrom: () => ({ text: '' }) } } } } }
   // host 的真实 timer 服务双签名：timeout(fn, ms) 节流 / timeout(ms) → Promise（runGh 超时竞速用）
-  const timer = { timeout: (a, b) => (typeof a === 'function' ? setTimeout(a, b) : new Promise(function (res) { setTimeout(res, a) })) }
-  const services = { subprocess, timer, fs: fsSvc, platform: platformSvc, connection: { fetch: { register: (r) => { route = r; return () => {} } } } }
+  const timer = { timeout: (a, b) => (typeof a === 'function' ? (function () { const h = setTimeout(function () { pendingTimers.delete(h); a() }, b); pendingTimers.add(h); return h })() : new Promise(function (res) { setTimeout(res, a) })) }
+  const services = { subprocess, timer, fs: fsSvc, platform: platformSvc, connection: { fetch: { register: (r) => { route = r; routeGen = gen; return () => {} } } } }
   return { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
 }
 
@@ -49,7 +63,7 @@ function makeCtx() {
 async function waitRoute() {
   const t0 = Date.now()
   while (Date.now() - t0 < 3000) {
-    if (route && typeof route.fetch === 'function') return true
+    if (route && typeof route.fetch === 'function' && routeGen === expectGen) return true
     await sleep(20)
   }
   return false
@@ -73,7 +87,8 @@ async function callHandler(endpoint, args) {
 try {
   // ---- 实例一：注册 + 即时落盘 ----
   const m1 = (await import('../package/lib/index.js')).default ?? (await import('../package/lib/index.js'))
-  ;((m1.apply ?? m1.default?.apply))(makeCtx())
+  expectGen = 1
+  ;((m1.apply ?? m1.default?.apply))(makeCtx(1))
   check(await waitRoute(), '实例一 dispatch 就绪')
   check(!!route && route.path === '/api/dsws', '通道注册在 /api/dsws（客户端请求路径与宿主注册路径同源）')
 
@@ -90,10 +105,12 @@ try {
   }
 
   // ---- 实例二（模拟 DSH 重启）：全新模块加载，内存为空，必须从盘恢复 ----
+  await killInstance()  // 先让上一个实例停手，再加载新实例（模拟重启）
   const url2 = '../package/lib/index.js?restart=1'
   const mod2Raw = await import(url2)
   const m2 = mod2Raw.default ?? mod2Raw
-  ;((m2.apply ?? m2.default?.apply))(makeCtx())
+  expectGen = 2
+  ;((m2.apply ?? m2.default?.apply))(makeCtx(2))
   check(await waitRoute(), '实例二 dispatch 就绪（新模块实例，模拟重启）')
 
   const plan = await callHandler('namingPlan', {})
@@ -114,10 +131,12 @@ try {
   const j3 = JSON.parse(readFileSync(stateFile, 'utf8'))
   check(j3.sessions['io-s3'] && j3.sessions['io-s3'].locked === true, '锁定即时落盘')
 
+  await killInstance()  // 先让上一个实例停手，再加载新实例（模拟重启）
   const url3 = '../package/lib/index.js?restart=2'
   const mod3Raw = await import(url3)
   const m3 = mod3Raw.default ?? mod3Raw
-  ;((m3.apply ?? m3.default?.apply))(makeCtx())
+  expectGen = 3
+  ;((m3.apply ?? m3.default?.apply))(makeCtx(3))
   const planLock = await callHandler('namingPlan', {})
   check(planLock.ok === true && Array.isArray(planLock.orders) && planLock.orders.every(function (o) { return o.sessionId !== 'io-s3' }), '再次重启后 locked 会话仍永不出单（值比对锁持久化成立）')
   // ---- #266：索引差值底座跨重启（面板关闭期间建号 → 重启后 attributed）----
@@ -132,11 +151,16 @@ try {
   }
   // 模拟「面板关闭（DSH 进程被重启）期间会话内建号」：新实例加载盘上账 → 索引含新号 77
   ghIndexText = GH_BASE + '{"number":77,"title":"关闭期间建的需求","state":"OPEN","updatedAt":"u77"}\n'
+  await killInstance()  // 先让上一个实例停手，再加载新实例（模拟重启）
   const mod4Raw = await import('../package/lib/index.js?restart=266')
   const m4 = mod4Raw.default ?? mod4Raw
-  ;((m4.apply ?? m4.default?.apply))(makeCtx())
+  expectGen = 4
+  ;((m4.apply ?? m4.default?.apply))(makeCtx(4))
   const await4 = await callHandler('awaitCreatedIssue', { sessionId: 'io-s4' })
-  check(!!await4 && await4.ok === true && await4.watching === true, '重启后 io-s4 仍在等待建号')
+  // 重启后的首轮扫描（随 apply 启动的兜底跳）就可能已经把「面板关闭期间建的新号」结算掉了：那时
+  // io-s4 已经拿到编号，这条通话如实回报「不再等待」（watching=false、stage=numbered）。所以这里只
+  // 钉住「它给了自洽的答复、会话还在账上」，编号到底有没有落定由下一条断言验。
+  check(!!await4 && await4.ok === true && (await4.watching === true || await4.stage === 'numbered'), '重启后 io-s4 仍在账上（等待中，或已被重启后的首轮扫描结算为编号档）')
   await sleep(600)
   const plan4 = await callHandler('namingPlan', {})
   const order4 = (plan4 && Array.isArray(plan4.orders)) ? plan4.orders.find(function (o) { return o.sessionId === 'io-s4' }) : null
@@ -160,9 +184,11 @@ try {
   const planC = await callHandler('namingPlan', {})
   check(!!planC && Array.isArray(planC.orders) && planC.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 冷却窗内不重复出单（瞬时故障自愈窗口生效）')
   // 重启一（实例 267a）：预算与冷却随盘恢复 —— 不因 DSH 重启归零、不重复出单
+  await killInstance()  // 先让上一个实例停手，再加载新实例（模拟重启）
   const mod6Raw = await import('../package/lib/index.js?restart=267a')
   const m6 = mod6Raw.default ?? mod6Raw
-  ;((m6.apply ?? m6.default?.apply))(makeCtx())
+  expectGen = 5
+  ;((m6.apply ?? m6.default?.apply))(makeCtx(5))
   const planCR = await callHandler('namingPlan', {})
   check(!!planCR && Array.isArray(planCR.orders) && planCR.orders.every(function (o) { return o.sessionId !== 'io-s5' }), '#267 重启后冷却窗依旧生效（预算从盘恢复，未归零）')
   await callHandler('namingResult', { sessionId: 'io-s5', outcome: 'failed', error: 'face 拒绝 #2' })
@@ -174,9 +200,11 @@ try {
   check(!!fx5 && fx5.count === 3 && fx5.error === 'face 拒绝 #3' && fx5.kind === 'draft' && fx5.hint === '定败样例', '#267 面板级定败清单携完整画像（次数/末次错误/档位形态/线索）')
   check(!!fx5 && !!fx5.lock && fx5.lock.baselineTitle === '[New] 新建需求', '#267 定败画像附值比对锁信息（协商化解依据随清单下发）')
   // 重启二（实例 267b）：定败清单仍在 —— 面板提醒跨重启不丢；依旧零出单
+  await killInstance()  // 先让上一个实例停手，再加载新实例（模拟重启）
   const mod7Raw = await import('../package/lib/index.js?restart=267b')
   const m7 = mod7Raw.default ?? mod7Raw
-  ;((m7.apply ?? m7.default?.apply))(makeCtx())
+  expectGen = 6
+  ;((m7.apply ?? m7.default?.apply))(makeCtx(6))
   const planXR = await callHandler('namingPlan', {})
   const fx5r = (planXR && Array.isArray(planXR.failures)) ? planXR.failures.find(function (f) { return f.sessionId === 'io-s5' }) : null
   check(!!fx5r && fx5r.count === 3, '#267 重启后定败清单仍在（面板级提醒跨重启不丢账）')
