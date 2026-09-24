@@ -68,6 +68,19 @@ function rpcIdOf(raw) {
   return (typeof raw === 'string' && DSH_RPC_ID_PATTERN.test(raw)) ? raw : 'invalid-request'
 }
 
+// 原型污染防护（CWE-915）：request.json() 解出来的对象里若带 __proto__ / constructor / prototype
+// 这几个键，一旦被下游 handler 拿去做浅拷贝或合并就可能改到 Object.prototype。信封本身不做合并，
+// 但 call.payload 会原样转交给端点表里的 handler，谁也不保证那些 handler 都是安全的——统一在入口拦。
+const DSH_FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
+function hasForbiddenKey(value, depth) {
+  if (depth > 8 || value === null || typeof value !== 'object') return false
+  for (const key of Object.keys(value)) {
+    if (DSH_FORBIDDEN_KEYS.has(key)) return true
+    if (hasForbiddenKey(value[key], depth + 1)) return true
+  }
+  return false
+}
+
 /**
  * 建立并注册客户端 RPC 通道。
  * @param {object} deps 依赖（全部显式传入，本文件不读闭包外部名）
@@ -123,6 +136,7 @@ export function createRpcChannel(deps) {
     if (!request || request.method !== 'POST') return new Response('method not allowed', { status: 405 })
     let body = null
     try { body = await request.json() } catch (eBody) { return new Response('body is not JSON', { status: 400 }) }
+    if (hasForbiddenKey(body, 0)) return new Response('body contains forbidden keys', { status: 400 })
     const rpcId = rpcIdOf(body && body.rpcId)
     const message = body && typeof body === 'object' ? body : {}
     // 端点名与入参装在请求体里（#596）：外层是 DSH 的 client-request 信封（method 为通道名，
