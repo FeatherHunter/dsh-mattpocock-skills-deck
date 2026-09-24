@@ -55,7 +55,7 @@ const capFold = (function () {
   if (!existsSync(resolve(CAPFOLD))) return null
   try {
     return new Function(read(CAPFOLD).replace(/^[ \t]*export[ \t]+/gm, '') +
-      '\nreturn { CAP_FOLD_POLICY, capFoldLadderOf, capFoldStateAt, capFoldStepCount }')()
+      '\nreturn { CAP_FOLD_POLICY, CAP_FOLD_START_FOLDED, capFoldLadderOf, capFoldStateAt, capFoldStepCount, capFoldStartWordsOf, capFoldStartFoldedOf }')()
   } catch (e) { return null }
 })()
 if (!capFold) {
@@ -261,6 +261,21 @@ if (!capFold) {
     'A16 自带反证：把期望改成「品牌起手就空、一路空到底」（上一版 pinned: true 的效果）时，同一条比对会当场报出来（实测 ' + pinnedDiffs.length + ' 档对不上，头三条：' + JSON.stringify(pinnedDiffs.slice(0, 3)) + '）')
   check(vZh.length === 0,
     'A17 这把尺子对真的那条阶梯一处都不报（不是「谁进来都报错」的假尺子；实测 ' + vZh.length + ' 处）')
+
+  // ---------- 首帧的起始态（维护者 2026-09-24 晚说清的那一句）----------
+  // 原话：「默认收成折叠是出来的一瞬间是折叠的，但是因为空间足够所以一定能看到，除非宽度不够。」
+  //   于是「默认折叠」= **首帧的起始态**（品牌收起、其余照原样），不是阶梯里的某一档，
+  //   也不是「任何宽度都不显示」。量到可用宽之后一律从第 0 档重走（够宽就把它显示出来）。
+  const startWords = capFold.capFoldStartWordsOf(SAMPLE.items)
+  const startFolded = capFold.capFoldStartFoldedOf()
+  check(startWords['1'] === '' && startWords['2'] === '沉淀' && startWords['9'] === ' 12:34:56',
+    'A18 首帧的起始态就是维护者要的「默认折叠」：品牌那一段是收起的，其余八段照原样（实测 ' + JSON.stringify(startWords) + '）')
+  check(startFolded.length === 1 && startFolded[0] === '1',
+    'A19 首帧要加折叠类的只有品牌那一段（号码 1）——计数器与图标一个都不在名单里（实测 ' + JSON.stringify(startFolded) + '）')
+  // A20：起始态与阶梯是两件事 —— 第 0 档（量到可用宽之后走的那一档）品牌必须是**可见**的。
+  //   某一天谁把起始态当成终态（上一版那种「起手就折叠、任何宽度都不显示」），这一条就红。
+  check(zhRun.rungs[0].words['1'] === 'MattSkills',
+    'A20 阶梯第 0 档（量到可用宽之后走的那一档）品牌那串字可见 —— 起始态不是终态（实测 ' + JSON.stringify(zhRun.rungs[0].words['1']) + '）')
 }
 
 console.log('')

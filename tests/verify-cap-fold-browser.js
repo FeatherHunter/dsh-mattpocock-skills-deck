@@ -348,6 +348,16 @@ try {
     check(!!brand && brandText.length > 0 && brandText.length < 'MattSkills'.length && brandText === 'MattSkills'.slice(0, brandText.length) && others.length === 0,
       'I1b 列宽 1200（九段放不下）：让位的是品牌，而且是它自己一格一格让（其余各段一字未动；实测品牌 ' + JSON.stringify(brandText) + '、被写空的其它段 ' + JSON.stringify(others) + '）')
   }
+  // I1b：收到**极窄**（列宽 320，胶囊可用宽 318）——这时九段字全让完了，版面上只剩图标与数字。
+  //   这条量的是维护者那句话的最后半句「直到只剩图标」：可让的字一段不剩，而载荷（四枚数字）还在。
+  {
+    await page.evaluate(() => window.__SET_COLUMN__(320))
+    const nar = await page.evaluate(() => window.__MEASURE__())
+    const textLeft = nar.labels.filter((l) => String(l.text).trim() !== '').map((l) => l.p)
+    const numsLeft = nar.nums.filter((n) => n.text.trim() !== '' && n.visible).length
+    check(textLeft.length === 0 && numsLeft >= 4,
+      'I1b 列宽 320（极窄）：可让的字（九段）全让完了，版面上只剩图标与数字，四枚数字都还在（实测还剩字的段 ' + JSON.stringify(textLeft) + '、看得见的数字 ' + numsLeft + ' 枚）')
+  }
   // I1c：载荷装得下的时候，四枚数字必须都在胶囊框里；装不下时（胶囊比载荷还窄）这一条几何上做不到，
   //   按契约由外层的 overflow 处理 —— 门禁把观测值照原样打出来，但只在「装得下」时判红绿。
   for (const w of [320, 380]) {
@@ -397,16 +407,27 @@ try {
     if (!mounted || !mounted.ok) { bad('I2 ' + flavor + ' 挂不起来：' + JSON.stringify(mounted)); continue }
     const m = await page.evaluate(() => window.__MEASURE__())
     console.log('     ' + flavor + ' → ' + payLine(m))
-    // 无效测量的那一趟一段字都不许被收掉（2026-09-24 晚改口径：品牌那一段不再享有豁免 ——
-    //   它跟其余八段一样，只有真放不下时才让位）
+    // 无效测量的那一趟：档号仍然不推进（阶梯一个字不画）—— 但要落在**首帧的起始态**上。
+    //   维护者 2026-09-24 晚说清的那一句：「默认收成折叠是出来的一瞬间是折叠的，但是因为空间足够
+    //   所以一定能看到，除非宽度不够。」所以这里分两问：品牌那一段是收起的（起始态）；
+    //   其余八段一个字都没被收掉（阶梯没动过它们 —— 量不到不等于放不下）。
     const foldedAny = m.labels.filter((l) => l.folded).map((l) => l.p)
-    check(foldedAny.length === 0, 'I2 ' + flavor + ' 那一趟一段字都没有被收掉（实测被收的号码：' + JSON.stringify(foldedAny) + '，共 ' + m.folded + ' 段）')
+    check(foldedAny.length === 1 && foldedAny[0] === '1',
+      'I2 ' + flavor + ' 那一趟收起的只有品牌那一段（首帧的起始态 = 维护者要的「默认折叠」；实测收起的号码：' + JSON.stringify(foldedAny) + '）')
+    const brandFirst = m.labels.filter((l) => l.p === '1')[0] || null
+    // hidden 那一式量的是「父容器整个不显示」：整条胶囊都在屏幕外，任何元素都没有矩形，
+    //   所以那里只要求品牌那一段是收起的（起始态）；图标「看得见」这件事在 zero 那一式量（那条是真在屏上的）。
+    const brandFoldOk = flavor === 'zero'
+      ? (!!brandFirst && brandFirst.folded === true && String(brandFirst.text).trim() === '' && !!m.brandIcon && m.brandIcon.visible)
+      : (!!brandFirst && brandFirst.folded === true && String(brandFirst.text).trim() === '')
+    check(brandFoldOk,
+      'I2 ' + flavor + ' 那一帧品牌那串字是收起的' + (flavor === 'zero' ? '、那枚罗盘图标还在' : '（父容器不显示，图标有没有矩形这里量不出意义）') + '（实测 ' + JSON.stringify({ text: brandFirst ? brandFirst.text : null, folded: brandFirst ? brandFirst.folded : null, icon: m.brandIcon }) + '）')
     check(m.tier === null || Number(m.tier) < m.labelCount, 'I2 ' + flavor + ' 那一趟没有落到最后一档（实测档号 ' + m.tier + '）')
     const numsOk = m.nums.length >= 4 && m.nums.every((n) => n.text.trim() !== '')
     check(numsOk, 'I2 ' + flavor + ' 那一帧四枚数字的文本都还在（实测 ' + numLine(m) + '）')
-    // 「不推进档位」的另一种说法：那九段字里一段都不许被写成空串
-    const lost = m.labels.filter((l) => String(l.text).trim() === '').map((l) => l.p)
-    check(lost.length === 0, 'I2 ' + flavor + ' 那一帧没有一段字被写成空串（实测空掉的号码：' + JSON.stringify(lost) + '）')
+    // 「阶梯没推进」的另一种说法：除起始态那一段外，其余各段一段都不许被写成空串
+    const lost = m.labels.filter((l) => l.p !== '1' && String(l.text).trim() === '').map((l) => l.p)
+    check(lost.length === 0, 'I2 ' + flavor + ' 那一帧除品牌外没有一段字被写成空串（实测空掉的号码：' + JSON.stringify(lost) + '）')
     if (flavor === 'zero') {
       // 宽度真的到齐之后必须回到正确档（这一条是绿的是因为在的那几条重算路还在：观察器 / 提交 / 字体）
       await page.evaluate(() => window.__SET_COLUMN__(700))

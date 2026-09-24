@@ -16,11 +16,15 @@
 //   真正能分出来的是**内容盒**（孩子能用的那点宽）与矩形宽高一起看，见 capFoldRoom。
 //   量不到时不写 DOM、不改档号（保持上一档；首次挂载就保持 React 原样），只安排一次重算。
 //
-// keep 是调用方跨调用带着走的两张表（挂在组件的 ref 上，键都是 data-fold-priority 号码串）：
+// keep 是调用方跨调用带着走的两张表加一个标记（挂在组件的 ref 上，键都是 data-fold-priority 号码串）：
 //   · keep.full —— 每一段**完整的那串字**。机器画上去的是收短后的样子，若下一趟照着 DOM 里那串收短的字
 //     再收一次，就会越收越短、再也展不开；所以「完整的那串」必须记在机器外面。
 //   · keep.written —— 机器上一次写进 DOM 的那一串。用来认出「这不是我写的」：React 重渲染时会把收短过的
 //     那串换回完整的一串（时间串一直在变），那一次写入要当成新的事实，重新排一遍阶梯。
+//   · keep.started —— 这一台有没有量到过有效可用宽（也就是有没有从首帧的起始态里走出来）。
+//     维护者 2026-09-24 晚说清的那一句「默认收成折叠是出来的一瞬间是折叠的，但是因为空间足够所以一定能
+//     看到，除非宽度不够」：首帧（还没量到可用宽）品牌那一段是收起的（见 capFoldStartWordsOf），
+//     量到之后就从第 0 档重走一遍 —— 够宽就把它显示出来。这个标记就是「走出首帧了没有」。
 // 返回：最后定下来的档号（同时写进 cap.dataset.foldTier，供真机门禁等它稳定；cap.dataset.fold 记折叠段数）；
 //   这一趟量不到可用宽时返回 null，且不写任何 dataset（门禁据此看得出「还没定档」）。
 export const runCapFold = function (cap, keep) {
@@ -38,9 +42,16 @@ export const runCapFold = function (cap, keep) {
     return { priority: Number(s.p), word: full[s.p] }
   })
   const ladder = capFoldLadderOf({ items: items })
-  // 量不到有效可用宽：这一趟到此为止 —— 一个字都不写、档号也不动。
-  //   保持上一档不动是有意的：量不到不等于放不下，写下去反而会把「未知」变成一条错结论（真机回归就是这么来的）。
-  if (capFoldRoom(cap) === null) { capFoldRetryOnce(cap, keep); return null }
+  // 量不到有效可用宽：这一趟到此为止 —— 档号不写、阶梯一个字不画。
+  //   量不到不等于放不下，照「量到多少就判多少」写下去反而会把「未知」变成一条错结论（真机回归就是这么来的）。
+  //   但首帧要落在**起始态**上：胶囊第一次画出来、还没有过任何一次有效测量时，品牌那一段是收起的
+  //   （其余各段照原样）—— 这正是维护者要的「默认折叠」，见本文件上面 keep.started 那一段。
+  if (capFoldRoom(cap) === null) {
+    if (!keep.started) applyCapFoldStart(cap, slots, keep)
+    capFoldRetryOnce(cap, keep)
+    return null
+  }
+  keep.started = true
   // 把这一条推到第 tier 档：先把所有折叠类去掉、强制重排一次（拿到「基准」那一档的真实宽度），
   //   再按判据说的把每一段画上 —— 收成空串的那几段加 .dsws-folded，其余原样显示。
   const applyTier = function (tier) {
@@ -68,6 +79,31 @@ export const runCapFold = function (cap, keep) {
   return tier
 }
 
+/**
+ * 把这一条摆成**还没量到可用宽的那一帧**的样子（维护者要的「默认折叠」，见文件头 keep.started 那段）：
+ *   被 capFoldStartFoldedOf 点到的几段（今天只有品牌那一段）写成空串并加 .dsws-folded（display:none），
+ *   其余各段照原样写着 —— 于是真机上看到的就是「只剩一枚罗盘图标，别的都在」。
+ * 为什么要把「首帧长什么样」也交给机器来画、而不是只靠界面那边：胶囊是 React 画的，而「这一帧量到宽了没有」
+ *   只有这里知道。机器每次进场都先照这一条把首帧摆对，界面那边不必自己判断，两边也不会各说各话。
+ * keep 传进来的话，顺手把这几个空串记进 keep.written —— 不然下一趟会把「我自己写的空串」当成界面送来的
+ *   新事实记进 keep.full，那一段字从此再也展不开。
+ * 只在「还没有任何一次有效测量」时调用；量到之后一律走阶梯（第 0 档 = 九段全展开）。
+ */
+export const applyCapFoldStart = function (cap, slotsIn, keepIn) {
+  const slots = Array.isArray(slotsIn) ? slotsIn : Array.from(cap.querySelectorAll('[data-fold-priority]')).map(function (el) {
+    return { el: el, p: String(el.getAttribute('data-fold-priority') || '') }
+  })
+  const written = keepIn && keepIn.written
+  const keepFolded = capFoldStartFoldedOf()
+  for (let i = 0; i < slots.length; i++) {
+    if (keepFolded.indexOf(slots[i].p) < 0) continue
+    slots[i].el.textContent = ''
+    slots[i].el.classList.add('dsws-folded')
+    if (written) written[slots[i].p] = ''
+  }
+  void cap.offsetWidth
+  return keepFolded
+}
 /**
  * 这一档放不放得下：把「这一条横条里的东西按其本来宽度摆开」，看装不装得下。装得下返回 true。
  *
