@@ -164,6 +164,8 @@ export function createRefreshWiring(deps) {
 
   // 上一次同步给写事件白名单的那些根（切走的那几个要 forgetRoot）。
   let allowed = []
+  // #735：盘读回守卫（内存按进程活、盘跨进程；重启后每个根第一次被看见时读回一格，一根只读一次）。
+  const restoredRoots = new Set()
 
   /**
    * 把「现在在看哪些工作区根」同步给写事件的白名单（b）与闸的活跃集合（c）——**同一份来源**（视野模型）。
@@ -184,6 +186,8 @@ export function createRefreshWiring(deps) {
     for (const root of roots) {
       if (allowed.indexOf(root) < 0) { try { await writeEvents.allowRoot(root) } catch (eA) {} }
       try { gate.setWorkspace(workspaceKeyOf(root), { active: true }) } catch (eG) {}
+      // #735：新根把盘上这一格读回来（重启丢的内存与别的进程写的格子都靠这一次；restore 永不抛错）。
+      if (!restoredRoots.has(root)) { restoredRoots.add(root); try { Promise.resolve(sessionTickets.restore({ rootKey: root })).catch(function () {}) } catch (eR) {} }
     }
     for (const root of allowed) {
       if (roots.indexOf(root) < 0) {
