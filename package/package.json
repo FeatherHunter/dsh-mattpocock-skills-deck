@@ -23,7 +23,6 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-tools": "0.1.7-rc.2",
     "dsh-plugin-update": "0.1.1"
   },
   "files": [

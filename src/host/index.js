@@ -11,10 +11,15 @@ export default {
   // 只声明 connection，不能再加 webServer：原因（#596 实测的 inject 报错）与注册改走的 fetch.register 见 ./rpcChannel.js。
   inject: ['connection'],
   apply(ctx) {
+    // 启动门（2026-09-26）：subprocess/timer 晚到时不再静默跳过——旧代码直接 return，
+    // wiring 与工具注册 hook 从没跑起来，deck 工具永不注册还查无对证。
+    // 先试一次；不齐就挂到框架依赖门上等人齐（官方 ctx.inject 写法，见 dsh-tool-pwsh）；
+    // 30 秒还没齐落一条 warn。
+    const bootBody = () => {
     const subprocess = ctx.get('subprocess')
     const timer = ctx.get('timer')
     const fs = ctx.get('fs')
-    if (subprocess === undefined || timer === undefined) return
+    if (subprocess === undefined || timer === undefined) return false
 
     // H1 #445：原 31–215 行（bundled provider）已搬到 ./bootstrap.js，下见动态接线。
     // B3 rpc host 侧 shim：harness.handle('wf.x') → 本 Map；对外分发见文件末尾的
@@ -346,5 +351,15 @@ export default {
     }).catch(function (eLoad) {
       try { fireLog('error', 'host.dispatch.error', { method: '/api/dsws 通道注册', argsHash: '', errorKind: 'internal' }) } catch (eR2) {}
     })
+    return true
+    }
+    if (bootBody()) return
+    let booted = false
+    const bootOnce = () => { if (booted) return; booted = true; try { bootBody() } catch (eBoot) {} }
+    try { ctx.inject(['subprocess', 'timer'], bootOnce) } catch (eInj) { bootOnce() }
+    setTimeout(() => {
+      if (booted) return
+      try { console.warn('[dsh-mattpocock-skills-deck] host boot deferred: subprocess/timer not ready after 30s, deck tools not registered') } catch (eW) {}
+    }, 30000)
   },
 }

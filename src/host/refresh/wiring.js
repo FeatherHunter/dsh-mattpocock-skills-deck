@@ -220,7 +220,12 @@ export function createRefreshWiring(deps) {
   // handleFor（会话→注册表里绑过的真实句柄）、backendCtx（platform / fs / exec，exec 走 platformChannel
   // 的 detectionExec，也就是起进程那一层）、invalidate（写后作废那个工作区的快照缓存）、hourUsage（问账本）。
   // planStore 没有注入：批量建图的中间态因此退回进程内存，工具会在返回值里如实说 durable:false。
-  let deckToolsP = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function () { return import('@deepseek-ai/dsh-tools') }, makeDeckRegisterReport(logCtx)) } catch (eH) {} // #741 注册那一步：表装好就向 agent 交七个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）
+  // 注意（2026-09-26）：loadDefineTool 固定给 null，走原生形状直接注册——
+  // 照官方工具写法（dsh-tool-pwsh / dsh-calorie），插件不 import 框架包，
+  // 注册的是纯数据对象；之前这里动态 import 自带副本的 defineTool，
+  // 挂载后全部工具调用报 Cannot read properties of undefined (reading 'prepare')。
+  // 退路输出与参数形状见 shared/deck-tools/agent-register.js（deckAgentOutputSchemaRaw）。
+  let deckToolsP = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function () { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx)) } catch (eH) {} // #741 注册那一步：表装好就向 agent 交七个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）
   async function deckToolsForHost() {
     if (!deckToolsP) {
       deckToolsP = (async function () {

@@ -316,8 +316,17 @@ export function hookDeckAgentTools(ctx, getTable, loadDefineTool, report, opts) 
     try { return (ctx && (ctx.tools || (typeof ctx.get === 'function' && ctx.get('tools')))) || null } catch (eS) { return null }
   }
   function later(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
+  // 取表也重试（2026-09-26）：启动时后端注册表/平台可能还没就绪，旧代码取一次失败就认了，
+  // deck 工具永不注册。表就绪后再进服务等待。
+  function table(left) {
+    return Promise.resolve().then(function () { return getTable() }).then(function (built) {
+      if (built && built.tools) return built
+      if (left > 0) return later(waitMs).then(function () { return table(left - 1) })
+      return null
+    }).catch(function () { return null })
+  }
   try {
-    Promise.resolve().then(function () { return getTable() }).then(function (built) {
+    table(retries).then(function (built) {
       if (!built || !built.tools) { tell({ ok: false, reason: 'no-table' }); return null }
       function attempt(left) {
         const svc = toolsSvcOf()
