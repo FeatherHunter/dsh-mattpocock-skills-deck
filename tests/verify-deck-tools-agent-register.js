@@ -41,6 +41,29 @@ const SEVEN_NAMES = [
 // 注册表允许出现在参数写法里的键（与线上工具注册实现同一份白名单，逐字对齐）。
 const LEGAL_PARAM_KEYS = ['type', 'properties', 'items', 'enum', 'const', 'additionalProperties', 'required', 'description', 'title', 'default', 'examples']
 
+// 原生模式子集判定（退路交出去的形状必须过这一关）：与线上 assertSupportedJsonSchema
+// 同一条规则——required 只许是挂在对象节点上的字符串数组，绝不许按属性标布尔；
+// additionalProperties 出现就必须是布尔；键必须在子集里。2026-09-26 真机验证
+// 就是栽在输出模式里按属性标了必填，门禁当时只查了官方写法的合法，没查退路。
+const RAW_TYPES = ['string', 'number', 'integer', 'boolean', 'null', 'array', 'object']
+const RAW_KEYS = ['type', 'oneOf', 'properties', 'required', 'additionalProperties', 'items', 'enum', 'const', 'description', 'title', 'default', 'examples']
+function rawSubsetLegal(node, where, problems) {
+  if (node === null || typeof node !== 'object' || Array.isArray(node)) { problems.push(where + ' 不是对象'); return }
+  for (const k of Object.keys(node)) if (RAW_KEYS.indexOf(k) < 0) { problems.push(where + ' 有子集外的键 ' + k); return }
+  const t = node.type
+  if (typeof t !== 'string' || RAW_TYPES.indexOf(t) < 0) { problems.push(where + ' 类型不在子集里'); return }
+  if (Object.hasOwn(node, 'required')) {
+    if (t !== 'object') { problems.push(where + '.required 不许出现在非对象节点上'); }
+    else if (!Array.isArray(node.required) || node.required.some((x) => typeof x !== 'string')) { problems.push(where + '.required 必须是字符串数组'); }
+  }
+  if (Object.hasOwn(node, 'additionalProperties') && typeof node.additionalProperties !== 'boolean') problems.push(where + '.additionalProperties 必须是布尔')
+  if (node.properties !== undefined) {
+    if (t !== 'object' || node.properties === null || typeof node.properties !== 'object' || Array.isArray(node.properties)) { problems.push(where + '.properties 形状不对'); return }
+    for (const p of Object.keys(node.properties)) rawSubsetLegal(node.properties[p], where + '.properties.' + p, problems)
+  }
+  if (node.items !== undefined) rawSubsetLegal(node.items, where + '.items', problems)
+}
+
 function paramsLegal(node, where, problems) {
   if (node === null || typeof node !== 'object' || Array.isArray(node)) { problems.push(where + ' 不是对象'); return }
   for (const k of Object.keys(node)) {
@@ -184,6 +207,13 @@ async function main() {
   const rawDef = seven.filter((d) => d.name === 'deck_issue_get')[0]
   check(rawOne && rawOne.parameters === rawDef.parameters && typeof rawOne.execute === 'function',
     '退路参数用定义里编好的那份原样交（注册表不重编，直接当模式用）')
+  // 退路七个的形状逐个过原生子集判定（官方写法走编译器，退路走这一关）。
+  for (const t of rawSvc.registered) {
+    const rProblems = []
+    rawSubsetLegal(t.parameters, t.name + '.parameters', rProblems)
+    rawSubsetLegal(t.output.schema, t.name + '.output.schema', rProblems)
+    check(rProblems.length === 0, t.name + ' 退路形状过原生子集' + (rProblems.length ? '（' + rProblems.join('；') + '）' : ''))
+  }
   const rawBad = await rawOne.execute('不是对象', { agent: { session: { cwd: '/ws' } } })
   check(rawBad && rawBad.status === 'unsupported' && typeof rawBad.text === 'string' && rawBad.text.length > 0,
     '参数不是对象直接回没做成，不进表')

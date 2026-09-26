@@ -80,9 +80,15 @@ export function toAgentParameterSpec(parameters) {
   return spec
 }
 
+function deckAgentRender(args, value) {
+  const text = value && typeof value.text === 'string' ? value.text : ''
+  return [{ type: 'text', text: text }]
+}
+
 /**
- * 输出的固定形状：每次调用都带状态与一句话（壳里保证这两格永远是字符串），
+ * 输出的固定形状（官方写法用）：每次调用都带状态与一句话（壳里保证这两格永远是字符串），
  * 其余原样透出。渲染只取那一句话，避免把整张地图的子票清单铺进历史。
+ * 注意这是定义函数的写法（必填按属性标）；退路另有一份原生写法，见下。
  */
 export function deckAgentOutputSpec() {
   return {
@@ -94,10 +100,28 @@ export function deckAgentOutputSpec() {
       },
       additionalProperties: true,
     },
-    render: function (args, value) {
-      const text = value && typeof value.text === 'string' ? value.text : ''
-      return [{ type: 'text', text: text }]
+    render: deckAgentRender,
+  }
+}
+
+/**
+ * 输出的固定形状（退路用，直接交注册表）：内容与上面同一份，但写成原生模式——
+ * 必填写成字符串数组挂在对象节点上。退路不经过定义函数的编译，
+ * 上面那种按属性标必填的写法交过去会被注册表当场拒绝（七个一个都交不出去），
+ * 2026-09-26 真机验证时就是栽在这里。
+ */
+export function deckAgentOutputSchemaRaw() {
+  return {
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string' },
+        text: { type: 'string' },
+      },
+      required: ['status', 'text'],
+      additionalProperties: true,
     },
+    render: deckAgentRender,
   }
 }
 
@@ -198,7 +222,7 @@ export async function registerDeckAgentTools(toolsSvc, table, defineTool) {
         description: def.description,
         parameters: def.parameters,
         timeoutMs: AGENT_TOOL_TIMEOUT_MS,
-        output: deckAgentOutputSpec(),
+        output: deckAgentOutputSchemaRaw(),
         execute: execute,
       }
     }
