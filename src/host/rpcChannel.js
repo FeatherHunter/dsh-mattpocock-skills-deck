@@ -126,8 +126,14 @@ export function createRpcChannel(deps) {
   }
 
   // 一次请求：解信封 → 取端点名与入参 → 分发 → 回信封。非 POST / 非 JSON / 信封不合规一律按协议回错，不静默。
+  // 请求体大小上限（CWE-400）：不设上限时，超大 JSON 载荷会撑爆解析期内存或长时间占用事件循环。
+  // 1MB 足够容纳正常的 RPC 入参；超限直接 413 拒绝，不进入 JSON.parse。
+  const MAX_RPC_BODY_BYTES = 1024 * 1024
+
   const routeFetch = async function (request) {
     if (!request || request.method !== 'POST') return new Response('method not allowed', { status: 405 })
+    const contentLength = Number(request.headers && request.headers.get && request.headers.get('content-length'))
+    if (Number.isFinite(contentLength) && contentLength > MAX_RPC_BODY_BYTES) return new Response('request body too large', { status: 413 })
     let body = null
     try { body = await request.json() } catch (eBody) { return new Response('body is not JSON', { status: 400 }) }
     const rpcId = rpcIdOf(body && body.rpcId)
