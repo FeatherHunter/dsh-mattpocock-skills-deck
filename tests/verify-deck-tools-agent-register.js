@@ -23,8 +23,9 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
 const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-async function waitFor(cond, what) {
-  for (let i = 0; i < 100; i++) { try { if (cond()) return } catch (e) {} await sleep(20) }
+async function waitFor(cond, what, rounds) {
+  const total = rounds || 100
+  for (let i = 0; i < total; i++) { try { if (cond()) return } catch (e) {} await sleep(20) }
   throw new Error('等不到：' + what)
 }
 
@@ -217,6 +218,9 @@ async function main() {
   const rawBad = await rawOne.execute('不是对象', { agent: { session: { cwd: '/ws' } } })
   check(rawBad && rawBad.status === 'unsupported' && typeof rawBad.text === 'string' && rawBad.text.length > 0,
     '参数不是对象直接回没做成，不进表')
+  const rawAbort = await rawOne.execute({ key: '01' }, { agent: { session: { cwd: '/ws' } }, signal: { aborted: true } })
+  check(rawAbort && rawAbort.status === 'unsupported' && String(rawAbort.text).indexOf('中止') >= 0,
+    '调用已被中止直接回没做成，不等后端（也不抛）')
   // 信封取值与共享壳同一份常量（改了壳，这里的字面量会先红）。
   const shell = await imp('src/shared/deck-tools/shell.js')
   check(rawBad.status === shell.DECK_STATUS.UNSUPPORTED, '没做成的状态取值与壳一致')
@@ -242,7 +246,15 @@ async function main() {
   let hookCrashed = false
   try { agent.hookDeckAgentTools({}, async function () { return table }, async function () { return null }) } catch (e) { hookCrashed = true }
   await sleep(50)
-  check(!hookCrashed, '工具服务不在，钩子静默跳过（宿主照常起）')
+  check(!hookCrashed, '工具服务不在，钩子静默等几轮（宿主照常起）')
+  // 服务晚到两秒：钩子第一轮取不到，等一轮再取到，七个照样交。
+  const lateCtx = {}
+  const lateSvc = stubToolsSvc()
+  agent.hookDeckAgentTools(lateCtx, async function () { return table }, async function () { return { defineTool: stubDefineTool } })
+  await sleep(100)
+  lateCtx.tools = lateSvc
+  await waitFor(function () { return lateSvc.registered.length === 7 }, '晚到的服务', 700)
+  check(lateSvc.registered.length === 7, '服务晚到，钩子等到再交（不等死也不错过）')
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   process.exit(failed ? 1 : 0)

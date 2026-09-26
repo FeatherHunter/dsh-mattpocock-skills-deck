@@ -152,12 +152,17 @@ function tableDefinitions(table) {
 }
 
 /**
- * 执行入口共用：参数先看是不是对象（不是直接回“没做成”，不进表），
+ * 执行入口共用：先看调用是不是已经被中止（是就直接回“没做成”，不等后端），
+ * 参数再看是不是对象（不是直接回“没做成”，不进表），
  * 再调表里同名工具的 run，只回它的 value；run 抛错或回包不合形状时，
  * 包成“没做成”的信封。工具永不把异常抛给 agent。
  */
 function makeExecute(run) {
   return async function (args, exec) {
+    const signal = exec && exec.signal
+    if (signal && typeof signal.aborted === 'boolean' && signal.aborted) {
+      return { status: 'unsupported', reason: 'aborted', text: '这次被中止了，没做完：请按需重调一次。' }
+    }
     if (args === null || typeof args !== 'object' || Array.isArray(args)) {
       return { status: 'unsupported', reason: 'bad-args', text: '参数不是一个对象，我没法做：请按这个工具的参数说明重调一次。' }
     }
@@ -242,20 +247,31 @@ export async function registerDeckAgentTools(toolsSvc, table, defineTool) {
 
 /**
  * 自举钩子：接线装好表之后调一次，把七个工具交到 agent 手上（#741 缺的就是这一步）。
- * ctx 是宿主上下文（工具服务从它身上取，有就没有、没有就跳过）；
+ * ctx 是宿主上下文（工具服务从它身上取，取不到会等几轮）；
  * getTable 取已装好的那张表；loadDefineTool 拿工具包的定义函数（拿不到就走退路）。
  * 防御式防火即发：任何一步走不通都只吞掉，宿主绝不因此起不来。
+ * 工具服务可能比我们晚就绪（行顺序不保证），取不到就等两秒再取，最多五次；
+ * 五次都没有就认了——这种环境本来就没有 agent 工具可交。
  */
 export function hookDeckAgentTools(ctx, getTable, loadDefineTool) {
+  function toolsSvcOf() {
+    try { return (ctx && (ctx.tools || (typeof ctx.get === 'function' && ctx.get('tools')))) || null } catch (eS) { return null }
+  }
+  function later(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
   try {
     Promise.resolve().then(function () { return getTable() }).then(function (built) {
-      var toolsSvc = null
-      try { toolsSvc = (ctx && (ctx.tools || (typeof ctx.get === 'function' && ctx.get('tools')))) || null } catch (eS) { toolsSvc = null }
-      if (!toolsSvc || typeof toolsSvc.register !== 'function') return null
-      return Promise.resolve(typeof loadDefineTool === 'function' ? loadDefineTool() : null).then(function (m) {
-        const defineTool = m && typeof m.defineTool === 'function' ? m.defineTool : null
-        try { return registerDeckAgentTools(toolsSvc, built, defineTool) } catch (eR) { return null }
-      }).catch(function () { return null })
+      function attempt(left) {
+        const svc = toolsSvcOf()
+        if (!svc || typeof svc.register !== 'function') {
+          if (left > 0) return later(2000).then(function () { return attempt(left - 1) })
+          return null
+        }
+        return Promise.resolve(typeof loadDefineTool === 'function' ? loadDefineTool() : null).then(function (m) {
+          const defineTool = m && typeof m.defineTool === 'function' ? m.defineTool : null
+          try { return registerDeckAgentTools(svc, built, defineTool) } catch (eR) { return null }
+        }).catch(function () { return null })
+      }
+      return attempt(5)
     }).catch(function () {})
   } catch (e0) {}
 }
