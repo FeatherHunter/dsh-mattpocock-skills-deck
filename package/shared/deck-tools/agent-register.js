@@ -154,7 +154,7 @@ export const PROBE_SERVICES = ['tools', 'connection', 'subprocess', 'timer', 'fs
 /** 探针定义：不要参数，回服务清单的 JSON 文本（诊断口，通道接通即退役）。 */
 export const probeDefinition = {
   name: 'deck_probe',
-  description: '诊断探针：回-agent 上下文里有哪些服务。查 deck 工具执行通道设计时用，通道接通即退役。',
+  description: '诊断探针：返回 agent 上下文里有哪些服务。查 deck 工具执行通道设计时用，通道接通即退役。',
   parameters: { type: 'object', properties: {}, additionalProperties: false },
 }
 
@@ -281,7 +281,7 @@ export async function registerDeckAgentTools(toolsSvc, table, defineTool) {
  * 注册结果的报告函数（接线传给钩子）：只落在既有的两个事件上，不新增事件名。
  * 交出去至少一个记 info 的 host.call；一个没交出去记 warn 的 host.call.fail，
  * 原因只记散列不记原文，缺哪种依赖（服务不在、表不在）与跑起来失败分开标。
- *  logCtx 没有或报告抛错都只吞掉——报告绝不能把宿主带崩。
+ * logCtx 没有或报告抛错都只吞掉——报告绝不能把宿主带崩。
  */
 export function makeDeckRegisterReport(logCtx) {
   return function report(info) {
