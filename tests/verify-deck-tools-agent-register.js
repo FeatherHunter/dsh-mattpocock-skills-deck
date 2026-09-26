@@ -199,6 +199,8 @@ async function main() {
   check(angry && angry.registered.length === 0 && (angry.reason || '').length > 0, '注册表拒绝只进 reason，不抛')
   const noSvc = await agent.registerDeckAgentTools(null, table, stubDefineTool)
   check(noSvc && noSvc.registered.length === 0 && (noSvc.reason || '').length > 0, '服务不在只进 reason，不抛')
+  const emptyTable = await agent.registerDeckAgentTools(stubToolsSvc(), { names: [], definitions: [], tools: {} }, stubDefineTool)
+  check(emptyTable && emptyTable.registered.length === 0 && emptyTable.reason === 'empty-table', '表是空的给空表原因（不谎报已交过）')
   // 退路（工具包没装好、defineTool 传不进来）：直接按注册表形状交，七个照样出去。
   const rawSvc = stubToolsSvc()
   const raw = await agent.registerDeckAgentTools(rawSvc, table, null)
@@ -250,11 +252,44 @@ async function main() {
   // 服务晚到两秒：钩子第一轮取不到，等一轮再取到，七个照样交。
   const lateCtx = {}
   const lateSvc = stubToolsSvc()
-  agent.hookDeckAgentTools(lateCtx, async function () { return table }, async function () { return { defineTool: stubDefineTool } })
+  const lateReports = []
+  agent.hookDeckAgentTools(lateCtx, async function () { return table }, async function () { return { defineTool: stubDefineTool } },
+    function (info) { lateReports.push(info) }, { retries: 30, waitMs: 20 })
   await sleep(100)
   lateCtx.tools = lateSvc
   await waitFor(function () { return lateSvc.registered.length === 7 }, '晚到的服务', 700)
   check(lateSvc.registered.length === 7, '服务晚到，钩子等到再交（不等死也不错过）')
+  check(lateReports.length === 1 && lateReports[0].ok === true && typeof lateReports[0].ms === 'number',
+    '交出去终点报告成功（含耗时）')
+  // 报告函数抛错不连累钩子；服务始终没有终点报告没交出去。
+  const angryReports = []
+  agent.hookDeckAgentTools({}, async function () { return table }, async function () { return null },
+    function () { angryReports.push(1); throw new Error('报告炸了') }, { retries: 2, waitMs: 10 })
+  await waitFor(function () { return angryReports.length === 1 }, '失败终点', 700)
+  check(angryReports.length === 1, '报告抛错钩子不崩，失败终点照样记一次')
+
+  // ── 6. 报告函数：只落既有事件，键都在白名单里 ──
+  check(typeof agent.makeDeckRegisterReport === 'function', '交出 makeDeckRegisterReport（接线拿它落日志）')
+  const fired = []
+  const fakeLog = { fire: function (level, event, fields) { fired.push({ level: level, event: event, fields: fields }) } }
+  const report = agent.makeDeckRegisterReport(fakeLog)
+  report({ ok: true, ms: 12 })
+  report({ ok: false, reason: 'no-tools-service' })
+  report({ ok: false, reason: 'register-failed:deck_context' })
+  const okLine = fired.filter((f) => f.event === 'host.call')[0]
+  check(fired.every((f) => f.event === 'host.call' || f.event === 'host.call.fail'),
+    '报告只落既有事件（不新增事件名）')
+  check(okLine && okLine.level === 'info' && okLine.fields.method === 'deck.agentRegister' && okLine.fields.ok === true && okLine.fields.kind === 'deck-tool' && typeof okLine.fields.latencyMs === 'number',
+    '成功行带方法名、耗时、成功标记与种类')
+  const failLines = fired.filter((f) => f.event === 'host.call.fail')
+  check(failLines.length === 2 && failLines.every((f) => f.level === 'warn' && f.fields.method === 'deck.agentRegister' && f.fields.kind === 'deck-tool' && typeof f.fields.errorHash === 'string' && typeof f.fields.errorKind === 'string'),
+    '失败行带方法名、种类、错误指纹与缺失分类')
+  check(failLines[0].fields.errorKind === 'missing-dep' && failLines[1].fields.errorKind === 'throw',
+    '服务不在标缺失，注册抛错标抛错（两类分开）')
+  const noLog = agent.makeDeckRegisterReport(null)
+  let reportCrashed = false
+  try { noLog({ ok: true, ms: 1 }); noLog({ ok: false, reason: 'x' }) } catch (e) { reportCrashed = true }
+  check(!reportCrashed, '日志口不在，报告静默跳过')
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   process.exit(failed ? 1 : 0)

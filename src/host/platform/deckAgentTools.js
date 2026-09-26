@@ -12,6 +12,16 @@
 // 传不进来就走退路，直接按注册表认的形状交，见 registerDeckAgentTools），
 // 七个工具的定义由调用方从装好的那张表里拿来，本文件只做形状转换与注册循环。
 // 工具调用的日志沿用既有事件（成功失败各一行，kind 为 deck-tool），这里不新增事件。
+// 注册这一步的结果也一样：只落在既有的 host.call / host.call.fail 上（见 makeDeckRegisterReport），
+// 不新增事件名——此前静默吞掉，真机查了两天没有原文（#724 同一款教训）。
+
+/** 短散列（错误原因只记指纹，不记原文；与共享壳里那把同算法，零导入所以自带一份）。 */
+function hash8(text) {
+  let h = 5381
+  const t = String(text || '')
+  for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0)
+  return ('0000000' + h.toString(16)).slice(-8)
+}
 
 /** 单次执行允许的最长时间（毫秒）：盖住批量建票在正常网络下的最坏情况；超预算的调用壳里已经提前拦下。 */
 export const AGENT_TOOL_TIMEOUT_MS = 120000
@@ -194,6 +204,7 @@ export async function registerDeckAgentTools(toolsSvc, table, defineTool) {
   const defsByName = {}
   for (const d of defs) if (d && typeof d.name === 'string') defsByName[d.name] = d
   const missing = []
+  if (!names.length) return { registered: [], missing: [], reason: 'empty-table' }
   if (!toolsSvc || typeof toolsSvc.register !== 'function') {
     return { registered: [], missing: names.map((n) => ({ name: n, reason: 'no-tools-service' })), reason: 'no-tools-service' }
   }
@@ -246,32 +257,67 @@ export async function registerDeckAgentTools(toolsSvc, table, defineTool) {
 }
 
 /**
+ * 注册结果的报告函数（接线传给钩子）：只落在既有的两个事件上，不新增事件名。
+ * 交出去至少一个记 info 的 host.call；一个没交出去记 warn 的 host.call.fail，
+ * 原因只记散列不记原文，缺哪种依赖（服务不在、表不在）与跑起来失败分开标。
+ *  logCtx 没有或报告抛错都只吞掉——报告绝不能把宿主带崩。
+ */
+export function makeDeckRegisterReport(logCtx) {
+  return function report(info) {
+    try {
+      if (!logCtx || typeof logCtx.fire !== 'function') return
+      const at = info || {}
+      if (at.ok === true) {
+        logCtx.fire('info', 'host.call', { method: 'deck.agentRegister', latencyMs: typeof at.ms === 'number' ? at.ms : 0, ok: true, kind: 'deck-tool' })
+        return
+      }
+      const reason = String(at.reason || 'unknown')
+      logCtx.fire('warn', 'host.call.fail', { method: 'deck.agentRegister', kind: 'deck-tool', errorHash: hash8(reason), errorKind: (/no-tools-service|no-table|empty-table/.test(reason) ? 'missing-dep' : 'throw') })
+    } catch (e) {}
+  }
+}
+/**
  * 自举钩子：接线装好表之后调一次，把七个工具交到 agent 手上（#741 缺的就是这一步）。
  * ctx 是宿主上下文（工具服务从它身上取，取不到会等几轮）；
  * getTable 取已装好的那张表；loadDefineTool 拿工具包的定义函数（拿不到就走退路）。
+ * report 可选：每到一个终点调一次（交出去/没交出去），接线拿它落日志。
  * 防御式防火即发：任何一步走不通都只吞掉，宿主绝不因此起不来。
- * 工具服务可能比我们晚就绪（行顺序不保证），取不到就等两秒再取，最多五次；
- * 五次都没有就认了——这种环境本来就没有 agent 工具可交。
+ * 工具服务可能比我们晚就绪（行顺序不保证），取不到就等几轮再取；
+ * 轮数与间隔可配，缺省五轮、每轮两秒，都用完就认了。
  */
-export function hookDeckAgentTools(ctx, getTable, loadDefineTool) {
+export function hookDeckAgentTools(ctx, getTable, loadDefineTool, report, opts) {
+  const o = opts || {}
+  const retries = (typeof o.retries === 'number' && o.retries >= 0) ? Math.floor(o.retries) : 5
+  const waitMs = (typeof o.waitMs === 'number' && o.waitMs >= 0) ? Math.floor(o.waitMs) : 2000
+  const t0 = Date.now()
+  function tell(info) { try { if (typeof report === 'function') report(info) } catch (eR) {} }
   function toolsSvcOf() {
     try { return (ctx && (ctx.tools || (typeof ctx.get === 'function' && ctx.get('tools')))) || null } catch (eS) { return null }
   }
   function later(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
   try {
     Promise.resolve().then(function () { return getTable() }).then(function (built) {
+      if (!built || !built.tools) { tell({ ok: false, reason: 'no-table' }); return null }
       function attempt(left) {
         const svc = toolsSvcOf()
         if (!svc || typeof svc.register !== 'function') {
-          if (left > 0) return later(2000).then(function () { return attempt(left - 1) })
+          if (left > 0) return later(waitMs).then(function () { return attempt(left - 1) })
+          tell({ ok: false, reason: 'no-tools-service' })
           return null
         }
         return Promise.resolve(typeof loadDefineTool === 'function' ? loadDefineTool() : null).then(function (m) {
           const defineTool = m && typeof m.defineTool === 'function' ? m.defineTool : null
-          try { return registerDeckAgentTools(svc, built, defineTool) } catch (eR) { return null }
+          let res = null
+          try { res = registerDeckAgentTools(svc, built, defineTool) } catch (eR) { res = null }
+          return Promise.resolve(res).then(function (r) {
+            if (!r) { tell({ ok: false, reason: 'register-threw' }); return null }
+            if (r.missing && r.missing.length) { tell({ ok: false, reason: String(r.reason || 'register-failed') }); return r }
+            if (r.registered && r.registered.length) { tell({ ok: true, ms: Date.now() - t0 }); return r }
+            return null
+          })
         }).catch(function () { return null })
       }
-      return attempt(5)
+      return attempt(retries)
     }).catch(function () {})
   } catch (e0) {}
 }

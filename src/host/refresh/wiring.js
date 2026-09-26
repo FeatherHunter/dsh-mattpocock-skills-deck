@@ -27,7 +27,7 @@ import { createAttention, createFocusHandler } from './attention.js'
 // 互相引用（tests/verify-no-same-layer-import.js 把 src/host/ 整棵树算作宿主层），
 // 宿主层里再读一次那七个文件就要新增 7 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
 import { createDeckToolsForHost, DECK_TOOL_FILES } from '../platform/deckToolsAssembly.js'
-import { hookDeckAgentTools } from '../platform/deckAgentTools.js' // #741 注册那一步（向 agent 交七个工具）：形状与循环住平台区，这里只递表
+import { hookDeckAgentTools, makeDeckRegisterReport } from '../platform/deckAgentTools.js' // #741 注册那一步（向 agent 交七个工具）：形状、循环与报告住平台区，这里只递表
 // #723（T19c）第 E 件：行级增量那半边（refresh/patch.js）同理收在 src/host/platform/refreshAssembly.js 一处。
 import { createPatchForHost } from '../platform/refreshAssembly.js'
 import * as budget from '../../shared/refresh/budget.js'
@@ -220,7 +220,7 @@ export function createRefreshWiring(deps) {
   // handleFor（会话→注册表里绑过的真实句柄）、backendCtx（platform / fs / exec，exec 走 platformChannel
   // 的 detectionExec，也就是起进程那一层）、invalidate（写后作废那个工作区的快照缓存）、hourUsage（问账本）。
   // planStore 没有注入：批量建图的中间态因此退回进程内存，工具会在返回值里如实说 durable:false。
-  let deckToolsP = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function () { return import('@deepseek-ai/dsh-tools') }) } catch (eH) {} // #741 注册那一步：表装好就向 agent 交七个工具（deckToolsForHost 声明提升，这里可直接用）
+  let deckToolsP = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function () { return import('@deepseek-ai/dsh-tools') }, makeDeckRegisterReport(logCtx)) } catch (eH) {} // #741 注册那一步：表装好就向 agent 交七个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）
   async function deckToolsForHost() {
     if (!deckToolsP) {
       deckToolsP = (async function () {
