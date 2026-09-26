@@ -23,15 +23,21 @@ export const inject = ['tools']
 const SEVEN = [deckContextDef, deckIssueGetDef, deckMapSnapshotDef, deckIssueCreateDef, deckMapPlanCreateDef, deckMapLinkDef, deckIssuePatchDef]
 
 export function apply(ctx) {
+  if (!ctx || !ctx.tools || typeof ctx.tools.register !== 'function') {
+    throw new Error('[deckToolsRow] 工具服务不在，行起不来（注入声明了 tools，框架本应保证就绪）。')
+  }
   for (const d of SEVEN) {
     const opt = buildAgentToolOptions(d)
-    ctx.tools.register(defineTool({
-      name: opt.name,
-      description: opt.description,
-      parameters: opt.parameters,
-      output: opt.output,
-      execute: makePendingExecute(d.name),
-    }))
+    if (!opt) continue
+    try {
+      ctx.tools.register(defineTool({
+        name: opt.name,
+        description: opt.description,
+        parameters: opt.parameters,
+        output: opt.output,
+        execute: makePendingExecute(d.name),
+      }))
+    } catch (e) { continue }
   }
   ctx.tools.register(defineTool({
     name: probeDefinition.name,

@@ -320,6 +320,20 @@ async function main() {
   const pendOut = await pending.execute({}, { agent: { session: { cwd: '/ws' } } })
   check(pendOut && pendOut.status === 'unsupported' && String(pendOut.text).indexOf('面板') >= 0,
     '通道未通时执行诚实说明并指去面板（不谎报成功）')
+  // 注册表第二个就拒绝：剩下的照样交，坏一个不连累其余六个加探针。
+  const flakySvc = stubToolsSvc()
+  let flakyCalls = 0
+  const flakyOrig = flakySvc.register
+  flakySvc.register = function (tool) { flakyCalls += 1; if (flakyCalls === 2) throw new Error('注册表拒收这一个'); return flakyOrig(tool) }
+  let flakyCrashed = null
+  try { row.apply({ tools: flakySvc, connection: {} }) } catch (e) { flakyCrashed = e }
+  check(!flakyCrashed && flakySvc.registered.length === 7,
+    '坏一个工具的注册，剩下六个加探针照样交（行不整体掀翻）')
+  // 工具服务不在：行起不来就明说，不静默。
+  let noSvcCrashed = null
+  try { row.apply({}) } catch (e) { noSvcCrashed = e }
+  check(!!noSvcCrashed && String((noSvcCrashed && noSvcCrashed.message) || '').indexOf('工具服务不在') >= 0,
+    '工具服务不在行就明说失败（不静默，装配面看得见）')
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   process.exit(failed ? 1 : 0)
