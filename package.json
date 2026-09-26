@@ -19,13 +19,13 @@
     "sync:matt": "node scripts/sync-matt-skills.mjs --pin v1.2.3 --verify"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
     "dsh-log": "^0.2.0",
     "dsh-plugin-update": "0.1.1",
     "ws": "^8.21.3"
   },
   "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
   "devDependencies": {
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
     "esbuild": "^0.28.2",
     "jsdom": "^30.0.1",
     "playwright": "^1.62.1",

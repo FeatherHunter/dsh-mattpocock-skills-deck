@@ -27,7 +27,7 @@ import { createAttention, createFocusHandler } from './attention.js'
 // 互相引用（tests/verify-no-same-layer-import.js 把 src/host/ 整棵树算作宿主层），
 // 宿主层里再读一次那七个文件就要新增 7 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
 import { createDeckToolsForHost, DECK_TOOL_FILES } from '../platform/deckToolsAssembly.js'
-import { hookDeckAgentTools, makeDeckRegisterReport } from '../platform/deckAgentTools.js' // #741 注册那一步（向 agent 交七个工具）：形状、循环与报告住平台区，这里只递表
+import { hookDeckAgentTools, makeDeckRegisterReport } from '../../shared/deck-tools/agent-register.js' // #741 注册那一步（向 agent 交七个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
 // #723（T19c）第 E 件：行级增量那半边（refresh/patch.js）同理收在 src/host/platform/refreshAssembly.js 一处。
 import { createPatchForHost } from '../platform/refreshAssembly.js'
 import * as budget from '../../shared/refresh/budget.js'

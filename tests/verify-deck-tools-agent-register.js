@@ -84,13 +84,6 @@ function topMapLegal(map, where, problems) {
   for (const p of Object.keys(map)) paramsLegal(map[p], where + '.' + p, problems)
 }
 
-function stubDefineTool(option) {
-  // 桩只做注册表会做的那两步形状检查：名字是字符串、输出带模式与渲染函数。
-  if (!option || typeof option.name !== 'string' || !option.name) throw new Error('stub: name 缺失')
-  if (!option.output || typeof option.output !== 'object' || typeof option.output.render !== 'function' || !option.output.schema) throw new Error('stub: output 形状不对')
-  return Object.assign({ __stubbed: true }, option)
-}
-
 function stubToolsSvc() {
   const registered = []
   return {
@@ -122,16 +115,25 @@ async function main() {
 
   // ── 0. 注册帮助模块存在且只用纯函数 ──
   let agent = null
-  try { agent = await imp('src/host/platform/deckAgentTools.js') } catch (e) {
-    check(false, '注册帮助模块可加载（src/host/platform/deckAgentTools.js，现在：' + ((e && e.message) || e) + '）')
+  try { agent = await imp('src/shared/deck-tools/agent-register.js') } catch (e) {
+    check(false, '注册帮助模块可加载（src/shared/deck-tools/agent-register.js）')
     console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
     process.exit(1)
   }
   check(agent && typeof agent.buildAgentToolOptions === 'function', '交出 buildAgentToolOptions（定义 → 注册选项）')
   check(agent && typeof agent.registerDeckAgentTools === 'function', '交出 registerDeckAgentTools（批量注册）')
-  const agentSrc = readText('src/host/platform/deckAgentTools.js')
+  const agentSrc = readText('src/shared/deck-tools/agent-register.js')
   check(!/from\s+['"]@deepseek-ai\/dsh-tools['"]/.test(agentSrc) && !/require\(['"]@deepseek-ai\/dsh-tools['"]\)/.test(agentSrc),
-    '帮助模块不直引工具包（defineTool 由调用方传进来，门禁里才能用桩）')
+    '帮助模块不直引工具包（defineTool 由调用方传进来）')
+  let row = null
+  try { row = await imp('src/host/platform/deckToolsRow.js') } catch (e) {
+    check(false, '行模块可加载（src/host/platform/deckToolsRow.js）')
+    console.log('\n' + total + ' 条断言，失败')
+    process.exit(1)
+  }
+  check(row && typeof row.apply === 'function', '行模块交出 apply（官方行形状）')
+  check(row && Array.isArray(row.inject) && row.inject.indexOf('tools') >= 0, '行模块注入工具服务（框架保证就绪才加载）')
+  check(typeof row.name === 'string' && row.name.length > 0, '行模块有名字')
 
   // ── 1. 用七个真定义跑转换：名字齐、形状合法、必填对上 ──
   const toolFiles = [
@@ -146,6 +148,11 @@ async function main() {
   const seven = []
   for (const f of toolFiles) seven.push((await imp(f)).definition)
   check(seven.map((d) => d.name).join(',') === SEVEN_NAMES.join(','), '七个真定义名字齐且顺序与装配口一致')
+  // 真实现直引（仓库开发依赖，与线上同版本）：官方编译与原生判定都不拿桩冒充。
+  const realTools = await imp('node_modules/@deepseek-ai/dsh-tools/lib/index.js')
+  const realDefineTool = realTools.defineTool
+  const realAssert = realTools.assertSupportedJsonSchema
+  check(typeof realDefineTool === 'function' && typeof realAssert === 'function', '真实现可加载（官方编译与原生判定都用它）')
   const requiredOf = { deck_issue_create: ['title'], deck_issue_get: ['key'], deck_map_snapshot: ['key'], deck_issue_patch: ['key'], deck_map_plan_create: ['title', 'children'] }
   for (const d of seven) {
     const opt = agent.buildAgentToolOptions(d)
@@ -166,7 +173,7 @@ async function main() {
   // ── 2. 注册行为（全桩）：七个都交出去、执行只转发、不抛 ──
   const svc = stubToolsSvc()
   const table = stubTable(seven, null)
-  const res = await agent.registerDeckAgentTools(svc, table, stubDefineTool)
+  const res = await agent.registerDeckAgentTools(svc, table, realDefineTool)
   check(res && res.registered && res.registered.join(',') === SEVEN_NAMES.join(','), '一次注册七个，一个不少')
   check(!res.missing || res.missing.length === 0, '缺件清单为空')
   const one = svc.registered.filter((t) => t.name === 'deck_issue_create')[0]
@@ -181,25 +188,25 @@ async function main() {
   }
   const throwing = stubTable(seven, 'deck_map_link')
   const svc2 = stubToolsSvc()
-  await agent.registerDeckAgentTools(svc2, table, stubDefineTool)
+  await agent.registerDeckAgentTools(svc2, table, realDefineTool)
   const link = svc2.registered.filter((t) => t.name === 'deck_map_link')[0]
   // 注意这里故意用会抛的表执行：工具永不抛，炸了也要包成信封。
   const svc3 = stubToolsSvc()
-  await agent.registerDeckAgentTools(svc3, throwing, stubDefineTool)
+  await agent.registerDeckAgentTools(svc3, throwing, realDefineTool)
   const link3 = svc3.registered.filter((t) => t.name === 'deck_map_link')[0]
   const out3 = await link3.execute({ key: '01' }, { agent: { session: { cwd: '/ws' } } })
   check(out3 && out3.status === 'unsupported' && typeof out3.text === 'string' && out3.text.length > 0,
     '后端炸了也不抛，包成没做成的信封如实说')
 
   // ── 3. 脏环境：调两次不炸、注册表拒绝不掀、没工具包走退路 ──
-  const twice = await agent.registerDeckAgentTools(svc, table, stubDefineTool)
+  const twice = await agent.registerDeckAgentTools(svc, table, realDefineTool)
   check(twice && twice.registered.length === 0 && (twice.reason || '').length > 0, '同一服务调两次不重复注册（第二次给 reason）')
   const angrySvc = { register: function () { throw new Error('注册表拒绝') } }
-  const angry = await agent.registerDeckAgentTools(angrySvc, table, stubDefineTool)
+  const angry = await agent.registerDeckAgentTools(angrySvc, table, realDefineTool)
   check(angry && angry.registered.length === 0 && (angry.reason || '').length > 0, '注册表拒绝只进 reason，不抛')
-  const noSvc = await agent.registerDeckAgentTools(null, table, stubDefineTool)
+  const noSvc = await agent.registerDeckAgentTools(null, table, realDefineTool)
   check(noSvc && noSvc.registered.length === 0 && (noSvc.reason || '').length > 0, '服务不在只进 reason，不抛')
-  const emptyTable = await agent.registerDeckAgentTools(stubToolsSvc(), { names: [], definitions: [], tools: {} }, stubDefineTool)
+  const emptyTable = await agent.registerDeckAgentTools(stubToolsSvc(), { names: [], definitions: [], tools: {} }, realDefineTool)
   check(emptyTable && emptyTable.registered.length === 0 && emptyTable.reason === 'empty-table', '表是空的给空表原因（不谎报已交过）')
   // 退路（工具包没装好、defineTool 传不进来）：直接按注册表形状交，七个照样出去。
   const rawSvc = stubToolsSvc()
@@ -210,12 +217,18 @@ async function main() {
   const rawDef = seven.filter((d) => d.name === 'deck_issue_get')[0]
   check(rawOne && rawOne.parameters === rawDef.parameters && typeof rawOne.execute === 'function',
     '退路参数用定义里编好的那份原样交（注册表不重编，直接当模式用）')
-  // 退路七个的形状逐个过原生子集判定（官方写法走编译器，退路走这一关）。
+  // 退路七个的形状逐个过原生子集判定（官方写法走编译器，退路走这一关），
+  // 再过一遍真原生判定（手写判定只防回归，真实现才是准绳）。
   for (const t of rawSvc.registered) {
     const rProblems = []
     rawSubsetLegal(t.parameters, t.name + '.parameters', rProblems)
     rawSubsetLegal(t.output.schema, t.name + '.output.schema', rProblems)
     check(rProblems.length === 0, t.name + ' 退路形状过原生子集' + (rProblems.length ? '（' + rProblems.join('；') + '）' : ''))
+    try { realAssert(t.parameters); realAssert(t.output.schema) } catch (e) {
+      check(false, t.name + ' 退路形状过真原生判定（' + String((e && e.message) || e).split(';')[0] + '）')
+      continue
+    }
+    check(true, t.name + ' 退路形状过真原生判定')
   }
   const rawBad = await rawOne.execute('不是对象', { agent: { session: { cwd: '/ws' } } })
   check(rawBad && rawBad.status === 'unsupported' && typeof rawBad.text === 'string' && rawBad.text.length > 0,
@@ -238,7 +251,7 @@ async function main() {
   // ── 5. 钩子行为（全桩）：有服务就交七个，没服务静默跳过 ──
   check(typeof agent.hookDeckAgentTools === 'function', '交出 hookDeckAgentTools（接线调的就是它）')
   const hookSvc = stubToolsSvc()
-  agent.hookDeckAgentTools({ tools: hookSvc }, async function () { return table }, async function () { return { defineTool: stubDefineTool } })
+  agent.hookDeckAgentTools({ tools: hookSvc }, async function () { return table }, async function () { return { defineTool: realDefineTool } })
   await waitFor(function () { return hookSvc.registered.length === 7 }, '钩子交出七个')
   check(hookSvc.registered.length === 7, '钩子交出七个（官方写法）')
   const hookRawSvc = stubToolsSvc()
@@ -253,7 +266,7 @@ async function main() {
   const lateCtx = {}
   const lateSvc = stubToolsSvc()
   const lateReports = []
-  agent.hookDeckAgentTools(lateCtx, async function () { return table }, async function () { return { defineTool: stubDefineTool } },
+  agent.hookDeckAgentTools(lateCtx, async function () { return table }, async function () { return { defineTool: realDefineTool } },
     function (info) { lateReports.push(info) }, { retries: 30, waitMs: 20 })
   await sleep(100)
   lateCtx.tools = lateSvc
@@ -290,6 +303,23 @@ async function main() {
   let reportCrashed = false
   try { noLog({ ok: true, ms: 1 }); noLog({ ok: false, reason: 'x' }) } catch (e) { reportCrashed = true }
   check(!reportCrashed, '日志口不在，报告静默跳过')
+
+  // ── 7. 行模块：agent 层那一行交出七个加探针 ──
+  const rowSvc = stubToolsSvc()
+  let rowCrashed = null
+  try { row.apply({ tools: rowSvc, connection: {} }) } catch (e) { rowCrashed = e }
+  check(!rowCrashed, '行模块应用不抛（服务在就交）')
+  const rowNames = rowSvc.registered.map((t) => t.name)
+  check(SEVEN_NAMES.every((n) => rowNames.indexOf(n) >= 0), '行模块交出七个 deck 工具')
+  check(rowNames.indexOf('deck_probe') >= 0, '行模块交出探针')
+  const probe = rowSvc.registered.filter((t) => t.name === 'deck_probe')[0]
+  const inventory = JSON.parse(await probe.execute({}, { tools: { a: 1 }, connection: {}, agent: { session: { cwd: '/ws' } } }))
+  check(inventory && inventory.tools === true && inventory.connection === true && inventory.subprocess === false,
+    '探针如实回服务清单（有的说有，没有的说没有）')
+  const pending = rowSvc.registered.filter((t) => t.name === 'deck_context')[0]
+  const pendOut = await pending.execute({}, { agent: { session: { cwd: '/ws' } } })
+  check(pendOut && pendOut.status === 'unsupported' && String(pendOut.text).indexOf('面板') >= 0,
+    '通道未通时执行诚实说明并指去面板（不谎报成功）')
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   process.exit(failed ? 1 : 0)

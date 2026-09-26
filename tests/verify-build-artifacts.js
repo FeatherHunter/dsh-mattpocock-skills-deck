@@ -151,9 +151,10 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // src/shared/refresh/__diag-attention.mjs（一个临时诊断脚本，源码侧已不在），总数落到 43。
   // #724：宿主接线与检查链两边共用同一份「闸的工作区钥匙」纯逻辑，新增 src/shared/refresh-workspace-key.js，总数 43→44。
   // #730：电话体与沙箱共用同一份「会话读目录」纯逻辑，新增 src/shared/session-cwd.js（package/shared 同字节镜像），总数 44→45。
+  // #741：宿主接线与 agent 行模块共用同一份注册纯逻辑，新增 src/shared/deck-tools/agent-register.js（package/shared 同字节镜像），总数 45→46。
   // 这个数是「src/shared 树里实际有几个文件」，会随别的票增减 —— 每次改完记得重跑本门禁对数。
-  check(srcSharedFiles.length === 45, `src/shared 45 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 45, `package/shared 45 文件（实得 ${pkgSharedFiles.length}）`)
+  check(srcSharedFiles.length === 46, `src/shared 46 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 46, `package/shared 46 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

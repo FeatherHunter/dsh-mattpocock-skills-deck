@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@deepseek-ai/dsh-tools':
-        specifier: 0.1.5-rc.2
-        version: 0.1.5-rc.2(ac70a5c0afcec020ae14ac994e8049ec)
       dsh-log:
         specifier: ^0.2.0
         version: 0.2.1
@@ -21,6 +18,9 @@ importers:
         specifier: ^8.21.3
         version: 8.21.3
     devDependencies:
+      '@deepseek-ai/dsh-tools':
+        specifier: 0.1.5-rc.2
+        version: 0.1.5-rc.2(ac70a5c0afcec020ae14ac994e8049ec)
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2

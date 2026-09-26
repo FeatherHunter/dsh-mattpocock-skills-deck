@@ -1,19 +1,8 @@
-// src/host/platform/deckAgentTools.js —— 七个 deck_* 工具向 agent 注册的那一步（#741）
-//
-// 背景一句话：七个工具的实现与宿主装配都在，agent 的工具列表里却一个都看不见，
-// 因为从来没有一处调用过工具注册。这个文件就是缺的那一步：把已装好的那张表，
-// 按工具注册表认的形状交出去。执行只是转发（调那张表、回它的 value），不添业务。
-//
-// 住在这里的原因：同层互引门禁不许宿主层的文件互相引用，七个工具文件都在宿主层，
-// 所以“替它们办注册”这件事只能落在被排除的位置（本目录与后端房间二选一；
-// 房间归另一条门禁管），与装配点 deckToolsAssembly.js 同一个理由。
-//
-// 本文件零导入：defineTool 由调用方传进来（生产是工具包的，门禁用桩；
-// 传不进来就走退路，直接按注册表认的形状交，见 registerDeckAgentTools），
-// 七个工具的定义由调用方从装好的那张表里拿来，本文件只做形状转换与注册循环。
-// 工具调用的日志沿用既有事件（成功失败各一行，kind 为 deck-tool），这里不新增事件。
-// 注册这一步的结果也一样：只落在既有的 host.call / host.call.fail 上（见 makeDeckRegisterReport），
-// 不新增事件名——此前静默吞掉，真机查了两天没有原文（#724 同一款教训）。
+// src/shared/deck-tools/agent-register.js —— 七个 deck_* 工具向 agent 注册的那一步（#741）
+// 七个工具的实现与宿主装配都在，agent 列表却看不见，因为从没人调过注册。
+// 住共享层因为两边都要用（宿主接线与 agent 行模块），四层各自内部禁互引，零导入是唯一的住法。
+// defineTool 由调用方传（生产是工具包，门禁用仓库开发依赖里的真实现）；传不进来走退路。
+// 日志沿用既有事件不新增（调用走 host.call，注册结果见 makeDeckRegisterReport）。
 
 /** 短散列（错误原因只记指纹，不记原文；与共享壳里那把同算法，零导入所以自带一份）。 */
 function hash8(text) {
@@ -146,6 +135,38 @@ export function buildAgentToolOptions(definition) {
   const parameters = toAgentParameterSpec(d.parameters)
   if (!parameters) return null
   return { name: d.name, description: d.description, parameters: parameters, output: deckAgentOutputSpec() }
+}
+
+/**
+ * 通道未通时的诚实执行（行模块在代执行通道接通前用它）：不碰后端，
+ * 直接回“没做成”的信封并指去面板，绝不谎报成功。通道接通即退役。
+ */
+export function makePendingExecute(toolName) {
+  const name = String(toolName || '这个工具')
+  return async function () {
+    return { status: 'unsupported', reason: 'not-wired', text: name + ' 的执行通道还没接通（列表可见是第一步）：请先用面板操作，进展见仓库的 BUG 单。' }
+  }
+}
+
+/** 探针要看的服务清单（只记有无，不记值；通道设计就靠这份清单定）。 */
+export const PROBE_SERVICES = ['tools', 'connection', 'subprocess', 'timer', 'fs', 'sessions', 'agents', 'llm', 'systemPrompt', 'sandboxPolicy', 'jobs', 'approval', 'shell', 'profileContext']
+
+/** 探针定义：不要参数，回服务清单的 JSON 文本（诊断口，通道接通即退役）。 */
+export const probeDefinition = {
+  name: 'deck_probe',
+  description: '诊断探针：回-agent 上下文里有哪些服务。查 deck 工具执行通道设计时用，通道接通即退役。',
+  parameters: { type: 'object', properties: {}, additionalProperties: false },
+}
+
+/** 对上下文做一次服务点名，有就记有、没有就记没有（值一律不碰）。 */
+export function probeServices(ctx) {
+  const out = {}
+  for (const name of PROBE_SERVICES) {
+    let has = false
+    try { const svc = ctx ? (ctx[name] !== undefined ? ctx[name] : (typeof ctx.get === 'function' ? ctx.get(name) : undefined)) : undefined; has = svc !== undefined && svc !== null } catch (e) { has = false }
+    out[name] = has
+  }
+  return out
 }
 
 function tableNames(table) {
