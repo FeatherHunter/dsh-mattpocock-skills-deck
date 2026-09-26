@@ -5,9 +5,9 @@
 - **改了什么（按能看到的行为）**：
   - **工具可见**：agent 的工具列表里现在有七个 deck 开头的工具（看工作区与后端、读一张票、看一张地图的子票与进度、建一张票、一次建出一整张地图骨架、补一条边、改一张票），点开就能调，不用再手敲命令。
   - **只补最后一步**：工具本身的行为一个没动（必备标签自动补、写后回真状态、失败说清原因），面板界面一个没动；注册失败只记原因不掀宿主，面板照常打开。
-- **如实说明**：自 v1.7.30 发布后主线上有 1 笔功能提交（`0b2622c`，即本次修复），本版实际发出它；另有维护者此前的未提交改动（三处客户端文件与一批原型稿）不在本版范围内，没有随包发出。
-- **对应提交**：`0b2622c`，以及本版发布提交。
-- **验证**：新增门禁 `verify-deck-tools-agent-register` 66 条全绿，并用线上工具包的真实现把官方与退路两条注册路各跑通一次；`verify-deck-tools` 70 条、`verify-deck-tools-matrix` 41 条、`verify-deck-tools-host-wiring` 21 条、`verify-log-count` 98 项、`verify-log-fields` 178 项、`verify-log-guards`、`verify-build-artifacts`、`verify-file-granularity`、`verify-contract-vocabulary` 全绿；`node scripts/build.mjs` 三行 profile 同步 hash 校验通过。全链 `node scripts/verify-all.mjs` 182 道整跑一次：178 通过 / 4 失败，其中 3 条为开工前就存在的存量红（`verify-3-workspace-switch`、`verify-no-same-layer-import`、`verify-multi-effort-panel`，本版新增红灯为零），第 4 条是本版自己引入的词汇存量过期（转发层开始按值读 `BACKEND_THREW`），已按门禁条文删掉过期条目并转绿。真机可见性待插件更新后由维护者开空白对话验证，验证通过再关闭对应 BUG 单。
+- **如实说明**：自 v1.7.30 发布后主线上有 2 笔功能提交（`0b2622c` 注册修复、`2f5475d` 退路输出模式修正），本版实际发出它们；另有维护者此前的未提交改动（三处客户端文件与一批原型稿）不在本版范围内，没有随包发出。
+- **对应提交**：`0b2622c`、`2f5475d`，以及本版发布提交。
+- **验证**：新增门禁 `verify-deck-tools-agent-register` 73 条全绿，并用线上工具包的真实现把官方与退路两条注册路各跑通一次；真机验证曾发现退路输出模式沿用定义函数写法被注册表拒收（七个全灭且静默），已另起一份原生模式并用真校验器把七个参数加输出逐个验过；`verify-deck-tools` 70 条、`verify-deck-tools-matrix` 41 条、`verify-deck-tools-host-wiring` 21 条、`verify-log-count` 98 项、`verify-log-fields` 178 项、`verify-log-guards`、`verify-build-artifacts`、`verify-file-granularity`、`verify-contract-vocabulary` 全绿；`node scripts/build.mjs` 三行 profile 同步 hash 校验通过。全链 `node scripts/verify-all.mjs` 182 道整跑一次：178 通过 / 4 失败，其中 3 条为开工前就存在的存量红（`verify-3-workspace-switch`、`verify-no-same-layer-import`、`verify-multi-effort-panel`，本版新增红灯为零），第 4 条是本版自己引入的词汇存量过期（转发层开始按值读 `BACKEND_THREW`），已按门禁条文删掉过期条目并转绿。真机可见性待插件更新后由维护者开空白对话验证（上一轮验证零工具，根因就是退路被拒收这一节，已修），验证通过再关闭对应 BUG 单。
 - **影响**：装到本版并更新插件后，agent 会话里能直接搜到并调用七个 deck 工具；更新前（工具包依赖未装）走退路注册，行为一致。面板其余行为与 `1.7.30` 一致。
 
 ## 2026-09-25 · v1.7.30 发布：降级横幅只在真配额耗尽时提配额、手动刷新不再另起一趟、处理链重启不丢
