@@ -66,8 +66,11 @@ const KNOWN_UNPRODUCED = {
     '为什么留着：额度超顶那一次拒绝的机器可读原因（拒绝必须说清超的是哪一项，这正是它存在的理由）；谁在读：shell.js:178 把它写进返回信封的 reason 字段 —— **读取面是返回信封，今天没有任何测试按值断言**（裁定 A：返回信封是真正的读取面，不为它补一条无意义的测试）。',
   'src/shared/deck-tools/shell.js.REFUSAL_REASONS.GATE_DEFER':
     '为什么留着：被闸推迟那一档的机器可读原因；谁在读：shell.js:203 与 :272 把它写进返回信封的 reason 字段 —— **读取面是返回信封，今天没有任何测试按值断言**（同裁定 A）。',
-  // （2026-09-25 #741 删 BACKEND_THREW 条目：注册转发层的兜底信封直接按这个值回包，
-  // src/host/platform/deckAgentTools.js 里有按值读取，过期断言盯着，已活过来就删。）
+  // （2026-09-26 #741 恢复 BACKEND_THREW 条目：上次删它是因为值字面量出现在宿主平台区的转发层里，
+  // 搬家到共享层后值字面量移出了门禁扫描的两棵树（宿主与客户端），判据又判它死了；
+  // 与 OVER_CAP / GATE_DEFER 同口径——读取面是返回信封，今天没有任何测试按值断言，留存量。）
+  'src/shared/deck-tools/shell.js.REFUSAL_REASONS.BACKEND_THREW':
+    '为什么留着：后端实现抛错那一档的机器可读原因（工具永不抛，改用它如实说）；谁在读：shell.js:202 与 :263 以及共享注册帮助 agent-register.js 的兜底信封把它写进返回信封的 reason 字段 —— **读取面是返回信封，今天没有任何测试按值断言**（同裁定 A）。',
 }
 
 /**
