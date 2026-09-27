@@ -53,7 +53,7 @@ function safeKeyList(obj, limit) {
   } catch (e) { return [] }
 }
 
-function probeDetails(ctx, exec) {
+async function probeDetails(ctx, exec) {
   const out = probeServices(ctx)
   try {
     out.ctxKeys = (ctx && typeof ctx === 'object') ? safeKeyList(ctx, PROBE_KEY_LIMIT) : []
@@ -99,6 +99,34 @@ function probeDetails(ctx, exec) {
     out.bridgeTableReady = !!peek
     out.bridgeSameProcess = peek ? !!peek.sameProcess : false
   } catch (e11) { out.bridgeTableReady = false; out.bridgeSameProcess = false }
+  // 干跑：用探针这次调用的上下文走一遍格子里的看工作区工具，只报阶段码与状态码，
+  // 正文一律不报（正文里带目录原文）。远程一眼看出卡在哪一段。
+  out.bridgeDryHint = false
+  out.bridgeDryRun = 'skipped'
+  out.bridgeDryStatus = ''
+  out.bridgeDryReason = ''
+  out.bridgeTools = []
+  try {
+    const hint = sessionHintOf(exec)
+    out.bridgeDryHint = !!hint
+    const table = hint ? await awaitDeckTable(8000) : null
+    if (!table) { out.bridgeDryRun = hint ? 'no-table' : 'no-hint' }
+    else {
+      try { out.bridgeTools = Array.isArray(table.names) ? table.names.slice(0, 16) : [] } catch (eNames) { out.bridgeTools = [] }
+      const run = table.tools && table.tools.deck_context && table.tools.deck_context.run
+      if (typeof run !== 'function') { out.bridgeDryRun = 'no-run' }
+      else {
+        let back = null
+        try { back = await run({ agent: { session: { cwd: hint.cwd, id: hint.sessionId } } }, {}) } catch (eRun) { back = null }
+        const value = back && back.value !== undefined ? back.value : back
+        if (value && typeof value.status === 'string' && typeof value.text === 'string') {
+          out.bridgeDryRun = 'ok'
+          out.bridgeDryStatus = value.status
+          out.bridgeDryReason = typeof value.reason === 'string' ? value.reason : ''
+        } else { out.bridgeDryRun = back === null ? 'threw' : 'bad-shape' }
+      }
+    }
+  } catch (e12) { out.bridgeDryRun = 'threw' }
   return out
 }
 
@@ -124,13 +152,43 @@ function toRawRegistration(def, ctx) {
 // 会话目录只从调用方上下文里取（平台给的元数据），不从模型参数里取，模型伪造不了别人的目录。
 // 超时与中止一律收成做不到的三态，不抛。
 function sessionHintOf(exec) {
+  // 取值口径与壳的 sessionContextOf 同源（会话六个位置），另加 header 位：
+  // 真机探针证明工具执行上下文里的会话顶层没有目录，目录住在 header 里。
+  // 读的永远是平台给的调用方上下文，不是模型参数，模型伪造不了别人的目录。
   try {
     const e = exec || {}
-    const session = (e.agent && e.agent.session) || e.session || null
-    if (!session || typeof session !== 'object') return null
-    const cwd = typeof session.cwd === 'string' ? session.cwd.trim() : ''
+    const agent = e.agent || {}
+    const session = agent.session || e.session || null
+    const cands = []
+    try {
+      if (session && typeof session === 'object') {
+        cands.push(session.cwd)
+        cands.push(session.workspaceRoot)
+        if (session.workspace && typeof session.workspace === 'object') cands.push(session.workspace.cwd)
+        const header = session.header
+        if (header && typeof header === 'object') { cands.push(header.cwd); cands.push(header.workspaceRoot) }
+      }
+      cands.push(agent.cwd)
+      if (e.session && typeof e.session === 'object') cands.push(e.session.cwd)
+      cands.push(e.cwd)
+    } catch (ePick) {}
+    let cwd = ''
+    for (let i = 0; i < cands.length; i++) {
+      if (typeof cands[i] === 'string' && cands[i].trim()) { cwd = cands[i].trim(); break }
+    }
     if (!cwd) return null
-    const id = typeof session.id === 'string' ? session.id : (typeof session.sessionId === 'string' ? session.sessionId : '')
+    let id = ''
+    try {
+      if (session && typeof session === 'object') {
+        if (typeof session.id === 'string' && session.id) id = session.id
+        else if (typeof session.sessionId === 'string' && session.sessionId) id = session.sessionId
+        else if (session.header && typeof session.header === 'object') {
+          if (typeof session.header.id === 'string' && session.header.id) id = session.header.id
+          else if (typeof session.header.sessionId === 'string' && session.header.sessionId) id = session.header.sessionId
+        }
+      }
+      if (!id && typeof agent.sessionId === 'string') id = agent.sessionId
+    } catch (eId) {}
     return { cwd: cwd, sessionId: id }
   } catch (e2) { return null }
 }
@@ -268,6 +326,6 @@ export function apply(ctx) {
       schema: { type: 'string' },
       render: function (args, value) { return [{ type: 'text', text: value }] },
     },
-    execute: async function (args, exec) { return JSON.stringify(probeDetails(ctx, exec)) },
+    execute: async function (args, exec) { return JSON.stringify(await probeDetails(ctx, exec)) },
   })
 }

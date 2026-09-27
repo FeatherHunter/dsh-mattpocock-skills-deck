@@ -218,7 +218,7 @@ async function main() {
   // 行经共享格拿真结果（裸信封形状，真工具就是这么回的）。
   cell.publishDeckTable(Promise.resolve({
     tools: { deck_context: { run: async function (execLike, toolArgs) {
-      if (!execLike || !execLike.agent || !execLike.agent.session || execLike.agent.session.cwd !== '/ws') throw new Error('会话没递过来')
+      if (!execLike || !execLike.agent || !execLike.agent.session || !execLike.agent.session.cwd) throw new Error('会话没递过来')
       return { status: 'ok', text: '格子真结果', data: { echo: toolArgs } }
     } } },
     names: ['deck_context'],
@@ -229,12 +229,21 @@ async function main() {
   const cellTool = cellCtx.tools.registered.filter((t) => t.name === 'deck_context')[0]
   const cellOut = await cellTool.execute({}, { agent: { session: { cwd: '/ws', id: 's1' } } })
   check(cellOut && cellOut.status === 'ok' && cellOut.text === '格子真结果', '格子里有表，行直接拿真结果（不经直连与同源）')
+  // 真机形状：会话顶层没有目录，目录住在 header 里，照样取得到。
+  const headerOut = await cellTool.execute({}, { agent: { session: { header: { cwd: '/ws-h', id: 'h1' } } } })
+  check(headerOut && headerOut.status === 'ok' && headerOut.text === '格子真结果', 'header 形状的会话照样取出目录（与壳同口径）')
   // 探针如实说格子在、同一进程（布尔值，不含进程号原文）。
   const cellProbe = cellCtx.tools.registered.filter((t) => t.name === 'deck_probe')[0]
   const cellListed = JSON.parse(await cellProbe.execute({}, { agent: { session: { cwd: '/ws' } } }))
   check(cellListed && cellListed.bridgeTableReady === true && cellListed.bridgeSameProcess === true,
     '探针说格子在且同一进程（只报布尔，不报进程号）')
   check(JSON.stringify(cellListed).indexOf(String(process.pid)) < 0, '探针回包不带进程号原文')
+  // 干跑码：探针用自己的上下文走一遍格子里的看工作区工具，只报阶段码。
+  check(cellListed && cellListed.bridgeDryHint === true && cellListed.bridgeDryRun === 'ok' && cellListed.bridgeDryStatus === 'ok',
+    '干跑码说会话取得到、表跑得通（阶段码都是真）')
+  check(cellListed && Array.isArray(cellListed.bridgeTools) && cellListed.bridgeTools.indexOf('deck_context') >= 0,
+    '干跑带回表里的工具名（自家名字，不涉密）')
+  check(JSON.stringify(cellListed).indexOf('/ws') < 0, '干跑不报目录原文（正文一律不进探针）')
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   process.exit(failed ? 1 : 0)
