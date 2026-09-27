@@ -136,6 +136,64 @@ async function main() {
   check(leakOut.indexOf('LEAK-ME-999') < 0 && leakOut.indexOf('987654') < 0, '探针只报键名不报值（假秘密与数字都不许进回包）')
   check(secretOut && typeof secretOut === 'object', '探针回包仍是 JSON 对象（旧调用方照常解析）')
 
+  // ── 9. 行执行接代执行（有路走路，没路仍诚实；会话只认上下文）──
+  const rowSvc3 = { registered: [], register: function (t) { this.registered.push(t); return function () {} } }
+  const rowCtx3 = { tools: rowSvc3 }
+  row.apply({ tools: rowSvc3, get: function () { return undefined } })
+  void rowCtx3
+  const ctxTool = rowSvc3.registered.filter((t) => t.name === 'deck_context')[0]
+  check(!!ctxTool && typeof ctxTool.execute === 'function', '行交出的工具有可调的执行入口（代执行形状）')
+  // 直连调用面通：回宿主的真结果，不回占位。
+  const liveCtx = { tools: { registered: [], register: function (t) { this.registered.push(t); return function () {} } } }
+  let seenPayload = null
+  liveCtx.connection = { rpc: { call: async function (ch, ep, body) {
+    seenPayload = body
+    if (ch === '/api' && ep === 'dsws' && body && body.method === 'deckExec') {
+      return { ok: true, value: { status: 'ok', text: '宿主真结果', data: { n: 1 } } }
+    }
+    return { ok: false, error: { message: 'no' } }
+  } } }
+  row.apply(liveCtx)
+  const liveTool = liveCtx.tools.registered.filter((t) => t.name === 'deck_context')[0]
+  const liveOut = await liveTool.execute({}, { agent: { session: { cwd: '/ws', id: 's1' } } })
+  check(liveOut && liveOut.status === 'ok' && liveOut.text === '宿主真结果', '直连调用面通就拿真结果（不回占位）')
+  check(seenPayload && seenPayload.payload && seenPayload.payload.tool === 'deck_context', '递过去的工具名对得上')
+  check(seenPayload && seenPayload.payload && seenPayload.payload.session && seenPayload.payload.session.cwd === '/ws', '会话目录只从上下文取（模型参数里塞目录也到不了宿主）')
+  // 模型参数里伪造会话：递过去的仍是上下文那一份。
+  seenPayload = null
+  await liveTool.execute({ cwd: '/evil', session: { cwd: '/evil' } }, { agent: { session: { cwd: '/ws', id: 's1' } } })
+  check(seenPayload && seenPayload.payload && seenPayload.payload.session && seenPayload.payload.session.cwd === '/ws', '伪造的目录进不了递话（只认上下文）')
+  // 没路：回诚实占位，不抛。
+  const quietCtx = { tools: { registered: [], register: function (t) { this.registered.push(t); return function () {} } } }
+  row.apply(quietCtx)
+  const quietTool = quietCtx.tools.registered.filter((t) => t.name === 'deck_context')[0]
+  const quietOut = await quietTool.execute({}, { agent: { session: { cwd: '/ws' } } })
+  check(quietOut && quietOut.status === 'unsupported' && String(quietOut.text).indexOf('面板') >= 0, '没路就回诚实占位（不谎报成功）')
+  // 参数不是对象、中止、会话缺失：三档各回各的，不碰网络。
+  const badOut = await quietTool.execute('不是对象', { agent: { session: { cwd: '/ws' } } })
+  check(badOut && badOut.status === 'unsupported', '参数不是对象直接回做不到')
+  const abortOut = await quietTool.execute({}, { agent: { session: { cwd: '/ws' } }, signal: { aborted: true } })
+  check(abortOut && abortOut.status === 'unsupported' && String(abortOut.text).indexOf('中止') >= 0, '已中止直接回做不到')
+  const noSessOut = await quietTool.execute({}, { agent: {} })
+  check(noSessOut && noSessOut.status === 'unsupported', '会话目录拿不到回做不到')
+  // 同源请求通：直连不在、同源在，也拿真结果。
+  const fetchCtx = { tools: { registered: [], register: function (t) { this.registered.push(t); return function () {} } } }
+  row.apply(fetchCtx)
+  const fetchTool = fetchCtx.tools.registered.filter((t) => t.name === 'deck_issue_get')[0]
+  const realFetch = globalThis.fetch
+  try {
+    globalThis.fetch = async function (url, opts) {
+      if (String(url).indexOf('/api/dsws') < 0) throw new Error('走错路')
+      const body = JSON.parse(opts.body)
+      if (body.type !== 'client-request' || !body.payload || body.payload.method !== 'deckExec') throw new Error('信封不对')
+      return { json: async function () { return { type: 'server-response', rpcId: body.rpcId, result: { ok: true, value: { status: 'ok', text: '同源真结果' } } } } }
+    }
+    const fetchOut = await fetchTool.execute({ key: '01' }, { agent: { session: { cwd: '/ws' } } })
+    check(fetchOut && fetchOut.status === 'ok' && fetchOut.text === '同源真结果', '同源请求通也拿真结果')
+  } finally {
+    try { if (realFetch === undefined) delete globalThis.fetch; else globalThis.fetch = realFetch } catch (e) {}
+  }
+
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   process.exit(failed ? 1 : 0)
 }
