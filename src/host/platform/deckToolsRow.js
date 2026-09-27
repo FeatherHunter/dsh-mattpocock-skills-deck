@@ -24,6 +24,7 @@ import { definition as deckMapPlanCreateDef } from '../tools/deckMapPlanCreate.j
 import { definition as deckMapLinkDef } from '../tools/deckMapLink.js'
 import { definition as deckIssuePatchDef } from '../tools/deckIssuePatch.js'
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw, makePendingExecute, probeDefinition, probeServices } from '../../shared/deck-tools/agent-register.js'
+import { awaitDeckTable, peekDeckTable } from '../../shared/deck-tools/exec-cell.js'
 
 export const name = 'dsh-mattpocock-skills-deck-tools'
 export const inject = ['tools']
@@ -92,6 +93,12 @@ function probeDetails(ctx, exec) {
       out.envKeys = kept
     }
   } catch (e10) { out.envKeys = [] }
+  // 同进程共享格一眼：表在不在、是不是同一进程（pid 只在进程内比对，永不外发）。
+  try {
+    const peek = peekDeckTable()
+    out.bridgeTableReady = !!peek
+    out.bridgeSameProcess = peek ? !!peek.sameProcess : false
+  } catch (e11) { out.bridgeTableReady = false; out.bridgeSameProcess = false }
   return out
 }
 
@@ -110,8 +117,10 @@ function toRawRegistration(def, ctx) {
   }
 }
 
-// 代执行调用（第二批）：行把参数递给宿主那条代执行电话，拿真结果。
-// 顺序是先直连调用面、再同源请求，两条都不通才回诚实占位（与第一批同一句话）。
+// 代执行调用（第二批 + 定案）：三条路由先同进程共享格、再直连调用面、再同源请求，
+// 都不通才回诚实占位（与第一批同一句话）。
+// 同进程是上游组合的原文保证（同一份组合、工具注册表全局加作用域分层，
+// 预设行经作用域读全局层）：宿主装好的那张表经共享格直达行，不经任何调用面。
 // 会话目录只从调用方上下文里取（平台给的元数据），不从模型参数里取，模型伪造不了别人的目录。
 // 超时与中止一律收成做不到的三态，不抛。
 function sessionHintOf(exec) {
@@ -213,6 +222,20 @@ function makeDelegatedExecute(toolName, ctx) {
     const hint = sessionHintOf(exec)
     if (!hint) return fallback()
     const payload = { tool: toolName, args: args, session: hint }
+    // 第一路：同进程共享格（宿主装表时放进来；跨进程时格子是空的，直接跳过）。
+    try {
+      if (peekDeckTable()) {
+        const table = await awaitDeckTable(25000)
+        const run = table && table.tools && table.tools[toolName] && table.tools[toolName].run
+        if (typeof run === 'function') {
+          const execLike = { agent: { session: { cwd: hint.cwd, id: hint.sessionId } } }
+          let back = null
+          try { back = await run(execLike, args) } catch (eRun) { back = null }
+          const value = back && back.value !== undefined ? back.value : back
+          if (value && typeof value.status === 'string' && typeof value.text === 'string') return value
+        }
+      }
+    } catch (eCell) {}
     try {
       const viaConn = await callViaConnection(ctx, payload)
       if (viaConn) return viaConn

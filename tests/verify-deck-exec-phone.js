@@ -194,6 +194,48 @@ async function main() {
     try { if (realFetch === undefined) delete globalThis.fetch; else globalThis.fetch = realFetch } catch (e) {}
   }
 
+  // ── 10. 同进程共享格（定案第一路）：宿主放表，行直接取，不经调用面 ──
+  const cell = await imp('src/shared/deck-tools/exec-cell.js')
+  check(cell && typeof cell.publishDeckTable === 'function' && typeof cell.awaitDeckTable === 'function' && typeof cell.peekDeckTable === 'function',
+    '共享格交出发布、等表、看一眼三个口')
+  const agentHelp = await imp('src/shared/deck-tools/agent-register.js')
+  // 宿主钩子那条执行入口认裸信封（工具壳原文）与包一层两种形状。
+  const bothSvc = { registered: [], register: function (t) { this.registered.push(t); return function () {} } }
+  const bothTable = {
+    tools: {
+      deck_context: { run: async function () { return { status: 'ok', text: '裸信封真结果' } } },
+      deck_issue_get: { run: async function () { return { value: { status: 'ok', text: '包一层真结果' } } } },
+    },
+    names: ['deck_context', 'deck_issue_get'],
+    definitions: [{ name: 'deck_context', description: '看工作区', parameters: { type: 'object', properties: {}, additionalProperties: false } }, { name: 'deck_issue_get', description: '读票', parameters: { type: 'object', properties: {}, additionalProperties: false } }],
+  }
+  const bothRes = await agentHelp.registerDeckAgentTools(bothSvc, bothTable, null)
+  check(bothRes && bothRes.registered.length === 2, '两种回包形状的工具都交得出去')
+  const bareOut = await bothSvc.registered.filter((t) => t.name === 'deck_context')[0].execute({}, {})
+  check(bareOut && bareOut.status === 'ok' && bareOut.text === '裸信封真结果', '裸信封（壳原文）照样认，不再判没做成')
+  const wrappedOut2 = await bothSvc.registered.filter((t) => t.name === 'deck_issue_get')[0].execute({}, {})
+  check(wrappedOut2 && wrappedOut2.status === 'ok' && wrappedOut2.text === '包一层真结果', '包一层（桩形状）照样认')
+  // 行经共享格拿真结果（裸信封形状，真工具就是这么回的）。
+  cell.publishDeckTable(Promise.resolve({
+    tools: { deck_context: { run: async function (execLike, toolArgs) {
+      if (!execLike || !execLike.agent || !execLike.agent.session || execLike.agent.session.cwd !== '/ws') throw new Error('会话没递过来')
+      return { status: 'ok', text: '格子真结果', data: { echo: toolArgs } }
+    } } },
+    names: ['deck_context'],
+    definitions: [{ name: 'deck_context' }],
+  }))
+  const cellCtx = { tools: { registered: [], register: function (t) { this.registered.push(t); return function () {} } } }
+  row.apply(cellCtx)
+  const cellTool = cellCtx.tools.registered.filter((t) => t.name === 'deck_context')[0]
+  const cellOut = await cellTool.execute({}, { agent: { session: { cwd: '/ws', id: 's1' } } })
+  check(cellOut && cellOut.status === 'ok' && cellOut.text === '格子真结果', '格子里有表，行直接拿真结果（不经直连与同源）')
+  // 探针如实说格子在、同一进程（布尔值，不含进程号原文）。
+  const cellProbe = cellCtx.tools.registered.filter((t) => t.name === 'deck_probe')[0]
+  const cellListed = JSON.parse(await cellProbe.execute({}, { agent: { session: { cwd: '/ws' } } }))
+  check(cellListed && cellListed.bridgeTableReady === true && cellListed.bridgeSameProcess === true,
+    '探针说格子在且同一进程（只报布尔，不报进程号）')
+  check(JSON.stringify(cellListed).indexOf(String(process.pid)) < 0, '探针回包不带进程号原文')
+
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   process.exit(failed ? 1 : 0)
 }

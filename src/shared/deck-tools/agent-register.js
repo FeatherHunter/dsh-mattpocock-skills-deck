@@ -183,10 +183,8 @@ function tableDefinitions(table) {
 }
 
 /**
- * 执行入口共用：先看调用是不是已经被中止（是就直接回“没做成”，不等后端），
- * 参数再看是不是对象（不是直接回“没做成”，不进表），
- * 再调表里同名工具的 run，只回它的 value；run 抛错或回包不合形状时，
- * 包成“没做成”的信封。工具永不把异常抛给 agent。
+ * 执行入口共用：中止与坏参直接回“没做成”，再调表里同名 run，只回其 value；
+ * run 认包一层 {value} 与裸信封两种形状，抛错或形状不对包成“没做成”。永不抛。
  */
 function makeExecute(run) {
   return async function (args, exec) {
@@ -203,7 +201,7 @@ function makeExecute(run) {
     } catch (e) {
       return { status: 'unsupported', reason: 'backend-threw', text: '这次没做成（内部执行抛错，已拦下）：' + String((e && e.message) || e).slice(0, 200) }
     }
-    const value = back && back.value
+    const value = (back && back.value !== undefined) ? back.value : back
     if (value && typeof value.status === 'string' && typeof value.text === 'string') return value
     return { status: 'unsupported', reason: 'backend-threw', text: '这次没做成（工具内部没按约定回包，已拦下），请重试或走面板操作。' }
   }

@@ -28,6 +28,7 @@ import { createAttention, createFocusHandler } from './attention.js'
 // 宿主层里再读一次那七个文件就要新增 7 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
 import { createDeckToolsForHost, DECK_TOOL_FILES } from '../platform/deckToolsAssembly.js'
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../shared/deck-tools/agent-register.js' // #741 注册那一步（向 agent 交七个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
+import { publishDeckTable } from '../../shared/deck-tools/exec-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
 // #723（T19c）第 E 件：行级增量那半边（refresh/patch.js）同理收在 src/host/platform/refreshAssembly.js 一处。
 import { createPatchForHost } from '../platform/refreshAssembly.js'
 import * as budget from '../../shared/refresh/budget.js'
@@ -228,8 +229,7 @@ export function createRefreshWiring(deps) {
   let deckToolsP = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function () { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx)) } catch (eH) {} // #741 注册那一步：表装好就向 agent 交七个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）
   async function deckToolsForHost() {
     if (!deckToolsP) {
-      deckToolsP = (async function () {
-        const empty = { tools: {}, names: [], definitions: [], missing: [], reason: '', files: DECK_TOOL_FILES }
+      deckToolsP = (async function () {        const empty = { tools: {}, names: [], definitions: [], missing: [], reason: '', files: DECK_TOOL_FILES }
         let registry = null
         try { registry = d.getTrackerRegistry ? await d.getTrackerRegistry() : null } catch (eR) { registry = null }
         if (!registry || typeof registry.select !== 'function') return Object.assign({}, empty, { reason: 'no-registry' })
@@ -278,6 +278,7 @@ export function createRefreshWiring(deps) {
         })
         return Object.assign({ reason: '', files: DECK_TOOL_FILES }, built)
       })().catch(function () { return { tools: {}, names: [], definitions: [], missing: [], reason: 'assembly-failed', files: DECK_TOOL_FILES } })
+      try { publishDeckTable(deckToolsP) } catch (eP) {} // #758 同进程共享格：表一开装就行里直接取，不经调用面；跨进程时格子永远是空的，行按原路退回
     }
     return await deckToolsP
   }
