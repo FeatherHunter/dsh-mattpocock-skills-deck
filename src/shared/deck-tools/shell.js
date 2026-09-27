@@ -113,6 +113,7 @@ export function sessionContextOf(exec, deps) {
  *   log        可选，日志出口 { fire }（写 host.call / host.call.fail 两行，不新增事件名）
  *   now        可选，取时间（测试注入假时钟）
  *   invalidate 可选，写后失效缓存该票条目：invalidate({ repo, keys, backendId })
+ *   ensureReading 可选，动手前保剩余额度读数：ensureReading(cwd, workspaceKey)，缺席时跳过
  */
 export function createDeckShell(deps) {
   const d = deps || {}
@@ -184,6 +185,8 @@ export function createDeckShell(deps) {
   /**
    * 过闸选后端。这是每笔工具调用的第一次后端调用（matches 会真的去读工作区/问远端），
    * 所以它也过一次闸；结论原样交给调用方与 AI（包括「没有后端」与「还没定」两种情形）。
+   * 动手前先保一次剩余额度读数（#758）：账本差读数时免费读一次，不差不打；
+   * 保不住就照旧往下走，闸会诚实推迟——保读数永不代替裁决。
    */
   async function pickBackend(exec, s) {
     // 「会话 → 句柄」由接线方给（宿主知道这个工作区绑了哪个 refId / effortId）；没给时只用会话里的目录。
@@ -192,6 +195,7 @@ export function createDeckShell(deps) {
     let failure = null
     let sent = null
     const t0 = now()
+    try { if (typeof d.ensureReading === 'function') await d.ensureReading(s.cwd, s.workspaceKey) } catch (eR) {}
     try {
       sent = await gate.send({ source: 'tool.call', kind: 'probe', bucket: 'rest', workspaceKey: s.workspaceKey, plan: [{ phase: 'select' }] }, async () => {
         picked = await registry.select(handle, Object.assign({}, backendCtxNow(), { cwd: s.cwd, caller: DECK_TOOL_KIND }))
