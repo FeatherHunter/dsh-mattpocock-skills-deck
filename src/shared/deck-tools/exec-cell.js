@@ -9,6 +9,8 @@
 // 本文件零导入：共享层的文件之间不许互相引用，零导入是唯一的住法。
 // 状态只有三种：empty（宿主还没放）、pending（放了还没装好）、ready（装好了）。
 // pid 只在进程内比对，永不外发（探针只报比对结果的布尔值）。
+// 另附一小段闸口径迹：壳把每次裁决的机器码（阶段、结论、原因枚举）记在这里，
+// 探针读走，线上卡在哪一段一眼可见。正文与路径一律不记。
 
 const cell = {
   state: 'empty',
@@ -57,4 +59,32 @@ export function awaitDeckTable(timeoutMs) {
       new Promise(function (resolve) { setTimeout(function () { resolve(null) }, cap) }),
     ])
   } catch (e) { return Promise.resolve(null) }
+}
+
+const gateNotes = []
+
+function cleanGateWord(v) {
+  try {
+    const t = String(v || '')
+    if (/^[a-z][a-z0-9-]{0,63}$/.test(t)) return t
+    return ''
+  } catch (e) { return '' }
+}
+
+/** 壳记一笔裁决口径：只收机器码（阶段、结论、原因枚举），正文路径一律不收。 */
+export function noteDeckGate(info) {
+  try {
+    const at = info || {}
+    gateNotes.push({
+      phase: cleanGateWord(at.phase),
+      verdict: cleanGateWord(at.verdict),
+      reason: cleanGateWord(at.reason),
+    })
+    while (gateNotes.length > 8) gateNotes.shift()
+  } catch (e) {}
+}
+
+/** 读走口径迹（探针用）：只含机器码的数组副本。 */
+export function readDeckGate() {
+  try { return gateNotes.map(function (n) { return { phase: n.phase, verdict: n.verdict, reason: n.reason } }) } catch (e) { return [] }
 }

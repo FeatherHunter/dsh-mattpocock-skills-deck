@@ -244,6 +244,8 @@ async function main() {
   check(cellListed && Array.isArray(cellListed.bridgeTools) && cellListed.bridgeTools.indexOf('deck_context') >= 0,
     '干跑带回表里的工具名（自家名字，不涉密）')
   check(JSON.stringify(cellListed).indexOf('/ws') < 0, '干跑不报目录原文（正文一律不进探针）')
+  check(cellListed && Array.isArray(cellListed.bridgeGateNotes) && JSON.stringify(cellListed.bridgeGateNotes).indexOf('/ws') < 0,
+    '口径迹是数组且不带目录原文（只含机器码）')
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   process.exit(failed ? 1 : 0)

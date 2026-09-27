@@ -154,6 +154,35 @@ async function main() {
   const pickedOld = await shOld.pickBackend({ agent: { session: { cwd: '/ws' } } }, { cwd: '/ws', workspaceKey: 'k', sessionId: '', source: '', text: '' })
   check(pickedOld && pickedOld.ok === true, '没给保读数的老桩照样过（缺席跳过）')
 
+  // ── 7. 闸口径迹：只记机器码，探针读走；口子缺席不影响干活 ──
+  const cell = await imp('src/shared/deck-tools/exec-cell.js')
+  check(cell && typeof cell.noteDeckGate === 'function' && typeof cell.readDeckGate === 'function', '共享格交出口径迹读写口')
+  cell.noteDeckGate({ phase: 'select', verdict: 'defer', reason: 'reserve-kept-for-writes' })
+  cell.noteDeckGate({ phase: 'Has Space!', verdict: null, reason: 42 })
+  const notes = cell.readDeckGate()
+  const lastTwo = notes.slice(-2)
+  check(lastTwo[0] && lastTwo[0].phase === 'select' && lastTwo[0].verdict === 'defer' && lastTwo[0].reason === 'reserve-kept-for-writes',
+    '机器码原样记（阶段结论原因三格）')
+  check(lastTwo[1] && lastTwo[1].phase === '' && lastTwo[1].verdict === '' && lastTwo[1].reason === '', '非法字符洗成空格，不记原文')
+  const noted = []
+  const deferGate = {
+    send: async function () { return { sent: false, verdict: 'defer', reason: 'reserve-kept-for-writes', detail: '读让路' } },
+    admitAiTool: function () { return { admitted: true, reason: 'ai-tool-within-caps', points: 1, requests: 1 } },
+  }
+  const shDefer = shell.createDeckShell({
+    gate: deferGate, registry: stubRegistry, budget: {},
+    estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } },
+    costInputFrom: function () { return {} },
+    noteGate: function (info) { noted.push(info) },
+  })
+  const deferOut = await shDefer.pickBackend({ agent: { session: { cwd: '/ws' } } }, { cwd: '/ws', workspaceKey: 'k', sessionId: '', source: '', text: '' })
+  check(deferOut && deferOut.ok === false && deferOut.reason === 'gate-defer', '推迟照旧回做不到（口径迹不改变裁决）')
+  check(noted.length === 1 && noted[0].phase === 'select' && noted[0].verdict === 'defer' && noted[0].reason === 'reserve-kept-for-writes',
+    '推迟那一笔的机器码记下来了（给探针读）')
+  const shNoNote = shell.createDeckShell({ gate: deferGate, registry: stubRegistry, budget: {}, estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } }, costInputFrom: function () { return {} } })
+  const deferOld = await shNoNote.pickBackend({ agent: { session: { cwd: '/ws' } } }, { cwd: '/ws', workspaceKey: 'k', sessionId: '', source: '', text: '' })
+  check(deferOld && deferOld.ok === false && deferOld.reason === 'gate-defer', '没给口子缺席跳过，老行为不动')
+
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   process.exit(failed ? 1 : 0)
 }

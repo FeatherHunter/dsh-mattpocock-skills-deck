@@ -133,6 +133,12 @@ export function createDeckShell(deps) {
     } catch (e) { /* 日志坏了不影响工具干活 */ }
   }
 
+  // 闸口径迹（#758 干跑诊断用）：把每次裁决的机器码记进共享格，探针读走。
+  // 只记阶段、结论、原因枚举，正文路径一律不记；口子缺席就跳过。
+  function noteGate(phase, verdict, reason) {
+    try { if (typeof d.noteGate === 'function') d.noteGate({ phase: phase, verdict: verdict, reason: reason }) } catch (eN) {}
+  }
+
   function context(exec) { return sessionContextOf(exec, { workspaceKeyOf: d.workspaceKeyOf }) }
 
   /** 后端 ctx（platform / fs / exec 那一套）：可以给对象，也可以给一个现取的函数（多工作区共用一个壳时后者更顺手）。 */
@@ -204,12 +210,16 @@ export function createDeckShell(deps) {
     } catch (e) { failure = e }
     const ms = now() - t0
     if (failure) return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '选后端这一步的后端实现抛错了，我没往下做。', errorHash: hash8(String((failure && failure.message) || failure)) }
-    if (!sent || sent.sent !== true) return { ok: false, reason: REFUSAL_REASONS.GATE_DEFER, text: '这一次选后端被闸推迟了（' + str(sent && sent.detail) + '），先不做。' }
+    if (!sent || sent.sent !== true) {
+      noteGate('select', 'defer', str(sent && sent.reason))
+      return { ok: false, reason: REFUSAL_REASONS.GATE_DEFER, text: '这一次选后端被闸推迟了（' + str(sent && sent.detail) + '），先不做。' }
+    }
     if (!picked || !picked.backendId) {
       const pending = picked && picked.pending
       return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: pending ? '后端还没定下来（自动识别有超时未决），先在面板上选一次后端。' : '这个工作区还没有后端（既没有手动选过，也没有识别到锚文件）。先在面板上选一个后端。' }
     }
     fire('deck.select', ms, true)
+    noteGate('select', 'allow', '')
     return { ok: true, backendId: str(picked.backendId), source: str(picked.source), ref: picked.ref || null, pending: !!picked.pending, requests: num(sent.requests), points: num(sent.points) }
   }
 
@@ -234,6 +244,7 @@ export function createDeckShell(deps) {
     const admit = gate.admitAiTool({ points: est.points, requests: est.requests, childTickets: est.tickets }, { workspaceKey: s.workspaceKey, kind: 'tool-batch', bucket: 'graphql' })
     if (!admit.admitted) {
       fire(tool, 0, false, hash8(admit.reason))
+      noteGate('admit', 'refuse', str(admit.reason))
       return refused(tool, est, s, admit)
     }
     let value = null
@@ -273,12 +284,14 @@ export function createDeckShell(deps) {
     }
     if (!sent || sent.sent !== true) {
       fire(tool, ms, false, hash8('gate'))
+      noteGate('op', 'defer', str(sent && sent.reason))
       return unsupported(tool, REFUSAL_REASONS.GATE_DEFER, '这一次被闸推迟了（' + str(sent && sent.detail) + '），我没有动手。', {
         workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est },
       })
     }
     const failed = value && value.ok === false
     fire(tool, ms, !failed, failed ? hash8(str(value && value.reason)) : '')
+    noteGate('op', failed ? 'fail' : 'allow', failed ? str(value && value.reason) : '')
     const out = envelope(tool, DECK_STATUS.OK, {
       workspace: { root: s.cwd, key: s.workspaceKey },
       backend: { id: meta.pick.backendId, source: meta.pick.source },

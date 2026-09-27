@@ -24,7 +24,7 @@ import { definition as deckMapPlanCreateDef } from '../tools/deckMapPlanCreate.j
 import { definition as deckMapLinkDef } from '../tools/deckMapLink.js'
 import { definition as deckIssuePatchDef } from '../tools/deckIssuePatch.js'
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw, makePendingExecute, probeDefinition, probeServices } from '../../shared/deck-tools/agent-register.js'
-import { awaitDeckTable, peekDeckTable } from '../../shared/deck-tools/exec-cell.js'
+import { awaitDeckTable, peekDeckTable, readDeckGate } from '../../shared/deck-tools/exec-cell.js'
 
 export const name = 'dsh-mattpocock-skills-deck-tools'
 export const inject = ['tools']
@@ -106,6 +106,10 @@ async function probeDetails(ctx, exec) {
   out.bridgeDryStatus = ''
   out.bridgeDryReason = ''
   out.bridgeTools = []
+  out.bridgeGateNotes = []
+  try {
+    try { out.bridgeGateNotes = readDeckGate() } catch (eNotes) { out.bridgeGateNotes = [] }
+  } catch (eNotesOuter) { out.bridgeGateNotes = [] }
   try {
     const hint = sessionHintOf(exec)
     out.bridgeDryHint = !!hint
