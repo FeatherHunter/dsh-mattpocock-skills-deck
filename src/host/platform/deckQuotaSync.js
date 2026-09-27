@@ -48,6 +48,10 @@ export function createDeckQuotaSync(deps) {
   const syncServer = d.syncServer
   const runGh = d.runGh
   const logCtx = d.logCtx || null
+  // 失败冷却：gh 不在的机器上失败是常态，不加冷却每次调用白起一次失败的 gh。
+  // 成功清零，失败记时，冷却内直接认失败（调用方照旧被闸推迟）。
+  const cooldownMs = (typeof d.cooldownMs === 'number' && d.cooldownMs >= 0) ? Math.floor(d.cooldownMs) : 60000
+  let lastFailAt = 0
 
   // 读数落账这一笔留痕（常驻：进程里 60 秒至多一次，跨进程边界，低频）。
   // 成功记既有 host.call；失败靠既有 gh.exec / gh.resolve.fail 那几行，不另记（缺 gh 的机器不刷屏）。
@@ -94,7 +98,11 @@ export function createDeckQuotaSync(deps) {
     try {
       if (typeof syncDue === 'function' && !syncDue()) return { ok: true, fresh: false }
       if (typeof syncDue !== 'function' && typeof syncServer !== 'function') return { ok: false, reason: 'missing-dep' }
-      return await doSync(cwd, workspaceKey)
+      if (lastFailAt !== 0 && Date.now() - lastFailAt < cooldownMs) return { ok: false, reason: 'sync-cooldown' }
+      const r = await doSync(cwd, workspaceKey)
+      if (r && r.ok) lastFailAt = 0
+      else if (lastFailAt === 0) lastFailAt = Date.now()
+      return r
     } catch (e) { return { ok: false, reason: 'ensure-threw' } }
   }
 

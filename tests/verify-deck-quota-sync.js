@@ -135,6 +135,22 @@ async function main() {
   await Promise.all([slow.ensureReading('/a', 'k1'), slow.ensureReading('/b', 'k2'), slow.ensureReading('/c', 'k3')])
   check(ghCalls === 1, '三路并发只打一条（实例内并单）')
 
+  // ── 5b. 失败冷却：gh 不在的机器不每次白起 ──
+  let failCalls = 0
+  const chilly = mod.createDeckQuotaSync({
+    send: async function (req, perform) { return perform() },
+    syncDue: function () { return true },
+    syncServer: function () {},
+    runGh: async function () { failCalls += 1; return { ok: false, error: 'gh 不可用' } },
+    cooldownMs: 40,
+  })
+  const f1 = await chilly.ensureReading('/ws', 'k')
+  const f2 = await chilly.ensureReading('/ws', 'k')
+  check(f1 && f1.ok === false && f2 && f2.ok === false && failCalls === 1, '连着失败只打一次，冷却内直接认失败')
+  await new Promise(function (r) { setTimeout(r, 60) })
+  await chilly.ensureReading('/ws', 'k')
+  check(failCalls === 2, '冷却过了再试一次（不永久放弃）')
+
   // ── 6. 壳动手前保一次：调了、传了目录与键；缺席时跳过老桩照过 ──
   const shell = await imp('src/shared/deck-tools/shell.js')
   let ensured = null
