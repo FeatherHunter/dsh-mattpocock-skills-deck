@@ -157,6 +157,8 @@ async function main() {
   const liveTool = liveCtx.tools.registered.filter((t) => t.name === 'deck_context')[0]
   const liveOut = await liveTool.execute({}, { agent: { session: { cwd: '/ws', id: 's1' } } })
   check(liveOut && liveOut.status === 'ok' && liveOut.text === '宿主真结果', '直连调用面通就拿真结果（不回占位）')
+  check((await imp('src/shared/deck-tools/exec-cell.js')).readDeckPath(), '读路上次走哪条的口子在')
+  check(JSON.stringify((await imp('src/shared/deck-tools/exec-cell.js')).readDeckPath()) === JSON.stringify({ tool: 'deck_context', via: 'connection' }), '直连通记直连（给探针读）')
   check(seenPayload && seenPayload.payload && seenPayload.payload.tool === 'deck_context', '递过去的工具名对得上')
   check(seenPayload && seenPayload.payload && seenPayload.payload.session && seenPayload.payload.session.cwd === '/ws', '会话目录只从上下文取（模型参数里塞目录也到不了宿主）')
   // 模型参数里伪造会话：递过去的仍是上下文那一份。
@@ -169,6 +171,7 @@ async function main() {
   const quietTool = quietCtx.tools.registered.filter((t) => t.name === 'deck_context')[0]
   const quietOut = await quietTool.execute({}, { agent: { session: { cwd: '/ws' } } })
   check(quietOut && quietOut.status === 'unsupported' && String(quietOut.text).indexOf('面板') >= 0, '没路就回诚实占位（不谎报成功）')
+  check(JSON.stringify((await imp('src/shared/deck-tools/exec-cell.js')).readDeckPath()) === JSON.stringify({ tool: 'deck_context', via: 'fallback' }), '没路记退回（给探针读）')
   // 参数不是对象、中止、会话缺失：三档各回各的，不碰网络。
   const badOut = await quietTool.execute('不是对象', { agent: { session: { cwd: '/ws' } } })
   check(badOut && badOut.status === 'unsupported', '参数不是对象直接回做不到')
@@ -193,6 +196,7 @@ async function main() {
   } finally {
     try { if (realFetch === undefined) delete globalThis.fetch; else globalThis.fetch = realFetch } catch (e) {}
   }
+  check(JSON.stringify((await imp('src/shared/deck-tools/exec-cell.js')).readDeckPath()) === JSON.stringify({ tool: 'deck_issue_get', via: 'fetch' }), '同源通记同源（给探针读）')
 
   // ── 10. 同进程共享格（定案第一路）：宿主放表，行直接取，不经调用面 ──
   const cell = await imp('src/shared/deck-tools/exec-cell.js')
@@ -246,6 +250,8 @@ async function main() {
   check(JSON.stringify(cellListed).indexOf('/ws') < 0, '干跑不报目录原文（正文一律不进探针）')
   check(cellListed && Array.isArray(cellListed.bridgeGateNotes) && JSON.stringify(cellListed.bridgeGateNotes).indexOf('/ws') < 0,
     '口径迹是数组且不带目录原文（只含机器码）')
+  check(cellListed && JSON.stringify(cellListed.bridgeLastPath) === JSON.stringify({ tool: 'deck_context', via: 'cell' }),
+    '探针带回上次走的路（格子直达）')
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   process.exit(failed ? 1 : 0)

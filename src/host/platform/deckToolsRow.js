@@ -24,7 +24,7 @@ import { definition as deckMapPlanCreateDef } from '../tools/deckMapPlanCreate.j
 import { definition as deckMapLinkDef } from '../tools/deckMapLink.js'
 import { definition as deckIssuePatchDef } from '../tools/deckIssuePatch.js'
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw, makePendingExecute, probeDefinition, probeServices } from '../../shared/deck-tools/agent-register.js'
-import { awaitDeckTable, peekDeckTable, readDeckGate } from '../../shared/deck-tools/exec-cell.js'
+import { awaitDeckTable, peekDeckTable, readDeckGate, noteDeckPath, readDeckPath } from '../../shared/deck-tools/exec-cell.js'
 
 export const name = 'dsh-mattpocock-skills-deck-tools'
 export const inject = ['tools']
@@ -107,9 +107,11 @@ async function probeDetails(ctx, exec) {
   out.bridgeDryReason = ''
   out.bridgeTools = []
   out.bridgeGateNotes = []
+  out.bridgeLastPath = { tool: '', via: '' }
   try {
     try { out.bridgeGateNotes = readDeckGate() } catch (eNotes) { out.bridgeGateNotes = [] }
-  } catch (eNotesOuter) { out.bridgeGateNotes = [] }
+    try { out.bridgeLastPath = readDeckPath() } catch (ePath) { out.bridgeLastPath = { tool: '', via: '' } }
+  } catch (eNotesOuter) { out.bridgeGateNotes = []; out.bridgeLastPath = { tool: '', via: '' } }
   try {
     const hint = sessionHintOf(exec)
     out.bridgeDryHint = !!hint
@@ -271,6 +273,8 @@ async function callViaFetch(payload, signal) {
 
 function makeDelegatedExecute(toolName, ctx) {
   const fallback = makePendingExecute(toolName)
+  function notePath(via) { try { noteDeckPath(toolName, via) } catch (eN) {} }
+  function fallthrough() { notePath('fallback'); return fallback() }
   return async function (args, exec) {
     try {
       const signal = exec && exec.signal
@@ -282,7 +286,7 @@ function makeDelegatedExecute(toolName, ctx) {
       return { status: 'unsupported', reason: 'bad-args', text: '参数不是一个对象，我没法做：请按这个工具的参数说明重调一次。' }
     }
     const hint = sessionHintOf(exec)
-    if (!hint) return fallback()
+    if (!hint) return fallthrough()
     const payload = { tool: toolName, args: args, session: hint }
     // 第一路：同进程共享格（宿主装表时放进来；跨进程时格子是空的，直接跳过）。
     try {
@@ -294,19 +298,19 @@ function makeDelegatedExecute(toolName, ctx) {
           let back = null
           try { back = await run(execLike, args) } catch (eRun) { back = null }
           const value = back && back.value !== undefined ? back.value : back
-          if (value && typeof value.status === 'string' && typeof value.text === 'string') return value
+          if (value && typeof value.status === 'string' && typeof value.text === 'string') { notePath('cell'); return value }
         }
       }
     } catch (eCell) {}
     try {
       const viaConn = await callViaConnection(ctx, payload)
-      if (viaConn) return viaConn
+      if (viaConn) { notePath('connection'); return viaConn }
     } catch (e2) {}
     try {
       const viaFetch = await callViaFetch(payload, exec && exec.signal)
-      if (viaFetch) return viaFetch
+      if (viaFetch) { notePath('fetch'); return viaFetch }
     } catch (e3) {}
-    return fallback()
+    return fallthrough()
   }
 }
 

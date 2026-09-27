@@ -47,12 +47,20 @@ export function createDeckQuotaSync(deps) {
   const syncDue = d.syncDue
   const syncServer = d.syncServer
   const runGh = d.runGh
+  const logCtx = d.logCtx || null
+
+  // 读数落账这一笔留痕（常驻：进程里 60 秒至多一次，跨进程边界，低频）。
+  // 成功记既有 host.call；失败靠既有 gh.exec / gh.resolve.fail 那几行，不另记（缺 gh 的机器不刷屏）。
+  function fireSynced(ms) {
+    try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: 'deck.quotaSync', latencyMs: ms, ok: true, kind: 'deck-tool' }) } catch (eL) {}
+  }
 
   let flying = null
 
   function doSync(cwd, workspaceKey) {
     if (flying) return flying
     flying = (async function () {
+      const t0 = Date.now()
       try {
         if (typeof send !== 'function' || typeof runGh !== 'function' || typeof syncServer !== 'function') return { ok: false, reason: 'missing-dep' }
         let applied = false
@@ -68,7 +76,8 @@ export function createDeckQuotaSync(deps) {
             return { requests: 1, points: 0 }
           },
         )
-        return applied ? { ok: true, fresh: true } : { ok: false, reason: 'sync-empty' }
+        if (applied) { fireSynced(Date.now() - t0); return { ok: true, fresh: true } }
+        return { ok: false, reason: 'sync-empty' }
       } catch (e) { return { ok: false, reason: 'sync-threw' } } finally {
         flying = null
       }

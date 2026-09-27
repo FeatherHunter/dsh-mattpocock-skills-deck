@@ -60,6 +60,8 @@ async function main() {
   calls = { send: 0, runGh: 0 }
   let synced = null
   let sentReq = null
+  const fired = []
+  const fakeLog = { fire: function (level, event, fields) { fired.push({ level: level, event: event, fields: fields }) } }
   const live = mod.createDeckQuotaSync({
     send: async function (req, perform) {
       calls.send += 1
@@ -74,12 +76,15 @@ async function main() {
       if (cwd !== '/ws') throw new Error('目录没递过去')
       return { ok: true, text: rateLimitText(4321) }
     },
+    logCtx: fakeLog,
   })
   const liveOut = await live.ensureReading('/ws', 'ws-abc')
   check(liveOut && liveOut.ok === true, '差读数时同步成功')
   check(calls.send === 1 && calls.runGh === 1, '只打一条（免费读数那一条）')
   check(sentReq && sentReq.kind === 'quota-read' && sentReq.workspaceKey === 'ws-abc', '走免费的 quota-read，工作区键带过去记账')
   check(synced && synced.rest.remaining === 4321 && synced.graphql.remaining === 4321, '读数落进账本两桶')
+  check(fired.length === 1 && fired[0].level === 'info' && fired[0].event === 'host.call' && fired[0].fields.method === 'deck.quotaSync' && fired[0].fields.ok === true && fired[0].fields.kind === 'deck-tool' && typeof fired[0].fields.latencyMs === 'number',
+    '落账成功留一行既有 host.call（电话名、耗时、成功标记、种类，无新事件无新字段）')
 
   // ── 4. gh 不在、解析不出，都认失败，永不抛 ──
   const noGh = mod.createDeckQuotaSync({
@@ -87,9 +92,11 @@ async function main() {
     syncDue: function () { return true },
     syncServer: function () { throw new Error('不该落账') },
     runGh: async function () { return { ok: false, error: 'gh 不可用' } },
+    logCtx: fakeLog,
   })
   const noGhOut = await noGh.ensureReading('/ws', 'ws-1')
   check(noGhOut && noGhOut.ok === false, 'gh 不在认失败，不抛')
+  check(fired.length === 1, '失败不另记（靠既有 gh 那几行，不刷屏）')
   const badJson = mod.createDeckQuotaSync({
     send: async function (req, perform) { return perform() },
     syncDue: function () { return true },

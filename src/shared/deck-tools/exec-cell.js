@@ -88,3 +88,19 @@ export function noteDeckGate(info) {
 export function readDeckGate() {
   try { return gateNotes.map(function (n) { return { phase: n.phase, verdict: n.verdict, reason: n.reason } }) } catch (e) { return [] }
 }
+
+const lastPath = { tool: '', via: '' }
+
+/** 行记一笔这次走的哪条路（探针用）：工具名是自家的，路是四选一枚举。 */
+export function noteDeckPath(tool, via) {
+  try {
+    const t = (typeof tool === 'string' && tool) ? tool : ''
+    const v = (via === 'cell' || via === 'connection' || via === 'fetch' || via === 'fallback') ? via : ''
+    if (t && v) { lastPath.tool = t; lastPath.via = v }
+  } catch (e) {}
+}
+
+/** 读走上次走的路（探针用）。 */
+export function readDeckPath() {
+  try { return { tool: lastPath.tool, via: lastPath.via } } catch (e) { return { tool: '', via: '' } }
+}
