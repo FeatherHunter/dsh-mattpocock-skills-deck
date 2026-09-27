@@ -114,6 +114,7 @@ export function sessionContextOf(exec, deps) {
  *   now        可选，取时间（测试注入假时钟）
  *   invalidate 可选，写后失效缓存该票条目：invalidate({ repo, keys, backendId })
  *   ensureReading 可选，动手前保剩余额度读数：ensureReading(cwd, workspaceKey)，缺席时跳过
+ *   resolveTimeoutMs 可选，仓库标识补全等待上限毫秒数（缺席 8000，测试可调小）
  */
 export function createDeckShell(deps) {
   const d = deps || {}
@@ -213,6 +214,35 @@ export function createDeckShell(deps) {
     if (!sent || sent.sent !== true) {
       noteGate('select', 'defer', str(sent && sent.reason))
       return { ok: false, reason: REFUSAL_REASONS.GATE_DEFER, text: '这一次选后端被闸推迟了（' + str(sent && sent.detail) + '），先不做。' }
+    }
+    // 仓库标识补全（#758）：匹配源常带空标识（注册表只认显式 refId），而房间读写真要它。
+    // 有该能力的后端（房内 getRepoKey，三层兜底）调用方按通用形状自己补，不逐后端写分支；
+    // 没有该能力的后端没有这一格，跳过，下游照旧诚实失败。补全本身也过一次闸（读探针一格）。
+    if (picked && picked.backendId && (!picked.ref || !picked.ref.refId)) {
+      try {
+        const tracker = (registry && typeof registry.get === 'function') ? registry.get(picked.backendId) : null
+        if (tracker && typeof tracker.getRepoKey === 'function') {
+          const capMs = (typeof d.resolveTimeoutMs === 'number' && d.resolveTimeoutMs > 0) ? Math.floor(d.resolveTimeoutMs) : 8000
+          let key = null
+          let resolveSent = null
+          try {
+            resolveSent = await gate.send({ source: 'tool.call', kind: 'probe', bucket: 'rest', workspaceKey: s.workspaceKey, plan: [{ phase: 'resolve' }] }, async () => {
+              try {
+                key = await Promise.race([
+                  Promise.resolve(tracker.getRepoKey(s.cwd, Object.assign({}, backendCtxNow(), { cwd: s.cwd, caller: DECK_TOOL_KIND }))),
+                  new Promise(function (resolve) { setTimeout(function () { resolve(null) }, capMs) }),
+                ])
+              } catch (eResolve) { key = null }
+              return { requests: 1, points: 0 }
+            })
+          } catch (eSend) { resolveSent = null }
+          noteGate('resolve', resolveSent && resolveSent.sent === true ? 'allow' : 'defer', resolveSent && typeof resolveSent.reason === 'string' ? resolveSent.reason : '')
+          if (resolveSent && resolveSent.sent === true && key && typeof key.owner === 'string' && key.owner && typeof key.name === 'string' && key.name) {
+            const refId = key.owner + '/' + key.name
+            picked.ref = { backend: picked.backendId, refId: refId, name: refId, url: 'https://github.com/' + refId }
+          }
+        }
+      } catch (eR) {}
     }
     if (!picked || !picked.backendId) {
       const pending = picked && picked.pending
