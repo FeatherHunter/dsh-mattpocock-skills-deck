@@ -260,6 +260,12 @@ export default {
     // #691：地图子票按需取（in-panel 地图详情页打开时调用；后端没实现这条读路径时界面照旧用快照那份）
     harness.handle('wf.mapTickets', async function (args) { const h = await _mapTickets(); return h.handleMapTickets(args) })
 
+    // #758：七个 deck 工具的宿主代执行（agent 行经它拿真结果；同一份闸与注册表）。
+    // 平台区动态引入（D7；平台区被排除在宿主层之外，不新增同层边）。
+    let _deckExecP = null
+    function _deckExec() { if (!_deckExecP) _deckExecP = (async function(){ const mod = await import('./platform/deckExec.js'); return mod.createDeckExec({ getTable: function(){ return _refreshWiringP.then(function(w){ return (w && typeof w.deckToolsForHost === 'function') ? w.deckToolsForHost() : null }) }, logCtx: logCtx }) })(); return _deckExecP }
+    harness.handle('wf.deckExec', async function (args) { const h = await _deckExec(); return h.handleDeckExec(args) })
+
     harness.handle('wf.refresh', async function (args) { const h = await _sessRef(); return h.handleRefresh(args) })
 
     // #707（T3）视野模型：判定在 refresh-core/src/attention.ts 的产物里；#723（T19）起用接线那一份同一个实例——

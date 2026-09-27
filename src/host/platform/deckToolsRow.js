@@ -32,6 +32,69 @@ const SEVEN = [deckContextDef, deckIssueGetDef, deckMapSnapshotDef, deckIssueCre
 
 function isRecord(v) { return v !== null && typeof v === 'object' && !Array.isArray(v) }
 
+// 探针扩展（只加在行里，不进共享层）：旧的 14 个有无原样保留，
+// 新加的只报键名与有无，不报任何值。值里可能有令牌和路径，一律不碰。
+// 共享层文件有单文件行数上限，探针细节住在行里，行仍在上限内。
+// 通道设计就靠这份清单定，通道接通即退役。
+const PROBE_KEY_LIMIT = 100
+
+function safeKeyList(obj, limit) {
+  const cap = (typeof limit === 'number' && limit > 0) ? Math.floor(limit) : PROBE_KEY_LIMIT
+  try {
+    if (obj === null || typeof obj !== 'object') return []
+    const keys = Object.keys(obj)
+    const out = []
+    for (let i = 0; i < keys.length && out.length < cap; i++) {
+      if (typeof keys[i] === 'string' && keys[i]) out.push(keys[i])
+    }
+    out.sort()
+    return out
+  } catch (e) { return [] }
+}
+
+function probeDetails(ctx, exec) {
+  const out = probeServices(ctx)
+  try {
+    out.ctxKeys = (ctx && typeof ctx === 'object') ? safeKeyList(ctx, PROBE_KEY_LIMIT) : []
+  } catch (e) { out.ctxKeys = [] }
+  try {
+    let holder = null
+    if (ctx && typeof ctx === 'object' && ctx.profileContext !== undefined && ctx.profileContext !== null) holder = ctx.profileContext
+    else if (ctx && typeof ctx.get === 'function') { try { holder = ctx.get('profileContext') } catch (e2) { holder = null } }
+    out.profileContextKeys = (holder && typeof holder === 'object') ? safeKeyList(holder, PROBE_KEY_LIMIT) : []
+  } catch (e3) { out.profileContextKeys = [] }
+  try {
+    const e = exec || {}
+    const session = (e.agent && e.agent.session) || e.session || null
+    out.sessionKeys = (session && typeof session === 'object') ? safeKeyList(session, PROBE_KEY_LIMIT) : []
+  } catch (e4) { out.sessionKeys = [] }
+  try {
+    let fetchHas = false
+    let webSocketHas = false
+    let processHas = false
+    let windowHas = false
+    try { fetchHas = typeof fetch === 'function' } catch (e5) { fetchHas = false }
+    try { webSocketHas = typeof WebSocket === 'function' } catch (e6) { webSocketHas = false }
+    try { processHas = typeof process !== 'undefined' && process !== null && typeof process.execPath === 'string' } catch (e7) { processHas = false }
+    try { windowHas = typeof window !== 'undefined' && window !== null } catch (e8) { windowHas = false }
+    out.globalCaps = { fetch: fetchHas, webSocket: webSocketHas, process: processHas, window: windowHas }
+  } catch (e9) { out.globalCaps = { fetch: false, webSocket: false, process: false, window: false } }
+  try {
+    if (typeof process === 'undefined' || !process || !process.env || typeof process.env !== 'object') out.envKeys = []
+    else {
+      const keys = Object.keys(process.env)
+      const kept = []
+      for (let i = 0; i < keys.length; i++) {
+        if (typeof keys[i] === 'string' && /DSH|PORT|HOST|ADDRESS|URL/i.test(keys[i])) kept.push(keys[i])
+        if (kept.length >= PROBE_KEY_LIMIT) break
+      }
+      kept.sort()
+      out.envKeys = kept
+    }
+  } catch (e10) { out.envKeys = [] }
+  return out
+}
+
 function toRawRegistration(def) {
   const d = def || {}
   if (typeof d.name !== 'string' || !d.name) return null
@@ -67,6 +130,6 @@ export function apply(ctx) {
       schema: { type: 'string' },
       render: function (args, value) { return [{ type: 'text', text: value }] },
     },
-    execute: async function () { return JSON.stringify(probeServices(ctx)) },
+    execute: async function (args, exec) { return JSON.stringify(probeDetails(ctx, exec)) },
   })
 }
