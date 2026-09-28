@@ -165,11 +165,11 @@ const checkFile = function (file) {
   const src = fs.readFileSync(file, 'utf8')
   const env = buildEnv(src, 'zh')
 
-  // a) 未完成 map 行（t 无 stats → snapshot 兜底）：推进式 + map 标识
+  // a) 未完成 map 行（t 无 stats → snapshot 兜底）：推进式 + 工具节
   const out = env.startText(ST, mapIssue(305, '测试 map 标题'))
   assert.ok(out.indexOf('/wayfinder ' + URL305) === 0, file + ' zh 未完成 prompt 以 /wayfinder+空格+链接 开头')
   assert.ok(out.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 未完成 = 推进式文案')
-  assert.ok(out.includes('## 工具') && out.includes('deck_xxx'), file + ' zh 工具节（issue 操作走 deck 工具）')
+  assert.ok(out.includes('## 工具') && out.includes('优先使用 deck_ 开头的工具'), file + ' zh 工具节（issue 操作优先走 deck 工具，不断后路）')
   assert.ok(!out.includes('## 目标 map') && !out.includes('编号：#305'), file + ' zh 未完成态不再内嵌 map 标识头（标识由首行 /wayfinder+链接承载）')
   assert.ok(!out.includes('完成确认'), file + ' zh 未完成态不含完成确认')
 
@@ -204,7 +204,7 @@ const checkFile = function (file) {
   const enEnv = buildEnv(src, 'en')
   const out6 = enEnv.startText(ST, mapIssue(305, 'Test map title'))
   assert.ok(out6.includes('Please use the wayfinder skill to advance this map'), file + ' en 推进式')
-  assert.ok(out6.includes('## Tools') && out6.includes('deck_xxx'), file + ' en 工具节（issue 操作走 deck 工具）')
+  assert.ok(out6.includes('## Tools') && out6.includes('Prefer the deck_ tools'), file + ' en 工具节（issue 操作优先走 deck 工具）')
   assert.ok(!out6.includes('## Target map') && !out6.includes('No: #305'), file + ' en 不再内嵌 map 标识头')
   const out7 = enEnv.startText(ST, mapIssue(200, 'Done map', { total: 2, closed: 2 }))
   assert.ok(out7.includes('## MAP completion check'), file + ' en 完成确认标题（v4 MAP completion check）')

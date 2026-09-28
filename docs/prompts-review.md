@@ -4,7 +4,7 @@
 > PROMPTS 注册表（15 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
 > 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 五段标题 + 无表格 + 工具节 + 零占位符 + T13 闸门引用 + 单行前缀；#74 installSkills 硬校验：版本 ≥ v2 + zh/en 必含 ~/.agents/skills 与全部 10 个所需技能名；#75 progress 硬校验：版本 ≥ v3 + 格式正例 + 未确认不得 close + 首触补写；#76 bodyFormat 硬校验：版本 ≥ v3 + 工具无关（不得点名 gh）+ 去 JSON 黑话 + 格式正例；#77 G16 硬校验：注册表 15 条 + 五片段不得复活（guide/grill/newMap/mapHead/stageGate）+ STAGE_GATED_IDS/去重守卫不得残留 + complete v5（标识头三字段 + 占位符 n/title/url + 无 guide 引导句）+ newWayfinder v8（无「按建图规划契约」引用）+ tpl.diagnose v5（无「与 grill 片段同义」悬空括注））+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×2：newWayfinder + newBugWayfinder；mapExecute/complete 自包含内嵌正文格式）。
 
-## mapExecute · v10 — 清单式（A★ · 去标识头 · 工具节 · 闸门一句引用）
+## mapExecute · v11 — 清单式（A★ · 去标识头 · 工具节优先式 · 闸门一句引用）
 
 - 用途：map 执行 / 新会话（未完成态）· 推进式 · 清单式（A★）
 - 占位符：无（map 身份由首行 `/wayfinder {url}` 承载；router 传参保留兼容）
@@ -13,7 +13,7 @@
 <pre>请使用 wayfinder 技能推进该 map（遵循其规则）：
 
 ## 工具
-- [ ] issue 相关操作使用 deck_xxx 工具处理
+- [ ] issue 相关操作优先使用 deck_ 开头的工具处理
 
 ## 分析
 - [ ] 分析这个 map：Destination / Notes / 阻塞关系 / 当前 frontier
@@ -35,7 +35,7 @@
 <pre>Please use the wayfinder skill to advance this map (follow its rules):
 
 ## Tools
-- [ ] Handle issue operations with the deck_xxx tools
+- [ ] Prefer the deck_ tools for issue operations
 
 ## Analyze
 - [ ] Analyze this map: Destination / Notes / blocking relationships / current frontier
