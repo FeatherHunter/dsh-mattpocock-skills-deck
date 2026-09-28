@@ -219,12 +219,20 @@
       return colorOf
     }
     // T9：行级动作主色计算（与 mkRowAction 共享 · 给新会话按钮复用：与执行按钮同 label 主色）
+    // 字色判据（#764 诊断落地）：按无障碍对比度在两种字色里择优，不用固定阈值一刀切。
     export const isLightHex = function (hex) {
       try {
-        const hh = String(hex || '').replace('#', '')
+        var hh = String(hex || '').trim().replace(/^#/, '')
+        if (/^[0-9a-fA-F]{3}$/.test(hh)) hh = hh[0] + hh[0] + hh[1] + hh[1] + hh[2] + hh[2]
         if (!/^[0-9a-fA-F]{6}$/.test(hh)) return false
-        const r = parseInt(hh.slice(0, 2), 16), g = parseInt(hh.slice(2, 4), 16), b = parseInt(hh.slice(4, 6), 16)
-        return (299 * r + 587 * g + 114 * b) / 1000 > 160
+        var toLin = function (part) { var v = parseInt(part, 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4) }
+        var Lbg = 0.2126 * toLin(hh.slice(0, 2)) + 0.7152 * toLin(hh.slice(2, 4)) + 0.0722 * toLin(hh.slice(4, 6))
+        var Ldark = 0.2126 * toLin('14') + 0.7152 * toLin('0a') + 0.0722 * toLin('1e')
+        var loW = Lbg < 1 ? Lbg : 1, hiW = Lbg < 1 ? 1 : Lbg
+        var cWhite = (hiW + 0.05) / (loW + 0.05)
+        var loD = Lbg < Ldark ? Lbg : Ldark, hiD = Lbg < Ldark ? Ldark : Lbg
+        var cDark = (hiD + 0.05) / (loD + 0.05)
+        return cDark >= cWhite
       } catch (e) { return false }
     }
     export const actionColorOf = function (x, colorOf) {
@@ -256,19 +264,12 @@
       try { return startText(st, x) } catch(e) { return renderTemplate('diagnose', { url: url }, st) }
     }
     // v19：共享 —— 行级动作（列表与 map 详情共用）：按 label 四选一（诊断/修复/讨论/执行），预填输入框；
-    // 按钮主体色 = 对应 label 的 GitHub 配置色（YIQ 感知亮度定文字色）
+    // 按钮主体色 = 对应 label 的 GitHub 配置色（字色按对比度在深白两色里择优，见 isLightHex）
     export const mkRowAction = function (st, x, narrow, colorOf) {
       const url = issueUrlFor(st, x.number)
       const has = function (nm) { return (x.labels || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
       const _isTriageLike = !(x.labels && x.labels.length) || has('needs-triage')
-      const isLight = function (hex) {
-        try {
-          const hh = String(hex || '').replace('#', '')
-          if (!/^[0-9a-fA-F]{6}$/.test(hh)) return false
-          const r = parseInt(hh.slice(0, 2), 16), g = parseInt(hh.slice(2, 4), 16), b = parseInt(hh.slice(4, 6), 16)
-          return (299 * r + 587 * g + 114 * b) / 1000 > 160
-        } catch (e) { return false }
-      }
+      const isLight = isLightHex
       const btnColor = function (nm, fb) { const c = colorOf[nm]; return c ? '#' + c : fb }
       const mk = (icon, label, text, colorHex) => {
         const light = isLight(colorHex)
