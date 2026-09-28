@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>地图详情 · 深夜软木板（M2）</title>
+<style>
+/* ==========================================================================
+   M2 · 深夜软木板 —— 暖 · 图钉 · 一个人的房间
+   场景：房间是暗的，墙上挂一块软木板，桌上有一盏台灯、一杯咖啡、一本便签、一支笔。
+   灯的光圈跟着鼠标走（有阻尼，灯罩有重量）；光没照到的地方沉在暗里 —— 雾就是暗。
+   例外只有一处，也是 #474 第一条理念：目的地那张永远最亮，跟灯在哪无关。
+   ========================================================================== */
+:root{
+  --room:#04050a; --room2:#0a0c12;
+  --cork1:#b08a58; --cork2:#9d7a4e; --cork3:#87683f;
+  --kraft:#c8a97a; --paper:#f4edda; --paper2:#e9dec5; --paper3:#f7f3ea;
+  --ink:#2b2b2b; --ink2:#4a453c;
+  --thread:#c0392b; --thread2:#8e2b20; --ochre:#b8862b;
+  --stamp:#a01e1e; --warm:#ffd9a0;
+  --wood1:#54402c; --wood2:#382a1c; --wood3:#22190f;
+  --brass1:#e0bd75; --brass2:#a3803a; --brass3:#6b5222;
+  --ok:#4ade80; --lit:#58a6ff; --map:#c084fc; --warn:#f59e0b;
+  --lx:50vw; --ly:50vh; --deskx:50vw;
+  --panelw:810px;
+  --cwh:126px;
+  --cw:196px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--room);
+  font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  color:#e6edf3;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px dashed #ffd9a0;outline-offset:2px}
+
+/* ---------- 面板骨架 ---------- */
+#panel{position:relative;width:min(100%,var(--panelw));height:100%;margin:0 auto;
+  display:flex;flex-direction:column;background:var(--room);overflow:hidden}
+body.withbar #panel{height:calc(100% - 34px)}
+#svgdefs{position:absolute;width:0;height:0;overflow:hidden}
+
+/* ---------- 顶部：板子的上沿木框（常驻操作行 + 抬头） ---------- */
+#topstem{position:relative;z-index:70;flex:none;
+  background:
+    repeating-linear-gradient(91deg,rgba(0,0,0,.16) 0 1px,rgba(255,255,255,.035) 1px 4px),
+    linear-gradient(180deg,#5b4630,#3d2d1d 62%,#2a1e12);
+  border-bottom:3px solid #1a1209;
+  box-shadow:0 3px 10px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,220,170,.16);
+  padding:6px 8px 7px}
+#topbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.brass{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:3px;
+  font-size:11.5px;line-height:16px;color:#2a1f08;font-weight:600;
+  background:linear-gradient(180deg,var(--brass1),var(--brass2) 62%,#8a6a2e);
+  border:1px solid #5d4718;
+  box-shadow:inset 0 1px 0 rgba(255,246,220,.75),inset 0 -1px 0 rgba(0,0,0,.35),0 1px 2px rgba(0,0,0,.5);
+  text-shadow:0 1px 0 rgba(255,240,200,.45);white-space:nowrap}
+.brass:hover{background:linear-gradient(180deg,#efd18f,var(--brass1) 62%,#9a7735)}
+.brass:active{transform:translateY(1px)}
+.brass.prim{color:#04120a;background:linear-gradient(180deg,#8bf0ae,var(--ok) 60%,#2fa85e);
+  border-color:#1d5c33;text-shadow:0 1px 0 rgba(255,255,255,.35);font-weight:700}
+.brass.prim.amber{color:#2b1a02;background:linear-gradient(180deg,#facc7a,var(--warn) 60%,#b5760a);border-color:#6d4a06}
+.crumb{font:11px/16px Consolas,Menlo,monospace;color:#d8c19a;padding:2px 6px;border-radius:3px;
+  background:rgba(0,0,0,.32);border:1px solid rgba(255,220,170,.16);white-space:nowrap}
+.tagmap{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;line-height:16px;padding:1px 7px;border-radius:3px;
+  color:#e6d3ff;background:linear-gradient(180deg,#6b3fae,#4b2b7d);border:1px solid #2e1a4d;white-space:nowrap;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(0,0,0,.5)}
+#headline{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+#h604{font:700 12px/16px Consolas,Menlo,monospace;color:var(--map);border:1px solid var(--map);
+  border-radius:3px;padding:1px 5px;background:rgba(192,132,252,.10);flex:none}
+#htitle{font-size:12px;line-height:17px;color:#f0e6d6;text-shadow:0 1px 1px rgba(0,0,0,.7);min-width:0}
+#hcount{font-size:10.5px;line-height:16px;color:#c0ad8e;white-space:nowrap}
+.screw{width:7px;height:7px;border-radius:50%;flex:none;
+  background:radial-gradient(circle at 35% 30%,#f0d9a6,#8a6a2e 60%,#4d3a12);
+  box-shadow:inset 0 -1px 1px rgba(0,0,0,.5),0 1px 1px rgba(0,0,0,.6)}
+
+/* ---------- 中间：软木板（会滚动的板面），板子以外是房间的墙，暗着 ---------- */
+#scroller{position:relative;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
+  background:linear-gradient(180deg,#0a0b14,#05060b 55%,#07070c);
+  scrollbar-width:thin;scrollbar-color:#4b3a26 #0b0d13}
+#scroller::-webkit-scrollbar{width:9px}
+#scroller::-webkit-scrollbar-thumb{background:#4b3a26;border-radius:5px}
+#scroller::-webkit-scrollbar-track{background:#0b0d13}
+#board{position:relative;width:auto;height:1400px;margin:0 9px 30px;padding:0;
+  background:
+    radial-gradient(120% 46% at 22% 6%,rgba(255,226,180,.10),transparent 62%),
+    radial-gradient(84% 46% at 84% 88%,rgba(0,0,0,.34),transparent 72%),
+    radial-gradient(46% 20% at 62% 34%,rgba(120,84,48,.34),transparent 70%),
+    radial-gradient(34% 16% at 24% 66%,rgba(0,0,0,.22),transparent 70%),
+    linear-gradient(180deg,var(--cork1),var(--cork2) 38%,var(--cork3))}
+#grain{position:absolute;inset:0;filter:url(#coarse);mix-blend-mode:soft-light;opacity:.72;pointer-events:none}
+#grain2{position:absolute;inset:0;filter:url(#fine);mix-blend-mode:multiply;opacity:.34;pointer-events:none}
+#stain{position:absolute;pointer-events:none;border-radius:50%;
+  background:radial-gradient(circle,rgba(60,32,12,.30) 0 54%,rgba(60,32,12,.16) 72%,transparent 78%)}
+.frame{position:absolute;top:0;bottom:0;width:13px;pointer-events:none;z-index:5;
+  background:repeating-linear-gradient(88deg,rgba(0,0,0,.2) 0 1px,rgba(255,235,200,.05) 1px 3px),
+    linear-gradient(90deg,#4a3624,#31251a)}
+.f-l{left:0;box-shadow:inset -2px 0 4px rgba(0,0,0,.7)}
+.f-r{right:0;box-shadow:inset 2px 0 4px rgba(0,0,0,.7)}
+
+/* 红线网：画在资料底下（z-index 0，和资料同一层但树序在前），所以线“从纸背后穿过去”，
+   不会在纸面上横穿 —— 这是第 8 节「线不许穿过资料卡片」那条。 */
+#threads{position:absolute;left:0;top:0;width:100%;pointer-events:none;z-index:0;
+  overflow:hidden;filter:drop-shadow(0 1px 1px rgba(0,0,0,.55))}
+.th{fill:none;stroke:var(--thread);stroke-width:1.5;stroke-linecap:round;opacity:.62}
+.th.fog{stroke:var(--thread2);stroke-dasharray:5 5;opacity:.42}
+.th.lit{stroke:#e0503c;stroke-width:2.1;opacity:.95}
+.th.blk{stroke:var(--ochre);stroke-width:1.3;opacity:.5;stroke-dasharray:7 5}
+.th.blk.done{stroke-dasharray:none;opacity:.34}
+.th.hot{stroke:#ff6a4d;stroke-width:2.4;opacity:1}
+/* 注意：#field / #overlayer 都不能有自己的 z-index —— 一有就自成层，目的地那张会被压到暗层下面去。
+   四状态都画在暗层下面（该暗就暗），只有目的地、记账便签、抬起来看的那张，和目的地那圈光画在暗层上面。
+   #overlayer 只管把光晕裁在板子范围内（overflow:hidden 不生成层，压不住目的地）。 */
+#field{position:absolute;inset:0}
+#overlayer{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+
+/* ---------- 资料（票） ---------- */
+.tick{position:absolute;left:0;top:0;width:var(--cw);height:var(--cwh);cursor:grab;
+  transform-origin:50% 6%;will-change:transform;touch-action:none}
+.tick .sheet{position:relative;width:100%;height:100%;padding:9px 9px 7px;overflow:hidden;
+  background:linear-gradient(180deg,#f8f2e2,#eadfc6);
+  border:1px solid rgba(70,52,28,.42);border-radius:2px;
+  box-shadow:0 3px 7px rgba(0,0,0,.5),0 10px 18px rgba(0,0,0,.3),inset 0 1px 0 #fffdf6;
+  display:flex;flex-direction:column;gap:3px}
+.tick.p2 .sheet{background:linear-gradient(180deg,#fbfaf5,#eef0ec)}
+.tick.p3 .sheet{background:linear-gradient(180deg,#f6ecd2,#e6d8b4)}
+.tick:hover{z-index:30}
+.tick:hover .sheet{box-shadow:0 6px 12px rgba(0,0,0,.6),0 16px 28px rgba(0,0,0,.36),inset 0 1px 0 #fffdf6}
+.tick.dragging{cursor:grabbing}
+.tick.dragging .sheet{box-shadow:0 14px 22px rgba(0,0,0,.66),0 28px 48px rgba(0,0,0,.4)}
+/* 抬起来看的那张：越过“暗”，自己带光 */
+.tick.lifted .sheet{box-shadow:0 12px 26px rgba(0,0,0,.7),0 0 0 1px rgba(255,214,150,.5),0 0 46px 8px rgba(255,190,120,.24)}
+.tick .pin{position:absolute;left:50%;top:-6px;width:17px;height:17px;margin-left:-8.5px;border-radius:50%;
+  box-shadow:0 3px 4px rgba(0,0,0,.55),inset 0 -2px 2px rgba(0,0,0,.35),inset 0 2px 2px rgba(255,255,255,.5);
+  background:radial-gradient(circle at 34% 28%,#fff8,transparent 46%),radial-gradient(circle at 40% 34%,#d88,#7c1f14)}
+.pin.t-research{background:radial-gradient(circle at 34% 28%,#fff8,transparent 46%),radial-gradient(circle at 40% 34%,#d9534f,#8c2018)}
+.pin.t-grilling{background:radial-gradient(circle at 34% 28%,#fff8,transparent 46%),radial-gradient(circle at 40% 34%,#6aa8dd,#1f4f80)}
+.pin.t-prototype{background:radial-gradient(circle at 34% 28%,#fff8,transparent 46%),radial-gradient(circle at 40% 34%,#f0cc63,#9a6f11)}
+.pin.t-task{background:radial-gradient(circle at 34% 28%,#fff,transparent 46%),radial-gradient(circle at 40% 34%,#f3f5f8,#8d949e)}
+.pin.t-fix{background:radial-gradient(circle at 34% 28%,#fff8,transparent 46%),radial-gradient(circle at 40% 34%,#7fd08f,#2b6b3c)}
+.pin.t-map{background:radial-gradient(circle at 34% 28%,#fff8,transparent 46%),radial-gradient(circle at 40% 34%,#c9a2f7,#6b34b8)}
+.tick .no{font:700 11px/15px Consolas,Menlo,monospace;color:#3b342a}
+.tick .tipe{font-size:9.5px;line-height:14px;padding:0 5px;border-radius:8px;border:1px solid;white-space:nowrap}
+.tick .hd{display:flex;align-items:center;gap:5px}
+.tick .tt{font-size:12.5px;line-height:15px;color:#241f18;font-weight:600;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:15px}
+.tick .sub{font-size:10.5px;line-height:13px;color:#59503f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tick .sub .ok{color:#2f7d45;font-weight:600}
+.tick .sub .bl{color:#a5641a;font-weight:600}
+.tick .sub .ow{color:#2f6699;font-weight:600}
+.tick .bar{height:3px;border-radius:2px;background:rgba(60,48,30,.18);overflow:hidden}
+.tick .bar i{display:block;height:100%;background:#b9a07a}
+.tick .bar i.done{background:linear-gradient(90deg,#4fae6c,#2f7d45)}
+.tick .acts{display:flex;align-items:center;gap:4px;margin-top:auto;min-height:19px}
+.mini{font-size:10px;line-height:15px;padding:1px 6px;border-radius:3px;border:1px solid #7a6a4c;
+  background:linear-gradient(180deg,#fffdf6,#e8dcc0);color:#332c20;font-weight:600}
+.mini:hover{background:#fffdf6}
+.mini.ghost{background:rgba(255,255,255,.4)}
+.mini.sk{color:#fff;border-color:transparent}
+.tick .link{font-size:11px;line-height:15px;padding:1px 4px;border-radius:3px;border:1px solid #7a6a4c;
+  background:rgba(255,255,255,.4);color:#332c20;text-decoration:none;display:inline-flex}
+
+/* 四状态：形状 / 印章 / 旗子 / 铅笔问号 —— 都不只靠颜色 */.stamp{position:absolute;right:5px;bottom:26px;transform:rotate(-13deg);
+  font:700 13px/17px "Microsoft YaHei",sans-serif;letter-spacing:2px;color:var(--stamp);
+  border:2px solid var(--stamp);border-radius:3px;padding:0 4px;opacity:.62;
+  mix-blend-mode:multiply;pointer-events:none}
+.tick.s-closed .sheet{background:linear-gradient(180deg,#eee7d6,#ded3b8)}
+.tick .dogear{position:absolute;right:0;bottom:0;width:0;height:0;border-style:solid;
+  border-width:0 0 17px 17px;border-color:transparent transparent rgba(120,100,70,.5) transparent;pointer-events:none}
+.flag{position:absolute;left:5px;bottom:24px;transform:rotate(-2deg);font-size:9.5px;line-height:15px;
+  padding:0 6px 0 10px;color:#0e2d19;font-weight:700;background:linear-gradient(90deg,#8ff0ae,#4cc474);
+  clip-path:polygon(7px 0,100% 0,100% 100%,7px 100%,0 50%);pointer-events:none;
+  box-shadow:0 1px 2px rgba(0,0,0,.4)}
+.qmark{position:absolute;right:6px;bottom:27px;font:700 15px/15px Georgia,serif;color:#6b6152;
+  transform:rotate(-8deg);opacity:.75;pointer-events:none}
+.tick.s-fog .qmark{pointer-events:none}
+.tick .litbar{position:absolute;left:0;top:34px;height:15px;width:78%;
+  background:linear-gradient(90deg,rgba(255,214,80,0),rgba(255,214,80,.5) 14%,rgba(255,214,80,.5) 86%,rgba(255,214,80,0));
+  mix-blend-mode:multiply;pointer-events:none}
+.tick.s-lit .sheet{box-shadow:0 8px 16px rgba(0,0,0,.6),0 20px 34px rgba(0,0,0,.36),inset 0 1px 0 #fffdf6}
+.tick.s-lit{z-index:20}
+/* 拿下来看的那张必须压在暗层上面 —— 写在状态规则后面，免得被 s-lit 的 z-index 盖掉 */
+.tick.lifted{z-index:48}
+.tick.dragging{z-index:49}
+
+/* ---------- 目的地：整页中心，永远最亮 ---------- */
+#destglow{position:absolute;z-index:45;pointer-events:none;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,206,140,.22) 0 22%,rgba(255,192,124,.09) 42%,rgba(255,184,116,.03) 62%,transparent 76%)}
+#dest{position:absolute;z-index:46;transform-origin:50% 4%}
+#dest .plate{position:relative;padding:13px 15px 11px;border-radius:2px;
+  background:linear-gradient(168deg,#fffefa,#fdf7e8 46%,#f8efe0);
+  border:1px solid rgba(90,70,40,.45);
+  box-shadow:0 14px 30px rgba(0,0,0,.72),0 34px 60px rgba(0,0,0,.42),
+    inset 0 1px 0 #fff,0 0 0 1px rgba(255,244,214,.6),
+    0 0 70px 14px rgba(255,204,136,.20),0 0 140px 40px rgba(255,190,120,.10)}
+#dest .head{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#dest .goalchip{display:inline-flex;align-items:center;gap:4px;font-size:10px;line-height:16px;padding:1px 7px;
+  border-radius:2px;color:#3d1d63;font-weight:700;background:linear-gradient(180deg,#e4d0ff,#c9a2f7);
+  border:1px solid #5c3391}
+#dest .d604{font:700 11px/16px Consolas,Menlo,monospace;color:#5c3391;border:1px solid #a97fd8;padding:0 5px;border-radius:2px}
+#dest .cap{font-size:10px;line-height:15px;letter-spacing:.5px;color:#7c6a4a;text-transform:uppercase}
+#dest .body{font-size:12px;line-height:18px;color:#2a2419;margin-top:5px;
+  background:linear-gradient(180deg,rgba(255,255,255,.5),rgba(255,255,255,0));padding:2px 0}
+#dest .body b{color:#1d1913}
+#dest .pin{width:19px;height:19px}
+#dest .pins{position:absolute;inset:-6px;pointer-events:none}
+#dest .pins .pin{position:absolute;top:auto;left:auto;margin:0}
+/* 板子下沿/中间那张算出来的账 —— 诚实的进度，不用层数 */
+#ledger{position:absolute;z-index:47;transform-origin:50% 6%}
+#ledger .slip{background:linear-gradient(180deg,#f7f0dd,#e6dabb);border:1px solid rgba(90,70,40,.4);
+  border-radius:2px;padding:6px 9px;box-shadow:0 6px 12px rgba(0,0,0,.55);
+  font-size:11px;line-height:16px;color:#3a3226}
+#ledger .slip b{color:#241f18}
+#ledger .slip .n{font:700 12px/16px Consolas,Menlo,monospace;color:#241f18}
+#ledger .slip .w m{color:#2f7d45;font-weight:700}
+#ledger .slip .w f{color:#a5641a;font-weight:700}
+#ledger .slip .w r{color:#2f6699;font-weight:700}
+#ledger .slip .w u{color:#6b6152;font-weight:700}
+
+/* 空板：一张证据都还没有 */
+#vacant{position:absolute;z-index:4;border:2px dashed rgba(255,240,210,.42);border-radius:3px;
+  display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;
+  font-size:11.5px;line-height:17px;color:#f6e9cf;background:rgba(255,238,205,.05)}
+#vacant .hole{position:absolute;left:50%;top:-5px;width:11px;height:11px;margin-left:-5.5px;border-radius:50%;
+  background:radial-gradient(circle at 40% 34%,#2b2117,#0d0906);box-shadow:0 0 0 1px rgba(255,235,200,.2)}
+
+/* ---------- 房里的暗：物理上成立的雾（一层带洞的黑，洞跟着灯） ----------
+   洞的外面还留一点点环境光：没照到的地方仍然看得见“那里有东西”，只是读不出字。
+   指针事件全交给板子（pointer-events:none），所以暗处的东西照样点得到。 */
+#fog{position:fixed;left:50%;top:50%;width:2500px;height:2500px;margin:-1250px 0 0 -1250px;
+  z-index:40;pointer-events:none;will-change:transform;
+  background:radial-gradient(circle 360px at 50% 50%,rgba(6,7,14,0) 0 48%,rgba(6,7,14,.30) 66%,rgba(6,7,14,.63) 85%,rgba(6,7,14,.78) 100%);
+  transform:translate3d(calc(var(--lx) - var(--vcx)),calc(var(--ly) - var(--vcy)),0)}
+#glow{position:fixed;left:50%;top:50%;width:1900px;height:1900px;margin:-950px 0 0 -950px;
+  z-index:42;pointer-events:none;will-change:transform;mix-blend-mode:screen;
+  background:radial-gradient(circle 470px at 50% 50%,rgba(255,205,138,.34) 0 24%,rgba(255,190,120,.16) 52%,rgba(255,176,106,.06) 74%,transparent 88%);
+  transform:translate3d(calc(var(--lx) - var(--vcx)),calc(var(--ly) - var(--vcy)),0)}
+
+/* ---------- 台灯（房间里那个把光打到板上的东西） ----------
+   灯在离镜头很近的地方：灯罩看得清，灯杆是一条暗的剪影，稍微虚一点。 */
+#arm{position:fixed;inset:0;width:100%;height:100%;z-index:43;pointer-events:none}
+#arm path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+#arm .sh{stroke:rgba(0,0,0,.5);stroke-width:7}
+#arm .bd{stroke:#120d07;stroke-width:4.4;opacity:.8}
+#arm .bs{stroke:rgba(180,148,90,.34);stroke-width:1.2}
+#lamp{position:fixed;left:0;top:0;z-index:52;width:88px;height:76px;transform-origin:44px 5px;
+  will-change:transform;cursor:grab;touch-action:none;pointer-events:none}
+/* 灯只有「画出来的那部分」吃指针：空白的方框不吃，所以它挡不住板子上的东西 */
+#lamp svg path{pointer-events:auto}
+#lamp .neckdot{pointer-events:auto}
+#lampTag{pointer-events:auto}
+#lamp.grabbing{cursor:grabbing}
+#lamp .neckdot{position:absolute;left:38px;top:1px;width:11px;height:11px;border-radius:50%;
+  background:radial-gradient(circle at 36% 30%,#f4e2b6,#8a6a2e 62%,#3d2d12);box-shadow:0 1px 2px rgba(0,0,0,.7)}
+#lampTag{position:absolute;left:2px;top:53px;white-space:nowrap;font-size:9px;line-height:13px;
+  padding:0 5px;border-radius:7px;color:#2a1f08;font-weight:700;opacity:.92;
+  background:linear-gradient(180deg,var(--brass1),var(--brass2));border:1px solid #5d4718;
+  box-shadow:0 1px 3px rgba(0,0,0,.6)}
+
+/* ---------- 板子下沿：木质横档（黄铜牌）+ 桌面 ---------- */
+#desk{position:relative;z-index:70;flex:none}
+#rail{position:relative;height:38px;display:flex;align-items:center;gap:8px;padding:0 8px;
+  background:repeating-linear-gradient(91deg,rgba(0,0,0,.16) 0 1px,rgba(255,235,200,.04) 1px 4px),
+    linear-gradient(180deg,#5f4a33,#3a2b1c 60%,#241a10);
+  border-top:3px solid #1a1209;box-shadow:inset 0 1px 0 rgba(255,220,170,.14),0 -2px 8px rgba(0,0,0,.55)}
+#rail .groove{position:absolute;left:0;right:0;top:4px;height:1px;background:rgba(255,225,180,.10)}
+#noteBtn{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 3px;border-radius:2px 2px 0 0;
+  font-size:11.5px;line-height:15px;color:#3a3226;font-weight:700;white-space:nowrap;
+  background:linear-gradient(180deg,#fbf6e6,#e8dcc0);border:1px solid rgba(60,45,25,.5);border-bottom:0;
+  box-shadow:0 -2px 6px rgba(0,0,0,.45);transform:rotate(-.6deg)}
+#noteBtn .fp{width:8px;height:8px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff8,#7c1f14)}
+#noteBtn[aria-expanded="true"]{background:linear-gradient(180deg,#fffdf4,#f3ecd8)}
+#rail .sp{flex:1}
+#rail .railEnd{display:flex;align-items:center;gap:6px}
+
+/* 桌面：咖啡杯、便签本、一支笔 */
+#deskTop{position:relative;height:60px;overflow:hidden;
+  background:
+    radial-gradient(58% 130% at var(--deskx) 6%,rgba(255,201,132,.34),rgba(255,190,120,.10) 46%,transparent 74%),
+    repeating-linear-gradient(2deg,rgba(0,0,0,.16) 0 1px,rgba(255,235,205,.03) 1px 3px),
+    linear-gradient(180deg,#4a3823,#2e2215 58%,#150f08);
+  box-shadow:inset 0 2px 8px rgba(0,0,0,.8)}
+.mug{position:absolute;left:16px;bottom:6px;width:38px;height:34px}
+.mug .body{position:absolute;left:0;bottom:0;width:32px;height:29px;border-radius:4px 4px 7px 7px;
+  background:linear-gradient(90deg,#8d94a0,#e2e7ee 30%,#aeb6c2 62%,#6f757f);
+  box-shadow:0 3px 6px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.7)}
+.mug .top{position:absolute;left:1px;bottom:24px;width:30px;height:9px;border-radius:50%;
+  background:radial-gradient(ellipse at 50% 40%,#3a2117,#170c07);box-shadow:inset 0 2px 3px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.22)}
+.mug .handle{position:absolute;right:-7px;bottom:9px;width:13px;height:14px;border:4px solid #d7dde5;border-radius:50%;
+  border-left-color:transparent}
+.mug .steam{position:absolute;left:14px;bottom:31px;width:9px;height:22px;opacity:.5;
+  background:radial-gradient(ellipse at 50% 100%,rgba(255,240,220,.5),transparent 72%);
+  filter:blur(2px);animation:steam 6.5s linear infinite}
+@keyframes steam{0%{transform:translateY(0) scaleY(.8);opacity:0}30%{opacity:.5}100%{transform:translateY(-10px) scaleY(1.3);opacity:0}}
+.cofring{position:absolute;left:8px;bottom:2px;width:52px;height:14px;border-radius:50%;
+  border:2px solid rgba(60,32,12,.30);opacity:.7}
+.pad{position:absolute;left:76px;bottom:7px;width:78px;height:38px;border-radius:2px;
+  background:linear-gradient(160deg,#fdf8ea,#e9dfc6);transform:rotate(-3deg);
+  box-shadow:0 3px 7px rgba(0,0,0,.6),inset 0 1px 0 #fff;padding:4px 6px;overflow:hidden}
+.pad i{display:block;height:2px;margin-bottom:3px;background:rgba(60,80,140,.42);border-radius:1px}
+.pad i:nth-child(1){width:78%}.pad i:nth-child(2){width:64%}.pad i:nth-child(3){width:70%}.pad i:nth-child(4){width:44%}
+.pen{position:absolute;left:158px;bottom:11px;width:52px;height:5px;border-radius:3px;transform:rotate(-7deg);
+  background:linear-gradient(180deg,#3d5f8a,#20334d);box-shadow:0 2px 4px rgba(0,0,0,.6)}
+.pen:after{content:"";position:absolute;right:-6px;top:1px;width:9px;height:3px;border-radius:2px;background:#c8cfd8}
+.pen:before{content:"";position:absolute;left:6px;top:-3px;width:14px;height:3px;border-radius:2px;background:#b9c2cc}
+
+/* 桌面下沿：三张折页（Decisions / Not yet specified / Out of scope） */
+#tabs{display:flex;align-items:flex-end;gap:5px;padding:0 8px;height:27px;
+  background:linear-gradient(180deg,#2c2014,#191108)}
+.tab{font-size:11px;line-height:15px;padding:2px 8px;border-radius:3px 3px 0 0;white-space:nowrap;
+  color:#efe2c8;background:linear-gradient(180deg,#5b4730,#3b2c1c);border:1px solid #6d5535;border-bottom:0;
+  box-shadow:inset 0 1px 0 rgba(255,230,190,.18);overflow:hidden;text-overflow:ellipsis;max-width:34%}
+.tab:hover{background:linear-gradient(180deg,#6d5539,#48351f)}
+.tab[aria-expanded="true"]{background:linear-gradient(180deg,#f6ecd2,#e2d3ae);color:#2f2718;border-color:#8a6a45}
+#tabsp{flex:1}
+
+/* ---------- 抽出来的纸（正文详情 / 三个折页展开） ---------- */
+#drawer{position:fixed;left:50%;transform:translateX(-50%);z-index:68;width:min(100%,var(--panelw));
+  max-height:66%;display:none;flex-direction:column;bottom:0}
+#drawer.on{display:flex}
+#drawer .sheet{flex:1;min-height:0;overflow:auto;padding:13px 15px 15px;border-radius:2px 2px 0 0;
+  background:linear-gradient(172deg,#fdf9ee,#f0e7d2 60%,#e6d9ba);
+  border:1px solid rgba(80,62,36,.5);border-bottom:0;
+  box-shadow:0 -14px 30px rgba(0,0,0,.75),inset 0 1px 0 #fff}
+#drawer .dt{display:flex;align-items:center;gap:7px;margin-bottom:6px;flex-wrap:wrap}
+#drawer .dt b{font-size:13px;color:#241f18}
+#drawer .dt .foldline{font-size:10px;color:#7c6a4a;border-top:1px dashed rgba(90,70,40,.6);padding-top:1px}
+#drawer .item{display:flex;gap:7px;font-size:12px;line-height:18px;color:#2c2618;margin:5px 0;
+  padding-bottom:5px;border-bottom:1px dashed rgba(90,70,40,.26)}
+#drawer .item .n{flex:none;font:700 11px/18px Consolas,Menlo,monospace;color:#8a6a45}
+#drawer code{font:11px/16px Consolas,Menlo,monospace;background:rgba(90,70,40,.13);border-radius:2px;padding:0 3px}
+#drawer .more{font-size:11px;color:#7c6a4a;margin-top:8px;padding-top:6px;border-top:1px solid rgba(90,70,40,.4)}
+#drawer .vfold{position:absolute;left:0;right:0;top:-9px;height:9px;
+  background:linear-gradient(180deg,rgba(255,255,255,.18),transparent);pointer-events:none}
+#drawer .close{position:absolute;right:10px;top:8px;font-size:11px;line-height:17px;padding:0 7px;border-radius:2px;
+  border:1px solid #8a6a45;background:rgba(255,255,255,.5);color:#3a3226;font-weight:700}
+
+/* ---------- 原型的控制条（不属于设计本身） ---------- */
+#bar{position:fixed;left:0;right:0;bottom:0;height:34px;z-index:90;display:flex;align-items:center;gap:8px;
+  padding:0 10px;background:#0b0d13;border-top:1px solid #2a2d35;font-size:11px;color:#a1a1aa}
+#bar .lbl{color:#8b8b95}
+#bar .seg{display:flex;border:1px solid #2a2d35;border-radius:4px;overflow:hidden}
+#bar .seg button{padding:2px 9px;font-size:11px;color:#a1a1aa;background:#16181d}
+#bar .seg button.on{background:#21262e;color:#e6edf3;font-weight:600}
+#bar .seg button:hover{background:#262b34;color:#e6edf3}
+#bar .hint{color:#66666f;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- 窄面板（真响应容器，不是响应窗口） ---------- */
+#panel[data-w="400"]{--cw:152px;--cwh:140px}
+#panel[data-w="400"] .tick .tt{font-size:11.5px;line-height:14px;-webkit-line-clamp:4}
+#panel[data-w="400"] #headline{margin-top:5px}
+#panel[data-w="400"] #htitle{font-size:11.5px;line-height:16px;white-space:normal;flex:1 1 100%}
+#panel[data-w="400"] #hcount{font-size:10px}
+#panel[data-w="400"] #rail{gap:5px;padding:0 6px}
+#panel[data-w="400"] .brass{padding:2px 6px;font-size:11px}
+#panel[data-w="400"] .tab{font-size:9.8px;padding:2px 5px;letter-spacing:-.2px}
+#panel[data-w="400"] .tab{max-width:none}
+#panel[data-w="400"] .pad{left:70px;width:64px}
+#panel[data-w="400"] .pen{left:140px;width:44px}
+#panel[data-w="400"] #lamp{width:76px;height:66px}
+#panel[data-w="400"] #topbar{gap:5px}
+</style>
+</head>
+<body>
+
+<svg id="svgdefs" aria-hidden="true">
+  <filter id="coarse" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.028 0.041" numOctaves="3" seed="17" result="n"/>
+    <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.62  0 0 0 0 0.44  0 0 0 0 0.24  0.8 0.8 0.8 0 -0.72"/>
+  </filter>
+  <filter id="fine" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.62" numOctaves="2" seed="5" result="n"/>
+    <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.30  0 0 0 0 0.22  0 0 0 0 0.12  0.7 0.7 0.7 0 -0.78"/>
+  </filter>
+</svg>
+
+<div id="panel" data-w="810">
+
+  <!-- A · 顶部一条常驻操作行；B · 地图抬头 -->
+  <header id="topstem">
+    <div id="topbar">
+      <button id="btnBack" class="brass" data-cap="back" title="返回上一级 / 列表"><span aria-hidden="true">←</span> 返回</button>
+      <span class="crumb" id="crumb">列表 / #604</span>
+      <span class="tagmap"><span aria-hidden="true">🗺</span> wayfinder:map</span>
+      <span class="sp" style="flex:1"></span>
+      <button id="btnMain" class="brass prim" data-cap-alt="execute" title="推进这张图">▶ 执行</button>
+      <button id="btnNewTop" class="brass" data-cap-alt="newSession" title="在新会话里打开、推进这张图"><span aria-hidden="true">⧉</span> 新会话</button>
+      <button id="btnDiagTop" class="brass" data-cap-alt="diagnose" title="诊断入口"><span aria-hidden="true">✚</span> 诊断</button>
+    </div>
+    <div id="headline">
+      <span class="screw" aria-hidden="true"></span>
+      <span id="h604">#604</span>
+      <span id="htitle">MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）</span>
+      <span id="hcount">本图 4 张子票（已关闭 2 张）</span>
+    </div>
+  </header>
+
+  <!-- 软木板板面（会滚动） -->
+  <div id="scroller">
+    <div id="board">
+      <div id="grain"></div>
+      <div id="grain2"></div>
+      <div class="frame f-l"></div>
+      <div class="frame f-r"></div>
+      <svg id="threads" aria-hidden="true"></svg>
+      <div id="field"></div>
+      <div id="overlayer"></div>
+    </div>
+  </div>
+
+  <!-- 板子下沿一条木质横档：黄铜牌就是功能按钮；正文详情是钉在上面的一张对折的纸 -->
+  <div id="desk">
+    <div id="rail">
+      <span class="groove"></span>
+      <button id="noteBtn" data-cap="notes" aria-expanded="false" title="正文详情（点开摊平）">
+        <span class="fp"></span>正文详情
+      </button>
+      <span class="sp"></span>
+      <span class="railEnd">
+        <button id="btnExec" class="brass prim" data-cap="execute" title="推进这张图（执行）">执行</button>
+        <button id="btnNew" class="brass" data-cap="newSession" title="在新会话里打开、推进这张图">新会话</button>
+        <button id="btnDiag" class="brass" data-cap="diagnose" title="诊断入口">诊断</button>
+        <button id="btnArchive" class="mini" data-cap="archive" title="打开原票（档案）">档案</button>
+      </span>
+    </div>
+    <div id="deskTop">
+      <div class="cofring" aria-hidden="true"></div>
+      <div class="mug" aria-hidden="true"><div class="steam"></div><div class="body"></div><div class="handle"></div><div class="top"></div></div>
+      <div class="pad" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="pen" aria-hidden="true"></div>
+    </div>
+    <div id="tabs">
+      <button class="tab" id="tabDec" data-cap="decisions" aria-expanded="false">Decisions so far（2）</button>
+      <button class="tab" id="tabFog" data-cap="fog" aria-expanded="false">Not yet specified（战雾 5）</button>
+      <button class="tab" id="tabOut" data-cap="outOfScope" aria-expanded="false">Out of scope（5）</button>
+      <span id="tabsp"></span>
+      <span class="screw" aria-hidden="true"></span>
+    </div>
+  </div>
+
+  <!-- 抽出来的那张纸 -->
+  <div id="drawer" role="dialog" aria-modal="false" aria-label="抽出来的纸">
+    <div class="vfold" aria-hidden="true"></div>
+    <div class="sheet" id="drawerSheet"></div>
+    <button class="close" id="drawerClose">收起来</button>
+  </div>
+
+  <!-- 房里的暗：一层带洞的黑，洞跟着灯走。洞外面点得到东西（指针事件全交给板子） -->
+  <div id="fog" aria-hidden="true"></div>
+  <div id="glow" aria-hidden="true"></div>
+
+  <!-- 台灯 -->
+  <svg id="arm" aria-hidden="true" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="sh" d=""></path><path class="bd" d=""></path><path class="bs" d=""></path></svg>
+  <div id="lamp" tabindex="0" role="button"
+       aria-label="台灯：拖动可以把它挪到别处，放下后点一下回到跟手；聚焦后方向键也能挪">
+    <svg viewBox="0 0 88 76" width="88" height="76" aria-hidden="true">
+      <defs>
+        <linearGradient id="shadeg" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#3a2f1e"/><stop offset=".42" stop-color="#6b5a38"/>
+          <stop offset=".62" stop-color="#8a7448"/><stop offset="1" stop-color="#2c2415"/>
+        </linearGradient>
+        <linearGradient id="bolbg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff6dc"/><stop offset="1" stop-color="#ffc078"/>
+        </linearGradient>
+      </defs>
+      <ellipse cx="44" cy="8" rx="11" ry="6" fill="#241c10"/>
+      <path d="M33 10 L55 10 L73 60 L15 60 Z" fill="url(#shadeg)" stroke="#12100b" stroke-width="1.5"/>
+      <ellipse cx="44" cy="60" rx="29" ry="8" fill="url(#bolbg)" opacity=".95"/>
+      <ellipse cx="44" cy="59" rx="25" ry="6" fill="#fff8e6" opacity=".9"/>
+    </svg>
+    <span class="neckdot" aria-hidden="true"></span>
+    <span id="lampTag">跟手</span>
+  </div>
+
+  <!-- 原型的控制条（不属于设计本身） -->
+  <div id="bar">
+    <span class="lbl">宽度</span>
+    <span class="seg" id="segW">
+      <button data-v="400">400</button><button data-v="810" class="on">810</button>
+    </span>
+    <span class="lbl">状态</span>
+    <span class="seg" id="segS">
+      <button data-v="active" class="on">推进中</button><button data-v="empty">还没画图</button><button data-v="big">大图</button>
+    </span>
+    <button class="mini" id="btnFollow" title="把台灯叫回跟手">灯回跟手</button>
+    <span class="hint">原型控制条 · 不属于设计本身（?bar=0 可隐藏）</span>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================================
+   一、数据（五个人共用同一份：真机地图 #604 的三份样本）
+   ========================================================================== */
+const DEST_TEXT = "把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。";
+
+const DECISIONS = [
+  { t: "收口上个会话的遗留", g: "倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）" },
+  { t: "补上 gh 调用的测量盲区", g: "真机一天 2538 次 gh 调用，中位 7.8 秒，超过「单次 ≤ 1.5 秒」" }
+];
+const FOG_LIST = [
+  "按体检清单毕业出来的「方案 + 落地 + 真机复测」票：每一条毛病单独成票，数量与内容要等体检结果才知道，现在切不出来。",
+  "客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换、详情页各自慢不慢、慢在哪，现在说不清，等体检数字。",
+  "装配启动与日志落盘 / 内存的治理方案：同上，等体检数字。",
+  "真机取证的常备手法细节（怎么一键复测、结果放哪）：等测点常备化那票落地后再定。",
+  "面板首次打开那条的第二处修复（地图行适配）的真机数字还没量过：预期折叠耗时从 81 毫秒降到约 15 毫秒。"
+];
+const OUT_LIST = [
+  "改 DSH 本体：如果「宿主调用被推迟」真的发生在 DSH 提供的 ctx.exec 内部，本插件只能适应与上报，改不了它。",
+  "改其它仓库（D:\\ilife 等）：本次只读参考。",
+  "面板首次打开那条（真机 5075 → 179 毫秒，已修好并验证）：不重查。",
+  "发版与发布流程：本图只管把改动做到真机达标，交给已装用户是发布票的事。",
+  "重新设计插件整体架构：本次只在宿主取数链上做结构性收敛，不动其它分层。"
+];
+const NOTES6 = [
+  { n: "1", s: "本图**携带执行**，不是纯规划图。票按「查清 → 方案 → 落地 → 真机复测」四步走；地图关闭条件 = 清单上每一条要么已落地并复测达标，要么明确裁决「不改」并写明理由。允许「裁决不改」作为合法终点，但不允许「没量就跳过」。" },
+  { n: "2", s: "领域：宿主取数链（`src/host/`）、客户端渲染（`src/client/`）、日志体系（`src/host/logPkg/`、`research/489-appendix.md`）、平台层（`src/host/platform/`）、三层解耦（`src/seam/`）。" },
+  { n: "3", s: "**先量后改**：每条结论都必须能指到实测数字。本地对照实验的绝对毫秒数不能当真机数字用，只能搬「改前 / 改后的倍数」与「结果等价性」两个结论。" },
+  { n: "4", s: "验收用**绝对秒数**（人能感知的秒数），不用降幅百分比。目标准：点开面板到看见内容 ≤ 300 毫秒；点刷新到新数据出现 ≤ 2 秒；宿主单次 `gh` 调用 ≤ 1.5 秒；探测一轮 ≤ 1 秒。" },
+  { n: "5", s: "以目标准为闸门：超过目标准的一律治；已经达标的不动，登记一行「已达标」。" },
+  { n: "6", s: "提问方式：需要人拿主意时写在对话正文里，不用弹窗式提问工具。" }
+];
+
+const MAIN = {
+  no: 604,
+  title: "MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）",
+  destination: DEST_TEXT,
+  tickets: [
+    { no: 605, type: "task",     title: "收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票", state: "CLOSED", blockedBy: [] },
+    { no: 606, type: "task",     title: "补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点", state: "CLOSED", blockedBy: [605] },
+    { no: 607, type: "research", title: "全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单", state: "OPEN", claimedBy: "FeatherHunter", blockedBy: [605, 606] },
+    { no: 608, type: "grilling", title: "宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个", state: "OPEN", blockedBy: [607] }
+  ],
+  decisions: DECISIONS, fog: FOG_LIST, outOfScope: OUT_LIST
+};
+const BIG_ROWS = [
+  [701, "CLOSED", "task",      "收口上个会话的遗留", [], null],
+  [702, "CLOSED", "task",      "补上 gh 调用的测量盲区", [701], null],
+  [703, "CLOSED", "research",  "面板渲染耗时基线", [701], null],
+  [704, "OPEN",   "research",  "宿主命令链耗时体检", [701, 702], "FeatherHunter"],
+  [705, "CLOSED", "research",  "客户端渲染耗时体检", [701, 703], null],
+  [706, "OPEN",   "research",  "日志落盘与内存体检", [703], null],
+  [707, "OPEN",   "research",  "装配启动耗时体检", [701], null],
+  [708, "OPEN",   "grilling",  "宿主取数层设计：接缝画在哪、缓存键怎么定", [704, 706], null],
+  [709, "OPEN",   "grilling",  "请求合并与缓存键设计", [708], null],
+  [710, "OPEN",   "task",      "三个扫描器收成一个", [708], null],
+  [711, "OPEN",   "task",      "面板列表虚拟滚动落地", [705], null],
+  [712, "OPEN",   "task",      "状态栏刷新链路瘦身", [705], null],
+  [713, "OPEN",   "task",      "详情页首屏预算达标", [711, 712], null],
+  [714, "OPEN",   "prototype", "地图详情页重构的观感原型", [711], null],
+  [715, "OPEN",   "task",      "启动阶段懒装配", [707], null],
+  [716, "OPEN",   "task",      "日志写入节流与批量落盘", [706], null],
+  [717, "OPEN",   "task",      "内存占用回归门禁", [716], null],
+  [718, "OPEN",   "task",      "真机全链复测", [710, 713, 715, 717], null],
+  [719, "OPEN",   "task",      "性能预算写进 CI", [718], null],
+  [720, "OPEN",   "task",      "把实测数字写进文档", [718], null]
+];
+function bigSample() {
+  return {
+    no: 604, title: MAIN.title, destination: DEST_TEXT,
+    tickets: BIG_ROWS.map(function (r) {
+      return { no: r[0], state: r[1], type: r[2], title: r[3] + "（示例）", blockedBy: r[4], claimedBy: r[5] || undefined };
+    }),
+    decisions: DECISIONS, fog: FOG_LIST, outOfScope: OUT_LIST
+  };
+}
+function emptySample() {
+  return { no: 604, title: MAIN.title, destination: DEST_TEXT, tickets: [], decisions: [], fog: [], outOfScope: [] };
+}
+
+/* 类型 → 图钉颜色（研究／讨论／原型／修复／任务） */
+const TYPES = {
+  research:  { zh: "研究", pin: "t-research",  ink: "#8c2018", skill: "研究" },
+  grilling:  { zh: "讨论", pin: "t-grilling",  ink: "#1f4f80", skill: "讨论" },
+  prototype: { zh: "原型", pin: "t-prototype", ink: "#8a6210", skill: "原型" },
+  task:      { zh: "任务", pin: "t-task",      ink: "#4d5560", skill: "修复" },
+  fix:       { zh: "修复", pin: "t-fix",       ink: "#2b6b3c", skill: "修复" },
+  map:       { zh: "地图", pin: "t-map",       ink: "#5c3391", skill: "执行" }
+};
+const typeOf = function (t) { return TYPES[t.type] ? t.type : "task" };
+
+/* 四状态（全项目统一，语义一字不改） */
+function stateOf(t, all) {
+  if (t.state === "CLOSED") return "closed";                 // 走亮
+  if (t.claimedBy) return "lit";                              // 照亮中
+  const blk = (t.blockedBy || []).map(function (b) { return all.find(function (x) { return x.no === b; }); }).filter(Boolean);
+  if (blk.some(function (b) { return b.state === "OPEN"; })) return "fog";   // 雾里
+  return "ready";                                             // 现在能做
+}
+const STATE_ZH = { closed: "已关闭", lit: "正在办", ready: "现在能做", fog: "还没探明" };
+
+/* ============================================================================
+   二、参数与工具
+   ========================================================================== */
+const P = new URLSearchParams(location.search);
+const PANEL_W = Math.max(320, Math.min(1400, Number(P.get("w")) || 810));
+const SAMPLE = ["active", "empty", "big"].indexOf(P.get("s") || "active") >= 0 ? (P.get("s") || "active") : "active";
+const SHOWBAR = P.get("bar") !== "0";
+const DATA = SAMPLE === "big" ? bigSample() : SAMPLE === "empty" ? emptySample() : MAIN;
+/* 诚实渲染的兜底（与真机 MapDetail.js 同一个口径）：字段缺了就按空渲染，不许抛错。
+   缺字段的票照样画出来，只是标题那行是空的 —— 不假装它不存在。 */
+DATA.decisions = Array.isArray(DATA.decisions) ? DATA.decisions : [];
+DATA.fog = Array.isArray(DATA.fog) ? DATA.fog : [];
+DATA.outOfScope = Array.isArray(DATA.outOfScope) ? DATA.outOfScope : [];
+DATA.destination = typeof DATA.destination === "string" ? DATA.destination : "";
+DATA.title = typeof DATA.title === "string" ? DATA.title : "";
+DATA.tickets = (Array.isArray(DATA.tickets) ? DATA.tickets : []).filter(function (t) { return t && typeof t === "object" && t.no != null; });
+DATA.tickets.forEach(function (t) {
+  t.blockedBy = Array.isArray(t.blockedBy) ? t.blockedBy : [];
+  t.title = typeof t.title === "string" ? t.title : "";
+  if (t.state !== "CLOSED") t.state = "OPEN";
+});
+const ALL = DATA.tickets;
+const root = document.documentElement;
+const $ = function (s) { return document.querySelector(s); };
+const $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+/* 极简 markdown：只认 **粗体** 与 `等宽`，够用且不会引入任何依赖 */
+function md(s) {
+  return esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+function blockNames(t) {
+  return (t.blockedBy || []).map(function (b) { return "#" + b; }).join("、");
+}
+
+/* 布局与几何都留在这里，自检脚本可以直接问 */
+const M2 = {
+  data: DATA, sample: SAMPLE, panelW: PANEL_W,
+  geom: { boardW: 0, boardH: 0, cw: 0, ch: 0, dest: null, boxes: {}, pos: {} },
+  lamp: { mode: "follow", tx: 0, ty: 0, cx: 0, cy: 0, sx: 0, sy: 0, ang: 0 },
+  order: []
+};
+window.M2 = M2;
+
+/* ============================================================================
+   三、板面布局：中间是目的地，四周是票（辐射，不是台阶）
+   —— 位置由「离目标的远近 + 号数」算出来，板子上不会出现任何层号。
+   ========================================================================== */
+function overlap(a, b, gap) {
+  const g = gap || 0;
+  const ox = Math.min(a.x + a.w + g, b.x + b.w + g) - Math.max(a.x - g, b.x - g);
+  const oy = Math.min(a.y + a.h + g, b.y + b.h + g) - Math.max(a.y - g, b.y - g);
+  return (ox > 0 && oy > 0) ? Math.min(ox, oy) : 0;
+}
+function rectHit(r, p) { return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
+/* 求线段与矩形的边界交点（把线头收在纸边，不钻进纸里） */
+function clipToRect(rect, from) {
+  const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+  let dx = from.x - cx, dy = from.y - cy;
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const sx = dx === 0 ? Infinity : (rect.w / 2) / Math.abs(dx);
+  const sy = dy === 0 ? Infinity : (rect.h / 2) / Math.abs(dy);
+  const s = Math.min(sx, sy);
+  return { x: cx + dx * s, y: cy + dy * s };
+}
+
+function buildBoard() {
+  const sc = $("#scroller");
+  const boardEl = $("#board");
+  const boardW = boardEl.clientWidth;
+  const narrow = PANEL_W < 600;
+  const cw = narrow ? 152 : 196, ch = narrow ? 140 : 126;
+  /* 滚动区上边距：至少留出常驻行那么高 —— 板子的第一排票永远不会贴着常驻行的下沿长出来。
+     （板子自己不留上外边距：那样滚动位置就跟板面坐标差了一截，算出来的中心点会对不上浏览器给的。） */
+  const headH = Math.round($("#topstem").getBoundingClientRect().height) || 26;
+  const padX = 20, padTop = Math.max(26, headH + 11);
+  const dw = Math.min(boardW - padX * 2 - (narrow ? 36 : 90), narrow ? 330 : 452);
+  M2.geom.boardW = boardW; M2.geom.cw = cw; M2.geom.ch = ch;
+
+  const field = $("#field");
+  const dcxV = boardW / 2, dcyV = 1000;          // 目的地先摆在虚拟画布的正中
+  const rnd = mulberry32(0x604);
+
+  /* ---- 目的地那张：先把它的高度量出来（只量一次，不在动画帧里反复读） ---- */
+  const dest = document.createElement("div");
+  dest.id = "dest"; dest.setAttribute("data-role", "destination");
+  dest.style.width = dw + "px";
+  dest.innerHTML =
+    '<div class="plate">' +
+      '<div class="pins">' +
+        '<span class="pin t-map" style="left:-2px;top:-2px"></span>' +
+        '<span class="pin t-map" style="right:-2px;top:-2px;left:auto"></span>' +
+        '<span class="pin t-map" style="left:-2px;bottom:-2px;top:auto"></span>' +
+        '<span class="pin t-map" style="right:-2px;bottom:-2px;left:auto;top:auto"></span>' +
+      '</div>' +
+      '<div class="head">' +
+        '<span class="goalchip">⚑ 终点</span>' +
+        '<span class="d604">#' + DATA.no + '</span>' +
+        '<span class="cap">Destination</span>' +
+      '</div>' +
+      '<div class="body">' + (DATA.destination ? md(DATA.destination) : '<i style="color:#8a7a5c">这张图还没有写下目的地。</i>') + '</div>' +
+    '</div>';
+  dest.style.transform = "translate3d(0px,0px,0)";
+  field.appendChild(dest);
+  const dh = dest.offsetHeight;                   // 一次性测量
+  const drect = { x: dcxV - dw / 2, y: dcyV - dh / 2, w: dw, h: dh };
+  const destGlow = document.createElement("div");
+  destGlow.id = "destglow";
+  $("#overlayer").appendChild(destGlow);
+
+  /* ---- 票：先按「离目标多近」排出先后，再各自找一个离锚点最近、且不压别人的位置 ---- */
+  const order = ALL.map(function (t, i) { return { t: t, i: i, s: stateOf(t, ALL) }; });
+  const rank = { lit: 0, ready: 0, closed: 1, fog: 2 };      // 正在办/现在能做的贴着中心，办完的退到一边，没探明的散在外圈
+  order.sort(function (a, b) { return (rank[a.s] - rank[b.s]) || (a.t.no - b.t.no); });
+  M2.order = order.map(function (o) { return o.t.no; });
+
+  const Hc = 2100;
+  const placed = [];
+  const destBox = { x: drect.x - 18, y: drect.y - 18, w: drect.w + 36, h: drect.h + 36 };
+
+  const cwHalf = cw / 2, chHalf = ch / 2;
+  /* 票少的时候把整个构图收紧一点，免得板子上大片空着 */
+  const spread = ALL.length <= 6 ? 0.6 : ALL.length <= 10 ? 0.86 : 1;
+  for (let k = 0; k < order.length; k++) {
+    const it = order[k], st = it.s;
+    let ax, ay;
+    if (st === "lit") { const n = ALL.filter(function (t) { return stateOf(t, ALL) === "lit"; }).length; const j = order.slice(0, k).filter(function (o) { return o.s === "lit"; }).length; ax = (330 + j * 60) * spread; ay = -70 + (n > 1 ? (j - (n - 1) / 2) * 150 : 0); }
+    else if (st === "ready") { const n = ALL.filter(function (t) { return stateOf(t, ALL) === "ready"; }).length; const j = order.slice(0, k).filter(function (o) { return o.s === "ready"; }).length; const per = narrow ? 2 : 3; const row = Math.floor(j / per), col = j % per; ax = (col - (Math.min(per, n) - 1) / 2) * (cw + 14); ay = (300 + row * (ch + 16)) * spread; }
+    else if (st === "closed") { const j = order.slice(0, k).filter(function (o) { return o.s === "closed"; }).length; ax = (-250 + (j % 2) * (cw + 12)) * spread; ay = (620 + Math.floor(j / 2) * (ch + 14)) * spread; }
+    else { const j = order.slice(0, k).filter(function (o) { return o.s === "fog"; }).length; const total = ALL.filter(function (t) { return stateOf(t, ALL) === "fog"; }).length; const R = (330 + j * Math.min(26, 220 / Math.max(1, total))) * (total <= 2 ? 0.82 : spread); const th = (j * 2.39996 + 0.9) + rnd() * 0.5; ax = Math.cos(th) * R * (1 + rnd() * .28); ay = Math.sin(th) * R * (1 + rnd() * .28) + 40; }
+
+    let best = null, bestScore = 1e9, bestAny = null, bestAnyScore = 1e9;
+    for (let c = 0; c < 900; c++) {
+      const x = padX + rnd() * Math.max(4, boardW - cw - padX * 2);
+      const y = 8 + rnd() * (Hc - ch - 16);
+      const r = { x: x, y: y, w: cw, h: ch };
+      let bad = 0;
+      for (let p = 0; p < placed.length; p++) bad += overlap(r, placed[p], 13);
+      const d = Math.hypot(x + cwHalf - (dcxV + ax), y + chHalf - (dcyV + ay)) + rnd() * 70;
+      if (overlap(r, destBox, 8) > 0) continue;
+      if (bad === 0) { if (d < bestScore) { bestScore = d; best = r; } }
+      else if (bad < bestAnyScore) { bestAnyScore = bad; bestAny = r; }
+    }
+    const use = best || bestAny || { x: 10 + rnd() * 40, y: 10 + rnd() * 40, w: cw, h: ch };
+    placed.push(use);
+    it.rect = use;
+    it.rot = (rnd() * 5.4 - 2.7);
+  }
+
+  /* ---- 把整块板收拢到实际用到的范围，再加边距；内容少的时候板子也要占满一屏 ---- */
+  let minY = drect.y, maxY = drect.y + drect.h, minX = drect.x, maxX = drect.x + drect.w;
+  placed.forEach(function (r) { minY = Math.min(minY, r.y); maxY = Math.max(maxY, r.y + r.h); minX = Math.min(minX, r.x); maxX = Math.max(maxX, r.x + r.w); });
+  if (ALL.length === 0) maxY = Math.max(maxY, drect.y + drect.h + 64 + 128 + padTop);
+  let shiftY = padTop - minY;
+  const contentH = Math.max(320, Math.round(maxY - minY + padTop * 2));
+  const minH = Math.max(360, sc.clientHeight - 34);
+  let H = contentH;
+  if (contentH < minH) { H = minH; shiftY += (minH - contentH) * 0.45; }   // 东西少的时候，把它挪到视野中间偏上
+  M2.geom.boardH = H;
+  const board = boardEl;
+  board.style.height = H + "px";
+  $("#threads").setAttribute("viewBox", "0 0 " + boardW + " " + H);
+  $("#threads").setAttribute("height", H);
+
+  const fx = drect.x, fy = drect.y + shiftY;
+  M2.geom.dest = { x: fx, y: fy, w: dw, h: dh };
+  dest.style.transform = "translate3d(" + fx + "px," + fy + "px,0)";
+  destGlow.style.left = (fx - 120) + "px";
+  destGlow.style.top = (fy - 110) + "px";
+  destGlow.style.width = (dw + 240) + "px";
+  destGlow.style.height = (dh + 220) + "px";
+  destGlow.style.transform = "translate3d(0,0,0)";
+
+  /* ---- 打开那一屏：镜头对准目的地（居中）。
+     但常驻行压在滚动区上面、桌面压在下面，落进这两条“带子”里的票，中心点会被 chrome 接走 ——
+     把它交给 elementFromPoint，命中的就不是那张票了。所以：先把中心点落进带子里的票顺着板面挪出去，
+     挪不动就换一个滚动位置，来回几轮，直到这一屏里没有任何一张票的中心点被压住。
+     （两条带子说的是板面坐标：滚动位置 s 定下来之后，[s-常驻行高, s) 会被常驻行接走，
+        (s+滚动区高, s+滚动区高+桌面高] 会被桌面接走。） ---- */
+  const scb = sc.getBoundingClientRect();
+  const scTop = Math.round(scb.top), scBot = Math.round(scb.bottom), visH = Math.round(scb.height);
+  const maxS = Math.max(0, sc.scrollHeight - sc.clientHeight);
+  const destRect = { x: fx, y: fy, w: dw, h: dh };
+  /* 灯一打开停在目的地那张上，灯罩在它右上方 —— 那个位置也不许压住任何一张票的中心点 */
+  const lampRect0 = { x: fx + dw / 2 + 52, y: fy + dh / 2 - 139, w: 88, h: 76 };
+  const shifted = order.map(function (it) { return { it: it, x: it.rect.x, y: it.rect.y + shiftY, w: cw, h: ch }; });
+  /* clear = 想要的余量：中心点离常驻行/桌面的边界至少这么远。
+     先按大的找，找不到就放宽 —— 但绝不挑「刚好卡在 1px 上」的位置，那样量到哪一侧全看运气。 */
+  const inBand = function (cy, s, c) {
+    return (cy >= s - scTop && cy < s + c) || (cy > s + visH - c && cy <= s + visH + (innerHeight - scBot));
+  };
+  const countBad = function (s, c) {                    // 中心点在“屏内”却被 chrome 接走的票数
+    let n = 0;
+    for (let i = 0; i < shifted.length; i++) {
+      const cy = scTop + shifted[i].y + ch / 2 - s;
+      if (cy < 0 || cy > innerHeight) continue;         // 整张都在屏外，不算
+      if (cy < scTop + c || cy > scBot - c) n++;
+    }
+    return n;
+  };
+  const underLamp = function (r) {                      // 这张票的中心点在灯罩底下吗
+    const cx = r.x + cw / 2, cy = r.y + ch / 2;
+    return cx >= lampRect0.x - 8 && cx <= lampRect0.x + lampRect0.w + 8 && cy >= lampRect0.y - 8 && cy <= lampRect0.y + lampRect0.h + 8;
+  };
+  const freeSpot = function (m, nx, ny) {
+    if (ny < padTop || ny > H - padTop - ch) return false;
+    const cand = { x: nx, y: ny, w: cw, h: ch };
+    if (overlap(cand, destRect, 10) > 0) return false;
+    if (underLamp(cand)) return false;
+    for (let i = 0; i < shifted.length; i++) { const o = shifted[i]; if (o !== m && overlap(cand, o, 12) > 0) return false; }
+    return true;
+  };
+  const nudgeFor = function (s, c) {                    // 把这一屏里被压住的票挪出去，返回挪了几张
+    let moved = 0;
+    for (let i = 0; i < shifted.length; i++) {
+      const m = shifted[i];
+      if (!inBand(m.y + ch / 2, s, c)) continue;
+      let done = false;
+      for (let d = 4; d <= 96 && !done; d += 4) {       // 先试上下挪：动得最少、看着最自然
+        for (let k = 0; k < 2 && !done; k++) {
+          const ny = m.y + (k ? d : -d);
+          if (freeSpot(m, m.x, ny) && !inBand(ny + ch / 2, s, c)) { m.y = ny; moved++; done = true; }
+        }
+      }
+      for (let d = 4; d <= 96 && !done; d += 4) {       // 上下都不行，再在周围一圈圈找
+        const dirs = [[d, -d], [d, d], [-d, -d], [-d, d], [d, 0], [-d, 0], [0, d], [0, -d]];
+        for (let q = 0; q < dirs.length && !done; q++) {
+          const nx = m.x + dirs[q][0], ny = m.y + dirs[q][1];
+          if (nx < padX - 6 || nx > boardW - padX - cw + 6) continue;
+          if (freeSpot(m, nx, ny) && !inBand(ny + ch / 2, s, c)) { m.x = nx; m.y = ny; moved++; done = true; }
+        }
+      }
+    }
+    return moved;
+  };
+  const sLo = Math.max(0, Math.min(maxS, Math.round(fy + dh - visH)));   // 目的地整张都还留在滚动区里
+  const sHi = Math.max(0, Math.min(maxS, Math.round(fy)));
+  const s0 = Math.max(0, Math.min(maxS, Math.round(fy + dh / 2 - visH * 0.46)));
+  const pick = function (c) {                           // 在看得见目的地的范围里挑最干净的那个滚动位置
+    let bs = Math.max(sLo, Math.min(sHi, s0)), bb = countBad(bs, c);
+    for (let s = sLo; s <= sHi; s += 2) {
+      const b = countBad(s, c);
+      if (b < bb || (b === bb && Math.abs(s - s0) < Math.abs(bs - s0))) { bb = b; bs = s; }
+    }
+    return { s: bs, bad: bb };
+  };
+  const LADDER = [16, 8, 3];
+  let chosen = null;
+  for (let li = 0; li < LADDER.length; li++) {
+    const c = LADDER[li];
+    let s = Math.max(sLo, Math.min(sHi, s0)), bad = countBad(s, c);
+    for (let round = 0; round < 5 && bad > 0; round++) {
+      const p = pick(c); s = p.s; bad = p.bad;
+      if (bad === 0) break;
+      if (nudgeFor(s, c) === 0) break;
+    }
+    if (bad === 0) { chosen = { s: s, bad: 0, clear: c }; break; }
+    if (!chosen || bad < chosen.bad) chosen = { s: s, bad: bad, clear: c };
+  }
+  if (!chosen) chosen = { s: s0, bad: countBad(s0, 3), clear: 3 };
+  M2.geom.scroll0 = chosen;
+  shifted.forEach(function (m) { m.it.pos = { x: m.x, y: m.y }; });
+
+  /* ---- 票落位 ---- */
+  const pool = ["p1", "p2", "p3"];
+  order.forEach(function (it, k) {
+    const t = it.t, st = it.s, x = it.pos.x, y = it.pos.y;
+    M2.geom.pos[t.no] = { x: x, y: y, w: cw, h: ch, rot: it.rot };
+    const el = document.createElement("div");
+    el.className = "tick " + pool[k % 3] + " s-" + st;
+    el.setAttribute("data-ticket", String(t.no));
+    el.setAttribute("data-state", st);
+    el.setAttribute("tabindex", "0");
+    el.setAttribute("role", "button");
+    el.style.transform = "translate3d(" + x + "px," + y + "px,0) rotate(" + it.rot.toFixed(2) + "deg)";
+    el.setAttribute("aria-label", "#" + t.no + " " + TYPES[typeOf(t)].zh + " · " + STATE_ZH[st] + " · " + t.title);
+    el.setAttribute("title", t.title);
+    const sk = TYPES[typeOf(t)].skill;
+    const act = (st === "ready")
+      ? '<div class="acts">' +
+          '<button class="mini sk" data-act="skill" style="background:' + TYPES[typeOf(t)].ink + '">' + sk + '</button>' +
+          '<button class="mini ghost" data-act="newsession">新会话</button>' +
+          '<a class="link" data-act="open" href="#" onclick="return false" title="打开原票 #' + t.no + '" aria-label="打开原票 #' + t.no + '">🔗</a>' +
+        '</div>'
+      : '<div class="acts"></div>';
+    let sub = "";
+    if (st === "closed") sub = '<span class="ok">✓ 已关闭</span> · 100%';
+    else if (st === "lit") sub = '<span class="ow">经办人 ' + esc(t.claimedBy) + '</span> · 未动工 · 0%';
+    else if (st === "ready") sub = '未动工 · 0%';
+    else sub = '<span class="bl">被 ' + esc(blockNames(t)) + ' 挡着</span>';
+    let mark = "";
+    if (st === "closed") mark = '<span class="stamp">已关闭</span><span class="dogear"></span>';
+    else if (st === "lit") mark = '<span class="litbar"></span>';
+    else if (st === "ready") mark = '<span class="flag">现在能做</span>';
+    else mark = '<span class="qmark" aria-hidden="true">?</span>';
+    el.innerHTML =
+      '<span class="pin ' + TYPES[typeOf(t)].pin + '" aria-hidden="true"></span>' +
+      '<div class="sheet">' +
+        '<div class="hd"><span class="no">#' + t.no + '</span>' +
+          '<span class="tipe" style="color:' + TYPES[typeOf(t)].ink + ';border-color:' + TYPES[typeOf(t)].ink + ';background:rgba(255,255,255,.5)">' + TYPES[typeOf(t)].zh + '</span>' +
+          '<span style="flex:1"></span>' +
+          (st === "fog" ? '<span class="tipe" style="color:#6b6152;border-color:#9c9284;background:rgba(255,255,255,.35)">还没探明</span>' : "") +
+        '</div>' +
+        '<div class="tt">' + esc(t.title) + '</div>' +
+        '<div class="sub">' + sub + '</div>' +
+        '<div class="bar"><i class="' + (st === "closed" ? "done" : "") + '" style="width:' + (st === "closed" ? 100 : 0) + '%"></i></div>' +
+        mark + act +
+      '</div>';
+    field.appendChild(el);
+    it.el = el;
+  });
+
+  /* ---- 空样本：一张证据都没有的板子（不是白屏，也不是「暂无数据」） ---- */
+  if (ALL.length === 0) {
+    const v = document.createElement("div");
+    v.id = "vacant";
+    const vw = Math.min(300, boardW - 60); v.style.width = vw + "px"; v.style.height = "128px";
+    v.style.left = (fx + (dw - vw) / 2) + "px";
+    v.style.top = (fy + dh + 64) + "px";
+    v.innerHTML = '<span class="hole"></span>这张图还没有钉上任何资料。<br>下一张钉这里 —— 先按「检查」把整张图摸一遍。';
+    field.appendChild(v);
+  }
+
+  /* ---- 记分便签：照四态口径数出来的账（没有层，也没有任何一句会撒谎的进度） ---- */
+  let nc = 0, nl = 0, nr = 0, nf = 0;
+  ALL.forEach(function (t) { const s = stateOf(t, ALL); if (s === "closed") nc++; else if (s === "lit") nl++; else if (s === "ready") nr++; else nf++; });
+  const ledger = document.createElement("div");
+  ledger.id = "ledger";
+  const lw = Math.min(dw, boardW - 60);
+  ledger.style.width = lw + "px";
+  ledger.innerHTML = '<div class="slip">' +
+    (ALL.length === 0
+      ? '<span class="n">0 张</span> 子票 —— 这是一张刚钉上的空板子，还没有可推进的东西。'
+      : '<b>照四态数下来</b>：已经办结 <span class="n">' + nc + '</span> 张 / 一共 <span class="n">' + ALL.length + '</span> 张<br>' +
+        '<span class="w" style="color:#5c5340">正在办 <r>' + nl + '</r> 张 · 现在能动手 <m>' + nr + '</m> 张 · 还没探明 <u>' + nf + '</u> 张</span>' +
+        '<div style="margin-top:2px;color:#6b6152">把灯挪过去，暗处那些就会亮起来；点一下就能拿下来看。</div>') +
+    '</div>';
+  ledger.style.left = (fx + (dw - lw) / 2) + "px";
+  ledger.style.top = (fy + dh + 12) + "px";
+  field.appendChild(ledger);
+  M2.geom.ledger = { x: fx + (dw - lw) / 2, y: fy + dh + 12, w: lw, h: ledger.offsetHeight };
+
+  drawThreads();
+  /* 板子一打开就把镜头对在目的地那张上（上面已经挑过：这一屏里没有票的中心点被 chrome 压住） */
+  sc.scrollTop = chosen.s;
+  return H;
+}
+
+/* ---- 红线：从每张票的图钉牵到目的地；被挡住的票那条是虚的（路画出来了，通不通不知道） ---- */
+function drawThreads() {
+  const svg = $("#threads");
+  const destRect = M2.geom.dest; if (!destRect) return;
+  let s = "";
+  const pinOf = function (r, i) { return { x: r.x + r.w / 2, y: r.y + 7 }; };
+  ALL.forEach(function (t) {
+    const st = stateOf(t, ALL);
+    const r = M2.geom.pos[t.no]; if (!r) return;
+    const a = pinOf(r), b = clipToRect({ x: destRect.x - 4, y: destRect.y - 4, w: destRect.w + 8, h: destRect.h + 8 }, a);
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 + Math.min(95, Math.hypot(b.x - a.x, b.y - a.y) * 0.15) + 10;
+    const cls = "th" + (st === "fog" ? " fog" : st === "lit" ? " lit" : "");
+    s += '<path class="' + cls + '" data-thread="' + t.no + '" d="M' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) + ' Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + b.x.toFixed(1) + ' ' + b.y.toFixed(1) + '"/>';
+  });
+  ALL.forEach(function (t) {
+    (t.blockedBy || []).forEach(function (bn) {
+      const rb = M2.geom.pos[bn], rt = M2.geom.pos[t.no]; if (!rb || !rt) return;
+      const blk = ALL.find(function (x) { return x.no === bn; });
+      const done = blk && blk.state === "CLOSED";
+      const p1 = { x: rb.x + rb.w / 2, y: rb.y + rb.h / 2 }, p2 = { x: rt.x + rt.w / 2, y: rt.y + rt.h / 2 };
+      const a = clipToRect(rb, p2), b = clipToRect(rt, p1);       // 两头都收在纸边
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 + Math.min(70, Math.hypot(b.x - a.x, b.y - a.y) * 0.12) + 8;
+      s += '<path class="th blk' + (done ? " done" : "") + '" data-blk="' + bn + '-' + t.no + '" d="M' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) + ' Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + b.x.toFixed(1) + ' ' + b.y.toFixed(1) + '"/>';
+      const ang = Math.atan2(b.y - my, b.x - mx), L = 9;
+      s += '<path class="th blk' + (done ? " done" : "") + '" d="M' + b.x.toFixed(1) + ' ' + b.y.toFixed(1) +
+        ' L' + (b.x - Math.cos(ang - 0.42) * L).toFixed(1) + ' ' + (b.y - Math.sin(ang - 0.42) * L).toFixed(1) +
+        ' M' + b.x.toFixed(1) + ' ' + b.y.toFixed(1) +
+        ' L' + (b.x - Math.cos(ang + 0.42) * L).toFixed(1) + ' ' + (b.y - Math.sin(ang + 0.42) * L).toFixed(1) + '"/>';
+    });
+  });
+  svg.innerHTML = s;
+}
+
+/* ============================================================================
+   四、台灯：灯罩有重量（阻尼跟随），光圈跟着鼠标走
+   目的地那张永远最亮，跟灯在哪无关 —— 它画在暗层上面。
+   ========================================================================== */
+const LAMP = M2.lamp;
+let rafId = 0;
+function clampLight(x, y) {
+  const sc = $("#scroller").getBoundingClientRect();
+  const pad = 22;
+  return { x: Math.max(sc.left + pad, Math.min(sc.right - pad, x)), y: Math.max(sc.top + pad, Math.min(sc.bottom - pad, y)) };
+}
+function scheduleLight() { if (!rafId) rafId = requestAnimationFrame(tickLight); }
+function tickLight() {
+  rafId = 0;
+  const k = 0.17, ks = 0.115;
+  LAMP.cx += (LAMP.tx - LAMP.cx) * k;
+  LAMP.cy += (LAMP.ty - LAMP.cy) * k;
+  const sx0 = LAMP.tx + 96, sy0 = LAMP.ty - 134;
+  const sx = Math.max(2, Math.min(innerWidth - 90, sx0));       // 灯罩别跑出画面（灯还是照着原来的点）
+  const sy = Math.max(-6, Math.min(innerHeight - 58, sy0));
+  LAMP.sx += (sx - LAMP.sx) * ks;
+  LAMP.sy += (sy - LAMP.sy) * ks;
+  const dx = LAMP.tx - LAMP.sx, dy = LAMP.ty - LAMP.sy;
+  const want = Math.max(-56, Math.min(56, Math.atan2(dx, dy) * 180 / Math.PI));
+  LAMP.ang += (want - LAMP.ang) * 0.16;
+  root.style.setProperty("--lx", LAMP.cx.toFixed(1) + "px");
+  root.style.setProperty("--ly", LAMP.cy.toFixed(1) + "px");
+  root.style.setProperty("--deskx", Math.max(0, Math.min(innerWidth, LAMP.cx)).toFixed(0) + "px");
+  $("#lamp").style.transform = "translate3d(" + LAMP.sx.toFixed(1) + "px," + LAMP.sy.toFixed(1) + "px,0) rotate(" + LAMP.ang.toFixed(2) + "deg)";
+  drawArm();
+  if (Math.abs(LAMP.tx - LAMP.cx) + Math.abs(LAMP.ty - LAMP.cy) + Math.abs(sx - LAMP.sx) + Math.abs(sy - LAMP.sy) + Math.abs(want - LAMP.ang) > 0.5) scheduleLight();
+}
+function drawArm() {
+  const p = $("#arm");
+  const x0 = innerWidth - 2, y0 = innerHeight - 18;
+  const x1 = LAMP.sx + 44, y1 = LAMP.sy + 5;
+  const mx = x1 - 92, my = y1 - 116;
+  p.setAttribute("viewBox", "0 0 " + innerWidth + " " + innerHeight);
+  const d = "M" + x0 + " " + y0 + " L" + mx.toFixed(1) + " " + my.toFixed(1) + " L" + x1.toFixed(1) + " " + y1.toFixed(1);
+  p.querySelector(".sh").setAttribute("d", d);
+  p.querySelector(".bd").setAttribute("d", d);
+  p.querySelector(".bs").setAttribute("d", d);
+}
+function setLampTarget(x, y) { const c = clampLight(x, y); LAMP.tx = c.x; LAMP.ty = c.y; scheduleLight(); }
+function lampFollow() { LAMP.mode = "follow"; $("#lampTag").textContent = "跟手"; }
+function lampPark(x, y) { LAMP.mode = "park"; setLampTarget(x, y); $("#lampTag").textContent = "已放下 · 点一下回跟手"; }
+
+/* ============================================================================
+   五、交互：拖动资料、抬起看、拖动台灯、键盘
+   ========================================================================== */
+let dragTicket = null, lampDrag = null;
+
+function setLifted(no) {
+  $$(".tick.lifted").forEach(function (e) { e.classList.remove("lifted"); });
+  M2.lifted = no || null;
+  if (!no) { $$(".th").forEach(function (p) { p.classList.remove("hot"); }); markOverlay(); return; }
+  const el = $('.tick[data-ticket="' + no + '"]');
+  if (el) el.classList.add("lifted");
+  $$(".th").forEach(function (p) { p.classList.toggle("hot", p.getAttribute("data-thread") === String(no) || p.getAttribute("data-blk") === no + "-" + String(no) || (p.getAttribute("data-blk") || "").indexOf("-" + no) > -1); });
+  markOverlay();
+}
+/* 抬起来那张的自述：被谁挡着 / 挡住了谁 —— 只看自己家前后就能判出来，不问「第几层」 */
+function markOverlay() {
+  if (M2.lifted == null) { $$(".tick .why").forEach(function (e) { e.remove(); }); return; }
+  const t = ALL.find(function (x) { return x.no === M2.lifted; });
+  $$(".tick .why").forEach(function (e) { e.remove(); });
+  if (!t) return;
+  const el = $('.tick[data-ticket="' + t.no + '"]');
+  if (!el) return;
+  const st = stateOf(t, ALL);
+  const up = ALL.filter(function (x) { return (x.blockedBy || []).indexOf(t.no) > -1; }).map(function (x) { return "#" + x.no; });
+  const d = document.createElement("div");
+  d.className = "why";
+  d.style.cssText = "position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(255,250,236,.96),#f2e9d4);border-top:1px solid rgba(90,70,40,.5);font-size:10.5px;line-height:14px;color:#3a3226;padding:3px 7px";
+  d.textContent = STATE_ZH[st] + (t.claimedBy ? "（经办人 " + t.claimedBy + "）" : "") +
+    " · 前面挡着的：" + (t.blockedBy && t.blockedBy.length ? blockNames(t) : "没有") +
+    " · 它挡住了：" + (up.length ? up.join("、") : "没有");
+  el.querySelector(".sheet").appendChild(d);
+}
+
+function bind() {
+  /* 指针移动 → 台灯跟过去；指针压在灯罩上时灯就停住（不然它永远追不上手，抓不住） */
+  window.addEventListener("pointermove", function (e) {
+    if (lampDrag) { lampDrag.moved = Math.max(lampDrag.moved, Math.hypot(e.clientX - lampDrag.x, e.clientY - lampDrag.y)); lampPark(e.clientX - 96, e.clientY + 134); return; }
+    if (e.target && e.target.closest && e.target.closest("#lamp")) return;
+    if (LAMP.mode === "follow") setLampTarget(e.clientX, e.clientY);
+  }, { passive: true });
+  window.addEventListener("pointerdown", function (e) {
+    if (M2.lifted != null && !e.target.closest(".tick, #drawer, #lamp, #bar")) setLifted(null);
+  });
+
+  /* 拖动资料：按住纸就把它挪个地方，松手记住新位置 */
+  $("#field").addEventListener("pointerdown", function (e) {
+    const el = e.target.closest(".tick"); if (!el) return;
+    if (e.target.closest("button, a")) return;              // 票上的按钮交给按钮
+    dragTicket = { el: el, no: Number(el.getAttribute("data-ticket")), sx: e.clientX, sy: e.clientY, moved: 0, dx: 0, dy: 0 };
+    el.classList.add("dragging");
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  $("#field").addEventListener("pointermove", function (e) {
+    if (!dragTicket) return;
+    dragTicket.dx = e.clientX - dragTicket.sx; dragTicket.dy = e.clientY - dragTicket.sy;
+    dragTicket.moved = Math.abs(dragTicket.dx) + Math.abs(dragTicket.dy);
+    const p = M2.geom.pos[dragTicket.no], r = p.rot;
+    dragTicket.el.style.transform = "translate3d(" + (p.x + dragTicket.dx).toFixed(1) + "px," + (p.y + dragTicket.dy).toFixed(1) + "px,0) rotate(" + r.toFixed(2) + "deg)";
+  });
+  const dropTicket = function () {
+    if (!dragTicket) return;
+    const d = dragTicket; dragTicket = null;
+    d.el.classList.remove("dragging");
+    if (d.moved > 4) {
+      const p = M2.geom.pos[d.no];
+      p.x = Math.max(4, Math.min(M2.geom.boardW - p.w - 4, p.x + d.dx));
+      p.y = Math.max(4, Math.min(M2.geom.boardH - p.h - 4, p.y + d.dy));
+      d.el.style.transform = "translate3d(" + p.x + "px," + p.y + "px,0) rotate(" + p.rot.toFixed(2) + "deg)";
+      d.el.setAttribute("data-moved", "1");
+      drawThreads();
+    } else {
+      setLifted(Number(d.el.getAttribute("data-ticket")));
+    }
+  };
+  $("#field").addEventListener("pointerup", dropTicket);
+  $("#field").addEventListener("pointercancel", dropTicket);
+
+  /* 票上的键盘：Enter / Space 等同于点一下 */
+  $("#field").addEventListener("keydown", function (e) {
+    const el = e.target.closest(".tick"); if (!el) return;
+    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+      e.preventDefault();
+      setLifted(Number(el.getAttribute("data-ticket")));
+    }
+  });
+
+  /* 台灯：拖动它 / 点一下回跟手 / 聚焦后方向键挪 */
+  const lamp = $("#lamp");
+  lamp.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    lampDrag = { x: e.clientX, y: e.clientY, moved: 0 };
+    lamp.classList.add("grabbing");
+    try { lamp.setPointerCapture(e.pointerId); } catch (err) {}
+    lampPark(e.clientX - 96, e.clientY + 134);
+  });
+  lamp.addEventListener("pointerup", function (e) {
+    if (!lampDrag) return;
+    const moved = lampDrag.moved; lampDrag = null; lamp.classList.remove("grabbing");
+    if (moved < 9) {                                                       // 其实是点了一下 → 切回跟手 / 放下
+      if (LAMP.mode === "follow") { lampPark(LAMP.tx, LAMP.ty); } else { lampFollow(); }
+    } else { lampPark(e.clientX - 96, e.clientY + 134); }
+  });
+  lamp.addEventListener("pointercancel", function () { lampDrag = null; lamp.classList.remove("grabbing"); });
+  lamp.addEventListener("keydown", function (e) {
+    const step = e.shiftKey ? 12 : 44;
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].indexOf(e.key) < 0) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (LAMP.mode === "follow") { const l = clampLight(LAMP.cx, LAMP.cy); lampPark(l.x, l.y); } else lampFollow(); }
+      return;
+    }
+    e.preventDefault();                                                    // 只在灯自己身上拦方向键
+    const l = clampLight(LAMP.mode === "follow" ? LAMP.cx : LAMP.tx, LAMP.mode === "follow" ? LAMP.cy : LAMP.ty);
+    const nx = l.x + (e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0);
+    const ny = l.y + (e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0);
+    lampPark(nx, ny);
+  });
+  $("#btnFollow").addEventListener("click", function () { lampFollow(); const r = $("#lamp").getBoundingClientRect(); setLampTarget(r.left, r.top); });
+
+  /* 正文详情：钉在横档上的那张对折的纸，点开摊平 */
+  const DRAW = {
+    notes: { title: "正文详情", cap: "notes", body: function () {
+      let h = "";
+      NOTES6.forEach(function (x) { h += '<div class="item"><span class="n">' + x.n + '</span><div>' + md(x.s) + '</div></div>'; });
+      h += '<div class="more">……折叠起来的那一叠里还有 <b>10 条</b>（正文一共 16 条）。</div>';
+      return h;
+    } },
+    decisions: { title: "Decisions so far（2）", cap: "decisions", body: function () {
+      let h = "";
+      DATA.decisions.forEach(function (d, i) { h += '<div class="item"><span class="n">' + (i + 1) + '</span><div><b>' + esc(d.t) + '</b> — ' + esc(d.g) + '</div></div>'; });
+      if (!DATA.decisions.length) h = '<div class="item"><span class="n">—</span><div>还没有定下来的结论。</div></div>';
+      return h;
+    } },
+    fog: { title: "Not yet specified（战雾 " + DATA.fog.length + "）", cap: "fog", body: function () {
+      let h = "";
+      DATA.fog.forEach(function (f, i) { h += '<div class="item"><span class="n">' + (i + 1) + '</span><div>' + md(f) + '</div></div>'; });
+      if (!DATA.fog.length) h = '<div class="item"><span class="n">—</span><div>还没有「等数字才能定」的条目。</div></div>';
+      return h;
+    } },
+    outOfScope: { title: "Out of scope（" + DATA.outOfScope.length + "）", cap: "outOfScope", body: function () {
+      let h = "";
+      DATA.outOfScope.forEach(function (f, i) { h += '<div class="item"><span class="n">' + (i + 1) + '</span><div>' + md(f) + '</div></div>'; });
+      if (!DATA.outOfScope.length) h = '<div class="item"><span class="n">—</span><div>还没有写下来的「不做」。</div></div>';
+      return h;
+    } }
+  };
+  let openDrawer = null;
+  const btnOf = { notes: "#noteBtn", decisions: "#tabDec", fog: "#tabFog", outOfScope: "#tabOut" };
+  function closeDrawer() {
+    if (!openDrawer) return;
+    $(btnOf[openDrawer]).setAttribute("aria-expanded", "false");
+    openDrawer = null;
+    $("#drawer").classList.remove("on");
+    $("#drawer").style.bottom = "0px";
+  }
+  function openTo(key) {
+    if (openDrawer === key) { closeDrawer(); return; }
+    closeDrawer();
+    const d = DRAW[key];
+    $("#drawerSheet").innerHTML = '<div class="dt"><b>' + esc(d.title) + '</b><span class="foldline">对折的纸，摊平了</span></div>' + d.body();
+    $("#drawer").classList.add("on");
+    $("#drawer").style.bottom = $("#desk").offsetHeight + "px";
+    openDrawer = key;
+    $(btnOf[key]).setAttribute("aria-expanded", "true");
+    $(btnOf[key]).focus();
+  }
+  $("#noteBtn").addEventListener("click", function () { openTo("notes"); });
+  $("#tabDec").addEventListener("click", function () { openTo("decisions"); });
+  $("#tabFog").addEventListener("click", function () { openTo("fog"); });
+  $("#tabOut").addEventListener("click", function () { openTo("outOfScope"); });
+  $("#drawerClose").addEventListener("click", closeDrawer);
+  window.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeDrawer(); setLifted(null); } });
+
+  /* 顶部与下沿那两组按钮：都有反馈，且都不改原词 */
+  const say = function (el, word) {
+    const old = el.textContent;
+    el.textContent = word;
+    window.setTimeout(function () { el.textContent = old; }, 1100);
+  };
+  [["#btnExec", "已写进输入框"], ["#btnMain", "已写进输入框"], ["#btnNew", "已开新会话"], ["#btnNewTop", "已开新会话"]].forEach(function (pair) {
+    const el = $(pair[0]); if (el) el.addEventListener("click", function () { say(el, "✓ " + pair[1]); });
+  });
+  [["#btnDiag", "诊断已开"], ["#btnDiagTop", "诊断已开"]].forEach(function (pair) {
+    const el = $(pair[0]); if (el) el.addEventListener("click", function () { say(el, "✓ " + pair[1]); });
+  });
+  $("#btnBack").addEventListener("click", function () { say($("#btnBack"), "✓ 已返回列表"); });
+  $("#btnArchive").addEventListener("click", function () { say($("#btnArchive"), "已开原票"); });
+  $("#field").addEventListener("click", function (e) {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    e.stopPropagation();
+    say(b, b.getAttribute("data-act") === "skill" ? "已写进输入框" : b.getAttribute("data-act") === "newsession" ? "已开新会话" : "已开原票");
+  });
+
+  /* 控制条 */
+  $$("#segW button").forEach(function (b) {
+    b.addEventListener("click", function () { location.search = "?w=" + b.getAttribute("data-v") + "&s=" + SAMPLE + (SHOWBAR ? "" : "&bar=0"); });
+  });
+  $$("#segS button").forEach(function (b) {
+    b.addEventListener("click", function () { location.search = "?w=" + PANEL_W + "&s=" + b.getAttribute("data-v") + (SHOWBAR ? "" : "&bar=0"); });
+  });
+}
+
+/* ============================================================================
+   六、起步
+   ========================================================================== */
+function chrome() {
+  root.style.setProperty("--panelw", PANEL_W + "px");
+  root.style.setProperty("--vcx", (innerWidth / 2) + "px");
+  root.style.setProperty("--vcy", (innerHeight / 2) + "px");
+  $("#panel").setAttribute("data-w", PANEL_W < 600 ? "400" : "810");
+  document.body.classList.toggle("withbar", SHOWBAR);
+  if (!SHOWBAR) $("#bar").style.display = "none";
+  $$("#segW button").forEach(function (b) { b.classList.toggle("on", Number(b.getAttribute("data-v")) === (PANEL_W < 600 ? 400 : 810)); });
+  $$("#segS button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-v") === SAMPLE); });
+  $("#htitle").textContent = DATA.title;
+  let closed = 0; ALL.forEach(function (t) { if (t.state === "CLOSED") closed++; });
+  $("#hcount").textContent = "本图 " + ALL.length + " 张子票（已关闭 " + closed + " 张）";
+  const main = ALL.length === 0 ? "检查" : (closed === ALL.length ? "完成" : "执行");
+  $("#btnMain").textContent = (main === "检查" ? "🔍 " : main === "完成" ? "✓ " : "▶ ") + main;
+  $("#btnExec").textContent = main;
+  $("#tabDec").textContent = "Decisions so far（" + DATA.decisions.length + "）";
+  $("#tabFog").textContent = "Not yet specified（战雾 " + DATA.fog.length + "）";
+  $("#tabOut").textContent = "Out of scope（" + DATA.outOfScope.length + "）";
+}
+function resize() {
+  $("#scroller").innerHTML = '<div id="board"><div id="grain"></div><div id="grain2"></div>' +
+    '<div class="frame f-l"></div><div class="frame f-r"></div>' +
+    '<svg id="threads" aria-hidden="true"></svg><div id="field"></div><div id="overlayer"></div></div>';
+  M2.geom.pos = {}; M2.lifted = null;
+  buildBoard();
+}
+function start() {
+  chrome();
+  /* 两条常驻条的高度定死：标题怎么换行、字形怎么量，都不该让它们变高变矮 ——
+     否则「哪张票的中心点被它接走」会随它们的高度在两次打开之间翻来翻去。 */
+  ["#topstem", "#desk"].forEach(function (sel) {
+    const e = $(sel), h = Math.round(e.getBoundingClientRect().height);
+    e.style.height = h + "px";
+    e.style.minHeight = h + "px";
+    e.style.maxHeight = h + "px";
+    e.style.overflow = "hidden";
+  });
+  resize();
+  const sc = $("#scroller");
+  /* 开场：先让光停在目的地那张上（整张图的中心就是这个终点） */
+  const d = M2.geom.dest;
+  const scb = sc.getBoundingClientRect();
+  LAMP.tx = LAMP.cx = scb.left + scb.width / 2;
+  LAMP.ty = LAMP.cy = scb.top + Math.max(60, Math.min(scb.height - 60, d.y + d.h / 2 - sc.scrollTop));
+  LAMP.sx = LAMP.tx + 118; LAMP.sy = LAMP.ty - 152;
+  tickLight();
+  bind();
+  /* 面板被人拖动宽度时，重新按容器宽度排一次（真响应容器，不是响应窗口） */
+  if (window.ResizeObserver) {
+    let last = $("#scroller").clientWidth;
+    new ResizeObserver(function () {
+      root.style.setProperty("--vcx", (innerWidth / 2) + "px");
+      root.style.setProperty("--vcy", (innerHeight / 2) + "px");
+      const w = $("#scroller").clientWidth;
+      if (Math.abs(w - last) < 8) return;
+      last = w;
+      M2.geom.boardW = w;
+      resize();
+    }).observe($("#scroller"));
+  }
+}
+start();
+</script>
+</body>
+</html>

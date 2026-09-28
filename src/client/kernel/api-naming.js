@@ -119,12 +119,16 @@ export let pendingDraftTargetSid = null
           })
         }
         // 回退 2：agentPreset 更名兼容（如 presetId）→ 试探兼容键
+        // #739：0.1.7 系再加裸键 preset 一试（presetId、agentPresetId 仍保留，门禁点名两者不断言第三键）。
         if (/agentPreset|preset/i.test(msg) && /bad-request|unknown|invalid/i.test(msg)) {
           const alt = hasWid ? { workspaceId: workspaceId, presetId: 'ptc' } : { cwd: cwd, presetId: 'ptc' }
-          // 同时尝试 agentPresetId 兜底
+          // 同时尝试 agentPresetId 与裸 preset 兜底
           return doCreate(alt).catch(function() {
             const alt2 = hasWid ? { workspaceId: workspaceId, agentPresetId: 'ptc' } : { cwd: cwd, agentPresetId: 'ptc' }
             return doCreate(alt2)
+          }).catch(function() {
+            const alt3 = hasWid ? { workspaceId: workspaceId, preset: 'ptc' } : { cwd: cwd, preset: 'ptc' }
+            return doCreate(alt3)
           }).then(function(sid3) {
             pendingDraft = text
             pendingDraftTargetSid = sid3
@@ -160,9 +164,15 @@ export let pendingDraftTargetSid = null
       } catch (e) {}
       return null
     }
-    export function namingHintOf(st) {
-      // 彻底移除：原从 issuePath 面包屑取线索（#345），现恒为 null
-      return null
+    export function namingHintOf(st, title) {
+      // #746：线索源恢复——#345 移除面包屑后本函数恒为空，占位永远拿不到语义名；
+      //   现改从本次占位标题直接取语义段（去首个 [...] 前缀，留 80 字），零 token、本机可算；
+      //   沙箱桩忽略多余入参，旧调用形状可直接替换。
+      try {
+        const t = String((typeof title === 'string' && title) ? title : '')
+        const seg = t.replace(/^\s*\[[^\]]*\]\s*/, '').trim().slice(0, 80)
+        return seg ? seg : null
+      } catch (eH) { return null }
     }
     function reportNamingResult(sid, outcome, extra) {
       try {
@@ -181,7 +191,7 @@ export let pendingDraftTargetSid = null
       const cur = namingCurrentTitleOf(sid)
       if (cur === null) return  // 当前标题不可读：本轮跳过，绝不盲写
       const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
-      if (judge === 'locked' || lock.locked) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur }); return }
+      if ((judge === 'locked' && !exonerateNativeTitle(cur, lock)) || lock.locked) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur }); return }
       if (judge === 'unknown') return
       let target = null
       if (o.kind === 'draft') {
@@ -237,7 +247,7 @@ export let pendingDraftTargetSid = null
       const lock = f.lock || {}
       const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
       if (judge === 'unknown') return false
-      if (judge === 'locked' || lock.locked) { reportNamingResult(sid, 'locked', { currentTitle: cur }); return true }
+      if ((judge === 'locked' && !exonerateNativeTitle(cur, lock)) || lock.locked) { reportNamingResult(sid, 'locked', { currentTitle: cur }); return true }
       let target = null
       if (f.kind === 'numbered' || f.stage === NAMING_STAGES.NUMBERED) {
         const num = Number(f.number)

@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M1 · 作战室金属板 · 地图 #604</title>
+<!--
+  M1 · 作战室金属板（冷 · 磁扣 · 现代警方）
+  这一份原型要同时成立两件事：
+  1) 电影里那块板子的手感 —— 一整块金属板、圆形磁扣把资料吸在板上、冷白荧光灯、红线从四面朝中心那张汇；
+  2) 真机上现有的功能一个不少（任务书第 3 节 A–H 八条，每条都给了 data-cap 标记，方便验收查询）。
+  数据、正文、四状态语义全部照任务书第 4、5 节，一字未改（票上的原词也没改）。
+  单文件自包含：没有外链、没有第三方库、没有轮询定时器，双击就能开。
+-->
+<style>
+/* ============================ 基础 ============================ */
+:root{
+  --bg:#0b0d12;
+  --panel-bg:#10131a;
+  --line:#2a2d35;
+  --ink:#e6edf3; --ink2:#a1a1aa; --ink3:#8b8b95;
+  --ok:#4ade80; --lit:#58a6ff; --dest:#c084fc; --warn:#f59e0b;
+  --mono:Consolas,Menlo,monospace;
+  /* 电影板参考色 */
+  --steel-hi:#4a515c; --steel:#3a4048; --steel-lo:#1e2228;
+  --paper-hi:#f2f0e5; --paper-lo:#d7d3c3; --paper-ink:#23262b;
+  --red:#c0392b; --red2:#8e2f22; --red-hot:#ff6a4d;
+  --lamp:#e8eef5;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
+  font:13px/1.5 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid #58a6ff;outline-offset:2px}
+.sp{flex:1}
+.mono{font-family:var(--mono)}
+
+/* ============================ 外壳：面板 + 控制条 ============================ */
+.stagewrap{height:100%;display:flex;align-items:center;justify-content:center;padding:0}
+#panel{
+  position:relative;width:var(--panel-w,810px);height:var(--panel-h,1200px);
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--panel-bg);
+  border:1px solid #333844;border-radius:10px;
+  box-shadow:0 26px 70px rgba(0,0,0,.66), 0 2px 0 rgba(255,255,255,.03) inset;
+}
+#ctrl{position:fixed;left:0;right:0;bottom:0;height:44px;display:flex;align-items:center;gap:6px;
+  padding:0 10px;background:#0e1117;border-top:1px solid #23262e;font-size:12px;color:var(--ink2);z-index:99;
+  /* 控制条是原型的壳，不属于设计：它只在自己的按钮上吃点击，空处放行 */
+  pointer-events:none}
+#ctrl button{pointer-events:auto}
+#ctrl .lab{color:#6f7480;font-size:11px;margin-left:8px}
+#ctrl button{padding:4px 10px;border:1px solid #2f333d;border-radius:6px;background:#16181d;font-size:12px}
+#ctrl button[aria-pressed="true"]{background:#1f2937;border-color:#3f6ea8;color:#cfe3ff}
+#panel[data-bar="0"] + #ctrl{display:none}
+body[data-bar="0"] #ctrl{display:none}
+body[data-bar="0"] #panel{height:var(--panel-h,1200px)}
+
+/* ============================ A 顶部命令条（金属，滚动常驻） ============================ */
+.topbar{
+  flex:none;position:relative;z-index:40;
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:7px 9px;
+  background:linear-gradient(180deg,#565e6a,#3b414c 55%,#2b3038);
+  border-bottom:1px solid #12151a;
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset, 0 6px 16px rgba(0,0,0,.5);
+  /* 命令条的空处不吃点击：只有真正的按钮是可点的，别的地方点下去等于点在页面上 */
+  pointer-events:none;
+}
+.topbar button{pointer-events:auto}
+.topbar::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:linear-gradient(96deg,transparent 34%,rgba(232,238,245,.14) 46%,transparent 58%)}
+.tbgrp{display:flex;align-items:center;gap:6px;position:relative;z-index:1;min-width:0}
+.tbgrp.right{margin-left:auto}
+.mbtn{
+  display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:5px;font-size:11.5px;
+  color:#eef3f8;background:linear-gradient(180deg,#5c646f,#414852 60%,#353b44);
+  border:1px solid #23272e;box-shadow:0 1px 0 rgba(255,255,255,.2) inset, 0 2px 4px rgba(0,0,0,.4);
+  white-space:nowrap
+}
+.mbtn:hover{background:linear-gradient(180deg,#69727e,#4a5260 60%,#3b414b)}
+.mbtn:active{transform:translateY(1px);box-shadow:0 1px 2px rgba(0,0,0,.5) inset}
+.mbtn.primary{background:linear-gradient(180deg,#5ee096,#38c06d 60%,#2aa15b);color:#06210f;font-weight:700;border-color:#1d7a45}
+.mbtn.primary.amber{background:linear-gradient(180deg,#ffc255,#f59e0b 60%,#cf830a);color:#2a1a02;border-color:#a86808}
+.mbtn.primary.blue{background:linear-gradient(180deg,#7cc0ff,#3f8fe0 60%,#3277bd);color:#04182b;border-color:#2a6ba9}
+.crumb{font-size:11px;color:#cdd4dd;font-family:var(--mono);white-space:nowrap;letter-spacing:.2px}
+.mapchip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:10px;font-size:10.5px;
+  color:#e7d5ff;background:rgba(192,132,252,.16);border:1px solid rgba(192,132,252,.55);white-space:nowrap}
+.mapchip i{width:6px;height:6px;border-radius:50%;background:var(--dest);display:block}
+
+/* ============================ 板子上沿：抬头 + 进度 + 案情摘要 ============================ */
+.boardwrap{
+  position:relative;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
+  background:
+    radial-gradient(120% 60% at 50% -8%, rgba(232,238,245,.13), transparent 62%),
+    linear-gradient(168deg,#3b4149 0%,#2a2f36 42%,#22262c 70%,#1b1f25 100%);
+}
+.boardwrap::-webkit-scrollbar{width:9px}
+.boardwrap::-webkit-scrollbar-track{background:#1a1d23}
+.boardwrap::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#5a616c,#3a4048);border-radius:6px;border:2px solid #1a1d23}
+/* 板面纹理与灯光（都不吃鼠标事件） */
+.tex{position:absolute;inset:0;pointer-events:none;mix-blend-mode:overlay;opacity:.5}
+.grid{position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:
+    linear-gradient(to right, rgba(232,238,245,.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(232,238,245,.055) 1px, transparent 1px),
+    linear-gradient(to right, rgba(232,238,245,.032) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(232,238,245,.032) 1px, transparent 1px);
+  background-size:168px 168px, 168px 168px, 33.6px 33.6px, 33.6px 33.6px;
+}
+/* 钢板上的横向拉丝：极淡的一层，只在亮处看得见 */
+.brush{position:absolute;inset:0;pointer-events:none;opacity:.6;mix-blend-mode:overlay;
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0 1px, transparent 1px 3px);
+}
+.sheen{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;
+  background:linear-gradient(100deg,transparent 26%,rgba(232,238,245,.075) 40%,transparent 52%),
+             radial-gradient(70% 26% at 50% 0%, rgba(232,238,245,.22), transparent 74%)}
+.vig{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(135% 85% at 50% 24%, transparent 44%, rgba(0,0,0,.42) 100%)}
+.rivets{position:absolute;top:0;bottom:0;width:13px;pointer-events:none;opacity:.75;
+  background-image:radial-gradient(circle at 50% 50%, #767d88 0 2.1px, #2b3037 2.6px, transparent 3.4px);
+  background-size:13px 96px;background-position:0 26px}
+
+/* 板子上沿钢轨（抬头 + 进度 + 案情摘要）：它是板子自己的内容（不是浮动条），跟着板子滚。
+   这样它永远盖不住任何一张资料 —— 资料中心点只要还在板面上，点下去就是资料自己。 */
+.boardrail{
+  position:relative;z-index:30;
+  padding:9px 11px 8px;
+  background:linear-gradient(180deg,#3d434c,#2b3038 58%,#242930);
+  border-bottom:1px solid #0f1216;
+  box-shadow:0 6px 16px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.1) inset;
+}
+.railrow{display:flex;align-items:flex-start;gap:8px}
+.idnum{font:700 11px/1.5 var(--mono);color:var(--dest);border:1px solid rgba(192,132,252,.75);
+  border-radius:5px;padding:1px 6px;background:rgba(192,132,252,.1);flex:none;margin-top:1px}
+.mtitle{font-size:13px;font-weight:650;line-height:1.42;color:#eaf1f8;min-width:0;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.subcount{font-size:11px;color:var(--ink2);margin-top:3px}
+/* 案情摘要：钉在板子右上角的一份纸 */
+.clip{
+  position:relative;flex:none;max-width:46%;text-align:left;padding:7px 9px 6px;border-radius:2px;
+  background:linear-gradient(158deg,var(--paper-hi),var(--paper-lo));color:var(--paper-ink);
+  box-shadow:0 8px 18px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.35);
+  transform:rotate(1.4deg);transform-origin:88% 12%
+}
+.clip:hover{transform:rotate(.4deg) translateY(-1px)}
+.clip:active{transform:rotate(0deg) scale(.985)}
+.clip .clab{display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;letter-spacing:.3px}
+.clip .csub{font-size:9.5px;color:#6a6152;margin-top:1px;letter-spacing:.4px}
+.clip .clipwire{position:absolute;right:-5px;top:-8px;width:16px;height:22px;border:1.6px solid #b9c0c9;
+  border-radius:9px 9px 3px 3px;border-bottom-color:transparent;transform:rotate(12deg);opacity:.9}
+/* 诚实的进度：按状态数的四段金属量表 */
+.gauge{margin-top:7px}
+.gaugetrack{display:flex;height:8px;border-radius:3px;overflow:hidden;background:#12161c;
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 0 0 1px #0e1115 inset}
+.gsegs{display:flex;height:100%;gap:1px}
+.gseg{height:100%}
+.gseg.closed{background:linear-gradient(180deg,#7fe3a6,#35a862)}
+.gseg.lit{background:linear-gradient(180deg,#8fc5ff,#2f79c8)}
+.gseg.ready{background:linear-gradient(180deg,#b6f77a,#4ea821)}
+.gseg.fog{background:linear-gradient(180deg,#5a636f,#3a414b)}
+.glegend{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:5px;font-size:10.5px;color:var(--ink2);align-items:center}
+.glegend b{font-family:var(--mono);color:#eaf1f8;font-weight:600}
+.glegend .k{display:inline-flex;align-items:center;gap:4px}
+.glegend .k i{width:8px;height:8px;border-radius:1px;display:block;border:1px solid rgba(0,0,0,.5)}
+.tkchips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center;font-size:10.5px;color:var(--ink2)}
+.tkchip{font:600 10.5px/1.5 var(--mono);color:#08210f;background:linear-gradient(180deg,#b6f77a,#5fbe2b);
+  border:1px solid #2f7a12;border-radius:4px;padding:1px 6px;box-shadow:0 1px 0 rgba(255,255,255,.35) inset}
+
+/* ============================ 板面：票据与红线 ============================ */
+/* 板面自己裁边：磁扣与光晕不许把整块板撑出横向滚动 */
+.field{position:relative;margin:0 14px 0;overflow:hidden}
+.field .cap{position:absolute;left:0;right:0;bottom:26px;text-align:center;font:600 10px/1.6 var(--mono);
+  color:#8f97a3;letter-spacing:1.2px;text-transform:none;opacity:.85}
+/* 板子的下沿：到这儿就是板子底了，再往下没有板面 */
+.boardend{position:absolute;left:0;right:0;bottom:0;height:17px;pointer-events:none;
+  background:linear-gradient(180deg,#525a66,#333942 55%,#1d2127);
+  border-top:1px solid #6b7480;
+  box-shadow:0 -8px 18px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.14) inset}
+.boardend::after{content:"";position:absolute;left:0;right:0;top:3px;height:11px;opacity:.8;
+  background-image:radial-gradient(circle at 50% 50%, #7d858f 0 1.6px, #2b3037 2.1px, transparent 2.9px);
+  background-size:54px 11px;background-position:22px 0;background-repeat:repeat-x}
+/* 资料在红线上面：线从资料背后的缝里走，鼠标点资料不会被线的命中区抢走 */
+.sheets{position:absolute;inset:0;pointer-events:none;z-index:2}
+.threads{position:absolute;left:0;top:0;z-index:0}
+.tline{fill:none;stroke:var(--red);stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}
+.tline.dim{stroke:var(--red2);stroke-width:1.5;opacity:.62}
+.tline.hot{stroke:var(--red-hot);stroke-width:3.1;opacity:1}
+.thit{fill:none;stroke:transparent;stroke-width:15;pointer-events:stroke;cursor:crosshair}
+.threadtag{
+  position:absolute;z-index:45;pointer-events:none;transform:translate(-50%,-50%);
+  padding:3px 8px;border-radius:3px;white-space:nowrap;
+  background:linear-gradient(158deg,#f4f1e6,#ddd7c4);color:#26292e;
+  font:600 10.5px/1.4 var(--mono);
+  border:1px solid rgba(0,0,0,.4);box-shadow:0 8px 18px rgba(0,0,0,.62)
+}
+.threadtag b{color:#a01e1e}
+
+/* 一张资料（票） */
+.sheet{position:absolute;left:0;top:0;pointer-events:auto;cursor:grab;touch-action:none;
+  will-change:transform}
+.sheet.raised,.sheet.dragging{z-index:40;cursor:grabbing}
+.paper{
+  position:relative;width:100%;height:100%;padding:9px 9px 8px;border-radius:2px;overflow:hidden;
+  display:flex;flex-direction:column;
+  background:
+    repeating-linear-gradient(0deg, rgba(35,38,43,.028) 0 1px, transparent 1px 3px),
+    linear-gradient(157deg,var(--paper-hi) 0%,#e7e3d4 52%,var(--paper-lo) 100%);
+  color:var(--paper-ink);
+  box-shadow:0 12px 22px rgba(0,0,0,.55), 0 2px 5px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.3);
+}
+.paper::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:radial-gradient(90% 60% at 12% 4%, rgba(255,255,255,.5), transparent 60%)}
+.sheet.raised .paper,.sheet.dragging .paper{box-shadow:0 22px 40px rgba(0,0,0,.7), 0 0 0 1px rgba(0,0,0,.35)}
+.sheet .tape{position:absolute;width:34px;height:13px;background:linear-gradient(180deg,rgba(240,244,250,.34),rgba(200,210,224,.22));
+  border-left:1px dashed rgba(255,255,255,.28);border-right:1px dashed rgba(255,255,255,.28);pointer-events:none;z-index:3}
+.sheet .crease{position:absolute;left:0;right:0;top:52%;height:1px;pointer-events:none;opacity:.5;
+  background:linear-gradient(90deg,transparent,rgba(35,38,43,.16) 12%,rgba(255,255,255,.4) 14%,rgba(35,38,43,.14) 16%,transparent 88%)}
+.sheet .coffee{position:absolute;width:46px;height:46px;border-radius:50%;pointer-events:none;opacity:.5;
+  mix-blend-mode:multiply;border:5px solid rgba(120,86,44,.3)}
+.barcode{height:13px;margin-top:auto;opacity:.42;flex:none;
+  background:repeating-linear-gradient(90deg,#23262b 0 1.4px,transparent 1.4px 3px,#23262b 3px 3.8px,transparent 3.8px 6.4px)}
+.tline-row{display:flex;align-items:center;gap:5px;font:700 10px/1.4 var(--mono);letter-spacing:.2px}
+.tno{color:#3a3d44}
+.tkind{border:1px solid rgba(35,38,43,.4);border-radius:3px;padding:0 4px;font-weight:600;color:#4a4e57;letter-spacing:.6px}
+.tkind.research{color:#1d4f8f;border-color:rgba(29,79,143,.5)}
+.tkind.grilling{color:#6b3a86;border-color:rgba(107,58,134,.5)}
+.tkind.prototype{color:#8a5300;border-color:rgba(138,83,0,.5)}
+.tkind.task{color:#3f4a55;border-color:rgba(63,74,85,.45)}
+.tstate{margin-left:auto;font-weight:700;letter-spacing:.4px}
+.sheet[data-state="closed"] .tstate{color:#2b2b2b}
+.sheet[data-state="lit"] .tstate{color:#1d5fa8}
+.sheet[data-state="ready"] .tstate{color:#2c6f10}
+.sheet[data-state="fog"] .tstate{color:#666c76}
+.trow{display:flex;gap:7px;margin-top:5px;min-height:0}
+.ttwrap{flex:1;min-width:0}
+.mug{flex:none;width:42px;height:52px;border:1px solid rgba(35,38,43,.55);border-radius:1px;
+  box-shadow:0 2px 5px rgba(0,0,0,.25);background:#b8b5a8;display:block}
+.tt{font-size:11.5px;line-height:1.36;font-weight:650;margin:0;color:#1f2227;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.sheet .sub{font-size:9.5px;color:#5d6069;margin-top:4px;line-height:1.4}
+.prog{margin-top:4px;display:flex;align-items:center;gap:5px;font:600 9px/1.3 var(--mono);color:#5d6069}
+.progtrack{flex:1;height:5px;background:rgba(35,38,43,.16);border-radius:3px;overflow:hidden;
+  box-shadow:0 1px 0 rgba(255,255,255,.4) inset}
+.progfill{height:100%;background:linear-gradient(90deg,#2f6b3f,#3f9c56)}
+.sheet[data-state="fog"] .progfill{background:linear-gradient(90deg,#7b8290,#9aa2ae)}
+.acts{display:flex;align-items:center;gap:4px;margin-top:6px;flex-wrap:wrap}
+.pbtn{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:600;
+  border:1px solid rgba(35,38,43,.45);background:linear-gradient(180deg,#fdfcf6,#e6e2d4);color:#23262b;
+  box-shadow:0 1px 0 rgba(255,255,255,.7) inset, 0 1px 2px rgba(0,0,0,.18)}
+.pbtn:hover{background:linear-gradient(180deg,#fff,#efece0)}
+.pbtn.skill{background:linear-gradient(180deg,#7fc4ff,#4d9de0);color:#04182b;border-color:#2a6ba9}
+.pbtn.ghost{background:linear-gradient(180deg,#f2f0e6,#dedac9)}
+.quiet{font:600 9.5px/1.4 var(--mono);color:#6a6f78;margin-top:4px;letter-spacing:.3px}
+.magnet{position:absolute;width:17px;height:17px;border-radius:50%;z-index:4;pointer-events:none;
+  background:radial-gradient(circle at 34% 28%, #e9eef4, #9aa3ae 42%, #4b525c 78%, #2b3037 100%);
+  box-shadow:0 3px 5px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.35) inset}
+.magnet::after{content:"";position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%, #6e757f, #23262b)}
+.magnet.tl{left:-6px;top:-6px}.magnet.tr{right:-6px;top:-6px}
+.magnet.bl{left:-6px;bottom:-6px}.magnet.br{right:-6px;bottom:-6px}
+.magnet.hot{background:radial-gradient(circle at 34% 28%, #dcecff, #58a6ff 46%, #1f4d80 82%, #14375c 100%);
+  box-shadow:0 3px 6px rgba(0,0,0,.55), 0 0 14px rgba(88,166,255,.65)}
+.stamp{position:absolute;z-index:6;pointer-events:none;
+  padding:1px 8px;border:2.4px solid rgba(26,26,26,.8);border-radius:2px;color:rgba(22,22,22,.88);
+  font:800 13px/1.2 var(--mono);letter-spacing:2.4px;mix-blend-mode:multiply;opacity:.82;
+  box-shadow:0 0 0 1.2px rgba(26,26,26,.42)}
+.stamp::after{content:"";position:absolute;inset:-3px;border:1px solid rgba(26,26,26,.34);border-radius:3px}
+.sheet[data-state="closed"] .paper{filter:saturate(.62) brightness(.93)}
+.sheet[data-state="lit"] .paper{box-shadow:0 0 0 1px rgba(88,166,255,.5), 0 14px 26px rgba(0,0,0,.55), 0 0 34px rgba(88,166,255,.22)}
+.sheet[data-state="ready"] .paper{box-shadow:0 0 0 1px rgba(122,214,70,.42), 0 14px 26px rgba(0,0,0,.55)}
+.flag{position:absolute;right:7px;top:-10px;z-index:5;pointer-events:none;transform:rotate(-6deg)}
+.flag .pole{position:absolute;left:0;top:0;width:1.6px;height:26px;background:linear-gradient(180deg,#dfe6ee,#8d949d)}
+.flag .cloth{position:absolute;left:1.5px;top:1px;width:26px;height:14px;
+  background:linear-gradient(180deg,#7ee04a,#3f9c1e);clip-path:polygon(0 0,100% 6%,78% 50%,100% 94%,0 100%);
+  box-shadow:0 2px 4px rgba(0,0,0,.45)}
+.slot{position:absolute;left:-7px;top:-7px;width:19px;height:19px;border-radius:50%;z-index:4;pointer-events:none;
+  border:1.6px dashed rgba(60,66,76,.72);background:radial-gradient(circle at 50% 50%, rgba(0,0,0,.22), transparent 70%)}
+.sheet[data-state="fog"] .paper{filter:saturate(.42) brightness(.88) contrast(.96)}
+.sheet[data-state="fog"] .frost{position:absolute;inset:0;z-index:2;pointer-events:none;mix-blend-mode:screen;opacity:.75;
+  background:linear-gradient(178deg, rgba(206,216,228,.55), rgba(150,162,178,.42) 60%, rgba(196,206,220,.5))}
+.sheet[data-state="fog"] .tt{color:#5c626c}
+.sheet[data-state="fog"] .mug{opacity:.5}
+.blankform{margin-top:5px}
+.blankform i{display:block;height:1px;background:rgba(60,66,76,.32);margin-bottom:7px}
+.sheet[data-state="fog"] .fogword{font:700 9.5px/1.4 var(--mono);color:#4f5661;letter-spacing:.4px}
+@media (prefers-reduced-motion: reduce){.sheet{transition:none !important}}
+
+/* 目标那张（最大、最亮、四角磁扣吸住） */
+.hub{position:absolute;z-index:12;pointer-events:auto}
+.hub .paper{padding:11px 12px 10px;border-radius:2px;
+  background:
+    repeating-linear-gradient(0deg, rgba(35,38,43,.022) 0 1px, transparent 1px 3px),
+    linear-gradient(157deg,#fffdf4 0%,#f4f1e4 46%,#e2ddca 100%);
+  box-shadow:0 26px 46px rgba(0,0,0,.66), 0 0 0 1px rgba(0,0,0,.32), 0 0 60px rgba(232,238,245,.13)}
+.hub .halo{position:absolute;left:-40px;right:-40px;top:-46px;bottom:-30px;z-index:-1;pointer-events:none;
+  background:radial-gradient(58% 52% at 50% 42%, rgba(232,238,245,.2), rgba(232,238,245,.06) 55%, transparent 74%)}
+.hub .hbar{display:flex;align-items:center;gap:6px}
+.hub .hbadge{font:800 11px/1.5 var(--mono);color:#5b2f8f;border:1.4px solid #7b3fb5;border-radius:4px;padding:1px 6px;
+  background:rgba(192,132,252,.16)}
+.hub .destlab{font:800 10px/1.5 var(--mono);letter-spacing:1.6px;color:#7a3fae}
+.hub .htitle{font-size:13.5px;font-weight:750;line-height:1.38;color:#1b1e23;margin:7px 0 6px}
+.hub .dtext{font-size:11.5px;line-height:1.62;color:#2a2e35}
+.hub .dtext b{color:#111418}
+.hub .hfoot{margin-top:8px;padding-top:6px;border-top:1px dashed rgba(70,60,40,.42);
+  font:600 9.5px/1.5 var(--mono);color:#5d5140;display:flex;flex-wrap:wrap;gap:4px 10px}
+.hub .magnet{width:23px;height:23px}
+.hub .magnet.tl{left:-11px;top:-11px}.hub .magnet.tr{right:-11px;top:-11px}
+.hub .magnet.bl{left:-11px;bottom:-11px}.hub .magnet.br{right:-11px;bottom:-11px}
+.hub .pin{position:absolute;z-index:14;pointer-events:none}
+
+/* 空板：一张证据都没有 */
+.emptyboard{position:absolute;left:0;right:0;text-align:center;pointer-events:none}
+.emptyboard .big{font:700 12.5px/1.7 var(--mono);color:#aab3c0;letter-spacing:1px}
+.emptyboard .small{font-size:11.5px;color:#7d848f;margin-top:6px;line-height:1.7}
+.hollow{position:absolute;border:1.4px dashed rgba(150,162,178,.5);border-radius:2px;pointer-events:none;opacity:.75}
+.hollow::after{content:"";position:absolute;left:-6px;top:-6px;width:15px;height:15px;border-radius:50%;
+  border:1.4px dashed rgba(150,162,178,.62)}
+.hollow b{position:absolute;left:8px;top:6px;font:600 9.5px/1.4 var(--mono);color:rgba(158,170,186,.9);letter-spacing:1.4px}
+.hollowword{pointer-events:none;text-align:center;font:600 10.5px/1.7 var(--mono);color:#98a1ad;letter-spacing:.6px}
+
+/* ============================ H + G 底部：命令条与三块折页 ============================ */
+/* H + G：板子的下沿钢轨。它在板子的滚动内容里（板底），不在滚动容器外面 ——
+   这样它永远不会压住任何一张资料：资料只要中心点还在板面里，点下去就是资料自己。 */
+.botrail{
+  position:relative;z-index:3;padding:8px 10px;
+  background:linear-gradient(180deg,#2f343d,#23272e 60%,#1b1f25);
+  border-top:1px solid #101318;box-shadow:0 -8px 20px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.08) inset;
+}
+.botline{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.foldtags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.foldtag{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:4px;font-size:11px;
+  color:#e4ebf3;background:linear-gradient(180deg,#4b535f,#343a44 62%,#2b3038);border:1px solid #1d2128;
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset, 0 2px 5px rgba(0,0,0,.4);white-space:nowrap}
+.foldtag:hover{background:linear-gradient(180deg,#586170,#3b424d 62%,#31363f)}
+.foldtag .cnt{font-family:var(--mono);color:#b9c4d1}
+.foldtag .chev{font-size:9px;color:#93a0ae}
+.slidelabel{font:700 9.5px/1.4 var(--mono);color:#8f97a3;letter-spacing:1px}
+.drawer{
+  position:absolute;left:0;right:0;bottom:0;z-index:60;max-height:66%;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,#242932,#1b1f26);border-top:1px solid #0f1216;
+  box-shadow:0 -18px 40px rgba(0,0,0,.66)
+}
+.drawer .dhead{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid #171a20}
+.drawer .dtitle{font-size:12.5px;font-weight:700;color:#e8eff6}
+.drawer .dbody{overflow-y:auto;padding:8px 12px 14px}
+.drawer .ditem{display:flex;gap:7px;font-size:11.5px;line-height:1.62;color:#c8ced7;padding:5px 0;border-bottom:1px dashed rgba(255,255,255,.07)}
+.drawer .ditem:last-child{border-bottom:0}
+.drawer .ditem .n{font:700 10px/1.7 var(--mono);color:#8f97a3;flex:none}
+.drawer .ditem b{color:#e9eff6}
+.drawer .ditem code{font-family:var(--mono);font-size:10.5px;background:rgba(255,255,255,.07);padding:0 3px;border-radius:3px}
+.drawer .dempty{font-size:11.5px;color:#8f97a3;padding:8px 0}
+
+/* 案情摘要抽出来的一张纸 */
+.notessheet{
+  position:absolute;right:10px;top:170px;z-index:70;width:min(430px,86%);
+  max-height:70%;display:flex;flex-direction:column;
+  background:linear-gradient(160deg,#f6f3e8,#e0dbc9);color:#23262b;border-radius:2px;
+  box-shadow:0 30px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(0,0,0,.4);
+  transform-origin:96% 2%
+}
+.notessheet .nhead{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;border-bottom:1px solid rgba(35,38,43,.22)}
+.notessheet .ntitle{font-size:12.5px;font-weight:800;letter-spacing:.4px}
+.notessheet .nsub{font:600 9.5px/1.4 var(--mono);color:#7a7261}
+.notessheet .nbody{overflow-y:auto;padding:9px 13px 14px;font-size:11.5px;line-height:1.66}
+.notessheet .nitem{display:flex;gap:7px;padding:5px 0;border-bottom:1px dashed rgba(35,38,43,.16)}
+.notessheet .nitem .n{font:700 10px/1.7 var(--mono);color:#8a8272;flex:none}
+.notessheet code{font-family:var(--mono);font-size:10.5px;background:rgba(35,38,43,.09);padding:0 3px;border-radius:3px}
+.notessheet b{color:#111418}
+.notessheet details{margin-top:8px;border-top:1px solid rgba(35,38,43,.22);padding-top:8px}
+.notessheet summary{font:700 11px/1.6 var(--mono);color:#4b5462;cursor:pointer}
+.notessheet .more{font-size:11px;color:#5d6069;padding:6px 0 0}
+.xbtn{width:22px;height:22px;border-radius:50%;border:1px solid rgba(35,38,43,.36);display:inline-flex;
+  align-items:center;justify-content:center;font-size:12px;color:#3d424a;background:rgba(255,255,255,.5)}
+
+/* 回执 / 诊断 */
+.toast{
+  position:absolute;left:50%;bottom:74px;transform:translateX(-50%);z-index:80;max-width:88%;
+  padding:8px 12px;border-radius:4px;background:linear-gradient(180deg,#f4f1e6,#ded9c8);color:#26292e;
+  font-size:11.5px;line-height:1.55;box-shadow:0 18px 40px rgba(0,0,0,.66), 0 0 0 1px rgba(0,0,0,.4);
+  pointer-events:none
+}
+.toast b{color:#a01e1e}
+.diag{
+  position:absolute;right:10px;bottom:74px;z-index:82;width:min(330px,86%);padding:10px 12px;border-radius:4px;
+  background:linear-gradient(180deg,#1d222a,#151920);border:1px solid #39404c;color:#c8ced7;font-size:11px;line-height:1.65;
+  box-shadow:0 20px 44px rgba(0,0,0,.7)
+}
+.diag h5{margin:0 0 6px;font-size:11.5px;color:#e8eff6;letter-spacing:.5px}
+.diag .drow{display:flex;gap:8px;justify-content:space-between;border-bottom:1px dashed rgba(255,255,255,.08);padding:2px 0}
+.diag .drow span:first-child{color:#8f97a3}
+.diag .drow span:last-child{font-family:var(--mono);color:#dfe6ee}
+.pulse{animation:m1pulse 1.5s ease-out 1}
+@keyframes m1pulse{
+  0%{box-shadow:0 0 0 0 rgba(122,214,70,.85)}
+  35%{box-shadow:0 0 0 12px rgba(122,214,70,0)}
+  100%{box-shadow:0 0 0 0 rgba(122,214,70,0)}
+}
+body.intro .boardwrap{overflow:hidden}
+.hidden{display:none !important}
+</style>
+</head>
+<body data-bar="1">
+<div class="stagewrap">
+  <div id="panel" data-bar="1">
+    <!-- A 顶部命令条：金属质感，滚动时常驻（在滚动容器外面） -->
+    <header class="topbar" id="topbar"></header>
+
+    <!-- 板面：一整块金属板。板子自己的上沿钢轨（抬头 / 进度 / 案情摘要）和下沿钢轨（主按钮 / 档案 / 三块折页）
+         都是板子的内容，跟着板子一起滚 —— 没有任何浮动条压在资料上面，所以资料只要还在板面上就点得到。 -->
+    <div class="boardwrap" id="boardwrap">
+      <div class="boardrail" id="boardrail"></div>
+
+      <div class="field" id="field">
+        <div class="tex"><svg width="100%" height="100%" preserveAspectRatio="none" aria-hidden="true"><rect width="100%" height="100%" filter="url(#brushed)"></rect></svg></div>
+        <div class="brush"></div>
+        <div class="grid"></div>
+        <div class="sheen"></div>
+        <div class="rivets" style="left:2px"></div>
+        <div class="rivets" style="right:2px"></div>
+        <svg class="threads" id="threads" aria-hidden="true"></svg>
+        <div class="sheets" id="sheets"></div>
+        <div class="cap" id="fieldcap"></div>
+        <div class="boardend"></div>
+      </div>
+
+      <footer class="botrail" id="botrail"></footer>
+
+      <div class="vig"></div>
+    </div>
+
+    <!-- 折页抽屉（G 的内容） -->
+    <div class="drawer hidden" id="drawer" role="region" aria-label="折页内容"></div>
+    <!-- 案情摘要抽出来的一张纸（E 的内容） -->
+    <div class="notessheet hidden" id="notessheet" role="region" aria-label="正文详情"></div>
+    <div class="toast hidden" id="toast" role="status"></div>
+    <div class="diag hidden" id="diag" role="region" aria-label="诊断"></div>
+  </div>
+</div>
+
+<div id="ctrl" role="group" aria-label="原型的控制条">
+  <span class="lab">宽度</span>
+  <button data-w="400" aria-pressed="false">400</button>
+  <button data-w="810" aria-pressed="false">810</button>
+  <span class="lab">状态</span>
+  <button data-s="active" aria-pressed="false">推进中</button>
+  <button data-s="empty" aria-pressed="false">还没画图</button>
+  <button data-s="big" aria-pressed="false">大图</button>
+  <span class="sp"></span>
+  <button id="ctlReset">复位位置</button>
+  <button id="ctlIntro">重放入场镜头</button>
+</div>
+
+<!-- 共享的内联 SVG 滤镜：金属拉丝、纸张、印章毛边、线光（零图片、零网络） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="brushed" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.0045 0.85" numOctaves="3" seed="11" result="n"/>
+    <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.72  0 0 0 0 0.76  0 0 0 0 0.82  0 0 0 0.42 0"/>
+  </filter>
+  <filter id="rough" x="-18%" y="-30%" width="136%" height="160%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.09 0.11" numOctaves="2" seed="3" result="t"/>
+    <feDisplacementMap in="SourceGraphic" in2="t" scale="2.4" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="threadShadow" x="-40%" y="-40%" width="180%" height="180%">
+    <feDropShadow dx="0.6" dy="1.4" stdDeviation="1.1" flood-color="#000" flood-opacity="0.6"/>
+  </filter>
+</defs></svg>
+
+<script>
+(function(){
+'use strict';
+/* =======================================================================
+   0. 参数
+   ======================================================================= */
+function qp(k, d){
+  var m = new RegExp('[?&]' + k + '=([^&]*)').exec(location.search);
+  return m ? decodeURIComponent(m[1]) : d;
+}
+var PANEL_W = (String(qp('w','810')) === '400') ? 400 : 810;
+var SAMPLE  = (function(s){ return (s==='empty'||s==='big') ? s : 'active'; })(qp('s','active'));
+var SHOWBAR = String(qp('bar','1')) !== '0';
+
+/* =======================================================================
+   1. 数据（任务书第 5 节，一字未改；大样本票名后统一加「（示例）」）
+   ======================================================================= */
+var NOTES6 = [
+  '本图**携带执行**，不是纯规划图。票按「查清 → 方案 → 落地 → 真机复测」四步走；地图关闭条件 = 清单上每一条要么已落地并复测达标，要么明确裁决「不改」并写明理由。允许「裁决不改」作为合法终点，但不允许「没量就跳过」。',
+  '领域：宿主取数链（`src/host/`）、客户端渲染（`src/client/`）、日志体系（`src/host/logPkg/`、`research/489-appendix.md`）、平台层（`src/host/platform/`）、三层解耦（`src/seam/`）。',
+  '**先量后改**：每条结论都必须能指到实测数字。本地对照实验的绝对毫秒数不能当真机数字用，只能搬「改前 / 改后的倍数」与「结果等价性」两个结论。',
+  '验收用**绝对秒数**（人能感知的秒数），不用降幅百分比。目标准：点开面板到看见内容 ≤ 300 毫秒；点刷新到新数据出现 ≤ 2 秒；宿主单次 `gh` 调用 ≤ 1.5 秒；探测一轮 ≤ 1 秒。',
+  '以目标准为闸门：超过目标准的一律治；已经达标的不动，登记一行「已达标」。',
+  '提问方式：需要人拿主意时写在对话正文里，不用弹窗式提问工具。'
+];
+var FOG5 = [
+  '按体检清单毕业出来的「方案 + 落地 + 真机复测」票：每一条毛病单独成票，数量与内容要等体检结果才知道，现在切不出来。',
+  '客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换、详情页各自慢不慢、慢在哪，现在说不清，等体检数字。',
+  '装配启动与日志落盘 / 内存的治理方案：同上，等体检数字。',
+  '真机取证的常备手法细节（怎么一键复测、结果放哪）：等测点常备化那票落地后再定。',
+  '面板首次打开那条的第二处修复（地图行适配）的真机数字还没量过：预期折叠耗时从 81 毫秒降到约 15 毫秒。'
+];
+var OOS5 = [
+  '改 DSH 本体：如果「宿主调用被推迟」真的发生在 DSH 提供的 `ctx.exec` 内部，本插件只能适应与上报，改不了它。',
+  '改其它仓库（`D:\\ilife` 等）：本次只读参考。',
+  '面板首次打开那条（真机 5075 → 179 毫秒，已修好并验证）：不重查。',
+  '发版与发布流程：本图只管把改动做到真机达标，交给已装用户是发布票的事。',
+  '重新设计插件整体架构：本次只在宿主取数链上做结构性收敛，不动其它分层。'
+];
+var DEC2 = [
+  {t:'收口上个会话的遗留', g:'倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）'},
+  {t:'补上 gh 调用的测量盲区', g:'真机一天 2538 次 gh 调用，中位 7.8 秒，超过「单次 ≤ 1.5 秒」'}
+];
+var T604 = [
+  {no:605, type:'task', title:'收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票', state:'CLOSED', blockedBy:[]},
+  {no:606, type:'task', title:'补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点', state:'CLOSED', blockedBy:[605]},
+  {no:607, type:'research', title:'全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单', state:'OPEN', claimedBy:'FeatherHunter', blockedBy:[605,606]},
+  {no:608, type:'grilling', title:'宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个', state:'OPEN', blockedBy:[607]}
+];
+var T20 = [
+  {no:701, type:'task',     title:'收口上个会话的遗留（示例）', state:'CLOSED', blockedBy:[]},
+  {no:702, type:'task',     title:'补上 gh 调用的测量盲区（示例）', state:'CLOSED', blockedBy:[701]},
+  {no:703, type:'research', title:'面板渲染耗时基线（示例）', state:'CLOSED', blockedBy:[701]},
+  {no:705, type:'research', title:'客户端渲染耗时体检（示例）', state:'CLOSED', blockedBy:[701,703]},
+  {no:704, type:'research', title:'宿主命令链耗时体检（示例）', state:'OPEN', claimedBy:'FeatherHunter', blockedBy:[701,702]},
+  {no:706, type:'research', title:'日志落盘与内存体检（示例）', state:'OPEN', blockedBy:[703]},
+  {no:707, type:'research', title:'装配启动耗时体检（示例）', state:'OPEN', blockedBy:[701]},
+  {no:708, type:'grilling', title:'宿主取数层设计：接缝画在哪、缓存键怎么定（示例）', state:'OPEN', blockedBy:[704,706]},
+  {no:709, type:'grilling', title:'请求合并与缓存键设计（示例）', state:'OPEN', blockedBy:[708]},
+  {no:710, type:'task',     title:'三个扫描器收成一个（示例）', state:'OPEN', blockedBy:[708]},
+  {no:711, type:'task',     title:'面板列表虚拟滚动落地（示例）', state:'OPEN', blockedBy:[705]},
+  {no:712, type:'task',     title:'状态栏刷新链路瘦身（示例）', state:'OPEN', blockedBy:[705]},
+  {no:713, type:'task',     title:'详情页首屏预算达标（示例）', state:'OPEN', blockedBy:[711,712]},
+  {no:714, type:'prototype',title:'地图详情页重构的观感原型（示例）', state:'OPEN', blockedBy:[711]},
+  {no:715, type:'task',     title:'启动阶段懒装配（示例）', state:'OPEN', blockedBy:[707]},
+  {no:716, type:'task',     title:'日志写入节流与批量落盘（示例）', state:'OPEN', blockedBy:[706]},
+  {no:717, type:'task',     title:'内存占用回归门禁（示例）', state:'OPEN', blockedBy:[716]},
+  {no:718, type:'task',     title:'真机全链复测（示例）', state:'OPEN', blockedBy:[710,713,715,717]},
+  {no:719, type:'task',     title:'性能预算写进 CI（示例）', state:'OPEN', blockedBy:[718]},
+  {no:720, type:'task',     title:'把实测数字写进文档（示例）', state:'OPEN', blockedBy:[718]}
+];
+var TITLE604 = 'MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）';
+var DEST604 = '把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。';
+
+var MAP = (function(){
+  if (SAMPLE === 'empty') return {no:604, title:TITLE604, destination:DEST604, tickets:[],
+    decisions:[], fog:[], outOfScope:[], notes:[], notesMore:0};
+  if (SAMPLE === 'big') return {no:604, title:TITLE604, destination:DEST604, tickets:T20,
+    decisions:DEC2, fog:FOG5, outOfScope:OOS5, notes:NOTES6, notesMore:10};
+  return {no:604, title:TITLE604, destination:DEST604, tickets:T604,
+    decisions:DEC2, fog:FOG5, outOfScope:OOS5, notes:NOTES6, notesMore:10};
+})();
+
+/* 状态：四态只看自己家前后（任务书第 4 节），没有一条要问「我在第几层」 */
+var BY_NO = {};
+MAP.tickets.forEach(function(t){ BY_NO[t.no] = t; });
+function stateOf(t){
+  if (t.state === 'CLOSED') return 'closed';
+  if (t.claimedBy) return 'lit';
+  var blk = (t.blockedBy||[]).map(function(n){ return BY_NO[n]; }).filter(Boolean);
+  return blk.some(function(b){ return b.state === 'OPEN'; }) ? 'fog' : 'ready';
+}
+var TICKETS = MAP.tickets.map(function(t){
+  var blockers = (t.blockedBy||[]).map(function(n){ return BY_NO[n] ? {no:n, state:BY_NO[n].state} : {no:n, state:'?'}; });
+  var closedB = blockers.filter(function(b){ return b.state === 'CLOSED'; }).length;
+  return {no:t.no, type:t.type||'issue', title:t.title||'', claimedBy:t.claimedBy||'', st:stateOf(t),
+    blockers:blockers, closedB:closedB};
+});
+var COUNT = {closed:0, lit:0, ready:0, fog:0};
+TICKETS.forEach(function(t){ COUNT[t.st.st] = 0; COUNT[t.st]++; });
+var TYPE_WORD = {research:'研究', grilling:'讨论', prototype:'原型', task:'任务', map:'地图', issue:'议题'};
+var SKILL_WORD = {research:'研究', grilling:'讨论', prototype:'原型'};
+var ST_WORD = {closed:'已关闭', lit:'在办', ready:'现在能动手', fog:'还没探明'};
+function threadCount(){
+  return TICKETS.length + TICKETS.reduce(function(a,t){ return a + t.blockers.length; }, 0);
+}
+
+/* =======================================================================
+   2. 小工具
+   ======================================================================= */
+function esc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+/* 只认三种行内写法：**粗**、`代码`、普通文字 —— 数据是中文散文，不需要完整 markdown */
+function md(s){
+  var x = esc(s);
+  x = x.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  x = x.replace(/`([^`]+)`/g, '<code>$1</code>');
+  return x;
+}
+function el(tag, cls, html){
+  var d = document.createElement(tag);
+  if (cls) d.className = cls;
+  if (html != null) d.innerHTML = html;
+  return d;
+}
+function clear(node){ while (node.firstChild) node.removeChild(node.firstChild); }
+function f1(n){ return Math.round(n*10)/10; }
+
+/* =======================================================================
+   3. 布局：目标在板子上沿，票据围在它的上、左右、下方（辐射式，不是台阶）
+   ======================================================================= */
+var FIELD_PAD_TOP = 16;
+var FIELD_PAD_BOTTOM = 46;
+var MET = null;      // 当前断点的尺寸
+var HUB = {x:0,y:0,w:0,h:0};
+var CARDS = {};      // no -> {x,y,w,h}
+var FIELD_W = 0, FIELD_H = 0;
+
+function metricsFor(bw){
+  if (bw >= 620){
+    var hub = Math.min(320, bw - 60);
+    var card = Math.min(208, Math.floor((bw - 24) / 2) - 8);
+    return {wide:true, bw:bw, hubW:hub, cardW:card, cardH:178, colGap:16, rowGap:26, laneGap:26, tail:150};
+  }
+  var cw = Math.max(210, Math.min(300, bw - 76));
+  return {wide:false, bw:bw, hubW:Math.min(360, bw - 10), cardW:cw, cardH:184, colGap:0, rowGap:26, laneGap:24, tail:160};
+}
+/* 排位：宽板上「目标上方两张 → 目标左右两张 → 目标下方两列」；窄板上一列，目标左右留出过线的空档 */
+function planSlots(n, M){
+  var slots = [], i;
+  if (M.wide){
+    var sideX = Math.min(M.hubW/2 + 16 + M.cardW/2, M.bw/2 - M.cardW/2 - 6);
+    var colX  = (M.cardW + M.colGap)/2;
+    for (i=0; i<n && i<2; i++) slots.push({row:'A', x:(i===0? -sideX : sideX)});
+    for (i=2; i<n && i<4; i++) slots.push({row:'B', x:(i===2? -sideX : sideX)});
+    for (i=4; i<n; i++) slots.push({row:'C'+Math.floor((i-4)/2), x:(((i-4)%2===0)? -colX : colX)});
+  } else {
+    for (i=0; i<n; i++) slots.push({row:(i===0?'A':'C'+(i-1)), x:0});
+  }
+  return slots;
+}
+
+var $ = function(id){ return document.getElementById(id); };
+var topbar = $('topbar'), boardrail = $('boardrail'), field = $('field'), sheets = $('sheets'),
+    threadsSvg = $('threads'), botrail = $('botrail'), drawer = $('drawer'), notesSheet = $('notessheet'),
+    toastEl = $('toast'), diagEl = $('diag'), boardwrap = $('boardwrap'), fieldcap = $('fieldcap');
+
+/* =======================================================================
+   4. 顶部命令条（A）
+   ======================================================================= */
+function primaryKind(){
+  if (MAP.tickets.length === 0) return {word:'检查', cls:'amber', icon:'⌕', tip:'这张图还没有子票，先做一次检查'};
+  var closedN = TICKETS.filter(function(t){ return t.st === 'closed'; }).length;
+  if (closedN === TICKETS.length) return {word:'完成', cls:'blue', icon:'✓', tip:'子票全部关闭，可以收口这张图'};
+  return {word:'执行', cls:'', icon:'▶', tip:'在新会话里按这张图往下推进'};
+}
+function buildTopbar(){
+  var pk = primaryKind();
+  clear(topbar);
+  var g1 = el('div','tbgrp');
+  g1.appendChild(btn('mbtn','← 返回','back', function(){ receipt('返回','回到上一级（真机上是返回列表或上一张图）'); }));
+  g1.appendChild(el('span','crumb', '列表 / #' + MAP.no));
+  topbar.appendChild(g1);
+
+  var g2 = el('div','tbgrp');
+  g2.appendChild(el('span','mapchip', '<i></i>wayfinder:map'));
+  topbar.appendChild(g2);
+
+  var g3 = el('div','tbgrp right');
+  var b1 = btn('mbtn primary ' + pk.cls, pk.icon + ' ' + pk.word, 'execute', function(){
+    receipt(pk.word, pk.word + ' 这条命令已经准备好；原型里不会真的发出去，真机上这一步会把指令交给会话');
+  });
+  b1.title = pk.tip;
+  g3.appendChild(b1);
+  g3.appendChild(btn('mbtn','新会话','newSession', function(){
+    receipt('新会话','在新会话里打开 #' + MAP.no + ' 并推进它');
+  }));
+  g3.appendChild(btn('mbtn','诊断','diagnose', function(){ toggleDiag(); }));
+  topbar.appendChild(g3);
+}
+function btn(cls, label, cap, fn){
+  var b = el('button', cls, label);
+  if (cap) b.setAttribute('data-cap', cap);
+  b.type = 'button';
+  b.addEventListener('click', fn);
+  return b;
+}
+
+/* =======================================================================
+   5. 板子上沿：抬头（B）+ 进度（C）+ 案情摘要（E 的入口）
+   ======================================================================= */
+var totalN = MAP.tickets.length;
+var closedN = COUNT.closed;
+function buildRail(){
+  clear(boardrail);
+
+  var row1 = el('div','railrow');
+  row1.appendChild(el('span','idnum','#' + MAP.no));
+  var mid = el('div', null);
+  mid.style.flex = '1'; mid.style.minWidth = '0';
+  var tt = el('div','mtitle');
+  tt.textContent = MAP.title;
+  tt.title = MAP.title;
+  mid.appendChild(tt);
+  mid.appendChild(el('div','subcount','本图 ' + totalN + ' 张子票（已关闭 ' + closedN + ' 张）'));
+  row1.appendChild(mid);
+
+  /* 案情摘要：钉在板子右上角的一份纸，点开像抽出一张纸（E） */
+  var clip = el('button','clip');
+  clip.type = 'button';
+  clip.setAttribute('data-cap','notes');
+  clip.setAttribute('aria-expanded','false');
+  clip.innerHTML = '<span class="clipwire"></span><span class="clab">正文详情</span><span class="csub">案情摘要 · 点开抽出来看</span>';
+  clip.title = '正文详情（Notes）：抽出来看这一张的正文';
+  clip.addEventListener('click', function(){ toggleNotes(); });
+  row1.appendChild(clip);
+  boardrail.appendChild(row1);
+
+  /* 进度：四段金属量表，数哪一段就写哪一段，不撒谎 */
+  var gauge = el('div','gauge');
+  var track = el('div','gaugetrack');
+  var segs = el('div','gsegs');
+  segs.style.width = '100%';
+  if (totalN === 0){
+    segs.appendChild(el('div','gseg fog')).style.flex = '1';
+  } else {
+    [['closed',COUNT.closed],['lit',COUNT.lit],['ready',COUNT.ready],['fog',COUNT.fog]].forEach(function(p){
+      if (!p[1]) return;
+      var s = el('div','gseg ' + p[0]);
+      s.style.flex = String(p[1]);
+      s.title = ST_WORD[p[0]] + ' ' + p[1] + ' 张';
+      segs.appendChild(s);
+    });
+  }
+  track.appendChild(segs);
+  gauge.appendChild(track);
+
+  var leg = el('div','glegend');
+  leg.appendChild(el('span','k','<i style="background:linear-gradient(180deg,#7fe3a6,#35a862)"></i>已办结 <b>' + COUNT.closed + '</b>'));
+  leg.appendChild(el('span','k','<i style="background:linear-gradient(180deg,#8fc5ff,#2f79c8)"></i>正在办 <b>' + COUNT.lit + '</b>'));
+  leg.appendChild(el('span','k','<i style="background:linear-gradient(180deg,#b6f77a,#4ea821)"></i>现在能动手 <b>' + COUNT.ready + '</b>'));
+  leg.appendChild(el('span','k','<i style="background:linear-gradient(180deg,#5a636f,#3a414b)"></i>还没探明 <b>' + COUNT.fog + '</b>'));
+  leg.appendChild(el('span', null, '一共 <b style="color:#eaf1f8">' + totalN + '</b> 张'));
+  gauge.appendChild(leg);
+  boardrail.appendChild(gauge);
+
+  /* 能动手的票：给一条短路径直接指过去（不是层级，只是快捷方式） */
+  var ready = TICKETS.filter(function(t){ return t.st === 'ready'; });
+  var chips = el('div','tkchips');
+  if (ready.length){
+    chips.appendChild(el('span', null, '现在能动手：'));
+    ready.forEach(function(t){
+      var b = el('button','tkchip','#' + t.no);
+      b.type = 'button';
+      b.title = t.title;
+      b.addEventListener('click', function(){ spotlight(t.no); });
+      chips.appendChild(b);
+    });
+  } else if (totalN === 0){
+    chips.appendChild(el('span', null,'这块板刚钉上，还没有子票 —— 第一张资料钉上来之前，这里只有目的地。'));
+  } else {
+    chips.appendChild(el('span', null,'现在没有能直接动手的票：都在等人认领，或者被前面的票挡着。'));
+  }
+  boardrail.appendChild(chips);
+}
+function spotlight(no){
+  var card = sheets.querySelector('[data-ticket="' + no + '"]');
+  if (!card) return;
+  try { card.scrollIntoView({block:'center', behavior:'smooth'}); } catch(e){ card.scrollIntoView(); }
+  card.classList.add('pulse');
+  card.addEventListener('animationend', function h(){ card.classList.remove('pulse'); card.removeEventListener('animationend', h); });
+}
+
+/* =======================================================================
+   6. 板面：目标那张 + 资料（票）+ 红线
+   ======================================================================= */
+function mugshot(no){
+  var v = no % 3, tone = ['#b8b5a8','#c2bfb1','#adaa9c','#bdb9aa','#b3b0a3'][no % 5];
+  var headX = [22, 20, 24][v], headY = [13, 15, 12][v], headR = [6.6, 6.2, 7][v];
+  var s = '<svg class="mug" viewBox="0 0 42 52" aria-hidden="true">';
+  s += '<rect width="42" height="52" fill="' + tone + '"/>';
+  s += '<rect y="38" width="42" height="14" fill="#8f8c80" opacity=".85"/>';
+  s += '<circle cx="' + headX + '" cy="' + headY + '" r="' + headR + '" fill="#4a473f"/>';
+  s += '<path d="M' + (headX-13) + ' 52c0-7.6 5.8-13 ' + 13 + '-13s13 5.4 13 13z" fill="#514e45"/>';
+  s += '<path d="M0 0h42" stroke="#fff" stroke-opacity=".22" stroke-width="1.4"/>';
+  s += '<path d="M0 17h42M0 34h42" stroke="#fff" stroke-opacity=".1" stroke-width="1"/>';
+  s += '<path d="M0 1.5v49" stroke="#000" stroke-opacity=".18" stroke-width="1.4"/>';
+  s += '</svg>';
+  return s;
+}
+function stateLine(t){
+  var open = t.blockers.filter(function(b){ return b.state === 'OPEN'; }).map(function(b){ return '#' + b.no; });
+  if (t.st === 'closed') return '已关闭';
+  if (t.st === 'lit')    return '经办人 ' + esc(t.claimedBy);
+  if (t.st === 'ready')  return '没人认领 · 没人挡着';
+  return '被 ' + open.join('、') + ' 挡着';
+}
+function buildCard(t){
+  var card = el('article','sheet');
+  card.setAttribute('data-ticket', String(t.no));
+  card.setAttribute('data-state', t.st);
+  card.tabIndex = 0;
+  card.title = '#' + t.no + ' ' + t.title;
+
+  var kindWord = TYPE_WORD[t.type] || '议题';
+  var progPct = t.blockers.length ? Math.round(100 * t.closedB / t.blockers.length) : 100;
+  var progLabel = t.blockers.length ? ('前置 ' + t.closedB + '/' + t.blockers.length + ' 已通过') : '起点 · 不需要等别人';
+  var h = '';
+  h += '<div class="tline-row"><span class="tno">#' + t.no + '</span>'
+     + '<span class="tkind ' + esc(t.type) + '">' + kindWord + '</span>'
+     + '<span class="tstate">' + ST_WORD[t.st] + '</span></div>';
+  h += '<div class="trow">' + (t.st === 'fog'
+        ? '<svg class="mug" viewBox="0 0 42 52" aria-hidden="true"><rect x="0.5" y="0.5" width="41" height="51" fill="none" stroke="rgba(60,66,76,.5)" stroke-dasharray="3 3"/><path d="M8 40h26" stroke="rgba(60,66,76,.3)"/></svg>'
+        : mugshot(t.no))
+     + '<div class="ttwrap"><h4 class="tt">' + esc(t.title) + '</h4></div></div>';
+  h += '<div class="sub">' + stateLine(t) + '</div>';
+  h += '<div class="prog"><span>' + (t.blockers.length ? progLabel : '起点') + '</span>'
+     + (t.blockers.length ? '<span class="progtrack"><span class="progfill" style="width:' + progPct + '%"></span></span>' : '')
+     + '</div>';
+  h += '<div class="barcode"></div>';
+  card.innerHTML = '<div class="paper">' + h + '</div>';
+
+  var paper = card.querySelector('.paper');
+  var bar = paper.querySelector('.barcode');
+  if (t.st === 'ready' || t.st === 'lit'){
+    /* 动作只在「开着且没有被挡住」的票上出现（真机同款）：技能 / 新会话 / 打开原票 */
+    var acts = el('div','acts');
+    var skill = SKILL_WORD[t.type] || '修复';
+    var sb = el('button','pbtn skill', skill); sb.type = 'button'; sb.title = '对 #' + t.no + ' 执行「' + skill + '」';
+    sb.addEventListener('click', function(e){ e.stopPropagation();
+      receipt(skill, '对 #' + t.no + ' 的「' + skill + '」动作已准备好；原型里不会真的发出去'); });
+    var nb = el('button','pbtn ghost','新会话'); nb.type='button';
+    nb.setAttribute('data-cap','newSession');
+    nb.title = '在新会话里打开 #' + t.no;
+    nb.addEventListener('click', function(e){ e.stopPropagation(); receipt('新会话','在新会话里打开 #' + t.no + ' 推进它'); });
+    var lb = el('button','pbtn ghost','↗'); lb.type='button'; lb.title = '打开原票 #' + t.no;
+    lb.setAttribute('aria-label','打开原票 #' + t.no);
+    lb.addEventListener('click', function(e){ e.stopPropagation(); receipt('打开原票','打开 #' + t.no + ' 的原票（真机上会走系统打开）'); });
+    acts.appendChild(sb); acts.appendChild(nb); acts.appendChild(lb);
+    paper.insertBefore(acts, bar);
+  } else if (t.st === 'closed'){
+    paper.insertBefore(el('div','quiet','这条路已经走完，留着当证据'), bar);
+  } else {
+    /* 雾里：一张还没写字的空白资料，只钉着一个空磁扣位 —— 空行就是「还不知道怎么走」 */
+    paper.insertBefore(el('div','blankform','<i></i><i></i><span class="fogword">还没探明 · 还不知道怎么走</span>'), bar);
+  }
+
+  /* 四状态各一件实物 —— 形状、纹理、文字、印章至少两样以上，不只靠颜色 */
+  var rot = (((t.no * 37) % 9) - 4) * 0.62;      /* 手工钉上去的，不是对齐的 */
+  card.style.transform = 'translate3d(0,0,0) rotate(' + f1(rot) + 'deg)';
+  var magnetCls = (t.st === 'lit') ? 'magnet tr hot' : 'magnet tr';
+  var magnets = '<span class="' + magnetCls + '"></span>';
+  if (t.st === 'lit') magnets += '<span class="magnet tl hot"></span>';
+  if (t.st === 'ready' || t.st === 'lit') magnets += '<span class="magnet bl"></span>';
+  card.insertAdjacentHTML('beforeend', magnets);
+  if (t.st === 'closed'){
+    card.insertAdjacentHTML('beforeend', '<span class="stamp">已关闭</span>');
+    var sp = card.querySelector('.stamp');
+    sp.style.left = (5 + (t.no % 3) * 4) + 'px';
+    sp.style.bottom = (4 + (t.no % 3) * 3) + 'px';
+    sp.style.transform = 'rotate(' + (-8 - (t.no % 4) * 2) + 'deg)';
+  }
+  if (t.st === 'ready'){
+    card.insertAdjacentHTML('beforeend', '<span class="flag"><span class="pole"></span><span class="cloth"></span></span>');
+  }
+  if (t.st === 'fog'){
+    card.insertAdjacentHTML('beforeend', '<span class="slot"></span>');
+    card.querySelector('.paper').insertAdjacentHTML('afterbegin','<span class="frost"></span>');
+  }
+  if ((t.no % 3) === 0){
+    card.insertAdjacentHTML('beforeend','<span class="tape" style="left:14px;top:-6px;transform:rotate(-4deg)"></span>');
+  }
+  if ((t.no % 4) === 1){
+    card.insertAdjacentHTML('beforeend','<span class="coffee" style="right:10px;bottom:16px"></span>');
+  }
+  card.insertAdjacentHTML('beforeend','<span class="crease"></span>');
+
+  card.addEventListener('click', function(e){
+    if (e.target.closest('button')) return;
+    toggleRaise(card);
+  });
+  card.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleRaise(card); }
+  });
+  return card;
+}
+function toggleRaise(card){
+  var on = card.classList.toggle('raised');
+  card.style.zIndex = on ? '40' : '';
+  if (!on) card.style.zIndex = '';
+}
+function buildHub(){
+  var hub = el('article','hub');
+  hub.setAttribute('data-role','destination');
+  var fates = [];
+  if (COUNT.closed) fates.push('已办结 ' + COUNT.closed);
+  if (COUNT.lit) fates.push('在办 ' + COUNT.lit);
+  if (COUNT.ready) fates.push('能动手 ' + COUNT.ready);
+  if (COUNT.fog) fates.push('还没探明 ' + COUNT.fog);
+  hub.innerHTML = '<span class="halo"></span>'
+    + '<div class="paper">'
+    +   '<div class="hbar"><span class="hbadge">#' + MAP.no + '</span><span class="destlab">目的地 · DESTINATION</span></div>'
+    +   '<h3 class="htitle">' + esc(MAP.title) + '</h3>'
+    +   '<div class="dtext">' + md(MAP.destination) + '</div>'
+    +   '<div class="hfoot">'
+    +     '<span>子票 ' + totalN + ' 张</span>'
+    +     '<span>' + (fates.length ? fates.join(' · ') : '一张子票都还没有') + '</span>'
+    +     '<span>板面 ' + TICKETS.length + ' 张资料 / ' + (TICKETS.length ? threadCount() : 0) + ' 条连线</span>'
+    +   '</div>'
+    + '</div>'
+    + '<span class="magnet tl"></span><span class="magnet tr"></span>'
+    + '<span class="magnet bl"></span><span class="magnet br"></span>';
+  return hub;
+}
+
+/* =======================================================================
+   7. 红线：从每张资料朝目标汇；被挡的那一方收到一枚箭头（不穿过资料）
+   ======================================================================= */
+var LANES = {h:[], v:[]};
+var THREADS = [];    /* {id, a, b, kind, line, hit, label, mid} */
+function edgePoint(r, tx, ty, pad){
+  var cx = r.x + r.w/2, cy = r.y + r.h/2, dx = tx - cx, dy = ty - cy;
+  if (!dx && !dy) dy = 1;
+  var hw = r.w/2 + (pad||0), hh = r.h/2 + (pad||0);
+  var sx = dx ? hw/Math.abs(dx) : Infinity, sy = dy ? hh/Math.abs(dy) : Infinity;
+  var s = Math.min(sx, sy);
+  return {x: cx + dx*s, y: cy + dy*s};
+}
+function obstacles(ignore){
+  var out = [];
+  for (var k in CARDS){
+    if (ignore.indexOf(Number(k)) >= 0) continue;
+    var r = CARDS[k];
+    out.push({x:r.x-5, y:r.y-5, w:r.w+10, h:r.h+10, no:Number(k)});
+  }
+  return out;
+}
+function hitsOf(pts, rects, pad){
+  var n = 0;
+  for (var i=0; i<pts.length-1; i++){
+    var a = pts[i], b = pts[i+1];
+    var L = Math.hypot(b.x-a.x, b.y-a.y);
+    var steps = Math.max(2, Math.ceil(L/9));
+    for (var s=0; s<=steps; s++){
+      var t = s/steps, x = a.x + (b.x-a.x)*t, y = a.y + (b.y-a.y)*t;
+      for (var j=0; j<rects.length; j++){
+        var r = rects[j];
+        if (x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h) n++;
+      }
+    }
+  }
+  return n;
+}
+function candidates(A, B){
+  var list = [], i, k;
+  list.push([A, B]);
+  for (i=1; i<=3; i++){
+    [1,-1].forEach(function(sg){
+      var mx = (A.x+B.x)/2, my = (A.y+B.y)/2;
+      var dx = B.x-A.x, dy = B.y-A.y, L = Math.hypot(dx,dy) || 1;
+      var nx = -dy/L, ny = dx/L, o = 26*i*sg;
+      var cxp = mx + nx*o, cyp = my + ny*o;
+      var pts = [];
+      for (k=0; k<=10; k++){
+        var t = k/10;
+        pts.push({x:(1-t)*(1-t)*A.x + 2*(1-t)*t*cxp + t*t*B.x, y:(1-t)*(1-t)*A.y + 2*(1-t)*t*cyp + t*t*B.y});
+      }
+      list.push(pts);
+    });
+  }
+  list.push([A, {x:B.x, y:A.y}, B]);
+  list.push([A, {x:A.x, y:B.y}, B]);
+  for (i=0; i<LANES.h.length; i++) list.push([A, {x:A.x, y:LANES.h[i]}, {x:B.x, y:LANES.h[i]}, B]);
+  for (i=0; i<LANES.v.length; i++) list.push([A, {x:LANES.v[i], y:A.y}, {x:LANES.v[i], y:B.y}, B]);
+  for (i=0; i<LANES.h.length; i++) for (k=0; k<LANES.v.length; k++){
+    list.push([A, {x:A.x, y:LANES.h[i]}, {x:LANES.v[k], y:LANES.h[i]}, {x:LANES.v[k], y:B.y}, B]);
+  }
+  return list;
+}
+function routeThread(aNo, bNo, opts){
+  opts = opts || {};
+  var ra = CARDS[aNo], rb = (bNo === 0) ? HUB : CARDS[bNo];
+  var A = edgePoint(ra, ra.x + ra.w/2, ra.y + ra.h/2, 0);
+  var target = opts.target || {x: rb.x + rb.w/2, y: rb.y + rb.h/2};
+  A = edgePoint(ra, target.x, target.y, 2);
+  var B = edgePoint(rb, (opts.fromHubTarget || A).x, (opts.fromHubTarget || A).y, 2);
+  if (opts.entryYAtHubBottom){
+    B = {x: Math.max(rb.x + 26, Math.min(rb.x + rb.w - 26, opts.entryYAtHubBottom.x)), y: rb.y + rb.h + 2};
+  }
+  if (opts.entryAtHubSide){
+    B = {x: (opts.entryAtHubSide.side < 0 ? rb.x - 2 : rb.x + rb.w + 2), y: opts.entryAtHubSide.y};
+  }
+  if (opts.entryAtHubTop){
+    B = {x: Math.max(rb.x + 26, Math.min(rb.x + rb.w - 26, opts.entryAtHubTop.x)), y: rb.y - 2};
+  }
+  var rects = obstacles([aNo, bNo]);
+  var cands = candidates(A, B), best = null, bestHits = Infinity;
+  for (var i=0; i<cands.length; i++){
+    var h = hitsOf(cands[i], rects);
+    if (h === 0){ best = cands[i]; bestHits = 0; break; }
+    if (h < bestHits){ bestHits = h; best = cands[i]; }
+  }
+  return {pts: best, A:A, B:B};
+}
+function ptsToPath(pts, rad){
+  rad = (rad == null) ? 16 : rad;
+  if (!pts || pts.length < 2) return '';
+  var d = 'M' + f1(pts[0].x) + ' ' + f1(pts[0].y);
+  for (var i=1; i<pts.length-1; i++){
+    var p0 = pts[i-1], p1 = pts[i], p2 = pts[i+1];
+    var v1x = p1.x-p0.x, v1y = p1.y-p0.y, v2x = p2.x-p1.x, v2y = p2.y-p1.y;
+    var l1 = Math.hypot(v1x,v1y) || 1, l2 = Math.hypot(v2x,v2y) || 1;
+    var r1 = Math.min(rad, l1/2), r2 = Math.min(rad, l2/2);
+    d += ' L' + f1(p1.x - v1x/l1*r1) + ' ' + f1(p1.y - v1y/l1*r1)
+      +  ' Q' + f1(p1.x) + ' ' + f1(p1.y) + ' ' + f1(p1.x + v2x/l2*r2) + ' ' + f1(p1.y + v2y/l2*r2);
+  }
+  var last = pts[pts.length-1];
+  d += ' L' + f1(last.x) + ' ' + f1(last.y);
+  return d;
+}
+function midOf(pts){
+  var total = 0, i;
+  for (i=0; i<pts.length-1; i++) total += Math.hypot(pts[i+1].x-pts[i].x, pts[i+1].y-pts[i].y);
+  var half = total/2, acc = 0;
+  for (i=0; i<pts.length-1; i++){
+    var L = Math.hypot(pts[i+1].x-pts[i].x, pts[i+1].y-pts[i].y);
+    if (acc + L >= half && L > 0){
+      var t = (half - acc)/L;
+      return {x: pts[i].x + (pts[i+1].x-pts[i].x)*t, y: pts[i].y + (pts[i+1].y-pts[i].y)*t};
+    }
+    acc += L;
+  }
+  return pts[0];
+}
+function buildThreads(){
+  THREADS = [];
+  clear(threadsSvg);
+  threadsSvg.setAttribute('width', String(FIELD_W));
+  threadsSvg.setAttribute('height', String(FIELD_H));
+  var defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML = '<marker id="arw" viewBox="0 0 10 10" refX="8.4" refY="5" markerWidth="5.4" markerHeight="5.4" orient="auto">'
+    + '<path d="M0 0.6 L9.6 5 L0 9.4 z" fill="#d9534f"></path></marker>'
+    + '<marker id="arw2" viewBox="0 0 10 10" refX="8.4" refY="5" markerWidth="4.6" markerHeight="4.6" orient="auto">'
+    + '<path d="M0 0.6 L9.6 5 L0 9.4 z" fill="#b8493a"></path></marker>';
+  threadsSvg.appendChild(defs);
+
+  var hubC = {x: HUB.x + HUB.w/2, y: HUB.y + HUB.h/2};
+  var below = [], beside = [], above = [];
+  TICKETS.forEach(function(t){ CARDS[t.no].st = t.st; });
+  TICKETS.forEach(function(t){
+    var r = CARDS[t.no], cy = r.y + r.h/2, cx = r.x + r.w/2;
+    if (cy < hubC.y - 24) above.push(t);
+    else if (cy > hubC.y + 24 && cx > HUB.x - 40 && cx < HUB.x + HUB.w + 40 && cy < HUB.y) beside.push(t);
+    else below.push(t);
+  });
+  /* 朝目标汇的线：入口沿目标纸的下沿散开，看上去就是一束红线收进那张纸 */
+  TICKETS.forEach(function(t, idx){
+    var r = CARDS[t.no];
+    var opts = {};
+    if (above.indexOf(t) >= 0){
+      var ex = HUB.x + HUB.w * (0.3 + 0.4 * ((idx % 3) / 2));
+      opts.target = {x: ex, y: HUB.y};
+      opts.entryAtHubTop = {x: ex};
+    } else if (beside.indexOf(t) >= 0){
+      var leftSide = (r.x + r.w/2) < hubC.x;
+      var ey = HUB.y + HUB.h * (0.32 + 0.36 * ((idx % 3) / 2));
+      opts.target = {x: leftSide ? HUB.x : HUB.x + HUB.w, y: ey};
+      opts.entryAtHubSide = {side: leftSide ? -1 : 1, y: ey};
+    } else {
+      var lane = (idx % 2 === 0) ? -1 : 1;               /* 左右两股，交替收进目标下沿 */
+      var exb = HUB.x + HUB.w * (0.5 + lane * (0.10 + 0.10 * (idx % 4)));
+      opts.target = {x: exb, y: HUB.y + HUB.h};
+      opts.entryYAtHubBottom = {x: exb};
+    }
+    var rr = routeThread(t.no, 0, opts);
+    addThread('hub', t.no, 0, rr, 'dim', false);
+  });
+  /* 被挡住的那条线：从挡住别人的那张，指向被挡的那张，箭头点在被挡的一方 */
+  TICKETS.forEach(function(t){
+    t.blockers.forEach(function(b){
+      if (!CARDS[b.no]) return;
+      var rb = CARDS[b.no];
+      var rr = routeThread(b.no, t.no, {target:{x: rb.x + rb.w/2, y: rb.y + rb.h/2}});
+      addThread('block', b.no, t.no, rr, 'main', true);
+    });
+  });
+}
+function addThread(kind, aNo, bNo, rr, cls, arrow){
+  var d = ptsToPath(rr.pts, kind === 'hub' ? 20 : 14);
+  var line = document.createElementNS('http://www.w3.org/2000/svg','path');
+  line.setAttribute('class','tline ' + (cls === 'dim' ? 'dim' : ''));
+  line.setAttribute('d', d);
+  if (arrow) line.setAttribute('marker-end','url(#arw)');
+  else line.setAttribute('marker-end','url(#arw2)');
+  var hit = document.createElementNS('http://www.w3.org/2000/svg','path');
+  hit.setAttribute('class','thit');
+  hit.setAttribute('d', d);
+  var id = kind + ':' + aNo + '-' + bNo;
+  var label = (kind === 'hub') ? ('#' + aNo + ' → 目的地 #' + MAP.no)
+                               : ('#' + aNo + ' 挡着 #' + bNo);
+  hit.setAttribute('data-thread', id);
+  hit.setAttribute('tabindex','0');
+  hit.setAttribute('role','img');
+  hit.setAttribute('aria-label','这条红线连着 ' + label);
+  threadsSvg.appendChild(line);
+  threadsSvg.appendChild(hit);
+  var rec = {id:id, a:aNo, b:bNo, kind:kind, line:line, hit:hit, label:label, mid:midOf(rr.pts), pts:rr.pts};
+  THREADS.push(rec);
+
+  hit.addEventListener('pointerenter', function(){ setHot(rec); });
+  hit.addEventListener('pointerleave', function(){ clearHot(rec); });
+  hit.addEventListener('focus', function(){ setHot(rec); });
+  hit.addEventListener('blur', function(){ clearHot(rec); });
+}
+var hotTag = null;
+function setHot(rec){
+  rec.line.classList.add('hot');
+  THREADS.forEach(function(o){ if (o !== rec) o.line.style.opacity = '.28'; });
+  if (rec.kind === 'block') THREADS.forEach(function(o){ if (o.id === 'hub:' + rec.a + '-0') o.line.classList.add('hot'); });
+  if (!hotTag){
+    hotTag = el('div','threadtag');
+    field.appendChild(hotTag);
+  }
+  hotTag.innerHTML = rec.kind === 'hub'
+    ? ('这条线：<b>#' + rec.a + '</b> → <b>目的地 #' + MAP.no + '</b>')
+    : ('这条线：<b>#' + rec.a + '</b> 挡着 <b>#' + rec.b + '</b>');
+  hotTag.style.left = f1(rec.mid.x) + 'px';
+  hotTag.style.top = f1(rec.mid.y) + 'px';
+  hotTag.classList.remove('hidden');
+}
+function clearHot(rec){
+  rec.line.classList.remove('hot');
+  THREADS.forEach(function(o){ o.line.style.opacity = ''; o.line.classList.remove('hot'); });
+  if (hotTag) hotTag.classList.add('hidden');
+}
+function rerouteFor(no){
+  THREADS.forEach(function(rec){
+    if (rec.a !== no && rec.b !== no) return;
+    var opts = {};
+    if (rec.kind === 'hub'){
+      var r = CARDS[rec.a], hubC = {x: HUB.x + HUB.w/2, y: HUB.y + HUB.h/2};
+      var cy = r.y + r.h/2;
+      if (cy < hubC.y - 24){
+        var ex = HUB.x + HUB.w/2;
+        opts.target = {x: ex, y: HUB.y}; opts.entryAtHubTop = {x: ex};
+      } else if (cy < HUB.y && cy > hubC.y + 24){
+        var leftSide = (r.x + r.w/2) < hubC.x;
+        var ey = HUB.y + HUB.h/2;
+        opts.target = {x: leftSide ? HUB.x : HUB.x + HUB.w, y: ey};
+        opts.entryAtHubSide = {side: leftSide ? -1 : 1, y: ey};
+      } else {
+        var exb = HUB.x + HUB.w/2;
+        opts.target = {x: exb, y: HUB.y + HUB.h};
+        opts.entryYAtHubBottom = {x: exb};
+      }
+    } else {
+      var rb = CARDS[rec.b];
+      opts.target = {x: rb.x + rb.w/2, y: rb.y + rb.h/2};
+    }
+    var rr = routeThread(rec.a, rec.b, opts);
+    var d = ptsToPath(rr.pts, rec.kind === 'hub' ? 20 : 14);
+    rec.line.setAttribute('d', d);
+    rec.hit.setAttribute('d', d);
+    rec.mid = midOf(rr.pts);
+  });
+}
+
+/* =======================================================================
+   8. 造板：先摆位置，再算线（读到写完，中间只强制一次布局）
+   ======================================================================= */
+var POS_STORE = {};
+function storeKey(){ return 'm1:' + MAP.no + ':' + PANEL_W; }
+function loadStore(){
+  try { POS_STORE = JSON.parse(localStorage.getItem(storeKey()) || '{}') || {}; }
+  catch(e){ POS_STORE = (window.__M1_STORE && window.__M1_STORE[storeKey()]) || {}; }
+}
+function saveStore(){
+  try { localStorage.setItem(storeKey(), JSON.stringify(POS_STORE)); }
+  catch(e){ window.__M1_STORE = window.__M1_STORE || {}; window.__M1_STORE[storeKey()] = POS_STORE; }
+}
+function buildBoard(){
+  FIELD_W = field.clientWidth;
+  MET = metricsFor(FIELD_W);
+  document.documentElement.style.setProperty('--card-w', MET.cardW + 'px');
+  document.documentElement.style.setProperty('--card-h', MET.cardH + 'px');
+
+  clear(sheets);
+  CARDS = {};
+  threadsSvg.innerHTML = '';
+
+  /* 目标先量一次高度：它比周围都大、都亮，位置在板子上沿正中 */
+  var hub = buildHub();
+  sheets.appendChild(hub);
+  hub.style.width = MET.hubW + 'px';
+  var hubH = hub.offsetHeight;
+  var cxField = FIELD_W/2;
+  var hubTop = FIELD_PAD_TOP + (TICKETS.length ? (MET.cardH + MET.rowGap) : 0);
+  HUB = {x: Math.round(cxField - MET.hubW/2), y: hubTop, w: MET.hubW, h: hubH};
+  hub.style.left = HUB.x + 'px';
+  hub.style.top = HUB.y + 'px';
+
+  /* 给每张资料一个位置：宽板围在目标的上下左右，窄板一列，左右留过线的空档 */
+  var slots = planSlots(TICKETS.length, MET);
+  var hubBottom = HUB.y + HUB.h;
+  var rowY = {};
+  rowY.A = FIELD_PAD_TOP;
+  rowY.B = FIELD_PAD_TOP + MET.cardH + MET.rowGap + Math.max(0, Math.round((HUB.h - MET.cardH)/2));
+  rowY.C0 = hubBottom + MET.laneGap;
+  var maxRow = -1;
+  TICKETS.forEach(function(t, i){
+    var s = slots[i] || {row:'C0', x:0};
+    var y;
+    if (s.row === 'C0'){
+      y = rowY.C0;
+    } else if (s.row.charAt(0) === 'C'){
+      var k = Number(s.row.slice(1));
+      maxRow = Math.max(maxRow, k);
+      y = rowY.C0 + k * (MET.cardH + MET.rowGap);
+    } else {
+      y = rowY[s.row];
+    }
+    if (i < 4 && s.row !== 'C0' && s.row.charAt(0) !== 'C'){ /* 目标上/左右的四张 */ }
+    var card = buildCard(t);
+    card.style.width = MET.cardW + 'px';
+    card.style.height = MET.cardH + 'px';
+    sheets.appendChild(card);
+    var x = Math.round(cxField + s.x - MET.cardW/2);
+    CARDS[t.no] = {x:x, y:Math.round(y), w:MET.cardW, h:MET.cardH, el:card, rot:((((t.no*37)%9)-4)*0.62)};
+    t.slot = s;
+  });
+
+  /* 记住的挪位（拖过就留在那儿） */
+  TICKETS.forEach(function(t){
+    var p = POS_STORE[t.no];
+    if (p && typeof p.x === 'number'){
+      CARDS[t.no].x = Math.max(0, Math.min(FIELD_W - MET.cardW, Math.round(p.x)));
+      CARDS[t.no].y = Math.max(0, Math.round(p.y));
+    }
+  });
+
+  /* 写完位置再统一读一次，算板子多高 */
+  var hubBottom2 = HUB.y + HUB.h;
+  var bottom = hubBottom2;
+  var hasBelow = false;
+  TICKETS.forEach(function(t){
+    var c = CARDS[t.no];
+    c.el.style.left = c.x + 'px';
+    c.el.style.top = c.y + 'px';
+    bottom = Math.max(bottom, c.y + c.h);
+    if (t.slot && (t.slot.row === 'C0' || t.slot.row.charAt(0) === 'C')) hasBelow = true;
+  });
+  /* 目标下面还空着的时候，钉几块空位牌：板子永远是半成品，空位本身就是信息 */
+  if (TICKETS.length > 0 && !hasBelow){
+    var slotY = hubBottom2 + MET.laneGap + 6;
+    var sx = [Math.round(cxField - MET.cardW/2)];
+    if (MET.wide) sx.push(Math.round(cxField + MET.cardW/2 + MET.colGap));
+    for (var r = 0; r < 2; r++){
+      for (var c = 0; c < sx.length; c++){
+        var hl = el('div','hollow','<b>空位</b>');
+        hl.style.left = sx[c] + 'px';
+        hl.style.top = (slotY + r * (MET.cardH + 30) + (c ? 6 : 0)) + 'px';
+        hl.style.width = MET.cardW + 'px';
+        hl.style.height = MET.cardH + 'px';
+        hl.title = '空位：还没有资料被钉在这儿';
+        sheets.appendChild(hl);
+      }
+    }
+    var hw = el('div','hollowword','下面还是空的 —— 这张图现在只开出 ' + TICKETS.length + ' 张子票，空位等新的资料钉上来');
+    hw.style.cssText = 'position:absolute;left:0;right:0;top:' + (slotY + 2*MET.cardH + 44) + 'px';
+    sheets.appendChild(hw);
+    bottom = Math.max(bottom, slotY + 2*MET.cardH + 110);
+  }
+  FIELD_H = Math.round(bottom + MET.tail + FIELD_PAD_BOTTOM);
+  /* 板面至少铺满「看得见的那一块」减去上下两条钢轨：板子短的时候，上下两条钢轨正好落在第一屏里，
+     板子长的时候下沿钢轨排在所有资料后面。两种情况它都不压资料，也不用先滚一下才能找到它。 */
+  var chromeH = (boardrail.offsetHeight || 0) + (botrail.offsetHeight || 0);
+  var minH = boardwrap.clientHeight - chromeH - 2;
+  if (FIELD_H < minH) FIELD_H = minH;
+  field.style.height = FIELD_H + 'px';
+  fieldcap.textContent = '作战室 · 地图 #' + MAP.no + ' · 板面 ' + TICKETS.length + ' 张资料 / '
+    + threadCount() + ' 条连线';
+
+  /* 过线的空档：横缝取两排之间，竖缝取两列之间与板边内侧 */
+  var hLanes = [HUB.y - MET.rowGap/2, hubBottom + MET.laneGap/2];
+  if (TICKETS.length >= 2) hLanes.push(rowY.A + MET.cardH + MET.rowGap/2);
+  var ys = {};
+  TICKETS.forEach(function(t){ ys[CARDS[t.no].y] = 1; });
+  Object.keys(ys).forEach(function(y){ hLanes.push(Number(y) - MET.rowGap/2); });
+  var vLanes = [];
+  if (MET.wide){
+    vLanes.push(0);
+    vLanes.push(-Math.round((MET.cardW + MET.colGap)/2 - 1));
+    vLanes.push(Math.round((MET.cardW + MET.colGap)/2 - 1));
+    vLanes.push(-Math.round(FIELD_W/2 - 22));
+    vLanes.push(Math.round(FIELD_W/2 - 22));
+  } else {
+    vLanes.push(-Math.round(MET.cardW/2 + (FIELD_W - MET.cardW)/4));
+    vLanes.push(Math.round(MET.cardW/2 + (FIELD_W - MET.cardW)/4));
+  }
+  LANES = {h:hLanes, v:vLanes};
+
+  if (TICKETS.length === 0) buildEmptyBoard();
+  buildThreads();
+  var cnt = document.createElement('span');
+  document.title = 'M1 · 作战室金属板 · 地图 #' + MAP.no;
+  return cnt;
+}
+function buildEmptyBoard(){
+  var box = el('div','emptyboard');
+  box.style.top = (HUB.y + HUB.h + 44) + 'px';
+  box.innerHTML = '<div class="big">这块板刚钉上，一张证据都还没有</div>'
+    + '<div class="small">还没有子票 —— 不是「暂无数据」，是真的还没写下来。<br>'
+    + '目的地已经钉在正中（四角磁扣吸住）。第一张资料钉上来那天，红线就会从这里长出来。</div>';
+  sheets.appendChild(box);
+  var y0 = HUB.y + HUB.h + 130;
+  var cols = MET.wide ? 2 : 1;
+  var rows = MET.wide ? 2 : 3;
+  for (var r=0; r<rows; r++){
+    for (var c=0; c<cols; c++){
+      var hl = el('div','hollow','<b>空位</b>');
+      hl.style.left = Math.round(FIELD_W/2 - (cols*MET.cardW + (cols-1)*MET.colGap)/2 + c*(MET.cardW + MET.colGap)) + 'px';
+      hl.style.top = (y0 + r*(MET.cardH + 30)) + 'px';
+      hl.style.width = MET.cardW + 'px';
+      hl.style.height = MET.cardH + 'px';
+      hl.title = '空位：还没有资料被钉在这儿';
+      sheets.appendChild(hl);
+    }
+  }
+  var word = el('div','hollowword','上面这些空位还空着 —— 这张图现在一张子票都没开出来');
+  word.style.cssText = 'position:absolute;left:0;right:0;top:' + (y0 + MET.cardH + 14) + 'px';
+  sheets.appendChild(word);
+  FIELD_H = Math.round(Math.max(FIELD_H, y0 + rows*MET.cardH + (rows-1)*30 + 150));
+  field.style.height = FIELD_H + 'px';
+}
+
+/* =======================================================================
+   9. 底部：主按钮 + 档案（H），三块折页（G）
+   ======================================================================= */
+function buildBotrail(){
+  var pk = primaryKind();
+  clear(botrail);
+  var line = el('div','botline');
+  var b = el('button','mbtn primary ' + pk.cls, pk.icon + ' ' + pk.word);
+  b.type = 'button';
+  b.setAttribute('data-cap-h','execute');
+  b.setAttribute('data-role','primary-bottom');
+  b.title = pk.tip;
+  b.addEventListener('click', function(){
+    receipt(pk.word, pk.word + ' 这条命令已经准备好；原型里不会真的发出去，真机上这一步会把指令交给会话');
+  });
+  line.appendChild(b);
+  var arch = el('button','mbtn','档案');
+  arch.type = 'button';
+  arch.title = '打开这张图的原票（档案）';
+  arch.addEventListener('click', function(){ receipt('档案','打开 #' + MAP.no + ' 的原票'); });
+  line.appendChild(arch);
+  line.appendChild(el('span','sp'));
+
+  var tags = el('div','foldtags');
+  tags.appendChild(foldTag('decisions','Decisions so far', MAP.decisions.length, '结论已经定下来的'));
+  tags.appendChild(foldTag('fog','Not yet specified', MAP.fog.length, '战雾：还没定的', '战雾 ' + MAP.fog.length));
+  tags.appendChild(foldTag('outOfScope','Out of scope', MAP.outOfScope.length, '明确不做的'));
+  line.appendChild(tags);
+  botrail.appendChild(line);
+}
+function foldTag(cap, word, n, tip, zh){
+  var b = el('button','foldtag');
+  b.type = 'button';
+  b.setAttribute('data-cap', cap);
+  b.setAttribute('aria-expanded','false');
+  b.title = tip;
+  b.innerHTML = '<span>' + word + '（' + (zh ? zh : n) + '）</span><span class="chev">▾</span>';
+  b.addEventListener('click', function(){ openDrawer(cap, word, n, zh); });
+  return b;
+}
+var drawerCap = null;
+function openDrawer(cap, word, n, zh){
+  clear(drawer);
+  if (drawerCap === cap && !drawer.classList.contains('hidden')){ closeDrawer(); return; }
+  drawerCap = cap;
+  var head = el('div','dhead');
+  head.appendChild(el('span','dtitle', word + '（' + (zh ? zh : n) + '）'));
+  head.appendChild(el('span','sp'));
+  var x = el('button','xbtn','✕'); x.type='button'; x.setAttribute('aria-label','收起');
+  x.addEventListener('click', closeDrawer);
+  head.appendChild(x);
+  drawer.appendChild(head);
+  var body = el('div','dbody');
+  var list = (cap === 'decisions') ? MAP.decisions : (cap === 'fog' ? MAP.fog : MAP.outOfScope);
+  if (!list.length){
+    body.appendChild(el('div','dempty','这一块还空着 —— ' + (cap === 'decisions' ? '还没有定下来的结论。' : cap === 'fog' ? '还没有写下来的战雾。' : '还没有明确划出去的东西。')));
+  } else {
+    list.forEach(function(item, i){
+      var d = el('div','ditem');
+      var txt = (cap === 'decisions') ? (md(item.t) + ' — ' + md(item.g)) : md(item);
+      d.innerHTML = '<span class="n">' + (i+1) + '</span><span>' + txt + '</span>';
+      body.appendChild(d);
+    });
+  }
+  drawer.appendChild(body);
+  drawer.classList.remove('hidden');
+  drawer.animate([{transform:'translateY(14px)', opacity:0},{transform:'translateY(0)', opacity:1}], {duration:180, easing:'ease-out'});
+  marksFolds();
+}
+function closeDrawer(){
+  drawerCap = null;
+  drawer.classList.add('hidden');
+  marksFolds();
+}
+function marksFolds(){
+  botrail.querySelectorAll('.foldtag').forEach(function(b){
+    b.setAttribute('aria-expanded', String(!drawer.classList.contains('hidden') && drawerCap === b.getAttribute('data-cap')));
+  });
+}
+
+/* =======================================================================
+   10. 正文详情（E）：点一下把「案情摘要」这张纸抽出来
+   ======================================================================= */
+var notesOpen = false;
+function toggleNotes(){
+  notesOpen = !notesOpen;
+  if (notesOpen) openNotes(); else closeNotes();
+}
+function openNotes(){
+  clear(notesSheet);
+  var head = el('div','nhead');
+  head.appendChild(el('div', null, '<div class="ntitle">正文详情</div><div class="nsub">COMMAND CASE SUMMARY · #' + MAP.no + '</div>'));
+  head.appendChild(el('span','sp'));
+  var x = el('button','xbtn','✕'); x.type='button'; x.setAttribute('aria-label','把这张纸收回去');
+  x.addEventListener('click', function(){ toggleNotes(); });
+  head.appendChild(x);
+  notesSheet.appendChild(head);
+  var body = el('div','nbody');
+  if (!MAP.notes.length){
+    body.appendChild(el('div','more','这张图还没有正文 —— 不是加载失败，是正文里真的还没写东西。'));
+  } else {
+    MAP.notes.forEach(function(s, i){
+      var d = el('div','nitem');
+      d.innerHTML = '<span class="n">' + (i+1) + '</span><span>' + md(s) + '</span>';
+      body.appendChild(d);
+    });
+    if (MAP.notesMore > 0){
+      var det = el('details', null);
+      det.innerHTML = '<summary>正文还有 ' + MAP.notesMore + ' 条</summary>'
+        + '<div class="more">这一份是原型，只抄了最关键的 6 条；真机上这 ' + MAP.notesMore + ' 条就在这个位置接着往下排。</div>';
+      body.appendChild(det);
+    }
+  }
+  notesSheet.appendChild(body);
+  /* 抽出来的这张纸就压在钉它的那个夹子底下：像从板子右上角那只夹子下面抽出来 */
+  var clipEl = boardrail.querySelector('[data-cap="notes"]');
+  var panelTop = $('panel').getBoundingClientRect().top;
+  var top = (topbar.offsetHeight || 40) + 10;
+  if (clipEl) {
+    var cr = clipEl.getBoundingClientRect();
+    top = Math.max(top, Math.round(cr.bottom - panelTop) + 8);
+  }
+  notesSheet.style.top = top + 'px';
+  notesSheet.classList.remove('hidden');
+  notesSheet.animate(
+    [{transform:'translateX(14%) scale(.86)', opacity:.2, transformOrigin:'100% 0%'},
+     {transform:'translateX(0) scale(1)', opacity:1, transformOrigin:'100% 0%'}],
+    {duration:260, easing:'cubic-bezier(.2,.8,.2,1)'});
+  var clip = boardrail.querySelector('[data-cap="notes"]');
+  if (clip) clip.setAttribute('aria-expanded','true');
+}
+function closeNotes(){
+  notesSheet.classList.add('hidden');
+  notesOpen = false;
+  var clip = boardrail.querySelector('[data-cap="notes"]');
+  if (clip) clip.setAttribute('aria-expanded','false');
+}
+
+/* =======================================================================
+   11. 回执 / 诊断
+   ======================================================================= */
+function receipt(word, text){
+  toastEl.innerHTML = '<b>' + esc(word) + '</b> · ' + esc(text);
+  toastEl.classList.remove('hidden');
+  if (receipt._anim) { try { receipt._anim.cancel(); } catch(e){} }
+  /* 回执自己会消失：用动画的收尾事件，不挂任何定时器 */
+  receipt._anim = toastEl.animate([
+    {opacity:0, transform:'translateX(-50%) translateY(10px)'},
+    {opacity:1, transform:'translateX(-50%) translateY(0)', offset:0.06},
+    {opacity:1, transform:'translateX(-50%) translateY(0)', offset:0.88},
+    {opacity:0, transform:'translateX(-50%) translateY(6px)'}
+  ], {duration:2600, easing:'ease-out', fill:'forwards'});
+  receipt._anim.onfinish = function(){ toastEl.classList.add('hidden'); };
+}
+function toggleDiag(){
+  if (!diagEl.classList.contains('hidden')){ diagEl.classList.add('hidden'); return; }
+  var rows = [
+    ['样本', SAMPLE],
+    ['面板宽度', PANEL_W + ' px（板面 ' + FIELD_W + ' px）'],
+    ['子票', String(TICKETS.length)],
+    ['四状态', '已关闭 ' + COUNT.closed + ' / 在办 ' + COUNT.lit + ' / 能动手 ' + COUNT.ready + ' / 还没探明 ' + COUNT.fog],
+    ['红线', THREADS.length + ' 条'],
+    ['挪过位的资料', Object.keys(POS_STORE).length + ' 张'],
+    ['入场镜头', '一次（不循环）']
+  ];
+  var html = '<h5>诊断 · 这块板现在知道什么</h5>';
+  rows.forEach(function(r){ html += '<div class="drow"><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></div>'; });
+  html += '<div class="drow"><span>数据来源</span><span>任务书第 5 节</span></div>';
+  diagEl.innerHTML = html;
+  diagEl.classList.remove('hidden');
+}
+
+/* =======================================================================
+   12. 拖一张资料：挪位并记住
+   ======================================================================= */
+function bindDrag(card, no){
+  var drag = null;
+  function clampX(v){ return Math.max(0, Math.min(FIELD_W - MET.cardW, v)); }
+  function clampY(v){ return Math.max(0, Math.min(FIELD_H - MET.cardH, v)); }
+  card.addEventListener('pointerdown', function(e){
+    if (e.button !== 0) return;
+    if (e.target.closest('button')) return;
+    var r = CARDS[no];
+    drag = {id:e.pointerId, x0:e.clientX, y0:e.clientY, x:r.x, y:r.y, moved:false};
+    card.classList.add('dragging');
+    try { card.setPointerCapture(e.pointerId); } catch(err){}
+  });
+  card.addEventListener('pointermove', function(e){
+    if (!drag || e.pointerId !== drag.id) return;
+    var dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true;
+    if (!drag.moved) return;
+    /* 资料只能在板面上挪，不会被拖到板外找不回来 */
+    var nx = clampX(drag.x + dx), ny = clampY(drag.y + dy);
+    card.style.transform = 'translate3d(' + f1(nx - drag.x) + 'px,' + f1(ny - drag.y) + 'px,0) rotate(' + f1(CARDS[no].rot) + 'deg)';
+    CARDS[no].x = nx;
+    CARDS[no].y = ny;
+    rerouteFor(no);
+  });
+  function finish(e){
+    if (!drag) return;
+    var r = CARDS[no];
+    card.style.left = Math.round(r.x) + 'px';
+    card.style.top = Math.round(r.y) + 'px';
+    card.style.transform = 'translate3d(0,0,0) rotate(' + f1(r.rot) + 'deg)';
+    card.classList.remove('dragging');
+    if (drag.moved){
+      POS_STORE[no] = {x: Math.round(r.x), y: Math.round(r.y)};
+      saveStore();
+      rerouteFor(no);
+    }
+    drag = null;
+  }
+  card.addEventListener('pointerup', finish);
+  card.addEventListener('pointercancel', finish);
+}
+function applyPositions(){
+  TICKETS.forEach(function(t){
+    var c = CARDS[t.no];
+    c.el.style.left = c.x + 'px';
+    c.el.style.top = c.y + 'px';
+    c.el.style.transform = 'translate3d(0,0,0) rotate(' + f1(c.rot) + 'deg)';
+  });
+}
+
+/* =======================================================================
+   13. 入场：先给一张资料的特写，镜头拉远露出整面墙的网（一次，不循环）
+   ======================================================================= */
+var introDone = false;
+function playIntro(){
+  if (introDone) return;
+  introDone = true;
+  var hubC = {x: HUB.x + HUB.w/2, y: HUB.y + HUB.h/2};
+  var stage = sheets;
+  stage.style.transformOrigin = f1(hubC.x) + 'px ' + f1(hubC.y) + 'px';
+  document.body.classList.add('intro');
+  /* 先给一张资料的特写（停一下让人看清），再拉远露出整面墙的网；只走一次，不循环 */
+  var cam = stage.animate([
+    {transform:'scale(2.02)', filter:'brightness(1.16) contrast(1.02)', offset:0, easing:'linear'},
+    {transform:'scale(2.02)', filter:'brightness(1.16) contrast(1.02)', offset:0.2, easing:'cubic-bezier(.26,.6,.16,1)'},
+    {transform:'scale(1)', filter:'brightness(1) contrast(1)', offset:1}
+  ], {duration:1900, easing:'linear', fill:'none'});
+  threadsSvg.animate([{opacity:0},{opacity:0, offset:0.36},{opacity:1}], {duration:1900, easing:'linear', fill:'none'});
+  var veil = el('div','hidden');
+  veil.style.cssText = 'position:absolute;inset:0;z-index:36;pointer-events:none;background:radial-gradient(60% 40% at 50% 34%,rgba(232,238,245,.5),rgba(12,15,20,.72))';
+  $('panel').appendChild(veil);
+  if (stage.animate){ /* 镜头用 WAAPI 走，不动 rAF，也不用轮询 */ }
+  veil.animate([{opacity:.94},{opacity:.24, offset:.5},{opacity:0}], {duration:1900, easing:'ease-out', fill:'forwards'});
+  cam.onfinish = function(){
+    document.body.classList.remove('intro');
+    if (veil.parentNode) veil.parentNode.removeChild(veil);
+  };
+}
+
+/* =======================================================================
+   14. 控制条与启动
+   ======================================================================= */
+function setUrl(k, v){
+  var u = new URL(location.href);
+  u.searchParams.set(k, v);
+  location.href = u.toString();
+}
+function panelH(){
+  var h = window.innerHeight - (SHOWBAR ? 96 : 18);
+  return Math.max(620, Math.min(h, 1400));
+}
+function mountControls(){
+  document.body.setAttribute('data-bar', SHOWBAR ? '1' : '0');
+  var panel = $('panel');
+  panel.setAttribute('data-bar', SHOWBAR ? '1' : '0');
+  panel.style.setProperty('--panel-w', PANEL_W + 'px');
+  panel.style.setProperty('--panel-h', panelH() + 'px');
+  var ctl = $('ctrl');
+  ctl.querySelectorAll('[data-w]').forEach(function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-w') === String(PANEL_W))); });
+  ctl.querySelectorAll('[data-s]').forEach(function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-s') === SAMPLE)); });
+  ctl.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.getAttribute('data-w')) { setUrl('w', b.getAttribute('data-w')); return; }
+    if (b.getAttribute('data-s')) { setUrl('s', b.getAttribute('data-s')); return; }
+    if (b.id === 'ctlReset'){ POS_STORE = {}; saveStore(); location.reload(); return; }
+    if (b.id === 'ctlIntro'){ introDone = false; applyPositions(); playIntro(); return; }
+  });
+}
+function mount(){
+  mountControls();
+  loadStore();
+  buildTopbar();
+  buildRail();
+  buildBotrail();
+  buildBoard();
+  TICKETS.forEach(function(t){
+    CARDS[t.no].el.style.left = CARDS[t.no].x + 'px';
+    CARDS[t.no].el.style.top = CARDS[t.no].y + 'px';
+    bindDrag(CARDS[t.no].el, t.no);
+  });
+  /* 面板宽度变了就重排（真响应容器，不是响应窗口） */
+  if (window.ResizeObserver){
+    var last = FIELD_W;
+    var ro = new ResizeObserver(function(){
+      var w = field.clientWidth;
+      if (Math.abs(w - last) < 24) return;
+      last = w;
+      if (window.requestAnimationFrame){
+        window.requestAnimationFrame(function(){ rebuild(); });
+      } else { rebuild(); }
+    });
+    ro.observe(field);
+  }
+  playIntro();
+  var t0 = (window.performance && performance.now) ? Math.round(performance.now()) : -1;
+  window.__M1 = {
+    sample:SAMPLE, width:PANEL_W, fieldW:FIELD_W, fieldH:FIELD_H,
+    builtAtMs:t0,
+    cards:CARDS, hub:HUB, threads:THREADS,
+    reroute:rerouteFor, reset:function(){ POS_STORE = {}; saveStore(); },
+    count:COUNT, tickets:TICKETS
+  };
+}
+function rebuild(){
+  var keep = {};
+  TICKETS.forEach(function(t){ keep[t.no] = {x:CARDS[t.no].x, y:CARDS[t.no].y}; });
+  introDone = true;
+  buildTopbar(); buildRail(); buildBotrail(); buildBoard();
+  TICKETS.forEach(function(t){
+    if (keep[t.no]){ CARDS[t.no].x = keep[t.no].x; CARDS[t.no].y = keep[t.no].y; }
+    CARDS[t.no].el.style.left = CARDS[t.no].x + 'px';
+    CARDS[t.no].el.style.top = CARDS[t.no].y + 'px';
+    bindDrag(CARDS[t.no].el, t.no);
+  });
+  THREADS.forEach(function(r){ rerouteFor(r.a); });
+  if (window.__M1){ window.__M1.fieldW = FIELD_W; window.__M1.fieldH = FIELD_H; window.__M1.cards = CARDS; window.__M1.hub = HUB; window.__M1.threads = THREADS; }
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
+else mount();
+})();
+</script>
+</body>
+</html>

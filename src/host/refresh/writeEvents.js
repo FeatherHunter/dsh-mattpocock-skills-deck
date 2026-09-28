@@ -152,13 +152,7 @@ export function createWriteEvents(deps) {
     try { return (argsObj && typeof argsObj.command === 'string') ? argsObj.command : '' } catch (e) { return '' }
   }
 
-  /**
-   * #723（T19）：给处理链那一边用的动作词。链的白名单只认这几个（src/shared/refresh/chain.js 的
-   * CHAIN_ACTIONS）：它们必须从**写事件判定表认得的命令动词**上来，不能编。
-   *   我们自己的写工具：工具名就是动作（deck_issue_create → create）；
-   *   gh / glab 的写子命令：从命令行里第二个位置词取（`gh issue comment 723` → comment）。
-   * 认不出来就回空串 —— 链那边会如实丢掉并说 chain.no-ticket / chain.read-excluded，不假装记下。
-   */
+  /** #723：处理链动作词（白名单见 chain.js CHAIN_ACTIONS；认不出回空串，链照实丢掉）。 */
   const ACTION_BY_TOOL = Object.freeze({
     deck_issue_create: 'create', deck_issue_patch: 'edit', deck_map_plan_create: 'create', deck_map_link: 'link',
     create: 'create', edit: 'edit', close: 'close', reopen: 'reopen', comment: 'comment',
@@ -296,15 +290,16 @@ export function createWriteEvents(deps) {
     return handle(session, 'tools/result', exec && exec.name, exec && exec.arguments, succeededFromRuntime(result))
   }
 
-  /**
-   * 会话事件的第二条订阅（「可回看」的补充）。第一行就过门——不归我们的会话立刻返回，
-   * 后面一件事都不做：不看事件名、不解析参数、不记日志、不进内存表。
-   */
+  /** 会话事件第二条订阅。第一行先过门：不归我们的会话立刻返回，不留任何痕迹。 */
   async function onSessionEvent(session, event) {
-    // 门：这个会话归不归我们（白名单里没有它，这里就结束）。
     const ours = await isOurs(session)
     if (!ours) return null
     const type = event && event.type
+    // #746：首条助手消息即摘要触发（门后、只传会话号与类型名，事件体不进任何 sink）。
+    if (String(type || '') === 'assistant/message') {
+      try { if (typeof opts.onFirstAssistant === 'function') opts.onFirstAssistant(sessionIdOf(session)) } catch (e) {}
+      return null
+    }
     if (SESSION_RESULT_SHAPES.indexOf(String(type || '')) < 0) return null
     const data = (event && event.data) || null
     return await handle(session, String(type), data && data.name, data && data.arguments, succeededFromSession(data))

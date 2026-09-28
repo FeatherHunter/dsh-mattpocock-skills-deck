@@ -1,7 +1,7 @@
 // verify-log-fields.js —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.js，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段；出现工作区原始路径、
-// 仓库地址原文、令牌原文、模板正文、快照全文即红。
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary）；
+// 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
 const fs = require('fs')
@@ -53,6 +53,7 @@ const ALLOWED = {
   'backend.switch': ['from', 'to', 'cwdHash'],
   'naming.guard': ['sidHash', 'outcome', 'hintHash'],
   'naming.lock': ['sidHash', 'reason'],
+  'naming.summary': ['sidHash', 'outcome'],
   // 2026-09-21：settings.save 随设置页的「打开位置」一项退役（那是它唯一的落点）；
   //   panel.open 去掉 mode 字段（面板只有 DSH 原生右侧边栏一条路，形态不再有第二种取值）。
   'panel.open': ['hasCache', 'snapFresh', 'keyHash', 'snapVersion', 'backendId'],

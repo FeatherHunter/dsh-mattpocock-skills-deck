@@ -229,6 +229,8 @@
       if (st.refreshing) { try{ st.refreshing=false; spinAll(false); }catch{} }
       // #195 约束：refreshAll 永不因 refreshing 锁死（重查按钮必须有反应）
       st.refreshing = true
+      // #746：手动刷新顺带催一次改名拉取（三个刷新按钮同一入口全包；自动探测走别路，不误触发）
+      try { if (typeof namingGuardianEvent === 'function') namingGuardianEvent('manual-refresh') } catch (eNR) {}
       // 先发 RPC（异步即返回），再触发渲染 —— 避免重渲染挡住数据请求
       // #709（T5）：这是「重新检查」按钮的真身。人亲手点的这一次永不降档，所以带上 'user-recheck'：
       // 宿主看到它就照做，不看退避退到了第几档。

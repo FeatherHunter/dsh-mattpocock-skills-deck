@@ -1,0 +1,1364 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>地图详情 · M4 一整面墙（多块板拼起来 · 专案组会议室）· 原型</title>
+<style>
+/* =========================================================================
+   M4 · 一整面墙（专案组会议室）
+   一块墙比一屏大：正中一块板是「目标」，左右挂着四块分区板（按四种状态分区），
+   墙上还钉着三块小标签板（Decisions so far / Not yet specified / Out of scope），
+   右下角一块白板写验收目标准和时间线，板上的资料之间穿着红线。
+   面板底部是一条固定的桌沿：桌角放着卷宗（正文详情），右边是「去墙上」的板名索引。
+   分区只按四种状态分，不按层分 —— 页面上不出现「第 N 层」这种结构。
+   ========================================================================= */
+:root{
+  --panel:#10131a;
+  --ink:#e6edf3; --ink2:#a1a1aa; --ink3:#8b8b95; --line:#2a2d35;
+  --closed:#4ade80; --lit:#58a6ff; --goal:#c084fc; --warn:#f59e0b;
+  --metal1:#3a4048; --metal2:#22262c; --metal3:#171b21;
+  --paper:#e7e1d2; --paper2:#d6cdb6; --pink:#23262b; --pink2:#5c6169;
+  --thread:#c0392b; --stamp:#a01e1e;
+  --flu:#e8eef5; --lamp:#ffd9a0;
+  --font:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:Consolas,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#05070b;color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased}
+button{font-family:var(--font);cursor:pointer}
+h1,h2,h3,h4,p{margin:0}
+.ar{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- 面板外壳 ---------- */
+#panel{
+  position:relative;width:min(100vw,var(--panel-w,810px));height:min(100vh,var(--panel-h,880px));
+  margin:0 auto;display:flex;flex-direction:column;overflow:hidden;
+  background:radial-gradient(120% 70% at 50% -20%,#1b2230,#0b0e14 70%);
+  border-left:1px solid #1c212a;border-right:1px solid #1c212a;
+}
+
+/* ---------- A · 门口那块开关板（顶部常驻操作行） ---------- */
+#doorplate{
+  flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px;row-gap:4px;
+  padding:6px 8px;background:linear-gradient(#2b313a,#1d222a 60%,#171b21);
+  border-bottom:1px solid #0a0c10;box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 6px 14px rgba(0,0,0,.5);
+  position:relative;z-index:40;
+}
+#doorplate::after{ /* 金属拉丝 */
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.13;mix-blend-mode:overlay;
+  filter:url(#f-brush);
+}
+.plate-label{font-size:10px;color:#9aa3ad;letter-spacing:.14em;padding-right:2px;position:relative;z-index:1}
+.btn{
+  display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font-size:11px;line-height:1.5;
+  color:var(--ink);background:linear-gradient(#343b45,#242a32);border:1px solid #454d58;border-radius:3px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 2px rgba(0,0,0,.5);position:relative;z-index:1;
+}
+.btn:hover{background:linear-gradient(#3d4550,#2a313a)}
+.btn:focus-visible{outline:2px solid var(--lit);outline-offset:1px}
+.btn--go{background:linear-gradient(#5ee08e,#33b463);border-color:#2f9a55;color:#04120a;font-weight:700}
+.btn--go:hover{background:linear-gradient(#6bef9b,#3ac06c)}
+.btn--go.is-done{background:linear-gradient(#7fe0a8,#3fb672)}
+.btn--go.is-inspect{background:linear-gradient(#f7b955,#e09314);border-color:#c07f0c;color:#140a1e}
+.btn--ghost{background:linear-gradient(#2d343d,#1f242b)}
+.crumb{font-size:11px;color:var(--ink2);white-space:nowrap;position:relative;z-index:1}
+.crumb b{color:var(--goal);font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:1px 6px;border-radius:9px;white-space:nowrap;position:relative;z-index:1}
+.chip--map{color:var(--goal);background:rgba(192,132,252,.14);border:1px solid rgba(192,132,252,.5)}
+
+/* ---------- B · 抬头（编号 + 标题 + 子票计数） ---------- */
+#head{flex:none;padding:5px 10px 6px;background:#12151c;border-bottom:1px solid #1e222a;position:relative;z-index:30}
+#head .l1{display:flex;align-items:center;gap:6px;min-width:0}
+#head .idnum{
+  flex:none;font-family:var(--mono);font-size:11px;color:var(--goal);border:1px solid var(--goal);
+  border-radius:3px;padding:0 4px;
+}
+#head .ttl{font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#head .sub{font-size:11px;color:var(--ink2);margin-top:2px;display:flex;align-items:center;gap:5px}
+
+/* ---------- 墙（可平移、可放大） ---------- */
+#wallwrap{
+  flex:1 1 auto;position:relative;overflow:hidden;
+  background:
+    radial-gradient(130% 55% at 50% -12%,rgba(232,238,245,.13),transparent 62%),
+    radial-gradient(90% 45% at 50% 118%,rgba(255,217,160,.07),transparent 60%),
+    linear-gradient(#161c25,#0a0d13 78%);
+  cursor:grab;touch-action:none;
+}
+#wallwrap.grabbing{cursor:grabbing}
+#wallwrap::before{ /* 墙板接缝 */
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.030) 0 1px,transparent 1px 96px),
+             repeating-linear-gradient(0deg,rgba(0,0,0,.22) 0 1px,transparent 1px 96px);
+}
+#wall{position:absolute;left:0;top:0;width:1260px;height:1180px;transform-origin:0 0;will-change:transform}
+/* 线在板面之上、在资料纸之下：纸压着绳，绳不穿纸脸 */
+#threads{position:absolute;left:0;top:0;pointer-events:none;z-index:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.6));overflow:visible}
+#threads path.t{pointer-events:stroke}
+#threads path.t:hover{stroke:#e8564a;stroke-width:2.6}
+#threads path.tb{pointer-events:none}
+#tipline{
+  position:absolute;z-index:9;pointer-events:none;padding:2px 7px;border-radius:3px;font-size:10px;
+  color:#ffeceb;background:rgba(140,34,26,.94);border:1px solid #e8564a;white-space:nowrap;display:none;
+}
+
+/* ---------- 板（墙上的每一块板） ----------
+   板不自己造层叠上下文，好让「板面 < 红线 < 资料纸」这条顺序在整面墙上统一成立 */
+.board{position:absolute;border-radius:5px}
+.board--metal{
+  background:linear-gradient(158deg,var(--metal1),var(--metal2) 62%,#1b1f25);
+  border:1px solid #4a525c;box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 16px 28px rgba(0,0,0,.5);
+}
+.face{position:absolute;inset:0;border-radius:5px;pointer-events:none;opacity:.16;mix-blend-mode:overlay;filter:url(#f-brush)}
+.board--cork .face{opacity:.3;mix-blend-mode:multiply;filter:url(#f-cork)}
+.screw{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#cfd6dd,#6d757e 60%,#3b4149);
+  box-shadow:0 1px 2px rgba(0,0,0,.6);pointer-events:none}
+.screw.tl{left:5px;top:5px}.screw.tr{right:5px;top:5px}.screw.bl{left:5px;bottom:5px}.screw.br{right:5px;bottom:5px}
+
+/* 板名牌：点它就是把脸凑近看（放大到正中） */
+.boardhead{
+  display:flex;align-items:center;gap:6px;width:100%;text-align:left;
+  padding:4px 8px;border:0;border-bottom:1px solid rgba(0,0,0,.45);
+  background:linear-gradient(#f0ece1,#dcd6c6);color:#23262b;border-radius:4px 4px 0 0;
+}
+.boardhead:hover{background:linear-gradient(#fbf8ef,#e6e0d0)}
+.boardhead:focus-visible{outline:2px solid var(--lit);outline-offset:-2px}
+.boardhead .bn{font-size:12px;font-weight:700;letter-spacing:.02em}
+.boardhead .bc{font-family:var(--mono);font-size:10px;color:#5c6169;border:1px solid #a9a292;border-radius:8px;padding:0 5px}
+.boardhead .sp{flex:1 1 0;min-width:0}
+.boardhead .hint{margin-left:auto;font-size:10px;color:#6c7178;white-space:nowrap;display:inline-flex;align-items:center;gap:2px}
+.board .cards{display:flex;flex-direction:column;gap:9px;padding:10px}
+.board .slip{
+  margin:0 10px 9px;padding:5px 7px;font-size:10px;line-height:1.55;color:#282322;
+  background:linear-gradient(180deg,#fff3c9,#f2e3b0);border:1px solid #cbb87c;border-left:3px solid #e09314;border-radius:2px;
+}
+.board .emptyline{margin:2px 10px 12px;padding:14px 10px;font-size:11px;color:#8d949c;text-align:center;
+  border:1px dashed rgba(232,238,245,.22);border-radius:3px;background:rgba(255,255,255,.02)}
+
+/* 目标板：整面墙唯一打着光的一块，目的地在这儿 */
+.board--target{
+  background:linear-gradient(170deg,#f6f8fb,#e2e9f1 70%,#d5dee9);
+  border:1px solid #b9c6d6;border-radius:6px;
+  box-shadow:0 0 0 2px rgba(192,132,252,.5),0 0 60px rgba(214,229,245,.22),0 22px 40px rgba(0,0,0,.55);
+  color:#23262b;
+}
+.board--target .boardhead{background:linear-gradient(#efe6fb,#ded0f3);border-bottom:1px solid #c3aee4;border-radius:5px 5px 0 0}
+.board--target .boardhead .bn{color:#4a2d70}
+.board--target .body{padding:10px 12px 12px}
+.destlab{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#6b3fa8;margin-bottom:4px}
+.desttext{font-size:12px;line-height:1.65;color:#22262b;overflow-wrap:anywhere}
+.board--target hr{border:0;border-top:1px dashed #b9c2cf;margin:10px 0}
+
+/* 进度（诚实口径：按票的张数算，不按层算） */
+.progress .cap{display:flex;align-items:center;gap:5px;font-size:11px;color:#4a5058;font-weight:700}
+.pbar{height:8px;border-radius:4px;background:#c3ceda;overflow:hidden;margin:5px 0 4px;border:1px solid #aeb9c6}
+.pbar i{display:block;height:100%;background:linear-gradient(90deg,#2f9a55,#5ee08e)}
+.progress .num{font-family:var(--mono);font-size:11px;color:#2a2f36}
+.tally{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:6px;font-size:11px;color:#464c55}
+.tally b{font-family:var(--mono);font-weight:700}
+.tally .k-closed b{color:#1d7a44}.tally .k-lit b{color:#2563b8}.tally .k-ready b{color:#8a6108}.tally .k-fog b{color:#5a6068}
+.tgtacts{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn--big{padding:6px 14px;font-size:12px;border-radius:4px}
+.archive{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#4a5058;background:none;border:1px solid #aab4c1;
+  border-radius:4px;padding:5px 9px}
+.archive:hover{background:rgba(35,38,43,.08)}
+
+/* 小标签板（Decisions so far / Not yet specified / Out of scope）：像三张钉在墙上的小卡片 */
+.board--tag{border-radius:4px;transform:rotate(var(--tilt,0deg))}
+.board--tag .tape{position:absolute;left:9px;top:-7px;width:58px;height:13px;pointer-events:none;
+  background:linear-gradient(rgba(232,238,245,.42),rgba(232,238,245,.22));border:1px solid rgba(255,255,255,.22);
+  transform:rotate(-2.5deg);box-shadow:0 1px 2px rgba(0,0,0,.28)}
+.taghead{
+  display:flex;align-items:center;gap:5px;width:100%;text-align:left;padding:5px 8px;border:0;
+  background:linear-gradient(#fdf8ea,#efe7d0);color:#2a2721;border-radius:3px 3px 0 0;font-size:12px;
+}
+.taghead:hover{background:linear-gradient(#fffdf5,#f5eeda)}
+.taghead .op{margin-left:auto;font-size:10px;color:#8a8271;white-space:nowrap}
+.tagbody{padding:6px 9px 8px;font-size:11px;line-height:1.6;color:#2c2a24}
+.tagbody li{margin:2px 0;overflow-wrap:anywhere}
+.tagbody ul{margin:0;padding-left:14px}
+.tagbody code{font-family:var(--mono);font-size:10.5px;background:rgba(0,0,0,.07);padding:0 2px;border-radius:2px}
+.tagbody .fold{margin-top:6px;padding-top:5px;border-top:1px dashed #c3b797;color:#6a6455;font-size:10.5px}
+.tagbody[hidden]{display:none}
+
+/* 白板 */
+.board--white{background:linear-gradient(#f8faf9,#e9eeec);border:1px solid #c3ccd2;border-radius:5px;color:#1e242a;
+  box-shadow:0 0 0 4px #454c54,0 16px 28px rgba(0,0,0,.5)}
+.board--white .boardhead{background:linear-gradient(#aeb6bd,#8f979f);border-bottom:1px solid #6f767d;color:#12161a}
+.board--white .boardhead .bn{color:#101418}
+.wb{padding:9px 11px 11px}
+.wb h4{font-size:11px;color:#3d444b;margin:0 0 5px}
+.wb ul{margin:0 0 8px;padding-left:14px;font-size:11px;line-height:1.6}
+.wb .tl{display:flex;flex-wrap:wrap;gap:4px;font-family:var(--mono);font-size:10px}
+.wb .tl span{display:inline-flex;align-items:center;gap:2px;padding:1px 4px;border-radius:8px;border:1px solid #9aa3ab;background:#fff}
+.wb .tl span.s-closed{border-color:#2f9a55;color:#1d7a44;background:#eafaf0}
+.wb .tl span.s-lit{border-color:#2563b8;color:#1d4f96;background:#eaf2fe}
+.wb .tl span.s-ready{border-color:#b57d08;color:#7d5506;background:#fdf4e0}
+.wb .tl span.s-fog{border-style:dashed;color:#5c626a;background:#f4f6f8}
+
+/* ---------- 资料卡（吸在板上的票） ---------- */
+.card{
+  position:relative;padding:7px 8px 8px;border-radius:2px;color:var(--pink);
+  background:linear-gradient(168deg,var(--paper),var(--paper2));
+  box-shadow:0 2px 5px rgba(0,0,0,.55),0 10px 18px rgba(0,0,0,.32);
+  border:1px solid rgba(0,0,0,.18);z-index:2;touch-action:none;
+}
+.card::before{ /* 纸上的横格 */
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.35;
+  background:repeating-linear-gradient(0deg,rgba(35,38,43,.06) 0 1px,transparent 1px 17px);
+}
+.card .r1{display:flex;align-items:center;gap:5px}
+.card .no{font-family:var(--mono);font-size:11px;font-weight:700;color:#1b1e22}
+.card .ty{font-size:10px;padding:0 5px;border-radius:8px;border:1px solid #7d848d;color:#3d434a;background:rgba(255,255,255,.5)}
+.card h4{font-size:11.5px;line-height:1.5;font-weight:600;margin:4px 0 3px;overflow-wrap:anywhere}
+.card .sub{font-size:10px;color:var(--pink2);display:flex;align-items:center;gap:4px;overflow-wrap:anywhere}
+.card .prog{display:flex;align-items:center;gap:5px;margin-top:4px}
+.card .prog .bar{flex:1;height:5px;border-radius:3px;background:rgba(35,38,43,.18);overflow:hidden}
+.card .prog .bar i{display:block;height:100%}
+.card .prog .pc{font-family:var(--mono);font-size:9.5px;color:var(--pink2)}
+.card .badge{display:inline-flex;align-items:center;gap:3px;font-size:9.5px;padding:1px 5px;border-radius:2px;margin-top:5px}
+.card--closed{transform:rotate(var(--tilt,-.5deg))}
+.card--closed .badge{font-family:var(--mono);color:#fff;background:var(--stamp);border:1px solid #7d1414;
+  letter-spacing:.08em;box-shadow:inset 0 0 6px rgba(0,0,0,.3)}
+.card--closed .prog .bar i{background:linear-gradient(90deg,#2f9a55,#5ee08e)}
+.card--lit{transform:rotate(var(--tilt,.35deg))}
+.card--lit .badge{color:#0d2c55;background:#cfe3ff;border:1px solid #2563b8}
+.card--lit .prog .bar i{background:linear-gradient(90deg,#2563b8,#58a6ff)}
+.card--ready .badge{color:#4a3200;background:#ffeec2;border:1px solid #b57d08}
+.card--ready .prog .bar i{background:#b57d08}
+.card--ready::after{content:"";position:absolute;right:-1px;top:-1px;width:0;height:0;
+  border-left:16px solid transparent;border-top:16px solid #38a35f;filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))}
+.card--fog{background:linear-gradient(168deg,#b9b8b4,#a3a3a0);color:#3a3c3f}
+.card--fog .no{color:#2f3134}
+.card--fog .badge{color:#3b3e42;background:rgba(255,255,255,.45);border:1px dashed #5c6065;font-family:var(--mono)}
+.card .mid{position:relative;min-height:34px}
+.card--fog .mist{position:absolute;inset:-2px -5px;background:linear-gradient(180deg,rgba(232,238,245,.84),rgba(200,206,214,.92));
+  backdrop-filter:blur(1.4px);z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;transition:opacity .35s ease}
+.card--fog.revealed .mist{opacity:0;pointer-events:none}
+.card--fog .mist button{font-size:9.5px;padding:1px 6px;border-radius:2px;border:1px solid #6d7278;background:rgba(255,255,255,.78);color:#33363a}
+.card--fog .mist button b{color:#6d7278}
+.card--fog .prog .bar i{background:#5c6065}
+.card--fog .acts{display:none}
+.card.dragging{z-index:900;box-shadow:0 18px 30px rgba(0,0,0,.6);cursor:grabbing;opacity:.96;pointer-events:none}
+.card.settle{animation:settle .32s ease-out}
+@keyframes settle{0%{transform:scale(1.06)}60%{transform:scale(.985)}100%{transform:scale(1)}}
+.card .acts{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:6px}
+.card .acts button{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 7px;border-radius:2px;
+  border:1px solid #6f747b;background:rgba(255,255,255,.6);color:#2b2f34}
+.card .acts button:hover{background:#fff}
+.card .acts .sk{background:#cfe3ff;border-color:#2563b8;color:#0d2c55;font-weight:600}
+.card .acts .sk.w-research{background:#d8f0e2;border-color:#2f9a55;color:#0d3f24}
+.card .acts .sk.w-grilling{background:#f0e2fb;border-color:#7d4bb5;color:#3a1d5e}
+.card .acts .sk.w-prototype{background:#ffe9cd;border-color:#b5720a;color:#4a2f00}
+.card .acts .icon{padding:2px 5px}
+/* 磁扣 / 图钉 */
+.card .pin{position:absolute;left:50%;top:-6px;width:12px;height:12px;margin-left:-6px;border-radius:50%;z-index:5;
+  background:radial-gradient(circle at 34% 30%,#eef3f8,#8e979f 55%,#4a5158);box-shadow:0 2px 3px rgba(0,0,0,.6)}
+.card--lit .pin{background:radial-gradient(circle at 34% 30%,#cfe3ff,#2563b8 60%,#123b74);width:14px;height:14px;top:-7px}
+.card--ready .pin{background:radial-gradient(circle at 34% 30%,#ffe9b0,#b57d08 60%,#6d4a03)}
+.card--closed .pin{background:radial-gradient(circle at 34% 30%,#ffd9d5,#a01e1e 60%,#5d0f0f)}
+/* 拖到别的板上时的落点提示 */
+.board.dropok{outline:2px dashed #f5d07a;outline-offset:2px}
+.board--focused{outline:2px solid rgba(232,238,245,.65);outline-offset:3px}
+
+/* ---------- 凑近看的小提示（浮在墙的右上角，属面板固有件） ---------- */
+#focusbar{position:absolute;right:8px;top:8px;z-index:20;display:none;align-items:center;gap:6px;
+  padding:4px 7px;border-radius:3px;background:rgba(12,15,20,.9);border:1px solid #3a424c;font-size:11px;color:var(--ink2)}
+#focusbar.on{display:flex}
+
+/* ---------- 桌沿（固定）：桌角卷宗 + 去墙上的索引 + 回执 ---------- */
+#desk{
+  flex:none;position:relative;z-index:35;display:flex;flex-wrap:wrap;align-items:center;gap:6px;row-gap:4px;
+  padding:6px 9px;background:linear-gradient(#33271c,#241b13 65%,#1a130d);
+  border-top:1px solid #0a0806;box-shadow:inset 0 1px 0 rgba(255,217,160,.13),0 -8px 16px rgba(0,0,0,.5);
+}
+#desk::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.1;mix-blend-mode:overlay;filter:url(#f-wood)}
+.marker-pen{position:absolute;right:12px;bottom:2px;width:74px;height:7px;border-radius:4px;pointer-events:none;
+  background:linear-gradient(90deg,#1c1c1e 0 62%,#c0392b 62% 100%);box-shadow:0 2px 3px rgba(0,0,0,.6);opacity:.9}
+.coffee{position:absolute;left:9px;bottom:2px;width:40px;height:12px;border-radius:50%;pointer-events:none;
+  border:2px solid rgba(120,80,40,.55);box-shadow:inset 0 1px 2px rgba(0,0,0,.4);opacity:.55}
+.folder{
+  display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 8px;font-size:11px;font-weight:600;color:#2a2118;
+  background:linear-gradient(#e3cf9c,#c8ab74);border:1px solid #9c8253;border-radius:2px 8px 2px 2px;
+  box-shadow:0 3px 5px rgba(0,0,0,.5);position:relative;z-index:1;
+}
+.folder:hover{background:linear-gradient(#eeddae,#d2b57f)}
+.folder .tab{position:absolute;left:6px;top:-7px;font-size:9px;color:#efe4cd;background:#8a6a45;border-radius:3px 3px 0 0;padding:0 5px}
+.idx{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:10px;color:#c9b79a;position:relative;z-index:1}
+.idx button{font-size:10px;padding:2px 7px;border-radius:9px;border:1px solid #6b5a44;background:rgba(255,255,255,.06);color:#e7dcc7}
+.idx button:hover{background:rgba(255,255,255,.14)}
+#receipt{
+  position:absolute;right:10px;bottom:calc(100% + 8px);z-index:45;max-width:250px;display:none;
+  padding:6px 20px 6px 8px;font-size:10.5px;line-height:1.55;color:#2a2721;
+  background:linear-gradient(#fff8dd,#f0e6c4);border:1px solid #c9b88b;box-shadow:0 8px 16px rgba(0,0,0,.6);
+  transform:rotate(-2deg);
+}
+#receipt.on{display:block}
+#receipt b{display:block;font-size:10px;color:#8a6a45;margin-bottom:2px}
+#receipt .x{position:absolute;right:3px;top:2px;border:0;background:none;font-size:12px;line-height:1;color:#8a6a45;padding:2px}
+
+/* ---------- E · 正文详情（桌角的卷宗摊开来） ---------- */
+#notesSheet{
+  position:absolute;left:0;right:0;bottom:0;z-index:50;max-height:78%;display:none;flex-direction:column;
+  background:linear-gradient(#fbf7ea,#f0ead6);color:#26241f;border-top:2px solid #b9a97f;
+  box-shadow:0 -18px 40px rgba(0,0,0,.72);
+}
+#notesSheet.on{display:flex}
+#notesSheet .nh{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid #d3c9a9;
+  background:linear-gradient(#efe6cd,#e2d7b8)}
+#notesSheet .nh .nt{font-size:12px;font-weight:700;color:#3a3126}
+#notesSheet .nh .ns{font-size:10.5px;color:#6a6152}
+#notesSheet .nh button{margin-left:auto;font-size:10.5px;padding:2px 8px;border-radius:3px;border:1px solid #9c8f6d;
+  background:#f6f1e2;color:#3a3126}
+#notesSheet .nb{overflow:auto;padding:9px 12px 14px;font-size:11.5px;line-height:1.72;overflow-wrap:anywhere}
+#notesSheet .nb li{margin:5px 0}
+#notesSheet .nb code{font-family:var(--mono);font-size:10.5px;background:rgba(0,0,0,.06);padding:0 3px;border-radius:2px}
+#notesSheet .fold{margin-top:10px;padding-top:7px;border-top:1px dashed #c3b797;font-size:10.5px;color:#6a6455}
+
+/* ---------- 原型控制条（不属于设计本身） ---------- */
+#ctl{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:5px 9px;background:#0b0e13;
+  border-top:1px solid #1e222a;font-size:10.5px;color:var(--ink3)}
+#ctl button{font-size:10.5px;padding:2px 8px;border-radius:3px;border:1px solid #323a45;background:#161a21;color:var(--ink2)}
+#ctl button[aria-pressed="true"]{border-color:var(--lit);color:#cfe3ff;background:rgba(88,166,255,.16)}
+#ctl .sep{width:1px;height:14px;background:#2a2d35}
+</style>
+</head>
+<body>
+<!-- 内联 SVG 滤镜：金属拉丝 / 软木 / 木纹，全部现算，零图片 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="f-brush" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.002 0.85" numOctaves="2" seed="9" result="n"/>
+    <feColorMatrix in="n" type="saturate" values="0"/>
+  </filter>
+  <filter id="f-cork" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.62 0.74" numOctaves="3" seed="23" result="n"/>
+    <feColorMatrix in="n" type="saturate" values="0"/>
+  </filter>
+  <filter id="f-wood" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.0015 0.5" numOctaves="2" seed="5" result="n"/>
+    <feColorMatrix in="n" type="saturate" values="0"/>
+  </filter>
+  <marker id="arw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M0 1 L9 5 L0 9 z" fill="#c0392b"/>
+  </marker>
+</defs></svg>
+
+<div id="panel">
+  <!-- A · 顶部常驻操作行（做成门口那块开关板：返回 / 面包屑 / 类型标签 / 主按钮 / 新会话 / 诊断） -->
+  <header id="doorplate">
+    <span class="plate-label">门口开关板</span>
+    <button class="btn" id="backBtn" data-cap="back" type="button" aria-label="返回上一级">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      <span>返回</span>
+    </button>
+    <span class="crumb" id="crumb">列表 / <b>#604</b></span>
+    <span class="chip chip--map">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/></svg>
+      wayfinder:map
+    </span>
+    <span style="flex:1"></span>
+    <button class="btn btn--go" id="mainTop" data-cap="execute" type="button">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4l14 8-14 8z"/></svg>
+      <span class="lbl">执行</span>
+    </button>
+    <button class="btn btn--ghost" id="nsTop" data-cap="newSession" type="button">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>
+      <span>新会话</span>
+    </button>
+    <button class="btn btn--ghost" id="dxTop" data-cap="diagnose" type="button">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M15.5 15.5 20 20"/></svg>
+      <span>诊断</span>
+    </button>
+  </header>
+
+  <!-- B · 地图抬头：编号 + 标题 + 子票计数 -->
+  <div id="head" data-cap="head" data-role="head">
+    <div class="l1">
+      <span class="idnum" id="mapNo">#604</span>
+      <span class="ttl" id="mapTitle"></span>
+    </div>
+    <div class="sub" id="mapSub"></div>
+  </div>
+
+  <!-- 一整面墙（比一屏大一点，可以平移；点板名牌会把那块板放大到正中） -->
+  <div id="wallwrap">
+    <div id="wall">
+      <svg id="threads" aria-hidden="true"></svg>
+      <div id="tipline" role="status"></div>
+    </div>
+    <div id="focusbar">
+      <span id="focusWho">正在凑近看</span>
+      <button class="btn btn--ghost" id="zoomBack" type="button">回到目标板</button>
+    </div>
+  </div>
+
+  <!-- 桌沿（固定）：桌角卷宗（正文详情）+ 去墙上的板名索引 -->
+  <footer id="desk">
+    <button class="folder" id="notesBtn" data-cap="notes" type="button" aria-expanded="false">
+      <span class="tab">桌角卷宗</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      <span>正文详情</span>
+    </button>
+    <span class="idx" id="idx"></span>
+    <div class="coffee" aria-hidden="true"></div>
+    <div class="marker-pen" aria-hidden="true"></div>
+    <div id="receipt" role="status"><b id="receiptWho">原型回执</b><span id="receiptTxt"></span><button class="x" id="receiptX" type="button" aria-label="收起回执">×</button></div>
+  </footer>
+
+  <!-- E · 正文详情：桌角的卷宗摊开来 -->
+  <section id="notesSheet" aria-label="正文详情" aria-hidden="true">
+    <div class="nh">
+      <span class="nt">正文详情</span>
+      <span class="ns" id="notesSub"></span>
+      <button id="notesClose" type="button">收起卷宗</button>
+    </div>
+    <div class="nb" id="notesBody"></div>
+  </section>
+
+  <!-- 原型控制条（不属于设计本身） -->
+  <div id="ctl">
+    <span>原型控制条</span>
+    <button type="button" data-w="400">宽度 400</button>
+    <button type="button" data-w="810">宽度 810</button>
+    <span class="sep"></span>
+    <button type="button" data-s="active">推进中</button>
+    <button type="button" data-s="empty">还没画图</button>
+    <button type="button" data-s="big">大图</button>
+    <button type="button" data-s="done">子票全关了</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* =====================================================================
+     0. 入参：?w=400|810 宽度 · ?s=active|empty|big 状态 · ?bar=0 隐藏控制条
+     ===================================================================== */
+  var q = new URLSearchParams(location.search);
+  var PANEL_W = q.get("w") === "400" ? 400 : 810;
+  var SAMPLE = ["empty", "big", "done"].indexOf(q.get("s")) >= 0 ? q.get("s") : "active";
+  var SHOWBAR = q.get("bar") !== "0";
+  var panel = document.getElementById("panel");
+  document.documentElement.style.setProperty("--panel-w", PANEL_W + "px");
+  document.documentElement.style.setProperty("--panel-h",
+    Math.min(Math.max(600, window.innerHeight - 120), 1180) + "px");
+  if (!SHOWBAR) document.getElementById("ctl").style.display = "none";
+
+  /* =====================================================================
+     1. 数据（三个样本共用一份真实地图 #604 的正文与三块标签内容）
+     ===================================================================== */
+  var DEST = "把整个 MattSkillsDeck 的性能查清、治到目标准、并在真机上复测通过。走完这张图：宿主外部命令链与定时扫描、客户端渲染与交互、装配与启动、日志落盘与内存，每一层都有实测数字支撑的结论；每一条超标的毛病要么已落地并复测达标，要么明确裁决「不改」并写明理由——插件里不再有「不知道慢在哪」的地方。";
+  var TITLE = "MattSkillsDeck 全量性能调查与优化落地（面板 · 状态栏 · 宿主取数链）";
+
+  var TICKETS_ACTIVE = [
+    { no: 605, type: "task", title: "收口上个会话的遗留：提交两处面板渲染修复与布局零抖动文档，临时测点留给下一票", state: "CLOSED", blockedBy: [] },
+    { no: 606, type: "task", title: "补上 gh 调用的测量盲区，并把临时测点改造成一组常备测点", state: "CLOSED", blockedBy: [605] },
+    { no: 607, type: "research", title: "全量性能体检：宿主命令链与扫描、客户端渲染、装配启动、日志落盘逐块实测，产出按耗时排序的问题清单", state: "OPEN", claimedBy: "FeatherHunter", blockedBy: [605, 606] },
+    { no: 608, type: "grilling", title: "宿主取数层设计：接缝画在哪、缓存键怎么定、请求怎么合并、三个扫描器怎么收成一个", state: "OPEN", blockedBy: [607] }
+  ];
+  // 大样本：20 张票，标题后统一加「（示例）」
+  var BIG_ROWS = [
+    [701, "CLOSED", "task", "收口上个会话的遗留", []],
+    [702, "CLOSED", "task", "补上 gh 调用的测量盲区", [701]],
+    [703, "CLOSED", "research", "面板渲染耗时基线", [701]],
+    [704, "OPEN", "research", "宿主命令链耗时体检", [701, 702], "FeatherHunter"],
+    [705, "CLOSED", "research", "客户端渲染耗时体检", [701, 703]],
+    [706, "OPEN", "research", "日志落盘与内存体检", [703]],
+    [707, "OPEN", "research", "装配启动耗时体检", [701]],
+    [708, "OPEN", "grilling", "宿主取数层设计：接缝画在哪、缓存键怎么定", [704, 706]],
+    [709, "OPEN", "grilling", "请求合并与缓存键设计", [708]],
+    [710, "OPEN", "task", "三个扫描器收成一个", [708]],
+    [711, "OPEN", "task", "面板列表虚拟滚动落地", [705]],
+    [712, "OPEN", "task", "状态栏刷新链路瘦身", [705]],
+    [713, "OPEN", "task", "详情页首屏预算达标", [711, 712]],
+    [714, "OPEN", "prototype", "地图详情页重构的观感原型", [711]],
+    [715, "OPEN", "task", "启动阶段懒装配", [707]],
+    [716, "OPEN", "task", "日志写入节流与批量落盘", [706]],
+    [717, "OPEN", "task", "内存占用回归门禁", [716]],
+    [718, "OPEN", "task", "真机全链复测", [710, 713, 715, 717]],
+    [719, "OPEN", "task", "性能预算写进 CI", [718]],
+    [720, "OPEN", "task", "把实测数字写进文档", [718]]
+  ];
+  var TICKETS_BIG = BIG_ROWS.map(function (r) {
+    var t = { no: r[0], state: r[1], type: r[2], title: r[3] + "（示例）", blockedBy: r[4] };
+    if (r[5]) t.claimedBy = r[5];
+    return t;
+  });
+
+  var DECISIONS = [
+    { t: "收口上个会话的遗留", g: "倍数结论：点击到内容可见 5075 → 193 毫秒（约 26 倍）" },
+    { t: "补上 gh 调用的测量盲区", g: "真机一天 2538 次 gh 调用，中位 7.8 秒，超过「单次 ≤ 1.5 秒」" }
+  ];
+  var FOG_ITEMS = [
+    "按体检清单毕业出来的「方案 + 落地 + 真机复测」票：每一条毛病单独成票，数量与内容要等体检结果才知道，现在切不出来。",
+    "客户端渲染类问题的具体治理方案：状态栏、列表与地图行、页签切换、详情页各自慢不慢、慢在哪，现在说不清，等体检数字。",
+    "装配启动与日志落盘 / 内存的治理方案：同上，等体检数字。",
+    "真机取证的常备手法细节（怎么一键复测、结果放哪）：等测点常备化那票落地后再定。",
+    "面板首次打开那条的第二处修复（地图行适配）的真机数字还没量过：预期折叠耗时从 81 毫秒降到约 15 毫秒。"
+  ];
+  var OUT_ITEMS = [
+    "改 DSH 本体：如果「宿主调用被推迟」真的发生在 DSH 提供的 ctx.exec 内部，本插件只能适应与上报，改不了它。",
+    "改其它仓库（D:\\ilife 等）：本次只读参考。",
+    "面板首次打开那条（真机 5075 → 179 毫秒，已修好并验证）：不重查。",
+    "发版与发布流程：本图只管把改动做到真机达标，交给已装用户是发布票的事。",
+    "重新设计插件整体架构：本次只在宿主取数链上做结构性收敛，不动其它分层。"
+  ];
+  // 正文详情（真机上 16 条，原型里放 6 条，剩下 10 条给一条折叠行带过）
+  var NOTES = [
+    "本图<b>携带执行</b>，不是纯规划图。票按「查清 → 方案 → 落地 → 真机复测」四步走；地图关闭条件 = 清单上每一条要么已落地并复测达标，要么明确裁决「不改」并写明理由。允许「裁决不改」作为合法终点，但不允许「没量就跳过」。",
+    "领域：宿主取数链（<code>src/host/</code>）、客户端渲染（<code>src/client/</code>）、日志体系（<code>src/host/logPkg/</code>、<code>research/489-appendix.md</code>）、平台层（<code>src/host/platform/</code>）、三层解耦（<code>src/seam/</code>）。",
+    "<b>先量后改</b>：每条结论都必须能指到实测数字。本地对照实验的绝对毫秒数不能当真机数字用，只能搬「改前 / 改后的倍数」与「结果等价性」两个结论。",
+    "验收用<b>绝对秒数</b>（人能感知的秒数），不用降幅百分比。目标准：点开面板到看见内容 ≤ 300 毫秒；点刷新到新数据出现 ≤ 2 秒；宿主单次 <code>gh</code> 调用 ≤ 1.5 秒；探测一轮 ≤ 1 秒。",
+    "以目标准为闸门：超过目标准的一律治；已经达标的不动，登记一行「已达标」。",
+    "提问方式：需要人拿主意时写在对话正文里，不用弹窗式提问工具。"
+  ];
+  var UNITS = [ // 白板上的验收目标准，就是正文里那四个数字
+    "点开面板到看见内容 ≤ 300 毫秒",
+    "点刷新到新数据出现 ≤ 2 秒",
+    "宿主单次 gh 调用 ≤ 1.5 秒",
+    "探测一轮 ≤ 1 秒"
+  ];
+
+  var DATA = {
+    no: 604,
+    title: TITLE,
+    destination: DEST,
+    tickets: SAMPLE === "empty" ? [] : (SAMPLE === "big" ? TICKETS_BIG
+      : (SAMPLE === "done" ? TICKETS_ACTIVE.map(function (t) { var c = JSON.parse(JSON.stringify(t)); c.state = "CLOSED"; delete c.claimedBy; return c; }) : TICKETS_ACTIVE)),
+    decisions: SAMPLE === "empty" ? [] : DECISIONS,
+    fog: SAMPLE === "empty" ? [] : FOG_ITEMS,
+    outOfScope: SAMPLE === "empty" ? [] : OUT_ITEMS
+  };
+
+  /* =====================================================================
+     2. 四状态判定（全项目统一，只看自己家前后，不问「在第几层」）
+        走亮 closed：state === CLOSED
+        照亮中 lit　：开着，且有人认领
+        现在能做 ready：开着，没人认领，且阻塞者全都关了
+        还没探明 fog：开着，且至少一个阻塞者还开着
+     ===================================================================== */
+  var TYPE_WORD = { research: "研究", grilling: "讨论", prototype: "原型", task: "任务", map: "地图", issue: "工单" };
+  var TYPE_SKILL = { research: "研究", grilling: "讨论", prototype: "原型" };
+  var STATE_WORD = { closed: "已经办结", lit: "正在办", ready: "现在能动手", fog: "还没探明" };
+  var ZONE = ["lit", "ready", "closed", "fog"];
+
+  var byNo = {};
+  DATA.tickets.forEach(function (t) { byNo[t.no] = t; });
+  DATA.tickets.forEach(function (t) { t._state = stateOf(t); });
+
+  function stateOf(t) {
+    if (t.state === "CLOSED") return "closed";
+    if (t.claimedBy) return "lit";
+    var blk = (t.blockedBy || []).map(function (n) { return byNo[n]; }).filter(Boolean);
+    if (blk.some(function (b) { return b.state === "OPEN"; })) return "fog";
+    return "ready";
+  }
+  function tally() {
+    var c = { closed: 0, lit: 0, ready: 0, fog: 0 };
+    DATA.tickets.forEach(function (t) { c[t._state]++; });
+    return c;
+  }
+  function mainVerb() {
+    var n = DATA.tickets.length, c = tally().closed;
+    if (n === 0) return "检查";
+    if (c === n) return "完成";
+    return "执行";
+  }
+  function byState(s) { return DATA.tickets.filter(function (t) { return t._state === s; }); }
+
+  /* =====================================================================
+     3. 面板固有件：抬头、主按钮、回执、索引
+     ===================================================================== */
+  var wall = document.getElementById("wall");
+  var wallwrap = document.getElementById("wallwrap");
+  var threadsSvg = document.getElementById("threads");
+  var tipline = document.getElementById("tipline");
+  var verb = mainVerb();
+
+  document.getElementById("mapNo").textContent = "#" + DATA.no;
+  var titleEl = document.getElementById("mapTitle");
+  titleEl.textContent = DATA.title;
+  titleEl.title = DATA.title;
+  document.getElementById("crumb").innerHTML = "列表 / <b>#" + DATA.no + "</b>";
+  document.getElementById("mapSub").innerHTML =
+    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/></svg>' +
+    "<span>本图 " + DATA.tickets.length + " 张子票（已关闭 " + tally().closed + " 张）</span>";
+
+  /* 主按钮：顶部一颗、目标板上再一颗，两处同语义同叫法 */
+  function paintMain(btn) {
+    btn.classList.remove("is-done", "is-inspect");
+    if (verb === "完成") btn.classList.add("is-done");
+    if (verb === "检查") btn.classList.add("is-inspect");
+    btn.querySelector(".lbl").textContent = verb;
+    var ico = btn.querySelector("svg path");
+    if (ico) ico.setAttribute("d", verb === "执行" ? "M6 4l14 8-14 8z" : (verb === "完成" ? "M4 12.5l5 5L20 6.5" : "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm5.5 11.5L21 20"));
+    if (ico && verb !== "执行") { ico.setAttribute("fill", "none"); ico.setAttribute("stroke", "currentColor"); ico.setAttribute("stroke-width", "3"); }
+  }
+  var mainTop = document.getElementById("mainTop");
+  paintMain(mainTop);
+
+  var receipt = document.getElementById("receipt");
+  var receiptWho = document.getElementById("receiptWho");
+  var receiptTxt = document.getElementById("receiptTxt");
+  function say(who, txt) { receiptWho.textContent = who; receiptTxt.textContent = txt; receipt.classList.add("on"); }
+  document.getElementById("receiptX").addEventListener("click", function () { receipt.classList.remove("on"); });
+
+  document.getElementById("backBtn").addEventListener("click", function () {
+    say("返回", "真机点「返回」就回上一级：现在是「列表 / #" + DATA.no + "」，点下去回到列表。");
+  });
+  mainTop.addEventListener("click", function () { say(verb, execLine()); });
+  document.getElementById("nsTop").addEventListener("click", function () {
+    say("新会话", "真机点「新会话」会在一个新会话里打开 #" + DATA.no + "，接着往下推进这张图。");
+  });
+  document.getElementById("dxTop").addEventListener("click", function () {
+    say("诊断", "真机点「诊断」会打开诊断入口，把这张图这次取数与渲染的情况收成一份记录。");
+  });
+  function execLine() {
+    if (verb === "执行") return "真机点「执行」会把这张图的推进命令交给会话：按「查清 → 方案 → 落地 → 真机复测」往下走。";
+    if (verb === "完成") return "真机点「完成」＝这张图的子票全关了，收尾这张图。";
+    return "真机点「检查」＝这张图还没有子票，先让别人把它查清、切出第一张票。";
+  }
+
+  /* =====================================================================
+     4. 造板与资料卡
+     ===================================================================== */
+  var boards = {};   // id -> 元素
+  var cards = [];    // {el, no, state}
+
+  function el(tag, cls, html) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html != null) n.innerHTML = html;
+    return n;
+  }
+  // SVG 里的元素必须用 SVG 命名空间建，否则只是「名字叫 path 的普通元素」，画不出来
+  function svgEl(tag, cls) {
+    var n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    if (cls) n.setAttribute("class", cls);
+    return n;
+  }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  /* 一块分区板的骨架：板名牌（点它凑近看）+ 板面 + 资料盒 */
+  function makeBoard(id, name, opts) {
+    opts = opts || {};
+    var b = el("section", "board " + (opts.cls || "board--metal"));
+    b.dataset.board = id;
+    b.appendChild(el("div", "face"));
+    if (opts.cork) b.appendChild(el("div", "face"));
+    ["tl", "tr", "bl", "br"].forEach(function (p) { if (opts.screws !== false) b.appendChild(el("span", "screw " + p)); });
+    var head = el("button", "boardhead");
+    head.type = "button";
+    head.dataset.boardhead = id;
+    head.setAttribute("aria-label", "把「" + name + "」放大到正中凑近看");
+    head.appendChild(el("span", "sp"));
+    head.appendChild(el("span", "bn", esc(name)));
+    if (opts.count) head.appendChild(el("span", "bc", opts.count));
+    head.appendChild(el("span", "sp"));
+    head.appendChild(el("span", "hint",
+      '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M15.5 15.5 20 20"/></svg>凑近看'));
+    b.appendChild(head);
+    b._cards = (opts.noCards) ? null : el("div", "cards");
+    if (b._cards) b.appendChild(b._cards);
+    if (opts.body) b.appendChild(opts.body);
+    boards[id] = b;
+    return b;
+  }
+
+  /* --- 正中那块板：目标（目的地 + 进度 + 主按钮 + 档案） --- */
+  (function () {
+    var t = tally(), n = DATA.tickets.length;
+    var body = el("div", "body");
+    body.setAttribute("data-role", "destination");
+    body.appendChild(el("div", "destlab",
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 3v18"/><path d="M6 5c4-2 6 2 12 0v8c-6 2-8-2-12 0"/></svg>' +
+      "<span>目的地</span>"));
+    body.appendChild(el("p", "desttext", esc(DATA.destination)));
+    body.appendChild(el("hr"));
+    var pg = el("div", "progress");
+    pg.setAttribute("data-cap", "progress");
+    pg.setAttribute("data-role", "progress");
+    pg.appendChild(el("div", "cap",
+      '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20V4h11l-1.5 3H20v9h-7l-1.5 3H4z"/></svg>' +
+      "<span>办到哪了</span>"));
+    var pct = n ? Math.round(t.closed / n * 100) : 0;
+    pg.appendChild(el("div", "pbar", '<i style="width:' + pct + '%"></i>'));
+    pg.appendChild(el("div", "num", n === 0
+      ? "还没有子票 —— 这张图还是空的"
+      : t.closed + " / " + n + " 张已关闭" + (t.closed === n ? "（全部关掉了）" : "")));
+    pg.appendChild(el("div", "tally",
+      '<span class="k-closed">已经办结 <b>' + t.closed + "</b></span>" +
+      '<span class="k-lit">正在办 <b>' + t.lit + "</b></span>" +
+      '<span class="k-ready">现在能动手 <b>' + t.ready + "</b></span>" +
+      '<span class="k-fog">还没探明 <b>' + t.fog + "</b></span>"));
+    body.appendChild(pg);
+    var acts = el("div", "tgtacts");
+    var go = el("button", "btn btn--go btn--big"); go.type = "button"; go.dataset.cap = "execute";
+    go.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4l14 8-14 8z"/></svg><span class="lbl">执行</span>';
+    paintMain(go);
+    go.addEventListener("click", function () { say(verb, execLine()); });
+    acts.appendChild(go);
+    var ar = el("button", "archive"); ar.type = "button"; ar.dataset.cap = "archive";
+    ar.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span>档案</span>';
+    ar.addEventListener("click", function () { say("档案", "真机点「档案」会打开原票 #" + DATA.no + "（本地文件或网页看当前配置）。"); });
+    acts.appendChild(ar);
+    body.appendChild(acts);
+    makeBoard("target", "目标 · #" + DATA.no, { cls: "board--target", count: "本图 " + n + " 张", body: body, screws: false, noCards: true });
+  })();
+
+  /* --- 四块分区板（只按四种状态分，不按层分） --- */
+  ZONE.forEach(function (s) {
+    var list = byState(s);
+    var b = makeBoard(s, STATE_WORD[s], { cls: s === "fog" ? "board--cork" : "board--metal", count: "板上 0 张", cork: s === "fog" });
+    b._slip = el("div", "slip"); b._slip.hidden = true; b.appendChild(b._slip);
+    if (!list.length) b.appendChild(el("div", "emptyline", "这一档上还没有资料"));
+  });
+  // 白板
+  (function () {
+    var body = el("div", "wb");
+    body.appendChild(el("h4", null, "验收目标准（写在墙上）"));
+    var ul = el("ul");
+    UNITS.forEach(function (u) { ul.appendChild(el("li", null, esc(u))); });
+    body.appendChild(ul);
+    body.appendChild(el("h4", null, "时间线（按建票先后）"));
+    var tl = el("div", "tl"); tl.id = "tl";
+    body.appendChild(tl);
+    var b = makeBoard("whiteboard", "白板 · 时间线", { cls: "board--white", count: "本图 " + DATA.tickets.length + " 张", body: body, noCards: true });
+  })();
+
+  /* --- 三块小标签板：原来页面底部那三块，钉到墙上 --- */
+  function makeTag(id, cap, title, items, folded) {
+    var head = el("button", "taghead"); head.type = "button"; head.dataset.cap = cap;
+    head.dataset.tag = id; head.setAttribute("aria-expanded", "false");
+    head.innerHTML = "<span>" + esc(title) + "</span><span class=\"op\">点开看内容</span>";
+    var body = el("div", "tagbody"); body.hidden = true;
+    if (!items.length) body.appendChild(el("div", null, "这一档还没写下任何东西。"));
+    else {
+      var ul = el("ul");
+      items.forEach(function (it) { ul.appendChild(el("li", null, it.html || esc(it))); });
+      body.appendChild(ul);
+    }
+    if (folded) body.appendChild(el("div", "fold", esc(folded)));
+    var b = el("section", "board board--metal board--tag");
+    b.dataset.board = id;
+    b.style.setProperty("--tilt", (id === "decisions" ? "-.5" : id === "fogTags" ? ".35" : "-.25") + "deg");
+    b.appendChild(el("div", "face"));
+    b.appendChild(el("span", "tape"));
+    b.appendChild(head); b.appendChild(body);
+    head.addEventListener("click", function () {
+      var on = body.hidden;
+      body.hidden = !on;
+      head.setAttribute("aria-expanded", String(on));
+      layout();
+    });
+    boards[id] = b;
+    return b;
+  }
+  // 中间那块标签板的编号叫 fogTags：它写的是「Not yet specified（战雾）」，不是「还没探明」那块分区板
+  var tagDecisions = makeTag("decisions", "decisions", "Decisions so far（" + DATA.decisions.length + "）",
+    DATA.decisions.map(function (d) { return { html: "<b>" + esc(d.t) + "</b> — " + esc(d.g) }; }));
+  var tagFog = makeTag("fogTags", "fog", "Not yet specified（战雾 " + DATA.fog.length + "）", DATA.fog);
+  var tagOut = makeTag("outOfScope", "outOfScope", "Out of scope（" + DATA.outOfScope.length + "）", DATA.outOfScope);
+
+  /* --- 板上吸着的资料卡 --- */
+  function makeCard(t) {
+    var s = t._state;
+    var c = el("article", "card card--" + s + " n-" + t.no);
+    c.dataset.ticket = String(t.no);
+    c.dataset.state = s;
+    c.style.setProperty("--tilt", (t.no % 7 - 3) * 0.22 + "deg");
+    var blk = (t.blockedBy || []).filter(function (n) { return byNo[n]; });
+    var sub = s === "closed" ? '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5"/></svg>已关闭'
+      : s === "lit" ? '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3-5.6 7-5.6s7 2 7 5.6"/></svg>' + esc("经办人 " + (t.claimedBy || ""))
+      : s === "ready" ? "没人认领"
+      : (blk.length ? "被 " + blk.map(function (n) { return "#" + n; }).join("、") + " 挡着" : "还没探明");
+    var pct = s === "closed" ? 100 : 0;
+    c.appendChild(el("span", "pin"));
+    c.appendChild(el("div", "r1",
+      '<span class="no">#' + t.no + '</span><span class="ty">' + esc(TYPE_WORD[t.type] || "任务") + "</span>"));
+    var mid = el("div", "mid");
+    mid.appendChild(el("h4", null, esc(t.title)));
+    c.appendChild(mid);
+    c.appendChild(el("div", "sub", sub));
+    c.appendChild(el("div", "prog",
+      '<span class="bar"><i style="width:' + pct + '%"></i></span><span class="pc">' + (s === "closed" ? "100%" : "未开工") + "</span>"));
+    c.appendChild(el("div", "badge", esc(STATE_WORD[s])));
+    if (s === "lit" || s === "ready") {
+      var acts = el("div", "acts");
+      var skill = TYPE_SKILL[t.type] || "修复";
+      var sb = el("button", "sk w-" + (t.type || "task"));
+      sb.type = "button"; sb.dataset.act = "skill"; sb.dataset.skill = skill;
+      sb.innerHTML = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>' + esc(skill);
+      acts.appendChild(sb);
+      var nb = el("button"); nb.type = "button"; nb.dataset.act = "newSession";
+      nb.innerHTML = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>新会话';
+      acts.appendChild(nb);
+      var ob = el("button", "icon"); ob.type = "button"; ob.dataset.act = "open";
+      ob.setAttribute("aria-label", "打开原票 #" + t.no); ob.title = "打开原票 #" + t.no;
+      ob.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>';
+      acts.appendChild(ob);
+      c.appendChild(acts);
+    } else if (s === "fog") {
+      // 雾只盖住标题那一行：编号、类型、「被谁挡着」、状态徽章照旧看得见（跟真机一样，先拨雾再看清标题）
+      var mist = el("div", "mist");
+      var rv = el("button"); rv.type = "button"; rv.dataset.act = "reveal";
+      rv.setAttribute("aria-label", "把 #" + t.no + " 上的雾拨开看标题");
+      rv.innerHTML = "<b>?</b> 拨开雾看标题";
+      mist.appendChild(rv);
+      mid.appendChild(mist);
+    }
+    return c;
+  }
+
+  function mount() {
+    // 挂上墙的顺序：目标 → 三块标签板 → 四块分区板 → 白板
+    wall.appendChild(boards.target);
+    wall.appendChild(boards.decisions);
+    wall.appendChild(boards.fogTags);
+    wall.appendChild(boards.outOfScope);
+    ZONE.forEach(function (s) { wall.appendChild(boards[s]); });
+    wall.appendChild(boards.whiteboard);
+    cards = [];
+    ZONE.forEach(function (s) {
+      byState(s).forEach(function (t) {
+        var c = makeCard(t);
+        boards[s]._cards.appendChild(c);
+        cards.push({ el: c, no: t.no, state: s });
+      });
+    });
+    // 白板上的时间线：按建票先后一颗一颗
+    var tl = document.getElementById("tl");
+    if (!DATA.tickets.length) tl.appendChild(el("span", "s-fog", "还没有票，时间线是空的"));
+    DATA.tickets.slice().sort(function (a, b) { return a.no - b.no; }).forEach(function (t) {
+      var mark = t._state === "closed" ? "✓" : t._state === "lit" ? "●" : t._state === "ready" ? "▸" : "○";
+      tl.appendChild(el("span", "s-" + t._state, "#" + t.no + " " + mark));
+    });
+  }
+  mount();
+
+  /* =====================================================================
+     5. 排版：墙比一屏大一点；四块分区板分列挂在目标板两边
+     ===================================================================== */
+  var LAYOUT_WIDE = { wallW: 878, cols: [{ x: 14, w: 240 }, { x: 274, w: 330 }, { x: 624, w: 240 }] };
+  var LAYOUT_NARROW = { wallW: 420, cols: [{ x: 12, w: 396 }] };
+  // 计划里每条 = [板号, 挂哪一列, 宽度(可省), 横向挪一点(可省)]
+  var PLAN_WIDE = [["fog", 0], ["closed", 0], ["target", 1], ["decisions", 1, 236, 6], ["fogTags", 1, 250, 26], ["outOfScope", 1, 220, 14], ["lit", 2], ["ready", 2], ["whiteboard", 2]];
+  var PLAN_NARROW = [["target", 0], ["decisions", 0], ["fogTags", 0], ["outOfScope", 0], ["lit", 0], ["ready", 0], ["closed", 0], ["fog", 0], ["whiteboard", 0]];
+  var wallW = LAYOUT_WIDE.wallW, wallH = 1180;
+  var vCorr = [6, 264, 614, 872], hCorr = [12, 1168];
+
+  function isWide() { return wallwrap.clientWidth >= 560; }
+  /* 桌沿 + 控制条加起来有多高：墙底要留出这么一块「地面」，不然滚到底时最后一行资料会被它们压住 */
+  function chromeH() {
+    var d = document.getElementById("desk"), c = document.getElementById("ctl");
+    var h = d ? d.offsetHeight : 0;
+    if (c && getComputedStyle(c).display !== "none") h += c.offsetHeight;
+    return h;
+  }
+
+  function layout() {
+    var wide = isWide();
+    var L = wide ? LAYOUT_WIDE : LAYOUT_NARROW;
+    var plan = wide ? PLAN_WIDE : PLAN_NARROW;
+    var gap = wide ? 34 : 26;
+    var y = [];
+    L.cols.forEach(function () { y.push(32); });
+    plan.forEach(function (p) {
+      var b = boards[p[0]]; if (!b) return;
+      var col = L.cols[p[1]];
+      b.style.left = (col.x + (p[3] || 0)) + "px";
+      b.style.width = (p[2] || col.w) + "px";
+      b.style.top = y[p[1]] + "px";
+      y[p[1]] += b.offsetHeight + gap;
+    });
+    wallW = L.wallW;
+    wallH = Math.max.apply(null, y) - gap + Math.max(44, chromeH() + 18);
+    wall.style.width = wallW + "px";
+    wall.style.height = wallH + "px";
+    threadsSvg.setAttribute("width", wallW);
+    threadsSvg.setAttribute("height", wallH);
+    threadsSvg.setAttribute("viewBox", "0 0 " + wallW + " " + wallH);
+    vCorr = wide ? [6, 264, 614, 872] : [6, 414];
+    // 横向走廊：每条列里没有板的那几段的中点（上面、板与板之间、下面）
+    hCorr = [12];
+    L.cols.forEach(function (col) {
+      var spans = [];
+      plan.forEach(function (p) {
+        if (L.cols[p[1]] !== col) return;
+        var b = boards[p[0]]; if (!b) return;
+        spans.push([parseFloat(b.style.top), parseFloat(b.style.top) + b.offsetHeight]);
+      });
+      spans.sort(function (a, b) { return a[0] - b[0]; });
+      var cur = 0;
+      spans.forEach(function (s) { if (s[0] - cur > 8) hCorr.push((cur + s[0]) / 2); cur = s[1]; });
+      if (wallH - cur > 8) hCorr.push((cur + wallH) / 2);
+    });
+    hCorr.push(wallH - 12);
+    boardMeta();
+    drawThreads();
+    clampCam(cam);
+    applyCam();
+  }
+
+  /* 板名上「板上 N 张」，以及挪过资料之后要说清「档案状态没跟着变」 */
+  function boardMeta() {
+    ZONE.forEach(function (s) {
+      var b = boards[s];
+      var here = cards.filter(function (c) { return c.el.parentNode === b._cards; });
+      var own = here.filter(function (c) { return c.state === s; }).length;
+      var dataN = byState(s).length;
+      b.querySelector(".bc").textContent = "板上 " + here.length + " 张";
+      if (here.length === dataN && own === here.length) { b._slip.hidden = true; b._slip.textContent = ""; return; }
+      var notes = [];
+      if (own !== here.length) notes.push("这板上另有 " + (here.length - own) + " 张，档案状态不是「" + STATE_WORD[s] + "」");
+      if (here.length !== dataN) notes.push("档案上这一档是 " + dataN + " 张，现在板上 " + here.length + " 张");
+      b._slip.hidden = false;
+      b._slip.textContent = notes.join("；") + "。挪动只是把资料换个板吸着，票的档案状态不会跟着变。";
+    });
+  }
+
+  /* =====================================================================
+     6. 红线：板与板之间穿；箭头指向被阻挡的一方；不穿资料卡（线在纸下面）
+     ===================================================================== */
+  function relRect(node, root) {
+    var x = 0, y = 0, n = node;
+    while (n && n !== root) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+    return { x: x, y: y, w: node.offsetWidth, h: node.offsetHeight };
+  }
+  function segHits(x1, y1, x2, y2, r, pad) {
+    var rx1 = r.x - pad, rx2 = r.x + r.w + pad, ry1 = r.y - pad, ry2 = r.y + r.h + pad;
+    if (y1 === y2) { if (y1 < ry1 || y1 > ry2) return false; }
+    else if (x1 === x2) { if (x1 < rx1 || x1 > rx2) return false; }
+    else return false;
+    var a = Math.min(x1, x2), b = Math.max(x1, x2), c = Math.min(y1, y2), d = Math.max(y1, y2);
+    return !(b < rx1 || a > rx2 || d < ry1 || c > ry2);
+  }
+  function hits(pts, rects, skip) {
+    var n = 0;
+    for (var i = 0; i < pts.length - 1; i++) {
+      for (var j = 0; j < rects.length; j++) {
+        if (skip.indexOf(rects[j].id) >= 0) continue;
+        if (segHits(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], rects[j], 3)) n++;
+      }
+    }
+    return n;
+  }
+  function plen(pts) {
+    var n = 0;
+    for (var i = 0; i < pts.length - 1; i++) n += Math.abs(pts[i + 1][0] - pts[i][0]) + Math.abs(pts[i + 1][1] - pts[i][1]);
+    return n;
+  }
+  function dedupe(pts) {
+    var out = [pts[0]];
+    for (var i = 1; i < pts.length; i++) {
+      var p = pts[i], l = out[out.length - 1];
+      if (Math.abs(p[0] - l[0]) > 0.5 || Math.abs(p[1] - l[1]) > 0.5) out.push(p);
+    }
+    return out;
+  }
+  function viaV(a, b, c) {
+    var ay = a.y + a.h / 2, by = b.y + b.h / 2;
+    var ax = (c <= a.x) ? a.x : (c >= a.x + a.w ? a.x + a.w : null);
+    var bx = (c <= b.x) ? b.x : (c >= b.x + b.w ? b.x + b.w : null);
+    if (ax == null || bx == null) return null;
+    return dedupe([[ax, ay], [c, ay], [c, by], [bx, by]]);
+  }
+  function viaVH(a, b, c1, cy, c2) {
+    var ay = a.y + a.h / 2, by = b.y + b.h / 2;
+    var ax = (c1 <= a.x) ? a.x : (c1 >= a.x + a.w ? a.x + a.w : null);
+    var bx = (c2 <= b.x) ? b.x : (c2 >= b.x + b.w ? b.x + b.w : null);
+    if (ax == null || bx == null) return null;
+    return dedupe([[ax, ay], [c1, ay], [c1, cy], [c2, cy], [c2, by], [bx, by]]);
+  }
+  function route(a, b, rects) {
+    var best = null, bestScore = Infinity;
+    var mid = (a.x + a.w / 2 + b.x + b.w / 2) / 2;
+    var cs = vCorr.slice().sort(function (p, r) { return Math.abs(p - mid) - Math.abs(r - mid); });
+    var i, j, k;
+    for (i = 0; i < cs.length; i++) {
+      var p1 = viaV(a, b, cs[i]); if (!p1) continue;
+      var h1 = hits(p1, rects, [a.id, b.id]);
+      if (h1 === 0) return p1;
+      var s1 = h1 * 1e6 + plen(p1);
+      if (s1 < bestScore) { bestScore = s1; best = p1; }
+    }
+    for (i = 0; i < hCorr.length; i++) {
+      for (j = 0; j < cs.length; j++) {
+        for (k = 0; k < cs.length; k++) {
+          var p2 = viaVH(a, b, cs[j], hCorr[i], cs[k]); if (!p2) continue;
+          var h2 = hits(p2, rects, [a.id, b.id]);
+          var s2 = h2 * 1e6 + plen(p2);
+          if (s2 < bestScore) { bestScore = s2; best = p2; }
+          if (h2 === 0 && best === p2) return p2;
+        }
+      }
+    }
+    return best;
+  }
+  function rounded(pts, r) {
+    if (pts.length < 2) return "";
+    var d = "M" + pts[0][0] + " " + pts[0][1];
+    for (var i = 1; i < pts.length - 1; i++) {
+      var p = pts[i - 1], c = pts[i], n = pts[i + 1];
+      var v1x = c[0] - p[0], v1y = c[1] - p[1], l1 = Math.hypot(v1x, v1y) || 1;
+      var v2x = n[0] - c[0], v2y = n[1] - c[1], l2 = Math.hypot(v2x, v2y) || 1;
+      var d1 = Math.min(r, l1 / 2), d2 = Math.min(r, l2 / 2);
+      var ax = c[0] - v1x / l1 * d1, ay = c[1] - v1y / l1 * d1;
+      var bx = c[0] + v2x / l2 * d2, by = c[1] + v2y / l2 * d2;
+      d += " L" + ax + " " + ay + " Q" + c[0] + " " + c[1] + " " + bx + " " + by;
+    }
+    var last = pts[pts.length - 1];
+    return d + " L" + last[0] + " " + last[1];
+  }
+
+  function drawThreads() {
+    while (threadsSvg.firstChild) threadsSvg.removeChild(threadsSvg.firstChild);
+    var rects = [];
+    cards.forEach(function (c) {
+      var r = relRect(c.el, wall); r.id = c.no; rects.push(r);
+    });
+    if (!rects.length) return;
+    // 除了资料卡，目的地那段正文、白板和三块标签板整块也算「别拿线压过去」的地方
+    var extra = 0;
+    var dest = document.querySelector('[data-role="destination"]');
+    if (dest) { var dr = relRect(dest, wall); dr.id = "guard-" + (++extra); rects.push(dr); }
+    ["decisions", "fogTags", "outOfScope", "whiteboard"].forEach(function (k) {
+      var n = boards[k]; if (!n) return;
+      var r = relRect(n, wall); r.id = "guard-" + (++extra); rects.push(r);
+    });
+    // (1) 四块分区板各自牵一根粗红线到中间那块目标板的板名牌上（从牌子上出去，不压正文）
+    var tr = relRect(boards.target, wall); tr.id = "target";
+    ZONE.forEach(function (s) {
+      var br = relRect(boards[s], wall);
+      var pseudo = { x: br.x, y: br.y + 6, w: br.w, h: 16, id: "b" + s };
+      // 线拴在目标板板名牌的两头，不压过牌子中间那行字
+      var leftSide = (s === "fog" || s === "closed");
+      var k = (s === "fog" || s === "lit") ? 0 : 1;
+      var tgt = { x: leftSide ? (tr.x + 5 + k * 17) : (tr.x + tr.w - 23 - k * 17), y: tr.y + 3, w: 18, h: 20, id: "target" };
+      var pts = route(pseudo, tgt, rects);
+      if (!pts) return;
+      var p = svgEl("path", "tb");
+      p.setAttribute("d", rounded(pts, 10));
+      p.setAttribute("fill", "none");
+      p.setAttribute("stroke", "#c0392b");
+      p.setAttribute("stroke-width", "2.4");
+      p.setAttribute("stroke-opacity", ".5");
+      p.setAttribute("stroke-linejoin", "round");
+      threadsSvg.appendChild(p);
+    });
+    // (2) 每一对「谁挡着谁」穿一根细红线，箭头指向被挡住的那一张
+    var pairs = [];
+    DATA.tickets.forEach(function (t) {
+      (t.blockedBy || []).forEach(function (n) { if (byNo[n]) pairs.push([n, t.no]); });
+    });
+    pairs.forEach(function (pr) {
+      var a = null, b = null;
+      rects.forEach(function (r) { if (r.id === pr[0]) a = r; if (r.id === pr[1]) b = r; });
+      if (!a || !b) return;
+      var pts = route(a, b, rects);
+      if (!pts) return;
+      var p = svgEl("path", "t");
+      p.setAttribute("d", rounded(pts, 9));
+      p.setAttribute("fill", "none");
+      p.setAttribute("stroke", "#c0392b");
+      p.setAttribute("stroke-width", "1.7");
+      p.setAttribute("stroke-linecap", "round");
+      p.setAttribute("stroke-linejoin", "round");
+      p.setAttribute("marker-end", "url(#arw)");
+      p.dataset.thread = pr[0] + "-" + pr[1];
+      p.dataset.from = "#" + pr[0];
+      p.dataset.to = "#" + pr[1];
+      threadsSvg.appendChild(p);
+    });
+  }
+
+  threadsSvg.addEventListener("pointerover", function (e) {
+    var p = e.target.closest ? e.target.closest("path.t") : null;
+    if (!p) { tipline.style.display = "none"; return; }
+    var bb = p.getBBox();
+    tipline.textContent = p.dataset.from + " 挡着 " + p.dataset.to;
+    tipline.style.left = Math.round(bb.x + bb.width * 0.5) + "px";
+    tipline.style.top = Math.round(bb.y + bb.height * 0.5 + 8) + "px";
+    tipline.style.display = "block";
+  });
+  threadsSvg.addEventListener("pointerout", function () { tipline.style.display = "none"; });
+
+  /* =====================================================================
+     7. 相机：在墙上平移 / 点板名牌把一块板放大到正中 / 退回目标板
+     ===================================================================== */
+  var cam = { x: 0, y: 0, s: 1 };
+  var raf = 0;
+  /* 相机的橡皮筋：墙比一屏大就随便挪，挪到头还能再拉出一点房间的边缘（凑近看某块板时要能居正中） */
+  function clampCam(c) {
+    var vw = wallwrap.clientWidth, vh = wallwrap.clientHeight;
+    var w = wallW * c.s, h = wallH * c.s;
+    var sx = Math.min(vw * 0.5, 280), sy = Math.min(vh * 0.5, 280);
+    c.x = Math.min(sx, Math.max(vw - w - sx, c.x));
+    c.y = Math.min(sy, Math.max(vh - h - sy, c.y));
+    return c;
+  }
+  function applyCam() {
+    wall.style.transform = "translate(" + cam.x + "px," + cam.y + "px) scale(" + cam.s + ")";
+  }
+  function camTo(el, s, ms, done) {
+    var r = relRect(el, wall);
+    var vw = wallwrap.clientWidth, vh = wallwrap.clientHeight;
+    var to = clampCam({ s: s, x: vw / 2 - (r.x + r.w / 2) * s, y: vh / 2 - (r.y + r.h / 2) * s });
+    var from = { x: cam.x, y: cam.y, s: cam.s };
+    var t0 = performance.now();
+    if (raf) cancelAnimationFrame(raf);
+    (function step(now) {
+      var k = Math.min(1, (now - t0) / ms);
+      var e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      cam.s = from.s + (to.s - from.s) * e;
+      cam.x = from.x + (to.x - from.x) * e;
+      cam.y = from.y + (to.y - from.y) * e;
+      applyCam();
+      if (k < 1) raf = requestAnimationFrame(step);
+      else { raf = 0; cam = to; applyCam(); if (done) done(); }
+    })(t0);
+  }
+  /* 整面墙的宽度装进面板：缩放到「所有板的左右边界都在面板里」，左右各留 6 像素边 */
+  function fitScale() {
+    var vw = wallwrap.clientWidth;
+    return Math.min(1, (vw - 12) / wallW);
+  }
+  /* 折线下面那一条（桌沿 + 控制条）如果正好压在某张资料的中心上，那张资料的中心点就点不到
+     （手指按下去会被桌沿接走）。所以起手把镜头往下挪一点，让那条带子里没有票的中心；
+     只往下挪不往上挪 —— 往上挪会把目标板最上面的「目的地」那一段切掉。 */
+  function safeCamY(idealY, s, vh) {
+    var stripH = (chromeH() + 6) / s;
+    var centers = [];
+    cards.forEach(function (c) { var r = relRect(c.el, wall); centers.push(r.y + r.h / 2); });
+    if (!centers.length) return idealY;
+    function stuck(y) {                       // 折线下那条带子里压着几张票的中心
+      var fold = (vh - y) / s;
+      var n = 0;
+      for (var i = 0; i < centers.length; i++) {
+        var d = centers[i] - fold;
+        if (d > -0.5 && d < stripH) n++;
+      }
+      return n;
+    }
+    var best = idealY, bestN = stuck(idealY);
+    for (var dy = 4; dy <= 240 && bestN > 0; dy += 4) {
+      var n = stuck(idealY + dy);
+      if (n < bestN) { bestN = n; best = idealY + dy; }
+      if (n === 0) break;
+    }
+    return best;
+  }
+  function resetCam(ms) {
+    var vw = wallwrap.clientWidth, vh = wallwrap.clientHeight;
+    var s = fitScale();
+    var r = relRect(boards.target, wall);
+    // 起手这一屏自己就是完整的：每一块板（连右边的「正在办」「现在能动手」）都整个落在面板里，
+    // 不用先推一下才看得全。要再往两边看，墙外的房间边缘还能拉出来一点。
+    var x = (vw - wallW * s) / 2;
+    var y = (wallH * s < vh) ? (vh - wallH * s) / 2 : 12 - r.y * s;
+    if (wallH * s >= vh) y = safeCamY(y, s, vh);
+    var to = clampCam({ s: s, x: x, y: y });
+    var from = { x: cam.x, y: cam.y, s: cam.s };
+    var t0 = performance.now();
+    if (raf) cancelAnimationFrame(raf);
+    (function step(now) {
+      var k = Math.min(1, (now - t0) / ms);
+      var e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      cam.s = from.s + (to.s - from.s) * e;
+      cam.x = from.x + (to.x - from.x) * e;
+      cam.y = from.y + (to.y - from.y) * e;
+      applyCam();
+      if (k < 1) raf = requestAnimationFrame(step);
+      else { raf = 0; cam = to; applyCam(); }
+    })(t0);
+  }
+
+  var focusBar = document.getElementById("focusbar");
+  var focusWho = document.getElementById("focusWho");
+  var BOARD_NAME = { target: "目标", lit: "正在办", ready: "现在能动手", closed: "已经办结", fog: "还没探明",
+    whiteboard: "白板 · 时间线", decisions: "Decisions so far", fogTags: "Not yet specified", outOfScope: "Out of scope" };
+  function focusBoard(id) {
+    var b = boards[id]; if (!b) return;
+    Object.keys(boards).forEach(function (k) { boards[k].classList.remove("board--focused"); });
+    b.classList.add("board--focused");
+    focusWho.textContent = "正在凑近看：「" + (BOARD_NAME[id] || id) + "」";
+    focusBar.classList.add("on");
+    camTo(b, isWide() ? 1.3 : 1.2, 420);
+  }
+  document.getElementById("zoomBack").addEventListener("click", function () {
+    Object.keys(boards).forEach(function (k) { boards[k].classList.remove("board--focused"); });
+    focusBar.classList.remove("on");
+    resetCam(380);
+  });
+
+  /* 墙上平移 + 拖一块资料换板：一套指针逻辑（挂在整扇「墙 + 房间」上，空白处按住也能推） */
+  var gesture = null;
+  wallwrap.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0) return;
+    if (e.target.closest("[data-act]") || e.target.closest(".boardhead") || e.target.closest(".taghead")) return;
+    var card = e.target.closest(".card");
+    gesture = {
+      mode: card ? "card" : "pan", el: card, id: e.pointerId,
+      x0: e.clientX, y0: e.clientY, cx: cam.x, cy: cam.y, moved: false, home: card ? card.parentNode : null
+    };
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    try { wallwrap.setPointerCapture(e.pointerId); } catch (err) {}
+    if (!card) wallwrap.classList.add("grabbing");
+  });
+  wallwrap.addEventListener("pointermove", function (e) {
+    if (!gesture || e.pointerId !== gesture.id) return;
+    var dx = e.clientX - gesture.x0, dy = e.clientY - gesture.y0;
+    if (!gesture.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+    gesture.moved = true;
+    if (gesture.mode === "pan") {
+      cam.x = gesture.cx + dx; cam.y = gesture.cy + dy;
+      clampCam(cam); applyCam();
+      return;
+    }
+    var el2 = gesture.el;
+    el2.classList.add("dragging");
+    el2.style.transform = "translate(" + (dx / cam.s) + "px," + (dy / cam.s) + "px) rotate(1.6deg)";
+    var under = document.elementFromPoint(e.clientX, e.clientY);
+    var bd = under ? under.closest(".board") : null;
+    Object.keys(boards).forEach(function (k) { boards[k].classList.remove("dropok"); });
+    if (bd && bd !== gesture.home) bd.classList.add("dropok");
+  });
+  function endGesture(e) {
+    if (!gesture || e.pointerId !== gesture.id) return;
+    var g = gesture; gesture = null;
+    wallwrap.classList.remove("grabbing");
+    Object.keys(boards).forEach(function (k) { boards[k].classList.remove("dropok"); });
+    if (!g.moved) return;
+    if (g.mode === "pan") return;
+    var under = document.elementFromPoint(e.clientX, e.clientY);
+    var bd = under ? under.closest(".board") : null;
+    var card = g.el;
+    card.classList.remove("dragging");
+    card.style.transform = "";
+    if (bd && bd._cards && bd._cards !== card.parentNode) {
+      bd._cards.appendChild(card);
+      card.classList.add("settle");
+      say("换板", "把 #" + card.dataset.ticket + " 挪到「" + (BOARD_NAME[bd.dataset.board] || bd.dataset.board) +
+        "」这块板上了。挪动只换它吸在哪块板上，票的档案状态还是「" + STATE_WORD[card.dataset.state] + "」，没有跟着变。");
+      layout();
+    } else {
+      boardMeta();
+    }
+  }
+  wallwrap.addEventListener("pointerup", endGesture);
+  wallwrap.addEventListener("pointercancel", endGesture);
+
+  wallwrap.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    cam.x -= e.deltaX; cam.y -= e.deltaY;
+    clampCam(cam); applyCam();
+  }, { passive: false });
+
+  /* 点板名牌 = 人往前走一步，凑近看那块板；点资料卡上的小按钮走各自的活 */
+  wall.addEventListener("click", function (e) {
+    var act = e.target.closest("[data-act]");
+    if (act) {
+      var card = act.closest(".card");
+      var no = card ? "#" + card.dataset.ticket : "";
+      if (act.dataset.act === "skill") say(act.dataset.skill, "真机点「" + act.dataset.skill + "」" + no + " 会把这张票的活交给会话开干。");
+      else if (act.dataset.act === "newSession") say("新会话", "真机点「新会话」" + no + " 会在一个新会话里打开这张票。");
+      else if (act.dataset.act === "open") say("打开原票", "真机点这个链子图标会打开原票 " + no + "。");
+      else if (act.dataset.act === "reveal") {
+        card.classList.add("revealed");
+        act.setAttribute("aria-label", "把 #" + card.dataset.ticket + " 上的雾盖回去");
+        act.textContent = "盖回去";
+        act.dataset.act = "revealBack";
+        say("拨雾", "真机里点一下雾里的票也是这个意思：先把盖住标题的雾拨开看清，再点才进详情。");
+      } else if (act.dataset.act === "revealBack") {
+        card.classList.remove("revealed");
+        act.textContent = "拨开雾看标题";
+        act.dataset.act = "reveal";
+      }
+      return;
+    }
+    var head = e.target.closest(".boardhead");
+    if (head) { focusBoard(head.dataset.boardhead); return; }
+  });
+
+  /* =====================================================================
+     8. 桌角卷宗：正文详情能摊开看
+     ===================================================================== */
+  var notesSheet = document.getElementById("notesSheet");
+  var notesBtn = document.getElementById("notesBtn");
+  document.getElementById("notesSub").textContent = "#" + DATA.no + " · 本地正文，原型里放 6 条";
+  (function () {
+    var html = "<ul>";
+    NOTES.forEach(function (s) { html += "<li>" + s + "</li>"; });
+    html += "</ul><div class=\"fold\">正文还有 10 条</div>";
+    document.getElementById("notesBody").innerHTML = html;
+  })();
+  function openNotes(on) {
+    notesSheet.classList.toggle("on", on);
+    notesSheet.setAttribute("aria-hidden", String(!on));
+    notesBtn.setAttribute("aria-expanded", String(on));
+    if (on) say("正文详情", "桌角这份卷宗就是这张图的正文（原型里放了 6 条）。");
+  }
+  notesBtn.addEventListener("click", function () { openNotes(!notesSheet.classList.contains("on")); });
+  document.getElementById("notesClose").addEventListener("click", function () { openNotes(false); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") openNotes(false); });
+
+  /* 桌沿上的「去墙上」索引：四条路都能一下点到 */
+  (function () {
+    var box = document.getElementById("idx");
+    box.appendChild(el("span", null, "去墙上："));
+    var t = tally();
+    [["lit", "正在办"], ["ready", "现在能动手"], ["closed", "已经办结"], ["fog", "还没探明"]].forEach(function (p) {
+      var b = el("button", null, p[1] + " " + t[p[0]]);
+      b.type = "button";
+      b.addEventListener("click", function () { focusBoard(p[0]); });
+      box.appendChild(b);
+    });
+  })();
+
+  /* 控制条 */
+  var ctl = document.getElementById("ctl");
+  ctl.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var u = new URL(location.href);
+    if (b.dataset.w) u.searchParams.set("w", b.dataset.w);
+    if (b.dataset.s) u.searchParams.set("s", b.dataset.s);
+    location.href = u.toString();
+  });
+  Array.prototype.forEach.call(ctl.querySelectorAll("[data-w]"), function (b) {
+    b.setAttribute("aria-pressed", String(b.dataset.w === String(PANEL_W)));
+  });
+  Array.prototype.forEach.call(ctl.querySelectorAll("[data-s]"), function (b) {
+    b.setAttribute("aria-pressed", String(b.dataset.s === SAMPLE));
+  });
+
+  /* =====================================================================
+     9. 起手：排版 → 先凑近一点，再把镜头拉远露出整面墙（一次，不循环）
+     ===================================================================== */
+  layout();
+  (function () {
+    // 入场：从「刚好装下」再小一点点起手，慢慢推近到刚好装下整面墙 —— 全程没有哪块板被切掉
+    var vw = wallwrap.clientWidth;
+    var fit = fitScale();
+    cam.s = fit * 0.96;
+    var r = relRect(boards.target, wall);
+    cam.x = (vw - wallW * cam.s) / 2;
+    cam.y = 34 - r.y * cam.s;
+    clampCam(cam); applyCam();
+    resetCam(560);
+  })();
+
+  if (window.ResizeObserver) {
+    var lastWide = isWide();
+    new ResizeObserver(function () {
+      layout();
+      if (isWide() !== lastWide) { lastWide = isWide(); focusBar.classList.remove("on"); resetCam(0); }
+    }).observe(wallwrap);
+  }
+  window.addEventListener("resize", function () { layout(); });
+})();
+</script>
+</body>
+</html>

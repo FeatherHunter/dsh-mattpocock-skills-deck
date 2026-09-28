@@ -1,13 +1,6 @@
-// src/host/namingGuardian.js —— 命名守护 host 半（H6 #450 从 host/index.js 479–821 搬出，纯结构、行为零变化）。
-// 以后谁改它：改命名跟踪态、守护循环或建号感知结算的人。预估约350行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；即时推进经 index 同步委托转供给 _repo 接线；边界：../shared 命名标题等 3 文件同名不同层归 S2 #452（此处合并引用），本文件只动 host 半。
+// 命名守护 host 半：持跟踪态并产出计划单（#265）；判定真源见 ../shared 命名三文件（S2 #452）。
 export function createNamingGuardian(deps) {
-  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx } = deps
-  // ============ 命名守护（#265 · 草稿档垂直线 · host 半）============
-  // 分工（#264 D2）：本侧为常驻轻量任务 —— 持跟踪态（落盘 .dsh-mattskillsdeck-cache/naming-guardian.json，
-  // 写入方式与现缓存一致：platform.fs.resolve + fs.writeText）并维护状态；「待办改名计划单」经
-  // wf.namingPlan 供界面侧渲染钩子拉取。纯判定真源 = ../shared/naming-titles.js 等 3 个文件（运行时引用合并，
-  // 与 check-catalog 同模式），本文件不含第二处命名实现。
+  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx, getFirstText } = deps
   let _namingCore = null
   let _namingCoreInit = null
   async function getNamingCore() {
@@ -19,13 +12,11 @@ export function createNamingGuardian(deps) {
     }
     return _namingCoreInit
   }
-  const NAMING_STATE_FILE = 'naming-guardian.json'
-  // #709（T5）：只剩这一个 10 分钟兜底的间隔（从前那两个 15 秒的常量随自续 tick 一起退役）。
-  const NAMING_FALLBACK_MS = 10 * 60_000
-  let _namingState = null            // { version:1, sessions:{sid:跟踪态}, indexes:{repoKey:索引快照} } 内存态（加载自磁盘，变更防抖落盘）
+  const NAMING_STATE_FILE = 'naming-guardian.json'   // 落盘 .dsh-mattskillsdeck-cache 目录下
+  const NAMING_FALLBACK_MS = 10 * 60_000   // #709：唯一 10 分钟兜底间隔
+  let _namingState = null
   let _namingStateDirty = false
   let _namingPersistTimer = null
-  // #266 建号感知：索引差值结算的防重入/防堆积守卫（事件跳 + 兜底跳共用）
   let _namingSweepBusy = false
   let _namingSweepTimer = null; let sweepAnyChanged = false, sweepAssignedTotal = 0, sweepTrigger = 'event'; function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   function namingDefaultState() { return { version: 1, sessions: {}, indexes: {} } }
@@ -65,10 +56,7 @@ export function createNamingGuardian(deps) {
     if (_namingPersistTimer) return
     _namingPersistTimer = timer.timeout(function () { _namingPersistTimer = null; if (_namingStateDirty) persistNamingState() }, 1200); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-persist', intervalMs: 1200 }) } catch (eL) {}
   }
-  // ============ 事件驱动（#709 · T5：取代从前那条 15 秒自续 tick）============
-  // 从前那条 tick 每跳把「还有会话在等编号」的仓库整个扫一遍（7~12 秒），却多数毫无收获。现在宿主侧没有
-  // 任何自续定时器：每一跳都由事件带起来（`gh issue create` 被拦到、新会话注册、认领推送、客户端上报的四种
-  // 事件），另加每 10 分钟至多一次的兜底，兜底每跳只轮转扫 1 个仓库。入口是下面这个，事件跳扫全量。
+  // 事件驱动（#709：无自续定时器，每跳由事件带起，另加 10 分钟至多一次的单仓兜底）。
   let _namingFallbackAt = 0
   let _namingSweepCursor = 0
   function namingGuardianEvent(reason, booting) {
@@ -81,10 +69,7 @@ export function createNamingGuardian(deps) {
   }
   function startNamingGuardianEvents() { namingGuardianEvent('apply-start', true) }   // 随 apply 启动（只做一次铺垫，不启动任何循环）
 
-  // ============ 建号感知复原（#266 · F1/F2 修复义务）============
-  // 历史：#211 的三个 handler（registerNewSessionWatcher / cancelNewSessionWatcher /
-  // awaitCreatedIssue）于 e98f636 被整块静默删除且无替身（#258 F1 回归），「AI 在会话内自行
-  // 建号」主流程零事件。按 #264 决议以 issue 索引差值为底座复原，职责并入命名守护。
+  // 建号感知（#266）：#211 三 handler 曾被整块删除（#258），现以索引差值为底座复原并入守护。
 
   /** repoKey 归一：接受 'owner/name' 字符串或 { owner, name }；无效返回 null。 */
   function namingRepoKeyOf(args) {
@@ -120,17 +105,12 @@ export function createNamingGuardian(deps) {
       return { ok: true, index: index }
     } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
   }
-  // 提示词与标题无关的新编号不硬配（#315 追加修复的提纯：逐行原样搬入此处，行为不变）。
-  // 保留规则：找不到会话记录或没有提示词直接保留；判定抛错也保留；只有明确判定无关才丢弃。
+  // 无关新编号不硬配（#315：只有明确无关才丢弃，其余保留）。
   function keepRelatedAssigned(list, core, sessions) {
     if (!list.length || !core.isHintRelatedToTitle) return list
     return list.filter(function (a) { const e = sessions[a.sessionId]; if (!e || !e.hint) return true; try { return core.isHintRelatedToTitle(e.hint, a.title) } catch (eRel) { return true } })
   }
-  /**
-   * 索引差值结算（每仓库一次）：新编号（升序）→ 归属同仓库最早仍处占位/草稿档的受踪会话
-   * （归属判定为共享核心纯函数 attributeNewNumbers；prev 快照缺失 → 仅基线建档不归属，
-   * 避免把存量全量误归属）。归属即时落盘（关键事件）；索引快照随脏账防抖落盘。
-   */
+  /** 索引差值结算（每仓库一次）：新编号归属同仓最早等待会话；prev 缺失仅建档；即时落盘。 */
   async function namingSweepNow(opts) {
     if (_namingSweepBusy) return
     _namingSweepBusy = true
@@ -204,16 +184,12 @@ export function createNamingGuardian(deps) {
       st.sessions[sid].repoKey = repoKey
     }
     if (args && args.hint) st.sessions[sid] = core.reduceTrackingState(st.sessions[sid], { type: 'signal', hint: String(args.hint).slice(0, 80) })
-    // 即时持久化（#265 崩溃窗口补强）：注册只在会话创建时发生一次，若只走防抖，宽限期内进程
-    // 被杀会让该会话永久失察（客户端不会重注册）——关键事件必须落盘后才算受理。
-    await persistNamingState()
-    // #266：注册即打索引基线/结算（800ms 短窗；首轮仅建档，其后命中即时信号即优先归属）
-    namingSweepSoon(800)
+    await persistNamingState()   // 即时落盘（#265）：注册只发生一次，宽限期内被杀会永久失察
+    namingSweepSoon(800)   // #266：注册即打索引基线/结算（800ms 短窗）
     return { ok: true }
   }
   const namingRegisterHandler = function (args) { return namingEnsureTracked(args) }
-  // 两入口同一本体：wf.namingRegister（#265 四操作之一，兼容保留）/
-  // wf.registerNewSessionWatcher（#211 复原名 · 注册监视 —— 规范入口，client 已切换调用）
+  // 注册双名同一本体（#265 兼容名 / #211 复原名，client 已切规范入口）。
 
   async function handleNamingSignal(args) {
     const sid = args && args.sessionId
@@ -229,20 +205,19 @@ export function createNamingGuardian(deps) {
   }
 
   async function handleNamingPlan() {
-    try { namingGuardianEvent('client-pull') } catch (eEv) {}   // #709：界面每次来拉计划单都是一个真实事件，借它把 10 分钟兜底带上
+    try { namingGuardianEvent('client-pull') } catch (eEv) {}
     const core = await getNamingCore()
     if (!core) return { ok: true, orders: [], tracked: [], failures: [] }
     const st = await loadNamingState()
     const orders = []
     const tracked = []
-    const failures = []   // #267：定败清单（有限重试耗尽）→ 面板级提醒（DetailsDock 横幅）
+    const failures = []
     for (const sid in st.sessions) {
       const s = st.sessions[sid]
       if (!s) continue
       const o = core.planOrderFor(s, Date.now(), core.NAMING_HINT_GRACE_MS)
       if (o) orders.push(o)
-      // #266：tracked 携带终局标记供界面侧清理（done = 永不/不再出单：锁账、编号落定、精修档）
-      let done = false
+      let done = false   // #266：终局标记供界面侧清理（锁账/编号落定/精修档即 done）
       if (s.locked) done = true
       else if (s.stage === core.NAMING_STAGES.REFINED) done = true
       else if (s.stage === core.NAMING_STAGES.NUMBERED && s.number != null) {
@@ -252,12 +227,10 @@ export function createNamingGuardian(deps) {
         }
       }
       tracked.push({ sessionId: sid, stage: s.stage, done: done })
-      // #267：定败画像随单回包 —— 化解前持续呈现；字段裁剪由共享核心统一裁定
       const fi = core.namingFailureInfo(s)
       if (fi) failures.push(fi)
     }
-    // #315 隔离修复：同仓库下若存在带 hint 的草稿单，则抑制同仓库的裸档单（hint == null），避免无线索会话被误改
-    // 保证「只改有线索的目标会话」，裸档会话保持占位直到自身产生线索；同仓库判定以 repoKey 为键
+    // #315：同仓有带线索草稿单时抑制裸档单（只改有线索的目标会话）。
     try {
       const byRepoHasHint = {}
       for (let i = 0; i < orders.length; i++) {
@@ -283,6 +256,7 @@ export function createNamingGuardian(deps) {
         for (let i = 0; i < kept.length; i++) orders.push(kept[i])
       }
     } catch (eFilter) {}
+    for (let i = 0; i < orders.length; i++) { const oo = orders[i]; if (oo && oo.lock && oo.lock.lastMachineTitle == null && typeof getFirstText === 'function') { try { oo.lock.firstUserText = await getFirstText(oo.sessionId) } catch (eFt) {} } } // #746 首句随单下发供免锁比对（读而不激活；失败即 null，客户端降级走旧判据）
     return { ok: true, orders: orders, tracked: tracked, failures: failures }
   }
 
@@ -295,10 +269,7 @@ export function createNamingGuardian(deps) {
     if (!entry) return { ok: true }
     const core = await getNamingCore()
     if (!core) return { ok: true }
-    // renamed/locked 入账并即时持久化（#265 崩溃窗口补强）：锁账丢失会危及「手改永不被覆盖」，
-    // 升级账丢失会让重启续跑多付一次改名——均为关键状态变更，不当延迟落盘。
-    // #267：failed 同样即时落盘 —— 有限重试预算（连败计数/冷却窗）跨拉询与重启一致，
-    // 耗尽即定败并入 namingPlan.failures 面板级清单；预算语义由共享核心统一裁定。
+    // renamed/locked/failed 入账即时落盘（#265/#267：锁账与重试预算跨重启一致）。
     if (outcome === 'renamed' && args.title) {
       st.sessions[sid] = core.reduceTrackingState(entry, { type: 'renamed', title: String(args.title) })
       await persistNamingState()
@@ -318,8 +289,38 @@ export function createNamingGuardian(deps) {
     return { ok: true }
   }
 
-  // ---- #211 复原名三操作（#266 复原 · 以索引差值为底座，职责并入守护；守卫断言钉死其存在）----
-  // 取消监视：从受踪账目移除（仅终局清理路径调用：界面半判定会话已不存在且 done）
+  // #746：摘要编排读的只读快照（返回拷贝；冷启动返回 null，调用方静默跳过）。
+  async function getEntry(sid) {
+    try { const st = await loadNamingState(); const s = st.sessions[sid]; return s ? Object.assign({}, s) : null } catch (e) { return null }
+  }
+  // #746：摘要结果入账（ok 带好线索并记 summaryOnce；失败记 summaryFailed 永不补调；即时落盘）。
+  async function applySummaryResult(args) {
+    const sid = args && args.sessionId
+    if (!sid) return { ok: false }
+    const st = await loadNamingState()
+    const entry = st.sessions[sid]
+    if (!entry || entry.locked) return { ok: true }
+    const core = await getNamingCore()
+    if (!core) return { ok: true }
+    if (args.ok && args.hint) st.sessions[sid] = core.reduceTrackingState(core.reduceTrackingState(entry, { type: 'signal', hint: String(args.hint).slice(0, 80) }), { type: 'summaryDone' })
+    else st.sessions[sid] = core.reduceTrackingState(entry, { type: 'summaryFailed' })
+    await persistNamingState()
+    return { ok: true }
+  }
+  // #746：建票直达（调用会话即建号会话，无需语义匹配；仍守等号状态与锁；幂等收敛）。
+  async function handleDirectCreated(args) {
+    const sid = args && args.sessionId, num = Number(args && args.key)
+    if (!sid || !isFinite(num) || num <= 0) return { ok: false }
+    const st = await loadNamingState()
+    const entry = st.sessions[sid]
+    const core = await getNamingCore()
+    if (!entry || !core || !core.isNumberAwaitStage(entry)) return { ok: true, attributed: false }
+    st.sessions[sid] = core.reduceTrackingState(entry, { type: 'numbered', number: num, title: args.title })
+    await persistNamingState()
+    try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'naming.sweep', { trigger: 'direct-created', count: 1 }) } catch (eL) {}
+    return { ok: true, attributed: true }
+  }
+  // #211 复原名三操作（#266 复原并入守护；守卫断言钉死存在）。
   async function handleCancelNewSessionWatcher(args) {
     const sid = args && args.sessionId
     if (!sid) return { ok: false, error: { kind: 'parse', message: '缺少 sessionId' } }
@@ -329,7 +330,6 @@ export function createNamingGuardian(deps) {
     await persistNamingState()
     return { ok: true, cancelled: true }
   }
-  // 等待建号：状态查询（是否仍处占位/草稿档且未获号）+ 即时推进（nudge 索引差值结算）
   async function handleAwaitCreatedIssue(args) {
     const sid = args && args.sessionId
     if (!sid) return { ok: false, error: { kind: 'parse', message: '缺少 sessionId' } }
@@ -346,5 +346,5 @@ export function createNamingGuardian(deps) {
     else if (res && res.ok) { if (level === 'debug') { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) } else if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
     else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && ((res.error && res.error.message) || res.error)) || 'naming-not-ok')) }) } catch (eL) {} }
   function loggedPhone(method, kind, level, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, level, t0, r); return r } catch (e) { phoneLog(method, kind, level, t0, null, e); throw e } } }
-  return { namingSweepSoon, namingRegisterHandler: loggedPhone('wf.registerNewSessionWatcher', 'naming-register', 'info', namingRegisterHandler), handleNamingSignal: loggedPhone('wf.namingSignal', 'naming-signal', 'info', handleNamingSignal), handleNamingPlan: loggedPhone('wf.namingPlan', 'naming-plan', 'debug', handleNamingPlan), handleNamingResult: loggedPhone('wf.namingResult', 'naming-result', 'info', handleNamingResult), handleCancelNewSessionWatcher: loggedPhone('wf.cancelNewSessionWatcher', 'naming-cancel', 'info', handleCancelNewSessionWatcher), handleAwaitCreatedIssue: loggedPhone('wf.awaitCreatedIssue', 'naming-await', 'info', handleAwaitCreatedIssue), namingGuardianEvent, startNamingGuardianEvents }
+  return { namingSweepSoon, namingRegisterHandler: loggedPhone('wf.registerNewSessionWatcher', 'naming-register', 'info', namingRegisterHandler), handleNamingSignal: loggedPhone('wf.namingSignal', 'naming-signal', 'info', handleNamingSignal), handleNamingPlan: loggedPhone('wf.namingPlan', 'naming-plan', 'debug', handleNamingPlan), handleNamingResult: loggedPhone('wf.namingResult', 'naming-result', 'info', handleNamingResult), handleCancelNewSessionWatcher: loggedPhone('wf.cancelNewSessionWatcher', 'naming-cancel', 'info', handleCancelNewSessionWatcher), handleAwaitCreatedIssue: loggedPhone('wf.awaitCreatedIssue', 'naming-await', 'info', handleAwaitCreatedIssue), getEntry: getEntry, applySummaryResult: applySummaryResult, handleDirectCreated: handleDirectCreated, namingGuardianEvent, startNamingGuardianEvents }
 }

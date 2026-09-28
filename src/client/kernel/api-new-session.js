@@ -207,7 +207,7 @@
                   const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(name0) : /^\[New\] /.test(String(name0)))
                   if (!isPlaceholder) return
                   if (typeof host !== 'undefined' && typeof host.call === 'function') {
-                    host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
+                    host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns, name0) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
                   }
                 } catch (eReg) {}
               }
@@ -237,8 +237,16 @@
                 pendingDraftTargetSid = sid
               }
             } catch (eName) {}
-            try { if (typeof sessions.open === 'function') sessions.open(sid) } catch(eOpen){}
-            flash(st, tr('toast.newSessionOpened'), 'ok')
+            // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。
+            const __ok742a = function () { flash(st, tr('toast.newSessionOpened'), 'ok') }
+            const __go742a = function () { try {
+              let __u = null
+              try { if (typeof ctx !== 'undefined' && ctx) { __u = (typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : null) || ctx.uiWorkspace || null } } catch (eG) {}
+              if (__u && typeof __u.openSession === 'function') { const __r = __u.openSession(sid); if (__r && typeof __r.then === 'function') { __r.then(__ok742a, __ok742a); return } __ok742a(); return }
+              if (sessions && typeof sessions.open === 'function') { const __o = sessions.open(sid); if (__o && typeof __o.then === 'function') { __o.then(__ok742a, __ok742a); return } }
+              __ok742a()
+            } catch (eS742a) { __ok742a() } }
+            __go742a()
             return
           }
           // #363 单点工厂：显式 ptc + 工作区 + 首条原子化（唯一出口，显式 agentPreset）
@@ -287,7 +295,8 @@
                 if (typeof host !== 'undefined' && typeof host.call === 'function') {
                   // #266：注册走 #211 复原名「注册监视」（wf.registerNewSessionWatcher，host 侧为收编跟踪态 + 索引基线）；
                   // wf.namingRegister 为 #265 兼容别名，双名同本体，守卫钉死。
-                  host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
+                  // #746：线索随占位标题同行（语义段由 namingHintOf 从 name0 取），占位不再裸奔。
+                  host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns, name0) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
                 }
               } catch (eReg) {}
             }
@@ -303,8 +312,18 @@
             pendingDraft = text
             pendingDraftTargetSid = sid
           } catch (eName) { /* 命名失败忽略 */ }
-          sessions.open(sid)
-          flash(st, tr('toast.newSessionOpened'), 'ok')
+          // #739：建号成功（sid 已到手）后只报成功，打开失败不再进 doFallback ——
+          //   兜底会谎称没建会话并把指令塞回当前会话，而带草稿的新会话其实已被丢在后台成幽灵；
+          // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。
+          const __ok742b = function () { flash(st, tr('toast.newSessionOpened'), 'ok') }
+          const __go742b = function () { try {
+            let __u = null
+            try { if (typeof ctx !== 'undefined' && ctx) { __u = (typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : null) || ctx.uiWorkspace || null } } catch (eG) {}
+            if (__u && typeof __u.openSession === 'function') { const __r = __u.openSession(sid); if (__r && typeof __r.then === 'function') { __r.then(__ok742b, __ok742b); return } __ok742b(); return }
+            if (sessions && typeof sessions.open === 'function') { const __o = sessions.open(sid); if (__o && typeof __o.then === 'function') { __o.then(__ok742b, __ok742b); return } }
+            __ok742b()
+          } catch (eS742b) { __ok742b() } }
+          __go742b()
         }).catch(function (err) { try { if (String((err && err.message) || '').indexOf('preset-blocked') >= 0) flash(st, tr('toast.newSessionPresetBlocked'), 'warn') } catch (eF) {} doFallback() })
         })
       })

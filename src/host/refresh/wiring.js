@@ -27,8 +27,10 @@ import { createAttention, createFocusHandler } from './attention.js'
 // 互相引用（tests/verify-no-same-layer-import.js 把 src/host/ 整棵树算作宿主层），
 // 宿主层里再读一次那七个文件就要新增 7 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
 import { createDeckToolsForHost, DECK_TOOL_FILES } from '../platform/deckToolsAssembly.js'
+import { createNamingSummary, readFirstUserText } from '../platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../shared/deck-tools/agent-register.js' // #741 注册那一步（向 agent 交七个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
-import { publishDeckTable } from '../../shared/deck-tools/exec-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
+import { publishDeckTable, noteDeckGate } from '../../shared/deck-tools/exec-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
+import { createDeckQuotaSync } from '../platform/deckQuotaSync.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
 // #723（T19c）第 E 件：行级增量那半边（refresh/patch.js）同理收在 src/host/platform/refreshAssembly.js 一处。
 import { createPatchForHost } from '../platform/refreshAssembly.js'
 import * as budget from '../../shared/refresh/budget.js'
@@ -101,6 +103,31 @@ export function createRefreshWiring(deps) {
   const ledger = d.ledger || createLedger({ logCtx: logCtx })
   const gate = d.gate || createGate({ ledger: ledger, logCtx: logCtx })
 
+  // #758 剩余额度读数接线：七个工具动手前先保一次读数（差就免费读，不差不打）。
+  // 闸、账本、起 gh 三件都在本文件手里，包成一个函数递给工具依赖；失败只影响这一次调用，不抛。
+  let deckQuotaSync = null
+  function quotaSyncOf() {
+    if (!deckQuotaSync) {
+      try {
+        deckQuotaSync = createDeckQuotaSync({
+          send: function (req, perform) { return gate.send(req, perform) },
+          syncDue: function () { try { return ledger.syncDue() } catch (eS) { return false } },
+          syncServer: function (readings) { try { return ledger.syncServer(readings) } catch (eW) { return null } },
+          runGh: function (a, c) { if (typeof d.runGh === 'function') return d.runGh(a, c); return Promise.resolve({ ok: false, error: 'no-runGh' }) },
+          logCtx: logCtx,
+        })
+      } catch (eC) { deckQuotaSync = null }
+    }
+    return deckQuotaSync
+  }
+  function ensureDeckReading(cwd, workspaceKey) {
+    try {
+      const q = quotaSyncOf()
+      if (!q || typeof q.ensureReading !== 'function') return Promise.resolve({ ok: false, reason: 'missing-dep' })
+      return q.ensureReading(cwd, workspaceKey)
+    } catch (eE) { return Promise.resolve({ ok: false, reason: 'ensure-threw' }) }
+  }
+
   // 写事件触发的那一次取数（b）：闸放行之后真去做的那一步。这里现在只报「这一次真的跑到了」，
   // 真去取行级增量（refresh/patch.js 的 run）那一条由 T18/patch 那一批接（见交付报告的「不确定」一节）。
   async function fetchForWriteEvent(step, meta) {
@@ -112,14 +139,23 @@ export function createRefreshWiring(deps) {
     getCacheDir: d.getCacheDir, logCtx: logCtx,
   })
 
-  // b：写事件订阅。订阅面是整个 DSH，门前砌的是「归我们的工作区根」白名单（见 writeEvents.js 文件头）。
-  // #723（T19）：把 handle 里判定过的那一笔喂给处理链（note），界面才有东西可读 —— 喂数据与读数是
-  // 同一个订阅的两头，只接一头会让界面恒显示「取到了、空的」（那比如实说「读不到」更坏）。
-  // backendOf 是链要的那个后端名（链只认 github/gitlab/markdown 三个白名单名字，空串会被它丢掉）。
+  // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.js 文件头）。
+  // #723：判定过的那一笔喂给处理链（note），否则界面恒显示空的。
+  // #746：命名摘要编排单例（ctx 与 getNaming 由宿主入口经 deps 给；任一缺失则钩子静默降级）。
+  let namingSummary = null
+  function summaryOf() {
+    if (!namingSummary && typeof d.getNaming === 'function') {
+      try { namingSummary = createNamingSummary({ ctx: d.ctx, getNaming: d.getNaming, logCtx: logCtx }) } catch (e) { namingSummary = null }
+    }
+    return namingSummary
+  }
+  function onDeckWrite(info) { try { const s = summaryOf(); if (s) s.onDeckWrite(info) } catch (e) {} return { ok: true } }
+  function onFirstAssistant(sid) { try { const s = summaryOf(); if (s) s.maybeSummarize(sid) } catch (e) {} }
   const writeEvents = d.writeEvents || createWriteEvents({
     gate: gate, fetch: fetchForWriteEvent, canonicalKey: d.canonicalKey, logCtx: logCtx,
     note: function (input) { try { return sessionTickets.note(input) } catch (e) { return null } },
     backendOf: function (rootKey) { return backendOfRoot(rootKey) },
+    onFirstAssistant: onFirstAssistant,
   })
 
   // c：视野模型。wf.focus 上报「我在看谁」之后，活跃集合就在这里，b 的白名单跟着它走。
@@ -261,13 +297,15 @@ export function createRefreshWiring(deps) {
           },
           backendCtx: function () { return backendObj },
           invalidate: function (info) {
-            // 写成功之后把那个工作区的快照缓存作废（下一次打开面板重建）；与 wf.commentIssue 同一语义。
             try {
               const root = (info && info.workspace && info.workspace.root) || (info && info.cwd)
               if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) })
-            } catch (e) { /* 缓存失效失败不影响已经写成的结果 */ }
+            } catch (e) {}
           },
+          onTicketCreated: onDeckWrite,   // #746：建票直达命名守护（调用会话即建号会话）
           hourUsage: function () { try { return ledger.hourOf('ai-tool') || {} } catch (e) { return {} } },
+          ensureReading: function (cwd, workspaceKey) { return ensureDeckReading(cwd, workspaceKey) }, // #758 动手前保读数：差就免费读一次，不差不打；失败调用方照旧被闸推迟
+          noteGate: function (info) { try { noteDeckGate(info) } catch (eN) {} }, // #758 闸口径迹：探针读走，线上卡在哪段一眼可见
           log: logCtx || null,
           // #723（T19c）：工作区键用与活跃集合同一把短散列（workspaceKeyOf）——**不许**在这里用别的归一
           // （散列层级不同、长度不同、空串，都会让闸里那一格从来不是活跃，于是每一笔都被判推迟；
@@ -342,6 +380,7 @@ export function createRefreshWiring(deps) {
     deltaEnter: deltaEnter,
     syncAttention: syncAttention,
     noteWorkspaceActive: noteWorkspaceActive,
+    firstTextOf: function (sid) { try { return readFirstUserText(d.ctx, sid) } catch (e) { return Promise.resolve(null) } }, // #746 首句直读（读而不激活；失败即 null）
     attach: attach,
     once: once,
     stats: function () {

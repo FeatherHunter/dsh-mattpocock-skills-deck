@@ -41,6 +41,27 @@ export function evaluateRenameLock({ currentTitle, lastMachineTitle, baselineTit
   return 'unlocked'
 }
 
+// ============ 原生首句标题免锁（#746 · 0.1.7 底座行为）============
+// 底座新版在首条用户消息发出后，先把首句裁剪写成会话标题（与机器、用户都无关）；旧判据
+// 把它当手改永久锁定，占位从此无人替换。免锁只认派生关系：当前标题是本会话首句原文
+// 或其截断（归一空白后相等，或首句以前缀覆盖标题）。真手改（与首句无关）仍判锁定。
+function normTitleLine(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+export function isNativeAutoTitle({ currentTitle, firstUserText }) {
+  const cur = normTitleLine(currentTitle), first = normTitleLine(firstUserText)
+  if (!cur || !first) return false
+  return cur === first || first.indexOf(cur) === 0
+}
+// 锁执行点的豁免组合（evaluateRenameLock 原判据不动；调用方判 locked 后追问一句）。
+// 豁免三条件缺一不可：未锁定、机器从未写过、标题确系首句派生；读不到首句即不免。
+export function exonerateNativeTitle(cur, lock) {
+  try {
+    const l = lock || {}
+    if (l.locked) return false
+    if (l.lastMachineTitle != null) return false
+    return isNativeAutoTitle({ currentTitle: cur, firstUserText: l.firstUserText })
+  } catch (e) { return false }
+}
+
 // ============ 跟踪态结构 + 分档状态机 ============
 // #264：结构 { sessionId, stage, lastMachineTitle, locked, repoKey, createdAt, updatedAt }
 // 本实现追加 baselineTitle（注册基准占位，值比对锁在「机器首次写入前」仍需基准）与 hint
@@ -61,7 +82,8 @@ export const NAMING_STAGES = {
 // 产出 kind:'refined' 计划单（语言无关载荷）；③ 界面半 executeNamingOrder 按 kind 分派
 // 合成。三处皆在本文件与本批注所指签名内扩展，无需新增通道。
 
-// 线索宽限：注册后等待面包屑线索的窗口；到时无线索 → 裸档 P1 升级（每会话 P1 至多一次）
+// 线索宽限：注册后等待线索的窗口；到时无线索 → 裸档 P1 升级；后到线索可再升级一次
+// （每条线索至多升级一次，用完即记 lastDraftHint，见 planOrderFor 草稿档分支 · #746）
 export const NAMING_HINT_GRACE_MS = 20000
 
 export function createTrackingState({ sessionId, baselineTitle, repoKey, cwd }) {
@@ -80,11 +102,17 @@ export function createTrackingState({ sessionId, baselineTitle, repoKey, cwd }) 
     number: null,
     numberTitle: null,
     numberedDone: false,
+    // #746：上次草稿升级用掉的线索（后到不同线索可再升级一次；无/相同则不出单）
+    lastDraftHint: null,
     // #267 追加：界面执行失败的有限重试入账（failCount=连败次数 / lastFailAt=末次失败时刻 /
     // lastError=末次错误摘要；成功改名与全新编号跃迁均清零重来）——盘上旧账缺失按 0/null 容错。
     failCount: 0,
     lastFailAt: null,
     lastError: null,
+    // #746 追加：首轮摘要只调一次（summaryOnce=好线索已入账 / summaryFailed=调模型失败永不补调；
+    // 读不到两段、没路由等未遂不记旗，后续触发可再试）——盘上旧账缺失按 false 容错。
+    summaryOnce: false,
+    summaryFailed: false,
     createdAt: now,
     updatedAt: now,
   }
@@ -107,6 +135,8 @@ export function reduceTrackingState(state, event) {
     // 界面半回报：机器成功改名（title = DSH 归一化后实际接受的标题）
     if (!next.locked && ev.title) {
       if (next.stage === NAMING_STAGES.PLACEHOLDER) next.stage = NAMING_STAGES.DRAFT
+      // #746：草稿档落定时记下用掉的线索，后到不同线索才能再升级（防重复/循环）
+      if (next.stage === NAMING_STAGES.DRAFT) next.lastDraftHint = next.hint || null
       next.lastMachineTitle = String(ev.title)
       // #267：任何成功改名即清账重来（有限重试预算只针对连续失败的同一目标）
       next.failCount = 0; next.lastFailAt = null; next.lastError = null
@@ -143,6 +173,16 @@ export function reduceTrackingState(state, event) {
       next.lastError = String(ev.error || 'rename failed').slice(0, 200)
       next.updatedAt = Date.now()
     }
+  } else if (ev.type === 'summaryDone') {
+    // #746：首轮摘要好线索入账（hint 由摘要任务随事件带来，一并记 summaryOnce；只调一次）。
+    if (!next.locked) {
+      if (ev.hint) next.hint = String(ev.hint).slice(0, 80)
+      next.summaryOnce = true
+      next.updatedAt = Date.now()
+    }
+  } else if (ev.type === 'summaryFailed') {
+    // #746：调模型失败永不补调（与改名重试预算无关，互不拖累）。
+    if (!next.locked) { next.summaryFailed = true; next.updatedAt = Date.now() }
   }
   return next
 }
@@ -188,8 +228,9 @@ export function namingFailureInfo(state) {
 }
 
 /**
- * 待办改名计划单（纯函数产出）：locked / 非占位档 → 无单；
- * 有线索 → 携线索；无线索但过线索宽限 → 裸档；未过宽限 → 等待。
+ * 待办改名计划单（纯函数产出）：locked / 非占位档 → 无单（草稿档后到不同线索除外）；
+ * 有线索 → 携线索；无线索但过线索宽限 → 裸档；未过宽限 → 等待；
+ * 草稿档落定后后到不同线索 → 再升级一次（#746）。
  * 订单只携带会话标识与目标语义段信息，不含语言相关字面量（#264 D2）。
  */
 export function planOrderFor(state, now, hintGraceMs) {
@@ -223,7 +264,21 @@ export function planOrderFor(state, now, hintGraceMs) {
       },
     }
   }
-  if (state.stage !== NAMING_STAGES.PLACEHOLDER) return null
+  if (state.stage !== NAMING_STAGES.PLACEHOLDER) {
+    // #746：草稿档落定后，后到不同线索可再升级一次（无线索或与上次已用一致 → 不出单，防循环）
+    if (state.stage !== NAMING_STAGES.DRAFT) return null
+    if (!state.hint || state.hint === (state.lastDraftHint || null)) return null
+    return {
+      sessionId: state.sessionId,
+      kind: 'draft',
+      hint: state.hint,
+      lock: {
+        lastMachineTitle: state.lastMachineTitle,
+        baselineTitle: state.baselineTitle,
+        locked: state.locked,
+      },
+    }
+  }
   const ts = typeof now === 'number' ? now : Date.now()
   const grace = typeof hintGraceMs === 'number' ? hintGraceMs : NAMING_HINT_GRACE_MS
   if (!state.hint && (ts - (state.createdAt || ts)) < grace) return null

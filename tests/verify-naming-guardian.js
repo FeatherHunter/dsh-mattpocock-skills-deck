@@ -99,6 +99,16 @@ eq(m.evaluateRenameLock({ currentTitle: '用户改的', lastMachineTitle: null, 
 eq(m.evaluateRenameLock({ currentTitle: null, lastMachineTitle: null, baselineTitle: '[New] x' }), 'unknown', '当前标题不可读 → unknown')
 eq(m.evaluateRenameLock({ currentTitle: '', lastMachineTitle: '', baselineTitle: '' }), 'unknown', '空串标题 → unknown')
 eq(m.evaluateRenameLock({ currentTitle: 'x', lastMachineTitle: null, baselineTitle: null }), 'unlocked', '无基准防御态 → unlocked')
+// #746 原生首句标题免锁（0.1.7 底座先写首句裁剪；误判手改即永久锁死，故加豁免）
+eq(m.isNativeAutoTitle({ currentTitle: '/wayfinder 请帮我新增一个 BUG 单', firstUserText: '/wayfinder 请帮我新增一个 BUG 单' }), true, '原生标题与首句一致 → 免锁')
+eq(m.isNativeAutoTitle({ currentTitle: '/wayfinder 请帮我新增一个 BUG', firstUserText: '/wayfinder 请帮我新增一个 BUG 单，详情稍后补充' }), true, '原生标题是首句截断 → 免锁')
+eq(m.isNativeAutoTitle({ currentTitle: '我手改的标题', firstUserText: '/wayfinder 请帮我新增一个 BUG 单' }), false, '真手改（与首句无关）→ 不免')
+eq(m.isNativeAutoTitle({ currentTitle: '/wayfinder 请帮我新增一个 BUG 单', firstUserText: null }), false, '读不到首句 → 不免（降级走旧判据）')
+eq(m.isNativeAutoTitle({ currentTitle: '', firstUserText: 'x' }), false, '空标题 → 不免')
+eq(m.exonerateNativeTitle('/wayfinder 请帮我新增一个 BUG 单', { lastMachineTitle: null, locked: false, firstUserText: '/wayfinder 请帮我新增一个 BUG 单' }), true, '机器从未写过 + 原生标题 → 豁免成立')
+eq(m.exonerateNativeTitle('我手改的标题', { lastMachineTitle: null, locked: false, firstUserText: '/wayfinder 首句' }), false, '真手改 → 豁免不成立')
+eq(m.exonerateNativeTitle('/wayfinder 首句', { lastMachineTitle: '[草稿] x', locked: false, firstUserText: '/wayfinder 首句' }), false, '机器写过之后 → 豁免不适用（走旧判据）')
+eq(m.exonerateNativeTitle('/wayfinder 首句', { lastMachineTitle: null, locked: true, firstUserText: '/wayfinder 首句' }), false, '已锁 → 豁免不适用')
 
 // ---------- 6) 跟踪态结构 + 分档状态机 + 计划单 ----------
 console.log('\n— 跟踪态 / 状态机 / 计划单 —')
@@ -127,7 +137,16 @@ console.log('\n— 跟踪态 / 状态机 / 计划单 —')
   const stRenamed = m.reduceTrackingState(st1, { type: 'renamed', title: '[草稿] 修复登录闪退' })
   eq(stRenamed.stage, m.NAMING_STAGES.DRAFT, 'renamed → 升入草稿档')
   eq(stRenamed.lastMachineTitle, '[草稿] 修复登录闪退', '记录机器最后写入值（值比对锚）')
-  eq(m.planOrderFor(stRenamed, Date.now() + 99999, 20000), null, '草稿档后不再出 P1 单（每会话 P1 至多一次）')
+  eq(m.planOrderFor(stRenamed, Date.now() + 99999, 20000), null, '草稿档线索用完 → 不再出单（防循环）')
+  const stUpgrade = m.reduceTrackingState(stRenamed, { type: 'signal', hint: '晚到的第二条线索' })
+  const upOrder = m.planOrderFor(stUpgrade, Date.now() + 99999, 20000)
+  check(!!upOrder && upOrder.kind === 'draft' && upOrder.hint === '晚到的第二条线索', '草稿档后到不同线索 → 再升级一次（#746）')
+  const stUpgraded = m.reduceTrackingState(stUpgrade, { type: 'renamed', title: '[草稿] 晚到的第二条线索' })
+  eq(m.planOrderFor(stUpgraded, Date.now() + 99999, 20000), null, '升级用完线索 → 不再出单（防循环）')
+  const stSum = m.reduceTrackingState(st1, { type: 'summaryDone', hint: '模型给的好线索' })
+  check(stSum.summaryOnce === true && stSum.hint === '模型给的好线索', '摘要好线索入账并记 summaryOnce（#746）')
+  const stSumFail = m.reduceTrackingState(st1, { type: 'summaryFailed' })
+  check(stSumFail.summaryFailed === true && stSumFail.hint === '修复登录闪退', '摘要失败记 summaryFailed 且不丢原线索（#746）')
 
   const stLocked = m.reduceTrackingState(st1, { type: 'locked' })
   check(stLocked.locked === true, '锁定信号生效')
@@ -136,6 +155,50 @@ console.log('\n— 跟踪态 / 状态机 / 计划单 —')
   const stNum = m.reduceTrackingState(stRenamed, { type: 'numbered', number: 265 })
   eq(stNum.stage, m.NAMING_STAGES.NUMBERED, '编号跃迁为预留位（#266 消费）')
   eq(stNum.number, 265, '编号信息随跃迁携带')
+}
+
+// ---------- 6.5) 摘要编排纯函数（#746：首轮两段提取与路由定位，底座改形即红）----------
+console.log('\n— 摘要编排纯函数 —')
+{
+  const sum = await import('../src/host/platform/namingSummary.js')
+  eq(sum.textOfMessage({ content: [{ type: 'text', text: '你好' }, { type: 'image' }] }), '你好', 'content 块只取文本')
+  eq(sum.textOfMessage({ text: ' 正事儿 ' }), ' 正事儿 ', 'text 字段原样回')
+  const evs = [
+    { seq: 3, type: 'assistant/message', data: { message: { id: 'a1', content: [{ type: 'text', text: '收到' }] } } },
+    { seq: 1, type: 'user/message', data: { id: 'u1', content: [{ type: 'text', text: '需求' }] } },
+    { seq: 2, type: 'assistant/attempt', data: {} },
+  ]
+  const pair = sum.pickFirstExchange(evs)
+  check(pair.user === '需求' && pair.asst === '收到', '首轮两段按 seq 取，过程态跳过（#746）')
+  const evs2 = [
+    { seq: 1, type: 'request/header', data: { header: { provider: 'p', model: 'm' } } },
+    { seq: 2, type: 'request/header', data: { header: { provider: 'p2', model: 'm2' } } },
+  ]
+  const route = sum.latestRoute(evs2)
+  check(route && route.provider === 'p2' && route.model === 'm2', '路由取最新请求头（#746）')
+  check(sum.latestRoute([{ seq: 1, type: 'user/message', data: {} }]) === null, '无请求头即无路由（#746）')
+  eq(sum.cleanSummaryText('  “标题内容”  '), '标题内容', '摘要清洗去引号取首行十字以内（#746）')
+  // 终局去重：同一终局第二次不读状态不记行；瞬态每次都走（#746 日志第一性）。
+  let reads = 0, fires = []
+  const stubNaming = {
+    getEntry: async function () { reads++; return { stage: 'placeholder', locked: false, summaryOnce: true, summaryFailed: false, hint: '旧线索' } },
+    applySummaryResult: async function () { return { ok: true } },
+    handleDirectCreated: async function () { return { ok: true } },
+  }
+  const jb = sum.createNamingSummary({ ctx: null, getNaming: async function () { return stubNaming }, logCtx: { fire: function (l, e, f) { fires.push([e, f.outcome]) } } })
+  await jb.maybeSummarize('s-term')
+  await jb.maybeSummarize('s-term')
+  check(reads === 1 && fires.filter(function (f) { return f[0] === 'naming.summary' }).length === 1, '终局结论第二次不读不记（#746）')
+  let reads2 = 0
+  const stubNaming2 = {
+    getEntry: async function () { reads2++; return { stage: 'placeholder', locked: false, summaryOnce: false, summaryFailed: false, hint: null } },
+    applySummaryResult: async function () { return { ok: true } },
+    handleDirectCreated: async function () { return { ok: true } },
+  }
+  const jb2 = sum.createNamingSummary({ ctx: null, getNaming: async function () { return stubNaming2 }, logCtx: { fire: function () {} } })
+  await jb2.maybeSummarize('s-trans')
+  await jb2.maybeSummarize('s-trans')
+  check(reads2 === 2, '瞬态未遂每次都重走（可再试，#746）')
 }
 
 // ---------- 7) 单一真源守卫（防 e98f636 式静默删除 / 第二处实现回流）----------
@@ -151,6 +214,7 @@ console.log('\n— 单一真源守卫 —')
     check(hostSrc.includes("'" + op + "'"), 'host 注册操作（#211 复原 · 建号感知） ' + op)
   }
   check(hostSrc.includes('core.attributeNewNumbers') && hostSrc.includes('core.isNumberAwaitStage'), 'host 索引差值/候选取样走共享核心纯函数')
+  check(hostSrc.includes('function getEntry(') && hostSrc.includes('function applySummaryResult(') && hostSrc.includes('function handleDirectCreated('), 'host 摘要编排三公开方法存在（#746：只读快照/摘要入账/建票直达，状态写操作不出守护）')
   check(hostSrc.includes('function namingSweepNow(') && hostSrc.includes('function namingSweepSoon('), 'host 索引差值结算 + 即时推进存在')
   check(!hostSrc.includes('newSessionWatchers'), '旧 #211 内存轮询结构（newSessionWatchers Map）已退役（职责并入持久化守护）')
   check(hostSrc.includes('.dsh-mattskillsdeck-cache') && hostSrc.includes("naming-guardian.json"), '跟踪态落盘既有缓存目录')
@@ -166,6 +230,10 @@ console.log('\n— 单一真源守卫 —')
   const clientIdx = ['src/client/index.js', 'src/client/panelAssembly.js'].map((f) => readFileSync(join(ROOT, f), 'utf8')).join('\n') // #459：index.js 已拆出装配，此处读两文件拼起来的内容断言
   check(clientIdx.includes('// ==== shared:namingTitles (spliced by build) ====') && clientIdx.includes('// ==== shared:namingTracking (spliced by build) ====') && clientIdx.includes('// ==== shared:namingAttribution (spliced by build) ===='), 'client 闭包挂共享核心三拼接标记')
   check(clientIdx.includes('startNamingGuardianEvents()'), '#709：client 渲染钩子改为事件驱动启动（不再是 5 秒轮询）')
+  const trigSrc = ['probe-auto.js', 'store-snapshot.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n')
+  check(trigSrc.includes("namingGuardianEvent('manual-refresh')"), '#746：手动刷新入口顺带催改名拉取（三个刷新按钮同一入口全包）')
+  check(trigSrc.includes("namingGuardianEvent('store-touch')"), '#746：会话store首次落定顺带拉取（对话框挂载必经此路，不点面板也执行）')
+  check(!trigSrc.includes("namingGuardianEvent('heartbeat-carry')") && !readFileSync(join(ROOT, 'src/client/kernel/attention-heartbeat.js'), 'utf8').includes("namingGuardianEvent('heartbeat-carry')"), '#746：心跳不顺带拉取（心跳是刷新系统的油表，改名走用户动作事件）')
 
   const apiSrc = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：api.js 已拆为三文件，此处读三文件拼起来的内容断言（naming 含命名守护全家与工厂，new-session 含 openTextInNewSession，io 含 openInNewSession/inject）
   // （namingSignal 的 client 发送点在 store.js recordIssuePath，下一节单独断言）
@@ -187,6 +255,7 @@ console.log('\n— 单一真源守卫 —')
   check(hostClean, 'userRenamed 死代码全库清除（host 半）')
   const dupInClientKernel = (apiSrc.match(/function\s+(composeDraftTitle|evaluateRenameLock|isPlaceholderTitle)\s*\(/g) || []).length
   eq(dupInClientKernel, 0, 'client 内核无第二份核心实现（由共享核心 splice 注入）')
+  check(apiSrc.includes('exonerateNativeTitle('), '渲染钩子执行前追问原生标题豁免（#746：底座先写首句不得判手改）')
 }
 
 // ---------- 8) 编号跃迁消费（P2 · #266）----------
@@ -323,6 +392,7 @@ console.log('\n— #267 守卫断言 —')
   check(hostG.includes('exhausted: !!core.namingFailureInfo(next)'), 'failed 回报回执携带定败标记')
   // 预算常量只活在共享核心（两半均不得私藏第二份预算实现）
   check(!hostG.includes('NAMING_RETRY_MAX') && !hostG.includes('NAMING_RETRY_COOLDOWN_MS'), 'host 半无私藏重试预算常量')
+  check(hostG.includes('firstUserText'), 'host 计划单下发首句原文供免锁比对（#746：读而不激活，失败即 null）')
 
   const apiG = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：同上（reconcile/apply 在 naming，拉询链跨三文件）
   check(apiG.includes('function reconcileNamingFailure'), '界面半协商化解函数存在（只读探测绝不盲写）')

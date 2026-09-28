@@ -291,18 +291,19 @@
           try {
             if (sessions.list && typeof sessions.list.getSnapshot === 'function') {
               const snap = sessions.list.getSnapshot()
-              const row = snap && snap.byId && snap.byId[sid]
-              if (row && typeof row.cwd === 'string' && row.cwd) return row.cwd
+              const hit = ((snap && snap.byId) || {})[sid] || (function(){ try { const ls = snap && snap.items; if (Array.isArray(ls)) { for (let i = 0; i < ls.length; i++) { const r = ls[i]; if (r && (r.id === sid || r.sessionId === sid)) return r } } } catch (eScan) {} return null })()
+              const rcwd = hit && (hit.cwd || hit.path || hit.directory || hit.workspacePath || hit.worktree || hit.projectDir || (hit.header && (hit.header.cwd || hit.header.path)) || (hit.meta && (hit.meta.cwd || hit.meta.path)))
+              if (typeof rcwd === 'string' && rcwd) return rcwd
             }
           } catch (e2) {}
           if (typeof sessions.get === 'function') {
             const s = sessions.get(sid)
             if (s) {
               const header = s.header || s.meta
-              const cwd = header && (header.cwd || header.path || header.worktree || header.projectDir || header.directory)
+              const cwd = header && (header.cwd || header.path || header.worktree || header.projectDir || header.directory || header.workspacePath || header.root)
               if (typeof cwd === 'string' && cwd) return cwd
               const meta = s.meta
-              const cwd2 = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory)
+              const cwd2 = meta && (meta.cwd || meta.path || meta.worktree || meta.projectDir || meta.directory || meta.workspacePath || meta.root)
               if (typeof cwd2 === 'string' && cwd2) return cwd2
               if (typeof s.cwd === 'string' && s.cwd) return s.cwd
             }
@@ -315,7 +316,7 @@
       if (!sid) { return shared }
       let st = stores[sid]
       if (!st) {
-        st = makeStore(); st.sessionId = sid; stores[sid] = st
+        st = makeStore(); st.sessionId = sid; stores[sid] = st; try { if (typeof namingGuardianEvent === 'function') namingGuardianEvent('store-touch') } catch (eNT) {} // #746 会话store首次落定顺带拉取（每会话每窗口一次；对话框挂载必经此路）
         // #58 新 store 同步补 cwd 并尝试水合 per-cwd 缓存（秒开）
         if (!st.cwd) {
           const sync = getCwdSync(sid)

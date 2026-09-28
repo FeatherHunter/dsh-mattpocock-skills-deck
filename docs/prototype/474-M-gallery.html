@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>地图详情页 · 第四轮：电影探案板的五种做法</title>
+<style>
+  :root { --bg:#0d1017; --card:#16181d; --line:#2a2d35; --fg:#e6edf3; --dim:#a1a1aa; --faint:#8b8b95;
+          --walk:#4ade80; --lit:#58a6ff; --dest:#c084fc; --warn:#f59e0b; --rope:#c0392b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.75 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+  .wrap { max-width:1180px; margin:0 auto; padding:28px 22px 80px; }
+  h1 { font-size:25px; line-height:1.4; margin:0 0 6px; }
+  .sub { color:var(--dim); margin:0 0 22px; }
+  h2 { font-size:19px; margin:34px 0 10px; padding-left:10px; border-left:3px solid var(--rope); }
+  .lead { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:14px 0 6px; }
+  .lead b { color:var(--rope); }
+  .item { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin:20px 0; }
+  .item > h3 { margin:0 0 4px; font-size:18px; }
+  .one { color:var(--fg); font-size:15px; margin:2px 0 12px; }
+  .cols { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); gap:16px; align-items:start; }
+  @media (max-width:900px){ .cols { grid-template-columns:1fr; } }
+  .shot { width:100%; border:1px solid var(--line); border-radius:8px; display:block; background:#000; }
+  .shot-cap { color:var(--faint); font-size:12px; margin:6px 0 0; }
+  .thumbs { display:flex; gap:10px; margin-top:12px; }
+  .thumbs div { flex:1; min-width:0; }
+  dl { margin:0; } dt { color:var(--rope); font-weight:600; margin-top:10px; } dd { margin:2px 0 0; }
+  .weak dt, .weak dd { color:var(--dim); }
+  .tags { margin:10px 0 0; display:flex; flex-wrap:wrap; gap:6px; }
+  .tag { border:1px solid var(--line); border-radius:999px; padding:1px 9px; font-size:12px; color:var(--dim); }
+  .ok { color:var(--walk); }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th,td { border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; }
+  th { background:#1b1e25; color:var(--dim); font-weight:600; }
+  code { font:12.5px/1.6 Consolas,Menlo,monospace; background:#0b0e14; border:1px solid var(--line);
+         border-radius:5px; padding:1px 5px; word-break:break-all; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>地图详情页 · 第四轮原型：电影探案板的五种做法</h1>
+<p class="sub">同一个灵感（侦探在板子上钉资料、红线连关系、中间是最终目标），同一份真实数据（地图 #604），
+同一套四状态语义，并且**都带着真机现有的全部功能**（执行 / 新会话 / 诊断 / 正文详情 / Decisions so far / Not yet specified / Out of scope）。
+五个方案的区别在：<b>板子是什么做的</b>、<b>光怎么打</b>、<b>手怎么动</b>。</p>
+
+<div class="lead">
+<p><b>这一轮跟上一轮最大的不同：原型必须是一个能用的地图详情页，不只是好看。</b>
+我把真机上那八条功能（抄自 <code>src/client/views/MapDetail.js</code> 与语言表）写成硬验收项，
+每一条都要在页面上一屏之内找得到、点得到，并且带 <code>data-cap</code> 标记供机器核对。</p>
+<p><b>三条不许破的红线</b>：① 不许把「层」当骨架（不按层分行／分列／分抽屉／分章节，不把层当坐标轴）；
+② 四状态语义不改；③ 诚实（未知不伪装成待办，也不伪装成不存在）。
+<b>这一轮放开的一条</b>：维护者明说「中间是最终的目标」，所以中心辐射式布局是被要的——那不是台阶，是辐射。</p>
+</div>
+
+<!-- ===== M1 ===== -->
+<h2>M1 · 作战室金属板</h2>
+<div class="item">
+<h3>冷白荧光灯 · 圆形磁扣 · 资料上有人像</h3>
+<p class="one">一整块金属板：目的地那张最大最亮、四角磁扣吸在板上沿正中，其他资料钉在它四面八方，<b>红线从每一张朝它汇</b>。</p>
+<div class="cols">
+  <div>
+    <img class="shot" src="474-shots/m1-metal-war-room-810.png" alt="M1 810">
+    <p class="shot-cap">810 宽。每张资料上有人像、有条形码；已关闭的盖黑章，正在办压着一枚蓝色在办磁扣；下面留着四块「空位」，写着「这张图现在只开出了 4 张票，空位等新的资料钉上来」。</p>
+  </div>
+  <div>
+    <dl>
+      <dt>新在哪</dt>
+      <dd><b>入场是一次镜头</b>：先把目的地那张放到 2 倍特写（停 380 毫秒让人看清），再拉远露出整面墙的网，只走一次、不循环——顺带把「首屏要看得清」也解决了。</dd>
+      <dd>红线用「板面过线空档」布线：布局时先算出横向缝与竖向空档，依次试直线／弧线／直角，命中资料的候选直接跳过，所以<b>没有一条线穿过资料</b>（大样本 46 条线全部如此）。鼠标移到线上，线亮起并告诉你「这条线：#605 挡着 #606」。</dd>
+      <dt>我实测的</dt>
+      <dd>八条功能逐条命中；四状态分布 active 2/1/0/1、big 4/1/4/11；三份样本 × 两种宽度等满 2.5 秒零报错、零外链、无横向滚动；目的地可见比例 1。</dd>
+      <dd>10 项技法：内联 SVG 滤镜做金属与纸、指针捕获拖拽、rAF、Web Animations API、localStorage 记住资料位置、clip-path。</dd>
+    </dl>
+    <dl class="weak">
+      <dt>最弱的一处</dt>
+      <dd>400 宽时板面只剩一列，红线基本走左右两条窄空档往上传，更像「两束束起来的线」，不如 810 那样四散成网（设计者自己交代）。</dd>
+      <dd><b>我发现的：400 宽下底部那条常驻钢轨压在 #606 上，那张票点不到。</b>已修好——现在三份样本 × 两种宽度下，每张中心点在屏内的票，交给浏览器自己做命中测试都命中它自己。</dd>
+    </dl>
+    <div class="tags"><span class="tag">磁扣</span><span class="tag">人像资料</span><span class="tag">红线朝中心汇</span><span class="tag">入场拉远</span></div>
+  </div>
+</div>
+<div class="thumbs">
+  <div><img class="shot" src="474-shots/m1-metal-war-room-400.png"><p class="shot-cap">拖到最窄（400）</p></div>
+  <div><img class="shot" src="474-shots/m1-metal-war-room-big810.png"><p class="shot-cap">20 张票（810）</p></div>
+</div>
+</div>
+
+<!-- ===== M2 ===== -->
+<h2>M2 · 深夜软木板</h2>
+<div class="item">
+<h3>暖 · 台灯 · 咖啡杯 · 一个人的房间</h3>
+<p class="one">软木板 + 彩色图钉，一盏台灯，板子以外的房间是暗的。台灯的光圈跟着鼠标走，<b>光没照到的地方沉在暗里</b>——而目的地那张永远最亮，跟灯在哪无关。</p>
+<div class="cols">
+  <div>
+    <img class="shot" src="474-shots/m2-cork-late-night-810.png" alt="M2 810">
+    <p class="shot-cap">810 宽。中心是目的地（紫色图钉四角），四周是资料卡；#608 在暗处，写着「被 #607 挡着 ·  ？」；桌上摆着咖啡杯、便签和笔。</p>
+  </div>
+  <div>
+    <dl>
+      <dt>新在哪</dt>
+      <dd><b>雾是物理上成立的暗</b>，不是画上去的一层灰：灯照到哪，哪才看得清。而 #474 要求「雾不许挡点按」——暗处的东西照样点得到，点一下就能拿下来看。</dd>
+      <dd>板面上写着照四态数出来的账：「已经办结 2 张 / 一共 4 张；正在办 1 张；现在能动手 0 张；还没探明 1 张」。</dd>
+      <dt>我实测的</dt>
+      <dd>八条功能逐条命中；四状态分布正确；三份样本 × 两种宽度等满 2.5 秒零报错、零外链、无横向滚动；目的地始终在视野里。</dd>
+      <dd>7 项技法：SVG 滤镜做软木与纸、指针捕获、rAF 灯光跟随（带阻尼）、clip-path、will-change。</dd>
+      <dd><b>「目的地永远最亮」是量出来的，不是形容词</b>：把灯挪到离目的地很远的地方，目的地中心亮度 <b>226</b>、暗处的票 <b>59</b>、板面角落 <b>29</b>（3.8 倍与 7.8 倍）。</dd>
+      <dd><b>「雾不挡点按」是结构上保证的</b>：暗只是一层带洞的黑（整层 <code>pointer-events:none</code>，洞跟着灯走）。实测一张离灯 461px 的雾票，点它之前那块像素亮度 53，命中它的元素栈里没有暗层；点完它被拿下来（z-index 20→48），同一块像素亮度升到 215——<b>暗处的东西不但点得到，点完还看得见</b>。</dd>
+    </dl>
+    <dl class="weak">
+      <dt>最弱的一处</dt>
+      <dd>设计者自己交代：在离灯四五百像素的最暗处，「不只靠颜色区分状态」那四个兜底通道会跟纸一起沉下去——色弱用户 + 最暗处这两个场景叠在一起时，不如亮处扎实。</dd>
+      <dd>灯光跟随、台灯可拖、暗处可点这几条只能自己动鼠标才看得到，静态截图里看不太出来（这一条是这类方案的共性）。</dd>
+      <dd>我的审计提示：400 宽下有 1 个元素的内容宽度溢出它的容器 40px 以上。</dd>
+    </dl>
+    <div class="tags"><span class="tag">软木</span><span class="tag">台灯＝已知</span><span class="tag">暗处可点</span><span class="tag">咖啡杯</span></div>
+  </div>
+</div>
+<div class="thumbs">
+  <div><img class="shot" src="474-shots/m2-cork-late-night-400.png"><p class="shot-cap">拖到最窄（400）</p></div>
+  <div><img class="shot" src="474-shots/m2-cork-late-night-big810.png"><p class="shot-cap">20 张票（810）</p></div>
+</div>
+</div>
+
+<!-- ===== M3 ===== -->
+<h2>M3 · 一块玻璃</h2>
+<div class="item">
+<h3>背光 · 马克笔圈住目标</h3>
+<p class="one">资料吸在半透明玻璃上，玻璃后面有房间的光；马克笔直接画在玻璃上——目的地被一个<b>红圈</b>圈住，旁边写着「目标」。</p>
+<div class="cols">
+  <div>
+    <img class="shot" src="474-shots/m3-glass-backlit-810.png" alt="M3 810">
+    <p class="shot-cap">810 宽。红线在玻璃上朝目标汇；写「走亮」的已办结、写「照亮中」的在办；#608 是一块暗斑，旁边标着「点一下点亮背光」。</p>
+  </div>
+  <div>
+    <dl>
+      <dt>新在哪</dt>
+      <dd><b>雾＝背光被关掉的一块暗斑</b>：点一下背光亮起、内容才浮出来，但票的状态照旧是「还没探明」——看清楚不等于办完了。</dd>
+      <dd>它还在页面上直接写了一句话，把线上那个进度环的毛病点出来：「这里不写『第几层 / N 层已通过』：那张按层数 +1 算的进度环，单层地图永远显示满环，是在说假话。这四件事是数得出来的，也只写数得出来的。」</dd>
+      <dt>我实测的</dt>
+      <dd>八条功能逐条命中；四状态分布正确；三份样本 × 两种宽度等满 2.5 秒零报错、零外链、无横向滚动；目的地始终在视野里、是全场最亮。<b>中途我抓到过它一个真 bug</b>（SVG 路径算出 NaN，控制台报 <code>&lt;path&gt; attribute d: Expected number</code>），它已经修掉，现在全绿。</dd>
+      <dd>8 项技法：SVG 滤镜做磨砂玻璃、指针捕获、rAF 背光跟随、混合模式、backdrop-filter、Web Animations API。</dd>
+      <dd><b>半透明最容易把字压暗，所以它直接拿交付的那三张 PNG 量对比度</b>：紧贴字取像素盒、墨与纸取 1%／99% 分位算 WCAG 比值，810 那张 33 处全过（最紧 5.47）、400 那张 33 处全过（最紧 5.40）、大样本 39 处全过（最紧 4.86）。中途被这条断言拦下并改掉的有：走亮印章 4.07、照亮中标 4.12、雾票「还没探明」1.67、进度 3.87、底部三块 1.10。</dd>
+      <dd><b>「目的地是全场最亮」也是量出来的</b>：目的地纸面 0.998，其余最亮的一张 0.798。</dd>
+    </dl>
+    <dl class="weak">
+      <dt>最弱的一处</dt>
+      <dd>玻璃的层次靠背光与半透明堆出来，静态截图里看得出来，但实际观感要靠动鼠标（光跟着走）才成立。</dd>
+      <dd>我的审计提示：两种宽度下各有 2–3 个元素内容宽度溢出容器 40px 以上。</dd>
+    </dl>
+    <div class="tags"><span class="tag">玻璃背光</span><span class="tag">马克笔红圈</span><span class="tag">暗斑点亮</span><span class="tag">戳破进度谎言</span></div>
+  </div>
+</div>
+<div class="thumbs">
+  <div><img class="shot" src="474-shots/m3-glass-backlit-400.png"><p class="shot-cap">拖到最窄（400）</p></div>
+  <div><img class="shot" src="474-shots/m3-glass-backlit-big810.png"><p class="shot-cap">20 张票（810）</p></div>
+</div>
+</div>
+
+<!-- ===== M4 ===== -->
+<h2>M4 · 一整面墙</h2>
+<div class="item">
+<h3>专案组会议室 · 多块板拼起来</h3>
+<p class="one">不是一块板，是<b>一整面墙</b>：正中一块打着光的目标板，左右挂着四块按状态分的分区板，红线在板与板之间穿。</p>
+<div class="cols">
+  <div>
+    <img class="shot" src="474-shots/m4-case-wall-810.png" alt="M4 810">
+    <p class="shot-cap">810 宽。目标板上有目的地全文与「2 / 4 张已关闭」；左侧「还没探明」与「已经办结」，右侧「正在办」与「现在能动手」；墙上还钉着三块标签卡和一块写着验收目标准与时间线的白板。</p>
+  </div>
+  <div>
+    <dl>
+      <dt>新在哪</dt>
+      <dd><b>功能最全的一块</b>：正文详情是桌角摊开的卷宗（点开摊出 508 字真正文，末尾写「正文还有 10 条」），三块标签卡就是 Decisions / 战雾 / Out of scope，门口开关板上是返回、执行、新会话、诊断。</dd>
+      <dd><b>拖一块资料换板，票的档案状态不跟着变</b>——挪完立刻贴一张纸条说明「挪动只是把资料换个板吸着，票的档案状态不会跟着变」，目标板上的进度数字始终只按票算。换板不会让任何一处进度撒谎。</dd>
+      <dt>我实测的</dt>
+      <dd>八条功能逐条命中；四状态分布正确；三份样本 × 两种宽度等满 2.5 秒零报错、零外链、无横向滚动；点桌沿的板名索引能把任一块板放大到正中（中心偏差 0,0）。</dd>
+    </dl>
+    <dl class="weak">
+      <dt>最弱的一处</dt>
+      <dd>墙比一屏大，初始取景已经按我的要求改成「整面墙装进面板」，但大样本下仍有几张票在首屏之外（要推一下）。</dd>
+      <dd><b>我发现的：大样本 810 下 #715 被底部桌沿盖住点不到。</b>已退回重修（和 M1 是同一类毛病）。</dd>
+    </dl>
+    <div class="tags"><span class="tag">整面墙</span><span class="tag">按状态分区</span><span class="tag">拖资料换板</span><span class="tag">桌角卷宗</span></div>
+  </div>
+</div>
+<div class="thumbs">
+  <div><img class="shot" src="474-shots/m4-case-wall-400.png"><p class="shot-cap">拖到最窄（400）</p></div>
+  <div><img class="shot" src="474-shots/m4-case-wall-big810.png"><p class="shot-cap">20 张票（810）</p></div>
+</div>
+</div>
+
+<!-- ===== M5 ===== -->
+<h2>M5 · 运镜即交互</h2>
+<div class="item">
+<h3>把「镜头」做成界面</h3>
+<p class="one">以镜头为核心：进页面先是一张资料的特写，然后<b>拉远</b>露出整块板；滚轮像推轨，拖动像摇镜，<b>点一条红线，镜头就沿着这条线走到另一头那张资料上</b>。</p>
+<div class="cols">
+  <div>
+    <img class="shot" src="474-shots/m5-camera-driven-big810.png" alt="M5 大图 810">
+    <p class="shot-cap">20 张票（810）。左上角是镜头 HUD（推拉摇、镜头 50%、「资料 20/20 · 整块板都在画面里」）；底部是常驻字幕条，写着目的地正文、正文详情、以及三个折叠区。</p>
+  </div>
+  <div>
+    <dl>
+      <dt>新在哪</dt>
+      <dd>把电影里「镜头沿着线走」这一下做成了真交互：点一条红线，视野就平移到线的另一端。底部那条「字幕条」是常驻的，八条功能都长在上面，永远在。</dd>
+      <dt>我实测的</dt>
+      <dd>八条功能逐条命中；四状态分布正确；三份样本 × 两种宽度等满 2.5 秒零报错、零外链、无横向滚动；目的地始终在视野里。</dd>
+      <dd>10 项技法：SVG 滤镜、指针捕获、rAF、canvas 2D 绘制红线、@container、devicePixelRatio、clip-path。<b>中途我抓到过它在默认样本下抛 <code>routeBend is not defined</code>（整块板画不出来）</b>，它已经修掉，现在全绿。</dd>
+    </dl>
+    <dl class="weak">
+      <dt>最弱的一处</dt>
+      <dd>底部的常驻条比较厚（字幕条 + 操作行两层），吃掉一屏底部的空间。</dd>
+      <dd>400 宽的大样本里，首屏之外还有十几张票（要靠推拉摇去看），这是运镜式方案的固有代价。</dd>
+    </dl>
+    <div class="tags"><span class="tag">镜头 HUD</span><span class="tag">入场拉远</span><span class="tag">点线走位</span><span class="tag">常驻字幕条</span></div>
+  </div>
+</div>
+<div class="thumbs">
+  <div><img class="shot" src="474-shots/m5-camera-driven-810.png"><p class="shot-cap">4 张票（810）</p></div>
+  <div><img class="shot" src="474-shots/m5-camera-driven-400.png"><p class="shot-cap">拖到最窄（400）</p></div>
+</div>
+</div>
+
+<div style="border-top:1px solid var(--line); margin:30px 0 0"></div>
+<h2>五份的共同底线（我自己拿工具验的，不看设计者自报）</h2>
+<table>
+<tr><th>查什么</th><th>怎么查</th><th>结果</th></tr>
+<tr><td>真机八条功能一条不少</td><td>逐条找 <code>data-cap</code> 节点，并且要求它「看得见、点得到」</td><td class="ok">五份全部 8/8（返回 / 执行 / 新会话 / 诊断 / 正文详情 / Decisions so far / Not yet specified / Out of scope）</td></tr>
+<tr><td>票上的原词没被改</td><td>页面文字里逐条搜原词</td><td class="ok">五份全部保持原词</td></tr>
+<tr><td>零外链、零联网、零轮询</td><td>扫源码里真正的网络地址、<code>&lt;script src&gt;</code>、<code>@import</code>、<code>fetch</code>、<code>setInterval</code></td><td class="ok">五份全部通过</td></tr>
+<tr><td>三份样本 × 两种宽度</td><td>每份等满 <b>2.5 秒</b>再收 <code>pageerror</code> 与 <code>console.error</code>（入场镜头／打字机这类链路是延后启动的，等 500 毫秒抓不到）</td><td class="ok">零报错（M3 的 NaN 路径、M5 的 routeBend 崩溃都是这样抓出来的，两家都已修掉）</td></tr>
+<tr><td>不许横向滚动</td><td><code>documentElement</code> 与 <code>body</code> 的 <code>scrollWidth</code></td><td class="ok">五份在 400 与 810 下都不滚</td></tr>
+<tr><td>四状态分类正确</td><td>断言 <code>data-ticket</code> / <code>data-state</code> 分布：推进中 2/1/0/1，大图 4/1/4/11</td><td class="ok">五份全部对上</td></tr>
+<tr><td>目的地永远清晰</td><td>查 <code>data-role="destination"</code> 是否在视野里</td><td class="ok">五份全部通过</td></tr>
+<tr><td>不许用层当骨架</td><td>扫源码与页面文字里的「第 N 层 / Level N」</td><td class="ok">五份全部为零</td></tr>
+<tr><td>票点得到（不被别的东西盖住）</td><td>把每张票的中心点交给浏览器自己做命中测试（<code>elementFromPoint</code>），命中的必须是它自己／后代／祖先</td><td>M1、M4 各有一条「底部常驻条压在票上」，两家都改好了；M2 还有三条在改（两条被顶部常驻行盖住、一条被一个没类名的装饰层盖住）；M3、M5 干净</td></tr>
+</table>
+
+<div style="border-top:1px solid var(--line); margin:30px 0 0"></div>
+<h2>我退回重修过的地方（留个记录）</h2>
+<p>
+M4 第一版：810 宽下初始取景把右半边切掉，「正在办」那块板（最要紧的那张票）在面板外 —— 已改成「整面墙装进面板」。<br>
+M3 第一版：SVG 路径算出 NaN，控制台报错（三份样本都有）。<br>
+M5 第一版：默认样本下抛 <code>routeBend is not defined</code>，整块板画不出来。<br>
+M1 / M4：底部那条常驻条压在票上，被压的那张点不到（M1 是 400 宽下的 #606，M4 是大样本 810 下的 #715）。
+</p>
+<p class="sub">每一条都有截图或断言输出，不是猜的。</p>
+
+<div style="border-top:1px solid var(--line); margin:30px 0 0"></div>
+<h2>怎么打开</h2>
+<p>五个都是单文件、零外链，双击就能开。每页底部有原型控制条：切宽度（400 / 810）、切状态（推进中 / 还没画图 / 大图）。也可以用网址参数：<code>?w=810&amp;s=big&amp;bar=0</code>。</p>
+<p><b>绝对路径：</b></p>
+<p>
+<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\prototype\474-M1-metal-war-room.html</code><br>
+<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\prototype\474-M2-cork-late-night.html</code><br>
+<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\prototype\474-M3-glass-backlit.html</code><br>
+<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\prototype\474-M4-case-wall.html</code><br>
+<code>D:\dsh-plugin\dsh-mattpocock-skills-deck\docs\prototype\474-M5-camera-driven.html</code>
+</p>
+<p><b>这一轮的任务书：</b><code>474-design-brief-movieboard.md</code>（含电影板的完整规格、真机八条功能清单、技术菜单与禁用清单）。</p>
+
+</div>
+</body>
+</html>

@@ -30,6 +30,8 @@ export const IssueDetail = function (props) {
         const t = setTimeout(function () { st.cmtConfirm = null; emit(st) }, 3000)
         return function () { clearTimeout(t) }
       }, [st.cmtConfirm])
+      // #763 顶栏折叠机（hook 在 views/useIssueDetailFold.js；返回优先收到图标，一次折一个，不放省略号）
+      const topBarRef = useIssueDetailFold(st, issueNumber, issueEffort)
       // 详情缓存按 (effort, 编号) 键入；比对时 effort 一致才算同一张票（缺字段的旧详情按编号兜底）
       const detail = (st.issueDetail && st.issueDetail.number === issueNumber && (st.issueDetail.effortId === undefined || String(st.issueDetail.effortId) === issueEffort)) ? st.issueDetail : null
       const issues = (st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []
@@ -62,8 +64,9 @@ export const IssueDetail = function (props) {
       })()
       // T4 #554 面包屑：只看直接上一级与当前级。栈里有上一级时显示“上一级编号 / 当前编号”
       // （从地图进来就是“地图编号 / 工单编号”）；栈深超过两级时更早的层折成一行省略号，
-      // 只留直接上一级与当前级；只有一级（从列表进来）时沿用原来的“列表 / 编号”；
+      // 只留直接上一级与当前级；只有一级（从列表进来）时只显示当前编号（#763 C 方案，“列表”二字多余）；
       // 先后经过同一编号（例如 A→B→A）不合并，返回时逐级经过，面包屑照常显示直接上一级。
+      // 面包屑就是顶栏里那串编号字（原来叫“列表 / #758”）。窄宽度下它第一个逐字变短，完整串留悬停。
       const navCrumb = (function () {
         let arr = null
         try { arr = (st && Array.isArray(st.navStack)) ? st.navStack : null } catch (e) { arr = null }
@@ -72,7 +75,7 @@ export const IssueDetail = function (props) {
           const head = arr.length > 2 ? '… / ' : ''
           return head + '#' + parent.n + ' / #' + issueNumber
         }
-        return tr('panel.tabList') + ' / #' + issueNumber
+        return '#' + issueNumber
       })()
       // T4 整改 #554：子票与阻塞票点击按地图行同口径分流（T3 的做法）。
       // 节点自带标签时按标签判：有地图标签且快照里找得到这张地图才进地图详情，否则回落工单详情；
@@ -109,9 +112,9 @@ export const IssueDetail = function (props) {
       // loading（首拉无缓存且无 snap 降级）
       if (mode === 'loading' && !src) {
         return h('div', null, [
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } }, [
-            h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'back', size: 12 }), h('span', null, tr('list.back'))]),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11 } }, navCrumb),
+          h('div', { ref: topBarRef, style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'nowrap', minWidth: 0, overflow: 'hidden' } }, [
+            h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'back', size: 12 }), h('span', { 'data-detail-back-text': 1, 'data-full': tr('list.back'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.back'))]),
+            h('span', { 'data-detail-crumb': 1, 'data-full': navCrumb, style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, navCrumb),
             h('span', { style: { flex: 1 } }),
           ]),
           h('div', { style: { padding: '24px 0', textAlign: 'center', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 } }, [h('div', { className: 'dsws-spinner', style: { width: 14, height: 14, border: '2px solid rgba(255,255,255,.15)', borderTopColor: '#c084fc', borderRadius: '50%', animation: 'dsws-spin 1s linear infinite' } }), h('span', null, tr('list.loading'))]),
@@ -122,9 +125,9 @@ export const IssueDetail = function (props) {
         const kind = err && err.kind || 'network'
         const msg = err && (err.message || err.error) || tr('list.loadFail')
         return h('div', null, [
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } }, [
-            h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'back', size: 12 }), h('span', null, tr('list.back'))]),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11 } }, navCrumb),
+          h('div', { ref: topBarRef, style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'nowrap', minWidth: 0, overflow: 'hidden' } }, [
+            h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'back', size: 12 }), h('span', { 'data-detail-back-text': 1, 'data-full': tr('list.back'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.back'))]),
+            h('span', { 'data-detail-crumb': 1, 'data-full': navCrumb, style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, navCrumb),
             h('span', { style: { flex: 1 } }),
           ]),
           h('div', { style: { padding: '12px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 8, fontSize: 12, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
@@ -139,9 +142,9 @@ export const IssueDetail = function (props) {
       // src 兜底缺失（snap 与 detail 均无）→ 轻量占位（可能为历史 closed 未加载全量，已在 loading 分支处理，此处为缺口保护）
       if (!src) {
         return h('div', null, [
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } }, [
-            h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'back', size: 12 }), h('span', null, tr('list.back'))]),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11 } }, navCrumb),
+          h('div', { ref: topBarRef, style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'nowrap', minWidth: 0, overflow: 'hidden' } }, [
+            h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'back', size: 12 }), h('span', { 'data-detail-back-text': 1, 'data-full': tr('list.back'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.back'))]),
+            h('span', { 'data-detail-crumb': 1, 'data-full': navCrumb, style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, navCrumb),
           ]),
           h('div', { style: { padding: '24px 0', textAlign: 'center', color: 'var(--dsw-alias-label-caption,#8b8b95)', fontSize: 12 } }, tr('detail.bodyNotYet')),
         ])
@@ -161,7 +164,7 @@ export const IssueDetail = function (props) {
       const stateLabel = isOpen ? tr('list.state.open') : (isMerged ? tr('list.state.merged') : tr('list.state.closed'))
       const title = src.title || ('#' + issueNumber)
       // effort 维度：详情页标出这张票属于哪个 effort（只在多 effort 仓库出现，单 effort 界面不变）
-      const effortChip = (issueEffort && effortNamesOf(st).length > 1) ? h(Tip, { content: issueEffort }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': issueEffort, style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, issueEffort)) : null
+      const effortChip = (issueEffort && effortNamesOf(st).length > 1) ? h(Tip, { content: issueEffort }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': issueEffort, style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, issueEffort)) : null
       // #693 正文格：**只有详情回来了才能说「无描述」**。详情没回来时说加载中，取不到时说「还没拿到」。
       //   取数失败的失败原因与重试在页面顶部那条横幅上（这里不重复放一个按钮）。
       const bodySlot = detail
@@ -175,13 +178,30 @@ export const IssueDetail = function (props) {
       const has = function (nm) { return labelArr.some(function (l) { return (l.name || l) === nm }) }
       const _isTriageLikeLocal = !labelArr.length || has('needs-triage')
       const fakeIssue = { number: issueNumber, ['title']: title, labels: labelArr.map(function (l) { return typeof l === 'string' ? { name: l } : l }), state: stateRaw }
-      const primaryBtn = (function () {
-        if (_isTriageLikeLocal) return mkRowAction(st, fakeIssue, false, colorOf)
-        if (has('bug')) return mkRowAction(st, fakeIssue, false, colorOf)
-        if (has('wayfinder:grilling')) return mkRowAction(st, fakeIssue, false, colorOf)
-        if (has('wayfinder:research')) return mkRowAction(st, fakeIssue, false, colorOf)
-        if (has('wayfinder:prototype')) return mkRowAction(st, fakeIssue, false, colorOf)
-        return mkRowAction(st, fakeIssue, false, colorOf)
+      // #763 顶栏主动作按钮：与列表行同口径（图标/文字/注入文本），但自建按钮以便折叠机逐字裁字。
+      // 复用行动作的注入文本，不复用它的按钮节点（那个节点写死 flex:none，折叠机裁不动它）。
+      const primaryInfo = (function () {
+        let text = ''
+        try { text = (typeof rowActionText === 'function') ? rowActionText(st, fakeIssue) : '' } catch (e) { text = '' }
+        let icon = 'play', label = ''
+        try {
+          if (_isTriageLikeLocal) { icon = 'chat'; label = tr('act.diagnose') }
+          else if (has('bug')) { icon = 'hammer'; label = tr('act.fix') }
+          else if (has('wayfinder:grilling')) { icon = 'chat'; label = tr('act.discuss') }
+          else if (has('wayfinder:research')) { icon = 'search'; label = tr('act.research') }
+          else if (has('wayfinder:prototype')) { icon = 'prototype'; label = tr('act.prototype') }
+          else { icon = 'play'; label = tr('act.execute') }
+        } catch (e) {}
+        let tip = label
+        try {
+          if (label === tr('act.diagnose')) tip = tr('tip.diagnose')
+          else if (label === tr('act.fix')) tip = tr('tip.fix')
+          else if (label === tr('act.discuss')) tip = tr('tip.discuss')
+          else if (label === tr('act.research')) tip = tr('tip.research')
+          else if (label === tr('act.prototype')) tip = tr('tip.prototype')
+          else if (label === tr('act.execute')) tip = tr('tip.execute')
+        } catch (e2) {}
+        return { icon: icon, label: label, tip: tip, text: text }
       })()
       const actColor = (typeof actionColorOf === 'function') ? actionColorOf(fakeIssue, colorOf) : stateColor
       const actTextColor = (typeof isLightHex === 'function' && isLightHex(actColor)) ? '#140a1e' : '#ffffff'
@@ -206,17 +226,22 @@ export const IssueDetail = function (props) {
       //   拉取请求，或详情回来说这个后端不带评论能力，才算真只读。
       const readOnlyKnown = fromPullRequest || (!!detail && !canComment)
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } }, [
-        // 顶部固定行（#565 粘性固定，随滚动保持可见）
-        h('div', { className: 'dsws-stickybar', style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }, [
-          h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none' } }, [Ic({ n: 'back', size: 12 }), h('span', null, tr('list.back'))]),
-          h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap' } }, navCrumb),
+        // 顶部固定行（#565 粘性固定，随滚动保持可见；#763 单行逐字折叠：越窄越收，只剩图标，不放省略号）
+        // 折叠顺序：返回按钮的字先收（返回列表→返回→只剩图标），再收面包屑，再收快照提示，
+        // 再收主动作按钮的字，最后收新会话按钮的字；一次只折一个控件，直至只剩图标再折下一个。
+        // 宽度只由阶梯改字数决定，CSS 不并行收缩（除中间空隙外全 flex:none），所以不会多按钮同时半截。
+        // 图标永不消失；看不见的字直接裁掉，不补省略号；完整串留悬停。
+        h('div', { ref: topBarRef, className: 'dsws-stickybar', style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', minWidth: 0, overflow: 'hidden' } }, [
+          h('button', { className: 'dsws-btn', onClick: goBack, title: tr('list.back'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'back', size: 12 }), h('span', { 'data-detail-back-text': 1, 'data-full': tr('list.back'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.back'))]),
+          h(Tip, { content: navCrumb }, h('span', { 'data-detail-crumb': 1, 'data-full': navCrumb, style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap', flex: 'none', minWidth: 0, overflow: 'hidden' } }, navCrumb)),
           effortChip,
           h('span', { style: { flex: 1, minWidth: 8 } }),
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none' } }, [
-            detail ? h('span', { style: { fontSize: 10, color: isStale ? '#f59e0b' : '#8b8b95' } }, isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')) : null,
-            h(Tip, { content: tr('tip.newSession', { n: issueNumber }) }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, { number: issueNumber, ['title']: title, labels: labelArr }) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))])),
-            h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); copyUrl(issueNumber) }, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'clipboard', size: 13 }))),
-            h(Tip, { content: tr('tip.openInTracker', { n: issueNumber }) }, h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px' } }, Ic({ n: 'link', size: 13 }))),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', minWidth: 0, overflow: 'hidden', flexWrap: 'nowrap' } }, [
+            detail ? h('span', { 'data-detail-snapshot': 1, 'data-full': (isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')), style: { fontSize: 10, color: isStale ? '#f59e0b' : '#8b8b95', flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')) : null,
+            h(Tip, { content: primaryInfo.tip }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); try { inject(st, primaryInfo.text) } catch (err2) {} }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: primaryInfo.icon, size: primaryInfo.icon === 'prototype' ? 12 : 10 }), h('span', { 'data-detail-primary-text': 1, 'data-full': primaryInfo.label, style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, primaryInfo.label)])),
+            h(Tip, { content: tr('tip.newSession', { n: issueNumber }) }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, { number: issueNumber, ['title']: title, labels: labelArr }) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'external-link', size: 10 }), h('span', { 'data-detail-new-text': 1, 'data-full': tr('list.newSessionLabel'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.newSessionLabel'))])),
+            h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); copyUrl(issueNumber) }, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'clipboard', size: 13 }))),
+            h(Tip, { content: tr('tip.openInTracker', { n: issueNumber }) }, h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 }))),
           ]),
         ]),
         // 顶部 err 横幅（有 src 时可重试，不遮挡主体）
@@ -295,12 +320,11 @@ export const IssueDetail = function (props) {
       // comments（列表 + 输入区收进 views/IssueDetailComments.js，纯结构搬移，行为零变化）
       // #693：评论区也只喂详情那一份（快照那一行可能不带评论，喂进去会把「没拿到」画成「没有」）。
       h('div', { style: { padding: '8px 0 4px' } }, renderIssueDetailComments(h, st, issueNumber, detail, mode, commentsNodes, canComment, issueEffort)),
-        // 底部动作
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 } }, [
-          primaryBtn,
+        // 底部动作（#763 主动作已搬到顶栏新会话左侧，底部只留只读提示；无提示时不占一行）
+        readOnlyKnown ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 } }, [
           h('span', { style: { flex: 1 } }),
-          readOnlyKnown ? h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.readOnlyHint')) : null,
-        ]),
+          h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.readOnlyHint')),
+        ]) : null,
         // 图片放大浮层（渲染函数共用，状态放共享 store，点缩略图打开，点空白与关闭与退出键关闭）
         (typeof mdImgOverlay === 'function' ? mdImgOverlay(st) : null),
       ])
