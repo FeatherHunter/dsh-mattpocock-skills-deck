@@ -15,6 +15,7 @@ export const definition = {
     properties: {
       key: { type: 'string', description: '票号，例如 713' },
       comments: { type: 'number', description: '最多带回几条评论，缺省 50' },
+      section: { type: 'string', description: '只回正文里这一节（## 标题子串），缺省回全文前 2000 字' },
     },
     required: ['key'],
     additionalProperties: false,
@@ -27,8 +28,28 @@ function issueBrief(issue) {
     key: issue.key, title: issue.title, state: issue.state, type: issue.type,
     labels: Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : [],
     assignees: Array.isArray(issue.assignees) ? issue.assignees.map((a) => (a && a.login) || String(a)) : [],
-    updatedAt: issue.updatedAt || '', url: issue.url || '', body: issue.body !== undefined ? issue.body : null,
+    updatedAt: issue.updatedAt || '', closedAt: issue.closedAt || '', url: issue.url || '', body: issue.body !== undefined ? issue.body : null,
   }
+}
+
+/** 按 ## 标题子串取正文节：找到就回节内文本，找不到回空（调用方如实注记，不猜）。 */
+function sectionOf(body, want) {
+  const src = typeof body === 'string' ? body : ''
+  const q = String(want === undefined || want === null ? '' : want).trim().toLowerCase()
+  if (!q) return { found: false, name: '', text: '' }
+  const lines = src.split('\n')
+  let start = -1
+  let name = ''
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^\s*##\s*(.+?)\s*$/.exec(lines[i])
+    if (m && String(m[1]).toLowerCase().indexOf(q) >= 0) { start = i; name = String(m[1]).trim(); break }
+  }
+  if (start < 0) return { found: false, name: '', text: '' }
+  let end = lines.length
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^\s*##\s*.+\s*$/.test(lines[i])) { end = i; break }
+  }
+  return { found: true, name: name, text: lines.slice(start + 1, end).join('\n').replace(/^\n+|\s+$/g, '') }
 }
 
 export function createDeckIssueGet(deps) {
@@ -71,12 +92,20 @@ export function createDeckIssueGet(deps) {
       const rel = relationsOf(issue, dependencies)
       const notes = []
       if (dep && dep.ok !== true) notes.push('阻塞边这次没读到（后端原话：' + String((dep.error && dep.error.message) || '').slice(0, 200) + '）：上面只列了票自己带的那些。')
+      const bodyText = typeof issue.body === 'string' ? issue.body : ''
+      const sec = sectionOf(bodyText, a.section)
+      if (typeof a.section === 'string' && a.section.trim() !== '' && !sec.found) notes.push('正文里没找到标题含「' + String(a.section).trim().slice(0, 60) + '」的节，回的是全文前 2000 字。')
+      const excerpt = (sec.found ? sec.text : bodyText).slice(0, sec.found ? 2000 : 2000)
+      const stateText = String(issue.state || '未知状态')
+      const closedText = issue.closedAt ? '（关闭于 ' + String(issue.closedAt).slice(0, 10) + '）' : ''
       return {
         value: {
           status: DECK_STATUS.OK,
-          text: '票 ' + key + ' 读回来了：父票 ' + (rel.parentKey || '（没有）') + '，被阻塞 ' + rel.blockedBy.length + ' 条，阻塞别人 ' + rel.blocking.length + ' 条。',
+          text: '票 ' + key + ' 读回来了：状态 ' + stateText + closedText + '，父票 ' + (rel.parentKey || '（没有）') + '，被阻塞 ' + rel.blockedBy.length + ' 条，阻塞别人 ' + rel.blocking.length + ' 条。',
           data: {
             ticket: issueBrief(issue),
+            excerpt: excerpt,
+            section: sec.found ? { name: sec.name, text: excerpt } : null,
             relations: rel,
             landings: {
               // 读路径只知道「契约的字段里有这条关系」，分不出原生层级与平级链接，如实降一档（判据见 shell.js）。

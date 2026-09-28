@@ -19,6 +19,7 @@
 import { definition as deckContextDef } from '../tools/deckContext.js'
 import { definition as deckIssueGetDef } from '../tools/deckIssueGet.js'
 import { definition as deckMapSnapshotDef } from '../tools/deckMapSnapshot.js'
+import { definition as deckIssueListDef } from '../tools/deckIssueList.js'
 import { definition as deckIssueCreateDef } from '../tools/deckIssueCreate.js'
 import { definition as deckMapPlanCreateDef } from '../tools/deckMapPlanCreate.js'
 import { definition as deckMapLinkDef } from '../tools/deckMapLink.js'
@@ -29,7 +30,7 @@ import { awaitDeckTable, peekDeckTable, readDeckGate, noteDeckPath, readDeckPath
 export const name = 'dsh-mattpocock-skills-deck-tools'
 export const inject = ['tools']
 
-const SEVEN = [deckContextDef, deckIssueGetDef, deckMapSnapshotDef, deckIssueCreateDef, deckMapPlanCreateDef, deckMapLinkDef, deckIssuePatchDef]
+const SEVEN = [deckContextDef, deckIssueGetDef, deckMapSnapshotDef, deckIssueListDef, deckIssueCreateDef, deckMapPlanCreateDef, deckMapLinkDef, deckIssuePatchDef]
 
 function isRecord(v) { return v !== null && typeof v === 'object' && !Array.isArray(v) }
 

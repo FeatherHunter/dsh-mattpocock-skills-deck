@@ -33,6 +33,7 @@ const SEVEN_NAMES = [
   'deck_context',
   'deck_issue_get',
   'deck_map_snapshot',
+  'deck_issue_list',
   'deck_issue_create',
   'deck_map_plan_create',
   'deck_map_link',
@@ -135,11 +136,12 @@ async function main() {
   check(row && Array.isArray(row.inject) && row.inject.indexOf('tools') >= 0, '行模块注入工具服务（框架保证就绪才加载）')
   check(typeof row.name === 'string' && row.name.length > 0, '行模块有名字')
 
-  // ── 1. 用七个真定义跑转换：名字齐、形状合法、必填对上 ──
+  // ── 1. 用八个真定义跑转换：名字齐、形状合法、必填对上 ──
   const toolFiles = [
     'src/host/tools/deckContext.js',
     'src/host/tools/deckIssueGet.js',
     'src/host/tools/deckMapSnapshot.js',
+    'src/host/tools/deckIssueList.js',
     'src/host/tools/deckIssueCreate.js',
     'src/host/tools/deckMapPlanCreate.js',
     'src/host/tools/deckMapLink.js',
@@ -147,7 +149,7 @@ async function main() {
   ]
   const seven = []
   for (const f of toolFiles) seven.push((await imp(f)).definition)
-  check(seven.map((d) => d.name).join(',') === SEVEN_NAMES.join(','), '七个真定义名字齐且顺序与装配口一致')
+  check(seven.map((d) => d.name).join(',') === SEVEN_NAMES.join(','), '八个真定义名字齐且顺序与装配口一致')
   // 真实现直引（仓库开发依赖，与线上同版本）：官方编译与原生判定都不拿桩冒充。
   const realTools = await imp('node_modules/@deepseek-ai/dsh-tools/lib/index.js')
   const realDefineTool = realTools.defineTool
@@ -170,18 +172,18 @@ async function main() {
       d.name + ' 渲染回文本块且带着原话')
   }
 
-  // ── 2. 注册行为（全桩）：七个都交出去、执行只转发、不抛 ──
+  // ── 2. 注册行为（全桩）：八个都交出去、执行只转发、不抛 ──
   const svc = stubToolsSvc()
   const table = stubTable(seven, null)
   const res = await agent.registerDeckAgentTools(svc, table, realDefineTool)
-  check(res && res.registered && res.registered.join(',') === SEVEN_NAMES.join(','), '一次注册七个，一个不少')
+  check(res && res.registered && res.registered.join(',') === SEVEN_NAMES.join(','), '一次注册八个，一个不少')
   check(!res.missing || res.missing.length === 0, '缺件清单为空')
   const one = svc.registered.filter((t) => t.name === 'deck_issue_create')[0]
   const out = await one.execute({ title: '演示票' }, { agent: { session: { cwd: '/ws', id: 's1' } } })
   check(out && out.status === 'ok' && out.text === '桩回包：deck_issue_create', '执行转发到宿主那张表并只回它的 value')
   check(out && !Object.hasOwn(out, 'claimed'), '记账数不外露（闸里已经记过）')
-  // 七个逐个真执行一遍：转发的路每条都通，回包都有状态与一句话。
-  const demoArgs = { deck_context: {}, deck_issue_get: { key: '01' }, deck_map_snapshot: { key: '01' }, deck_issue_create: { title: 't' }, deck_map_plan_create: { title: 't', children: [] }, deck_map_link: { key: '01' }, deck_issue_patch: { key: '01' } }
+  // 八个逐个真执行一遍：转发的路每条都通，回包都有状态与一句话。
+  const demoArgs = { deck_context: {}, deck_issue_get: { key: '01' }, deck_map_snapshot: { key: '01' }, deck_issue_list: {}, deck_issue_create: { title: 't' }, deck_map_plan_create: { title: 't', children: [] }, deck_map_link: { key: '01' }, deck_issue_patch: { key: '01' } }
   for (const t of svc.registered) {
     const got = await t.execute(demoArgs[t.name], { agent: { session: { cwd: '/ws' } } })
     check(got && typeof got.status === 'string' && typeof got.text === 'string' && got.text.length > 0, t.name + ' 执行通，回包带状态与一句话')
@@ -208,11 +210,11 @@ async function main() {
   check(noSvc && noSvc.registered.length === 0 && (noSvc.reason || '').length > 0, '服务不在只进 reason，不抛')
   const emptyTable = await agent.registerDeckAgentTools(stubToolsSvc(), { names: [], definitions: [], tools: {} }, realDefineTool)
   check(emptyTable && emptyTable.registered.length === 0 && emptyTable.reason === 'empty-table', '表是空的给空表原因（不谎报已交过）')
-  // 退路（工具包没装好、defineTool 传不进来）：直接按注册表形状交，七个照样出去。
+  // 退路（工具包没装好、defineTool 传不进来）：直接按注册表形状交，八个照样出去。
   const rawSvc = stubToolsSvc()
   const raw = await agent.registerDeckAgentTools(rawSvc, table, null)
   check(raw && raw.registered.join(',') === SEVEN_NAMES.join(',') && (!raw.missing || raw.missing.length === 0),
-    '没 defineTool 走退路，七个照样注册')
+    '没 defineTool 走退路，八个照样注册')
   const rawOne = rawSvc.registered.filter((t) => t.name === 'deck_issue_get')[0]
   const rawDef = seven.filter((d) => d.name === 'deck_issue_get')[0]
   check(rawOne && rawOne.parameters === rawDef.parameters && typeof rawOne.execute === 'function',
@@ -246,18 +248,18 @@ async function main() {
   check(wiringSrc.indexOf('hookDeckAgentTools(d.ctx, deckToolsForHost') >= 0, '刷新接线装好表就调钩子（注册入口只有这一处）')
   const indexSrc = readText('src/host/index.js')
   check(indexSrc.indexOf('registerDeckAgentTools') < 0, '宿主入口不直接碰注册（钩子住在接线里，入口零增长）')
-  check(/inject:\s*\[\s*['"]connection['"]\s*\]/.test(indexSrc), '宿主注入声明不变（不因注册加新服务）')
+  check(/inject:\s*\[[^\]]*['"]connection['"][^\]]*\]/.test(indexSrc) && !/['"]webServer['"]/.test(indexSrc.match(/inject:\s*\[[^\]]*\]/)[0]), '宿主注入声明仅 connection + #746 的 llm/sessionQuery（webServer 仍禁，注册不加新服务）')
 
-  // ── 5. 钩子行为（全桩）：有服务就交七个，没服务静默跳过 ──
+  // ── 5. 钩子行为（全桩）：有服务就交八个，没服务静默跳过 ──
   check(typeof agent.hookDeckAgentTools === 'function', '交出 hookDeckAgentTools（接线调的就是它）')
   const hookSvc = stubToolsSvc()
   agent.hookDeckAgentTools({ tools: hookSvc }, async function () { return table }, async function () { return { defineTool: realDefineTool } })
-  await waitFor(function () { return hookSvc.registered.length === 7 }, '钩子交出七个')
-  check(hookSvc.registered.length === 7, '钩子交出七个（官方写法）')
+  await waitFor(function () { return hookSvc.registered.length === 8 }, '钩子交出八个')
+  check(hookSvc.registered.length === 8, '钩子交出八个（官方写法）')
   const hookRawSvc = stubToolsSvc()
   agent.hookDeckAgentTools({ tools: hookRawSvc }, async function () { return table }, async function () { return null })
-  await waitFor(function () { return hookRawSvc.registered.length === 7 }, '退路钩子交出七个')
-  check(hookRawSvc.registered.length === 7, '拿不到工具包时钩子走退路，七个照样交')
+  await waitFor(function () { return hookRawSvc.registered.length === 8 }, '退路钩子交出八个')
+  check(hookRawSvc.registered.length === 8, '拿不到工具包时钩子走退路，八个照样交')
   let hookCrashed = false
   try { agent.hookDeckAgentTools({}, async function () { return table }, async function () { return null }) } catch (e) { hookCrashed = true }
   await sleep(50)
@@ -270,8 +272,8 @@ async function main() {
     function (info) { lateReports.push(info) }, { retries: 30, waitMs: 20 })
   await sleep(100)
   lateCtx.tools = lateSvc
-  await waitFor(function () { return lateSvc.registered.length === 7 }, '晚到的服务', 700)
-  check(lateSvc.registered.length === 7, '服务晚到，钩子等到再交（不等死也不错过）')
+  await waitFor(function () { return lateSvc.registered.length === 8 }, '晚到的服务', 700)
+  check(lateSvc.registered.length === 8, '服务晚到，钩子等到再交（不等死也不错过）')
   check(lateReports.length === 1 && lateReports[0].ok === true && typeof lateReports[0].ms === 'number',
     '交出去终点报告成功（含耗时）')
   // 报告函数抛错不连累钩子；服务始终没有终点报告没交出去。
@@ -304,13 +306,13 @@ async function main() {
   try { noLog({ ok: true, ms: 1 }); noLog({ ok: false, reason: 'x' }) } catch (e) { reportCrashed = true }
   check(!reportCrashed, '日志口不在，报告静默跳过')
 
-  // ── 7. 行模块：agent 层那一行交出七个加探针 ──
+  // ── 7. 行模块：agent 层那一行交出八个加探针 ──
   const rowSvc = stubToolsSvc()
   let rowCrashed = null
   try { row.apply({ tools: rowSvc, connection: {} }) } catch (e) { rowCrashed = e }
   check(!rowCrashed, '行模块应用不抛（服务在就交）')
   const rowNames = rowSvc.registered.map((t) => t.name)
-  check(SEVEN_NAMES.every((n) => rowNames.indexOf(n) >= 0), '行模块交出七个 deck 工具')
+  check(SEVEN_NAMES.every((n) => rowNames.indexOf(n) >= 0), '行模块交出八个 deck 工具')
   check(rowNames.indexOf('deck_probe') >= 0, '行模块交出探针')
   const probe = rowSvc.registered.filter((t) => t.name === 'deck_probe')[0]
   const inventory = JSON.parse(await probe.execute({}, { tools: { a: 1 }, connection: {}, agent: { session: { cwd: '/ws' } } }))
@@ -327,8 +329,8 @@ async function main() {
   flakySvc.register = function (tool) { flakyCalls += 1; if (flakyCalls === 2) throw new Error('注册表拒收这一个'); return flakyOrig(tool) }
   let flakyCrashed = null
   try { row.apply({ tools: flakySvc, connection: {} }) } catch (e) { flakyCrashed = e }
-  check(!flakyCrashed && flakySvc.registered.length === 7,
-    '坏一个工具的注册，剩下六个加探针照样交（行不整体掀翻）')
+  check(!flakyCrashed && flakySvc.registered.length === 8,
+    '坏一个工具的注册，剩下七个加探针照样交（行不整体掀翻）')
   // 工具服务不在：行起不来就明说，不静默。
   let noSvcCrashed = null
   try { row.apply({}) } catch (e) { noSvcCrashed = e }

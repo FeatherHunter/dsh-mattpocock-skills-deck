@@ -16,7 +16,7 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
 const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
-const SEVEN = ['deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch']
+const SEVEN = ['deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch']
 
 function stubTable(runFn) {
   const tools = {}

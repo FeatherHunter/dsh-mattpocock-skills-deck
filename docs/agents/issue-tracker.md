@@ -11,6 +11,7 @@ Issues and specs for this repo live as GitHub issues.
 - 读一张票 → `deck_issue_get`
 - 看有哪些地图、有哪些开放票 → `deck_context`
 - 看一张地图的子票与进度 → `deck_map_snapshot`
+- 按状态与标签和认领列薄行 → `deck_issue_list`
 - 一次建出一整张地图（地图本身 + 子票 + 它们之间的边）→ `deck_map_plan_create`
 - 补一条边（父子边或阻塞边）→ `deck_map_link`
 - 改一张票（评论 / 标签 / 认领 / 关闭 / 改正文）→ `deck_issue_patch`

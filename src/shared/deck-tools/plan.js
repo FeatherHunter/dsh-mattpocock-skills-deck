@@ -76,14 +76,14 @@ export function anchorKeyFor(parts) {
   return 'deck-' + ('0000000' + h.toString(16)).slice(-8) + '-' + bucket
 }
 
-/** 七个工具的装配顺序（描述都很短：详细语义在 deck_context 的返回值里，不进系统提示）。 */
+/** 八个工具的装配顺序（描述都很短：详细语义在 deck_context 的返回值里，不进系统提示）。 */
 export const DECK_TOOL_ORDER = Object.freeze([
-  'deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch',
+  'deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch',
 ])
 
 /**
- * 把七个工具装成一张表：{ name → { definition, run } }。
- * factories 是七个工具工厂的数组（由接线方 import 进来后传进去）；缺哪个就少哪个，
+ * 把八个工具装成一张表：{ name → { definition, run } }。
+ * factories 是八个工具工厂的数组（由接线方 import 进来后传进去）；缺哪个就少哪个，
  * 缺的会被如实列在 returned.missing 里，不补一个假的桩 —— 工具要么真能用，要么不在表里。
  */
 export function createDeckTools(factories, deps) {

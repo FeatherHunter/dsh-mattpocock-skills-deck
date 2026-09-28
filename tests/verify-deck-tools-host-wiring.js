@@ -36,12 +36,13 @@ const SEVEN = [
   'src/host/tools/deckContext.js',
   'src/host/tools/deckIssueGet.js',
   'src/host/tools/deckMapSnapshot.js',
+  'src/host/tools/deckIssueList.js',
   'src/host/tools/deckIssueCreate.js',
   'src/host/tools/deckMapPlanCreate.js',
   'src/host/tools/deckMapLink.js',
   'src/host/tools/deckIssuePatch.js',
 ]
-const NAMES = ['deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch']
+const NAMES = ['deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch']
 
 /**
  * 本文件用的层判据，与 tests/verify-no-same-layer-import.js 的文件头逐字同一条：
@@ -91,7 +92,7 @@ async function main() {
   const wiringSrc = readText('src/host/refresh/wiring.js')
   const assemblySrc = readText(ASSEMBLY)
   const importedSeven = SEVEN.filter((f) => assemblySrc.indexOf(f.slice(f.lastIndexOf('/') + 1)) >= 0)
-  check(importedSeven.length === 7, '装配点把七个工具文件都读进来了（' + importedSeven.length + ' / 7，装配点：' + ASSEMBLY + '）')
+  check(importedSeven.length === 8, '装配点把八个工具文件都读进来了（' + importedSeven.length + ' / 8，装配点：' + ASSEMBLY + '）')
   check(/createDeckTools\s*\(/.test(assemblySrc), '装配点走的是共享层装配口 createDeckTools（不是手拼一张表）')
 
   const hostLayerHits = []
@@ -147,11 +148,11 @@ async function main() {
   wiring.ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
 
   const table = await wiring.deckToolsForHost()
-  check(table && table.names && table.names.length === 7, '宿主里装出七条：' + JSON.stringify(table && table.names))
+  check(table && table.names && table.names.length === 8, '宿主里装出八条：' + JSON.stringify(table && table.names))
   check(table && table.missing && table.missing.length === 0, '一条都不缺（missing = ' + JSON.stringify(table && table.missing) + '）')
   check(table && table.reason === '', '装配没有回退（reason=' + JSON.stringify(table && table.reason) + '）')
   check(table && typeof table.tools === 'object' && NAMES.every((n) => table.tools[n] && typeof table.tools[n].run === 'function'), '每条都能真调（run 是函数）')
-  check(Array.isArray(table.files) && table.files.length === 7, '装配结果里如实带着这七个文件的清单（' + JSON.stringify((table && table.files) || []).slice(0, 60) + '…）')
+  check(Array.isArray(table.files) && table.files.length === 8, '装配结果里如实带着这八个文件的清单（' + JSON.stringify((table && table.files) || []).slice(0, 60) + '…）')
 
   // ── ③ 真跑一次（宿主装机形状：会话上下文 + 真工作区 + 真后端） ──
   const exec = { agent: { session: { id: 's-723c', cwd: ws.rootPosix } } }
@@ -178,7 +179,7 @@ async function main() {
 
   dispose.dispose()
   ws.cleanup()
-  console.log('\n' + (failed ? '存在失败' : '全部通过 — 七个工具在宿主装配形状下装齐并跑通（' + total + ' 条断言）'))
+  console.log('\n' + (failed ? '存在失败' : '全部通过 — 八个工具在宿主装配形状下装齐并跑通（' + total + ' 条断言）'))
   console.log('提示：本门禁还没有挂进 package.json 的 verify 链，请统筹者接一行（见交付报告第 5 节）。')
   process.exit(failed ? 1 : 0)
 }

@@ -181,6 +181,8 @@ export function toolCostInputFrom(tool: string, args: Record<string, unknown> | 
       return Object.assign(base, { reads: 1 })
     case 'deck_map_snapshot':
       return Object.assign(base, { reads: 1 })
+    case 'deck_issue_list':
+      return Object.assign(base, { reads: 1 })
     case 'deck_issue_create':
       return Object.assign(base, { tickets: 1, edges: one(a.parentKey) + list(a.blockedBy) })
     case 'deck_map_plan_create':

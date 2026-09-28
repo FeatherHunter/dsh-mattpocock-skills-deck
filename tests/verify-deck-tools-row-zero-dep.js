@@ -23,6 +23,7 @@ const SEVEN_NAMES = [
   'deck_context',
   'deck_issue_get',
   'deck_map_snapshot',
+  'deck_issue_list',
   'deck_issue_create',
   'deck_map_plan_create',
   'deck_map_link',
@@ -62,7 +63,7 @@ async function main() {
   try { row.apply({ tools: svc }) } catch (e) { crashed = e }
   check(!crashed, '行模块应用不抛')
   const names = registered.map((t) => t.name)
-  check(SEVEN_NAMES.every((n) => names.indexOf(n) >= 0), '行模块交出七个 deck 工具')
+  check(SEVEN_NAMES.every((n) => names.indexOf(n) >= 0), '行模块交出八个 deck 工具')
   check(names.indexOf('deck_probe') >= 0, '行模块交出探针')
 
   // 形状：参数与输出都过仓库开发依赖里的真原生判定（与线上同版本）。

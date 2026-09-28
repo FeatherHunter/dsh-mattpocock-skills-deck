@@ -16,7 +16,10 @@ export const definition = {
   description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。看一个 map 的全部 child ISSUE、进度统计与五个区块，用来判断 map 做到哪一步。',
   parameters: {
     type: 'object',
-    properties: { key: { type: 'string', description: '地图那张票的票号' } },
+    properties: {
+      key: { type: 'string', description: '地图那张票的票号' },
+      frontierOnly: { type: 'boolean', description: '只回可接的子票（未关闭、未认领、阻塞已满足），缺省回全部' },
+    },
     required: ['key'],
     additionalProperties: false,
   },
@@ -74,6 +77,28 @@ export function createDeckMapSnapshot(deps) {
       const projection = deriveDeck({ maps: [Object.assign({}, map, { tickets: children })], issues: [] })
       const blocks = parseMapBody(String(map.body || ''))
       const partial = !kids || kids.ok !== true
+      // frontierOnly：在手上这批子票里按派生口径筛可接（未关闭、认领已知且空、阻塞已满足；
+      // 图外阻塞按未知计为被阻塞，与派生视图的 NOT-FOUND 安全侧一致，不误判可接）。
+      let shown = children
+      let frontierNote = ''
+      if (a.frontierOnly === true) {
+        const stateByKey = {}
+        for (const t of children) if (t && typeof t.key === 'string') stateByKey[String(t.key)] = t.state
+        shown = children.filter((t) => {
+          if (!t || t.state !== 'open') return false
+          if (!Array.isArray(t.assignees)) return false
+          if (t.assignees.length > 0) return false
+          const blockers = Array.isArray(t.blockedBy) ? t.blockedBy : []
+          for (const b of blockers) {
+            const k = String((b && b.key) || b || '')
+            if (!k) continue
+            if (stateByKey[k] !== 'closed') return false
+          }
+          return true
+        })
+        frontierNote = '已按 frontierOnly 只回可接的 ' + shown.length + ' 张（总数 ' + children.length + ' 张）。'
+      }
+      if (frontierNote) notes.push(frontierNote)
       return {
         value: {
           status: partial ? DECK_STATUS.PARTIAL : DECK_STATUS.OK,
@@ -81,7 +106,7 @@ export function createDeckMapSnapshot(deps) {
           text: '地图 ' + key + '：子票 ' + children.length + ' 张，未关闭 ' + projection.stats.open + ' 张、已关闭 ' + projection.stats.closed + ' 张、可接 ' + projection.stats.frontier + ' 张、被阻塞 ' + projection.stats.blocked + ' 张。',
           data: {
             map: { key: map.key, title: map.title, state: map.state, labels: Array.isArray(map.labels) ? map.labels.map((l) => (l && l.name) || String(l)) : [], updatedAt: map.updatedAt || '', url: map.url || '' },
-            children: children.map((t) => childRow(t, projection.progressOf)),
+            children: shown.map((t) => childRow(t, projection.progressOf)),
             stats: projection.stats,
             labels: projection.labels,
             progressOf: projection.progressOf,

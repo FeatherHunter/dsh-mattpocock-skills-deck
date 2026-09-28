@@ -1,8 +1,8 @@
-// verify-deck-tools.js —— 门禁：七个后端无关工具（#713 第六批）
+// verify-deck-tools.js —— 门禁：八个后端无关工具（#713 第六批 + 薄列表补齐）
 // 用法：在插件根目录执行 node tests/verify-deck-tools.js，可独立运行。
 //
 // 这一段盯四件事，都是票面点名要的：
-//   ① 七个工具各一条正例：调用能不能真的把事情做完（在真实本地 Markdown 后端上跑，票就是盘上的文件）。
+//   ① 八个工具各一条正例：调用能不能真的把事情做完（在真实本地 Markdown 后端上跑，票就是盘上的文件）。
 //   ② 两条负向：`unsupported`（后端说做不到 / 会话取不到工作区）与 `partial`（一批里有的成、有的没成）。
 //   ③ **每次后端调用都过闸**：这一段用的是真闸真账本（#706 T2 的 gate.js + ledger.js），
 //      传输层每真发一条就报一次;所以「闸记下来的」与「传输层真发的」必须相等（escaped 必须为 0），
@@ -26,6 +26,7 @@ const TOOL_FILES = [
   ['src/host/tools/deckContext.js', 'createDeckContext', 'deck_context'],
   ['src/host/tools/deckIssueGet.js', 'createDeckIssueGet', 'deck_issue_get'],
   ['src/host/tools/deckMapSnapshot.js', 'createDeckMapSnapshot', 'deck_map_snapshot'],
+  ['src/host/tools/deckIssueList.js', 'createDeckIssueList', 'deck_issue_list'],
   ['src/host/tools/deckIssueCreate.js', 'createDeckIssueCreate', 'deck_issue_create'],
   ['src/host/tools/deckMapPlanCreate.js', 'createDeckMapPlanCreate', 'deck_map_plan_create'],
   ['src/host/tools/deckMapLink.js', 'createDeckMapLink', 'deck_map_link'],
@@ -62,7 +63,7 @@ function makeWorkspace() {
 }
 
 async function main() {
-  console.log('七个后端无关工具的门禁（#713 T9：过闸、三态、永不抛、不判后端）')
+  console.log('八个后端无关工具的门禁（#713 T9：过闸、三态、永不抛、不判后端）')
   const budget = await imp('src/shared/refresh/budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.js')
   const gateMod = await imp('src/host/refresh/gate.js')
@@ -152,6 +153,17 @@ async function main() {
     const text = files.length ? ws.readTicket(files[0]) : ''
     check(text.indexOf('wayfinder:task') >= 0, '必备标签写进了票文件')
     check(text.indexOf('## 进度') >= 0, '进度区写进了票文件')
+  }
+
+  // ── ②b deck_issue_list：全局薄列表（过滤不过滤都回薄行，不回正文） ──
+  {
+    const r = await callTool('deck_issue_list', { state: 'open' })
+    check(envelopeOk(r) && r.status === 'ok' && r.data && Array.isArray(r.data.issues), 'deck_issue_list 正例：列表回来了（' + (r.data ? r.data.returned : '?') + '/' + (r.data ? r.data.total : '?') + ' 行）')
+    check(r.data.issues.every((t) => t.body === undefined && t.comments === undefined), 'deck_issue_list 只回薄行（不带正文与评论）')
+    const q = await callTool('deck_issue_list', { state: 'open', query: '第一张演示票' })
+    check(q.data && q.data.total >= 1 && q.data.issues.every((t) => String(t.title).indexOf('第一张演示票') >= 0 || String(t.key) === createdKey), 'deck_issue_list 按 query 子串过滤（命中刚才那张票）')
+    const capped = await callTool('deck_issue_list', { state: 'open', limit: 1 })
+    check(capped.data && capped.data.returned <= 1, 'deck_issue_list 按 limit 截断（回 ' + (capped.data ? capped.data.returned : '?') + ' 行）')
   }
 
   // ── ③ deck_issue_get：读回一张票（含负向：读一张不存在的票） ──
@@ -309,7 +321,7 @@ async function main() {
       }
     }
     for (const d of ['src/host/tools', 'src/shared/deck-tools']) walk(path.join(ROOT, d))
-    check(files.length >= 8, '扫描到的工具层文件数（' + files.length + '：七个工具 + 两个共享壳）')
+    check(files.length >= 8, '扫描到的工具层文件数（' + files.length + '：八个工具 + 两个共享壳）')
     const RE_ID = /(===|!==|==|!=)\s*['"](github|gitlab|markdown)['"]|['"](github|gitlab|markdown)['"]\s*(===|!==|==|!=)/
     const hits = []
     for (const f of files) {
@@ -336,7 +348,7 @@ async function main() {
 
   ws.cleanup()
   try { dispose.dispose() } catch (e) {}
-  console.log('\n' + (failed ? '存在失败' : '全部通过 — 七个工具：过闸、三态、永不抛、不判后端（' + total + ' 条）'))
+  console.log('\n' + (failed ? '存在失败' : '全部通过 — 八个工具：过闸、三态、永不抛、不判后端（' + total + ' 条）'))
   process.exit(failed ? 1 : 0)
 }
 

@@ -23,27 +23,30 @@ import { createDeckTools } from '../../shared/deck-tools/plan.js'
 import { createDeckContext } from '../tools/deckContext.js'
 import { createDeckIssueGet } from '../tools/deckIssueGet.js'
 import { createDeckMapSnapshot } from '../tools/deckMapSnapshot.js'
+import { createDeckIssueList } from '../tools/deckIssueList.js'
 import { createDeckIssueCreate } from '../tools/deckIssueCreate.js'
 import { createDeckMapPlanCreate } from '../tools/deckMapPlanCreate.js'
 import { createDeckMapLink } from '../tools/deckMapLink.js'
 import { createDeckIssuePatch } from '../tools/deckIssuePatch.js'
 
-/** 七个工厂（顺序与 plan.js 的 DECK_TOOL_ORDER 一致；装配口按名字收口，这里只负责传全）。 */
+/** 八个工厂（顺序与 plan.js 的 DECK_TOOL_ORDER 一致；装配口按名字收口，这里只负责传全）。 */
 export const DECK_TOOL_FACTORIES = Object.freeze([
   createDeckContext,
   createDeckIssueGet,
   createDeckMapSnapshot,
+  createDeckIssueList,
   createDeckIssueCreate,
   createDeckMapPlanCreate,
   createDeckMapLink,
   createDeckIssuePatch,
 ])
 
-/** 这七个文件就是本文件存在的理由：门禁与排查要能一眼看见这 7 条边被收在哪一个点上。 */
+/** 这八个文件就是本文件存在的理由：门禁与排查要能一眼看见这 8 条边被收在哪一个点上。 */
 export const DECK_TOOL_FILES = Object.freeze([
   'src/host/tools/deckContext.js',
   'src/host/tools/deckIssueGet.js',
   'src/host/tools/deckMapSnapshot.js',
+  'src/host/tools/deckIssueList.js',
   'src/host/tools/deckIssueCreate.js',
   'src/host/tools/deckMapPlanCreate.js',
   'src/host/tools/deckMapLink.js',
