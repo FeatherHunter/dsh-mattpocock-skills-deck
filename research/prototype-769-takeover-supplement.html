@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原型 769：接手 / 补充 按钮与注入文本对照（抛弃式）</title>
+<style>
+  :root { --accent: #7c3aed; --ink: #1f2430; --muted: #6b7280; --line: #e5e7eb; --bg: #fafafb; --card: #ffffff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.65; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 24px; margin: 0 0 8px; }
+  h2 { font-size: 16px; margin: 28px 0 10px; }
+  h3 { font-size: 14px; margin: 18px 0 8px; }
+  p { margin: 8px 0; }
+  .lede { color: var(--muted); font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 12px 0; }
+  .badge { display: inline-block; font-size: 12px; border: 1px solid var(--accent); color: var(--accent);
+    border-radius: 999px; padding: 1px 10px; margin-right: 8px; }
+  .badge.solid { background: var(--accent); color: #fff; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field { margin: 8px 0; }
+  .field .k { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .field .v { font-size: 14px; }
+  .btn { display: inline-block; font-size: 13px; border: 1px solid var(--line); background: #fff; color: var(--ink);
+    border-radius: 8px; padding: 6px 12px; margin: 4px 6px 4px 0; cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.ghost { background: transparent; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .demo-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; border-radius: 8px;
+    padding: 4px 12px; border: 1px solid transparent; cursor: pointer; color: #fff; }
+  .tabs { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+  .tab { font-size: 13px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 14px; cursor: pointer; }
+  .tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  pre.prompt { white-space: pre-wrap; word-break: break-word; background: #0f1420; color: #e6edf3;
+    border-radius: 10px; padding: 14px 16px; font-size: 12.5px; line-height: 1.7; margin: 8px 0; }
+  details { margin: 8px 0; }
+  summary { cursor: pointer; font-size: 13px; color: var(--accent); }
+  .change { border-left: 4px solid var(--accent); background: #f5f0ff; border-radius: 0 8px 8px 0; padding: 8px 12px; font-size: 13px; margin: 10px 0; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+  .kpi { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  @media(max-width:760px){ .grid2{ grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div><span class="badge solid">抛弃式原型</span><span class="badge">#769</span><span class="badge">看完即弃，不进主线</span></div>
+  <h1>接手 / 补充：按钮与注入文本对照</h1>
+  <p class="lede">要回答的设计问题：站在右侧面板前的人看到 <span class="mono">ready-for-human</span>（等人动手）与 <span class="mono">needs-info</span>（缺料等人补）两枚票时，按钮写什么字、悬停说什么、按下去注入哪段提示词，三者一眼能不能对上。分支：逻辑分支（单文件对照按下去的差别），不是多套布局。布局、颜色、分诊状态机三样已冻结，只看字与文本。</p>
+
+  <div class="card">
+    <div class="field"><div class="k">怎么看这份原型</div>
+      <div class="v">上面是当前状态（每次点完都重画）；中间是随便点（选票、切套装、按按钮）；下面是走查（三个页签，各有要按的顺序）。先看走查，再随便点。B 套是方向草稿，仅供对照，最终条文归 #770。</div></div>
+    <div class="field"><div class="k">判顺的判据（ verdict 写进 #769 正文，不写在这份文件里当定稿）</div>
+      <div class="v">1）误点代价小：字不再承诺全自动；2）分流一眼清：两枚与诊断/修复/讨论/研究/原型/执行一字不撞；3）人与 AI 双读都顺：人看知道该干什么，AI 读英文键知道该走哪类后续。</div></div>
+    <div class="kpi"><span>A 现状 = 今天线上：两枚都显示执行，走通用执行模板</span><span>B 方向草稿 = 接手/补充 + 交接/补料悬停 + 各一稿清单式提示词</span></div>
+  </div>
+
+  <h2>当前状态（每次点完重画）</h2>
+  <div class="card" id="statePanel"></div>
+
+  <h2>随便点</h2>
+  <div class="card">
+    <h3>1）选一张票</h3>
+    <div id="ticketButtons"></div>
+    <h3>2）切套装（A 现状 vs B 方向草稿）</h3>
+    <div id="variantButtons"></div>
+    <h3>3）按这颗按钮（下面这颗就是按映射长出来的真按钮，点它等于注入）</h3>
+    <div id="pressArea"></div>
+    <div class="muted">点完后回到上面看状态面板：按钮字、中英、悬停、颜色、注入类别与全文都变了，变化点会单独标出来。</div>
+  </div>
+
+  <h2>走查（每个页签先回到已知起点，再按顺序点）</h2>
+  <div class="card">
+    <div class="tabs" id="walkTabs"></div>
+    <div id="walkBody"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">落点与免责</h3>
+    <p class="muted">单文件、无依赖、双击即开；状态只放内存，不写任何存储。纯逻辑在第一块脚本里（无页面引用，可整体搬进 <span class="mono">store-derived.js</span> 的行动作派生层）；页面只是薄壳。B 套提示词是草稿，最终条文归 #770，英文 Take over / Supplement 是直译待润色。颜色两套都是紫色（规格锁死沿用执行通道，不引入新色），差别只在字与文本。</p>
+  </div>
+
+</div>
+
+<script>
+/* ============================================================
+ * 纯逻辑模块（可整体搬走）：标签 → 字 → 悬停 → 注入文本
+ * 约定：不碰 DOM，不读 document / window，只做纯推导。
+ * 形状：普通数据上的纯函数 derive(ticket, variant)。
+ * ============================================================ */
+const Prototype769Logic = (function () {
+  const PURPLE = '#c084fc';
+
+  const TICKETS = [
+    { key: 't-ready-human', number: 801, title: '示例：需人动手改外部权限', labels: ['ready-for-human'],
+      url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/801' },
+    { key: 't-needs-info', number: 802, title: '示例：缺复现步骤等报告人补', labels: ['needs-info'],
+      url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/802' },
+    { key: 't-triage', number: 803, title: '对照：未分流票（应走诊断）', labels: ['needs-triage'],
+      url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/803' },
+    { key: 't-bug', number: 804, title: '对照：缺陷票（应走修复）', labels: ['bug'],
+      url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/804' },
+    { key: 't-normal', number: 805, title: '对照：普通可执行票（应走执行）', labels: ['ready-for-agent'],
+      url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/805' },
+  ];
+
+  const EXEC_ZH = '/wayfinder\n{url}\n\n执行这个 issue（遵循 wayfinder 技能规则）：\n\n## 读现状\n- [ ] 已认领？若未认领，先认领\n- [ ] 先把这张票读全（正文 / 评论 / 标签 / 认领 / 父子与阻塞边），确认交付物与验收标准\n\n## 执行\n- [ ] 目标不清或需用户定夺 → 用 grilling 技能澄清（不猜）\n- [ ] 制定方案 → 实施 → 按验收标准自查（对抗式）\n\n## 阶段闸门（动作开始前必读，这是动作的一部分，不是可选项）\n- [ ] 先读该 issue 现状：正文 / 评论 / 标签 / 已有的实施记录，判断它处于哪个阶段\n- [ ] 若带 needs-triage 标签：必须先完成诊断（这是前置步骤，不许跳过直接实施）\n- [ ] 诊断时判断当前进展：\n  - [ ] 已有实施且真实 → 核验是否符合验收标准，属实就摘 needs-triage（转 ready-for-agent）\n  - [ ] 已有实施但站不住（虚假或半成品）→ 把缺在哪写进正文，继续诊断\n  - [ ] 未动工 → 正常诊断（复现 → 根因 → 方案 → 写入 issue）\n- [ ] 诊断完成摘 needs-triage 后才允许进入实施阶段\n\n## 收尾\n- [ ] 结束前把这张票的真实状态写进正文（写法你定；下一步一并写上）；做完了就 close，没做完就留着\n- [ ] 若执行后关闭了该票：在所属 map 的 Decisions so far 追加一行 gist（票名 + 链接 + 一句话结论）';
+
+  const EXEC_EN = '/wayfinder\n{url}\n\nExecute this issue (follow the wayfinder skill rules):\n\n## Read current state\n- [ ] Claimed? Claim first if unclaimed\n- [ ] Read the whole ticket (body / comments / labels / claim / parent & blocking edges) — confirm deliverable & acceptance criteria\n\n## Execute\n- [ ] If goal unclear or needs user call → clarify with grilling (do not guess)\n- [ ] Plan → implement → self-check against acceptance criteria (adversarial)\n\n## Stage gate (must read before starting — part of the action, not optional)\n- [ ] First read the issue current state — determine stage\n- [ ] If it carries needs-triage: diagnosis MUST be done first (do not skip to implementation)\n- [ ] Only after diagnosis and needs-triage removed may implementation begin\n\n## Wrap-up\n- [ ] Before finishing, write the true state of this ticket into its body; close it when it is done, leave it open when it is not\n- [ ] If this execution closes the ticket, append a one-line gist to its map Decisions so far';
+
+  function takeoverDraftZh(url) {
+    return '/wayfinder\n' + url + '\n\n接手这张票（它是等人动手的票：活从 AI 手里交到人手里，AI 不代劳，只帮你把活推进下去）：\n\n## 为什么不能委托出去（先写清，再动手）\n- [ ] 写清为什么必须人动手（判断类决策 / 外部权限 / 设计决策 / 需人工测试，哪一条就是哪一条）\n- [ ] 若看完发现其实可以委托，改走通用执行并写明改判理由，不硬扛\n\n## 人实施清单\n- [ ] 已认领？若未认领，先认领\n- [ ] 读全这张票（正文 / 评论 / 标签 / 认领 / 父子与阻塞边），确认交付物与验收标准\n- [ ] 目标不清或需定夺 → 用 grilling 澄清（不猜）\n- [ ] 制定方案 → 人动手实施 → 按验收标准自查（对抗式）\n\n## 收尾\n- [ ] 结束前把这张票的真实状态写进正文（写法你定，人能看懂就行）\n- [ ] 做完了就 close，没做完就留着；若关闭了所属 map 的票，在 Decisions so far 追加一行 gist';
+  }
+
+  function takeoverDraftEn(url) {
+    return '/wayfinder\n' + url + '\n\nTake over this ticket (it waits for human hands; the AI assists, it does not take over):\n\n## Why this cannot be delegated (write it down first)\n- [ ] State plainly why a human must do it (judgment call / external permission / design decision / needs hands-on testing)\n- [ ] If it turns out delegable after all, switch to the generic execute path and write down why the call changed\n\n## Hands-on checklist\n- [ ] Claimed? Claim first if unclaimed\n- [ ] Read the whole ticket — confirm deliverable & acceptance criteria\n- [ ] If goal unclear → clarify with grilling (do not guess)\n- [ ] Plan → implement by hand → self-check against acceptance criteria (adversarial)\n\n## Wrap-up\n- [ ] Before finishing, write the true state into its body; close when done, leave open when not; append a gist to the map Decisions so far if closed';
+  }
+
+  function supplementDraftZh(url) {
+    return '/wayfinder\n' + url + '\n\n这张票缺关键信息，先问再做（信息回来转回待分诊，不在缺料时擅自实施）：\n\n## 先问（逐条都是可直接回答的问题）\n- [ ] 为推进下去，最缺的一条信息是什么（日志片段 / 复现步骤 / 期望结果 / 账号权限，点名要哪样）\n- [ ] 信息给到什么格式算够（贴哪段、截哪屏、回哪几个选项）\n- [ ] 报告人回复后，转回 needs-triage 重新分流，不停在 needs-info\n\n## 等人回时不做的事\n- [ ] 不认领实施、不改业务代码、不 close 票\n- [ ] 若补回的料证明其实可直接动手，写明改判理由再转执行\n\n## 收尾\n- [ ] 结束前把“缺什么、问了什么、等谁回”写进正文（人能看懂就行）';
+  }
+
+  function supplementDraftEn(url) {
+    return '/wayfinder\n' + url + '\n\nThis ticket is missing key info — ask first, build later (route back to needs-triage once it arrives; do not implement on missing input):\n\n## Ask first (each item directly answerable)\n- [ ] What is the single most blocking missing piece (log excerpt / repro steps / expected result / account permission — name it)\n- [ ] What format counts as enough (which excerpt, which screenshot, which options)\n- [ ] Once the reporter replies, route back to needs-triage for re-triage; do not linger on needs-info\n\n## While waiting, do not\n- [ ] Claim-and-implement, change product code, or close the ticket\n- [ ] If the returned material proves it is directly actionable, write down why the call changed before switching to execute\n\n## Wrap-up\n- [ ] Before finishing, write “what is missing, what was asked, whom we wait for” into the body';
+  }
+
+  function hasLabel(ticket, name) {
+    return (ticket.labels || []).indexOf(name) !== -1;
+  }
+
+  /* 核心推导：给定票与套装，算出按钮与文本。邻居分支（诊断/修复/执行）在 A/B 两套下不变，用来衬托一字不撞。 */
+  function derive(ticket, variant) {
+    const url = ticket.url;
+    const isReadyHuman = hasLabel(ticket, 'ready-for-human');
+    const isNeedsInfo = hasLabel(ticket, 'needs-info');
+    const isTriage = ticket.labels.length === 0 || hasLabel(ticket, 'needs-triage');
+    const isBug = hasLabel(ticket, 'bug');
+
+    if (isReadyHuman) {
+      if (variant === 'A') {
+        return { kind: 'ready-human-A', buttonZh: '执行', buttonEn: 'Execute',
+          hoverZh: '注入开始提示，从头推进任务', hoverEn: 'Inject start prompt and advance from first principles',
+          color: PURPLE, promptKind: '通用执行模板（现状对照组）',
+          promptZh: EXEC_ZH.replace('{url}', url), promptEn: EXEC_EN.replace('{url}', url) };
+      }
+      return { kind: 'ready-human-B', buttonZh: '接手', buttonEn: 'Take over（待润色）',
+        hoverZh: '交到人手里，帮你列出动手清单', hoverEn: 'Hand over to you with a hands-on checklist（待润色）',
+        color: PURPLE, promptKind: '接手方向草稿（最终归 #770）',
+        promptZh: takeoverDraftZh(url), promptEn: takeoverDraftEn(url) };
+    }
+    if (isNeedsInfo) {
+      if (variant === 'A') {
+        return { kind: 'needs-info-A', buttonZh: '执行', buttonEn: 'Execute',
+          hoverZh: '注入开始提示，从头推进任务', hoverEn: 'Inject start prompt and advance from first principles',
+          color: PURPLE, promptKind: '通用执行模板（现状对照组）',
+          promptZh: EXEC_ZH.replace('{url}', url), promptEn: EXEC_EN.replace('{url}', url) };
+      }
+      return { kind: 'needs-info-B', buttonZh: '补充', buttonEn: 'Supplement（待润色）',
+        hoverZh: '缺关键信息，帮你列出要补的问题', hoverEn: 'Missing key info — list the questions to answer（待润色）',
+        color: PURPLE, promptKind: '补充方向草稿（最终归 #770）',
+        promptZh: supplementDraftZh(url), promptEn: supplementDraftEn(url) };
+    }
+    if (isBug) {
+      return { kind: 'bug', buttonZh: '修复', buttonEn: 'Fix', hoverZh: '生成缺陷修复提示并注入输入框',
+        hoverEn: 'Generate bug-fix prompt and inject', color: '#f87171',
+        promptKind: '修复模板（邻居对照，不在这次改）', promptZh: '/implement\n' + url + '\n\n（修复模板全文省略：只看按钮字不撞）',
+        promptEn: '/implement\n' + url + '\n\n(Fix template body omitted: only the label matters here)' };
+    }
+    if (isTriage) {
+      return { kind: 'triage', buttonZh: '诊断', buttonEn: 'Diagnose', hoverZh: '生成分流提示并注入输入框',
+        hoverEn: 'Generate triage prompt and inject', color: '#f59e0b',
+        promptKind: '诊断模板（邻居对照，不在这次改）', promptZh: '/triage\n' + url + '\n\n（诊断模板全文省略：只看按钮字不撞）',
+        promptEn: '/triage\n' + url + '\n\n(Diagnose template body omitted: only the label matters here)' };
+    }
+    return { kind: 'normal', buttonZh: '执行', buttonEn: 'Execute', hoverZh: '注入开始提示，从头推进任务',
+      hoverEn: 'Inject start prompt and advance from first principles', color: PURPLE,
+      promptKind: '通用执行模板（普通票，邻居对照）',
+      promptZh: EXEC_ZH.replace('{url}', url), promptEn: EXEC_EN.replace('{url}', url) };
+  }
+
+  return { TICKETS: TICKETS, derive: derive };
+})();
+</script>
+
+<script>
+/* 薄壳：只负责渲染与接线，不参与推导。 */
+(function () {
+  const L = Prototype769Logic;
+  const state = { ticketKey: 't-ready-human', variant: 'B', pressed: false, change: '刚打开，还没点。先看下面走查第一个页签。' };
+  let walkTab = 0;
+  let walkStep = 0;
+
+  const WALKS = [
+    { id: 'w-takeover', title: '走查 1：等人动手的票（接手最顺）',
+      desc: '起点：#801 等人动手 + B 套。按顺序点三下，看接手为什么比执行顺：执行承诺全自动从头推进，接手先写清为什么不能委托，再给人实施清单。',
+      start: { ticketKey: 't-ready-human', variant: 'B' },
+      steps: ['选票 #801', '切到 B 套', '按 接手'] },
+    { id: 'w-supplement', title: '走查 2：缺料的票（补充最顺）',
+      desc: '起点：#802 缺料 + B 套。按顺序点三下，看补充为什么比执行顺：执行直接认领实施，补充先问可回答的问题，注明回来转待分诊，等待时不擅自实施。',
+      start: { ticketKey: 't-needs-info', variant: 'B' },
+      steps: ['选票 #802', '切到 B 套', '按 补充'] },
+    { id: 'w-misclick', title: '走查 3：按错一次（看代价）',
+      desc: '起点：#802 缺料 + A 套。先按一次执行，看代价（承诺全自动，白跑全量推进）；再切 B 套按一次补充，对比差别。这个页签回答为什么 A 不行。',
+      start: { ticketKey: 't-needs-info', variant: 'A' },
+      steps: ['选票 #802（A 套）', '按 执行（看代价）', '切到 B 套再按 补充（对比）'] },
+  ];
+
+  function ticket() { return L.TICKETS.find(function (t) { return t.key === state.ticketKey; }); }
+  function derived() { return L.derive(ticket(), state.variant); }
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  function renderState() {
+    const t = ticket(), d = derived();
+    const el = document.getElementById('statePanel');
+    el.innerHTML =
+      '<div class="change">' + esc(state.change) + '</div>' +
+      '<div class="grid2">' +
+      '<div><div class="field"><div class="k">当前票</div><div class="v">#' + t.number + ' ' + esc(t.title) + '<br><span class="muted">标签：' + esc(t.labels.length ? t.labels.join('、') : '（无特殊标签，普通票）') + ' · ' + esc(t.url) + '</span></div></div>' +
+      '<div class="field"><div class="k">当前套装</div><div class="v">' + (state.variant === 'A' ? 'A 现状（今天线上）' : 'B 方向草稿（最终归 #770）') + '</div></div></div>' +
+      '<div><div class="field"><div class="k">按钮（中文 / 英文）</div><div class="v"><button class="demo-btn" style="background:' + d.color + '">' + esc(d.buttonZh) + ' · ' + esc(d.buttonEn) + '</button></div></div>' +
+      '<div class="field"><div class="k">悬停（一句话）</div><div class="v">中：' + esc(d.hoverZh) + '<br>英：' + esc(d.hoverEn) + '</div></div>' +
+      '<div class="field"><div class="k">颜色</div><div class="v"><span class="mono">' + d.color + '</span>（两套同紫，差别只在字与文本）</div></div></div>' +
+      '</div>' +
+      '<div class="field"><div class="k">注入类别</div><div class="v">' + esc(d.promptKind) + (state.pressed ? ' · 已按下去（模拟注入输入框）' : ' · 还没按') + '</div></div>' +
+      '<div class="field"><div class="k">注入文本全文（中文）</div><pre class="prompt">' + esc(d.promptZh) + '</pre></div>' +
+      '<details><summary>看英文全文（待润色对照）</summary><pre class="prompt">' + esc(d.promptEn) + '</pre></details>';
+  }
+
+  function renderFree() {
+    const tb = document.getElementById('ticketButtons');
+    tb.innerHTML = '';
+    L.TICKETS.forEach(function (t) {
+      const b = document.createElement('button');
+      b.className = 'btn' + (t.key === state.ticketKey ? ' primary' : '');
+      b.textContent = '#' + t.number + ' ' + (t.labels.length ? t.labels.join(',') : '普通') + ' · ' + t.title.slice(0, 12) + '…';
+      b.onclick = function () {
+        state.ticketKey = t.key; state.pressed = false;
+        state.change = '换票：现在看 #' + t.number + '（' + (t.labels.join('、') || '普通票') + '），按钮与文本已按当前' + state.variant + '套重算。';
+        renderAll();
+      };
+      tb.appendChild(b);
+    });
+    const vb = document.getElementById('variantButtons');
+    vb.innerHTML = '';
+    [['A', 'A 现状：执行 + 通用模板'], ['B', 'B 方向草稿：接手/补充 + 各一稿']].forEach(function (pair) {
+      const b = document.createElement('button');
+      b.className = 'btn' + (pair[0] === state.variant ? ' primary' : '');
+      b.textContent = pair[1];
+      b.onclick = function () {
+        state.variant = pair[0]; state.pressed = false;
+        state.change = '切套装：现在是' + pair[0] + '套。同一张票，按钮字与注入全文都换了，往上看差别。';
+        renderAll();
+      };
+      vb.appendChild(b);
+    });
+    const pa = document.getElementById('pressArea');
+    pa.innerHTML = '';
+    const d = derived();
+    const b = document.createElement('button');
+    b.className = 'demo-btn';
+    b.style.background = d.color;
+    b.innerHTML = '<span>▶ 按下去：' + esc(d.buttonZh) + '</span>';
+    b.onclick = function () {
+      state.pressed = true;
+      const t = ticket();
+      state.change = '按下去：#' + t.number + ' 按了「' + d.buttonZh + '」，注入的是「' + d.promptKind + '」。' +
+        (d.kind === 'needs-info-A' || d.kind === 'ready-human-A'
+          ? '注意代价：字承诺全自动从头推进，实际一枚是等人动手、一枚是等料，白跑一次全量。'
+          : (d.kind === 'ready-human-B'
+            ? '顺的点：先写清为什么不能委托，再给人实施清单，不承诺 AI 代劳。'
+            : (d.kind === 'needs-info-B'
+              ? '顺的点：先问可回答的问题，注明回来转待分诊，等待时不擅自实施。'
+              : '邻居分支：字与两枚都不撞，用来衬托。')));
+      renderAll();
+    };
+    pa.appendChild(b);
+    const hint = document.createElement('div');
+    hint.className = 'muted';
+    hint.textContent = '当前映射：' + d.buttonZh + ' / ' + d.buttonEn + ' → ' + d.promptKind;
+    pa.appendChild(hint);
+  }
+
+  function renderWalk() {
+    const tabs = document.getElementById('walkTabs');
+    tabs.innerHTML = '';
+    WALKS.forEach(function (w, i) {
+      const b = document.createElement('button');
+      b.className = 'tab' + (i === walkTab ? ' active' : '');
+      b.textContent = w.title;
+      b.onclick = function () {
+        walkTab = i; walkStep = 0;
+        state.ticketKey = w.start.ticketKey; state.variant = w.start.variant; state.pressed = false;
+        state.change = '进入' + w.title + '：已回到已知起点（#' + ticket().number + ' + ' + state.variant + '套），按下面顺序点。';
+        renderAll();
+      };
+      tabs.appendChild(b);
+    });
+    const body = document.getElementById('walkBody');
+    body.innerHTML = '';
+    const w = WALKS[walkTab];
+    const p = document.createElement('p');
+    p.className = 'muted';
+    p.textContent = w.desc;
+    body.appendChild(p);
+    const row = document.createElement('div');
+    w.steps.forEach(function (s, i) {
+      const b = document.createElement('button');
+      b.className = 'btn' + (i === walkStep ? ' primary' : '') + (i < walkStep ? ' ghost' : '');
+      b.textContent = (i < walkStep ? '✓ ' : (i === walkStep ? '● ' : '○ ')) + (i + 1) + '. ' + s;
+      b.onclick = function () { doWalkStep(i); };
+      row.appendChild(b);
+    });
+    body.appendChild(row);
+    const note = document.createElement('div');
+    note.className = 'muted';
+    note.textContent = '每步都是真按钮：点了真改状态并走到下一步。切页签会重置到该页签的起点，保证每次跑法一致。';
+    body.appendChild(note);
+  }
+
+  function doWalkStep(i) {
+    const w = WALKS[walkTab];
+    if (i !== walkStep) { walkStep = i; }
+    if (w.id === 'w-takeover') {
+      if (walkStep === 0) { state.ticketKey = 't-ready-human'; state.variant = 'B'; state.pressed = false; state.change = '走查1-1：选 #801 等人动手的票（B 套）。'; }
+      if (walkStep === 1) { state.variant = 'B'; state.pressed = false; state.change = '走查1-2：确认 B 套。按钮应是接手，不是执行。'; }
+      if (walkStep === 2) { state.pressed = true; state.change = '走查1-3：按了接手。注入先写为什么不能委托，再给人实施清单。对比切 A 套按执行：那会承诺全自动从头推进。'; }
+    }
+    if (w.id === 'w-supplement') {
+      if (walkStep === 0) { state.ticketKey = 't-needs-info'; state.variant = 'B'; state.pressed = false; state.change = '走查2-1：选 #802 缺料的票（B 套）。'; }
+      if (walkStep === 1) { state.variant = 'B'; state.pressed = false; state.change = '走查2-2：确认 B 套。按钮应是补充，不是执行。'; }
+      if (walkStep === 2) { state.pressed = true; state.change = '走查2-3：按了补充。注入先问可回答的问题，注明回来转待分诊，等待时不实施。对比切 A 套按执行：那会直接认领实施，在缺料上盖楼。'; }
+    }
+    if (w.id === 'w-misclick') {
+      if (walkStep === 0) { state.ticketKey = 't-needs-info'; state.variant = 'A'; state.pressed = false; state.change = '走查3-1：回到 #802 + A 套。按钮是执行。'; }
+      if (walkStep === 1) { state.pressed = true; state.change = '走查3-2：按了执行（A 套）。代价现形：缺料的票被承诺全自动从头推进，白跑一次全量，回来还得重问。'; }
+      if (walkStep === 2) { state.variant = 'B'; state.pressed = true; state.change = '走查3-3：切 B 套再看补充。同一张票，字换成补充，文本换成先问再做。这就是 A/B 的差别。'; }
+    }
+    walkStep = Math.min(walkStep + 1, w.steps.length - 1);
+    if (state.pressed && walkStep === w.steps.length - 1) { /* 停在最后一步，方便对比 */ }
+    renderAll();
+  }
+
+  function renderAll() { renderState(); renderFree(); renderWalk(); }
+  renderAll();
+})();
+</script>
+</body>
+</html>
