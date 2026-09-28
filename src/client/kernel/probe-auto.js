@@ -215,6 +215,24 @@
       } catch (e) {}
     }
 
+    // #746：对话框里的焦点/可见性只装一次（无定时器，纯事件）。装上后：切回本对话框即顺带催一次
+    // 改名拉取（标题在自己对话框里一定可读；后台切页/藏起不催）。跨窗口各装各的，互不干扰。
+    export let _dialogSignalsOn = false
+    export const installDialogSignals = function () {
+      try {
+        if (_dialogSignalsOn) return
+        _dialogSignalsOn = true
+        const kick = function () {
+          try {
+            if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return
+            if (typeof namingGuardianEvent === 'function') namingGuardianEvent('dialog-focus')
+          } catch (eK) {}
+        }
+        if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('focus', kick)
+        if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('visibilitychange', function () { try { if (document.visibilityState === 'visible') kick() } catch (eV) {} })
+      } catch (e) {}
+    }
+
     // v1.5 T10 R7（用户拍板）：手动刷新（状态栏「更新」/ 列表「刷新」/ 检查页「重新检查」）
     //   走静默路径 —— 无全屏遮罩、不禁点；按钮 spinner 即时反馈（命令式 DOM 直操作，不等 React 重渲染）
     //   CSS 动画走合成线程：即使主线程被重渲染占用，转圈照常可见

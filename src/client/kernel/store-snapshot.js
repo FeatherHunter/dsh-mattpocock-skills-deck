@@ -316,7 +316,7 @@
       if (!sid) { return shared }
       let st = stores[sid]
       if (!st) {
-        st = makeStore(); st.sessionId = sid; stores[sid] = st; try { if (typeof namingGuardianEvent === 'function') namingGuardianEvent('store-touch') } catch (eNT) {} // #746 会话store首次落定顺带拉取（每会话每窗口一次；对话框挂载必经此路）
+        st = makeStore(); st.sessionId = sid; stores[sid] = st; try { if (typeof namingGuardianEvent === 'function') namingGuardianEvent('store-touch') } catch (eNT) {} try { if (typeof installDialogSignals === 'function') installDialogSignals() } catch (eDS) {} // #746 会话store首次落定顺带拉取并装对话框焦点监听（每会话每窗口一次；对话框挂载必经此路）
         // #58 新 store 同步补 cwd 并尝试水合 per-cwd 缓存（秒开）
         if (!st.cwd) {
           const sync = getCwdSync(sid)

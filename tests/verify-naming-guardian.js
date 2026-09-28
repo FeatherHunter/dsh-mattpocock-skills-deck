@@ -233,6 +233,7 @@ console.log('\n— 单一真源守卫 —')
   const trigSrc = ['probe-auto.js', 'store-snapshot.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n')
   check(trigSrc.includes("namingGuardianEvent('manual-refresh')"), '#746：手动刷新入口顺带催改名拉取（三个刷新按钮同一入口全包）')
   check(trigSrc.includes("namingGuardianEvent('store-touch')"), '#746：会话store首次落定顺带拉取（对话框挂载必经此路，不点面板也执行）')
+  check(trigSrc.includes("namingGuardianEvent('dialog-focus')") && trigSrc.includes('installDialogSignals') && trigSrc.includes('_dialogSignalsOn'), '#746：对话框焦点/可见性顺带拉取只装一次（标题在自己对话框里一定可读；无新增定时器）')
   check(!trigSrc.includes("namingGuardianEvent('heartbeat-carry')") && !readFileSync(join(ROOT, 'src/client/kernel/attention-heartbeat.js'), 'utf8').includes("namingGuardianEvent('heartbeat-carry')"), '#746：心跳不顺带拉取（心跳是刷新系统的油表，改名走用户动作事件）')
 
   const apiSrc = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：api.js 已拆为三文件，此处读三文件拼起来的内容断言（naming 含命名守护全家与工厂，new-session 含 openTextInNewSession，io 含 openInNewSession/inject）
