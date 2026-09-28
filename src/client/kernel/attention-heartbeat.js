@@ -76,6 +76,8 @@
     export const _attentionPlan = { root: '', intervalMs: 0, lingerMs: 0, standing: '', limit: 0, atMs: 0 }
     /** 上一次心跳是什么时候（同一窗口内只用来判「该不该再报一次」，不做节流决策）。 */
     export let _attentionLastBeatAt = 0
+    /** #776 观测计数：面板打开过几次（只加日志不改行为，不做单例守卫，只计数）。 */
+    export let _signalInstallN = 0
     /** 最近一次「宿主真的收下了我的上报」是什么时候（毫秒时刻）。它断流就是断流，界面不许把故障装成安静。 */
     export let _attentionAckAt = 0
     /** #707：90 秒内没有任何回话 → 自动刷新已被宿主停掉，界面要直说「自动刷新已暂停」（第 10 章那句话的读取点）。 */
@@ -108,6 +110,9 @@
           lastHumanInputMs: _attentionHumanAt || 0,
         }
         const t0 = Date.now()
+        // #776 只加日志不改行为：每次上报记一笔发送（与既有 host.call 配对，数获焦发了几遍）。
+        //   按需级，先判开关；上报本身低频（打开/切换/获焦），不采样。
+        try { if (isEnabled('debug')) log('debug', 'input.observe', { kind: 'focus-send', count: 1, latencyMs: 0 }) } catch (eSnd) {}
         const p = host.call('wf.focus', args)
         return p.then(function (res) {
           try {
@@ -177,6 +182,9 @@
     /** 装监听：窗口获焦、页签可见性变化、人类输入三样。幂等（只装一次）。 */
     export const startAttentionSignals = function () {
       try {
+        // #776 只加日志不改行为：记下这是第几次打开面板（计数只增不减，与 #752 结论对齐）。
+        //   按需级，先判开关再组装字段；低频（每次打开面板一次），不采样。
+        try { _signalInstallN += 1; if (isEnabled('debug')) log('debug', 'input.observe', { kind: 'signal-install', count: _signalInstallN, latencyMs: 0 }) } catch (eCnt) {}
         if (typeof document !== 'undefined' && document.addEventListener) {
           document.addEventListener('visibilitychange', function () {
             try { if (attentionVisible()) reportWorkspaceAttention(null, 'focus', null) } catch (eV) {}

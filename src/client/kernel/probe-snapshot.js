@@ -134,6 +134,9 @@
           } catch (eDisk) {}
         }
         try { if (!hasCache && !(st.snapshot || getCachedSnapshot(st.cwd))) log('info', 'client.snapshot.miss', { keyHash: dswsLogHash(wsKeyOf(st.cwd || '')), reason: 'empty' }) } catch (eL) {}
+        // #776 只加日志不改行为：记下这次打开走缓存三选一的哪一支（有缓存还是现拉）。
+        //   按需级，先判开关；每次取数一次，低频，不采样。
+        try { if (isEnabled('debug')) log('debug', 'input.observe', { kind: 'cache-choice', count: hasCache ? 1 : 0, latencyMs: 0, keyHash: dswsLogHash(wsKeyOf(st.cwd || '')) }) } catch (eCc) {}
         st.snapLoading = true
         // v1.5 T9：silent（后台静默刷新）不显示加载遮罩、不弹错误 toast
         // #58 缓存优先：已有缓存（含磁盘命中）时不显示全屏 loading，静默刷新

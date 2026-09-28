@@ -204,6 +204,9 @@
             const gap = _attentionPlan.intervalMs || PROBE_MS
             if (_activeProbeAt.at && (Date.now() - _activeProbeAt.at) < gap) return
             _activeProbeAt.at = Date.now()
+            // #776 只加日志不改行为：记下这一次探测节拍的间隔与工作区（与输入时间戳对齐用）。
+            //   按需级，先判开关；节拍 5 秒一拍低频，不采样。
+            try { if (isEnabled('debug')) log('debug', 'input.observe', { kind: 'probe-tick', count: 1, latencyMs: Math.round(Number(gap) || 0), keyHash: dswsLogHash(String(cwd || '')) }) } catch (ePt) {}
             probeNow(false)
           } catch (e) {}
         }

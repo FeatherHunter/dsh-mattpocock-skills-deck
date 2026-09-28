@@ -58,6 +58,9 @@ export const useDockSync = function(s, sid, summaryCwd, props){
             logPanelStage('render-paint', _now - panelClock.renderT0)
           }
           if (panelClock.fitMs) logPanelStage('fit-measure', panelClock.fitMs)
+          // #776 只加日志不改行为：折叠测量那一段单独再记一笔可排序的观测（与既有 fit-measure 配对）。
+          //   按需级，先判开关；每次打开最多一笔，低频，不采样。
+          try { if (panelClock.fitMs && isEnabled('debug')) log('debug', 'input.observe', { kind: 'fold-measure', count: 1, latencyMs: Math.round(Number(panelClock.fitMs) || 0) }) } catch (eFm) {}
           logPanelStage('click-to-painted', _now - panelClock.t0)
           panelClock.t0 = 0
           panelClock.renderT0 = 0

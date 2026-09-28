@@ -5,6 +5,8 @@
 // #491 房外埋点：模块级计数（组件外一次，避免每渲染重置；只记枚举与计数，不记路径原文）。
 const dswsStatusHydN = { n: 0 }
 const dswsStatusFbLast = { reason: '' }
+// #776 观测：上一次记过的胶囊与父容器宽度（只在变化时记，避免每次提交刷屏）。
+const dswsWidthLinkLast = { cap: -1, parent: -1 }
 
 /**
  * 状态栏最外层容器的几何（#640）。整条状态栏（横幅那一行 + 胶囊那一行）都住在这个容器里，
@@ -134,6 +136,10 @@ export const StatusBar = (props) => {
   const applyFold = function () {
     const cap = foldRef.current
     if (cap) runCapFold(cap, foldKeep.current)
+    // #776 只加日志不改行为：记下胶囊与父容器的宽度（列宽联动单向收敛的证据）。
+    //   按需级，先判开关；只在变化时记，不采样（宽度不变的提交不落行）。
+    //   门禁要求调试级调用与是否开启判断同行（先判开关再组装字段，关着不读尺寸），所以下面三行是单行式。
+    try { if (cap && isEnabled('debug')) { const capW = Math.round(Number(cap.clientWidth) || 0); const parentW = Math.round(Number((cap.parentElement && cap.parentElement.clientWidth) || 0)); const changed = (capW !== dswsWidthLinkLast.cap || parentW !== dswsWidthLinkLast.parent); if (changed && isEnabled('debug')) log('debug', 'input.observe', { kind: 'width-link', count: capW, latencyMs: parentW, keyHash: dswsLogHash(String((s && s.cwd) || '')) }); if (changed) { dswsWidthLinkLast.cap = capW; dswsWidthLinkLast.parent = parentW } } } catch (eWl) {}
     const w = foldWatch.current
     if (cap && w && w.el !== cap) {
       try { w.roFold.disconnect() } catch (e) {}
