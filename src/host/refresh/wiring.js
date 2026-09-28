@@ -313,7 +313,7 @@ export function createRefreshWiring(deps) {
               if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) })
             } catch (e) {}
           },
-          onTicketCreated: onDeckWrite,   // #746：建票直达命名守护（调用会话即建号会话）
+          onTicketCreated: onDeckWrite, chainNote: function (input) { try { return sessionTickets.note(input) } catch (e) { return null } }, // #746 建票直达命名守护；#775 主动上报写同一份链（report）
           hourUsage: function () { try { return ledger.hourOf('ai-tool') || {} } catch (e) { return {} } },
           ensureReading: function (cwd, workspaceKey) { return ensureDeckReading(cwd, workspaceKey) }, // #758 动手前保读数：差就免费读一次，不差不打；失败调用方照旧被闸推迟
           noteGate: function (info) { try { noteDeckGate(info) } catch (eN) {} }, // #758 闸口径迹：探针读走，线上卡在哪段一眼可见

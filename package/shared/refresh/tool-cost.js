@@ -87,6 +87,8 @@ export function toolCostInputFrom(tool, args) {
       return Object.assign(base, { edges: list(a.edges) + (a.parentKey ? 1 : 0), reads: 1 });
     case "deck_issue_patch":
       return Object.assign(base, { patches: 1, reads: 1, edges: one(a.parentKey) });
+    case "deck_issue_report":
+      return Object.assign(base, { reads: 1 });
     default:
       return Object.assign(base, {
         tickets: count(a.tickets),

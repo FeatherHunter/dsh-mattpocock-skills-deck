@@ -79,7 +79,7 @@ export function isResultShape(shape: string): boolean {
 
 // ---------- 工具名表（先看工具名，再看命令） ----------
 /** 我们自己的写工具（票 #713 那七个薄壳里会改远端的那四个）。 */
-const DECK_WRITE_TOOLS = LIST('deck_issue_create,deck_issue_patch,deck_map_plan_create,deck_map_link')
+const DECK_WRITE_TOOLS = LIST('deck_issue_create,deck_issue_patch,deck_map_plan_create,deck_map_link,deck_issue_report')
 /** 我们自己的读工具（另三个只看不写）。 */
 const DECK_READ_TOOLS = LIST('deck_context,deck_issue_get,deck_map_snapshot')
 /** 我们自己的工具参数里可能装着票号的字段名（按顺序取第一个像票号的）。 */

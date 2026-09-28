@@ -38,7 +38,7 @@ export const CHAIN_BACKENDS: readonly string[] = ['github', 'gitlab', 'markdown'
  * 动作类别（闭集合）。只回答「他在对这张票做什么」，一格一个词，不许出现自由文本
  * —— 类别会落盘、会显示，一旦混进命令原文或票标题，链就成了隐私泄漏面。
  */
-export const CHAIN_ACTIONS: readonly string[] = ['create', 'plan', 'comment', 'edit', 'state', 'link', 'file-write', 'other-write']
+export const CHAIN_ACTIONS: readonly string[] = ['create', 'plan', 'comment', 'edit', 'state', 'link', 'report', 'file-write', 'other-write']
 
 /** 原因代号表：左边是代号（会被写进日志），右边是给第一次读的人看的一整句大白话。 */
 export const CHAIN_REASONS: Readonly<Record<string, string>> = {
@@ -180,7 +180,7 @@ export type ChainSource = 'tool-args' | 'cli' | 'markdown-file'
 
 /** 我们自己的写工具（#713 的七个薄壳里会改远端的那四个）。 */
 const DECK_WRITE_ACTIONS: Readonly<Record<string, string>> = {
-  deck_issue_create: 'create', deck_issue_patch: 'edit', deck_map_plan_create: 'plan', deck_map_link: 'link',
+  deck_issue_create: 'create', deck_issue_patch: 'edit', deck_map_plan_create: 'plan', deck_map_link: 'link', deck_issue_report: 'report',
 }
 /** 我们自己的读工具（另三个只看不写）——命中就明确不记。 */
 const DECK_READ_TOOLS: readonly string[] = ['deck_context', 'deck_issue_get', 'deck_map_snapshot']

@@ -86,6 +86,7 @@
         'chainView.action.edit': '改内容',
         'chainView.action.state': '改状态',
         'chainView.action.link': '建立关联',
+        'chainView.action.report': '上报在办',
         'chainView.action.file-write': '改票文件',
         'chainView.action.other-write': '其他写操作',
       },
@@ -125,7 +126,7 @@
         'list.restFallbackStaleNonQuota': 'Last fetch went through the REST channel ({n} min ago) — data may be slightly stale',
         // #721 (the processing-chain strip): the words used by "which tickets each session is working on".
         //   The judgement and the drawing live in views/shared/sessionChainView.js; the only data source
-        //   is the one reading the host writes. The eight action.* keys line up one for one with the
+        //   is the one reading the host writes. The nine action.* keys line up one for one with the
         //   chain's closed set (CHAIN_ACTIONS in chain.ts), and a gate re-checks that every run.
         'chainView.title': 'Which tickets each session is working on',
         // 2026-09-24 rework (maintainer: "不应该这样呈现，这样UI非常丑陋"): the internal phrase
@@ -149,6 +150,7 @@
         'chainView.action.edit': 'edited',
         'chainView.action.state': 'changed state',
         'chainView.action.link': 'linked',
+        'chainView.action.report': 'reported',
         'chainView.action.file-write': 'wrote a ticket file',
         'chainView.action.other-write': 'other write',
       },

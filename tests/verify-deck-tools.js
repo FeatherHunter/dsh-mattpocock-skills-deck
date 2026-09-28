@@ -1,4 +1,4 @@
-// verify-deck-tools.js —— 门禁：八个后端无关工具（#713 第六批 + 薄列表补齐）
+// verify-deck-tools.js —— 门禁：九个后端无关工具（#713 第六批 + 薄列表补齐）
 // 用法：在插件根目录执行 node tests/verify-deck-tools.js，可独立运行。
 //
 // 这一段盯四件事，都是票面点名要的：
@@ -31,6 +31,7 @@ const TOOL_FILES = [
   ['src/host/tools/deckMapPlanCreate.js', 'createDeckMapPlanCreate', 'deck_map_plan_create'],
   ['src/host/tools/deckMapLink.js', 'createDeckMapLink', 'deck_map_link'],
   ['src/host/tools/deckIssuePatch.js', 'createDeckIssuePatch', 'deck_issue_patch'],
+  ['src/host/tools/deckIssueReport.js', 'createDeckIssueReport', 'deck_issue_report'],
 ]
 
 /** 一个真实本地 Markdown 工作区：票就是 .scratch/demo/issues/*.md 这些文件（与 sections/idempotency.js 同一套做法）。 */
@@ -63,7 +64,7 @@ function makeWorkspace() {
 }
 
 async function main() {
-  console.log('八个后端无关工具的门禁（#713 T9：过闸、三态、永不抛、不判后端）')
+  console.log('九个后端无关工具的门禁（#713 T9：过闸、三态、永不抛、不判后端）')
   const budget = await imp('src/shared/refresh/budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.js')
   const gateMod = await imp('src/host/refresh/gate.js')
@@ -94,6 +95,7 @@ async function main() {
   }
 
   const invalidated = []
+  const chainNotes = []
   const planStore = (() => {
     const table = new Map()
     return { durable: true, load(id) { return table.get(String(id)) || null }, save(id, s) { table.set(String(id), s) } }
@@ -105,6 +107,7 @@ async function main() {
     log: { fire: (level, event, fields) => logs.push({ level: level, event: event, fields: fields }) },
     now: () => clock,
     invalidate: (info) => invalidated.push(info),
+    chainNote: async (input) => { chainNotes.push(input); return { recorded: true, action: 'report', ticketKey: String(input.ticketKey || ''), reason: 'chain.record', count: 1 } },
     planStore: planStore,
   }
   const exec = { agent: { session: { id: 's-713', cwd: ws.rootPosix } } }
@@ -235,6 +238,19 @@ async function main() {
     check(nothing.ok === false && nothing.reason === 'bad-args', 'deck_issue_patch 负向：什么都没点名 → bad-args，不抛')
   }
 
+  // ── ⑦b deck_issue_report：主动上报进同一份链（正例 + 负向） ──
+  {
+    const r = await callTool('deck_issue_report', { key: createdKey, note: '开始处理' })
+    const normCreated = String(createdKey).replace(/^0+(?=\d)/, '')
+    check(envelopeOk(r) && r.status === 'ok' && r.data && String(r.data.key).replace(/^0+(?=\d)/, '') === normCreated, 'deck_issue_report 正例：上报成了（票 ' + createdKey + '，实得 ' + (r && r.status) + '）')
+    check(r.data && r.data.chain && r.data.chain.recorded === true && r.data.chain.reason === 'chain.record', 'deck_issue_report 写进同一份链（动作 report，去重沿用 mergeEntries）：' + JSON.stringify(r.data && r.data.chain))
+    check(chainNotes.length >= 1 && String(chainNotes[chainNotes.length - 1].ticketKey).replace(/^0+(?=\d)/, '') === normCreated && chainNotes[chainNotes.length - 1].tool === 'deck_issue_report', '记链口收到同一张票（tool=deck_issue_report，票 ' + createdKey + '）')
+    const bad = await callTool('deck_issue_report', { key: '999999' })
+    check(envelopeOk(bad) && bad.ok === false && bad.status === 'unsupported', 'deck_issue_report 负向：票不存在 → ok:false / unsupported（实得 ' + (bad && bad.status) + '）')
+    const noArgs = await callTool('deck_issue_report', {})
+    check(noArgs.ok === false && noArgs.reason === 'bad-args', 'deck_issue_report 负向：不给票号 → bad-args，不抛')
+  }
+
   // ── ⑧ 每次后端调用都过闸（真闸真账本） ──
   {
     const stats = gate.stats()
@@ -321,7 +337,7 @@ async function main() {
       }
     }
     for (const d of ['src/host/tools', 'src/shared/deck-tools']) walk(path.join(ROOT, d))
-    check(files.length >= 8, '扫描到的工具层文件数（' + files.length + '：八个工具 + 两个共享壳）')
+    check(files.length >= 8, '扫描到的工具层文件数（' + files.length + '：九个工具 + 两个共享壳）')
     const RE_ID = /(===|!==|==|!=)\s*['"](github|gitlab|markdown)['"]|['"](github|gitlab|markdown)['"]\s*(===|!==|==|!=)/
     const hits = []
     for (const f of files) {
@@ -348,7 +364,7 @@ async function main() {
 
   ws.cleanup()
   try { dispose.dispose() } catch (e) {}
-  console.log('\n' + (failed ? '存在失败' : '全部通过 — 八个工具：过闸、三态、永不抛、不判后端（' + total + ' 条）'))
+  console.log('\n' + (failed ? '存在失败' : '全部通过 — 九个工具：过闸、三态、永不抛、不判后端（' + total + ' 条）'))
   process.exit(failed ? 1 : 0)
 }
 

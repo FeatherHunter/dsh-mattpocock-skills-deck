@@ -76,14 +76,14 @@ export function anchorKeyFor(parts) {
   return 'deck-' + ('0000000' + h.toString(16)).slice(-8) + '-' + bucket
 }
 
-/** 八个工具的装配顺序（描述都很短：详细语义在 deck_context 的返回值里，不进系统提示）。 */
+/** 九个工具的装配顺序（描述都很短：详细语义在 deck_context 的返回值里，不进系统提示）。 */
 export const DECK_TOOL_ORDER = Object.freeze([
-  'deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch',
+  'deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch', 'deck_issue_report',
 ])
 
 /**
- * 把八个工具装成一张表：{ name → { definition, run } }。
- * factories 是八个工具工厂的数组（由接线方 import 进来后传进去）；缺哪个就少哪个，
+ * 把九个工具装成一张表：{ name → { definition, run } }。
+ * factories 是九个工具工厂的数组（由接线方 import 进来后传进去）；缺哪个就少哪个，
  * 缺的会被如实列在 returned.missing 里，不补一个假的桩 —— 工具要么真能用，要么不在表里。
  */
 export function createDeckTools(factories, deps) {
@@ -94,7 +94,7 @@ export function createDeckTools(factories, deps) {
     try {
       const tool = (typeof f === 'function') ? f(d.toolDeps || {}) : f
       if (tool && tool.definition && typeof tool.run === 'function') built[tool.definition.name] = tool
-    } catch (e) { /* 一个工具装不起来不影响其它六个；缺谁由下面的 missing 说出来 */ }
+    } catch (e) { /* 一个工具装不起来不影响其它八个；缺谁由下面的 missing 说出来 */ }
   }
   const names = DECK_TOOL_ORDER.filter((n) => built[n])
   for (const n of DECK_TOOL_ORDER) if (!built[n]) missing.push(n)

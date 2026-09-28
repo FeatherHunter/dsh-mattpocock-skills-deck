@@ -155,7 +155,7 @@ export function createWriteEvents(deps) {
 
   /** #723：处理链动作词（白名单见 chain.js CHAIN_ACTIONS；认不出回空串，链照实丢掉）。 */
   const ACTION_BY_TOOL = Object.freeze({
-    deck_issue_create: 'create', deck_issue_patch: 'edit', deck_map_plan_create: 'create', deck_map_link: 'link',
+    deck_issue_create: 'create', deck_issue_patch: 'edit', deck_map_plan_create: 'create', deck_map_link: 'link', deck_issue_report: 'report',
     create: 'create', edit: 'edit', close: 'close', reopen: 'reopen', comment: 'comment',
     assign: 'assign', label: 'label', unlabel: 'unlabel', link: 'link', unlink: 'unlink', delete: 'delete',
   })

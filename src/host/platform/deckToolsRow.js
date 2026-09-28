@@ -24,13 +24,14 @@ import { definition as deckIssueCreateDef } from '../tools/deckIssueCreate.js'
 import { definition as deckMapPlanCreateDef } from '../tools/deckMapPlanCreate.js'
 import { definition as deckMapLinkDef } from '../tools/deckMapLink.js'
 import { definition as deckIssuePatchDef } from '../tools/deckIssuePatch.js'
+import { definition as deckIssueReportDef } from '../tools/deckIssueReport.js'
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw, makePendingExecute, probeDefinition, probeServices } from '../../shared/deck-tools/agent-register.js'
 import { awaitDeckTable, peekDeckTable, readDeckGate, noteDeckPath, readDeckPath } from '../../shared/deck-tools/exec-cell.js'
 
 export const name = 'dsh-mattpocock-skills-deck-tools'
 export const inject = ['tools']
 
-const SEVEN = [deckContextDef, deckIssueGetDef, deckMapSnapshotDef, deckIssueListDef, deckIssueCreateDef, deckMapPlanCreateDef, deckMapLinkDef, deckIssuePatchDef]
+const SEVEN = [deckContextDef, deckIssueGetDef, deckMapSnapshotDef, deckIssueListDef, deckIssueCreateDef, deckMapPlanCreateDef, deckMapLinkDef, deckIssuePatchDef, deckIssueReportDef]
 
 function isRecord(v) { return v !== null && typeof v === 'object' && !Array.isArray(v) }
 

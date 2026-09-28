@@ -22,6 +22,7 @@ const CASES = [
   // --- 我们自己的工具（票号只从具名参数取） ---
   ['自己的写工具带票号', { shape: 'tools/result', tool: 'deck_issue_patch', args: { issue: 42 }, succeeded: OK }, 'write-confirmed', '42'],
   ['自己的写工具带 # 号票号', { shape: 'tools/result', tool: 'deck_issue_patch', args: { key: '#42' }, succeeded: OK }, 'write-confirmed', '42'],
+  ['主动上报工具带票号', { shape: 'tools/result', tool: 'deck_issue_report', args: { key: 42 }, succeeded: OK }, 'write-confirmed', '42'],
   ['自己的写工具票号认不出（数组参数）', { shape: 'tools/result', tool: 'deck_map_plan_create', args: { children: [{ number: 1 }, { number: 2 }] }, succeeded: OK }, 'write-confirmed', null],
   ['自己的读工具', { shape: 'tools/result', tool: 'deck_context', succeeded: OK }, 'default-tick', null],
   ['自己的读工具（大小写不同也认）', { shape: 'tools/result', tool: 'Deck_Issue_Get', succeeded: OK }, 'default-tick', null],

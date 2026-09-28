@@ -36,7 +36,7 @@ const START_SHAPES = LIST("tool/call,tool/ptc-dispatch-start,tool/code-dispatch-
 export function isResultShape(shape) {
   return RESULT_SHAPES.indexOf(String(shape)) >= 0;
 }
-const DECK_WRITE_TOOLS = LIST("deck_issue_create,deck_issue_patch,deck_map_plan_create,deck_map_link");
+const DECK_WRITE_TOOLS = LIST("deck_issue_create,deck_issue_patch,deck_map_plan_create,deck_map_link,deck_issue_report");
 const DECK_READ_TOOLS = LIST("deck_context,deck_issue_get,deck_map_snapshot");
 const TICKET_ARG_FIELDS = LIST("issue,number,ticket,key,id,child,parent");
 const WEB_FETCH_TOOLS = LIST("webfetch,web_fetch,fetch,webfetchtool,fetchurl");

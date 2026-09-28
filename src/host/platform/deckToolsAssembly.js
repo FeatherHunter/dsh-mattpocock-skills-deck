@@ -1,6 +1,6 @@
-// src/host/platform/deckToolsAssembly.js —— 七个 deck_* 工具在宿主里的装配点（#723 T19c · 第 D 件）
+// src/host/platform/deckToolsAssembly.js —— 九个 deck_* 工具在宿主里的装配点（#723 T19c · 第 D 件）
 //
-// 这个文件只做一件事：把 src/host/tools/ 下七个工具文件里的工厂函数读进来，交给共享层的装配口
+// 这个文件只做一件事：把 src/host/tools/ 下九个工具文件里的工厂函数读进来，交给共享层的装配口
 // createDeckTools（src/shared/deck-tools/plan.js）装成一张表 { 名字 → { definition, run } }。
 // 它自己不判断任何业务：闸、后端注册表、额度常量、会话→句柄、后端 ctx、写后失效缓存这些依赖
 // 都由宿主接线方现取现传（见 src/host/refresh/wiring.js 的 deckToolsForHost）。
@@ -16,7 +16,7 @@
 //   换句话说：本文件住在这里是为了守住门票那条「不给宿主层新增 7 条同层边」的形状，
 //   不是因为它与操作系统有关。备选做法与代价写在 #723 交付报告第 6 节，请统筹者定夺。
 //
-// 日志：本文件自己不记日志。七个工具每一次调用都经共享壳（src/shared/deck-tools/shell.js）
+// 日志：本文件自己不记日志。九个工具每一次调用都经共享壳（src/shared/deck-tools/shell.js）
 // 在自己的成功/失败出口各落一行 host.call / host.call.fail（kind = deck-tool），
 // 沿用既有事件名，不新增事件名、不新增字段。
 import { createDeckTools } from '../../shared/deck-tools/plan.js'
@@ -28,8 +28,9 @@ import { createDeckIssueCreate } from '../tools/deckIssueCreate.js'
 import { createDeckMapPlanCreate } from '../tools/deckMapPlanCreate.js'
 import { createDeckMapLink } from '../tools/deckMapLink.js'
 import { createDeckIssuePatch } from '../tools/deckIssuePatch.js'
+import { createDeckIssueReport } from '../tools/deckIssueReport.js'
 
-/** 八个工厂（顺序与 plan.js 的 DECK_TOOL_ORDER 一致；装配口按名字收口，这里只负责传全）。 */
+/** 九个工厂（顺序与 plan.js 的 DECK_TOOL_ORDER 一致；装配口按名字收口，这里只负责传全）。 */
 export const DECK_TOOL_FACTORIES = Object.freeze([
   createDeckContext,
   createDeckIssueGet,
@@ -39,9 +40,10 @@ export const DECK_TOOL_FACTORIES = Object.freeze([
   createDeckMapPlanCreate,
   createDeckMapLink,
   createDeckIssuePatch,
+  createDeckIssueReport,
 ])
 
-/** 这八个文件就是本文件存在的理由：门禁与排查要能一眼看见这 8 条边被收在哪一个点上。 */
+/** 这九个文件就是本文件存在的理由：门禁与排查要能一眼看见这 9 条边被收在哪一个点上。 */
 export const DECK_TOOL_FILES = Object.freeze([
   'src/host/tools/deckContext.js',
   'src/host/tools/deckIssueGet.js',
@@ -51,11 +53,12 @@ export const DECK_TOOL_FILES = Object.freeze([
   'src/host/tools/deckMapPlanCreate.js',
   'src/host/tools/deckMapLink.js',
   'src/host/tools/deckIssuePatch.js',
+  'src/host/tools/deckIssueReport.js',
 ])
 
 /**
  * 装一次，回 createDeckTools 的原话：{ tools, names, definitions, missing }。
- * toolDeps 就是七个工具工厂的依赖（闸、注册表、额度、算账、会话→句柄、后端 ctx、planStore、
+ * toolDeps 就是九个工具工厂的依赖（闸、注册表、额度、算账、会话→句柄、后端 ctx、planStore、
  * invalidate）—— 与 tests/verify-deck-tools.js 里直接喂给工厂的那一份同形，
  * 所以「门禁里跑得通」与「宿主里跑得通」是同一件事，而不是两份各自能跑的实现。
  */

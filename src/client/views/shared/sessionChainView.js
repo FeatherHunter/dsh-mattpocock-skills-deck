@@ -57,6 +57,7 @@ export const SESSION_CHAIN_ACTION_KEYS = {
   'edit': 'chainView.action.edit',
   'state': 'chainView.action.state',
   'link': 'chainView.action.link',
+  'report': 'chainView.action.report',
   'file-write': 'chainView.action.file-write',
   'other-write': 'chainView.action.other-write',
 }
