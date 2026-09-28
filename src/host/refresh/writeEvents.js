@@ -67,6 +67,7 @@ export function createWriteEvents(deps) {
   const gate = opts.gate || null
   const doFetch = typeof opts.fetch === 'function' ? opts.fetch : null
   const hash8 = typeof opts.hash8 === 'function' ? opts.hash8 : shortHash
+  const isNamingTracked = typeof opts.isNamingTracked === 'function' ? opts.isNamingTracked : null // #746 摘要窄门：白名单之外但受踪之内的会话，首句仍可触发摘要
   const limits = {
     mergeWindowMs: num(opts.mergeWindowMs, PATCH_MERGE_WINDOW_MS),
     probeIntervalMs: num(opts.probeIntervalMs, PROBE_INTERVAL_MS),
@@ -293,7 +294,7 @@ export function createWriteEvents(deps) {
   /** 会话事件第二条订阅。第一行先过门：不归我们的会话立刻返回，不留任何痕迹。 */
   async function onSessionEvent(session, event) {
     const ours = await isOurs(session)
-    if (!ours) return null
+    if (!ours) { try { if (String(event && event.type || '') === 'assistant/message' && typeof opts.onFirstAssistant === 'function' && typeof isNamingTracked === 'function' && sessionIdOf(session) && await isNamingTracked(sessionIdOf(session))) opts.onFirstAssistant(sessionIdOf(session)) } catch (eN) {} return null } // #746 摘要窄门：只走首句摘要这一条，取数记账处理链一律不碰，刷新配额原样不动
     const type = event && event.type
     // #746：首条助手消息即摘要触发（门后、只传会话号与类型名，事件体不进任何 sink）。
     if (String(type || '') === 'assistant/message') {

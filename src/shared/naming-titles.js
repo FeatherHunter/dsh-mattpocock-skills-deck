@@ -142,5 +142,12 @@ export function composeDraftTitle({ hint, lang, baselineTitle }) {
   const fullPrefix = typeTag ? prefix + typeTag : prefix
   const rawHint = cleanTitleText(hint || '')
   if (!rawHint) return fullPrefix
+  // #746：线索本身只是类型词（占位派生的“新建需求”等）时不再叠字，直接裸档；
+  // 无基线（无标签）时不去重，避免把有效线索吞掉。
+  if (typeTag) {
+    const condensed = String(rawHint).toLowerCase().replace(/\s+/g, '')
+    const bareWords = ['新建需求', '新增需求', '新建bug', '新增bug', 'newrequirement', 'newbug']
+    if (bareWords.indexOf(condensed) >= 0) return fullPrefix
+  }
   return fullPrefix + ' ' + truncateTitleUtf8(fullPrefix, rawHint, SESSION_TITLE_MAX_BYTES)
 }

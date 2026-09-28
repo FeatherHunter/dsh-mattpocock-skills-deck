@@ -151,11 +151,22 @@ export function createRefreshWiring(deps) {
   }
   function onDeckWrite(info) { try { const s = summaryOf(); if (s) s.onDeckWrite(info) } catch (e) {} return { ok: true } }
   function onFirstAssistant(sid) { try { const s = summaryOf(); if (s) s.maybeSummarize(sid) } catch (e) {} }
+  // #746：受踪判定（供写事件白名单之外的窄门：只认命名守护账上有号的会话，取数记账链不走这里）。
+  function isNamingTracked(sid) {
+    try {
+      if (!sid || typeof d.getNaming !== 'function') return Promise.resolve(false)
+      return Promise.resolve(d.getNaming()).then(function (h) {
+        if (!h || typeof h.getEntry !== 'function') return false
+        return Promise.resolve(h.getEntry(sid)).then(function (e) { return !!e }).catch(function () { return false })
+      }).catch(function () { return false })
+    } catch (e) { return Promise.resolve(false) }
+  }
   const writeEvents = d.writeEvents || createWriteEvents({
     gate: gate, fetch: fetchForWriteEvent, canonicalKey: d.canonicalKey, logCtx: logCtx,
     note: function (input) { try { return sessionTickets.note(input) } catch (e) { return null } },
     backendOf: function (rootKey) { return backendOfRoot(rootKey) },
     onFirstAssistant: onFirstAssistant,
+    isNamingTracked: isNamingTracked,
   })
 
   // c：视野模型。wf.focus 上报「我在看谁」之后，活跃集合就在这里，b 的白名单跟着它走。

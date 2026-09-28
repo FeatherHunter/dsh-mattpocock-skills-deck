@@ -55,6 +55,12 @@ eq(m.composeDraftTitle({ hint: '修复登录闪退', lang: 'zh' }), '[草稿] �
 eq(m.composeDraftTitle({ hint: 'Fix login flicker', lang: 'en' }), '[Draft] Fix login flicker', '有线索 en')
 eq(m.composeDraftTitle({ hint: 'a\n\tb  \n c', lang: 'zh' }), '[草稿] a b c', '清洗归一（换行/Tab/多空格）')
 eq(m.composeDraftTitle({ hint: 'emoji 🚀\x00控制\u200B隐形\x1B[31m红字', lang: 'zh' }), '[草稿] emoji 🚀 控制 隐形红字', '清洗剥控制/隐形/ANSI 且 emoji 保留（#205 规则：ESC 序列整体剥除不留空）')
+eq(m.composeDraftTitle({ hint: '新建需求', lang: 'zh', baselineTitle: '[New] 新建需求' }), '[草稿][新增需求]', '线索只是类型词 → 裸档不叠字（#746）')
+eq(m.composeDraftTitle({ hint: '新建 Bug', lang: 'zh', baselineTitle: '[New] 新建 Bug' }), '[草稿][新增BUG]', 'bug 型同上')
+eq(m.composeDraftTitle({ hint: '新增需求', lang: 'zh', baselineTitle: '[New] 新建需求' }), '[草稿][新增需求]', '异写同义词同样去重')
+eq(m.composeDraftTitle({ hint: 'New Requirement', lang: 'en', baselineTitle: '[New] New Requirement' }), '[Draft][New Requirement]', '英文型同上')
+eq(m.composeDraftTitle({ hint: '修复登录闪退', lang: 'zh', baselineTitle: '[New] 新建需求' }), '[草稿][新增需求] 修复登录闪退', '真线索不受影响')
+eq(m.composeDraftTitle({ hint: '新建需求', lang: 'zh' }), '[草稿] 新建需求', '无基线（无标签）时不去重')
 
 // ---------- 3) 字节边界（120 bytes 总预算，前缀永不截断）----------
 console.log('\n— 字节边界 —')
@@ -235,6 +241,8 @@ console.log('\n— 单一真源守卫 —')
   check(trigSrc.includes("namingGuardianEvent('store-touch')"), '#746：会话store首次落定顺带拉取（对话框挂载必经此路，不点面板也执行）')
   check(trigSrc.includes("namingGuardianEvent('dialog-focus')") && trigSrc.includes('installDialogSignals') && trigSrc.includes('_dialogSignalsOn'), '#746：对话框焦点/可见性顺带拉取只装一次（标题在自己对话框里一定可读；无新增定时器）')
   check(!trigSrc.includes("namingGuardianEvent('heartbeat-carry')") && !readFileSync(join(ROOT, 'src/client/kernel/attention-heartbeat.js'), 'utf8').includes("namingGuardianEvent('heartbeat-carry')"), '#746：心跳不顺带拉取（心跳是刷新系统的油表，改名走用户动作事件）')
+  const wrSrc = ['refresh/writeEvents.js', 'refresh/wiring.js'].map((f) => readFileSync(join(ROOT, 'src/host', f), 'utf8')).join('\n')
+  check(wrSrc.includes('isNamingTracked'), '写事件认受踪会话的首句摘要（#746：白名单之外但受踪之内也触发摘要，取数记账链一律不碰）')
 
   const apiSrc = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：api.js 已拆为三文件，此处读三文件拼起来的内容断言（naming 含命名守护全家与工厂，new-session 含 openTextInNewSession，io 含 openInNewSession/inject）
   // （namingSignal 的 client 发送点在 store.js recordIssuePath，下一节单独断言）
