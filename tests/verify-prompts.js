@@ -890,7 +890,7 @@ const contractChecksInner = function (reg, src) {
 
   // 版本号 bump（#573 §2.7 逐条清单；只许升不许降）
   const V_MIN = {
-    mapExecute: 9, complete: 9, fixate: 6, 'tpl.diagnose': 10, 'tpl.fix': 7, 'tpl.discuss': 8,
+    mapExecute: 10, complete: 9, fixate: 6, 'tpl.diagnose': 10, 'tpl.fix': 7, 'tpl.discuss': 8,
     'tpl.research': 5, 'tpl.prototype': 5, 'tpl.execute': 9, mapInspect: 6, newWayfinder: 14,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
@@ -918,12 +918,13 @@ const contractChecksInner = function (reg, src) {
     if (me.zh.indexOf('阶段闸门') < 0 || me.en.indexOf('stage-gate') < 0) fail('T13 mapExecute 未含阶段闸门引用（needs-triage 先诊断）')
     if (me.zh.indexOf('needs-triage') < 0) fail('mapExecute zh 缺 needs-triage 标记')
     if (me.zh.indexOf('- [ ]') < 0) fail('mapExecute zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (me.zh.indexOf('## 目标 map') < 0 || me.zh.indexOf('## 分析') < 0 || me.zh.indexOf('## 选票') < 0 || me.zh.indexOf('## 执行') < 0 || me.zh.indexOf('## 收尾') < 0) fail('mapExecute zh 缺清单段标题（目标 map/分析/选票/执行/收尾）')
+    if (me.zh.indexOf('## 工具') < 0 || me.zh.indexOf('## 分析') < 0 || me.zh.indexOf('## 选票') < 0 || me.zh.indexOf('## 执行') < 0 || me.zh.indexOf('## 收尾') < 0) fail('mapExecute zh 缺清单段标题（工具/分析/选票/执行/收尾）')
     if (me.zh.indexOf('|') >= 0) fail('mapExecute zh 含表格 |（已约定无表格，全勾选框）')
-    if (me.zh.indexOf('编号：') < 0 || me.zh.indexOf('标题：') < 0 || me.zh.indexOf('链接：') < 0) fail('mapExecute zh 缺 map 标识头三字段（编号/标题/链接）')
-    if (me.placeholders.indexOf('n') < 0 || me.placeholders.indexOf('title') < 0 || me.placeholders.indexOf('url') < 0) fail('mapExecute 占位符缺 n/title/url（自包含 map 标识）')
+    if (me.zh.indexOf('## 目标 map') >= 0 || me.zh.indexOf('编号：') >= 0 || me.zh.indexOf('加载 wayfinder 技能') >= 0) fail('mapExecute zh 残留已撤掉的标识头/加载行（标识由首行 /wayfinder+链接承载）')
+    if (me.zh.indexOf('deck_xxx') < 0) fail('mapExecute zh 缺工具节要求（issue 相关操作使用 deck_xxx 工具处理）')
+    if (me.placeholders.length !== 0) fail('mapExecute 不应再声明占位符（标识头已撤掉，无 {n}/{title}/{url} 可填）')
     if (me.en.indexOf('- [ ]') < 0) fail('mapExecute en 缺清单标记 - [ ]')
-    if (me.en.indexOf('## Target map') < 0 || me.en.indexOf('## Analyze') < 0 || me.en.indexOf('## Pick the ticket') < 0 || me.en.indexOf('## Execute') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Target map/Analyze/Pick the ticket/Execute/Wrap-up）')
+    if (me.en.indexOf('## Tools') < 0 || me.en.indexOf('## Analyze') < 0 || me.en.indexOf('## Pick the ticket') < 0 || me.en.indexOf('## Execute') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Tools/Analyze/Pick the ticket/Execute/Wrap-up）')
   }
   // tpl.execute（#64 清单式）
   const ex = reg['tpl.execute']
@@ -1397,10 +1398,12 @@ const selfDigest = function () {
 //   github 面那两条 rule 豁免（ensureLabels / repoAccessFix）还清、从豁免登记表撤掉，条数 10 → 8；
 //   github 的 subIssue 与 mapInspect 渲染断言由「必须 gh 直连」改成「必须走 deck_* 工具」；
 //   豁免登记表与自摘要一并重算。
+// mapExecute v10：去标识头（身份由首行 /wayfinder+链接承载）+ 工具节 + 收尾新说法，占位符清零，
+//   版本底线 9 → 10，断言同步改，自摘要一并重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '792e58f7d5335d308020be1a6fa8fe7a1e4eac4fc071eeef0357567e2fd5109c',
+  'tests/verify-prompts.js': '67393c0e5705ad9f471cc9892aabfd152f69fc812e2d693646283a99aa3398c1',
 }
 // ---- LOCK-END ----
 

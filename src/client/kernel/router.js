@@ -156,7 +156,7 @@
           return completePrompt(st, t.number, t.title, stats.total, stats.closed)
         }
         // v1.5：技能 + 链接前置（用户规则：具体操作 prompt 开头 = /wayfinder + ISSUE 链接，单行空格分隔）
-        // v5（#68 grilling 定版）：mapExecute 自包含（map 标识头 + 闸门引用）→ gateText/head 外挂全删
+        // v10：mapExecute 去标识头（map 身份由首行 /wayfinder+链接承载）+ 工具节，传参保留兼容（模板内无占位即忽略）
         return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapExecute', { n: String(t.number || ''), title: (t.title || ''), url: url })
       }
       const body = renderTemplate('execute', { number: String(t.number), url: url, title: t.title }, st)

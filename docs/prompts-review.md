@@ -1,24 +1,21 @@
-# DSH-Waystation · Prompt 审阅清单（v1.12 · 方案A 注册表 · #64 v5 清单式 tpl.execute · #65 v4 清单式 tpl.diagnose · #66 v3 清单式 tpl.fix · #67 v3 清单式 tpl.discuss · #68 v5 清单式 mapExecute（标识头自包含 + 单行前缀）· #70 v2 质量导向 tpl.handoff1 · #71 v2 清单式 tpl.handoff2（单模板，删 handoffRead）· #74 v2 双轨安装 installSkills · #75 v3 进度契约 progress（压缩 3 条 + 格式正例 + 未确认不得 close）· #76 v3 正文格式 bodyFormat（工具无关 + 格式正例）· #77 G16 五片段全删（guide/grill/newMap/mapHead/stageGate）+ complete v5 自包含标识头 + newWayfinder v8 去契约引用 + tpl.diagnose v5 澄清段）
+# DSH-Waystation · Prompt 审阅清单（v1.12 · 方案A 注册表 · #64 v5 清单式 tpl.execute · #65 v4 清单式 tpl.diagnose · #66 v3 清单式 tpl.fix · #67 v3 清单式 tpl.discuss · #68 v10 清单式 mapExecute（去标识头 + 工具节 + 单行前缀）· #70 v2 质量导向 tpl.handoff1 · #71 v2 清单式 tpl.handoff2（单模板，删 handoffRead）· #74 v2 双轨安装 installSkills · #75 v3 进度契约 progress（压缩 3 条 + 格式正例 + 未确认不得 close）· #76 v3 正文格式 bodyFormat（工具无关 + 格式正例）· #77 G16 五片段全删（guide/grill/newMap/mapHead/stageGate）+ complete v5 自包含标识头 + newWayfinder v8 去契约引用 + tpl.diagnose v5 澄清段）
 
 > **单源新架构**：真源 `src/client/kernel/prompts.js`，改后必跑 `node scripts/build.mjs` 生成 `client.js / package/lib/client.js`，勿手改产物（见 `docs/architecture/kernel-contract.md`）。动手前必读：`src/client/kernel/prompts.js` 头 20 行 + `docs/architecture/kernel-contract.md` + 跑 `node scripts/build.mjs 及 tests/verify-*`。
 > PROMPTS 注册表（15 条）为**单一真相源**；zh/en 双语跟随 DSH 语言；{x} 占位符必须声明于 placeholders。
-> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 六段标题 + 无表格 + 标识头三字段 + 占位符 n/title/url + T13 闸门引用 + 单行前缀；#74 installSkills 硬校验：版本 ≥ v2 + zh/en 必含 ~/.agents/skills 与全部 10 个所需技能名；#75 progress 硬校验：版本 ≥ v3 + 格式正例 + 未确认不得 close + 首触补写；#76 bodyFormat 硬校验：版本 ≥ v3 + 工具无关（不得点名 gh）+ 去 JSON 黑话 + 格式正例；#77 G16 硬校验：注册表 15 条 + 五片段不得复活（guide/grill/newMap/mapHead/stageGate）+ STAGE_GATED_IDS/去重守卫不得残留 + complete v5（标识头三字段 + 占位符 n/title/url + 无 guide 引导句）+ newWayfinder v8（无「按建图规划契约」引用）+ tpl.diagnose v5（无「与 grill 片段同义」悬空括注））+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×2：newWayfinder + newBugWayfinder；mapExecute/complete 自包含内嵌正文格式）。
+> 校验：`node tests/verify-prompts.js`（含 #64 清单式校验：`- [ ]` + 四段标题 + 无表格；#65 tpl.diagnose 清单式校验：`- [ ]` + 七段标题 + 无表格 + 诊断≠修复；#66 tpl.fix 清单式校验：`- [ ]` + 五段标题 + 无表格 + 两行复现/定位；#67 tpl.discuss 清单式校验；#68 mapExecute 清单式校验：`- [ ]` + 五段标题 + 无表格 + 工具节 + 零占位符 + T13 闸门引用 + 单行前缀；#74 installSkills 硬校验：版本 ≥ v2 + zh/en 必含 ~/.agents/skills 与全部 10 个所需技能名；#75 progress 硬校验：版本 ≥ v3 + 格式正例 + 未确认不得 close + 首触补写；#76 bodyFormat 硬校验：版本 ≥ v3 + 工具无关（不得点名 gh）+ 去 JSON 黑话 + 格式正例；#77 G16 硬校验：注册表 15 条 + 五片段不得复活（guide/grill/newMap/mapHead/stageGate）+ STAGE_GATED_IDS/去重守卫不得残留 + complete v5（标识头三字段 + 占位符 n/title/url + 无 guide 引导句）+ newWayfinder v8（无「按建图规划契约」引用）+ tpl.diagnose v5（无「与 grill 片段同义」悬空括注））+ `node tests/verify-kernel.js`（产物新鲜度门禁）+ `node tests/verify-build-artifacts.js`（AUTO-GENERATED 门禁）+ `node tests/verify-bug-entry.js` + `node tests/verify-b2-map-newsession.js` + `node tests/verify-progress.js`（BODY_FORMAT 追加点 ×2：newWayfinder + newBugWayfinder；mapExecute/complete 自包含内嵌正文格式）。
 
-## mapExecute · v5 — #68 清单式（A★ · map 标识头自包含 · 单行前缀 · 闸门一句引用）
+## mapExecute · v10 — 清单式（A★ · 去标识头 · 工具节 · 闸门一句引用）
 
 - 用途：map 执行 / 新会话（未完成态）· 推进式 · 清单式（A★）
-- 占位符：{n} / {title} / {url}（router 拼装传入；首行 `/wayfinder {url}` 单行空格分隔）
+- 占位符：无（map 身份由首行 `/wayfinder {url}` 承载；router 传参保留兼容）
 - ZH：
 
-<pre>## 目标 map
-- 编号：#{n}
-- 标题：{title}
-- 链接：{url}
+<pre>请使用 wayfinder 技能推进该 map（遵循其规则）：
 
-请使用 wayfinder 技能推进该 map（遵循其规则）：
+## 工具
+- [ ] issue 相关操作使用 deck_xxx 工具处理
 
 ## 分析
-- [ ] 加载 wayfinder 技能（如未加载）
 - [ ] 分析这个 map：Destination / Notes / 阻塞关系 / 当前 frontier
 
 ## 选票
@@ -29,25 +26,18 @@
 - [ ] 若该票带 needs-triage：先按阶段闸门完成诊断（读现状 / 判断进展：真实 / 虚假 / 未动工）再进入实施，不许跳过
 
 ## 收尾
-- [ ] 结束前按进度契约更新该票正文（## 进度：N% + 下一步）；验收通过 → 100% + close
-- [ ] 若本次推进关闭了票：同步 map 记录（Decisions so far 追加 gist / 迷雾毕业 / Out of scope）
-
-## 正文格式（写/改 issue 正文时必须遵守）
-- [ ] 用真实换行书写：`## 章节` 独占一行，段落间留空行
-- [ ] 禁止字面 \n 转义（不要把换行写成 \n 两个字符）、禁止正文以 BOM（\ufeff）开头
-- [ ] 写回 issue 正文时用文件承载正文（真实换行），不要用 JSON/转义字符串内联拼装</pre>
+- [ ] 结束前把这张票的真实状态写进正文
+- [ ] 任务完成就 close 这张票，没做完就保持open
+- [ ] 若本次推进有issue被close：同步 map 记录（Decisions so far 追加 gist / 迷雾毕业 / Out of scope）</pre>
 
 - EN：
 
-<pre>## Target map
-- No: #{n}
-- Title: {title}
-- Link: {url}
+<pre>Please use the wayfinder skill to advance this map (follow its rules):
 
-Please use the wayfinder skill to advance this map (follow its rules):
+## Tools
+- [ ] Handle issue operations with the deck_xxx tools
 
 ## Analyze
-- [ ] Load the wayfinder skill (if not loaded)
 - [ ] Analyze this map: Destination / Notes / blocking relationships / current frontier
 
 ## Pick the ticket
@@ -58,13 +48,9 @@ Please use the wayfinder skill to advance this map (follow its rules):
 - [ ] If the ticket carries needs-triage: first complete the stage-gate diagnosis (read current state / judge progress: real / fake / not started) before implementation — do not skip
 
 ## Wrap-up
-- [ ] Before finishing, update the ticket body per the progress contract (## Progress: N% + next step); verified → 100% + close
-- [ ] If this advance closes any ticket, sync the map records (Decisions so far gist / fog graduation / Out of scope)
-
-## Body format (mandatory when writing/editing an issue body)
-- [ ] Use real newlines: each `## section` on its own line, blank line between paragraphs
-- [ ] No literal \n escapes, no BOM (\ufeff) at the start
-- [ ] Write via file-based input (real newlines), never inline JSON-escaped strings</pre>
+- [ ] Before finishing, write the true state of this ticket into its body
+- [ ] Close this ticket when the task is done; keep it open when it is not
+- [ ] If this advance has any issue closed, sync the map records (Decisions so far gist / fog graduation / Out of scope)</pre>
 
 ---
 

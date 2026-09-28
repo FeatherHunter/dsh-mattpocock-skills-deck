@@ -2,9 +2,9 @@
 // 用法: node tests/verify-b2-map-newsession.js [file...]（默认 client.js + package/lib/client.js 双源）
 //
 // 验收标准（issue #456）：
-//   a) map 行新会话 prompt 含 map 编号/URL/标题 —— AI 一开新会话即可定位对应 ISSUE；
+//   a) map 行新会话 prompt 首行即 /wayfinder+链接 —— AI 一开新会话即可定位对应 ISSUE（标识由首行承载，不再内嵌标识头）；
 //   b) 完成态 map（子票全关）新会话 prompt = 完成确认 prompt（COMPLETE_PROMPT 填好 #n/total/closed + map 标识），
-//      未完成 = 推进式（MAP_EXECUTE_PROMPT）+ map 标识（B2 修订：新会话 prompt 跟随左侧主按钮语义）；
+//      未完成 = 推进式（MAP_EXECUTE_PROMPT）+ 工具节（B2 修订：新会话 prompt 跟随左侧主按钮语义）；
 //   c) 详情页执行/完成旁有「在新会话打开」按钮；
 //   d) 双语（zh/en）。
 //
@@ -169,10 +169,8 @@ const checkFile = function (file) {
   const out = env.startText(ST, mapIssue(305, '测试 map 标题'))
   assert.ok(out.indexOf('/wayfinder ' + URL305) === 0, file + ' zh 未完成 prompt 以 /wayfinder+空格+链接 开头')
   assert.ok(out.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 未完成 = 推进式文案')
-  assert.ok(out.includes('## 目标 map'), file + ' zh map 标识头')
-  assert.ok(out.includes('编号：#305'), file + ' zh map 编号')
-  assert.ok(out.includes('标题：测试 map 标题'), file + ' zh map 标题')
-  assert.ok(out.includes('链接：' + URL305), file + ' zh map 链接')
+  assert.ok(out.includes('## 工具') && out.includes('deck_xxx'), file + ' zh 工具节（issue 操作走 deck 工具）')
+  assert.ok(!out.includes('## 目标 map') && !out.includes('编号：#305'), file + ' zh 未完成态不再内嵌 map 标识头（标识由首行 /wayfinder+链接承载）')
   assert.ok(!out.includes('完成确认'), file + ' zh 未完成态不含完成确认')
 
   // b) 完成 map 行（t 自带 stats）：完成确认 prompt + map 标识，非推进式（#69 v4：标题 ## MAP完成确认，票号在首行 /wayfinder URL）
@@ -206,10 +204,8 @@ const checkFile = function (file) {
   const enEnv = buildEnv(src, 'en')
   const out6 = enEnv.startText(ST, mapIssue(305, 'Test map title'))
   assert.ok(out6.includes('Please use the wayfinder skill to advance this map'), file + ' en 推进式')
-  assert.ok(out6.includes('## Target map'), file + ' en map 标识头')
-  assert.ok(out6.includes('No: #305'), file + ' en map 编号')
-  assert.ok(out6.includes('Title: Test map title'), file + ' en map 标题')
-  assert.ok(out6.includes('Link: ' + URL305), file + ' en map 链接')
+  assert.ok(out6.includes('## Tools') && out6.includes('deck_xxx'), file + ' en 工具节（issue 操作走 deck 工具）')
+  assert.ok(!out6.includes('## Target map') && !out6.includes('No: #305'), file + ' en 不再内嵌 map 标识头')
   const out7 = enEnv.startText(ST, mapIssue(200, 'Done map', { total: 2, closed: 2 }))
   assert.ok(out7.includes('## MAP completion check'), file + ' en 完成确认标题（v4 MAP completion check）')
   assert.ok(out7.indexOf('/wayfinder ' + URL200) === 0, file + ' en 完成确认首行 /wayfinder+URL 含票号 #n')
