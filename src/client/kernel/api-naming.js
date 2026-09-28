@@ -145,6 +145,8 @@ export let pendingDraftTargetSid = null
     // 旧 #211 的 5 秒手改跳过标记（死代码）自本版起全面移除：手改保护由值比对锁真检测承担。
     // #709（T5）：从前这里有 NAMING_POLL_MS = 5000 与 _namingPollTimer（自续轮询用）。两者随轮询一起退役。
     let _namingPullBusy = false
+    // #746：排队单执行跳过的原因账（每会话每窗口只记一次，防刷屏；窗口关掉账就没了，本来也只用来定位当场问题）
+    export let _skipLogged = {}
     // 值比对锁的「当前标题」来源：优先 sessions.get(sid) 实时标题（若宿主暴露，即时而非快照），回退到 sessions.list 快照 byId[sid].title
     export function namingCurrentTitleOf(sid) {
       try {
@@ -189,10 +191,10 @@ export let pendingDraftTargetSid = null
       const sid = o.sessionId
       const lock = o.lock || {}
       const cur = namingCurrentTitleOf(sid)
-      if (cur === null) return  // 当前标题不可读：本轮跳过，绝不盲写
+      if (cur === null) { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-cur-null' }) } } catch (eDbg) {}; return }  // 当前标题不可读：本轮跳过，绝不盲写
       const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
       if ((judge === 'locked' && !exonerateNativeTitle(cur, lock)) || lock.locked) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur }); return }
-      if (judge === 'unknown') return
+      if (judge === 'unknown') { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-unknown' }) } } catch (eDbg) {}; return }
       let target = null
       if (o.kind === 'draft') {
         let langIsEn = false

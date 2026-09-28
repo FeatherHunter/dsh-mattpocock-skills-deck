@@ -243,6 +243,9 @@ console.log('\n— 单一真源守卫 —')
   check(!trigSrc.includes("namingGuardianEvent('heartbeat-carry')") && !readFileSync(join(ROOT, 'src/client/kernel/attention-heartbeat.js'), 'utf8').includes("namingGuardianEvent('heartbeat-carry')"), '#746：心跳不顺带拉取（心跳是刷新系统的油表，改名走用户动作事件）')
   const wrSrc = ['refresh/writeEvents.js', 'refresh/wiring.js'].map((f) => readFileSync(join(ROOT, 'src/host', f), 'utf8')).join('\n')
   check(wrSrc.includes('isNamingTracked'), '写事件认受踪会话的首句摘要（#746：白名单之外但受踪之内也触发摘要，取数记账链一律不碰）')
+  const skipSrc = readFileSync(join(ROOT, 'src/client/kernel/api-naming.js'), 'utf8')
+  check(skipSrc.includes("reason: 'skip-cur-null'") && skipSrc.includes("reason: 'skip-unknown'"), '#746：排队单执行跳过留常驻可查原因（只记原因枚举，不记标题原文）')
+  check(skipSrc.includes('_skipLogged') && !skipSrc.includes('dbg762f'), '#746：跳过信号每会话每窗口只记一次，临时诊断标记清零')
 
   const apiSrc = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：api.js 已拆为三文件，此处读三文件拼起来的内容断言（naming 含命名守护全家与工厂，new-session 含 openTextInNewSession，io 含 openInNewSession/inject）
   // （namingSignal 的 client 发送点在 store.js recordIssuePath，下一节单独断言）
