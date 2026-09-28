@@ -25,8 +25,6 @@ A playable task board for [mattpocock/skills](https://github.com/mattpocock/skil
 
 One prerequisite: [DSH](https://www.npmjs.com/package/@deepseek-ai/dsh) (DeepSeek Harness, an AI coding desktop). You give instructions, the AI does the work — and MattSkillsDeck turns that work into missions on a panel.
 
-**Matching DSH kernel version: `0.1.5-rc.1`** (the current `latest` on the official npm registry — what `npm install -g @deepseek-ai/dsh` gives you). This release was developed, built and verified against that kernel, and both install commands below target it. The kernel bundled with DSH Desktop 2.0.10 is **the same code with the version string `0.1.5-rc.2`** (the registry's `next` tag) — a line-by-line comparison found the only difference to be the `version` field, see [`research/624-file-channel.md`](../research/624-file-channel.md) section 6.3 — so desktop app users do not need to install a kernel separately.
-
 </div>
 
 ```bash

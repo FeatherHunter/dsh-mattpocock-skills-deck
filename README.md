@@ -21,8 +21,6 @@
 
 前置要求：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness）。在 DSH 里，你下指令、AI 干活；MattSkillsDeck 把这些活变成面板上的任务。
 
-**匹配的 DSH 内核版本：`0.1.5-rc.1`**（DSH 官方源上的当前 `latest`，也就是 `npm install -g @deepseek-ai/dsh` 装到的那一版）。本版就是在这一版内核上开发、构建与验收的，两条安装命令都按它给。DSH Desktop 2.0.10 自带的内核是**同一份代码、版本号写作 `0.1.5-rc.2`**（官方源上的 `next` 标签）——两者逐行比对只差 `version` 一个字段，核对过程见 [`research/624-file-channel.md`](research/624-file-channel.md) 第 6.3 节，所以桌面应用用户不需要另装内核。
-
 </div>
 
 ```bash
