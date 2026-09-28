@@ -17,7 +17,8 @@
 //   全文一律不记原文、不记标题、不记错误原文（#489 白名单口径）；直达归属沿用调试级
 //   naming.sweep（trigger direct-created），不新增事件。
 import { hash8 } from '../../shared/refresh-workspace-key.js'
-import { NAMING_STAGES } from '../../shared/naming-tracking.js'
+import { NAMING_STAGES, evaluateRenameLock, exonerateNativeTitle } from '../../shared/naming-tracking.js'
+import { newSessionTitle, composeDraftTitle } from '../../shared/naming-titles.js'
 
 // 溢出 guard：用户拍板传全文，两段自然有界；超过此字节才截助手侧尾部（用户侧意图优先保留）。
 const SUMMARY_INPUT_MAX_BYTES = 48 * 1024
@@ -258,5 +259,61 @@ export function createNamingSummary(deps) {
     })().catch(function () { return { ok: true } })
   }
 
-  return { maybeSummarize: maybeSummarize, onDeckWrite: onDeckWrite }
+  /** 宿主直执行排队单（#746：拿号改名同一刻，不等客户端拉取）。改名面缺任一样即回落（false），客户端老路照旧。 */
+  async function executeOrdersHost(orders) {
+    try {
+      if (!Array.isArray(orders) || !orders.length) return false
+      const sessions = (ctx && typeof ctx.get === 'function') ? ctx.get('sessions') : null
+      if (!sessions || typeof sessions.scope !== 'function' || typeof sessions.sessionOf !== 'function' || typeof sessions.get !== 'function') return false
+      const h = await naming()
+      if (!h) return false
+      let done = false
+      for (let i = 0; i < orders.length; i++) {
+        try {
+          const o = orders[i]
+          if (!o || !o.sessionId) continue
+          const sid = o.sessionId, lock = o.lock || {}
+          if (lock.locked) continue
+          const scope = sessions.scope(sid)
+          const face = scope ? sessions.sessionOf(scope) : null
+          if (!face || typeof face.rename !== 'function') continue
+          let faceSid = null
+          try { faceSid = (face && (face.sessionId || face.id || face.sid)) || (scope && (scope.sessionId || scope.id || scope.sid)) } catch (eF) {}
+          if (faceSid && String(faceSid) !== String(sid)) continue
+          let cur = null
+          try { const s = sessions.get(sid); if (s && typeof s.title === 'string' && s.title) cur = s.title } catch (eG) {}
+          if (cur === null) continue
+          let first = (typeof lock.firstUserText === 'string' && lock.firstUserText) ? lock.firstUserText : null
+          if (!first) { try { first = await readFirstUserText(ctx, sid) } catch (eR) {} }
+          const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
+          if (judge === 'unknown') continue
+          if (judge === 'locked' && !exonerateNativeTitle(cur, { lastMachineTitle: lock.lastMachineTitle, locked: lock.locked, firstUserText: first })) continue
+          let target = null
+          if (o.kind === 'numbered') {
+            const num = Number(o.number)
+            if (!isFinite(num) || num <= 0) continue
+            try { target = newSessionTitle({ number: num, title: o.title || '' }) } catch (eT) { continue }
+          } else if (o.kind === 'draft') {
+            const probe = String((lock.baselineTitle || '') + ' ' + (o.hint || ''))
+            const lang = /[\u4e00-\u9fff]/.test(probe) ? 'zh' : 'en'
+            try { target = composeDraftTitle({ hint: o.hint, lang: lang, baselineTitle: lock.baselineTitle || '' }) } catch (eD) { continue }
+          } else continue
+          if (!target) continue
+          // 写前二次确认标题未变（title changed before rename 则跳过，TOCTOU 关口；与客户端同源判据）。
+          let cur2 = null
+          try { const s2 = sessions.get(sid); if (s2 && typeof s2.title === 'string' && s2.title) cur2 = s2.title } catch (eG2) {}
+          if (cur2 !== cur) continue
+          const r = await face.rename(target)
+          if (r && r.ok) {
+            try { await h.handleNamingResult({ sessionId: sid, outcome: 'renamed', title: (r.value && r.value.title) || target }) } catch (eH) {}
+            try { if (logCtx) logCtx.fire('info', 'naming.guard', { sidHash: hash8(sid), outcome: 'renamed', hintHash: hash8(o.hint || '') }) } catch (eL) {}
+            done = true
+          }
+        } catch (eO) {}
+      }
+      return done
+    } catch (e) { return false }
+  }
+
+  return { maybeSummarize: maybeSummarize, onDeckWrite: onDeckWrite, executeOrdersHost: executeOrdersHost }
 }

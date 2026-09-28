@@ -392,6 +392,7 @@ export function createRefreshWiring(deps) {
     syncAttention: syncAttention,
     noteWorkspaceActive: noteWorkspaceActive,
     firstTextOf: function (sid) { try { return readFirstUserText(d.ctx, sid) } catch (e) { return Promise.resolve(null) } }, // #746 首句直读（读而不激活；失败即 null）
+    executeOrders: function (orders) { try { const s = summaryOf(); if (s && typeof s.executeOrdersHost === 'function') return s.executeOrdersHost(orders) } catch (e) {} return Promise.resolve(false) }, // #746 宿主直执行（拿号改名同一刻；面缺失即回落）
     attach: attach,
     once: once,
     stats: function () {

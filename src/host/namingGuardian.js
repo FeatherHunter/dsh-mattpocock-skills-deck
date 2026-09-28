@@ -1,6 +1,6 @@
 // 命名守护 host 半：持跟踪态并产出计划单（#265）；判定真源见 ../shared 命名三文件（S2 #452）。
 export function createNamingGuardian(deps) {
-  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx, getFirstText } = deps
+  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx, getFirstText, executeOrders } = deps
   let _namingCore = null
   let _namingCoreInit = null
   async function getNamingCore() {
@@ -32,8 +32,7 @@ export function createNamingGuardian(deps) {
           const txt = await fs.readText(t)
           if (txt) {
             const j = JSON.parse(txt)
-            // #266：盘上结构追加 indexes（各仓库上次 issue 索引快照，差值底座）；
-            // 旧账（v1 无 indexes）友好归一为 {}；编号相关字段缺失按 null/false 容错读取。
+            // #266：盘上结构追加 indexes（各仓库上次 issue 索引快照，差值底座）；旧账（v1 无 indexes）友好归一，缺失字段按 null/false 容错。
             if (j && j.version === 1 && j.sessions && typeof j.sessions === 'object') { _namingState = j; if (!_namingState.sessions) _namingState.sessions = {}; if (!_namingState.indexes || typeof _namingState.indexes !== 'object') _namingState.indexes = {} }
           }
         }
@@ -257,6 +256,7 @@ export function createNamingGuardian(deps) {
       }
     } catch (eFilter) {}
     for (let i = 0; i < orders.length; i++) { const oo = orders[i]; if (oo && oo.lock && oo.lock.lastMachineTitle == null && typeof getFirstText === 'function') { try { oo.lock.firstUserText = await getFirstText(oo.sessionId) } catch (eFt) {} } } // #746 首句随单下发供免锁比对（读而不激活；失败即 null，客户端降级走旧判据）
+    try { if (typeof executeOrders === 'function') await executeOrders(orders) } catch (eEx) {} // #746 宿主直执行（拿号改名同一刻；面缺失即回落，客户端老路照旧）
     return { ok: true, orders: orders, tracked: tracked, failures: failures }
   }
 

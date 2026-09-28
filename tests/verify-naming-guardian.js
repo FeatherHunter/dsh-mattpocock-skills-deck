@@ -397,6 +397,10 @@ console.log('\n— 失败可见性与有限重试（#267）—')
 console.log('\n— #267 守卫断言 —')
 {
   const hostG = ['index.js', 'namingGuardian.js'].map((f) => readFileSync(join(ROOT, 'src/host', f), 'utf8')).join('\n') // #450 H6：同上（namingResult/failures 体随命名模块搬迁）
+  const sumSrc = readFileSync(join(ROOT, 'src/host/platform/namingSummary.js'), 'utf8')
+  check(sumSrc.includes('executeOrdersHost'), '宿主直执行排队单（#746：拿号改名同一刻，不等客户端拉取）')
+  check(sumSrc.includes("typeof sessions.sessionOf !== 'function'") && sumSrc.includes('faceSid'), '直执行先验改名面能力、再验面归属（缺任一样静默回落老路）')
+  check(sumSrc.includes('cur2') && sumSrc.includes('title changed before rename'), '直执行写前二次确认标题未变（TOCTOU 关口）')
   check(hostG.includes("outcome === 'failed'"), 'host namingResult 收 failed 回报')
   check(hostG.includes("{ type: 'renameFailed', error: args.error }"), 'host failed 走共享核心 renameFailed 入账（单一真源）')
   check(hostG.includes('core.namingFailureInfo(s)'), 'host 定败画像取自共享核心纯函数')
