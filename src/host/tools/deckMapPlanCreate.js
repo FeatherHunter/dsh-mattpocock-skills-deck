@@ -17,7 +17,7 @@ import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-c
 
 export const definition = {
   name: 'deck_map_plan_create',
-  description: '一次建一整张地图的骨架（地图票 + 子票 + 子票之间的依赖边），带逐项校验与可续跑的中间态。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。一次建一整张 map 的骨架（map ISSUE + child ISSUE + 依赖边），带逐项校验与可续跑中间态。',
   parameters: {
     type: 'object',
     properties: {
@@ -185,6 +185,8 @@ export function createDeckMapPlanCreate(deps) {
       if (!counts.ok) notes.push('逐项校验没对上：计划里有 ' + counts.planned + ' 张（含地图票），按父票列出来 ' + (counts.actual === null ? '拿不到（后端没给出原因）' : counts.actual + ' 张') + '。以这个数字为准，别按计划数字往下走。')
       if (picked.note) notes.push(picked.note)
 
+      // #746：地图票直达命名守护（调用会话即建号会话；子票走既有索引轮询分配；hook 不影响返回）。
+      try { if (typeof d.onTicketCreated === 'function' && state.mapKey) await d.onTicketCreated({ sessionId: s.sessionId, key: String(state.mapKey), title: title }) } catch (eHook) {}
       const status = statusOfItems(items)
       const text = '计划 ' + planId + '：这一片建了 ' + shard.length + ' 张子票（共计划 ' + children.length + ' 张），建成 ' + edgeCount + ' 条边' +
         (restKeys.length ? '；还有 ' + restKeys.length + ' 张没建（' + restKeys.join('、') + '），带同一个 planId 再调一次就接着建。' : '。')

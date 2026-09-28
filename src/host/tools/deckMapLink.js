@@ -10,7 +10,7 @@ import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-c
 
 export const definition = {
   name: 'deck_map_link',
-  description: '给已经存在的票补父子或阻塞边，写完读回一次并逐条标出这条边落在哪一列。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。',
   parameters: {
     type: 'object',
     properties: {

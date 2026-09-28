@@ -115,7 +115,8 @@ async function main() {
     const tool = mod[factory](deps)
     tools[name] = tool
     check(tool.definition && tool.definition.name === name && typeof tool.run === 'function', name + ' 装起来了，名字与定义一致')
-    check(String(tool.definition.description || '').length <= 60, name + ' 的描述是一句话（' + String(tool.definition.description || '').length + ' 字）')
+    // #762 修路由要把适用范围与退出写进描述，60 字装不下，放宽到 350 字（入口三句、其余两句，提示词成本认下来）。
+    check(String(tool.definition.description || '').length <= 350, name + ' 的描述在 350 字内（' + String(tool.definition.description || '').length + ' 字）')
   }
 
   const callTool = async (name, args) => {

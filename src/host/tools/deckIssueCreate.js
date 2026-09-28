@@ -16,7 +16,7 @@ import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-c
 
 export const definition = {
   name: 'deck_issue_create',
-  description: '建一张票（地图 / 任务 / 缺陷），自动补必备标签与进度区，重复调用按锚复用同一张票。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug），自动补必备 label 与 progress 区，重复调用按锚复用同一张。',
   parameters: {
     type: 'object',
     properties: {
@@ -81,6 +81,8 @@ export function createDeckIssueCreate(deps) {
         }
       }
       const issue = created.data || {}
+      // #746：建票直达命名守护（调用会话即建号会话；hook 缺失或失败都不影响已建成的返回）。
+      try { if (typeof d.onTicketCreated === 'function' && issue.key) await d.onTicketCreated({ sessionId: s.sessionId, key: String(issue.key), title: title }) } catch (eHook) {}
       const items = []
       if (rel) {
         // 父子边：写入已在 create 里做过（contract 的 parentKey 输入），这里只判它落在哪一列。
