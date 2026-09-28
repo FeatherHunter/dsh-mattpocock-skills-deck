@@ -90,6 +90,24 @@
     //   契约（dsh-client-runtime ISessions）：create({cwd}) → SessionId；scope(sid) → AgentContext；
     //   sessionOf(ctx) → SessionFace.rename(title)；open(sid) 切换。任一步失败降级为当前会话注入 + 提醒。
     export const openTextInNewSession = function (st, text, title) {
+      // 七动作分形：首条是动作模板时，起步占位跟动作走（如 /triage → [New] 诊断），
+      // 编号会话（[#n] 开头）不动，只动通用占位，保证初步名字一眼可分。
+      try {
+        const t = String(text || '')
+        const cur = String(title || '')
+        const isGeneric = cur === '[New] 新建需求' || cur === '[New] 新建 Bug' || cur === '[New] New Requirement' || cur === '[New] New Bug'
+        if (isGeneric && typeof newSessionTitleNew === 'function') {
+          let act = null
+          if (/^\s*\/triage\b/.test(t)) act = 'diagnose'
+          else if (/^\s*\/implement\b/.test(t)) act = 'fix'
+          else if (/^\s*\/grill-with-docs\b/.test(t)) act = 'discuss'
+          else if (/^\s*\/research\b/.test(t)) act = 'research'
+          else if (/^\s*\/prototype\b/.test(t)) act = 'prototype'
+          else if (/^\s*\/handoff\b/.test(t)) act = 'handoff'
+          else if (t.indexOf('思维对齐') >= 0 || t.indexOf('成果沉淀') >= 0) act = 'supplement'
+          if (act) { try { title = newSessionTitleNew(act) } catch (eA) {} }
+        }
+      } catch (eInfer) {}
       const sessions = ctx.get('sessions')
       const workspaces = ctx.get('workspaces')
       const doFallback = function () {

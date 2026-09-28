@@ -24,7 +24,10 @@
 export const NAMING_CORE_VERSION = 1
 
 // ============ 占位（P0）============
-// 占位四式（#211 定版 · 跟随 harness 语言）：[New] 新建需求 / [New] 新建 Bug / New Requirement / New Bug
+// 占位（#211 定版 · 跟随 harness 语言 + 七动作分形）：
+//   原四式：[New] 新建需求 / [New] 新建 Bug / New Requirement / New Bug（历史兼容保留）；
+//   七动作：诊断 / 修复 / 讨论 / 研究 / 原型 / 接手 / 补充（中英各一，见 ACTION_WORDS）。
+//   交接历史词（交接 / Handoff）仍视为占位， drafts 时原样保留该词，不强制改成接手。
 export const SESSION_TITLE_PREFIX = '[New]'
 
 export const PLACEHOLDER_TITLES = {
@@ -32,22 +35,54 @@ export const PLACEHOLDER_TITLES = {
   en: { requirement: 'New Requirement', bug: 'New Bug' },
 }
 
-export function isPlaceholderTitle(s) {
-  const raw = String(s == null ? '' : s).trim()
-  const zh = PLACEHOLDER_TITLES.zh
-  const en = PLACEHOLDER_TITLES.en
-  return raw === SESSION_TITLE_PREFIX + ' ' + zh.requirement ||
-    raw === SESSION_TITLE_PREFIX + ' ' + zh.bug ||
-    raw === SESSION_TITLE_PREFIX + ' ' + en.requirement ||
-    raw === SESSION_TITLE_PREFIX + ' ' + en.bug
+// 七动作中英文（用户定稿：占位加动作字，草稿落为对应动作档，不碰编号档）
+export const ACTION_WORDS = {
+  diagnose: { zh: '诊断', en: 'Diagnose' },
+  fix: { zh: '修复', en: 'Fix' },
+  discuss: { zh: '讨论', en: 'Discuss' },
+  research: { zh: '研究', en: 'Research' },
+  prototype: { zh: '原型', en: 'Prototype' },
+  handoff: { zh: '接手', en: 'Handoff' },
+  supplement: { zh: '补充', en: 'Supplement' },
 }
 
-/** 生成占位标题（纯语言参数；lang 缺省 zh，'en' 开头即英文）。 */
+// 历史兼容：交接旧词仍算占位（新起统一用接手，旧会话的交接不判死）
+const LEGACY_PLACEHOLDER_WORDS = ['交接', 'Handoff']
+
+function allPlaceholderWords() {
+  const out = []
+  out.push(PLACEHOLDER_TITLES.zh.requirement, PLACEHOLDER_TITLES.zh.bug)
+  out.push(PLACEHOLDER_TITLES.en.requirement, PLACEHOLDER_TITLES.en.bug)
+  for (const k in ACTION_WORDS) {
+    const w = ACTION_WORDS[k]
+    if (w) { out.push(w.zh, w.en) }
+  }
+  for (let i = 0; i < LEGACY_PLACEHOLDER_WORDS.length; i++) out.push(LEGACY_PLACEHOLDER_WORDS[i])
+  return out
+}
+
+export function isPlaceholderTitle(s) {
+  const raw = String(s == null ? '' : s).trim()
+  const words = allPlaceholderWords()
+  for (let i = 0; i < words.length; i++) {
+    if (raw === SESSION_TITLE_PREFIX + ' ' + words[i]) return true
+  }
+  return false
+}
+
+/** 生成占位标题（纯语言参数；lang 缺省 zh，'en' 开头即英文）。type 支持：bug/requirement + 七动作键。 */
 export function placeholderTitleFor({ type, lang }) {
-  const bug = String(type || '').toLowerCase().indexOf('bug') >= 0
+  const t = String(type || '').toLowerCase()
   const en = typeof lang === 'string' && lang.indexOf('en') === 0
-  const t = (en ? PLACEHOLDER_TITLES.en : PLACEHOLDER_TITLES.zh)[bug ? 'bug' : 'requirement']
-  return SESSION_TITLE_PREFIX + ' ' + t
+  // 七动作优先（diagnose/fix/discuss/research/prototype/handoff/supplement，前缀匹配即可）
+  for (const k in ACTION_WORDS) {
+    if (t.indexOf(k) === 0 || t === ACTION_WORDS[k].zh || t.toLowerCase() === ACTION_WORDS[k].en.toLowerCase()) {
+      return SESSION_TITLE_PREFIX + ' ' + (en ? ACTION_WORDS[k].en : ACTION_WORDS[k].zh)
+    }
+  }
+  const bug = t.indexOf('bug') >= 0
+  const w = (en ? PLACEHOLDER_TITLES.en : PLACEHOLDER_TITLES.zh)[bug ? 'bug' : 'requirement']
+  return SESSION_TITLE_PREFIX + ' ' + w
 }
 
 /**
@@ -132,21 +167,38 @@ export function draftWordFor(lang) {
  */
 export function composeDraftTitle({ hint, lang, baselineTitle }) {
   const prefix = '[' + draftWordFor(lang) + ']'
+  const isEn = String(lang).toLowerCase().indexOf('en') === 0
   let typeTag = ''
   if (baselineTitle) {
     const bt = String(baselineTitle)
-    const isBug = /Bug/i.test(bt)
-    if (isBug) typeTag = (String(lang).toLowerCase().indexOf('en') === 0 ? '[New Bug]' : '[新增BUG]')
-    else typeTag = (String(lang).toLowerCase().indexOf('en') === 0 ? '[New Requirement]' : '[新增需求]')
+    // 七动作优先：基线含哪个动作词就落哪个动作档（如 [New] 诊断 → [草稿][诊断]）
+    let hit = null
+    for (const k in ACTION_WORDS) {
+      const w = ACTION_WORDS[k]
+      if (!w) continue
+      if (bt.indexOf(w.zh) >= 0 || bt.toLowerCase().indexOf(w.en.toLowerCase()) >= 0) { hit = w; break }
+    }
+    // 历史兼容：旧交接词仍保留原词
+    if (!hit) {
+      if (bt.indexOf('交接') >= 0) hit = { zh: '交接', en: 'Handoff' }
+    }
+    if (hit) typeTag = '[' + (isEn ? hit.en : hit.zh) + ']'
+    else {
+      const isBug = /Bug/i.test(bt)
+      if (isBug) typeTag = (isEn ? '[New Bug]' : '[新增BUG]')
+      else typeTag = (isEn ? '[New Requirement]' : '[新增需求]')
+    }
   }
   const fullPrefix = typeTag ? prefix + typeTag : prefix
   const rawHint = cleanTitleText(hint || '')
   if (!rawHint) return fullPrefix
-  // #746：线索本身只是类型词（占位派生的“新建需求”等）时不再叠字，直接裸档；
+  // 线索本身只是类型词（占位派生的“新建需求”“诊断”等）时不再叠字，直接裸档；
   // 无基线（无标签）时不去重，避免把有效线索吞掉。
   if (typeTag) {
     const condensed = String(rawHint).toLowerCase().replace(/\s+/g, '')
-    const bareWords = ['新建需求', '新增需求', '新建bug', '新增bug', 'newrequirement', 'newbug']
+    const bareWords = ['新建需求', '新增需求', '新建bug', '新增bug', 'newrequirement', 'newbug',
+      '诊断', '修复', '讨论', '研究', '原型', '接手', '补充', '交接',
+      'diagnose', 'fix', 'discuss', 'research', 'prototype', 'handoff', 'supplement']
     if (bareWords.indexOf(condensed) >= 0) return fullPrefix
   }
   return fullPrefix + ' ' + truncateTitleUtf8(fullPrefix, rawHint, SESSION_TITLE_MAX_BYTES)

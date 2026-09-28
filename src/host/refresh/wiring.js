@@ -151,6 +151,7 @@ export function createRefreshWiring(deps) {
   }
   function onDeckWrite(info) { try { const s = summaryOf(); if (s) s.onDeckWrite(info) } catch (e) {} return { ok: true } }
   function onFirstAssistant(sid) { try { const s = summaryOf(); if (s) s.maybeSummarize(sid) } catch (e) {} }
+  function onFirstUser(sid) { try { if (sid && typeof d.getNaming === 'function') Promise.resolve(d.getNaming()).then(function (h) { if (h && typeof h.handleNamingPlan === 'function') return h.handleNamingPlan() }).catch(function () {}) } catch (e) {} }
   // #746：受踪判定（供写事件白名单之外的窄门：只认命名守护账上有号的会话，取数记账链不走这里）。
   function isNamingTracked(sid) {
     try {
@@ -166,6 +167,7 @@ export function createRefreshWiring(deps) {
     note: function (input) { try { return sessionTickets.note(input) } catch (e) { return null } },
     backendOf: function (rootKey) { return backendOfRoot(rootKey) },
     onFirstAssistant: onFirstAssistant,
+    onFirstUser: onFirstUser,
     isNamingTracked: isNamingTracked,
   })
 

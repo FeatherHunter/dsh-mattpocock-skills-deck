@@ -67,7 +67,9 @@ export function createWriteEvents(deps) {
   const gate = opts.gate || null
   const doFetch = typeof opts.fetch === 'function' ? opts.fetch : null
   const hash8 = typeof opts.hash8 === 'function' ? opts.hash8 : shortHash
-  const isNamingTracked = typeof opts.isNamingTracked === 'function' ? opts.isNamingTracked : null // #746 摘要窄门：白名单之外但受踪之内的会话，首句仍可触发摘要
+  const isNamingTracked = typeof opts.isNamingTracked === 'function' ? opts.isNamingTracked : null
+  const onFirstAssistant = typeof opts.onFirstAssistant === 'function' ? opts.onFirstAssistant : null
+  const onFirstUser = typeof opts.onFirstUser === 'function' ? opts.onFirstUser : null
   const limits = {
     mergeWindowMs: num(opts.mergeWindowMs, PATCH_MERGE_WINDOW_MS),
     probeIntervalMs: num(opts.probeIntervalMs, PROBE_INTERVAL_MS),
@@ -296,6 +298,7 @@ export function createWriteEvents(deps) {
     const ours = await isOurs(session)
     if (!ours) { try { if (String(event && event.type || '') === 'assistant/message' && typeof opts.onFirstAssistant === 'function' && typeof isNamingTracked === 'function' && sessionIdOf(session) && await isNamingTracked(sessionIdOf(session))) opts.onFirstAssistant(sessionIdOf(session)) } catch (eN) {} return null } // #746 摘要窄门：只走首句摘要这一条，取数记账处理链一律不碰，刷新配额原样不动
     const type = event && event.type
+    if (String(type || '') === 'user/message') { try { if (onFirstUser) onFirstUser(sessionIdOf(session)) } catch (eU) {} return null }
     // #746：首条助手消息即摘要触发（门后、只传会话号与类型名，事件体不进任何 sink）。
     if (String(type || '') === 'assistant/message') {
       try { if (typeof opts.onFirstAssistant === 'function') opts.onFirstAssistant(sessionIdOf(session)) } catch (e) {}
@@ -310,7 +313,8 @@ export function createWriteEvents(deps) {
   function attach(ctx) {
     if (!ctx || typeof ctx.on !== 'function') return { detach: function () {} }
     const offSession = ctx.on('session/event', function (session, event) {
-      // 第一行就过门：这个会话归不归我们（白名单里没有它，连事件名都不看，后面一件事都不做）。
+      const t = String((event && event.type) || '')
+      if (t === 'user/message' || t === 'assistant/message') { onSessionEvent(session, event).catch(function () {}); return }
       isOurs(session).then(function (ours) {
         if (!ours) return null
         // 过了门才碰事件内容：只认工具结果那三种形态，其余（含 tool/call 与 *-start）立即返回。

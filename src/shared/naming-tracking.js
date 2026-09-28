@@ -82,9 +82,9 @@ export const NAMING_STAGES = {
 // 产出 kind:'refined' 计划单（语言无关载荷）；③ 界面半 executeNamingOrder 按 kind 分派
 // 合成。三处皆在本文件与本批注所指签名内扩展，无需新增通道。
 
-// 线索宽限：注册后等待线索的窗口；到时无线索 → 裸档 P1 升级；后到线索可再升级一次
-// （每条线索至多升级一次，用完即记 lastDraftHint，见 planOrderFor 草稿档分支 · #746）
-export const NAMING_HINT_GRACE_MS = 20000
+// 线索宽限：用户定稿先裸档后升级语义，注册后即出裸档单，不等线索；
+// 后到线索可再升级一次（每条线索至多升级一次，用完即记 lastDraftHint，见 planOrderFor 草稿档分支）
+export const NAMING_HINT_GRACE_MS = 0
 
 export function createTrackingState({ sessionId, baselineTitle, repoKey, cwd }) {
   const now = Date.now()
