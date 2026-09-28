@@ -37,8 +37,8 @@ npm install -g @deepseek-ai/dsh
 #    entry you actually use (a wrong profile = the plugin never loads, restarts won't help)
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # DSH Desktop app (most users)
 # dsh plugin --profile web add dsh-mattpocock-skills-deck     # self-started web server (dsh web)
-# Pin to latest for extra stability (currently 1.7.31):
-# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.31 --registry https://registry.npmjs.org
+# Pin to latest for extra stability (currently 1.7.32):
+# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.32 --registry https://registry.npmjs.org
 
 # ③ That's it — the panel opens in DSH's own right sidebar (no third-party plugin needed)
 ```
@@ -50,15 +50,6 @@ One restart of the matching DSH entry and it works — zero config. Desktop app:
 **Opening the panel no longer makes you wait: click-to-visible content measured 5075 ms before, 193 ms after.** That is a 2026-09-11 real-machine re-measurement; in the same record the commit phase went from 4948 ms to 117 ms. The fix turns the tag-packing and map-row fitting loops from a measure-then-write alternation into measure-first-then-write, so layout is no longer recomputed over and over. The rule and its evidence chain live in [`docs/adr/20260911-zero-layout-jitter.md`](adr/20260911-zero-layout-jitter.md).
 
 </div>
-
-<details>
-<summary>Where does the panel open? (it used to need better-sidebar)</summary>
-
-In DSH's own right sidebar — the plugin registers its own panel type there and draws it itself, so nothing else has to be installed. The list and the details sit side by side in that column.
-
-Until 2026-09-21 the plugin also offered a second way: hand the panel to the third-party plugin `dsh-better-sidebar` and let it open and manage the panel. Both ways ended up in the same column, so the right sidebar's guide page listed the panel twice (two identical "MattSkills" entries). That second way is gone; the "open location" setting went with it.
-
-</details>
 
 <details>
 <summary>Let your AI install it for you</summary>
@@ -81,7 +72,7 @@ The examples below use the web profile — DSH Desktop app users: replace every 
 
 ```bash
 # Install a pinned version
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.31 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.32 --registry https://registry.npmjs.org
 
 # No global install (pin a version like above for extra safety)
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
