@@ -115,19 +115,19 @@ const Prototype769Logic = (function () {
   const EXEC_EN = '/wayfinder\n{url}\n\nExecute this issue (follow the wayfinder skill rules):\n\n## Read current state\n- [ ] Claimed? Claim first if unclaimed\n- [ ] Read the whole ticket (body / comments / labels / claim / parent & blocking edges) — confirm deliverable & acceptance criteria\n\n## Execute\n- [ ] If goal unclear or needs user call → clarify with grilling (do not guess)\n- [ ] Plan → implement → self-check against acceptance criteria (adversarial)\n\n## Stage gate (must read before starting — part of the action, not optional)\n- [ ] First read the issue current state — determine stage\n- [ ] If it carries needs-triage: diagnosis MUST be done first (do not skip to implementation)\n- [ ] Only after diagnosis and needs-triage removed may implementation begin\n\n## Wrap-up\n- [ ] Before finishing, write the true state of this ticket into its body; close it when it is done, leave it open when it is not\n- [ ] If this execution closes the ticket, append a one-line gist to its map Decisions so far';
 
   function takeoverDraftZh(url) {
-    return '/wayfinder\n' + url + '\n\n接手这张票（它是等人动手的票：活从 AI 手里交到人手里，AI 不代劳，只帮你把活推进下去）：\n\n## 为什么不能委托出去（先写清，再动手）\n- [ ] 写清为什么必须人动手（判断类决策 / 外部权限 / 设计决策 / 需人工测试，哪一条就是哪一条）\n- [ ] 若看完发现其实可以委托，改走通用执行并写明改判理由，不硬扛\n\n## 人实施清单\n- [ ] 已认领？若未认领，先认领\n- [ ] 读全这张票（正文 / 评论 / 标签 / 认领 / 父子与阻塞边），确认交付物与验收标准\n- [ ] 目标不清或需定夺 → 用 grilling 澄清（不猜）\n- [ ] 制定方案 → 人动手实施 → 按验收标准自查（对抗式）\n\n## 收尾\n- [ ] 结束前把这张票的真实状态写进正文（写法你定，人能看懂就行）\n- [ ] 做完了就 close，没做完就留着；若关闭了所属 map 的票，在 Decisions so far 追加一行 gist';
+    return '/wayfinder\n' + url + '\n\n这张票需要人亲手做，你帮用户推进，但不替用户动手：\n\n## 读全\n- [ ] 已认领？若未认领，先认领\n- [ ] 把这张票读全（正文、评论、标签、谁认领、和哪些票相关），确认要交付什么、做到什么样算完\n- [ ] 目标不清或需定夺 → 用 grilling 澄清（不猜）\n\n## 为什么必须人动手（先写进正文，再动手）\n- [ ] 点名是哪一条：判断类决策 / 外部权限 / 设计决策 / 需人工测试\n- [ ] 把这一条写进正文，人一眼知道为什么 AI 不代劳\n- [ ] 如果看完发现 AI 其实能做，就按普通任务从头推进，并把为什么改主意写进正文\n\n## 人动手清单\n- [ ] 出方案（分几步、每步怎么验）\n- [ ] 实施由用户亲手做，你只给清单与检查点，不替用户改代码\n- [ ] 实施完对照验收标准自己查一遍，专门挑刺：边界、异常分支、回归影响\n\n## 收尾\n- [ ] 结束前把这张票的真实状态写进正文（写法你定，人能看懂就行）\n- [ ] 做完了就关闭，没做完就留着\n- [ ] 若关闭了所属地图的票，在地图正文的 Decisions so far 一节追加一行小结（票名 + 链接 + 一句话结论）';
   }
 
   function takeoverDraftEn(url) {
-    return '/wayfinder\n' + url + '\n\nTake over this ticket (it waits for human hands; the AI assists, it does not take over):\n\n## Why this cannot be delegated (write it down first)\n- [ ] State plainly why a human must do it (judgment call / external permission / design decision / needs hands-on testing)\n- [ ] If it turns out delegable after all, switch to the generic execute path and write down why the call changed\n\n## Hands-on checklist\n- [ ] Claimed? Claim first if unclaimed\n- [ ] Read the whole ticket — confirm deliverable & acceptance criteria\n- [ ] If goal unclear → clarify with grilling (do not guess)\n- [ ] Plan → implement by hand → self-check against acceptance criteria (adversarial)\n\n## Wrap-up\n- [ ] Before finishing, write the true state into its body; close when done, leave open when not; append a gist to the map Decisions so far if closed';
+    return '/wayfinder\n' + url + '\n\nThis ticket needs human hands — help the user move it forward, but do not do it for them:\n\n## Read the whole ticket\n- [ ] Claimed? Claim first if unclaimed\n- [ ] Read the whole ticket (body, comments, labels, who claimed it, related tickets) — confirm what to deliver and what counts as done\n- [ ] If the goal is unclear or needs a call → clarify with grilling (do not guess)\n\n## Why a human must do it (write it into the body first, then act)\n- [ ] Name the reason: judgment call / external permission / design decision / needs hands-on testing\n- [ ] Write it into the body so anyone can see at a glance why the AI does not take over\n- [ ] If it turns out the AI can do it after all, run it as an ordinary task from the start and write down why the call changed\n\n## Hands-on checklist\n- [ ] Produce the plan (steps, how to verify each step)\n- [ ] The user implements by hand; you only give the checklist and checkpoints — do not change code for them\n- [ ] After implementation, check it against the acceptance criteria, hunting for holes: boundaries, error branches, regression impact\n\n## Wrap-up\n- [ ] Before finishing, write the true state of this ticket into its body (wording is yours, as long as a human can read it)\n- [ ] Close it when it is done, leave it open when it is not\n- [ ] If a ticket of its map was closed, append a one-line summary to the Decisions so far section of the map body (ticket name + link + one-line conclusion)';
   }
 
   function supplementDraftZh(url) {
-    return '/wayfinder\n' + url + '\n\n这张票缺关键信息，先问再做（信息回来转回待分诊，不在缺料时擅自实施）：\n\n## 先问（逐条都是可直接回答的问题）\n- [ ] 为推进下去，最缺的一条信息是什么（日志片段 / 复现步骤 / 期望结果 / 账号权限，点名要哪样）\n- [ ] 信息给到什么格式算够（贴哪段、截哪屏、回哪几个选项）\n- [ ] 报告人回复后，转回 needs-triage 重新分流，不停在 needs-info\n\n## 等人回时不做的事\n- [ ] 不认领实施、不改业务代码、不 close 票\n- [ ] 若补回的料证明其实可直接动手，写明改判理由再转执行\n\n## 收尾\n- [ ] 结束前把“缺什么、问了什么、等谁回”写进正文（人能看懂就行）';
+    return '/wayfinder\n' + url + '\n\n这张票缺关键信息，先把问题问全，等人回复，不在缺料时动手：\n\n## 读全\n- [ ] 把这张票读全（正文、评论、标签、谁认领、和哪些票相关）\n- [ ] 看之前有没有问过：问过且已有答案的不重问，只问还没着落的\n\n## 已经确定的事（写进正文）\n- [ ] 把已经确定的事项逐条写进正文，不让人再翻评论找\n\n## 问报告人（逐条都能直接回）\n- [ ] 每次只问最挡路的一两条：缺的是哪样（日志片段 / 复现步骤 / 期望结果 / 账号权限），点名要\n- [ ] 每条都给到能直接回的形状：贴哪段、截哪屏、二选一、填空，不问“你怎么看”这类没法直接回的问题\n- [ ] 问完就停下，把问题写进正文等人回复，不继续往下做\n\n## 等人回复时不做的事\n- [ ] 不动手实施、不改代码、不关闭这张票\n- [ ] 报告人回复后，把标签转回 needs-triage 重新分流，不停在 needs-info\n- [ ] 如果补回的信息证明可以直接动手了，把为什么改主意写进正文，再按普通任务推进\n\n## 收尾\n- [ ] 结束前把“缺什么、问了什么、等谁回”写进正文（人能看懂就行）';
   }
 
   function supplementDraftEn(url) {
-    return '/wayfinder\n' + url + '\n\nThis ticket is missing key info — ask first, build later (route back to needs-triage once it arrives; do not implement on missing input):\n\n## Ask first (each item directly answerable)\n- [ ] What is the single most blocking missing piece (log excerpt / repro steps / expected result / account permission — name it)\n- [ ] What format counts as enough (which excerpt, which screenshot, which options)\n- [ ] Once the reporter replies, route back to needs-triage for re-triage; do not linger on needs-info\n\n## While waiting, do not\n- [ ] Claim-and-implement, change product code, or close the ticket\n- [ ] If the returned material proves it is directly actionable, write down why the call changed before switching to execute\n\n## Wrap-up\n- [ ] Before finishing, write “what is missing, what was asked, whom we wait for” into the body';
+    return '/wayfinder\n' + url + '\n\nThis ticket is missing key info — get the questions answered first, wait for the reply, do not build on missing input:\n\n## Read the whole ticket\n- [ ] Read the whole ticket (body, comments, labels, who claimed it, related tickets)\n- [ ] Check what was already asked: never re-ask a question that already has an answer — only ask what is still open\n\n## What is settled (write it into the body)\n- [ ] Write each settled item into the body so nobody has to dig through comments again\n\n## Ask the reporter (each item directly answerable)\n- [ ] Each time ask only the one or two most blocking items: name what is missing (log excerpt / repro steps / expected result / account permission)\n- [ ] Shape each question so it can be answered directly: which excerpt to paste, which screenshot, pick one of two, fill in the blank — never ask an open question like “what do you think”\n- [ ] Once asked, stop: write the questions into the body, wait for the reply, do not continue building\n\n## While waiting for the reply, do not\n- [ ] Implement, change code, or close this ticket\n- [ ] Once the reporter replies, move the label back to needs-triage for re-triage; do not linger on needs-info\n- [ ] If the returned info proves it is directly actionable, write down why the call changed, then run it as an ordinary task\n\n## Wrap-up\n- [ ] Before finishing, write “what is missing, what was asked, whom we wait for” into the body (as long as a human can read it)';
   }
 
   function hasLabel(ticket, name) {
@@ -202,7 +202,7 @@ const Prototype769Logic = (function () {
       start: { ticketKey: 't-ready-human', variant: 'B' },
       steps: ['选票 #801', '切到 B 套', '按 接手'] },
     { id: 'w-supplement', title: '走查 2：缺料的票（补充最顺）',
-      desc: '起点：#802 缺料 + B 套。按顺序点三下，看补充为什么比执行顺：执行直接认领实施，补充先问可回答的问题，注明回来转待分诊，等待时不擅自实施。',
+      desc: '起点：#802 缺料 + B 套。按顺序点三下，看补充为什么比执行顺：执行直接认领实施，补充先问可回答的问题，注明回来转 needs-triage，等待时不擅自实施。',
       start: { ticketKey: 't-needs-info', variant: 'B' },
       steps: ['选票 #802', '切到 B 套', '按 补充'] },
     { id: 'w-misclick', title: '走查 3：按错一次（看代价）',
@@ -275,7 +275,7 @@ const Prototype769Logic = (function () {
           : (d.kind === 'ready-human-B'
             ? '顺的点：先写清为什么不能委托，再给人实施清单，不承诺 AI 代劳。'
             : (d.kind === 'needs-info-B'
-              ? '顺的点：先问可回答的问题，注明回来转待分诊，等待时不擅自实施。'
+              ? '顺的点：先问可回答的问题，注明回来转 needs-triage，等待时不擅自实施。'
               : '邻居分支：字与两枚都不撞，用来衬托。')));
       renderAll();
     };
@@ -334,7 +334,7 @@ const Prototype769Logic = (function () {
     if (w.id === 'w-supplement') {
       if (walkStep === 0) { state.ticketKey = 't-needs-info'; state.variant = 'B'; state.pressed = false; state.change = '走查2-1：选 #802 缺料的票（B 套）。'; }
       if (walkStep === 1) { state.variant = 'B'; state.pressed = false; state.change = '走查2-2：确认 B 套。按钮应是补充，不是执行。'; }
-      if (walkStep === 2) { state.pressed = true; state.change = '走查2-3：按了补充。注入先问可回答的问题，注明回来转待分诊，等待时不实施。对比切 A 套按执行：那会直接认领实施，在缺料上盖楼。'; }
+      if (walkStep === 2) { state.pressed = true; state.change = '走查2-3：按了补充。注入先问可回答的问题，注明回来转 needs-triage，等待时不实施。对比切 A 套按执行：那会直接认领实施，在缺料上盖楼。'; }
     }
     if (w.id === 'w-misclick') {
       if (walkStep === 0) { state.ticketKey = 't-needs-info'; state.variant = 'A'; state.pressed = false; state.change = '走查3-1：回到 #802 + A 套。按钮是执行。'; }
