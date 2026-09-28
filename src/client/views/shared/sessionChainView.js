@@ -162,9 +162,11 @@ const sessionChainTitlesOf = function (st) {
     if (!x || typeof x !== 'object') return
     const n = sessionChainTicketKeyOf(x.number)
     if (!n || map[n]) return
+    const rawState = (x.state === null || x.state === undefined) ? '' : String(x.state).toUpperCase()
     map[n] = {
       ticketTitle: (x.title === null || x.title === undefined) ? '' : String(x.title),
       effortId: (x.effortId === null || x.effortId === undefined) ? '' : String(x.effortId),
+      ticketState: rawState === 'CLOSED' ? 'CLOSED' : (rawState === 'OPEN' ? 'OPEN' : ''),
     }
   }
   const issues = Array.isArray(snap.issues) ? snap.issues : []
@@ -211,6 +213,7 @@ export const sessionChainRowsOf = function (st) {
         ticketKey: e.ticketKey,
         ticketTitle: known ? known.ticketTitle : '',
         effortId: known ? known.effortId : '',
+        ticketState: known ? known.ticketState : '',
         action: e.action,
         actionKey: sessionChainActionKeyOf(e.action),
         at: e.at,

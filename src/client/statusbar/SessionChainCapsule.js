@@ -133,7 +133,10 @@ export const SessionChainCapsule = function (props) {
   //   让位机直接往纯文本元素里写字，这里两处（版面号、环境计数都是纯文本）都是安全的。
   const displayed = view.list.slice().reverse()
   const text = '#' + e.ticketKey
-  const spoken = tr('chainView.capsuleDoing') + ' ' + text + (e.ticketTitle ? ' ' + e.ticketTitle : '')
+  const eState = e.ticketState === 'CLOSED' ? 'CLOSED' : (e.ticketState === 'OPEN' ? 'OPEN' : '')
+  const eStateWord = eState === 'OPEN' ? tr('list.state.open') : (eState === 'CLOSED' ? tr('list.state.closed') : '')
+  const eColor = eState === 'OPEN' ? '#58a6ff' : (eState === 'CLOSED' ? '#8b949e' : 'var(--dsw-alias-label-primary,#e6edf3)')
+  const spoken = tr('chainView.capsuleDoing') + ' ' + text + (e.ticketTitle ? ' ' + e.ticketTitle : '') + (eStateWord ? ' ' + eStateWord : '')
   const openRow = function (row) {
     return function (ev) {
       if (ev && ev.stopPropagation) ev.stopPropagation()
@@ -158,7 +161,11 @@ export const SessionChainCapsule = function (props) {
       const word = r.actionKey ? tr(r.actionKey) : r.action
       const latest = i === displayed.length - 1
       const active = activeRow === i
-      const line = '#' + r.ticketKey + (r.ticketTitle ? ' ' + r.ticketTitle : '') + (word ? ' ' + word : '') + (r.time ? ' ' + r.time : '')
+      const rState = r.ticketState === 'CLOSED' ? 'CLOSED' : (r.ticketState === 'OPEN' ? 'OPEN' : '')
+      const rStateWord = rState === 'OPEN' ? tr('list.state.open') : (rState === 'CLOSED' ? tr('list.state.closed') : '')
+      const badgeColor = rState === 'OPEN' ? '#58a6ff' : (rState === 'CLOSED' ? '#8b949e' : (latest ? '#58a6ff' : '#8b8b95'))
+      const badgeBorder = rState === 'OPEN' ? '#58a6ff' : (rState === 'CLOSED' ? '#8b949e' : (latest ? '#58a6ff' : '#3a3f4a'))
+      const line = '#' + r.ticketKey + (r.ticketTitle ? ' ' + r.ticketTitle : '') + (word ? ' ' + word : '') + (r.time ? ' ' + r.time : '') + (rStateWord ? ' ' + rStateWord : '')
       return h('div', {
         key: 'r' + i, tabIndex: 0, role: 'link', 'aria-label': line,
         className: 'dsws-chainmenu-row' + (active ? ' is-active' : '') + (latest ? ' is-latest' : ''),
@@ -170,12 +177,12 @@ export const SessionChainCapsule = function (props) {
         onKeyDown: (function (rr) { return function (ev) { if (ev && (ev.key === 'Enter' || ev.key === ' ')) { if (ev.preventDefault) ev.preventDefault(); openRow(rr)(ev) } } })(r),
         style: {
           display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 4, cursor: 'pointer',
-          fontSize: 12, color: latest || active ? 'var(--dsw-alias-label-primary,#e6edf3)' : 'var(--dsw-alias-label-secondary,#a1a1aa)',
+          fontSize: 12, color: rState === 'CLOSED' ? 'var(--dsw-alias-label-secondary,#a1a1aa)' : (latest || active ? 'var(--dsw-alias-label-primary,#e6edf3)' : 'var(--dsw-alias-label-secondary,#a1a1aa)'),
           background: active ? 'rgba(88,166,255,.12)' : 'transparent',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         },
       }, [
-        h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '0 6px', borderRadius: 99, border: '1px solid ' + (latest ? '#58a6ff' : '#3a3f4a'), color: latest ? '#58a6ff' : '#8b8b95' } }, '#' + r.ticketKey),
+        h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '0 6px', borderRadius: 99, border: '1px solid ' + badgeBorder, color: badgeColor } }, '#' + r.ticketKey),
         h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.ticketTitle || ('#' + r.ticketKey)),
         word ? h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '1px 6px', borderRadius: 4, background: latest ? 'rgba(88,166,255,.14)' : 'rgba(139,139,149,.15)', color: latest ? '#8fb8ff' : '#a1a1aa' } }, word) : null,
         r.time ? h('span', { style: { flex: 'none', fontSize: 11, color: '#8b8b95' } }, r.time) : null,
@@ -196,7 +203,7 @@ export const SessionChainCapsule = function (props) {
       'aria-label': spoken + ' · ' + tr('chainView.openTip'),
       onClick: function (ev) { if (ev && ev.stopPropagation) ev.stopPropagation(); try { sessionChainOpenTicket(st, e) } catch (eOpen2) {} try { openPanel(st) } catch (ePanel2) {} },
       onKeyDown: function (ev) { if (ev && (ev.key === 'Enter' || ev.key === ' ')) { if (ev.preventDefault) ev.preventDefault(); try { sessionChainOpenTicket(st, e) } catch (eOpen3) {} try { openPanel(st) } catch (ePanel3) {} } },
-      style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--dsw-alias-label-primary,#e6edf3)', cursor: 'pointer' },
+      style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: eColor, cursor: 'pointer' },
     }, [Ic({ n: 'pin', size: 12 }), h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text)]),
     menu,
   ])
