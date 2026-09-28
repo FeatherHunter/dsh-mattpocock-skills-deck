@@ -240,9 +240,26 @@ export async function setBlockedBy(repo, key, blockers, opts, ctx) {
     const curBlockers = curRes.data.blockedBy.map((b) => b.key)
     const toAdd = uniq.filter((b) => !curBlockers.includes(b))
     const toRemove = curBlockers.filter((b) => !uniq.includes(b))
+    // 票号（number，如 758）与接口要的内部标识（id，如 5595650996）不是一回事：
+    // 写边与删边都要先把票号换成内部标识，且传参用 -F（按类型传数字），-f 会传成字符串被 422 拒收。
+    async function idOf(numberKey) {
+      try {
+        const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${numberKey}`, '--jq', '.id'], { cwd: ctx && ctx.cwd })
+        if (!rr.ok) return null
+        const v = Number(String(rr.data.stdout || '').trim())
+        return Number.isFinite(v) && v > 0 ? Math.floor(v) : null
+      } catch { return null }
+    }
+    const idByKey = new Map()
+    for (const kk of [...new Set([...toAdd, ...toRemove])]) {
+      const id = await idOf(kk)
+      if (id) idByKey.set(kk, id)
+    }
 
     for (const b of toRemove) {
-      const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${k}/dependencies/blocked_by/${b}`, '--method', 'DELETE']
+      const bid = idByKey.get(b)
+      if (!bid) return fail(ERROR_KIND.NOTFOUND, `setBlockedBy: issue ${b} not found`)
+      const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${k}/dependencies/blocked_by/${bid}`, '--method', 'DELETE']
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
       if (!r.ok) {
         // 若 API 不存在（GHES）→ unsupported
@@ -252,7 +269,9 @@ export async function setBlockedBy(repo, key, blockers, opts, ctx) {
       }
     }
     for (const b of toAdd) {
-      const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${k}/dependencies/blocked_by`, '--method', 'POST', '-f', `issue_id=${b}`]
+      const bid = idByKey.get(b)
+      if (!bid) return fail(ERROR_KIND.NOTFOUND, `setBlockedBy: issue ${b} not found`)
+      const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${k}/dependencies/blocked_by`, '--method', 'POST', '-F', `issue_id=${bid}`]
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
       if (!r.ok) {
         const msg = String(r.error.message || '').toLowerCase()

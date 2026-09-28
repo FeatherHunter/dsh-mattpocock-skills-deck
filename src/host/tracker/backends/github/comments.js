@@ -38,10 +38,11 @@ export async function addComment(repo, key, body, ctx) {
     const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${k}/comments`, '--method', 'POST', '-f', `body=${body}`, '--jq', '.']
     let r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) {
-      // 回落 gh issue comment
-      const alt = ['issue', 'comment', k, '--repo', `${parsed.owner}/${parsed.name}`, '--body', body, '--json', 'id,author,body,createdAt,updatedAt']
+      // 回落 gh issue comment（它不认 --json，成功后不再解析，直接按乐观评论回）
+      const alt = ['issue', 'comment', k, '--repo', `${parsed.owner}/${parsed.name}`, '--body', body]
       r = await c.execGh(alt, { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: r.error }
+      return { ok: true, data: { author: { login: '' }, authorAssociation: '', body: body, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } }
     }
     const text = r.data.stdout || r.data.stderr || ''
     let raw = null

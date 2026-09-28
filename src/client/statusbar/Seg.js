@@ -5,7 +5,8 @@
  * src/client/index.js 的 `// ==== leaf:... (spliced by build) ====` 标记处（一源两物）。
  */
 export const num = (txt, minW) => h('span', { className: 'dsws-num', style: minW ? { minWidth: minW } : null }, txt)
-export const seg = (icon, label, color, onGo) => h('span', { className: 'dsws-seg', onClick: function (e) { e.stopPropagation(); onGo() }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: color } }, [
-  Ic({ n: icon, size: 12 }),
+// seg 的图标名与尺寸：调用方按状态挑图标（如环境段按好坏挑对勾/圆点/警告三角），尺寸缺省 12。
+export const seg = (icon, label, color, onGo, sz) => h('span', { className: 'dsws-seg', onClick: function (e) { e.stopPropagation(); onGo() }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: color } }, [
+  Ic({ n: icon, size: sz || 12 }),
   label,
 ])

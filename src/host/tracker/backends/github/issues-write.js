@@ -42,43 +42,18 @@ export async function createIssue(repo, input, ctx) {
     }
     const c = ghClient(ctx)
     const body = withAnchor(typeof input.body === 'string' ? input.body : '', idemKey)
-    // 先用 REST 创建
-    const payload = { title: input.title.trim(), body }
-    // labels: LabelInput[] → name[]
-    if (Array.isArray(input.labels) && input.labels.length) {
-      payload.labels = input.labels.map((l) => (typeof l === 'string' ? l.trim() : (l && typeof l.name === 'string' ? l.name.trim() : ''))).filter(Boolean)
-    }
-    if (Array.isArray(input.assignees) && input.assignees.length) {
-      payload.assignees = input.assignees.map((a) => (typeof a === 'string' ? a.trim() : (a && typeof a.login === 'string' ? a.login.trim() : ''))).filter(Boolean)
-    }
-    const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues`, '--method', 'POST', '--input', '-', '--jq', '.']
-    const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
-    // gh api --input - 需要把 payload 通过 stdin 传；但 ctx.exec('gh', args, ...) 未必支持 stdin。
-    // 降级：若 --input - 方式失败，改用 gh issue create
+    // 主路用 REST 建票：gh api 不支持经 stdin 传整包（执行层没有 stdin 口），改用 -f 逐字段传；
+    // gh issue create 不认 --json，所以不走它。标签与认领建后另补（已有现成函数）。
+    const createArgs = ['api', `repos/${parsed.owner}/${parsed.name}/issues`, '--method', 'POST', '-f', `title=${input.title.trim()}`, '-f', `body=${body}`, '--jq', '.']
+    const r = await c.execGh(createArgs, { cwd: ctx && ctx.cwd })
     let createdRaw = null
-    if (!r.ok) {
-      // 尝试 gh issue create
-      const altArgs = ['issue', 'create', '--title', input.title.trim(), '--body', body, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees']
-      if (payload.labels && payload.labels.length) {
-        for (const lb of payload.labels) altArgs.push('--label', lb)
-      }
-      if (payload.assignees && payload.assignees.length) {
-        for (const a of payload.assignees) altArgs.push('--assignee', a)
-      }
-      altArgs.push('--repo', `${parsed.owner}/${parsed.name}`)
-      const r2 = await c.execGh(altArgs, { cwd: ctx && ctx.cwd })
-      if (!r2.ok) return { ok: false, error: r2.error }
-      const text2 = r2.data.stdout || ''
-      try {
-        const j2 = JSON.parse(text2)
-        createdRaw = Array.isArray(j2) ? j2[0] : j2
-      } catch (e) {
-        return fail(ERROR_KIND.PARSE, `create: invalid json ${String(e.message).slice(0, 200)}`)
-      }
-    } else {
-      // REST 方式需重取 payload（ctx.exec 不自动把 payload 注入，此 path 当前未走通，保持 alt）
-      // 为简化，直接走 alt 路径的回落已处理；若 r.ok 但 stdout 为空，则取 r2
-      return fail(ERROR_KIND.PARSE, 'create: unexpected empty response')
+    if (!r.ok) return { ok: false, error: r.error }
+    const text = r.data.stdout || ''
+    try {
+      const j = JSON.parse(text)
+      createdRaw = Array.isArray(j) ? j[0] : j
+    } catch (e) {
+      return fail(ERROR_KIND.PARSE, `create: invalid json ${String(e.message).slice(0, 200)}`)
     }
     if (!createdRaw) return fail(ERROR_KIND.PARSE, 'create: empty response')
     // REST 返回 number → 需补充 parentKey 等字段，再 normalize
@@ -93,21 +68,35 @@ export async function createIssue(repo, input, ctx) {
       assignees: createdRaw.assignees ? { nodes: (Array.isArray(createdRaw.assignees) ? createdRaw.assignees.map((a) => typeof a === 'string' ? { login: a } : a) : []) } : { nodes: [] },
     })
     let issue = normalizeIssue(rawForNormalize)
-    // 若 input.type === 'map' 且未通过 label 推断，则需补打 wayfinder:map 标签（create 后 setLabels）
-    // 简化：若 type 期望 map 但 issue.type !== 'map'，则尝试 setLabels 追加
-    const wantType = input.type === 'map' ? 'map' : 'issue'
-    if (wantType === 'map' && issue.type !== 'map') {
-      // best-effort 追加 label，不阻塞主流程
-      try {
-        const { setLabels } = await import('./labels.js')
-        const curLabels = issue.labels.map((l) => l.name)
-        if (!curLabels.includes('wayfinder:map')) {
-          const withMap = [...issue.labels, { name: 'wayfinder:map', color: '' }]
-          await setLabels(repo, issue.key, withMap, {}, ctx)
-          issue.type = 'map'
+    // 标签与认领建后另补（建票一步只带标题正文；已有现成函数走正常接口）
+    try {
+      const wantLabels = [];
+      if (Array.isArray(input.labels) && input.labels.length) {
+        for (const l of input.labels) {
+          const n = (typeof l === 'string' ? l.trim() : (l && typeof l.name === 'string' ? l.name.trim() : ''));
+          if (n && !wantLabels.includes(n)) wantLabels.push(n);
         }
-      } catch {}
-    }
+      }
+      const wantType = input.type === 'map' ? 'map' : 'issue';
+      if (wantType === 'map' && !issue.labels.some((l) => l.name === 'wayfinder:map') && !wantLabels.includes('wayfinder:map')) wantLabels.push('wayfinder:map');
+      if (wantLabels.length) {
+        const { setLabels } = await import('./labels.js');
+        const merged = [...issue.labels.map((l) => l.name)];
+        for (const n of wantLabels) if (!merged.includes(n)) merged.push(n);
+        const lr = await setLabels(repo, issue.key, merged.map((n) => ({ name: n })), {}, ctx);
+        if (lr && lr.ok === true && lr.data) issue = lr.data;
+        else if (wantType === 'map') issue.type = 'map';
+      } else if (wantType === 'map' && issue.type !== 'map') issue.type = 'map';
+    } catch {}
+    try {
+      if (Array.isArray(input.assignees) && input.assignees.length) {
+        const want = input.assignees.map((a) => (typeof a === 'string' ? { login: a.trim() } : a)).filter((a) => a && a.login);
+        if (want.length) {
+          const ar = await setAssignees(repo, issue.key, want, {}, ctx);
+          if (ar && ar.ok === true && ar.data) issue = ar.data;
+        }
+      }
+    } catch {}
     // parentKey 有则创后 setParent
     if (input.parentKey != null && input.parentKey !== '') {
       try {
@@ -130,14 +119,20 @@ export async function closeIssue(repo, key, opts, ctx) {
     const k = String(key || '').trim()
     if (!k) return fail(ERROR_KIND.PARSE, 'close: key required')
     const c = ghClient(ctx)
-    // 优先用 gh issue close（带 reason 映射 state_reason）
-    const args = ['issue', 'close', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,closedAt']
+    // gh issue close 不认 --json：先关，再用 view 取回
+    const args = ['issue', 'close', k, '--repo', `${parsed.owner}/${parsed.name}`]
     if (opts && typeof opts.reason === 'string' && opts.reason) {
       args.push('--reason', opts.reason)
     }
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
-    const text = r.data.stdout || ''
+    const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
+    if (!vr.ok) {
+      const optimistic = normalizeIssue({ number: Number(k) || k, title: '', state: 'closed', body: '', url: '', closedAt: new Date().toISOString() })
+      if (opts && typeof opts.reason === 'string') optimistic.reason = opts.reason
+      return { ok: true, data: optimistic }
+    }
+    const text = vr.data.stdout || ''
     let raw
     try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `close: invalid json ${String(e.message).slice(0, 200)}`) }
     const normalized = normalizeIssue(Object.assign({}, raw, {
@@ -161,10 +156,14 @@ export async function reopenIssue(repo, key, ctx) {
     const k = String(key || '').trim()
     if (!k) return fail(ERROR_KIND.PARSE, 'reopen: key required')
     const c = ghClient(ctx)
-    const args = ['issue', 'reopen', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,closedAt']
+    const args = ['issue', 'reopen', k, '--repo', `${parsed.owner}/${parsed.name}`]
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
-    const text = r.data.stdout || ''
+    const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
+    if (!vr.ok) {
+      return { ok: true, data: normalizeIssue({ number: Number(k) || k, title: '', state: 'open', body: '', url: '', closedAt: null }) }
+    }
+    const text = vr.data.stdout || ''
     let raw
     try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `reopen: invalid json ${String(e.message).slice(0, 200)}`) }
     const normalized = normalizeIssue(Object.assign({}, raw, {
@@ -198,14 +197,16 @@ export async function updateIssue(repo, key, patch, ctx) {
       if (hasMilestone) return fail(ERROR_KIND.UNSUPPORTED, 'update: milestone unsupported (requires milestone number lookup)')
     }
     const c = ghClient(ctx)
-    // title/body 更新：优先 gh issue edit
-    const args = ['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,closedAt']
+    // gh issue edit 不认 --json：先改，再用 view 取回
+    const args = ['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`]
     if (typeof patch.title === 'string') args.push('--title', patch.title)
     if (typeof patch.body === 'string') args.push('--body', patch.body)
-    if (args.length <= 8) return fail(ERROR_KIND.PARSE, 'update: empty patch (no title/body)')
+    if (args.length <= 4) return fail(ERROR_KIND.PARSE, 'update: empty patch (no title/body)')
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
-    const text = r.data.stdout || ''
+    const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
+    if (!vr.ok) return { ok: true, data: normalizeIssue({ number: Number(k) || k, title: typeof patch.title === 'string' ? patch.title : '', state: 'open', body: typeof patch.body === 'string' ? patch.body : '', url: '' }) }
+    const text = vr.data.stdout || ''
     let raw
     try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `update: invalid json ${String(e.message).slice(0, 200)}`) }
     const normalized = normalizeIssue(Object.assign({}, raw, {

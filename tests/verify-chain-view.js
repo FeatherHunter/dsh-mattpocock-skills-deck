@@ -385,9 +385,11 @@ async function main() {
     if (!zh[k] || !en[k]) fail('动作类别 ' + code + ' 的中英词条缺一个：' + k)
   })
   const leafSrc = fs.readFileSync(path.join(ROOT, LEAF), 'utf8')
+  const capsuleSrc = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/SessionChainCapsule.js'), 'utf8')
   const keysInLeaf = zhKeys.filter(function (k) { return k.indexOf('chainView.') === 0 })
   if (keysInLeaf.length < 8) fail('界面那一半没有自己的词条（chainView.*）：实得 ' + keysInLeaf.length + ' 条')
-  keysInLeaf.forEach(function (k) { if (leafSrc.indexOf("'" + k + "'") < 0) fail('词条写了没人读：' + k) })
+  // 胶囊那一段的词条（如 chainView.capsuleDoing）读在胶囊叶子，不在面板这片叶子：两处都算读者。
+  keysInLeaf.forEach(function (k) { if (leafSrc.indexOf("'" + k + "'") < 0 && capsuleSrc.indexOf("'" + k + "'") < 0) fail('词条写了没人读：' + k) })
   if (leaf.sessionChainActionKeyOf('made-up-action') !== '') fail('认不出的动作类别被翻成了一个像样的词（那就是编事实）')
   if (leaf.sessionChainActionKeyOf('state') !== 'chainView.action.state') fail('动作类别的挑词入口坏了')
 

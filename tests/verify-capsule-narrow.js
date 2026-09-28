@@ -89,18 +89,21 @@ const statChecks = function (src, tag) {
   //   不走这一条 —— 它们按 panel/headFold.js 那条阶梯逐字变短，永远不整块 display:none。
   ok('V2 · CSS 折叠规则同时管胶囊与面板头部那几颗单字形小图标',
     /'\.dsws-capsule \[data-fold-priority\]\.dsws-folded,\[data-head-fold\]\.dsws-folded\{display:none\}'/.test(src))
-  // 3b. 9 个文字 span 的 priority 绑定（信息价值 1→9）：
-  //     品牌(1) 沉淀(2) 交接(3) 刷新字(4) 可接(5) BUG(6) 诊断(7) 环境(8) 时间(9)
+  // 3b. 12 个文字 span 的 priority 绑定（信息价值从小到大）：
+  //     品牌(1) 更新字(2) 日期串(3) 环境字(4) 环境计数(5) 时间串(6) 沉淀(7) 交接(8) 可接(9) BUG(10) 诊断(11) 在办编号(12)
   const prio = function (n, re) { return ok('V2 · priority=' + n + ' 绑定 ' + (re.source || re), re.test(src)) }
   prio(1, /'data-fold-priority':\s*1[\s\S]{0,40}tr\('panel\.title'\)/)
-  prio(2, /'data-fold-priority':\s*2[\s\S]{0,40}tr\('nav\.word'\)/)
-  prio(3, /'data-fold-priority':\s*3[\s\S]{0,40}tr\('nav\.handoff'\)/)
-  prio(4, /'data-fold-priority':\s*4[\s\S]{0,40}tr\('nav\.refresh'\)/)
-  prio(5, /'data-fold-priority':\s*5[\s\S]{0,40}tr\('nav\.takeable'\)/)
-  prio(6, /'data-fold-priority':\s*6[\s\S]{0,40}tr\('nav\.bug'\)/)
-  prio(7, /'data-fold-priority':\s*7[\s\S]{0,40}tr\('nav\.triage'\)/)
-  prio(8, /'data-fold-priority':\s*8[\s\S]{0,40}tr\('nav\.env'\)/)
-  prio(9, /'data-fold-priority':\s*9[\s\S]{0,40}timeStr/)
+  prio(2, /'data-fold-priority':\s*2[\s\S]{0,40}tr\('nav\.refresh'\)/)
+  prio(3, /'data-fold-priority':\s*3[\s\S]{0,100}\.date/)
+  prio(4, /'data-fold-priority':\s*4[\s\S]{0,40}tr\('nav\.env'\)/)
+  prio(5, /'data-fold-priority':\s*5[\s\S]{0,60}envLabel/)
+  prio(6, /'data-fold-priority':\s*6[\s\S]{0,100}\.time/)
+  prio(7, /'data-fold-priority':\s*7[\s\S]{0,40}tr\('nav\.word'\)/)
+  prio(8, /'data-fold-priority':\s*8[\s\S]{0,40}tr\('nav\.handoff'\)/)
+  prio(9, /'data-fold-priority':\s*9[\s\S]{0,40}tr\('nav\.takeable'\)/)
+  prio(10, /'data-fold-priority':\s*10[\s\S]{0,40}tr\('nav\.bug'\)/)
+  prio(11, /'data-fold-priority':\s*11[\s\S]{0,40}tr\('nav\.triage'\)/)
+  prio(12, /'data-fold-priority':\s*12[\s\S]{0,140}text/)
   // 3c. 那台阶梯机的核心形状（2026-09-24 #725：机器搬进 statusbar/capFoldMachine.js —— 判据是
   //   statusbar/capFold.js 的纯函数，StatusBar.js 只留接线。这些断言量的是**产物里的代码**，
   //   搬了住处照样量得到；下面几句的判据一条没放松，只是把「谁在实现」写清楚了。）
@@ -177,28 +180,32 @@ const statChecks = function (src, tag) {
 // ---- Part C：行为契约 —— priority 映射表语义（纯静态重算，与代码同表） ----
 const behaviorCheck = function (src, tag) {
   const ok = (name, cond) => { if (!cond) throw new Error(tag + ' · ' + name); console.log('  PASS ' + tag + ' · ' + name) }
-  // 信息价值顺序（1=最先收）：品牌 → 无数字操作段（沉淀/交接/刷新字）→ 有数字监控段（可接/BUG/诊断/环境）→ 时间
-  // 断言：priority 升序 = 上述顺序；且 1..9 全部出现且唯一
+  // 信息价值顺序（1=最先收）：品牌 → 更新字 → 时间串 → 无数字操作段（沉淀/交接）→ 有数字监控段（可接/BUG/诊断/环境字）→ 在办编号 → 环境计数
+  // 断言：priority 升序 = 上述顺序；且 1..11 全部出现且唯一
   const prios = []
-  for (let p = 1; p <= 9; p++) {
+  for (let p = 1; p <= 12; p++) {
     const re = new RegExp("'data-fold-priority':\\s*" + p + "\\b")
     const m = src.match(new RegExp("'data-fold-priority':\\s*" + p + "\\b", 'g'))
     if (!m) throw new Error('priority=' + p + ' 缺失')
     if (m.length !== 1) throw new Error('priority=' + p + ' 出现 ' + m.length + ' 次（应唯一）')
     prios.push(p)
   }
-  ok('V2 · 9 个 data-fold-priority 全部存在且唯一（1..9）', prios.length === 9)
-  // 语义表：每个 priority 对应的文案来源（tr 键 / 时间戳），确保顺序与「信息价值」一致
+  ok('V2 · 12 个 data-fold-priority 全部存在且唯一（1..12）', prios.length === 12)
+  // 语义表：每个 priority 对应的文案来源（tr 键 / 时间戳 / 在办编号 / 环境计数），确保顺序与「信息价值」一致
+  // （2026-09-27 定终版：品牌 → 更新字 → 日期串 → 环境字 → 环境计数 → 时间串 → 沉淀 → 交接 → 可接 → BUG → 诊断 → 在办编号）
   const sem = [
     { p: 1, re: /'data-fold-priority':\s*1[\s\S]{0,50}panel\.title/, d: '品牌 MattSkills（纯装饰，最先收）' },
-    { p: 2, re: /'data-fold-priority':\s*2[\s\S]{0,50}nav\.word/, d: '沉淀（无数字操作段）' },
-    { p: 3, re: /'data-fold-priority':\s*3[\s\S]{0,50}nav\.handoff/, d: '交接（无数字操作段）' },
-    { p: 4, re: /'data-fold-priority':\s*4[\s\S]{0,60}nav\.refresh/, d: '刷新字（无数字操作段）' },
-    { p: 5, re: /'data-fold-priority':\s*5[\s\S]{0,50}nav\.takeable/, d: '可接（监控标签，数字保留）' },
-    { p: 6, re: /'data-fold-priority':\s*6[\s\S]{0,50}nav\.bug/, d: 'BUG（监控标签，数字保留）' },
-    { p: 7, re: /'data-fold-priority':\s*7[\s\S]{0,50}nav\.triage/, d: '诊断（监控标签，数字保留）' },
-    { p: 8, re: /'data-fold-priority':\s*8[\s\S]{0,50}nav\.env/, d: '环境（监控标签，数字保留）' },
-    { p: 9, re: /'data-fold-priority':\s*9[\s\S]{0,60}timeStr/, d: '刷新时间（纯参考，最后收）' },
+    { p: 2, re: /'data-fold-priority':\s*2[\s\S]{0,40}nav\.refresh/, d: '更新字（图标留着，字先让）' },
+    { p: 3, re: /'data-fold-priority':\s*3[\s\S]{0,100}\.date/, d: '日期串（环境字前面先让，逐字）' },
+    { p: 4, re: /'data-fold-priority':\s*4[\s\S]{0,40}nav\.env/, d: '环境字（晚于日期早于时间）' },
+    { p: 5, re: /'data-fold-priority':\s*5[\s\S]{0,60}envLabel/, d: '环境计数（早于时间，逐字）' },
+    { p: 6, re: /'data-fold-priority':\s*6[\s\S]{0,100}\.time/, d: '时间串（撑后，逐字）' },
+    { p: 7, re: /'data-fold-priority':\s*7[\s\S]{0,50}nav\.word/, d: '沉淀（无数字操作段）' },
+    { p: 8, re: /'data-fold-priority':\s*8[\s\S]{0,50}nav\.handoff/, d: '交接（无数字操作段）' },
+    { p: 9, re: /'data-fold-priority':\s*9[\s\S]{0,50}nav\.takeable/, d: '可接（监控标签，数字保留）' },
+    { p: 10, re: /'data-fold-priority':\s*10[\s\S]{0,50}nav\.bug/, d: 'BUG（监控标签，数字保留）' },
+    { p: 11, re: /'data-fold-priority':\s*11[\s\S]{0,50}nav\.triage/, d: '诊断（监控标签，数字保留）' },
+    { p: 12, re: /'data-fold-priority':\s*12[\s\S]{0,140}text/, d: '在办编号（排在最后，逐字）' },
   ]
   for (const s of sem) {
     if (!s.re.test(src)) throw new Error('priority=' + s.p + ' 语义不符（' + s.d + '）')

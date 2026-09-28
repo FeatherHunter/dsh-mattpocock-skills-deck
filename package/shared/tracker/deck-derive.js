@@ -228,10 +228,13 @@ export function deriveDeck(input = {}) {
     .sort((a, b) => a.level - b.level)
     .map((v) => ({ total: v.total, open: v.open, closed: v.closed })) // 每层（数组）；只载形状声明的字段
 
-  // blockedByKeys（把 IssueRef[] 投影成 UI 使用的 key 数组；外层按池内身份键入）
+  // blockedByKeys（把 IssueRef[] 投影成 UI 使用的 key 数组；外层按池内身份键入）。
+  // 无键引用（断链、形状不全）直接跳过：它当不了键，留空值整包会被外层拒收（有这类边的地图读快照就红）。
   const blockedByKeys = {}
   for (const t of all) {
-    blockedByKeys[poolIdOfTicket(t)] = (Array.isArray(t.blockedBy) ? t.blockedBy : []).map((r) => r && r.key)
+    blockedByKeys[poolIdOfTicket(t)] = (Array.isArray(t.blockedBy) ? t.blockedBy : [])
+      .map((r) => (r && typeof r.key === 'string' ? r.key : ''))
+      .filter((k) => k !== '')
   }
 
   return { progressOf, labels, stats, blockedByKeys }

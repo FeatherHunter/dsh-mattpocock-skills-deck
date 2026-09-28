@@ -239,6 +239,7 @@ export default {
     //   —— 状态栏那边只留接线：把胶囊元素与两张跨调用带着走的表交给机器。
     // ==== leaf:capFold (spliced by build) ==== // ==== leaf:capFoldMachine (spliced by build) ====
     // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
+    // ==== leaf:sessionChainCapsule (spliced by build) ====
 
     // ==== leaf:md (spliced by build) ====
     // ==== leaf:ticket (spliced by build) ====
@@ -249,7 +250,7 @@ export default {
     // ==== leaf:mapDetailHead (spliced by build) ====
     // ==== leaf:mapDetail (spliced by build) ====
 
-    // ==== leaf:IssueDetailComments (spliced by build) ==== // ==== leaf:IssueDetail (spliced by build) ====
+    // ==== leaf:IssueDetailComments (spliced by build) ==== // ==== leaf:issueDetailFold (spliced by build) ==== // ==== leaf:useIssueDetailFold (spliced by build) ==== // ==== leaf:IssueDetail (spliced by build) ====
 
     // ==== leaf:tagsFit (spliced by build) ====
     // ==== leaf:pop (spliced by build) ====

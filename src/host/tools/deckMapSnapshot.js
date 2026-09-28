@@ -7,7 +7,7 @@
 // parseMapBody 解析，同样是单源。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
 import { childrenOf } from '../../shared/deck-tools/edges.js'
-import { deriveDeck } from '../../shared/tracker/deck-derive.js'
+import { deriveDeck, parseProgress } from '../../shared/tracker/deck-derive.js'
 import { parseMapBody } from '../../shared/parser.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 
@@ -25,11 +25,13 @@ export const definition = {
   },
 }
 
-function childRow(issue, progressOf) {
+function childRow(issue) {
   const labels = Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : []
   const assignees = Array.isArray(issue.assignees) ? issue.assignees.map((a) => (a && a.login) || String(a)) : []
   const blockedBy = Array.isArray(issue.blockedBy) ? issue.blockedBy.map((r) => (r && r.key) || String(r)) : []
-  return { key: issue.key, title: issue.title, state: issue.state, labels: labels, assignees: assignees, blockedBy: blockedBy, updatedAt: issue.updatedAt || '', progress: progressOf ? progressOf[issue.key] : null }
+  // 进度直接从正文算（与汇总用的同一个函数，结果一致）：汇总那张表按池内身份存键，
+  // 行里拿裸票号去查恒查不到，之前有子票的地图就整包被外层拒收（只读空地图能过）。
+  return { key: issue.key, title: issue.title, state: issue.state, labels: labels, assignees: assignees, blockedBy: blockedBy, updatedAt: issue.updatedAt || '', progress: parseProgress(issue.body) }
 }
 
 export function createDeckMapSnapshot(deps) {
@@ -106,7 +108,7 @@ export function createDeckMapSnapshot(deps) {
           text: '地图 ' + key + '：子票 ' + children.length + ' 张，未关闭 ' + projection.stats.open + ' 张、已关闭 ' + projection.stats.closed + ' 张、可接 ' + projection.stats.frontier + ' 张、被阻塞 ' + projection.stats.blocked + ' 张。',
           data: {
             map: { key: map.key, title: map.title, state: map.state, labels: Array.isArray(map.labels) ? map.labels.map((l) => (l && l.name) || String(l)) : [], updatedAt: map.updatedAt || '', url: map.url || '' },
-            children: shown.map((t) => childRow(t, projection.progressOf)),
+            children: shown.map((t) => childRow(t)),
             stats: projection.stats,
             labels: projection.labels,
             progressOf: projection.progressOf,

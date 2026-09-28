@@ -75,6 +75,11 @@
         'chainView.unreadable': '读不到处理记录',
         'chainView.unreadableTip': '宿主读这份记录那一步出错了，不表示没有会话在处理票。宿主给的代号：{reason}',
         'chainView.openTip': '打开宿主记下的这张票',
+        // 胶囊里「这个会话在办哪张票」那一段的前导词（挂载在 statusbar/SessionChainCapsule.js）。
+        //   版面上只写票号，前导词只进无障碍朗读；动作词复用上面的 action.*，点开提示复用 openTip。
+        'chainView.capsuleDoing': '在办',
+        // 同一段悬停里那份单子的标题行（悬停支持多行，从新到旧列出当前会话的记录）。
+        'chainView.capsuleListTitle': '这个会话动过的票',
         'chainView.action.create': '建票',
         'chainView.action.plan': '写计划',
         'chainView.action.comment': '评论',
@@ -133,6 +138,11 @@
         'chainView.unreadable': 'Cannot read the processing record',
         'chainView.unreadableTip': 'The host failed while reading this record. It does not mean no session is working on a ticket. Code from the host: {reason}',
         'chainView.openTip': 'Open this ticket as the host recorded it',
+        // The lead word of the status-bar capsule strip ("which ticket this session is working on",
+        // mounted in statusbar/SessionChainCapsule.js). Action words reuse action.* above.
+        'chainView.capsuleDoing': 'working on',
+        // The title line of that strip's hover list (the hover holds multiple lines of this session's records).
+        'chainView.capsuleListTitle': 'Tickets this session has touched',
         'chainView.action.create': 'opened a ticket',
         'chainView.action.plan': 'wrote a plan',
         'chainView.action.comment': 'commented',

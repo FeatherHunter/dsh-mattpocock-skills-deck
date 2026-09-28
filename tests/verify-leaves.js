@@ -47,6 +47,8 @@ const LEAVES = [
   { file: 'src/client/statusbar/StatusBackend.js', exports: ['closeStatusSetupPick', 'cancelStatusSetupPick', 'confirmStatusSetupPick', 'onStatusSetupInit', 'openStatusGate', 'closeStatusGate', 'confirmStatusGate'], components: [] }, // B1 #460 由 StatusBar.js 拆出：后端选择与门控动作（门控窗确认绑定、初始化小卡只答布局）；#669 第 4 件退役了那张卡上拉后端清单的三件（normStatusMods / ensureStatusSetupPick / openStatusSetupPick）
   { file: 'src/client/statusbar/bannerChain.js', exports: ['guideBannerStep', 'guideBannerParams', 'runGuideMissing'], components: [] }, // #663 新增：状态栏那条横幅按引导链清单决定出哪一条（顺序真源在 src/shared/tracker/guide-steps.js），那颗按钮照清单声明的 missing 执行
   { file: 'src/client/statusbar/StatusBar.js', exports: ['StatusBar'], components: ['StatusBar'] },
+  // 胶囊里「这个会话在办哪张票」那一段（只读链读数里当前会话那一格；散列自带一份不 import，挂载在 StatusBar 胶囊品牌字之后）
+  { file: 'src/client/statusbar/SessionChainCapsule.js', exports: ['capsuleShardOf', 'sessionChainCapsuleOf', 'SessionChainCapsule'], components: ['SessionChainCapsule'] },
   { file: 'src/client/floating/SkillFloatList.js', exports: ['SkillFloatList'], components: ['SkillFloatList'] },
   { file: 'src/client/floating/Pop.js', exports: ['showPop'], components: [] },
   { file: 'src/client/hostShim.js', exports: ['timer', 'h'], components: [] }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底，无组件，纯函数；曾含旧标签迁移，该段已由 #598 删除）

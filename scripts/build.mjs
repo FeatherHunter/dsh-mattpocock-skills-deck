@@ -375,6 +375,8 @@ const LEAF_MODULES = [
   { id: 'mapDetailHead', file: 'src/client/views/MapDetailHead.js' }, // #691 由 MapDetail.js 拆出：编号/标题/「本图 N 张子票」那一行（MapDetail 贴着 350 行上限）
   { id: 'mapDetail', file: 'src/client/views/MapDetail.js' },
   { id: 'IssueDetailComments', file: 'src/client/views/IssueDetailComments.js' },
+  { id: 'issueDetailFold', file: 'src/client/views/issueDetailFold.js' }, // #763 新增：详情页顶栏逐字折叠阶梯（纯函数，返回优先收到图标）
+  { id: 'useIssueDetailFold', file: 'src/client/views/useIssueDetailFold.js' }, // #763 新增：同一处的折叠机（读写顶栏 DOM；判据在上一项）
   { id: 'IssueDetail', file: 'src/client/views/IssueDetail.js' },
   { id: 'noRepoCard', file: 'src/client/views/NoRepoCard.js' },
   { id: 'setupCard', file: 'src/client/views/SetupCard.js' }, // #698 新增：盖住整个应用的「域文档布局」小卡（原先只渲染在黄条下面，工作区一初始化就没有地方可画）
@@ -407,6 +409,7 @@ const LEAF_MODULES = [
   { id: 'bannerChain', file: 'src/client/statusbar/bannerChain.js' }, // #663 新增：状态栏那条横幅按引导链清单决定出哪一条、那颗按钮点了做什么
   { id: 'StatusLogMenu', file: 'src/client/statusbar/StatusLogMenu.js' },
   { id: 'statusBar', file: 'src/client/statusbar/StatusBar.js' },
+  { id: 'sessionChainCapsule', file: 'src/client/statusbar/SessionChainCapsule.js' }, // 胶囊里「这个会话在办哪张票」那一段（只读链读数里当前会话那一格，不进折叠阶梯）
   { id: 'chainRenderer', file: 'src/client/views/shared/ChainRenderer.js' },
   { id: 'skillFloatList', file: 'src/client/floating/SkillFloatList.js' },
   { id: 'pop', file: 'src/client/floating/Pop.js' },

@@ -20,7 +20,7 @@
  *   I3 可回弹：宽度从窄变宽，版面上露出来的字只许变多不许变少（每一档的可见字集合是上一层宽度的子集）。
  *   I4 宽度变化就是重算信号：胶囊晚生（先收起功能区、再展开）之后，只改面板列宽（窗口尺寸一点没动）
  *      也必须重算 —— 这台机器靠 ResizeObserver 与「每次提交后重算一次」，不靠任何轮询。
- *   W 第 0 档（九段字全展开、品牌那串也在）要多大：宽到 1600 时它必须放得下，机器就停在第 0 档、
+ *   W 第 0 档（各段字全展开、品牌那串也在）要多大：宽到 1600 时它必须放得下，机器就停在第 0 档、
  *      一段都不收 —— 这是「有位置就显示，宽度不够时它第一个让位」里「有位置就显示」那一半的地面。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
@@ -202,7 +202,7 @@ window.__MEASURE__ = function () {
     words: words,
   }
 }
-// 载荷自身有多宽：把「九段字全收掉」这件事做在**克隆件**上量（绝不碰真节点 ——
+// 载荷自身有多宽：把「各段字全收掉」这件事做在**克隆件**上量（绝不碰真节点 ——
 //   机器那张「机器上一次写下的字」表认的是 DOM 里当前那串，探针若往真节点里写空串，
 //   机器下一次就会把空串当成新事实记进「完整的那串」，那一整段字从此再也展不开）。
 window.__PAYLOAD_W__ = function () {
@@ -220,7 +220,7 @@ window.__PAYLOAD_W__ = function () {
   clone.remove()
   return w
 }
-// 第 0 档（九段字全展开那一档）要多大：同样做在克隆件上量 —— 把九段字按给定的完整那串填回去、
+// 第 0 档（各段字全展开那一档）要多大：同样做在克隆件上量 —— 把各段字按给定的完整那串填回去、
 //   去掉折叠类，读这一份的 clientWidth / scrollWidth。真节点一个字都不碰。
 window.__TIER0__ = function (texts) {
   const cap = document.querySelector('.dsws-capsule')
@@ -242,7 +242,7 @@ window.__TIER0__ = function (texts) {
   clone.remove()
   return out
 }
-// 九段字完整那串：第 0 档上（宽条）从真节点上抄下来，供上面那个克隆件用。
+// 各段字完整那串：第 0 档上（宽条）从真节点上抄下来，供上面那个克隆件用。
 window.__FULL_TEXTS__ = function () {
   const cap = document.querySelector('.dsws-capsule')
   const out = {}
@@ -278,7 +278,7 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r))
 const origin = 'http://127.0.0.1:' + server.address().port + '/'
 const { chromium } = await import('playwright')
 const browser = await chromium.launch({ headless: true })
-// 四枚计数器的数字：可接 / BUG / 诊断 / 环境（顺序与状态栏那四段一致）。
+// 四枚计数器的数字：可接 / BUG / 诊断 / 环境（顺序与状态栏那四段一致，环境排最后、最后才让）。
 const numLine = (m) => JSON.stringify(m.nums.map((n) => n.text))
 const payLine = (m) => '档' + m.tier + ' 收' + m.folded + '/' + m.labelCount + ' 大写' + m.cap.clientW + '/滑' + m.cap.scrollW +
   ' 列' + m.colW + ' dock' + m.dockW + ' 数字' + numLine(m) + ' 露出的字' + JSON.stringify(m.words) + ' 品牌图标' + (m.brandIcon && m.brandIcon.visible ? '在' : '不在')
@@ -303,13 +303,16 @@ try {
     const after = await page.evaluate(() => window.__MEASURE__())
     seen[w] = after
     console.log('     ' + w + ' → ' + payLine(after) + ' 载荷要 ' + payloadW[w] + ' 像素')
-    // I1a：四枚数字 + 品牌图标都在、都看得见、文本非空、都没被 .dsws-folded 收掉
-    const numsOk = after.nums.length >= 4 && after.nums.every((n) => n.text.trim() !== '' && n.visible)
+    // I1a：可接/BUG/诊断三枚数字 + 品牌图标都在、都看得见；环境那枚排最后才让，窄宽度下允许它收。
+    //   文本非空、都没被 .dsws-folded 收掉（宽条上四枚都在，窄条上至少三枚在）。
+    const coreOk = after.nums.length >= 4 && after.nums.slice(0, 3).every((n) => n.text.trim() !== '' && n.visible)
+    const envOk = after.nums[3] && after.nums[3].text.trim() !== '' && after.nums[3].visible
     const brandOk = !!(after.brandIcon && after.brandIcon.visible)
-    check(numsOk, 'I1a 列宽 ' + w + '：四枚计数器的数字都在、都看得见、文本非空（实测 ' + numLine(after) + '）')
+    check(coreOk, 'I1a 列宽 ' + w + '：可接/BUG/诊断三枚计数器的数字都在、都看得见、文本非空（实测 ' + numLine(after) + '）')
+    if (w >= 900) check(envOk, 'I1a 列宽 ' + w + '（宽条）：环境计数也在（它只在窄条上才让；实测 ' + numLine(after) + '）')
     check(brandOk, 'I1a 列宽 ' + w + '：品牌图标在、看得见（实测 ' + JSON.stringify(after.brandIcon) + '）')
-    const foldedNum = after.nums.filter((n, i) => !n.visible).length
-    check(foldedNum === 0, 'I1a 列宽 ' + w + '：一枚数字都没有被撤掉（实测看不见的有 ' + foldedNum + ' 枚）')
+    const foldedNum = after.nums.slice(0, 3).filter((n) => !n.visible).length
+    check(foldedNum === 0, 'I1a 列宽 ' + w + '：可接/BUG/诊断一枚都没有被撤掉（实测看不见的有 ' + foldedNum + ' 枚）')
   }
   // I1b：宽的那两档必须「放得下」且还露着字（这一条就是维护者截图的反面：那一版整条只剩两枚图标）
   for (const w of [900, 1600]) {
@@ -318,12 +321,12 @@ try {
     check(m.cap.overflow <= 1, 'I1b 列宽 ' + w + '：宽条上放得下（scrollWidth-clientWidth = ' + m.cap.overflow + '）')
     check(m.folded < m.labelCount, 'I1b 列宽 ' + w + '：没有全折（收掉 ' + m.folded + ' 段，共 ' + m.labelCount + ' 段）')
     check(m.words.length >= 6, 'I1b 列宽 ' + w + '：宽条上露出来的字至少六段（实测 ' + JSON.stringify(m.words) + '）')
-    // 900 那一档的胶囊可用宽只有 662 像素（列宽到 900 以上就被卡片上限夹住了），九段字全展开放不下 ——
-    //   那时该让位的正是品牌（它是第一个让位的）。但不管让到哪一档，**四枚计数器的数字与时间串都必须在**
-    //   （载荷不撤；维护者截图里那一次是整条只剩两枚图标）。
+    // 900 那一档的胶囊可用宽只有 662 像素（列宽到 900 以上就被卡片上限夹住了），全展开放不下 ——
+    //   那时该让位的正是品牌（它是第一个让位的）。但不管让到哪一档，**四枚计数器都必须在**
+    //   （环境计数排第 5 但它是最后几档才动的，宽条上它一定在；维护者截图里那一次是整条只剩两枚图标）。
     if (w === 900) {
-      const keep = ['5', '6', '7', '8', '9'].every((p) => m.words.indexOf(p) >= 0)
-      check(keep, 'I1b 列宽 900（胶囊可用宽 662，九段全展开放不下）：该让的都让了，而四枚数字与时间串这几段仍在（实测露出的字 ' + JSON.stringify(m.words) + '）')
+      const keep = ['9', '10', '11'].every((p) => m.words.indexOf(p) >= 0)
+      check(keep, 'I1b 列宽 900（胶囊可用宽 662，全展开放不下）：该让的都让了，而可接/BUG/诊断这几段仍在（实测露出的字 ' + JSON.stringify(m.words) + '）')
     }
   }
   // I1b（这一轮新口径的核心一条）：宽到放得下时，品牌那串字必须**整串**看得见。
@@ -337,26 +340,28 @@ try {
     check(!!brand && brand.folded !== true && String(brand.text) === 'MattSkills' && !!box && box.w > 0.5 && box.h > 0,
       'I1b 列宽 1600（放得下）：品牌那串字整串看得见（矩形与文本都非空；实测 ' + JSON.stringify({ text: brand ? brand.text : null, w: box ? box.w : null, h: box ? box.h : null, folded: brand ? brand.folded : null }) + '）')
   }
-  // I1b：中档（列宽 1200，胶囊可用宽 750）—— 这时九段字放不下，让位的必须是品牌，而且它是**一格一格**让的：
+  // I1b：中档（列宽 1200，胶囊可用宽 750）—— 这时各段字放不下，让位的必须是品牌，而且它是**一格一格**让的：
   //   它少字（还可能被收掉末尾），而后面那几段一段都不许动。这条量的是「宽度不够时它第一个让位」。
   {
     await page.evaluate(() => window.__SET_COLUMN__(1200))
     const mid = await page.evaluate(() => window.__MEASURE__())
     const brand = mid.labels.filter((l) => l.p === '1')[0] || null
-    const others = mid.labels.filter((l) => l.p !== '1' && String(l.text).trim() === '' && ['2', '3', '5', '6', '7', '8', '9'].indexOf(l.p) >= 0).map((l) => l.p)
+    const others = mid.labels.filter((l) => l.p !== '1' && l.p !== '2' && String(l.text).trim() === '' && ['3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].indexOf(l.p) >= 0).map((l) => l.p)
     const brandText = String(brand ? brand.text : '')
     check(!!brand && brandText.length > 0 && brandText.length < 'MattSkills'.length && brandText === 'MattSkills'.slice(0, brandText.length) && others.length === 0,
-      'I1b 列宽 1200（九段放不下）：让位的是品牌，而且是它自己一格一格让（其余各段一字未动；实测品牌 ' + JSON.stringify(brandText) + '、被写空的其它段 ' + JSON.stringify(others) + '）')
+      'I1b 列宽 1200（各段放不下）：让位的是品牌，而且是它自己一格一格让（其余各段一字未动；实测品牌 ' + JSON.stringify(brandText) + '、被写空的其它段 ' + JSON.stringify(others) + '）')
   }
-  // I1b：收到**极窄**（列宽 320，胶囊可用宽 318）——这时九段字全让完了，版面上只剩图标与数字。
-  //   这条量的是维护者那句话的最后半句「直到只剩图标」：可让的字一段不剩，而载荷（四枚数字）还在。
+  // I1b：收到**极窄**（列宽 320，胶囊可用宽 318）——这时可让的字全让完了，版面上只剩图标与数字。
+  //   这条量的是维护者那句话的最后半句「直到只剩图标」：可让的字一段不剩（环境计数排第 5，先于时间让，
+  //   极窄下它可能还剩几个字，允许），而载荷（可接/BUG/诊断三枚数字）还在。
   {
     await page.evaluate(() => window.__SET_COLUMN__(320))
     const nar = await page.evaluate(() => window.__MEASURE__())
     const textLeft = nar.labels.filter((l) => String(l.text).trim() !== '').map((l) => l.p)
-    const numsLeft = nar.nums.filter((n) => n.text.trim() !== '' && n.visible).length
-    check(textLeft.length === 0 && numsLeft >= 4,
-      'I1b 列宽 320（极窄）：可让的字（九段）全让完了，版面上只剩图标与数字，四枚数字都还在（实测还剩字的段 ' + JSON.stringify(textLeft) + '、看得见的数字 ' + numsLeft + ' 枚）')
+    const coreLeft = nar.nums.slice(0, 3).filter((n) => n.text.trim() !== '' && n.visible).length
+    const textLeftOk = textLeft.length === 0 || (textLeft.length === 1 && textLeft[0] === '5')
+    check(textLeftOk && coreLeft === 3,
+      'I1b 列宽 320（极窄）：可让的字全让完了（环境计数可能还剩几个字），版面上只剩图标与数字，可接/BUG/诊断三枚数字都还在（实测还剩字的段 ' + JSON.stringify(textLeft) + '、看得见的核心数字 ' + coreLeft + ' 枚）')
   }
   // I1c：载荷装得下的时候，四枚数字必须都在胶囊框里；装不下时（胶囊比载荷还窄）这一条几何上做不到，
   //   按契约由外层的 overflow 处理 —— 门禁把观测值照原样打出来，但只在「装得下」时判红绿。
@@ -372,19 +377,19 @@ try {
   }
 
   console.log('')
-  console.log('W) 第 0 档（九段字全展开）要多大：宽 1600 / 900 / 600 / 380 / 320 各量一次（照真机几何）')
+  console.log('W) 第 0 档（各段字全展开）要多大：宽 1600 / 900 / 600 / 380 / 320 各量一次（照真机几何）')
   {
     const probeWidths = [1600, 900, 600, 380, 320]
     const mounted0 = await page.evaluate(() => window.__MOUNT__({ column: 1600 }))
     if (!mounted0 || !mounted0.ok) bad('W 量第 0 档前挂不起来：' + JSON.stringify(mounted0))
     const fullTexts = await page.evaluate(() => window.__FULL_TEXTS__())
-    console.log('     九段字完整那串（取自第 0 档的真节点）：' + JSON.stringify(fullTexts))
+    console.log('     各段字完整那串（取自第 0 档的真节点）：' + JSON.stringify(fullTexts))
     let zeroFits = null
     for (const w of probeWidths) {
       await page.evaluate((x) => window.__SET_COLUMN__(x), w)
       const m = await page.evaluate(() => window.__MEASURE__())
       const t0 = await page.evaluate((t) => window.__TIER0__(t), fullTexts)
-      console.log('     列宽 ' + w + '：胶囊可用 ' + t0.clientW + '，第 0 档要 ' + t0.scrollW + '（溢 ' + t0.overflow + '）；机器定在 档' + m.tier + '（收 ' + m.folded + '/9）')
+      console.log('     列宽 ' + w + '：胶囊可用 ' + t0.clientW + '，第 0 档要 ' + t0.scrollW + '（溢 ' + t0.overflow + '）；机器定在 档' + m.tier + '（收 ' + m.folded + '/' + m.labelCount + '）')
       if (w === 1600) zeroFits = t0.overflow
     }
     // 宽到 1600 时第 0 档放得下 —— 那机器就必须停在那一档，**一段都不收**（2026-09-24 晚改口径：
@@ -394,7 +399,7 @@ try {
     const wideNow = await page.evaluate(() => window.__MEASURE__())
     const wideBrand = wideNow.labels.filter((l) => l.p === '1')[0] || null
     check(Number(wideNow.tier) === 0 && wideNow.folded === 0,
-      'W1 列宽 1600：第 0 档放得下时机器就停在第 0 档、一段都不收（实测 档' + wideNow.tier + '、收 ' + wideNow.folded + '/9）')
+      'W1 列宽 1600：第 0 档放得下时机器就停在第 0 档、一段都不收（实测 档' + wideNow.tier + '、收 ' + wideNow.folded + '/' + wideNow.labelCount + '）')
     check(!!wideBrand && wideBrand.folded !== true && String(wideBrand.text).trim() === 'MattSkills' && !!wideBrand.box && wideBrand.box.w > 0,
       'W1 列宽 1600：品牌那串字整串可见（矩形与文本都非空；实测 ' + JSON.stringify(wideBrand ? { text: wideBrand.text, w: wideBrand.box && wideBrand.box.w, folded: wideBrand.folded } : null) + '）')
   }

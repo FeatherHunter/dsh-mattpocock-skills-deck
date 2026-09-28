@@ -9,7 +9,7 @@
  *   品牌那串字是**可见**的，往下第一段台阶就是它少一个字，它收完了才轮到 2..9。
  *   落到代码上，这一票要四件事，本文件按四组量它们：
  *
- *   A 判据层（纯函数，不开浏览器）：statusbar/capFold.js 那条阶梯 —— 第 0 档九段字全在（品牌那串也
+ *   A 判据层（纯函数，不开浏览器）：statusbar/capFold.js 那条阶梯 —— 第 0 档各段字全在（品牌那串也
  *     看得见）、每往下一档只少一个单位（char 少一个字 / word 少一整段词）、收的第一段是品牌、
  *     所有词都空之后就再也没有台阶（计数器与图标是载荷，不许撤）、档号超界停在最后一档。
  *   B 源码与产物层：判据与机器都真的拼进两份产物；那条 2 秒轮询确实退役了；
@@ -55,30 +55,44 @@ const capFold = (function () {
   if (!existsSync(resolve(CAPFOLD))) return null
   try {
     return new Function(read(CAPFOLD).replace(/^[ \t]*export[ \t]+/gm, '') +
-      '\nreturn { CAP_FOLD_POLICY, CAP_FOLD_START_FOLDED, capFoldLadderOf, capFoldStateAt, capFoldStepCount, capFoldStartWordsOf, capFoldStartFoldedOf }')()
+      '\nreturn { CAP_FOLD_POLICY, CAP_FOLD_START_FOLDED, capFoldLadderOf, capFoldStateAt, capFoldStepCount, capFoldStartWordsOf, capFoldStartFoldedOf, splitTimeStr }')()
   } catch (e) { return null }
 })()
 if (!capFold) {
   bad('A 读不到 ' + CAPFOLD + '，或者它跑不起来')
 } else {
   const POLICY = capFold.CAP_FOLD_POLICY
-  const ids = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
-  // A1（2026-09-24 晚改口径）：这一段同时钉两件事 —— 让位单位与优先级照旧（品牌 char、小号先让位），
-  //   并且「让位表里一段 pinned 都没有」。pinned 是「这段字不参与让位」那个开关，谁把它加回来，
-  //   那一段就在最宽那一档也是空的 —— 也就是维护者真机反馈里的「这串字任何宽度都看不见」。
+  const ids = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
+  // A1（2026-09-27 定终版：品牌 → 更新字 → 日期串 → 环境字 → 环境计数 → 时间串 → 沉淀
+  //   → 交接 → 可接 → BUG → 诊断 → 在办编号；更新字排在时间前面先让图标留着，
+  //   环境字晚于日期早于时间，环境计数早于时间被折叠；编号排在最后，逐字让）：
+  //   这一段同时钉两件事 —— 让位单位与优先级（小号先让位），并且「让位表里一段 pinned 都没有」。
+  //   pinned 是「这段字不参与让位」那个开关，谁把它加回来，那一段就在最宽那一档也是空的 ——
+  //   也就是维护者真机反馈里的「这串字任何宽度都看不见」。
   const polOk = !!POLICY && ids.every((p) => !!POLICY[p]) &&
     POLICY['1'].cut === 'char' && POLICY['1'].pinned !== true &&
-    POLICY['9'].cut === 'char' && POLICY['9'].pinned !== true &&
-    ['2', '3', '4', '5', '6', '7', '8'].every((p) => POLICY[p].cut === 'word' && POLICY[p].pinned !== true) &&
-    Object.keys(POLICY).length === 9
-  check(polOk, 'A1 让位表就是维护者定的那张：1=品牌（char，优先级最高 = 第一个让位，不默认收起）· 2–8=七段词（word）· 9=时间串（char），全表没有一段是 pinned（实测 ' + JSON.stringify(POLICY) + '）')
+    POLICY['2'].cut === 'word' && POLICY['2'].pinned !== true &&
+    POLICY['3'].cut === 'char' && POLICY['3'].pinned !== true &&
+    POLICY['4'].cut === 'word' && POLICY['4'].pinned !== true &&
+    POLICY['5'].cut === 'char' && POLICY['5'].pinned !== true &&
+    POLICY['6'].cut === 'char' && POLICY['6'].pinned !== true &&
+    ['7', '8', '9', '10', '11'].every((p) => POLICY[p].cut === 'word' && POLICY[p].pinned !== true) &&
+    POLICY['12'].cut === 'char' && POLICY['12'].pinned !== true &&
+    Object.keys(POLICY).length === 12
+  check(polOk, 'A1 让位表就是定的那张：1=品牌（char，第一个让位）· 2=更新字（word，排在时间前面）· 3=日期串（char）· 4=环境字（word，晚于日期早于时间）· 5=环境计数（char，早于时间）· 6=时间串（char，撑后）· 7–11=五段词（word）· 12=在办编号（char，排在最后），全表没有一段是 pinned（实测 ' + JSON.stringify(POLICY) + '）')
 
-  // 一份与真机同形的样本：号码与状态栏那九个挂点一一对应，字用中文那一套（一个字 12 像素，尺子分得清）。
+  // 一份与真机同形的样本：号码与状态栏挂点一一对应，字用中文那一套（一个字 12 像素，尺子分得清）。
+  //   日期与时间是拆开的两段（与界面 splitTimeStr 拆出来的形状一致）：3=' 09-28'，6=' 09:48'。
   const SAMPLE = { items: [
     { priority: 1, word: 'MattSkills' },
-    { priority: 2, word: '沉淀' }, { priority: 3, word: '交接' }, { priority: 4, word: '更新' },
-    { priority: 5, word: '可接' }, { priority: 6, word: 'BUG' }, { priority: 7, word: '诊断' }, { priority: 8, word: '环境' },
-    { priority: 9, word: ' 12:34:56' },
+    { priority: 2, word: '更新' },
+    { priority: 3, word: ' 09-28' },
+    { priority: 4, word: '环境' },
+    { priority: 5, word: '10/10' },
+    { priority: 6, word: ' 09:48' },
+    { priority: 7, word: '沉淀' }, { priority: 8, word: '交接' },
+    { priority: 9, word: '可接' }, { priority: 10, word: 'BUG' }, { priority: 11, word: '诊断' },
+    { priority: 12, word: '#760' },
   ] }
   const unitsOf = function (text, cut) {
     const s = String(text === undefined || text === null ? '' : text)
@@ -145,8 +159,8 @@ if (!capFold) {
   const first = zhRun.rungs[0].words
   const lastRung = zhRun.rungs[zhRun.rungs.length - 1]
 
-  check(first['1'] === 'MattSkills' && first['2'] === '沉淀' && first['9'] === ' 12:34:56',
-    'A2 第 0 档（最宽那一档）九段字全都在：品牌那串看得见（这是维护者的真意「有位置就显示」，上一版在这里是空的）、其余各段也都是完整的那串字（实测 ' + JSON.stringify(first) + '）')
+  check(first['1'] === 'MattSkills' && first['2'] === '更新' && first['3'] === ' 09-28' && first['4'] === '环境' && first['5'] === '10/10' && first['11'] === '诊断' && first['12'] === '#760',
+    'A2 第 0 档（最宽那一档）各段字全都在：品牌那串看得见（这是维护者的真意「有位置就显示」，上一版在这里是空的）、其余各段也都是完整的那串字（实测 ' + JSON.stringify(first) + '）')
   check(vZh.length === 0,
     'A3 每往下一档只让掉一个单位（一个字，或一整段词），别的段一个字都不动（实测 ' + zhRun.rungs.length + ' 档，违反 ' + vZh.length + ' 处' + (vZh.length ? '：' + vZh.join('；') : '') + '）')
   // A4/A5/A6 三条是「品牌第一个让位」这件事在判据上的样子：往下第一段台阶就是品牌那串字少一个字。
@@ -159,43 +173,63 @@ if (!capFold) {
     'A4 品牌那串字收的是 10 步、这 10 步里别段一个字都不动（实测品牌字长 ' + brandWhole.length + '，第 ' + brandWhole.length + ' 档时第 2 段 ' + JSON.stringify(afterBrand.words['2']) + '）')
   const brandGone = capFold.capFoldStateAt(zhRun.ladder, brandWhole.length + 1)
   const brandEmpty = capFold.capFoldStateAt(zhRun.ladder, brandWhole.length)
-  check(brandEmpty.words['1'] === '' && brandEmpty.words['2'] === SAMPLE.items[1].word && brandGone.words['2'] === '',
-    'A5 品牌收完了才轮到第 2 段（品牌空掉那一档第 2 段还是完整那句，再下一档才开始收它；实测第 ' + brandWhole.length + ' 档 ' + JSON.stringify(brandEmpty.words['2']) + ' → 第 ' + (brandWhole.length + 1) + ' 档 ' + JSON.stringify(brandGone.words['2']) + '）')
-  check(zhRun.rungs[1].words['1'] === brandWhole.slice(0, -1) && zhRun.rungs[1].words['9'] === SAMPLE.items[8].word,
-    'A6 往下第一段台阶就是品牌掉一个字（别的段一个字都不少：时间串还是完整那串；实测品牌 ' + JSON.stringify(first['1']) + ' → ' + JSON.stringify(zhRun.rungs[1].words['1']) + '）')
-  check(ids.every((p) => lastRung.words[p] === '') && capFold.capFoldStepCount(zhRun.ladder) === 1 + 10 + 7 + 9,
-    'A7 收到底：最后一档所有段都空了，档数恰是「第 0 档 + 品牌十个字十步 + 七段词各一步 + 时间串九个字九步」= 27（实测 ' + capFold.capFoldStepCount(zhRun.ladder) + ' 档）')
+  check(brandEmpty.words['1'] === '' && brandEmpty.words['2'] === SAMPLE.items[1].word && brandGone.words['2'] === '' && brandGone.words['3'] === SAMPLE.items[2].word,
+    'A5 品牌收完了才轮到第 2 段（更新字）：品牌空掉那一档更新字还是完整那句，再下一档它整段消失（图标留着）；日期串一字未动（实测第 ' + brandWhole.length + ' 档 ' + JSON.stringify(brandEmpty.words['2']) + ' → 第 ' + (brandWhole.length + 1) + ' 档 ' + JSON.stringify(brandGone.words['2']) + '，日期串 ' + JSON.stringify(brandGone.words['3']) + '）')
+  // A5b 日期拆分与晚于日期早于时间的次序：拆分函数把 ' 09-28 09:48' 拆成两段，没日期的串日期取空；
+  //   阶梯上各段空掉的先后是品牌 → 更新字 → 日期串 → 环境字 → 时间串（环境字晚于日期早于时间）。
+  {
+    const split = capFold.splitTimeStr(' 09-28 09:48')
+    const splitBare = capFold.splitTimeStr(' 12:34:56')
+    const splitDash = capFold.splitTimeStr('-- --:--')
+    check(split.date === ' 09-28' && split.time === ' 09:48' && splitBare.date === '' && splitBare.time === ' 12:34:56' && splitDash.date === '' && splitDash.time === '-- --:--',
+      'A5b 拆分函数：带日期拆成两段，没日期的日期取空（实测 ' + JSON.stringify([split, splitBare, splitDash]) + '）')
+    const emptyTier = function (p) {
+      for (let t = 0; t < zhRun.rungs.length; t++) if (zhRun.rungs[t].words[p] === '') return t
+      return -1
+    }
+    const t1 = emptyTier('1'), t2 = emptyTier('2'), t3 = emptyTier('3'), t4 = emptyTier('4'), t5 = emptyTier('5'), t6 = emptyTier('6')
+    check(t1 === 10 && t2 === 11 && t3 === 17 && t4 === 18 && t5 === 23 && t6 === 29,
+      'A5b 空掉的先后是品牌 → 更新字 → 日期串 → 环境字 → 环境计数 → 时间串（环境计数早于时间；实测 ' + JSON.stringify({ '1': t1, '2': t2, '3': t3, '4': t4, '5': t5, '6': t6 }) + '）')
+  }
+  check(zhRun.rungs[1].words['1'] === brandWhole.slice(0, -1) && zhRun.rungs[1].words['2'] === SAMPLE.items[1].word && zhRun.rungs[1].words['3'] === SAMPLE.items[2].word && zhRun.rungs[1].words['4'] === SAMPLE.items[3].word,
+    'A6 往下第一段台阶就是品牌掉一个字（别的段一个字都不少：更新字、日期串与环境字还是完整那串；实测品牌 ' + JSON.stringify(first['1']) + ' → ' + JSON.stringify(zhRun.rungs[1].words['1']) + '）')
+  check(ids.every((p) => lastRung.words[p] === '') && capFold.capFoldStepCount(zhRun.ladder) === 1 + 10 + 1 + 6 + 1 + 5 + 6 + 5 + 4,
+    'A7 收到底：最后一档所有段都空了，档数恰是「第 0 档 + 品牌十个字十步 + 更新字一步 + 日期串六步 + 环境字一步 + 环境计数五步 + 时间串六步 + 五段词各一步 + 编号四步」= 39（实测 ' + capFold.capFoldStepCount(zhRun.ladder) + ' 档）')
   check(capFold.capFoldStepCount(zhRun.ladder) === zhRun.rungs.length,
     'A8 capFoldStepCount 说的档数与真排出来的档数一致（实测 ' + capFold.capFoldStepCount(zhRun.ladder) + '）')
   const below = capFold.capFoldStateAt(zhRun.ladder, -5)
   const above = capFold.capFoldStateAt(zhRun.ladder, 999)
-  check(below.tier === 0 && below.words['2'] === '沉淀' && below.words['1'] === brandWhole,
+  check(below.tier === 0 && below.words['2'] === '更新' && below.words['1'] === brandWhole,
     'A9 档号算小了（-5）停在最宽那一档（实测 tier ' + below.tier + '）')
   check(above.tier === zhRun.rungs.length - 1 && ids.every((p) => above.words[p] === ''),
     'A10 档号算大了（999）停在最后一档、不越界（收到底之后不再撤；实测 tier ' + above.tier + '）')
   const order = (zhRun.ladder.ids || []).join(',')
   check(order === ids.join(','), 'A11 让位次序就是号码升序（小号先让位，品牌 1 排在头一个；实测 ' + order + '）')
-  // A12：九段谁都没有 pinned（这条守的是真意里「有位置就显示」那一半）。
+  // A12：各段谁都没有 pinned（这条守的是真意里「有位置就显示」那一半）。
   //   为什么要单写一条、而不靠 A1 那条整表断言：A1 判的是整张表，将来新加一段带着 pinned 进来，
   //   A1 里那几个号码的写法看不出是「新加那一段」犯的错；这一条按号码逐个点名，谁带的就报谁。
   const pinnedOn = ids.filter((p) => (POLICY[p] || {}).pinned === true)
   check(pinnedOn.length === 0 && ids.every((p) => first[p] !== ''),
-    'A12 没有任何一段被 pinned（pinned = 这段字任何宽度都不显示）：第 0 档九段一段都不许是空的（实测带 pinned 的号码 ' + JSON.stringify(pinnedOn) + '、第 0 档空的段 ' + JSON.stringify(ids.filter((p) => first[p] === '')) + '）')
+    'A12 没有任何一段被 pinned（pinned = 这段字任何宽度都不显示）：第 0 档各段一段都不许是空的（实测带 pinned 的号码 ' + JSON.stringify(pinnedOn) + '、第 0 档空的段 ' + JSON.stringify(ids.filter((p) => first[p] === '')) + '）')
 
   // 英文那一套也跑一遍：多词的那几段按「一整段词」让位，所以一次少一整个词，不是少一个字母。
   const EN = { items: [
     { priority: 1, word: 'MattSkills' },
-    { priority: 2, word: 'Handoff new session' }, { priority: 3, word: 'Handoff' },
-    { priority: 4, word: 'Refresh' }, { priority: 5, word: 'Takeable' }, { priority: 6, word: 'BUG' },
-    { priority: 7, word: 'Triage' }, { priority: 8, word: 'Env' },
-    { priority: 9, word: ' 12:34:56' },
+    { priority: 2, word: 'Refresh' },
+    { priority: 3, word: ' 09-28' },
+    { priority: 4, word: 'Env' },
+    { priority: 5, word: '10/10' },
+    { priority: 6, word: ' 09:48' },
+    { priority: 7, word: 'Handoff new session' }, { priority: 8, word: 'Handoff' },
+    { priority: 9, word: 'Takeable' }, { priority: 10, word: 'BUG' }, { priority: 11, word: 'Triage' },
+    { priority: 12, word: '#760' },
   ] }
   const enRun = ladderOf(EN)
   const vEn = violationsOf(enRun, EN)
   const enRung0 = enRun.rungs[0].words
   const enRung1 = enRun.rungs[1].words
-  check(vEn.length === 0 && enRung0['2'] === 'Handoff new session' && enRung1['1'] === 'MattSkill' && enRung1['2'] === 'Handoff new session',
-    'A13 英文那一套同样只让一个单位：第一段台阶同样是品牌掉一个字母（第 1 段一字未动），多词的那段到它自己让位时一次只少一整个词（实测品牌 ' + JSON.stringify(enRung0['1']) + ' → ' + JSON.stringify(enRung1['1']) + '、第 2 段第 1 档 ' + JSON.stringify(enRung1['2']) + '，违反 ' + vEn.length + ' 处）')
+  check(vEn.length === 0 && enRung0['2'] === 'Refresh' && enRung1['1'] === 'MattSkill' && enRung1['2'] === 'Refresh' && enRung1['3'] === ' 09-28' && enRung1['4'] === 'Env' && enRung1['5'] === '10/10',
+    'A13 英文那一套同样只让一个单位：第一段台阶同样是品牌掉一个字母（更新字、日期串、环境字与环境计数一字未动），多词的那段到它自己让位时一次只少一整个词（实测品牌 ' + JSON.stringify(enRung0['1']) + ' → ' + JSON.stringify(enRung1['1']) + '、第 2 段第 1 档 ' + JSON.stringify(enRung1['2']) + '，违反 ' + vEn.length + ' 处）')
 
   // 自带反证：一把尺子抓不住坏阶梯就是假绿。造两条坏样子喂进去 ——
   //   ① 同一段一步掉三个字（时间串那一段本该一个字一个字地让）；
@@ -268,8 +302,8 @@ if (!capFold) {
   //   也不是「任何宽度都不显示」。量到可用宽之后一律从第 0 档重走（够宽就把它显示出来）。
   const startWords = capFold.capFoldStartWordsOf(SAMPLE.items)
   const startFolded = capFold.capFoldStartFoldedOf()
-  check(startWords['1'] === '' && startWords['2'] === '沉淀' && startWords['9'] === ' 12:34:56',
-    'A18 首帧的起始态就是维护者要的「默认折叠」：品牌那一段是收起的，其余八段照原样（实测 ' + JSON.stringify(startWords) + '）')
+  check(startWords['1'] === '' && startWords['2'] === '更新' && startWords['3'] === ' 09-28' && startWords['9'] === '可接',
+    'A18 首帧的起始态就是维护者要的「默认折叠」：品牌那一段是收起的，其余各段照原样（实测 ' + JSON.stringify(startWords) + '）')
   check(startFolded.length === 1 && startFolded[0] === '1',
     'A19 首帧要加折叠类的只有品牌那一段（号码 1）——计数器与图标一个都不在名单里（实测 ' + JSON.stringify(startFolded) + '）')
   // A20：起始态与阶梯是两件事 —— 第 0 档（量到可用宽之后走的那一档）品牌必须是**可见**的。
@@ -291,7 +325,9 @@ for (const rel of ARTIFACTS) {
   check(t.indexOf('capFoldStateAt') >= 0 && t.indexOf('capFoldLadderOf') >= 0, rel + ' 里拼进了判据（capFoldLadderOf / capFoldStateAt）')
   check(t.indexOf('runCapFold') >= 0 && t.indexOf('dataset.foldTier') >= 0, rel + ' 里拼进了机器（runCapFold 与档号锚点）')
   check(!t.includes('setInterval(applyAll, 2000)'), rel + ' 里已经没有那条 2 秒轮询（#725 退役）')
-  check(t.indexOf("'data-fold-priority': 1") >= 0 || t.indexOf("'data-fold-priority':1") >= 0, rel + ' 里九个挂点还在（品牌那段仍是优先级 1）')
+  check(t.indexOf("'data-fold-priority': 1") >= 0 || t.indexOf("'data-fold-priority':1") >= 0, rel + ' 里十二个挂点还在（品牌 1、更新字 2、日期串 3、环境字 4、环境计数 5、时间串 6、在办编号 12）')
+  check(t.indexOf("'data-fold-priority': 5") >= 0 || t.indexOf("'data-fold-priority':5") >= 0, rel + ' 里环境计数挂在优先级 5（早于时间）')
+  check(t.indexOf("'data-fold-priority': 12") >= 0 || t.indexOf("'data-fold-priority':12") >= 0, rel + ' 里在办编号挂在优先级 12（排在最后）')
 }
 const barSrc = existsSync(resolve(STATUSBAR)) ? read(STATUSBAR) : ''
 check(/runCapFold\(cap, foldKeep\.current\)/.test(barSrc), '状态栏只留接线：把胶囊与两张跨调用带着走的表交给阶梯机（statusbar/capFoldMachine.js）')
@@ -549,9 +585,10 @@ try {
       //   最宽那一档它整串字都在，第一段台阶就是它少一个字，收到底之后它才不见；
       //   那枚品牌图标任何时候都在（它不是「一串字」，谁也收不走它）。
       const numBad = []
-      samples.forEach((s) => s.m.nums.forEach((n, i) => { if (!n.visible) numBad.push(s.w + 'px#' + i) }))
-      check(samples[0].m.nums.length >= 3 && numBad.length === 0,
-        'C5 每一档的计数器数字都还在（实测共 ' + samples[0].m.nums.length + ' 枚；看不见的：' + JSON.stringify(numBad) + '）')
+      // 环境计数（最后一枚）排在最后才让，其余三枚常驻：下标 0..2 是可接/BUG/诊断，下标 3 是环境。
+      samples.forEach((s) => s.m.nums.forEach((n, i) => { if (i < 3 && !n.visible) numBad.push(s.w + 'px#' + i) }))
+      check(samples[0].m.nums.length >= 4 && numBad.length === 0,
+        'C5 可接/BUG/诊断三枚计数器每一档都还在（环境那枚排最后才让，不在这里卡它；实测共 ' + samples[0].m.nums.length + ' 枚；看不见的：' + JSON.stringify(numBad) + '）')
       const brandText = (s) => {
         const b = s.m.items.filter((it) => it.p === '1')[0]
         return b ? String(b.text || '') : ''
@@ -574,10 +611,11 @@ try {
       check(brandWhole === 'MattSkills',
         'C8 第 0 档品牌是整串的（这是下面 1..' + brandWhole.length + ' 档那一段的前提；实测 ' + JSON.stringify(brandWhole) + '）')
       const brandsMid = samples.filter((s) => s.m.tier >= 1 && s.m.tier <= brandWhole.length)
+      // 第 2 段现在是更新字（静态词，走秒的是时间串但它排第 3）：逐字比对即可，不怕走秒。
       const otherMoved = brandsMid.filter((s) => {
         const b = s.m.items.filter((it) => it.p === '1')[0]
         const seg2 = s.m.items.filter((it) => it.p === '2')[0]
-        return !b || String(seg2 && seg2.text).trim() !== '沉淀'
+        return !b || String(seg2 && seg2.text) !== '更新'
       }).map((s) => s.w)
       check(brandWhole.length === 10 && brandsMid.length >= 1 && otherMoved.length === 0,
         'C9 品牌掉字的那 1..' + brandWhole.length + ' 档里，别的段一个字都不许动（实测扫到的档数 ' + brandsMid.length + '、动过的宽度：' + JSON.stringify(otherMoved) + '）')
