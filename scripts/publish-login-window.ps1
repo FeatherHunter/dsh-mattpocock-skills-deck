@@ -53,7 +53,9 @@ function Write-PublishStatus([int]$ExitCode, [string]$Phase) {
     $ver = ''
     $name = ''
     try {
-        $pkgRaw = Get-Content (Join-Path $PackageDir 'package.json') -Raw | ConvertFrom-Json
+        # 中文包清单必须用 .NET 方法读（能识别 UTF-8），Get-Content 无 -Encoding 会按系统
+        # ANSI 解码致乱码并使 ConvertFrom-Json 失败（2026-09-29 实测，见 publish-all-window）。
+        $pkgRaw = [System.IO.File]::ReadAllText((Join-Path $PackageDir 'package.json')) | ConvertFrom-Json
         if ($pkgRaw.version) { $ver = [string]$pkgRaw.version }
         if ($pkgRaw.name) { $name = [string]$pkgRaw.name }
     } catch { $ver = 'unknown' }

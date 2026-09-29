@@ -70,7 +70,9 @@ function Get-PackageInfo([string]$RelDir) {
     $pj = Join-Path $dir 'package.json'
     if (-not (Test-Path $pj)) { return $null }
     try {
-        $j = Get-Content $pj -Raw | ConvertFrom-Json
+        # 中文包清单必须用 .NET 方法读（能识别 UTF-8）：Get-Content 无 -Encoding 时按系统
+        # ANSI 解码，无签名 UTF-8 中文会变乱码，乱码可致 ConvertFrom-Json 失败（2026-09-29 实测）。
+        $j = [System.IO.File]::ReadAllText($pj) | ConvertFrom-Json
     } catch { return $null }
     if (-not $j.name -or -not $j.version) { return $null }
     if ($j.private -eq $true) { return $null }
