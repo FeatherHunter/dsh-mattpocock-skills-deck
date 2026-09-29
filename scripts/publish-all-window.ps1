@@ -196,11 +196,13 @@ foreach ($p in $todo) {
     Write-Host ('PKG-BEGIN ' + $p.name + '@' + $p.version)
     Write-Host '  若出现授权链接 → 按回车 → 浏览器完成二次验证 → 回车。'
     Push-Location $p.dir
-    $pubOut = npm publish --access public --registry=$Registry --auth-type=web 2>&1 | Tee-Object -Variable pubOutRaw | Out-String
+    # 输出必须直连终端、不接管道：npm 只有在输出是真终端时才打印授权链接并等浏览器
+    # 审批；一旦接管道或重定向就退化成直接要一次性口令（EOTP，2026-09-29 实测）。
+    # 暂存冲突（E409）不靠抓输出判断：非零退出后查一次云端，能查到该版本即视为已发。
+    npm publish --access public --registry=$Registry --auth-type=web
     $code = $LASTEXITCODE
     Pop-Location
-    $pubText = if ($pubOut) { [string]$pubOut } else { '' }
-    if ($code -ne 0 -and ($pubText -match 'previously staged version' -or $pubText -match 'E409' -or $pubText -match '409 Conflict')) {
+    if ($code -ne 0 -and (Test-Published $p.name $p.version)) {
         Write-Host ('PKG-SKIP-staged ' + $p.name + '@' + $p.version + '（云端已暂存该版本，视为已发）')
         Write-PackageStatus $p.dir 0 'staged' $p.name $p.version
         $results += [ordered]@{ name = $p.name; version = $p.version; result = 'staged' }
