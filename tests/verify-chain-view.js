@@ -193,12 +193,18 @@ async function main() {
         issues: [
           { number: 701, title: '甲票标题', effortId: '' },
           { number: 703, title: '丙票标题', effortId: '' },
-          // #780：801 是一张地图（认身份只读 type 这一个字段，三个后端的归一都写它）
+          // #780：801 是一张地图、802 是一张**已关闭**的地图
+          //   （认身份只读 type 这一个字段，三个后端的归一都写它）
           { number: 801, title: '远处那张票', effortId: '', type: 'map' },
+          { number: 802, title: '已经收工的地图', effortId: '', type: 'map', state: 'CLOSED' },
         ],
-        // #780：认出来之后还要能在快照的地图清单里按身份找到它，才压「地图」栈
-        //   （找不到就压地图栈的话，面板会画成列表页而导航栈却说在地图页）
-        maps: [{ number: 801, key: '801', effortId: '', title: '远处那张票', state: 'OPEN', type: 'map', tickets: [] }],
+        // #780：认出来之后还要能在快照的地图清单里按票身份找到它，才压「地图」栈
+        //   （找不到就压地图栈的话，面板会画成列表页而导航栈却说在地图页）。
+        //   已关闭的地图也在清单里 —— 宿主组装快照时不按开关状态筛，所以它照样跳得过去。
+        maps: [
+          { number: 801, key: '801', effortId: '', title: '远处那张票', state: 'OPEN', type: 'map', tickets: [] },
+          { number: 802, key: '802', effortId: '', title: '已经收工的地图', state: 'CLOSED', type: 'map', tickets: [] },
+        ],
       },
       tab: 'checks',
     }
@@ -319,6 +325,29 @@ async function main() {
   pushed.length = 0
   leaf.sessionChainOpenTicket(st, { ticketKey: '801', effortId: '' })
   if (!pushed.length || pushed[0].kind !== 'issue') fail('没有「是不是地图」这一维时没有回落普通票：' + JSON.stringify(pushed))
+  // #780：已关闭的地图也走地图详情页（快照的地图清单不按开关状态筛，按票身份找得到就跳）
+  pushed.length = 0
+  leaf.sessionChainOpenTicket(st, { ticketKey: '802', effortId: '', isMap: true })
+  if (!pushed.length || pushed[0].kind !== 'map' || pushed[0].n !== 802) fail('已关闭的地图没有跳地图详情页：' + JSON.stringify(pushed))
+  // #780 边界三：同一个号在快照里对应好几张地图（多工作单元各自从头排号，本地 Markdown 后端每份的
+  //   map.md 都是 00）→ 不猜，老实按普通票走。行里那个工作单元是按号码从快照里查出来的，
+  //   多份同号时它可能指向别的工作单元，硬跳会把用户送到别人的地图上。
+  pushed.length = 0
+  leaf.sessionChainOpenTicket({
+    snapshot: { maps: [
+      { number: 40, key: '40', effortId: 'alpha', title: 'A 的地图', state: 'OPEN', tickets: [] },
+      { number: 40, key: '40', effortId: 'beta', title: 'B 的地图', state: 'OPEN', tickets: [] },
+    ] },
+    tab: 'checks',
+  }, { ticketKey: '40', effortId: 'beta', isMap: true })
+  if (!pushed.length || pushed[0].kind !== 'issue') fail('同号对应多张地图时没有回落普通票（会把用户送到别的工作单元的地图）：' + JSON.stringify(pushed))
+  // #780 对照：同一个号只对应一张地图时照常跳（证明上一条拦的是「说不准」，不是「找不到」）
+  pushed.length = 0
+  leaf.sessionChainOpenTicket({
+    snapshot: { maps: [{ number: 40, key: '40', effortId: 'beta', title: 'B 的地图', state: 'OPEN', tickets: [] }] },
+    tab: 'checks',
+  }, { ticketKey: '40', effortId: 'beta', isMap: true })
+  if (!pushed.length || pushed[0].kind !== 'map' || pushed[0].n !== 40) fail('同号只有一张地图时没有跳地图页：' + JSON.stringify(pushed))
 
   // ---------- 二、「还没有记录」归空、「读坏了」才可见（2026-09-24 维护者改的口径）----------
   // 这一节的每一条都是拿**能力本体**量的（面板正文那一处现在不挂它了，见文件头与第五件）：

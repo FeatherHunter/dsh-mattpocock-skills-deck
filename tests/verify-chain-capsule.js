@@ -73,11 +73,13 @@ console.log('B) 版面纪律：可见字里没有散列与内部行话，文件�
   let m
   while ((m = strRe.exec(code)) !== null) { const s = m[1] !== undefined ? m[1] : m[2]; if (/[一-鿿]/.test(s)) cjk++ }
   check(cjk === 0, '零中文字符串（文案全走词条，实得 ' + cjk + ' 处）')
-  // 数的是**代码**里的让位号（注释里提到这个属性名不算）：本文件里那个号必须恰好一处，且是第 12 号。
-  check(/data-fold-priority/.test(code) === false || (code.indexOf("'data-fold-priority': 12") >= 0 && code.match(/data-fold-priority/g).length === 1), '版面那个号挂在让位表 12 号（排在最后；单子里的行不进阶梯）')
+  check(/data-fold-priority/.test(src) === false || (src.indexOf("'data-fold-priority': 12") >= 0 && src.match(/data-fold-priority/g).length === 1), '版面那个号挂在让位表 12 号（排在最后；单子里的行不进阶梯）')
   check(src.indexOf('maxWidth') >= 0 && src.indexOf('ellipsis') >= 0, '宽度用省略号收（窄宽度下不把胶囊撑爆）')
   // 可见文本由「在办 #号 标题 · 动作 · 时间」拼成：号与标题来自链与快照，动作走词条键，散列只进悬停
-  check(src.indexOf("tr('chainView.capsuleDoing')") >= 0 && src.indexOf("'#' + e.ticketKey") >= 0, '版面只写当前那张的号（标题再长也不上版面，散列不上版面）')
+  // 号前缀的规则只写一处（地图写裸号、普通票写 #号），地图图标也只写一处 —— 两处调用点都读这两个小件。
+  check(/const chainKeyTextOf = function \(isMap, key\) \{ return isMap === true \? String\(key\) : '#' \+ String\(key\) \}/.test(src), '号前缀规则只有一处：地图写裸号，普通票写 #号')
+  check(/const chainMapIconOf = function \(isMap, size\)/.test(src), '地图图标只有一处（普通票没有这一枚）')
+  check(src.indexOf("tr('chainView.capsuleDoing')") >= 0, '版面那个号的无障碍朗读里带着「在办」这句词条')
   // 真渲染两条：版面只有号；单子打开时是当前会话的单子，点行能进详情（行上挂着跳转）
   {
     const shardOf = (function () { const l = loadLeaf(function () { return [] }); return l.capsuleShardOf('s1') })()
@@ -114,7 +116,9 @@ console.log('B) 版面纪律：可见字里没有散列与内部行话，文件�
       if (Array.isArray(n)) { n.forEach(walk); return }
       if (typeof n === 'object') { (n.c || []).forEach(walk) }
     })(shut)
-    const faces = flat.filter(function (s) { return s.charAt(0) === '#' })
+    // 版面那个号：普通票写成 `#号`，地图写成裸号（`#` 换成了地图图标，见 E 节）。
+    //   这里按「号」的写法筛，不按「以 # 开头」筛 —— 否则地图那一条会从这把尺子下面整个漏过去。
+    const faces = flat.filter(function (s) { return /^#?\d{1,10}$/.test(s) })
     check(faces.length === 1 && faces[0] === '#951', '单子没打开时版面只有一个号（标题再长也不上版面，实得 ' + JSON.stringify(faces) + '）')
     check(flat.some(function (s) { return s.indexOf('dsws-chainmenu') >= 0 }) === false, '单子没打开时版面上没有单子节点')
     st.chainMenuOpen = true
@@ -130,7 +134,7 @@ console.log('B) 版面纪律：可见字里没有散列与内部行话，文件�
     })(open)
     check(flat2.indexOf('[menu]') >= 0, '悬停打开的是同一套悬浮单子（与 BUG / 可接菜单同形）')
     check(flat2.some(function (s) { return s.indexOf('#951') >= 0 }) && flat2.some(function (s) { return s.indexOf('#950') >= 0 }), '单子里是当前会话的记录（两张都在，带标题）')
-    check(flat2.some(function (s) { return /[0-9a-f]{8}/.test(s) && s.charAt(0) === '#' }) === false, '单子里没有散列号')
+    check(flat2.some(function (s) { return s.indexOf(shardOf.slice(0, 8)) >= 0 }) === false, '单子里没有散列号（按那个会话散列的前 8 位找，不靠「以 # 开头」筛）')
     // 悬停视觉：鼠标进第二行 → 重渲染后只有那一行高亮；最新一行图钉是 accent 色，其余是灰色
     const findRows = function (root) {
       const out = []
@@ -171,7 +175,7 @@ console.log('B) 版面纪律：可见字里没有散列与内部行话，文件�
             else if (Array.isArray(m)) m.forEach(inner)
             else if (m && typeof m === 'object') (m.c || []).forEach(inner)
           })(n.c)
-          if (texts.some(function (t) { return t.charAt(0) === '#' })) pillBadges.push(texts.join(''))
+          if (texts.some(function (t) { return /^#?\d{1,10}$/.test(t) })) pillBadges.push(texts.join(''))
         }
         ;(n.c || []).forEach(walkPill)
       } else if (typeof n === 'object') { (n.children || []).forEach(walkPill) }
@@ -254,18 +258,18 @@ console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#
   // 最新那一条是地图：版面上是裸号，`#` 换成了地图图标
   check(flat.indexOf('40') >= 0 && flat.indexOf('#40') < 0, '地图那一条版面上是裸号 40（`#` 已换成地图图标，实得 ' + JSON.stringify(flat) + '）')
   check(icons.indexOf('map') >= 0 && icons.indexOf('pin') >= 0, '地图那一条同时有图钉与地图图标（实得 ' + JSON.stringify(icons) + '）')
-  // 硬约束：那个号自己不许带元素子节点 —— 收字机器是往它里面写 textContent 的，塞进去的图标会被抹掉
-  const findFold = function (n) {
-    if (!n || typeof n !== 'object') return null
-    if (Array.isArray(n)) { for (let i = 0; i < n.length; i++) { const r = findFold(n[i]); if (r) return r } return null }
-    if (n.p && String(n.p['data-fold-priority'] || '') === '12') return n
-    const kids = n.c || []
-    for (let i = 0; i < kids.length; i++) { const r = findFold(kids[i]); if (r) return r }
-    return null
-  }
-  const foldSpan = findFold(shut)
-  check(!!foldSpan, '版面上找得到那个挂让位号的号（第 12 号）')
-  check(!!foldSpan && (foldSpan.c || []).every(function (x) { return typeof x === 'string' }), '那个号里没有元素子节点（图标是它的兄弟节点，收字机器抹不掉它）')
+  // 硬约束：挂让位号的元素里不许有元素子节点 —— 收字机器是往它里面写 textContent 的，
+  //   谁把图标塞进去，第一次收字就会被抹掉、React 再装回来，用户看到图标一闪一闪。
+  const foldSlots = []
+  ;(function collect(n) {
+    if (n === null || n === undefined) return
+    if (Array.isArray(n)) { n.forEach(collect); return }
+    if (typeof n !== 'object') return
+    if (n.p && n.p['data-fold-priority'] !== undefined) foldSlots.push(n)
+    ;(n.c || []).forEach(collect)
+  })(shut)
+  check(foldSlots.length === 1, '整条胶囊上只有一个挂让位号的元素（实得 ' + foldSlots.length + '）')
+  check(foldSlots.every(function (s) { return (s.c || []).every(function (x) { return typeof x === 'string' }) }), '每个挂让位号的元素里都没有元素子节点（收字机器写 textContent 时抹不掉任何图标）')
   // 悬停单子：地图那行的号徽章是「地图图标 + 裸号」，普通票那行仍是 #780
   st.chainMenuOpen = true
   st.chainMenuPos = { left: 1, bottom: 2 }

@@ -157,6 +157,9 @@ export const sessionChainViewOf = function (st) {
  * #780：顺手把「这是不是地图」也收进来（isMap）。判据只读归一过的 type 字段：三个后端在归一那一层
  *   都把 wayfinder:map 标签收成了 type='map'（GitHub 与 GitLab 按标签、本地 Markdown 按 map.md），
  *   所以界面这一侧不必再读一遍标签 —— 客户端已经有六处在自己读标签了，这里是第七处的话就是又抄一份。
+ *   要说清它与那几处的差别：那几处是**宽判据**（认 type，也认票面上还留着标签的旧快照），
+ *   这里只认 type 这一个字段，不带标签回落 —— 旧快照里没有 type 的票会被当成普通票（宁可少标，不猜）。
+ *   两套口径合成一套是另一件事，不塞进这一票。
  *   这一维进的是**行数据**（不是画的时候现判一次）：胶囊那一段与悬停展开的列表都读它，
  *   将来这一块在别处挂回来时也照用。
  */
@@ -238,9 +241,9 @@ export const sessionChainRowsOf = function (st) {
  *
  * #780：**地图要进地图详情页**（此前这里无条件压普通票，地图点进去看不到自己的票单、
  *   目的地、雾区与推进按钮，与列表、票详情页那两个入口的行为也不一致）。判据是两步，缺一不可：
- *     ① 认身份：行数据里的 isMap（来自归一过的 type 字段）；
- *     ② 能不能跳：能不能在快照的地图清单里按身份找到那张地图（共用函数 findMapByIdentity，
- *        身份规则「工作单元标识 + 补齐两位的票号」全仓只此一份，这里不另写一套）。
+ *     ① 先看它是不是地图：行数据里的 isMap（来自归一过的 type 字段）；
+ *     ② 再看能不能跳：能不能在快照的地图清单里按**票身份**（工作单元标识 + 补齐两位的票号）
+ *        找到那张地图 —— 用仓库里已有的共用函数 findMapByIdentity，这里不另写一套身份算法。
  *   为什么第②步不能省（这是真正的原因，不是「跟别的入口保持一致」而已）：面板画不画地图详情页，
  *   取决于它能不能在快照的地图清单里找到那个地图对象；找不到时它**不报错，而是回头去画列表页**，
  *   可导航栈里压着的却是一条「地图详情」—— 用户点了地图却停在列表上，返回的层级也跟着错位。
@@ -254,7 +257,22 @@ export const sessionChainOpenTicket = function (st, entry) {
   const eid = entry.effortId ? entry.effortId : ''
   let map = null
   if (entry.isMap === true && typeof findMapByIdentity === 'function') {
-    try { map = findMapByIdentity(st.snapshot && st.snapshot.maps, n, eid) } catch (eFind) { map = null }
+    try {
+      const list = (st.snapshot && Array.isArray(st.snapshot.maps)) ? st.snapshot.maps : []
+      // 一个仓库里有多个工作单元时，每份工作单元的票号各自从头排（本地 Markdown 后端就是这样，
+      //   每份的 map.md 都是 00），同一个号会对应好几张地图。而处理链只记票号、不记工作单元，
+      //   行里那个工作单元是按号码从快照里查出来的，多份同号时可能指向别的工作单元 ——
+      //   这时宁可不开地图页（老实按普通票走），也不能把用户送到别的工作单元的地图上去。
+      let sameNumber = 0
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i]
+        if (!m) continue
+        const k = (m.key !== null && m.key !== undefined && m.key !== '') ? m.key : m.number
+        if (k === null || k === undefined || k === '') continue
+        if (String(k).padStart(2, '0') === String(n).padStart(2, '0')) sameNumber++
+      }
+      if (sameNumber <= 1) map = findMapByIdentity(list, n, eid)
+    } catch (eFind) { map = null }
   }
   if (typeof pushNav === 'function') pushNav(st, map ? 'map' : 'issue', n, eid)
 }
