@@ -148,5 +148,55 @@ console.log('\n— 命名守护端到端缝（宿主直执行那一段）—')
   check(classifyDivergence({ currentTitle: null, lastMachineTitle: null, baselineIsOurs: true, firstUserText: FIRST_TEXT }) === DIVERGENCE.UNKNOWN_TITLE, '归因：标题读不到 → unknown-title')
 }
 
+// 6) 读标题口：快照优先、旧口兼容、两无则跳过（#746 V5：0.1.7 上 Session 无 title，真源是列表行）
+function makeWorldWith(listTitle, getTitle) {
+  const world = { titles: {}, renamed: [], reports: [] }
+  const sessions = {
+    list: { getSnapshot: function () { return { byId: listTitle == null ? {} : { s1: { title: listTitle } } } } },
+  }
+  if (getTitle !== undefined) sessions.get = function () { return getTitle == null ? null : { title: getTitle } }
+  sessions.scope = function (sid) { return { sessionId: sid } }
+  sessions.sessionOf = function (scope) {
+    return { sessionId: scope.sessionId, rename: function (t) { world.renamed.push(t); return Promise.resolve({ ok: true, value: { title: t } }) } }
+  }
+  const ctx = {
+    get: function (k) {
+      if (k === 'sessions') return sessions
+      if (k === 'sessionQuery') return { readSession: async function () { return { events: [{ seq: 1, type: 'user/message', data: FIRST_TEXT }] } } }
+      return undefined
+    },
+  }
+  const naming = { handleNamingResult: async function (a) { world.reports.push(a); return { ok: true } } }
+  world.summary = createNamingSummary({ ctx: ctx, getNaming: async function () { return naming }, logCtx: null })
+  return world
+}
+{
+  // 快照有、旧口无：只走快照也能改名（旧代码要求旧口存在，直接回 false）
+  const w2 = makeWorldWith('[#779] 原样标题', undefined)
+  await w2.summary.executeOrdersHost([{
+    sessionId: 's1', kind: 'numbered', number: 779, title: '原样标题',
+    lock: { lastMachineTitle: null, baselineTitle: '[#779] 原样标题', baselineIsOurs: true, locked: false, firstUserText: FIRST_TEXT },
+  }])
+  check(w2.reports.length === 1 && w2.reports[0].outcome === 'renamed', '读数：快照独有即走通（旧口缺席不拦路）', JSON.stringify(w2.reports))
+}
+{
+  // 两口冲突：快照胜出（旧口是过期照片时不被带偏）
+  const w = makeWorldWith('[#779] 原样标题', '底座首句旧照片')
+  await w.summary.executeOrdersHost([{
+    sessionId: 's1', kind: 'numbered', number: 779, title: '原样标题',
+    lock: { lastMachineTitle: null, baselineTitle: '[#779] 原样标题', baselineIsOurs: true, locked: false, firstUserText: FIRST_TEXT },
+  }])
+  check(w.renamed.length === 0 && w.reports.length === 1 && w.reports[0].outcome === 'renamed', '读数：两口冲突以快照为准（在位收敛不空改）', JSON.stringify({ renamed: w.renamed, reports: w.reports }))
+}
+{
+  // 两口皆无：静默跳过，不改名不锁（下一轮快照到了再跑）
+  const w = makeWorldWith(null, null)
+  await w.summary.executeOrdersHost([{
+    sessionId: 's1', kind: 'numbered', number: 779, title: '原样标题',
+    lock: { lastMachineTitle: null, baselineTitle: '[#779] 原样标题', baselineIsOurs: false, locked: false },
+  }])
+  check(w.renamed.length === 0 && !w.reports.some(function (r) { return r.outcome === 'locked' }), '读数：两口皆无则跳过（不盲写不误锁）', JSON.stringify({ renamed: w.renamed, reports: w.reports }))
+}
+
 if (failed) { console.log('\n命名端到端缝存在失败'); process.exit(1) }
 console.log('\n全部通过（' + total + ' 项）')

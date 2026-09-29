@@ -135,6 +135,17 @@ export function createNamingGuardian(deps) {
           // prev 为空：首轮基线。基线同样必须入库（防下一轮把存量全量当新编号）
         } catch (eA) { assigned = [] }
             try { assigned = keepRelatedAssigned(assigned, core, st.sessions) } catch (eFilter) {}
+        // #746 Knife5：差值退兜底 —— 无标题新号且同仓多等待时不分（等标题或直达），单等待才认领；
+        // 有标题的仍走语义相关认领（强相关才分，无关不分，见归属纯函数）。
+        try {
+          if (grp.sessions.length > 1 && r.index) {
+            assigned = assigned.filter(function (a) {
+              if (!a) return false
+              const info = r.index[String(a.number)]
+              return !!(info && typeof info === 'object' && info.title)
+            })
+          }
+        } catch (eStrict) {}
         let changed = false
         for (let i = 0; i < assigned.length; i++) {
           const a = assigned[i]
@@ -144,7 +155,41 @@ export function createNamingGuardian(deps) {
           if (next !== entry) { st.sessions[a.sessionId] = next; changed = true }
         }
         if (!st.indexes) st.indexes = {}
-        st.indexes[repoKey] = r.index
+        // #746 对抗 K3：未分出的新号不推进基线（留重试窗，上限 5 轮），否则多等待下永远饿死；
+        // 全部分出则清本仓重试表，基线正常推进。
+        try {
+          let newNums = []
+          try { newNums = (prev && core.newNumbersSince) ? core.newNumbersSince(prev, r.index) : [] } catch (eN) { newNums = [] }
+          const got = {}
+          for (let gi = 0; gi < assigned.length; gi++) { if (assigned[gi] != null) got[String(assigned[gi].number)] = true }
+          const held = []
+          for (let ni = 0; ni < newNums.length; ni++) { const k = String(newNums[ni]); if (!got[k]) held.push(k) }
+          if (held.length) {
+            if (!st.indexRetry || typeof st.indexRetry !== 'object') st.indexRetry = {}
+            if (!st.indexRetry[repoKey] || typeof st.indexRetry[repoKey] !== 'object') st.indexRetry[repoKey] = {}
+            const retry = st.indexRetry[repoKey]
+            const kept = {}
+            for (let hi = 0; hi < held.length; hi++) {
+              const k = held[hi]
+              const tries = (Number(retry[k]) || 0) + 1
+              if (tries <= 5) { retry[k] = tries; kept[k] = true }
+              else { try { delete retry[k] } catch (eD) {} }
+            }
+            if (Object.keys(kept).length) {
+              const heldBack = {}
+              for (const k of Object.keys(r.index)) { if (!kept[k]) heldBack[k] = r.index[k] }
+              st.indexes[repoKey] = heldBack
+              markNamingStateDirty()
+            } else {
+              st.indexes[repoKey] = r.index
+            }
+          } else {
+            try { if (st.indexRetry && st.indexRetry[repoKey]) delete st.indexRetry[repoKey] } catch (eC) {}
+            st.indexes[repoKey] = r.index
+          }
+        } catch (eBase) {
+          try { st.indexes[repoKey] = r.index } catch (eB2) {}
+        }
         if (changed) { await persistNamingState(); sweepAnyChanged = sweepAnyChanged || changed; sweepAssignedTotal += assigned.length } else markNamingStateDirty()
       }
       try { const trig = sweepTrigger, cnt = sweepAssignedTotal, chg = sweepAnyChanged; sweepTrigger = 'tick'; sweepAnyChanged = false; sweepAssignedTotal = 0; if (chg && logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'naming.sweep', { trigger: trig, count: cnt }) } catch (eL) {}
@@ -196,13 +241,13 @@ export function createNamingGuardian(deps) {
 
   async function handleNamingSignal(args) {
     const sid = args && args.sessionId, hint = args && args.hint
-    if (!sid || !hint) return { ok: true }
+    if (!sid || !hint) return { ok: true, tracked: false }
     const st = await loadNamingState(), entry = st.sessions[sid]
-    if (!entry) return { ok: true }   // 非受踪会话：信号无属主，忽略
+    if (!entry) return { ok: true, tracked: false }   // 非受踪会话：信号无属主，忽略（#746 Knife4：回 tracked 区分码）
     const core = await getNamingCore()
     if (!core) return { ok: true }
     if (!entry.locked) { st.sessions[sid] = core.reduceTrackingState(entry, { type: 'signal', hint: String(hint).slice(0, 80) }); markNamingStateDirty() }
-    return { ok: true }
+    return { ok: true, tracked: true }
   }
 
   // 在途守卫：这活会读会话日志取首句、还会真改名，生产日志里单次出现几十秒；正在跑就直接返回、不排队。
@@ -228,9 +273,24 @@ export function createNamingGuardian(deps) {
       let done = !!s.locked || s.stage === core.NAMING_STAGES.REFINED
       if (!done && s.stage === core.NAMING_STAGES.NUMBERED && s.number != null) {
         done = !!s.numberedDone
-        if (!done) { try { done = (s.lastMachineTitle != null && s.lastMachineTitle === core.newSessionTitle({ number: s.number, title: s.numberTitle || '' })) } catch (eD) {} }
+        // 对抗 K2：落定重算必须带编号原文（00 号算出 [#00] 才对得上已落定的名，否则 done 永假）。
+        if (!done) { try { done = (s.lastMachineTitle != null && s.lastMachineTitle === core.newSessionTitle({ number: s.number, numberText: s.numberText, title: s.numberTitle || '' })) } catch (eD) {} }
       }
       tracked.push({ sessionId: sid, stage: s.stage, done: done })
+      // #746 Knife3：在位即落定 —— 现名已是编号目标但落定标记仍假时，直接收敛记账，
+      // 不再等一次改名事件（现名等于目标时归因恒为在位，不会误判手改，见共享核心第三或条件）。
+      try {
+        if (!done && s.stage === core.NAMING_STAGES.NUMBERED && s.number != null && !s.numberedDone && !s.locked) {
+          let want = null
+          try { want = core.newSessionTitle({ number: s.number, numberText: s.numberText, title: s.numberTitle || '' }) } catch (eW) {}
+          if (want && curTitle === want) {
+            st.sessions[sid] = core.reduceTrackingState(s, { type: 'renamed', title: curTitle })
+            markNamingStateDirty()
+            done = true
+            tracked[tracked.length - 1].done = true
+          }
+        }
+      } catch (eConv) {}
       const fi = core.namingFailureInfo(s)
       if (fi) failures.push(fi)
     }
@@ -311,13 +371,14 @@ export function createNamingGuardian(deps) {
     return { ok: true }
   }
   // #746：建票直达（调用会话即建号会话，无需语义匹配；仍守等号状态与锁；幂等收敛）。
+  // 编号原文随事件带走（本地地图 00 号保持 [#00] 形状，不被改写成 [0]）。
   async function handleDirectCreated(args) {
     const sid = args && args.sessionId, num = Number(args && args.key)
-    if (!sid || !isFinite(num) || num <= 0) return { ok: false }
+    if (!sid || !isFinite(num) || num < 0) return { ok: false }
     const st = await loadNamingState(), entry = st.sessions[sid]
     const core = await getNamingCore()
     if (!entry || !core || !core.isNumberAwaitStage(entry)) return { ok: true, attributed: false }
-    st.sessions[sid] = core.reduceTrackingState(entry, { type: 'numbered', number: num, title: args.title })
+    st.sessions[sid] = core.reduceTrackingState(entry, { type: 'numbered', number: num, numberText: String((args && args.key) != null ? args.key : num).slice(0, 20), title: args.title })
     await persistNamingState()
     try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'naming.sweep', { trigger: 'direct-created', count: 1 }) } catch (eL) {}
     return { ok: true, attributed: true }

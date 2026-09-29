@@ -209,8 +209,8 @@ export function composeDraftTitle({ hint, lang, baselineTitle }) {
   if (typeTag) {
     const condensed = String(rawHint).toLowerCase().replace(/\s+/g, '')
     const bareWords = ['新建需求', '新增需求', '新建bug', '新增bug', 'newrequirement', 'newbug',
-      '诊断', '修复', '讨论', '研究', '原型', '接手', '补充', '交接',
-      'diagnose', 'fix', 'discuss', 'research', 'prototype', 'handoff', 'supplement']
+      '诊断', '修复', '讨论', '研究', '原型', '接手', '补充', '交接', '体检',
+      'diagnose', 'fix', 'discuss', 'research', 'prototype', 'handoff', 'supplement', 'health', 'healthcheck']
     if (bareWords.indexOf(condensed) >= 0) return fullPrefix
   }
   return fullPrefix + ' ' + truncateTitleUtf8(fullPrefix, rawHint, SESSION_TITLE_MAX_BYTES)

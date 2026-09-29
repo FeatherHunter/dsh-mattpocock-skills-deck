@@ -145,8 +145,10 @@ export function reduceTrackingState(state, event) {
       next.failCount = 0; next.lastFailAt = null; next.lastError = null
       // #266：编号档 rename 落定判定 —— 接受标题携带同一 [#n] 前缀即视为编号档完成
       // （防止非编号名（如草稿档）的 renamed 抢占 numberedDone，杜绝重复出单/循环）
+      // 对抗 K2：前缀按编号原文算（00 号是 [#00] 不是 [#0]），否则原文号永不落定。
       if (next.stage === NAMING_STAGES.NUMBERED && next.number != null) {
-        const pfx = '[' + '#' + String(next.number) + ']'
+        const pfxNum = (next.numberText != null && String(next.numberText).trim() !== '') ? String(next.numberText).trim() : String(next.number)
+        const pfx = '[' + '#' + pfxNum + ']'
         if (String(ev.title).indexOf(pfx) === 0) next.numberedDone = true
       }
       next.updatedAt = Date.now()

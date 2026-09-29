@@ -130,7 +130,22 @@ export function createNamingSummary(deps) {
       while (terminalOf.size > TERMINAL_MAX) { const k = terminalOf.keys().next(); if (k.done) break; terminalOf.delete(k.value) }
     } catch (e) {}
   }
-  const TERMINAL_REASONS = { ok: 1, 'llm-fail': 1, 'skip-locked': 1, 'skip-done': 1, 'skip-failed': 1, 'skip-stage': 1, unregistered: 1 }
+  const TERMINAL_REASONS = { ok: 1, 'llm-fail': 1, 'skip-locked': 1, 'skip-done': 1, 'skip-failed': 1, 'skip-stage': 1 }
+  // #746 Knife3：unregistered 不进终局 —— 注册可能晚到（先直达后注册），记死就永久失去首轮摘要。
+  // 模型瞬败退避：同一会话连续 3 次才记 summaryFailed，前两次只记行不记旗（#746 V10）。
+  const summaryAttempts = {}
+  function noteTransient(sid) {
+    let n = 1
+    try {
+      summaryAttempts[sid] = (summaryAttempts[sid] || 0) + 1
+      n = summaryAttempts[sid]
+      // 与终局表同口径：上限 500，淘汰最旧，无定时器
+      const keys = Object.keys(summaryAttempts)
+      for (let ki = 0; ki < keys.length - 500; ki++) { try { delete summaryAttempts[keys[ki]] } catch (eD) {} }
+    } catch (e) {}
+    return n
+  }
+  function clearTransient(sid) { try { delete summaryAttempts[sid] } catch (e) {} try { terminalOf.delete(sid) } catch (e2) {} }
 
   function service(name) {
     try { return (ctx && typeof ctx.get === 'function') ? ctx.get(name) : undefined } catch (e) { return undefined }
@@ -229,13 +244,26 @@ export function createNamingSummary(deps) {
       try {
         summary = await summarizeLlm(llm, route, sid, read.pair.user, read.pair.asst)
       } catch (e) {
-        try { await h.applySummaryResult({ sessionId: sid, ok: false }) } catch (e2) {}
-        return finish('llm-fail', 'llm-fail')
+        const n = noteTransient(sid)
+        if (n >= 3) {
+          clearTransient(sid)
+          try { await h.applySummaryResult({ sessionId: sid, ok: false }) } catch (e2) {}
+          return finish('llm-fail', 'llm-fail')
+        }
+        logSummary(sid, 'llm-fail')
+        return done({ ok: false, reason: 'llm-retry' })
       }
       if (!summary) {
-        try { await h.applySummaryResult({ sessionId: sid, ok: false }) } catch (e3) {}
-        return finish('llm-fail', 'llm-fail')
+        const n = noteTransient(sid)
+        if (n >= 3) {
+          clearTransient(sid)
+          try { await h.applySummaryResult({ sessionId: sid, ok: false }) } catch (e3) {}
+          return finish('llm-fail', 'llm-fail')
+        }
+        logSummary(sid, 'llm-fail')
+        return done({ ok: false, reason: 'llm-empty-retry' })
       }
+      clearTransient(sid)
       try { await h.applySummaryResult({ sessionId: sid, ok: true, hint: summary }) } catch (e4) {}
       return finish('ok', 'ok')
     })().then(done, function (e) {
@@ -244,14 +272,15 @@ export function createNamingSummary(deps) {
     })
   }
 
-  /** deck 写成功直达：先直达编号，再顺手看首轮是否可摘要（两者都永不抛错）。 */
+  /** deck 写成功直达：先直达编号，再顺手看首轮是否可摘要（两者都永不抛错）。直达成则清终局缓存（防先直达后注册被记死）。 */
   function onDeckWrite(info) {
     const sid = info && info.sessionId, key = info && info.key, title = info && info.title
     return (async function () {
       try {
         const h = await naming()
         if (h && typeof h.handleDirectCreated === 'function' && sid && key) {
-          await h.handleDirectCreated({ sessionId: sid, key: key, title: title })
+          const r = await h.handleDirectCreated({ sessionId: sid, key: key, title: title })
+          if (r && r.attributed) clearTransient(sid)
         }
       } catch (e) {}
       try { await maybeSummarize(sid) } catch (e2) {}
@@ -269,6 +298,8 @@ export function createNamingSummary(deps) {
       const h = await naming()
       if (!h) return false
       let done = false
+      // #746 Knife4：跳过计数（面缺失/读不到/未知各记一笔，轮末统一走既有调试事件，不新增事件）。
+      let skipFace = 0, skipTitle = 0, skipUnknown = 0
       for (let i = 0; i < orders.length; i++) {
         try {
           const o = orders[i]
@@ -277,13 +308,13 @@ export function createNamingSummary(deps) {
           if (lock.locked) continue
           const scope = sessions.scope(sid)
           const face = scope ? sessions.sessionOf(scope) : null
-          if (!face || typeof face.rename !== 'function') continue
+          if (!face || typeof face.rename !== 'function') { skipFace++; continue }
           let faceSid = null
           try { faceSid = (face && (face.sessionId || face.id || face.sid)) || (scope && (scope.sessionId || scope.id || scope.sid)) } catch (eF) {}
-          if (faceSid && String(faceSid) !== String(sid)) continue
+          if (faceSid && String(faceSid) !== String(sid)) { skipFace++; continue }
           let cur = null
           try { cur = readTitleHost(sid) } catch (eG) {}
-          if (cur === null) continue
+          if (cur === null) { skipTitle++; continue }
           let first = (typeof lock.firstUserText === 'string' && lock.firstUserText) ? lock.firstUserText : null
           if (!first) { try { first = await readFirstUserText(ctx, sid) } catch (eR) {} }
           // 先合成目标名，再归因：这样「现名已经就是目标」也能被认出来（宿主刚改完、客户端拿同一张单再跑一遍是常事）。
@@ -300,13 +331,13 @@ export function createNamingSummary(deps) {
           if (!target) continue
           // 分歧归因只问共享核心一处：在位就收敛回报，让位就记账并把理由带走（日志别再一律写「用户改的」）。
           const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: first, targetTitle: target })
-          if (code === DIVERGENCE.UNKNOWN_TITLE) continue
+          if (code === DIVERGENCE.UNKNOWN_TITLE) { skipUnknown++; continue }
           if (code === DIVERGENCE.HAND_EDIT) { try { await h.handleNamingResult({ sessionId: sid, outcome: 'locked', reason: code }) } catch (eLk) {}; continue }
           if (code === DIVERGENCE.IN_PLACE || target === cur) { try { await h.handleNamingResult({ sessionId: sid, outcome: 'renamed', title: cur }) } catch (eIn) {}; continue }   // 已在位：收敛记账，不空改一次
           // 写前二次确认标题未变（title changed before rename 则跳过，TOCTOU 关口；与客户端同源判据）。
           let cur2 = null
           try { cur2 = readTitleHost(sid) } catch (eG2) {}
-          if (cur2 !== cur) continue
+          if (cur2 !== cur) { skipTitle++; continue }
           const r = await face.rename(target)
           if (r && r.ok) {
             try { await h.handleNamingResult({ sessionId: sid, outcome: 'renamed', title: (r.value && r.value.title) || target }) } catch (eH) {}
@@ -315,6 +346,10 @@ export function createNamingSummary(deps) {
           }
         } catch (eO) {}
       }
+      try {
+        const skipped = skipFace + skipTitle + skipUnknown
+        if (skipped > 0 && logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'naming.sweep', { trigger: 'execute-skip', count: skipped })
+      } catch (eL2) {}
       return done
     } catch (e) { return false }
   }

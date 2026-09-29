@@ -142,7 +142,20 @@ export function createRefreshWiring(deps) {
     }
     return namingSummary
   }
-  function onDeckWrite(info) { try { const s = summaryOf(); if (s) s.onDeckWrite(info) } catch (e) {} return { ok: true } }
+  // #746 Knife4：直达钩子失败可观测 —— 内层永不抛错，失败只记既有 warn 事件（不新增事件），不影响建票返回。
+  function onDeckWrite(info) {
+    const warnHook = function (eH) {
+      try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.namingDirect', kind: 'naming-direct', errorHash: hash8(String((eH && eH.message) || eH).slice(0, 120)) }) } catch (eL) {}
+    }
+    try {
+      const s = summaryOf()
+      if (s && typeof s.onDeckWrite === 'function') {
+        const r = s.onDeckWrite(info)
+        if (r && typeof r.catch === 'function') r.catch(warnHook)
+      }
+    } catch (e) { warnHook(e) }
+    return { ok: true }
+  }
   function onFirstAssistant(sid) { try { const s = summaryOf(); if (s) s.maybeSummarize(sid) } catch (e) {} }
   // 首条用户消息那一下催一次改名（底座就是在这时候写首句名）：每个会话只催一次，且只认账上有号、还没锁的会话
   // —— 账上没有就什么都不做，省掉一次会读会话日志的整轮计划单（每句都催的代价在生产日志里是几十秒级的）。

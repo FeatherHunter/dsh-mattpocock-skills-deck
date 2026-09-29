@@ -47,6 +47,9 @@ check(m.isPlaceholderTitle('[New] 原型'), '占位七动作 zh 原型')
 check(m.isPlaceholderTitle('[New] 接手'), '占位七动作 zh 接手')
 check(m.isPlaceholderTitle('[New] 补充'), '占位七动作 zh 补充')
 check(m.isPlaceholderTitle('[New] Diagnose'), '占位七动作 en')
+check(m.isPlaceholderTitle('[New] Fix'), '占位英文修复（#746 英文动作补齐）')
+check(m.isPlaceholderTitle('[New] Discuss'), '占位英文讨论')
+check(m.isPlaceholderTitle('[New] Research'), '占位英文研究')
 check(m.isPlaceholderTitle('[New] 交接'), '占位历史兼容交接')
 check(!m.isPlaceholderTitle('[New] 新建需求x'), '非占位：尾缀突变')
 check(!m.isPlaceholderTitle('[草稿] 新建需求'), '非占位：草稿档不算占位')
@@ -80,6 +83,8 @@ eq(m.composeDraftTitle({ hint: '新增需求', lang: 'zh', baselineTitle: '[New]
 eq(m.composeDraftTitle({ hint: 'New Requirement', lang: 'en', baselineTitle: '[New] New Requirement' }), '[Draft][New Requirement]', '英文型同上')
 eq(m.composeDraftTitle({ hint: '修复登录闪退', lang: 'zh', baselineTitle: '[New] 新建需求' }), '[草稿][新增需求] 修复登录闪退', '真线索不受影响')
 eq(m.composeDraftTitle({ hint: '新建需求', lang: 'zh' }), '[草稿] 新建需求', '无基线（无标签）时不去重')
+eq(m.composeDraftTitle({ hint: '体检', lang: 'zh', baselineTitle: '[New] 体检' }), '[草稿][体检]', '体检线索去重不叠字（#746 体检系补齐）')
+eq(m.composeDraftTitle({ hint: 'Health check', lang: 'en', baselineTitle: '[New] Health check' }), '[Draft][Health check]', '英文体检同上')
 
 // ---------- 3) 字节边界（120 bytes 总预算，前缀永不截断）----------
 console.log('\n— 字节边界 —')
@@ -211,6 +216,14 @@ console.log('\n— 编号档守名（编号档注册 + 首句名盖回）—')
   // 落定后：实际标题就是目标 → 不再出单
   const doneN = m.reduceTrackingState(tracked, { type: 'renamed', title: '[#779] 原样标题' })
   eq(m.planOrderFor(doneN, Date.now(), 0, '[#779] 原样标题'), null, '实际标题等于目标 → 不出单（不空转）')
+  // 对抗 K2：00 号落定按编号原文算前缀（[#00] 不是 [#0]），否则原文号永不落定
+  const stZ = m.createTrackingState({ sessionId: 'sZ', baselineTitle: '[#00] 本地地图' })
+  const trackedZ = m.reduceTrackingState(stZ, { type: 'numbered', number: 0, numberText: '00', title: '本地地图' })
+  eq(trackedZ.numberText, '00', '00 号收编：编号原文原样带走')
+  const doneZ = m.reduceTrackingState(trackedZ, { type: 'renamed', title: '[#00] 本地地图' })
+  check(doneZ.numberedDone === true, '00 号改名落定：[#00] 前缀认得出（不用数字 0 去套）')
+  const doneZ0 = m.reduceTrackingState(trackedZ, { type: 'renamed', title: '[#0] 本地地图' })
+  check(doneZ0.numberedDone !== true, '前缀不对不落定：[#0] 不能算 [#00] 的完成')
 
   // 底座首句名盖掉 [#n] 名：实际标题与目标不符 → 出单盖回
   const clobbered = m.planOrderFor(doneN, Date.now(), 0, '/wayfinder https://github.com/FeatherHunter/x')
