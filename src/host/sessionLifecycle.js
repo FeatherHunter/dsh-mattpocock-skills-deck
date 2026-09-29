@@ -1,6 +1,6 @@
 // src/host/sessionLifecycle.js —— 会话启停电话与共享早选判据（H4 #448 从 host/index.js 273–275/288–307 搬出电话体，早选判据为快照与刷新两处前奏的同一逻辑收敛，纯结构、行为零变化）。
 // 以后谁改它：改会话启停电话或早选与 force 判据的人。预估约70行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；ctx 与探测服务显式注入，快照与刷新经 index 转供给复用；本文件不引用其他新文件；目录取法调 shared 共用函数（#730）。
+// 接线：由 index.js 动态 import 加载；ctx 与探测服务显式注入，快照与刷新经 index 转供给复用；本文件不引用其他新文件；目录取法调 shared 共用函数（#730），内存答不出再问一次落盘语料（同票第二段）。
 import { resolveSessionCwd } from '../shared/session-cwd.js'
 export function createSessionLifecycle(deps) {
   const { ctx, DEFAULT_CWD, errText, getDetectionService, getTrackerRegistry, getPlatform, canonicalKey, logCtx } = deps
@@ -9,21 +9,46 @@ export function createSessionLifecycle(deps) {
   async function handlePing() {
       return { ok: true, ts: Date.now() }
   }
+  // #730 第二段：内存里答不出时，去落盘语料问一次同一个字段（会话头里的目录）。
+  //   为什么必须有这一步：DSH 的会话仓库只装「活着的」会话，会话所属的执行单元一释放就把会话移出仓库，
+  //   于是「刚才还在看的会话，过一会儿就问不到了」。可真机实测 4187 个落盘会话头里 4187 个都记着目录，
+  //   一个不缺——答案一直在盘上，原先只问了内存那一个来源（真机 5 天 1957 次询问失败 283 次，全落在这一支）。
+  //   只读头、不读事件正文（filterSessions 读的是语料的头部清单，不做事件重放），失败一律回空串，
+  //   由调用方按原本那一类如实失败——绝不在插件这边自己拼一个目录出来。
+  async function persistedCwdOf(sid) {
+    try {
+      const q = ctx.get('sessionQuery')
+      if (!q || typeof q.filterSessions !== 'function') return ''
+      const records = await q.filterSessions([{ kind: 'id', values: [String(sid)] }])
+      if (!Array.isArray(records)) return ''
+      for (const rec of records) {
+        const cwd = resolveSessionCwd(rec) // 语料记录与「会话对象」同形（头放在 header 里），所以共用同一只取法
+        if (cwd) return cwd
+      }
+    } catch (e) {}
+    return ''
+  }
   async function handleCwd(args) {
       const sid = args && args.sessionId
       // 失败四种各有机器可读种类（#730：无目录与找不到会话必须分开，否则排查分不清哪一类现场；旧文案一个字不改）。
       if (!sid) return { ok: false, error: '缺少 sessionId', kind: 'no-sid' }
       const sessions = ctx.get('sessions')
       if (sessions === undefined || typeof sessions.get !== 'function') return { ok: false, error: 'sessions 服务不可用', kind: 'no-service' }
+      let liveMissing = false
       try {
         const s = sessions.get(sid)
-        if (!s) return { ok: false, error: '找不到这个会话', kind: 'not-found' }
-        const cwd = resolveSessionCwd(s) // #730：与沙箱同一套取法，只读 header.cwd
-        if (cwd) return await withRoot({ ok: true, cwd: cwd }, cwd)
-        return { ok: false, error: '会话无 cwd 信息', kind: 'no-cwd' }
+        if (!s) liveMissing = true
+        else {
+          const cwd = resolveSessionCwd(s) // #730：与沙箱同一套取法，只读 header.cwd
+          if (cwd) return await withRoot({ ok: true, cwd: cwd }, cwd)
+        }
       } catch (e) {
         return { ok: false, error: errText(e) }
       }
+      const fromDisk = await persistedCwdOf(sid) // #730 第二段：内存答不出就问落盘；两处都答不出才按原样失败
+      if (fromDisk) return await withRoot({ ok: true, cwd: fromDisk }, fromDisk)
+      if (liveMissing) return { ok: false, error: '找不到这个会话', kind: 'not-found' }
+      return { ok: false, error: '会话无 cwd 信息', kind: 'no-cwd' }
   }
   // 顺手把「这个会话的工作区根」也带回给客户端（2026-09-19 加，维护者报「面板打开后几十秒才出现归属标志」）。
   //   为什么加在这里：面板头部那枚归属标志只要工作区根这一个值，原先却只能等一整份仓库快照（含全部票与地图）
