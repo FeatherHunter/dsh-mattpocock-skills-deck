@@ -20,6 +20,10 @@ _research/
 /111-body-100.md
 /111-body-raw.md
 /.tmp-*
+# 发布窗口落盘（状态文件加转录日志）：Agent 轮询用，不入库
+**/.tmp-publish-*.log
+**/.tmp-publish-status.json
+**/.tmp-publish-all-status.json
 /package.json
 /package-lock.json
 /tests/playwright-e2e-probe.js
