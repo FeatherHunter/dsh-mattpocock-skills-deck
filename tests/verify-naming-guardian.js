@@ -175,6 +175,38 @@ console.log('\n— 跟踪态 / 状态机 / 计划单 —')
   eq(stNum.number, 265, '编号信息随跃迁携带')
 }
 
+// ---------- 6.4) 编号档守名 + 首句名盖回（用户报障：点「讨论/执行」右侧的新会话，标题变成首句原文）----------
+console.log('\n— 编号档守名（编号档注册 + 首句名盖回）—')
+{
+  // 注册通道分流：编号档认得出，占位与垃圾各归各位
+  const p = m.parseNumberedTitle('[#779] 提示词需要调整：删除目标地图章节')
+  check(!!p && p.number === 779 && p.title === '提示词需要调整：删除目标地图章节', '编号档解析：编号 + 标题')
+  check(!!m.parseNumberedTitle('[#12]') && m.parseNumberedTitle('[#12]').title === '', '编号档解析：裸编号标题为空')
+  check(m.parseNumberedTitle('[New] 新建需求') === null && m.parseNumberedTitle('随意标题') === null, '编号档解析：非编号档回 null')
+
+  // 收编：基线 = 当场写下的 [#n] 名，机器最后写入值留空（值比对锁以基线为准）
+  const stN = m.createTrackingState({ sessionId: 'sN', baselineTitle: '[#779] 原样标题' })
+  const tracked = m.reduceTrackingState(stN, { type: 'numbered', number: 779, title: '原样标题' })
+  eq(tracked.stage, m.NAMING_STAGES.NUMBERED, '编号档收编：档位为编号档')
+  eq(tracked.lastMachineTitle, null, '编号档收编：机器最后写入值留空（首句名才免得了锁）')
+  const order0 = m.planOrderFor(tracked, Date.now(), 0)
+  check(!!order0 && order0.kind === 'numbered' && order0.number === 779, '编号档收编后出一单（把 [#n] 名写实）')
+
+  // 落定后：实际标题就是目标 → 不再出单
+  const doneN = m.reduceTrackingState(tracked, { type: 'renamed', title: '[#779] 原样标题' })
+  eq(m.planOrderFor(doneN, Date.now(), 0, '[#779] 原样标题'), null, '实际标题等于目标 → 不出单（不空转）')
+
+  // 底座首句名盖掉 [#n] 名：实际标题与目标不符 → 出单盖回
+  const clobbered = m.planOrderFor(doneN, Date.now(), 0, '/wayfinder https://github.com/FeatherHunter/x')
+  check(!!clobbered && clobbered.kind === 'numbered', '实际标题被底座首句名盖掉 → 出单盖回（编号档守名）')
+
+  // 首句名盖回：机器写过之后的那种也认（否则会被判手改永久锁定）
+  check(m.isNativeRestore({ currentTitle: '/wayfinder https://github.com/x', lastMachineTitle: '[#779] 原样标题', firstUserText: '/wayfinder https://github.com/x\n\n执行这个 issue' }), '首句名盖回：机器写过之后仍认（同一派生关系）')
+  check(!m.isNativeRestore({ currentTitle: '我自己起的名字', lastMachineTitle: '[#779] 原样标题', firstUserText: '/wayfinder https://github.com/x' }), '首句名盖回：真手改不认（永不覆盖）')
+  check(!m.isNativeRestore({ currentTitle: '[#779] 原样标题', lastMachineTitle: '[#779] 原样标题', firstUserText: '/wayfinder x' }), '首句名盖回：标题没变不认（没有要盖的东西）')
+  check(!m.isNativeRestore({ currentTitle: '/wayfinder x', lastMachineTitle: null, firstUserText: '/wayfinder x' }), '首句名盖回：机器从未写过走老豁免（分工不重叠）')
+}
+
 // ---------- 6.5) 摘要编排纯函数（#746：首轮两段提取与路由定位，底座改形即红）----------
 console.log('\n— 摘要编排纯函数 —')
 {

@@ -107,6 +107,14 @@ export const SESSION_TITLE_RE = /^\[#\d+\] .+/
 
 export const SESSION_TITLE_RE_ALLOW_BARE = /^\[#\d+\](?: .+)?$/
 
+/** 编号档识别：`[#n]` 或 `[#n] 标题` → { number, title }；不是编号档回 null。
+ *  注册通道用它把「在新会话打开」这类会话按编号档收编，好让宿主首句名盖不掉它。 */
+export function parseNumberedTitle(s) {
+  const m = /^\s*\[#(\d+)\](?:\s+([\s\S]*))?$/.exec(String(s == null ? '' : s))
+  if (!m) return null
+  return { number: Number(m[1]), title: cleanTitleText(m[2] || '') }
+}
+
 /** 清洗：剥控制/方向/隐形字符，空白归一为单空格并 trim，emoji 保留（沿用 #205 既有规则）。 */
 export function cleanTitleText(s) {
   let t = String(s || '')

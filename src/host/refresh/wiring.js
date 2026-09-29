@@ -1,9 +1,8 @@
 // src/host/refresh/wiring.js —— 刷新机制的宿主接线（#723 T19）
 //
 // 这个文件只做一件事：把刷新机制那几件已经落库的东西**在宿主里真的装起来**，并交回去。
-// 它自己不判断任何业务：闸与账本是 refresh/gate.js 与 ledger.js 的产物，写事件订阅是
-// refresh/writeEvents.js 的产物，会话↔票处理链是 refresh/sessionTickets.js 的产物，
-// 界面读数由 refresh/sessionChainReadout.js 拼 —— 这里只把它们之间的依赖接上。
+// 它自己不判断任何业务：闸与账本是 refresh/gate.js 与 ledger.js 的产物，写事件订阅是 refresh/writeEvents.js 的产物，
+// 会话↔票处理链是 refresh/sessionTickets.js 的产物，界面读数由 refresh/sessionChainReadout.js 拼 —— 这里只把它们之间的依赖接上。
 //
 // 为什么单开一个文件而不是写在 src/host/index.js 里：那个文件贴着 350 行上限（tests/verify-file-granularity.js
 // 的零增长基线），#723 起不许再往里加行。宿主入口只留一行加载这个模块（与既有 25 处同层先例同形）。
@@ -270,9 +269,8 @@ export function createRefreshWiring(deps) {
   // handleFor（会话→注册表里绑过的真实句柄）、backendCtx（platform / fs / exec，exec 走 platformChannel
   // 的 detectionExec，也就是起进程那一层）、invalidate（写后作废那个工作区的快照缓存）、hourUsage（问账本）。
   // planStore 没有注入：批量建图的中间态因此退回进程内存，工具会在返回值里如实说 durable:false。
-  // 注意（2026-09-26）：loadDefineTool 固定给 null，走原生形状直接注册——
-  // 照官方工具写法（dsh-tool-pwsh / dsh-calorie），插件不 import 框架包，
-  // 注册的是纯数据对象；之前这里动态 import 自带副本的 defineTool，
+  // 注意（2026-09-26）：loadDefineTool 固定给 null，走原生形状直接注册——照官方工具写法（dsh-tool-pwsh / dsh-calorie），
+  // 插件不 import 框架包，注册的是纯数据对象；之前这里动态 import 自带副本的 defineTool，
   // 挂载后全部工具调用报 Cannot read properties of undefined (reading 'prepare')。
   // 退路输出与参数形状见 shared/deck-tools/agent-register.js（deckAgentOutputSchemaRaw）。
   let deckToolsP = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function () { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx)) } catch (eH) {} // #741 注册那一步：表装好就向 agent 交七个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）
@@ -394,6 +392,7 @@ export function createRefreshWiring(deps) {
     syncAttention: syncAttention,
     noteWorkspaceActive: noteWorkspaceActive,
     firstTextOf: function (sid) { try { return readFirstUserText(d.ctx, sid) } catch (e) { return Promise.resolve(null) } }, // #746 首句直读（读而不激活；失败即 null）
+    titleOf: function (sid) { try { const ss = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('sessions') : null; if (!ss || typeof ss.get !== 'function') return null; const s = ss.get(sid); return (s && typeof s.title === 'string') ? s.title : null } catch (e) { return null } }, // 会话当前标题（命名守护据它判要不要把底座首句名盖回 [#n]）
     executeOrders: function (orders) { try { const s = summaryOf(); if (s && typeof s.executeOrdersHost === 'function') return s.executeOrdersHost(orders) } catch (e) {} return Promise.resolve(false) }, // #746 宿主直执行（拿号改名同一刻；面缺失即回落）
     attach: attach,
     once: once,

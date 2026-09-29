@@ -193,7 +193,7 @@ export let pendingDraftTargetSid = null
       const cur = namingCurrentTitleOf(sid)
       if (cur === null) { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-cur-null-' + dswsLogHash(sid) }) } } catch (eDbg) {}; return }  // 当前标题不可读：本轮跳过，绝不盲写
       const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
-      if ((judge === 'locked' && !exonerateNativeTitle(cur, lock)) || lock.locked) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur }); return }
+      if ((judge === 'locked' && !exonerateNativeTitle(cur, lock) && !isNativeRestore({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, firstUserText: lock.firstUserText })) || lock.locked) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur }); return }
       if (judge === 'unknown') { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-unknown-' + dswsLogHash(sid) }) } } catch (eDbg) {}; return }
       let target = null
       if (o.kind === 'draft') {

@@ -122,6 +122,10 @@ if (route && typeof route.fetch === 'function') {
     check(!!regBad && regBad.ok === false, 'namingRegister 拒绝非占位基准（占位四式校验在注册表操作内）')
     const regOk = await callHandler('namingRegister', { sessionId: 'smoke-s1', baselineTitle: '[New] 新建需求', cwd: '', hint: '草稿档线索样例' })
     check(!!regOk && regOk.ok === true, 'namingRegister 接受占位会话注册')
+    // 编号档（「在新会话打开」那条路）：编号与标题当场已知，收编后守 [#n] 名不被底座首句名盖掉
+    const regNum = await callHandler('namingRegister', { sessionId: 'smoke-s3', baselineTitle: '[#779] 示例标题', cwd: '' })
+    check(!!regNum && regNum.ok === true, 'namingRegister 接受编号档会话注册')
+    await callHandler('namingResult', { sessionId: 'smoke-s3', outcome: 'renamed', title: '[#779] 示例标题' })
 
     const planHint = await callHandler('namingPlan', {})
     check(!!planHint && planHint.ok === true && Array.isArray(planHint.orders) && planHint.orders.length === 1 && planHint.orders[0].kind === 'draft' && planHint.orders[0].hint === '草稿档线索样例', 'namingPlan 为带线索占位会话产出 draft 订单')

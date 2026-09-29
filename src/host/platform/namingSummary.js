@@ -17,7 +17,7 @@
 //   全文一律不记原文、不记标题、不记错误原文（#489 白名单口径）；直达归属沿用调试级
 //   naming.sweep（trigger direct-created），不新增事件。
 import { hash8 } from '../../shared/refresh-workspace-key.js'
-import { NAMING_STAGES, evaluateRenameLock, exonerateNativeTitle } from '../../shared/naming-tracking.js'
+import { NAMING_STAGES, evaluateRenameLock, exonerateNativeTitle, isNativeRestore } from '../../shared/naming-tracking.js'
 import { newSessionTitle, composeDraftTitle } from '../../shared/naming-titles.js'
 
 // 溢出 guard：用户拍板传全文，两段自然有界；超过此字节才截助手侧尾部（用户侧意图优先保留）。
@@ -287,7 +287,7 @@ export function createNamingSummary(deps) {
           if (!first) { try { first = await readFirstUserText(ctx, sid) } catch (eR) {} }
           const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
           if (judge === 'unknown') continue
-          if (judge === 'locked' && !exonerateNativeTitle(cur, { lastMachineTitle: lock.lastMachineTitle, locked: lock.locked, firstUserText: first })) continue
+          if (judge === 'locked' && !exonerateNativeTitle(cur, { lastMachineTitle: lock.lastMachineTitle, locked: lock.locked, firstUserText: first }) && !isNativeRestore({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, firstUserText: first })) continue
           let target = null
           if (o.kind === 'numbered') {
             const num = Number(o.number)

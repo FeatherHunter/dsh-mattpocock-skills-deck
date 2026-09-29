@@ -1,22 +1,15 @@
-// src/shared/naming-tracking.js —— S2（#452）从 naming-guardian.js 拆出之值比对锁、跟踪态与状态机、失败重试、计划单，纯结构、行为零变化。
-// 以后谁改它：改值比对锁、跟踪态结构、计划单产出或失败重试预算的人。预估约285行，超 350 打回。
-// 接线：不引用标题与归属文件（墙要求）；计划单编号分支要用的标题合成小函数在文件内放一份（tracking 前缀），
-//   与 naming-titles.js 同源，改动时两处同改；拼接标记见 scripts/build.mjs 与 src/client/index.js。
+// src/shared/naming-tracking.js —— S2（#452）从 naming-guardian.js 拆出之值比对锁、跟踪态与状态机、失败重试、计划单。
+// 接线：不引用标题与归属文件（墙要求）；编号分支要用的标题合成小函数在文件内放一份（tracking 前缀），与 naming-titles.js 同源，改动两处同改。
 
 /**
  * src/shared/naming-tracking.js — 命名守护跟踪推进半（#264/#267 · 从 naming-guardian.js 拆出，S2 #452）。
  *
  * 契约（#264 规约 · 单缝原则）：本文件是跟踪推进的真源 —— 值比对锁判定、跟踪态结构、分档状态机、
  * 待办改名计划单产出与失败可见性有限重试（#267）。标题合成见 naming-titles.js，编号归属见 naming-attribution.js；
- * 三文件之间不互相引用（墙要求）。
- * 宿主半运行时引用本文件（与另两文件合并）；界面半由 scripts/build.mjs 以 SHARED_SPLICE 方式将
- * 三文件声明体拼回 src/client/index.js 闭包（一源两物，与 kernel/leaf 拼接同模式），
- * 两半均不另写第二处命名实现。
+ * 三文件之间不互相引用（墙要求）。宿主半运行时引用本文件（与另两文件合并）；界面半由 scripts/build.mjs 以
+ * SHARED_SPLICE 方式将三文件声明体拼回 src/client/index.js 闭包（一源两物，与 kernel/leaf 拼接同模式）。
  *
- * 生效日期：2026-08-28
- * 效力规则：本文件以 #264 规约 + #260 五决议 + ADR 20260827 为基线；与更早方案冲突以
- *           本规约为准；未来任何定版方案若改动本规约，以未来版本为准（见 CONTEXT.md「版本与效力」）。
- *
+ * 生效日期：2026-08-28；效力规则：以 #264 规约 + #260 五决议 + ADR 20260827 为基线，未来定版以未来为准。
  * 本模块为纯函数：无输入输出，可被 Node 校验测试直接引用复跑（与另两文件合并）。
  */
 
@@ -61,6 +54,17 @@ export function exonerateNativeTitle(cur, lock) {
     return isNativeAutoTitle({ currentTitle: cur, firstUserText: l.firstUserText })
   } catch (e) { return false }
 }
+// 机器写完之后又被底座首句名盖掉的那种（改名与首句名撞车、或复核那一轮才轮到）：判据同上，
+// 只是不再要求「机器从未写过」——只要当前标题确实是首句派生，就不是手改，机器可以盖回去。
+// 真手改（与首句无关）仍判锁定，与上一条同一个方向。
+export function isNativeRestore({ currentTitle, lastMachineTitle, firstUserText }) {
+  try {
+    const last = lastMachineTitle == null ? null : String(lastMachineTitle)
+    if (last === null) return false
+    if (normTitleLine(currentTitle) === normTitleLine(last)) return false
+    return isNativeAutoTitle({ currentTitle: currentTitle, firstUserText: firstUserText })
+  } catch (e) { return false }
+}
 
 // ============ 跟踪态结构 + 分档状态机 ============
 // #264：结构 { sessionId, stage, lastMachineTitle, locked, repoKey, createdAt, updatedAt }
@@ -73,14 +77,10 @@ export const NAMING_STAGES = {
   REFINED: 'refined',   // P3 精修档：一期仅占位（#264 Out of Scope · #260 决议「实现分期」）
 }
 
-// ---- P3 精修二期预留说明（接口注释级 · 一期收官清点 #267）----
-// 两期边界：本期不含存量回填（#261 裁决否决 · map Out of scope 维持现状）也不含 LLM 精修；
-// 精修档 RENAMED/REFINED 目前零消费：reducer 对未知事件类型
-// 静默忽略（天然预留），planOrderFor 对 REFINED 档恒不出单。二期精修立票（承接 map
-// #257「Not yet specified」）时的接缝约定：① reduceTrackingState 增 'refined' 入账事件
-// （携 LLM 语义段，先过值比对锁 + [#n] 前缀不可破坏）；② planOrderFor 为 REFINED 档
-// 产出 kind:'refined' 计划单（语言无关载荷）；③ 界面半 executeNamingOrder 按 kind 分派
-// 合成。三处皆在本文件与本批注所指签名内扩展，无需新增通道。
+// ---- P3 精修二期预留（接口注释级 · 一期收官清点 #267）----
+// 本期不含存量回填（#261 否决）也不含 LLM 精修；REFINED 目前零消费（reducer 静默忽略未识事件，
+// planOrderFor 对它恒不出单）。二期接缝：① reducer 增 'refined' 入账；② planOrderFor 为 REFINED
+// 出 kind:'refined' 单；③ 界面半 executeNamingOrder 按 kind 分派。三处都在本文件签名内扩展。
 
 // 线索宽限：用户定稿先裸档后升级语义，注册后即出裸档单，不等线索；
 // 后到线索可再升级一次（每条线索至多升级一次，用完即记 lastDraftHint，见 planOrderFor 草稿档分支）
@@ -233,7 +233,7 @@ export function namingFailureInfo(state) {
  * 草稿档落定后后到不同线索 → 再升级一次（#746）。
  * 订单只携带会话标识与目标语义段信息，不含语言相关字面量（#264 D2）。
  */
-export function planOrderFor(state, now, hintGraceMs) {
+export function planOrderFor(state, now, hintGraceMs, currentTitle) {
   if (!state) return null
   if (state.locked) return null
   // #267：有限重试门控 —— 连败达预算上限 → 定败不再出单（面板呈现接管）；
@@ -245,13 +245,16 @@ export function planOrderFor(state, now, hintGraceMs) {
   }
   // #266：编号档（P2）—— 获号会话产出 numbered 订单（携编号+issue 标题，语言无关，
   // 合成经 newSessionTitle 在界面半执行，[#n] 前缀契约 #205 永不破坏）；
-  // 已落定（numberedDone / 机器最后写入值 == 目标名）→ 收敛不出单（防重复/循环）。
+  // currentTitle 给了就按实际标题判：实际标题与目标不符即出单（宿主首句名盖掉 [#n] 名的那种，
+  // 靠它盖回来）；没给（旧调用方）沿落定标记与机器最后写入值收敛，行为不变。
   if (state.stage === NAMING_STAGES.NUMBERED) {
-    if (state.number == null || state.numberedDone) return null
+    if (state.number == null) return null
     const title = state.numberTitle || ''
     let target = null
     try { target = trackingNewSessionTitle({ number: state.number, title: title }) } catch (e) { return null }
-    if (state.lastMachineTitle != null && state.lastMachineTitle === target) return null
+    const cur = (typeof currentTitle === 'string' && currentTitle) ? currentTitle : null
+    if (cur === target) return null
+    if (!cur && (state.numberedDone || (state.lastMachineTitle != null && state.lastMachineTitle === target))) return null
     return {
       sessionId: state.sessionId,
       kind: 'numbered',
@@ -267,7 +270,12 @@ export function planOrderFor(state, now, hintGraceMs) {
   if (state.stage !== NAMING_STAGES.PLACEHOLDER) {
     // #746：草稿档落定后，后到不同线索可再升级一次（无线索或与上次已用一致 → 不出单，防循环）
     if (state.stage !== NAMING_STAGES.DRAFT) return null
-    if (!state.hint || state.hint === (state.lastDraftHint || null)) return null
+    // 实际标题已不是机器最后写下的那个（多半是底座首句名又盖了一次）→ 补一单盖回去；
+    // 真手改由执行点的锁判据拦下并记账锁定，不会反复改名。
+    const curDraft = (typeof currentTitle === 'string') ? currentTitle : null
+    const clobbered = !!(curDraft && state.lastMachineTitle != null && curDraft !== state.lastMachineTitle)
+    if (!clobbered && (!state.hint || state.hint === (state.lastDraftHint || null))) return null
+    if (clobbered && !state.hint) return null
     return {
       sessionId: state.sessionId,
       kind: 'draft',

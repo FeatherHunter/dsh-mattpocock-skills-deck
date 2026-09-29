@@ -1,6 +1,6 @@
 // 命名守护 host 半：持跟踪态并产出计划单（#265）；判定真源见 ../shared 命名三文件（S2 #452）。
 export function createNamingGuardian(deps) {
-  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx, getFirstText, executeOrders } = deps
+  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx, getFirstText, getTitle, executeOrders } = deps
   let _namingCore = null
   let _namingCoreInit = null
   async function getNamingCore() {
@@ -166,19 +166,23 @@ export function createNamingGuardian(deps) {
     }, delay)
   }
 
-  /** 受踪登记唯一实现：#265 兼容名与 #266 复原名共用同一本体。 */
+  /** 受踪登记唯一实现：#265 兼容名与 #266 复原名共用同一本体。基准收两种：占位（[New] …）与编号档（[#n] …）。 */
   async function namingEnsureTracked(args) {
     const sid = args && args.sessionId
     const baseline = args && args.baselineTitle
     if (!sid || !baseline) return { ok: false, error: { kind: 'parse', message: '缺少 sessionId/baselineTitle' } }
     const core = await getNamingCore()
-    if (!core || !core.isPlaceholderTitle(baseline)) return { ok: false, error: { kind: 'parse', message: 'baselineTitle 非占位四式' } }
+    if (!core) return { ok: false, error: { kind: 'parse', message: '命名核心未就绪' } }
+    const numbered = core.parseNumberedTitle ? core.parseNumberedTitle(baseline) : null
+    if (!core.isPlaceholderTitle(baseline) && !numbered) return { ok: false, error: { kind: 'parse', message: 'baselineTitle 非占位四式或编号档' } }
     const cwd = (args && args.cwd) || DEFAULT_CWD
     let repoKey = namingRepoKeyOf(args)
     if (!repoKey) repoKey = await namingResolveRepoKey(cwd)
     const st = await loadNamingState()
     if (!st.sessions[sid]) {
       st.sessions[sid] = core.createTrackingState({ sessionId: sid, baselineTitle: baseline, repoKey: repoKey, cwd: cwd })
+      // 编号档（「在新会话打开」那条路）：编号与标题当场已知，收进来守 [#n] 名不被底座首句名盖掉；刻意不写 lastMachineTitle（值比对锁以基线为准，锁执行点才认得出「首句派生可盖」）。
+      if (numbered) st.sessions[sid] = core.reduceTrackingState(st.sessions[sid], { type: 'numbered', number: numbered.number, title: numbered.title })
     } else if (st.sessions[sid].repoKey == null && repoKey) {
       st.sessions[sid].repoKey = repoKey
     }
@@ -208,22 +212,18 @@ export function createNamingGuardian(deps) {
     const core = await getNamingCore()
     if (!core) return { ok: true, orders: [], tracked: [], failures: [] }
     const st = await loadNamingState()
-    const orders = []
-    const tracked = []
-    const failures = []
+    const orders = [], tracked = [], failures = []
     for (const sid in st.sessions) {
       const s = st.sessions[sid]
       if (!s) continue
-      const o = core.planOrderFor(s, Date.now(), core.NAMING_HINT_GRACE_MS)
+      let curTitle = null; try { if (typeof getTitle === 'function') curTitle = await getTitle(sid) } catch (eT) {}
+      const o = core.planOrderFor(s, Date.now(), core.NAMING_HINT_GRACE_MS, curTitle)
       if (o) orders.push(o)
-      let done = false   // #266：终局标记供界面侧清理（锁账/编号落定/精修档即 done）
-      if (s.locked) done = true
-      else if (s.stage === core.NAMING_STAGES.REFINED) done = true
-      else if (s.stage === core.NAMING_STAGES.NUMBERED && s.number != null) {
-        if (s.numberedDone) done = true
-        else {
-          try { done = (s.lastMachineTitle != null && s.lastMachineTitle === core.newSessionTitle({ number: s.number, title: s.numberTitle || '' })) } catch (eD) {}
-        }
+      // #266：终局标记供界面侧清理（锁账/编号落定/精修档即 done）
+      let done = !!s.locked || s.stage === core.NAMING_STAGES.REFINED
+      if (!done && s.stage === core.NAMING_STAGES.NUMBERED && s.number != null) {
+        done = !!s.numberedDone
+        if (!done) { try { done = (s.lastMachineTitle != null && s.lastMachineTitle === core.newSessionTitle({ number: s.number, title: s.numberTitle || '' })) } catch (eD) {} }
       }
       tracked.push({ sessionId: sid, stage: s.stage, done: done })
       const fi = core.namingFailureInfo(s)

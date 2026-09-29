@@ -223,7 +223,8 @@
                 try {
                   const name0 = acceptedTitle || __placeholderTitle
                   const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(name0) : /^\[New\] /.test(String(name0)))
-                  if (!isPlaceholder) return
+                  // 编号档同样收编（「在新会话打开」那条路）：不收的话底座首句名会把 [#n] 名盖掉且无人守。
+                  if (!isPlaceholder && !(typeof parseNumberedTitle === 'function' && parseNumberedTitle(name0))) return
                   if (typeof host !== 'undefined' && typeof host.call === 'function') {
                     host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns, name0) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
                   }
@@ -309,7 +310,8 @@
               try {
                 const name0 = acceptedTitle || __placeholderTitle
                 const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(name0) : /^\[New\] /.test(String(name0)))
-                if (!isPlaceholder) return
+                // 编号档同样收编（「在新会话打开」那条路）：不收的话底座首句名会把 [#n] 名盖掉且无人守。
+                if (!isPlaceholder && !(typeof parseNumberedTitle === 'function' && parseNumberedTitle(name0))) return
                 if (typeof host !== 'undefined' && typeof host.call === 'function') {
                   // #266：注册走 #211 复原名「注册监视」（wf.registerNewSessionWatcher，host 侧为收编跟踪态 + 索引基线）；
                   // wf.namingRegister 为 #265 兼容别名，双名同本体，守卫钉死。
