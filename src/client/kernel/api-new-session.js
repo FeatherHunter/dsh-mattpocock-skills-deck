@@ -258,7 +258,9 @@
               }
             } catch (eName) {}
             // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。
-            const __ok742a = function () { flash(st, tr('toast.newSessionOpened'), 'ok') }
+            // #746 占位补写：新建时先改名后打开，面尚未保留故新会话必跳过，标题先被底座首句名占成斜杠；
+            // 打开成功即面已保留，此时补一次占位改名（失败忽略，守护单仍是兜底），侧栏不再闪一下斜杠。
+            const __ok742a = function () { try { if (typeof namingCurrentTitleOf === 'function' && sessions && typeof sessions.scope === 'function' && typeof sessions.sessionOf === 'function') { var __curA = null; try { __curA = namingCurrentTitleOf(sid) } catch (eCA) {} if (__curA !== title) { try { var __scA = sessions.scope(sid); var __fA = __scA ? sessions.sessionOf(__scA) : null; if (__fA && typeof __fA.rename === 'function') { Promise.resolve(__fA.rename(title)).then(function () { try { if (typeof namingGuardianKick === 'function') namingGuardianKick() } catch (eK) {} }).catch(function () {}) } } catch (eRA) {} } } } catch (eOA) {} flash(st, tr('toast.newSessionOpened'), 'ok') }
             const __go742a = function () { try {
               let __u = null
               try { if (typeof ctx !== 'undefined' && ctx) { __u = (typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : null) || ctx.uiWorkspace || null } } catch (eG) {}
@@ -335,7 +337,8 @@
           // #739：建号成功（sid 已到手）后只报成功，打开失败不再进 doFallback ——
           //   兜底会谎称没建会话并把指令塞回当前会话，而带草稿的新会话其实已被丢在后台成幽灵；
           // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。
-          const __ok742b = function () { flash(st, tr('toast.newSessionOpened'), 'ok') }
+          // #746 占位补写（同复用分支）：打开成功后面已保留，补一次占位改名，失败忽略由守护单兜底。
+          const __ok742b = function () { try { if (typeof namingCurrentTitleOf === 'function' && sessions && typeof sessions.scope === 'function' && typeof sessions.sessionOf === 'function') { var __curB = null; try { __curB = namingCurrentTitleOf(sid) } catch (eCB) {} if (__curB !== title) { try { var __scB = sessions.scope(sid); var __fB = __scB ? sessions.sessionOf(__scB) : null; if (__fB && typeof __fB.rename === 'function') { Promise.resolve(__fB.rename(title)).then(function () { try { if (typeof namingGuardianKick === 'function') namingGuardianKick() } catch (eK) {} }).catch(function () {}) } } catch (eRB) {} } } } catch (eOB) {} flash(st, tr('toast.newSessionOpened'), 'ok') }
           const __go742b = function () { try {
             let __u = null
             try { if (typeof ctx !== 'undefined' && ctx) { __u = (typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : null) || ctx.uiWorkspace || null } } catch (eG) {}

@@ -264,7 +264,8 @@ export function createNamingSummary(deps) {
     try {
       if (!Array.isArray(orders) || !orders.length) return false
       const sessions = (ctx && typeof ctx.get === 'function') ? ctx.get('sessions') : null
-      if (!sessions || typeof sessions.scope !== 'function' || typeof sessions.sessionOf !== 'function' || typeof sessions.get !== 'function') return false
+      if (!sessions || typeof sessions.scope !== 'function' || typeof sessions.sessionOf !== 'function') return false
+      const readTitleHost = function (id) { try { if (sessions.list && typeof sessions.list.getSnapshot === 'function') { const snap = sessions.list.getSnapshot(); const row = snap && snap.byId ? snap.byId[id] : null; if (row && typeof row.title === 'string' && row.title) return row.title } } catch (eSnap) {} try { if (typeof sessions.get === 'function') { const s = sessions.get(id); if (s && typeof s.title === 'string' && s.title) return s.title } } catch (eGet) {} return null }
       const h = await naming()
       if (!h) return false
       let done = false
@@ -281,7 +282,7 @@ export function createNamingSummary(deps) {
           try { faceSid = (face && (face.sessionId || face.id || face.sid)) || (scope && (scope.sessionId || scope.id || scope.sid)) } catch (eF) {}
           if (faceSid && String(faceSid) !== String(sid)) continue
           let cur = null
-          try { const s = sessions.get(sid); if (s && typeof s.title === 'string' && s.title) cur = s.title } catch (eG) {}
+          try { cur = readTitleHost(sid) } catch (eG) {}
           if (cur === null) continue
           let first = (typeof lock.firstUserText === 'string' && lock.firstUserText) ? lock.firstUserText : null
           if (!first) { try { first = await readFirstUserText(ctx, sid) } catch (eR) {} }
@@ -304,7 +305,7 @@ export function createNamingSummary(deps) {
           if (code === DIVERGENCE.IN_PLACE || target === cur) { try { await h.handleNamingResult({ sessionId: sid, outcome: 'renamed', title: cur }) } catch (eIn) {}; continue }   // 已在位：收敛记账，不空改一次
           // 写前二次确认标题未变（title changed before rename 则跳过，TOCTOU 关口；与客户端同源判据）。
           let cur2 = null
-          try { const s2 = sessions.get(sid); if (s2 && typeof s2.title === 'string' && s2.title) cur2 = s2.title } catch (eG2) {}
+          try { cur2 = readTitleHost(sid) } catch (eG2) {}
           if (cur2 !== cur) continue
           const r = await face.rename(target)
           if (r && r.ok) {

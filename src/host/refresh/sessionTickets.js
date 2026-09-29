@@ -17,6 +17,10 @@
 //   4. **落盘只存散列与票键**：写下去的是 chainToDisk 那一份（会话散列、工作区根散列、后端名、
 //      票键、时间、动作类别）。会话 id 原文、路径原文、命令原文一个都不在里面；落盘前还要过一遍
 //      chainPrivacyViolations 自检，见到路径或命令的形状就**整份不写**并记一行 ok:false。
+//   4b. **记之前先洗根**：调用方传进来的可能是会话所选目录原文（子目录、尾斜杠、大小写混写），
+//      这里经注入的 canonicalKey 洗成工作区根后再算散列 —— 同一处地方永远落同一格，
+//      读回那一侧按根过滤才找得到（#781；不洗就会内存里有、盘里有、读数里没有）。
+//      洗不出来（没注入、抛错、回空）就用原文：宁可按旧形状记，也不错过这一笔。
 //   5. **重启不丢**：落盘在 <进程当前目录>/.dsh-mattskillsdeck-cache/session-tickets.json（与命名守护
 //      那份 naming-guardian.json 同一个目录、同一条纪律：全文覆写、失败不抛错）。切进工作区时调
 //      restore() 读回来，链就回来了。
@@ -44,6 +48,7 @@ export const SESSION_TICKETS_FILE = 'session-tickets.json'
  *   - `fs` + `platform`：宿主的平台服务（`fs.resolve` / `fs.readText` / `fs.writeText`），与命名守护同一套；
  *   - `readText` / `writeText`：最简注入面（测试用，优先于上面两者）；
  *   - `logCtx`：宿主日志出口（`isEnabled` 与 `fire`）；没给就一条都不记；
+ *   - `canonicalKey()`：会话所选目录洗成工作区根的既有出口；有它时 note() 先洗根再算散列，没有时沿用原文；
  *   - `now()`：时钟；默认 Date.now。
  */
 export function createSessionTickets(deps) {
@@ -111,7 +116,13 @@ export function createSessionTickets(deps) {
   async function note(input) {
     const verdict = chainVerdictOf(input)
     if (!verdict.record) { counters.filtered += 1; return { recorded: false, action: '', ticketKey: '', reason: verdict.reason, count: 0 } }
-    const rootHash = input && input.rootHash ? String(input.rootHash) : chainRootHash(input ? input.rootKey : '')
+    // #781：先洗根再算散列。调用方（主动上报那一路）传的是会话所选目录原文，
+    // 读回那一侧按工作区根过滤；不洗就会同一处落两格。洗失败就用原文，不丢这一笔。
+    let rootKey = input ? input.rootKey : ''
+    if ((!input || !input.rootHash) && rootKey && typeof opts.canonicalKey === 'function') {
+      try { const c = await opts.canonicalKey(rootKey); if (typeof c === 'string' && c) rootKey = c } catch (e) { /* 用原文 */ }
+    }
+    const rootHash = input && input.rootHash ? String(input.rootHash) : chainRootHash(rootKey)
     const r = chainRecord(state, {
       sessionId: input ? input.sessionId : '',
       rootHash: rootHash,

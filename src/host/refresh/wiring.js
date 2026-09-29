@@ -128,8 +128,9 @@ export function createRefreshWiring(deps) {
   }
 
   // e：会话↔票处理链。喂数据的是 b 那条订阅（工具结果一到就 note 一笔），读数是下面那个读数。
+  // #781：把归一出口递进去，note() 先洗根再算散列（调用方传所选目录原文时与读回侧同格）。
   const sessionTickets = d.sessionTickets || createSessionTickets({
-    getCacheDir: d.getCacheDir, logCtx: logCtx,
+    getCacheDir: d.getCacheDir, logCtx: logCtx, canonicalKey: d.canonicalKey,
   })
 
   // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.js 文件头）；判定过的那一笔喂给处理链（note），否则界面恒空。
@@ -243,7 +244,13 @@ export function createRefreshWiring(deps) {
       if (allowed.indexOf(root) < 0) { try { await writeEvents.allowRoot(root) } catch (eA) {} }
       try { gate.setWorkspace(workspaceKeyOf(root), { active: true }) } catch (eG) {}
       // #735：新根把盘上这一格读回来（重启丢的内存与别的进程写的格子都靠这一次；restore 永不抛错）。
-      if (!restoredRoots.has(root)) { restoredRoots.add(root); try { Promise.resolve(sessionTickets.restore({ rootKey: root })).catch(function () {}) } catch (eR) {} }
+      // #781：等它落定再往下走 —— 不等的话紧接着取快照会赶在读完之前，第一次看到空、第二次才有，
+      // 重启后第一眼空很容易当成丢了。读失败时把标记拿掉，下次切进这个根再试一次。
+      if (!restoredRoots.has(root)) {
+        restoredRoots.add(root)
+        try { await sessionTickets.restore({ rootKey: root }) }
+        catch (eR) { try { restoredRoots.delete(root) } catch (eD) {} }
+      }
     }
     for (const root of allowed) {
       if (roots.indexOf(root) < 0) {
@@ -395,7 +402,7 @@ export function createRefreshWiring(deps) {
     syncAttention: syncAttention,
     noteWorkspaceActive: noteWorkspaceActive,
     firstTextOf: function (sid) { try { return readFirstUserText(d.ctx, sid) } catch (e) { return Promise.resolve(null) } }, // #746 首句直读（读而不激活；失败即 null）
-    titleOf: function (sid) { try { const ss = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('sessions') : null; if (!ss || typeof ss.get !== 'function') return null; const s = ss.get(sid); return (s && typeof s.title === 'string') ? s.title : null } catch (e) { return null } }, // 会话当前标题（命名守护据它判要不要把底座首句名盖回 [#n]）
+    titleOf: function (sid) { try { const ss = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('sessions') : null; if (!ss) return null; try { if (ss.list && typeof ss.list.getSnapshot === 'function') { const snap = ss.list.getSnapshot(); const row = snap && snap.byId ? snap.byId[sid] : null; if (row && typeof row.title === 'string' && row.title) return row.title } } catch (eSnap) {} try { if (typeof ss.get === 'function') { const s = ss.get(sid); if (s && typeof s.title === 'string' && s.title) return s.title } } catch (eGet) {} return null } catch (e) { return null } }, // 会话当前标题（命名守护据它判要不要把底座首句名盖回 [#n]；#746 补：0.1.7 上 Session 快照无 title，真源是列表行，快照优先旧口兼容）
     executeOrders: function (orders) { try { const s = summaryOf(); if (s && typeof s.executeOrdersHost === 'function') return s.executeOrdersHost(orders) } catch (e) {} return Promise.resolve(false) }, // #746 宿主直执行（拿号改名同一刻；面缺失即回落）
     attach: attach,
     once: once,

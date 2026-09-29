@@ -14,8 +14,9 @@
 //      `header.cwd` 经宿主既有出口算（生产里传进来的是 src/host/index.js 的 canonicalKey，它内部走
 //      src/host/workspaceKey.js 的 canonicalWorkspaceKey，上溯到工作区根那一步也在那里；本文件绝不另写
 //      一套归一化，也不 import 同层的文件——同层互引门禁要求依赖一律由接线处显式传入）。
-//      **决定为这条事件做任何事之前先过这道门**：不归我们的事件一到就返回，
-//      不记日志、不写内存表、不进处理链、不落盘——连「来过一条」这个事实都不记。
+//      **取数之前先过这道门**：不归我们的事件不取数、不记那一路的日志 —— 但处理链那一笔在门前就喂了
+//      （#781：链记的是“发生过”，只看会话与工作区根认不认得出来，不看当时有没有人在看；
+//      白名单只决定取不取数，不决定记不记）。
 //   3. **参数只做瞬时匹配**：命令原文进不了日志、落不了盘、回不了界面。返回值与日志字段里只有档位、原因代号、
 //      工作区短散列与「认没认出票号」这个布尔。
 //   4. **写事件触发的取数一律过闸**，并受同一工作区 10 秒合并窗口约束（合并窗口的值来自 budget.js）；
@@ -247,6 +248,39 @@ export function createWriteEvents(deps) {
 
   /** 一条工具结果（运行时事件 `tools/result` 与它的会话事件版本共用这一条路）。 */
   async function handle(session, shape, tool, rawArgs, succeeded) {
+    const argsObj = parsedArgs(rawArgs)
+    const verdict = detectWrite({ shape: shape, tool: String(tool || ''), command: commandOf(argsObj), args: argsObj, succeeded: succeeded })
+    const plan = actionFor(verdict, limits)
+    // #781：先喂处理链，不看白名单。链记的是“发生过”，取数才看“在看谁” ——
+    // 从前这一块在门后，没聚焦的工作区那一笔连链都不进，重启后自然找不到。
+    // 白名单只决定后面取不取数（isOurs 与 fire 那一路），不决定记不记。
+    // note 抛错、认不出根与后端，都不许影响取数那一路。
+    if (typeof opts.note === 'function') {
+      try {
+        const sid = sessionIdOf(session)
+        let rootKey = ''
+        try {
+          if (sessionRootKeys.has(sid)) rootKey = sessionRootKeys.get(sid) || ''
+          else {
+            const cwd = session && session.header && session.header.cwd
+            if (cwd && typeof opts.canonicalKey === 'function') {
+              const k = await opts.canonicalKey(cwd)
+              if (k) rootKey = String(k)
+            }
+          }
+        } catch (eK) { /* 认不出根就不记这一笔 */ }
+        if (sid && rootKey) {
+          let backendName = ''
+          if (typeof opts.backendOf === 'function') { try { backendName = String(await opts.backendOf(rootKey) || '') } catch (eB) { backendName = '' } }
+          const verb = actionOf(tool, commandOf(argsObj))
+          await opts.note({
+            sessionId: sid, rootHash: chainRootHash(rootKey), backend: backendName,
+            tool: String(tool || ''), source: (String(tool || '').toLowerCase().indexOf('deck_') === 0) ? 'tool-args' : 'cli',
+            tier: verdict.tier, reason: verdict.reason, verb: verb, ticketKey: verdict.ticket || '', args: argsObj,
+          })
+        }
+      } catch (eN) { /* 喂链失败不许影响取数 */ }
+    }
     const ours = await isOurs(session)
     if (!ours) return null
     stats.seen += 1
@@ -257,32 +291,6 @@ export function createWriteEvents(deps) {
     // 两把钥匙对不上，闸那一格就永远是 active=false，后台档的 background-inactive 把这条路上**每一笔**
     // 都判成推迟 —— 接线看起来接上了，生产里一次都发不出去。现在与 isOurs 用的是同一个值。
     const keyHash = String(sessionRoots.get(sessionIdOf(session)) || '')
-    const argsObj = parsedArgs(rawArgs)
-    const verdict = detectWrite({ shape: shape, tool: String(tool || ''), command: commandOf(argsObj), args: argsObj, succeeded: succeeded })
-    const plan = actionFor(verdict, limits)
-    // #723（T19）把处理链喂上：判定过的那一笔交给接线处传进来的 note（生产里是
-    // refresh/sessionTickets.js 的 note），这样界面上「每个会话在处理哪些票」才不是恒空。
-    // 时序也在这里定死：喂数据与读数是同一个订阅的两头，先有喂才有读数 —— 只接读数会让
-    // 界面恒显示「取到了、空的」，那比如实说「读不到」更坏。note 抛错不许影响取数那一路。
-    //
-    // 喂进去的形状必须按**链自己的判据**来（#723 复核钉出来的两处对不上，两处都在这一份 payload 上）：
-    //   ① 根那栏要的是 chainRootHash（8 位 djb2 + 8 位 fnv，共 16 位小写十六进制），不是本文件用的
-    //      8 位短散列 —— 长度不到 16 位，链在第一道判据就回 chain.bad-root，一笔都不记（界面于是恒空）；
-    //   ② 后端那栏从前写死空串，链的第二道判据 chain.bad-backend 会把它丢掉（白名单只有 github/gitlab/
-    //      markdown 三个名字）。真后端名不在本文件手上，由接线处给一个按工作区根现取的来源（opts.backendOf）。
-    // 两处都不自己做主：认不出来就照实让链丢掉并说原因，不编一个假值让它看着能记。
-    if (typeof opts.note === 'function') {
-      let backendName = ''
-      if (typeof opts.backendOf === 'function') { try { backendName = String(await opts.backendOf(sessionRootKeys.get(sessionIdOf(session)) || '') || '') } catch (eB) { backendName = '' } }
-      const verb = actionOf(tool, commandOf(argsObj))
-      try {
-        await opts.note({
-          sessionId: sessionIdOf(session), rootHash: chainRootHash(sessionRootKeys.get(sessionIdOf(session)) || ''), backend: backendName,
-          tool: String(tool || ''), source: (String(tool || '').toLowerCase().indexOf('deck_') === 0) ? 'tool-args' : 'cli',
-          tier: verdict.tier, reason: verdict.reason, verb: verb, ticketKey: verdict.ticket || '', args: argsObj,
-        })
-      } catch (eN) { /* 喂链失败不许影响取数 */ }
-    }
     if (plan.action === 'wait-tick') return { tier: verdict.tier, reason: verdict.reason, action: plan.action }
     return await fire(shape, verdict, plan, keyHash)
   }
