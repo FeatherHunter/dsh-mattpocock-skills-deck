@@ -26,7 +26,6 @@ import { dirname, resolve, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import vm from 'node:vm'
 import { spawnSync } from 'node:child_process'
-import * as esbuild from 'esbuild'
 import { deriveHost, deriveClient } from './derive-log-from-package.mjs'
 import { deriveHost as deriveUpdateHost, deriveClient as deriveUpdateClient } from './derive-update-from-package.mjs'
 
@@ -199,11 +198,23 @@ function gatePrecheck(code, label) {
   }
 }
 function gateSyntax(code, label) {
-  // ESM（export）用 esbuild 校验语法（可解析 module 语法）；其余用 vm.Script。
+  // ESM（export）用 node --check 校验（.mjs 按模块解析）；其余用 vm.Script。
+  // 不用 esbuild：它的异步与同步校验都要经后台服务落临时文件，本机删临时文件被拦截
+  // （Access is denied，换目录重跑三次同一位置失败，2026-09-29 实测）。node --check 的
+  // 校验语义等价（只解析不执行），临时文件落在仓库 .tmp 内（已忽略），删不掉也不碍事。
   if (/\bexport\b/.test(code)) {
-    return esbuild.transform(code, { loader: 'js', format: 'esm' }).then(() => true).catch((e) => {
+    try {
+      const tmpFile = resolve(ROOT, '.tmp/gate-syntax-check.mjs')
+      mkdirSync(dirname(tmpFile), { recursive: true })
+      writeFileSync(tmpFile, code, 'utf8')
+      const r = spawnSync(process.execPath, ['--check', tmpFile], { encoding: 'utf8' })
+      try { rmSync(tmpFile, { force: true }) } catch { /* 删不掉就留着，.tmp 不入库 */ }
+      if (r.status !== 0) throw new Error((r.stderr || r.stdout || 'node --check 非 0').split('\n').slice(0, 3).join(' | '))
+    } catch (e) {
+      if (e && e.message && e.message.startsWith('[G门禁]')) throw e
       throw new Error(`[G门禁] ${label} 语法编译失败：${e.message}`)
-    })
+    }
+    return true
   }
   try {
     new vm.Script(code, { filename: `gate-${label}.js` })
