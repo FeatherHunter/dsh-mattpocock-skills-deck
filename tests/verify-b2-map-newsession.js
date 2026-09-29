@@ -178,7 +178,8 @@ const checkFile = function (file) {
   assert.ok(out2.includes('## MAP完成确认'), file + ' zh 完成确认标题（v4 MAP完成确认）')
   assert.ok(out2.indexOf('/wayfinder ' + URL200) === 0, file + ' zh 完成确认首行 /wayfinder+URL 含票号 #n')
   assert.ok(out2.includes('4/4'), file + ' zh 完成确认 closed/total 已填')
-  assert.ok(out2.includes('## 目标 map') && out2.includes('编号：#200') && out2.includes('标题：完成 map') && out2.includes('链接：' + URL200), file + ' zh 完成态仍带 map 标识')
+  assert.ok(!out2.includes('## 目标 map') && !out2.includes('编号：#200'), file + ' zh 完成态不再内嵌 map 标识头（#779：标识由首行 /wayfinder+链接承载）')
+  assert.ok(out2.includes('## 工具') && out2.includes('优先使用 deck_ 开头的工具') && out2.includes('deck_issue_report'), file + ' zh 完成态带两行工具节（#779）')
   assert.ok(!out2.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 完成态不是推进式')
 
   // c) 完成态经 snapshot 兜底（t 无 stats 且 snapshot.maps 有该 map）
@@ -210,6 +211,8 @@ const checkFile = function (file) {
   assert.ok(out7.includes('## MAP completion check'), file + ' en 完成确认标题（v4 MAP completion check）')
   assert.ok(out7.indexOf('/wayfinder ' + URL200) === 0, file + ' en 完成确认首行 /wayfinder+URL 含票号 #n')
   assert.ok(out7.includes('2/2'), file + ' en closed/total 已填')
+  assert.ok(!out7.includes('## Target map'), file + ' en 完成态不再内嵌 map 标识头（#779）')
+  assert.ok(out7.includes('## Tools') && out7.includes('deck_issue_report'), file + ' en 完成态带两行工具节（#779）')
 
   // g) 静态：详情页「在新会话打开」按钮（执行/完成旁，同语义 openInNewSession）
   assert.ok(src.includes('onClick: function () { openInNewSession(st, m) }'), file + ' 详情页新会话按钮 openInNewSession')

@@ -988,13 +988,16 @@ const contractChecksInner = function (reg, src) {
     if (co.zh.indexOf('## MAP完成确认') < 0 || co.zh.indexOf('## 调查') < 0 || co.zh.indexOf('## 报告你来定夺') < 0 || co.zh.indexOf('## 收尾') < 0) fail('complete zh 缺清单段标题（MAP完成确认/调查/报告你来定夺/收尾）')
     if (co.zh.indexOf('|') >= 0) fail('complete zh 含表格 |（已约定无表格，全勾选框）')
     if (co.zh.indexOf('子票') >= 0 || co.zh.indexOf('票') >= 0) fail('complete zh 专业术语未用英文（子票/票 → sub-issue/ticket）')
-    if (co.zh.indexOf('## 目标 map') < 0 || co.zh.indexOf('编号：') < 0 || co.zh.indexOf('标题：') < 0 || co.zh.indexOf('链接：') < 0) fail('complete zh 缺 map 标识头三字段')
+    if (co.zh.indexOf('## 目标 map') >= 0 || co.zh.indexOf('编号：') >= 0) fail('complete zh 残留已删的标识头（#779：标识由首行 /wayfinder+链接承载）')
+    if (co.zh.indexOf('## 工具') < 0 || co.zh.indexOf('优先使用 deck_ 开头的工具') < 0 || co.zh.indexOf('deck_issue_report') < 0) fail('complete zh 缺工具节两行（#779）')
     if (co.placeholders.indexOf('closed') < 0 || co.placeholders.indexOf('total') < 0) fail('complete 占位符缺 closed/total')
-    if (co.placeholders.indexOf('n') < 0 || co.placeholders.indexOf('title') < 0 || co.placeholders.indexOf('url') < 0) fail('complete 占位符缺 n/title/url')
+    if (co.placeholders.indexOf('n') >= 0 || co.placeholders.indexOf('title') >= 0 || co.placeholders.indexOf('url') >= 0) fail('complete 占位符残留已删标识头的 n/title/url（#779）')
     if (co.zh.indexOf('从第一性原理出发完成任务') >= 0) fail('complete zh 残留 guide 引导句（#77 已删）')
     if (co.en.indexOf('Approach tasks from first principles') >= 0) fail('complete en 残留 guide 引导句（#77 已删）')
     if (co.en.indexOf('- [ ]') < 0) fail('complete en 缺清单标记 - [ ]')
     if (co.en.indexOf('## MAP completion check') < 0 || co.en.indexOf('## Investigate') < 0 || co.en.indexOf('## Report to you') < 0 || co.en.indexOf('## Wrap-up') < 0) fail('complete en 缺清单段标题')
+    if (co.en.indexOf('## Target map') >= 0) fail('complete en 残留已删的标识头（#779）')
+    if (co.en.indexOf('## Tools') < 0 || co.en.indexOf('deck_issue_report') < 0) fail('complete en 缺工具节两行（#779）')
   } else fail('缺条目 complete')
   // handoff1/handoff2（#71）
   const h1 = reg['tpl.handoff1']
@@ -1080,6 +1083,12 @@ const contractChecksInner = function (reg, src) {
   // #725：「## 正文格式」那一节整节删除（模板里的标记、后端声明、注册表兜底版全没了），所以期望 0。
   const segCount = (src.match(/## 正文格式/g) || []).length
   if (segCount !== 0) fail('「## 正文格式」段数 ' + segCount + '（期望 0：#725 起正文格式契约已整节删除）')
+  // #779：全量模板必须带两行工具节（Q2=全部，Q4=原话两行）
+  Object.keys(reg).forEach(function (id) {
+    const e = reg[id] || {}
+    if (String(e.zh || '').indexOf('## 工具') < 0 || String(e.zh || '').indexOf('优先使用 deck_ 开头的工具') < 0 || String(e.zh || '').indexOf('deck_issue_report') < 0) fail('#779 模板 ' + id + '.zh 缺两行工具节')
+    if (String(e.en || '').indexOf('## Tools') < 0 || String(e.en || '').indexOf('Prefer the deck_ tools') < 0 || String(e.en || '').indexOf('deck_issue_report') < 0) fail('#779 模板 ' + id + '.en 缺两行工具节')
+  })
   // workspace-relative 旧形态零残留（#588 立的断言；#603 起口径更严：提示词里一个脚本都不许调）
   const oldForm = (src.match(/`node scripts\/(fix-issue-body|wire-subissues)\.mjs/g) || []).length
   if (oldForm !== 0) fail('workspace-relative 旧形态残留 ' + oldForm + ' 处（`node scripts/<脚本>.mjs；期望 0：#603 起提示词改回 gh 直连，脚本只留在包里当可选工具）')
@@ -1405,7 +1414,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'd3921461391abf0db07f89a13e0cb86740b9fbeabe384e5607b4fa02a1f7450c',
+  'tests/verify-prompts.js': '3462f888070c6ceb38f0103988851829ffead19b3339c39e90108e4ee8bb4ca1',
 }
 // ---- LOCK-END ----
 
@@ -1590,11 +1599,13 @@ if (reg) {
       if (backendDecls[b] && backendDecls[b].bodyFormat) fail('#725 ' + b + ' 后端仍声明 prompts.bodyFormat（该条已整节删除）')
     })
     // #603 必修①：completePrompt 的真实调用形态 —— 签名 (st, num, title, total, closed)。
-    //   视图侧曾经按 4 参调（st, num, total, closed），渲染出「标题：5」与「undefined/3 个 issue 已关闭」。
+    //   #779 起模板不再内嵌标识头（标题由首行 /wayfinder+链接承载），title 参数保留兼容但正文不再渲染「标题：T」。
     const cpSt = { selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: backendDecls.github }] }
     const cpText = String(evalPromptHelpers.completePromptForTest(cpSt, 5, 'T', 3, 3) || '')
     if (!cpText) fail('#595 completePrompt 按真实调用形态渲染为空')
-    if (cpText.indexOf('标题：T') < 0) fail('#595 completePrompt 渲染结果没把标题填进去（按真实形态应出现「标题：T」）')
+    if (cpText.indexOf('## 目标 map') >= 0) fail('#779 completePrompt 渲染结果残留已删的标识头')
+    if (cpText.indexOf('## 工具') < 0 || cpText.indexOf('deck_issue_report') < 0) fail('#779 completePrompt 渲染结果缺两行工具节')
+    if (cpText.indexOf('3/3') < 0) fail('#779 completePrompt 渲染结果没把 closed/total 填进去（按真实形态应出现「3/3」）')
     if (cpText.indexOf('undefined') >= 0) fail('#595 completePrompt 渲染结果出现 undefined（调用参数错位：标题位拿到数字、或标题没传）')
     const cpLeft = leftoverPlaceholder(cpText)
     if (cpLeft) fail('#595 completePrompt 渲染结果残留占位符 ' + cpLeft + '（占位符没被填上）')
