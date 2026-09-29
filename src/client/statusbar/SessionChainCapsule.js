@@ -109,6 +109,14 @@ function chainLater(st, closeRef) {
  * ok 版面上只写图钉图标加当前那张的号（标题再长也不上版面）；鼠标悬停撑起一张单子，
  * 单子里列出当前会话的全部记录（从旧到新往下排，最新沉底离鼠标最近，行内不用 · 分隔，
  * 号与动作做成徽章），点某一行进那张票的详情。
+ *
+ * #780：那一条是**地图**时，号前面的 `#` 换成地图图标（读起来是「图钉 + 地图图标 + 40」），
+ *   普通票仍是「图钉 + #号」；悬停单子里每行的号徽章同样处理。两条硬约束：
+ *     ① 图标必须是那个号的**兄弟节点**，不许放进号里面 —— 那台按宽度收字的机器是往带
+ *        data-fold-priority 的元素里写 textContent 的，赋值会清掉该元素的全部子节点，
+ *        图标塞进去就会被反复抹掉又装回来（一闪一闪）。本文件里那个号仍是恰好一处让位号。
+ *     ② 版面上换了图标，**文字通道仍写 `#号`**（无障碍名与悬停提示），并在里面补上类型词
+ *        「地图」（词条 type.map）—— 图标对读屏与复制文字的人是不存在的，不能只靠它说话。
  */
 export const SessionChainCapsule = function (props) {
   const cx = React.useContext(DswsCtx)
@@ -129,14 +137,17 @@ export const SessionChainCapsule = function (props) {
   }
   const e = view.entry
   // 单子从旧到新往下排：最新那一条沉底，离鼠标最近；链里最多 20 条，全部列出不折叠。
-  // 版面上那个号（下面那个 text span）挂在让位表第 10 号：宽度不够时它也逐字让（最后几位才让），
+  // 版面上那个号（下面那个 text span）挂在让位表第 12 号：宽度不够时它也逐字让（最后几位才让），
   //   让位机直接往纯文本元素里写字，这里两处（版面号、环境计数都是纯文本）都是安全的。
   const displayed = view.list.slice().reverse()
-  const text = '#' + e.ticketKey
+  const eIsMap = e.isMap === true
+  // #780：地图那一条的可见号不带 `#`（那个位置换成了地图图标，见下面渲染处）；
+  //   普通票仍是 `#号`。文字通道两处都仍写 `#号`，见 spoken 与单子里的 line。
+  const text = eIsMap ? e.ticketKey : '#' + e.ticketKey
   const eState = e.ticketState === 'CLOSED' ? 'CLOSED' : (e.ticketState === 'OPEN' ? 'OPEN' : '')
   const eStateWord = eState === 'OPEN' ? tr('list.state.open') : (eState === 'CLOSED' ? tr('list.state.closed') : '')
   const eColor = eState === 'OPEN' ? '#58a6ff' : (eState === 'CLOSED' ? '#8b949e' : 'var(--dsw-alias-label-primary,#e6edf3)')
-  const spoken = tr('chainView.capsuleDoing') + ' ' + text + (e.ticketTitle ? ' ' + e.ticketTitle : '') + (eStateWord ? ' ' + eStateWord : '')
+  const spoken = tr('chainView.capsuleDoing') + ' ' + (eIsMap ? tr('type.map') + ' ' : '') + '#' + e.ticketKey + (e.ticketTitle ? ' ' + e.ticketTitle : '') + (eStateWord ? ' ' + eStateWord : '')
   const openRow = function (row) {
     return function (ev) {
       if (ev && ev.stopPropagation) ev.stopPropagation()
@@ -165,7 +176,8 @@ export const SessionChainCapsule = function (props) {
       const rStateWord = rState === 'OPEN' ? tr('list.state.open') : (rState === 'CLOSED' ? tr('list.state.closed') : '')
       const badgeColor = rState === 'OPEN' ? '#58a6ff' : (rState === 'CLOSED' ? '#8b949e' : (latest ? '#58a6ff' : '#8b8b95'))
       const badgeBorder = rState === 'OPEN' ? '#58a6ff' : (rState === 'CLOSED' ? '#8b949e' : (latest ? '#58a6ff' : '#3a3f4a'))
-      const line = '#' + r.ticketKey + (r.ticketTitle ? ' ' + r.ticketTitle : '') + (word ? ' ' + word : '') + (r.time ? ' ' + r.time : '') + (rStateWord ? ' ' + rStateWord : '')
+      const rIsMap = r.isMap === true
+      const line = (rIsMap ? tr('type.map') + ' ' : '') + '#' + r.ticketKey + (r.ticketTitle ? ' ' + r.ticketTitle : '') + (word ? ' ' + word : '') + (r.time ? ' ' + r.time : '') + (rStateWord ? ' ' + rStateWord : '')
       return h('div', {
         key: 'r' + i, tabIndex: 0, role: 'link', 'aria-label': line,
         className: 'dsws-chainmenu-row' + (active ? ' is-active' : '') + (latest ? ' is-latest' : ''),
@@ -182,7 +194,10 @@ export const SessionChainCapsule = function (props) {
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         },
       }, [
-        h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '0 6px', borderRadius: 99, border: '1px solid ' + badgeBorder, color: badgeColor } }, '#' + r.ticketKey),
+        // #780：地图那行的号徽章是「地图图标 + 裸号」，普通票那行仍是 `#号`
+        h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '0 6px', borderRadius: 99, border: '1px solid ' + badgeBorder, color: badgeColor } }, rIsMap
+          ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3 } }, [Ic({ n: 'map', size: 11 }), h('span', null, r.ticketKey)])
+          : '#' + r.ticketKey),
         h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.ticketTitle || ('#' + r.ticketKey)),
         word ? h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '1px 6px', borderRadius: 4, background: latest ? 'rgba(88,166,255,.14)' : 'rgba(139,139,149,.15)', color: latest ? '#8fb8ff' : '#a1a1aa' } }, word) : null,
         r.time ? h('span', { style: { flex: 'none', fontSize: 11, color: '#8b8b95' } }, r.time) : null,
@@ -204,7 +219,7 @@ export const SessionChainCapsule = function (props) {
       onClick: function (ev) { if (ev && ev.stopPropagation) ev.stopPropagation(); try { sessionChainOpenTicket(st, e) } catch (eOpen2) {} try { openPanel(st) } catch (ePanel2) {} },
       onKeyDown: function (ev) { if (ev && (ev.key === 'Enter' || ev.key === ' ')) { if (ev.preventDefault) ev.preventDefault(); try { sessionChainOpenTicket(st, e) } catch (eOpen3) {} try { openPanel(st) } catch (ePanel3) {} } },
       style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: eColor, cursor: 'pointer' },
-    }, [Ic({ n: 'pin', size: 12 }), h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text)]),
+    }, [Ic({ n: 'pin', size: 12 }), eIsMap ? Ic({ n: 'map', size: 12 }) : null, h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text)]),
     menu,
   ])
 }

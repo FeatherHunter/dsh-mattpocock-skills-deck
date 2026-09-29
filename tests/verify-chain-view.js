@@ -42,6 +42,33 @@ let failed = false
 const problems = []
 const fail = function (msg) { problems.push(msg); failed = true }
 
+// #780：界面这一侧要按身份去快照的地图清单里认地图（认出来了才压「地图」栈）。
+// 门禁用的是**真实现**，不是桩：身份小件取自共享常量层，查找函数从 store-derived.js 里原样截出来
+// （手法与 verify-multi-effort-panel.js 同一套），免得门禁自己另写一份判据、与真代码分叉。
+const constantsSrc = fs.readFileSync(path.join(ROOT, 'src/shared/tracker/constants.js'), 'utf8')
+const identitySrc = ['effortOf', 'idOfParts', 'idOf', 'refKeyOf'].map(function (n) {
+  const m = new RegExp('export function ' + n + '\\([\\s\\S]*?\\n\\}').exec(constantsSrc)
+  if (!m) throw new Error('constants.js 缺 ' + n)
+  return m[0].replace(/^export /, '')
+}).join('\n')
+const findMapByIdentitySrc = (function () {
+  const src = fs.readFileSync(path.join(ROOT, 'src/client/kernel/store-derived.js'), 'utf8')
+  const i = src.indexOf('const findMapByIdentity =')
+  if (i < 0) throw new Error('store-derived.js 缺 findMapByIdentity')
+  const brace = src.indexOf('{', i)
+  let depth = 0
+  let inStr = null
+  for (let k = brace; k < src.length; k++) {
+    const c = src[k]
+    if (inStr) { if (c === '\\') { k++; continue } if (c === inStr) inStr = null; continue }
+    if (c === '"' || c === "'" || c === '`') { inStr = c; continue }
+    if (c === '{') depth++
+    else if (c === '}') { depth--; if (depth === 0) return src.slice(i, k + 1) }
+  }
+  throw new Error('截取 findMapByIdentity 失败')
+})()
+const findMapByIdentityReal = new Function(identitySrc + '\n' + findMapByIdentitySrc + '\nreturn findMapByIdentity')()
+
 /** 把一份「一源两物」的源文件当模块跑起来：剥行首 export，作用域里塞进它在拼接闭包里的邻居。 */
 function loadModule(relPath, deps) {
   const src = fs.readFileSync(path.join(ROOT, relPath), 'utf8')
@@ -140,6 +167,7 @@ async function main() {
     Ic: function (props) { return { type: 'Ic', props: props || {}, children: [] } },
     Tip: TipStub,
     pushNav: function (st, kind, n, effortId) { pushed.push({ kind: kind, n: n, effortId: effortId }) },
+    findMapByIdentity: findMapByIdentityReal,
   })
   const READ_AT = new Date(2026, 0, 1, 12, 4, 0).getTime()
   const ROOT_KEY = 'D:\\proj\\deck'
@@ -165,8 +193,12 @@ async function main() {
         issues: [
           { number: 701, title: '甲票标题', effortId: '' },
           { number: 703, title: '丙票标题', effortId: '' },
-          { number: 801, title: '远处那张票', effortId: '' },
+          // #780：801 是一张地图（认身份只读 type 这一个字段，三个后端的归一都写它）
+          { number: 801, title: '远处那张票', effortId: '', type: 'map' },
         ],
+        // #780：认出来之后还要能在快照的地图清单里按身份找到它，才压「地图」栈
+        //   （找不到就压地图栈的话，面板会画成列表页而导航栈却说在地图页）
+        maps: [{ number: 801, key: '801', effortId: '', title: '远处那张票', state: 'OPEN', type: 'map', tickets: [] }],
       },
       tab: 'checks',
     }
@@ -200,6 +232,10 @@ async function main() {
   if (A[0].sessionIndex === B[0].sessionIndex) fail('两个会话分到了同一个序号：' + JSON.stringify([A[0].sessionIndex, B[0].sessionIndex]))
   // 版面次序就是宿主的次序：会话 B 那两条排在会话 A 那三条前面（链那边按时间倒序），序号 1、2 按版面从上到下发。
   if (A[0].sessionIndex !== 1 || B[0].sessionIndex !== 0) fail('会话序号不是按版面从上到下发：' + JSON.stringify({ A: A[0].sessionIndex, B: B[0].sessionIndex }))
+  // #780：行数据里带上「是不是地图」这一维 —— 胶囊那一段与悬停展开的列表都读它，
+  //   将来这一块在别处挂回来时也照用；判据只读归一过的 type 字段，不在界面这一侧再读一遍标签。
+  if (A.some(function (e) { return e.isMap !== false })) fail('普通票的行不该被标成地图：' + JSON.stringify(A.map(function (e) { return { k: e.ticketKey, isMap: e.isMap } })))
+  if (!B.some(function (e) { return e.ticketKey === '801' && e.isMap === true })) fail('地图那一行没有带上「是不是地图」这一维：' + JSON.stringify(B.map(function (e) { return { k: e.ticketKey, isMap: e.isMap } })))
 
   // 渲染：真组件吐出来的那棵树 —— 一行一条记录（重做后不再有「会话」小标题那一层）。
   //   2026-09-24 起这是**能力本体单独挂出来**量的（面板正文那一处已经不挂它了，见文件头与第五件）：
@@ -264,6 +300,25 @@ async function main() {
   const row703 = rowNodes.filter(function (r) { return textOf(r).indexOf('#703') >= 0 })[0] || null
   if (!row703) fail('没有画出 #703 那一行（点一行要能跳到那张票）')
   else { row703.props.onClick(); if (st.tab !== 'list') fail('点了那一行没有切回列表页'); if (!pushed.length || pushed[0].n !== 703 || pushed[0].kind !== 'issue') fail('点了 #703 那一行没有跳到链记下的那张票：' + JSON.stringify(pushed)) }
+  // #780：同一跳落在**地图**上时，落点必须是地图详情页
+  //   （此前一律压普通票，地图点进去看不到自己的票单、目的地、雾区与推进按钮）
+  pushed.length = 0
+  const row801 = rowNodes.filter(function (r) { return textOf(r).indexOf('#801') >= 0 })[0] || null
+  if (!row801) fail('没有画出 #801 那一行（它是地图，点它要进地图详情页）')
+  else { row801.props.onClick(); if (st.tab !== 'list') fail('点了地图那一行没有切回列表页'); if (!pushed.length || pushed[0].n !== 801 || pushed[0].kind !== 'map') fail('点了地图 #801 那一行没有跳到地图详情页：' + JSON.stringify(pushed)) }
+  // #780：认身份 + 快照里找得到，两条都成立才压地图栈，且带上链记下的工作单元标识
+  pushed.length = 0
+  leaf.sessionChainOpenTicket(st, { ticketKey: '801', effortId: '', isMap: true })
+  if (!pushed.length || pushed[0].kind !== 'map' || pushed[0].n !== 801 || pushed[0].effortId !== '') fail('认身份且找得到时没有压地图栈：' + JSON.stringify(pushed))
+  // #780 边界一：认身份说是地图，但快照的地图清单里找不到它 → 老实按普通票走。
+  //   只凭 type 就压「地图」栈的话，面板会画成列表页、而导航栈却说在地图页（点了地图却停在列表上）。
+  pushed.length = 0
+  leaf.sessionChainOpenTicket({ snapshot: { maps: [] }, tab: 'checks' }, { ticketKey: '801', effortId: '', isMap: true })
+  if (!pushed.length || pushed[0].kind !== 'issue' || pushed[0].n !== 801) fail('快照里找不到地图对象时没有回落普通票：' + JSON.stringify(pushed))
+  // #780 边界二：没有「是不是地图」这一维（旧调用方）→ 仍按普通票走，不猜
+  pushed.length = 0
+  leaf.sessionChainOpenTicket(st, { ticketKey: '801', effortId: '' })
+  if (!pushed.length || pushed[0].kind !== 'issue') fail('没有「是不是地图」这一维时没有回落普通票：' + JSON.stringify(pushed))
 
   // ---------- 二、「还没有记录」归空、「读坏了」才可见（2026-09-24 维护者改的口径）----------
   // 这一节的每一条都是拿**能力本体**量的（面板正文那一处现在不挂它了，见文件头与第五件）：

@@ -73,7 +73,8 @@ console.log('B) 版面纪律：可见字里没有散列与内部行话，文件�
   let m
   while ((m = strRe.exec(code)) !== null) { const s = m[1] !== undefined ? m[1] : m[2]; if (/[一-鿿]/.test(s)) cjk++ }
   check(cjk === 0, '零中文字符串（文案全走词条，实得 ' + cjk + ' 处）')
-  check(/data-fold-priority/.test(src) === false || (src.indexOf("'data-fold-priority': 12") >= 0 && src.match(/data-fold-priority/g).length === 1), '版面那个号挂在让位表 12 号（排在最后；单子里的行不进阶梯）')
+  // 数的是**代码**里的让位号（注释里提到这个属性名不算）：本文件里那个号必须恰好一处，且是第 12 号。
+  check(/data-fold-priority/.test(code) === false || (code.indexOf("'data-fold-priority': 12") >= 0 && code.match(/data-fold-priority/g).length === 1), '版面那个号挂在让位表 12 号（排在最后；单子里的行不进阶梯）')
   check(src.indexOf('maxWidth') >= 0 && src.indexOf('ellipsis') >= 0, '宽度用省略号收（窄宽度下不把胶囊撑爆）')
   // 可见文本由「在办 #号 标题 · 动作 · 时间」拼成：号与标题来自链与快照，动作走词条键，散列只进悬停
   check(src.indexOf("tr('chainView.capsuleDoing')") >= 0 && src.indexOf("'#' + e.ticketKey") >= 0, '版面只写当前那张的号（标题再长也不上版面，散列不上版面）')
@@ -215,6 +216,113 @@ console.log('D) 散列与链同一套（与 chain.ts 对拍，不另抄一份期
   const same = sids.every(function (id) { return leaf.capsuleShardOf(id) === chainMod.chainSessionShardId(id) })
   check(same, '抽 ' + sids.length + ' 个会话 id（含空格与中文），两边散列逐个相等')
   check(leaf.capsuleShardOf('') === '' && leaf.capsuleShardOf(null) === '' , '空 id 不成格（对不上就当没有）')
+}
+
+console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#780）')
+{
+  check(read(LEAF).indexOf("Ic({ n: 'map'") >= 0, '源码里地图那一条画的是地图图标（不是一律图钉）')
+  const shardOf = (function () { const l = loadLeaf(function () { return [] }); return l.capsuleShardOf('s1') })()
+  const rows = [
+    { shardId: shardOf, label: 'x', sessionFull: 'x', sessionIndex: 0, firstOfSession: true, backend: 'github', ticketKey: '40', ticketTitle: '某地图', effortId: '', isMap: true, action: 'edit', actionKey: 'chainView.action.edit', at: 200, time: '16:50' },
+    { shardId: shardOf, label: 'x', sessionFull: 'x', sessionIndex: 0, firstOfSession: false, backend: 'github', ticketKey: '780', ticketTitle: '普通票', effortId: '', isMap: false, action: 'comment', actionKey: 'chainView.action.comment', at: 100, time: '16:40' },
+  ]
+  const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
+  const icons = []
+  const built = (function () {
+    const srcR = read(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
+    const factory = new Function('React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit',
+      srcR + '\nreturn { SessionChainCapsule }')
+    const React = {
+      createElement: h,
+      useContext: function () { return { h: h } },
+      useRef: function (v) { return { current: v } },
+      useState: function () { return [null, function () {}] },
+    }
+    const Ic = function (props) { icons.push(props && props.n); return { t: 'Ic', p: props || {}, c: [] } }
+    const tr = function (k) { return String(k) }
+    return factory(React, { h: h }, function () { return null }, Ic, tr, function () { return rows }, 'sessionTickets', function () {}, function () {}, function (o, kids) { return { overlay: true, props: o, children: kids } }, function () { return { left: 1, bottom: 2 } }, function () {}, function (r, fn) { fn() }, function () {})
+  })()
+  const st = { snapshot: { sessionTickets: { ok: true } } }
+  const shut = built.SessionChainCapsule({ st: st, sid: 's1' })
+  const flat = []
+  ;(function walk(n) {
+    if (n === null || n === undefined) return
+    if (typeof n === 'string') { flat.push(n); return }
+    if (Array.isArray(n)) { n.forEach(walk); return }
+    if (typeof n === 'object') { (n.c || []).forEach(walk) }
+  })(shut)
+  // 最新那一条是地图：版面上是裸号，`#` 换成了地图图标
+  check(flat.indexOf('40') >= 0 && flat.indexOf('#40') < 0, '地图那一条版面上是裸号 40（`#` 已换成地图图标，实得 ' + JSON.stringify(flat) + '）')
+  check(icons.indexOf('map') >= 0 && icons.indexOf('pin') >= 0, '地图那一条同时有图钉与地图图标（实得 ' + JSON.stringify(icons) + '）')
+  // 硬约束：那个号自己不许带元素子节点 —— 收字机器是往它里面写 textContent 的，塞进去的图标会被抹掉
+  const findFold = function (n) {
+    if (!n || typeof n !== 'object') return null
+    if (Array.isArray(n)) { for (let i = 0; i < n.length; i++) { const r = findFold(n[i]); if (r) return r } return null }
+    if (n.p && String(n.p['data-fold-priority'] || '') === '12') return n
+    const kids = n.c || []
+    for (let i = 0; i < kids.length; i++) { const r = findFold(kids[i]); if (r) return r }
+    return null
+  }
+  const foldSpan = findFold(shut)
+  check(!!foldSpan, '版面上找得到那个挂让位号的号（第 12 号）')
+  check(!!foldSpan && (foldSpan.c || []).every(function (x) { return typeof x === 'string' }), '那个号里没有元素子节点（图标是它的兄弟节点，收字机器抹不掉它）')
+  // 悬停单子：地图那行的号徽章是「地图图标 + 裸号」，普通票那行仍是 #780
+  st.chainMenuOpen = true
+  st.chainMenuPos = { left: 1, bottom: 2 }
+  const open = built.SessionChainCapsule({ st: st, sid: 's1' })
+  const rowNodes = []
+  ;(function walkRows(n) {
+    if (n === null || n === undefined) return
+    if (Array.isArray(n)) { n.forEach(walkRows); return }
+    if (typeof n === 'object' && n.overlay) { (n.children || []).forEach(walkRows); return }
+    if (typeof n === 'object') {
+      if (n.p && typeof n.p.className === 'string' && n.p.className.indexOf('dsws-chainmenu-row') >= 0) { rowNodes.push(n); return }
+      ;(n.c || []).forEach(walkRows)
+    }
+  })(open)
+  check(rowNodes.length === 2, '单子里两行都在（实得 ' + rowNodes.length + '）')
+  const rowOf = function (key) { return rowNodes.filter(function (r) { return String(r.p['aria-label'] || '').indexOf('#' + key) >= 0 })[0] || null }
+  const mapRow = rowOf('40')
+  const plainRow = rowOf('780')
+  check(!!mapRow && !!plainRow, '单子里认得出哪一行是地图、哪一行是普通票')
+  const pillOf = function (row) {
+    let hit = null
+    ;(function find(n) {
+      if (hit || n === null || n === undefined) return
+      if (Array.isArray(n)) { n.forEach(find); return }
+      if (typeof n !== 'object') return
+      if (n.p && n.p.style && n.p.style.borderRadius === 99) { hit = n; return }
+      ;(n.c || []).forEach(find)
+    })(row)
+    return hit
+  }
+  const textsIn = function (n) {
+    const out = []
+    ;(function inner(m) {
+      if (typeof m === 'string') { out.push(m); return }
+      if (Array.isArray(m)) { m.forEach(inner); return }
+      if (m && typeof m === 'object') (m.c || []).forEach(inner)
+    })(n && n.c)
+    return out
+  }
+  const hasIcon = function (n, name) {
+    let hit = false
+    ;(function find(m) {
+      if (hit || m === null || m === undefined) return
+      if (Array.isArray(m)) { m.forEach(find); return }
+      if (typeof m !== 'object') return
+      if (m.p && m.p.n === name) { hit = true; return }
+      ;(m.c || []).forEach(find)
+    })(n)
+    return hit
+  }
+  const mapPill = mapRow ? pillOf(mapRow) : null
+  const plainPill = plainRow ? pillOf(plainRow) : null
+  check(!!mapPill && hasIcon(mapPill, 'map') && textsIn(mapPill).indexOf('40') >= 0, '单子里地图那行的号徽章是「地图图标 + 裸号」（实得 ' + JSON.stringify(textsIn(mapPill)) + '）')
+  check(!!plainPill && textsIn(plainPill).indexOf('#780') >= 0, '单子里普通票那行的号徽章仍是 #780（实得 ' + JSON.stringify(textsIn(plainPill)) + '）')
+  // 文字通道：版面上换了图标，悬停与无障碍朗读里仍要留着号，并且说得出这是地图
+  check(!!mapRow && String(mapRow.p['aria-label']).indexOf('#40') >= 0 && String(mapRow.p['aria-label']).indexOf('type.map') >= 0, '地图那行的无障碍名里仍是 #40 且带上类型词（实得 ' + JSON.stringify(mapRow && mapRow.p['aria-label']) + '）')
+  check(!!plainRow && String(plainRow.p['aria-label']).indexOf('type.map') < 0, '普通票那行不冒充地图')
 }
 
 console.log(failed ? '\n存在失败' : '\n全部通过')

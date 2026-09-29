@@ -148,11 +148,17 @@ export const sessionChainViewOf = function (st) {
 }
 
 /**
- * 号码 → 这份列表快照里那张票的标题与 effort（标题只从已经拿到的数据里查，查不到就是空）。
+ * 号码 → 这份列表快照里那张票的标题、工作单元与状态（标题只从已经拿到的数据里查，查不到就是空）。
  *
  * 这一份里那个字段叫 ticketTitle 而不是 title：界面代码里「title」这个名字已经被浏览器原生的
  * 悬停提示占住了，tests/verify-no-title.js 按文本扫它（5 处必卡，正打算把原生提示全换成 Tip）。
  * 数据字段跟着叫 ticketTitle，扫的人一眼就能分清「这是票的标题这份数据」与「这是被禁的原生提示」。
+ *
+ * #780：顺手把「这是不是地图」也收进来（isMap）。判据只读归一过的 type 字段：三个后端在归一那一层
+ *   都把 wayfinder:map 标签收成了 type='map'（GitHub 与 GitLab 按标签、本地 Markdown 按 map.md），
+ *   所以界面这一侧不必再读一遍标签 —— 客户端已经有六处在自己读标签了，这里是第七处的话就是又抄一份。
+ *   这一维进的是**行数据**（不是画的时候现判一次）：胶囊那一段与悬停展开的列表都读它，
+ *   将来这一块在别处挂回来时也照用。
  */
 const sessionChainTitlesOf = function (st) {
   const map = {}
@@ -167,6 +173,7 @@ const sessionChainTitlesOf = function (st) {
       ticketTitle: (x.title === null || x.title === undefined) ? '' : String(x.title),
       effortId: (x.effortId === null || x.effortId === undefined) ? '' : String(x.effortId),
       ticketState: rawState === 'CLOSED' ? 'CLOSED' : (rawState === 'OPEN' ? 'OPEN' : ''),
+      isMap: x.type === 'map',
     }
   }
   const issues = Array.isArray(snap.issues) ? snap.issues : []
@@ -214,6 +221,8 @@ export const sessionChainRowsOf = function (st) {
         ticketTitle: known ? known.ticketTitle : '',
         effortId: known ? known.effortId : '',
         ticketState: known ? known.ticketState : '',
+        // #780：这一维给胶囊那一段与悬停展开的列表用（画地图图标、决定点它跳哪）；查不到就是「不是地图」。
+        isMap: !!(known && known.isMap === true),
         action: e.action,
         actionKey: sessionChainActionKeyOf(e.action),
         at: e.at,
@@ -224,13 +233,30 @@ export const sessionChainRowsOf = function (st) {
   return out
 }
 
-/** 点一行跳到那张票：切回列表页再进它的详情（跳转用的是链记下的票号，不是界面猜的）。 */
+/**
+ * 点一行跳到那张票：切回列表页再进它的详情（跳转用的是链记下的票号，不是界面猜的）。
+ *
+ * #780：**地图要进地图详情页**（此前这里无条件压普通票，地图点进去看不到自己的票单、
+ *   目的地、雾区与推进按钮，与列表、票详情页那两个入口的行为也不一致）。判据是两步，缺一不可：
+ *     ① 认身份：行数据里的 isMap（来自归一过的 type 字段）；
+ *     ② 能不能跳：能不能在快照的地图清单里按身份找到那张地图（共用函数 findMapByIdentity，
+ *        身份规则「工作单元标识 + 补齐两位的票号」全仓只此一份，这里不另写一套）。
+ *   为什么第②步不能省（这是真正的原因，不是「跟别的入口保持一致」而已）：面板画不画地图详情页，
+ *   取决于它能不能在快照的地图清单里找到那个地图对象；找不到时它**不报错，而是回头去画列表页**，
+ *   可导航栈里压着的却是一条「地图详情」—— 用户点了地图却停在列表上，返回的层级也跟着错位。
+ *   所以两条都成立才压地图栈，认不出、或快照里找不到，都老实按普通票处理，不猜、不空跳。
+ */
 export const sessionChainOpenTicket = function (st, entry) {
   if (!st || !entry) return
   const n = Number(entry.ticketKey)
   if (!isFinite(n) || n <= 0) return
   try { st.tab = 'list' } catch (e) { /* 状态写不进去也不影响这一跳 */ }
-  if (typeof pushNav === 'function') pushNav(st, 'issue', n, entry.effortId ? entry.effortId : '')
+  const eid = entry.effortId ? entry.effortId : ''
+  let map = null
+  if (entry.isMap === true && typeof findMapByIdentity === 'function') {
+    try { map = findMapByIdentity(st.snapshot && st.snapshot.maps, n, eid) } catch (eFind) { map = null }
+  }
+  if (typeof pushNav === 'function') pushNav(st, map ? 'map' : 'issue', n, eid)
 }
 
 /**
