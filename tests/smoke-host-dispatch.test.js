@@ -126,6 +126,22 @@ if (route && typeof route.fetch === 'function') {
     const regNum = await callHandler('namingRegister', { sessionId: 'smoke-s3', baselineTitle: '[#779] 示例标题', cwd: '' })
     check(!!regNum && regNum.ok === true, 'namingRegister 接受编号档会话注册')
     await callHandler('namingResult', { sessionId: 'smoke-s3', outcome: 'renamed', title: '[#779] 示例标题' })
+    // 对抗式审查补的两条：零号编号档拒收（收了只会留半登记态，改名时把 [#0] 名冲掉）；重复登记换号要换台账（否则目标名还是旧 issue 名）
+    const regZero = await callHandler('namingRegister', { sessionId: 'smoke-s4', baselineTitle: '[#0] 零号', cwd: '' })
+    check(!!regZero && regZero.ok === false, 'namingRegister 拒绝零号编号档（防半登记态）')
+    const regAgain = await callHandler('namingRegister', { sessionId: 'smoke-s3', baselineTitle: '[#780] 换了一张票', cwd: '' })
+    check(!!regAgain && regAgain.ok === true, 'namingRegister 同一会话重复登记不报错')
+    const planAgain = await callHandler('namingPlan', {})
+    const oAgain = (planAgain.orders || []).filter(function (o) { return o.sessionId === 'smoke-s3' })[0]
+    check(!!oAgain && oAgain.kind === 'numbered' && oAgain.number === 780, '重复登记把编号档换成新编号（防台账陈旧锁死）')
+    await callHandler('namingResult', { sessionId: 'smoke-s3', outcome: 'renamed', title: '[#780] 换了一张票' })
+    // 同一编号、标题变了（issue 标题被改过）：台账同样要跟着换，否则目标名与现名不符 → 被判手改锁死
+    const regRetitle = await callHandler('namingRegister', { sessionId: 'smoke-s3', baselineTitle: '[#780] 标题改过了', cwd: '' })
+    check(!!regRetitle && regRetitle.ok === true, 'namingRegister 同号换标题重复登记不报错')
+    const planRetitle = await callHandler('namingPlan', {})
+    const oRetitle = (planRetitle.orders || []).filter(function (o) { return o.sessionId === 'smoke-s3' })[0]
+    check(!!oRetitle && oRetitle.number === 780 && oRetitle.title === '标题改过了', '同号换标题后台账已换成新标题（目标名不再是旧名）')
+    await callHandler('namingResult', { sessionId: 'smoke-s3', outcome: 'renamed', title: '[#780] 标题改过了' })
 
     const planHint = await callHandler('namingPlan', {})
     check(!!planHint && planHint.ok === true && Array.isArray(planHint.orders) && planHint.orders.length === 1 && planHint.orders[0].kind === 'draft' && planHint.orders[0].hint === '草稿档线索样例', 'namingPlan 为带线索占位会话产出 draft 订单')

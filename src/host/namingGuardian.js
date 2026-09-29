@@ -168,23 +168,28 @@ export function createNamingGuardian(deps) {
 
   /** 受踪登记唯一实现：#265 兼容名与 #266 复原名共用同一本体。基准收两种：占位（[New] …）与编号档（[#n] …）。 */
   async function namingEnsureTracked(args) {
-    const sid = args && args.sessionId
-    const baseline = args && args.baselineTitle
+    const sid = args && args.sessionId, baseline = args && args.baselineTitle
     if (!sid || !baseline) return { ok: false, error: { kind: 'parse', message: '缺少 sessionId/baselineTitle' } }
     const core = await getNamingCore()
     if (!core) return { ok: false, error: { kind: 'parse', message: '命名核心未就绪' } }
     const numbered = core.parseNumberedTitle ? core.parseNumberedTitle(baseline) : null
     if (!core.isPlaceholderTitle(baseline) && !numbered) return { ok: false, error: { kind: 'parse', message: 'baselineTitle 非占位四式或编号档' } }
+    // 编号档的编号必须能当真：零号/负数进不了值比对与合成，收了只会留下半登记态（占位档基线是 [#0] 名，改名时会把 [#0] 名冲掉）。
+    if (numbered && !(isFinite(numbered.number) && numbered.number > 0)) return { ok: false, error: { kind: 'parse', message: '编号档编号非法' } }
     const cwd = (args && args.cwd) || DEFAULT_CWD
     let repoKey = namingRepoKeyOf(args)
     if (!repoKey) repoKey = await namingResolveRepoKey(cwd)
-    const st = await loadNamingState()
-    if (!st.sessions[sid]) {
+    const st = await loadNamingState(), entry = st.sessions[sid]
+    if (!entry) {
       st.sessions[sid] = core.createTrackingState({ sessionId: sid, baselineTitle: baseline, repoKey: repoKey, cwd: cwd })
       // 编号档（「在新会话打开」那条路）：编号与标题当场已知，收进来守 [#n] 名不被底座首句名盖掉；刻意不写 lastMachineTitle（值比对锁以基线为准，锁执行点才认得出「首句派生可盖」）。
       if (numbered) st.sessions[sid] = core.reduceTrackingState(st.sessions[sid], { type: 'numbered', number: numbered.number, title: numbered.title })
-    } else if (st.sessions[sid].repoKey == null && repoKey) {
-      st.sessions[sid].repoKey = repoKey
+    } else if (numbered && !entry.locked && (Number(entry.number) !== numbered.number || String(entry.baselineTitle) !== String(baseline))) {
+      // 同一会话被再次拿去开票（复用门只挑空白会话，所以这是真会发生的路：换一张票、或同一张票的标题改过了）：台账必须跟着换成新的 [#n] 名，否则目标名还是旧名，执行点会把它判成手改并永久锁定。reducer 有防串名守卫（换号即拒），故直接改写。
+      entry.stage = core.NAMING_STAGES.NUMBERED; entry.number = numbered.number; entry.numberTitle = numbered.title
+      entry.baselineTitle = baseline; entry.lastMachineTitle = null; entry.numberedDone = false; entry.hint = null; entry.lastDraftHint = null
+    } else if (entry.repoKey == null && repoKey) {
+      entry.repoKey = repoKey
     }
     if (args && args.hint) st.sessions[sid] = core.reduceTrackingState(st.sessions[sid], { type: 'signal', hint: String(args.hint).slice(0, 80) })
     await persistNamingState()   // 即时落盘（#265）：注册只发生一次，宽限期内被杀会永久失察
@@ -195,11 +200,9 @@ export function createNamingGuardian(deps) {
   // 注册双名同一本体（#265 兼容名 / #211 复原名，client 已切规范入口）。
 
   async function handleNamingSignal(args) {
-    const sid = args && args.sessionId
-    const hint = args && args.hint
+    const sid = args && args.sessionId, hint = args && args.hint
     if (!sid || !hint) return { ok: true }
-    const st = await loadNamingState()
-    const entry = st.sessions[sid]
+    const st = await loadNamingState(), entry = st.sessions[sid]
     if (!entry) return { ok: true }   // 非受踪会话：信号无属主，忽略
     const core = await getNamingCore()
     if (!core) return { ok: true }
@@ -255,17 +258,15 @@ export function createNamingGuardian(deps) {
         for (let i = 0; i < kept.length; i++) orders.push(kept[i])
       }
     } catch (eFilter) {}
-    for (let i = 0; i < orders.length; i++) { const oo = orders[i]; if (oo && oo.lock && oo.lock.lastMachineTitle == null && typeof getFirstText === 'function') { try { oo.lock.firstUserText = await getFirstText(oo.sessionId) } catch (eFt) {} } } // #746 首句随单下发供免锁比对（读而不激活；失败即 null，客户端降级走旧判据）
+    for (let i = 0; i < orders.length; i++) { const oo = orders[i]; if (oo && oo.lock && typeof getFirstText === 'function') { try { oo.lock.firstUserText = await getFirstText(oo.sessionId) } catch (eFt) {} } } // 首句随单下发供免锁比对（读而不激活；失败即 null，调用方降级走旧判据）。每一单都下发：机器写过之后再被底座首句名盖掉的那种也要用（只看 lastMachineTitle 为空会把那种判成手改并永久锁定）。
     try { if (typeof executeOrders === 'function') await executeOrders(orders) } catch (eEx) {} // #746 宿主直执行（拿号改名同一刻；面缺失即回落，客户端老路照旧）
     return { ok: true, orders: orders, tracked: tracked, failures: failures }
   }
 
   async function handleNamingResult(args) {
-    const sid = args && args.sessionId
-    const outcome = args && args.outcome
+    const sid = args && args.sessionId, outcome = args && args.outcome
     if (!sid || !outcome) return { ok: false, error: { kind: 'parse', message: '缺少 sessionId/outcome' } }
-    const st = await loadNamingState()
-    const entry = st.sessions[sid]
+    const st = await loadNamingState(), entry = st.sessions[sid]
     if (!entry) return { ok: true }
     const core = await getNamingCore()
     if (!core) return { ok: true }
@@ -297,8 +298,7 @@ export function createNamingGuardian(deps) {
   async function applySummaryResult(args) {
     const sid = args && args.sessionId
     if (!sid) return { ok: false }
-    const st = await loadNamingState()
-    const entry = st.sessions[sid]
+    const st = await loadNamingState(), entry = st.sessions[sid]
     if (!entry || entry.locked) return { ok: true }
     const core = await getNamingCore()
     if (!core) return { ok: true }
@@ -311,8 +311,7 @@ export function createNamingGuardian(deps) {
   async function handleDirectCreated(args) {
     const sid = args && args.sessionId, num = Number(args && args.key)
     if (!sid || !isFinite(num) || num <= 0) return { ok: false }
-    const st = await loadNamingState()
-    const entry = st.sessions[sid]
+    const st = await loadNamingState(), entry = st.sessions[sid]
     const core = await getNamingCore()
     if (!entry || !core || !core.isNumberAwaitStage(entry)) return { ok: true, attributed: false }
     st.sessions[sid] = core.reduceTrackingState(entry, { type: 'numbered', number: num, title: args.title })
@@ -334,8 +333,7 @@ export function createNamingGuardian(deps) {
     const sid = args && args.sessionId
     if (!sid) return { ok: false, error: { kind: 'parse', message: '缺少 sessionId' } }
     const core = await getNamingCore()
-    const st = await loadNamingState()
-    const entry = st.sessions[sid]
+    const st = await loadNamingState(), entry = st.sessions[sid]
     const watching = !!(core && entry && core.isNumberAwaitStage(entry))
     if (watching) namingSweepSoon(120)
     return { ok: true, watching: watching, stage: (entry && entry.stage) || null }
