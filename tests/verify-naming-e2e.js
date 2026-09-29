@@ -198,5 +198,18 @@ function makeWorldWith(listTitle, getTitle) {
   check(w.renamed.length === 0 && !w.reports.some(function (r) { return r.outcome === 'locked' }), '读数：两口皆无则跳过（不盲写不误锁）', JSON.stringify({ renamed: w.renamed, reports: w.reports }))
 }
 
+// 7) 占位必须升草稿：现名是我们写的占位、但还不是草稿目标时，必须真改名而不是收敛
+// （#746 交接卡死：收敛只认现名逐字等于目标，有我们经手过不等于已在位）
+{
+  const w = makeWorld('[New] 诊断')
+  await w.summary.executeOrdersHost([{
+    sessionId: 's1', kind: 'draft', hint: '诊断',
+    lock: { lastMachineTitle: null, baselineTitle: '[New] 诊断', baselineIsOurs: true, locked: false },
+  }])
+  check(w.titles.s1 === '[草稿][诊断]', '占位升草稿：现名是占位基线也必须写过去', 'got ' + w.titles.s1)
+  check(w.renamed.length === 1, '占位升草稿：发生了一次真改名（不是空收敛）', JSON.stringify(w.renamed))
+  check(w.reports.length === 1 && w.reports[0].outcome === 'renamed' && w.reports[0].title === '[草稿][诊断]', '占位升草稿：按草稿名落定回报', JSON.stringify(w.reports))
+}
+
 if (failed) { console.log('\n命名端到端缝存在失败'); process.exit(1) }
 console.log('\n全部通过（' + total + ' 项）')

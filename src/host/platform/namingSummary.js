@@ -333,7 +333,8 @@ export function createNamingSummary(deps) {
           const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: first, targetTitle: target })
           if (code === DIVERGENCE.UNKNOWN_TITLE) { skipUnknown++; continue }
           if (code === DIVERGENCE.HAND_EDIT) { try { await h.handleNamingResult({ sessionId: sid, outcome: 'locked', reason: code }) } catch (eLk) {}; continue }
-          if (code === DIVERGENCE.IN_PLACE || target === cur) { try { await h.handleNamingResult({ sessionId: sid, outcome: 'renamed', title: cur }) } catch (eIn) {}; continue }   // 已在位：收敛记账，不空改一次
+          // 收敛只认现名逐字等于目标（同客户端执行点；#746 交接卡死：有我们经手过不等于已在位）。
+          if (target === cur) { try { await h.handleNamingResult({ sessionId: sid, outcome: 'renamed', title: cur }) } catch (eIn) {}; continue }   // 已在位：收敛记账，不空改一次
           // 写前二次确认标题未变（title changed before rename 则跳过，TOCTOU 关口；与客户端同源判据）。
           let cur2 = null
           try { cur2 = readTitleHost(sid) } catch (eG2) {}

@@ -209,7 +209,9 @@ export let pendingDraftTargetSid = null
       const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: lock.firstUserText, targetTitle: target })
       if (lock.locked || code === DIVERGENCE.HAND_EDIT) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur, reason: code }); return }
       if (code === DIVERGENCE.UNKNOWN_TITLE) { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-unknown-' + dswsLogHash(sid) }) } } catch (eDbg) {}; return }
-      if (code === DIVERGENCE.IN_PLACE || !target || target === cur) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'renamed', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'renamed', { title: cur || target }); return }  // 已在位（含上次改名刚落定）→ 收敛记账
+      // 收敛只认「现名逐字等于目标」：现名是我们写的但还不是目标时必须继续写，不能收敛——
+      // 否则占位永远升不上草稿（#746 交接卡死：在位是指到达目标，不是有我们经手过）。
+      if (!target || target === cur) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'renamed', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'renamed', { title: cur || target }); return }  // 已在位（含上次改名刚落定）→ 收敛记账
       try {
         const sessions = ctx.get('sessions')
         if (!sessions || typeof sessions.scope !== 'function' || typeof sessions.sessionOf !== 'function') return
