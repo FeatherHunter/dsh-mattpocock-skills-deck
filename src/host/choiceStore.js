@@ -123,6 +123,8 @@ export function createChoiceStore(deps) {
   const maxFileBytes = Number.isInteger(input.maxFileBytes) && input.maxFileBytes > 0 ? input.maxFileBytes : DEFAULT_MAX_FILE_BYTES
   const homeDirFixed = input.homeDir ? String(input.homeDir) : null
   const getHome = typeof input.getHome === 'function' ? input.getHome : null
+  // #683 补线：日志出口（R11 那五条轨迹就靠它）。没给就一条都不记，不许抛错。
+  const logCtx = input.logCtx || null
 
   // 工作区键的散列只在这里算：调用方给的是宿主规整后的那把键。
   function storeKeyOf(canonicalKey) {
