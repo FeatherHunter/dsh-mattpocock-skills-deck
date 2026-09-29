@@ -105,6 +105,7 @@
           else if (/^\s*\/prototype\b/.test(t)) act = 'prototype'
           else if (/^\s*\/handoff\b/.test(t)) act = 'handoff'
           else if (t.indexOf('思维对齐') >= 0 || t.indexOf('成果沉淀') >= 0) act = 'supplement'
+          else if (/^\s*##\s*体检/.test(t) || t.indexOf('把游离的开放票归位') >= 0) act = 'health'
           if (act) { try { title = newSessionTitleNew(act) } catch (eA) {} }
         }
       } catch (eInfer) {}
@@ -299,9 +300,8 @@
             } catch(eVer){}
           }
           // 彻底移除：issuePath 新会话锚点已移除（#345）
-          // 自动命名（失败不阻塞打开）— 占位标题在创建前已确定，跟随 harness 语言；
-          // 改名落定后把会话交给命名守护（#265）：以宿主实际接受的归一化占位标题为基准注册跟踪态，
-          // 附面包屑语义线索；此后常驻渲染钩子按计划单执行草稿档升级，值比对锁守护手改。
+          // 自动命名（失败不阻塞打开）：占位标题在创建前已确定，跟随 harness 语言；改名落定后把会话交给命名守护
+          // （#265）——以宿主实际接受的那个标题为基准注册，附语义线索；此后按计划单升级，值比对锁守护手改。
           const __placeholderTitle = title
           try {
             const scopeCtx = sessions.scope(sid)

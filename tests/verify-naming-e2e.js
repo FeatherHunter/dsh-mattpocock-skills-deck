@@ -101,6 +101,16 @@ console.log('\n— 命名守护端到端缝（宿主直执行那一段）—')
   check(w.titles.s1 === '[草稿][新增需求]', '裸档被盖：照样盖回裸档名（守卫已删）', 'got ' + w.titles.s1)
 }
 
+// 4.5) 本地 Markdown 后端的地图（编号 00）：目标名保持 [#00] 形状，不许被改写成 [0]
+{
+  const w = makeWorld(CLOBBERED)
+  await w.summary.executeOrdersHost([{
+    sessionId: 's1', kind: 'numbered', number: 0, numberText: '00', title: '本地地图',
+    lock: { lastMachineTitle: null, baselineTitle: '[#00] 本地地图', baselineIsOurs: true, locked: false, firstUserText: FIRST_TEXT },
+  }])
+  check(w.titles.s1 === '[#00] 本地地图', '本地地图编号 00：目标名原样（不被改写成 [0]）', 'got ' + w.titles.s1)
+}
+
 // 5) 归因函数本身：五类各归各位（含短首句不再算「首句派生」）
 {
   check(classifyDivergence({ currentTitle: '新会话', lastMachineTitle: null, baselineIsOurs: false, firstUserText: null }) === DIVERGENCE.NEVER_WROTE, '归因：我们自己没写成 → never-wrote')

@@ -168,8 +168,8 @@ export function createNamingGuardian(deps) {
     if (!core) return { ok: false, error: { kind: 'parse', message: '命名核心未就绪' } }
     const numbered = core.parseNumberedTitle ? core.parseNumberedTitle(baseline) : null
     if (!core.isPlaceholderTitle(baseline) && !numbered) return { ok: false, error: { kind: 'parse', message: 'baselineTitle 非占位四式或编号档' } }
-    // 编号档的编号必须能当真：零号/负数进不了值比对与合成，收了只会留下半登记态（占位档基线是 [#0] 名，改名时会把 [#0] 名冲掉）。
-    if (numbered && !(isFinite(numbered.number) && numbered.number > 0)) return { ok: false, error: { kind: 'parse', message: '编号档编号非法' } }
+    // 编号档的编号要能当真：负数与非数字拒收（本地 Markdown 后端的地图编号是 00，即 0，合法）。
+    if (numbered && !(isFinite(numbered.number) && numbered.number >= 0)) return { ok: false, error: { kind: 'parse', message: '编号档编号非法' } }
     const wroteOurs = !(args && args.wroteTitle === false)   // 客户端报告这次改名到底成功没有；缺省按成功（老调用方与旧账行为不变）
     const cwd = (args && args.cwd) || DEFAULT_CWD
     let repoKey = namingRepoKeyOf(args)
@@ -178,10 +178,10 @@ export function createNamingGuardian(deps) {
     if (!entry) {
       st.sessions[sid] = core.createTrackingState({ sessionId: sid, baselineTitle: baseline, repoKey: repoKey, cwd: cwd, baselineIsOurs: wroteOurs })
       // 编号档（「在新会话打开」那条路）：编号与标题当场已知，收进来守 [#n] 名不被底座首句名盖掉；刻意不写 lastMachineTitle（值比对锁以基线为准，锁执行点才认得出「首句派生可盖」）。
-      if (numbered) st.sessions[sid] = core.reduceTrackingState(st.sessions[sid], { type: 'numbered', number: numbered.number, title: numbered.title })
+      if (numbered) st.sessions[sid] = core.reduceTrackingState(st.sessions[sid], { type: 'numbered', number: numbered.number, numberText: numbered.numberText, title: numbered.title })
     } else if (numbered && !entry.locked && (Number(entry.number) !== numbered.number || String(entry.baselineTitle) !== String(baseline))) {
       // 同一会话被再次拿去开票（复用门只挑空白会话，所以这是真会发生的路：换一张票、或同一张票的标题改过了）：台账必须跟着换成新的 [#n] 名，否则目标名还是旧名，执行点会把它判成手改并永久锁定。reducer 有防串名守卫（换号即拒），故直接改写。
-      entry.stage = core.NAMING_STAGES.NUMBERED; entry.number = numbered.number; entry.numberTitle = numbered.title
+      entry.stage = core.NAMING_STAGES.NUMBERED; entry.number = numbered.number; entry.numberText = numbered.numberText; entry.numberTitle = numbered.title
       entry.baselineTitle = baseline; entry.baselineIsOurs = wroteOurs; entry.lastMachineTitle = null; entry.numberedDone = false; entry.hint = null; entry.lastDraftHint = null
     } else if (entry.repoKey == null && repoKey) {
       entry.repoKey = repoKey

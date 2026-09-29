@@ -24,10 +24,10 @@
 export const NAMING_CORE_VERSION = 1
 
 // ============ 占位（P0）============
-// 占位（#211 定版 · 跟随 harness 语言 + 七动作分形）：
+// 占位（#211 定版 · 跟随 harness 语言 + 动作分形）：
 //   原四式：[New] 新建需求 / [New] 新建 Bug / New Requirement / New Bug（历史兼容保留）；
-//   七动作：诊断 / 修复 / 讨论 / 研究 / 原型 / 接手 / 补充（中英各一，见 ACTION_WORDS）。
-//   交接历史词（交接 / Handoff）仍视为占位， drafts 时原样保留该词，不强制改成接手。
+//   八个动作：诊断/修复/讨论/研究/原型/接手/补充/体检 —— 界面上每个建会话的入口各占一个（见 ACTION_WORDS）；
+//   交接历史词（交接 / Handoff）仍视为占位，草稿时原样保留该词，不强制改成接手。
 export const SESSION_TITLE_PREFIX = '[New]'
 
 export const PLACEHOLDER_TITLES = {
@@ -35,7 +35,8 @@ export const PLACEHOLDER_TITLES = {
   en: { requirement: 'New Requirement', bug: 'New Bug' },
 }
 
-// 七动作中英文（用户定稿：占位加动作字，草稿落为对应动作档，不碰编号档）
+// 动作中英文（用户定稿：占位加动作字，草稿落为对应动作档，不碰编号档）。八条各对应界面一个真实入口：
+// 诊断/修复/讨论/研究/原型（行级动作与详情页顶栏）、接手（交接第二击）、补充（沉淀）、体检（体检按钮）。
 export const ACTION_WORDS = {
   diagnose: { zh: '诊断', en: 'Diagnose' },
   fix: { zh: '修复', en: 'Fix' },
@@ -44,6 +45,7 @@ export const ACTION_WORDS = {
   prototype: { zh: '原型', en: 'Prototype' },
   handoff: { zh: '接手', en: 'Handoff' },
   supplement: { zh: '补充', en: 'Supplement' },
+  health: { zh: '体检', en: 'Health check' },
 }
 
 // 历史兼容：交接旧词仍算占位（新起统一用接手，旧会话的交接不判死）
@@ -70,7 +72,7 @@ export function isPlaceholderTitle(s) {
   return false
 }
 
-/** 生成占位标题（纯语言参数；lang 缺省 zh，'en' 开头即英文）。type 支持：bug/requirement + 七动作键。 */
+/** 生成占位标题（纯语言参数；lang 缺省 zh，'en' 开头即英文）。type 支持：bug/requirement + 动作键。 */
 export function placeholderTitleFor({ type, lang }) {
   const t = String(type || '').toLowerCase()
   const en = typeof lang === 'string' && lang.indexOf('en') === 0
@@ -112,7 +114,8 @@ export const SESSION_TITLE_RE_ALLOW_BARE = /^\[#\d+\](?: .+)?$/
 export function parseNumberedTitle(s) {
   const m = /^\s*\[#(\d+)\](?:\s+([\s\S]*))?$/.exec(String(s == null ? '' : s))
   if (!m) return null
-  return { number: Number(m[1]), title: cleanTitleText(m[2] || '') }
+  // numberText 保留原样（本地 Markdown 后端的地图编号是 '00'，只留数值会被改写成 [0]，名字就变形了）
+  return { number: Number(m[1]), numberText: m[1], title: cleanTitleText(m[2] || '') }
 }
 
 /** 清洗：剥控制/方向/隐形字符，空白归一为单空格并 trim，emoji 保留（沿用 #205 既有规则）。 */
@@ -149,7 +152,8 @@ export function truncateTitleUtf8(prefix, title, maxBytes) {
 
 /** 编号档（P2）标题合成：[#n] + 清洗/截断后标题（#205 契约）。 */
 export function newSessionTitle(t) {
-  const n = String(t && t.number != null ? t.number : '').trim()
+  const raw = (t && t.numberText != null && String(t.numberText).trim()) ? String(t.numberText).trim() : (t && t.number != null ? t.number : '')
+  const n = String(raw).trim()
   if (!/^\d+$/.test(n)) throw new Error('newSessionTitle: invalid number ' + n)
   const prefix = '[' + '#' + n + ']'
   let title = cleanTitleText(t && t.title != null ? t.title : '')

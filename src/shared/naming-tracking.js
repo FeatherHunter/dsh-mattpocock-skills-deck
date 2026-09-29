@@ -85,8 +85,7 @@ export const NAMING_STAGES = {
 // 本期不含存量回填（#261 否决）也不含 LLM 精修；REFINED 目前零消费，planOrderFor 对它恒不出单。
 // 二期接缝：① reducer 增 'refined' 入账；② planOrderFor 出 kind:'refined' 单；③ 界面半按 kind 分派。
 
-// 线索宽限：用户定稿先裸档后升级语义，注册后即出裸档单，不等线索；后到线索可再升级一次
-// （每条线索至多升级一次，用完即记 lastDraftHint，见 planOrderFor 草稿档分支）
+// 线索宽限：先裸档后升级语义，注册后即出裸档单；后到线索可再升级一次（用完即记 lastDraftHint）。
 export const NAMING_HINT_GRACE_MS = 0
 
 export function createTrackingState({ sessionId, baselineTitle, repoKey, cwd, baselineIsOurs }) {
@@ -161,7 +160,8 @@ export function reduceTrackingState(state, event) {
     // 已有编号且不同 → 防串名（AC5）；相同编号 → 允许幂等重放携带标题。
     if (next.locked || ev.number == null) return state
     const evNum = Number(ev.number)
-    if (!isFinite(evNum) || evNum <= 0) return state
+    if (!isFinite(evNum) || evNum < 0) return state   // 0 是合法编号（本地 Markdown 后端的地图就是 00）；编号原文随事件带走
+    next.numberText = (ev.numberText != null ? String(ev.numberText) : String(next.number == null ? evNum : next.number)).slice(0, 20)
     if (next.number != null && Number(next.number) !== evNum) return state
     const freshNumbered = next.number == null   // 全新获号（非幂等重放）：换目标即重新开预算（#267）
     next.stage = NAMING_STAGES.NUMBERED
@@ -260,7 +260,7 @@ export function planOrderFor(state, now, hintGraceMs, currentTitle) {
     if (state.number == null) return null
     const title = state.numberTitle || ''
     let target = null
-    try { target = trackingNewSessionTitle({ number: state.number, title: title }) } catch (e) { return null }
+    try { target = trackingNewSessionTitle({ number: state.number, numberText: state.numberText, title: title }) } catch (e) { return null }
     const cur = (typeof currentTitle === 'string' && currentTitle) ? currentTitle : null
     if (cur === target) return null
     if (!cur && (state.numberedDone || (state.lastMachineTitle != null && state.lastMachineTitle === target))) return null
@@ -268,6 +268,7 @@ export function planOrderFor(state, now, hintGraceMs, currentTitle) {
       sessionId: state.sessionId,
       kind: 'numbered',
       number: state.number,
+      numberText: state.numberText || String(state.number),
       title: title,
       lock: orderLockOf(state),
     }
@@ -338,7 +339,7 @@ function trackingTruncateTitleUtf8(prefix, title, maxBytes) {
 }
 
 function trackingNewSessionTitle(t) {
-  const n = String(t && t.number != null ? t.number : '').trim()
+  const n = ((t && t.numberText != null && String(t.numberText).trim()) ? String(t.numberText).trim() : String(t && t.number != null ? t.number : '')).trim()
   if (!/^\d+$/.test(n)) throw new Error('newSessionTitle: invalid number ' + n)
   const prefix = '[' + '#' + n + ']'
   let title = trackingCleanTitleText(t && t.title != null ? t.title : '')

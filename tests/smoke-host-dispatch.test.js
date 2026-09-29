@@ -127,8 +127,16 @@ if (route && typeof route.fetch === 'function') {
     check(!!regNum && regNum.ok === true, 'namingRegister 接受编号档会话注册')
     await callHandler('namingResult', { sessionId: 'smoke-s3', outcome: 'renamed', title: '[#779] 示例标题' })
     // 对抗式审查补的两条：零号编号档拒收（收了只会留半登记态，改名时把 [#0] 名冲掉）；重复登记换号要换台账（否则目标名还是旧 issue 名）
-    const regZero = await callHandler('namingRegister', { sessionId: 'smoke-s4', baselineTitle: '[#0] 零号', cwd: '' })
-    check(!!regZero && regZero.ok === false, 'namingRegister 拒绝零号编号档（防半登记态）')
+    // 本地 Markdown 后端的地图编号就是 00（数值 0），必须受理且不许把它改写成 [#0]
+    const regLocal = await callHandler('namingRegister', { sessionId: 'smoke-s4', baselineTitle: '[#00] 本地地图', cwd: '' })
+    check(!!regLocal && regLocal.ok === true, 'namingRegister 受理本地地图编号 [#00]（数值 0 合法）')
+    const planLocal = await callHandler('namingPlan', {})
+    const oLocal = (planLocal.orders || []).filter(function (o) { return o.sessionId === 'smoke-s4' })[0]
+    check(!!oLocal && oLocal.kind === 'numbered' && oLocal.numberText === '00', '本地地图订单带走编号原文 00（不被改写成 0）')
+    check(!oLocal || String(oLocal.numberText) === '00', '本地地图目标名保持 [#00] 形状')
+    await callHandler('namingResult', { sessionId: 'smoke-s4', outcome: 'renamed', title: '[#00] 本地地图' })
+    const regNeg = await callHandler('namingRegister', { sessionId: 'smoke-s5', baselineTitle: '[#-1] 负号', cwd: '' })
+    check(!!regNeg && regNeg.ok === false, 'namingRegister 拒绝带负号的伪编号档')
     const regAgain = await callHandler('namingRegister', { sessionId: 'smoke-s3', baselineTitle: '[#780] 换了一张票', cwd: '' })
     check(!!regAgain && regAgain.ok === true, 'namingRegister 同一会话重复登记不报错')
     const planAgain = await callHandler('namingPlan', {})

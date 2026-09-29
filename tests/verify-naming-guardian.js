@@ -58,6 +58,13 @@ eq(m.composeDraftTitle({ hint: '', lang: 'zh', baselineTitle: '[New] 诊断' }),
 check(!m.isPlaceholderTitle('[草稿][诊断]'), '非占位：动作草稿不算占位')
 eq(m.newSessionTitleNew('bug'), '[New] 新建 Bug', '兼容签名 (type) 默认 zh（Node 无 promptLang）')
 eq(m.newSessionTitleNew('requirement', 'en'), '[New] New Requirement', '兼容签名 (type, lang=en)')
+eq(m.newSessionTitleNew('health'), '[New] 体检', '体检入口的占位（按钮入口逐个对齐：从前它拿整句提示语当标题）')
+check(m.isPlaceholderTitle('[New] 体检'), '体检占位在册')
+eq(m.composeDraftTitle({ hint: '', lang: 'zh', baselineTitle: '[New] 体检' }), '[草稿][体检]', '体检落草稿档')
+// 本地 Markdown 后端的地图编号是 00：编号原文要原样带走，别改写成 [0]
+const localMap = m.parseNumberedTitle('[#00] 本地地图')
+check(!!localMap && localMap.number === 0 && localMap.numberText === '00', '本地地图编号解析：数值 0 + 原文 00')
+eq(m.newSessionTitle({ number: 0, numberText: '00', title: '本地地图' }), '[#00] 本地地图', '本地地图目标名保持 [#00] 形状')
 
 // ---------- 2) 草稿合成：双语 / 线索有无 / 清洗 ----------
 console.log('\n— 草稿标题合成（P1）—')

@@ -292,8 +292,8 @@ export function createNamingSummary(deps) {
           let target = null
           if (o.kind === 'numbered') {
             const num = Number(o.number)
-            if (!isFinite(num) || num <= 0) continue
-            try { target = newSessionTitle({ number: num, title: o.title || '' }) } catch (eT) { continue }
+            if (!isFinite(num) || num < 0) continue
+            try { target = newSessionTitle({ number: num, numberText: o.numberText, title: o.title || '' }) } catch (eT) { continue }
           } else if (o.kind === 'draft') {
             const probe = String((lock.baselineTitle || '') + ' ' + (o.hint || ''))
             const lang = /[\u4e00-\u9fff]/.test(probe) ? 'zh' : 'en'

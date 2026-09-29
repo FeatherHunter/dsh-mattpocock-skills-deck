@@ -99,7 +99,11 @@
       //   而且界面那颗按钮在「后端没有科目」时整颗不渲染（见 healthCheckVisible），根本点不到。
       let injected = false
       try { text = promptTextFor(st, 'healthCheck'); injected = !!text } catch (e) { injected = false }
-      try { openTextInNewSession(st, text, tr('list.healthCheckTitle')) } catch (eOpen) {}
+      // 标题给占位（[New] 体检），不再拿悬浮提示那一整句当标题：那句既不是占位也不是编号档，
+      //   命名守护收不了它，会话标题也就一直是一句说明书（对抗清点：按钮入口逐个对齐）。
+      let title = null
+      try { title = newSessionTitleNew('health') } catch (eT) { title = null }
+      try { openTextInNewSession(st, text, title || tr('list.healthCheckTitle')) } catch (eOpen) {}
       try {
         log('info', 'healthCheck.inject', { backend: backend, outcome: (injected ? 'ok' : 'fail') })
       } catch (eL) {}

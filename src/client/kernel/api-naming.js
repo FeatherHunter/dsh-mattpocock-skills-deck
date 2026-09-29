@@ -203,8 +203,8 @@ export let pendingDraftTargetSid = null
         target = composeDraftTitle({ hint: o.hint, lang: langIsEn ? 'en' : 'zh', baselineTitle: (o.lock && o.lock.baselineTitle) || '' })
       } else if (o.kind === 'numbered') {
         const num = Number(o.number)
-        if (!isFinite(num) || num <= 0) return
-        try { target = newSessionTitle({ number: num, title: o.title || '' }) } catch (eT) { return }
+        if (!isFinite(num) || num < 0) return
+        try { target = newSessionTitle({ number: num, numberText: o.numberText, title: o.title || '' }) } catch (eT) { return }
       } else {
         return
       }
@@ -254,8 +254,8 @@ export let pendingDraftTargetSid = null
       let target = null
       if (f.kind === 'numbered' || f.stage === NAMING_STAGES.NUMBERED) {
         const num = Number(f.number)
-        if (!(isFinite(num) && num > 0)) return false
-        try { target = newSessionTitle({ number: num, title: f.numberTitle || '' }) } catch (eT) { return false }
+        if (!(isFinite(num) && num >= 0)) return false
+        try { target = newSessionTitle({ number: num, numberText: f.numberText, title: f.numberTitle || '' }) } catch (eT) { return false }
       } else {
         let langIsEn = false
         try { langIsEn = typeof promptLang === 'function' && promptLang() === 'en' } catch (eLang) {}
