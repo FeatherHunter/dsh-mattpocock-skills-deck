@@ -255,8 +255,9 @@
       const bc = function (nm, fb) { const cc = colorOf[nm]; return cc ? '#' + cc : fb }
       const kind = rowActionKind(x)
       if (kind === 'diagnose') return bc('needs-triage', '#f59e0b')
-      if (kind === 'takeover') return '#c084fc'
-      if (kind === 'supplement') return '#c084fc'
+      // #785：接手跟 ready-for-human 标签色、补充跟 needs-info 标签色，取不到时兜底 #c084fc（与 10 个核心标签色均不同）
+      if (kind === 'takeover') return bc('ready-for-human', '#c084fc')
+      if (kind === 'supplement') return bc('needs-info', '#c084fc')
       if (kind === 'fix') return bc('bug', '#f87171')
       if (kind === 'discuss') return bc('wayfinder:grilling', '#d93f0b')
       if (kind === 'research') return bc('wayfinder:research', '#0ea5e9')
@@ -282,7 +283,7 @@
       try { return startText(st, x) } catch(e) { return renderTemplate('diagnose', { url: url }, st) }
     }
     // v19：共享 —— 行级动作（列表与 map 详情共用）：按一处分类八选一（诊断/接手/补充/修复/讨论/研究/原型/执行），预填输入框；
-    // 按钮主体色 = 对应 label 的 GitHub 配置色（字色按对比度在深白两色里择优，见 isLightHex）；接手/补充沿用紫色执行通道
+    // 按钮主体色 = 对应 label 的 GitHub 配置色（字色按对比度在深白两色里择优，见 isLightHex）；接手跟 ready-for-human、补充跟 needs-info（#785），取不到时兜底 #c084fc
     export const mkRowAction = function (st, x, narrow, colorOf) {
       const url = issueUrlFor(st, x.number)
       const kind = rowActionKind(x)
@@ -312,8 +313,8 @@
       // v21：技能命令 + URL + 统一引导句（不再重复灌输技能内部流程）
       // v25 · T2b：诊断/修复/讨论走模板渲染（用户可自定义静态文本，{url} 注入）
       if (kind === 'diagnose') return mk('chat', tr('act.diagnose'), rowActionText(st, x), btnColor('needs-triage', '#f59e0b'))
-      if (kind === 'takeover') return mk('play', tr('act.takeover'), rowActionText(st, x), '#c084fc')
-      if (kind === 'supplement') return mk('play', tr('act.supplement'), rowActionText(st, x), '#c084fc')
+      if (kind === 'takeover') return mk('play', tr('act.takeover'), rowActionText(st, x), btnColor('ready-for-human', '#c084fc'))
+      if (kind === 'supplement') return mk('play', tr('act.supplement'), rowActionText(st, x), btnColor('needs-info', '#c084fc'))
       if (kind === 'fix') return mk('hammer', tr('act.fix'), rowActionText(st, x), btnColor('bug', '#f87171'))
       if (kind === 'discuss') return mk('chat', tr('act.discuss'), rowActionText(st, x), btnColor('wayfinder:grilling', '#d93f0b'))
       if (kind === 'research') return mk('search', tr('act.research'), rowActionText(st, x), btnColor('wayfinder:research', '#0ea5e9'))
